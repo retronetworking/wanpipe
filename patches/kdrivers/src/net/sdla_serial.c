@@ -517,14 +517,20 @@ static int32_t wp_serial_config(void *pfe)
 	wan_clear_bit(AFT_SERIAL_LCFG_IFACE_TYPE_BIT,&reg);
 
 	/* CTS/DCD Interrupt Enable */
-	wan_set_bit(AFT_SERIAL_LCFG_CTS_INTR_EN_BIT,&reg);
-	wan_set_bit(AFT_SERIAL_LCFG_DCD_INTR_EN_BIT,&reg);
+	if (card->wandev.ignore_front_end_status == WANOPT_YES) {
+		/* If ignore front end is set, do not enable CTS/RTS interrupts */
+		wan_clear_bit(AFT_SERIAL_LCFG_CTS_INTR_EN_BIT,&reg);
+		wan_clear_bit(AFT_SERIAL_LCFG_DCD_INTR_EN_BIT,&reg);
+	} else {
+		wan_set_bit(AFT_SERIAL_LCFG_CTS_INTR_EN_BIT,&reg);
+		wan_set_bit(AFT_SERIAL_LCFG_DCD_INTR_EN_BIT,&reg);
+	}
 
 	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),reg);
 
-	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X\n",
+	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X CTS/DCD ISR=%s\n",
 			card->devname,
-			reg);
+			reg,card->wandev.ignore_front_end_status == WANOPT_YES?"Off":"On");
 
 	/* Raise RTS and DTR */	
 	wan_set_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg);

@@ -134,8 +134,10 @@
 #define HFC_L1_FORCE_DEACTIVATE_TE	0x02
 #define HFC_L1_ACTIVATE_NT		0x03
 #define HFC_L1_DEACTIVATE_NT		0x04
-#define HFC_L1_TESTLOOP_B1		0x05
-#define HFC_L1_TESTLOOP_B2		0x06
+#define HFC_L1_ENABLE_LOOP_B1		0x05
+#define HFC_L1_ENABLE_LOOP_B2		0x06
+#define HFC_L1_DISABLE_LOOP_B1		0x07
+#define HFC_L1_DISABLE_LOOP_B2		0x08
 
 /* xhfc Layer1 Flags (stored in bri_xhfc_port_t->l1_flags) */
 #define HFC_L1_ACTIVATING	1
@@ -189,6 +191,7 @@ typedef struct sdla_bri_cfg_ {
 #else
 
 #warning "WAN_DEBUG_FE - Debugging Defined"
+
 /* NT/TE */
 # define WRITE_BRI_REG(mod_no,reg,val)					\
 	fe->write_fe_reg(	fe->card,				\
@@ -275,6 +278,8 @@ typedef struct {
 	int		num_ports;			/* number of S and U interfaces */
 	int		max_fifo;			/* always 4 fifos per port */
 	u_int8_t	max_z;				/* fifo depth -1 */
+        
+	u32		fifo_irqmsk;
 
 	bri_xhfc_port_t port[BRI_MAX_PORTS_PER_CHIP]; /* 2 ports - one for each Line intercace */
 
@@ -288,6 +293,8 @@ typedef struct {
 	/**********************************/
 
 	void	*fe;	/* pointer back to 'sdla_fe_t' */
+
+	u32	initialization_complete;
 
 } wp_bri_module_t;
 
@@ -330,6 +337,11 @@ typedef struct sdla_bri_param {
 
 } sdla_bri_param_t;
 
+/* macros to find out type of module */
+#define IS_BRI_TE_MOD(bri_param_ptr, line_no) ((bri_param_ptr)->mod[line_no].type == MOD_TYPE_TE)
+#define IS_BRI_NT_MOD(bri_param_ptr, line_no) ((bri_param_ptr)->mod[line_no].type == MOD_TYPE_NT)
+
+/* Translate FE_LINENO to physical module number divisible by BRI_MAX_PORTS_PER_CHIP. */
 
 /*******************************************************************************
 				  DEFINES AND MACROS

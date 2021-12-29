@@ -182,8 +182,8 @@ int EE_WriteByte(void *info, unsigned char val)
 	/* clear current WRITE value */
 	eeCtl = 0;
 	eeCtl &= ~(0xff << PLXE_WRITE_DATA_SHIFT);
-	eeCtl |= PLXE_CS_ENABLE_MASK | PLXE_BYTE_WRITE_START_MASK |
-		 ((val & 0xff) << PLXE_WRITE_DATA_SHIFT);
+	eeCtl |= (PLXE_CS_ENABLE_MASK | PLXE_BYTE_WRITE_START_MASK);
+	eeCtl |= ((val & 0xff) << PLXE_WRITE_DATA_SHIFT);
 	PEX_8111Write(info, EECTL, eeCtl);
 	
 	for (i=0;i<1000;i++){

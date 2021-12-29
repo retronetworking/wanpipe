@@ -221,6 +221,7 @@ typedef struct wan_conf
 # include <wanpipe_cfg.h>
 # ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
 #  include <sdla_tdmv.h>
+#  include <sdla_tdmv_dummy.h>
 # endif
 
 #elif defined(__WINDOWS__)
@@ -247,6 +248,7 @@ typedef struct wan_conf
 
 # ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
 #  include <linux/sdla_tdmv.h>
+#  include <linux/sdla_tdmv_dummy.h>
 # endif
 
 #endif

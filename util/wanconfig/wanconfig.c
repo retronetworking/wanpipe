@@ -599,12 +599,14 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "RM_FXORXGAIN",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxo_rxgain), DTYPE_INT },
   { "RM_PULSEDIALING",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_pulsedialing), DTYPE_UCHAR },
   { "RM_RINGAMPL",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_ringampl), DTYPE_INT },
-  //{ "RM_RELAXCFG",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, relaxcfg), DTYPE_UCHAR },
+  { "RM_RELAXCFG",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, relaxcfg), DTYPE_UCHAR },
   
   /* TDMV parameters */
   { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UINT},
   { "TDMV_DCHAN",    offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, dchan),   DTYPE_UINT},
   { "TDMV_HW_DTMF",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_dtmf), DTYPE_UCHAR},
+
+  { "TDMV_DUMMY_REF",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, sdla_tdmv_dummy_enable), DTYPE_UCHAR},
 
   { "RTP_TAP_IP",   offsetof(wandev_conf_t, rtp_conf)+smemof(wan_rtp_conf_t, rtp_ip), DTYPE_UINT},
   { "RTP_TAP_PORT",  offsetof(wandev_conf_t, rtp_conf)+smemof(wan_rtp_conf_t, rtp_port), DTYPE_USHORT},

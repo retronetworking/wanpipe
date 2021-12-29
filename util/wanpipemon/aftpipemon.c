@@ -1018,6 +1018,17 @@ static int aft_remora_stats(int mod_no)
 }
 
 
+static int aft_remora_hook(int mod_no, int offhook)
+{
+	sdla_fe_debug_t	fe_debug;
+
+	fe_debug.type			= WAN_FE_DEBUG_HOOK;
+	fe_debug.mod_no			= mod_no;
+	fe_debug.fe_debug_hook.offhook	= offhook;
+	aft_remora_debug_mode(&fe_debug);
+	return 0;
+}
+
 //CORBA
 int AFTUsage(void)
 {
@@ -1432,6 +1443,10 @@ int AFTMain(char *command,int argc, char* argv[])
 				aft_remora_debug_mode(&fe_debug);
 			}else if (strcmp(opt,"stats") == 0){	
 				aft_remora_stats(mod_no);
+			}else if (strcmp(opt,"offhook") == 0){	
+				aft_remora_hook(mod_no, 1);
+			}else if (strcmp(opt,"onhook") == 0){	
+				aft_remora_hook(mod_no, 0);
 			}else{
 				printf("ERROR: Invalid Status Command 'a', Type wanpipemon <cr> for help\n\n");
 			}

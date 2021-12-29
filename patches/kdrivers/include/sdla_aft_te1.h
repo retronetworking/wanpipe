@@ -1183,6 +1183,18 @@ aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
 	return num_of_slots;
 }
 
+static __inline int
+aft_is_bri_nt_card(sdla_t *card)
+{
+	return IS_BRI_NT_MOD(&(card)->fe.bri_param, WAN_FE_LINENO(&card->fe));
+}
+
+static __inline int
+aft_is_bri_te_card(sdla_t *card)
+{
+	return IS_BRI_TE_MOD(&(card)->fe.bri_param, WAN_FE_LINENO(&card->fe));
+}
+
 
 #define MAX_AFT_HW_DEV 20
 
@@ -1411,7 +1423,8 @@ enum wanpipe_aft_api_events {
 	WP_API_EVENT_TXSIG_OFFHOOK,
 	WP_API_EVENT_TXSIG_ONHOOK,
 	WP_API_EVENT_ONHOOKTRANSFER,
-	WP_API_EVENT_SETPOLARITY
+	WP_API_EVENT_SETPOLARITY,
+	WP_API_EVENT_BRI_CHAN_LOOPBACK
 
 };
 
@@ -1541,7 +1554,7 @@ enum {
 #define AFT_TDMV_SHARK_FRM_CLK_SYNC_VER 0x17
 #define AFT_TDMV_SHARK_A108_FRM_CLK_SYNC_VER 0x25
 #define AFT_56K_MIN_FRMW_VER	0x00
-#define AFT_SERIAL_MIN_FRMW_VER 0x04
+#define AFT_SERIAL_MIN_FRMW_VER	0x04
 
 #define AFT_MIN_ANALOG_FRMW_VER 0x05
 

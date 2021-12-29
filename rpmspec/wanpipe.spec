@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.3.2
+%define version           3.3.3
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -254,6 +254,39 @@ install_init;
 
 
 %changelog
+
+* Tue Mar 25 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.3
+====================================================================== 
+
+-  BRI TE auto clocking feature. 
+    Where a connected TE port is elected
+    as the telco clock recovery port for the whole card.  If that TE
+    port goes down, another connected TE port is found to provide
+    telco recovery clock to the card.  If no connected TE ports are found
+    then internal oscillator is used. 
+    -> This option is fully automatic no configuration options needed.
+
+-  BRI Zaptel Clock Source
+    Since BRI does not interface to zaptel, it acts as ZT DUMMY to
+    provide zaptel reliable timing.  One has to configure
+    TDMV_DUMMY=YES in [wanpipe1] section of wanpipe1.conf
+
+=  A200/A400 Remora Relax CFG
+    If one module fails during operation the wanpipe driver by default
+    fails to load.  With this option wanpipe driver
+    will allow the card to come up with a broken module so that
+    customer will be able to continue working until the module is replaced.
+    RM_RELAX_CFG=YES in [wanpipe1] section of wanpipe1.conf
+
+
+
+* Fri Feb 14 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2.1
+====================================================================== 
+
+- Added DTR API for Serial S514X Card
+  Ability to read and set the DTR/RTS on serial cards throught the API.
+  Sample code in wanpipe-3.3.2.1/api/chdlc/chdlc_modem_cmd.c
+
 
 * Wed Feb 12 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2
 ====================================================================== 

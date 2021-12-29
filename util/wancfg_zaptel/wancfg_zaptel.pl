@@ -317,7 +317,7 @@ sub config_boot{
 		if (system($command) == 0){
 			$rc_dir=$rc_dir;
 		} else {
-			$command="find ".$etc_dir."rc.d/rc0.d >/dev/null 2>/dev/null";
+			$command="find ".$etc_dir."/rc.d/rc0.d >/dev/null 2>/dev/null";
 			if (system($command) == 0){
 				$rc_dir=$etc_dir."/rc.d";
 			} else {
@@ -1495,15 +1495,7 @@ select_bri_option:
 		}elsif (($dev =~ /(\d+):NT/ | 
 	 		$dev =~ /(\d+):TE/ )& 
 	 		$skip_card==$FALSE ){
-			if($bri_device_has_master_clock==$FALSE & $dev =~ /(\d+):TE/){
-				print "\nWould you like to use this port as a sync source?\n";
-				if (&prompt_user_list(("YES","NO","YES")) eq 'YES'){
-					$bri_device_has_master_clock=$TRUE;
-					$a50x->bri_clock_master("LINE");
-				}
-			}
-	 		
-	 		my $context="";
+			my $context="";
 	 		my $group="";
 			my $bri_pos=$a50x->card->tdmv_span_no;
 			

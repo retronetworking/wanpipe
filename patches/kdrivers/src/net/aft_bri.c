@@ -578,6 +578,7 @@ int aft_bri_global_chip_config(sdla_t *card)
 		DEBUG_CFG("%s: HDLC Core Ready\n",
                                         card->devname);
     	}
+
 	err = -EINVAL;
 	if (card->wandev.fe_iface.global_config){
 		err=card->wandev.fe_iface.global_config(&card->fe);
@@ -714,6 +715,7 @@ int aft_bri_chip_config(sdla_t *card, wandev_conf_t *conf)
 	reg=0;
 
 	if (used_cnt > 1) {
+
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
 
 		aft_fe_intr_ctrl(card, 0);
@@ -759,8 +761,6 @@ int aft_bri_chip_config(sdla_t *card, wandev_conf_t *conf)
 	}
 		
 	if (err == 0) {
-		aft_bri_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_ON);
-		aft_bri_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_OFF);
 		aft_fe_intr_ctrl(card, 1);
 	}
 

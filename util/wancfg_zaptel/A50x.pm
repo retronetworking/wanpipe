@@ -13,7 +13,6 @@ sub new	{
 		_card      => undef,		
  		_fe_line   => undef,
 		_fe_media  => 'BRI',
-		_bri_clock_master => 'OSC',
 		_bri_switchtype => 'etsi',
 		_bri_country => 'europe',
 	};			
@@ -39,11 +38,6 @@ sub fe_media {
 		    return $self->{_fe_media};
 }
 
-sub bri_clock_master {
-	    my ( $self, $bri_clock_master ) = @_;
-	        $self->{_bri_clock_master} = $bri_clock_master if defined($bri_clock_master);
-		    return $self->{_bri_clock_master};
-}	
 
 sub bri_switchtype {
 	   my ( $self, $bri_switchtype ) = @_;
@@ -110,7 +104,6 @@ sub gen_wanpipe_conf{
 	my $fe_media = $self->fe_media;
 	my $fe_line = $self->fe_line;
 	my $hwec_mode = $self->card->hwec_mode;
-	my $bri_clock_master = $self->bri_clock_master;
 
 
 	open(FH, $wanpipe_conf_template) or die "Can't open $wanpipe_conf_template";
@@ -128,7 +121,6 @@ sub gen_wanpipe_conf{
         $wp_file =~ s/FELINE/$fe_line/g;
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
         $wp_file =~ s/HWECMODE/$hwec_mode/g;
-	$wp_file =~ s/RMBRICLOCKMASTER/$bri_clock_master/g;
 	
 	print FH $wp_file;
 	close (FH);

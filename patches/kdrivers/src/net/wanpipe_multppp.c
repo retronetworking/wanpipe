@@ -32,20 +32,35 @@
 * 			        top of RAW Wanpipe CHDLC module.
 *****************************************************************************/
 
-#include <linux/wanpipe_includes.h>
-#include <linux/wanpipe_defines.h>
-#include <linux/wanpipe_debug.h>
-#include <linux/wanpipe_abstr.h>
-#include <linux/wanpipe_common.h>
-#include <linux/wanrouter.h>	/* WAN router definitions */
-#include <linux/wanpipe.h>	/* WANPIPE common user API definitions */
-#include <linux/sdlapci.h>
-#include <linux/wanproc.h>	
-#include <linux/sdla_chdlc.h>		/* CHDLC firmware API definitions */
-#include <linux/sdla_asy.h>           	/* CHDLC (async) API definitions */
-#include <linux/if_wanpipe_common.h>    /* Socket Driver common area */
-#include <linux/if_wanpipe.h>		
-#include <linux/wanpipe_syncppp.h>
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+# include <wanpipe_includes.h>
+# include <wanpipe.h>
+# include <wanpipe_abstr.h> 
+# include <wanpipe_snmp.h> 
+# include <if_wanpipe_common.h>    /* Socket Driver common area */
+# include <wanpipe_iface.h>
+# include <sdlapci.h>
+//# include <wanproc.h>	
+# include <sdla_chdlc.h>		/* CHDLC firmware API definitions */
+# include <sdla_asy.h>           	/* CHDLC (async) API definitions */
+//# include <wanpipe_syncppp.h>
+#else
+# include <linux/wanpipe_includes.h>
+# include <linux/wanpipe_defines.h>
+# include <linux/wanpipe_debug.h>
+# include <linux/wanpipe_abstr.h>
+# include <linux/wanpipe_common.h>
+# include <linux/wanrouter.h>	/* WAN router definitions */
+# include <linux/wanpipe.h>	/* WANPIPE common user API definitions */
+# include <linux/sdlapci.h>
+# include <linux/wanproc.h>	
+# include <linux/sdla_chdlc.h>		/* CHDLC firmware API definitions */
+# include <linux/sdla_asy.h>           	/* CHDLC (async) API definitions */
+# include <linux/if_wanpipe_common.h>    /* Socket Driver common area */
+# include <linux/if_wanpipe.h>		
+# include <linux/wanpipe_syncppp.h>
+# include <linux/wanpipe_iface.h>
+#endif
 
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 # include "wanpipe_lapb_kernel.h"
@@ -58,6 +73,14 @@
 #else
 #define	STATIC		static
 #endif
+
+#if defined(__LINUX__)
+# define ENABLE_MULTPROT_MODE_WANPIPE
+#else
+# undef ENABLE_MULTPROT_MODE_WANPIPE
+#endif
+
+#define CHDLC_OLD_INTR_TEST
 
 /* reasons for enabling the timer interrupt on the adapter */
 #define TMR_INT_ENABLED_UDP   	0x01
@@ -98,7 +121,7 @@ typedef struct private_area
 	unsigned long 	router_start_time;
 	unsigned char 	route_status;
 	unsigned char 	route_removed;
-	unsigned long 	tick_counter;		/* For 5s timeout counter */
+	wan_ticks_t	tick_counter;		/* For 5s timeout counter */
 	unsigned long 	router_up_time;
 	unsigned char   mc;			/* Mulitcast support on/off */
 	char update_comms_stats;		/* updating comms stats */
@@ -134,11 +157,10 @@ typedef struct private_area
 /* variable for keeping track of enabling/disabling FT1 monitor status */
 static int rCount = 0;
 
+extern wan_iface_t wan_iface;
+
 /* variable for tracking how many interfaces to open for WANPIPE on the
    two ports */
-
-extern void disable_irq(unsigned int);
-extern void enable_irq(unsigned int);
 
 /****** Function Prototypes *************************************************/
 /* WAN link driver entry points. These are called by the WAN router module. */
@@ -148,12 +170,17 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev,
 static int del_if (wan_device_t* wandev, netdevice_t* dev);
 
 /* Network device interface */
+#if defined(__LINUX__)
 static int if_init   (netdevice_t* dev);
+static struct net_device_stats* if_stats (netdevice_t* dev);
+#endif
 static int if_open   (netdevice_t* dev);
 static int if_close  (netdevice_t* dev);
-static int if_send (struct sk_buff* skb, netdevice_t* dev);
-static struct net_device_stats* if_stats (netdevice_t* dev);
-
+#if defined(__LINUX__)
+static int if_send (netskb_t* skb, netdevice_t* dev);
+#else
+static int if_send(netdevice_t *dev, netskb_t *skb, struct sockaddr *dst,struct rtentry *rt);
+#endif
 static void if_tx_timeout (netdevice_t *dev);
 
 /* CHDLC Firmware interface functions */
@@ -164,10 +191,13 @@ static int chdlc_read_version 	(sdla_t* card, char* str);
 static int chdlc_set_intr_mode 	(sdla_t* card, unsigned mode);
 static int set_adapter_config 	(sdla_t* card);
 static int chdlc_send (sdla_t* card, void* data, unsigned len);
+static int chdlc_read_configure(sdla_t *card, CHDLC_CONFIGURATION_STRUCT* cfg);
 static int chdlc_read_comm_err_stats (sdla_t* card);
 static int chdlc_read_op_stats (sdla_t* card);
 static int config_chdlc (sdla_t *card);
-
+#if defined(__LINUX__)
+static int wp_exec_usr_mbox_cmd(sdla_t *card, wan_mbox_t *usrmbox);
+#endif
 
 /* Miscellaneous CHDLC Functions */
 static int set_chdlc_config (sdla_t* card);
@@ -187,25 +217,34 @@ static void rx_intr (sdla_t* card);
 static void timer_intr(sdla_t *);
 
 /* Miscellaneous functions */
-static int intr_test( sdla_t* card);
-static int udp_pkt_type( struct sk_buff *skb , sdla_t* card);
+#if defined(__LINUX__) || defined(CHDLC_OLD_INTR_TEST)
+static int chdlc_intr_test( sdla_t* card);
+#endif
+static int udp_pkt_type( netskb_t *skb , sdla_t* card);
 static int store_udp_mgmt_pkt(char udp_pkt_src, sdla_t* card,
-                                struct sk_buff *skb, netdevice_t* dev,
+                                netskb_t *skb, netdevice_t* dev,
                                 private_area_t* chan);
 static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,  
 				private_area_t* chan,int local_dev);
-static void s508_lock (sdla_t *card, unsigned long *smp_flags);
-static void s508_unlock (sdla_t *card, unsigned long *smp_flags);
+static void s508_lock (sdla_t *card, wan_smp_flag_t *smp_flags);
+static void s508_unlock (sdla_t *card, wan_smp_flag_t *smp_flags);
 static void send_ppp_term_request (netdevice_t*);
 
 
+#ifdef WANPIPE_ENABLE_PROC_FILE_HOOKS
 static int chdlc_get_config_info(void* priv, struct seq_file* m, int*);
 static int chdlc_get_status_info(void* priv, struct seq_file* m, int*);
 static int chdlc_set_dev_config(struct file*, const char*, unsigned long, void *);
 static int chdlc_set_if_info(struct file*, const char*, unsigned long, void *);
-static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd);
+#endif
+
+static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t);
 static void chdlc_enable_timer (void* card_id);
-static void wp_bh (unsigned long data);
+#if defined(__LINUX__)
+static void 	wp_bh (unsigned long);
+#else
+static void 	wp_bh (void*,int);
+#endif
 
 
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
@@ -239,20 +278,21 @@ static void handle_front_end_state(void* card_id);
  */
 int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 {
-	unsigned char port_num;
-	int err;
-	u_int32_t max_permitted_baud = 0;
+	CHDLC_CONFIGURATION_STRUCT	cfg;
+	unsigned char			port_num;
+	int				err;
+	u_int32_t			max_permitted_baud = 0;
 	union
 		{
 		char str[80];
 		} u;
 	volatile wan_mbox_t* mb;
-	wan_mbox_t* mb1;
-	unsigned long timeout;
+	wan_mbox_t	*mb1;
+	wan_ticks_t	timeout;
 
 	/* Verify configuration ID */
 	if (conf->config_id != WANCONFIG_MPPP) {
-		printk(KERN_INFO "%s: invalid configuration ID %u!\n",
+		DEBUG_EVENT("%s: invalid configuration ID %u!\n",
 				  card->devname, conf->config_id);
 		return -EINVAL;
 	}
@@ -264,7 +304,7 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 			if (conf->comm_port != card->next->u.c.comm_port){
 				card->u.c.comm_port = conf->comm_port;
 			}else{
-				printk(KERN_INFO "%s: ERROR - %s port used!\n",
+				DEBUG_EVENT("%s: ERROR - %s port used!\n",
         		        	card->wandev.name, PORT(conf->comm_port));
 				return -EINVAL;
 			}
@@ -272,7 +312,7 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 			card->u.c.comm_port = conf->comm_port;
 		}
 	}else{
-		printk(KERN_INFO "%s: ERROR - Invalid Port Selected!\n",
+		DEBUG_EVENT("%s: ERROR - Invalid Port Selected!\n",
                 			card->wandev.name);
 		return -EINVAL;
 	}
@@ -293,11 +333,11 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 	
 	if (!card->configured){
 		unsigned char return_code;
-		/* The board will place an 'I' in the return code to indicate that it is
-	   	ready to accept commands.  We expect this to be completed in less
-           	than 1 second. */
+		/* The board will place an 'I' in the return code to indicate 
+	   	** that it is ready to accept commands.  We expect this to be
+		** completed in less than 1 second. */
 
-		timeout = jiffies;
+		timeout = SYSTEM_TICKS;
 		/* Wait 1s for board to initialize */
 		do {
 			return_code = 0x00;
@@ -305,15 +345,16 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 				card->mbox_off+offsetof(wan_mbox_t, wan_return_code),
 				&return_code, 
 				sizeof(unsigned char));
-			if ((jiffies - timeout) > 1*HZ) break;
+			if ((SYSTEM_TICKS - timeout) > 1*HZ) break;
 		}while(return_code != 'I');
 		if (return_code != 'I') {
-			printk(KERN_INFO
-				"%s: Initialization not completed by adapter\n",
+			DEBUG_EVENT("%s: Initialization not completed by adapter\n",
 				card->devname);
-			printk(KERN_INFO "Please contact Sangoma representative.\n");
+			DEBUG_EVENT("Please contact Sangoma representative.\n");
 			return -EIO;
 		}
+		DEBUG_EVENT("%s: Adapter initalization completed!\n",
+				card->devname);
 	}
 
 	err = (card->hw_iface.check_mismatch) ? 
@@ -356,11 +397,11 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 
 	card->wandev.ignore_front_end_status = conf->ignore_front_end_status;
 	if (card->wandev.ignore_front_end_status == WANOPT_NO){
-		printk(KERN_INFO 
+		DEBUG_EVENT(
 		  "%s: Enabling front end link monitor\n",
 				card->devname);
 	}else{
-		printk(KERN_INFO 
+		DEBUG_EVENT(
 		"%s: Disabling front end link monitor\n",
 				card->devname);
 	}
@@ -375,14 +416,13 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 	if (chdlc_read_version(card, u.str))
 		return -EIO;
 
-	printk(KERN_INFO "%s: Running Raw HDLC firmware v%s\n" 
+	DEBUG_EVENT("%s: Running Raw HDLC firmware v%s\n" 
 			 "%s: for Multi-Port protocol.\n",
 			card->devname,u.str,card->devname); 
 
 	if (set_adapter_config(card)) {
 		return -EIO;
 	}
-
 	card->isr			= &wsppp_isr;
 	card->poll			= NULL;
 	card->exec			= NULL;
@@ -401,12 +441,13 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 
 	card->wandev.new_if_cnt = 0;
 
+#ifdef WANPIPE_ENABLE_PROC_FILE_HOOKS
 	// Proc fs functions
 	card->wandev.get_config_info 	= &chdlc_get_config_info;
 	card->wandev.get_status_info 	= &chdlc_get_status_info;
 	card->wandev.set_dev_config    	= &chdlc_set_dev_config;
 	card->wandev.set_if_info     	= &chdlc_set_if_info;
-
+#endif
 	/* reset the number of times the 'update()' proc has been called */
 	card->u.c.update_call_count = 0;
 	
@@ -415,7 +456,7 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 
 	if ((card->u.c.comm_port == WANOPT_SEC && conf->electrical_interface == WANOPT_V35)&&
 	    card->type != SDLA_S514){
-		printk(KERN_INFO "%s: ERROR - V35 Interface not supported on S508 %s port \n",
+		DEBUG_EVENT("%s: ERROR - V35 Interface not supported on S508 %s port \n",
 			card->devname, PORT(card->u.c.comm_port));
 		return -EIO;
 	}
@@ -441,17 +482,26 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
                                (card->type == SDLA_S514) ?
                                 SEC_MAX_BAUD_RATE_S514 :
                                 SEC_MAX_BAUD_RATE_S508;
-                        }
-  
-			if(conf->bps > max_permitted_baud) {
-				conf->bps = max_permitted_baud;
-				printk(KERN_INFO "%s: Baud too high!\n",
-					card->wandev.name);
- 				printk(KERN_INFO "%s: Baud rate set to %u bps\n", 
-					card->wandev.name, max_permitted_baud);
-			}
-                             
-			card->wandev.bps = conf->bps;
+		}
+
+		if(conf->bps > max_permitted_baud) {
+			conf->bps = max_permitted_baud;
+			DEBUG_EVENT(
+			"%s: WARNING: Baud too high!\n",
+				card->wandev.name);
+			DEBUG_EVENT(
+			"%s:          Baud rate set to %u bps\n", 
+				card->wandev.name, max_permitted_baud);
+		}else if (conf->bps == 0){
+			conf->bps = max_permitted_baud;
+			DEBUG_EVENT(
+			"%s: WARNING: Baud Rate is 0 bps (Internal clocking)!\n",
+					card->devname);
+			DEBUG_EVENT(
+			"%s:          Baud rate set to %u bps\n", 
+				card->wandev.name, max_permitted_baud);
+		}
+		card->wandev.bps = conf->bps;
 	}else{
         	card->wandev.bps = 0;
   	}
@@ -487,61 +537,40 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 	 *	Ptr to shared memory infor struct
          * Use this pointer to calculate the value of card->u.c.flags !
  	 */
-	mb1->wan_data_len = 0;
-	mb1->wan_command = READ_CHDLC_CONFIGURATION;
-	err = card->hw_iface.cmd(card->hw, card->mbox_off, mb1);
-	if(err != COMMAND_OK) {
+	err = chdlc_read_configure(card, &cfg);
+	if (err != WAN_CMD_OK){
 		wan_clear_bit(1, (void*)&card->wandev.critical);
-
-                if(card->type != SDLA_S514)
-                	enable_irq(card->wandev.irq/* ALEX_TODAY ard->hw.irq*/);
-
 		chdlc_error(card, err, mb1);
 		return -EIO;
 	}
 
 	/* Alex Apr 8 2004 Sangoma ISA card */
-	card->flags_off =
-		((CHDLC_CONFIGURATION_STRUCT *)mb1->wan_data)->
-		ptr_shared_mem_info_struct;
-	
-    	card->intr_type_off = 
-		card->flags_off +
+       	card->flags_off = cfg.ptr_shared_mem_info_struct;
+    	card->intr_type_off = card->flags_off +
 		offsetof(SHARED_MEMORY_INFO_STRUCT, interrupt_info_struct) +
 		offsetof(INTERRUPT_INFORMATION_STRUCT, interrupt_type);
-	card->intr_perm_off = 
-		card->flags_off +
+	card->intr_perm_off = card->flags_off + 
 		offsetof(SHARED_MEMORY_INFO_STRUCT, interrupt_info_struct) +
 		offsetof(INTERRUPT_INFORMATION_STRUCT, interrupt_permission);
-	card->fe_status_off = 
-		card->flags_off + 
-		offsetof(SHARED_MEMORY_INFO_STRUCT, FT1_info_struct) + 
+	card->fe_status_off = card->flags_off + 
+		offsetof(SHARED_MEMORY_INFO_STRUCT, FT1_info_struct) +
 		offsetof(FT1_INFORMATION_STRUCT, parallel_port_A_input);
-
+	
 	/* This is for the ports link state */
 	card->wandev.state = WAN_DUALPORT;
 	card->u.c.state = WAN_DISCONNECTED;
 
-
+#if defined(__LINUX__) || defined(CHDLC_OLD_INTR_TEST)
 	if (!card->wandev.piggyback){
-		err = intr_test(card);
-
-		if(err || (card->timer_int_enabled < MAX_INTR_TEST_COUNTER)) { 
-			printk(KERN_INFO "%s: Interrupt test failed (%i)\n",
-					card->devname, card->timer_int_enabled);
-			printk(KERN_INFO "%s: Please choose another interrupt\n",
-					card->devname);
-			return  -EIO;
+		if (chdlc_intr_test(card)){
+			return -EIO;
 		}
-			
-		printk(KERN_INFO "%s: Interrupt test passed (%i)\n", 
-				card->devname, card->timer_int_enabled);
 		card->configured = 1;
 	}
-
+#endif
 
 	if (chdlc_set_intr_mode(card, APP_INT_ON_TIMER)){
-		printk (KERN_INFO "%s: Failed to set interrupt triggers!\n",
+		DEBUG_EVENT( "%s: Failed to set interrupt triggers!\n",
 				card->devname);
 		return -EIO;	
         }
@@ -549,8 +578,7 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 	/* Mask the Timer interrupt */
 	card->hw_iface.clear_bit(card->hw, card->intr_perm_off, APP_INT_ON_TIMER);
 
-	printk(KERN_INFO "\n");
-
+	DEBUG_EVENT("\n");
 	return 0;
 }
 
@@ -574,7 +602,7 @@ static int update (wan_device_t* wandev)
 	sdla_t* card = wandev->priv;
  	netdevice_t* dev;
         private_area_t* chan;
-        unsigned long smp_flags;
+        wan_smp_flag_t smp_flags;
 
 	/* sanity checks */
 	if((wandev == NULL) || (wandev->priv == NULL))
@@ -588,17 +616,17 @@ static int update (wan_device_t* wandev)
 	if(dev == NULL)
 		return -ENODEV;
 
-	if((chan=dev->priv) == NULL)
+	if((chan=wan_netif_priv(dev)) == NULL)
 		return -ENODEV;
 
        	if(chan->update_comms_stats){
 		return -EAGAIN;
 	}
 
-	spin_lock_irqsave(&card->wandev.lock, smp_flags);
+	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 	update_comms_stats(card, chan);	
 	chan->update_comms_stats=0;
-	spin_unlock_irqrestore(&card->wandev.lock, smp_flags);
+	wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 
 	return 0;
 }
@@ -618,15 +646,16 @@ static int update (wan_device_t* wandev)
  */
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
-
+#if defined(ENABLE_MULTPROT_MODE_WANPIPE)
 	struct ppp_device *pppdev=NULL;
 	struct sppp *sp=NULL;
+#endif
 	sdla_t* card = wandev->priv;
 	private_area_t* chan;
 	int err = 0;
 	
 	if ((conf->name[0] == '\0') || (strlen(conf->name) > WAN_IFNAME_SZ)) {
-		printk(KERN_INFO "%s: invalid interface name!\n",
+		DEBUG_EVENT("%s: invalid interface name!\n",
 			card->devname);
 		return -EINVAL;
 	}
@@ -639,7 +668,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	}
 
 	/* allocate and initialize private data */
-	chan = kmalloc(sizeof(private_area_t), GFP_KERNEL);
+	chan = wan_malloc(sizeof(private_area_t));
 	
 	if(chan == NULL){ 
 		--card->wandev.new_if_cnt;
@@ -673,19 +702,18 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 	card->u.c.async_mode = conf->async_mode;
 
-	printk(KERN_INFO "%s: Firmware running in HDLC STREAMING Mode\n",
+	DEBUG_EVENT("%s: Firmware running in HDLC STREAMING Mode\n",
 		wandev->name);
 	
 	chan->common.prot_ptr=NULL;
 
 	/* setup for asynchronous mode */
 	if(conf->async_mode) {
-		printk(KERN_INFO "%s: Configuring for asynchronous mode\n",
+		DEBUG_EVENT("%s: Configuring for asynchronous mode\n",
 			wandev->name);
 
 		if(card->u.c.comm_port == WANOPT_PRI) {
-			printk(KERN_INFO
-				"%s:Asynchronous mode on secondary port only\n",
+			DEBUG_EVENT("%s:Asynchronous mode on secondary port only\n",
 					wandev->name);
 
 			err=-EINVAL;
@@ -693,7 +721,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		}
 
 		if (strcmp(conf->usedby, "API") == 0){
-			printk(KERN_INFO "%s: Running in API Async Mode\n",
+			DEBUG_EVENT("%s: Running in API Async Mode\n",
 						wandev->name);
 
 			chan->common.usedby = API;
@@ -706,7 +734,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		}
 
 		if(!card->wandev.clocking) {
-			printk(KERN_INFO
+			DEBUG_EVENT(
 				"%s: Asynch. clocking must be 'Internal'\n",
 				wandev->name);
 
@@ -716,9 +744,9 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 		if((card->wandev.bps < MIN_ASY_BAUD_RATE) ||
 			(card->wandev.bps > MAX_ASY_BAUD_RATE)) {
-			printk(KERN_INFO "%s: Selected baud rate is invalid.\n",
+			DEBUG_EVENT("%s: Selected baud rate is invalid.\n",
 				wandev->name);
-			printk(KERN_INFO "Must be between %u and %u bps.\n",
+			DEBUG_EVENT("Must be between %u and %u bps.\n",
 				MIN_ASY_BAUD_RATE, MAX_ASY_BAUD_RATE);
 
 			err=-EINVAL;
@@ -758,15 +786,16 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 	}else{
 
+#if defined(ENABLE_MULTPROT_MODE_WANPIPE)
 		/* Setup wanpipe as a router (WANPIPE) or as an API */
 		if( strcmp(conf->usedby, "WANPIPE") == 0) {
 
-			printk(KERN_INFO "%s:%s: Interface running in WANPIPE mode!\n",
+			DEBUG_EVENT("%s:%s: Interface running in WANPIPE mode!\n",
 				wandev->name,chan->if_name);
 
 			chan->common.usedby=WANPIPE;
 
-			pppdev=kmalloc(sizeof(struct ppp_device),GFP_KERNEL);
+			pppdev=wan_malloc(sizeof(struct ppp_device));
 			if (!pppdev){
 				err = -ENOMEM;
 				goto new_if_error;
@@ -811,30 +840,31 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 			
 			/* Enable PPP Debugging */
 			if (conf->protocol == WANCONFIG_CHDLC){
-				printk(KERN_INFO "%s: Starting Kernel CISCO HDLC protocol\n",
+				DEBUG_EVENT("%s: Starting Kernel CISCO HDLC protocol\n",
 						card->devname);
 				sp->pp_flags |= PP_CISCO;
 				conf->ignore_dcd = WANOPT_YES;
 				conf->ignore_cts = WANOPT_YES;
 			}else{
-				printk(KERN_INFO "%s: Starting Kernel Sync PPP protocol\n",
+				DEBUG_EVENT("%s: Starting Kernel Sync PPP protocol\n",
 						card->devname);
 				sp->pp_flags &= ~PP_CISCO;
 				dev->type	= ARPHRD_PPP;
 			}
-
-	#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG	
-		}else if (strcmp(conf->usedby, "ANNEXG") == 0) {
-			printk(KERN_INFO "%s:%s: Interface running in ANNEXG mode!\n",
+		}else 
+#endif
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG	
+		if (strcmp(conf->usedby, "ANNEXG") == 0) {
+			DEBUG_EVENT("%s:%s: Interface running in ANNEXG mode!\n",
 				wandev->name,chan->if_name);
 			chan->common.usedby=ANNEXG;	
 			
 			if (strlen(conf->label)){
 				strncpy(chan->label,conf->label,WAN_IF_LABEL_SZ);
 			}
-	#endif
-
-		}else if (strcmp(conf->usedby, "STACK") == 0) {
+		}else 
+#endif
+		if (strcmp(conf->usedby, "STACK") == 0) {
 			chan->common.usedby = STACK;
 			DEBUG_EVENT( "%s:%s: Running in Stack mode.\n",
 					card->devname,chan->if_name);
@@ -846,7 +876,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 					card->devname,chan->if_name);
 
 		}else{
-			printk(KERN_INFO 
+			DEBUG_EVENT(
 				"%s:%s: Error: Unsupported operation mode!\n",
 				wandev->name,chan->if_name);
 			err=-EINVAL;
@@ -865,18 +895,38 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	/* prepare network device data space for registration */
 
 	if (conf->ignore_dcd == WANOPT_YES || conf->ignore_cts == WANOPT_YES){
-		printk(KERN_INFO "%s: Ignore modem changes DCD/CTS\n",card->devname);
+		DEBUG_EVENT("%s: Ignore modem changes DCD/CTS\n",card->devname);
 		chan->ignore_modem=1;
 	}else{
-		printk(KERN_INFO "%s: Restart protocol on modem changes DCD/CTS\n",
+		DEBUG_EVENT("%s: Restart protocol on modem changes DCD/CTS\n",
 				card->devname);
 	}
 	
-
-	dev->init = &if_init;
-	dev->priv = chan;
+	wan_netif_set_priv(dev, chan);
 	chan->dev=dev;
+#if defined(__LINUX__)
+	dev->init = &if_init;
+#else
+	chan->common.iface.open      = &if_open;
+        chan->common.iface.close     = &if_close;
+        chan->common.iface.output    = &if_send;
+        chan->common.iface.ioctl     = &if_do_ioctl;
+        chan->common.iface.tx_timeout= &if_tx_timeout;
+	if (wan_iface.attach){
+		if (!ifunit(wan_netif_name(dev))){
+			wan_iface.attach(dev, NULL, chan->common.is_netdev);
+		}
+	}else{
+		DEBUG_EVENT("%s: Failed to attach interface %s!\n",
+				card->devname, wan_netif_name(dev));
+		wan_netif_set_priv(dev, NULL);
+		err = -EINVAL;
+		goto new_if_error;
+	}
+	wan_netif_set_mtu(dev, card->wandev.mtu);
+#endif
 	
+#if defined(__LINUX__)
 	/*
 	 * Create interface file in proc fs.
 	 */
@@ -885,13 +935,13 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 					   card->u.c.if_name, 
 					   dev);
 	if (err){	
-		printk(KERN_INFO
+		DEBUG_EVENT(
 			"%s: can't create /proc/net/router/mprot/%s entry!\n",
 			card->devname, card->u.c.if_name);
 		err = -ENOMEM;
 		goto new_if_error;
 	}
-
+#endif
 	return 0;
 
 
@@ -904,15 +954,16 @@ new_if_error:
 
 	if (chan){
 		chan->common.prot_ptr=NULL;
-		kfree(chan);
+		wan_free(chan);
 	}
 
+#if defined(__LINUX__)
 	if (pppdev){
 		wp_sppp_detach(dev);
-		kfree(pppdev);
+		wan_free(pppdev);
 	}
-
-	dev->priv=NULL;
+#endif
+	wan_netif_set_priv(dev, NULL);
 	
 	return err;
 }
@@ -925,16 +976,18 @@ new_if_error:
  */
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
-	private_area_t *chan = dev->priv;
-	sdla_t *card = chan->card;
-	unsigned long smp_flags=0;
+	private_area_t	*chan = wan_netif_priv(dev);
+	sdla_t		*card = chan->card;
+	wan_smp_flag_t	smp_flags=0;
+
+	chdlc_set_intr_mode(card, 0);
 
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG	
 	if (chan->common.usedby == ANNEXG && chan->annexg_dev){
 		netdevice_t *tmp_dev;
 		int err;
 
-		printk(KERN_INFO "%s: Unregistering Lapb Protocol\n",wandev->name);
+		DEBUG_EVENT("%s: Unregistering Lapb Protocol\n",wandev->name);
 
 		if (!IS_FUNC_CALL(lapb_protocol,lapb_unregister)){
 			wan_spin_lock_irq(&wandev->lock, &smp_flags);
@@ -957,18 +1010,22 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 	}
 #endif
 
+#if defined(__LINUX__)
 	/* Delete interface name from proc fs. */
 	wanrouter_proc_delete_interface(wandev, card->u.c.if_name);
-
+#endif
 	wan_spin_lock_irq(&wandev->lock,&smp_flags);
 
 	if (chan->common.prot_ptr){
 		/* Detach the PPP layer */
-		printk(KERN_INFO "%s: Detaching SyncPPP Module from %s\n",
-			wandev->name,dev->name);
+		DEBUG_EVENT("%s: Detaching SyncPPP Module from %s\n",
+				wandev->name,wan_netif_name(dev));
+#if defined(__LINUX__)
 		wp_sppp_detach(dev);
+#endif
 	}
 	
+#if defined(__LINUX__)
 	/* Bug Fix: Kernel 2.2.X
 	 * We must manually remove the ioctl call binding
 	 * since in some cases (mrouted) daemons continue
@@ -976,9 +1033,10 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 	dev->do_ioctl = NULL;
 	dev->hard_header = NULL;
 	dev->rebuild_header = NULL;
+#endif
 
 	if (chan->common.prot_ptr){
-		kfree(chan->common.prot_ptr);
+		wan_free(chan->common.prot_ptr);
 		chan->common.prot_ptr= NULL;
 	}
 	
@@ -992,12 +1050,21 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 	
 	port_set_state(card, WAN_DISCONNECTED);
 
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	if (wan_iface.detach){
+		wan_iface.detach(dev, chan->common.is_netdev);
+	}
+#endif
+
 	if (chan->common.usedby == API){
 		wan_unreg_api(chan, card->devname);
 	}
 
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
+		if (card->wandev.fe_iface.pre_release){
+			card->wandev.fe_iface.pre_release(&card->fe);
+		}
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -1008,6 +1075,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 
 /****** Network Device Interface ********************************************/
 
+#if defined(__LINUX__)
 /*============================================================================
  * Initialize Linux network interface.
  *
@@ -1017,7 +1085,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
  */
 static int if_init (netdevice_t* dev)
 	{
-	private_area_t* chan = dev->priv;
+	private_area_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	wan_device_t* wandev = &card->wandev;
 	
@@ -1069,14 +1137,14 @@ static int if_init (netdevice_t* dev)
    
 	return 0;
 }
-
+#endif /* __LINUX__ */
 
 /*============================================================================
  * Handle transmit timeout event from netif watchdog
  */
 static void if_tx_timeout (netdevice_t *dev)
 {
-    	private_area_t* chan = dev->priv;
+    	private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	
 	/* If our device stays busy for at least 5 seconds then we will
@@ -1087,13 +1155,15 @@ static void if_tx_timeout (netdevice_t *dev)
 
 	++card->wandev.stats.collisions;
 
-	chan->tick_counter = jiffies;
+	chan->tick_counter = SYSTEM_TICKS;
 	card->hw_iface.set_bit(card->hw, card->intr_perm_off, APP_INT_ON_TX_FRAME);
 
-	printk (KERN_INFO "%s: Transmit timed out on %s\n", card->devname,dev->name);
-	netif_wake_queue (dev);
-	dev->trans_start = jiffies;
-
+	DEBUG_EVENT( "%s: Transmit timed out on %s\n", 
+				card->devname,wan_netif_name(dev));
+	WAN_NETIF_WAKE_QUEUE (dev);
+#if defined(__LINUX__)
+	dev->trans_start = SYSTEM_TICKS;
+#endif
 	if (chan->common.usedby == STACK){
 		wanpipe_lip_kick(chan,0);
 	}
@@ -1110,25 +1180,25 @@ static void if_tx_timeout (netdevice_t *dev)
  */
 static int if_open (netdevice_t* dev)
 {
-	private_area_t* chan = dev->priv;
+	private_area_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
-	struct timeval tv;
 
 	/* Only one open per interface is allowed */
-
+#if defined(__LINUX__)
 	if (open_dev_check(dev))
 		return -EBUSY;
-
+#endif
 			
 	/* Start PPP Layer */
 	if (chan->common.prot_ptr){
+#if defined(__LINUX__)
 		if (wp_sppp_open(dev)){
 			return -EIO;
 		}
+#endif
 	}
 
-	do_gettimeofday(&tv);
-	chan->router_start_time = tv.tv_sec;
+	wan_getcurrenttime(&chan->router_start_time, NULL);
  
 	WAN_NETIF_START_QUEUE(dev);
 	WAN_NETIF_CARRIER_OFF(dev);
@@ -1141,6 +1211,7 @@ static int if_open (netdevice_t* dev)
 
 	card->u.c.timer_int_enabled |= TMR_INT_ENABLED_CONFIG;
 	card->hw_iface.set_bit(card->hw, card->intr_perm_off, APP_INT_ON_TIMER);
+
 	return 0;
 }
 
@@ -1151,17 +1222,19 @@ static int if_open (netdevice_t* dev)
  */
 static int if_close (netdevice_t* dev)
 {
-	private_area_t* chan = dev->priv;
+	private_area_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 
 	WAN_TASKLET_KILL((&chan->tasklet));
 
 	/* Stop the PPP Layer */
 	if (chan->common.prot_ptr){
+#if defined(__LINUX__)
 		wp_sppp_close(dev);
+#endif
 	}
 
-	stop_net_queue(dev);
+	WAN_NETIF_STOP_QUEUE(dev);
 
 #if defined(LINUX_2_1)
 	dev->start=0;
@@ -1189,22 +1262,26 @@ static int if_close (netdevice_t* dev)
  * 2. Setting tbusy flag will inhibit further transmit requests from the
  *    protocol stack and can be used for flow control with protocol layer.
  */
-static int if_send (struct sk_buff* skb, netdevice_t* dev)
+#if defined(__LINUX__)
+static int if_send (netskb_t* skb, netdevice_t* dev)
+#else
+static int if_send(netdevice_t *dev, netskb_t *skb, struct sockaddr *dst,struct rtentry *rt)
+#endif
 {
-	private_area_t *chan = dev->priv;
+	private_area_t *chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	int udp_type = 0;
-	unsigned long smp_flags=0;
+	wan_smp_flag_t smp_flags=0;
 	int err=0;
 
 	if (skb == NULL){
 		/* If we get here, some higher layer thinks we've missed an
 		 * tx-done interrupt.
 		 */
-		printk(KERN_INFO "%s: Received NULL skb buffer! interface %s got kicked!\n",
-			card->devname, dev->name);
+		DEBUG_EVENT("%s: Received NULL skb buffer! interface %s got kicked!\n",
+			card->devname, wan_netif_name(dev));
 
-		wake_net_dev(dev);
+		WAN_NETIF_WAKE_QUEUE(dev);
 		return 0;
 	}
 
@@ -1218,27 +1295,31 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		 */
                 ++card->wandev.stats.collisions;
 
-		if((jiffies - chan->tick_counter) < (5 * HZ)) {
+		if((SYSTEM_TICKS - chan->tick_counter) < (5 * HZ)) {
 			return 1;
 		}
 		if_tx_timeout(dev);
 	}
 #else
-	netif_stop_queue(dev);
+	WAN_NETIF_STOP_QUEUE(dev);
 #endif
 
    	if (chan->common.usedby != ANNEXG &&
-	    chan->common.usedby != STACK && 
-	    ntohs(skb->protocol) != htons(PVC_PROT)){
+	    chan->common.usedby != STACK
+#if defined(__LINUX__)
+		 && 
+	    ntohs(skb->protocol) != htons(PVC_PROT)
+#endif
+		){
 		/* check the udp packet type */
 		
 		udp_type = udp_pkt_type(skb, card);
 		if (udp_type == UDP_CPIPE_TYPE){
-                        if(store_udp_mgmt_pkt(UDP_PKT_FRM_STACK, card, skb, dev,
+			if (store_udp_mgmt_pkt(UDP_PKT_FRM_STACK, card, skb, dev,
                                 chan)){
 				card->hw_iface.set_bit(card->hw, card->intr_perm_off, APP_INT_ON_TIMER);
 			}
-			start_net_queue(dev);
+			WAN_NETIF_START_QUEUE(dev);
 			return 0;
 		}
         }
@@ -1252,16 +1333,16 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 
     	if (wan_test_and_set_bit(SEND_CRIT, (void*)&card->wandev.critical)){
 	
-		printk(KERN_INFO "%s: Critical in if_send: %lx\n",
+		DEBUG_EVENT("%s: Critical in if_send: %lx\n",
 					card->wandev.name,card->wandev.critical);
                 ++card->wandev.stats.tx_dropped;
-		start_net_queue(dev);
+		WAN_NETIF_START_QUEUE(dev);
 		goto if_send_crit_exit;
 	}
 
 	if (card->u.c.state != WAN_CONNECTED){
 		++card->wandev.stats.tx_carrier_errors;
-		start_net_queue(dev);
+		WAN_NETIF_START_QUEUE(dev);
 		goto if_send_crit_exit;
 	}
 
@@ -1282,32 +1363,33 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		wan_skb_pull(skb,sizeof(api_tx_hdr_t));	
 	}
 	
-	if ((err=chdlc_send(card, skb->data, skb->len))){
+	if ((err=chdlc_send(card, wan_skb_data(skb), wan_skb_len(skb)))){
 		if(card->type == SDLA_S514){ 
-	       	 	wan_smp_flag_t smp_flags1;
-	       		wan_spin_lock_irq(&card->wandev.lock,&smp_flags1);
+			wan_smp_flag_t smp_flags1;
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags1);
 			err=1;
-			stop_net_queue(dev);
-	       		wan_spin_unlock_irq(&card->wandev.lock,&smp_flags1);
+			WAN_NETIF_STOP_QUEUE(dev);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags1);
 		} else {
-                        err=1;
-			stop_net_queue(dev); 
-		}        
+			err=1;
+			WAN_NETIF_STOP_QUEUE(dev); 
+		} 
 	}else{
 		++card->wandev.stats.tx_packets;
-       		card->wandev.stats.tx_bytes += skb->len;
-		dev->trans_start = jiffies;
-		start_net_queue(dev);
+       		card->wandev.stats.tx_bytes += wan_skb_len(skb);
+#if defined(__LINUX__)
+		dev->trans_start = SYSTEM_TICKS;
+#endif
+		WAN_NETIF_START_QUEUE(dev);
 
 		wan_capture_trace_packet(card, &chan->trace_info, skb, TRC_OUTGOING_FRM);
-
 	}	
 
 if_send_crit_exit:
 	if (err==0){
                 wan_skb_free(skb);
 	}else{
-		chan->tick_counter = jiffies;
+		chan->tick_counter = SYSTEM_TICKS;
 		card->hw_iface.set_bit(card->hw, card->intr_perm_off, APP_INT_ON_TX_FRAME);
 	}
 
@@ -1323,6 +1405,7 @@ if_send_crit_exit:
  * Get ethernet-style interface statistics.
  * Return a pointer to struct enet_statistics.
  */
+#if defined(__LINUX__)
 static struct net_device_stats gstats;
 static struct net_device_stats* if_stats (netdevice_t* dev)
 {
@@ -1333,7 +1416,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
          * dev->priv pointer. This function, gets
          * called after del_if(), thus check
          * if pointer has been deleted */
-	if ((chan=dev->priv) == NULL)
+	if ((chan=wan_netif_priv(dev)) == NULL)
 		return &gstats;
 
 	my_card = chan->card;
@@ -1343,6 +1426,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 
 	return &my_card->wandev.stats; 
 }
+#endif
 
 /****** Cisco HDLC Firmware Interface Functions *******************************/
 
@@ -1401,6 +1485,7 @@ static int chdlc_set_intr_mode (sdla_t* card, unsigned mode)
 		 (CHDLC_INT_TRIGGERS_STRUCT *)mb->wan_data;
 	int err;
 
+	DEBUG_TEST("%s: Setting interrupt mode %02X\n", card->devname, mode);
 	int_data->CHDLC_interrupt_triggers 	= mode;
 	int_data->IRQ				= card->wandev.irq;	//ALEX_TODAY card->hw.irq;
 	int_data->interrupt_timer               = 1;
@@ -1467,6 +1552,31 @@ static int chdlc_read_comm_err_stats (sdla_t* card)
         return err;
 }
 
+/*
+ ************************************************************************
+ * Read CHDLC configureation.
+ */
+static int chdlc_read_configure(sdla_t *card, CHDLC_CONFIGURATION_STRUCT* cfg)
+{
+	wan_mbox_t*	mbox = &card->wan_mbox;
+	int		err;
+
+	WAN_MBOX_INIT(mbox);
+	mbox->wan_data_len = 0;
+	mbox->wan_command = READ_CHDLC_CONFIGURATION;
+	err = card->hw_iface.cmd(card->hw, card->mbox_off, mbox);
+
+	if(err != WAN_CMD_OK){
+		chdlc_error(card, err, mbox);
+	}else{
+		DEBUG_CMD("%s: Read CHDLC configuration...ok\n", 
+				card->devname);
+		//bcopy(mbox->wan_data, cfg, sizeof(CHDLC_CONFIGURATION_STRUCT));
+		memcpy(cfg, mbox->wan_data, sizeof(CHDLC_CONFIGURATION_STRUCT));
+	}
+	return err;
+}
+
 
 /*============================================================================
  * Read CHDLC operational statistics.
@@ -1500,12 +1610,12 @@ static int update_comms_stats(sdla_t* card,
 	 */
 	/* TE1 Update T1/E1 alarms */
 	if (IS_TE1_CARD(card)) {	
-		card->wandev.fe_iface.read_alarm(&card->fe, 0);
+		card->wandev.fe_iface.read_alarm(&card->fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
 		/* TE1 Update T1/E1 perfomance counters */
 		card->wandev.fe_iface.read_pmon(&card->fe, 0);
 	}else if (IS_56K_CARD(card)) {
 		/* 56K Update CSU/DSU alarms */
-		card->wandev.fe_iface.read_alarm(&card->fe, 1);
+		card->wandev.fe_iface.read_alarm(&card->fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
 	}
 
 	if(chdlc_read_comm_err_stats(card))
@@ -1547,8 +1657,9 @@ static int chdlc_send (sdla_t* card, void* data, unsigned len)
 
 	card->hw_iface.peek(card->hw, card->u.c.txbuf_off, &txbuf, sizeof(txbuf));
 	
-	if (txbuf.opp_flag)
+	if (txbuf.opp_flag){
 		return 1;
+	}
 	
 	card->hw_iface.poke(card->hw, txbuf.ptr_data_bfr, data, len);
 
@@ -1646,20 +1757,20 @@ static int chdlc_error (sdla_t *card, int err, wan_mbox_t *mb)
 	switch (err) {
 
 	case CMD_TIMEOUT:
-		printk(KERN_INFO "%s: command 0x%02X timed out!\n",
+		DEBUG_EVENT("%s: command 0x%02X timed out!\n",
 			card->devname, cmd);
 		break;
 
 	case S514_BOTH_PORTS_SAME_CLK_MODE:
 		if(cmd == SET_CHDLC_CONFIGURATION) {
-			printk(KERN_INFO
+			DEBUG_EVENT(
 			 "%s: Configure both ports for the same clock source\n",
 				card->devname);
 			break;
 		}
 
 	default:
-		printk(KERN_INFO "%s: command 0x%02X returned 0x%02X!\n",
+		DEBUG_EVENT("%s: command 0x%02X returned 0x%02X!\n",
 			card->devname, cmd, err);
 	}
 
@@ -1696,7 +1807,7 @@ STATIC WAN_IRQ_RETVAL wsppp_isr (sdla_t* card)
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
 	/* If we get an interrupt with no network device, stop the interrupts
 	 * and issue an error */
-	if ((!dev || !dev->priv) && flags.interrupt_info_struct.interrupt_type != 
+	if ((!dev || !wan_netif_priv(dev)) && flags.interrupt_info_struct.interrupt_type != 
 	    	COMMAND_COMPLETE_APP_INT_PEND){
 		goto isr_done;
 	}
@@ -1716,7 +1827,7 @@ STATIC WAN_IRQ_RETVAL wsppp_isr (sdla_t* card)
 	 */
 	if(card->type != SDLA_S514) {
 		if(wan_test_bit(0, (void*)&card->wandev.critical)) {
-			printk(KERN_INFO "%s: Critical while in ISR: %lx\n",
+			DEBUG_EVENT("%s: Critical while in ISR: %lx\n",
 				card->devname, card->wandev.critical);
 			goto isr_done;
 		}
@@ -1730,17 +1841,17 @@ STATIC WAN_IRQ_RETVAL wsppp_isr (sdla_t* card)
 
 		case TX_APP_INT_PEND:	/* 0x02: transmit interrupt */
 
-			chan=dev->priv;
+			chan=wan_netif_priv(dev);
 
 			card->hw_iface.clear_bit(card->hw, card->intr_perm_off, APP_INT_ON_TX_FRAME);
 			if (chan->common.usedby == STACK){
-				start_net_queue(dev);
+				WAN_NETIF_START_QUEUE(dev);
 				wanpipe_lip_kick(chan,0);
 				break;
 			}
 
 			if (chan->common.usedby == API){
-				start_net_queue(dev);
+				WAN_NETIF_START_QUEUE(dev);
 				wan_wakeup_api(chan);
 				break;
 			}
@@ -1754,7 +1865,7 @@ STATIC WAN_IRQ_RETVAL wsppp_isr (sdla_t* card)
 			if (chan->common.usedby == ANNEXG && 
 				  chan->annexg_dev){
 
-				start_net_queue(dev);
+				WAN_NETIF_START_QUEUE(dev);
 				if (IS_FUNC_CALL(lapb_protocol,lapb_mark_bh)){
 					lapb_protocol.lapb_mark_bh(chan->annexg_dev);
 				}
@@ -1762,7 +1873,7 @@ STATIC WAN_IRQ_RETVAL wsppp_isr (sdla_t* card)
 			}
 #endif
 			
-			wake_net_dev(dev);
+			WAN_NETIF_WAKE_QUEUE(dev);
 			break;
 
 		case COMMAND_COMPLETE_APP_INT_PEND:/* 0x04: cmd cplt */
@@ -1804,19 +1915,19 @@ STATIC WAN_IRQ_RETVAL wsppp_isr (sdla_t* card)
 				break;
 			}
 			
-			printk(KERN_INFO "%s: spurious interrupt 0x%02X!\n", 
+			DEBUG_EVENT("%s: spurious interrupt 0x%02X!\n", 
 				card->devname,
 				flags.interrupt_info_struct.interrupt_type);
-			printk(KERN_INFO "Code name: ");
+			DEBUG_EVENT("Code name: ");
 			for(i = 0; i < 4; i ++)
-				printk("%c",
+				_DEBUG_EVENT("%c",
 					flags.global_info_struct.codename[i]); 
-			printk("\n");
-			printk(KERN_INFO "Code version: ");
+			DEBUG_EVENT("\n");
+			DEBUG_EVENT("Code version: ");
 			for(i = 0; i < 4; i ++)
-				printk("%c", 
+				_DEBUG_EVENT("%c", 
 					flags.global_info_struct.codeversion[i]); 
-			printk("\n");	
+			_DEBUG_EVENT("\n");	
 			break;
 	}
 
@@ -1835,7 +1946,7 @@ static void rx_intr (sdla_t* card)
 	private_area_t *chan;
 	SHARED_MEMORY_INFO_STRUCT flags;
 	CHDLC_DATA_RX_STATUS_EL_STRUCT rxbuf;
-	struct sk_buff *skb;
+	netskb_t *skb;
 	unsigned len;
 	unsigned addr;
 	void *buf;
@@ -1847,19 +1958,19 @@ static void rx_intr (sdla_t* card)
 	card->hw_iface.peek(card->hw, card->u.c.rxmb_off, &rxbuf, sizeof(rxbuf));
 	addr = rxbuf.ptr_data_bfr;
 	if (rxbuf.opp_flag != 0x01) {
-		printk(KERN_INFO 
+		DEBUG_EVENT(
 			"%s: corrupted Rx buffer @ 0x%X, flag = 0x%02X!\n", 
 			card->devname, (unsigned)card->u.c.rxmb_off, rxbuf.opp_flag);
-                printk(KERN_INFO "Code name: ");
+                DEBUG_EVENT("Code name: ");
                 for(i = 0; i < 4; i ++)
-                        printk(KERN_INFO "%c",
+                        DEBUG_EVENT("%c",
                                 flags.global_info_struct.codename[i]);
-		printk(KERN_INFO "\n");
-                printk(KERN_INFO "Code version: ");
+		DEBUG_EVENT("\n");
+                DEBUG_EVENT("Code version: ");
                 for(i = 0; i < 4; i ++)
-                        printk(KERN_INFO "%c",
+                        DEBUG_EVENT("%c",
                                 flags.global_info_struct.codeversion[i]);
-                printk(KERN_INFO "\n");
+                DEBUG_EVENT("\n");
 
 		/* Bug Fix: Mar 6 2000
                  * If we get a corrupted mailbox, it measn that driver 
@@ -1867,9 +1978,9 @@ static void rx_intr (sdla_t* card)
                  * If we don't turn off all interrupts for this card
                  * the machine will crash. 
                  */
-		printk(KERN_INFO "%s: Critical router failure ...!!!\n", 
+		DEBUG_EVENT("%s: Critical router failure ...!!!\n", 
 				card->devname);
-		printk(KERN_INFO "Please contact Sangoma Technologies !\n");
+		DEBUG_EVENT("Please contact Sangoma Technologies !\n");
 		chdlc_set_intr_mode(card,0);	
 		return;
 	}
@@ -1883,13 +1994,13 @@ static void rx_intr (sdla_t* card)
 	if (!netif_running(dev)){
 		goto rx_exit;
 	}
-#else
+#elif defined(__LINUX__)
 	if (!dev->start){ 
 		goto rx_exit;
 	}
 #endif
 
-	chan = dev->priv;
+	chan = wan_netif_priv(dev);
 
 	tmp_prev_error=chan->prev_error;
 	chan->prev_error=rxbuf.error_flag;
@@ -1902,7 +2013,16 @@ static void rx_intr (sdla_t* card)
 		goto rx_exit;
 	}
 
-	if (chan->common.usedby == ANNEXG || chan->common.usedby == STACK){
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
+	if (chan->common.usedby == ANNEXG){
+		if (rxbuf.frame_length <= 2 || rxbuf.frame_length > 4103){
+			DEBUG_EVENT("%s: Bad Rx Frame Length %i\n",
+					card->devname,rxbuf.frame_length);
+			goto rx_exit;
+		}	
+	} else 
+#endif
+	if (chan->common.usedby == STACK){
 		if (rxbuf.frame_length <= 2 || rxbuf.frame_length > 4103){
 			DEBUG_EVENT("%s: Bad Rx Frame Length %i\n",
 					card->devname,rxbuf.frame_length);
@@ -1929,10 +2049,10 @@ static void rx_intr (sdla_t* card)
 	}
 
 	/* Allocate socket buffer */
-	skb = dev_alloc_skb(len+2);
+	skb = wan_skb_alloc(len+2);
 	if (skb == NULL) {
-		if (net_ratelimit()){
-			printk(KERN_INFO "%s: Error: No memory available!\n",
+		if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT("%s: Error: No memory available!\n",
 						card->devname);
 		}
 		++card->wandev.stats.rx_dropped;
@@ -1942,13 +2062,13 @@ static void rx_intr (sdla_t* card)
 	/* Copy data to the socket buffer */
 	if ((addr + len) > card->u.c.rx_top_off + 1) {
 		unsigned tmp = card->u.c.rx_top_off - addr + 1;
-		buf = skb_put(skb, tmp);
+		buf = wan_skb_put(skb, tmp);
 		card->hw_iface.peek(card->hw, addr, buf, tmp);
 		addr = card->u.c.rx_base_off;
 		len -= tmp;
 	}
 
-	buf = skb_put(skb, len);
+	buf = wan_skb_put(skb, len);
 	card->hw_iface.peek(card->hw, addr, buf, len);
 
 	wan_capture_trace_packet(card, &chan->trace_info, skb, TRC_INCOMING_FRM);
@@ -1958,15 +2078,16 @@ static void rx_intr (sdla_t* card)
 	if(udp_type == UDP_CPIPE_TYPE) {
 
 		card->wandev.stats.rx_packets ++;
-		card->wandev.stats.rx_bytes += skb->len;
-
+		card->wandev.stats.rx_bytes += wan_skb_len(skb);
+#if defined(__LINUX__)
 		skb->protocol = htons(ETH_P_IP);
-		
+#endif		
 		if(store_udp_mgmt_pkt(UDP_PKT_FRM_NETWORK,
    				      card, skb, dev, chan)) {
 			card->hw_iface.set_bit(card->hw, card->intr_perm_off, APP_INT_ON_TIMER);
 		}
 
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 	}else if (chan->common.usedby == ANNEXG){
 
 		if (chan->annexg_dev){
@@ -1976,7 +2097,7 @@ static void rx_intr (sdla_t* card)
 
 			if (wan_skb_queue_len(&chan->rx_queue) > MAX_RX_QUEUE){
 				wan_skb_free(skb);
-				if (net_ratelimit()){
+				if (WAN_NET_RATELIMIT()){
 					DEBUG_EVENT("%s: Error Rx queue full, dropping pkt!\n",
 							card->devname);
 				}
@@ -1992,13 +2113,14 @@ static void rx_intr (sdla_t* card)
 			wan_skb_free(skb);
 			++card->wandev.stats.rx_errors;
 		}
+#endif
 	}else if (chan->common.usedby == STACK){
-		skb->dev = chan->annexg_dev;
+		wan_skb_set_dev(skb, chan->annexg_dev);	//FIXME: Nenad please check this line!!!!
 		wan_skb_reset_mac_header(skb);
 
 		if (wan_skb_queue_len(&chan->rx_queue) > MAX_RX_QUEUE){
 			wan_skb_free(skb);
-			if (net_ratelimit()){
+			if (WAN_NET_RATELIMIT()){
 				DEBUG_EVENT("%s: Error:(STACK) Rx queue full, dropping pkt!\n",
 						card->devname);
 			}
@@ -2013,7 +2135,7 @@ static void rx_intr (sdla_t* card)
 
 		if (wan_skb_queue_len(&chan->rx_queue) > MAX_RX_QUEUE){
 			wan_skb_free(skb);
-			if (net_ratelimit()){
+			if (WAN_NET_RATELIMIT()){
 				DEBUG_EVENT("%s: Error Rx queue full, dropping pkt!\n",
 						card->devname);
 			}
@@ -2021,9 +2143,11 @@ static void rx_intr (sdla_t* card)
 			goto rx_exit;
 		}
 		
-               	/* Pass it up the protocol stack */
-		skb->protocol = htons(ETH_P_WAN_PPP);
-                skb->dev = dev;
+		/* Pass it up the protocol stack */
+#if defined(__LINUX__)
+		wan_skb_set_protocol(skb, ETH_P_WAN_PPP);
+#endif
+		wan_skb_set_dev(skb, dev);
 		wan_skb_reset_mac_header(skb);
 
 		wan_skb_queue_tail(&chan->rx_queue,skb);
@@ -2056,7 +2180,7 @@ void timer_intr(sdla_t *card)
 		return;
 	}
 	
-        if (!(chan = dev->priv)){
+        if (!(chan = wan_netif_priv(dev))){
 		return;	
 	}
 
@@ -2233,7 +2357,7 @@ static int process_global_exception(sdla_t *card)
 					FE_status.FE_U.stat_56k.RRA_56k;	
 				card->fe.fe_param.k56_param.RRC_reg_56k = 
 					FE_status.FE_U.stat_56k.RRC_56k;
-				card->wandev.fe_iface.read_alarm(&card->fe, 0);
+				card->wandev.fe_iface.read_alarm(&card->fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
 
 				handle_front_end_state(card);
 				break;
@@ -2252,21 +2376,21 @@ static int process_global_exception(sdla_t *card)
 				card->fe.fe_status = FE_DISCONNECTED;
 			}
 		
-			printk(KERN_INFO "%s: Modem status change\n",
+			DEBUG_EVENT("%s: Modem status change\n",
 				card->devname);
 
 			switch(mb->wan_data[0] & (DCD_HIGH | CTS_HIGH)) {
 				case (DCD_HIGH):
-					printk(KERN_INFO "%s: DCD high, CTS low\n",card->devname);
+					DEBUG_EVENT("%s: DCD high, CTS low\n",card->devname);
 					break;
 				case (CTS_HIGH):
-                                        printk(KERN_INFO "%s: DCD low, CTS high\n",card->devname);
+                                        DEBUG_EVENT("%s: DCD low, CTS high\n",card->devname);
                                         break;
                                 case ((DCD_HIGH | CTS_HIGH)):
-                                        printk(KERN_INFO "%s: DCD high, CTS high\n",card->devname);
+                                        DEBUG_EVENT("%s: DCD high, CTS high\n",card->devname);
                                         break;
 				default:
-                                        printk(KERN_INFO "%s: DCD low, CTS low\n",card->devname);
+                                        DEBUG_EVENT("%s: DCD low, CTS low\n",card->devname);
                                         break;
 			}
 
@@ -2274,17 +2398,17 @@ static int process_global_exception(sdla_t *card)
 			break;
 
                 case EXCEP_TRC_DISABLED:
-                        printk(KERN_INFO "%s: Line trace disabled\n",
+                        DEBUG_EVENT("%s: Line trace disabled\n",
 				card->devname);
                         break;
 
 		case EXCEP_IRQ_TIMEOUT:
-			printk(KERN_INFO "%s: IRQ timeout occurred\n",
+			DEBUG_EVENT("%s: IRQ timeout occurred\n",
 				card->devname); 
 			break;
 
                 default:
-                        printk(KERN_INFO "%s: Global exception %x\n",
+                        DEBUG_EVENT("%s: Global exception %x\n",
 				card->devname, mb->wan_return_code);
                         break;
                 }
@@ -2360,16 +2484,16 @@ static int process_chdlc_exception(sdla_t *card)
 			break;
 
 		case EXCEP_LOOPBACK_CONDITION:
-			printk(KERN_INFO "%s: Loopback Condition Detected.\n",
+			DEBUG_EVENT("%s: Loopback Condition Detected.\n",
 						card->devname);
 			break;
 
 		case NO_CHDLC_EXCEP_COND_TO_REPORT:
-			printk(KERN_INFO "%s: No exceptions reported.\n",
+			DEBUG_EVENT("%s: No exceptions reported.\n",
 						card->devname);
 			break;
 		default:
-			printk(KERN_INFO "%s: Exception Condition %x!\n",
+			DEBUG_EVENT("%s: Exception Condition %x!\n",
 					card->devname,err);
 			break;
 		}
@@ -2384,16 +2508,16 @@ static int process_chdlc_exception(sdla_t *card)
  */
 
 static int store_udp_mgmt_pkt(char udp_pkt_src, sdla_t* card,
-                                struct sk_buff *skb, netdevice_t* dev,
+                                netskb_t *skb, netdevice_t* dev,
                                 private_area_t* chan )
 {
 	int udp_pkt_stored = 0;
 
-	if(!atomic_read(&chan->udp_pkt_len) &&
-	  (skb->len <= MAX_LGTH_UDP_MGNT_PKT)) {
-		atomic_set(&chan->udp_pkt_len, skb->len);
+	if(!wan_atomic_read(&chan->udp_pkt_len) &&
+	  (wan_skb_len(skb) <= MAX_LGTH_UDP_MGNT_PKT)) {
+		wan_atomic_set(&chan->udp_pkt_len, wan_skb_len(skb));
 		chan->udp_pkt_src = udp_pkt_src;
-       		memcpy(chan->udp_pkt_data, skb->data+4, skb->len-4);
+       		memcpy(chan->udp_pkt_data, wan_skb_data(skb)+4, wan_skb_len(skb)-4);
 		card->u.c.timer_int_enabled = TMR_INT_ENABLED_UDP;
 		udp_pkt_stored = 1;
 	}
@@ -2416,10 +2540,11 @@ static int store_udp_mgmt_pkt(char udp_pkt_src, sdla_t* card,
  *	callers who wish to add additional ioctl calls of their own.
  */
 /* SNMP */ 
-static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
+static int
+if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 {
-	private_area_t* chan= (private_area_t*)dev->priv;
-	unsigned long smp_flags;
+	private_area_t* chan= (private_area_t*)wan_netif_priv(dev);
+	wan_smp_flag_t smp_flags;
 	sdla_t *card;
 	int err=-EINVAL;
 	wan_udp_pkt_t *wan_udp_pkt;
@@ -2431,16 +2556,16 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 
 	switch(cmd)
 	{
-
+#if defined(__LINUX__)
 		case SIOC_WANPIPE_BIND_SK:
 			if (!ifr){
 				err= -EINVAL;
 				break;
 			}
 			
-			spin_lock_irqsave(&card->wandev.lock,smp_flags);
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 			err=wan_bind_api_to_svc(chan,ifr->ifr_data);
-			spin_unlock_irqrestore(&card->wandev.lock,smp_flags);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 			break;
 
 		case SIOC_WANPIPE_UNBIND_SK:
@@ -2449,9 +2574,9 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 				break;
 			}
 
-			spin_lock_irqsave(&card->wandev.lock,smp_flags);
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 			err=wan_unbind_api_from_svc(chan,ifr->ifr_data);
-			spin_unlock_irqrestore(&card->wandev.lock,smp_flags);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 			break;
 
 		case SIOC_WANPIPE_CHECK_TX:
@@ -2467,67 +2592,95 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 			err=0;
 			break;
 
+		case SIOC_MBOX_CMD:
+
+			NET_ADMIN_CHECK();
+
+			{
+				wan_mbox_t *usr_mbox = wan_kmalloc(sizeof(wan_mbox_t));
+				if (!usr_mbox) {
+					return -ENOMEM;
+				}			
+				if (WAN_COPY_FROM_USER(usr_mbox,ifr->ifr_data,sizeof(wan_mbox_t))){
+					wan_free(usr_mbox);
+					return -EFAULT;
+				}
+	
+				wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
+				err=wp_exec_usr_mbox_cmd(card, usr_mbox);
+				wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+	
+				if (WAN_COPY_TO_USER(ifr->ifr_data,usr_mbox,sizeof(wan_mbox_t))){
+					wan_free(usr_mbox);
+					return -EFAULT;
+				}
+				wan_free(usr_mbox);
+			}
+
+
+			return err;
+		
+#endif
 		case SIOC_WANPIPE_PIPEMON: 
 
 			NET_ADMIN_CHECK();
 			
-			if (atomic_read(&chan->udp_pkt_len) != 0){
+			if (wan_atomic_read(&chan->udp_pkt_len) != 0){
 				return -EBUSY;
 			}
 	
-			atomic_set(&chan->udp_pkt_len,MAX_LGTH_UDP_MGNT_PKT);
+			wan_atomic_set(&chan->udp_pkt_len,MAX_LGTH_UDP_MGNT_PKT);
 			
 			/* For performance reasons test the critical
 			 * here before spin lock */
 			if (wan_test_bit(0,&card->in_isr)){
-				atomic_set(&chan->udp_pkt_len,0);
+				wan_atomic_set(&chan->udp_pkt_len,0);
 				return -EBUSY;
 			}
 		
 			
 			wan_udp_pkt=(wan_udp_pkt_t*)chan->udp_pkt_data;
-			if (copy_from_user(&wan_udp_pkt->wan_udp_hdr,ifr->ifr_data,sizeof(wan_udp_hdr_t))){
-				atomic_set(&chan->udp_pkt_len,0);
+			if (WAN_COPY_FROM_USER(&wan_udp_pkt->wan_udp_hdr,ifr->ifr_data,sizeof(wan_udp_hdr_t))){
+				wan_atomic_set(&chan->udp_pkt_len,0);
 				return -EFAULT;
 			}
-
-			
 			
 			if (wan_udp_pkt->wan_udp_command == DIGITAL_LOOPTEST) {
 				process_udp_mgmt_pkt(card,dev,chan,1);
 			} else {			
-				spin_lock_irqsave(&card->wandev.lock, smp_flags);
+				wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 	
 				process_udp_mgmt_pkt(card,dev,chan,1);
 				
-				spin_unlock_irqrestore(&card->wandev.lock, smp_flags);
+				wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 			}
 			
 			/* This area will still be critical to other
 			 * PIPEMON commands due to udp_pkt_len
 			 * thus we can release the irq */
 			
-			if (atomic_read(&chan->udp_pkt_len) > sizeof(wan_udp_pkt_t)){
-				printk(KERN_INFO "%s: Error: Pipemon buf too bit on the way up! %i\n",
-						card->devname,atomic_read(&chan->udp_pkt_len));
-				atomic_set(&chan->udp_pkt_len,0);
+			if (wan_atomic_read(&chan->udp_pkt_len) > sizeof(wan_udp_pkt_t)){
+				DEBUG_EVENT("%s: Error: Pipemon buf too bit on the way up! %i\n",
+						card->devname,wan_atomic_read(&chan->udp_pkt_len));
+				wan_atomic_set(&chan->udp_pkt_len,0);
 				return -EINVAL;
 			}
 
-			if (copy_to_user(ifr->ifr_data,&wan_udp_pkt->wan_udp_hdr,sizeof(wan_udp_hdr_t))){
-				atomic_set(&chan->udp_pkt_len,0);
+			if (WAN_COPY_TO_USER(ifr->ifr_data,&wan_udp_pkt->wan_udp_hdr,sizeof(wan_udp_hdr_t))){
+				wan_atomic_set(&chan->udp_pkt_len,0);
 				return -EFAULT;
 			}
 			
-			atomic_set(&chan->udp_pkt_len,0);
+			wan_atomic_set(&chan->udp_pkt_len,0);
 			return 0;
 	
 			
 		default:
+#if defined(__LINUX__)
 			if (chan->common.prot_ptr){
 				return wp_sppp_do_ioctl(dev,ifr,cmd);
 			}
-
+#endif
 			return -EINVAL;	
 	}
 	return err;
@@ -2541,15 +2694,16 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 				private_area_t* chan, int local_dev ) 
 {
+#if defined(__LINUX__)
 	unsigned char *buf;
 	unsigned int len;
-	struct sk_buff *new_skb;
+	netskb_t *new_skb;
+#endif
 	unsigned short buffer_length;
 	int udp_mgmt_req_valid = 1;
 	wan_mbox_t *mb = &card->wan_mbox;
 	SHARED_MEMORY_INFO_STRUCT flags;
 	wan_udp_pkt_t *wan_udp_pkt;
-	struct timeval tv;
 	int err;
 	netskb_t *skb;
 
@@ -2595,8 +2749,8 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
     		/* set return code */
 		wan_udp_pkt->wan_udp_return_code = 0xCD;
 
-		if (net_ratelimit()){	
-			printk(KERN_INFO 
+		if (WAN_NET_RATELIMIT()){	
+			DEBUG_EVENT(
 			"%s: Warning, Illegal UDP command attempted from network: %x\n",
 			card->devname,wan_udp_pkt->wan_udp_command);
 		}
@@ -2676,7 +2830,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			udp_hdr->wan_udphdr_chdlc_ismoredata = 0;
 					
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
-			while (wan_trace_queue_len(trace_info)){
+			while (wan_skb_queue_len(&trace_info->trace_queue)){
 				WAN_IFQ_POLL(&trace_info->trace_queue, skb);
 				if (skb == NULL){	
 					DEBUG_EVENT("%s: No more trace packets in trace queue!\n",
@@ -2755,9 +2909,8 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			break;
 
 		case CPIPE_ROUTER_UP_TIME:
-			do_gettimeofday( &tv );
-			chan->router_up_time = tv.tv_sec - 
-					chan->router_start_time;
+			wan_getcurrenttime(&chan->router_up_time, NULL);
+			chan->router_up_time -= chan->router_start_time;
 			*(u_int32_t *)&wan_udp_pkt->wan_udp_data = 
 					chan->router_up_time;	
 			mb->wan_data_len = sizeof(u_int32_t);
@@ -2865,6 +3018,7 @@ dflt_1:
 		return 1;
 	}
 	
+#if defined(__LINUX__)
 	len = wan_reply_udp(card,chan->udp_pkt_data, mb->wan_data_len);
 
      	if(chan->udp_pkt_src == UDP_PKT_FRM_NETWORK){
@@ -2882,26 +3036,28 @@ dflt_1:
 	
 		/* Pass it up the stack
     		   Allocate socket buffer */
-		if ((new_skb = dev_alloc_skb(len)) != NULL) {
+		if ((new_skb = wan_skb_alloc(len)) != NULL) {
 			/* copy data into new_skb */
 
- 	    		buf = skb_put(new_skb, len);
+ 	    		buf = wan_skb_put(new_skb, len);
   	    		memcpy(buf, chan->udp_pkt_data, len);
 
             		/* Decapsulate pkt and pass it up the protocol stack */
-	    		new_skb->protocol = htons(ETH_P_IP);
-            		new_skb->dev = dev;
+#if defined(__LINUX__)
+	    		wan_skb_set_protocol(new_skb, ETH_P_IP);
+#endif
+            		wan_skb_set_dev(new_skb, dev);
 			wan_skb_reset_mac_header(new_skb);
 
 			netif_rx(new_skb);
 		} else {
 	    	
-			printk(KERN_INFO "%s: no socket buffers available!\n",
+			DEBUG_EVENT("%s: no socket buffers available!\n",
 					card->devname);
   		}
     	}
-
-	atomic_set(&chan->udp_pkt_len,0);
+#endif
+	wan_atomic_set(&chan->udp_pkt_len,0);
  	
 	return 0;
 }
@@ -2968,7 +3124,8 @@ static void init_chdlc_tx_rx_buff( sdla_t* card, netdevice_t *dev )
  * Perform Interrupt Test by running READ_CHDLC_CODE_VERSION command MAX_INTR
  * _TEST_COUNTER times.
  */
-static int intr_test( sdla_t* card)
+#if defined(__LINUX__) || defined(CHDLC_OLD_INTR_TEST)
+static int chdlc_intr_test( sdla_t* card)
 {
 	wan_mbox_t* mb = &card->wan_mbox;
 	int err,i;
@@ -2982,8 +3139,11 @@ static int intr_test( sdla_t* card)
 
 	err = chdlc_set_intr_mode(card, APP_INT_ON_COMMAND_COMPLETE);
 
-	if (err == CMD_OK) { 
-		for (i = 0; i < MAX_INTR_TEST_COUNTER; i ++) { 
+	if (err == CMD_OK) {
+#if defined(__FreeBSD__)
+		int	delay = HZ/10;
+#endif 
+		for (i = 0; i < MAX_NEW_INTR_TEST_COUNTER; i ++) { 
 			memset(mb,0,sizeof(wan_mbox_t));
 			mb->wan_data_len  = 0;
 			mb->wan_command = READ_CHDLC_CODE_VERSION;
@@ -2992,8 +3152,8 @@ static int intr_test( sdla_t* card)
 			if (err != CMD_OK) 
 				chdlc_error(card, err, mb);
 
-			udelay(10000);
-			schedule();
+			WP_DELAY(10000);
+			WP_SCHEDULE(delay,"multppp");
 		}
 	}else{
 		return err;
@@ -3005,23 +3165,36 @@ static int intr_test( sdla_t* card)
 	if (err != CMD_OK)
 		return err;
 
+	if(err || (card->timer_int_enabled < MAX_NEW_INTR_TEST_COUNTER)) { 
+		DEBUG_EVENT("%s: Interrupt test failed (%d)\n",
+				card->devname, card->timer_int_enabled);
+		DEBUG_EVENT("%s: Please choose another interrupt\n",
+				card->devname);
+		return  -EIO;
+	}
+			
+	DEBUG_EVENT("%s: Interrupt test passed (%i)\n", 
+				card->devname, card->timer_int_enabled);
+
 	return 0;
 }
+#endif
 
 /*==============================================================================
  * Determine what type of UDP call it is. CPIPEAB ?
  */
-static int udp_pkt_type(struct sk_buff *skb, sdla_t* card)
+static int udp_pkt_type(netskb_t *skb, sdla_t* card)
 {
-	 wan_udp_pkt_t *wan_udp_pkt = (wan_udp_pkt_t *)(skb->data+4);
+	
+	wan_udp_pkt_t *wan_udp_pkt = (wan_udp_pkt_t *)(wan_skb_data(skb)+4);
 
-	 if (skb->len < sizeof(wan_udp_pkt_t)){
+	if (wan_skb_len(skb) < sizeof(wan_udp_pkt_t)){
 		return UDP_INVALID_TYPE;
-	 }
+	}
 
 
 #ifdef _WAN_UDP_DEBUG
-		printk(KERN_INFO "SIG %s = %s\n\
+		DEBUG_EVENT("SIG %s = %s\n\
 				  UPP %x = %x\n\
 				  PRT %x = %x\n\
 				  REQ %i = %i\n\
@@ -3060,18 +3233,18 @@ static void port_set_state (sdla_t *card, int state)
 	private_area_t	*chan;
 
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
-	if (!dev || !dev->priv){
+	if (!dev || !wan_netif_priv(dev)){
 		return;
 	}
 	
-	chan=dev->priv;
+	chan=wan_netif_priv(dev);
 		
         if (card->wandev.state != state)
         {
                 switch (state)
                 {
                 case WAN_CONNECTED:
-                        printk (KERN_INFO "%s: HDLC link connected!\n",
+                        DEBUG_EVENT( "%s: HDLC link connected!\n",
                                 card->devname);
 
 			WAN_NETIF_WAKE_QUEUE(dev);	
@@ -3095,14 +3268,14 @@ static void port_set_state (sdla_t *card, int state)
                       break;
 
                 case WAN_CONNECTING:
-                        printk (KERN_INFO "%s: HDLC link connecting...\n",
+                        DEBUG_EVENT( "%s: HDLC link connecting...\n",
                                 card->devname);
 			WAN_NETIF_STOP_QUEUE(dev);
 			WAN_NETIF_CARRIER_OFF(dev);	
                         break;
 
                 case WAN_DISCONNECTED:
-                        printk (KERN_INFO "%s: HDLC link disconnected!\n",
+                        DEBUG_EVENT( "%s: HDLC link disconnected!\n",
                                 card->devname);
 			
 			WAN_NETIF_STOP_QUEUE(dev);
@@ -3129,22 +3302,22 @@ static void port_set_state (sdla_t *card, int state)
         }
 }
 
-void s508_lock (sdla_t *card, unsigned long *smp_flags)
+void s508_lock (sdla_t *card, wan_smp_flag_t *smp_flags)
 {
-	spin_lock_irqsave(&card->wandev.lock, *smp_flags);
+	wan_spin_lock_irq(&card->wandev.lock, smp_flags);
         if (card->next){
 		/* It is ok to use spin_lock here, since we
 		 * already turned off interrupts */
-        	spin_lock(&card->next->wandev.lock);
+        	wan_spin_lock(&card->next->wandev.lock);
 	}
 }
 
-void s508_unlock (sdla_t *card, unsigned long *smp_flags)
+void s508_unlock (sdla_t *card, wan_smp_flag_t *smp_flags)
 {
 	if (card->next){
-		spin_unlock(&card->next->wandev.lock);
+		wan_spin_unlock(&card->next->wandev.lock);
 	}
-	spin_unlock_irqrestore(&card->wandev.lock, *smp_flags);
+	wan_spin_unlock_irq(&card->wandev.lock, smp_flags);
 }
 
 
@@ -3183,14 +3356,14 @@ static int config_chdlc (sdla_t *card)
 	/* Setup the Board for asynchronous mode */
 	if (card->u.c.async_mode){
 		if (set_asy_config(card)) {
-			printk (KERN_INFO "%s: Failed Async configuration!\n",
+			DEBUG_EVENT( "%s: Failed Async configuration!\n",
 				card->devname);
 			port_set_state(card, WAN_DISCONNECTED);
 			return -EINVAL;
 		}
 	}else{
 		if (set_chdlc_config(card)) {
-			printk(KERN_INFO "%s: HDLC Configuration Failed!\n",
+			DEBUG_EVENT("%s: HDLC Configuration Failed!\n",
 					card->devname);
 			port_set_state(card, WAN_DISCONNECTED);
 			return -EINVAL;
@@ -3201,31 +3374,39 @@ static int config_chdlc (sdla_t *card)
 	card->hw_iface.poke_byte(card->hw, card->intr_perm_off, 0x00);
 	if (IS_TE1_CARD(card)) {
 		int	err = -EINVAL;
-		printk(KERN_INFO "%s: Configuring onboard %s CSU/DSU\n",
+		DEBUG_EVENT("%s: Configuring onboard %s CSU/DSU\n",
 			card->devname, 
 			(IS_T1_CARD(card))?"T1":"E1");
 		if (card->wandev.fe_iface.config){
 			err = card->wandev.fe_iface.config(&card->fe);
 		}
 		if (err){
-			printk(KERN_INFO "%s: Failed %s configuratoin!\n",
+			DEBUG_EVENT("%s: Failed %s configuratoin!\n",
 					card->devname,
 					(IS_T1_CARD(card))?"T1":"E1");
 			return -EINVAL;
+		}
+		/* Run rest of initialization not from lock */
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
 	}
 
 	if (IS_56K_CARD(card)) {
 		int	err = -EINVAL;
-		printk(KERN_INFO "%s: Configuring 56K onboard CSU/DSU\n",
+		DEBUG_EVENT("%s: Configuring 56K onboard CSU/DSU\n",
 			card->devname);
 		if (card->wandev.fe_iface.config){
 			err = card->wandev.fe_iface.config(&card->fe);
 		}
 		if(err){
-			printk (KERN_INFO "%s: Failed 56K configuration!\n",
+			DEBUG_EVENT( "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EINVAL;
+		}
+		/* Run rest of initialization not from lock */
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
 	}
 
@@ -3235,7 +3416,7 @@ static int config_chdlc (sdla_t *card)
                 		APP_INT_ON_GLOBAL_EXCEP_COND |
                 		APP_INT_ON_TX_FRAME |
                 		APP_INT_ON_CHDLC_EXCEP_COND | APP_INT_ON_TIMER)){
-		printk (KERN_INFO "%s: Failed to set interrupt triggers!\n",
+		DEBUG_EVENT( "%s: Failed to set interrupt triggers!\n",
 				card->devname);
 		return 0;	
         }
@@ -3250,7 +3431,7 @@ static int config_chdlc (sdla_t *card)
 
 	if (card->u.c.async_mode){
 		if (asy_comm_enable(card) != 0) {
-			printk(KERN_INFO "%s: Failed to enable async commnunication!\n",
+			DEBUG_EVENT("%s: Failed to enable async commnunication!\n",
 					card->devname);
 			card->hw_iface.poke_byte(card->hw, card->intr_perm_off, 0x00);
 			card->u.c.comm_enabled=0;
@@ -3260,7 +3441,7 @@ static int config_chdlc (sdla_t *card)
 		}
 	}else{ 
 		if (chdlc_comm_enable(card) != 0) {
-			printk(KERN_INFO "%s: Failed to enable chdlc communications!\n",
+			DEBUG_EVENT("%s: Failed to enable chdlc communications!\n",
 					card->devname);
 			card->hw_iface.poke_byte(card->hw, card->intr_perm_off, 0x00);
 			card->u.c.comm_enabled=0;
@@ -3278,7 +3459,7 @@ static int config_chdlc (sdla_t *card)
 		/* Manually poll the 56K CSU/DSU to get the status */
 	if (IS_56K_CARD(card)) {
 		/* 56K Update CSU/DSU alarms */
-		card->wandev.fe_iface.read_alarm(&card->fe, 1);
+		card->wandev.fe_iface.read_alarm(&card->fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
 	}
 
 	/* Unmask all interrupts except the Transmit and Timer interrupts */
@@ -3292,9 +3473,9 @@ static int config_chdlc (sdla_t *card)
 
 static void send_ppp_term_request (netdevice_t *dev)
 {
-	struct sk_buff *new_skb;
+	netskb_t *new_skb;
 	unsigned char *buf;
-	private_area_t *chan=dev->priv;
+	private_area_t *chan=wan_netif_priv(dev);
 
 	if (!chan->common.prot_ptr){
 		return;
@@ -3303,22 +3484,24 @@ static void send_ppp_term_request (netdevice_t *dev)
 	if (chan->ignore_modem)
 		return;
 	
-	if ((new_skb = dev_alloc_skb(8)) != NULL) {
+	if ((new_skb = wan_skb_alloc(8)) != NULL) {
 		/* copy data into new_skb */
 
-		buf = skb_put(new_skb, 8);
+		buf = wan_skb_put(new_skb, 8);
 		sprintf(buf,"%c%c%c%c%c%c%c%c", 0xFF,0x03,0xC0,0x21,0x05,0x98,0x00,0x07);
 
+#if defined(__LINUX__)
 		/* Decapsulate pkt and pass it up the protocol stack */
 		new_skb->protocol = htons(ETH_P_WAN_PPP);
 		new_skb->dev = dev;
 		wan_skb_reset_mac_header(new_skb);
-
+#endif
 		wan_skb_queue_tail(&chan->rx_queue,new_skb);
 		WAN_TASKLET_SCHEDULE((&chan->tasklet));
 	}
 }
 
+#if defined(__LINUX__)
 /*
  * ******************************************************************
  * Proc FS function 
@@ -3388,7 +3571,7 @@ static int chdlc_set_dev_config(struct file *file,
 
 	card = (sdla_t*)wandev->priv;
 
-	printk(KERN_INFO "%s: New device config (%s)\n",
+	DEBUG_EVENT("%s: New device config (%s)\n",
 			wandev->name, buffer);
 	/* Parse string */
 
@@ -3411,19 +3594,20 @@ static int chdlc_set_if_info(struct file *file,
 	private_area_t* 	chan = NULL;
 	sdla_t*			card = NULL;
 
-	if (dev == NULL || dev->priv == NULL)
+	if (dev == NULL || wan_netif_priv(dev) == NULL)
 		return count;
-	chan = (private_area_t*)dev->priv;
+	chan = (private_area_t*)wan_netif_priv(dev);
 	if (chan->card == NULL)
 		return count;
 	card = chan->card;
 
-	printk(KERN_INFO "%s: New interface config (%s)\n",
+	DEBUG_EVENT("%s: New interface config (%s)\n",
 			card->u.c.if_name, buffer);
 	/* Parse string */
 
 	return count;
 }
+#endif
 
 static int set_adapter_config (sdla_t* card)
 {
@@ -3464,7 +3648,11 @@ static void chdlc_enable_timer (void* card_id)
  *
  **********************************************************/
 
+#if defined(__LINUX__)
 static void wp_bh (unsigned long data)
+#else
+static void wp_bh (void *data, int pending)
+#endif
 {
 	private_area_t *chan = (private_area_t *)data;
 	sdla_t *card = chan->card;
@@ -3487,16 +3675,19 @@ static void wp_bh (unsigned long data)
 
 	while ((skb=wan_skb_dequeue(&chan->rx_queue))){
 	
-		len=skb->len;
+		len=wan_skb_len(skb);
 	
+#if defined(ENABLE_MULTPROT_MODE_WANPIPE)
 		if (chan->common.usedby == WANPIPE){
 
 			card->wandev.stats.rx_packets ++;
-			card->wandev.stats.rx_bytes += skb->len;
+			card->wandev.stats.rx_bytes += wan_skb_len(skb);
 
 			wp_sppp_input(skb->dev,skb);
 
-		}else if (chan->common.usedby == API){
+		}else
+#endif 
+		if (chan->common.usedby == API){
 
 			if (wan_skb_headroom(skb) >= sizeof(api_rx_hdr_t)){
 				api_rx_hdr_t *rx_hdr=
@@ -3507,18 +3698,19 @@ static void wp_bh (unsigned long data)
 				DEBUG_EVENT("%s: Error Rx pkt headroom %d < %d\n",
 						chan->if_name,
 						wan_skb_headroom(skb),
-						sizeof(api_rx_hdr_t));
+						(int)sizeof(api_rx_hdr_t));
 				}
 				++card->wandev.stats.rx_dropped;
 				wan_skb_free(skb);
 				continue;
 			}
 
-			skb->protocol = htons(PVC_PROT);
 			wan_skb_reset_mac_header(skb);
-			skb->dev      = chan->common.dev;
+			wan_skb_set_dev(skb, chan->common.dev);
+#if defined(__LINUX__)
+			wan_skb_set_protocol(skb, PVC_PROT);
 			skb->pkt_type = WAN_PACKET_DATA;	
-
+#endif
 			if (wan_api_rx(chan,skb) == 0){
 				card->wandev.stats.rx_packets++;
 				card->wandev.stats.rx_bytes += len;
@@ -3567,8 +3759,8 @@ static void wp_bh (unsigned long data)
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 static int bind_annexg(netdevice_t *dev, netdevice_t *annexg_dev)
 {
-	unsigned long smp_flags=0;
-	private_area_t* chan = dev->priv;
+	wan_smp_flag_t smp_flags=0;
+	private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	if (!chan)
 		return -EINVAL;
@@ -3579,9 +3771,9 @@ static int bind_annexg(netdevice_t *dev, netdevice_t *annexg_dev)
 	if (chan->annexg_dev)
 		return -EBUSY;
 
-	spin_lock_irqsave(&card->wandev.lock,smp_flags);
+	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 	chan->annexg_dev = annexg_dev;
-	spin_unlock_irqrestore(&card->wandev.lock,smp_flags);
+	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 	return 0;
 }
 
@@ -3590,7 +3782,7 @@ static netdevice_t * un_bind_annexg(wan_device_t *wandev, netdevice_t *annexg_de
 {
 	struct wan_dev_le	*devle;
 	netdevice_t *dev;
-	unsigned long smp_flags=0;
+	wan_smp_flag_t smp_flags=0;
 	sdla_t *card = wandev->priv;
 
 	WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
@@ -3604,9 +3796,9 @@ static netdevice_t * un_bind_annexg(wan_device_t *wandev, netdevice_t *annexg_de
 			continue;
 
 		if (chan->annexg_dev == annexg_dev){
-			spin_lock_irqsave(&card->wandev.lock,smp_flags);
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 			chan->annexg_dev = NULL;
-			spin_unlock_irqrestore(&card->wandev.lock,smp_flags);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 			return dev;
 		}
 	}
@@ -3617,7 +3809,7 @@ static netdevice_t * un_bind_annexg(wan_device_t *wandev, netdevice_t *annexg_de
 static void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
 			       void *wp_stats_ptr)
 {
-	private_area_t* 	chan = dev->priv;
+	private_area_t* 	chan = wan_netif_priv(dev);
 	wp_stack_stats_t *wp_stats = (wp_stack_stats_t *)wp_stats_ptr;
 
 	if (chan->common.usedby == ANNEXG && chan->annexg_dev){
@@ -3636,7 +3828,7 @@ static void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
 static int 
 get_map(wan_device_t *wandev, netdevice_t *dev, struct seq_file* m, int* stop_cnt)
 {
-	private_area_t*	chan = dev->priv;
+	private_area_t*	chan = wan_netif_priv(dev);
 
 	if (!(dev->flags&IFF_UP)){
 		return m->count;
@@ -3663,6 +3855,7 @@ get_map(wan_device_t *wandev, netdevice_t *dev, struct seq_file* m, int* stop_cn
 
 static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
 {
+#if defined(__LINUX__)
 	netskb_t* skb;
 	netdevice_t* dev;
 	char* buf;
@@ -3708,15 +3901,36 @@ static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
 	buf = wan_skb_put(skb, wan_udp_pkt->wan_udp_data_len);
 	memcpy(buf, wan_udp_pkt->wan_udp_data, wan_udp_pkt->wan_udp_data_len);
 
-
 	skb->next = skb->prev = NULL;
         skb->dev = dev;
         skb->protocol = htons(ETH_P_IP);
 	wan_skb_reset_mac_header(skb);
         dev_queue_xmit(skb);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__)
+	DEBUG_EVENT("%s: WARNING: Digital loop test mode is not supported!\n",
+				card->devname);
+#endif
 
 	return 0;
 }                  
 
+#if defined(__LINUX__)
+static int wp_exec_usr_mbox_cmd(sdla_t *card, wan_mbox_t *usrmbox)
+{
+	wan_mbox_t *mb = &card->wan_mbox;
+	int err;
+
+	memcpy(mb,usrmbox,sizeof(wan_mbox_t));
+
+	err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
+	if (err != COMMAND_OK) {
+		chdlc_error (card, err, mb);
+	}
+
+	memcpy(usrmbox,mb,sizeof(wan_mbox_t));
+
+	return err;
+}
+#endif
 
 /****** End ****************************************************************/

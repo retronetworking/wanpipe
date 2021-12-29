@@ -2093,12 +2093,7 @@ char* replace_numeric_with_char(char* str)
 			Debug(DBG_WANCFG_MAIN, ("new_str[%d]: 0x%X (+0x30: 0x%X)\n",
 				i, new_str[i], new_str[i]+0x30));
 			
-			if(new_str[i] == 0x30){
-				//it is zero, possible for wanpipe10 (wanpipe0 is invalid).
-				new_str[i] = new_str[i] + 0x31;//replace with 'a'
-			}else{
-				new_str[i] = new_str[i] + 0x30;
-			}
+			new_str[i] = 'a' + (new_str[i] - '0');
 		}
 	}
 	return new_str;

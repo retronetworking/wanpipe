@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_8te1.c,v 1.117 2008/03/06 18:17:59 sangoma Exp $
+ *	$Id: sdla_8te1.c,v 1.119 2008/03/14 19:14:10 sangoma Exp $
  */
 
 /******************************************************************************
@@ -402,7 +402,6 @@ int sdla_ds_te1_iface_init(void *p_fe, void *p_fe_iface)
 	fe_iface->check_isr		= &sdla_ds_te1_check_intr;
 	fe_iface->intr_ctrl		= &sdla_ds_te1_intr_ctrl;
 	fe_iface->polling		= &sdla_ds_te1_polling;
-	fe_iface->add_timer		= &sdla_ds_te1_add_timer;
 	fe_iface->process_udp		= &sdla_ds_te1_udp;
 
 	fe_iface->print_fe_alarm	= &sdla_ds_te1_print_alarms;
@@ -704,7 +703,8 @@ static int sdla_ds_t1_cfg_verify(void* pfe)
 	switch(WAN_TE1_LBO(fe)) {
 	case WAN_T1_LBO_0_DB: case WAN_T1_LBO_75_DB:
 	case WAN_T1_LBO_15_DB: case WAN_T1_LBO_225_DB:
-	case WAN_T1_0_133: case WAN_T1_133_266: case WAN_T1_110_220:
+	case WAN_T1_0_133: case WAN_T1_0_110: 
+	case WAN_T1_133_266: case WAN_T1_110_220:
 	case WAN_T1_266_399: case WAN_T1_220_330:
 	case WAN_T1_399_533: case WAN_T1_330_440: case WAN_T1_440_550:
 	case WAN_T1_533_655: case WAN_T1_550_660:
@@ -3346,7 +3346,8 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 		wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
 		DEBUG_EVENT("%s: WARNING: No FE events in a queue!\n",
 					fe->name);
-		return HZ;
+		sdla_ds_te1_add_timer(fe, HZ);
+		return 0;
 	}
 	event = WAN_LIST_FIRST(&fe->event);
 	WAN_LIST_REMOVE(event, next);
@@ -3576,9 +3577,11 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 	/* Add fe timer */
 	event = WAN_LIST_FIRST(&fe->event);
 	if (event){
-		return event->delay;
+		sdla_ds_te1_add_timer(fe, event->delay);
+	}else{
+		sdla_ds_te1_add_timer(fe, HZ);
 	}
-	return HZ;
+	return 0;
 }
 
 /*

@@ -91,6 +91,7 @@
 #define WAN_EVENT_RM_SET_ECHOTUNE	0x0010
 #define WAN_EVENT_EC_CHAN_MODIFY	0x0011
 #define WAN_EVENT_EC_H100_REPORT	0x0012
+#define WAN_EVENT_BRI_CHAN_LOOPBACK	0x0013
 
 #define WAN_EVENT_TYPE_DECODE(type)					\
 		((type) == WAN_EVENT_EC_DTMF)		? "EC DTMF"  :	\
@@ -110,6 +111,7 @@
 		((type) == WAN_EVENT_RM_SETPOLARITY)	? "RM Set polarity" :	\
 		((type) == WAN_EVENT_RM_SET_ECHOTUNE)	? "RM Set echotune" :	\
 		((type) == WAN_EVENT_EC_CHAN_MODIFY)	? "EC Chan Modify" :	\
+		((type) == WAN_EVENT_BRI_CHAN_LOOPBACK)	? "BRI B-Chan Loopback" :	\
 						"(Unknown type)"
 
 /* tone type list */						

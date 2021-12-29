@@ -526,6 +526,11 @@ enum {
 
 #ifdef __KERNEL__
 
+#define OPERATE_T1E1_AS_SERIAL		0x8000  /* For bitstreaming only 
+						 * Allow the applicatoin to 
+						 * E1 front end */
+
+
 static inline void bstrm_skb_queue_purge(struct sk_buff_head *list)
 {
 	struct sk_buff *skb;

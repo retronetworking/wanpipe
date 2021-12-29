@@ -17,7 +17,12 @@
  *
  * February	26, 2008	David Rokhvarg	
  *				v1.1 Imrovements in SU State transition code.
- *				Implemented T3 and T4 timers.
+ *				Re-implemented T3 and T4 timers.
+ *
+ * March	10, 2008	David Rokhvarg	
+ *				v1.2 Added 'loopback' commands.
+ *				Added commands to switch between line recovery
+ *				clock and internal oscillator clock.
  *
  ******************************************************************************
  */
@@ -94,6 +99,9 @@
 
 #define DEBUG_FE_STATUS		if(0)DEBUG_EVENT
 
+#define DEBUG_LOOPB		if(0)DEBUG_EVENT
+
+
 /* Timer interrupt counter - used by activation timer T3 */
 #define HFC_TIMER_COUNTER_T3	2
 
@@ -118,7 +126,7 @@ static int check_data(u8 *data, int data_len);
 /*******************************************************************************
 **			  DEFINES AND MACROS
 *******************************************************************************/
-#define REPORT_MOD_NO	(mod_no+1)
+#define REPORT_MOD_NO(mod_no)	(mod_no+1)
 
 static u8 validate_fe_line_no(sdla_fe_t *fe, const char *caller_name)
 {
@@ -256,6 +264,7 @@ static void	*wp_bri_dchan_rx(sdla_fe_t *fe, u8 mod_no, u8 port_no);
 static int	wp_bri_get_fe_status(sdla_fe_t *fe, unsigned char *status);
 static int	wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char status);
 
+static int wp_bri_control(sdla_fe_t *fe, u32 command);
 
 /*******************************************************************************/
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -286,8 +295,12 @@ static void xhfc_select_fifo(sdla_fe_t *fe, u32 mod_no, u8 fifo);
 static void xhfc_waitbusy(sdla_fe_t *fe, u32 mod_no);
 static void xhfc_select_pcm_slot(sdla_fe_t *fe, u32 mod_no, u8 slot, u8 direction);
 static void xhfc_increment_fifo(sdla_fe_t *fe, u32 mod_no);
-static int32_t config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode);
-static int32_t clock_control(sdla_fe_t *fe, u8 line_state);
+
+static int32_t __config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode);
+static int32_t config_clock_routing(sdla_fe_t *fe, u8 master_mode);
+
+/*static int32_t clock_control(sdla_fe_t *fe, u8 line_state);*/
+
 static void xhfc_ph_command(sdla_fe_t *fe, bri_xhfc_port_t *port, u_char command);
 
 static u8 __su_new_state(sdla_fe_t *fe, u32 mod_no, u8 port_no);
@@ -565,6 +578,12 @@ static void xhfc_waitbusy(sdla_fe_t *fe, u32 mod_no)
 	}
 }
 
+static inline void xhfc_resetfifo(sdla_fe_t *fe, u32 mod_no)
+{
+        WRITE_REG(A_INC_RES_FIFO, M_RES_FIFO | M_RES_FIFO_ERR);
+	xhfc_waitbusy(fe, mod_no);
+}
+
 static void xhfc_select_fifo(sdla_fe_t *fe, u32 mod_no, u8 fifo)
 {
 	WRITE_REG(R_FIFO, fifo);
@@ -670,6 +689,7 @@ static int32_t reset_chip(sdla_fe_t *fe, u32 mod_no)
 	return 0;
 }
 
+#if 0
 static int32_t clock_control(sdla_fe_t *fe, u8 line_state)
 {
 	sdla_t			*card = (sdla_t*)fe->card;
@@ -706,8 +726,9 @@ static int32_t clock_control(sdla_fe_t *fe, u8 line_state)
 
 	return 0;
 }
+#endif
 
-static int32_t config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode)
+static int32_t __config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode)
 {
 	reg_r_pcm_md0		pcm_md0;
 	reg_r_pcm_md2		r_pcm_md2;
@@ -723,8 +744,18 @@ static int32_t config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode)
 		return 1;
 	}
 
-	DEBUG_EVENT("%s: Module %d: configuring clock routing (SYNC_O is %s)...\n", 
-		fe->name, REPORT_MOD_NO, (master_mode == WANOPT_YES ? "Enabled" : "Disabled"));
+	if (fe->bri_param.mod[mod_no].type != MOD_TYPE_TE && master_mode) {
+		DEBUG_EVENT("%s: Module %d: error configuring clock routing on NT\n", 
+		fe->name, mod_no);
+		return 1;
+	} 
+
+	
+	DEBUG_EVENT("%s: %s Clock line recovery Module=%d Port=%d: %s\n", 
+		fe->name, WP_BRI_DECODE_MOD_TYPE(fe->bri_param.mod[mod_no].type), 
+		REPORT_MOD_NO(mod_no), fe_line_no_to_port_no(fe)+1, 
+		(master_mode == WANOPT_YES ? "Enabled" : "Disabled"));
+	
 
 	/************************************************************************/
 #if 0
@@ -804,6 +835,16 @@ static int32_t config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode)
 
 	return 0;
 }
+
+static int config_clock_routing(sdla_fe_t *fe, u8 master_mode)
+{
+	u8	mod_no;
+
+	mod_no = fe_line_no_to_physical_mod_no(fe);	
+
+	return __config_clock_routing(fe, mod_no, master_mode);
+}
+
 
 /******************************************************************************
 *				init_xfhc()	
@@ -907,10 +948,11 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 	WRITE_REG(R_PCM_MD1, bri_module->pcm_md1.reg);
 
 	/* After chip reset SYNC_O is set for OUTPUT by default, make sure
-	   SYNC_O is set for INPUT! Otherwise may cause clock conflict.
-	*/
-	config_clock_routing(fe, mod_no, WANOPT_NO);
-
+	   SYNC_O is set for INPUT! Otherwise may cause clock conflict. */
+#if 0
+	/* NC not needed configured once per start */
+	__config_clock_routing(fe, mod_no, WANOPT_NO);
+#endif
 	DEBUG_HFC_INIT("\n%s: configuring B-channels FIFOs...\n", fe->name);
 	/* configure B channel fifos for ST<->PCM data flow */
 	for (port_no = 0; port_no < bri_module->num_ports; port_no++) {/* 2 ports */
@@ -1029,6 +1071,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 				PCM data input from pin STIO1  (+0x40 swap pins).
 				Assign HFC channel (from 0 to 15) to the selected PCM slot.
 			*/
+
 			WRITE_REG(A_SL_CFG,0x80+0x40+port_no*8+bchan*2+1);/* assign HFC channel (from 0 to 15) 
 									  to the selected PCM slot. */
 		}/* for (bchan = 0; bchan < 2; bchan++) */
@@ -1116,7 +1159,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 		}
 	
 		DEBUG_EVENT("%s: Module: %d, PCM 125us pulse ok. (f0cl diff: %d)\n", 
-			fe->name, REPORT_MOD_NO + port_no, f0cl_diff);	
+			fe->name, REPORT_MOD_NO(mod_no) + port_no, f0cl_diff);	
 
 	}/* for (port_no = 0; port_no < bri_module->num_ports; port_no++) */
 
@@ -1177,7 +1220,7 @@ static int32_t check_f0cl_increment(sdla_fe_t *fe, u8 old_f0cl, u8 new_f0cl, int
 	}
 
 	/* should be between 70 and 90 over 10ms time */
-	if(*diff > 90 || *diff < 70){
+	if(*diff > 150 || *diff < 70){
 		DEBUG_EVENT("%s: PCM ERROR 125us pulse not counting!! f0cl diff: %d\n",
 			fe->name, *diff);	
 		return 1;
@@ -1695,13 +1738,12 @@ int32_t wp_bri_iface_init(void *pfe_iface)
 	fe_iface->event_ctrl		= &wp_bri_event_ctrl;
 
 	fe_iface->isdn_bri_dchan_tx	= &wp_bri_dchan_tx;
-#if 0
-	fe_iface->isdn_bri_dchan_rx	= &wp_bri_dchan_rx;
-#endif
 
 #if defined(AFT_TDM_API_SUPPORT)
-	fe_iface->watchdog	= &wp_bri_watchdog;
+	fe_iface->watchdog		= &wp_bri_watchdog;
 #endif
+
+	fe_iface->clock_ctrl		= &config_clock_routing;
 
 	return 0;
 }
@@ -1932,7 +1974,13 @@ static int wp_bri_pre_release(void* pfe)
 	u8			mod_no, port_no;
 	bri_xhfc_port_t		*port_ptr;
 
-	DEBUG_EVENT("%s: Running post initialization...\n", fe->name);
+	DEBUG_EVENT("%s: Running pre-release...\n", fe->name);
+
+	if(fe->fe_status == FE_UNITIALIZED){
+		DEBUG_EVENT("%s: %s(): Warning: Front End initialization was incomplete.\n", 
+			fe->name, __FUNCTION__);
+		return 1;
+	}
 
 	if(validate_fe_line_no(fe, __FUNCTION__)){
 		return 1;
@@ -1980,17 +2028,23 @@ static int32_t wp_bri_config(void *pfe)
 
 	BRI_FUNC();
 
-	DEBUG_EVENT("%s: %s: Line %d Front End configuration\n", 
-			fe->name, FE_MEDIA_DECODE(fe), WAN_FE_LINENO(fe) + 1);
+
+	fe->fe_status = FE_UNITIALIZED;
 
 	if(validate_fe_line_no(fe, __FUNCTION__)){
+		DEBUG_EVENT("%s: %s: Error: Invalid Front End Line number %i !\n", 
+			fe->name, FE_MEDIA_DECODE(fe), WAN_FE_LINENO(fe)+1);
 		return 1;
 	}
 
 	mod_no = fe_line_no_to_physical_mod_no(fe);	
 	port_no = fe_line_no_to_port_no(fe);
 
-	DEBUG_EVENT("%s(): mod_no: %i, port_no: %i\n", __FUNCTION__, mod_no, port_no);
+	
+	DEBUG_EVENT("%s: %s: Front End configuration Line=%d Mod=%i\n", 
+			fe->name, FE_MEDIA_DECODE(fe), WAN_FE_LINENO(fe) + 1, mod_no);
+
+	DEBUG_TEST("%s(): mod_no: %i, port_no: %i\n", __FUNCTION__, mod_no, port_no);
 	
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
@@ -2001,6 +2055,7 @@ static int32_t wp_bri_config(void *pfe)
 	bri_module = &bri->mod[mod_no];
 
 	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &physical_card_config_counter);
+
 	if(physical_card_config_counter == 1){
 		/* Per-card initialization. Important to do only ONCE.*/
 		wp_bri_spi_bus_reset(fe);
@@ -2076,7 +2131,7 @@ static int32_t wp_bri_config(void *pfe)
 
 	default:
 		DEBUG_EVENT("%s(): %s: Warning: Module %d (AFT Line: %d): Not Installed.\n",
-			__FUNCTION__, fe->name, REPORT_MOD_NO, aft_line_no);
+			__FUNCTION__, fe->name, REPORT_MOD_NO(mod_no), aft_line_no);
 		break;
 	}
 	
@@ -2102,7 +2157,7 @@ static int32_t wp_bri_config(void *pfe)
 		fe->bri_param.module_map[aft_line_no] |= (BCHAN_BITMAP << (mod_no*2));
 
 		DEBUG_EVENT("%s: Module %d (AFT Line: %d): Installed -- %s. Timeslots map: 0x%08X\n",
-				fe->name, REPORT_MOD_NO, aft_line_no,
+				fe->name, REPORT_MOD_NO(mod_no), aft_line_no,
 				WP_BRI_DECODE_MOD_TYPE(fe->bri_param.mod[mod_no].type),
 				(BCHAN_BITMAP << (mod_no*2)));	
 		mod_cnt++;
@@ -2110,7 +2165,7 @@ static int32_t wp_bri_config(void *pfe)
 
 	default:
 		DEBUG_EVENT("%s(): %s: Warning: Module %d (AFT Line: %d): Not Installed.\n",
-			__FUNCTION__, fe->name, REPORT_MOD_NO, aft_line_no);	
+			__FUNCTION__, fe->name, REPORT_MOD_NO(mod_no), aft_line_no);	
 		break;
 	}
 
@@ -2130,7 +2185,7 @@ static int32_t wp_bri_config(void *pfe)
 		break;
 	default:
 		DEBUG_EVENT("%s(): %s: Warning: Module %d (AFT Line: %d): Not Installed.\n",
-			__FUNCTION__, fe->name, REPORT_MOD_NO, aft_line_no);	
+			__FUNCTION__, fe->name, REPORT_MOD_NO(mod_no), aft_line_no);	
 		break;
 	}
 
@@ -2150,7 +2205,7 @@ static int32_t wp_bri_config(void *pfe)
 			{
 			case MOD_TYPE_TE:
 			case MOD_TYPE_NT:
-				config_clock_routing(fe, i, WANOPT_NO);
+				__config_clock_routing(fe, i, WANOPT_NO);
 				break;
 			default:
 				continue;
@@ -2164,6 +2219,7 @@ static int32_t wp_bri_config(void *pfe)
 		u32 recovery_clock_flag = 1;
 		card->hw_iface.setcfg(card->hw, SDLA_RECOVERY_CLOCK_FLAG, &recovery_clock_flag);
 	}
+	fe->fe_status = FE_DISCONNECTED;
 	return 0;
 }
 
@@ -2179,6 +2235,8 @@ static int32_t wp_bri_unconfig(void *pfe)
 	u16		physical_module_config_counter;
 	sdla_t 		*card = (sdla_t*)fe->card;
 
+	/* FIXME: check if port was configured, if no, return. */
+
 	if(validate_fe_line_no(fe, __FUNCTION__)){
 		return 1;
 	}
@@ -2190,7 +2248,14 @@ static int32_t wp_bri_unconfig(void *pfe)
 
 	DEBUG_EVENT("%s: Unconfiguring BRI Front End...\n", fe->name);
 
+	if(fe->fe_status == FE_UNITIALIZED){
+		DEBUG_EVENT("%s: %s(): Warning: Front End initialization was incomplete.\n", 
+			fe->name, __FUNCTION__);
+		return 1;
+	}
+
 	card->hw_iface.getcfg(card->hw, SDLA_HWPORTREG, &physical_module_config_counter);
+
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
@@ -2203,11 +2268,10 @@ static int32_t wp_bri_unconfig(void *pfe)
 		if(fe->bri_param.mod[mod_no].type == MOD_TYPE_TE &&
 		   fe->bri_param.is_clock_master == WANOPT_YES){
 			/* master port_no is shutting down - switch all modules to internal card's clock */
-			clock_control(fe, 0);
+			/*clock_control(fe, 0);*/
 		}
 
-		config_clock_routing(fe, mod_no, WANOPT_NO);
-
+		
 		if(physical_module_config_counter == 1){
 			wp_bri_disable_irq(fe, mod_no, port_no);
 		}else{
@@ -2346,14 +2410,15 @@ static void l1_timer_expire_t3(unsigned long pport)
 	wp_bri_module_t	*bri_module = port_ptr->hw;
 	u8		mod_no = bri_module->mod_no;
 	sdla_fe_t	*fe = (sdla_fe_t*)bri_module->fe;
-	sdla_t 		*card = (sdla_t*)fe->card;
 	wan_smp_flag_t	smp_flags1;
+	sdla_t		*card = (sdla_t*)fe->card;
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
 	wan_clear_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags);
 
 	wan_clear_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags);
+
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);   
 	xhfc_ph_command(fe, port_ptr, HFC_L1_FORCE_DEACTIVATE_TE);
 	card->hw_iface.hw_unlock(card->hw,&smp_flags1);   
@@ -2481,7 +2546,7 @@ static void bri_enable_interrupts(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 	}
 
 	DEBUG_EVENT("%s: Module: %d: Enabling %s Interrupts \n",
-				fe->name, REPORT_MOD_NO,
+				fe->name, REPORT_MOD_NO(mod_no),
 				FE_MEDIA_DECODE(fe));
 
 	bri_module = &bri->mod[mod_no];
@@ -2549,7 +2614,7 @@ static int32_t wp_bri_disable_irq(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 	}
 
 	DEBUG_EVENT("%s: Module: %d: Disabling %s Interrupts \n",
-				fe->name, REPORT_MOD_NO,
+					fe->name, REPORT_MOD_NO(mod_no),
 				FE_MEDIA_DECODE(fe));
 
 	bri_module = &bri->mod[mod_no];
@@ -2581,7 +2646,7 @@ static u32 wp_bri_active_map(sdla_fe_t* fe, u8 line_no)
 		return 0;
 	}
 	
-	DEBUG_EVENT("%s: ACTIVE MAP Port=%i Returning 0x%08X\n",
+	DEBUG_TEST("%s: ACTIVE MAP Port=%i Returning 0x%08X\n",
 			fe->name,  
 			WAN_FE_LINENO(fe),
 			 0x03 << (WAN_FE_LINENO(fe)%MAX_BRI_MODULES)*2);
@@ -2727,6 +2792,131 @@ static int wp_bri_get_fe_status(sdla_fe_t *fe, unsigned char *status)
 	return 0;
 }
 
+
+static int bchan_loopback_control(sdla_fe_t *fe, u8 bchan_no, u8 loopback_enable)
+{
+	u8			mod_no, port_no, pcm_slot;
+	sdla_bri_param_t	*bri = &fe->bri_param;
+	wp_bri_module_t		*bri_module;
+	bri_xhfc_port_t		*port_ptr;
+	reg_a_sl_cfg		a_sl_cfg;
+
+	mod_no = fe_line_no_to_physical_mod_no(fe);	
+	port_no = fe_line_no_to_port_no(fe);
+
+	bri_module = &bri->mod[mod_no];
+	port_ptr = &bri_module->port[port_no];
+
+
+        DEBUG_LOOPB("%s()\n", __FUNCTION__);
+
+        if (!((bchan_no == 0) || (bchan_no == 1))) {
+                DEBUG_LOOPB("%s %s(): port_no(%i) ERROR: bchan_no(%i) invalid!\n",
+                       fe->name, __FUNCTION__, port_no, bchan_no);
+                return 1;
+        }
+
+        DEBUG_LOOPB("%s %s(): %s loopback, port_no(%i), bchan_no(%i)\n",
+		fe->name, __FUNCTION__,
+		(loopback_enable) ? ("enable") : ("disable"), port_no, bchan_no);
+
+	if(mod_no >= MAX_BRI_MODULES){
+		/* adjust mod_no to be between 0 and 10 (including)*/
+		pcm_slot = calculate_pcm_timeslot(mod_no - MAX_BRI_MODULES, port_no, bchan_no);
+		/* AFT Line 1 will use odd PCM timeslots */
+		pcm_slot += 1;
+	}else{
+		/* AFT Line 0 will use even PCM timeslots */
+		pcm_slot = calculate_pcm_timeslot(mod_no, port_no, bchan_no);
+	}
+
+	DEBUG_LOOPB("selecting pcm_slot: %i, HFC channel: %i\n", pcm_slot, port_no*4+bchan_no);
+
+	/*****************************************************************************************/
+	/* transmit slot - select direction TX */
+	xhfc_select_pcm_slot(fe, mod_no, pcm_slot, XHFC_DIRECTION_TX);
+
+	/* Connect time slot with channel and pin.
+	Assign HFC channel (from 0 to 15) to the selected PCM slot.*/
+
+	a_sl_cfg.reg = 0;
+
+	a_sl_cfg.bit.v_ch_sdir	= 0;
+	a_sl_cfg.bit.v_ch_snum	= port_no*4+bchan_no;/*page 75 */
+	a_sl_cfg.bit.v_rout	= (loopback_enable ? 0x01:0x03);/* page 257 */
+
+	WRITE_REG(A_SL_CFG, a_sl_cfg.reg);
+
+
+	/*****************************************************************************************/
+	/* receive slot - select direction RX */
+	xhfc_select_pcm_slot(fe, mod_no, pcm_slot, XHFC_DIRECTION_RX);
+
+	/* Connect time slot with channel and pin.
+	Assign HFC channel (from 0 to 15) to the selected PCM slot. */
+	a_sl_cfg.reg = 0;
+
+	a_sl_cfg.bit.v_ch_sdir	= 1;
+	a_sl_cfg.bit.v_ch_snum	= port_no*4+bchan_no;/*page 75 */
+	a_sl_cfg.bit.v_rout	= (loopback_enable ? 0x01:0x03);/* page 257 */
+
+	WRITE_REG(A_SL_CFG,a_sl_cfg.reg);
+
+	return 0;
+}
+
+
+/* Commands from user. */
+static int wp_bri_control(sdla_fe_t *fe, u32 command)
+{
+	u8			mod_no, port_no;
+	int			rc = 0;
+	sdla_bri_param_t	*bri = &fe->bri_param;
+	wp_bri_module_t		*bri_module;
+	bri_xhfc_port_t		*port_ptr;
+
+	mod_no = fe_line_no_to_physical_mod_no(fe);	
+	port_no = fe_line_no_to_port_no(fe);
+
+	DEBUG_LOOPB("%s(): Module: %d, port_no: %d. fe->name: %s, command: %i\n",
+		__FUNCTION__, mod_no, port_no, fe->name, command);
+
+	bri_module = &bri->mod[mod_no];
+	port_ptr = &bri_module->port[port_no];
+
+	switch(command)
+	{
+	case HFC_L1_ENABLE_LOOP_B1:
+		DEBUG_LOOPB("HFC_L1_ENABLE_LOOP_B1\n");
+		bchan_loopback_control(fe, 0, 1);
+		break;
+
+	case HFC_L1_ENABLE_LOOP_B2:
+		DEBUG_LOOPB("HFC_L1_ENABLE_LOOP_B2\n");
+		bchan_loopback_control(fe, 1, 1);
+		break;
+
+	case HFC_L1_DISABLE_LOOP_B1:
+		DEBUG_LOOPB("HFC_L1_DISABLE_LOOP_B1\n");
+		bchan_loopback_control(fe, 0, 0);
+		break;
+
+	case HFC_L1_DISABLE_LOOP_B2:
+		DEBUG_LOOPB("HFC_L1_DISABLE_LOOP_B2\n");
+		bchan_loopback_control(fe, 1, 0);
+		break;
+
+	default:
+		DEBUG_EVENT("%s(): %s: Error: invalid command '%i'requested!\n",
+			__FUNCTION__, fe->name, command);
+		rc = 1;
+		break;
+	}	
+
+	return rc;
+}
+
+
 /******************************************************************************
 *				wp_bri_set_fe_status()	
 *
@@ -2811,11 +3001,30 @@ static int wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char new_status)
 ******************************************************************************/
 static int wp_bri_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 {
-	int err = 0;
+	int err = 1;
 
 	BRI_FUNC();
 
 	WAN_ASSERT(ectrl == NULL);
+
+	DEBUG_LOOPB("%s: Event Type: %s, Mode: %s.\n",
+		fe->name, WAN_EVENT_TYPE_DECODE(ectrl->type),
+		WAN_EVENT_MODE_DECODE(ectrl->mode));
+
+	switch(ectrl->type)
+	{
+	case WAN_EVENT_BRI_CHAN_LOOPBACK:
+		switch(ectrl->channel)
+		{
+		case WAN_BRI_BCHAN1:
+			err = wp_bri_control(fe, (ectrl->mode == WAN_EVENT_ENABLE ? HFC_L1_ENABLE_LOOP_B1:HFC_L1_DISABLE_LOOP_B1));
+			break;
+		case WAN_BRI_BCHAN2:
+			err = wp_bri_control(fe, (ectrl->mode == WAN_EVENT_ENABLE ? HFC_L1_ENABLE_LOOP_B2:HFC_L1_DISABLE_LOOP_B2));
+			break;
+		}
+		break;
+	}
 
 	return err;
 }
@@ -2930,7 +3139,7 @@ static void sdla_bri_set_status(sdla_fe_t* fe, u8 mod_no, u8 port_no, u8 new_sta
 	if (new_status == FE_CONNECTED){
 		DEBUG_EVENT("%s: %s Module: %d connected!\n", 
 			fe->name,
-			FE_MEDIA_DECODE(fe), REPORT_MOD_NO + port_no);
+			FE_MEDIA_DECODE(fe), REPORT_MOD_NO(mod_no) + port_no);
 
 		if (card->wandev.te_report_alarms){
 			card->wandev.te_report_alarms(card, 0);
@@ -2939,16 +3148,20 @@ static void sdla_bri_set_status(sdla_fe_t* fe, u8 mod_no, u8 port_no, u8 new_sta
 	}else{
 		DEBUG_EVENT("%s: %s Module: %d disconnected!\n", 
 			fe->name,
-			FE_MEDIA_DECODE(fe), REPORT_MOD_NO + port_no);
+			FE_MEDIA_DECODE(fe), REPORT_MOD_NO(mod_no) + port_no);
 
 		if (card->wandev.te_report_alarms){
 			card->wandev.te_report_alarms(card, 1);
 		}
 
 		if(fe->bri_param.is_clock_master == WANOPT_YES){
-			config_clock_routing(fe, mod_no, WANOPT_NO);
-			clock_control(fe, 0);
+			/*__config_clock_routing(fe, mod_no, WANOPT_NO);*/
+			/*clock_control(fe, 0);*/
 		}
+	}
+
+	if (card->wandev.te_link_state){
+		card->wandev.te_link_state(card);
 	}
 
 	return;
@@ -3006,7 +3219,7 @@ static void su_new_state(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 
 static u8 __su_new_state(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 {
-	bri_xhfc_port_t		*port;
+	bri_xhfc_port_t		*port_ptr;
 	sdla_bri_param_t 	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
 	u8			connected = 0;
@@ -3018,36 +3231,36 @@ static u8 __su_new_state(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 	}
 
 	bri_module	= &bri->mod[mod_no];
-	port		= &bri_module->port[port_no];
+	port_ptr	= &bri_module->port[port_no];
 
-	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port->idx);
+	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
-	if (port->mode & PORT_MODE_TE) {
-		DEBUG_HFC_S0_STATES("TE F%d\n", port->l1_state);
+	if (port_ptr->mode & PORT_MODE_TE) {
+		DEBUG_HFC_S0_STATES("TE F%d\n", port_ptr->l1_state);
 
-		if ((port->l1_state <= 3) || (port->l1_state >= 7)){
-			l1_timer_stop_t3(port);
+		if ((port_ptr->l1_state <= 3) || (port_ptr->l1_state >= 7)){
+			l1_timer_stop_t3(port_ptr);
 		}
 
-		switch (port->l1_state) 
+		switch (port_ptr->l1_state) 
 		{
 	        case (3):
-			if (wan_test_and_clear_bit(HFC_L1_ACTIVATED, &port->l1_flags)){
-				l1_timer_start_t4(port);
+			if (wan_test_and_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags)){
+				l1_timer_start_t4(port_ptr);
 			}
 			return connected;
 
 		case (7):
-			l1_timer_stop_t4(port);
+			l1_timer_stop_t4(port_ptr);
 			connected = 1;
 
-			if (wan_test_and_clear_bit(HFC_L1_ACTIVATING, &port->l1_flags)) {
+			if (wan_test_and_clear_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags)) {
 				DEBUG_HFC_S0_STATES("l1->l2 -- ACTIVATE CONFIRM\n");
 
-				wan_set_bit(HFC_L1_ACTIVATED, &port->l1_flags);
+				wan_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
 
 			} else {
-				if (!(wan_test_and_set_bit(HFC_L1_ACTIVATED, &port->l1_flags))) {
+				if (!(wan_test_and_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags))) {
 					DEBUG_HFC_S0_STATES("l1->l2 -- ACTIVATE INDICATION\n");
 				} else {
 					/* L1 was already activated (e.g. F8->F7) */
@@ -3057,48 +3270,48 @@ static u8 __su_new_state(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 			break;
 
 		case (8):
-			l1_timer_stop_t4(port);
+			l1_timer_stop_t4(port_ptr);
 			return connected;
 
 		default:
 			return connected;
 		}
 
-	} else if (port->mode & PORT_MODE_NT) {
+	} else if (port_ptr->mode & PORT_MODE_NT) {
 
-		DEBUG_HFC_S0_STATES("NT G%d\n", port->l1_state);
+		DEBUG_HFC_S0_STATES("NT G%d\n", port_ptr->l1_state);
 
-		switch (port->l1_state) 
+		switch (port_ptr->l1_state) 
 		{
 		case (1):
-			port->nt_timer = 0;
-			port->mode &= ~NT_TIMER;
+			port_ptr->nt_timer = 0;
+			port_ptr->mode &= ~NT_TIMER;
 
 			DEBUG_HFC_S0_STATES("l1->l2 (PH_DEACTIVATE | INDICATION)\n");
 			break;
 		case (2):
-			if (port->nt_timer < 0) {
-				port->nt_timer = 0;
-				port->mode &= ~NT_TIMER;
-				xhfc_ph_command(fe, port, HFC_L1_DEACTIVATE_NT);
+			if (port_ptr->nt_timer < 0) {
+				port_ptr->nt_timer = 0;
+				port_ptr->mode &= ~NT_TIMER;
+				xhfc_ph_command(fe, port_ptr, HFC_L1_DEACTIVATE_NT);
 			} else {
-				port->nt_timer = NT_T1_COUNT;
-				port->mode |= NT_TIMER;
+				port_ptr->nt_timer = NT_T1_COUNT;
+				port_ptr->mode |= NT_TIMER;
 
-				WRITE_REG(R_SU_SEL, port->idx);
+				WRITE_REG(R_SU_SEL, port_ptr->idx);
 				WRITE_REG(A_SU_WR_STA, M_SU_SET_G2_G3);
 			}
 			return connected;
 		case (3):
-			port->nt_timer = 0;
-			port->mode &= ~NT_TIMER;
+			port_ptr->nt_timer = 0;
+			port_ptr->mode &= ~NT_TIMER;
 
 			DEBUG_HFC_S0_STATES("l1->l2 -- ACTIVATE INDICATION\n");
 			connected = 1;
 			break;
 		case (4):
-			port->nt_timer = 0;
-			port->mode &= ~NT_TIMER;
+			port_ptr->nt_timer = 0;
+			port_ptr->mode &= ~NT_TIMER;
 			return connected;
 		default:
 			break;
@@ -3243,8 +3456,8 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 				}
 
 				if(port_ptr->clock_routing_state == LINE_STABLE){
-					config_clock_routing(fe, mod_no, WANOPT_YES);
-					clock_control(fe, 1);
+					/*__config_clock_routing(fe, mod_no, WANOPT_YES);*/
+					/*clock_control(fe, 1);*/
 				}
 			}
 		}
@@ -3259,7 +3472,7 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 				new_su_state.bit.v_su_sta,	new_su_state.bit.v_su_fr_sync,
 				new_su_state.bit.v_su_info0,	new_su_state.bit.v_g2_g3);*/
 
-		if((r_su_irq.reg & (1 << port_no))){
+		if((r_su_irq.reg & (1 << port_no)) || (r_misc_irq.reg & M_TI_IRQ)){
 			sdla_bri_param_t 	*su_bri = &fe->bri_param;
 			wp_bri_module_t		*su_bri_module = &su_bri->mod[mod_no];
 			bri_xhfc_port_t		*port_ptr = &su_bri_module->port[port_no];

@@ -25,7 +25,7 @@ CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -DCONFIG_PRODUCT_WANPIPE_TDMV
 CFLAGS += -I/usr/include/wanpipe
 
 TARGETS=aft_api
-TARGETS+= aft_api_events
+#TARGETS+= aft_api_events
 TARGETS+= aft_api_repeater
 #TARGETS+= aft_api_ss7
 #TARGETS+= aft_api_check

@@ -13,9 +13,11 @@
 *		2 of the License, or (at your option) any later version.
 * ============================================================================
 * Oct 04, 2005	Nenad Corbic	Initial version.
-* Jul 27, 2006	David Rokhvarg	<davidr@sangoma.com>	Ported to Windows.
+* Jul 27, 2006	David Rokhvarg	<davidr@sangoma.com>	
+*				Ported to Windows.
+* Mar 10, 2008	David Rokhvarg	<davidr@sangoma.com>
+*				Added BRI LoopBack control.
 *****************************************************************************/
-
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <wanpipe_includes.h>
@@ -1203,10 +1205,8 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		case SIOC_WP_TDM_GET_USR_MTU_MRU:
 		case SIOC_WP_TDM_GET_STATS:
 		case SIOC_WP_TDM_GET_FULL_CFG:
-#if !defined(__WINDOWS__)
 		case SIOC_WP_TDM_GET_FE_STATUS:
 		case SIOC_WP_TDM_SET_FE_STATUS:
-#endif
                 case SIOC_WP_TDM_READ_EVENT:
                 case SIOC_WP_TDM_GET_FE_ALARMS:
 			break;
@@ -1410,7 +1410,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		}
 		goto tdm_api_unlocked_exit;
 		break;
-#if !defined(__WINDOWS__)
+
 	case SIOC_WP_TDM_GET_FE_STATUS:
 		if (card->wandev.fe_iface.get_fe_status){
 			wan_smp_flag_t smp_flags1;
@@ -1430,7 +1430,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 			card->hw_iface.hw_unlock(card->hw,&smp_flags1);   
 		}
 		break;
-#endif
+
 	case SIOC_WP_TDM_SET_EVENT:
 		err = wanpipe_tdm_api_event_ioctl(tdm_api, &usr_tdm_api);
 		break;
@@ -1749,14 +1749,49 @@ wanpipe_tdm_api_event_ioctl(wanpipe_tdm_api_dev_t *tdm_api, wanpipe_tdm_api_cmd_
 		event_ctrl.mod_no	= tdm_api->tdm_chan;
 		event_ctrl.polarity	= tdm_event->wp_tdm_api_event_polarity;
 		break;
+
+	case WP_TDMAPI_EVENT_BRI_CHAN_LOOPBACK:
+		event_ctrl.type		= WAN_EVENT_BRI_CHAN_LOOPBACK;
+		event_ctrl.channel	= tdm_event->channel;
+
+		if (tdm_event->wp_tdm_api_event_mode == WP_TDMAPI_EVENT_ENABLE){
+			event_ctrl.mode = WAN_EVENT_ENABLE;	
+		}else{
+			event_ctrl.mode = WAN_EVENT_DISABLE;	
+		}
+
+		DEBUG_TDMAPI("%s: BRI_BCHAN_LOOPBACK: %s for channel %d!\n",
+			tdm_api->name, 
+			(event_ctrl.mode == WAN_EVENT_ENABLE ? "Enable" : "Disable"),
+			event_ctrl.channel);
+		break;
+
 	default:
 		DEBUG_EVENT("%s: Unknown TDM API Event Type %02X!\n",
 				tdm_api->name,
 				tdm_event->type);
 		return -EINVAL;
 	}
-	
-	return tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+
+
+	switch(tdm_event->wp_tdm_api_event_type){
+	case WP_TDMAPI_EVENT_BRI_CHAN_LOOPBACK:
+		/* BRI FE access must be locked */
+		{
+			sdla_t *card = (sdla_t*)tdm_api->card;
+			wan_smp_flag_t smp_flags1;
+			int rc;
+
+			card->hw_iface.hw_lock(card->hw,&smp_flags1);   
+			rc = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+			card->hw_iface.hw_unlock(card->hw,&smp_flags1);   
+			return rc;
+		}
+		break;
+
+	default:
+		return tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+	}
 }
 
 static int wanpipe_tdm_api_tx (wanpipe_tdm_api_dev_t *tdm_api, u8 *tx_data, int len)

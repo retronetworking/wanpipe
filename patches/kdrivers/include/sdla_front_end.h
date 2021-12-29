@@ -574,7 +574,8 @@ typedef struct {
 	int		(*isdn_bri_dchan_tx)(sdla_fe_t*, void*, unsigned int);
 	/* Receive ISDN BRI D-chan data */
 	int		(*isdn_bri_dchan_rx)(sdla_fe_t*, void*, unsigned int);
-
+	/* Enable/Disable Clock recovery from the line */
+	int		(*clock_ctrl)(sdla_fe_t*, u_int8_t /* WANOPT_NO/WANOPT_YES */);
 } sdla_fe_iface_t;
 
 /* 

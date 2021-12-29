@@ -94,8 +94,8 @@ int MakeConnection(void)
   
 	printf("\nConnecting to router %s, interface %s\n", card_name, if_name);
 
-	strcpy( sa.sll_device, if_name);
-	strcpy( sa.sll_card, card_name);
+	strcpy( (char*)sa.sll_device, if_name);
+	strcpy( (char*)sa.sll_card, card_name);
 	sa.sll_protocol = htons(PVC_PROT);
 	sa.sll_family=AF_WANPIPE;
 
@@ -162,6 +162,8 @@ static int exec_read_modem_cmd(int fd, wan_mbox_t * mb)
 		mstat->modem_status,
 		(mstat->modem_status&MODEM_DCD_MASK)?1:0,
 		(mstat->modem_status&MODEM_CTS_MASK)?1:0);
+
+	return 0;
 }
 
 static int exec_set_modem_cmd(int fd, wan_mbox_t * mb, int dtr, int rts)
@@ -192,6 +194,8 @@ static int exec_set_modem_cmd(int fd, wan_mbox_t * mb, int dtr, int rts)
 	printf("MODEM CMD rc=0x%02X  data_len=%i data=0x%02X (dtr=%i rts=%i)\n",
 		mb->wan_return_code, mb->wan_data_len, mb->wan_data[0],dtr,rts);
 
+
+	return 0;
 }
 
 

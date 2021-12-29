@@ -975,7 +975,7 @@ typedef struct wan_tdmv_conf_ {
 	unsigned int   span_no;
 	unsigned int   dchan;		/* hwHDLC: PRI SIG */
 	unsigned char  hw_dtmf;		/* TDMV Enable/Disable HW DTMF */
-
+	unsigned char  sdla_tdmv_dummy_enable;
 } wan_tdmv_conf_t;
 
 typedef struct wan_hwec_conf_ 

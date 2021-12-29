@@ -971,6 +971,11 @@ typedef struct sdla
 	* rsync timeout, it should be long */
 	wan_ticks_t   rsync_timeout;
 
+	/* SDLA TDMV Dummy interface */
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
+        void* sdla_tdmv_dummy;
+#endif
+
 } sdla_t;
 
 /****** Public Functions ****************************************************/

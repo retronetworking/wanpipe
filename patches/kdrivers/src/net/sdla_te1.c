@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1.c,v 1.285 2008/03/06 21:29:43 sangoma Exp $
+ *	$Id: sdla_te1.c,v 1.286 2008/03/14 19:14:10 sangoma Exp $
  */
 
 /*
@@ -3317,7 +3317,6 @@ int sdla_te_iface_init(void *p_fe, void *pfe_iface)
 	fe_iface->disable_irq		= &sdla_te_disable_irq;
 	fe_iface->check_isr		= &sdla_te_check_intr;
 	fe_iface->polling		= &sdla_te_polling;
-	fe_iface->add_timer		= &sdla_te_add_timer;
 	fe_iface->process_udp		= &sdla_te_udp;
 	fe_iface->print_fe_alarm	= &sdla_te_print_alarms;
 	fe_iface->print_fe_act_channels	= &sdla_te_print_channels;
@@ -6527,7 +6526,8 @@ static int sdla_te_polling(sdla_fe_t* fe)
 		wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
 		DEBUG_EVENT("%s: WARNING: No FE events in a queue!\n",
 					fe->name);
-		return HZ;
+		sdla_te_add_timer(fe, HZ);
+		return 0;
 	}
 	fe_event = WAN_LIST_FIRST(&fe->event);
 	WAN_LIST_REMOVE(fe_event, next);
@@ -6658,9 +6658,11 @@ static int sdla_te_polling(sdla_fe_t* fe)
 	/* Add fe timer */
 	fe_event = WAN_LIST_FIRST(&fe->event);
 	if (fe_event){
-		return fe_event->delay;
+		sdla_te_add_timer(fe, fe_event->delay);
+	}else{
+		sdla_te_add_timer(fe, HZ);
 	}
-	return HZ;
+	return 0;
 }
 
 /*
