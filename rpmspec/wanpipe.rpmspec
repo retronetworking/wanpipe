@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           7.0.12
+%define version           7.0.14
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -245,6 +245,16 @@ chmod 755 /usr/local/sbin/setup-sangoma
 
 
 %changelog
+
+* Mon Apr 20 2015 Nenad Corbic <ncorbic@sangoma.com> -  7.0.14
+==================================================================
+
+- Updated PCIe PLX configuraiton
+  Fixes the PCIe retry errors on some newer servers
+- Bug fix for B601 card
+  Clock set incorrecty causing the card not to start.
+- Wanpipe DADHI config
+  Added extra /etc/wanpipe/global.conf options
 
 * Sat Sep 27 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.12
 ==================================================================

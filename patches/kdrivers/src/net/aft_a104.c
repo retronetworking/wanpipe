@@ -1046,7 +1046,7 @@ int a104_set_digital_fe_clock(sdla_t * card)
 				wan_spin_lock_irq(&card->wandev.lock,&flags);
 				
 				if (IS_B601_CARD(card)) {
-					aft_ds_set_clock_ref(card, &reg , 0);
+					aft_ds_set_clock_ref_b601(card,&reg,WAN_FE_LINENO(&card->fe));
 				} else {
 					/* For A108 the refclock indicates NORMAL mode.
 					* For backward compatilbity we make the user
@@ -1084,7 +1084,11 @@ int a104_set_digital_fe_clock(sdla_t * card)
 			card->hw_iface.bus_read_4(card->hw,
 						  AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
 
-			aft_ds_set_clock_ref(card,&reg,WAN_FE_LINENO(&card->fe));
+			if (IS_B601_CARD(card)) {
+				aft_ds_set_clock_ref_b601(card,&reg,WAN_FE_LINENO(&card->fe));
+			} else {
+				aft_ds_set_clock_ref(card,&reg,WAN_FE_LINENO(&card->fe));
+			}
 
 			card->hw_iface.bus_write_4(card->hw,
 						   AFT_PORT_REG(card,AFT_LINE_CFG_REG),reg);

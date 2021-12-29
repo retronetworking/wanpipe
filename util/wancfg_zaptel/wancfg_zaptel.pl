@@ -260,7 +260,7 @@ my @silent_first_chans;
 my @silent_last_chans;
 
 
-my $silent_hwdtmf;
+my $silent_hwdtmf="YES";
 my $silent_femedia="T1";
 my $silent_feframe="ESF";
 #my $silent_feframe_e1="CRC4";

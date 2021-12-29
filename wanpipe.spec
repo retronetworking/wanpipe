@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.12
+%define VERSION           7.0.14
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,6 +259,16 @@ fi
 ################################################################################
 
 %changelog
+
+* Mon Apr 20 2015 Nenad Corbic <ncorbic@sangoma.com> -  7.0.14
+==================================================================
+
+- Updated PCIe PLX configuraiton
+  Fixes the PCIe retry errors on some newer servers
+- Bug fix for B601 card
+  Clock set incorrecty causing the card not to start.
+- Wanpipe DADHI config
+  Added extra /etc/wanpipe/global.conf options
 
 * Sat Sep 27 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.12
 ==================================================================

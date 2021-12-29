@@ -2277,8 +2277,12 @@ static int sdla_pcibridge_info(sdlahw_t* hw)
 			hwcard->u_pci.pci_bridge_dev = NULL;
 			hwcard->u_pci.pci_bridge_bus = 0; 
 			hwcard->u_pci.pci_bridge_slot = 0;
+		} else {
+			/* Reload PLX EEPROM in order apply the EEPROM values */
+			sdla_pci_bridge_write_config_dword(hw, 0x84, 0x1004);
+			sdla_pci_bridge_write_config_dword(hw, 0x88, 0x80000000);
+			WP_DELAY(10);
 		}
-
 #else
 		sdla_plxctrl_read8(hw, 0x00, &val8);
 		/* For now, all PLX with blank EEPROM is our new

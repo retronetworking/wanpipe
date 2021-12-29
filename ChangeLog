@@ -3,10 +3,20 @@ WANPIPE TDM VOICE - IP/WAN Package
 
 ------------------------------------------------------------------------------
 Author: Nenad Corbic <ncorbic@sangoma.com>
-Copyright (c) 1995-2014 Sangoma Technologies Inc.
+Copyright (c) 1995-2015 Sangoma Technologies Inc.
 
 For more info visit: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
+
+* Mon Apr 20 2015 Nenad Corbic <ncorbic@sangoma.com> -  7.0.14
+==================================================================
+
+- Updated PCIe PLX configuraiton
+  Fixes the PCIe retry errors on some newer servers
+- Bug fix for B601 card
+  Clock set incorrecty causing the card not to start.
+- Wanpipe DADHI config
+  Added extra /etc/wanpipe/global.conf options
 
 * Sat Sep 27 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.12
 ==================================================================
