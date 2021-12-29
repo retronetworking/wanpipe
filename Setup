@@ -213,6 +213,27 @@ check_kern_netdevice_feature ()
 		fi
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_NETIF_TRANS_UPDATE "
 	fi
+
+
+	if [ -e $SOURCEDIR/include/linux/netdevice.h ];then
+		eval "grep \"ndo_change_mtu_rh74\" $SOURCEDIR/include/linux/netdevice.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			KERN_NDO_CHANGE_MTU_RH74="-DKERN_NDO_CHANGE_MTU_RH74=1"
+		else
+			KERN_NDO_CHANGE_MTU_RH74="-DKERN_NDO_CHANGE_MTU_RH74=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_NDO_CHANGE_MTU_RH74 "
+
+	elif [ -e $DEBSRCDIR/include/linux/netdevice.h ];then
+		eval "grep \"ndo_change_mtu_rh74\" $DEBSRCDIR/include/linux/netdevice.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			KERN_NDO_CHANGE_MTU_RH74="-DKERN_NDO_CHANGE_MTU_RH74=1"
+		else
+			KERN_NDO_CHANGE_MTU_RH74="-DKERN_NDO_CHANGE_MTU_RH74=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_NDO_CHANGE_MTU_RH74 "
+	fi
+
 }
 
 check_kern_memcpy_from_msg ()
@@ -7449,7 +7470,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=7.0.25
+PROD_VER=7.0.25.1
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

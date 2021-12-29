@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.25
+%define VERSION           7.0.25.1
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}

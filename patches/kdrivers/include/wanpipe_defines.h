@@ -911,7 +911,11 @@ typedef struct wan_rtp_pkt {
 #define WAN_NETDEV_OPS_STATS(dev,ops,wan_stats)				ops.ndo_get_stats = wan_stats
 #define WAN_NETDEV_OPS_TIMEOUT(dev,ops,wan_timeout)			ops.ndo_tx_timeout = wan_timeout
 #define WAN_NETDEV_OPS_IOCTL(dev,ops,wan_ioctl)				ops.ndo_do_ioctl = wan_ioctl
+# if defined(KERN_NDO_CHANGE_MTU_RH74) && KERN_NDO_CHANGE_MTU_RH74 > 0
+#define WAN_NETDEV_OPS_MTU(dev,ops,wan_mtu)				ops.ndo_change_mtu_rh74 = wan_mtu
+# else
 #define WAN_NETDEV_OPS_MTU(dev,ops,wan_mtu)				ops.ndo_change_mtu = wan_mtu
+#endif
 #define WAN_NETDEV_OPS_CONFIG(dev,ops,wan_set_config)			ops.ndo_set_config = wan_set_config
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,1,0)
 #define WAN_NETDEV_OPS_SET_MULTICAST_LIST(dev,ops,wan_multicast_list)	
@@ -925,8 +929,13 @@ typedef struct wan_rtp_pkt {
 #define WAN_NETDEV_XMIT(skb,dev)					dev->netdev_ops->ndo_start_xmit(skb,dev)
 #define WAN_NETDEV_TEST_IOCTL(dev)					dev->netdev_ops->ndo_do_ioctl
 #define WAN_NETDEV_IOCTL(dev,ifr,cmd)					dev->netdev_ops->ndo_do_ioctl(dev,ifr,cmd)
+# if defined(KERN_NDO_CHANGE_MTU_RH74) && KERN_NDO_CHANGE_MTU_RH74 > 0
+#define WAN_NETDEV_TEST_MTU(dev)					dev->netdev_ops->ndo_change_mtu_rh74
+#define WAN_NETDEV_CHANGE_MTU(dev,skb)					dev->netdev_ops->ndo_change_mtu_rh74(dev,skb)
+#else
 #define WAN_NETDEV_TEST_MTU(dev)					dev->netdev_ops->ndo_change_mtu
 #define WAN_NETDEV_CHANGE_MTU(dev,skb)					dev->netdev_ops->ndo_change_mtu(dev,skb)
+#endif
 
 #else
 

@@ -205,6 +205,15 @@ KERN_NETIF_TRANS_UPDATE=$(shell grep "netif_trans_update" $(KSRC)/include/linux/
 EXTRA_CFLAGS+=-DKERN_NETIF_TRANS_UPDATE=$(KERN_NETIF_TRANS_UPDATE)
 endif
 
+ifneq (,$(wildcard $(KDIR)/include/linux/netdevice.h))
+KERN_NDO_CHANGE_MTU_RH74=$(shell grep "ndo_change_mtu_rh74" $(KDIR)/include/linux/netdevice.h -c)
+EXTRA_CFLAGS+=-DKERN_NDO_CHANGE_MTU_RH74=$(KERN_NDO_CHANGE_MTU_RH74)
+else
+KERN_NETIF_TRANS_UPDATE=$(shell grep "ndo_change_mtu_rh74" $(KSRC)/include/linux/netdevice.h -c)
+EXTRA_CFLAGS+=-DKERN_NDO_CHANGE_MTU_RH74=$(KERN_NDO_CHANGE_MTU_RH74)
+endif
+
+
 # First pass, kernel Makefile reads module objects
 ifneq ($(KERNELRELEASE),)
 obj-m := sdladrv.o wanrouter.o wanpipe.o wanpipe_syncppp.o wanec.o 
