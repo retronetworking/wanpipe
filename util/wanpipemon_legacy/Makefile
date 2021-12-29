@@ -12,7 +12,6 @@ DEBUG	= 2
 
 PROD=wanpipemon_legacy
 # Project file paths.
-SYSINC=/lib/modules/$(shell uname -r)/build/include
 WAN_VIRTUAL=
 LXDIR=../lxdialog
 ENABLE_GUI=YES
@@ -21,7 +20,7 @@ PROTOCOL_DEFS=
 
 CC = gcc 
 CPP = gcc -E
-CFLAGS = -Wall -Wstrict-prototypes -I$(SYSINC) -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) -DCURSES_LOC="<ncurses.h>"
+CFLAGS = -Wall -Wstrict-prototypes -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) -DCURSES_LOC="<ncurses.h>"
 WAN_VIRTUAL=
 
 CFLAGS += $(EXTRA_FLAGS)

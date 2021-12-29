@@ -10,14 +10,10 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
-ifeq "$(SYSINC)" "" 
-SYSINC=/usr/src/linux/include
-endif
-APIINC  = /usr/src/linux/include
+APIINC  = /usr/include/wanpipe
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(SYSINC) -I$(APIINC)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(APIINC)
 
 ####### RULES ################################################################
 

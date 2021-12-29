@@ -323,6 +323,43 @@ ENDOFTEXT
 }
 
 
+welcome_dahdi()
+{
+
+	cat << ENDOFTEXT
+${DISTR_NAME} INSTALLATION FOR DAHDI
+
+You are about to install ${DISTR_NAME} TDM Voice drivers
+for Asterisk/Dahdi framework.
+
+You will be prompted for path to DAHDI source.
+
+Wanpipe drivers will compile into dahdi WITHOUT any
+dahdi patching or need to recompile dahdi modules.
+
+You must have Linux Kernel Headers along with
+full development tools (i.e. GNU C compiler and utilities)
+installed in order to be able to install this product.
+
+If you have previoulsy installed WANPIPE, this release
+will overrite/upgrade full release without the need to
+uninstall first!
+
+IMPORTANT:
+It is always recommended to say YES to all options
+prompted during the install!
+
+Please visit: http://wiki.sangoma.com for more info.
+
+ENDOFTEXT
+ 
+	return
+}
+
+
+
+
+
 welcome_default()
 {
 
@@ -374,8 +411,12 @@ welcome()
 		welcome_default
 
 	elif [ $zaptel_auto_install = "YES" ]; then
-	
-		welcome_zaptel
+
+		if [ $dahdi_auto_install = "YES" ]; then	
+			welcome_dahdi
+		else
+			welcome_zaptel
+		fi
 	else 
 		welcome_default
 	fi
@@ -433,6 +474,7 @@ and configuration/debug utilities have been compiled and installed.
 
 	1) Proceed to configure the WANPIPE drivers:
 		Asterisk/Zaptel: /usr/sbin/wancfg_zaptel
+		Asterisk/Dahdi : /usr/sbin/wancfg_dahdi
 		TDM API        : /usr/sbin/wancfg_tdmapi
 		SMG SS7/BRI    : /usr/sbin/wancfg_smg
 		WAN Routing/API: /usr/sbin/wancfg
@@ -475,6 +517,7 @@ WANPIPE kernel modules:
 
 	1) Proceed to configure the WANPIPE drivers:
 		Asterisk/Zaptel: /usr/sbin/wancfg_zaptel
+		Asterisk/Dahdi : /usr/sbin/wancfg_dahdi
 		SMG SS7 or BRI : /usr/sbin/wancfg_smg
 		TDM API        : /usr/sbin/wancfg_tdmapi
 		WAN Routing/API: /usr/sbin/wancfg
@@ -1916,6 +1959,7 @@ WANPIPE UTILITIES SETUP
 WANPIPE utilities are used to:
 	1) create configuration files: for Zaptel and Asterisk
 		/usr/sbin/wancfg_zaptel	#Zaptel and Asterisk
+		/usr/sbin/wancfg_dahdi	#Dahdi and Asterisk
 		/usr/sbin/wancfg_smg	#BRI/SS7, Zaptel and Asterisk
 		/usr/sbin/wancfg_tdmapi	#TDM API
 	2) create WANPIPE WAN/IP configuration files.
@@ -2021,6 +2065,9 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
     	WANCFG_DEFS=
     	if [ "$TDM_PROT" = "YES" ]; then
  		WANCFG_DEFS=$WANCFG_DEFS" ENABLE_ZAPTEL_PARSER=YES ZAPINC=$ZAPTEL_SOURCE_DIR"
+		if [ -d $ZAPTEL_SOURCE_DIR/dahdi ]; then
+			WANCFG_DEFS=$WANCFG_DEFS" DAHDI_ISSUES=YES"
+		fi
     	fi
     	eval "make -C wancfg all CC=$CC SYSINC=$SOURCEDIR/include $WANCFG_DEFS >> $CMP_LOG 2>> $CMP_LOG"
 
@@ -2510,7 +2557,9 @@ function build_wanec_module ()
 		mkdir tmp
 	fi	
 
-
+	if [ -e  $PROD_HOME/$MODSYM.wanrouter ]; then
+		cat $PROD_HOME/$MODSYM.wanrouter > $MODSYM
+	fi
 	build_kernel_module wanec "$files" "$EXTRA_FLAGS" 
 	if [ $? -ne 0 ]; then
           	return $?;
@@ -3431,6 +3480,7 @@ ENDOFTEXT
 	i386*)   LD_ELF="-m elf_i386" 
 		 ;;
 	x86*)   LD_ELF="-m elf_i386" 
+		 ARCH=i386
 		 ;;
 	ppc*)
 		 ;;
@@ -3467,6 +3517,10 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		fi
 		
 		check_inode_struct
+
+		if [ "$BRI_MODULE_TEST" = "YES" ]; then
+                       PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DBUILD_MOD_TESTER"
+		fi
 		
 		if [ 1 -eq 1 ]; then
 		echo
@@ -3712,9 +3766,22 @@ WANPIPE_OBJS=
 
 	rm -f sdladrv_src.c
 	ln -s sdladrv.c sdladrv_src.c
-	build_kernel_module sdladrv "sdladrv_src sdladrv_fe sdladrv_utils"
+
+	SDLADRV_OBJS="sdladrv_src sdladrv_fe sdladrv_utils "
+
+	if [ "$AFT_USB_PROT" = "YES" ]; then
+		SDLADRV_OBJS=$SDLADRV_OBJS"sdladrv_usb "
+	fi
+
+	build_kernel_module sdladrv "$SDLADRV_OBJS"
+	if [ -e $MODSYM ]; then
+		cp $MODSYM  $PROD_HOME/$MODSYM.sdladrv 
+	fi
 
 	build_kernel_module wanrouter "wanmain wanproc waniface"  
+	if [ -e $MODSYM ]; then
+		cp $MODSYM  $PROD_HOME/$MODSYM.wanrouter
+	fi
 
 	AF_EXTRA_FLAGS="-DCONFIG_PRODUCT_WANPIPE_SOCK_DATASCOPE"
 	check_for_af_wanpipe_updates
@@ -3722,6 +3789,9 @@ WANPIPE_OBJS=
 	rm -f af_wanpipe_src.c
 	ln -s af_wanpipe.c af_wanpipe_src.c
 	build_kernel_module af_wanpipe "af_wanpipe_src af_wanpipe_datascope" "$AF_EXTRA_FLAGS"
+	if [ -e $MODSYM ]; then
+		cp $MODSYM  $PROD_HOME/$MODSYM.af_wanpipe 
+	fi
 
 	echo -n "."
 
@@ -3911,6 +3981,10 @@ WANPIPE_OBJS=
 		\cp $DRIVER_UPDATE_DIR/src/net/sdla_tdmv_dummy.c .
 		WANPIPE_OBJS=$WANPIPE_OBJS"sdla_tdmv sdla_remora_tdmv sdla_bri_tdmv sdla_tdmv_dummy "
 		WANPIPE_EXTRA_CFLAGS=$WANPIPE_EXTRA_CFLAGS"-I$ZAPTEL_SOURCE_DIR "
+		if [ -f $ZAPTEL_SOURCE_DIR/dahdi/kernel.h ]; then
+			# this is required for some dependencies of kernel.h (dahdi_config.h, ecdis.h etc)
+			WANPIPE_EXTRA_CFLAGS=$WANPIPE_EXTRA_CFLAGS"-I$ZAPTEL_INSTALL_DIR/drivers/dahdi "
+		fi
 	fi
 
 	if [ "$AFT_TE1_PROT" = "YES" ]; then
@@ -3919,6 +3993,10 @@ WANPIPE_OBJS=
 
 	if [ "$AFT_BRI_PROT" = "YES" ]; then
 		WANPIPE_OBJS=$WANPIPE_OBJS"sdla_bri aft_bri "
+	fi
+
+	if [ "$AFT_USB_PROT" = "YES" ]; then
+		WANPIPE_OBJS=$WANPIPE_OBJS"wanpipe_usb sdla_usb_remora sdla_usb_remora_tdmv "
 	fi
 
 	if [ "$AFT_SERIAL_PROT" = "YES" ]; then
@@ -3934,6 +4012,9 @@ WANPIPE_OBJS=
 		rm -f wanpipe_syncppp_src.c
 		ln -s wanpipe_syncppp.c wanpipe_syncppp_src.c
 		build_kernel_module wanpipe_syncppp wanpipe_syncppp_src
+		if [ -e $MODSYM ]; then
+			cp $MODSYM  $PROD_HOME/$MODSYM.syncppp 
+		fi
 	fi
 
 	echo -n "."
@@ -3971,6 +4052,9 @@ WANPIPE_OBJS=
 			echo "WAN HWEC module enabled and compiled!"
 		else
 			echo "WAN HWEC module failed to compile!"
+		fi
+		if [ -e $MODSYM ]; then
+			cp $MODSYM  $PROD_HOME/$MODSYM.wanec
 		fi
 		cd $home_tmp
 
@@ -4204,6 +4288,18 @@ WANPIPE_OBJS=
 	echo -n "Linking Wanpipe Driver and protocols ..."	
 
 	#Link in appropriate protocols as needed.
+	if [ "$TDM_PROT" = "YES" ]; then
+		if [ -f $ZAPTEL_SOURCE_DIR/$MODSYM ]; then
+			cat $ZAPTEL_SOURCE_DIR/$MODSYM >> $MODSYM
+		fi
+	fi
+	if [ -f  $PROD_HOME/$MODSYM.wanec ]; then
+		cat $PROD_HOME/$MODSYM.wanec >> $MODSYM
+	fi
+	if [ -f $PROD_HOME/$MODSYM.syncppp ]; then
+		cat $PROD_HOME/$MODSYM.syncppp >> $MODSYM
+	fi
+
 	WANPIPE_OBJS=$WANPIPE_OBJS"sdlamain wanpipe_tdm_api wanpipe_codec wanpipe_codec_law " 
 	build_kernel_module wanpipe "$WANPIPE_OBJS" "$WANPIPE_EXTRA_CFLAGS" "$WANPIPE_BIN_OBJS" 
 	
@@ -5153,6 +5249,33 @@ echo -n "Please select a protocol option in [<opt>]: "
 	done
 }
 
+# set the proper directory for headers depending on
+# zaptel/dahdi version
+set_zaptel_source_dir()
+{
+	ZAPTEL_SUPPORT="YES";
+	DAHDI_SUPPORT="NO";
+
+	if [ -f $ZAPTEL_INSTALL_DIR/linux/include/dahdi/kernel.h ]; then
+		ZAPTEL_INSTALL_DIR="$ZAPTEL_INSTALL_DIR/linux"
+	fi
+
+	#Check if this is Dahdi
+	if [ -d $ZAPTEL_INSTALL_DIR/include/dahdi ]; then
+		# when Dahdi present ZAPTEL_SOURCE_DIR is not really the source dir, but the headers dir
+		# no harm done, no conflict, just a bit misleading variable name 
+		ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR/include
+		DAHDI_SUPPORT="YES"
+		ZAPTEL_SUPPORT="NO"
+	#Check if this is post Zaptel-1.4.9
+	elif [ -d $ZAPTEL_INSTALL_DIR/kernel ]; then
+		ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR/kernel
+	#Good ol' zaptel
+	else
+		ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR
+	fi
+}
+
 search_and_replace()
 {
 	local input_file_name=$1
@@ -5179,6 +5302,15 @@ search_and_replace()
 
 	return $?
 }
+
+function main_zap_header_present()
+{
+        if [ ! -f $ZAPTEL_SOURCE_DIR/zaptel.h ] && [ ! -f $ZAPTEL_SOURCE_DIR/dahdi/kernel.h ]; then
+		return 0;
+	fi
+	return 1;
+}
+
 function tdmv_get_zaptel_path ()
 {
 
@@ -5200,22 +5332,20 @@ if [ 0 ]; then
 
                                 [ $response ] && {
                                  ZAPTEL_INSTALL_DIR=$response
-				 if [ -d $ZAPTEL_INSTALL_DIR/kernel ]; then
-					ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR/kernel
-				 else
-					ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR
-				fi				
+				 set_zaptel_source_dir
                         }
                 fi
         fi
-        if [ ! -f $ZAPTEL_SOURCE_DIR/zaptel.h ]; then
-                echo "   Zaptel source not found in $ZAPTEL_SOURCE_DIR"
+
+	main_zap_header_present	
+	if [ $? -eq 0 ]; then
+                echo "   Zaptel/Dahdi source not found in $ZAPTEL_SOURCE_DIR"
                 ZAPTEL_SOURCE_DIR="/usr/src/zaptel"
 		ZAPTEL_INSTALL_DIR=$ZAPTEL_SOURCE_DIR
                 if test $NONINTERACTIVE; then
                         return 1
                 else
-                        getyn "   Press Y to specify another Zaptel source directory, N to exit"
+                        getyn "   Press Y to specify another Zaptel/Dahdi source directory, N to exit"
                         if [ $? -ne 0 ]; then
                                 exit 1;
                         fi
@@ -5230,6 +5360,7 @@ fi
         return 0;
 }
 
+# this function seems unused and does not seem to need to be updated for Dahdi
 function tdmv_apply_zaptel_dchan_patch_old ()
 {
 	local rc
@@ -5302,86 +5433,107 @@ function tdmv_apply_zaptel_dchan_patch_old ()
 
 	return $rc 
 }
+
 function tdmv_apply_zaptel_chunk_patch () {
         lhome=`pwd`
         TEMP=tmp
         cd $ZAPTEL_SOURCE_DIR
-        echo "Applying Zaptel Chunk patch..."
+        echo "Applying Zaptel/Dahdi Chunk patch..."
         echo " "
-        #modify zaptel.h
-        eval "cat zaptel.h | sed '/^#define ZT_CHUNKSIZE/c\#define ZT_CHUNKSIZE          $ZAP_CHUNK' >$TEMP 2>/dev/null"
+
+	filetopatch="zaptel.h"	
+	chunkname="ZT_CHUNKSIZE"
+	dhname="Zaptel"
+	isdahdi="no"
+	if [ -f $ZAPTEL_SOURCE_DIR/dahdi/kernel.h ]; then
+		filetopatch="kernel.h"
+		chunkname="DAHDI_CHUNKSIZE"
+		dhname="Dahdi"
+		isdahdi="yes"
+	fi
+
+        #modify zaptel.h or kernel.h
+        eval "cat $filetopatch | sed '/^#define $chunkname/c\#define $chunkname          $ZAP_CHUNK' >$TEMP 2>/dev/null"
         if [ $? -ne 0 ]; then
-                echo "   Failed to substitute ZT_CHUNKSIZE string in zaptel.h"
+                echo "   Failed to substitute $chunkname string in $filetopatch"
                 exit 1
         else
-                eval "\mv -f $TEMP zaptel.h"
+                eval "\mv -f $TEMP $filetopatch"
                 if [ $? -ne 0 ]; then
-                        echo "   Failed to overwrite existing zaptel.h"
+                        echo "   Failed to overwrite existing $filetopatch"
                         exit 1
                 else
-                        echo "   Zaptel patched for chunk size successfully"
+                        echo "   $dhname patched for chunk size successfully"
                         zaptel_modified=1
                 fi
         fi
 
         #remove wct4xxp module from Makefile
-        eval "cat Makefile |sed 's/wct1xxp wct4xxp wcte11xp/wct1xxp wcte11xp/g'>$TEMP 2>/dev/null "
-        if [ $? -ne 0 ]; then
-                echo "   Failed to remove wct4xxp from Makefile"
-                exit 1
-        else
-                eval "\mv -f $TEMP Makefile"
-                if [ $? -ne 0 ]; then
-                        echo "   Failed to overwrite existing Makefile"
-                        exit 1
-                else
-                        echo "   wct4xxp module removed from Makefile successfully"
-                        zaptel_modified=1
-                fi
-        fi
-
-	cd $ZAPTEL_INSTALL_DIR
-        eval "cat Makefile |sed 's/^SUBDIR_MODULES:=.*//g'>$TEMP 2>/dev/null "
-        if [ $? -ne 0 ]; then
-                echo "   Failed to remove wct4xxp from Makefile"
-                exit 1
-        else
-                eval "\mv -f $TEMP Makefile"
-                if [ $? -ne 0 ]; then
-                        echo "   Failed to overwrite existing Makefile"
-                        exit 1
-                else
-                        echo "   wct4xxp module removed from Makefile successfully"
-                        zaptel_modified=1
-                fi
-        fi
-
-	if [ -f Makefile.kernel26 ]; then
-		eval "cat Makefile.kernel26 | sed 's/^obj-m.*+=.*wct4xx.*//g'>$TEMP 2>/dev/null "
+	if [ $isdahdi = "no" ]; then
+		eval "cat Makefile |sed 's/wct1xxp wct4xxp wcte11xp/wct1xxp wcte11xp/g'>$TEMP 2>/dev/null "
 		if [ $? -ne 0 ]; then
-			 echo "   Failed to remove wct4xxp from Makefile.kernel26"
-              		 exit 1
-		
+			echo "   Failed to remove wct4xxp from Makefile"
+			exit 1
 		else
-			eval "\mv -f $TEMP Makefile.kernel26"
-			echo "   wct4xxp module removed from Makefile.kernel26 successfully"
-                        zaptel_modified=1			
+			eval "\mv -f $TEMP Makefile"
+			if [ $? -ne 0 ]; then
+				echo "   Failed to overwrite existing Makefile"
+				exit 1
+			else
+				echo "   wct4xxp module removed from Makefile successfully"
+				zaptel_modified=1
+			fi
 		fi
 	fi
 
-        # for zaptel-1.2.26 or later
-        if [ -f Kbuild ]; then
-                eval "cat Kbuild | sed 's/^obj-m.*+=.*wct4xx.*//g'>$TEMP 2>/dev/null "
-                if [ $? -ne 0 ]; then
-                         echo "   Failed to remove wct4xxp from Kbuild"
-                         exit 1
+	cd $ZAPTEL_INSTALL_DIR
+	if [ $isdahdi = "no" ]; then
+		eval "cat Makefile |sed 's/^SUBDIR_MODULES:=.*//g'>$TEMP 2>/dev/null "
+		if [ $? -ne 0 ]; then
+			echo "   Failed to remove wct4xxp from Makefile"
+			exit 1
+		else
+			eval "\mv -f $TEMP Makefile"
+			if [ $? -ne 0 ]; then
+				echo "   Failed to overwrite existing Makefile"
+				exit 1
+			else
+				echo "   wct4xxp module removed from Makefile successfully"
+				zaptel_modified=1
+			fi
+		fi
 
-                else
-                        eval "\mv -f $TEMP Kbuild"
-                        echo "   wct4xxp module removed from Kbuild successfully"
-                        zaptel_modified=1
-                fi
-        fi
+		if [ -f Makefile.kernel26 ]; then
+			eval "cat Makefile.kernel26 | sed 's/^obj-m.*+=.*wct4xx.*//g'>$TEMP 2>/dev/null "
+			if [ $? -ne 0 ]; then
+				 echo "   Failed to remove wct4xxp from Makefile.kernel26"
+				 exit 1
+			
+			else
+				eval "\mv -f $TEMP Makefile.kernel26"
+				echo "   wct4xxp module removed from Makefile.kernel26 successfully"
+				zaptel_modified=1			
+			fi
+		fi
+
+	fi # end if $isdahdi = "no"
+
+	if [ $isdahdi = "yes" ]; then
+		cd drivers/dahdi
+	fi
+	# for zaptel-1.2.26 or later (including Dahdi)
+	if [ -f Kbuild ]; then
+		eval "cat Kbuild | sed 's/^obj-m.*+=.*wct4xx.*//g'>$TEMP 2>/dev/null "
+		if [ $? -ne 0 ]; then
+			 echo "   Failed to remove wct4xxp from Kbuild"
+			 exit 1
+
+		else
+			eval "\mv -f $TEMP Kbuild"
+			echo "   wct4xxp module removed from Kbuild successfully"
+			zaptel_modified=1
+		fi
+	fi
 
         cd $lhome
         return 0;
@@ -5390,6 +5542,12 @@ function tdmv_apply_zaptel_chunk_patch () {
 function tdmv_apply_zaptel_echo_debug_patch ()
 {
 	local rc
+
+	if [ -f $ZAPTEL_SOURCE_DIR/dahdi/kernel.h ]; then
+		echo "Error: Patching for echo debugging not supported for Dahdi yet"
+		return 1;
+	fi
+
 	if [ ! -e $PROD_HOME/zaptel ]; then
 		echo "Error: Zaptel Patch Directory Not Found!"
 		return 1;
@@ -5468,6 +5626,11 @@ function tdmv_apply_zaptel_echo_debug_patch ()
 function tdmv_apply_zaptel_edac_patch ()
 {
 	local rc
+
+	if [ -f $ZAPTEL_SOURCE_DIR/dahdi/kernel.h ]; then
+		echo "Error: TDMV Echo Detection and Control not supported for Dahdi yet"
+		return 1;
+	fi
 
 	if [ ! -e $PROD_HOME/edac ]; then
 		echo "Error: Zaptel Patch Directory Not Found!"
@@ -5741,6 +5904,15 @@ function find_zap_dirs_invalid ()
 	find_zap_dirs "$1"
 }
 
+function is_valid_zap_dir()
+{
+	# one more !%*?@ change from Digium and we need an array here :-)
+	if [ -f $1/zaptel.h ] || [ -f $1/kernel/zaptel.h ] || [ -f $1/include/dahdi/kernel.h ] || [ -f $1/linux/include/dahdi/kernel.h ]; then
+		return 1;
+	fi
+	return 0;
+}
+
 function find_zap_dirs ()
 {
 	local cnt
@@ -5754,14 +5926,18 @@ function find_zap_dirs ()
 	
 
 	echo
-	echo "Looking for zaptel directory in /usr/src ..."	
+	echo "Looking for zaptel/dahdi directory in /usr/src ..."	
 	echo "-------------------------------------------"
 	if [ "$zapdirs" = "" ]; then
 		zapdirs=`find /usr/src -maxdepth 2 -name 'zaptel*' | xargs `
 		 if [ -d "/usr/src/zaptel" ]; then
                         zapdirs="/usr/src/zaptel "$zapdirs
                  fi
-
+		dahdidirs=`find /usr/src -maxdepth 2 -name 'dahdi*' | xargs `
+		 if [ -d "/usr/src/dahdi" ]; then
+                        zapdirs="/usr/src/dahdi $zapdirs"
+		 fi
+		zapdirs="$dahdidirs $zapdirs"
 	fi
 
 	unset zapdir_array;
@@ -5777,7 +5953,8 @@ function find_zap_dirs ()
 			continue
 		fi
 
-		if [ ! -f $dir/zaptel.h ] && [ ! -f $dir/kernel/zaptel.h ]; then
+		is_valid_zap_dir $dir
+		if [ $? -eq 0 ]; then
 			continue;
 		fi
 		
@@ -5794,8 +5971,8 @@ function find_zap_dirs ()
 	
 	if [ $cnt -eq 1 ]; then
 		echo
-		echo "No zaptel dirs found in /usr/src "
-		echo "Please use option \"m\" to enter zaptel path"
+		echo "No zaptel/dahdi dirs found in /usr/src "
+		echo "Please use option \"m\" to enter zaptel/dahdi path"
 		echo
 	fi
 	echo "------------------------------------------ "
@@ -5806,7 +5983,8 @@ function find_zap_dirs ()
 			continue
 		fi
 
-		if [ ! -f $dir/zaptel.h ] && [ ! -f $dir/kernel/zaptel.h ]; then
+		is_valid_zap_dir $dir
+		if [ $? -eq 0 ]; then
 			continue;
 		fi
 
@@ -5857,16 +6035,11 @@ function find_zap_dirs ()
 		find_zap_dirs_invalid "$zapdirs"
 	fi	
 
-	#Check if this is post Zaptel-1.4.9
-	if [ -d $ZAPTEL_INSTALL_DIR/kernel ]; then
-		ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR/kernel
-	else
-		ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR
-	fi
-				
-	if [ ! -f $ZAPTEL_SOURCE_DIR/zaptel.h ]; then
+	set_zaptel_source_dir
+	main_zap_header_present
+	if [ $? -eq 0 ]; then
 		echo
-		echo "Error: zaptel.h not found in $ZAPTEL_SOURCE_DIR"
+		echo "Error: zaptel.h or dahdi/kernel.h not found in $ZAPTEL_SOURCE_DIR"
 		echo
 		echo
 		zapdir_manual=0
@@ -6110,6 +6283,9 @@ function enable_protocols ()
 
 	if [ "$PROTOCOL" = "DEF" ]; then
 		PROTOCOL=$DEFAULT_PROTOCOLS
+	fi	
+	if [ "$PROTOCOL" = "ALL" ]; then
+		PROTOCOL="$DEFAULT_PROTOCOLS $API_PROTOCOLS"
 	fi	
 	
 	echo "$PROTOCOL" | grep "BRI" > /dev/null
@@ -6360,10 +6536,13 @@ ENDOFTEXT
 		if [ $AFT_TE1_PROT != YES ]; then
 			echo "Enabling the AFT TE1 Support"
 			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_56K -DCONFIG_PRODUCT_WANPIPE_AFT_RM -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW  -DCONFIG_PRODUCT_WANPIPE_AFT_BRI  -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL "
+
+			#PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_USB "
 		fi
 		AFT_TE1_PROT=YES
 		AFT_BRI_PROT=YES
 		AFT_SERIAL_PROT=YES
+		#AFT_USB_PROT=YES
 		PROT_MATCH=YES
 	fi
 
@@ -6405,21 +6584,39 @@ ENDOFTEXT
 				ZAPTEL_NAME=zaptel.ko
 			fi
 
-			if [ -e $ZAP_MOD_DIR/zaptel/$ZAPTEL_NAME ] && [ -e $ZAP_MOD_DIR/misc/$ZAPTEL_NAME ]; then
+			zaplikeinstalls=0
+			if [ -e $ZAP_MOD_DIR/zaptel/$ZAPTEL_NAME ]; then
+				zaplikeinstalls=$((zaplikeinstalls+1))
+			fi
+
+			if [ -e $ZAP_MOD_DIR/misc/$ZAPTEL_NAME ]; then
+				zaplikeinstalls=$((zaplikeinstalls+1))
+			fi
+
+			# Dahdi drops support for kernel 2.4, no need to check .o vs .ko
+			if [ -e $ZAP_MOD_DIR/dahdi/dahdi.ko ]; then
+				zaplikeinstalls=$((zaplikeinstalls+1))
+			fi
+
+			if [ $zaplikeinstalls -gt 1 ]; then
+				echo 
+				echo 
 				echo 
 				echo "-------------------------------------------------------------"
-				echo "CRITICAL WARNING: Multiple ZAPTEL Installations Found"
+				echo "CRITICAL WARNING: Multiple ZAPTEL/DAHDI Installations Found"
 				echo
-				echo "./Setup has found MULTIPLE ZAPTEL driver installations in:"
+				echo "./Setup has found MULTIPLE ZAPTEL/DAHDI driver installations"
+				echo " in 2 or more of this locations:"
 				echo "        $ZAP_MOD_DIR/zaptel and" 
 				echo "        $ZAP_MOD_DIR/misc directory."
+				echo "        $ZAP_MOD_DIR/dahdi directory."
 				echo
 				echo "  The ZAPTEL drivers in $ZAP_MOD_DIR/zaptel are OLD."
 				echo
 				echo "  This is illegal, and CAN cause Wanpipe to CRASH."
 				echo
 				echo "  Please solve this PROBLEM by removing OLD ZAPTEL"
-				echo "  kerenl modules before installing WANPIPE.  "
+				echo "  kernel modules before installing WANPIPE.  "
 				echo
 				echo "      eg: rm -rf $ZAP_MOD_DIR/zaptel"
 				echo "          depmod -a"
@@ -6456,6 +6653,17 @@ ENDOFTEXT
 						PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN  -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL "
 					fi
  				fi
+
+				# if this is Dahdi, no need to check, already include hdlc_hard_xmit
+				if [ -f $ZAPTEL_SOURCE_DIR/dahdi/kernel.h ]; then
+					echo "                                                      "
+					echo "Dahdi HW HDLC Support Detected: Enabling DCHAN Feature"
+					echo "Native Dahdi HW HDLC Support Detected - No patch required"
+					echo "Dahdi source unmodified"
+					echo "                        "
+					TDM_DCHAN="(DCHAN)"
+					PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN  -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL -DDAHDI_ISSUES"
+				fi
 	
 				#Check if dchan patch is already enabled 
 				if [ "$TDM_DCHAN" = "" ]; then
@@ -6508,7 +6716,7 @@ ENDOFTEXT
 
 			####################################################################
 			if [ $ENABLE_ECHO_DEBUG -eq 1 ]; then
-			getyn "Compile Echo Debugging Support for Zaptel ? "
+			getyn "Compile Echo Debugging Support for Zaptel (not supported for Dahdi yet) ? "
 			if [ $? -eq 0 ]; then
 				tdmv_apply_zaptel_echo_debug_patch
 				if [ $? -eq 0 ]; then
@@ -6529,7 +6737,7 @@ ENDOFTEXT
 
 			if [ $ENABLE_EDAC -gt 0 ]  && [ "$ECHO_MASTER_PROT" = "NO" ]; then
 			echo 
-			getyn "Compile TDMV Echo Detection and Control (EDAC) Support (y/n)? "
+			getyn "Compile TDMV Echo Detection and Control (EDAC) Support (No Dahdi support yet) (y/n)? "
 			if [ $? -eq 0 ]; then
 				echo
 				tdmv_apply_zaptel_edac_patch
@@ -6676,6 +6884,7 @@ CHDLC_PROT=NO
 X25_PROT=NO
 AFT_TE1_PROT=NO
 AFT_BRI_PROT=NO
+AFT_USB_PROT=NO
 AFT_SERIAL_PROT=NO
 AFT_TE3_PROT=NO
 SSMG=NO
@@ -6915,7 +7124,7 @@ ENDOFTEXT
 }
 
 ####### MAIN #################################################################
-# set -x
+#set -x
 
 
 PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin
@@ -6924,7 +7133,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.3.12
+PROD_VER=3.3.14
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -6953,6 +7162,7 @@ ENABLE_EDAC=0
 ENABLE_ECHO_DEBUG=0
 ZAPTEL_PATH_OP="NO"
 ZAPTEL_COMPILE_DISABLE="NO"
+BRI_MODULE_TEST="NO"
 ZAP_CHUNK_OP="NO"
 CMP_LOG=$PROD_HOME/setup_drv_compile.log
 CMP_BUILD=build.sh
@@ -6963,12 +7173,15 @@ SSMG_DIR=ssmg
 WANPIPE_INCLUDE_DIR=/usr/include/wanpipe
 WANCFG_ZAPTEL_CFG=NO
 WANCFG_ZAPTEL=/usr/sbin/wancfg_zaptel
+WANCFG_DAHDI=/usr/sbin/wancfg_dahdi
 WANCFG_SMG=/usr/sbin/wancfg_smg
 find_zap_dir_quit=0
 find_ast_dir_quit=0
 zaptel_auto_install="NO"
+dahdi_auto_install="NO"
 bri_auto_install="NO"
 setup_install_quick="NO"
+MODSYM=Module.symvers
 
 
 echo > $CMP_LOG
@@ -7022,6 +7235,8 @@ ZAPTEL_INSTALL_DIR=$ZAPTEL_DFLT_INSTALL_DIR
 ZAPTEL_C_FILE="zaptel.c"
 ASTERISK_IFLAGS=
 EDAC_ZAP_PATCH_FILE=ed_zaptel.patch
+ZAPTEL_SUPPORT="NO"
+DAHDI_SUPPORT="NO"
 
 ASTERISK_INSTALL_DIR="/usr/src/asterisk"
 EDAC_ASTERISK_PATCH_FILE=ed_asterisk.patch
@@ -7181,10 +7396,13 @@ if [ "$setup_cmd" = "uninstall" ] || [ "$setup_cmd" = "remove" ]; then
 	exit; 
 fi      
 
-if [ "$setup_cmd" = "zaptel" ]; then
-	setup_cmd="install"
+if [ "$setup_cmd" = "zaptel" ] || [ "$setup_cmd" = "dahdi" ] ; then
 	zaptel_auto_install="YES"
 	setup_install_quick="YES"
+	if [ "$setup_cmd" = "dahdi" ]; then
+		dahdi_auto_install="YES"
+	fi
+	setup_cmd="install"
 	#EXTRA_ARGS=" --protocol=TDM --silent --no-zaptel-compile "
 	#EXTRA_ARGS=" --protocol=TDM "
 fi
@@ -7224,6 +7442,16 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 		case $arg in
 
 		--silent*)
+			if [ $bri_auto_install = "YES" ]; then
+				#default	
+				bri_auto_install="NO"
+			elif [ $zaptel_auto_install = "YES" ]; then
+				zaptel_auto_install="NO"
+				PROTS=TDM;	
+			fi
+			zaptel_auto_install="NO"
+			setup_install_quick="NO"
+			bri_auto_install="NO"
 			NONINTERACTIVE=1;
 			;;
 		--linux-vanilla*)
@@ -7260,6 +7488,9 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 		--edac*)
 			#TAKEN OUT 
 			;;
+                --bri_module_test*)
+                       BRI_MODULE_TEST="YES"
+                       ;;
 		--noautostart*)
 			NO_AUTO_START=1
 			;;
@@ -7314,12 +7545,8 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 			fi
 			ZAPTEL_PATH_OP="YES";
 			echo "Zaptel path defined as: $ZAPTEL_INSTALL_DIR"
-			
-			if [ -d $ZAPTEL_INSTALL_DIR/kernel ]; then
-				ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR/kernel
-			else
-				ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR
-			fi
+
+			set_zaptel_source_dir	
 			
 			;;
 
@@ -7340,12 +7567,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 			ZAPTEL_PATH_OP="YES";
 			echo "Zaptel path defined as: $ZAPTEL_INSTALL_DIR"
 			
-			
-			if [ -d $ZAPTEL_INSTALL_DIR/kernel ]; then
-				ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR/kernel
-			else
-				ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR
-			fi
+			set_zaptel_source_dir			
 
 			;;
 	
@@ -7375,6 +7597,9 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 			WANPIPE_INCLUDE_DIR=$ROOT/$TMP_123
 			TMP_123=${WANCFG_ZAPTEL#/*} 
 			WANCFG_ZAPTEL=$ROOT/$TMP_123
+			TMP_123=${WANCFG_DAHDI#/*} 
+			WANCFG_DAHDI=$ROOT/$TMP_123
+
 
 			;;
 		--acflags*)
@@ -7803,17 +8028,21 @@ if [ $zaptel_auto_install = "YES" ]; then
 	NONINTERACTIVE=
 fi
 
-NONINTERACTIVE=
+#NONINTERACTIVE=
 
 if [ -z $NONINTERACTIVE ]; then
 
 if [ "$WANCFG_ZAPTEL_CFG" = "YES" ] && [ -e $WANCFG_ZAPTEL ]; then
 	echo 
 	if [ $SSMG_BRI == "YES" ]; then
-	echo "Wanpipe / Zaptel & SMG BRI Configuration"
+	echo "Wanpipe / Zaptel/Dahdi & SMG BRI Configuration"
 	echo "========================================"
 	else
-	echo "Wanpipe / Zaptel Configuration"
+		if [ $DAHDI_SUPPORT = "YES" ]; then
+			echo "Wanpipe / Zaptel Configuration"
+		else
+			echo "Wanpipe / Dahdi Configuration"
+		fi
 	echo "=============================="
 	fi
 	echo
@@ -7821,27 +8050,49 @@ if [ "$WANCFG_ZAPTEL_CFG" = "YES" ] && [ -e $WANCFG_ZAPTEL ]; then
 	echo "wancfg_smg configurator can create all wanpipe config files"
 	echo "for ZAPTEL as well as for SMG BRI."
 	else
-	echo "wancfg_zaptel configurator can create all wanpipe config files"
-        echo "for ZAPTEL including /etc/zaptel.conf file."
+		if [ $DAHDI_SUPPORT = "YES" ]; then
+			echo "wancfg_zaptel configurator can create all wanpipe config files"
+        		echo "for ZAPTEL including /etc/zaptel.conf file."
+			echo "Optionally: the configurator can also create Asterisk zapata.conf"
+		else
+			echo "wancfg_dahdi configurator can create all wanpipe config files"
+        		echo "for DAHDI including /etc/dahdi/dahdi.conf file."
+			echo "Optionally: the configurator can also create Asterisk dahdi.conf"
+		fi
 	fi
-	echo "Optionally: the configurator can also create Asterisk zapata.conf"
 	echo "-----------------------------------------------------"
 	if [ $SSMG_BRI == "YES" ]; then
-       	getyn "Would you like to configure wanpipe devices for ZAPTEL & BRI?"
+       	getyn "Would you like to configure wanpipe devices for ZAPTEL/DAHDI & BRI?"
 	else
-       	getyn "Would you like to configure wanpipe devices for ZAPTEL?"
+		if [ $DAHDI_SUPPORT = "YES" ]; then
+       			getyn "Would you like to configure wanpipe devices for DAHDI?"
+		else
+       			getyn "Would you like to configure wanpipe devices for ZAPTEL?"
+		fi
 	fi
 
        	if [ $? -eq 0 ]; then
 		if [ $SSMG_BRI == "YES" ]; then
 	        	eval "$WANCFG_SMG"
 		else
-	        	eval "$WANCFG_ZAPTEL"
+			if [ $DAHDI_SUPPORT = "YES" ]; then
+	        		eval "$WANCFG_DAHDI"
+			else 
+	        		eval "$WANCFG_ZAPTEL"
+			fi
 		fi
 	else
 		echo "Wanpipe Installation Complete"
 		echo "-----------------------------" 
-		echo "Please proceed to configure wanpipe user /usr/sbin/wancfg"
+		if [ $SSMG_BRI == "YES" ]; then
+			echo "Please proceed to configure wanpipe user /usr/sbin/wancfg_smg"
+		else
+			if [ $DAHDI_SUPPORT = "YES" ]; then
+				echo "Please proceed to configure wanpipe user /usr/sbin/wancfg_dahdi"
+			else
+				echo "Please proceed to configure wanpipe user /usr/sbin/wancfg_zaptel"
+			fi
+		fi
 		echo
 	fi
 elif [ "$SSMG_BRI" = "YES" ]; then
@@ -7857,7 +8108,11 @@ elif [ "$SSMG_BRI" = "YES" ]; then
 		if [ $SSMG_BRI == "YES" ]; then
 	        	eval "$WANCFG_SMG"
 		else
-	        	eval "$WANCFG_ZAPTEL"
+			if [ $DAHDI_SUPPORT = "YES" ]; then
+	        		eval "$WANCFG_DAHDI"
+			else 
+	        		eval "$WANCFG_ZAPTEL"
+			fi
 		fi
 	else
 		echo "Wanpipe Installation Complete"

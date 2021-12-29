@@ -12,6 +12,7 @@
 *		2 of the License, or (at your option) any later version.
 * ============================================================================
 * Mar 12,  2008 David Yat Sin   Initial Version
+* Sep 06,  2008 Moises Silva    DAHDI support 
 *****************************************************************************/
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -24,7 +25,7 @@
 # include <wanpipe_events.h>
 # include <sdla_tdmv.h>	/* WANPIPE TDM Voice definitions */
 # include <sdla_tdmv_dummy.h>
-# include <zaptel.h>
+# include <zapcompat.h> /* Map of Zaptel -> DAHDI definitions */
 #elif (defined __WINDOWS__)
 # include <wanpipe\csu_dsu.h>
 #else
@@ -34,12 +35,15 @@
 # include <linux/wanpipe_events.h>
 # include <linux/sdla_tdmv.h>	/* WANPIPE TDM Voice definitions */
 # include <linux/sdla_tdmv_dummy.h>
-# include <zaptel.h>
+# include <zapcompat.h> /* Map of Zaptel -> DAHDI definitions */
 #endif
 
 typedef struct sdla_tdmv_dummy
 {
    struct zt_span span;
+#ifdef DAHDI_ISSUES
+   struct zt_chan *chan_ptr;
+#endif
    struct zt_chan chan;
 
 }sdla_tdmv_dummy_t;   
@@ -75,7 +79,12 @@ void* sdla_tdmv_dummy_register(void)
 
    sprintf(wpd->span.name, "SDLA_DUMMY");
    snprintf(wpd->span.desc, sizeof(wpd->span.desc) - 1, "%s (source: AFT-HW) %d", wpd->span.name, 1);
+#ifdef DAHDI_ISSUES
+   wpd->chan_ptr   = &wpd->chan;
+   wpd->span.chans = &wpd->chan_ptr;
+#else
    wpd->span.chans = &wpd->chan;
+#endif
    wpd->span.channels = 0;	/* no channels */
    wpd->span.deflaw = ZT_LAW_MULAW;
    wpd->span.pvt = wpd;

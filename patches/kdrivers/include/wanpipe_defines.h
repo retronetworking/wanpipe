@@ -167,6 +167,10 @@ typedef	struct tcphdr		tcphdr_t;
 # define w_tcp_dport	dest
 # define w_tcp_seq	seq
 # define w_tcp_ack_seq	ack_seq
+
+typedef time_t	wan_time_t;
+typedef suseconds_t	wan_suseconds_t;
+
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 typedef	struct ip		iphdr_t;
 typedef	struct udphdr		udphdr_t;
@@ -190,6 +194,13 @@ typedef	struct tcphdr		tcphdr_t;
 # define w_tcp_dport	th_dport
 # define w_tcp_seq	th_seq
 # define w_tcp_ack_seq	th_ack
+# if (__FreeBSD_version > 700000)
+typedef time_t	wan_time_t;
+# else /* includes FreeBSD-5/6/OpenBSD/NetBSD */
+typedef long wan_time_t;
+# endif
+typedef suseconds_t	wan_suseconds_t;
+
 #elif defined(__WINDOWS__)
 /* Intel X86 */
 #define __LITTLE_ENDIAN_BITFIELD
@@ -226,6 +237,8 @@ struct udphdr {
 typedef	struct	iphdr	iphdr_t;
 typedef	struct	udphdr	udphdr_t;
 
+typedef unsigned long	wan_time_t;
+typedef unsigned long	wan_suseconds_t;
 #else
 # error "Unknown OS system!"
 #endif
@@ -713,7 +726,8 @@ typedef struct wan_udp_hdr{
 #  define WAN_MOD_QUIESCE	WAN_MOD_UNLOAD+2
 # endif
 # define WP_DELAY		DELAY
-# define WP_SCHEDULE(arg,name)	tsleep(&(arg),PPAUSE,(name),(arg))
+# define WP_SCHEDULE(arg,name)	{void*ptr=(name);tsleep(ptr,PPAUSE,(name),(arg)); }
+/*# define WP_SCHEDULE(arg,name)	tsleep(&(arg),PPAUSE,(name),(arg))*/
 # define SYSTEM_TICKS		ticks
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
@@ -901,6 +915,7 @@ suitable as parameter 5 to KeWaitForSingleObject(..., TimeOut). */
 #endif
 
 #if defined(__LINUX__)
+/**************************** L I N U X **************************************/
 typedef struct sk_buff		netskb_t;
 typedef struct sk_buff_head	wan_skb_queue_t;
 typedef struct timer_list	wan_timer_info_t;
@@ -936,6 +951,7 @@ typedef void*			wan_dma_tag_t;
 typedef wait_queue_head_t	wan_waitq_head_t;
 typedef void			(wan_pci_ifunc_t)(void*);
 #elif defined(__FreeBSD__)
+/**************************** F R E E B S D **********************************/
 typedef struct ifnet		netdevice_t;
 typedef struct mbuf		netskb_t;
 # ifdef ALTQ
@@ -973,6 +989,7 @@ typedef bus_dma_tag_t		wan_dma_tag_t;
 typedef int			wan_waitq_head_t;
 typedef void			(wan_pci_ifunc_t)(void*);
 #elif defined(__OpenBSD__)
+/**************************** O P E N B S D **********************************/
 typedef struct ifnet		netdevice_t;
 typedef struct mbuf		netskb_t;
 # ifdef ALTQ
@@ -1000,6 +1017,7 @@ typedef int 			wan_rwlock_t;
 typedef int			wan_rwlock_flag_t;
 typedef int			(wan_pci_ifunc_t)(void*);
 #elif defined(__NetBSD__)
+/**************************** N E T B S D **********************************/
 typedef struct ifnet		netdevice_t;
 typedef struct mbuf		netskb_t;
 # ifdef ALTQ
@@ -1030,6 +1048,7 @@ typedef void			(wan_pci_ifunc_t)(void*);
 typedef mblk_t			netskb_t;
 
 #elif defined(__WINDOWS__)
+/**************************** W I N D O W S **********************************/
 
 /*********************************************************************/
 

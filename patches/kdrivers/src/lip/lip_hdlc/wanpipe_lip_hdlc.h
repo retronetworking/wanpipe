@@ -5,7 +5,9 @@
 #include "stddef.h"
 #include "linux/types.h"
 #include "wanpipe_abstr.h"
-#include "wanpipe_cfg.h"
+#include "wanpipe_cfg_def.h"
+#include "wanpipe_cfg_hdlc.h"
+#include "wanpipe_cfg_lip.h"
 
 
 /* This is the shared header between the LIP

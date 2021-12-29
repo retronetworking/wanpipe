@@ -507,7 +507,8 @@ static int wan_iface_set_proto(netdevice_t* dev, struct ifreq* ifr)
 	struct if_settings*	ifsettings;
 	ifsettings = (struct if_settings*)ifr->ifr_data;
 
-		
+	
+	switch (ifsettings->type) {	
 	case IF_PROTO_PPP:
 	case IF_PROTO_CISCO:
 	case IF_PROTO_FR:

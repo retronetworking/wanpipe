@@ -43,6 +43,7 @@ extern int wanec_client_modify(void);
 extern int wanec_client_mute(int mode);
 extern int wanec_client_dtmf(int enable);
 extern int wanec_client_stats(int full);
+extern int wanec_client_hwimage(int full);
 extern int wanec_client_bufferload(void);
 extern int wanec_client_bufferunload(unsigned long buffer_id);
 extern int wanec_client_playout(int start);
@@ -79,6 +80,7 @@ extern int wanec_client_monitor(int);
 %token ALL_TOKEN
 %token HELP_TOKEN
 %token HELP1_TOKEN
+%token HWIMAGE_TOKEN
 %token MONITOR_TOKEN
 %token MONITOR120_TOKEN
 %token MODIFY_TOKEN
@@ -155,6 +157,8 @@ command		: CONFIG_TOKEN custom_param_list
 		  { gl_err = wanec_client_stats(0); }
 		| STATS_FULL_TOKEN	stats_debug_args
 		  { gl_err = wanec_client_stats(1); }
+		| HWIMAGE_TOKEN
+		  { gl_err = wanec_client_hwimage(1); }
 		| BUFFER_LOAD_TOKEN	CHAR_STRING 
 		  { strcpy(ec_client.filename,$<str>2); }
 			buffer_load_args

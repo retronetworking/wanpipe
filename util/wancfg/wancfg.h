@@ -88,6 +88,7 @@ BSD interface names rules:
 //#include <sys/time.h>
 
 #if defined(__LINUX__)
+# include <linux/wanpipe_defines.h>
 # include <linux/sdla_fr.h>
 # include <linux/wanpipe_cfg.h>
 # include <linux/sdla_te1.h>
@@ -97,6 +98,7 @@ BSD interface names rules:
 #else
 # include <time.h>
 # include <sys/types.h>
+# include <wanpipe_defines.h>
 # include <sdla_fr.h>
 # include <wanpipe_cfg.h>
 # include <sdla_te1.h>

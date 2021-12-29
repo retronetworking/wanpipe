@@ -35,6 +35,7 @@
 #elif defined(__WINDOWS__)
 # include <wanpipe_includes.h>
 # include <wanpipe.h>
+# define printk DEBUG_EVENT
 #elif defined(__KERNEL__)
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -610,7 +611,7 @@ void __wpabs_debug_event(const char * fmt, ...)
 	char buf[1024];
 	va_start(args, fmt);
 	vsnprintf(buf, sizeof(buf), fmt, args);
-	printk("%s", buf);
+	DEBUG_EVENT("%s", buf);
 	va_end(args);
 #endif
 }

@@ -91,6 +91,7 @@ static void display_Rx_code_condition(sdla_fe_t* fe);
 static int sdla_56k_print_alarm(sdla_fe_t* fe, unsigned int);
 static int sdla_56k_update_alarm_info(sdla_fe_t *fe, struct seq_file* m, int* stop_cnt);
 
+static int sdla_56k_polling(sdla_fe_t* fe);
 static int sdla_56k_unconfig(void* pfe);
 static int sdla_56k_intr(sdla_fe_t *fe);
 static int sdla_56k_check_intr(sdla_fe_t *fe);
@@ -150,7 +151,8 @@ static int sdla_56k_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notu
 u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 {
 
-	unsigned short status = 0x00;
+	unsigned short 	status = 0x00;
+	sdla_t		*card = (sdla_t *)fe->card;
 	
 	AFT_FUNC_DEBUG();
 
@@ -213,6 +215,10 @@ u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 				}
 				DEBUG_EVENT("%s: 56k Connected\n",
 							fe->name);
+
+				if (card->wandev.te_link_state){
+					card->wandev.te_link_state(card);
+				}	
 			}
 		}else{
 			if((fe->fe_status == FE_CONNECTED) || 
@@ -228,6 +234,10 @@ u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 				}
 				DEBUG_EVENT("%s: 56k Disconnected (loopback)\n",
 						fe->name);
+	
+				if (card->wandev.te_link_state){
+					card->wandev.te_link_state(card);
+				}
 			}
 		}
 	}
@@ -258,6 +268,7 @@ int sdla_56k_iface_init(void *p_fe, void* pfe_iface)
 
 	fe_iface->config		= &sdla_56k_config;
 	fe_iface->unconfig		= &sdla_56k_unconfig;
+	fe_iface->polling		= &sdla_56k_polling;
 
 	fe_iface->get_fe_status		= &sdla_56k_get_fe_status;
 	fe_iface->get_fe_media		= &sdla_56k_get_fe_media;
@@ -288,6 +299,8 @@ static int sdla_56k_intr(sdla_fe_t *fe)
 
 	return 0;
 }
+
+
 
 /*	Called from ISR. On AFT card there is only on 56 port, it 
 	means the interrupt is always ours.
@@ -404,6 +417,14 @@ static int sdla_56k_unconfig(void* pfe)
 	return 0;
 }
 
+static int sdla_56k_polling(sdla_fe_t* fe)
+{
+	
+	sdla_56k_alarm(fe, 1);
+
+	return 0;
+}
+
 static void display_Rx_code_condition(sdla_fe_t* fe)
 {
 	sdla_56k_param_t	*k56_param = &fe->fe_param.k56_param;
@@ -493,7 +514,7 @@ static void display_Rx_code_condition(sdla_fe_t* fe)
  ******************************************************************************
  */
 static int 
-sdla_56k_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode) 
+sdla_56k_set_lbmode(sdla_fe_t *fe, unsigned char mode, unsigned char enable) 
 {
 	
 	//unsigned char loop=BIT_RX_CTRL_DSU_LOOP|BIT_RX_CTRL_CSU_LOOP;
@@ -501,7 +522,7 @@ sdla_56k_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 	//unsigned char loop=BIT_RX_CTRL_CSU_LOOP;
 	unsigned char loop=0x00;
 
-	if(type==WAN_TE1_PAYLB_MODE){
+	if(mode==WAN_TE1_PAYLB_MODE){
                 loop=BIT_RX_CTRL_DSU_LOOP;
         }else{
                 loop=BIT_RX_CTRL_CSU_LOOP;
@@ -510,7 +531,7 @@ sdla_56k_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 	
-	if (mode == WAN_TE1_ACTIVATE_LB){
+	if (enable == WAN_TE1_LB_ENABLE){
 		WRITE_REG(REG_RX_CTRL, READ_REG(REG_RX_CTRL) | loop);
 			
 		DEBUG_EVENT("%s: %s Diagnostic Digital Loopback mode activated (0x%X).\n",
@@ -543,16 +564,18 @@ sdla_56k_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 static int sdla_56k_udp(sdla_fe_t *fe, void* pudp_cmd, unsigned char* data)
 {
 	wan_cmd_t	*udp_cmd = (wan_cmd_t*)pudp_cmd;
+	wan_femedia_t	*fe_media;
 	int err;
 
 	AFT_FUNC_DEBUG();
 
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
-		data[0] = (IS_56K_FEMEDIA(fe) ? WAN_MEDIA_56K : 
-						WAN_MEDIA_NONE);
+		fe_media = (wan_femedia_t*)data;
+		memset(fe_media, 0, sizeof(wan_femedia_t));
+		fe_media->media		= WAN_MEDIA_56K;
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-		udp_cmd->wan_cmd_data_len = sizeof(unsigned char); 
+		udp_cmd->wan_cmd_data_len = sizeof(wan_femedia_t); 
 		break;
 
 	case WAN_FE_GET_STAT:

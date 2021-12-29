@@ -59,23 +59,24 @@
 ****                     M A C R O S / D E F I N E S                    ****
 ***************************************************************************/
 //This is the address of the ECCTL register , page 149 of PEX8111 datasheet.
-#define SDLA_PLX_EECTL			0x1004	
+#define SDLA_PLXE_CTL			0x1004	
 
 //Change this accordingly.!!!
-#define SDLA_PLX_EEPROM_SIZE		0xFF
+#define SDLA_PLXE_SIZE			0x7F
 
-#define SDLA_PLX_EEPROM_BUSY		19
-#define SDLA_PLX_EEPROM_CS_ENABLE	18
-#define SDLA_PLX_EEPROM_BYTE_READ_START	17
-#define SDLA_PLX_EEPROM_READ_DATA	8
-#define SDLA_PLX_EEPROM_WRITE_DATA	0
-#define SDLA_PLX_EEPROM_BYTE_WRITE_START 16
+#define SDLA_PLXE_SHIFT_WRITE_DATA	0
+#define SDLA_PLXE_SHIFT_READ_DATA	8
+
+#define SDLA_PLXE_MASK_BYTE_WRITE_START (1<<16)
+#define SDLA_PLXE_MASK_BYTE_READ_START	(1<<17)
+#define SDLA_PLXE_MASK_CS_ENABLE	(1<<18)
+#define SDLA_PLXE_MASK_BUSY		(1<<19)
 
 //EEPROM COMMANDS
-#define SDLA_PLX_READ_STATUS_EE_OPCODE	0x05
-#define SDLA_PLX_WREN_EE_OPCODE 	0x06
-#define SDLA_PLX_WRITE_EE_OPCODE	0x02
-#define SDLA_PLX_READ_EE_OPCODE		0x03
+#define SDLA_PLXE_OPCODE_WRITE		0x02
+#define SDLA_PLXE_OPCODE_READ		0x03
+#define SDLA_PLXE_OPCODE_READ_STATUS	0x05
+#define SDLA_PLXE_OPCODE_WREN 		0x06
 
 
 /***************************************************************************
@@ -89,17 +90,17 @@
 /***************************************************************************
 ****               F U N C T I O N   D E F I N I T I O N                ****
 ***************************************************************************/
-static void		sdla_plx_8111Read(void *phw, int addr, int *data);
-static void		sdla_plx_8111Write(void *phw, int addr, int data);
-static int		sdla_plx_EE_waitidle(void *phw);
-static int		sdla_plx_EE_off(void *phw);
-static unsigned char	sdla_plx_EE_readbyte(void *phw);
-static int		sdla_plx_EE_writebyte(void *phw, unsigned char);
+static void	sdla_plx_8111Read(void *phw, int addr, int *data);
+static void	sdla_plx_8111Write(void *phw, int addr, int data);
+static int	sdla_plx_EE_waitidle(void *phw);
+static int	sdla_plx_EE_off(void *phw);
+static int 	sdla_plx_EE_readbyte(void *phw,unsigned char*);
+static int	sdla_plx_EE_writebyte(void *phw, unsigned char);
 
-unsigned char	sdla_plxctrl_status(void *phw);
-unsigned char	sdla_plxctrl_read8(void *phw, short);
-void		sdla_plxctrl_write8(void *phw, short, unsigned char);
-void		sdla_plxctrl_erase(void *phw);
+int	sdla_plxctrl_status(void *phw, unsigned char*);
+int	sdla_plxctrl_read8(void *phw, short, unsigned char*);
+int	sdla_plxctrl_write8(void *phw, short, unsigned char);
+int	sdla_plxctrl_erase(void *phw);
 
 extern int	sdla_pci_bridge_read_config_dword(void*, int, u_int32_t*);
 extern int	sdla_pci_bridge_write_config_dword(void*, int, u_int32_t);
@@ -146,15 +147,16 @@ static int sdla_plx_EE_waitidle(void *phw)
 	WAN_ASSERT(phw == NULL);
 	for (ii = 0; ii < 100; ii++){
 	       	/* read current value in EECTL */
-		sdla_plx_8111Read(phw, SDLA_PLX_EECTL, &eeCtl);
+		sdla_plx_8111Read(phw, SDLA_PLXE_CTL, &eeCtl);
 		/* loop until idle */
-		if ((eeCtl & (1 << SDLA_PLX_EEPROM_BUSY)) == 0){
+		if ((eeCtl & SDLA_PLXE_MASK_BUSY) == 0){
 			return(eeCtl);
 		}
+		WP_DELAY(1000);
 	}
 	DEBUG_EVENT("%s: ERROR: EEPROM Busy timeout!\n",
 				hw->devname);
-	return -EINVAL;
+	return SDLA_PLXE_MASK_BUSY;
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -164,43 +166,41 @@ static int sdla_plx_EE_off(void *phw)
 	WAN_ASSERT(phw == NULL);
 	 /* make sure EEPROM is idle */
 	sdla_plx_EE_waitidle(phw);
-	/* turn off everything (especially SDLA_PLX_EEPROM_CS_ENABLE)*/
-	sdla_plx_8111Write(phw, SDLA_PLX_EECTL, 0);
+	/* turn off everything (especially SDLA_PLXE_MASK_CS_ENABLE)*/
+	sdla_plx_8111Write(phw, SDLA_PLXE_CTL, 0);
 	return 0; 
 }
 
 ///////////////////////////////////////////////////////////////////
-static unsigned char sdla_plx_EE_readbyte(void *phw)
+static int sdla_plx_EE_readbyte(void *phw, unsigned char *data)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	int		i, eeCtl = 0x00;
-	unsigned char	data = 0x00;
 
-	WAN_ASSERT_RC(phw == NULL, 0xFF);
-	eeCtl = sdla_plx_EE_waitidle(phw);
+	WAN_ASSERT(phw == NULL);
 
-	eeCtl = 0;
-	eeCtl |= (1 << SDLA_PLX_EEPROM_CS_ENABLE) |
-	       	 (1 << SDLA_PLX_EEPROM_BYTE_READ_START);
-	sdla_plx_8111Write(phw, SDLA_PLX_EECTL, eeCtl); /* start reading */
+	if (sdla_plx_EE_waitidle(phw) & SDLA_PLXE_MASK_BUSY){
+		return -EINVAL;
+	}
+
+	eeCtl = (SDLA_PLXE_MASK_CS_ENABLE | SDLA_PLXE_MASK_BYTE_READ_START);
+	sdla_plx_8111Write(phw, SDLA_PLXE_CTL, eeCtl); /* start reading */
 	for (i=0;i<1000;i++){
-		sdla_plx_8111Read(phw, SDLA_PLX_EECTL, &eeCtl);
-		if ((eeCtl & (1 << SDLA_PLX_EEPROM_BYTE_READ_START)) == 0){
+		sdla_plx_8111Read(phw, SDLA_PLXE_CTL, &eeCtl);
+		if ((eeCtl & SDLA_PLXE_MASK_BYTE_READ_START) == 0){
 			break;
 		}
 	}
-	if ((eeCtl & (1 << SDLA_PLX_EEPROM_BYTE_READ_START)) != 0){
-		DEBUG_EVENT("%s: Timeout on PLX READ!\n",
+	if (eeCtl & SDLA_PLXE_MASK_BYTE_READ_START){
+		DEBUG_EVENT("%s: ERROR: Timeout on PLX READ!\n",
 					hw->devname);
-		return 0xFF;
+		return -EINVAL;
 	}
 	
 	eeCtl = sdla_plx_EE_waitidle(phw); /* wait until read is done */
-	sdla_plx_8111Read(phw, SDLA_PLX_EECTL, &eeCtl);
-	data = (eeCtl >> SDLA_PLX_EEPROM_READ_DATA) & 0xFF;
-	
-	/* extract read data from EECTL */
-	return data;
+	sdla_plx_8111Read(phw, SDLA_PLXE_CTL, &eeCtl);
+	*data = (eeCtl >> SDLA_PLXE_SHIFT_READ_DATA) & 0xFF;
+	return 0;
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -210,23 +210,23 @@ static int sdla_plx_EE_writebyte(void *phw, unsigned char val)
 	int 		i, eeCtl = 0; /* make sure EEPROM is idle */	
 	
 	WAN_ASSERT(phw == NULL);
-	eeCtl = sdla_plx_EE_waitidle(phw); /* make sure EEPROM is idle */	
+	if (sdla_plx_EE_waitidle(phw) & SDLA_PLXE_MASK_BUSY){
+		return -EINVAL;
+	}
+
 	/* clear current WRITE value */
-	eeCtl = 0;
-	eeCtl &= ~(0xff << SDLA_PLX_EEPROM_WRITE_DATA);
-	eeCtl |= 	(1 << SDLA_PLX_EEPROM_CS_ENABLE) |
-			(1 << SDLA_PLX_EEPROM_BYTE_WRITE_START) |
-			((val & 0xff) << SDLA_PLX_EEPROM_WRITE_DATA);
-	sdla_plx_8111Write(phw, SDLA_PLX_EECTL, eeCtl);
+	eeCtl = (SDLA_PLXE_MASK_CS_ENABLE | SDLA_PLXE_MASK_BYTE_WRITE_START);
+	eeCtl |= ((val & 0xff) << SDLA_PLXE_SHIFT_WRITE_DATA);
+	sdla_plx_8111Write(phw, SDLA_PLXE_CTL, eeCtl);
 	
 	for (i=0;i<1000;i++){
-		sdla_plx_8111Read(phw, SDLA_PLX_EECTL, &eeCtl);
-		if ((eeCtl & (1 << SDLA_PLX_EEPROM_BYTE_WRITE_START)) == 0){
+		sdla_plx_8111Read(phw, SDLA_PLXE_CTL, &eeCtl);
+		if ((eeCtl & SDLA_PLXE_MASK_BYTE_WRITE_START) == 0){
 			break;
 		}
 	}
-	if ((eeCtl & (1 << SDLA_PLX_EEPROM_BYTE_WRITE_START)) != 0){
-		DEBUG_EVENT("%s: Timeout on PLX write!\n",
+	if (eeCtl & SDLA_PLXE_MASK_BYTE_WRITE_START){
+		DEBUG_EVENT("%s: ERROR: Timeout on PLX write!\n",
 						hw->devname);
 		return -EINVAL;
 	}
@@ -239,57 +239,63 @@ static int sdla_plx_EE_writebyte(void *phw, unsigned char val)
 ***************************************************************************/
 
 ///////////////////////////////////////////////////////////////////
-unsigned char sdla_plxctrl_status(void *phw)
+int sdla_plxctrl_status(void *phw, unsigned char *status)
 {	
-	unsigned char status = 0;
+	WAN_ASSERT(phw == NULL);
 
-	WAN_ASSERT_RC(phw == NULL, 0xFF);
-    	sdla_plx_EE_writebyte(phw, SDLA_PLX_READ_STATUS_EE_OPCODE);
-	status = sdla_plx_EE_readbyte(phw); /* get EEPROM status */
+    	sdla_plx_EE_writebyte(phw, SDLA_PLXE_OPCODE_READ_STATUS);
+	if (sdla_plx_EE_readbyte(phw, status)){
+		return -EINVAL;
+	}
 	sdla_plx_EE_off(phw); /* turn off EEPROM */
 
-	return status;
+	return 0;
 }
 
-void sdla_plxctrl_write8(void *phw, short addr, unsigned char data)
+int sdla_plxctrl_write8(void *phw, short addr, unsigned char data)
 {
+	WAN_ASSERT(phw == NULL);
 
-	WAN_ASSERT_VOID(phw == NULL);
-	sdla_plx_EE_writebyte(phw, SDLA_PLX_WREN_EE_OPCODE); /* must first write-enable */
-	sdla_plx_EE_off(phw); /* turn off EEPROM */
-	sdla_plx_EE_writebyte(phw, SDLA_PLX_WRITE_EE_OPCODE); /* opcode to write bytes */
+	/* must first write-enable */
+	sdla_plx_EE_writebyte(phw, SDLA_PLXE_OPCODE_WREN);
+	/* turn off EEPROM */
+	sdla_plx_EE_off(phw);
+	/* opcode to write bytes */
+	sdla_plx_EE_writebyte(phw, SDLA_PLXE_OPCODE_WRITE);
 
 	/* Send low byte of address */
 	sdla_plx_EE_writebyte(phw, (unsigned char)(addr & 0xFF));
-	
-	sdla_plx_EE_writebyte(phw, 0xFF & data); /* send data to be written */
+	/* send data to be written */
+	sdla_plx_EE_writebyte(phw, (data & 0xFF));
 	
 	sdla_plx_EE_off(phw); /* turn off EEPROM */
-	return;
+	WP_DELAY(10000);
+	return 0;
 }
 
 ///////////////////////////////////////////////////////////////////
-unsigned char sdla_plxctrl_read8(void *phw, short addr)
+int sdla_plxctrl_read8(void *phw, short addr, unsigned char *data)
 {	
-	unsigned char	ch;
-    
-	WAN_ASSERT_RC(phw == NULL, 0xFF);
-    	sdla_plx_EE_writebyte(phw, SDLA_PLX_READ_EE_OPCODE);
+	WAN_ASSERT(phw == NULL);
+
+    	sdla_plx_EE_writebyte(phw, SDLA_PLXE_OPCODE_READ);
 	sdla_plx_EE_writebyte(phw, (unsigned char)(addr & 0xFF));
 
-	ch = sdla_plx_EE_readbyte(phw);
+	if (sdla_plx_EE_readbyte(phw, data)){
+		return -EINVAL;
+	}
     	sdla_plx_EE_off(phw);
-	return ch;
+	return 0;
 }
 
-void sdla_plxctrl_erase(void *phw)
+int sdla_plxctrl_erase(void *phw)
 {	
 	int t;
 
-	WAN_ASSERT_VOID(phw == NULL);
-	for(t = 0; t < SDLA_PLX_EEPROM_SIZE; t++){
+	WAN_ASSERT(phw == NULL);
+	for(t = 0; t < SDLA_PLXE_SIZE; t++){
 		sdla_plxctrl_write8(phw, t, 0xFF);
 	}
-	return;
+	return 0;
 }
 

@@ -93,12 +93,16 @@
 ******************************************************************
 */
 
-#define	SDLADRV_MAGIC	0x414C4453L	/* signature: 'SDLA' reversed */
+#define	SDLADRV_MAGIC		0x414C4453L	/* signature: 'SDLA' reversed */
 
-#define SDLADRV_MAJOR_VER 2
-#define SDLADRV_MINOR_VER 1
-#define	SDLA_MAXIORANGE	4	/* maximum I/O port range */
-#define	SDLA_WINDOWSIZE	0x2000	/* default dual-port memory window size */
+#define SDLADRV_MODE_WANPIPE	0
+#define SDLADRV_MODE_LIMITED	1
+
+#define SDLADRV_MAJOR_VER 	2
+#define SDLADRV_MINOR_VER 	1
+
+#define	SDLA_MAXIORANGE		4	/* maximum I/O port range */
+#define	SDLA_WINDOWSIZE		0x2000	/* default dual-port memory window size */
 
 /* */
 #define SDLA_MEMBASE			0x01
@@ -537,6 +541,7 @@ typedef struct sdla_hw_type_cnt
 
 /****** Function Prototypes *************************************************/
 
+EXTERN int sdladrv_hw_mode(int);
 EXTERN unsigned int sdla_hw_probe(void);
 EXTERN unsigned int sdla_hw_bridge_probe(void);
 EXTERN void *sdla_get_hw_probe (void);

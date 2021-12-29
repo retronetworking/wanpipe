@@ -14,19 +14,12 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 
-SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
-
-ifeq "$(SYSINC)" "" 
-# Project file paths.
-SYSINC=/lib/modules/$(shell uname -r)/build/include
-endif
-
 WAN_VIRTUAL=
 
 PRODS=wan_plxup
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG)
 CFLAGS  += $(EXTRA_FLAGS)
 
 

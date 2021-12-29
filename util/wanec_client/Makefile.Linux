@@ -17,7 +17,6 @@ YACC	= bison
 # Project File Paths.
 TMPDIR		= tmp
 OUTDIR		= mod/
-SYSINC		= /lib/modules/$(shell uname -r)/build/include 
 VPATH		= $(LOCINC):$(TMPDIR)
 ARCH    	= $(shell uname -m)
 DIR_EC_APILIB	= ../wanec_apilib
@@ -36,7 +35,7 @@ INC_EC_APILIB += -I$(WANECDIR)/oct6100_api/include -I/usr/include/wanpipe
 INC_EC_APILIB +=-I$(WANECDIR)/oct6100_api -I$(DIR_EC_APILIB)
 
 CFLAGS	= -Wall -O2 -D__LINUX__ -DCONFIG_PRODUCT_WANPIPE_TDMV_EC -D_DEBUG_=$(DEBUG) -D_GNUC_
-CFLAGS	+= $(INC_EC_APILIB) -I$(SYSINC) $(EXTRA_FLAGS)
+CFLAGS	+= $(INC_EC_APILIB)  $(EXTRA_FLAGS)
 
 #$(WANEC_DIR) -I$(WANEC_DIR)/oct6100_api/include -I$(WANEC_DIR)/oct6100_api/octdeviceapi/oct6100api/
 

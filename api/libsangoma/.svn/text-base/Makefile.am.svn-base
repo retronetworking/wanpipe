@@ -1,18 +1,18 @@
 
-KINC=/lib/modules/$(shell uname -r)/build
-WINC=../../patches/kdrivers/include
+WLINC=../../patches/kdrivers/include
+WINC=/usr/include/wanpipe
 
-AM_CFLAGS		= -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I$(WINC) -I$(KINC)/include -I. \
-	-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O2 -D_DEBUG_=2 -D_GNUC_ -I../lib -I$(KINC)/include
+AM_CFLAGS		= -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I$(WLINC) -I$(WINC)  -I. \
+	-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O2 -D_DEBUG_=2 -D_GNUC_ -I../lib  
 
-LIB_SOURCES		= libsangoma.c  libsangoma.h
+LIB_SOURCES		= libsangoma.c  libsangoma.h libhpsangoma.c libhpsangoma.h libhpsangoma_priv.c libhpsangoma_priv.h
 
 if LIBPRI
 LIB_SOURCES		+= sangoma_pri.c sangoma_pri.h
 endif 
 
 library_includedir      = $(includedir)
-library_include_HEADERS = libsangoma.h 
+library_include_HEADERS = libsangoma.h libhpsangoma.h 
 
 if LIBPRI
 library_include_HEADERS	+= sangoma_pri.h

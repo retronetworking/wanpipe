@@ -2,7 +2,7 @@
  * Copyright (c) 2002
  *	Alex Feldman <al.feldman@sangoma.com>.  All rights reserved.
  *
- *	$Id: wanpipe_common.h,v 1.215 2008/04/16 17:23:17 sangoma Exp $
+ *	$Id: wanpipe_common.h,v 1.215 2008-04-16 17:23:17 sangoma Exp $
  */
 
 /****************************************************************************
@@ -583,8 +583,8 @@ void		wanpipe_debugging (unsigned long data);
 
 #ifdef WAN_DEBUG_MEM
 
-int sdla_memdbg_push(void *mem, char *func_name, int line, int len);
-int sdla_memdbg_pull(void *mem, char *func_name, int line);
+int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len);
+int sdla_memdbg_pull(void *mem, const char *func_name, const int line);
 
 #endif
 
@@ -602,8 +602,8 @@ int sdla_memdbg_pull(void *mem, char *func_name, int line);
 
 #ifdef WAN_DEBUG_MEM
 
-#define wan_malloc(size) __wan_malloc(size,(char*)__FUNCTION__,(int)__LINE__)
-static __inline void* __wan_malloc(int size, char *func_name, int line)
+#define wan_malloc(size) __wan_malloc(size,(const char*)__FUNCTION__,(const int)__LINE__)
+static __inline void* __wan_malloc(int size, const char *func_name, const int line)
 #else
 static __inline void* wan_malloc(int size)
 #endif
@@ -630,8 +630,8 @@ static __inline void* wan_malloc(int size)
 }
 
 #ifdef WAN_DEBUG_MEM
-#define wan_kmalloc(size) __wan_kmalloc(size,(char*)__FUNCTION__,(int)__LINE__)
-static __inline void* __wan_kmalloc(int size, char *func_name, int line)
+#define wan_kmalloc(size) __wan_kmalloc(size,(const char*)__FUNCTION__,(const int)__LINE__)
+static __inline void* __wan_kmalloc(int size, const char *func_name, const int line)
 #else
 static __inline void* wan_kmalloc(int size)
 #endif
@@ -661,8 +661,8 @@ static __inline void* wan_kmalloc(int size)
 ** wan_free - 
 */
 #ifdef WAN_DEBUG_MEM
-#define wan_free(ptr) __wan_free(ptr,(char*)__FUNCTION__,(int)__LINE__)
-static __inline void __wan_free(void* ptr, char *func_name, int line)
+#define wan_free(ptr) __wan_free(ptr,(const char*)__FUNCTION__,(const int)__LINE__)
+static __inline void __wan_free(void* ptr, const char *func_name, const int line)
 #else
 static __inline void wan_free(void* ptr)
 #endif
@@ -682,7 +682,7 @@ static __inline void wan_free(void* ptr)
 	kmem_free(ptr,sizeof(*ptr));
 	DEBUG_EVENT("%s: Feeing Size %i\n",__FUNCTION__,sizeof(*ptr));
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-	return free(ptr, M_DEVBUF); 
+	free(ptr, M_DEVBUF); 
 #elif defined(__WINDOWS__)
 	kfree(ptr);
 #else
@@ -692,8 +692,8 @@ static __inline void wan_free(void* ptr)
 
 
 #ifdef WAN_DEBUG_MEM
-#define wan_vmalloc(size) __wan_vmalloc(size,(char*)__FUNCTION__,(int)__LINE__)
-static __inline void* __wan_vmalloc(int size, char *func_name, int line)
+#define wan_vmalloc(size) __wan_vmalloc(size,(const char*)__FUNCTION__,(const int)__LINE__)
+static __inline void* __wan_vmalloc(int size, const char *func_name, const int line)
 #else
 static __inline void* wan_vmalloc(int size)
 #endif
@@ -738,8 +738,8 @@ static __inline void* wan_vmalloc(int size)
 
 
 #ifdef WAN_DEBUG_MEM
-#define wan_vfree(ptr) __wan_vfree(ptr,(char*)__FUNCTION__,(int)__LINE__)
-static __inline void __wan_vfree(void* ptr, char *func_name, int line)
+#define wan_vfree(ptr) __wan_vfree(ptr,(const char*)__FUNCTION__,(const int)__LINE__)
+static __inline void __wan_vfree(void* ptr, const char *func_name, const int line)
 #else
 static __inline void wan_vfree(void* ptr)
 #endif
@@ -953,7 +953,8 @@ static __inline unsigned long wan_dma_get_paddr(void* card, wan_dma_descr_org_t*
 /********************** WANPIPE TIMER FUNCTION **************************/
 
 
-static __inline int wan_getcurrenttime(unsigned long *sec, unsigned long *usec)
+//static __inline int wan_getcurrenttime(unsigned long *sec, unsigned long *usec)
+static __inline int wan_getcurrenttime(wan_time_t *sec, wan_suseconds_t *usec)
 {
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct timeval 	tv;
@@ -1189,8 +1190,8 @@ static __inline int wan_skb_len(void* skb)
 */
 
 #ifdef WAN_DEBUG_MEM
-#define wan_skb_free(ptr) __wan_skb_free(ptr,(char*)__FUNCTION__,(int)__LINE__)
-static __inline void __wan_skb_free(void* skb, char *func_name, int line)
+#define wan_skb_free(ptr) __wan_skb_free(ptr,(const char*)__FUNCTION__,(const int)__LINE__)
+static __inline void __wan_skb_free(void* skb, const char *func_name, const int line)
 #else
 static __inline void wan_skb_free(void* skb)
 #endif
@@ -1260,8 +1261,8 @@ static __inline int wan_skb_mark(void* pskb)
 **		Allocate kernel buffer with len.
 */
 #if defined(WAN_DEBUG_MEM)
-#define wan_skb_alloc(size) __wan_skb_alloc(size,(char*)__FUNCTION__,(int)__LINE__)
-static __inline void* __wan_skb_alloc(unsigned int len, char *func_name, int line)
+#define wan_skb_alloc(size) __wan_skb_alloc(size,(const char*)__FUNCTION__,(const int)__LINE__)
+static __inline void* __wan_skb_alloc(unsigned int len, const char *func_name, const int line)
 #else
 static __inline void* wan_skb_alloc(unsigned int len)
 #endif
@@ -1279,37 +1280,15 @@ static __inline void* wan_skb_alloc(unsigned int len)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct mbuf	*nm = NULL;
 
-# if 1
 	nm = m_getcl(M_DONTWAIT,MT_DATA,M_PKTHDR);
 	if (nm != NULL){
 		nm->m_data += 16;
 		wan_skb_set_mark(nm);
+# if defined(WAN_DEBUG_MEM)
+		sdla_memdbg_push(nm, func_name,line,sizeof(struct mbuf));
+# endif
 	}
 	return nm;
-# else
-	int s = splimp();
-	MGETHDR(nm, M_DONTWAIT, MT_DATA);
-	if (nm){
-		if (nm->m_flags & M_PKTHDR){
-			nm->m_pkthdr.len = 0;
-		}
-		nm->m_len = 0;
-		MCLGET(nm, M_DONTWAIT);
-		if ((nm->m_flags & M_EXT) == 0){
-			wan_skb_free(nm);
-			splx(s);
-			return NULL;
-		}
-		/* Always reserve extra 16 bytes (as Linux)
-		** for the header */
-		nm->m_data += 16;
-		wan_skb_set_mark(nm);
-		splx(s);
-		return (void*)nm;
-	}
-	splx(s);
-	return NULL;
-# endif
 #elif defined (__SOLARIS__)
 	mblk_t *mp=allocb(ROUNDUP(len+16, IOC_LINESIZE), BPRI_MED);
 	if (mp){
@@ -1326,8 +1305,8 @@ static __inline void* wan_skb_alloc(unsigned int len)
 
 
 #if defined(WAN_DEBUG_MEM)
-#define wan_skb_kalloc(size) __wan_skb_kalloc(size,(char*)__FUNCTION__,(int)__LINE__)
-static __inline void* __wan_skb_kalloc(unsigned int len, char *func_name, int line)
+#define wan_skb_kalloc(size) __wan_skb_kalloc(size,(const char*)__FUNCTION__,(const int)__LINE__)
+static __inline void* __wan_skb_kalloc(unsigned int len, const char *func_name, const int line)
 #else
 static __inline void* wan_skb_kalloc(unsigned int len)
 #endif
@@ -1345,37 +1324,15 @@ static __inline void* wan_skb_kalloc(unsigned int len)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct mbuf	*nm = NULL;
 
-# if 1
 	nm = m_getcl(M_DONTWAIT,MT_DATA,M_PKTHDR);
 	if (nm != NULL){
 		nm->m_data += 16;
 		wan_skb_set_mark(nm);
+# if defined(WAN_DEBUG_MEM)
+		sdla_memdbg_push(nm, func_name,line,sizeof(struct mbuf));
+# endif
 	}
 	return nm;
-# else
-	int s = splimp();
-	MGETHDR(nm, M_DONTWAIT, MT_DATA);
-	if (nm){
-		if (nm->m_flags & M_PKTHDR){
-			nm->m_pkthdr.len = 0;
-		}
-		nm->m_len = 0;
-		MCLGET(nm, M_DONTWAIT);
-		if ((nm->m_flags & M_EXT) == 0){
-			wan_skb_free(nm);
-			splx(s);
-			return NULL;
-		}
-		/* Always reserve extra 16 bytes (as Linux)
-		** for the header */
-		nm->m_data += 16;
-		wan_skb_set_mark(nm);
-		splx(s);
-		return (void*)nm;
-	}
-	splx(s);
-	return NULL;
-# endif
 #elif defined (__SOLARIS__)
 	mblk_t *mp=allocb(ROUNDUP(len+16, IOC_LINESIZE), BPRI_MED);
 	if (mp){
@@ -1585,7 +1542,7 @@ static __inline void wan_skb_reserve(void* skb, unsigned int len)
 #elif defined(__WINDOWS__)
 	skb_reserve(skb, len);
 #else
-# error "wan_skb_free() function is not supported yet!"
+# error "wan_skb_reserve() function is not supported yet!"
 #endif
 }
 

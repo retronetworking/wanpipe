@@ -376,7 +376,7 @@ int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_te_iface_init(&card->wandev.fe_iface);
+		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg = card->hw_iface.fe_write;
@@ -393,7 +393,7 @@ int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->fe,&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg = card->hw_iface.fe_write;
@@ -1652,7 +1652,7 @@ static int update_comms_stats(sdla_t* card,
 	if (IS_TE1_CARD(card)) {	
 		card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 		/* TE1 Update T1/E1 perfomance counters */
-		card->wandev.fe_iface.read_pmon(&card->fe); 
+		card->wandev.fe_iface.read_pmon(&card->fe,0); 
 	}else if (IS_56K_CARD(card)) {
 		/* 56K Update CSU/DSU alarms */
 		card->wandev.fe_iface.read_alarm(&card->fe, 1); 
@@ -2607,7 +2607,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 						&wan_udp_pkt->wan_udp_data[0]);
 			}else{
 				if (wan_udp_pkt->wan_udp_command == WAN_GET_MEDIA_TYPE){
-		    			wan_udp_pkt->wan_udp_data_len = sizeof(unsigned char); 
+		    			wan_udp_pkt->wan_udp_data_len = sizeof(wan_femedia_t); 
 					wan_udp_pkt->wan_udp_return_code = CMD_OK;
 				}else{
 					wan_udp_pkt->wan_udp_return_code = WAN_UDP_INVALID_CMD;

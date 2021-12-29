@@ -31,19 +31,19 @@
 //Change this accordingly.!!!
 #define PLXE_SIZE		0xFF
 
-#define PLXE_READ_DATA_SHIFT		8
-#define PLXE_WRITE_DATA_SHIFT		0
+#define PLXE_SHIFT_READ_DATA		8
+#define PLXE_SHIFT_WRITE_DATA		0
 
-#define PLXE_BUSY_MASK			(1<<19)
-#define PLXE_CS_ENABLE_MASK		(1<<18)
-#define PLXE_BYTE_READ_START_MASK	(1<<17)
-#define PLXE_BYTE_WRITE_START_MASK	(1<<16)
+#define PLXE_MASK_BUSY			(1<<19)
+#define PLXE_MASK_CS_ENABLE		(1<<18)
+#define PLXE_MASK_BYTE_READ_START	(1<<17)
+#define PLXE_MASK_BYTE_WRITE_START	(1<<16)
 
 //EEPROM COMMANDS
-#define READ_STATUS_EE_OPCODE	0x05
-#define WREN_EE_OPCODE 		0x06
-#define WRITE_EE_OPCODE		0x02
-#define READ_EE_OPCODE		0x03
+#define PLXE_OPCODE_READ_STATUS	0x05
+#define PLXE_OPCODE_WREN 		0x06
+#define PLXE_OPCODE_WRITE		0x02
+#define PLXE_OPCODE_READ		0x03
 
 
 /************************************************************************/
@@ -60,11 +60,10 @@ int	EE_Off(void *info);
 int	EE_ReadByte(void *info, unsigned char*);
 int	EE_WriteByte(void *info, unsigned char val);
 
-unsigned char wan_plxctrl_status(void *info);
-
-int wan_plxctrl_write8(void *info, unsigned char addr, unsigned char data);
-int wan_plxctrl_read8(void *info, unsigned char, unsigned char*);
-int wan_plxctrl_erase(void *info);
+int	wan_plxctrl_status(void *info, unsigned char *);
+int	wan_plxctrl_write8(void *info, unsigned char addr, unsigned char data);
+int	wan_plxctrl_read8(void *info, unsigned char, unsigned char*);
+int	wan_plxctrl_erase(void *info);
 
 extern int exec_read_cmd(void*, unsigned int, unsigned int, unsigned int*);
 extern int exec_write_cmd(void*, unsigned int, unsigned int, unsigned int);
@@ -111,11 +110,11 @@ int EE_WaitIdle(void *info)
 	       	/* read current value in EECTL */
 		PEX_8111Read(info, EECTL, &eeCtl);
 		/* loop until idle */
-		if ((eeCtl & PLXE_BUSY_MASK) == 0)
+		if ((eeCtl & PLXE_MASK_BUSY) == 0)
 			return(eeCtl);
 	}
 	printf("ERROR: EEPROM Busy timeout!\n");
-	return PLXE_BUSY_MASK;
+	return PLXE_MASK_BUSY;
 }
 
 
@@ -129,8 +128,10 @@ int EE_Off(void *info)
 	int t = 0;
 	
 	/* make sure EEPROM is idle */
-	EE_WaitIdle(info);
-	/* turn off everything (especially PLXE_CS_ENABLE_MASK)*/
+	if (EE_WaitIdle(info) & PLXE_MASK_BUSY){
+		return -EINVAL;
+	}
+	/* turn off everything (especially PLXE_MASK_CS_ENABLE)*/
 	PEX_8111Write(info, EECTL, t);
 	return 0;
 }
@@ -145,28 +146,27 @@ int EE_ReadByte(void *info, unsigned char *data)
 	int		eeCtl,i;
 
 	*data = 0x00;
-	eeCtl = EE_WaitIdle(info);
+	if (EE_WaitIdle(info) & PLXE_MASK_BUSY){
+		return -EINVAL;
+	}
 
-	eeCtl = 0;
-	eeCtl |= PLXE_CS_ENABLE_MASK | PLXE_BYTE_READ_START_MASK;
+	eeCtl = (PLXE_MASK_CS_ENABLE | PLXE_MASK_BYTE_READ_START);
 	PEX_8111Write(info, EECTL, eeCtl); /* start reading */
 	
 	for (i=0;i<1000;i++){
 		PEX_8111Read(info, EECTL, &eeCtl);
-		if ((eeCtl & PLXE_BYTE_READ_START_MASK) == 0){
+		if ((eeCtl & PLXE_MASK_BYTE_READ_START) == 0){
 			break;
 		}
 	}
-	if ((eeCtl & PLXE_BYTE_READ_START_MASK) != 0){
+	if ((eeCtl & PLXE_MASK_BYTE_READ_START) != 0){
 		printf("ERROR: EEPROM is still reading byte (busy)!\n");
 		return -EBUSY;
 	}
 
 	EE_WaitIdle(info); /* wait until read is done */
 	PEX_8111Read(info, EECTL, &eeCtl);
-	*data = (eeCtl >> PLXE_READ_DATA_SHIFT) & 0xFF;
-	
-	/* extract read data from EECTL */
+	*data = (eeCtl >> PLXE_SHIFT_READ_DATA) & 0xFF;
 	return 0;
 }
 
@@ -177,22 +177,22 @@ int EE_WriteByte(void *info, unsigned char val)
 {
 	int eeCtl,i;	
 	
-	eeCtl = EE_WaitIdle(info); /* make sure EEPROM is idle */
+	if (EE_WaitIdle(info) & PLXE_MASK_BUSY){
+		return -EINVAL;
+	}
 	
 	/* clear current WRITE value */
-	eeCtl = 0;
-	eeCtl &= ~(0xff << PLXE_WRITE_DATA_SHIFT);
-	eeCtl |= (PLXE_CS_ENABLE_MASK | PLXE_BYTE_WRITE_START_MASK);
-	eeCtl |= ((val & 0xff) << PLXE_WRITE_DATA_SHIFT);
+	eeCtl = (PLXE_MASK_CS_ENABLE | PLXE_MASK_BYTE_WRITE_START);
+	eeCtl |= ((val & 0xff) << PLXE_SHIFT_WRITE_DATA);
 	PEX_8111Write(info, EECTL, eeCtl);
 	
 	for (i=0;i<1000;i++){
 		PEX_8111Read(info, EECTL, &eeCtl);
-		if ((eeCtl & PLXE_BYTE_WRITE_START_MASK) == 0){
+		if ((eeCtl & PLXE_MASK_BYTE_WRITE_START) == 0){
 			break;
 		}
 	}
-	if ((eeCtl & PLXE_BYTE_WRITE_START_MASK) != 0){
+	if (eeCtl & PLXE_MASK_BYTE_WRITE_START){
 		printf("ERROR: EEPROM is still writting byte (busy)!\n");
 		return -EBUSY;
 	}
@@ -203,29 +203,29 @@ int EE_WriteByte(void *info, unsigned char val)
 
 //These are the high level functions
 
-unsigned char wan_plxctrl_status(void *info)
+int wan_plxctrl_status(void *info, unsigned char *status)
 {	
-	unsigned char status = 0;
 
-    	EE_WriteByte(info, READ_STATUS_EE_OPCODE); /* read status opcode */
-	EE_ReadByte(info, &status); /* get EEPROM status */
+    	EE_WriteByte(info, PLXE_OPCODE_READ_STATUS); /* read status opcode */
+	EE_ReadByte(info, status); /* get EEPROM status */
 	EE_Off(info); /* turn off EEPROM */
 
-	return status;
+	return 0;
 }
 
 int wan_plxctrl_write8(void *info, unsigned char addr, unsigned char data)
 {
-	EE_WriteByte(info, WREN_EE_OPCODE); /* must first write-enable */
+	EE_WriteByte(info, PLXE_OPCODE_WREN); /* must first write-enable */
 	EE_Off(info); /* turn off EEPROM */
-	EE_WriteByte(info, WRITE_EE_OPCODE); /* opcode to write bytes */
+	EE_WriteByte(info, PLXE_OPCODE_WRITE); /* opcode to write bytes */
 
 	/* Send low byte of address */
 	EE_WriteByte(info, (unsigned char)(addr & 0xFF));
 	
-	EE_WriteByte(info, 0xFF & data); /* send data to be written */
+	EE_WriteByte(info, data & 0xFF); /* send data to be written */
 	
 	EE_Off(info); /* turn off EEPROM */
+	usleep(10000);
 	return 0;
 }
 
@@ -236,7 +236,7 @@ int wan_plxctrl_read8(void *info, unsigned char addr, unsigned char *data)
 {	
 
 	*data = 0x00;    
-    	EE_WriteByte(info, READ_EE_OPCODE);
+    	EE_WriteByte(info, PLXE_OPCODE_READ);
 	EE_WriteByte(info, (unsigned char)(addr & 0xFF));
 
 	EE_ReadByte(info, data);

@@ -55,7 +55,7 @@
 #define TUNDRA_DEVICE_ID		0x8111	/* TUNDRA device ID number */
 
 #define PLX_EEPROM_ENABLE		0x5A
-#define PLX_EEPROM_VENDOR_OFF		0xFC	/* 2 bytes for Card vendor id */
+#define PLX_EEPROM_VENDOR_OFF		0x7C	/* 2 bytes for Card vendor id */
 
 #define A101_1TE1_SUBSYS_VENDOR			0xA010	/* A101 with T1/E1 1 line  */
 #define A101_2TE1_SUBSYS_VENDOR			0xA011	/* A101 with T1/E1 2 lines */

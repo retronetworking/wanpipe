@@ -32,11 +32,11 @@
 						"Unknown"
 
 /* Line loopback activate/deactive modes */
-#define WAN_TE3_ACTIVATE_LB	0x01
-#define WAN_TE3_DEACTIVATE_LB	0x02
-#define WAN_TE3_LB_MODE_DECODE(mode)				\
-		((mode) == WAN_TE3_ACTIVATE_LB) ? "Activate" :	\
-		((mode) == WAN_TE3_DEACTIVATE_LB) ? "Deactivate" :\
+#define WAN_TE3_LB_ENABLE	0x01
+#define WAN_TE3_LB_DISABLE	0x02
+#define WAN_TE3_LB_ACTION_DECODE(mode)				\
+		((mode) == WAN_TE3_LB_ENABLE) ? "Enable" :	\
+		((mode) == WAN_TE3_LB_DISABLE) ? "Disable" :\
 						"Unknown"
 
 #define WAN_TE3_RDEVICE_NONE		0x00
@@ -108,6 +108,8 @@ typedef struct {
 	int dummy;
 	u_int8_t	cpld_cntrl;
 	u_int8_t	cpld_status;
+	u_int8_t	e3_lb_ctrl;
+	u_int8_t	e3_connect_delay;
 } sdla_te3_param_t;
 
 int sdla_te3_iface_init(void *p_fe_iface);

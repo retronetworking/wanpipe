@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: wanpipe_utils.c,v 1.101 2008/02/04 18:02:20 sangoma Exp $
+ *	$Id: wanpipe_utils.c,v 1.101 2008-02-04 18:02:20 sangoma Exp $
  */
 
 /*

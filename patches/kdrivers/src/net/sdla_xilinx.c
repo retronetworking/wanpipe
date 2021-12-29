@@ -125,12 +125,12 @@ typedef struct private_area
 	struct net_device_stats	if_stats;
 
 	int 		tracing_enabled;		/* For enabling Tracing */
-	unsigned long 	router_start_time;
+	wan_time_t		router_start_time;	/*unsigned long 	router_start_time;*/
 	unsigned long   trace_timeout;
 
 	unsigned char 	route_removed;
 	unsigned long 	tick_counter;		/* For 5s timeout counter */
-	unsigned long 	router_up_time;
+	wan_time_t		router_up_time;	/* unsigned long 	router_up_time; */
 
 	unsigned char  	mc;			/* Mulitcast support on/off */
 	unsigned char 	udp_pkt_src;		/* udp packet processing */
@@ -5350,7 +5350,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 				card->hw_iface.hw_unlock(card->hw,&smp_flags);
 			}else{
 				if (wan_udp_pkt->wan_udp_command == WAN_GET_MEDIA_TYPE){
-		    			wan_udp_pkt->wan_udp_data_len = sizeof(unsigned char); 
+		    			wan_udp_pkt->wan_udp_data_len = sizeof(wan_femedia_t); 
 					wan_udp_pkt->wan_udp_return_code = CMD_OK;
 				}else{
 					wan_udp_pkt->wan_udp_return_code = WAN_UDP_INVALID_CMD;

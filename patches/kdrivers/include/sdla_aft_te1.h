@@ -1411,8 +1411,9 @@ enum wanpipe_aft_api_events {
 	WP_API_EVENT_TXSIG_ONHOOK,
 	WP_API_EVENT_ONHOOKTRANSFER,
 	WP_API_EVENT_SETPOLARITY,
-	WP_API_EVENT_BRI_CHAN_LOOPBACK
-
+	WP_API_EVENT_BRI_CHAN_LOOPBACK,
+	WP_API_EVENT_RING_TRIP_DETECT,
+	
 };
 
 #define WP_API_EVENT_ENABLE		0x01
@@ -1521,6 +1522,16 @@ typedef struct {
 } api_tx_element_t;
 
 
+typedef struct wan_if_cfg{
+       unsigned char   usedby;
+       unsigned int    active_ch;
+       unsigned char   media;
+       unsigned int    interface_number;
+       unsigned int    sub_media;
+       unsigned char   hw_coding;
+       unsigned int    chunk_sz;
+       sdla_fe_cfg_t   fe_cfg;
+}wan_if_cfg_t;
 
 
 #pragma pack()
@@ -1761,6 +1772,8 @@ typedef struct private_area
 
 	netdevice_t *annexg_dev;
 	unsigned char label[WAN_IF_LABEL_SZ+1];
+
+	unsigned char tdm_span_voice_api;
 
 }private_area_t;
 

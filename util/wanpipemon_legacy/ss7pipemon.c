@@ -1175,21 +1175,21 @@ int SS7Main(char *command,int argc, char* argv[])
 				read_ft1_te1_56k_config();
 #endif
 			if (!strcmp(opt,"allb")){
-				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dllb")){
-				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"aplb")){
-				set_lb_modes(WAN_TE1_PAYLB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_PAYLB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dplb")){
-				set_lb_modes(WAN_TE1_PAYLB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_PAYLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"adlb")){
-				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"ddlb")){
-				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"salb")){
-				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"sdlb")){
-				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"a")){
 				read_te1_56k_stat();
 			} else{

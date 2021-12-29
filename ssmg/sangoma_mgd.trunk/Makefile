@@ -82,9 +82,9 @@ sangoma_mgd: sangoma_mgd.o sangoma_mgd_memdbg.o call_signal.o switch_buffer.o si
 
 
 clean:  old_cleanup
-	make -C lib/libteletone clean
 	find . -name '*.o' | xargs rm -f
 	rm -fr sangoma_mgd pritest *.o *.so *~ *core* *.so* *.a
+	make -C lib/libteletone clean
 
 distclean: clean
 	@echo OK

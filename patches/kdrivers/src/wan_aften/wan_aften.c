@@ -72,6 +72,9 @@ static int wan_aften_init(void *arg)
 #if defined(__OpenBSD__) || defined(__NetBSD__)
 	sdladrv_init();
 #endif
+
+	sdladrv_hw_mode(SDLADRV_MODE_LIMITED);
+
         DEBUG_EVENT("%s v%d %s\n", 
 				wan_fullname, 
 				WAN_AFTEN_VER, 

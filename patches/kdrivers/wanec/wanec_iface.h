@@ -98,8 +98,12 @@ typedef struct wanec_chip_stats_
 {
 	int				reset;
 	tOCT6100_CHIP_STATS		f_ChipStats;
-	tOCT6100_CHIP_IMAGE_INFO	*f_ChipImageInfo;
 } wanec_chip_stats_t;
+
+typedef struct wanec_chip_image_ 
+{
+	tOCT6100_CHIP_IMAGE_INFO	*f_ChipImageInfo;
+} wanec_chip_image_t;
 
 typedef struct wanec_chan_opmode_ 
 {

@@ -1,15 +1,15 @@
 8
 
 dir
-11
+22
 https://www.sangomapbx.com/svn/libsangoma/trunk/examples
 https://www.sangomapbx.com/svn/libsangoma
 
 
 
-2008-02-28T18:51:53.196120Z
-1
-root
+2008-09-17T21:25:40.156211Z
+22
+ncorbic
 
 
 svn:special svn:externals svn:needs-lock
@@ -26,64 +26,9 @@ svn:special svn:externals svn:needs-lock
 
 8fe45b59-3c47-0410-bdf9-e5d932a076a6
 
-sound.raw
-file
-
-
-
-
-2008-05-22T23:06:17.000000Z
-da36acc78b83d5047481df0cca63d969
-2008-02-28T18:51:53.196120Z
-1
-root
-has-props
+priserver
+dir
 
-priserver.c
-file
-
-
-
-
-2008-05-22T23:06:17.000000Z
-9f83030c20158d91b7ec6bb7a9392dcb
-2008-02-28T18:51:53.196120Z
-1
-root
-
-librc
-file
-
-
-
-
-2008-05-22T23:06:17.000000Z
-5c222b74d68b1c7df3f937a9d6321d40
-2008-02-28T18:51:53.196120Z
-1
-root
-
-Makefile
-file
-
-
-
-
-2008-05-22T23:06:17.000000Z
-b58ee42eeb2d5e921bdab940a9fda738
-2008-02-28T18:51:53.196120Z
-1
-root
-
-README
-file
-
-
-
-
-2008-05-22T23:06:17.000000Z
-40538792592cd766e4941d9b37dbaf56
-2008-02-28T18:51:53.196120Z
-1
-root
+hptdm_api
+dir
 

@@ -52,36 +52,19 @@
 /******************************************************************************
 *			   INCLUDE FILES
 ******************************************************************************/
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-#  include <wanpipe_snmp.h>
-# endif
-# include <sdla_te1_ds.h>
-# include <wanpipe.h>	/* WANPIPE common user API definitions */
-# include <wanproc.h>
-#elif (defined __WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <sdla_te1_ds.h>
-# include <wanpipe.h>	/* WANPIPE common user API definitions */
 
-#define _DEBUG_EVENT	DBG_8TE1
+# include "wanpipe_includes.h"
+# include "wanpipe_defines.h"
+# include "wanpipe_debug.h"
+# include "wanproc.h"
 
-#elif (defined __LINUX__) || (defined __KERNEL__)
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanproc.h>
 # if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-#  include <linux/wanpipe_snmp.h>
+#  include "wanpipe_snmp.h"
 # endif
-# include <linux/sdla_te1_ds.h>
-# include <linux/wanpipe.h>	/* WANPIPE common user API definitions */
-#else
-# error "No OS Defined"
-#endif
+
+# include "sdla_te1_ds.h"
+# include "wanpipe.h"	/* WANPIPE common user API definitions */
+
 
 /******************************************************************************
 *			  DEFINES AND MACROS
@@ -1494,7 +1477,7 @@ static int sdla_ds_te1_post_init(void* pfe)
 	event.type	= TE_LINKDOWN_TIMER;
 	event.delay	= POLLING_TE1_TIMER;
 	sdla_ds_te1_add_event(fe, &event);
-	sdla_ds_te1_add_timer(fe, HZ);
+	sdla_ds_te1_add_timer(fe, POLLING_TE1_TIMER);
 	return 0;
 }
 
@@ -3223,7 +3206,7 @@ static void sdla_ds_te1_timer(unsigned long pfe)
 			sdla_ds_te1_polling(fe);
 		}
 	}else{
-		sdla_ds_te1_add_timer(fe, 1000);
+		sdla_ds_te1_add_timer(fe, POLLING_TE1_TIMER);
 	}
 	return;
 }
@@ -3377,7 +3360,7 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 		wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
 		DEBUG_EVENT("%s: WARNING: No FE events in a queue!\n",
 					fe->name);
-		sdla_ds_te1_add_timer(fe, HZ);
+		sdla_ds_te1_add_timer(fe, POLLING_TE1_TIMER);
 		return 0;
 	}
 	event = WAN_LIST_FIRST(&fe->event);
@@ -3610,7 +3593,7 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 	if (event){
 		sdla_ds_te1_add_timer(fe, event->delay);
 	}else{
-		sdla_ds_te1_add_timer(fe, HZ);
+		sdla_ds_te1_add_timer(fe, POLLING_TE1_TIMER);
 	}
 	return 0;
 }
@@ -3769,7 +3752,7 @@ static int sdla_ds_te1_liu_alb(sdla_fe_t* fe, unsigned char mode)
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
 	value = READ_REG(REG_LMCR);
-	if (mode == WAN_TE1_ACTIVATE_LB){
+	if (mode == WAN_TE1_LB_ENABLE){
 		value |= BIT_LMCR_ALB;
 	}else{
 		value &= ~BIT_LMCR_ALB;
@@ -3795,7 +3778,7 @@ static int sdla_ds_te1_liu_llb(sdla_fe_t* fe, unsigned char mode)
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
 	value = READ_REG(REG_LMCR);
-	if (mode == WAN_TE1_ACTIVATE_LB){
+	if (mode == WAN_TE1_LB_ENABLE){
 		value |= BIT_LMCR_LLB;
 	}else{
 		value &= ~BIT_LMCR_LLB;
@@ -3821,7 +3804,7 @@ static int sdla_ds_te1_liu_rlb(sdla_fe_t* fe, unsigned char mode)
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
 	value = READ_REG(REG_LMCR);
-	if (mode == WAN_TE1_ACTIVATE_LB){
+	if (mode == WAN_TE1_LB_ENABLE){
 		value |= BIT_LMCR_RLB;
 	}else{
 		value &= ~BIT_LMCR_RLB;
@@ -3847,7 +3830,7 @@ static int sdla_ds_te1_fr_flb(sdla_fe_t* fe, unsigned char mode)
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
 	value = READ_REG(REG_RCR3);
-	if (mode == WAN_TE1_ACTIVATE_LB){
+	if (mode == WAN_TE1_LB_ENABLE){
 		value |= BIT_RCR3_FLB;
 	}else{
 		value &= ~BIT_RCR3_FLB;
@@ -3873,7 +3856,7 @@ static int sdla_ds_te1_fr_plb(sdla_fe_t* fe, unsigned char mode)
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
 	value = READ_REG(REG_RCR3);
-	if (mode == WAN_TE1_ACTIVATE_LB){
+	if (mode == WAN_TE1_LB_ENABLE){
 		value |= BIT_RCR3_PLB;
 	}else{
 		value &= ~BIT_RCR3_PLB;
@@ -3898,10 +3881,6 @@ sdla_ds_te1_set_lb(sdla_fe_t *fe, unsigned char mode, unsigned char action)
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-	DEBUG_EVENT("%s: %s %s mode...\n",
-			fe->name,
-			WAN_TE1_LB_ACTION_DECODE(action),
-			WAN_TE1_LB_MODE_DECODE(mode));
 	switch(mode){
 	case WAN_TE1_LIU_ALB_MODE:
 		err = sdla_ds_te1_liu_alb(fe, action);
@@ -3909,37 +3888,41 @@ sdla_ds_te1_set_lb(sdla_fe_t *fe, unsigned char mode, unsigned char action)
 	case WAN_TE1_LIU_LLB_MODE:
 		err = sdla_ds_te1_liu_llb(fe, action);
 		break;
-	case WAN_TE1_LIU_RLB_MODE:
-	case WAN_TE1_LINELB_MODE:
-		err = sdla_ds_te1_liu_rlb(fe, action);
-		break;
+	//case WAN_TE1_LIU_RLB_MODE:
+	//	err = sdla_ds_te1_liu_rlb(fe, action);
+	//	break;
 	case WAN_TE1_LIU_DLB_MODE:
 		if (!sdla_ds_te1_liu_llb(fe, action)){
 			err = sdla_ds_te1_liu_rlb(fe, action);
 		}
 		break;
-	case WAN_TE1_DDLB_MODE:
-	case WAN_TE1_FR_FLB_MODE:
-		err = sdla_ds_te1_fr_flb(fe, action);
+	case WAN_TE1_LINELB_MODE:
+		err = sdla_ds_te1_liu_rlb(fe, action);
 		break;
 	case WAN_TE1_PAYLB_MODE:
-	case WAN_TE1_FR_PLB_MODE:
 		err = sdla_ds_te1_fr_plb(fe, action);
 		break;
-	case WAN_TE1_FR_RLB_MODE:
+	case WAN_TE1_DDLB_MODE:
+		err = sdla_ds_te1_fr_flb(fe, action);
+		break;
 	default:
-		DEBUG_EVENT("%s: Unsupport loopback mode (%s)!\n",
+		DEBUG_EVENT("%s: Unsupported loopback mode (%s)!\n",
 				fe->name,
 				WAN_TE1_LB_MODE_DECODE(mode));
 		return -EINVAL;
 	}
 	if (!err){
-		if (action == WAN_TE1_ACTIVATE_LB){
+		if (action == WAN_TE1_LB_ENABLE){
 			wan_set_bit(mode, &fe->te_param.lb_mode);
 		}else{
 			wan_clear_bit(mode, &fe->te_param.lb_mode);
 		}
 	}
+	DEBUG_EVENT("%s: %s %s mode... %s\n",
+			fe->name,
+			WAN_TE1_LB_ACTION_DECODE(action),
+			WAN_TE1_LB_MODE_DECODE(mode),
+			(!err) ? "Done" : "Failed");
 	return err;
 }
 
@@ -3961,11 +3944,11 @@ static u32 sdla_ds_te1_get_lb(sdla_fe_t *fe)
 	lmcr = READ_REG(REG_LMCR);
 	if (lmcr & BIT_LMCR_ALB) wan_set_bit(WAN_TE1_LIU_ALB_MODE, &mode);
 	if (lmcr & BIT_LMCR_LLB) wan_set_bit(WAN_TE1_LIU_LLB_MODE, &mode);
- 	if (lmcr & BIT_LMCR_RLB) wan_set_bit(WAN_TE1_LIU_RLB_MODE, &mode);
+ 	if (lmcr & BIT_LMCR_RLB) wan_set_bit(WAN_TE1_LINELB_MODE, &mode);
 
 	rcr3 = READ_REG(REG_RCR3);
-	if (rcr3 & BIT_RCR3_FLB) wan_set_bit(WAN_TE1_FR_FLB_MODE, &mode); 
-	if (rcr3 & BIT_RCR3_PLB) wan_set_bit(WAN_TE1_FR_PLB_MODE, &mode);
+	if (rcr3 & BIT_RCR3_FLB) wan_set_bit(WAN_TE1_DDLB_MODE, &mode); 
+	if (rcr3 & BIT_RCR3_PLB) wan_set_bit(WAN_TE1_PAYLB_MODE, &mode);
 	return mode;
 }
 
@@ -3981,17 +3964,21 @@ static u32 sdla_ds_te1_get_lb(sdla_fe_t *fe)
 static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 {
 	wan_cmd_t		*udp_cmd = (wan_cmd_t*)p_udp_cmd;
+	wan_femedia_t		*fe_media;
 	sdla_fe_debug_t		*fe_debug;
 	sdla_fe_timer_event_t	event;
 	int			err = 0;
 
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
-		data[0] = (IS_T1_FEMEDIA(fe) ? WAN_MEDIA_T1 :
-			   IS_E1_FEMEDIA(fe) ? WAN_MEDIA_E1 :
-					    WAN_MEDIA_NONE);
+		fe_media = (wan_femedia_t*)data;
+		memset(fe_media, 0, sizeof(wan_femedia_t));
+		fe_media->media		= fe->fe_cfg.media;
+		fe_media->sub_media	= fe->fe_cfg.sub_media;
+		fe_media->chip_id	= WAN_TE_CHIP_DM;
+		fe_media->max_ports	= fe->fe_max_ports;
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-		udp_cmd->wan_cmd_data_len = sizeof(unsigned char); 
+		udp_cmd->wan_cmd_data_len = sizeof(wan_femedia_t); 
 		break;
 
 	case WAN_FE_LB_MODE:
@@ -4005,13 +3992,13 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 			break;
 		}
 #if 1
+		err = sdla_ds_te1_set_lb(fe, data[0], data[1]); 
+#else
 		event.type		= TE_SET_LB_MODE;	
 		event.te_event.lb_type	= data[0];		/* LB type */
 		event.mode		= data[1];		/* LB action (activate/deactivate) */
 		event.delay		= POLLING_TE1_TIMER;
 		err = sdla_ds_te1_add_event(fe, &event);	
-#else	    	
-		err = sdla_ds_te1_set_lb(fe, data[0], data[1]); 
 #endif		
 	    	udp_cmd->wan_cmd_return_code = 
 				(!err) ? WAN_CMD_OK : WAN_UDP_FAILED_CMD;

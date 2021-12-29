@@ -1,0 +1,101 @@
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/svn/wanpipe/!svn/ver/6522/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel
+END
+install.sh
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/wanpipe/!svn/ver/6527/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/install.sh
+END
+A10u.pm
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svn/wanpipe/!svn/ver/6271/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/A10u.pm
+END
+uninstall.sh
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svn/wanpipe/!svn/ver/5952/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/uninstall.sh
+END
+setup-sangoma
+K 25
+svn:wc:ra_dav:version-url
+V 94
+/svn/wanpipe/!svn/ver/5952/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/setup-sangoma
+END
+A10x.pm
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svn/wanpipe/!svn/ver/6519/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/A10x.pm
+END
+Card.pm
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svn/wanpipe/!svn/ver/5952/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/Card.pm
+END
+wancfg_zaptel
+K 25
+svn:wc:ra_dav:version-url
+V 94
+/svn/wanpipe/!svn/ver/5952/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/wancfg_zaptel
+END
+A20x.pm
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svn/wanpipe/!svn/ver/6273/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/A20x.pm
+END
+A50x.pm
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svn/wanpipe/!svn/ver/5952/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/A50x.pm
+END
+wancfg_hp_tdmapi
+K 25
+svn:wc:ra_dav:version-url
+V 97
+/svn/wanpipe/!svn/ver/6521/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/wancfg_hp_tdmapi
+END
+clean.sh
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/svn/wanpipe/!svn/ver/5952/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/clean.sh
+END
+wancfg_zaptel.pl
+K 25
+svn:wc:ra_dav:version-url
+V 97
+/svn/wanpipe/!svn/ver/6526/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/wancfg_zaptel.pl
+END
+wancfg_dahdi
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svn/wanpipe/!svn/ver/6528/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/wancfg_dahdi
+END
+wancfg_tdmapi
+K 25
+svn:wc:ra_dav:version-url
+V 94
+/svn/wanpipe/!svn/ver/5952/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/wancfg_tdmapi
+END
+wancfg_smg
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/wanpipe/!svn/ver/5952/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/wancfg_smg
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/svn/wanpipe/!svn/ver/5952/wanpipe_common/branches/jpatel/wantools/wancfg_zaptel/Makefile
+END

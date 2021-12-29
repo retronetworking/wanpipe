@@ -52,6 +52,9 @@ typedef struct {
 	int			silent;
 } wanec_api_stats_t;
 typedef struct {
+	int			notused;
+} wanec_api_image_t;
+typedef struct {
 	char			*buffer;
 	unsigned char		pcmlaw;
 	unsigned int		buffer_id;
@@ -86,6 +89,7 @@ extern int wanec_api_modify(char*,int,wanec_api_modify_t*);
 extern int wanec_api_mute(char*,int,wanec_api_mute_t*);
 extern int wanec_api_dtmf(char*,int,wanec_api_dtmf_t*);
 extern int wanec_api_stats(char*,int,wanec_api_stats_t*);
+extern int wanec_api_hwimage(char*,int,wanec_api_image_t*);
 extern int wanec_api_buffer_load(char*,int,wanec_api_bufferload_t*);
 extern int wanec_api_buffer_unload(char*,int,wanec_api_bufferunload_t*);
 extern int wanec_api_playout(char*,int,wanec_api_playout_t*);

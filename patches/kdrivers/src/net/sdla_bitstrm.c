@@ -4551,7 +4551,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 						&wan_udp_pkt->wan_udp_data[0]);
 			}else{
 				if (wan_udp_pkt->wan_udp_command == WAN_GET_MEDIA_TYPE){
-		    			wan_udp_pkt->wan_udp_data_len = sizeof(unsigned char); 
+		    			wan_udp_pkt->wan_udp_data_len = sizeof(wan_femedia_t); 
 					wan_udp_pkt->wan_udp_return_code = CMD_OK;
 				}else{
 					wan_udp_pkt->wan_udp_return_code = WAN_UDP_INVALID_CMD;

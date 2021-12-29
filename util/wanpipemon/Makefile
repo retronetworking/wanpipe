@@ -12,7 +12,6 @@ DEBUG	= 2
 
 PROD=wanpipemon
 
-SYSINC=/lib/modules/$(shell uname -r)/build/include
 
 WAN_VIRTUAL=
 LXDIR=../lxdialog
@@ -27,7 +26,7 @@ CC = gcc
 CPP = gcc -E
 CFLAGS = -Wall -Wstrict-prototypes 
 CFLAGS += $(EXTRA_FLAGS)
-CFLAGS += -I$(SYSINC) -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG)
+CFLAGS +=  -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG)
 WAN_VIRTUAL=
 
 
@@ -72,7 +71,7 @@ OBJS+=$(LX_OBJ)
 ####### RULES ################################################################
 
 all:    $(PROD) 
-	@echo "Ok. Using INCLUDE $(SYSINC)"
+	@echo "Ok."
 
 $(PROD):  $(OBJS) 
 
@@ -89,7 +88,7 @@ ncurses:
 	fi
 
 nenad:
-	@echo "Ok. Using INCLUDE $(SYSINC)"  
+	@echo "Ok. "  
 	
 install:
 	@echo "Installing Wanpipe utilites in $(WAN_VIRTUAL)/usr/sbin"

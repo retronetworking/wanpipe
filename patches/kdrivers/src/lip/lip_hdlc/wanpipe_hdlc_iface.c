@@ -260,7 +260,11 @@ static int wp_lip_tx_idle(wp_lip_hdlc_t *prot, void * p_rx_skb, int tx_out)
 		return 0;
 	}
 
-	wpabs_memset(data, prot->next_idle, len);
+	if (prot->cfg.lineidle == WANOPT_IDLE_MARK) {
+		wpabs_memset(data, 0xFF, len);
+	} else {
+		wpabs_memset(data, prot->next_idle, len);
+	}
 
 	err=prot->reg.tx_chan_down(prot->dev,p_rx_skb);
 	if (err) {

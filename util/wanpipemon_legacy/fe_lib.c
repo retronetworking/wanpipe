@@ -801,10 +801,10 @@ void set_lb_modes(unsigned char type, unsigned char mode)
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code != 0){
 		printf("Failed to %s line loopback mode.\n",
-			(mode == WAN_TE1_ACTIVATE_LB) ? "activate" : "deactivate");
+			(mode == WAN_TE1_LB_ENABLE) ? "activate" : "deactivate");
 	}else{
 		printf("Line loopback mode is %s!\n",
-			(mode == WAN_TE1_ACTIVATE_LB) ? "activated" : "deactivated");
+			(mode == WAN_TE1_LB_ENABLE) ? "activated" : "deactivated");
 	}
 	return;
 }

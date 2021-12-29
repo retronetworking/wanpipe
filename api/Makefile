@@ -4,21 +4,17 @@
 # Copyright (c) 1995-2000 Sangoma Technologies Inc.  All Rights Reserved.
 # ============================================================================
 
-SYSINC=$(shell if [ -f ../.sysinclude ]; then cat ../.sysinclude;  else echo ""; fi)
-ifeq "$(SYSINC)" "" 
-SYSINC=/lib/modules/$(shell uname -r)/build/include
-endif
 APIINC=/etc/wanpipe/api/include
 
 ####### RULES ################################################################
 
 all:	
-	make -C x25 all SYSINC=$(SYSINC) APIINC=$(APIINC)
-	make -C chdlc all SYSINC=$(SYSINC) APIINC=$(APIINC)
-	make -C fr all SYSINC=$(SYSINC) APIINC=$(APIINC)
-	make -C bitstrm all SYSINC=$(SYSINC) APIINC=$(APIINC)
-	make -C bisync all SYSINC=$(SYSINC) APIINC=$(APIINC)
-#	make -C ss7 all SYSINC=$(SYSINC) APIINC=$(APIINC)
+	make -C x25 all  APIINC=$(APIINC)
+	make -C chdlc all  APIINC=$(APIINC)
+	make -C fr all  APIINC=$(APIINC)
+	make -C bitstrm all APIINC=$(APIINC)
+	make -C bisync all APIINC=$(APIINC)
+#	make -C ss7 all  APIINC=$(APIINC)
 
 clean:
 	make -C x25 clean 

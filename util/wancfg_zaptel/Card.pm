@@ -17,7 +17,9 @@ sub new {
 	_hw_dtmf => 'NO',
 	_first_chan => '0',
 	_zap_context => undef,
-      	_zap_group => undef 	
+      	_zap_group => undef,
+	_dahdi_conf => 'NO',	
+	_dahdi_echo => 'mg2'
     };
     bless $self, $class;
     return $self;
@@ -93,6 +95,18 @@ sub zap_group {
     my ( $self, $zap_group ) = @_;
     $self->{_zap_group} = $zap_group if defined($zap_group);
     return $self->{_zap_group};
+}
+
+sub dahdi_conf {
+    my ( $self, $dahdi_conf ) = @_;
+    $self->{_dahdi_conf} = $dahdi_conf if defined($dahdi_conf);
+    return $self->{_dahdi_conf};
+}
+
+sub dahdi_echo {
+    my ( $self, $dahdi_echo ) = @_;
+    $self->{_dahdi_echo} = $dahdi_echo if defined($dahdi_echo);
+    return $self->{_dahdi_echo};
 }
 
 sub current_dir {

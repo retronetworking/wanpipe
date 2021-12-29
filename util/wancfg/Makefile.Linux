@@ -16,21 +16,20 @@ PROTOCOL_DEFINES = -DCONFIG_PRODUCT_WANPIPE_LIP_ATM -DCONFIG_PRODUCT_WANPIPE_AFT
 
 # Project file paths. Initilize to compile in develpment environment.
 # Changed when Setup script is running.
-SYSINC=/lib/modules/$(shell uname -r)/build/include
 WAN_VIRTUAL=
 ENABLE_ZAPTEL_PARSER=
 ZAPINC=/usr/src/zaptel
 
 # Tools options.
-#CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(SYSINC) -I. \
+#CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. \
          -D__LINUX__ -DSTATIC_LIBS=$(GD_STATIC) $(OGR_STATIC) $(PROTOCOL_DEFINES)
 
-CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__ -I$(SYSINC) $(PROTOCOL_DEFINES)
+CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__  $(PROTOCOL_DEFINES)
 
 #uncomment this to compile from CVS, also may change to your zaptel installation directory
 #CFLAGS += -I/usr/src/zaptel
 
-#CFLAGS += -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(SYSINC) -I. \
+#CFLAGS += -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. \
          -DSTATIC_LIBS= $(GD_STATIC) $(OGR_STATIC) $(PROTOCOL_DEFINES)
 
 CFLAGS += $(EXTRA_FLAGS)
@@ -39,6 +38,10 @@ CFLAGS += -lncurses
 
 ifeq "${ENABLE_ZAPTEL_PARSER}" "YES"
 CFLAGS += -DZAPTEL_PARSER -I$(ZAPINC)
+endif
+
+ifeq "${DAHDI_ISSUES}" "YES"
+CFLAGS += -DDAHDI_ISSUES
 endif
 
 FILES=cpp_string.cpp\

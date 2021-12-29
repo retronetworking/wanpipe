@@ -107,6 +107,7 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 int wanec_ChipOpen(wan_ec_dev_t*, int);
 int wanec_ChipClose(wan_ec_dev_t*, int verbose);
 int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int reset, int verbose);
+int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int verbose);
 
 int wanec_ChannelOpen(wan_ec_dev_t*, int);
 int wanec_ChannelClose(wan_ec_dev_t*, int);
@@ -219,10 +220,6 @@ static int wanec_ec2fe_channel(wan_ec_t *ec, int ec_chan, wan_ec_dev_t **ec_dev)
 **
 **
 *******************************************************************/
-tOCT6100_CHIP_IMAGE_INFO	f_ChipImageInfo;
-#if 0
-tOCT6100_GET_HW_REVISION	f_Revision;
-#endif
 int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int reset, int verbose)
 {
 	wan_ec_t		*ec;
@@ -254,7 +251,27 @@ int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int re
 			sizeof(tOCT6100_CHIP_STATS));
 	}
 
-	if (chip_stats){
+	return 0;
+}
+
+/******************************************************************
+**
+**
+*******************************************************************/
+tOCT6100_CHIP_IMAGE_INFO	f_ChipImageInfo;
+#if 0
+tOCT6100_GET_HW_REVISION	f_Revision;
+#endif
+int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int verbose)
+{
+	wan_ec_t		*ec;
+	UINT32			ulResult;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+	
+	if (chip_image){
 		PRINT2(verbose, "%s: Reading chip image info...\n",
 					ec->name); 
 	}
@@ -269,12 +286,12 @@ int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int re
 					ec->name, ulResult); 
 		return -EINVAL;
 	}
-	if (chip_stats){
-		if (chip_stats->f_ChipImageInfo){
+	if (chip_image){
+		if (chip_image->f_ChipImageInfo){
 			int err;
 			err = WAN_COPY_TO_USER(
 					&f_ChipImageInfo,
-					chip_stats->f_ChipImageInfo,
+					chip_image->f_ChipImageInfo,
 					sizeof(tOCT6100_CHIP_IMAGE_INFO));
 			if (err){
 				DEBUG_EVENT(
@@ -527,7 +544,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 		return -EINVAL;
 	}
 
-	if (wanec_ChipStats(ec_dev, NULL, TRUE, verbose)){
+	if (wanec_ChipImage(ec_dev, NULL, verbose)){
 		DEBUG_EVENT(
 		"ERROR: %s: Failed to read EC chip statistics!\n",
 					ec->name);

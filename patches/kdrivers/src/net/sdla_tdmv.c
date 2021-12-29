@@ -16,6 +16,7 @@
  * Jul 22, 2001	Nenad Corbic	Initial version.
  * Oct 01, 2001 Gideon Hack	Modifications for interrupt usage.
  * Aug  9, 2005	David Rokhvarg	Added Echo Detection and Control (EDAC).
+ * Sep 06, 2008	Moises Silva    DAHDI support.
  ******************************************************************************
  */
 /*
@@ -33,11 +34,11 @@
 # include <wanpipe.h>
 # include <wanpipe_events.h>
 # include <sdla_tdmv.h>	/* WANPIPE TDM Voice definitions */
-# include <zaptel.h>
+# include <zapcompat.h> /* Map of Zaptel -> DAHDI definitions */
 #elif (defined __WINDOWS__)
 # include <wanpipe\csu_dsu.h>
 #else
-# include <zaptel.h>
+# include <zapcompat.h> /* Map of Zaptel -> DAHDI definitions */
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe.h>
@@ -162,6 +163,9 @@ typedef struct wp_tdmv_pvt_area
 #endif
 	/* T1 signalling */
 	struct zt_span	span;					/* Span */
+#ifdef DAHDI_ISSUES
+	struct zt_chan	*chans_ptrs[31];			/* Channel ptrs */
+#endif
 	struct zt_chan	chans[31];				/* Channels */
 	unsigned char	ec_chunk1[31][ZT_CHUNKSIZE];
 	unsigned char	ec_chunk2[31][ZT_CHUNKSIZE];
@@ -334,6 +338,9 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	sdla_t		*card = (sdla_t*)pcard;
 	wp_tdmv_softc_t	*wp = NULL;
 	wan_tdmv_t	*tmp = NULL;
+#ifdef DAHDI_ISSUES
+	int i;
+#endif
 
 	WAN_ASSERT(card == NULL);
 	WAN_ASSERT(tdmv_conf->span_no == 0);
@@ -376,6 +383,11 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	wp->max_rxtx_len		= 0;
 	wan_spin_lock_irq_init(&wp->lockirq, "wan_te1tdmv_lock");
 	wan_spin_lock_irq_init(&wp->tx_rx_lockirq, "wan_te1tdmv_txrx_lock");
+#ifdef DAHDI_ISSUES
+	for (i = 0; i < sizeof(wp->chans)/sizeof(wp->chans[0]); i++) {
+		wp->chans_ptrs[i] = &wp->chans[i];
+	}
+#endif
 	/* AHDLC */
 	if (tdmv_conf->dchan){
 		/* PRI signalling is selected with hw HDLC (dchan is not 0) */
@@ -770,11 +782,11 @@ static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 				card->wandev.fe_iface.set_fe_lbmode(
 						&wp->card->fe,
 					       	WAN_TE1_DDLB_MODE,
-					       	WAN_TE1_DEACTIVATE_LB);
+					       	WAN_TE1_LB_DISABLE);
 				card->wandev.fe_iface.set_fe_lbmode(
 						&wp->card->fe,
 						WAN_TE1_LINELB_MODE,
-					       	WAN_TE1_ACTIVATE_LB);
+					       	WAN_TE1_LB_ENABLE);
 				wp->span.maintstat = ZT_MAINT_REMOTELOOP;
 			}
 		}else{
@@ -787,11 +799,11 @@ static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 				card->wandev.fe_iface.set_fe_lbmode(
 						&wp->card->fe,
 						WAN_TE1_DDLB_MODE,
-					       	WAN_TE1_DEACTIVATE_LB);
+					       	WAN_TE1_LB_DISABLE);
 				card->wandev.fe_iface.set_fe_lbmode(
 						&wp->card->fe,
 						WAN_TE1_LINELB_MODE,
-					       	WAN_TE1_DEACTIVATE_LB);
+					       	WAN_TE1_LB_DISABLE);
 				wp->span.maintstat = ZT_MAINT_NONE;
 			}
 		}else{
@@ -1071,7 +1083,11 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 	wp->span.open = wp_tdmv_open;
 	wp->span.close = wp_tdmv_close;
 	wp->span.channels = wp->max_timeslots;
+#ifdef DAHDI_ISSUES
+	wp->span.chans = wp->chans_ptrs;
+#else
 	wp->span.chans = wp->chans;
+#endif
 	wp->span.flags = ZT_FLAG_RBS;
 
 	wp->span.ioctl = wp_tdmv_ioctl;
@@ -1109,12 +1125,17 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 					wp->chans[x].name);
 			wp->chans[x].sigcap = 
 				ZT_SIG_EM | ZT_SIG_CLEAR | ZT_SIG_EM_E1 | 
-				ZT_SIG_FXSLS | ZT_SIG_FXSGS | 
-				ZT_SIG_FXSKS | ZT_SIG_FXOLS | 
-				ZT_SIG_FXOGS | ZT_SIG_FXOKS |
-				ZT_SIG_CAS | ZT_SIG_DACS_RBS
+				ZT_SIG_FXSLS | ZT_SIG_FXSGS |  
+				ZT_SIG_FXSKS | ZT_SIG_FXOLS | ZT_SIG_DACS_RBS |
+				ZT_SIG_FXOGS | ZT_SIG_FXOKS | ZT_SIG_CAS 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
- 				| ZT_SIG_HARDHDLC
+ 				| ZT_SIG_HARDHDLC 
+#endif
+#if defined(ZT_SIG_MTP2)
+				| ZT_SIG_MTP2
+#endif
+#if defined(ZT_SIG_SF)
+				| ZT_SIG_SF
 #endif
 				;
 		}else{
@@ -1200,10 +1221,17 @@ static int wp_tdmv_startup(struct zt_span *span)
 
 	/* initialize the start value for the entire chunk of last ec buffer */
 	for(i = 0; i < span->channels; i++){
+#ifdef DAHDI_ISSUES
+		memset(wp->ec_chunk1[i],
+			ZT_LIN2X(0,span->chans[i]),ZT_CHUNKSIZE);
+		memset(wp->ec_chunk2[i],
+			ZT_LIN2X(0,span->chans[i]),ZT_CHUNKSIZE);
+#else
 		memset(wp->ec_chunk1[i],
 			ZT_LIN2X(0,&span->chans[i]),ZT_CHUNKSIZE);
 		memset(wp->ec_chunk2[i],
 			ZT_LIN2X(0,&span->chans[i]),ZT_CHUNKSIZE);
+#endif
 	}
 
 
@@ -1290,11 +1318,11 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_DDLB_MODE,
-				       	WAN_TE1_DEACTIVATE_LB);
+				       	WAN_TE1_LB_DISABLE);
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_DEACTIVATE_LB);
+				       	WAN_TE1_LB_DISABLE);
 			break;
 	    	case ZT_MAINT_LOCALLOOP:
 			DEBUG_EVENT("%s: T1: Set to local loopback mode (local/no remote loop)\n",
@@ -1302,11 +1330,11 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_DEACTIVATE_LB);
+				       	WAN_TE1_LB_DISABLE);
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_DDLB_MODE,
-				       	WAN_TE1_ACTIVATE_LB);
+				       	WAN_TE1_LB_ENABLE);
 			break;
 	    	case ZT_MAINT_REMOTELOOP:
 			DEBUG_EVENT("%s: T1: Set to remote loopback mode (no local/remote loop)\n",
@@ -1314,11 +1342,11 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_ACTIVATE_LB);
+				       	WAN_TE1_LB_ENABLE);
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_DEACTIVATE_LB);
+				       	WAN_TE1_LB_DISABLE);
 			break;
 	    	case ZT_MAINT_LOOPUP:
 			DEBUG_EVENT("%s: T1: Send loopup code\n",
@@ -1326,7 +1354,7 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_TX_LB_MODE,
-				       	WAN_TE1_ACTIVATE_LB);
+				       	WAN_TE1_LB_ENABLE);
 			break;
 	    	case ZT_MAINT_LOOPDOWN:
 			DEBUG_EVENT("%s: T1: Send loopdown code\n",
@@ -1334,7 +1362,7 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_TX_LB_MODE,
-				       	WAN_TE1_DEACTIVATE_LB);
+				       	WAN_TE1_LB_DISABLE);
 			break;
 	    	case ZT_MAINT_LOOPSTOP:
 			DEBUG_EVENT("%s: T1: Stop sending loop code\n",
@@ -2513,14 +2541,26 @@ static void wp_tdmv_callback_dtmf (void* card_id, wan_event_t *event)
 
 	if (event->dtmf_type == WAN_EC_TONE_PRESENT){
 		wp->dtmfactive |= (1 << event->channel);
+#ifdef DAHDI_ISSUES
+		zt_qevent_lock(
+				wp->span.chans[event->channel-1],
+				(ZT_EVENT_DTMFDOWN | event->digit));
+#else
 		zt_qevent_lock(
 				&wp->span.chans[event->channel-1],
 				(ZT_EVENT_DTMFDOWN | event->digit));
+#endif
 	}else{
 		wp->dtmfactive &= ~(1 << event->channel);
+#ifdef DAHDI_ISSUES
+		zt_qevent_lock(
+				wp->span.chans[event->channel-1],
+				(ZT_EVENT_DTMFUP | event->digit));
+#else
 		zt_qevent_lock(
 				&wp->span.chans[event->channel-1],
 				(ZT_EVENT_DTMFUP | event->digit));
+#endif
 	}
 	return;
 }

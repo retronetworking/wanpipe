@@ -22,12 +22,12 @@
 # include <linux/wanpipe_events.h>
 #elif defined(__WINDOWS__)
 
-#if defined(__KERNEL__)
-# define _DEBUG
-# include <DebugOut.h>
-#else
-# include <windows.h>
-#endif
+# if defined(__KERNEL__)
+#  define _DEBUG
+#  include <DebugOut.h>
+# else
+#  include <windows.h>
+# endif
 
 # include <wanpipe_defines.h>
 # include <wanpipe_includes.h>
@@ -86,15 +86,16 @@
 # define WAN_EC_API_CMD_DTMF_DISABLE		12
 # define WAN_EC_API_CMD_STATS			13
 # define WAN_EC_API_CMD_STATS_FULL		14
-# define WAN_EC_API_CMD_BUFFER_LOAD		15
-# define WAN_EC_API_CMD_BUFFER_UNLOAD		16
-# define WAN_EC_API_CMD_PLAYOUT_START		17
-# define WAN_EC_API_CMD_PLAYOUT_STOP		18
-# define WAN_EC_API_CMD_MONITOR			19
-# define WAN_EC_API_CMD_RELEASE_ALL		20
-# define WAN_EC_API_CMD_CONFIG_POLL		21
-# define WAN_EC_API_CMD_CHANNEL_MUTE		22
-# define WAN_EC_API_CMD_CHANNEL_UNMUTE		23
+# define WAN_EC_API_CMD_STATS_IMAGE		15
+# define WAN_EC_API_CMD_BUFFER_LOAD		16
+# define WAN_EC_API_CMD_BUFFER_UNLOAD		17
+# define WAN_EC_API_CMD_PLAYOUT_START		18
+# define WAN_EC_API_CMD_PLAYOUT_STOP		19
+# define WAN_EC_API_CMD_MONITOR			20
+# define WAN_EC_API_CMD_RELEASE_ALL		21
+# define WAN_EC_API_CMD_CONFIG_POLL		22
+# define WAN_EC_API_CMD_CHANNEL_MUTE		23
+# define WAN_EC_API_CMD_CHANNEL_UNMUTE		24
 #else
 # define WAN_EC_API_CMD_NONE			_IOWR('E', 0, struct wan_ec_api_)
 # define WAN_EC_API_CMD_GETINFO			_IOWR('E', 1, wan_ec_api_t)
@@ -106,20 +107,21 @@
 # define WAN_EC_API_CMD_BYPASS_ENABLE		_IOWR('E', 7, struct wan_ec_api_)
 # define WAN_EC_API_CMD_BYPASS_DISABLE		_IOWR('E', 8, struct wan_ec_api_)
 # define WAN_EC_API_CMD_OPMODE			_IOWR('E', 9, struct wan_ec_api_)
-# define WAN_EC_API_CMD_MODIFY_CHANNEL		_IOWR('E', 15, struct wan_ec_api_)
-# define WAN_EC_API_CMD_DTMF_ENABLE		_IOWR('E', 16, struct wan_ec_api_)
-# define WAN_EC_API_CMD_DTMF_DISABLE		_IOWR('E', 17, struct wan_ec_api_)
-# define WAN_EC_API_CMD_STATS			_IOWR('E', 18, struct wan_ec_api_)
-# define WAN_EC_API_CMD_STATS_FULL		_IOWR('E', 19, struct wan_ec_api_)
-# define WAN_EC_API_CMD_BUFFER_LOAD		_IOWR('E', 20, struct wan_ec_api_)
-# define WAN_EC_API_CMD_BUFFER_UNLOAD		_IOWR('E', 21, struct wan_ec_api_)
-# define WAN_EC_API_CMD_PLAYOUT_START		_IOWR('E', 22, struct wan_ec_api_)
-# define WAN_EC_API_CMD_PLAYOUT_STOP		_IOWR('E', 23, struct wan_ec_api_)
-# define WAN_EC_API_CMD_MONITOR			_IOWR('E', 24, struct wan_ec_api_)
-# define WAN_EC_API_CMD_RELEASE_ALL		_IOWR('E', 25, struct wan_ec_api_)
-# define WAN_EC_API_CMD_CONFIG_POLL		_IOWR('E', 26, struct wan_ec_api_)
-# define WAN_EC_API_CMD_CHANNEL_MUTE		_IOWR('E', 27, struct wan_ec_api_)
-# define WAN_EC_API_CMD_CHANNEL_UNMUTE		_IOWR('E', 28, struct wan_ec_api_)
+# define WAN_EC_API_CMD_MODIFY_CHANNEL		_IOWR('E', 10, struct wan_ec_api_)
+# define WAN_EC_API_CMD_DTMF_ENABLE		_IOWR('E', 11, struct wan_ec_api_)
+# define WAN_EC_API_CMD_DTMF_DISABLE		_IOWR('E', 12, struct wan_ec_api_)
+# define WAN_EC_API_CMD_STATS			_IOWR('E', 13, struct wan_ec_api_)
+# define WAN_EC_API_CMD_STATS_FULL		_IOWR('E', 14, struct wan_ec_api_)
+# define WAN_EC_API_CMD_STATS_IMAGE		_IOWR('E', 15, struct wan_ec_api_)
+# define WAN_EC_API_CMD_BUFFER_LOAD		_IOWR('E', 16, struct wan_ec_api_)
+# define WAN_EC_API_CMD_BUFFER_UNLOAD		_IOWR('E', 17, struct wan_ec_api_)
+# define WAN_EC_API_CMD_PLAYOUT_START		_IOWR('E', 18, struct wan_ec_api_)
+# define WAN_EC_API_CMD_PLAYOUT_STOP		_IOWR('E', 19, struct wan_ec_api_)
+# define WAN_EC_API_CMD_MONITOR			_IOWR('E', 20, struct wan_ec_api_)
+# define WAN_EC_API_CMD_RELEASE_ALL		_IOWR('E', 21, struct wan_ec_api_)
+# define WAN_EC_API_CMD_CONFIG_POLL		_IOWR('E', 22, struct wan_ec_api_)
+# define WAN_EC_API_CMD_CHANNEL_MUTE		_IOWR('E', 23, struct wan_ec_api_)
+# define WAN_EC_API_CMD_CHANNEL_UNMUTE		_IOWR('E', 24, struct wan_ec_api_)
 #endif
 
 # define WAN_EC_API_CMD_DECODE(cmd)					\
@@ -134,6 +136,7 @@
 	(cmd == WAN_EC_API_CMD_OPMODE)		? "Modify EC OPMODE" :	\
 	(cmd == WAN_EC_API_CMD_STATS)		? "Get stats" :		\
 	(cmd == WAN_EC_API_CMD_STATS_FULL)	? "Get stats" :		\
+	(cmd == WAN_EC_API_CMD_STATS_IMAGE)	? "Get Image stats" :		\
 	(cmd == WAN_EC_API_CMD_BUFFER_LOAD)	? "Buffer load" :		\
 	(cmd == WAN_EC_API_CMD_BUFFER_UNLOAD)	? "Buffer unload" :	\
 	(cmd == WAN_EC_API_CMD_PLAYOUT_START)	? "Playout start" :	\
@@ -166,6 +169,7 @@ typedef struct wan_ec_api_ {
 #define u_config	u_ec.config	
 #define u_config_poll	u_ec.config_poll
 #define u_chip_stats	u_ec.chip_stats	
+#define u_chip_image	u_ec.chip_image	
 #define u_chan_opmode	u_ec.chan_opmode
 #define u_chan_mute	u_ec.chan_mute	
 #define u_chan_custom	u_ec.chan_custom	
@@ -180,6 +184,7 @@ typedef struct wan_ec_api_ {
 		wanec_config_t		config;
 		wanec_config_poll_t	config_poll;
 		wanec_chip_stats_t	chip_stats;
+		wanec_chip_image_t	chip_image;
 		wanec_chan_opmode_t	chan_opmode;
 		wanec_chan_mute_t	chan_mute;
 		wanec_chan_custom_t	chan_custom;
@@ -192,6 +197,5 @@ typedef struct wan_ec_api_ {
 
 	wan_custom_conf_t	custom_conf;
 } wan_ec_api_t;
-
 
 #endif /* __WANEC_IFACE_API_H */

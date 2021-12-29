@@ -129,6 +129,7 @@ static struct table_args_t {
 	{"enable",		token(ENABLE_TOKEN),			"Description" },
 	{"help",		token(HELP_TOKEN),			"Description" },
 	{"help1",		token(HELP1_TOKEN),			"Description" },
+	{"hwimage",		token(HWIMAGE_TOKEN),			"Description" },
 	{"kill",		token(KILL_TOKEN),			"Description" },
 	{"load",		token(LOAD_TOKEN),			"Description" },
 	{"mhtf",		token(MODE_HT_FREEZE_TOKEN),		"Description" },
@@ -265,6 +266,7 @@ int help(int verbose)
 	printf("  dd <fe_chan> [sout|rout] - Disable DTMF detection on specified channel(s)\n");
 	printf("  stats               - Read Echo Canceller Chip/Image statistis\n");
 	printf("  stats <fe_chan>     - Read Echo Canceller channel statistis\n");
+	printf("  hwimage             - Read Echo Canceller image statistis\n");
 	printf("  monitor <fe_chan>   - Enable Debug monitoring for specified channel\n");
 	printf("  monitor             - Get debug data for previously specified channel\n");
 	printf("\n");

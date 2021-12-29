@@ -234,6 +234,19 @@ int wanec_client_stats(int full)
 	return err;
 }
 
+int wanec_client_hwimage(void)
+{
+	wanec_api_image_t	image;
+	int			err;
+
+	memset(&image, 0, sizeof(wanec_api_image_t));
+	err = wanec_api_hwimage(
+			ec_client.devname,
+			ec_client.verbose,
+			&image);
+	return err;
+}
+
 int wanec_client_bufferload(char *buf)
 {
 	wanec_api_bufferload_t	bufferload;

@@ -31,11 +31,13 @@ __attribute__((section("__versions"))) = {
 	{ 0x2fd1d81c, "vfree" },
 	{ 0x1d26aa98, "sprintf" },
 	{ 0x7d11c268, "jiffies" },
+	{ 0x1f1e3c4b, "register_wanec_iface" },
 	{ 0x1b7d4074, "printk" },
 	{ 0x5152e605, "memcmp" },
 	{ 0x2da418b5, "copy_to_user" },
 	{ 0x2e1de6c1, "class_create" },
 	{ 0x19070091, "kmem_cache_alloc" },
+	{ 0x4df932b, "unregister_wanec_iface" },
 	{ 0x4086729e, "register_chrdev" },
 	{ 0xd0b91f9b, "init_timer" },
 	{ 0xf6ebc03b, "net_ratelimit" },
@@ -50,7 +52,7 @@ __attribute__((section("__versions"))) = {
 static const char __module_depends[]
 __attribute_used__
 __attribute__((section(".modinfo"))) =
-"depends=";
+"depends=wanrouter";
 
 
-MODULE_INFO(srcversion, "86B10641B83578F21469DCA");
+MODULE_INFO(srcversion, "DDE02E055B9871AC6D3BAB6");

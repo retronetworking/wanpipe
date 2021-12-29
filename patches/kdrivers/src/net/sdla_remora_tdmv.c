@@ -12,6 +12,7 @@
  *		2 of the License, or (at your option) any later version.
  * ============================================================================
  * Oct 6, 2005	Alex Feldman	Initial version.
+ * Sep 06, 2008	Moises Silva    DAHDI support.
  ******************************************************************************
  */
 
@@ -27,9 +28,9 @@
 # include <wanpipe.h>
 # include <wanpipe_events.h>
 # include <sdla_remora.h>
-# include <zaptel.h>
+# include <zapcompat.h> /* Map of Zaptel -> DAHDI definitions */
 #else
-# include <zaptel.h>
+# include <zapcompat.h> /* Map of Zaptel -> DAHDI definitions */
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe.h>
@@ -60,7 +61,7 @@
 
 #define OHT_TIMER		6000	/* How long after RING to retain OHT */
 
-#define FXO_LINK_DEBOUNCE	200
+#define FXO_LINK_DEBOUNCE	20
 
 #define MAX_ALARMS		10
 
@@ -99,7 +100,9 @@ typedef struct {
 	int	wasringing;
 	
 	int				echotune;	/* echo tune */
-	struct wan_rm_echo_coefs	echoregs;	/* echo tune */
+	struct 	wan_rm_echo_coefs	echoregs;	/* echo tune */
+	int 	readcid;
+	unsigned int cidtimer;
 } tdmv_fxo_t;
 
 typedef struct {
@@ -128,6 +131,9 @@ typedef struct wp_tdmv_remora_ {
 
 	int		spanno;
 	struct zt_span	span;
+#ifdef DAHDI_ISSUES
+	struct zt_chan	*chans_ptrs[MAX_REMORA_MODULES];
+#endif
 	struct zt_chan	chans[MAX_REMORA_MODULES];
 	unsigned long	reg_module_map;	/* Registered modules */
 
@@ -707,6 +713,8 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 			if (wr->mod[mod_no].fxo.ringdebounce <= 0) {
 				if (wr->mod[mod_no].fxo.wasringing) {
 					wr->mod[mod_no].fxo.wasringing = 0;
+					wr->mod[mod_no].fxo.readcid = 0;
+ 					wr->mod[mod_no].fxo.cidtimer = wr->intcount;
 					zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
 					DEBUG_TDMV("%s: Module %d: NO RING on span %d!\n",
 							wr->devname,
@@ -733,29 +741,32 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 	}
 #endif	
 
-	if (abs(b) <= 1){
-		fe->rm_param.mod[mod_no].u.fxo.statusdebounce ++;
-		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce >= FXO_LINK_DEBOUNCE){
-			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_DISCONNECTED){
-				DEBUG_EVENT(
-				"%s: Module %d: FXO Line is disconnnected!\n",
-								wr->devname,
-								mod_no + 1);
-				fe->rm_param.mod[mod_no].u.fxo.status = FE_DISCONNECTED;
-			}
-			fe->rm_param.mod[mod_no].u.fxo.statusdebounce = FXO_LINK_DEBOUNCE;
-		}
-	}else{
+	if (abs(b) > 1){
 		fe->rm_param.mod[mod_no].u.fxo.statusdebounce--;
 		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce <= 0) {
 			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_CONNECTED){
 				DEBUG_EVENT(
-				"%s: Module %d: FXO Line is connected!\n",
+				"%s: Module %d: Line connected on span %d!\n",
 								wr->devname,
-								mod_no + 1);
+								mod_no + 1,
+								wr->span.spanno);
 				fe->rm_param.mod[mod_no].u.fxo.status = FE_CONNECTED;
 			}
 			fe->rm_param.mod[mod_no].u.fxo.statusdebounce = 0;
+		}
+	}else if (!wr->mod[mod_no].fxo.wasringing){
+		fe->rm_param.mod[mod_no].u.fxo.statusdebounce ++;
+		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce >= FXO_LINK_DEBOUNCE){
+			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_DISCONNECTED){
+				DEBUG_EVENT(
+				"%s: Module %d: Line disconnected on span %d!\n",
+								wr->devname,
+								mod_no + 1,
+								wr->span.spanno);
+				fe->rm_param.mod[mod_no].u.fxo.status = FE_DISCONNECTED;
+				zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_INITIAL);
+			}
+			fe->rm_param.mod[mod_no].u.fxo.statusdebounce = FXO_LINK_DEBOUNCE;
 		}
 	}
 
@@ -1112,7 +1123,11 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 		}
 	}
 	wr->span.pvt = wr;
+#ifdef DAHDI_ISSUES
+	wr->span.chans		= wr->chans_ptrs;
+#else
 	wr->span.chans		= wr->chans;
+#endif
 	wr->span.channels	= num/*wr->max_timeslots*/;
 	wr->span.hooksig	= wp_remora_zap_hooksig;
 	wr->span.open		= wp_remora_zap_open;
@@ -1221,6 +1236,9 @@ static int wp_tdmv_remora_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	sdla_t			*card = (sdla_t*)pcard;
 	wp_tdmv_remora_t	*wr = NULL;
 	wan_tdmv_t		*tmp = NULL;
+#ifdef DAHDI_ISSUES
+	int i;
+#endif
 
 	WAN_ASSERT(card == NULL);
 	WAN_ASSERT(tdmv_conf->span_no == 0);
@@ -1265,6 +1283,11 @@ static int wp_tdmv_remora_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	wr->max_rxtx_len	= 0;
 	wan_spin_lock_irq_init(&wr->lockirq, "wan_rmtdmv_lock");
 	wan_spin_lock_irq_init(&wr->tx_rx_lockirq, "wan_rmtdmv_txrx_lock");
+#ifdef DAHDI_ISSUES
+	for (i = 0; i < sizeof(wr->chans)/sizeof(wr->chans[0]); i++) {
+		wr->chans_ptrs[i] = &wr->chans[i];
+	}
+#endif
 
 	if (tmp){
 		WAN_LIST_INSERT_AFTER(tmp, &card->wan_tdmv, next);
@@ -1484,6 +1507,39 @@ static int wp_tdmv_remora_is_rbsbits(wan_tdmv_t *wan_tdmv)
 	return 0;
 }
 
+
+#ifdef WAN_FAKE_POLARITY
+#warning "WAN_FAKE_POLARITY Enabled - Experimental"
+static inline void wp_tdmv_dtmfcheck_fakepolarity(wp_tdmv_remora_t *wr, int channo, unsigned char *rxbuf)
+{
+	sdla_t		*card = wr->card;
+	sdla_fe_t	*fe = &card->fe;
+	int sample;
+	int dtmf=1;
+
+    	/* only look for sound on the line if dtmf flag is on, it is an fxo card and line is onhook */ 
+	if (!dtmf || !(fe->rm_param.mod[channo].type == MOD_TYPE_FXO) || wr->mod[channo].fxo.offhook) {
+        	return;
+	}
+
+   	/* don't look for noise if we're already processing it, or there is a ringing tone */
+	if(!wr->mod[channo].fxo.readcid && !wr->mod[channo].fxo.wasringing  &&
+		wr->intcount > wr->mod[channo].fxo.cidtimer + 400 ) {
+		sample = ZT_XLAW((*rxbuf), (&(wr->chans[channo])));
+		if (sample > 16000 || sample < -16000) {
+			wr->mod[channo].fxo.readcid = 1;
+			wr->mod[channo].fxo.cidtimer = wr->intcount;
+			DEBUG_EVENT("DTMF CLIP on %i\n",channo+1);
+			zt_qevent_lock(&wr->chans[channo], ZT_EVENT_POLARITY);
+		}
+	} else if(wr->mod[channo].fxo.readcid && wr->intcount > wr->mod[channo].fxo.cidtimer + 2000) {
+        /* reset flags if it's been a while */
+		wr->mod[channo].fxo.cidtimer = wr->intcount;
+		wr->mod[channo].fxo.readcid = 0;
+	}
+}
+#endif
+
 /******************************************************************************
 ** wp_tdmv_rx_chan() - 
 **
@@ -1551,6 +1607,10 @@ DEBUG_EVENT("Module %d: RX: %02X %02X %02X %02X %02X %02X %02X %02X\n",
  
 	wr->chans[channo].readchunk = rxbuf;	
 	wr->chans[channo].writechunk = txbuf;	
+
+#ifdef WAN_FAKE_POLARITY
+	wp_tdmv_dtmfcheck_fakepolarity(wr,channo,rxbuf);
+#endif
 
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
@@ -1824,14 +1884,26 @@ static void wp_tdmv_remora_dtmf (void* card_id, wan_event_t *event)
 
 	if (event->dtmf_type == WAN_EC_TONE_PRESENT){
 		wr->dtmfactive |= (1 << event->channel);
+#ifdef DAHDI_ISSUES
+		zt_qevent_lock(
+				wr->span.chans[event->channel-1],
+				(ZT_EVENT_DTMFDOWN | event->digit));
+#else
 		zt_qevent_lock(
 				&wr->span.chans[event->channel-1],
 				(ZT_EVENT_DTMFDOWN | event->digit));
+#endif
 	}else{
 		wr->dtmfactive &= ~(1 << event->channel);
+#ifdef DAHDI_ISSUES
+		zt_qevent_lock(
+				wr->span.chans[event->channel-1],
+				(ZT_EVENT_DTMFUP | event->digit));
+#else
 		zt_qevent_lock(
 				&wr->span.chans[event->channel-1],
 				(ZT_EVENT_DTMFUP | event->digit));
+#endif
 	}
 	return;
 }

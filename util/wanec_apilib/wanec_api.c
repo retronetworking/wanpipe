@@ -89,7 +89,6 @@ extern int wanec_api_lib_cmd(wan_ec_api_t *ec_api);
 static int wanec_api_print_chip_stats(wan_ec_api_t *ec_api)
 {
 	tPOCT6100_CHIP_STATS		pChipStats;
-	tPOCT6100_CHIP_IMAGE_INFO	pChipImageInfo;
 
 	pChipStats = &ec_api->u_chip_stats.f_ChipStats;
 	printf("****** Echo Canceller Chip Get Stats %s ******\n",
@@ -135,33 +134,12 @@ static int wanec_api_print_chip_stats(wan_ec_api_t *ec_api)
 			pChipStats->ulSoftOverflowBufferPlayoutEventsCount);
 	printf("\n");
 	
-	if (ec_api->u_chip_stats.f_ChipImageInfo){
-		pChipImageInfo = ec_api->u_chip_stats.f_ChipImageInfo;
-		printf("****** Echo Canceller Chip Image Info %s ******\n",
-					ec_api->devname);
-		printf("%10s: Echo Canceller chip image build description:\n%s\n",
-					ec_api->devname,
-					pChipImageInfo->szVersionNumber);
-		printf("%10s: Echo Canceller chip build ID\t\t\t%d\n",
-					ec_api->devname,
-					pChipImageInfo->ulBuildId);
-		printf("%10s: Echo Canceller image type\t\t\t\t%d\n",
-					ec_api->devname,
-					pChipImageInfo->ulImageType);
-		printf("%10s: Maximum number of channels supported by the image\t%d\n",
-					ec_api->devname,
-					pChipImageInfo->ulMaxChannels);
-		printf("\n");
-	}
 	return 0;
 }
 
 static int wanec_api_print_full_chip_stats(wan_ec_api_t *ec_api)
 {
 	tPOCT6100_CHIP_STATS		pChipStats;
-	tPOCT6100_CHIP_IMAGE_INFO	pChipImageInfo;
-	tPOCT6100_CHIP_TONE_INFO	pChipToneInfo;
-	unsigned int				i;
 
 	pChipStats = &ec_api->u_chip_stats.f_ChipStats;
 	printf("****** Echo Canceller Chip Get Stats %s ******\n",
@@ -211,8 +189,17 @@ static int wanec_api_print_full_chip_stats(wan_ec_api_t *ec_api)
 			pChipStats->ulSoftOverflowBufferPlayoutEventsCount);
 	printf("\n");
 	
-	if (ec_api->u_chip_stats.f_ChipImageInfo){
-		pChipImageInfo = ec_api->u_chip_stats.f_ChipImageInfo;
+	return 0;
+}
+
+static int wanec_api_print_chip_image(wan_ec_api_t *ec_api, int full)
+{
+	tPOCT6100_CHIP_IMAGE_INFO	pChipImageInfo;
+	tPOCT6100_CHIP_TONE_INFO	pChipToneInfo;
+	unsigned int			i;
+
+	if (ec_api->u_chip_image.f_ChipImageInfo){
+		pChipImageInfo = ec_api->u_chip_image.f_ChipImageInfo;
 		printf("****** Echo Canceller Chip Image Info %s ******\n",
 					ec_api->devname);
 		printf("%10s: Echo Canceller chip image build description:\n%s\n",
@@ -227,44 +214,46 @@ static int wanec_api_print_full_chip_stats(wan_ec_api_t *ec_api)
 		printf("%10s: Maximum number of channels supported by the image\t%d\n",
 					ec_api->devname,
 					pChipImageInfo->ulMaxChannels);
-		printf("%10s: Support Acoustic echo cancellation\t%s\n",
+		if (full) printf("%10s: Support Acoustic echo cancellation\t%s\n",
 					ec_api->devname,
 					(pChipImageInfo->fAcousticEcho == TRUE) ?
 								"TRUE" : "FALSE");
-		printf("%10s: Support configurable tail length for Aec\t%s\n",
+		if (full) printf("%10s: Support configurable tail length for Aec\t%s\n",
 					ec_api->devname,
 					(pChipImageInfo->fAecTailLength == TRUE) ?
 								"TRUE" : "FALSE");
-		printf("%10s: Support configurable default ERL\t%s\n",
+		if (full) printf("%10s: Support configurable default ERL\t%s\n",
 					ec_api->devname,
 					(pChipImageInfo->fDefaultErl == TRUE) ?
 								"TRUE" : "FALSE");
-		printf("%10s: Support configurable non-linearity A\t%s\n",
+		if (full) printf("%10s: Support configurable non-linearity A\t%s\n",
 					ec_api->devname,
 					(pChipImageInfo->fNonLinearityBehaviorA == TRUE) ?
 								"TRUE" : "FALSE");
-		printf("%10s: Support configurable non-linearity B\t%s\n",
+		if (full) printf("%10s: Support configurable non-linearity B\t%s\n",
 					ec_api->devname,
 					(pChipImageInfo->fNonLinearityBehaviorB == TRUE) ?
 								"TRUE" : "FALSE");
-		printf("%10s: Tone profile number built in the image\t%d\n",
+		if (full) printf("%10s: Tone profile number built in the image\t%d\n",
 					ec_api->devname,
 					pChipImageInfo->ulToneProfileNumber);
-		printf("%10s: Number of tone available in the image\t%d\n",
+		if (full) printf("%10s: Number of tone available in the image\t%d\n",
 					ec_api->devname,
 					pChipImageInfo->ulNumTonesAvailable);
-		for(i = 0; i < pChipImageInfo->ulNumTonesAvailable; i++){
-			pChipToneInfo = &pChipImageInfo->aToneInfo[i];
-			printf("%10s: \tDetection Port: %s\tToneId: 0x%X\n",
-				ec_api->devname,
-				(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_SIN)?"SIN":
-				(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_ROUT)?"ROUT":
-				(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_ROUT)?"SOUT":
-				(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_ROUT_SOUT)?"ROUT/SOUT":
+		if (full) {
+			for(i = 0; i < pChipImageInfo->ulNumTonesAvailable; i++){
+				pChipToneInfo = &pChipImageInfo->aToneInfo[i];
+				printf("%10s: \tDetection Port: %s\tToneId: 0x%X\n",
+					ec_api->devname,
+					(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_SIN)?"SIN":
+					(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_ROUT)?"ROUT":
+					(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_ROUT)?"SOUT":
+					(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_ROUT_SOUT)?"ROUT/SOUT":
 												"INV",
-				pChipToneInfo->ulToneID);
+					pChipToneInfo->ulToneID);
+			}
+			printf("\n");
 		}
-		printf("\n");
 	}
 	return 0;
 }
@@ -958,6 +947,30 @@ int wanec_api_stats(	char			*devname,
 			}
 		}
 	}
+	return err;
+
+}
+
+int wanec_api_hwimage(	char			*devname,
+			int			verbose,
+			wanec_api_image_t	*image)
+{
+	int	err;
+	
+	memcpy(ec_api.devname, devname, strlen(devname));
+	ec_api.verbose	= wanec_api_verbose(verbose);
+	ec_api.cmd	= WAN_EC_API_CMD_STATS_IMAGE;
+#if 0
+	ec_api.u_chip_image.f_ChipImageInfo =
+				malloc(sizeof(tOCT6100_CHIP_IMAGE_INFO));
+	memset(ec_api.u_chip_image.f_ChipImageInfo,
+				0, sizeof(tOCT6100_CHIP_IMAGE_INFO));
+#endif
+	err = wanec_api_lib_cmd(&ec_api);
+	if (err) return err;
+	if (ec_api.err) return 0;
+
+	wanec_api_print_chip_image(&ec_api, 0);
 	return err;
 
 }

@@ -13,6 +13,7 @@
  *
  * ============================================================================
  * June 5, 2007	David Rokhvarg	Initial version.
+ * Sep 06, 2008	Moises Silva    DAHDI support.
  ******************************************************************************
  */
 
@@ -27,9 +28,9 @@
 # include <wanpipe_common.h>
 # include <wanpipe.h>
 # include <sdla_bri.h>
-# include <zaptel.h>
+# include <zapcompat.h> /* Map of Zaptel -> DAHDI definitions */
 #else
-# include <zaptel.h>
+# include <zapcompat.h> /* Map of Zaptel -> DAHDI definitions */
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe.h>
@@ -104,6 +105,9 @@ typedef struct wp_tdmv_bri_ {
 
 	int		spanno;
 	struct zt_span	span;
+#ifdef DAHDI_ISSUES
+	struct zt_chan *chans_ptrs[MAX_BRI_LINES];
+#endif
 	struct zt_chan	chans[MAX_BRI_LINES];
 	unsigned long	reg_module_map;	/* Registered modules */
 
@@ -457,7 +461,11 @@ wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
 	}/* for() */
 
 	wr->span.pvt		= wr;
+#ifdef DAHDI_ISSUES
+	wr->span.chans		= wr->chans_ptrs;
+#else
 	wr->span.chans		= wr->chans;
+#endif
 	wr->span.channels	= MAX_BRI_TIMESLOTS;/* this is the number of b-chans (2) and the d-chan on one BRI line. */;
 	wr->span.linecompat	= ZT_CONFIG_AMI | ZT_CONFIG_CCS; /* <--- this is really BS */
 
@@ -573,6 +581,9 @@ static int wp_tdmv_bri_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	sdla_t		*card = (sdla_t*)pcard;
 	wp_tdmv_bri_t	*wr = NULL;
 	wan_tdmv_t	*tmp = NULL;
+#ifdef DAHDI_ISSUES
+	int i;
+#endif
 	
 	BRI_FUNC();	
 
@@ -621,6 +632,11 @@ static int wp_tdmv_bri_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	wr->max_rxtx_len	= 0;
 	wan_spin_lock_init(&wr->lock, "wan_britdmv_lock");
 	wan_spin_lock_init(&wr->tx_rx_lock, "wan_britdmv_txrx_lock");
+#ifdef DAHDI_ISSUES
+	for (i = 0; i < sizeof(wr->chans)/sizeof(wr->chans[0]); i++) {
+		wr->chans_ptrs[i] = &wr->chans[i];
+	}
+#endif
 
 	/* BRI signalling is selected with hw HDLC (dchan is not 0) */
 	wr->dchan = 3;/* MUST be 3! */
@@ -1119,14 +1135,26 @@ static void wp_tdmv_bri_dtmf (void* card_id, wan_event_t *event)
 	}
 	if (event->dtmf_type == WAN_EC_TONE_PRESENT){
 		wr->dtmfactive |= (1 << event->channel);
+#ifdef DAHDI_ISSUES
+		zt_qevent_lock(
+				wr->span.chans[event->channel-1],
+				(ZT_EVENT_DTMFDOWN | event->digit));
+#else
 		zt_qevent_lock(
 				&wr->span.chans[event->channel-1],
 				(ZT_EVENT_DTMFDOWN | event->digit));
+#endif
 	}else{
 		wr->dtmfactive &= ~(1 << event->channel);
+#ifdef DAHDI_ISSUES
+		zt_qevent_lock(
+				wr->span.chans[event->channel-1],
+				(ZT_EVENT_DTMFUP | event->digit));
+#else
 		zt_qevent_lock(
 				&wr->span.chans[event->channel-1],
 				(ZT_EVENT_DTMFUP | event->digit));
+#endif
 	}
 	return;
 }

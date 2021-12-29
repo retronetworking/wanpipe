@@ -11,10 +11,9 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 # Project file paths.
-SYSINC	= /usr/src/linux/include
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(SYSINC) -I$(APIINC)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_  -I$(APIINC)
 
 TARGETS = fr_api 
 #TARGETS += fr_api_fast

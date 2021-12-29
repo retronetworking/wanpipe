@@ -47,10 +47,13 @@ extern "C" {
 	#include "octtypewin.h"			/* All Win32 typedef */
 #elif defined( OCT_VXENV )
 	#include "octtypevx.h"			/* All VxWorks typedef */
-#else
+#endif
+
 /*--------------------------------------------------------------------------
 	No target-specific header  available 
 ----------------------------------------------------------------------------*/
+
+#if !defined( OCT_WINENV )/* Windows: define these only in kernel */
 
 /*****************************  DEFINES  *************************************/
 
@@ -103,7 +106,11 @@ typedef	double *		PDOUBLE;
 typedef	float			FLOAT;
 typedef	float *			PFLOAT;
 
+#if !defined(__WINDOWS__) 
 typedef	void			VOID;
+#else
+#define VOID			void
+#endif
 typedef	void *			PVOID;
 
 /* Booleans */
@@ -141,7 +148,7 @@ typedef	PSZ *	PPSZ;
 #define NULL 0
 #endif
 
-#endif /* !( OCT_WINENV ) */
+#endif /* #if !defined( OCT_WINENV ) */
 
 /*--------------------------------------------------------------------------
 	C language

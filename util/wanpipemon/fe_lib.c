@@ -61,6 +61,7 @@
 #endif	
 
 static void hw_set_lb_modes(unsigned char type, unsigned char mode);
+static int hw_get_femedia_type(wan_femedia_t*);
 static int hw_get_fe_type(unsigned char* adapter_type);
 
 /******************************************************************************
@@ -77,6 +78,7 @@ extern int 		gfail;
 extern 			FT1_LED_STATUS FT1_LED;
 extern int 		wan_protocol;
 extern wan_udp_hdr_t	wan_udp;
+extern wan_femedia_t	femedia;
 
 /******************************************************************************
  * 			GUI MENU DEFINITION				      *
@@ -116,6 +118,65 @@ char *csudsu_menu[]={
 "."
 };
 
+char *csudsu_menu_te3[]={
+"","-- DS3/E3 (AFT) Stats --",
+""," ",
+"Ta","Read DS3/E3 alarms",
+"Tallb3","E Analog Local Loopback DS3/E3",
+"Tdllb3","D Analog Local Loopback DS3/E3",
+"Tarlb3","E Remote Loopback DS3/E3",
+"Tdrlb3","D Remote Loopback DS3/E3",
+"Tadlb3","E Digital Loopback DS3/E3",
+"Tddlb3","D Digital Loopback DS3/E3",
+"."
+};
+
+char *csudsu_menu_te1_pmc[]={
+"","-- T1/E1 (S514-4-5-7-8/AFT) Stats --",
+""," ",
+"Ta","Read T1/E1 alarms",
+"Tallb","E Line/Remote Loopback T1/E1",
+"Tdllb","D Line/Remote Loopback T1/E1",
+"Taplb","E Payload Loopback T1/E1",
+"Tdplb","D Payload Loopback T1/E1",
+"Tadlb","E Diag Digital Loopback T1/E1",
+"Tddlb","D Diag Digital Loopback T1/E1",
+"Tsalb","Send Loopback Activate Code",  
+"Tsdlb","Send Loopback Deactive Code",  
+"Tread","Read CSU/DSU cfg",
+""," ",
+"","--- FT1 (S508/S5143) Stats  ----",
+""," ",
+"Tv","View Status",
+"Ts","Self Test",
+"Tl","Line Loop Test",
+"Td","Digital Loop Test",
+"Tr","Remote Test",
+"To","Operational Mode",
+"Tread","Read CSU/DSU cfg",
+"."
+};
+
+char *csudsu_menu_te1_dm[]={
+"","-- T1/E1 (AFT T1/E1-DM) Stats --",
+""," ",
+"Ta","Read T1/E1 alarms",
+"Tallb","E Line/Remote Loopback T1/E1",
+"Tdllb","D Line/Remote Loopback T1/E1",
+"Taplb","E Payload Loopback T1/E1",
+"Tdplb","D Payload Loopback T1/E1",
+"Tadlb","E Diag Digital Loopback T1/E1",
+"Tddlb","D Diag Digital Loopback T1/E1",
+"Talalb","E LIU Analog Loopback T1/E1",
+"Tdlalb","D LIU Analog Loopback T1/E1",
+"Talllb","E LIU Local Loopback T1/E1",
+"Tdlllb","D LIU Local Loopback T1/E1",
+"Taldlb","E LIU Dual Loopback T1/E1",
+"Tdldlb","D LIU Dual Loopback T1/E1",
+"Tsalb","Send Loopback Activate Code",  
+"Tsdlb","Send Loopback Deactive Code",  
+"."
+};
 
 /******************************************************************************
  * 			FUNCTION DEFINITION				      *
@@ -765,20 +826,39 @@ int remote_running_RT_test(void)
 	return(0);
 }
 
-int get_fe_type(unsigned char* adapter_type)
+static int hw_get_femedia_type(wan_femedia_t *fe_media)
 {
-  int rc;
-  
-  if(make_hardware_level_connection()){
-    return 0;
-  }
-  rc = hw_get_fe_type(adapter_type);
-  
-  cleanup_hardware_level_connection();
+	/* Read Adapter Type */
+	wan_udp.wan_udphdr_command = WAN_GET_MEDIA_TYPE;
+	wan_udp.wan_udphdr_data[0] = WAN_MEDIA_NONE;
+	wan_udp.wan_udphdr_data_len = 0;
+    	wan_udp.wan_udphdr_return_code = 0xaa;
+	DO_COMMAND(wan_udp);
+	if (wan_udp.wan_udphdr_return_code != 0){
+		printf("Failed to read Adapter Type.\n");
+		return 1;
+	}
 
-  return rc;
+	memcpy((void*)fe_media, get_wan_udphdr_data_ptr(0), sizeof(wan_femedia_t));
+	return 0;
 }
 
+int get_femedia_type(wan_femedia_t *fe_media)
+{
+	int rc;
+  
+	if(make_hardware_level_connection()){
+		return 0;
+	}
+	rc = hw_get_femedia_type(fe_media);
+
+	cleanup_hardware_level_connection();
+
+	return rc;
+}
+
+
+#if 1
 static int hw_get_fe_type(unsigned char* adapter_type)
 {
 	/* Read Adapter Type */
@@ -802,6 +882,21 @@ static int hw_get_fe_type(unsigned char* adapter_type)
 	*adapter_type =	get_wan_udphdr_data_byte(0);
 	return 0;
 }
+
+int get_fe_type(unsigned char* adapter_type)
+{
+	int rc;
+  
+	if(make_hardware_level_connection()){
+		return 0;
+	}
+	rc = hw_get_fe_type(adapter_type);
+
+	cleanup_hardware_level_connection();
+	return rc;
+}
+
+#endif
 
 void set_lb_modes(unsigned char type, unsigned char mode)
 {
@@ -832,26 +927,34 @@ static void hw_set_lb_modes(unsigned char type, unsigned char mode)
 	}
 #endif
 	DO_COMMAND(wan_udp);
-	if (wan_udp.wan_udphdr_return_code != 0){
-		printf("Failed to %s line loopback mode.\n",
-			(mode == WAN_TE1_ACTIVATE_LB) ? "activate" : "deactivate");
+	if (femedia.media == WAN_MEDIA_T1 || femedia.media == WAN_MEDIA_E1){
+		printf("%s %s mode ... %s!\n",
+				WAN_TE1_LB_ACTION_DECODE(mode),
+				WAN_TE1_LB_MODE_DECODE(type),
+				(!wan_udp.wan_udphdr_return_code)?"Done":"Failed");
+	}else if (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){
+		printf("%s %s mode ... %s!\n",
+				WAN_TE3_LB_ACTION_DECODE(mode),
+				WAN_TE3_LB_TYPE_DECODE(type),
+				(!wan_udp.wan_udphdr_return_code)?"Done":"Failed");
 	}else{
-		printf("%s mode is %s!\n",
-			WAN_TE1_LB_MODE_DECODE(type),
-			(mode == WAN_TE1_ACTIVATE_LB) ? "activated" : "deactivated");
+		printf("%s %s mode ... %s (default)!\n",
+				WAN_TE1_LB_ACTION_DECODE(mode),
+				WAN_TE1_LB_MODE_DECODE(type),
+				(!wan_udp.wan_udphdr_return_code)?"Done":"Failed");
 	}
 	return;
 }
 
 void get_lb_modes()
 {
-	unsigned char	adapter_type = 0x00;
 
-	/* Read Adapter Type */
-	if (get_fe_type(&adapter_type)){
+	if ((femedia.media != WAN_MEDIA_T1) && (femedia.media != WAN_MEDIA_E1) &&
+	    (femedia.media != WAN_MEDIA_DS3) && (femedia.media != WAN_MEDIA_E3)){
+		printf("Error: Unsupported feature for current media type %02X!\n",
+						femedia.media);
 		return;
 	}
-
 	if(make_hardware_level_connection()){
 		return;
 	}
@@ -871,31 +974,42 @@ void get_lb_modes()
 			printf("All loopback mode are disabled!");
 		}else{
 			printf("***** %s: %s Loopback status *****\n\n",
-				if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
-			if (mode & (1<<WAN_TE1_FR_FLB_MODE)){
-				printf("\tFramer Loopback:\tON\n");
-			}
-			if (mode & (1<<WAN_TE1_FR_PLB_MODE)){
-				printf("\tPayload Loopback:\tON\n");
-			}
+					if_name,
+					(femedia.media == WAN_MEDIA_T1)  ? "T1" :
+					(femedia.media == WAN_MEDIA_E1)  ? "E1" :
+					(femedia.media == WAN_MEDIA_DS3) ? "DS3" :
+					(femedia.media == WAN_MEDIA_E3)  ? "E3" : "Unknown");
+			if ((femedia.media == WAN_MEDIA_T1) || (femedia.media == WAN_MEDIA_E1)){
 			
-			if (mode & (1<<WAN_TE1_LIU_ALB_MODE)){
-				printf("\tLIU Analog Loopback:\tON\n");
-			}
-			if (mode & (1<<WAN_TE1_LIU_LLB_MODE)){
-				printf("\tLIU Local Loopback:\tON\n");
-			}
-			if (mode & (1<<WAN_TE1_LIU_RLB_MODE)){
-				printf("\tLIU Remote Loopback:\tON\n");
-			}
-			if (mode & (1<<WAN_TE1_LINELB_MODE)){
-				printf("\tLine Loopback:\tON\n");
-			}
-			if (mode & (1<<WAN_TE1_PAYLB_MODE)){
-				printf("\tPayload Loopback:\tON\n");
-			}
-			if (mode & (1<<WAN_TE1_DDLB_MODE)){
-				printf("\tDiagnostic Digital Loopback:\tON\n");
+				if (mode & (1<<WAN_TE1_LIU_ALB_MODE)){
+					printf("\tLIU Analog Loopback:\tON\n");
+				}
+				if (mode & (1<<WAN_TE1_LIU_LLB_MODE)){
+					printf("\tLIU Local Loopback:\tON\n");
+				}
+				if (mode & (1<<WAN_TE1_LIU_RLB_MODE)){
+					printf("\tLIU Remote Loopback:\tON\n");
+				}
+				if (mode & (1<<WAN_TE1_LINELB_MODE)){
+					printf("\tLine/Remote Loopback:\t\tON\n");
+				}
+				if (mode & (1<<WAN_TE1_PAYLB_MODE)){
+					printf("\tPayload Loopback:\tON\n");
+				}
+				if (mode & (1<<WAN_TE1_DDLB_MODE)){
+					printf("\tDiagnostic Digital Loopback:\tON\n");
+				}
+			}else{
+
+				if (mode & (1<<WAN_TE3_LIU_LB_DIGITAL)){
+					printf("\tDigital Loopback:\tON\n");
+				} 
+				if (mode & (1<<WAN_TE3_LIU_LB_REMOTE)){
+					printf("\tRemote Loopback:\tON\n");
+				}
+				if (mode & (1<<WAN_TE3_LIU_LB_ANALOG)){
+					printf("\tAnalog Loopback:\tON\n");
+				}
 			}
 		}	
 	}
@@ -908,12 +1022,6 @@ void read_te1_56k_stat(int force)
 {
 	sdla_fe_stats_t	*fe_stats;
 	//unsigned char* data = NULL;
-	unsigned char	adapter_type = 0x00;
-
-	/* Read Adapter Type */
-	if (get_fe_type(&adapter_type)){
-		return;
-	}
 	
  	if(make_hardware_level_connection()){
     		return;
@@ -939,16 +1047,16 @@ void read_te1_56k_stat(int force)
 	}
 #endif
 	fe_stats = (sdla_fe_stats_t*)get_wan_udphdr_data_ptr(0);
-	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
+	if (femedia.media == WAN_MEDIA_T1 || femedia.media == WAN_MEDIA_E1){
 		printf("***** %s: %s Alarms (Framer) *****\n\n",
-			if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
+			if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 		printf("ALOS:\t%s\t| LOS:\t%s\n", 
 				WAN_TE_ALOS_ALARM(fe_stats->alarms), 
 				WAN_TE_LOS_ALARM(fe_stats->alarms));
 		printf("RED:\t%s\t| AIS:\t%s\n", 
 				WAN_TE_RED_ALARM(fe_stats->alarms), 
 				WAN_TE_AIS_ALARM(fe_stats->alarms));
-		if (adapter_type == WAN_MEDIA_T1){ 
+		if (femedia.media == WAN_MEDIA_T1){ 
 			printf("RAI:\t%s\t| OOF:\t%s\n", 
 					WAN_TE_RAI_ALARM(fe_stats->alarms), 
 					WAN_TE_OOF_ALARM(fe_stats->alarms));
@@ -960,7 +1068,7 @@ void read_te1_56k_stat(int force)
 
 		if (fe_stats->alarms & WAN_TE_BIT_LIU_ALARM){
 			printf("\n***** %s: %s Alarms (LIU) *****\n\n",
-				if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
+				if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 			printf("Short Circuit:\t%s\n", 
 					WAN_TE_LIU_ALARM_SC(fe_stats->alarms));
 			printf("Open Circuit:\t%s\n", 
@@ -969,11 +1077,11 @@ void read_te1_56k_stat(int force)
 					WAN_TE_LIU_ALARM_LOS(fe_stats->alarms));
 		}
 
-	}else if  (adapter_type == WAN_MEDIA_DS3 || adapter_type == WAN_MEDIA_E3){
+	}else if  (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){
 		printf("***** %s: %s Alarms *****\n\n",
-			if_name, (adapter_type == WAN_MEDIA_DS3) ? "DS3" : "E3");
+			if_name, (femedia.media == WAN_MEDIA_DS3) ? "DS3" : "E3");
 
-		if (adapter_type == WAN_MEDIA_DS3){
+		if (femedia.media == WAN_MEDIA_DS3){
 			printf("AIS:\t%s\t| LOS:\t%s\n",
 					WAN_TE3_AIS_ALARM(fe_stats->alarms),
 					WAN_TE3_LOS_ALARM(fe_stats->alarms));
@@ -994,7 +1102,7 @@ void read_te1_56k_stat(int force)
 					WAN_TE3_LOF_ALARM(fe_stats->alarms));
 		}
 		
-	}else if (adapter_type == WAN_MEDIA_56K){
+	}else if (femedia.media == WAN_MEDIA_56K){
 		printf("***** %s: 56K CSU/DSU Alarms *****\n\n\n", if_name);
 	 	printf("In Service:\t\t%s\tData mode idle:\t\t%s\n",
 			 	INS_ALARM_56K(fe_stats->alarms), 
@@ -1017,14 +1125,14 @@ void read_te1_56k_stat(int force)
 		
 	}else{
 		printf("***** %s: Unknown Front End 0x%X *****\n\n",
-			if_name, adapter_type);
+			if_name, femedia.media);
 	}
 
-	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
+	if (femedia.media == WAN_MEDIA_T1 || femedia.media == WAN_MEDIA_E1){
 		sdla_te_pmon_t*	pmon = &fe_stats->te_pmon;
 
 		printf("\n\n***** %s: %s Performance Monitoring Counters *****\n\n",
-				if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
+				if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 		if (pmon->mask & WAN_TE_BIT_PMON_LCV){
 			printf("Line Code Violation\t: %d\n",
 						pmon->lcv_errors);
@@ -1055,17 +1163,17 @@ void read_te1_56k_stat(int force)
 		}
 	}
 
-	if (adapter_type == WAN_MEDIA_DS3 || adapter_type == WAN_MEDIA_E3){
+	if (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){
 		sdla_te3_pmon_t*	pmon = &fe_stats->u.te3_pmon;
 
 		printf("\n\n***** %s: %s Performance Monitoring Counters *****\n\n",
-				if_name, (adapter_type == WAN_MEDIA_DS3) ? "DS3" : "E3");
+				if_name, (femedia.media == WAN_MEDIA_DS3) ? "DS3" : "E3");
 
 		printf("Framing Bit Error:\t%d\tLine Code Violation:\t%d\n", 
 				pmon->pmon_framing,
 				pmon->pmon_lcv);
 
-		if (adapter_type == WAN_MEDIA_DS3){
+		if (femedia.media == WAN_MEDIA_DS3){
 			printf("Parity Error:\t\t%d\n",
 					pmon->pmon_parity);
 			printf("CP-Bit Error Event:\t%d\tFEBE Event:\t\t%d\n", 
@@ -1078,7 +1186,7 @@ void read_te1_56k_stat(int force)
 		}
 	}
 	
-	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
+	if (femedia.media == WAN_MEDIA_T1 || femedia.media == WAN_MEDIA_E1){
 		if (strlen(fe_stats->u.te1_stats.rxlevel)){
 			printf("\n\nRx Level\t: %s\n",
 					fe_stats->u.te1_stats.rxlevel);		
@@ -1091,18 +1199,12 @@ void read_te1_56k_stat(int force)
 
 void flush_te1_pmon(void)
 {
-	unsigned char	adapter_type = 0x00;
-
-	/* Read Adapter Type */
-	if (get_fe_type(&adapter_type)){
-		return;
-	}
 
 	if(make_hardware_level_connection()){
     		return;
   	}
 
-	switch(adapter_type){
+	switch(femedia.media){
 	case WAN_MEDIA_T1:
 	case WAN_MEDIA_E1:
 		/* Flush perfomance mononitoring counters */
@@ -1126,14 +1228,9 @@ void flush_te1_pmon(void)
 
 void read_te1_56k_config (void)
 {
-	unsigned char	adapter_type = 0x00;
-	/* Read Adapter Type */
-	if (get_fe_type(&adapter_type)){
-		return;
-	}
 
-	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
-		int num_of_chan = (adapter_type == WAN_MEDIA_T1) ? 
+	if (femedia.media == WAN_MEDIA_T1 || femedia.media == WAN_MEDIA_E1){
+		int num_of_chan = (femedia.media == WAN_MEDIA_T1) ? 
 						NUM_OF_T1_CHANNELS : 
 						NUM_OF_E1_TIMESLOTS;
 		int i = 0, start_chan = 0;
@@ -1168,7 +1265,7 @@ void read_te1_56k_config (void)
 				FRAME_DECODE(fe_cfg));
 			printf("\tEncoding\t%s\n",
 				LCODE_DECODE(fe_cfg));
-			if (adapter_type == WAN_MEDIA_T1){
+			if (femedia.media == WAN_MEDIA_T1){
 				printf("\tLine Build\t%s\n",
 						LBO_DECODE(fe_cfg));
 			}
@@ -1202,7 +1299,7 @@ void read_te1_56k_config (void)
 				TECLK_DECODE(fe_cfg));
 		}
 	}
-	else if (adapter_type == WAN_MEDIA_DS3){
+	else if (femedia.media == WAN_MEDIA_DS3){
 
 		if(make_hardware_level_connection()){
     			return;

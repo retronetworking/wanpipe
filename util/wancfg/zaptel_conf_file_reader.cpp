@@ -21,7 +21,7 @@
 #include "conf_file_writer.h"
 
 #if defined(__LINUX__)
-# include <zaptel.h>
+# include <zapcompat_user.h>
 #else
 #endif
 

@@ -1,35 +1,5 @@
 K 25
 svn:wc:ra_dav:version-url
-V 41
-/svn/libsangoma/!svn/ver/1/trunk/examples
-END
-sound.raw
-K 25
-svn:wc:ra_dav:version-url
-V 51
-/svn/libsangoma/!svn/ver/1/trunk/examples/sound.raw
-END
-priserver.c
-K 25
-svn:wc:ra_dav:version-url
-V 53
-/svn/libsangoma/!svn/ver/1/trunk/examples/priserver.c
-END
-librc
-K 25
-svn:wc:ra_dav:version-url
-V 47
-/svn/libsangoma/!svn/ver/1/trunk/examples/librc
-END
-Makefile
-K 25
-svn:wc:ra_dav:version-url
-V 50
-/svn/libsangoma/!svn/ver/1/trunk/examples/Makefile
-END
-README
-K 25
-svn:wc:ra_dav:version-url
-V 48
-/svn/libsangoma/!svn/ver/1/trunk/examples/README
+V 42
+/svn/libsangoma/!svn/ver/22/trunk/examples
 END

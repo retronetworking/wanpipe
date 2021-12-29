@@ -356,7 +356,7 @@ UINT32 Oct6100UserCreateSerializeObject(
 				signal( SIGALRM, SigArlmHandler );
 				
 				/* Keep pointer to semaphore information. */
-				f_pCreate->ulSerialObjHndl = (UINT32)pSemInf;	
+				f_pCreate->ulSerialObjHndl = (tOCT6100_USER_SERIAL_OBJECT)pSemInf;	
 			}
 		}
 		else
@@ -409,7 +409,7 @@ UINT32 Oct6100UserCreateSerializeObject(
 
 	wan_spin_lock_init(pLockInf, "wan_ecapi_lock");
 	/* Keep pointer to semaphore information. */
-	f_pCreate->ulSerialObjHndl = (PVOID)pLockInf;	
+	f_pCreate->ulSerialObjHndl = (tOCT6100_USER_SERIAL_OBJECT)pLockInf;	
 
 	return cOCT6100_ERR_OK;
 #endif

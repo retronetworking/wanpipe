@@ -9,6 +9,13 @@
 # include <sdla_bri.h>
 # include <sdla_serial.h>
 # include <sdla_front_end.h>
+# include <wanpipe_cfg_def.h>
+# include <wanpipe_cfg_fr.h>
+# include <wanpipe_cfg_sppp.h>
+# include <wanpipe_cfg_hdlc.h>
+# include <wanpipe_cfg_atm.h>
+# include <wanpipe_cfg_lip.h>
+# include <wanpipe_cfg_adsl.h>
 #elif defined(__LINUX__)
 # include <linux/sdla_56k.h>
 # include <linux/sdla_te1.h>
@@ -17,6 +24,13 @@
 # include <linux/sdla_bri.h>
 # include <linux/sdla_serial.h>
 # include <linux/sdla_front_end.h>
+# include <linux/wanpipe_cfg_def.h>
+# include <linux/wanpipe_cfg_fr.h>
+# include <linux/wanpipe_cfg_sppp.h>
+# include <linux/wanpipe_cfg_hdlc.h>
+# include <linux/wanpipe_cfg_atm.h>
+# include <linux/wanpipe_cfg_lip.h>
+# include <linux/wanpipe_cfg_adsl.h>
 #elif defined(__WINDOWS__)
 # include <sdla_56k.h>
 # include <sdla_te1.h>
@@ -27,21 +41,20 @@
 # include <sdla_serial.h>
 # include <sdla_front_end.h>
 # include <wanpipe_cfg_structs.h>
+# include <wanpipe_cfg_def.h>
+# include <wanpipe_cfg_fr.h>
+# include <wanpipe_cfg_sppp.h>
+# include <wanpipe_cfg_hdlc.h>
+# include <wanpipe_cfg_atm.h>
+# include <wanpipe_cfg_lip.h>
+# include <wanpipe_cfg_adsl.h>
 #else
 # error "No OS Defined!"
 #endif
 
-/* DSL interface types */
-#define WAN_INTERFACE 	0
-#define LAN_INTERFACE	1
-
 /* Miscellaneous */
 #if defined(__WINDOWS__)
-#define	WAN_IFNAME_SZ	IFNAMSIZ/* max length of the interface name */
-#define	WAN_DRVNAME_SZ	IFNAMSIZ/* max length of the link driver name */
-#define	WAN_ADDRESS_SZ	31	/* max length of the WAN media address */
 
-#define WAN_AUTHNAMELEN 64
 /* This is the maximum number of interfaces that any protocol may have.
 For example: a number of DLCIs. */
 #define MAX_NUMBER_OF_PROTOCOL_INTERFACES	(160)
@@ -88,193 +101,9 @@ For example: a number of DLCIs. */
 /********** end of sprotocol.dll definitions ************/
 
 #else
-#define	WAN_IFNAME_SZ	15	/* max length of the interface name */
-#define	WAN_DRVNAME_SZ	15	/* max length of the link driver name */
-#define	WAN_ADDRESS_SZ	31	/* max length of the WAN media address */
 #define USED_BY_FIELD	30	/* max length of the used by field */
 
-#define WAN_AUTHNAMELEN 64
 #endif
-
-/* Defines for UDP PACKET TYPE */
-#define UDP_PTPIPE_TYPE 	0x01
-#define UDP_FPIPE_TYPE		0x02
-#define UDP_CPIPE_TYPE		0x03
-#define UDP_DRVSTATS_TYPE 	0x04
-#define UDP_INVALID_TYPE  	0x05
-
-#define UDPMGMT_UDP_PROTOCOL	0x11
-
-/* Command return code */
-#define WAN_CMD_OK		0	/* normal firmware return code */
-#define WAN_CMD_TIMEOUT		0xFF	/* firmware command timed out */
-/* FIXME: Remove these 2 defines (use WAN_x) */
-#define CMD_OK		0	/* normal firmware return code */
-#define CMD_TIMEOUT		0xFF	/* firmware command timed out */
-
-/* UDP Packet Management */
-#define UDP_PKT_FRM_STACK	0x00
-#define UDP_PKT_FRM_NETWORK	0x01
-
-#define WAN_UDP_FAILED_CMD  	0xCF
-#define WAN_UDP_INVALID_CMD 	0xCE 
-#define WAN_UDP_TIMEOUT_CMD 	0xAA 
-#define WAN_UDP_INVALID_NET_CMD     0xCD
-
-/* Maximum interrupt test counter */
-#define MAX_INTR_TEST_COUNTER	100
-#define MAX_NEW_INTR_TEST_COUNTER	5
-
-/* Critical Values for RACE conditions*/
-#define CRITICAL_IN_ISR		0xA1
-#define CRITICAL_INTR_HANDLED	0xB1
-
-/* Card Types */
-#define WANOPT_S50X		1
-#define WANOPT_S51X		2
-#define WANOPT_ADSL		3
-#define WANOPT_AFT		4
-#define WANOPT_AFT104		5
-#define WANOPT_AFT300		6
-#define WANOPT_AFT_ANALOG	7
-#define WANOPT_AFT108		8
-#define WANOPT_AFT_X		9
-#define WANOPT_AFT102		10
-#define WANOPT_AFT_ISDN		11
-#define WANOPT_AFT_56K		12
-#define WANOPT_AFT101		13
-#define WANOPT_AFT_SERIAL	14
-
-/*
- * Configuration options defines.
- */
-/* general options */
-#define	WANOPT_OFF	0
-#define	WANOPT_ON	1
-#define	WANOPT_NO	0
-#define	WANOPT_YES	1
-
-#define	WANOPT_SIM	2
-
-/* intercace options */
-#define	WANOPT_RS232	0
-#define	WANOPT_V35	1
-
-/* data encoding options */
-#define	WANOPT_NRZ	0
-#define	WANOPT_NRZI	1
-#define	WANOPT_FM0	2
-#define	WANOPT_FM1	3
-
-/* line idle option */
-#define WANOPT_IDLE_FLAG 0
-#define WANOPT_IDLE_MARK 1
-
-/* link type options */
-#define	WANOPT_POINTTOPOINT	0	/* RTS always active */
-#define	WANOPT_MULTIDROP	1	/* RTS is active when transmitting */
-
-/* clocking options */
-#define	WANOPT_EXTERNAL	0
-#define	WANOPT_INTERNAL	1
-
-/* station options */
-#define	WANOPT_DTE		0
-#define	WANOPT_DCE		1
-#define	WANOPT_CPE		0
-#define	WANOPT_NODE		1
-#define	WANOPT_SECONDARY	0
-#define	WANOPT_PRIMARY		1
-
-/* connection options */
-#define	WANOPT_PERMANENT	0	/* DTR always active */
-#define	WANOPT_SWITCHED		1	/* use DTR to setup link (dial-up) */
-#define	WANOPT_ONDEMAND		2	/* activate DTR only before sending */
-
-/* frame relay in-channel signalling */
-#define WANOPT_FR_AUTO_SIG	0	/* Automatically find singalling */
-#define	WANOPT_FR_ANSI		1	/* ANSI T1.617 Annex D */
-#define	WANOPT_FR_Q933		2	/* ITU Q.933A */
-#define	WANOPT_FR_LMI		3	/* LMI */
-#define	WANOPT_FR_NO_LMI	4	/* NO LMI */
-
-#define WANOPT_FR_EEK_OFF	0	/* Frame Relay EEK Disabled */
-#define WANOPT_FR_EEK_REQUEST	1	/* Frame Relay EEK Request Mode */
-#define WANOPT_FR_EEK_REPLY	2	/* Frame Relay EEK Reply Mode */
-
-/* PPP IP Mode Options */
-#define	WANOPT_PPP_STATIC	0
-#define	WANOPT_PPP_HOST		1
-#define	WANOPT_PPP_PEER		2
-
-/* ASY Mode Options */
-#define WANOPT_ONE 		1
-#define WANOPT_TWO		2
-#define WANOPT_ONE_AND_HALF	3
-
-#define WANOPT_NONE	0
-#define WANOPT_ODD      1
-#define WANOPT_EVEN	2
-
-/* ATM sync options */
-#define WANOPT_AUTO	0
-#define WANOPT_MANUAL	1
-
-#define WANOPT_DSP_HPAD	0
-#define WANOPT_DSP_TPAD	1
-
-
-/* SS7 options */
-#define WANOPT_SS7_FISU 0
-#define WANOPT_SS7_LSSU 1
-
-#define WANOPT_SS7_MODE_128 	0
-#define WANOPT_SS7_MODE_4096	1
-
-#define WANOPT_SS7_FISU_128_SZ  3
-#define WANOPT_SS7_FISU_4096_SZ 6
-
-
-/* CHDLC Protocol Options */
-/* DF Commmented out for now.
-
-#define WANOPT_CHDLC_NO_DCD		IGNORE_DCD_FOR_LINK_STAT
-#define WANOPT_CHDLC_NO_CTS		IGNORE_CTS_FOR_LINK_STAT
-#define WANOPT_CHDLC_NO_KEEPALIVE	IGNORE_KPALV_FOR_LINK_STAT
-*/
-
-
-
-/* SS7 options */
-#define WANOPT_SS7_ANSI		1
-#define WANOPT_SS7_ITU		2	
-#define WANOPT_SS7_NTT		3	
-
-
-/* Port options */
-#define WANOPT_PRI 0
-#define WANOPT_SEC 1
-/* read mode */
-#define	WANOPT_INTR	0
-#define WANOPT_POLL	1
-
-
-#define WANOPT_TTY_SYNC  0
-#define WANOPT_TTY_ASYNC 1
-
-/* RBS Signalling Options */
-#define WAN_RBS_SIG_A	0x01
-#define WAN_RBS_SIG_B	0x02
-#define WAN_RBS_SIG_C	0x04
-#define WAN_RBS_SIG_D	0x08
-
-/* Front End Ref Clock Options */
-
-#define WANOPT_FE_OSC_CLOCK 	0x00
-#define WANOPT_FE_LINE_CLOCK 	0x01
-
-#define WANOPT_NETWORK_SYNC_OUT	0x00
-#define WANOPT_NETWORK_SYNC_IN	0x01
 
 
 
@@ -318,26 +147,6 @@ enum {
 	NCR7000,
 	ICL
 };
-/* 'state' defines */
-enum wan_states
-{
-	WAN_UNCONFIGURED,	/* link/channel is not configured */
-	WAN_DISCONNECTED,	/* link/channel is disconnected */
-	WAN_CONNECTING,		/* connection is in progress */
-	WAN_CONNECTED,		/* link/channel is operational */
-	WAN_LIMIT,		/* for verification only */
-	WAN_DUALPORT,		/* for Dual Port cards */
-	WAN_DISCONNECTING,
-	WAN_FT1_READY		/* FT1 Configurator Ready */
-};
-
-enum {
-	WAN_LOCAL_IP,
-	WAN_POINTOPOINT_IP,
-	WAN_NETMASK_IP,
-	WAN_BROADCAST_IP
-};
-
 
 /*      Standard Mode                          */
 enum {
@@ -442,73 +251,6 @@ enum {
 
 typedef char devname_t[WAN_DRVNAME_SZ+1];
 
-typedef enum {
-    RFC_MODE_BRIDGED_ETH_LLC    = 0,
-    RFC_MODE_BRIDGED_ETH_VC     = 1,
-    RFC_MODE_ROUTED_IP_LLC      = 2,
-    RFC_MODE_ROUTED_IP_VC       = 3,
-    RFC_MODE_RFC1577_ENCAP      = 4,
-    RFC_MODE_PPP_LLC 	    	= 5,
-    RFC_MODE_PPP_VC		= 6,
-    RFC_MODE_STACK_VC		= 7
-} RFC_MODE;
-
-typedef struct wan_adsl_vcivpi
-{
-	unsigned short	vci;
-	unsigned char	vpi;
-} wan_adsl_vcivpi_t;
-
-
-typedef struct wan_adsl_conf
-{
-#if 1
-	unsigned char     EncapMode;
-	unsigned short    Vci;
-	unsigned short    Vpi;
-#else
-	unsigned char     interface;
-	unsigned char     Rfc1483Mode;
-	unsigned short    Rfc1483Vci;
-	unsigned short    Rfc1483Vpi;
-	unsigned char     Rfc2364Mode;
-	unsigned short    Rfc2364Vci;
-	unsigned short    Rfc2364Vpi;
-#endif
-	unsigned char     Verbose; 
-	unsigned short    RxBufferCount;
-	unsigned short    TxBufferCount;
-
-	unsigned short    Standard;
-	unsigned short    Trellis;
-	unsigned short    TxPowerAtten;
-	unsigned short    CodingGain;
-	unsigned short    MaxBitsPerBin;
-	unsigned short    TxStartBin;
-	unsigned short    TxEndBin;
-	unsigned short    RxStartBin;
-	unsigned short    RxEndBin;
-	unsigned short    RxBinAdjust;
-	unsigned short    FramingStruct;
-	unsigned short    ExpandedExchange;
-	unsigned short    ClockType;
-	unsigned short    MaxDownRate;
-
-	unsigned char	  atm_autocfg;
-	unsigned short	  vcivpi_num;	
-	wan_adsl_vcivpi_t vcivpi_list[100];	
-	unsigned char	  tty_minor;
-	unsigned short	  mtu;
-
-	unsigned char	  atm_watchdog;
-	/*	Number of cells received on each interrupt. Recommended values: 5 - 40. 
-		Higher values for higher line speeds.
-		
-	*/
-	unsigned short    RxCellCount;
-
-}wan_adsl_conf_t;
-
 
 typedef struct wan_atm_conf
 {
@@ -522,34 +264,6 @@ typedef struct wan_atm_conf
 	unsigned char	atm_cell_clp;
 	unsigned char	atm_cell_payload;
 }wan_atm_conf_t;
-
-
-typedef struct wan_atm_conf_if
-{
-	unsigned char     encap_mode;
-	unsigned short    vci;
-	unsigned short    vpi;
-
-	unsigned char	  atm_oam_loopback;
-	unsigned char	  atm_oam_loopback_intr;
-	unsigned char	  atm_oam_continuity;
-	unsigned char	  atm_oam_continuity_intr;
-	unsigned char	  atm_arp;
-	unsigned char	  atm_arp_intr;
-
-	unsigned short	  mtu;
-
-	unsigned char	 atm_sync_mode;
-	unsigned short	 atm_sync_data;
-	unsigned char	 atm_sync_offset;
-	unsigned short   atm_hunt_timer;
-
-	unsigned char	 atm_cell_cfg;
-	unsigned char	 atm_cell_pt;
-	unsigned char	 atm_cell_clp;
-	unsigned char	 atm_cell_payload;
-
-}wan_atm_conf_if_t;
 
 
 typedef struct wan_bitstrm_conf{
@@ -609,55 +323,6 @@ typedef struct wan_x25_conf
 	unsigned char cmd_retry_timeout; /* Value is seconds */
 	unsigned char station;
 } wan_x25_conf_t;
-
-/*----------------------------------------------------------------------------
- * Frame relay specific link-level configuration.
- */
-#if defined(__WINDOWS__)
-# define DLCI_LIST_LEN MAX_NUMBER_OF_PROTOCOL_INTERFACES
-#else
-# define DLCI_LIST_LEN 100
-#endif
-
-typedef struct wan_fr_conf
-{
-	unsigned int signalling;	/* local in-channel signalling type */
-	unsigned int t391;		/* link integrity verification timer */
-	unsigned int t392;		/* polling verification timer */
-	unsigned int n391;		/* full status polling cycle counter */
-	unsigned int n392;		/* error threshold counter */
-	unsigned int n393;		/* monitored events counter */
-	unsigned int dlci_num;		/* number of DLCs (access node) */
-	unsigned int dlci[DLCI_LIST_LEN];/* List of all DLCIs */
-	unsigned char issue_fs_on_startup;
-	unsigned char station;  	/* Node or CPE */
-	unsigned int eek_cfg;		/* EEK Request Reply Mode */
-	unsigned int eek_timer;		/* EEK Request Reply Timer */
-#if defined(__WINDOWS__)
-	unsigned char auto_dlci;	/* 1 - yes, 0 - no */
-#endif
-} wan_fr_conf_t;
-
-/* used by wanpipemon to get DLCI status */
-#define DLCI_NAME_LEN	20
-typedef struct wan_lip_fr_dlci
-{
-	unsigned short 	dlci;
-	unsigned int	dlci_type;
-	unsigned char	dlci_state;
-	unsigned char	name[20];
-	unsigned int	down;
-	unsigned char 	type;
-} wan_fr_dlci_t;
-
-typedef struct wan_lip_hdlc_if_conf
-{
-	/* IMPLEMENT USER CONFIG OPTIONS HERE */
-	unsigned char seven_bit_hdlc;
-	unsigned char rx_crc_bytes;
-
-}wan_lip_hdlc_if_conf_t;
-
 
 typedef struct wan_rtp_conf
 {
@@ -876,34 +541,6 @@ typedef struct lapb_parms_struct {
 	unsigned char real_addr[WAN_ADDRESS_SZ+1];
 }wan_lapb_if_conf_t;
 
-/* used by both PPP and CHDLC in LIP layer */
-typedef struct sppp_parms_struct {
-
-	unsigned char dynamic_ip;/* Static/Host/Peer (the same as ip_mode) */
-	unsigned int  local_ip;
-	unsigned int  remote_ip;
-	
-	unsigned int  pp_auth_timer;
- 	unsigned int  sppp_keepalive_timer;/* if 0, ignore keepalive for link status */
-	unsigned int  pp_timer;
-
-	unsigned char pap;
-	unsigned char chap;
-	unsigned char userid[WAN_AUTHNAMELEN];	
-	unsigned char passwd[WAN_AUTHNAMELEN];	
-#define SYSTEM_NAME_LEN	31
-	unsigned char sysname[SYSTEM_NAME_LEN];
-	
-	unsigned int  gateway;
-	unsigned char ppp_prot;
-
-	/* CHDLC */
-#if defined(__WINDOWS__)
-	unsigned int sppp_max_keepalive_count;
-#else
-	unsigned int keepalive_err_margin;
-#endif
-}wan_sppp_if_conf_t;
 
 
 typedef struct x25_parms_struct {
@@ -1362,28 +999,6 @@ typedef struct wanif_conf
 
 } wanif_conf_t;
 
-#define ATM_CELL_SIZE 	53
-/*
-**		TYPEDEF
-*/
-typedef struct atm_stats {
-	unsigned int	rx_valid;
-	unsigned int	rx_empty;
-	unsigned int	rx_invalid_atm_hdr;	
-	unsigned int	rx_invalid_prot_hdr;
-	unsigned int	rx_atm_pdu_size;
-	unsigned int	rx_chip;
-	unsigned int	tx_valid;
-	unsigned int	tx_chip;
-	unsigned int	rx_congestion;
-	unsigned int    rx_clp;
-} atm_stats_t;
-
-enum {
-	ATM_CONNECTED,
-	ATM_DISCONNECTED,
-	ATM_AIS
-};
 
 typedef struct {
 	unsigned short fr_active;
@@ -1411,41 +1026,9 @@ typedef struct wan_debug {
 
 typedef struct wanpipe_debug_msg_hdr_t {
 	int len;
-	unsigned long time;
+	wan_time_t	time;	//unsigned long time;
 } wanpipe_kernel_msg_hdr_t;
 
-
-typedef struct wplip_prot_reg
-{
-	int (*prot_set_state) (void *, int, unsigned char *, int);
-	int (*chan_set_state) (void *, int, unsigned char *, int);
-	int (*tx_link_down)   (void *, void *);
-	int (*tx_chan_down)   (void *, void *);
-	int (*rx_up) 	      (void *, void *, int type);
-	unsigned int (*get_ipv4_addr)(void *, int type);
-	int (*set_ipv4_addr)(void *, 
-			     unsigned int,
-			     unsigned int,
-			     unsigned int,
-			     unsigned int);
-	int (*kick_task)     (void *);
-#if 0
-	int (*set_hw_idle_frame) (void *, unsigned char *, int);
-#endif
-	int mtu;
-}wplip_prot_reg_t;
-
-enum {
-	WPLIP_RAW,
-	WPLIP_IP,
-	WPLIP_IPV6,
-	WPLIP_IPX,
-	WPLIP_FR_ARP,
-	WPLIP_PPP,
-	WPLIP_FR,
-	WPLIP_ETH,
-	WPLIP_LAPD
-};
 
 #define TRC_INCOMING_FRM              0x00
 #define TRC_OUTGOING_FRM              0x01
@@ -1455,8 +1038,8 @@ typedef struct {
 	unsigned char	data_avail;
 	unsigned short	real_length;
 	unsigned short	time_stamp;
-	unsigned long	sec;
-	unsigned long   usec;
+	wan_time_t	sec;	//unsigned long	sec;
+	wan_suseconds_t	usec;	//unsigned long   usec;
 #if defined(__WINDOWS__)/* zero-sized array does not comply to ANSI 'C' standard! */
 	unsigned char	data[1];
 #else

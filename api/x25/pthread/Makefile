@@ -1,8 +1,7 @@
 CC=g++
-SYSINC=/usr/src/linux/include
 APIINC=../../include
 CFLAGS=-O -I.. -D_REENTRANT -lpthread
-CFLAGS1=-w -c -D_REENTRANT -D_GNUC_  -D__LINUX__ -I$(SYSINC) -I$(APIINC)
+CFLAGS1=-w -c -D_REENTRANT -D_GNUC_  -D__LINUX__  -I$(APIINC)
 
 server: bitmap.o server.o
 	$(CC) $(CFLAGS) bitmap.o server.o -o server 

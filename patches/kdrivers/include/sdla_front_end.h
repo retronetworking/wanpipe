@@ -124,6 +124,7 @@
 /* Alaw/Mulaw */
 #define WAN_TDMV_ALAW		0x01
 #define WAN_TDMV_MULAW		0x02
+#define WAN_TDMV_HDLC		0x03
 
 #define FE_MEDIA(fe_cfg)	((fe_cfg)->media)
 #define FE_SUBMEDIA(fe_cfg)	((fe_cfg)->sub_media)
@@ -194,6 +195,13 @@
 #define READ_FRONT_END_STATISTICS	(WAN_FE_CMD_START+2)	/* 0x92 read the front-end statistics */
 #define FLUSH_FRONT_END_STATISTICS	(WAN_FE_CMD_START+3)	/* 0x93 flush the front-end statistics */
 
+typedef struct {
+	unsigned char	media;		/* must be first !!! */
+	unsigned char	sub_media;
+	unsigned char	chip_id;
+	unsigned char	max_ports;
+
+} wan_femedia_t;
 
 typedef struct {
 	unsigned char	media;

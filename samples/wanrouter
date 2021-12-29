@@ -2195,7 +2195,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=3.3.12
+		ROUTER_VERSION=3.3.14
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"

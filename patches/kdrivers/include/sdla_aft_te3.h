@@ -590,7 +590,7 @@ te3_enable_fractional(unsigned int *reg, unsigned int vendor)
 
 /* Length of tx data dma block 
  * defined in 32bit words increments */
-#define TxDMA_HI_DMA_DATA_LENGTH_MASK	0x000007FF
+#define TxDMA_HI_DMA_DATA_LENGTH_MASK	0x00000FFF
 
 /* DMA status bits: 11-14
  * 0: Normal Operation */
@@ -705,7 +705,7 @@ te3_enable_fractional(unsigned int *reg, unsigned int vendor)
 
 /* Length of rx data dma block 
  * defined in 32bit words increments */
-#define RxDMA_HI_DMA_DATA_LENGTH_MASK	0x000007FF
+#define RxDMA_HI_DMA_DATA_LENGTH_MASK	0x00000FFF
 
 /* DMA status bits: 16-21
  * 0: Normal Operation */
@@ -715,6 +715,9 @@ te3_enable_fractional(unsigned int *reg, unsigned int vendor)
 #define RxDMA_HI_DMA_PCI_ERROR_DS_TOUT          0x00002000
 #define RxDMA_HI_DMA_PCI_ERROR_RETRY_TOUT       0x00004000
 
+
+/* Enable irq if rx fifo is empty */
+# define DMA_HI_TE3_IFT_INTR_ENB_BIT	15
 
 /* Not used */
 #define RxDMA_HI_DMA_COMMAND_BIT_SHIFT	28
@@ -1308,6 +1311,7 @@ static __inline unsigned short xilinx_dma_buf_bits(unsigned short dma_bufs)
 #define AFT_TX_TIMEOUT 5
 #define AFT_RX_TIMEOUT 2
 #define AFT_MAX_WTD_TIMEOUT 2
+#define AFT_IFT_FIMR_VER 0x11
 
 static __inline void aft_reset_rx_watchdog(sdla_t *card)
 {
@@ -1317,7 +1321,11 @@ static __inline void aft_reset_rx_watchdog(sdla_t *card)
 static __inline void aft_enable_rx_watchdog(sdla_t *card, unsigned char timeout)
 {
 	aft_reset_rx_watchdog(card);
-	card->hw_iface.bus_write_1(card->hw,AFT_TE3_RX_WDT_CTRL_REG,timeout);	
+
+	/* Rx Watchdog is not used if firmware supports IFT interrupt */
+	if (card->u.aft.firm_ver < AFT_IFT_FIMR_VER) {
+		card->hw_iface.bus_write_1(card->hw,AFT_TE3_RX_WDT_CTRL_REG,timeout);
+	}
 }
 
 static __inline void aft_reset_tx_watchdog(sdla_t *card)

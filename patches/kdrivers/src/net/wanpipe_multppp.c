@@ -118,11 +118,11 @@ typedef struct private_area
 	wanpipe_common_t common;
 	sdla_t		*card;
 	netdevice_t	*dev;
-	unsigned long 	router_start_time;
+	wan_time_t		router_start_time;	/*unsigned long 	router_start_time;*/
 	unsigned char 	route_status;
 	unsigned char 	route_removed;
 	wan_ticks_t	tick_counter;		/* For 5s timeout counter */
-	unsigned long 	router_up_time;
+	wan_time_t		router_up_time;	/*unsigned long 	router_up_time;*/
 	unsigned char   mc;			/* Mulitcast support on/off */
 	char update_comms_stats;		/* updating comms stats */
 
@@ -2890,7 +2890,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 						&wan_udp_pkt->wan_udp_data[0]);
 			}else{
 				if (wan_udp_pkt->wan_udp_command == WAN_GET_MEDIA_TYPE){
-		    			wan_udp_pkt->wan_udp_data_len = sizeof(unsigned char); 
+		    			wan_udp_pkt->wan_udp_data_len = sizeof(wan_femedia_t); 
 					wan_udp_pkt->wan_udp_return_code = CMD_OK;
 				}else{
 					wan_udp_pkt->wan_udp_return_code = WAN_UDP_INVALID_CMD;

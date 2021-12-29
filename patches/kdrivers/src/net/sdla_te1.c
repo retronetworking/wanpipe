@@ -4536,7 +4536,7 @@ static int sdla_te_post_init(void *pfe)
 	fe_event.type	= TE_LINKDOWN_TIMER;
 	fe_event.delay	= POLLING_TE1_TIMER;
 	sdla_te_add_event(fe, &fe_event);
-	sdla_te_add_timer(fe, HZ);
+	sdla_te_add_timer(fe, POLLING_TE1_TIMER);
 	return 0;
 }
 
@@ -6240,28 +6240,37 @@ static void sdla_e1_rx_intr(sdla_fe_t* fe)
  ******************************************************************************
  */
 static int 
-sdla_te_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode) 
+sdla_te_set_lbmode(sdla_fe_t *fe, unsigned char mode, unsigned char enable) 
 {
 	int	err = 1;
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-	switch(type){
+	switch(mode){
 	case WAN_TE1_LINELB_MODE:
-		err = sdla_te_linelb(fe, mode); 
+		err = sdla_te_linelb(fe, enable); 
 		break;
 	case WAN_TE1_PAYLB_MODE:
-		err = sdla_te_paylb(fe, mode);
+		err = sdla_te_paylb(fe, enable);
 		break;
 
 	case WAN_TE1_DDLB_MODE:
-		err = sdla_te_ddlb(fe, mode);
+		err = sdla_te_ddlb(fe, enable);
 		break;
 	case WAN_TE1_TX_LB_MODE:
-		err = sdla_te_lb(fe, mode); 
+		err = sdla_te_lb(fe, enable); 
 		break;
+	default:
+		DEBUG_EVENT("%s: Unsupported loopback mode (%s)!\n",
+				fe->name,
+				WAN_TE1_LB_MODE_DECODE(mode));
+		return -EINVAL;	
 	}
-
+	DEBUG_EVENT("%s: %s %s mode... %s\n",
+			fe->name,
+			WAN_TE1_LB_ACTION_DECODE(enable),
+			WAN_TE1_LB_MODE_DECODE(mode),
+			(!err) ? "Done" : "Failed");
 	return err;
 }
 
@@ -6279,16 +6288,10 @@ static int sdla_te_linelb(sdla_fe_t* fe, unsigned char mode)
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-	if (mode == WAN_TE1_ACTIVATE_LB){
-		DEBUG_EVENT("%s: %s Line Loopback mode activated.\n",
-			fe->name,
-			FE_MEDIA_DECODE(fe));
+	if (mode == WAN_TE1_LB_ENABLE){
 		WRITE_REG(REG_MASTER_DIAG, 
 			READ_REG(REG_MASTER_DIAG) | BIT_MASTER_DIAG_LINELB);
 	}else{
-		DEBUG_EVENT("%s: %s Line Loopback mode deactivated.\n",
-			fe->name,
-			FE_MEDIA_DECODE(fe));
 		WRITE_REG(REG_MASTER_DIAG, 
 			READ_REG(REG_MASTER_DIAG) & ~BIT_MASTER_DIAG_LINELB);
 	}
@@ -6308,16 +6311,10 @@ static int sdla_te_paylb(sdla_fe_t* fe, unsigned char mode)
 {
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-	if (mode == WAN_TE1_ACTIVATE_LB){
-		DEBUG_EVENT("%s: %s Payload Loopback mode activated.\n",
-			fe->name,
-			FE_MEDIA_DECODE(fe));
+	if (mode == WAN_TE1_LB_ENABLE){
 		WRITE_REG(REG_MASTER_DIAG, 
 			READ_REG(REG_MASTER_DIAG) | BIT_MASTER_DIAG_PAYLB);
 	}else{
-		DEBUG_EVENT("%s: %s Payload Loopback mode deactivated.\n",
-			fe->name,
-			FE_MEDIA_DECODE(fe));
 		WRITE_REG(REG_MASTER_DIAG, 
 			READ_REG(REG_MASTER_DIAG) & ~BIT_MASTER_DIAG_PAYLB);
 	}
@@ -6337,16 +6334,10 @@ static int sdla_te_ddlb(sdla_fe_t* fe, unsigned char mode)
 {
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-	if (mode == WAN_TE1_ACTIVATE_LB){
-		DEBUG_EVENT("%s: %s Diagnostic Digital Loopback mode activated.\n",
-			fe->name,
-			FE_MEDIA_DECODE(fe));
+	if (mode == WAN_TE1_LB_ENABLE){
 		WRITE_REG(REG_MASTER_DIAG, 
 			READ_REG(REG_MASTER_DIAG) | BIT_MASTER_DIAG_DDLB);
 	}else{
-		DEBUG_EVENT("%s: %s Diagnostic Digital Loopback mode deactivated.\n",
-			fe->name,
-			FE_MEDIA_DECODE(fe));
 		WRITE_REG(REG_MASTER_DIAG, 
 			READ_REG(REG_MASTER_DIAG) & ~BIT_MASTER_DIAG_DDLB);
 	}
@@ -6439,7 +6430,7 @@ static void sdla_te_timer(unsigned long pfe)
 			sdla_te_polling(fe);
 		}
 	}else{
-		sdla_te_add_timer(fe, 1000);
+		sdla_te_add_timer(fe, POLLING_TE1_TIMER);
 	}
 	return;
 }
@@ -6555,7 +6546,7 @@ static int sdla_te_polling(sdla_fe_t* fe)
 		wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
 		DEBUG_EVENT("%s: WARNING: No FE events in a queue!\n",
 					fe->name);
-		sdla_te_add_timer(fe, HZ);
+		sdla_te_add_timer(fe, POLLING_TE1_TIMER);
 		return 0;
 	}
 	fe_event = WAN_LIST_FIRST(&fe->event);
@@ -6575,7 +6566,7 @@ static int sdla_te_polling(sdla_fe_t* fe)
 			/* Sending T1 activation/deactivation loopback signal */
 			if (fe->te_param.lb_tx_cnt > 11){
 				WRITE_REG(REG_T1_XBOC_CODE, 
-					(fe->te_param.lb_tx_cmd == WAN_TE1_ACTIVATE_LB) ? 
+					(fe->te_param.lb_tx_cmd == WAN_TE1_LB_ENABLE) ? 
 						LINELB_ACTIVATE_CODE : LINELB_DEACTIVATE_CODE);
 			}else if (fe->te_param.lb_tx_cnt){
 				WRITE_REG(REG_T1_XBOC_CODE, LINELB_DS1LINE_ALL);  
@@ -6590,7 +6581,7 @@ static int sdla_te_polling(sdla_fe_t* fe)
 			}else{
 				DEBUG_EVENT("%s: T1 loopback %s signal sent.\n",
 						fe->name,	
-						(fe->te_param.lb_tx_cmd == WAN_TE1_ACTIVATE_LB) ? 
+						(fe->te_param.lb_tx_cmd == WAN_TE1_LB_ENABLE) ? 
 							"activation" : "deactivation");
 				wan_clear_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
 				fe->te_param.lb_tx_cmd = 0x00;
@@ -6689,7 +6680,7 @@ static int sdla_te_polling(sdla_fe_t* fe)
 	if (fe_event){
 		sdla_te_add_timer(fe, fe_event->delay);
 	}else{
-		sdla_te_add_timer(fe, HZ);
+		sdla_te_add_timer(fe, POLLING_TE1_TIMER);
 	}
 	return 0;
 }
@@ -6723,7 +6714,7 @@ static int sdla_te_lb(sdla_fe_t* fe, unsigned char mode)
 	DEBUG_TE1("%s: Sending %s loopback %s signal...\n",
 			fe->name, 
 			FE_MEDIA_DECODE(fe),
-			(mode == WAN_TE1_ACTIVATE_LB) ? 
+			(mode == WAN_TE1_LB_ENABLE) ? 
 				"activation" : "deactivation");
 	fe->te_param.lb_tx_cmd		= mode;
 	fe->te_param.lb_tx_cnt		= LINELB_CODE_CNT + LINELB_CHANNEL_CNT + 1;
@@ -6750,17 +6741,21 @@ static int sdla_te_lb(sdla_fe_t* fe, unsigned char mode)
 static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 {
 	wan_cmd_t		*udp_cmd = (wan_cmd_t*)p_udp_cmd;
+	wan_femedia_t		*fe_media;
 	sdla_fe_debug_t		*fe_debug;
 	sdla_fe_timer_event_t	fe_event;
 	int			err = 0;
 
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
-		data[0] = (IS_T1_FEMEDIA(fe) ? WAN_MEDIA_T1 :
-			   IS_E1_FEMEDIA(fe) ? WAN_MEDIA_E1 :
-					    WAN_MEDIA_NONE);
+		fe_media = (wan_femedia_t*)data;
+		memset(fe_media, 0, sizeof(wan_femedia_t));
+		fe_media->media		= fe->fe_cfg.media;
+		fe_media->sub_media	= fe->fe_cfg.sub_media;
+		fe_media->chip_id	= WAN_TE_CHIP_PMC;
+		fe_media->max_ports	= fe->fe_max_ports;
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-		udp_cmd->wan_cmd_data_len = sizeof(unsigned char); 
+		udp_cmd->wan_cmd_data_len = sizeof(wan_femedia_t); 
 		break;
 
 	case WAN_FE_LB_MODE:

@@ -98,8 +98,7 @@
 #define WP_RM_POLL_EVENT_TIMER	10
 #define WP_RM_POLL_TONE_TIMER	5000
 #define WP_RM_POLL_RING_TIMER	10000
-#define FXO_LINK_DEBOUNCE	1800
-/* FXO_LINK_DEBOUNCE value changed from 200 to 1800 */
+#define FXO_LINK_DEBOUNCE	200 
 enum {
 	WP_RM_POLL_TONE_DIAL	= 1,
 	WP_RM_POLL_TONE_BUSY,
@@ -401,6 +400,8 @@ static int battthresh = DEFAULT_BATT_THRESH;
 
 static int ohdebounce = 64;
 /* ohdebounce change from 128 to 64 */
+//int intcount=0; /* intcount to call check_hook for one module per interrupt*/
+
 
 /*******************************************************************************
 **			  FUNCTION PROTOTYPES
@@ -1557,6 +1558,7 @@ static int wp_remora_config(void *pfe)
 	fe->rm_param.module_map 	= 0;
 	fe->rm_param.intcount		= 0;
 	fe->rm_param.last_watchdog 	= SYSTEM_TICKS;
+	fe->rm_param.access_counter 	= 0;
 	if (wp_remora_opermode(fe)){
 		return -EINVAL;
 	}
@@ -1763,7 +1765,7 @@ static int wp_remora_post_init(void *pfe)
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
 
 	DEBUG_EVENT("%s: Running post initialization...\n", fe->name);
-	return wp_remora_add_timer(fe, HZ);
+	return wp_remora_add_timer(fe, WP_RM_POLL_TIMER);
 }
 
 /******************************************************************************
@@ -2000,8 +2002,11 @@ static int wp_remora_polling(sdla_fe_t* fe)
 	sdla_fe_timer_event_t	*fe_event;
 	wan_event_t		event;
 	wan_smp_flag_t		smp_flags;
-	int			pending = 0, mod_no = 0, err = 0;
+	int			pending = 0, mod_no = 0;
 	u8			imask;
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
+	int			err = 0;
+#endif
 
 	WAN_ASSERT_RC(fe->write_fe_reg == NULL,0);
 	WAN_ASSERT_RC(fe->read_fe_reg == NULL, 0);
@@ -2019,7 +2024,7 @@ static int wp_remora_polling(sdla_fe_t* fe)
 		wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
 		DEBUG_EVENT("%s: WARNING: No FE events in a queue!\n",
 					fe->name);
-		wp_remora_add_timer(fe, HZ);
+		wp_remora_add_timer(fe, WP_RM_POLL_TIMER);
 		return 0;
 	}
 	fe_event = WAN_LIST_FIRST(&fe->event);
@@ -2872,9 +2877,9 @@ static void wp_remora_voicedaa_tapper_check_hook(sdla_fe_t *fe, int mod_no)
 	if (!fe->rm_param.mod[mod_no].u.fxo.offhook) {
 		res = READ_RM_REG(mod_no, 5);	
 		if ((res & 0x60)) {
-			fe->rm_param.mod[mod_no].u.fxo.ringdebounce += (WP_RM_CHUNKSIZE * 4);
-			if (fe->rm_param.mod[mod_no].u.fxo.ringdebounce >= WP_RM_CHUNKSIZE * 128) {	
-	
+			fe->rm_param.mod[mod_no].u.fxo.ringdebounce += (WP_RM_CHUNKSIZE * 16);
+			if (fe->rm_param.mod[mod_no].u.fxo.ringdebounce >= WP_RM_CHUNKSIZE * 64) {
+
 				if (!fe->rm_param.mod[mod_no].u.fxo.wasringing) {
 					fe->rm_param.mod[mod_no].u.fxo.wasringing = 1;
 					
@@ -2890,12 +2895,13 @@ static void wp_remora_voicedaa_tapper_check_hook(sdla_fe_t *fe, int mod_no)
 					}	
 				}
 				
-				fe->rm_param.mod[mod_no].u.fxo.ringdebounce = WP_RM_CHUNKSIZE * 128;
+				fe->rm_param.mod[mod_no].u.fxo.ringdebounce = WP_RM_CHUNKSIZE * 64;
+				
 	
 			}
 		} else {
-	
-			fe->rm_param.mod[mod_no].u.fxo.ringdebounce -= WP_RM_CHUNKSIZE * 1;
+
+			fe->rm_param.mod[mod_no].u.fxo.ringdebounce -= WP_RM_CHUNKSIZE * 4;
 			if (fe->rm_param.mod[mod_no].u.fxo.ringdebounce <= 0) {
 				if (fe->rm_param.mod[mod_no].u.fxo.wasringing) {
 				
@@ -3104,7 +3110,7 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 	if (!fe->rm_param.mod[mod_no].u.fxo.offhook) {
 		res = READ_RM_REG(mod_no, 5);
 		if ((res & 0x60) && fe->rm_param.mod[mod_no].u.fxo.battery) {
-			fe->rm_param.mod[mod_no].u.fxo.ringdebounce += (WP_RM_CHUNKSIZE * 4);
+			fe->rm_param.mod[mod_no].u.fxo.ringdebounce += (WP_RM_CHUNKSIZE * 16);
 			if (fe->rm_param.mod[mod_no].u.fxo.ringdebounce >= WP_RM_CHUNKSIZE * 64) {
 				if (!fe->rm_param.mod[mod_no].u.fxo.wasringing) {
 					fe->rm_param.mod[mod_no].u.fxo.wasringing = 1;
@@ -3122,7 +3128,7 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 				fe->rm_param.mod[mod_no].u.fxo.ringdebounce = WP_RM_CHUNKSIZE * 64;
 			}
 		} else {
-			fe->rm_param.mod[mod_no].u.fxo.ringdebounce -= WP_RM_CHUNKSIZE * 2;
+			fe->rm_param.mod[mod_no].u.fxo.ringdebounce -= WP_RM_CHUNKSIZE * 4;
 			if (fe->rm_param.mod[mod_no].u.fxo.ringdebounce <= 0) {
 				if (fe->rm_param.mod[mod_no].u.fxo.wasringing) {
 					fe->rm_param.mod[mod_no].u.fxo.wasringing = 0;
@@ -3407,7 +3413,8 @@ static int wp_remora_watchdog(sdla_fe_t *fe)
 {
 	int	mod_no;
 	
-
+	//intcount++;
+	fe->rm_param.access_counter++;
 
 	for (mod_no = 0; mod_no < fe->rm_param.max_fe_channels; mod_no++) {
 		if (!wan_test_bit(mod_no, &fe->rm_param.module_map)) {
@@ -3447,8 +3454,7 @@ static int wp_remora_watchdog(sdla_fe_t *fe)
 					}
 				}
 			}
-
-		} else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO) {
+		}
 
 #if 0
 			if (wr->mod[x].fxo.echotune){
@@ -3473,23 +3479,29 @@ static int wp_remora_watchdog(sdla_fe_t *fe)
 				wr->mod[x].fxo.echotune = 0;
 			}
 #endif			
-			/*FIXME This code is called more often than in zaptel mode. This is WRONG !!! 
-				Fix by calling this code one module per interrupt !	*/
-
-
-			if (fe->fe_cfg.cfg.remora.rm_mode == WAN_RM_TAPPING) {
-				wp_remora_voicedaa_tapper_check_hook(fe, mod_no);	
-			} else {
-				wp_remora_voicedaa_check_hook(fe, mod_no);	
-			}
-			
-		}
+		
 	}
 	
+	mod_no = fe->rm_param.access_counter  % MAX_REMORA_MODULES;
+	
+    	if ( mod_no < fe->rm_param.max_fe_channels ) {/* sanity check for valid mod_no */
+		if (wan_test_bit(mod_no, &fe->rm_param.module_map)) { 
+			if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO) {			
+				if (fe->fe_cfg.cfg.remora.rm_mode == WAN_RM_TAPPING) {
+					wp_remora_voicedaa_tapper_check_hook(fe, mod_no);
+				} else {
+					wp_remora_voicedaa_check_hook(fe, mod_no);
+				}
+		
+				}
+		
+		}
+	}
+
 #if defined(AFT_RM_VIRTUAL_INTR_SUPPORT)
+
 	if (SYSTEM_TICKS - fe->rm_param.last_watchdog  > WP_RM_WATCHDOG_TIMEOUT) {
 		fe->rm_param.last_watchdog = SYSTEM_TICKS;
-
 		if (wp_remora_check_intr(fe)){
 			wp_remora_intr(fe);
 		}
@@ -3817,7 +3829,7 @@ static int wp_remora_intr_fxo(sdla_fe_t *fe, int mod_no)
 
 	WAN_ASSERT(fe->card == NULL);
 	card		= fe->card;
-	
+
 	status = READ_RM_REG(mod_no, 4);
 	if (status & 0x80){
 		u_int8_t	mode;
@@ -3867,15 +3879,17 @@ static int wp_remora_intr_fxo(sdla_fe_t *fe, int mod_no)
 static int wp_remora_intr(sdla_fe_t *fe)
 {
 	int	mod_no = 0;
-
-	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
-		if (!wan_test_bit(mod_no, &fe->rm_param.module_map)) {
-			continue;
-		}
-		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS){
-			wp_remora_intr_fxs(fe, mod_no);
-		}else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
-			wp_remora_intr_fxo(fe, mod_no);
+	
+	/* calling per module per interupt  */
+	mod_no = fe->rm_param.access_counter  % MAX_REMORA_MODULES;
+	
+  	if ( mod_no < fe->rm_param.max_fe_channels ) { /*sanity check for mod_no */
+		if (wan_test_bit(mod_no, &fe->rm_param.module_map)) { 
+			if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS){
+				wp_remora_intr_fxs(fe, mod_no);
+			}else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
+				wp_remora_intr_fxo(fe, mod_no);
+			}
 		}
 	}
 

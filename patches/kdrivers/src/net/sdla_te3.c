@@ -79,9 +79,15 @@
 					 WAN_TE3_BIT_OOF_ALARM))
 
 /* DS3: Define E3 alarm states: LOS OOF YEL */
+#if 0
 #define IS_E3_ALARM(alarm)	((alarm) &				\
 					(WAN_TE3_BIT_LOS_ALARM |	\
 					 WAN_TE3_BIT_YEL_ALARM |	\
+					 WAN_TE3_BIT_OOF_ALARM))
+#endif
+
+#define IS_E3_ALARM(alarm)	((alarm) &				\
+					(WAN_TE3_BIT_YEL_ALARM |	\
 					 WAN_TE3_BIT_OOF_ALARM))
 
 /******************************************************************************
@@ -99,9 +105,32 @@ static int sdla_te3_udp(sdla_fe_t *fe, void*, unsigned char*);
 static unsigned int sdla_te3_read_alarms(sdla_fe_t *fe, int);
 static int sdla_te3_read_pmon(sdla_fe_t *fe, int);
 static int sdla_te3_flush_pmon(sdla_fe_t *fe);
+static int sdla_te3_post_init(void* pfe);
+static int sdla_te3_pre_release(void* pfe);
 
 static int sdla_te3_update_alarm_info(sdla_fe_t* fe, struct seq_file* m, int* stop_cnt);
 static int sdla_te3_update_pmon_info(sdla_fe_t* fe, struct seq_file* m, int* stop_cnt);
+
+static int sdla_te3_old_set_lb_modes(sdla_fe_t *fe, unsigned char type, unsigned char mode);
+static int sdla_te3_set_lb_modes(sdla_fe_t *fe, unsigned char type, unsigned char mode);
+
+static int sdla_te3_set_lb_modes_all(sdla_fe_t *fe, unsigned char type, unsigned char mode)
+{
+	int err;
+	sdla_t *card=fe->card;
+
+	DEBUG_TEST("%s: NENAD %s LOOP\n",fe->name,
+			mode==WAN_TE3_LB_DISABLE?"Disable":"Enable");	
+
+	if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
+	       	err = sdla_te3_old_set_lb_modes(fe, type,mode); 
+	}else if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
+	      	err = sdla_te3_set_lb_modes(fe, type,mode); 
+	}
+
+	return 0;
+}
+
 
 /******************************************************************************
  *				sdla_te3_get_fe_status()	
@@ -157,9 +186,9 @@ static int sdla_te3_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notu
  */
 static int sdla_te3_polling(sdla_fe_t *fe)
 {
-	DEBUG_EVENT("%s: %s: This function is still not supported!\n",
-			fe->name, __FUNCTION__);
-	return -EINVAL;
+       	int err;
+	err=sdla_te3_read_alarms(fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
+	return err;
 }
 
 /******************************************************************************
@@ -189,16 +218,39 @@ static int sdla_te3_set_status(sdla_fe_t *fe)
 	}else if (IS_E3(&fe->fe_cfg)){
 		if (IS_E3_ALARM(fe->fe_alarm)){
 			if (fe->fe_status != FE_DISCONNECTED){
-				DEBUG_EVENT("%s: E3 disconnected!\n",
-						fe->name);
+				fe->fe_param.te3.e3_connect_delay=0;
+
+				if (fe->fe_param.te3.e3_lb_ctrl == 1) {
+					fe->fe_param.te3.e3_lb_ctrl = 2;
+				} else {
+					sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_ENABLE);
+					fe->fe_param.te3.e3_lb_ctrl=0;
+				}
+				//sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
+
+				DEBUG_EVENT("%s: E3 disconnected! State=%i\n",
+						fe->name,fe->fe_param.te3.e3_lb_ctrl);
 				fe->fe_status = FE_DISCONNECTED;
 			}
 		}else{
+
 			if (fe->fe_status != FE_CONNECTED){
-				DEBUG_EVENT("%s: E3 connected!\n",
-						fe->name);
-				fe->fe_status = FE_CONNECTED;
+
+				fe->fe_param.te3.e3_connect_delay++;
+				if (fe->fe_param.te3.e3_connect_delay >= 5) {
+					fe->fe_param.te3.e3_connect_delay=0;
+
+					if (fe->fe_param.te3.e3_lb_ctrl == 0) {
+						fe->fe_param.te3.e3_lb_ctrl=1;
+						sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
+					}
+
+					DEBUG_EVENT("%s: E3 connected! State=%i\n",
+							fe->name,fe->fe_param.te3.e3_lb_ctrl);
+					fe->fe_status = FE_CONNECTED;
+				}
 			}
+			
 		}
 	}else{
 		return -EINVAL;
@@ -243,7 +295,7 @@ static int sdla_ds3_rx_isr(sdla_fe_t *fe)
 	/* RxDS3 Interrupt status register (0x13) */
 	value = READ_REG(REG_RxDS3_INT_STATUS);
 	status = READ_REG(REG_RxDS3_CFG_STATUS);
-	if (fe->fe_cfg.frame == WAN_FR_DS3_Cbit && value & BIT_RxDS3_INT_STATUS_CPBIT_ERR){
+	if (WAN_FE_FRAME(fe) == WAN_FR_DS3_Cbit && value & BIT_RxDS3_INT_STATUS_CPBIT_ERR){
 		DEBUG_TE3("%s: CP Bit Error interrupt detected!\n",
 						fe->name);
 	}
@@ -291,7 +343,7 @@ static int sdla_ds3_rx_isr(sdla_fe_t *fe)
 			fe->fe_alarm &= ~WAN_TE3_BIT_YEL_ALARM;
 		}
 	}
-	if (fe->fe_cfg.frame == WAN_FR_DS3_Cbit && value & BIT_RxDS3_INT_STATUS_AIC){
+	if (WAN_FE_FRAME(fe) == WAN_FR_DS3_Cbit && value & BIT_RxDS3_INT_STATUS_AIC){
 		DEBUG_TE3("%s: AIC bit-field status %s!\n",
 				fe->name,
 				(status & BIT_RxDS3_STATUS_RxAIC) ? "ON" : "OFF");
@@ -699,10 +751,10 @@ sdla_te3_old_set_lb_modes(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 	WAN_ASSERT(fe->write_cpld == NULL);
 	DEBUG_EVENT("%s: %s %s mode...\n",
 			fe->name,
-			WAN_TE3_LB_MODE_DECODE(mode),
+			WAN_TE3_LB_ACTION_DECODE(mode),
 			WAN_TE3_LB_TYPE_DECODE(type));
 
-	if (mode == WAN_TE3_DEACTIVATE_LB){
+	if (mode == WAN_TE3_LB_DISABLE){
 		fe->te3_param.cpld_status &= ~BIT_CPLD_STATUS_LLB;
 		fe->te3_param.cpld_status &= ~BIT_CPLD_STATUS_RLB;
 	}else{
@@ -739,11 +791,11 @@ sdla_te3_set_lb_modes(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 	DEBUG_EVENT("%s: %s %s mode...\n",
 			fe->name,
-			WAN_TE3_LB_MODE_DECODE(mode),
+			WAN_TE3_LB_ACTION_DECODE(mode),
 			WAN_TE3_LB_TYPE_DECODE(type));
 
 	data = READ_REG(REG_LINE_INTERFACE_DRIVE);
-	if (mode == WAN_TE3_DEACTIVATE_LB){
+	if (mode == WAN_TE3_LB_DISABLE){
 		data &= ~BIT_LINE_INTERFACE_DRIVE_LLOOP;
 		data &= ~BIT_LINE_INTERFACE_DRIVE_RLOOP;
 	}else{
@@ -773,6 +825,58 @@ sdla_te3_set_lb_modes(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 }
 
 /******************************************************************************
+ *				sdla_te3_old_get_lb()	
+ *
+ * Description:
+ * Arguments:
+ * Returns:
+ *****************************************************************************/
+static u32 sdla_te3_old_get_lb(sdla_fe_t *fe) 
+{
+	u32	type = 0;
+
+	WAN_ASSERT(fe->write_fe_reg == NULL);
+	WAN_ASSERT(fe->read_fe_reg == NULL);
+
+	if ((fe->te3_param.cpld_status & BIT_CPLD_STATUS_LLB) && 
+	    (fe->te3_param.cpld_status & BIT_CPLD_STATUS_RLB)){
+		wan_set_bit(WAN_TE3_LIU_LB_DIGITAL, &type);
+	}else if (fe->te3_param.cpld_status & BIT_CPLD_STATUS_LLB){
+		wan_set_bit(WAN_TE3_LIU_LB_ANALOG, &type);
+	}else if (fe->te3_param.cpld_status & BIT_CPLD_STATUS_RLB){
+		wan_set_bit(WAN_TE3_LIU_LB_REMOTE, &type);
+	}
+	return type;
+}
+
+/******************************************************************************
+ *				sdla_tee_get_lb()	
+ *
+ * Description:
+ * Arguments:
+ * Returns:
+ *****************************************************************************/
+static u32 sdla_te3_get_lb(sdla_fe_t *fe) 
+{
+	u32	type = 0;
+	u8	data;
+
+	WAN_ASSERT(fe->write_fe_reg == NULL);
+	WAN_ASSERT(fe->read_fe_reg == NULL);
+
+	data = READ_REG(REG_LINE_INTERFACE_DRIVE);
+	if ((data & BIT_LINE_INTERFACE_DRIVE_LLOOP) && (data & BIT_LINE_INTERFACE_DRIVE_RLOOP)){
+		wan_set_bit(WAN_TE3_LIU_LB_DIGITAL, &type);
+	}else if (data & BIT_LINE_INTERFACE_DRIVE_LLOOP){
+		wan_set_bit(WAN_TE3_LIU_LB_ANALOG, &type);
+	}else if (data & BIT_LINE_INTERFACE_DRIVE_RLOOP){
+		wan_set_bit(WAN_TE3_LIU_LB_REMOTE, &type);
+	}
+	return type;
+}
+
+
+/******************************************************************************
  *				sdla_te3_udp()	
  *
  * Description:
@@ -782,18 +886,34 @@ sdla_te3_set_lb_modes(sdla_fe_t *fe, unsigned char type, unsigned char mode)
  */
 static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 {
-	sdla_t		*card = (sdla_t*)fe->card;
-	wan_cmd_t	*udp_cmd = (wan_cmd_t*)pudp_cmd;
-	int		err = -EINVAL;
+	sdla_t			*card = (sdla_t*)fe->card;
+	wan_femedia_t		*fe_media = NULL;
+	sdla_fe_debug_t	*fe_debug = NULL;
+	wan_cmd_t		*udp_cmd = (wan_cmd_t*)pudp_cmd;
+	int			err = -EINVAL;
 
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
-		data[0] = fe->fe_cfg.media;
+		fe_media = (wan_femedia_t*)data;
+		memset(fe_media, 0, sizeof(wan_femedia_t));
+		fe_media->media	= fe->fe_cfg.media;
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-		udp_cmd->wan_cmd_data_len = sizeof(unsigned char); 
+		udp_cmd->wan_cmd_data_len = sizeof(wan_femedia_t); 
 		break;
 
 	case WAN_FE_LB_MODE:
+		if (!data[0]){
+			u32	mode = 0;
+			if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
+				mode = sdla_te3_old_get_lb(fe);
+			}else if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
+				mode = sdla_te3_get_lb(fe);
+			}
+		       	memcpy(&data[0], (u8*)&mode, sizeof(mode));
+		    	udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+    		    	udp_cmd->wan_cmd_data_len = sizeof(mode);
+			break;
+		}
 		/* Activate/Deactivate Line Loopback modes */
 		if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
 			err = sdla_te3_old_set_lb_modes(fe, data[0], data[1]); 
@@ -834,6 +954,26 @@ static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 	    	udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
     	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_te_cfg_t);
 	    	break;
+
+	case WAN_FE_SET_DEBUG_MODE:
+		fe_debug = (sdla_fe_debug_t*)&data[0];
+		switch(fe_debug->type){
+		case WAN_FE_DEBUG_REG:
+			if (fe_debug->fe_debug_reg.read){
+				fe_debug->fe_debug_reg.value = 
+						READ_REG(fe_debug->fe_debug_reg.reg);
+			}else{
+				WRITE_REG(fe_debug->fe_debug_reg.reg, fe_debug->fe_debug_reg.value);
+			}
+			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+			break;
+		
+		default:
+			udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
+			break;
+		}
+    	    	udp_cmd->wan_cmd_data_len = 0;
+		break;
 
 	default:
 		udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
@@ -1015,6 +1155,8 @@ int sdla_te3_iface_init(void *p_fe_iface)
 	/* Inialize Front-End interface functions */
 	fe_iface->config		= &sdla_te3_config;
 	fe_iface->unconfig		= &sdla_te3_unconfig;
+	fe_iface->post_init		= &sdla_te3_post_init;
+	fe_iface->pre_release		= &sdla_te3_pre_release;
 	fe_iface->polling		= &sdla_te3_polling;
 	fe_iface->isr			= &sdla_te3_isr;
 	fe_iface->process_udp		= &sdla_te3_udp;
@@ -1074,7 +1216,7 @@ static int sdla_te3_config(void *p_fe)
 		return -EINVAL;
 	}
 
-	switch(fe_cfg->frame){
+	switch(WAN_FE_FRAME(fe)){
 	case WAN_FR_E3_G751:
 		if (fe_cfg->media != WAN_MEDIA_E3){
 			DEBUG_EVENT("%s: (T3/E3) Invalid Frame Format!\n",
@@ -1125,7 +1267,7 @@ static int sdla_te3_config(void *p_fe)
 	WRITE_REG(REG_OPMODE, data);
 
 	data = 0x00;
-	switch(fe_cfg->lcode){
+	switch(WAN_FE_LCODE(fe)){
 	case WAN_LCODE_AMI: 
 		DEBUG_TE3("%s: (T3/E3) Line code AMI\n",
 				fe->name);
@@ -1151,13 +1293,125 @@ static int sdla_te3_config(void *p_fe)
 	data |= BIT_IO_CONTROL_RxLINECLK;
 	WRITE_REG(REG_IO_CONTROL, data);
 
+	if (IS_E3(&fe->fe_cfg)){
+		sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_ENABLE);
+	}
+
+	fe->fe_param.te3.e3_lb_ctrl=0;
+	fe->fe_param.te3.e3_connect_delay=10;
+
 	/* Initialize Front-End parameters */
 	fe->fe_status	= FE_DISCONNECTED;
+
 	DEBUG_EVENT("%s: %s disconnected!\n",
 					fe->name, FE_MEDIA_DECODE(fe));
 	sdla_te3_read_alarms(fe, 1);
 
-	sdla_te3_set_intr(fe);
+	//sdla_te3_set_intr(fe);
+	return 0;
+}
+
+
+static int sdla_te3_add_timer(sdla_fe_t* fe, unsigned long delay)
+{
+	int	err=0;
+
+	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical) ||
+	    wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)) {
+		return 0;
+	}
+
+#if defined(__WINDOWS__)
+	/* delay is in MS, so it can be used directly by wan_add_timer() */
+	err = wan_add_timer(&fe->timer, delay);
+#else	
+	err = wan_add_timer(&fe->timer, delay * HZ / 1000);
+#endif
+
+	if (err){
+		/* Failed to add timer */
+		return -EINVAL;
+	}
+	wan_set_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
+	return 0;	
+}
+
+
+
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+static void sdla_te3_timer(void* pfe)
+#elif defined(__WINDOWS__)
+static void sdla_te3_timer(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3)
+#else
+static void sdla_te3_timer(unsigned long pfe)
+#endif
+{
+	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+	sdla_t 		*card = (sdla_t*)fe->card;
+	wan_device_t	*wandev = &card->wandev;
+
+	DEBUG_TEST("[TE3] %s: TE3 timer!\n", fe->name);
+	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical)){
+		wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
+		return;
+	}
+	if (!wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)){
+		/* Somebody clear this bit */
+		DEBUG_EVENT("WARNING: %s: Timer bit is cleared (should never happened)!\n", 
+					fe->name);
+		return;
+	}
+	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
+
+	if (wandev->fe_enable_timer){
+		wandev->fe_enable_timer(fe->card);
+	}
+
+	
+	sdla_te3_add_timer(fe, 1000);
+	
+
+	return;
+}
+ 
+
+static int sdla_te3_post_init(void* pfe)
+{
+	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
+
+
+	/* Initialize and start T1/E1 timer */
+	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
+	
+	wan_init_timer(
+		&fe->timer, 
+		sdla_te3_timer,
+	       	(wan_timer_arg_t)fe);
+
+	/* Initialize T1/E1 timer */
+	wan_clear_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
+
+	/* Start T1/E1 timer */
+	if (IS_E3(&fe->fe_cfg)){
+		sdla_te3_add_timer(fe, 5000);
+	} else {
+		sdla_te3_add_timer(fe, 1000);
+	}
+	return 0;
+}
+
+static int sdla_te3_pre_release(void* pfe)
+{
+	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
+
+
+	/* Kill TE timer poll command */
+	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
+	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)){
+		wan_del_timer(&fe->timer);
+	}
+	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
+
 	return 0;
 }
 
@@ -1213,7 +1467,7 @@ static int sdla_te3_update_pmon_info(sdla_fe_t* fe, struct seq_file* m, int* sto
 		"Line Code Violation", fe->fe_stats.u.te3_pmon.pmon_lcv,
 		"Framing Bit/Byte Error", fe->fe_stats.u.te3_pmon.pmon_framing);
 	if (IS_DS3(&fe->fe_cfg)){
-		if (fe->fe_cfg.frame == WAN_FR_DS3_Cbit){
+		if (WAN_FE_FRAME(fe) == WAN_FR_DS3_Cbit){
 			PROC_ADD_LINE(m,
 				PROC_STATS_PMON_FORMAT,
 				"Parity Error", fe->fe_stats.u.te3_pmon.pmon_parity,

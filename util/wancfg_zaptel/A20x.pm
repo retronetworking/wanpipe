@@ -9,6 +9,7 @@ use strict;
 sub new	{
 	my ($class) = @_;
 	my $self = {
+		_is_tdm_api => undef,
 		_card      => undef,		
 		_tdm_opermode => 'FCC',
 		_tdm_law => 'MULAW',
@@ -41,6 +42,12 @@ sub rm_network_sync {
 	            my ( $self, $rm_network_sync ) = @_;
 		                    $self->{_rm_network_sync} = $rm_network_sync if defined($rm_network_sync);
 				                        return $self->{_rm_network_sync};
+}
+
+sub is_tdm_api {
+	            my ( $self, $is_tdm_api ) = @_;
+		                    $self->{_is_tdm_api} = $is_tdm_api if defined($is_tdm_api);
+				                        return $self->{_is_tdm_api};
 }
 
 sub analog_modules {
@@ -128,9 +135,15 @@ sub gen_wanpipe_conf{
 	my $rm_network_sync = $self->rm_network_sync;
 	my $hwec_mode = $self->card->hwec_mode;
 	my $hw_dtmf = $self->card->hw_dtmf;
+	my $is_tdm_api = $self->is_tdm_api;
+	my $tdm_voice_op_mode = "TDM_VOICE";
 
 	my $device_alpha = &get_alpha_from_num($device_no);
 
+	if($self->is_tdm_api eq '0') {
+		$tdm_voice_op_mode = "TDM_VOICE_API";
+	}
+	
 	open(FH, $wanpipe_conf_template) or die "Can open $wanpipe_conf_template";
 	my $wp_file='';
        	while (<FH>) {
@@ -146,7 +159,7 @@ sub gen_wanpipe_conf{
 		$wp_file =~ s/IFNUM/$device_no/g;
 	}
 
-
+	$wp_file =~ s/TDM_VOICE_OP_MODE/$tdm_voice_op_mode/g;
         $wp_file =~ s/SLOTNUM/$pci_slot/g;
         $wp_file =~ s/BUSNUM/$pci_bus/g;
         $wp_file =~ s/TDM_LAW/$tdm_law/g;
@@ -164,19 +177,43 @@ sub gen_wanpipe_conf{
 sub gen_zaptel_conf{
 	my ($self, $channel, $type) = @_;
 	my $zp_file='';
+	my $dahdi_conf = $self->card->dahdi_conf;
+	my $hwec_mode = $self->card->hwec_mode;
+	my $dahdi_echo = $self->card->dahdi_echo;
 	if ( $type eq 'fxo'){
 		#this is an FXS module
 		$zp_file.="fxoks=$channel\n";
 	}else{
 		$zp_file.="fxsks=$channel\n";
 	}
+	
+	if($dahdi_conf eq 'YES') {
+		if($hwec_mode eq 'NO' ) {
+			$zp_file.="echocanceller=" .$dahdi_echo.",".$channel."\n"; 
+		}
+
+	}
+
 	return $zp_file;	
 }
 sub gen_zapata_conf{
+	
 	my ($self, $channel, $type) = @_;
+	my $dahdi_conf = $self->card->dahdi_conf;
+	my $hwec_mode = $self->card->hwec_mode;
+	my $dahdi_echo = $self->card->dahdi_echo;
 	my $zp_file='';
 	$zp_file.="context=".$self->card->zap_context."\n";
 	$zp_file.="group=".$self->card->zap_group."\n";
+
+	if($dahdi_conf eq 'YES') {
+		if($hwec_mode eq 'NO' ) {
+			$zp_file.="echocancel=yes\n";
+		} else {
+			$zp_file.="echocancel=no\n";		
+		}
+
+	}
 		
 	if ( $type eq 'fxo'){
 		#this is an FXS module

@@ -211,7 +211,8 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 	wplip_dev_t 	 *lip_dev	=wplip_get_lipdev(dev);
 	wan_api_tx_hdr_t *api_tx_hdr	=NULL;
 	int err, type;
-	
+	int len = skb?wan_skb_len(skb):0;
+
 	if (!lip_dev || !lip_dev->lip_link){
 		WAN_NETIF_STOP_QUEUE(dev);
 		return 1;
@@ -280,6 +281,10 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 		/* Packet queued ok */
 		wan_netif_set_ticks(dev, SYSTEM_TICKS);
 		WAN_NETIF_START_QUEUE(dev);
+
+		WAN_NETIF_STATS_INC_TX_PACKETS(&lip_dev->common);	//lip_dev->ifstats.tx_packets++;
+		WAN_NETIF_STATS_INC_TX_BYTES(&lip_dev->common,len);	//lip_dev->ifstats.tx_bytes += len;
+	
 		err=0;
 		break;
 		

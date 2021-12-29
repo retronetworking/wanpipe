@@ -53,21 +53,15 @@
 /************************************************************************
  *			  DEFINES AND MACROS				*
  ***********************************************************************/
-#if 0
-#if defined(__NetBSD__) || defined (__FreeBSD__) || defined (__OpenBSD__)
-# include <sdla_te1_pmc.h>
-#elif defined (__WINDOWS__)
-# include "sdla_te1_pmc.h"
-#else
-# include <linux/sdla_te1_pmc.h>
-#endif
-#endif
 
 /*
 *************************************************************************
 *			  DEFINES AND MACROS				*
 *************************************************************************
 */
+
+#define WAN_TE_CHIP_PMC		0x00
+#define WAN_TE_CHIP_DM		0x01
 
 #define NUM_OF_T1_CHANNELS	24
 #define NUM_OF_E1_TIMESLOTS	31
@@ -181,29 +175,23 @@
 #define WAN_TE1_LIU_LLB_MODE	0x06
 #define WAN_TE1_LIU_RLB_MODE	0x07
 #define WAN_TE1_LIU_DLB_MODE	0x08
-#define WAN_TE1_FR_FLB_MODE	0x09
-#define WAN_TE1_FR_PLB_MODE	0x0A
-#define WAN_TE1_FR_RLB_MODE	0x0B
 #define WAN_TE1_LB_MODE_DECODE(mode)						\
-		((mode) == WAN_TE1_LINELB_MODE) ? "Line Loopback" :		\
+		((mode) == WAN_TE1_LINELB_MODE) ? "Line/Remote Loopback" :	\
 		((mode) == WAN_TE1_PAYLB_MODE) ? "Payload Loopback" :		\
 		((mode) == WAN_TE1_DDLB_MODE) ? "Diagnostic Digital Loopback" :	\
-		((mode) == WAN_TE1_TX_LB_MODE) ? "TX Loopback" :			\
+		((mode) == WAN_TE1_TX_LB_MODE) ? "TX Loopback" :		\
 		((mode) == WAN_TE1_LIU_ALB_MODE) ? "Analog LIU Loopback" :	\
-		((mode) == WAN_TE1_LIU_LLB_MODE) ? "Local LIU Loopback" :		\
+		((mode) == WAN_TE1_LIU_LLB_MODE) ? "Local LIU Loopback" :	\
 		((mode) == WAN_TE1_LIU_RLB_MODE) ? "Remote LIU Loopback" :	\
-		((mode) == WAN_TE1_LIU_DLB_MODE) ? "Dual LIU Loopback" :		\
-		((mode) == WAN_TE1_FR_FLB_MODE) ? "Framer Loopback" :		\
-		((mode) == WAN_TE1_FR_RLB_MODE) ? "Remote Framer Loopback" :	\
-		((mode) == WAN_TE1_FR_PLB_MODE) ? "Payload Framer Loopback" :	\
+		((mode) == WAN_TE1_LIU_DLB_MODE) ? "Dual LIU Loopback" :	\
 						"Unknown Loopback"
 
 /* Line loopback activate/deactive modes */
-#define WAN_TE1_ACTIVATE_LB	0x01
-#define WAN_TE1_DEACTIVATE_LB	0x02
-#define WAN_TE1_LB_ACTION_DECODE(action)				\
-		((action) == WAN_TE1_ACTIVATE_LB) ? "Activate" :	\
-		((action) == WAN_TE1_DEACTIVATE_LB) ? "Deactivate" :\
+#define WAN_TE1_LB_ENABLE	0x01
+#define WAN_TE1_LB_DISABLE	0x02
+#define WAN_TE1_LB_ACTION_DECODE(action)			\
+		((action) == WAN_TE1_LB_ENABLE) ? "Enable" :	\
+		((action) == WAN_TE1_LB_DISABLE) ? "Disable" :	\
 						"Unknown"
 
 /* T1/E1 front end Master clock source */

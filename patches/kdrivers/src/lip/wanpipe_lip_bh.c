@@ -105,8 +105,6 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 	
 		skb=wan_skb_dequeue(&lip_dev->tx_queue);
 		if (skb){
-			int len=wan_skb_len(skb);	
-			
 			err=wplip_data_tx_down(lip_link,skb);
 			if (err != 0){
 				wan_skb_queue_head(&lip_dev->tx_queue,skb);
@@ -114,8 +112,7 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 				goto wplip_bh_transmit_exit;
 			}
 
-			WAN_NETIF_STATS_INC_TX_PACKETS(&lip_dev->common);	//lip_dev->ifstats.tx_packets++;
-			WAN_NETIF_STATS_INC_TX_BYTES(&lip_dev->common,len);	//lip_dev->ifstats.tx_bytes += len;
+			/* Removed Tx statistics from here so that idle frames do not get counted */
 
 		}
 

@@ -34,10 +34,7 @@
 
 
 /*
- *	$Log: sdla_sdlc.h,v $
- *	Revision 1.3  2004/09/28 21:47:30  sangoma
- *	*** empty log message ***
- *	
+ *	$Log: not supported by cvs2svn $
  *	Revision 1.2  2004/06/07 15:53:08  sangoma
  *	*** empty log message ***
  *	

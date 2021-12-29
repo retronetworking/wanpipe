@@ -1,0 +1,5 @@
+#!/bin/sh
+home=`pwd`
+cd /etc/wanpipe/wancfg_zaptel
+./wancfg_zaptel.pl --trixbox
+cd $home

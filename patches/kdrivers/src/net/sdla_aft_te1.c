@@ -515,6 +515,7 @@ static void wan_aft_api_ringdetect (void* card_id, wan_event_t *event);
 #endif
 
 static void callback_front_end_state(void *card_id);
+static int aft_hwec_config_ch (sdla_t *card, private_area_t *chan, wanif_conf_t *conf, int fe_chan, int ctrl);
 
 #if 0
 static void 	aft_list_descriptors(private_area_t *chan);
@@ -546,6 +547,7 @@ static unsigned char aft_read_ec (void*, unsigned short);
 
 static int aft_hwec_config(sdla_t *card, private_area_t *chan, wanif_conf_t *conf, int ctrl);
 static int aft_find_master_if_and_dchan(sdla_t *card, int *master_if,u32 active_ch);
+static void aft_tx_dma_skb_init(private_area_t *chan, netskb_t *skb);
 
 #if defined(NETGRAPH)
 extern void wan_ng_link_state(wanpipe_common_t *common, int state);
@@ -938,6 +940,8 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 				card->devname);
 		return -EINVAL;
 	}
+	memset(&card->fe, 0, sizeof(sdla_fe_t));
+	memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 
 	/* TE1 Make special hardware initialization for T1/E1 board */
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
@@ -1025,6 +1029,8 @@ int wp_aft_56k_init (sdla_t* card, wandev_conf_t* conf)
 				card->devname);
 		return -EINVAL;
 	}
+	memset(&card->fe, 0, sizeof(sdla_fe_t));
+	memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 	
 	if (IS_56K_MEDIA(&conf->fe_cfg)){
 	
@@ -1989,15 +1995,23 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 #endif
 
 #if defined(AFT_API_SUPPORT)
-	} else if( strcmp(conf->usedby, "API") == 0) {
+	} else if( strcmp(conf->usedby, "API") == 0 || strcmp(conf->usedby, "TDM_SPAN_VOICE_API") == 0) {
 		chan->common.usedby = API;
-		DEBUG_EVENT( "%s:%s: Running in API mode\n",
-			wandev->name,chan->if_name);
+		DEBUG_EVENT( "%s:%s: Running in %s mode\n",
+			wandev->name,chan->if_name, conf->usedby);
 		wan_reg_api(chan, dev, card->devname);
 		card->wandev.event_callback.dtmf	= wan_aft_api_dtmf; 
 		card->wandev.event_callback.hook	= wan_aft_api_hook; 
 		card->wandev.event_callback.ringtrip	= wan_aft_api_ringtrip; 
 		card->wandev.event_callback.ringdetect	= wan_aft_api_ringdetect; 
+
+		if (strcmp(conf->usedby, "TDM_SPAN_VOICE_API") == 0) {
+			chan->tdm_span_voice_api=1;
+			chan->cfg.data_mux=1;
+			conf->hdlc_streaming=0;
+			chan->single_dma_chain=1;
+			chan->max_tx_bufs=MAX_AFT_DMA_CHAINS;
+		}
 #endif
 
 #if defined(AFT_XMTP2_API_SUPPORT)
@@ -3236,6 +3250,10 @@ static int if_open (netdevice_t* dev)
 	/* Increment the module usage count */
 	wanpipe_open(card);
 
+	if (card->wandev.config_id == WANCONFIG_AFT_56K) {
+		wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
+		WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));		
+	}
 
 	/* Wait for the front end interrupt 
 	 * before enabling the card */
@@ -4262,7 +4280,11 @@ static void aft_dev_enable(sdla_t *card, private_area_t *chan)
 
 		DEBUG_CFG("%s: Enabling FOR NON CHANNELIZED !\n",chan->if_name);
 
-		aft_channel_txintr_ctrl(card,chan,1);
+		if (chan->tdm_span_voice_api) {
+			aft_channel_txintr_ctrl(card,chan,0);
+		} else {
+			aft_channel_txintr_ctrl(card,chan,1);
+		}
 		aft_channel_rxintr_ctrl(card,chan,1);
 	}
 
@@ -4491,6 +4513,27 @@ static void aft_dma_tx_complete (sdla_t *card, private_area_t *chan, int wdt, in
 
 	return;
 }
+
+static void aft_tx_dma_skb_init(private_area_t *chan, netskb_t *skb)
+{
+
+	if (chan->tx_idle_skb == skb) {
+		return;
+	}
+
+	if (chan->common.usedby == XMTP2_API) {
+		/* Requeue the tx buffer because it came from rx_free_list */
+		aft_init_requeue_free_skb(chan, skb);
+
+	} else if (chan->channelized_cfg && !chan->hdlc_eng){
+		/* Requeue the tx buffer because it came from rx_free_list */
+		aft_init_requeue_free_skb(chan, skb);
+
+	}else{
+		wan_skb_free(skb);
+	}
+}
+
 
 /*===============================================
  * aft_tx_post_complete
@@ -6160,6 +6203,11 @@ static void __wp_aft_per_per_port_isr(sdla_t *card, u32 dma_rx_reg, u32 dma_tx_r
 			DEBUG_TEST("%s: RX Interrupt pend. \n",	card->devname);
 	
 			aft_dma_rx_complete(card,chan,0);
+		
+			if (chan->tdm_span_voice_api) {
+				wan_set_bit(i,&dma_tx_voice);
+				aft_dma_tx_complete(card,chan,0,0);
+			}
 
 
 #if 0
@@ -6532,6 +6580,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 	unsigned short buffer_length;
 	wan_udp_pkt_t *wan_udp_pkt;
 	wan_trace_t *trace_info=NULL;
+	wan_if_cfg_t *if_cfg;
 
 	wan_udp_pkt = (wan_udp_pkt_t *)chan->udp_pkt_data;
 
@@ -6551,9 +6600,30 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 		switch(wan_udp_pkt->wan_udp_command) {
 
 		case READ_CONFIGURATION:
-			wan_udp_pkt->wan_udp_return_code = 0;
-			wan_udp_pkt->wan_udp_data_len=0;
-			break;
+ 			if_cfg = (wan_if_cfg_t*)&wan_udp_pkt->wan_udp_data[0];
+                        memset(if_cfg,0,sizeof(wan_if_cfg_t));
+                        if_cfg->usedby = chan->common.usedby;
+                        if_cfg->media=card->wandev.fe_iface.get_fe_media(&card->fe);
+                        if_cfg->active_ch=chan->time_slot_map;
+                        if_cfg->chunk_sz=chan->mru/chan->num_of_time_slots;
+                        if_cfg->interface_number=chan->logic_ch_num;
+
+                        if (chan->hdlc_eng) {
+                                if_cfg->hw_coding=WAN_TDMV_HDLC;
+                        } else {
+                                if_cfg->hw_coding=card->fe.fe_cfg.tdmv_law;
+                                if (IS_T1_CARD(card)){
+                                        if_cfg->hw_coding=WAN_TDMV_MULAW;
+                                } else if (IS_E1_CARD(card)) {
+                                        if_cfg->hw_coding=WAN_TDMV_ALAW;
+                                }
+                        }
+
+                        memcpy(&if_cfg->fe_cfg, &card->fe.fe_cfg, sizeof(sdla_fe_cfg_t));
+
+                        wan_udp_pkt->wan_udp_return_code = 0;
+                        wan_udp_pkt->wan_udp_data_len=sizeof(wan_if_cfg_t);
+                        break;
 
 		case READ_CODE_VERSION:
 			wan_udp_pkt->wan_udp_return_code = 0;
@@ -6769,7 +6839,8 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			wan_udp_pkt->wan_udp_data_len = sizeof(unsigned long);
 			wan_udp_pkt->wan_udp_return_code = 0;
 			break;
-	
+
+#if 0	
 		case WAN_GET_MEDIA_TYPE:
 			if (card->wandev.fe_iface.get_fe_media){
 				wan_udp_pkt->wan_udp_data[0] = 
@@ -6780,6 +6851,9 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 				wan_udp_pkt->wan_udp_return_code = WAN_UDP_INVALID_CMD;
 			}
 			break;
+
+#endif
+
 #if 0
 		case WAN_FE_GET_STAT:
 		case WAN_FE_LB_MODE:
@@ -6827,7 +6901,8 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			break;
 	
 		default:
-			if ((wan_udp_pkt->wan_udp_command & 0xF0) == WAN_FE_UDP_CMD_START){
+			if ((wan_udp_pkt->wan_udp_command == WAN_GET_MEDIA_TYPE) ||
+			    ((wan_udp_pkt->wan_udp_command & 0xF0) == WAN_FE_UDP_CMD_START)){
 				/* FE udp calls */
 				wan_smp_flag_t smp_flags,smp_flags1;
 				
@@ -7799,7 +7874,11 @@ static int update_comms_stats(sdla_t* card)
 static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 {
 
-	if (chan->channelized_cfg && !chan->hdlc_eng){
+	/* Igore fifo errors in transpared mode. There is nothing
+  	   that we can do to make it better.  The check below
+           will be covered by this statement, leaving it for
+	   information sake */
+	if (!chan->hdlc_eng){
 		return;
 	}
 
@@ -7847,11 +7926,13 @@ static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 }
 
 static void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
-{
-	if (chan->channelized_cfg && !chan->hdlc_eng){
-		return;
-	}
-	
+{  
+	/* Igore fifo errors in transpared mode. There is nothing
+           that we can do to make it better. */ 
+        if (!chan->hdlc_eng){
+                return;
+        }
+
 #if 0
 	if (WAN_NET_RATELIMIT()){
 		DEBUG_EVENT("%s:%s Tx Fifo Recovery!\n",
@@ -8395,22 +8476,7 @@ static void aft_tx_dma_chain_handler(unsigned long data, int wdt, int reset)
 				wan_skb_set_csum(dma_chain->skb, reg);
 				aft_tx_post_complete(chan->card,chan,dma_chain->skb);
 
-				if (chan->channelized_cfg && !chan->hdlc_eng){
-					/* Voice code uses the rx buffer to
-					 * transmit! So put the rx buffer back
-					 * into the rx queue */
-					aft_init_requeue_free_skb(chan, dma_chain->skb);
-
-				} else if (chan->common.usedby == XMTP2_API) {
-
-					/* XMTP2 API code uses the rx buffer to
-					 * transmit! So put the rx buffer back
-					 * into the rx queue */
-					aft_init_requeue_free_skb(chan, dma_chain->skb);
-
-				}else{
-					wan_skb_free(dma_chain->skb);
-				}
+				aft_tx_dma_skb_init(chan,dma_chain->skb);
 
 				dma_chain->skb=NULL;
 			}
@@ -8595,6 +8661,7 @@ static int aft_dma_chain_tx(wan_dma_descr_t *dma_chain,private_area_t *chan, int
 #undef card
 }
 
+
 /*===============================================
  * aft_dma_chain_init
  *
@@ -8614,20 +8681,7 @@ aft_tx_dma_chain_init(private_area_t *chan, wan_dma_descr_t *dma_chain)
 
 	if (dma_chain->skb){
 		if (!chan->hdlc_eng){
-			if (dma_chain->skb != chan->tx_idle_skb){
-		
-				if (chan->common.usedby == XMTP2_API) {
-					/* Requeue the tx buffer because it came from rx_free_list */
-					aft_init_requeue_free_skb(chan, dma_chain->skb);
-
-				} else if (chan->channelized_cfg && !chan->hdlc_eng){
-					/* Requeue the tx buffer because it came from rx_free_list */
-					aft_init_requeue_free_skb(chan, dma_chain->skb);
-
-				}else{
-					wan_skb_free(dma_chain->skb);
-				}
-			}
+			aft_tx_dma_skb_init(chan,dma_chain->skb);
 			dma_chain->skb=NULL;
 		}else{
 			wan_skb_free(dma_chain->skb);
@@ -9882,7 +9936,11 @@ static void aft_free_tx_descriptors(private_area_t *chan)
 	chan->tx_chain_indx = chan->tx_pending_chain_indx;
 
 	while((skb=wan_skb_dequeue(&chan->wp_tx_complete_list)) != NULL){
-		wan_skb_free(skb);
+		if (!chan->hdlc_eng) {
+			aft_tx_dma_skb_init(chan,skb);
+		} else {
+			wan_skb_free(skb);
+		}
 	}
 }
 
@@ -12077,19 +12135,37 @@ static int aft_hwec_config (sdla_t *card, private_area_t *chan, wanif_conf_t *co
 {
 	int err = 0;
 	int fe_chan = 0;
-	unsigned int tdmv_hwec_option=0;
+	int i;
 	
 	/* If not hardware echo nothing to configure */
 	if (!card->wandev.ec_enable) {
 		return 0;
 	}
 		
-	if (conf) {
-        	tdmv_hwec_option=conf->hwec.enable;
-	}
+	if (chan->tdm_span_voice_api) {
+		u32 map=chan->time_slot_map;
+		for (i=0;i<31;i++) {
+                        if (wan_test_bit(i,&map)) {
+				 if (IS_TE1_CARD(card)) {
+		                        if (IS_T1_CARD(card)){
+                		                fe_chan = i+1;
+                        		}else{
+                                		fe_chan = i;
+                        		}
+                		} else if (IS_FXOFXS_CARD(card)) {
+                        		fe_chan = i+1;
+                		} else {
+                        		fe_chan = i+1;
+                		}
+				err=aft_hwec_config_ch(card,chan,conf,fe_chan,ctrl);	
+				if (err) {
+					return err;
+				}
+			}
+		}
 
-	if (chan->common.usedby == TDM_VOICE_API ||
-	    chan->common.usedby == TDM_VOICE){
+	} else if (chan->common.usedby == TDM_VOICE_API ||
+	           chan->common.usedby == TDM_VOICE){
 
 		/* Nov 6, 2007 Calling EC function with FE channel number. */
 		if (IS_TE1_CARD(card)) {
@@ -12104,49 +12180,63 @@ static int aft_hwec_config (sdla_t *card, private_area_t *chan, wanif_conf_t *co
 		       	fe_chan = chan->first_time_slot+1; 
 		}              
 
+		err=aft_hwec_config_ch(card,chan,conf,fe_chan,ctrl);	
+		if (err) {
+			return err;
+		}
+	}
+
+	return err;
+}
+
+static int aft_hwec_config_ch (sdla_t *card, private_area_t *chan, wanif_conf_t *conf, int fe_chan, int ctrl)
+{
+	int err = 0;
+	unsigned int tdmv_hwec_option=0;
+	
+	if (conf) {
+        	tdmv_hwec_option=conf->hwec.enable;
+	}
 
 #if defined(CONFIG_WANPIPE_HWEC)  
-		if (ctrl == 0) { 
+	if (ctrl == 0) { 
 
-			if (IS_BRI_CARD(card)) {
-				DEBUG_HWEC("%s(): original fe_chan: %d\n", __FUNCTION__, fe_chan);
-
-				/* translate channel to be 1 or 2, nothing else!! */
-				fe_chan = (fe_chan % 2);
-				if (fe_chan == 0) {
-					fe_chan=2;
-				}
-				DEBUG_HWEC("%s():      new fe_chan: %d\n", __FUNCTION__, fe_chan);
+		if (IS_BRI_CARD(card)) {
+			DEBUG_HWEC("%s(): original fe_chan: %d\n", __FUNCTION__, fe_chan);
+			/* translate channel to be 1 or 2, nothing else!! */
+			fe_chan = (fe_chan % 2);
+			if (fe_chan == 0) {
+				fe_chan=2;
 			}
-
-                	card->wandev.ec_enable(card, 0, fe_chan);
+			DEBUG_HWEC("%s():      new fe_chan: %d\n", __FUNCTION__, fe_chan);
+		}
+               	card->wandev.ec_enable(card, 0, fe_chan);
 			
-		} else if (tdmv_hwec_option) {
+	} else if (tdmv_hwec_option) {
 
-			if (IS_BRI_CARD(card)){
-				DEBUG_HWEC("%s(): original fe_chan: %d\n", __FUNCTION__, fe_chan);
+		if (IS_BRI_CARD(card)){
+			DEBUG_HWEC("%s(): original fe_chan: %d\n", __FUNCTION__, fe_chan);
 
-				/* translate channel to be 1 or 2, nothing else!! */
-				fe_chan = (fe_chan % 2);
-				if (fe_chan == 0) {
-					fe_chan=2;
-				}
-				DEBUG_HWEC("%s():      new fe_chan: %d\n", __FUNCTION__, fe_chan);
+			/* translate channel to be 1 or 2, nothing else!! */
+			fe_chan = (fe_chan % 2);
+			if (fe_chan == 0) {
+				fe_chan=2;
 			}
+			DEBUG_HWEC("%s():      new fe_chan: %d\n", __FUNCTION__, fe_chan);
+		}
 
-			DEBUG_HWEC("[HWEC] %s: Enable Echo Canceller on fe_chan %d\n",
-					chan->if_name,
-					fe_chan);
+		DEBUG_HWEC("[HWEC] %s: Enable Echo Canceller on fe_chan %d\n",
+				chan->if_name,
+				fe_chan);
 
-			err = card->wandev.ec_enable(card, 1, fe_chan);
-			if (err) {
-				DEBUG_EVENT("%s: Failed to enable HWEC on fe chan %d\n",
-						chan->if_name,fe_chan);
-			 	return err;       		
-			}
-		} 
+		err = card->wandev.ec_enable(card, 1, fe_chan);
+		if (err) {
+			DEBUG_EVENT("%s: Failed to enable HWEC on fe chan %d\n",
+					chan->if_name,fe_chan);
+		 	return err;       		
+		}
+	} 
 #endif	
-	}
 
 	return err;
 }               

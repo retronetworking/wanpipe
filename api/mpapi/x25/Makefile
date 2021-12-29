@@ -11,12 +11,10 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 # Project file paths.
-SYSINC	= /usr/src/linux/include
 APIINC = ../../include
-VPATH	= $(SYSINC)
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../ -I../../lib -I$(SYSINC) -I$(APIINC)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../ -I../../lib  -I$(APIINC)
 
 ####### RULES ################################################################
 

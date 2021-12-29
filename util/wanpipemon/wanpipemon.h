@@ -1,3 +1,6 @@
+#ifndef _WANPIPEMON_H_
+#define _WANPIPEMON_H_
+
 #ifdef WANPIPEMON_GUI 
 #include "../lxdialog/dialog.h"
 #endif
@@ -494,3 +497,12 @@ extern void	hw_router_up_time(void);
 extern void	hw_read_code_version(void);
 extern void     hw_link_status(void);
 
+#ifndef LONG_MAX 
+#define LONG_MAX	((long)(~0UL>>1))
+#endif
+
+#ifndef LONG_MIN
+#define LONG_MIN	(-LONG_MAX - 1)
+#endif
+
+#endif

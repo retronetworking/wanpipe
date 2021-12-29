@@ -26,6 +26,7 @@ typedef int			wan_ticks_t;
 #elif defined(__LINUX__)
 /*********************** L I N U X ******************************/
 typedef unsigned long		wan_ticks_t; 
+
 #elif defined(__WINDOWS__)
 /******************* W I N D O W S ******************************/
 typedef unsigned long		wan_ticks_t; 

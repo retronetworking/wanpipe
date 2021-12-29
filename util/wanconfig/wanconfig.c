@@ -1071,6 +1071,7 @@ key_word_t lip_hdlc_annexg_conftab[] =
 	
   { "SEVEN_BIT_HDLC", smemof(wan_lip_hdlc_if_conf_t, seven_bit_hdlc), DTYPE_CHAR },
   { "RX_CRC_BYTES", smemof(wan_lip_hdlc_if_conf_t, rx_crc_bytes), DTYPE_CHAR },
+  { "LINEIDLE", smemof(wan_lip_hdlc_if_conf_t, lineidle), DTYPE_CHAR },
   { NULL, 0, 0 }
 
 };
@@ -2525,6 +2526,7 @@ int build_chandef_list (FILE* file)
 					  ( strcmp(chandef->usedby, "BRIDGE_NODE") != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_VOICE") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_VOICE_API") 	   != 0 ) &&
+					  ( strcmp(chandef->usedby, "TDM_SPAN_VOICE_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TRUNK") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "ANNEXG")      != 0 )))

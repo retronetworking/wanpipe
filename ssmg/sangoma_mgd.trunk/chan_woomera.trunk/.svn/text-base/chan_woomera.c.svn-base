@@ -14,6 +14,10 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.35 Nenad Corbic <ncorbic@sangoma.com>
+ * Jul 23 2008
+ *	Bug Fix: Check for cid_name.
+ *
  * v1.34 Nenad Corbic <ncorbic@sangoma.com>
  * Jul 23 2008
  *	Added udp tagging and rx/tx sync options for
@@ -198,7 +202,7 @@
 #include "asterisk/dsp.h"
 #include "asterisk/musiconhold.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.34 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.35 $")
 
 #else
 
@@ -248,7 +252,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.34 $")
 #define CALLWEAVER_19 1
 #endif
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.34 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.35 $")
 
 /* CALLWEAVER v1.9 and later */
 #if defined (CALLWEAVER_19) 
@@ -504,7 +508,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.34 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.34"
+#define WOOMERA_VERSION "v1.35"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -4645,9 +4649,13 @@ static int woomera_event_incoming (private_object *tech_pvt)
 		presentation |= atoi(screen_string) & 0x0F;
 	}
 
-	cid_name = ast_strdupa(woomera_message_header(&wmsg, "Remote-Name"));
+	cid_name = woomera_message_header(&wmsg, "Remote-Name");
+	if (cid_name) {
+		char *tmp_cid_name=cid_name;
+		cid_name = ast_strdupa(tmp_cid_name);
+	}	
 
-	if ((cid_num = strchr(cid_name, '!'))) {
+	if (cid_name && (cid_num = strchr(cid_name, '!'))) {
 		*cid_num = '\0';
 		cid_num++;
 	} else {

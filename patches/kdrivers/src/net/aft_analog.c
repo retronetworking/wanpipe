@@ -352,6 +352,10 @@ int aft_analog_global_chip_config(sdla_t *card)
 	wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
 	wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
 	wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
+
+	/* Do not allow front end interrupt to start */
+	card->fe_no_intr=1;
+
 #if 0
 	wan_set_bit(AFT_CHIPCFG_SPI_SLOW_BIT,&reg);
 #endif
@@ -379,9 +383,6 @@ int aft_analog_global_chip_config(sdla_t *card)
 		
 	DEBUG_EVENT("%s: Remora config done!\n",card->devname);
 
-	/* Enable global front end interrupt */
-	__aft_fe_intr_ctrl(card, 1);
-	
 	return 0;
 }
 

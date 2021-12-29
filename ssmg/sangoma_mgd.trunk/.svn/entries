@@ -38,29 +38,8 @@ file
 90
 davidy
 
-switch_buffer.h
-file
-
-
-
-
-2008-07-17T20:05:19.000000Z
-f4832443a621cbb88e92535898d11b83
-2007-09-21T20:53:51.260136Z
-1
-root
-
-sangoma_mgd.conf.sample
-file
-
-
-
-
-2008-07-18T17:35:42.000000Z
-aa37de7bf3ea40901ff4245c34e10d64
-2008-07-18T17:55:36.114048Z
-94
-ncorbic
+app
+dir
 
 sound.raw
 file
@@ -75,8 +54,29 @@ da36acc78b83d5047481df0cca63d969
 root
 has-props
 
-app
-dir
+sangoma_mgd.conf.sample
+file
+
+
+
+
+2008-07-18T17:35:42.000000Z
+aa37de7bf3ea40901ff4245c34e10d64
+2008-07-18T17:55:36.114048Z
+94
+ncorbic
+
+switch_buffer.h
+file
+
+
+
+
+2008-07-17T20:05:19.000000Z
+f4832443a621cbb88e92535898d11b83
+2007-09-21T20:53:51.260136Z
+1
+root
 
 conf_bri
 dir
@@ -94,6 +94,9 @@ file
 root
 has-props
 
+conf
+dir
+
 ss7box
 file
 
@@ -110,11 +113,20 @@ has-props
 
 svn:special
 
-conf
-dir
-
 scripts
 dir
+
+call_signal.c
+file
+
+
+
+
+2008-07-28T16:11:03.000000Z
+1998b987f3d4de47366987e1c73a6dd3
+2008-07-21T17:51:24.576468Z
+100
+davidy
 
 re-sync.sh
 file
@@ -129,17 +141,17 @@ file
 ncorbic
 has-props
 
-call_signal.c
+woomera.conf
 file
 
 
 
 
-2008-07-28T16:11:03.000000Z
-1998b987f3d4de47366987e1c73a6dd3
-2008-07-21T17:51:24.576468Z
-100
-davidy
+2008-07-17T12:23:48.000000Z
+356d6fc18e0670efac6de6001e58648e
+2007-09-21T20:53:51.260136Z
+1
+root
 
 sangoma_mgd.c
 file
@@ -152,18 +164,6 @@ file
 2008-07-25T16:18:55.012643Z
 104
 davidy
-
-woomera.conf
-file
-
-
-
-
-2008-07-17T12:23:48.000000Z
-356d6fc18e0670efac6de6001e58648e
-2007-09-21T20:53:51.260136Z
-1
-root
 
 call_signal.h
 file
@@ -292,15 +292,15 @@ ncorbic
 
 Makefile
 file
+129
 
 
 
-
-2008-07-17T12:23:48.000000Z
-d57cadf19c1416f7a50bdafd684299cc
-2008-04-04T17:37:44.985328Z
-74
-davidy
+2008-09-17T21:49:21.000000Z
+878683e34398e0ec9f2c0394203a9243
+2008-09-17T21:34:33.931600Z
+129
+ncorbic
 
 sangoma_mgd_memdbg.h
 file

@@ -1,0 +1,29 @@
+#!/bin/sh
+#Make sure that udev/devfs Dahdi device
+#has come up.
+cnt=0
+max_delay=30
+
+
+echo -n "Waiting for Dahdi /dev/dahdi ..."
+for ((i=0;i<$max_delay;i++))
+do
+	if [ -e /dev/dahdi ]; then
+        	break;
+	fi
+	echo -n "." 
+  	sleep 2
+done
+echo " " 
+if [ ! -e /dev/dahdi ]; then
+	echo
+	echo "Error: Dahdi device failed to come up";
+        echo "Possible Cause: UDEV not installed!";
+	echo
+	exit 1
+fi 
+
+sleep 1
+
+dahdi_cfg -v
+

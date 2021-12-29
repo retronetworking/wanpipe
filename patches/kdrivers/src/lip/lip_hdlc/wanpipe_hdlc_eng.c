@@ -211,9 +211,9 @@ int wanpipe_hdlc_encode(wanpipe_hdlc_engine_t *hdlc_eng,
 	encode_byte(chan,&chan->tx_flag_idle,2);
 	encode_byte(chan,&chan->tx_flag_idle,2);
 	encode_byte(chan,&chan->tx_flag_idle,2);
-	encode_byte(chan,&chan->tx_flag_idle,2);
-	encode_byte(chan,&chan->tx_flag_idle,2);
 #endif
+	encode_byte(chan,&chan->tx_flag_idle,2);
+	encode_byte(chan,&chan->tx_flag_idle,2);
 	encode_byte(chan,&chan->tx_flag_offset_data,2);
 	
 	if (!hdlc_eng->seven_bit_hdlc || chan->tx_flag_offset < 5){

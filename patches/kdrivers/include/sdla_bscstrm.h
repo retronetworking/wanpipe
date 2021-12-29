@@ -1,4 +1,4 @@
-/* $Header: /usr/local/cvsroot/wanpipe_linux/code/include/sdla_bscstrm.h,v 1.4 2007/05/24 17:45:25 sangoma Exp $ */
+/* $Header: /home/ncorbic/svn2cvs/cvsroot/wanpipe_linux/code/include/sdla_bscstrm.h,v 1.4 2007-05-24 17:45:25 sangoma Exp $ */
 
 
 /*
@@ -11,10 +11,7 @@
 
 
 /*
- *   $Log: sdla_bscstrm.h,v $
- *   Revision 1.4  2007/05/24 17:45:25  sangoma
- *   Removed PACKED from include files
- *
+ *   $Log: not supported by cvs2svn $
  *   Revision 1.3  2004/09/28 21:47:30  sangoma
  *   *** empty log message ***
  *

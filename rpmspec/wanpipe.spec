@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.3.12
+%define version           3.3.14
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -254,6 +254,51 @@ install_init;
 
 
 %changelog
+* Tue Oct 8 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.14
+=====================================================================
+
+- Enabled Zaptel/DAHDI libss7 MTP2 option
+
+- Updated TDM API for A200
+  Fixes FreeSwitch OpenZAP with TDM API for Analog
+
+- Bug fix in XMTP2 API
+  The fifo error could cause xmtp2 buffering to fail
+
+- wanpipemon utility
+  Updated T1/E1 Loopback comands
+  Bug fix on 2.6.25 kernels
+
+- Driver compile update for Latest
+  2.6.26 kernels
+
+- Update AFT driver to implement new loopback commands
+
+- Updated for 56K driver
+
+- Added Asterisk DAHDI Support
+
+- A200/A400 Analog driver update
+  Bug fix possible race condition due to front end interrupt.
+
+- AFT Core Update
+  Disabled fifo overrun handling in transparent mode.
+  It does not provide any improvemnt.
+  XMTP2 API mode could run out of buffers due to overrun errors.
+  This has now been fixed.
+
+- Fixed A301 E3 Support
+  New firmware V11 is needed.
+  Please upgrade firmware before starting up the card.
+  To check firmware run: wanrouter hwprobe
+  
+
+* Fri Sep 1 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.13
+=====================================================================
+
+- This release was never released.
+
+
 
 * Fri Aug 1 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.12
 =====================================================================

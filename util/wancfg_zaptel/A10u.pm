@@ -255,6 +255,7 @@ sub gen_wanpipe_conf{
 	my $dchan = 0;
 	my $fe_lbo;
        	my $fe_cpu;
+	my $tdm_voice_op_mode = "TDM_VOICE";
 
 	my $device_alpha = &get_alpha_from_num($device_no);
 
@@ -294,6 +295,15 @@ sub gen_wanpipe_conf{
 		$fe_lbo='120OH';
 		$te_sig_mode_line= 'TE_SIG_MODE     = '.$te_sig_mode;
 	}
+
+	if($self->signalling eq 'TDM API'){
+        	$tdm_voice_op_mode = "TDM_VOICE_API";
+		#for tdm_api hw_dchan is set by user
+		$dchan = $self->hw_dchan;
+		
+	}
+
+
 	open(FH, $wanpipe_conf_template ) or die "Cannot open $wanpipe_conf_template";
 	my $wp_file='';
        	while (<FH>) {
@@ -309,7 +319,7 @@ sub gen_wanpipe_conf{
 	} else {
 		$wp_file =~ s/IFNUM/$device_no/g;
 	}
-
+	$wp_file =~ s/TDM_VOICE_OP_MODE/$tdm_voice_op_mode/g;
         $wp_file =~ s/SLOTNUM/$pci_slot/g;
         $wp_file =~ s/BUSNUM/$pci_bus/g;
         $wp_file =~ s/FEMEDIA/$fe_media/g;
@@ -332,6 +342,9 @@ sub gen_zaptel_conf{
 	my $zap_lcode;
 	my $zap_frame;
 	my $zap_crc4;
+	my $dahdi_conf = $self->card->dahdi_conf;
+	my $hwec_mode = $self->card->hwec_mode;
+	my $dahdi_echo = $self->card->dahdi_echo;
 
         if ( $self->fe_lcode eq 'B8ZS' ){
 		$zap_lcode='b8zs';
@@ -371,9 +384,23 @@ sub gen_zaptel_conf{
                                 }
                                 my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
                                 $zp_file.="bchan=".$first_ch."-".$last_ch."\n"; 
+				if($dahdi_conf eq 'YES') {
+						if($hwec_mode eq 'NO' ) {
+							$zp_file.="echocanceller=" .$dahdi_echo.",".$first_ch."-".$last_ch."\n";
+						}
+
+				}
+
                                 $zp_file.=$dchan_str."=".($self->card->first_chan+23)."\n";
                         } else {
                                 $zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
+				if($dahdi_conf eq 'YES') {
+						if($hwec_mode eq 'NO' ) {
+							$zp_file.="echocanceller=" .$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
+						}
+
+				}
+		
                                 $zp_file.=$dchan_str."=".($self->card->first_chan+23)."\n";
                         }
                 } else {
@@ -391,16 +418,37 @@ sub gen_zaptel_conf{
                                         my $mid_ch2=$self->card->first_chan + 16;
 
                                         $zp_file.="bchan=".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n"; 
+					if($dahdi_conf eq 'YES') {
+						if($hwec_mode eq 'NO' ) {
+							$zp_file.="echocanceller=" .$dahdi_echo.",".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n";  
+						}
+
+					}
+
                                         $zp_file.=$dchan_str."=".($self->card->first_chan+15)."\n";
 
                                 } else {
                                         my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
                                         my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
                                         $zp_file.="bchan=".$first_ch."-".$last_ch."\n"; 
+ 					if($dahdi_conf eq 'YES') {
+						if($hwec_mode eq 'NO' ) {
+							$zp_file.="echocanceller=" .$dahdi_echo.",".$first_ch."-".$last_ch."\n"; 
+						}
+
+					}
                                         $zp_file.=$dchan_str."=".($self->card->first_chan+15)."\n";
                                 }
                         } else {
                                 $zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n"; 
+				if($dahdi_conf eq 'YES') {
+						if($hwec_mode eq 'NO' ) {
+							$zp_file.="echocanceller=" .$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n"; 
+						}
+
+				}
+	
+
                                 $zp_file.=$dchan_str."=".($self->card->first_chan+15)."\n";
                         }
                 }  
@@ -428,17 +476,43 @@ sub gen_zaptel_conf{
                         if($self->frac_chan_first() != 0){
                                 my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
                                 my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                $zp_file.=$zap_signal."=".$first_ch."-".$last_ch."\n"; 
+                                $zp_file.=$zap_signal."=".$first_ch."-".$last_ch."\n";
+				if($dahdi_conf eq 'YES') {
+						if($hwec_mode eq 'NO' ) {
+							$zp_file.="echocanceller=" .$dahdi_echo.",".$first_ch."-".$last_ch."\n";
+						}
+
+				}
+	 
                         } else {
                                 $zp_file.=$zap_signal."=".$self->card->first_chan."-".($self->card->first_chan+23)."\n"; 
+				if($dahdi_conf eq 'YES') {
+					if($hwec_mode eq 'NO' ) {
+					$zp_file.="echocanceller=".$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+23)."\n"; 
+					}
+
+ 				}
                         }
                 } else {
                         if($self->frac_chan_first() != 0){
                                 my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
                                 my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
                                 $zp_file.=$zap_signal."=".$first_ch."-".$last_ch."\n"; 
+				if($dahdi_conf eq 'YES') {
+					if($hwec_mode eq 'NO' ) {
+					$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."-".$last_ch."\n";
+					}
+
+ 				}
                         } else {
                                 $zp_file.=$zap_signal."=".$self->card->first_chan."-".($self->card->first_chan+30)."\n"; 
+				if($dahdi_conf eq 'YES') {
+					if($hwec_mode eq 'NO' ) {
+					$zp_file.="echocanceller=".$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+30)."\n";
+					}
+
+ 				}
+				
                         }
                 }
         }
@@ -449,8 +523,10 @@ sub gen_zaptel_conf{
 
 sub gen_zapata_conf{
 	my ($self) = @_;
-        
- 	my $zp_file='';
+	my $zp_file='';
+	my $dahdi_conf = $self->card->dahdi_conf;
+	my $hwec_mode = $self->card->hwec_mode;
+   
 
 	$zp_file.="\n\;Sangoma A".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
 
@@ -462,6 +538,15 @@ sub gen_zapata_conf{
        
 	$zp_file.="context=".$self->card->zap_context."\n";
        	$zp_file.="group=".$self->card->zap_group."\n";
+	if($dahdi_conf eq 'YES') {
+		if($hwec_mode eq 'NO' ) {
+			$zp_file.="echocancel=yes\n";
+		} else {
+			$zp_file.="echocancel=no\n";		
+		}
+
+	}
+
        	
 	if ( $self->signalling eq 'PRI NET' ){
 		$zp_file.="signalling=pri_net\n";

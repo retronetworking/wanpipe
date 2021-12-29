@@ -414,6 +414,7 @@ typedef struct sdla_remora_param {
 	int		reg_dbg_busy;	
 	int		reg_dbg_ready;	
 	unsigned char	reg_dbg_value;
+	u32		access_counter;
 
 } sdla_remora_param_t;
 

@@ -128,6 +128,7 @@ all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 clean:  clean_util _cleanoldwanpipe
 	$(MAKE) -C $(KDIR) SUBDIRS=$(WAN_DIR) clean
 	@find patches/kdrivers -name '.*.cmd' | xargs rm -f
+	@find . -name 'Module.symver*' | xargs rm -f
 
                                     
 #Clean old wanpipe headers from linux include
@@ -177,6 +178,7 @@ _checkzap:
 		eval "$(PWD)/patches/sangoma-zaptel-patch.sh $(ZAPDIR)"; \
 		ZAPDIR_PRIV=$(ZAPDIR); \
 		ENABLE_WANPIPEMON_ZAP=YES; \
+		cp -f $(ZAPDIR)/Module.symvers $(WAN_DIR)/; \
 		echo ; \
 		echo "Please recompile and reinstall ZAPTEL after installation"; \
 	fi
@@ -211,7 +213,7 @@ install_kmod:
 endif
 
 #Compile utilities only
-all_util: 
+all_util:  install_inc
 	$(MAKE) -C util all EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I $(PWD)/api/libsangoma/include" CC=$(CC) \
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(ARCH) 
 	$(MAKE) -C util all_wancfg EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I$(PWD)/api/libsangoma/include" CC=$(CC) \
@@ -264,6 +266,7 @@ install_inc:
 		\rm -rf $(INSTALLPREFIX)/usr/include/wanpipe; \
         fi
 	@\mkdir -p $(INSTALLPREFIX)/usr/include/wanpipe 
+	@ln -s $(INSTALLPREFIX)/usr/include/wanpipe/ $(INSTALLPREFIX)/usr/include/wanpipe/linux
 	@\cp -f $(PWD)/patches/kdrivers/include/*.h $(INSTALLPREFIX)/usr/include/wanpipe/
 	@\cp -rf $(PWD)/patches/kdrivers/wanec/oct6100_api/include/ $(INSTALLPREFIX)/usr/include/wanpipe/oct6100_api	
 	@\cp -rf $(PWD)/patches/kdrivers/wanec/*.h $(INSTALLPREFIX)/usr/include/wanpipe/

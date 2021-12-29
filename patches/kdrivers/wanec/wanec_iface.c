@@ -102,6 +102,7 @@ extern int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_
 extern int wanec_ChipOpen(wan_ec_dev_t*, int verbose);
 extern int wanec_ChipClose(wan_ec_dev_t*, int verbose);
 extern int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int reset, int verbose);
+extern int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int verbose);
 
 extern int wanec_ChannelOpen(wan_ec_dev_t*, int);
 extern int wanec_ChannelClose(wan_ec_dev_t*, int);
@@ -141,6 +142,7 @@ static int wanec_api_chan_custom(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static int wanec_api_modify_bypass(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static int wanec_api_dtmf(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static int wanec_api_stats(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_stats_image(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static int wanec_api_buffer(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static int wanec_api_playout(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static int wanec_api_monitor(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
@@ -167,6 +169,152 @@ int wanec_ready_unload(void*);
 #endif
 
 /*****************************************************************************/
+# if defined(WAN_DEBUG_MEM)
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+# define EXPORT_SYMBOL(symbol)
+#endif
+static int wan_debug_mem;
+
+static wan_spinlock_t wan_debug_mem_lock;
+
+WAN_LIST_HEAD(NAME_PLACEHOLDER_MEM, sdla_memdbg_el) sdla_memdbg_head = 
+			WAN_LIST_HEAD_INITIALIZER(&sdla_memdbg_head);
+
+typedef struct sdla_memdbg_el
+{
+	unsigned int len;
+	unsigned int line;
+	char cmd_func[128];
+	void *mem;
+	WAN_LIST_ENTRY(sdla_memdbg_el)	next;
+}sdla_memdbg_el_t;
+
+static int wanec_memdbg_init(void);
+static int wanec_memdbg_free(void);
+
+static int wanec_memdbg_init(void)
+{
+	wan_spin_lock_init(&wan_debug_mem_lock,"wan_debug_mem_lock");
+	WAN_LIST_INIT(&sdla_memdbg_head);
+	return 0;
+}
+
+
+int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len)
+{
+	sdla_memdbg_el_t *sdla_mem_el = NULL;
+	wan_smp_flag_t flags;
+
+#if defined(__LINUX__)
+	sdla_mem_el = kmalloc(sizeof(sdla_memdbg_el_t),GFP_ATOMIC);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	sdla_mem_el = malloc(sizeof(sdla_memdbg_el_t), M_DEVBUF, M_NOWAIT); 
+#endif
+	if (!sdla_mem_el) {
+		DEBUG_EVENT("%s:%d Critical failed to allocate memory!\n",
+			__FUNCTION__,__LINE__);
+		return -ENOMEM;
+	}
+
+	memset(sdla_mem_el,0,sizeof(sdla_memdbg_el_t));
+		
+	sdla_mem_el->len=len;
+	sdla_mem_el->line=line;
+	sdla_mem_el->mem=mem;
+	strncpy(sdla_mem_el->cmd_func,func_name,sizeof(sdla_mem_el->cmd_func)-1);
+	
+	wan_spin_lock_irq(&wan_debug_mem_lock,&flags);
+	wan_debug_mem+=sdla_mem_el->len;
+	WAN_LIST_INSERT_HEAD(&sdla_memdbg_head, sdla_mem_el, next);
+	wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
+
+	DEBUG_EVENT("%s:%d: Alloc %p Len=%i Total=%i\n",
+			sdla_mem_el->cmd_func,sdla_mem_el->line,
+			 sdla_mem_el->mem, sdla_mem_el->len,wan_debug_mem);
+	return 0;
+
+}
+EXPORT_SYMBOL(sdla_memdbg_push);
+
+int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
+{
+	sdla_memdbg_el_t *sdla_mem_el;
+	wan_smp_flag_t flags;
+	int err=-1;
+
+	wan_spin_lock_irq(&wan_debug_mem_lock,&flags);
+
+	WAN_LIST_FOREACH(sdla_mem_el, &sdla_memdbg_head, next){
+		if (sdla_mem_el->mem == mem) {
+			break;
+		}
+	}
+
+	if (sdla_mem_el) {
+		
+		WAN_LIST_REMOVE(sdla_mem_el, next);
+		wan_debug_mem-=sdla_mem_el->len;
+		wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
+
+		DEBUG_EVENT("%s:%d: DeAlloc %p Len=%i Total=%i (From %s:%d)\n",
+			func_name,line,
+			sdla_mem_el->mem, sdla_mem_el->len, wan_debug_mem,
+			sdla_mem_el->cmd_func,sdla_mem_el->line);
+#if defined(__LINUX__)
+		kfree(sdla_mem_el);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+		free(sdla_mem_el, M_DEVBUF); 
+#endif
+		err=0;
+	} else {
+		wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
+	}
+
+	if (err) {
+		DEBUG_EVENT("%s:%d: Critical Error: Unknows Memeory %p\n",
+			__FUNCTION__,__LINE__,mem);
+	}
+
+	return err;
+}
+EXPORT_SYMBOL(sdla_memdbg_pull);
+
+static int wanec_memdbg_free(void)
+{
+	sdla_memdbg_el_t *sdla_mem_el;
+	int total=0;
+
+	DEBUG_EVENT("wanec: Memory Still Allocated=%i \n",
+			 wan_debug_mem);
+
+	DEBUG_EVENT("=====================BEGIN================================\n");
+
+	sdla_mem_el = WAN_LIST_FIRST(&sdla_memdbg_head);
+	while(sdla_mem_el){
+		sdla_memdbg_el_t *tmp = sdla_mem_el;
+
+		DEBUG_EVENT("%s:%d: Mem Leak %p Len=%i \n",
+			sdla_mem_el->cmd_func,sdla_mem_el->line,
+			sdla_mem_el->mem, sdla_mem_el->len);
+		total+=sdla_mem_el->len;
+
+		sdla_mem_el = WAN_LIST_NEXT(sdla_mem_el, next);
+		WAN_LIST_REMOVE(tmp, next);
+#if defined(__LINUX__)
+		kfree(tmp);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+		free(tmp, M_DEVBUF); 
+#endif
+	}
+
+	DEBUG_EVENT("=====================END==================================\n");
+	DEBUG_EVENT("wanec: Memory Still Allocated=%i  Leaks Found=%i Missing=%i\n",
+			 wan_debug_mem,total,wan_debug_mem-total);
+
+	return 0;
+}
+
+# endif
 
 static u32 convert_addr(u32 addr)
 {
@@ -1207,6 +1355,29 @@ static int wanec_api_stats(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 	return 0;
 }
 
+static int wanec_api_stats_image(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+{
+	wan_ec_t	*ec = NULL;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
+				ec_dev->devname,
+				ec->name,
+				WAN_EC_STATE_DECODE(ec->state));
+		return WAN_EC_API_RC_INVALID_STATE;
+	}
+
+	PRINT1(ec_api->verbose,
+	"%s: Read EC Image stats ...\n",
+			ec_dev->devname);
+	wanec_ChipImage(ec_dev, &ec_api->u_chip_image, ec_api->verbose);
+	return 0;
+}
+
 static int wanec_api_monitor(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
@@ -1482,6 +1653,9 @@ int wanec_ioctl(void *data, void *pcard)
 	case WAN_EC_API_CMD_STATS:
 	case WAN_EC_API_CMD_STATS_FULL:
 		err = wanec_api_stats(ec_dev, ec_api);
+		break;
+	case WAN_EC_API_CMD_STATS_IMAGE:
+		err = wanec_api_stats_image(ec_dev, ec_api);
 		break;
 	case WAN_EC_API_CMD_BUFFER_LOAD:
 	case WAN_EC_API_CMD_BUFFER_UNLOAD:
@@ -1990,6 +2164,9 @@ int wanec_init(void *arg)
 	}
 #endif
 
+#if defined(WAN_DEBUG_MEM)
+	wanec_memdbg_init();
+#endif
 	if (WANPIPE_VERSION_BETA){
 		DEBUG_EVENT("%s Beta %s.%s %s\n",
 				wpec_fullname,
@@ -2032,6 +2209,10 @@ int wanec_exit (void *arg)
 	wanec_remove_dev();
 # endif
 	unregister_wanec_iface();
+#endif
+
+#if defined(WAN_DEBUG_MEM)
+	wanec_memdbg_free();
 #endif
 	DEBUG_EVENT("WANEC Layer: Unloaded\n");
 	return 0;

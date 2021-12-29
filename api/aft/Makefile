@@ -10,18 +10,12 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
-ifeq "$(SYSINC)" "" 
-SYSINC=/usr/src/linux/include
-endif
-VPATH	= $(SYSINC)
-
 DIR_EC_APILIB=/common/wantools/wanec_apilib
 SRC_EC_APILIB=$(DIR_EC_APILIB)/wanec_api.c $(DIR_EC_APILIB)/wanec_api_lib.c 
 INC_EC_APILIB=-I/usr/include/wanpipe/oct6100_api -I$(DIR_EC_APILIB)
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -DCONFIG_PRODUCT_WANPIPE_TDMV_EC -D_GNUC_ -I../lib -I$(SYSINC)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -DCONFIG_PRODUCT_WANPIPE_TDMV_EC -D_GNUC_ -I../lib 
 CFLAGS += -I/usr/include/wanpipe
 
 TARGETS=aft_api

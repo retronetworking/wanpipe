@@ -35,8 +35,8 @@
  * Version 2.0, Fri Aug 30 09:59:07 EDT 2002
  * Version 2.1, Wed Mar 26 10:03:00 EDT 2003
  * 
- * $Id: wanpipe_syncppp.c,v 1.29 2007/02/28 02:01:05 sangoma Exp $
- * $Id: wanpipe_syncppp.c,v 1.29 2007/02/28 02:01:05 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.33 2008-05-05 17:13:26 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.33 2008-05-05 17:13:26 sangoma Exp $
  */
 
 /*

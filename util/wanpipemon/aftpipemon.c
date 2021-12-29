@@ -79,6 +79,10 @@
  * 			GLOBAL VARIABLES				      *
  *****************************************************************************/
 /* The ft1_lib needs these global variables */
+extern wan_femedia_t	femedia;
+extern char *csudsu_menu_te1_pmc[];
+extern char *csudsu_menu_te1_dm[];
+extern char *csudsu_menu_te3[];
 
 /******************************************************************************
  * 			FUNCTION PROTOTYPES				      *
@@ -168,15 +172,34 @@ char ** AFTget_cmd_menu(char *cmd_name,int *len)
 	int i=0,j=0;
 	char **cmd_menu=NULL;
 	
-	while(gui_cmd_menu_lookup[i].cmd_menu_ptr != NULL){
-		if (strcmp(cmd_name,gui_cmd_menu_lookup[i].cmd_menu_name) == 0){
-			cmd_menu=(char**)gui_cmd_menu_lookup[i].cmd_menu_ptr;
-			while (strcmp(cmd_menu[j],".") != 0){
-				j++;
+	if (strcmp(cmd_name, "csudsu_menu") == 0){
+
+		if (femedia.media == WAN_MEDIA_T1 || femedia.media == WAN_MEDIA_E1){  
+			if (femedia.chip_id == WAN_TE_CHIP_PMC){
+				cmd_menu = csudsu_menu_te1_pmc;
+			}else if (femedia.chip_id == WAN_TE_CHIP_DM){
+				cmd_menu = csudsu_menu_te1_dm;
+			}else{
+				cmd_menu = csudsu_menu;
 			}
-			break;
+		}else if (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){  
+			cmd_menu = csudsu_menu_te3;
+		}else{
+			cmd_menu = csudsu_menu;
 		}
-		i++;
+	}else{
+		while(gui_cmd_menu_lookup[i].cmd_menu_ptr != NULL){
+			if (strcmp(cmd_name,gui_cmd_menu_lookup[i].cmd_menu_name) == 0){
+				cmd_menu=(char**)gui_cmd_menu_lookup[i].cmd_menu_ptr;
+				break;
+			}
+			i++;
+		}
+	}
+	if (cmd_menu){
+		while (strcmp(cmd_menu[j],".") != 0){
+			j++;
+		}
 	}
 	*len=j/2;
 	return cmd_menu;
@@ -1130,22 +1153,26 @@ int AFTUsage(void)
 	printf("\t   T         a       Read T1/E1/56K alarms.\n"); 
 	printf("\t             lt      Diagnostic Digital Loopback testing (T1/E1 card only)\n"); 
 	printf("\t             lb      Read Loopback status (T1/E1 cards)\n");  
-	printf("\t             allb    Active Line/Remote Loopback mode (T1/E1/T3/E3 cards)\n");  
-	printf("\t             dllb    Deactive Line/Remote Loopback mode (T1/E1/T3/E3 cards)\n");  
-	printf("\t             aplb    Active Payload Loopback mode (T1/E1/T3/E3 cards)\n");  
-	printf("\t             dplb    Deactive Payload Loopback mode (T1/E1/T3/E3 cards)\n");  
-	printf("\t             adlb    Active Diagnostic Digital Loopback mode (T1/E1/T3/E3 cards)\n");  
-	printf("\t             ddlb    Deactive Diagnostic Digital Loopback mode (T1/E1/T3/E3 cards)\n");  
+	printf("\t             allb    Active Line/Remote Loopback mode (T1/E1 cards)\n");  
+	printf("\t             dllb    Deactive Line/Remote Loopback mode (T1/E1 cards)\n");  
+	printf("\t             aplb    Active Payload Loopback mode (T1/E1 cards)\n");  
+	printf("\t             dplb    Deactive Payload Loopback mode (T1/E1 cards)\n");  
+	printf("\t             adlb    Active Diagnostic Digital Loopback mode (T1/E1 cards)\n");  
+	printf("\t             ddlb    Deactive Diagnostic Digital Loopback mode (T1/E1 cards)\n");  
 	printf("\t             salb    Send Loopback Activate Code (T1/E1 PMC card only)\n");  
 	printf("\t             sdlb    Send Loopback Deactive Code (T1/E1 PMC card only)\n");  
 	printf("\t             alalb   Active LIU Analog Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             dlalb   Deactive LIU Analog Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             alllb   Active LIU Local Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             dlllb   Deactive LIU Local Loopback mode (T1/E1 DM card only)\n");  
-	printf("\t             alrlb   Active LIU Remote Loopback mode (T1/E1 DM card only)\n");  
-	printf("\t             dlrlb   Deactive LIU Remote Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             aldlb   Active LIU Dual Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             dldlb   Deactive LIU Dual Loopback mode (T1/E1 DM card only)\n");
+	printf("\t             allb3   Active Analog Local Loopback mode (DS3/E3 cards)\n");  
+	printf("\t             dllb3   Deactive Analog Local Loopback mode (DS3/E3 cards)\n");  
+	printf("\t             arlb3   Active Remote Loopback mode (DS3/E3 cards)\n");  
+	printf("\t             drlb3   Deactive Remote Loopback mode (DS3/E3 cards)\n");  
+	printf("\t             adlb3   Active Digital Loopback mode (DS3/E3 cards)\n");  
+	printf("\t             ddlb3   Deactive Digital Loopback mode (DS3/E3 cards)\n");  
 	printf("\t             txe     Enable TX (AFT card only)\n");  
 	printf("\t             txd     Disable TX (AFT card only)\n");  
 	printf("\tFlush Statistics\n");
@@ -1310,45 +1337,49 @@ int AFTMain(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt,"lb")){
 				get_lb_modes();
 			}else if (!strcmp(opt,"allb")){
-				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dllb")){
-				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"aplb")){
-				set_lb_modes(WAN_TE1_PAYLB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_PAYLB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dplb")){
-				set_lb_modes(WAN_TE1_PAYLB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_PAYLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"adlb")){
-				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"ddlb")){
-				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"salb")){
-				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"sdlb")){
-				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"alalb")){
-				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dlalb")){
-				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"alllb")){
-				set_lb_modes(WAN_TE1_LIU_LLB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LIU_LLB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dlllb")){
-				set_lb_modes(WAN_TE1_LIU_LLB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LIU_LLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"alrlb")){
-				set_lb_modes(WAN_TE1_LIU_RLB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LIU_RLB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dlrlb")){
-				set_lb_modes(WAN_TE1_LIU_RLB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LIU_RLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"aldlb")){
-				set_lb_modes(WAN_TE1_LIU_DLB_MODE, WAN_TE1_ACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LIU_DLB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dldlb")){
-				set_lb_modes(WAN_TE1_LIU_DLB_MODE, WAN_TE1_DEACTIVATE_LB);
-			}else if (!strcmp(opt,"aflb")){
-				set_lb_modes(WAN_TE1_FR_FLB_MODE, WAN_TE1_ACTIVATE_LB);
-			}else if (!strcmp(opt,"dflb")){
-				set_lb_modes(WAN_TE1_FR_FLB_MODE, WAN_TE1_DEACTIVATE_LB);
-			}else if (!strcmp(opt,"afplb")){
-				set_lb_modes(WAN_TE1_FR_PLB_MODE, WAN_TE1_ACTIVATE_LB);
-			}else if (!strcmp(opt,"dfplb")){
-				set_lb_modes(WAN_TE1_FR_PLB_MODE, WAN_TE1_DEACTIVATE_LB);
+				set_lb_modes(WAN_TE1_LIU_DLB_MODE, WAN_TE1_LB_DISABLE);
+			}else if (!strcmp(opt,"allb3")){
+				set_lb_modes(WAN_TE3_LIU_LB_ANALOG, WAN_TE3_LB_ENABLE);
+			}else if (!strcmp(opt,"dllb3")){
+				set_lb_modes(WAN_TE3_LIU_LB_ANALOG, WAN_TE3_LB_DISABLE);
+			}else if (!strcmp(opt,"arlb3")){
+				set_lb_modes(WAN_TE3_LIU_LB_REMOTE, WAN_TE3_LB_ENABLE);
+			}else if (!strcmp(opt,"drlb3")){
+				set_lb_modes(WAN_TE3_LIU_LB_REMOTE, WAN_TE3_LB_DISABLE);
+			}else if (!strcmp(opt,"adlb3")){
+				set_lb_modes(WAN_TE3_LIU_LB_DIGITAL, WAN_TE3_LB_ENABLE);
+			}else if (!strcmp(opt,"ddlb3")){
+				set_lb_modes(WAN_TE3_LIU_LB_DIGITAL, WAN_TE3_LB_DISABLE);
 			}else if (!strcmp(opt,"a")){
 				read_te1_56k_stat(0);
 			}else if (!strcmp(opt,"af")){

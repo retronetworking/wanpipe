@@ -75,9 +75,12 @@ libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libsangoma_la_LIBADD =
 am__libsangoma_la_SOURCES_DIST = libsangoma.c libsangoma.h \
-	sangoma_pri.c sangoma_pri.h
+	libhpsangoma.c libhpsangoma.h libhpsangoma_priv.c \
+	libhpsangoma_priv.h sangoma_pri.c sangoma_pri.h
 @LIBPRI_TRUE@am__objects_1 = libsangoma_la-sangoma_pri.lo
-am__objects_2 = libsangoma_la-libsangoma.lo $(am__objects_1)
+am__objects_2 = libsangoma_la-libsangoma.lo \
+	libsangoma_la-libhpsangoma.lo \
+	libsangoma_la-libhpsangoma_priv.lo $(am__objects_1)
 am_libsangoma_la_OBJECTS = $(am__objects_2)
 libsangoma_la_OBJECTS = $(am_libsangoma_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir)
@@ -94,7 +97,8 @@ LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 SOURCES = $(libsangoma_a_SOURCES) $(libsangoma_la_SOURCES)
 DIST_SOURCES = $(libsangoma_a_SOURCES) \
 	$(am__libsangoma_la_SOURCES_DIST)
-am__library_include_HEADERS_DIST = libsangoma.h sangoma_pri.h
+am__library_include_HEADERS_DIST = libsangoma.h libhpsangoma.h \
+	sangoma_pri.h
 library_includeHEADERS_INSTALL = $(INSTALL_HEADER)
 HEADERS = $(library_include_HEADERS)
 ETAGS = etags
@@ -210,14 +214,15 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-KINC = /lib/modules/$(shell uname -r)/build
-WINC = ../../patches/kdrivers/include
-AM_CFLAGS = -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I$(WINC) -I$(KINC)/include -I. \
-	-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O2 -D_DEBUG_=2 -D_GNUC_ -I../lib -I$(KINC)/include
+WLINC = ../../patches/kdrivers/include
+WINC = /usr/include/wanpipe
+AM_CFLAGS = -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I$(WLINC) -I$(WINC)  -I. \
+	-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O2 -D_DEBUG_=2 -D_GNUC_ -I../lib  
 
-LIB_SOURCES = libsangoma.c libsangoma.h $(am__append_1)
+LIB_SOURCES = libsangoma.c libsangoma.h libhpsangoma.c libhpsangoma.h \
+	libhpsangoma_priv.c libhpsangoma_priv.h $(am__append_1)
 library_includedir = $(includedir)
-library_include_HEADERS = libsangoma.h $(am__append_2)
+library_include_HEADERS = libsangoma.h libhpsangoma.h $(am__append_2)
 lib_LTLIBRARIES = libsangoma.la
 libsangoma_la_CFLAGS = $(AM_CFLAGS) $(am__append_3)
 libsangoma_la_LDFLAGS = -version-info 1:0:0 $(am__append_4)
@@ -331,6 +336,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-libhpsangoma.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-libhpsangoma_priv.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-libsangoma.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-sangoma_pri.Plo@am__quote@
 
@@ -361,6 +368,20 @@ libsangoma_la-libsangoma.lo: libsangoma.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='libsangoma.c' object='libsangoma_la-libsangoma.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -c -o libsangoma_la-libsangoma.lo `test -f 'libsangoma.c' || echo '$(srcdir)/'`libsangoma.c
+
+libsangoma_la-libhpsangoma.lo: libhpsangoma.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -MT libsangoma_la-libhpsangoma.lo -MD -MP -MF "$(DEPDIR)/libsangoma_la-libhpsangoma.Tpo" -c -o libsangoma_la-libhpsangoma.lo `test -f 'libhpsangoma.c' || echo '$(srcdir)/'`libhpsangoma.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libsangoma_la-libhpsangoma.Tpo" "$(DEPDIR)/libsangoma_la-libhpsangoma.Plo"; else rm -f "$(DEPDIR)/libsangoma_la-libhpsangoma.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='libhpsangoma.c' object='libsangoma_la-libhpsangoma.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -c -o libsangoma_la-libhpsangoma.lo `test -f 'libhpsangoma.c' || echo '$(srcdir)/'`libhpsangoma.c
+
+libsangoma_la-libhpsangoma_priv.lo: libhpsangoma_priv.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -MT libsangoma_la-libhpsangoma_priv.lo -MD -MP -MF "$(DEPDIR)/libsangoma_la-libhpsangoma_priv.Tpo" -c -o libsangoma_la-libhpsangoma_priv.lo `test -f 'libhpsangoma_priv.c' || echo '$(srcdir)/'`libhpsangoma_priv.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libsangoma_la-libhpsangoma_priv.Tpo" "$(DEPDIR)/libsangoma_la-libhpsangoma_priv.Plo"; else rm -f "$(DEPDIR)/libsangoma_la-libhpsangoma_priv.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='libhpsangoma_priv.c' object='libsangoma_la-libhpsangoma_priv.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -c -o libsangoma_la-libhpsangoma_priv.lo `test -f 'libhpsangoma_priv.c' || echo '$(srcdir)/'`libhpsangoma_priv.c
 
 libsangoma_la-sangoma_pri.lo: sangoma_pri.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -MT libsangoma_la-sangoma_pri.lo -MD -MP -MF "$(DEPDIR)/libsangoma_la-sangoma_pri.Tpo" -c -o libsangoma_la-sangoma_pri.lo `test -f 'sangoma_pri.c' || echo '$(srcdir)/'`sangoma_pri.c; \

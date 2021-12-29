@@ -74,6 +74,8 @@ char*	progname = "wanutil";
 char*	progname = "wanpipemon";
 #endif
 
+
+wan_femedia_t	femedia;
 wan_udp_hdr_t	wan_udp;
 int		sock = 0;
 int 		wan_protocol = 0;
@@ -85,6 +87,7 @@ int		gui_interface=0;
 
 
 extern int trace_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int len);
+extern int get_femedia_type(wan_femedia_t *fe_media);
 
 static sa_family_t		af = AF_INET;
 static struct sockaddr_in	soin;
@@ -1414,12 +1417,16 @@ int main(int argc, char* argv[])
 		}
 gui_loop:		
 #endif
+
 		if (MakeConnection() == WAN_FALSE){ 
 			close(sock);
 		       	err=-ENODEV;
 		       	goto main_exit;
 		}
-		
+
+		/* Read fe media info for current interface */		
+		get_femedia_type(&femedia);
+	
 		//get_hardware_level_interface_name(if_name);
 			
 #ifdef WANPIPEMON_GUI

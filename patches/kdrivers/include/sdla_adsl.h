@@ -2,7 +2,7 @@
  * Copyright (c) 2002
  *	Alex Feldman <al.feldman@sangoma.com>.  All rights reserved.
  *
- *	$Id: sdla_adsl.h,v 1.9 2008/01/09 17:45:29 sangoma Exp $
+ *	$Id: sdla_adsl.h,v 1.10 2008-02-04 18:03:54 sangoma Exp $
  */
 
 /*************************************************************************
@@ -86,8 +86,8 @@ typedef struct adsl_private_area
 	unsigned char 		udp_pkt_data[sizeof(wan_udp_pkt_t)];
 	unsigned char		udp_pkt_src;
 	unsigned char		remote_eth_addr[6];
-	unsigned long 		router_start_time;
-	unsigned long 		router_up_time;
+	wan_time_t		router_start_time;		/*unsigned long 		router_start_time;*/
+	wan_time_t		router_up_time;		/*unsigned long 		router_up_time;*/
 	unsigned long  		trace_timeout;
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	struct ifmedia media;	/* media information */

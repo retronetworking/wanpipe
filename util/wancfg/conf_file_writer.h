@@ -24,7 +24,7 @@
 #include "list_element_sangoma_card.h"
 
 #if defined(__LINUX__)
-# include <zaptel.h>
+# include <zapcompat_user.h>
 #else
 #endif
 

@@ -443,6 +443,7 @@ volatile extern int ticks;	/* This line will causes redundant
 				   otherwise loop in calibrate_delay() will
 				   never finished (optimization) */
 #endif
+static int		sdladrv_mode = SDLADRV_MODE_WANPIPE;
 
 /* SDLA ISA/PCI varibles */
 extern int 		Sangoma_cards_no;	/* total number of SDLA cards */
@@ -626,7 +627,10 @@ typedef struct sdla_memdbg_el
 	WAN_LIST_ENTRY(sdla_memdbg_el)	next;
 }sdla_memdbg_el_t;
 
-int sdla_memdbg_init(void)
+static int sdla_memdbg_init(void);
+static int sdla_memdbg_free(void);
+
+static int sdla_memdbg_init(void)
 {
 	wan_spin_lock_init(&wan_debug_mem_lock,"wan_debug_mem_lock");
 	WAN_LIST_INIT(&sdla_memdbg_head);
@@ -634,12 +638,16 @@ int sdla_memdbg_init(void)
 }
 
 
-int sdla_memdbg_push(void *mem, char *func_name, int line, int len)
+int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len)
 {
-	sdla_memdbg_el_t *sdla_mem_el;
+	sdla_memdbg_el_t *sdla_mem_el = NULL;
 	wan_smp_flag_t flags;
 
+#if defined(__LINUX__)
 	sdla_mem_el = kmalloc(sizeof(sdla_memdbg_el_t),GFP_ATOMIC);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	sdla_mem_el = malloc(sizeof(sdla_memdbg_el_t), M_DEVBUF, M_NOWAIT); 
+#endif
 	if (!sdla_mem_el) {
 		DEBUG_EVENT("%s:%d Critical failed to allocate memory!\n",
 			__FUNCTION__,__LINE__);
@@ -653,7 +661,6 @@ int sdla_memdbg_push(void *mem, char *func_name, int line, int len)
 	sdla_mem_el->mem=mem;
 	strncpy(sdla_mem_el->cmd_func,func_name,sizeof(sdla_mem_el->cmd_func)-1);
 	
-
 	wan_spin_lock_irq(&wan_debug_mem_lock,&flags);
 	wan_debug_mem+=sdla_mem_el->len;
 	WAN_LIST_INSERT_HEAD(&sdla_memdbg_head, sdla_mem_el, next);
@@ -662,13 +669,12 @@ int sdla_memdbg_push(void *mem, char *func_name, int line, int len)
 	DEBUG_EVENT("%s:%d: Alloc %p Len=%i Total=%i\n",
 			sdla_mem_el->cmd_func,sdla_mem_el->line,
 			 sdla_mem_el->mem, sdla_mem_el->len,wan_debug_mem);
-	
 	return 0;
 
 }
 EXPORT_SYMBOL(sdla_memdbg_push);
 
-int sdla_memdbg_pull(void *mem, char *func_name, int line)
+int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 {
 	sdla_memdbg_el_t *sdla_mem_el;
 	wan_smp_flag_t flags;
@@ -692,8 +698,11 @@ int sdla_memdbg_pull(void *mem, char *func_name, int line)
 			func_name,line,
 			sdla_mem_el->mem, sdla_mem_el->len, wan_debug_mem,
 			sdla_mem_el->cmd_func,sdla_mem_el->line);
-
+#if defined(__LINUX__)
 		kfree(sdla_mem_el);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+		free(sdla_mem_el, M_DEVBUF); 
+#endif
 		err=0;
 	} else {
 		wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
@@ -708,7 +717,7 @@ int sdla_memdbg_pull(void *mem, char *func_name, int line)
 }
 EXPORT_SYMBOL(sdla_memdbg_pull);
 
-int sdla_memdbg_free(void)
+static int sdla_memdbg_free(void)
 {
 	sdla_memdbg_el_t *sdla_mem_el;
 	int total=0;
@@ -729,7 +738,11 @@ int sdla_memdbg_free(void)
 
 		sdla_mem_el = WAN_LIST_NEXT(sdla_mem_el, next);
 		WAN_LIST_REMOVE(tmp, next);
+#if defined(__LINUX__)
 		kfree(tmp);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+		free(tmp, M_DEVBUF); 
+#endif
 	}
 
 	DEBUG_EVENT("=====================END==================================\n");
@@ -848,6 +861,13 @@ int sdladrv_exit (void *arg)
 	sdla_memdbg_free();
 #endif	
 	
+	return 0;
+}
+
+EXPORT_SYMBOL(sdladrv_hw_mode);
+int sdladrv_hw_mode(int mode)
+{
+	sdladrv_mode = mode;
 	return 0;
 }
 
@@ -1584,10 +1604,22 @@ static int sdla_pcibridge_info(sdlahw_t* hw)
 	hwcard = hwcpu->hwcard;
 
 	sdla_pci_bridge_read_config_word(hw, PCI_VENDOR_ID_WORD, &vendor_id);
-	if (vendor_id == PLX_VENDOR_ID){
+	if (vendor_id == PLX_VENDOR_ID && sdladrv_mode == SDLADRV_MODE_WANPIPE){
 		u_int16_t	val16;
 		u_int8_t	val8;
 
+#if 1
+		sdla_plxctrl_read8(hw, PLX_EEPROM_VENDOR_OFF, &val8);
+		val16 = val8 << 8;	
+		sdla_plxctrl_read8(hw, PLX_EEPROM_VENDOR_OFF+1, &val8);
+		val16 |= val8;	
+		if (val16 != SANGOMA_PCI_VENDOR){
+			hwcard->pci_bridge_dev = NULL;
+			hwcard->pci_bridge_bus = 0; 
+			hwcard->pci_bridge_slot = 0;
+		}
+
+#else
 		sdla_plxctrl_read8(hw, 0x00, &val8);
 		/* For now, all PLX with blank EEPROM is our new
 		** cards from production. */
@@ -1603,6 +1635,7 @@ static int sdla_pcibridge_info(sdlahw_t* hw)
 				hwcard->pci_bridge_slot = 0;
 			}
 		}
+#endif
 	}else if (vendor_id == TUNDRA_VENDOR_ID){
 		/* Skip extra verification for TUNDRA PCI Express Bridge */
 	}
@@ -2588,7 +2621,6 @@ sdla_pci_probe_aft(sdlahw_t *hw, int slot_no, int bus_no, int irq)
 		return 0;
 	}
 	hwcard->pci_dev	= tmp_hwcard->pci_dev;
-#if defined(__LINUX__)
 	/* Detect PCI Express cards (only valid for production test) */
 	switch(PCI_subsys_vendor){	
 	case A200_REMORA_SHARK_SUBSYS_VENDOR:
@@ -2606,7 +2638,6 @@ sdla_pci_probe_aft(sdlahw_t *hw, int slot_no, int bus_no, int irq)
 		sdla_pcibridge_detect(hwcard);
 		break;
 	}	
-#endif
 		
 	hwcard->core_id	= AFT_CORE_ID(pci_subsystem_id);
 	hwcard->core_rev= AFT_CORE_REV(pci_subsystem_id);

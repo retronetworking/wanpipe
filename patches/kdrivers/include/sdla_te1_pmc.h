@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1_pmc.h,v 1.4 2007/04/25 21:23:03 sangoma Exp $
+ *	$Id: sdla_te1_pmc.h,v 1.4 2007-04-25 21:23:03 sangoma Exp $
  */
 
 /*****************************************************************************
