@@ -19,7 +19,7 @@
  * Debugging Definitions
  *================================================================*/
 
-#ifdef __WINDOWS__
+#if defined(__WINDOWS__)
 # define DEBUG_LOGGER if(0)DbgPrint
 extern void vOutputLogString(const char * pvFormat, va_list args);
 #else
@@ -90,7 +90,6 @@ typedef struct wp_logger_api_dev {
 
 	wan_skb_queue_t 	wp_event_list;
 	wan_skb_queue_t 	wp_event_free_list;
-	wan_taskq_t 		wp_logger_task;
 
 	void 			*cdev;
 	u32				magic_no;
@@ -108,6 +107,9 @@ u_int32_t wp_logger_level_hwec = 0;
 u_int32_t wp_logger_level_tdmapi = 0;
 u_int32_t wp_logger_level_fe = 0;
 u_int32_t wp_logger_level_bri = 0;
+
+/* by default messages will be printed into Log file. */
+static u_int32_t wp_logger_level_file = SANG_LOGGER_FILE_ON;
 
 
 static wp_logger_api_dev_t	logger_api_dev;
@@ -135,6 +137,8 @@ static u_int32_t* wp_logger_type_to_variable_ptr(u_int32_t logger_type)
 		return &wp_logger_level_fe;
 	case WAN_LOGGER_BRI:
 		return &wp_logger_level_bri;
+	case WAN_LOGGER_FILE:
+		return &wp_logger_level_file;
 	default:
 		return NULL;
 	}
@@ -172,8 +176,9 @@ static void wp_logger_set_level(u_int32_t logger_type, u_int32_t new_level)
 {
 	u_int32_t *logger_var_ptr = wp_logger_type_to_variable_ptr(logger_type);
 
-	DEBUG_LOGGER("%s(): logger_type: %d, new_level: 0x%08X\n",
-		__FUNCTION__, logger_type, new_level);
+	DEBUG_LOGGER("%s(): logger_type: %d(%s), new_level: 0x%08X\n",
+		__FUNCTION__, logger_type, SANG_DECODE_LOGGER_TYPE(logger_type),
+		new_level);
 
 	if(logger_var_ptr){
 		*logger_var_ptr = new_level;
@@ -484,22 +489,6 @@ static int wp_logger_api_ioctl(void *not_used, int ioctl_cmd, void *user_data)
 	return err;
 }
 
-
-#if defined(__LINUX__)
-# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
-static void wp_logger_task_func (void *not_used)
-# else
-static void wp_logger_task_func (struct work_struct *not_used)
-# endif
-#elif defined(__WINDOWS__)
-static void wp_logger_task_func (IN PKDPC Dpc, IN PVOID not_used, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
-#else
-static void wp_logger_task_func (void *not_used, int arg)
-#endif
-{
-	wp_logger_wakeup_api();
-}
-
 static netskb_t* wp_logger_get_free_skb(void)
 {
 	netskb_t *skb;
@@ -540,13 +529,16 @@ static int wp_logger_push_event(netskb_t *skb)
 	return 0;
 }
 
-static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, va_list va_arg_list)
+static char previous_error_message[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
+static u32	repeating_error_message_counter = 0;
+
+
+static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, va_list *va_arg_list)
 {
+	char current_error_message[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
+	char tmp_message_buf[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
+
 	/* Filter out repeating messages. */
-	static char previous_error_message[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
-	static char current_error_message[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
-	static char tmp_message_buf[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
-	static u32	repeating_error_message_counter = 0;
 	u8	apply_filter = 0;
 
 	/* Filter only ERROR message from Default logger. 
@@ -559,7 +551,7 @@ static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t e
 
 	if(!apply_filter){
 		/* consider it as NOT a repeating message */
-		memset(previous_error_message, 0x00, sizeof(previous_error_message));
+		previous_error_message[0]=0;
 		repeating_error_message_counter = 0;
 		return 0;
 	}
@@ -567,7 +559,7 @@ static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t e
 	memset(current_error_message, 0x00, sizeof(current_error_message));
 
 	wp_vsnprintf(current_error_message, sizeof(current_error_message) - 1,
-		(const char *)fmt, va_arg_list);
+		(const char *)fmt, *va_arg_list);
 
 	if(!memcmp(previous_error_message, current_error_message, sizeof(current_error_message))){
 		/* Every WAN_MESSAGE_DISCARD_COUNT messages print the repeating message
@@ -612,19 +604,25 @@ static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t e
 }
 
 /* no Filtering will be applied to the message */
-static void wp_logger_vInput(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, va_list va_arg_list)
+static void wp_logger_vInput(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, va_list *va_arg_list)
 {
 	/************************************************************************
 	  Independently of Logger Device state, write the message into log file. 
 	*************************************************************************/
 
+	if (!(wp_logger_level_file & SANG_LOGGER_FILE_OFF)) {
+
  #ifdef __WINDOWS__
-	/* Write the message to wanpipelog.txt */
-	vOutputLogString(fmt, va_arg_list);
+		/* Write the message to wanpipelog.txt */
+		vOutputLogString(fmt, *va_arg_list);
  #else
-	/* Write the message to kernel log. */
-	vprintk(fmt, va_arg_list);
+ 		{
+		char msg[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
+		wp_vsnprintf(msg, sizeof(msg) - 1,(const char *)fmt, *va_arg_list);
+		printk(KERN_INFO "%s", msg);
+		}
  #endif
+	}
 
 	/************************************************************************
 	 Push the message into logger queue.
@@ -648,11 +646,16 @@ static void wp_logger_vInput(u_int32_t logger_type, u_int32_t evt_type, const ch
 			
 			memset(p_wp_logger_event, 0, sizeof(wp_logger_event_t));
 			
-			WAN_LOGGER_SET_DATA(p_wp_logger_event, logger_type, evt_type, fmt, va_arg_list);
+			WAN_LOGGER_SET_DATA(p_wp_logger_event, logger_type, evt_type, fmt, *va_arg_list);
 			
 			wp_logger_push_event(skb);
-			
-			WAN_TASKQ_SCHEDULE((&logger_api_dev.wp_logger_task));
+
+			wp_logger_wakeup_api();
+
+#ifdef AFT_TASKQ_DEBUG
+			DEBUG_TASKQ("%s():%d trigger executed!\n",
+					__FUNCTION__,__LINE__);
+#endif
 		}
 	}
 }
@@ -664,7 +667,7 @@ static void __wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const c
 	/* the paramter list must start at fmt, not at evt_type */
     va_start (va_arg_list, fmt);
 
-	wp_logger_vInput(logger_type, evt_type, fmt, va_arg_list);
+	wp_logger_vInput(logger_type, evt_type, fmt, &va_arg_list);
 
     va_end (va_arg_list);
 }
@@ -676,7 +679,6 @@ static void __wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const c
 /* Windows note: sngbus.sys, sprotocol.sys and wanpipe.sys 
  * will NOT initialize/use Logger Device, but writing to wanpipelog.txt
  * file is still possible by calling this function.*/
-
 void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...)
 {
 	va_list	va_arg_list;
@@ -687,14 +689,14 @@ void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt
 
 	/* the paramter list must start at fmt, not at evt_type */
 	va_start (va_arg_list, fmt);
-	if (wp_logger_repeating_message_filter(logger_type, evt_type, fmt, va_arg_list)) {
+	if (wp_logger_repeating_message_filter(logger_type, evt_type, fmt, &va_arg_list)) {
 		va_end (va_arg_list);
 		return;
 	}
 	va_end (va_arg_list);
 
-    	va_start (va_arg_list, fmt);
-	wp_logger_vInput(logger_type, evt_type, fmt, va_arg_list);
+    va_start (va_arg_list, fmt);
+    wp_logger_vInput(logger_type, evt_type, fmt, &va_arg_list);
 	va_end (va_arg_list);
 }
 
@@ -734,8 +736,6 @@ int wp_logger_create(void)
 	wan_skb_queue_init(&logger_api_dev.wp_event_list);
 	wan_skb_queue_init(&logger_api_dev.wp_event_free_list);
 	
-	WAN_TASKQ_INIT((&logger_api_dev.wp_logger_task),0,wp_logger_task_func, &logger_api_dev);
-	
 	wan_spin_lock_init(&logger_api_dev.lock, "wp_logger_lock");
 
 	if(wp_logger_alloc_q(&logger_api_dev.wp_event_free_list)){
@@ -764,8 +764,6 @@ int wp_logger_create(void)
 /* This function called during module unload. */
 void wp_logger_delete(void)
 {
-	int err;
-
 	if(wan_test_bit(0,&logger_api_dev.used)){
 		DEBUG_LOGGER("%s(): Logger Dev in use - not deleting\n", __FUNCTION__);
 		/* If open file descriptor exist, deletion of Logger Device
@@ -777,10 +775,6 @@ void wp_logger_delete(void)
 		/* make sure logger deleted exactly one time */
 		return;
 	}
-
-	err = WAN_TASKQ_STOP((&logger_api_dev.wp_logger_task));
-
-	DEBUG_EVENT("%s\n", err ? "Logger TASKQ Successfully Stopped" : "Logger TASKQ Not Running");
 
 	logger_api_dev.magic_no = 0;
 	wan_clear_bit(0, &logger_api_dev.init);

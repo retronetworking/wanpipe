@@ -12,6 +12,9 @@
 #define USE_WP_LOGGER 1
 #define SAMPLE_CPP_MAX_PATH 1024
 
+#define USE_BUFFER_MULTIPLIER 0
+
+
 typedef struct{
 	unsigned int	wanpipe_number;	
 	unsigned int	interface_number;	
@@ -24,7 +27,7 @@ typedef struct{
 	unsigned char 	encode_sw_dtmf;
 	unsigned char	voice_codec_alaw;
 	unsigned char	decode_q931;
-	char		szTxFileName[SAMPLE_CPP_MAX_PATH];
+	char			szTxFileName[SAMPLE_CPP_MAX_PATH];
 	unsigned int	txcount;
 	unsigned char   driver_config;
 	unsigned char	use_ctrl_dev;
@@ -33,6 +36,10 @@ typedef struct{
 	int				rxgain;
 	unsigned char	use_hardware_echo_canceller;
 	unsigned char	real_time;
+	unsigned char	hwec_channel;
+#if USE_BUFFER_MULTIPLIER
+	unsigned int	buffer_multiplier;
+#endif
 }wp_program_settings_t;
 
 #define DEV_NAME_LEN			100
@@ -63,6 +70,12 @@ typedef struct{
 #endif
 
 }callback_functions_t;
+
+#if USE_BUFFER_MULTIPLIER
+# define SAMPLE_CPP_MAX_DATA_LEN	(MAX_BUFFER_MULTIPLIER_FACTOR*MAX_NO_DATA_BYTES_IN_FRAME)
+#else
+# define SAMPLE_CPP_MAX_DATA_LEN	MAX_NO_DATA_BYTES_IN_FRAME
+#endif
 
 static void wp_print_rbs_cas_bits(unsigned int abcd)
 {

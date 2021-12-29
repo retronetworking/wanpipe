@@ -1,8 +1,0 @@
-K 10
-svn:ignore
-V 62
-Makefile.Windows
-sample.suo
-sample.vcproj.DAVIDRNEW.User.user
-
-END

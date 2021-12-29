@@ -1309,6 +1309,8 @@ int build_chandef_list (FILE* file)
 					  ( strcmp(chandef->usedby, "TDM_VOICE_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_SPAN_VOICE_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_CHAN_VOICE_API") 	   != 0 ) &&
+					  ( strcmp(chandef->usedby, "MTP2_LSL_API") 	   != 0 ) &&
+					  ( strcmp(chandef->usedby, "MTP2_HSL_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TRUNK") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "ANNEXG")      != 0 )))

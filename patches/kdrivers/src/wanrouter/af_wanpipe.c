@@ -133,7 +133,8 @@ static struct proto packet_proto = {
 static struct sock * wanpipe_sklist = NULL;
 #endif
 
-static rwlock_t wanpipe_sklist_lock = RW_LOCK_UNLOCKED;
+static rwlock_t wanpipe_sklist_lock;
+rwlock_t wanpipe_parent_sklist_lock;
 
 static atomic_t af_mem_alloc;
 static atomic_t af_skb_alloc;
@@ -2107,6 +2108,9 @@ int __init af_wanpipe_init(void)
 			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES, WANPIPE_COMPANY);
  
+
+	wan_rwlock_init(&wanpipe_sklist_lock);
+	wan_rwlock_init(&wanpipe_parent_sklist_lock);
 
 	sock_register(&wanpipe_family_ops);
 	register_netdevice_notifier(&wanpipe_netdev_notifier);

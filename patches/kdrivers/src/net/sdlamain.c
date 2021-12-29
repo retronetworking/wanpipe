@@ -445,6 +445,10 @@ int __init wanpipe_init(void)
 	if (err){
 		return err;
 	}
+	err=wp_ctrl_dev_create();
+	if (err) {
+		return err;
+	}
 
 	wanpipe_globals_util_init();
 
@@ -484,6 +488,7 @@ void __exit wanpipe_exit(void)
 	card_list=NULL;
 
 	wanpipe_codec_free();
+	wp_ctrl_dev_delete();
 
 	DEBUG_EVENT("\n");
 	DEBUG_EVENT("wanpipe: WANPIPE Modules Unloaded.\n");

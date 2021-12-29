@@ -36,7 +36,6 @@
  *		Added sangoma_get_driver_version, sangoma_get_firmware_version,
  *      sangoma_get_cpld_version functions,sangoma_get_stats,sangoma_flush_stats
  */
-
 #ifndef _LIBSANGOMA_H
 #define _LIBSANGOMA_H
 
@@ -254,18 +253,23 @@ struct sangoma_wait_obj;
 #define _vsnprintf  	vsnprintf
 
 typedef int HANDLE;
-typedef int BOOL;
 typedef int DWORD;
 typedef char TCHAR;
+
+
+#if 0
+typedef int BOOL;
 typedef unsigned char UCHAR;
 typedef unsigned long ULONG;
 typedef unsigned short USHORT;
 typedef unsigned char * LPSTR;
 typedef unsigned char * PUCHAR;
 typedef void * PVOID;
+typedef unsigned int UINT;
+#endif
+
 typedef void * LPTHREAD_START_ROUTINE;
 typedef pthread_mutex_t CRITICAL_SECTION;
-typedef unsigned int UINT;
 
 #define EnterCriticalSection(arg) 	pthread_mutex_lock(arg)
 /* On success, pthread_mutex_trylock() returns 0. On error, non-zero value is returned. */
@@ -305,7 +309,14 @@ typedef char * LPCTSTR;
 #include "wanpipe_api_deprecated.h"
 #else
 #include "wanpipe_api.h"
+
+#ifdef WP_API_FEATURE_LIBSNG_HWEC
+# include "wanpipe_events.h"
+# include "wanec_api.h"
+# include "wanec_iface_api.h"
 #endif
+#endif
+
 
 #ifdef __LINUX__
 #include "wanpipe_kernel.h"
@@ -1310,6 +1321,21 @@ int _LIBSNG_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, u
 
 int _LIBSNG_CALL sangoma_get_aft_customer_id(sng_fd_t fd, unsigned char *out_customer_id);
 
+#ifdef WP_API_FEATURE_LED_CTRL
+/*!
+  \fn int _LIBSNG_CALL sangoma_port_led_ctrl(sng_fd_t fd, unsigned char led_state)
+  \brief Control the LED ligths of the TDM port. On (led set based on link status) Off (turn off all led). 
+         Used to visually identify a phisical port from software. 
+  \param fd device file descriptor
+  \param led_state 0=off 1=on
+  \return non-zero = error, 0 = ok
+*/
+
+int _LIBSNG_CALL sangoma_port_led_ctrl(sng_fd_t fd, unsigned char led_state);   
+
+#endif
+
+
 #ifdef  WP_API_FEATURE_FE_RW
 /*!
   \fn int sangoma_fe_reg_write(sng_fd_t fd, uint32_t offset, uint8_t data)
@@ -1829,11 +1855,21 @@ int _LIBSNG_CALL sangoma_tdm_get_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api
 /*!
   \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name, wan_custom_param_t custom_params[], unsigned int number_of_custom_params)
 
-  \brief Load Firmware image onto EC chip. All chip-wide configuration paramters, if any,
-		must be specified at the time of chip initialization.
+  \brief Load Firmware image onto EC chip and allocated per-port resources in HWEC API.
+			All chip-wide configuration paramters, if any, must be specified at the time of chip initialization.
+			  Note that Analog card is considered a "single-port" card by HWEC API. That means for Analog cards and
+			for single-port digital cards only a single sangoma_hwec_config_init() call is required, all subsequent
+			calls will have no effect.
+			  For multi-port cards, such as A102/A104/A108/A500, the sangoma_hwec_config_init() must be called
+			for each port, at least one time. Only the first call will actually load the Firmware image onto 
+			EC chip, all subsequent calls (for other ports) will only add the Port to list of ports which use
+			the HWEC API.
+			  Actions of sangoma_hwec_config_init() can be reversed by calling sangoma_hwec_config_release().
+			When Port is stopped, the HWEC API automatically releases per-port resources and removes the Port
+			from list ports which use HWEC API.
 
   \param device_name Sangoma API device name. 
-		Windows: wanpipe1_if1, wanpipe2_if1...
+		Windows: wanpipe1_if1, wanpipe2_if1... Note that wanpipe1_if1 and wanpipe1_if2 will access the same Port - wanpipe1.
 		Linux: wanpipe1, wanpipe2...
 
   \param custom_params[] - (optional) array of custom paramter structures.
@@ -1857,10 +1893,15 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name, wan_cu
 /*!
   \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_release(char *device_name)
 
-  \brief Reset internal state of HWEC API.
+  \brief Release resources allocated by sangoma_hwec_config_init().
+			  For single-port cards, such as A101 and A200 (A200 is an Analog card and considered
+			sinle-port by HWEC API), a single call to sangoma_hwec_config_release()	will free the per-chip resources.
+			  For multi-port cards, such as A102/A104/A108/A500, sangoma_hwec_config_release() can be called
+			for each port to remove it from list Ports which are using HWEC API. When sangoma_hwec_config_release()
+			is called for the last Port which was "configured/initialized by HWEC API", the per-chip resources will be freed.
 
   \param device_name Sangoma API device name. 
-		Windows: wanpipe1_if1, wanpipe2_if1...
+		Windows: wanpipe1_if1, wanpipe2_if1... Note that wanpipe1_if1 and wanpipe1_if2 will access the same Port - wanpipe1.
 		Linux: wanpipe1, wanpipe2...
 
   \return SANG_STATUS_SUCCESS: success, or error status
@@ -2007,6 +2048,8 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_disable(char *device_name, unsigned i
 		WANEC_NonLinearityBehaviorB			0-8
 		WANEC_DoubleTalkBehavior			DT_BEH_NORMAL
 											DT_BEH_LESS_AGGRESSIVE
+		WANEC_AecTailLength					128 (default), 256, 512 or 1024 
+		WANEC_EnableToneDisabler			TRUE | FALSE
 
   \param fe_chan_map Bitmap of channels (timeslots for Digital, lines for Analog) where 
 		the call will take effect.
@@ -2077,6 +2120,22 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_print_statistics(char *device_name, i
 sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_load(char *device_name, char *filename, char pcmlaw, int *out_buffer_id);
 
 /*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_load(char *device_name, char *filename, char pcmlaw, int *out_buffer_id)
+
+  \brief Load audio buffer to EC chip. The buffer can be played out using the sangoma_hwec_audio_buffer_playout() function. 
+
+  \param buffer Pointer to in memory buffer to be loaded on the chip.
+
+  \param size Size of buffer.
+
+  \param out_buffer_id when the buffer is loaded on the chip, it is assigned an ID. This ID should
+		be used when requesting to play out the buffer.
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+ sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_mem_buffer_load(char *device_name, unsigned char *buffer, unsigned int in_size, char pcmlaw, int *out_buffer_id);
+
+/*!
   \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_bufferunload(char *device_name, int in_buffer_id)
 
   \brief Unload/remove an audio buffer from the HWEC chip.
@@ -2109,7 +2168,8 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_unload(char *device_name
   \param repeat_cnt Number of times to play out the same buffer
   
   \param duration	Maximum duration of the playout, in milliseconds. If it takes less then 'duration' to
-					play out the whole buffer this paramter is ignored.
+					play out the whole buffer, it will be repeated to fill 'duration' amount of time.
+					If 'duration' is set to non-zero, this parameter overrides the repeat_cnt flag.
 
   \return SANG_STATUS_SUCCESS: success, or error status
 */
@@ -2143,7 +2203,99 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_verbosity(int verbosity_level)
 */
 void _LIBSNG_CALL sangoma_hwec_initialize_custom_parameter_structure(wan_custom_param_t *custom_param, char *parameter_name, char *parameter_value);
 
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_channel_statistics(sng_fd_t fd, unsigned int fe_chan, 
+								int *hwec_api_return_code, wanec_chan_stats_t *wanec_chan_stats, int reset)
+
+  \brief Get Channel statistics from EC chip. 
+
+  \param fd device file descriptor
+
+  \param fe_chan Channel number (a timeslot for Digital, a line for Analog) where 
+		the call will read statistics. Valid values are from 1 to 31.
+
+  \param hwec_api_return_code	will contain one of WAN_EC_API_RC_x codes which are defined in wanec_iface_api.h
+
+  \param wanec_chip_stats	structure will be filled with HWEC channel statistics.
+
+  \param verbose Flag indicating to the Driver to print additional information about the command into Wanpipe Log file.
+
+  \param reset Flag to reset (flush) channel statistics to zero, if set to 1.
+
+  \return SANG_STATUS_SUCCESS: success, or error status of IOCTL
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_channel_statistics(sng_fd_t fd, unsigned int fe_chan, 
+				int *hwec_api_return_code, wanec_chan_stats_t *wanec_chan_stats, int verbose, int reset);
+
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_global_chip_statistics(sng_fd_t fd,
+				int *hwec_api_return_code, wanec_chip_stats_t *wanec_chip_stats, int verbose, int reset)
+
+  \brief Get Global statistics from EC chip. 
+
+  \param fd device file descriptor
+
+  \param hwec_api_return_code	will contain one of WAN_EC_API_RC_x codes which are defined in wanec_iface_api.h
+
+  \param wanec_chip_stats	structure will be filled with HWEC channel statistics.
+
+  \param verbose Flag indicating to the Driver to print additional information about the command into Wanpipe Log file.
+
+  \param reset Flag to reset (flush) global statistics to zero, if set to 1.
+
+  \return SANG_STATUS_SUCCESS: success, or error status of IOCTL
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_global_chip_statistics(sng_fd_t fd,
+			int *hwec_api_return_code, wanec_chip_stats_t *wanec_chip_stats, int verbose, int reset);
+
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_chip_image_info(sng_fd_t fd,
+						int *hwec_api_return_code, wanec_chip_image_t *wanec_chip_image, int verbose)
+
+  \brief Get information about Firmware Image of EC chip. 
+
+  \param fd device file descriptor
+
+  \param hwec_api_return_code	will contain one of WAN_EC_API_RC_x codes which are defined in wanec_iface_api.h
+
+  \param wanec_chip_image_t		structure will be filled with HWEC channel statistics. 
+
+  \param verbose Flag indicating to the Driver to print additional information about the command into Wanpipe Log file.
+
+  \return SANG_STATUS_SUCCESS: success, or error status of IOCTL
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_chip_image_info(sng_fd_t fd,
+			int *hwec_api_return_code, wanec_chip_image_t *wanec_chip_image, int verbose);
+
 #endif /* WP_API_FEATURE_LIBSNG_HWEC */
+
+
+
+#ifdef WP_API_FEATURE_SS7_FORCE_RX
+/*!
+  \fn int _LIBSNG_CALL sangoma_ss7_force_rx(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Force the firmware to pass up a repeating frame
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return SANG_STATUS_SUCCESS: success, or error status of IOCTL
+*/
+int _LIBSNG_CALL sangoma_ss7_force_rx(sng_fd_t fd, wanpipe_api_t *tdm_api);
+#endif
+
+#ifdef WP_API_FEATURE_SS7_CFG_STATUS
+/*!
+  \fn int _LIBSNG_CALL sangoma_ss7_get_cfg_status(sng_fd_t fd, wanpipe_api_t *tdm_api, wan_api_ss7_cfg_status_t *ss7_cfg_status)
+  \brief Get current ss7 hw configuration
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \param ss7_cfg_status ss7 configuration status structure
+  \return SANG_STATUS_SUCCESS: success, or error status of IOCTL
+*/
+int _LIBSNG_CALL sangoma_ss7_get_cfg_status(sng_fd_t fd, wanpipe_api_t *tdm_api, wan_api_ss7_cfg_status_t *ss7_cfg_status);
+#endif
 
 
 #ifdef __cplusplus

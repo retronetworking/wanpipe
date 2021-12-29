@@ -41,6 +41,9 @@
 ** ============================================================================
 ** Date			Name			Label		Description
 ** ============================================================================
+**
+** Aug 18, 2011 David Rokhvarg			Enable transmit pulse density for
+**										T1 AMI.
 ** 
 ** Feb 01, 2010 David Rokhvarg	PATTERN_LEN
 **										Fixed division-by-zero error in BERT
@@ -1063,11 +1066,23 @@ static int sdla_ds_te1_chip_config(void* pfe)
 			WRITE_REG(REG_RCR1, value & ~BIT_RCR1_T1_RB8ZS);
 			value = READ_REG(REG_TCR1);
 			WRITE_REG(REG_TCR1, value & ~BIT_TCR1_T1_TB8ZS);
+
+			/* (August 18, 2011) enable transmit pulse density 
+			enforcer for AMI. See page 198 of DS26528.pdf. */
+			value = READ_REG(REG_TCR2);
+			WRITE_REG(REG_TCR2, value | BIT_TCR2_T1_TCR2_PDE);
 		}else{
 			value = READ_REG(REG_RCR1);
 			WRITE_REG(REG_RCR1, value & ~BIT_RCR1_E1_RHDB3);
 			value = READ_REG(REG_TCR1);
 			WRITE_REG(REG_TCR1, value & ~BIT_TCR1_E1_THDB3);
+
+			/* (August 18, 2011) When running B8ZS, 
+			pulse density enforcer should be set to zero since
+			B8ZS-encoded data streams cannot violate the pulse density
+			requirements. See page 198 of DS26528.pdf. */
+			value = READ_REG(REG_TCR2);
+			WRITE_REG(REG_TCR2, value & ~BIT_TCR2_T1_TCR2_PDE);
 		}
 		break;
 
@@ -1327,17 +1342,25 @@ static int sdla_ds_te1_chip_config(void* pfe)
 			}
 		}
 
-		/* Always configure with AIS alarm enabled */
-		sdla_ds_te1_set_alarms(fe,WAN_TE_BIT_ALARM_AIS);
 
 		/* If port started in maintenance mode then do not
 		   remove AIS alarm until done manually */
 		if (fe->fe_cfg.cfg.te_cfg.ais_maintenance == WANOPT_YES){
 			fe->te_param.tx_ais_startup_timeout=0;
 			fe->fe_stats.tx_maint_alarms |= WAN_TE_BIT_ALARM_AIS;
-		} else {
+		
+			/* Send out AIS alarm if port is started in Maintenance Mode */
+			sdla_ds_te1_set_alarms(fe,WAN_TE_BIT_ALARM_AIS);
+			
+		} 
+#if 0
+		/* NC: Do not send out AIS on startup. Causes stuck RAI alarm
+		   on some equipment */
+		else {
 			fe->te_param.tx_ais_startup_timeout=SYSTEM_TICKS;
 		}
+#endif
+
 	}
 
 	/* INIT RBS bits to 1 */
@@ -1640,6 +1663,10 @@ static int sdla_ds_te1_unconfig(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
 
+	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->te_param.critical)) {
+     	return 0;
+	}
+
 	DEBUG_EVENT("%s: %s Front End unconfigation!\n",
 				fe->name, FE_MEDIA_DECODE(fe));	
 
@@ -1816,14 +1843,14 @@ static int sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms)
 
 	if (fe->fe_status == new_fe_status){
 
-		DEBUG_TE1("%s: NoCH TxYel=%i  Valid_rx=0x%08X\n",
-				fe->name,fe->te_param.tx_yel_alarm,valid_rx_alarms);
+		DEBUG_TE1("%s: No Change TxYel=%i  Valid_rx=0x%08X RED=%i RAI Only=%i\n",
+				fe->name,fe->te_param.tx_yel_alarm,valid_rx_alarms,valid_rx_alarms&WAN_TE_BIT_RED_ALARM,valid_rx_alarms==WAN_TE_BIT_RAI_ALARM);
 
 		/* We must keep checking for RAI transmission here as well as on state change
   		   otherwise we could fail to tx RAI if the first reason for state change is RAI
   		   and then other other alarms get activated */
 		if (!fe->te_param.tx_yel_alarm && (valid_rx_alarms & WAN_TE_BIT_RED_ALARM)){
-			sdla_ds_te1_set_alarms(fe, WAN_TE_BIT_ALARM_YEL);
+			sdla_ds_te1_set_alarms(fe, WAN_TE_BIT_YEL_ALARM);
 		}
 
 		/* Special case where we tx RAI alarm and only incoming alarm is RAI
@@ -1845,7 +1872,7 @@ static int sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms)
 		if (fe->te_param.status_cnt > WAN_TE1_STATUS_THRESHOLD){
 
 			if (fe->te_param.tx_yel_alarm){
-				sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_ALARM_YEL);
+				sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_YEL_ALARM);
 			}
 
 			DEBUG_EVENT("%s: %s connected!\n", 
@@ -1880,7 +1907,7 @@ static int sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms)
 		/* Line went down due to alarm (not just RAI) if yellow alarm was not
 		   transmited then do so now */
 		if (!fe->te_param.tx_yel_alarm && (valid_rx_alarms & WAN_TE_BIT_RED_ALARM)){
-			sdla_ds_te1_set_alarms(fe, WAN_TE_BIT_ALARM_YEL);
+			sdla_ds_te1_set_alarms(fe, WAN_TE_BIT_YEL_ALARM);
 		}
 
         /* Special case, loopback if only valid alarm is RAI and we already transmitted yellow,
@@ -1946,7 +1973,7 @@ static int sdla_ds_te1_print_alarms(sdla_fe_t* fe, unsigned int alarms)
 	}
 
 	if (fe->te_param.tx_yel_alarm) {
-		tx_alarms |= WAN_TE_BIT_ALARM_YEL;
+		tx_alarms |= WAN_TE_BIT_YEL_ALARM;
 	}
 
 	if (fe->te_param.tx_ais_alarm) {
@@ -2139,7 +2166,7 @@ static u_int32_t  sdla_ds_te1_read_tx_alarms(sdla_fe_t *fe, int action)
 
 	if (IS_FE_ALARM_READ(action)){
 		if (fe->te_param.tx_yel_alarm) {
-			alarm |= WAN_TE_BIT_ALARM_YEL;
+			alarm |= WAN_TE_BIT_YEL_ALARM;
 		}
 	
 		if (fe->te_param.tx_ais_alarm) {
@@ -2290,7 +2317,7 @@ static int sdla_ds_te1_set_alarms(sdla_fe_t* fe, u_int32_t alarms)
 
 	/* NC: Always set yellow alarm no need to check whether
 	 * yellow alarm is ignored */	
-	if (alarms & WAN_TE_BIT_ALARM_YEL){
+	if (alarms & WAN_TE_BIT_YEL_ALARM && !fe->te_param.tx_ais_alarm){
 		if (IS_T1_FEMEDIA(fe)){
 			value = READ_REG(REG_TCR1);
 			if (!(value & BIT_TCR1_T1_TRAI)){
@@ -2299,7 +2326,7 @@ static int sdla_ds_te1_set_alarms(sdla_fe_t* fe, u_int32_t alarms)
 				WRITE_REG(REG_TCR1, value | BIT_TCR1_T1_TRAI);
 			}
 			fe->te_param.tx_yel_alarm = 1;
-			fe->fe_stats.tx_alarms |= WAN_TE_BIT_ALARM_YEL;
+			fe->fe_stats.tx_alarms |= WAN_TE_BIT_YEL_ALARM;
 		}else{
 			value = READ_REG(REG_E1TNAF);
 			if (!(value & BIT_E1TNAF_A)){
@@ -2308,7 +2335,7 @@ static int sdla_ds_te1_set_alarms(sdla_fe_t* fe, u_int32_t alarms)
 				WRITE_REG(REG_E1TNAF, value | BIT_E1TNAF_A);
 			}
 			fe->te_param.tx_yel_alarm = 1;
-			fe->fe_stats.tx_alarms |= WAN_TE_BIT_ALARM_YEL;
+			fe->fe_stats.tx_alarms |= WAN_TE_BIT_YEL_ALARM;
 		}
 	}
 
@@ -2341,7 +2368,7 @@ static int sdla_ds_te1_clear_alarms(sdla_fe_t* fe, u_int32_t alarms)
 	
 	/* NC: Always set yellow alarm no need to check whether
 	 * yellow alarm is ignored */	
-	if (alarms & WAN_TE_BIT_ALARM_YEL) {
+	if (alarms & WAN_TE_BIT_YEL_ALARM) {
 		if (IS_T1_FEMEDIA(fe)){
 			value = READ_REG(REG_TCR1);
 			if (value & BIT_TCR1_T1_TRAI) {
@@ -2350,7 +2377,7 @@ static int sdla_ds_te1_clear_alarms(sdla_fe_t* fe, u_int32_t alarms)
 				WRITE_REG(REG_TCR1, value & ~BIT_TCR1_T1_TRAI);
 			}
 			fe->te_param.tx_yel_alarm = 0;
-			fe->fe_stats.tx_alarms &= ~WAN_TE_BIT_ALARM_YEL;
+			fe->fe_stats.tx_alarms &= ~WAN_TE_BIT_YEL_ALARM;
 		}else{
 			value = READ_REG(REG_E1TNAF);
 			if (value & BIT_E1TNAF_A) {
@@ -2359,7 +2386,7 @@ static int sdla_ds_te1_clear_alarms(sdla_fe_t* fe, u_int32_t alarms)
 				WRITE_REG(REG_E1TNAF, value & ~BIT_E1TNAF_A);
 			}
 			fe->te_param.tx_yel_alarm = 0;
-			fe->fe_stats.tx_alarms &= ~WAN_TE_BIT_ALARM_YEL;
+			fe->fe_stats.tx_alarms &= ~WAN_TE_BIT_YEL_ALARM;
 		}
 	}
 
@@ -2939,6 +2966,7 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, u_int8_t type, u_int8_t mode, un
 	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->te_param.critical)){
 		return 0;
 	}
+
 	if (type & WAN_TE_INTR_GLOBAL){
 		mask = READ_REG(REG_GFIMR);
 		if (mode == WAN_FE_INTR_ENABLE){
@@ -4276,7 +4304,7 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 	WAN_ASSERT(fe == NULL);
 
 	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical)) {
-		DEBUG_EVENT("%s: Device is shutting down ignoring poll!\n",
+		DEBUG_EVENT("%s:%s Device is shutting down ignoring poll!\n",
 			fe->name, __FUNCTION__);
 		return 0;
 	}
@@ -4302,14 +4330,27 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 		sdla_ds_te1_poll_events(fe);
 	}
 
+#if 0
+   	/* NC: This logic was used to turn off the AIS alarm after system
+	       started up. We do not use this any more as we have found that
+		   sending AIS on start causes stuck RAI alarm on some equipment 
+    */
 	if (fe->te_param.tx_ais_alarm && fe->te_param.tx_ais_startup_timeout) {
-		if (SYSTEM_TICKS - fe->te_param.tx_ais_startup_timeout > HZ*1) {
+		if ((SYSTEM_TICKS - fe->te_param.tx_ais_startup_timeout) > HZ*2) {
 			if (!(fe->fe_alarm & WAN_TE_BIT_ALARM_LOS)) {
 				fe->te_param.tx_ais_startup_timeout=0;
 				sdla_ds_te1_clear_alarms(fe,WAN_TE_BIT_ALARM_AIS);
+
+				sdla_ds_te1_swirq_trigger(
+						fe,
+						WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
+						WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+						WAN_T1_ALARM_THRESHOLD_AIS_OFF);
+
 			} 
 		}
 	}
+#endif
 
 		
 	wan_clear_bit(TE_TIMER_EVENT_PENDING,(void*)&fe->te_param.critical);

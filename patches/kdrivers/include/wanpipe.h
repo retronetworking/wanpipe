@@ -625,7 +625,7 @@ typedef struct
 	wan_bitmap_t 	tdmv_sync;
 	unsigned int	chip_cfg_status;	
 	wan_taskq_t 	port_task;
-	unsigned int 	port_task_cmd;
+	wan_bitmap_t 	port_task_cmd;
 	unsigned long	wdt_rx_cnt;
 	wan_ticks_t	wdt_tx_cnt;
 	unsigned int	security_id;
@@ -664,6 +664,7 @@ typedef struct
 	wan_skb_queue_t	rtp_tap_list;
 	unsigned int	serial_status;
 	unsigned char	global_tdm_irq;
+	unsigned char	global_poll_irq;
 	unsigned int	tdm_api_cfg;
 	unsigned int	tdm_api_dchan_cfg;
 
@@ -927,9 +928,8 @@ typedef struct sdla
 	unsigned int wp_rx_fifo_sanity;
 	unsigned int wp_tx_fifo_sanity;
 
-#if defined(WANPIPE_PERFORMANCE_DEBUG)
+	unsigned char aft_perf_stats_enable;
 	aft_driver_performance_stats_t aft_perf_stats;
-#endif
 
 	unsigned int wdt_timeout;
 
@@ -971,6 +971,8 @@ int wp_xilinx_if_init(sdla_t* card, netdevice_t* dev);
 int wp_aft_te3_init(sdla_t* card, wandev_conf_t* conf); /* AFT TE3 Hardware Support */
 int wp_aft_te1_ss7_init(sdla_t* card, wandev_conf_t* conf); /* AFT TE1 SS7 Hardware Support */
 int aft_global_hw_device_init(void);
+int wp_ctrl_dev_create(void);
+void wp_ctrl_dev_delete(void);
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 int wp_usb_init(sdla_t* card, wandev_conf_t* conf);

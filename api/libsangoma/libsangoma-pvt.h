@@ -145,6 +145,7 @@ extern int libsng_dbg_level;
 #define	DBG_EVNT	if(libsng_dbg_level)libsng_dbg
 #define	DBG_ERR		if(libsng_dbg_level)libsng_dbg("Error: %s() line: %d : ", __FUNCTION__, __LINE__);if(libsng_dbg_level)libsng_dbg
 #define	DBG_INIT	if(libsng_dbg_level)libsng_dbg
+#define	DBG_HWEC	if(libsng_dbg_level)libsng_dbg
 
 /**** Prototypes of Function used internally by libsangoma ****/
 #if defined(__WINDOWS__)

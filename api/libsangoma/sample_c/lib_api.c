@@ -77,7 +77,13 @@ int		rbs_events = 0;
 int		rx2tx = 0;
 int 	flush_period=0;
 int 	stats_period=0;
+int		stats_test=0;
+int		flush_stats_test=0;
 int		hdlc_repeat=0;
+int		ss7_cfg_status=0;
+int		fe_read_test=0;
+int 	hw_pci_rescan=0;
+int 	force_open=0;
 
 unsigned long parse_active_channel(char* val);
 
@@ -117,6 +123,28 @@ int init_args(int argc, char *argv[])
 			c_cnt=1;
 		}else if (!strcmp(argv[i],"-hdlc_repeat")){
 			hdlc_repeat=1;
+		}else if (!strcmp(argv[i],"-stats_test")){
+			stats_test=1;
+			force_open=1;
+			c_cnt=1;
+		}else if (!strcmp(argv[i],"-flush_stats_test")){
+			flush_stats_test=1;
+			force_open=1;
+			c_cnt=1;
+		}else if (!strcmp(argv[i],"-ss7_cfg_status")){
+			ss7_cfg_status=1;
+
+		}else if (!strcmp(argv[i],"-fe_read_test")){
+			fe_read_test=1;
+		
+		}else if (!strcmp(argv[i],"-hw_pci_rescan")){
+			hw_pci_rescan=1;
+			wanpipe_port_no=1;
+			wanpipe_if_no=1;
+			c_cnt=1;
+
+		}else if (!strcmp(argv[i],"-force_open")){
+			force_open=1;
 
 		}else if (!strcmp(argv[i],"-pri")){
 			primary_enable=1;
@@ -447,7 +475,8 @@ static char api_usage[]="\n"
 "						#this number overwrites the txcnt\n"
 "						#Thus, app will only exit after it\n"
 "						#receives the rxcnt number of packets.\n"
-"	\n"
+"   -hdlc_repeat 		#enable hdlc repeat on tx hdlc write.\n"
+"\n"
 "	-verbose			#Enable verbose mode\n"
 "\n";
 
@@ -461,6 +490,7 @@ printf ("\n\nAPI %s USAGE:\n\n%s <options> <extra options>\n\n%s\n",
 /*============================================================================
  * TE1
  */
+#if 0
 unsigned long get_active_channels(int channel_flag, int start_channel, int stop_channel)
 {
 	int i = 0;
@@ -479,5 +509,6 @@ unsigned long get_active_channels(int channel_flag, int start_channel, int stop_
 	}
 	return tmp;
 }
+#endif
 
 

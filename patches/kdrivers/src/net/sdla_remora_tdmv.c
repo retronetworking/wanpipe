@@ -36,6 +36,10 @@
 # include "zapcompat.h" /* Map of Zaptel -> DAHDI definitions */
 #endif
 
+#ifdef DEBUG_TEST
+#undef DEBUG_TEST
+#define DEBUG_TEST DEBUG_EVENT
+#endif
 /*******************************************************************************
 **			  DEFINES AND MACROS
 *******************************************************************************/
@@ -94,7 +98,11 @@ static int wp_tdmv_remora_is_rbsbits(wan_tdmv_t *wan_tdmv);
 static int wp_tdmv_remora_rx_tx_span(void *pcard);
 static int wp_tdmv_remora_rx_chan(wan_tdmv_t*, int,unsigned char*,unsigned char*); 
 static int wp_tdmv_remora_ec_span(void *pcard);
+#ifdef DAHDI_25
+static int wp_remora_chanconfig(struct file *file, struct zt_chan *chan, int sigtype);
+#else
 static int wp_remora_chanconfig(struct zt_chan *chan, int sigtype);
+#endif
 static int wp_remora_zap_open(struct zt_chan *chan);
 static int wp_remora_zap_close(struct zt_chan *chan);
 static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig);
@@ -127,7 +135,7 @@ static int wp_tdmv_remora_rx_chan_sync_test(sdla_t *card, wp_tdmv_remora_t *wr, 
 #endif
 
 	
-#ifdef DAHDI_24
+#if defined(DAHDI_24) || defined(DAHDI_25)
 
 static const struct dahdi_span_ops wp_tdm_span_ops = {
 	.owner = THIS_MODULE,
@@ -160,7 +168,9 @@ static const struct dahdi_echocan_features wp_tdmv_remora_ec_features = {
 };
 
 static const struct dahdi_echocan_ops wp_tdmv_remora_ec_ops = {
+#ifndef DAHDI_25
 	.name = "WANPIPE_HWEC",
+#endif
 	.echocan_free = wp_tdmv_remora_hwec_free,
 };
 
@@ -543,7 +553,8 @@ static int wp_tdmv_remora_hwec_create(struct dahdi_chan *chan,
 		}           
 		DEBUG_TDMV("[TDMV_RM]: %s: %s HW echo canceller on channel %d\n",        
 				   wr->devname,
-				   (enable) ? "Enable" : "Disable",
+				   /*(enable) ? "Enable" : "Disable",*/
+				   (err==0) ? "Enable" : "Disable",
 				   chan->chanpos);
 	}
 	return err;
@@ -703,7 +714,11 @@ int wp_tdmv_remora_init(wan_tdmv_iface_t *iface)
 	return 0;
 }
 
+#ifdef DAHDI_25
+static int wp_remora_chanconfig(struct file *file, struct zt_chan *chan, int sigtype)
+#else
 static int wp_remora_chanconfig(struct zt_chan *chan, int sigtype)
+#endif
 {
 	wp_tdmv_remora_t	*wr = NULL;
 	sdla_t			*card = NULL;
@@ -794,11 +809,11 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 			wr->chans[x].sigcap = ZT_SIG_CLEAR;
 			wr->chans[x].chanpos = x+1;
 			wr->chans[x].pvt = wr;
-			num++;
+			//num++;
 		}
 	}
 
-#ifdef DAHDI_24
+#if defined(DAHDI_24) || defined(DAHDI_25)
 	wr->span.ops = &wp_tdm_span_ops;
 #else
 
@@ -836,7 +851,9 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 	wr->span.channels	= num/*wr->max_timeslots*/;
 
 #if defined(__LINUX__)
+#ifndef DAHDI_25
 	init_waitqueue_head(&wr->span.maintq);
+#endif
 #endif
 	if (zt_register(&wr->span, 0)) {
 		DEBUG_EVENT("%s: Unable to register span with zaptel\n",

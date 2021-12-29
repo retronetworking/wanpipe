@@ -25,6 +25,13 @@
 
 #include "wanpipe_logger.h"
 
+
+/* NC: If the undefs are used here, one cannot
+   use the Makefile to enable them.  Code is left
+   here as overview of all available options. Please
+   use the Makefile to enable them on compile time. */
+
+#if 0
 #undef WAN_DEBUG_TE1
 #undef WAN_DEBUG_HWEC
 #undef WAN_DEBUG_TDMAPI
@@ -60,6 +67,7 @@
 #undef WAN_DEBUG_BRI_INIT
 #undef WAN_DEBUG_USB
 #undef WAN_DEBUG_FUNC
+#endif
 
 
 #define WAN_DEBUG_EVENT	/* must be defined for wpabs_debug_event() */
@@ -94,6 +102,12 @@ extern void OutputLogString(const char *fmt, ...); /* Print to wanpipelog.txt (N
 # else
 #  define DBG_BATTERY_REMOVAL	if(1)DEBUG_EVENT
 # endif
+#endif
+
+#if defined (__WINDOWS__)
+# define DEBUG_TASKQ	if(0)DbgPrint
+#else
+# define DEBUG_TASKQ	if(0)DEBUG_EVENT
 #endif
 
 /*========================================================
@@ -260,12 +274,29 @@ extern void OutputLogString(const char *fmt, ...); /* Print to wanpipelog.txt (N
 
 /*=================================================*/
 /* general Wanpipe Logger macros */
+#ifdef WP_LOGGER_DISABLE
+
+/* Debug case in order to check print argument mismatches */
+#ifdef __LINUX__
+#warning "WP_LOGGER_DISABLE Enabled"
+#endif
+
+#define DEBUG_EVENT(format,msg...)		printk(KERN_INFO format, ##msg)      
+#define DEBUG_WARNING(format,msg...)	printk(KERN_INFO format, ##msg)      
+#define DEBUG_ERROR(format,msg...)		printk(KERN_INFO format, ##msg)      
+
+#else
+
+/* Default case */
+
 #define DEBUG_EVENT(...)	\
 	WP_DEBUG(WAN_LOGGER_DEFAULT, SANG_LOGGER_INFORMATION, ## __VA_ARGS__)
 #define DEBUG_WARNING(...)	\
 	WP_DEBUG(WAN_LOGGER_DEFAULT, SANG_LOGGER_WARNING, ## __VA_ARGS__)
 #define DEBUG_ERROR(...)	\
 	WP_DEBUG(WAN_LOGGER_DEFAULT, SANG_LOGGER_ERROR, ## __VA_ARGS__)
+#endif
+
 
 /***************************************/
 /* task-specific Wanpipe Logger macros */

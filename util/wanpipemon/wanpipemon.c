@@ -92,14 +92,13 @@ int		gui_interface=0;
 extern int trace_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int len);
 extern int get_femedia_type(wan_femedia_t *fe_media);
 
-#ifdef _LIBSANGOMA_H
-sng_fd_t	sock = INVALID_HANDLE_VALUE;
+sng_fd_t sangoma_fd=INVALID_HANDLE_VALUE;
 char ipaddress[WAN_IFNAME_SZ+1];
-#else
+
+#ifdef __LINUX__
 int		sock = 0;
 static sa_family_t		af = AF_INET;
 static struct sockaddr_in	soin;
-char ipaddress[16];
 #endif
 
 int is_logger_dev = 0;
@@ -144,6 +143,9 @@ int mtp2_msu_only=0;
 int trace_only_diff=0;
 int trace_rx_only=0;
 int trace_tx_only=0; 
+
+int cmd_timeout=-1;
+int led_blink=0;
 
 wanpipe_hdlc_engine_t *rx_hdlc_eng; 
 
@@ -318,17 +320,17 @@ struct fun_protocol function_lookup[] = {
 /******************************************************************************
  * 			FUNCTION DEFINITION				      *
  *****************************************************************************/
-#ifdef _LIBSANGOMA_H
+#ifdef __WINDOWS__
 int MakeConnection( void )
 {
 	WIN_DBG("%s()\n", __FUNCTION__);
 	WIN_DBG("if_name: %s\n", if_name);
 	
-	sock = sangoma_open_dev_by_name(if_name);
+	sangoma_fd = sangoma_open_dev_by_name(if_name);
 
-    if (sock == INVALID_HANDLE_VALUE){
+    if (sangoma_fd == INVALID_HANDLE_VALUE){
 		printf("Error: sangoma_open_dev_by_name() failed for %s!!\n", if_name);
-		sock = 0;
+		sangoma_fd = 0;
 		return WAN_FALSE;
 	}
 
@@ -340,7 +342,7 @@ int MakeConnection( void )
 	if (!GetWANConfig()){
 		printf("Error: Unable to obtain network interface information.\n");
 		printf("Make sure the IP and UDP port are correct.\n");
-		CloseConnection(&sock);
+		CloseConnection(&sangoma_fd);
 		return WAN_FALSE;
 	}   
 
@@ -401,10 +403,16 @@ int MakeConnection( void )
 
 		}
 	}else{
+			if (sangoma_fd == INVALID_HANDLE_VALUE) {
+				int span,chan;
+				sangoma_interface_toi(if_name,&span,&chan);
+				sangoma_fd = __sangoma_open_api_span_chan(span,chan);
+			}
+
 	    	sock = socket((af == AF_INET) ? PF_INET : PF_INET6, SOCK_STREAM, IPPROTO_IP);
 	    	if (sock < 0){
-			perror("socket");
-			return WAN_FALSE;
+				perror("socket");
+				return WAN_FALSE;
     		}
 
 	}
@@ -591,8 +599,8 @@ char* get_hardware_level_interface_name(char* interface_name)
 int make_hardware_level_connection()
 {
 	if (MakeConnection() == WAN_FALSE){ 
-		if(sock){
-			CloseConnection(&sock);
+		if(sangoma_fd != INVALID_HANDLE_VALUE){
+			CloseConnection(&sangoma_fd);
 		}
 		return 1;	
 	}
@@ -812,7 +820,7 @@ void hw_link_status()
 int DoCommand(wan_udp_hdr_t* wan_udp)
 {
 	/* call libsangoma */
-	return sangoma_mgmt_cmd(sock, wan_udp);
+	return sangoma_mgmt_cmd(sangoma_fd, wan_udp);
 }
 
 #define inet_aton(a,b)	0
@@ -825,6 +833,10 @@ int DoCommand(wan_udp_hdr_t* wan_udp)
         struct timeval to;
 	int data_len = protocol_cb_size+wan_udp->wan_udphdr_data_len;
         int x, err=0;
+
+	if (sangoma_fd != INVALID_HANDLE_VALUE) {
+     	return sangoma_mgmt_cmd(sangoma_fd, wan_udp); 	
+	}
 
 	if (ip_addr == WAN_TRUE){
 		for( x = 0; x < 4; x += 1 ) {
@@ -864,7 +876,7 @@ int DoCommand(wan_udp_hdr_t* wan_udp)
         	if ((err=ioctl(sock, SIOC_WANPIPE_MONITOR , &ifr)) < 0){
 			if (errno != EBUSY){
 				perror("Ioctl: ");
-				exit (1);
+				exit(1);
 			}
 			return err;
     		}
@@ -1001,6 +1013,15 @@ static int init(int argc, char *argv[], char* command)
 		}else if (!strcmp(argv[i], "-d")){
 			TRACE_DLCI=dlci_number=16;
 			d_cnt=1;
+		}else if (!strcmp(argv[i], "-timeout")){
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid Command!\n");
+				printf("Type wanpipemon <cr> for help\n");
+				return WAN_FALSE;
+			}
+			cmd_timeout=atoi(argv[i+1]);
+			printf("cmd timeout=%d\n",cmd_timeout);
+			i++;
 #ifndef __WINDOWS__
 		}else if (!strcmp(argv[i],"-pv6")){
 			af = AF_INET6;	// IPV6
@@ -1516,9 +1537,8 @@ BOOL sig_end(DWORD dwCtrlType)
 		trace_bin_in=NULL;
     }
 	
-	if (sock) {
-		CloseConnection(&sock);
-		sock=0;
+	if (sangoma_fd != INVALID_HANDLE_VALUE) {
+		CloseConnection(&sangoma_fd);
 	}
 	
 	if (rx_hdlc_eng) {
@@ -1554,6 +1574,10 @@ void sig_end(int signal)
 	if (rx_hdlc_eng) {
 		wanpipe_unreg_hdlc_engine(rx_hdlc_eng);  
 		rx_hdlc_eng=NULL;
+	}
+
+	if (led_blink) {
+		wp_port_led_blink_off();
 	}
 
 	//printf("\n\nSignal: Terminating wanpipemon\n");

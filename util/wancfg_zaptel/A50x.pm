@@ -15,6 +15,7 @@ sub new	{
 		_fe_media  => 'BRI',
 		_bri_switchtype => 'etsi',
 		_bri_country => 'europe',
+		_signalling => 'NT',
 	};			
 	bless $self, $class;
     	return $self;
@@ -114,6 +115,9 @@ sub gen_wanpipe_conf{
 	my $wanpipe_conf_template = $self->card->current_dir."/templates/wanpipe.tdm_api.a500";
 	my $wanpipe_conf_file = $self->card->current_dir."/".$self->card->cfg_dir."/wanpipe".$self->card->device_no.".conf";
 
+	if ($self->card->dahdi_conf eq 'YES') {
+		$wanpipe_conf_template = $self->card->current_dir."/templates/wanpipe.tdm.a500";
+	}
 	my $device_no = $self->card->device_no;
 	my $tdmv_span_no = $self->card->tdmv_span_no;
 	my $pci_slot = $self->card->pci_slot;
@@ -192,6 +196,65 @@ sub gen_woomera_conf{
 	$woomera_file.="context=$context\n";
 	$woomera_file.="group=$group\n";
 	return $woomera_file;	
+}
+
+sub gen_zaptel_conf{
+	my ($self) = @_;
+	my $zp_file='';
+	my $tmpchan=1;
+	my $tmpstr='';
+
+	$zp_file.="\n\#Sangoma AFT-B".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
+        $zp_file.="span=".$self->card->tdmv_span_no.",0,0,ccs,ami\n";
+	
+	$tmpchan = $self->card->first_chan+1;
+	$zp_file.="bchan=".$self->card->first_chan.",".$tmpchan."\n";
+
+	$tmpchan = $self->card->first_chan+1;
+	$tmpstr.="echocanceller=mg2,".$self->card->first_chan."-".$tmpchan."\n";
+	if ($self->card->dahdi_echo eq 'NO') {
+		$zp_file.="#";
+	}
+	$zp_file.=$tmpstr;
+	$tmpchan=$self->card->first_chan+2;
+	$zp_file.="hardhdlc=".$tmpchan."\n";
+	return $zp_file;
+}
+
+sub gen_zapata_conf{
+	my ($self) = @_;
+	my $zp_file='';
+	my $tmpchan=1;
+
+	$zp_file.="\n\;Sangoma AFT-B".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
+
+#        $zp_file.="switchtype=".$self->bri_switchtype."\n";
+        $zp_file.="context=".$self->card->zap_context."\n";
+        $zp_file.="group=".$self->card->zap_group."\n";
+
+        if ($self->card->dahdi_echo eq 'NO') {
+                $zp_file.="echocancel=no\n";
+        } else {
+                $zp_file.="echocancel=yes\n";
+	}
+
+        if ( $self->signalling eq 'NT' ){
+                $zp_file.="signalling=bri_net\n";
+        } elsif ( $self->signalling eq 'TEM' ){
+                $zp_file.="signalling=bri_cpe_ptmp\n";
+        } else {
+                $zp_file.="signalling=bri_cpe\n";
+        }
+
+        $tmpchan = $self->card->first_chan+1;
+        $zp_file.="channel =>".$self->card->first_chan."-".$tmpchan."\n";
+
+	return $zp_file;
+}
+sub signalling {
+            my ( $self, $signalling ) = @_;
+            $self->{_signalling} = $signalling if defined($signalling);
+            return $self->{_signalling};
 }
 
 

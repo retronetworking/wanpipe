@@ -86,14 +86,15 @@ typedef int sng_fd_t;
 #define WP_API_FEATURE_BUFFER_MULT  1
 #define WP_API_FEATURE_RX_TX_ERRS	1
 #define WP_API_FEATURE_EC_CHAN_STAT 1
-#if defined(__WINDOWS__)
- #define WP_API_FEATURE_LIBSNG_HWEC	1
-#endif
+#define WP_API_FEATURE_LIBSNG_HWEC	1
 #define WP_API_FEATURE_DRIVER_GAIN  1
 #define WP_API_FEATURE_FE_RW        1
 #define WP_API_FEATURE_HWEC_PERSIST 1
 #define WP_API_FEATURE_FAX_TYPE_EVENTS 1
 #define WP_API_FEATURE_HARDWARE_RESCAN     1
+#define WP_API_FEATURE_LED_CTRL     1
+#define WP_API_FEATURE_SS7_FORCE_RX 1
+#define WP_API_FEATURE_SS7_CFG_STATUS 1
 
 /*!
   \enum WANPIPE_IOCTL_CODE
@@ -163,13 +164,15 @@ enum WANPIPE_IOCTL_PIPEMON_CMDS {
 	WANPIPEMON_GET_IBA_DATA,				/*!< Get IBA Data - Deprecated not used */
 	WANPIPEMON_TDM_API,						/*!< Windows Legacy- TDM API commands */
 
-	WANPIPEMON_READ_PEFORMANCE_STATS,
-	WANPIPEMON_FLUSH_PEFORMANCE_STATS,
+	WANPIPEMON_READ_PERFORMANCE_STATS,
+	WANPIPEMON_FLUSH_PERFORMANCE_STATS,
 	WANPIPEMON_GET_BIOS_ENCLOSURE3_SERIAL_NUMBER,	/*!< Get Enclosure3 Serial Number from Motherboard BIOS. */
 
 	WANPIPEMON_ENABLE_BERT,				/*!< Start BERT for the interface. */
 	WANPIPEMON_DISABLE_BERT,			/*!< Stop BERT for the interface.  */
 	WANPIPEMON_GET_BERT_STATUS,			/*!< Get BERT status/statistics (Locked/Not Locked) */
+	WANPIPEMON_PERFORMANCE_STATS,       /*!< Control performance performance statistics */
+	WANPIPEMON_LED_CTRL,				/*!< Control led on a port - on/off */
 
 	/* Do not add any non-debugging commands below */
 	WANPIPEMON_CHAN_SEQ_DEBUGGING,			/*!< Debugging only - enable/disable span level sequence debugging */
@@ -212,6 +215,20 @@ typedef struct _wp_bert_status{
 
 }wp_bert_status_t;
 
+
+
+/*!
+  \struct wan_api_ss7_status
+  \brief SS7 Hardare/Driver configuration status
+
+  \typedef wan_api_ss7_status_t
+*/
+typedef struct wan_api_ss7_cfg_status {
+	unsigned char ss7_hw_enable;
+	unsigned char ss7_hw_mode;
+	unsigned char ss7_hw_lssu_size;
+	unsigned char ss7_driver_repeat;
+} wan_api_ss7_cfg_status_t; 
 
 /*!
   \enum wanpipe_api_cmds
@@ -278,6 +295,9 @@ enum wanpipe_api_cmds
 	WP_API_CMD_BUFFER_MULTIPLIER,	/*!< Set Buffer Multiplier - for SPAN voice mode only */
 	WP_API_CMD_GET_HW_EC_CHAN,		/*!< Get status of hwec for the current timeslot */
 	WP_API_CMD_GET_HW_EC_PERSIST,	/*!< Check if hwec persist mode is on or off */
+	WP_API_CMD_EC_IOCTL,			/*!< Execute command in HWEC module of the Driver */
+	WP_API_CMD_SS7_FORCE_RX,		/*!< Force SS7 Receive */
+	WP_API_CMD_SS7_GET_CFG_STATUS,	/*!< Get current ss7 configuration status */
 
 	/* Add only debugging commands here */
     WP_API_CMD_GEN_FIFO_ERR_TX=500,
@@ -729,6 +749,8 @@ typedef struct wanpipe_api_cmd
 		};
 		wp_api_event_t event;	/*!< Wanpipe API Event */
 		wan_driver_version_t version;
+		wan_iovec_list_t	iovec_list;
+		wan_api_ss7_cfg_status_t   ss7_cfg_status;
 		struct {
 			unsigned char data[WANPIPE_API_CMD_SZ_UNION];
 			unsigned int data_len;

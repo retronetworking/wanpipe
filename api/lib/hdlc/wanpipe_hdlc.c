@@ -3,9 +3,7 @@
  *
  */
 
-#include <wanpipe_hdlc.h> 
-#include <string.h>
-
+#include "wanpipe_hdlc.h" 
  
 /*===================================================================
    PROTOTYPES

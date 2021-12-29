@@ -71,7 +71,7 @@ HLIST_HEAD(wanpipe_parent_sklist);
 #else
 struct sock * wanpipe_parent_sklist = NULL;
 #endif
-static rwlock_t wanpipe_parent_sklist_lock = RW_LOCK_UNLOCKED;
+extern rwlock_t wanpipe_parent_sklist_lock;
 
 static int wanpipe_check_prot_options(struct sock *sk);
 void wanpipe_unbind_sk_from_parent(struct sock *sk);
@@ -212,7 +212,7 @@ int wanpipe_bind_sk_to_parent(struct sock *sk, netdevice_t *dev, struct wan_sock
 		PPRIV_INIT(parent_sk,buf);
 		memset(PPRIV(parent_sk),0,sizeof(wanpipe_parent_t));
 
-		PPRIV(parent_sk)->lock = RW_LOCK_UNLOCKED; 
+		wan_rwlock_init(&PPRIV(parent_sk)->lock);
 
 		SK_PRIV(parent_sk)->dev=dev;
 

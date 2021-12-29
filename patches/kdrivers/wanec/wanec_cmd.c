@@ -285,8 +285,9 @@ tOCT6100_GET_HW_REVISION	f_Revision;
 #endif
 int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int verbose)
 {
-	wan_ec_t		*ec;
-	UINT32			ulResult;
+	wan_ec_t	*ec;
+	UINT32		ulResult;
+	int			err;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
@@ -307,12 +308,17 @@ int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int ve
 					ec->name, ulResult);
 		return -EINVAL;
 	}
+
 	if (chip_image){
+
 		if (chip_image->f_ChipImageInfo){
-			int err;
+
+			/* If user initialized chip_image->f_ChipImageInfo pointer, then
+			 * copy image information to chip_image->f_ChipImageInfo. */
+
 			err = WAN_COPY_TO_USER(
-					&f_ChipImageInfo,
 					chip_image->f_ChipImageInfo,
+					&f_ChipImageInfo,
 					sizeof(tOCT6100_CHIP_IMAGE_INFO));
 			if (err){
 				DEBUG_EVENT(
@@ -321,6 +327,10 @@ int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int ve
 				return -EINVAL;
 			}
 		}else{
+
+			/* If user set chip_image->f_ChipImageInfo to NULL, then
+			 * print image information to wanpipelog. */
+
 			DEBUG_EVENT(
 			"%s: Echo Canceller image description:\n%s\n",
 					ec->name, f_ChipImageInfo.szVersionNumber);
@@ -1987,7 +1997,7 @@ try_next_index:
 				ec->name, (unsigned int)ulResult);
 		return EINVAL;
 	}
-	*pBufferIndex = 0;
+	*pBufferIndex = cOCT6100_INVALID_VALUE;
 	if (!buffer_config->buffer_index){
 		index++;
 		goto try_next_index;
@@ -2032,7 +2042,7 @@ int wanec_BufferPlayoutAdd(wan_ec_t *ec, int channel, wanec_playout_t *playout, 
 	BufferPlayoutAdd.fRepeat	= (playout->repeat_cnt) ? TRUE : FALSE;
 	BufferPlayoutAdd.ulRepeatCount	= playout->repeat_cnt;
 	BufferPlayoutAdd.ulDuration	= (playout->duration) ?
-						playout->duration : 5000;
+						playout->duration : cOCT6100_INVALID_VALUE;
 	BufferPlayoutAdd.ulBufferLength	= (playout->buffer_length) ?
 						playout->buffer_length :
 						cOCT6100_AUTO_SELECT;
@@ -2090,7 +2100,11 @@ int wanec_BufferPlayoutStop(wan_ec_t *ec, int channel, wanec_playout_t *playout,
 					ec->name,
 					channel,
 					WAN_EC_DECODE_CHANNEL_PORT(playout->port));
-	Oct6100BufferPlayoutStopDef( &BufferPlayoutStop );
+	
+	Oct6100BufferPlayoutStopDef( &BufferPlayoutStop );/* set default values */
+
+	BufferPlayoutStop.fStopCleanly = FALSE; /* DavidR:	set to FALSE, following advice from Sebastien Trottier,
+											 *			bug 6353, February 28, 2011. */
 	BufferPlayoutStop.ulChannelHndl = ec->pEchoChannelHndl[channel];
 	BufferPlayoutStop.ulPlayoutPort	=
 			(playout->port == WAN_EC_CHANNEL_PORT_ROUT) ?

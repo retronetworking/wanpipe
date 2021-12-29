@@ -14,6 +14,7 @@
 PWD=$(shell pwd)
 KBUILD_VERBOSE=0
 CC=gcc
+LDCONFIG=/sbin/ldconfig
 
 EXTRA_CFLAGS=
 EXTRA_FLAGS=
@@ -94,7 +95,7 @@ EXTRA_CFLAGS += -I$(PWD)/$(WINCLUDE) -I$(PWD)/$(WINCLUDE)/annexg -I$(PWD)/patche
 EXTRA_CFLAGS += -I$(WANEC_DIR) -I$(WANEC_DIR)/oct6100_api -I$(WANEC_DIR)/oct6100_api/include
 
 #Setup utility extra flags and include path
-EXTRA_UTIL_FLAGS = -I$(PWD)/$(WINCLUDE) -I$(INSTALLPREFIX)/include -I$(INSTALLPREFIX)/usr/include 
+EXTRA_UTIL_FLAGS = -I$(PWD)/$(WINCLUDE) -I$(INSTALLPREFIX)/include -I$(INSTALLPREFIX)/usr/include -L$(INSTALLPREFIX)/lib 
 EXTRA_UTIL_FLAGS += -I$(PWD)/patches/kdrivers/wanec -I$(PWD)/patches/kdrivers/wanec/oct6100_api/include
 
 ENABLE_WANPIPEMON_ZAP=NO
@@ -169,9 +170,9 @@ all: freetdm
 
 all_wan: cleanup_local _checkzap _checksrc all_bin_kmod all_util all_lib	
 
-all_src_dahdi: cleanup_local  _checkzap _checksrc all_kmod_dahdi all_util all_lib
+all_src_dahdi: cleanup_local  _checkzap _checksrc all_kmod_dahdi all_util all_lib 
 
-all_src: cleanup_local  _checksrc all_kmod all_util all_lib
+all_src: cleanup_local  _checksrc all_kmod all_util all_lib 
 
 all_src_ss7: cleanup_local _checkzap _checksrc all_kmod_ss7 all_util all_lib
 
@@ -222,6 +223,7 @@ all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 
 
 #Clean utilites and kernel modules
+.PHONY: clean
 clean: cleanup_local  clean_util _cleanoldwanpipe
 	$(MAKE) -C $(KDIR) SUBDIRS=$(WAN_DIR) clean
 	$(MAKE) -C api SUBDIRS=$(WAN_DIR) clean
@@ -231,14 +233,17 @@ clean: cleanup_local  clean_util _cleanoldwanpipe
 		rm -f .no_legacy_smg; \
 	fi
 
+
                                     
 #Clean old wanpipe headers from linux include
+.PHONY: _cleanoldwanpipe
 _cleanoldwanpipe: _checksrc
 	@eval "./patches/build_links.sh"
 	@eval "./patches/clean_old_wanpipe.sh $(WINCLUDE) $(KDIR)/include/linux"
 	
 
 #Check for linux headers
+.PHONY: _checksrc
 _checksrc: 
 	@if [ ! -e $(KDIR) ]; then \
 		echo "   Error linux headers/source not found: $(KDIR) !"; \
@@ -256,6 +261,7 @@ _checksrc:
 		exit 1; \
 	fi
 
+.PHONY: _check_kver
 _check_kver:
 	@eval "./patches/kern_i_private_check.sh $(KDIR)"
 	@echo > ./patches/kfeatures; 
@@ -264,6 +270,7 @@ _check_kver:
 	fi
 
 #Check for zaptel
+.PHONY: _checkzap
 _checkzap:
 	@echo
 	@echo " +--------- Wanpipe Build Info --------------+"  
@@ -311,15 +318,17 @@ _checkzap:
 	@sleep 2; 
 
 #Install all utilities etc and modules
+.PHONY: install
 install: install_etc install_util install_kmod install_inc 
 	@if [ -e .all_lib ] ; then \
 		$(MAKE) -C api/libsangoma install DESTDIR=$(INSTALLPREFIX); \
 		$(MAKE) -C api/libstelephony install DESTDIR=$(INSTALLPREFIX); \
-		ldconfig; \
+		$(LDCONFIG) ; \
     fi
 
 
 #Install kernel modules only
+.PHONY: install_kmod
 install_kmod:
 	install -m 644 -D $(WAN_DIR)/wanrouter.${MODTYPE}  	$(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanrouter.${MODTYPE} 
 	install -m 644 -D $(WAN_DIR)/af_wanpipe.${MODTYPE} 	$(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/af_wanpipe.${MODTYPE}   
@@ -347,41 +356,48 @@ install_kmod:
 endif
 
 #Compile utilities only
-all_util:  install_inc
+all_util:  install_inc all_lib 
 	$(MAKE) -C util all EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I $(PWD)/api/libsangoma/include" CC=$(CC) \
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(WARCH) 
 	$(MAKE) -C util all_wancfg EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I$(PWD)/api/libsangoma/include" CC=$(CC)  \
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(WARCH) 2> /dev/null
 
 all_lib:
-		$(shell cd api/libsangoma; ./init-automake.sh >> $(PWD)/.cfg_log;  ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;)
-		$(MAKE) -C api/libsangoma clean
-		$(MAKE) -C api/libsangoma all
-		$(shell cd api/libstelephony; ./init-automake.sh >> $(PWD)/.cfg_log; ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;)
-		$(MAKE) -C api/libstelephony clean
-		$(MAKE) -C api/libstelephony all
-		@touch .all_lib
+	@if [ ! -f api/libsangoma/Makefile ] ; then \
+		$(shell echo "Bootstraping libsangoma ..."; cd api/libsangoma; ./init-automake.sh >> $(PWD)/.cfg_log;  ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;) ; \
+	fi
+	$(MAKE) -C api/libsangoma all 
+	@if [ ! -f api/libstelephony/Makefile ] ; then \
+		$(shell echo "Bootstraping libstelephony"; cd api/libstelephony; ./init-automake.sh >> $(PWD)/.cfg_log; ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;) ; \
+	fi
+	$(MAKE) -C api/libstelephony all 
+	@touch .all_lib
 
 install_lib:
 		$(MAKE) -C api/libsangoma install DESTDIR=$(INSTALLPREFIX)
 		$(MAKE) -C api/libstelephony install DESTDIR=$(INSTALLPREFIX)
 
 #Clean utilities only
+.PHONY: clean_util
 clean_util:	
 	$(MAKE) -C util clean SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)
 
 #Install utilities only
+.PHONY: install_util
 install_util:
 	$(MAKE) -C util install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)  
 
+.PHONY: install_smgbri
 install_smgbri:
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/ install  SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) BRI=YES PREFIX=$(INSTALLPREFIX)
 	$(MAKE) -C ssmg/libsangoma.trunk/ install DESTDIR=$(INSTALLPREFIX)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone install DESTDIR=$(INSTALLPREFIX)
 
+.PHONY: install_bri
 install_bri:
 	$(MAKE) -C ssmg/sangoma_bri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
 
+.PHONY: install_smgpri
 install_smgpri:
 	$(MAKE) -C ssmg/sangoma_pri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
 	@if [  ! -e .no_legacy_smg ]; then \
@@ -428,8 +444,8 @@ install_etc:
 	fi   
 	@\cp -rf wan_ec  $(INSTALLPREFIX)/etc/wanpipe/
 	@\cp -rf api  $(INSTALLPREFIX)/etc/wanpipe/
+	@\cp -rf scripts  $(INSTALLPREFIX)/etc/wanpipe/
 	@\cp -rf util/wan_aftup   $(INSTALLPREFIX)/etc/wanpipe/util/
-	@\cp -rf util/wanec_apilib   $(INSTALLPREFIX)/etc/wanpipe/util/
 	@install -D -m 755 samples/wanrouter  $(INSTALLPREFIX)/usr/sbin/wanrouter
 	@echo
 	@echo "Wanpipe etc installed in $(INSTALLPREFIX)/etc/wanpipe";
@@ -440,10 +456,11 @@ install_inc:
 		\rm -rf $(INSTALLPREFIX)/usr/include/wanpipe; \
         fi
 	@\mkdir -p $(INSTALLPREFIX)/usr/include/wanpipe 
-	@ln -s $(INSTALLPREFIX)/usr/include/wanpipe/ $(INSTALLPREFIX)/usr/include/wanpipe/linux
 	@\cp -f $(PWD)/patches/kdrivers/include/*.h $(INSTALLPREFIX)/usr/include/wanpipe/
-	@\cp -rf $(PWD)/patches/kdrivers/wanec/oct6100_api/include/ $(INSTALLPREFIX)/usr/include/wanpipe/oct6100_api	
+	@\cp -rf $(PWD)/patches/kdrivers/wanec/oct6100_api/include/* $(INSTALLPREFIX)/usr/include/wanpipe/	
 	@\cp -rf $(PWD)/patches/kdrivers/wanec/*.h $(INSTALLPREFIX)/usr/include/wanpipe/
+	@( cd $(INSTALLPREFIX)/usr/include/wanpipe; ln -s . linux; )
+	@( cd $(INSTALLPREFIX)/usr/include/wanpipe; ln -s . oct6100_api; )
 
 smgbri: 
 	@cd ssmg/libsangoma.trunk; ./configure --prefix=$(LIBPREFIX) ; cd ../..;
@@ -453,11 +470,13 @@ smgbri:
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/ CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR) ASTDIR=$(ASTDIR)
 
 
+.PHONY: clean_smgbri
 clean_smgbri:
 	$(MAKE) -C ssmg/libsangoma.trunk/ clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/ clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
 
+.PHONY: distclean
 distclean: clean
 	rm -f .pbxdir 
 	

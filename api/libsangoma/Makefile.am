@@ -1,8 +1,14 @@
 
 WLINC=../../patches/kdrivers/include
+WEC=../../patches/kdrivers/wanec
+WECOCT=../../patches/kdrivers/wanec/oct6100_api/include
+REPODIR=../../include
+REPODIR1=../../../code/include
+REPOEC=../../wanec
+REPOECOCT=$(REPOEC)/oct6100_api/include
 WINC=/usr/include/wanpipe
 
-AM_CFLAGS		= -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I$(WLINC) -I$(WINC)  -I. \
+AM_CFLAGS		= -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I./wanec -I$(WLINC) -I$(WEC) -I$(WECOCT) -I$(WINC) -I$(WINC)/oct6100_api  -I. -I$(REPODIR1) -I$(REPOECOCT) -I$(REPODIR)/aft_core -I$(REPOEC) -I$(REPODIR) \
 	-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O2 -D_DEBUG_=2 -D_GNUC_ -I../lib  -D__COMPILING_LIBSANGOMA__ 
 
 # pedantic flags that will help us to keep clean code
@@ -11,14 +17,14 @@ AM_CFLAGS += -Wall -Wwrite-strings -Wunused-variable -Wstrict-prototypes -Wmissi
 
 #ACLOCAL_AMFLAGS = -I m4 
 
-LIB_SOURCES		= libsangoma.c libsangoma_utils.c libsangoma_config.c libsangoma_hwec.c libsangoma.h libhpsangoma.c libhpsangoma.h libhpsangoma_priv.c libhpsangoma_priv.h
+LIB_SOURCES		= libsangoma.c libsangoma_utils.c libsangoma_config.c libsangoma_hwec.c libsangoma.h libhpsangoma.c libhpsangoma.h libhpsangoma_priv.c libhpsangoma_priv.h wanec/wanec_api.c wanec/wanec_api_lib.c wanec/wanec_api.h
 
 if LIBPRI
 LIB_SOURCES		+= sangoma_pri.c sangoma_pri.h
 endif 
 
 library_includedir      = $(includedir)
-library_include_HEADERS = libsangoma.h libhpsangoma.h 
+library_include_HEADERS = libsangoma.h libhpsangoma.h wanec/wanec_api.h
 
 if LIBPRI
 library_include_HEADERS	+= sangoma_pri.h

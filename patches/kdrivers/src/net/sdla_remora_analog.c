@@ -230,7 +230,7 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 #if !RING_DEBOUNCE_FIX
 # define RING_DEBOUNCE_COUNTER	64
 #else
-# define RING_DEBOUNCE_COUNTER	80
+# define RING_DEBOUNCE_COUNTER	56
 #endif
 
 			if (fxo->ringdebounce >= fe->rm_param.wp_rm_chunk_size * RING_DEBOUNCE_COUNTER) {

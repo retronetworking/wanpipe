@@ -1,4 +1,4 @@
-#!/bins/sh
+#!/bin/sh
 
 function ppp_interface_setup () {
 

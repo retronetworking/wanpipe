@@ -162,56 +162,52 @@ static int tdmv_api_ioctl(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
 	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
 }
 
-/*
-  \fn static USHORT DoReadCommand(sng_fd_t fd, RX_DATA_STRUCT * pRx)
+/*!
+  \fn static USHORT DoReadCommand(sng_fd_t fd, wan_iovec_list_t *p_iovec_list)
   \brief  API READ Function
   \param drv device file descriptor
-  \param pRx receive data structure
+  \param p_iovec_list a list of memory descriptors
 
-  Private Windows Function
-  This function will NOT block because using IoctlReadCommandNonBlocking.
+  Private Function.
+  A non-blocking function.
  */
-static USHORT DoReadCommand(sng_fd_t fd, RX_DATA_STRUCT * pRx)
+static USHORT DoReadCommand(sng_fd_t fd, wan_iovec_list_t *p_iovec_list)
 {
 	DWORD ln, bIoResult;
 
 	bIoResult = DeviceIoControl(
 			fd,
 			IoctlReadCommandNonBlocking,
-			(LPVOID)NULL,/*NO input buffer!*/
+			(LPVOID)NULL,	/*NO input buffer!*/
 			0,
-			(LPVOID)pRx,
-			sizeof(RX_DATA_STRUCT),
+			(LPVOID)p_iovec_list,
+			sizeof(wan_iovec_list_t),
 			(LPDWORD)(&ln),
 			(LPOVERLAPPED)NULL);
 
 	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
 }
 
-/*
-  \fn static UCHAR DoWriteCommand(sng_fd_t fd, TX_DATA_STRUCT * pTx)
+/*!
+  \fn static UCHAR DoWriteCommand(sng_fd_t fd, wan_iovec_list_t *p_iovec_list)
   \brief API Write Function
   \param drv device file descriptor
-  \param pRx receive data structure
+  \param p_iovec_list a list of memory descriptors
 
-  Private Windows Function
-  In Legacy API mode this fuction will Block if data is busy.
-  In API mode no function is allowed to Block
+  Private Function.
+  A non-blocking function.
  */
-static UCHAR DoWriteCommand(sng_fd_t fd,
-							void *input_data_buffer, u32 size_of_input_data_buffer,
-							void *output_data_buffer, u32 size_of_output_data_buffer
-							)
+static UCHAR DoWriteCommand(sng_fd_t fd, wan_iovec_list_t *p_iovec_list)
 {
 	DWORD BytesReturned, bIoResult;
 
 	bIoResult = DeviceIoControl(
 			fd,
 			IoctlWriteCommandNonBlocking,
-			(LPVOID)input_data_buffer,
-			size_of_input_data_buffer,
-			(LPVOID)output_data_buffer,
-			size_of_output_data_buffer,
+			(LPVOID)p_iovec_list,	//input buffer
+			sizeof(*p_iovec_list),	//size of input buffer
+			(LPVOID)p_iovec_list,	//output buffer
+			sizeof(*p_iovec_list),	//size of output buffer
 			(LPDWORD)(&BytesReturned),
 			(LPOVERLAPPED)NULL);
 
@@ -1276,6 +1272,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sango
 		}
 	}
 #else
+	int flags;
 	int filedes[2];
 	if (SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
 		sng_wait_obj->signal_read_fd = INVALID_HANDLE_VALUE;
@@ -1287,6 +1284,21 @@ sangoma_status_t _LIBSNG_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sango
 		}
 		sng_wait_obj->signal_read_fd = filedes[0];
 		sng_wait_obj->signal_write_fd = filedes[1];
+		/* make the read fd non-blocking, multiple threads can wait for it but just one
+		 * wil read the dummy notify character, the others would block otherwise and that's
+		 * not what we want */
+		flags = fcntl(sng_wait_obj->signal_read_fd, F_GETFL, 0);
+		if (flags < 0) {
+			err = SANG_STATUS_GENERAL_ERROR;
+			goto failed;
+		}
+		flags |= O_NONBLOCK;
+		fcntl(sng_wait_obj->signal_read_fd, F_SETFL, flags);
+		flags = fcntl(sng_wait_obj->signal_read_fd, F_GETFL, 0);
+		if (flags < 0 || !(flags & O_NONBLOCK)) {
+			err = SANG_STATUS_GENERAL_ERROR;
+			goto failed;
+		}
 	}
 #endif
 	*sangoma_wait_object = sng_wait_obj;
@@ -1833,38 +1845,37 @@ int _LIBSNG_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *da
 
 #if defined(__WINDOWS__)
 	wp_api_hdr_t	*rx_hdr = (wp_api_hdr_t*)hdrbuf;
-	wp_api_element_t wp_api_element;
+	wan_iovec_list_t iovec_list;
 
-	if(hdrlen != sizeof(wp_api_hdr_t)){
+	if (hdrlen != sizeof(wp_api_hdr_t)) {
 		/*error*/
 		DBG_ERR("hdrlen (%i) != sizeof(wp_api_hdr_t) (%i)\n", hdrlen, sizeof(wp_api_hdr_t));
 		return -1;
 	}
 
-	wp_api_element.hdr.operation_status = SANG_STATUS_IO_ERROR;
+	memset(&iovec_list, 0x00, sizeof(iovec_list));
 
-	if(DoReadCommand(fd, &wp_api_element)){
+	iovec_list.iovec_list[0].iov_base = hdrbuf;
+	iovec_list.iovec_list[0].iov_len = hdrlen;
+
+	iovec_list.iovec_list[1].iov_base = databuf;
+	iovec_list.iovec_list[1].iov_len = datalen;
+
+	if (DoReadCommand(fd, &iovec_list)) {
 		/*error*/
 		DBG_ERR("DoReadCommand() failed! Check messages log.\n");
 		return -4;
 	}
 
-	memcpy(rx_hdr, &wp_api_element.hdr, sizeof(wp_api_hdr_t));
-
 	switch(rx_hdr->operation_status)
 	{
 	case SANG_STATUS_RX_DATA_AVAILABLE:
 		/* ok */
-		if(rx_hdr->data_length <= datalen){
-			memcpy(databuf, wp_api_element.data, rx_hdr->data_length);
-		}else{
-			rx_hdr->operation_status = SANG_STATUS_BUFFER_TOO_SMALL;
-		}
 		break;
 	case SANG_STATUS_NO_DATA_AVAILABLE:
 		/* Note that SANG_STATUS_NO_DATA_AVAILABLE is NOT an error becase
 		 * read() is non-blocking and can be called at any time (by some polling code)*/
-		return 1; /* return positive value to indicate success, user must check 'rx_hdr->operation_status' */
+		return 1; /* return positive value to indicate IOCTL success, user must check 'rx_hdr->operation_status' */
 	default:
 		if(libsng_dbg_level)DBG_ERR("Operation Status: %s(%d)\n",
 			SDLA_DECODE_SANG_STATUS(rx_hdr->operation_status), rx_hdr->operation_status);
@@ -1903,6 +1914,9 @@ int _LIBSNG_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *d
 {
 	int bsent=-1;
 	wp_api_hdr_t *wp_api_hdr = hdrbuf;
+#if defined(__WINDOWS__)
+	wan_iovec_list_t iovec_list;
+#endif
 
 	if (hdrlen != sizeof(wp_api_hdr_t)) {
 		/* error. Possible cause is a mismatch between versions of API header files. */
@@ -1914,8 +1928,16 @@ int _LIBSNG_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *d
 
 	wp_api_hdr->data_length = datalen;
 
-	/*queue data for transmission*/
-	if(DoWriteCommand(fd, databuf, datalen, hdrbuf, hdrlen)){
+	memset(&iovec_list, 0x00, sizeof(iovec_list));
+
+	iovec_list.iovec_list[0].iov_base = hdrbuf;
+	iovec_list.iovec_list[0].iov_len = hdrlen;
+
+	iovec_list.iovec_list[1].iov_base = databuf;
+	iovec_list.iovec_list[1].iov_len = datalen;
+
+	/* queue data for transmission */
+	if (DoWriteCommand(fd, &iovec_list)) {
 		/*error*/
 		DBG_ERR("DoWriteCommand() failed!! Check messages log.\n");
 		return -1;
@@ -3042,6 +3064,30 @@ int _LIBSNG_CALL sangoma_get_aft_customer_id(sng_fd_t fd, unsigned char *out_cus
 	return 0;
 }
 
+#ifdef WP_API_FEATURE_LED_CTRL
+int _LIBSNG_CALL sangoma_port_led_ctrl(sng_fd_t fd, unsigned char led_ctrl)
+{
+	wan_udp_hdr_t wan_udp;
+
+	memset(&wan_udp, 0x00, sizeof(wan_udp));
+
+	wan_udp.wan_udphdr_command = WANPIPEMON_LED_CTRL;
+	wan_udp.wan_udphdr_return_code = SANG_STATUS_UNSUPPORTED_FUNCTION;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0] = led_ctrl;
+
+	if (sangoma_mgmt_cmd(fd, &wan_udp)) {
+		return SANG_STATUS_IO_ERROR;
+	}
+
+	if (wan_udp.wan_udphdr_return_code) {
+		return SANG_STATUS_UNSUPPORTED_FUNCTION;
+	}
+
+	return 0;
+}
+#endif
+
 #ifdef  WP_API_FEATURE_FE_RW
 int _LIBSNG_CALL sangoma_fe_reg_write(sng_fd_t fd, uint32_t offset, uint8_t data)
 {
@@ -3246,6 +3292,36 @@ int _LIBSNG_CALL sangoma_tdm_disable_loop(sng_fd_t fd, wanpipe_api_t *tdm_api)
 
 #endif
 
+
+#ifdef WP_API_FEATURE_SS7_FORCE_RX
+int _LIBSNG_CALL sangoma_ss7_force_rx(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	SANGOMA_INIT_TDM_API_CMD_RESULT(*tdm_api);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_SS7_FORCE_RX;
+	return sangoma_cmd_exec(fd, tdm_api);
+}
+#endif
+
+#ifdef WP_API_FEATURE_SS7_CFG_STATUS
+int _LIBSNG_CALL sangoma_ss7_get_cfg_status(sng_fd_t fd, wanpipe_api_t *tdm_api, wan_api_ss7_cfg_status_t *ss7_cfg_status)
+{
+	int err;
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	SANGOMA_INIT_TDM_API_CMD_RESULT(*tdm_api);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_SS7_GET_CFG_STATUS;
+
+	err = sangoma_cmd_exec(fd, tdm_api);
+	if (err == 0) {
+		if (ss7_cfg_status) {
+			memcpy(ss7_cfg_status, &tdm_api->wp_cmd.ss7_cfg_status, sizeof(wan_api_ss7_cfg_status_t));
+		}
+	}
+
+	return err;
+}
+#endif
 
 
 #endif /* WANPIPE_TDM_API */

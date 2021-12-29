@@ -152,6 +152,8 @@ int wanec_ioctl(void *sc, void *data);
 WAN_IOCTL_RET_TYPE wanec_ioctl(unsigned int cmd, void *data);
 #endif
 
+static void __wanec_ioctl(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+
 int wan_ec_write_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 data);
 int wan_ec_read_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 *data);
 
@@ -935,21 +937,35 @@ int wanec_api_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
 
 	ec_dev->state = WAN_EC_STATE_RESET;
 	if (ec_dev_tmp){
-		/* EC device is still in used */
+		/* EC device is still in use ("configure" was done).
+		 * This may happen only on multi-port cards, but
+		 * never on Analog or single-port digital. */
+		PRINT2(verbose,	"%s: %s(): this EC still used by another port\n", 
+			ec->name, __FUNCTION__);
 		return 0;
 	}
 
 	if (ec->state == WAN_EC_STATE_CHIP_OPEN){
+
+		PRINT2(verbose,	"%s: %s(): calling wanec_ChipClose()\n", 
+			ec->name, __FUNCTION__);
+
 		if (wanec_ChipClose(ec_dev, verbose)){
 			return EINVAL;
 		}
+
 		ec->state = WAN_EC_STATE_READY;
 	}
 
 	if (ec->state == WAN_EC_STATE_CHIP_OPEN_PENDING){
 		ec->state = WAN_EC_STATE_READY;
 	}
+
 	if (ec->state == WAN_EC_STATE_READY){
+
+		PRINT2(verbose, "%s: %s(): calling wanec_reset()\n", 
+			ec->name, __FUNCTION__);
+
 		err = wanec_reset(ec_dev, 1);
 		if (err){
 			return EINVAL;
@@ -1497,66 +1513,86 @@ static int wanec_api_playout(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 	return 0;
 }
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
-int wanec_ioctl(void *sc, void *data)
-#elif defined(__LINUX__)
-WAN_IOCTL_RET_TYPE wanec_ioctl(unsigned int cmd, void *data)
-#elif defined(__WINDOWS__)
-int wanec_ioctl(void *data)
-#endif
+int wanpipe_ec_tdm_api_ioctl(void *p_ec_dev, wan_iovec_list_t *iovec_list) 
 {
-	wan_ec_api_t	*ec_api = NULL;
-	wan_ec_t		*ec = NULL;
-	wan_ec_dev_t	*ec_dev = NULL;
-	WAN_IOCTL_RET_TYPE		err = 0;
+	wan_ec_api_t *ec_api;
+	void *user_buffer;
+	int err, user_buffer_len;
+	wan_ec_dev_t *ec_dev = (wan_ec_dev_t*)p_ec_dev;
+	
+	user_buffer = iovec_list->iovec_list[0].iov_base;
+
+	if (!user_buffer) {
+		DEBUG_ERROR("Error: %s: IO memory buffer is NULL!\n", ec_dev->devname);
+		return SANG_STATUS_INVALID_PARAMETER;
+	}
+
+	user_buffer_len = iovec_list->iovec_list[0].iov_len;
+
+	if (sizeof(wan_ec_api_t) != user_buffer_len) {
+		DEBUG_ERROR(
+			"Error: %s: IO memory buffer length %d not equal sizeof(wan_ec_api_t):%d!\n",
+			ec_dev->devname, user_buffer_len, sizeof(wan_ec_api_t));
+		return SANG_STATUS_INVALID_PARAMETER;
+	}
+
+	ec_api = wan_malloc(sizeof(wan_ec_api_t));
+	if (ec_api == NULL){
+		DEBUG_ERROR(
+    		"Error: %s: Failed to allocate memory (%d) [%s():%d]!\n",
+				ec_dev->devname, (int)sizeof(wan_ec_api_t),
+				__FUNCTION__, __LINE__);
+		return SANG_STATUS_FAILED_ALLOCATE_MEMORY;
+	}
+
+	err = WAN_COPY_FROM_USER(ec_api, user_buffer, sizeof(*ec_api));
+	if (err){
+		DEBUG_ERROR(
+       		"Error: %s: Failed to copy data from user space [%s():%d]!\n",
+				ec_dev->devname, __FUNCTION__,__LINE__);
+		wan_free(ec_api);
+		return SANG_STATUS_IO_ERROR;
+	}
+
+	__wanec_ioctl(ec_dev, ec_api);
+
+	err = WAN_COPY_TO_USER(user_buffer, ec_api, sizeof(*ec_api));
+	if (err){
+		DEBUG_ERROR(
+			"Error: %s: Failed to copy data to user space [%s():%d]!\n",
+				ec_dev->devname, __FUNCTION__,__LINE__);
+		wan_free(ec_api);
+		return SANG_STATUS_IO_ERROR;
+	}
+
+	wan_free(ec_api);
+
+	return SANG_STATUS_SUCCESS;
+}
+
+static void __wanec_ioctl(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+{
+	wan_ec_t	*ec = NULL;
+	WAN_IOCTL_RET_TYPE	err = 0;
 	wan_smp_flag_t flags;
 
 	WAN_DEBUG_FUNC_START;
-
-#if defined(__LINUX__)
-	ec_api = wan_malloc(sizeof(wan_ec_api_t));
-	if (ec_api == NULL){
-		DEBUG_EVENT(
-    		"wanec: Failed allocate memory (%d) [%s:%d]!\n",
-				(int)sizeof(wan_ec_api_t),
-				__FUNCTION__,__LINE__);
-		return -EINVAL;
-	}
-	err = WAN_COPY_FROM_USER(
-				ec_api,
-				data,
-				sizeof(wan_ec_api_t));
-	if (err){
-		DEBUG_EVENT(
-       		"wanec: Failed to copy data from user space [%s:%d]!\n",
-				__FUNCTION__,__LINE__);
-		wan_free(ec_api);
-		return -EINVAL;
-	}
-#else
-	ec_api = (wan_ec_api_t*)data;
-#endif
 
 #if defined(WANEC_DEBUG)
 	ec_api->verbose |= (WAN_EC_VERBOSE_EXTRA1|WAN_EC_VERBOSE_EXTRA2);
 #endif
 
-	ec_dev = wanec_search(ec_api->devname);
-
-	if (ec_dev == NULL){
-		DEBUG_EVENT(
-		"%s: Failed to find device [%s:%d]!\n",
-				ec_api->devname, __FUNCTION__,__LINE__);
-		ec_api->err = WAN_EC_API_RC_INVALID_DEV;
-		goto wanec_ioctl_exit;
+	if (ec_dev->ec == NULL) {
+		DEBUG_ERROR("Error: %s: 'ec_dev->ec' is NULL!\n",
+			ec_dev->devname);
+		return;
 	}
-	WAN_ASSERT(ec_dev->ec == NULL);
+
 	ec = ec_dev->ec;
 
+	PRINT2(ec_api->verbose,	"%s(): %s: cmd: %s\n",
+		__FUNCTION__, ec_api->devname, WAN_EC_API_CMD_DECODE(ec_api->cmd));
 
-	PRINT2(ec_api->verbose,
-	"%s: WPEC_LIP IOCTL: %s\n",
-			ec_api->devname, WAN_EC_API_CMD_DECODE(ec_api->cmd));
 	ec_api->err = WAN_EC_API_RC_OK;
 	if (ec_api->cmd == WAN_EC_API_CMD_GETINFO){
 		ec_api->u_info.max_channels	= ec->max_ec_chans;
@@ -1567,24 +1603,22 @@ int wanec_ioctl(void *data)
 		goto wanec_ioctl_exit;
 	}
 
-	wan_mutex_lock(&ec->lock,&flags);
+	wan_mutex_lock(&ec->lock, &flags);
 
 	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical)){
-		DEBUG_EVENT(
-		"%s: Echo Canceller device is down!\n",
-				ec_api->devname);
+		DEBUG_EVENT("%s: Echo Canceller device is down!\n",
+			ec_api->devname);
 		ec_api->err = WAN_EC_API_RC_INVALID_DEV;
 		goto wanec_ioctl_done;
 	}
+
 	if (wan_test_and_set_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical)){
-		DEBUG_EVENT(
-		"%s: Echo Canceller is busy!\n",
-				ec_api->devname);
+		DEBUG_EVENT("%s: Echo Canceller is busy!\n",
+			ec_api->devname);
 		ec_api->err = WAN_EC_API_RC_BUSY;
 		goto wanec_ioctl_done;
 	}
 
-	
 	switch(ec_api->cmd){
 	case WAN_EC_API_CMD_GETINFO:
 		ec_api->u_info.max_channels	= ec->max_ec_chans;
@@ -1647,43 +1681,103 @@ int wanec_ioctl(void *data)
 	}
 	
 	if (err){
-		PRINT2(ec_api->verbose,
-		"%s: %s return error (Command: %s)\n",
-			ec_api->devname, __FUNCTION__, WAN_EC_API_CMD_DECODE(ec_api->cmd));
+		PRINT2(ec_api->verbose,	"%s(): %s returns error! (Command: %s)\n",
+			__FUNCTION__, ec_api->devname, WAN_EC_API_CMD_DECODE(ec_api->cmd));
 		ec_api->err = err;
 	}
+
 	if (ec_api->err == WAN_EC_API_RC_INVALID_STATE){
-		ec_api->state	= ec->state;
+		ec_api->state = ec->state;
 	}
+
 	wan_clear_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical);
 
 wanec_ioctl_done:
 	wan_mutex_unlock(&ec->lock,&flags);
 
 wanec_ioctl_exit:
+	PRINT2(ec_api->verbose, "%s(): %s: cmd %s returns %d\n", __FUNCTION__,
+		ec_api->devname, WAN_EC_API_CMD_DECODE(ec_api->cmd), ec_api->err);
+
+	WAN_DEBUG_FUNC_END;
+}
+
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+int wanec_ioctl(void *sc, void *data)
+#elif defined(__LINUX__)
+WAN_IOCTL_RET_TYPE wanec_ioctl(unsigned int cmd, void *data)
+#elif defined(__WINDOWS__)
+int wanec_ioctl(void *data)
+#endif
+{
+	wan_ec_api_t	*ec_api = NULL;
+	wan_ec_dev_t	*ec_dev = NULL;
+	WAN_IOCTL_RET_TYPE err = 0;
+
+
+	WAN_DEBUG_FUNC_START;
+
+#if defined(__LINUX__)
+	ec_api = wan_malloc(sizeof(wan_ec_api_t));
+	if (ec_api == NULL){
+		DEBUG_ERROR(
+    		"Error: wanec: Failed to allocate memory (%d) [%s():%d]!\n",
+				(int)sizeof(wan_ec_api_t), __FUNCTION__, __LINE__);
+		return -EINVAL;
+	}
+
+	err = WAN_COPY_FROM_USER(
+				ec_api,
+				data,
+				sizeof(wan_ec_api_t));
+	if (err){
+		DEBUG_ERROR(
+       		"Error: wanec: Failed to copy data from user space [%s():%d]!\n",
+				__FUNCTION__,__LINE__);
+		wan_free(ec_api);
+		return -EINVAL;
+	}
+#elif defined(__WINDOWS__)
+	ec_api = (wan_ec_api_t*)data;
+#else
+# error "Unsupported OS"
+#endif
+
+#if defined(WANEC_DEBUG)
+	ec_api->verbose |= (WAN_EC_VERBOSE_EXTRA1|WAN_EC_VERBOSE_EXTRA2);
+#endif
+
+	ec_dev = wanec_search(ec_api->devname);
+
+	if (ec_dev == NULL){
+		DEBUG_ERROR("Error: %s: Failed to find device [%s():%d]!\n",
+			ec_api->devname, __FUNCTION__, __LINE__);
+		ec_api->err = WAN_EC_API_RC_INVALID_DEV;
+		goto wanec_ioctl_exit;
+	}
+
+	/* note that __wanec_ioctl() is a void-return function because
+	 * the return code will be stored in 'ec_api->err'*/
+	__wanec_ioctl(ec_dev, ec_api);
+
+wanec_ioctl_exit:
+
 #if defined(__LINUX__)
 	err = WAN_COPY_TO_USER(
 			data,
 			ec_api,
 			sizeof(wan_ec_api_t));
 	if (err){
-		DEBUG_EVENT(
-		"%s: Failed to copy data to user space [%s:%d]!\n",
-			ec_api->devname,
-			__FUNCTION__,__LINE__);
+		DEBUG_ERROR(
+		"Error: %s: Failed to copy data to user space [%s():%d]!\n",
+			ec_api->devname, __FUNCTION__,__LINE__);
 		wan_free(ec_api);
 		return -EINVAL;
 	}
-#endif
-	PRINT2(ec_api->verbose,
-	"%s: WPEC_LIP IOCTL: %s returns %d\n",
-			ec_api->devname,
-			WAN_EC_API_CMD_DECODE(ec_api->cmd),
-			ec_api->err);
 
-#if defined(__LINUX__)
 	wan_free(ec_api);
 #endif
+
 	WAN_DEBUG_FUNC_END;
 	return 0;
 }
@@ -1873,6 +1967,7 @@ wanec_register(void *pcard, u_int32_t fe_port_mask, int max_fe_chans, int max_ec
 	card->wandev.ec_enable	= wanec_enable;
 	card->wandev.__ec_enable= __wanec_enable;
 	card->wandev.ec_state   = wanec_state;
+	card->wandev.ec_tdmapi_ioctl   = wanpipe_ec_tdm_api_ioctl;
 	card->wandev.fe_ec_map	= 0;
 
 	memcpy(ec_dev_new->devname, card->devname, sizeof(card->devname));

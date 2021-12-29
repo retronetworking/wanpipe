@@ -59,4 +59,4 @@ __attribute__((section(".modinfo"))) =
 "depends=sdladrv,wanrouter";
 
 
-MODULE_INFO(srcversion, "330FDC6BCC633B9736F33B7");
+MODULE_INFO(srcversion, "039A5C040BBFE9C66F130DE");

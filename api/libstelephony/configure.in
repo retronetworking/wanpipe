@@ -2,35 +2,17 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(libstelephony, 2.0.0, anthmct@yahoo.com)
-AM_INIT_AUTOMAKE(libstelephony,2.0.0)
-
-LIBSTELEPHONY_LT_CURRENT=2  # interface 2
-LIBSTELEPHONY_LT_REVISION=0 # first revision of this interface
-LIBSTELEPHONY_LT_AGE=0      #not backwards compatible (0 previous interfaces are compatible)
-
-#AC_CONFIG_MACRO_DIR([m4])
-
-AC_SUBST(LIBSTELEPHONY_LT_CURRENT)
-AC_SUBST(LIBSTELEPHONY_LT_REVISION)
-AC_SUBST(LIBSTELEPHONY_LT_AGE)
+AC_INIT(libstelephony, 2.0.0)
+AC_CONFIG_HEADERS(config.h)
+AM_INIT_AUTOMAKE
 
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_LIBTOOL
-AC_CONFIG_HEADERS(config.h)
 
-AC_CHECK_PROG(AR, ar, ar, no)
 # Checks for libraries.
-
 AC_CHECK_HEADERS(fcntl.h netinet/in.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h math.h)
-
-AC_ARG_WITH(libpri,
-	[  --with-libpri=<path> enable pri support],[libpripath="$withval"])
-
-AM_CONDITIONAL([LIBPRI],[test -d "$libpripath" ])
-AC_SUBST([libpripath])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_TIME

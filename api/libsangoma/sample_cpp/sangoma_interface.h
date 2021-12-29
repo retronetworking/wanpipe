@@ -3,8 +3,8 @@
  * \brief Used with Sample.cpp Code
  * \brief Provides a C++ class that deals with channel IO (read/write/events)
  *
- * Author(s):	David Rokhvarg <davidr@sangoma.com>
- *              Nenad Corbic <ncorbic@sangoma.com>
+ * Author(s):	David Rokhvarg
+ *              Nenad Corbic
  *
  *
  * Copyright:	(c) 2005-2009 Sangoma Technologies
@@ -95,6 +95,7 @@
 #define SANGOMA_INTERFACE_NUMBER_OF_WAIT_OBJECTS 1
 #define SANGOMA_TX_WAIT_OBJECT				0
 #define SANGOMA_RX_AND_EVENT_WAIT_OBJECT	0
+
 
 /*!
   \class sangoma_interface
@@ -210,15 +211,15 @@ protected:
 	/*! API header for rx data */
 	wp_api_hdr_t		rxhdr;
 	/*! Data buffer to copy rx data into */
-	unsigned char		rx_data[MAX_NO_DATA_BYTES_IN_FRAME];
+	unsigned char		rx_data[SAMPLE_CPP_MAX_DATA_LEN];
 
 	/*! API header for tx data */
 	wp_api_hdr_t		txhdr;
 	/*! Data buffer to copy tx data into */
-	unsigned char		tx_data[MAX_NO_DATA_BYTES_IN_FRAME];
+	unsigned char		tx_data[SAMPLE_CPP_MAX_DATA_LEN];
 
 	/*! Wanpipe Interface configuration structure to be populated on read configuration */
-	if_cfg_t				wanif_conf_struct;
+	if_cfg_t			wanif_conf_struct;
 
 	/*! Wanpipe Device number based on hardware probe device enumeration (SPAN) */
 	int WanpipeNumber;
@@ -242,7 +243,7 @@ public:
 	//////////////////////////////////////////////////////////////////
 	//methods
 	sangoma_interface(int wanpipe_number, int interface_number);
-	~sangoma_interface();
+	virtual ~sangoma_interface();
 
 	int DoManagementCommand(sng_fd_t drv, wan_udp_hdr_t* packet);
 

@@ -221,7 +221,7 @@ static void wp_usb_tdmv_remora_hwec_free(struct dahdi_chan *chan,
 #endif
 
 
-#ifdef DAHDI_24
+#if defined(DAHDI_24) || defined(DAHDI_25)
 
 static const struct dahdi_span_ops wp_tdm_span_ops = {
 	.owner = THIS_MODULE,
@@ -253,7 +253,9 @@ static const struct dahdi_echocan_features wp_tdmv_remora_ec_features = {
 };
 
 static const struct dahdi_echocan_ops wp_tdmv_remora_ec_ops = {
+#ifndef DAHDI_25
 	.name = "WANPIPE_HWEC",
+#endif
 	.echocan_free = wp_usb_tdmv_remora_hwec_free,
 };
 #endif
@@ -1263,7 +1265,7 @@ static int wp_usb_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 		}
 	}
 
-#ifdef DAHDI_24
+#if defined(DAHDI_24) || defined(DAHDI_25)
 	wr->span.ops = &wp_tdm_span_ops;
 #else
 
@@ -1302,7 +1304,9 @@ static int wp_usb_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 
 
 #if defined(__LINUX__)
+#ifndef DAHDI_25
 	init_waitqueue_head(&wr->span.maintq);
+#endif
 #endif
 	if (zt_register(&wr->span, 0)) {
 		DEBUG_EVENT("%s: Unable to register span with zaptel\n",

@@ -327,17 +327,17 @@ int MakeConnection (char *i_name )
  *
  *   o Send and Receive data via socket 
  *   o Create a tx packet using x25api_t data type. 
- *   o Both the tx and rx packets contains 16 bytes headers
+ *   o Both the tx and rx packets contains 64 bytes headers
  *     in front of the real data.  It is the responsibility
- *     of the applicatino to insert this 16 bytes on tx, and
- *     remove the 16 bytes on rx.
+ *     of the applicatino to insert this 64 bytes on tx, and
+ *     remove the 64 bytes on rx.
  *
  *	------------------------------------------
- *      |  16 bytes      |        X bytes        ...
+ *      |  64 bytes      |        X bytes        ...
  *	------------------------------------------
  * 	   Header              Data
  *
- *   o 16 byte Header: data structure:
+ *   o 64 byte Header: data structure:
  *
  *     	typedef struct {
  *		unsigned char  qdm	PACKED;	Q/D/M bits 
@@ -357,9 +357,9 @@ int MakeConnection (char *i_name )
  *
  * TX DATA:
  * --------
- * 	Each tx data packet must contain the above 16 byte header!
+ * 	Each tx data packet must contain the above 64 byte header!
  * 	
- * 	Only relevant byte in the 16 byte tx header, is the
+ * 	Only relevant byte in the 64 byte tx header, is the
  * 	QDM byte.  The driver will look at this byte to determine
  * 	if the Mbit (more data bit) should be set.
  * 		
@@ -375,9 +375,9 @@ int MakeConnection (char *i_name )
  *
  * RX DATA:
  * --------
- * 	Each rx data will contain the above 16 byte header!
+ * 	Each rx data will contain the above 64 byte header!
  *
- * 	Relevant bytes in the 16 byte rx header, are the
+ * 	Relevant bytes in the 64 byte rx header, are the
  * 	LCN and QDM bytes.
  *
  *	QDM: byte is a bit map of three bits:
@@ -398,9 +398,9 @@ int MakeConnection (char *i_name )
  * 	indicate x25 events for the active channel: 
  * 	clear call, or restarts.
  *
- * 	Each OOB packet contains the above 16 byte header!
+ * 	Each OOB packet contains the above 64 byte header!
  *
- *	Relevant bytes in the 16 byte oob header, are the
+ *	Relevant bytes in the 64 byte oob header, are the
  *	pktType, cause and diagn bytes.
  *
  *	pktType = event type (ex Clear Call, Restart ...)
@@ -524,7 +524,7 @@ void tx_rx_data(int sock, int mtu, int mru)
 					}
 				}else{
 
-					/* Every received packet comes with the 16
+					/* Every received packet comes with the 64
 					 * bytes of header which driver adds on. 
                                          * Header is structured as x25api_hdr_t. 
 					 * (same as above)

@@ -914,7 +914,10 @@ get_kernel_ver ()
 
 	KERNEL_VERSION=$KVER"."$KPATCH"."$KLVL$KEVER
 
-	if [ "$KVER" -eq "2" ] && [ "$KPATCH" -eq "6" ]; then
+	if [ "$KVER" -eq "3" ] && [ "$KPATCH" -eq "0" ]; then
+		KERN_VER=30;
+		LINUXDRIVERS_NET="drivers/net/wan"
+	elif [ "$KVER" -eq "2" ] && [ "$KPATCH" -eq "6" ]; then
 		KERN_VER=26;
 		LINUXDRIVERS_NET="drivers/net/wan"
 		KLVL=${KLVL:-6}
@@ -1930,6 +1933,37 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 	delete_old_tools;
 
 	wan_update_headers;
+	
+	echo -n "Compiling WANPIPE LibSangoma API library ..."
+
+	cd $PROD_HOME/api
+
+	if [ $superuser = "YES" ] && [ -z $ROOT ]; then
+		eval "find /usr/local/lib -name 'libsangoma*' > /dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then 
+			eval "find /usr/local/lib -name 'libsangoma*' | xargs rm > /dev/null 2>/dev/null"		
+			eval "find /usr/local/include -name 'libsangoma*' | xargs rm > /dev/null 2>/dev/null"		
+		fi
+		eval "find /usr/local/lib -name 'libstelephony*' > /dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then 
+			eval "find /usr/local/lib -name 'libstelephony*' | xargs rm > /dev/null 2>/dev/null"		
+			eval "find /usr/local/include -name 'libstelephony*' | xargs rm > /dev/null 2>/dev/null"		
+		fi
+	fi
+
+	cd libsangoma
+	eval "./init-automake.sh  >> $CMP_LOG 2>> $CMP_LOG"
+	eval "./configure --prefix=/usr >> $CMP_LOG 2>> $CMP_LOG" 
+	eval "make clean >> $CMP_LOG 2>> $CMP_LOG" 
+	eval "make CC=$CC DESTDIR=$ROOT >> $CMP_LOG 2>> $CMP_LOG" 
+	if [ $? -eq 0 ]; then
+		echo -e "Done.\n\n"
+	else
+		echo -e "Failed. \n\n"
+		pause
+	fi
+	eval "make install DESTDIR=$ROOT >> $CMP_LOG 2>> $CMP_LOG"
+	cd ..
 
 	cd $PROD_HOME/util
 
@@ -1942,7 +1976,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 		MAKEINC=$MAKEINC" ENABLE_WANPIPEMON_ZAP=YES " 
 	fi
 
-	eval "make CC=$CC SYSINC=$DRIVER_INC_DIR WANINCDIR=$WANPIPE_INCLUDE_DIR $MAKEINC >> $CMP_LOG 2>> $CMP_LOG"
+	eval "make CC=$CC SYSINC=$DRIVER_INC_DIR WAN_VIRTUAL=$ROOT WANINCDIR=$WANPIPE_INCLUDE_DIR $MAKEINC >> $CMP_LOG 2>> $CMP_LOG"
 
 	if [ $? -eq 0 ]
 	then
@@ -1972,7 +2006,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 		    WANCFG_DEFS=$WANCFG_DEFS" DAHDI_ISSUES=YES"
 	    fi
 	fi
-	eval "make -C wancfg all CC=$CC WANINCDIR=$WANPIPE_INCLUDE_DIR $WANCFG_DEFS >> $CMP_LOG 2>> $CMP_LOG"
+	eval "make -C wancfg all CC=$CC WAN_VIRTUAL=$ROOT WANINCDIR=$WANPIPE_INCLUDE_DIR $WANCFG_DEFS >> $CMP_LOG 2>> $CMP_LOG"
 
 	if [ $? -eq 0 ]
 	then
@@ -2001,40 +2035,6 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 	#eval "make CC=$CC WANINCDIR=$WANPIPE_INCLUDE_DIR > /dev/null"
 	#echo -e "Done.\n\n"
 
-	if [ $TDM_VOICE_ONLY = 'YES' ]; then
-		echo -e "Compiling WANPIPE LibSangoma API Library ... skipped, not required.\n\n"
-	else
-		echo -n "Compiling WANPIPE LibSangoma API library ..."
-
-		cd $PROD_HOME/api
-	
-		if [ $superuser = "YES" ] && [ -z $ROOT ]; then
-			eval "find /usr/local/lib -name 'libsangoma*' > /dev/null 2>/dev/null"
-			if [ $? -eq 0 ]; then 
-				eval "find /usr/local/lib -name 'libsangoma*' | xargs rm > /dev/null 2>/dev/null"		
-				eval "find /usr/local/include -name 'libsangoma*' | xargs rm > /dev/null 2>/dev/null"		
-			fi
-			eval "find /usr/local/lib -name 'libstelephony*' > /dev/null 2>/dev/null"
-			if [ $? -eq 0 ]; then 
-				eval "find /usr/local/lib -name 'libstelephony*' | xargs rm > /dev/null 2>/dev/null"		
-				eval "find /usr/local/include -name 'libstelephony*' | xargs rm > /dev/null 2>/dev/null"		
-			fi
-		fi
-	
-		cd libsangoma
-		eval "./init-automake.sh  >> $CMP_LOG 2>> $CMP_LOG"
-		eval "./configure --prefix=/usr >> $CMP_LOG 2>> $CMP_LOG" 
-		eval "make clean >> $CMP_LOG 2>> $CMP_LOG" 
-		eval "make CC=$CC DESTDIR=$ROOT >> $CMP_LOG 2>> $CMP_LOG" 
-		if [ $? -eq 0 ]; then
-			echo -e "Done.\n\n"
-		else
-			echo -e "Failed. \n\n"
-			pause
-		fi
-		eval "make install DESTDIR=$ROOT >> $CMP_LOG 2>> $CMP_LOG"
-		cd ..
-	fi
 
 	if [ $TDM_VOICE_ONLY = 'YES' ]; then
 		echo -e "Compiling WANPIPE LibStelephony API Library ... skipped, not required.\n\n"
@@ -2348,8 +2348,15 @@ function build_kernel_module()
 
 	extra_flags=$extra_flags" -I/$WANPIPE_INCLUDE_DIR -I$WANPIPE_INCLUDE_DIR/oct6100_api -I$WANPIPE_INCLUDE_DIR/oct6100_api/include -I$WANPIPE_INCLUDE_DIR/oct6100_api/include/oct6100api "
 
-	if [ $KBUILD_DISABLE -ne 1 ] && [ $KERN_VER -eq 26 ]; then
+	if [ $KERN_VER -eq 26 ];then
+		kernel_version_num=26;
+	else 
+		if [ $KERN_VER -eq 30 ];then
+			kernel_version_num=30;
+		fi
+	fi
 
+	if [ $KBUILD_DISABLE -ne 1 ] && [ $KERN_VER -eq "$kernel_version_num" ]; then
 		for file in $modfiles
 		do	
 			ofiles=$ofiles"$file.o "
@@ -2426,7 +2433,7 @@ function build_kernel_module()
 		echo "$EVALCMD \"ld $LD_ELF -r -o mod/$modname.o $local_link\"" >> $CMP_BUILD 
 		$EVALCMD "ld $LD_ELF -r -o mod/$modname.o $local_link"
 
-		if [ $KERN_VER -eq 26 ]; then
+		if [ $KERN_VER -eq 26 ] || [ $KERN_VER -eq 30 ]; then
 
 			#echo "----------------------------"
 			#echo "$CFLAGS -DKBUILD_BASENAME=$modname -DKBUILD_MODNAME=$modname -c -o mod/$modname.mod.o $modname.mod.c"
@@ -3115,6 +3122,7 @@ function wan_update_headers ()
 	if [ ! -e $WANPIPE_INCLUDE_DIR/linux ]; then
 		cd $WANPIPE_INCLUDE_DIR
 		ln -s . linux
+		ln -s . oct6100_api 
 		cd $DRIVER_UPDATE_DIR/include/ 
 	fi
 
@@ -3125,7 +3133,7 @@ function wan_update_headers ()
 	   eval "\cp -rf oct61xx/oct6100_api/include/* $WANPIPE_INCLUDE_DIR/ 2> /dev/null"	
 	   eval "\cp -rf *.h $WANPIPE_INCLUDE_DIR/ 2> /dev/null"   
 	else
- 	   eval "\cp -rf oct6100_api/include/ $WANPIPE_INCLUDE_DIR/oct6100_api 2> /dev/null"	
+ 	   eval "\cp -rf oct6100_api/include/* $WANPIPE_INCLUDE_DIR/ 2> /dev/null"	
 	   eval "\cp -rf *.h $WANPIPE_INCLUDE_DIR/ 2> /dev/null"   
 	fi
 	
@@ -3272,7 +3280,7 @@ ENDOFTEXT
 				cd $SOURCEDIR
 				\cp -f $SOURCEDIR/configs/$tmp_config_file $SOURCEDIR/.config	
 				eval "make oldconfig_nonint > /dev/null 2> /dev/null"
-				if [ $KERN_VER -eq 26 ]; then
+				if [ $KERN_VER -eq 26 ] || [ $KERN_VER -eq 30 ]; then
 					eval "make prepare0 > /dev/null 2> /dev/null"
 				fi
 				cd $tmp_home
@@ -3338,7 +3346,7 @@ ENDOFTEXT
 
 	eval "grep \"define *CONFIG_MODVERSIONS\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
 	if [ $? -eq 0 ]; then
-		if [ $KERN_VER -ne 26 ]; then
+		if [ $KERN_VER -ne 26 ] || [ $KERN_VER -ne 30 ]; then
 		MODVER=" -DMODVERSIONS -include $SOURCEDIR/include/linux/modversions.h "
 		fi
 		MOD_ENABLED=y
@@ -3464,7 +3472,7 @@ ENDOFTEXT
 	fi
 
 	#Setup the COMPILATOIN FLAGS depending on the kernel type
-	if [ $KERN_VER -eq 26 ]; then
+	if [ $KERN_VER -eq 26 ] || [ $KERN_VER -eq 30 ]; then
 		if [ "$USE_CFLAGS" = "" ]; then
 CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dlinux -D__KERNEL__ -I$WANPIPE_INCLUDE_DIR -I$SOURCEDIR/include  -DMODULE $CFLAGS"
 			wan_get_kernel_flags
@@ -3672,7 +3680,7 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		fi
 
 		MEXT=o
-		if [ $KERN_VER -eq 26 ]; then
+		if [ $KERN_VER -eq 26 ] || [ $KERN_VER -eq 30 ]; then
 			MEXT=ko
 		fi
 
@@ -4186,13 +4194,35 @@ WANPIPE_OBJS=
 		fi
 
 		if [ $XDLC_PROT = "YES" ]; then
-			xdlc_file=wanpipe_xdlc.gcc$GCC_VER.$ARCH$REGPARM_OPT.o
-			if [ ! -e $xdlc_file ]; then
-				echo "Warning: FR Binary $xdlc_file not found!"
-				echo "Using wanpipe_xdlc.gcc3.i386.o"
-				xdlc_file=wanpipe_xdlc.gcc3.i386.o
+
+			 if [ -e $DRIVER_UPDATE_DIR/xdlc ]; then
+				echo -n "Compiling XDLC sources..."
+				lhome=`pwd`
+				cd $DRIVER_UPDATE_DIR/xdlc
+				eval "rm -f *.o" >/dev/null 2>/dev/null
+				eval "make clean"
+				eval  "make all EXTRA_CFLAGS=\" $TMP_CFLAGS -Iinclude \" ARCH=$ARCH " >>$CMP_LOG 2>>$CMP_LOG
+				if [ $? -eq 0 ]; then
+						echo -e "Done"
+						echo " "
+				else
+						echo -e "Failed"
+						cat $CMP_LOG
+				fi
+				\cp -f wanpipe_xdlc.o $lhome/wanpipe_xdlc.o
+				cd $lhome
+
+				xdlc_file=wanpipe_xdlc.o
+			else
+				xdlc_file=wanpipe_xdlc.gcc$GCC_VER.$ARCH$REGPARM_OPT.o
+				if [ ! -e $xdlc_file ]; then
+					echo "Warning: XDLC Binary $xdlc_file not found!"
+					echo "Using wanpipe_xdlc.gcc3.i386.o"
+					xdlc_file=wanpipe_xdlc.gcc3.i386.o
+				fi
+				\cp $xdlc_file wanpipe_xdlc.o
 			fi
-			cp $xdlc_file wanpipe_xdlc.o
+
 			LIP_BIN_OBJS=$LIP_BIN_OBJS"wanpipe_xdlc.o "
 		fi
 
@@ -4336,7 +4366,7 @@ WANPIPE_OBJS=
 	\cp -f *.ko mod/  > /dev/null 2> /dev/null
 	
 	MEXT=o
-	if [ $KERN_VER -eq 26 ]; then
+	if [ $KERN_VER -eq 26 ] || [ $KERN_VER -eq 30 ]; then
 		MEXT=ko
 	fi
 
@@ -4392,7 +4422,7 @@ WANPIPE_OBJS=
 	
 	echo -n "Updating Kernel Modules ..."
 
-	if [ $KERN_VER -eq 24 ] || [ $KERN_VER -eq 26 ]; then
+	if [ $KERN_VER -eq 24 ] || [ $KERN_VER -eq 26 ] || [ $KERN_VER -eq 30 ]; then
 
 	   eval "\rm -f $ROOT/lib/modules/$KERNEL_VERSION/kernel/drivers/net/wan/sdladrv.$MEXT* > /dev/null 2> /dev/null"
 	   eval "\rm -f $ROOT/lib/modules/$KERNEL_VERSION/kernel/drivers/net/wan/wanpipe.$MEXT* > /dev/null 2> /dev/null"
@@ -6458,7 +6488,7 @@ function enable_protocols ()
 			ARCH=`uname -m`
 		fi
 
-		if [ $KERN_VER != 24 ] && [ $KERN_VER != 26 ]; then
+		if [ $KERN_VER != 24 ] && [ $KERN_VER != 26 ] && [ $KERN_VER != 30 ]; then
 			cat <<ENDOFTEXT
 			
 WARNING: The ADSL Protocol not supported on non 2.4.X kernels!
@@ -6512,7 +6542,7 @@ ENDOFTEXT
 	echo "$PROTOCOL" | grep "ATM" > /dev/null
 	if [ $? -eq 0 ]; then
 
-		if [ $KERN_VER != 24 ] && [ $KERN_VER != 26 ]; then
+		if [ $KERN_VER != 24 ] && [ $KERN_VER != 26 ] && [ $KERN_VER != 30 ]; then
 			cat <<ENDOFTEXT
 			
 WARNING: The ATM Protocol not supported on kernels lower than 2.4.0!
@@ -7282,7 +7312,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.20
+PROD_VER=3.5.21
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7503,17 +7533,24 @@ else
 		LINUXDRIVERS_NET="drivers/net/wan"
 		DEFAULT_PROTOCOLS=$DEFAULT_PROTOCOLS"-ADSL-ATM"
 	else
-		KERN_VER=22
-		LINUXDRIVERS_NET="drivers/net"
-		
-		eval "uname -r | grep \"^2.0.*\" > /dev/null"
+		eval "uname -r | grep \"^3.0.*\" > /dev/null"
 		if [ $? -eq 0 ]; then
-			echo
-			echo "Wanpipe drivers do not support 2.0.X kernels !!!"
-			echo "Please upgrade to 2.2.X 2.4.X 2.6.X kernels"
-			echo "or install an older version of wanpipe, version 2.2.2"
-			echo
-			exit 0;
+			KERN_VER=30
+			LINUXDRIVERS_NET="drivers/net/wan"
+			DEFAULT_PROTOCOLS=$DEFAULT_PROTOCOLS"-ADSL-ATM"
+		else
+			KERN_VER=22
+			LINUXDRIVERS_NET="drivers/net"
+		
+			eval "uname -r | grep \"^2.0.*\" > /dev/null"
+			if [ $? -eq 0 ]; then
+				echo
+				echo "Wanpipe drivers do not support 2.0.X kernels !!!"
+				echo "Please upgrade to 2.2.X 2.4.X 2.6.X kernels"
+				echo "or install an older version of wanpipe, version 2.2.2"
+				echo
+				exit 0;
+			fi
 		fi
 	fi
 fi

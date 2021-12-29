@@ -30,6 +30,13 @@
 #	include <sys/time.h>
 #endif
 
+#ifdef __WINDOWS__
+# include <io.h>
+#define write	_write
+#define open	_open
+#define close	_close
+#endif
+
 #include <libsangoma.h>
 #include "libteletone.h"
 #include "g711.h"
@@ -698,7 +705,12 @@ float cos_tbl(int arg, int num_per_period)
 
 static float db_loss(float measured, float reference)
 {
-	return 20 * (logf(measured/reference)/logf(10));
+	double log1, log2;
+	
+	log1 = logf(measured/reference);
+	log2 = logf(10);
+
+	return 20 * (log1 / log2);
 }
 
 static void one_point_dft(const short *inbuf, int len, int frequency, float *real, float *imaginary)

@@ -1,5 +1,5 @@
 /*****************************************************************************
-* bstrm_hdlc_test_multi.c: Multiple Bstrm Test Receive Module
+* aft_tdm_hdlc_test.c: Multiple HDLC Test Receive Module
 *
 * Author(s):    Nenad Corbic <ncorbic@sangoma.com>
 *
@@ -10,16 +10,7 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ============================================================================
-* Description:
 *
-* 	The chdlc_api.c utility will bind to a socket to a chdlc network
-* 	interface, and continously tx and rx packets to an from the sockets.
-*
-*	This example has been written for a single interface in mind, 
-*	where the same process handles tx and rx data.
-*
-*	A real world example, should use different processes to handle
-*	tx and rx spearately.  
 */
 
 

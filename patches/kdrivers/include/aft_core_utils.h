@@ -80,22 +80,34 @@ int     aft_check_and_disable_dchan_optimization(sdla_t *card, private_area_t *c
  * Used for debugging only
  *================================================================*/
 
-#if defined WANPIPE_PERFORMANCE_DEBUG
-
-static __inline int aft_calc_elapsed(struct timeval *started, struct timeval *ended)
+static __inline wan_time_t aft_calc_elapsed(struct timeval *started, struct timeval *ended)
 {
+	wan_time_t ms;
+	
+#if 0
 	if (started->tv_usec == 0) {
 		return 0;
 	}
+#endif
 
+	if (ended->tv_sec < started->tv_sec || ended->tv_usec < started->tv_usec) {
+		return 0;
+	}
+
+	ms = ((ended->tv_sec - started->tv_sec)*1000) + ((ended->tv_usec-started->tv_usec)/1000);
+
+	return ms;
+
+#if 0
 	if (ended->tv_usec  > started->tv_usec) {
 		return ended->tv_usec -  started->tv_usec;
 	} else {
 		return 0;
 	}
+#endif
 }
 
-#define AFT_PERFT_TIMING_START(card,var)  aft_timing_start(&card->aft_perf_stats.var)
+#define AFT_PERFT_TIMING_START(card,var)  if (card->aft_perf_stats_enable) aft_timing_start(&card->aft_perf_stats.var)
 
 static int __inline aft_timing_start(aft_driver_timing_t *drv_timing)
 {
@@ -103,7 +115,7 @@ static int __inline aft_timing_start(aft_driver_timing_t *drv_timing)
 	return 0;
 }
 
-#define AFT_PERFT_TIMING_STOP_AND_CALC(card,var)  aft_timing_stop_calculate_elapsed(&card->aft_perf_stats.var)
+#define AFT_PERFT_TIMING_STOP_AND_CALC(card,var)  if (card->aft_perf_stats_enable) aft_timing_stop_calculate_elapsed(&card->aft_perf_stats.var)
 
 static int __inline aft_timing_stop_calculate_elapsed(aft_driver_timing_t *drv_timing)
 {
@@ -117,10 +129,6 @@ static int __inline aft_timing_stop_calculate_elapsed(aft_driver_timing_t *drv_t
 	struct timeval current_tv;
 	do_gettimeofday(&current_tv);
 	elapsed=aft_calc_elapsed(&drv_timing->timing_tv,&current_tv);
-
-	if (elapsed == 0) {
-		return 0;
-	}
 
 	if (elapsed > drv_timing->max_latency) {
 		drv_timing->max_latency=elapsed;
@@ -150,12 +158,12 @@ static int __inline aft_timing_stop_calculate_elapsed(aft_driver_timing_t *drv_t
 
 	drv_timing->latency_avg = cum;
 
-	if (drv_timing->latency_avg > 19000) {
-		limit=2000;
-	} else if (drv_timing->latency_avg > 9000) {
-		limit=1000;
-	} else if (drv_timing->latency_avg < 1000) {
-		limit=8;
+	if (drv_timing->latency_avg > 19) {
+		limit=20;
+	} else if (drv_timing->latency_avg > 9) {
+		limit=10;
+	} else if (drv_timing->latency_avg < 1) {
+		limit=5;
 	}
 
 	drv_timing->limit=limit;
@@ -171,13 +179,6 @@ static int __inline aft_timing_stop_calculate_elapsed(aft_driver_timing_t *drv_t
 
 	return 0;
 }
-
-#else
-#define AFT_PERFT_TIMING_START(card,var)
-#define AFT_PERFT_TIMING_STOP_AND_CALC(card,var)
-#endif
-
-
 
 
 #if 0

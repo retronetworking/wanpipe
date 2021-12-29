@@ -352,6 +352,7 @@ typedef struct wan_xilinx_conf
 	unsigned int	data_mux_map;	/* Data mux map */
 	unsigned int	rx_crc_bytes;
 	unsigned char	span_tx_only_irq; /* SPAN mode API to use rx irq only */
+	unsigned char   global_poll_irq;
 } wan_xilinx_conf_t;
 
 typedef struct wan_xilinx_conf_if

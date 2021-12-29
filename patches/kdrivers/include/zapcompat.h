@@ -30,11 +30,17 @@
 #endif
 
 
+#undef DAHDI_25
 #undef DAHDI_24
 #undef DAHDI_22
 #undef DAHDI_23
 
-#if defined(DAHDI_MAINT_ALARM_SIM)
+#if defined(DAHDI_EVENT_READ_OVERRUN)
+#define DAHDI_25
+#define DAHDI_24
+#define DAHDI_23
+#define DAHDI_22
+#elif defined(DAHDI_MAINT_ALARM_SIM)
 #define DAHDI_24
 #define DAHDI_23
 #define DAHDI_22
@@ -161,7 +167,7 @@
 #define zt_ec_span dahdi_ec_span
 #define zt_qevent_lock dahdi_qevent_lock
 
-#ifdef DAHDI_24
+#if defined(DAHDI_24) || defined(DAHDI_25)
 #define DAHDI_SPAN_OPS(span, func_name) span.ops->func_name
 #define WP_PRIV_FROM_SPAN(span_dev, str_type)			container_of(span_dev,str_type,span)
 #define WP_PRIV_FROM_CHAN(chan_dev, str_type)			WP_PRIV_FROM_SPAN(chan_dev->span,str_type)

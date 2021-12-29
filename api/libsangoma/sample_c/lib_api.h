@@ -49,13 +49,19 @@ extern int	rx2tx;
 extern int  flush_period;
 extern int  stats_period;
 extern int  hdlc_repeat;
+extern int  ss7_cfg_status;
 extern int  buffer_multiplier;
+extern int  fe_read_test;
+extern int  hw_pci_rescan;
+extern int 	force_open;
 
 extern int		fe_read_cmd;
 extern uint32_t fe_read_reg;
 extern int		fe_write_cmd;
 extern uint32_t fe_write_reg;
 extern uint32_t fe_write_data;
+extern int		stats_test;
+extern int		flush_stats_test;
 
 extern float 	rx_gain;
 extern float 	tx_gain;

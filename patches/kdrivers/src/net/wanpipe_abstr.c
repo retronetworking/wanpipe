@@ -842,13 +842,24 @@ void wpabs_taskq_init(void *tq_ptr, void *func, void *data)
  * Description:
  *   Schedule an event to be processed by the bottom half handler.
  *-F*************************************************************************/
+
+#ifdef AFT_TASKQ_DEBUG
+# define wpabs_taskq_schedule_event(bit, event, tq_ptr) wpabs_taskq_schedule_event(bit, event, tq_ptr, __FUNCTION__, __LINE__) 
+void __wpabs_taskq_schedule_event(unsigned int bit, unsigned long *event, void *tq_ptr, const char *func, int line) 
+#else
 void wpabs_taskq_schedule_event(unsigned int bit, unsigned long *event, void *tq_ptr)
+#endif
 {
 	wan_taskq_t *tq = (wan_taskq_t *)tq_ptr;
 
 	WAN_ASSERT1(tq==NULL)
 	DEBUG_TX ("wpabs_wan_schedule_event: scheduling task\n");
     	wan_set_bit(bit, event);
+
+#ifdef AFT_TASKQ_DEBUG
+	DEBUG_TASKQ("wpabs_taskq_schedule_event: caller: %s():%d\n", func, line);
+#endif
+
 	WAN_TASKQ_SCHEDULE(tq);
 }
 

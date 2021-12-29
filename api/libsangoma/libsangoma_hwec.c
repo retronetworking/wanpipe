@@ -5,7 +5,7 @@
  *
  * Author(s):	David Rokhvarg <davidr@sangoma.com>
  *
- * Copyright:	(c) 2005-2010 Sangoma Technologies Corporation
+ * Copyright:	(c) 2005-2011 Sangoma Technologies Corporation
  *
  * * Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions are met:
@@ -38,6 +38,7 @@
 
 #include "wanpipe_events.h"
 #include "wanec_api.h"
+#include "wanec_iface_api.h"
 
 #if defined (__WINDOWS__)
 # include "wanpipe_time.h"	/* wp_sleep() */
@@ -84,6 +85,7 @@ static int sangoma_hwec_is_numeric_parameter(char *parameter)
 		"WANEC_SoutAutomaticLevelControlTargetDb",
 		"WANEC_RinHighLevelCompensationThresholdDb",
 		"WANEC_AnrSnrEnhancementDb",
+		"WANEC_AecTailLength",
 		NULL
 	};
 
@@ -96,6 +98,54 @@ static int sangoma_hwec_is_numeric_parameter(char *parameter)
 	};
 
 	return 0;/* NOT a numeric parameter */
+}
+
+static sangoma_status_t sangoma_hwec_ioctl(sng_fd_t fd, wan_ec_api_t *ec_api)
+{
+	wanpipe_api_t tdm_api;
+	sangoma_status_t err;
+
+	/* it is very important to zero out 'tdm_api' */
+	memset(&tdm_api, 0x00, sizeof(tdm_api));
+
+	WANPIPE_API_INIT_CHAN((&tdm_api), ec_api->fe_chan);
+	SANGOMA_INIT_TDM_API_CMD_RESULT(tdm_api);
+
+	tdm_api.wp_cmd.cmd = WP_API_CMD_EC_IOCTL;
+
+	tdm_api.wp_cmd.iovec_list.iovec_list[0].iov_base = ec_api;
+	tdm_api.wp_cmd.iovec_list.iovec_list[0].iov_len = sizeof(*ec_api);
+
+	err = sangoma_cmd_exec(fd, &tdm_api);
+	if (err) {
+		DBG_HWEC("sangoma_cmd_exec() Failed: err %d !\n", err);
+		return err;
+	}
+
+#if 0
+	if (WAN_EC_API_RC_OK != ec_api->err) {
+
+		/* IOCTL ok, but error in cmd - caller must check 'ec_api->err' */
+		switch(ec_api->err){
+		case WAN_EC_API_RC_INVALID_STATE:
+			DBG_HWEC("WP_API_CMD_EC_IOCTL Failed: Invalid State: %s !\n", 
+				WAN_EC_STATE_DECODE(ec_api->state));
+			break;
+		case WAN_EC_API_RC_FAILED:
+		case WAN_EC_API_RC_INVALID_CMD:
+		case WAN_EC_API_RC_INVALID_DEV:
+		case WAN_EC_API_RC_BUSY:
+		case WAN_EC_API_RC_INVALID_CHANNELS:
+		case WAN_EC_API_RC_INVALID_PORT:
+		default:
+			DBG_HWEC("WP_API_CMD_EC_IOCTL Failed: %s !\n",
+				WAN_EC_API_RC_DECODE(ec_api->err));
+			break;
+		}
+	}
+#endif
+
+	return SANG_STATUS_SUCCESS;
 }
 
 /***************************************************************
@@ -129,11 +179,21 @@ void _LIBSNG_CALL sangoma_hwec_initialize_custom_parameter_structure(wan_custom_
 /*!
   \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name, wan_custom_param_t custom_params[], unsigned int number_of_custom_params)
 
-  \brief Load Firmware image onto EC chip. All chip-wide configuration paramters, if any,
-		must be specified at the time of chip initialization.
+  \brief Load Firmware image onto EC chip and allocated per-port resources in HWEC API.
+			All chip-wide configuration paramters, if any, must be specified at the time of chip initialization.
+			  Note that Analog card is considered a "single-port" card by HWEC API. That means for Analog cards and
+			for single-port digital cards only a single sangoma_hwec_config_init() call is required, all subsequent
+			calls will have no effect.
+			  For multi-port cards, such as A102/A104/A108/A500, the sangoma_hwec_config_init() must be called
+			for each port, at least one time. Only the first call will actually load the Firmware image onto 
+			EC chip, all subsequent calls (for other ports) will only add the Port to list of ports which use
+			the HWEC API.
+			  Actions of sangoma_hwec_config_init() can be reversed by calling sangoma_hwec_config_release().
+			When Port is stopped, the HWEC API automatically releases per-port resources and removes the Port
+			from list ports which use HWEC API.
 
   \param device_name Sangoma API device name. 
-		Windows: wanpipe1_if1, wanpipe2_if1...
+		Windows: wanpipe1_if1, wanpipe2_if1... Note that wanpipe1_if1 and wanpipe1_if2 will access the same Port - wanpipe1.
 		Linux: wanpipe1, wanpipe2...
 
   \param custom_params[] - (optional) array of custom paramter structures.
@@ -207,10 +267,15 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name, wan_cu
 /*!
   \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_release(char *device_name)
 
-  \brief Reset internal state of HWEC API.
+  \brief Release resources allocated by sangoma_hwec_config_init().
+			  For single-port cards, such as A101 and A200 (A200 is an Analog card and considered
+			sinle-port by HWEC API), a single call to sangoma_hwec_config_release()	will free the per-chip resources.
+			  For multi-port cards, such as A102/A104/A108/A500, sangoma_hwec_config_release() can be called
+			for each port to remove it from list Ports which are using HWEC API. When sangoma_hwec_config_release()
+			is called for the last Port which was "configured/initialized by HWEC API", the per-chip resources will be freed.
 
   \param device_name Sangoma API device name. 
-		Windows: wanpipe1_if1, wanpipe2_if1...
+		Windows: wanpipe1_if1, wanpipe2_if1... Note that wanpipe1_if1 and wanpipe1_if2 will access the same Port - wanpipe1.
 		Linux: wanpipe1, wanpipe2...
 
   \return SANG_STATUS_SUCCESS: success, or error status
@@ -386,6 +451,8 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_disable(char *device_name, unsigned i
 		WANEC_NonLinearityBehaviorB			0-8
 		WANEC_DoubleTalkBehavior			DT_BEH_NORMAL
 											DT_BEH_LESS_AGGRESSIVE
+		WANEC_AecTailLength					128 (default), 256, 512 or 1024 
+		WANEC_EnableToneDisabler			TRUE | FALSE
 
   \param parameter_value channel parameter value, listed under "Channel parameter value"
 
@@ -454,7 +521,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_tone_detection(char *device_na
 }
 
 /*!
-  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_print_statistics(char *device_name, int full, unsigned int fe_chan_map)
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_print_statistics(char *device_name, int full, unsigned int fe_chan)
 
   \brief Read and print Chip/Channel statistics from EC chip. 
 
@@ -464,12 +531,14 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_tone_detection(char *device_na
 
   \param full Flag to read full statistics, if set to 1.
 
-  \param fe_chan_map Bitmap of channels (timeslots for Digital, lines for Analog) where 
-		the call will read statistics.
+  \param fe_chan Channel number (a timeslot for Digital, a line for Analog) where 
+		the call will read statistics. Values from 1 to 31 will indicate the 
+		channel nuber. A value of zero will indicate request to print global chip statistics,
+		not per-channel statistics.
 
   \return SANG_STATUS_SUCCESS: success, or error status
 */
-sangoma_status_t _LIBSNG_CALL sangoma_hwec_print_statistics(char *device_name, int full, unsigned int fe_chan_map)
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_print_statistics(char *device_name, int full, unsigned int fe_chan)
 {
 	sangoma_status_t rc;
 	wanec_api_stats_t stats;
@@ -477,7 +546,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_print_statistics(char *device_name, i
 	memset(&stats, 0, sizeof(wanec_api_stats_t));
 
 	stats.full	= full;
-	stats.fe_chan = fe_chan_map;
+	stats.fe_chan = fe_chan;
 	stats.reset = 0;	/* do not reset */
 
 	rc = wanec_api_stats( device_name, libsng_hwec_verbosity_level, &stats );
@@ -516,6 +585,38 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_load(char *device_name, 
 	rc = wanec_api_buffer_load( device_name, libsng_hwec_verbosity_level, &bufferload );
 	if( rc ) {
 		return rc;
+	}
+
+	*out_buffer_id = bufferload.buffer_id;
+
+	return SANG_STATUS_SUCCESS;
+}
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_mem_buffer_load(char *device_name, char *filename, char pcmlaw, int *out_buffer_id)
+
+  \brief Load audio buffer to EC chip. The buffer can be played out using the sangoma_hwec_audio_buffer_playout() function. 
+
+  \param out_buffer_id when the buffer is loaded on the chip, it is assigned an ID. This ID should
+			be used when requesting to play out the buffer.
+ 
+  \return SANG_STATUS_SUCCESS: success, or error status
+ */
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_mem_buffer_load(char *device_name, unsigned char *buffer, unsigned int in_size, char pcmlaw, int *out_buffer_id)
+{
+	sangoma_status_t rc;
+	wanec_api_membufferload_t bufferload;
+
+	memset(&bufferload, 0, sizeof(bufferload));
+	*out_buffer_id = -1;
+
+	bufferload.buffer = buffer;
+	bufferload.size = in_size;
+	bufferload.pcmlaw = pcmlaw;
+
+	rc = wanec_api_mem_buffer_load( device_name, libsng_hwec_verbosity_level, &bufferload );
+	if( rc ) {
+          return rc;
 	}
 
 	*out_buffer_id = bufferload.buffer_id;
@@ -568,7 +669,8 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_unload(char *device_name
   \param repeat_cnt Number of times to play out the same buffer
   
   \param duration	Maximum duration of the playout, in milliseconds. If it takes less then 'duration' to
-					play out the whole buffer this paramter is ignored.
+					play out the whole buffer, it will be repeated to fill 'duration' amount of time.
+					If 'duration' is set to non-zero, this parameter overrides the repeat_cnt flag.
 
   \return SANG_STATUS_SUCCESS: success, or error status
 */
@@ -588,7 +690,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_playout(char *device_nam
 	playout.notifyonstop	= 1;
 	playout.user_event_id	= 0xA5;	/* dummy value */
 	playout.repeat_cnt	= repeat_cnt;
-	playout.duration	= (duration) ? duration : 5000;	/* default is 5s */
+	playout.duration	= (duration) ? duration : cOCT6100_INVALID_VALUE;	/* default is no duration */
 
 	rc = wanec_api_playout( device_name, libsng_hwec_verbosity_level, &playout);
 
@@ -615,6 +717,153 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_verbosity(int verbosity_level)
 		return SANG_STATUS_SUCCESS;
 	}
 	return SANG_STATUS_INVALID_PARAMETER;
+}
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_channel_statistics(sng_fd_t fd, unsigned int fe_chan, 
+						int *hwec_api_return_code, wanec_chan_stats_t *wanec_chan_stats, int reset)
+
+  \brief Get Channel statistics from EC chip. 
+
+  \param fd device file descriptor
+
+  \param fe_chan Channel number (a timeslot for Digital, a line for Analog) where 
+		the call will read statistics. Valid values are from 1 to 31.
+
+  \param hwec_api_return_code	will contain one of WAN_EC_API_RC_x codes which are defined in wanec_iface_api.h
+
+  \param wanec_chip_stats	structure will be filled with HWEC channel statistics.
+
+  \param verbose Flag indicating to the Driver to print additional information about the command into Wanpipe Log file.
+
+  \param reset Flag to reset (flush) channel statistics to zero, if set to 1.
+
+  \return SANG_STATUS_SUCCESS: success, or error status of IOCTL
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_channel_statistics(sng_fd_t fd, unsigned int fe_chan, 
+			int *hwec_api_return_code, wanec_chan_stats_t *wanec_chan_stats, int verbose, int reset)
+{
+	sangoma_status_t err;
+	wan_ec_api_t ec_api;
+
+	memset(&ec_api, 0x00, sizeof(ec_api));
+
+	ec_api.cmd = WAN_EC_API_CMD_STATS_FULL;
+
+	ec_api.verbose = verbose;
+
+	/* translate channel number into "single bit" bitmap */
+	ec_api.fe_chan_map = (1 << fe_chan);
+
+	/* user may want to reset (clear) Channel statistics */
+	ec_api.u_chan_stats.reset = reset;
+
+	err = sangoma_hwec_ioctl(fd, &ec_api);
+	if (err) {
+		/* error in IOCTL */
+		return err;
+	}
+		
+	/* copy stats from driver buffer to user buffer */
+	memcpy(wanec_chan_stats, &ec_api.u_chan_stats, sizeof(*wanec_chan_stats));
+
+	*hwec_api_return_code = ec_api.err;
+
+	return SANG_STATUS_SUCCESS;
+}
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_global_chip_statistics(sng_fd_t fd,
+				int *hwec_api_return_code, wanec_chip_stats_t *wanec_chip_stats, int verbose, int reset)
+
+  \brief Get Global statistics from EC chip. 
+
+  \param fd device file descriptor
+
+  \param hwec_api_return_code	will contain one of WAN_EC_API_RC_x codes which are defined in wanec_iface_api.h
+
+  \param wanec_chip_stats	structure will be filled with HWEC channel statistics.
+
+  \param verbose Flag indicating to the Driver to print additional information about the command into Wanpipe Log file.
+
+  \param reset Flag to reset (flush) global statistics to zero, if set to 1.
+
+  \return SANG_STATUS_SUCCESS: success, or error status of IOCTL
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_global_chip_statistics(sng_fd_t fd,
+			int *hwec_api_return_code, wanec_chip_stats_t *wanec_chip_stats, int verbose, int reset)
+{
+
+	sangoma_status_t err;
+	wan_ec_api_t ec_api;
+
+	memset(&ec_api, 0x00, sizeof(ec_api));
+
+	ec_api.cmd = WAN_EC_API_CMD_STATS_FULL;
+
+	ec_api.verbose = verbose;
+
+	/* indicate to Driver to get chip stats, not channel stats, by setting fe_chan_map to zero */
+	ec_api.fe_chan_map = 0;
+
+	/* user may want to reset (clear) Chip statistics */
+	ec_api.u_chip_stats.reset = reset;
+
+	err = sangoma_hwec_ioctl(fd, &ec_api);
+	if (err) {
+		/* error in IOCTL */
+		return err;
+	}
+
+	/* copy stats from driver buffer to user buffer */
+	memcpy(wanec_chip_stats, &ec_api.u_chip_stats, sizeof(*wanec_chip_stats));
+
+	*hwec_api_return_code = ec_api.err;
+
+	return SANG_STATUS_SUCCESS;
+
+}
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_chip_image_info(sng_fd_t fd,
+						int *hwec_api_return_code, wanec_chip_image_t *wanec_chip_image, int verbose)
+
+  \brief Get information about Firmware Image of EC chip. 
+
+  \param fd device file descriptor
+
+  \param hwec_api_return_code	will contain one of WAN_EC_API_RC_x codes which are defined in wanec_iface_api.h
+
+  \param wanec_chip_image_t		structure will be filled with HWEC channel statistics. 
+
+  \param verbose Flag indicating to the Driver to print additional information about the command into Wanpipe Log file.
+
+  \return SANG_STATUS_SUCCESS: success, or error status of IOCTL
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_chip_image_info(sng_fd_t fd,
+			int *hwec_api_return_code, wanec_chip_image_t *wanec_chip_image, int verbose)
+{
+	sangoma_status_t err;
+	wan_ec_api_t ec_api;
+
+	memset(&ec_api, 0x00, sizeof(ec_api));
+
+	ec_api.cmd = WAN_EC_API_CMD_STATS_IMAGE;
+
+	ec_api.verbose = verbose;
+
+	/* driver will copy image information into wanec_chip_image->f_ChipImageInfo */
+	ec_api.u_chip_image.f_ChipImageInfo = wanec_chip_image->f_ChipImageInfo;
+
+	err = sangoma_hwec_ioctl(fd, &ec_api);
+	if (err) {
+		/* error in IOCTL */
+		return err;
+	}
+
+	*hwec_api_return_code = ec_api.err;
+
+	return SANG_STATUS_SUCCESS;
 }
 
 #endif /* WP_API_FEATURE_LIBSNG_HWEC */

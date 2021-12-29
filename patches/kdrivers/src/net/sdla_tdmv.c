@@ -244,11 +244,18 @@ static int wp_tdmv_remove(void* pcard);
 static int wp_tdmv_reg(void* pcard, wan_tdmv_if_conf_t*, unsigned int, unsigned char,netdevice_t*);
 static int wp_tdmv_unreg(void* pcard, unsigned long ts_map);
 static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv);
-static int wp_tdmv_startup(struct zt_span *span);
 static int wp_tdmv_shutdown(struct zt_span *span);
 static int wp_tdmv_maint(struct zt_span *span, int cmd);
+
+#ifdef DAHDI_25
+static int wp_tdmv_startup(struct file *file, struct zt_span *span);
+static int wp_tdmv_chanconfig(struct file *file, struct zt_chan *chan, int sigtype);
+static int wp_tdmv_spanconfig(struct file *file, struct zt_span *span, struct zt_lineconfig *lc);
+#else
+static int wp_tdmv_startup(struct zt_span *span);
 static int wp_tdmv_chanconfig(struct zt_chan *chan, int sigtype);
 static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc);
+#endif
 static int wp_tdmv_open(struct zt_chan *chan);
 static int wp_tdmv_close(struct zt_chan *chan);
 static void wp_tdmv_release(wp_tdmv_softc_t *wp);
@@ -312,7 +319,7 @@ static int wp_tdmv_init(void* pcard, wanif_conf_t *conf);
 static void wp_tdmv_callback_tone (void*, wan_event_t*);
 
 
-#ifdef DAHDI_24
+#if defined(DAHDI_24) || defined(DAHDI_25)
 
 static const struct dahdi_span_ops wp_tdm_span_ops = {
 	.owner = THIS_MODULE,
@@ -349,7 +356,9 @@ static const struct dahdi_echocan_features wp_tdmv_ec_features = {
 };
 
 static const struct dahdi_echocan_ops wp_tdmv_ec_ops = {
+#ifndef DAHDI_25
 	.name = "WANPIPE_HWEC",
+#endif
 	.echocan_free = wp_tdmv_hwec_free,
 };
 #endif
@@ -937,7 +946,7 @@ static void wp_tdmv_report_alarms(void* pcard, uint32_t te_alarm)
 		for (x=0,j=0;x < wp->span.channels;x++){
 			if ((wp->chans[x].flags & ZT_FLAG_OPEN) ||
 #if defined(DAHDI_ISSUES) && !defined(DAHDI_FLAG_NETDEV)
-				(wp->chans[x].flags & dahdi_have_netdev(wp))){
+				(wp->chans[x].flags & dahdi_have_netdev(&wp->chans[x]))){
 #else
 			    (wp->chans[x].flags & ZT_FLAG_NETDEV)){
 #endif
@@ -1172,7 +1181,7 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 	WAN_ASSERT(wp == NULL);
 	WAN_ASSERT(wp->card == NULL);
 	card = wp->card;
-	
+
 	if (wan_test_bit(WP_TDMV_REGISTER, &wp->flags)){
 		DEBUG_EVENT("%s: Wanpipe device is already registered to Zaptel span # %d!\n", 
 					wp->devname, wp->span.spanno);
@@ -1194,7 +1203,7 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 	}
 	sprintf(wp->span.desc, "%s card %d", wp->devname, wp->num);
 
-#if defined(DAHDI_24) 
+#if defined(DAHDI_24) || defined(DAHDI_25) 
     wp->span.ops = &wp_tdm_span_ops;
 #else
 
@@ -1226,7 +1235,7 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
 	if (wp->dchan_map){
-		DEBUG_EVENT("%s: Enable Zaptel HW DCHAN interface\n",
+		DEBUG_EVENT("%s: Enable Dahdi/Zaptel HW DCHAN interface\n",
 				wp->devname);
 		wp->span.hdlc_hard_xmit = wp_tdmv_tx_hdlc_hard;
 	}
@@ -1261,7 +1270,9 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 	}
 	
 #if !defined(__FreeBSD__) && !defined(__OpenBSD__)
+#ifndef DAHDI_25
 	init_waitqueue_head(&wp->span.maintq);
+#endif
 #endif
 
 	for (x=0;x<wp->span.channels;x++) {
@@ -1358,7 +1369,12 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 **
 **	OK
 */
+
+#ifdef DAHDI_25
+static int wp_tdmv_startup(struct file *file, struct zt_span *span)
+#else
 static int wp_tdmv_startup(struct zt_span *span)
+#endif
 {
 	wp_tdmv_softc_t*	wp = NULL;
 	int			i;
@@ -1542,11 +1558,13 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 				       	WAN_TE1_LB_DISABLE,
 					ENABLE_ALL_CHANNELS);
 			break;
+#ifndef DAHDI_25
 	    	case ZT_MAINT_LOOPSTOP:
 			DEBUG_EVENT("%s: T1: Stop sending loop code\n",
 				       wp->card->devname);	
 			/* FIXME __t1_set_reg(wp,0x30,0); */	/* stop sending loopup code */
 			break;
+#endif
 	    	default:
 			DEBUG_EVENT("%s: T1: Unknown maintenance mode (%d)\n", 
 					wp->card->devname, cmd);
@@ -1611,7 +1629,11 @@ static char *wp_tdmv_sigstr(int sig)
 }
 #endif
 
+#ifdef DAHDI_25
+static int wp_tdmv_chanconfig(struct file *file, struct zt_chan *chan, int sigtype)
+#else
 static int wp_tdmv_chanconfig(struct zt_chan *chan, int sigtype)
+#endif
 {
 	sdla_t		*card;
 	wp_tdmv_softc_t	*wp = NULL;
@@ -1646,7 +1668,11 @@ static int wp_tdmv_chanconfig(struct zt_chan *chan, int sigtype)
 **
 **	OK
 */
+#ifdef DAHDI_25
+static int wp_tdmv_spanconfig(struct file *file, struct zt_span *span, struct zt_lineconfig *lc)
+#else
 static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
+#endif
 {
 	wp_tdmv_softc_t	*wp = NULL;
 	sdla_t		*card = NULL;
@@ -1749,7 +1775,11 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 	/* */
 	/* If already running, apply changes immediately */
 	if (span->flags & ZT_FLAG_RUNNING){
+#ifdef DAHDI_25
+		err = wp_tdmv_startup(file,span);
+#else
 		err = wp_tdmv_startup(span);
+#endif
 	}
 
 	if (card->wandev.fe_iface.read_alarm) {
@@ -2570,15 +2600,28 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 		/* Notify a blocked reader that there is data available
 		to be read, unless we're waiting for it to be full */
 #if defined(__LINUX__)
+#ifdef DAHDI_25
+		wake_up_interruptible(&ms->waitq);
+		if (ms->iomask & ZT_IOMUX_READ)
+			wake_up_interruptible(&ms->waitq);
+#else
 		wake_up_interruptible(&ms->readbufq);
 		wake_up_interruptible(&ms->sel);
 		if (ms->iomask & ZT_IOMUX_READ)
 			wake_up_interruptible(&ms->eventbufq);
+#endif
+
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
+#ifdef DAHDI_25
+		wakeup(&ms->waitq);
+		if (ms->iomask & ZT_IOMUX_READ)
+			wakeup(&ms->waitq);
+#else
 		wakeup(&ms->readbufq);
 		_selwakeup(&ms->sel);
 		if (ms->iomask & ZT_IOMUX_READ)
 			wakeup(&ms->eventbufq);
+#endif
 #endif
 	}
 	return 0;

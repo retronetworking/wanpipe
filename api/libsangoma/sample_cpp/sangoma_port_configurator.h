@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////
 // sangoma_port_configurator.h: interface for the sangoma_port_configurator class.
 //
-// Author	:	David Rokhvarg	<davidr@sangoma.com>
+// Author	:	David Rokhvarg
 //////////////////////////////////////////////////////////////////////
 
 #if !defined(_SANGOMA_PORT_CONFIGURATOR_H)

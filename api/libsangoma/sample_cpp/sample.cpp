@@ -2,8 +2,8 @@
  * \file sample.cpp
  * \brief  WANPIPE(tm) API C++ Sample Code
  *
- * Author(s):	David Rokhvarg <davidr@sangoma.com>
- *				Nenad Corbic <ncorbic@sangoma.com>
+ * Author(s):	David Rokhvarg
+ *				Nenad Corbic
  *
  * Copyright:	(c) 2005-2009  Sangoma Technologies
  *
@@ -41,6 +41,11 @@
 #else
 # include <conio.h>
 #endif
+
+#include <iostream>
+#include <string>
+
+using namespace std;
 
 #ifndef MAX_PATH
 #define MAX_PATH 100
@@ -171,8 +176,8 @@ void stop(sangoma_interface	*sang_if)
 */
 void PrintRxData(wp_api_hdr_t *hdr, void *pdata)
 {
-	USHORT			datlen;
-	PUCHAR			data;
+	unsigned short	datlen;
+	unsigned char *	data;
 	static unsigned int	rx_counter = 0;
 
 	//NOTE: if running in BitStream mode, there will be TOO MUCH to print 
@@ -291,8 +296,8 @@ static void got_tdm_api_event(void *sang_if_ptr, void *event_data)
 	case WP_API_EVENT_DTMF:/* DTMF detected by Hardware */
 		DBG_MAIN("DTMF Event: Digit: %c (Port: %s, Type:%s)!\n",
 			wp_tdm_api_event->wp_api_event_dtmf_digit,
-			(wp_tdm_api_event->wp_api_event_dtmf_port == WAN_EC_CHANNEL_PORT_ROUT)?"ROUT":"SOUT",
-			(wp_tdm_api_event->wp_api_event_dtmf_type == WAN_EC_TONE_PRESENT)?"PRESENT":"STOP");
+			WAN_EC_DECODE_CHANNEL_PORT(wp_tdm_api_event->wp_api_event_dtmf_port), /* sout, rout, sin, rin */
+			WAN_EC_DECODE_TONE_TYPE(wp_tdm_api_event->wp_api_event_dtmf_type) /* present or stop */	);
 		break;
 
 	case WP_API_EVENT_RXHOOK:
@@ -382,7 +387,7 @@ int tx_file(sangoma_interface *sang_if)
 	FILE			*pFile;
 	unsigned int	tx_counter=0, bytes_read_from_file, total_bytes_read_from_file=0;
 	wp_api_hdr_t	hdr;
-	unsigned char	local_tx_data[MAX_NO_DATA_BYTES_IN_FRAME];
+	unsigned char	local_tx_data[SAMPLE_CPP_MAX_DATA_LEN];
 
 	pFile = fopen( program_settings.szTxFileName, "rb" );
 	if( pFile == NULL){
@@ -513,6 +518,11 @@ static int parse_command_line_args(int argc, char* argv[])
 "\t                 \tfrom API driver.\n"
 #ifdef WP_API_FEATURE_LIBSNG_HWEC
 "\t-use_hwec	\tInitialize/Configure/Use the Hardware Echo Canceller\n"
+"\t-hwec_chan	\tA 1-based channel number to be used by per-channel (vs. global)\n"
+"\t         	\tHWEC functions. Valid values: 1-31\n"
+#endif
+#if USE_BUFFER_MULTIPLIER
+"\t-buff_mult\tnumber\tBuffer Multiplier coefficient\n"
 #endif
 "\t-real_time	\tRun the Program at real-time priority. This maybe\n"
 "\t             \t\timportant when Audio stream is used for timing.\n"
@@ -526,8 +536,11 @@ static int parse_command_line_args(int argc, char* argv[])
 	program_settings.txcount = 1;
 	program_settings.rxgain = 0xFFFF;	//FXO/FXS rx gain unchanged	
 	program_settings.txgain = 0xFFFF;	//FXO/FXS tx gain unchanged
+	program_settings.hwec_channel = 1;
+#if USE_BUFFER_MULTIPLIER
+	program_settings.buffer_multiplier = MIN_BUFFER_MULTIPLIER_FACTOR; //1
+#endif
 
-	
 	for(i = 1; i < argc;){
 	
 		if(_stricmp(argv[i], "-silent") == 0){
@@ -620,26 +633,44 @@ static int parse_command_line_args(int argc, char* argv[])
 			program_settings.use_logger_dev = 1;
 		}else if(_stricmp(argv[i], "-rm_txgain") == 0){
 			if (i+1 > argc-1){
-				INFO_MAIN("No txgain provided!\n");
+				INFO_MAIN("No Tx gain provided!\n");
 				return 1;
 			}
 			program_settings.txgain = atoi(argv[i+1]);
 			i++;
-			INFO_MAIN("Setting txgain to %d.\n", program_settings.txgain);
+			INFO_MAIN("Setting Tx gain to %d.\n", program_settings.txgain);
 		}else if(_stricmp(argv[i], "-rm_rxgain") == 0){
 			if (i+1 > argc-1){
-				INFO_MAIN("No rxgain provided!\n");
+				INFO_MAIN("No Rx gain provided!\n");
 				return 1;
 			}
 			program_settings.rxgain = atoi(argv[i+1]);
 			i++;
-			INFO_MAIN("Setting rxgain to %d.\n", program_settings.txgain);
+			INFO_MAIN("Setting Rx gain to %d.\n", program_settings.txgain);
 		}else if(_stricmp(argv[i], "-use_hwec") == 0){
 			INFO_MAIN("Using hardware echo canceller...\n");
 			program_settings.use_hardware_echo_canceller = 1;
+		}else if(_stricmp(argv[i], "-hwec_chan") == 0){
+			if (i+1 > argc-1){
+				INFO_MAIN("No hwec_chan provided!\n");
+				return 1;
+			}
+			program_settings.hwec_channel = atoi(argv[i+1]);
+			i++;
+			INFO_MAIN("Setting hwec_chan to %d.\n", program_settings.hwec_channel);
 		}else if(_stricmp(argv[i], "-real_time") == 0){
 			INFO_MAIN("Will be running at real-time priority...\n");
 			program_settings.real_time = 1;
+#if USE_BUFFER_MULTIPLIER
+		}else if(_stricmp(argv[i], "-buff_mult") == 0){
+			if (i+1 > argc-1){
+				INFO_MAIN("No buff_mult provided!\n");
+				return 1;
+			}
+			program_settings.buffer_multiplier = atoi(argv[i+1]);
+			i++;
+			INFO_MAIN("Setting buff_mult to %d.\n", program_settings.buffer_multiplier);
+#endif
 		}else{
 			INFO_MAIN("Error: Invalid Argument %s\n",argv[i]);
 			return 1;
@@ -647,6 +678,16 @@ static int parse_command_line_args(int argc, char* argv[])
 		i++;
 	}
 	return 0;
+}
+
+
+int my_getch()
+{
+	string str_input = "";
+
+	std::getline(cin, str_input);
+
+	return str_input.c_str()[0];
 }
 
 
@@ -670,7 +711,7 @@ int __cdecl main(int argc, char* argv[])
 	int		rc, user_selection,err;
 	sangoma_interface	*sang_if = NULL;
 	wp_api_hdr_t		hdr;
-	unsigned char		local_tx_data[MAX_NO_DATA_BYTES_IN_FRAME];
+	unsigned char		local_tx_data[SAMPLE_CPP_MAX_DATA_LEN];
 	UCHAR				tx_test_byte = 0;
 
 	////////////////////////////////////////////////////////////////////////////
@@ -807,7 +848,7 @@ int __cdecl main(int argc, char* argv[])
 		}//if(program_settings.use_logger_dev != 1)
 
 		LeaveCriticalSection(&PrintCriticalSection);
-		user_selection = tolower(_getch());
+		user_selection = tolower(my_getch());
 		switch(user_selection)
 		{
 		case 'q':
@@ -989,7 +1030,7 @@ int __cdecl main(int argc, char* argv[])
 	rbs_management_struct.ABCD_bits = abcd;		\
 	INFO_MAIN("Press any key to transmit bits:");	\
 	wp_print_rbs_cas_bits(abcd);	\
-	_getch();	\
+	my_getch();	\
 	sang_if->set_rbs(&rbs_management_struct);	\
 }
 
@@ -1027,6 +1068,7 @@ int __cdecl main(int argc, char* argv[])
 					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_A | WAN_RBS_SIG_B | WAN_RBS_SIG_C | WAN_RBS_SIG_D);
 #endif
 				}
+				break;
 			default:
 				INFO_MAIN("Command invalid for card type\n");
 				break;
@@ -1043,7 +1085,7 @@ int __cdecl main(int argc, char* argv[])
 user_retry_ring_e_d:
 			INFO_MAIN("Press 'e' to START ring, 'd' to STOP ring, 't' to Toggle\n");
 			INFO_MAIN("\n");
-			user_selection = tolower(_getch());
+			user_selection = tolower(my_getch());
 			switch(user_selection)
 			{
 			case 'e':
@@ -1080,12 +1122,12 @@ user_retry_ring_e_d:
 			INFO_MAIN("Press 'e' to START a Tone, 'd' to STOP a Tone.\n");
 			INFO_MAIN("\n");
 
-			switch(tolower(_getch()))
+			switch(tolower(my_getch()))
 			{
 			case 'e':
 				INFO_MAIN("Press 'r' for Ring Tone, 'd' for Dial Tone, 'b' for Busy Tone, 'c' for Congestion Tone.\n");
 				INFO_MAIN("\n");
-				switch(tolower(_getch()))
+				switch(tolower(my_getch()))
 				{
 				case 'r':
 					sang_if->start_ring_tone();
@@ -1111,7 +1153,7 @@ user_retry_ring_e_d:
 		case 'n':
 			INFO_MAIN("Press 'e' to ENABLE Rx Hook Events, 'd' to DISABLE Rx Hook Events.\n");
 			INFO_MAIN("\n");
-			switch(tolower(_getch()))
+			switch(tolower(my_getch()))
 			{
 			case 'e':
 				sang_if->tdm_enable_rxhook_events();
@@ -1126,7 +1168,7 @@ user_retry_ring_e_d:
 			//On Analog (A200) card only.
 			INFO_MAIN("Press 'e' to ENABLE Remora DTMF Events, 'd' to DISABLE Remora DTMF Events.\n");
 			INFO_MAIN("\n");
-			switch(tolower(_getch()))
+			switch(tolower(my_getch()))
 			{
 			case 'e':
 				sang_if->tdm_enable_rm_dtmf_events();
@@ -1144,7 +1186,7 @@ user_retry_ring_e_d:
 				uint8_t channel;
 
 				INFO_MAIN("\n");
-				switch(tolower(_getch()))
+				switch(tolower(my_getch()))
 				{
 				case 'e':
 					INFO_MAIN("Type Channel number and press <Enter>:\n");
@@ -1166,7 +1208,7 @@ user_retry_ring_e_d:
 			if(sang_if->get_sub_media()==MOD_TYPE_FXO){
 				INFO_MAIN("Press 'e' to ENABLE Rx Ring Detect Events, 'd' to DISABLE Rx Ring Detect Events.\n");
 				INFO_MAIN("\n");
-				switch(tolower(_getch()))
+				switch(tolower(my_getch()))
 				{
 				case 'e':
 					sang_if->tdm_enable_ring_detect_events();
@@ -1183,7 +1225,7 @@ user_retry_ring_e_d:
 			//Enable/Disable Ring Trip events on FXS. 
 			INFO_MAIN("Press 'e' to ENABLE Rx Ring Trip Events, 'd' to DISABLE Rx Ring Trip Events.\n");
 			INFO_MAIN("\n");
-			switch(tolower(_getch()))
+			switch(tolower(my_getch()))
 			{
 			case 'e':
 				sang_if->tdm_enable_ring_trip_detect_events();
@@ -1197,7 +1239,7 @@ user_retry_ring_e_d:
 			if(sang_if->get_sub_media()==MOD_TYPE_FXO) {
 				INFO_MAIN("Press 'e' to transmit OFF hook signal, 'd' to transmit ON hook signal.\n");
 				INFO_MAIN("\n");
-				switch(tolower(_getch()))
+				switch(tolower(my_getch()))
 				{
 				case 'e':
 					sang_if->fxo_go_off_hook();
@@ -1209,7 +1251,7 @@ user_retry_ring_e_d:
 			}else if(sang_if->get_sub_media() == MOD_TYPE_FXS) {
 				INFO_MAIN("Press 'f' for forward, 'r' to for reverse.\n");
 				INFO_MAIN("\n");
-				switch(tolower(_getch()))
+				switch(tolower(my_getch()))
 				{
 				case 'f':
 					sang_if->tdm_set_rm_polarity(0);
@@ -1223,14 +1265,19 @@ user_retry_ring_e_d:
 
 					INFO_MAIN("Type Polarity Reverse/Forward delay and press <Enter>:\n");
 					polarity_wait = get_user_decimal_number();
+					if (!polarity_wait) {
+						ERR_MAIN("Invalid User-specified Polarity Reverse/Forward delay: %d!\n", polarity_wait);
+						polarity_wait = 400;
+					}
 					/* polarity_wait of 30 ms will ring Analog phone or FXO
 					 * polarity_wait of 400 ms will cause Polarity reversal event on FXO */
 					INFO_MAIN("User specified Polarity Reverse/Forward delay: %d. Press <Enter> to continue.\n", polarity_wait);
-					_getch();
+					my_getch();
 
+					/* calculate number of iterations for a 2-second test */
 					two_second_ring_repetion_counter = 2000 / (polarity_wait * 2);
 					INFO_MAIN("two_second_ring_repetion_counter: %d. Press <Enter> to continue.\n", two_second_ring_repetion_counter);
-					_getch();
+					my_getch();
 
 					for (int ii = 0; ii < two_second_ring_repetion_counter; ii++) {
 						INFO_MAIN("Reversing polarity %d...\n", ii);
@@ -1260,7 +1307,7 @@ user_retry_ring_e_d:
 			if( sang_if->get_adapter_type() == WAN_MEDIA_BRI ) {
 				INFO_MAIN("Press 'e' to Activate, 'd' to De-Activate line.\n");
 				INFO_MAIN("\n");
-				switch(tolower(_getch()))
+				switch(tolower(my_getch()))
 				{
 				case 'e':
 					sang_if->tdm_front_end_activate();
@@ -1302,7 +1349,7 @@ user_retry_ring_e_d:
 		case 'x':
 			{	
 				INFO_MAIN("Press a key. Valid values are 0-9, A-C\n");
-				int user_char = _getch();
+				int user_char = my_getch();
  				switch(tolower(user_char)) {
 					case '1': case '2': case '3':
 					case '4': case '5': case '6':
@@ -1474,7 +1521,7 @@ static int set_port_configuration()
 		INFO_MAIN("Press 't' to set T1 configration.\n");
 		INFO_MAIN("Press 'e' to set E1 configration.\n");
 try_again:
-		user_selection = tolower(_getch());
+		user_selection = tolower(my_getch());
 		switch(user_selection)
 		{
 		case 't'://T1

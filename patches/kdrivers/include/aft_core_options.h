@@ -103,7 +103,15 @@
 
 # define SDLADRV_HW_IFACE
 
+#if 0
+# define AFT_DMA_TRANSACTION
+# define AFT_LIST_DMA_DESCRIPTORS
+#endif
+
+
 // #define WANPIPE_PERFORMANCE_DEBUG
+
+//#define AFT_TASKQ_DEBUG
 
 /********** end of compilation flags ************/
 #endif/* __WINDOWS__ */

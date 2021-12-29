@@ -4,6 +4,7 @@
 * 		WANPIPE(tm) AFT TE1 Hardware Support
 *
 * Authors: 	Nenad Corbic <ncorbic@sangoma.com>
+*			David Rokhvarg	<davidr@sangoma.com>
 *
 * Copyright:	(c) 2003-2010 Sangoma Technologies Inc.
 *
@@ -13,6 +14,10 @@
 *		2 of the License, or (at your option) any later version.
 * ============================================================================
 *
+*
+* Feb 16, 2011	David Rokhvarg	<davidr@sangoma.com>
+*				Added interface into HWEC module via WP_API_CMD_EC_IOCTL.
+*	
 * Nov 16, 2009	David Rokhvarg	<davidr@sangoma.com>
 *				Enabled support for WP_API_CMD_SET_RX_GAINS and
 *				WP_API_CMD_SET_TX_GAINS commands in Sangoma Windows Driver.
@@ -58,6 +63,7 @@
 #define WP_TDM_API_MAX_PERIOD 50 /* 50ms */
 
 #define WP_TDM_MAX_RX_Q_LEN 10
+#define WP_TDM_MAX_HDLC_RX_Q_LEN 40
 #define WP_TDM_MAX_TX_Q_LEN 5
 #define WP_TDM_MAX_HDLC_TX_Q_LEN 17
 
@@ -360,6 +366,75 @@ static inline void wp_wakeup_tx_tdmapi(wanpipe_tdm_api_dev_t *tdm_api)
 }
 
 
+int wp_ctrl_dev_create(void)
+{
+	wanpipe_cdev_t *cdev;
+	int err;
+		
+	cdev = wan_kmalloc(sizeof(wanpipe_cdev_t));
+	if (!cdev) {
+		return -ENOMEM;
+	}
+	
+	memset(cdev, 0, sizeof(wanpipe_cdev_t));
+	
+	DEBUG_TDMAPI("%s(): Registering Wanpipe CTRL Device!\n",__FUNCTION__);
+	
+	memset(&tdmapi_ctrl, 0, sizeof(tdmapi_ctrl));
+	
+	wan_skb_queue_init(&tdmapi_ctrl.wp_rx_list);
+	wan_skb_queue_init(&tdmapi_ctrl.wp_rx_free_list);
+	wan_skb_queue_init(&tdmapi_ctrl.wp_tx_free_list);
+	wan_skb_queue_init(&tdmapi_ctrl.wp_tx_list);
+	wan_skb_queue_init(&tdmapi_ctrl.wp_event_list);
+	wan_skb_queue_init(&tdmapi_ctrl.wp_event_bh_list);
+	wan_skb_queue_init(&tdmapi_ctrl.wp_event_free_list);
+	wan_skb_queue_init(&tdmapi_ctrl.wp_dealloc_list);
+	
+	WAN_TASKQ_INIT((&tdmapi_ctrl.wp_api_task), 0, wp_api_task_func, &tdmapi_ctrl);
+	
+	wan_set_bit(0,&tdmapi_ctrl.init);
+	
+	wan_mutex_lock_init(&tdmapi_ctrl.lock, "ctrldev_lock");
+	wan_spin_lock_init(&tdmapi_ctrl.irq_lock, "ctrldev_irq_lock");
+	
+	cdev->dev_ptr=&tdmapi_ctrl;
+	tdmapi_ctrl.cdev=cdev;
+	
+	err=wp_tdmapi_alloc_q(&tdmapi_ctrl, &tdmapi_ctrl.wp_event_free_list, WP_TDM_API_EVENT_MAX_LEN, WP_TDM_MAX_CTRL_EVENT_Q_LEN);
+	if (err) {
+		return err;
+	}
+
+	/*****************************************************************
+	 Part of global initialization is setting the fops pointers
+	 for ALL users of this file.
+	******************************************************************/
+
+	memset(&wp_tdmapi_fops, 0x00, sizeof(wp_tdmapi_fops));
+
+	wp_tdmapi_fops.open		= wp_tdmapi_open;
+	wp_tdmapi_fops.close	= wp_tdmapi_release;
+	wp_tdmapi_fops.ioctl	= wanpipe_tdm_api_ioctl;
+	wp_tdmapi_fops.poll		= wp_tdmapi_poll;
+	wp_tdmapi_fops.read		= wp_tdmapi_read_msg;
+	wp_tdmapi_fops.write	= wp_tdmapi_write_msg;
+	/*****************************************************************/
+
+	memcpy(&cdev->ops, &wp_tdmapi_fops, sizeof(wanpipe_cdev_ops_t));
+
+	/* some functions are NOT valid for ctrl dev */
+	cdev->ops.read	= NULL;
+	cdev->ops.write	= NULL;
+	
+	err=wanpipe_cdev_tdm_ctrl_create(cdev);
+	if(err){
+		return err;
+	}
+
+	return 0;
+}
+
 static int wp_tdmapi_reg_globals(void)
 {
 	int err=0;
@@ -410,76 +485,24 @@ static int wp_tdmapi_reg_globals(void)
 			sizeof(wp_api_hdr_t),sizeof(wanpipe_api_cmd_t),
 			sizeof(wp_api_event_t),sizeof(wanpipe_api_dev_cfg_t));
 
-	wp_tdmapi_fops.open		= wp_tdmapi_open;
-	wp_tdmapi_fops.close	= wp_tdmapi_release;
-	wp_tdmapi_fops.ioctl	= wanpipe_tdm_api_ioctl;
-	wp_tdmapi_fops.read		= NULL;
-	wp_tdmapi_fops.write	= NULL;
-	wp_tdmapi_fops.poll		= wp_tdmapi_poll;
-
-	/* initialize global ctrl dev */
-	{
-		wanpipe_cdev_t *cdev;
-		wanpipe_tdm_api_dev_t *tdm_api;
-
-		cdev=wan_kmalloc(sizeof(wanpipe_cdev_t));
-		if (!cdev) {
-			return -ENOMEM;
-		}
-
-		memset(cdev,0,sizeof(wanpipe_cdev_t));
-
-		DEBUG_TDMAPI("%s(): Registering Wanpipe CTRL Device!\n",__FUNCTION__);
-
-		tdm_api=&tdmapi_ctrl;
-		memset(tdm_api,0,sizeof(wanpipe_tdm_api_dev_t));
-
-		wan_skb_queue_init(&tdm_api->wp_rx_list);
-		wan_skb_queue_init(&tdm_api->wp_rx_free_list);
-		wan_skb_queue_init(&tdm_api->wp_tx_free_list);
-		wan_skb_queue_init(&tdm_api->wp_tx_list);
-		wan_skb_queue_init(&tdm_api->wp_event_list);
-		wan_skb_queue_init(&tdm_api->wp_event_bh_list);
-		wan_skb_queue_init(&tdm_api->wp_event_free_list);
-		wan_skb_queue_init(&tdm_api->wp_dealloc_list);
-
-		WAN_TASKQ_INIT((&tdm_api->wp_api_task),0,wp_api_task_func,tdm_api);
-
-		wan_set_bit(0,&tdm_api->init);
-
-		wan_mutex_lock_init(&tdm_api->lock, "ctrldev_lock");
-		wan_spin_lock_init(&tdm_api->irq_lock, "ctrldev_irq_lock");
-
-		cdev->dev_ptr=&tdmapi_ctrl;
-		tdm_api->cdev=cdev;
-
-		err=wp_tdmapi_alloc_q(tdm_api, &tdm_api->wp_event_free_list, WP_TDM_API_EVENT_MAX_LEN, WP_TDM_MAX_CTRL_EVENT_Q_LEN);
-		if (err) {
-			return err;
-		}
-
-		memcpy(&cdev->ops, &wp_tdmapi_fops, sizeof(wanpipe_cdev_ops_t));
-	
-		err=wanpipe_cdev_tdm_ctrl_create(cdev);
-		if(err){
-			return err;
-		}
-	}
 
 #if 0
-/*  FIXME timer dev is not complete */
+/*  FIXME 1: timer dev is not complete 
+	FIXME 2: timer dev is global and should be created/deleted
+			similary to ctrl dev, not a Span/Chan dev.
+*/
 	err=wanpipe_wandev_timer_create();
 #endif
-
-	wp_tdmapi_fops.read		= wp_tdmapi_read_msg;
-	wp_tdmapi_fops.write	= wp_tdmapi_write_msg;
 
 	return err;
 }
 
-static void wp_ctrl_dev_delete(void)
+
+void wp_ctrl_dev_delete(void)
 {
 	unsigned long timeout=SYSTEM_TICKS;
+
+	DEBUG_TDMAPI("%s(): Un-Registering Wanpipe CTRL Device!\n",__FUNCTION__);
 
 	wan_clear_bit(0,&tdmapi_ctrl.init);
 	
@@ -516,10 +539,6 @@ static int wp_tdmapi_unreg_globals(void)
 /*  FIXME timer dev is not complete */
 	wanpipe_wandev_timer_free();
 #endif
-
-	DEBUG_TDMAPI("%s(): Unregistering Clrl Devices!\n",__FUNCTION__);
-
-	wp_ctrl_dev_delete();
 
 	WAN_DEBUG_FUNC_END;
 
@@ -664,6 +683,11 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 		tdm_api->cfg.ec_tap		=0;
 		tdm_api->cfg.rbs_rx_bits	=-1;
 		tdm_api->cfg.hdlc		=1;
+		
+		/* Rx queue size must be at least twice dma chain */
+		tdm_api->cfg.rx_queue_sz 	= WP_TDM_MAX_HDLC_RX_Q_LEN;
+		/* Tx queue size must be at least as bit as tx dma chan */
+		tdm_api->cfg.tx_queue_sz	= WP_TDM_MAX_HDLC_TX_Q_LEN;
 
 		/* We are expecting tx_q_len for hdlc
   		 * to be configured from upper layer */
@@ -913,12 +937,6 @@ int wanpipe_tdm_api_unreg(wanpipe_tdm_api_dev_t *tdm_api)
 #endif
 	}
 
-	if (wp_tdmapi_global_cnt == 1){
-		if(wan_test_bit(0,&tdmapi_ctrl.used)) {
-			DEBUG_EVENT("%s: Failed to unreg CTRL DEVICE - BUSY!\n", tdm_api->name);
-			return -EBUSY;
-		}
-	}
 
 #if defined(WAN_TASKQ_STOP)
 	err=WAN_TASKQ_STOP((&tdm_api->wp_api_task));
@@ -1114,7 +1132,8 @@ static int wp_tdmapi_open(void *obj)
 
 	if (!tdm_api->card) {
 		if(tdm_api != &tdmapi_ctrl){
-			DEBUG_ERROR("%s: Error: Wanpipe API Device does not have a card pointer! Internal error!\n",tdm_api->name);
+			DEBUG_ERROR("%s: Error: Wanpipe API Device does not have a 'card' pointer! Internal error!\n",
+				tdm_api->name);
 			return -ENODEV;
 		}
 	}
@@ -1158,7 +1177,7 @@ static __inline int wp_tdmapi_set_gain(netskb_t *skb, char *gain)
 	return 0;
 }
 
-static int wp_tdmapi_read_msg(void *obj , netskb_t **skb_ptr, wp_api_hdr_t *hdr, int count)
+static int wp_tdmapi_read_msg(void *obj, netskb_t **skb_ptr, wp_api_hdr_t *hdr, int count)
 {
 	wanpipe_tdm_api_dev_t *tdm_api = (wanpipe_tdm_api_dev_t*)obj;
 	netskb_t *skb=NULL;
@@ -1196,6 +1215,7 @@ static int wp_tdmapi_read_msg(void *obj , netskb_t **skb_ptr, wp_api_hdr_t *hdr,
 
 	if (tdm_api->buffer_multiplier > 1) {
 		netskb_t *nskb;
+		netskb_t *skb_to_free;
 		char * buf, *u_buf;
 		int single_len;
 		int multiplier=tdm_api->buffer_multiplier;
@@ -1266,6 +1286,20 @@ static int wp_tdmapi_read_msg(void *obj , netskb_t **skb_ptr, wp_api_hdr_t *hdr,
 		skb=nskb;
 		rx_q_len = wan_skb_queue_len(&tdm_api->wp_rx_list);
 		wptdm_os_unlock_irq(&card->wandev.lock,&irq_flags);
+
+		do {
+
+			wptdm_os_lock_irq(&card->wandev.lock,&irq_flags);
+
+			skb_to_free = wan_skb_dequeue(&tdm_api->wp_dealloc_list);
+
+			wptdm_os_unlock_irq(&card->wandev.lock,&irq_flags);
+
+			if (skb_to_free) {
+				wan_skb_free(skb_to_free);
+			}
+
+		} while(skb_to_free);
 
 	} else {
 
@@ -1701,7 +1735,6 @@ static int wp_tdmapi_release(void *obj)
 
 static int wan_skb_push_to_ctrl_event (netskb_t *skb)
 {
-	wanpipe_tdm_api_dev_t *tdm_api = &tdmapi_ctrl;
 	netskb_t *ctrl_skb;
 	wan_smp_flag_t flags;
 
@@ -1710,13 +1743,13 @@ static int wan_skb_push_to_ctrl_event (netskb_t *skb)
 		return -ENODEV;
 	}
 
-	if (!wan_test_bit(0,&tdm_api->used)) {
+	if (!wan_test_bit(0,&tdmapi_ctrl.used)) {
 		return -EBUSY;
 	}
 		
-	wan_spin_lock_irq(&tdm_api->irq_lock, &flags);
-	ctrl_skb=wan_skb_dequeue(&tdm_api->wp_event_free_list);
-	wan_spin_unlock_irq(&tdm_api->irq_lock, &flags);
+	wan_spin_lock_irq(&tdmapi_ctrl.irq_lock, &flags);
+	ctrl_skb=wan_skb_dequeue(&tdmapi_ctrl.wp_event_free_list);
+	wan_spin_unlock_irq(&tdmapi_ctrl.irq_lock, &flags);
 
 	if (ctrl_skb){
 
@@ -1725,20 +1758,21 @@ static int wan_skb_push_to_ctrl_event (netskb_t *skb)
 		if (len > wan_skb_tailroom(ctrl_skb)) {
 
 			DEBUG_ERROR("TDMAPI: Error: TDM API CTRL Event Buffer Overflow Elen=%i Max=%i!\n",
-							len,wan_skb_tailroom(ctrl_skb));
+					len,wan_skb_tailroom(ctrl_skb));
 
-			WP_AFT_CHAN_ERROR_STATS(tdm_api->cfg.stats,rx_events_dropped);
+			WP_AFT_CHAN_ERROR_STATS(tdmapi_ctrl.cfg.stats, rx_events_dropped);
 			return -EFAULT;
 		}
+
 		buf=wan_skb_put(ctrl_skb,len);
 		memcpy(buf,wan_skb_data(skb),len);
 
-		wan_spin_lock_irq(&tdm_api->irq_lock, &flags);
-		wanpipe_tdm_api_handle_event(tdm_api,ctrl_skb);
-		wan_spin_unlock_irq(&tdm_api->irq_lock, &flags);
+		wan_spin_lock_irq(&tdmapi_ctrl.irq_lock, &flags);
+		wanpipe_tdm_api_handle_event(&tdmapi_ctrl, ctrl_skb);
+		wan_spin_unlock_irq(&tdmapi_ctrl.irq_lock, &flags);
 
 	} else {
-		WP_AFT_CHAN_ERROR_STATS(tdm_api->cfg.stats,rx_events_dropped);
+		WP_AFT_CHAN_ERROR_STATS(tdmapi_ctrl.cfg.stats, rx_events_dropped);
 	}
 
 	return 0;
@@ -1774,7 +1808,7 @@ static unsigned int wp_tdmapi_poll(void *obj)
 	if (tdm_api == &tdmapi_ctrl) {
 		/* intentionally NOT locking! */
 		if (wan_skb_queue_len(&tdm_api->wp_event_list)) {
-			/* Indicate an exception */
+			/* Indicate an Exception or an Event */
 			ret |= POLLPRI;
 		}
 		return ret;	
@@ -1964,6 +1998,8 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		case WP_API_CMD_GET_TX_Q_SIZE:
 		case WP_API_CMD_GET_RX_Q_SIZE:
 		case WP_API_CMD_SET_RX_Q_SIZE:
+		case WP_API_CMD_SS7_FORCE_RX:
+		case WP_API_CMD_SS7_GET_CFG_STATUS:
 			break;
 		default:
 			DEBUG_WARNING("%s: Warning: Invalid TDM API HDLC CMD %i\n", tdm_api->name,cmd);
@@ -2249,12 +2285,28 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		}
 		break;
 
+	case WP_API_CMD_EC_IOCTL:
+
+		if (!card->wandev.ec_dev || !card->wandev.ec_tdmapi_ioctl) {
+			DEBUG_WARNING("%s: Warning: HWEC dev OR ec_tdmapi_ioctl() is NULL!\n",
+				card->devname);
+			err = -EOPNOTSUPP;
+			break;
+		}
+
+		err = card->wandev.ec_tdmapi_ioctl(card->wandev.ec_dev, &usr_tdm_api.iovec_list);
+
+		break;
+
 	case WP_API_CMD_GET_STATS:
+		
 		if (WPTDM_SPAN_OP_MODE(tdm_api) || tdm_api->hdlc_framing) {
 			if (tdm_api->driver_ctrl) {
 					err = tdm_api->driver_ctrl(tdm_api->chan,usr_tdm_api.cmd,&usr_tdm_api);
 
-					/* Overwrite using the TDM API values for rx only */
+					/* Overwrite with TDM API rx/tx queue size.
+					   In this case we hide the low level core buffering.
+					   FIXME: Create new stats for low level core buffering */
 					if (err == 0) {
 						usr_tdm_api.stats.max_rx_queue_length =  (u8)tdm_api->cfg.rx_queue_sz;
 						wptdm_os_lock_irq(&card->wandev.lock,&irq_flags);
@@ -2275,7 +2327,7 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 					rx_over=usr_tdm_api.stats.rx_over_errors;
 					tx_fifo=usr_tdm_api.stats.tx_fifo_errors;
 				} else {
-					DEBUG_EVENT("Error: Failed to exec driver_ctrl\n");
+					DEBUG_ERROR("Error: Failed to exec driver_ctrl\n");
 				}
 			}
 			memcpy(&usr_tdm_api.stats,&tdm_api->cfg.stats,sizeof(tdm_api->cfg.stats));
@@ -2327,6 +2379,15 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		}
 		/* Set the new idle_flag, for both SPAN or CHAN mode. */
 		tdm_api->cfg.idle_flag = usr_tdm_api.idle_flag;
+		break;
+	
+	case WP_API_CMD_SS7_FORCE_RX:
+		if (tdm_api->hdlc_framing && tdm_api->driver_ctrl) {
+			err = tdm_api->driver_ctrl(tdm_api->chan, usr_tdm_api.cmd, &usr_tdm_api);
+		} else {
+			usr_tdm_api.result = SANG_STATUS_OPTION_NOT_SUPPORTED;
+			err = -EOPNOTSUPP;
+		}
 		break;
 
 	case WP_API_CMD_GET_FULL_CFG:
@@ -2747,8 +2808,6 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		} else {
 			err=-EOPNOTSUPP;
 		}
-
-		
 		break;
 
 	case WP_API_CMD_DRIVER_VERSION:
@@ -2756,6 +2815,7 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 	case WP_API_CMD_CPLD_VERSION:
 	case WP_API_CMD_GEN_FIFO_ERR_TX:
 	case WP_API_CMD_GEN_FIFO_ERR_RX:
+	case WP_API_CMD_SS7_GET_CFG_STATUS:
 		if (tdm_api->driver_ctrl) {
 			err = tdm_api->driver_ctrl(tdm_api->chan,usr_tdm_api.cmd,&usr_tdm_api);
 		} else {
@@ -2780,7 +2840,12 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 			tdm_api->cfg.usr_mtu_mru = tdm_api->cfg.usr_period*tdm_api->cfg.hw_mtu_mru*tdm_api->buffer_multiplier *tdm_api->timeslots;
 			DEBUG_TDMAPI("%s: Setting Multiplier %i, New MTU %i (p=%i,hwmtu=%i)\n",
 				tdm_api->name,tdm_api->buffer_multiplier,tdm_api->cfg.usr_mtu_mru,tdm_api->cfg.usr_period,tdm_api->cfg.hw_mtu_mru);
+
+		} else {
+			DEBUG_WARNING("Warning: %s: WP_API_CMD_BUFFER_MULTIPLIER not supported for device mode\n", tdm_api->name);
+			err=-EOPNOTSUPP;
 		}
+
 		break;
 
 	default:

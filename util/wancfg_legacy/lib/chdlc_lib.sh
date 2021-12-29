@@ -1,4 +1,4 @@
-#!/bins/sh
+#!/bin/sh
 
 function chdlc_interface_init () {
 	

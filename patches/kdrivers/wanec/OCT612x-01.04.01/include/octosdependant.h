@@ -84,6 +84,7 @@ extern "C" {
 #define OCT_MACH_LITTLE_ENDIAN		1
 #define OCT_MACH_BIG_ENDIAN			2
 
+
 /* Try to find current OCT_MACH_ENDIAN from compiler define values */
 #if !defined( MACH_TYPE_BIG_ENDIAN ) && !defined( MACH_TYPE_LITTLE_ENDIAN )
 	/* Does GNU defines the endian ? */
@@ -98,7 +99,10 @@ extern "C" {
 	/* Try with cpu type */
 	#if !defined(OCT_MACH_ENDIAN)
 		/* Look for intel */
-		#if defined( _M_IX86 ) || defined( __i386__ ) || defined(__x86_64__)
+		/* Sangoma for AMD x64:
+		 * Visual Studio 2008 defines _M_X64 (but not _WIN64 !)
+		 * Windows Driver Kit (WDK) defines AMD64	*/
+		#if defined( _M_IX86 ) || defined( __i386__ ) || defined(__x86_64__) || defined(_M_X64) || defined(AMD64)
 			#define OCT_MACH_ENDIAN		OCT_MACH_LITTLE_ENDIAN
 		/* Look for PowerPC */
 		#elif defined( _M_MPPC  ) || defined( _M_PPC ) || defined(PPC) || defined(__PPC) || defined(_ARCH_PPC)
@@ -129,7 +133,9 @@ extern "C" {
 
 #if defined( WIN32 ) || defined( __WIN32__ ) ||	defined( _WIN32_ ) || defined( WIN32S )
 	/* Verif if building a win32 driver */
-	#if ( defined( WIN32 ) && WIN32==100 )
+	/* #if ( defined( WIN32 ) && WIN32==100 ) */	/* Sangoma: "WIN32==100" produces error C1017 on Visual Studio 2008,
+													 * but no such problem when compiler is WDK. */
+	#if ( defined( WIN32 ) && defined(__KERNEL__) ) /* __KERNEL__ is defined for Sangoma Windows Device Driver */
 		#define OCT_NTDRVENV
 	#else
 		#define OCT_WINENV

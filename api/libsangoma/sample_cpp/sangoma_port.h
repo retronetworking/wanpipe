@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////
 // sangoma_port.h: interface for the sangoma_port class.
 //
-// Author	:	David Rokhvarg	<davidr@sangoma.com>
+// Author	:	David Rokhvarg
 //////////////////////////////////////////////////////////////////////
 
 #if !defined(AFX_DRIVER_CONFIGURATOR_H__115A6EC1_518C_45E9_AA55_148A8D999B61__INCLUDED_)

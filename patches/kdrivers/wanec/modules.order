@@ -1,1 +1,1 @@
-kernel//root/3.5/wanpipe/patches/kdrivers/wanec/wanec.ko
+kernel//common/wanec/wanec.ko

@@ -5361,7 +5361,11 @@ static void wanpipe_tty_put_char(struct tty_struct *tty, unsigned char ch)
 	int err=-EINVAL;
 
 	if (!tty){
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26))   
 		return err;
+#else
+      	return;
+#endif
 	}
 	
 	card = (sdla_t *)tty->driver_data;

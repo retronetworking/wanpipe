@@ -20,6 +20,7 @@
  *****************************************************************************/
 
 #if defined(__WINDOWS__)
+#define WIN_STATS 1
 /* all needed .h files are in wanpipemon.h */
 #else
 # include <stdio.h>
@@ -51,6 +52,8 @@
 #endif
 #endif
 
+
+#include "libsangoma.h"
 #include "wanpipe_api.h"
 
 #include "fe_lib.h"
@@ -298,17 +301,16 @@ static void modem( void )
 #endif
 }; /* modem */
 
-#ifdef __WINDOWS__
-int get_if_operational_stats()
+int get_if_operational_stats(void)
 {
 	/*! API command structure used to execute API commands. 
 	This command structure is used with libsangoma library */
 	wanpipe_api_t wp_api;
-	net_device_stats_t stats;
+	wanpipe_chan_stats_t stats;
 	int err;
 	unsigned char firm_ver, cpld_ver;
 
-	err=sangoma_get_stats(sock, &wp_api, &stats);
+	err=sangoma_get_stats(sangoma_fd, &wp_api, &stats);
 	if (err) {
 		return 1;
 	}
@@ -357,7 +359,7 @@ int get_if_operational_stats()
 	printf("\tHWEC tone (DTMF) events counter: %u\n",		stats.rx_events_tone);
 	printf( "*********************************\n");
 
-	err=sangoma_get_driver_version(sock,&wp_api, NULL);
+	err=sangoma_get_driver_version(sangoma_fd,&wp_api, NULL);
 	if (err) {
 		return 1;
 	}
@@ -367,14 +369,14 @@ int get_if_operational_stats()
 				wp_api.wp_cmd.version.minor1,
 				wp_api.wp_cmd.version.minor2);
 
-	err=sangoma_get_firmware_version(sock, &wp_api, &firm_ver);
+	err=sangoma_get_firmware_version(sangoma_fd, &wp_api, &firm_ver);
 	if (err) {
 		return 1;
 	}
 	printf("\tFirmware Version: %X\n",
 				firm_ver);
 
-	err=sangoma_get_cpld_version(sock, &wp_api, &cpld_ver);
+	err=sangoma_get_cpld_version(sangoma_fd, &wp_api, &cpld_ver);
 	if (err) {
 		return 1;
 	}
@@ -383,19 +385,18 @@ int get_if_operational_stats()
 	return 0;
 }
 
-int flush_if_operational_stats()
+int flush_if_operational_stats(void)
 {
 	/*! API command structure used to execute API commands. 
 	This command structure is used with libsangoma library */
 	wanpipe_api_t wp_api;
 
-    return sangoma_flush_stats(sock, &wp_api);
+    return sangoma_flush_stats(sangoma_fd, &wp_api);
 }
-#endif
 
 static void comm_err_stats (void)
 {
-#ifdef __WINDOWS__
+#ifdef WIN_STATS
 	/* use libsangoma api to get statistics */
 	get_if_operational_stats();
 #else
@@ -448,7 +449,7 @@ static void comm_err_stats (void)
 
 static void flush_comm_err_stats( void ) 
 {
-#ifdef __WINDOWS__
+#ifdef WIN_STATS
 	/* use libsangoma api to get statistics */
 	flush_if_operational_stats();
 #else
@@ -498,7 +499,7 @@ static void link_status (void)
 
 static void operational_stats (void)
 {
-#ifdef __WINDOWS__
+#ifdef WIN_STATS
 	comm_err_stats ();
 #else
 	wanpipe_chan_stats_t *stats;
@@ -569,12 +570,10 @@ static void operational_stats (void)
 
 static void flush_operational_stats( void ) 
 {
-#if 1
 	wan_udp.wan_udphdr_command= FLUSH_OPERATIONAL_STATS;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
 	DO_COMMAND(wan_udp);
-#endif
 }; /* flush_operational_stats */
 
 static void wp_span_debugging( unsigned char toggle ) 
@@ -608,6 +607,49 @@ static void wp_get_fifo_sync_cnt(void)
 	DO_COMMAND(wan_udp);
 }; /* flush_operational_stats */
 
+
+static void wp_port_led_blink(void)
+{  	
+	led_blink=1;
+	while (1) {
+
+		if (cmd_timeout >= 0) {
+			if (cmd_timeout) {
+				cmd_timeout--;
+			} else {
+				break;
+			}
+		}
+
+		wan_udp.wan_udphdr_command= WANPIPEMON_LED_CTRL;
+		wan_udp.wan_udphdr_return_code = 0xaa;
+		wan_udp.wan_udphdr_data_len = 1;
+		wan_udp.wan_udphdr_data[0] = 1;
+		DO_COMMAND(wan_udp);   
+		wp_usleep(500000);
+		wan_udp.wan_udphdr_command= WANPIPEMON_LED_CTRL;
+		wan_udp.wan_udphdr_return_code = 0xaa;
+		wan_udp.wan_udphdr_data_len = 1;
+		wan_udp.wan_udphdr_data[0] = 0;
+		DO_COMMAND(wan_udp);   
+		wp_usleep(500000);
+	}
+
+	wan_udp.wan_udphdr_command= WANPIPEMON_LED_CTRL;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0] = 0;
+	DO_COMMAND(wan_udp);
+}
+
+void wp_port_led_blink_off(void)
+{  	
+	wan_udp.wan_udphdr_command= WANPIPEMON_LED_CTRL;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0] = 0;
+	DO_COMMAND(wan_udp);   
+}
 
 int AFTDisableTrace(void)
 {
@@ -1401,7 +1443,7 @@ int AFTUsage(void)
 	printf("wanpipemon: Wanpipe AFT Hardware Level Debugging Utility\n\n");
 	printf("Usage:\n");
 	printf("-----\n\n");
-#ifdef __WINDOWS__
+#if 1
 	printf("wanpipemon -i <interface name> -c <command>\n\n");
 	printf("\tOption -i: \n");
 	printf("\t\tWanpipe interface name (ex: wanpipe1_if1)\n");   
@@ -1425,19 +1467,19 @@ int AFTUsage(void)
 	printf("\t-------------------------------- \n\n");    
 	printf("\tCard Status\n");
 	printf("\t   x         m       Modem Status\n");
-	printf("\t             l       Link Status\n");
-	printf("\t             cv      Read Code Version\n");
-	printf("\t             ru      Display Router UP time\n");
+	printf("\t   x         l       Link Status\n");
+	printf("\t   x         cv      Read Code Version\n");
+	printf("\t   x         ru      Display Router UP time\n");
 	printf("\tCard Statistics\n");
 	printf("\t   s         c       Communication Error Statistics\n");
-	printf("\t             o       Operational Statistics\n");
+	printf("\t   s         o       Operational Statistics\n");
 	printf("\tTrace Data \n");
 #ifdef __WINDOWS__
 	printf("\t   t         r       Trace data frames. Do not attempt interpret the\n");
 	printf("\t                     data.\n");
 #else
-	printf("\tt         i       Trace and Interpret ALL frames\n");
-	printf("\t             r       Trace ALL frames, in RAW format\n");
+	printf("\t   t         i       Trace and Interpret ALL frames\n");
+	printf("\t   t         r       Trace ALL frames, in RAW format\n");
 #endif
 	printf("\tT1/E1 Configuration/Statistics\n");
 	printf("\t   T  a      Read T1/E1 alarms.\n"); 
@@ -1445,17 +1487,17 @@ int AFTUsage(void)
 	printf("\t   ============================================\n");
 	printf("\t   ========= T1/E1 Loop Back commands =========\n");
 	printf("\n");  
-	printf("\t      allb   Activate   Line (Remote) Loopback.\n");  
+	printf("\t   T  allb   Activate   Line (Remote) Loopback.\n");  
 	printf("\t             (T1/E1; NORMAL Clock)\n");  
-	printf("\t      dllb   Deactivate Line (Remote) Loopback.\n");  
+	printf("\t   T  dllb   Deactivate Line (Remote) Loopback.\n");  
 	printf("\t             (T1/E1; NORMAL Clock)\n");  
 	printf("\n");
-	printf("\t      adlb   Activate   Diagnostic (Local) Loopback.\n");  
+	printf("\t   T  adlb   Activate   Diagnostic (Local) Loopback.\n");  
 	printf("\t             (T1/E1; MASTER Clock)\n");  
-	printf("\t      ddlb   Deactivate Diagnostic (Local) Loopback.\n");  
+	printf("\t   T  ddlb   Deactivate Diagnostic (Local) Loopback.\n");  
 	printf("\t             (T1/E1; MASTER Clock)\n");  
 	printf("\n");
-	printf("\t      lb     Read LoopBack status (T1/E1). This is the LoopBack\n");
+	printf("\t   T  lb     Read LoopBack status (T1/E1). This is the LoopBack\n");
 	printf("\t             status of the LOCAL device, not a status of LoopBack\n");
 	printf("\t             COMMAND which was transmitted to REMOTE device.\n");
 	printf("\t             The status (return code) of any LoopBack COMMAND is\n");  
@@ -1464,20 +1506,20 @@ int AFTUsage(void)
 	printf("\t   ============================================\n");
 	printf("\t   ======= T1 FDL/BOC Loop Back commands ======\n");
 	printf("\n"); 
-	printf("\t      salb   Send Activate   Loopback (Remote) Code.\n"); 
+	printf("\t   T  salb   Send Activate   Loopback (Remote) Code.\n"); 
 	printf("\t             (T1; MASTER Clock)\n"); 
-	printf("\t      sdlb   Send Deactivate Loopback (Remote) Code.\n");
+	printf("\t   T  sdlb   Send Deactivate Loopback (Remote) Code.\n");
 	printf("\t             (T1; MASTER Clock)\n"); 
 	printf("\n");
-	printf("\t      saplb  Send Activate   Payload Loopback (Remote) Code.\n");  
+	printf("\t   T  saplb  Send Activate   Payload Loopback (Remote) Code.\n");  
 	printf("\t             (T1; MASTER Clock)\n"); 
-	printf("\t      sdplb  Send Deactivate Payload Loopback (Remote) Code.\n");  
+	printf("\t   T  sdplb  Send Deactivate Payload Loopback (Remote) Code.\n");  
 	printf("\t             (T1; MASTER Clock)\n"); 
 	printf("\n");
 	printf("\t   ============================================\n");
 	printf("\t   =============== BERT Commands ==============\n");
 	printf("\n");
-	printf("\t      sw_bert <command>  BERT test (AFT only)\n");  
+	printf("\t   T  sw_bert <command>  BERT test (AFT only)\n");  
 	printf("\t             command:\n");  
 	printf("\t               --random - start BERT, use random data\n");  
 	printf("\t               --ascendant - start BERT, use ascendant data\n");  
@@ -1487,24 +1529,25 @@ int AFTUsage(void)
 	printf("\n");
 
 	printf("\t   ***** DS3/E3 Test modes *****\n");  
-	printf("\t      allb3  Activate Analog Loopback mode (DS3/E3 cards)\n");  
-	printf("\t      dllb3  Deactivate Analog Loopback mode (DS3/E3 cards)\n");  
-	printf("\t      arlb3  Activate Remote Loopback mode (DS3/E3 cards)\n");  
-	printf("\t      drlb3  Deactivate Remote Loopback mode (DS3/E3 cards)\n");  
-	printf("\t      adlb3  Activate Digital Loopback mode (DS3/E3 cards)\n");  
-	printf("\t      ddlb3  Deactivate Digital Loopback mode (DS3/E3 cards)\n");  
+	printf("\t   T  allb3  Activate Analog Loopback mode (DS3/E3 cards)\n");  
+	printf("\t   T  dllb3  Deactivate Analog Loopback mode (DS3/E3 cards)\n");  
+	printf("\t   T  arlb3  Activate Remote Loopback mode (DS3/E3 cards)\n");  
+	printf("\t   T  drlb3  Deactivate Remote Loopback mode (DS3/E3 cards)\n");  
+	printf("\t   T  adlb3  Activate Digital Loopback mode (DS3/E3 cards)\n");  
+	printf("\t   T  ddlb3  Deactivate Digital Loopback mode (DS3/E3 cards)\n");  
 	printf("\t   ***** End of DS3/E3 Test modes *****\n");  
 	printf("\n");
-	printf("\t      txe          Enable TX (AFT card only)\n");  
-	printf("\t      txd          Disable TX (AFT card only)\n");  
-	printf("\t      tx_ais_on    Enable  AIS Alarm - Maintenance On  (AFT card only)\n");  
-	printf("\t      tx_ais_off   Disable AIS Alarm - Maintenance Off (AFT card only)\n");  
+	printf("\t   T  txe          Enable TX (AFT card only)\n");  
+	printf("\t   T  txd          Disable TX (AFT card only)\n");  
+	printf("\t   T  tx_ais_on    Enable  AIS Alarm - Maintenance On  (AFT card only)\n");  
+	printf("\t   T  tx_ais_off   Disable AIS Alarm - Maintenance Off (AFT card only)\n");  
 	printf("\n");
 
 	printf("\tFlush Statistics\n");
 	printf("\t   f         c       Flush Communication Error Statistics\n");
-	printf("\t             o       Flush Operational Statistics\n");
-	printf("\t             pm      Flush T1/E1 performance monitoring counters\n");
+	printf("\t   f         o       Flush Operational Statistics\n");
+	printf("\t   f         pm      Flush T1/E1 performance monitoring counters\n");
+	printf("\t	 f  	   perf    Flush driver performance statistics\n");
 	printf("\n");
 	printf("\tEcho Canceller Statistics\n");
 	printf("\t   e         hw      Read HW Echo Canceller Status\n");
@@ -1528,6 +1571,10 @@ int AFTUsage(void)
 	printf("\t   d         rx_fifo_gen     Generate rx fifo error\n");
 	printf("\t   d         tx_fifo_gen     Generate tx fifo error\n");
 	printf("\t   d         fifo_sync_cnt   Increment fifo sync cnt\n"); 
+	printf("\t   d         led_blink       Enable led blinking - identify port\n"); 
+	printf("\t   d         perf_on         Enable driver performance statistics\n");
+	printf("\t   d         perf            Read driver performance statistics (must be enabled)\n");
+	printf("\t   d         perf_off        Disable driver performance statistics\n");
 
 #ifdef _LIBSANGOMA_H
 	printf("\tWanpipe Logger Control (used by Sangoma Technical Support)\n");
@@ -1585,12 +1632,29 @@ static void aft_router_up_time( void )
 	print_router_up_time(time);
 }
 
+static void aft_perf_stats_enable(void)
+{
+    wan_udp.wan_udphdr_command= WANPIPEMON_PERFORMANCE_STATS;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0] = 1;
+	DO_COMMAND(wan_udp); 
+}
+
+static void aft_perf_stats_disable(void)
+{
+    wan_udp.wan_udphdr_command= WANPIPEMON_PERFORMANCE_STATS;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0] = 0;
+	DO_COMMAND(wan_udp); 
+}       
+
 static void aft_perf_stats( void )
 {
-#ifdef WANPIPE_PERFORMANCE_DEBUG
 	aft_driver_performance_stats_t *aft_perf;
 	
-	wan_udp.wan_udphdr_command= WANPIPEMON_READ_PEFORMANCE_STATS;
+	wan_udp.wan_udphdr_command= WANPIPEMON_READ_PERFORMANCE_STATS;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
 	wan_udp.wan_udphdr_data[0] = 0;
@@ -1600,9 +1664,10 @@ static void aft_perf_stats( void )
 	
 	BANNER("WANPIPE PERFORMANCE STATS");
 
-	printf("                  ISR\n");
+	printf("                  Latency in ms\n");
 	printf("===========================================\n");
-	printf("ISR    Latency=%02lu    Max=%02lu    Min=%02lu    Avg=%02lu    AbvAvg=%04lu BelAvg=%04lu Limit=%02lu\n",
+	//printf("ISR    Latency=%02lu    Max=%02lu    Min=%02lu    Avg=%02lu    AbvAvg=%04lu BelAvg=%04lu Limit=%02lu\n",
+	printf("ISR    Latency=%05lu Max=%05lu Min=%05lu Avg=%05lu AbvAvg=%04lu BelAvg=%04lu Limit=%02lu\n",
 			aft_perf->aft_isr_latency.latency,
 			aft_perf->aft_isr_latency.max_latency,
 			aft_perf->aft_isr_latency.min_latency,
@@ -1610,7 +1675,25 @@ static void aft_perf_stats( void )
 			aft_perf->aft_isr_latency.above_avg,
 			aft_perf->aft_isr_latency.below_avg,
 			aft_perf->aft_isr_latency.limit);
-	
+
+	printf("P Task Latency=%05lu Max=%05lu Min=%05lu Avg=%05lu AbvAvg=%04lu BelAvg=%04lu Limit=%02lu\n",
+			aft_perf->port_task_latency.latency,
+			aft_perf->port_task_latency.max_latency,
+			aft_perf->port_task_latency.min_latency,
+			aft_perf->port_task_latency.latency_avg,
+			aft_perf->port_task_latency.above_avg,
+			aft_perf->port_task_latency.below_avg,
+			aft_perf->port_task_latency.limit);
+
+	printf("BH     Latency=%05lu Max=%05lu Min=%05lu Avg=%05lu AbvAvg=%04lu BelAvg=%04lu Limit=%02lu\n",
+			aft_perf->bh_latency.latency,
+			aft_perf->bh_latency.max_latency,
+			aft_perf->bh_latency.min_latency,
+			aft_perf->bh_latency.latency_avg,
+			aft_perf->bh_latency.above_avg,
+			aft_perf->bh_latency.below_avg,
+			aft_perf->bh_latency.limit);
+
 	printf("Kernel Latency=%05lu Max=%05lu Min=%05lu Avg=%05lu AbvAvg=%04lu BelAvg=%04lu Limit=%02lu\n",
 			aft_perf->kernel_isr_latency.latency,
 			aft_perf->kernel_isr_latency.max_latency,
@@ -1619,6 +1702,9 @@ static void aft_perf_stats( void )
 			aft_perf->kernel_isr_latency.above_avg,
 			aft_perf->kernel_isr_latency.below_avg,
 			aft_perf->kernel_isr_latency.limit);
+	printf("-------------------------------------------\n");
+	printf("                  ISR\n");
+	printf("===========================================\n");
 	printf("-------------------------------------------\n");
 	printf("ALL ..............................%lu\n",aft_perf->isr.all);
 	printf("AFT ..............................%lu\n",aft_perf->isr.aft);
@@ -1662,23 +1748,16 @@ static void aft_perf_stats( void )
 	printf("Serial Status ....................%lu\n",aft_perf->port_task.serial_status);
 	printf("TAP Queue ........................%lu\n",aft_perf->port_task.tap_q);
 	printf("Restart ..... ....................%lu\n",aft_perf->port_task.restart);
-#else
-	printf("Error: Performance Stats Feature has not been compiled in!\n");
-#endif
 	
 }
 
 static void flush_aft_perf_stats( void )
 {
-#ifdef WANPIPE_PERFORMANCE_DEBUG
-	wan_udp.wan_udphdr_command= WANPIPEMON_FLUSH_PEFORMANCE_STATS;
+	wan_udp.wan_udphdr_command= WANPIPEMON_FLUSH_PERFORMANCE_STATS;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
 	wan_udp.wan_udphdr_data[0] = 0;
 	DO_COMMAND(wan_udp);
-#else
-	printf("Error: Performance Stats Feature has not been compiled in!\n");
-#endif
 }
 
 static void read_ft1_te1_56k_config (void)
@@ -1788,6 +1867,10 @@ int AFTMain(char *command,int argc, char* argv[])
 				aft_router_up_time();
 			}else if (!strcmp(opt,"perf")) {
 				aft_perf_stats();
+			}else if (!strcmp(opt,"perf_on")) {
+				aft_perf_stats_enable();
+			}else if (!strcmp(opt,"perf_off")) {
+				aft_perf_stats_disable();
 			}else{
 				printf("ERROR: Invalid Status Command 'x', Type wanpipemon <cr> for help\n\n");
 			}
@@ -1798,6 +1881,8 @@ int AFTMain(char *command,int argc, char* argv[])
 				comm_err_stats();
 			}else if (!strcmp(opt,"o")){
 				operational_stats();
+			}else if (!strcmp(opt,"if")) {
+				get_if_operational_stats();
 			}else{
 				printf("ERROR: Invalid Statistics Command 's', Type wanpipemon <cr> for help\n\n");
 				printf("command: %s\n", command);
@@ -1842,6 +1927,8 @@ int AFTMain(char *command,int argc, char* argv[])
 				flush_comm_err_stats();
 				printf("Communication statistics flushed\n");
 			/*	comm_err_stats();*/
+			}else if (!strcmp(opt, "if")){
+				flush_if_operational_stats();
 			}else if (!strcmp(opt, "pm")){
 				flush_te1_pmon();
 				printf("Performance monitoring counters flushed\n");
@@ -2061,6 +2148,14 @@ int AFTMain(char *command,int argc, char* argv[])
 				wp_gen_fifo_debugging(0);
 			} else if (!strcmp(opt, "fifo_sync_cnt")) {
 				wp_get_fifo_sync_cnt();
+			} else if (!strcmp(opt, "led_blink")) {
+				wp_port_led_blink();
+			}else if (!strcmp(opt,"perf")) {
+				aft_perf_stats();
+			}else if (!strcmp(opt,"perf_on")) {
+				aft_perf_stats_enable();
+			}else if (!strcmp(opt,"perf_off")) {
+				aft_perf_stats_disable();
 			}else{
 				printf("ERROR: Invalid Status Command 'd', Type wanpipemon <cr> for help\n\n");
 			}
@@ -2079,7 +2174,7 @@ int AFTMain(char *command,int argc, char* argv[])
 				if (!wp_strcasecmp(argv[i], "-m") && argv[i+1]){
 					err = sscanf(argv[i+1], "%d", &mod_no);
 					if (err){
-						if (mod_no < 1 || mod_no > 16){
+						if (mod_no < 1 || mod_no > 24){ //24 is the maximum number of channels allowed due to backplane
 							printf("ERROR: Invalid Module number!\n\n");
 						   	fflush(stdout);
 					   		return 0;
@@ -2182,19 +2277,24 @@ int AFTMain(char *command,int argc, char* argv[])
 
 					} else if (!wp_strcasecmp(argv[i], "-default")){
 
-						logger_type = WAN_LOGGER_DEFAULT;
-						level_str = argv[i+1];
+						/* Prevent parser from confusing "default logger" with
+						 * "default level" .*/
+						if (-1 == logger_type) {
 
-						if (!wp_strcasecmp(level_str, "-error")){
-							logger_level = SANG_LOGGER_ERROR;
-						}
+							logger_type = WAN_LOGGER_DEFAULT;
+							level_str = argv[i+1];
 
-						if (!wp_strcasecmp(level_str, "-warning")){
-							logger_level = SANG_LOGGER_WARNING;
-						}
+							if (!wp_strcasecmp(level_str, "-error")){
+								logger_level = SANG_LOGGER_ERROR;
+							}
 
-						if (!wp_strcasecmp(level_str, "-info")){
-							logger_level = SANG_LOGGER_INFORMATION;
+							if (!wp_strcasecmp(level_str, "-warning")){
+								logger_level = SANG_LOGGER_WARNING;
+							}
+
+							if (!wp_strcasecmp(level_str, "-info")){
+								logger_level = SANG_LOGGER_INFORMATION;
+							}
 						}
 
 					} else if (!wp_strcasecmp(argv[i], "-tdmapi")){
@@ -2242,7 +2342,7 @@ int AFTMain(char *command,int argc, char* argv[])
 				logger_cmd.logger_level_ctrl.logger_type = logger_type;
 
 				/* get CURRENT logger level */
-				if(sangoma_logger_get_logger_level(sock, &logger_cmd)){
+				if(sangoma_logger_get_logger_level(sangoma_fd, &logger_cmd)){
 					printf("ERROR: sangoma_logger_get_logger_level() failed!\n");
 					break;
 
@@ -2257,7 +2357,7 @@ int AFTMain(char *command,int argc, char* argv[])
 					logger_cmd.logger_level_ctrl.logger_level &= (~logger_level);
 				}
 
-				if(sangoma_logger_set_logger_level(sock, &logger_cmd)){
+				if(sangoma_logger_set_logger_level(sangoma_fd, &logger_cmd)){
 					printf("ERROR: sangoma_logger_set_logger_level() failed!\n");
 					break;
 				}

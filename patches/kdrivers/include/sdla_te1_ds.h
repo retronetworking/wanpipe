@@ -622,6 +622,7 @@
 #define BIT_TCR2_T1_TD4RM	0x04
 #define BIT_TCR2_E1_AEBE	0x80		/* EBIT */
 #define BIT_TCR2_E1_ARA 	0x20
+#define BIT_TCR2_T1_TCR2_PDE 0x02
 
 #define REG_TCR3		0x183
 #define BIT_TCR3_ODF		0x80

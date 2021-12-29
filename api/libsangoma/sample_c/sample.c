@@ -330,7 +330,9 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer, int tx
 	static int	Tx_count = 0;
 
 	if (hdlc_repeat) {
-		printf("Repeating Frame\n");
+		if (verbose){
+			printf("Repeating Frame\n");
+		}
         tx_hdr->wp_api_tx_hdr_hdlc_rpt_len=4;
 		memset(tx_hdr->wp_api_tx_hdr_hdlc_rpt_data,Tx_count,4);
 	}
@@ -345,9 +347,9 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer, int tx
 				0);
 
 	if (err <= 0){
-		printf("Span: %d, Chan: %d: Failed to send!\n", 
+		printf("Span: %d, Chan: %d: Failed to send %s!\n", 
 			chan->spanno, 
-			chan->channo);
+			chan->channo, strerror(errno));
 		return -1;
 	}
 	
@@ -358,6 +360,10 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer, int tx
 		if(Tx_count && (!(Tx_count % 1000))){
 			printf("Packet sent: counter: %i, len: %i\n", Tx_count, err);
 		}
+	}
+
+	if (tx_delay) {
+     	sangoma_msleep(tx_delay);
 	}
 
 #if 1
@@ -762,7 +768,11 @@ int open_sangoma_device()
 	chan = wanpipe_if_no;
 
 	/* span and chan are 1-based */
-	dev_fd = sangoma_open_api_span_chan(span, chan);
+	if (force_open) {
+		dev_fd = __sangoma_open_api_span_chan(span, chan);
+	} else {
+		dev_fd = sangoma_open_api_span_chan(span, chan);
+	}
 	if( dev_fd == INVALID_HANDLE_VALUE){
 		printf("Warning: Failed to open span %d, chan %d\n", span , chan);
 		return 1;
@@ -864,13 +874,59 @@ int open_sangoma_device()
 			return 1;
 		}
 	}
+	if (ss7_cfg_status) {
+		wan_api_ss7_cfg_status_t ss7_hw_status;
+     	printf("Getting ss7 cfg status\n");
+		err=sangoma_ss7_get_cfg_status(dev_fd,&tdm_api,&ss7_hw_status);
+		if (err) {
+         	return 1;
+		}
+		printf("SS7 HW Configuratoin\n");
+		printf("SS7 hw support   = %s\n",ss7_hw_status.ss7_hw_enable?"Enabled":"Disabled");
+		printf("SS7 hw mode      = %s\n",ss7_hw_status.ss7_hw_mode?"4096":"128");
+		printf("SS7 hw lssu size = %d\n",ss7_hw_status.ss7_hw_lssu_size);
+		printf("SS7 driver repeat= %s\n",ss7_hw_status.ss7_driver_repeat?"Enabled":"Disabled");
+	}
+
+	if (stats_test) {
+		sangoma_print_stats(dev_fd);
+		exit(0);
+	}
+	if (flush_stats_test) {
+  		sangoma_flush_stats(dev_fd, &tdm_api);
+		sangoma_print_stats(dev_fd);
+		exit(0);
+	}
+
+	if (fe_read_test) {
+		uint8_t data=0;
+		int i;
+		for (i=0;;i++) {
+			sangoma_fe_reg_read(dev_fd, 0xF8, &data);	
+			if (data==0) {
+				printf("Error: Bad FE Read 0x00 cnt=%i\n",i);
+				exit(1);
+			}
+			data=(data>>3)&0x1F;
+			if (data != 0x0B) {
+				printf("Error: Bad FE Read 0x%X cnt=%i\n",data,i);
+				exit(1);
+			}
+
+			if (i && i%50000 == 0)
+			  printf("FE Reg 0xF8 = 0x%X cnt=%i\n",data,i);
+		}
+		exit(0);
+	}
 
 	printf("Device Config RxQ=%i TxQ=%i \n",
 		sangoma_get_rx_queue_sz(dev_fd,&tdm_api),
 		sangoma_get_rx_queue_sz(dev_fd,&tdm_api));
 
+#if 0
 	sangoma_set_rx_queue_sz(dev_fd,&tdm_api,20);
 	sangoma_set_tx_queue_sz(dev_fd,&tdm_api,30);
+#endif
 
 	printf("Device Config RxQ=%i TxQ=%i \n",
 		sangoma_get_rx_queue_sz(dev_fd,&tdm_api),
@@ -906,7 +962,7 @@ static int sangoma_hardware_rescan(void)
      	return err;
 	}
 
-	printf("Hardware Rescan %i\n",cnt);
+	printf("Hardware Rescan: Detected Devices %i\n",cnt);
 
 	sangoma_close(&fd);
 	
@@ -926,16 +982,19 @@ int __cdecl main(int argc, char* argv[])
 {
 	int proceed, i;
 
-#if 0
-	/* Function used to rescan pci/usb bus.
-	   added here as use example. Uncomment to use. */
-	sangoma_hardware_rescan();
-#endif
 
 	proceed=init_args(argc,argv);
 	if (proceed != WAN_TRUE){
 		usage(argv[0]);
 		return -1;
+	}
+	
+	if (hw_pci_rescan) {
+		/* Function used to rescan pci/usb bus.
+		   added here as use example. Uncomment to use.
+		   This function should only be used when all ports
+		   are down. */
+		return sangoma_hardware_rescan();
 	}
 
 	/* register Ctrl+C handler - we want a clean termination */

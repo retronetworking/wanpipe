@@ -1,4 +1,4 @@
-#!/bins/sh
+#!/bin/sh
 
 function adsl_get_std_item () {
 

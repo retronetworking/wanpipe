@@ -1,7 +1,9 @@
 PWD=$(shell pwd)
 
+WAN_VIRTUAL=$(PREFIX)
+
 ifndef WANINCDIR
-	WANINCDIR=/usr/include/wanpipe
+	WANINCDIR=$(WAN_VIRTUAL)/usr/include/wanpipe
 endif
 
 ifneq (,$(wildcard $(PWD)/../patches/kdrivers/include))
@@ -10,13 +12,12 @@ else
 	SYSINC=$(WANINCDIR)
 endif
 
-WAN_VIRTUAL=$(PREFIX)
 ARCH=$(shell uname -m)
 
 all:
-	make -C ft1 all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 	make -C lxdialog all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
-	make -C sdladump all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C libsangoma CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C libsangoma install DESTDIR=$(PWD)/.lib
 	make -C wanconfig all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 	make -C wanec_client all CC=$(CC)  SYSINC=$(SYSINC) WANINCDIR=$(WANINCDIR) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 	make -C wan_plxctrl all CC=$(CC)  SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
@@ -29,10 +30,8 @@ all_wancfg:
 	make -C wancfg all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 2> /dev/null
 
 install:
-	make -C ft1 install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wancfg_legacy install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C lxdialog install WAN_VIRTUAL=$(WAN_VIRTUAL)
-	make -C sdladump install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanconfig install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanec_client install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_plxctrl install WAN_VIRTUAL=$(WAN_VIRTUAL) 
@@ -42,6 +41,7 @@ install:
 	make -C wan_aftup install WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C bwm install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wancfg_zaptel install WAN_VIRTUAL=$(WAN_VIRTUAL)
+	make -C libsangoma install DESTDIR=$(WAN_VIRTUAL)
 
 uninstall:
 	make -C ft1 uninstall WAN_VIRTUAL=$(WAN_VIRTUAL)
@@ -70,7 +70,8 @@ clean:
 	make -C wancfg clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_aftup clean WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C bwm clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
-	make -C misc clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C wanctl clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
-	make -C bwm-ng clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
+	make -C bwm-ng clean  WAN_VIRTUAL=$(WAN_VIRTUAL)
+	make -C misc clean  WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_fxotune clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
+	@rm -rf .lib

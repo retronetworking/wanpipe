@@ -505,8 +505,19 @@ int a104_led_ctrl(sdla_t *card, int color, int led_pos, int on)
 		if(IS_56K_CARD(card)){
 			aft_56k_write_cpld(card,card->wandev.comm_port + 0x08,card->u.aft.led_ctrl);
 		}else{
-			aft_te1_write_cpld(card,card->wandev.comm_port + 0x08,card->u.aft.led_ctrl);
+			if (card->adptr_type == A108_ADPTR_8TE1) {
+				/* On A108 Card the leds are flipped. So the top offset is for leds 1 to 4 
+				   and vice versa */
+				if (card->wandev.comm_port < 4) {
+					aft_te1_write_cpld(card,(4+card->wandev.comm_port) + 0x08,card->u.aft.led_ctrl);
+				} else {
+					aft_te1_write_cpld(card,(card->wandev.comm_port-4) + 0x08,card->u.aft.led_ctrl);
+				}
+			} else {
+				aft_te1_write_cpld(card,card->wandev.comm_port + 0x08,card->u.aft.led_ctrl);
+			}
 		}
+
 	}else{
 		card->hw_iface.bus_read_4(card->hw,
 			AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
@@ -518,10 +529,11 @@ int a104_led_ctrl(sdla_t *card, int color, int led_pos, int on)
 	return 0;
 }
 
-int a104_set_octasic_clk_src(sdla_t *card)
+void a104_set_octasic_clk_src(void *pcard)
 {
 	u32     reg;
 	u16     max_ec_chans;
+	sdla_t  *card=(sdla_t*)pcard;
 	card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
 	
 	if (max_ec_chans) {
@@ -529,7 +541,7 @@ int a104_set_octasic_clk_src(sdla_t *card)
 		aft_chipcfg_set_oct_clk_src(&reg,card->wandev.comm_port);
 		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG),reg);
 	}
-	return 0;
+	return;
 }
 
 int a104_set_octasic_clk_src_b601(sdla_t *card)
@@ -789,16 +801,7 @@ int a104_global_chip_config(sdla_t *card)
 		}
 	} else {
 		if (card->adptr_subtype == AFT_SUBTYPE_SHARK) {
-			u16 max_ec_chans;
-			card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
-
-			if (max_ec_chans) {
-				if(a104_set_octasic_clk_src(card)) {
-					DEBUG_EVENT("%s: Failed to configure A10X Octasic clock source\n",
-													card->devname);
-					return -EINVAL;
-				}
-			}
+			a104_set_octasic_clk_src(card);
 		}
 	}
 
@@ -1225,6 +1228,7 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 			if (!IS_B601_CARD(card)) {
 				aft_set_hwec_clock_src(card);
+				card->wandev.ec_clock_ctrl=a104_set_octasic_clk_src;
 			}
 
 #else

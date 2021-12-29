@@ -868,10 +868,6 @@ UINT32 Oct6100UserDriverWriteBurstApi(
 	tPOCTPCIDRV_USER_PROCESS_CONTEXT	pContext;
 	unsigned int	i, err;
 	unsigned short	*data;
-#if defined(__WINDOWS__)
-	unsigned char tmp_buf[OCT_TMP_MEMORY_SIZE];
-	int rc = IRQL_CHECK_SILENT;
-#endif
 
 	/*  The pProcessContext is there in case the user needs context information
 	in order to perform the access. Note that if it is used, the memory pointed 

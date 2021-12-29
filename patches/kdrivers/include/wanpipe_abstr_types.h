@@ -96,11 +96,6 @@ typedef	struct wan_timeval wan_timeval_t;
  typedef LONG		long_t;
  typedef ULONG		ulong_t;
 
-# if _AMD64bit==true		/* _AMD64bit=true is set in "Server 2003 x64 Checked Build Environment" */
-#  define __x86_64__ 1	/* needed for Octasic code */
-# endif
-
-
 # if defined(_WIN64)
    typedef unsigned __int64	ulong_ptr_t;
 # else
@@ -167,8 +162,15 @@ typedef u32	gfp_t;
 #endif /* __WINDOWS__ */
 
 #if defined(__WINDOWS__)
-/* Do NOT use "POINTER_64" - some versions of MS compiler 
- * will expand it incorrectly to __ptr32. */
+/*
+ *   We support 32 bit applications running on 64 bit machines.
+ * This requires pointers used by WAN_COPY_FROM_USER() and
+ * WAN_COPY_TO_USER() to be 64 bit on both platforms.
+ * The WP_POINTER_64 will be used for that.
+ *
+ *   Do NOT use "POINTER_64" - some versions of MS compiler 
+ * will expand it incorrectly to __ptr32.
+ */
 # define WP_POINTER_64	__ptr64
 #else
 # define WP_POINTER_64

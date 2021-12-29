@@ -152,7 +152,7 @@ enum {
 #define SDLA_IO_MAPPED			0x0004
 #define SDLA_PCI_ENABLE			0x0008
 
-#define SDLA_NAME_SIZE			20
+#define SDLA_NAME_SIZE			32
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # define PCI_DMA_FROMDEVICE		1
@@ -221,6 +221,8 @@ pci_resource_start(
 #else
 # warning "Undefined types sdla_mem_handle_t/sdla_base_addr_t!"
 #endif
+
+struct sdlahw_dev;
 
 /*****************************************************************
 **			M A C R O S				**
@@ -346,8 +348,9 @@ typedef struct wan_dma_descr_
 
 typedef struct sdla_hw_probe
 {
-	int				internal_used;
-	int 				used;
+	int						internal_used;
+	int 					used;
+	int						index;
 	unsigned char			hw_info[100];
 	unsigned char			hw_info_verbose[500];
 	unsigned char			hw_info_dump[1000];
@@ -357,9 +360,9 @@ typedef struct sdla_hw_probe
 typedef struct sdlahw_isa_ 
 {
 	unsigned int		ioport;
-	unsigned 		io_range;	/* I/O port range */
+	unsigned 			io_range;	/* I/O port range */
 	unsigned char 		regs[SDLA_MAXIORANGE];	/* was written to registers */
-	unsigned 		pclk;		/* CPU clock rate, kHz */
+	unsigned 			pclk;		/* CPU clock rate, kHz */
 
 #if defined(__NetBSD__) || defined(__OpenBSD__)
 	bus_space_tag_t		iot;		/* adapter I/O port tag */
@@ -525,6 +528,7 @@ typedef struct sdlahw_card {
 	unsigned char		core_rev;	/* SubSystem ID [8..15] */
 	unsigned char 		pci_extra_ver;
 	unsigned int		recovery_clock_flag; /* 1 - already used, 0 - not used */
+	unsigned int		used;
 
 	union {
 		sdlahw_isa_t	isa;
@@ -779,6 +783,7 @@ typedef struct sdladrv_hw_probe_iface {
 
 WP_EXTERN int sdladrv_hw_mode(int);
 WP_EXTERN unsigned int sdla_hw_probe(void);
+WP_EXTERN int sdla_hw_probe_free(void);
 WP_EXTERN unsigned int sdla_hw_bridge_probe(void);
 WP_EXTERN void *sdla_get_hw_probe (void);
 WP_EXTERN void *sdla_get_hw_adptr_cnt(void);
@@ -880,6 +885,12 @@ sdla_bus_space_map(sdlahw_t* hw, int reg, int size, sdla_mem_handle_t* handle)
 #else
 # warning "sdla_bus_space_map: Not supported yet!"
 #endif
+
+#ifdef WAN_DEBUG_MEM
+	if (err == 0) {
+   		sdla_memdbg_push((void*)(*handle), "sdla_bus_space_map", __LINE__, size);
+	}
+#endif
 	return err;
 
 }
@@ -907,6 +918,10 @@ sdla_bus_space_unmap(sdlahw_t* hw, sdla_mem_handle_t offset, int size)
 	MmUnmapIoSpace(offset, size);
 #else
 # warning "sdla_bus_space_unmap: Not supported yet!"
+#endif
+
+#ifdef WAN_DEBUG_MEM
+   	sdla_memdbg_pull((void*)offset, "sdla_bus_space_unmap", __LINE__);
 #endif
 
 }

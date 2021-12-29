@@ -90,9 +90,9 @@ wplip_link_t *wplip_create_link(char *devname)
 #endif
 	lip_link->state = WAN_DISCONNECTED;
 
-	lip_link->dev_list_lock=RW_LOCK_UNLOCKED;	
-	lip_link->tx_dev_list_lock=RW_LOCK_UNLOCKED;	
-	lip_link->map_lock=RW_LOCK_UNLOCKED;	
+	wan_rwlock_init(&lip_link->dev_list_lock);
+	wan_rwlock_init(&lip_link->tx_dev_list_lock);
+	wan_rwlock_init(&lip_link->map_lock);
 
 	WAN_TASKLET_INIT(&lip_link->task,0,wplip_link_bh,lip_link);
 
@@ -322,7 +322,7 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int usedby)
 	}
 
 	
-	WAN_DEV_HOLD(lip_dev);
+	WAN_HOLD(lip_dev);
 	
 	return lip_dev;
 }
@@ -345,7 +345,7 @@ void wplip_free_lipdev(wplip_dev_t *lip_dev)
 	}
 
 	
-	WAN_DEV_PUT(lip_dev);
+	__WAN_PUT(lip_dev);
 		
 	if (wan_atomic_read(&lip_dev->refcnt)){
 		DEBUG_EVENT("%s: Major Error lip dev is still in use=%d!\n",
@@ -372,7 +372,7 @@ void wplip_insert_lipdev(wplip_link_t *lip_link, wplip_dev_t *lip_dev)
 
 	WP_WRITE_LOCK(&lip_link->dev_list_lock,flags);
 	WAN_LIST_INSERT_HEAD(&lip_link->list_head_ifdev,lip_dev,list_entry);
-	WAN_DEV_HOLD(lip_dev);
+	WAN_HOLD(lip_dev);
 	lip_link->dev_cnt++;
 
 	WP_WRITE_UNLOCK(&lip_link->dev_list_lock,flags);
@@ -421,7 +421,7 @@ void wplip_remove_lipdev(wplip_link_t *lip_link, wplip_dev_t *lip_dev)
 	unsigned long flags;
 	
 	WP_WRITE_LOCK(&lip_link->dev_list_lock,flags);
-	WAN_DEV_PUT(lip_dev);
+	__WAN_PUT(lip_dev);
 	WAN_LIST_REMOVE(lip_dev,list_entry);
 	lip_link->dev_cnt--;
 	WP_WRITE_UNLOCK(&lip_link->dev_list_lock,flags);
@@ -484,7 +484,7 @@ static netdevice_t *wplip_create_netif(char *dev_name, int usedby)
 		return NULL;
 	}
 
-#if defined(__LINUX__)
+#if defined(__LINUX__) && !defined(LINUX_2639)
 	wan_atomic_set(&dev->refcnt,0);
 #endif
 	WAN_DEV_HOLD(dev);
@@ -495,7 +495,7 @@ static netdevice_t *wplip_create_netif(char *dev_name, int usedby)
 static int wplip_free_netif(netdevice_t *dev)
 {
 	WAN_DEV_PUT(dev);
-#if defined(__LINUX__)
+#if defined(__LINUX__) && !defined(LINUX_2639)
 	if (wan_atomic_read(&dev->refcnt)){
 		DEBUG_EVENT("%s: Dev=%s Major error dev is still in use %d\n",
 				__FUNCTION__,

@@ -78,8 +78,19 @@ enum wan_logger_type{
 	WAN_LOGGER_HWEC,	/* controled by bitmaps in wp_hwec_logger_level */
 	WAN_LOGGER_TDMAPI,	/* controled by bitmaps in wp_tdmapi_logger_level */
 	WAN_LOGGER_FE,		/* controled by bitmaps in wp_fe_logger_level */
-	WAN_LOGGER_BRI		/* controled by bitmaps in wp_bri_logger_level */
+	WAN_LOGGER_BRI,		/* controled by bitmaps in wp_bri_logger_level */
+	WAN_LOGGER_FILE		/* controled by bitmaps in wp_file_logger_level */
 };
+
+#define SANG_DECODE_LOGGER_TYPE(wplg_type)	\
+	(wplg_type == WAN_LOGGER_DEFAULT)	? "WAN_LOGGER_DEFAULT": \
+	(wplg_type == WAN_LOGGER_TE1)	? "WAN_LOGGER_TE1": \
+	(wplg_type == WAN_LOGGER_HWEC)	? "WAN_LOGGER_HWEC": \
+	(wplg_type == WAN_LOGGER_TDMAPI)	? "WAN_LOGGER_TDMAPI": \
+	(wplg_type == WAN_LOGGER_FE)	? "WAN_LOGGER_FE": \
+	(wplg_type == WAN_LOGGER_BRI)	? "WAN_LOGGER_BRI": \
+	(wplg_type == WAN_LOGGER_FILE)	? "WAN_LOGGER_FILE": \
+	"Invalid Logger type"
 
 /* Definitions for 'event_type' in wp_logger_event_t: */
 
@@ -148,7 +159,16 @@ enum wp_bri_logger_level{
 	(bit & SANG_LOGGER_BRI_L2_TO_L1_ACTIVATION) ? "SANG_LOGGER_BRI_L2_TO_L1_ACTIVATION":	\
 	"Invalid Bit for BRI Logger"
 
+/* File Logger. Controls printing of messages to Wanpipe Log file.
+ * Does *not* produce any Events in Wanpipe Logger queue.
+ * Windows: Windows\System32\drivers\wanpipelog.txt
+ * Linux: /var/log/messages */
+enum wp_file_logger_level{
+	SANG_LOGGER_FILE_ON = (1),
+	SANG_LOGGER_FILE_OFF = (1 << 1)
+};
 
+/* Note: WAN_LOGGER_FILE does not produce events. */
 static __inline const char* wp_decode_logger_event_type(u_int32_t logger_type, u_int32_t evt_type)
 {
 	switch(logger_type)
@@ -247,17 +267,29 @@ enum wp_logger_cmds
 
 
 #if defined(__KERNEL__)
-extern int wp_logger_create(void);
-extern void wp_logger_delete(void);
-extern void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...);
 
+#if defined(__WINDOWS__)
+# if defined(BUSENUM_DRV)
+#  define WPLOGGER_CALL
+# else
+#  define WPLOGGER_CALL	DECLSPEC_IMPORT
+# endif
+#elif defined(__LINUX__)
+# define WPLOGGER_CALL
+# define EXTERN_C extern
+#endif	/* __LINUX__ */
 
-extern u_int32_t wp_logger_level_default;
-extern u_int32_t wp_logger_level_te1;
-extern u_int32_t wp_logger_level_hwec;
-extern u_int32_t wp_logger_level_tdmapi;
-extern u_int32_t wp_logger_level_fe;
-extern u_int32_t wp_logger_level_bri;
+/* Wanpipe Logger functions and variables */
+EXTERN_C WPLOGGER_CALL int wp_logger_create(void);
+EXTERN_C WPLOGGER_CALL void wp_logger_delete(void);
+EXTERN_C WPLOGGER_CALL void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...);
+
+EXTERN_C WPLOGGER_CALL u_int32_t wp_logger_level_default;
+EXTERN_C WPLOGGER_CALL u_int32_t wp_logger_level_te1;
+EXTERN_C WPLOGGER_CALL u_int32_t wp_logger_level_hwec;
+EXTERN_C WPLOGGER_CALL u_int32_t wp_logger_level_tdmapi;
+EXTERN_C WPLOGGER_CALL u_int32_t wp_logger_level_fe;
+EXTERN_C WPLOGGER_CALL u_int32_t wp_logger_level_bri;
 
 /* macros for checking if a level of debugging is enabled */
 #define WAN_LOGGER_TEST_LEVEL_DEFAULT(level)	(level & wp_logger_level_default)

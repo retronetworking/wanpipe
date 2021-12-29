@@ -37,9 +37,8 @@ UDPPORT 	= 9000
 TTL		= 255
 IGNORE_FRONT_END = NO
 TDMV_SPAN	= TDMVSPANNO
-TE_AIS_MAINTENANCE = NO			#NO: defualt  YES: Start port in AIS Blue Alarm and keep line down
-								#wanpipemon -i w1g1 -c Ttx_ais_off to disable AIS maintenance mode
-								#wanpipemon -i w1g1 -c Ttx_ais_on to enable AIS maintenance mode  
+RM_BRI_CLOCK	= NORMAL
+
 TDMV_HW_DTMF        = HWDTMF        # YES: receive dtmf events from hardware
 TDMV_HW_FAX_DETECT      = HWFAX     # YES: receive fax 1100hz events from hardware
 HWEC_OPERATION_MODE     = OCT_NORMAL    # OCT_NORMAL: echo cancelation enabled with nlp (default) 

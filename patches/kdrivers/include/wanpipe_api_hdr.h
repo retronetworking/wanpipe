@@ -392,6 +392,64 @@ typedef struct wp_api_element{
 #pragma pack()
 
 
+/**************************************************************
+ Sangoma Memory descriptors - passed to/from kernel/user space
+***************************************************************/
+
+#pragma pack(1)         
+
+/*!
+  \struct	wan_iovec
+  \brief	Memory Descriptor of a single buffer.
+			This structure used internally by libsangoma.
+
+  \typedef	wan_iovec_t
+  \brief	Memory Descriptor of a single buffer.
+			This structure used internally by libsangoma.
+*/
+typedef struct wan_iovec
+{
+	u_int32_t iov_len;
+	
+	void * WP_POINTER_64 iov_base;
+#ifndef __x86_64__
+	u_int32_t reserved;
+#endif
+}wan_iovec_t;
+
+/*!
+  \struct	wan_iovec_list
+  \brief	Fixed-length List of Memory Descriptors 
+
+  \typedef	wan_iovec_list_t
+  \brief	Fixed-length List of Memory Descriptors 
+*/
+#define WAN_IOVEC_LIST_LEN	5
+typedef struct wan_iovec_list
+{
+	wan_iovec_t	iovec_list[WAN_IOVEC_LIST_LEN];/*!< in 'iovec_list', only buffers with non-NULL 'iov_base' should be accessed */
+
+}wan_iovec_list_t;
+
+/*!
+  \struct	wan_msghdr
+  \brief	Variable-length List of Memory Descriptors
+
+  \typedef	wan_msghdr_t
+  \brief	Variable-length List of Memory Descriptors
+*/
+typedef struct wan_msghdr {
+	u_int32_t  msg_iovlen; /*!< Number of blocks */
+	wan_iovec_t * WP_POINTER_64 msg_iov;	/*!< Data blocks */
+#ifndef __x86_64__
+	u_int32_t reserved;
+#endif
+}wan_msghdr_t;
+
+#pragma pack()
+
+/****************************************************************/
+
 /*!
   \struct _API_POLL_STRUCT
   \brief Windows poll structure used to implement blocking poll for read/write/event
@@ -399,7 +457,7 @@ typedef struct wp_api_element{
   This structure is only used by WINDOWS code
 
   \typedef API_POLL_STRUCT
-  \brief Windows poll structure used to implement blocking poll for read/write/even
+  \brief Windows poll structure used to implement blocking poll for read/write/event
  */
 typedef struct _API_POLL_STRUCT
 {
@@ -456,7 +514,7 @@ typedef enum SANG_STATUS
 	SANG_STATUS_FAILED_TO_LOCK_USER_MEMORY,	/*!< Kernel error */
 	SANG_STATUS_FAILED_ALLOCATE_MEMORY,		/*!< Memory allocatin failure  */
 	SANG_STATUS_INVALID_DEVICE_REQUEST,		/*!< Command is invalid for device type. */
-	SANG_STATUS_INVALID_PARAMETER,			/*!< Invalide parameter */
+	SANG_STATUS_INVALID_PARAMETER,			/*!< Invalid parameter */
 	SANG_STATUS_GENERAL_ERROR,				/*!< General interal error */
 	SANG_STATUS_DEVICE_BUSY,				/*!< Device is busy */
 	SANG_STATUS_INVALID_DEVICE,				/*!< Invalid device selected */

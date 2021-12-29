@@ -167,6 +167,9 @@ int wanpipe_cdev_cfg_ctrl_create(wanpipe_cdev_t *cdev);
 int wanpipe_cdev_timer_create(wanpipe_cdev_t *cdev);
 int wanpipe_cdev_logger_create(wanpipe_cdev_t *cdev);
 
+int wp_ctrl_dev_create(void);
+void wp_ctrl_dev_delete(void);
+
 #endif
 
 #endif

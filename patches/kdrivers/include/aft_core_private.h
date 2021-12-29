@@ -93,7 +93,8 @@ enum {
 	CARD_HW_EC,
 	CARD_MASTER_CLOCK,
 	CARD_PORT_TASK_DOWN,
-	CARD_PORT_TASK_RUNNING
+	CARD_PORT_TASK_RUNNING,
+	CARD_WDT_TDM_TIMING
 };
 
 enum { 
@@ -127,6 +128,19 @@ enum {
 	AFT_CRITICAL_DOWN
 };
 
+#define DECODE_AFT_PORT_TASK_CMD(cmd)	\
+(cmd == AFT_FE_CFG_ERR)	? "AFT_FE_CFG_ERR" : \
+(cmd == AFT_FE_CFG)		? "AFT_FE_CFG" : \
+(cmd == AFT_FE_INTR)	? "AFT_FE_INTR" : \
+(cmd == AFT_FE_POLL)	? "AFT_FE_POLL" : \
+(cmd == AFT_FE_TDM_RBS) ? "AFT_FE_TDM_RBS" : \
+(cmd == AFT_FE_LED)		? "AFT_FE_LED" : \
+(cmd == AFT_FE_EC_POLL) ? "AFT_FE_EC_POLL" : \
+(cmd == AFT_FE_RESTART) ? "AFT_FE_RESTART" : \
+(cmd == AFT_RTP_TAP_Q)	? "AFT_RTP_TAP_Q" : \
+(cmd == AFT_SERIAL_STATUS) ? "AFT_SERIAL_STATUS" : \
+(cmd == AFT_CRITICAL_DOWN) ? "AFT_CRITICAL_DOWN" : \
+"Invalid AFT Poll cmd"
 
 enum {
 	MASTER_CLOCK_CHECK = 0,
@@ -149,7 +163,7 @@ enum {
 enum {
 	/* DMA chain mode where interrupt is activated once per 
 	   chain 2 buffers before the end of the chain. */
-	WAN_AFT_DMA_CHAIN = 0,       	
+	WAN_AFT_DMA_CHAIN = 1,       	
 
 	/* DMA chain mode where interrupt is activated after each
 	   buffer in the chain. Used for underrun prevention
@@ -326,6 +340,9 @@ typedef struct private_area
 #endif
 
 	unsigned char 		dma_chain_opmode;
+	unsigned char 		dma_chain_opmode_tx;
+	unsigned char 		dma_chain_opmode_rx;
+
 
 	wp_tdm_chan_stats_t	chan_stats;
 
@@ -465,9 +482,37 @@ typedef struct private_area
 	u32 		bert_data_length;
 	u8			sw_hdlc_mode;
 	void		*sw_hdlc_dev;
+
+
+#ifdef AFT_DMA_TRANSACTION
+#warning "AFT DMA Transaction History Enabled"
+#define AFT_TRANSACTION_HISTORY 20
+	char	transaction_history[AFT_TRANSACTION_HISTORY][512];
+	int	th_idx;
+#endif
 	
 }private_area_t;
 
+
+#ifdef AFT_DMA_TRANSACTION
+#define aft_transaction(chan,...) snprintf(chan->transaction_history[chan->th_idx],sizeof(chan->transaction_history[chan->th_idx]),## __VA_ARGS__);chan->th_idx++;if (chan->th_idx>=AFT_TRANSACTION_HISTORY) chan->th_idx=0;
+
+static  __inline void aft_transaction_list(private_area_t *chan)
+{
+ 	int i;
+	int idx=chan->th_idx;
+	for (i=0;i<AFT_TRANSACTION_HISTORY;i++) {
+		DEBUG_EVENT("%d/%d. %s\n",i,idx,chan->transaction_history[idx]);
+		idx++;
+		if (idx>=AFT_TRANSACTION_HISTORY) {
+         	idx=0;
+		}
+	}
+}
+#else
+	#define aft_transaction(chan,...)
+	#define aft_transaction_list(chan)
+#endif
 
 void 	aft_free_logical_channel_num (sdla_t *card, int logic_ch);
 void 	aft_dma_max_logic_ch(sdla_t *card);
@@ -527,9 +572,14 @@ static __inline int wan_chan_dev_stopped(private_area_t *chan)
 	return wan_test_bit(0,&chan->busy);
 }
 
+#ifdef AFT_TASKQ_DEBUG
+# define aft_core_taskq_trigger(card, cmd) __aft_core_taskq_trigger(card, cmd, __FUNCTION__, __LINE__) 
+static __inline int __aft_core_taskq_trigger(sdla_t *card, int cmd, const char *func, int line) 
+#else
 static __inline int aft_core_taskq_trigger(sdla_t *card, int cmd)
+#endif
 {
-	if (wan_test_and_set_bit(cmd,&card->u.aft.port_task_cmd)) {
+	if (wan_test_and_set_bit(cmd, &card->u.aft.port_task_cmd)) {
 		DEBUG_TEST("%s: %s() trigger failed cmd %i already pending !\n",
 					card->devname,__FUNCTION__);
 		return -EBUSY;
@@ -538,16 +588,26 @@ static __inline int aft_core_taskq_trigger(sdla_t *card, int cmd)
 	if (wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
 		return -1;
 	}
+
 	if (wan_test_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical)){
 		DEBUG_TEST("%s: %s() trigger failed due to busy  cmd %i!\n",
 					card->devname,__FUNCTION__,cmd);
 		return -EBUSY;
 	}
 	
+#ifdef AFT_TASKQ_DEBUG
+	DEBUG_TASKQ("%s: caller: %s():%d triggering for: cmd %s(%d)!\n",
+		card->devname, func, line, DECODE_AFT_PORT_TASK_CMD(cmd), cmd);
+#endif
+
 	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
 
 	return 0;
 }
+
+
+#define WP_GET_DMA_OPMODE_RX(chan)   (chan->dma_chain_opmode_rx?chan->dma_chain_opmode_rx:chan->dma_chain_opmode)
+#define WP_GET_DMA_OPMODE_TX(chan)   (chan->dma_chain_opmode_tx?chan->dma_chain_opmode_tx:chan->dma_chain_opmode)
 
 int aft_background_timer_kill(sdla_t* card);
 int aft_background_timer_add(sdla_t* card, unsigned long delay);
@@ -563,6 +623,12 @@ void aft_background_timer_expire(unsigned long pcard);
 int aft_fe_loop_back_status(sdla_t *card);
 int aft_hdlc_repeat_mangle(sdla_t *card,private_area_t *chan, netskb_t *skb, wp_api_hdr_t *tx_hdr, netskb_t **rkb);
 int aft_bh_rx(private_area_t* chan, netskb_t *new_skb, u8 pkt_error, int len);
+int aft_ss7_tx_mangle(sdla_t *card,private_area_t *chan, netskb_t *skb, wp_api_hdr_t *tx_hdr);
+
+#ifdef AFT_LIST_DMA_DESCRIPTORS
+void aft_list_descriptors(private_area_t *chan);
+void aft_list_tx_descriptors(private_area_t *chan);
+#endif
 
 #define CHAN_GLOBAL_IRQ_CFG(chan) (chan->channelized_cfg && !chan->hdlc_eng && !chan->sw_hdlc_mode)
 

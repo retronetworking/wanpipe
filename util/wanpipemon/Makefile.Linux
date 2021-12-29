@@ -16,6 +16,13 @@ ifndef SYSINC
 	SYSINC=/usr/include/wanpipe
 endif
 
+WLINC=../../patches/kdrivers/include
+WEC=../../patches/kdrivers/wanec
+WECOCT=../../patches/kdrivers/wanec/oct6100_api/include
+WINC=/usr/include/wanpipe   
+
+PWD=$(shell pwd)
+
 WAN_VIRTUAL=
 LXDIR=../lxdialog
 ENABLE_GUI=YES
@@ -30,7 +37,8 @@ CPP = gcc -E
 CFLAGS = -Wall -Wstrict-prototypes 
 CFLAGS += $(EXTRA_FLAGS) $(PROTOCOL_DEFS)
 CFLAGS += $(GLOBAL_CFLAGS)
-CFLAGS +=  -D$(OS_TYPE) -I$(SYSINC) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG)
+CFLAGS +=  -D$(OS_TYPE) -I../libsangoma -I../libsangoma/wanec -I$(WLINC) -I$(WEC) -I$(WECOCT) -I$(WINC)
+CFLAGS += -I$(SYSINC) -I$(SYSINC)/oct6100_api -I$(SYSINC)/oct6100_api/oct6100api -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG)
 WAN_VIRTUAL=
 
 
@@ -43,7 +51,8 @@ LDLIBS =
 else
 LX_OBJ = $(LXDIR)/checklist.o $(LXDIR)/menubox.o $(LXDIR)/inputbox.o $(LXDIR)/util.o 
 GUI_OBJ = wangui.o
-LDLIBS = -lncurses
+LDLIBS = -lncurses -lsangoma -lm -L $(PWD)/../.lib/usr/lib
+
 
 CFLAGS += -DWANPIPEMON_GUI -DLOCALE 
 
@@ -77,7 +86,7 @@ OBJS+=$(LX_OBJ)
 all:    $(PROD) 
 	@echo "Ok."
 
-$(PROD):  $(OBJS) 
+$(PROD):  $(OBJS)  
 
 ncurses:
 	@x=`find $(ASTBROOT)/lib/ /lib/ /usr/lib/ /usr/lib64/ /usr/local/lib/ -maxdepth 1 -name 'libncurses.*' 2> /dev/null` ;\

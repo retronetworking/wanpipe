@@ -17,10 +17,10 @@
 #else
 # include <ctype.h>
 # include <unistd.h>
+# include <string.h>
 # include <errno.h>
 # define wan_inline inline
 #endif
-#include <errno.h>
 
 /*===================================================================
  * 

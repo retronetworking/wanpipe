@@ -129,10 +129,10 @@
 #include "wanpipe.h"
 #include "wan_mem_debug.h"
 
-#if defined(__LINUX__)
-#include "wanpipe_cdev_iface.h"
+
+#include "wanpipe_cdev_iface.h"	/* wanpipe_global_cdev_free() */
 #include "wanpipe_logger.h"
-#endif
+
 
 #include "sdlasfm.h"	/* SDLA firmware module definitions */
 #include "sdlapci.h"	/* SDLA PCI hardware definitions */
@@ -223,6 +223,11 @@
 #define MODULE1	0
 #define MODULE2	2
 #define MODULE3	4
+
+#if 0
+static unsigned char wan_index_map[24][32][32];
+static unsigned char wan_index_cnt=0;
+#endif
 
 
 /****** Function Prototypes *************************************************/
@@ -680,17 +685,17 @@ int sdladrv_init(void* arg)
 
 	memset(&sdla_adapter_cnt,0,sizeof(sdla_hw_type_cnt_t));
 
-#if defined(__LINUX__)
     err=wanpipe_global_cdev_init();
 	if (err) {
      	return err;
 	}
+
 	err=wp_logger_create();
 	if (err) {
 		wanpipe_global_cdev_free();      
      	return err;
 	}
-#endif
+
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 	sdla_usb_init();
@@ -716,25 +721,30 @@ int sdladrv_ready_unload(void *arg)
 }
 #endif
 
-/*============================================================================
- * Module deinit point.
- * o release all remaining system resources
- */
-int sdladrv_exit (void *arg)
-{
-	sdla_hw_probe_t	*elm_hw_probe;
-	sdlahw_cpu_t	*elm_hw_cpu;
-	sdlahw_card_t	*elm_hw_card;
-	
-	DEBUG_MOD("Unloading SDLADRV module ...\n");
 
-#if defined(CONFIG_PRODUCT_WANPIPE_USB)
-	sdla_usb_exit();
-#endif
+EXPORT_SYMBOL(sdla_hw_probe_free);
+int sdla_hw_probe_free(void)
+{
+	sdla_hw_probe_t *elm_hw_probe;
+	sdlahw_cpu_t    *elm_hw_cpu;
+	sdlahw_card_t   *elm_hw_card;
+    int				skip=0;
+	int 			err=0;
+
+	skip=0;
+
 	elm_hw_cpu = WAN_LIST_FIRST(&sdlahw_cpu_head);
 	while(elm_hw_cpu){
 		sdlahw_cpu_t	*tmp = elm_hw_cpu;
 		elm_hw_cpu = WAN_LIST_NEXT(elm_hw_cpu, next);
+
+		if (tmp->used) {
+         	DEBUG_EVENT("%s: %s() hw_cpu used %i skipping\n",tmp->hwcard->name,__FUNCTION__,tmp->used);
+			skip++;
+			err++;
+			continue;
+		}
+
 		if (sdla_hwdev_common_unregister(tmp) == -EBUSY){
 			return -EBUSY;
 		}
@@ -742,39 +752,88 @@ int sdladrv_exit (void *arg)
 			return -EBUSY;
 		}
 	}
-	WAN_LIST_INIT(&sdlahw_cpu_head);
+	if (skip == 0) {
+		WAN_LIST_INIT(&sdlahw_cpu_head);
+    }
+
+	skip=0;
 
 	elm_hw_card = WAN_LIST_FIRST(&sdlahw_card_head);
 	while(elm_hw_card){
 		sdlahw_card_t	*tmp = elm_hw_card;
 		elm_hw_card = WAN_LIST_NEXT(elm_hw_card, next);
+
+        if (tmp->used) {
+         	DEBUG_EVENT("%s: %s() hw_card used %i skipping\n",tmp->name,__FUNCTION__,tmp->used);
+			skip++;
+			err++;
+			continue;
+		}  
+
 		if (sdla_card_unregister(tmp) == -EBUSY){
 			return -EBUSY;
 		}
 	}
-	WAN_LIST_INIT(&sdlahw_card_head);
+	
+	if (skip == 0) {
+		WAN_LIST_INIT(&sdlahw_card_head);
+	}
+
+	skip=0;
 
 	elm_hw_probe = WAN_LIST_FIRST(&sdlahw_probe_head);
 	while(elm_hw_probe){
 		sdla_hw_probe_t	*tmp = elm_hw_probe;
 		elm_hw_probe = WAN_LIST_NEXT(elm_hw_probe, next);
-		if (tmp->internal_used){
+		
+		if (tmp->internal_used || tmp->used){
 			DEBUG_EVENT("sdladrv: HW probe info is in used (%s)\n",
 					tmp->hw_info);
-			return -EBUSY;
+			skip++;
+			err++;
+			continue;
 		}
+
 		WAN_LIST_REMOVE(tmp, next);
 		wan_free(tmp);
+	}        
+
+	if (err) {
+	 	return -EBUSY;
+	} else {
+		return 0;
+    }
+}
+
+
+/*============================================================================
+ * Module de-init point.
+ * o release all remaining system resources
+ */
+int sdladrv_exit (void *arg)
+{
+	int err=0;
+
+	DEBUG_MOD("Unloading SDLADRV module ...\n");
+
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	sdla_usb_exit();
+#endif
+
+	err=sdla_hw_probe_free();
+	if (err) {
+     	return err;
 	}
 
-#if defined(WAN_DEBUG_MEM)
-	sdla_memdbg_free();
-#endif	
 
 #if defined(__LINUX__)
 	wp_logger_delete();
     wanpipe_global_cdev_free();   
 #endif
+
+#if defined(WAN_DEBUG_MEM)
+	sdla_memdbg_free();
+#endif	
 	
 	return 0;
 }
@@ -836,7 +895,7 @@ static __inline void SDLA_PROBE_SPRINT(char *str,...)
 	"|ID=%s|SLOT=%d|BUS=%d|IRQ=%d|CPU=%c|PORT=%d|HWEC=%d|V=%02X"
 
 #define SDLA_HWPROBE_A200_SH_FORMAT                     \
-        "%-10s : SLOT=%d : BUS=%d : IRQ=%d : CPU=%c : PORT=%s : HWEC=%d : V=%02X"
+    "%-10s : SLOT=%d : BUS=%d : IRQ=%d : CPU=%c : PORT=%s : HWEC=%d : V=%02X"
 #define SDLA_HWPROBE_A200_SH_FORMAT_DUMP			\
 	"|ID=%s|SLOT=%d|BUS=%d|IRQ=%d|CPU=%c|PORT=%s|HWEC=%d|V=%02X"
 
@@ -848,7 +907,7 @@ static __inline void SDLA_PROBE_SPRINT(char *str,...)
 #define SDLA_HWPROBE_USB_FORMAT				\
 	"%-10s : BUSID=%s : V=%02X"
 #define SDLA_HWPROBE_USB_FORMAT_DUMP				\
-	"ID=%s|BUSID=%s|V=%02X"
+	"|ID=%s|BUSID=%s|V=%02X"
 
 static int
 sdla_save_hw_probe (sdlahw_t* hw, int port)
@@ -867,9 +926,13 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 	memset(hwprobe->hw_info, '\0', 100);
 	memset(hwprobe->hw_info_verbose, '\0', 500);
 	memset(hwprobe->hw_info_dump, 0, sizeof(hwprobe->hw_info_dump));
-
+	
 	hwcpu = hw->hwcpu;
+
+
 	if (IS_HWCARD_PCI(hwcpu->hwcard)){
+
+
 		switch(hwcpu->hwcard->adptr_type){
 		case A101_ADPTR_1TE1:
 		case A101_ADPTR_2TE1:
@@ -886,6 +949,8 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					hwcpu->hwcard->hwec_chan_no,
 					hwcpu->hwcard->core_rev);
 
+				port=hw->line_no;
+
 			}else{
 				/*sprintf(tmp_hw_probe->hw_info,*/
 				SDLA_PROBE_SPRINT(hwprobe->hw_info,
@@ -898,6 +963,8 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					SDLA_GET_CPU(hwcpu->cpu_no), 
 					hw->line_no ? "SEC" : "PRI",
 					hwcpu->hwcard->core_rev);
+				
+				port=hw->line_no;
 			}
 			break;
 		
@@ -915,6 +982,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					hw->line_no+1,			/* line_no */
 					hwcpu->hwcard->hwec_chan_no,
 					hwcpu->hwcard->core_rev);
+				port=hw->line_no;
 			}else{
 				SDLA_PROBE_SPRINT(hwprobe->hw_info,
 					sizeof(hwprobe->hw_info),
@@ -927,6 +995,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					hw->line_no+1,
 					hwcpu->hwcard->core_rev
 					);		/* line_no */
+				port=hw->line_no;
 			}
 			break;
 
@@ -944,6 +1013,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 				hw->line_no ? "SEC" : "PRI",
 				hwcpu->hwcard->hwec_chan_no,
 				hwcpu->hwcard->core_rev);
+				port=hw->line_no;
 			break;
 		case AFT_ADPTR_A600:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
@@ -962,6 +1032,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					hw->line_no+1,          /* Physical line number */
 					hwcpu->hwcard->hwec_chan_no,
 					hwcpu->hwcard->core_rev);
+				port=hw->line_no;
            break;
 		case A300_ADPTR_U_1TE3:
 			if (hwcpu->hwcard->adptr_subtype == AFT_SUBTYPE_SHARK){
@@ -975,6 +1046,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					SDLA_GET_CPU(hwcpu->cpu_no), 
 					hw->line_no+1,
 					hwcpu->hwcard->core_rev);		/* line_no */
+				port=hw->line_no;
 
 			}else{
 				SDLA_PROBE_SPRINT(hwprobe->hw_info,
@@ -1007,6 +1079,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					SDLA_GET_CPU(hwcpu->cpu_no), 
 					hw->line_no+1,
 					hwcpu->hwcard->core_rev);		/* line_no */
+				port=hw->line_no;
 
 			}else{
 				SDLA_PROBE_SPRINT(hwprobe->hw_info,
@@ -1031,6 +1104,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					hw->line_no+1,			/* Physical line number */
 					hwcpu->hwcard->hwec_chan_no,
 					hwcpu->hwcard->core_rev);
+				port=hw->line_no;
 			break;
 		case AFT_ADPTR_FLEXBRI:
 			SDLA_PROBE_SPRINT(hwprobe->hw_info, 
@@ -1043,6 +1117,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					hw->line_no+1,			/* Physical line number */
 					hwcpu->hwcard->hwec_chan_no,
 					hwcpu->hwcard->core_rev);
+				port=hw->line_no;
 			break;
 		case AFT_ADPTR_2SERIAL_V35X21:
 		case AFT_ADPTR_4SERIAL_V35X21:
@@ -1058,6 +1133,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					SDLA_GET_CPU(hwcpu->cpu_no), 
 					hw->line_no+1,
 					hwcpu->hwcard->core_rev);		/* line_no */
+				port=hw->line_no;
 			break;
 		default:
 			/*sprintf(tmp_hw_probe->hw_info,*/
@@ -1072,6 +1148,17 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 				port ? "SEC" : "PRI");
 			break;
 		}
+
+#if 0
+		if (wan_index_map[port][hwcpu->hwcard->u_pci.slot_no][hwcpu->hwcard->u_pci.bus_no] == 0) {
+			wan_index_cnt++;
+			wan_index_map[port][hwcpu->hwcard->u_pci.slot_no][hwcpu->hwcard->u_pci.bus_no]=wan_index_cnt;
+		}
+        hwprobe->index = wan_index_map[port][hwcpu->hwcard->u_pci.slot_no][hwcpu->hwcard->u_pci.bus_no];
+#else
+	    hwprobe->index = 0; 
+#endif
+
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 	}else if (hwcpu->hwcard->hw_type == SDLA_USB_CARD){
 		SDLA_PROBE_SPRINT(hwprobe->hw_info, sizeof(hwprobe->hw_info),
@@ -4194,7 +4281,7 @@ sdla_card_register(u8 hw_type, int bus_no, int slot_no, int ioport, char *bus_id
 
 	new_hwcard = sdla_card_search(hw_type, bus_no, slot_no, ioport, bus_id);
 	if (new_hwcard){
-		DEBUG_EVENT("%s: Card is already exists!\n", __FUNCTION__);
+		DEBUG_EVENT("%s: Sangoma card already exists!\n", __FUNCTION__);
 		sdla_card_info(new_hwcard);
 		return NULL;
 	}
@@ -4207,16 +4294,18 @@ sdla_card_register(u8 hw_type, int bus_no, int slot_no, int ioport, char *bus_id
 	new_hwcard->hw_type	= hw_type;
 	switch(new_hwcard->hw_type){
 	case SDLA_ISA_CARD:
+		snprintf(new_hwcard->name, sizeof(new_hwcard->name),  "sdla-isa-port:%d", ioport);
 		new_hwcard->u_isa.ioport 	= ioport;
 		break;
 	case SDLA_PCI_CARD:
+		snprintf(new_hwcard->name, sizeof(new_hwcard->name), "sdla-pci-bus:%d-slot:%d", bus_no,slot_no);
 		new_hwcard->u_pci.bus_no  	= bus_no;
 		new_hwcard->u_pci.slot_no	= slot_no;
 		break;     
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)  
 	case SDLA_USB_CARD:
 //		new_hwcard->u_usb.devnum  	= bus_no;
-		sprintf(new_hwcard->name, "sdla-%s", bus_id);
+		snprintf(new_hwcard->name, sizeof(new_hwcard->name), "sdla-usb-bus:%s", bus_id);
 		sprintf(new_hwcard->u_usb.bus_id, "%s", bus_id);         
 		break;
 #endif
@@ -4951,6 +5040,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	hw->hwport[(conf)?conf->comm_port:hw->used].devname = devname;
 	hw->used++;
 	hw->hwcpu->used++;
+	hw->hwcpu->hwcard->used++;
 	
 	hw->hwcpu->lines_info[hw->cfg_type].usage++;
 	if (hw->hwcpu->lines_info[hw->cfg_type].usage == 1) {
@@ -5034,6 +5124,7 @@ int sdla_unregister(void** p_hw, char* devname)
 
 	hw->used--;
 	hw->hwcpu->used--;
+	hw->hwcpu->hwcard->used--;
 	hw->hwcpu->lines_info[hw->cfg_type].usage--;	
 
 	if (!hw->used){

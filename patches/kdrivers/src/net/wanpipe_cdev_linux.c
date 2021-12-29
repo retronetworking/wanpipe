@@ -88,6 +88,11 @@ static int wanpipe_create_cdev(wanpipe_cdev_t *cdev, int minor, int *counter);
 static int wanpipe_free_cdev(wanpipe_cdev_t *cdev, int minor, int *counter);
 static int wp_cdev_open(struct inode *inode, struct file *file);
 static int wp_cdev_release(struct inode *inode, struct file *file);
+
+static int wan_verify_iovec(wan_msghdr_t *m, wan_iovec_t *iov, char *address, int mode);
+static int wan_memcpy_fromiovec(unsigned char *kdata, wan_iovec_t *iov, int len);
+static int wan_memcpy_toiovec(wan_iovec_t *iov, unsigned char *kdata, int len);
+
 static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_t *ppos);
 static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count, loff_t *ppos);
 static WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wp_cdev_ioctl, struct file *file, unsigned int cmd, unsigned long data);
@@ -828,6 +833,69 @@ static unsigned int wp_cdev_poll(struct file *file, struct poll_table_struct *wa
 	}
 
 	return status;
+}
+
+static int wan_verify_iovec(wan_msghdr_t *m, wan_iovec_t *iov, char *address, int mode)
+{
+	int size, err, ct;
+	if (m->msg_iovlen == 0) {
+		return -EMSGSIZE;
+	}
+
+	size = m->msg_iovlen * sizeof(wan_iovec_t);
+
+	if (copy_from_user(iov, m->msg_iov, size))
+		return -EFAULT;
+
+	m->msg_iov = iov;
+	err = 0;
+
+	for (ct = 0; ct < m->msg_iovlen; ct++) {
+		err += iov[ct].iov_len;
+		/*
+		* Goal is not to verify user data, but to prevent returning
+		* negative value, which is interpreted as errno.
+		* Overflow is still possible, but it is harmless.
+		*/
+		if (err < 0)
+			return -EMSGSIZE;
+	}
+	
+	return err;
+}
+
+static int wan_memcpy_fromiovec(unsigned char *kdata, wan_iovec_t *iov, int len)
+{
+	while (len > 0) {
+		if (iov->iov_len) {
+			int copy = min_t(unsigned int, len, iov->iov_len);
+			if (copy_from_user(kdata, iov->iov_base, copy))
+				return -EFAULT;
+			len -= copy;
+			kdata += copy;
+			iov->iov_base += copy;
+			iov->iov_len -= copy;
+		}
+		iov++;
+	}
+	return 0;
+}
+
+static int wan_memcpy_toiovec(wan_iovec_t *iov, unsigned char *kdata, int len)
+{
+	while (len > 0) {
+		if (iov->iov_len) {
+			int copy = min_t(unsigned int, iov->iov_len, len);
+			if (copy_to_user(iov->iov_base, kdata, copy))
+				return -EFAULT;
+			kdata += copy;
+			len -= copy;
+			iov->iov_len -= copy;
+			iov->iov_base += copy;
+		}
+		iov++;
+	}
+	return 0;
 }
 
 EXPORT_SYMBOL(wanpipe_global_cdev_init);

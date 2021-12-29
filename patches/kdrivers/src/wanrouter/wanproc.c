@@ -798,9 +798,25 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	     hw_probe;
 	     hw_probe = WAN_LIST_NEXT(hw_probe, next)) {
 
+		if (hw_probe->index) {
+			if (hw_probe->index > i) {
+             	i=hw_probe->index;
+			}
+		PROC_ADD_LINE(m, 
+		       "%-2d. %s\n", hw_probe->index, hw_probe->hw_info);
+		}
+	}
+	
+	hw_probe = (sdla_hw_probe_t *)sdla_get_hw_probe();	
+	for (;
+	     hw_probe;
+	     hw_probe = WAN_LIST_NEXT(hw_probe, next)) {
+
+		if (!hw_probe->index) {
 		i++;
 		PROC_ADD_LINE(m, 
 		       "%-2d. %s\n", i, hw_probe->hw_info);
+		}
 	}
 
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
@@ -942,13 +958,33 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 	     hw_probe;
 	     hw_probe = WAN_LIST_NEXT(hw_probe, next)) {
 
-		i++;
-		PROC_ADD_LINE(m, 
-		       "%-2d. %s", i, hw_probe->hw_info);
-		PROC_ADD_LINE(m, 
-		       "%s\n", hw_probe->hw_info_verbose); 
+		if (hw_probe->index) {
+			if (hw_probe->index > i) {
+             	i=hw_probe->index;
+			}
+			PROC_ADD_LINE(m, 
+				   "%-2d. %s", hw_probe->index, hw_probe->hw_info);
+			PROC_ADD_LINE(m, 
+				   "%s\n", hw_probe->hw_info_verbose); 
+		}
 	}
+	
+	hw_probe = (sdla_hw_probe_t *)sdla_get_hw_probe();	
+	
+	for (;
+	     hw_probe;
+	     hw_probe = WAN_LIST_NEXT(hw_probe, next)) {
 
+		if (!hw_probe->index) {
+			i++;
+
+			PROC_ADD_LINE(m, 
+		       "%-2d. %s", i, hw_probe->hw_info);
+			PROC_ADD_LINE(m, 
+		       "%s\n", hw_probe->hw_info_verbose); 
+		}
+	}
+	
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
 	PROC_ADD_LINE(m, "\nCard Cnt: ");
@@ -1030,9 +1066,24 @@ static int probe_get_info_dump(char* buf, char** start, off_t offs, int len, int
 	     hw_probe;
 	     hw_probe = WAN_LIST_NEXT(hw_probe, next)) {
 
+		if (hw_probe->index) {
+			if (hw_probe->index > i) {
+             	i=hw_probe->index;
+			}
+		PROC_ADD_LINE(m, 
+		       "|%d%s\n", hw_probe->index, hw_probe->hw_info_dump);
+		}
+	}
+	hw_probe = (sdla_hw_probe_t *)sdla_get_hw_probe();	
+	for (;
+	     hw_probe;
+	     hw_probe = WAN_LIST_NEXT(hw_probe, next)) {
+
+		if (!hw_probe->index) {
 		i++;
 		PROC_ADD_LINE(m, 
 		       "|%d%s\n", i, hw_probe->hw_info_dump);
+		}
 	}
 
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	

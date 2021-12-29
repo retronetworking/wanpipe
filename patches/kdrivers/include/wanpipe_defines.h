@@ -410,6 +410,9 @@ typedef int			wan_ioctl_cmd_t;
 # define WP_SCHEDULE(arg,name)	WP_MILLISECONDS_DELAY(arg)
 # define WAN_IFT_OTHER		0x00
 
+/* this pseudo lock is used only for debugging of LIP layer */
+#define wan_rwlock_init(plock)  *(plock)=RW_LOCK_UNLOCKED;
+
 #endif /* __WINDOWS__ */
 
 #if defined(__FreeBSD__)

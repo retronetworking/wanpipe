@@ -14,19 +14,25 @@ OS_TYPE=$(shell if [ 1 -eq `uname | grep -c "CYGWIN"` ]; then echo "__WINDOWS__"
 
 ifeq "$(OS_TYPE)" "__LINUX__"
 
-DEBUG	= 2
-SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
-ifeq "$(SYSINC)" "" 
-SYSINC=/common/include
+WANECDIR=../../patches/kdrivers/wanec
+ifeq (,$(wildcard $(WANECDIR)))
+	WANECDIR=../../wanec
 endif
-VPATH	= $(SYSINC)
+
+SYSINC=../../patches/kdrivers/include
+ifeq (,$(wildcard $(SYSINC)))
+	SYSINC=../../include
+endif    
+
+REPODIR=../../../code/include
+
+DEBUG	= 2
 
 # Tools options.
 CFLAGS	= -Wall -O2 -D$(OS_TYPE) -DWANPIPE_TDM_API -D_DEBUG_=$(DEBUG) -D_GNUC_ -g 
 
-CFLAGS	+= -I.
+CFLAGS	+= -I.  -I../../include/ -L$(PWD)/../.lib  -I$(SYSINC) -I$(SYSINC)/aft_core -I$(REPODIR) -I../libsangoma/wanec -I$(WANECDIR) -I$(WANECDIR)/oct6100_api/include 
 CFLAGS  += -I/usr/include/wanpipe
-
 
 LDFLAGS  = -lsangoma
 LDFLAGS += -lm
@@ -59,6 +65,8 @@ all:	$(TARGETS)
 
 wan_fxotune: wan_fxotune.c libteletone_generate.c
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS) 
+
+install:
 
 clean:
 	rm -f $(TARGETS) *.ilk *.obj *.pdb

@@ -1,23 +1,20 @@
-
+/* wan_mem_debug.c - Memory Debug Code */
 #include "wanpipe_includes.h"
 #include "wanpipe_defines.h"
 #include "wanpipe_debug.h"
 #include "wanpipe_common.h"
 #include "wanpipe.h"
 
-#include "sdlasfm.h"	/* SDLA firmware module definitions */
-#include "sdlapci.h"	/* SDLA PCI hardware definitions */
-#include "sdladrv.h"	/* API definitions */
 
+/****************************************************************************/
 
-/*****************************************************************************/
-/* Memory Debug Code
-*/
+#if defined(WAN_DEBUG_MEM)
 
-# if defined(WAN_DEBUG_MEM)
+static unsigned int wan_debug_mem = 0;
 
-static int wan_debug_mem;
-
+#if defined(__WINDOWS__)
+static
+#endif
 wan_spinlock_t wan_debug_mem_lock;
 EXPORT_SYMBOL(wan_debug_mem_lock);
 
@@ -33,13 +30,7 @@ typedef struct sdla_memdbg_el
 	WAN_LIST_ENTRY(sdla_memdbg_el)	next;
 }sdla_memdbg_el_t;
 
-#if defined(__WINDOWS__)
-int __sdla_memdbg_init(void);
-int __sdla_memdbg_free(void);
-#else
-int sdla_memdbg_init(void);
-int sdla_memdbg_free(void);
-#endif
+
 
 #if defined(__WINDOWS__)
 int __sdla_memdbg_init(void)
@@ -49,6 +40,7 @@ int sdla_memdbg_init(void)
 {
 	wan_spin_lock_init(&wan_debug_mem_lock,"wan_debug_mem_lock");
 	WAN_LIST_INIT(&sdla_memdbg_head);
+	wan_debug_mem = 0;
 	return 0;
 }
 
@@ -172,7 +164,8 @@ int sdla_memdbg_free(void)
 	int total=0;
 	int leaked_buffer_counter=0;
 
-	DEBUG_EVENT("sdladrv: Memory Still Allocated=%i \n",
+
+	DEBUG_EVENT("sdladrv: Memory Still Allocated=%i Bytes\n",
 			 wan_debug_mem);
 
 	DEBUG_EVENT("=====================BEGIN================================\n");
@@ -197,10 +190,10 @@ int sdla_memdbg_free(void)
 	}
 
 	DEBUG_EVENT("=====================END==================================\n");
-	DEBUG_EVENT("sdladrv: Memory Still Allocated=%i  Leaks Found=%i Missing=%i leaked_buffer_counter=%i\n",
+	DEBUG_EVENT("sdladrv: Memory Still Allocated=%i  Leaks Accounted for=%i Missing Leaks=%i leaked_buffer_counter=%i\n",
 			 wan_debug_mem, total, wan_debug_mem - total, leaked_buffer_counter);
 
 	return 0;
 }
 
-# endif
+#endif	/* WAN_DEBUG_MEM */

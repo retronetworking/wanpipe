@@ -438,6 +438,7 @@ if($usb_device_support == $TRUE && $os_type_list =~ m/Linux/) {
 if( $is_tdm_api == $FALSE ) {
 	config_tdmv_dummy();
 }
+
 update_module_load();
 summary();
 apply_changes();
@@ -733,7 +734,10 @@ sub config_ztcfg_start{
 }
 
 sub config_smg_ctrl_start{
-		
+	if( $is_fs == $FALSE ) {
+		return;
+	}
+	
 	if(($num_bri_devices == 0) && ($num_digital_smg == 0)){
 		return;
 	}
@@ -840,19 +844,21 @@ sub apply_changes{
 
         	gen_wanrouter_rc();
 			if( $num_bri_devices != 0 | $num_digital_smg != 0) { 
-				gen_smg_rc();
+				if($is_fs == $TRUE){
+					gen_smg_rc();
+				}
 			}
         	print "\nCopying new Wanpipe configuration files...\n";
         	copy_config_files();
-        	if($num_bri_devices != 0){
+        	if(($num_bri_devices != 0) && ($is_fs == $TRUE)){
 			if($is_trillium == $FALSE){
-	                	print "\nCopying new sangoma_brid configuration files ($bri_conf_file_t)...\n";
+	                	print "\nCopying new sangoma_bri configuration files ($bri_conf_file_t)...\n";
         	        	exec_command("cp -f $bri_conf_file $bri_conf_file_t");
 			}
 		}
-			if(($num_bri_devices != 0 | $num_digital_smg !=0) &&$config_woomera == $TRUE) {
-                exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
-			}
+		if(($num_bri_devices != 0 | $num_digital_smg !=0) &&$config_woomera == $TRUE) {
+                	exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
+		}
         	if ($zaptel_dahdi_installed==$TRUE){
                 	if($config_zaptel==$TRUE){
                         	if ($num_zaptel_config !=0){
@@ -871,11 +877,11 @@ sub apply_changes{
                 print "Saving files only\n";
 
 		if ($os_type_list =~ m/FreeBSD/){
-        	config_boot_freebsd();
+        		config_boot_freebsd();
 		} else {
         		config_boot_linux();
-				config_smg_ctrl_boot();
-			}
+			config_smg_ctrl_boot();
+		}
 
                 exit 0;
 	}
@@ -894,7 +900,7 @@ sub apply_changes{
 			$asterisk_command='stop now';
 		}
 	} else {
-		$asterisk_command='stop when convenient';
+		$asterisk_command='core stop when convenient';
 	}
 
 	if ($res =~ m/Restart/){
@@ -942,7 +948,9 @@ sub apply_changes{
 	if ($is_trillium == $FALSE){
 		if($is_tdm_api==$FALSE) {
 			if(-f "/usr/sbin/smg_ctrl" ){
-				exec_command("/usr/sbin/smg_ctrl stop");
+				if( $is_fs == $TRUE ) {
+					exec_command("/usr/sbin/smg_ctrl stop");
+				}
 			}
 		}
 	}
@@ -967,16 +975,18 @@ sub apply_changes{
 	if($is_trillium == $FALSE){
 		if ($is_tdm_api == $FALSE){
 			if( $num_bri_devices != 0 | $num_digital_smg != 0) { 
-				gen_smg_rc();
+				if($is_fs == $TRUE){
+					gen_smg_rc();
+				}
 			}
 		}
 	}
 	print "\nCopying new Wanpipe configuration files...\n";
 	copy_config_files();
-	if($num_bri_devices != 0){
+	if(($num_bri_devices != 0)&&($is_fs == $TRUE)){
 		if($is_trillium == $FALSE){
 			if($is_tdm_api == $FALSE){
-				print "\nCopying new sangoma_brid configuration files ($bri_conf_file_t)...\n";
+				print "\nCopying new sangoma_bri configuration files ($bri_conf_file_t)...\n";
 				exec_command("cp -f $bri_conf_file $bri_conf_file_t");
 				if($config_woomera == $TRUE){
 					exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
@@ -1013,7 +1023,7 @@ sub apply_changes{
 	
 	if ($num_digital_smg !=0 || $num_bri_devices !=0){
 		if ($is_trillium == $FALSE){
-			if($is_tdm_api == $FALSE){
+			if(($is_tdm_api == $FALSE) && ($is_fs == $TRUE)){
 				print "\nCopying new smg.rc configuration files ($smg_rc_file_t)...\n";
 				exec_command("cp -f $smg_rc_file $smg_rc_file_t");
 			}
@@ -1046,7 +1056,7 @@ sub apply_changes{
 		print "\nStarting Wanpipe...\n";
 		exec_command("wanrouter start");
 
-		if($num_bri_devices != 0){
+		if(($num_bri_devices != 0) && ($is_fs == $TRUE)){
 			print "Loading SMG BRI...\n";
 			sleep 2;
 			exec_command("/usr/sbin/smg_ctrl start");
@@ -1505,10 +1515,6 @@ sub summary{
 				write_pri_conf();
 			}
 		}
-		
-		if ($num_bri_devices != 0 ){
-			write_bri_conf();
-		}
 		if( $config_woomera == $TRUE && ($num_bri_devices != 0 | $num_digital_smg != 0)) { 
 			write_woomera_conf();
 		}
@@ -1521,6 +1527,10 @@ sub summary{
 	
 
 		if($is_fs == $TRUE) {
+			if ($num_bri_devices != 0 ){
+				write_bri_conf();
+			}
+
 			if($is_trillium == $FALSE){
 				if($num_digital_devices != 0){
 					write_pri_conf();
@@ -1560,7 +1570,7 @@ sub summary{
 		$file_list++;
 		
 		if (($num_bri_devices != 0) && ($is_trillium == $FALSE)){
-			if($is_tdm_api == $FALSE){
+			if(($is_tdm_api == $FALSE) && ($is_fs == $TRUE) ){
 				print "\t$file_list. sangoma_brid config file $wanpipe_conf_dir/smg_bri\n";
 				$file_list++;
 			}
@@ -1595,7 +1605,7 @@ sub summary{
 		}
 				
 		if (($num_digital_smg !=0 || $num_bri_devices !=0) && ($is_trillium == $FALSE)){
-			if($is_tdm_api == $FALSE){
+			if(($is_tdm_api == $FALSE) && ($is_fs == $TRUE) ){
 				print "\t$file_list. smg.rc config file $wanpipe_conf_dir/smg.rc\n";
 				$file_list++
 			}
@@ -2091,9 +2101,6 @@ sub get_bri_conn_type{
 
 
 sub config_bri{
-	if($is_smg!=$TRUE && $is_trixbox==$FALSE &&  $is_fs==$FALSE && $is_tdm_api==$FALSE){
-		return;
-	}
 	my $a50x;
 	if (!$first_cfg && $silent==$FALSE) {
 		system('clear');
@@ -2105,13 +2112,15 @@ sub config_bri{
 	my $skip_card=$FALSE;
 	$zaptel_conf.="\n";
 	$zapata_conf.="\n";
+	
 	foreach my $dev (@hwprobe) {
 		if ( $dev =~ /.*AFT-A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*PORT=(\d+).*HWEC=(\w+).*/ ||
 			 $dev =~ /.*AFT-B(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*PORT=(\d+).*HWEC=(\w+).*/){
 			$skip_card=$FALSE;
 			if ($1 eq '500' || ($1 eq '700' && $5 < '5')){
 				my $card = eval {new Card(); } or die ($@);
-
+				
+				$card->first_chan($current_zap_channel);
 				$card->current_dir($current_dir);
 				$card->cfg_dir($cfg_dir);
 				$card->device_no($devnum);
@@ -2119,6 +2128,11 @@ sub config_bri{
 				$card->pci_slot($3);
 				$card->pci_bus($4);
 				
+				if($dahdi_installed == $TRUE) {
+					$card->dahdi_conf('YES');
+					$card->dahdi_echo($dahdi_echo)
+				}
+
 				my $hwec=0;
 				if($6 gt 0){
 					$hwec=1;	
@@ -2137,7 +2151,7 @@ sub config_bri{
 					if ($silent==$FALSE) {
 						system('clear');
 						print "\n-----------------------------------------------------------\n";
-						print "A$1 detected on slot:$3 bus:$4\n";
+						printf("AFT-%s detected on slot:$3 bus:$4\n", get_card_name($card->card_model));
 						print "-----------------------------------------------------------\n";
 					}
 				
@@ -2154,7 +2168,11 @@ select_bri_option:
 					
 					if($def_bri_option eq 'YES'){
 						$skip_card=$FALSE;
-						$bri_conf.="\n;Sangoma AFT-".get_card_name($1)." port $5 [slot:$3 bus:$4 span:$current_tdmapi_span]";
+						if ($is_fs == $TRUE) {
+							$bri_conf.="\n;Sangoma AFT-".get_card_name($1)." port $5 [slot:$3 bus:$4 span:$current_tdmapi_span]";
+						} else {
+							$bri_conf.="\n;Sangoma AFT-".get_card_name($1)." port $5 [slot:$3 bus:$4 span:$current_zap_span]";
+						}
 					}elsif($def_bri_option eq 'NO'){
 						$skip_card=$TRUE;
 					}else{
@@ -2174,8 +2192,15 @@ select_bri_option:
 						$a50x->fe_line($5);
 						$devnum++;
 						$num_bri_devices++;
-						$card->tdmv_span_no($current_tdmapi_span);
-						$current_tdmapi_span++;
+						if ($is_fs == $TRUE) {
+							$card->tdmv_span_no($current_tdmapi_span);
+							$current_tdmapi_span++;
+						} else {
+							$num_zaptel_config++;
+							$card->tdmv_span_no($current_zap_span);
+							$current_zap_span++;
+							$current_zap_channel+=3;
+						}
 						if ($silent==$FALSE){
 							if ($card->hwec_mode eq "YES"){
 								$card->hw_dtmf(&prompt_hw_dtmf());
@@ -2201,8 +2226,15 @@ select_bri_option:
 	 		my $group="";
 			my $bri_pos=$a50x->card->tdmv_span_no;
 			
-			printf("\nConfiguring port %d on AFT-%s [slot:%d bus:%d span:%d]\n", $a50x->fe_line(), get_card_name($a50x->card->card_model()), $a50x->card->pci_slot(), $a50x->card->pci_bus(), $current_tdmapi_span-1);
-			my $conn_type=get_bri_conn_type($a50x->fe_line());
+			if ($is_fs == $TRUE) {
+				printf("\nConfiguring port %d on AFT-%s [slot:%d bus:%d span:%d]\n", $a50x->fe_line(), get_card_name($a50x->card->card_model()), $a50x->card->pci_slot(), $a50x->card->pci_bus(), $current_tdmapi_span-1);
+			} else {
+				printf("\nConfiguring port %d on AFT-%s [slot:%d bus:%d span:%d]\n", $a50x->fe_line(), get_card_name($a50x->card->card_model()), $a50x->card->pci_slot(), $a50x->card->pci_bus(), $current_zap_span-1);
+			}
+			my $conn_type="";
+			if( $is_fs == $TRUE | $dev =~ /(\d+):TE/ ){
+				$conn_type=get_bri_conn_type($a50x->fe_line());
+			}
 			my $country=get_bri_country();
 			my $operator=get_bri_operator();
 			if( ($is_trixbox==$TRUE && $silent==$FALSE)){
@@ -2222,24 +2254,24 @@ select_bri_option:
 					$group=1;
 				}
 				
-			}else {
-				if ($is_tdm_api == $FALSE){
-					$group=get_woomera_group();
-					#if a context has already been assigned to this group, do not prompt for options
-					foreach my $f_group (@woomera_groups) {
-						if($f_group eq $group){
-							$context="WOOMERA_NO_CONFIG";
-						}
-					}			
-					if(!($context eq "WOOMERA_NO_CONFIG")){
-						if ( $dev =~ /(\d+):NT/ ){	
-							$context=get_woomera_context($group, $a50x->card->card_model(),$a50x->fe_line(),'bri_nt');
-						} else {
-					 		$context=get_woomera_context($group, $a50x->card->card_model(),$a50x->fe_line(),'bri_te');
-						}
-						push(@woomera_groups, $group);
-
+			} elsif ($is_fs == $FALSE) {
+				$group=get_woomera_group();
+				$context=get_zapata_context();
+			}else {	
+				$group=get_woomera_group();
+				#if a context has already been assigned to this group, do not prompt for options
+				foreach my $f_group (@woomera_groups) {
+					if($f_group eq $group){
+						$context="WOOMERA_NO_CONFIG";
 					}
+				}			
+				if(!($context eq "WOOMERA_NO_CONFIG")){
+					if ( $dev =~ /(\d+):NT/ ){	
+						$context=get_woomera_context($group, $a50x->card->card_model(),$a50x->fe_line(),'bri_nt');
+					} else {
+					 	$context=get_woomera_context($group, $a50x->card->card_model(),$a50x->fe_line(),'bri_te');
+					}
+					push(@woomera_groups, $group);
 				}
 			}
 			if ($os_type_list =~ m/FreeBSD/){
@@ -2255,10 +2287,11 @@ select_bri_option:
 				if($is_fs == $TRUE) {
 					my $boostspan = eval { new boostspan();} or die ($@);
 					my $openzapspan = $current_tdmapi_span-1;
+
 					$boostspan->span_type('NT');
 					$boostspan->span_no("$openzapspan");
 					$boostspan->chan_no('1-2');
-					$boostspan->trunk_type($conn_type);
+					$boostspan->trunk_type('bri');
 				#	$boostspan->print();
 					push(@boostbrispan,$boostspan);
 				}
@@ -2281,26 +2314,43 @@ select_bri_option:
 				} else { 
 					$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_te", $group, $country, $operator, $conn_type, $current_bri_default_tei);
 				}
+
 				if($is_fs == $TRUE) {
 					my $boostspan = eval { new boostspan();} or die ($@);
 					my $openzapspan = $current_tdmapi_span-1;
 					$boostspan->span_type('TE');
 					$boostspan->span_no("$openzapspan");
 					$boostspan->chan_no('1-2');
-					$boostspan->trunk_type("$conn_type");
+					$boostspan->trunk_type('bri');
 				#	$boostspan->print();
 					push(@boostbrispan,$boostspan);
 				}
 
 			}
+			
+			if ($is_fs == $FALSE) {
+                        	if ( $dev =~ /(\d+):NT/ ){
+                                	$a50x->signalling("NT");
+	                        } else {
+					if($conn_type eq "point_to_multipoint") {
+                                		$a50x->signalling("TEM");
+					} else {
+	                                	$a50x->signalling("TE");
+					}
+                        	}
+	                        $a50x->card->zap_context($context);
+                        	$a50x->card->zap_group($group);
+				$zaptel_conf.=$a50x->gen_zaptel_conf();
+				$zapata_conf.=$a50x->gen_zapata_conf();
+			}
+			
 			if(!($context eq "WOOMERA_NO_CONFIG") && $config_woomera==$TRUE){
 				$woomera_conf.=$a50x->gen_woomera_conf($group, $context);
 			}
-
 		}
 	}
 	if($num_bri_devices_total!=0){
-		print("\nISBN BRI card configuration complete\n\n");
+		print("\nISDN BRI card configuration complete\n\n");
 	} else {
 		print("\nNo Sangoma ISDN BRI cards detected\n\n");
 	}
@@ -4186,6 +4236,10 @@ sub config_smg_ctrl_boot {
 	if($num_bri_devices == 0 || $no_smgboot== $TRUE){
                 return;
         }
+	if( $is_fs == $FALSE ) {
+		return;
+	}
+
 	if($silent==$FALSE){
 		print ("Would you like $script_name to start on system boot?\n");
 		$res= &prompt_user_list("YES","NO","");
@@ -4282,13 +4336,16 @@ sub update_module_load {
 			if(!($line =~ m/woomera/)){
 				$mod_file .= $line;
 				if($line =~ m/\[modules]/) {
-					if($num_bri_devices !=0 | $num_digital_smg != 0){
-						if(-e "/usr/lib/asterisk/modules/chan_woomera.so") {
-							$mod_file .= "load=>chan_woomera.so\n";
+					if ($is_smg==$TRUE){
+						if($num_bri_devices !=0 | $num_digital_smg != 0){
+							if(-e "/usr/lib/asterisk/modules/chan_woomera.so") {
+								$mod_file .= "load=>chan_woomera.so\n";
+							}
+						}else{
+							$mod_file .= "noload=>chan_woomera.so\n";
 						}
 					}else{
 						$mod_file .= "noload=>chan_woomera.so\n";
-						
 					}
 				}
 			}

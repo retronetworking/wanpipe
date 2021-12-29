@@ -351,6 +351,7 @@ typedef struct wan_device
 	int		(*te_read_signaling_config) (void* card_id);
 	int		(*report_dtmf) (void* card_id, int, unsigned char);
 	void	(*ec_enable_timer) (void* card_id);
+	void	(*ec_clock_ctrl) (void* card_id);
 	
 	struct {
 		void	(*rbsbits) (void* card_id, int, unsigned char);
@@ -399,6 +400,8 @@ typedef struct wan_device
 	int						(*ec_enable)(void *pcard, int, int);
 	int						(*__ec_enable)(void *pcard, int, int);
 	int						(*ec_state) (void* card_id, wan_hwec_dev_state_t *ec_state);
+	int 						(*ec_tdmapi_ioctl)(void *ec_dev_t, wan_iovec_list_t *iovec_list);
+
 
 	unsigned char			(*write_ec)(void*, unsigned short, unsigned char);
 	unsigned char			(*read_ec)(void*, unsigned short);
@@ -471,6 +474,7 @@ int wanpipe_ec_isr(void*);
 int wanpipe_ec_poll(void*,void*);
 int wanpipe_ec_ready(void*);
 int wanpipe_ec_event_ctrl(void*,void*,wan_event_ctrl_t*);
+int wanpipe_ec_tdm_api_ioctl(void *pec_dev, wan_iovec_list_t *iovec_list);
 int wanpipe_wandev_create(void);
 int wanpipe_wandev_free(void);
 

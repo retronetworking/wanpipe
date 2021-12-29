@@ -31,12 +31,21 @@
 #include "wanec_iface.h"
 #include "wanpipe_events.h"
 
+#if defined(__WINDOWS__)
+# include "oct6100_api.h"
+#else
+# include "oct6100api/oct6100_api.h"
+#endif
 
-#include "oct6100api/oct6100_api.h"
 
 #define	WANEC_BYDEFAULT_NORMAL
 
-#define WANEC_API_MAX_CONFIG_POLL	20
+/* A delay, in seconds, between "is configuration complete" polls */
+#define WANEC_API_CONFIG_POLL_DELAY	1	
+/* Maximum number of polls. If firmware is not in "ready" state
+ * after the maximum number of polls, then "timeout" error declared 
+ * for HWEC chip initialization. */
+#define WANEC_API_MAX_CONFIG_POLL	WANEC_API_CONFIG_POLL_DELAY * 100
 
 #define WANEC_DEV_DIR			"/dev/"
 #define WANEC_DEV_NAME			"wanec"

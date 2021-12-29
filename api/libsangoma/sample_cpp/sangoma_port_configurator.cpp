@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////
 // sangoma_port_configurator.cpp: implementation of the sangoma_port_configurator class.
 //
-// Author	:	David Rokhvarg	<davidr@sangoma.com>
+// Author	:	David Rokhvarg
 //////////////////////////////////////////////////////////////////////
 
 #include "sangoma_port_configurator.h"
@@ -568,6 +568,23 @@ int sangoma_port_configurator::initialize_bri_tdm_span_voice_api_configration_st
 	 */
 	BRI_FE_CLK((*sdla_fe_cfg)) = WAN_MASTER_CLK;
 #endif
+
+	/*	Notes on BRI FE clock option:
+		The clock option is checked by the driver only
+		when TE becomes "Connected"/"Disconnected".
+		No check is done on Port start-up, it is always Master during start-up.
+
+		If TE becomes "Connected" and it's clock mode is Master,
+		in the wanpipelog the following message will appear from TE:
+		BRI Module: 3 connected!
+
+		If TE becomes "Connected" and it's clock mode is Normal,
+		in the wanpipelog the following messages will appear from TE:
+		BRI Module: 3 connected!
+		Setting Master Clock!
+		TE Clock line recovery Module=3 Port=1: Enabled
+		Module=3 Port=1: using 512khz from PLL
+	*/
 
     port_cfg->num_of_ifs = 1;
 

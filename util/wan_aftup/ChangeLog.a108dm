@@ -1,6 +1,15 @@
 AFT A108dm Firmware Change Log
 ===============================
 
+Release V43
+-----------
+Aug 24 2010
+Type:	Recommended A104dm Firmware
+		Fixes PCIe parity errors on some new Dell/HP/IBM servers causing 
+   		PCI fatal error messages in the logs.
+		Fixes the need for Windows to reboot after firmware update
+
+
 Release V41
 -----------
 Feb 01 2010

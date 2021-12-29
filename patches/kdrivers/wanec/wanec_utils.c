@@ -168,6 +168,10 @@ key_word_t ChannelModifyParam[] =
 	  offsetof(tOCT6100_CHANNEL_MODIFY, VqeConfig)+offsetof(tOCT6100_CHANNEL_MODIFY_VQE,lAnrSnrEnhancementDb),
 	  DTYPE_INT32 },
 
+	{ "WANEC_AecTailLength",
+	  offsetof(tOCT6100_CHANNEL_MODIFY, VqeConfig)+offsetof(tOCT6100_CHANNEL_MODIFY_VQE, ulAecTailLength),
+	  DTYPE_INT32 },
+
 	{ NULL, 0, 0 }
 };
 

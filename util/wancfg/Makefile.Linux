@@ -9,10 +9,14 @@
 
 # Build options.
 OS_TYPE	= __LINUX__
-DEBUG	= 2
+EBUG	= 2
 #these protocols defined only for Linux, not for BSD:
 PROTOCOL_DEFINES = -DCONFIG_PRODUCT_WANPIPE_LIP_ATM -DCONFIG_PRODUCT_WANPIPE_AFT_BRI
 #PROTOCOL_DEFINES += -DZAPTEL_PARSER
+
+WLINC=../../patches/kdrivers/include
+WEC=../../patches/kdrivers/wanec
+WECOCT=../../patches/kdrivers/wanec/oct6100_api/include
 
 # Project file paths. Initilize to compile in develpment environment.
 # Changed when Setup script is running.
@@ -21,14 +25,14 @@ ENABLE_ZAPTEL_PARSER=
 ZAPINC=/usr/src/zaptel
 
 ifndef SYSINC
-	SYSINC=/usr/include/wanpipe
+	SYSINC=$(WAN_VIRTUAL)/usr/include/wanpipe
 endif
 
 # Tools options.
 #CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. \
          -D__LINUX__ -DSTATIC_LIBS=$(GD_STATIC) $(OGR_STATIC) $(PROTOCOL_DEFINES)
 
-CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__  -I$(SYSINC) $(PROTOCOL_DEFINES)
+CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__  -I$(WLINC) -I$(WEC) -I$(WECOCT) -I$(SYSINC) $(PROTOCOL_DEFINES)
 
 #uncomment this to compile from CVS, also may change to your zaptel installation directory
 #CFLAGS += -I/usr/src/zaptel

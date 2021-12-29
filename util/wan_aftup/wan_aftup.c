@@ -614,11 +614,14 @@ wan_aftup_getfile_again:
 		strncat(aft->cpld.core_info->firmware, ver, strlen(ver));
 		strncat(aft->cpld.core_info->firmware, ".BIN", 4);
 	} else {
+#if 0
+		/* Allow firmware to be updated anyways on auto mode */
 		if (ver_no <= aft->flash_rev) {
 			printf ("%s: Device already at latest rev=%X\n",
 					aft->if_name,ver_no);
 			return 1;
 		}
+#endif
 	}
 	aft->flash_new = ver_no;
 

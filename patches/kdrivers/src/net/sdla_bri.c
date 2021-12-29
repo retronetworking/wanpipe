@@ -85,6 +85,8 @@
 
 #define DEBUG_LOOPB			if(0)DEBUG_EVENT
 
+#define DEBUG_TE_STATES		if(0)DEBUG_EVENT
+
 #define FIFO_THRESHOLD_INDEX	1
 
 typedef enum _nt_states{
@@ -94,6 +96,29 @@ typedef enum _nt_states{
 	NT_STATE_ACTIVE_G3,
 	NT_STATE_PENDING_DEACTIVATION_G4
 }nt_states_t;
+
+typedef enum _te_states{
+	TE_STATE_RESET_F0 = 0,
+	TE_STATE_SENSING_F2 = 2,
+	TE_STATE_DEACTIVATED_F3 = 3,
+	TE_STATE_AWAITING_SIGNAL_F4 = 4,
+	TE_STATE_IDENTIFYING_INPUT_F5 = 5,
+	TE_STATE_SYNCHRONIZED_F6 = 6,
+	TE_STATE_ACTIVATED_F7 = 7,
+	TE_STATE_LOST_FRAMING_F8 = 8
+}te_states_t;
+
+#define WP_DECODE_TE_STATE(te_state)	\
+(te_state == TE_STATE_RESET_F0) ? "TE_STATE_RESET_F0" :	\
+(te_state == TE_STATE_SENSING_F2) ? "TE_STATE_SENSING_F2" :	\
+(te_state == TE_STATE_DEACTIVATED_F3) ? "TE_STATE_DEACTIVATED_F3" :	\
+(te_state == TE_STATE_AWAITING_SIGNAL_F4) ? "TE_STATE_AWAITING_SIGNAL_F4" :	\
+(te_state == TE_STATE_IDENTIFYING_INPUT_F5) ? "TE_STATE_IDENTIFYING_INPUT_F5" :	\
+(te_state == TE_STATE_SYNCHRONIZED_F6) ? "TE_STATE_SYNCHRONIZED_F6" :	\
+(te_state == TE_STATE_ACTIVATED_F7) ? "TE_STATE_ACTIVATED_F7" :	\
+(te_state == TE_STATE_LOST_FRAMING_F8) ? "TE_STATE_LOST_FRAMING_F8" :	\
+"Invalid TE State"
+
 
 #define CHECK_DATA 0
 #if CHECK_DATA
@@ -3528,6 +3553,15 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 					new_su_state.bit.v_su_sta, new_su_state.bit.v_su_fr_sync,
 					new_su_state.bit.v_su_info0, new_su_state.bit.v_g2_g3);
 
+#if 0
+				if (port_ptr->mode & PORT_MODE_TE) {
+					DEBUG_TE_STATES("v_su_sta: 0x%02X (%s), v_su_fr_sync: %d, v_su_info0: %d, v_g2_g3: %d\n",
+						new_su_state.bit.v_su_sta, WP_DECODE_TE_STATE(new_su_state.bit.v_su_sta),
+						new_su_state.bit.v_su_fr_sync,
+						new_su_state.bit.v_su_info0,
+						new_su_state.bit.v_g2_g3);
+				}
+#endif
  				port_ptr->l1_state = new_su_state.bit.v_su_sta;
 				port_ptr->su_state = new_su_state;
 				/* Handle S/U state change. */

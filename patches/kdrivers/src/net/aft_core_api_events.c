@@ -473,7 +473,7 @@ static int aft_write_hdlc_timeout(void *chan_ptr, int lock)
 {
 	private_area_t *chan = (private_area_t *)chan_ptr;
 	sdla_t *card=chan->card;
-	wan_smp_flag_t smp_flags;
+	wan_smp_flag_t smp_flags=0;
 	
 	if (IS_BRI_CARD(card)) {
 		return 0;
@@ -574,7 +574,12 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 	}
 #endif
 
-	if ((chan->hdlc_eng || chan->sw_hdlc_mode) && chan->cfg.hdlc_repeat) {
+	if (chan->cfg.ss7_enable) {
+        	err=aft_ss7_tx_mangle(card,chan,skb,hdr);
+                if (err){
+			return err;
+		}
+	} else if ((chan->hdlc_eng || chan->sw_hdlc_mode) && chan->cfg.hdlc_repeat) {
 		err=aft_hdlc_repeat_mangle(card,chan,skb,hdr,&repeat_skb);
 		if (err) {
 			return err;
@@ -1066,9 +1071,26 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 		memcpy(&api_cmd->stats,&chan->chan_stats,sizeof(wanpipe_chan_stats_t));
 		break;
 
+	case WP_API_CMD_SS7_GET_CFG_STATUS:
+        api_cmd->ss7_cfg_status.ss7_hw_enable = chan->cfg.ss7_enable;
+        api_cmd->ss7_cfg_status.ss7_hw_mode = chan->cfg.ss7_mode;
+        api_cmd->ss7_cfg_status.ss7_hw_lssu_size = chan->cfg.ss7_lssu_size;
+        api_cmd->ss7_cfg_status.ss7_driver_repeat=chan->cfg.hdlc_repeat;
+		break;
+
 	case WP_API_CMD_RESET_STATS:
 		memset(&chan->chan_stats,0,sizeof(wanpipe_chan_stats_t));
 		memset(&chan->common.if_stats,0,sizeof(struct net_device_stats));
+		break;
+
+	case WP_API_CMD_SS7_FORCE_RX:
+		if (chan->cfg.ss7_enable) {
+			wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
+			aft_set_ss7_force_rx(card,chan);
+			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+		} else {
+			err=-EINVAL;
+		}
 		break;
 
 	case WP_API_CMD_DRIVER_VERSION:
@@ -1116,6 +1138,19 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 		card->wp_debug_chan_seq=0;
         break;
 
+	case WP_API_CMD_SET_IDLE_FLAG:
+		if(chan->tx_idle_skb){
+					
+			chan->idle_flag = (unsigned char)api_cmd->idle_flag;
+
+			memset(wan_skb_data(chan->tx_idle_skb), chan->idle_flag, wan_skb_len(chan->tx_idle_skb));
+
+		}else{
+			DEBUG_ERROR("%s: Error: WP_API_CMD_SET_IDLE_FLAG: tx_idle_skb is NULL!\n",
+				chan->if_name);
+		}
+		break;
+
 	case WP_API_CMD_FLUSH_BUFFERS:
 		{
 		netskb_t *skb;
@@ -1129,20 +1164,7 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 		}            
 		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 		}
-		break;
-
-	case WP_API_CMD_SET_IDLE_FLAG:
-		if(chan->tx_idle_skb){
-					
-			chan->idle_flag = (unsigned char)api_cmd->idle_flag;
-
-			memset(wan_skb_data(chan->tx_idle_skb), chan->idle_flag, wan_skb_len(chan->tx_idle_skb));
-
-		}else{
-			DEBUG_ERROR("%s: Error: WP_API_CMD_SET_IDLE_FLAG: tx_idle_skb is NULL!\n",
-				chan->if_name);
-		}
-		break;
+		break;             
 
 	default:
 		DEBUG_ERROR("%s: ERROR: driver_ctrl ioctl %i not supported\n",card->devname,cmd);

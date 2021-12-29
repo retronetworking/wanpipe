@@ -54,36 +54,20 @@
 #define IS_TDMV_UP(wr)			wan_test_bit(WP_TDMV_UP, &(wr)->flags)
 #define IS_TDMV_UP_RUNNING(wr)	(IS_TDMV_UP(wr) && IS_TDMV_RUNNING(wr))
 
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+# define IS_CHAN_HARDHDLC(chan)	(((chan)->flags & ZT_FLAG_NOSTDTXRX) || ((chan)->flags & ZT_FLAG_HDLC))
+#else
+# define IS_CHAN_HARDHDLC(chan)	((chan)->flags & ZT_FLAG_HDLC)
+#endif	
+
+#define wp_fax_tone_timeout_set(wr,chan) do { DEBUG_TEST("%s:%d: s%dc%d fax timeout set\n", \
+											__FUNCTION__,__LINE__, \
+											wr->spanno+1,chan+1); \
+											wr->ec_fax_detect_timeout[chan]=SYSTEM_TICKS; } while(0);
+
 /*******************************************************************************
 **			STRUCTURES AND TYPEDEFS
 *******************************************************************************/
-typedef struct {
-	int	ready;
-	int	offhook;
-	int	lastpol;
-	int	polarity;
-	int	polaritydebounce;
-	int	battery;
-	int	battdebounce;
-	int	ringdebounce;
-	int	nobatttimer;
-	int	wasringing;
-	
-	int				echotune;	/* echo tune */
-	struct wan_rm_echo_coefs	echoregs;	/* echo tune */
-} tdmv_fxo_t;
-
-typedef struct {
-	int	ready;
-	int	lasttxhook;
-	int	lasttxhook_update;
-	int	lastrxhook;
-	int	oldrxhook;
-	int	debouncehook;
-	int	debounce;
-	int	palarms;
-	int	ohttimer;
-} tdmv_fxs_t;
 
 typedef struct wp_tdmv_bri_ {
 	void		*card;
@@ -92,10 +76,6 @@ typedef struct wp_tdmv_bri_ {
 	int		flags;
 	wan_spinlock_t	lock;
 	wan_spinlock_t	tx_rx_lock;
-	union {
-		tdmv_fxo_t	fxo;
-		tdmv_fxs_t	fxs;
-	} mod[MAX_BRI_LINES];
 
 	int		spanno;
 	struct zt_span	span;
@@ -114,21 +94,23 @@ typedef struct wp_tdmv_bri_ {
 
 	u32		intcount;
 	int		pollcount;
-	unsigned char	ec_chunk1[31][ZT_CHUNKSIZE];
-	unsigned char	ec_chunk2[31][ZT_CHUNKSIZE];
+	unsigned char	ec_chunk1[MAX_BRI_LINES][ZT_CHUNKSIZE];
+	unsigned char	ec_chunk2[MAX_BRI_LINES][ZT_CHUNKSIZE];
 	int		usecount;
 	u16		max_timeslots;		/* up to MAX_BRI_LINES */
 	int		max_rxtx_len;
 	int		channelized;
 	unsigned long	echo_off_map;
-	int		rxsig_state[MAX_BRI_LINES];
-	int		txsig_state[MAX_BRI_LINES];	/* not used */
 	
 	u_int8_t	tonesupport;
 	unsigned int	toneactive;
 	unsigned int	tonemask;
 	unsigned int	tonemutemask;
 
+	unsigned long	ec_fax_detect_timeout[MAX_BRI_LINES+1];
+	unsigned int	ec_off_on_fax;
+	unsigned char   hwec;
+	
 	/* BRI D-chan */
 	unsigned int	dchan;
 	netdevice_t	*dchan_dev;
@@ -149,6 +131,11 @@ extern WAN_LIST_HEAD(, wan_tdmv_) wan_tdmv_head;
 static int wp_tdmv_bri_check_mtu(void* pcard, unsigned long timeslot_map, int *mtu);
 static int wp_tdmv_bri_create(void* pcard, wan_tdmv_conf_t *tdmv_conf);
 static int wp_tdmv_bri_remove(void* pcard);
+
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan);
+#endif
+
 
 static int wp_tdmv_bri_reg(
 		void			*pcard, 
@@ -197,13 +184,16 @@ static int	wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned lon
 #endif
 
 
-#ifdef DAHDI_24
+#if defined(DAHDI_24) || defined(DAHDI_25)
 
 static const struct dahdi_span_ops wp_tdm_span_ops = {
 	.owner = THIS_MODULE,
 	.open = wp_bri_zap_open,
 	.close  = wp_bri_zap_close,
 	.ioctl = wp_bri_zap_ioctl,
+ #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)   
+    .hdlc_hard_xmit = wp_tdmv_tx_hdlc_hard,
+ #endif
 	.watchdog	= wp_bri_zap_watchdog,
 #if 0
 	/* FIXME: Add native bridging */
@@ -227,7 +217,9 @@ static const struct dahdi_echocan_features wp_tdmv_bri_ec_features = {
 };
 
 static const struct dahdi_echocan_ops wp_tdmv_bri_ec_ops = {
+#ifndef DAHDI_25
 	.name = "WANPIPE_HWEC",
+#endif
 	.echocan_free = wp_tdmv_bri_hwec_free,
 };
 								   
@@ -243,15 +235,66 @@ wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, caddr_t data)
 wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 #endif
 {
-#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(ZT_DCHAN_TX)
-	wp_tdmv_bri_t	*wp = NULL;
-#endif
-	int		err = -ENOTTY;
+	sdla_t              		*card = NULL;
+	wp_tdmv_bri_t				*wr = NULL;
+	wp_tdmv_bri_t				*wp = NULL;
+    wan_event_ctrl_t        	*event_ctrl = NULL;
+	int	err = -ENOTTY, x;
+
+	WAN_ASSERT(chan == NULL || chan->pvt == NULL);
+	wp = wr = chan->pvt;	
+    WAN_ASSERT(wr->card == NULL);
+    card    = wr->card;
 
 	DEBUG_TDMV_BRI("%s(): line: %d\n", __FUNCTION__, __LINE__);
 
-	switch(cmd) 
-	{
+	switch(cmd) {
+
+    case ZT_TONEDETECT:
+		err = WAN_COPY_FROM_USER(&x, (int*)data, sizeof(int));
+        if (err) {
+			return -EFAULT;
+		}
+
+		if (wr->tonesupport != WANOPT_YES || card->wandev.ec_dev == NULL){
+				return -ENOSYS;
+		}
+		DEBUG_TDMV_BRI("[TDMV_BRI] %s: Hardware Tone Event detection (%s:%s)!\n",
+				wr->devname,
+				(x & ZT_TONEDETECT_ON) ? "ON" : "OFF",
+				(x & ZT_TONEDETECT_MUTE) ? "Mute ON" : "Mute OFF");
+				 
+		if (x & ZT_TONEDETECT_ON){
+				wr->tonemask |= (1 << (chan->chanpos - 1));
+		}else{
+				wr->tonemask &= ~(1 << (chan->chanpos - 1));
+		}
+		if (x & ZT_TONEDETECT_MUTE){
+				wr->tonemutemask |= (1 << (chan->chanpos - 1));
+		}else{
+				wr->tonemutemask &= ~(1 << (chan->chanpos - 1));
+		}
+
+#if defined(CONFIG_WANPIPE_HWEC)
+		event_ctrl = wan_malloc(sizeof(wan_event_ctrl_t));
+		if (event_ctrl==NULL){
+				DEBUG_EVENT(
+				"%s: Failed to allocate memory for event ctrl!\n",
+										wr->devname);
+				return -EFAULT;
+		}
+		event_ctrl->type = WAN_EVENT_EC_CHAN_MODIFY;
+		event_ctrl->channel = chan->chanpos-1;
+		event_ctrl->mode = (x & ZT_TONEDETECT_MUTE) ? WAN_EVENT_ENABLE : WAN_EVENT_DISABLE;
+		if (wanpipe_ec_event_ctrl(card->wandev.ec_dev, card, event_ctrl)){
+				wan_free(event_ctrl);
+		}
+		err = 0;
+#else
+		err = -EINVAL;
+#endif
+		break;        
+
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(ZT_DCHAN_TX)
 	case ZT_DCHAN_TX:
 
@@ -301,7 +344,7 @@ static int wp_bri_zap_open(struct zt_chan *chan)
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wr = chan->pvt;
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
-    card = wr->card;
+    	card = wr->card;
 	wr->usecount++;
 	wanpipe_open(card);
 	wan_set_bit(WP_TDMV_RUNNING, &wr->flags);
@@ -346,7 +389,6 @@ static int wp_bri_zap_watchdog(struct zt_span *span, int event)
 }
 
 
-
 #ifdef DAHDI_22
 /******************************************************************************
 ** wp_remora_zap_hwec() - 
@@ -374,11 +416,18 @@ static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan,
  		DEBUG_TDMV("[TDMV] Wanpipe echo canceller does not support parameters; failing request\n");
  		return -EINVAL;
  	}
+
+	if (wr->hwec != WANOPT_YES || !card->wandev.ec_dev){
+		DEBUG_TDMV("[TDMV_BRI] %s return err = %d wr->hwec=%x\n", __FUNCTION__, err, wr->hwec);
+		return err;
+    }
 	
 	*ec = &wr->ec[chan->chanpos-1];
 	(*ec)->ops = &wp_tdmv_bri_ec_ops;
 	(*ec)->features = wp_tdmv_bri_ec_features;
- 
+
+	wan_set_bit((chan->chanpos - 1), &card->wandev.rtp_tap_call_map);
+	wp_fax_tone_timeout_set(wr, chan->chanpos-1);
 	
 	if (card->wandev.ec_enable){
 		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
@@ -417,8 +466,14 @@ static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_
 	if(wr->card == NULL) return;
 	card = wr->card;
 
+	wan_clear_bit(chan->chanpos-1, &card->wandev.rtp_tap_call_map);
+
+	if (wr->hwec != WANOPT_YES || !card->wandev.ec_dev){
+		return;
+    }
+
 	if (card->wandev.ec_enable) {
-		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
+		DEBUG_TDMV("[TDMV_BRI]: %s: %s(): channel %d\n",
 			wr->devname, __FUNCTION__, chan->chanpos);
 
 		if(chan->chanpos == 1 || chan->chanpos == 2) {
@@ -428,7 +483,7 @@ static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_
 				wr->devname, __FUNCTION__, chan->chanpos);
 		}
 	} else {
-		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): card->wandev.ec_enable == NULL!!!!!!\n",
+		DEBUG_ERROR("[TDMV_BRI]: %s: %s(): card->wandev.ec_enable == NULL!!!!!!\n",
 			wr->devname, __FUNCTION__);
 	}
 }
@@ -456,6 +511,13 @@ static int wp_bri_zap_hwec(struct zt_chan *chan, int enable)
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card	= wr->card;
 	fe	= &card->fe;
+
+	if (enable) {
+		wan_set_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
+		wp_fax_tone_timeout_set(wr, chan->chanpos-1);
+	} else {
+		wan_clear_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
+	}
 
 	if (card->wandev.ec_enable){
 		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
@@ -567,7 +629,7 @@ static int wp_tdmv_bri_software_init(wan_tdmv_t *wan_tdmv)
 		break;
 	}
 
-wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
+	wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
 
 	wr->tonesupport = card->u.aft.tdmv_hw_tone;
 	
@@ -597,6 +659,7 @@ wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
 					WAN_FE_LINENO(fe) + 1,
 					wr->chans[x].name,
 					WP_BRI_DECODE_MOD_TYPE(fe->bri_param.mod[WAN_FE_LINENO(fe)].type));/* fe->bri_param.mod[2], there is no [2] */
+					wr->chans[x].sigcap = ZT_SIG_HARDHDLC;
 			break;
 		}/* switch() */
 
@@ -604,10 +667,9 @@ wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
 		wr->chans[x].pvt = wr;
 		num++;
 
-		//wr->rxsig_state[x] = ZT_RXSIG_INITIAL;
 	}/* for() */
 
-#ifdef DAHDI_24
+#if defined(DAHDI_24) || defined(DAHDI_25)
 	wr->span.ops = &wp_tdm_span_ops;
 #else
 	wr->span.pvt		= wr;
@@ -619,9 +681,14 @@ wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
 #if defined(DAHDI_23)
     wr->span.owner = THIS_MODULE;
 #endif
+
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+	DEBUG_EVENT("%s: Enable Dahdi/Zaptel HW DCHAN interface\n", wr->devname);
+	wr->span.hdlc_hard_xmit = wp_tdmv_tx_hdlc_hard;
+#endif
 	
 	/* Set this pointer only if card has hw echo canceller module */
-	if (card->wandev.ec_dev){
+	if (wr->hwec == WANOPT_YES && card->wandev.ec_dev){  
 #ifdef DAHDI_22
 		wr->span.echocan_create = wp_tdmv_bri_hwec_create;
 #else
@@ -638,13 +705,15 @@ wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
 #endif
 	wr->span.channels	= MAX_BRI_TIMESLOTS;/* this is the number of b-chans (2) and the d-chan on one BRI line. */;
 	
-	//wr->span.linecompat	= ZT_CONFIG_AMI | ZT_CONFIG_CCS; /* <--- this is really BS */
+	wr->span.linecompat	= ZT_CONFIG_AMI | ZT_CONFIG_CCS; /* <--- this is really BS */
 	//wr->span.flags	= ZT_FLAG_RBS;
 
 
 
 #if defined(__LINUX__)
+#ifndef DAHDI_25
 	init_waitqueue_head(&wr->span.maintq);
+#endif
 #endif
 	
 	WP_DELAY(1000);	
@@ -796,6 +865,22 @@ static int wp_tdmv_bri_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	wan_spin_lock_init(&wr->lock, "wan_britdmv_lock");
 	wan_spin_lock_init(&wr->tx_rx_lock, "wan_britdmv_txrx_lock");
 #ifdef DAHDI_ISSUES
+        wr->span.manufacturer   = "Sangoma Technologies";
+        switch(card->adptr_type)
+        {
+        case AFT_ADPTR_FLEXBRI:
+            strncpy(wr->span.devicetype, "B700", sizeof(wr->span.devicetype) );
+            break;
+        case AFT_ADPTR_ISDN:
+            strncpy(wr->span.devicetype, "A500", sizeof(wr->span.devicetype) );
+            break;
+        default:
+            strncpy(wr->span.devicetype, "Unknown", sizeof(wr->span.devicetype) );
+            break;
+        }
+
+        snprintf(wr->span.location, sizeof(wr->span.location) -1, "SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+
 	for (i = 0; i < sizeof(wr->chans)/sizeof(wr->chans[0]); i++) {
 		wr->chans_ptrs[i] = &wr->chans[i];
 	}
@@ -913,6 +998,7 @@ static int wp_tdmv_bri_reg(
 	wr->chans[channo].readchunk = wr->chans[channo].sreadchunk;
 	wr->chans[channo].writechunk = wr->chans[channo].swritechunk;
 	wr->channelized = WAN_TRUE;
+	wr->hwec = ec_enable;
 
 	wp_tdmv_bri_check_mtu(card, active_ch, &wr->max_rxtx_len);
 
@@ -1063,6 +1149,18 @@ static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask, 
 			wan_spin_unlock(&wp->chans[x].lock,&flag);
 
 #if defined(__LINUX__)
+
+                        if (card->u.aft.tdm_rx_dma[x]) {
+                                wan_dma_descr_t *dma_descr = card->u.aft.tdm_rx_dma[x];
+                                card->hw_iface.busdma_sync(card->hw, dma_descr, 1, 1, PCI_DMA_FROMDEVICE);
+                        }
+
+                        if (card->u.aft.tdm_tx_dma[x]) {
+                                wan_dma_descr_t *dma_descr = card->u.aft.tdm_tx_dma[x];
+                                card->hw_iface.busdma_sync(card->hw, dma_descr, 1, 1, PCI_DMA_TODEVICE);
+                        }
+
+
       			prefetch(wp->chans[x].readchunk);
       			prefetch(wp->chans[x].writechunk);
 #endif
@@ -1158,11 +1256,8 @@ static int wp_tdmv_bri_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 
 	WAN_ASSERT2(wr == NULL, -EINVAL);
 	WAN_ASSERT2(channo < 0, -EINVAL);
-	WAN_ASSERT2(channo > 31, -EINVAL);
+	WAN_ASSERT2(channo > 2, -EINVAL);
 
-	if (!IS_TDMV_UP(wr)){
-		return -EINVAL;
-	}
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 	pwr_rxtx = &wan_tdmv->chan_pwr[channo];
@@ -1279,16 +1374,19 @@ static int wp_tdmv_bri_ec_span(void *pcard)
 static void wp_tdmv_bri_tone (void* card_id, wan_event_t *event)
 {
 	sdla_t	*card = (sdla_t*)card_id;
-        wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
-        wp_tdmv_bri_t	*wr = NULL;
+    wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
+    wp_tdmv_bri_t	*wr = NULL;
+    wp_tdmv_bri_t	*wp = NULL;
+	int fechan = 	event->channel;   
 
 	BRI_FUNC();	
 
-        WAN_ASSERT1(wan_tdmv->sc == NULL);
-        wr = wan_tdmv->sc;
+    WAN_ASSERT1(wan_tdmv->sc == NULL);
+    wr = wan_tdmv->sc;
+    wp = wan_tdmv->sc;
 
 
-	 switch(event->type) {
+	switch(event->type) {
      	case WAN_EVENT_EC_DTMF:
 		case WAN_EVENT_EC_FAX_1100:
 			break;
@@ -1313,6 +1411,45 @@ static void wp_tdmv_bri_tone (void* card_id, wan_event_t *event)
 					event->channel);
 		return;
 	}
+
+
+     if (event->digit == 'f' && fechan >= 0) {
+
+		if (!card->tdmv_conf.hw_fax_detect) {
+			DEBUG_TDMV("%s: Received Fax Detect event while hw fax disabled !\n",card->devname);
+			return;
+		}
+
+		if (card->tdmv_conf.hw_fax_detect == WANOPT_YES) {
+         	card->tdmv_conf.hw_fax_detect=8;
+		}
+
+		if (wp->ec_fax_detect_timeout[fechan] == 0) {
+			DEBUG_TDMV("%s: FAX DETECT TIMEOUT --- Not initialized!\n",card->devname);
+			return;
+
+		} else 	if (card->tdmv_conf.hw_fax_detect &&
+	    		   (SYSTEM_TICKS - wp->ec_fax_detect_timeout[fechan]) >= card->tdmv_conf.hw_fax_detect*HZ) {
+#ifdef WAN_DEBUG_TDMAPI
+			if (WAN_NET_RATELIMIT()) {
+				DEBUG_WARNING("%s: Warning: Ignoring Fax detect during call (s%dc%d) - Call Time: %ld  Max: %d!\n",
+					card->devname,
+					wp->spanno+1,
+					event->channel,
+					(SYSTEM_TICKS - wp->ec_fax_detect_timeout[fechan])/HZ,
+					card->tdmv_conf.hw_fax_detect);
+			}
+#endif
+			return;
+		} else {
+
+			DEBUG_TDMV("%s: FAX DETECT OK --- Ticks=%lu Timeout=%lu Diff=%lu! s%dc%d\n",
+				card->devname,SYSTEM_TICKS,wp->ec_fax_detect_timeout[fechan],
+				(SYSTEM_TICKS - wp->ec_fax_detect_timeout[fechan])/HZ,
+				card->wan_tdmv.spanno,fechan);
+		}
+	}                
+
 	if (event->tone_type == WAN_EC_TONE_PRESENT){
 		wr->toneactive |= (1 << (event->channel-1));
 #ifdef DAHDI_ISSUES
@@ -1418,7 +1555,8 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 				wp->devname); 
 		return -EINVAL;
 	}
-	if (!(ms->flags & ZT_FLAG_HDLC)){
+
+	if (!IS_CHAN_HARDHDLC(ms)){
 		DEBUG_TDMV("%s: ERROR: %s not defined as D-CHAN! Or received HDLC data before 'ztcfg' was run.\n",
 				wp->devname, ms->name); 
 		return -EINVAL;
@@ -1473,16 +1611,29 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 		/* Notify a blocked reader that there is data available
 		to be read, unless we're waiting for it to be full */
 #if defined(__LINUX__)
+#ifdef DAHDI_25
+		wake_up_interruptible(&ms->waitq);
+		if (ms->iomask & ZT_IOMUX_READ)
+			wake_up_interruptible(&ms->waitq);
+#else
 		wake_up_interruptible(&ms->readbufq);
 		wake_up_interruptible(&ms->sel);
 		if (ms->iomask & ZT_IOMUX_READ)
 			wake_up_interruptible(&ms->eventbufq);
+#endif
+
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
+#ifdef DAHDI_25
+		wakeup(&ms->waitq);
+		if (ms->iomask & ZT_IOMUX_READ)
+			wakeup(&ms->waitq);
+#else
 		wakeup(&ms->readbufq);
 		wakeup(&ms->sel);
 		if (ms->iomask & ZT_IOMUX_READ)
 			wakeup(&ms->eventbufq);
 
+#endif
 #endif
 	}
 	return 0;
@@ -1514,3 +1665,40 @@ static void wp_tdmv_report_alarms(void* pcard, uint32_t te_alarm)
 	zt_alarm_notify(&wp->span);
 	return;
 }
+
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan)
+{
+        wp_tdmv_bri_t   *wp     = NULL;
+        netskb_t        *skb = NULL;
+        unsigned char   *data = NULL;
+        int             size = 0, err = 0, res = 0;
+
+        WAN_ASSERT_VOID(chan == NULL);
+        WAN_ASSERT_VOID(chan->pvt == NULL);
+        wp      = chan->pvt;
+        WAN_ASSERT_VOID(wp->dchan_dev == NULL);
+
+        size = chan->writen[chan->outwritebuf] - chan->writeidx[chan->outwritebuf]-2;
+        if (!size) {
+                /* Do not transmit zero length frame */
+                zt_hdlc_getbuf(chan, data, &size);
+                return;
+        }
+
+        skb = wan_skb_alloc(size+1);
+        if (skb == NULL){
+                return;
+        }
+        data = wan_skb_put(skb, size);
+        res = zt_hdlc_getbuf(chan, data, &size);
+        if (res == 0){
+                DEBUG_ERROR("%s: ERROR: TX HW DCHAN %d bytes (res %d)\n",
+                                        wp->devname, size, res);
+        }
+        err = WAN_NETDEV_XMIT(skb,wp->dchan_dev);
+        if (err){
+                wan_skb_free(skb);
+        }
+}
+#endif

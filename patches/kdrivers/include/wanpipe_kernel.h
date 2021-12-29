@@ -37,6 +37,13 @@
 # define wp_devinet_ioctl(_cmd_,_rptr_)  devinet_ioctl(_cmd_,_rptr_)
 #endif
 
+#ifdef MODULE_ALIAS_NETDEV
+#define LINUX_2639 1
+#define wan_rwlock_init rwlock_init
+#else
+# define wan_rwlock_init(lock)  *(lock)=RW_LOCK_UNLOCKED	
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28) 
 #define device_create_drvdata(a,b,c,d,e) device_create(a,b,c,d,e) 
 #endif
@@ -757,23 +764,6 @@ static inline int open_dev_check(netdevice_t *dev)
 
 #pragma pack(1)         
 
-typedef struct wan_iovec
-{
-	uint32_t iov_len; /* Must be size_t (1003.1g) */
-	void *iov_base;	/* BSD uses caddr_t (1003.1g requires void *) */
-#ifndef __x86_64__
-    uint32_t reserved;
-#endif
-}wan_iovec_t;
-
-typedef struct wan_msghdr {
-	uint32_t	msg_iovlen;	/* Number of blocks		*/
-	wan_iovec_t *	msg_iov;	/* Data blocks			*/
-#ifndef __x86_64__
-    uint32_t reserved;
-#endif
-}wan_msghdr_t;          
-
 static inline int wp_linux_strncasecmp(const char *s1, const char *s2, size_t n)
 {
   if (n == 0)
@@ -793,86 +783,6 @@ static inline int wp_linux_strncasecmp(const char *s1, const char *s2, size_t n)
 #pragma pack()
 
 #if defined(__KERNEL__)
-
-static __inline int wan_verify_iovec(wan_msghdr_t *m, wan_iovec_t *iov, char *address, int mode)
-{
-	int size, err, ct;
-	
-	if (m->msg_iovlen == 0) {
-		return -EMSGSIZE;
-	}
-	
-	size = m->msg_iovlen * sizeof(wan_iovec_t);
-
-	
-	if (copy_from_user(iov, m->msg_iov, size))
-		return -EFAULT;
-
-	m->msg_iov = iov;
-	err = 0;
-
-	for (ct = 0; ct < m->msg_iovlen; ct++) {
-		err += iov[ct].iov_len;
-		/*
-		 * Goal is not to verify user data, but to prevent returning
-		 * negative value, which is interpreted as errno.
-		 * Overflow is still possible, but it is harmless.
-		 */
-		if (err < 0)
-			return -EMSGSIZE;
-	}
-
-	return err;
-}
-      
- /*
- *	Copy iovec to kernel. Returns -EFAULT on error.
- *
- *	Note: this modifies the original iovec.
- */
- 
-static __inline int wan_memcpy_fromiovec(unsigned char *kdata, wan_iovec_t *iov, int len)
-{
-	while (len > 0) {
-		if (iov->iov_len) {
-			int copy = min_t(unsigned int, len, iov->iov_len);
-			if (copy_from_user(kdata, iov->iov_base, copy))
-				return -EFAULT;
-			len -= copy;
-			kdata += copy;
-			iov->iov_base += copy;
-			iov->iov_len -= copy;
-		}
-		iov++;
-	}
-
-	return 0;
-}                
-
-/*
- *	Copy kernel to iovec. Returns -EFAULT on error.
- *
- *	Note: this modifies the original iovec.
- */
- 
-static __inline int wan_memcpy_toiovec(wan_iovec_t *iov, unsigned char *kdata, int len)
-{
-	while (len > 0) {
-		if (iov->iov_len) {
-			int copy = min_t(unsigned int, iov->iov_len, len);
-			if (copy_to_user(iov->iov_base, kdata, copy))
-				return -EFAULT;
-			kdata += copy;
-			len -= copy;
-			iov->iov_len -= copy;
-			iov->iov_base += copy;
-		}
-		iov++;
-	}
-
-	return 0;
-}             
-
 
 #endif
 

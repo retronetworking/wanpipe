@@ -24,7 +24,6 @@ CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I$(WANINCD
 all:	chdlc_api \
 		chdlc_rts_cts \
 		chdlc_integrity \
-		chdlc_modem_cmd \
 		chdlc_echo
 	@echo "Ok."
 

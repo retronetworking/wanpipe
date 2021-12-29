@@ -384,13 +384,11 @@ typedef struct aft_driver_performance_stats {
 
 	aft_driver_timing_t     aft_isr_latency;
 	aft_driver_timing_t     kernel_isr_latency;
+	aft_driver_timing_t     port_task_latency;
+	aft_driver_timing_t     bh_latency;
 } aft_driver_performance_stats_t;
 
-#if defined(WANPIPE_PERFORMANCE_DEBUG)
-#define AFT_PERF_STAT_INC(card,type,var) card->aft_perf_stats.type.var++												 
-#else
-#define AFT_PERF_STAT_INC(card,type,var)
-#endif
+#define AFT_PERF_STAT_INC(card,type,var) if (card->aft_perf_stats_enable) card->aft_perf_stats.type.var++												 
 
 
 #if defined(__WINDOWS__)

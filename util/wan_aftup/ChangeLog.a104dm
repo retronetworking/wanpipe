@@ -1,6 +1,18 @@
 AFT A104dm Firmware Change Log
 =============================
 
+Release V44
+-----------
+Jun 29 2011
+Type:	Optional A104dm Firmware
+		New ss7 hw repeat feature.
+		
+Release V43
+-----------
+Aug 29 2010
+Type:	Recommended A104dm Firmware
+		Important PCI party error fixes. 
+		Fixes the Windows need to reboot after firmware update.
 
 Release V37
 -----------

@@ -1,9 +1,10 @@
 //////////////////////////////////////////////////////////////////////
 // sangoma_interface.cpp: interface for Sangoma API driver.
 //
-// Author	:	David Rokhvarg	<davidr@sangoma.com>
+// Author	:	David Rokhvarg
 //////////////////////////////////////////////////////////////////////
 
+#include "libsangoma.h"
 #include "sangoma_interface.h"
 
 #define DBG_IFACE	if(1)printf
@@ -18,7 +19,16 @@
 #ifdef WP_API_FEATURE_LIBSNG_HWEC	/* defined in wanpipe_api_iface.h */
 # include "wanpipe_events.h"
 # include "wanec_api.h"
+# include "wanec_iface_api.h"
+
+
 sangoma_status_t config_hwec(char *strDeviceName, unsigned long in_ulChannelMap);
+void print_oct_hwec_full_chan_stats(wanec_chan_stats_t *wanec_chan_stats,
+		int fe_chan, const char *device_name);
+void print_oct_hwec_full_chip_stats(wanec_chip_stats_t *wanec_chip_stats,
+			const char *device_name);
+void print_oct_hwec_chip_image(wanec_chip_image_t *wanec_chip_image, 
+			const char *device_name);
 #endif
 
 extern wp_program_settings_t	program_settings;
@@ -178,6 +188,18 @@ int sangoma_interface::init(callback_functions_t *callback_functions_ptr)
 		return 1;
 	}
 #endif//USE_STELEPHONY_API
+
+#if USE_BUFFER_MULTIPLIER
+	SANGOMA_INIT_TDM_API_CMD(wp_api);
+
+	if(SANG_ERROR(sangoma_tdm_set_buffer_multiplier(sangoma_dev,
+						&wp_api, program_settings.buffer_multiplier))){
+
+		ERR_IFACE("Failed to set 'buffer multiplier' = %d!\n", 
+			program_settings.buffer_multiplier);
+		return 1;
+	}
+#endif
 
 	IFACE_FUNC();
 	return 0;
@@ -512,9 +534,9 @@ lb_poll_again:
 	}
 	if (lb->rc == WAN_FE_LBMODE_RC_PENDING){
 
-		if (!cnt) printf("Please wait ..");fflush(stdout);
+		if (!cnt) INFO_IFACE("Please wait ..");fflush(stdout);
 		if (cnt++ < 10){
-			printf(".");fflush(stdout);
+			INFO_IFACE(".");fflush(stdout);
 			sangoma_msleep(100);
 			lb->cmd	= WAN_FE_LBMODE_CMD_POLL;
 			lb->rc	= 0x00;
@@ -525,7 +547,7 @@ lb_poll_again:
 	}else if (lb->rc != WAN_FE_LBMODE_RC_SUCCESS){
 		err = 3;
 	}
-	if (cnt) printf("\n");
+	if (cnt) INFO_IFACE("\n");
 
 loopback_command_exit:
 	return err;
@@ -664,6 +686,82 @@ int sangoma_interface::get_operational_stats(wanpipe_chan_stats_t *stats)
 
 #if DBG_TIMING
 	debug_print_dbg_struct(&this->wan_debug_rx_timing, "sangoma_interface::read_data");
+#endif
+
+#ifdef WP_API_FEATURE_LIBSNG_HWEC
+	if(program_settings.use_hardware_echo_canceller == 1) {
+
+		int hwec_api_return_code;
+		int verbose = 1;	//Print additional information into Wanpipe Log file (for debugging). Set to zero in release build.
+		int reset = 0;		//do not reset statistics counters
+		wanec_chan_stats_t wanec_chan_stats;
+		wanec_chip_stats_t wanec_chip_stats;
+		wanec_chip_image_t wanec_chip_image;
+
+		//Get Channel statistics
+		if (SANG_STATUS_SUCCESS != sangoma_hwec_get_channel_statistics(
+					sangoma_dev,
+					program_settings.hwec_channel, //channel which was specified on command line, default is 1
+					&hwec_api_return_code,
+					&wanec_chan_stats, 
+					verbose, reset ) ) {
+
+			ERR_IFACE("sangoma_hwec_get_channel_statistics() failed!\n");
+		} else {
+			if (WAN_EC_API_RC_OK != hwec_api_return_code) {
+				ERR_IFACE("HWEC error code: 0x%X (%s)\n", 
+					hwec_api_return_code, WAN_EC_API_RC_DECODE(err));
+			} else {
+				/* Add your code here to use the channel statistics.
+				 * As an example, the statistics are printed to stdout. */
+				print_oct_hwec_full_chan_stats(&wanec_chan_stats,
+						program_settings.hwec_channel, device_name);
+			}
+		}
+
+		//Get Chip statistics
+		if (SANG_STATUS_SUCCESS != sangoma_hwec_get_global_chip_statistics(
+					sangoma_dev,
+					&hwec_api_return_code,
+					&wanec_chip_stats,
+					verbose, reset ) ) {
+			
+			ERR_IFACE("sangoma_hwec_get_global_chip_statistics() failed!\n");
+		} else {
+			if (WAN_EC_API_RC_OK != hwec_api_return_code) {
+				ERR_IFACE("HWEC error code: 0x%X (%s)\n", 
+					hwec_api_return_code, WAN_EC_API_RC_DECODE(err));
+			} else {
+				/* Add your code here to use the chip statistics.
+				 * As an example, the statistics are printed to stdout. */
+				print_oct_hwec_full_chip_stats(&wanec_chip_stats, device_name);
+			}
+		}
+
+		//Get Chip/Firmware Image information
+		tOCT6100_CHIP_IMAGE_INFO oct6100ChipImageInfo;
+
+		memset(&oct6100ChipImageInfo, 0x00, sizeof(oct6100ChipImageInfo));
+
+		wanec_chip_image.f_ChipImageInfo = &oct6100ChipImageInfo;
+
+		if (SANG_STATUS_SUCCESS != sangoma_hwec_get_chip_image_info(
+					sangoma_dev,
+					&hwec_api_return_code,
+					&wanec_chip_image,
+					verbose) ) {
+			ERR_IFACE("sangoma_hwec_get_chip_image_info() failed!\n");
+		} else {
+			if (WAN_EC_API_RC_OK != hwec_api_return_code) {
+				ERR_IFACE("HWEC error code: 0x%X (%s)\n", 
+					hwec_api_return_code, WAN_EC_API_RC_DECODE(err));
+			} else {
+				/* Add your code here to use the chip/firmware information. 
+				 * As an example, the information is printed to stdout. */
+				print_oct_hwec_chip_image(&wanec_chip_image, device_name);
+			}
+		}
+	}//if(program_settings.use_hardware_echo_canceller == 1)
 #endif
 	return 0;
 }
@@ -908,6 +1006,24 @@ void sangoma_interface::cleanup()
 			}
 		}
 	}
+#endif
+
+#ifdef WP_API_FEATURE_LIBSNG_HWEC
+#if 0 //release of HWEC is optional
+	if (program_settings.use_hardware_echo_canceller == 1) {
+		char strDeviceName[DEV_NAME_LEN];
+
+		memset(strDeviceName, 0x00, DEV_NAME_LEN);
+		//Form the Interface Name from Wanpipe Number and Interface Index (i.e. wanpipe1_if1).
+		sangoma_span_chan_toif(WanpipeNumber, InterfaceNumber, strDeviceName);
+		INFO_IFACE("Interface Name for HWEC: %s\n", strDeviceName);
+
+		if(SANG_STATUS_SUCCESS != sangoma_hwec_config_release(strDeviceName)){
+			ERR_IFACE("%s(): sangoma_hwec_config_release() failed!", __FUNCTION__);
+		}
+		DBG_IFACE("%s(): HWEC was released.\n", __FUNCTION__);
+	}
+#endif
 #endif
 
 	if(sangoma_dev != INVALID_HANDLE_VALUE){
@@ -1275,7 +1391,7 @@ void sangoma_interface::TxStelEncoderBuffer(void *pStelEncoderBuffer)
 
 		if (pStelEncoderBuffer && StelBufferInuse(stelObj, pStelEncoderBuffer)) {
 			wp_api_hdr_t	hdr;
-			unsigned char	local_tx_data[MAX_NO_DATA_BYTES_IN_FRAME];
+			unsigned char	local_tx_data[SAMPLE_CPP_MAX_DATA_LEN];
 			int				dlen = datalen;
 			unsigned char	buf[1024];
 			size_t			br, max = sizeof(buf);
@@ -1306,9 +1422,9 @@ void sangoma_interface::TxStelEncoderBuffer(void *pStelEncoderBuffer)
 			DBG_IFACE("%s: Transmitting Stelephony buffer %d, data length: %d.\n", device_name, cnt, dlen);
 
 			if(transmit(&hdr, local_tx_data) != SANG_STATUS_SUCCESS){
-				printf("Failed to TX dlen:%d\n", dlen);
+				WARN_IFACE("Failed to TX dlen:%d\n", dlen);
 			} else {
-				//printf("TX OK (cnt:%d)\n", cnt);
+				//INFO_IFACE("TX OK (cnt:%d)\n", cnt);
 				cnt++;
 			}
 		}else{
@@ -1326,7 +1442,7 @@ int sangoma_interface::sendSwDTMF(char dtmf_char)
 	if (stelObj) {
 		rc = StelGenerateSwDTMF(stelObj, dtmf_char);	
 	} else {
-		printf("Error, no Stelephony object\n");
+		WARN_IFACE("Error, no Stelephony object\n");
 		rc = -1;
 	}
 		
@@ -1553,7 +1669,8 @@ int sangoma_interface::read_data()
 
 int sangoma_interface::receive(wp_api_hdr_t *hdr, void *data)
 {
-	int err = sangoma_readmsg(sangoma_dev, hdr, sizeof(wp_api_hdr_t), data, MAX_NO_DATA_BYTES_IN_FRAME, 0);
+	int err = sangoma_readmsg(sangoma_dev, hdr, 
+			sizeof(wp_api_hdr_t), data, SAMPLE_CPP_MAX_DATA_LEN, 0);
 
 	if(err <= 0){
 		//error!
@@ -1791,7 +1908,7 @@ void sangoma_interface::set_fe_debug_mode(sdla_fe_debug_t *fe_debug)
 	if (fe_debug->type == WAN_FE_DEBUG_REG && fe_debug->fe_debug_reg.read == 1){
 		if (err == 0 && wan_udp.wan_udphdr_return_code == 0){
 			int	cnt = 0;
-			printf("Please wait.");fflush(stdout);
+			INFO_IFACE("Please wait.");fflush(stdout);
 repeat_read_reg:
 			wan_udp.wan_udphdr_return_code	= 0xaa;
 			fe_debug->fe_debug_reg.read = 2;
@@ -1800,20 +1917,20 @@ repeat_read_reg:
 			err = DO_COMMAND(wan_udp);
 			if (err || wan_udp.wan_udphdr_return_code != 0){
 				if (cnt < 5){
-					printf(".");fflush(stdout);
+					INFO_IFACE(".");fflush(stdout);
 					goto repeat_read_reg;
 				}
 			}
-			printf("\n\n");
+			INFO_IFACE("\n\n");
 		}
 	}
 
 	if (err || wan_udp.wan_udphdr_return_code != 0){
 		if (fe_debug->type == WAN_FE_DEBUG_RBS){
-			printf("Failed to %s mode.\n",
+			WARN_IFACE("Failed to %s mode.\n",
 				WAN_FE_DEBUG_RBS_DECODE(fe_debug->mode));
 		}else{
-			printf("Failed to execute debug mode (%02X).\n",
+			WARN_IFACE("Failed to execute debug mode (%02X).\n",
 						fe_debug->type);		
 		}
 	}else{
@@ -1821,23 +1938,23 @@ repeat_read_reg:
 		switch(fe_debug->type){
 		case WAN_FE_DEBUG_RBS:
 			if (fe_debug->mode == WAN_FE_DEBUG_RBS_READ){
-				printf("Read RBS status is suceeded!\n");
+				INFO_IFACE("Read RBS status is suceeded!\n");
 			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_SET){
-				printf("Setting ABCD bits (%X) for channel %d is suceeded!\n",
+				INFO_IFACE("Setting ABCD bits (%X) for channel %d is suceeded!\n",
 						fe_debug->fe_debug_rbs.abcd,
 						fe_debug->fe_debug_rbs.channel);
 			}else{
-				printf("%s debug mode!\n",
+				INFO_IFACE("%s debug mode!\n",
 					WAN_FE_DEBUG_RBS_DECODE(fe_debug->mode));
 			}
 			break;
 		case WAN_FE_DEBUG_ALARM:
-			printf("%s AIS alarm!\n",
+			INFO_IFACE("%s AIS alarm!\n",
 					WAN_FE_DEBUG_ALARM_DECODE(fe_debug->mode));
 			break;
 		case WAN_FE_DEBUG_REG:
 			if (fe_debug->fe_debug_reg.read == 2){
-				printf("\nRead Front-End Reg:%04X=%02X\n",
+				INFO_IFACE("\nRead Front-End Reg:%04X=%02X\n",
 						fe_debug->fe_debug_reg.reg,
 						fe_debug->fe_debug_reg.value);
 			}
@@ -1965,6 +2082,29 @@ int sangoma_api_logger_dev::init(callback_functions_t *callback_functions_ptr)
 	}
 #endif
 
+#if 0
+	//enable advanced debugging messages for TDM API
+	memset(&logger_cmd, 0x00, sizeof(logger_cmd));
+	logger_cmd.logger_level_ctrl.logger_type = WAN_LOGGER_TDMAPI;
+	logger_cmd.logger_level_ctrl.logger_level = (SANG_LOGGER_TDMAPI_DEFAULT);
+	if(sangoma_logger_set_logger_level(sangoma_dev, &logger_cmd)){
+		ERR_IFACE("WP_API_CMD_SET_LOGGER_LEVEL failed for %s!\n", device_name);
+		return 1;
+	}
+#endif
+
+#if 0
+	//Disable printing of messages Wanpipe Log file. The messages will be
+	//still available in Wanpipe Logger queue.
+	memset(&logger_cmd, 0x00, sizeof(logger_cmd));
+	logger_cmd.logger_level_ctrl.logger_type = WAN_LOGGER_FILE;
+	logger_cmd.logger_level_ctrl.logger_level = (SANG_LOGGER_FILE_OFF);
+	if(sangoma_logger_set_logger_level(sangoma_dev, &logger_cmd)){
+		ERR_IFACE("WP_API_CMD_SET_LOGGER_LEVEL failed for %s!\n", device_name);
+		return 1;
+	}
+#endif
+
 #endif//USE_WP_LOGGER
 	return 0;
 }
@@ -2037,8 +2177,10 @@ sangoma_status_t config_hwec(char *strDeviceName, unsigned long in_ulChannelMap)
 
 	DBG_IFACE("%s(): strDeviceName: %s, in_ulChannelMap: 0x%X\n", __FUNCTION__, strDeviceName, in_ulChannelMap);
 
-	// Optionally disable output from HWEC API Library and From API Driver.
+	// Optionally disable debug output from HWEC API Library and From API Driver:
 	//sangoma_hwec_config_verbosity(0);
+	// This will enable maximum debug output from HWEC API Library and From API Driver:
+	//sangoma_hwec_config_verbosity(WAN_EC_VERBOSE_EXTRA1 | WAN_EC_VERBOSE_EXTRA2);
 
 	// Initialize the echo canceller (done once per-port)
 #if WP_HWEC_USE_OPTIONAL_CHIP_CONFIG_PARAMS
@@ -2096,11 +2238,443 @@ sangoma_status_t config_hwec(char *strDeviceName, unsigned long in_ulChannelMap)
 									"32",
 									in_ulChannelMap	);
 	if (SANG_STATUS_SUCCESS != rc) {
-		ERR_IFACE( "Failed to change HWEC tail displacement.\n" ); 
+		ERR_IFACE( "Failed to change WANEC_TailDisplacement!\n" ); 
 		return rc;
 	}
 #endif
 
 	return SANG_STATUS_SUCCESS;
 }
+
+//information about the chip and firmware running on the chip
+void print_oct_hwec_chip_image(wanec_chip_image_t *wanec_chip_image, const char *device_name)
+{
+	tPOCT6100_CHIP_IMAGE_INFO	pChipImageInfo = wanec_chip_image->f_ChipImageInfo;
+	tPOCT6100_CHIP_TONE_INFO	pChipToneInfo;
+	unsigned int	i, full = 1;
+
+	INFO_IFACE("****** Echo Canceller Chip Image Info %s ******\n",
+		device_name);
+	INFO_IFACE("%10s: Echo Canceller chip image build description:\n%s\n",
+		device_name,
+		pChipImageInfo->szVersionNumber);
+	INFO_IFACE("%10s: Echo Canceller chip build ID\t\t\t%d\n",
+		device_name,
+		pChipImageInfo->ulBuildId);
+	INFO_IFACE("%10s: Echo Canceller image type\t\t\t\t%d\n",
+		device_name,
+		pChipImageInfo->ulImageType);
+	INFO_IFACE("%10s: Maximum number of channels supported by the image\t%d\n",
+		device_name,
+		pChipImageInfo->ulMaxChannels);
+	if (full) INFO_IFACE("%10s: Support Acoustic echo cancellation\t%s\n",
+		device_name,
+		(pChipImageInfo->fAcousticEcho == TRUE) ?
+		"TRUE" : "FALSE");
+	if (full) INFO_IFACE("%10s: Support configurable tail length for Aec\t%s\n",
+		device_name,
+		(pChipImageInfo->fAecTailLength == TRUE) ?
+		"TRUE" : "FALSE");
+	if (full) INFO_IFACE("%10s: Support configurable default ERL\t%s\n",
+		device_name,
+		(pChipImageInfo->fDefaultErl == TRUE) ?
+		"TRUE" : "FALSE");
+	if (full) INFO_IFACE("%10s: Support configurable non-linearity A\t%s\n",
+		device_name,
+		(pChipImageInfo->fNonLinearityBehaviorA == TRUE) ?
+		"TRUE" : "FALSE");
+	if (full) INFO_IFACE("%10s: Support configurable non-linearity B\t%s\n",
+		device_name,
+		(pChipImageInfo->fNonLinearityBehaviorB == TRUE) ?
+		"TRUE" : "FALSE");
+	if (full) INFO_IFACE("%10s: Tone profile number built in the image\t%d\n",
+		device_name,
+		pChipImageInfo->ulToneProfileNumber);
+	if (full) INFO_IFACE("%10s: Number of tone available in the image\t%d\n",
+		device_name,
+		pChipImageInfo->ulNumTonesAvailable);
+	if (full) {
+		for(i = 0; i < pChipImageInfo->ulNumTonesAvailable; i++){
+			pChipToneInfo = &pChipImageInfo->aToneInfo[i];
+			INFO_IFACE("%10s: \tDetection Port: %s\tToneId: 0x%X\n",
+				device_name,
+				(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_SIN)?"SIN":
+				(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_ROUT)?"ROUT":
+				(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_ROUT)?"SOUT":
+				(pChipToneInfo->ulDetectionPort == cOCT6100_CHANNEL_PORT_ROUT_SOUT)?"ROUT/SOUT":
+				"INV",
+				pChipToneInfo->ulToneID);
+		}
+		INFO_IFACE("\n");
+	}
+}
+
+//global, per-chip statistics
+void print_oct_hwec_full_chip_stats(wanec_chip_stats_t *wanec_chip_stats,
+			const char *device_name)
+{
+	tPOCT6100_CHIP_STATS pChipStats = &wanec_chip_stats->f_ChipStats;
+
+	INFO_IFACE("\n****** Echo Canceller Chip Get Stats %s ******\n",
+			device_name);
+	INFO_IFACE("%10s: Number of channels currently open\t\t\t%d\n", 
+			device_name,
+			pChipStats->ulNumberChannels);
+	INFO_IFACE("%10s: Number of TSI connections currently open\t\t%d\n", 
+			device_name,
+			pChipStats->ulNumberTsiCncts);
+	INFO_IFACE("%10s: Number of conference bridges currently open\t\t%d\n", 
+			device_name,
+			pChipStats->ulNumberConfBridges);
+	INFO_IFACE("%10s: Number of playout buffers currently loaded\t\t%d\n", 
+			device_name,
+			pChipStats->ulNumberPlayoutBuffers);
+	INFO_IFACE("%10s: Number of framing error on H.100 bus\t\t%d\n", 
+			device_name,
+			pChipStats->ulH100OutOfSynchCount);
+	INFO_IFACE("%10s: Number of errors on H.100 clock CT_C8_A\t\t%d\n", 
+			device_name,
+			pChipStats->ulH100ClockABadCount);
+	INFO_IFACE("%10s: Number of errors on H.100 frame CT_FRAME_A\t\t%d\n", 
+			device_name,
+			pChipStats->ulH100FrameABadCount);
+	INFO_IFACE("%10s: Number of errors on H.100 clock CT_C8_B\t\t%d\n", 
+			device_name,
+			pChipStats->ulH100ClockBBadCount);
+	INFO_IFACE("%10s: Number of internal read timeout errors\t\t%d\n",
+			device_name,
+			pChipStats->ulInternalReadTimeoutCount);
+	INFO_IFACE("%10s: Number of SDRAM refresh too late errors\t\t%d\n",
+			device_name,
+			pChipStats->ulSdramRefreshTooLateCount);
+	INFO_IFACE("%10s: Number of PLL jitter errors\t\t\t\t%d\n",
+			device_name,
+			pChipStats->ulPllJitterErrorCount);
+	INFO_IFACE("%10s: Number of HW tone event buffer has overflowed\t%d\n",
+			device_name,
+			pChipStats->ulOverflowToneEventsCount);
+	INFO_IFACE("%10s: Number of SW tone event buffer has overflowed\t%d\n",
+			device_name,
+			pChipStats->ulSoftOverflowToneEventsCount);
+	INFO_IFACE("%10s: Number of SW Playout event buffer has overflowed\t%d\n",
+			device_name,
+			pChipStats->ulSoftOverflowBufferPlayoutEventsCount);
+	INFO_IFACE("\n");
+}
+
+//per-channel statistics
+void print_oct_hwec_full_chan_stats(wanec_chan_stats_t *wanec_chan_stats,
+		int fe_chan, const char *device_name)
+{
+	tPOCT6100_CHANNEL_STATS pChannelStats = &wanec_chan_stats->f_ChannelStats;
+	tPOCT6100_CHANNEL_STATS_TDM	pChannelStatsTdm;
+	tPOCT6100_CHANNEL_STATS_VQE	pChannelStatsVqe;
+	tPOCT6100_CHANNEL_STATS_CODEC	pChannelStatsCodec;
+
+	INFO_IFACE("\n%10s:%2d: Echo Channel Operation Mode\t\t\t: %s\n",
+					device_name,
+					fe_chan,
+		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_NORMAL)?
+								"NORMAL":
+		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_HT_FREEZE)?
+								"HT FREEZE":
+		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_HT_RESET)?
+								"HT RESET":
+		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_POWER_DOWN)?
+								"POWER DOWN":
+		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_NO_ECHO)?
+								"NO ECHO":
+		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_SPEECH_RECOGNITION)?
+								"SPEECH RECOGNITION":
+								"Unknown");
+	INFO_IFACE("%10s:%2d: Enable Tone Disabler\t\t\t\t\t: %s\n",
+		device_name, fe_chan,
+		(pChannelStats->fEnableToneDisabler==TRUE) ? "TRUE" : "FALSE");
+	INFO_IFACE("%10s:%2d: Mute Ports\t\t\t\t\t: %s\n",
+					device_name, fe_chan,
+		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_RIN) ?
+							"RIN" :
+		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_ROUT) ?
+							"ROUT" :
+		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_SIN) ?
+							"SIN" :
+		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_SOUT) ?
+							"SOUT" :
+		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_NONE) ?
+							"NONE" : "Unknown");
+	INFO_IFACE("%10s:%2d: Enable Extended Tone Detection\t\t\t\t: %s\n",
+		device_name, fe_chan,
+		(pChannelStats->fEnableExtToneDetection==TRUE) ? "TRUE" : "FALSE");
+	if (pChannelStats->lCurrentERL == cOCT6100_INVALID_SIGNED_STAT){
+		INFO_IFACE("%10s:%2d: Current Echo Return Loss\t\t\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Current Echo Return Loss\t\t\t\t: %d dB\n",
+					device_name, fe_chan,
+					pChannelStats->lCurrentERL);
+	}
+	if (pChannelStats->lCurrentERLE == cOCT6100_INVALID_SIGNED_STAT){
+		INFO_IFACE("%10s:%2d: Current Echo Return Loss Enhancement\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Current Echo Return Loss Enhancement\t\t: %d dB\n",
+					device_name, fe_chan,
+					pChannelStats->lCurrentERLE);
+	}
+	if (pChannelStats->lMaxERL == cOCT6100_INVALID_SIGNED_STAT){
+		INFO_IFACE("%10s:%2d: Maximum value of the ERL\t\t\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Maximum value of the ERL\t\t\t\t: %d dB\n",
+					device_name, fe_chan,
+					pChannelStats->lMaxERL);
+	}
+	if (pChannelStats->lMaxERLE == cOCT6100_INVALID_SIGNED_STAT){
+		INFO_IFACE("%10s:%2d: Maximum value of the ERLE\t\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Maximum value of the ERLE\t\t\t: %d dB\n",
+					device_name, fe_chan,
+					pChannelStats->lMaxERLE);
+	}
+	if (pChannelStats->ulNumEchoPathChanges == cOCT6100_INVALID_STAT){
+		INFO_IFACE("%10s:%2d: Number of Echo Path changes\t\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Number of Echo Path changes\t\t\t: %d\n",
+					device_name, fe_chan,
+					pChannelStats->ulNumEchoPathChanges);
+	}
+	if (pChannelStats->ulCurrentEchoDelay == cOCT6100_INVALID_STAT){
+		INFO_IFACE("%10s:%2d: Current Echo Delay\t\t\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Current Echo Delay\t\t\t\t: %d\n",
+					device_name, fe_chan,
+					pChannelStats->ulCurrentEchoDelay);
+	}
+	if (pChannelStats->ulMaxEchoDelay == cOCT6100_INVALID_STAT){
+		INFO_IFACE("%10s:%2d: Maximum Echo Delay\t\t\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Maximum Echo Delay\t\t\t\t: %d\n",
+					device_name, fe_chan,
+					pChannelStats->ulMaxEchoDelay);
+	}
+	if (pChannelStats->ulToneDisablerStatus == cOCT6100_INVALID_STAT){
+		INFO_IFACE("%10s:%2d: Tone Disabler Status\t\t\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Tone Disabler Status\t\t\t\t: %s\n",
+					device_name, fe_chan,
+			(pChannelStats->ulToneDisablerStatus==cOCT6100_TONE_DISABLER_EC_DISABLED)?
+								"Disabled":"Enabled"); 
+	}
+	INFO_IFACE("%10s:%2d: Voice activity is detected on SIN port\t\t: %s\n",
+					device_name, fe_chan,
+		(pChannelStats->fSinVoiceDetected==TRUE)? "TRUE":
+		(pChannelStats->fSinVoiceDetected==FALSE)? "FALSE": "Unknown");
+	INFO_IFACE("%10s:%2d: Echo canceller has detected and converged\t: %s\n",
+					device_name, fe_chan,
+		(pChannelStats->fEchoCancellerConverged==TRUE)? "TRUE":
+		(pChannelStats->fEchoCancellerConverged==FALSE)? "FALSE": "Unknown");
+	if (pChannelStats->lRinLevel == cOCT6100_INVALID_SIGNED_STAT){
+		INFO_IFACE("%10s:%2d: Average power of signal level on RIN\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Average power of signal level on RIN\t\t: %d dBm0\n",
+					device_name, fe_chan,
+					pChannelStats->lRinLevel);
+	}
+	if (pChannelStats->lSinLevel == cOCT6100_INVALID_SIGNED_STAT){
+		INFO_IFACE("%10s:%2d: Average power of signal level on SIN\t\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Average power of signal level on SIN\t\t: %d dBm0\n",
+					device_name, fe_chan,
+					pChannelStats->lSinLevel);
+	}
+	if (pChannelStats->lRinAppliedGain == cOCT6100_INVALID_SIGNED_STAT){
+		INFO_IFACE("%10s:%2d: Current gain applied to signal level on RIN\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Current gain applied to signal level on RIN\t: %d dB\n",
+					device_name, fe_chan,
+					pChannelStats->lRinAppliedGain);
+	}
+	if (pChannelStats->lSoutAppliedGain == cOCT6100_INVALID_SIGNED_STAT){
+		INFO_IFACE("%10s:%2d: Current gain applied to signal level on SOUT\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Current gain applied to signal level on SOUT\t: %d dB\n",
+					device_name, fe_chan,
+					pChannelStats->lSoutAppliedGain);
+	}
+	if (pChannelStats->lComfortNoiseLevel == cOCT6100_INVALID_SIGNED_STAT){
+		INFO_IFACE("%10s:%2d: Average power of the comfort noise injected\t: Invalid\n",
+					device_name, fe_chan);
+	}else{
+		INFO_IFACE("%10s:%2d: Average power of the comfort noise injected\t: %d dBm0\n",
+					device_name, fe_chan,
+					pChannelStats->lComfortNoiseLevel);
+	}
+
+	pChannelStatsTdm = &pChannelStats->TdmConfig;
+	INFO_IFACE("%10s:%2d: (TDM) PCM Law type on SIN\t\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsTdm->ulSinPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	INFO_IFACE("%10s:%2d: (TDM) TDM timeslot on SIN port\t\t\t: %d\n",
+				device_name, fe_chan,
+				pChannelStatsTdm->ulSinTimeslot);
+	INFO_IFACE("%10s:%2d: (TDM) TDM stream on SIN port\t\t\t: %d\n",
+				device_name, fe_chan,
+				pChannelStatsTdm->ulSinStream);
+	INFO_IFACE("%10s:%2d: (TDM) PCM Law type on RIN\t\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsTdm->ulRinPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	INFO_IFACE("%10s:%2d: (TDM) TDM timeslot on RIN port\t\t\t: %d\n",
+				device_name, fe_chan,
+				pChannelStatsTdm->ulRinTimeslot);
+	INFO_IFACE("%10s:%2d: (TDM) TDM stream on RIN port\t\t\t: %d\n",
+				device_name, fe_chan,
+				pChannelStatsTdm->ulRinStream);
+	INFO_IFACE("%10s:%2d: (TDM) PCM Law type on SOUT\t\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsTdm->ulSoutPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	INFO_IFACE("%10s:%2d: (TDM) TDM timeslot on SOUT port\t\t\t: %d\n",
+				device_name, fe_chan,
+				pChannelStatsTdm->ulSoutTimeslot);
+	INFO_IFACE("%10s:%2d: (TDM) TDM stream on SOUT port\t\t\t: %d\n",
+				device_name, fe_chan,
+				pChannelStatsTdm->ulSoutStream);
+	INFO_IFACE("%10s:%2d: (TDM) PCM Law type on ROUT\t\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsTdm->ulRoutPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	INFO_IFACE("%10s:%2d: (TDM) TDM timeslot on ROUT port\t\t\t: %d\n",
+				device_name, fe_chan,
+				pChannelStatsTdm->ulRoutTimeslot);
+	INFO_IFACE("%10s:%2d: (TDM) TDM stream on ROUT port\t\t\t: %d\n",
+				device_name, fe_chan,
+				pChannelStatsTdm->ulRoutStream);
+
+	pChannelStatsVqe = &pChannelStats->VqeConfig;
+	INFO_IFACE("%10s:%2d: (VQE) NLP status\t\t\t\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsVqe->fEnableNlp == TRUE) ? "TRUE" : "FALSE");
+	INFO_IFACE("%10s:%2d: (VQE) Enable Tail Displacement\t\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsVqe->fEnableTailDisplacement == TRUE) ? "TRUE" : "FALSE");
+	INFO_IFACE("%10s:%2d: (VQE) Offset of the Echo Cancellation window (ms)\t: %d\n",
+				device_name, fe_chan,
+				pChannelStatsVqe->ulTailDisplacement);
+	INFO_IFACE("%10s:%2d: (VQE) Maximum tail length\t\t\t: %d ms\n",
+				device_name, fe_chan,
+				pChannelStatsVqe->ulTailLength);
+	INFO_IFACE("%10s:%2d: (VQE) Rin Level control mode\t\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsVqe->fRinLevelControl == TRUE) ? "Enable" : "TRUE");
+	INFO_IFACE("%10s:%2d: (VQE) Rin Control Signal gain\t\t\t: %d dB\n",
+				device_name, fe_chan,
+				pChannelStatsVqe->lRinLevelControlGainDb);
+	INFO_IFACE("%10s:%2d: (VQE) Sout Level control mode\t\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsVqe->fSoutLevelControl == TRUE) ? "Enable" : "TRUE");
+	INFO_IFACE("%10s:%2d: (VQE) Sout Control Signal gain\t\t\t: %d dB\n",
+				device_name, fe_chan,
+				pChannelStatsVqe->lSoutLevelControlGainDb);
+	INFO_IFACE("%10s:%2d: (VQE) RIN Automatic Level Control\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsVqe->fRinAutomaticLevelControl == TRUE) ? "TRUE" : "FALSE");
+	INFO_IFACE("%10s:%2d: (VQE) RIN Target Level Control\t\t\t: %d dBm0\n",
+				device_name, fe_chan,
+				pChannelStatsVqe->lRinAutomaticLevelControlTargetDb);
+	INFO_IFACE("%10s:%2d: (VQE) SOUT Automatic Level Control\t\t: %s\n",
+				device_name, fe_chan,
+				(pChannelStatsVqe->fSoutAutomaticLevelControl == TRUE) ? "TRUE" : "FALSE");
+	INFO_IFACE("%10s:%2d: (VQE) SOUT Target Level Control\t\t\t: %d dBm0\n",
+				device_name, fe_chan,
+				pChannelStatsVqe->lSoutAutomaticLevelControlTargetDb);
+	INFO_IFACE("%10s:%2d: (VQE) Comfort noise mode\t\t\t\t: %s\n",
+			device_name, fe_chan,
+			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_NORMAL) ? "NORMAL" :
+			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_FAST_LATCH) ? "FAST LATCH" :
+			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_EXTENDED) ? "EXTENDED" :
+			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_OFF) ? "OFF" : "UNKNOWN");
+	INFO_IFACE("%10s:%2d: (VQE) Remove any DTMF tone detection on SIN port\t: %s\n",
+			device_name, fe_chan,
+			(pChannelStatsVqe->fDtmfToneRemoval == TRUE) ? "TRUE" : "FALSE");
+	INFO_IFACE("%10s:%2d: (VQE) Acoustic Echo\t\t\t\t: %s\n",
+			device_name, fe_chan,
+			(pChannelStatsVqe->fAcousticEcho == TRUE) ? "TRUE" : "FALSE");
+
+	INFO_IFACE("%10s:%2d: (VQE) Non Linearity Behavior A\t\t\t: %d\n",
+			device_name, fe_chan,
+			pChannelStatsVqe->ulNonLinearityBehaviorA);
+	INFO_IFACE("%10s:%2d: (VQE) Non Linearity Behavior B\t\t\t: %d\n",
+			device_name, fe_chan,
+			pChannelStatsVqe->ulNonLinearityBehaviorB);
+	INFO_IFACE("%10s:%2d: (VQE) Double Talk algorithm\t\t\t: %s\n",
+			device_name, fe_chan,
+			(pChannelStatsVqe->ulDoubleTalkBehavior==cOCT6100_DOUBLE_TALK_BEH_NORMAL)?"NORMAL":
+									"LESS AGGRESSIVE");
+	INFO_IFACE("%10s:%2d: (VQE) Default ERL (not converged)\t\t: %d dB\n",
+			device_name, fe_chan,
+			pChannelStatsVqe->lDefaultErlDb);
+	INFO_IFACE("%10s:%2d: (VQE) Acoustic Echo Cancellation default ERL\t: %d dB\n",
+			device_name, fe_chan,
+			pChannelStatsVqe->lAecDefaultErlDb);
+	INFO_IFACE("%10s:%2d: (VQE) Maximum Acoustic Echo tail length\t\t: %d ms\n",
+			device_name, fe_chan,
+			pChannelStatsVqe->ulAecTailLength);
+	INFO_IFACE("%10s:%2d: (VQE) Attenuation Level applied to the noise signal\t: %d dB\n",
+			device_name, fe_chan,
+			pChannelStatsVqe->lAnrSnrEnhancementDb);
+	INFO_IFACE("%10s:%2d: (VQE) Silence period before the re-activation of VQE features\t: %d ms\n",
+			device_name, fe_chan,
+			pChannelStatsVqe->ulToneDisablerVqeActivationDelay);
+
+	pChannelStatsCodec = &pChannelStats->CodecConfig;
+	INFO_IFACE("%10s:%2d: (CODEC) Encoder channel port\t\t\t: %s\n",
+			device_name, fe_chan,
+			(pChannelStatsCodec->ulEncoderPort == cOCT6100_CHANNEL_PORT_ROUT) ? "ROUT":
+			(pChannelStatsCodec->ulEncoderPort == cOCT6100_CHANNEL_PORT_SOUT) ? "SOUT":"NO ENCODING");
+	INFO_IFACE("%10s:%2d: (CODEC) Encoder rate\t\t\t\t: %s\n",
+			device_name, fe_chan,
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G711_64KBPS) ? "G.711 64 kBps":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G726_40KBPS) ? "G.726 40 kBps":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G726_32KBPS) ? "G.726 32 kBps":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G726_24KBPS) ? "G.726 24 kBps":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G726_16KBPS) ? "G.726 16 kBps":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_40KBPS_4_1) ? "G.727 40 kBps (4:1)":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_40KBPS_3_2) ? "G.727 40 kBps (3:2)":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_40KBPS_2_3) ? "G.727 40 kBps (2:3)":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_32KBPS_4_0) ? "G.727 32 kBps (4:0)":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_32KBPS_3_1) ? "G.727 32 kBps (3:1)":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_32KBPS_2_2) ? "G.727 32 kBps (2:2)":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_24KBPS_3_0) ? "G.727 24 kBps (3:0)":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_24KBPS_2_1) ? "G.727 24 kBps (2:1)":
+			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_16KBPS_2_0) ? "G.727 16 kBps (2:0)":
+											"UNKNOWN");
+	INFO_IFACE("%10s:%2d: (CODEC) Decoder channel port\t\t\t: %s\n",
+			device_name, fe_chan,
+			(pChannelStatsCodec->ulDecoderPort == cOCT6100_CHANNEL_PORT_RIN) ? "RIN":
+			(pChannelStatsCodec->ulDecoderPort == cOCT6100_CHANNEL_PORT_SIN) ? "SIN":"NO DECODING");
+	INFO_IFACE("%10s:%2d: (CODEC) Decoder rate\t\t\t\t: %s\n",
+			device_name, fe_chan,
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G711_64KBPS) ? "G.711 64 kBps":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G726_40KBPS) ? "G.726 40 kBps":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G726_32KBPS) ? "G.726 32 kBps":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G726_24KBPS) ? "G.726 24 kBps":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G726_16KBPS) ? "G.726 16 kBps":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G727_2C_ENCODED) ? "G.727 2C Encoded":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G727_3C_ENCODED) ? "G.727 3C Encoded":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G727_4C_ENCODED) ? "G.727 4C Encoded":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G726_ENCODED) ? "G.726 Encoded":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G711_G727_2C_ENCODED) ? "G.727 2C Encoded":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G711_G727_3C_ENCODED) ? "G.727 3C Encoded":
+			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G711_G727_4C_ENCODED) ? "G.727 4C Encoded":
+											"UNKNOWN");
+	INFO_IFACE("\n");
+}
+
 #endif// WP_API_FEATURE_LIBSNG_HWEC

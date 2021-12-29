@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.20
+%define VERSION           3.5.21
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -76,6 +76,7 @@ BuildRoot: %{_tmppath}/%{name}-%(id -un)
 
 AutoReq: 		1		
 
+Requires: coreutils
 Requires: kernel-%{KARCH} = %{KVERSION}
 
 
@@ -87,6 +88,8 @@ Requires: kernel-%{KARCH} = %{KVERSION}
 %{?with_dahdi:Requires:  dahdi = %{DAHDI_VER}} 
 %{?with_zaptel:Requires:  zaptel = %{ZAPTEL_VER}} 
 
+
+
 ################################################################################
 %description
 ################################################################################
@@ -97,11 +100,9 @@ Linux Drivers for Sangoma AFT Series of cards and S Series of Cards.
 ################################################################################
 %setup
 
-
 ################################################################################
 %build
 ################################################################################
-
 
 %if %{build_for_dahdi}
 make KDIR=%{KSRC} KVER=%{KVERSION} WARCH=%{KARCH} INSTALLPREFIX=%{buildroot} LIBPREFIX=%{LIBPREFIX} dahdi DAHDI_DIR=%{DAHDI_DIR}
@@ -220,15 +221,30 @@ EOM
 ################################################################################
 %preun
 ################################################################################
-echo "Uninstalling WANPIPE..."
-# Remove initialization scripts.
-chkconfig --del wanrouter
-rm /etc/init.d/wanrouter
+
+# If action is uninstall ($1 = 0) then proceed,
+# otherwise ($1 = 1) it is an upgrade
+if [ "$1" = "0" ]; then
+  echo "Uninstalling WANPIPE..."
+  # Remove initialization scripts.
+  chkconfig --del wanrouter
+  if [ -f /etc/init.d/wanrouter ]; then
+    rm /etc/init.d/wanrouter
+  fi
+  if [ -d /usr/include/wanpipe/linux ]; then
+    rm /usr/include/wanpipe/linux
+  fi
+fi
 
 ################################################################################
 %postun
 ################################################################################
-echo "Done"
+# If action is uninstall ($1 = 0) then proceed,
+# otherwise ($1 = 1) it is an upgrade
+if [ "$1" = "0" ]; then
+  echo "Done"
+fi
+
 
 ################################################################################
 %files
@@ -238,6 +254,56 @@ echo "Done"
 ################################################################################
 
 %changelog
+
+* Wed Aug 23 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.21
+==================================================================
+
+- T1 AMI fix
+- Fixed for 2.6.39 and 3.0.1 kernels
+- Fixed for dahdi 2.5
+- Fixed BRI wancfg_dahdi config
+- Added HW Echo Cancellation Clock failover.
+  If EC is using clock from port 1 and that port goes down.
+  The clock source will be taken from another connected port.
+- Minor bug fix in hdlc test sample app
+- Bug fix libsangoma: multilple wait object issue
+- BRI for DAHDI
+- B601 receives timing from analog port when T1 is down.
+- Libsangoma ss7 hw config status
+- Edge cases bug fixes on multi port restart
+- Updated v44 for A104 firmware
+- Analog 64bit 8GIG memory issue dma sync fix
+- Support for ss7 firmware V44 on A104 only.
+- Fixed logger - caused slow prints on some kernels due
+  to use of vprintk
+- Added Global Poll IRQ mode for efficient high density
+  hdlc tx/rx
+- wanpipemon added led blink option to idetnify port
+  Removed the led on/off 
+  wanpipemon -i w1g1 -c dled_blink -timeout 10 #with timeout
+  wanpipemon -i w1g1 -c dled_blink             #without timeout              
+- wanpipemon documented performance statatistics
+  wanpipemon -p aft
+- wanpipemon added led ctrl
+  Used to visually identify a port from software
+  wanpipemon -p aft for documentation           
+  Added this feature in libsangoma as well.
+- Minor updates in wanpipe spec file
+- Bug fixes in wancfg legacy
+- aftpipemon fixed for 24port analog
+- B601 mtu fix for FreeSWITCH
+  Causes audio issues
+- Added performance stats
+- Fixed B601 for TDMAPI & FreeSWITCH Dchannel 
+- Confirmed that B601 works for Asterisk (dahdi hdlc mode)
+- Fixed rescan feature
+- Libsangoma builds by default now 
+  wanec utilities now depend on libsangoma
+- Libsangoma contains the full wanec api
+- Libsangoma wanec API for TDM API
+- Added libsangoma hwec functions for Linux
+- Hwec audio_mem_load added to the api.
+
 
 * Mon Apr 11 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.20
 ==================================================================
@@ -249,7 +315,8 @@ echo "Done"
 - Fixed AIS alarm clear flag bug
   The AIS alarm flag was not being cleared in the driver.
 - New Octasic Image 1.6.2 
-  Fix for AGC
+  Fix for AGC (Automatic Gain Control)
+  AGC now meets Microsoft Audio Quality Spec
 - Fixed start script for ubuntu
 
 * Fri Mar 1 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.19

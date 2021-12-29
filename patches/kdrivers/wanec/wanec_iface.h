@@ -16,7 +16,6 @@
 #ifndef __WANEC_IFACE_H
 # define __WANEC_IFACE_H
 
-
 #if defined(__WINDOWS__)
 # if defined(__KERNEL__)
 # define _DEBUG
@@ -24,7 +23,6 @@
 # else
 #  include <windows.h>
 # endif
-
 #endif
 
 #include "wanpipe_includes.h"
@@ -33,9 +31,9 @@
 #include "wanpipe_events.h"
 
 #if defined(__WINDOWS__)
-#include <oct6100_api.h>
+# include "oct6100_api.h"
 #else
-#include "oct6100api/oct6100_api.h"
+# include "oct6100api/oct6100_api.h"
 #endif
 
 #define WAN_EC_VERBOSE_NONE		0x00
@@ -98,7 +96,7 @@ typedef struct wanec_chip_stats_
 
 typedef struct wanec_chip_image_
 {
-	tOCT6100_CHIP_IMAGE_INFO	*f_ChipImageInfo;
+	tOCT6100_CHIP_IMAGE_INFO *WP_POINTER_64 f_ChipImageInfo;
 } wanec_chip_image_t;
 
 typedef struct wanec_chan_opmode_

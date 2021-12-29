@@ -1781,7 +1781,7 @@ int wanpipe_lip_init(void *arg)
 		return err;
 	}
 
-	wplip_link_lock=RW_LOCK_UNLOCKED;
+	wan_rwlock_init(&wplip_link_lock);
 
 	memset(&reg,0,sizeof(wplip_reg_t));
 	

@@ -434,8 +434,8 @@ static __inline void WP_MDELAY (u32 ms) {
 
 
 #if defined (__LINUX__)
-# define WAN_DEV_PUT(dev)	wan_atomic_dec(&(dev)->refcnt)
-# define WAN_DEV_HOLD(dev)	wan_atomic_inc(&(dev)->refcnt)
+# define WAN_DEV_PUT(dev)	dev_put(dev)
+# define WAN_DEV_HOLD(dev)	dev_hold(dev)
 # define __WAN_PUT(str)		wan_atomic_dec(&(str)->refcnt)
 # define WAN_PUT(str)		if (atomic_dec_and_test(&(str)->refcnt)){ \
 		       			wan_kfree(str); 		\
@@ -588,27 +588,6 @@ void		wanpipe_debugging (ulong_ptr_t data);
 
 
 
-/****************************************************************************
-**		MEMORY DEBUG F U N C T I O N S				
-****************************************************************************/
-
-#ifdef WAN_DEBUG_MEM
-#if defined(__WINDOWS__) 
-int __sdla_memdbg_init(void);
-int __sdla_memdbg_free(void);
-int __sdla_memdbg_push(void *mem, const char *func_name, const int line, int len);
-int __sdla_memdbg_pull(void *mem, const char *func_name, const int line);
-
-int sdla_memdbg_init(void);
-int sdla_memdbg_free(void);
-int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len);
-int sdla_memdbg_pull(void *mem, const char *func_name, const int line);
-
-#else
-int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len);
-int sdla_memdbg_pull(void *mem, const char *func_name, const int line);
-#endif
-#endif
 
 
 
@@ -623,6 +602,8 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line);
 */
 
 #ifdef WAN_DEBUG_MEM
+
+#include "wan_mem_debug.h"
 
 #define wan_malloc(size) __wan_malloc(size,(const char*)__FUNCTION__,(const int)__LINE__)
 static __inline void* __wan_malloc(int size, const char *func_name, const int line)

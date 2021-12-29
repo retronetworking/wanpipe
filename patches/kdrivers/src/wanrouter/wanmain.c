@@ -2137,7 +2137,7 @@ void wan_skb_destructor (struct sk_buff *skb)
 {
 	if (skb->dev){
 		struct net_device *dev=skb->dev;
-		atomic_dec(&(dev)->refcnt);
+		dev_put(dev);
 		//printk(KERN_INFO "%s: Skb destructor: put dev: refcnt=%i\n",
 		//		dev->name,atomic_read(&dev->refcnt));
 	}	

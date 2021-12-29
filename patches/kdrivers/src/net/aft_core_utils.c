@@ -239,24 +239,6 @@ int aft_free_running_timer_disable(sdla_t *card)
 	return 0;
 }
 
-void aft_wdt_set(sdla_t *card, unsigned char val)
-{
-#ifndef WAN_NO_INTR
-	u8 reg;
-	u32 wdt_ctrl_reg=AFT_WDT_1TO4_CTRL_REG+card->wandev.comm_port;
-	
-	if (card->wandev.comm_port > 3) {
-		wdt_ctrl_reg=AFT_WDT_4TO8_CTRL_REG+(card->wandev.comm_port%4);	
-	}
-	
-	card->hw_iface.bus_read_1(card->hw,AFT_PORT_REG(card,wdt_ctrl_reg), &reg);		
-	aft_wdt_ctrl_set(&reg,val);
-	card->hw_iface.bus_write_1(card->hw,AFT_PORT_REG(card,wdt_ctrl_reg), reg);
-
-	card->wdt_timeout=val;
-#endif
-}
-
 void aft_wdt_reset(sdla_t *card)
 {
 	u8 reg;
@@ -270,6 +252,36 @@ void aft_wdt_reset(sdla_t *card)
 	aft_wdt_ctrl_reset(&reg);
 	card->hw_iface.bus_write_1(card->hw, AFT_PORT_REG(card,wdt_ctrl_reg), reg);
 }
+
+void aft_wdt_set(sdla_t *card, unsigned char val)
+{
+#ifndef WAN_NO_INTR
+	u8 reg;
+	u32 wdt_ctrl_reg=AFT_WDT_1TO4_CTRL_REG+card->wandev.comm_port;
+
+	if (!val) {
+		DEBUG_ERROR("%s: aft_wdt_set: called with timeout=0\n");
+		aft_wdt_reset(card);
+		return;
+	}
+
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)) {
+		aft_wdt_reset(card);
+		return;
+	}
+	
+	if (card->wandev.comm_port > 3) {
+		wdt_ctrl_reg=AFT_WDT_4TO8_CTRL_REG+(card->wandev.comm_port%4);	
+	}
+	
+	card->hw_iface.bus_read_1(card->hw,AFT_PORT_REG(card,wdt_ctrl_reg), &reg);		
+	aft_wdt_ctrl_set(&reg,val);
+	card->hw_iface.bus_write_1(card->hw,AFT_PORT_REG(card,wdt_ctrl_reg), reg);
+
+	card->wdt_timeout=val;
+#endif
+}
+
 
 
 void aft_channel_txdma_ctrl(sdla_t *card, private_area_t *chan, int on)
@@ -417,10 +429,16 @@ int aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, int irq)
 		}
 #else
 		if (chan->channelized_cfg && !chan->hdlc_eng){
-#if 0
-/* NC: This is not used any more since we fixed the dma syncing 
-   related to 64bit machines. This code to be taken out. */
+#if (!defined(WANPIPE_64BIT_2G_DMA) && defined(WANPIPE_64BIT_4G_DMA)) 
+/* NC: This code should not be used by default any more as we are
+       using bus_sync to sync the dma memeory before and after tx/rx.
+	   However on B601 we have seen an instance where this code
+	   is still necessary.  I am putting it back for sanity sake
+	   until we find out what is going on with B601 */
+
+	   /* old define that enabled this code on every 64bit system */
 //(!defined(WANPIPE_64BIT_2G_DMA) && (defined(WANPIPE_64BIT_4G_DMA) || defined(CONFIG_X86_64)))
+
 			/* On 64bit Systems greater than 4GB we must
 			 * allocated our DMA buffers using GFP_DMA 
 			 * flag */
@@ -1282,19 +1300,30 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 #endif
 			break;
 
-#ifdef WANPIPE_PERFORMANCE_DEBUG
-		case WANPIPEMON_READ_PEFORMANCE_STATS:
+		case WANPIPEMON_PERFORMANCE_STATS:
+			if (wan_udp_pkt->wan_udp_data[0] == 0){     
+                 card->aft_perf_stats_enable=0;
+		   	 	wan_udp_pkt->wan_udp_data_len=1;
+				wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;     
+			} else {
+				card->aft_perf_stats_enable=1;
+				wan_udp_pkt->wan_udp_data_len=1;
+				wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			}
+			break;
+		
+		case WANPIPEMON_READ_PERFORMANCE_STATS:
 			memcpy(wan_udp_pkt->wan_udp_data,&card->aft_perf_stats,sizeof(card->aft_perf_stats));
 			wan_udp_pkt->wan_udp_data_len=sizeof(card->aft_perf_stats);
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			break;
 
-		case WANPIPEMON_FLUSH_PEFORMANCE_STATS:
+		case WANPIPEMON_FLUSH_PERFORMANCE_STATS:
 			memset(&card->aft_perf_stats,0,sizeof(card->aft_perf_stats));
 			wan_udp_pkt->wan_udp_data_len=sizeof(card->aft_perf_stats);
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			break;
-#endif
+
 		case WANPIPEMON_READ_OPERATIONAL_STATS:
 			memcpy(wan_udp_pkt->wan_udp_data,&chan->chan_stats,sizeof(wp_tdm_chan_stats_t));
 			wan_udp_pkt->wan_udp_data_len=sizeof(wp_tdm_chan_stats_t);
@@ -1324,6 +1353,32 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			memset(&chan->errstats,0,sizeof(aft_comm_err_stats_t));
 			wan_udp_pkt->wan_udp_data_len=0;
 			memset(&card->wandev.stats,0,sizeof(card->wandev.stats));
+			break;
+
+		case WANPIPEMON_LED_CTRL:
+			{
+				wan_smp_flag_t smp_flags1;
+				card->hw_iface.hw_lock(card->hw,&smp_flags1);
+				wan_spin_lock_irq(&card->wandev.lock,&smp_flags);   
+
+				if (wan_udp_pkt->wan_udp_data[0] == 0){  
+					/* Identify Disable */
+					if (card->wandev.state == WAN_CONNECTED) {
+						aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_OFF);
+						aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_ON);   
+					} else {
+						aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_ON);
+						aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_OFF);   
+					}      
+						
+				} else {
+					/* Identify Enable */
+					aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_OFF);
+					aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_OFF);   
+				}
+				wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);   
+				card->hw_iface.hw_unlock(card->hw,&smp_flags1);
+			}
 			break;
 
 		case WANPIPEMON_CHAN_SEQ_DEBUGGING:
@@ -2231,14 +2286,36 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 				legacy_tdm_timer_detect=1;
 
 				if (card->wandev.state == WAN_CONNECTED) {
-					DEBUG_TEST("%s: Resetting Legacy Master Clock (%i)!\n",
-							card->devname,AFT_WDTCTRL_TIMEOUT);
-					wan_clear_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
+					if (wan_test_bit(CARD_WDT_TDM_TIMING,&card->wandev.critical)) {
+						DEBUG_EVENT("%s: TDM Timing Disabled!\n",
+							card->devname);
+						wan_clear_bit(CARD_WDT_TDM_TIMING,&card->wandev.critical);
+					}
 					aft_wdt_set(card,AFT_WDTCTRL_TIMEOUT);
 					legacy_tdm_timer_enable=0;
 				}
 		}
 #endif
+
+		if (IS_TE1_CARD(card) && card->wandev.ec_enable_map) {
+			if (card->adptr_subtype == AFT_SUBTYPE_SHARK) {
+				if (wan_test_bit(CARD_MASTER_CLOCK,&card->wandev.critical)) {		
+					if (card->wandev.state != WAN_CONNECTED) {
+						if (card->wandev.ec_clock_ctrl){
+							DEBUG_EVENT("%s: HWEC Master Clock Cleared!\n",
+								card->devname);
+							wan_clear_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
+						} 
+						
+					} else {
+						DEBUG_TEST("%s: HWEC Master Clock Found!\n",
+								card->devname);
+						/* Master Clock port is still OK */
+						master_clock_src_found=1;
+					}
+				}
+			}
+		}
 
 	}
 
@@ -2261,7 +2338,7 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 		if (master_clock_src_found) {
 	    	return 0;
 		}
-	} else if (legacy_tdm_timer_enable == 0) {
+	} else if (legacy_tdm_timer_enable == 0 && master_clock_src_found) {
 		return 0;
 	}
 
@@ -2273,7 +2350,7 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 			continue;
 		}
 
-		if (IS_BRI_CARD(card)) {
+		if (IS_BRI_CARD(card) && !master_clock_src_found) {
 
 			/* Check if this module is forced configured in oscillator mode */
 			if (BRI_CARD_CLK(card) == WAN_MASTER_CLK) {
@@ -2310,25 +2387,48 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 		}
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
  		else if (IS_TE1_CARD(card) &&
-				   !wan_test_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status) &&
-				   card->wan_tdmv.sc &&
-				   card->u.aft.global_tdm_irq) {
+				 !wan_test_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status) &&
+				 card->wan_tdmv.sc &&
+				 card->u.aft.global_tdm_irq && 
+				 legacy_tdm_timer_enable) {
 
 				if (card->wandev.state != WAN_CONNECTED) {
-					if (!wan_test_bit(CARD_MASTER_CLOCK,&card->wandev.critical)) {	
+					if (!wan_test_bit(CARD_WDT_TDM_TIMING,&card->wandev.critical)) {	
 						ms=card->u.aft.tdmv_mtu/8;
 						if (ms < 1) {
 							ms=1;
 						}
-						wan_set_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
+						wan_set_bit(CARD_WDT_TDM_TIMING,&card->wandev.critical);
 						DEBUG_EVENT("%s: TDM Timing Enabled %i ms\n",
 							card->devname,ms);
 						aft_wdt_set(card,1);
 					}
-					break;
+
+					legacy_tdm_timer_enable=0;
 				}
 		}
 #endif
+
+		 if (IS_TE1_CARD(card) && card->wandev.ec_enable_map && !master_clock_src_found) {
+		 
+		 	wan_spin_lock_irq(&card->wandev.lock,&flags);
+
+			if (!wan_test_bit(CARD_MASTER_CLOCK,&card->wandev.critical)) {	
+				if (card->wandev.state == WAN_CONNECTED) {
+					if (card->wandev.ec_clock_ctrl){
+						DEBUG_EVENT("%s: HWEC Master Clock Set!\n",
+							card->devname);
+						card->wandev.ec_clock_ctrl(card);
+						wan_set_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
+						master_clock_src_found=1;
+					}
+				} 
+			}
+
+			wan_spin_unlock_irq(&card->wandev.lock,&flags);
+
+		}                      
+
 	}
 
 	return 0;
@@ -2641,7 +2741,7 @@ void aft_clear_ss7_force_rx(sdla_t *card, private_area_t *chan)
 
 /* Used for Debugging Only */
 
-#if 0
+#ifdef AFT_LIST_DMA_DESCRIPTORS
 void aft_list_tx_descriptors(private_area_t *chan)
 {
 	u32 reg,cur_dma_ptr,lo_reg;
@@ -2688,19 +2788,23 @@ void aft_list_tx_descriptors(private_area_t *chan)
 		
 		card->hw_iface.bus_read_4(card->hw,dma_descr,&lo_reg);
 
-		DEBUG_EVENT("%s: TX DMA=%d : Go=%u Intr=%u Used=%lu A=0%X R=0x%08X L=0x%08X C=%i\n",
+		DEBUG_EVENT("%s: TX DMA=%d : Go=%u Intr=%u Used=%lu A=0%X R=0x%08X L=0x%08X C=%i TxAtt=%i\n",
 				chan->if_name,
 				dma_chain->index,
 				wan_test_bit(AFT_TXDMA_HI_GO_BIT,&reg),
 				wan_test_bit(AFT_TXDMA_HI_INTR_DISABLE_BIT,&reg) ? 0:1,
 				dma_chain->init,
 				dma_descr,
-				reg,lo_reg,(lo_reg&0x1FF)/128);
+				reg,lo_reg,(lo_reg&0x1FF)/128,
+				chan->tx_attempts
+				);
 
 	}
-}
 
+	aft_transaction_list(chan);
+}
 #endif
+
 
 #if 0
 static void aft_list_dma_chain_regs(sdla_t *card)
@@ -2737,8 +2841,8 @@ static void aft_list_dma_chain_regs(sdla_t *card)
 #endif
 
 
-#if 0
-static void aft_list_descriptors(private_area_t *chan)
+#ifdef AFT_LIST_DMA_DESCRIPTORS
+void aft_list_descriptors(private_area_t *chan)
 {
 	u32 reg,cur_dma_ptr,lo_reg;
 	sdla_t *card=chan->card;

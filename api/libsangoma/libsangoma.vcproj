@@ -121,7 +121,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories=".;..\wanpipe_common\include;..\wanpipe_common\include\aft_core;..\wanpipe_common\wantools\wanec_apilib;..\wanpipe_windows\include"
+				AdditionalIncludeDirectories=".;..\wanpipe_common\include;..\wanpipe_common\include\aft_core;..\wanpipe_common\wantools\wanec_apilib;..\wanpipe_windows\include;..\wanpipe_common\wanec"
 				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;__WINDOWS__;__COMPILING_LIBSANGOMA__;WANPIPE_TDM_API;_CRT_SECURE_NO_DEPRECATE;WP_API_FEATURE_DTMF_EVENTS;WP_API_FEATURE_EVENTS;WP_API_FEATURE_RM_GAIN;WP_API_FEATURE_LINK_STATUS;WP_API_FEATURE_FE_ALARM;WP_API_FEATURE_FAX_EVENTS;WP_API_FEATURE_LOGGER;WP_API_FEATURE_LIBSNG_HWEC;WP_PREVENT_WINSOCK_NAME_CONFLICT"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"

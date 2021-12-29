@@ -271,16 +271,28 @@ static int wanpipe_port_management(wanpipe_wandev_t *wdev, void *data)
 		break;
 
 	case WANPIPE_HARDWARE_RESCAN:
+        {
+		int new_cards=0;
 
+		/* Detect only new cards */
+		new_cards = sdla_hw_probe(); 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)       		
+		new_cards += sdla_get_hw_usb_adptr_cnt();
+#endif
+		
+		/* Free all so that we erase any hw that is not there
+		   any more. And rescan from begining. */
+		sdla_hw_probe_free();
 		cnt = sdla_hw_probe(); 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)       		
 		cnt += sdla_get_hw_usb_adptr_cnt();
 #endif
-		DEBUG_EVENT("WANPIPE_HARDWARE_RESCAN %i\n",cnt);
-	
-		if (cnt) {
+		DEBUG_EVENT("wandev: hardware rescan: total=%i new=%i\n",cnt,new_cards);
+
+		/* Only add new cards */
+		if (new_cards) {
 			int i;
-			for (i = 0; i < cnt; i++){
+			for (i = 0; i < new_cards; i++){
 				 if (sdladrv_callback.add_device){
 					sdladrv_callback.add_device();
 				}
@@ -289,6 +301,7 @@ static int wanpipe_port_management(wanpipe_wandev_t *wdev, void *data)
 		usr_port_mgmnt->port_no=cnt;
 		
 		err=0;
+		}
 		break;
 	}
 

@@ -15,7 +15,6 @@
 # include <time.h>
 # include <conio.h>			/* for _kbhit */
 
-# include "libsangoma.h"
 # include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t'; wp_strcasecmp()/wp_gettimeofday()/wp_usleep() */
 # include "wanpipe_time.h"		/* for 'struct wan_timeval' */
 
@@ -48,6 +47,8 @@
 # define BREAK_POINT()
 #endif
 
+#include "libsangoma.h"
+
 
 #ifndef _LIBSANGOMA_H
 /* for OSs which not running on libsangoma (yet)
@@ -76,9 +77,7 @@ extern int DoCommand(wan_udp_hdr_t*);
 
 extern int MakeConnection(void);
 
-#ifdef _LIBSANGOMA_H
 extern void CloseConnection(sng_fd_t *fd);
-#endif
 
 extern char *global_command;
 extern int global_argc;
@@ -97,7 +96,12 @@ extern void PPP_read_FT1_status(void);
 extern void ATM_read_FT1_status(void);
 
 
+extern sng_fd_t sangoma_fd;
+#if defined(__WINDOWS__)
+#define sock sangoma_fd
+#else
 extern sng_fd_t sock;
+#endif
 
 extern int is_logger_dev;
 extern char i_name[];
@@ -121,6 +125,8 @@ extern char ipaddress[];
 extern int udp_port;
 extern int wan_protocol;
 extern int annexg_trace;
+extern int cmd_timeout;
+extern int led_blink;
 
 extern char *csudsu_menu[];
 
@@ -579,6 +585,7 @@ extern void	hw_router_up_time(void);
 extern void	hw_read_code_version(void);
 extern void     hw_link_status(void);
 extern void aft_remora_debug_mode(sdla_fe_debug_t *fe_debug);
+extern void wp_port_led_blink_off(void); 
 
 #ifndef LONG_MAX 
 #define LONG_MAX	((long)(~0UL>>1))

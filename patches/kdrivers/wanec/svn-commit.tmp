@@ -1,0 +1,7 @@
+Bug fix in ec_enable and ec_state calls.
+We must check for ec->state and ec_dev->state
+Otherwise one can still enable ec on span where
+ec is not enabled
+--This line, and those below, will be ignored--
+
+M    wanec_iface.c
