@@ -1292,6 +1292,27 @@ static int wp_tdmv_remora_is_rbsbits(wan_tdmv_t *wan_tdmv)
 	return 0;
 }
 
+void wp_tdmv_dtmfcheck_fakepolarity_trigger(wp_tdmv_remora_t *wr, int mod_no)
+{
+	sdla_t	*card = wr->card;
+	sdla_fe_t *fe = &card->fe;
+
+	if (!(fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO) || wr->mod[mod_no].fxo.offhook) {
+		return;
+	}
+
+	if(!wr->mod[mod_no].fxo.readcid) {
+			wr->mod[mod_no].fxo.readcid = 1;
+			wr->mod[mod_no].fxo.ring_skip = 1;
+			wr->mod[mod_no].fxo.cidtimer = fe->rm_param.intcount;
+			DEBUG_EVENT("DTMF fake polarity, mod=%i (on Ring)\n",mod_no+1);
+			zt_qevent_lock(&wr->chans[mod_no], ZT_EVENT_POLARITY);
+	} else {
+		/* Reset timeout on each RING */
+		wr->mod[mod_no].fxo.cidtimer = fe->rm_param.intcount;
+	}
+}
+
 
 static inline void wp_tdmv_dtmfcheck_fakepolarity(wp_tdmv_remora_t *wr, int channo, unsigned char *rxbuf)
 {
@@ -1301,7 +1322,7 @@ static inline void wp_tdmv_dtmfcheck_fakepolarity(wp_tdmv_remora_t *wr, int chan
 	int dtmf=1;
 
 	if (!card->fe.fe_cfg.cfg.remora.fake_polarity_thres) {
-		card->fe.fe_cfg.cfg.remora.fake_polarity_thres=1600;
+		card->fe.fe_cfg.cfg.remora.fake_polarity_thres=16000;
 	}
 	if (!card->fe.fe_cfg.cfg.remora.fake_polarity_cid_timer) {
 		card->fe.fe_cfg.cfg.remora.fake_polarity_cid_timer=400;
@@ -1323,7 +1344,7 @@ static inline void wp_tdmv_dtmfcheck_fakepolarity(wp_tdmv_remora_t *wr, int chan
 			wr->mod[channo].fxo.readcid = 1;
 			wr->mod[channo].fxo.ring_skip = 1;
 			wr->mod[channo].fxo.cidtimer = fe->rm_param.intcount;
-			DEBUG_TDMV("DTMF CLIP on %i\n",channo+1);
+			DEBUG_EVENT("DTMF fake polarity, mod=%i (on Sample)\n",channo+1);
 			zt_qevent_lock(&wr->chans[channo], ZT_EVENT_POLARITY);
 		}
 	} else if(wr->mod[channo].fxo.readcid && fe->rm_param.intcount > wr->mod[channo].fxo.cidtimer + card->fe.fe_cfg.cfg.remora.fake_polarity_cid_timeout) {

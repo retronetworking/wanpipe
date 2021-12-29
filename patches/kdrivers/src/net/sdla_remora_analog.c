@@ -40,6 +40,9 @@
 
 extern int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane);
 extern int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane);
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)	
+extern void wp_tdmv_dtmfcheck_fakepolarity_trigger(wp_tdmv_remora_t *wr, int channo);
+#endif
 
 #if defined(AFT_TDM_API_SUPPORT) || defined(AFT_API_SUPPORT)
 static void wp_remora_voicedaa_tapper_check_hook(sdla_fe_t *fe, int mod_no);
@@ -243,6 +246,9 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 					if (card->u.aft.tdmv_zaptel_cfg) {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)	
 						if (fxo->ring_skip <= 0) {
+							if (card->fe.fe_cfg.cfg.remora.fake_polarity == WANOPT_YES){
+								wp_tdmv_dtmfcheck_fakepolarity_trigger(wr,mod_no);
+							}
 							zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_RING);
 						}
 						DEBUG_TDMV("%s: Module %d: RING on span %d!\n",

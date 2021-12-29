@@ -149,8 +149,11 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 #define IRQF_SHARED SA_SHIRQ
 #endif
 
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
 #ifndef f_dentry
 #define f_dentry f_path.dentry
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,15,0)

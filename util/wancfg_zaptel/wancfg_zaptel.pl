@@ -261,9 +261,10 @@ my @silent_first_chans;
 my @silent_last_chans;
 
 my $silent_fake_polarity="NO";
-my $silent_fake_polarity_thres=1600;
+my $silent_fake_polarity_thres=16000;
 my $silent_fake_polarity_cidtimer=400;
 my $silent_fake_polarity_cidtimeout=4000;
+my $silent_ring_debounce=0;
 
 my $silent_hwdtmf="YES";
 my $silent_femedia="T1";
@@ -1998,6 +1999,11 @@ sub read_args {
 				exit(1);
 			} else {	
 				push(@silent_hwdtmfs, $silent_hwdtmf);
+			}
+		}elsif ( $_ =~ /--ring_debounce=(\d+)/){
+			$silent_ring_debounce=$1;
+			if ($silent_ring_debounce < 24) {
+				$silent_ring_debounce=24
 			}
 		}elsif ( $_ =~ /--fake_polarity=(\w+)/){
 			$silent_fake_polarity=$1;
@@ -4004,6 +4010,12 @@ sub config_analog{
 							$a20x->rm_network_sync('YES');
 						}
 					} 
+
+					$a20x->rm_ring_debounce($silent_ring_debounce);
+					$a20x->rm_fake_polarity($silent_fake_polarity);
+					$a20x->rm_fake_polarity_threshold($silent_fake_polarity_thres);
+					$a20x->rm_fake_polarity_cidtimer($silent_fake_polarity_cidtimer);
+					$a20x->rm_fake_polarity_cidtimeout($silent_fake_polarity_cidtimeout);
 				
 					if ($silent==$FALSE){
 						if ($card->hwec_mode eq "YES"){

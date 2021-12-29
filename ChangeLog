@@ -8,14 +8,25 @@ Copyright (c) 1995-2016 Sangoma Technologies Inc.
 For more info visit: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
 
-* Fri Mar 17 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.18
+* May 9 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.19
+==================================================================
+- Add RM_RING_DEBOUNCE config option
+- Fix for Centos 5 build
+- Update to fake polarity feature. Reset fake polarity timeout
+  on each ring. We do not want fake polarity triggering during rings.
+- Update to fake polarity feature.
+- More reliable for DTMF caller id scenarios. 
+- RM_FAKE_POLARITY_THRESHOLD should be 16000 
+
+
+* Mar 17 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.18
 ==================================================================
 - Driver will start by default even though analog FXS/FXO module failed to configure.
   New config parameters: RM_FAIL_ON_MOD_ERROR=YES will revert this behaviour.
 - Fake polarity feature is now configurable
   New config parameters with their default values if not set
   RM_FAKE_POLARITY=NO  #Default is NO.
-  RM_FAKE_POLARITY_THRESHOLD=1600
+  RM_FAKE_POLARITY_THRESHOLD=16000
   RM_FAKE_POLARITY_CIDTIMER=400
   RM_FAKE_POLARITY_CIDTIMEOUT=4000
 

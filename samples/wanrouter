@@ -2231,7 +2231,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=7.0.18
+		ROUTER_VERSION=7.0.19
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"
@@ -2611,6 +2611,9 @@ case "$1" in
 				fi
 				if [ "$WANPIPE_GLOBAL_FAKE_POLARITY_CIDTIMEOUT" != "" ]; then
 					WANCFG_EXTRA_OPTION="$WANCFG_EXTRA_OPTION --fake_polarity_cidtimeout=$WANPIPE_GLOBAL_FAKE_POLARITY_CIDTIMEOUT"
+				fi
+				if [ "$WANPIPE_GLOBAL_RING_DEBOUNCE" != "" ]; then
+					WANCFG_EXTRA_OPTION="$WANCFG_EXTRA_OPTION --ring_debounce=$WANPIPE_GLOBAL_RING_DEBOUNCE"
 				fi
 
 				eval "wancfg_dahdi --no-dahdi --no-chan-dahdi --silent --fe_media=$WANPIPE_GLOBAL_FE_MEDIA $WANCFG_EXTRA_OPTION"

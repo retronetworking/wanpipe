@@ -16,8 +16,9 @@ sub new	{
 		_rm_network_sync => 'NO',
 		_analog_modules => undef,
 		_fe_line   => undef,
+		_rm_ring_debounce => 0,
 		_rm_fake_polarity => 'NO',
-		_rm_fake_polarity_threshold => 1600,
+		_rm_fake_polarity_threshold => 16000,
 		_rm_fake_polarity_cidtimer => 400,
 		_rm_fake_polarity_cidtimeout => 4000,
 	};			
@@ -59,6 +60,12 @@ sub analog_modules {
 	            my ( $self, $analog_modules ) = @_;
 		                    $self->{_analog_modules} = $analog_modules if defined($analog_modules);
 				                        return $self->{_analog_modules};
+}
+
+sub rm_ring_debounce {
+	            my ( $self, $rm_ring_debounce ) = @_;
+		                    $self->{_rm_ring_debounce} = $rm_ring_debounce if defined($rm_ring_debounce);
+				                        return $self->{_rm_ring_debounce};
 }
 
 sub rm_fake_polarity {
@@ -171,6 +178,7 @@ sub gen_wanpipe_conf{
 	my $rm_fake_polarity_threshold = $self->rm_fake_polarity_threshold;
 	my $rm_fake_polarity_cidtimer = $self->rm_fake_polarity_cidtimer;
 	my $rm_fake_polarity_cidtimeout = $self->rm_fake_polarity_cidtimeout;
+	my $rm_ring_debounce = $self->rm_ring_debounce;
 
 	my $device_alpha = &get_alpha_from_num($device_no);
 
@@ -207,6 +215,7 @@ sub gen_wanpipe_conf{
     $wp_file =~ s/RMFAKETHRES/$rm_fake_polarity_threshold/g;
     $wp_file =~ s/RMFAKECIDTIMER/$rm_fake_polarity_cidtimer/g;
     $wp_file =~ s/RMFAKECIDTIMEOUT/$rm_fake_polarity_cidtimeout/g;
+    $wp_file =~ s/RMRINGDEBOUNCE/$rm_ring_debounce/g;
 
 	print FH $wp_file;
 	close (FH);

@@ -322,6 +322,7 @@ static key_word_t common_conftab[] =	/* Common configuration parameters */
   { "RM_FAKE_POLARITY_THRESHOLD",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity_thres), DTYPE_UINT },
   { "RM_FAKE_POLARITY_CIDTIMER",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity_cid_timer), DTYPE_UINT },
   { "RM_FAKE_POLARITY_CIDTIMEOUT",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity_cid_timeout), DTYPE_UINT },
+  { "RM_RING_DEBOUNCE",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, ringdebounce), DTYPE_INT },
   
   /* TDMV parameters */
   { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UCHAR},
@@ -659,7 +660,7 @@ static key_word_t ss7_conftab[] =
   {"N2",		  smemof(wan_ss7_conf_t,n2),	  DTYPE_UINT },
   {"TIN",		  smemof(wan_ss7_conf_t,tin),	  DTYPE_UINT },
   {"TIE",		  smemof(wan_ss7_conf_t,tie),	  DTYPE_UINT },
-  {"SUERM_ERROR_THRESHOLD", smemof(wan_ss7_conf_t,suerm_error_threshold), DTYPE_UINT},
+  {"SUERM_ERROR_THRESHOLD", smemof(wan_ss7_conf_t,suerm_error_threshold), DTYPE_INT},
   {"SUERM_NUMBER_OCTETS", smemof(wan_ss7_conf_t,suerm_number_octets), DTYPE_UINT},
   {"SUERM_NUMBER_SUS", smemof(wan_ss7_conf_t,suerm_number_sus), DTYPE_UINT},
   {"SIE_INTERVAL_TIMER", smemof(wan_ss7_conf_t,sie_interval_timer), DTYPE_UINT},

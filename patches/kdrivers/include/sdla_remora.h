@@ -176,7 +176,7 @@ typedef struct sdla_remora_cfg_ {
 	int		fxs_ringampl;
 	u_int8_t	rm_mode; 	/*Analog Operation mode: default or tapping */
 	u_int8_t    fake_polarity;  /*FAKE Polarity event generation : YES or NO*/
-	u_int32_t   fake_polarity_thres; /*Threshold value(only for Analoge cards,units defined in L16 sample value)
+	int         fake_polarity_thres; /*Threshold value(only for Analoge cards,units defined in L16 sample value)
 									       to decide generation of FAKE Polarity event*/
 	u_int32_t 	fake_polarity_cid_timer;
 	u_int32_t 	fake_polarity_cid_timeout;
