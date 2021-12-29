@@ -85,11 +85,13 @@
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
+#ifndef KERN_MEMCPY_FROM_MSG
 static inline int memcpy_from_msg(void *data, struct msghdr *msg, int len)
 {
 	/* XXX: stripping const */
 	return memcpy_fromiovec(data, (struct iovec *)msg->msg_iov, len);
 }
+#endif
 
 static inline int memcpy_to_msg(struct msghdr *msg, void *data, int len)
 {

@@ -173,6 +173,15 @@ KERN_PROC_PDE_FEATURE=$(shell grep PDE_DATA $(KSRC)/include/linux/proc_fs.h -c)
 EXTRA_CFLAGS+=-DKERN_PROC_PDE_FEATURE=$(KERN_PROC_PDE_FEATURE)
 endif
 
+ifneq (,$(wildcard $(KDIR)/include/linux/skbuff.h))
+KERN_MEMCPY_FROM_MSG=$(shell grep "memcpy_from_msg" $(KDIR)/include/linux/skbuff.h -c)
+EXTRA_CFLAGS+=-DKERN_MEMCPY_FROM_MSG=$(KERN_MEMCPY_FROM_MSG)
+else
+KERN_MEMCPY_FROM_MSG=$(shell grep "memcpy_from_msg" $(KSRC)/include/linux/skbuff.h -c)
+EXTRA_CFLAGS+=-DKERN_MEMCPY_FROM_MSG=$(KERN_MEMCPY_FROM_MSG)
+endif
+
+
 ifneq (,$(wildcard $(KDIR)/include/net/sock.h))
 KERN_SK_FOR_NODE_FEATURE=$(shell grep "sk_for_each.*node" $(KDIR)/include/net/sock.h -c)
 EXTRA_CFLAGS+=-DKERN_SK_FOR_NODE_FEATURE=$(KERN_SK_FOR_NODE_FEATURE)

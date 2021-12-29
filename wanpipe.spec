@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.21
+%define VERSION           7.0.22
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,7 +259,12 @@ fi
 ################################################################################
 
 %changelog
-* Tue Oct 4 2017 7.0.21
+* Tue Oct 11 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.22
+==================================================================
+- Support for redhat release version 7.4+ kernel i.e. 3.10.0-693
+
+
+* Tue Oct 4 2017 Nenad Corbic <ncorbic@sangoma.com> -  7.0.21
 ==================================================================
 - Fix BRI intermittent frame loss or delay
 - Support for Kernel version 4.7+
