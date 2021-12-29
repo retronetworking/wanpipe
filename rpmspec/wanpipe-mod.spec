@@ -1,7 +1,7 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
 %define version           2.3.4
-%define release           13
+%define release           16
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
 %define USR_INCLUDE_DIR   /usr/include
@@ -50,6 +50,35 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+
+
+* Tue Nov 15 2007 Nenad Corbic <ncorbic@sangoma.com> - 2.3.4-16
+====================================================================
+
+- Fixed MAXIM loopback commands.
+  T1/E1 Digital, Remote and Line Loopbacks now work.
+
+
+* Tue Oct 29 2007 Nenad Corbic <ncorbic@sangoma.com> - 2.3.4-15
+====================================================================
+
+- Fixed T3/E3 CARRIER state on startup.
+
+- Updated Setup install script 
+
+
+* Tue Aug 15 2007 Nenad Corbic <ncorbic@sangoma.com> - 2.3.4-14
+====================================================================
+
+- Added A101-SH A102-SH autopci old config support.
+  So A101u or A101c config file can be used with new A101-SH cards.
+
+- Added a sanity checker for enabling HWEC.
+  Used to prevent duble hwec enable.
+
+- Updated CHDLC switched CTS/RTS auto-baudrate.
+
+
 
 * Mon Jun 30 2007 Nenad Corbic <ncorbic@sangoma.com> - 2.3.4-13
 ==================================================================== 

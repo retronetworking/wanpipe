@@ -239,19 +239,19 @@ int __init wanrouter_init (void)
 {
 	int err;
 
-	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta%s-%s %s %s\n",
-			fullname, WANPIPE_SUB_VERSION, WANPIPE_VERSION,
-			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-		sprintf(wan_version,"Beta%s-%s",
-				WANPIPE_SUB_VERSION, WANPIPE_VERSION);
-	}else{
-		DEBUG_EVENT("%s Stable %s-%s %s %s\n",
-			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
-			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-		sprintf(wan_version,"Stable %s-%s",
-				WANPIPE_VERSION, WANPIPE_SUB_VERSION);
-	}
+       if (WANPIPE_VERSION_BETA){
+                DEBUG_EVENT("%s Beta%s-%s %s %s\n",
+                        fullname, WANPIPE_SUB_VERSION, WANPIPE_VERSION,
+                        WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
+                sprintf(wan_version,"Beta%s-%s",
+                                WANPIPE_SUB_VERSION, WANPIPE_VERSION);
+        }else{
+                DEBUG_EVENT("%s Stable %s-%s %s %s\n",
+                        fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
+                        WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
+                sprintf(wan_version,"Stable %s-%s",
+                                WANPIPE_VERSION, WANPIPE_SUB_VERSION);
+        }
 
 	WAN_LIST_INIT(&wan_devlist);
         wan_spin_lock_init(&wan_devlist_lock);
@@ -542,13 +542,13 @@ int wanrouter_ioctl(struct inode *inode, struct file *file,
 		
 	dent = WP_PDE(inode);
 	if ((dent == NULL) || (dent->data == NULL)){
-#if defined(WANPIPE_USE_I_PRIVATE) 
-		DEBUG_EVENT("%s: Invalid dent %p\n",
-				__FUNCTION__,inode->i_private);
-#else		
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+		DEBUG_EVENT("%s: Invalid dent\n",
+				__FUNCTION__);
+#else
 		DEBUG_EVENT("%s: Invalid dent %p\n",
 				__FUNCTION__,inode->u.generic_ip);
-#endif
+#endif		
 		return -EINVAL;
 	}
 		
@@ -898,6 +898,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 	if (dev == NULL){
 		goto wan_device_new_if_exit;
 	}
+	wan_netif_set_priv(dev, NULL);
 
 	devle = wan_malloc(sizeof(struct wan_dev_le));
 	if (devle == NULL){
@@ -1859,6 +1860,8 @@ static int wan_device_unreg_lip(netdevice_t *dev)
 	void *lip_link = wan_get_lip_ptr(dev);
 	int err;
 
+	if (!IS_PROTOCOL_FUNC(wplip_protocol)) return 0;
+
 	if (!IS_FUNC_CALL(wplip_protocol,wplip_if_unreg))
 		return 0;
 
@@ -1923,8 +1926,8 @@ static int wan_device_new_if_lip (wan_device_t *wandev, wanif_conf_t *u_conf)
 		goto wan_device_new_if_lip_exit;
 	}
 
-	DEBUG_EVENT("%s: Registering LIP %s -> %s\n",
-			wandev->name, conf->name, conf->master);
+	DEBUG_EVENT("%s: Registering LIP %s -> %s (prot = %i)\n",
+			wandev->name, conf->name, conf->master, conf->protocol);
 
 	if (!conf->master){
 		printk(KERN_INFO "wanpipe: NEW_IF LIP no master interface name!\n");
@@ -2000,6 +2003,8 @@ static int wan_device_del_if_lip(wan_device_t *wandev, netdevice_t *dev)
 		return -EBUSY;
 	}
 	
+	if (!IS_PROTOCOL_FUNC(wplip_protocol)) return 0;
+
 	if (!IS_FUNC_CALL(wplip_protocol,wplip_if_unreg))
 		return 0;
 
@@ -2030,6 +2035,8 @@ void unregister_wanec_iface (void)
 
 void *wanpipe_ec_register(void *pcard, int max_channels)
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return NULL;
+
 	if (wanec_iface.reg){
 		return wanec_iface.reg(pcard, max_channels);
 	}
@@ -2037,6 +2044,7 @@ void *wanpipe_ec_register(void *pcard, int max_channels)
 }
 int wanpipe_ec_unregister(void *arg, void *pcard)
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return 0;
 	if (wanec_iface.unreg){
 		return wanec_iface.unreg(arg, pcard);
 	}
@@ -2045,6 +2053,7 @@ int wanpipe_ec_unregister(void *arg, void *pcard)
 
 int wanpipe_ec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl)	
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return 0;
 	if (wanec_iface.event_ctrl){
 		return wanec_iface.event_ctrl(arg, pcard, event_ctrl);
 	}
@@ -2053,6 +2062,7 @@ int wanpipe_ec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl)
 
 int wanpipe_ec_isr(void *arg, void *pcard)
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return 0;
 	if (wanec_iface.isr){
 		return wanec_iface.isr(arg, pcard);
 	}
@@ -2061,6 +2071,7 @@ int wanpipe_ec_isr(void *arg, void *pcard)
 
 int wanpipe_ec_poll(void *arg, void *pcard)
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return 0;
 	if (wanec_iface.poll){
 		return wanec_iface.poll(arg, pcard);
 	}

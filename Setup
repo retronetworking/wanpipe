@@ -9,6 +9,7 @@
 #		as published by the Free Software Foundation; either version
 #		2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Oct 26, 2007  Konrad Hammel   Updated minor start script bug
 # Nov 27, 2005  David Rokhvarg 	Added Echo Debugging option
 # Mar 18, 2002  Nenad Corbic	Added BSCSTRM protocol
 # Mar 01, 2002  Nenad Corbic	Added option to split rpm build into
@@ -142,8 +143,14 @@ error()
 pause()
 {
 
-	if test $NONINTERACTIVE; then
-		return 0
+	local force_pause=$1
+
+	if [ -z $force_pause ]; then
+		if test $NONINTERACTIVE; then
+			return 0
+		fi
+	else
+		shift
 	fi
 
 	[ $# -ne 0 ] && echo -e $* >&2
@@ -261,7 +268,7 @@ banner()
 {
 	clearscr
 	echo -e "\t----------------------------------------------------------"
-	echo -e "\t          WAN Router v$PROD_VER Installation Script"
+	echo -e "\t          WANPIPE v$PROD_VER Installation Script"
 	echo -e "\t    Copyright (c) 1995-2007, Sangoma Technologies Inc."
 	echo -e "\t----------------------------------------------------------"
 	echo ""
@@ -277,25 +284,34 @@ welcome()
 	cat << ENDOFTEXT
 ${DISTR_NAME} INSTALLATION
 	
-You are about to install ${DISTR_NAME} Multi-Protocol WAN Router into your 
-system. This script will examine your system, then install, create 
+You are about to install ${DISTR_NAME} Multi-Protocol 
+Voice & WAN Router into your system. 
+
+This script will examine your system, then install, create 
 and/or modify necessary files and directories.
 
-You must have the full Linux source code in $SOURCEDIR 
-directory and development system (i.e. GNU C compiler and utilities) 
+You must have Linux Kernel Headers along with
+full development tools (i.e. GNU C compiler and utilities) 
 installed in order to be able to install this product.
 
-The automatic ${DISTR_NAME} kernel module compilation option will compile all 
-necessary ${DISTR_NAME} drivers: thus, no need to re-compile the kernel.  
+This script will automatically compile all WANPIPE kernel
+drivers and install them in their appropriate directory.
 
-Previously patched kernels can now be upgraded to the latest
-${DISTR_NAME} release: thus, no need for a fresh kernel install.
+If you are installing Wanpipe for Asterisk/Zaptel this 
+script will will prompt you to re-install zaptel for you.
 
-Please read WanpipeInstallation.(pdf/txt) and 
-Release Notes before proceeding with the installation.
+If you have previoulsy installed WANPIPE, this release
+will overrite/upgrade full release without the need to
+uninstall first!
+
+IMPORTANT:
+It is always recommended to say YES to all options
+prompted during the install!
+
+Please visit: http://wiki.sangoma.com for more info.
 
 ENDOFTEXT
-	getyn "Would you like to install WAN Router now?"
+	getyn "Would you like to install WANPIPE now? [y]"
 }
 
 # ----------------------------------------------------------------------------
@@ -312,7 +328,7 @@ goodbye()
 			cat <<ENDOFTEXT
 WANPIPE (LITE) INSTALLATON: COMPLETE
 	
-WAN Router installation is now complete. WANPIPE (LITE) kernel drivers 
+WANPIPE installation is now complete. WANPIPE (LITE) kernel drivers 
 and configuration/debug utilities have been compiled and installed.
 
 	1) Proceed to configure the WANPIPE (LITE) drivers using the
@@ -343,68 +359,29 @@ ENDOFTEXT
 			cat <<ENDOFTEXT
 WANPIPE INSTALLATON: COMPLETE
 	
-WAN Router installation is now complete. WANPIPE kernel drivers 
+WANPIPE installation is now complete. WANPIPE kernel drivers 
 and configuration/debug utilities have been compiled and installed.
 
-	1) Proceed to configure the WANPIPE drivers using the
-	   /usr/sbin/wancfg GUI configurator. 
+	1) Proceed to configure the WANPIPE drivers:
+		Asterisk/Zaptel: /usr/sbin/wancfg_zaptel
+		TDM API        : /usr/sbin/wancfg_tdmapi
+		SMG SS7        : /usr/sbin/wancfg_smg
+		WAN Routing/API: /usr/sbin/wancfg
 	2) Use the /usr/sbin/wanrouter startup scrip to start and stop
-	   the router.
-	3) Use /usr/sbin/cfgft1 to configure the (optional) onboard
-	   CSU/DSU.
-	4) The temporary wanpipe directory can now be deleted
-	5) To uninstall WANPIPE package run ./Setup remove
+	   the router. (eg: wanrouter start)
+	3) To uninstall WANPIPE package run ./Setup remove
 		
-Please read WanpipeInstallation.(pdf/txt) manual for further instructions.
-
-IMPORTANT:
----------
-HOTPLUG Conflicts with WANPIPE
-  The HOTPLUG Service should be disabled because it 
-  conflicts with Wanpipe interface startup.
-  The HOTPLUG can conflict with startup of TDMV drivers.
-  Please read the README.faq on how to prevent this.
-
-IMPORTANT: 
----------
-The Linux Kernel and Modules in $SOURCEDIR:
-	DO NOT have to be manually recompiled!
-
-WANPIPE kernel modules are already installed :) 
+Please read http://wiki.sangoma.com for further instructions.
 
 ENDOFTEXT
 		fi
 
-		if test $ROOT; then
-
-			cat <<ENDOFTEXT
-
-WARNING: 
--------
-	The newly compiled WANPIPE modules could not
-	be checked for dependency errors due to the
-	virtual installation directory $ROOT/.
-	i.e. The depmod utility uses /lib/modules dir.
-			       
-	Try loading the modules manually from:
-			       
-	$ROOT/lib/modules/kernel/drivers/net/wan:
-		insmod sdladrv
-	$ROOT/lib/modules/kernel/net/wanrouter:
-		insmod wanrouter
-	$ROOT/lib/modules/kernel/drivers/net/wan:
-		insmod wanpipe_syncppp
-		insmod wanpipe
-ENDOFTEXT
-
-		fi
-	
 	else
 
 		if [ "$PKG_NAME" = "wanpipe-lite" ]; then
 		
 			cat <<ENDOFTEXT
-WANPIPE (LITE) INSTALLATION: INCOMPLETE
+WANPIPE (LITE) INSTALLATION: PARTIAL COMPLETE
 	
 WANPIPE (LITE) utilities and configurators:
 	Installed sucessfully.
@@ -415,38 +392,29 @@ WANPIPE (LITE) kernel modules:
 Please re-run ./Setup install to recompile WANPIPE (LITE) modules.
 In case of failure, please contact Sangoma Tech Support.
 
-IMPORTANT:
----------
-HOTPLUG Conflicts with WANPIPE
-  The HOTPLUG Service should be disabled because it 
-  conflicts with Wanpipe interface startup.
-  The HOTPLUG can conflict with startup of TDMV drivers.
-  Please read the README.faq on how to prevent this.
-
-IMPORTANT:
-One should NEVER have to recompile the whole kernel
-in order to install WANPIPE (LITE). Thus, only recompile the
-kernel if you need a custom image.
-
 ENDOFTEXT
 		else
 
 			cat <<ENDOFTEXT
-WANPIPE INSTALLATION: INCOMPLETE
+WANPIPE INSTALLATION: PARTIAL COMPLETE
 	
 WANPIPE utilities and configurators:
 	Installed sucessfully.
 
 WANPIPE kernel modules:
-	FAILED to install or compilation failed.
+	Drivers were not installed/compiled
 
-Please re-run ./Setup drivers to recompile wanpipe modules.
-In case of failure, please contact Sangoma Tech Support.
-
-IMPORTANT:
-One should NEVER have to recompile the whole kernel
-in order to install WANPIPE. Thus, only recompile the
-kernel if you need a custom image.
+	1) Proceed to configure the WANPIPE drivers:
+		Asterisk/Zaptel: /usr/sbin/wancfg_zaptel
+		TDM API        : /usr/sbin/wancfg_tdmapi
+		SMG SS7        : /usr/sbin/wancfg_smg
+		WAN Routing/API: /usr/sbin/wancfg
+	2) Use the /usr/sbin/wanrouter startup scrip to start and stop
+	   the router. (eg: wanrouter start)
+	3) The temporary wanpipe directory can now be deleted
+	4) To uninstall WANPIPE package run ./Setup remove
+		
+Please read http://wiki.sangoma.com for further instructions.
 
 ENDOFTEXT
 		fi
@@ -1037,32 +1005,28 @@ apply_patches()
 	banner
 	cat << ENDOFTEXT
 
-UPDATING ${DISTR_NAME} DEVICE DRIVERS: LINUX KERNEL
+Installing ${DISTR_NAME} Device Drivers: Linux KERNEL
 
-To integrate ${DISTR_NAME} Multiprotocol WAN Router (and WAN drivers 
-included with this package) into the Linux kernel, the kernel has 
-to be 'patched' or 'upgraded'. 
-
-Patching/Upgrading will update ONLY ${DISTR_NAME} source 
-files located in the Linux kernel.
-
-If the kernel has already been patched with old ${DISTR_NAME} 
-drivers you'll be prompted to upgrade to the current version. 
+To integrate ${DISTR_NAME} Multi-Protocol Voice & WAN Router 
+modules into the Linux kernel, the kernel has to be 
+updated with latest wanpipe sources.  Install will only
+modify existing wanpipe source that is already in the
+Kernel. 
 
 IMPORTANT:
-It is always recommended to say YES to UPGRADE option,
-this way we make sure that the latest ${DISTR_NAME} driver 
-sources are in the linux kernel tree.
+It is always recommended to say YES to all options 
+prompted during the install!
 
 ENDOFTEXT
 
-	getyn "Would you like update/upgrade wanpipe drivers?" || return 0
+	getyn "Would you like build wanpipe kernel drivers? [y]" || return 0
 
 	banner
 
 	if [ $WITH_LINUX_OP = NO ]; then
 		echo -e "\nPlease specify absolute path name of your linux directory"
-		echo -e "\n\t(Press Enter for Default: $SOURCEDIR)\n"
+		echo -e "\nPress Enter for Default: $SOURCEDIR\n"
+		echo -n "#>"
 		if test -z $NONINTERACTIVE; then
 			read response
 
@@ -1626,6 +1590,9 @@ install_init()
 	else return 0
 	fi
 
+	eval "find $RC_DIR -name 'S*wanrouter' | xargs rm 2> /dev/null"
+	eval "find $RC_DIR -name 'K*wanrouter' | xargs rm 2> /dev/null"
+
 	banner
 	cat << ENDOFTEXT
 
@@ -1676,8 +1643,8 @@ ENDOFTEXT
 		getyn "Would you like to auto-execute ztcfg after wanrouter start?" || return 0
 			if [ ! -d $WAN_CONF_DIR/scripts ]; then
 				eval "\mkdir -p $WAN_CONF_DIR/scripts >/dev/null 2>/dev/null"
-			fi 
-			eval "\cp -f  $PROD_HOME/samples/wanpipe_zaptel_start $WAN_CONF_DIR/scripts/start >/dev/null 2>/dev/null"
+			fi
+			eval "\cp -f  $PROD_HOME/samples/wanpipe_zaptel_start $WAN_CONF_DIR/scripts/start > /dev/null 2> /dev/null"
 			if [ ! -f $WAN_CONF_DIR/scripts/start ]; then
 				echo "Error: Could not copy auto-ztcfg script"
 			fi
@@ -1693,7 +1660,7 @@ ENDOFTEXT
 remove()
 {
 	banner
-	echo "You are about to wipe out Multiprotocol WAN Router!"
+	echo "You are about to uninstall WANPIPE package!"
 	getyn "\nAre you sure?" || return 0
 
 	# Remove wanpipe modules
@@ -1776,6 +1743,9 @@ remove_init()
 	[ -f $RC_DIR/rc1.d/$STOP_SCRIPT  ] && rm -f $RC_DIR/rc1.d/$STOP_SCRIPT
 	[ -f $RC_DIR/rc6.d/$STOP_SCRIPT  ] && rm -f $RC_DIR/rc6.d/$STOP_SCRIPT
 	[ -f $RC_DIR/init.d/$PROD  ]       && rm -f $RC_DIR/init.d/$PROD
+
+	eval "find $RC_DIR -name 'S*wanrouter' | xargs rm 2> /dev/null"
+	eval "find $RC_DIR -name 'K*wanrouter' | xargs rm 2> /dev/null"
 	return 0
 }
 
@@ -1823,9 +1793,7 @@ WANPIPE utilities are used to:
 		(/usr/sbin/wanrouter)
 	4) debug line, protocol and driver problems.
 		(/usr/sbin/wanpipemon)
-	5) configure the optional onboard FT1 CSU/DSU (S508/S5143).
-		(/usr/sbin/cfgft1)
-	6) aid in WANPIPE API development
+	5) aid in WANPIPE API development
 		(/etc/wanpipe/api)
 
 Refer to the WanpipeInstallation.(pdf/txt) for more information.
@@ -2519,20 +2487,25 @@ function select_compilation_mode()
 	
 	Please Select Compilation Mode
 
-1. WAN Protocols Support (Default)
+1. WAN Protocols Support 
        Protocols: Frame Relay, CHDLC, PPP, ATM, X25, ADSL, TDM API
+       Default for: Wan Routing, Data & Voice API devel.
 
-2. TDM Voice (Zaptel) Support Only
+2. TDM Voice (Zaptel) Support 
        Protocols: TDMV (Zaptel), TDM API on AFT adatpers.
+       Default for: Asterisk & CallWeaver
 
 3. TDM Voice (Zaptel) + WAN Protocol Support
 
-4. SMG (SS7) (Default for SMG install)
+4. SMG (SS7) (Default for Asterisk SMG/SS7 install)
+       
+5. SMG (SS7) + TDM Voice (Zaptel)
+       Default for: Asterisk SS7 + PRI
 
-5. SMG (SS7) + TDM Voice (Zaptel)   
-
-6. TDM API (FreeSwitch Default) 
-       Protocols: TDM API, Q921 on AFT adapters.
+6. TDM API  
+       Protocols: TDM API on AFT adapters:
+       Default for: FreeSwitch, Yate, Sunrise
+                    Custom voice development 
 
 7. Custom Compilation Mode
        Specify protocols to be added into the WANPIPE
@@ -2574,7 +2547,6 @@ if test -z $NONINTERACTIVE; then
 
 	elif [ "$response"  -eq 6 ]; then
                 enable_protocols "AFT_TE1"
-                enable_protocols "LIPAPI"
 
 	elif [ "$response"  -eq 7 ]; then
 		enable_custom_protocols 
@@ -2623,22 +2595,32 @@ ENDOFTEXT
 		cat << ENDOFTEXT
 WANPIPE KERNEL DRIVER COMPILATION
 	
-The next step in WANPIPE installation involves compiling WANPIPE kernel
-modules.  The setup is able to compile all WANPIPE and API drivers.
+The next step in WANPIPE installation involves compiling 
+WANPIPE kernel modules.  
 
-	Therefore, NO kernel recompilation is necessary :)
+This script will compile and install WANPIPE modules
+into the currently running linux kernel.
 
-Default Compilation:
---------------------
-  WANPIPE drivers will include following standard WAN
-  protocols:  Frame Relay, CHDLC, PPP, X25 and ADSL
+For greater customization you will be prompted to
+select which Protocol/Drivers you would like to
+build into the WANPIPE kernel modules.
+
+Wanpipe for Asterisk/Zaptel
+	Default for Asterisk/Zaptel
+Wanpipe for Wan Routing/API 
+	Default for Wan/IP Routing and Data API
+Wanpipe for Asterisk SMG/SS7
+	Default for Asterisk SS7
+Wanpipe for TDM API
+	Default for FreeSwitch and Voice API 	
+
 Custom Compilation:
 ------------------
   Customise WANPIPE driver compilation to add only the
   protocols that you need.  This way one can reduce
   the size of the WANPIPE kernel drivers.
 
-Refer to the WanpipeIntallation.(pdf/txt) documentation.
+Refer to http://wiki.sangoma.com for more info
 ENDOFTEXT
 	fi
 
@@ -2657,7 +2639,7 @@ ENDOFTEXT
 	fi
 
 	echo
-	getyn "Proceed to build ${DISTR_NAME} kernel modules ?" || return 0;
+	getyn "Proceed to build ${DISTR_NAME} kernel modules ? [y]" || return 0;
 	if [ ! -d $DRIVER_TMP_DIR ]; then
 		eval "\mkdir -p $DRIVER_TMP_DIR > /dev/null"
 		if [ $? -ne 0 ]; then
@@ -4844,6 +4826,12 @@ search_and_replace()
 }
 function tdmv_get_zaptel_path ()
 {
+
+        if [ $ZAPTEL_PATH_OP != "YES" ]; then
+		find_zap_dirs
+	fi
+
+if [ 0 ]; then
         if [ $ZAPTEL_PATH_OP != "YES" ]; then
                 echo
                 echo -e "\nPlease specify absolute path to Zaptel source directory"
@@ -4873,7 +4861,7 @@ function tdmv_get_zaptel_path ()
                         tdmv_get_zaptel_path
                 fi
        fi
-
+fi
 	#zaptel.c renamed to zaptel-base.c in zaptel v1.2.13 and later
         if [ -e $ZAPTEL_INSTALL_DIR/zaptel-base.c ]; then
                 ZAPTEL_C_FILE="zaptel-base.c";
@@ -4977,6 +4965,21 @@ function tdmv_apply_zaptel_chunk_patch () {
 
         #remove wct4xxp module from Makefile
         eval "cat Makefile |sed 's/wct1xxp wct4xxp wcte11xp/wct1xxp wcte11xp/g'>$TEMP 2>/dev/null "
+        if [ $? -ne 0 ]; then
+                echo "   Failed to remove wct4xxp from Makefile"
+                exit 1
+        else
+                eval "\mv -f $TEMP Makefile"
+                if [ $? -ne 0 ]; then
+                        echo "   Failed to overwrite existing Makefile"
+                        exit 1
+                else
+                        echo "   wct4xxp module removed from Makefile successfully"
+                        zaptel_modified=1
+                fi
+        fi
+
+        eval "cat Makefile |sed 's/^SUBDIR_MODULES:=.*//g'>$TEMP 2>/dev/null "
         if [ $? -ne 0 ]; then
                 echo "   Failed to remove wct4xxp from Makefile"
                 exit 1
@@ -5353,6 +5356,153 @@ function tdmv_check_zaptel_udev()
 	echo
 }
 
+function find_zap_dirs_invalid ()
+{
+	echo
+	echo "Invalid Response $response"
+	echo
+	clear
+	find_zap_dirs "$1"
+}
+
+function find_zap_dirs ()
+{
+	local cnt
+	local dir
+	local zapdir_manual=0
+	local zapdirs=$1
+
+	echo
+	echo "Looking for zaptel directory in /usr/src ..."	
+	echo "-------------------------------------------"
+	if [ "$zapdirs" = "" ]; then
+		zapdirs=`find /usr/src -maxdepth 2 -name 'zaptel*' | xargs `
+	fi
+
+	unset zapdir_array;
+
+	if [ -f  $PROD_HOME/zaptel/zaptel.path ]; then
+		zapextradir=`cat $PROD_HOME/zaptel/zaptel.path`
+	fi
+
+	cnt=1
+	for dir in $zapdirs
+	do
+		if [ ! -d $dir ]; then
+			continue
+		fi
+
+		if [ ! -f $dir/zaptel.h ]; then
+			continue;
+		fi
+
+		zapdir_array[$cnt]=$dir;
+		echo "$cnt : $dir "
+
+		cnt=$((cnt+1))
+	done
+	
+	if [ $cnt -eq 1 ]; then
+		echo
+		echo "No zaptel dirs found in /usr/src "
+		echo "Please use option \"m\" to enter zaptel path"
+		echo
+	fi
+	echo "------------------------------------------ "
+
+	for dir in $zapextradir
+	do
+		if [ ! -d $dir ]; then
+			continue
+		fi
+
+		if [ ! -f $dir/zaptel.h ]; then
+			continue;
+		fi
+
+		zapdir_array[$cnt]=$dir;
+		echo "$cnt : $dir    (entered manually) "
+
+		cnt=$((cnt+1))
+	done
+
+
+	echo "------------------------------------------ "
+	echo "m : Enter zaptel path manually"
+	echo
+#	echo "d2: Download Latest 1.2"
+#	echo "d4: Download Latest 1.4"
+	echo "(ctrl-c to Exit)"
+	echo -n "Please select working zaptel directory [1-9][m]: "
+
+	response=1
+
+	if [ -z $NONINTERACTIVE ] || [ $zaptel_auto_install = "YES" ]; then
+	read response
+	fi
+
+	if [ "$response" = "" ]; then
+		find_zap_dirs_invalid "$zapdirs"
+	elif [ $response = "m" ]; then
+		echo
+		echo  "Please enter zaptel dir: [Default: $ZAPTEL_DFLT_INSTALL_DIR]"
+		echo -n "#> "
+		read response
+		
+		if [ "$response" = "" ]; then
+			ZAPTEL_INSTALL_DIR=$ZAPTEL_DFLT_INSTALL_DIR		
+		else
+			ZAPTEL_INSTALL_DIR=$response
+		fi
+
+		zapdir_manual=1
+	
+#	elif [ $response = "q" ]; then
+#		find_zap_dir_quit=1
+#		return 1;
+
+	elif [ $response -gt 0 ] && [ $response -lt $cnt ]; then
+		ZAPTEL_INSTALL_DIR=${zapdir_array[$response]}
+	else
+		find_zap_dirs_invalid "$zapdirs"
+	fi	
+
+	if [ ! -f $ZAPTEL_INSTALL_DIR/zaptel.h ]; then
+		echo
+		echo "Error: zaptel.h not found in $ZAPTEL_INSTALL_DIR"
+		echo
+		echo
+		zapdir_manual=0
+		pause 1
+		clear
+		find_zap_dirs "$zapdirs"
+	fi
+	
+	if [ $find_zap_dir_quit -eq 1 ] ; then
+		ZAPTEL_INSTALL_DIR=$ZAPTEL_DFLT_INSTALL_DIR	
+		return 1
+	fi
+
+	if [ $zapdir_manual -eq 1 ]; then
+		eval "grep \"$ZAPTEL_INSTALL_DIR\" $PROD_HOME/zaptel/zaptel.path 2> /dev/null > /dev/null "
+		if [ $? -ne 0 ]; then
+			echo "$ZAPTEL_INSTALL_DIR" >> $PROD_HOME/zaptel/zaptel.path
+		fi
+	fi
+
+	#echo "GO AUTOMATIC ZAPDIR= $ZAPTEL_INSTALL_DIR"
+
+	ZAPTEL_PATH_OP="YES";
+
+	#zaptel.c renamed to zaptel-base.c in zaptel v1.2.13 and later
+        if [ -e $ZAPTEL_INSTALL_DIR/zaptel-base.c ]; then
+                ZAPTEL_C_FILE="zaptel-base.c";
+        fi
+
+	return 0;
+	
+}
+
 function tdmv_get_asterisk_source_path ()
 {
 	echo 
@@ -5686,7 +5836,7 @@ ENDOFTEXT
 				echo "  This is illegal, and CAN cause Wanpipe to CRASH."
 				echo
 				echo "  Please solve this PROBLEM by removing OLD ZAPTEL"
-				echo "  drivers before installing WANPIPE.  "
+				echo "  kerenl modules before installing WANPIPE.  "
 				echo
 				echo "      eg: rm -rf $ZAP_MOD_DIR/zaptel"
 				echo "          depmod -a"
@@ -5696,48 +5846,58 @@ ENDOFTEXT
 			
 				TDM_PROT=NO
 				TDM_DCHAN=
+				echo
 
-				getyn "Please Select (y/n) to EXIT Wanpipe Installation..."
 				exit 1
 			else
-
-		
-			if [ $TDM_PROT != YES ]; then
-			echo "Enabling the TDM Voice Asterisk Support"
-			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE "		
-			ASTERISK_IFLAGS="-I$ZAPTEL_INSTALL_DIR"
-			WANCFG_ZAPTEL_CFG=YES
-			
-			fi
-
-			if [ "$TDM_DCHAN" = "" ]; then
-			echo 
-			echo
-			getyn "Enable TDMV DCHAN Native HDLC Support & Patch Zaptel ?"
-			if [ $? -eq 0 ]; then
-
-				PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN"
 				echo
-			#	tdmv_apply_zaptel_dchan_patch
-				eval "$PROD_HOME/patches/sangoma-zaptel-patch.sh $ZAPTEL_INSTALL_DIR"
-				result=$?
-				if [ $result -eq 0 ]; then
-                                        TDM_DCHAN="(DCHAN)"
-                                        echo "   Zaptel DCHAN Patch successful"
-                              #          getyn "Confirm Zaptel Patching: yes/no to continue!"
-                                        echo
-                                elif [ $result -eq 1 ]; then
-                                        TDM_DCHAN="(DCHAN)"
-                                        echo
-                                else
-                                        echo "Zaptel Update Failed!"
-                                        echo
-                                        echo "Please contact Sangoma support!"
-                                        echo
-                                        exit 1
-                                        TDM_DCHAN=
-                                fi
-			fi
+		
+				if [ $TDM_PROT != YES ]; then
+					echo "Enabling the TDM Voice Asterisk Support"
+					PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE "		
+					ASTERISK_IFLAGS="-I$ZAPTEL_INSTALL_DIR"
+					WANCFG_ZAPTEL_CFG=YES
+				fi
+
+
+				eval "grep ZT_DCHAN_TX_V2 $ZAPTEL_INSTALL_DIR/* 2> /dev/null > /dev/null"
+				if [ $? -eq 0 ]; then
+					TDM_DCHAN="(DCHAN)"
+					PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN"
+					echo "Sangoma DCHAN Patch detected in zaptel"
+				fi
+
+
+				if [ "$TDM_DCHAN" = "" ]; then
+				echo 
+				echo
+				getyn "Enable TDMV DCHAN Native HDLC Support & Patch Zaptel (recommended) ?"
+				if [ $? -eq 0 ]; then
+
+					PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN"
+					echo
+					eval "$PROD_HOME/patches/sangoma-zaptel-patch.sh $ZAPTEL_INSTALL_DIR"
+					result=$?
+					if [ $result -eq 0 ]; then
+						TDM_DCHAN="(DCHAN)"
+						echo "   Zaptel DCHAN Patch successful"
+						echo
+					elif [ $result -eq 1 ]; then
+						TDM_DCHAN="(DCHAN)"
+						echo
+					else
+						echo "Zaptel Update Failed!"	
+						echo
+						echo "Your zaptel source is now corrupted"
+						echo "Please untar new zaptel source in $ZAPTEL_INSTALL_DIR."
+						echo
+						echo "Please contact Sangoma support!"
+						echo
+						TDM_DCHAN=
+
+						exit 1
+					fi
+				fi
 			fi
                         if [ $ZAP_CHUNK_OP == "YES" ] ; then
                                tdmv_apply_zaptel_chunk_patch
@@ -5802,7 +5962,8 @@ ENDOFTEXT
 				TDM_PROT=YES
 				zaptel_modified=1;
 				if [ $zaptel_modified ] && [ $zaptel_modified -eq 1 ] && [ "$ZAPTEL_COMPILE_DISABLE" = "NO" ]; then
-					getyn "Recompile/reinstall zaptel (recommended) ?"
+					echo
+					getyn "Recompile/reinstall Zaptel (recommended) ?"
 					if [ $? -eq 0 ]; then
 						tdmv_compile_zaptel
 					else 
@@ -6136,11 +6297,11 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=2.3.4-13
+PROD_VER=2.3.4-16
 PROD_HOME=`pwd`
-META_CONF=$PROD_HOME/$PROD.rc
+WAN_CONF_DIR=/etc/wanpipe            
+META_CONF=$WAN_CONF_DIR/$PROD.rc      
 WAN_INTR_DIR=$PROD_HOME/interfaces
-WAN_CONF_DIR=$PROD_HOME
 PROD_CONF=$WAN_CONF_DIR/wanpipe1.conf
 PROD_PATCH=$PROD_HOME/patches
 PROD_INIT=/usr/sbin/
@@ -6148,7 +6309,7 @@ FILELIST=$PROD_HOME/Filelist
 SOURCEDIR=/lib/modules/$(uname -r)/build
 START_SCRIPT=S11$PROD
 OLD_START=S05router
-STOP_SCRIPT=K10$PROD
+STOP_SCRIPT=K70$PROD
 OLD_STOP=K10router
 INCLUDE=$SOURCEDIR/include/linux
 ROUTER_RC=$META_CONF
@@ -6175,6 +6336,9 @@ SSMG_DIR=ssmg
 WANPIPE_INCLUDE_DIR=/usr/include/wanpipe
 WANCFG_ZAPTEL_CFG=NO
 WANCFG_ZAPTEL=/usr/sbin/wancfg_zaptel
+find_zap_dir_quit=0
+zaptel_auto_install="NO"
+
 
 echo > $CMP_LOG
 echo "WANPIPE DRIVER COMPILE LOG" >> $CMP_LOG
@@ -6217,7 +6381,8 @@ SS7_USER_ID="0"
 ANNEXG_LOAD=NO
 SCTP_LOAD=NO
 
-ZAPTEL_INSTALL_DIR="/usr/src/zaptel"
+ZAPTEL_DFLT_INSTALL_DIR="/usr/src/zaptel"
+ZAPTEL_INSTALL_DIR=$ZAPTEL_DFLT_INSTALL_DIR
 ZAPTEL_C_FILE="zaptel.c"
 ASTERISK_IFLAGS=
 EDAC_ZAP_PATCH_FILE=ed_zaptel.patch
@@ -6380,21 +6545,33 @@ if [ "$setup_cmd" = "uninstall" ] || [ "$setup_cmd" = "remove" ]; then
 	exit; 
 fi      
 
+if [ "$setup_cmd" = "zaptel" ]; then
+	setup_cmd="install"
+	zaptel_auto_install="YES"
+	#EXTRA_ARGS=" --protocol=TDM --silent --no-zaptel-compile "
+	EXTRA_ARGS=" --protocol=TDM --silent "
+fi
+
+if [ "$setup_cmd" = "buildrpm" ]; then
+	EXTRA_ARGS=" --no-zaptel-compile "
+fi
+
 if [ "$PKG_NAME" != "wanpipe-lite" ]; then
          
-	ARGS=
+	ARGS=$EXTRA_ARGS
 	while [ ! -z "$2" ]; 
 	do
-        ARGS=$ARGS"$2 "
+        ARGS_tmp=$ARGS"$2 "
+	ARGS=$ARGS_tmp
 		shift
 	done
 
-	echo "ARGS: $ARGS"
+	#echo "ARGS: $ARGS"
 
 	for arg in $ARGS
 	do
-		echo
-		echo "ARG VAL=$arg"
+		#echo
+		#echo "ARG VAL=$arg"
 	
 		case $arg in
 
@@ -6445,6 +6622,10 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 
 		--64bit_4G*)
 			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DWANPIPE_64BIT_4G_DMA "
+			;;
+
+		--hwec_noise_reduction*)
+			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DWANEC_ENABLE_NOISE_REDUCTION "
 			;;
 
 		--with-linux*)
@@ -6603,6 +6784,10 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 		esac
 	done
 
+	if [ "$zaptel_auto_install" = "YES" ] && [ "$ZAPTEL_PATH_OP" != "YES" ]; then
+		find_zap_dirs
+	fi
+
 	if [ "$PROTS" != "" ]; then
 		echo "$PROTS" | grep "DEF" > /dev/null
        		if [ $? -eq 0 ]; then
@@ -6630,6 +6815,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 			exit 1
 		fi
 	fi
+
 
 	if [ "$setup_cmd" = "drivers" ]; then
 		apply_patches || exit 1
@@ -6708,9 +6894,13 @@ following Environment variables.
 	5. Wan Protocols     : $PROTS
 	
 	6. Build Directory   : $PROD_HOME/$build_dir 
-
 "
 
+	if [ $TDM_PROT = "YES"  ]; then
+echo "	7. Zaptel Build Dir  : $ZAPTEL_INSTALL_DIR "
+	fi
+	echo
+	echo
 		if [ $KERNEL_UNAME != $KERNEL_VERSION ]; then
 
 			echo "
@@ -6911,8 +7101,8 @@ welcome || exit 0
 prepare	|| exit 1
 apply_patches || exit 1
 compile_drivers  || exit 1
+install_config || exit 1   
 install_init || exit 1
-install_config || exit 1
 compile_src || exit 1
 install_all 
 install_ssmg

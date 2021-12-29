@@ -245,30 +245,38 @@ static int sdla_ds3_rx_isr(sdla_fe_t *fe)
 	status = READ_REG(REG_RxDS3_CFG_STATUS);
 	if (fe->fe_cfg.frame == WAN_FR_DS3_Cbit && value & BIT_RxDS3_INT_STATUS_CPBIT_ERR){
 		if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("%s: CP Bit Error interrupt detected!\n",
+			DEBUG_TE3("%s: CP Bit Error interrupt detected!\n",
 						fe->name);
 		}
 	}
 	if (value & BIT_RxDS3_INT_STATUS_LOS){
 		if (status & BIT_RxDS3_CFG_STATUS_RxLOS){
+			if (WAN_NET_RATELIMIT()){
 			DEBUG_EVENT("%s: LOS Status ON!\n",
 						fe->name);
+			}
 			fe->fe_alarm |= WAN_TE3_BIT_LOS_ALARM;
 		}else{
+			if (WAN_NET_RATELIMIT()){
 			DEBUG_EVENT("%s: LOS Status OFF!\n",
 						fe->name);
+			}
 			fe->fe_alarm &= ~WAN_TE3_BIT_LOS_ALARM;
 		}
 	}
 	if (value & BIT_RxDS3_INT_STATUS_AIS){
+		if (WAN_NET_RATELIMIT()){
 		DEBUG_EVENT("%s: AIS status %s!\n",
 				fe->name,
 				(status & BIT_RxDS3_CFG_STATUS_RxAIS) ? "ON" : "OFF");
+		}
 	}
 	if (value & BIT_RxDS3_INT_STATUS_IDLE){
-		DEBUG_EVENT("%s: IDLE condition status %s!\n",
+		if (WAN_NET_RATELIMIT()){
+		DEBUG_TE3("%s: IDLE condition status %s!\n",
 				fe->name,
 				(status & BIT_RxDS3_CFG_STATUS_RxIDLE) ? "ON" : "OFF");
+		}
 	}
 	if (value & BIT_RxDS3_INT_STATUS_OOF){
 		if (status & BIT_RxDS3_CFG_STATUS_RxLOS){
@@ -294,23 +302,27 @@ static int sdla_ds3_rx_isr(sdla_fe_t *fe)
 		}
 	}
 	if (fe->fe_cfg.frame == WAN_FR_DS3_Cbit && value & BIT_RxDS3_INT_STATUS_AIC){
-		DEBUG_EVENT("%s: AIC bit-field status %s!\n",
+		if (WAN_NET_RATELIMIT()){
+		DEBUG_TE3("%s: AIC bit-field status %s!\n",
 				fe->name,
 				(status & BIT_RxDS3_STATUS_RxAIC) ? "ON" : "OFF");
+		}
 	}
 	if (value & BIT_RxDS3_INT_STATUS_PBIT_ERR){
-		DEBUG_EVENT("%s: P-Bit error interrupt!\n",
+		if (WAN_NET_RATELIMIT()){
+		DEBUG_TE3("%s: P-Bit error interrupt!\n",
 					fe->name);
+		}
 	}
 
 	/* RxDS3 FEAC Interrupt (0x17) */
 	value = READ_REG(REG_RxDS3_FEAC_INT);
 	if (value & BIT_RxDS3_FEAC_REMOVE_INT_STATUS){
-		DEBUG_EVENT("%s: RxFEAC Remove Interrupt!\n",
+		DEBUG_TE3("%s: RxFEAC Remove Interrupt!\n",
 				fe->name);
 	}
 	if (value & BIT_RxDS3_FEAC_VALID_INT_STATUS){
-		DEBUG_EVENT("%s: RxFEAC Valid Interrupt!\n",
+		DEBUG_TE3("%s: RxFEAC Valid Interrupt!\n",
 				fe->name);
 	}
 

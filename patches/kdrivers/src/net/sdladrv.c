@@ -5616,6 +5616,49 @@ static sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 			case WANOPT_AFT_ANALOG:
 			case WANOPT_AFT_56K:
 				if (conf->auto_pci_cfg){
+
+					if (hw->cpu_no == cpu_no &&
+					    conf->card_type == WANOPT_AFT &&
+					    hw->hwcard->cfg_type == WANOPT_AFT101) {
+						/* Remap the card type to standard
+						   A104 Shark style.  We are allowing
+						   and old config file for A101/2-SH */
+						conf->config_id = WANCONFIG_AFT_TE1;
+						conf->card_type = WANOPT_AFT104;
+						conf->fe_cfg.line_no=1;
+                                        	goto adapter_found;
+					}
+
+					/* Allow old A102 config for A102 SHARK */
+					if (hw->cpu_no == cpu_no &&
+					    conf->card_type == WANOPT_AFT &&
+					    hw->hwcard->cfg_type == WANOPT_AFT102) {
+						/* Remap the card type to standard
+						   A104 Shark style.  We are allowing
+						   and old config file for A101/2-SH */
+						conf->config_id = WANCONFIG_AFT_TE1;
+						conf->card_type = WANOPT_AFT104;
+						if (cpu_no == SDLA_CPU_A) {
+							conf->fe_cfg.line_no=1;
+						} else {
+							conf->fe_cfg.line_no=2;		
+						}
+                                        	goto adapter_found;
+					}
+
+					if (conf->card_type == WANOPT_S51X &&
+					    IS_56K_MEDIA(&conf->fe_cfg) && 
+					    hw->hwcard->cfg_type == WANOPT_AFT_56K) {
+						/* Remap the old 56K card type to standard
+						   AFT 56K Shark style.  We are allowing
+						   and old config file for 56K */
+						conf->card_type = WANOPT_AFT_56K;
+						conf->config_id = WANCONFIG_AFT_56K;
+						conf->fe_cfg.line_no=1;
+                                        	goto adapter_found;
+					  	      
+					} 
+
 					if (hw->cpu_no == cpu_no &&
 					    hw->hwcard->cfg_type == conf->card_type){
 						goto adapter_found;

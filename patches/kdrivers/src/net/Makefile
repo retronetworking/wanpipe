@@ -77,7 +77,7 @@ wanrouter-objs := ../wanrouter/wanmain.o ../wanrouter/wanproc.o ../wanrouter/wan
 
 af_wanpipe-objs	:= ../wanrouter/af_wanpipe_src.o  ../wanrouter/af_wanpipe_datascope.o  
 
-wan_aften-objs := ../wan_aften/wan_aften_src.o wanpipe_linux_iface.o
+wan_aften-objs := ../wan_aften/wan_aften_src.o ../wan_aften/wanpipe_linux_iface.o
 
 obj-m += $(WAN_MODULES)      
 

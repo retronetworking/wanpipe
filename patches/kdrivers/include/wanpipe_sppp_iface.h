@@ -84,6 +84,10 @@ extern int wp_sppp_task(void *sppp_ptr);
 #define PPP_FLUSH_PAP_STATS	0x1D
 #define PPP_READ_CHAP_STATS	0x1E
 #define PPP_FLUSH_CHAP_STATS	0x1F
+#define PPP_READ_AUTH		0x22
+
+#define PPP_PAP			0xc023
+#define PPP_CHAP		0xc223
 
 #pragma pack(1)
 /*----------------------------------------------------------------------------
@@ -251,6 +255,16 @@ typedef struct	ppp_conn_info
 	unsigned char  auth_status	;	/* 4C:  */
 	unsigned char  peer_id[0]	;	/* 4D:  */
 } ppp_conn_info_t;
+
+
+typedef struct s_auth {
+	unsigned short 	proto;			/* authentication protocol to use */
+	unsigned short	flags;
+	unsigned char	name[64];	/* system identification name */
+	unsigned char	secret[16];	/* secret password */
+	unsigned char	challenge[16];	/* random challenge */
+	unsigned short	authenticated; /* 1 when authenticated, 0 when not*/
+} s_auth_t;
 
 #pragma pack()
 

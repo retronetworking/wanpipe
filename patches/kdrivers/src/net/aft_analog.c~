@@ -1202,7 +1202,6 @@ static int aft_analog_hwec_enable(void *pcard, int enable, int channel)
 			card->hw,
 			AFT_REMORA_MUX_TS_EC_ENABLE,
 			&value);
-
 	if (enable){
                 if (!wan_test_and_set_bit(channel,&card->wandev.ec_map)) {
                         value |= (1 << channel);

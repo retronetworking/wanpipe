@@ -4653,6 +4653,11 @@ static void wp_bh (void *data, int pending)
 
 
 	WAN_TASKLET_END((&chan->common.bh_task));
+		
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
+		return;
+	}
+
 #if 1	
 	{
 

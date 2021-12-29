@@ -1287,7 +1287,8 @@ static int if_open (netdevice_t* dev)
 	 * how long has the interface been up */
 	wan_getcurrenttime(&chan->router_start_time, NULL);
 
-	WAN_NETIF_START_QUEUE(dev);
+	WAN_NETIF_STOP_QUEUE(dev);
+	WAN_NETIF_CARRIER_OFF(dev);
 
         /* If FRONT End is down, it means that the DMA
          * is disabled.  In this case don't try to
@@ -4213,7 +4214,7 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 	/* Disable the chip/hdlc reset condition */
 	wan_clear_bit(CHIP_RESET_BIT,&reg);
 	wan_clear_bit(FRONT_END_RESET_BIT,&reg);
-
+	
 	/* Disable ALL chip interrupts */
 	wan_clear_bit(GLOBAL_INTR_ENABLE_BIT,&reg);
 	wan_clear_bit(ERROR_INTR_ENABLE_BIT,&reg);
@@ -4568,11 +4569,15 @@ static int write_framer(void *pcard, unsigned short framer_off,unsigned short fr
 	card->hw_iface.bus_write_2(card->hw,
 				   0x46,
 				   framer_off);
+	WP_DELAY(5);
 
 	card->hw_iface.bus_write_2(card->hw,
 				   0x44,
 				   framer_data);	
-        return 0;
+	
+	WP_DELAY(5);
+        
+	return 0;
 }
 
 static unsigned int read_framer(void *pcard,unsigned short framer_off)
@@ -4585,11 +4590,15 @@ static unsigned int read_framer(void *pcard,unsigned short framer_off)
 	card->hw_iface.bus_write_2(card->hw,
 				   0x46,
 				   framer_off);
+	WP_DELAY(5);
 
 	card->hw_iface.bus_read_4(card->hw,
 				   0x44,
 				   &framer_data);
-        return framer_data;
+	
+	WP_DELAY(5);
+        
+	return framer_data;
 }
 
 #if 0

@@ -2937,12 +2937,14 @@ sdla_ds_te1_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 			WAN_TE1_LB_MODE_DECODE(mode),
 			WAN_TE1_LB_TYPE_DECODE(type));
 	switch(type){
+	case WAN_TE1_DDLB_MODE:
 	case WAN_TE1_LIU_ALB_MODE:
 		sdla_ds_te1_liu_alb(fe, mode);
 		break;
 	case WAN_TE1_LIU_LLB_MODE:
 		sdla_ds_te1_liu_llb(fe, mode);
 		break;
+	case WAN_TE1_LINELB_MODE:
 	case WAN_TE1_LIU_RLB_MODE:
 		sdla_ds_te1_liu_rlb(fe, mode);
 		break;
@@ -2953,11 +2955,16 @@ sdla_ds_te1_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 	case WAN_TE1_FR_FLB_MODE:
 		sdla_ds_te1_fr_flb(fe, mode);
 		break;
+	case WAN_TE1_PAYLB_MODE:
 	case WAN_TE1_FR_PLB_MODE:
 		sdla_ds_te1_fr_plb(fe, mode);
 		break;
 	case WAN_TE1_FR_RLB_MODE:
-		break;
+        default:
+		DEBUG_EVENT("%s: Unsupport loopback mode (%s)!\n",
+					fe->name,
+					WAN_TE1_LB_MODE_DECODE(mode));
+		return -EINVAL;
 	}
 	return 0;
 }
