@@ -1438,6 +1438,7 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 		/* For GSM we want the global ISR as we fake multiple ports per card, this means there won't be
 		 * any interrupts for the other ports and must be handled in the first port */
 		wan_set_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status);
+
 	} else if (card->wandev.config_id == WANCONFIG_AFT_ANALOG) {
 		wan_set_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status);
 	}
@@ -1449,8 +1450,8 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 
 	DEBUG_EVENT("%s:    Global TDM Ring= %s\n",
 			card->devname,
-			wan_test_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status) ?
-			"Enabled" : "Disabled");
+			wan_test_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status) ?  "HW Ring" : 
+			(wan_test_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status) ? "SW Ring" : "Disabled"));
 
 	DEBUG_EVENT("%s:    Global SPAN IRQ= %s\n",
 			card->devname,card->u.aft.cfg.span_tx_only_irq?"TX Only":"RX/TX");
@@ -6851,7 +6852,7 @@ static void front_end_interrupt(sdla_t *card, unsigned long reg, int lock)
 
 			if (tmp_card->wandev.fe_iface.isr &&
 				tmp_card->wandev.fe_iface.isr(&tmp_card->fe)) {
-
+		
 				if (!wan_test_bit(CARD_PORT_TASK_DOWN,&tmp_card->wandev.critical)) {
 				
 			   		if (tmp_card->wandev.fe_iface.polling) {
@@ -6935,9 +6936,11 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 	if (wan_test_bit(AFT_CHIPCFG_FE_INTR_STAT_BIT,&reg)){
 
 		AFT_PERF_STAT_INC(card,isr,fe);
-			
+		check_fe_isr=1;
 		
 		if (wan_test_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg)) {
+				
+			card->front_end_irq_timeout=0;
 
 			DEBUG_ISR("%s: Got Front End Interrupt 0x%08X fe_no_intr=%i\n",
 					card->devname,reg,card->fe_no_intr);
@@ -6955,15 +6958,13 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 				Since Front end interrupt is global interrupt per card */
 			if (aft_is_first_card_in_list(card, AFT_CARD_TYPE_ALL, 1) == 0) {
 		
-				if (!wan_test_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd)){
-					if (aft_core_taskq_trigger(card,AFT_FE_INTR) < 0){
-						DEBUG_TEST("%s: Error: First card failed to launching fe\n",
-							card->devname);
-					} else {
-						card->front_end_irq_timeout=SYSTEM_TICKS;
-						DEBUG_TEST("%s: Setting Front End interrupt timeout\n",	card->devname);
-					}
-				}
+				if (aft_core_taskq_trigger(card,AFT_FE_INTR) < 0){
+					DEBUG_TEST("%s: Error: First card failed to launching fe\n",
+						card->devname);
+				} 
+				card->front_end_irq_timeout=SYSTEM_TICKS;
+				DEBUG_FE("%s: Setting Front End interrupt timeout\n",	card->devname);
+
 				__aft_fe_intr_ctrl(card,0);
 
 				/* NC: Bug fix we must update the reg value */
@@ -6991,25 +6992,18 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 #endif
 		} else {
 			DEBUG_FE("%s: Got Front end interrupt but MASK is not set!\n",card->devname);
-			check_fe_isr=1;
 		}
-	} else if (!card->fe_no_intr)  { /* if (wan_test_bit(AFT_CHIPCFG_FE_INTR_STAT_BIT,&reg)) */
-		check_fe_isr=1;
 	}
 
-	if (check_fe_isr && !card->fe_no_intr) {
-		if (!wan_test_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg)) {
-			if (aft_is_first_card_in_list(card,AFT_CARD_TYPE_ALL, 1) == 0) {
-				if ((SYSTEM_TICKS - card->front_end_irq_timeout) > HZ) {
-					card->front_end_irq_timeout=SYSTEM_TICKS;
-					__aft_fe_intr_ctrl(card,1);
-					__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG), &reg);
-					wan_clear_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
-					DEBUG_EVENT("%s: Wanpipe Front End Interrupt Restart Timeout \n",
-								card->devname);
-				}	 
-			}
-		}
+	if (check_fe_isr && card->front_end_irq_timeout) {
+		if ((SYSTEM_TICKS - card->front_end_irq_timeout) > HZ) {
+			card->front_end_irq_timeout=SYSTEM_TICKS;
+			wan_clear_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
+			__aft_fe_intr_ctrl(card,1);
+			__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG), &reg);
+			DEBUG_EVENT("%s: Wanpipe Front End Interrupt Restart Timeout \n",
+						card->devname);
+		}	 
 	}
 
 /* New Octasic implementarion May 16 2006 */
@@ -7188,7 +7182,6 @@ if (1){
 		    !wan_test_bit(aft_chipcfg_get_fifo_reset_bit(card),&reg)) {
 
 			int ring_buf_enabled=wan_test_bit(AFT_CHIPCFG_A108_A104_TDM_DMA_RINGBUF_BIT,&reg);
-			sdla_t	*tmp_card;
 			int ring_rsync=0;
 			void **card_list;
 			wan_smp_flag_t flags=0;
@@ -7221,24 +7214,16 @@ if (1){
 
 			card_list=__sdla_get_ptr_isr_array(card->hw);
 
-			DEBUG_TEST("%s: TDM IRQ MAP=0x%X\n", card->devname, tdmv_port_intr);
+			DEBUG_TEST("%s: TDM IRQ MAP=0x%X Port=%i\n", card->devname, tdmv_port_intr, card->wandev.comm_port);
 
 			//FIXME: Use value pre card type
 			for (i=0;i<max_ports;i++) { /* for TE1 maximum is 8, but for BRI is 12*/
-				tmp_card=(sdla_t*)card_list[i];
+				sdla_t *tmp_card=(sdla_t*)card_list[i];
 
 				if (!tmp_card ||
 					!tmp_card->u.aft.global_tdm_irq || 
 					!wan_test_bit(AFT_LCFG_TDMV_INTR_BIT,&tmp_card->u.aft.lcfg_reg)) {
 					continue;
-				}
-
-				AFT_PERF_STAT_INC(tmp_card,isr,tdm_run);
-
-				if (IS_A700_CARD(tmp_card)) {
-					if (!wan_test_bit(comm_port,&tdmv_port_intr)) {
-						continue;
-					}
 				}
 
 #if !defined(__WINDOWS__)
@@ -7252,37 +7237,39 @@ if (1){
 				wp_aft_dma_per_port_isr(tmp_card,tdmv_port_intr);
 #endif
 
-				if (ring_buf_enabled) {
+				/* Check that hw type flag is set for ring resync. 
+				   The flag is based on card type, but the list can contain
+				   multiple card types, therefore we need to keep checking
+				   the bit each time we are in the loop.   */
+				if (tmp_card->hw_iface.fe_test_bit(tmp_card->hw,1)) {
 
-					/* Check that hw type flag is set for ring resync. 
-					   The flag is based on card type, but the list can contain
-					   multiple card types, therefore we need to keep checking
-					   the bit each time we are in the loop.   */
-					if (tmp_card->hw_iface.fe_test_bit(tmp_card->hw,1)) {
- 
-						/* We use the second flag to indicate that this card type 
-						   has taken the ring sync command, that that only this card
-						   will reset the flag once all cards have performed resync.
-						   Otherwise we run in a race condition of clearing the flag
-						   too early or clearing multile times */
-						if (!tmp_card->hw_iface.fe_test_bit(tmp_card->hw,2)) {
-							tmp_card->hw_iface.fe_set_bit(tmp_card->hw,2);
-							wan_set_bit(AFT_TDM_RING_SYNC_RESET,&tmp_card->u.aft.chip_cfg_status);
-							DEBUG_EVENT("%s: Global TDM Ring Resync TDM = 0x%X\n",
-												tmp_card->devname,tdmv_port_intr);
-						}
-						ring_rsync=1;
+					/* We use the second flag to indicate that this card type 
+					   has taken the ring sync command, that that only this card
+					   will reset the flag once all cards have performed resync.
+					   Otherwise we run in a race condition of clearing the flag
+					   too early or clearing multile times */
+					if (!tmp_card->hw_iface.fe_test_bit(tmp_card->hw,2)) {
+						tmp_card->hw_iface.fe_set_bit(tmp_card->hw,2);
+						wan_set_bit(AFT_TDM_RING_SYNC_RESET,&tmp_card->u.aft.chip_cfg_status);
+						DEBUG_EVENT("%s: Global TDM Ring Resync TDM = 0x%X\n",
+											tmp_card->devname,tdmv_port_intr);
 					}
-
-					if (ring_rsync) {
-						aft_tdm_ring_rsync(tmp_card);
-						/* Restart all hdlc devices after resync because tx buffers might have
-						   been corrupted */
-						__wp_aft_fifo_per_port_isr(tmp_card,0xFFFFFFFF,0xFFFFFFFF);
-					}
-					
+					ring_rsync=1;
 				}
 
+				if (ring_rsync) {
+					aft_tdm_ring_rsync(tmp_card);
+					/* Restart all hdlc devices after resync because tx buffers might have
+					   been corrupted */
+					__wp_aft_fifo_per_port_isr(tmp_card,0xFFFFFFFF,0xFFFFFFFF);
+				}
+					
+
+				if (IS_A700_CARD(tmp_card)) {
+					if (!wan_test_bit(tmp_card->wandev.comm_port,&tdmv_port_intr)) {
+						goto global_irq_skip;
+					}
+				}
 
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
@@ -7291,6 +7278,7 @@ if (1){
 					tmp_card->wandev.config_id != WANCONFIG_AFT_ANALOG &&
 					tmp_card->wandev.config_id != WANCONFIG_AFT_GSM) {
 	
+					AFT_PERF_STAT_INC(tmp_card,isr,tdm_run);
 					aft_voice_span_rx_tx(tmp_card,
 									ring_buf_enabled);
 
@@ -7301,13 +7289,17 @@ if (1){
 					tmp_card->wandev.config_id != WANCONFIG_AFT_ANALOG &&
 					tmp_card->wandev.config_id != WANCONFIG_AFT_GSM) {
 					
+					AFT_PERF_STAT_INC(tmp_card,isr,tdm_run);
 					aft_voice_span_rx_tx(tmp_card,
 									ring_buf_enabled);
 
 				} else {
 					
+					AFT_PERF_STAT_INC(tmp_card,isr,tdm_run_span);
 					wp_aft_tdmv_per_port_isr(tmp_card);
 				}
+
+global_irq_skip:
 
 #if !defined(__WINDOWS__)
 				if (tmp_card != card) {
@@ -7338,7 +7330,7 @@ if (1){
 
 				if (IS_A700_CARD(card)) {
 					for (i=0;i<max_ports;i++) { /* for TE1 maximum is 8, but for BRI is 12*/
-						tmp_card=(sdla_t*)card_list[i];
+						sdla_t *tmp_card=(sdla_t*)card_list[i];
 			
 						if (!tmp_card ||
 							!tmp_card->u.aft.global_tdm_irq || 
@@ -7378,7 +7370,7 @@ if (1){
 
 			WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 
-			AFT_PERF_STAT_INC(card,isr,tdm_run);
+			AFT_PERF_STAT_INC(card,isr,tdm_run_span);
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 
@@ -7905,7 +7897,7 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
          * we have to re-start it */
 	if (card->rsync_timeout) {
 		if (!IS_BRI_CARD(card)) {
-			if (SYSTEM_TICKS - card->rsync_timeout > 2*HZ) {
+			if ((SYSTEM_TICKS - card->rsync_timeout) > 2*HZ) {
     			card->rsync_timeout=0;
 				if (card->fe.fe_status == FE_CONNECTED) {
 #if 0
@@ -7924,7 +7916,7 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
 				}
 			}
 		} else {
-			if (SYSTEM_TICKS - card->rsync_timeout > 1*HZ) {
+			if ((SYSTEM_TICKS - card->rsync_timeout) > 1*HZ) {
 				int x;
 				void **card_list=__sdla_get_ptr_isr_array(card->hw);
 				sdla_t *first_card=NULL;
@@ -8423,6 +8415,12 @@ static int aft_kickstart_global_tdm_irq(sdla_t *card)
 		card->hw_iface.fe_set_bit(card->hw,1);
 	}else{
 		wan_clear_bit(AFT_CHIPCFG_A108_A104_TDM_DMA_RINGBUF_BIT,&reg);
+	}
+
+	/* Enable resync timeout for all GLOBAL ISR interrupts */
+	if (wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
+		card->rsync_timeout=SYSTEM_TICKS;
+		card->hw_iface.fe_set_bit(card->hw,1);
 	}
 
 	/* Global Acknowledge TDM Interrupt  (Kickstart) */
@@ -11257,19 +11255,25 @@ void __aft_fe_intr_ctrl(sdla_t *card, int status)
 
 	/* if fe_no_intr is set then only allow disabling of fe interrupt */
 #ifdef AFT_FE_INTR_DEBUG
-	DEBUG_EVENT("%s:%d: __aft_fe_intr_ctrl  card=%s  status=%i\n",
-				func,line,card->devname,status);
+	{
+		int latency=0;
+		latency=SYSTEM_TICKS-card->front_end_irq_timeout;
+		if (latency < 10) {
+		DEBUG_EVENT("%s:%d: __aft_fe_intr_ctrl  card=%s  status=%i fe_no_intr=%i ticks=%lu latency=%i\n",
+					func,line,card->devname,status,card->fe_no_intr,SYSTEM_TICKS,latency);
+		} else {
+		DEBUG_EVENT("%s:%d: __aft_fe_intr_ctrl  card=%s  status=%i fe_no_intr=%i ticks=%lu latency=%i !!!!!\n",
+					func,line,card->devname,status,card->fe_no_intr,SYSTEM_TICKS,latency);
+		}
+	}
 #endif
 
+	/* Only start the front end irq timeout if fe interrupts are enabled */
 	if (!card->fe_no_intr || !status) {
 		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),&reg);
 		if (status){
 			wan_set_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 		}else{
-			if (!card->fe_no_intr) {
-				/* Only start the front end irq timeout if fe interrupts
-				are enabled */
-			}
 			wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 		}
 

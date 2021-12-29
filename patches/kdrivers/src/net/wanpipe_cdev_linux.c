@@ -698,14 +698,14 @@ static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_
 	}
 
 	if (!skb) {
-		err = wan_memcpy_toiovec(msg->msg_iov,
+		err = wan_memcpy_toiovec(msg_sys.msg_iov,
 					 			(void*)&hdr,
 					 			sizeof(hdr));
 		return -ENOBUFS;
 	}
 
 	if (err == 0) {
-		err = wan_memcpy_toiovec(msg->msg_iov,
+		err = wan_memcpy_toiovec(msg_sys.msg_iov,
 					 wan_skb_data(skb),
 					 wan_skb_len(skb));
 
@@ -715,7 +715,7 @@ static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_
 
 		wan_skb_free(skb);
 	} else {
-		err = wan_memcpy_toiovec(msg->msg_iov,
+		err = wan_memcpy_toiovec(msg_sys.msg_iov,
 					 			(void*)&hdr,
 					 			sizeof(hdr));
 	}

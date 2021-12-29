@@ -3446,7 +3446,9 @@ static __inline int wp_tdmapi_check_fakepolarity(u8 *buf, int len, wanpipe_tdm_a
 			linear_sample = wanpipe_codec_convert_to_linear(buf[i],tdm_api->cfg.hw_tdm_coding);
 
 			if (linear_sample > upper_thres_val || linear_sample < lower_thres_val) {
-				DEBUG_EVENT("%s: Possible CID signal detected, faking polarity reverse event on module %d\n", card->devname, channo);
+				if (WAN_NET_RATELIMIT()) {
+					DEBUG_EVENT("%s: Possible CID signal detected, faking polarity reverse event on module %d\n", card->devname, channo);
+				}
 				wp_tdmapi_report_fakepolarityreverse(card,channo);
 				fxo->readcid = 1;
 				fxo->cidtimer = fe->rm_param.intcount;

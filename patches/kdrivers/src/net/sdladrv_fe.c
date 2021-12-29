@@ -932,7 +932,7 @@ static int __sdla_a700_analog_write_fe (void* phw, ...)
 		ctrl_byte |= MOD_SPI_CTRL_CHAIN;	/* always chain */
 		data |= ctrl_byte << 24;
 
-	}else if (type == MOD_TYPE_FXS){
+	}else if (type == MOD_TYPE_FXS || type == MOD_TYPE_TEST){
 		/* bit 8-15: register byte */
 		reg = reg & 0x7F;
 		reg |= MOD_SPI_ADDR_FXS_WRITE; 

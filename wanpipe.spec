@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.26
+%define VERSION           3.5.27
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -258,6 +258,22 @@ fi
 ################################################################################
 
 %changelog
+
+* Thu May 6 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.27
+==================================================================
+
+- GSM Bug fix for dahdi
+  Fixes startup issues for Asterisk/Dahdi mode. 
+
+- Wanpipe API/libsangoma device read bug on 64bit machines
+  This issue can cause infrequent soft lockups on some 64bit kernels
+  Affects FreeSWITCH and FreeTDM and libsangoma mode only.
+  Does not affect Asterisk/Dahdi mode.
+
+- Fixed B700 issues related to the GSM code.
+
+- Fixed Setup to properly build wan protocols for latest kernels.
+
 
 * Tue Apr 24 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.26
 ==================================================================

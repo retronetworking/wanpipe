@@ -1170,7 +1170,7 @@ static int init(int argc, char *argv[], char* command)
 				exit(1);
 			}
 
-			snprintf(pcap_output_file_name, argv[i+1], sizeof(pcap_output_file_name));
+			snprintf(pcap_output_file_name, sizeof(pcap_output_file_name), argv[i+1]);
 		}else if (!strcmp(argv[i], "-x25opt")){
 			int x;
 			if (i+1 > argc-1){

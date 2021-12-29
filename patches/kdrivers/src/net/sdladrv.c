@@ -349,12 +349,12 @@ static unsigned	sdla_test_memregion (sdlahw_t* hw, unsigned len);
 static unsigned short sdla_checksum (unsigned char* buf, unsigned len);
 static int sdla_init_pci_slot(sdlahw_t *);
 
-static sdlahw_card_t* sdla_card_register(u8 hw_type, int bus_no, int slot_no, int ioport, char*);
+static sdlahw_card_t* sdla_card_register(u8 hw_type, int bus_no, int slot_no, int ioport, const char*);
 static int sdla_card_unregister (sdlahw_card_t*);
-static sdlahw_card_t* sdla_card_search(u8 hw_type, int bus_no, int slot_no, int ioport, char*);
+static sdlahw_card_t* sdla_card_search(u8 hw_type, int bus_no, int slot_no, int ioport, const char*);
 static int sdla_card_info(sdlahw_card_t*);
 
-sdlahw_cpu_t* sdla_hwcpu_search(u8, int, int, int, int, char*);
+sdlahw_cpu_t* sdla_hwcpu_search(u8, int, int, int, int, const char*);
 static sdlahw_cpu_t* sdla_hwcpu_register(sdlahw_card_t*, int, int, void*);
 static int sdla_hwcpu_unregister(sdlahw_cpu_t*);
 static int sdla_hwcpu_info(sdlahw_cpu_t*);
@@ -2068,7 +2068,7 @@ static int sdla_scan_analog_modules(sdlahw_t* hw, int *rm_mod_type, u_int8_t unu
 
 	AFT_FUNC_DEBUG();
 
-#if defined (BUILD_MOD_TESTER)
+#if (defined (BUILD_MOD_TESTER) || defined (BUILD_ANALOG_MOD_TESTER))
 	value = sdla_shark_bri_read_fe(	hw, 
 					mod_no,
 					MOD_TYPE_NONE,	
@@ -4546,7 +4546,7 @@ static int sdla_card_info(sdlahw_card_t *hwcard)
 }
 
 static sdlahw_card_t*
-sdla_card_register(u8 hw_type, int bus_no, int slot_no, int ioport, char *bus_id)
+sdla_card_register(u8 hw_type, int bus_no, int slot_no, int ioport, const char *bus_id)
 {
 	sdlahw_card_t	*new_hwcard, *last_hwcard;
 
@@ -4615,7 +4615,7 @@ sdla_card_unregister(sdlahw_card_t* hwcard)
 }
 
 static sdlahw_card_t*
-sdla_card_search(u8 hw_type, int bus_no, int slot_no, int ioport, char *bus_id)
+sdla_card_search(u8 hw_type, int bus_no, int slot_no, int ioport, const char *bus_id)
 {
 	sdlahw_card_t*	tmp;
 	
@@ -4754,7 +4754,7 @@ static int sdla_hwcpu_unregister(sdlahw_cpu_t *hwcpu)
 }
 
 sdlahw_cpu_t*
-sdla_hwcpu_search(u8 hw_type, int bus_no, int slot_no, int ioport, int cpu_no, char *bus_id)
+sdla_hwcpu_search(u8 hw_type, int bus_no, int slot_no, int ioport, int cpu_no, const char *bus_id)
 {
 	sdlahw_cpu_t*	tmp;
 	
@@ -6008,11 +6008,10 @@ static int sdla_bootcfg (sdlahw_t* hw, sfm_info_t* sfminfo)
 	if (hwcard->type == SDLA_S514){
 		offset = sfminfo->dataoffs;
 	}else{
-		/* No easy way to avoid compile warning */
 #ifdef __WINDOWS__
-		offset = sfminfo->dataoffs - (unsigned short)hwcpu->vector;
+        offset = sfminfo->dataoffs - (unsigned short)hwcpu->vector;
 #else
-		offset = sfminfo->dataoffs - (unsigned int)hwcpu->vector;
+		offset = sfminfo->dataoffs - (unsigned long)hwcpu->vector;
 #endif
 	}
 

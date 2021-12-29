@@ -2268,7 +2268,7 @@ int set_conf_param (char* key, char* val, key_word_t* dtab, void* conf, int max_
 		break;
 
 	case DTYPE_PTR:
-		*(void**)((char*)conf + dtab->offset) = (void*)tmp;
+		*(void**)((char*)conf + dtab->offset) = (void*)(uintptr_t)tmp;
 		break;
 	}
 	return 0;
@@ -3483,7 +3483,12 @@ tryagain:
 		
 		
 		/* Reply to client the result of the command */
-		*((short*)&rx_data[0])=err;
+		{
+			short l_err = err;
+			memcpy(rx_data, &l_err, sizeof(l_err));
+		}
+
+
 		err=send(conn,rx_data,2,0);
 		if (err != 2){
 			perror("send: ");

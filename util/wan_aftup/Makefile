@@ -36,7 +36,7 @@ endif
 # Tools options.
 SRCS	= wan_aftup.c wan_aft_prg.c wan_aft_flash.c wan_aft_flash_shark.c wan_aft_flash_shark_ds.c 
 SRCS	+= wan_pcie_ctrl.c wan_pcie_ctrl_plx.c wan_pcie_ctrl_tundra.c wan_aft_flash_a600.c
-SRCS	+= wan_usb_fwupdate.cpp mem.cpp
+SRC2	+= wan_usb_fwupdate.cpp mem.cpp
 CFLAGS  = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) 
 CFLAGS += $(EXTRA_FLAGS)
 CFLAGS += -I/usr/include -I$(WANINCDIR) -I$(SYSINC)
@@ -49,8 +49,16 @@ BINS=`ls *.BIN`
 all:	$(PROD) 
 	@echo "Ok."
 
-wan_aftup:	$(SRCS)
-	$(CC) $(CFLAGS) -o $@ $^ -lstdc++
+%.o: %.c
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+%.o: %.cpp
+	$(CXX) $(CFLAGS) -o $@ -c $<
+
+wan_aftup: $(patsubst %.c,%.o,${SRCS}) $(patsubst %.cpp,%.o,${SRC2})
+	$(CXX) $(CFLAGS) -o $@ $^ -lstdc++
+ 
+
 
 install:
 	@echo "Installing Wanpipe Firmware  update utility in $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup"

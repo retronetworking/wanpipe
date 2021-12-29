@@ -35,17 +35,17 @@ typedef struct wp_tdmv_gsm_ {
 	struct zt_chan *chans_ptrs[MAX_GSM_CHANNELS];
 #endif
 	struct zt_chan chans[MAX_GSM_CHANNELS];
+
+#ifdef DAHDI_26
+        struct dahdi_device *ddev;
+        struct device dev;
+#endif
 #endif
 	/*! Number of users of this span (for sanity checks) */
 	int usecount;
 	/*! Debug audio buffer index */
 	int audio_debug_i;
 	unsigned char ec_chunk[ZT_CHUNKSIZE];
-
-#ifdef DAHDI_26
-    struct dahdi_device *ddev;
-    struct device dev;
-#endif
 
 } wp_tdmv_gsm_t;
 

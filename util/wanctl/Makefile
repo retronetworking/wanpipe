@@ -34,7 +34,7 @@ wanctl: cpp_string.cpp\
     		text_box.cpp menu_base.cpp\
 		    input_box.cpp dialog_base.cpp main.cpp
 
-	$(CC) $(CFLAGS) -o $@ $^ -ll -lm
+	$(CXX) $(CFLAGS) -o $@ $^ -ll -lm
 
 clean:
 	rm -f wanctl

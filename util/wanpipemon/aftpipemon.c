@@ -1859,6 +1859,7 @@ static void aft_perf_stats( void )
 	printf("-------------------------------------------\n");
 	printf("TDM ..............................%lu\n",aft_perf->isr.tdm);
 	printf("TDM Run...........................%lu\n",aft_perf->isr.tdm_run);
+	printf("TDM Run Span......................%lu\n",aft_perf->isr.tdm_run_span);
 	printf("-------------------------------------------\n");
 	printf("DMA ..............................%lu\n",aft_perf->isr.dma);
 	printf("DMA Rx............................%lu\n",aft_perf->isr.dma_rx);

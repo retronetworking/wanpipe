@@ -578,7 +578,11 @@ static void wp_tdmv_gsm_service_uart(wp_tdmv_gsm_t *gsm_span, int flush)
 
 	card = gsm_span->card;
 	mod_no = card->wandev.comm_port + 1;
+#ifdef DAHDI_ISSUES
+	uart_chan = gsm_span->span.chans[GSM_UART_CHANNEL];
+#else
 	uart_chan = &gsm_span->span.chans[GSM_UART_CHANNEL];
+#endif
 
 	num_bytes = wp_gsm_uart_rx_fifo(card, uart_rx_buffer, sizeof(uart_rx_buffer));
 	if (num_bytes) {
@@ -627,7 +631,12 @@ static int wp_tdmv_gsm_rx_chan(wan_tdmv_t *wan_tdmv, int channo, unsigned char *
 	WAN_ASSERT2(gsm_span == NULL, -EINVAL);
 
 	card = gsm_span->card;
+#ifdef DAHDI_ISSUES
+	voice_chan = gsm_span->span.chans[GSM_VOICE_CHANNEL];
+#else
 	voice_chan = &gsm_span->span.chans[GSM_VOICE_CHANNEL];
+#endif
+
 
 	/* Save the DMA tx/rx buffers provided by wanpipe, we'll write/read to/from them in wp_tdmv_gsm_rx_tx_span */
 	voice_chan->readchunk = rxbuf;
@@ -662,7 +671,11 @@ static int wp_tdmv_gsm_rx_tx_span(void *pcard)
 
 	gsm_span = wan_tdmv->sc;
 	mod_no = card->wandev.comm_port + 1;
+#ifdef DAHDI_ISSUES
+	voice_chan = gsm_span->span.chans[GSM_VOICE_CHANNEL];
+#else
 	voice_chan = &gsm_span->span.chans[GSM_VOICE_CHANNEL];
+#endif
 
 	if (wan_test_bit(AFT_GSM_AUDIO_DEBUG_TOGGLE_BIT, &card->TracingEnabled)) {
 		if (!gsm_span->audio_debug_i) {

@@ -1636,6 +1636,33 @@ retry_cfg:
 			wan_set_bit(mod_no, &fe->rm_param.module_map);
 			((sdla_t*)fe->card)->fe_no_intr = 0x1;
 			mod_cnt++;
+
+#ifdef BUILD_ANALOG_MOD_TESTER 
+			/* Used for unit testing. The code below sets up the test
+               module into the loopback mode */
+			{
+				u32 reg;
+				sdla_t	*card 		= (sdla_t*)fe->card;
+				fe->reset_fe(fe);
+				WP_DELAY(1000);
+				card->hw_iface.bus_read_4(card->hw,0x40,&reg);
+				reg|=0x40;
+				card->hw_iface.bus_write_4(card->hw,0x40,reg);
+				WP_DELAY(1000);
+				reg=0;
+				card->hw_iface.bus_read_4(card->hw,0x40,&reg);
+				if (!(reg & 0x40)) {
+					DEBUG_EVENT("%s: Module %d: NC FAILED SLOWING DOWN!\n", fe->name, mod_no+1);
+				}
+				fe->reset_fe(fe);
+				WP_DELAY(1000);
+				DEBUG_EVENT("%s: Module %d: NC SLOWING DOWN!\n", fe->name, mod_no+1);
+				WRITE_RM_REG(mod_no+1, 0x3, (1<<5));
+				WRITE_RM_REG(mod_no+1, 0x3, (1<<5));
+				WP_DELAY(1000);
+			}
+#endif
+
 			break;
 		default:
 			DEBUG_TDMV("%s: Module %d: Not Installed!\n",

@@ -2273,7 +2273,7 @@ select_bri_option:
 						$a50x->fe_line($5);
 						$devnum++;
 						$num_bri_devices++;
-						if ($is_fs == $TRUE | $is_smg == $TRUE ) {
+						if ($is_fs == $TRUE || $is_smg == $TRUE || $is_tdm_api == $TRUE ) {
 							$card->tdmv_span_no($current_tdmapi_span);
 							$current_tdmapi_span++;
 						} else {
@@ -2307,7 +2307,7 @@ select_bri_option:
 	 		my $group="";
 			my $bri_pos=$a50x->card->tdmv_span_no;
 			
-			if ($is_fs == $TRUE | $is_smg == $TRUE ) {
+			if ($is_fs == $TRUE || $is_smg == $TRUE || $is_tdm_api == $TRUE ) {
 				printf("\nConfiguring port %d on AFT-%s [slot:%d bus:%d span:%d]\n", $a50x->fe_line(), get_card_name($a50x->card->card_model()), $a50x->card->pci_slot(), $a50x->card->pci_bus(), $current_tdmapi_span-1);
 			} else {
 				printf("\nConfiguring port %d on AFT-%s [slot:%d bus:%d span:%d]\n", $a50x->fe_line(), get_card_name($a50x->card->card_model()), $a50x->card->pci_slot(), $a50x->card->pci_bus(), $current_zap_span-1);
@@ -2365,7 +2365,7 @@ select_bri_option:
 
 			if ( $dev =~ /(\d+):NT/ ){	
 				$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_nt", $group, $country, $operator, $conn_type, '');
-				if($is_fs == $TRUE) {
+			    if ($is_fs == $TRUE) {
 					my $boostspan = eval { new boostspan();} or die ($@);
 					my $openzapspan = $current_tdmapi_span-1;
 
@@ -2396,7 +2396,7 @@ select_bri_option:
 					$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_te", $group, $country, $operator, $conn_type, $current_bri_default_tei);
 				}
 
-				if($is_fs == $TRUE) {
+			    if ($is_fs == $TRUE) {
 					my $boostspan = eval { new boostspan();} or die ($@);
 					my $openzapspan = $current_tdmapi_span-1;
 					$boostspan->span_type('TE');

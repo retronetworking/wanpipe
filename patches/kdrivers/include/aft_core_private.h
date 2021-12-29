@@ -590,7 +590,7 @@ static __inline int aft_core_taskq_trigger(sdla_t *card, int cmd)
 {
 	if (wan_test_and_set_bit(cmd, &card->u.aft.port_task_cmd)) {
 		DEBUG_TEST("%s: %s() trigger failed cmd %i already pending !\n",
-					card->devname,__FUNCTION__);
+					card->devname,__FUNCTION__,cmd);
 		return -EBUSY;
 	}
 	
@@ -599,7 +599,7 @@ static __inline int aft_core_taskq_trigger(sdla_t *card, int cmd)
 	}
 
 	if (wan_test_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical)){
-		DEBUG_TEST("%s: %s() trigger failed due to busy  cmd %i!\n",
+		DEBUG_TEST("%s: %s() trigger failed due to PORT TASK Running %i!\n",
 					card->devname,__FUNCTION__,cmd);
 		return -EBUSY;
 	}

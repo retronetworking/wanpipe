@@ -334,6 +334,7 @@ typedef struct aft_driver_isr_stats {
 	unsigned long fe_run;
 	unsigned long tdm;
 	unsigned long tdm_run;
+	unsigned long tdm_run_span;
 	unsigned long dma;
 	unsigned long dma_rx;
 	unsigned long dma_tx;
