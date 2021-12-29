@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.18
+%define VERSION           3.5.19
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -84,8 +84,8 @@ Requires: kernel-%{KARCH} = %{KVERSION}
 %define build_for_zaptel 0
 %{?with_zaptel:%define build_for_zaptel 1} 	
 
-%{?with_dahdi:Requires  dahdi = %{DAHDI_VER}} 
-%{?with_zaptel:Requires  zaptel = %{ZAPTEL_VER}} 
+%{?with_dahdi:Requires:  dahdi = %{DAHDI_VER}} 
+%{?with_zaptel:Requires:  zaptel = %{ZAPTEL_VER}} 
 
 ################################################################################
 %description
@@ -238,6 +238,30 @@ echo "Done"
 ################################################################################
 
 %changelog
+
+
+* Fri Mar 1 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.19
+==================================================================
+
+- Fixed scripts for Ubuntu
+- TDM API updated Tone Event API to include tone type
+  DTMF, FAX_1100, FAX_2100, FAX_2100_WSPR
+- Fixes for latest 2.6.36 linux kernel
+- Fixes for TTY Driver for 2.6.32 linux kernel
+- BRI default idle set to 0xFF so it does not interfere
+  with multi-port mode.
+- BRI NT & TE activation/deactivation logic update.
+- Dahdi Yellow alarm reporting fix
+  Wanpipe driver did not report yellow alarms properly to dahdi
+- T1 Automatic AIS on LOS option now optional
+  Previoulsy the T1 code enabled automatic AIS on LOS by default.
+  This is now an option TE_AIS_AUTO_ON_LOS=YES|NO
+  Default behaviour is to send Yellow alarm on link down.
+- Fixed a TE1 startup race condition bug.
+  It was possible for T1/E1 interrupt to occour before
+  configuration was completel
+- Fixed wanpipe.spec for dahdi RPM build
+- Added serial clock recovery feature
 
 
 * Fri Nov 22 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.18

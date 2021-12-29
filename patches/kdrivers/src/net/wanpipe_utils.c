@@ -1016,8 +1016,8 @@ int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char 
 		buf=wan_skb_put(new_skb, sizeof(wan_trace_pkt_t));
 		memcpy(buf,(caddr_t)&trc_el,sizeof(wan_trace_pkt_t));
 
-		buf=wan_skb_put(new_skb, len);
-		memcpy(buf,data,sizeof(wan_trace_pkt_t));
+		buf=wan_skb_put(new_skb,len);
+		memcpy(buf,data,len);
 		
 		wan_skb_queue_tail(&trace_info->trace_queue, new_skb);
 	}

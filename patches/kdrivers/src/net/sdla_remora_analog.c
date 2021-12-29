@@ -49,6 +49,8 @@ static int ohdebounce = 16;
 #define DEFAULT_CURRENT_THRESH 5  /*Anything under this is considered "on-hook" for active call on FXO */
 
 
+/* January 13 2011 - David R - fixed ring debounce */
+#define RING_DEBOUNCE_FIX	1
 
 int
 wp_tdmv_remora_proslic_recheck_sanity(sdla_fe_t	*fe, int mod_no)
@@ -215,8 +217,23 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 		res = READ_RM_REG(mod_no, 5);
 #endif
 		if ((res & 0x60) && fxo->battery) {
+
+#if !RING_DEBOUNCE_FIX
 			fxo->ringdebounce += (fe->rm_param.wp_rm_chunk_size * 16);
-			if (fxo->ringdebounce >= fe->rm_param.wp_rm_chunk_size * 64) {
+#else
+			fxo->ringdebounce += (fe->rm_param.wp_rm_chunk_size * 4);
+#endif
+
+			/*DEBUG_FALSE_RING("RING ON: (res & 0x60): 0x%X, fxo->battery: %d, fxo->ringdebounce: %d, fe->rm_param.wp_rm_chunk_size: %d, fxo->wasringing: %d!\n",
+				(res & 0x60), fxo->battery, fxo->ringdebounce, fe->rm_param.wp_rm_chunk_size, fxo->wasringing);*/
+
+#if !RING_DEBOUNCE_FIX
+# define RING_DEBOUNCE_COUNTER	64
+#else
+# define RING_DEBOUNCE_COUNTER	128
+#endif
+
+			if (fxo->ringdebounce >= fe->rm_param.wp_rm_chunk_size * RING_DEBOUNCE_COUNTER) {
 				if (!fxo->wasringing) {
 					fxo->wasringing = 1;
 					if (card->u.aft.tdmv_zaptel_cfg) {
@@ -243,12 +260,17 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 					}
 
 				}
-				fxo->ringdebounce = fe->rm_param.wp_rm_chunk_size * 64;
+				fxo->ringdebounce = fe->rm_param.wp_rm_chunk_size * RING_DEBOUNCE_COUNTER;
 			}
 		} else {
+
 			fxo->ringdebounce -= fe->rm_param.wp_rm_chunk_size * 4;
+
 			if (fxo->ringdebounce <= 0) {
 				if (fxo->wasringing) {
+					/*DEBUG_FALSE_RING("RING OFF: (res & 0x60): 0x%X, fxo->battery: %d, fxo->ringdebounce: %d, fe->rm_param.wp_rm_chunk_size: %d, fxo->wasringing: %d!\n",
+						(res & 0x60), fxo->battery, fxo->ringdebounce, fe->rm_param.wp_rm_chunk_size, fxo->wasringing);*/
+
 					fxo->wasringing = 0;
 					if (card->u.aft.tdmv_zaptel_cfg) {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
@@ -276,7 +298,7 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 				fxo->ringdebounce = 0;
 			}
 		}
-	}
+	} /* if (!fxo->offhook) */
 #endif
 #if defined(REG_SHADOW)
 	b = fe->rm_param.reg1shadow[mod_no];
@@ -1239,6 +1261,10 @@ int wp_tdmv_remora_rx_tx_span_common(void *pcard )
 		if (fe->rm_param.mod[x].type == MOD_TYPE_FXS){
 #if defined(REG_WRITE_SHADOW)
 			if (fxs->lasttxhook_update){
+
+				DBG_BATTERY_REMOVAL("%s():line:%d: fxs ptr: 0x%p, fxs->lasttxhook: %d (0x%x)\n",
+						__FUNCTION__, __LINE__, fxs, fxs->lasttxhook, fxs->lasttxhook);
+
 				WRITE_RM_REG(x, 64, fxs->lasttxhook);
 				fxs->lasttxhook_update = 0;
 				continue;
@@ -1292,6 +1318,10 @@ int wp_tdmv_remora_rx_tx_span_common(void *pcard )
 							}else{
 								fxs->lasttxhook = 0x1;
 							}
+				
+							DBG_BATTERY_REMOVAL("%s():line:%d: fxs ptr: 0x%p, fxs->lasttxhook: %d (0x%x)\n",
+								__FUNCTION__, __LINE__, fxs, fxs->lasttxhook, fxs->lasttxhook);
+
 							WRITE_RM_REG(x, 64, fxs->lasttxhook);
 						}
 					}

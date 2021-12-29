@@ -149,7 +149,7 @@ static int wanec_poll(void *arg, void *pcard);
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
 int wanec_ioctl(void *sc, void *data);
 #elif defined(__LINUX__)
-int wanec_ioctl(unsigned int cmd, void *data);
+WAN_IOCTL_RET_TYPE wanec_ioctl(unsigned int cmd, void *data);
 #endif
 
 int wan_ec_write_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 data);
@@ -1500,7 +1500,7 @@ static int wanec_api_playout(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
 int wanec_ioctl(void *sc, void *data)
 #elif defined(__LINUX__)
-int wanec_ioctl(unsigned int cmd, void *data)
+WAN_IOCTL_RET_TYPE wanec_ioctl(unsigned int cmd, void *data)
 #elif defined(__WINDOWS__)
 int wanec_ioctl(void *data)
 #endif
@@ -1508,7 +1508,7 @@ int wanec_ioctl(void *data)
 	wan_ec_api_t	*ec_api = NULL;
 	wan_ec_t		*ec = NULL;
 	wan_ec_dev_t	*ec_dev = NULL;
-	int		err = 0;
+	WAN_IOCTL_RET_TYPE		err = 0;
 	wan_smp_flag_t flags;
 
 	WAN_DEBUG_FUNC_START;

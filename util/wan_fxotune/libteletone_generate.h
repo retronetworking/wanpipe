@@ -103,8 +103,12 @@ typedef __int8 int8_t;
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <math.h>
-#if !defined(powf)
+
+/* BUG 5557 - fix for netborder build issue */
+#ifndef _WIN64
+#	if !defined(powf)
 extern float powf (float, float);
+#	endif
 #endif
 
 #include <string.h>

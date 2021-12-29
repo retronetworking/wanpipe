@@ -1456,7 +1456,7 @@ create_mataconf()
 	# Select directory for the log file.
 	if	[ -d /var/log ]; then
 		LOG_FILE=/var/log/$PROD
-	elif	[ -d /var/adm wanpipe1]; then
+	elif	[ -d /var/adm ]; then
 		LOG_FILE=/var/adm/$PROD
 	else	
 		LOG_FILE=/etc/wanpipe/$PROD.log
@@ -1903,7 +1903,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
          wanpipe utilities (ex: make menuconfig and make dep)."
 		echo
 		pause
-		return 0
+		#return 0
 	fi
 
 	if [ ! -e $SOURCEDIR/include/linux/version.h ]; then
@@ -1913,7 +1913,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
          wanpipe utilities (ex: make menuconfig and make dep)."
 		echo
 		pause
-		return 0
+		#return 0
 	fi
 
 
@@ -2157,7 +2157,6 @@ clean_up ()
 	
 	[ -f "/etc/router.rc" ] && rm -f /etc/router.rc
 
-	eval "./patches/restore_wanrouter.sh"
 }
 
 get_distrib()
@@ -7283,7 +7282,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.18
+PROD_VER=3.5.19
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7545,11 +7544,6 @@ if [ "$setup_cmd" = "install_init" ]; then
 	exit; 
 fi
 
-if [ "$setup_cmd" = "uninstall" ] || [ "$setup_cmd" = "remove" ]; then 
-	remove; 
-	uninstall_all
-	exit; 
-fi      
 
 if [ "$setup_cmd" = "zaptel" ] || [ "$setup_cmd" = "dahdi" ] ; then
 	zaptel_auto_install="YES"
@@ -7835,7 +7829,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 		--arch*)
 			ARCH=`echo $arg | cut -d'=' -f2`;
 
-			if [ $ARCH != "i686" ] && [ $ARCH != "i586" ] && [ $ARCH != "i486" ] && [ $ARCH != "i386" ] && [$ARCH !="x86_64" ];  then
+			if [ $ARCH != "i686" ] && [ $ARCH != "i586" ] && [ $ARCH != "i486" ] && [ $ARCH != "i386" ] && [ $ARCH != "x86_64" ];  then
 				echo "Error: Invalid Architecture [i686|i586|i486|i386|x86_64]\n"
 				exit 1;
 			fi
@@ -8229,6 +8223,13 @@ ENDOFTEXT
 		exit 0;
 	fi
 fi
+
+
+if [ "$setup_cmd" = "uninstall" ] || [ "$setup_cmd" = "remove" ]; then 
+	remove; 
+	uninstall_all
+	exit; 
+fi      
 
 
 if [ "$setup_cmd" != "install" ] && [ "$setup_cmd" != "upgrade" ]; then

@@ -37,8 +37,8 @@
  *      sangoma_get_cpld_version functions,sangoma_get_stats,sangoma_flush_stats
  */
 
-#ifndef _LIBSNAGOMA_H
-#define _LIBSNAGOMA_H
+#ifndef _LIBSANGOMA_H
+#define _LIBSANGOMA_H
 
 #ifdef __linux__
 #ifndef __LINUX__
@@ -268,7 +268,8 @@ typedef pthread_mutex_t CRITICAL_SECTION;
 typedef unsigned int UINT;
 
 #define EnterCriticalSection(arg) 	pthread_mutex_lock(arg)
-#define TryEnterCriticalSection(arg)	pthread_mutex_trylock(arg)
+/* On success, pthread_mutex_trylock() returns 0. On error, non-zero value is returned. */
+#define TryEnterCriticalSection(arg)	(pthread_mutex_trylock(arg)==0 ? 1 : 0)
 #define LeaveCriticalSection(arg) 	pthread_mutex_unlock(arg)
 #define InitializeCriticalSection(arg)	pthread_mutex_init(arg, NULL);
 
@@ -425,6 +426,14 @@ sng_fd_t _LIBSNG_CALL __sangoma_open_api_span_chan(int span, int chan);
   Unrestriced open, allows mutiple open calls on a single device 
 */
 sng_fd_t _LIBSNG_CALL sangoma_open_api_span(int span);
+
+/*!
+  \fn sng_fd_t sangoma_open_dev_by_name(const char *dev_name)
+  \brief Open API device using it's name. For example: Linux: w1g1, Windows wanpipe1_if1.
+  \param dev_name  API device name
+  \return File Descriptor: -1 error, 0 or positive integer: valid file descriptor
+*/
+sng_fd_t _LIBSNG_CALL sangoma_open_dev_by_name(const char *dev_name);
 
 
 /*!
@@ -1528,7 +1537,7 @@ int _LIBSNG_CALL sangoma_set_tx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, float 
   \brief set driver rx gain for this tdm device
   \param fd device file descriptor
   \param tdm_api tdm api command structure
-  \param value txgain (0.0 - 10.0) db
+  \param value rxgain (0.0 - 10.0) db
   \return non-zero = error, 0 = ok
 */
 int _LIBSNG_CALL sangoma_set_rx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, float gain_val);
@@ -2160,5 +2169,5 @@ sangoma_status_t _LIBSNG_CALL sangoma_set_driver_mode_of_all_hw_devices(int driv
 #define sangoma_create_socket_intr sangoma_open_api_span_chan
 #endif
 
-#endif	/* _LIBSNAGOMA_H */
+#endif	/* _LIBSANGOMA_H */
 

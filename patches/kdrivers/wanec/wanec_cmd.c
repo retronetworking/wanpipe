@@ -500,7 +500,7 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 
 	ulResult = Oct6100GetInstanceSize(&ec->f_OpenChip, &InstanceSize);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to get EC chip instance size (err=0x%X)!\n",
 					ec->name, ulResult);
 		return -EINVAL;
@@ -510,7 +510,7 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 	ec->pChipInstance =
 		(tPOCT6100_INSTANCE_API)wan_vmalloc(InstanceSize.ulApiInstanceSize);
 	if (ec->pChipInstance == NULL){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to allocate memory for EC chip (%d bytes)!\n",
 					ec->name,InstanceSize.ulApiInstanceSize);
 		return -EINVAL;
@@ -547,7 +547,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 	"%s: Opening Echo Canceller Chip ...\n",
 					ec->name);
 	if (ec->f_OpenChip.pbyImageFile == NULL){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Invalid EC image pointer\n",
 					ec->name);
 		return -EINVAL;
@@ -558,7 +558,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 	if ( ulResult != cOCT6100_ERR_OK ){
 		if (ec->imageLast == WANOPT_YES ||
 		    ulResult != cOCT6100_ERR_OPEN_INVALID_FIRMWARE_OR_CAPACITY_PINS){
-			DEBUG_EVENT(
+			DEBUG_ERROR(
 			"ERROR: %s: Failed to open Echo Canceller Chip (err=0x%X)\n",
 					ec->name, ulResult);
 		}
@@ -566,7 +566,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 	}
 
 	if (wanec_ChipImage(ec_dev, NULL, verbose)){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to read EC chip statistics!\n",
 					ec->name);
 		wanec_ChipClose(ec_dev, verbose);
@@ -576,7 +576,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 	ec->pToneBufferIndexes =
 			wan_malloc(sizeof(UINT32) * ec->f_OpenChip.ulMaxPlayoutBuffers);
 	if (ec->pToneBufferIndexes == NULL){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed allocate memory for playout handles!\n",
 					ec->name);
 		wanec_ChipClose(ec_dev, verbose);
@@ -589,7 +589,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 	ec->pEchoChannelHndl =
 			wan_malloc(sizeof(UINT32) * MAX_EC_CHANS);
 	if (ec->pEchoChannelHndl == NULL){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed allocate memory for channel handle!\n",
 					ec->name);
 		wan_free(ec->pToneBufferIndexes);
@@ -600,7 +600,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 	ec->pEcDevMap = wan_malloc(sizeof(wan_ec_dev_t*) * MAX_EC_CHANS);
 
 	if (ec->pEcDevMap == NULL){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed allocate memory for ec channel map!\n",
 					ec->name);
 		wan_free(ec->pToneBufferIndexes);
@@ -632,7 +632,7 @@ int wanec_ChipClose(wan_ec_dev_t *ec_dev, int verbose)
 				ec->pChipInstance,
 				&f_CloseChip );
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to close Echo Canceller chip (err=0x%X)!\n",
 						ec->name, ulResult);
 		return -EINVAL;
@@ -825,7 +825,7 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 	ulResult = Oct6100ChannelOpen(	ec->pChipInstance,
 					&EchoChannelOpen );
 	if (ulResult != cOCT6100_ERR_OK){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to open Echo Canceller channel %d (err=0x%X)!\n",
 						ec->name,
 						ec_chan,
@@ -857,7 +857,7 @@ int wanec_ChannelClose(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 	ulResult = Oct6100ChannelClose(	ec->pChipInstance,
 				&EchoChannelClose );
 	if (ulResult != cOCT6100_ERR_OK){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to close Echo Canceller channel %d (err=0x%X)!\n",
 							ec->name,
 							ec_chan,
@@ -978,7 +978,7 @@ int wanec_ChannelMute(wan_ec_dev_t* ec_dev, INT ec_chan, wanec_chan_mute_t *mute
 				ec->pChipInstance,
 				&f_ChannelMute);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to mute EC channel %d on port %X (%08X)!\n",
 					ec->name, ec_chan, f_ChannelMute.ulPortMask, ulResult);
 		return EINVAL;
@@ -1012,7 +1012,7 @@ int wanec_ChannelUnMute(wan_ec_dev_t *ec_dev, INT ec_chan, wanec_chan_mute_t *mu
 				ec->pChipInstance,
 				&f_ChannelUnMute);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to un-mute channel %d on port %X (%08X)!\n",
 					ec->name, ec_chan, f_ChannelUnMute.ulPortMask, ulResult);
 		return EINVAL;
@@ -1039,7 +1039,7 @@ int wanec_ChannelStats(wan_ec_dev_t *ec_dev, INT channel, wanec_chan_stats_t *ch
 				ec->pChipInstance,
 				&f_ChannelStats);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to read EC stats for channel %d (%08X)!\n",
 						ec->name, channel, ulResult);
 		return EINVAL;
@@ -1105,7 +1105,7 @@ static int wanec_ToneEnable(wan_ec_t *ec, int ec_chan, UINT32 tone_id, int verbo
 						&f_ToneDetectionEnable);
 	if ( ulResult != cOCT6100_ERR_OK ){
 		if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_ACTIVATED){
-			DEBUG_EVENT(
+			DEBUG_ERROR(
 			"ERROR: %s: Failed to enable EC Tone (0x%08X) detection on ec chan %d (err=0x%08X)!\n",
 						ec->name, tone_id, ec_chan, (unsigned int)ulResult);
 			return -EINVAL;
@@ -1136,7 +1136,7 @@ static int wanec_ToneDisable(wan_ec_t *ec, int ec_chan, UINT32 tone_id, int verb
 					&f_ToneDetectionDisable);
 	if ( ulResult != cOCT6100_ERR_OK ){
 		if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_NOT_ACTIVATED){
-			DEBUG_EVENT(
+			DEBUG_ERROR(
 			"ERROR: %s: Failed to disable EC Tone (0x%08X) detection on ec chan %d (err=0x%08X)!\n",
 						ec->name, tone_id, ec_chan, (unsigned int)ulResult);
 			return -EINVAL;
@@ -1203,50 +1203,206 @@ static CHAR* wanec_ToneId2Str(UINT32 f_ulToneId)
 	}
 }
 
-static unsigned char wanec_ConvertToneId(UINT32 f_ulToneId, unsigned char *ec_tone_port)
+static int wanec_ConvertToneId(UINT32 f_ulToneId, unsigned char *ec_tone_port, unsigned char *digit, u_int16_t *type)
 {
+	int err=0;
+
 	switch (f_ulToneId){
 	/* DTMF Section */
-	case ROUT_DTMF_0:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '0';
-	case ROUT_DTMF_1:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '1';
-	case ROUT_DTMF_2:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '2';
-	case ROUT_DTMF_3:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '3';
-	case ROUT_DTMF_4:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '4';
-	case ROUT_DTMF_5:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '5';
-	case ROUT_DTMF_6:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '6';
-	case ROUT_DTMF_7:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '7';
-	case ROUT_DTMF_8:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '8';
-	case ROUT_DTMF_9:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '9';
-	case ROUT_DTMF_A:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'A';
-	case ROUT_DTMF_B:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'B';
-	case ROUT_DTMF_C:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'C';
-	case ROUT_DTMF_D:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'D';
-	case ROUT_DTMF_STAR:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '*';
-	case ROUT_DTMF_POUND:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '#';
-	case SOUT_DTMF_0:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '0';
-	case SOUT_DTMF_1:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '1';
-	case SOUT_DTMF_2:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '2';
-	case SOUT_DTMF_3:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '3';
-	case SOUT_DTMF_4:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '4';
-	case SOUT_DTMF_5:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '5';
-	case SOUT_DTMF_6:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '6';
-	case SOUT_DTMF_7:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '7';
-	case SOUT_DTMF_8:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '8';
-	case SOUT_DTMF_9:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '9';
-	case SOUT_DTMF_A:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'A';
-	case SOUT_DTMF_B:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'B';
-	case SOUT_DTMF_C:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'C';
-	case SOUT_DTMF_D:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'D';
-	case SOUT_DTMF_STAR:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '*';
-	case SOUT_DTMF_POUND:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '#';
-	case SOUT_G168_2100GB_ON:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
-	case SOUT_G168_2100GB_WSPR:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
-	case ROUT_G168_2100GB_ON:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
-	case ROUT_G168_2100GB_WSPR:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
-	case SOUT_G168_1100GB_ON:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
-	case ROUT_G168_1100GB_ON:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
+	case ROUT_DTMF_0:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='0';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_1:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='1';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_2:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='2';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_3:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='3';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_4:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='4';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_5:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='5';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_6:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='6';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_7:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='7';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_8:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='8';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_9:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='9';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_A:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='A';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_B:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='B';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_C:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT;
+		*digit		  ='C';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_D:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT;
+		*digit		  ='D';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_STAR:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='*';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case ROUT_DTMF_POUND:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='#';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_0:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; 
+		*digit		  ='0';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_1:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; 
+		*digit		  ='1';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_2:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='2';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_3:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='3';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_4:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='4';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_5:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='5';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_6:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='6';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_7:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='7';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_8:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='8';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_9:
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='9';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_A:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='A';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_B:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT;
+		*digit		  ='B';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_C:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; 
+		*digit		  ='C';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_D:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; 
+		*digit		  ='D';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_STAR:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; 
+		*digit		  ='*';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_DTMF_POUND:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; 
+		*digit		  ='#';
+		*type 		  = WAN_EVENT_EC_DTMF;
+		break;
+	case SOUT_G168_2100GB_ON:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; 
+		*digit		  ='f';
+		*type 		  = WAN_EVENT_EC_FAX_2100;
+		break;
+	case SOUT_G168_2100GB_WSPR:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; 
+		*digit		  ='f';
+		*type 		  = WAN_EVENT_EC_FAX_2100_WSPR;
+		break;
+	case ROUT_G168_2100GB_ON:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='f';
+		*type 		  = WAN_EVENT_EC_FAX_2100;
+		break;
+	case ROUT_G168_2100GB_WSPR:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='f';
+		*type 		  = WAN_EVENT_EC_FAX_2100_WSPR;
+		break;
+	case SOUT_G168_1100GB_ON:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; 
+		*digit		  ='f';
+		*type 		  = WAN_EVENT_EC_FAX_1100;
+		break;
+	case ROUT_G168_1100GB_ON:	
+		*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; 
+		*digit		  ='f';
+		*type 		  = WAN_EVENT_EC_FAX_1100;
+		break;
+	default:
+		err=-1;
 	}
-	return 0x00000000;
+	return err;
 }
 
 #if 1
@@ -1361,7 +1517,7 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 							ec->name);
 			return 0;
 		}
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to get tone events (err=0x%X)!\n",
 						ec->name, ulResult);
 		return -EINVAL;
@@ -1375,7 +1531,7 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 		ec_dev = ec->pEcDevMap[ec_chan];
 		fe_chan = (u8)wanec_ec2fe_channel(ec, ec_chan, &ec_dev);
 		if (ec_dev == NULL || ec_dev->card == NULL){
-			DEBUG_EVENT(
+			DEBUG_ERROR(
 			"%s: Internal Error: Failed to find fe channel (ec_chan=%d)\n",
 						ec->name, ec_chan);
 			continue;
@@ -1390,15 +1546,19 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 
 		card = (sdla_t*)ec_dev->card;
 		if (card->wandev.event_callback.tone){
-			u8 tone_port = WAN_EC_CHANNEL_PORT_ROUT;
-
-			event.type	= WAN_EVENT_EC_DTMF;
+			int err;
 			event.channel	= fe_chan;
-			event.digit	= wanec_ConvertToneId(
-						ToneEvent[i].ulToneDetected,
-						&tone_port);
 			event.tone_type = wanec_ConvertToneType(ToneEvent[i].ulEventType);
-			event.tone_port = tone_port;
+
+			err=wanec_ConvertToneId(
+						ToneEvent[i].ulToneDetected,
+						&event.tone_port, &event.digit, &event.type);
+
+			if (err != 0) {
+             	DEBUG_ERROR("%s: Error: Unsupported Tone Detected: chan=%i tone=0x%X\n",
+						ec->name, fe_chan, ToneEvent[i].ulToneDetected);
+               	goto ignore_tone;
+			}
 
 #if 0
 /* Implemented fax debouncing but
@@ -1409,6 +1569,10 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 		   	}
 #endif
 			card->wandev.event_callback.tone(card, &event);
+
+ignore_tone:
+			;
+
 		}
 	}
 
@@ -1448,7 +1612,7 @@ int wanec_PlayoutEvent(wan_ec_t *ec, int verbose)
 							ec->name);
 			return 0;
 		}
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to get buffer playout events (err=0x%X)!\n",
 						ec->name, ulResult);
 		return -EINVAL;
@@ -1462,7 +1626,7 @@ int wanec_PlayoutEvent(wan_ec_t *ec, int verbose)
 		ec_dev = ec->pEcDevMap[ec_chan];
 		fe_chan = wanec_ec2fe_channel(ec, ec_chan, &ec_dev);
 		if (ec_dev == NULL || ec_dev->card == NULL){
-			DEBUG_EVENT(
+			DEBUG_ERROR(
 			"%s: Internal Error: Failed to find fe channel (ec_chan=%d)\n",
 						ec->name, ec_chan);
 			continue;
@@ -1508,7 +1672,7 @@ int wanec_ISR(wan_ec_t *ec, int verbose)
 					ec->pChipInstance,
 					&ec->f_InterruptFlag );
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to execute interrupt Service Routine (err=%08X)!\n",
 					ec->name,
 					ulResult);
@@ -1516,7 +1680,7 @@ int wanec_ISR(wan_ec_t *ec, int verbose)
 	}
 	/* Critical errors */
 	if (ec->f_InterruptFlag.fFatalGeneral == TRUE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: An internal fatal chip error detected (0x%X)!\n",
 				ec->name,
 				ec->f_InterruptFlag.ulFatalGeneralFlags);
@@ -1601,7 +1765,7 @@ int wanec_DebugChannel(wan_ec_dev_t *ec_dev, INT channel, int verbose)
 	}
 
 	if (ec_dev->ec->ulDebugChannelHndl != cOCT6100_INVALID_HANDLE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Echo Canceller daemon can monitor only one ec channel (%d)!\n",
 				ec_dev->name, channel);
 		return -EINVAL;
@@ -1621,7 +1785,7 @@ int wanec_DebugChannel(wan_ec_dev_t *ec_dev, INT channel, int verbose)
 					ec->pChipInstance,
 					&DebugSelectChannel );
 	if (ulResult != cOCT6100_ERR_OK){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to select debug ec channel %d for monitoring (err=0x%X)\n",
 				ec->name,
 				channel,
@@ -1641,7 +1805,7 @@ int wanec_DebugGetData(wan_ec_dev_t *ec_dev, wanec_chan_monitor_t *chan_monitor,
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
 	if (ec->ulDebugChannelHndl == cOCT6100_INVALID_HANDLE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: No Debug channel was selected!\n",
 					ec->name);
 		return -EINVAL;
@@ -1678,7 +1842,7 @@ int wanec_DebugGetData(wan_ec_dev_t *ec_dev, wanec_chan_monitor_t *chan_monitor,
 			ec->pChipInstance,
 			&fDebugGetData );
 	if (ulResult != cOCT6100_ERR_OK){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to get debug data for ec channel %d (err=0x%X)\n",
 				ec->name,
 				ec->DebugChannel,
@@ -1731,14 +1895,14 @@ int wanec_BufferLoad(wan_ec_dev_t *ec_dev, wanec_buffer_config_t *buffer_config,
 	size = buffer_config->size * sizeof(INT8);
 	pData = wan_vmalloc(size);
 	if (pData == NULL){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to allocate memory for buffer!\n",
 					ec->name);
 		return -EINVAL;
 	}
 	err = WAN_COPY_FROM_USER(pData, buffer_config->data, size);
 	if (err){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to copy EC buffer from user space [%s:%d]!\n",
 				ec->name,
 				__FUNCTION__,__LINE__);
@@ -1760,7 +1924,7 @@ int wanec_BufferLoad(wan_ec_dev_t *ec_dev, wanec_buffer_config_t *buffer_config,
 		if (ulResult == cOCT6100_ERR_BUFFER_PLAYOUT_ALL_BUFFERS_OPEN){
 			goto buffer_load_done;
 		}
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: ERROR: Failed to load buffer into EC Chip (err=0x%X)\n",
 						ec->name, ulResult);
 		wan_vfree(pData);
@@ -1794,7 +1958,7 @@ try_next_index:
 	if (buffer_config->buffer_index != cOCT6100_INVALID_VALUE){
 		pBufferIndex = wanec_search_bufferindex(ec, buffer_config->buffer_index);
 		if (pBufferIndex == NULL){
-			DEBUG_EVENT(
+			DEBUG_ERROR(
 			"ERROR: %s: Invalid buffer index %X!\n",
 					ec->name, buffer_config->buffer_index);
 			return EINVAL;
@@ -1818,7 +1982,7 @@ try_next_index:
 		if (ulResult == cOCT6100_ERR_BUFFER_PLAYOUT_NOT_OPEN){
 			goto buffer_unload_done;
 		}
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to unload buffer from EC Chip (err=0x%X)!\n",
 				ec->name, (unsigned int)ulResult);
 		return EINVAL;
@@ -1847,7 +2011,7 @@ int wanec_BufferPlayoutAdd(wan_ec_t *ec, int channel, wanec_playout_t *playout, 
 					playout->repeat_cnt);
 	if (playout->index == cOCT6100_INVALID_VALUE||
 	    wanec_search_bufferindex(ec, playout->index) == NULL){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Invalid playout buffer index for ec channel %d!\n",
 					ec->name, channel);
 		return -EINVAL;
@@ -1876,7 +2040,7 @@ int wanec_BufferPlayoutAdd(wan_ec_t *ec, int channel, wanec_playout_t *playout, 
 					ec->pChipInstance,
 					&BufferPlayoutAdd);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to add playout buffer to ec channel %d (err=%08X)\n",
 					ec->name, channel, ulResult);
 		return -EINVAL;
@@ -1906,7 +2070,7 @@ int wanec_BufferPlayoutStart(wan_ec_t *ec, int channel, wanec_playout_t *playout
 					ec->pChipInstance,
 					&BufferPlayoutStart);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to active playout buffer on ec channel %d (err=%08X)\n",
 					ec->name,
 					channel,
@@ -1937,7 +2101,7 @@ int wanec_BufferPlayoutStop(wan_ec_t *ec, int channel, wanec_playout_t *playout,
 					&BufferPlayoutStop);
 	if ( ulResult != cOCT6100_ERR_OK ){
 		if (ulResult != cOCT6100_ERR_BUFFER_PLAYOUT_NOT_STARTED){
-			DEBUG_EVENT(
+			DEBUG_ERROR(
 			"ERROR: %s: Failed to deactive playout buffer on ec channel %d (err=%08X)\n",
 						ec->name,
 						channel,
@@ -1961,7 +2125,7 @@ int wanec_ConfBridgeOpen(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int verb
 	"%s: Opening Conference Bridge...\n", ec->name);
 
 	if ((unsigned int)ec->confbridges_no >= ec->f_OpenChip.ulMaxConfBridges){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Trying to open too many conference bridges (%d:%d)\n",
 					ec->name,
 					ec->confbridges_no,
@@ -1976,7 +2140,7 @@ int wanec_ConfBridgeOpen(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int verb
 				ec->pChipInstance,
 				&ConfBridgeOpen);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to open new conference bridge (err=%08X)\n",
 					ec->name,
 					ulResult);
@@ -1999,7 +2163,7 @@ int wanec_ConfBridgeClose(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int ver
 				ec->pChipInstance,
 				&ConfBridgeClose);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to close conference bridge (%X, err=%08X)\n",
 					ec->name,
 					confbridge->ulHndl,
@@ -2025,7 +2189,7 @@ int wanec_ConfBridgeChanAdd(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int c
 				ec->pChipInstance,
 				&ConfBridgeChanAdd);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to add channel %d to conference bridge (%X, err=%08X)\n",
 					ec->name, channel,
 					confbridge->ulHndl,
@@ -2051,7 +2215,7 @@ int wanec_ConfBridgeChanRemove(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, in
 				ec->pChipInstance,
 				&ConfBridgeChanRemove);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to remove channel %d from conference bridge (%X, err=%08X)\n",
 					ec->name, channel,
 					confbridge->ulHndl,
@@ -2076,7 +2240,7 @@ int wanec_ConfBridgeChanMute(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int 
 				ec->pChipInstance,
 				&ConfBridgeChanMute);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to mute channel %d on a conference bridge (%X, err=%08X)\n",
 					ec->name, channel,
 					confbridge->ulHndl,
@@ -2101,7 +2265,7 @@ int wanec_ConfBridgeChanUnMute(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, in
 				ec->pChipInstance,
 				&ConfBridgeChanUnMute);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to unmute channel %d from conference bridge (%X, err=%08X)\n",
 					ec->name, channel,
 					confbridge->ulHndl,
@@ -2134,7 +2298,7 @@ int wanec_ConfBridgeDominantSpeakerSet(wan_ec_t *ec, wan_ec_confbridge_t *confbr
 					ec->pChipInstance,
 					&ConfBridgeDominantSpeaker);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to %s dominant speaker to conference bridge (%X, err=%08X)\n",
 					ec->name,
 					(enable) ? "enable" : "disable",
@@ -2163,7 +2327,7 @@ int wanec_ConfBridgeMaskChange(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, in
 					ec->pChipInstance,
 					&ConfBridgeMaskChange);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to change the listener mask of bridge participant %d (err=%X)!\n",
 					ec->name,
 					channel,
@@ -2188,7 +2352,7 @@ int wanec_ConfBridgeGetStats(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int 
 					ec->pChipInstance,
 					&ConfBridgeStats);
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"ERROR: %s: Failed to get conference bridge statistics (err=%X)!\n",
 					ec->name,
 					ulResult);
@@ -2275,7 +2439,7 @@ wan_ec_write_seq(wan_ec_dev_t *ec_dev, u32 write_addr, u16 write_data)
 	}
 
 	if ( i == WANEC_READ_LIMIT ){
-		DEBUG_EVENT("%s: EC write command reached limit!\n",
+		DEBUG_ERROR("%s: Error: EC write command reached re-try limit!\n",
 				ec_dev->name);
 		return WAN_EC_RC_CPU_INTERFACE_NO_RESPONSE;
 	}
@@ -2295,7 +2459,7 @@ u32 wanec_req_write(void *arg, u32 write_addr, u16 write_data)
 				ec_dev->ec->name, write_addr, write_data);
 	ulResult = wan_ec_write_seq(ec_dev, write_addr, write_data);
 	if (ulResult){
-		DEBUG_EVENT("%s: Failed to write %04X to addr %08X\n",
+		DEBUG_ERROR("%s: Error: Failed to write %04X to addr %08X\n",
 						ec_dev->name,
 						write_addr,
 						write_data);
@@ -2316,7 +2480,7 @@ u32 wanec_req_write_smear(void *arg, u32 addr, u16 data, u32 len)
 	for ( i = 0; i < len; i++ ){
 		ulResult = wan_ec_write_seq(ec_dev, addr + (i*2), data);
 		if (ulResult){
-			DEBUG_EVENT("%s: Failed to write %04X to addr %08X\n",
+			DEBUG_ERROR("%s: Error: Failed to write %04X to addr %08X\n",
 						ec_dev->name,
 						addr + (i*2),
 						data);
@@ -2340,7 +2504,7 @@ u32 wanec_req_write_burst(void *arg, u32 addr, u16 *data, u32 len)
 	for ( i = 0; i < len; i++ ){
 		ulResult = wan_ec_write_seq(ec_dev, addr + (i * 2), data[i]);
 		if (ulResult){
-			DEBUG_EVENT("%s: Failed to write %04X to addr %08X\n",
+			DEBUG_ERROR("%s: Error: Failed to write %04X to addr %08X\n",
 						ec_dev->name,
 						addr + (i*2),
 						data[i]);
@@ -2406,7 +2570,7 @@ wan_ec_read_seq(wan_ec_dev_t *ec_dev, u32 read_addr, u16 *read_data, u32 read_le
 			break;
 	}
 	if ( i == WANEC_READ_LIMIT ){
-		DEBUG_EVENT("%s: EC read command reached limit!\n",
+		DEBUG_ERROR("%s: Error: EC read command reached re-try limit!\n",
 				ec_dev->name);
 		return WAN_EC_RC_CPU_INTERFACE_NO_RESPONSE;
 	}
@@ -2444,7 +2608,7 @@ u32 wanec_req_read(void *arg, u32 addr, u16 *data)
 				data,
 				1);
 	if (ulResult){
-		DEBUG_EVENT("%s: Failed to read data from addr %08X\n",
+		DEBUG_ERROR("%s: Error: Failed to read data from addr %08X\n",
 					ec_dev->name,
 					addr);
 		if (ec_dev->ec){

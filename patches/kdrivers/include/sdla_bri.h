@@ -154,6 +154,7 @@
 /* TE timer flags. bits 1-8	*/
 #define T3_TIMER_ACTIVE		1
 #define T4_TIMER_ACTIVE     2
+#define T3_TIMER_EXPIRED	3
 /* NT timer flags. bits 9-16 */
 #define T1_TIMER_ACTIVE		9
 #define T1_TIMER_EXPIRED	10
@@ -329,7 +330,7 @@ typedef struct sdla_bri_param {
 	u_int32_t		module_map[2];		/* Map of available module */
 	u_int16_t		max_fe_channels;	/* Number of available modules */
 	
-	u_int8_t		critical;
+	wan_bitmap_t	critical;
 
 	/*
 	Flag indicating if this logical 'card' (sdla_t) which represents a BRI line,

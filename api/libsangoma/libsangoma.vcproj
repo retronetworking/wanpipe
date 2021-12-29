@@ -214,6 +214,10 @@
 				RelativePath=".\libsangoma_hwec.c"
 				>
 			</File>
+			<File
+				RelativePath=".\libsangoma_utils.c"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"

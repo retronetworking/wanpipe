@@ -79,6 +79,9 @@ static int audio_dump_fd = -1;
 
 static int printbest = 0;
 
+// Bug 5730
+static int use_reserved_open = 0;
+
 #define MAX_RESULTS 	(5)
 struct result_catalog {
 	int 	idx;
@@ -106,6 +109,7 @@ static char *usage =
 "	-v : more output (-vv, -vvv also)\n"
 "	-p : print the 5 best candidates for acim and coefficients settings\n"
 "	-x : Perform sin/cos functions using table lookup\n"
+"	-r : Use the reserved version of sangoma_open_api_span_chan (allows opening a channel more than once)\n"
 "	-o <path> : Write the received raw 16-bit signed linear audio that is\n"
 "	            used in processing to the file specified by <path>\n"
 "	-c <config_file>\n"
@@ -176,7 +180,13 @@ int open_span_chan(device_info_t *dinfo)
 {
 	int rc = -1;
 
-    dinfo->fd = sangoma_open_api_span_chan( dinfo->span, dinfo->chan );
+	if ( use_reserved_open ) {
+		if (debug) printf( "Using reserved open span chan for s%dc%d.\n", dinfo->span, dinfo->chan);
+		dinfo->fd = __sangoma_open_api_span_chan( dinfo->span, dinfo->chan );
+	} else {
+		dinfo->fd = sangoma_open_api_span_chan( dinfo->span, dinfo->chan );
+	}
+
 	if( dinfo->fd == INVALID_HANDLE_VALUE) {
 		printf( "Failed to open span chan for s%dc%d.\n", dinfo->span, dinfo->chan);
 		return -1;
@@ -1205,7 +1215,6 @@ static int do_set(char *configfilename)
             return -1;
     }
 
-	
 	while (res != EOF) {
 		struct stdm_echo_coefs mycoefs;
 		int span,chan,myacim,mycoef1,mycoef2,mycoef3,mycoef4,mycoef5,mycoef6,mycoef7,mycoef8;
@@ -1245,7 +1254,14 @@ static int do_set(char *configfilename)
 		mycoefs.coef7 = mycoef7;
 		mycoefs.coef8 = mycoef8;
 	
-		fd = sangoma_open_api_span_chan(span, chan);
+
+		if ( use_reserved_open ) {
+			if (debug)
+			   fprintf( stdout, "Using reserved open span chan for s%dc%d.\n", span, chan);
+			fd = __sangoma_open_api_span_chan( span, chan );
+		} else {
+			fd = sangoma_open_api_span_chan( span, chan );
+		}
 		if (fd < 0) {
 			fprintf(stdout, "open error on s%dc%ds: %s\n", span, chan, strerror(errno));
 			return -1;
@@ -1260,6 +1276,7 @@ static int do_set(char *configfilename)
 	}
 
 	fclose(fp);
+
 
 	if (debug)
 		fprintf(stdout, "fxotune: successfully set echo coeffecients on FXO modules\n");
@@ -1422,6 +1439,7 @@ static int do_calibrate_many(int startspan, int startchan, int stopspan, int sto
 	sng_fd_t wp_fd;
 	hardware_info_t *hwinfo;
 	port_management_struct_t port_mgmnt;
+	int tune_count = 0;
 
 	int problems = 0;
 
@@ -1462,7 +1480,12 @@ static int do_calibrate_many(int startspan, int startchan, int stopspan, int sto
 				if ( hwinfo->fxo_map & (1 << mod) ) {
 
 					// do the calibration
-					problems += do_calibrate(wp, mod, calibtype, configfd, dialstr, delayuntilsilence, silencegoodfor);
+					rc = do_calibrate(wp, mod, calibtype, configfd, dialstr, delayuntilsilence, silencegoodfor);
+					problems += rc;
+					if ( rc == 0 ) {
+						tune_count += 1;
+					}
+						
 				}
 			}
 		}
@@ -1471,9 +1494,14 @@ static int do_calibrate_many(int startspan, int startchan, int stopspan, int sto
 
 	close(configfd);
 
+	if ( tune_count == 0 ) {
+		fprintf(stdout, "Unable to tune any devices\n");
+		return 1;
+	}
+
 	if (problems)
 		fprintf(stdout, "Unable to tune %d devices, even though those devices are present\n", problems);
-		
+			
 	return problems;
 }
 
@@ -1547,6 +1575,9 @@ int main(int argc , char **argv)
 				break;
 			case 'p':
 				printbest++;
+				break;
+			case 'r':
+				use_reserved_open = 1;
 				break;
 			case 'x':
 				use_table = 1;

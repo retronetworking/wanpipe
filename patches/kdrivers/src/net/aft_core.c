@@ -35,7 +35,6 @@
 #endif
 
 #include "aft_core.h"
-
 /*=================================================================
  * Debugging/Feature Defines
  *================================================================*/
@@ -49,7 +48,6 @@
 #undef AFT_FUNC_DEBUG
 #define AFT_FUNC_DEBUG()  DEBUG_EVENT("%s:%d\n",__FUNCTION__,__LINE__)
 #endif
-
 
 #if 0
 # define AFT_XTEST_UPDATE 1
@@ -144,13 +142,6 @@
 # else
 #  warning "AFT_FE_INTR_DEBUG defined"
 # endif
-#endif
-
-#if 0
-# warning "AFT_SPAN_SINGLE_IRQ Enabled"
-# define AFT_SPAN_SINGLE_IRQ
-#else
-# undef AFT_SPAN_SINGLE_IRQ
 #endif
 
 #if 0
@@ -1111,6 +1102,7 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	/* Obtain hardware configuration parameters */
 	card->wandev.clocking 			= conf->clocking;
 	card->wandev.ignore_front_end_status 	= conf->ignore_front_end_status;
+	card->wandev.line_coding		= conf->line_coding;
 	card->wandev.ttl 			= conf->ttl;
 	card->wandev.electrical_interface 	= conf->electrical_interface;
 	card->wandev.udp_port   		= conf->udp_port;
@@ -1401,6 +1393,9 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 			card->devname,
 			wan_test_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status) ?
 			"Enabled" : "Disabled");
+
+	DEBUG_EVENT("%s:    Global SPAN IRQ= %s\n",
+			card->devname,card->u.aft.cfg.span_tx_only_irq?"TX Only":"RX/TX");
 
 	if (card->wandev.ec_dev){
 		if (conf->tdmv_conf.hw_dtmf){
@@ -1705,9 +1700,12 @@ static int aft_transp_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *
 		chan->idle_flag=conf->u.aft.idle_flag;
 		DEBUG_EVENT("%s:    Idle flag     :0x%02x\n", card->devname, chan->idle_flag);
 	} else {
-		chan->idle_flag=0x7E;
+		if (IS_BRI_CARD(card)) {
+			chan->idle_flag=0xFF;
+		} else {
+			chan->idle_flag=0x7E;
+		}
 	}
-	
 	
 	if (chan->tdmv_zaptel_cfg){
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
@@ -4851,16 +4849,17 @@ static void aft_dev_enable(sdla_t *card, private_area_t *chan)
 
 		DEBUG_CFG("%s: Enabling FOR NON CHANNELIZED !\n",chan->if_name);
 
-#ifdef AFT_SPAN_SINGLE_IRQ
-		if (chan->wp_api_op_mode && !chan->hdlc_eng) {
-			aft_channel_txintr_ctrl(card,chan,0);
+		if (card->u.aft.cfg.span_tx_only_irq) {
+			if (chan->wp_api_op_mode && !chan->hdlc_eng) {
+				aft_channel_rxintr_ctrl(card,chan,0);
+			} else {
+				aft_channel_rxintr_ctrl(card,chan,1);
+			}
 		} else {
-			aft_channel_txintr_ctrl(card,chan,1);
+			aft_channel_rxintr_ctrl(card,chan,1);
 		}
-#else
+
 		aft_channel_txintr_ctrl(card,chan,1);
-#endif
-		aft_channel_rxintr_ctrl(card,chan,1);
 	}
 
 	wan_set_bit(chan->logic_ch_num,&card->u.aft.active_ch_map);
@@ -7447,14 +7446,12 @@ static void __wp_aft_per_per_port_isr(sdla_t *card, u32 dma_rx_reg, u32 dma_tx_r
 			wan_debug_update_timediff(&card->wan_debug_rx_interrupt_timing, __FUNCTION__);
 #endif
 
-			aft_dma_rx_complete(card,chan,0);
-
-#ifdef AFT_SPAN_SINGLE_IRQ
-			if (chan->wp_api_op_mode && !chan->hdlc_eng) {
-				wan_clear_bit(i,&dma_tx_reg);
-				aft_dma_tx_complete(card,chan,0,0);
+			/* Skip rx only if we re in tx irq mode and running non hdlc channel */
+			if (card->u.aft.cfg.span_tx_only_irq && chan->wp_api_op_mode && !chan->hdlc_eng) {
+				/* Skip rx and call it on tx */
+			} else {
+				aft_dma_rx_complete(card,chan,0);
 			}
-#endif
 		}
 
 
@@ -7463,7 +7460,7 @@ static void __wp_aft_per_per_port_isr(sdla_t *card, u32 dma_rx_reg, u32 dma_tx_r
 			if (!chan_valid) {
 				chan=(private_area_t*)card->u.aft.dev_to_ch_map[i];
 				if (!chan){
-					DEBUG_EVENT("%s: Error: No Dev for Rx logical ch=%d\n",
+					DEBUG_ERROR("%s: Error: No Dev for Tx logical ch=%d\n",
 							card->devname,i);
 					continue;
 				}
@@ -7487,6 +7484,12 @@ static void __wp_aft_per_per_port_isr(sdla_t *card, u32 dma_rx_reg, u32 dma_tx_r
 			wan_debug_update_timediff(&card->wan_debug_tx_interrupt_timing, __FUNCTION__);
 #endif
 			aft_dma_tx_complete(card,chan,0,0);
+			
+			if (card->u.aft.cfg.span_tx_only_irq) {
+				if (chan->wp_api_op_mode && !chan->hdlc_eng) {
+					aft_dma_rx_complete(card,chan,0);
+				}
+			}
 		}
 	}
 
@@ -7598,7 +7601,7 @@ static void wp_aft_tdmv_per_port_isr(sdla_t *card)
 
 		chan=(private_area_t*)card->u.aft.dev_to_ch_map[i];
 		if (!chan){
-			DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
+			DEBUG_ERROR("%s: Error: TDMV No Dev for Rx logical ch=%d\n",
 					card->devname,i);
 			continue;
 		}
@@ -7713,7 +7716,31 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
 		WAN_TDMV_CALL(rx_tx_span, (card), err);
 		do_not_disable=1;
 	}
+
+
 #endif
+	
+	if (wdt_intr &&
+		card->wandev.config_id == WANCONFIG_AFT_ANALOG &&
+		card->u.aft.tdmv_mtu > 8) {
+
+#if 0
+		private_area_t *top_chan,*chan;
+		chan=(private_area_t*)card->u.aft.dev_to_ch_map[0];
+		if (chan) {
+			top_chan=wan_netif_priv(chan->common.dev);
+			WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common);	//chan->if_stats.rx_dropped++;
+		}
+#endif
+
+		if (card->wandev.fe_iface.watchdog) {
+			card->wandev.fe_iface.watchdog(card);
+		}
+			
+		*timeout=1;
+		do_not_disable=1;
+	}
+	
 
 	chan_map=card->u.aft.logic_ch_map;
 	chan_map&=~(card->u.aft.tdm_logic_ch_map);
@@ -7783,9 +7810,15 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
 static void wp_aft_wdt_per_port_isr(sdla_t *card, int wdt_intr)
 {
 	int wdt_disable = 0;
-	int timeout=AFT_WDTCTRL_TIMEOUT;
+	int timeout=card->wdt_timeout;
 
-	aft_wdt_reset(card);
+	/* Only reset/set the wdt if we got an interrupt. This function
+	   can be called from a interrupt poll and we do not want
+	   to distrub the timer interrup by reseting it */
+	if (wdt_intr && card->wdt_timeout) {
+		aft_wdt_reset(card);
+		aft_wdt_set(card,card->wdt_timeout);
+	}
 
 	if (IS_BRI_CARD(card)) {
 		int x;
@@ -7803,14 +7836,16 @@ static void wp_aft_wdt_per_port_isr(sdla_t *card, int wdt_intr)
 	}
 
 
-
 #ifdef AFT_WDT_ENABLE
 	/* Since this fucntion can be called via interrupt or
 	 * via interrupt poll, only re-enable wdt interrupt
 	 * if the function was called from the wdt_intr
 	 * not from wdt poll */
-	if (!wdt_disable && wdt_intr){
-		aft_wdt_set(card,(u8)timeout);
+	if (wdt_disable && wdt_intr){
+        card->wdt_timeout=0;
+		aft_wdt_reset(card);
+	} else if (wdt_intr) {
+        card->wdt_timeout=timeout;
 	}
 #endif
 
@@ -8506,6 +8541,7 @@ static void disable_data_error_intr(sdla_t *card, unsigned char event)
 			event==DEVICE_DOWN?"Device Down":
 			event==CRITICAL_DOWN?"Critical Down" : "Link Down");
 
+	card->wdt_timeout=0;
 	aft_wdt_reset(card);
 
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
@@ -9992,7 +10028,7 @@ static int aft_dma_rx (sdla_t *card, private_area_t *chan)
 			 * reason, thus start using the completed buffers, thus
 			 * overflow the data */
 			if (WAN_NET_RATELIMIT()){
-				DEBUG_EVENT("%s: Rx driver buffering overrun rxf=%d rxc=%d !\n",
+				DEBUG_WARNING("%s: Warning: Rx driver buffering overrun rxfree=%d rxcomplete=%d !\n",
 					chan->if_name,
 					wan_skb_queue_len(&chan->wp_rx_free_list),
 					wan_skb_queue_len(&chan->wp_rx_complete_list));
@@ -10002,7 +10038,7 @@ static int aft_dma_rx (sdla_t *card, private_area_t *chan)
 
 			dma_chain->skb=wan_skb_dequeue(&chan->wp_rx_free_list);
 			if (!dma_chain->skb) {
-				DEBUG_ERROR("%s: Critical Rx chain = %d: no free rx bufs (Free=%d Comp=%d)\n",
+				DEBUG_ERROR("%s: Error: Critical Rx chain = %d: no free rx bufs (Free=%d Comp=%d)\n",
 					chan->if_name,dma_chain->index,
 					wan_skb_queue_len(&chan->wp_rx_free_list),
 					wan_skb_queue_len(&chan->wp_rx_complete_list));
@@ -10249,7 +10285,11 @@ static int aft_rx_dma_chain_handler(private_area_t *chan, int reset)
 		wan_skb_put(dma_chain->skb, rx_el->len);
 #endif
 
-		if (chan->common.usedby == XMTP2_API) {
+		
+		/* In case of BRI drop all rx packets */
+		if (card->wandev.state != WAN_CONNECTED){
+         	aft_init_requeue_free_skb(chan, dma_chain->skb);    
+		} else if (chan->common.usedby == XMTP2_API) {
 #if defined(AFT_XMTP2_API_SUPPORT)
 			aft_core_xmtp2_rx(card, chan, dma_chain->skb);
 #endif
@@ -10749,7 +10789,6 @@ static void aft_port_task (void * card_ptr, int arg)
 
 
 	if (wan_test_and_clear_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd)) {
-		int	err=0;
 
 		AFT_PERF_STAT_INC(card,port_task,rbs);
 
@@ -10758,6 +10797,7 @@ static void aft_port_task (void * card_ptr, int arg)
 		
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
 		if (card->wan_tdmv.sc) {
+			int err;
 			WAN_TDMV_CALL(rbsbits_poll, (&card->wan_tdmv, card), err);
 		}
 #endif
@@ -10864,6 +10904,8 @@ static void aft_port_task (void * card_ptr, int arg)
 }
 
  
+#define AFT_MAX_FE_IRQ_SET_CNT 4
+
 #ifdef AFT_FE_INTR_DEBUG
 void ___aft_fe_intr_ctrl(sdla_t *card, int status, char *func, int line)
 #else
@@ -10871,6 +10913,7 @@ void __aft_fe_intr_ctrl(sdla_t *card, int status)
 #endif
 {
 	u32 reg;
+	int retry=AFT_MAX_FE_IRQ_SET_CNT;
 
 	/* if fe_no_intr is set then only allow disabling of fe interrupt */
 #ifdef AFT_FE_INTR_DEBUG
@@ -10890,17 +10933,31 @@ void __aft_fe_intr_ctrl(sdla_t *card, int status)
 			wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 		}
 
+retry_fe_irq:
 		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 
 		if (status) {
 			u32 treg;
 			card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),&treg);
 			if (!wan_test_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&treg)) {
-				DEBUG_ERROR("%s: Critical Error failed to enable front end interrupt!\n",
-					card->devname);
+				DEBUG_WARNING("%s: Warning failed to enable front end interrupt (AFT_CHIP_CFG_REG: w:0x%08X r:0x%08X)!\n",
+					card->devname,reg,treg);
+				retry--;
+				if (retry > 0) {
+                	goto retry_fe_irq;
+				}
 			}
 
 		}
+	}
+
+	if (retry && retry != AFT_MAX_FE_IRQ_SET_CNT) {
+		DEBUG_WARNING("%s: Warning had to retry %i: enabled front end interrupt ok!\n",
+					card->devname,AFT_MAX_FE_IRQ_SET_CNT-retry);
+     	
+	} else if (retry <= 0) {
+        DEBUG_ERROR("%s: Critical Error failed to enable front end interrupt (retry=%i)!\n",
+					card->devname,retry);  
 	}
 }
 
@@ -11147,10 +11204,6 @@ static int aft_tdmv_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *co
 		return 0;
 	}
 
-	if (chan->sw_hdlc_mode) {
-		return 0;
-	}
-
 	if (!card->u.aft.global_tdm_irq){
 		DEBUG_ERROR("%s: Error: TDMV Span No is not set!\n",
 				card->devname);
@@ -11162,7 +11215,7 @@ static int aft_tdmv_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *co
 				card->devname,chan->if_name);
 	}
 
-	if (conf->hdlc_streaming == 0){
+	if (conf->hdlc_streaming == 0 && !chan->sw_hdlc_mode){
 
 		int	err;
 
@@ -11192,16 +11245,9 @@ static int aft_tdmv_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *co
 					break;
 				case 40:
 				case 80:
-					if (!wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
-						/* If Global TDM Feature is not enable
-						then 40 and 80 bytes TDM are not available */
-						chan->mtu=8;
-					}
 					break;
 				default:
-					if (card->wandev.config_id == WANCONFIG_AFT_ANALOG) {
-						chan->mtu=8;
-					} else if (wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
+					if (wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
 						chan->mtu=80;
 					} else {
 						chan->mtu=8;
@@ -11670,8 +11716,21 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 				card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
 			}
 
-			if (card->wandev.fe_iface.watchdog) {
-				err = card->wandev.fe_iface.watchdog(card);
+			/* watchdog is currently only supported for Analog cards.
+			 * Thus for non-analog cards run the code as before. For
+			 * analog cards, if MTU is greater than 8 (1ms) then it
+			 * means that we are running the watchdog from timer interrupt
+			 * thus do not call it here */
+			if (card->wandev.config_id != WANCONFIG_AFT_ANALOG) {
+				if (card->wandev.fe_iface.watchdog) {
+					err = card->wandev.fe_iface.watchdog(card);
+				}
+			} else {
+             	if (card->u.aft.tdmv_mtu == 8) { 
+					if (card->wandev.fe_iface.watchdog) {
+						err = card->wandev.fe_iface.watchdog(card);
+					}
+				}
 			}
 
 			/* FIXME: Make this more abstract */

@@ -420,6 +420,7 @@ static int wp_usb_remora_busytone(sdla_fe_t*, int);
 static int wp_usb_remora_ringtone(sdla_fe_t*, int);
 static int wp_usb_remora_congestiontone(sdla_fe_t*, int);
 static int wp_usb_remora_disabletone(sdla_fe_t*, int);
+static int wp_usb_remora_get_link_status(sdla_fe_t *fe, unsigned char *status,int mod_no);
 
 #if defined(AFT_TDM_API_SUPPORT)
 static int wp_usb_remora_watchdog(void *card);
@@ -1384,6 +1385,8 @@ int wp_usb_remora_iface_init(void *p_fe, void *pfe_iface)
 #if defined(AFT_TDM_API_SUPPORT) || defined(AFT_API_SUPPORT)
 	fe_iface->watchdog	= &wp_usb_remora_watchdog;
 #endif
+
+	fe_iface->get_fe_status = &wp_usb_remora_get_link_status;     
 
 	WAN_LIST_INIT(&fe->event);
 	wan_spin_lock_irq_init(&fe->lockirq, "wan_rm_lock");
@@ -2605,6 +2608,8 @@ static int wp_usb_remora_stats(sdla_fe_t* fe, unsigned char *data)
 		rm_udp->u.stats.ring_volt = READ_USB_RM_REG(mod_no, 81);
 		rm_udp->u.stats.bat_volt = READ_USB_RM_REG(mod_no, 82);
 
+		rm_udp->u.stats.status = FE_CONNECTED;
+
 	} else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
 		rm_udp->type = MOD_TYPE_FXO;
 		rm_udp->u.stats.volt = READ_USB_RM_REG(mod_no, 29);
@@ -3163,6 +3168,29 @@ static int wp_usb_remora_watchdog(void *card_ptr)
 	return 0;
 }
 #endif
+
+
+/******************************************************************************
+ *				wp_remora_get_link_status()	
+ *
+ * Description:
+ * Arguments:	
+ * Returns:
+ ******************************************************************************
+ */
+static int wp_usb_remora_get_link_status(sdla_fe_t *fe, unsigned char *status,int mod_no)
+{
+	/*mod_no = chan -1 */
+	if (fe->rm_param.mod[mod_no-1].type == MOD_TYPE_FXO) {
+		*status = fe->rm_param.mod[mod_no -1].u.fxo.status;
+		
+	} else {
+		/* FXS module does not have a state. Thus its always connected */
+		*status=FE_CONNECTED;
+	}
+	return 0;
+}
+
 
 /******************************************************************************
 *				wp_usb_remora_intr_ctrl()	

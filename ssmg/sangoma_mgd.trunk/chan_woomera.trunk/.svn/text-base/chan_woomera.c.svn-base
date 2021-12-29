@@ -15,6 +15,10 @@
  * the GNU General Public License
  * =============================================
  *
+ * v1.72 Nenad Corbic <ncorbic@sangoma.com>
+ * Jan 4 2011
+ * Updated for Asterisk 1.8
+ *
  * v1.71 Konrad Hammel <konrad@sangoma.com>
  * Jul 15 2010
  * Added "cid_pres" option to woomera.conf to hard code
@@ -325,6 +329,26 @@
  *      from CLI.
  */
 
+#if defined(AST18)
+#define W_SUBCLASS_INT  	subclass.integer
+#define W_SUBCLASS_CODEC	subclass.codec
+#define W_CID_NAME  		caller.id.name.str
+#define W_CID_NAME_PRES   	caller.id.name.presentation
+#define W_CID_NUM   		caller.id.number.str
+#define W_CID_NUM_PRES   	caller.id.number.presentation
+#define W_CID_FROM_RDNIS	redirecting.from.number.str		
+#define W_CID_SET_FROM_RDNIS(self,_value) self->redirecting.from.number.str = _value; self->redirecting.from.number.valid=1 
+#else
+#define W_SUBCLASS_CODEC	subclass
+#define W_SUBCLASS_INT  	subclass
+#define W_CID_NAME  		cid.cid_name
+#define W_CID_NAME_PRES 	cid.cid_pres
+#define W_CID_NUM   		cid.cid_num
+#define W_CID_NUM_PRES 		cid.cid_pres
+#define W_CID_FROM_RDNIS	cid.cid_rdnis
+#define W_CID_SET_FROM_RDNIS(self,_value) self->cid.cid_rdnis = _value 
+#endif
+
 #if !defined(CALLWEAVER)
 #include "asterisk.h"
 #endif
@@ -351,12 +375,16 @@
 
 #ifndef CALLWEAVER
 
-
 #include "asterisk.h"
-#include "asterisk/sched.h"
-#include "asterisk/astobj.h"
 #include "asterisk/lock.h"
-#if defined(AST16)
+#include "asterisk/channel.h"
+#include "asterisk/config.h"
+#include "asterisk/module.h"
+#include "asterisk/astobj.h"
+#include "asterisk/sched.h"
+
+
+#if defined(AST16) 
 #include "asterisk/linkedlists.h"
 #include "asterisk/channel.h"
 #endif
@@ -377,7 +405,7 @@
 #include "asterisk/musiconhold.h"
 #include "asterisk/transcap.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.70 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.72 $")
 
 #else
 
@@ -428,7 +456,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.70 $")
 #define CALLWEAVER_19 1
 #endif
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.70 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.72 $")
 
 #if defined(DSP_FEATURE_FAX_CNG_DETECT)
 #undef		DSP_FEATURE_FAX_DETECT
@@ -735,7 +763,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.70 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.69"
+#define WOOMERA_VERSION "v1.72"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -1234,7 +1262,13 @@ int reload(void);
  * You may or may not need all of these methods, remove any unnecessary functions/protos/mappings as needed.
  *
  */
+
+#if defined (AST18)
+static struct ast_channel *tech_requester(const char *type, format_t format, const struct ast_channel *requestor, void *data, int *cause);
+#else
 static struct ast_channel *tech_requester(const char *type, int format, void *data, int *cause);
+#endif
+
 static int tech_send_digit(struct ast_channel *self, char digit);
 #if defined (AST14) || defined (AST16)
 static int tech_digit_end(struct ast_channel *ast, char digit, unsigned int duration);
@@ -2243,8 +2277,8 @@ static int tech_init(private_object *tech_pvt, woomera_profile *profile, int fla
 	
 	tech_pvt->coding = profile->coding;
 	self->nativeformats = tech_pvt->coding;	
-	self->writeformat = self->rawwriteformat = self->readformat = tech_pvt->coding;
-	tech_pvt->frame.subclass = tech_pvt->coding;
+	self->writeformat = self->rawwriteformat = self->rawreadformat = self->readformat = tech_pvt->coding;
+	tech_pvt->frame.W_SUBCLASS_CODEC = tech_pvt->coding;
 
 	ast_clear_flag(tech_pvt, TFLAG_CONFIRM_ANSWER);
 	ast_clear_flag(tech_pvt, TFLAG_CONFIRM_ANSWER_ENABLED);
@@ -4008,9 +4042,15 @@ static int connect_woomera(int *new_socket, woomera_profile *profile, int flags)
 					}
 					
 					if (globals.debug > 2) {
+#ifdef AST18
+					ast_log(LOG_NOTICE, "Setting RAW Format to %s %i (p%llu:u%llu:a%llu)\n",
+							audio_format, profile->coding,
+							AST_FORMAT_SLINEAR,AST_FORMAT_ULAW,AST_FORMAT_ALAW);
+#else
 					ast_log(LOG_NOTICE, "Setting RAW Format to %s %i (p%i:u%i:a%i)\n",
 							audio_format, profile->coding,
 							AST_FORMAT_SLINEAR,AST_FORMAT_ULAW,AST_FORMAT_ALAW);
+#endif
 					}
 				}
 			}
@@ -4046,7 +4086,10 @@ static struct ast_channel *woomera_new(const char *type, int format,
 	}
 	memset(tech_pvt, 0, sizeof(private_object));
 
-#if defined (AST14) || defined (AST16)
+#if defined(AST18)
+  	//chan =  ast_channel_alloc(0, state, i->cid_num, i->cid_name, i->accountcode, i->exten, i->context, linkedid, i->amaflags, "DAHDI/%s", ast_str_buffer(chan_name));
+	chan =  ast_channel_alloc(0, AST_STATE_DOWN, "", "", "", "", "", "", 0, "%s", name);
+#elif defined (AST14) || defined (AST16)
 	chan =  ast_channel_alloc(0, AST_STATE_DOWN, "", "", "", "", "", 0, "%s", name);
 #else
 	chan = ast_channel_alloc(1);
@@ -4058,7 +4101,7 @@ static struct ast_channel *woomera_new(const char *type, int format,
 		snprintf(chan->name, sizeof(chan->name), "%s/%s-%04x", chan->type, (char *)data, rand() & 0xffff);
 #endif
 		
-		chan->writeformat = chan->rawwriteformat = chan->readformat = WFORMAT;
+		chan->writeformat = chan->rawwriteformat = chan->rawreadformat = chan->readformat = WFORMAT;
 		chan->_state = AST_STATE_DOWN;
 		chan->_softhangup = 0;
 		
@@ -4075,14 +4118,14 @@ static struct ast_channel *woomera_new(const char *type, int format,
 		ast_clear_flag(chan, AST_FLAGS_ALL);
 		memset(&tech_pvt->frame, 0, sizeof(tech_pvt->frame));
 		tech_pvt->frame.frametype = AST_FRAME_VOICE;
-		tech_pvt->frame.subclass = WFORMAT;
+		tech_pvt->frame.W_SUBCLASS_CODEC = WFORMAT;
 		tech_pvt->frame.offset = AST_FRIENDLY_OFFSET;
 
 		tech_pvt->owner = chan;
 
 		chan->nativeformats = tech_pvt->coding;
-		chan->writeformat = chan->rawwriteformat = chan->readformat = tech_pvt->coding;
-		tech_pvt->frame.subclass = tech_pvt->coding;
+		chan->writeformat = chan->rawwriteformat = chan->rawreadformat = chan->readformat = tech_pvt->coding;
+		tech_pvt->frame.W_SUBCLASS_CODEC = tech_pvt->coding;
 
 		tech_pvt->pri_cause=AST_CAUSE_NORMAL_CLEARING;
 	
@@ -4115,7 +4158,11 @@ static struct ast_channel *woomera_new(const char *type, int format,
 /*--- tech_requester: parse 'data' a url-like destination string, allocate a channel and a private structure
  * and return the newly-setup channel.
  */
+#if defined (AST18)
+static struct ast_channel *tech_requester(const char *type, format_t format, const struct ast_channel *requestor, void *data, int *cause)
+#else
 static struct ast_channel *tech_requester(const char *type, int format, void *data, int *cause)
+#endif
 {
 	struct ast_channel *chan = NULL;
 			
@@ -4225,23 +4272,23 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 	}
 	if (globals.debug > 2) {
 		ast_log(LOG_NOTICE, "TECH CALL %s (%s <%s>)  pres=0x%02X dest=%s\n",
-			self->name, self->cid.cid_name, 
-			self->cid.cid_num,
-			self->cid.cid_pres,
+			self->name, self->W_CID_NAME, 
+			self->W_CID_NUM,
+			self->W_CID_NUM_PRES,
 			dest);
 	}
 
-	if (self->cid.cid_name) {
-		strncpy(tech_pvt->cid_name, self->cid.cid_name, sizeof(tech_pvt->cid_name)-1);
+	if (self->W_CID_NAME) {
+		strncpy(tech_pvt->cid_name, self->W_CID_NAME, sizeof(tech_pvt->cid_name)-1);
 	}
-	if (self->cid.cid_num) {
-		strncpy(tech_pvt->cid_num, self->cid.cid_num, sizeof(tech_pvt->cid_num)-1);
+	if (self->W_CID_NUM) {
+		strncpy(tech_pvt->cid_num, self->W_CID_NUM, sizeof(tech_pvt->cid_num)-1);
 	}
-	tech_pvt->cid_pres = self->cid.cid_pres;
+	tech_pvt->cid_pres = self->W_CID_NUM_PRES;
 
 
-	if (self->cid.cid_rdnis) {
-		tech_pvt->cid_rdnis=strdup(self->cid.cid_rdnis);
+	if (self->W_CID_FROM_RDNIS) {
+		tech_pvt->cid_rdnis=strdup(self->W_CID_FROM_RDNIS);
 	}
 
 	if ((workspace = ast_strdupa(dest))) {
@@ -4304,7 +4351,7 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 		if (profile->cid_pres.pres) {
 			tech_pvt->cid_pres = profile->cid_pres.val;
 			ast_log(LOG_DEBUG, "CID presentation override : was %d, now %d\n",
-								self->cid.cid_pres,
+								self->W_CID_NUM_PRES,
 								tech_pvt->cid_pres);
 		}
  
@@ -4544,7 +4591,7 @@ static void handle_fax(private_object *tech_pvt)
 #else
 				const char *target_context = ast_strlen_zero(owner->macrocontext) ? owner->context : owner->macrocontext;
 #endif
-				if (ast_exists_extension(owner, target_context, "fax", 1, owner->cid.cid_num)) {
+				if (ast_exists_extension(owner, target_context, "fax", 1, owner->W_CID_NUM)) {
 						if (option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
 								ast_verbose(VERBOSE_PREFIX_3 "Redirecting %s to fax extension\n", owner->name);
 						}
@@ -4593,6 +4640,14 @@ tech_read_again:
 	if (res < 1) {
 		return NULL;
 	}
+
+	
+#if defined(AST18)
+	/* NC: Kludge Had to do this for Ast1.8 the nativeformats */
+	if (self->nativeformats != tech_pvt->coding) {
+        self->nativeformats = tech_pvt->coding;
+    }
+#endif
 
 	/* Used for adding sequence numbers to udp packets.
  	   should only be used for debugging */
@@ -4647,7 +4702,7 @@ tech_read_again:
 
 
 	tech_pvt->frame.frametype = AST_FRAME_VOICE;
-	tech_pvt->frame.subclass = tech_pvt->coding;
+	tech_pvt->frame.W_SUBCLASS_CODEC = tech_pvt->coding;
 	tech_pvt->frame.offset = AST_FRIENDLY_OFFSET;
 	tech_pvt->frame.datalen = res;
 	tech_pvt->frame.samples = res;
@@ -4678,7 +4733,7 @@ tech_read_again:
 				} 
 				ast_mutex_unlock(&tech_pvt->iolock);
 				if(answer){
-					struct ast_frame answer_frame = {AST_FRAME_CONTROL, AST_CONTROL_ANSWER};
+					struct ast_frame answer_frame = {AST_FRAME_CONTROL, .W_SUBCLASS_INT = AST_CONTROL_ANSWER};
 					struct ast_channel *owner = tech_get_owner(tech_pvt);
 					ast_log(LOG_DEBUG, "Confirm answer on %s!\n", self->name);
 				
@@ -4698,13 +4753,13 @@ tech_read_again:
 					}
 				}
 			}
-			if (f->subclass == 'f' && tech_pvt->faxdetect) {
+			if (f->W_SUBCLASS_INT == 'f' && tech_pvt->faxdetect) {
 				handle_fax(tech_pvt);
 			}
 			if (answer == 0 && globals.debug > 2) {
 				ast_log(LOG_NOTICE, "%s: Detected inband DTMF digit: %c\n",
 						self->name,
-						f->subclass);
+						f->W_SUBCLASS_INT);
 			}
 		}
 		//woomera_tx2ast_frm(tech_pvt, tech_pvt->frame.data, tech_pvt->frame.datalen);
@@ -5087,7 +5142,7 @@ static int woomera_rbs_relay(struct private_object *ch0, struct private_object *
 	if (ch0->profile->rbs_relay &&
 		ch1->profile->rbs_relay &&
 		ch0->rbs_frame.frametype == 99) {
-			tech_send_rbs(c1, ch0->rbs_frame.subclass);
+			tech_send_rbs(c1, ch0->rbs_frame.W_SUBCLASS_INT);
 			ch0->rbs_frame.frametype=0;
 	}	
 	
@@ -5235,7 +5290,7 @@ static enum ast_bridge_result  tech_bridge (struct ast_channel *c0,
 				}
 			} else {
 				if (option_verbose > 10) {
-					ast_log(LOG_NOTICE, "woomera: Bridge Read Frame Control class:%d\n", f->subclass);
+					ast_log(LOG_NOTICE, "woomera: Bridge Read Frame Control class:%d\n", f->W_SUBCLASS_INT);
 				}
 			}
 
@@ -5245,7 +5300,7 @@ static enum ast_bridge_result  tech_bridge (struct ast_channel *c0,
 		}
 		
 		if (f->frametype == AST_FRAME_DTMF) {
-			ast_log(LOG_NOTICE, "woomera: Bridge Read DTMF %d from %s\n", f->subclass, who->exten);
+			ast_log(LOG_NOTICE, "woomera: Bridge Read DTMF %d from %s\n", f->W_SUBCLASS_INT, who->exten);
 
 			*fo = f;
 			*rc = who;
@@ -5376,6 +5431,13 @@ static int woomera_cli(int fd, int argc, char *argv[])
 			return 0;
 		}
 
+
+		/* After this point we need at least two arguments */
+		if (argc <= 2) {
+         	  ast_cli(fd, "Usage: woomera <profile> <cmd> <option>\n");  
+			  return 0;
+		}
+
 		if (!strcmp(argv[2], "debug")) {
 			if (argc > 3) {
 				globals.debug = atoi(argv[3]);
@@ -5407,7 +5469,7 @@ static int woomera_cli(int fd, int argc, char *argv[])
 				
 			}
 			
-		} else if (!strcmp(argv[2], "call_status")) {
+		} else if (!strcmp(argv[2], "call_status") || !strcmp(argv[2], "callstatus")) {
 			if (argc > 3) {
 					if (!strcmp(argv[3], "clear")) {
 						profile->call_out=0;
@@ -5892,15 +5954,16 @@ static int woomera_event_incoming (private_object *tech_pvt)
 		pbx_builtin_setvar_helper(owner, "CALLTYPE", ast_transfercapability2str(tech_pvt->capability));
 
 		owner->nativeformats = tech_pvt->coding;	
-		owner->writeformat = owner->rawwriteformat = owner->readformat = tech_pvt->coding;
-		tech_pvt->frame.subclass = tech_pvt->coding;
+		owner->writeformat = owner->rawwriteformat = owner->rawreadformat = owner->readformat = tech_pvt->coding;
+		tech_pvt->frame.W_SUBCLASS_CODEC = tech_pvt->coding;
 
 		strncpy(owner->exten, exten, sizeof(owner->exten) - 1);
 		ast_set_callerid(owner, cid_num, cid_name, cid_num);
-		owner->cid.cid_pres=presentation;
+		owner->W_CID_NUM_PRES=presentation;
+		owner->W_CID_NAME_PRES=presentation;
 		
 		if (cid_rdnis) {
-			owner->cid.cid_rdnis=strdup(cid_rdnis);
+			W_CID_SET_FROM_RDNIS(owner,strdup(cid_rdnis));
 			pbx_builtin_setvar_helper(owner, "RDNIS", cid_rdnis);	
 		}
 
@@ -5912,14 +5975,14 @@ static int woomera_event_incoming (private_object *tech_pvt)
 					owner->context,
 					owner->exten,
 					1,
-					owner->cid.cid_num);
+					owner->W_CID_NUM);
 					
 		if (globals.debug > 2){			
 		ast_log(LOG_NOTICE, "Incoming Call exten %s@%s called %s astpres = 0x%0X!\n", 
 					exten, 
 					owner->context,
 					tech_pvt->callid,
-					owner->cid.cid_pres);
+					owner->W_CID_NUM_PRES);
 		}
 	
 	} else {
@@ -6018,14 +6081,14 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 			int x;
 			for (x = 0; x < clen; x++) {
 				struct ast_frame dtmf_frame = {AST_FRAME_DTMF};
-				dtmf_frame.subclass = wmsg->body[x];
-				if(dtmf_frame.subclass == 'f') {
+				dtmf_frame.W_SUBCLASS_INT = wmsg->body[x];
+				if(dtmf_frame.W_SUBCLASS_INT == 'f') {
 					handle_fax(tech_pvt);
 				} else {
 					ast_queue_frame(tech_pvt->owner, &dtmf_frame);
 					
 					if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-						ast_verbose(WOOMERA_DEBUG_PREFIX "SEND DTMF [%c] to %s\n", dtmf_frame.subclass,tech_pvt->callid);
+						ast_verbose(WOOMERA_DEBUG_PREFIX "SEND DTMF [%c] to %s\n", dtmf_frame.W_SUBCLASS_INT,tech_pvt->callid);
 					}
 				}
 			}
@@ -6045,12 +6108,12 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 				int err;
 				for (x = 0; x < clen; x++) {
 					if (tech_pvt->rbs_frame.frametype == 0) {
-						err=sscanf(&wmsg->body[x], "%X", &tech_pvt->rbs_frame.subclass);
+						err=sscanf(&wmsg->body[x], "%X", &tech_pvt->rbs_frame.W_SUBCLASS_INT);
 						if (err==1) {
 							tech_pvt->rbs_frame.frametype = 99;
 						}
 						if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-							ast_verbose(WOOMERA_DEBUG_PREFIX "SEND RBS [%X] to %s\n", tech_pvt->rbs_frame.subclass,tech_pvt->callid);
+							ast_verbose(WOOMERA_DEBUG_PREFIX "SEND RBS [%X] to %s\n", tech_pvt->rbs_frame.W_SUBCLASS_INT,tech_pvt->callid);
 						}
 					}
 				}
@@ -6058,7 +6121,7 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 			my_tech_pvt_and_owner_unlock(tech_pvt);
 		} else {
 			if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-					ast_verbose(WOOMERA_DEBUG_PREFIX "Ignoring RBS rbs_relay not configured: [%X] to %s\n", tech_pvt->rbs_frame.subclass,tech_pvt->callid);
+					ast_verbose(WOOMERA_DEBUG_PREFIX "Ignoring RBS rbs_relay not configured: [%X] to %s\n", tech_pvt->rbs_frame.W_SUBCLASS_INT,tech_pvt->callid);
 			}
 		}
 		
@@ -6095,7 +6158,7 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 				tech_pvt->callid,tech_pvt);
 
 	} else if (!strcasecmp(wmsg->command, "CONNECT")) {
-		struct ast_frame answer_frame = {AST_FRAME_CONTROL, AST_CONTROL_ANSWER};
+		struct ast_frame answer_frame = {AST_FRAME_CONTROL, .W_SUBCLASS_INT = AST_CONTROL_ANSWER};
 
 		my_tech_pvt_and_owner_lock(tech_pvt);
 		if (tech_pvt->owner) {

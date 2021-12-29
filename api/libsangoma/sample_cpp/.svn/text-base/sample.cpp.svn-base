@@ -314,12 +314,9 @@ static void got_tdm_api_event(void *sang_if_ptr, void *event_data)
 		break;
 
 	case WP_API_EVENT_RBS:
-		DBG_MAIN("RBS Event: New bits: 0x%X!\n",	wp_tdm_api_event->wp_api_event_rbs_bits);
-		DBG_MAIN( "RX RBS: A:%1d B:%1d C:%1d D:%1d\n",
-			(wp_tdm_api_event->wp_api_event_rbs_bits & WAN_RBS_SIG_A) ? 1 : 0,
-			(wp_tdm_api_event->wp_api_event_rbs_bits & WAN_RBS_SIG_B) ? 1 : 0,
-			(wp_tdm_api_event->wp_api_event_rbs_bits & WAN_RBS_SIG_C) ? 1 : 0,
-			(wp_tdm_api_event->wp_api_event_rbs_bits & WAN_RBS_SIG_D) ? 1 : 0);
+		DBG_MAIN("RBS Event: New bits: 0x%X!\n", wp_tdm_api_event->wp_api_event_rbs_bits);
+		DBG_MAIN("RX RBS/CAS: ");
+		wp_print_rbs_cas_bits(wp_tdm_api_event->wp_api_event_rbs_bits);
 		break;
 
 	case WP_API_EVENT_LINK_STATUS:
@@ -922,10 +919,21 @@ int __cdecl main(int argc, char* argv[])
 
 					INFO_MAIN("Type Channel number and press <Enter>:\n");
 					rbs_management_struct.channel = get_user_decimal_number();//channels (Time Slots). Valid values: 1 to 24.
-					if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 24){
-						INFO_MAIN("Invalid RBS Channel number!\n");
-						break;
+
+					if(WAN_MEDIA_T1 == sang_if->get_adapter_type()){
+						if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 24){
+							INFO_MAIN("Invalid T1 RBS Channel number!\n");
+							break;
+						}
 					}
+
+					if(WAN_MEDIA_E1 == sang_if->get_adapter_type()){
+						if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 31){
+							INFO_MAIN("Invalid E1 CAS Channel number!\n");
+							break;
+						}
+					}
+
 					sang_if->get_rbs(&rbs_management_struct);
 				}
 				break;
@@ -941,15 +949,27 @@ int __cdecl main(int argc, char* argv[])
 			case WAN_MEDIA_E1:
 				{
 					static rbs_management_t rbs_management_struct = {0,0};
+					int chan_no;
 
 					sang_if->enable_rbs_monitoring();
 
 					INFO_MAIN("Type Channel number and press <Enter>:\n");
-					rbs_management_struct.channel = get_user_decimal_number();//channels (Time Slots). Valid values: 1 to 24.
-					if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 24){
-						INFO_MAIN("Invalid RBS Channel number!\n");
-						break;
+					rbs_management_struct.channel = chan_no = get_user_decimal_number();//channels (Time Slots). Valid values: T1: 1 to 24; E1: 1-15 and 17-31.
+
+					if(WAN_MEDIA_T1 == sang_if->get_adapter_type()){
+						if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 24){
+							INFO_MAIN("Invalid T1 RBS Channel number!\n");
+							break;
+						}
 					}
+
+					if(WAN_MEDIA_E1 == sang_if->get_adapter_type()){
+						if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 31){
+							INFO_MAIN("Invalid E1 CAS Channel number!\n");
+							break;
+						}
+					}
+
 					/*	bitmap - set as needed: WAN_RBS_SIG_A |	WAN_RBS_SIG_B | WAN_RBS_SIG_C | WAN_RBS_SIG_D;
 
 					In this example make bits A and B to change each time,
@@ -961,6 +981,51 @@ int __cdecl main(int argc, char* argv[])
 						rbs_management_struct.ABCD_bits = WAN_RBS_SIG_A;
 					}
 					sang_if->set_rbs(&rbs_management_struct);
+
+#if 0
+#define RBS_CAS_TX_AND_WAIT(chan, abcd)	\
+{	\
+	rbs_management_struct.channel = chan;	\
+	rbs_management_struct.ABCD_bits = abcd;		\
+	INFO_MAIN("Press any key to transmit bits:");	\
+	wp_print_rbs_cas_bits(abcd);	\
+	_getch();	\
+	sang_if->set_rbs(&rbs_management_struct);	\
+}
+
+					//for ESF lines test all all combinations of 4 bits
+					RBS_CAS_TX_AND_WAIT(chan_no, 0x00);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_A);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_B);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_A | WAN_RBS_SIG_B);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_C);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_A | WAN_RBS_SIG_C);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_B | WAN_RBS_SIG_C);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_A | WAN_RBS_SIG_B | WAN_RBS_SIG_C);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_D);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_A | WAN_RBS_SIG_D);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_B | WAN_RBS_SIG_D);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_A | WAN_RBS_SIG_B | WAN_RBS_SIG_D);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_C | WAN_RBS_SIG_D);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_A | WAN_RBS_SIG_C | WAN_RBS_SIG_D);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_B | WAN_RBS_SIG_C | WAN_RBS_SIG_D);
+
+					RBS_CAS_TX_AND_WAIT(chan_no, WAN_RBS_SIG_A | WAN_RBS_SIG_B | WAN_RBS_SIG_C | WAN_RBS_SIG_D);
+#endif
 				}
 			default:
 				INFO_MAIN("Command invalid for card type\n");
@@ -1141,7 +1206,7 @@ user_retry_ring_e_d:
 				default:
 					sang_if->fxo_go_on_hook();
 				}
-			}else if(sang_if->get_sub_media()==MOD_TYPE_FXS ) {
+			}else if(sang_if->get_sub_media() == MOD_TYPE_FXS) {
 				INFO_MAIN("Press 'f' for forward, 'r' to for reverse.\n");
 				INFO_MAIN("\n");
 				switch(tolower(_getch()))
@@ -1153,10 +1218,42 @@ user_retry_ring_e_d:
 					sang_if->tdm_set_rm_polarity(1);
 					break;
 				default:
-					//toggle it 
-					sang_if->tdm_set_rm_polarity(1);
-					sang_if->tdm_set_rm_polarity(0);
-				}
+					//toggle polarity 
+					int polarity_wait, two_second_ring_repetion_counter;
+
+					INFO_MAIN("Type Polarity Reverse/Forward delay and press <Enter>:\n");
+					polarity_wait = get_user_decimal_number();
+					/* polarity_wait of 30 ms will ring Analog phone or FXO
+					 * polarity_wait of 400 ms will cause Polarity reversal event on FXO */
+					INFO_MAIN("User specified Polarity Reverse/Forward delay: %d. Press <Enter> to continue.\n", polarity_wait);
+					_getch();
+
+					two_second_ring_repetion_counter = 2000 / (polarity_wait * 2);
+					INFO_MAIN("two_second_ring_repetion_counter: %d. Press <Enter> to continue.\n", two_second_ring_repetion_counter);
+					_getch();
+
+					for (int ii = 0; ii < two_second_ring_repetion_counter; ii++) {
+						INFO_MAIN("Reversing polarity %d...\n", ii);
+						sang_if->tdm_set_rm_polarity(1);
+						sangoma_msleep(polarity_wait);
+						INFO_MAIN("Forwarding polarity %d...\n", ii);
+						sang_if->tdm_set_rm_polarity(0);
+						sangoma_msleep(polarity_wait);
+					}
+
+					//sleep 4 seconds between the rings
+					INFO_MAIN("4 seconds between the rings...\n");
+					sangoma_msleep(4000);
+
+					for (int ii = 0; ii < two_second_ring_repetion_counter; ii++) {
+						INFO_MAIN("Reversing polarity %d...\n", ii);
+						sang_if->tdm_set_rm_polarity(1);
+						sangoma_msleep(polarity_wait);
+						INFO_MAIN("Forwarding polarity %d...\n", ii);
+						sang_if->tdm_set_rm_polarity(0);
+						sangoma_msleep(polarity_wait);
+					}//for()
+				}//switch()
 			}
 			break;
 		case 'k':
@@ -1174,9 +1271,11 @@ user_retry_ring_e_d:
 				}
 			}else if(sang_if->get_adapter_type()== WAN_MEDIA_FXOFXS) {
 				if(sang_if->get_sub_media()==MOD_TYPE_FXS) {
+					printf("calling tdm_txsig_kewl()...\n");
 					sang_if->tdm_txsig_kewl();
 					sangoma_msleep(5000);
 					//to restore line current after txsig kewl
+					printf("restoring line current after txsig kewl...\n");
 					sang_if->tdm_txsig_offhook();
 				}
 			}
@@ -1289,7 +1388,11 @@ user_retry_ring_e_d:
 static int set_port_configuration()
 {
 	int		rc = 0, user_selection;
-	int		is_te1_card = 0, is_analog_card = 0;
+	/* On hybrid cards such as B700, ports can be of different types -
+	 * some are Analog some Digital.
+	 * On non-hybrid cards such as A108, all ports are of the same
+	 * type - T1/E1. */
+	int		is_te1_port = 0, is_analog_port = 0, is_bri_port = 0, is_serial_port = 0;
 	hardware_info_t	hardware_info;
 	port_cfg_t		port_cfg;
 
@@ -1305,7 +1408,7 @@ static int set_port_configuration()
 
 	if(rc == SANG_STATUS_SUCCESS){
 
-		INFO_MAIN("card_model		: %s (0x%08X)\n",
+		INFO_MAIN("card_model		: %s (%d)\n",
 			SDLA_ADPTR_NAME(hardware_info.card_model), hardware_info.card_model);
 		INFO_MAIN("firmware_version\t: 0x%02X\n", hardware_info.firmware_version);
 		INFO_MAIN("pci_bus_number\t\t: %d\n", hardware_info.pci_bus_number);
@@ -1319,6 +1422,7 @@ static int set_port_configuration()
 		return 3;
 	}
 
+	// very important to zero out the configuration structure
 	memset(&port_cfg, 0x00, sizeof(port_cfg_t));
 
 	switch(hardware_info.card_model)
@@ -1327,18 +1431,45 @@ static int set_port_configuration()
 	case A101_ADPTR_2TE1:
 	case A104_ADPTR_4TE1:
 	case A108_ADPTR_8TE1:
-		is_te1_card = 1;
+		is_te1_port = 1;
+		INFO_MAIN("T1/E1 Port on non-Hybrid Card (A10[1/2/4/8]).\n");
 		break;
 	case A200_ADPTR_ANALOG:
 	case A400_ADPTR_ANALOG:
-		is_analog_card = 1;
+	case AFT_ADPTR_A600: //B600
+		is_analog_port = 1;
+		INFO_MAIN("Analog Port on non-Hybrid Card (A200/A400).\n");
+		break;
+	case AFT_ADPTR_ISDN:
+		is_bri_port = 1;
+		INFO_MAIN("BRI Port on non-Hybrid Card (A500).\n");
 		break;
 	case AFT_ADPTR_FLEXBRI:
 		//B700, a hybrid card - may have both ISDN BRI and Analog ports
+		if (hardware_info.bri_modtype == MOD_TYPE_NT ||
+			hardware_info.bri_modtype == MOD_TYPE_TE) {
+			is_bri_port = 1;
+			INFO_MAIN("BRI Port on Hybrid Card.\n");
+		} else {
+			is_analog_port = 1;
+			INFO_MAIN("Analog Port on Hybrid Card.\n");
+		}
+		break;
+	case AFT_ADPTR_2SERIAL_V35X21:	/* AFT-A142 2 Port V.35/X.21 board */
+	case AFT_ADPTR_4SERIAL_V35X21:	/* AFT-A144 4 Port V.35/X.21 board */
+	case AFT_ADPTR_2SERIAL_RS232:	/* AFT-A142 2 Port RS232 board */
+	case AFT_ADPTR_4SERIAL_RS232:	/* AFT-A144 4 Port RS232 board */
+		is_serial_port = 1;
+		INFO_MAIN("Serial Port on non-Hybrid Card (A14[2/4]).\n");
+		break;
+	default:
+		INFO_MAIN("Warning: configuration of card model 0x%08X can not be changed!\n",
+			hardware_info.card_model);
 		break;
 	}
 
-	if(is_te1_card){
+
+	if (is_te1_port) {
 		INFO_MAIN("\n");
 		INFO_MAIN("Press 't' to set T1 configration.\n");
 		INFO_MAIN("Press 'e' to set E1 configration.\n");
@@ -1361,17 +1492,20 @@ try_again:
 		default:
 			INFO_MAIN("Invalid command %c.\n",user_selection);
 			goto try_again;
-			break;
-		}//switch(user_selection)
-	}//if(is_te1_card)
 
-	if(is_analog_card){
+		}//switch(user_selection)
+	}//if(is_te1_port)
+
+	if (is_analog_port) {
 		//read current configuration:
 		if(sng_port_cfg_obj->get_configration(&port_cfg)){
 			rc = 1;
 		}else{
 			//print the current configuration:
 			sng_port_cfg_obj->print_port_cfg_structure(&port_cfg);
+#if 0
+			sng_port_cfg_obj->initialize_interface_mtu_mru(&port_cfg, 16, 16);
+#endif
 #if 0
 			//as an EXAMPLE, enable Loop Current Monitoring for Analog FXO:
 			rc=sng_port_cfg_obj->control_analog_rm_lcm(&port_cfg, 1);
@@ -1381,9 +1515,17 @@ try_again:
 			rc=sng_port_cfg_obj->set_analog_opermode(&port_cfg, "TBR21");
 #endif
 		}
-	}//if(is_analog_card)
-	
-	if(!is_te1_card && !is_analog_card){
+	}//if(is_analog_port)
+
+	if (is_bri_port) {
+		rc=sng_port_cfg_obj->initialize_bri_tdm_span_voice_api_configration_structure(&port_cfg,&hardware_info,program_settings.wanpipe_number);
+	}
+
+	if (is_serial_port) {
+		rc=sng_port_cfg_obj->initialize_serial_api_configration_structure(&port_cfg,&hardware_info,program_settings.wanpipe_number);
+	}
+
+	if(!is_te1_port && !is_analog_port && !is_bri_port && !is_serial_port){
 		INFO_MAIN("Unsupported Card %d\n", hardware_info.card_model);
 		rc = 1;
 	}

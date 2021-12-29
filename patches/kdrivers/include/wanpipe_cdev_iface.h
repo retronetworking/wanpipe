@@ -66,8 +66,8 @@ enum {
 
 typedef struct wanpipe_cdev
 {
-	u_int8_t init;
-	u_int8_t used;
+	wan_bitmap_t init;
+	wan_bitmap_t used;
 	
 	int32_t	 span;
 	int32_t	 chan;

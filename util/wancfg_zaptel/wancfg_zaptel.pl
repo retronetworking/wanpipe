@@ -9,6 +9,7 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Dec 02   2010  2.49   Yannick Lam     Fixed wancfg_fs bug (removea all the unwsnted msg in summary, fix the sangoma_pri_spans, fixed the name of cards when inputing context name
 # Nov 09   2010  2.48   Yannick Lam     Fixed wancfg_fs bug(take out asterisk and smg_ctrl stuffs, fixed context, fixed config profile)
 # Oct 12   2010  2.47   Yannick Lam     Added d-channel in freetdm.conf for SMG/trillium stack(trillium=freetdm_conf ; socket mode=freetdm_conf_legacy)
 # Sep 09   2010  2.46   Yannick Lam     Support for SMG/trillium stack(trillium=freetdm_conf ; socket mode=freetdm_conf_legacy)
@@ -365,7 +366,7 @@ if ($is_fs== $TRUE) {
 	$config_zapata = $FALSE; 
 	$config_openzap= $TRUE;
 	$config_openzap_xml=$TRUE;
-	$def_sigmode='pri_cpe';
+	#$def_sigmode='pri_cpe';
 }
 
 if ($is_ftdm== $TRUE || $is_trillium == $TRUE) {
@@ -375,7 +376,7 @@ if ($is_ftdm== $TRUE || $is_trillium == $TRUE) {
 	$config_freetdm_xml=$TRUE;
 	$config_openzap= $FALSE;
 	$config_openzap_xml=$FALSE;
-	$def_sigmode='pri_cpe';
+	#$def_sigmode='pri_cpe';
 }	
 	
 
@@ -463,7 +464,12 @@ sub get_card_name{
 	if ( $card_name eq '600' || $card_name eq '700') {
 		$card_name = "B".$card_name;
 	} else {
-		$card_name = "A".$card_name;
+		#if ( $is_trillium == $TRUE ){
+		#	$card_name = $card_name;
+		#}
+		#else {
+			$card_name = "A".$card_name;
+		#}
 	}
 	return $card_name;
 }
@@ -1120,7 +1126,7 @@ sub get_zapata_context{
 		@options = ("PSTN", "INTERNAL");
 	}
 	if ($silent==$FALSE){
-		printf ("Select dialplan context for AFT-A%s on port %s\n", get_card_name($card_model), $card_port);
+		printf ("Select dialplan context for AFT-%s on port %s\n", get_card_name($card_model), $card_port);
 		my $res = &prompt_user_list(@options,$def_zapata_context);
 		if($res eq "PSTN"){
 			$context="from-zaptel";
@@ -1157,8 +1163,8 @@ sub get_context{
 	my $context='';
 	my @options = ("default", "public","Custom");
 
-	if ($silent==$FALSE){
-		printf ("Select dialplan context for AFT-A%s on port %s\n", get_card_name($card_model), $card_port);
+	if ($silent==$FALSE){    
+		printf ("Select dialplan context for AFT-%s on port %s\n", $card_model, $card_port);
 		my $res = &prompt_user_list(@options,$def_fs_context);
 		if($res eq "default"){
 			$context="default";
@@ -1536,11 +1542,11 @@ sub summary{
 		print "\t1. Wanpipe config files in $wanpipe_conf_dir\n";
 		$file_list++;
 		
-		if ($num_bri_devices != 0){
+		if (($num_bri_devices != 0) && ($is_trillium == $FALSE)){
 			print "\t$file_list. sangoma_brid config file $wanpipe_conf_dir/smg_bri\n";
 			$file_list++;
 		}
-		if($num_digital_smg != 0){
+		if(($num_digital_smg != 0) && ($is_trillium == $FALSE)){
 			print "\t$file_list. sangoma_prid config file $wanpipe_conf_dir/smg_pri\n";
 			$file_list++;
 		}
@@ -1555,7 +1561,7 @@ sub summary{
 		}
 
 		if($config_freetdm == $TRUE){
-			print "\t$file_list. freetdm config file $fs_conf_dir/freetdm\n";
+			print "\t$file_list. freetdm config file $fs_conf_dir/freetdm.conf\n";
 			$file_list++;
 		}
 		
@@ -1569,7 +1575,7 @@ sub summary{
 			$file_list++;
 		}
 				
-		if ($num_digital_smg !=0 || $num_bri_devices !=0){
+		if (($num_digital_smg !=0 || $num_bri_devices !=0) && ($is_trillium == $FALSE)){
 			print "\t$file_list. smg.rc config file $wanpipe_conf_dir/smg.rc\n";
 			$file_list++
 			
@@ -3102,7 +3108,7 @@ ENDSS7CONFIG:
 		
 							$def_sigmode=&prompt_user_list(@options,$def_sigmode);
 							
-							$context=get_context();
+							$context=get_context(get_card_name($card->card_model),$port);
 							$group_no=get_woomera_group();
 							#	$boostspan->print(); 
 						}
@@ -4483,14 +4489,18 @@ sub write_freetdm_conf_xml{
 	my $num=-1;
 	my $count=0;
 	my $current_num=-1;
-	my $cfg_profile_ni='';
-	my $cfg_profile_dms='';
-	my $cfg_profile_euro='';
-	my $cfg_profile_5ess='';
-	my $cfg_profile_4ess='';
+	my $cfg_profile_ni_cpe='';
+	my $cfg_profile_dms_cpe='';
+	my $cfg_profile_euro_cpe='';
+	my $cfg_profile_5ess_cpe='';
+	my $cfg_profile_4ess_cpe='';
+	my $cfg_profile_ni_net='';
+	my $cfg_profile_dms_net='';
+	my $cfg_profile_euro_net='';
+	my $cfg_profile_5ess_net='';
+	my $cfg_profile_4ess_net='';
 	my $e1_profile_flag=0;
 	my $t1_profile_flag=0;
-	
 	$cfg_boost_header.="";
 	$cfg_boost_foot.="";
 	$cfg_profile_header.="\t";
@@ -4523,7 +4533,7 @@ sub write_freetdm_conf_xml{
 				$current_num = $num;
 
 				if ($boostprispan[$num]->sig_mode() eq "PRI CPE"){
-					$ftdm_signalling='cpe';
+					$ftdm_signalling='pri_cpe';
 					$ftdm_context='public';
 					if($boostprispan->span_type() eq 't1')
 					{
@@ -4540,7 +4550,7 @@ sub write_freetdm_conf_xml{
 				}
 
 				if ($boostprispan[$num]->sig_mode() eq "PRI NET"){
-					$ftdm_signalling = "net";
+					$ftdm_signalling = "pri_net";
 					$ftdm_context='default';
 					if($boostprispan->span_type() eq 't1')
 					{
@@ -4556,78 +4566,126 @@ sub write_freetdm_conf_xml{
 					}
 				}
 					
-                        	if($boostprispan->switch_type() eq 'national')
-                        	{
+				if($boostprispan->switch_type() eq 'national')
+				{
 					for ($count = $current_num; $count > 0; $count--) {
-						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
-							##if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
-								#$cfg_profile=$cfg_profile_ni;
-								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && ($boostprispan[$current_num]->span_type() eq $boostprispan[$count-1]->span_type())){
+							if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+								$cfg_profile=$cfg_profile_ni_net;
+								#$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
 								goto skip;
-							##}
+							}
+							if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+								$cfg_profile=$cfg_profile_ni_cpe;
+								#$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+								goto skip;
+							}
+
 						}
 					}
 	
-						$cfg_profile=$cfg_profile_ni=$cfg_profile.$boostprispan[$current_num]->span_no();
-						$freetdm_boostpri_profile.="\n\t\t";
-                                		#$freetdm_boostpri_profile.='<profile name="$cfg_profile.$boostprispan->span_no()"'.'>'."\n\t\t\t";
-						$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t";
-                                		#$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t";
-						$freetdm_boostpri_profile.='<param name="switchtype" value="ni2" />'."\n\t\t\t";
-					
+					if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+						$cfg_profile=$cfg_profile_ni_net=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+					if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+						$cfg_profile=$cfg_profile_ni_cpe=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+
+					$freetdm_boostpri_profile.="\n\t\t";
+					#$freetdm_boostpri_profile.='<profile name="$cfg_profile.$boostprispan->span_no()"'.'>'."\n\t\t\t";
+					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t";
+					#$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t";
+					$freetdm_boostpri_profile.='<param name="switchtype" value="ni2" />'."\n\t\t\t";
 				}
 
-                                if($boostprispan->switch_type() eq 'dms100')
-                                {
+				if($boostprispan->switch_type() eq 'dms100')
+				{
 					for ($count = $current_num; $count > 0; $count--) {
 						#if($boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() || ($t1_profile_flag > -1 || $e1_profile_flag > -1)){
 							#if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
-						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
-								#$cfg_profile=$cfg_profile_dms;
-								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
-								goto skip;
-							#}
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && ($boostprispan[$current_num]->span_type() eq $boostprispan[$count-1]->span_type())){
+								if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+									$cfg_profile=$cfg_profile_dms_net;
+									#$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+									goto skip;
+								}
+								if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+									$cfg_profile=$cfg_profile_dms_cpe;
+									#$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+							   	 	goto skip;
+								}
+
 						}
 					}
 
-					$cfg_profile=$cfg_profile_dms=$cfg_profile.$boostprispan[$current_num]->span_no();
+				    if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+						$cfg_profile=$cfg_profile_dms_net=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+					if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+						$cfg_profile=$cfg_profile_dms_cpe=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+
 					$freetdm_boostpri_profile.="\n\t\t";			
 					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t"; 	
 					$freetdm_boostpri_profile.='<param name="switchtype" value="dms100" />'."\n\t\t\t";
-                                }
+				}
 
-                                if($boostprispan->switch_type() eq '5ess')
-                                {
+				if($boostprispan->switch_type() eq '5ess')
+				{
 					for ($count = $current_num; $count > 0; $count--) {
 						#if($boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() || ($t1_profile_flag > -1 || $e1_profile_flag > -1)){
 							#if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
-						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
-								#$cfg_profile=$cfg_profile_5ess;
-								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && ($boostprispan[$current_num]->span_type() eq $boostprispan[$count-1]->span_type())){
+							if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+								$cfg_profile=$cfg_profile_5ess_net;
+								#$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
 								goto skip;
+							}
+							if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+								$cfg_profile=$cfg_profile_5ess_cpe;
+								goto skip
+							}	
 						}
 					}
 
-					$cfg_profile=$cfg_profile_5ess=$cfg_profile.$boostprispan[$current_num]->span_no();
-                                        $freetdm_boostpri_profile.="\n\t\t";
-                                        #$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
+					if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+						$cfg_profile=$cfg_profile_5ess_net=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+					if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+						$cfg_profile=$cfg_profile_5ess_cpe=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+
+					$freetdm_boostpri_profile.="\n\t\t";
+					#$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
 					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t"; 	
-                                        $freetdm_boostpri_profile.='<param name="switchtype" value="5ess" />'."\n\t\t\t";
-                                }
+					$freetdm_boostpri_profile.='<param name="switchtype" value="5ess" />'."\n\t\t\t";
+				}
 
 				if($boostprispan->switch_type() eq '4ess')
 				{
 					for ($count = $current_num; $count > 0; $count--) {
 						#if($boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() || ($t1_profile_flag > -1 || $e1_profile_flag > -1)){
 							#if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
-						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
-								#$cfg_profile=$cfg_profile_4ess;
-								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && ($boostprispan[$current_num]->span_type() eq $boostprispan[$count-1]->span_type())){
+							if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+								$cfg_profile=$cfg_profile_4ess_net;
+								#$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
 								goto skip;
+							}
+							if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+								$cfg_profile=$cfg_profile_4ess_cpe;
+								goto skip
+							}	
 						}
 					}
 
-					$cfg_profile=$cfg_profile_4ess=$cfg_profile.$boostprispan[$current_num]->span_no();
+					if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+						$cfg_profile=$cfg_profile_4ess_net=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+					if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+						$cfg_profile=$cfg_profile_4ess_cpe=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+
 					$freetdm_boostpri_profile.="\n\t\t";
 					#$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
 					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t"; 	
@@ -4639,15 +4697,26 @@ sub write_freetdm_conf_xml{
 					for ($count = $current_num; $count > 0; $count--) {
 						#if($boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() || ($t1_profile_flag > -1 || $e1_profile_flag > -1)){
 							#if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
-						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
-								#$cfg_profile=$cfg_profile_euro;
-								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
-								goto skip;
-							#}
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && ($boostprispan[$current_num]->span_type() eq $boostprispan[$count-1]->span_type())){
+								if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+									$cfg_profile=$cfg_profile_euro_net;
+									#$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+							   		goto skip;
+								}
+								if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+									$cfg_profile=$cfg_profile_euro_cpe;
+							   	 goto skip;
+								}
 						}
 					}
 
-					$cfg_profile=$cfg_profile_euro=$cfg_profile.$boostprispan[$current_num]->span_no();
+					if($boostprispan[$current_num]->sig_mode() eq "PRI NET"){
+						$cfg_profile=$cfg_profile_euro_net=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+					if($boostprispan[$current_num]->sig_mode() eq "PRI CPE"){
+						$cfg_profile=$cfg_profile_euro_cpe=$cfg_profile.$boostprispan[$current_num]->span_no();
+					}
+
 					$freetdm_boostpri_profile.="\n\t\t";
 					#$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
 					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t"; 	

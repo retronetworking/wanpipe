@@ -526,13 +526,15 @@ unsigned short wanrouter_type_trans (struct sk_buff *skb, netdevice_t *dev)
  *	o find WAN device associated with this node
  *	o execute requested action or pass command to the device driver
  */
-
-int wanrouter_ioctl(struct inode *inode, struct file *file,
-		unsigned int cmd, unsigned long arg)
+WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wanrouter_ioctl, struct file *file, unsigned int cmd, unsigned long arg)
 {
-	int err = 0;
+	WAN_IOCTL_RET_TYPE err = 0;
 	struct proc_dir_entry *dent;
 	wan_device_t *wandev;
+
+#ifdef HAVE_UNLOCKED_IOCTL
+	struct inode *inode = file->f_dentry->d_inode;
+#endif
 	
 	if ((cmd>>8) != ROUTER_IOCTL){
 		DEBUG_EVENT("%s: Invalid CMD=0x%X ROUTER_IOCTL=0x%X\n",

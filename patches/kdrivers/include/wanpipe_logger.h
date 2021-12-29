@@ -138,13 +138,15 @@ enum wp_fe_logger_level{
 /* BRI */
 enum wp_bri_logger_level{
 	SANG_LOGGER_BRI_DEFAULT = (1),
-	SANG_LOGGER_BRI_HFC_S0_STATES = (1 << 1)
+	SANG_LOGGER_BRI_HFC_S0_STATES = (1 << 1),
+	SANG_LOGGER_BRI_L2_TO_L1_ACTIVATION = (1 << 2)
 };
 
 #define SANG_DECODE_BRI_LOGGER_EVENT_TYPE(bit)	\
 	(bit & SANG_LOGGER_BRI_DEFAULT) ? "SANG_LOGGER_BRI_DEFAULT":	\
 	(bit & SANG_LOGGER_BRI_HFC_S0_STATES) ?	"SANG_LOGGER_BRI_HFC_S0_STATES":	\
-	"Invalid Bit for TE1 Logger"
+	(bit & SANG_LOGGER_BRI_L2_TO_L1_ACTIVATION) ? "SANG_LOGGER_BRI_L2_TO_L1_ACTIVATION":	\
+	"Invalid Bit for BRI Logger"
 
 
 static __inline const char* wp_decode_logger_event_type(u_int32_t logger_type, u_int32_t evt_type)

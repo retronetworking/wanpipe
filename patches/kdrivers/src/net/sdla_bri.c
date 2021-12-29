@@ -32,6 +32,11 @@
  * July		21  2009	David Rokhvarg	
  *				v1.4 Implemented T1 timer for NT.
  *
+ * January	24  2011	David Rokhvarg	
+ *				v1.5 The T3 timer was broken by changes in AFT Core - fixed it
+ *					 by adding T3_TIMER_EXPIRED bit.
+ *					 The T3_TIMER_EXPIRED bit resolved "failed TE activation"
+ *					 issue on some BRI lines.
  ******************************************************************************
  */
 
@@ -2082,7 +2087,6 @@ static int32_t wp_bri_post_init(void *pfe)
 	return 0;
 }
 
-
 /**
  * l1_timer_start_t3
  */
@@ -2110,8 +2114,13 @@ static void l1_timer_start_t3(void *pport)
 		return;
 	}
 
-	if(!wan_test_and_set_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags)){
+	if (!wan_test_bit(T3_TIMER_ACTIVE,  &port_ptr->timer_flags) &&
+		!wan_test_bit(T3_TIMER_EXPIRED, &port_ptr->timer_flags)){
+
 		DEBUG_HFC_S0_STATES("Starting T3 timer...\n");
+
+		wan_set_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags); 
+
 		wan_add_timer(&port_ptr->t3_timer, (XHFC_TIMER_T3 * HZ) / 1000);
 	}
 }
@@ -2128,7 +2137,10 @@ static void l1_timer_stop_t3(void *pport)
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
 	if(wan_test_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags)){	
-		wan_clear_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags);
+
+		wan_clear_bit(T3_TIMER_ACTIVE,  &port_ptr->timer_flags);
+		wan_clear_bit(T3_TIMER_EXPIRED, &port_ptr->timer_flags);
+
 		wan_clear_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags);
 		wan_del_timer(&port_ptr->t3_timer);
 	}
@@ -2161,6 +2173,9 @@ static void l1_timer_expire_t3(unsigned long pport)
 	DEBUG_HFC_S0_STATES("%s()\n", __FUNCTION__);
 
 	if (wandev->fe_enable_timer){
+
+		wan_set_bit(T3_TIMER_EXPIRED, &port_ptr->timer_flags);
+
 		wandev->fe_enable_timer(fe->card);
 	}
 }
@@ -2181,6 +2196,8 @@ static void __l1_timer_expire_t3(sdla_fe_t *fe)
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
 	wan_clear_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags);
+	wan_clear_bit(T3_TIMER_EXPIRED, &port_ptr->timer_flags);
+
 	wan_clear_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags);
 	xhfc_ph_command(fe, port_ptr, HFC_L1_FORCE_DEACTIVATE_TE);
 }
@@ -2246,6 +2263,10 @@ static void l1_timer_stop_t4(void *pport)
  *
  * Description: l1_timer_expire_t4 - called when timer t4 expires.
  *		Send (PH_DEACTIVATE | INDICATION) to upper layer.
+ *
+ *		Note that this function does NOT access the hardware so we
+ *		don't have to use wandev->fe_enable_timer() as it is done
+ *		for T1 and T3.
  *
  * Arguments:
  * Returns:
@@ -2314,7 +2335,7 @@ static void __l1_timer_expire_t1(sdla_fe_t *fe)
 	sdla_bri_param_t *bri = &fe->bri_param;
 	wp_bri_module_t	*bri_module;
 	bri_xhfc_port_t	*port_ptr;
-	u8		mod_no, port_no;
+	u8		mod_no, port_no, connected = 0;
 
 	mod_no = fe_line_no_to_physical_mod_no(fe);	
 	port_no = fe_line_no_to_port_no(fe);
@@ -2323,12 +2344,31 @@ static void __l1_timer_expire_t1(sdla_fe_t *fe)
 	port_ptr   = &bri_module->port[port_no];
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
+
+	wan_clear_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags);
+	wan_clear_bit(T1_TIMER_ACTIVE,  &port_ptr->timer_flags);
 	
+	if(	(port_ptr->su_state.bit.v_su_info0)	||
+		(!port_ptr->su_state.bit.v_su_fr_sync)){
+		/* If receiving INFO0 or Lost Framing, after T1 expired, we must deactivate
+		 * NT, because otherwise the user will be prevented from NT activation
+		 * forever by the HFC_L1_ACTIVATED bit. */
+		connected = 0;
+	}else if(port_ptr->su_state.bit.v_su_fr_sync){
+		/* Got synchronized. No automatic state change expected. */
+		connected = 1;
+	}
+
 	if(!wan_test_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags)) {
 
-		DEBUG_HFC_S0_STATES("%s(): De-Activating NT...\n", __FUNCTION__);
-
+		DEBUG_HFC_S0_STATES("%s(): (1) De-Activating NT...\n", __FUNCTION__);
 		xhfc_ph_command(fe, port_ptr, HFC_L1_DEACTIVATE_NT);
+
+	}else if(!connected){
+
+		DEBUG_HFC_S0_STATES("%s(): (2) De-Activating NT...\n", __FUNCTION__);
+		xhfc_ph_command(fe, port_ptr, HFC_L1_DEACTIVATE_NT);
+		
 	}else{
 		/* T1 expired AFTER line become active. */
 		DEBUG_HFC_S0_STATES("%s(): NT in Activated state. Doing nothing.\n", __FUNCTION__);
@@ -2362,10 +2402,12 @@ static void l1_timer_start_t1(void *pport)
 		return;
 	}
 
-	if(!wan_test_and_set_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags)){
+	if (!wan_test_bit(T1_TIMER_ACTIVE,  &port_ptr->timer_flags) &&
+		!wan_test_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags)){
+
 		DEBUG_HFC_S0_STATES("%s(): Starting T1 timer...\n", __FUNCTION__);
 
-		wan_clear_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags);
+		wan_set_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags); 
 
 		wan_add_timer(&port_ptr->t1_timer, (XHFC_TIMER_T1 * HZ) / 1000);
 
@@ -2386,7 +2428,10 @@ static void l1_timer_stop_t1(void *pport)
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 	
 	if(wan_test_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags)){	
-		wan_clear_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags);
+
+		wan_clear_bit(T1_TIMER_ACTIVE,  &port_ptr->timer_flags);
+		wan_clear_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags);
+
 		wan_del_timer(&port_ptr->t1_timer);
 	}
 }
@@ -2657,35 +2702,43 @@ static int32_t wp_bri_polling(sdla_fe_t* fe)
 	bri_module = &bri->mod[mod_no];
 	port_ptr   = &bri_module->port[port_no];
 
-	DEBUG_HFC_S0_STATES("%s()\n", __FUNCTION__);
+	/* Note that aft_core.c calls card->wandev.fe_iface.polling() 
+	 * UNCONDITIONALLY, on each Front End interrupt. 
+	 * It is a problem for BRI timers because we need an additional flag,
+	 * which will indicate that "T1 timer really expired". 
+	 * Only if the flag is set, we act as we should on timer expiration. */
 
 	if (port_ptr->mode & PORT_MODE_TE) {
 		/*************/
 		/* TE timers */
 		if(wan_test_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags)){
+			DEBUG_HFC_S0_STATES("%s(): TE T3_TIMER_ACTIVE\n", __FUNCTION__);
+		}
+
+		if(wan_test_bit(T3_TIMER_EXPIRED, &port_ptr->timer_flags)){
+			DEBUG_HFC_S0_STATES("%s(): TE T3_TIMER_EXPIRED\n", __FUNCTION__);
+		}
+
+		if (wan_test_bit(T3_TIMER_EXPIRED, &port_ptr->timer_flags) &&
+			wan_test_bit(T3_TIMER_ACTIVE,  &port_ptr->timer_flags)){
+
 			__l1_timer_expire_t3(fe);
 		}
 	}else{
 		/*************/
 		/* NT timers */
-		/* Note that aft_core.c calls card->wandev.fe_iface.polling() UNCONDITIONALLY, on
-		 * each Front End interrupt. It is a problem for BRI timers because we need an additional flag,
-		 * which will indicate that "T1 timer really expired". Only if the flag is set, we act as
-		 * we should on timer expiration. */
-		
+		if(wan_test_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags)){
+			DEBUG_HFC_S0_STATES("%s(): NT T1_TIMER_ACTIVE\n", __FUNCTION__);
+		}
+
 		if(wan_test_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags)){
+			DEBUG_HFC_S0_STATES("%s(): NT T1_TIMER_EXPIRED\n", __FUNCTION__);
+		}
+		
+		if (wan_test_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags) &&
+			wan_test_bit(T1_TIMER_ACTIVE,  &port_ptr->timer_flags)) {
 			
-			wan_clear_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags);
-			
-			if(wan_test_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags)){
-				
-				wan_clear_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags);
-				
-				__l1_timer_expire_t1(fe);
-			}
-			
-		}else{
-			DEBUG_HFC_S0_STATES("%s(): T1 did NOT expire yet. Doing nothing.\n", __FUNCTION__);
+			__l1_timer_expire_t1(fe);
 		}
 	}
 	return 0;
@@ -2905,11 +2958,13 @@ static int wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char new_status)
 	switch(new_status)
 	{
 	case WAN_FE_CONNECTED:
-		DEBUG_HFC_S0_STATES("L2->L1 -- ACTIVATE REQUEST\n");
+		DEBUG_L2_TO_L1_ACTIVATION("%s: L2->L1 -- ACTIVATE REQUEST\n", 
+			fe->name);
 		if (port_ptr->mode & PORT_MODE_TE) {
 			if (wan_test_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags)) {
 				/* The line is already in active state. Confirm to L2 that line is connected. */
-				DEBUG_HFC_S0_STATES("TE: L1->L2 -- ACTIVATE CONFIRM\n");
+				DEBUG_L2_TO_L1_ACTIVATION("%s: TE: L1->L2 -- ACTIVATE CONFIRM (line already active)\n",
+					fe->name);
 				sdla_bri_set_status(fe, mod_no, port_no, FE_CONNECTED);	
 			} else {
 				wan_test_and_set_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags);
@@ -2919,7 +2974,8 @@ static int wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char new_status)
 		} else {
 			if(wan_test_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags)) {
 				/* The line is already in active state. Confirm to L2 that line is connected. */
-				DEBUG_HFC_S0_STATES("NT: L1->L2 -- ACTIVATE CONFIRM\n");
+				DEBUG_L2_TO_L1_ACTIVATION("%s: NT: L1->L2 -- ACTIVATE CONFIRM (line already active)\n",
+					fe->name);
 				sdla_bri_set_status(fe, mod_no, port_no, FE_CONNECTED);	
 			} else {
 				xhfc_ph_command(fe, port_ptr, HFC_L1_ACTIVATE_NT);
@@ -2930,7 +2986,8 @@ static int wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char new_status)
 		break;
 
 	case WAN_FE_DISCONNECTED:
-		DEBUG_HFC_S0_STATES("L2->L1 -- DEACTIVATE REQUEST\n");
+		DEBUG_L2_TO_L1_ACTIVATION("%s: L2->L1 -- DEACTIVATE REQUEST\n", 
+			fe->name);
 		if (port_ptr->mode & PORT_MODE_TE) {
 			/* no deact request in TE mode ! */
 			DEBUG_ERROR("%s(): %s: Error: 'deactivate' request is invalid for TE!\n",
@@ -3035,34 +3092,35 @@ static void xhfc_ph_command(sdla_fe_t *fe, bri_xhfc_port_t *port, u_char command
 	switch (command) 
 	{
 	case HFC_L1_ACTIVATE_TE:
-		DEBUG_HFC_S0_STATES("HFC_L1_ACTIVATE_TE port(%i)\n", port->idx);
+		DEBUG_L2_TO_L1_ACTIVATION("HFC_L1_ACTIVATE_TE port(%i)\n", port->idx);
 
 		WRITE_REG(R_SU_SEL, port->idx);
 		WRITE_REG(A_SU_WR_STA, STA_ACTIVATE);
 		break;
 
 	case HFC_L1_FORCE_DEACTIVATE_TE:
-		DEBUG_HFC_S0_STATES("HFC_L1_FORCE_DEACTIVATE_TE port(%i)\n", port->idx);
+		DEBUG_L2_TO_L1_ACTIVATION("HFC_L1_FORCE_DEACTIVATE_TE port(%i)\n", port->idx);
 			        
 		WRITE_REG(R_SU_SEL, port->idx);
 		WRITE_REG(A_SU_WR_STA, STA_DEACTIVATE);
 		break;
 
 	case HFC_L1_ACTIVATE_NT:
-		DEBUG_HFC_S0_STATES("HFC_L1_ACTIVATE_NT port(%i)\n", port->idx);
+		DEBUG_L2_TO_L1_ACTIVATION("HFC_L1_ACTIVATE_NT port(%i)\n", port->idx);
 
 		WRITE_REG(R_SU_SEL, port->idx);
 		WRITE_REG(A_SU_WR_STA, STA_ACTIVATE | M_SU_SET_G2_G3);
 		break;
 
 	case HFC_L1_DEACTIVATE_NT:
-		DEBUG_HFC_S0_STATES("HFC_L1_DEACTIVATE_NT port(%i)\n", port->idx);
+		DEBUG_L2_TO_L1_ACTIVATION("HFC_L1_DEACTIVATE_NT port(%i)\n", port->idx);
 
 		WRITE_REG(R_SU_SEL, port->idx);
 		WRITE_REG(A_SU_WR_STA, STA_DEACTIVATE);
 		break;
+
 	default:
-		DEBUG_HFC_S0_STATES("Invalid command: %i !\n", command);
+		DEBUG_L2_TO_L1_ACTIVATION("Invalid command: %i !\n", command);
 		break;
 	}
 }
@@ -3394,15 +3452,15 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 	reg_r_su_irq		r_su_irq;
 	reg_r_misc_irq		r_misc_irq;
 
-	BRI_FUNC();
-
 	if(validate_physical_mod_no(mod_no, __FUNCTION__)){
 		return 0;
 	}
 
 	bri_module = &bri->mod[mod_no];
 
-	//DEBUG_HFC_SU_IRQ("%s(%lu): %s: mod_no: %d\n", __FUNCTION__, jiffies, fe->name, mod_no);
+#if 0
+	DEBUG_HFC_SU_IRQ("%s(%lu): %s: mod_no: %d\n", __FUNCTION__, jiffies, fe->name, mod_no);
+#endif
 
 	/* clear SU state interrupt (for all ports) */
 	r_su_irq.reg = READ_REG(R_SU_IRQ);
@@ -3491,7 +3549,7 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 		/* receive D-Channel Data */
 		if (fifo_irq & (1 << (port_no*8+5)) ) {
 			netskb_t *skb = NULL;
-			DBG_MODULE_TESTER("There is receive D-Channel Data for port_no %d\n", port_no);
+			DBG_MODULE_TESTER("There is Rx D-Channel Data for port_no %d\n", port_no);
 
 			skb = wp_bri_dchan_rx(fe, mod_no, port_no);
 			if(skb != NULL){
@@ -3503,7 +3561,7 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 
 				DEBUG_HFC_IRQ("%s(): chan ptr: 0x%p\n", __FUNCTION__, chan);
 				if (!chan){
-					DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
+					DEBUG_ERROR("%s: Error: BRI D-Chan: No Device for Rx data.(logical ch=%d)\n",
 							card->devname, BRI_DCHAN_LOGIC_CHAN);
 					break;
 				}

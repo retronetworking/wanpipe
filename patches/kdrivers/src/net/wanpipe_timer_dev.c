@@ -69,6 +69,7 @@ static int wan_alloc_skb_list(wanpipe_tdev_t *dev, int elements);
 
 static sdla_t *wan_timer_card = NULL;
 static u32 wan_timer_initialized = 0;
+static u32 wan_timer_global_init=0;
 
 static wanpipe_tdev_t *wan_tdev_idx[MAX_WAN_TDEV_IDX_SZ];
 static int wan_tdev_cnt = 0;
@@ -76,9 +77,14 @@ static u32 wan_event_seq_cnt = 0;
 
 static wanpipe_cdev_ops_t wan_tdev_fops;
 
-static void wanpipe_wandev_timer_init_globals()
+static void wanpipe_wandev_timer_init_globals(void)
 {
 	DEBUG_TEST("%s:%d\n",__FUNCTION__,__LINE__);
+
+	if (wan_timer_global_init) {
+     	return;
+	}
+	wan_timer_global_init++;
 
 	memset(wan_tdev_idx, 0x00, sizeof(wan_tdev_idx));
 

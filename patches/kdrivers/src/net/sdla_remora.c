@@ -40,8 +40,6 @@
 #endif
 #endif
 
-#define NEW_RM			if(1)DbgPrint
-#define NEW_RM_FUNC()	if(1)DEBUG_EVENT("%s:%d\n",__FUNCTION__,__LINE__)
 
 /*******************************************************************************
 **			  DEFINES AND MACROS
@@ -1734,7 +1732,6 @@ static int wp_remora_unconfig(void *pfe)
 	DEBUG_EVENT("%s: Unconfiguring FXS/FXO Front End...\n",
         		     	fe->name);
 
-
 	/* Disable interrupt (should be done before ) */				
 	wp_remora_disable_irq(fe);
 					
@@ -1746,6 +1743,11 @@ static int wp_remora_unconfig(void *pfe)
 			wan_clear_bit(mod_no, &fe->rm_param.module_map);
 		}
 	}
+	
+	if (fe->reset_fe) {
+		fe->reset_fe(fe);
+	}
+
 	return 0;
 }
 
@@ -2198,6 +2200,9 @@ static int wp_remora_event_exec(sdla_fe_t* fe, sdla_fe_timer_event_t	*fe_event)
 	case WP_RM_POLL_TXSIG_KEWL:
 		fe->rm_param.mod[mod_no].u.fxs.lasttxhook = 0;
 		fe->rm_param.mod[mod_no].u.fxs.lasttxhook_update=1;
+
+		DBG_BATTERY_REMOVAL("%s():line:%d: fxs ptr: 0x%p\n", __FUNCTION__, __LINE__, &fe->rm_param.mod[mod_no].u.fxs);
+
 #if 0
 		WRITE_RM_REG(mod_no, 64, fe->rm_param.mod[mod_no].u.fxs.lasttxhook);
 #endif
@@ -2612,7 +2617,7 @@ wp_remora_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 		fe_event.rm_event.rm_gain = ectrl->rm_gain;
 		break;
 	default:
-		DEBUG_EVENT("%s: Module %d: Executing Invalid %s event (%s:%X)!\n",
+		DEBUG_ERROR("%s: Error: Module %d: got request for invalid %s event (%s:%X)!\n",
 				fe->name, mod_no+1,
 				WAN_EVENT_TYPE_DECODE(ectrl->type),
 				WAN_EVENT_MODE_DECODE(ectrl->mode), ectrl->mode);
@@ -2793,6 +2798,7 @@ static int wp_remora_stats(sdla_fe_t* fe, unsigned char *data)
 		rm_udp->u.stats.tip_volt = READ_RM_REG(mod_no, 80);
 		rm_udp->u.stats.ring_volt = READ_RM_REG(mod_no, 81);
 		rm_udp->u.stats.bat_volt = READ_RM_REG(mod_no, 82);
+		rm_udp->u.stats.status = FE_CONNECTED;
 	} else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
 		rm_udp->type = MOD_TYPE_FXO;
 		rm_udp->u.stats.volt = READ_RM_REG(mod_no, 29);
@@ -3204,6 +3210,25 @@ static int wp_remora_watchdog(void *card_ptr)
 {
 	sdla_t			*card = (sdla_t*)card_ptr;
 	sdla_fe_t		*fe  = &card->fe;
+
+#if DBG_FALSE_RING1
+
+	fe->rm_param.ticks_diff = SYSTEM_TICKS - fe->rm_param.last_system_ticks;
+
+	if (fe->rm_param.ticks_diff > HZ) {
+
+		fe->rm_param.last_system_ticks = SYSTEM_TICKS;
+
+		fe->rm_param.int_diff = fe->rm_param.intcount - fe->rm_param.last_intcount;
+
+		fe->rm_param.last_intcount = fe->rm_param.intcount;
+
+		DEBUG_FALSE_RING("%s: ticks_diff:%d, fe->rm_param.intcount: %d, int_diff:%d\n", 
+			fe->name, fe->rm_param.ticks_diff, fe->rm_param.intcount, fe->rm_param.int_diff);
+	}
+
+#endif
+
 	fe->rm_param.intcount++;
 	wp_tdmv_remora_rx_tx_span_common(card_ptr);
 	return 0;
@@ -3623,15 +3648,8 @@ static int wp_remora_get_link_status(sdla_fe_t *fe, unsigned char *status,int mo
 		*status = fe->rm_param.mod[mod_no -1].u.fxo.status;
 		
 	} else {
-		DEBUG_EVENT("%s: Module %d: Get Link Status is only valid for FXO module!\n", 
-					fe->name, mod_no);
-
-		/* Defaulting Status to Connected in order to force intialize status variable 
-		   incase user calls this function for an unsupported module type */
-
+		/* FXS module does not have a state. Thus its always connected */
 		*status=FE_CONNECTED;
-		return -EINVAL;
-		
 	}
 	return 0;
 }

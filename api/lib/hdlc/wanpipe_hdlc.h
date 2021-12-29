@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
-#include <string.h>
 
 #if defined(__WINDOWS__)
 # define wan_inline __inline

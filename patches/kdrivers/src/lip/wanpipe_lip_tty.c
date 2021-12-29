@@ -21,7 +21,7 @@
 
 #ifdef __LINUX__
 
-static struct tty_driver 	serial_driver;
+static struct tty_driver 	*serial_driver;
 static int 			tty_init_cnt=0;
 static struct serial_state 	rs_table[NR_PORTS];
 
@@ -602,60 +602,62 @@ int wplip_reg_tty(wplip_link_t *lip_link, wanif_conf_t *cfg)
 				WAN_TTY_MAJOR,MIN_PORT,MAX_PORT);
 	
 	
+		serial_driver=alloc_tty_driver(NR_PORTS);
+		if (!serial_driver) {
+			return -ENOMEM;
+		}
 
-		memset(&serial_driver, 0, sizeof(struct tty_driver));
-		serial_driver.magic = TTY_DRIVER_MAGIC;
+		serial_driver->magic = TTY_DRIVER_MAGIC;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0))
-		serial_driver.owner = THIS_MODULE;
+		serial_driver->owner = THIS_MODULE;
 #endif
 		
-		serial_driver.driver_name = "wanpipe_tty"; 
+		serial_driver->driver_name = "wanpipe_tty"; 
 #if (LINUX_VERSION_CODE > 0x2032D && defined(CONFIG_DEVFS_FS))
-		serial_driver.name = "ttyWP/%d";
+		serial_driver->name = "ttyWP/%d";
 #else
-		serial_driver.name = "ttyWP";
+		serial_driver->name = "ttyWP";
 #endif
-		serial_driver.major = WAN_TTY_MAJOR;
-		serial_driver.minor_start = WAN_TTY_MINOR;
-		serial_driver.num = NR_PORTS; 
-		serial_driver.type = TTY_DRIVER_TYPE_SERIAL;
-		serial_driver.subtype = SERIAL_TYPE_NORMAL;
+		serial_driver->major = WAN_TTY_MAJOR;
+		serial_driver->minor_start = WAN_TTY_MINOR;
+		serial_driver->type = TTY_DRIVER_TYPE_SERIAL;
+		serial_driver->subtype = SERIAL_TYPE_NORMAL;
 		
-		serial_driver.init_termios = tty_std_termios;
-		serial_driver.init_termios.c_cflag =
+		serial_driver->init_termios = tty_std_termios;
+		serial_driver->init_termios.c_cflag =
 			B9600 | CS8 | CREAD | HUPCL | CLOCAL;
-		serial_driver.flags = TTY_DRIVER_REAL_RAW;
+		serial_driver->flags = TTY_DRIVER_REAL_RAW;
 
 
 #ifdef LINUX_2_6
-		tty_set_operations(&serial_driver, &wanpipe_tty_ops);
+		tty_set_operations(serial_driver, &wanpipe_tty_ops);
 #else
-		serial_driver.refcount = &serial_refcount;
-		serial_driver.table = serial_table;
-		serial_driver.termios = serial_termios;
-		serial_driver.termios_locked = serial_termios_locked;
+		serial_driver->refcount = &serial_refcount;
+		serial_driver->table = serial_table;
+		serial_driver->termios = serial_termios;
+		serial_driver->termios_locked = serial_termios_locked;
 
-		serial_driver.open = wanpipe_tty_open;
-		serial_driver.close = wanpipe_tty_close;
-		serial_driver.write = wanpipe_tty_write;
+		serial_driver->open = wanpipe_tty_open;
+		serial_driver->close = wanpipe_tty_close;
+		serial_driver->write = wanpipe_tty_write;
 		
-		serial_driver.put_char = wanpipe_tty_put_char;
-		serial_driver.flush_chars = wanpipe_tty_flush_chars;
-		serial_driver.write_room = wanpipe_tty_write_room;
-		serial_driver.chars_in_buffer = wanpipe_tty_chars_in_buffer;
-		serial_driver.flush_buffer = wanpipe_tty_flush_buffer;
-		//serial_driver.ioctl = wanpipe_tty_ioctl;
-		serial_driver.throttle = wanpipe_tty_throttle;
-		serial_driver.unthrottle = wanpipe_tty_unthrottle;
-		serial_driver.send_xchar = wanpipe_tty_send_xchar;
-		serial_driver.set_termios = wanpipe_tty_set_termios;
-		serial_driver.stop = wanpipe_tty_stop;
-		serial_driver.start = wanpipe_tty_start;
-		serial_driver.hangup = wanpipe_tty_hangup;
-		serial_driver.break_ctl = wanpipe_tty_break;
-		serial_driver.wait_until_sent = wanpipe_tty_wait_until_sent;
-		serial_driver.read_proc = wanpipe_tty_read_proc;
+		serial_driver->put_char = wanpipe_tty_put_char;
+		serial_driver->flush_chars = wanpipe_tty_flush_chars;
+		serial_driver->write_room = wanpipe_tty_write_room;
+		serial_driver->chars_in_buffer = wanpipe_tty_chars_in_buffer;
+		serial_driver->flush_buffer = wanpipe_tty_flush_buffer;
+		//serial_driver->ioctl = wanpipe_tty_ioctl;
+		serial_driver->throttle = wanpipe_tty_throttle;
+		serial_driver->unthrottle = wanpipe_tty_unthrottle;
+		serial_driver->send_xchar = wanpipe_tty_send_xchar;
+		serial_driver->set_termios = wanpipe_tty_set_termios;
+		serial_driver->stop = wanpipe_tty_stop;
+		serial_driver->start = wanpipe_tty_start;
+		serial_driver->hangup = wanpipe_tty_hangup;
+		serial_driver->break_ctl = wanpipe_tty_break;
+		serial_driver->wait_until_sent = wanpipe_tty_wait_until_sent;
+		serial_driver->read_proc = wanpipe_tty_read_proc;
 		
 		/*
 		 * The callout device is just like normal device except for
@@ -673,9 +675,12 @@ int wplip_reg_tty(wplip_link_t *lip_link, wanif_conf_t *cfg)
 		callout_driver.proc_entry = 0;
 #endif
 		
-		if (tty_register_driver(&serial_driver)){
+		if (tty_register_driver(serial_driver)){
 			DEBUG_EVENT( "%s: Failed to register serial driver!\n",
 					lip_link->name);
+			put_tty_driver(serial_driver);
+			serial_driver=NULL;
+			return -EINVAL;
 		}
 		
 #ifndef LINUX_2_6
@@ -714,7 +719,7 @@ int wplip_reg_tty(wplip_link_t *lip_link, wanif_conf_t *cfg)
 
 #ifndef LINUX_2_6
 	state->callout_termios = callout_driver.init_termios;
-	state->normal_termios = serial_driver.init_termios;
+	state->normal_termios = serial_driver->init_termios;
 #endif
 	state->icount.cts = state->icount.dsr = 
 		state->icount.rng = state->icount.dcd = 0;
@@ -743,15 +748,17 @@ int wplip_unreg_tty(wplip_link_t *lip_link)
 		return -EBUSY;
 	}
 	
-	if ((--tty_init_cnt) == 0){
+	if ((--tty_init_cnt) == 0 && serial_driver){
 		int e1;
 #ifndef LINUX_2_6
-		*serial_driver.refcount=0;
+		serial_driver->refcount=0;
 #endif
-		if ((e1 = tty_unregister_driver(&serial_driver))){
+		if ((e1 = tty_unregister_driver(serial_driver))){
 			DEBUG_EVENT( "SERIAL: failed to unregister serial driver (%d)\n",
 			       e1);
 		}
+		put_tty_driver(serial_driver);
+		serial_driver=NULL;
 #ifndef LINUX_2_6
 		if ((e1 = tty_unregister_driver(&callout_driver))){
 			DEBUG_EVENT( "SERIAL: failed to unregister callout driver (%d)\n", 

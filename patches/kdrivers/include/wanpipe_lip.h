@@ -292,7 +292,7 @@ typedef struct wplip_dev{
 	unsigned long			magic;
 	WAN_LIST_ENTRY(wplip_dev)	list_entry;
 
-	unsigned short			critical;
+	wan_bitmap_t			critical;
 	
 	/* Internal control information */
 	wan_skb_queue_t			tx_queue;
@@ -427,7 +427,7 @@ typedef struct wplip_prot_iface
 /* Function Prototypes */
 
 /* wanpipe_lip_iface.c */
-extern unsigned char 	wplip_link_num[];
+extern wan_bitmap_t 	wplip_link_num[];
 extern wan_rwlock_t 	wplip_link_lock;
 extern struct 		wplip_link_list list_head_link;
 extern int 		wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb);

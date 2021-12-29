@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.5.18
+%define version           3.5.19
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -254,6 +254,30 @@ install_init;
 
 
 %changelog
+
+
+* Fri Mar 1 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.19
+==================================================================
+
+- Fixed scripts for Ubuntu
+- TDM API updated Tone Event API to include tone type
+  DTMF, FAX_1100, FAX_2100, FAX_2100_WSPR
+- Fixes for latest 2.6.36 linux kernel
+- Fixes for TTY Driver for 2.6.32 linux kernel
+- BRI default idle set to 0xFF so it does not interfere
+  with multi-port mode.
+- BRI NT & TE activation/deactivation logic update.
+- Dahdi Yellow alarm reporting fix
+  Wanpipe driver did not report yellow alarms properly to dahdi
+- T1 Automatic AIS on LOS option now optional
+  Previoulsy the T1 code enabled automatic AIS on LOS by default.
+  This is now an option TE_AIS_AUTO_ON_LOS=YES|NO
+  Default behaviour is to send Yellow alarm on link down.
+- Fixed a TE1 startup race condition bug.
+  It was possible for T1/E1 interrupt to occour before
+  configuration was completel
+- Fixed wanpipe.spec for dahdi RPM build
+- Added serial clock recovery feature
 
 
 * Fri Nov 22 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.18

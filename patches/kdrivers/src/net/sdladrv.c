@@ -10661,7 +10661,7 @@ int sdla_hw_fe_test_and_set_bit(void *phw, int value)
 	WAN_ASSERT(hwcpu->hwcard == NULL);
 	hwcard = hwcpu->hwcard;
 
-	return wan_test_and_set_bit(value, &hwcpu->lines_info[hw->cfg_type].fe_rw_flag);
+	return wan_test_and_set_bit(value, &hwcpu->lines_info[hw->cfg_type].fe_rw_bitmap);
 }
 
 int sdla_hw_fe_test_bit(void *phw, int value)
@@ -10677,8 +10677,8 @@ int sdla_hw_fe_test_bit(void *phw, int value)
 	WAN_ASSERT(hwcpu->hwcard == NULL);
 	hwcard = hwcpu->hwcard;
 
-	//return wan_test_bit(value, &hwcard->fe_rw_flag);
-	return wan_test_bit(value, &hwcpu->lines_info[hw->cfg_type].fe_rw_flag);
+	//return wan_test_bit(value, &hwcard->fe_rw_bitmap);
+	return wan_test_bit(value, &hwcpu->lines_info[hw->cfg_type].fe_rw_bitmap);
 }   
 
 int sdla_hw_fe_clear_bit(void *phw, int value)
@@ -10694,8 +10694,8 @@ int sdla_hw_fe_clear_bit(void *phw, int value)
 	WAN_ASSERT(hwcpu->hwcard == NULL);
 	hwcard = hwcpu->hwcard;
 
-	//wan_clear_bit(value, &hwcard->fe_rw_flag);
-	wan_clear_bit(value, &hwcpu->lines_info[hw->cfg_type].fe_rw_flag);
+	//wan_clear_bit(value, &hwcard->fe_rw_bitmap);
+	wan_clear_bit(value, &hwcpu->lines_info[hw->cfg_type].fe_rw_bitmap);
 	return 0;
 }
 
@@ -10711,7 +10711,7 @@ int sdla_hw_fe_set_bit(void *phw, int value)
 	WAN_ASSERT(hwcpu->hwcard == NULL);
 	hwcard = hwcpu->hwcard;
 
-	wan_set_bit(value, &hwcpu->lines_info[hw->cfg_type].fe_rw_flag);
+	wan_set_bit(value, &hwcpu->lines_info[hw->cfg_type].fe_rw_bitmap);
 	return 0;
 }      
 

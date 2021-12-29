@@ -125,8 +125,13 @@ int MakeConnection(timeslot_t *slot, char *router_name )
 {
 
 	int span,chan;
+	int err;
+	int period=40;
+	wanpipe_api_t tdm_api;
 	sangoma_span_chan_fromif(slot->if_name,&span,&chan);
 	
+	memset(&tdm_api,0,sizeof(tdm_api));
+
 	if (span > 0 && chan > 0) {
 		wanpipe_tdm_api_t tdm_api;
              	slot->sock = sangoma_open_tdmapi_span_chan(span,chan);
@@ -135,12 +140,21 @@ int MakeConnection(timeslot_t *slot, char *router_name )
       			return( FALSE );
 		}
 
-                sangoma_tdm_set_codec(slot->sock,&tdm_api,WP_NONE);
-		 
-		
+        sangoma_tdm_set_codec(slot->sock,&tdm_api,WP_NONE);
+	
+
+#if 0
+		err=sangoma_tdm_set_usr_period(slot->sock,&tdm_api,period);
+		if (err) {
+     		printf("Error: Failed to set period\n");
+	    }
+#endif
+
 		printf("Socket bound to Span=%i Chan=%i\n\n",span,chan);
 		return (TRUE);
 	}
+
+
 	
 	return(FALSE);
 }

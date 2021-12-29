@@ -36,6 +36,7 @@ typedef struct wanpipe_wandev
 	int init;
 	int used;
 	wanpipe_cdev_t *cdev;
+	wan_mutexlock_t lock;
 }wanpipe_wandev_t;
 
 
@@ -88,6 +89,8 @@ int wanpipe_wandev_create(void)
 	
 	memset(&wandev,0,sizeof(wanpipe_wandev_t));
 
+	wan_mutex_lock_init(&wandev.lock, "wandev_mutex_lock");
+
 	cdev->dev_ptr=&wandev;
 	wandev.cdev=cdev;
 	memcpy(&cdev->ops,&wandev_fops,sizeof(wanpipe_cdev_ops_t));
@@ -97,6 +100,7 @@ int wanpipe_wandev_create(void)
 		wan_free(cdev);
 		memset(&wandev,0,sizeof(wanpipe_wandev_t));
 	}
+
 
 	DEBUG_WANDEV("%s: WANDEV CREATE \n",__FUNCTION__);
 
@@ -152,7 +156,10 @@ static int wp_wandev_close(void *obj)
 static int wp_wandev_ioctl(void *obj, int cmd, void *data)
 {
 	wanpipe_wandev_t *wdev=(wanpipe_wandev_t*)obj;
+	wan_smp_flag_t flag;
 	int err=-EINVAL;
+
+	wan_mutex_lock(&wdev->lock,&flag);
 
 	switch (cmd) {
 
@@ -175,6 +182,8 @@ static int wp_wandev_ioctl(void *obj, int cmd, void *data)
 		break;
 
 	}
+	
+	wan_mutex_unlock(&wdev->lock,&flag);
 
 	return err;
 

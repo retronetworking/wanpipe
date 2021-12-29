@@ -1,47 +1,47 @@
 K 25
 svn:wc:ra_dav:version-url
-V 43
-/svn/libsangoma/!svn/ver/299/trunk/sample_c
-END
-lib_api.c
-K 25
-svn:wc:ra_dav:version-url
-V 53
-/svn/libsangoma/!svn/ver/299/trunk/sample_c/lib_api.c
+V 75
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c
 END
 sample-doxygen.config
 K 25
 svn:wc:ra_dav:version-url
-V 64
-/svn/libsangoma/!svn/ver/57/trunk/sample_c/sample-doxygen.config
+V 97
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c/sample-doxygen.config
+END
+lib_api.c
+K 25
+svn:wc:ra_dav:version-url
+V 85
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c/lib_api.c
 END
 sample.c
 K 25
 svn:wc:ra_dav:version-url
-V 52
-/svn/libsangoma/!svn/ver/299/trunk/sample_c/sample.c
+V 84
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c/sample.c
 END
 sources
 K 25
 svn:wc:ra_dav:version-url
-V 51
-/svn/libsangoma/!svn/ver/146/trunk/sample_c/sources
+V 83
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c/sources
 END
 lib_api.h
 K 25
 svn:wc:ra_dav:version-url
-V 53
-/svn/libsangoma/!svn/ver/299/trunk/sample_c/lib_api.h
+V 85
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c/lib_api.h
 END
 Makefile.Linux
 K 25
 svn:wc:ra_dav:version-url
-V 58
-/svn/libsangoma/!svn/ver/141/trunk/sample_c/Makefile.Linux
+V 90
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c/Makefile.Linux
 END
 compile.bat
 K 25
 svn:wc:ra_dav:version-url
-V 54
-/svn/libsangoma/!svn/ver/32/trunk/sample_c/compile.bat
+V 87
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c/compile.bat
 END

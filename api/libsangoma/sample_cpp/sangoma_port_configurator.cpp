@@ -12,7 +12,7 @@
 #define INFO_CFG	if(1)printf("PORTCFG:");if(1)printf
 #define _INFO_CFG	if(1)printf
 
-#define ERR_CFG		if(1)printf("PORTCFG:");if(1)printf
+#define ERR_CFG		if(1)printf("%s():line:%d Error: ", __FUNCTION__, __LINE__);if(1)printf
 #define _ERR_CFG	if(1)printf
 
 //////////////////////////////////////////////////////////////////////
@@ -350,9 +350,11 @@ int sangoma_port_configurator::set_volatile_configration(port_cfg_t *port_cfg)
 	return 0;
 }
 
+/* optional optimization - single interrupt for both Rx and Tx audio streams */
+#define SPAN_TX_ONLY_IRQ 0
 
 /*!
-  \brief Brief port description
+  \brief Example initialization for T1
  *
  */
 
@@ -363,6 +365,7 @@ int sangoma_port_configurator::initialize_t1_tdm_span_voice_api_configration_str
 	//sdla_te_cfg_t	*te_cfg = &sdla_fe_cfg->cfg.te_cfg;
     wan_tdmv_conf_t *tdmv_cfg = &wandev_conf->tdmv_conf;
     wanif_conf_t	*wanif_cfg = &port_cfg->if_cfg[0];
+	wan_xilinx_conf_t 	*aft_cfg = &wandev_conf->u.aft;
 
     // T1 parameters
     FE_MEDIA(sdla_fe_cfg) = WAN_MEDIA_T1;
@@ -385,6 +388,7 @@ int sangoma_port_configurator::initialize_t1_tdm_span_voice_api_configration_str
 	FE_CLK(sdla_fe_cfg) = WAN_MASTER_CLK;
 #endif
 
+	// API parameters
     port_cfg->num_of_ifs = 1;
 
     wandev_conf->config_id = WANCONFIG_AFT_TE1;
@@ -394,6 +398,12 @@ int sangoma_port_configurator::initialize_t1_tdm_span_voice_api_configration_str
 	wandev_conf->PCI_slot_no = hardware_info->pci_slot_number;
 	wandev_conf->pci_bus_no = hardware_info->pci_bus_number;
     wandev_conf->card_type = WANOPT_AFT; //m_DeviceInfoData.card_model;
+
+#if SPAN_TX_ONLY_IRQ
+	aft_cfg->span_tx_only_irq = 1;
+#else
+	aft_cfg->span_tx_only_irq = 0;
+#endif
 
 	wanif_cfg->magic = ROUTER_MAGIC;
     wanif_cfg->active_ch = 0x00FFFFFF;//channels 1-24 (starting from bit zero)
@@ -429,15 +439,16 @@ int sangoma_port_configurator::initialize_t1_tdm_span_voice_api_configration_str
 	return 0;
 }
 
-
+#define BUILD_FOR_PRI 1
 int sangoma_port_configurator::initialize_e1_tdm_span_voice_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
 {
     wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
     sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
     wan_tdmv_conf_t  *tdmv_cfg = &wandev_conf->tdmv_conf;
     wanif_conf_t     *wanif_cfg = &port_cfg->if_cfg[0];
+	wan_xilinx_conf_t 	*aft_cfg = &wandev_conf->u.aft;
 
-	// Load media parameters in the registry
+	// E1 parameters
     FE_MEDIA(sdla_fe_cfg) = WAN_MEDIA_E1;
     FE_LCODE(sdla_fe_cfg) = WAN_LCODE_HDB3;
     FE_FRAME(sdla_fe_cfg) = WAN_FR_CRC4;
@@ -458,6 +469,7 @@ int sangoma_port_configurator::initialize_e1_tdm_span_voice_api_configration_str
 	FE_CLK(sdla_fe_cfg) = WAN_MASTER_CLK;
 #endif
 
+	// API parameters
     port_cfg->num_of_ifs = 1;
 
     wandev_conf->config_id = WANCONFIG_AFT_TE1;
@@ -468,8 +480,21 @@ int sangoma_port_configurator::initialize_e1_tdm_span_voice_api_configration_str
 	wandev_conf->pci_bus_no = hardware_info->pci_bus_number;
     wandev_conf->card_type = WANOPT_AFT; //m_DeviceInfoData.card_model;
 
+#if SPAN_TX_ONLY_IRQ
+	aft_cfg->span_tx_only_irq = 1;
+#else
+	aft_cfg->span_tx_only_irq = 0;
+#endif
+
 	wanif_cfg->magic = ROUTER_MAGIC;
+#if BUILD_FOR_PRI
+	//PRI Signaling on chan 16
     wanif_cfg->active_ch = 0x7FFFFFFF;// channels 1-31 (starting from bit zero)
+#else
+	//CAS 
+    wanif_cfg->active_ch = 0xFFFF7FFF;// channels 1-15.17-31 -> Active Ch Map :0xFFFEFFFE (in message log)
+#endif
+
     sprintf(wanif_cfg->usedby,"TDM_SPAN_VOICE_API");
     wanif_cfg->u.aft.idle_flag=0xFF;
     wanif_cfg->mtu = 160;
@@ -486,6 +511,7 @@ int sangoma_port_configurator::initialize_e1_tdm_span_voice_api_configration_str
 
     tdmv_cfg->span_no = (unsigned char)span;
 
+#if BUILD_FOR_PRI
 	/* DCHAN Configuration */
     switch(FE_MEDIA(sdla_fe_cfg))
     {
@@ -496,8 +522,138 @@ int sangoma_port_configurator::initialize_e1_tdm_span_voice_api_configration_str
 		printf("%s(): Error: invalid media type!\n", __FUNCTION__);
 		return 1;
     }
-	
+#endif
+
 	printf("E1: tdmv_cfg->dchan bitmap: 0x%X\n", tdmv_cfg->dchan);
+	return 0;
+}
+
+int sangoma_port_configurator::initialize_bri_tdm_span_voice_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
+{
+    wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
+    sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
+    wan_tdmv_conf_t  *tdmv_cfg = &wandev_conf->tdmv_conf;
+    wanif_conf_t     *wanif_cfg = &port_cfg->if_cfg[0];
+
+	// BRI parameters
+    FE_MEDIA(sdla_fe_cfg) = WAN_MEDIA_BRI;
+	FE_LINENO(sdla_fe_cfg) = hardware_info->port_number;
+	FE_TDMV_LAW(sdla_fe_cfg) = WAN_TDMV_ALAW;
+	FE_NETWORK_SYNC(sdla_fe_cfg) = 0;
+
+	FE_REFCLK(sdla_fe_cfg) = 0;
+
+#if 0
+	/* 
+	 * TE Module: WAN_NORMAL_CLK is the default. 
+	 * Clock recovered from the line will be used by this module and
+	 * will be routed to ALL other BRI modules on the card which
+	 * become "connected" after this module. That means at any
+	 * time there is a single BRI line where the clock is recovered from
+	 * and this clock is used for all other BRI lines.
+	 *
+	 * NT Module: always runs on internal oscillator clock.
+	 */
+	BRI_FE_CLK((*sdla_fe_cfg)) = WAN_NORMAL_CLK;
+#else
+	/*
+	 * TE Module: if WAN_MASTER_CLK, clock recovered from
+	 * the line will be NOT be used by this module and
+	 * will NOT be routed to ALL other BRI modules on the card.
+	 * Instead, the module will use clock from internal oscillator.
+	 *
+	 * NT Module: WAN_MASTER_CLK will be ignored because NT should not
+	 * recover clock from the line, it always runs on clock from
+	 * internal oscillator.
+	 */
+	BRI_FE_CLK((*sdla_fe_cfg)) = WAN_MASTER_CLK;
+#endif
+
+    port_cfg->num_of_ifs = 1;
+
+    wandev_conf->config_id = WANCONFIG_AFT_ISDN_BRI;
+    wandev_conf->magic = ROUTER_MAGIC;
+	
+    wandev_conf->mtu = 2048;
+	wandev_conf->PCI_slot_no = hardware_info->pci_slot_number;
+	wandev_conf->pci_bus_no = hardware_info->pci_bus_number;
+    wandev_conf->card_type = WANOPT_AFT; //m_DeviceInfoData.card_model;
+
+	wanif_cfg->magic = ROUTER_MAGIC;
+    wanif_cfg->active_ch = 0xFFFFFFFF;
+    sprintf(wanif_cfg->usedby,"TDM_SPAN_VOICE_API");
+    wanif_cfg->u.aft.idle_flag=0xFF;
+    wanif_cfg->mtu = 160;
+    wanif_cfg->u.aft.mtu = 160;
+	wanif_cfg->u.aft.mru = 160;
+	sprintf(wanif_cfg->name,"w%dg1",span);
+
+    if (hardware_info->max_hw_ec_chans) {
+		/* wan_hwec_conf_t - HWEC configuration for Port */
+		/*wandev_conf->hwec_conf.dtmf = 1;*/
+		/* wan_hwec_if_conf_t - HWEC configuration for Interface */
+		wanif_cfg->hwec.enable = 1;
+	}
+
+    tdmv_cfg->span_no = (unsigned char)span;
+
+	/* There is no DCHAN Configuration on BRI because it is
+	 * configured automatically by the driver. */
+	
+	return 0;
+}
+
+int sangoma_port_configurator::initialize_serial_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
+{
+    wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
+    sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
+    wan_tdmv_conf_t  *tdmv_cfg = &wandev_conf->tdmv_conf;
+    wanif_conf_t     *wanif_cfg = &port_cfg->if_cfg[0];
+
+	// Serial parameters
+    FE_MEDIA(sdla_fe_cfg) = WAN_MEDIA_SERIAL;
+	FE_LINENO(sdla_fe_cfg) = hardware_info->port_number;
+
+    wandev_conf->line_coding = WANOPT_NRZ;
+	/* WANOPT_V35/WANOPT_X21 are valid for card models:
+	 * AFT_ADPTR_2SERIAL_V35X21 and AFT_ADPTR_4SERIAL_V35X21.
+	 * WANOPT_RS232 valid for card models:
+	 * AFT_ADPTR_2SERIAL_RS232 and AFT_ADPTR_4SERIAL_RS232.
+	 */
+    wandev_conf->electrical_interface = WANOPT_V35;
+#if 1
+	wandev_conf->clocking = WANOPT_EXTERNAL;
+	wandev_conf->bps = 0;
+#else
+	wandev_conf->clocking = WANOPT_INTERNAL;
+	wandev_conf->bps = 56000;
+#endif
+
+	wandev_conf->connection = WANOPT_PERMANENT;//or WANOPT_SWITCHED
+	wandev_conf->line_idle = WANOPT_IDLE_FLAG;
+
+	// API parameters
+    port_cfg->num_of_ifs = 1;
+
+    wandev_conf->config_id = WANCONFIG_AFT_SERIAL;
+    wandev_conf->magic = ROUTER_MAGIC;
+	
+    wandev_conf->mtu = 2048;
+	wandev_conf->PCI_slot_no = hardware_info->pci_slot_number;
+	wandev_conf->pci_bus_no = hardware_info->pci_bus_number;
+    wandev_conf->card_type = WANOPT_AFT; //m_DeviceInfoData.card_model;
+
+	wanif_cfg->magic = ROUTER_MAGIC;
+    wanif_cfg->active_ch = 0xFFFFFFFF;
+    sprintf(wanif_cfg->usedby,"API");
+    wanif_cfg->u.aft.idle_flag=0xFF;
+    wanif_cfg->mtu = 1600;
+    wanif_cfg->u.aft.mtu = 1600;
+	wanif_cfg->u.aft.mru = 1600;
+	sprintf(wanif_cfg->name,"w%dg1",span);
+
+	wanif_cfg->hdlc_streaming = WANOPT_YES;
+
 	return 0;
 }
 
@@ -511,17 +667,20 @@ int sangoma_port_configurator::control_analog_rm_lcm(port_cfg_t *port_cfg, int c
 {
 	wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
     sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
-	if(wandev_conf->card_type == WANOPT_AFT_ANALOG){ //Only valid for Analog cards
-		if(control_val == 1){
+	if (wandev_conf->card_type == WANOPT_AFT_ANALOG) { //Only valid for Analog cards
+		if (control_val == 1) {
+			INFO_CFG("%s(): enabling FXO Loop Current Monitoring.\n", __FUNCTION__);
 			sdla_fe_cfg->cfg.remora.rm_lcm = 1;
-		}else if(control_val == 0){
+		} else if(control_val == 0) {
+			INFO_CFG("%s(): disabling FXO Loop Current Monitoring.\n", __FUNCTION__);
 			sdla_fe_cfg->cfg.remora.rm_lcm = 0;
-		}else{
-			printf("%s(): Error: invalid parameter!\n", __FUNCTION__);
+		} else {
+			ERR_CFG("invalid parameter!\n");
 			return -EINVAL;
 		}	
-	} else{
-			return -EINVAL;
+	} else {
+		ERR_CFG("invalid card type: %d!\n", wandev_conf->card_type);
+		return -EINVAL;
 	}
 	return 0;
 }
@@ -603,4 +762,15 @@ int sangoma_port_configurator::set_analog_opermode(port_cfg_t *port_cfg, char *o
 			return -EINVAL;
 	}
 	return 0;
+}
+
+void sangoma_port_configurator::initialize_interface_mtu_mru(port_cfg_t *port_cfg, unsigned int mtu, unsigned int mru)
+{
+    wanif_conf_t	*wanif_cfg = &port_cfg->if_cfg[0];
+
+	INFO_CFG("%s(): new MTU: %d, new MRU: %d.\n", __FUNCTION__, mtu, mru);
+
+    wanif_cfg->mtu = mtu;
+    wanif_cfg->u.aft.mtu = mtu;
+	wanif_cfg->u.aft.mru = mru;
 }

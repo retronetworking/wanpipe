@@ -46,7 +46,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;$(SANG_WP_DEVEL)\libsangoma&quot;;&quot;$(SANG_WP_DEVEL)\wanpipe_common\include&quot;;&quot;$(SANG_WP_DEVEL)\wanpipe_common\include\aft_core&quot;;&quot;$(SANG_WP_DEVEL)\wanpipe_windows\include&quot;;&quot;$(SANG_WP_DEVEL)\stelephony&quot;;&quot;$(SANG_WP_DEVEL)\wanpipe_windows\HighResolutionTimer\include&quot;"
+				AdditionalIncludeDirectories="&quot;$(SANG_WP_DEVEL)\libsangoma&quot;;&quot;$(SANG_WP_DEVEL)\wanpipe_common\include&quot;;&quot;$(SANG_WP_DEVEL)\wanpipe_common\include\aft_core&quot;;&quot;$(SANG_WP_DEVEL)\wanpipe_windows\include&quot;;&quot;$(SANG_WP_DEVEL)\stelephony&quot;;&quot;$(SANG_WP_DEVEL)\wanpipe_windows\HighResolutionTimer\include&quot;;&quot;$(SANG_WP_DEVEL)\wanpipe_common\wantools\wanec_apilib&quot;"
 				PreprocessorDefinitions="_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;__WINDOWS__;_WIN32_WINNT=0x0500;NOMINMAX;USE_SANGOMA_ERRNO"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"

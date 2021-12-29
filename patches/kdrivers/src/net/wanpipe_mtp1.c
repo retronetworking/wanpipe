@@ -164,6 +164,13 @@ static __inline int su_accept(wp_mtp1_link_t *p_lnk, int err_code)
 {
 	int err=-1;
 
+	if (p_lnk->rx_buf_len < 3) {
+		if (p_lnk->reg.rx_suerm) {
+			err=p_lnk->reg.rx_suerm(p_lnk->reg.priv_ptr);
+		}
+		return err;
+	}
+
 	if (p_lnk->reg.trace && err_code == 0) {
 		p_lnk->reg.trace(p_lnk->reg.priv_ptr, &p_lnk->rx_buf[0], p_lnk->rx_buf_len-2, 1);
 	}
@@ -390,9 +397,11 @@ static void rx_bit_to_su (wp_mtp1_link_t * p_lnk, u8 bit)
 		}
 		else
 		{
+#ifdef DEBUG
 			/* program is borked */
 			DEBUG_EVENT ("%s: octet bit count < 8:octet bit count follow",
 						 p_lnk->name,p_lnk->r_octet_bit_count);
+#endif
 
 			p_lnk->state_daedr = INIT;
 		}

@@ -283,6 +283,7 @@ static key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TE_SIG_MODE",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, sig_mode), DTYPE_UCHAR },
   { "TE_IGNORE_YEL", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, ignore_yel_alarm), DTYPE_UCHAR },
   { "TE_AIS_MAINTENANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, ais_maintenance), DTYPE_UCHAR },
+  { "TE_AIS_AUTO_ON_LOS", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, ais_auto_on_los), DTYPE_UCHAR },
   /* T1/E1 Front-End parameters (old style) */
   { "LBO",           offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, lbo), DTYPE_UCHAR },
   { "ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, active_ch), DTYPE_UINT },
@@ -443,6 +444,7 @@ static key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
   { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UCHAR },
   { "DATA_MUX_MAP",  smemof(wan_xilinx_conf_t, data_mux_map), DTYPE_UINT },
   { "RX_CRC_BYTES",  smemof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
+  { "SPAN_TX_ONLY_IRQ",  smemof(wan_xilinx_conf_t, span_tx_only_irq), DTYPE_UCHAR},
   
   { NULL, 0, 0 }
 };
@@ -1106,6 +1108,7 @@ static look_up_t	sym_table[] =
 	/*----- Clocking ----------------------*/
 	{ WANOPT_EXTERNAL,	"EXTERNAL"	}, 
 	{ WANOPT_INTERNAL,	"INTERNAL"	}, 
+	{ WANOPT_RECOVERY,      "RECOVERY"      },
 	/*----- Station -----------------------*/
 	{ WANOPT_DTE,		"DTE"		}, 
 	{ WANOPT_DCE,		"DCE"		}, 

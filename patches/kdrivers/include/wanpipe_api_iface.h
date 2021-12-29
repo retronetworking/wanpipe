@@ -92,6 +92,7 @@ typedef int sng_fd_t;
 #define WP_API_FEATURE_DRIVER_GAIN  1
 #define WP_API_FEATURE_FE_RW        1
 #define WP_API_FEATURE_HWEC_PERSIST 1
+#define WP_API_FEATURE_FAX_TYPE_EVENTS 1
 
 /*!
   \enum WANPIPE_IOCTL_CODE
@@ -312,7 +313,7 @@ enum wanpipe_cdev_ctrl_cmds
 enum wanpipe_api_events
 {
 	WP_API_EVENT_NONE,				/*!<  */
-	WP_API_EVENT_RBS,				/*!< Enable Disable RBS Opertaion Mode (T1: RBS E1: CAS) */
+	WP_API_EVENT_RBS,				/*!< Tx: Enable Disable RBS Opertaion Mode (T1: RBS E1: CAS) */
 	WP_API_EVENT_ALARM,				/*!<  */
 	WP_API_EVENT_DTMF,				/*!< Enable Disable HW DTMF Detection  */
 	WP_API_EVENT_RM_DTMF,			/*!<  */
@@ -334,6 +335,9 @@ enum wanpipe_api_events
 	WP_API_EVENT_FAX_DETECT,		/*!< Enable Disable HW Fax Detection */
 	WP_API_EVENT_SET_RM_TX_GAIN,		/*!< Set Tx Gain for FXO/FXS */
 	WP_API_EVENT_SET_RM_RX_GAIN,		/*!< Set Rx Gain for FXO/FXS */
+	WP_API_EVENT_FAX_1100,         	/*!< IN: FAX 1100 Tone event */
+	WP_API_EVENT_FAX_2100,          /*!< IN: FAX 2100 Tone event */
+	WP_API_EVENT_FAX_2100_WSPR,     /*!< IN: FAX 2100 WSPR Tone event */
 };
 
 

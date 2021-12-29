@@ -27,7 +27,6 @@
 #include "wanpipe_lip.h"
 #endif
 
-WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)	
 
 /*=============================================================
  * Definitions
@@ -45,7 +44,7 @@ extern void wan_ng_link_state(wanpipe_common_t *common, int state);
 
 struct wplip_link_list list_head_link;
 wan_rwlock_t wplip_link_lock;
-unsigned char wplip_link_num[MAX_LIP_LINKS];
+wan_bitmap_t wplip_link_num[MAX_LIP_LINKS];
 #if 0
 int gdbg_flag=0;
 #endif

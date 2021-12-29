@@ -3646,7 +3646,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
                                                  WOOMERA_LINE_SEPERATOR,
                                                  cause,
                                                  WOOMERA_RECORD_SEPERATOR);
-		socket_printf(woomera->socket, "400 Woomera cmd without uniquie id%s"
+		socket_printf(woomera->socket, "400 Woomera cmd without uniquie id%s",
 						WOOMERA_RECORD_SEPERATOR);
 
 		log_printf(SMG_LOG_DEBUG_CALL,server.log,"Woomera RX Event (%s) without unique id!\n",wmsg->command);
@@ -3712,7 +3712,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
                                                  WOOMERA_LINE_SEPERATOR,
                                                  cause,
                                                  WOOMERA_RECORD_SEPERATOR);
-			socket_printf(woomera->socket, "404 Session not found%s"
+			socket_printf(woomera->socket, "404 Session not found%s",
 						WOOMERA_RECORD_SEPERATOR);
 
 			
@@ -3772,7 +3772,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
                                                  cause,
                                                  WOOMERA_RECORD_SEPERATOR);
 
-				socket_printf(woomera->socket, "404 Hangup on multiple session%s"
+				socket_printf(woomera->socket, "404 Hangup on multiple session%s",
 						WOOMERA_RECORD_SEPERATOR);
 
 				woomera_set_flag(woomera, WFLAG_HANGUP);
@@ -3815,7 +3815,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 										cause,
 										WOOMERA_RECORD_SEPERATOR);
 
-		socket_printf(woomera->socket, "404 Session Mis-match%s"
+		socket_printf(woomera->socket, "404 Session Mis-match%s",
 						WOOMERA_RECORD_SEPERATOR);
 		woomera_set_flag(woomera, WFLAG_HANGUP);
 		return;

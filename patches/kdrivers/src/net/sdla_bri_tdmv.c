@@ -1287,20 +1287,26 @@ static void wp_tdmv_bri_tone (void* card_id, wan_event_t *event)
         WAN_ASSERT1(wan_tdmv->sc == NULL);
         wr = wan_tdmv->sc;
 
-	if (event->type == WAN_EVENT_RM_DTMF){
-		DEBUG_EVENT("%s: Received DTMF Event at TDM BRI (%d:%c)!\n",
+
+	 switch(event->type) {
+     	case WAN_EVENT_EC_DTMF:
+		case WAN_EVENT_EC_FAX_1100:
+			break;
+		default:
+			  DEBUG_ERROR("%s: %s() Error Invalid event type %X (%s)!\n",
+				card->devname, __FUNCTION__, event->type, WAN_EVENT_TYPE_DECODE(event->type));      
+			return;
+	}
+
+	DEBUG_TDMV(
+	"[TDMV] %s: Received EC Tone (%s) Event at TDM (chan=%d digit=%c port=%s type=%s)!\n",
 			card->devname,
-			event->channel,
-			event->digit);	
-	}else{
-		DEBUG_EVENT("%s: Received Tone Event at TDM BRI (%d:%c:%s:%s)!\n",
-			card->devname,
+			WAN_EVENT_TYPE_DECODE(event->type),
 			event->channel,
 			event->digit,
 			(event->tone_port == WAN_EC_CHANNEL_PORT_ROUT)?"ROUT":"SOUT",
-			(event->tone_type == WAN_EC_TONE_PRESENT)?"PRESENT":"STOP");
-	}
-					
+			(event->tone_type == WAN_EC_TONE_PRESENT)?"PRESENT":"STOP"); 
+
 	if (!(wr->tonemask & (1 << (event->channel-1)))){
 		DEBUG_EVENT("%s: Tone detection is not enabled for the channel %d\n",
 					card->devname,

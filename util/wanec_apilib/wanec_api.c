@@ -2,6 +2,9 @@
 ** Copyright (c) 2005 Sangoma Technologies.  All rights reserved.
 **
 ** ============================================================================
+**
+** May 21, 2010		Moises Silva    <moy@sangoma.com>	Thread safety (no globals!)
+**
 ** May 12, 2010		David Rokhvarg 	added verbosity control (WANEC_API_PRINT()).
 **
 ** Jul 26, 2006		David Rokhvarg	<davidr@sangoma.com>	Ported to Windows.
@@ -57,7 +60,6 @@
 
 #include "wanec_api.h"
 
-
 /******************************************************************************
 **			  DEFINES AND MACROS
 ******************************************************************************/
@@ -74,9 +76,7 @@
 /******************************************************************************
 **			   GLOBAL VARIABLES
 ******************************************************************************/
-wan_ec_api_t		ec_api;
-
-int	ec_library_verbose = 1; /* by default, the library will print to stdout */
+int    ec_library_verbose = 1; /* by default, the library will print to stdout */
 
 /******************************************************************************
 ** 			FUNCTION PROTOTYPES
@@ -425,6 +425,9 @@ static int wanec_api_print_chan_stats(wan_ec_api_t *ec_api, int fe_chan)
 	WANEC_API_PRINT("%10s:%2d: (VQE) Acoustic Echo\t\t\t\t: %s\n",
 				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fAcousticEcho == TRUE) ? "TRUE" : "FALSE");
+
+	/* Out means: from Driver to FPGA to HWEC
+	 * In  means: from HWEC to FPGA to Driver. */
 	WANEC_API_PRINT("%10s:%2d: (VQE) Out Automatic Level Control\t\t: %s\n",
 				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fRinAutomaticLevelControl == TRUE) ? "TRUE" : "FALSE");
@@ -798,7 +801,7 @@ void _WANEC_API_CALL wanec_api_set_lib_verbosity(int verbosity_level)
 
 int _WANEC_API_CALL wanec_api_init(void)
 {
-	memset(&ec_api, 0, sizeof(ec_api));
+	/* No op (a global wan_ec_api_t used to be initialized here, which is of course non-thread-safe) */
 	return 0;
 }
 

@@ -292,7 +292,7 @@ static struct file_operations wandev_fops = {
 	.read	 = seq_read,
 	.llseek	 = seq_lseek,
 	.release = single_release,
-	.ioctl	 = wanrouter_ioctl,
+	.WAN_IOCTL	 = wanrouter_ioctl,
 };
 
 static int wp_hwprobe_open(struct inode *inode, struct file *file)
@@ -451,7 +451,7 @@ static struct inode_operations router_inode =
 static struct file_operations wandev_fops =
 {
 	read:		router_proc_read,
-	ioctl:		wanrouter_ioctl,
+	WAN_IOCTL:		wanrouter_ioctl,
 };
 
 /*

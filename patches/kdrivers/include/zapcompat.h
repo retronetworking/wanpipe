@@ -171,7 +171,9 @@
 #define WP_PRIV_FROM_CHAN(chan_dev, str_type)			chan_dev->pvt
 #endif
 
-
+#ifdef DAHDI_ISSUES
+#define WP_DAHDI_SPAN_OPS   dahdi_span_ops
+#endif
 
 # define WP_ZT_QEVENT_LOCK(chan, event)	dahdi_qevent_lock((chan),(event))
 

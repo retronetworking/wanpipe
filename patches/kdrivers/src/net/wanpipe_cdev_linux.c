@@ -90,7 +90,7 @@ static int wp_cdev_open(struct inode *inode, struct file *file);
 static int wp_cdev_release(struct inode *inode, struct file *file);
 static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_t *ppos);
 static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count, loff_t *ppos);
-static int wp_cdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long data);
+static WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wp_cdev_ioctl, struct file *file, unsigned int cmd, unsigned long data);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
 static long wp_cdev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long data);
 #endif
@@ -121,7 +121,7 @@ static struct file_operations wp_cdev_fops = {
 	llseek: NULL,
 	open: wp_cdev_open,
 	release: wp_cdev_release,
-	ioctl: wp_cdev_ioctl,
+	WAN_IOCTL: wp_cdev_ioctl,
 	read: wp_cdev_read,
 	write: wp_cdev_write,
 	poll: wp_cdev_poll,
@@ -779,10 +779,10 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 }
 
 
-static int wp_cdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long data)
+static WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wp_cdev_ioctl, struct file *file, unsigned int cmd, unsigned long data)
 {
 	wanpipe_cdev_t *cdev;
-	int err=-EINVAL;
+	WAN_IOCTL_RET_TYPE err=-EINVAL;
 
 	WAN_ASSERT((file==NULL));
 
@@ -798,10 +798,14 @@ static int wp_cdev_ioctl(struct inode *inode, struct file *file, unsigned int cm
 	return err;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18) 
 static long wp_cdev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long data)
 {
+#ifdef HAVE_UNLOCKED_IOCTL
+    long err = (long) wp_cdev_ioctl(file, cmd, data);
+#else
     long err = (long) wp_cdev_ioctl(NULL, file, cmd, data);
+#endif
 	return err;
 }
 #endif

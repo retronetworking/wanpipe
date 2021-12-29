@@ -68,6 +68,12 @@ int sdla_tdmv_dummy_tick(void *wpd_ptr)
    return 0;
 }
 
+#ifdef DAHDI_24
+static const struct WP_DAHDI_SPAN_OPS dummy_ops = {
+	.owner = THIS_MODULE,
+};
+#endif
+
 void* sdla_tdmv_dummy_register(void) 
 { 
    sdla_tdmv_dummy_t *wpd = wan_kmalloc(sizeof(sdla_tdmv_dummy_t));
@@ -82,6 +88,9 @@ void* sdla_tdmv_dummy_register(void)
 #ifdef DAHDI_ISSUES
    wpd->chan_ptr   = &wpd->chan;
    wpd->span.chans = &wpd->chan_ptr;
+#ifdef DAHDI_24
+	wpd->span.ops = &dummy_ops;
+#endif
 #else
    wpd->span.chans = &wpd->chan;
 #endif

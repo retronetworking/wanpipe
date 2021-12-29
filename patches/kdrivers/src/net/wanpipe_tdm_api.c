@@ -61,12 +61,8 @@
 #define WP_TDM_MAX_TX_Q_LEN 5
 #define WP_TDM_MAX_HDLC_TX_Q_LEN 17
 
-#if defined(__WINDOWS__)
-//davidr: v6.0.31.1
-#define WP_TDM_MAX_EVENT_Q_LEN 50
-#else
-#define WP_TDM_MAX_EVENT_Q_LEN 200
-#endif
+#define WP_TDM_MAX_EVENT_Q_TIMESLOT_MULTIPLE 6
+#define WP_TDM_MIN_EVENT_Q_LEN 10
 
 #define WP_TDM_MAX_CTRL_EVENT_Q_LEN 2000 /* 500 channels * 40 events (At same time) */
 #define WP_TDM_MAX_RX_FREE_Q_LEN 10
@@ -469,7 +465,8 @@ static int wp_tdmapi_reg_globals(void)
 		}
 	}
 
-#if !defined(__WINDOWS__)
+#if 0
+/*  FIXME timer dev is not complete */
 	err=wanpipe_wandev_timer_create();
 #endif
 
@@ -514,7 +511,8 @@ static int wp_tdmapi_unreg_globals(void)
 
 	DEBUG_TEST("%s(): Unregistering Global API Devices!\n",__FUNCTION__);
 
-#if !defined(__WINDOWS__)
+#if 0
+/*  FIXME timer dev is not complete */
 	wanpipe_wandev_timer_free();
 #endif
 
@@ -538,6 +536,7 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 	sdla_fe_t			*fe =NULL;
 	int 				tdm_api_queue_init=0;
 	wanpipe_tdm_api_card_dev_t *tdm_card_dev=NULL;
+	int					event_queue_len=0;
 
 	wan_mutex_lock_init(&tdm_api->lock, "wan_tdmapi_lock");
 	wan_spin_lock_init(&tdm_api->irq_lock, "wan_tdmapi_irq_lock");
@@ -626,7 +625,12 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 		goto tdm_api_reg_error_exit;
 	}
 
-	err=wp_tdmapi_alloc_q(tdm_api, &tdm_api->wp_event_free_list, WP_TDM_API_EVENT_MAX_LEN, WP_TDM_MAX_EVENT_Q_LEN);
+	event_queue_len=tdm_api->timeslots * WP_TDM_MAX_EVENT_Q_TIMESLOT_MULTIPLE;
+	if (event_queue_len < WP_TDM_MIN_EVENT_Q_LEN) {
+    	event_queue_len=WP_TDM_MIN_EVENT_Q_LEN; 	
+	}
+
+	err=wp_tdmapi_alloc_q(tdm_api, &tdm_api->wp_event_free_list, WP_TDM_API_EVENT_MAX_LEN, event_queue_len);
 	if (err) {
 		goto tdm_api_reg_error_exit;
 	}
@@ -644,9 +648,11 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 		if (IS_BRI_CARD(card)) {
 			tdm_api->cfg.hw_mtu_mru		=300;
 			tdm_api->cfg.usr_mtu_mru	=300;
+			tdm_api->mtu_mru = 300;
 		} else {
 			tdm_api->cfg.hw_mtu_mru		=1500;
 			tdm_api->cfg.usr_mtu_mru	=1500;
+			tdm_api->mtu_mru = 1500;
 		}
 
 		tdm_api->cfg.usr_period		=0;
@@ -704,6 +710,7 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 				err=-EINVAL;
 				goto tdm_api_reg_error_exit;
 			}
+		
 		}
 
 		if (tdm_api->cfg.idle_flag == 0) {
@@ -729,7 +736,8 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 	sprintf(tmp_name,"wanpipe%d_if%d",tdm_api->tdm_span,tdm_api->tdm_chan);
 
 	DEBUG_TDMAPI("%s: Configuring TDM API NAME=%s Qlen=%i TS=%i MTU=%i\n",
-				 card->devname,tmp_name, tdm_api->cfg.tx_queue_sz, tdm_api->timeslots,tdm_api->mtu_mru);
+				 card->devname,tmp_name, tdm_api->cfg.tx_queue_sz, 
+				 tdm_api->timeslots,tdm_api->mtu_mru);
 
 	/* Initialize Event Callback functions */
 	card->wandev.event_callback.rbsbits		= NULL; /*wp_tdmapi_rbsbits;*/
@@ -838,13 +846,12 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 		}
 	}
 
-	if (IS_BRI_CARD(card)) {
-		if (fe->fe_status == FE_DISCONNECTED) {
-			tdm_api->cfg.fe_alarms = (1 | WAN_TE_BIT_ALARM_RED);
-		} else {
-			tdm_api->cfg.fe_alarms = 0;
-		}
-	}
+   	tdm_api->cfg.fe_alarms = 0;
+	if (IS_BRI_CARD(card) || IS_TE1_CARD(card)) {
+   		if (fe->fe_status == FE_DISCONNECTED) {
+   			tdm_api->cfg.fe_alarms = (1 | WAN_TE_BIT_ALARM_RED);
+   		}
+	} 
 
 	return err;
 
@@ -1919,7 +1926,11 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 
 	/* Set the span/channel so that user knows which channel its using */
     usr_tdm_api.chan=channel;
-	usr_tdm_api.span=wp_tdmapi_get_span(card);
+
+	if (card) {
+		/* must NOT do it for ctrl device! */
+		usr_tdm_api.span=wp_tdmapi_get_span(card);
+	}
 
 	/* Commands for HDLC Device */
 
@@ -1949,7 +1960,7 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		case WP_API_CMD_SET_RX_Q_SIZE:
 			break;
 		default:
-			DEBUG_EVENT("%s: Invalid TDM API HDLC CMD %i\n", tdm_api->name,cmd);
+			DEBUG_WARNING("%s: Warning: Invalid TDM API HDLC CMD %i\n", tdm_api->name,cmd);
 			usr_tdm_api.result=SANG_STATUS_OPTION_NOT_SUPPORTED;
 			err=-EOPNOTSUPP;
 			goto tdm_api_exit;
@@ -2000,6 +2011,13 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		goto tdm_api_exit;
 	}
 
+	/* at this point 'card' must NOT be null */
+	if (!card) {
+		DEBUG_ERROR("%s: Error: %s(): 'card' pointer is null!\n", tdm_api->name, __FUNCTION__);
+		err=-EOPNOTSUPP;
+		goto tdm_api_exit;
+	}
+
 	/* Commands for TDM API Device */
 
 	switch (cmd) {
@@ -2018,13 +2036,18 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		break;
 
 	case WP_API_CMD_SET_USR_PERIOD:
+		
+		if (!WPTDM_CHAN_OP_MODE(tdm_api)) {
+			err=-EOPNOTSUPP;
+			goto tdm_api_exit;
+		}
 
 		if (usr_tdm_api.usr_period >= 10 &&
 		    (usr_tdm_api.usr_period % 10) == 0 &&
 		    usr_tdm_api.usr_period <= 1000) {
 
 			usr_tdm_api.usr_mtu_mru = usr_tdm_api.usr_period*tdm_api->cfg.hw_mtu_mru*tdm_api->buffer_multiplier*tdm_api->timeslots;
-			
+
 		} else {
 			usr_tdm_api.result=SANG_STATUS_INVALID_PARAMETER;
 			err = -EINVAL;
@@ -2033,8 +2056,7 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 			goto tdm_api_exit;
 		}
 
-		usr_tdm_api.usr_mtu_mru = wanpipe_codec_calc_new_mtu(tdm_api->cfg.tdm_codec,
-			              				     usr_tdm_api.usr_mtu_mru)*tdm_api->buffer_multiplier*tdm_api->timeslots;
+		usr_tdm_api.usr_mtu_mru = wanpipe_codec_calc_new_mtu(tdm_api->cfg.tdm_codec, usr_tdm_api.usr_mtu_mru); 
 
 		tdm_api->cfg.usr_period = usr_tdm_api.usr_period;
 		tdm_api->cfg.usr_mtu_mru = usr_tdm_api.usr_mtu_mru;
@@ -2086,8 +2108,8 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 						tdm_api->name,usr_tdm_api.tdm_codec);
 				goto tdm_api_exit;
 			}
-			usr_tdm_api.usr_mtu_mru = wanpipe_codec_calc_new_mtu(usr_tdm_api.tdm_codec,
-								      tdm_api->cfg.usr_mtu_mru) * tdm_api->buffer_multiplier * tdm_api->timeslots;
+			usr_tdm_api.usr_mtu_mru = tdm_api->cfg.hw_mtu_mru * tdm_api->cfg.usr_period * tdm_api->buffer_multiplier * tdm_api->timeslots;
+			usr_tdm_api.usr_mtu_mru = wanpipe_codec_calc_new_mtu(usr_tdm_api.tdm_codec, tdm_api->cfg.usr_mtu_mru);
 		}
 
 		tdm_api->cfg.usr_mtu_mru=usr_tdm_api.usr_mtu_mru;
@@ -2466,6 +2488,23 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		err = 0;
 		memcpy(&usr_tdm_api.event,wan_skb_data(skb),sizeof(wp_api_event_t));
 
+#if DBG_FALSE_RING2
+		{
+			wp_api_event_t *event_ptr = &usr_tdm_api.event;
+
+			switch(event_ptr->wp_api_event_type)
+			{
+			case WP_API_EVENT_RING_DETECT:
+				DEBUG_FALSE_RING("%s():%s: Received WP_API_EVENT_RING_DETECT at channel: %d!\n",
+					__FUNCTION__, tdm_api->name, event_ptr->channel);
+				break;
+			case WP_API_EVENT_RING_TRIP_DETECT:
+				DEBUG_FALSE_RING("%s():%s: Received WP_API_EVENT_RING_TRIP_DETECT at channel: %d!\n",
+					__FUNCTION__, tdm_api->name, event_ptr->channel);
+				break;
+			}
+		}
+#endif
 		wptdm_os_lock_irq(&card->wandev.lock,&irq_flags);
 		wan_skb_init(skb,sizeof(wp_api_hdr_t));
 		wan_skb_trim(skb,0);
@@ -2796,7 +2835,10 @@ static int wanpipe_tdm_api_ioctl(void *obj, int cmd, void *udata)
 	case WANPIPE_IOCTL_PIPEMON:
 		err=-EINVAL;
 		if (tdm_api->pipemon) {
+			wan_smp_flag_t flag;
+			wan_mutex_lock(&tdm_api->lock,&flag);
 			err=tdm_api->pipemon(tdm_api->card,tdm_api->chan,udata);
+			wan_mutex_unlock(&tdm_api->lock,&flag);
 		}
 		break;
 
@@ -3698,20 +3740,34 @@ static void wp_tdmapi_tone (void* card_id, wan_event_t *event)
 
 	irq_flags=0;
 
-	if (event->type == WAN_EVENT_EC_DTMF){
-		DEBUG_TDMAPI("%s: Received Tone Event at TDM API (%d:%c:%s:%s)!\n",
-			card->devname,
-			event->channel,
-			event->digit,
-			(event->tone_port == WAN_EC_CHANNEL_PORT_ROUT)?"ROUT":"SOUT",
-			(event->tone_type == WAN_EC_TONE_PRESENT)?"PRESENT":"STOP");
-	}else if (event->type == WAN_EVENT_RM_DTMF){
+	switch(event->type) {
+     	case WAN_EVENT_EC_DTMF:
+		case WAN_EVENT_EC_FAX_1100:
+		case WAN_EVENT_EC_FAX_2100:
+		case WAN_EVENT_EC_FAX_2100_WSPR:
+		case WAN_EVENT_RM_DTMF:
+			break;
+		default:
+             DEBUG_ERROR("%s: %s() Error Invalid event type %X (%s)!\n",
+				card->devname, __FUNCTION__, event->type, WAN_EVENT_TYPE_DECODE(event->type));       
+			return;
+	}
+
+	if (event->type == WAN_EVENT_RM_DTMF){
 		DEBUG_TDMAPI("%s: Received DTMF Event at TDM API (%d:%c)!\n",
 			card->devname,
 			event->channel,
 			event->digit);
 			lock=0;
 			/* FIXME: Updated locking architecture */
+	}else{
+		DEBUG_TDMAPI("%s: Received Tone Event %s at TDM API (%d:%c:%s:%s)!\n",
+			WAN_EVENT_TYPE_DECODE(event->type),
+			card->devname,
+			event->channel,
+			event->digit,
+			(event->tone_port == WAN_EC_CHANNEL_PORT_ROUT)?"ROUT":"SOUT",
+			(event->tone_type == WAN_EC_TONE_PRESENT)?"PRESENT":"STOP");
 	}
 
 	tdm_api = wp_tdmapi_search(card, event->channel);
@@ -3730,7 +3786,23 @@ static void wp_tdmapi_tone (void* card_id, wan_event_t *event)
 	p_tdmapi_event = (wp_api_event_t*)wan_skb_put(skb,sizeof(wp_api_event_t));
 
 	memset(p_tdmapi_event,0,sizeof(wp_api_event_t));
-	p_tdmapi_event->wp_api_event_type	= WP_API_EVENT_DTMF;
+
+    switch(event->type) {
+     	case WAN_EVENT_EC_DTMF:
+		case WAN_EVENT_RM_DTMF:
+		  	 p_tdmapi_event->wp_api_event_type	= WP_API_EVENT_DTMF;
+			 break;
+		case WAN_EVENT_EC_FAX_1100:
+		  	 p_tdmapi_event->wp_api_event_type	= WP_API_EVENT_FAX_1100;
+			 break;
+		case WAN_EVENT_EC_FAX_2100:
+		  	 p_tdmapi_event->wp_api_event_type	= WP_API_EVENT_FAX_2100;
+			 break;
+		case WAN_EVENT_EC_FAX_2100_WSPR:
+		  	 p_tdmapi_event->wp_api_event_type	= WP_API_EVENT_FAX_2100_WSPR;
+			 break;
+	}
+
 	p_tdmapi_event->wp_api_event_dtmf_digit	= event->digit;
 	p_tdmapi_event->wp_api_event_dtmf_type	= event->tone_type;
 	p_tdmapi_event->wp_api_event_dtmf_port	= event->tone_port;

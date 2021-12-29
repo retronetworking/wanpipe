@@ -622,7 +622,7 @@ typedef struct
 	unsigned long 	fifo_addr_map_l2;
 	wan_timer_t 	bg_timer;
 	unsigned int 	bg_timer_cmd;
-	unsigned char 	tdmv_sync;
+	wan_bitmap_t 	tdmv_sync;
 	unsigned int	chip_cfg_status;	
 	wan_taskq_t 	port_task;
 	unsigned int 	port_task_cmd;
@@ -651,7 +651,7 @@ typedef struct
 
 	unsigned char	tdmv_hw_tone;
 	
-	unsigned char	led_ctrl;
+	wan_bitmap_t	led_ctrl;
 	unsigned int	tdm_intr_status;
 	sdla_mem_handle_t	bar_virt;
 	unsigned char	tdm_rx_dma_toggle[32];
@@ -819,7 +819,7 @@ typedef struct sdla
 	
 	sdla_fe_t	fe;		/* front end structures */
 	u8		fe_no_intr;	/* set to 0x01 if not FE interrupt should enabled */		
-	u8		fe_ignore_intr;	/* Set to 0x01 if all FE interrupts should be ignored */
+	wan_bitmap_t	fe_ignore_intr;	/* Set to 0x01 if all FE interrupts should be ignored */
 	
 	unsigned int	rCount;
 
@@ -930,6 +930,8 @@ typedef struct sdla
 #if defined(WANPIPE_PERFORMANCE_DEBUG)
 	aft_driver_performance_stats_t aft_perf_stats;
 #endif
+
+	unsigned int wdt_timeout;
 
 } sdla_t;
 

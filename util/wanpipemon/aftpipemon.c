@@ -1,7 +1,8 @@
 /*****************************************************************************
 * aftpipemon.c	AFT Debugger/Monitor
 *
-* Author:       Nenad Corbic <ncorbic@sangoma.com>	
+* Author(s):	Nenad Corbic <ncorbic@sangoma.com>	
+*				David Rokhvarg <davidr@sangoma.com>
 *
 * Copyright:	(c) 2004 Sangoma Technologies Inc.
 *
@@ -10,19 +11,16 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ----------------------------------------------------------------------------
+* Dec 24, 2010	David Rokhvarg	Added control of Wanpipe Logger
 * Jan 06, 2004	Nenad Corbic	Initial version based on aftpipemon
 *****************************************************************************/
 
 /******************************************************************************
- * 			INCLUDE FILES					      *
+ * 			INCLUDE FILES							*
  *****************************************************************************/
 
 #if defined(__WINDOWS__)
-# include <conio.h>				/* for _kbhit */
-# include "wanpipe_includes.h"
-# include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t' */
-# include "wanpipe_time.h"		/* for 'struct wan_timeval' */
-# include "wanpipe_common.h"		/* for 'wp_strcasecmp' */
+/* all needed .h files are in wanpipemon.h */
 #else
 # include <stdio.h>
 # include <stddef.h>	/* offsetof(), etc. */
@@ -245,7 +243,7 @@ int AFTConfig(void)
 
 	is_508 = WAN_FALSE;
    
-	wp_strlcpy(codeversion, "?.??",10);
+		wp_strlcpy(codeversion, "?.??",10);
    
 	wan_udp.wan_udphdr_command = READ_CODE_VERSION;
 	wan_udp.wan_udphdr_data_len = 0;
@@ -500,6 +498,9 @@ static void link_status (void)
 
 static void operational_stats (void)
 {
+#ifdef __WINDOWS__
+	comm_err_stats ();
+#else
 	wanpipe_chan_stats_t *stats;
 	wan_udp.wan_udphdr_command= READ_OPERATIONAL_STATS; 
 	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -508,59 +509,60 @@ static void operational_stats (void)
 
 	if (wan_udp.wan_udphdr_data_len  != sizeof(wanpipe_chan_stats_t)) {
      	 printf("Error: op stats data_len=%i != stats %i\n",
-		 		     wan_udp.wan_udphdr_data_len,sizeof(wanpipe_chan_stats_t));  
+ 		     wan_udp.wan_udphdr_data_len,sizeof(wanpipe_chan_stats_t));  
 	}
 
 
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		BANNER("AFT OPERATIONAL STATISTICS");
 		stats = (wanpipe_chan_stats_t *)&wan_udp.wan_udphdr_data[0];
- 
-
-   	printf( "******* OPERATIONAL_STATS *******\n");
-
-	printf("\trx_packets\t: %u\n",			stats->rx_packets);
-	printf("\ttx_packets\t: %u\n",			stats->tx_packets);
-	printf("\trx_bytes\t: %u\n",			stats->rx_bytes);
-	printf("\ttx_bytes\t: %u\n",			stats->tx_bytes);
-	printf("\trx_errors\t: %u\n",			stats->rx_errors);
-	printf("\ttx_errors\t: %u\n",			stats->tx_errors);
-	printf("\trx_dropped\t: %u\n",			stats->rx_dropped);
-	printf("\ttx_dropped\t: %u\n",			stats->tx_dropped);
-	printf("\tmulticast\t: %u\n",			stats->multicast);
-	printf("\tcollisions\t: %u\n",			stats->collisions);
-
-	printf("\trx_length_errors: %u\n",		stats->rx_length_errors);
-	printf("\trx_over_errors\t: %u\n",		stats->rx_over_errors);
-	printf("\trx_crc_errors\t: %u\n",		stats->rx_crc_errors);
-	printf("\trx_frame_errors\t: %u\n",	stats->rx_frame_errors);
-	printf("\trx_fifo_errors\t: %u\n",		stats->rx_fifo_errors);
-	printf("\trx_missed_errors: %u\n",		stats->rx_missed_errors);
-
-	/* Transmitter aborted frame transmission. Not an error. */
-	printf("\trx_hdlc_abort_counter: %u\n",	stats->rx_hdlc_abort_counter);
-
-	printf("\ttx_aborted_errors: %u\n",	stats->tx_aborted_errors);
-	printf("\tTx Idle Data\t: %u\n",		stats->tx_carrier_errors);
-
-	printf("\ttx_fifo_errors\t: %u\n",		stats->tx_fifo_errors);
-	printf("\ttx_heartbeat_errors: %u\n",	stats->tx_heartbeat_errors);
-	printf("\ttx_window_errors: %u\n",		stats->tx_window_errors);
-
-	printf("\n\ttx_packets_in_q: %u\n",	stats->current_number_of_frames_in_tx_queue);
-	printf("\ttx_queue_size: %u\n",		stats->max_tx_queue_length);
-
-	printf("\n\trx_packets_in_q: %u\n",	stats->current_number_of_frames_in_rx_queue);
-	printf("\trx_queue_size: %u\n",		stats->max_rx_queue_length);
-
-	printf("\n\trx_events_in_q: %u\n",	stats->current_number_of_events_in_event_queue);
-	printf("\trx_event_queue_size: %u\n",		stats->max_event_queue_length);
-	printf("\trx_events: %u\n",	stats->rx_events);
-	printf("\trx_events_dropped: %u\n",		stats->rx_events_dropped);
-
-	printf("\tHWEC tone (DTMF) events counter: %u\n",		stats->rx_events_tone);
-	printf( "*********************************\n");                                    
+		
+		
+		printf( "******* OPERATIONAL_STATS *******\n");
+		
+		printf("\trx_packets\t: %u\n",			stats->rx_packets);
+		printf("\ttx_packets\t: %u\n",			stats->tx_packets);
+		printf("\trx_bytes\t: %u\n",			stats->rx_bytes);
+		printf("\ttx_bytes\t: %u\n",			stats->tx_bytes);
+		printf("\trx_errors\t: %u\n",			stats->rx_errors);
+		printf("\ttx_errors\t: %u\n",			stats->tx_errors);
+		printf("\trx_dropped\t: %u\n",			stats->rx_dropped);
+		printf("\ttx_dropped\t: %u\n",			stats->tx_dropped);
+		printf("\tmulticast\t: %u\n",			stats->multicast);
+		printf("\tcollisions\t: %u\n",			stats->collisions);
+		
+		printf("\trx_length_errors: %u\n",		stats->rx_length_errors);
+		printf("\trx_over_errors\t: %u\n",		stats->rx_over_errors);
+		printf("\trx_crc_errors\t: %u\n",		stats->rx_crc_errors);
+		printf("\trx_frame_errors\t: %u\n",	stats->rx_frame_errors);
+		printf("\trx_fifo_errors\t: %u\n",		stats->rx_fifo_errors);
+		printf("\trx_missed_errors: %u\n",		stats->rx_missed_errors);
+		
+		/* Transmitter aborted frame transmission. Not an error. */
+		printf("\trx_hdlc_abort_counter: %u\n",	stats->rx_hdlc_abort_counter);
+		
+		printf("\ttx_aborted_errors: %u\n",	stats->tx_aborted_errors);
+		printf("\tTx Idle Data\t: %u\n",		stats->tx_carrier_errors);
+		
+		printf("\ttx_fifo_errors\t: %u\n",		stats->tx_fifo_errors);
+		printf("\ttx_heartbeat_errors: %u\n",	stats->tx_heartbeat_errors);
+		printf("\ttx_window_errors: %u\n",		stats->tx_window_errors);
+		
+		printf("\n\ttx_packets_in_q: %u\n",	stats->current_number_of_frames_in_tx_queue);
+		printf("\ttx_queue_size: %u\n",		stats->max_tx_queue_length);
+		
+		printf("\n\trx_packets_in_q: %u\n",	stats->current_number_of_frames_in_rx_queue);
+		printf("\trx_queue_size: %u\n",		stats->max_rx_queue_length);
+		
+		printf("\n\trx_events_in_q: %u\n",	stats->current_number_of_events_in_event_queue);
+		printf("\trx_event_queue_size: %u\n",		stats->max_event_queue_length);
+		printf("\trx_events: %u\n",	stats->rx_events);
+		printf("\trx_events_dropped: %u\n",		stats->rx_events_dropped);
+		
+		printf("\tHWEC tone (DTMF) events counter: %u\n",		stats->rx_events_tone);
+		printf( "*********************************\n");                                    
 	}
+#endif /* !__WINDOWS__ */
 
 }; /* Operational_stats */
 
@@ -1511,9 +1513,9 @@ int AFTUsage(void)
 	printf("\t                     ( -m <mod_no> - Module number)\n");
 	printf("\t   a         stats   Voltage status ( -m <mod_no> - Module number)\n");
 	printf("\tAFT Debugging\n");
-	printf("\t   d         err     Eanble RX RBS debugging\n");
+	printf("\t   d         err     Enable RX RBS debugging\n");
 	printf("\t   d         drr     Disable RX RBS debugging\n");
-	printf("\t   d         ert     Eanble TX RBS debugging\n");
+	printf("\t   d         ert     Enable TX RBS debugging\n");
 	printf("\t   d         drt     Disable TX RBS debugging\n");
 	printf("\t   d         rr      Read RX/TX RBS status\n");
 	printf("\t   d         pr      Print current RX/TX RBS status\n");
@@ -1524,10 +1526,28 @@ int AFTUsage(void)
 	printf("\t   d         rx_fifo_gen     Generate rx fifo error\n");
 	printf("\t   d         tx_fifo_gen     Generate tx fifo error\n");
 	printf("\t   d         fifo_sync_cnt   Increment fifo sync cnt\n"); 
+
+#ifdef _LIBSANGOMA_H
+	printf("\tWanpipe Logger Control (used by Sangoma Technical Support)\n");
+	printf("\t   logger <control code> <logger type> <logger level>\n");
+	printf("\t             control code:\n");
+	printf("\t                -e - Enable Logger output\n");
+	printf("\t                -d - Disable Logger output\n");
+	printf("\t             logger type:\n");
+	printf("\t                <-te1 | -hwec | -default | -tdmapi | -bri>\n");
+	printf("\t             logger level:\n");
+	printf("\t                Each Logger type has it's own Level:\n");
+	printf("\t                -te1     <-default>\n");
+	printf("\t                -hwec    <-default>\n");
+	printf("\t                -default <-error | -warning | -info>\n");
+	printf("\t                -tdmapi  <-default>\n");
+	printf("\t                -bri     <-L2toL1activation | -s0states>\n");
+#endif /* _LIBSANGOMA_H */
+
 	printf("\n");
 	printf("\t--------\n\n");
 	printf("\tExamples:\n");
-#ifdef __WINDOWS__
+#ifdef _LIBSANGOMA_H
 	printf("\t View T1/E1 Alarams:\n");
 	printf("\t\t wanpipemon -i wanpipe1_if1 -c Ta\n");
 	printf("\t View Communications/Error statistics:\n");
@@ -1535,7 +1555,9 @@ int AFTUsage(void)
 	printf("\t Flush (Reset) Communications/Error statistics:\n");
 	printf("\t\t wanpipemon -i wanpipe1_if1 -c fc\n");
 	printf("\t Trace frames (Tx and Rx):\n");
-	printf("\t\t wanpipemon -i wanpipe1_if1 -c tr\n\n");
+	printf("\t\t wanpipemon -i wanpipe1_if1 -c tr\n");
+	printf("\t Enable BRI Logger - Layer 1 (De)Activation:\n");
+	printf("\t\t wanpipemon -i wanpipe_logger -c logger -e -bri -L2toL1activation\n\n");
 #else
 	printf("\tex: wanpipemon -i w1g1 -u 9000 -c xm :View Modem Status \n");
 	printf("\tex: wanpipemon -i 201.1.1.2 -u 9000 -c ti  :Trace and Interpret ALL frames\n\n");
@@ -1743,7 +1765,14 @@ int AFTMain(char *command,int argc, char* argv[])
 	int		mod_no = 0, i, err=0;
 	u_int32_t	chan_map;
 	sdla_fe_debug_t	fe_debug;
-			
+
+#if 0
+	printf("argc: %d\n", argc);
+	for (i = 0; i < argc; i++) {
+		printf("argv[%02d]:%s\n", i, argv[i]);
+	}
+#endif
+
 	switch(command[0]){
 
 		case 'x':
@@ -2107,11 +2136,139 @@ int AFTMain(char *command,int argc, char* argv[])
 			}
 			break;
 
+#ifdef _LIBSANGOMA_H
+		case 'l':
+			/* check that ALL parameters were given */
+			if (argc != 8) {
+				printf("ERROR: Invalid number of parameters for Logger, Type wanpipemon <cr> for help\n\n");
+				break;
+			}
+
+			{
+				wp_logger_cmd_t logger_cmd;
+				int control_code = -1, logger_type = -1, logger_level = -1;
+				char *level_str = NULL;
+
+				memset(&logger_cmd, 0x00, sizeof(logger_cmd));
+
+				for (i = 0; i < argc; i++) {
+
+					if (!wp_strcasecmp(argv[i], "-e")){
+						
+						control_code = 1;
+
+					} else if (!wp_strcasecmp(argv[i], "-d")){
+						
+						control_code = 0;
+
+					} else if (!wp_strcasecmp(argv[i], "-te1")){
+							
+						logger_type = WAN_LOGGER_TE1;
+						level_str = argv[i+1];
+
+						if (!wp_strcasecmp(level_str, "-default")){
+							logger_level = SANG_LOGGER_TE1_DEFAULT;
+						}
+					} else if (!wp_strcasecmp(argv[i], "-hwec")){
+
+						logger_type = WAN_LOGGER_HWEC;
+						level_str = argv[i+1];
+
+						if (!wp_strcasecmp(level_str, "-default")){
+							logger_level = SANG_LOGGER_HWEC_DEFAULT;
+						}
+
+					} else if (!wp_strcasecmp(argv[i], "-default")){
+
+						logger_type = WAN_LOGGER_DEFAULT;
+						level_str = argv[i+1];
+
+						if (!wp_strcasecmp(level_str, "-error")){
+							logger_level = SANG_LOGGER_ERROR;
+						}
+
+						if (!wp_strcasecmp(level_str, "-warning")){
+							logger_level = SANG_LOGGER_WARNING;
+						}
+
+						if (!wp_strcasecmp(level_str, "-info")){
+							logger_level = SANG_LOGGER_INFORMATION;
+						}
+
+					} else if (!wp_strcasecmp(argv[i], "-tdmapi")){
+
+						logger_type = WAN_LOGGER_TDMAPI;
+						level_str = argv[i+1];
+
+						if (!wp_strcasecmp(level_str, "-default")){
+							logger_level = SANG_LOGGER_TDMAPI_DEFAULT;
+						}
+
+					} else if (!wp_strcasecmp(argv[i], "-bri")){
+
+						logger_type = WAN_LOGGER_BRI;
+						level_str = argv[i+1];
+
+						if (!wp_strcasecmp(level_str, "-L2toL1activation")){
+							logger_level = SANG_LOGGER_BRI_L2_TO_L1_ACTIVATION;
+						}
+
+						if (!wp_strcasecmp(level_str, "-s0states")){
+							logger_level = SANG_LOGGER_BRI_HFC_S0_STATES;
+						}
+					}
+				} /* for() */
+
+				if (control_code == -1) {
+					printf("ERROR: Invalid <control code> for Logger, Type wanpipemon <cr> for help\n\n");
+					break;
+				}
+
+				if (logger_type == -1) {
+					printf("ERROR: Invalid <logger type>, Type wanpipemon <cr> for help\n\n");
+					break;
+				}
+				
+				if (logger_level == -1) {
+					printf("ERROR: Invalid <logger level>, Type wanpipemon <cr> for help\n\n");
+					break;
+				}
+
+
+				/****************************************/
+				/* set logger type */
+				logger_cmd.logger_level_ctrl.logger_type = logger_type;
+
+				/* get CURRENT logger level */
+				if(sangoma_logger_get_logger_level(sock, &logger_cmd)){
+					printf("ERROR: sangoma_logger_get_logger_level() failed!\n");
+					break;
+
+				}
+
+				/* change only what user requested */
+				if (control_code == 1) {
+					/* turn on */
+					logger_cmd.logger_level_ctrl.logger_level |= (logger_level);
+				} else {
+					/* turn off */
+					logger_cmd.logger_level_ctrl.logger_level &= (~logger_level);
+				}
+
+				if(sangoma_logger_set_logger_level(sock, &logger_cmd)){
+					printf("ERROR: sangoma_logger_set_logger_level() failed!\n");
+					break;
+				}
+
+			}
+			break;
+#endif /* _LIBSANGOMA_H */
+
 		default:
 			printf("ERROR: Invalid Command, Type wanpipemon <cr> for help\n\n");
 			break;
-	}//switch 
+	}/* switch */
    	printf("\n");
    	fflush(stdout);
    	return err;
-}; //main
+}; /* AFTMain() */

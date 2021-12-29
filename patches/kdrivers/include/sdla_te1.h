@@ -455,6 +455,7 @@ typedef struct sdla_te_cfg {
 	u_int8_t	sig_mode;
 	u_int8_t	ignore_yel_alarm;
 	u_int8_t	ais_maintenance;
+	u_int8_t	ais_auto_on_los;
 } sdla_te_cfg_t;
 
 /* Performamce monitor counters */

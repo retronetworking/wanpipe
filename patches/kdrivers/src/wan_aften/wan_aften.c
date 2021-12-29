@@ -8,9 +8,42 @@
 # define DEBUG_REG
 #endif
 
+#define WAN_AFTEN_FE_RW 0
+
+#if WAN_AFTEN_FE_RW
+#ifndef DEFINE_MUTEX
+# define DEFINE_MUTEX
+#endif
+
+# include "wanpipe_common.h"
+# define DEBUG_FE_EXPORT	if(0)DEBUG_EVENT
+
+static wan_mutexlock_t rw_mutex;
+int wan_aftup_te1_reg_write(void *card, unsigned short reg, unsigned short in_data);
+int wan_aftup_te1_reg_read(void *card, unsigned short reg, unsigned char *out_data);
+
+/* Maxim chip definitions */
+#define REG_IDR				0xF8
+#define DEVICE_ID_DS26528   0x0B
+#define DEVICE_ID_DS26524   0x0C
+#define DEVICE_ID_DS26522   0x0D
+#define DEVICE_ID_DS26521   0x0E
+#define DEVICE_ID_BAD       0x00
+
+#define DEVICE_ID_SHIFT     3
+#define DEVICE_ID_MASK      0x1F
+#define DEVICE_ID_DS(dev_id)    ((dev_id) >> DEVICE_ID_SHIFT) & DEVICE_ID_MASK
+#define DECODE_CHIPID(chip_id)                  \
+        (chip_id == DEVICE_ID_DS26528) ? "DS26528" :    \
+        (chip_id == DEVICE_ID_DS26524) ? "DS26524" :    \
+        (chip_id == DEVICE_ID_DS26522) ? "DS26522" :    \
+        (chip_id == DEVICE_ID_DS26521) ? "DS26521" : "Unknown"
+
+#endif
+
 static char	*wan_drvname = "wan_aften";
-static char 	wan_fullname[]	= "WANPIPE(tm) Sangoma AFT (lite) Driver";
-static char	wan_copyright[]	= "(c) 1995-2008 Sangoma Technologies Inc.";
+static char wan_fullname[]	= "WANPIPE(tm) Sangoma AFT (lite) Driver";
+static char wan_copyright[]	= "(c) 1995-2008 Sangoma Technologies Inc.";
 static int	ncards; 
 
 static sdla_t* card_list = NULL;	/* adapter data space */
@@ -416,6 +449,7 @@ static int wan_aften_update_ports(void)
 #endif
 	
 	DEBUG_TEST("\n\nList of available Sangoma devices:\n");
+	
 	for (card=card_list; card; card = card->list){
 		netdevice_t	*dev;
 		dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
@@ -424,6 +458,9 @@ static int wan_aften_update_ports(void)
 				card->wandev.comm_port = 
 					prev->wandev.comm_port + 1;
 			}
+			
+			DEBUG_TEST("dev name: %s\n", wan_netif_name(dev));
+			
 #if 0
 			err = card->hw_iface.get_hwprobe(
 						card->hw, 
@@ -1109,3 +1146,275 @@ wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 	return err;
 }
 
+#if WAN_AFTEN_FE_RW
+
+/********* Private Functions **********/
+    
+static void wan_aftup_init_critical_section(void *pmutex)
+{
+	wan_mutex_lock_init(pmutex, "fe_rw_mutex");
+}
+
+static void wan_aftup_enter_critical_section(void *pmutex)
+{
+	wan_mutex_lock(pmutex, NULL);
+}
+
+static void wan_aftup_leave_critical_section(void *pmutex)
+{
+	wan_mutex_unlock(pmutex, NULL);
+}
+
+static unsigned int wan_aft_read_maxim(void *card, int offset, int size, void *out_buffer)
+{
+	int err;
+	wan_cmd_api_t api_cmd;
+
+	DEBUG_FE_EXPORT("%s()\n", __FUNCTION__);
+
+	memset(&api_cmd, 0x00, sizeof(api_cmd));
+
+	api_cmd.len = size;
+	api_cmd.offset = offset;
+
+	err = wan_aften_read_reg(card, &api_cmd, 0);
+
+	if (!err) {
+		memcpy(out_buffer, api_cmd.data, size);
+	}
+
+    return err;
+}
+
+
+static unsigned int wan_aft_write_maxim(void *card, int offset, int size, void *in_buffer)
+{
+	int err;
+	wan_cmd_api_t api_cmd;
+
+	DEBUG_FE_EXPORT("%s()\n", __FUNCTION__);
+
+	memset(&api_cmd, 0x00, sizeof(api_cmd));
+
+	api_cmd.len = size;
+	api_cmd.offset = offset;
+	memcpy(api_cmd.data, in_buffer, size);
+
+	err = wan_aften_write_reg(card, &api_cmd);
+
+    return err;
+}
+
+unsigned int write_cpld(sdla_t *card, unsigned short cpld_off, unsigned short cpld_data)
+{
+    cpld_off &= ~AFT8_BIT_DEV_ADDR_CLEAR;
+    cpld_off |= AFT8_BIT_DEV_ADDR_CPLD;
+
+    wan_aft_write_maxim(card, 0x46, 2, &cpld_off);
+    wan_aft_write_maxim(card, 0x44, 2, &cpld_data);
+    return 0;
+}
+
+static int wan_aften_te1_disable_global_chip_reset(sdla_t *card)
+{
+    unsigned int data;
+    int err, i;
+
+    for (i = 0; i < 2; i++) {
+        /* put in reset */
+        write_cpld(card, 0x00, 0x06);
+
+        /* sangoma_msleep(50); */
+
+        /* Disable Global Chip/FrontEnd/CPLD Reset */
+        err = wan_aft_read_maxim(card, 0x40, 4, &data);
+        if (err){
+            return 1;
+        }
+
+        data &= ~0x6;
+
+        err = wan_aft_write_maxim(card, 0x40, 4, &data);
+        if (err){
+            return 1;
+        }
+
+        /* sangoma_msleep(50); */
+    }
+
+    return 0;
+}
+
+static int wan_aften_check_id_reg(sdla_t *card)
+{
+    unsigned char val, fe_id;
+
+	wan_aftup_te1_reg_read(card, REG_IDR, &val);
+
+	DEBUG_FE_EXPORT("val = 0x%X\n", val);
+
+	fe_id = DEVICE_ID_DS(val);
+
+	switch(fe_id)
+    {
+    case DEVICE_ID_DS26528:
+        DEBUG_EVENT("Device is DS26528\n");
+        break;
+    case DEVICE_ID_DS26524:
+        DEBUG_EVENT("Device is DS26524\n");
+        break;
+/*
+    case DEVICE_ID_DS26522: //not installed on Sangoma HW
+        DEBUG_EVENT("Device is DS26522!\n");
+        break;
+*/
+    case DEVICE_ID_DS26521:
+    	DEBUG_EVENT("Device is DS26521\n");
+        break;
+    default:
+        DEBUG_ERROR("Failed to read Maxim ID (%02X)\n", val);
+        return 1;
+    }
+
+    return 0;
+}
+
+
+/************ Public Functions ************/
+
+void *wan_aftup_te1_global_init(int card_number)
+{
+	sdla_t *card = NULL, *found_card = NULL;
+	int card_counter = 0;
+			
+	DEBUG_FE_EXPORT("%s()\n", __FUNCTION__);
+		
+	wan_aftup_init_critical_section(&rw_mutex);
+
+	for (card = card_list; card; card = card->list){
+		
+		if (card_counter == card_number){
+			/* found the card */
+			found_card = card;
+			DEBUG_FE_EXPORT("card name: %s\n", card->devname);
+			break;
+		}
+
+		card_counter++;
+	}
+	
+	if (!found_card) {
+		DEBUG_ERROR("Error: failed to find card_number %d",
+			card_number);
+		return NULL;
+	}
+
+    if (wan_aften_te1_disable_global_chip_reset(found_card)) {
+        return NULL;
+    }
+
+    /* read the Chip ID and check is it valid */
+    if (wan_aften_check_id_reg(found_card)) {
+		return NULL;
+	}
+
+	return found_card;
+}
+
+int wan_aftup_te1_reg_write(void *card, unsigned short reg, unsigned short in_data)
+{
+	unsigned int tmp;
+
+	DEBUG_FE_EXPORT("%s()\n", __FUNCTION__);
+
+    wan_aftup_enter_critical_section(&rw_mutex);
+
+    if (reg & 0x800)  reg |= 0x2000;
+    if (reg & 0x1000) reg |= 0x4000;
+
+    reg &= ~AFT8_BIT_DEV_ADDR_CLEAR;
+    //reg |= AFT8_BIT_DEV_MAXIM_ADDR_CPLD;
+
+    DEBUG_FE_EXPORT("%s(): Reg 0x%04X Data 0x%04X\n", __FUNCTION__, reg, in_data);
+
+    /* write the register where the data will be written to */
+	if (wan_aft_write_maxim(card, AFT_MCPU_INTERFACE_ADDR, 2, &reg)) {
+        DEBUG_ERROR("%s(): Failed to write to AFT_MCPU_INTERFACE_ADDR!\n",
+			__FUNCTION__);
+    	wan_aftup_leave_critical_section(&rw_mutex);
+		/* return error */
+		return 1;
+	}
+
+    /* read to avoid bridge optimization of two writes by PCI */
+	if (wan_aft_read_maxim(card, AFT_MCPU_INTERFACE, 4, &tmp)) {
+        DEBUG_ERROR("%s(): Failed to read from AFT_MCPU_INTERFACE!\n",
+			__FUNCTION__);
+    	wan_aftup_leave_critical_section(&rw_mutex);
+		/* return error */
+		return 1;
+	}
+
+    /* write the data to the register */
+	if (wan_aft_write_maxim(card, AFT_MCPU_INTERFACE, 2, &in_data)) {
+        DEBUG_ERROR("%s(): Failed to write to AFT_MCPU_INTERFACE!\n",
+			__FUNCTION__);
+    	wan_aftup_leave_critical_section(&rw_mutex);
+		/* return error */
+		return 1;
+	}
+
+    wan_aftup_leave_critical_section(&rw_mutex);
+
+	/* return success */
+	return 0;
+}
+
+int wan_aftup_te1_reg_read(void *card, unsigned short reg, unsigned char *out_data)
+{
+    unsigned int data;
+
+	DEBUG_FE_EXPORT("%s()\n", __FUNCTION__);
+
+    wan_aftup_enter_critical_section(&rw_mutex);
+
+    if (reg & 0x800)  reg |= 0x2000;
+    if (reg & 0x1000) reg |= 0x4000;
+
+    reg &= ~AFT8_BIT_DEV_ADDR_CLEAR;
+    //reg |= AFT8_BIT_DEV_MAXIM_ADDR_CPLD;
+
+    /* write the register where data will be read from */
+    if (wan_aft_write_maxim(card, AFT_MCPU_INTERFACE_ADDR, 2, &reg)) {
+        DEBUG_ERROR("%s(): Failed to write to AFT_MCPU_INTERFACE_ADDR!\n",
+			__FUNCTION__);
+    	wan_aftup_leave_critical_section(&rw_mutex);
+		/* return error */
+        return 1;
+    }
+
+    if (wan_aft_read_maxim(card, AFT_MCPU_INTERFACE, 4,	&data)) {
+        DEBUG_ERROR("%s(): Failed to read from AFT_MCPU_INTERFACE!\n",
+			__FUNCTION__);
+    	wan_aftup_leave_critical_section(&rw_mutex);
+		/* return error */
+        return 1;
+    }
+
+    DEBUG_FE_EXPORT("%s(): Reg 0x%04X Data 0x%08X\n", __FUNCTION__, reg, data);
+
+	/* store data in user buffer*/
+	*out_data = (unsigned char)data;
+
+    wan_aftup_leave_critical_section(&rw_mutex);
+
+	/* return success */
+    return 0;
+}
+
+/* exported functions to be called by other modules */
+EXPORT_SYMBOL(wan_aftup_te1_global_init);
+EXPORT_SYMBOL(wan_aftup_te1_reg_write);
+EXPORT_SYMBOL(wan_aftup_te1_reg_read);
+
+#endif /* WAN_AFTEN_FE_RW */

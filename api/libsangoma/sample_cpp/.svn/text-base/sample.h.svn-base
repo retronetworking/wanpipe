@@ -64,6 +64,15 @@ typedef struct{
 
 }callback_functions_t;
 
+static void wp_print_rbs_cas_bits(unsigned int abcd)
+{
+	printf("A:%1d B:%1d C:%1d D:%1d\n",
+		(abcd & WAN_RBS_SIG_A) ? 1 : 0,
+		(abcd & WAN_RBS_SIG_B) ? 1 : 0,
+		(abcd & WAN_RBS_SIG_C) ? 1 : 0,
+		(abcd & WAN_RBS_SIG_D) ? 1 : 0);
+}
+
 #if defined (__WINDOWS__)
 static void DecodeLastError(LPSTR lpszFunction) 
 {

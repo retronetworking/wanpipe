@@ -441,7 +441,7 @@ extern int wanpipe_lip_get_if_status(void *chan, void *m);
 unsigned short wanrouter_type_trans(struct sk_buff *skb, netdevice_t *dev);
 int wanrouter_encapsulate(struct sk_buff *skb, netdevice_t *dev,unsigned short type);
 
-extern int wanrouter_ioctl( struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
+extern WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wanrouter_ioctl, struct file *file, unsigned int cmd, unsigned long arg);
 /* Proc interface functions. These must not be called by the drivers! */
 extern int wanrouter_proc_init(void);
 extern void wanrouter_proc_cleanup(void);

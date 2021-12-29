@@ -444,6 +444,7 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	memset(wp, 0x0, sizeof(wp_tdmv_softc_t));
 	card->wan_tdmv.sc	= wp;
 	wp->spanno		= tdmv_conf->span_no-1;
+#ifdef DAHDI_ISSUES
 	wp->span.manufacturer	= "Sangoma Technologies";
 	
 	switch(card->adptr_type){
@@ -471,6 +472,7 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	}
 
 	snprintf(wp->span.location, sizeof(wp->span.location) - 1, "SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+#endif
 
 	wp->span.irq		= card->wandev.irq;
 	wp->num			= wp_card_no++;
@@ -1246,12 +1248,16 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 		wp->span.deflaw = ZT_LAW_ALAW;
 		card->fe.fe_cfg.tdmv_law = WAN_TDMV_ALAW;
 		wp->span.linecompat = ZT_CONFIG_HDB3 | ZT_CONFIG_CCS | ZT_CONFIG_CRC4;
+#ifdef DAHDI_ISSUES
 		wp->span.spantype="E1";
+#endif
 	}else{
 		wp->span.deflaw = ZT_LAW_MULAW;
 		card->fe.fe_cfg.tdmv_law = WAN_TDMV_MULAW;
 		wp->span.linecompat = ZT_CONFIG_AMI | ZT_CONFIG_B8ZS | ZT_CONFIG_D4 | ZT_CONFIG_ESF;
+#ifdef DAHDI_ISSUES
 		wp->span.spantype="T1";
+#endif
 	}
 	
 #if !defined(__FreeBSD__) && !defined(__OpenBSD__)
@@ -2224,7 +2230,7 @@ static int wp_tdmv_hwec_create(struct dahdi_chan *chan,
 {
 	wp_tdmv_softc_t	*wp = NULL;
 	sdla_t *card = NULL;
-	int	err = -EINVAL;
+	int	err = -ENODEV;
 	
 	if (ecp->param_count > 0) {
 		DEBUG_TDMV("[TDMV] Wanpipe echo canceller does not support parameters; failing request\n");
@@ -2980,14 +2986,20 @@ static void wp_tdmv_callback_tone (void* card_id, wan_event_t *event)
 	/* fechan check is a sanity check */
     fechan=event->channel-1;
 	
-	if (event->type != WAN_EVENT_EC_DTMF){
-		DEBUG_ERROR("ERROR: %s: Invalid event type %X!\n",
-				card->devname, event->type);
-		return;
+	switch(event->type) {
+     	case WAN_EVENT_EC_DTMF:
+		case WAN_EVENT_EC_FAX_1100:
+			break;
+		default:
+			  DEBUG_ERROR("%s: %s() Error Invalid event type %X (%s)!\n",
+				card->devname, __FUNCTION__, event->type, WAN_EVENT_TYPE_DECODE(event->type));      
+			return;
 	}
+
 	DEBUG_TDMV(
-	"[TDMV] %s: Received EC Tone Event at TDM (%d:%c:%s:%s)!\n",
+	"[TDMV] %s: Received EC Tone (%s) Event at TDM (chan=%d digit=%c port=%s type=%s)!\n",
 			card->devname,
+			WAN_EVENT_TYPE_DECODE(event->type),
 			event->channel,
 			event->digit,
 			(event->tone_port == WAN_EC_CHANNEL_PORT_ROUT)?"ROUT":"SOUT",

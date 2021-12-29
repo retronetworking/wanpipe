@@ -6,49 +6,54 @@
 #endif
 
 #if defined(__WINDOWS__)
+# include <stddef.h>
+# include <stdlib.h>
+# include <stdio.h>
+# include <errno.h>
+# include <string.h>
+# include <ctype.h>
+# include <time.h>
+# include <conio.h>			/* for _kbhit */
 
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <ctype.h>
-#include <time.h>
-
-#include "wanpipe_cfg.h"	/* for WANCONFIG_USB_ANALOG */
-#include "libsangoma.h"
+# include "libsangoma.h"
+# include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t'; wp_strcasecmp()/wp_gettimeofday()/wp_usleep() */
+# include "wanpipe_time.h"		/* for 'struct wan_timeval' */
 
 #define inline __inline
 
-#define WIN_DBG			if(0)printf
-#define WIN_DBG_FUNC()	if(0)printf("%s(): line: %d\n", __FUNCTION__, __LINE__)
-#define WIN_DBG_FUNC_NOT_IMPLEMENTED() if(0)printf("%s(): line: %d: not implemented\n", __FUNCTION__, __LINE__)
-
-#define BREAK_POINT()	DebugBreak()
+# define WIN_DBG			if(0)printf
+# define WIN_DBG_FUNC()	if(0)printf("%s(): line: %d\n", __FUNCTION__, __LINE__)
+# define WIN_DBG_FUNC_NOT_IMPLEMENTED() if(0)printf("%s(): line: %d: not implemented\n", __FUNCTION__, __LINE__)
+# define BREAK_POINT()	DebugBreak()
 #else
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <string.h>
-#include <ctype.h>
-#include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <dirent.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <sys/un.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <signal.h>
-#include <time.h>
-#define BREAK_POINT()
+# include <stddef.h>
+# include <stdlib.h>
+# include <stdio.h>
+# include <errno.h>
+# include <fcntl.h>
+# include <string.h>
+# include <ctype.h>
+# include <sys/stat.h>
+# include <sys/ioctl.h>
+# include <sys/types.h>
+# include <dirent.h>
+# include <unistd.h>
+# include <sys/socket.h>
+# include <netdb.h>
+# include <sys/un.h>
+# include <sys/wait.h>
+# include <unistd.h>
+# include <signal.h>
+# include <time.h>
+# define BREAK_POINT()
 #endif
 
 
+#ifndef _LIBSANGOMA_H
+/* for OSs which not running on libsangoma (yet)
+ * define sng_fd_t for future portability */
+# define sng_fd_t int
+#endif
 
 #include <wanpipe_hdlc.h>
 
@@ -69,10 +74,10 @@ extern void 	flush_te1_pmon(void);
 extern void	banner(char *, int);
 extern int DoCommand(wan_udp_hdr_t*);
 
-extern int	MakeConnection(void);
+extern int MakeConnection(void);
 
-#ifdef __WINDOWS__
-extern void CloseConnection(sng_fd_t fd);
+#ifdef _LIBSANGOMA_H
+extern void CloseConnection(sng_fd_t *fd);
 #endif
 
 extern char *global_command;
@@ -91,12 +96,10 @@ extern void FR_read_FT1_status(void);
 extern void PPP_read_FT1_status(void);
 extern void ATM_read_FT1_status(void);
 
-#ifdef __WINDOWS__
-extern sng_fd_t sock;
-#else
-extern int sock;
-#endif
 
+extern sng_fd_t sock;
+
+extern int is_logger_dev;
 extern char i_name[];
 extern FT1_LED_STATUS FT1_LED;
 extern int raw_data;

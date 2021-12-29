@@ -538,10 +538,7 @@ typedef struct sdlahw_card {
 #define u_usb	u_hwif.usb
 
 	wan_mutexlock_t		pcard_ec_lock;	/* lock per physical card for EC */
-#if 0
-	/* moved to cpu, type */
-	wan_smp_flag_t		fe_rw_flag;	
-#endif
+
 	unsigned char		adptr_security;	/* Adapter security (AFT cards) */
 	u16			hwec_chan_no;	/* max hwec channels number */
 	int			hwec_ind;	/* hwec index */
@@ -560,7 +557,7 @@ typedef struct {
        int			total_line_no;
        u_int32_t	line_map;
 	
-	   wan_smp_flag_t		fe_rw_flag;	
+	   wan_bitmap_t		fe_rw_bitmap;	
 	   wan_mutexlock_t		pcard_lock;	/* lock per physical card for FE */
 } sdlahw_info_t;
 

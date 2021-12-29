@@ -30,7 +30,6 @@
 #if (defined __WINDOWS__)
 # define __init
 # define inline __inline
-# define DBG_LAW	if(1)DbgPrint
 #endif
 
 

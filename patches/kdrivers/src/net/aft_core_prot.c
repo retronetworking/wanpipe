@@ -565,6 +565,7 @@ int get_map(wan_device_t *wandev, netdevice_t *dev, struct seq_file* m, int* sto
 
 
 #ifdef AFT_TDM_API_SUPPORT
+
 int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 {
 	int err=0;
@@ -623,6 +624,9 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 	/* chan wp_tdm_api_dev is being initalized here: 
 	   DO NOT USE wp_tdm_api_dev ABOVE THIS LINE */
 	chan->wp_tdm_api_dev = &span->chans[chan_no];
+
+	/* Initialize the channel for first time use */
+	memset(chan->wp_tdm_api_dev,0,sizeof(span->chans[chan_no]));
 
 	/* Initilaize TDM API Parameters */
 	chan->wp_tdm_api_dev->chan = chan;
@@ -722,7 +726,7 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		}
 	} else {
 		chan->wp_tdm_api_dev->operation_mode	= WP_TDM_OPMODE_SPAN;
-		chan->wp_tdm_api_dev->cfg.hw_mtu_mru = chan->tdm_api_chunk;
+		chan->wp_tdm_api_dev->cfg.hw_mtu_mru = 8;
 		chan->wp_tdm_api_dev->cfg.usr_period = chan->tdm_api_period;
 		chan->wp_tdm_api_dev->cfg.usr_mtu_mru = chan->mtu;
 

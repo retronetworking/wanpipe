@@ -26,7 +26,7 @@
 #endif
 
 #include "sdla_ec.h"
-
+#include <linux/smp_lock.h>
 #if defined(__x86_64__)
 #if defined(CONFIG_COMPAT) && defined(WP_CONFIG_COMPAT)
 # include <linux/ioctl32.h>
@@ -94,7 +94,7 @@ static int wp_ecdev_global_cnt=0;
 
 static int wp_ecdev_open(struct inode*, struct file*);
 static int wp_ecdev_release(struct inode*, struct file*);
-static int wp_ecdev_ioctl(struct inode*, struct file*, unsigned int, unsigned long);
+static WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wp_ecdev_ioctl, struct file*, unsigned int, unsigned long);
 #if defined(__x86_64__) && defined(CONFIG_COMPAT) && defined(WP_CONFIG_COMPAT)
 static int wp_ecdev_ioctl32(unsigned int, unsigned int, unsigned long,struct file*);
 #endif
@@ -107,7 +107,7 @@ static struct file_operations wp_ecdev_fops = {
 	llseek: NULL,
 	open: wp_ecdev_open,
 	release: wp_ecdev_release,
-	ioctl: wp_ecdev_ioctl,
+	WAN_IOCTL: wp_ecdev_ioctl,
 	read: NULL,
 	write: NULL,
 	poll: NULL,
@@ -313,10 +313,10 @@ static int wp_ecdev_release(struct inode *inode, struct file *file)
 }
 
 extern int wan_ec_dev_ioctl(void*, void*);
-static int wp_ecdev_ioctl(struct inode *inode, struct file *file, 
-		      unsigned int cmd, unsigned long data)
+static WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wp_ecdev_ioctl, struct file *file, unsigned int cmd, unsigned long data)
 {
 	void	*ec = file->private_data;
+	long ret;
 
 	if (ec == NULL){
 		return -ENODEV;
@@ -325,7 +325,8 @@ static int wp_ecdev_ioctl(struct inode *inode, struct file *file,
 		return -EINVAL;
 	}
 	
-	return wan_ec_dev_ioctl(ec,(void*)data);
+	ret =  wan_ec_dev_ioctl(ec,(void*)data);
+	return ret;
 }
 
 #if defined(__x86_64__) && defined(CONFIG_COMPAT) && defined(WP_CONFIG_COMPAT)

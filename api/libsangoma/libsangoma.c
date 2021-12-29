@@ -1702,7 +1702,7 @@ sng_fd_t _LIBSNG_CALL sangoma_open_api_span_chan(int span, int chan)
 	return fd;
 }            
 
-sng_fd_t sangoma_open_dev_by_name(const char *dev_name)
+sng_fd_t _LIBSNG_CALL sangoma_open_dev_by_name(const char *dev_name)
 {
    	char fname[FNAME_LEN];
 

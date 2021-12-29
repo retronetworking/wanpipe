@@ -57,6 +57,7 @@ typedef long				long_t;
 typedef unsigned long 		ulong_t;
 #define wan_timeval			timeval
 #define wan_timeval_t		struct timeval
+typedef unsigned int 		wan_bitmap_t; /* 32 bit-wide on both 32 and 64 bit systems */
 #elif defined(__WINDOWS__)
 /******************* W I N D O W S ******************************/
 
@@ -146,6 +147,8 @@ typedef u32		dma_addr_t;
 
 typedef char*		caddr_t;
 typedef struct { long_t counter; } atomic_t;	/* Interlocked functions require LONG parameter */
+typedef ulong_t		wan_bitmap_t;	/* atomic bit-manupulation require LONG. 
+									 * 32 bit-wide on both 32 and 64 bit systems */
 
 /******** End of Basic data types ********/
 

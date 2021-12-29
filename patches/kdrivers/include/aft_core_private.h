@@ -206,7 +206,7 @@ typedef struct wp_rx_element
 	unsigned int reg;
 	unsigned int align;
 	unsigned short  len;
-	unsigned short  pkt_error;
+	wan_bitmap_t pkt_error;
 }wp_rx_element_t;
 
 
@@ -315,7 +315,7 @@ typedef struct private_area
 	unsigned char 		num_of_time_slots;
 	int          		logic_ch_num;
 
-	unsigned char 		interface_down;
+	wan_bitmap_t		interface_down;
 	unsigned char		channelized_cfg;
 	unsigned char		tdmv_zaptel_cfg;
 
@@ -344,9 +344,9 @@ typedef struct private_area
 
 	u8					idle_flag;
 	u16					max_idle_size;
-	u8					idle_start;
+	wan_bitmap_t		idle_start;
 
-	u8					pkt_error;
+	wan_bitmap_t		pkt_error;
 	u8					rx_fifo_err_cnt;
 
 	int					first_time_slot;

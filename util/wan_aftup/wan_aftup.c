@@ -1334,6 +1334,8 @@ static int wan_aftup_start(void)
 	/* got interface name */
 	strncpy(aft->if_name, ifname_def, strlen(ifname_def));
 
+	aft->cpld.private = aft;
+
 	/* Working with a SINGLE card, but still insert it into 
 	   the global 'wan_aftup_head' list, so wan_aftup_program()
 	   will work the same way as on Linux */
@@ -1432,6 +1434,11 @@ static void wan_aftup_usage (void)
 {
 	printf("%s\n",title_info);
 	printf("%s\n",usage_info);
+
+#if defined(__WINDOWS__)
+	printf("Example:\n");
+	printf("wan_aftup -i wanpipe1_if0 -f c:\\tmp\\A108dm_0100_V41.BIN\n");
+#endif
 }
 
 static void wan_aftup_version (void)

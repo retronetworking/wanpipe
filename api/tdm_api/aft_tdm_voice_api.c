@@ -275,7 +275,7 @@ void handle_span_chan(void)
 							Rx_data, 
 							sizeof(wp_tdm_api_rx_hdr_t),
 							&Rx_data[sizeof(wp_tdm_api_rx_hdr_t)],
-							70, 0);   
+							MAX_RX_DATA, 0);   
 
 				if (!read_enable){
 					goto bitstrm_skip_read;
@@ -285,7 +285,7 @@ void handle_span_chan(void)
 
 				/* err indicates bytes received */
 				if(err <= 0) {
-					printf("\nError receiving data\n");
+					printf("\nError receiving data %s\n",strerror(errno));
 					break;
 				}
 
@@ -482,7 +482,7 @@ int main(int argc, char* argv[])
 	  
 	dev_fd = sangoma_open_tdmapi_span_chan(atoi(card_name),atoi(if_name));
 	if( dev_fd < 0){
-		printf("Failed to open span chan\n");
+		printf("Failed to open span chan %i %i\n",atoi(card_name),atoi(if_name));
 		exit (1);
 	}
 	printf("HANDLING SPAN %i CHAN %i FD=%i\n",

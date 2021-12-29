@@ -147,7 +147,6 @@ extern int libsng_dbg_level;
 #define	DBG_INIT	if(libsng_dbg_level)libsng_dbg
 
 /**** Prototypes of Function used internally by libsangoma ****/
-sng_fd_t sangoma_open_dev_by_name(const char *dev_name);
 #if defined(__WINDOWS__)
 int UdpManagementCommand(sng_fd_t fd, wan_udp_hdr_t* wan_udp);
 LONG registry_set_integer_value(HKEY hkey, LPTSTR szKeyname, IN int iValue);

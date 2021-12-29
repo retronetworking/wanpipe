@@ -124,7 +124,7 @@ else
 	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
 		ZAPDIR_PRIV=$(ZAPDIR) 
 		ENABLE_WANPIPEMON_ZAP=YES
-		DHADI_CFLAGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE -I$(ZAPDIR)/kernel
+		DAHDI_CFLAGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE -I$(ZAPDIR)/kernel
 		ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
 		ZAP_PROT=TDM
 		PROTS=DEF-TDM
@@ -165,39 +165,35 @@ else
 #This will check for zaptel, kenrel source and build utilites and kernel modules
 #within local directory structure
 
-all: freetdm
+all: freetdm 
 
-all_wan: cleanup_local _checkzap _checksrc all_bin_kmod all_util 	
+all_wan: cleanup_local _checkzap _checksrc all_bin_kmod all_util all_lib	
 
-all_src_dahdi: cleanup_local  _checkzap _checksrc all_kmod_dahdi all_util
+all_src_dahdi: cleanup_local  _checkzap _checksrc all_kmod_dahdi all_util all_lib
 
-all_src: cleanup_local  _checksrc all_kmod all_util
+all_src: cleanup_local  _checksrc all_kmod all_util all_lib
 
-all_src_ss7: cleanup_local _checkzap _checksrc all_kmod_ss7 all_util
+all_src_ss7: cleanup_local _checkzap _checksrc all_kmod_ss7 all_util all_lib
 
 dahdi: all_src_dahdi
 
 zaptel: dahdi
 
-freetdm: all_src all_lib
-	@touch .all_lib .freetdm
+freetdm: all_src 
+	@touch .no_legacy_smg
 
 openzap:freetdm
 smg:	freetdm
 fs:		freetdm
-
-g3ti: all_src all_lib
-	@touch .all_lib .freetdm
+g3ti:   freetdm
 
 openzap_ss7: all_src_ss7 all_lib
-	@touch .all_lib
 
 tdmapi: all_src all_lib
-	@touch .all_lib
 
 cleanup_local:
 	@rm -f .all* 2> /dev/null;
-	@rm -f .freetdm 2> /dev/null;
+	@rm -f .no_legacy_smg 2> /dev/null;
 
 
 
@@ -231,8 +227,8 @@ clean: cleanup_local  clean_util _cleanoldwanpipe
 	$(MAKE) -C api SUBDIRS=$(WAN_DIR) clean
 	@find patches/kdrivers -name '.*.cmd' | xargs rm -f
 	@find . -name 'Module.symver*' | xargs rm -f
-	@if [ -e .freetdm ]; then \
-		rm -f .freetdm; \
+	@if [ -e .no_legacy_smg ]; then \
+		rm -f .no_legacy_smg; \
 	fi
 
                                     
@@ -315,7 +311,7 @@ _checkzap:
 	@sleep 2; 
 
 #Install all utilities etc and modules
-install: install_util install_etc install_kmod install_inc 
+install: install_etc install_util install_kmod install_inc 
 	@if [ -e .all_lib ] ; then \
 		$(MAKE) -C api/libsangoma install DESTDIR=$(INSTALLPREFIX); \
 		$(MAKE) -C api/libstelephony install DESTDIR=$(INSTALLPREFIX); \
@@ -354,8 +350,8 @@ endif
 all_util:  install_inc
 	$(MAKE) -C util all EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I $(PWD)/api/libsangoma/include" CC=$(CC) \
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(WARCH) 
-	$(MAKE) -C util all_wancfg EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I$(PWD)/api/libsangoma/include" CC=$(CC) \
-	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(WARCH)
+	$(MAKE) -C util all_wancfg EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I$(PWD)/api/libsangoma/include" CC=$(CC)  \
+	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(WARCH) 2> /dev/null
 
 all_lib:
 		$(shell cd api/libsangoma; ./init-automake.sh >> $(PWD)/.cfg_log;  ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;)
@@ -364,6 +360,7 @@ all_lib:
 		$(shell cd api/libstelephony; ./init-automake.sh >> $(PWD)/.cfg_log; ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;)
 		$(MAKE) -C api/libstelephony clean
 		$(MAKE) -C api/libstelephony all
+		@touch .all_lib
 
 install_lib:
 		$(MAKE) -C api/libsangoma install DESTDIR=$(INSTALLPREFIX)
@@ -387,7 +384,7 @@ install_bri:
 
 install_smgpri:
 	$(MAKE) -C ssmg/sangoma_pri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
-	@if [  ! -e .freetdm ]; then \
+	@if [  ! -e .no_legacy_smg ]; then \
 		@echo "Installing Sangoma MGD"; \
 		$(MAKE) -C ssmg/sangoma_mgd.trunk/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PRI=YES DESTDIR=$(INSTALLPREFIX) ; \
 	fi
@@ -412,6 +409,7 @@ install_pri_update:
 install_etc:
 	@if [ ! -e $(INSTALLPREFIX)/etc/wanpipe ]; then \
 	      	mkdir -p $(INSTALLPREFIX)/etc/wanpipe; \
+			mkdir -p $(INSTALLPREFIX)/etc/wanpipe/util; \
 	fi
 	@if [ ! -e $(INSTALLPREFIX)/etc/wanpipe/wanrouter.rc ]; then \
 		install -D -m 644 samples/wanrouter.rc $(INSTALLPREFIX)/etc/wanpipe/wanrouter.rc; \
@@ -429,6 +427,9 @@ install_etc:
 		mkdir -p $(INSTALLPREFIX)/etc/wanpipe/scripts; \
 	fi   
 	@\cp -rf wan_ec  $(INSTALLPREFIX)/etc/wanpipe/
+	@\cp -rf api  $(INSTALLPREFIX)/etc/wanpipe/
+	@\cp -rf util/wan_aftup   $(INSTALLPREFIX)/etc/wanpipe/util/
+	@\cp -rf util/wanec_apilib   $(INSTALLPREFIX)/etc/wanpipe/util/
 	@install -D -m 755 samples/wanrouter  $(INSTALLPREFIX)/usr/sbin/wanrouter
 	@echo
 	@echo "Wanpipe etc installed in $(INSTALLPREFIX)/etc/wanpipe";

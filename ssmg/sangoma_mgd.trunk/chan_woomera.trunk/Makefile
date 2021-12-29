@@ -89,6 +89,10 @@ ifneq (,$(wildcard $(INCDIR)/../callweaver.h))
 
 else 
 
+DUMMY:=$(shell ./check_for.sh 1.8  $(PBXDIR)/.version .ast18_check;)
+ifneq (0,$(shell cat .ast18_check))
+        PBXFLAGS_EXTRA+=-DAST16 -DAST18
+endif
 #Check for Asterisk 1.6
 DUMMY:=$(shell ./check_for.sh 1.6  $(PBXDIR)/.version .ast16_check;)
 ifneq (0,$(shell cat .ast16_check))

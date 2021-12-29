@@ -92,8 +92,8 @@ int		gui_interface=0;
 extern int trace_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int len);
 extern int get_femedia_type(wan_femedia_t *fe_media);
 
-#ifdef __WINDOWS__
-sng_fd_t	sock = 0;
+#ifdef _LIBSANGOMA_H
+sng_fd_t	sock = INVALID_HANDLE_VALUE;
 char ipaddress[WAN_IFNAME_SZ+1];
 #else
 int		sock = 0;
@@ -101,6 +101,8 @@ static sa_family_t		af = AF_INET;
 static struct sockaddr_in	soin;
 char ipaddress[16];
 #endif
+
+int is_logger_dev = 0;
 
 int  udp_port = 9000;
 
@@ -182,7 +184,7 @@ FT1_LED_STATUS FT1_LED;
  *****************************************************************************/
 #ifdef __WINDOWS__
 BOOL sig_end(DWORD dwCtrlType);
-#define close CloseConnection
+#define close(x) CloseConnection(&x)
 #else
 void sig_end(int signal);
 #endif
@@ -316,50 +318,42 @@ struct fun_protocol function_lookup[] = {
 /******************************************************************************
  * 			FUNCTION DEFINITION				      *
  *****************************************************************************/
-#ifdef __WINDOWS__
+#ifdef _LIBSANGOMA_H
 int MakeConnection( void )
 {
-	char device_name[MAX_PATH];
-
 	WIN_DBG("%s()\n", __FUNCTION__);
 	WIN_DBG("if_name: %s\n", if_name);
 	
-	_snprintf(device_name, MAX_PATH, "\\\\.\\%s", if_name); 
-
-	WIN_DBG("device_name: %s\n", device_name);
-
-	sock = CreateFile(	device_name, 
-						GENERIC_READ | GENERIC_WRITE, 
-						FILE_SHARE_READ | FILE_SHARE_WRITE,
-						(LPSECURITY_ATTRIBUTES)NULL, 
-						OPEN_EXISTING,
-						FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH,
-						(HANDLE)NULL
-						);
+	sock = sangoma_open_dev_by_name(if_name);
 
     if (sock == INVALID_HANDLE_VALUE){
-		printf("Error: CreateFile() failed for %s!!\n", if_name);
+		printf("Error: sangoma_open_dev_by_name() failed for %s!!\n", if_name);
 		sock = 0;
 		return WAN_FALSE;
+	}
+
+	if (!wp_strcasecmp(if_name, WP_LOGGER_DEV_NAME)){
+		is_logger_dev = 1;
+		return WAN_TRUE;
 	}
 
 	if (!GetWANConfig()){
 		printf("Error: Unable to obtain network interface information.\n");
 		printf("Make sure the IP and UDP port are correct.\n");
-		close(sock);
+		CloseConnection(&sock);
 		return WAN_FALSE;
 	}   
 
 	return WAN_TRUE;
 }
 
-void CloseConnection(sng_fd_t fd)
+void CloseConnection(sng_fd_t *fd)
 {
-	CloseHandle(fd);
-	sock = 0;
+	sangoma_close(fd);
 }
 
 #else
+
 int MakeConnection( void )
 {
 #ifdef WANPIPEMON_ZAP
@@ -598,7 +592,7 @@ int make_hardware_level_connection()
 {
 	if (MakeConnection() == WAN_FALSE){ 
 		if(sock){
-			CloseConnection(sock);
+			CloseConnection(&sock);
 		}
 		return 1;	
 	}
@@ -1523,7 +1517,7 @@ BOOL sig_end(DWORD dwCtrlType)
     }
 	
 	if (sock) {
-		CloseConnection(sock);
+		CloseConnection(&sock);
 		sock=0;
 	}
 	
@@ -1658,12 +1652,17 @@ gui_loop:
 			err=-ENODEV;
 			goto main_exit;
 		}
-		
+
+
 		/* Read fe media info for current interface */		
-		if (zap_monitor == 0 && dahdi_monitor == 0){
+		if (zap_monitor == 0 && dahdi_monitor == 0 && is_logger_dev == 0){
 			get_femedia_type(&femedia);
 		}
 		
+		if (is_logger_dev) {
+			wan_protocol = WANCONFIG_AFT_TE1;
+		}
+
 		//get_hardware_level_interface_name(if_name);
 		
 #ifdef WANPIPEMON_GUI
@@ -1675,7 +1674,9 @@ gui_loop:
 			goto gui_loop;		
 		}
 #endif
+		/* call per-wanprotocol monitor code: */
 		EXEC_PROT_FUNC(main,wan_protocol,err,(command,argc,argv));
+
 		close(sock);
 		
 		if (pcap_output_file){

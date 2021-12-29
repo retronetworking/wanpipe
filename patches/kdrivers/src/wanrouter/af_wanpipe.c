@@ -92,7 +92,6 @@ extern int wanpipe_bind_sk_to_parent(struct sock *sk, netdevice_t *dev, struct w
 extern int wanpipe_sk_parent_rx(struct sock *parent_sk, struct sk_buff *skb);
 #endif
 			  
-WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
 
 		
 /* The code below is used to test memory leaks. It prints out
@@ -1516,7 +1515,9 @@ wanpipe_svc_listen_skip:
  *      Crates AF_WANPIPE socket.
  *===========================================================*/
 
-#ifdef LINUX_FEAT_2624 
+#if defined(DECLARE_SOCKADDR)
+int wanpipe_create(struct net *net, struct socket *sock, int protocol, int kern)
+#elif defined(LINUX_FEAT_2624) 
 int wanpipe_create(struct net *net, struct socket *sock, int protocol)
 #else
 int wanpipe_create(struct socket *sock, int protocol)

@@ -469,7 +469,7 @@ int aft_bri_led_ctrl(sdla_t *card, int color, int led_pos, int on)
 
 int aft_bri_cpld0_set(sdla_t *card, int hwec_reset) 
 {
-	u8 cpld_reg=0;
+	wan_bitmap_t cpld_reg=0;
 	u32 reg=0;
 
 	card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG,&reg);

@@ -485,7 +485,7 @@ typedef struct {
 	sdla_fe_cfg_t	fe_cfg;
 	/* FIXME: Remove the following parameters from wandev_t */
 	unsigned char	fe_status;
-/*	unsigned int	fe_alarm; */
+	unsigned int	fe_prev_alarm;
 	unsigned char	fe_chip_id;
 	unsigned char	fe_max_ports;
 	unsigned char	fe_debug;

@@ -970,6 +970,7 @@ static int wp_tdmv_remora_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	memset(wr, 0x0, sizeof(wp_tdmv_remora_t));
 	card->wan_tdmv.sc	= wr;
 	wr->spanno		= tdmv_conf->span_no-1;
+#ifdef DAHDI_ISSUES
 	wr->span.manufacturer   = "Sangoma Technologies";
 	switch(card->adptr_type){
 	case A200_ADPTR_ANALOG:
@@ -996,6 +997,7 @@ static int wp_tdmv_remora_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	}
 	
 	snprintf(wr->span.location, sizeof(wr->span.location) - 1, "SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+#endif
 
 	wr->span.irq            = card->wandev.irq;
 	wr->num			= wp_remora_no++;
@@ -1439,23 +1441,32 @@ static void wp_tdmv_remora_tone (void* card_id, wan_event_t *event)
 	}
 
 	fechan = event->channel-1;
-	
-	if (event->type == WAN_EVENT_EC_DTMF){
-		DEBUG_TDMV(
-		"[TDMV_RM]: %s: Received EC Tone Event at TDM (%d:%c:%s:%s)!\n",
-			card->devname,
-			event->channel,
-			event->digit,
-			(event->tone_port == WAN_EC_CHANNEL_PORT_ROUT)?"ROUT":"SOUT",
-			(event->tone_type == WAN_EC_TONE_PRESENT)?"PRESENT":"STOP");
-	}else if (event->type == WAN_EVENT_RM_DTMF){
-		DEBUG_TDMV(
-		"[TDMV_RM]: %s: Received RM DTMF Event at TDM (%d:%c)!\n",
-			card->devname,
-			event->channel,
-			event->digit);	
+
+	switch(event->type) {
+     	case WAN_EVENT_EC_DTMF:
+		case WAN_EVENT_EC_FAX_1100:
+			 DEBUG_TDMV(
+				"[TDMV] %s: Received EC Tone (%s) Event at TDM (chan=%d digit=%c port=%s type=%s)!\n",
+						card->devname,
+						WAN_EVENT_TYPE_DECODE(event->type),
+						event->channel,
+						event->digit,
+						(event->tone_port == WAN_EC_CHANNEL_PORT_ROUT)?"ROUT":"SOUT",
+						(event->tone_type == WAN_EC_TONE_PRESENT)?"PRESENT":"STOP");   
+			break;
+		case  WAN_EVENT_RM_DTMF:
+            	DEBUG_TDMV(
+					"[TDMV_RM]: %s: Received RM DTMF Event at TDM (%d:%c)!\n",
+						card->devname,
+						event->channel,
+						event->digit);	  
+			break;
+		default:
+			DEBUG_ERROR("%s: %s() Error Invalid event type %X (%s)!\n",
+				card->devname, __FUNCTION__, event->type, WAN_EVENT_TYPE_DECODE(event->type));
+			return;
 	}
-					
+	
 	if (!(wr->tonemask & (1 << (event->channel-1)))){
 		DEBUG_TDMV(
 		"[TDMV] %s: Tone detection is not enabled for the channel %d\n",

@@ -982,7 +982,7 @@ typedef struct wp_rx_element
 	unsigned int dma_addr;
 	unsigned int reg;
 	unsigned int align;
-	unsigned char pkt_error;
+	wan_bitmap_t pkt_error;
 }wp_rx_element_t;
 
 

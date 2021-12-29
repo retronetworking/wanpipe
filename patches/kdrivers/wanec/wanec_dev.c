@@ -92,7 +92,7 @@ static int wanec_dev_release(struct inode*, struct file*);
 #if defined(__WINDOWS__)
 int wanec_dev_ioctl(void *data, char *card_devname);
 #else
-static int wanec_dev_ioctl(struct inode*, struct file*, unsigned int, unsigned long);
+static WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wanec_dev_ioctl, struct file*, unsigned int, unsigned long);
 #endif
 
 #if !defined(__WINDOWS__)
@@ -104,7 +104,7 @@ static struct file_operations wanec_dev_fops = {
 	llseek: NULL,
 	open: wanec_dev_open,
 	release: wanec_dev_release,
-	ioctl: wanec_dev_ioctl,
+	WAN_IOCTL: wanec_dev_ioctl,
 	read: NULL,
 	write: NULL,
 	poll: NULL,
@@ -243,15 +243,20 @@ int wanec_dev_ioctl(void *data, char *card_devname)
 	return rc;
 }
 #else
-extern int wanec_ioctl(unsigned int, void*);
-static int wanec_dev_ioctl(struct inode *inode, struct file *file,
-		      unsigned int cmd, unsigned long data)
+extern WAN_IOCTL_RET_TYPE wanec_ioctl(unsigned int, void*);
+static WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wanec_dev_ioctl, struct file *file, unsigned int cmd, unsigned long data)
 {
+	long ret;
 	if (data == 0){
 		return -EINVAL;
 	}
 
+#ifdef HAVE_UNLOCKED_IOCTL
+	ret = wanec_ioctl(cmd,(void*)data);
+	return ret;
+#else
 	return wanec_ioctl(cmd,(void*)data);
+#endif
 }
 
 #endif

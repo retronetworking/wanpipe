@@ -54,8 +54,8 @@ TARGETS = wan_fxotune
 
 ####### RULES ################################################################
 
-all: $(TARGETS)  
-	@echo "Ok. $(TARGETS) $(OS_TYPE) $(CFLAGS)"
+all:	$(TARGETS)  
+	@echo "Ok."
 
 wan_fxotune: wan_fxotune.c libteletone_generate.c
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS) 

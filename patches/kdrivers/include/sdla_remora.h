@@ -29,6 +29,14 @@
 # include "wanpipe_events.h"
 
 
+#define DBG_FALSE_RING1 0
+#define DBG_FALSE_RING2 0
+
+#if defined(__WINDOWS__)
+# define DEBUG_FALSE_RING	if(0)DbgPrint
+#else
+# define DEBUG_FALSE_RING	if(0)DEBUG_EVENT
+#endif
 
 /*******************************************************************************
 **			  DEFINES and MACROS
@@ -455,6 +463,13 @@ typedef struct sdla_remora_param {
 	int		battdebounce;		/* global for FXO */
 	int		battthresh;		/* global for FXO */
 	int		wp_rm_chunk_size;	/* TDM API set as MTU for Zaptel set as ZT_CHUNK_SIZE */
+
+#if DBG_FALSE_RING1
+	u32 last_system_ticks;
+	u32 last_intcount;
+	u32	ticks_diff;
+	u32 int_diff;
+#endif
 
 } sdla_remora_param_t;
 

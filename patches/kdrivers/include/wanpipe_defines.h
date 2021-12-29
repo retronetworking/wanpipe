@@ -538,11 +538,15 @@ typedef void 			(*wan_taskq_func_t)(struct work_struct *);
  * as work queue in wanpipe_kernel.h */
 typedef struct tq_struct 	wan_taskq_t;
 
-typedef void*			virt_addr_t;
+typedef void*				virt_addr_t;
 typedef unsigned long		wp_phys_addr_t;
-typedef spinlock_t		wan_spinlock_t;
+typedef spinlock_t			wan_spinlock_t;
+#ifdef DEFINE_MUTEX
 typedef struct mutex		wan_mutexlock_t;
-typedef rwlock_t		wan_rwlock_t;
+#else
+typedef spinlock_t			wan_mutexlock_t;
+#endif
+typedef rwlock_t			wan_rwlock_t;
 typedef unsigned long		wan_smp_flag_t;
 typedef unsigned long 		wan_rwlock_flag_t;
 
@@ -673,6 +677,8 @@ typedef int		pid_t;
 typedef void	(wan_pci_ifunc_t)(void*);
 
 typedef wan_spinlock_t wan_mutexlock_t;
+
+#define WAN_IOCTL_RET_TYPE	int
 
 #endif
 

@@ -86,6 +86,15 @@ extern void OutputLogString(const char *fmt, ...); /* Print to wanpipelog.txt (N
 # define _DEBUG_PRINT(...)	printk(## __VA_ARGS__)
 #endif
 
+#if 1
+# define DBG_BATTERY_REMOVAL 	DEBUG_TEST
+#else
+# if defined (__WINDOWS__)
+#  define DBG_BATTERY_REMOVAL	if(1)DbgPrint
+# else
+#  define DBG_BATTERY_REMOVAL	if(1)DEBUG_EVENT
+# endif
+#endif
 
 /*========================================================
   COMMON CODE
@@ -282,6 +291,8 @@ extern void OutputLogString(const char *fmt, ...); /* Print to wanpipelog.txt (N
 	WP_DEBUG(WAN_LOGGER_BRI, SANG_LOGGER_BRI_DEFAULT, ## __VA_ARGS__)
 #define DEBUG_HFC_S0_STATES(...)	\
 	WP_DEBUG(WAN_LOGGER_BRI, SANG_LOGGER_BRI_HFC_S0_STATES, ## __VA_ARGS__)
+#define DEBUG_L2_TO_L1_ACTIVATION(...)	\
+	WP_DEBUG(WAN_LOGGER_BRI, SANG_LOGGER_BRI_L2_TO_L1_ACTIVATION, ## __VA_ARGS__)
 
 /*==== End of Wanpipe Logger macro definitions ====*/
 /*=================================================*/

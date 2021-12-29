@@ -215,11 +215,6 @@ static __inline void WP_MDELAY (u32 ms) {
 		((SYSTEM_TICKS - (start)) > ((timeout) * HZ))
 
 
-#define WP_MICROSECONDS_IN_A_TICK()	(1000000 / HZ)
-#define WP_TICKS_IN_LAST_SECOND()	(SYSTEM_TICKS % HZ)	
-
-#define WAN_TICKS_TO_MICROSECONDS()	\
-	WP_TICKS_IN_LAST_SECOND() * WP_MICROSECONDS_IN_A_TICK()
 
 #if defined(__LINUX__)
 # define WAN_COPY_FROM_USER(k,u,l)	copy_from_user(k,u,l)
@@ -1030,6 +1025,15 @@ static __inline int wan_getcurrenttime(wan_time_t *sec, wan_suseconds_t *usec)
 }
 
 
+/*
+ * Obtain the number of seconds elapsed since midnight (00:00:00), 
+ * January 1, 1970.
+ * Equivalent to "time()" and "_time64()" in user-space.
+ * User-mode applications can call "ctime()" and "_ctime64()" or
+ * sangoma_ctime() for interpretation of this timestamp.
+ * 
+ */
+
 static __inline int wan_get_timestamp(wan_time_t *sec, wan_suseconds_t *usec)
 {
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
@@ -1046,8 +1050,9 @@ static __inline int wan_get_timestamp(wan_time_t *sec, wan_suseconds_t *usec)
 	return 0;
 #elif defined(__WINDOWS__)
 	struct timeval 	tv;
-	wp_time(&tv.tv_sec);/* number of seconds elapsed since midnight (00:00:00), January 1, 1970 */
-	tv.tv_usec = WAN_TICKS_TO_MICROSECONDS();
+	wp_time(&tv.tv_sec);	/* number of seconds elapsed since 
+							 * midnight (00:00:00), January 1, 1970 */
+	tv.tv_usec = get_milliseconds_in_current_second() * 1000;
 	if (sec) *sec = tv.tv_sec;
 	if (usec) *usec = tv.tv_usec;
 	return 0;
@@ -1157,20 +1162,28 @@ wan_add_timer(wan_timer_t* wan_timer, unsigned long delay)
 			wan_timer->timer_func,
 			wan_timer->timer_arg); 
 #elif defined(__WINDOWS__)
-	LARGE_INTEGER	CurrentTime;
+	LARGE_INTEGER	DueTime;
 
-	/* The 'delay' is in SYSTEM TICKS! */
+	/**********************************
+	  The 'delay' is in SYSTEM TICKS!
+	***********************************/
 
-	/* 10 000 000
-	 * System time is a count of 100-nanosecond intervals
-	 * since January 1, 1601. System time is typically
-	 * updated approximately every ten milliseconds. (on Intel 32bit) */
-	KeQuerySystemTime(&CurrentTime);
+	/* KeSetTimer(): the expiration time is expressed in system
+	 * time units (100-nanosecond intervals).
+	 *
+	 * KeQueryTimeIncrement(): returns the number of 
+	 * 100-nanosecond units that are added to the system time 
+	 * each time the interval clock interrupts.
+	 *
+	 * If the value of the DueTime parameter is negative,
+	 * the expiration time is relative to the current system time.
+	 *
+	 * Relative expiration times are NOT affected by system time changes. 
+	 */
+	DueTime.QuadPart = -1 * ((LONGLONG) (delay * KeQueryTimeIncrement()));
 
-	CurrentTime.QuadPart = CurrentTime.QuadPart + delay * KeQueryTimeIncrement();
-
-	KeSetTimer(&wan_timer->timer_info.Timer, CurrentTime, &wan_timer->timer_info.TimerDpcObject);
-
+	KeSetTimer(&wan_timer->timer_info.Timer, DueTime,
+		&wan_timer->timer_info.TimerDpcObject);
 #else
 # error "wan_add_timer() function is not supported yet!"
 #endif /* linux */
@@ -1231,7 +1244,13 @@ static __inline void wan_skb_append(void* skbprev, void *skb, void *list)
 #elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	m_cat (skbprev, skb);
 #elif defined(__WINDOWS__)
+# if WP_USE_INTERLOCKED_LIST_FUNCTIONS
+	/* Interlocked function do NOT allow to insert in the middle
+	 * of list. */
+	skb_queue_tail(skb, list);
+# else
 	skb_append(skbprev,skb);
+# endif
 #else
 # error "wan_skb_append() function is not supported yet!"
 #endif
@@ -2893,7 +2912,11 @@ static __inline void wan_spin_unlock(void *lock,  wan_smp_flag_t *flag)
 static __inline void wan_mutex_lock_init(void *lock, char *name)
 {
 #if defined(__LINUX__)
+#ifdef DEFINE_MUTEX
 	mutex_init(((wan_mutexlock_t*)lock));
+#else
+  	spin_lock_init(((spinlock_t*)lock));
+#endif
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	/*(*(wan_smp_flag_t*)flag) = 0;*/
 #if defined(SPINLOCK_OLD)
@@ -2912,7 +2935,11 @@ static __inline void wan_mutex_lock(void *mutex, wan_smp_flag_t *flag /* FIXME: 
 #if defined(__WINDOWS__)
 	wp_mutex_lock(mutex);	
 #else
+#ifdef DEFINE_MUTEX
 	mutex_lock(mutex);
+#else
+    spin_lock(((spinlock_t*)mutex));	                 
+#endif
 #endif	
 }
 
@@ -2921,7 +2948,11 @@ static __inline void wan_mutex_unlock(void *mutex, wan_smp_flag_t *flag /* FIXME
 #if defined(__WINDOWS__)
 	wp_mutex_unlock(mutex);	
 #else
+#ifdef DEFINE_MUTEX
 	mutex_unlock(mutex);
+#else
+    spin_unlock(((spinlock_t*)mutex));	                 
+#endif
 #endif	
 }
 
@@ -2930,7 +2961,11 @@ static __inline int wan_mutex_trylock(void *mutex, wan_smp_flag_t *flag /* FIXME
 #if defined(__WINDOWS__)
 	return wp_mutex_trylock(mutex);	
 #else
+#ifdef DEFINE_MUTEX
 	return mutex_trylock(mutex);
+#else
+	return spin_trylock(((spinlock_t*)mutex));	
+#endif
 #endif	
 }
 
@@ -2938,7 +2973,11 @@ static __inline int wan_mutex_trylock(void *mutex, wan_smp_flag_t *flag /* FIXME
 static __inline int wan_mutex_is_locked(void *lock)
 {
 #if defined(__LINUX__)
+#ifdef DEFINE_MUTEX
 	return mutex_is_locked(((wan_mutexlock_t*)lock));	
+#else
+	return spin_is_locked(((spinlock_t*)lock));	
+#endif
 #elif defined(__WINDOWS__)
 	return wp_mutex_is_locked(((wan_mutexlock_t*)lock));		
 #else
@@ -3013,7 +3052,12 @@ static __inline void wan_write_bus_4(void *phw, void *virt, int offset, unsigned
 #define WAN_IFQ_DMA_PURGE(ifq)				wan_skb_queue_purge(ifq)
 #define WAN_IFQ_ENQUEUE(ifq, skb, arg, err)	wan_skb_queue_tail((ifq), (skb))
 
+#if WP_USE_INTERLOCKED_LIST_FUNCTIONS
+# pragma deprecated(wan_skb_append)
+# pragma deprecated(wan_skb_unlink)
 #endif
+
+#endif	/* __WINDOWS__ */
 
 #endif  /* WAN_KERNEL */
 #endif	/* __WANPIPE_COMMON_H */

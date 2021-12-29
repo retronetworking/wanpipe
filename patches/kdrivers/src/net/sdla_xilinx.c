@@ -144,7 +144,7 @@ typedef struct private_area
 	long          		logic_ch_num;
 
 	unsigned char		hdlc_eng;
-	unsigned char		dma_status;
+	wan_bitmap_t		dma_status;
 	unsigned char 		ignore_modem;
 
 	struct net_device_stats	if_stats;
@@ -161,7 +161,7 @@ typedef struct private_area
 	unsigned char 	udp_pkt_src;		/* udp packet processing */
 	unsigned short 	timer_int_enabled;
 
-	unsigned char 	interface_down;
+	wan_bitmap_t 	interface_down;
 
 	/* Polling task queue. Each interface
 	* has its own task queue, which is used
@@ -183,9 +183,9 @@ typedef struct private_area
 
 	u8		idle_flag;
 	u16		max_idle_size;
-	u8		idle_start;
+	wan_bitmap_t	idle_start;
 
-	u8		pkt_error;
+	wan_bitmap_t		pkt_error;
 	u8		rx_fifo_err_cnt;
 
 	int		first_time_slot;
@@ -193,7 +193,7 @@ typedef struct private_area
 	netskb_t  	*tx_idle_skb;
 	u32		tx_dma_addr;
 	u32		tx_dma_len;
-	unsigned char	rx_dma;
+	wan_bitmap_t	rx_dma;
 	unsigned char   pci_retry;
 
 	unsigned char	fifo_size_code;
@@ -334,7 +334,7 @@ static void 	xilinx_tx_post_complete (sdla_t *card,
 static void 	xilinx_rx_post_complete (sdla_t *card, private_area_t *chan,
 										 netskb_t *skb,
 										 netskb_t **new_skb,
-										 unsigned char *pkt_error);
+										 wan_bitmap_t *pkt_error);
 
 
 static char 	request_xilinx_logical_channel_num (sdla_t *card,
@@ -4386,7 +4386,7 @@ static void xilinx_dma_rx_complete (sdla_t *card, private_area_t *chan)
 static void xilinx_rx_post_complete (sdla_t *card, private_area_t *chan,
 									 netskb_t *skb,
 									 netskb_t **new_skb,
-									 unsigned char *pkt_error)
+									 wan_bitmap_t *pkt_error)
 {
 
 	unsigned int len,data_error = 0;
@@ -4791,7 +4791,7 @@ static void wp_bh(void *data, int pending)
 	private_area_t	*chan = (private_area_t *)data;
 	sdla_t 		*card = chan->common.card;
 	netskb_t 	*new_skb, *skb, *dealloc_skb;
-	unsigned char	pkt_error;
+	wan_bitmap_t	pkt_error;
 	int		len;
 	private_area_t *top_chan;
 	wan_smp_flag_t smp_flags;

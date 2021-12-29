@@ -641,15 +641,16 @@ static int sdla_ds_te1_global_config(void* pfe)
 	
 	DEBUG_EVENT("%s: Global %s Front End configuration\n", 
 				fe->name, FE_MEDIA_DECODE(fe));
-	
+
+	WRITE_REG_LINE(0, REG_GTCR1, 0x01);  
 	WRITE_REG_LINE(0, REG_GTCCR, 0x00);
-	WRITE_REG_LINE(0, REG_GTCR1, 0x00);  
 
 	WRITE_REG_LINE(0, REG_GLSRR, 0xFF);  
 	WRITE_REG_LINE(0, REG_GFSRR, 0xFF);  
 	WP_DELAY(1000);
 	WRITE_REG_LINE(0, REG_GLSRR, 0x00);  
 	WRITE_REG_LINE(0, REG_GFSRR, 0x00);  
+	
 
 	return 0;
 }
@@ -672,6 +673,8 @@ static int sdla_ds_te1_global_unconfig(void* pfe)
 	DEBUG_EVENT("%s: Global %s Front End unconfigation!\n",
 				fe->name, FE_MEDIA_DECODE(fe));
 	
+	/* Inhibit the global interrupt */
+	WRITE_REG_LINE(0, REG_GTCR1, 0x01);  
 	WRITE_REG_LINE(0, REG_GFIMR, 0x00);
 	WRITE_REG_LINE(0, REG_GLIMR, 0x00);  
 	WRITE_REG_LINE(0, REG_GBIMR, 0x00);  
@@ -1313,7 +1316,15 @@ static int sdla_ds_te1_chip_config(void* pfe)
 			WRITE_REG(REG_LMCR, BIT_LMCR_TE);
 		}else{
 			/* Sep 17, 2009 - Auto AIS transmition (experimental) */
-			WRITE_REG(REG_LMCR, BIT_LMCR_ATAIS | BIT_LMCR_TE);
+			
+			/* This feature forces AIS when the link goes down.
+			   This breaks the specifications. When link goes down
+			   we should send Yellow alarm */
+			if (fe->fe_cfg.cfg.te_cfg.ais_auto_on_los) {
+				WRITE_REG(REG_LMCR, BIT_LMCR_ATAIS | BIT_LMCR_TE);
+			} else {
+				WRITE_REG(REG_LMCR, BIT_LMCR_TE);
+			}
 		}
 
 		/* Always configure with AIS alarm enabled */
@@ -1331,9 +1342,10 @@ static int sdla_ds_te1_chip_config(void* pfe)
 
 	/* INIT RBS bits to 1 */
 	sdla_ds_te1_rbs_init(fe);
-	
-	
-	
+
+
+
+
 	return 0;
 }
 
@@ -1482,6 +1494,9 @@ static int sdla_ds_te1_config(void* pfe)
 				TE_CLK_DECODE(fe),
 				WAN_TE1_REFCLK(fe),
 				WAN_TE1_ACTIVE_CH(fe));
+	DEBUG_EVENT("%s:    AIS on LOS: %s\n",
+			    fe->name,
+				fe->fe_cfg.cfg.te_cfg.ais_auto_on_los?"On":"Off (default)");
 						
 	if (IS_E1_FEMEDIA(fe)){				
 		DEBUG_EVENT("%s:    Sig Mode %s\n",
@@ -1516,6 +1531,15 @@ static int sdla_ds_te1_config(void* pfe)
 	memset(fe->swirq, 0, WAN_TE1_SWIRQ_MAX*sizeof(sdla_fe_swirq_t));
 
 	wan_set_bit(TE_CONFIGURED,(void*)&fe->te_param.critical);
+	
+	/* Start the global interrupt only when a first port been configured */
+	{
+		u_int8_t gintr_reg=READ_REG_LINE(0,REG_GTCR1);
+		if (gintr_reg & 0x01) {
+			gintr_reg &= ~(0x01);
+			WRITE_REG_LINE(0, REG_GTCR1, gintr_reg);  
+		}
+	}
 	
 			
 #if 0
@@ -2218,6 +2242,18 @@ sdla_ds_te1_update_alarms(sdla_fe_t *fe, u_int32_t alarms)
 			fe->fe_alarm &= ~WAN_TE_BIT_ALARM_RED;
 		}
 	}
+
+	DEBUG_TE1("%s: Alarm update called  prev=0x%08X  new=0x%08X...\n",fe->name,fe->fe_prev_alarm,fe->fe_alarm);
+	if (fe->fe_prev_alarm != fe->fe_alarm) {
+		sdla_t* card = (sdla_t*)fe->card;
+		fe->fe_prev_alarm = fe->fe_alarm;
+		if (card->wandev.te_report_alarms){
+			card->wandev.te_report_alarms(
+				card,
+				fe->fe_alarm);
+		}
+	}
+
 	return 0;
 }
 
@@ -2788,15 +2824,25 @@ sdla_ds_te1_rbs_print_bits(sdla_fe_t* fe, unsigned long bits, char *msg)
 {
 	int 	i, max_channels = fe->te_param.max_channels;
 	int	start_chan = 1;
+	char bits_str[256];
 
 	if (IS_E1_FEMEDIA(fe)){
 		start_chan = 0;
 	}
-	_DEBUG_EVENT("%s: %s ", fe->name, msg);
-	for(i=start_chan; i <= max_channels; i++)
-		_DEBUG_EVENT("%01d", 
+
+	wp_snprintf(bits_str, sizeof(bits_str), "%s: %s ", fe->name, msg);
+
+	for(i=start_chan; i <= max_channels; i++) {
+
+		wp_snprintf(&bits_str[strlen(bits_str)], 
+			sizeof(bits_str) - strlen(bits_str), 
+			"%01d", 
 			wan_test_bit(i, &bits) ? 1 : 0);
-	_DEBUG_EVENT("\n");
+
+	}
+
+	DEBUG_EVENT("%s\n", bits_str);
+
 	return 0;
 }
 
@@ -2826,10 +2872,14 @@ sdla_ds_te1_rbs_print(sdla_fe_t* fe, int last_status)
 		DEBUG_EVENT("%s: Last Status:\n",
 					fe->name);
 		sdla_ds_te1_rbs_print_banner(fe);
-		sdla_ds_te1_rbs_print_bits(fe, fe->te_param.tx_rbs_A, "TX A:");
-		sdla_ds_te1_rbs_print_bits(fe, fe->te_param.tx_rbs_B, "TX B:");
-		sdla_ds_te1_rbs_print_bits(fe, fe->te_param.tx_rbs_C, "TX C:");
-		sdla_ds_te1_rbs_print_bits(fe, fe->te_param.tx_rbs_D, "TX D:");
+
+		/* The TX bits come from user-mode in 1-based form, for 
+		 * consistency with RX bits, which printed in 0-based
+		 * form, shift the TX bits right by one. */
+		sdla_ds_te1_rbs_print_bits(fe, fe->te_param.tx_rbs_A >> 1, "TX A:");
+		sdla_ds_te1_rbs_print_bits(fe, fe->te_param.tx_rbs_B >> 1, "TX B:");
+		sdla_ds_te1_rbs_print_bits(fe, fe->te_param.tx_rbs_C >> 1, "TX C:");
+		sdla_ds_te1_rbs_print_bits(fe, fe->te_param.tx_rbs_D >> 1, "TX D:");
 		DEBUG_EVENT("%s:\n", fe->name);
 	}else{
 		unsigned int	i, chan = 0;
@@ -3669,8 +3719,8 @@ static void sdla_ds_te1_timer(unsigned long pfe)
  ******************************************************************************
  *				sdla_ds_te1_add_timer()	
  *
- * Description: Enable software timer interrupt in delay ms.
- * Arguments: delay - (in ms)
+ * Description: Enable software timer interrupt.
+ * Arguments: delay - (in Seconds!!)
  * Returns:
  ******************************************************************************
  */
@@ -3683,7 +3733,7 @@ static int sdla_ds_te1_add_timer(sdla_fe_t* fe, unsigned long delay)
 		return 0;
 	}
 
-	//err = wan_add_timer(&fe->timer, delay * HZ / 1000);
+	//err = wan_add_timer(&fe->timer, delay * HZ / 1000); //this is if 'delay' is in Ms
 	err = wan_add_timer(&fe->timer, delay * HZ );
 
 	if (err){
@@ -3959,14 +4009,14 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 					WAN_TE1_SWIRQ_TYPE_DECODE(type),
 					WAN_TE1_SWIRQ_SUBTYPE_DECODE(swirq->subtype));
 		sdla_ds_te1_update_alarms(fe, alarms);
-		if (sdla_ds_te1_set_status(fe, fe->fe_alarm)){
-			if (fe->fe_status == FE_CONNECTED){
+		if (sdla_ds_te1_set_status(fe, fe->fe_alarm)) {
+			if (fe->fe_status == FE_CONNECTED) {
 				sdla_ds_te1_swirq_trigger(
 						fe, 
 						WAN_TE1_SWIRQ_TYPE_LINK, 
 						WAN_TE1_SWIRQ_SUBTYPE_LINKUP, 
 						POLLING_TE1_TIMER);
-			}else{
+			} else {
 				sdla_ds_te1_swirq_trigger(
 						fe, 
 						WAN_TE1_SWIRQ_TYPE_LINK, 
@@ -4685,6 +4735,12 @@ static int sdla_ds_te1_liu_rlb(sdla_fe_t* fe, unsigned char cmd)
 	return 0;
 }
 
+
+#if 0
+
+/*NC: March 31, 2010: replaced by sdla_ds_te1_liu_alb() 
+  Function is still here for historical reasons */
+
 /*
  ******************************************************************************
  *				sdla_ds_te1_fr_flb()	
@@ -4730,6 +4786,7 @@ static int sdla_ds_te1_fr_flb(sdla_fe_t* fe, unsigned char cmd)
 	WRITE_REG(REG_RCR3, value);
 	return 0;
 }
+#endif
 
 /*
  ******************************************************************************

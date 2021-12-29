@@ -67,6 +67,18 @@
 #define WAN_DEV_NAME(device) device->dev.bus_id
 #endif
 
+/////////////2.6.36/////////////////////////////
+#ifdef HAVE_UNLOCKED_IOCTL
+#define WAN_IOCTL       unlocked_ioctl
+#define WAN_IOCTL_RET_TYPE	long
+#define WANDEF_IOCTL_FUNC(function, struct_ptr_file, cmd, data) function(struct_ptr_file, cmd, data)
+#else
+#define WAN_IOCTL       ioctl
+#define WAN_IOCTL_RET_TYPE	int
+#define WANDEF_IOCTL_FUNC(function, struct_ptr_file, cmd, data) function(struct inode *inode, struct_ptr_file, cmd, data)
+#endif
+////////////////////////////////////////////////
+
 /////////////2.6.35//////////////////////////////
 #ifndef netdev_mc_count
 #	define netdev_mc_count(dev) dev->mc_count
@@ -220,12 +232,9 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 #endif
  }
 
-#if 1
+#ifndef MOD_INC_USE_COUNT
 #define MOD_INC_USE_COUNT try_module_get(THIS_MODULE)
 #define MOD_DEC_USE_COUNT module_put(THIS_MODULE)
-#else
-#define MOD_INC_USE_COUNT 
-#define MOD_DEC_USE_COUNT
 #endif
 
 #define ADMIN_CHECK()  {if (!capable(CAP_SYS_ADMIN)) {\

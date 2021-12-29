@@ -208,4 +208,11 @@ extern unsigned char 	wpabs_get_last_trace_direction(void *trace_ptr);
 
 extern int		wpabs_bpf_report(void *dev, void *skb, int,int);
 
+#if defined(__WINDOWS__)
+# if WP_USE_INTERLOCKED_LIST_FUNCTIONS
+#  pragma deprecated(wpabs_skb_append)
+#  pragma deprecated(wpabs_skb_unlink)
+# endif
+#endif
+
 #endif

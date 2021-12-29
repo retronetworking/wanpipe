@@ -5330,6 +5330,11 @@ static int sdla_te_flush_pmon(sdla_fe_t *fe)
 	return 0;
 }
 
+#if 0
+
+/* NC: Function not being used. 
+   TODO: confirm that its still needed */
+
 /*
  ******************************************************************************
  *				SetLoopBackChannel()	
@@ -5363,6 +5368,7 @@ static int SetLoopBackChannel(sdla_fe_t* fe, int channel, unsigned char mode)
 
 	return WAN_TRUE;
 }
+#endif
 
 /*
  ******************************************************************************
@@ -6421,8 +6427,8 @@ sdla_te_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *fe_event)
  ******************************************************************************
  *				sdla_ds_te1_add_timer()	
  *
- * Description: Enable software timer interrupt in delay ms.
- * Arguments:
+ * Description: Enable software timer interrupt.
+ * Arguments: delay - (in Seconds!!)
  * Returns:
  ******************************************************************************
  */

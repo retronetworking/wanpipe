@@ -351,6 +351,7 @@ typedef struct wan_xilinx_conf
 	unsigned int	rbs;		/* Robbit signalling support */
 	unsigned int	data_mux_map;	/* Data mux map */
 	unsigned int	rx_crc_bytes;
+	unsigned char	span_tx_only_irq; /* SPAN mode API to use rx irq only */
 } wan_xilinx_conf_t;
 
 typedef struct wan_xilinx_conf_if

@@ -1016,6 +1016,12 @@ static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 	return 0;
 }
 
+
+#if 0
+/* NC: Interrupt mode is not used in T3 
+   We run only poll. This function is still here for
+   historical reasons */
+
 static int sdla_te3_set_intr(sdla_fe_t *fe)
 {
 	sdla_fe_cfg_t	*fe_cfg = &fe->fe_cfg;
@@ -1069,6 +1075,7 @@ static int sdla_te3_set_intr(sdla_fe_t *fe)
 
 	return 0;
 }
+#endif
 
 
 /******************************************************************************

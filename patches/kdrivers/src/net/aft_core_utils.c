@@ -252,6 +252,8 @@ void aft_wdt_set(sdla_t *card, unsigned char val)
 	card->hw_iface.bus_read_1(card->hw,AFT_PORT_REG(card,wdt_ctrl_reg), &reg);		
 	aft_wdt_ctrl_set(&reg,val);
 	card->hw_iface.bus_write_1(card->hw,AFT_PORT_REG(card,wdt_ctrl_reg), reg);
+
+	card->wdt_timeout=val;
 #endif
 }
 
@@ -1160,7 +1162,13 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			if(IS_E1_CARD(card)) {
           	 	if_cfg->ec_active_ch=chan->time_slot_map;
 			} else {
-				if_cfg->ec_active_ch=chan->time_slot_map<<1;
+				if (IS_BRI_CARD(card)) {
+					/* BRI always has 2 timeslots (1 & 2) thus 0x06  */
+				   	if_cfg->ec_active_ch=0x06;
+				} else {
+					/* T1 scenario */
+					if_cfg->ec_active_ch=chan->time_slot_map<<1;
+				}
 			}
 
             if_cfg->chunk_sz=chan->mru/chan->num_of_time_slots;
@@ -2577,8 +2585,8 @@ int aft_tdm_ring_rsync(sdla_t *card)
 
 		chan=(private_area_t*)card->u.aft.dev_to_ch_map[i];
 		if (!chan){
-			DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
-					card->devname,i);
+			DEBUG_ERROR("%s: Error: %s(): No Dev for Rx logical ch=%d\n",
+					card->devname, __FUNCTION__, i);
 			continue;
 		}
 
@@ -3147,8 +3155,8 @@ int aft_register_dump(sdla_t *card)
 		}
 		chan=(private_area_t*)card->u.aft.dev_to_ch_map[i];
 		if (!chan){
-			DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
-					card->devname,i);
+			DEBUG_ERROR("%s: Error: %s(): No Dev for Rx logical ch=%d\n",
+					card->devname, __FUNCTION__, i);
 			continue;
 		}
 
