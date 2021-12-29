@@ -924,7 +924,7 @@ static int wanpipe_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	}
 		
 	skb_reserve(skb, (dev->hard_header_len+15)&~15);
-	skb->nh.raw = skb->data;
+	wan_skb_reset_network_header(skb);
 
 	/* Returns -EFAULT on error */
 	err = memcpy_fromiovec(skb_put(skb,len), msg->msg_iov, len);

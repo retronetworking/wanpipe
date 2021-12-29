@@ -69,7 +69,7 @@ extern char *csudsu_menu[];
 extern int pcap_output;
 extern int pcap_prot;
 extern FILE *pcap_output_file;
-extern unsigned char pcap_output_file_name[];
+extern char pcap_output_file_name[];
 
 
 #define MAX_CMD_ARG 10
@@ -87,7 +87,7 @@ extern unsigned char pcap_output_file_name[];
 
 struct cmd_menu_lookup_t
 {
-	unsigned char *cmd_menu_name;
+	char *cmd_menu_name;
 	char **cmd_menu_ptr;
 };
 
@@ -106,7 +106,6 @@ extern char ** SS7get_cmd_menu(char *cmd_name,int *len);
 
 extern char ** BITSTRMget_main_menu(int *len);
 extern char ** BITSTRMget_cmd_menu(char *cmd_name,int *len);
-
 
 #endif
 extern char ** ADSLget_main_menu(int *len);
@@ -128,7 +127,7 @@ typedef void	ft1_cfg_t(void);
 
 struct fun_protocol {
 	int		protocol_id;
-	unsigned char   prot_name[10];
+	char   		prot_name[10];
 	config_t*	config;
 	usage_t*	usage;
 	main_t*		main;
@@ -364,7 +363,7 @@ static inline unsigned char set_wan_udphdr_data_byte(unsigned char off, unsigned
 #define ALL_X25 (DATA|PROT)
 
 typedef struct {
-	unsigned char prot_name[15];
+	char prot_name[15];
 	signed char prot_index;
 	unsigned int  pcap_prot;
 } trace_prot_t;

@@ -319,17 +319,17 @@ typedef struct fr_channel
 #define TMR_INT_ENABLED_UPDATE_DLCI	0x40
 #define TMR_INT_ENABLED_TE		0x80
 
-
+#pragma pack(1)
 typedef struct dlci_status
 {
-	unsigned short dlci	PACKED;
-	unsigned char state	PACKED;
+	unsigned short dlci	;
+	unsigned char state	;
 } dlci_status_t;
 
 typedef struct dlci_IB_mapping
 {
-	unsigned short dlci		PACKED;
-	unsigned long  addr_value	PACKED;
+	unsigned short dlci		;
+	unsigned long  addr_value	;
 } dlci_IB_mapping_t;
 
 /* This structure is used for DLCI list Tx interrupt mode.  It is used to
@@ -337,10 +337,11 @@ typedef struct dlci_IB_mapping
  */
 typedef struct fr_dlci_interface 
 {
-	unsigned char gen_interrupt	PACKED;
-	unsigned short packet_length	PACKED;
-	unsigned char reserved		PACKED;
+	unsigned char gen_interrupt	;
+	unsigned short packet_length	;
+	unsigned char reserved		;
 } fr_dlci_interface_t; 
+#pragma pack()
 
 extern void disable_irq(unsigned int);
 extern void enable_irq(unsigned int);
@@ -2661,7 +2662,7 @@ static void rx_intr (sdla_t* card)
 		api_rx_hdr->time_stamp = frbuf.tmstamp;
 
 		skb->protocol = htons(WP_PVC_PROT);
-		skb->mac.raw  = skb->data;
+		wan_skb_reset_mac_header(skb);
 		skb->dev      = dev;
 		skb->pkt_type = WAN_PACKET_DATA;
 
@@ -2826,7 +2827,7 @@ rx_intr_receive_ok:
 				goto rx_done;	
 			}
 
-			skb->mac.raw = skb->data;
+			wan_skb_reset_mac_header(skb);
 		} 
 		
 
@@ -5168,7 +5169,7 @@ udp_mgmt_dflt:
 				UDP_PIPE_mgmt_passed_to_stack ++;
 			new_skb->dev = dev;
 			new_skb->protocol = htons(ETH_P_IP);
-			new_skb->mac.raw = new_skb->data;
+			wan_skb_reset_mac_header(new_skb);
 
 			DEBUG_SUB_MEM(new_skb->truesize);
 			netif_rx(new_skb);

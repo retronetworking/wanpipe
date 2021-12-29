@@ -871,7 +871,12 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 		EchoChannelOpen.VqeConfig.fAcousticEcho		= TRUE;
 #endif
 
+#if defined(WANEC_ENABLE_NOISE_REDUCTION)
+#warning "WAN HWEC NOISE Reduction Enabled"
+		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
+#else
 		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
+#endif
 		EchoChannelOpen.VqeConfig.ulComfortNoiseMode	= 
 					cOCT6100_COMFORT_NOISE_NORMAL;
 				/*	cOCT6100_COMFORT_NOISE_NORMAL
@@ -1348,7 +1353,7 @@ int wanec_EventTone(wan_ec_t *ec, int verbose)
 		card = (sdla_t*)ec_dev->card;
 		if (card->wandev.event_callback.dtmf){
 			wan_event_t	event;
-			unsigned char	dtmf_port, dtmf_type;
+			unsigned char	dtmf_port=0, dtmf_type=0;
 			
 			event.type	= WAN_EVENT_EC_DTMF;
 			event.channel	= fe_chan;

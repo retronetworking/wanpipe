@@ -248,7 +248,7 @@ void* lookup (int val, look_up_t* table);
 int name2val (char* name, look_up_t* table);
 int read_data_file (char* name, data_buf_t* databuf);
 unsigned long filesize (FILE* file);
-unsigned int dec_to_uint (unsigned char* str, int len);
+unsigned int dec_to_uint (char* str, int len);
 unsigned int get_config_data (int, char**);
 void show_help(void);
 void show_usage(void);
@@ -300,7 +300,7 @@ int device_syncup(char *devname);
 void sig_func (int sigio);
 int start_link (void);
 int stop_link(void);
-int exec_command(unsigned char *rx_data);
+int exec_command(char *rx_data);
 void catch_signal(int signum,int nomask);
 
 /****** Global Data *********************************************************/
@@ -319,7 +319,7 @@ char conf_dir[] =	"/etc/wanpipe";
 char banner[] =		"WAN Router Configurator"
 			"(c) 1995-2003 Sangoma Technologies Inc.";
 
-static unsigned char wan_version[100];
+static char wan_version[100];
 
 
 char usagetext[] = 
@@ -2993,7 +2993,7 @@ int exec_chan_cmd(int dev, chan_def_t *def)
 
 #if defined(__LINUX__)
 	case ANNEXG_LAPB:
-		strncpy(def->chanconf->master,master_lapb_dev, WAN_IFNAME_SZ);
+		strncpy((char*)def->chanconf->master,master_lapb_dev, WAN_IFNAME_SZ);
 
 		if (ioctl(dev, ROUTER_IFNEW_LAPB, def->chanconf) < 0) {
 			fprintf(stderr, "\n\n\t%s: Interface %s setup failed\n", prognamed, def->name);
@@ -3011,7 +3011,7 @@ int exec_chan_cmd(int dev, chan_def_t *def)
 		break;
 
 	case ANNEXG_X25:
-		strncpy(def->chanconf->master, master_x25_dev, WAN_IFNAME_SZ);
+		strncpy((char*)def->chanconf->master, master_x25_dev, WAN_IFNAME_SZ);
 
 		if (ioctl(dev, ROUTER_IFNEW_X25, def->chanconf) < 0) {
 			fprintf(stderr, "\n\n\t%s: Interface %s setup failed\n", prognamed, def->name);
@@ -3030,7 +3030,7 @@ int exec_chan_cmd(int dev, chan_def_t *def)
 
 	// DSP_20
 	case ANNEXG_DSP:
-		strncpy(def->chanconf->master, master_dsp_dev, WAN_IFNAME_SZ);
+		strncpy((char*)def->chanconf->master, master_dsp_dev, WAN_IFNAME_SZ);
 		if (ioctl(dev, ROUTER_IFNEW_DSP, def->chanconf) < 0) {
 			fprintf(stderr, "\n\n\t%s: Interface %s setup failed\n", prognamed, def->name);
 			fprintf(stderr, "\t%s: ioctl(ROUTER_IFNEW_DSP,%s) failed:\n", 
@@ -3058,7 +3058,7 @@ int exec_chan_cmd(int dev, chan_def_t *def)
 	case ANNEXG_LIP_X25:
 	case ANNEXG_LIP_ATM:
 	case ANNEXG_LIP_KATM:
-		strncpy(def->chanconf->master, master_lip_dev, WAN_IFNAME_SZ);
+		strncpy((char*)def->chanconf->master, master_lip_dev, WAN_IFNAME_SZ);
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 		config.arg = (void*)def->chanconf;
@@ -3568,7 +3568,7 @@ unsigned long filesize (FILE* file)
  * Convert decimal string to unsigned integer.
  * If len != 0 then only 'len' characters of the string are converted.
  */
-unsigned int dec_to_uint (unsigned char* str, int len)
+unsigned int dec_to_uint (char* str, int len)
 {
 	unsigned val;
 
@@ -3883,11 +3883,11 @@ char *time_string(time_t t,char *buf)
 
 int has_config_changed(link_def_t *linkdef, char *name)
 {
-	unsigned char filename[50];
+	char filename[50];
 	//unsigned long checksum;
 	time_t modified;
 	struct stat statbuf;
-	unsigned char timeBuf[TIME_STRING_BUF];
+	char timeBuf[TIME_STRING_BUF];
 
 	sprintf(filename,"/etc/wanpipe/%s.conf",name);
 
@@ -4018,7 +4018,7 @@ void free_linkdefs(void)
 
 int device_syncup(char *devname)
 {
-	unsigned char filename[100];
+	char filename[100];
 	int err;
 
 	free_device_link(devname);
@@ -4125,7 +4125,7 @@ int start_link (void)
 	link_def_t* linkdef; 
 	int err=-EINVAL;
 	int dev=-1;
-	unsigned char filename[100];
+	char filename[100];
 
 	if (!link_defs){
 		if (card_name){
@@ -4250,7 +4250,7 @@ int stop_link(void)
  *
  */
 
-int exec_command(unsigned char *rx_data)
+int exec_command(char *rx_data)
 {
 	int toknum;
 	char *card_str=NULL;
@@ -4378,7 +4378,7 @@ int start_daemon(void)
 	struct sockaddr_un address;
 	int sock,conn;
 	socklen_t addrLength;
-	unsigned char rx_data[100];
+	char rx_data[100];
 	int err;
 	int fp;
 	struct stat file_stat;

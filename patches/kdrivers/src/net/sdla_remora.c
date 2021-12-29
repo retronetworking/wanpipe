@@ -333,6 +333,8 @@ static struct fxo_mode {
 	{ "YEMEN", 0, 0, 0, 0, 0, 0x3, 0, 0, },
 };
 
+static int acim2tiss[16] = { 0x0, 0x1, 0x4, 0x5, 0x7, 0x0, 0x0, 0x6, 0x0, 0x0, 0x0, 0x2, 0x0, 0x3 };
+
 /*******************************************************************************
 **			STRUCTURES AND TYPEDEFS
 *******************************************************************************/
@@ -639,7 +641,6 @@ static int wp_init_proslic_insane(sdla_fe_t *fe, int mod_no)
 	return 0;
 }
 
-
 static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
 {
 	wp_remora_fxs_t	*fxs;
@@ -651,13 +652,13 @@ static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
 	/* set the period of the DC-DC converter to 1/64 kHz  START OUT SLOW*/
 	WRITE_RM_REG(mod_no, 92, 0xf5);
 
-	start_ticks = SYSTEM_TICKS;
-	WRITE_RM_REG(mod_no, 14, 0x0);	/* DIFF DEMO 0x10 */
-
 	if (fast) return 0;
 
 	/* powerup */ 
-	WRITE_RM_REG(mod_no, 93, 0x1F);
+	//WRITE_RM_REG(mod_no, 93, 0x1F);
+	WRITE_RM_REG(mod_no, 14, 0x0);	/* DIFF DEMO 0x10 */
+
+	start_ticks = SYSTEM_TICKS;
 	while((vbat = READ_RM_REG(mod_no, 82)) < 0xC0){
 		/* Wait no more than 500ms */
 		if ((SYSTEM_TICKS - start_ticks) > HZ/2){
@@ -669,15 +670,15 @@ static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
 	if (vbat < 0xc0){
 		if (fxs->proslic_power == PROSLIC_POWER_UNKNOWN){
 			DEBUG_EVENT(
-			"%s: Module %d: Failed to powerup within %d ms (%d mV only)!\n",
+			"%s: Module %d: Failed to powerup within %d ms (%dV : %dV)!\n",
 					fe->name,
-					mod_no,
+					mod_no+1,
 					(int)(((SYSTEM_TICKS - start_ticks) * 1000 / HZ)),
-					vbat * 375);
+					(vbat * 375)/1000, (0xc0 * 375)/1000);
 			DEBUG_EVENT(
 			"%s: Module %d: Did you remember to plug in the power cable?\n",
 					fe->name,
-					mod_no);
+					mod_no+1);
 
 		}
 		fxs->proslic_power = PROSLIC_POWER_WARNED;
@@ -685,7 +686,7 @@ static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
 	}
 	fxs->proslic_power = PROSLIC_POWER_ON;
 	DEBUG_RM("%s: Module %d: Current Battery1 %dV, Battery2 %dV\n",
-					fe->name, mod_no,
+					fe->name, mod_no+1,
 					READ_RM_REG(mod_no, 82)*375/1000,
 					READ_RM_REG(mod_no, 83)*375/1000);
 
@@ -694,9 +695,9 @@ static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
         lim = (loopcurrent - 20) / 3;
         if ( loopcurrent > 41 ) {
                 lim = 0;
-		DEBUG_RM(
+		DEBUG_EVENT(
 		"%s: Module %d: Loop current out of range (default 20mA)!\n",
-					fe->name, mod_no);
+					fe->name, mod_no+1);
         }else{
 		DEBUG_RM("%s: Loop current set to %dmA!\n",
 					fe->name,
@@ -705,24 +706,22 @@ static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
         WRITE_RM_REG(mod_no, 71,lim);
 
 	WRITE_RM_REG(mod_no, 93, 0x99);  /* DC-DC Calibration  */
-#if 1
 	/* Wait for DC-DC Calibration to complete */
 	start_ticks = SYSTEM_TICKS;
 	while(0x80 & READ_RM_REG(mod_no, 93)){
 		if ((SYSTEM_TICKS - start_ticks) > 2*HZ){
 			DEBUG_EVENT(
-			"%s: Module %d: Timeout waiting for DC-DC calibration\n",
-						fe->name,
-						mod_no);
+			"%s: Module %d: Timeout waiting for DC-DC calibration (%02X)\n",
+						fe->name, mod_no+1,
+						READ_RM_REG(mod_no, 93));
 			return -EINVAL;
 		}
 		wait_just_a_bit(HZ/10, fast);
 	}
-#endif
 	return 0;
 }
 
-static int wp_proslic_powerleak_test(sdla_fe_t *fe, int mod_no)
+static int wp_proslic_powerleak_test(sdla_fe_t *fe, int mod_no, int fast)
 {
 	unsigned long	start_ticks;
 	unsigned char	vbat;
@@ -732,16 +731,12 @@ static int wp_proslic_powerleak_test(sdla_fe_t *fe, int mod_no)
 	WRITE_RM_REG(mod_no, 14, 0x10);
 	/* wait for 1 s */
 	start_ticks = SYSTEM_TICKS;
-	while((vbat = READ_RM_REG(mod_no, 82)) >= 0x6){
-		if ((SYSTEM_TICKS - start_ticks) > (HZ/2)){
-			break;
-		}
-		wait_just_a_bit(HZ/10, 0);
-	}
+	wait_just_a_bit(HZ, fast);
+	vbat = READ_RM_REG(mod_no, 82);
 	if (vbat < 0x6){
 		DEBUG_EVENT(
 		"%s: Module %d: Excessive leakage detected: %d volts (%02x) after %d ms\n",
-					fe->name, mod_no,
+					fe->name, mod_no+1,
 					376 * vbat / 1000,
 					vbat,
 					(int)((SYSTEM_TICKS - start_ticks) * 1000 / HZ));
@@ -749,20 +744,124 @@ static int wp_proslic_powerleak_test(sdla_fe_t *fe, int mod_no)
 	}
 	DEBUG_RM("%s: Module %d: Post-leakage voltage: %d volts\n",
 					fe->name,
-					mod_no,
+					mod_no+1,
 					376 * vbat / 1000);
 
 	return 0;
 }
 
+static int wp_proslic_calibrate(sdla_fe_t *fe, int mod_no, int fast)
+{
+	volatile unsigned long	start_ticks;
+
+	/* perform all calibration */
+	WRITE_RM_REG(mod_no, 97, 0x1f);
+	/* start */
+	WRITE_RM_REG(mod_no, 96, 0x5f);
+
+	start_ticks = SYSTEM_TICKS;
+	while(READ_RM_REG(mod_no, 96)){
+		if ((SYSTEM_TICKS - start_ticks) > 2*HZ){
+			DEBUG_EVENT(
+			"%s: Module %d: Timeout on module calibration!\n",
+					fe->name, mod_no+1);
+			return -1;
+		}
+		wait_just_a_bit(HZ/10, fast);
+	}
+	return 0;
+}
+
+static int wp_proslic_manual_calibrate(sdla_fe_t *fe, int mod_no, int fast)
+{
+	volatile unsigned long	start_ticks;
+	int			i=0;
+
+	WRITE_RM_REG(mod_no, 21, 0x00);
+	WRITE_RM_REG(mod_no, 22, 0x00);
+	WRITE_RM_REG(mod_no, 23, 0x00);
+	WRITE_RM_REG(mod_no, 64, 0x00);
+
+	/* Step 14 */
+	WRITE_RM_REG(mod_no, 97, 0x18);
+	WRITE_RM_REG(mod_no, 96, 0x47);
+
+	/* Step 15 */
+	start_ticks = SYSTEM_TICKS;
+	while(READ_RM_REG(mod_no, 96) != 0){
+		if ((SYSTEM_TICKS - start_ticks) > 800){
+			DEBUG_EVENT(
+			"%s: Module %d: Timeout on SLIC calibration (15)!\n",
+					fe->name, mod_no+1);
+			return -1;
+		}
+		wait_just_a_bit(HZ/10, fast);
+	}
+
+	wait_just_a_bit(HZ/10, fast);
+	wp_proslic_setreg_indirect(fe, mod_no, 88, 0x0);
+	wp_proslic_setreg_indirect(fe, mod_no, 89, 0x0);
+	wp_proslic_setreg_indirect(fe, mod_no, 90, 0x0);
+	wp_proslic_setreg_indirect(fe, mod_no, 91, 0x0);
+	wp_proslic_setreg_indirect(fe, mod_no, 92, 0x0);
+	wp_proslic_setreg_indirect(fe, mod_no, 93, 0x0);
+
+	/* Step 16 */
+	/* Insert manual calibration for sangoma Si3210 */
+	WRITE_RM_REG(mod_no, 98, 0x10);
+	WRITE_RM_REG(mod_no, 99, 0x10);
+
+	for (i = 0x1f; i > 0; i--){
+		WRITE_RM_REG(mod_no, 98, i);
+		wait_just_a_bit(4, fast);
+		if ((READ_RM_REG(mod_no, 88)) == 0){
+			break;
+		}
+	}
+	for (i = 0x1f; i > 0; i--){
+		WRITE_RM_REG(mod_no, 99, i);
+		wait_just_a_bit(4, fast);
+		if ((READ_RM_REG(mod_no, 89)) == 0){
+			break;
+		}
+	}
+	WRITE_RM_REG(mod_no, 64, 0x01);
+	wait_just_a_bit(HZ, fast);
+	WRITE_RM_REG(mod_no, 64, 0x00);
+	/* Step 17 */
+	WRITE_RM_REG(mod_no, 23, 0x04);
+
+	/* Step 18 */
+	/* DAC offset and without common mode calibration. */
+	WRITE_RM_REG(mod_no, 97, 0x01);	/* Manual after */
+	/* Calibrate common mode and differential DAC mode DAC + ILIM */
+	WRITE_RM_REG(mod_no, 96, 0x40);
+
+	/* Step 19 */
+	wait_just_a_bit(HZ*2, fast);
+	start_ticks = SYSTEM_TICKS;
+	while(READ_RM_REG(mod_no, 96) != 0){
+		if ((SYSTEM_TICKS - start_ticks) > 400){
+			DEBUG_EVENT(
+			"%s: Module %d: Timeout on SLIC calibration (%ld:%ld!\n",
+				fe->name, mod_no+1,start_ticks,SYSTEM_TICKS);
+			return -1;
+		}
+		wait_just_a_bit(HZ/10, fast);
+	}
+	DEBUG_RM("%s: Module %d: Calibration is done\n",
+				fe->name, mod_no+1);
+	/*READ_RM_REG(mod_no, 96);*/
+
+	return 0;
+}
 
 /* static */
 int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 {
-	volatile unsigned long	start_ticks;
-	unsigned short	tmp[5];
-	unsigned char	value;
-	volatile int		i, x;
+	unsigned short		tmp[5];
+	unsigned char		value;
+	volatile int		x;
 
 	/* By default, don't send on hook */
 	if (fe->fe_cfg.cfg.remora.reversepolarity){
@@ -780,12 +879,16 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 		WRITE_RM_REG(mod_no, 14, 0x10);
 	}
 
+	if (!fast){
+		fe->rm_param.mod[mod_no].u.fxs.proslic_power = PROSLIC_POWER_UNKNOWN;
+	}
+
 	/* Step 9 */
 	if (wp_proslic_init_indirect_regs(fe, mod_no)) {
 		DEBUG_EVENT(
 		"%s: Module %d: Indirect Registers failed to initialize!\n",
 							fe->name,
-							mod_no);
+							mod_no+1);
 		return -1;
 	}
 	wp_proslic_setreg_indirect(fe, mod_no, 97,0);
@@ -808,17 +911,17 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 		DEBUG_EVENT(
 		"%s: Module %d: Unable to do INITIAL ProSLIC powerup!\n",
 					fe->name,
-					mod_no);
+					mod_no+1);
 		return -1;
 	}
 
 	if (!fast){
 
-		if (wp_proslic_powerleak_test(fe, mod_no)){
+		if (wp_proslic_powerleak_test(fe, mod_no, fast)){
 			DEBUG_EVENT(
 			"%s: Module %d: Proslic failed leakge the short circuit\n",
 						fe->name,
-						mod_no);
+						mod_no+1);
 		}
 
 		/* Step 12 */
@@ -826,78 +929,33 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 			DEBUG_EVENT(
 			"%s: Module %d: Unable to do FINAL ProSLIC powerup!\n",
 						fe->name,
-						mod_no);
+						mod_no+1);
 			return -1;
 		}
 
 		/* Step 13 */
 		WRITE_RM_REG(mod_no, 64, 0);
 
-		/* Step 14 */
-		WRITE_RM_REG(mod_no, 97, 0x1E);
-		WRITE_RM_REG(mod_no, 96, 0x47);
-
-		/* Step 15 */
-		start_ticks = SYSTEM_TICKS;
-		while(READ_RM_REG(mod_no, 96) != 0){
-			if ((SYSTEM_TICKS - start_ticks) > 400){
-				DEBUG_EVENT(
-				"%s: Module %d: Timeout on SLIC calibration (15)!\n",
-						fe->name, mod_no);
-				return -1;
-			}
-			wait_just_a_bit(HZ/10, fast);
+		//if (wp_proslic_calibrate(fe, mod_no, fast)){
+		//	return -1;
+		//}
+		if (wp_proslic_manual_calibrate(fe, mod_no, fast)){
+			return -1;
 		}
 
-		/* Step 16 */
-		/* Insert manual calibration for sangoma Si3210 */
-		WRITE_RM_REG(mod_no, 98, 0x10);
-		//WRITE_RM_REG(mod_no, 98, 0x1F/*0x10*/);
-		for (i = 0x1f; i > 0; i--){
-
-			WRITE_RM_REG(mod_no, 98, i);
-			wait_just_a_bit(4, fast);
-			if ((READ_RM_REG(mod_no, 88)) == 0){
-				break;
-			}
-		}
-
-		WRITE_RM_REG(mod_no, 99, 0x10);
-		//WRITE_RM_REG(mod_no, 99, 0x1F/*0x10*/);
-		for (i = 0x1f; i > 0; i--){
-
-			WRITE_RM_REG(mod_no, 99, i);
-			wait_just_a_bit(4, fast);
-			if ((READ_RM_REG(mod_no, 89)) == 0){
-				break;
-			}
-		}
-
-		/* Step 17 */
-		value = READ_RM_REG(mod_no, 23);
-		WRITE_RM_REG(mod_no, 23, value | 0x04);
-
-		/* Step 18 */
-		/* DAC offset and without common mode calibration. */
-		WRITE_RM_REG(mod_no, 97, 0x01/*0x18*/);	/* Manual after */
-		/* Calibrate common mode and differential DAC mode DAC + ILIM */
-		WRITE_RM_REG(mod_no, 96, 0x40/*0x47*/);
-
-		/* Step 19 */
-		start_ticks = SYSTEM_TICKS;
-		while(READ_RM_REG(mod_no, 96) != 0){
-			if ((SYSTEM_TICKS - start_ticks) > 2000/*400*/){
-				DEBUG_EVENT(
-				"%s: Module %d: Timeout on SLIC calibration (19:%02X)!\n",
+		/* Perform DC-DC calibration */
+		WRITE_RM_REG(mod_no,  93, 0x99);
+		wait_just_a_bit(10, fast);
+		value = READ_RM_REG(mod_no, 107);
+		if ((value < 0x2) || (value > 0xd)) {
+			DEBUG_EVENT(
+			"%s: Module %d: DC-DC calibration has a surprising direct 107 of 0x%02x!\n",
 						fe->name,
-						mod_no,
-						READ_RM_REG(mod_no, 96));
-				return -1;
-			}
-			wait_just_a_bit(HZ/10, fast);
+						mod_no+1,
+						value);
+			WRITE_RM_REG(mod_no,  107, 0x8);
 		}
-		DEBUG_RM("%s: SLIC calibration complete (%ld)\n",
-					fe->name, SYSTEM_TICKS-start_ticks);
+
 		/* Save calibration vectors */
 		for (x=0;x<NUM_CAL_REGS;x++){
 			fe->rm_param.mod[mod_no].u.fxs.callregs.vals[x] =
@@ -912,74 +970,6 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 		}
 	}    
 
-	/* Step 20 */
-	wp_proslic_setreg_indirect(fe, mod_no, 88, 0);
-	wp_proslic_setreg_indirect(fe, mod_no, 89, 0);
-	wp_proslic_setreg_indirect(fe, mod_no, 90, 0);
-	wp_proslic_setreg_indirect(fe, mod_no, 91, 0);
-	wp_proslic_setreg_indirect(fe, mod_no, 92, 0);
-	wp_proslic_setreg_indirect(fe, mod_no, 93, 0);
-	wp_proslic_setreg_indirect(fe, mod_no, 94, 0);
-	wp_proslic_setreg_indirect(fe, mod_no, 95, 0);
-
-	if (!fast){
-		/* Disable interrupt while full initialization */
-		WRITE_RM_REG(mod_no, 21, 0);
-		WRITE_RM_REG(mod_no, 22, 0);
-		WRITE_RM_REG(mod_no, 23, 0);
-		
-#if defined(AFT_RM_INTR_SUPPORT)
-		fe->rm_param.mod[mod_no].u.fxs.imask1 = 0x00;
-		fe->rm_param.mod[mod_no].u.fxs.imask2 = 0x03;
-		fe->rm_param.mod[mod_no].u.fxs.imask3 = 0x01;
-#else		
-		fe->rm_param.mod[mod_no].u.fxs.imask1 = 0x00;
-		fe->rm_param.mod[mod_no].u.fxs.imask2 = 0x00;
-		fe->rm_param.mod[mod_no].u.fxs.imask3 = 0x00;
-#endif		
-	}
-
-	WRITE_RM_REG(mod_no, 64, 0);/* (0) */
-
-	//Alex Apr 3 - WRITE_RM_REG(mod_no, 64, 0x1);
-
-	value = READ_RM_REG(mod_no, 68); 
-	/*
-	** FIXME ???value = value & 0x03;
-	** if (value & 4){
-	**	printf("Module %d Timeout!\n", mod_no);
-	**	return -1;
-	** } */
-
-#if 1
-	WRITE_RM_REG(mod_no, 64, 0x00);
-
-	/* this is a singular calibration bit for longitudinal calibration */
-	WRITE_RM_REG(mod_no, 97, 0x01);
-	WRITE_RM_REG(mod_no, 96, 0x40);
-
-	value = READ_RM_REG(mod_no, 96); 
-
-	WRITE_RM_REG(mod_no, 18,0xff);
-	WRITE_RM_REG(mod_no, 19,0xff);
-	WRITE_RM_REG(mod_no, 20,0xff);
-
-	/* WRITE_RM_REG(mod_no, 64,0x1); */
-#endif
-
-	/* Perform DC-DC calibration */
-	WRITE_RM_REG(mod_no,  93, 0x99);
-	/*wait_just_a_bit(10, fast);*/
-	value = READ_RM_REG(mod_no, 107);
-	if ((value < 0x2) || (value > 0xd)) {
-		DEBUG_EVENT(
-		"%s: Module %d: DC-DC calibration has a surprising direct 107 of 0x%02x!\n",
-					fe->name,
-					mod_no,
-					value);
-		WRITE_RM_REG(mod_no,  107, 0x8);
-	}
-
 	for (x=0;x<5;x++) {
 		wp_proslic_setreg_indirect(fe, mod_no, x + 35, tmp[x]);
 	}
@@ -988,7 +978,7 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 		DEBUG_EVENT(
 		"%s: Module %d: Indirect Registers failed verification.\n",
 					fe->name,
-					mod_no);
+					mod_no+1);
 		return -1;
 	}
 
@@ -1012,23 +1002,124 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 	WRITE_RM_REG(mod_no, 20, 0xff);
 	WRITE_RM_REG(mod_no, 73, 0x04);
 
-#if 0
-	/* Enable loopback */
-	WRITE_RM_REG(mod_no, 8,  0x2);
-	WRITE_RM_REG(mod_no, 14, 0x0);
-	WRITE_RM_REG(mod_no, 64, 0x0);
-	WRITE_RM_REG(mod_no, 1,  0x08);
-#endif
+	if (!strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "AUSTRALIA")) {
+		value = acim2tiss[fxo_modes[fe->fe_cfg.cfg.remora.opermode].acim];
+		WRITE_RM_REG(mod_no, 10, 0x8 | value);
+		if (fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_osc){
+			wp_proslic_setreg_indirect(
+				fe, mod_no, 20,
+				fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_osc);
+		}
+		if (fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_x){
+			wp_proslic_setreg_indirect(
+				fe, mod_no, 21,
+				fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_x);
+		}
+	}
 
-	WRITE_RM_REG(mod_no, 64, 0x1);
+	/* lowpower */
+	if (fe->fe_cfg.cfg.remora.fxs_lowpower == WANOPT_YES){
+		WRITE_RM_REG(mod_no, 72, 0x10);
+	}
 
+	if (fe->fe_cfg.cfg.remora.fxs_fastringer == WANOPT_YES){
+		/* Speed up Ringer */
+		wp_proslic_setreg_indirect(fe, mod_no, 20, 0x7e6d);
+		wp_proslic_setreg_indirect(fe, mod_no, 21, 0x01b9);
+		/* Beef up Ringing voltage to 89V */
+		if (!strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "AUSTRALIA")) {
+			WRITE_RM_REG(mod_no, 74, 0x3f);
+			if (wp_proslic_setreg_indirect(fe, mod_no, 21, 0x247)){ 
+				return -1;
+			}
+			DEBUG_EVENT("%s: Module %d: Boosting fast ringer (89V peak)\n",
+					fe->name, mod_no + 1);
+		} else if (fe->fe_cfg.cfg.remora.fxs_lowpower == WANOPT_YES){
+			if (wp_proslic_setreg_indirect(fe, mod_no, 21, 0x14b)){ 
+				return -1;
+			}
+			DEBUG_EVENT("%s: Module %d: Reducing fast ring power (50V peak)\n",
+					fe->name, mod_no + 1);
+		} else {
+			DEBUG_EVENT("%s: Module %d: Speeding up ringer (25Hz)\n",
+					fe->name, mod_no + 1);
+		}
+	}else{
+		if (!strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "AUSTRALIA")) {
+			WRITE_RM_REG(mod_no, 74, 0x3f);
+			if (wp_proslic_setreg_indirect(fe, mod_no, 21, 0x1d1)){
+				return -1;
+			} 
+			DEBUG_EVENT("%s: Module %d: Boosting ringer (89V peak)\n",
+						fe->name, mod_no+1);
+		} else if (fe->fe_cfg.cfg.remora.fxs_lowpower == WANOPT_YES){
+			if (wp_proslic_setreg_indirect(fe, mod_no, 21, 0x108)){
+				return -1;
+			} 
+			DEBUG_EVENT("%s: Module %d: Reducing ring power (50V peak)\n",
+						fe->name, mod_no+1);
+		}
+	}
+
+	/* Adjust RX/TX gains */
+	if (fe->fe_cfg.cfg.remora.fxs_txgain || fe->fe_cfg.cfg.remora.fxs_rxgain) {
+		DEBUG_EVENT("%s: Module %d: Adjust TX Gain to %s\n", 
+					fe->name, mod_no+1,
+					(fe->fe_cfg.cfg.remora.fxs_txgain == 35) ? "3.5dB":
+					(fe->fe_cfg.cfg.remora.fxs_txgain == -35) ? "-3.5dB":"0dB");
+		value = READ_RM_REG(mod_no, 9);
+		switch (fe->fe_cfg.cfg.remora.fxs_txgain) {
+		case 35:
+			value |= 0x8;
+			break;
+		case -35:
+			value |= 0x4;
+			break;
+		case 0: 
+			break;
+		}
+	
+		DEBUG_EVENT("%s: Module %d: Adjust RX Gain to %s\n", 
+					fe->name, mod_no+1,
+					(fe->fe_cfg.cfg.remora.fxs_rxgain == 35) ? "3.5dB":
+					(fe->fe_cfg.cfg.remora.fxs_rxgain == -35) ? "-3.5dB":"0dB");
+		switch (fe->fe_cfg.cfg.remora.fxs_rxgain) {
+		case 35:
+			value |= 0x2;
+			break;
+		case -35:
+			value |= 0x01;
+			break;
+		case 0:
+			break;
+		}
+		WRITE_RM_REG(mod_no, 9, value);
+	}
+
+	if (!fast){
+		/* Disable interrupt while full initialization */
+		WRITE_RM_REG(mod_no, 21, 0);
+		WRITE_RM_REG(mod_no, 22, 0xFC);
+		WRITE_RM_REG(mod_no, 23, 0);
+		
+#if defined(AFT_RM_INTR_SUPPORT)
+		fe->rm_param.mod[mod_no].u.fxs.imask1 = 0x00;
+		fe->rm_param.mod[mod_no].u.fxs.imask2 = 0x03;
+		fe->rm_param.mod[mod_no].u.fxs.imask3 = 0x01;
+#else		
+		fe->rm_param.mod[mod_no].u.fxs.imask1 = 0x00;
+		fe->rm_param.mod[mod_no].u.fxs.imask2 = 0xFC;
+		fe->rm_param.mod[mod_no].u.fxs.imask3 = 0x00;
+#endif		
+	}
+
+#if 0					
 	DEBUG_RM("%s: Module %d: Current Battery1 %dV, Battery2 %dV (%d)\n",
-					fe->name, mod_no,
+					fe->name, mod_no+1,
 					READ_RM_REG(mod_no, 82)*375/1000,
 					READ_RM_REG(mod_no, 83)*375/1000,
 					__LINE__);
 
-#if 0					
 	/* verify TIP/RING voltage */
 	if (!fast){
 		WRITE_RM_REG(mod_no, 8, 0x2);
@@ -1055,16 +1146,22 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 		WRITE_RM_REG(mod_no, 8, 0x0);
 	}
 #endif
+	WRITE_RM_REG(mod_no, 64, 0x1);
 
-	DEBUG_RM("%s: Module %d: Current Battery1 %dV, Battery2 %dV (%d)\n",
-					fe->name, mod_no,
+	wait_just_a_bit(HZ, fast);
+	if (READ_RM_REG(mod_no, 81) < 0x0A){
+		DEBUG_EVENT(
+		"%s: Module %d: TIP/RING is too low on FXS %d!\n",
+				fe->name,
+				mod_no,
+				READ_RM_REG(mod_no, 81) * 375 / 1000);
+		return -1;
+	}
+
+	DEBUG_RM("%s: Module %d: Current Battery1 %dV, Battery2 %dV\n",
+					fe->name, mod_no+1,
 					READ_RM_REG(mod_no, 82)*375/1000,
-					READ_RM_REG(mod_no, 83)*375/1000,
-					__LINE__);
-
-	/* lowpower */
-	//WRITE_RM_REG(mod_no, 72, 0x14);
-	//todayWRITE_RM_REG(mod_no, 64, 0x1);
+					READ_RM_REG(mod_no, 83)*375/1000);
 	return 0;
 }
 
@@ -1178,6 +1275,51 @@ int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane)
 #else
 	fe->rm_param.mod[mod_no].u.fxo.imask = 0x00;
 #endif		
+
+	/* Take values for fxotxgain and fxorxgain and apply them to module */
+	if (fe->fe_cfg.cfg.remora.fxo_txgain) {
+		if (fe->fe_cfg.cfg.remora.fxo_txgain >= -150 && fe->fe_cfg.cfg.remora.fxo_txgain < 0) {
+			DEBUG_EVENT("%s: Module %d: Adjust TX Gain to %2d.%d dB\n", 
+					fe->name, mod_no+1,
+					fe->fe_cfg.cfg.remora.fxo_txgain / 10,
+					fe->fe_cfg.cfg.remora.fxo_txgain % -10);
+			WRITE_RM_REG(mod_no, 38, 16 + (fe->fe_cfg.cfg.remora.fxo_txgain/-10));
+			if(fe->fe_cfg.cfg.remora.fxo_txgain % 10) {
+				WRITE_RM_REG(mod_no, 40, 16 + (-fe->fe_cfg.cfg.remora.fxo_txgain%10));
+			}
+		}
+		else if (fe->fe_cfg.cfg.remora.fxo_txgain <= 120 && fe->fe_cfg.cfg.remora.fxo_txgain > 0) {
+			DEBUG_EVENT("%s: Module %d: Adjust TX Gain to %2d.%d dB\n", 
+					fe->name, mod_no+1,
+					fe->fe_cfg.cfg.remora.fxo_txgain / 10,
+					fe->fe_cfg.cfg.remora.fxo_txgain % 10);
+			WRITE_RM_REG(mod_no, 38, fe->fe_cfg.cfg.remora.fxo_txgain/10);
+			if (fe->fe_cfg.cfg.remora.fxo_txgain % 10){
+				WRITE_RM_REG(mod_no, 40, (fe->fe_cfg.cfg.remora.fxo_txgain % 10));
+			}
+		}
+	}
+	if (fe->fe_cfg.cfg.remora.fxo_rxgain) {
+		if (fe->fe_cfg.cfg.remora.fxo_rxgain >= -150 && fe->fe_cfg.cfg.remora.fxo_rxgain < 0) {
+			DEBUG_EVENT("%s: Module %d: Adjust RX Gain to %2d.%d dB\n",
+					fe->name, mod_no+1,
+					fe->fe_cfg.cfg.remora.fxo_rxgain / 10,
+					(-1) * (fe->fe_cfg.cfg.remora.fxo_rxgain % 10));
+			WRITE_RM_REG(mod_no, 39, 16 + (fe->fe_cfg.cfg.remora.fxo_rxgain/-10));
+			if(fe->fe_cfg.cfg.remora.fxo_rxgain%10) {
+				WRITE_RM_REG(mod_no, 41, 16 + (-fe->fe_cfg.cfg.remora.fxo_rxgain%10));
+			}
+		}else if (fe->fe_cfg.cfg.remora.fxo_rxgain <= 120 && fe->fe_cfg.cfg.remora.fxo_rxgain > 0) {
+			DEBUG_EVENT("%s: Module %d: Adjust RX Gain to %2d.%d dB\n",
+					fe->name, mod_no+1,
+					fe->fe_cfg.cfg.remora.fxo_rxgain / 10,
+					fe->fe_cfg.cfg.remora.fxo_rxgain % 10);
+			WRITE_RM_REG(mod_no, 39, fe->fe_cfg.cfg.remora.fxo_rxgain/10);
+			if(fe->fe_cfg.cfg.remora.fxo_rxgain % 10) {
+				WRITE_RM_REG(mod_no, 41, (fe->fe_cfg.cfg.remora.fxo_rxgain%10));
+			}
+		}
+	}
 
 	/* NZ -- crank the tx gain up by 7 dB */
 	if (!strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "NEWZEALAND")) {

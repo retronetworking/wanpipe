@@ -212,7 +212,7 @@ static int wan_plxup_read_cmd(wan_plxup_t *info)
 }
 
 
-unsigned char	buffer[WAN_PLXUP_MAX_ESIZE];
+char	buffer[WAN_PLXUP_MAX_ESIZE];
 static int wan_plxup_write_cmd(wan_plxup_t *info)
 {
 	FILE		*f;

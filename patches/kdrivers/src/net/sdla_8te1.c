@@ -712,10 +712,15 @@ static int sdla_ds_te1_chip_config(void* pfe)
 	switch(WAN_FE_FRAME(fe)){
 	case WAN_FR_D4:
 		value = READ_REG(REG_RCR1);
-		WRITE_REG(REG_RCR1, value | BIT_RCR1_T1_RFM | BIT_RCR1_T1_SYNCC);
+		WRITE_REG(REG_RCR1, value | BIT_RCR1_T1_RFM/* | BIT_RCR1_T1_SYNCC*/);
 
+		value = READ_REG(REG_TCR2);
+		WRITE_REG(REG_TCR2, value & ~BIT_TCR2_T1_TFDLS);
+	
 		value = READ_REG(REG_TCR3);
 		WRITE_REG(REG_TCR3, value | BIT_TCR3_TFM);
+
+		WRITE_REG(REG_T1TFDL, 0x1c);
 		break;
 
 	case WAN_FR_ESF:

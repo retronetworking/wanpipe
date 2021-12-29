@@ -616,20 +616,36 @@ sdla_get_pci_base_resource_addr(sdlahw_t* hw, int pci_offset, sdla_base_addr_t *
 static __inline int __sdla_bus_read_4(void* phw, unsigned int offset, u32* value)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
-
+	int retry=5;
 	WAN_ASSERT2(hw == NULL, 0);	
 	WAN_ASSERT2(hw->dpmbase == 0, 0);	
 	SDLA_MAGIC(hw);
-	if (!(hw->status & SDLA_MEM_MAPPED)) return 0;
+
+
+	do {
+
 #if defined(__FreeBSD__)
 	*value = readl(((u8*)hw->dpmbase + offset));
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	*value = bus_space_read_4(hw->hwcard->memt, hw->dpmbase, offset); 
+	*value = bus_space_read_4(hw->hwcard->memt, hwcpu->dpmbase, offset); 
 #elif defined(__LINUX__)
 	*value = wp_readl((unsigned char*)hw->dpmbase + offset);
 #else
+	*value = 0;
 # warning "sdla_bus_read_4: Not supported yet!"
 #endif
+		if (offset == 0x40 && *value == (u32)-1) {
+			if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT("%s:%d: Error: Illegal Register read: 0x%04X = 0x%08X\n",
+				__FUNCTION__,__LINE__,offset,*value);
+			}
+		} else {
+			/* only check for register 0x40 */
+			break;
+		}
+
+	}while(--retry);
+
 	return 0;
 }
 

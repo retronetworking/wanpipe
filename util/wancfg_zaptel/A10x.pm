@@ -226,6 +226,11 @@ sub gen_wanpipe_conf{
                 $wanpipe_conf_template = $self->card->current_dir."/templates/ss7_a100/wanpipe.tdmvoiceapi.a100";
 	}
 
+	if($self->signalling eq 'TDM API'){
+                $wanpipe_conf_template = $self->card->current_dir."/templates/wanpipe.tdm_api.a100";
+	}
+
+
         if ($self->fe_media eq 'T1'){
 		if ($self->signalling eq 'PRI CPE' | $self->signalling eq 'PRI NET'){
 			  $te_sig_mode = '';	

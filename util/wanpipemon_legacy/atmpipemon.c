@@ -160,7 +160,7 @@ static void set_FT1_monitor_status( unsigned char);
 static void read_ft1_te1_56k_config( void );
 
 /* Other routines */
-static int get_cell_type(char* data, int len);
+static int get_cell_type(unsigned char* data, int len);
 void decode_user_data_cell(char* data, int len);
 
 static char *gui_main_menu[]={
@@ -257,7 +257,7 @@ char ** ATMget_cmd_menu(char *cmd_name,int *len)
  *****************************************************************************/
 int ATMConfig(void)
 {
-	unsigned char codeversion[10];
+	char codeversion[10];
 	unsigned char x=0;
    
 	protocol_cb_size = sizeof(wan_mgmt_t) + 
@@ -298,7 +298,7 @@ int ATMConfig(void)
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strcpy(codeversion, wan_udp.wan_udphdr_data);
+		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
 	}
 	
 	return(WAN_TRUE);
@@ -856,7 +856,7 @@ static void line_trace( int trace_mode, int trace_sub_type)
 						switch(get_cell_type(trace_pkt->data, trace_pkt->real_length))
 						{
 						case ATM_USER_DATA_CELL:
-							decode_user_data_cell(trace_pkt->data,
+							decode_user_data_cell((char*)trace_pkt->data,
 										trace_pkt->real_length);
 							break;
 						default:
@@ -890,7 +890,7 @@ static void line_trace( int trace_mode, int trace_sub_type)
 }; /* line_trace */
 
 
-static int get_cell_type(char* data, int len)
+static int get_cell_type(unsigned char* data, int len)
 {
 	ATM_HEADER_STRUCT * atm_hdr_ptr = (ATM_HEADER_STRUCT * )data;
 	ATM_CELL_STRUCT * ATM_cell_ptr = (ATM_CELL_STRUCT * )data;

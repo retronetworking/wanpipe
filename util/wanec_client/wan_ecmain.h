@@ -32,7 +32,7 @@ enum {
 };
 
 typedef struct {
-	unsigned char	devname[WAN_DRVNAME_SZ+1];
+	char	devname[WAN_DRVNAME_SZ+1];
 //	unsigned char	if_name[WAN_IFNAME_SZ+1];
 	int		verbose;
 	

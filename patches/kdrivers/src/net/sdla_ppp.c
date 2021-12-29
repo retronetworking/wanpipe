@@ -2212,7 +2212,7 @@ static void rx_intr(sdla_t *card)
 			}else{
 				/* Pass data up the protocol stack */
 	    			skb->dev = dev;
-				skb->mac.raw  = skb->data;
+				wan_skb_reset_mac_header(skb);
 
 			    	++card->wandev.stats.rx_packets;
 				card->wandev.stats.rx_bytes += skb->len;
@@ -3403,7 +3403,7 @@ udp_dflt_cmd:
 			   stack */
 	    		new_skb->protocol = ppp_priv_area->protocol;
             		new_skb->dev = dev;
-	    		new_skb->mac.raw  = new_skb->data;
+	    		wan_skb_reset_mac_header(new_skb);
 
 			netif_rx(new_skb);
 		

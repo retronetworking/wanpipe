@@ -922,7 +922,7 @@ adsl_lan_rx(
 	case RFC_MODE_ROUTED_IP_LLC:
 	case RFC_MODE_ROUTED_IP_VC:	
 		rx_skb->protocol = htons(ETH_P_IP);
-		rx_skb->mac.raw = rx_skb->data;
+		wan_skb_reset_mac_header(rx_skb);
 		netif_rx(rx_skb);
 		break;
 		
@@ -930,7 +930,7 @@ adsl_lan_rx(
 	case RFC_MODE_PPP_LLC:
 		rx_skb->protocol = htons(ETH_P_WAN_PPP);
                 rx_skb->dev = dev;
-                rx_skb->mac.raw  = rx_skb->data;
+                wan_skb_reset_mac_header(rx_skb);
 		wp_sppp_input(rx_skb->dev,rx_skb);
 		break;
 	}
@@ -1721,7 +1721,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 		}else{
 			/* Decapsulate pkt and pass it up the protocol stack */
 			new_skb->protocol = htons(ETH_P_IP);
-			new_skb->mac.raw  = new_skb->data;
+			wan_skb_reset_mac_header(new_skb);
 		}
 		if (adsl->udp_pkt_src == UDP_PKT_FRM_NETWORK){
 			dev_queue_xmit(new_skb);

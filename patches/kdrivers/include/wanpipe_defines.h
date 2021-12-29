@@ -1228,7 +1228,7 @@ typedef struct wan_rtp_pkt {
 #define wan_eth_proto  			eth_hdr.w_eth_proto         
 } wan_rtp_pkt_t;
 
-#pragma pack(0)
+#pragma pack()
 
 
 #endif /* KERNEL */ 

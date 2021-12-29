@@ -721,7 +721,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		/* when using the S514 PCI adapter */
 		if (card->wandev.config_id != WANCONFIG_BSC && card->wandev.config_id != WANCONFIG_POS){ 
 			if(request_irq(irq, sdla_isr, 
-			      (card->type == SDLA_S508) ? 0: SA_SHIRQ, 
+			      (card->type == SDLA_S508) ? 0: IRQF_SHARED, 
 			       wandev->name, card)){
 
 				DEBUG_EVENT("%s: Can't reserve IRQ %d!\n", 

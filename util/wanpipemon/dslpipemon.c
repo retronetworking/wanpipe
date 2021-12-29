@@ -111,7 +111,7 @@ static void adsl_atm_config(void);
  *****************************************************************************/
 int ADSLConfig( void )
 {
-	unsigned char codeversion[10];
+	char codeversion[10];
 	unsigned char x;
    
 	x = 0;
@@ -142,7 +142,7 @@ int ADSLConfig( void )
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0){
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strcpy(codeversion, wan_udp.wan_udphdr_data);
+		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
 	}
 	protocol_cb_size=sizeof(wan_mgmt_t) + sizeof(wan_cmd_t) + sizeof(wan_trace_info_t) + 1;
 	return WAN_TRUE;
@@ -182,7 +182,7 @@ static void remove_vendor_id (void)
 	
 }
 
-static unsigned char *decode_modulation[]={
+static char *decode_modulation[]={
 "T1_413",
 "G_LITE",
 "G_DMT",
@@ -402,7 +402,7 @@ static void line_trace(unsigned char trace_opt)
 	unsigned short curr_pos = 0;
 	wan_trace_pkt_t *trace_pkt;
 	unsigned int i, j;
-	unsigned char outstr[MAX_TRACE_BUF];
+	char outstr[MAX_TRACE_BUF];
 	int recv_buff = MDATALEN + 100;
 	fd_set ready;
 	struct timeval to;

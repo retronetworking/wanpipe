@@ -95,7 +95,7 @@ int do_dump	(int argc, char* argv[]);
 int do_debug(int argc, char *argv[]);
 void show_dump	(char* buf, unsigned long len, unsigned long addr);
 void show_error	(int err);
-int hexdump	(char* str, unsigned char* data, int length, int limit);
+int hexdump	(char* str, char* data, int length, int limit);
 
 extern	int close (int);
 
@@ -343,7 +343,7 @@ void show_dump (char* buf, unsigned long len, unsigned long addr)
  * Return number of bytes dumped.
  * NOTE: string buffer must be at least (limit * 4 + 2) bytes long.
  */
-int hexdump (char* str, unsigned char* data, int length, int limit)
+int hexdump (char* str, char* data, int length, int limit)
 {
 	int i, n;
 

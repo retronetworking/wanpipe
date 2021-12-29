@@ -750,7 +750,7 @@ config_poll:
 
 int wanec_api_lib_toneload(wan_ec_api_t *ec_api)
 {	
-	UINT8	tone_path[100];
+	char	tone_path[100];
 	int		err = 0;
 #if !defined(__WINDOWS__)
 	int		dev;
@@ -821,7 +821,7 @@ int wanec_api_lib_monitor(wan_ec_api_t *ec_api)
 		FILE		*output = NULL;
 		size_t		len;
 		int		cnt = 0;
-		unsigned char	filename[MAXPATHLEN];
+		char	filename[MAXPATHLEN];
 		
 		printf("%s: Reading Monitor Data ..",
 					ec_api->devname);

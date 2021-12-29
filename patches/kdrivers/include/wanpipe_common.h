@@ -1304,8 +1304,8 @@ static __inline void wan_skb_set_raw(void* pskb)
 #if defined(__LINUX__)
 	struct sk_buff *skb = (struct sk_buff*)pskb;
 	if (skb){
-		skb->mac.raw = skb->data;
-		skb->nh.raw  = skb->data;
+		wan_skb_reset_mac_header(skb);
+		wan_skb_reset_network_header(skb);
 	}
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 #else

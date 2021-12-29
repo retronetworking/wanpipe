@@ -336,10 +336,13 @@ static int wanec_bypass(wan_ec_dev_t *ec_dev, int fe_channel, int enable, int ve
 			if (ec->ec_active) ec->ec_active--;
 		}
 	}else{
-		PRINT1(verbose, 
-		"%s: HWEC option is not enable for the channel %d (%lX)!\n",
-				ec->name, fe_channel, card->wandev.ec_enable_map);
-		return err;
+		if (err < 0){
+			PRINT1(verbose, 
+			"%s: HWEC option is not enable for the channel %d (%lX)!\n",
+					ec->name, fe_channel, card->wandev.ec_enable_map);
+			return err;
+		}
+		return 0;
 	}
 	return err;
 }
@@ -1231,7 +1234,7 @@ int wanec_ioctl(void *data, void *pcard)
 		"%s: Failed to find device [%s:%d]!\n",
 				ec_api->devname, __FUNCTION__,__LINE__);
 		ec_api->err = WAN_EC_API_RC_INVALID_DEV;
-		goto wanec_ioctl_done;
+		goto wanec_ioctl_exit;
 	}
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
@@ -1317,6 +1320,7 @@ int wanec_ioctl(void *data, void *pcard)
 
 wanec_ioctl_done:
 	wan_spin_unlock(&ec->lock);
+wanec_ioctl_exit:
 #if defined(__LINUX__)
 	err = WAN_COPY_TO_USER(
 			data,

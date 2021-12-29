@@ -1529,7 +1529,7 @@ static void rx_intr (sdla_t* card)
 			}
 
 			skb->dev = dev;
-			skb->mac.raw  = skb->data;
+			wan_skb_reset_mac_header(skb);
 					
 			if (chan->wp_sdlc_register.sdlc_stack_rx(skb) != 0){
 				++card->wandev.stats.rx_dropped;
@@ -1543,7 +1543,7 @@ static void rx_intr (sdla_t* card)
 		}else{
 			/* Pass it up the protocol stack */
 			skb->dev = dev;
-			skb->mac.raw  = skb->data;
+			wan_skb_reset_mac_header(skb);
 			netif_rx(skb);
 		}
 	}
@@ -2019,7 +2019,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
             		/* Decapsulate pkt and pass it up the protocol stack */
 	    		new_skb->protocol = htons(ETH_P_IP);
             		new_skb->dev = dev;
-	    		new_skb->mac.raw  = new_skb->data;
+	    		wan_skb_reset_mac_header(new_skb);
 	
 			netif_rx(new_skb);
 		} else {
@@ -2441,7 +2441,7 @@ void send_oob_msg(sdla_t *card, wan_mbox_t *mb)
 		}
 
 		skb->dev = dev;
-		skb->mac.raw  = skb->data;
+		wan_skb_reset_mac_header(skb);
 				
 		if (chan->wp_sdlc_register.sdlc_stack_rx(skb) != 0){
 			++card->wandev.stats.rx_dropped;

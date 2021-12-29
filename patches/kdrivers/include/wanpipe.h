@@ -89,11 +89,6 @@
 #endif
 
 /* Defines */
-
-#ifndef	PACKED
-#define	PACKED	__attribute__((packed))
-#endif
-
 #define	WANPIPE_MAGIC	0x414C4453L	/* signature: 'SDLA' reversed */
 
 /* IOCTL numbers (up to 16) */

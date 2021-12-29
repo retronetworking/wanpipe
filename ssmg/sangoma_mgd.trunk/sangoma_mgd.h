@@ -218,7 +218,6 @@ struct woomera_interface {
 	pthread_mutex_t flags_lock;
 	int debug;
 	int call_id;
-	char *cause;
 	FILE *log;
 	pthread_mutex_t vlock;
 	int index;
@@ -226,7 +225,8 @@ struct woomera_interface {
 	int span;
 	int chan;
 	int call_count;
-	char *sig_cause;
+	int q931_rel_cause_tosig;
+	int q931_rel_cause_topbx;
 	int loop_tdm;
 	char session[SMG_SESSION_NAME_SZ];
     	struct woomera_interface *next;
@@ -277,6 +277,10 @@ struct woomera_server {
 	int all_ckt_gap;
 	int all_ckt_busy;
 	struct timeval all_ckt_busy_time;
+	int dtmf_on; 
+    	int dtmf_off;
+    	int dtmf_intr_ch;
+    	int dtmf_size;
 } server;
 
 struct woomera_config {
@@ -510,36 +514,26 @@ static inline void woomera_set_interface(struct woomera_interface *woomera, char
     	}
 }
 
-static inline void woomera_set_cause(struct woomera_interface *woomera, char *cause)
+static inline void woomera_set_cause_tosig(struct woomera_interface *woomera, int cause)
 {
-	char *oldcause = woomera->cause;
-
-	if (cause) {
-		woomera->cause = strdup(cause);
-        } else {
-		woomera->cause = NULL;
+	if (!cause) {
+		cause=SIGBOOST_RELEASE_CAUSE_NORMAL;
 	}
 
-	if (oldcause) {
-		free(oldcause);
-    	}
+	woomera->q931_rel_cause_tosig=cause;
 }
 
-static inline void woomera_set_sig_cause(struct woomera_interface *woomera, char *cause)
+static inline void woomera_set_cause_topbx(struct woomera_interface *woomera, int cause)
 {
-	char *oldcause = woomera->sig_cause;
 
-	if (cause) {
-		woomera->sig_cause = strdup(cause);
-    	} else {
-		woomera->sig_cause = NULL;
-	}
+	if (!cause) {
+                cause=SIGBOOST_RELEASE_CAUSE_NORMAL;
+        }
 
-    	if (oldcause) {
-		free(oldcause);
-    	}
+        woomera->q931_rel_cause_topbx=cause;
 
 }
+
 
 static inline struct woomera_event *new_woomera_event(void)
 {

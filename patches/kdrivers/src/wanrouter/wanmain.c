@@ -516,7 +516,7 @@ unsigned short wanrouter_type_trans (struct sk_buff *skb, netdevice_t *dev)
 	skb->protocol = ethertype;
 	skb->pkt_type = PACKET_HOST;	/*	Physically point to point */
 	skb_pull(skb, cnt);
-	skb->mac.raw  = skb->data;
+	wan_skb_reset_mac_header(skb);
 	return ethertype;
 }
 
@@ -1860,6 +1860,8 @@ static int wan_device_unreg_lip(netdevice_t *dev)
 	void *lip_link = wan_get_lip_ptr(dev);
 	int err;
 
+	if (!IS_PROTOCOL_FUNC(wplip_protocol)) return 0;
+
 	if (!IS_FUNC_CALL(wplip_protocol,wplip_if_unreg))
 		return 0;
 
@@ -2001,6 +2003,8 @@ static int wan_device_del_if_lip(wan_device_t *wandev, netdevice_t *dev)
 		return -EBUSY;
 	}
 	
+	if (!IS_PROTOCOL_FUNC(wplip_protocol)) return 0;
+
 	if (!IS_FUNC_CALL(wplip_protocol,wplip_if_unreg))
 		return 0;
 
@@ -2031,6 +2035,8 @@ void unregister_wanec_iface (void)
 
 void *wanpipe_ec_register(void *pcard, int max_channels)
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return NULL;
+
 	if (wanec_iface.reg){
 		return wanec_iface.reg(pcard, max_channels);
 	}
@@ -2038,6 +2044,7 @@ void *wanpipe_ec_register(void *pcard, int max_channels)
 }
 int wanpipe_ec_unregister(void *arg, void *pcard)
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return 0;
 	if (wanec_iface.unreg){
 		return wanec_iface.unreg(arg, pcard);
 	}
@@ -2046,6 +2053,7 @@ int wanpipe_ec_unregister(void *arg, void *pcard)
 
 int wanpipe_ec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl)	
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return 0;
 	if (wanec_iface.event_ctrl){
 		return wanec_iface.event_ctrl(arg, pcard, event_ctrl);
 	}
@@ -2054,6 +2062,7 @@ int wanpipe_ec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl)
 
 int wanpipe_ec_isr(void *arg, void *pcard)
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return 0;
 	if (wanec_iface.isr){
 		return wanec_iface.isr(arg, pcard);
 	}
@@ -2062,6 +2071,7 @@ int wanpipe_ec_isr(void *arg, void *pcard)
 
 int wanpipe_ec_poll(void *arg, void *pcard)
 {
+	if (!IS_PROTOCOL_FUNC(wanec_iface)) return 0;
 	if (wanec_iface.poll){
 		return wanec_iface.poll(arg, pcard);
 	}

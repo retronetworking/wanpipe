@@ -697,7 +697,6 @@ static void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char statu
 	if (!(wp->chans[i].sig & ZT_SIG_CLEAR) &&
 	    (wp->chans[i].rxsig != rxs)){
 		zt_rbsbits(&wp->chans[i], rxs);
-#if 1
 		DEBUG_TDMV(
 		"[TDMV] %s: %s:%02d(%d) RX RBS: A:%1d B:%1d C:%1d D:%1d\n",
 				wp->devname, 
@@ -707,7 +706,6 @@ static void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char statu
 				(rxs & ZT_BBIT) ? 1 : 0,
 				(rxs & ZT_CBIT) ? 1 : 0,
 				(rxs & ZT_DBIT) ? 1 : 0);
-#endif
 	}
 }
 
@@ -1521,8 +1519,7 @@ static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits)
 	if (chan->flags & ZT_FLAG_HDLC){
 		return 0;
 	}
-#if 1
-	DEBUG_EVENT(
+	DEBUG_TDMV(
 	"[TDMV] %s: %s:%02d(%d) TX RBS: A:%1d B:%1d C:%1d D:%1d\n", 
 			wp->devname, 
 			(wp->ise1) ? "E1" : "T1",
@@ -1531,7 +1528,6 @@ static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits)
 			(ABCD_bits & WAN_RBS_SIG_B) ? 1 : 0,
 			(ABCD_bits & WAN_RBS_SIG_C) ? 1 : 0,
 			(ABCD_bits & WAN_RBS_SIG_D) ? 1 : 0);
-#endif
 
 	if (wan_test_and_set_bit(chan->chanpos-1, &wp->rbs_tx_status)){
 		if (ABCD_bits == wp->rbs_tx[chan->chanpos-1]){

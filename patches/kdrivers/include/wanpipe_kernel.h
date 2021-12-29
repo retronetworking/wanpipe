@@ -30,6 +30,19 @@
 # define wp_devinet_ioctl(_cmd_,_rptr_)  devinet_ioctl(_cmd_,_rptr_)
 #endif    
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
+#define wan_skb_reset_mac_header(skb)  skb_reset_mac_header(skb)
+#define wan_skb_reset_network_header(skb) skb_reset_network_header(skb)
+#else
+#define wan_skb_reset_mac_header(skb) (skb->mac.raw = skb->data)
+#define wan_skb_reset_network_header(skb) (skb->nh.raw  = skb->data)
+#endif
+
+#ifndef IRQF_SHARED
+#define IRQF_SHARED SA_SHIRQ
+#endif
+
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 /* KERNEL 2.6.X */
 
@@ -190,7 +203,7 @@
 
  static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
  {
- #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,21)
  	 return (struct proc_dir_entry *)inode->u.generic_ip;
  #else
  	 return (struct proc_dir_entry *)inode->i_private;

@@ -1188,6 +1188,13 @@ static int aft_analog_hwec_reset(void *pcard, int reset)
 #endif
 
 #if defined(CONFIG_WANPIPE_HWEC)
+/******************************************************************************
+**		aft_analog_hwec_enable()
+**
+** Return:	0   - success
+**		1   - channel out of channel map
+**		< 0 - failed
+******************************************************************************/
 #define	AFT_REMORA_MUX_TS_EC_ENABLE	0x210
 static int aft_analog_hwec_enable(void *pcard, int enable, int channel)
 {
@@ -1196,7 +1203,7 @@ static int aft_analog_hwec_enable(void *pcard, int enable, int channel)
 
 	WAN_ASSERT(card == NULL);
 	if(!wan_test_bit(channel, &card->wandev.ec_enable_map)){
-		return -EINVAL;
+		return 1;
 	}
 
 	card->hw_iface.bus_read_4(

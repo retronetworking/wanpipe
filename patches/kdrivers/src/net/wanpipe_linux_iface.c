@@ -455,8 +455,8 @@ static int wan_iface_input(netdevice_t* dev, netskb_t* skb)
 	if (!common->is_netdev){
 		skb->protocol = htons(ETH_P_HDLC);
 		skb->dev = dev;
-		skb->mac.raw  = skb->data;
-		skb->nh.raw   = skb->data;
+		wan_skb_reset_mac_header(skb);
+		wan_skb_reset_network_header(skb);
 	}
 #endif
 

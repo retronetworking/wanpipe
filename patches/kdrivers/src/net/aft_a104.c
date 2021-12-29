@@ -1770,6 +1770,13 @@ static int aft_hwec_reset(void *pcard, int reset)
 #endif
 
 #if defined(CONFIG_WANPIPE_HWEC)
+/******************************************************************************
+**		aft_hwec_enable()
+**
+** Return:	0   - success
+**		1   - channel out of channel map
+**		< 0 - failed
+******************************************************************************/
 static int aft_hwec_enable(void *pcard, int enable, int channel)
 {
 	sdla_t		*card = (sdla_t*)pcard;
@@ -1777,7 +1784,7 @@ static int aft_hwec_enable(void *pcard, int enable, int channel)
 
 	WAN_ASSERT(card == NULL);
 	if(!wan_test_bit(channel, &card->wandev.ec_enable_map)){
-		return -EINVAL;
+		return 1;
 	}
 	DEBUG_TEST("[HWEC]: %s: %s bypass mode for channel %d!\n",
 			card->devname,

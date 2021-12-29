@@ -3244,7 +3244,7 @@ switch_hdlc_send:
 					memset(buf, 0, sizeof(api_rx_hdr_t));
 
 					new_skb->protocol = htons(PVC_PROT);
-					new_skb->mac.raw  = new_skb->data;
+					wan_skb_reset_mac_header(new_skb);
 					new_skb->dev      = dev;
 					new_skb->pkt_type = WAN_PACKET_DATA;
 
@@ -3648,7 +3648,7 @@ static void tx_up_decode_pkt(bitstrm_private_area_t *chan)
 		       chan->rx_decode_len);
 
 		skb->protocol = htons(PVC_PROT);
-		skb->mac.raw  = skb->data;
+		wan_skb_reset_mac_header(skb);
 		skb->dev      = chan->common.dev; 
 		skb->pkt_type = WAN_PACKET_DATA;
 
@@ -3681,7 +3681,7 @@ static void tx_up_decode_pkt(bitstrm_private_area_t *chan)
 			chan->ifstats.rx_packets++;
 			chan->ifstats.rx_bytes+=chan->rx_decode_len;
 
-			skb->mac.raw  = skb->data;
+			wan_skb_reset_mac_header(skb);
 			skb->dev      = chan->common.dev;
 			
 			if (chan->protocol == WANCONFIG_PPP || 
@@ -4584,7 +4584,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
             		/* Decapsulate pkt and pass it up the protocol stack */
 	    		new_skb->protocol = htons(ETH_P_IP);
             		new_skb->dev = dev;
-	    		new_skb->mac.raw  = new_skb->data;
+	    		wan_skb_reset_mac_header(new_skb);
 	
 			netif_rx(new_skb);
 		} else {
@@ -5515,7 +5515,7 @@ static void send_ppp_term_request (netdevice_t *dev)
 		/* Decapsulate pkt and pass it up the protocol stack */
 		new_skb->protocol = htons(ETH_P_WAN_PPP);
 		new_skb->dev = dev;
-		new_skb->mac.raw  = new_skb->data;
+		wan_skb_reset_mac_header(new_skb);
 
 		wp_sppp_input(dev,new_skb);
 	}
@@ -5551,7 +5551,7 @@ wanpipe_switch_datascope_tx_up(bitstrm_private_area_t *chan,struct sk_buff *skb)
 	buf->direction = 1;
 		
 	new_skb->protocol = htons(PVC_PROT);
-	new_skb->mac.raw  = new_skb->data;
+	wan_skb_reset_mac_header(new_skb);
 	new_skb->dev      = chan->common.dev;
 	new_skb->pkt_type = WAN_PACKET_DATA;
 

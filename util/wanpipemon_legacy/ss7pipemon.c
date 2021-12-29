@@ -227,7 +227,7 @@ char ** SS7get_cmd_menu(char *cmd_name,int *len)
  *****************************************************************************/
 int SS7Config(void)
 {
-	unsigned char codeversion[10];
+	char codeversion[10];
 	unsigned char x=0;
    
 	protocol_cb_size = sizeof(wan_mgmt_t) + 
@@ -268,7 +268,7 @@ int SS7Config(void)
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strcpy(codeversion, wan_udp.wan_udphdr_data);
+		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
 	}
 	
 	return(WAN_TRUE);

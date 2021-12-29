@@ -101,7 +101,7 @@ int X25Config (void)
 
    	if (wan_udp.wan_udphdr_return_code == 0) {
       		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-      		strcpy(codeversion, wan_udp.wan_udphdr_data);
+      		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
    	}
 
 	protocol_cb_size=sizeof(wan_mgmt_t) + sizeof(wan_cmd_t) + 1;
@@ -425,7 +425,7 @@ void decode_timestamp (trace_data_t *trace_info)
 {
 	time_t time_val=trace_info->sec;
 	struct tm *time_tm = localtime(&time_val);
-	unsigned char tmp_time[50];
+	char tmp_time[50];
 
 	/* week day */
 	//strftime(tmp_time,sizeof(tmp_time),"%a",time_tm);
@@ -458,7 +458,7 @@ void line_trace(int trace_mode)
 {
   	fd_set ready;
    	struct timeval to;
-        unsigned char *trace_data;
+        char *trace_data;
         trace_data_t *trace_info;
 	wp_trace_output_iface_t trace_iface;
    

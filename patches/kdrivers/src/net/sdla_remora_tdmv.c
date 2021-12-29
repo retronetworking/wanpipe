@@ -1076,7 +1076,6 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 
 	/* Initialize Callback event function pointers */	
 	if (wr->dtmfsupport == WANOPT_YES){
-		DEBUG_EVENT("ADBG> Updating event callback dtmf\n");
 		card->wandev.event_callback.dtmf = wp_tdmv_remora_dtmf;
 	}
 	return 0;
@@ -1682,7 +1681,7 @@ static void wp_tdmv_remora_dtmf (void* card_id, wan_event_t *event)
 	}
 					
 	if (!(wr->dtmfmask & (1 << (event->channel-1)))){
-		DEBUG_EVENT("ADBG> %s: DTMF is not enabled for the channel %d\n",
+		DEBUG_TDMV("%s: DTMF is not enabled for the channel %d\n",
 					card->devname,
 					event->channel);
 		return;

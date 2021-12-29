@@ -2179,7 +2179,7 @@ static void rx_intr (sdla_t* card)
 		
 	buf = skb_put(skb, len);
 	card->hw_iface.peek(card->hw, addr, buf, len);
-	skb->mac.raw = skb->data;
+	wan_skb_reset_mac_header(skb);
 
 #ifdef RX_PKT_DEBUG
 	if (skb->len <= 7 && !(skb->data[3]&0x01)){
@@ -3326,7 +3326,7 @@ udp_cmd_done:
 				UDP_PIPE_mgmt_passed_to_stack ++;
 			new_skb->dev = dev;
 			new_skb->protocol = htons(ETH_P_IP);
-			new_skb->mac.raw = new_skb->data;
+			wan_skb_reset_mac_header(new_skb);
 			netif_rx(new_skb);
             	
 		} else {

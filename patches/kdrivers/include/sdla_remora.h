@@ -127,6 +127,14 @@ typedef struct sdla_remora_cfg_ {
 	int	battthresh;
 	int	battdebounce;	
 	int	network_sync;
+
+	int		fxs_rxgain;
+	int		fxs_txgain;
+	u_int8_t	fxs_fastringer;
+	u_int8_t	fxs_lowpower;
+
+	int		fxo_rxgain;
+	int		fxo_txgain;
 } sdla_remora_cfg_t;
 
 typedef struct {

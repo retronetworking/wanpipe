@@ -1,0 +1,119 @@
+K 25
+svn:wc:ra_dav:version-url
+V 34
+/svn/sangoma_mgd/!svn/ver/24/trunk
+END
+sigboost.h
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/sangoma_mgd/!svn/ver/22/trunk/sigboost.h
+END
+sound.raw
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/sangoma_mgd/!svn/ver/1/trunk/sound.raw
+END
+sangoma_mgd.conf.sample
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/sangoma_mgd/!svn/ver/22/trunk/sangoma_mgd.conf.sample
+END
+switch_buffer.h
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/sangoma_mgd/!svn/ver/1/trunk/switch_buffer.h
+END
+callgettest.sh
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/sangoma_mgd/!svn/ver/1/trunk/callgettest.sh
+END
+ss7box
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/sangoma_mgd/!svn/ver/1/trunk/ss7box
+END
+Changelog
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/sangoma_mgd/!svn/ver/1/trunk/Changelog
+END
+call_signal.c
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/sangoma_mgd/!svn/ver/1/trunk/call_signal.c
+END
+re-sync.sh
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/sangoma_mgd/!svn/ver/20/trunk/re-sync.sh
+END
+woomera.conf
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/sangoma_mgd/!svn/ver/1/trunk/woomera.conf
+END
+sangoma_mgd.c
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/sangoma_mgd/!svn/ver/24/trunk/sangoma_mgd.c
+END
+call_signal.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/sangoma_mgd/!svn/ver/1/trunk/call_signal.h
+END
+sangoma_mgd.h
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/sangoma_mgd/!svn/ver/22/trunk/sangoma_mgd.h
+END
+q931_cause.h
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/sangoma_mgd/!svn/ver/1/trunk/q931_cause.h
+END
+g711.h
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/sangoma_mgd/!svn/ver/1/trunk/g711.h
+END
+install
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/sangoma_mgd/!svn/ver/20/trunk/install
+END
+smg_ctrl
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/sangoma_mgd/!svn/ver/1/trunk/smg_ctrl
+END
+switch_buffer.c
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/sangoma_mgd/!svn/ver/1/trunk/switch_buffer.c
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/sangoma_mgd/!svn/ver/21/trunk/Makefile
+END

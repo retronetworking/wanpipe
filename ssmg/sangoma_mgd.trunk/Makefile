@@ -11,14 +11,32 @@
 # as published by the Free Software Foundation; either version
 # 2 of the License, or (at your option) any later version.
 ################################################################################
-
+   
 SMG_DTMF=YES
 
+#Default kernel directory to be overwritten by user
+#Kernel version and location
+ifndef KVER
+       KVER=$(shell uname -r)
+endif
+ifndef KMOD
+       KMOD=/lib/modules/$(KVER)
+endif
+ifndef KDIR
+       KDIR=$(KMOD)/build
+endif
+ifndef KINSTDIR
+       KINSTDIR=$(KMOD)/kernel
+endif
+
 CC = gcc
-INCLUDES = -I/lib/modules/$(shell uname -r)/build/include -I. -I/usr/local/include -I../../patches/kdrivers/include -I/usr/include/wanpipe
+
+INCLUDES = -I$(KDIR)/include -I ../../ssmg/libsangoma.trunk -I. -I ../../patches/kdrivers/include -I ../../patches/kdrivers/wanec/oct6100_api/include -I ../../patches/kdrivers/wanec -I/usr/local/include -I../../patches/kdrivers/include -I/usr/include/wanpipe -Ilib/libteletone/src
+
 CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 -march=i686
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
-LDFLAGS=-L. -L/usr/local/lib -lpthread -lsangoma -lm 
+LDFLAGS=-L lib/libteletone/.libs -L. -L/usr/local/lib -L ../../ssmg/libsangoma.trunk/.libs -lpthread -lsangoma -lm
+
 
 ifeq "${SMG_DTMF}" "YES"
 LDFLAGS+= -lteletone
@@ -26,8 +44,11 @@ CFLAGS+= -DSMG_DTMF_ENABLE
 endif
 
 
-all: sangoma_mgd 
+all: sangoma_mgd  
 
+libs: 
+	$(shell cd lib/libteletone; ./configure; cd ../../; )
+	$(MAKE) -C lib/libteletone all
 
 switch_buffer.o: switch_buffer.c switch_buffer.h
 	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS)  -c -o switch_buffer.o switch_buffer.c
@@ -42,17 +63,42 @@ sangoma_mgd: sangoma_mgd.o call_signal.o switch_buffer.o sigboost.h
 sangoma_mgd.o: sangoma_mgd.c sangoma_mgd.h sigboost.h
 	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -c -o sangoma_mgd.o sangoma_mgd.c
 
-clean:
+
+clean:  old_cleanup
+	make -C lib/libteletone clean
 	find . -name '*.o' | xargs rm -f
 	rm -fr sangoma_mgd pritest *.o *.so *~ *core* *.so* *.a
 
 distclean: clean
 	@echo OK
 
-install: all
-	/bin/cp sangoma_mgd /usr/sbin
-	test -f /etc/sangoma_mgd.conf || /bin/cp sangoma_mgd.conf.sample /etc/sangoma_mgd.conf
+install: all install_smg old_cleanup
+
+install_smg: old_cleanup 
+	install -D -m 755 sangoma_mgd $(INSTALLPREFIX)/usr/sbin/sangoma_mgd
+	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
+		install -D -m 755 sangoma_mgd.conf.sample $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
+	fi
+	install -D -m 755 smg_ctrl $(INSTALLPREFIX)/usr/sbin/smg_ctrl
+	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(INSTALLPREFIX)/etc/init.d/smgss7_init_ctrl
 	@echo "sangoma_mgd Installed"
 
+old_cleanup:
+	./scripts/old_cleanup.sh
+
+
+install_woomera:
+	install -D -m 755 chan_woomera.so $(INSTALLPREFIX)/usr/lib/asterisk/modules/chan_woomera.so
+	@if [ ! -e $(INSTALLPREFIX)/etc/asterisk/woomera.conf ]; then \
+		install -D -m 755 woomera.conf $(INSTALLPREFIX)/etc/asterisk/woomera.conf; \
+	fi
+	@echo "chan_woomera Installed"
+
+
+install_all: all install_smg install_woomera
+
 uninstall: 
-	/bin/rm /usr/sbin/sangoma_mgd /etc/sangoma_mgd.conf
+	/bin/rm $(INSTALLPREFIX)/usr/sbin/sangoma_mgd $(INSTALLPREFIX)/etc/sangoma_mgd.conf
+
+
+

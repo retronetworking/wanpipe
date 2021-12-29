@@ -13,16 +13,10 @@
 * Oct 14, 1998  Jaspreet Singh  o Initial Version.
 *****************************************************************************/
 
-#ifdef          _GNUC_
-#  ifndef       PACKED
-#    define     PACKED  __attribute__((packed))
-#  endif        /* PACKED */
-#else
-#  define       PACKED
-#endif
-#ifdef          _MSC_
-#  pragma       pack(1)
-#endif
+#ifndef _SDLA_HDLC___
+#define _SDLA_HDLC___
+
+#pragma       pack(1)
 
 
 /*      Status flag for determining whether to perform a check on socket receive *      queue.
@@ -58,13 +52,13 @@
  */
 typedef struct {
 
-	unsigned char opp_flag		PACKED;		/* the opp flag */
-	unsigned char command		PACKED;		/* the command code */
-	unsigned short buffer_length	PACKED;		/* the data length */
-	unsigned char return_code	PACKED;		/* the return code */
-	unsigned char PF_bit		PACKED;		/* the HDLC P/F bit */
-	char MB_reserved[NUMBER_HDLC_MB_RES_BYTES] PACKED;  /* for later use */
-	char data[MAX_NO_DATA_BYTES_IN_I_FRAME] PACKED;	/* the data area */
+	unsigned char opp_flag		 ;		/* the opp flag */
+	unsigned char command		 ;		/* the command code */
+	unsigned short buffer_length	 ;		/* the data length */
+	unsigned char return_code	 ;		/* the return code */
+	unsigned char PF_bit		 ;		/* the HDLC P/F bit */
+	char MB_reserved[NUMBER_HDLC_MB_RES_BYTES]  ;  /* for later use */
+	char data[MAX_NO_DATA_BYTES_IN_I_FRAME]  ;	/* the data area */
 
 } HDLC_MAILBOX_STRUCT;
 
@@ -73,20 +67,20 @@ typedef struct {
 
 typedef struct {
 
-	unsigned char opp_flag		PACKED;		/* the opp flag */
-	unsigned char command		PACKED;		/* the command code */
-	unsigned short buffer_length	PACKED;		/* the data length */
-	unsigned char return_code	PACKED;		/* the return code */
-	unsigned char PF_bit		PACKED;		/* the HDLC P/F bit */
-	char MB_reserved[NUMBER_HDLC_MB_RES_BYTES] PACKED;  /* for later use */
-	char data[SIZEOF_HDLC_MB_DATA_BFR] PACKED;	/* the data area */
+	unsigned char opp_flag		 ;		/* the opp flag */
+	unsigned char command		 ;		/* the command code */
+	unsigned short buffer_length	 ;		/* the data length */
+	unsigned char return_code	 ;		/* the return code */
+	unsigned char PF_bit		 ;		/* the HDLC P/F bit */
+	char MB_reserved[NUMBER_HDLC_MB_RES_BYTES]  ;  /* for later use */
+	char data[SIZEOF_HDLC_MB_DATA_BFR]  ;	/* the data area */
 
 } TRUE_HDLC_MAILBOX_STRUCT;
 
 
 typedef struct {
-	pid_t			pid_num	PACKED;
-	HDLC_MAILBOX_STRUCT	cmdarea	PACKED;
+	pid_t			pid_num	 ;
+	HDLC_MAILBOX_STRUCT	cmdarea	 ;
 
 } CMDBLOCK_STRUCT;
 
@@ -294,9 +288,9 @@ typedef struct {
 
 typedef struct {
 
-	unsigned char trace_config	PACKED;    /* trace configuration */
-	unsigned short trace_deactivation_timer PACKED;  /* trace deactivation timer */
-	unsigned long ptr_trace_stat_el_cfg_struct PACKED;   /* a pointer to the line trace element configuration structure */
+	unsigned char trace_config	 ;    /* trace configuration */
+	unsigned short trace_deactivation_timer  ;  /* trace deactivation timer */
+	unsigned long ptr_trace_stat_el_cfg_struct  ;   /* a pointer to the line trace element configuration structure */
 
 } LINE_TRACE_CONFIG_STRUCT;
 
@@ -315,11 +309,11 @@ typedef struct {
 
 typedef struct {
 
-	unsigned short number_trace_status_elements PACKED;	/* number of line trace elements */
-	unsigned long base_addr_trace_status_elements PACKED;/* base address of the trace element list */
-	unsigned long next_trace_element_to_use PACKED;	/* pointer to the next trace element to be used */
-	unsigned long base_addr_trace_buffer PACKED;		/* base address of the trace data buffer */
-	unsigned long end_addr_trace_buffer PACKED;		/* end address of the trace data buffer */
+	unsigned short number_trace_status_elements  ;	/* number of line trace elements */
+	unsigned long base_addr_trace_status_elements  ;/* base address of the trace element list */
+	unsigned long next_trace_element_to_use  ;	/* pointer to the next trace element to be used */
+	unsigned long base_addr_trace_buffer  ;		/* base address of the trace data buffer */
+	unsigned long end_addr_trace_buffer  ;		/* end address of the trace data buffer */
 
 } TRACE_STATUS_EL_CFG_STRUCT;
 
@@ -329,13 +323,13 @@ typedef struct {
 
 typedef struct {
 
-	unsigned char opp_flag		PACKED;		/* opp flag */
-	unsigned short trace_length	PACKED;	/* trace length */
-	unsigned char trace_type	PACKED;	/* trace type */
-	unsigned short trace_time_stamp	PACKED;/* time stamp */
-	unsigned short trace_reserved_1	PACKED;/* reserved for later use */
-	unsigned long trace_reserved_2	PACKED;	/* reserved for later use */
-	unsigned long ptr_data_bfr	PACKED;	/* pointer to the trace data buffer */
+	unsigned char opp_flag		 ;		/* opp flag */
+	unsigned short trace_length	 ;	/* trace length */
+	unsigned char trace_type	 ;	/* trace type */
+	unsigned short trace_time_stamp	 ;/* time stamp */
+	unsigned short trace_reserved_1	 ;/* reserved for later use */
+	unsigned long trace_reserved_2	 ;	/* reserved for later use */
+	unsigned long ptr_data_bfr	 ;	/* pointer to the trace data buffer */
 
 } TRACE_STATUS_ELEMENT_STRUCT;
 
@@ -366,24 +360,24 @@ typedef struct {
 
 typedef struct {
 
-	unsigned long baud_rate			PACKED;		/* the baud rate */	
-	unsigned short line_config_options	PACKED;	/* line configuration options */
-	unsigned short modem_config_options	PACKED;	/* modem configuration options */
-	unsigned short HDLC_API_options		PACKED;	/* HDLC API options */
-	unsigned short HDLC_protocol_options	PACKED;	/* HDLC protocol options */
-	unsigned short HDLC_buffer_config_options PACKED; /* HDLC buffer configuration options */
-	unsigned short HDLC_statistics_options	PACKED;	/* HDLC operational statistics options */
-	unsigned short configured_as_DTE	PACKED;	/* DTE or DCE configuration */
-	unsigned short max_HDLC_I_field_length	PACKED;	/* the maximum length of the HDLC I-field */
-	unsigned short HDLC_I_frame_window	PACKED;	/* k - the I-frame window (maximum number of outstanding I-frames) */
-	unsigned short HDLC_T1_timer		PACKED;	/* the HDLC T1 timer */
-	unsigned short HDLC_T2_timer		PACKED;	/* the HDLC T2 timer */
-	unsigned short HDLC_T3_timer		PACKED;	/* the HDLC T3 timer */
-	unsigned short HDLC_T4_timer		PACKED;	/* the HDLC T4 timer */
-	unsigned short HDLC_N2_counter		PACKED;	/* the HDLC N2 counter */
-	unsigned long ptr_shared_mem_info_struct PACKED;/* a pointer to the shared memory area information structure */
-	unsigned long ptr_HDLC_Tx_stat_el_cfg_struct PACKED;/* a pointer to the transmit status element configuration structure */
-	unsigned long ptr_HDLC_Rx_stat_el_cfg_struct PACKED;/* a pointer to the receive status element configuration structure */
+	unsigned long baud_rate			 ;		/* the baud rate */	
+	unsigned short line_config_options	 ;	/* line configuration options */
+	unsigned short modem_config_options	 ;	/* modem configuration options */
+	unsigned short HDLC_API_options		 ;	/* HDLC API options */
+	unsigned short HDLC_protocol_options	 ;	/* HDLC protocol options */
+	unsigned short HDLC_buffer_config_options  ; /* HDLC buffer configuration options */
+	unsigned short HDLC_statistics_options	 ;	/* HDLC operational statistics options */
+	unsigned short configured_as_DTE	 ;	/* DTE or DCE configuration */
+	unsigned short max_HDLC_I_field_length	 ;	/* the maximum length of the HDLC I-field */
+	unsigned short HDLC_I_frame_window	 ;	/* k - the I-frame window (maximum number of outstanding I-frames) */
+	unsigned short HDLC_T1_timer		 ;	/* the HDLC T1 timer */
+	unsigned short HDLC_T2_timer		 ;	/* the HDLC T2 timer */
+	unsigned short HDLC_T3_timer		 ;	/* the HDLC T3 timer */
+	unsigned short HDLC_T4_timer		 ;	/* the HDLC T4 timer */
+	unsigned short HDLC_N2_counter		 ;	/* the HDLC N2 counter */
+	unsigned long ptr_shared_mem_info_struct  ;/* a pointer to the shared memory area information structure */
+	unsigned long ptr_HDLC_Tx_stat_el_cfg_struct  ;/* a pointer to the transmit status element configuration structure */
+	unsigned long ptr_HDLC_Rx_stat_el_cfg_struct  ;/* a pointer to the receive status element configuration structure */
 
 } HDLC_CONFIGURATION_STRUCT;
 
@@ -610,9 +604,9 @@ typedef struct {
  */
 typedef struct {
 
- 	unsigned char interrupt_type		PACKED; /* type of interrupt triggered */
- 	unsigned char interrupt_permission	PACKED;	/* interrupt permission mask */
-	unsigned char int_info_reserved[14]	PACKED;	/* reserved */
+ 	unsigned char interrupt_type		 ; /* type of interrupt triggered */
+ 	unsigned char interrupt_permission	 ;	/* interrupt permission mask */
+	unsigned char int_info_reserved[14]	 ;	/* reserved */
 
 } HDLC_INTERRUPT_INFO_STRUCT;
 
@@ -639,9 +633,9 @@ typedef struct {
 
 typedef struct {
 
-	unsigned short number_Tx_status_elements PACKED;    /* number of transmit status elements */
-	unsigned long base_addr_Tx_status_elements PACKED;  /* base address of the transmit element list */
-	unsigned long next_Tx_status_element_to_use PACKED; /* pointer to the next transmit element to be used */
+	unsigned short number_Tx_status_elements  ;    /* number of transmit status elements */
+	unsigned long base_addr_Tx_status_elements  ;  /* base address of the transmit element list */
+	unsigned long next_Tx_status_element_to_use  ; /* pointer to the next transmit element to be used */
 
 } HDLC_TX_STATUS_EL_CFG_STRUCT;
 
@@ -650,12 +644,12 @@ typedef struct {
  */
 typedef struct {
 
-	unsigned char opp_flag		PACKED;		/* opp flag */
-	unsigned short I_frame_length	PACKED;	/* length of the frame*/
-	unsigned char P_bit		PACKED;	/* P-bit setting in the frame */
-	unsigned long reserved_1	PACKED;	/* reserved for internal use */
-	unsigned long reserved_2	PACKED;	/* reserved for internal use */
-	unsigned long ptr_data_bfr	PACKED;	/* pointer to the data area */
+	unsigned char opp_flag		 ;		/* opp flag */
+	unsigned short I_frame_length	 ;	/* length of the frame*/
+	unsigned char P_bit		 ;	/* P-bit setting in the frame */
+	unsigned long reserved_1	 ;	/* reserved for internal use */
+	unsigned long reserved_2	 ;	/* reserved for internal use */
+	unsigned long ptr_data_bfr	 ;	/* pointer to the data area */
 
 } HDLC_I_FRM_TX_STATUS_EL_STRUCT;
 
@@ -671,11 +665,11 @@ typedef struct {
 
 typedef struct {
 
-	unsigned short number_Rx_status_elements	PACKED;	/* number of receive status elements */
-	unsigned long base_addr_Rx_status_elements	PACKED;	/* base address of the receive element list */
-	unsigned long next_Rx_status_element_to_use	PACKED;	/* pointer to the next receive element to be used */
-	unsigned long base_addr_Rx_buffer	PACKED;		/* base address of the receive data buffer */
-	unsigned long end_addr_Rx_buffer	PACKED;		/* end address of the receive data buffer */
+	unsigned short number_Rx_status_elements	 ;	/* number of receive status elements */
+	unsigned long base_addr_Rx_status_elements	 ;	/* base address of the receive element list */
+	unsigned long next_Rx_status_element_to_use	 ;	/* pointer to the next receive element to be used */
+	unsigned long base_addr_Rx_buffer	 ;		/* base address of the receive data buffer */
+	unsigned long end_addr_Rx_buffer	 ;		/* end address of the receive data buffer */
 } HDLC_RX_STATUS_EL_CFG_STRUCT;
 
 /* 
@@ -683,12 +677,12 @@ typedef struct {
  */
 typedef struct {
 
-	unsigned char opp_flag		PACKED;		/* opp flag */
-	unsigned short I_frame_length	PACKED;	/*length of the recvd frame */
-	unsigned char P_bit		PACKED;	/* P-bit setting in the frame */
-	unsigned long reserved_1	PACKED;	/* reserved for internal use */
-	unsigned long reserved_2	PACKED;	/* reserved for internal use */
-	unsigned long ptr_data_bfr	PACKED;	/* pointer to the data area */
+	unsigned char opp_flag		 ;		/* opp flag */
+	unsigned short I_frame_length	 ;	/*length of the recvd frame */
+	unsigned char P_bit		 ;	/* P-bit setting in the frame */
+	unsigned long reserved_1	 ;	/* reserved for internal use */
+	unsigned long reserved_2	 ;	/* reserved for internal use */
+	unsigned long ptr_data_bfr	 ;	/* pointer to the data area */
 
 } HDLC_I_FRM_RX_STATUS_EL_STRUCT;
 
@@ -706,12 +700,12 @@ typedef struct {
 
 typedef struct {
 
-        unsigned char global_status		PACKED; /* global status */
-        unsigned char modem_status		PACKED;/* current modem status*/
-        unsigned char global_excep_conditions	PACKED; /* global exception conditions */
-        unsigned char glob_info_reserved[5]	PACKED;   /* reserved */
-        unsigned char code_name[4]		PACKED; /* code name */
-        unsigned char code_version[4]		PACKED; /* code version */
+        unsigned char global_status		 ; /* global status */
+        unsigned char modem_status		 ;/* current modem status*/
+        unsigned char global_excep_conditions	 ; /* global exception conditions */
+        unsigned char glob_info_reserved[5]	 ;   /* reserved */
+        unsigned char code_name[4]		 ; /* code name */
+        unsigned char code_version[4]		 ; /* code version */
 
 } GLOBAL_INFORMATION_STRUCT;
 
@@ -722,9 +716,9 @@ typedef struct {
 
 typedef struct {
 
-        unsigned char parallel_port_A_input	PACKED;      /* input - parallel port A */
-        unsigned char parallel_port_B_input	PACKED;       /* input - parallel port B */
-        unsigned char FT1_info_reserved[14]	PACKED;       /* reserved */
+        unsigned char parallel_port_A_input	 ;      /* input - parallel port A */
+        unsigned char parallel_port_B_input	 ;       /* input - parallel port B */
+        unsigned char FT1_info_reserved[14]	 ;       /* reserved */
 
 } FT1_INFORMATION_STRUCT;
 
@@ -734,14 +728,14 @@ typedef struct {
 
 typedef struct {
 
-        unsigned char HDLC_status	PACKED; 	/* HDLC status */
-        unsigned char HDLC_excep_frms_Rx PACKED;      /* HDLC exception conditions - received frames */
-        unsigned char HDLC_excep_frms_Tx PACKED;      /* HDLC exception conditions - transmitted frames */
-        unsigned char HDLC_excep_miscellaneous PACKED; /* HDLC exception conditions - miscellaneous */
-        unsigned char rotating_SUP_frm_count PACKED;   /* rotating Supervisory frame count */
-        unsigned char LAPB_status	PACKED; /* internal LAPB status */
-        unsigned char internal_HDLC_status PACKED;    /* internal HDLC status */
-        unsigned char HDLC_info_reserved[9] PACKED;   /* reserved */
+        unsigned char HDLC_status	 ; 	/* HDLC status */
+        unsigned char HDLC_excep_frms_Rx  ;      /* HDLC exception conditions - received frames */
+        unsigned char HDLC_excep_frms_Tx  ;      /* HDLC exception conditions - transmitted frames */
+        unsigned char HDLC_excep_miscellaneous  ; /* HDLC exception conditions - miscellaneous */
+        unsigned char rotating_SUP_frm_count  ;   /* rotating Supervisory frame count */
+        unsigned char LAPB_status	 ; /* internal LAPB status */
+        unsigned char internal_HDLC_status  ;    /* internal HDLC status */
+        unsigned char HDLC_info_reserved[9]  ;   /* reserved */
 
 } HDLC_INFORMATION_STRUCT;
 
@@ -754,9 +748,14 @@ typedef struct {
 
 typedef struct {
 
-	GLOBAL_INFORMATION_STRUCT global_info 	PACKED;	/* the global information structure */
-	FT1_INFORMATION_STRUCT FT1_info		PACKED;	/* the S508/FT1 information structure */
-	HDLC_INFORMATION_STRUCT HDLC_info	PACKED;	/* the HDLC information structure */
-	HDLC_INTERRUPT_INFO_STRUCT HDLC_interrupt_info PACKED;	/* the HDLC interrupt information structure */
+	GLOBAL_INFORMATION_STRUCT global_info 	 ;	/* the global information structure */
+	FT1_INFORMATION_STRUCT FT1_info		 ;	/* the S508/FT1 information structure */
+	HDLC_INFORMATION_STRUCT HDLC_info	 ;	/* the HDLC information structure */
+	HDLC_INTERRUPT_INFO_STRUCT HDLC_interrupt_info  ;	/* the HDLC interrupt information structure */
 
 } HDLC_SHARED_MEMORY_INFO_STRUCT;
+
+
+#pragma pack()
+
+#endif

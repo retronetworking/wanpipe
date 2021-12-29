@@ -20,23 +20,10 @@ fi
 eval "ulimit -n 65000"
 eval "modprobe sctp > /dev/null 2> /dev/null"
 
-sangoma_mgd -term
+./smg_ctrl stop
+./smg_ctrl start
 
-kill -TERM $(pidof asterisk);
-
-if [ -f /var/run/sangoma_mgd.pid ]; then
-	kill -KILL $(pidof sangoma_mgd)
-	sangoma_mgd -term -wipe
-fi
-
-cd /usr/local/ss7box
-./$ss7boost --term
-sleep 1
-#eval "$NICE ./$ss7boost --hb" 
-eval "$NICE ./$ss7boost" 
-sleep 5
-
-for((i=0;i<60;i++))
+for((i=0;i<20;i++))
 do
 	if [ -f /var/run/sangoma_mgd.pid ]; then
 		break;
@@ -45,29 +32,7 @@ do
 	sleep 2
 done
 
-sleep 2
-
-if [ "$RENICE" != "" ]; then
-	echo "Running RNICE on ss7boost"
-	eval "$RENICE $(pidof $ss7boost)"
-	echo "Running RNICE on ss7box"
-	eval "$RENICE $(pidof $ss7box)"
-fi
-
 cd $home
 
+exit 0;
 
-#exit 0;
-
-if [ 1 -eq 0 ]; then
-	ulimit -n 65536
-	asterisk -c
-else
-	ulimit -n 65536
-	eval "$NICE asterisk -g" 
-	#Enable this to start asterisk in priority mode
-	#in this case comment out the one above.
-	#eval "$NICE asterisk -g -p"
-	sleep 1
-	asterisk -c -r
-fi

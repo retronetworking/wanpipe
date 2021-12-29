@@ -1965,7 +1965,7 @@ static void rx_intr (sdla_t* card)
 		if (chan->annexg_dev){
 			skb->protocol = htons(ETH_P_X25);
 			skb->dev = chan->annexg_dev;
-                	skb->mac.raw  = skb->data;
+                	wan_skb_reset_mac_header(skb);
 
 			if (wan_skb_queue_len(&chan->rx_queue) > MAX_RX_QUEUE){
 				wan_skb_free(skb);
@@ -1987,7 +1987,7 @@ static void rx_intr (sdla_t* card)
 		}
 	}else if (chan->common.usedby == STACK){
 		skb->dev = chan->annexg_dev;
-                skb->mac.raw  = skb->data;
+                wan_skb_reset_mac_header(skb);
 
 		if (wan_skb_queue_len(&chan->rx_queue) > MAX_RX_QUEUE){
 			wan_skb_free(skb);
@@ -2017,7 +2017,7 @@ static void rx_intr (sdla_t* card)
                	/* Pass it up the protocol stack */
 		skb->protocol = htons(ETH_P_WAN_PPP);
                 skb->dev = dev;
-                skb->mac.raw  = skb->data;
+                wan_skb_reset_mac_header(skb);
 
 		wan_skb_queue_tail(&chan->rx_queue,skb);
 		WAN_TASKLET_SCHEDULE((&chan->tasklet));
@@ -2884,7 +2884,7 @@ dflt_1:
             		/* Decapsulate pkt and pass it up the protocol stack */
 	    		new_skb->protocol = htons(ETH_P_IP);
             		new_skb->dev = dev;
-	    		new_skb->mac.raw  = new_skb->data;
+	    		wan_skb_reset_mac_header(new_skb);
 
 			netif_rx(new_skb);
 		} else {
@@ -3305,7 +3305,7 @@ static void send_ppp_term_request (netdevice_t *dev)
 		/* Decapsulate pkt and pass it up the protocol stack */
 		new_skb->protocol = htons(ETH_P_WAN_PPP);
 		new_skb->dev = dev;
-		new_skb->mac.raw  = new_skb->data;
+		wan_skb_reset_mac_header(new_skb);
 
 		wan_skb_queue_tail(&chan->rx_queue,new_skb);
 		WAN_TASKLET_SCHEDULE((&chan->tasklet));
@@ -3508,7 +3508,7 @@ static void wp_bh (unsigned long data)
 			}
 
 			skb->protocol = htons(PVC_PROT);
-			skb->mac.raw  = wan_skb_data(skb);
+			wan_skb_reset_mac_header(skb);
 			skb->dev      = chan->common.dev;
 			skb->pkt_type = WAN_PACKET_DATA;	
 
@@ -3705,7 +3705,7 @@ static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
 	skb->next = skb->prev = NULL;
         skb->dev = dev;
         skb->protocol = htons(ETH_P_IP);
-        skb->mac.raw  = wan_skb_data(skb);
+        wan_skb_reset_mac_header(skb);
         dev_queue_xmit(skb);
 
 	return 0;

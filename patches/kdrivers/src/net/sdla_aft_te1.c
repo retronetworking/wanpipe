@@ -4467,7 +4467,7 @@ static void wp_bh (void *data, int pending)
 				}
 
 				new_skb->protocol = htons(PVC_PROT);
-				new_skb->mac.raw  = new_skb->data;
+				wan_skb_reset_mac_header(new_skb);
 				new_skb->dev      = chan->common.dev;
 				new_skb->pkt_type = WAN_PACKET_DATA;	
 				
@@ -6960,7 +6960,7 @@ void protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb)
 	if (chan->common.protocol == WANCONFIG_GENERIC){
 		skb->protocol = htons(ETH_P_HDLC);
 		skb->dev = chan->common.dev;
-		skb->mac.raw  = wan_netif_data(skb);
+		wan_skb_reset_mac_header(skb);
 		netif_rx(skb);
 		return 0;
 	}
@@ -6971,7 +6971,7 @@ void protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb)
 #if defined(__LINUX__)
 	skb->protocol = htons(ETH_P_IP);
 	skb->dev = chan->common.dev;
-	skb->mac.raw  = wan_skb_data(skb);
+	wan_skb_reset_mac_header(skb);
 	netif_rx(skb);
 #else
 	DEBUG_EVENT("%s: Action not supported (IP)!\n",
@@ -10021,7 +10021,7 @@ static void wan_aft_api_dtmf (void* card_id, wan_event_t *event)
 	rx_hdr->wp_api_rx_hdr_event_dtmf_port	= event->dtmf_port;
 
 	new_skb->protocol = htons(PVC_PROT);
-	new_skb->mac.raw  = new_skb->data;
+	wan_skb_reset_mac_header(new_skb);
 	new_skb->dev      = chan->common.dev;
 	new_skb->pkt_type = WAN_PACKET_DATA;	
 	
@@ -10097,7 +10097,7 @@ static void wan_aft_api_hook (void* card_id, wan_event_t *event)
 	}
 
 	new_skb->protocol = htons(PVC_PROT);
-	new_skb->mac.raw  = new_skb->data;
+	wan_skb_reset_mac_header(new_skb);
 	new_skb->dev      = chan->common.dev;
 	new_skb->pkt_type = WAN_PACKET_DATA;	
 	
@@ -10187,7 +10187,7 @@ static void wan_aft_api_ringdetect (void* card_id, wan_event_t *event)
 	}
 
 	new_skb->protocol = htons(PVC_PROT);
-	new_skb->mac.raw  = new_skb->data;
+	wan_skb_reset_mac_header(new_skb);
 	new_skb->dev      = chan->common.dev;
 	new_skb->pkt_type = WAN_PACKET_DATA;	
 	
@@ -10298,7 +10298,7 @@ static void wp_tdmv_api_rx_tx (sdla_t *card, private_area_t *chan)
 	}
 				
 	card->u.aft.tdmv_api_rx->protocol = htons(PVC_PROT);
-	card->u.aft.tdmv_api_rx->mac.raw  = card->u.aft.tdmv_api_rx->data;
+	wan_skb_reset_mac_header(card->u.aft.tdmv_api_rx);
 	card->u.aft.tdmv_api_rx->dev      = chan->common.dev;
 	card->u.aft.tdmv_api_rx->pkt_type = WAN_PACKET_DATA;	
 	
@@ -10778,8 +10778,8 @@ static void aft_rtp_tap(sdla_t *card, private_area_t *chan, u8* rx, u8* tx, u32 
                 	nskb->next = nskb->prev = NULL;
 			nskb->dev = card->u.aft.rtp_dev;
 			nskb->protocol = htons(ETH_P_802_2);
-			nskb->mac.raw  = wan_skb_data(nskb);  
-			//nskb->nh.raw   = wan_skb_data(nskb);
+			wan_skb_reset_mac_header(nskb);
+			//wan_skb_reset_network_header(nskb);
 			dev_queue_xmit(nskb);     
 		}
 		wan_skb_trim(skb,sizeof(wan_rtp_pkt_t));
@@ -10916,7 +10916,7 @@ static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
 	skb->next = skb->prev = NULL;
         skb->dev = dev;
         skb->protocol = htons(ETH_P_IP);
-        skb->mac.raw  = wan_skb_data(skb);
+        wan_skb_reset_mac_header(skb);
         dev_queue_xmit(skb);
 
 	return 0;

@@ -21,6 +21,7 @@ PRODUCT_DEFINES= -DCONFIG_PRODUCT_WANPIPE_BASE -DCONFIG_PRODUCT_WANPIPE_AFT
 PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_TE3 
 PRODUCT_DEFINES+= -DCONFIG_WANPIPE_HWEC  -DCONFIG_PRODUCT_WANPIPE_SOCK_DATASCOPE 
 PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW
+PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_MULTPROT 
 
 wanpipe-y			:= sdlamain.o 
 
@@ -37,6 +38,7 @@ wanpipe-y			+= wanpipe_abstr.o wanpipe_linux_iface.o
 wanpipe-y			+= wanpipe_tdm_api.o sdla_remora.o 
 
 wanpipe-y                       += wanpipe_codec.o wanpipe_codec_law.o
+wanpipe-y                       += wanpipe_multppp.o
 
 EXTRA_CFLAGS 			+= $(PRODUCT_DEFINES)
 
@@ -75,7 +77,7 @@ wanrouter-objs := ../wanrouter/wanmain.o ../wanrouter/wanproc.o ../wanrouter/wan
 
 af_wanpipe-objs	:= ../wanrouter/af_wanpipe_src.o  ../wanrouter/af_wanpipe_datascope.o  
 
-wan_aften-objs := ../wan_aften/wan_aften_src.o wanpipe_linux_iface.o
+wan_aften-objs := ../wan_aften/wan_aften_src.o ../wan_aften/wanpipe_linux_iface.o
 
 obj-m += $(WAN_MODULES)      
 

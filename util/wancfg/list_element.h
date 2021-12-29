@@ -48,6 +48,7 @@ public:
     //must be set to real value in the subclasses
     list_element_type = BASE_LIST_ELEMENT;
   }
+  virtual ~list_element() { }
 
 /*
   //no real work is done here. comment it out to reduce number of warnings

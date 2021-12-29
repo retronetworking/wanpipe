@@ -39,3 +39,16 @@ out_tx_test		=> 0
 #	  1 - Enable
 loop_trace		=> 0
 
+#DTMF Timers in ms
+#Note these values should be
+#updated based on your network
+#DTMF Standard values are ON=250 OFF=50  
+
+dtmf_on_duration  => 60	
+dtmf_off_duration => 10
+
+#Number of chunks to wait between
+#dtmfs.  Size of chunk is dependent
+#on configuration. Default chunk size
+#is 10ms. 
+#dtmf_inter_ch_duration => 0

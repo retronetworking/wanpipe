@@ -283,7 +283,7 @@ int FRConfig( void )
 
    	if (wan_udp.wan_udphdr_return_code == 0) {
       		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-      		strcpy(codeversion, wan_udp.wan_udphdr_data);
+      		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
    	}
 
    	return(WAN_TRUE);
@@ -885,7 +885,7 @@ static void list_all_dlcis(void)
 		output_start_xml_header("Global DLCI Status");
 		output_xml_val_asc("Channel Status",wan_udp.wan_udphdr_data[0] ? "OPERATIVE" : "INOPERATIVE");	
 		if (wan_udp.wan_udphdr_data_len > 2){
-			unsigned char str_val[50];
+			char str_val[50];
 			int cnt_val=0;
 			for (i=1;i<wan_udp.wan_udphdr_data_len;){
 				output_xml_val_data("DLCI",*((unsigned short*)&wan_udp.wan_udphdr_data[i]));

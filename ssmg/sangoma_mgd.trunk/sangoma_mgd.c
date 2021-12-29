@@ -8,6 +8,14 @@
  * the GNU General Public License
  * 
  * =============================================
+ * v1.19 Nenad Corbic <ncorbic@sangoma.com>
+ *	Configurable DTMF
+ *      Bug fix in release codes (all ckt busy)
+ *
+ * v1.18 Nenad Corbic <ncorbic@sangoma.com>
+ *	Added new rel cause support based on
+ *	digits instead of strings.
+ *
  * v1.17 Nenad Corbic <ncorbic@sangoma.com>
  *	Added session support
  *
@@ -70,6 +78,7 @@
  *********************************************************************************/
 
 #include "sangoma_mgd.h"
+#include "q931_cause.h"
 
 
 #define USE_SYSLOG 1
@@ -90,7 +99,7 @@ static struct woomera_interface woomera_dead_dev;
 #endif
 
 
-#define SMG_VERSION	"v1.17"
+#define SMG_VERSION	"v1.19"
 
 /* enable early media */
 #if 1
@@ -101,7 +110,6 @@ static struct woomera_interface woomera_dead_dev;
 #define SMG_DTMF_ON 	60
 #define SMG_DTMF_OFF 	10
 #define SMG_DTMF_RATE  	8000
-#define SMG_DTMF_SW_SIZE (SMG_DTMF_ON+SMG_DTMF_OFF)*10*2
 
 #if 0
 #warning "NENAD: MEDIA SHUTDOWN"
@@ -126,7 +134,7 @@ hp_tdm_api_span_t *hptdmspan[WOOMERA_MAX_SPAN];
 
 const char WELCOME_TEXT[] =
 "================================================================================\n"
-"Sangoma Media Gateway Daemon v1.17 \n"
+"Sangoma Media Gateway Daemon v1.19 \n"
 "TDM Signal Media Gateway for Sangoma/Wanpipe Cards\n"
 "Copyright 2005, 2006, 2007 \n"
 "Nenad Corbic <ncorbic@sangoma.com>, Anthony Minessale II <anthmct@yahoo.com>\n"
@@ -144,7 +152,10 @@ static int launch_media_tdm_thread(struct woomera_interface *woomera);
 static int launch_woomera_thread(struct woomera_interface *woomera);
 static struct woomera_interface *alloc_woomera(void);
 
+q931_cause_to_str_array_t q931_cause_to_str_array[255];
 
+
+#if 0
 static uint32_t string_to_release(char *code)
 {
 	if (code) {
@@ -221,7 +232,7 @@ static char * release_to_string(uint32_t rel_cause)
 	
 	return "NORMAL";
 }
-
+#endif
 
 
 
@@ -269,6 +280,9 @@ void __log_printf(int level, FILE *fp, char *file, const char *func, int line, c
     fflush(fp);
 #endif
 }
+
+
+
 
 static int isup_exec_command(int span, int chan, int id, int cmd, int cause)
 {
@@ -615,7 +629,7 @@ static int wanpipe_send_dtmf(struct woomera_interface *woomera, char *digits)
 	if (!ms->dtmf_buffer) {
 		log_printf(3, woomera->log, "Allocate DTMF Buffer....");
 
-		err=switch_buffer_create_dynamic(&ms->dtmf_buffer, 1024, SMG_DTMF_SW_SIZE, 0);
+		err=switch_buffer_create_dynamic(&ms->dtmf_buffer, 1024, server.dtmf_size, 0);
 
 		if (err != 0) {
 			log_printf(0, woomera->log, "Failed to allocate DTMF Buffer!\n");
@@ -664,6 +678,8 @@ static struct woomera_interface *alloc_woomera(void)
 		woomera->debug = server.debug;
 		woomera->call_id = 1;
 		woomera->event_queue = NULL;
+		woomera->q931_rel_cause_topbx=SIGBOOST_RELEASE_CAUSE_NORMAL;
+		woomera->q931_rel_cause_tosig=SIGBOOST_RELEASE_CAUSE_NORMAL;
     
 		woomera_set_interface(woomera, "w-1g-1");
 
@@ -686,7 +702,6 @@ static struct woomera_interface *new_woomera_interface(int socket, struct sockad
     	}
 
     	if ((woomera = alloc_woomera())) {
-		
 		if (socket >= 0) {
 			no_nagle(socket);
 			woomera->socket = socket;
@@ -695,9 +710,6 @@ static struct woomera_interface *new_woomera_interface(int socket, struct sockad
 		if (sock_addr && len) {
 			memcpy(&woomera->addr, sock_addr, len);
 		}
-
-		woomera_set_cause(woomera, "BUSY");
-		woomera_set_sig_cause(woomera, "BUSY");
 	}
 
 	return woomera;
@@ -877,8 +889,8 @@ static struct media_session *media_session_new(struct woomera_interface *woomera
 		}
 
 		ms->tone_session.rate = SMG_DTMF_RATE;
-		ms->tone_session.duration = SMG_DTMF_ON * (ms->tone_session.rate / 1000);
-		ms->tone_session.wait = SMG_DTMF_OFF * (ms->tone_session.rate / 1000);
+		ms->tone_session.duration = server.dtmf_on * (ms->tone_session.rate / 1000);
+		ms->tone_session.wait = server.dtmf_off * (ms->tone_session.rate / 1000);
 	
 		teletone_dtmf_detect_init (&ms->dtmf_detect, SMG_DTMF_RATE);
 #endif
@@ -1034,7 +1046,7 @@ static int woomera_dtmf_transmit(struct media_session *ms, int mtu)
 					 sizeof(hdrframe), 
 					 dtmf_law, mtu, 0);
 					 
-		ms->skip_write_frames+=6;	
+		ms->skip_write_frames+=server.dtmf_intr_ch;	
 #else
 ...
 		pthread_mutex_lock(&woomera->dtmf_lock);		
@@ -1530,7 +1542,8 @@ static void *media_thread_run(void *obj)
 					"End-Time: %ld%s"
 					"Answer-Time: %ld%s"
 					"Call-ID: %s%s"
-					"Cause: %s%s",
+					"Cause: %s%s"
+					"Q931-Cause-Code: %d%s",
 					woomera->interface,
 					WOOMERA_LINE_SEPERATOR,
 				
@@ -1548,8 +1561,11 @@ static void *media_thread_run(void *obj)
 
 					woomera->interface,
 					WOOMERA_LINE_SEPERATOR,
+					
+					q931_rel_to_str(woomera->q931_rel_cause_topbx),
+					WOOMERA_LINE_SEPERATOR,
 
-					woomera->sig_cause ? woomera->sig_cause : "NORMAL",
+					woomera->q931_rel_cause_topbx,
 					WOOMERA_RECORD_SEPERATOR
 					);
 
@@ -2156,17 +2172,22 @@ static int handle_woomera_media_accept_answer(struct woomera_interface *woomera,
 
 			enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
 
+			
 			new_woomera_event_printf(&wevent, "EVENT HANGUP %s%s"
 								"Unique-Call-Id: %s%s"
-								"Cause: %s%s",
+								"Cause: %s%s"
+								"Q931-Cause-Code: %d%s",
 								wmsg->callid,
 								WOOMERA_LINE_SEPERATOR,
 								woomera->session,
 								WOOMERA_LINE_SEPERATOR,
-								"ERROR" ,
+								q931_rel_to_str(21),
+								WOOMERA_LINE_SEPERATOR,
+								21,
 								WOOMERA_RECORD_SEPERATOR
 								);
 			
+
 			enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
 				
 			woomera_set_flag(woomera, WFLAG_MEDIA_END);
@@ -2208,12 +2229,15 @@ static int handle_woomera_media_accept_answer(struct woomera_interface *woomera,
 
 				new_woomera_event_printf(&wevent, "EVENT HANGUP %s%s"
 								  "Unique-Call-Id: %s%s"
-							  	  "Cause: %s%s",
+							  	  "Cause: %s%s"
+								  "Q931-Cause-Code: %d%s",
 								wmsg->callid,
 								WOOMERA_LINE_SEPERATOR,
 								woomera->session,
 								WOOMERA_LINE_SEPERATOR,
-								"ERROR",
+								q931_rel_to_str(21),
+								WOOMERA_LINE_SEPERATOR,
+								21,
 								WOOMERA_RECORD_SEPERATOR
 								);
 			
@@ -2252,6 +2276,7 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 	char *presentation = woomera_message_header(wmsg, "Presentation");
 	char *screening = woomera_message_header(wmsg, "Screening");
 	char *rdnis = woomera_message_header(wmsg, "RDNIS");
+	//char *callerid = woomera_message_header(wmsg, "local-name");
 	char *called = wmsg->callid;
 	char *grp = wmsg->callid;
 	char *p;
@@ -2359,9 +2384,13 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 
 	} else if (!strcasecmp(wmsg->command, "bye") || !strcasecmp(wmsg->command, "quit")) {
 		char *cause = woomera_message_header(wmsg, "cause");
+		char *q931cause = woomera_message_header(wmsg, "Q931-Cause-Code");
 		
 		if (cause) {
 			log_printf(3, woomera->log, "Bye Cause Received: [%s]\n", cause);
+		}
+		if (q931cause && atoi(q931cause)) {
+			woomera_set_cause_tosig(woomera,atoi(q931cause));
 		}
 
 		log_printf(2, woomera->log, "WOOMERA CMD: Bye Received: [%s]\n", woomera->interface);
@@ -2530,14 +2559,18 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 
 		int chan = -1, span = -1;
 		char *cause = woomera_message_header(wmsg, "cause");
+		char *q931cause = woomera_message_header(wmsg, "Q931-Cause-Code");
 
-		woomera_set_cause(woomera, cause);
+
+		if (q931cause && atoi(q931cause)) {
+			woomera_set_cause_tosig(woomera,atoi(q931cause));
+		}
 	
 		span=woomera->span;
 		chan=woomera->chan;
 			
-		log_printf(3, woomera->log, "WOOMERA CMD: Hangup Received: [%s] MEDIA EXIST\n",
-				 	woomera->interface);
+		log_printf(3, woomera->log, "WOOMERA CMD: Hangup Received: [%s] MEDIA EXIST Cause=%s\n",
+				 	woomera->interface,cause);
 		
 		if (smg_validate_span_chan(span,chan) != 0) {
 			socket_printf(woomera->socket, "405 No Such Channel%s"
@@ -2657,12 +2690,15 @@ static void handle_call_answer(call_signal_event_t *event)
 								 
 				new_woomera_event_printf(&wevent, "EVENT HANGUP %s%s"
 								  "Unique-Call-Id: %s%s"
+							          "Q931-Cause-Code: %d%s"
 								  "Cause: %s%s",
 						 	 woomera->interface,
 							 WOOMERA_LINE_SEPERATOR,
 							 woomera->session,
 							 WOOMERA_LINE_SEPERATOR,
-							 "ERROR" ,
+							 21,
+							 WOOMERA_LINE_SEPERATOR,
+							 q931_rel_to_str(21),
 							 WOOMERA_RECORD_SEPERATOR
 							 );
 					
@@ -2767,12 +2803,15 @@ static void handle_call_start_ack(call_signal_event_t *event)
 								 
 				new_woomera_event_printf(&wevent, "EVENT HANGUP %s%s"
 								  "Unique-Call-Id:%s%s"
+							          "Q931-Cause-Code: %d%s"
 								  "Cause: %s%s",
 								 woomera->interface,
 								 WOOMERA_LINE_SEPERATOR,
 								 woomera->session,
 								 WOOMERA_LINE_SEPERATOR,
-								 "ERROR" ,
+								 21,
+								 WOOMERA_LINE_SEPERATOR,
+								 q931_rel_to_str(21),
 								 WOOMERA_RECORD_SEPERATOR
 								 );
 					
@@ -2880,7 +2919,7 @@ static void handle_call_start_nack(call_signal_event_t *event)
 				event->call_setup_id);
 		} else {
 
-			woomera_set_sig_cause(woomera,release_to_string(event->release_cause));
+			woomera_set_cause_topbx(woomera,event->release_cause);
 			
 			new_woomera_event_printf(&wevent,  "501 Error!%s"
 							"Unique-Call-Id: %s%s",
@@ -2892,14 +2931,16 @@ static void handle_call_start_nack(call_signal_event_t *event)
 
 			new_woomera_event_printf(&wevent, "EVENT HANGUP w%dg%d%s"
 							  "Unique-Call-Id: %s%s"
-							  "Cause: %s%s",
+							  "Cause: %s%s"
+							  "Q931-Cause-Code: %d%s",
 							 event->span+1,
 							 event->chan+1,
 							 WOOMERA_LINE_SEPERATOR,
 							 woomera->session,
 							 WOOMERA_LINE_SEPERATOR,
-							 woomera->sig_cause ? 
-							 woomera->sig_cause : "NORMAL",
+							 q931_rel_to_str(woomera->q931_rel_cause_topbx),
+							 WOOMERA_LINE_SEPERATOR,
+							 woomera->q931_rel_cause_topbx,
 							 WOOMERA_RECORD_SEPERATOR
 								 );
 			enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
@@ -2967,10 +3008,14 @@ static void handle_call_start_nack(call_signal_event_t *event)
 		log_printf(0, server.log, "WARNING: All ckt busy!\n");	
 		smg_all_ckt_busy();
 	}
+
+#warning "Ignoring CALL GAP"
+#if 0
 	if (event->release_cause == SIGBOOST_CALL_SETUP_NACK_AUTO_CALL_GAP) {
 		log_printf(0, server.log, "WARNING: Call Gapping Detected!\n");	
 		smg_all_ckt_gap();
  	} 
+#endif
 	
 	if (ack) {
 		span=0;
@@ -3161,7 +3206,7 @@ static void handle_call_stop(call_signal_event_t *event)
     
         if (woomera) {
 		
-		woomera_set_sig_cause(woomera,release_to_string(event->release_cause));
+		woomera_set_cause_topbx(woomera,event->release_cause);
 
                 woomera_set_flag(woomera,
                                 (WFLAG_MEDIA_END|WFLAG_HANGUP));
@@ -3271,6 +3316,7 @@ static void handle_call_start_nack_ack(call_signal_event_t *event)
 	return;
 }
 
+#if 0
 static void validate_number(unsigned char *s)
 {
 	unsigned char *p;
@@ -3282,13 +3328,16 @@ static void validate_number(unsigned char *s)
 		}
 	}
 }
+#endif
 
 static int parse_ss7_event(call_signal_connection_t *mcon, call_signal_event_t *event)
 {
     	int ret = 0;
-	
+
+#if 0	
 	validate_number((unsigned char*)event->called_number_digits);
 	validate_number((unsigned char*)event->calling_number_digits);
+#endif
 
 #if 1
  	log_printf(2, server.log,
@@ -3722,7 +3771,7 @@ woomera_session_close:
 						chan, 
 						-1,
 						SIGBOOST_EVENT_CALL_STOPPED,
-						string_to_release(woomera->cause));
+						woomera->q931_rel_cause_tosig);
 			
 
 				log_printf(3, woomera->log, "Woomera Sent SIGBOOST_EVENT_CALL_STOPPED [w%dg%d] [%s] ptr=%p\n", 
@@ -3760,7 +3809,7 @@ woo_re_hangup:
 			  		  chan, 
 			  		  -1,
 			  		  SIGBOOST_EVENT_CALL_STOPPED_ACK,
-					  string_to_release(woomera->cause));
+					  woomera->q931_rel_cause_tosig);
 			
 			log_printf(3, woomera->log, 
 				"Sent (Ack) to SIGBOOST_EVENT_CALL_STOPPED_ACK [w%dg%d] [%s] ptr=%p\n", 
@@ -3791,7 +3840,7 @@ woo_re_hangup:
 			  		  chan, 
 			  		  -1,
 			  		  SIGBOOST_EVENT_CALL_START_NACK_ACK,
-					  string_to_release(woomera->cause));
+					  woomera->q931_rel_cause_tosig);
 			
 			log_printf(3, woomera->log, 
 				"Sent (Nack Ack) to SIGBOOST_EVENT_CALL_START_NACK_ACK [w%dg%d] [%s] ptr=%p\n", 
@@ -3817,14 +3866,17 @@ woo_re_hangup:
 		new_woomera_event_printf(&wevent, "EVENT HANGUP %s%s"
                                                   "Unique-Call-Id: %s%s"
                                                   "Timeout: %ld%s"
-                                                  "Cause: %s%s",
+                                                  "Cause: %s%s"
+						  "Q931-Cause-Code: %d%s",
                                                  woomera->interface,
                                                  WOOMERA_LINE_SEPERATOR,
 						 woomera->session,
                                                  WOOMERA_LINE_SEPERATOR,
                                                  woomera->timeout,
                                                  WOOMERA_LINE_SEPERATOR,
-                                                 "TIMEOUT",
+                                                 q931_rel_to_str(18),
+                                                 WOOMERA_LINE_SEPERATOR,
+						 18,
                                                  WOOMERA_RECORD_SEPERATOR
                                                  );
                 enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
@@ -4039,8 +4091,6 @@ woo_re_hangup:
     	pthread_mutex_destroy(&woomera->flags_lock);
     	woomera_set_raw(woomera, NULL);
     	woomera_set_interface(woomera, NULL);
-    	woomera_set_cause(woomera, NULL);
-    	woomera_set_sig_cause(woomera, NULL);
 
 	woomera_message_clear(&wmsg);
 
@@ -4175,6 +4225,8 @@ static int configure_server(void)
     char *var, *val;
     int cnt = 0;
 
+    server.dtmf_intr_ch = -1;
+
     if (!woomera_open_file(&cfg, server.config_file)) {
 		log_printf(0, server.log, "open of %s failed\n", server.config_file);
 		return 0;
@@ -4219,6 +4271,12 @@ static int configure_server(void)
 		        server.rxgain = atoi(val);
 		} else if (!strcasecmp(var, "txgain")) {
 		        server.txgain = atoi(val);
+		} else if (!strcasecmp(var, "dtmf_on_duration")){
+			server.dtmf_on = atoi(val);
+		} else if (!strcasecmp(var, "dtmf_off_duration")){
+			server.dtmf_off = atoi(val);
+		} else if (!strcasecmp(var, "dtmf_inter_ch_duration")){
+			server.dtmf_intr_ch = atoi(val);
 		} else if (!strcasecmp(var, "max_calls")) {
 			int max = atoi(val);
 			if (max > 0) {
@@ -4230,6 +4288,21 @@ static int configure_server(void)
 			log_printf(0, server.log, "Invalid Option %s at line %d!\n", var, cfg.lineno);
 		}
     }
+
+    /* Post initialize */
+    if (server.dtmf_on == 0){ 
+	server.dtmf_on=SMG_DTMF_ON;
+    }
+    if (server.dtmf_off == 0) {
+	server.dtmf_off=SMG_DTMF_OFF;
+    }
+    if (server.dtmf_intr_ch == -1) {
+	server.dtmf_intr_ch = server.dtmf_on/server.dtmf_off;	
+    }
+    server.dtmf_size=(server.dtmf_on+server.dtmf_off)*10*2;
+
+    log_printf(0,server.log, "DTMF On=%i Off=%i IntrCh=%i Size=%i\n",
+		server.dtmf_on,server.dtmf_off,server.dtmf_intr_ch,server.dtmf_size);
 
     woomera_close_file(&cfg);
     return cnt == 4 ? 1 : 0;
@@ -4376,13 +4449,12 @@ static int do_shut(int sig)
     return 0;
 }
 
-static int sangoma_tdm_init (void)
+static int sangoma_tdm_init (int span)
 {
 #ifdef LIBSANGOMA_GET_HWCODING
     wanpipe_tdm_api_t tdm_api;
-    int fd=sangoma_open_tdmapi_span(1);
+    int fd=sangoma_open_tdmapi_span(span);
     if (fd < 0 ){
-        printf("Error: Failed to access a channel on span 1\n");
         return -1;
     } else {
         server.hw_coding=sangoma_tdm_get_hw_coding(fd,&tdm_api);
@@ -4459,14 +4531,26 @@ static int woomera_startup(int argc, char **argv)
 		}
     }
 
-    if (sangoma_tdm_init()) {
+    if (1){
+	int spn; 
+    	for (spn=1;spn<=WOOMERA_MAX_SPAN;spn++) {
+    		if (sangoma_tdm_init(spn) == 0) {
+			break;
+		}
+    	}
+	if (spn>WOOMERA_MAX_SPAN) {
+        	printf("\nError: Failed to access a channel on spans 1-16\n");
+        	printf("         Please start Wanpipe TDM API drivers\n");
 		return 0;
+	}
     }
 
     if (bg && (pid = fork())) {
 		log_printf(0, stderr, "Backgrounding!\n");
 		return 0;
     }
+
+    q931_cause_setup();
 
     server.port = 42420;
     server.debug = 0;
@@ -4523,7 +4607,7 @@ static int woomera_startup(int argc, char **argv)
     	if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) < 0) {
 		log_printf(0, stderr,  "Warning: Failed to disable core size limit for non-root: %s\n", 
 			strerror(errno));
-        }       
+        }
     }
 #endif
 

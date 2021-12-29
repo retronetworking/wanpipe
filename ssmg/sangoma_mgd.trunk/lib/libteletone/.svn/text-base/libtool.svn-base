@@ -44,7 +44,7 @@ available_tags=" CXX F77"
 
 # ### BEGIN LIBTOOL CONFIG
 
-# Libtool was configured on host s246:
+# Libtool was configured on host tesla:
 
 # Shell to use when invoking shell scripts.
 SHELL="/bin/sh"
@@ -325,7 +325,7 @@ link_all_deplibs=unknown
 sys_lib_search_path_spec=" /usr/lib/gcc/i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../../i386-redhat-linux/lib/i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../../i386-redhat-linux/lib/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../ /lib/i386-redhat-linux/4.1.1/ /lib/ /usr/lib/i386-redhat-linux/4.1.1/ /usr/lib/"
 
 # Run-time system search path for libraries
-sys_lib_dlsearch_path_spec="/lib /usr/lib /usr/local/lib "
+sys_lib_dlsearch_path_spec="/lib /usr/lib /usr/local/lib /usr/lib/qt-3.3/lib "
 
 # Fix the shell variable $srcfile for the compiler.
 fix_srcfile_path=""
@@ -6751,7 +6751,7 @@ build_old_libs=`case $build_libtool_libs in yes) $echo no;; *) $echo yes;; esac`
 # End:
 # ### BEGIN LIBTOOL TAG CONFIG: CXX
 
-# Libtool was configured on host s246:
+# Libtool was configured on host tesla:
 
 # Shell to use when invoking shell scripts.
 SHELL="/bin/sh"
@@ -7029,7 +7029,7 @@ link_all_deplibs=unknown
 sys_lib_search_path_spec=" /usr/lib/gcc/i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../../i386-redhat-linux/lib/i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../../i386-redhat-linux/lib/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../ /lib/i386-redhat-linux/4.1.1/ /lib/ /usr/lib/i386-redhat-linux/4.1.1/ /usr/lib/"
 
 # Run-time system search path for libraries
-sys_lib_dlsearch_path_spec="/lib /usr/lib /usr/local/lib "
+sys_lib_dlsearch_path_spec="/lib /usr/lib /usr/local/lib /usr/lib/qt-3.3/lib "
 
 # Fix the shell variable $srcfile for the compiler.
 fix_srcfile_path=""
@@ -7053,7 +7053,7 @@ include_expsyms=""
 
 # ### BEGIN LIBTOOL TAG CONFIG: F77
 
-# Libtool was configured on host s246:
+# Libtool was configured on host tesla:
 
 # Shell to use when invoking shell scripts.
 SHELL="/bin/sh"
@@ -7334,7 +7334,7 @@ link_all_deplibs=unknown
 sys_lib_search_path_spec=" /usr/lib/gcc/i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../../i386-redhat-linux/lib/i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../../i386-redhat-linux/lib/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../i386-redhat-linux/4.1.1/ /usr/lib/gcc/i386-redhat-linux/4.1.1/../../../ /lib/i386-redhat-linux/4.1.1/ /lib/ /usr/lib/i386-redhat-linux/4.1.1/ /usr/lib/"
 
 # Run-time system search path for libraries
-sys_lib_dlsearch_path_spec="/lib /usr/lib /usr/local/lib "
+sys_lib_dlsearch_path_spec="/lib /usr/lib /usr/local/lib /usr/lib/qt-3.3/lib "
 
 # Fix the shell variable $srcfile for the compiler.
 fix_srcfile_path=""

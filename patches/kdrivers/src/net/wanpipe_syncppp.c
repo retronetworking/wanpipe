@@ -443,8 +443,8 @@ void wp_sppp_input (struct net_device *dev, struct sk_buff *skb)
 	struct sppp *sp = (struct sppp *)sppp_of(dev);
 	
 	skb->dev=dev;
-	skb->mac.raw=skb->data;
-	skb->nh.raw=skb->data;
+	wan_skb_reset_mac_header(skb);
+	wan_skb_reset_network_header(skb);
 
 
 	if (dev->flags & IFF_RUNNING)
@@ -512,8 +512,8 @@ invalid:        if (sp->pp_flags & PP_DEBUG)
 				if(sp->pp_flags&PP_DEBUG)
 					printk(KERN_DEBUG "Yow an IP frame.\n");
 				skb->protocol=htons(ETH_P_IP);
-				skb->mac.raw=skb->data;
-				skb->nh.raw=skb->data;
+				wan_skb_reset_mac_header(skb);
+				wan_skb_reset_network_header(skb);
 				netif_rx(skb);
 				return;
 			}
@@ -523,8 +523,8 @@ invalid:        if (sp->pp_flags & PP_DEBUG)
 			/* IPX IPXCP not implemented yet */
 			if (sp->lcp.state == LCP_STATE_OPENED) {
 				skb->protocol=htons(ETH_P_IPX);
-				skb->mac.raw=skb->data;
-				skb->nh.raw=skb->data;
+				wan_skb_reset_mac_header(skb);
+				wan_skb_reset_network_header(skb);
 				netif_rx(skb);
 				return;
 			}
@@ -595,16 +595,16 @@ invalid:        if (sp->pp_flags & PP_DEBUG)
 #ifdef CONFIG_INET
 		case ETH_P_IP:
 			skb->protocol=htons(ETH_P_IP);
-			skb->mac.raw=skb->data;
-			skb->nh.raw=skb->data;
+			wan_skb_reset_mac_header(skb);
+			wan_skb_reset_network_header(skb);
 			netif_rx(skb);
 			return;
 #endif
 #ifdef CONFIG_IPX
 		case ETH_P_IPX:
 			skb->protocol=htons(ETH_P_IPX);
-			skb->mac.raw=skb->data;
-			skb->nh.raw=skb->data;
+			wan_skb_reset_mac_header(skb);
+			wan_skb_reset_network_header(skb);
 			netif_rx(skb);
 			return;
 #endif
@@ -2001,8 +2001,8 @@ static void sppp_cp_send (struct sppp *sp, u16 proto, u8 type,
 	skb->priority=TC_PRIO_CONTROL;
 	skb->dev = dev;
 	skb->protocol = htons(PPP_IP);
-	skb->mac.raw=skb->data;
-	skb->nh.raw=skb->data;
+	wan_skb_reset_mac_header(skb);
+	wan_skb_reset_network_header(skb);
 	dev_queue_xmit(skb);
 }
 
@@ -2045,8 +2045,8 @@ static void sppp_cisco_send (struct sppp *sp, int type, long par1, long par2)
 	sp->obytes += skb->len;
 	skb->priority=TC_PRIO_CONTROL;
 	skb->dev = dev;
-	skb->mac.raw=skb->data;
-	skb->nh.raw=skb->data;
+	wan_skb_reset_mac_header(skb);
+	wan_skb_reset_network_header(skb);
 	dev_queue_xmit(skb);
 }
 

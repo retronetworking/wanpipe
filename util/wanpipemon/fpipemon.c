@@ -291,7 +291,7 @@ int FRConfig( void )
 
    	if (wan_udp.wan_udphdr_return_code == 0) {
       		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-      		strcpy(codeversion, wan_udp.wan_udphdr_data);
+      		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
    	}
 
    	return(WAN_TRUE);

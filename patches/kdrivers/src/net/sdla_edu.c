@@ -774,7 +774,7 @@ static void handle_rx_data(sdla_t* card, TX_RX_DATA* rx_data)
 
 	skb->protocol = htons(ETH_P_IP);
         skb->dev = dev;
-        skb->mac.raw  = skb->data;
+        wan_skb_reset_mac_header(skb);
         netif_rx(skb);
 rx_exit:
 	return;

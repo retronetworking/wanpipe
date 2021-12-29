@@ -2531,7 +2531,7 @@ static void wp_bh (void* data, int dummy)
 				}
 
 				new_skb->protocol = htons(PVC_PROT);
-				new_skb->mac.raw  = new_skb->data;
+				wan_skb_reset_mac_header(new_skb);
 				new_skb->dev      = chan->common.dev;
 				new_skb->pkt_type = WAN_PACKET_DATA;	
 #if 0	
@@ -4152,7 +4152,7 @@ void protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb)
 	if (chan->common.protocol == WANCONFIG_GENERIC){
 		skb->protocol = htons(ETH_P_HDLC);
 		skb->dev = chan->common.dev;
-		skb->mac.raw  = wan_netif_data(skb);
+		wan_skb_reset_mac_header(skb);
 		netif_rx(skb);
 		return 0;
 	}
@@ -4161,7 +4161,7 @@ void protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb)
 #if defined(__LINUX__)
 	skb->protocol = htons(ETH_P_IP);
 	skb->dev = chan->common.dev;
-	skb->mac.raw  = wan_skb_data(skb);
+	wan_skb_reset_mac_header(skb);
 	netif_rx(skb);
 #else
 	DEBUG_EVENT("%s: Action not supported (IP)!\n",
@@ -4214,7 +4214,7 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 
 	card->hw_iface.bus_write_4(card->hw,XILINX_CHIP_CFG_REG,reg);
 
-	WP_DELAY(10);
+	WP_DELAY(100);
 
 	/* Disable the chip/hdlc reset condition */
 	wan_clear_bit(CHIP_RESET_BIT,&reg);
@@ -4281,6 +4281,8 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 	DEBUG_CFG("--- T3 Exar Chip enable/config. -- \n");
 
 	card->hw_iface.bus_write_4(card->hw,XILINX_CHIP_CFG_REG,reg);
+	
+	WP_DELAY(100);
 
 	xilinx_delay(1);
 #if 0
@@ -4584,10 +4586,12 @@ static int write_framer(void *pcard, unsigned short framer_off,unsigned short fr
 	card->hw_iface.bus_write_2(card->hw,
 				   0x46,
 				   framer_off);
+	WP_DELAY(5);
 
 	card->hw_iface.bus_write_2(card->hw,
 				   0x44,
 				   framer_data);	
+	WP_DELAY(5);
         return 0;
 }
 
@@ -4602,10 +4606,12 @@ static unsigned int read_framer(void *pcard,unsigned short framer_off)
 	card->hw_iface.bus_write_2(card->hw,
 				   0x46,
 				   framer_off);
+	WP_DELAY(5);
 
 	card->hw_iface.bus_read_4(card->hw,
 				   0x44,
 				   &framer_data);
+	WP_DELAY(5);
 	
 	DEBUG_TEST("READ FRAMER OFFSET=0x%02X DATA=0x%02X\n",
 			framer_off,framer_data);

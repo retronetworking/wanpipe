@@ -4550,7 +4550,7 @@ static void wp_bh(void *data, int pending)
 				continue;
 			}
 			new_skb->protocol = htons(PVC_PROT);
-			new_skb->mac.raw  = wan_skb_data(new_skb);
+			wan_skb_reset_mac_header(new_skb);
 			new_skb->dev      = chan->common.dev;
 			new_skb->pkt_type = WAN_PACKET_DATA;	
 
@@ -6670,7 +6670,7 @@ void protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb)
 	if (chan->common.protocol == WANCONFIG_GENERIC){
 		skb->protocol = htons(ETH_P_HDLC);
 		skb->dev = chan->common.dev;
-		skb->mac.raw  = wan_netif_data(skb);
+		wan_skb_reset_mac_header(skb);
 		netif_rx(skb);
 		return 0;
 	}
@@ -6679,7 +6679,7 @@ void protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb)
 #if defined(__LINUX__)
 	skb->protocol = htons(ETH_P_IP);
 	skb->dev = chan->common.dev;
-	skb->mac.raw  = wan_skb_data(skb);
+	wan_skb_reset_mac_header(skb);
 	netif_rx(skb);
 #else
 	if (wan_iface.input){

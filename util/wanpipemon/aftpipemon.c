@@ -170,7 +170,7 @@ char ** AFTget_cmd_menu(char *cmd_name,int *len)
 	
 	while(gui_cmd_menu_lookup[i].cmd_menu_ptr != NULL){
 		if (strcmp(cmd_name,gui_cmd_menu_lookup[i].cmd_menu_name) == 0){
-			cmd_menu=(char*)gui_cmd_menu_lookup[i].cmd_menu_ptr;
+			cmd_menu=(char**)gui_cmd_menu_lookup[i].cmd_menu_ptr;
 			while (strcmp(cmd_menu[j],".") != 0){
 				j++;
 			}
@@ -189,7 +189,7 @@ char ** AFTget_cmd_menu(char *cmd_name,int *len)
  *****************************************************************************/
 int AFTConfig(void)
 {
-	unsigned char codeversion[10];
+	char codeversion[10];
 	unsigned char x=0;
    
 	protocol_cb_size = sizeof(wan_mgmt_t) + 
@@ -226,7 +226,7 @@ int AFTConfig(void)
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strcpy(codeversion, wan_udp.wan_udphdr_data);
+		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
 	}
 	
 	return(WAN_TRUE);
@@ -479,7 +479,7 @@ static int loop_rx_data(int passnum)
 	unsigned int i;
 	struct timeval to;
 	int timeout=0;
-	unsigned char date_string[100];
+	char date_string[100];
 	
 	gettimeofday(&to, NULL);
 	to.tv_sec = 0;

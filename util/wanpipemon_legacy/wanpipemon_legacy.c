@@ -102,7 +102,7 @@ int annexg_trace =0;
 int pcap_output=0;
 int pcap_prot=0;
 FILE *pcap_output_file;
-unsigned char pcap_output_file_name[50];
+char pcap_output_file_name[50];
 
 trace_prot_t trace_prot_opt[]={ 
 	{"FR", FRAME,107},
@@ -517,25 +517,25 @@ static int init(int argc, char *argv[], char* command)
 			}
 
 			if (argc == 3){
-				unsigned char *name=argv[i+1];
+				char *name=argv[i+1];
 				EXEC_NAME_FUNC(usage,name,());
 				return WAN_FALSE;
 			}
 
 			if (strcmp(argv[i+1], "chdlc") == 0){
-				strcpy(wan_udp.wan_udphdr_signature, UDP_CHDLC_SIGNATURE);
+				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_CHDLC_SIGNATURE);
 				wan_protocol=WANCONFIG_CHDLC;
 			}else if (strcmp(argv[i+1], "fr") == 0){
-				strcpy(wan_udp.wan_udphdr_signature, UDP_FR_SIGNATURE);
+				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_FR_SIGNATURE);
 				wan_protocol=WANCONFIG_FR;
 			}else if (strcmp(argv[i+1], "ppp") == 0){
-				strcpy(wan_udp.wan_udphdr_signature, UDP_PPP_SIGNATURE);
+				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_PPP_SIGNATURE);
 				wan_protocol=WANCONFIG_PPP;
 			}else if (strcmp(argv[i+1], "x25") == 0){
-				strcpy(wan_udp.wan_udphdr_signature, UDP_X25_SIGNATURE);
+				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_X25_SIGNATURE);
 				wan_protocol=WANCONFIG_X25;
 			}else if (strcmp(argv[i+1], "adsl") == 0){
-				strcpy(wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE);
+				strcpy((char*)wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE);
 				wan_protocol=WANCONFIG_ADSL;
 			}else{
 				usage();
@@ -962,7 +962,7 @@ int main(int argc, char* argv[])
 {
 	char command[6];
 
-	strcpy(wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE);
+	strcpy((char*)wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE);
 	sprintf(pcap_output_file_name,"wp_trace_pcap.bin");
 
 	signal(SIGHUP,sig_end);

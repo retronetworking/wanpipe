@@ -2400,7 +2400,7 @@ static void wp_handle_rx_packets(netskb_t *skb)
 	case RFC_MODE_ROUTED_IP_LLC:
 	case RFC_MODE_ROUTED_IP_VC:	
 		skb->protocol = htons(ETH_P_IP);
-		skb->mac.raw = skb->data;
+		wan_skb_reset_mac_header(skb);
 		break;
 	}
 
@@ -3422,7 +3422,7 @@ process_udp_cmd_exit:
             		/* Decapsulate pkt and pass it up the protocol stack */
 	    		new_skb->protocol = htons(ETH_P_IP);
             		new_skb->dev = dev;
-	    		new_skb->mac.raw  = new_skb->data;
+	    		wan_skb_reset_mac_header(new_skb);
 
 			netif_rx(new_skb);
 		} else {

@@ -147,10 +147,10 @@ static int hit_enter_or_space_key(void)
 static int wan_if_ip_menu(void)
 {
 	int err=0;
-	unsigned char data[100];
-	unsigned char current[100];
-	unsigned char title[100];
-	unsigned char prompt[100];
+	char data[100];
+	char current[100];
+	char title[100];
+	char prompt[100];
 	int pipefds[2];	
 	pid_t pid;
 	int stat;
@@ -202,9 +202,9 @@ static int wan_if_ip_menu(void)
 static int wan_ip_menu(void)
 {
 	int err=0;
-	unsigned char data[100];
-	unsigned char title[100];
-	unsigned char prompt[100];
+	char data[100];
+	char title[100];
+	char prompt[100];
 	int pipefds[2];	
 	pid_t pid;
 	int stat;
@@ -291,10 +291,10 @@ static int wan_ip_menu(void)
 static int wan_iface_menu(void)
 {
 	int err=0;
-	unsigned char data[100];
-	unsigned char current[100];
-	unsigned char title[100];
-	unsigned char prompt[100];
+	char data[100];
+	char current[100];
+	char title[100];
+	char prompt[100];
 	int pipefds[2];	
 	pid_t pid;
 	int stat;
@@ -429,11 +429,11 @@ static int wan_iface_menu(void)
 static void wan_main_menu(void)
 {
 	int err=0;
-	unsigned char data[100];
-	unsigned char cmd_data[100];
-	unsigned char current[100];
-	unsigned char title[100];
-	unsigned char prompt[100];
+	char data[100];
+	char cmd_data[100];
+	char current[100];
+	char title[100];
+	char prompt[100];
 	int pipefds[2];	
 	pid_t pid;
 	int stat;

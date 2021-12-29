@@ -642,8 +642,8 @@ int wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb)
 		memset(buf,0,sizeof(wan_api_rx_hdr_t));
 	
 		((netskb_t *)skb)->protocol = htons(PVC_PROT);
-		((netskb_t *)skb)->mac.raw  = wan_skb_data(skb);
-		((netskb_t *)skb)->nh.raw   = wan_skb_data(skb);
+		wan_skb_reset_mac_header(((netskb_t *)skb));
+		wan_skb_reset_network_header(((netskb_t *)skb));
 		((netskb_t *)skb)->dev      = lip_dev->common.dev;
 		((netskb_t *)skb)->pkt_type = WAN_PACKET_DATA;		
 

@@ -489,6 +489,8 @@
 #define REG_TCICE3		0x152
 #define REG_TCICE4		0x153
 
+#define REG_T1TFDL		0x162
+
 #define REG_E1TAF		0x164
 
 #define REG_E1TNAF		0x165
@@ -518,7 +520,9 @@
 #define BIT_TCR1_E1_TCRC4	0x01
 
 #define REG_TCR2		0x182
-#define BIT_TCR2_TD4RM		0x04
+#define BIT_TCR2_T1_TD4RM	0x04
+#define BIT_TCR2_T1_TSLC96	0x40
+#define BIT_TCR2_T1_TFDLS	0x80
 #define BIT_TCR2_E1_AEBE	0x80
 
 #define REG_TCR3		0x183

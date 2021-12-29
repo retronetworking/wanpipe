@@ -2530,7 +2530,7 @@ static void rx_intr (sdla_t* card)
 		api_rx_hdr->usec=tv.tv_usec;		
 
                 skb->protocol = htons(WP_PVC_PROT);
-     		skb->mac.raw  = skb->data;
+     		wan_skb_reset_mac_header(skb);
 		skb->dev      = dev;
                	skb->pkt_type = WAN_PACKET_DATA;
 
@@ -2547,7 +2547,7 @@ static void rx_intr (sdla_t* card)
 		if (chdlc_priv_area->annexg_dev){
 			skb->protocol = htons(ETH_P_X25);
 			skb->dev = chdlc_priv_area->annexg_dev;
-                	skb->mac.raw  = skb->data;
+                	wan_skb_reset_mac_header(skb);
 
 			if (wan_api_enqueue_skb(chdlc_priv_area,skb) < 0){
 				wan_skb_free(skb);
@@ -2591,7 +2591,7 @@ static void rx_intr (sdla_t* card)
 
 		skb->protocol = htons(ETH_P_IP);
                 skb->dev = dev;
-                skb->mac.raw  = skb->data;
+                wan_skb_reset_mac_header(skb);
                 netif_rx(skb);
 	}
 
@@ -3958,7 +3958,7 @@ dflt_1:
             		/* Decapsulate pkt and pass it up the protocol stack */
 	    		new_skb->protocol = htons(ETH_P_IP);
             		new_skb->dev = dev;
-	    		new_skb->mac.raw  = new_skb->data;
+	    		wan_skb_reset_mac_header(new_skb);
 
 			netif_rx(new_skb);
 		} else {

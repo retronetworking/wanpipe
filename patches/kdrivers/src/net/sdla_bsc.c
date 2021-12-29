@@ -880,7 +880,7 @@ void event_poll (unsigned long dev_ptr)
 			memcpy(buf,mbox->wan_data,mbox->wan_data_len);
 		
 			skb->protocol = htons(PVC_PROT);
-     			skb->mac.raw  = skb->data;
+     			wan_skb_reset_mac_header(skb);
 			skb->dev      = dev;
                		skb->pkt_type = WAN_PACKET_DATA;
 

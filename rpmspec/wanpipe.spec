@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.1.4
+%define version           3.2.0
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -172,6 +172,7 @@ ENDOFTEXT
 # ----------------------------------------------------------------------------
 # Install initialization scripts.
 # ----------------------------------------------------------------------------
+install_init()
 {
 	ln -s /usr/sbin/wanrouter /etc/init.d/wanrouter
 	chkconfig wanrouter on
@@ -252,6 +253,39 @@ install_init;
 
 
 %changelog
+* Mon Oct 1 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4.6
+==================================================================== 
+
+- Fixed Makefile for 2.6.22.9 kernel.
+- Fixed all gcc4 warnings.
+
+
+* Tue Sep 26 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4.5
+==================================================================== 
+
+- Updated Setup install script
+- A200/A400 Analog driver update
+  Fixed noise issue introduced in 3.1.4.3 release
+- Updated SMG for Asterisk 1.4 & Callweaver
+
+
+* Tue Sep 18 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4.3
+==================================================================== 
+
+- A200/A400 Analog driver update
+  Fixed a problem where analog port starts up without 
+  dialtone.
+
+* Tue Sep 14 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4.2
+==================================================================== 
+
+- Update for 2.6.22 kernel.
+- wanrouter startup script update for redhat distros.
+  Fixes the issue on system shutdown, where wanpipe
+  module sometimes do not unload due to /var/lock/subsys/
+  lockfile check. This issue is only related or RedHat style distros.
+
+
 * Tue Aug 15 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4
 ==================================================================== 
 

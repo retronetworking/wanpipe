@@ -342,34 +342,37 @@ typedef struct x25_channel
 
 /* FIXME Take this out */
 
+#pragma pack(1)
+
 #ifdef NEX_OLD_CALL_INFO
+
 typedef struct x25_call_info
 {
-	char dest[17];			PACKED;/* ASCIIZ destination address */
-	char src[17];			PACKED;/* ASCIIZ source address */
-	char nuser;			PACKED;/* number of user data bytes */
-	unsigned char user[127];	PACKED;/* user data */
-	char nfacil;			PACKED;/* number of facilities */
+	char dest[17];			;/* ASCIIZ destination address */
+	char src[17];			;/* ASCIIZ source address */
+	char nuser;			;/* number of user data bytes */
+	unsigned char user[127];	;/* user data */
+	char nfacil;			;/* number of facilities */
 	struct
 	{
-		unsigned char code;     PACKED;
-		unsigned char parm;     PACKED;
+		unsigned char code;     ;
+		unsigned char parm;     ;
 	} facil[64];			        /* facilities */
 } x25_call_info_t;
 #else
 typedef struct x25_call_info
 {
-	char dest[MAX_X25_ADDR_SIZE]		PACKED;/* ASCIIZ destination address */
-	char src[MAX_X25_ADDR_SIZE]		PACKED;/* ASCIIZ source address */
-	unsigned char nuser			PACKED;
-	unsigned char user[MAX_X25_DATA_SIZE]	PACKED;/* user data */
-	unsigned char nfacil			PACKED;
-	unsigned char facil[MAX_X25_FACL_SIZE]	PACKED;
-	unsigned short lcn             		PACKED;
+	char dest[MAX_X25_ADDR_SIZE]		;/* ASCIIZ destination address */
+	char src[MAX_X25_ADDR_SIZE]		;/* ASCIIZ source address */
+	unsigned char nuser			;
+	unsigned char user[MAX_X25_DATA_SIZE]	;/* user data */
+	unsigned char nfacil			;
+	unsigned char facil[MAX_X25_FACL_SIZE]	;
+	unsigned short lcn             		;
 } x25_call_info_t;
 #endif
 
-
+#pragma pack()
   
 /*===============================================
  *	Private Function Prototypes
@@ -2436,7 +2439,7 @@ static void rx_intr (sdla_t* card)
 				++chan->rx_intr_stat.rx_intr_bfr_not_passed_to_stack;
 			}
 		}else{
-			skb->mac.raw = skb->data;
+			wan_skb_reset_mac_header(skb);
 			chan->ifstats.rx_bytes += skb->len;
 
 			++chan->ifstats.rx_packets;
@@ -2538,7 +2541,7 @@ static int wanpipe_pull_data_in_skb (sdla_t *card, netdevice_t *dev, struct sk_b
 	new_skb->dev = dev;
 
 	if (chan->common.usedby == API){
-		new_skb->mac.raw = new_skb->data;
+		wan_skb_reset_mac_header(new_skb);
 		new_skb->protocol = htons(X25_PROT);
 		new_skb->pkt_type = WAN_PACKET_DATA;
 	}else{
@@ -6399,7 +6402,7 @@ x25_udp_cmd:
 			else 
 				new_skb->protocol = htons(ETH_P_IP);
 	
-                        new_skb->mac.raw = new_skb->data;
+                        wan_skb_reset_mac_header(new_skb);
 
 			netif_rx(new_skb);
 			++chan->pipe_mgmt_stat.UDP_PIPE_mgmt_passed_to_stack;

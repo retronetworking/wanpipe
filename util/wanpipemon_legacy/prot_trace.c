@@ -77,9 +77,9 @@ void trace_banner (wp_trace_output_iface_t *trace_iface, int *trace_started);
 
 static void decode_chdlc_ip_transaction(cisco_slarp_t *cisco_slarp);
 static void print_ipv4_address(unsigned int address);
-static int decode_data_ipv4(char* data, unsigned short data_len);
+static int decode_data_ipv4(unsigned char* data, unsigned short data_len);
 static char* decode_tcp_level_protocol(unsigned short port);
-static void print_data_in_hex(char* data, unsigned short data_len);
+static void print_data_in_hex(unsigned char* data, unsigned short data_len);
 
 int match_trace_criteria(unsigned char *pkt, int len, int *dlci)
 {
@@ -108,7 +108,7 @@ void trace_banner (wp_trace_output_iface_t *trace_iface, int *trace_started)
 	unsigned int timestamp	=trace_iface->timestamp;
 
 	if (!(*trace_started)){
-		unsigned char date_string[100];
+		char date_string[100];
 		
 		date_string[0] = '\0';
 
@@ -584,7 +584,7 @@ static int decode_chdlc(wp_trace_output_iface_t *trace_iface,
 		case CISCO_PACKET_IP:
 			printf("CISCO Packet IP-v4\n\n");
 			//decode data past Cisco header
-		     	decode_data_ipv4((char*)(cisco_header + 1),
+		     	decode_data_ipv4((unsigned char*)(cisco_header + 1),
 				trace_iface->len - sizeof(cisco_header_t));
       			break;
 
@@ -659,7 +659,7 @@ static void decode_chdlc_ip_transaction(cisco_slarp_t *cisco_slarp)
 #define IP_V4		4
 #define IP_V4_IHLEN  	5
 
-static int decode_data_ipv4(char* data, unsigned short data_len)
+static int decode_data_ipv4(unsigned char* data, unsigned short data_len)
 {
 	iphdr_t *ip_hdr = (iphdr_t*)data;
 	struct tcphdr * tcp_hdr;
@@ -760,10 +760,12 @@ static int decode_data_ipv4(char* data, unsigned short data_len)
 	case IPPROTO_RAW:      /* 255  */
 		printf("Raw IP packets");
 		break;
-	
+
+#if 0	
 	case IPPROTO_MAX:
 		printf("IPPROTO_MAX");
 		break;
+#endif
 	
 	default:
 		printf("Unknown (%d)\n", ip_hdr->w_ip_p);
@@ -839,7 +841,7 @@ static void print_ipv4_address(unsigned int address)
 				(unsigned int)(address & 0xFF000000) >>24);
 }
 
-static void print_data_in_hex(char* data, unsigned short data_len)
+static void print_data_in_hex(unsigned char* data, unsigned short data_len)
 {
   	int i;
 
@@ -1526,7 +1528,7 @@ static void print_pcap_record_header(wp_trace_output_iface_t *trace_iface)
 	fwrite(&ph, sizeof(ph), 1, trace_iface->output_file);
 }
 
-static void get_ppp_magic_number(char* data, int len, char* outstr, char offset_flag)
+static void get_ppp_magic_number(unsigned char* data, int len, char* outstr, char offset_flag)
 {
 	if(offset_flag == 0){
 
