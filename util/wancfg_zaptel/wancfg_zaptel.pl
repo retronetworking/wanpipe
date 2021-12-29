@@ -2564,15 +2564,13 @@ sub config_gsm {
 				print "-----------------------------------------------------------\n";
 			}
 
-			if ($is_trixbox == $FALSE) {
-				if($silent==$FALSE){
-						printf ("\nWould you like to configure AFT-%s port %s on slot:%d bus:%d\n",
-										get_card_name($card->card_model), $4, $card->pci_slot, $card->pci_bus);
-						my @options=("YES", "NO", "Exit");
-						$def_gsm_option=&prompt_user_list(@options,$def_gsm_option);
-				} else {
-						$def_gsm_option="YES";
-				}
+			if($silent==$FALSE){
+					printf ("\nWould you like to configure AFT-%s port %s on slot:%d bus:%d\n",
+									get_card_name($card->card_model), $4, $card->pci_slot, $card->pci_bus);
+					my @options=("YES", "NO", "Exit");
+					$def_gsm_option=&prompt_user_list(@options,$def_gsm_option);
+			} else {
+					$def_gsm_option="YES";
 			}
 			
 			if($def_gsm_option eq 'YES') {

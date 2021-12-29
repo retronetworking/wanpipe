@@ -100,7 +100,7 @@
 #	define netdev_mc_count(dev) dev->mc_count
 #endif
 
-#ifdef CONFIG_RPS
+#if defined(CONFIG_RPS) && LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32)
 #	define WAN_MC_LIST_ADDR(mclist) mclist->addr
 #	define WAN_SK_SLEEP(sk) sk_sleep(sk)
 #else

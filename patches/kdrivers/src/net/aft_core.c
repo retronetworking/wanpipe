@@ -897,10 +897,8 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 	
 	AFT_FUNC_DEBUG();
 
-#if 0
 	min_firm_ver= AFT_MIN_FRMW_VER;
 	wan_set_bit(CARD_DOWN,&card->wandev.critical);
-#endif
 
 	/* Verify configuration ID */
 	if ((card->wandev.config_id != WANCONFIG_AFT_TE1) && (card->wandev.config_id != WANCONFIG_AFT_T116)) {
@@ -2076,7 +2074,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 			}
 
 			/* Analog only supports 8 & 16 bytes hw chunk size */
-			if (card->wandev.config_id == WANCONFIG_AFT_ANALOG && chan->mtu > 16) {
+			if (card->wandev.config_id == WANCONFIG_AFT_ANALOG && chan->mtu > 32) {
 				chan->mtu=8;
 			}
 
@@ -2095,6 +2093,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 			case 1:
 			case 2:
 			case 5:
+			case 4:
 			case 10:
 			case 20:
 			case 30:
@@ -2138,7 +2137,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 				chan->sw_hdlc_mode=1;	
 			}
 		
-			if (card->wandev.config_id == WANCONFIG_AFT_ANALOG && chan->mtu > 16) {
+			if (card->wandev.config_id == WANCONFIG_AFT_ANALOG && chan->mtu > 32) {
 				chan->mtu=8;
 			}
 	
@@ -11818,6 +11817,7 @@ static int aft_tdmv_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *co
 				case 8:
 				case 16:
 					break;
+				case 32:
 				case 40:
 				case 80:
 					break;

@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           7.0.0
+%define version           7.0.1
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -59,11 +59,30 @@ fi
 
 %changelog
 
-* Thu Sep 28 2012 Nenad Corbic <ncorbic@sangoma.com> -  7.0.0.0
+* Tue Mar 19 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.1
+==================================================================
+
+- Update to wancfg_dahdi configuration for GSM
+- Update to setup-sangoma configuration for GSM
+- Potential bug on digital board startup due to un-initialized variable
+  Introduced in 7.0.0
+- Update for Centos 6.4
+  New kernel broke drivers
+- Update the DTMF poll frequency to 10ms
+  This will proved much more responsive DTMF events reporting.
+  Adds negligible load in performance testing.
+- Fixed a possible memory corruption issue on cdev write.
+  This could affect Linux FreeSWITCH or TDMAPI/Libsangoma Customers.
+  Issues have been reported by customers on very few random systems. 
+  Finally was able to reproduce in lab and fix it for good.
+  Does not affect Asterisk/DAHDI.
+
+
+* Thu Feb 10 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.0
 ==================================================================
 
 - Updated Major revision in order to syncronize versions with Windows.
-  There is no major driver change from 2.5.28 to 7.0.0
+  There is no major driver change from 3.5.28 to 7.0.0
 - Support for T116 16 Port T1/E1 Tapping Card
 - Added sample_data_tapping application for tapping customers
   wanpipe-7.0.0/api/libsangoma/examples/sample_data_tapping

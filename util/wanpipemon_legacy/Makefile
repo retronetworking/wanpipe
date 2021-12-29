@@ -31,7 +31,7 @@ PROTOCOL_DEFS=
 
 CC = gcc 
 CPP = gcc -E
-CFLAGS = -Wall -Wstrict-prototypes -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) -DCURSES_LOC="<ncurses.h>"
+CFLAGS = -Wall  -fno-strict-aliasing -Wstrict-prototypes -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) -DCURSES_LOC="<ncurses.h>"
 CFLAGS += -I$(SYSINC)
 WAN_VIRTUAL=
 

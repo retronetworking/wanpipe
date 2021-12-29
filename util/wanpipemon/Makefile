@@ -34,7 +34,7 @@ ASTBROOT=/usr
 
 CC = gcc 
 CPP = gcc -E
-CFLAGS = -Wall -Wstrict-prototypes 
+CFLAGS = -Wall  -fno-strict-aliasing -Wstrict-prototypes 
 CFLAGS += $(EXTRA_FLAGS) $(PROTOCOL_DEFS)
 CFLAGS += $(GLOBAL_CFLAGS)
 CFLAGS +=  -D$(OS_TYPE) -I../libsangoma -I../libsangoma/wanec -I$(WLINC) -I$(WEC) -I$(WECOCT) -I$(WINC)

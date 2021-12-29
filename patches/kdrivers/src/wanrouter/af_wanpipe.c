@@ -660,7 +660,7 @@ accept_newsk_ok:
 	newsk->sk_pair = NULL;
 #endif
 	newsk->sk_socket = newsock;
-#ifdef CONFIG_RPS
+#if defined(CONFIG_RPS) && LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32)
 	WAN_SK_SLEEP(newsk);
 #else
 	newsk->sk_sleep = &newsock->wait;

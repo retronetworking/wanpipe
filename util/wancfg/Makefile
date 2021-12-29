@@ -32,7 +32,7 @@ endif
 #CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. \
          -D__LINUX__ -DSTATIC_LIBS=$(GD_STATIC) $(OGR_STATIC) $(PROTOCOL_DEFINES)
 
-CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__  -I$(WLINC) -I$(WEC) -I$(WECOCT) -I$(SYSINC) $(PROTOCOL_DEFINES)
+CFLAGS = -Wall  -Wno-write-strings -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__  -I$(WLINC) -I$(WEC) -I$(WECOCT) -I$(SYSINC) $(PROTOCOL_DEFINES)
 
 #uncomment this to compile from CVS, also may change to your zaptel installation directory
 #CFLAGS += -I/usr/src/zaptel

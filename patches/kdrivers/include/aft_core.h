@@ -1028,6 +1028,9 @@ aft_dmachain_enable_tdmv_and_mtu_size(u32 *reg, int size)
 	case 16:
 		size=0x01;
 		break;
+	case 32:
+		size=0x02;
+		break;
 	case 40:
 		size=0x02;
 		break;

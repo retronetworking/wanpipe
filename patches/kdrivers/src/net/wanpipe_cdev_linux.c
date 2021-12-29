@@ -729,6 +729,7 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 	wan_iovec_t iovstack[WP_UIO_MAX_SZ];
 	wan_iovec_t *iov=iovstack;
 	wan_msghdr_t msg_sys;
+	wan_msghdr_t msg_sys1;
 	wan_msghdr_t *msg = (wan_msghdr_t*)usrbuf;
 	netskb_t *skb=NULL;
 	unsigned char* buf;
@@ -749,6 +750,9 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 	if (copy_from_user(&msg_sys,msg,sizeof(wan_msghdr_t)))
 		return -EFAULT;
 
+	if (copy_from_user(&msg_sys1,msg,sizeof(wan_msghdr_t)))
+		return -EFAULT;
+
 	if (msg_sys.msg_iovlen > WP_UIO_MAX_SZ)
 		return -EFAULT;
 
@@ -757,6 +761,7 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 	if (err < 0) {
 		return err;
 	}
+
 	
 	/* Update the count with length obtained from verify */
 	count = err;
@@ -767,7 +772,7 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 	}
 
 	buf = skb_put(skb,count);
-	err = wan_memcpy_fromiovec(buf, msg_sys.msg_iov, count);
+	err = wan_memcpy_fromiovec(buf, msg_sys1.msg_iov, count);
 	if (err){
 		wan_skb_free(skb);
 		return -ENOMEM;

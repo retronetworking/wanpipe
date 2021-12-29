@@ -2109,8 +2109,8 @@ static int wanec_unregister(void *arg, void *pcard)
 }
 
 #define WAN_EC_IRQ_TIMEOUT		(HZ*60)
-#define WAN_EC_TONE_IRQ_TIMEOUT		(HZ/32)
-#define WAN_EC_PLAYOUT_IRQ_TIMEOUT	(HZ/32)
+#define WAN_EC_TONE_IRQ_TIMEOUT		(HZ/100)
+#define WAN_EC_PLAYOUT_IRQ_TIMEOUT	(HZ/100)
 static int wanec_isr(void *arg)
 {
 	wan_ec_dev_t	*ec_dev = (wan_ec_dev_t*)arg;
@@ -2121,7 +2121,7 @@ static int wanec_isr(void *arg)
 	}
 	if (wan_test_bit(WAN_EC_BIT_EVENT_TONE, &ec_dev->events)){
 		/* Tone event is enabled */
-		if ((SYSTEM_TICKS - ec_dev->ec->lastint_ticks) > WAN_EC_TONE_IRQ_TIMEOUT){
+		if ((SYSTEM_TICKS - ec_dev->ec->lastint_ticks) >= WAN_EC_TONE_IRQ_TIMEOUT){
 			ec_dev->ec->lastint_ticks = SYSTEM_TICKS;
 			return 1;
 		}
@@ -2129,7 +2129,7 @@ static int wanec_isr(void *arg)
 	}
 	if (wan_test_bit(WAN_EC_BIT_EVENT_PLAYOUT, &ec_dev->events)){
 		/* Playout event is enabled */
-		if ((SYSTEM_TICKS - ec_dev->ec->lastint_ticks) > WAN_EC_PLAYOUT_IRQ_TIMEOUT){
+		if ((SYSTEM_TICKS - ec_dev->ec->lastint_ticks) >= WAN_EC_PLAYOUT_IRQ_TIMEOUT){
 			ec_dev->ec->lastint_ticks = SYSTEM_TICKS;
 			return 1;
 		}
