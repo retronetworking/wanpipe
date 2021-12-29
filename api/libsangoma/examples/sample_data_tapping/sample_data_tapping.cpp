@@ -149,6 +149,12 @@ Options:\n\
  -t1_esf               Disable \"Line Discovery\" and configure for T1_EXTENDED_SUPERFRAME\n\
  -t1_sf                Disable \"Line Discovery\" and configure for T1_SUPERFRAME\n\
  -rx2tx                If used, all Rx data will be transmitted back to the transmitter.\n\
+ -data_api_mode        Enable DATA_API mode,       Default SPAN Voice API Mode\n\
+ -chan_api_mode        Enable CHAN_VOICE_API mode, Default SPAN Voice API Mode\n\
+ -dchan                [ 1-31 ] #Default None\n\
+ -dchan_seven_bit      Enable 56K HDLC on D-Chan\n\
+ -dchan_mtp1_filter    Enable SS7 MTP1 Filter on D-Chan\n\
+ -chunk_ms             [ 10 | 20 | 30 | 40 | 50 | 60 ] #Default 20ms (160 bytes per timeslot)\n\
  -silent               No user interaction.\n\
  -timeout               No user interaction.\n\
 \n\
@@ -156,7 +162,8 @@ Example 1: sample_data_tapping a108 e1\n\
 Example 2: sample_data_tapping a108 t1\n\
 Example 3: sample_data_tapping a108 e1 h 320\n\
 Example 4: sample_data_tapping a108 e1 h 320 tx_tristate\n\
-Example 4: sample_data_tapping a108 -e1_cas_crc4 -tx_file c:\\tmp\\test_file.pcm -local_loopback\n"
+Example 5: sample_data_tapping a108 -e1_cas_crc4 -tx_file c:\\tmp\\test_file.pcm -local_loopback\n\
+Example 5: sample_data_tapping a108 -e1_cas_crc4 -dchan 16 -local_loopback\n"
 
 	*number_of_ports_per_card = 0;
 	szTxFileName[0] = '\0';
@@ -182,6 +189,20 @@ Example 4: sample_data_tapping a108 -e1_cas_crc4 -tx_file c:\\tmp\\test_file.pcm
 		}else if(wp_strncasecmp(argv[i], "t116",  strlen(argv[i])) == 0){
 			*model = T116;
 			*number_of_ports_per_card = 16;
+		}else if(wp_strncasecmp(argv[i], "-dchan",  strlen(argv[i])) == 0){
+			if (i+1 > argc-1){
+				ERR_MAIN("No Valid 'dchan' value was provided!\n");
+				printf(USAGE_STR);
+				return 1;
+			}
+			configuration.dchan=atoi(argv[i+1]);
+		}else if(wp_strncasecmp(argv[i], "-chunk_ms",  strlen(argv[i])) == 0){
+			if (i+1 > argc-1){
+				ERR_MAIN("No Valid 'chunk_ms' value was provided!\n");
+				printf(USAGE_STR);
+				return 1;
+			}
+			configuration.chunk_ms=atoi(argv[i+1]);
 		}else if(wp_strncasecmp(argv[i], "h",  strlen(argv[i])) == 0){
 			if (i+1 > argc-1){
 				ERR_MAIN("No Valid 'Max Cable Loss' value was provided!\n");
@@ -276,6 +297,14 @@ Example 4: sample_data_tapping a108 -e1_cas_crc4 -tx_file c:\\tmp\\test_file.pcm
 		}else if(wp_strncasecmp(argv[i], "-t1_sf", strlen(argv[i])) == 0){
 			iForcedLineType = T1_SUPERFRAME;
 			configuration.E1OrT1 = T1;
+		}else if(wp_strncasecmp(argv[i], "-dchan_seven_bit", strlen(argv[i])) == 0){
+			configuration.dchan_seven_bit = 1;
+		}else if(wp_strncasecmp(argv[i], "-dchan_mtp1_filter", strlen(argv[i])) == 0){
+			configuration.dchan_mtp1_filter = 1;
+		}else if(wp_strncasecmp(argv[i], "-data_api_mode", strlen(argv[i])) == 0){
+			configuration.api_mode = SNG_DATA_MODE;
+		}else if(wp_strncasecmp(argv[i], "-chan_api_mode", strlen(argv[i])) == 0){
+			configuration.api_mode = SNG_CHAN_MODE;
 		}
 	}//for()
 
@@ -675,6 +704,8 @@ void print_io_stats(void *p_param)
 int main_loop_per_port_bank(void *p_param, Configuration & configuration)
 {
 	std::vector<SangomaPort*>* p_ports = static_cast<std::vector<SangomaPort*>*>(p_param);
+		
+    DBG_MAIN("main_loop_per_port_bank\n");
 
 	//DETERMINE EACH PORTS CONFIGURATION
 	for(unsigned int port_index = 0; port_index < p_ports->size(); ++port_index)
@@ -730,6 +761,8 @@ int main_loop_per_port_bank(void *p_param, Configuration & configuration)
 			{	//user specified the Line Type - do not attempt to run Line Discovery.
 				if (p_port->GetIsOpen() == false) {
 					configuration.LineCoding = ON;
+				
+					DBG_MAIN("Port Open Foce\n");
 					p_port->Open(configuration);//open the port with FORCED configuration, only a single time.
 
 					if (szTxFileName[0] != '\0') {
@@ -758,8 +791,11 @@ int main_loop_per_port_bank(void *p_param, Configuration & configuration)
 					configuration.Framing = E1_TYPES[next_frame_type];
 					configuration.LineCoding = ON;
 				}
-
+    
+				DBG_MAIN("Auto Port Close\n");
 				p_port->Close();				//close the port
+
+				DBG_MAIN("Auto Port Open\n");
 				p_port->Open(configuration);	//re-open the port with the new configuration
 			}
         }
@@ -950,6 +986,11 @@ int __cdecl main(int argc, char* argv[])
 	configuration.MaxCableLoss = MCLV_12_0dB;//default value for both Hi Impedance and Normal mode
 	configuration.TxTristateMode = false;
 	configuration.Master=0;
+	configuration.dchan=0;  //Disabled
+    configuration.chunk_ms=0; //To preserver backward compatibility so that MTU is same for T1/E1
+	configuration.api_mode=SNG_SPAN_MODE;
+	configuration.dchan_seven_bit=0;
+	configuration.dchan_mtp1_filter=0;
 
 
 	buffer_settings.BufferMultiplierFactor = BufferSettings::MINIMUM_BUFFER_MULTIPLIER_FACTOR;// go to higher mulitiplier only if CPU usage is high

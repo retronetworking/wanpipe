@@ -39,7 +39,9 @@
 /* Enable/Disable tx of random frames */
 #define RAND_FRAME 0
 
-#define MAX_NUM_OF_TIMESLOTS  32*32
+#define MAX_SPANS 80
+#define MAX_CHANS 32
+#define MAX_NUM_OF_TIMESLOTS  MAX_SPANS*MAX_CHANS
 
 #define LGTH_CRC_BYTES	2
 #define MAX_TX_DATA     15000 //MAX_NUM_OF_TIMESLOTS*10	/* Size of tx data */
@@ -859,7 +861,7 @@ int main (int argc, char* argv[])
     pthread_mutex_init(&g_lock, NULL);  
 	
 	if (argc < 2){
-		printf("Usage: hdlc_test <if name> ...\n");
+		printf("Usage: hdlc_test s1c1 s2c1 [ -verbose ] [ -timeout 0 ] [ -err_limit 5 ] \n");
 		exit(0);
 	}	
 	
@@ -900,7 +902,7 @@ int main (int argc, char* argv[])
 		}
 
 		sangoma_span_chan_fromif(argv[x+1],&span,&chan);
-		if (span > 0 && span <= 32 && chan > 0 && chan < 32) {
+		if (span > 0 && span <= MAX_SPANS && chan > 0 && chan < MAX_CHANS) {
 			slot=&tslot_array[scnt++];
 		} else {
 			printf("Error: Invalid interface name %s\n",argv[x+1]);

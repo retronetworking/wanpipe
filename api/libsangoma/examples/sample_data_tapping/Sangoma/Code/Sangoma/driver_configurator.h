@@ -68,6 +68,12 @@ public:
 	int print_wanif_conf_t_structure(wanif_conf_t *wanif_conf);
 
 	int scan_for_sangoma_cards(wanpipe_instance_info_t *wanpipe_info_array, int card_model);
+	
+	int set_dchan(int,int,int);
+	int set_chunk_ms(int);
+	int set_data_api_mode(void);
+	int set_span_api_mode(void);
+	int set_chan_api_mode(void);
 
 private:
 

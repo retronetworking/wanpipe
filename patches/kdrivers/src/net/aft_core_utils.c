@@ -1072,15 +1072,18 @@ static int xmtp2km_tap_func(void *prot_ptr, int slot, int dir, unsigned char *da
 {
 	private_area_t *chan = (private_area_t*)prot_ptr;
 	int err;
+	int channel;
 
 	if (!chan) {
 		return -1;
 	}
+	
+	channel=IS_E1_CARD(chan->card) ? chan->first_time_slot : chan->first_time_slot+1;
 
 	if (dir) {
-		err=wan_capture_trace_packet_buffer(chan->card, &chan->trace_info, data, len ,TRC_INCOMING_FRM);
+		err=wan_capture_trace_packet_buffer(chan->card, &chan->trace_info, data, len ,TRC_INCOMING_FRM, channel);
 	} else {
-		err=wan_capture_trace_packet_buffer(chan->card, &chan->trace_info, data, len ,TRC_OUTGOING_FRM);
+		err=wan_capture_trace_packet_buffer(chan->card, &chan->trace_info, data, len ,TRC_OUTGOING_FRM, channel);
 	}
 
 	if (err == -EINVAL) {

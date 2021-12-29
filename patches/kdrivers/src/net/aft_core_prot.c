@@ -901,6 +901,7 @@ int aft_sw_hdlc_trace(void *priv_ptr, u8 *data, int len, int dir)
 	private_area_t *chan = (private_area_t*)priv_ptr;
 	private_area_t *top_chan;
 	int err;
+	int channel=IS_E1_CARD(chan->card) ? chan->first_time_slot : chan->first_time_slot+1;
 	
 	top_chan=chan;
 	if (chan->channelized_cfg) {
@@ -908,9 +909,9 @@ int aft_sw_hdlc_trace(void *priv_ptr, u8 *data, int len, int dir)
 	} 
 	
 	if (dir) {
-		err=wan_capture_trace_packet_buffer(chan->card, &top_chan->trace_info, data, len ,TRC_INCOMING_FRM);
+		err=wan_capture_trace_packet_buffer(chan->card, &top_chan->trace_info, data, len ,TRC_INCOMING_FRM, channel);
 	} else {
-		err=wan_capture_trace_packet_buffer(chan->card, &top_chan->trace_info, data, len ,TRC_OUTGOING_FRM);
+		err=wan_capture_trace_packet_buffer(chan->card, &top_chan->trace_info, data, len ,TRC_OUTGOING_FRM, channel);
 	}
 	if (err) {
 		WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common);	

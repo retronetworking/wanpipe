@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           7.0.5
+%define version           7.0.6
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -228,6 +228,15 @@ chmod 755 /usr/local/sbin/setup-sangoma
 
 
 %changelog
+
+* Wed Sep 25 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.6
+==================================================================
+
+- Updated wanpipemon to trace on multipel dchan in a single span
+  eg: wanpipemon -i w1g1 -chan 1 -c trd
+  If chan is not specificed then all dchans will be traced together.
+- Updated sample tapping application.
+  Allow configuration for dchan and seven bit hdlc
 
 * Mon Jul 15 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.5
 ==================================================================

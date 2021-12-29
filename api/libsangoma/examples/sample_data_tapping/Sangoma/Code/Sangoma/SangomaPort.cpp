@@ -492,6 +492,26 @@ int SangomaPort::SetPortConfiguration(const Configuration & config)
 	buffer_settings.buffer_multiplier_factor = ReceiveBufferSettings.BufferMultiplierFactor;
 	buffer_settings.number_of_buffers_per_api_interface = ReceiveBufferSettings.NumberOfBuffersPerPort;
 
+	p_drv_cfg_obj->set_dchan(config.dchan,config.dchan_seven_bit,config.dchan_mtp1_filter);
+	p_drv_cfg_obj->set_chunk_ms(config.chunk_ms);
+	p_drv_cfg_obj->set_span_api_mode();
+
+	switch (config.api_mode) {
+	case SNG_SPAN_MODE:
+		p_drv_cfg_obj->set_span_api_mode();
+		break;
+	case SNG_CHAN_MODE:
+		p_drv_cfg_obj->set_chan_api_mode();
+		buffer_settings.buffer_multiplier_factor=1;
+		ReceiveBufferSettings.BufferMultiplierFactor=0;
+		break;
+	case SNG_DATA_MODE:
+		p_drv_cfg_obj->set_data_api_mode();
+		buffer_settings.buffer_multiplier_factor=1;
+		ReceiveBufferSettings.BufferMultiplierFactor=0;
+		break;
+	}
+
 	return_code = p_drv_cfg_obj->set_t1_e1_configuration(&sdla_fe_cfg, &buffer_settings);
 
 	delete p_drv_cfg_obj;
@@ -567,7 +587,8 @@ bool SangomaPort::Open(const Configuration & config)
 		return false;
 	}
 
-	if(pSangomaInterface->set_buffer_multiplier(wp_api, ReceiveBufferSettings.BufferMultiplierFactor)){
+	if(ReceiveBufferSettings.BufferMultiplierFactor &&
+       pSangomaInterface->set_buffer_multiplier(wp_api, ReceiveBufferSettings.BufferMultiplierFactor)){
 		PORT_FUNC();
 
 		std::ostringstream error_msg;

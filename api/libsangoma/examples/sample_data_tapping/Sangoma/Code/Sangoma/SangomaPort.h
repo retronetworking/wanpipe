@@ -139,6 +139,12 @@ enum MAX_CABLE_LOSS{
 	MCLV_12_0dB=120
 };
 
+typedef enum SNG_API_MODE{
+	SNG_SPAN_MODE=0,
+	SNG_CHAN_MODE=1,
+	SNG_DATA_MODE=2
+} sng_api_mode_t;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///	\struct	Configuration
 ///	\brief	Structure containing all settings necessary to configure a Sangoma port
@@ -151,6 +157,11 @@ struct Configuration {
 	MAX_CABLE_LOSS  MaxCableLoss;  ///< If High Impedance is true, indicates value of external resistor.
 	bool  TxTristateMode;  ///< If true, indicates transmitter is disabled on T1/E1 level.
 	bool  Master;		///< If true, configure for master clock
+	int   dchan;        ///< Integer value of a dchan 
+	int   chunk_ms;     ///< Integer value of ms chunk size default 20 (160bytes per timeslot)
+	sng_api_mode_t api_mode;
+	int   dchan_seven_bit;
+	int   dchan_mtp1_filter;
 	
     ///////////////////////////////////////////////////////////////////////////////////////////////
     ///	\fn		Configuration::Configuration()
@@ -164,7 +175,8 @@ struct Configuration {
 	    LineCoding(OFF),
 	    HighImpedanceMode(true),
 	    TxTristateMode(false),
-        Master(false)
+        Master(false),
+		dchan(0)
     {}
 };
 

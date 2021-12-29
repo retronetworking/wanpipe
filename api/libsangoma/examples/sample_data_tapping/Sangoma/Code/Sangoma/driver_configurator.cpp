@@ -130,6 +130,9 @@ int driver_configurator::set_configuration(port_cfg_t *port_cfg)
 int driver_configurator::init(unsigned int wanpipe_number, unsigned int port_number)
 {
 	DBG_CFG("%s():\n", __FUNCTION__);
+	
+	memset(&port_cfg, 0x00, sizeof(port_cfg_t));
+	port_cfg.num_of_ifs = 1;//1 Group always
 
 	//this the MAPPED port number
 	wp_number = wanpipe_number + port_number + 1;
@@ -341,6 +344,66 @@ int driver_configurator::scan_for_sangoma_cards(wanpipe_instance_info_t *wanpipe
 	return card_counter;
 }
 
+int driver_configurator::set_dchan(int dchan, int seven_bit, int mtp1_filter)
+{
+	wandev_conf_t	*wandev_conf	= &port_cfg.wandev_conf;
+    wanif_conf_t	*wanif_cfg		= &port_cfg.if_cfg[0];
+	
+	if(!dchan) {
+		return -1;
+	}
+	
+	if (seven_bit) {	
+		wanif_cfg->u.aft.sw_hdlc=1;
+		wanif_cfg->u.aft.seven_bit_hdlc=1;
+	}
+	if (mtp1_filter) {
+		wanif_cfg->u.aft.sw_hdlc=1;
+		wanif_cfg->u.aft.mtp1_filter=1;
+		wanif_cfg->u.aft.hdlc_repeat=1;
+	}
+
+	dchan--;
+	wandev_conf->tdmv_conf.dchan=(1<<dchan);
+
+	return 0; 
+}
+
+int driver_configurator::set_chunk_ms(int chunk_ms)
+{
+    wanif_conf_t	*wanif_cfg		= &port_cfg.if_cfg[0];
+
+	wanif_cfg->u.aft.mru = chunk_ms*8;
+	wanif_cfg->u.aft.mtu = chunk_ms*8;
+
+	return 0; 
+}
+
+int driver_configurator::set_data_api_mode(void)
+{
+	wandev_conf_t	*wandev_conf	= &port_cfg.wandev_conf;
+    wanif_conf_t	*wanif_cfg		= &port_cfg.if_cfg[0];
+	sprintf(wanif_cfg->usedby, "DATA_API");
+
+	if (wandev_conf->tdmv_conf.dchan) {
+		wanif_cfg->hdlc_streaming=1;
+		wanif_cfg->active_ch=wandev_conf->tdmv_conf.dchan;
+	}
+	return 0; 
+}
+int driver_configurator::set_chan_api_mode(void)
+{
+    wanif_conf_t	*wanif_cfg		= &port_cfg.if_cfg[0];
+	sprintf(wanif_cfg->usedby, SDLA_DECODE_USEDBY_FIELD(TDM_CHAN_VOICE_API));
+	return 0; 
+}
+int driver_configurator::set_span_api_mode(void)
+{
+    wanif_conf_t	*wanif_cfg		= &port_cfg.if_cfg[0];
+	sprintf(wanif_cfg->usedby, SDLA_DECODE_USEDBY_FIELD(TDM_SPAN_VOICE_API));
+	return 0; 
+}
+
 //function to switch between T1 and E1
 int driver_configurator::set_t1_e1_configuration(sdla_fe_cfg_t *in_sdla_fe_cfg, buffer_settings_t *buffer_settings)
 {
@@ -352,8 +415,6 @@ int driver_configurator::set_t1_e1_configuration(sdla_fe_cfg_t *in_sdla_fe_cfg, 
 
 	DBG_CFG("%s()\n", __FUNCTION__);
 
-	memset(&port_cfg, 0x00, sizeof(port_cfg_t));
-
 	get_hardware_info(&tmp_hardware_info);
 
 	//copy T1/E1 configuration into the Driver configuration structure.
@@ -363,8 +424,6 @@ int driver_configurator::set_t1_e1_configuration(sdla_fe_cfg_t *in_sdla_fe_cfg, 
 	port_cfg.buffer_settings.number_of_buffers_per_api_interface = buffer_settings->number_of_buffers_per_api_interface;
 
 	wandev_conf->fe_cfg.cfg.te_cfg.active_ch = 0xFFFFFFFF;//a constant
-
-	port_cfg.num_of_ifs = 1;//1 Group always
 
 	///////////////////////////////////////////////////////////////////////////////
     wandev_conf->config_id = WANCONFIG_AFT_TE1;
@@ -380,10 +439,13 @@ int driver_configurator::set_t1_e1_configuration(sdla_fe_cfg_t *in_sdla_fe_cfg, 
 	wandev_conf->pci_bus_no = tmp_hardware_info.pci_bus_number;
     wandev_conf->card_type = WANOPT_AFT; //m_DeviceInfoData.card_model;
 
-	wanif_cfg->hdlc_streaming = WANOPT_NO;//BitStream
 	wanif_cfg->magic = ROUTER_MAGIC;
 
-    sprintf(wanif_cfg->usedby, SDLA_DECODE_USEDBY_FIELD(TDM_SPAN_VOICE_API));//TDM_SPAN_VOICE_API - span mode supported by libsangoma.dll.
+    if (wandev_conf->tdmv_conf.dchan && FE_FRAME(sdla_fe_cfg) == WAN_FR_D4) {
+		wanif_cfg->u.aft.sw_hdlc=1;
+		wanif_cfg->u.aft.seven_bit_hdlc=1;
+	} 
+
     wanif_cfg->u.aft.idle_flag=0xFF;
 
 	sprintf(wanif_cfg->name, "w%dg1", wp_number);
@@ -397,24 +459,30 @@ int driver_configurator::set_t1_e1_configuration(sdla_fe_cfg_t *in_sdla_fe_cfg, 
 	//The 'buffer_multiplier_factor' value will control how many of these
 	//buffers will be received on each RX indication.
 	//
-	if(FE_MEDIA(sdla_fe_cfg) == WAN_MEDIA_T1){
-		//320*24=7680
-		wanif_cfg->mtu = wanif_cfg->u.aft.mtu = wanif_cfg->u.aft.mru = 320;
-	} else {
-		//240*31=7440, 240*32=7680
-		wanif_cfg->mtu = wanif_cfg->u.aft.mtu = wanif_cfg->u.aft.mru = 240;
+    if (!wanif_cfg->u.aft.mru) {
+		if(FE_MEDIA(sdla_fe_cfg) == WAN_MEDIA_T1){
+			//320*24=7680
+			wanif_cfg->mtu = wanif_cfg->u.aft.mtu = wanif_cfg->u.aft.mru = 320;
+		} else {
+			//240*31=7440, 240*32=7680
+			wanif_cfg->mtu = wanif_cfg->u.aft.mtu = wanif_cfg->u.aft.mru = 240;
+		}
 	}
 
 	if(FE_MEDIA(sdla_fe_cfg) == WAN_MEDIA_T1){
 		//T1, 1 Group of 24 Timeslots.
-		wanif_cfg->active_ch = 0xFFFFFF;
+		if (!wanif_cfg->active_ch) {
+			wanif_cfg->active_ch = 0xFFFFFF;
+		}
 
 		FE_TDMV_LAW(sdla_fe_cfg) = WAN_TDMV_MULAW;
 
 	}else if(FE_MEDIA(sdla_fe_cfg) == WAN_MEDIA_E1){
 		//E1, 1 Group of 31 or 32 Timeslots.
 		//API driver will automatically adjust timeslot bitmap for "framed" e1
-		wanif_cfg->active_ch = 0xFFFFFFFF;
+		if (!wanif_cfg->active_ch) {
+			wanif_cfg->active_ch = 0xFFFFFFFF;
+		}
 
 		FE_TDMV_LAW(sdla_fe_cfg) = WAN_TDMV_ALAW;
 		FE_LBO(sdla_fe_cfg) = WAN_T1_LBO_NONE;//important to set to a valid value!!

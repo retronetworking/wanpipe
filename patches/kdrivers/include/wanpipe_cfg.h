@@ -1060,6 +1060,7 @@ typedef struct {
 	unsigned char	data_avail;
 	unsigned short	real_length;
 	unsigned short	time_stamp;
+	unsigned char	channel;
 	wan_time_t	sec;		/* unsigned long	sec; */
 	wan_suseconds_t	usec;	/* unsigned long   usec; */
 	unsigned char	data[0];

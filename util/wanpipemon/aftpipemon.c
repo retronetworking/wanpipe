@@ -999,6 +999,8 @@ static void line_trace(int trace_mode)
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 1;
 	wan_udp.wan_udphdr_data[0]=trace_mode;
+
+
 	
 	DO_COMMAND(wan_udp);
 	
@@ -1101,6 +1103,12 @@ static void line_trace(int trace_mode)
 				hdlc_trace_iface.usec		= trace_iface.usec;
 				
 				curr_pos += sizeof(wan_trace_pkt_t);
+	
+				if (tdmv_chan) {
+					if (trace_pkt->channel != tdmv_chan) {
+						continue;
+					}
+				}
 				
 				if (trace_pkt->real_length >= WAN_MAX_DATA_SIZE){
 					printf("\t:the frame data is to big (%u)!",
@@ -2080,7 +2088,7 @@ int AFTMain(char *command,int argc, char* argv[])
 			break;
 			
 		case 't':
-	    		memset(&trace_iface,0,sizeof(wp_trace_output_iface_t));
+			memset(&trace_iface,0,sizeof(wp_trace_output_iface_t));
 
 			if (!strcmp(opt, "r")){
 				raw_data = WAN_TRUE;

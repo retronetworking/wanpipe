@@ -984,7 +984,7 @@ int wan_tracing_enabled(wan_trace_t *trace_info)
 }
 
 
-int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char *data, int len, char direction)
+int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char *data, int len, char direction, int channel)
 {
 	void* new_skb = NULL;
 	wan_trace_pkt_t trc_el;	
@@ -1012,6 +1012,7 @@ int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char 
 		trc_el.time_stamp	= 
 			(unsigned short)((((trc_el.sec * 1000000) + trc_el.usec) / 1000) % 0xFFFF);
 		trc_el.real_length	= len;
+		trc_el.channel=channel;
 
 		buf=wan_skb_put(new_skb, sizeof(wan_trace_pkt_t));
 		memcpy(buf,(caddr_t)&trc_el,sizeof(wan_trace_pkt_t));
