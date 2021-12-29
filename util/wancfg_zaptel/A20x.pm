@@ -167,6 +167,10 @@ sub gen_wanpipe_conf{
 	my $hw_fax = $self->card->hw_fax;
 	my $is_tdm_api = $self->is_tdm_api;
 	my $tdm_voice_op_mode = "TDM_VOICE";
+	my $rm_fake_polarity = $self->rm_fake_polarity;
+	my $rm_fake_polarity_threshold = $self->rm_fake_polarity_threshold;
+	my $rm_fake_polarity_cidtimer = $self->rm_fake_polarity_cidtimer;
+	my $rm_fake_polarity_cidtimeout = $self->rm_fake_polarity_cidtimeout;
 
 	my $device_alpha = &get_alpha_from_num($device_no);
 
@@ -199,10 +203,10 @@ sub gen_wanpipe_conf{
     $wp_file =~ s/HWECMODE/$hwec_mode/g;
 	$wp_file =~ s/HWDTMF/$hw_dtmf/g;
     $wp_file =~ s/HWFAX/$hw_fax/g;
-    $wp_file =~ s/RMFAKEPOLARITY/$self->rm_fake_polarity/g;
-    $wp_file =~ s/RMFAKETHRESHOLD/$self->rm_fake_polarity_threshold/g;
-    $wp_file =~ s/RMFAKECIDTIMER/$self->rm_fake_polarity_cidtimer/g;
-    $wp_file =~ s/RMFAKECIDTIMEOUT/$self->rm_fake_polarity_cidtimeout/g;
+    $wp_file =~ s/RMFAKEPOLARITY/$rm_fake_polarity/g;
+    $wp_file =~ s/RMFAKETHRES/$rm_fake_polarity_threshold/g;
+    $wp_file =~ s/RMFAKECIDTIMER/$rm_fake_polarity_cidtimer/g;
+    $wp_file =~ s/RMFAKECIDTIMEOUT/$rm_fake_polarity_cidtimeout/g;
 
 	print FH $wp_file;
 	close (FH);

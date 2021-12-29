@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.17
+%define VERSION           7.0.18
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -260,7 +260,7 @@ fi
 
 %changelog
 
-* Fri Mar 17 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.17
+* Fri Mar 17 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.18
 ==================================================================
 - Driver will start by default even though analog FXS/FXO module failed to configure.
   New config parameters: RM_FAIL_ON_MOD_ERROR=YES will revert this behaviour.
