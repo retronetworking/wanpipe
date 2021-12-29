@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.2.5
+%define version           3.2.6
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -246,6 +246,58 @@ install_init;
 
 
 %changelog
+* Thu Jun 4 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.6
+========================================================================
+
+- Updated hwprobe to add A056 card
+
+- Updated for 2.6.25 kernel
+
+- wanpipemon PRI/BRI wireshark tracing
+  http://wiki.sangoma.com/wanpipe-wireshark-pcap-pri-bri-wan-t1-e1-tracing
+
+- LIP Layer Update
+  Optimized packet handling in bh  
+
+- Fixed WAN Protocol for 2.6.24 kernels and higher
+
+- AFT TE1 Code
+  Defaulted Maxim T1 Rx Level to 36DB
+  Defaulted Maxim E1 Rx Level to 42DB
+  This will improve T1/E1 connectivity on noisy or low power lines.
+
+- Wanpipemon PRI/BRI PCAP Tracing for Wireshark
+  Using wanpipemon dchan trace one can now capture
+  pcap files that can be opened by Wireshark.
+  http://wiki.sangoma.com/wanpipe-wireshark-pcap-pri-bri-wan-t1-e1-tracing
+
+
+- Add pci parity check to wanrouter 
+  wanrouter parity  	-> displays current system pci parity
+  wanrouter parity off 	-> disables system pci parity
+  wanrouter parity on	-> enables system pci parity
+  
+  /etc/wanpipe/wanrouter.rc  
+	WAN_PCI_PARITY=OFF -> on wanrouter start disable pci parity
+			   -> event logged in /var/log/wanrouter
+
+  On some servers pci parity can cause NMI interrupts that
+  can lead to reboots.  Parity can be caused by unsuported
+  or buggy pci/bridge chipsets.  The above commands can be used
+  to combat pci parity reboots.
+
+  Another option is to disable PCI parity in BIOS :)
+
+
+
+* Thu Apr 4 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.5.1
+========================================================================
+
+- RTP TAP Bug fix
+  The driver was sending out invalid rtp tap header
+  http://wiki.sangoma.com/wanpipe-voice-rtp-tap
+
+
 * Thu Apr 2 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.5
 ========================================================================
 

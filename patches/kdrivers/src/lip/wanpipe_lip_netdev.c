@@ -29,6 +29,10 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 
 char* get_master_dev_name(wplip_link_t 	*lip_link);
 
+#ifdef __LINUX__
+static int wplip_change_mtu(netdevice_t *dev, int new_mtu);
+#endif
+
 /*==============================================================
  * wplip_open_dev
  *
@@ -61,11 +65,16 @@ int wplip_open_dev(netdevice_t *dev)
 	}
 	
 #if defined(__LINUX__)
+
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,18)
 	if (netif_running(dev))
 		return -EBUSY;
 # endif
+
+	/* Updated the lower level MTU based on the interface MTU */	
+	wplip_change_mtu(lip_dev->common.dev, dev->mtu);
 #endif
+
 
 	wan_clear_bit(0,&lip_dev->if_down);
 

@@ -9,6 +9,7 @@
 #		as published by the Free Software Foundation; either version
 #		2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# May 30, 2008  Jignesh Patel   Fixed bootscript installation failure 
 # Oct 26, 2007  Konrad Hammel   Updated minor start script bug
 # Nov 27, 2005  David Rokhvarg 	Added Echo Debugging option
 # Mar 18, 2002  Nenad Corbic	Added BSCSTRM protocol
@@ -3320,20 +3321,35 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
                                   -e s/s390x/s390/ -e s/parisc64/parisc/ \
                                   -e s/ppc.*/powerpc/ -e s/mips.*/mips/ )
 
-
 			#New way of checking REGPARM because its enabled
-			#by default on 2.6.20 kernel and up
-			if [ $SUBARCH != "" ]; then
-				eval "grep \"CFLAGS.*=.*-pipe.*regparm\" $SOURCEDIR/arch/$SUBARCH/Makefile" > /dev/null 2> /dev/null
-				if [ $? -eq 0 ]; then
-					echo -e "Enabled.\n"
-		                        REGPARM_OPT=".regparm"
-				else
-					 echo -e "Disabled.\n"
-				fi
-			else
-				 echo -e "Disabled.\n"
-			fi
+                        #by default on 2.6.20 kernel and up
+                        if [ $SUBARCH != "" ]; then
+				if [ -f $SOURCEDIR/arch/$SUBARCH/Makefile ]; then
+                                	eval "grep \"CFLAGS.*=.*regparm\" $SOURCEDIR/arch/$SUBARCH/Makefile*" > /dev/null 2> /dev/null
+					res=$?
+                                elif [ -d $SOURCEDIR/arch/x86 ]; then
+                                	eval "grep \"CFLAGS.*=*regparm\" $SOURCEDIR/arch/x86/Makefile*" > /dev/null 2> /dev/null
+					res=$?
+                                else
+                                        echo
+                                        echo "Warning: Failed to determine regparm from Makefile defaulting to YES!"
+                                        echo
+                                        res=0
+                                fi
+                                if [ $res -eq 0 ]; then
+
+                                        echo -e "Enabled.\n"
+                                        REGPARM_OPT=".regparm"
+                                else
+                                        echo -e "Disabled.\n"
+                                fi
+                        else
+                                echo
+                                echo "Warning: Failed to determine ARCH: regparm defaulting to YES!"
+                                echo
+                                REGPARM_OPT=".regparm"
+                                echo -e "Enabled.\n"
+                        fi
 		fi
 
 		
@@ -6341,7 +6357,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.2.5
+PROD_VER=3.2.6
 PROD_HOME=`pwd`
 WAN_CONF_DIR=/etc/wanpipe
 META_CONF=$PROD_HOME/$PROD.rc      
@@ -7141,10 +7157,10 @@ welcome || exit 0
 prepare	|| exit 1
 apply_patches || exit 1
 compile_drivers  || exit 1
-install_init || exit 1
 install_config || exit 1   
 compile_src || exit 1
 install_all 
+install_init || exit 1
 install_ssmg
 clean_up 
 goodbye

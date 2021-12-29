@@ -303,6 +303,7 @@ static int 	if_change_mtu(netdevice_t *dev, int new_mtu);
 static int	if_send(netdevice_t*, netskb_t*, struct sockaddr*,struct rtentry*);
 #endif 
 
+static void	callback_front_end_state(void *card_id);
 static void 	handle_front_end_state(void* card_id);
 static void 	enable_timer(void* card_id);
 static void 	enable_ec_timer(void* card_id);
@@ -675,7 +676,7 @@ int wp_aft_analog_init (sdla_t *card, wandev_conf_t* conf)
 
 	card->wandev.fe_enable_timer = enable_timer;
 	card->wandev.ec_enable_timer = enable_ec_timer;
-	card->wandev.te_link_state = handle_front_end_state;
+	card->wandev.te_link_state = callback_front_end_state;
 
 	if (card->wandev.comm_port == WANOPT_PRI){
 		conf->clocking = WANOPT_EXTERNAL;
@@ -747,6 +748,7 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 			conf->fe_cfg.cfg.te_cfg.active_ch = -1;
 		}
 
+		memset(&card->fe, 0, sizeof(sdla_fe_t));
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
 			max_ports = 8;
@@ -762,7 +764,7 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 
 		card->wandev.fe_enable_timer = enable_timer;
 		card->wandev.ec_enable_timer = enable_ec_timer;
-		card->wandev.te_link_state = handle_front_end_state;
+		card->wandev.te_link_state = callback_front_end_state;
 		conf->interface =
 			IS_T1_CARD(card) ? WANOPT_V35 : WANOPT_RS232;
 
@@ -868,7 +870,7 @@ int wp_aft_56k_init (sdla_t* card, wandev_conf_t* conf)
 #endif
 		card->wandev.fe_enable_timer = enable_timer;
 		card->wandev.ec_enable_timer = enable_ec_timer;
-		card->wandev.te_link_state = handle_front_end_state;
+		card->wandev.te_link_state = callback_front_end_state;
 
 		card->wandev.comm_port=0;
 
@@ -2554,10 +2556,6 @@ static int if_init (netdevice_t* dev)
 #endif
 	dev->get_stats		= &if_stats;
 
-#if 0
-	dev->tx_timeout		= &if_tx_timeout;
-	dev->watchdog_timeo	= 2*HZ;
-#else
 	if (chan->common.usedby == TDM_VOICE || 
 	    chan->common.usedby == TDM_VOICE_API){
 		dev->tx_timeout		= NULL;
@@ -2566,7 +2564,6 @@ static int if_init (netdevice_t* dev)
 	}
 	dev->watchdog_timeo	= 2*HZ;
 		
-#endif	
 	dev->do_ioctl		= if_do_ioctl;
 	dev->change_mtu		= if_change_mtu;
 
@@ -3464,7 +3461,7 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
  *******************************************************************/
 
 
-#define FIFO_RESET_TIMEOUT_CNT 1000
+#define FIFO_RESET_TIMEOUT_CNT 500
 #define FIFO_RESET_TIMEOUT_US  10
 static int aft_init_rx_dev_fifo(sdla_t *card, private_area_t *chan, unsigned char wait)
 {
@@ -3900,8 +3897,10 @@ static void aft_tx_post_complete (sdla_t *card, private_area_t *chan, netskb_t *
 		}
 
 		if (reg & AFT_TXDMA_HI_DMA_LENGTH_MASK){
+			if (WAN_NET_RATELIMIT()){
                		DEBUG_EVENT("%s:%s: Error: TxDMA Length not equal 0 (reg=0x%08X)\n",
                    		card->devname,chan->if_name,reg);
+			}
 			chan->errstats.Tx_dma_errors++;
 	        }   
  
@@ -4201,7 +4200,7 @@ static void enable_timer (void* card_id)
 		return;
 	}
 
-	DEBUG_56K("%s: %s Sdla Polling %p!\n",__FUNCTION__,
+	DEBUG_TEST("%s: %s Sdla Polling %p!\n",__FUNCTION__,
 			card->devname,
 			card->wandev.fe_iface.polling);
 	
@@ -4768,6 +4767,51 @@ chan->rx_dma_chain_table[chan->rx_chain_indx].dma_addr,
 	return;
 }
 
+#if 1
+
+static void front_end_interrupt(sdla_t *card, unsigned long reg, int lock)
+{
+	void **card_list;
+	u32 max_number_of_ports, i;
+	sdla_t	*tmp_card;
+
+	max_number_of_ports = 8; /* 24 */
+	
+	card_list=__sdla_get_ptr_isr_array(card->hw);
+
+	DEBUG_TEST("%s(): card_list ptr: 0x%p\n", __FUNCTION__, card_list);
+
+	for (i=0; i<max_number_of_ports; i++) {
+
+		tmp_card=(sdla_t*)card_list[i];
+		if (tmp_card == NULL || wan_test_bit(CARD_DOWN,&tmp_card->wandev.critical)) {
+			continue;
+		}
+			
+		DEBUG_TEST("%s(): card ptr: %s, tmp_card ptr: %s\n", __FUNCTION__, card->devname, tmp_card->devname);
+
+		if (tmp_card->wandev.fe_iface.check_isr && 
+		    tmp_card->wandev.fe_iface.check_isr(&tmp_card->fe)) {
+
+			if (tmp_card->wandev.fe_iface.isr &&
+		            tmp_card->wandev.fe_iface.isr(&tmp_card->fe)) {
+	
+				if (lock) {
+					wan_smp_flag_t smp_flags;
+					wan_spin_lock_irq(&tmp_card->wandev.lock,&smp_flags);
+					handle_front_end_state(tmp_card);
+					wan_spin_unlock_irq(&tmp_card->wandev.lock,&smp_flags);
+				} else {
+					handle_front_end_state(tmp_card);
+				}
+			}
+		}
+	}
+
+	return;
+}
+
+#else
 
 static void front_end_interrupt(sdla_t *card, unsigned long reg, int lock)
 {
@@ -4785,6 +4829,8 @@ static void front_end_interrupt(sdla_t *card, unsigned long reg, int lock)
 	}
 	return;
 }
+
+#endif
 /**SECTION***************************************************************
  *
  * 	HARDWARE Interrupt Handlers
@@ -4872,17 +4918,13 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 #endif
 
 			fe_intr=1;
-			/*FIXME: Give Alex the reg to acknowledge remoras */
-			if (card->wandev.fe_iface.check_isr &&
-			    card->wandev.fe_iface.check_isr(&card->fe)){
 #if defined(__LINUX__)
-				wan_set_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
-				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
-				__aft_fe_intr_ctrl(card,0);
+			wan_set_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
+			WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+			__aft_fe_intr_ctrl(card,0);
 #else
-              			front_end_interrupt(card,reg,0);
+              		front_end_interrupt(card,reg,0);
 #endif
-			}
 		}
         }
 
@@ -5942,6 +5984,31 @@ static void port_set_state (sdla_t *card, int state)
         }
 }
 
+
+/*============================================================
+ * callback_front_end_state
+ * 
+ * Called by front end code to indicate that state has
+ * changed. We will call the poll task to update the state.
+ */
+
+static void callback_front_end_state(void *card_id)
+{	
+	sdla_t		*card = (sdla_t*)card_id;
+
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
+		return;
+	}
+
+	/* Call the poll task to update the state */
+	wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
+	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+
+	return;
+}
+
+
+
 /*============================================================
  * handle_front_end_state
  *
@@ -6777,16 +6844,9 @@ static int update_comms_stats(sdla_t* card)
                		card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 	       }
                /* TE1 Update T1/E1 perfomance counters */
-#if 0
-#warning "PMON DISABLED DUE TO ERROR"
-#else
 	       if (card->wandev.fe_iface.read_pmon) {
-		       	wan_smp_flag_t flags;   
-			wan_spin_lock_irq(&card->wandev.lock,&flags);
 	         	card->wandev.fe_iface.read_pmon(&card->fe, 0);
-			wan_spin_unlock_irq(&card->wandev.lock,&flags);
 	       }
-#endif
 		
 	       card->hw_iface.hw_unlock(card->hw,&smp_flags);
         }
@@ -9004,7 +9064,7 @@ static void aft_port_task (void * card_ptr, int arg)
 		return;
 	}
 
-	DEBUG_56K("%s: PORT TASK: 0x%X\n", card->devname,card->u.aft.port_task_cmd);
+	DEBUG_TEST("%s: PORT TASK: 0x%X\n", card->devname,card->u.aft.port_task_cmd);
 
 #ifdef AFT_IRQ_STAT_DEBUG
       	card->wandev.stats.rx_missed_errors++;

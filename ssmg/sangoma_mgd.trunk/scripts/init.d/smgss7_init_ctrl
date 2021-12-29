@@ -34,6 +34,7 @@ arg2=$2
 NICE="nice -n -15 "
 RENICE="renice -15 -p "
 
+ulimit -n 65536
 
 function usage
 {

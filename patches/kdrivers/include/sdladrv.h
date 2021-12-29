@@ -51,10 +51,6 @@
 # define EXTERN extern
 #endif
 
-#if defined(__LINUX__)
-# define WAN_ISA_SUPPORT
-#endif
-
 /*
 ******************************************************************
 **			I N C L U D E S				**	
@@ -79,7 +75,11 @@
 ******************************************************************
 */
 #if defined(__LINUX__)
+#ifdef CONFIG_ISA
 # define WAN_ISA_SUPPORT
+#else
+# undef WAN_ISA_SUPPORT
+#endif
 #endif
 
 #define	SDLADRV_MAGIC	0x414C4453L	/* signature: 'SDLA' reversed */

@@ -149,6 +149,7 @@
 #define WAN_T1_533_655		0x11
 
 /* T1/E1: Recever */
+#define WAN_TE1_RX_SLEVEL_NONE          0
 #define WAN_TE1_RX_SLEVEL_43_DB		430	/* 43 dB   E1, RMONEN=0 */
 #define WAN_TE1_RX_SLEVEL_36_DB		360	/* 36 dB   T1, RMONEN=0 */
 #define WAN_TE1_RX_SLEVEL_30_DB		300 	/* 30 dB   RMONEN=0 | 1 */

@@ -1,0 +1,7 @@
+kernel//root/development/3.2/wanpipe-3.2.5.3/patches/kdrivers/src/net/sdladrv.ko
+kernel//root/development/3.2/wanpipe-3.2.5.3/patches/kdrivers/src/net/wanrouter.ko
+kernel//root/development/3.2/wanpipe-3.2.5.3/patches/kdrivers/src/net/wanpipe.ko
+kernel//root/development/3.2/wanpipe-3.2.5.3/patches/kdrivers/src/net/wanpipe_syncppp.ko
+kernel//root/development/3.2/wanpipe-3.2.5.3/patches/kdrivers/src/net/af_wanpipe.ko
+kernel//root/development/3.2/wanpipe-3.2.5.3/patches/kdrivers/src/net/wanec.ko
+kernel//root/development/3.2/wanpipe-3.2.5.3/patches/kdrivers/src/net/wan_aften.ko

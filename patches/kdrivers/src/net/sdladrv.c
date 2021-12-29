@@ -2044,7 +2044,9 @@ unsigned int sdla_hw_probe(void)
 #if defined(__LINUX__)
 	sdlahw_card_t 	tmp_hwcard;
 	sdlahw_t 	tmp_hw;
+#if defined(WAN_ISA_SUPPORT)
 	unsigned* 	opt = s508_port_options; 
+#endif
 	unsigned int	cardno=0;
 	int i;
 	
@@ -2058,6 +2060,7 @@ unsigned int sdla_hw_probe(void)
 	tmp_hw.hwcard = &tmp_hwcard;
 	tmp_hw.magic = SDLADRV_MAGIC;
 	
+#if defined(WAN_ISA_SUPPORT)
 	for (i = 1; i <= opt[0]; i++) {
 		tmp_hwcard.hw_type = SDLA_ISA_CARD;
 		tmp_hwcard.ioport = opt[i];
@@ -2095,6 +2098,7 @@ unsigned int sdla_hw_probe(void)
 		}
 		tmp_hwcard.ioport = 0x00;
 	}
+#endif
 
 # ifdef CONFIG_PCI
 	tmp_hwcard.hw_type = SDLA_PCI_CARD;
@@ -5696,6 +5700,22 @@ static sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 						}
                                         	goto adapter_found;
 					}
+
+					 if (conf->card_type == WANOPT_S51X &&
+					    IS_56K_MEDIA(&conf->fe_cfg) && 
+					    hw->hwcard->slot_no == conf->PCI_slot_no && 
+				    	    hw->hwcard->bus_no == conf->pci_bus_no &&
+					    hw->hwcard->cfg_type == WANOPT_AFT_56K) {
+						/* Remap the old 56K card type to standard
+						   AFT 56K Shark style.  We are allowing
+						   and old config file for 56K */
+						conf->card_type = WANOPT_AFT_56K;
+						conf->config_id = WANCONFIG_AFT_56K;
+						conf->fe_cfg.line_no=1;
+                                        	goto adapter_found;
+					  	      
+					} 
+
 
 					if ((hw->hwcard->slot_no == conf->PCI_slot_no) && 
 				    	    (hw->hwcard->bus_no == conf->pci_bus_no) &&

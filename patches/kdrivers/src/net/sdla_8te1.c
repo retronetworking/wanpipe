@@ -737,6 +737,44 @@ static int sdla_ds_te1_cfg_verify(void* pfe)
 			break;
 		}
 
+
+		if (WAN_TE1_HI_MODE(fe)){
+			switch(fe->fe_cfg.cfg.te_cfg.rx_slevel){
+			case WAN_TE1_RX_SLEVEL_30_DB: case WAN_TE1_RX_SLEVEL_225_DB:
+			case WAN_TE1_RX_SLEVEL_175_DB: case WAN_TE1_RX_SLEVEL_12_DB:
+				break;
+			case  WAN_TE1_RX_SLEVEL_NONE:
+				DEBUG_EVENT("%s: Defaulting T1 Rx Sens. Gain= 30 db\n",
+							fe->name);
+				fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_30_DB;
+				break;
+			default:
+				DEBUG_EVENT(
+				"%s: Error: Invalid T1 Rx Sensitivity Gain (%d).\n", 
+						fe->name,
+						fe->fe_cfg.cfg.te_cfg.rx_slevel);
+				return -EINVAL;
+			}
+		}else{
+			switch(fe->fe_cfg.cfg.te_cfg.rx_slevel){
+			case WAN_TE1_RX_SLEVEL_36_DB: case WAN_TE1_RX_SLEVEL_30_DB:
+			case WAN_TE1_RX_SLEVEL_18_DB: case WAN_TE1_RX_SLEVEL_12_DB:
+				break;
+			case  WAN_TE1_RX_SLEVEL_NONE:
+				DEBUG_EVENT("%s: Defaulting T1 Rx Sens. Gain= 36 db\n",
+								fe->name);
+				fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_36_DB;
+				break;
+			default:
+				DEBUG_EVENT(
+				"%s: Error: Invalid T1 Rx Sensitivity Gain (%d).\n", 
+						fe->name,
+						fe->fe_cfg.cfg.te_cfg.rx_slevel);
+				return -EINVAL;
+			}
+		}
+
+
 	}else if (IS_E1_FEMEDIA(fe)){
 
 		/* Verify FE framing type */
@@ -808,6 +846,46 @@ static int sdla_ds_te1_cfg_verify(void* pfe)
 			return -EINVAL;
 			break;
 		}
+
+
+
+		if (WAN_TE1_HI_MODE(fe)){
+			switch(fe->fe_cfg.cfg.te_cfg.rx_slevel){
+			case WAN_TE1_RX_SLEVEL_30_DB: case WAN_TE1_RX_SLEVEL_225_DB:
+			case WAN_TE1_RX_SLEVEL_175_DB: case WAN_TE1_RX_SLEVEL_12_DB:
+				break;
+			case  WAN_TE1_RX_SLEVEL_NONE:
+				DEBUG_EVENT("%s: Defaulting E1 Rx Sens. Gain= 30 db\n",
+								fe->name);
+				fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_30_DB;
+				break;
+			default:
+				DEBUG_EVENT(
+				"%s: Error: Invalid E1 Rx Sensitivity Gain (%d).\n", 
+						fe->name,
+						fe->fe_cfg.cfg.te_cfg.rx_slevel);
+				return -EINVAL;
+			}
+		}else{
+			switch(fe->fe_cfg.cfg.te_cfg.rx_slevel){
+			case WAN_TE1_RX_SLEVEL_43_DB: case WAN_TE1_RX_SLEVEL_30_DB:
+			case WAN_TE1_RX_SLEVEL_18_DB: case WAN_TE1_RX_SLEVEL_12_DB:
+				break;
+			case  WAN_TE1_RX_SLEVEL_NONE:
+				DEBUG_EVENT("%s: Defaulting E1 Rx Sens. Gain= 43 db\n",
+								fe->name);
+				fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_43_DB;
+				break;
+			default:
+				DEBUG_EVENT(
+				"%s: Error: Invalid E1 Rx Sensitivity Gain (%d).\n", 
+						fe->name,
+						fe->fe_cfg.cfg.te_cfg.rx_slevel);
+				return -EINVAL;
+		}
+
+	}
+
 	}else{
 		DEBUG_EVENT("%s: Error: Invalid FE Media type (%X)\n",
 				fe->name,
@@ -1126,27 +1204,31 @@ static int sdla_ds_te1_chip_config(void* pfe)
 			break;
 		case WAN_TE1_RX_SLEVEL_36_DB:
 		case WAN_TE1_RX_SLEVEL_43_DB:
-			value |= (BIT_LRISMR_RSMS1 | BIT_LRISMR_RSMS0);
-			break;
 		default:	/* set default value */ 
-			fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_12_DB;
+			value |= (BIT_LRISMR_RSMS1 | BIT_LRISMR_RSMS0);	
 			break;
 		}
-		DEBUG_EVENT("%s:    Rx Sensitivity Gain %s.\n", 
-				fe->name, 
-				WAN_TE1_RX_SLEVEL_DECODE(fe->fe_cfg.cfg.te_cfg.rx_slevel));
+
+		DEBUG_EVENT("%s:    Rx Sensitivity Gain %s%s.\n", 
+			fe->name, 
+			WAN_TE1_RX_SLEVEL_DECODE(fe->fe_cfg.cfg.te_cfg.rx_slevel),
+			((IS_T1_FEMEDIA(fe) && (fe->fe_cfg.cfg.te_cfg.rx_slevel==WAN_TE1_RX_SLEVEL_36_DB)) ||
+			 (IS_E1_FEMEDIA(fe) && (fe->fe_cfg.cfg.te_cfg.rx_slevel==WAN_TE1_RX_SLEVEL_43_DB))) ?
+					 " (default)": "");
 	}
 
+
 	if (IS_T1_FEMEDIA(fe)){
-		WRITE_REG(REG_LRISMR, value | BIT_LRISMR_RIMPM0);
+		value |= BIT_LRISMR_RIMPM0;
 	}else{
 		//value |= BIT_LRISMR_RIMPOFF;		
 		if (WAN_TE1_LBO(fe) == WAN_E1_120){
 			value |= BIT_LRISMR_RIMPM1 | BIT_LRISMR_RIMPM0;
 		}
-		WRITE_REG(REG_LRISMR, value);
 	}
-		
+
+	WRITE_REG(REG_LRISMR, value);
+
 	if (IS_E1_FEMEDIA(fe) && WAN_TE1_LBO(fe) == WAN_E1_120){
 		/* Feb 7, 2008
 		** Adjust DAC gain (-4.88%) */
@@ -1366,6 +1448,7 @@ static int sdla_ds_te1_pre_release(void* pfe)
 		WAN_LIST_REMOVE(fe_event, next);
 		if (fe_event) wan_free(fe_event);
 	}
+	fe->event_map = 0;
 	wan_spin_unlock_irq(&fe->lock,&smp_flags);
 	return 0;
 }
@@ -1396,6 +1479,11 @@ static int sdla_ds_te1_unconfig(void* pfe)
 			
 	/* FIXME: Alex to disable interrupts here */
 	sdla_ds_te1_disable_irq(fe);
+
+	/* Set Rx Framer soft reset */
+	WRITE_REG(REG_RMMR, BIT_RMMR_SFTRST);
+	/* Set Tx Framer soft reset */
+	WRITE_REG(REG_TMMR, BIT_RMMR_SFTRST);
 	
 	/* Clear configuration flag */
 	wan_clear_bit(TE_CONFIGURED,(void*)&fe->te_param.critical);
@@ -3048,12 +3136,13 @@ static int sdla_ds_te1_add_timer(sdla_fe_t* fe, unsigned long delay)
 		return 0;
 	}
 	
+	wan_set_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
+
 	err = wan_add_timer(&fe->timer, delay * HZ / 1000);
 	if (err){
 		/* Failed to add timer */
 		return -EINVAL;
 	}
-	wan_set_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
 	return 0;	
 }
 

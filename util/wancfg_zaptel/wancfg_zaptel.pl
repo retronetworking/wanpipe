@@ -9,6 +9,8 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# May 22   2008  2.12	Jignesh Patel 	Added confirmation check /dev/zap* for hardhdlc
+# May 22   2008  2.12   Jignesh Patel 	Update zaptel module list 
 # Jan 02   2008	 2.11  	David Yat Sin  	Support for per span configuration in silent mode
 # Jan 02   2008	 2.10  	David Yat Sin  	Added option for BRI master clock
 # Dec 15   2007	 2.9  	David Yat Sin  	Support for Zaptel hardware hdlc for Zaptel 1.4
@@ -30,9 +32,9 @@
 system('clear');
 print "\n#############################################i##########################";
 print "\n#    Sangoma Wanpipe:  Zaptel/SMG/TDMAPI/BOOT Configuration Script     #";
-print "\n#                             v2.10                                    #";
+print "\n#                             v2.12                                    #";
 print "\n#                     Sangoma Technologies Inc.                        #";
-print "\n#                        Copyright(c) 2007.                            #";
+print "\n#                        Copyright(c) 2008.                            #";
 print "\n########################################################################\n\n";
 
 use strict;
@@ -255,11 +257,31 @@ print "Sangoma cards configuration complete, exiting...\n\n";
 
 
 sub set_zaptel_hwhdlc{
-	 if ((system("ztcfg -t -c $current_dir/templates/zaptel.conf_test > /dev/null 2>/dev/null")==0)){
+	print "Checking for native zaptel hardhdlc support...";
+        my $cnt = 0;
+        while ($cnt++ < 30) {
+             if ((system("ls /dev/zap* > /dev/null 2>  /dev/null")) == 0) {
+	                   goto wait_done;
+                } else {
+                        print "." ;
+                        sleep(1);
+                }
+        }
+	print "Error";
+	print "\n\n No /dev/zap* Found on the system \n";
+	printf "     Contact Sangoma Support\n";
+	print " Send e-mail to techdesk\@sangoma\.com \n\n";
+	exit 1;
+wait_done:
+
+	if ((system("ztcfg -t -c $current_dir/templates/zaptel.conf_test > /dev/null 2>/dev/null")==0)){
 		$dchan_str="hardhdlc";
+		 print "Yes \n\n";
+
+        } else {
+                print "No \n\n";
 	}
 }
-
 sub config_boot{
 	if($no_boot==$TRUE){
 		return 1;
@@ -897,7 +919,8 @@ sub copy_config_files{
 }
 
 sub unload_zap_modules{
-	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zttranscode","wcusb", "wctdm24xxp", "zaptel");
+	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zttranscode","wcusb", "wctdm24xxp","xpp_usb","xpp" ,"wcte12xp","opvxa1200", "zaptel");
+
 	foreach my $module (@modules_list) {	
 		if ($modprobe_list =~ m/$module/){
 			exec_command("$module_unload $module");
@@ -949,7 +972,7 @@ sub summary{
 		print("  $num_bri_devices_total ISDN BRI port(s) detected, $num_bri_devices configured\n");
 		print("  $num_analog_devices_total analog card(s) detected, $num_analog_devices configured\n");
 		
-		print "\nConfigurator has created the following files:\n";
+		print "\nConfigurator will create the following files:\n";
 		print "\t1. Wanpipe config files in $wanpipe_conf_dir\n";
 		$file_list++;
 		
@@ -982,12 +1005,21 @@ sub summary{
 		print "\nYour configuration has been saved in $debug_tarball.\n";
 		print "When requesting support, email this file to techdesk\@sangoma.com\n\n";
 		if($silent==$FALSE){
-			prompt_user("Press any key to continue");
+			confirm_conf();
 		}
 	}
 }
 
-
+sub confirm_conf(){
+	print "Configuration Complete! Please select following:\n";
+	if(&prompt_user_list("YES - Continue", "NO - Exit" ,"") =~ m/YES/){
+		return $?;
+	} else {
+		print "No changes made to your configuration files\n";
+		print "exiting.....\n";	
+		exit $?;
+	}
+}
 sub exec_command{
 	my @command = @_;
 	if (system(@command) != 0 ){

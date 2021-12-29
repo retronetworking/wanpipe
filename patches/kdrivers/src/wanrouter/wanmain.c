@@ -2120,12 +2120,14 @@ int wan_run_wanrouter(char * hwdevname, char *devname, char *action)
 				__FUNCTION__);
 		return -EINVAL;
 	}
-	
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24) 
 	if (!current->fs->root) {
 		/* statically linked USB is initted rather early */
 		DEBUG_EVENT ("%s: Error: no FS yet",__FUNCTION__);
 		return -ENODEV;
 	}
+#endif
 	
 	if (!(envp = (char **) kmalloc (20 * sizeof (char *), GFP_KERNEL))) {
 		DEBUG_EVENT ("%s: Error: no memory!",__FUNCTION__);

@@ -1846,9 +1846,9 @@ static int sdla_rm_add_timer(sdla_fe_t* fe, unsigned long delay)
 static int wp_remora_polling(sdla_fe_t* fe)
 {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-	sdla_t			*card = (sdla_t*)fe->card;
 	int			err = 0;
 #endif
+	sdla_t			*card = (sdla_t*)fe->card;
 	sdla_fe_timer_event_t	*fe_event;
 	wan_smp_flag_t		smp_flags;
 	int			pending = 0, mod_no = 0;
@@ -1864,6 +1864,7 @@ static int wp_remora_polling(sdla_fe_t* fe)
 	DEBUG_EVENT("%s: %s:%d: ---------------STOP ----------------------\n",
 				fe->name, __FUNCTION__,__LINE__);
 #endif
+
 	wan_spin_lock_irq(&fe->lock,&smp_flags);			
 	if (WAN_LIST_EMPTY(&fe->event)){
 		wan_clear_bit(WP_RM_TIMER_EVENT_PENDING,(void*)&fe->rm_param.critical);
@@ -1876,6 +1877,9 @@ static int wp_remora_polling(sdla_fe_t* fe)
 	fe_event = WAN_LIST_FIRST(&fe->event);
 	WAN_LIST_REMOVE(fe_event, next);
 	wan_spin_unlock_irq(&fe->lock,&smp_flags);
+
+
+	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 	
 	mod_no = fe_event->rm_event.mod_no;
 	DEBUG_RM("%s: Module %d: RM Polling State=%s Cmd=0x%X!\n", 
@@ -2067,12 +2071,9 @@ static int wp_remora_polling(sdla_fe_t* fe)
 #if defined(__WINDOWS__)
 			//done with the event, reset the pointer.
 			fe->rm_param.mod[mod_no].current_control_event_ptr = NULL;
-
-			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 			card->event_control_running = 0;
-			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 #endif
-			return -EINVAL;
+			break;
 		}
 	
 		if ((fe_event->mode && !fe->fe_cfg.cfg.remora.reversepolarity) ||
@@ -2116,6 +2117,8 @@ static int wp_remora_polling(sdla_fe_t* fe)
 				fe->name, fe_event->type);
 		break;
 	}
+
+	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);			
 
 #if defined(__WINDOWS__)
 	//done with the event, reset the pointer.

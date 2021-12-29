@@ -1523,8 +1523,8 @@ static void print_pcap_record_header(wp_trace_output_iface_t *trace_iface)
 	struct pcaprec_hdr ph;
 	
  	/* Write PCap header */
-        ph.ts_sec = trace_iface->pkts_written;
-        ph.ts_usec = trace_iface->pkts_written;
+        ph.ts_sec = trace_iface->sec;
+        ph.ts_usec = trace_iface->usec;
         ph.incl_len =  trace_iface->len;
         ph.orig_len = trace_iface->len;
 
@@ -1749,11 +1749,39 @@ static int decode_ppp(wp_trace_output_iface_t *trace_iface,
 }
 
 
+#ifndef ETH_P_LAPD
+#define ETH_P_LAPD 0x0030
+#endif
+
+#define LAPD_SLL_PKTTYPE_OFFSET         0       /* packet type - 2 bytes */
+#define LAPD_SLL_HATYPE_OFFSET          2       /* hardware address type - 2 bytes */
+#define LAPD_SLL_HALEN_OFFSET           4       /* hardware address length - 2 bytes */
+#define LAPD_SLL_ADDR_OFFSET            6       /* address - 8 bytes */
+#define LAPD_SLL_PROTOCOL_OFFSET        14      /* protocol, should be ETH_P_LAPD - 2 bytes */
+#define LAPD_SLL_LEN                    16      /* length of the header */
+
+#undef phtons
+#define phtons(p, v) \
+        {                               \
+        ((uint8_t*)(p))[0] = (uint8_t)((v) >> 8); \
+        ((uint8_t*)(p))[1] = (uint8_t)((v) >> 0); \
+        }
+
+#undef pntohs
+#define pntohs(p)   ((guint16)                       \
+                     ((guint16)*((const uint8_t *)(p)+0)<<8|  \
+                      (guint16)*((const uint8_t *)(p)+1)<<0))
+
+
+
 void wp_trace_output(wp_trace_output_iface_t *trace_iface)
 {
 	//int num_chars;
 	//int j;
 	int trace_started=0;
+	uint8_t lapd_hdr[LAPD_SLL_LEN];
+
+	memset(lapd_hdr,0,sizeof(lapd_hdr));
 
 try_trace_again:
 
@@ -1852,12 +1880,43 @@ try_trace_again:
 			}
 			
 			print_pcap_file_header(trace_iface);		
-			printf("Staring PCAP File Trace in: %s\n\n",
-					pcap_output_file_name);
+
+			if (pcap_prot == 177) {
+				printf("Staring PCAP Prot=ISDN Reference=%s File Trace in: %s\n\n",
+					pcap_isdn_network?"Net":"CPE", pcap_output_file_name);
+			}else{				
+				printf("Staring PCAP Prot=%i File Trace in: %s\n\n",
+					pcap_prot, pcap_output_file_name);
+			}
+	
+
+
 			trace_iface->init=1;
 		}
 		
+
+		if (pcap_prot == 177) {
+			 if (trace_iface->status) {
+				/* Outgoing */
+			 	phtons(&lapd_hdr[LAPD_SLL_PKTTYPE_OFFSET], 4); //pseudo_header->lapd.pkttype);
+		 	 } else {
+				/* Incoming */
+			 	phtons(&lapd_hdr[LAPD_SLL_PKTTYPE_OFFSET], 0); //pseudo_header->lapd.pkttype);
+			 }	
+                	 phtons(&lapd_hdr[LAPD_SLL_PROTOCOL_OFFSET], ETH_P_LAPD);
+
+			 /* User specified Network or CPE */
+                	 lapd_hdr[LAPD_SLL_ADDR_OFFSET + 0] = pcap_isdn_network; //pseudo_header->lapd.we_network?0x01:0x00;
+	
+			 trace_iface->len += sizeof(lapd_hdr);
+		}
+
 		print_pcap_record_header(trace_iface);
+
+		if (pcap_prot == 177) {
+			fwrite(&lapd_hdr[0], sizeof(lapd_hdr), 1, trace_iface->output_file);
+			trace_iface->len -= sizeof(lapd_hdr);
+		}	
 
 		fwrite(&trace_iface->data[0], trace_iface->len, 1, trace_iface->output_file);
 

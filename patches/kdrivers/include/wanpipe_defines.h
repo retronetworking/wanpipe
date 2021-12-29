@@ -838,7 +838,9 @@ typedef void 			(*wan_taskq_func_t)(struct work_struct *);
 typedef struct tq_struct 	wan_taskq_t;
 
 typedef void*			virt_addr_t;
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
 typedef unsigned long		phys_addr_t;
+#endif
 typedef spinlock_t		wan_spinlock_t;
 typedef rwlock_t		wan_rwlock_t;
 typedef unsigned long		wan_smp_flag_t;
@@ -1191,8 +1193,14 @@ typedef struct wan_udp_pkt {
 } wan_udp_pkt_t;
 
 
+
+
 #pragma pack(1)
-#if defined(WAN_BIG_ENDIAN)
+#if defined(WAN_BIG_ENDIAN) || (1)
+
+/* We use BIG ENDIAN because
+   RTP TAP needs to be transmitted 
+   BIG ENDIAN */
 
 typedef struct {
   uint8_t cc:4;	/* CSRC count             */
@@ -1208,13 +1216,15 @@ typedef struct {
 
 #else /*  BIG_ENDIAN */
 
+/* not used */
+
 typedef struct {
-  unsigned version:2;	/* protocol version       */
-  unsigned p:1;		/* padding flag           */
-  unsigned x:1;		/* header extension flag  */
-  unsigned cc:4;	/* CSRC count             */
-  unsigned m:1;		/* marker bit             */
-  unsigned pt:7;	/* payload type           */
+  uint8_t version:2;	/* protocol version       */
+  uint8_t p:1;		/* padding flag           */
+  uint8_t x:1;		/* header extension flag  */
+  uint8_t cc:4;	/* CSRC count             */
+  uint8_t m:1;		/* marker bit             */
+  uint8_t pt:7;	/* payload type           */
   uint16_t seq;		/* sequence number        */
   uint32_t ts;		/* timestamp              */
   uint32_t ssrc;	/* synchronization source */
@@ -1233,7 +1243,6 @@ typedef struct wan_rtp_pkt {
 } wan_rtp_pkt_t;
 
 #pragma pack()
-
 
 #endif /* KERNEL */ 
 

@@ -91,17 +91,19 @@
  {
 	schedule_work(tq);
  }
-
+ 
  #define ADMIN_CHECK()  {if (!capable(CAP_SYS_ADMIN)) {\
-                             DEBUG_EVENT("wanpipe: ADMIN_CHECK: Failed Cap=0x%X Fsuid=0x%X Euid=0x%X\n", \
-				 current->cap_effective,current->fsuid,current->euid);\
+			     if (WAN_NET_RATELIMIT()) { \
+	                         DEBUG_EVENT("%s:%d: wanpipe: ADMIN_CHECK: Failed !\n",__FUNCTION__,__LINE__);\
+			     } \
 	                     return -EPERM; \
  		             }\
                         }
 
  #define NET_ADMIN_CHECK()  {if (!capable(CAP_NET_ADMIN)){\
-	                          DEBUG_EVENT("wanpipe: NET_ADMIN_CHECK: Failed Cap=0x%X Fsuid=0x%X Euid=0x%X\n", \
-					 current->cap_effective,current->fsuid,current->euid);\
+				  if (WAN_NET_RATELIMIT()) { \
+	                          DEBUG_EVENT("%s:%d: wanpipe: NET_ADMIN_CHECK: Failed !\n",__FUNCTION__,__LINE__);\
+				  } \
 	                          return -EPERM; \
                                  }\
                             }

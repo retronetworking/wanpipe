@@ -303,7 +303,7 @@ void wplip_tty_receive(wplip_link_t *lip_link, void *skb)
 		if (WAN_NET_RATELIMIT()){
 			DEBUG_EVENT( 
 			"%s: Received packet size too big: %d bytes, Max: %d!\n",
-				lip_link->name,wan_skb_len(skb),TTY_FLIPBUF_SIZE);
+				lip_link->name,wan_skb_len(skb),TTY_MAX_MTU);
 		}
 		wan_skb_free(skb);
 		return;

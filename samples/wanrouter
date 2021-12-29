@@ -1752,6 +1752,78 @@ function wanrouter_if_debug()
 	fi
 }
 
+
+
+pci_parity_ctrl ()
+{
+	local parity_cmd;
+	local pdev;
+	local IDS;
+	local verbosity=${2:-1}
+
+	if [ $OSYSTEM != "Linux" ]; then
+		echo "Error: PCI Parity Ctrl only available on Linux"
+		echo
+		return
+	fi
+
+	IDS=`lspci | cut -d' ' -f1`
+
+	if [ -z $1 ]; then
+		echo "Displaying System PCI Parity Configuration";
+		echo "=========================================="
+		echo
+		lspci -vvv | grep Parity
+		echo
+		echo "=========================================="
+		return
+	fi
+	
+	parity_cmd=${1:-"off"}
+
+	if [ $parity_cmd != "on" ]; then
+		parity_cmd="off";
+	fi
+
+	eval "type setpci 2> /dev/null > /dev/null"
+	if [ $? -ne 0 ]; then
+		echo "Parity Set Error: setpci utility not found!"
+		return
+	fi
+
+	if [ $verbosity -gt 0 ]; then
+		echo "Setting PCI Parity to $parity_cmd";
+	fi
+
+	for pdev in $IDS
+	do
+		if [ "$parity_cmd" = "on" ]; then
+			eval "setpci -s $pdev 3e.b=0x7"
+		else
+			eval "setpci -s $pdev 3e.b=0x4"
+		fi
+
+	done
+
+	return
+}
+
+wanrouter_pre_start()
+{
+	
+	if [ "$WAN_PCI_PARITY" = "OFF" ]; then
+		echo "Wanrouter: Disabling PCI Parity on Start!" >> $WAN_LOG;
+		pci_parity_ctrl "off" 0
+	elif [ "$WAN_PCI_PARITY" = "ON" ]; then
+		echo "Wanrouter: Enabling PCI Parity on Start!" >> $WAN_LOG;
+		pci_parity_ctrl "on" 0
+	fi
+}
+
+
+
+
+
 function wanrouter_debug ()
 {
 	local err=0
@@ -2106,7 +2178,7 @@ WANPIPE_IS_RUNNING=/var/run/wanpipe_is_running
 RUGGEDCOM=No
 
 if [ $OSYSTEM = "Linux" ]; then
-	ROUTER_VERSION=3.2.5
+	ROUTER_VERSION=3.2.6
 	IFCONFIG_LIST=ifconfig
 	MODULE_STAT=lsmod
 	WAN_DRIVERS="wanpipe"
@@ -2375,6 +2447,8 @@ case "$1" in
 				cleanup 2
 			fi
 
+			wanrouter_pre_start
+
 			config_devices $WAN_DEVICES
 
 			config_interfaces $WAN_DEVICES
@@ -2410,6 +2484,8 @@ case "$1" in
 			if [ $ft1_or_wanpipe -gt 0 ]; then
 				dev="wanpipe$ft1_or_wanpipe"
 			fi 
+
+			wanrouter_pre_start
 
 			config_devices $dev
 			if [ $? -ne 0 ]; then
@@ -2456,6 +2532,8 @@ case "$1" in
 				echo -e "\nInterface $if_name is already up!\n"
 				cleanup 1
 			fi
+
+			wanrouter_pre_start
 		
 			echo "Configuring interface: $if_name"
 
@@ -2850,6 +2928,11 @@ case "$1" in
 		fi
 		cleanup 0;
 		;;
+
+	parity)
+		pci_parity_ctrl $2
+		;;
+
 
 	wanrc)
 		

@@ -13,19 +13,12 @@ void wplip_link_bh(void* data, int pending);
 static int wplip_bh_receive(wplip_link_t *lip_link)
 {
 	netskb_t *skb;
-	unsigned long timeout_cnt=SYSTEM_TICKS;
 	int err;
 
 	while((skb=wan_skb_dequeue(&lip_link->rx_queue)) != NULL){
-
 		err=wplip_prot_rx(lip_link,skb);			
 		if (err){
 			wan_skb_free(skb);
-		}
-		
-		if (SYSTEM_TICKS-timeout_cnt > 2){
-			DEBUG_EVENT("%s: Link RxBH Time squeeze\n",lip_link->name);
-			break;
 		}
 	}
 
@@ -38,7 +31,6 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 	wplip_dev_t *lip_dev=NULL;
 	int err=0;
 	unsigned long timeout_cnt=SYSTEM_TICKS;
-	int tx_pkt_cnt=0;
 
 	if (wan_test_bit(WPLIP_BH_AWAITING_KICK,&lip_link->tq_working)){
 		if (wan_test_bit(WPLIP_KICK,&lip_link->tq_working)){
@@ -62,7 +54,7 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 			goto wplip_bh_link_transmit_exit;
 		}
 
-		if (SYSTEM_TICKS-timeout_cnt > 1){
+		if (SYSTEM_TICKS-timeout_cnt > 10){
 			DEBUG_EVENT("%s: Link TxBH Time squeeze\n",lip_link->name);
 			goto wplip_bh_link_transmit_exit;
 		}
@@ -97,7 +89,7 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 	
 	for (;;){
 		
-		if (SYSTEM_TICKS-timeout_cnt > 3){
+		if (SYSTEM_TICKS-timeout_cnt > 10){
 			if (WAN_NET_RATELIMIT()) {
 			DEBUG_EVENT("%s: LipDev TxBH Time squeeze --- Sanity\n",lip_link->name);
 			}
