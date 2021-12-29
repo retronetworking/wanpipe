@@ -185,7 +185,6 @@ char TRACE_ASCII=0;
 char TRACE_HEX=0;
 
 char *cmd[MAX_CMD_ARG];
-FT1_LED_STATUS FT1_LED;
 
 /******************************************************************************
  * 			FUNCTION PROTOTYPES				      *
@@ -209,7 +208,6 @@ static char*	GetMasterDevName( void );
 #if 0
 static void 	sig_handler(int sigint);
 #endif
-int      	fail=0;
 int 		xml_output=0;
 //static sa_family_t	get_if_family(char*);
 

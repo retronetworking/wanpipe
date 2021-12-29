@@ -64,7 +64,6 @@ void flush_hdlc_stat(void);
 /* global for now */
 static unsigned char      station_config;
 int                off_counter, green_counter, red_counter;
-int                loop_counter, fail;
 
 /* defines for now */
 extern int lcn_number;

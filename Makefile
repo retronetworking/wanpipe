@@ -355,6 +355,17 @@ KERN_TIMER_32BIT=0
 EXTRA_CFLAGS+=-DKERN_TIMER_32BIT=$(KERN_TIMER_32BIT)
 endif
 
+ifneq (,$(wildcard $(KDIR)/scripts/mod/modpost.c))
+KERN_MODPOST_STATIC_ERR=$(shell grep -nr "is a static " $(KDIR)/scripts/mod/modpost.c | grep error -c)
+EXTRA_CFLAGS+=-DKERN_MODPOST_STATIC_ERR=$(KERN_MODPOST_STATIC_ERR)
+else ifneq (,$(wildcard $(KSRC)/scripts/mod/modpost.c))
+KERN_MODPOST_STATIC_ERR=$(shell grep -nr "is a static " $(KSRC)/scripts/mod/modpost.c | grep error -c)
+EXTRA_CFLAGS+=-DKERN_MODPOST_STATIC_ERR=$(KERN_MODPOST_STATIC_ERR)
+else
+KERN_MODPOST_STATIC_ERR=0
+EXTRA_CFLAGS+=-DKERN_MODPOST_STATIC_ERR=$(KERN_MODPOST_STATIC_ERR)
+endif
+
 # First pass, kernel Makefile reads module objects
 ifneq ($(KERNELRELEASE),)
 obj-m := sdladrv.o wanrouter.o wanpipe.o wanpipe_syncppp.o wanec.o 

@@ -470,7 +470,50 @@ int wanpipe_cdev_free(wanpipe_cdev_t *cdev)
 	return  wanpipe_free_cdev(cdev, minor,counter);
 }
 
+#if defined (KERN_MODPOST_STATIC_ERR) && KERN_MODPOST_STATIC_ERR > 0
+int  wanpipe_cdev_rx_wake(wanpipe_cdev_t *cdev)
+{
+        if (!cdev || !CPRIV(cdev)) {
+                DEBUG_EVENT("%s(): Error cdev->dev_ptr not initialized!\n",__FUNCTION__);
+                return -1;
+        }
 
+        if (waitqueue_active(&CPRIV(cdev)->poll_wait)){
+                wake_up_interruptible(&CPRIV(cdev)->poll_wait);
+        }
+
+        return 0;
+}
+
+
+int wanpipe_cdev_tx_wake(wanpipe_cdev_t *cdev)
+{
+        if (!cdev || !CPRIV(cdev)) {
+                DEBUG_EVENT("%s(): Error cdev->dev_ptr not initialized!\n",__FUNCTION__);
+                return -1;
+        }
+
+        if (waitqueue_active(&CPRIV(cdev)->poll_wait)){
+                wake_up_interruptible(&CPRIV(cdev)->poll_wait);
+        }
+
+        return 0;
+}
+
+int  wanpipe_cdev_event_wake(wanpipe_cdev_t *cdev)
+{
+        if (!cdev || !CPRIV(cdev)) {
+                DEBUG_EVENT("%s(): Error cdev->dev_ptr not initialized!\n",__FUNCTION__);
+                return -1;
+        }
+
+        if (waitqueue_active(&CPRIV(cdev)->poll_wait)){
+                wake_up_interruptible(&CPRIV(cdev)->poll_wait);
+        }
+
+        return 0;
+}
+#endif
 
 
 /*=========================================================

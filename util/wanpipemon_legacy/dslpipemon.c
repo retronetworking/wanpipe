@@ -82,7 +82,6 @@ extern int		sock;
 extern wan_udp_hdr_t 	wan_udp;
 extern int		protocol_cb_size;
 extern int 		trace_all_data;
-unsigned int 		loop_counter, frame_count;
 
 /******************************************************************************
  * 			FUNCTION PROTOTYPES				      *

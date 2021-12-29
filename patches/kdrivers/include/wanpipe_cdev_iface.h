@@ -103,6 +103,11 @@ typedef struct wanpipe_cdev_priv
 
 # define CPRIV(dev)  ((wanpipe_cdev_priv_t*)(dev->priv))
 
+#if defined (KERN_MODPOST_STATIC_ERR) && KERN_MODPOST_STATIC_ERR > 0
+int wanpipe_cdev_tx_wake(wanpipe_cdev_t *cdev);
+int wanpipe_cdev_rx_wake(wanpipe_cdev_t *cdev);
+int wanpipe_cdev_event_wake(wanpipe_cdev_t *cdev);
+#else
 static __inline int  wanpipe_cdev_rx_wake(wanpipe_cdev_t *cdev)
 {
 	if (!cdev || !CPRIV(cdev)) {
@@ -145,6 +150,7 @@ static __inline int  wanpipe_cdev_event_wake(wanpipe_cdev_t *cdev)
 
 	return 0;
 }
+#endif
 #else
 int wanpipe_cdev_tx_wake(wanpipe_cdev_t *cdev);
 int wanpipe_cdev_rx_wake(wanpipe_cdev_t *cdev);
