@@ -2762,6 +2762,21 @@ static int chdlc_calibrate_baud (sdla_t *card)
 {
 	wan_mbox_t* mb = &card->wan_mbox;
 	int err;
+	int enable_again=0;
+	sdla_t *tmp_card=NULL;
+
+	if (card->wandev.connection == WANOPT_SWITCHED && 
+	    card->wandev.clocking == WANOPT_EXTERNAL &&
+	    card->next) {
+		tmp_card=card->next;
+		if (tmp_card->wandev.connection == WANOPT_SWITCHED && 
+		    tmp_card->wandev.clocking == WANOPT_EXTERNAL &&
+		    tmp_card->u.c.comm_enabled ) {
+			DEBUG_EVENT("%s: Next comm enabled -> disabling!\n",tmp_card->devname);
+			chdlc_comm_disable (tmp_card);
+			enable_again=1;
+		}
+	}
 	
 	mb->wan_data_len = 0;
 	mb->wan_command = START_BAUD_CALIBRATION;
@@ -2770,8 +2785,15 @@ static int chdlc_calibrate_baud (sdla_t *card)
 	if (err != COMMAND_OK) 
 		chdlc_error (card, err, mb);
 
+
+	if (enable_again && tmp_card) {
+		DEBUG_EVENT("%s: Next comm enabled -> re-enabling!\n",tmp_card->devname);
+		chdlc_comm_enable (tmp_card);
+	}
+
 	return err;
 }
+
 
 static int chdlc_read_baud_calibration (sdla_t *card)
 {

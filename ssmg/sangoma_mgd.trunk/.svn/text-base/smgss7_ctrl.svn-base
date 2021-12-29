@@ -186,6 +186,8 @@ function stop_running_wanpipes ()
 
 case "$arg1" in
   start)
+
+	eval "modprobe sctp 2> /dev/null > /dev/null"
 	
 	if [ "$arg2" == isup ]; then
 		ss7_boost_ctrl "$arg1"		

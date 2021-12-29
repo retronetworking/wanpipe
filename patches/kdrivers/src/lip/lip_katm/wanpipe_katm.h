@@ -75,6 +75,7 @@ typedef struct wp_katm_channel
 	/******************************
 	* Stuff used by all channels *
      ******************************/
+    unsigned long	critical;
     struct atm_dev	*dev;        		/* Points back at device */
     int			chanid;     		/* Channel ID used by CPM */
     unchar		aal;        		/* ATM_AAL0 or ATM_AAL5 */
@@ -108,6 +109,7 @@ typedef struct wp_katm_channel
     void *sar_vcc;
     
     wan_skb_queue_t			tx_queue;
+    wait_queue_head_t 			tx_wait;
     
     WAN_LIST_ENTRY(wp_katm_channel)	list_entry;
     atomic_t			refcnt;

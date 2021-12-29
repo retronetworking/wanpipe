@@ -54,6 +54,8 @@
 #define WOOMERA_MAX_SPAN	16
 #define WOOMERA_MAX_CHAN	31
 
+#define SMG_SESSION_NAME_SZ	100
+
 #define PIDFILE "/var/run/sangoma_mgd.pid"
 #define CORE_EVENT_LEN 512
 #define WOOMERA_STRLEN 256
@@ -145,8 +147,6 @@ void __log_printf(int level, FILE *fp, char *file, const char *func, int line, c
 
 
 struct media_session {
-    int span;
-    int chan;
     int udp_sock;
     int sangoma_sock;
     char *ip;
@@ -228,13 +228,19 @@ struct woomera_interface {
 	int call_count;
 	char *sig_cause;
 	int loop_tdm;
+	char session[SMG_SESSION_NAME_SZ];
     	struct woomera_interface *next;
+};
+
+struct  woomera_session {
+ 	struct woomera_interface *dev;	
+	char session[SMG_SESSION_NAME_SZ];
 };
 
 #define CORE_TANK_LEN CORE_MAX_CHAN_PER_SPAN*CORE_MAX_SPANS
 
 struct woomera_server {
-	struct woomera_interface *process_table[CORE_MAX_CHAN_PER_SPAN][CORE_MAX_SPANS];
+	struct  woomera_session process_table[CORE_MAX_CHAN_PER_SPAN][CORE_MAX_SPANS];
 	struct woomera_interface *holding_tank[CORE_TANK_LEN];
 	int holding_tank_index;
 	struct woomera_interface master_connection;
@@ -459,15 +465,17 @@ static inline void woomera_message_clear (struct woomera_message *wmsg)
 
 static inline void woomera_set_raw(struct woomera_interface *woomera, char *raw)
 {
+	char *oldraw=woomera->raw;
 
-    if (woomera->raw) {
-		free(woomera->raw);
-		woomera->raw = NULL;
-    }
-
-    if (raw) {
+	if (raw) {
 		woomera->raw = strdup(raw);
-    }
+    	} else {
+		woomera->raw = NULL;
+	}
+
+   	if (oldraw) {
+		free(oldraw);
+    	}
 }
 
 static inline struct media_session * woomera_get_ms(struct woomera_interface *woomera)
@@ -489,43 +497,47 @@ static inline void woomera_set_ms(struct woomera_interface *woomera,struct media
 
 static inline void woomera_set_interface(struct woomera_interface *woomera, char *interface)
 {
-
-    if (woomera->interface) {
-		free(woomera->interface);
-		woomera->interface = NULL;
-    }
-
-    if (interface) {
+	char *iface = woomera->interface;
+	
+	if (interface) {
 		woomera->interface = strdup(interface);
-    }
-
+    	} else {
+		woomera->interface = NULL;
+	}
+	
+    	if (iface) {
+		free(iface);
+    	}
 }
 
 static inline void woomera_set_cause(struct woomera_interface *woomera, char *cause)
 {
+	char *oldcause = woomera->cause;
 
-    if (woomera->cause) {
-		free(woomera->cause);
-		woomera->cause = NULL;
-    }
-
-    if (cause) {
+	if (cause) {
 		woomera->cause = strdup(cause);
-    }
+        } else {
+		woomera->cause = NULL;
+	}
 
+	if (oldcause) {
+		free(oldcause);
+    	}
 }
 
 static inline void woomera_set_sig_cause(struct woomera_interface *woomera, char *cause)
 {
+	char *oldcause = woomera->sig_cause;
 
-    if (woomera->sig_cause) {
-		free(woomera->sig_cause);
-		woomera->sig_cause = NULL;
-    }
-
-    if (cause) {
+	if (cause) {
 		woomera->sig_cause = strdup(cause);
-    }
+    	} else {
+		woomera->sig_cause = NULL;
+	}
+
+    	if (oldcause) {
+		free(oldcause);
+    	}
 
 }
 

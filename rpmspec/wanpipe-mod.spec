@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.1.3
+%define version           3.1.4
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,24 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+* Tue Aug 15 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4
+==================================================================== 
+
+- Added A101-SH old config support.
+  So onld A101u or A101c config file can be used with new A101-SH cards.
+
+- Updated KATM support in the LIP Layer.
+  Used to connect Kernel ATM Layer to Wanpipe ATM AAL5 layer
+  over all AFT cards.
+
+- Added a sanity checker for enabling HWEC.
+  Used to prevent duble hwec enable.
+
+- Added wancfg_tdmapi configurator
+
+- Updated SMG
+	
+
 * Mon Jun 30 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.3
 ==================================================================== 
 

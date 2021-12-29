@@ -12,6 +12,9 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.14 Nenad Corbic <ncorbic@sangoma.com>
+ *	 Updated for session support
+ *
  * v1.13 Nenad Corbic <ncorbic@sangoma.com>
  *	 Added CallWeaver Support
  *	 |->(thanks to Andre Schwaller)
@@ -92,7 +95,7 @@
 #include <asterisk/dsp.h>
 #include "asterisk.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.12 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.14 $")
 
 #else
 
@@ -113,7 +116,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.12 $")
 #include <callweaver/dsp.h>
 #include "callweaver.h"
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.12 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.14 $")
 
 // strings...
 #define 	AST_FORMAT_SLINEAR 	OPBX_FORMAT_SLINEAR
@@ -215,7 +218,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.12 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.12"
+#define WOOMERA_VERSION "v1.14"
 
 
 static int tech_count = 0;
@@ -1060,26 +1063,6 @@ retry_udp:
 #define WOOMERA_MAX_CALLS 600
 static struct private_object *tech_pvt_idx[WOOMERA_MAX_CALLS];
 static ast_mutex_t tech_pvt_idx_lock[WOOMERA_MAX_CALLS];
-static struct timeval tech_pvt_lastused_idx[WOOMERA_MAX_CALLS];
-
-static int find_free_callno_and_bind(private_object *tech_pvt)
-{	
-	int x=0;
-	
-	for (x=1;x<WOOMERA_MAX_CALLS;x++) {
-		/* Find first unused call number that hasn't been used in a while */
-		ast_mutex_lock(&tech_pvt_idx_lock[x]);
-		if (!tech_pvt_idx[x]) {
-			tech_pvt_idx[x]=tech_pvt;
-			tech_pvt->callno=x;
-			ast_mutex_unlock(&tech_pvt_idx_lock[x]);
-			return x;
-		}
-		ast_mutex_unlock(&tech_pvt_idx_lock[x]);
-	}	
-
-	return 0;
-}
 
 static int tech_activate(private_object *tech_pvt) 
 {
@@ -1207,7 +1190,7 @@ retry_activate_again:
 		woomera_printf(tech_pvt->profile,
 				 tech_pvt->command_channel, 
 				 "PROCEED %s%s"
-				 "Unique-Call-Id %s%s",
+				 "Unique-Call-Id: %s%s",
 				 tech_pvt->callid,
 				 WOOMERA_LINE_SEPARATOR,
 				 tech_pvt->callid,
@@ -1247,22 +1230,6 @@ tech_activate_failed:
   	ast_log(LOG_NOTICE, "Error: %s Call %s tpvt=%p Failed!\n",
                                 ast_test_flag(tech_pvt, TFLAG_OUTBOUND) ? "OUT":"IN",
 				tech_pvt->callid,tech_pvt);
-	}
-
-	/* On incoming failed call we failed to estabilsh the
-	 * TCP connection to server.  Try to send a hangup via MAIN
-	 * socket using the unique callid */
-	if (!ast_test_flag(tech_pvt, TFLAG_OUTBOUND)) {
-        	woomera_printf(tech_pvt->profile, tech_pvt->profile->woomera_socket,
-                	"hangupmain %s%s"
-			"cause: %s%s"
-			"Unique-Call-Id: %s%s",
-                	tech_pvt->callid,
-                	WOOMERA_LINE_SEPARATOR,
-                	"Error",
-                	WOOMERA_LINE_SEPARATOR,
-			tech_pvt->callid,
-        		WOOMERA_RECORD_SEPARATOR); 
 	}
 
 	return -1;
@@ -2348,18 +2315,9 @@ static void *woomera_thread_run(void *obj)
 				} else {
 					ast_log(LOG_ERROR, "Cannot Create new Inbound Channel!\n");
 				}
-				
-				if (err) {
-					if(globals.debug > 3) {
-						ast_log(LOG_ERROR, "Error: Inbound Call Hungup %s\n",
-							wmsg.callid);
-					}
-					woomera_printf(profile, woomera_socket, "hangupmain %s%scause: %s%s", 
-					   wmsg.callid,
-					   WOOMERA_LINE_SEPARATOR, 
-					   "Error", 
-					   WOOMERA_RECORD_SEPARATOR);
-				}
+			
+				/* It is the job of the server to timeout on this call
+                                   if the call is not started */
 			}
 		}
 		if(globals.debug > 4) {
@@ -3256,6 +3214,7 @@ static int tech_answer(struct ast_channel *self)
 }
 
 
+#if 0
 static int woomera_tx2ast_frm(private_object *tech_pvt, char * buf,  int len )
 {
 	struct ast_frame frame;
@@ -3333,7 +3292,7 @@ static int woomera_tx2ast_frm(private_object *tech_pvt, char * buf,  int len )
 	
 	return 0;
 }                  
-
+#endif
 
 /*--- tech_read: Read an audio frame from my channel.
  * You need to read data from your channel and convert/transfer the
@@ -3874,7 +3833,6 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
 {
 
 	char *raw_audio_header;
-	char *audio_codec;
 	char ip[25];
 	char *ptr;
 	int port = 0;

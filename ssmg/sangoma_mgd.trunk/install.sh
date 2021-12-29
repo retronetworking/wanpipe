@@ -2,15 +2,29 @@
 
 home=`pwd`;
 
-force=${1:-flase}
+force="false"
+noss7="false"
 
-if [ ! -e /usr/local/ss7box/$ss7boost ]; then
-	echo "Error: ss7boost not found in /usr/local/ss7box dir";
-	exit 1
-fi
-if [ ! -e /usr/local/ss7box/$ss7boxd ]; then
-	echo "Error: ss7boxd not found in /usr/local/ss7box dir";
-	exit 1
+while [ ! -z $1 ]
+do
+	if [ $1 = '-force' ]; then
+		force="force"
+	fi
+	if [ $1 = '-noss7' ]; then
+		noss7="true"
+	fi
+	shift
+done
+
+if [ $noss7 != 'true' ]; then
+	if [ ! -e /usr/local/ss7box/$ss7boost ]; then
+		echo "Error: ss7boost not found in /usr/local/ss7box dir";
+		exit 1
+	fi
+	if [ ! -e /usr/local/ss7box/$ss7boxd ]; then
+		echo "Error: ss7boxd not found in /usr/local/ss7box dir";
+		exit 1
+	fi
 fi
 
 if [ $force = "force" ]; then
@@ -89,15 +103,41 @@ fi
 echo "OK."
 echo
 
-
-echo "Checking for SCTP...."
+echo "Checking for SCTP Utilities...."
 if [ ! -e  /usr/include/netinet/sctp.h ]; then
-	echo "Please install SCTP devel package: yum install lksctp-tools-devel"
-	echo 
-	exit 1
+	if [ -d ../libs ]; then
+		echo -n "Installing SCTP RPMS ..."
+		eval "rpm -i ../libs/lksctp-tools-1.0.6-1.el5.1.i386.rpm  ../libs/lksctp-tools-devel-1.0.6-1.el5.1.i386.rpm"
+		if [ ! -e  /usr/include/netinet/sctp.h ]; then
+			echo "Error"
+			echo
+			echo "Please install SCTP devel package: yum install lksctp-tools-devel"
+			echo 
+			exit 1
+		fi 
+		echo "OK"
+	else 
+		echo "Please install SCTP devel package: yum install lksctp-tools-devel"
+		echo 
+		exit 1
+	fi
 fi 
 echo "OK."
 echo
+
+echo "Checking for SCTP modules..."
+eval "modprobe -l | grep \"\/sctp.ko\" >/dev/null 2>/dev/null"
+if [ $? -ne 0 ]; then
+	echo "Warning: Your Kernel does not support SCTP Protocol!"
+	echo "SCTP is needed by SMG!"
+	echo
+	echo "Please contact sangoma support!"
+	echo
+	exit 1
+fi
+echo "OK."
+echo
+
 
 echo "Compiling Sangoma MGD ..."
 make clean
@@ -128,8 +168,26 @@ if [ $? -ne 0 ]; then
 fi
 echo "Ok."
 
+if [ -d /etc/asterisk ]; then
+	if [ ! -f /etc/asterisk/woomera.conf ]; then
+		\cp --f woomera.conf /etc/asterisk
+	fi
+fi
 
-echo "SMG Install Done"
+
+echo "---------------------------------"
 echo
+echo " SMG Install Done"
+echo
+echo "--> Config: /etc/sangoma_mgd.conf"
+echo "--> Start:  sangoma_mgd -bg"
+echo
+echo " Chan Woomera Install Done"
+echo 
+echo "--> Config: /etc/asterisk/woomera.conf"
+echo "--> Start: Part of Asterisk (start asterisk)"
+echo
+echo "---------------------------------"
 
+exit 0
 

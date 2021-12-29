@@ -36,7 +36,7 @@ sleep 1
 eval "$NICE ./$ss7boost" 
 sleep 5
 
-for((i=0;i<60;i++))
+for((i=0;i<20;i++))
 do
 	if [ -f /var/run/sangoma_mgd.pid ]; then
 		break;

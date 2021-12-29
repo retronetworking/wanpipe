@@ -24,3 +24,6 @@ chmod 755 $WAN_VIRTUAL/usr/sbin/wancfg_zaptel
 
 cp -rf wancfg_smg $WAN_VIRTUAL/usr/sbin
 chmod 755 $WAN_VIRTUAL/usr/sbin/wancfg_smg
+
+cp -rf wancfg_tdmapi $WAN_VIRTUAL/usr/sbin
+chmod 755 $WAN_VIRTUAL/usr/sbin/wancfg_tdmapi

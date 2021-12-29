@@ -1956,7 +1956,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 	cd $PROD_HOME/api
 
 	cd libsangoma
-	eval "./configure --prefix=$ROOT/usr/include >> $CMP_LOG 2>> $CMP_LOG" 
+	eval "./configure >> $CMP_LOG 2>> $CMP_LOG" 
 	eval "make clean >> $CMP_LOG 2>> $CMP_LOG" 
 	eval "make CC=$CC SYSINC=$SOURCEDIR/include >> $CMP_LOG 2>> $CMP_LOG" 
 	if [ $? -eq 0 ]; then
@@ -4388,7 +4388,7 @@ function install_ssmg ()
         cd $PROD_HOME/$SSMG_DIR
 	cd sangoma_mgd.trunk
 
-	echo "Installing Sangoma Media Gateway Daemon..."
+	echo "Installing SMG Libraries Daemon..."
         cd lib/libteletone/
 	eval "./configure; make clean; make; make install " > /dev/null
         if [ $? -ne 0 ]; then
@@ -6136,7 +6136,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.1.3
+PROD_VER=3.1.4
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

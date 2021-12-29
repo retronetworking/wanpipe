@@ -70,6 +70,12 @@ sub fe_frame {
 		    return $self->{_fe_frame};
 }
 
+sub hw_dchan {
+	    my ( $self, $hw_dchan ) = @_;
+	        $self->{_hw_dchan} = $hw_dchan if defined($hw_dchan);
+		    return $self->{_hw_dchan};
+}
+
 sub fe_clock {
 	   my ( $self, $fe_clock ) = @_;
 	        $self->{_fe_clock} = $fe_clock if defined($fe_clock);
@@ -210,7 +216,7 @@ sub gen_wanpipe_conf{
 	my $te_sig_mode = '';
 	my $hwec_mode = $self->card->hwec_mode;
 	my $ss7_option = $self->ss7_option;
-	my $dchan = 0;
+	my $dchan = $self->hw_dchan;
 	my $fe_lbo;
 
 

@@ -12,50 +12,6 @@
 debug=2
 
 
-;--- JITTER BUFFER CONFIGURATION --------------------------
-;Enables the use of a jitterbuffer on the receiving side of a
-;WOOMERA channel. Defaults to "no". An enabled jitterbuffer will
-;be used only if the sending side can create and the receiving
-;side can not accept jitter. The WOOMERA channel can accept jitter,
-;thus a jitterbuffer on the receive WOOMERA side will be used only
-; if it is forced and enabled.
-;-------------------------------------
-;jb-enable = yes
-
-
-;Forces the use of a jitterbuffer on the receive side of a WOOMERA
-;channel. Defaults to "no".
-;-------------------------------------
-;jb-force = yes              
-
-
-; Max length of the jitterbuffer in milliseconds.
-;-------------------------------------
-;jb-max-size = 200       
-
-
-; Jump in the frame timestamps over which the jitterbuffer is
-; resynchronized. Useful to improve the quality of the voice, with
-; big jumps in/broken timestamps, usualy sent from exotic devices
-; and programs. Defaults to 1000.
-;-------------------------------------
-;jb-resynch-threshold = 1000 
-
-
-;Jitterbuffer implementation, used on the receiving side of a WOOMERA
-;channel. Two implementation are currenlty available - "fixed"
-;(with size always equals to jb-max-size) and "adaptive" (with
-;variable size, actually the new jb of IAX2). Defaults to fixed.
-;-------------------------------------
-;jb-impl = fixed            
-
-
-; Enables jitterbuffer frame logging. Defaults to "no".
-;-------------------------------------
-;jb-log = no   
-
-
-
 ;===========================================
 ;Default Profile Configuration Section
 ;===========================================

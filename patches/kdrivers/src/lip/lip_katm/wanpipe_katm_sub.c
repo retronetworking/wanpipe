@@ -2,6 +2,12 @@
 /* IMPLEMENT PRIVATE FUNCTIONS USED BY THE PROTOCOL */
 #include "wanpipe_katm.h"
 
+#if 0
+#define WP_ATM_DEBUG 1
+#warning "ATM DEBUG ENABLED"
+#else
+#undef WP_ATM_DEBUG 
+#endif
 
 int
 wan_lip_katm_setsockopt(struct atm_vcc *vcc, int level, int optname,
@@ -34,6 +40,34 @@ wan_lip_katm_sg_send(struct atm_vcc *vcc, unsigned long start,
 
 */
 
+static void wan_lip_katm_close_wait(wp_katm_channel_t *chan) 
+{
+	DECLARE_WAITQUEUE(wait,current);
+
+	add_wait_queue(&chan->tx_wait,&wait);
+	set_current_state(TASK_INTERRUPTIBLE);
+	for (;;) {
+	
+		if (wan_skb_queue_len(&chan->tx_queue) == 0) {
+			break;
+		}
+		
+		DEBUG_EVENT("%d:%d: TX left = %i\n",
+			chan->vpi,chan->vci,wan_skb_queue_len(&chan->tx_queue));
+		
+		if (signal_pending(current)) {
+			DEBUG_EVENT("%d:%d: TX left = %i: Signal wakupe!\n",
+				chan->vpi,chan->vci,wan_skb_queue_len(&chan->tx_queue));
+                        break;
+                }
+
+		schedule();
+		set_current_state(TASK_INTERRUPTIBLE);
+	}
+	set_current_state(TASK_RUNNING);
+	remove_wait_queue(&chan->tx_wait,&wait);
+}
+
 void wan_lip_katm_close(struct atm_vcc *vcc)
 {
 	unsigned char tx_tclass = vcc->qos.txtp.traffic_class;
@@ -45,7 +79,7 @@ void wan_lip_katm_close(struct atm_vcc *vcc)
 		return;
 	}
 	
-	wpabs_debug_event("%s: %s %d\n", chan->name,__FUNCTION__,__LINE__);
+	
 	
 	wpabs_clear_bit(ATM_VF_READY,&vcc->flags);
 	
@@ -60,8 +94,16 @@ void wan_lip_katm_close(struct atm_vcc *vcc)
 		/* Also clean up any buffers that might bave been alloced for TX*/
     	}
 	
+	wan_lip_katm_close_wait(chan);
+	
+	wpabs_debug_event("%d:%d:  %s %d Txq=%i\n", 
+			chan->vpi,chan->vci,__FUNCTION__,__LINE__,
+			wan_skb_queue_len(&chan->tx_queue));
+	
 	chan->atm_link=NULL;
-
+	
+	wan_set_bit(0,&chan->critical);
+	
 	wp_atm_close_chan(chan->sar_vcc);
 	
 	wp_unregister_atm_chan(chan->sar_vcc);
@@ -69,10 +111,11 @@ void wan_lip_katm_close(struct atm_vcc *vcc)
 	
 	wpkatm_remove_vccdev(atm_link,chan);
 	
-	if(vcc->dev_data) //insurance against locking up
-		kfree(vcc->dev_data); //Free the chan struct we created in Open
-	vcc->dev_data = NULL;
+	wan_skb_queue_purge(&chan->tx_queue);
 	
+	vcc->dev_data = NULL;
+	kfree(chan);
+
 	wpabs_clear_bit(ATM_VF_ADDR,&vcc->flags);
 }
 
@@ -115,6 +158,7 @@ static int wp_katm_activate_channel(struct atm_vcc *vcc, wp_katm_channel_t * cha
 
 	atm_cfg.vpi=chan->vpi;
 	atm_cfg.vci=chan->vci;
+	
 	
 	chan->sar_vcc = wp_register_atm_chan(chan, 
 					     atm_link->sar_dev, 
@@ -190,8 +234,9 @@ int wan_lip_katm_open(struct atm_vcc *vcc) //, short vpi, int vci)
 	chan->vcc = vcc;
 	
 	chan->atm_link = atm_link;
+	wpabs_skb_queue_init(&chan->tx_queue);
+	init_waitqueue_head(&chan->tx_wait);
 	
-
 	/* ToDo: Need to assign all the values for chan here */
 
 	vcc->dev_data = chan; /* save channel structure */
@@ -209,7 +254,7 @@ int wan_lip_katm_open(struct atm_vcc *vcc) //, short vpi, int vci)
 	}
 
 	wpkatm_insert_vccdev(atm_link,chan);
-	
+
 	/* Tells the stack that this VC is ready for Tx/Rx */
 	wpabs_set_bit(ATM_VF_READY,&vcc->flags);
 
@@ -218,6 +263,8 @@ int wan_lip_katm_open(struct atm_vcc *vcc) //, short vpi, int vci)
 
 
 
+
+int gcnt=0;
 
 int wan_lip_katm_send(struct atm_vcc *vcc,struct sk_buff *skb)
 {
@@ -245,13 +292,16 @@ int wan_lip_katm_send(struct atm_vcc *vcc,struct sk_buff *skb)
 #endif
 	
 	if (!atm_link) {
+		wpabs_debug_event("%s:%d (%d:%d) No atm link\n",
+				__FUNCTION__,__LINE__,chan->vpi,chan->vci);
 		if (vcc->pop) vcc->pop(vcc,skb);
 		else dev_kfree_skb(skb);
-		return 0;
+		return -1;
 	}
 	
 	if (!skb) {
-		wpabs_debug_event("!skb in eni_send ?\n");
+		wpabs_debug_event("%s:%d (%d:%d) !skb in eni_send ?\n",
+				__FUNCTION__,__LINE__,chan->vpi,chan->vci);
 		if (vcc->pop) vcc->pop(vcc,skb);
 		else dev_kfree_skb(skb);
 		return -EINVAL;
@@ -271,14 +321,42 @@ int wan_lip_katm_send(struct atm_vcc *vcc,struct sk_buff *skb)
 
 	nskb=skb_clone(skb,GFP_KERNEL);
 	if (!nskb) {
+		 wpabs_debug_event("%s:%d (%d:%d) Error no memory !\n",
+                                __FUNCTION__,__LINE__,chan->vpi,chan->vci);
+
 		if (vcc->pop) vcc->pop(vcc,skb);
                 else dev_kfree_skb(skb);
                 return -ENOMEM;
 	}
 
+#ifdef WP_ATM_DEBUG	
+#if 0
+	if (chan->vpi == 0 && chan->vci==5) {
+	++gcnt;
+	if (gcnt > 5) {
+		 wpabs_debug_event("%s:%d (%d:%d) Blocking !\n",
+                                __FUNCTION__,__LINE__,chan->vpi,chan->vci);
+
+		if (gcnt > 100) {
+			gcnt=0;
+		}
+	
+		if (vcc->pop) vcc->pop(vcc,skb);
+                else dev_kfree_skb(skb);
+                return -1;
+	}
+	}
+#endif
+#endif
+
 	err = wp_atm_tx(chan->sar_vcc,nskb,0);
 
 	if (err) {
+		if (chan->vpi == 0 && chan->vci==5) {
+		wpabs_debug_test("%s:%d (%d:%d) ATM Tx Failed qlen=%i\n",
+				__FUNCTION__,__LINE__,chan->vpi,chan->vci,
+				wan_skb_queue_len(&chan->tx_queue));
+		}
 		wpabs_skb_free(nskb);
 		if (vcc->pop) vcc->pop(vcc,skb);
 		else dev_kfree_skb(skb);
@@ -287,6 +365,13 @@ int wan_lip_katm_send(struct atm_vcc *vcc,struct sk_buff *skb)
 		
 		return -1;
 	}
+	
+#ifdef WP_ATM_DEBUG	
+	if (chan->vpi == 0 && chan->vci==5) {
+	wpabs_debug_event("%s:%d (%d:%d) ATM Tx \n",
+				__FUNCTION__,__LINE__,chan->vpi,chan->vci);
+	}
+#endif
 		
 	if (vcc->pop) vcc->pop(vcc,skb);
 	else dev_kfree_skb(skb);
@@ -309,8 +394,12 @@ int wan_lip_katm_rx(wp_katm_channel_t *chan, struct sk_buff *skb)
 		return 0;
 	}
 	
-//	wpabs_debug_event("%s: %s VPI:VCI=%d:%d Line:%d\n",
-//               chan->name, __FUNCTION__, chan->vpi, chan->vci, __LINE__);
+#ifdef WP_ATM_DEBUG	
+	if (vcc->vpi == 0 && vcc->vci==5) {
+	wpabs_debug_event("%s:%d (%d:%d) ATM Rx \n",
+				__FUNCTION__,__LINE__,chan->vpi,chan->vci);
+	}
+#endif
 
 	
 	if (vcc->qos.aal == ATM_AAL0) {
@@ -333,11 +422,29 @@ int wplip_katm_link_prot_change_state (void *wplip_id,int state, unsigned char *
 	if (!atm_link) {
 		return 0;
 	}
-	
-	atm_link->reg.prot_set_state(atm_link->link_dev,
+
+	if (atm_link->link_dev) {	
+		atm_link->reg.prot_set_state(atm_link->link_dev,
 				     state,
 				     data,
 				     len);
+
+	} else {
+		wpabs_debug_event("%s: %s %d: Error no link!\n",
+                        atm_link->name,__FUNCTION__,__LINE__);
+	}
+
+
+	if (atm_link->dev) {
+		atm_link->reg.chan_set_state(atm_link->dev,
+                                     state,
+                                     data,
+                                     len);
+	} else {
+		wpabs_debug_event("%s: %s %d: Error no link dev!\n",
+			atm_link->name,__FUNCTION__,__LINE__);
+
+	}
 	
 	wpabs_debug_event("%s: %s %d\n",
 			atm_link->name,__FUNCTION__,__LINE__);
@@ -392,7 +499,7 @@ int wplip_katm_callback_tx_down (void *lip_dev_ptr, void *skb)
 		}    
 	}
 
-	if (wan_skb_queue_len(&chan->tx_queue) >= KATM_MAX_Q){
+	if (wan_skb_queue_len(&chan->tx_queue) > KATM_MAX_Q){
 		DEBUG_EVENT("%s: %s() Error  Tx queue full\n",
 				chan->name,__FUNCTION__);
 		return 1;
@@ -424,12 +531,26 @@ int wplip_katm_prot_rx_up (void *lip_dev_ptr, void *skb, int type)
 }
 
 
+
 void wpkatm_insert_vccdev(wp_katm_t *atm_link, wp_katm_channel_t *atm_chan)
 {
 	unsigned long flags;
+	wp_katm_channel_t *tmp;
 
 	WP_WRITE_LOCK(&atm_link->dev_list_lock,flags);
-	WAN_LIST_INSERT_HEAD(&atm_link->list_head_ifdev,atm_chan,list_entry);
+
+        WAN_LIST_FOREACH(tmp, &atm_link->list_head_ifdev, list_entry){
+                if (!WAN_LIST_NEXT(tmp, list_entry)){
+                        break;
+                }
+        }
+        if (tmp){
+                WAN_LIST_INSERT_AFTER(tmp, atm_chan, list_entry);
+        }else{
+                WAN_LIST_INSERT_HEAD(&atm_link->list_head_ifdev, atm_chan, list_entry);
+
+        }
+
 	WAN_DEV_HOLD(atm_chan);
 	atm_link->dev_cnt++;
 	WP_WRITE_UNLOCK(&atm_link->dev_list_lock,flags);
@@ -449,8 +570,4 @@ void wpkatm_remove_vccdev(wp_katm_t *atm_link, wp_katm_channel_t *atm_chan)
 
 	return;
 }
-
-
-
-
 

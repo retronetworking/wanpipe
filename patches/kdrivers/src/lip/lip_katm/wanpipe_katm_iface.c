@@ -21,7 +21,7 @@
 
 #include "wanpipe_katm.h"
 static int wp_katm_data_indication(wp_katm_t *prot, void *skb);
- 
+  
 static const struct atmdev_ops ops = {
 	.open		= wan_lip_katm_open,
 	.close		= wan_lip_katm_close,
@@ -456,14 +456,17 @@ int wpkatm_priv_bh (wp_katm_t *atm_link)
 	}
 	
 	if (wan_test_bit(0,&atm_link->critical) ) {
-		DEBUG_EVENT("%s: KATM BH Down\n",
-					atm_link->name);
+		//DEBUG_EVENT("KATM BH Down\n");
+		return -1;
+	}
+		
+	
+	if (wan_test_and_set_bit(1,&atm_link->critical)) {
+		//DEBUG_EVENT("%s: KATM Busy\n");
 		return -1;
 	}
 	
-	if (wan_test_and_set_bit(1,&atm_link->critical)) {
-		return -1;
-	}
+	//DEBUG_EVENT("KATM BH\n");
 	
 	WP_READ_LOCK(&atm_link->dev_list_lock,flags);
 	
@@ -471,14 +474,14 @@ int wpkatm_priv_bh (wp_katm_t *atm_link)
 	if (!atm_dev){
 		goto wpkatm_bh_transmit_exit;
 	}
-	
+
 	for (;;) {
 		if (--timeout_cnt == 0){
 			DEBUG_EVENT("%s: ATMDEV Priority TxBH Time squeeze\n",atm_link->name);
 			break;
 		}
 
-		if (!wan_test_bit(ATM_VF_READY,&atm_dev->vcc->flags)) {
+		if (wan_test_bit(0,&atm_dev->critical)) {
 			break;
 		}
 		
@@ -491,8 +494,14 @@ int wpkatm_priv_bh (wp_katm_t *atm_link)
 			break;
 		}
 	}
+		
+	if (wan_skb_queue_len(&atm_dev->tx_queue)) {
+		moretx=1;
+	}
+
 	
 	timeout_cnt=5000;
+	atm_dev=NULL;
 
 	if ((atm_dev=atm_link->cur_tx) == NULL){
 
@@ -512,7 +521,7 @@ int wpkatm_priv_bh (wp_katm_t *atm_link)
 			goto wpkatm_bh_transmit_exit;
 		}
 
-		if (!wan_test_bit(ATM_VF_READY,&atm_dev->vcc->flags)) {
+		if (wan_test_bit(0,&atm_dev->critical)) {
 			goto wpkatm_bh_transmit_skip;
 		}
 		
@@ -526,6 +535,8 @@ int wpkatm_priv_bh (wp_katm_t *atm_link)
 		
 		if (wan_skb_queue_len(&atm_dev->tx_queue)) {
 			moretx=1;
+		} else {
+			wake_up(&atm_dev->tx_wait);
 		}
 		
 wpkatm_bh_transmit_skip:

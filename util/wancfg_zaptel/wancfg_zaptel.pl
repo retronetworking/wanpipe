@@ -9,6 +9,7 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Jul 20,  2007  David Yat Sin  silent option	
 # Jun 13,  2007  Yuan Shen      SS7 support
 # Jan 15,  2007  David Yat Sin  support for non-trixbox installations. Major 
 #				changes to script.
@@ -23,12 +24,11 @@
 system('clear');
 print "\n###################################################################";
 print "\n#    Sangoma Wanpipe:  Zaptel/SMG/TDMAPI Configuration Script     #";
-print "\n#                           v2.4                                  #";
+print "\n#                           v2.5                                  #";
 print "\n#                  Sangoma Technologies Inc.                      #";
 print "\n#                     Copyright(c) 2007.                          #";
 print "\n###################################################################\n\n";
 
-use Switch;
 use strict;
 #use warnings;
 #use diagnostics;
@@ -60,6 +60,8 @@ my $ss7_array_length=0;
 my $device_has_hwec=$FALSE;
 my $device_has_normal_clock=$FALSE;
 my @device_normal_clocks=("0");
+			
+my $is_tdm_api=$FALSE;
 
 my $def_femedia='';
 my $def_feframe='';
@@ -69,8 +71,20 @@ my $def_switchtype='';
 my $def_zapata_context='';
 my $def_zapata_group='';
 my $def_te_ref_clock='';
+my $def_tdmv_dchan=0;
+
+my $silent_femedia="T1";
+my $silent_feframe="ESF";
+my $silent_feframe_e1="CRC4";
+my $silent_feclock="NORMAL";
+my $silent_signalling="PRI CPE";
+my $silent_switchtype="National";
+my $silent_zapata_context="from-pstn";
+my $silent_zapata_group="0";
 
 my $is_trixbox = $FALSE;
+my $silent = $FALSE;
+my $config_zaptel = $TRUE;
 my $config_zapata = $TRUE;
 my $is_smg = $FALSE;
 
@@ -99,16 +113,16 @@ if ($is_trixbox==$TRUE){
 	$zapata_conf_file_t="/etc/asterisk/zapata-auto.conf";
 }
 
-if ($is_trixbox==$FALSE && $is_smg==$FALSE){
-        print "Would you like to generate /etc/asterisk/zapata.conf\n";
-        if (&prompt_user_list(("YES","NO","")) eq 'NO'){
-                $config_zapata = $FALSE;
-        }
-}else{
-	prompt_user("\nPress <Enter> to continue");
+if ($silent==$FALSE){
+	if ($is_trixbox==$FALSE && $is_smg==$FALSE && $is_tdm_api==$FALSE){
+        	print "Would you like to generate /etc/asterisk/zapata.conf\n";
+        	if (&prompt_user_list(("YES","NO","")) eq 'NO'){
+        	        $config_zapata = $FALSE;
+        	}
+	}
 }
 
-if ($is_smg==$TRUE){
+if ($is_smg==$TRUE || $is_tdm_api==$TRUE){
      $config_zapata = $FALSE;    
 }
 
@@ -129,7 +143,7 @@ if($devnum==1){
 	exit 0;
 }else{
 	if (!($is_smg==$TRUE  &&  ($zaptelprobe !~ /zaptel.ko/))){
-		if ($num_non_ss7_config != 0){
+		if ($num_non_ss7_config != 0 && $config_zaptel==$TRUE){
 			write_zaptel_conf();
 		}
 		if ($config_zapata==$TRUE){
@@ -172,7 +186,9 @@ if($devnum==1){
 	
 		print "\nYour configuration has been saved in $debug_tarball.\n";
 		print "When requesting support, email this file to techdesk\@sangoma.com\n\n";
-		prompt_user("Press any key to continue");
+		if($silent==$FALSE){
+			prompt_user("Press any key to continue");
+		}
 		apply_changes();
 	} else {
 		save_debug_info();
@@ -262,15 +278,69 @@ sub prompt_user_list{
 sub read_args {
 	my $arg_num;
 	foreach $arg_num (0 .. $#ARGV) {
-		#my $arg = $ARGV[$arg_num];
 		$_ = $ARGV[$arg_num];
-		if ( /^--trixbox$/){
+		if( /^--trixbox$/){
 			$is_trixbox=$TRUE;
-		}
-		elsif ( /^--smg$/){
+		}elsif ( /^--tdm_api/){
+			$is_tdm_api=$TRUE;
+		}elsif ( /^--smg$/){
 			$is_smg=$TRUE;
+		}elsif ( /^--silent$/){
+			$silent=$TRUE;
+		}elsif ( /^--no-zapata$/){
+			$config_zapata=$FALSE;
+		}elsif ( /^--no-zaptel$/){
+			$config_zaptel=$FALSE;
+		}elsif ( $_ =~ /--fe_media=(\w+)/){
+			$silent_femedia=$1;
+			if(!($silent_femedia eq 'T1' || $silent_femedia eq 'E1')){
+				printf("Invalid value for fe_media, should be T1/E1\n");
+				exit(1);
+			}			
+		}elsif ( $_ =~ /--fe_frame=(\w+)/){
+			$silent_feframe=$1;
+			if(!($silent_feframe eq 'ESF' || $silent_feframe eq 'D4' || $silent_feframe eq 'CRC4' || $silent_feframe eq 'NCRC4')){
+				printf("Invalid value for fe_frame, should be ESF/D4/CRC4/NCRC4\n");
+				exit(1);
+			}			
+		}elsif ( $_ =~ /--fe_clock=(\w+)/){
+			$silent_feclock=$1;
+			if(!($silent_feclock eq 'NORMAL' || $silent_feclock eq 'MASTER' )){
+				printf("Invalid value for fe_clock, should be NORMAL/MASTER\n");
+				exit(1);
+			}			
+		}elsif ( $_ =~ /--signalling=(\w+)/){
+			my $tmp_signalling=$1;
+			if ($tmp_signalling eq 'em'){
+				$silent_signalling="E & M";
+			}elsif ($tmp_signalling eq 'em_w'){
+				$silent_signalling="E & M Wink";
+			}elsif ($tmp_signalling eq 'pri_cpe'){
+				$silent_signalling="PRI CPE";
+			}elsif ($tmp_signalling eq 'pri_net'){
+				$silent_signalling="PRI NET";
+			}elsif ($tmp_signalling eq 'fxs_ls'){
+				$silent_signalling="FXS - Loop Start";
+			}elsif ($tmp_signalling eq 'fxs_gs'){
+				$silent_signalling="FXS - Ground Start";
+			}elsif ($tmp_signalling eq 'fxs_ks'){
+				$silent_signalling="FXS - Kewl Start";
+			}elsif ($tmp_signalling eq 'fxo_ls'){
+				$silent_signalling="FXO - Loop Start";
+			}elsif ($tmp_signalling eq 'fxo_gs'){
+				$silent_signalling="FXO - Ground Start";
+			}elsif ($tmp_signalling eq 'fxo_ks'){
+				$silent_signalling="FXO - Kewl Start";
+			}else{
+				printf("Invalid option for --signalling, options are\n");
+				printf("\t pri_cpe/pri_net/em/em_w\n");
+				printf("\t em/em_w\n");
+				printf("\t fxo_ls/fxo_gs/fxo_ks\n");
+				printf("\t fxs_ls/fxs_gs/fxs_ks\n");
+				exit(1);
+			}
+			
 		}
-
 	}
 	
 	if ($is_trixbox==$TRUE){
@@ -346,8 +416,15 @@ sub apply_changes{
 	my $res='';
  
 	system('clear');
-
-	if ($is_smg != $TRUE){
+	
+	if($silent==$TRUE){
+		$res="Stop now";
+	}elsif($is_tdm_api==$TRUE){
+		print "\n Wanpipe configuration complete: choose action\n";
+		$res=&prompt_user_list(	"Save cfg: Stop Wanpipe now",
+					"Do not save cfg: Exit",
+					"");
+	}else{
 		print "\nZaptel and Wanpipe configuration complete: choose action\n";
 		$res=&prompt_user_list("Save cfg: Restart Asterisk & Wanpipe now",
 					"Save cfg: Restart Asterisk & Wanpipe when convenient",
@@ -355,14 +432,7 @@ sub apply_changes{
 					"Save cfg: Stop Asterisk & Wanpipe when convenient",
 					"Do not save cfg: Exit",
 					"");
-	}else{
-		print "\nWanpipe configuration complete: choose action\n";
-		$res=&prompt_user_list("Save cfg: Stop Asterisk & Wanpipe now", 
-				       "Save cfg: Stop Asterisk & Wanpipe when convenient",
-				       "Do not save cfg: Exit",
-				       "");
 	}
-	
 	if ($res =~ m/Exit/){
 		print "No changes made to your configuration files\n";
 		exit 0;
@@ -382,7 +452,7 @@ sub apply_changes{
 	if ($is_trixbox==$TRUE){
 		exec_command("amportal stop");
 		unload_zap_modules();
-	} else {
+	} elsif ($is_tdm_api==$FALSE){
 		print "\nStopping Asterisk...\n";	
 		exec_command("asterisk -rx \"$asterisk_command\"");
 	} 
@@ -391,8 +461,10 @@ sub apply_changes{
 	exec_command("wanrouter stop all");
 
 	if (!($is_smg==$TRUE  &&  ($zaptelprobe !~ /zaptel.ko/))){
-            	print "\nUnloading Zaptel modules...\n";
-		unload_zap_modules();
+		if($is_tdm_api==$FALSE){
+	            	print "\nUnloading Zaptel modules...\n";
+			unload_zap_modules();
+		}
 	}
 
 	print "\nRemoving old configuration files...\n";
@@ -406,9 +478,11 @@ sub apply_changes{
 #	exec_command("cp -f $current_dir/$cfg_dir/* /etc/wanpipe");
 
 	if (!($is_smg==$TRUE  &&  ($zaptelprobe !~ /zaptel.ko/))){
-		if ($num_non_ss7_config!=0){
-			print "\nCopying new Zaptel configuration file ($zaptel_conf_file_t)...\n";
-   			exec_command("cp -f $zaptel_conf_file $zaptel_conf_file_t");
+		if($config_zaptel==$TRUE){
+			if ($num_non_ss7_config!=0){
+				print "\nCopying new Zaptel configuration file ($zaptel_conf_file_t)...\n";
+   				exec_command("cp -f $zaptel_conf_file $zaptel_conf_file_t");
+			}
 		}
 	}  	
 	
@@ -416,7 +490,7 @@ sub apply_changes{
 		print "\nCopying new chan_zap configuration files ($zapata_conf_file_t)...\n";
 		exec_command("cp -f $zapata_conf_file $zapata_conf_file_t");
 	}
-	if( $asterisk_restart == $TRUE ){
+	if( $asterisk_restart == $TRUE && $is_tdm_api==$FALSE){
         	print "\nStarting Wanpipe...\n";
 		exec_command("wanrouter start");
 
@@ -658,10 +732,15 @@ sub config_digital{
 				print "\n-----------------------------------------------------------\n";
 				print "$msg";
 				print "-----------------------------------------------------------\n";
-					
-				printf ("\nSelect media type for A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
-				my @options = ("T1", "E1", "Unused","Exit");
-				my $fe_media = prompt_user_list( @options, $def_femedia);
+				my $fe_media = '';
+				if ($silent==$TRUE){
+					$fe_media = $silent_femedia;
+				} else {
+					printf ("\nSelect media type for A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+					my @options = ("T1", "E1", "Unused","Exit");
+					$fe_media = prompt_user_list( @options, $def_femedia);
+				}
+
 				if ( $fe_media eq 'Exit'){
 					print "Exit without applying changes?\n";
 					if (&prompt_user_list(("YES","NO","YES")) eq 'YES'){
@@ -707,17 +786,25 @@ sub config_digital{
 						$line_media = 'T1';
 					}else{
 						$a10x->fe_lcode('HDB3');
-						printf ("Select framing type for %s on port %s\n", $card->card_model, $port);
-						@options = ("CRC4","NCRC4");
-						$def_feframe=&prompt_user_list(@options,$def_feframe);
+						if ($silent==$FALSE){
+							printf ("Select framing type for %s on port %s\n", $card->card_model, $port);
+							my @options = ("CRC4","NCRC4");
+							$def_feframe=&prompt_user_list(@options,$def_feframe);
+						} else {
+							$def_feframe=$silent_feframe_e1;
+						}
 						$a10x->fe_frame($def_feframe);
 			      			$current_zap_channel+=31;
 						$max_chans = 31;
 						$line_media = 'E1';
 					}
-					my @options = ("NORMAL", "MASTER");
-					printf ("Select clock for A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
-					$def_feclock=&prompt_user_list(@options, $def_feclock);
+					if($silent==$FALSE){
+						my @options = ("NORMAL", "MASTER");
+						printf ("Select clock for A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+						$def_feclock=&prompt_user_list(@options, $def_feclock);
+					} else {
+						$def_feclock=$silent_feclock;
+					}
 					$a10x->fe_clock($def_feclock);
 
 					if ( $def_feclock eq 'NORMAL') {
@@ -737,17 +824,25 @@ sub config_digital{
 						$a10x->te_ref_clock($def_te_ref_clock);
 					}
 			
-		     	   	
+		     	   		my @options="";	
 					if ($is_smg==$TRUE && ($zaptelprobe =~ /zaptel.ko/)){
 						@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start", "SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
 					} elsif ($is_smg==$TRUE && ($zaptelprobe !~ /zaptel.ko/)){
                                          	@options = ("SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
+					} elsif ($is_tdm_api==$TRUE){
+						$def_signalling="TDM API";
 					} else {			
 		     	   			@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start");
 					}
 
-					printf ("Select signalling type for %s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
-					$def_signalling=&prompt_user_list(@options,$def_signalling); 
+					if ($silent==$FALSE){
+						if( $is_tdm_api == $FALSE){
+							printf ("Select signalling type for %s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+							$def_signalling=&prompt_user_list(@options,$def_signalling); 
+						}
+					} else {
+						$def_signalling=$silent_signalling;
+					}
 					$a10x->signalling($def_signalling);
 
 					my $ss7_chan;
@@ -821,8 +916,10 @@ ENDSS7CONFIG:           		       @ss7_sorted = sort { $a <=> $b } @ss7_chan_arra
 		                               $a10x->ss7_tdmchan($ss7_voicechans);                                             
 					       $num_ss7_config++;
 					}elsif ( $a10x->signalling eq 'No Signaling (Voice Only)'){
-                                               $a10x->ss7_option(2); 
+                                               $a10x->ss7_option(2);
 					       $num_ss7_config++;   
+					}elsif ($a10x->signalling eq 'TDM API'){
+ 						$a10x->hw_dchan(&prompt_user_hw_dchan($card->card_model, $port, $a10x->fe_media));
 					}else{
                                                $num_non_ss7_config++;
 					       if ($is_smg==$TRUE){
@@ -838,12 +935,14 @@ ENDSS7CONFIG:           		       @ss7_sorted = sort { $a <=> $b } @ss7_chan_arra
 					}
 
 Label0:					if ( $a10x->signalling eq 'PRI CPE' | $a10x->signalling eq 'PRI NET' ){    
-						if ($config_zapata==$TRUE){
+						if ($silent==$FALSE && $config_zapata==$TRUE){
 							printf ("Select switchtype for %s on port %s \n", $card->card_model, $port);
 							$a10x->pri_switchtype(get_pri_switchtype());
+						} else {
+								$a10x->pri_switchtype($silent_switchtype);
 						}
 					}
-
+					
 
 					if( $a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway' ){
 						$a10x->ss7_subinterface(1);
@@ -892,7 +991,7 @@ Label0:					if ( $a10x->signalling eq 'PRI CPE' | $a10x->signalling eq 'PRI NET'
 					        $a10x->card->zap_context(&get_zapata_context($a10x->card->card_model,$port));
 						$a10x->card->zap_group(&get_zapata_group($a10x->card->card_model,$port,$a10x->card->zap_context));
 						$zapata_conf.=$a10x->gen_zapata_conf();
-					}else{
+					}elsif ($is_tdm_api == $FALSE){
 						$zaptel_conf.=$a10x->gen_zaptel_conf();
 					}
 
@@ -900,7 +999,9 @@ Label1:					$devnum++;
 					$num_digital_devices++;
 					my $msg ="\n\nPort ".$port." on A".$card->card_model." configuration complete...\n";
 					print "$msg";
-					prompt_user("Press any key to continue");
+					if($silent==$FALSE){
+						prompt_user("Press any key to continue");
+					}
 
 		      		}  	
 			} 
@@ -1136,7 +1237,9 @@ Label1_A10U:			$devnum++;
 	}
 	if($num_digital_devices_total!=0){
 		print("\nT1/E1 card configuration complete.\n");
-		prompt_user("Press any key to continue");
+		if($silent==$FALSE){
+			prompt_user("Press any key to continue");
+		}
 	}
 	close SCR;
 }
@@ -1176,26 +1279,31 @@ sub get_zapata_context{
 	if($is_trixbox==$TRUE){
 		@options = ("PSTN", "INTERNAL");
 	}
-	printf ("Select dialplan context for A%s on port %s\n", $card_model, $card_port);
-	my $res = &prompt_user_list(@options,$def_zapata_context);
-	if($res eq "PSTN"){
-		$context="from-zaptel";
-	}elsif($res eq "INTERNAL"| $res eq "from-internal"){
-		$context="from-internal";
-	}elsif($res eq "from-pstn"){
-		$context="from-pstn";
-	}elsif($res eq "Custom"){
-		my $res_context=&prompt_user("Input the context for this port");
-		while(length($res_context)==0){
-			print "Invalid context, input a non-empty string\n";
-			$res_context=&prompt_user("Input the context for this port",$def_zapata_context);
+	if ($silent==$FALSE){
+		printf ("Select dialplan context for A%s on port %s\n", $card_model, $card_port);
+		my $res = &prompt_user_list(@options,$def_zapata_context);
+		if($res eq "PSTN"){
+			$context="from-zaptel";
+		}elsif($res eq "INTERNAL"| $res eq "from-internal"){
+			$context="from-internal";
+		}elsif($res eq "from-pstn"){
+			$context="from-pstn";
+		}elsif($res eq "Custom"){
+			my $res_context=&prompt_user("Input the context for this port");
+			while(length($res_context)==0){
+				print "Invalid context, input a non-empty string\n";
+				$res_context=&prompt_user("Input the context for this port",$def_zapata_context);
+			}	
+		
+			$context=$res_context;
+		}elsif($res eq $def_zapata_context){
+			$context=$def_zapata_context;
+		}else{
+			print "Internal error:invalid context,group\n";
+			exit 1;
 		}
-		$context=$res_context;
-	}elsif($res eq $def_zapata_context){
-		$context=$def_zapata_context;
 	}else{
-		print "Internal error:invalid context,group\n";
-		exit 1;
+		$context=$silent_zapata_context;	
 	}
 	$def_zapata_context=$context;
 	return $context;	
@@ -1302,6 +1410,41 @@ sub gen_ss7_voicechans{
 Incrementing:	   $i++;          
       }
       return $output;
+}
+
+
+sub  prompt_user_hw_dchan{
+	my ($card_model, $port, $port_femedia) = @_;
+	my $res_dchan='';
+	my $dchan;
+
+	printf("Hardware HDLC can be performed on the data channel.\n");
+prompt_hw_dchan:
+	my $res_dchan = &prompt_user("Select the data channel on A$card_model, port:$port, select 0 for unused.\n","0");
+        while(length($res_dchan)==0 |!($res_dchan =~/(\d+)/)){
+		print "Invalid channel, input an integer (0 for unused).\n";
+		$res_dchan=&prompt_user("Select the data channel","0");
+	}
+	if ( $res_dchan < 0){
+		printf("Error: channel cannot have negative value\n");
+		$res_dchan='';
+		goto prompt_hw_dchan;
+	}
+	if ( $port_femedia eq 'T1' && $res_dchan > 24){
+		printf("Error: only 24 channels available on T1\n");
+		$res_dchan='';
+		goto prompt_hw_dchan;
+	}elsif ($port_femedia eq 'E1' && $res_dchan > 31){
+		printf("Error: only 31 channels available on E1\n");
+		$res_dchan='';
+		goto prompt_hw_dchan;
+	}
+	if ($res_dchan == 0){
+		printf("HW HDLC channel not used\n");
+	}else{
+		printf("HW HDLC channel set to:%d\n", $res_dchan);
+	}
+	return $res_dchan;
 }
 
 

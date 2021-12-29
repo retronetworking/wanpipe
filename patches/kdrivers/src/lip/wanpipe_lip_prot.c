@@ -979,7 +979,7 @@ int wplip_init_prot(void)
 	prot_iface->pipemon			= NULL;
 	prot_iface->rx				= wp_katm_rx; 
 	prot_iface->timer			= wp_katm_timer;
-	prot_iface->bh				= NULL;
+	prot_iface->bh				= wpkatm_bh;
 	prot_iface->snmp			= NULL;
 #endif   
 

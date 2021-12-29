@@ -205,10 +205,12 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 		clog_printf(0, mcon->log, 
 			"------------------------------------------\n");
 		clog_printf(0, mcon->log, 
-			"Critical Error: Invalid Span=%i Chan=%i\n",
-			event->span,event->chan);
+			"Critical Error: Cmd=%s Invalid Span=%i Chan=%i\n",
+			call_signal_event_id_name(event->event_id), event->span,event->chan);
 		clog_printf(0, mcon->log, 
 			"------------------------------------------\n");
+
+		return -1;
 	}
 
 	gettimeofday(&event->tv,NULL);

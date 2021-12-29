@@ -1204,26 +1204,12 @@ static int aft_analog_hwec_enable(void *pcard, int enable, int channel)
 			AFT_REMORA_MUX_TS_EC_ENABLE,
 			&value);
 	if (enable){
-                if (!wan_test_and_set_bit(channel,&card->wandev.ec_map)) {
-                        value |= (1 << channel);
-                } else {
-                        DEBUG_EVENT("[HWEC]: %s: %s bypass mode overrun detected for channel %d!\n",
-                                card->devname,
-                                (enable) ? "Enable" : "Disable",
-                                channel);
-                        return 0;
-                }
-        } else {
-                if (wan_test_and_clear_bit(channel,&card->wandev.ec_map)) {
-                        value &= ~(1 << channel);
-                } else {
-                        DEBUG_EVENT("[HWEC]: %s: %s bypass mode overrun detected for channel %d!\n",
-                                card->devname,
-                                (enable) ? "Enable" : "Disable",
-                                channel);
-                        return 0;
-                }
-        }
+		wan_set_bit(channel,&card->wandev.ec_map);
+		value |= (1 << channel);
+	}else{
+		wan_clear_bit(channel,&card->wandev.ec_map);
+		value &= ~(1 << channel);
+	}
 	card->hw_iface.bus_write_4(
 			card->hw,
 			AFT_REMORA_MUX_TS_EC_ENABLE,

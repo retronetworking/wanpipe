@@ -65,3 +65,4 @@ clean:
 	rm -f *.o
 	rm -f tmp/*.o
 	rm -f mod/*.o
+	rm -f *.*~
