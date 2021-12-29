@@ -229,7 +229,7 @@ static int set_asy_config (sdla_t* card);
 static int asy_comm_enable (sdla_t* card);
 
 /* Interrupt handlers */
-static void wpc_isr (sdla_t* card);
+static WAN_IRQ_RETVAL wpc_isr (sdla_t* card);
 static void rx_intr (sdla_t* card);
 static void timer_intr(sdla_t *);
 
@@ -1652,7 +1652,7 @@ static int update_comms_stats(sdla_t* card,
 	if (IS_TE1_CARD(card)) {	
 		card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 		/* TE1 Update T1/E1 perfomance counters */
-		card->wandev.fe_iface.read_pmon(&card->fe); 
+		card->wandev.fe_iface.read_pmon(&card->fe, 0); 
 	}else if (IS_56K_CARD(card)) {
 		/* 56K Update CSU/DSU alarms */
 		card->wandev.fe_iface.read_alarm(&card->fe, 1); 
@@ -1739,7 +1739,7 @@ static unsigned char read_front_end_reg (void* card1, ...)
 /*============================================================================
  * Write to TE1/56K Front end registers  
  */
-static unsigned char write_front_end_reg (void* card1, ...)
+static int write_front_end_reg (void* card1, ...)
 {
 	va_list		args;
 	sdla_t		*card = (sdla_t*)card1;
@@ -1858,19 +1858,22 @@ static void chdlc_bh (unsigned long data)
 /*============================================================================
  * Cisco HDLC interrupt service routine.
  */
-static void wpc_isr (sdla_t* card)
+static WAN_IRQ_RETVAL wpc_isr (sdla_t* card)
 {
 	netdevice_t* dev;
 	SHARED_MEMORY_INFO_STRUCT	flags;
 	int i;
+	WAN_IRQ_RETVAL_DECL(irq_ret);
 
+
+	WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 	/* Check for which port the interrupt has been generated
 	 * Since Secondary Port is piggybacking on the Primary
          * the check must be done here. 
 	 */
 
 	if (!card->hw){
-		return;
+		WAN_IRQ_RETURN(irq_ret);
 	}
 	
 	card->hw_iface.peek(card->hw, card->flags_off,
@@ -1886,6 +1889,7 @@ static void wpc_isr (sdla_t* card)
 	if (!card->tty_opt && !dev && 
 	    flags.interrupt_info_struct.interrupt_type != 
 	    	COMMAND_COMPLETE_APP_INT_PEND){
+		WAN_IRQ_RETURN(irq_ret);
 		goto isr_done;
 	}
 	
@@ -1896,6 +1900,7 @@ static void wpc_isr (sdla_t* card)
 	if(test_bit(PERI_CRIT, (void*)&card->wandev.critical)) {
 		printk(KERN_INFO "%s: Chdlc ISR:  Critical with PERI_CRIT!\n",
 				card->devname);
+		WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 		goto isr_done;
 	}
 
@@ -1907,7 +1912,8 @@ static void wpc_isr (sdla_t* card)
 				card->devname);
 			card->in_isr = 0;
 			card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-			return;
+			WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
+			WAN_IRQ_RETURN(irq_ret);
 		}
 	}
 
@@ -1989,7 +1995,9 @@ isr_done:
 
 	card->in_isr = 0;
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-	return;
+
+	WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
+        WAN_IRQ_RETURN(irq_ret);
 }
 
 /*============================================================================

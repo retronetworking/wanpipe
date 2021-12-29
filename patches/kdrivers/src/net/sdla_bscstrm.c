@@ -292,7 +292,7 @@ int wp_bscstrm_init (sdla_t* card, wandev_conf_t* conf)
 	printk(KERN_INFO "%s: Bisync Streaming Config: \n",card->devname);
 	printk(KERN_INFO "%s:     Comm Port         = %s\n",
 			card->devname,card->wandev.comm_port==0?"PRI":"SEC");
-	printk(KERN_INFO "%s:     Baud Rate         = %lu\n",
+	printk(KERN_INFO "%s:     Baud Rate         = %u\n",
 			card->devname,card->wandev.bscstrm_cfg.baud_rate);
 	printk(KERN_INFO "%s:     Adapter Frequency = %lu\n",
 			card->devname,card->wandev.bscstrm_cfg.adapter_frequency);

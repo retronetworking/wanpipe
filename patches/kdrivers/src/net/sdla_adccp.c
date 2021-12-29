@@ -320,7 +320,11 @@ static void timer_intr  (sdla_t *);
 /*=================================================  
  *	Background polling routines 
  */
-static void wpx_poll (void*);
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
+static void wpx_poll (void * card_ptr);
+# else
+static void wpx_poll (struct work_struct *work);
+#endif
 #if 0
 static void poll_disconnected (sdla_t* card);
 #endif
@@ -655,7 +659,7 @@ int wp_adccp_init (sdla_t* card, wandev_conf_t* conf)
 	
 	init_global_statistics(card);	
 
-	INIT_WORK((&card->u.x.x25_poll_task),wpx_poll,card);
+	WAN_TASKQ_INIT((&card->u.x.x25_poll_task),0,wpx_poll,card);
 
 	init_timer(&card->u.x.x25_timer);
 	card->u.x.x25_timer.data = (unsigned long)card;
@@ -2062,10 +2066,18 @@ static void spur_intr (sdla_t* card)
  *    	enabled. Beware!
  *====================================================================*/
 
-static void wpx_poll (void *card_ptr)
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
+static void wpx_poll (void * card_ptr)
+# else
+static void wpx_poll (struct work_struct *work)
+#endif
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))
+        sdla_t          *card = (sdla_t *)container_of(work, sdla_t, u.aft.port_task);
+#else
+        sdla_t          *card = (sdla_t *)card_ptr;
+#endif
 	netdevice_t	*dev;
-	sdla_t *card=card_ptr;
 	++card->statistics.poll_processed;
 	
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
@@ -3490,6 +3502,7 @@ static int execute_delayed_cmd (sdla_t* card, netdevice_t *dev, char bad_cmd)
 			return -EAGAIN; 
 		}
 
+		card->hw_iface.peek(card->hw, card->flags_off, &flags, sizeof(flags));
 		if (flags.ghdlc_status & X25_HDLC_ABM){
 			DEBUG_TX("LAPB: HDLC Down ! TxQ=%d HDLC_Status=%d\n",
 					status->txQueued,

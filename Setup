@@ -4978,6 +4978,21 @@ function tdmv_apply_zaptel_chunk_patch () {
                 fi
         fi
 
+        eval "cat Makefile |sed 's/^SUBDIR_MODULES:=.*//g'>$TEMP 2>/dev/null "
+        if [ $? -ne 0 ]; then
+                echo "   Failed to remove wct4xxp from Makefile"
+                exit 1
+        else
+                eval "\mv -f $TEMP Makefile"
+                if [ $? -ne 0 ]; then
+                        echo "   Failed to overwrite existing Makefile"
+                        exit 1
+                else
+                        echo "   wct4xxp module removed from Makefile successfully"
+                        zaptel_modified=1
+                fi
+        fi
+
 	if [ -f Makefile.kernel26 ]; then
 		eval "cat Makefile.kernel26 | sed 's/^obj-m.*+=.*wct4xx.*//g'>$TEMP 2>/dev/null "
 		if [ $? -ne 0 ]; then
@@ -6281,7 +6296,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.2.0
+PROD_VER=3.2.1
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

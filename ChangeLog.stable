@@ -7,7 +7,26 @@ Author: Nenad Corbic <ncorbic@sangoma.com>
 Copyright (c) 1995-2007 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
-* Wed Oct 10 2007 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.0
+* Wed Oct 6 2007 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.1
+===================================================================== 
+
+- Setup Zap Chunk Size Patch updated for Zaptel 1.4 
+  Patch allows running zaptel in 8,16,40,80 chunk size.
+  However wct drivers must be removed from compilation :)
+  Patch is now fixed for Zaptel 1.4
+
+- Update to All AFT drivers for 64bit 2.6.22 kernel.
+  Updated affects: AFT A101/2/4/8/200/400 (all cards)
+  The major 2.6.20+ updates extend to 64bit as well.
+  Previous drivers segfaulted under 2.6.22 64bit 
+  kernels. This does not affect you if you are running
+  kennels lower than 2.6.22.
+
+- Updated legacy drivers for 2.6.22 kernel
+
+
+
+* Wed Oct 3 2007 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.0
 ===================================================================== 
 
 - The Beta 3.1.X releases has now been declared as STABLE 3.2.X 

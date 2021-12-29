@@ -1486,7 +1486,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 	chdlc_private_area_t *chdlc_priv_area = dev->priv;
 	sdla_t *card = chdlc_priv_area->card;
 	int udp_type = 0;
-	unsigned long smp_flags;
+	unsigned long smp_flags=0;
 	int err=0;
 	unsigned char misc_Tx_bits = 0;
 

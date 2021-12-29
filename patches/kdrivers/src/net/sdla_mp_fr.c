@@ -1345,7 +1345,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 	fr_private_area_t *chan = dev->priv;
 	sdla_t *card = chan->card;
 	//int udp_type = 0;
-	unsigned long smp_flags;
+	unsigned long smp_flags=0;
 	int err=0;
 
 #if defined(LINUX_2_4)||defined(LINUX_2_6)

@@ -1513,7 +1513,7 @@ static void sppp_lcp_input (struct sppp *sp, struct sk_buff *skb)
 	struct net_device *dev = sp->pp_if;
 	int len = skb->len;
 	u8 *p, opt[6];
-	u32 rmagic;
+	u32 rmagic=0;
 	int rc_from_lcp_options = 0;
 
 	if (len < 4) {

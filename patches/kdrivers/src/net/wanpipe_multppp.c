@@ -1192,7 +1192,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 	private_area_t *chan = dev->priv;
 	sdla_t *card = chan->card;
 	int udp_type = 0;
-	unsigned long smp_flags;
+	unsigned long smp_flags=0;
 	int err=0;
 
 	if (skb == NULL){
@@ -3497,7 +3497,7 @@ static void wp_bh (unsigned long data)
 				memset(rx_hdr,0,sizeof(api_rx_hdr_t));
 			}else{
 				if (WAN_NET_RATELIMIT()){
-				DEBUG_EVENT("%s: Error Rx pkt headroom %d < %d\n",
+				DEBUG_EVENT("%s: Error Rx pkt headroom %d < %u\n",
 						chan->if_name,
 						wan_skb_headroom(skb),
 						sizeof(api_rx_hdr_t));

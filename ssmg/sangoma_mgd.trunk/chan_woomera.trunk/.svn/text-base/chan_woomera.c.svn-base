@@ -4155,7 +4155,20 @@ int unload_module(void)
 	return 0;
 }
 
-#ifdef AST14
+#ifndef AST14
+
+char *key()
+{
+        return ASTERISK_GPL_KEY;
+}
+
+/* returns a descriptive string to the system console */
+char *description()
+{
+        return (char *) desc;
+}
+
+#else
 AST_MODULE_INFO(ASTERISK_GPL_KEY, AST_MODFLAG_DEFAULT, "Woomera Protocol (WOOMERA)",
 		.load = load_module,
 		.unload = unload_module,

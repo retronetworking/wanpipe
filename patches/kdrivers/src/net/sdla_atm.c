@@ -1330,7 +1330,7 @@ static int if_send (netskb_t* skb, struct net_device* dev)
 {
 	private_area_t *chan = dev->priv;
 	sdla_t *card = chan->card;
-	unsigned long smp_flags;
+	unsigned long smp_flags=0;
 	int err=0;
 
 	/* Mark interface as busy. The kernel will not

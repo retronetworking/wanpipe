@@ -1041,7 +1041,7 @@ static __inline unsigned char* wan_skb_data(void* skb)
 static __inline unsigned char* wan_skb_tail(void* skb)
 {
 #if defined(__LINUX__)
-	return ((struct sk_buff*)skb)->tail;
+	return wan_skb_tail_pointer((struct sk_buff*)skb);
 #elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	return mtod((struct mbuf*)skb, caddr_t) + ((struct mbuf*)skb)->m_len;
 #elif defined(__SOLARIS__)
@@ -1758,7 +1758,7 @@ static __inline void wan_skb_init(void* pskb, unsigned int len)
 #if defined(__LINUX__)
 	struct sk_buff* skb = (struct sk_buff*)pskb;
 	skb->data = skb->head + len;
-	skb->tail = skb->data;
+	wan_skb_reset_tail_pointer(skb);
 	skb->len  = 0;
 	skb->data_len = 0;   
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)

@@ -1048,7 +1048,7 @@ static int if_send (struct sk_buff *skb, netdevice_t *dev)
 	ppp_private_area_t *ppp_priv_area = dev->priv;
 	sdla_t *card = ppp_priv_area->card;
 	unsigned char *sendpacket;
-	unsigned long smp_flags;
+	unsigned long smp_flags=0;
 	int udp_type;
 	int err=0;
 	

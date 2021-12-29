@@ -787,7 +787,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 
 	if (IS_T1_CARD(card)){
 
-		DEBUG_EVENT( "%s:      RBS Control =%s  Map=0x%08lX\n",
+		DEBUG_EVENT( "%s:      RBS Control =%s  Map=0x%08X\n",
 					card->devname,
 					card->u.b.cfg.rbs_map?
 					"ON":"OFF",card->u.b.cfg.rbs_map);
@@ -1265,7 +1265,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 				bstrm_priv_area->rbs_chan=i+1;
 
 				if (IS_T1_CARD(card)){
-					if (test_bit(i,&card->u.b.cfg.rbs_map)){
+					if (wan_test_bit(i,&card->u.b.cfg.rbs_map)){
 						bstrm_priv_area->rbs_on=1;
 					}
 				}
