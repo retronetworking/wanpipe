@@ -928,10 +928,11 @@ int wanec_api_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
 			if (!(ec_dev->fe_channel_map & (1 << fe_chan))){
 				continue;
 			}
-			if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0) continue;
 			ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
 
 			wanec_bypass(ec_dev, fe_chan, 0, 0);
+
+			if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0) continue;
  			wanec_ChannelClose(ec_dev, ec_chan, verbose);
 		}
 	}

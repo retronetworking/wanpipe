@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.4
+%define VERSION           7.0.5
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,7 +259,7 @@ fi
 
 %changelog
 
-* Mon Jul 15 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.4
+* Mon Jul 15 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.5
 ==================================================================
 
 - Updated for Dahdi 2.7

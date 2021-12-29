@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           7.0.4
+%define version           7.0.5
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -246,7 +246,7 @@ chmod 755 /usr/local/sbin/setup-sangoma
 
 %changelog
 
-* Mon Jul 15 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.4
+* Mon Jul 15 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.5
 ==================================================================
 
 - Updated for Dahdi 2.7

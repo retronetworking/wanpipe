@@ -3575,7 +3575,12 @@ static int del_if_private (wan_device_t* wandev, netdevice_t* dev)
 			  wan_netif_name(dev));
 		return 0;
 	}
-
+	
+	if (aft_tdm_api_free(card,chan)) {
+		DEBUG_ERROR("%s: Error: Failed to del iface: TDM API Device in use!\n",
+				chan->if_name);
+		return -EBUSY;
+	}
 
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 	if (chan->common.usedby == ANNEXG && chan->annexg_dev) {
@@ -3618,12 +3623,6 @@ static int del_if_private (wan_device_t* wandev, netdevice_t* dev)
 
 	if (chan->common.usedby == API){
 		wan_unreg_api(chan, card->devname);
-	}
-
-	if (aft_tdm_api_free(card,chan)) {
-		DEBUG_ERROR("%s: Error: Failed to del iface: TDM API Device in use!\n",
-				chan->if_name);
-		return -EBUSY;
 	}
 
 	wan_spin_lock_irq(&card->wandev.lock,&flags);
