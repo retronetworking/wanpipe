@@ -617,9 +617,24 @@ static void wp_logger_vInput(u_int32_t logger_type, u_int32_t evt_type, const ch
 		vOutputLogString(fmt, *va_arg_list);
  #else
  		{
-		char msg[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
-		wp_vsnprintf(msg, sizeof(msg) - 1,(const char *)fmt, *va_arg_list);
-		printk(KERN_INFO "%s", msg);
+			char msg[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
+			wp_vsnprintf(msg, sizeof(msg) - 1,(const char *)fmt, *va_arg_list);
+			switch (evt_type) {
+			case SANG_LOGGER_ERROR:
+				printk(KERN_ERR "%s", msg);
+				break;
+			case SANG_LOGGER_WARNING:
+				printk(KERN_WARNING "%s", msg);
+				break;
+			case SANG_LOGGER_INFORMATION:
+			default:
+#ifdef WAN_DEBUG_EVENT_AS_KERN_DEBUG
+				printk(KERN_DEBUG "%s", msg);
+#else
+				printk(KERN_INFO "%s", msg);
+#endif
+				break;
+			}
 		}
  #endif
 	}

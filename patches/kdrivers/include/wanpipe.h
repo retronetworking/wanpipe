@@ -1046,5 +1046,7 @@ extern void disconnect_from_interrupt_line(sdla_t *card);
 int wp_aft_firmware_up_init(sdla_t* card, wandev_conf_t* conf);	/* AFT Firmware Update support */
 #endif
 
+extern sdla_t *aft_find_first_card_in_list(sdla_t *card, int type);
+
 #endif	/* __KERNEL__ */
 #endif	/* _WANPIPE_H */

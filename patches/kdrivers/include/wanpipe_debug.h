@@ -281,9 +281,13 @@ extern void OutputLogString(const char *fmt, ...); /* Print to wanpipelog.txt (N
 #warning "WP_LOGGER_DISABLE Enabled"
 #endif
 
+#ifdef WAN_DEBUG_EVENT_AS_KERN_DEBUG
+#define DEBUG_EVENT(format,msg...)		printk(KERN_DEBUG format, ##msg)      
+#else
 #define DEBUG_EVENT(format,msg...)		printk(KERN_INFO format, ##msg)      
-#define DEBUG_WARNING(format,msg...)	printk(KERN_INFO format, ##msg)      
-#define DEBUG_ERROR(format,msg...)		printk(KERN_INFO format, ##msg)      
+#endif
+#define DEBUG_WARNING(format,msg...)	printk(KERN_WARNING format, ##msg)      
+#define DEBUG_ERROR(format,msg...)		printk(KERN_ERR format, ##msg)      
 
 #else
 

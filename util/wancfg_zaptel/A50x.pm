@@ -203,6 +203,7 @@ sub gen_zaptel_conf{
 	my $zp_file='';
 	my $tmpchan=1;
 	my $tmpstr='';
+	my $hwec_mode = $self->card->hwec_mode;
 
 	$zp_file.="\n\#Sangoma AFT-B".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
         $zp_file.="span=".$self->card->tdmv_span_no.",0,0,ccs,ami\n";
@@ -211,7 +212,7 @@ sub gen_zaptel_conf{
 	$zp_file.="bchan=".$self->card->first_chan.",".$tmpchan."\n";
 
 	$tmpchan = $self->card->first_chan+1;
-	$tmpstr.="echocanceller=mg2,".$self->card->first_chan."-".$tmpchan."\n";
+	$tmpstr.="echocanceller=".$self->card->dahdi_echo.",".$self->card->first_chan."-".$tmpchan."\n";
 	if ($self->card->dahdi_echo eq 'NO') {
 		$zp_file.="#";
 	}

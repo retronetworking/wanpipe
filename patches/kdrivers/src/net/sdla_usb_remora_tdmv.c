@@ -32,6 +32,7 @@
 # include <wanpipe\csu_dsu.h>
 #else
 # include "zapcompat.h" /* Map of Zaptel -> DAHDI definitions */
+# include "wanpipe_dahdi_abstr.h"
 #endif
 
 
@@ -137,6 +138,11 @@ typedef struct wp_usb_tdmv_remora_ {
 	struct dahdi_echocan_state ec[MAX_REMORA_MODULES]; /* echocan state for each channel */
 #endif
 	struct zt_chan	*chans_ptrs[MAX_REMORA_MODULES];
+#ifdef DAHDI_26
+	struct dahdi_device *ddev;
+	struct device dev;
+#endif
+
 #endif
 	struct zt_chan	chans[MAX_USB_REMORA_MODULES];
 	unsigned long	reg_module_map;	/* Registered modules */
@@ -1308,11 +1314,14 @@ static int wp_usb_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 	init_waitqueue_head(&wr->span.maintq);
 #endif
 #endif
-	if (zt_register(&wr->span, 0)) {
+
+
+	if (wp_dahdi_register_device(wr)) {
 		DEBUG_EVENT("%s: Unable to register span with zaptel\n",
 				wr->devname);
 		return -EINVAL;
 	}
+
 	if (wr->span.spanno != wr->spanno +1){
 		DEBUG_EVENT("\n");
 		DEBUG_EVENT("WARNING: Span number %d is already used by another device!\n",
@@ -1355,9 +1364,10 @@ static void wp_usb_tdmv_release(wp_usb_tdmv_remora_t *wr)
 		DEBUG_EVENT("%s: Unregister WAN FXS/FXO device from Zaptel!\n",
 				wr->devname);
 		wan_clear_bit(WP_TDMV_REGISTER, &wr->flags);
-		zt_unregister(&wr->span);
+		wp_dahdi_unregister_device(wr);
 		wan_clear_bit(WP_TDMV_REGISTER, &wr->flags);
 	}
+	wp_dahdi_free_device(wr);
 	wan_free(wr);
 	return;
 }
@@ -1445,6 +1455,16 @@ static int wp_usb_tdmv_remora_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	wr->max_rxtx_len	= 0;
 	wan_spin_lock_irq_init(&wr->lockirq, "wan_rmtdmv_lock");
 	wan_spin_lock_irq_init(&wr->tx_rx_lockirq, "wan_rmtdmv_txrx_lock");
+
+    if (wp_dahdi_create_device(card,wr)) {
+       wan_free(wr);
+       return -ENOMEM;
+    }
+
+    WP_DAHDI_SET_STR_INFO(wr,manufacturer,"Sangoma Technologies");
+    WP_DAHDI_SET_STR_INFO(wr,devicetype, "U100");
+    WP_DAHDI_SET_STR_INFO(wr,location,"SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+
 #ifdef DAHDI_ISSUES
 	for (i = 0; i < sizeof(wr->chans)/sizeof(wr->chans[0]); i++) {
 		wr->chans_ptrs[i] = &wr->chans[i];

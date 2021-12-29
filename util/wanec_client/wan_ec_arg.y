@@ -324,7 +324,7 @@ void yyerror(char* msg)
 {
 	if (!ec_client.verbose){
 		printf("> %s\n", msg);
-		help (0);
+		help (1);
 	}else{ 
 		printf("> %s (argv=%s,offset=%d)\n", msg, *targv, offset);
 	}

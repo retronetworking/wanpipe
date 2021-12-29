@@ -34,6 +34,7 @@
 
 #if !defined (__WINDOWS__)
 # include "zapcompat.h" /* Map of Zaptel -> DAHDI definitions */
+# include "wanpipe_dahdi_abstr.h" /* Map of Zaptel -> DAHDI definitions */
 #endif
 
 #ifdef DEBUG_TEST
@@ -855,11 +856,13 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 	init_waitqueue_head(&wr->span.maintq);
 #endif
 #endif
-	if (zt_register(&wr->span, 0)) {
+
+	if (wp_dahdi_register_device(wr)) {
 		DEBUG_EVENT("%s: Unable to register span with zaptel\n",
 				wr->devname);
 		return -EINVAL;
 	}
+
 	if (wr->span.spanno != wr->spanno +1){
 		DEBUG_EVENT("\n");
 		DEBUG_EVENT("WARNING: Span number %d is already used by another device!\n",
@@ -904,9 +907,11 @@ static void wp_tdmv_release(wp_tdmv_remora_t *wr)
 		DEBUG_EVENT("%s: Unregister WAN FXS/FXO device from Zaptel!\n",
 				wr->devname);
 		wan_clear_bit(WP_TDMV_REGISTER, &wr->flags);
-		zt_unregister(&wr->span);
+		wp_dahdi_unregister_device(wr);
 		wan_clear_bit(WP_TDMV_REGISTER, &wr->flags);
 	}
+
+	wp_dahdi_free_device(wr);
 	wan_free(wr);
 	return;
 }
@@ -988,35 +993,44 @@ static int wp_tdmv_remora_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	card->wan_tdmv.sc	= wr;
 	wr->spanno		= tdmv_conf->span_no-1;
 #ifdef DAHDI_ISSUES
-	wr->span.manufacturer   = "Sangoma Technologies";
+	if (wp_dahdi_create_device(card,wr)) {
+       wan_free(wr);
+       return -ENOMEM;
+	}
+
+	WP_DAHDI_SET_STR_INFO(wr,manufacturer,"Sangoma Technologies");
+
 	switch(card->adptr_type){
 	case A200_ADPTR_ANALOG:
-		strncpy(wr->span.devicetype, "A200" , sizeof(wr->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "A200");
 		break;
 	case A400_ADPTR_ANALOG:
-		strncpy(wr->span.devicetype, "A400" , sizeof(wr->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "A400");
 		break;
 	case AFT_ADPTR_B800:
-		strncpy(wr->span.devicetype, "B800" , sizeof(wr->span.devicetype));	
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "B800");
 		break;
 	case AFT_ADPTR_A600:
-		strncpy(wr->span.devicetype, "B600" , sizeof(wr->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "B600");
 		break;
 	case AFT_ADPTR_B601:
-		strncpy(wr->span.devicetype, "B601" , sizeof(wr->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "B601");
 		break;
 	case AFT_ADPTR_FLEXBRI:
-		strncpy(wr->span.devicetype, "B700" , sizeof(wr->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "B700");
 		break;
 	case U100_ADPTR:
-		strncpy(wr->span.devicetype, "U100" , sizeof(wr->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "U100");
 		break;
 	}
 	
-	snprintf(wr->span.location, sizeof(wr->span.location) - 1, "SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+	WP_DAHDI_SET_STR_INFO(wr,location,"SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+
+#ifndef DAHDI_26
+	wr->span.irq            = card->wandev.irq;
+#endif
 #endif
 
-	wr->span.irq            = card->wandev.irq;
 	wr->num			= wp_remora_no++;
 	wr->card		= card;
 	wr->devname		= card->devname;

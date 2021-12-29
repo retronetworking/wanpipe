@@ -604,7 +604,14 @@ static int wp_remora_chain_enable(sdla_fe_t *fe)
 	
 	WAN_ASSERT_RC(fe->reset_fe == NULL,0);
 	
-	if (IS_A600(fe) || IS_B601(fe)) {
+	if (IS_B610(fe)) {
+		for(mod_no = 0; mod_no < NUM_A600_ANALOG_FXO_PORTS; mod_no++) {
+			fe->rm_param.mod[mod_no].type = MOD_TYPE_NONE;
+		}
+		fe->rm_param.mod[4].type = MOD_TYPE_FXS;
+		return 0;
+		
+	} else if (IS_A600(fe) || IS_B601(fe)) {
 		for(mod_no = 0; mod_no < NUM_A600_ANALOG_FXO_PORTS; mod_no++) {
 			fe->rm_param.mod[mod_no].type = MOD_TYPE_FXO;
 		}
@@ -3199,6 +3206,39 @@ static void wp_remora_proslic_check_hook(sdla_fe_t *fe, int mod_no)
 #endif
 
 #if defined(AFT_TDM_API_SUPPORT) || defined(AFT_API_SUPPORT)
+
+#if 0
+static inline void wpapi_dtmfcheck_fakepolarity(wp_tdmv_remora_t *wr, int channo, unsigned char *rxbuf)
+{
+    sdla_t      *card = wr->card;
+    sdla_fe_t   *fe = &card->fe;
+    int sample;
+    int dtmf=1;
+
+        /* only look for sound on the line if dtmf flag is on, it is an fxo card and line is onhook */
+    if (!dtmf || !(fe->rm_param.mod[channo].type == MOD_TYPE_FXO) || wr->mod[channo].fxo.offhook) {
+            return;
+    }
+
+    /* don't look for noise if we're already processing it, or there is a ringing tone */
+    if(!wr->mod[channo].fxo.readcid && !wr->mod[channo].fxo.wasringing  &&
+        fe->rm_param.intcount > wr->mod[channo].fxo.cidtimer + 400 ) {
+        sample = ZT_XLAW((*rxbuf), (&(wr->chans[channo])));
+        if (sample > 16000 || sample < -16000) {
+            wr->mod[channo].fxo.readcid = 1;
+            wr->mod[channo].fxo.cidtimer = fe->rm_param.intcount;
+            DEBUG_TEST("DTMF CLIP on %i\n",channo+1);
+            zt_qevent_lock(&wr->chans[channo], ZT_EVENT_POLARITY);
+        }
+    } else if(wr->mod[channo].fxo.readcid && fe->rm_param.intcount > wr->mod[channo].fxo.cidtimer + 2000) {
+        /* reset flags if it's been a while */
+        wr->mod[channo].fxo.cidtimer = fe->rm_param.intcount;
+        wr->mod[channo].fxo.readcid = 0;
+    }
+}
+#endif
+
+
 /******************************************************************************
 *			wp_remora_watchdog()	
 *

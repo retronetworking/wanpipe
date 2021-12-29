@@ -29,28 +29,22 @@
 # include <dahdi/user.h> // this will bring dahdi user stuff
 #endif
 
+#define WP_DAHDI_MAX_STR_SZ 100
 
-#undef DAHDI_25
-#undef DAHDI_24
-#undef DAHDI_22
-#undef DAHDI_23
-
-#if defined(DAHDI_EVENT_READ_OVERRUN)
+#if defined(DAHDI_26)
 #define DAHDI_25
 #define DAHDI_24
 #define DAHDI_23
 #define DAHDI_22
-#elif defined(DAHDI_MAINT_ALARM_SIM)
+#elif defined(DAHDI_25)
 #define DAHDI_24
 #define DAHDI_23
 #define DAHDI_22
-#elif defined(DAHDI_AUDIO_NOTIFY)
+#elif defined(DAHDI_24)
 #define DAHDI_23
 #define DAHDI_22
-#elif defined(DAHDI_ECHOCANCEL_FAX_MODE)
+#elif defined(DAHDI_23)
 #define DAHDI_22
-#else
-/* Configuring for old 20 dahdi */
 #endif
 
 
@@ -166,6 +160,14 @@
 #define zt_hooksig dahdi_hooksig
 #define zt_ec_span dahdi_ec_span
 #define zt_qevent_lock dahdi_qevent_lock
+
+#if defined (DAHDI_26)
+#define WP_DAHDI_SET_STR_INFO(dev,name,...) sprintf((char*)(dev)->ddev->name, ## __VA_ARGS__);
+#define WP_DAHDI_INFO(dev,name)  (dev)->ddev->name
+#else
+#define WP_DAHDI_SET_STR_INFO(dev,name,...) sprintf((char*)(dev)->span.name, ## __VA_ARGS__);
+#define WP_DAHDI_INFO(dev,name)  (dev)->span.name
+#endif
 
 #if defined(DAHDI_24) || defined(DAHDI_25)
 #define DAHDI_SPAN_OPS(span, func_name) span.ops->func_name

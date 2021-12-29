@@ -86,13 +86,13 @@ blank			[ \t]
 
 "-v"				{ ec_client.verbose = 1; }
 "-vv"				{ ec_client.verbose = 2; }
-"--h"				{ help(0); exit(0); }
-"?"					{ help(0); exit(0); }
-"/?"				{ help(0); exit(0); }
-"help"				{ help(0); exit(0); }
-"--h1"				{ help(1); help1(1); exit(0); }
-"--help"			{ help(1); help1(1); exit(0); }
-"-help"				{ help(1); help1(1); exit(0); }
+"--h"				{ help(1); exit(0); }
+"?"					{ help(1); exit(0); }
+"/?"				{ help(1); exit(0); }
+"help"				{ help(1); exit(0); }
+"--h1"				{ help(1); exit(0); }
+"--help"			{ help(1); exit(0); }
+"-help"				{ help(1); exit(0); }
 
 {digit}{digit}*{integer_suffix}?	{ /* decimal */ 
 				s_lookup(token(DEC_CONSTANT));
@@ -259,6 +259,19 @@ static void help_extra(int verbose)
 	printf("      sin|sout|rin|rout - EC port\n");
 	printf("      all_ports         - all EC ports\n");
 	printf("\n");
+	printf("Examples\n");
+	printf("wan_ec_client wanpipe1 enable  all         #Enable ec on all channels\n");
+	printf("wan_ec_client wanpipe1 enable  1-15.17-31  #Enable ec on 1 to 15 and 17 to 31 channels\n");
+	printf("wan_ec_client wanpipe1 disable all         #Disable ec on all channels\n");
+	printf("wan_ec_client wanpipe1 disable 1-15.17-31  #Disable ec on 1 to 15 and 17 to 31 channels\n");
+	printf("wanpipemon -i w1g1 -c ehw                  #List currently active ec on span 1\n");
+	printf("wan_ec_client stats_full 1                 #Read full config and stats of channel 1\n");
+	printf("wan_ec_client stats 1                      #Read abbreviated config and stats of channel 1\n");
+	printf("wan_ec_client stats                        #Read global config and stats\n");
+	printf("wan_ec_client wanpipe1 modify all --WANEC_DtmfToneRemoval=TRUE\n");
+	printf("wan_ec_client wanpipe1 modify all --WANEC_DtmfToneRemoval=FALSE\n");
+	printf("\nFor More info and detailed list of modify options\nDownload ftp://ftp.sangoma.com/linux/current_wanpipe/doc/WanpipeEC_API.pdf\n");
+
 	return;
 }
 
@@ -277,13 +290,15 @@ int help(int verbose)
 	printf("  disable <fe_chan>   - Disable Echo canceller on specified channel(s)\n");
 	printf("  de <fe_chan> [sout|rout] - Enable DTMF detection on specified channel(s)\n");
 	printf("  dd <fe_chan> [sout|rout] - Disable DTMF detection on specified channel(s)\n");
-	printf("  stats               - Read Echo Canceller Chip/Image statistis\n");
-	printf("  stats <fe_chan>     - Read Echo Canceller channel statistis\n");
-	printf("  hwimage             - Read Echo Canceller image statistis\n");
-	printf("  monitor <fe_chan>   - Enable Debug monitoring for specified channel\n");
-	printf("  monitor             - Get debug data for previously specified channel\n");
+	printf("  stats                - Read Echo Canceller Chip/Image statistis\n");
+	printf("  stats <fe_chan>      - Read Echo Canceller channel statistis\n");
+	printf("  hwimage              - Read Echo Canceller image statistis\n");
+	printf("  monitor <fe_chan>    - Enable recording for 15sec on specified channel\n");
+	printf("  monitor120 <fe_chan> - Enable recording for 120sec on specified channel\n");
+	printf("  monitor              - Read last recording for previously specified channel\n");
 	printf("\n");
-	if (!verbose) help_extra(verbose);
+	help1(0);
+	help_extra(verbose);
 	return 0;
 }	
 
@@ -316,8 +331,8 @@ static int help1(int verbose)
 int wan_ec_args_parse_and_run(int argc, char* argv[])
 {
 	if (argc == 1){
-		help(0);
-		return 0;
+		help(1);
+		return 1;
 	}
 	targv = argv+1;
 	arglim = argv+argc;

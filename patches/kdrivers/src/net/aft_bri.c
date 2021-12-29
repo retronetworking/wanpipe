@@ -461,8 +461,48 @@ int aft_bri_test_sync(sdla_t *card, int tx_only)
 
 int aft_bri_led_ctrl(sdla_t *card, int color, int led_pos, int on)
 {
-	BRI_FUNC();
-	/* no control over LEDs on BRI card */
+	u8 reg;
+	u16 red_bit=0,green_bit=0;
+	u32 port = WAN_FE_LINENO(&card->fe);
+	AFT_FUNC_DEBUG();
+			
+	if (card->adptr_type != AFT_ADPTR_B500) {
+		return 0;
+	}
+	
+	red_bit=port*2;
+	green_bit=(port*2)+1;
+
+	reg=aft_bri_read_cpld(card,0x01);
+
+	DEBUG_TEST("%s: READ CPLD 0x%X\n",card->devname,reg);
+
+	/* INSERT LED CODE */
+	switch (color){
+		
+	case WAN_AFT_RED:
+		if (on){
+			wan_set_bit(red_bit,&reg);
+		}else{
+			wan_clear_bit(red_bit,&reg);
+		}	
+		break;
+
+	case WAN_AFT_GREEN:
+		if (on){
+			wan_set_bit(green_bit,&reg);
+		}else{
+			wan_clear_bit(green_bit,&reg);
+		}	
+		break;			
+	default:
+		return 0;
+	}
+
+	DEBUG_TEST("%s: WRITE CPLD 0x%X red_bit %i green_bit %i port %i\n",
+					card->devname, reg,red_bit, green_bit, port);
+	aft_bri_write_cpld(card,0x01,reg);
+
 	return 0;
 }
 
@@ -515,7 +555,7 @@ int aft_bri_global_chip_config(sdla_t *card)
 	/*============ GLOBAL CHIP CONFIGURATION ===============*/
 
 	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);
-	
+
 	if (used_cnt == 1) {
 		/* Enable the chip/hdlc reset condition */
 		reg=0;
@@ -564,6 +604,11 @@ int aft_bri_global_chip_config(sdla_t *card)
 		
 		/* Reset HWEC and Set CPLD based on network sync */
 		aft_bri_cpld0_set(card,1);
+
+		/* Turn on all LED lights by default */
+		if (card->adptr_type == AFT_ADPTR_B500) {
+			aft_bri_write_cpld(card,0x01,0xFF);
+		}
 		
 		wan_spin_unlock_irq(&card->wandev.lock,&flags);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
@@ -609,6 +654,11 @@ int aft_bri_global_chip_unconfig(sdla_t *card)
 	if (used_cnt == 1) {
 		/* Set Octasic to reset */
 		aft_bri_cpld0_set(card,1);
+
+		/* Turn on all LED by default */
+		if (card->adptr_type == AFT_ADPTR_B500) {
+			aft_bri_write_cpld(card,0x01,0xFF);
+		}
 	
 		/* Disable the chip/hdlc reset condition */
 		wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);

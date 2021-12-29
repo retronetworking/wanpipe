@@ -234,6 +234,7 @@ typedef struct aft_config
 static __inline u32 AFT_PORT_REG(sdla_t *card, u32 reg)
 {
         if (card->adptr_type == AFT_ADPTR_A600 || 
+        	card->adptr_type == AFT_ADPTR_B610 || 
 			card->adptr_type == AFT_ADPTR_B601) {
         //A600 CASE
                 if (reg < 0x100) {

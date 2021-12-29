@@ -157,11 +157,12 @@ enum {
 		 card_type == WANOPT_AFT108) ?     "A101/1D/A102/2D/4/4D/8" :	\
 		(card_type == WANOPT_AFT300) ?     "A300"  :	\
 		(card_type == WANOPT_AFT_ANALOG) ? "A200/A400/B600/B700/B800"  :	\
-		(card_type == WANOPT_AFT_ISDN) ?   "A500/B700"  :	\
+		(card_type == WANOPT_AFT_ISDN) ?   "A500/B700/B500"  :	\
 		(card_type == WANOPT_AFT_56K) ?    "A056"  :	\
 		(card_type == WANOPT_AFT_SERIAL) ? "A14x"  :	\
 		(card_type == WANOPT_USB_ANALOG) ? "U100"  :	\
 		(card_type == WANOPT_AFT600)   ?   "A600"  :	\
+		(card_type == WANOPT_AFT610)   ?   "A610"  :	\
 		(card_type == WANOPT_AFT601)   ?   "B601"  :	\
 						   "Unknown"
 
@@ -1089,6 +1090,8 @@ typedef struct {
 	(cardtype == WANOPT_AFT_56K) ? "WANOPT_AFT_56K": 		\
 	(cardtype == WANOPT_AFT300) ? "WANOPT_AFT300":	\
 	(cardtype == WANOPT_AFT600) ? "WANOPT_AFT600":  \
+	(cardtype == WANOPT_AFT610) ? "WANOPT_AFT610":  \
+	(cardtype == WANOPT_AFT601) ? "WANOPT_AFT601":  \
 	(cardtype == WANOPT_AFT_ISDN) ? "WANOPT_AFT_ISDN": "Invalid card")
 
 

@@ -104,6 +104,7 @@ enum {
 #define WANOPT_USB_ANALOG       15
 #define WANOPT_AFT600           16
 #define WANOPT_AFT601           17
+#define WANOPT_AFT610           18
 
 /*
  * Configuration options defines.

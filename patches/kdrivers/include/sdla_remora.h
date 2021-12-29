@@ -63,10 +63,12 @@
 #define MOD_TYPE_FXS			1
 #define MOD_TYPE_FXO			2
 #define MOD_TYPE_TEST			3
+#define MOD_TYPE_EMPTY			4
 #define WP_REMORA_DECODE_TYPE(type)			\
 		(type == MOD_TYPE_FXS) ? "FXS" :	\
 		(type == MOD_TYPE_FXO) ? "FXO" :	\
 		(type == MOD_TYPE_TEST) ? "TST" :	\
+		(type == MOD_TYPE_TEST) ? "EMPTY" :	\
 					"Unknown"
 
 /* SPI interface */

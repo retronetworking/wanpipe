@@ -37,6 +37,12 @@ typedef struct wp_tdmv_remora_ {
 	struct dahdi_echocan_state ec[MAX_REMORA_MODULES];		/* echocan state for each channel */
 #endif
 	struct zt_chan	*chans_ptrs[MAX_REMORA_MODULES];
+
+#ifdef DAHDI_26
+   struct dahdi_device *ddev;
+   struct device dev;
+#endif
+
 #endif
 	struct zt_chan	chans[MAX_REMORA_MODULES];
 #endif

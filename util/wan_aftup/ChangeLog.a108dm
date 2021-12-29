@@ -1,10 +1,19 @@
 AFT A108dm Firmware Change Log
 ===============================
 
+Release V44
+-----------
+Dec 12 2011
+Type:	Recommended A108dm Firmware
+		Fixes unreliable front end framer read/write: on newer motherboards.
+		New motherboards and new pci/pcie bridges have exposed a timing
+		issue in front end framer read/write routines. This can cause
+		corrupting in read/write routines causing T1/E1 framer to be misconfigured.
+
 Release V43
 -----------
 Aug 24 2010
-Type:	Recommended A104dm Firmware
+Type:	Recommended A108dm Firmware
 		Fixes PCIe parity errors on some new Dell/HP/IBM servers causing 
    		PCI fatal error messages in the logs.
 		Fixes the need for Windows to reboot after firmware update

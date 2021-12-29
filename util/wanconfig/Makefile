@@ -40,7 +40,7 @@ all: wanconfig
 	@echo "Ok."
 
 wanconfig:	$(SRCS) wanconfig.h
-	$(CC) $(CFLAGS) -o $@ -lsangoma -lm $^
+	$(CC) $(CFLAGS) -o $@ $^ -lsangoma -lm 
 
 install:
 	@echo "Installing Wanpipe utilites in $(WAN_VIRTUAL)/usr/sbin"

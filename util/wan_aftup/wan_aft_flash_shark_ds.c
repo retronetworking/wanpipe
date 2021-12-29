@@ -413,7 +413,7 @@ static int aft_flash_id_shark(wan_aft_cpld_t *cpld, int mtype, int stype, int *f
 		cpld->flash_index = M29W800DB_FID;
 		break;
 	default:
-		printf("The current flash is not supported (dev id %02X)!\n",
+		printf("The current shark ds flash is not supported (dev id %02X)!\n",
 					device_code);
 		return -EINVAL;
 		break;

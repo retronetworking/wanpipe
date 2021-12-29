@@ -40,6 +40,9 @@ libsangoma_la_CFLAGS	+= -I$(libpripath)
 libsangoma_la_LDFLAGS	+= -L$(libpripath) -lpri
 endif 
 
+# We use powf in the gain code
+libsangoma_la_LDFLAGS   += -lm
+
 libsangoma_la_SOURCES   = $(LIB_SOURCES)
 
 lib_LIBRARIES           = libsangoma.a

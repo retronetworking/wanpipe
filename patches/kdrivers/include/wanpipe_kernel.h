@@ -37,6 +37,15 @@
 # define wp_devinet_ioctl(_cmd_,_rptr_)  devinet_ioctl(_cmd_,_rptr_)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#define wp_dev_name(dev)       ((dev)->bus_id)
+#define wp_dev_set_name(dev, format, ...) \
+    snprintf((dev)->bus_id, BUS_ID_SIZE, format, ## __VA_ARGS__);
+#else
+#define wp_dev_name    dev_name
+#define wp_dev_set_name dev_set_name
+#endif
+
 #ifdef MODULE_ALIAS_NETDEV
 #define LINUX_2639 1
 #define wan_rwlock_init rwlock_init
@@ -105,59 +114,6 @@
 
 ////////////////////////////////////////////////
 
-
-
-//////////////////////
-#ifdef HAVE_NET_DEVICE_OPS
-#define WAN_DECLARE_NETDEV_OPS(_ops_name) static struct net_device_ops _ops_name = {0};
-
-#define WAN_NETDEV_OPS_BIND(dev,_ops_name)  dev->netdev_ops = &_ops_name
-
-#define WAN_NETDEV_OPS_INIT(dev,ops,wan_init)				ops.ndo_init = wan_init
-#define WAN_NETDEV_OPS_OPEN(dev,ops,wan_open)				ops.ndo_open = wan_open
-#define WAN_NETDEV_OPS_STOP(dev,ops,wan_stop)				ops.ndo_stop = wan_stop
-#define WAN_NETDEV_OPS_XMIT(dev,ops,wan_send)				ops.ndo_start_xmit = wan_send
-#define WAN_NETDEV_OPS_STATS(dev,ops,wan_stats)				ops.ndo_get_stats = wan_stats
-#define WAN_NETDEV_OPS_TIMEOUT(dev,ops,wan_timeout)			ops.ndo_tx_timeout = wan_timeout
-#define WAN_NETDEV_OPS_IOCTL(dev,ops,wan_ioctl)				ops.ndo_do_ioctl = wan_ioctl
-#define WAN_NETDEV_OPS_MTU(dev,ops,wan_mtu)				ops.ndo_change_mtu = wan_mtu
-#define WAN_NETDEV_OPS_CONFIG(dev,ops,wan_set_config)			ops.ndo_set_config = wan_set_config
-#define WAN_NETDEV_OPS_SET_MULTICAST_LIST(dev,ops,wan_multicast_list)	ops.ndo_set_multicast_list = wan_multicast_list
-//#define WAN_CHANGE_MTU(dev)						dev->netdev_ops->ndo_change_mtu
-//#define WAN_XMIT(dev)                                               	dev->netdev_ops->ndo_start_xmit
-//#define WAN_IOCTL(dev)						dev->netdev_ops->ndo_do_ioctl
-#define WAN_NETDEV_TEST_XMIT(dev)					dev->netdev_ops->ndo_start_xmit
-#define WAN_NETDEV_XMIT(skb,dev)					dev->netdev_ops->ndo_start_xmit(skb,dev)
-#define WAN_NETDEV_TEST_IOCTL(dev)					dev->netdev_ops->ndo_do_ioctl
-#define WAN_NETDEV_IOCTL(dev,ifr,cmd)					dev->netdev_ops->ndo_do_ioctl(dev,ifr,cmd)
-#define WAN_NETDEV_TEST_MTU(dev)					dev->netdev_ops->ndo_change_mtu
-#define WAN_NETDEV_CHANGE_MTU(dev,skb)					dev->netdev_ops->ndo_change_mtu(dev,skb)
-
-#else
-#define WAN_DECLARE_NETDEV_OPS(_ops_name) 
-#define WAN_NETDEV_OPS_BIND(dev,_ops_name)
-#define WAN_NETDEV_OPS_INIT(dev,ops,wan_init)				dev->init = wan_init
-#define WAN_NETDEV_OPS_OPEN(dev,ops,wan_open)				dev->open = wan_open	
-#define WAN_NETDEV_OPS_STOP(dev,ops,wan_stop)				dev->stop = wan_stop
-#define WAN_NETDEV_OPS_XMIT(dev,ops,wan_send)				dev->hard_start_xmit = wan_send
-#define WAN_NETDEV_OPS_STATS(dev,ops,wan_stats)				dev->get_stats = wan_stats
-#define WAN_NETDEV_OPS_TIMEOUT(dev,ops,wan_timeout)			dev->tx_timeout = wan_timeout
-#define WAN_NETDEV_OPS_IOCTL(dev,ops,wan_ioctl)				dev->do_ioctl = wan_ioctl
-#define WAN_NETDEV_OPS_MTU(dev,ops,wan_mtu)				dev->change_mtu = wan_mtu
-#define WAN_NETDEV_OPS_CONFIG(dev,ops,wan_set_config)			dev->set_config = wan_set_config
-#define WAN_NETDEV_OPS_SET_MULTICAST_LIST(dev,ops,wan_multicast_list)	dev->set_multicast_list = wan_multicast_list
-//#define WAN_CHANGE_MTU(dev)						dev->change_mtu
-//#define WAN_XMIT(dev)                                                 dev->hard_start_xmit
-//#define WAN_IOCTL(dev)                                                dev->do_ioctl
-#define WAN_NETDEV_TEST_XMIT(dev)					dev->hard_start_xmit
-#define WAN_NETDEV_XMIT(skb,dev)					dev->hard_start_xmit(skb,dev)
-#define WAN_NETDEV_TEST_IOCTL(dev)					dev->do_ioctl
-#define WAN_NETDEV_IOCTL(dev,ifr,cmd)					dev->do_ioctl(dev,ifr,cmd)
-#define WAN_NETDEV_TEST_MTU(dev)					dev->change_mtu
-#define WAN_NETDEV_CHANGE_MTU(dev,skb)					dev->change_mtu(dev,skb)
-
-#endif
-//////////////////////////
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24) || defined(LINUX_FEAT_2624)
 # ifndef LINUX_FEAT_2624

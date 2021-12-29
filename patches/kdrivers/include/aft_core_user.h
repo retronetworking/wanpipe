@@ -93,6 +93,13 @@ enum {
 	WP_DMA_ERROR_BIT
 };
 
+enum {
+	AFT_CARD_TYPE_ALL,
+	AFT_CARD_TYPE_GLOBAL_ISR,
+	AFT_CARD_TYPE_TDM_API,
+	AFT_CARD_TYPE_ZAP_DAHDI
+};
+
 /*================================================================
  * Trace Structure
  *================================================================*/
@@ -727,6 +734,7 @@ static wan_driver_version_t drv_version = {	WANPIPE_VERSION_MAJOR,
 					WANPIPE_VERSION_MINOR2
 				};
 #endif
+
 
 #endif
 

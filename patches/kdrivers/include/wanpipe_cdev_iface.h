@@ -170,6 +170,9 @@ int wanpipe_cdev_logger_create(wanpipe_cdev_t *cdev);
 int wp_ctrl_dev_create(void);
 void wp_ctrl_dev_delete(void);
 
+int wanpipe_sys_dev_add(struct device *dev, struct device *parent, char *name);
+void wanpipe_sys_dev_del(struct device *dev);
+
 #endif
 
 #endif

@@ -137,7 +137,8 @@ enum {
        SDLA_HWLINEREGMAP,
        SDLA_CHANS_MAP,
        SDLA_RECOVERY_CLOCK_FLAG,
-	   SDLA_HWTYPE_USEDCNT
+	   SDLA_HWTYPE_USEDCNT,
+	   SDLA_PCI_DEV
 };
 
 #define SDLA_MAX_CPUS			2
@@ -761,6 +762,8 @@ typedef struct sdla_hw_type_cnt
 	unsigned char aft_b601_adapters;
 	unsigned char aft_a700_adapters;
 	unsigned char aft_b800_adapters;
+	unsigned char aft_b500_adapters;
+	unsigned char aft_b610_adapters;
 	
 	unsigned char aft_x_adapters;
 	unsigned char usb_adapters;
@@ -1256,6 +1259,7 @@ static __inline u32 SDLA_REG_OFF(sdlahw_card_t	*hwcard, u32 reg)
 	}
 	
 	if (hwcard->adptr_type == AFT_ADPTR_A600 ||
+		hwcard->adptr_type == AFT_ADPTR_B610 ||
 		hwcard->adptr_type == AFT_ADPTR_B601) {
 		if (reg < 0x100) {
 			return (reg+0x1000);

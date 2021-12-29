@@ -893,7 +893,7 @@ typedef struct wan_rtp_pkt {
 #pragma pack()
 
 
-#if defined(HAVE_NET_DEVICE_OPS) 
+#if defined(HAVE_NET_DEVICE_OPS) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0)
 
 #define WAN_DECLARE_NETDEV_OPS(_ops_name) static struct net_device_ops _ops_name = {0};
 
@@ -908,7 +908,11 @@ typedef struct wan_rtp_pkt {
 #define WAN_NETDEV_OPS_IOCTL(dev,ops,wan_ioctl)				ops.ndo_do_ioctl = wan_ioctl
 #define WAN_NETDEV_OPS_MTU(dev,ops,wan_mtu)				ops.ndo_change_mtu = wan_mtu
 #define WAN_NETDEV_OPS_CONFIG(dev,ops,wan_set_config)			ops.ndo_set_config = wan_set_config
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,1,0)
+#define WAN_NETDEV_OPS_SET_MULTICAST_LIST(dev,ops,wan_multicast_list)	
+#else
 #define WAN_NETDEV_OPS_SET_MULTICAST_LIST(dev,ops,wan_multicast_list)	ops.ndo_set_multicast_list = wan_multicast_list
+#endif
 //#define WAN_CHANGE_MTU(dev)						dev->netdev_ops->ndo_change_mtu
 //#define WAN_XMIT(dev)                                               	dev->netdev_ops->ndo_start_xmit
 //#define WAN_IOCTL(dev)						dev->netdev_ops->ndo_do_ioctl

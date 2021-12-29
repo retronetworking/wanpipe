@@ -433,7 +433,7 @@ static int aft_flash_id_shark(wan_aft_cpld_t *cpld, int mtype, int stype, int *f
 
 	man_code = aft_read_flash_byte_shark(cpld, stype, mtype, 0x00);
 	if (man_code != MCODE_ST){
-		printf("The current flash is not supported (man id %02X)!\n",
+		printf("The current shark flash is not supported (man id %02X)!\n",
 				man_code);
 		return -EINVAL;
 	}

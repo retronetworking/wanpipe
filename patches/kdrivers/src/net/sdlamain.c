@@ -991,6 +991,10 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 			DEBUG_EVENT("%s: Starting AFT B601 Hardware Init.\n",
 						card->devname);
 			err = wp_aft_a600_init(card,conf);
+		} else if (card->adptr_type == AFT_ADPTR_B610) {
+			DEBUG_EVENT("%s: Starting AFT B610 Hardware Init.\n",
+						card->devname);
+			err = wp_aft_a600_init(card,conf);
 		} else {
 			DEBUG_EVENT("%s: Starting AFT Analog Hardware Init.\n",
 						card->devname);

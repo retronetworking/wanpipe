@@ -151,6 +151,16 @@ static struct cdev wp_cdev_dev = {
 static wanpipe_cdev_device_t wandev;
 
 
+static struct device_attribute wanpipe_device_attrs[] = {
+	__ATTR_NULL,
+};
+
+static struct bus_type wanpipe_device_bus = {
+	.name = "wanpipe_devices",
+	.dev_attrs = wanpipe_device_attrs,
+};
+
+
 /*=========================================================
  * PUBLIC FUNCTIONS
  *========================================================*/
@@ -195,6 +205,12 @@ int wanpipe_global_cdev_init(void)
 		unregister_chrdev_region(dev, WP_CDEV_MAX_MINORS);
 		return -EINVAL;
 	}
+		
+	err = bus_register(&wanpipe_device_bus);
+    if (err) {
+		DEBUG_ERROR("%s(): Error registering bus!\n",__FUNCTION__);
+       	return err;
+	}
 #endif
 
 	memset(&wandev,0,sizeof(wanpipe_cdev_device_t));
@@ -227,6 +243,8 @@ int wanpipe_global_cdev_free(void)
 #else
 	cdev_del(&wp_cdev_dev);
   	unregister_chrdev_region(MKDEV(WP_CDEV_MAJOR, 0), WP_CDEV_MAX_MINORS);
+	
+	bus_unregister(&wanpipe_device_bus);
 #endif
 
 	return 0;	
@@ -897,6 +915,24 @@ static int wan_memcpy_toiovec(wan_iovec_t *iov, unsigned char *kdata, int len)
 	}
 	return 0;
 }
+
+int wanpipe_sys_dev_add(struct device *dev, struct device *parent, char *name)
+{
+	device_initialize(dev);
+	dev->parent = parent;
+	dev->bus = &wanpipe_device_bus;
+	wp_dev_set_name(dev,"%s",name);
+	return device_add(dev);
+}
+
+void wanpipe_sys_dev_del(struct device *dev)
+{
+	device_del(dev);
+}
+
+
+EXPORT_SYMBOL(wanpipe_sys_dev_add);
+EXPORT_SYMBOL(wanpipe_sys_dev_del);
 
 EXPORT_SYMBOL(wanpipe_global_cdev_init);
 EXPORT_SYMBOL(wanpipe_global_cdev_free);

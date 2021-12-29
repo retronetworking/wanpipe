@@ -177,6 +177,8 @@ aft_core_info_t aft_core_table[] = {
 	  "A056_0040_V", "A056_0040_V*.BIN", AFT_CORE_X400_SIZE },
 	{ AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
 	  "A500_0040_V", "A500_0040_V*.BIN", AFT_CORE_X400_SIZE },
+	{ B500_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
+	  "B500_0040_V", "B500_0040_V*.BIN", AFT_CORE_X400_SIZE },
 	{ A700_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x01, 0x4F,
           "B700_0040_V", "B700_0040_V*.BIN", AFT_CORE_X400_SIZE },
 	{ AFT_2SERIAL_RS232_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
@@ -481,6 +483,10 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 	}else if (strncmp(type,"AFT-A500",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
 		aft->cpld.adptr_type  = AFT_ADPTR_ISDN;
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+	}else if (strncmp(type,"AFT-B500",8) == 0){
+		//strcpy(aft->prefix_fw, "AFT_RM");
+		aft->cpld.adptr_type  = AFT_ADPTR_B500;
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 	}else if (strncmp(type,"AFT-B700",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
@@ -971,6 +977,7 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 		break;
 	case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
 	case A700_SHARK_SUBSYS_VENDOR:
+	case B500_SHARK_SUBSYS_VENDOR:
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 		break;
 	case AFT_2SERIAL_RS232_SUBSYS_VENDOR:
@@ -1109,6 +1116,7 @@ static int wan_pcie_ctrl(struct wan_aftup_head_t *head)
 			break;
 		case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
 		case A700_SHARK_SUBSYS_VENDOR:
+		case B500_SHARK_SUBSYS_VENDOR:
 			break;
 		default:
 			continue;

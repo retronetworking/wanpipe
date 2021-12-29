@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.5.24
+%define version           3.5.25
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -228,6 +228,25 @@ chmod 755 /usr/local/sbin/setup-sangoma
 
 
 %changelog
+
+* Tue Feb 21 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.25
+==================================================================
+
+- Dahdi 2.6 support
+- Linux 3.2.6 support
+- Support for B610 Single FXS card
+- Support for B500 4 port BRI card
+- Reduced memory foot print of the driver
+  by removing some unused statistics structures
+- New HWEC firmare v1.7.4 fixes delayed fax issus 
+  when fax is placed through the echo canceller.
+- Fixed BRI noise issue: Where a BRI channel could
+  be started in a corrupted state.
+- New A108 firmware V44
+  Fixes unreliable front end chip access on some
+  newer sandy bridge architectures.
+  Effect of this bug was unreliable T1/E1 link connection.
+- Added verbose help on wan_ec_client
 
 * Tue Nov 15 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.24
 ==================================================================

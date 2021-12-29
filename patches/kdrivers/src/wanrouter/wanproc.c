@@ -849,6 +849,9 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	if (hw_cnt->aft_isdn_adapters){
 		PROC_ADD_LINE(m, "A500=%d ", hw_cnt->aft_isdn_adapters);
 	}
+	if (hw_cnt->aft_b500_adapters){
+		PROC_ADD_LINE(m, "B500=%d ", hw_cnt->aft_b500_adapters);
+	}
 	if (hw_cnt->aft_a700_adapters){
 		PROC_ADD_LINE(m, "B700=%d ", hw_cnt->aft_a700_adapters);
 	}
@@ -866,6 +869,9 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	}
 	if (hw_cnt->aft_b601_adapters){
 		PROC_ADD_LINE(m, "B601=%d ", hw_cnt->aft_b601_adapters);
+	}
+	if (hw_cnt->aft_b610_adapters){
+		PROC_ADD_LINE(m, "B610=%d ", hw_cnt->aft_b610_adapters);
 	}
         if (hw_cnt->aft_b800_adapters){
                 PROC_ADD_LINE(m, "B800=%d ", hw_cnt->aft_b800_adapters);

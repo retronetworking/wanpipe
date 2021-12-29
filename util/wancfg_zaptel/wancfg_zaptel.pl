@@ -300,6 +300,8 @@ my $is_zaptel=$FALSE;
 my $tdm_api_span_num=0;
 my $zaptel_installed=$FALSE;
 my $dahdi_installed=$FALSE;
+my $dahdi_ver_major=2; 
+my $dahdi_ver_minor=4;
 my $modprobe_list=`$modules_loaded`;
 my $is_ss7_xmpt2_only = $FALSE;
 my $zaptel_dahdi_installed=$FALSE;
@@ -498,7 +500,7 @@ print "Sangoma cards configuration complete, exiting...\n\n";
 #######################################FUNCTIONS##################################################
 sub get_card_name{
 	my ($card_name) = @_;
-	if ( $card_name eq '600' || $card_name eq '700') {
+	if ( $card_name eq '600' || $card_name eq '601' || $card_name eq '610' || $card_name eq '700') {
 		$card_name = "B".$card_name;
 	} else {
 		#if ( $is_trillium == $TRUE ){
@@ -841,7 +843,36 @@ sub check_dahdi
 	} else {
 		$dahdi_installed=$FALSE;
 	}
+
+    if($dahdi_installed==$TRUE) {
+        check_dahdi_ver();
+    }
 }
+
+sub check_dahdi_ver
+{
+    my $ver_major;
+    my $ver_minor;
+    my $str_tmp; 
+    my $strDahdi="DAHDI Tools Version";
+
+    $str_tmp = `dahdi_cfg -v 2>&1 | grep \"$strDahdi\" `;
+    if ($str_tmp =~ m/(\d).(\d)/) {
+        $ver_major = $1;  
+        $ver_minor = $2;
+        #print "the major ver is $ver_major, minor version is $ver_minor.\n";
+    }
+
+    $dahdi_echo='mg2';
+    if ($ver_major > $dahdi_ver_major) {
+        $dahdi_echo='HWEC';
+    } elsif ($ver_major == $dahdi_ver_major) {
+        if ($ver_minor > $dahdi_ver_minor) {
+            $dahdi_echo='HWEC';
+        }
+    }
+}
+
 
 sub apply_changes{
 	my $asterisk_command='';
@@ -2177,10 +2208,6 @@ sub config_bri{
 				$card->pci_slot($3);
 				$card->pci_bus($4);
 				
-				if($dahdi_installed == $TRUE && $is_smg == $FALSE && $is_tdm_api == $FALSE) {
-					$card->dahdi_conf('YES');
-					$card->dahdi_echo($dahdi_echo)
-				}
 
 				my $hwec=0;
 				if($6 gt 0){
@@ -2190,6 +2217,14 @@ sub config_bri{
 					$card->hwec_mode('NO');
 				}else{
 					$card->hwec_mode('YES');
+				}
+				
+				if($dahdi_installed == $TRUE && $is_smg == $FALSE && $is_tdm_api == $FALSE) {
+					$card->dahdi_conf('YES');
+					$card->dahdi_echo($dahdi_echo);
+					if ($hwec == 0) {
+						$card->dahdi_echo('mg2');
+					}
 				}
 
 				if ($card->card_model eq '500' || $card->card_model eq '700'){
@@ -2748,17 +2783,21 @@ sub config_t1e1{
 			$card->fe_cpu($5);
 			
 			my $hwec=0;
-			
-			if($dahdi_installed == $TRUE) {
-					$card->dahdi_conf('YES');
-					$card->dahdi_echo($dahdi_echo)
-				}
 
 			if ( $dev =~ /HWEC=(\d+)/){
 				if($1 gt 0){
 					$hwec=1;
 				}
 			}
+
+			if($dahdi_installed == $TRUE) {
+				$card->dahdi_conf('YES');
+				$card->dahdi_echo($dahdi_echo);
+				if ($hwec == 0) {
+					$card->dahdi_echo('mg2');
+				}
+			}
+
 			if ( ( $dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/)|| ($dev =~ /(\d+).(\w+\w+).*SLOT=(\d+).*BUS=(\d+).*(\w+).*PORT=(\d+).*HWEC=(\d+)/) ) {
 					my $abc=0;
 			}
@@ -3568,7 +3607,7 @@ sub config_analog{
 	}
 	$first_cfg=0;
 	print "------------------------------------\n";
-	print "Configuring analog cards [A200/A400/B600/B700/B800]\n";
+	print "Configuring analog cards [A200/A400/B600/B610/B700/B800]\n";
 	print "------------------------------------\n";
 
 	my $skip_card=$FALSE;
@@ -3593,18 +3632,22 @@ sub config_analog{
 			$card->pci_bus($4);
 			$card->fe_cpu($5);
 			my $hwec=$7;
-			if($dahdi_installed == $TRUE) {
-					$card->dahdi_conf('YES');
-					$card->dahdi_echo($dahdi_echo)
-				}
+
 			if ($hwec==0){
 				$card->hwec_mode('NO');
-			}
-			else{
+			} else{
 				$card->hwec_mode('YES');
-				
 			}
-			if ($card->card_model eq '200' || $card->card_model eq '400' || $card->card_model eq '600' || $card->card_model eq '800' || ($card->card_model eq '700' && $6 == '5') || ($card->card_model eq '601' && $6 == '1') ){
+
+			if($dahdi_installed == $TRUE) {
+				$card->dahdi_conf('YES');
+				$card->dahdi_echo($dahdi_echo);
+				if ($hwec == 0) {
+					$card->dahdi_echo('mg2');
+				}
+			}
+
+			if ($card->card_model eq '200' || $card->card_model eq '400' || $card->card_model eq '600' || $card->card_model eq '610' || $card->card_model eq '800' || ($card->card_model eq '700' && $6 == '5') || ($card->card_model eq '601' && $6 == '1') ){
 				$num_analog_devices_total++;
 				if($silent==$FALSE) {
 					system('clear');
@@ -3824,14 +3867,18 @@ sub config_usbfxo{
 				$card->card_model($1);
 				$card->pci_bus($2);
 				my $hwec=$3;
-				if($dahdi_installed == $TRUE) {
-						$card->dahdi_conf('YES');
-						$card->dahdi_echo($dahdi_echo)
-					}
+
 				if ($hwec==0){
 					$card->hwec_mode('NO');
 				}else{
 					$card->hwec_mode('YES');
+				}
+				if($dahdi_installed == $TRUE) {
+					$card->dahdi_conf('YES');
+					$card->dahdi_echo($dahdi_echo);
+					if ($hwec == 0) {
+						$card->dahdi_echo('mg2');
+					}
 				}
 				if ($card->card_model eq 'U100'){
 					$num_usb_devices_total++;

@@ -214,12 +214,6 @@ WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
  * Defines & Macros
  *================================================================*/
 
-enum {
-	AFT_CARD_TYPE_ALL,
-	AFT_CARD_TYPE_GLOBAL_ISR,
-	AFT_CARD_TYPE_TDM_API,
-	AFT_CARD_TYPE_ZAP_DAHDI
-};
 
 
 /*=================================================================
@@ -301,7 +295,6 @@ static void  	disable_data_error_intr(sdla_t *card, unsigned char);
 
 void 			aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan);
 static void     aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan);
-static 			sdla_t * aft_find_first_card_in_list(sdla_t *card, int type);
 
 
 /* Bottom half handlers */
@@ -665,7 +658,9 @@ int wp_aft_a600_init (sdla_t* card, wandev_conf_t* conf)
 
 	ASSERT_AFT_HWDEV(card->wandev.card_type);
 
-	if (card->adptr_type != AFT_ADPTR_A600 && card->adptr_type != AFT_ADPTR_B601 ) {
+	if (card->adptr_type != AFT_ADPTR_A600 && 
+	    card->adptr_type != AFT_ADPTR_B601 &&
+	    card->adptr_type != AFT_ADPTR_B610 ) {
 		DEBUG_ERROR( "%s: Error: Attempting to configure for Analog on non B600 analog hw!\n",
 				  card->devname);
 		return -EINVAL;
@@ -1421,7 +1416,12 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 
 	if(IS_BRI_CARD(card) || IS_A700_CARD(card)){
 		wan_set_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status);
+#if 0
+		/* NC: The RING buffer on BRI cards has a hw bug.
+               This option can caues bad audio on arbitrary
+               restart of the FPGA */
 		wan_set_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status);
+#endif
 	} else if (card->wandev.config_id == WANCONFIG_AFT_ANALOG) {
 		wan_set_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status);
 	}
@@ -3302,6 +3302,10 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 		if (!err && card->u.aft.tdmv_zaptel_cfg){
 			WAN_TDMV_CALL(software_init, (&card->wan_tdmv), err);
+			if (err) {
+				err=-EINVAL;
+				goto new_if_cfg_skip;
+			}
 		}
 #endif
 	}else{
@@ -3389,6 +3393,7 @@ new_if_cfg_skip:
 #if defined (BUILD_MOD_TESTER)
 			handle_front_end_state(card,1);
 #endif     
+			aft_core_taskq_trigger(card,AFT_FE_LED);
 			
 			card->hw_iface.hw_unlock(card->hw,&smp_flags);
 		}
@@ -5555,7 +5560,7 @@ static void aft_rx_post_complete (sdla_t *card, private_area_t *chan,
 		* flag. If data is not greater than 3, then
 		* we have a 0 length frame. Thus discard
 		* (only if HDLC engine enabled) */
-		if (len <= 3) {
+		if (len <= 3 || len >= chan->dma_mru) {
 
 			/* if we got an invalid hdlc frame and pkt_error is not set.
 			   we must indicate that the packet is bad and update statistics */
@@ -6634,7 +6639,7 @@ static int wp_aft_fifo_per_port_isr(sdla_t *card)
 	return irq;
 }
 
-static sdla_t * aft_find_first_card_in_list(sdla_t *card, int type)
+sdla_t * aft_find_first_card_in_list(sdla_t *card, int type)
 {
     void **card_list;
 	u32 max_number_of_ports, i;
@@ -7438,8 +7443,7 @@ if (1){
 			aft_critical_trigger(card);
 		}
 
-	} else if (card->wandev.state == WAN_CONNECTED && 
-	           SYSTEM_TICKS-card->u.aft.sec_chk_cnt > (HZ/50)) {
+	} else if (SYSTEM_TICKS-card->u.aft.sec_chk_cnt > (HZ/50)) {
 		
 		card->u.aft.sec_chk_cnt=SYSTEM_TICKS;
 
@@ -11589,7 +11593,11 @@ static int aft_tdmv_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *co
 
 		if(IS_BRI_CARD(card)){
 			if(chan->dchan_time_slot >= 0){
-				conf->active_ch = 0x4<<(WAN_FE_LINENO(&card->fe)*2);
+				int fe_line=WAN_FE_LINENO(&card->fe);
+				if (fe_line >= MAX_BRI_MODULES) {
+					fe_line=fe_line-MAX_BRI_MODULES;
+				}
+				conf->active_ch = 0x4<<(fe_line*2);
 				/* For the d-chan MUST set ONLY bit 2!! */
 			}
 		}

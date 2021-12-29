@@ -1016,6 +1016,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 				port=hw->line_no;
 			break;
 		case AFT_ADPTR_A600:
+		case AFT_ADPTR_B610:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
 #endif
@@ -1094,6 +1095,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 			}
 			break;
 		case AFT_ADPTR_ISDN:
+		case AFT_ADPTR_B500:
 			SDLA_PROBE_SPRINT(hwprobe->hw_info,
 					sizeof(hwprobe->hw_info),
 					SDLA_HWPROBE_A500_SH_FORMAT, 
@@ -1394,6 +1396,7 @@ sdla_hwdev_a600_register(sdlahw_cpu_t* hwcpu, int *line_num)
 
 	sdlahw_t	*hw;
 	sdlahw_t	*first_hw = NULL;
+	sdlahw_card_t	*hwcard;
 	u32		reg;
 	int		mod_no;
 	//int off = 0;
@@ -1401,6 +1404,8 @@ sdla_hwdev_a600_register(sdlahw_cpu_t* hwcpu, int *line_num)
 	u32		serial_num_lo;
 	u32		serial_num_hi;
 	int 	err;
+
+	hwcard=hwcpu->hwcard;
 	
 	WAN_ASSERT_RC(hwcpu == NULL, NULL);
 	*line_num = 0;
@@ -1452,12 +1457,21 @@ sdla_hwdev_a600_register(sdlahw_cpu_t* hwcpu, int *line_num)
 	for(mod_no = 0; mod_no < NUM_A600_ANALOG_PORTS; mod_no++){
 		rm_mod_type[mod_no] = MOD_TYPE_NONE;
 	}
+
+	if (hwcard->adptr_type == AFT_ADPTR_B610) { 
+		rm_mod_type [0] = MOD_TYPE_NONE;
+		rm_mod_type [1] = MOD_TYPE_NONE;
+		rm_mod_type [2] = MOD_TYPE_NONE;
+		rm_mod_type [3] = MOD_TYPE_NONE;
+		rm_mod_type [4] = MOD_TYPE_FXS;
+	} else {
+		rm_mod_type [0] = MOD_TYPE_FXO;
+		rm_mod_type [1] = MOD_TYPE_FXO;
+		rm_mod_type [2] = MOD_TYPE_FXO;
+		rm_mod_type [3] = MOD_TYPE_FXO;
+		rm_mod_type [4] = MOD_TYPE_FXS;
+	}
 	
-	rm_mod_type [0] = MOD_TYPE_FXO;
-	rm_mod_type [1] = MOD_TYPE_FXO;
-	rm_mod_type [2] = MOD_TYPE_FXO;
-	rm_mod_type [3] = MOD_TYPE_FXO;
-	rm_mod_type [4] = MOD_TYPE_FXS;
 	
 	err = sdla_hwdev_register_analog(hwcpu, &first_hw, rm_mod_type, 0, NUM_A600_ANALOG_PORTS);
 	if (err) {
@@ -1754,6 +1768,11 @@ sdla_hwdev_ISDN_register(sdlahw_cpu_t* hwcpu, int *lines_no)
 				max_bri_modules_per_remora = 6;
 				max_analog_modules_per_remora = 0;
 				break;
+			case AFT_ADPTR_B500:
+				max_num_remoras = MAX_BRI_REMORAS;
+				max_bri_modules_per_remora = 4;
+				max_analog_modules_per_remora = 0;
+				break;
 			case AFT_ADPTR_FLEXBRI:
 				max_num_remoras = 1;
 				max_bri_modules_per_remora = 4;
@@ -1851,7 +1870,10 @@ sdla_hwdev_ISDN_register(sdlahw_cpu_t* hwcpu, int *lines_no)
 	sdla_bus_write_4(hw,0x40,reg);
 	
 	sdla_memory_unmap(hw);
-	*lines_no = (hwcpu->lines_info[AFT_ADPTR_ISDN].total_line_no + hwcpu->lines_info[A200_ADPTR_ANALOG].total_line_no);
+	*lines_no = (hwcpu->lines_info[AFT_ADPTR_ISDN].total_line_no + 
+			     hwcpu->lines_info[AFT_ADPTR_B500].total_line_no + 
+			     hwcpu->lines_info[AFT_ADPTR_FLEXBRI].total_line_no + 
+				 hwcpu->lines_info[A200_ADPTR_ANALOG].total_line_no);
 	return first_hw;
 }
 
@@ -1958,6 +1980,7 @@ static int sdla_scan_bri_modules(sdlahw_t* hw, int *rm_mod_type,  u_int8_t rm_no
 	/* On A700, this bit is set when an analog module is inserted in BRI slot */
 	switch(hw->hwcpu->hwcard->adptr_type) {
 		case AFT_ADPTR_ISDN:
+		case AFT_ADPTR_B500:
 			if((value >> 6) == 0x2){
 				DEBUG_EVENT("%s: Remora number %d: Found 512khz Recovery clock remora.\n", hw->devname, rm_no);
 				hw->hwcpu->hwcard->cpld_rev=1;
@@ -2259,6 +2282,7 @@ int sdla_get_hw_info(sdlahw_t* hw)
 				sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg1);
 				break;
 			case AFT_ADPTR_A600:
+			case AFT_ADPTR_B610:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 			case AFT_ADPTR_B601:
 #endif
@@ -2310,6 +2334,7 @@ int sdla_get_hw_info(sdlahw_t* hw)
 				sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg1);
 				break;
 			case AFT_ADPTR_ISDN:
+			case AFT_ADPTR_B500:
 			case AFT_ADPTR_FLEXBRI:
 				AFT_FUNC_DEBUG();
 				/* Enable memory access */	
@@ -2829,9 +2854,15 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 			hwcard->u_pci.bus_no, hwcard->u_pci.slot_no, irq);		
 		break;
 #endif
+	case AFT_ADPTR_B500:
 	case AFT_ADPTR_ISDN:
 		hwcard->cfg_type = WANOPT_AFT_ISDN;
-		sdla_adapter_cnt.aft_isdn_adapters++;
+
+		if (hwcard->adptr_type == AFT_ADPTR_ISDN) {
+			sdla_adapter_cnt.aft_isdn_adapters++;
+		} else {
+			sdla_adapter_cnt.aft_b500_adapters++;
+		}
 		if ((hwcpu = sdla_hwcpu_register(hwcard, cpu_no, irq, dev)) == NULL){
 			return 0;
 		}
@@ -2941,6 +2972,29 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 
 		number_of_cards++;
 		DEBUG_EVENT("%s: %s %s FXO/FXS card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
+					wan_drvname,
+					hwcard->adptr_name,
+					AFT_PCITYPE_DECODE(hwcard),
+					AFT_CORE_ID_DECODE(hwcard->core_id),
+					hwcard->core_rev,
+					hwcard->u_pci.bus_no, hwcard->u_pci.slot_no, irq);
+		break;
+	case AFT_ADPTR_B610:
+		hwcard->cfg_type = WANOPT_AFT_ANALOG;
+		sdla_adapter_cnt.aft_b610_adapters++;
+
+		if ((hwcpu = sdla_hwcpu_register(hwcard, cpu_no, irq, dev)) == NULL){
+			return 0;
+		}
+		/* FIXME: Temporary number of ports is 1 */
+		lines_no = 1;
+		if ((hw = sdla_hwdev_a600_register(hwcpu, &lines_no)) == NULL){
+			sdla_hwcpu_unregister(hwcpu);
+			return 0;
+		}
+
+		number_of_cards++;
+		DEBUG_EVENT("%s: %s %s FXS card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
 					wan_drvname,
 					hwcard->adptr_name,
 					AFT_PCITYPE_DECODE(hwcard),
@@ -3237,6 +3291,10 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 		hwcard->adptr_type	= AFT_ADPTR_ISDN;
 		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
 		break;
+	case B500_SHARK_SUBSYS_VENDOR:
+		hwcard->adptr_type	= AFT_ADPTR_B500;
+		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+		break;
 	case AFT_56K_SHARK_SUBSYS_VENDOR:
 		hwcard->adptr_type	= AFT_ADPTR_56K;
 		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
@@ -3259,6 +3317,10 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 		break;
 	case AFT_A600_SUBSYS_VENDOR:
 		hwcard->adptr_type	= AFT_ADPTR_A600;
+		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+		break;
+	case AFT_B610_SUBSYS_VENDOR:
+		hwcard->adptr_type	= AFT_ADPTR_B610;
 		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
 		break;
 #if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
@@ -3291,6 +3353,7 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 	case AFT_4TE1_SHARK_SUBSYS_VENDOR:
 	case AFT_8TE1_SHARK_SUBSYS_VENDOR:
 	case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
+	case B500_SHARK_SUBSYS_VENDOR:
 	case AFT_56K_SHARK_SUBSYS_VENDOR:
 	case AFT_2SERIAL_V35X21_SUBSYS_VENDOR:
 	case AFT_4SERIAL_V35X21_SUBSYS_VENDOR:
@@ -3298,6 +3361,7 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 	case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
 	case AFT_A600_SUBSYS_VENDOR:
 	case AFT_B601_SUBSYS_VENDOR:
+	case AFT_B610_SUBSYS_VENDOR:
 #if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
 	case AFT_B800_SUBSYS_VENDOR:
 #endif
@@ -4907,6 +4971,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 			break;
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
 		case AFT_ADPTR_ISDN:
+		case AFT_ADPTR_B500:
 			hw_iface->fe_read = sdla_shark_bri_read_fe;
 			hw_iface->fe_write = sdla_shark_bri_write_fe;
 			break;
@@ -4932,6 +4997,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 			hw_iface->fe_write = sdla_shark_serial_write_fe;
 			break;
 		case AFT_ADPTR_A600:
+		case AFT_ADPTR_B610:
 			hw_iface->fe_read = sdla_a600_read_fe;
 			hw_iface->__fe_read = __sdla_a600_read_fe;
 			hw_iface->fe_write = sdla_a600_write_fe;
@@ -4962,6 +5028,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 		case A200_ADPTR_ANALOG:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_ISDN:
+		case AFT_ADPTR_B500:
 		case AFT_ADPTR_FLEXBRI:
 		case AFT_ADPTR_56K:
 		case AFT_ADPTR_2SERIAL_V35X21:
@@ -4969,6 +5036,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 		case AFT_ADPTR_2SERIAL_RS232:
 		case AFT_ADPTR_4SERIAL_RS232:
 		case AFT_ADPTR_A600:
+		case AFT_ADPTR_B610:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
 #endif
@@ -5049,6 +5117,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 
 	/* ISDN-BRI logial used cnt */
 	if (hwcard->adptr_type == AFT_ADPTR_ISDN ||
+		hwcard->adptr_type == AFT_ADPTR_B500 ||
 		hwcard->adptr_type == AFT_ADPTR_FLEXBRI){
 			int     port;
 			/* Add special code for BRI */
@@ -5086,6 +5155,7 @@ int sdla_unregister(void** p_hw, char* devname)
 
 	/* ISDN-BRI logial used cnt */
 	if (hwcpu->hwcard->adptr_type == AFT_ADPTR_ISDN ||
+	 	hwcpu->hwcard->adptr_type == AFT_ADPTR_B500 ||
 		hwcpu->hwcard->adptr_type == AFT_ADPTR_FLEXBRI) {
 
 		int     port;
@@ -5453,6 +5523,7 @@ static int sdla_setup (void* phw, wandev_conf_t* conf)
 		case A200_ADPTR_ANALOG:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_ISDN:
+		case AFT_ADPTR_B500:
 		case AFT_ADPTR_FLEXBRI:
 		case AFT_ADPTR_56K:
 		case AFT_ADPTR_2SERIAL_V35X21:
@@ -5460,6 +5531,7 @@ static int sdla_setup (void* phw, wandev_conf_t* conf)
 		case AFT_ADPTR_2SERIAL_RS232:
 		case AFT_ADPTR_4SERIAL_RS232:
 		case AFT_ADPTR_A600:
+		case AFT_ADPTR_B610:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
 #endif
@@ -6149,6 +6221,7 @@ static int sdla_down (void* phw)
 		case A200_ADPTR_ANALOG:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_ISDN:
+		case AFT_ADPTR_B500:
 		case AFT_ADPTR_FLEXBRI:
 		case AFT_ADPTR_56K:
 		case AFT_ADPTR_2SERIAL_V35X21:
@@ -6156,6 +6229,7 @@ static int sdla_down (void* phw)
 		case AFT_ADPTR_2SERIAL_RS232:
 		case AFT_ADPTR_4SERIAL_RS232:
 		case AFT_ADPTR_A600:
+		case AFT_ADPTR_B610:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
 #endif
@@ -7962,7 +8036,9 @@ static int sdla_memory_map(sdlahw_t* hw)
 		case A200_ADPTR_ANALOG:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_ISDN:
+		case AFT_ADPTR_B500:
 		case AFT_ADPTR_A600:
+		case AFT_ADPTR_B610:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
 #endif
@@ -8245,6 +8321,8 @@ static int sdla_cmp_adapter_auto(sdlahw_t *hw, wandev_conf_t* conf)
 			return 0;
 		}
 
+
+
 		/* Allow old A102 config for A102 SHARK */
 		if (hwcpu->cpu_no == cpu_no &&
 		    conf->card_type == WANOPT_AFT &&
@@ -8252,14 +8330,20 @@ static int sdla_cmp_adapter_auto(sdlahw_t *hw, wandev_conf_t* conf)
 			/* Remap the card type to standard
 			   A104 Shark style.  We are allowing
 			   and old config file for A101/2-SH */
-			conf->config_id = WANCONFIG_AFT_TE1;
-			conf->card_type = WANOPT_AFT104;
-			if (cpu_no == SDLA_CPU_A) {
-				conf->fe_cfg.line_no=1;
-			} else {
-				conf->fe_cfg.line_no=2;		
+			/* In A102 case we will have two hw devices one for port1 other for port2
+			   so if the hw device is already taken then look for the next one */
+			if (hw->hwport[0].used == 0) {
+				conf->config_id = WANCONFIG_AFT_TE1;
+				conf->card_type = WANOPT_AFT104;
+				if (cpu_no == SDLA_CPU_A) {
+					conf->fe_cfg.line_no=1;
+				} else {
+					conf->fe_cfg.line_no=2;		
+				}
+				return 0;
 			}
-			return 0;
+
+			/* Continue to next card */
 		}
 
 		if (conf->config_id == WANCONFIG_AFT_TE1){
@@ -8304,7 +8388,7 @@ sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 	}else if (conf && conf->S514_CPU_no[0] == 'A'){
 		cpu_no = SDLA_CPU_A;
 	}
-	
+
 	DBG_SDLADRV_HW_IFACE("%s(): devname: %s, conf->card_type: 0x%X (%s), conf->fe_cfg.line_no: %d\n",
 		__FUNCTION__, devname, conf->card_type, CARD_WANOPT_DECODE(conf->card_type),
 		conf->fe_cfg.line_no);
@@ -8400,10 +8484,16 @@ sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 					/* Remap the card type to standard
 					   A104 Shark style.  We are allowing
 					   and old config file for A101/2-SH */
-					conf->config_id = WANCONFIG_AFT_TE1;
-					conf->card_type = WANOPT_AFT104;
-					conf->fe_cfg.line_no=1;
-					goto adapter_found;
+
+					/* In A101 case we will have one hw devices for port1 this check
+					   is just a sanity check */
+
+					if (hw->hwport[0].used == 0) {
+						conf->config_id = WANCONFIG_AFT_TE1;
+						conf->card_type = WANOPT_AFT104;
+						conf->fe_cfg.line_no=1;
+						goto adapter_found;
+					}
 				}
 
 				/* Allow old A102 config for A102 SHARK */
@@ -8414,14 +8504,19 @@ sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 					/* Remap the card type to standard
 					   A104 Shark style.  We are allowing
 					   and old config file for A101/2-SH */
-					conf->config_id = WANCONFIG_AFT_TE1;
-					conf->card_type = WANOPT_AFT104;
-					if (cpu_no == SDLA_CPU_A) {
-						conf->fe_cfg.line_no=1;
-					} else {
-						conf->fe_cfg.line_no=2;		
+
+					/* In A102 case we will have two hw devices one for port1 other for port2
+					   so if the hw device is already taken then look for the next one */
+					if (hw->hwport[0].used == 0) {
+						conf->config_id = WANCONFIG_AFT_TE1;
+						conf->card_type = WANOPT_AFT104;
+						if (cpu_no == SDLA_CPU_A) {
+							conf->fe_cfg.line_no=1;
+						} else {
+							conf->fe_cfg.line_no=2;		
+						}
+						goto adapter_found;
 					}
-					goto adapter_found;
 				}
 
 				if (conf->card_type == WANOPT_S51X &&
@@ -8493,6 +8588,7 @@ adapter_found:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_56K:
 		case AFT_ADPTR_A600:
+		case AFT_ADPTR_B610:
 #if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
 		case AFT_ADPTR_B800:
 #endif
@@ -8513,6 +8609,7 @@ adapter_found:
 
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
 		case AFT_ADPTR_ISDN:
+		case AFT_ADPTR_B500:
 			if (conf->fe_cfg.line_no < 1 || conf->fe_cfg.line_no > MAX_BRI_LINES){
 				DEBUG_ERROR("%s: Error, Invalid ISDN port selected %d (Min=1 Max=%d)\n",
 						devname, conf->fe_cfg.line_no, MAX_BRI_LINES);
@@ -9195,6 +9292,9 @@ static int sdla_getcfg(void* phw, int type, void* value)
 			*(bus_dma_tag_t*)value = hwcard->u_pci.pci_dev->pa_dmat;
 		}
 #endif
+		break;
+	case SDLA_PCI_DEV:
+		*(sdla_pci_dev_t*)value=hwcard->u_pci.pci_dev; 
 		break;
 	case SDLA_PCIEXTRAVER:
 		*(u8*)value = hwcard->pci_extra_ver;
@@ -10900,6 +11000,7 @@ static int sdla_hw_read_cpld(void *phw, u16 off, u8 *data)
 			case A400_ADPTR_ANALOG:
 			case AFT_ADPTR_FLEXBRI:
 			case AFT_ADPTR_ISDN:
+			case AFT_ADPTR_B500:
 #if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
 			case AFT_ADPTR_B800:
 #endif
@@ -11066,6 +11167,7 @@ static int sdla_hw_write_cpld(void *phw, u16 off, u8 data)
 			case A400_ADPTR_ANALOG:
 			case AFT_ADPTR_FLEXBRI:
 			case AFT_ADPTR_ISDN:
+			case AFT_ADPTR_B500:
 #if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
 			case AFT_ADPTR_B800:
 #endif
@@ -11400,13 +11502,13 @@ int sdla_hwdev_register_bri(sdlahw_cpu_t *hwcpu, sdlahw_t **first_hw_p, int *rm_
 	
 			memcpy(&hw->hwport[hw->max_port_no-1].hwprobe->hw_info_verbose[0],
 				str, strlen(str));
-			hw->adptr_type	  = AFT_ADPTR_ISDN;
+			hw->adptr_type	  = hwcpu->hwcard->adptr_type;
 			hw->chans_map	  = 0x03;	/* 2 BRI bchans */
 			hw->max_chans_num = 2;
 			hw->bri_modtype = rm_mod_type_bri[mod_no];
-			hwcpu->lines_info[AFT_ADPTR_ISDN].total_line_no++;
+			hwcpu->lines_info[hwcpu->hwcard->adptr_type].total_line_no++;
 		}
-		hwcpu->lines_info[AFT_ADPTR_ISDN].line_map = line_map;
+		hwcpu->lines_info[hwcpu->hwcard->adptr_type].line_map = line_map;
 
 	return 0;
 }

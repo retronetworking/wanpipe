@@ -305,13 +305,13 @@ welcome_zaptel()
 ${DISTR_NAME} INSTALLATION FOR ZAPTEL
 
 You are about to install ${DISTR_NAME} TDM Voice drivers
-for Asterisk/Zaptel framework.
+for Asterisk/Dahdi/Zaptel framework.
 
-You will be prompted for path to ZAPTEL source.
+You will be prompted for path to DHADI/ZAPTEL source.
 
-From Zaptel 1.4 and greater:
-        wanpipe drivers compile into zaptel WITHOUT any
-        zaptel patching or need to recompile zaptel.
+From Zaptel 1.4 and greater or Dahdi:
+        wanpipe drivers compile into dahdi/zaptel WITHOUT any
+        dahdi/zaptel patching or need to recompile zaptel.
 For Zaptel 1.2:
         wanpipe drivers will offer to patch zaptel for DCHAN HDLC
         optimization. Setup will offer you to recompile
@@ -479,8 +479,8 @@ WANPIPE installation is now complete. WANPIPE kernel drivers
 and configuration/debug utilities have been compiled and installed.
 
 	1) Proceed to configure the WANPIPE drivers:
-		Asterisk/Zaptel  : /usr/sbin/wancfg_zaptel
 		Asterisk/Dahdi   : /usr/sbin/wancfg_dahdi
+		Asterisk/Zaptel  : /usr/sbin/wancfg_zaptel
 		TDM API          : /usr/sbin/wancfg_tdmapi
 		SMG SS7/BRI/PRI  : /usr/sbin/wancfg_smg
 		WAN Routing/API  : /usr/sbin/wancfg
@@ -522,8 +522,8 @@ WANPIPE kernel modules:
 	Drivers were not installed/compiled
 
 	1) Proceed to configure the WANPIPE drivers:
-		Asterisk/Zaptel : /usr/sbin/wancfg_zaptel
 		Asterisk/Dahdi  : /usr/sbin/wancfg_dahdi
+		Asterisk/Zaptel : /usr/sbin/wancfg_zaptel
 		SMG SS7/BRI/PRI : /usr/sbin/wancfg_smg
 		TDM API         : /usr/sbin/wancfg_tdmapi
 		WAN Routing/API : /usr/sbin/wancfg
@@ -1855,9 +1855,9 @@ WANPIPE UTILITIES SETUP
 
 WANPIPE utilities are used to:
 	1) create configuration files: for Zaptel and Asterisk
-		/usr/sbin/wancfg_zaptel	#Zaptel and Asterisk
 		/usr/sbin/wancfg_dahdi	#Dahdi and Asterisk
-		/usr/sbin/wancfg_smg	#BRI/SS7, Zaptel and Asterisk
+		/usr/sbin/wancfg_zaptel	#Zaptel and Asterisk
+		/usr/sbin/wancfg_smg	#BRI/SS7, Dahdi/Zaptel and Asterisk
 		/usr/sbin/wancfg_tdmapi	#TDM API
 	2) create WANPIPE WAN/IP configuration files.
 		(/usr/sbin/wancfg)
@@ -1888,9 +1888,9 @@ ENDOFTEXT
 	       	return 0 
 	}
 
-	if [ ! -e $SOURCEDIR/include/asm ]; then
+	if [ $KERN_VER -ne 30 ] && [ ! -e $SOURCEDIR/include/asm ]; then
 		echo -e "
-WARNING: The Linux source in $SOURCEDIR has not been configured.
+WARNING: The Linux source in $SOURCEDIR has not been configured [$SOURCEDIR/include/asm].
          Please proceed to configure the source before compiling
          wanpipe utilities (ex: make menuconfig and make dep)."
 		echo
@@ -2014,8 +2014,12 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 		    WANCFG_DEFS=$WANCFG_DEFS" ENABLE_ZAPTEL_PARSER=YES ZAPINC=$ZAPTEL_SOURCE_DIR"
 	    if [ -d $ZAPTEL_SOURCE_DIR/dahdi ]; then
 		    WANCFG_DEFS=$WANCFG_DEFS" DAHDI_ISSUES=YES"
+	#		DAHDI_MAJOR=`cat $ZAPTEL_SOURCE_DIR/dahdi/version.h |  grep define | cut -d'"' -f2 | cut -d'.' -f1`
+	#		DAHDI_MINOR=`cat $ZAPTEL_SOURCE_DIR/dahdi/version.h |  grep define | cut -d'"' -f2 | cut -d'.' -f2`
+	#		WANCFG_DEFS=$WANCFG_DEFS" -DDAHDI_$DAHDI_MAJOR$DAHDI_MINOR"
 	    fi
 	fi
+	echo "make -C wancfg all CC=$CC WAN_VIRTUAL=$ROOT WANINCDIR=$WANPIPE_INCLUDE_DIR $WANCFG_DEFS" >> $CMP_LOG 2>> $CMP_LOG
 	eval "make -C wancfg all CC=$CC WAN_VIRTUAL=$ROOT WANINCDIR=$WANPIPE_INCLUDE_DIR $WANCFG_DEFS >> $CMP_LOG 2>> $CMP_LOG"
 
 	if [ $? -eq 0 ]
@@ -3309,30 +3313,35 @@ ENDOFTEXT
 #		return 1
 #	fi
 
-	eval "grep \"define *CONFIG_WAN_ROUTER *1\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
-	if [ $? -eq 0 ]; then
-		echo -e "\n"
-		echo "ERROR: The ${DISTR_NAME} drivers in $SOURCEDIR have been"
-		echo "       configured/compiled into the kernel."
-		echo " 	     It's usually recommended that drivers be compiled"
-		echo "       as modules."
-		echo
-		echo "       Please contact Sangoma Tech Support"
-		echo
-		pause
-		return 1
-	fi
-
-
-	eval "grep \"define *CONFIG_MODVERSIONS\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
-	if [ $? -eq 0 ]; then
-		if [ $KERN_VER -ne 26 ] || [ $KERN_VER -ne 30 ]; then
-		MODVER=" -DMODVERSIONS -include $SOURCEDIR/include/linux/modversions.h "
+	if [ -e $SOURCEDIR/include/linux/autoconf.h ]; then 
+		eval "grep \"define *CONFIG_WAN_ROUTER *1\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
+		if [ $? -eq 0 ]; then
+			echo -e "\n"
+			echo "ERROR: The ${DISTR_NAME} drivers in $SOURCEDIR have been"
+			echo "       configured/compiled into the kernel."
+			echo " 	     It's usually recommended that drivers be compiled"
+			echo "       as modules."
+			echo
+			echo "       Please contact Sangoma Tech Support"
+			echo
+			pause
+			return 1
 		fi
+
+
+		eval "grep \"define *CONFIG_MODVERSIONS\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
+		if [ $? -eq 0 ]; then
+			if [ $KERN_VER -ne 26 ] || [ $KERN_VER -ne 30 ]; then
+			MODVER=" -DMODVERSIONS -include $SOURCEDIR/include/linux/modversions.h "
+			fi
+			MOD_ENABLED=y
+		else	
+			MODVER=""
+			MOD_ENALBED=n
+		fi
+	else
+		MODVER=" -DMODVERSIONS -include $SOURCEDIR/include/linux/modversions.h "
 		MOD_ENABLED=y
-	else	
-		MODVER=""
-		MOD_ENALBED=n
 	fi
 
 	cd $DRIVER_TMP_DIR
@@ -3368,8 +3377,13 @@ ENDOFTEXT
 
 	echo
 	echo -n "Checking for SMP support ..."
-	eval "grep \"CONFIG_SMP *1\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
-	if [ $? -eq 0 ]; then
+	if [ -e $SOURCEDIR/include/linux/autoconf.h ]; then 
+		eval "grep \"CONFIG_SMP *1\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
+		rc=$?
+	else
+		rc=0;
+	fi
+	if [ $rc -eq 0 ]; then
 		echo -e "Enabled.\n"
 		CONFIG_SMP=YES;
 	elif [ $FORCE_SMP ] && [ $FORCE_SMP=YES ]; then
@@ -3474,8 +3488,13 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		fi
 
 		echo -n "Checking for REGPARM kernel option ..."
-		eval "grep \"define *CONFIG_REGPARM *1\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
-		if [ $? -eq 0 ]; then
+		if [ -e $SOURCEDIR/include/linux/autoconf.h ]; then 
+			eval "grep \"define *CONFIG_REGPARM *1\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
+			rc=$?
+		else
+			rc=1
+		fi
+		if [ $rc -eq 0 ]; then
 			echo -e "Enabled.\n"
 			REGPARM_OPT=".regparm"
 		else
@@ -3516,6 +3535,14 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
                                         echo
                                         res=0
                                 fi
+		
+				if [ $KERN_VER -eq 30 ]; then
+					res=1;
+				fi
+				if [ $KERN_VER -eq 26 ] && [ $KLVL -gt 29  ]; then
+					res=1;
+				fi
+
                                 if [ $res -eq 0 ]; then
 
                                         echo -e "Enabled.\n"
@@ -3537,7 +3564,11 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 
 
 
-		echo -n "Compiling General ${DISTR_NAME} Driver for 2.6.X Kernel ."
+		if [ $KERN_VER -eq 26 ]; then
+			echo -n "Compiling General ${DISTR_NAME} Driver for 2.6.X Kernel ."
+		else 
+			echo -n "Compiling General ${DISTR_NAME} Driver for 3.X.X Kernel ."
+		fi
 		
 	
 	elif [ $KERN_VER -eq 24 ]; then
@@ -6797,7 +6828,9 @@ ENDOFTEXT
 					echo "Dahdi source unmodified"
 					echo "                        "
 					TDM_DCHAN="(DCHAN)"
-					PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN  -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL -DDAHDI_ISSUES"
+					DAHDI_MAJOR=`cat $ZAPTEL_SOURCE_DIR/dahdi/version.h |  grep define | cut -d'"' -f2 | cut -d'.' -f1`
+					DAHDI_MINOR=`cat $ZAPTEL_SOURCE_DIR/dahdi/version.h |  grep define | cut -d'"' -f2 | cut -d'.' -f2`
+					PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN -DDAHDI_$DAHDI_MAJOR$DAHDI_MINOR -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL -DDAHDI_ISSUES"
 				fi
 	
 				#Check if dchan patch is already enabled 
@@ -6913,7 +6946,7 @@ ENDOFTEXT
 				TDM_PROT=YES
 				if [ $zaptel_modified ] && [ $zaptel_modified -eq 1 ] && [ "$ZAPTEL_COMPILE_DISABLE" = "NO" ]; then
 					echo
-					getyn "Recompile/reinstall Zaptel (recommended) ?"
+					getyn "Recompile/reinstall Dahdi/Zaptel (recommended) ?"
 					if [ $? -eq 0 ]; then
 						tdmv_compile_zaptel
 					else 
@@ -7147,8 +7180,8 @@ or
 	commands:
 	---------
 	install  	: Install/Upgrade General Wanpipe
-	zaptel		: Install Wanpipe for Zaptel
 	dahdi		: Install Wanpipe for Dahdi
+	zaptel		: Install Wanpipe for Zaptel
 	xmtp2_api	: Install Wanpipe for MTP2 API mode
 
 	remove   	: Uninstall WANPIPE
@@ -7297,7 +7330,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.24
+PROD_VER=3.5.25
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7727,7 +7760,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 				exit 1;
 			fi
 			if [ ! -d "$ZAPTEL_INSTALL_DIR" ]; then
-				echo "Error: Zaptel source directory not found: $ZAPTEL_INSTALL_DIR";
+				echo "Error: Dahdi/Zaptel source directory not found: $ZAPTEL_INSTALL_DIR";
 				exit 1;
 			fi
 			if [ ! -f "$ZAPTEL_INSTALL_DIR/Makefile" ]; then
@@ -7735,7 +7768,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 				exit 1;
 			fi
 			ZAPTEL_PATH_OP="YES";
-			echo "Zaptel path defined as: $ZAPTEL_INSTALL_DIR"
+			echo "Dahdi/Zaptel path defined as: $ZAPTEL_INSTALL_DIR"
 
 			set_zaptel_source_dir	
 			
@@ -7748,7 +7781,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 				exit 1;
 			fi
 			if [ ! -d "$ZAPTEL_INSTALL_DIR" ]; then
-				echo "Error: Zaptel source directory not found: $ZAPTEL_INSTALL_DIR";
+				echo "Error: Dahdi/Zaptel source directory not found: $ZAPTEL_INSTALL_DIR";
 				exit 1;
 			fi
 			if [ ! -f "$ZAPTEL_INSTALL_DIR/Makefile" ]; then
@@ -7756,7 +7789,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 				exit 1;
 			fi
 			ZAPTEL_PATH_OP="YES";
-			echo "Zaptel path defined as: $ZAPTEL_INSTALL_DIR"
+			echo "Dahdi/Zaptel path defined as: $ZAPTEL_INSTALL_DIR"
 			
 			set_zaptel_source_dir			
 
@@ -8074,7 +8107,7 @@ following Environment variables.
 "
 
     	if [ $TDM_PROT = "YES"  ]; then
-            echo "	7. Zaptel Build Dir  : $ZAPTEL_INSTALL_DIR "
+            echo "	7. Dahdi/Zaptel Build Dir  : $ZAPTEL_INSTALL_DIR "
     	fi
 
     	echo

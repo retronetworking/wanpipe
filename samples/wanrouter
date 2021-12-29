@@ -126,6 +126,10 @@ cleanup ()
         #the subsys lock for LINUX
 	check_module 
 
+	if [ $g_rc -gt 0 ]; then
+		exit $g_rc
+	fi
+
 	exit $1
 }
 
@@ -829,10 +833,11 @@ config_devices()
 #Just because one card
 #fails to load do not stop
 #other cards from loading
-#		if [ $? -ne 0 ]; then
+		if [ $? -ne 0 ]; then
+			g_rc=1;
 #			#echo "Exiting rc = 3"
 #			cleanup 3
-#		fi
+		fi
 	done
 
 	return 0
@@ -1589,12 +1594,18 @@ print_wanrouter_status () {
 	fi
 }
 
-
 print_config_summary ()
 {
 	local pfiles;
 	local pfile;
 	local pdev;
+	local id=$(id -u)
+		
+	PROC_FILE=~/proc_output.$$
+	if [ -e /dev/shm ] && [ $id -eq 0 ]; then
+		PROC_FILE=/dev/shm/proc_output.$$ 
+	fi
+	
 
 	cd $WAN_HOME
 	
@@ -1692,10 +1703,14 @@ print_config_summary ()
 
 		if [ $OSYSTEM = "Linux" ]; then
 			if [ -e /proc/net/wanrouter ]; then
-				pstate=`cat /proc/net/wanrouter/status | grep $pdev | cut -d'|' -f4 | awk '{ gsub(" ", "") ; print }'`
+				if [ ! -e $PROC_FILE ]; then
+					cat /proc/net/wanrouter/status > $PROC_FILE
+				fi
+				pstate=`cat $PROC_FILE | grep "$pdev " | cut -d'|' -f4 | awk '{ gsub(" ", "") ; print }'`
 			else
 				pstate=""
 			fi
+
 		else
 				
 			check_module 
@@ -1705,7 +1720,7 @@ print_config_summary ()
 				pstate=""
 			fi
 		fi 
-		if [ -z $pstate ]; then
+		if [ "$pstate" = "" ]; then
 			echo -n "Inactive"
 		else
 			echo -n "$pstate"
@@ -1714,7 +1729,12 @@ print_config_summary ()
 		echo 
 		
 	done
+
+	if [ -e  $PROC_FILE ]; then
+		rm -f $PROC_FILE
+	fi
 }
+
 
 wanrouter_if_debug()
 {
@@ -2208,7 +2228,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=3.5.24
+		ROUTER_VERSION=3.5.25
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"
@@ -2282,7 +2302,7 @@ init_global_params()
 						WANEC_MOD_DIR=/lib/modules/$(uname -r)/kernel/net/wanrouter
 					fi
 				else
-					uname -r | grep "^3.0.*" > /dev/null
+					uname -r | grep "^3.*.*" > /dev/null
 					if [ $? -eq 0 ]; then	
 						MOD1=/lib/modules/$(uname -r)/kernel/drivers/net/wan/sdladrv
 						MOD2=/lib/modules/$(uname -r)/kernel/net/wanrouter/wanrouter
@@ -2451,6 +2471,7 @@ WAN_PROG_LOCK=/var/lock/wanrouter_lock
 DEPMOD=YES
 LINEPROBE_PATH=/usr/sbin/lineprobe
 WANPIPE_IS_RUNNING=/var/run/wanpipe_is_running
+g_rc=0;
 
 RUGGEDCOM=No
 

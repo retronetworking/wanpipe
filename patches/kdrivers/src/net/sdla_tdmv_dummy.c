@@ -102,11 +102,15 @@ void* sdla_tdmv_dummy_register(void)
    wpd->chan.pvt = wpd;
 #endif
 
+#if defined(DAHDI_26)
+	return NULL;
+#else
    if (zt_register(&wpd->span, 0)) {
       DEBUG_EVENT( "Failed to register Zaptel span (%s)!\n",__FUNCTION__);
       wan_free(wpd);
       return NULL;
    }
+#endif
    
    return wpd;
 }
@@ -120,7 +124,9 @@ int sdla_tdmv_dummy_unregister(void *wpd_ptr)
 
    wpd=(sdla_tdmv_dummy_t *)wpd_ptr;
 
+#if !defined(DAHDI_26)
    zt_unregister(&wpd->span);
+#endif
    wan_free(wpd);
    return 0;
 }

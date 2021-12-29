@@ -130,7 +130,7 @@ else
 		ZAP_PROT=TDM
 		PROTS=DEF-TDM
 	else
-		ifneq (,$(wildcard $(ZAPDIR)/include/dahdi/kernel.h))
+		ifneq (,$(wildcard $(ZAPDIR)/include/dahdi/version.h))
 			ZAPDIR_PRIV=$(ZAPDIR) 
 			ENABLE_WANPIPEMON_ZAP=YES
 			DAHDI_CFLAGS+= -DSTANDALONE_ZAPATA -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL -DDAHDI_ISSUES -DBUILDING_TONEZONE -I$(ZAPDIR)/include -I$(ZAPDIR)/include/dahdi -I$(ZAPDIR)/drivers/dahdi
@@ -139,6 +139,10 @@ else
 			endif
 			ZAP_PROT=TDM
 			PROTS=DEF-TDM
+			DAHDI_MAJOR := $(shell cat $(ZAPDIR)/include/dahdi/version.h |  grep define | cut -d'"' -f2 | cut -d'.' -f1)
+			DAHDI_MINOR := $(shell cat $(ZAPDIR)/include/dahdi/version.h |  grep define | cut -d'"' -f2 | cut -d'.' -f2)
+			DAHDI_VER=-DDAHDI_$(DAHDI_MAJOR)$(DAHDI_MINOR)
+			DAHDI_CFLAGS+= $(DAHDI_VER)
 		else
 			ZAP_OPTS=
 			ZAP_PROT=
@@ -239,6 +243,7 @@ clean: cleanup_local  clean_util _cleanoldwanpipe
 .PHONY: _cleanoldwanpipe
 _cleanoldwanpipe: _checksrc
 	@eval "./patches/build_links.sh"
+	@eval "./patches/clean_old_wanpipe.sh $(WINCLUDE) $(KDIR)/include/linux"
 	
 
 #Check for linux headers

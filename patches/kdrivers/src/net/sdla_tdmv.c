@@ -35,11 +35,13 @@
 # include "wanpipe_events.h"
 # include "if_wanpipe_common.h"	/* for 'wanpipe_common_t' used in 'aft_core.h'*/
 # include "sdla_remora.h"
+# include "wanpipe_cdev_iface.h"
 
 #if defined (__WINDOWS__)
 # include <wanpipe\csu_dsu.h>
 #else
 # include "zapcompat.h" /* Map of Zaptel -> DAHDI definitions */
+# include "wanpipe_dahdi_abstr.h"
 #endif
 /*
  ******************************************************************************
@@ -96,7 +98,6 @@
 #if defined(__FreeBSD__)
 extern short *__zt_mulaw;
 #endif
-
 
 #if 0
 static unsigned char wp_tdmv_ulaw[] = {
@@ -176,6 +177,11 @@ typedef struct wp_tdmv_pvt_area
 	struct dahdi_echocan_state ec[31];		/* echocan state for each channel */
 #endif
 	struct zt_chan	*chans_ptrs[31];			/* Channel ptrs */
+
+#ifdef DAHDI_26
+	struct dahdi_device *ddev;
+	struct device dev;
+#endif
 	
 #endif
 	struct zt_chan	chans[31];				/* Channels */
@@ -219,7 +225,7 @@ typedef struct wp_tdmv_pvt_area
 	
 	unsigned long	ec_fax_detect_timeout[31+1];
 	unsigned int	ec_off_on_fax;
-	
+
 } wp_tdmv_softc_t;
 
 
@@ -420,6 +426,7 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	sdla_t		*card = (sdla_t*)pcard;
 	wp_tdmv_softc_t	*wp = NULL;
 	wan_tdmv_t	*tmp = NULL;
+	int err=0;
 
 #ifdef DAHDI_ISSUES
 	int i;
@@ -428,6 +435,7 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	WAN_ASSERT(card == NULL);
 	WAN_ASSERT(tdmv_conf->span_no == 0);
 	memset(&card->wan_tdmv, 0x0, sizeof(wan_tdmv_t));
+	
 	/* We are forcing to register wanpipe devices at the same sequence
 	 * that it defines in /etc/zaptel.conf */
    	WAN_LIST_FOREACH(tmp, &wan_tdmv_head, next){
@@ -453,37 +461,47 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	memset(wp, 0x0, sizeof(wp_tdmv_softc_t));
 	card->wan_tdmv.sc	= wp;
 	wp->spanno		= tdmv_conf->span_no-1;
+
+
 #ifdef DAHDI_ISSUES
-	wp->span.manufacturer	= "Sangoma Technologies";
+	err=wp_dahdi_create_device(card,wp);
+	if (err) {
+		wan_free(wp);
+		return -ENOMEM;
+	}
+
+	WP_DAHDI_SET_STR_INFO(wp,manufacturer,"Sangoma Technologies");
 	
 	switch(card->adptr_type){
 	case A101_ADPTR_1TE1:
-		strncpy(wp->span.devicetype, "A102" , sizeof(wp->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wp,devicetype, "A101");
 		break;
 	case A101_ADPTR_2TE1:
-		strncpy(wp->span.devicetype, "A102" , sizeof(wp->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wp,devicetype, "A102");
 		break;
 	case A200_ADPTR_ANALOG:
-		strncpy(wp->span.devicetype, "A200" , sizeof(wp->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wp,devicetype, "A200");
 		break;
 	case A400_ADPTR_ANALOG:
-		strncpy(wp->span.devicetype, "A400" , sizeof(wp->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wp,devicetype, "A400");
 		break;
 	case A104_ADPTR_4TE1:
-		strncpy(wp->span.devicetype, "A104" , sizeof(wp->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wp,devicetype, "A104");
 		break;
 	case A108_ADPTR_8TE1:
-		strncpy(wp->span.devicetype, "A108" , sizeof(wp->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wp,devicetype, "A108");
 		break;	
 	case AFT_ADPTR_B601:
-		strncpy(wp->span.devicetype, "B601" , sizeof(wp->span.devicetype));
+		WP_DAHDI_SET_STR_INFO(wp,devicetype, "B601");
 		break;
 	}
 
-	snprintf(wp->span.location, sizeof(wp->span.location) - 1, "SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+	WP_DAHDI_SET_STR_INFO(wp,location,"SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
 #endif
 
-	wp->span.irq		= card->wandev.irq;
+#ifndef DAHDI_26
+	wp->span.irq 	= card->wandev.irq;
+#endif
 	wp->num			= wp_card_no++;
 	wp->card		= card;
 	wp->devname		= card->devname;
@@ -720,8 +738,8 @@ static int wp_tdmv_remove(void* pcard)
 		wan_clear_bit(WP_TDMV_RUNNING, &wp->flags);
 		wan_clear_bit(WP_TDMV_UP, &wp->flags);
 		wan_tdmv->sc = NULL;
-		wp_tdmv_sigctrl(card, wp, 0, WP_TDMV_DISABLE);
 		WAN_LIST_REMOVE(wan_tdmv, next);
+		wp_tdmv_sigctrl(card, wp, 0, WP_TDMV_DISABLE);
 		wp_tdmv_release(wp);
 	}else{
 		wan_tdmv->sc = NULL;
@@ -1305,8 +1323,8 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 		wp->chans[x].rxsig = 0x00;
 	}
 
-	if (zt_register(&wp->span, 0)) {
-		DEBUG_EVENT("%s: Unable to register span with zaptel\n",
+	if (wp_dahdi_register_device(wp)) {
+		DEBUG_EVENT("%s: Unable to register span with DAHDI\n",
 					wp->devname);
 		return -EINVAL;
 	}
@@ -2477,16 +2495,27 @@ static int wp_tdmv_close(struct zt_chan *chan)
 */
 static void wp_tdmv_release(wp_tdmv_softc_t *wp)
 {
+	sdla_t *card;
+
 	WAN_ASSERT1(wp == NULL);
+	WAN_ASSERT1(wp->card == NULL);
+	
+	card=wp->card;
+
 	if (wan_test_bit(WP_TDMV_REGISTER, &wp->flags)){
 		DEBUG_EVENT("%s: Unregister Wanpipe device from Zaptel!\n",
 				wp->devname);
 		wan_clear_bit(WP_TDMV_SIG_POLL, &wp->flags);
 		wan_clear_bit(WP_TDMV_REGISTER, &wp->flags);
-		zt_unregister(&wp->span);
+
+		wp_dahdi_unregister_device(wp);
+
 		wan_clear_bit(WP_TDMV_REGISTER, &wp->flags);
 		wan_skb_queue_purge(&wp->rbs_tx_q);
 	}
+
+	wp_dahdi_free_device(wp);
+
 	wan_free(wp);
 }
 

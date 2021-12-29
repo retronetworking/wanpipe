@@ -904,10 +904,17 @@ int open_sangoma_device()
 		int i;
 		int elapsed=0;
 		int elapsed_cnt=0;
+
+
+#if defined(__WINDOWS__)
+		long started, ended;
+		 started = GetTickCount();
+#else
 		struct timeval started, ended;
 
 		gettimeofday(&started, NULL);
-		
+#endif		
+
 		for (i=0;;i++) {
 			elapsed_cnt++;
 			sangoma_fe_reg_read(dev_fd, 0xF8, &data);	
@@ -923,11 +930,26 @@ int open_sangoma_device()
 				}
 			}
 
+#if defined(__WINDOWS__)
+			ended = GetTickCount();
+#else
 			gettimeofday(&ended, NULL);
+#endif
+
+#if defined(__WINDOWS__)
+			elapsed =  ended - started;
+#else
 			elapsed = (((ended.tv_sec * 1000) + ended.tv_usec / 1000) - ((started.tv_sec * 1000) + started.tv_usec / 1000));
+#endif 
+
 			if (elapsed > 5000) {
 			  	printf("FE Reg 0xF8 = Prev Data = 0x%X int_cnt=%08i tot_cnt %08i\n",prev_data,elapsed_cnt,i);
+#if defined(__WINDOWS__)
+				started = GetTickCount();
+#else
 				gettimeofday(&started, NULL);
+#endif
+
 				elapsed_cnt=0;
 			}
 		}

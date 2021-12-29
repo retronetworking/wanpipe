@@ -34,6 +34,7 @@
 # include "zapcompat.h"
 # include "sdla_tdmv.h"
 # include "aft_bri.h"
+# include "wanpipe_dahdi_abstr.h"
 
 /*******************************************************************************
 **			  DEFINES AND MACROS
@@ -84,6 +85,11 @@ typedef struct wp_tdmv_bri_ {
 	struct dahdi_echocan_state ec[MAX_BRI_LINES]; /* echocan state for each channel */
 #endif
 	struct zt_chan *chans_ptrs[MAX_BRI_LINES];
+#ifdef DAHDI_26
+	struct dahdi_device *ddev;
+	struct device dev;
+#endif
+
 #endif
 	struct zt_chan	chans[MAX_BRI_LINES];
 	unsigned long	reg_module_map;	/* Registered modules */
@@ -718,7 +724,7 @@ static int wp_tdmv_bri_software_init(wan_tdmv_t *wan_tdmv)
 	
 	WP_DELAY(1000);	
 
-	if (zt_register(&wr->span, 0)) {
+	if (wp_dahdi_register_device(wr)) {
 	
 		BRI_FUNC();	
 		DEBUG_EVENT("%s: Unable to register span with zaptel\n",
@@ -783,9 +789,12 @@ static void wp_tdmv_release(wp_tdmv_bri_t *wr)
 		DEBUG_EVENT("%s: Unregister WAN FXS/FXO device from Zaptel!\n",
 				wr->devname);
 		wan_clear_bit(WP_TDMV_REGISTER, &wr->flags);
-		zt_unregister(&wr->span);
+		wp_dahdi_unregister_device(wr);
 		wan_clear_bit(WP_TDMV_REGISTER, &wr->flags);
 	}
+
+	wp_dahdi_free_device(wr);
+
 	wan_free(wr);
 	return;
 }
@@ -874,21 +883,31 @@ static int wp_tdmv_bri_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	wan_spin_lock_init(&wr->lock, "wan_britdmv_lock");
 	wan_spin_lock_init(&wr->tx_rx_lock, "wan_britdmv_txrx_lock");
 #ifdef DAHDI_ISSUES
-        wr->span.manufacturer   = "Sangoma Technologies";
-        switch(card->adptr_type)
-        {
-        case AFT_ADPTR_FLEXBRI:
-            strncpy(wr->span.devicetype, "B700", sizeof(wr->span.devicetype) );
-            break;
-        case AFT_ADPTR_ISDN:
-            strncpy(wr->span.devicetype, "A500", sizeof(wr->span.devicetype) );
-            break;
-        default:
-            strncpy(wr->span.devicetype, "Unknown", sizeof(wr->span.devicetype) );
-            break;
-        }
+	
+	if (wp_dahdi_create_device(card,wr)) {
+		wan_free(wr);
+		return -ENOMEM;
+	}
 
-        snprintf(wr->span.location, sizeof(wr->span.location) -1, "SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+	WP_DAHDI_SET_STR_INFO(wr,manufacturer,"Sangoma Technologies");	
+
+	switch(card->adptr_type)
+	{
+	case AFT_ADPTR_FLEXBRI:
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "B700");
+		break;
+	case AFT_ADPTR_ISDN:
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "A500");
+		break;
+	case AFT_ADPTR_B500:
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "B500");
+		break;
+	default:
+		WP_DAHDI_SET_STR_INFO(wr,devicetype, "UNKNOWN");
+		break;
+	}
+
+	WP_DAHDI_SET_STR_INFO(wr,location,"SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
 
 	for (i = 0; i < sizeof(wr->chans)/sizeof(wr->chans[0]); i++) {
 		wr->chans_ptrs[i] = &wr->chans[i];
@@ -928,6 +947,7 @@ static int wp_tdmv_bri_reg(
 	wan_tdmv_t		*wan_tdmv = &card->wan_tdmv;
 	wp_tdmv_bri_t		*wr = NULL;
 	int			i, channo = 0;
+	int 			fe_line=WAN_FE_LINENO(fe);
 	
 	BRI_FUNC();	
 
@@ -956,7 +976,15 @@ static int wp_tdmv_bri_reg(
 
 	/* The Zaptel Channel Number for BRI must be adjusted based on 
 	   the module number to start from 0 */
-	active_ch = active_ch>>(WAN_FE_LINENO(fe)*2);
+
+	/* MAX_BRI_MODULES = 12 ports. After 12 ports
+     * Firmware starts using a different memory are for
+     * physical timesltos, thus we start counting from 0 again */
+	if (fe_line >= MAX_BRI_MODULES) {
+		fe_line=fe_line-MAX_BRI_MODULES;
+	}
+
+	active_ch = active_ch>>(fe_line*2);
 
 	for(i = 0; i < wr->max_timeslots; i++){
 		if (wan_test_bit(i, &active_ch)){

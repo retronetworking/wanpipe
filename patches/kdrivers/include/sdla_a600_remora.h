@@ -48,8 +48,10 @@
 extern int wp_a600_iface_init(void*, void*);
 
 
-#define IS_A600(fe) (((sdla_t*)(fe->card))->adptr_type == AFT_ADPTR_A600)
-#define IS_A600_CARD(card) (card->adptr_type == AFT_ADPTR_A600)
+#define IS_A600(fe) (((sdla_t*)(fe->card))->adptr_type == AFT_ADPTR_A600 || ((sdla_t*)(fe->card))->adptr_type == AFT_ADPTR_B610)
+#define IS_A600_CARD(card) (card->adptr_type == AFT_ADPTR_A600 || card->adptr_type == AFT_ADPTR_B610)
+
+#define IS_B610(fe) (((sdla_t*)(fe->card))->adptr_type == AFT_ADPTR_B610)
 
 #define IS_B601(fe) (((sdla_t*)(fe->card))->adptr_type == AFT_ADPTR_B601)
 #define IS_B601_CARD(card) (card->adptr_type == AFT_ADPTR_B601)
