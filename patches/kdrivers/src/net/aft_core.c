@@ -1476,6 +1476,7 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 			wan_set_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status);
 			wan_set_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status);
 			wan_set_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status);
+			wan_set_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status);
 		}
 		
 	} else {
@@ -7024,6 +7025,7 @@ static void t116_error_counter_check(sdla_t *card)
 
 	if (wan_test_and_clear_bit(AFT_LCFG_T116_FE_RX_SYNC, &dump)){
 		WAN_PMON_SYNC_ERROR(card);
+		aft_core_taskq_trigger(card,AFT_FE_RESTART);
 		DEBUG_ERROR("%s: Error: T116 Lost Sync\n",card->devname);
 		err++;
 	}	

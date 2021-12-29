@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.9
+%define VERSION           7.0.10
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -258,6 +258,13 @@ fi
 ################################################################################
 
 %changelog
+
+* Tue Feb 11 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.10
+==================================================================
+
+- Support for Dahdi 2.9
+- Fixes for DMA resync on T116 and A116 cards
+  Used to resync DMA in case of T1/E1 sync loos.
 
 * Mon Jan 7 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.9
 ==================================================================
