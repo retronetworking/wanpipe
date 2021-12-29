@@ -158,6 +158,7 @@ typedef struct sdla_remora_cfg_ {
 
 	int		fxs_ringampl;
 	unsigned int	rm_mode; 	/*Analog Operation mode: default or tapping */
+	u_int8_t	fake_polarity;
 } sdla_remora_cfg_t;
 
 typedef struct {

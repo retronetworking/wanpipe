@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 35
-/svn/sangoma_mgd/!svn/ver/187/trunk
+/svn/sangoma_mgd/!svn/ver/193/trunk
 END
 sigboost.h
 K 25
@@ -9,17 +9,11 @@ svn:wc:ra_dav:version-url
 V 46
 /svn/sangoma_mgd/!svn/ver/188/trunk/sigboost.h
 END
-__smg_ctrl_common
+switch_buffer.h
 K 25
 svn:wc:ra_dav:version-url
-V 53
-/svn/sangoma_mgd/!svn/ver/187/trunk/__smg_ctrl_common
-END
-sound.raw
-K 25
-svn:wc:ra_dav:version-url
-V 43
-/svn/sangoma_mgd/!svn/ver/1/trunk/sound.raw
+V 49
+/svn/sangoma_mgd/!svn/ver/1/trunk/switch_buffer.h
 END
 sangoma_mgd.conf.sample
 K 25
@@ -27,11 +21,17 @@ svn:wc:ra_dav:version-url
 V 59
 /svn/sangoma_mgd/!svn/ver/157/trunk/sangoma_mgd.conf.sample
 END
-switch_buffer.h
+sound.raw
 K 25
 svn:wc:ra_dav:version-url
-V 49
-/svn/sangoma_mgd/!svn/ver/1/trunk/switch_buffer.h
+V 43
+/svn/sangoma_mgd/!svn/ver/1/trunk/sound.raw
+END
+__smg_ctrl_common
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/sangoma_mgd/!svn/ver/193/trunk/__smg_ctrl_common
 END
 safe_sangoma
 K 25
@@ -39,23 +39,17 @@ svn:wc:ra_dav:version-url
 V 48
 /svn/sangoma_mgd/!svn/ver/174/trunk/safe_sangoma
 END
-smg_ctrl_pri
-K 25
-svn:wc:ra_dav:version-url
-V 48
-/svn/sangoma_mgd/!svn/ver/184/trunk/smg_ctrl_pri
-END
 callgettest.sh
 K 25
 svn:wc:ra_dav:version-url
 V 48
 /svn/sangoma_mgd/!svn/ver/1/trunk/callgettest.sh
 END
-smg_capabilities.h
+smg_ctrl_pri
 K 25
 svn:wc:ra_dav:version-url
-V 54
-/svn/sangoma_mgd/!svn/ver/186/trunk/smg_capabilities.h
+V 48
+/svn/sangoma_mgd/!svn/ver/184/trunk/smg_ctrl_pri
 END
 ss7box
 K 25
@@ -63,11 +57,11 @@ svn:wc:ra_dav:version-url
 V 40
 /svn/sangoma_mgd/!svn/ver/1/trunk/ss7box
 END
-re-sync.sh
+smg_capabilities.h
 K 25
 svn:wc:ra_dav:version-url
-V 45
-/svn/sangoma_mgd/!svn/ver/20/trunk/re-sync.sh
+V 54
+/svn/sangoma_mgd/!svn/ver/186/trunk/smg_capabilities.h
 END
 call_signal.c
 K 25
@@ -75,23 +69,29 @@ svn:wc:ra_dav:version-url
 V 49
 /svn/sangoma_mgd/!svn/ver/186/trunk/call_signal.c
 END
+re-sync.sh
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/sangoma_mgd/!svn/ver/20/trunk/re-sync.sh
+END
 sangoma_mgd_logger.c
 K 25
 svn:wc:ra_dav:version-url
 V 56
-/svn/sangoma_mgd/!svn/ver/186/trunk/sangoma_mgd_logger.c
+/svn/sangoma_mgd/!svn/ver/189/trunk/sangoma_mgd_logger.c
+END
+sangoma_mgd.c
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/sangoma_mgd/!svn/ver/193/trunk/sangoma_mgd.c
 END
 woomera.conf
 K 25
 svn:wc:ra_dav:version-url
 V 46
 /svn/sangoma_mgd/!svn/ver/1/trunk/woomera.conf
-END
-sangoma_mgd.c
-K 25
-svn:wc:ra_dav:version-url
-V 49
-/svn/sangoma_mgd/!svn/ver/186/trunk/sangoma_mgd.c
 END
 call_signal.h
 K 25
@@ -115,7 +115,7 @@ sangoma_mgd.h
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/186/trunk/sangoma_mgd.h
+/svn/sangoma_mgd/!svn/ver/189/trunk/sangoma_mgd.h
 END
 q931_cause.h
 K 25
@@ -157,7 +157,7 @@ sangoma_mgd_common.h
 K 25
 svn:wc:ra_dav:version-url
 V 56
-/svn/sangoma_mgd/!svn/ver/105/trunk/sangoma_mgd_common.h
+/svn/sangoma_mgd/!svn/ver/189/trunk/sangoma_mgd_common.h
 END
 switch_buffer.c
 K 25
@@ -169,7 +169,7 @@ Makefile
 K 25
 svn:wc:ra_dav:version-url
 V 44
-/svn/sangoma_mgd/!svn/ver/184/trunk/Makefile
+/svn/sangoma_mgd/!svn/ver/192/trunk/Makefile
 END
 sangoma_mgd_memdbg.h
 K 25

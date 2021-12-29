@@ -298,7 +298,8 @@ struct  woomera_session {
 #define CORE_TANK_LEN CORE_MAX_CHAN_PER_SPAN*CORE_MAX_SPANS
 
 struct woomera_server {
-	struct  woomera_session process_table[CORE_MAX_CHAN_PER_SPAN][CORE_MAX_SPANS];
+//	struct  woomera_session process_table[CORE_MAX_CHAN_PER_SPAN][CORE_MAX_SPANS];
+	struct  woomera_session process_table[CORE_MAX_SPANS][CORE_MAX_CHAN_PER_SPAN];
 	struct woomera_interface *holding_tank[CORE_TANK_LEN];
 	int holding_tank_index;
 	struct woomera_interface master_connection;

@@ -95,6 +95,9 @@ static __inline u32 AFT_PORT_REG(sdla_t *card, u32 reg)
 
 #define AFT_WDT_4TO8_CTRL_REG		0x5C
 
+#define AFT_FREE_RUN_TIMER_CTRL_REG		0x98
+
+#define AFT_FREE_RUN_TIMER_PENDING_REG	0x9C
 
 /*================================================= 
   A104 CHIP CFG REGISTERS  
@@ -176,6 +179,8 @@ static __inline u32 AFT_PORT_REG(sdla_t *card, u32 reg)
 # define AFT_CHIPCFG_P2_WDT_INTR_BIT	19
 # define AFT_CHIPCFG_P3_WDT_INTR_BIT	20
 # define AFT_CHIPCFG_P4_WDT_INTR_BIT	21
+
+# define AFT_CHIPCFG_FREE_RUN_INTR_BIT	20		/* AFT FREE Run timer bit */
 
 # define AFT_CHIPCFG_A108_EC_INTER_STAT_BIT	21	/* A108 */
 
@@ -841,6 +846,25 @@ aft_dmachain_enable_tdmv_and_mtu_size(u32 *reg, int size)
 	wan_set_bit(AFT_DMACHAIN_TDMV_ENABLE_BIT,reg);
 }
 
+
+
+/*======================================================
+ * FREE RUNNING TIMER
+ * 
+ * AFT_FREE_RUN_TIMER_CTRL_REG
+ *=====================================================*/
+
+#define AFT_FREE_RUN_TIMER_DIVIDER_SHIFT		0
+#define AFT_FREE_RUN_TIMER_DIVIDER_MASK			0x3F
+
+#define AFT_FREE_RUN_TIMER_INTER_ENABLE_BIT		7
+
+static __inline void
+aft_free_running_timer_ctrl_set(u32 *reg, u32 divider)
+{
+	*reg&=~(AFT_FREE_RUN_TIMER_DIVIDER_MASK<<AFT_FREE_RUN_TIMER_DIVIDER_SHIFT);
+	*reg|=(divider&AFT_FREE_RUN_TIMER_DIVIDER_MASK)<<AFT_FREE_RUN_TIMER_DIVIDER_SHIFT;
+}
 
 
 /*======================================================
@@ -1979,6 +2003,8 @@ typedef struct private_area
 	unsigned char label[WAN_IF_LABEL_SZ+1];
 
 	unsigned char tdm_span_voice_api;
+	unsigned char tx_seq_char;
+    unsigned char rx_seq_char;
 
 }private_area_t;
 
@@ -2001,6 +2027,56 @@ aft_tx_dma_chain_chain_len(private_area_t *chan)
 		
 	return chain_diff;
 }
+
+
+#if defined WANPIPE_PERFORMANCE_DEBUG
+#warning "WANPIPE_PERFORMANCE_DEBUG Enabled"
+static __inline int aft_calc_elapsed(struct timeval *started, struct timeval *ended)
+{
+#if 0
+	return (((ended->tv_sec * 1000) + ended->tv_usec / 1000) -
+		((started->tv_sec * 1000) + started->tv_usec / 1000));
+#else
+	return ended->tv_usec -  started->tv_usec;
+#endif
+
+} 
+
+static int __inline aft_timing_start(sdla_t * card)
+{
+#if 1
+#if defined(__LINUX__)
+	do_gettimeofday(&card->timing_tv);
+#endif
+#endif
+	return 0;
+}
+
+static int __inline aft_timing_stop_calculate_elapsed(sdla_t * card)
+{
+#if 1
+#if defined(__LINUX__)
+	int elapsed=0;
+	struct timeval current_tv;
+	do_gettimeofday(&current_tv);
+	elapsed=aft_calc_elapsed(&card->timing_tv,&current_tv);
+	if (elapsed > card->wandev.stats.rx_errors) {
+		card->wandev.stats.rx_errors=elapsed;
+	}
+	if (elapsed > 1000) {
+		DEBUG_EVENT("%s: Error: Timeout is huge %i\n",card->devname, elapsed);
+	}
+	if (card->wandev.stats.rx_errors > 2500) {
+		card->wandev.stats.rx_errors=0;
+	}
+
+	card->wandev.stats.tx_errors=elapsed;
+#endif
+#endif
+	return 0;
+}
+#endif
+
 
 void 	aft_free_logical_channel_num (sdla_t *card, int logic_ch);
 void 	aft_dma_max_logic_ch(sdla_t *card);

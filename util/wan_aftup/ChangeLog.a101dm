@@ -1,6 +1,16 @@
 AFT A101dm Firmware Change Log
 =============================
 
+Release V36
+-----------
+Aug 13 2009
+Type:	   Recommended A101dm Firmware
+		New Feature: Added Free Running timer for Zapata/Dahdi
+
+Changes:	Firmware bug fix
+		Fixes on potential pci parity errors on some systems.
+
+		
 
 Release V34
 -----------

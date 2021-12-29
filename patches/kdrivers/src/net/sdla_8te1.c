@@ -2620,15 +2620,32 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, u_int8_t type, u_int8_t mode, un
 			mask |= (BIT_RIM1_RLOSC | BIT_RIM1_RLOSD);
 #endif
 			WRITE_REG(REG_RIM1, mask);
+			WRITE_REG(REG_RLS1, 0xFF);
+
 			/* In-band loop codes */
-			WRITE_REG(REG_RIM3, BIT_RIM3_T1_LDNC|BIT_RIM3_T1_LUPC|BIT_RIM3_T1_LDND|BIT_RIM3_T1_LUPD);
+			if (IS_T1_FEMEDIA(fe)){
+				mask = BIT_RIM3_T1_LDNC|BIT_RIM3_T1_LDND |
+				BIT_RIM3_T1_LUPC|BIT_RIM3_T1_LUPD;
+				WRITE_REG(REG_RIM3, mask);
+				WRITE_REG(REG_RLS3, 0xFF);
+			}
+
 			//WRITE_REG(REG_RIM4, BIT_RIM4_TIMER);
-			WRITE_REG(REG_RIM7, BIT_RIM7_T1_BC | BIT_RIM7_T1_BD);
+			WRITE_REG(REG_RLS4, 0xFF);
+			
+			if (IS_T1_FEMEDIA(fe)){
+                		mask = BIT_RIM7_T1_BC | BIT_RIM7_T1_BD;
+                		/* mask |= BIT_RIM7_T1_RSLC96; */ 			 
+    				WRITE_REG(REG_RIM7, mask);
+    			}
+			WRITE_REG(REG_RLS7, 0xFF);
+
 			WRITE_REG(REG_LSIMR,
 				BIT_LSIMR_OCCIM | BIT_LSIMR_OCDIM |
 				BIT_LSIMR_SCCIM | BIT_LSIMR_SCCIM |
 				BIT_LSIMR_LOSCIM | BIT_LSIMR_LOSDIM |
 				BIT_LSIMR_JALTCIM | BIT_LSIMR_JALTSIM);
+			WRITE_REG(REG_LLSR, 0xFF);
 		}else{
 			WRITE_REG(REG_RIM1, 0x00);
 			WRITE_REG(REG_RIM2, 0x00);
@@ -2689,7 +2706,6 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, u_int8_t type, u_int8_t mode, un
  
 	return 0;
 }
-
 
 static int sdla_ds_te1_framer_rx_intr(sdla_fe_t *fe, int silent) 
 {
@@ -2987,6 +3003,7 @@ static int sdla_ds_te1_framer_tx_intr(sdla_fe_t *fe, int silent)
 	return 0;
 }
 
+
 static int sdla_ds_te1_bert_intr(sdla_fe_t *fe, int silent) 
 {
 	unsigned char	blsr = READ_REG(REG_BLSR);
@@ -3119,8 +3136,8 @@ static int sdla_ds_te1_check_intr(sdla_fe_t *fe)
 	//if (framer_istatus & (1 << WAN_FE_LINENO(fe))){
 	if ((framer_istatus & (1 << WAN_DS_REGBITMAP(fe))) && 
 	    (framer_imask & (1 << WAN_DS_REGBITMAP(fe)))) {
-		DEBUG_ISR("%s: Interrupt for line %d (FRAMER)\n",
-					fe->name, WAN_FE_LINENO(fe));
+		DEBUG_ISR("%s: Interrupt for line %d (FRAMER) status=0x%02X\n",
+					fe->name, WAN_FE_LINENO(fe),framer_istatus);
 		return 1;
 	}
 	//if (liu_istatus & (1 << WAN_FE_LINENO(fe))){
@@ -3137,7 +3154,8 @@ static int sdla_ds_te1_check_intr(sdla_fe_t *fe)
 					fe->name, WAN_FE_LINENO(fe));
 		return 1;
 	}
-	DEBUG_ISR("%s: This interrupt not for this port %d\n",
+
+	DEBUG_TE1("%s: This interrupt not for this port %d\n",
 				fe->name,
 				WAN_FE_LINENO(fe)+1);
 	return 0;

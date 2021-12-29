@@ -24,6 +24,7 @@ TARGETS += aft_tdm_voice_api_dtmf
 TARGETS += aft_tdm_voice_api_rm_events
 #TARGETS += aft_tdm_voice_api_rm_dtmf
 #TARGETS += aft_tdm_voice_api_rxhook
+TARGETS = aft_tdm_hdlc_test
 
 ####### RULES ################################################################
 

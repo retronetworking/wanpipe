@@ -61,6 +61,10 @@ ifndef INSTALLPREFIX
 	INSTALLPREFIX=
 endif
 
+ifndef LIBPREFIX
+	LIBPREFIX=/usr
+endif
+
 ifndef 64BIT_4G
     64BIT_4G="Disabled"
 else
@@ -90,6 +94,9 @@ ENABLE_WANPIPEMON_ZAP=NO
 ZAPHDLC_PRIV=/etc/wanpipe/.zaphdlc
 
 EXTRA_CFLAGS += $(EXTRA_FLAGS)
+
+#Enable for debugging only
+#EXTRA_CFLAGS += -DWANPIPE_PERFORMANCE_DEBUG
 
 
 #Check if zaptel exists
@@ -298,7 +305,7 @@ all_util:  install_inc
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(ARCH)
 
 all_lib:
-		$(shell cd api/libsangoma; ./init-automake.sh > /dev/null;  ./configure --prefix=/usr > /dev/null;) 
+		$(shell cd api/libsangoma; ./init-automake.sh >> $(PWD)/.cfg_log; ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;) 
 		$(MAKE) -C api/libsangoma clean
 		$(MAKE) -C api/libsangoma all
 
@@ -358,9 +365,9 @@ install_inc:
 	@\cp -rf $(PWD)/patches/kdrivers/wanec/*.h $(INSTALLPREFIX)/usr/include/wanpipe/
 
 smgbri: 
-	@cd ssmg/libsangoma.trunk; ./configure --prefix=/usr ; cd ../..;
+	@cd ssmg/libsangoma.trunk; ./configure --prefix=$(LIBPREFIX) ; cd ../..;
 	$(MAKE) -C ssmg/libsangoma.trunk/ CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
-	@cd ssmg/sangoma_mgd.trunk/lib/libteletone; ./configure --prefix=/usr ; cd ../../..;
+	@cd ssmg/sangoma_mgd.trunk/lib/libteletone; ./configure --prefix=$(LIBPREFIX) ; cd ../../..;
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/ CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR) ASTDIR=$(ASTDIR)
 

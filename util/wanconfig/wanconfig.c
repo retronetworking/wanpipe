@@ -605,6 +605,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "RM_PULSEDIALING",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_pulsedialing), DTYPE_UCHAR },
   { "RM_RINGAMPL",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_ringampl), DTYPE_INT },
   { "RM_RELAXCFG",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, relaxcfg), DTYPE_UCHAR },
+  { "RM_FAKE_POLARITY",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity), DTYPE_UCHAR },
   
   /* TDMV parameters */
   { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UINT},

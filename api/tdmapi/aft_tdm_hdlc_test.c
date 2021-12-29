@@ -284,7 +284,7 @@ void process_con_rx(void)
 	
 					
 					/* Rx packet recevied OK
-					 * Each rx packet will contain 16 bytes of
+					 * Each rx packet will contain sizeof(wp_tdm_api_tx_hdr_t) bytes of
 					 * rx header, that must be removed.  The
 					 * first byte of the 16 byte header will
 					 * indicate an error condition.
@@ -451,7 +451,7 @@ void process_con_tx(timeslot_t *slot)
 	 */
 
 	printf("%s: Tx Starting to write on sock %i data (0x%X)  f=%x l=%x hdr_sz=%i\n",
-	 	slot->if_name,slot->sock,slot->data,Tx_data[16],Tx_data[Tx_hdlc_len+sizeof(wp_tdm_api_tx_hdr_t)-1],
+	 	slot->if_name,slot->sock,slot->data,Tx_data[sizeof(wp_tdm_api_tx_hdr_t)],Tx_data[Tx_hdlc_len+sizeof(wp_tdm_api_tx_hdr_t)-1],
 		sizeof(wp_tdm_api_tx_hdr_t));	
 
 		
@@ -479,11 +479,11 @@ void process_con_tx(timeslot_t *slot)
 			printf("TX DATA ORIG: Len=%i\n",Tx_hdlc_len);
 	      		print_packet(&Tx_data[sizeof(wp_tdm_api_tx_hdr_t)],Tx_hdlc_len);
 #endif		
-			wanpipe_hdlc_encode(hdlc_eng,&Tx_data[16],Tx_hdlc_len,&Tx_hdlc_data[16],&Tx_encoded_hdlc_len,&next_idle);
+			wanpipe_hdlc_encode(hdlc_eng,&Tx_data[sizeof(wp_tdm_api_tx_hdr_t)],Tx_hdlc_len,&Tx_hdlc_data[sizeof(wp_tdm_api_tx_hdr_t)],&Tx_encoded_hdlc_len,&next_idle);
 			if (Tx_encoded_hdlc_len < (max_tx_len*2)){
 				int j;
 				for (j=0;j<((max_tx_len*2) - Tx_encoded_hdlc_len);j++){
-					Tx_hdlc_data[16+Tx_encoded_hdlc_len+j]=next_idle;
+					Tx_hdlc_data[sizeof(wp_tdm_api_tx_hdr_t)+Tx_encoded_hdlc_len+j]=next_idle;
 				}
 				Tx_encoded_hdlc_len+=j;
 			}	
@@ -508,7 +508,7 @@ void process_con_tx(timeslot_t *slot)
 #if 0 
 			printf("Data %i\n",Tx_hdlc_len);
 			for (i=0;i<Tx_hdlc_len;i++){
-				printf(" 0x%X",Tx_hdlc_data[16+i]);
+				printf(" 0x%X",Tx_hdlc_data[sizeof(wp_tdm_api_tx_hdr_t)+i]);
 			}
 			printf("\n");
 #endif		

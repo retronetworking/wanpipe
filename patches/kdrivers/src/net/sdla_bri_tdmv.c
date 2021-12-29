@@ -338,7 +338,6 @@ static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan, struct dahdi_echocan
 {
 	wp_tdmv_bri_t *wr = NULL;
 	sdla_t *card = NULL;
-	int	fe_chan = chan->chanpos;
 	int	err = -ENODEV;
 
 	if (ecp->param_count > 0) {
@@ -353,19 +352,19 @@ static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan, struct dahdi_echocan
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card = wr->card;
 
-	*ec = &wr->ec[fe_chan];
+	*ec = &wr->ec[chan->chanpos-1];
 	(*ec)->ops = &wp_tdmv_bri_ec_ops;
 	(*ec)->features = wp_tdmv_bri_ec_features;
 
 	if (card->wandev.ec_enable) {
 		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
-			wr->devname, __FUNCTION__, fe_chan);
+			wr->devname, __FUNCTION__, chan->chanpos);
 
-		if(fe_chan == 1 || fe_chan == 2) {
-			err = card->wandev.ec_enable(card, 1, fe_chan);
+		if(chan->chanpos == 1 || chan->chanpos == 2) {
+			err = card->wandev.ec_enable(card, 1, chan->chanpos);
 		} else {
 			DEBUG_EVENT("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
-				wr->devname, __FUNCTION__, fe_chan);
+				wr->devname, __FUNCTION__, chan->chanpos);
 			err = 0;
 		}
 	} else {
@@ -384,7 +383,6 @@ static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_
 {
 	wp_tdmv_bri_t	*wr = NULL;
 	sdla_t *card = NULL;
-	int	fe_chan = chan->chanpos;
 
 	memset(ec, 0, sizeof(*ec));
 
@@ -396,13 +394,13 @@ static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_
 
 	if (card->wandev.ec_enable) {
 		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
-			wr->devname, __FUNCTION__, fe_chan);
+			wr->devname, __FUNCTION__, chan->chanpos);
 
-		if(fe_chan == 1 || fe_chan == 2) {
-			card->wandev.ec_enable(card, 0, fe_chan);
+		if(chan->chanpos == 1 || chan->chanpos == 2) {
+			card->wandev.ec_enable(card, 0, chan->chanpos);
 		} else {
 			DEBUG_EVENT("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
-				wr->devname, __FUNCTION__, fe_chan);
+				wr->devname, __FUNCTION__, chan->chanpos);
 		}
 	} else {
 		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): card->wandev.ec_enable == NULL!!!!!!\n",
@@ -420,10 +418,9 @@ static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_
 static int wp_bri_zap_hwec(struct zt_chan *chan, int enable)
 {
 	wp_tdmv_bri_t   *wr = NULL;
-	sdla_t      *card = NULL;
-	int     fe_chan = chan->chanpos;
-	int     err = -ENODEV;
-	sdla_fe_t   *fe = NULL;
+	sdla_t      	*card = NULL;
+	int     		err = -ENODEV;
+	sdla_fe_t  	 	*fe = NULL;
 
 	BRI_FUNC();
 
@@ -436,13 +433,13 @@ static int wp_bri_zap_hwec(struct zt_chan *chan, int enable)
 
 	if (card->wandev.ec_enable){
 		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
-					wr->devname, __FUNCTION__, fe_chan);
+					wr->devname, __FUNCTION__, chan->chanpos);
 
-		if(fe_chan == 1 || fe_chan == 2){
-			err = card->wandev.ec_enable(card, enable, fe_chan);
+		if(chan->chanpos == 1 || chan->chanpos == 2){
+			err = card->wandev.ec_enable(card, enable, chan->chanpos);
 		}else{
 			DEBUG_EVENT("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
-						wr->devname, __FUNCTION__, fe_chan);
+						wr->devname, __FUNCTION__, chan->chanpos);
 			err = 0;
 		}
 	}else{

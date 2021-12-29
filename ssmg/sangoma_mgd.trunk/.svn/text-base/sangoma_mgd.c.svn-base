@@ -9,6 +9,11 @@
  * 
  * =============================================
  *
+ * 
+ * v1.51 David Yat Sin <dyatsin@sangoma.com>
+ *  MAX_SPANS increased to 32.
+ *  Fix for server.process_table declared incorrectly
+ *
  * v1.50 Nenad Corbic <ncorbic@sangoma.com>
  *  Logic to support multiple woomera clients hanging up the
  *  channel. This feature now supprorts woomera loadbalancing
@@ -291,7 +296,7 @@ struct woomera_server server;
 #endif
 
 
-#define SMG_VERSION	"v1.50"
+#define SMG_VERSION	"v1.51"
 
 /* enable early media */
 #if 1
@@ -333,7 +338,7 @@ static int drop_seq=0;
 
 const char WELCOME_TEXT[] =
 "================================================================================\n"
-"Sangoma Media Gateway Daemon v1.50 \n"
+"Sangoma Media Gateway Daemon v1.51 \n"
 "\n"
 "TDM Signal Media Gateway for Sangoma/Wanpipe Cards\n"
 "Copyright 2005, 2006, 2007 \n"
@@ -2137,7 +2142,7 @@ static struct woomera_interface * launch_woomera_loop_thread(short_signal_event_
 		pthread_mutex_lock(&server.process_lock);
 		server.process_table[event->span][event->chan].dev = NULL;
 		memset(server.process_table[event->span][event->chan].session,0,SMG_SESSION_NAME_SZ);
-    		pthread_mutex_unlock(&server.process_lock); 
+    	pthread_mutex_unlock(&server.process_lock); 
 		smg_free(woomera);
 		log_printf(SMG_LOG_ALL, server.log, "Critical ERROR: memory/socket error\n");
 		return NULL;
@@ -4071,11 +4076,12 @@ static void handle_remove_loop(short_signal_event_t *event)
 
 static void handle_call_stop(short_signal_event_t *event)
 {
-    	struct woomera_interface *woomera;
+    struct woomera_interface *woomera;
 	int ack=0;
 
-    	pthread_mutex_lock(&server.process_lock);
-    	woomera = server.process_table[event->span][event->chan].dev;
+	woomera = NULL;
+    pthread_mutex_lock(&server.process_lock);
+    woomera = server.process_table[event->span][event->chan].dev;
 	if (woomera) {
 
 		if (!woomera_test_flag(woomera, WFLAG_WAIT_FOR_NACK_ACK_SENT) && 
@@ -4094,7 +4100,7 @@ static void handle_call_stop(short_signal_event_t *event)
 	memset(server.process_table[event->span][event->chan].session,0,SMG_SESSION_NAME_SZ);
 	pthread_mutex_unlock(&server.process_lock);
     
-        if (woomera) {
+	if (woomera) {
 	
 		woomera_set_cause_topbx(woomera,event->release_cause);
 	
@@ -5740,8 +5746,13 @@ static int woomera_shutdown(void)
 int main(int argc, char *argv[]) 
 {
     int ret = 0;
+
+	memset(&server,0,sizeof(server));
+	memset(&woomera_dead_dev,0,sizeof(woomera_dead_dev));
     
     mlockall(MCL_FUTURE);
+	memset(&server, 0, sizeof(server));
+	memset(&woomera_dead_dev, 0, sizeof(woomera_dead_dev));
 
     ret=nice(-5);
     

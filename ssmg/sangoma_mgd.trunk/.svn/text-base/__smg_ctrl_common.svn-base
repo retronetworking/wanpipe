@@ -453,7 +453,7 @@ function show_calls()
 	check_pid_sigd
 	eval "kill -SIGRTMIN+3 $(pidof $sigd) "
 	rc=$?
-	if [ $rc-eq 0 ]; then
+	if [ $rc -eq 0 ]; then
 		echo "BRI: Show calls"
 	else 
 		echo "BRI: Failed to send command"

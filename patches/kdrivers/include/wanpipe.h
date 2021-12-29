@@ -771,7 +771,8 @@ enum {
 	AFT_TDM_GLOBAL_ISR,
 	AFT_TDM_RING_BUF,
 	AFT_TDM_FAST_ISR,
-	AFT_TDM_SW_RING_BUF
+	AFT_TDM_SW_RING_BUF,
+	AFT_TDM_FREE_RUN_ISR
 };
 
 typedef struct 
@@ -980,10 +981,15 @@ typedef struct sdla
 
 	/* SDLA TDMV Dummy interface */
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-        void* sdla_tdmv_dummy;
+	void* sdla_tdmv_dummy;
 #endif
 
 	unsigned char wp_debug_chan_seq;
+
+#if defined(WANPIPE_PERFORMANCE_DEBUG)
+ 	wan_ticks_t				debug_timeout;
+	struct timeval			timing_tv;
+#endif
 
 } sdla_t;
 

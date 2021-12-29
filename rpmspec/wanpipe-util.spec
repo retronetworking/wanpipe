@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.4.4
+%define version           3.4.5
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -327,6 +327,26 @@ enable_smg_log;
 
 
 %changelog
+
+* Tue Aug 18 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.5
+=====================================================================
+
+- New firmawre feature for A101/2/5/8: Free Run Timer Interrupt 
+  The AFT T1/E1 cards will now provide perfect timing to zatpel/dahdi
+  even when the ports are not connected. The free run interrupt
+  will be enabled when all zaptel/dahdi ports are down, or on
+  inital card start. To test this feature just start a wanpipe 
+  port with zaptel/dahdi and run zttest. 
+  A108 firmare V38 
+  A104/2/1/ firmware V36       
+
+- Added module inc cound when zaptel/dahdi starts.
+  So wanpipe drivers do not crash if one tries to unload 
+  zaptel/dahdi before stopping wanpipe drivers.
+
+- Dahdi 2.2 Support
+- Updated for 2.6.30 kernel
+
 
 * Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.4
 =====================================================================
