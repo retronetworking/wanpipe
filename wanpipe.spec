@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.21
+%define VERSION           3.5.22
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -255,7 +255,18 @@ fi
 
 %changelog
 
-* Wed Aug 23 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.21
+* Wed Aug 24 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.22
+==================================================================
+
+- Bug introducted in .21 release for analog card.
+  Changed the way wanpipe enumerates analog channels
+  breaks backward compatibility. Reverted to original.
+
+- Setup install script update
+  Removed old and legacy products out of Setup compile options.
+
+
+* Tue Aug 23 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.21
 ==================================================================
 
 - T1 AMI fix

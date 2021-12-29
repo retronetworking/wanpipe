@@ -354,6 +354,12 @@ static void process_con_rx(void)
 		if (tslot_array[i].sock > max_fd){
 			max_fd=tslot_array[i].sock;
 		}
+
+		{
+			wanpipe_tdm_api_t tdm_api;
+			memset(&tdm_api,0,sizeof(tdm_api));
+			sangoma_flush_stats(tslot_array[i].sock,&tdm_api);
+		}
 	}
 	i=0;
 
@@ -977,12 +983,12 @@ int main (int argc, char* argv[])
                  	gerr++;
 					status++;
 				}
-				if (wanpipe_get_rx_hdlc_errors(slot->hdlc_eng) > 5) {
+				if (wanpipe_get_rx_hdlc_errors(slot->hdlc_eng) > 4) {
                  	gerr++;
 					status++;
 				}
 
-				if (slot->stats.errors) {
+				if (slot->stats.errors > 4) {
                  	gerr++;
 					status++;
 				}
@@ -998,7 +1004,7 @@ int main (int argc, char* argv[])
 					slot->hdlc_eng->decoder.stats.frame_overflow,
 					slot->stats.errors,
 					slot->stats.rx_fifo_errors,
-					status==0?"passed":"failed");
+					status?"failed":"status");
 
 				if (slot->stats.errors) {
 					print_stats(slot);

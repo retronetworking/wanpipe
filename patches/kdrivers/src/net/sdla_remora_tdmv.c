@@ -809,7 +809,7 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 			wr->chans[x].sigcap = ZT_SIG_CLEAR;
 			wr->chans[x].chanpos = x+1;
 			wr->chans[x].pvt = wr;
-			//num++;
+			num++;
 		}
 	}
 

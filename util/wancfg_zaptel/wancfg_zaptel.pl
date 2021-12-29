@@ -106,7 +106,6 @@ my $module_list="";
 my $module_load="";
 my $module_unload="";
 my $os_type_name="";
-my $dchan_str="dchan";
 my $have_update_rc_d = 0;
 
 my $os_type_list=`sysctl -a 2>/dev/null |grep ostype`;
@@ -334,11 +333,13 @@ my $wanrouter_rc_template="$current_dir/templates/wanrouter.rc.template";
 my $smg_rc_template="$current_dir/templates/smg.rc.template";
 my $smg_rc_file="$current_dir/$cfg_dir/smg.rc";
 my $smg_rc_file_t="$wanpipe_conf_dir/smg.rc";
+
 my $zaptel_conf_template="$current_dir/templates/zaptel.conf";
 my $zaptel_conf_file="$current_dir/$cfg_dir/zaptel.conf";
 my $zaptel_conf_file_t="$etc_dir/zaptel.conf";
-
 my $zapata_conf_template="$current_dir/templates/zapata.conf";
+my $dchan_str="hardhdlc";
+
 my $zapata_conf_file="$current_dir/$cfg_dir/zapata.conf";
 my $zapata_conf_file_t="$asterisk_conf_dir/zapata.conf";
 my $zaptel_string="Zaptel";
@@ -349,19 +350,36 @@ my $zaptel_cfg_script="zaptel_cfg_script";
 my $zap_cfg = "ztcfg";
 my $zap_com ="zap";
 
-if ($dahdi_installed== $TRUE) {
-	$zapata_conf_file_t="$asterisk_conf_dir/chan_dahdi.conf";
-	$zaptel_conf_file_t="$etc_dir/dahdi/system.conf";
-	$zaptel_string="Dahdi";
-	$dchan_str="hardhdlc";
-	$zapata_string="Chan-Dahdi";
-	$wancfg_config="wancfg_dahdi";
-	$zaptel_boot="dahdi";
-	$zaptel_cfg_script="dahdi_cfg_script";
-	$zap_cfg="dahdi_cfg";
-	$zap_com="dahdi";
 
+#Overwrite with Dahdi defautlts
+#the above code is left due to lack of time 
+#to properly clean. Above defines should be
+#removed.
+$zaptel_conf_file_t="$etc_dir/dahdi/system.conf";
+$zapata_conf_file_t="$asterisk_conf_dir/chan_dahdi.conf";
+$zaptel_string="Dahdi";
+$zapata_string="chan_dahdi";
+$wancfg_config="wancfg_dahdi";
+$zaptel_boot="dahdi";
+$zaptel_cfg_script="dahdi_cfg_script";
+$zap_cfg="dahdi_cfg";
+$zap_com="dahdi";
+
+if ($dahdi_installed != $TRUE) {
+	$zapata_conf_file="$current_dir/$cfg_dir/zapata.conf";
+	$zapata_conf_file_t="$asterisk_conf_dir/zapata.conf";
+	$zaptel_string="Zaptel";
+	$zapata_string="Zapata";
+	$wancfg_config="wancfg_zaptel";
+	$zaptel_boot = "zaptel";
+	$zaptel_cfg_script="zaptel_cfg_script";
+	$zap_cfg = "ztcfg";
+	$zap_com ="zap";    
+	$dchan_str="dchan";
 }
+
+
+
 if ($is_fs== $TRUE) {
 	$config_woomera=$FALSE;
 	$config_zapata = $FALSE; 
@@ -825,11 +843,10 @@ sub apply_changes{
 					"");
 	}else{
 		print "\n$zaptel_string and Wanpipe configuration complete: choose action\n";
-		$res=&prompt_user_list("Save cfg: Restart Asterisk & Wanpipe now",
-					"Save cfg: Restart Asterisk & Wanpipe when convenient",
+		$res=&prompt_user_list(
 					"Save cfg: Stop Asterisk & Wanpipe now", 
 					"Save cfg: Stop Asterisk & Wanpipe when convenient",
-					"Save cfg: Save cfg only (Not Recommanded!!!)", 
+					"Save cfg: Save cfg only  (Not Recommended!!!)", 
 					"Do not save cfg: Exit",
 					"");
 	}

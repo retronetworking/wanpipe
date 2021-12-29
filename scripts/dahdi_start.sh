@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 #Make sure that udev/devfs zaptel device
 #has come up.

@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.5.21
+%define version           3.5.22
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -51,7 +51,18 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 %changelog
 
-* Wed Aug 23 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.21
+* Wed Aug 24 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.22
+==================================================================
+
+- Bug introducted in .21 release for analog card.
+  Changed the way wanpipe enumerates analog channels
+  breaks backward compatibility. Reverted to original.
+
+- Setup install script update
+  Removed old and legacy products out of Setup compile options.
+
+
+* Tue Aug 23 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.21
 ==================================================================
 
 - T1 AMI fix
