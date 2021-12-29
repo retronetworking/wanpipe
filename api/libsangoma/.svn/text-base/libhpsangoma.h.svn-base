@@ -3,18 +3,35 @@
  *
  * Author(s):	Nenad Corbic <ncorbic@sangoma.com>
  *
- * Copyright:	(c) 2008 Nenad Corbic <ncorbic@sangoma.com>
+ * Copyright:	(c) 2005-2008 Nenad Corbic <ncorbic@sangoma.com>
  *
- *		This program is free software; you can redistribute it and/or
- *		modify it under the terms of the GNU General Public License
- *		as published by the Free Software Foundation; either version
- *		2 of the License, or (at your option) any later version.
+ * * Redistribution and use in source and binary forms, with or without
+ *   modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the <organization> nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY <copyright holder> ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL <copyright holder> BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * ============================================================================
  */
 
 #ifndef _LIB_HP_SNAGOMA_H
 #define _LIB_HP_SNAGOMA_H
 
+#include "libsangoma.h"
 
 #ifdef WIN32
 
@@ -38,7 +55,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/if.h>
+#include <net/if.h>
 #include <poll.h>
 #include <signal.h>
 
@@ -48,7 +65,7 @@
 #include <linux/wanpipe_cfg.h>
 #include <linux/wanpipe.h>
 #include <linux/if_wanpipe.h>
-#include <linux/sdla_aft_te1.h>
+#include <linux/wanpipe_api.h>
 #endif
 
 #define SMG_HP_MAX_CHAN_DATA 1024
@@ -56,10 +73,10 @@
 #define SMG_HP_TDM_MAX_CHANS 31
 #define SMG_HP_MAX_SPAN_DATA (31*160)+32
 
-#define hp_tdmapi_rx_event_t api_rx_hdr_t
-#define hp_tdmapi_tx_event_t api_tx_hdr_t
+#define hp_tdmapi_rx_event_t wp_api_hdr_t
+#define hp_tdmapi_tx_event_t wp_api_hdr_t
 
-#define SANGOMA_HPTDM_VERSION 1
+#define SANGOMA_HPTDM_VERSION 2
 
 /*---------------------------------------------------------
  * PUBLIC DEFINITIONS
@@ -67,6 +84,7 @@
 
 
 /*!
+  \struct sangoma_hptdm_span_reg_t
   \brief Span registration structure
  */
 typedef struct sangoma_hptdm_span_reg
@@ -81,6 +99,7 @@ typedef struct sangoma_hptdm_span_reg
 
 
 /*!
+  \struct hp_tmd_chunk_t
   \brief A chunk structure used to implement a chunk buffer
  */
 typedef struct hp_tdm_chunk
@@ -96,6 +115,7 @@ typedef struct hp_tdm_chunk
 }hp_tmd_chunk_t;
 
 /*!
+  \struct sangoma_hptdm_chan_reg_t
   \brief Chan registration structure
  */
 typedef struct sangoma_hptdm_chan_reg
@@ -110,6 +130,7 @@ typedef struct sangoma_hptdm_chan_reg
 }sangoma_hptdm_chan_reg_t;
 
 /*!
+  \struct sangoma_hptdm_chan_t
   \brief Channel structure, describes a single timeslot/channel in a span.
  */
 typedef struct sangoma_hptdm_chan
@@ -147,6 +168,7 @@ typedef struct sangoma_hptdm_chan
 }sangoma_hptdm_chan_t;
 
 /*!
+  \struct sangoma_hptdm_chan_map_t
   \brief Structure describing a array index of a channel inside the span structure.
  *
  * Structure describing a array index of a channel inside the span structure.
@@ -168,6 +190,7 @@ typedef struct sangoma_hptdm_chan_map
 
 
 /*!
+  \struct sangoma_hptdm_span_t
   \brief Span structure. Structure describing a single span.
  */
 typedef struct sangoma_hptdm_span
@@ -222,6 +245,9 @@ typedef struct sangoma_hptdm_span
 
 	/*! span config structure obtained from hw interface via managment ioctl call. */
 	wan_if_cfg_t span_cfg;
+
+	/*! tdm_api event structure used to obtain TDM API Events */
+	wanpipe_api_t tdm_api;
 
 	/*! span managment structure used to execute mgmnt ioctl commands to hw interface */
 	wan_udp_hdr_t wan_udp;
@@ -282,6 +308,7 @@ typedef struct sangoma_hptdm_span
  */
 
 /*!
+  \def sangoma_hptdm_api_span_init(span,cfg)
   \brief Initialize and Configure a Span
   \param span_no span number - integer
   \param cfg span registration struct
@@ -292,6 +319,7 @@ typedef struct sangoma_hptdm_span
 #define sangoma_hptdm_api_span_init(span,cfg) __sangoma_hptdm_api_span_init(span, cfg, SANGOMA_HPTDM_VERSION);
 
 /*!
+  \fn sangoma_hptdm_span_t * __sangoma_hptdm_api_span_init(int span_no, sangoma_hptdm_span_reg_t *cfg, int version)
   \brief Initialize and Configure Span - private functions not to be used directly!
   \param span_no span number - integer
   \param cfg span registration struct
@@ -310,6 +338,7 @@ extern sangoma_hptdm_span_t * __sangoma_hptdm_api_span_init(int span_no, sangoma
 
 
 /*!
+  \fn int sangoma_hptdm_api_span_free(sangoma_hptdm_span_t *span)
   \brief Free, Un-Initialize Span
   \param span_no span object
  \return 0 = pass, non zero fail

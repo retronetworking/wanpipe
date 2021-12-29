@@ -1,6 +1,6 @@
 # 05 Jun 93
 #
-# $Id: Makefile.OpenBSD,v 1.1 2005/01/13 18:24:20 sangoma Exp $
+# $Id: Makefile.OpenBSD,v 1.1 2005-01-13 18:24:20 sangoma Exp $
 #
 FT1_DIR=	${.CURDIR}/../ft1
 LXDIALOG_DIR=	${.CURDIR}/../lxdialog

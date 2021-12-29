@@ -95,7 +95,7 @@ search_and_replace()
         eval "grep '$search_str' $input_file_name > /dev/null 2> /dev/null"
 
         if [ $? -ne 0 ]; then
-                #echo "Did NOT find the seached str:$search_str"
+                echo "Did NOT find the seached str:$search_str"
                 return 1
         else
                 #echo "Found the seached str"
@@ -114,26 +114,15 @@ if [ "$ZAPTEL_DIR" == "" ]; then
 fi
 
 cd $ZAPTEL_DIR
-
-if [ -d kernel ]; then
-	ZAPTEL_DIR=$ZAPTEL_DIR/kernel
-fi
-
 if [ -e $ZAPTEL_DIR/zaptel-base.c ]; then
-        ZAPTEL_C_FILE=$ZAPTEL_DIR/zaptel-base.c
+        ZAPTEL_C_FILE=zaptel-base.c
 fi
 
 
 eval "grep hdlc_hard_xmit $ZAPTEL_C_FILE > /dev/null 2> /dev/null"
 if [ $? -eq 0 ] ; then
-	if [ ! -e /etc/wanpipe ]; then
-		eval "\mkdir -p /etc/wanpipe 2> /dev/null"
-	fi
-	if [ -e /etc/wanpipe ]; then
-		touch /etc/wanpipe/.zaphdlc
-	fi
+	touch /etc/wanpipe/.zaphdlc
 	echo "Zaptel HW HDLC support detected"
-	echo
 	exit 10
 else
 	if [ -e  /etc/wanpipe/.zaphdlc ]; then
@@ -144,11 +133,6 @@ fi
 echo "Applying Sangoma DCHAN patch to $ZAPTEL_DIR"
 echo " "
 tdmv_apply_zaptel_dchan_patch
-rc=$?
 
-if [ $rc == 0 ]; then
- 	echo "Please recompile and re-install ZAPTEL, zaptel source changed!"
-fi
-
-exit $rc
+exit $?
  

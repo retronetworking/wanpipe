@@ -229,7 +229,7 @@ static int set_asy_config (sdla_t* card);
 static int asy_comm_enable (sdla_t* card);
 
 /* Interrupt handlers */
-static void wpc_isr (sdla_t* card);
+static WAN_IRQ_RETVAL wpc_isr (sdla_t* card);
 static void rx_intr (sdla_t* card);
 static void timer_intr(sdla_t *);
 
@@ -838,7 +838,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	 * can return an error */
 
 	dev->init = &if_init;
-	wan_netif_set_priv(dev, chdlc_priv_area);
+	dev->priv = chdlc_priv_area;
 
 	set_bit(0,&chdlc_priv_area->config_chdlc);
 
@@ -854,7 +854,8 @@ new_if_error:
 	wan_unreg_api(chdlc_priv_area, card->devname);
 	
 	kfree(chdlc_priv_area);
-	wan_netif_set_priv(dev, NULL);
+
+	dev->priv=NULL;
 
 	return err;
 }
@@ -875,7 +876,7 @@ new_if_error:
  */
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
-	chdlc_private_area_t* 	chdlc_priv_area = wan_netif_priv(dev);
+	chdlc_private_area_t* 	chdlc_priv_area = dev->priv;
 	sdla_t*			card = chdlc_priv_area->card;
 
 	WAN_TASKLET_KILL(&chdlc_priv_area->common.bh_task);
@@ -907,7 +908,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
  */
 static int if_init (netdevice_t* dev)
 {
-	chdlc_private_area_t* chdlc_priv_area = wan_netif_priv(dev);
+	chdlc_private_area_t* chdlc_priv_area = dev->priv;
 	sdla_t* card = chdlc_priv_area->card;
 	wan_device_t* wandev = &card->wandev;
 
@@ -993,7 +994,7 @@ static int if_init (netdevice_t* dev)
  */
 static int if_open (netdevice_t* dev)
 {
-	chdlc_private_area_t* chdlc_priv_area = wan_netif_priv(dev);
+	chdlc_private_area_t* chdlc_priv_area = dev->priv;
 	sdla_t* card = chdlc_priv_area->card;
 	struct timeval tv;
 	int err = 0;
@@ -1052,7 +1053,7 @@ static int if_open (netdevice_t* dev)
 
 static int if_close (netdevice_t* dev)
 {
-	chdlc_private_area_t* chdlc_priv_area = wan_netif_priv(dev);
+	chdlc_private_area_t* chdlc_priv_area = dev->priv;
 	sdla_t* card = chdlc_priv_area->card;
 
 	stop_net_queue(dev);
@@ -1123,7 +1124,7 @@ static void disable_comm (sdla_t *card)
  */
 static void if_tx_timeout (netdevice_t *dev)
 {
-    	chdlc_private_area_t* chan = wan_netif_priv(dev);
+    	chdlc_private_area_t* chan = dev->priv;
 	sdla_t *card = chan->card;
 	
 	/* If our device stays busy for at least 5 seconds then we will
@@ -1166,12 +1167,14 @@ static void if_tx_timeout (netdevice_t *dev)
  */
 static int if_send (struct sk_buff* skb, netdevice_t* dev)
 {
-	chdlc_private_area_t *chdlc_priv_area = wan_netif_priv(dev);
+	chdlc_private_area_t *chdlc_priv_area = dev->priv;
 	sdla_t *card = chdlc_priv_area->card;
 	int udp_type = 0;
 	unsigned long smp_flags;
 	int err=0;
 	unsigned char misc_Tx_bits = 0;
+
+	smp_flags=0;
 
 #if defined(LINUX_2_4)||defined(LINUX_2_6) 
 	netif_stop_queue(dev);
@@ -1266,8 +1269,8 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 			}
 				
 			api_tx_hdr = (api_tx_hdr_t *)data;
-			attr = api_tx_hdr->attr;
-			misc_Tx_bits = api_tx_hdr->misc_Tx_bits;
+			attr = api_tx_hdr->wp_api_tx_hdr_chdlc_attr;
+			misc_Tx_bits = api_tx_hdr->wp_api_tx_hdr_chdlc_misc_tx_bits;
 			data += sizeof(api_tx_hdr_t);
 			len -= sizeof(api_tx_hdr_t);
 		}
@@ -1317,7 +1320,7 @@ static int chk_bcast_mcast_addr(sdla_t *card, netdevice_t* dev,
 {
 	u32 src_ip_addr;
         u32 broadcast_ip_addr = 0;
-	chdlc_private_area_t *chdlc_priv_area=wan_netif_priv(dev);
+	chdlc_private_area_t *chdlc_priv_area=dev->priv;
         struct in_device *in_dev;
         /* read the IP source address from the outgoing packet */
         src_ip_addr = *(u32 *)(skb->data + 12);
@@ -1464,7 +1467,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 	sdla_t *my_card;
 	chdlc_private_area_t* chdlc_priv_area;
 
-	if ((chdlc_priv_area=wan_netif_priv(dev)) == NULL)
+	if ((chdlc_priv_area=dev->priv) == NULL)
 		return NULL;
 
 	my_card = chdlc_priv_area->card;
@@ -1796,7 +1799,7 @@ static void chdlc_bh (unsigned long data)
 /*============================================================================
  * Cisco HDLC interrupt service routine.
  */
-static void wpc_isr (sdla_t* card)
+static WAN_IRQ_RETVAL wpc_isr (sdla_t* card)
 {
 	netdevice_t* dev;
 	SHARED_MEMORY_INFO_STRUCT	flags;
@@ -1808,7 +1811,7 @@ static void wpc_isr (sdla_t* card)
 	 */
 
 	if (!card->hw){
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 	
 	card->hw_iface.peek(card->hw, card->flags_off,
@@ -1843,9 +1846,7 @@ static void wpc_isr (sdla_t* card)
 		if(test_bit(SEND_CRIT, (void*)&card->wandev.critical)) {
 			printk(KERN_INFO "%s: Chdlc ISR: Critical with SEND_CRIT!\n",
 				card->devname);
-			card->in_isr = 0;
-			card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-			return;
+			goto isr_done;
 		}
 	}
 
@@ -1861,7 +1862,7 @@ static void wpc_isr (sdla_t* card)
 		card->hw_iface.clear_bit(card->hw, card->intr_perm_off, APP_INT_ON_TX);
 
 		if (dev && is_queue_stopped(dev)){
-			chdlc_private_area_t* chdlc_priv_area=wan_netif_priv(dev);
+			chdlc_private_area_t* chdlc_priv_area=dev->priv;
 			
 			if (chdlc_priv_area->common.usedby == API){
 				start_net_queue(dev);
@@ -1927,7 +1928,8 @@ isr_done:
 
 	card->in_isr = 0;
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-	return;
+
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 }
 
 /*============================================================================
@@ -2037,8 +2039,8 @@ static void rx_intr (sdla_t* card)
 		api_rx_hdr_t* api_rx_hdr;
        		skb_push(skb, sizeof(api_rx_hdr_t));
                 api_rx_hdr = (api_rx_hdr_t*)&skb->data[0x00];
-		api_rx_hdr->error_flag=0;
-     		api_rx_hdr->time_stamp = rxbuf.time_stamp;
+		api_rx_hdr->wan_hdr_hdlc_error_flag=0;
+     		api_rx_hdr->wan_hdr_hdlc_time_stamp = rxbuf.time_stamp;
 
                 skb->protocol = htons(WP_PVC_PROT);
      		wan_skb_reset_mac_header(skb);
@@ -2139,7 +2141,7 @@ void timer_intr(sdla_t *card)
 		goto timer_isr_exit;
 	}
 	
-        chdlc_priv_area = wan_netif_priv(dev);
+        chdlc_priv_area = dev->priv;
 
 	/* Configure hardware */
 	if (card->u.c.timer_int_enabled & TMR_INT_ENABLED_CONFIG) {
@@ -2343,7 +2345,7 @@ static int process_global_exception(sdla_t *card)
 /* SNMP */ 
 static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 {
-	chdlc_private_area_t* chan= wan_netif_priv(dev);
+	chdlc_private_area_t* chan= (chdlc_private_area_t*)dev->priv;
 	unsigned long smp_flags;
 	sdla_t *card;
 	wan_udp_pkt_t *wan_udp_pkt;
@@ -3135,10 +3137,13 @@ static int chdlc_set_if_info(struct file *file,
 			     void *data)
 {
 	netdevice_t*		dev = (void*)data;
-	chdlc_private_area_t* 	chdlc_priv_area;
+	chdlc_private_area_t* 	chdlc_priv_area = NULL;
 
-	if (dev == NULL || (chdlc_priv_area = wan_netif_priv(dev)) == NULL)
+	if (dev == NULL || dev->priv == NULL)
 		return count;
+
+	chdlc_priv_area = (chdlc_private_area_t*)dev->priv;
+
 
 	printk(KERN_INFO "%s: New interface config (%s)\n",
 			chdlc_priv_area->if_name, buffer);

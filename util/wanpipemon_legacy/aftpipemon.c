@@ -372,29 +372,29 @@ static void operational_stats (void)
 		BANNER("AFT OPERATIONAL STATISTICS");
 		stats = (aft_op_stats_t *)&wan_udp.wan_udphdr_data[0];
  
-		printf(    "             Number of frames transmitted:   %lu",
+		printf(    "             Number of frames transmitted:   %u",
 				stats->Data_frames_Tx_count);
-		printf(  "\n              Number of bytes transmitted:   %lu",
+		printf(  "\n              Number of bytes transmitted:   %u",
 				stats->Data_bytes_Tx_count);
-		printf(  "\n                      Transmit Throughput:   %lu",
+		printf(  "\n                      Transmit Throughput:   %u",
 				stats->Data_Tx_throughput);
-		printf(  "\n Transmit frames discarded (length error):   %lu",
+		printf(  "\n Transmit frames discarded (length error):   %u",
 				stats->Tx_Data_discard_lgth_err_count);
-		printf(  "\n                Transmit frames realigned:   %lu",
+		printf(  "\n                Transmit frames realigned:   %u",
 				stats->Data_frames_Tx_realign_count);
 
 
-		printf("\n\n                Number of frames received:   %lu",
+		printf("\n\n                Number of frames received:   %u",
 				stats->Data_frames_Rx_count);
-		printf(  "\n                 Number of bytes received:   %lu",
+		printf(  "\n                 Number of bytes received:   %u",
 				stats->Data_bytes_Rx_count);
-		printf(  "\n                       Receive Throughput:   %lu",
+		printf(  "\n                       Receive Throughput:   %u",
 				stats->Data_Rx_throughput);
-		printf(  "\n    Received frames discarded (too short):   %lu",
+		printf(  "\n    Received frames discarded (too short):   %u",
 				stats->Rx_Data_discard_short_count);
-		printf(  "\n     Received frames discarded (too long):   %lu",
+		printf(  "\n     Received frames discarded (too long):   %u",
 				stats->Rx_Data_discard_long_count);
-		printf(  "\nReceived frames discarded (link inactive):   %lu",
+		printf(  "\nReceived frames discarded (link inactive):   %u",
 				stats->Rx_Data_discard_inactive_count);
 
 

@@ -42,24 +42,21 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+
 #if defined(__LINUX__)
 # include <linux/version.h>
 # include <linux/types.h>
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_chdlc.h>
-#else
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanpipe.h>
-# include <sdla_chdlc.h>
 #endif
+
+#include "wanpipe_api.h"
+#include "sdla_chdlc.h"
+
 #include "fe_lib.h"
 #include "wanpipemon.h"
+#include "wanpipe_sppp_iface.h"
 
 
 /******************************************************************************
@@ -587,7 +584,7 @@ static void chdlc_configuration (void)
 	DO_COMMAND(wan_udp);
 
 	if (wan_udp.wan_udphdr_return_code == 0) {
-		chdlc_cfg = (wan_sppp_if_conf_t*)&wan_udp.wan_udphdr_u.data[0];
+		chdlc_cfg = (wan_sppp_if_conf_t*)&wan_udp.wan_udphdr_data[0];
 		BANNER("CHDLC CONFIGURATION");
 
 		printf("Ignore Keepalive\t: %s\n", 
@@ -776,7 +773,7 @@ static void slarp_stats (void)
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		BANNER("SLARP STATISTICS");
 		/*stats = (CHDLC_OPERATIONAL_STATS_STRUCT *)&wan_udp.wan_udphdr_data[0];*/ /* WRONG OFFSET!!! */
-		stats = (CHDLC_OPERATIONAL_STATS_STRUCT *)&wan_udp.wan_udphdr_u.data[0];
+		stats = (CHDLC_OPERATIONAL_STATS_STRUCT *)&wan_udp.wan_udphdr_data[0];
 
 		printf("\n SLARP frame transmission/reception statistics");
 		printf(  "\n       SLARP request packets transmitted:   %u",

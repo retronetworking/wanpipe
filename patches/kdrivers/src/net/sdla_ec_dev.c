@@ -15,12 +15,17 @@
 * Jan 16, 2006	Nenad Corbic	Initial version.
 *****************************************************************************/
 
-#include <linux/wanpipe_includes.h>
-#include <linux/wanpipe_defines.h>
-#include <linux/wanpipe.h>
-#include <linux/if_wanpipe.h>
-#include <linux/sdla_ec.h>
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe.h"
 
+#if defined (__LINUX__)
+# include "if_wanpipe.h"
+#endif
+
+#include "sdla_ec.h"
 
 #if defined(__x86_64__)
 #if defined(CONFIG_COMPAT) && defined(WP_CONFIG_COMPAT)

@@ -1,17 +1,7 @@
 
 
-#if defined(__LINUX__)
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe.h>
-# include <linux/wanpipe_cfg.h>
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe.h>
-# include <wanpipe_cfg.h>
-#else
-# error "This Operating System is not supported!"
-#endif
-
+#include "wanpipe_includes.h"
+#include "wanpipe_api.h"
 #include "wan_aften.h"
 
 #if 0
@@ -20,11 +10,20 @@
 
 static char	*wan_drvname = "wan_aften";
 static char 	wan_fullname[]	= "WANPIPE(tm) Sangoma AFT (lite) Driver";
-static char	wan_copyright[]	= "(c) 1995-2005 Sangoma Technologies Inc.";
+static char	wan_copyright[]	= "(c) 1995-2008 Sangoma Technologies Inc.";
 static int	ncards; 
 
 static sdla_t* card_list = NULL;	/* adapter data space */
 extern wan_iface_t wan_iface;
+
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+static int wan_aften_callback_add_device(char *devname, void *phw);
+static int wan_aften_callback_delete_device(char *);
+extern sdladrv_callback_t sdladrv_callback;
+
+extern int sdla_get_hw_usb_adptr_cnt (void);
+
+#endif
 
 static int wan_aften_init(void*);
 static int wan_aften_exit(void*);
@@ -32,6 +31,9 @@ static int wan_aften_exit(void*);
 static int wan_aften_shutdown(void*);
 static int wan_aften_ready_unload(void*);
 #endif
+static int wan_aften_add_device(int index);
+static int wan_aften_delete_device(sdla_t *card);
+
 static int wan_aften_setup(sdla_t *card, netdevice_t *dev);
 static int wan_aften_release(sdla_t *card);
 static int wan_aften_update_ports(void);
@@ -63,11 +65,12 @@ WAN_MODULE_VERSION(wan_aften, WAN_AFTEN_VER);
 
 static int wan_aften_init(void *arg)
 {
-	struct wan_aften_priv	*priv = NULL;
-	struct wan_dev_le	*devle;
-	sdla_t			*card, *tmp;
-	static int		if_index = 0;
-	int 			err = 0, i;
+	int 	err = 0, i, extra_ncards = 0;
+
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	sdladrv_callback.add_device	= wan_aften_callback_add_device;
+	sdladrv_callback.delete_device	= wan_aften_callback_delete_device;
+#endif
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
 	sdladrv_init();
@@ -81,132 +84,35 @@ static int wan_aften_init(void *arg)
 				wan_copyright); 
 	
 	ncards = sdla_hw_probe();
-	if (!ncards){
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	ncards += sdla_get_hw_usb_adptr_cnt();
+#endif
+	if (!(ncards+extra_ncards)){
 		DEBUG_EVENT("No Sangoma cards found, unloading modules!\n");
 		return -ENODEV;
 	}
 
 	for (i=0;i<ncards;i++){
-		wan_device_t*	wandev;
-		netdevice_t*	dev;
-
-		card=wan_malloc(sizeof(sdla_t));
-		if (!card){
-			DEBUG_EVENT("%s: Failed allocate new card!\n", 
-					wan_drvname);
-			goto wanpipe_init_done;
-		}
-		memset(card, 0, sizeof(sdla_t));
-		/* Allocate HDLC device */
-		if (!wan_iface.alloc || (dev = wan_iface.alloc(1,WAN_IFT_OTHER)) == NULL){
-			wan_free(card);
-			goto wanpipe_init_done;
-		}
-
-		devle = wan_malloc(sizeof(struct wan_dev_le));
-		if (devle == NULL){
-			DEBUG_EVENT("%s: Failed allocate memory!\n",
-					wan_drvname);
-			wan_free(card);
-			goto wanpipe_init_done;
-		}
-		if ((priv = wan_malloc(sizeof(struct wan_aften_priv))) == NULL){
-			DEBUG_EVENT("%s: Failed to allocate priv structure!\n",
-				wan_drvname);
-			wan_free(card);
-			wan_free(devle);
-			goto wanpipe_init_done;
-		}
-		priv->common.is_netdev		= 1;
-		priv->common.iface.open		= &wan_aften_open;
-		priv->common.iface.close	= &wan_aften_close;
-		priv->common.iface.ioctl	= &wan_aften_ioctl;
-
-		priv->common.card		= card;
-		wan_netif_set_priv(dev, priv); 
-
-#if defined(__LINUX__)
-		/*sprintf(card->devname, "hdlc%d", if_index++);*/
-		sprintf(card->devname, "w%dg1", ++if_index);
-#else
-		sprintf(card->devname, "w%cg1", 
-			'a' + if_index++);
-
-#endif
-
-		/* Register in HDLC device */
-		if (!wan_iface.attach || wan_iface.attach(dev, card->devname, 1)){
-			wan_free(devle);
-			if (wan_iface.free) wan_iface.free(dev);
-			goto wanpipe_init_done;
-		}
-
-		wandev 			= &card->wandev;
-		wandev->magic   	= ROUTER_MAGIC;
-		wandev->name    	= card->devname;
-		wandev->priv 	= card;
-		devle->dev		= dev;
-
-		/* Set device pointer */
-		WAN_LIST_INIT(&wandev->dev_head);
-		WAN_LIST_INSERT_HEAD(&wandev->dev_head, devle, dev_link);
-		card->list = NULL;
-		if (card_list){
-			for(tmp = card_list;tmp->list;tmp = tmp->list);
-			tmp->list = card;
-		}else{
-			card_list = card;
-		}
-#if 0
-		card->list	= card_list;
-		card_list	= card;
-#endif
-		if (wan_aften_setup(card, dev)){
-			DEBUG_EVENT("%s: Failed setup new device!\n", 
-					card->devname);
-			WAN_LIST_REMOVE(devle, dev_link);
-			wan_free(devle);
-			if (wan_iface.detach) wan_iface.detach(dev, 1);
-			if (wan_iface.free) wan_iface.free(dev);
-			if (card_list == card){
-				card_list = NULL;
-			}else{
-				for(tmp = card_list;
-					tmp->list != card; tmp = tmp->list);
-				tmp->list = card->list;
-				card->list = NULL;
-			}
-			wan_free(card);
+		if (wan_aften_add_device(i)){
+			goto wan_aften_init_done;
 		}
 	}
 	wan_aften_update_ports();
 
-wanpipe_init_done:
+wan_aften_init_done:
 	if (err) wan_aften_exit(arg);
 	return err;
 }
 
 static int wan_aften_exit(void *arg)
 {
-	struct wan_dev_le	*devle;
 	sdla_t			*card;
 	int			err = 0;
 
 	for (card=card_list;card_list;){
-		DEBUG_EVENT("%s: Unregistering device\n", card->devname);
-		devle = WAN_LIST_FIRST(&card->wandev.dev_head);
-		if (devle && devle->dev){
-			struct wan_aften_priv	*priv = wan_netif_priv(devle->dev);
-			DEBUG_EVENT("%s: Unregistering interface...\n", 
-					wan_netif_name(devle->dev));
-			if (wan_iface.detach) wan_iface.detach(devle->dev, 1);
-			wan_free(priv);
-			if (wan_iface.free) wan_iface.free(devle->dev);
-			WAN_LIST_REMOVE(devle, dev_link);
-			wan_free(devle);
-		}
-		DEBUG_EVENT("%s: Release device\n", card->devname);
-		wan_aften_release(card);
+		DEBUG_EVENT("%s: Unregistering device\n",
+				 card->devname);
+		wan_aften_delete_device(card);
 		card_list = card->list;
 		wan_free(card);
 		card = card_list;
@@ -236,6 +142,132 @@ int wan_aften_ready_unload(void *arg)
 }
 #endif
 
+static int wan_aften_add_device(int index)
+{
+	struct wan_aften_priv	*priv = NULL;
+	struct wan_dev_le	*devle;
+	sdla_t			*card, *tmp;
+	wan_device_t		*wandev;
+	netdevice_t		*dev = NULL;
+	static int		if_index = 0;
+
+	card=wan_malloc(sizeof(sdla_t));
+	if (!card){
+		DEBUG_EVENT("%s: Failed allocate new card!\n", 
+				wan_drvname);
+		return -EINVAL;
+	}
+	memset(card, 0, sizeof(sdla_t));
+	/* Allocate HDLC device */
+	if (wan_iface.alloc)
+		dev = wan_iface.alloc(1,WAN_IFT_OTHER);
+	if (dev == NULL){
+		wan_free(card);
+		return -EINVAL;
+	}
+
+	devle = wan_malloc(sizeof(struct wan_dev_le));
+	if (devle == NULL){
+		DEBUG_EVENT("%s: Failed allocate memory!\n",
+				wan_drvname);
+		wan_free(card);
+		return -EINVAL;
+	}
+	if ((priv = wan_malloc(sizeof(struct wan_aften_priv))) == NULL){
+		DEBUG_EVENT("%s: Failed to allocate priv structure!\n",
+			wan_drvname);
+		wan_free(card);
+		wan_free(devle);
+		return -EINVAL;
+	}
+	priv->common.is_netdev		= 1;
+	priv->common.iface.open		= &wan_aften_open;
+	priv->common.iface.close	= &wan_aften_close;
+	priv->common.iface.ioctl	= &wan_aften_ioctl;
+
+	priv->common.card		= card;
+	wan_netif_set_priv(dev, priv);
+
+#if defined(__LINUX__)
+	/*sprintf(card->devname, "hdlc%d", if_index++);*/
+	sprintf(card->devname, "w%dg1", ++if_index);
+#else
+	sprintf(card->devname, "w%cg1", 
+		'a' + if_index++);
+
+#endif
+
+	/* Register in HDLC device */
+	if (!wan_iface.attach || wan_iface.attach(dev, card->devname, 1)){
+		wan_free(devle);
+		if (wan_iface.free) wan_iface.free(dev);
+		return -EINVAL;
+	}
+	wandev 		= &card->wandev;
+	wandev->magic  	= ROUTER_MAGIC;
+	wandev->name   	= card->devname;
+	wandev->priv 	= card;
+	devle->dev	= dev;
+	/* Set device pointer */
+	WAN_LIST_INIT(&wandev->dev_head);
+	WAN_LIST_INSERT_HEAD(&wandev->dev_head, devle, dev_link);
+	card->list = NULL;
+	if (card_list){
+		for(tmp = card_list;tmp->list;tmp = tmp->list);
+		tmp->list = card;
+	}else{
+		card_list = card;
+	}
+#if 0
+	card->list	= card_list;
+	card_list	= card;
+#endif
+	if (wan_aften_setup(card, dev)){
+		DEBUG_EVENT("%s: Failed setup new device!\n", 
+				card->devname);
+		WAN_LIST_REMOVE(devle, dev_link);
+		wan_free(devle);
+		if (wan_iface.detach) wan_iface.detach(dev, 1);
+		if (wan_iface.free) wan_iface.free(dev);
+		if (card_list == card){
+			card_list = NULL;
+		}else{
+			for(tmp = card_list;
+				tmp->list != card; tmp = tmp->list);
+			tmp->list = card->list;
+			card->list = NULL;
+		}
+		wan_free(card);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int wan_aften_delete_device(sdla_t *card)
+{
+	struct wan_dev_le	*devle;
+
+	devle = WAN_LIST_FIRST(&card->wandev.dev_head);
+	if (devle && devle->dev){
+		struct wan_aften_priv	*priv = NULL;
+		priv = wan_netif_priv(devle->dev);
+		DEBUG_EVENT("%s: Unregistering interface...\n", 
+				wan_netif_name(devle->dev));
+		if (wan_iface.detach)
+			wan_iface.detach(devle->dev, 1);
+		wan_free(priv);
+		if (wan_iface.free)
+			wan_iface.free(devle->dev);
+		WAN_LIST_REMOVE(devle, dev_link);
+		wan_free(devle);
+	}
+	DEBUG_EVENT("%s: Release device (%p)\n",
+			card->devname, card);
+	wan_aften_release(card);
+	return 0;
+}
+
 static int wan_aften_setup(sdla_t *card, netdevice_t *dev)
 {
 	struct wan_aften_priv	*priv = wan_netif_priv(dev);
@@ -256,77 +288,124 @@ static int wan_aften_setup(sdla_t *card, netdevice_t *dev)
 		goto wan_aften_setup_error;
 	}
 
-		      
-	WAN_HWCALL(getcfg, (card->hw, SDLA_BUS, &priv->bus));
-	WAN_HWCALL(getcfg, (card->hw, SDLA_SLOT, &priv->slot));
-	WAN_HWCALL(getcfg, (card->hw, SDLA_IRQ, &priv->irq));
-	WAN_HWCALL(pci_read_config_dword, 
+	WAN_HWCALL(getcfg, (card->hw, SDLA_CARDTYPE, &card->type));
+	if (card->type != SDLA_USB){
+		WAN_HWCALL(getcfg, (card->hw, SDLA_BUS, &priv->bus));
+		WAN_HWCALL(getcfg, (card->hw, SDLA_SLOT, &priv->slot));
+		WAN_HWCALL(getcfg, (card->hw, SDLA_IRQ, &priv->irq));
+		WAN_HWCALL(pci_read_config_dword, 
 			(card->hw, 0x04, &priv->base_class));
-	WAN_HWCALL(pci_read_config_dword, 
+		WAN_HWCALL(pci_read_config_dword, 
 			(card->hw, PCI_IO_BASE_DWORD, &priv->base_addr0));
-	WAN_HWCALL(pci_read_config_dword, 
+		WAN_HWCALL(pci_read_config_dword, 
 			(card->hw, PCI_MEM_BASE0_DWORD, &priv->base_addr1));
 
-	DEBUG_EVENT("%s: BaseClass %X BaseAddr %X:%X IRQ %d\n", 
-			wan_netif_name(dev),
-			priv->base_class,
-			priv->base_addr0,
-			priv->base_addr1,
-			priv->irq);
-
-	/* Save pci bridge config (if needed) */
-	WAN_HWCALL(getcfg, (card->hw, SDLA_PCIEXPRESS, &priv->pci_express_bridge));
-	if (priv->pci_express_bridge){
-		int	off = 0;
-				
-		WAN_HWCALL(pci_bridge_read_config_dword, 
-			(card->hw, 0x04, &priv->pci_bridge_base_class));
-		WAN_HWCALL(pci_bridge_read_config_dword, 
-			(card->hw, PCI_IO_BASE_DWORD, &priv->pci_bridge_base_addr0));
-		WAN_HWCALL(pci_bridge_read_config_dword, 
-			(card->hw, PCI_MEM_BASE0_DWORD, &priv->pci_bridge_base_addr1));
-		WAN_HWCALL(pci_bridge_read_config_byte, 
-			(card->hw, PCI_INT_LINE_BYTE, &priv->pci_bridge_irq));
-		for(off=0;off<=15;off++){
-			WAN_HWCALL(pci_bridge_read_config_dword, 
-				(card->hw, off*4, &priv->pci_bridge_cfg[off]));
-		}		
-		DEBUG_EVENT("%s: PCI_ExpressBridge: BaseClass %X BaseAddr %X:%X IRQ %d\n", 
+		DEBUG_EVENT("%s: BaseClass %X BaseAddr %X:%X IRQ %d\n", 
 				wan_netif_name(dev),
-				priv->pci_bridge_base_class,
-				priv->pci_bridge_base_addr0,
-				priv->pci_bridge_base_addr1,
-				priv->pci_bridge_irq);
-	}
-	
+				priv->base_class,
+				priv->base_addr0,
+				priv->base_addr1,
+				priv->irq);
+
+		/* Save pci bridge config (if needed) */
+		WAN_HWCALL(getcfg, 
+			(card->hw, SDLA_PCIEXPRESS, &priv->pci_express_bridge));
+		if (priv->pci_express_bridge){
+			int	off = 0;
+
+			WAN_HWCALL(pci_bridge_read_config_dword, 
+				(card->hw, 0x04, &priv->pci_bridge_base_class));
+			WAN_HWCALL(pci_bridge_read_config_dword, 
+				(card->hw, PCI_IO_BASE_DWORD, &priv->pci_bridge_base_addr0));
+			WAN_HWCALL(pci_bridge_read_config_dword, 
+				(card->hw, PCI_MEM_BASE0_DWORD, &priv->pci_bridge_base_addr1));
+			WAN_HWCALL(pci_bridge_read_config_byte, 
+				(card->hw, PCI_INT_LINE_BYTE, &priv->pci_bridge_irq));
+			for(off=0;off<=15;off++){
+				WAN_HWCALL(pci_bridge_read_config_dword, 
+					(card->hw, off*4, &priv->pci_bridge_cfg[off]));
+			}		
+			DEBUG_EVENT("%s: PCI_ExpressBridge: BaseClass %X BaseAddr %X:%X IRQ %d\n", 
+					wan_netif_name(dev),
+					priv->pci_bridge_base_class,
+					priv->pci_bridge_base_addr0,
+					priv->pci_bridge_base_addr1,
+					priv->pci_bridge_irq);
+		}
+
 #if defined(ENABLED_IRQ)
-	if(request_irq(irq, wan_aften_isr, SA_SHIRQ, card->devname, card)){
-		DEBUG_EVENT("%s: Can't reserve IRQ %d!\n", 
-				card->devname, irq);
-		sdla_unregister(&card->hw, card->devname);
-		goto wan_aften_setup_error;			
-	}
+		if(request_irq(irq, wan_aften_isr, SA_SHIRQ, card->devname, card)){
+			DEBUG_EVENT("%s: Can't reserve IRQ %d!\n", 
+					card->devname, irq);
+			sdla_unregister(&card->hw, card->devname);
+			goto wan_aften_setup_error;			
+		}
 #endif
+	}else{
+		DEBUG_EVENT("%s: USB device is ready (%p)\n",
+				card->devname, card);
+	}
 	return 0;
 
 wan_aften_setup_error:
 	return -EINVAL;
-
 }
 
 static int wan_aften_release(sdla_t *card)
 {
+	if (card->type != SDLA_USB){
 #if defined(ENABLED_IRQ)
-	struct wan_aften_priv	*priv = wan_netif_priv(dev);
-	free_irq(priv->irq, card);
+		struct wan_aften_priv	*priv = wan_netif_priv(dev);
+		free_irq(priv->irq, card);
 #endif
+	}
 	if (card->hw_iface.hw_down){
 		card->hw_iface.hw_down(card->hw);
 	}
-	sdla_unregister(&card->hw, card->devname);
-
+	if (card->hw){
+		sdla_unregister(&card->hw, card->devname);
+	}else{
+		DEBUG_EVENT("%s: ERROR: HW device pointer is NULL!\n",
+				card->devname);
+	}
 	return 0;
 }
+
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+static int wan_aften_callback_add_device(char *devname, void *phw)
+{
+	int	err = 0;
+
+	err = wan_aften_add_device(0);
+	if (err){
+		DEBUG_EVENT("%s: ERROR: Failed to add new device!\n",
+					devname);
+		return -EINVAL;
+	}
+	return 0;
+}
+static int wan_aften_callback_delete_device(char *devname)
+{
+	sdla_t	*card, *card_prev = NULL;
+	int	err = -ENODEV;
+
+	for (card=card_list;card;){
+		if (strcmp(card->devname, devname) == 0){
+			wan_aften_delete_device(card);
+			if (card_list == card){
+				card_list = card->list;
+			}else{
+				card_prev->list = card->list;
+			}
+			wan_free(card);
+			return 0;
+		}
+		card_prev = card;
+		card = card->list;
+	}
+	return err;
+}
+#endif
 
 static int wan_aften_update_ports(void)
 {
@@ -379,13 +458,11 @@ static int wan_aften_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd, int idata)
 				       	api_cmd->offset,
 			       		(unsigned char*)&api_cmd->data[idata]);
 		}
-#if defined(WAN_DEBUG_REG)
-		DEBUG_EVENT("%s: Reading Off=0x%08X Len=%i Data=0x%02X\n",
+		DEBUG_TEST("%s: Reading Off=0x%08X Len=%i Data=0x%02X\n",
 				card->devname,
 				api_cmd->offset,
 				api_cmd->len,
 				*(unsigned char*)&api_cmd->data[idata]);
-#endif
 	}else if (api_cmd->len == 2){
 		if (api_cmd->offset <= 0x3C){
 			card->hw_iface.pci_read_config_word(
@@ -398,13 +475,11 @@ static int wan_aften_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd, int idata)
 			       		api_cmd->offset,
 				       	(unsigned short*)&api_cmd->data[idata]);
 		}
-#if defined(WAN_DEBUG_REG)
-		DEBUG_EVENT("%s: Reading Off=0x%08X Len=%i Data=0x%04X\n",
+		DEBUG_TEST("%s: Reading Off=0x%08X Len=%i Data=0x%04X\n",
 				card->devname,
 				api_cmd->offset,
 				api_cmd->len,
 				*(unsigned short*)&api_cmd->data[idata]);
-#endif
 	}else if (api_cmd->len == 4){
 		if (api_cmd->offset <= 0x3C){
 			card->hw_iface.pci_read_config_dword(
@@ -417,14 +492,12 @@ static int wan_aften_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd, int idata)
 				       	api_cmd->offset,
 				       	(unsigned int*)&api_cmd->data[idata]);
 		}
-#if defined(WAN_DEBUG_REG)
-		DEBUG_EVENT("ADEBUG: %s: Reading Off=0x%08X Len=%i Data=0x%04X (idata=%d)\n",
+		DEBUG_TEST("ADEBUG: %s: Reading Off=0x%08X Len=%i Data=0x%04X (idata=%d)\n",
 				card->devname,
 				api_cmd->offset,
 				api_cmd->len,
 				*(unsigned int*)&api_cmd->data[idata],
 				idata);
-#endif
 	}else{
 		card->hw_iface.peek(
 				card->hw,
@@ -436,12 +509,10 @@ static int wan_aften_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd, int idata)
 				(unsigned char*)vector, api_cmd.len);
 #endif
 
-#if defined(WAN_DEBUG_REG)
-		DEBUG_EVENT("%s: Reading Off=0x%08X Len=%i\n",
+		DEBUG_TEST("%s: Reading Off=0x%08X Len=%i\n",
 				card->devname,
 				api_cmd->offset,
 				api_cmd->len);
-#endif
 	}
 	
 	return 0;	
@@ -461,8 +532,9 @@ static int wan_aften_all_read_reg(sdla_t *card_head, wan_cmd_api_t *api_cmd)
 			idata += api_cmd->len;
 		}
 		prev = card;
-	}
 
+	}
+	
 	/*Update api_cmd->len to the new length of data to copy up
 	  as the ioctl call will copy up only api_cmd->len to increase
 	  the speed of a firmware update*/
@@ -478,31 +550,25 @@ static int wan_aften_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 				card->hw,
 				api_cmd->offset,
 				*(unsigned char*)&api_cmd->data[0]);
-#if defined(WAN_DEBUG_REG)
-		DEBUG_EVENT("%s: Write  Offset=0x%08X Data=0x%02X\n",
+		DEBUG_TEST("%s: Write  Offset=0x%08X Data=0x%02X\n",
 			card->devname,api_cmd->offset,
 			*(unsigned char*)&api_cmd->data[0]);
-#endif
 	}else if (api_cmd->len == 2){
 		card->hw_iface.bus_write_2(
 				card->hw,
 				api_cmd->offset,
 				*(unsigned short*)&api_cmd->data[0]);
-#if defined(WAN_DEBUG_REG)
-		DEBUG_EVENT("%s: Write  Offset=0x%08X Data=0x%04X\n",
+		DEBUG_TEST("%s: Write  Offset=0x%08X Data=0x%04X\n",
 			card->devname,api_cmd->offset,
 			*(unsigned short*)&api_cmd->data[0]);
-#endif
 	}else if (api_cmd->len == 4){
 		card->hw_iface.bus_write_4(
 				card->hw,
 				api_cmd->offset,
 				*(unsigned int*)&api_cmd->data[0]);
-#if defined(WAN_DEBUG_REG)
-		DEBUG_EVENT("ADEBUG: %s: Write  Offset=0x%08X Data=0x%08X\n",
+		DEBUG_TEST("ADEBUG: %s: Write  Offset=0x%08X Data=0x%08X\n",
 			card->devname,api_cmd->offset,
 			*(unsigned int*)&api_cmd->data[0]);
-#endif
 	}else{
 		card->hw_iface.poke(
 				card->hw,
@@ -756,7 +822,154 @@ static int wan_aften_close(netdevice_t *dev)
 	return 0;
 }
 
-#if 1
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+static int wan_aften_usb_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
+{
+
+	if (card->type != SDLA_USB){
+		DEBUG_EVENT("%s: Unsupported command for current device!\n",
+					card->devname);
+		return -EINVAL;
+	}
+
+	if (api_cmd->ret == 1){
+
+		DEBUG_TEST("%s: Write USB-CPU CMD: Reg:0x%02X <- 0x%02X\n",
+				card->devname, 
+				(unsigned char)api_cmd->offset,
+				(unsigned char)api_cmd->data[0]);
+		api_cmd->ret = card->hw_iface.usb_cpu_write(	
+						card->hw, 
+						(u_int8_t)api_cmd->offset, 
+						(u_int8_t)api_cmd->data[0]);
+
+	}else if (api_cmd->ret == 2){
+
+		DEBUG_TEST("%s: Write USB-FXO CMD: Module:%d Reg:%d <- 0x%02X\n",
+				card->devname, api_cmd->bar,
+				(unsigned char)api_cmd->offset,
+				(unsigned char)api_cmd->data[0]);
+		api_cmd->ret = card->hw_iface.fe_write(card->hw,
+						api_cmd->bar,
+						(u_int8_t)api_cmd->offset,
+						(u_int8_t)api_cmd->data[0]);
+
+	}else if (api_cmd->ret == 3){
+
+		if (api_cmd->len){
+			DEBUG_TEST("%s: Write USB-FXO DATA: %d (%d) bytes\n",
+					card->devname, api_cmd->len, api_cmd->offset);
+			api_cmd->ret = card->hw_iface.usb_txdata(
+							card->hw,
+							&api_cmd->data[0],
+							api_cmd->len);
+		}else{
+			DEBUG_TEST("%s: Write USB-FXO DATA Ready?\n",
+					card->devname);
+			api_cmd->ret = card->hw_iface.usb_txdata_ready(card->hw);
+		}
+	}else if (api_cmd->ret == 0){
+			
+		api_cmd->ret = card->hw_iface.usb_write_poll(	
+						card->hw,
+						(u_int8_t)api_cmd->offset,
+						(u_int8_t)api_cmd->data[0]);
+		if (api_cmd->ret){
+			api_cmd->ret = -EBUSY;
+			return 0;
+		}
+		DEBUG_EVENT("%s: WRITE USB CMD: Reg:%d <- 0x%02X\n",
+				card->devname, 
+				(unsigned char)api_cmd->offset,
+				(unsigned char)api_cmd->data[0]);
+		api_cmd->ret = 0;
+
+	}else{
+		DEBUG_EVENT("%s: Unknown SDLA-USB command %d\n", 
+				card->devname, api_cmd->len);
+		api_cmd->ret = -EBUSY;
+		return 0;
+	}
+	return 0;
+}
+
+static int wan_aften_usb_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
+{
+	int	err = 0;
+
+	if (card->type != SDLA_USB){
+		DEBUG_EVENT("%s: Unsupported command for current device!\n",
+					card->devname);
+		return -EINVAL;
+	}
+	if (api_cmd->ret == 1){
+
+		api_cmd->data[0] = 0xFF;
+		/* Add function here */
+		err = card->hw_iface.usb_cpu_read(
+						card->hw,
+						(u_int8_t)api_cmd->offset,
+						(u_int8_t*)&api_cmd->data[0]);
+		if (err){
+			api_cmd->ret = -EBUSY;
+			return 0;
+		}
+		DEBUG_TEST("%s: Read USB-CPU CMD: Reg:0x%02x -> 0x%02X\n",
+				card->devname, 
+				(unsigned char)api_cmd->offset,
+				(unsigned char)api_cmd->data[0]);
+		api_cmd->ret = 0;
+		api_cmd->len = 1;
+
+	}else if (api_cmd->ret == 2){
+
+		/* Add function here */
+		api_cmd->data[0] = card->hw_iface.fe_read(
+						card->hw, 
+						api_cmd->bar, 
+						(u_int8_t)api_cmd->offset);
+
+		DEBUG_TEST("%s: Read USB-FXO CMD: Mod:%d Reg:%d -> 0x%02X\n",
+				card->devname,  api_cmd->bar,
+				(unsigned char)api_cmd->offset,
+				(unsigned char)api_cmd->data[0]);
+		api_cmd->ret = 0;
+		api_cmd->len = 1;
+
+	}else if (api_cmd->ret == 3){
+
+		/* Add function here */
+		api_cmd->ret = 
+			card->hw_iface.usb_rxdata(card->hw, &api_cmd->data[0], api_cmd->len); 
+
+		DEBUG_TEST("%s: Read USB-FXO Data: %d (%d) bytes\n",
+				card->devname,  api_cmd->ret, api_cmd->len);
+
+	}else if (api_cmd->ret == 0){
+
+		err = card->hw_iface.usb_read_poll(	card->hw,
+							(u_int8_t)api_cmd->offset,
+							(u_int8_t*)&api_cmd->data[0]);
+		if (err){
+			api_cmd->ret = -EBUSY;
+			return 0;
+		}
+		DEBUG_EVENT("%s: Read USB CMD: Reg:%d -> 0x%02X\n",
+				card->devname, 
+				(unsigned char)api_cmd->offset,
+				(unsigned char)api_cmd->data[0]);
+		api_cmd->ret = 0;
+		api_cmd->len = 1;
+
+	}else{
+		DEBUG_EVENT("%s: Unknown SDLA-USB command %d\n", 
+				card->devname, api_cmd->len);
+		api_cmd->ret = -EINVAL;
+		return 0;
+	}  
+	return 0;
+}
+#endif
 
 static int
 wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
@@ -904,109 +1117,3 @@ wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 	return err;
 }
 
-#else
-
-static int
-wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
-{
-	sdla_t			*card;
-	struct wan_aften_priv	*priv= wan_netif_priv(dev);
-	wan_cmd_api_t	api_cmd;
-	int			err=-EINVAL;
-		
-	if (!priv || !priv->common.card){
-		DEBUG_EVENT("%s: Invalid structures!\n", wan_netif_name(dev));
-		return -ENODEV;
-	}
-
-	DEBUG_TEST("%s: CMD=0x%X\n",__FUNCTION__,cmd);
-
-	if (cmd != SIOC_WAN_DEVEL_IOCTL){
-		DEBUG_IOCTL("%s: Unsupported IOCTL call!\n", 
-					wan_netif_name(dev));
-		return -EINVAL;
-	}
-	if (!ifr->ifr_data){
-		DEBUG_EVENT("%s: No API data!\n", wan_netif_name(dev));
-		return -EINVAL;
-	}
-
-	card = priv->common.card;
-	if (WAN_COPY_FROM_USER(&api_cmd,ifr->ifr_data,sizeof(wan_cmd_api_t))){
-		return -EFAULT;
-	}
-
-	/* Hardcode bar access FELD */
-	switch (api_cmd.cmd){
-	case SIOC_WAN_READ_REG:
-		err = wan_aften_read_reg(card, &api_cmd, 0);
-		break;
-	
-	case SIOC_WAN_ALL_READ_REG:
-		err = wan_aften_all_read_reg(card_list, &api_cmd);
-		break;
-
-	case SIOC_WAN_WRITE_REG:
-		err = wan_aften_write_reg(card, &api_cmd);
-		break;
-
-	case SIOC_WAN_ALL_WRITE_REG:
-		err = wan_aften_all_write_reg(card_list, &api_cmd);
-		break;
-		
-	case SIOC_WAN_SET_PCI_BIOS:
-		err = wan_aften_set_pci_bios(card);
-		break;
-
-	case SIOC_WAN_ALL_SET_PCI_BIOS:
-		err = wan_aften_all_set_pci_bios(card_list);
-		break;
-		
-	case SIOC_WAN_HWPROBE:
-		DEBUG_TEST("%s: Read Sangoma device hwprobe!\n",
-					wan_netif_name(dev));
-		memset(&api_cmd.data[0], 0, WAN_MAX_CMD_DATA_SIZE);
-		api_cmd.len = 0;
-		err = wan_aften_hwprobe(card, &api_cmd);
-		break;
-		
-	case SIOC_WAN_ALL_HWPROBE:
-		DEBUG_TEST("%s: Read list of Sangoma devices!\n",
-					wan_netif_name(dev));
-		memset(&api_cmd.data[0], 0, WAN_MAX_CMD_DATA_SIZE);
-		api_cmd.len = 0;
-		err = wan_aften_all_hwprobe(card, &api_cmd);
-		break;
-
-	case SIOC_WAN_COREREV:
-		if (card->hw_iface.getcfg){
-			err = card->hw_iface.getcfg(
-					card->hw,
-				       	SDLA_COREREV,
-					&api_cmd.data[0]);
-			api_cmd.len = 1;
-		}
-		DEBUG_TEST("%s: Get core revision (rev %X)!\n", 
-				wan_netif_name(dev), api_cmd.data[0]);
-		break;
-	case SIOC_WAN_READ_PCIBRIDGE_REG:
-		err = wan_aften_read_pcibridge_reg(card, &api_cmd, 0);
-		break;
-	case SIOC_WAN_ALL_READ_PCIBRIDGE_REG:
-		err = wan_aften_all_read_pcibridge_reg(card, &api_cmd);
-		break;
-	case SIOC_WAN_WRITE_PCIBRIDGE_REG:
-		err = wan_aften_write_pcibridge_reg(card, &api_cmd);
-		break;
-	case SIOC_WAN_ALL_WRITE_PCIBRIDGE_REG:
-		err = wan_aften_all_write_pcibridge_reg(card, &api_cmd);
-		break;
-	}
-
-	if (WAN_COPY_TO_USER(ifr->ifr_data,&api_cmd,sizeof(wan_cmd_api_t))){
-		return -EFAULT;
-	}
-	
-	return err;
-}
-#endif

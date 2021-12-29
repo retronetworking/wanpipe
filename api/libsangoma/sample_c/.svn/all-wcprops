@@ -1,0 +1,53 @@
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/libsangoma/!svn/ver/155/trunk/sample_c
+END
+lib_api.c
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/libsangoma/!svn/ver/139/trunk/sample_c/lib_api.c
+END
+sample-doxygen.config
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/libsangoma/!svn/ver/57/trunk/sample_c/sample-doxygen.config
+END
+sample.c
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/libsangoma/!svn/ver/135/trunk/sample_c/sample.c
+END
+sources
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/libsangoma/!svn/ver/146/trunk/sample_c/sources
+END
+lib_api.h
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/libsangoma/!svn/ver/139/trunk/sample_c/lib_api.h
+END
+Makefile.Windows
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/libsangoma/!svn/ver/29/trunk/sample_c/Makefile.Windows
+END
+Makefile.Linux
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/libsangoma/!svn/ver/141/trunk/sample_c/Makefile.Linux
+END
+compile.bat
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/libsangoma/!svn/ver/32/trunk/sample_c/compile.bat
+END

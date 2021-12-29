@@ -42,11 +42,13 @@
 		((port) == WAN_EC_CHANNEL_PORT_ROUT)	? "ROUT" :	\
 		((port) == WAN_EC_CHANNEL_PORT_RIN)	? "RIN"  : "Unknown"
 
-#define WAN_EVENT_RXHOOK_OFF		0x01
-#define WAN_EVENT_RXHOOK_ON		0x02
+#define WAN_EVENT_RXHOOK_OFF			0x01
+#define WAN_EVENT_RXHOOK_ON				0x02
+#define WAN_EVENT_RXHOOK_FLASH		0x03
 #define WAN_EVENT_RXHOOK_DECODE(hook)					\
 		((hook) == WAN_EVENT_RXHOOK_OFF) ? "Off-hook" :		\
 		((hook) == WAN_EVENT_RXHOOK_ON)  ? "On-hook" :		\
+		((hook) == WAN_EVENT_RXHOOK_FLASH)  ? "Flash-hook" :		\
 							"Unknown"
 
 #define WAN_EVENT_RING_PRESENT		0x01
@@ -69,7 +71,19 @@
 		((status) == WAN_EVENT_LINK_STATUS_DISCONNECTED)  ? "Disconnected" :		\
 							"Unknown"
 
+/*FXO polarity Reversal */
+#define WAN_EVENT_POLARITY_REV_POSITIVE_NEGATIVE	0x01
+#define WAN_EVENT_POLARITY_REV_NEGATIVE_POSITIVE	0x02
+#define WAN_EVENT_POLARITY_REV_DECODE(status)					\
+		((status) == WAN_EVENT_POLARITY_REV_POSITIVE_NEGATIVE) ? "Positive to Negative" :		\
+		((status) == WAN_EVENT_POLARITY_REV_NEGATIVE_POSITIVE)  ? "Negative to Positive" :		\
+							"Unknown"
+	
 #if defined(WAN_KERNEL)
+
+#include "wanpipe_debug.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_common.h"
 
 /* Global Event defines 			*/
 #define WAN_EVENT_ENABLE	0x01
@@ -80,7 +94,7 @@
 						"(Unknown mode)"
 
 /* Event type list */
-#define WAN_EVENT_EC_DTMF		0x0001
+#define WAN_EVENT_EC_DTMF		0x0001	/* WAN_EVENT_EC_TONE_DTMF */
 #define WAN_EVENT_RM_POWER		0x0002
 #define WAN_EVENT_RM_LC			0x0003
 #define WAN_EVENT_RM_RING_TRIP		0x0004
@@ -100,6 +114,7 @@
 #define WAN_EVENT_EC_H100_REPORT	0x0012
 #define WAN_EVENT_BRI_CHAN_LOOPBACK	0x0013
 #define WAN_EVENT_LINK_STATUS		0x0014
+#define WAN_EVENT_RM_POLARITY_REVERSE 	0x0016
 	
 
 #define WAN_EVENT_TYPE_DECODE(type)					\
@@ -122,18 +137,19 @@
 		((type) == WAN_EVENT_EC_CHAN_MODIFY)	? "EC Chan Modify" :	\
 		((type) == WAN_EVENT_BRI_CHAN_LOOPBACK)	? "BRI B-Chan Loopback" :	\
 		((type) == WAN_EVENT_LINK_STATUS)	? "Link Status" :	\
+		((type) == WAN_EVENT_RM_POLARITY_REVERSE)	? "RM Polarity Reverse" :	\
 							"(Unknown type)"
 
 /* tone type list */						
-#define	WAN_EVENT_TONE_DIAL		0x01
-#define	WAN_EVENT_TONE_BUSY		0x02
-#define	WAN_EVENT_TONE_RING		0x03
-#define	WAN_EVENT_TONE_CONGESTION	0x04
+#define	WAN_EVENT_RM_TONE_TYPE_DIAL		0x01
+#define	WAN_EVENT_RM_TONE_TYPE_BUSY		0x02
+#define	WAN_EVENT_RM_TONE_TYPE_RING		0x03
+#define	WAN_EVENT_RM_TONE_TYPE_CONGESTION	0x04
 #define WAN_EVENT_TONE_DECODE(tone)					\
-		((tone) == WAN_EVENT_TONE_DIAL)		? "Dial tone" :	\
-		((tone) == WAN_EVENT_TONE_BUSY)		? "Busy tone" :	\
-		((tone) == WAN_EVENT_TONE_RING)		? "Ring tone" :	\
-		((tone) == WAN_EVENT_TONE_CONGESTION)	? "Congestion tone" :	\
+		((tone) == WAN_EVENT_RM_TONE_TYPE_DIAL)		? "Dial tone" :	\
+		((tone) == WAN_EVENT_RM_TONE_TYPE_BUSY)		? "Busy tone" :	\
+		((tone) == WAN_EVENT_RM_TONE_TYPE_RING)		? "Ring tone" :	\
+		((tone) == WAN_EVENT_RM_TONE_TYPE_CONGESTION)	? "Congestion tone" :	\
 						"(Unknown tone)"
 
 /* Event information			*/
@@ -141,15 +157,17 @@ typedef struct wan_event_
 {
 	u_int16_t	type;
 	u_int8_t	mode;		/* Enable/Disable */
-	int		channel;	/* A200-mod_no, T1/E1-fe chan  */
-	unsigned char	digit;		/* DTMF: digit  */
-	unsigned char	dtmf_type;	/* DTMF: PRESETN/STOP */
-	unsigned char	dtmf_port;	/* DTMF: ROUT/SOUT */
+	u_int8_t	channel;	/* A200-mod_no, T1/E1-fe chan  */
+	unsigned char	digit;		/* TONE: digit, 'f' -  for fax  */
+	unsigned char	tone_type;	/* TONE: PRESETN/STOP */
+	unsigned char	tone_port;	/* TONE: ROUT/SOUT */
 
 	unsigned char	rxhook;		/* LC: OFF-HOOK or ON-HOOK */
 
 	unsigned char	ring_mode;	/* RingDetect: Present/Stop */
 	unsigned char	link_status;    /* Link Status */
+	unsigned char   polarity_reverse; /*Polarity Reverse detection */
+	unsigned int	alarms;
 		
 } wan_event_t;
 
@@ -160,7 +178,7 @@ typedef struct wan_event_ctrl_
 	u_int8_t	mode;
 	int		mod_no;		/* A200-Remora */
 	int		channel;
-	unsigned char	ec_dtmf_port;	/* EC DTMF: SOUT or ROUT */
+	unsigned char	ec_tone_port;	/* EC DTMF: SOUT or ROUT */
 	unsigned long	ts_map;
 	u_int8_t	tone;
 	int		ohttimer;	/* On-hook transfer */

@@ -43,32 +43,17 @@
 #ifndef	_WANPIPE_H
 #define	_WANPIPE_H
 
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-#include <wanpipe_defines.h>
-#include <wanpipe_debug.h>
-#include <wanpipe_common.h>
-#include <wanpipe_events.h>
-#include <wanpipe_cfg.h>
-# include <wanrouter.h>
-#elif defined(__WINDOWS__)
-#if defined (__KERNEL__)
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe_events.h>
-# include <wanpipe_cfg.h>
-# include <wanrouter.h>
-# include <wanpipe_structs.h>
-#endif
-#elif defined(__LINUX__) || defined (__KERNEL__)
-#include <linux/wanpipe_defines.h>
-#include <linux/wanpipe_debug.h>
-#include <linux/wanpipe_common.h>
-#include <linux/wanpipe_events.h>
-#include <linux/wanpipe_cfg.h>
-#include <linux/wanrouter.h>
-#else
-# error "No OS Specified"
+#include "wanpipe_api.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe_events.h"
+#include "wanpipe_cfg.h"
+#include "wanrouter.h"
+
+
+#if defined(__WINDOWS__) && defined (__KERNEL__)
+# include "wanpipe_structs.h"
 #endif
 
 /* Due to changes between 2.4.9 and 2.4.13,
@@ -121,14 +106,7 @@
 		}
 #endif
 
-#define TRACE_ALL                       0x00
-#define TRACE_PROT			0x01
-#define TRACE_DATA			0x02
 
-/* values for request/reply byte */
-#define UDPMGMT_REQUEST	0x01
-#define UDPMGMT_REPLY	0x02
-#define UDP_OFFSET	12
 
 #define MAX_CMD_BUFF 	10
 #define MAX_X25_LCN 	255	/* Maximum number of x25 channels */
@@ -200,80 +178,9 @@ typedef struct wum_header
  Data Structure for global statistics
 *************************************************************************/
 
-typedef struct global_stats
-{
-	unsigned long isr_entry;
-	unsigned long isr_already_critical;		
-	unsigned long isr_rx;
-	unsigned long isr_tx;
-	unsigned long isr_intr_test;
-	unsigned long isr_spurious;
-	unsigned long isr_enable_tx_int;
-	unsigned long rx_intr_corrupt_rx_bfr;
-	unsigned long rx_intr_on_orphaned_DLCI;
-	unsigned long rx_intr_dev_not_started;
-	unsigned long tx_intr_dev_not_started;
-	unsigned long poll_entry;
-	unsigned long poll_already_critical;
-	unsigned long poll_processed;
-	unsigned long poll_tbusy_bad_status;
-	unsigned long poll_host_disable_irq;
-	unsigned long poll_host_enable_irq;
-
-} global_stats_t;
-
-/*************************************************************************
- Data Structure for if_send  statistics
-*************************************************************************/  
-typedef struct if_send_stat{
-	unsigned long if_send_entry;
-	unsigned long if_send_skb_null;
-	unsigned long if_send_broadcast;
-	unsigned long if_send_multicast;
-	unsigned long if_send_critical_ISR;
-	unsigned long if_send_critical_non_ISR;
-	unsigned long if_send_tbusy;
-	unsigned long if_send_tbusy_timeout;
-	unsigned long if_send_PIPE_request;
-	unsigned long if_send_wan_disconnected;
-	unsigned long if_send_dlci_disconnected;
-	unsigned long if_send_no_bfrs;
-	unsigned long if_send_adptr_bfrs_full;
-	unsigned long if_send_bfr_passed_to_adptr;
-	unsigned long if_send_protocol_error;
-       	unsigned long if_send_bfr_not_passed_to_adptr;
-       	unsigned long if_send_tx_int_enabled;
-        unsigned long if_send_consec_send_fail; 
-} if_send_stat_t;
-
-typedef struct rx_intr_stat{
-	unsigned long rx_intr_no_socket;
-	unsigned long rx_intr_dev_not_started;
-	unsigned long rx_intr_PIPE_request;
-	unsigned long rx_intr_bfr_not_passed_to_stack;
-	unsigned long rx_intr_bfr_passed_to_stack;
-} rx_intr_stat_t;	
-
-typedef struct pipe_mgmt_stat{
-	unsigned long UDP_PIPE_mgmt_kmalloc_err;
-	unsigned long UDP_PIPE_mgmt_direction_err;
-	unsigned long UDP_PIPE_mgmt_adptr_type_err;
-	unsigned long UDP_PIPE_mgmt_adptr_cmnd_OK;
-	unsigned long UDP_PIPE_mgmt_adptr_cmnd_timeout;
-	unsigned long UDP_PIPE_mgmt_adptr_send_passed;
-	unsigned long UDP_PIPE_mgmt_adptr_send_failed;
-	unsigned long UDP_PIPE_mgmt_not_passed_to_stack;
-	unsigned long UDP_PIPE_mgmt_passed_to_stack;
-	unsigned long UDP_PIPE_mgmt_no_socket;
-        unsigned long UDP_PIPE_mgmt_passed_to_adptr;
-} pipe_mgmt_stat_t;
-
-
 typedef struct {
 	struct sk_buff *skb;
 } bh_data_t, cmd_data_t;
-
-#define MAX_LGTH_UDP_MGNT_PKT WAN_MAX_DATA_SIZE
  
 
 /* This is used for interrupt testing */
@@ -290,20 +197,19 @@ typedef struct {
 #if defined(WAN_KERNEL)
 /****** Kernel Interface ****************************************************/
 
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_debug.h>	/* WANPIPE Debugging messages */
-# include <wanpipe_kernel.h>
-# include <sdlasfm.h>
-# include <sdladrv.h>
-# include <wanpipe_common.h>
-#elif defined(__LINUX__)
-# include <linux/wanpipe_kernel.h>
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe_cfg.h"
+#include "wanpipe_kernel.h"
+#include "sdlasfm.h"
+#include "sdladrv.h"
+
+#if defined(__LINUX__)
 # ifndef KERNEL_VERSION
 #  define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 # endif
-# include <linux/wanpipe_debug.h>
-# include <linux/sdlasfm.h>	/* SDLA firmware module definitions */
-# include <linux/sdladrv.h>	/* SDLA support module API definitions */
 
 # if defined(LINUX_2_6)
 #  include <linux/workqueue.h>
@@ -311,28 +217,22 @@ typedef struct {
 #  include <linux/tqueue.h>
 # endif
 
-# include <linux/wanpipe_common.h>
 # if defined(LINUX_2_4) || defined(LINUX_2_6)
 #  include <linux/serial.h>
 #  include <linux/serialP.h>
 #  include <linux/serial_reg.h>
 #  include <asm/serial.h>
 # endif
+
 # include <linux/tty.h>
 # include <linux/tty_driver.h>
 # include <linux/tty_flip.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_debug.h>
-# include <wanpipe_kernel.h>
-# include <sdlasfm.h>	/* SDLA firmware module definitions */
-# include <sdladrv.h>	/* SDLA support module API definitions */
-# include <wanpipe_common.h>
 #endif
 
 #define MAX_E1_CHANNELS 32
 
 #if defined(__WINDOWS__)
-#define MAX_FR_CHANNELS	MAX_NUMBER_OF_PROTOCOL_INTERFACES /*1023*/
+#define MAX_FR_CHANNELS	MAX_NUMBER_OF_PROTOCOL_INTERFACES /*100*/
 #else
 #define MAX_FR_CHANNELS (1007+1)
 #endif
@@ -354,7 +254,6 @@ typedef struct {
 	 	  ((ch)>=(unsigned)'a'&&(ch)<=(unsigned)'f')||\
 	 	  ((ch)>=(unsigned)'A'&&(ch)<=(unsigned)'F'))?1:0)
 
-#define AFT_A600_CARD(card)	((card)->adptr_type == AFT_ADPTR_A600)
 
 /****** Data Structures *****************************************************/
 
@@ -709,7 +608,7 @@ typedef struct
 	unsigned long logic_ch_map;
 	unsigned char num_of_time_slots;
 	unsigned char top_logic_ch;
-	unsigned long bar;
+	sdla_base_addr_t bar;
 	void *trace_info;
 	void *dev_to_ch_map[MAX_E1_CHANNELS];
 	void *rx_dma_ptr;
@@ -749,33 +648,41 @@ typedef struct
 	unsigned int	tdmv_dchan_active_ch;
 	void 		*tdmv_chan_ptr;
 
-	unsigned char	tdmv_hw_dtmf;
+	unsigned char	tdmv_hw_tone;
 	
 	unsigned char	led_ctrl;
 	unsigned int	tdm_intr_status;
-	void 		*bar_virt;
-	unsigned char	tdm_rx_dma_toggle[32];
-	unsigned char	tdm_tx_dma_toggle[32];
+	sdla_mem_handle_t	bar_virt;
+	unsigned short	tdm_rx_dma_toggle;
+	unsigned short	tdm_tx_dma_toggle;
 	unsigned int	tdm_logic_ch_map;
 
 	wan_ticks_t	sec_chk_cnt;
 	wan_skb_queue_t	rtp_tap_list;
 	unsigned int	serial_status;
-	unsigned char	global_tdm_irq;
-	wan_ticks_t		rbs_timeout;
+	unsigned char	global_isr;
 
 } sdla_xilinx_t;
 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+typedef struct
+{
+	unsigned char	num_of_time_slots;
+	wan_taskq_t 	port_task;
+	unsigned int 	port_task_cmd;
+	void		*dev_to_ch_map[10];		// temporary
+	unsigned int	tdm_logic_ch_map;
 
+} wp_usb_t;
+#endif
+ 
 enum {
 	AFT_CHIP_CONFIGURED,
 	AFT_FRONT_END_UP,
 	AFT_TDM_GLOBAL_ISR,
 	AFT_TDM_RING_BUF,
 	AFT_TDM_FAST_ISR,
-	AFT_TDM_SW_RING_BUF,
-	AFT_TDM_FREE_RUN_ISR,
-	AFT_TDM_FE_SYNC_CNT
+	AFT_TDM_SW_RING_BUF
 };
 
 typedef struct 
@@ -877,6 +784,9 @@ typedef struct sdla
 		sdla_adsl_t	adsl;
 		sdla_xilinx_t	aft;
 		sdla_debug_t	debug;
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+		wp_usb_t	usb;
+#endif
 	} u;
 	unsigned char irq_equalize;
 
@@ -901,6 +811,7 @@ typedef struct sdla
 	
 	sdla_fe_t	fe;		/* front end structures */
 	u8		fe_no_intr;	/* set to 0x01 if not FE interrupt should enabled */		
+	u8		fe_ignore_intr;	/* Set to 0x01 if all FE interrupts should be ignored */
 	
 	unsigned int	rCount;
 
@@ -978,25 +889,21 @@ typedef struct sdla
 	* rsync timeout, it should be long */
 	wan_ticks_t   rsync_timeout;
 
-	/* This value is used for detecting Fronte end interrupt
-	* timeout, it should be long */
-	wan_ticks_t   front_end_irq_timeout;
-
 	/* SDLA TDMV Dummy interface */
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 	void* sdla_tdmv_dummy;
 #endif
+	void* wp_tdmapi_hash[MAX_E1_CHANNELS];
 
-	unsigned char wp_debug_chan_seq;
-	unsigned int wp_gen_fifo_err;
-	unsigned int wp_rx_fifo_sanity;
-	unsigned int wp_tx_fifo_sanity;
-
-#if defined(WANPIPE_PERFORMANCE_DEBUG)
- 	wan_ticks_t				debug_timeout;
-	struct timeval			timing_tv;
+	unsigned char  card_no;	
+#if defined(__WINDOWS__)
+	PDMA_ADAPTER	DmaAdapterObject;  /* Object for allocating memory for DMA.
+										* Can NOT be called from spin-locked code!!
+										* (not from regular lock too)	*/
 #endif
 
+	void *tdm_api_dev;
+	unsigned int wp_debug_gen_fifo_err;
 } sdla_t;
 
 /****** Public Functions ****************************************************/
@@ -1024,7 +931,7 @@ int wp_atm_init(sdla_t* card, wandev_conf_t* conf);	/* ATM Driver */
 int wp_pos_init(sdla_t* card, wandev_conf_t* conf);	/* POS Driver */	
 int wp_xilinx_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_aft_te1_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
-int wp_aft_a600_init(sdla_t* card, wandev_conf_t* conf);	/* A600 Hardware Support */
+int wp_aft_a600_init(sdla_t* card, wandev_conf_t* conf); /* Xilinx A600 Hardware Support */
 int wp_aft_56k_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_aft_analog_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_aft_bri_init(sdla_t* card, wandev_conf_t* conf);	/* BRI Hardware Support */
@@ -1035,6 +942,10 @@ int wp_aft_te3_init(sdla_t* card, wandev_conf_t* conf); /* AFT TE3 Hardware Supp
 int wp_aft_te1_ss7_init(sdla_t* card, wandev_conf_t* conf); /* AFT TE1 SS7 Hardware Support */
 int aft_global_hw_device_init(void);
 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+int wp_usb_init(sdla_t* card, wandev_conf_t* conf);
+#endif
+
 int wanpipe_globals_util_init(void); /* Initialize All Global Tables */
 
 #if defined(__LINUX__)
@@ -1043,6 +954,7 @@ extern int wanpipe_mark_bh (void);
 extern int change_dev_flags (netdevice_t *, unsigned); 
 extern unsigned long get_ip_address (netdevice_t *dev, int option);
 extern void add_gateway(sdla_t *, netdevice_t *);
+
 
 #if 0
 extern void fastcall wp_tasklet_hi_schedule_per_cpu(struct tasklet_struct *t, int cpu_no);
@@ -1072,13 +984,15 @@ extern struct wanpipe_lapb_register_struct lapb_protocol;
 int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr);
 
 int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, char direction);
-int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char *data, int len, char direction);
 int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, int off,char direction);
+void debug_print_udp_pkt(unsigned char *data,int len,char trc_enabled, char direction);
 
 #if defined(__LINUX__)
+#if 0
 int wan_verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode);
 int wan_memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len);
 int wan_memcpy_toiovec(struct iovec *iov, unsigned char *kdata, int len);
+#endif
 #endif
 
 /* LIP ATM prototypes */

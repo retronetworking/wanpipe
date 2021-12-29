@@ -615,7 +615,6 @@ sub gen_zapata_conf{
  	my $zp_file='';
 	my $dahdi_conf = $self->card->dahdi_conf;
 	my $hwec_mode = $self->card->hwec_mode;
-	my $fax_detect = $self->card->hw_fax;
        $zp_file.="\n\;Sangoma A".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
 
 	if ( $self->signalling eq 'PRI NET' | $self->signalling eq 'PRI CPE' ){
@@ -629,9 +628,6 @@ sub gen_zapata_conf{
 
 	}
 
-	if($fax_detect eq 'YES'){
-			$zp_file.="faxdetect=incoming\n";
-	}
        	
 	if ( $self->signalling eq 'PRI NET' ){
 		$zp_file.="signalling=pri_net\n";

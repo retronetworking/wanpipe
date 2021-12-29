@@ -201,17 +201,12 @@ sub gen_zapata_conf{
 	my $dahdi_conf = $self->card->dahdi_conf;
 	my $hwec_mode = $self->card->hwec_mode;
 	my $dahdi_echo = $self->card->dahdi_echo;
-	my $fax_detect = $self->card->hw_fax;
 	my $zp_file='';
 	$zp_file.="context=".$self->card->zap_context."\n";
 	$zp_file.="group=".$self->card->zap_group."\n";
 
 	if($dahdi_conf eq 'YES') {
 			$zp_file.="echocancel=yes\n";
-	}
-
-	if($fax_detect eq 'YES'){
-			$zp_file.="faxdetect=incoming\n";
 	}
 		
 	if ( $type eq 'fxo'){

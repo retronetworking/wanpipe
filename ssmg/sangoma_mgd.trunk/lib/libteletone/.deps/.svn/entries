@@ -1,0 +1,52 @@
+8
+
+dir
+173
+https://www.sangomapbx.com/svn/sangoma_mgd/trunk/lib/libteletone/.deps
+https://www.sangomapbx.com/svn/sangoma_mgd
+
+
+
+2008-07-25T16:12:13.826864Z
+102
+ncorbic
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+27f70977-ab3a-0410-9ff6-8a87bf49d3db
+
+libteletone_la-libteletone_detect.Plo
+file
+
+
+
+
+2009-03-30T18:03:13.000000Z
+866ad37f0012aa596611f955bd7be8c2
+2008-07-25T16:12:13.826864Z
+102
+ncorbic
+
+libteletone_la-libteletone_generate.Plo
+file
+
+
+
+
+2009-03-30T18:03:13.000000Z
+a4d2e5ac183ccde08b85bf8fe2eafcfe
+2008-07-25T16:12:13.826864Z
+102
+ncorbic
+

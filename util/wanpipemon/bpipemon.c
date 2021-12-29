@@ -38,11 +38,8 @@
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe_abstr.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_bitstrm.h>
+#include "wanpipe_api.h"
+#include "sdla_bitstrm.h"
 #else
 # error "Bitstrm is not supported on Non-Linux platforms"
 #endif

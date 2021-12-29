@@ -3,93 +3,55 @@
 #ifndef _WANPIPE_LIP_HEADER_
 #define _WANPIPE_LIP_HEADER_
 
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe_abstr.h"
+#include "wanpipe_snmp.h"
+#include "wanproc.h"
+#include "wanpipe.h"
+#include "wanpipe_cfg.h"
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe_snmp.h>
-# include <wanproc.h>
-# include <wanpipe.h>
-# include <wanpipe_cfg.h>
-# include <if_wanpipe_common.h>
-# include <wanpipe_iface.h>
-# include <wanpipe_lip_kernel.h>
-# include <wanpipe_fr_iface.h>
-# include <wanpipe_sppp_iface.h>
-# if defined(CONFIG_PRODUCT_WANPIPE_LAPB) || defined(CONFIG_PRODUCT_WANPIPE_LIP_LAPD)
-#  include <wanpipe_lapb_iface.h>
-# endif
-# if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
-#  include <wanpipe_xdlc_iface.h>
-# endif
-#elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe_snmp.h>
-# include <wanpipe.h>
-# include <wanpipe_cfg.h>
-# include <if_wanpipe_common.h>
-# include <wanpipe_iface.h>
-# include <wanpipe_lip_kernel.h>
-# include <wanpipe_fr_iface.h>
-# include <wanpipe_sppp_iface.h>
-# if defined(CONFIG_PRODUCT_WANPIPE_LAPB) || defined(CONFIG_PRODUCT_WANPIPE_LIP_LAPD)
-#  include <wanpipe_lapb_iface.h>
-# endif
-# if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
-#  include <wanpipe_xdlc_iface.h>
-# endif
-/* Prototypes for interface between LIP and 'sprotocol' code in virt_adap_enum.c: */
-int sdla_tx_down(void* dev, void *tx_skb);
-int sdla_data_rx_up(void* sdla_net_dev, void *rx_skb);
+#if defined (__LINUX__)
+# include "if_wanpipe.h"
+#endif
 
-#else
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanpipe_common.h>
-# include <linux/wanpipe_abstr.h>
-# include <linux/wanpipe_snmp.h>
-# include <linux/wanproc.h>
-# include <linux/wanpipe.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/if_wanpipe.h>
-# include <linux/if_wanpipe_common.h>
-# include <linux/wanpipe_fr_iface.h>
-# include <linux/wanpipe_lip_atm_iface.h>
-# include <linux/wanpipe_sppp_iface.h>
-# if defined(CONFIG_PRODUCT_WANPIPE_LAPB) || defined(CONFIG_PRODUCT_WANPIPE_LIP_LAPD)
-#  include <linux/wanpipe_lapb_iface.h>
-# endif 
-# if defined(CONFIG_PRODUCT_WANPIPE_LIP_KATM)
-#  include <linux/wanpipe_katm_iface.h>
-# endif 
-# if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
-#  include <linux/wanpipe_xdlc_iface.h>
-# endif 
-# if defined(CONFIG_PRODUCT_WANPIPE_XMTP2)
-#  include <linux/wanpipe_xmtp2_iface.h>
-# endif 
-# if defined(CONFIG_PRODUCT_WANPIPE_LIP_HDLC)
-#  include <linux/wanpipe_lip_hdlc_iface.h>
-# endif
-# include <linux/wanpipe_lip_kernel.h>
-# include <linux/wanpipe_iface.h>
+#include "if_wanpipe_common.h"
+#include "wanpipe_fr_iface.h"
+#include "wanpipe_lip_atm_iface.h"
+#include "wanpipe_sppp_iface.h"
 
-# ifdef WPLIP_TTY_SUPPORT
+#if defined(CONFIG_PRODUCT_WANPIPE_LAPB) || defined(CONFIG_PRODUCT_WANPIPE_LIP_LAPD)
+# include "wanpipe_lapb_iface.h"
+#endif
+#if defined(CONFIG_PRODUCT_WANPIPE_LIP_KATM)
+# include "wanpipe_katm_iface.h"
+#endif
+#if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
+# include "/wanpipe_xdlc_iface.h"
+#endif
+#if defined(CONFIG_PRODUCT_WANPIPE_XMTP2)
+# include "wanpipe_xmtp2_iface.h"
+#endif
+#if defined(CONFIG_PRODUCT_WANPIPE_LIP_HDLC)
+# include "wanpipe_lip_hdlc_iface.h"
+#endif
+#include "wanpipe_lip_kernel.h"
+#include "wanpipe_iface.h"
+
+#if defined (__LINUX__) && defined (WPLIP_TTY_SUPPORT)
 # include <linux/tty.h>
 # include <linux/tty_driver.h>
 # include <linux/tty_flip.h>
-# endif
-
 #endif
 
+
+#if defined(__WINDOWS__)
+/* Prototypes for interface between LIP and 'sprotocol' code in virt_adap_enum.c: */
+int sdla_tx_down(void* dev, void *tx_skb);
+int sdla_data_rx_up(void* sdla_net_dev, void *rx_skb);
+#endif
 
 
 

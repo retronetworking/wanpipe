@@ -1,0 +1,28 @@
+TARGETNAME=libsangoma
+TARGETPATH=obj
+TARGETTYPE=DYNLINK
+#TARGETTYPE=LIBRARY
+DLLENTRY=_DllMainCRTStartup
+
+MSC_WARNING_LEVEL=$(SANG_WARNING_LEVEL)
+
+USE_LIBCMT=1
+
+DLLDEF=libsangoma.def
+
+############################################################################################
+C_DEFINES=$(C_DEFINES) /D__WINDOWS__
+############################################################################################
+
+INCLUDES=$(SDK_INC_PATH);\
+$(SANG_WP_DEVEL)\wanpipe_common\include;\
+$(SANG_WP_DEVEL)\wanpipe_common\include\aft_core;\
+$(SANG_WP_DEVEL)\wanpipe_windows\include;\
+$(SANG_WP_DEVEL)\libsangoma
+
+
+TARGETLIBS=$(SDK_LIB_PATH)\kernel32.lib \
+$(SDK_LIB_PATH)\user32.lib
+
+SOURCES=libsangoma.c libsangoma.rc
+

@@ -1,0 +1,6 @@
+LIBRARY  STELEPHONY
+EXPORTS   
+	StelSetup
+	StelCleanup
+	StelStreamInput
+	StelEventControl

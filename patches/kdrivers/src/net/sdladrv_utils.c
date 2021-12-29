@@ -19,41 +19,21 @@
 /***************************************************************************
 ****		I N C L U D E  		F I L E S			****
 ***************************************************************************/
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_version.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe.h>
-# include <sdlasfm.h>
-# include <sdlapci.h>
-# include <wanpipe.h>
-# include <sdladrv.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_version.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <sdlasfm.h>	/* SDLA firmware module definitions */
-# include <sdlapci.h>	/* SDLA PCI hardware definitions */
-# include <wanpipe.h>
-# include <sdladrv.h>	/* API definitions */
-#elif defined(__LINUX__)||defined(__KERNEL__)
+
+#if defined(__LINUX__)||defined(__KERNEL__)
 # define _K22X_MODULE_FIX_
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_version.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanpipe_common.h>
-# include <linux/sdlasfm.h>	/* SDLA firmware module definitions */
-# include <linux/sdlapci.h>	/* SDLA PCI hardware definitions */
-# include <linux/wanpipe.h>
-# include <linux/sdladrv.h>	/* API definitions */
-#else
-# error "Unsupported Operating System!"
 #endif
+
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe.h"
+
+#include "sdlasfm.h"	/* SDLA firmware module definitions */
+#include "sdlapci.h"	/* SDLA PCI hardware definitions */
+#include "sdladrv.h"	/* API definitions */
+
 
 /***************************************************************************
 ****                     M A C R O S / D E F I N E S                    ****
@@ -278,7 +258,7 @@ int sdla_plxctrl_read8(void *phw, short addr, unsigned char *data)
 {	
 	WAN_ASSERT(phw == NULL);
 
-    	sdla_plx_EE_writebyte(phw, SDLA_PLXE_OPCODE_READ);
+    sdla_plx_EE_writebyte(phw, SDLA_PLXE_OPCODE_READ);
 	sdla_plx_EE_writebyte(phw, (unsigned char)(addr & 0xFF));
 
 	if (sdla_plx_EE_readbyte(phw, data)){

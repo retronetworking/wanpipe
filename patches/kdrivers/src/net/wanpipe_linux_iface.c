@@ -40,8 +40,6 @@
 #define	STATIC		static
 #endif
 
-WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
-
 /****** Function Prototypes *************************************************/
 static netdevice_t* wan_iface_alloc (int, int);
 static void wan_iface_free (netdevice_t*);
@@ -139,18 +137,7 @@ static int wan_iface_attach_eth (netdevice_t* dev, char *ifname, int is_netdev)
 		if (ifname){
 			wan_netif_init(dev, ifname);
 		}
-
-		WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
-		WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&wan_iface_eth_init);
-		WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
-		WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wan_iface_ioctl);
-		WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wan_iface_open);
-		WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wan_iface_close);
-	
-		WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wan_iface_send);
-		WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
-		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wan_iface_tx_timeout);
-		WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,&wan_iface_change_mtu);
+		dev->init = &wan_iface_eth_init;
 		err=register_netdev(dev);
 	}else{
 #ifdef CONFIG_PRODUCT_WANPIPE_GENERIC
@@ -167,7 +154,7 @@ static int wan_iface_attach_eth (netdevice_t* dev, char *ifname, int is_netdev)
 	if (err){
 		DEBUG_EVENT("%s: Failed to register interface (%d)\n",
 					wan_netif_name(dev), err);
-		WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,NULL);
+		dev->init = NULL;
 		*(dev->name) = 0;
 		wan_netif_free(dev);
 		return -EINVAL;
@@ -183,17 +170,7 @@ static int wan_iface_attach (netdevice_t* dev, char *ifname, int is_netdev)
 		if (ifname){
 			wan_netif_init(dev, ifname);
 		}
-		WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
-		WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&wan_iface_init);
-		WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
-		WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wan_iface_ioctl);
-		WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wan_iface_open);
-		WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wan_iface_close);
-		WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wan_iface_send);
-		WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
-		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wan_iface_tx_timeout);
-		WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,&wan_iface_change_mtu);
-		//dev->init = &wan_iface_init;
+		dev->init = &wan_iface_init;
 		err=register_netdev(dev);
 	}else{
 #ifdef CONFIG_PRODUCT_WANPIPE_GENERIC
@@ -210,7 +187,7 @@ static int wan_iface_attach (netdevice_t* dev, char *ifname, int is_netdev)
 	if (err){
 		DEBUG_EVENT("%s: Failed to register interface (%d)\n",
 					wan_netif_name(dev), err);
-		WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,NULL);
+		dev->init = NULL;
 		*(dev->name) = 0;
 		wan_netif_free(dev);
 		return -EINVAL;
@@ -223,7 +200,9 @@ static void wan_iface_detach (netdevice_t* dev, int is_netdev)
 	DEBUG_EVENT("%s: Unregister interface!\n", 
 				wan_netif_name(dev));
 	if (is_netdev){
-		wan_netif_set_priv(dev, NULL);
+		if (dev->priv){
+			dev->priv=NULL;
+		}
 		unregister_netdev(dev);
 
 	}else{
@@ -239,18 +218,20 @@ static void wan_iface_detach (netdevice_t* dev, int is_netdev)
 
 static int wan_iface_init(netdevice_t* dev)
 {
-	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
-	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wan_iface_ioctl);
-	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wan_iface_open);
-	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wan_iface_close);
+//	dev->priv = NULL;	/* We need 'priv', hdlc doesn't */
+	dev->get_stats		= &wan_iface_get_stats;
+	dev->do_ioctl		= &wan_iface_ioctl;
+	dev->open		= &wan_iface_open;
+	dev->stop		= &wan_iface_close;
 
-	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wan_iface_send);
-	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
-	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wan_iface_tx_timeout);
-	WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,&wan_iface_change_mtu);
+	dev->hard_start_xmit	= &wan_iface_send;
+	dev->get_stats		= &wan_iface_get_stats;
+	dev->tx_timeout		= &wan_iface_tx_timeout;
+	dev->change_mtu		= &wan_iface_change_mtu;
+
 	dev->watchdog_timeo	= HZ*2;
 	dev->hard_header_len	= 32;
-	WAN_NETDEV_OPS_CONFIG(dev,wan_netdev_ops,NULL);
+	dev->set_config		= NULL;
 	
 	/* Initialize media-specific parameters */
 	dev->flags		|= IFF_POINTOPOINT;
@@ -272,7 +253,7 @@ static int wan_iface_init(netdevice_t* dev)
 	DEBUG_TEST("%s: %s:%d %p\n",
 			dev->name,
 			__FUNCTION__,__LINE__,
-			wan_netif_priv(dev));
+			dev->priv);
 
 	return 0;
 }
@@ -281,18 +262,17 @@ static int wan_iface_eth_init(netdevice_t* dev)
 {
 	int hw_addr=0;
 
-	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
-	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wan_iface_ioctl);
-	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wan_iface_open);
-	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wan_iface_close);
-
-	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wan_iface_send);
-	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
-	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wan_iface_tx_timeout);
-
+//	dev->priv = NULL;	/* We need 'priv', hdlc doesn't */
+	dev->get_stats		= &wan_iface_get_stats;
+	dev->do_ioctl		= &wan_iface_ioctl;
+	dev->open		= &wan_iface_open;
+	dev->stop		= &wan_iface_close;
+	dev->hard_start_xmit	= &wan_iface_send;
+	dev->get_stats		= &wan_iface_get_stats;
+	dev->tx_timeout		= &wan_iface_tx_timeout;
 	dev->watchdog_timeo	= HZ*2;
 	dev->hard_header_len	= 32;
-	WAN_NETDEV_OPS_CONFIG(dev,wan_netdev_ops,NULL);
+	dev->set_config		= NULL;
 	
 	if (!dev->mtu) {
 		dev->mtu		= 1500;
@@ -319,7 +299,7 @@ static int wan_iface_eth_init(netdevice_t* dev)
 	DEBUG_TEST("%s: %s:%d %p\n",
 			dev->name,
 			__FUNCTION__,__LINE__,
-			wan_netif_priv(dev));
+			dev->priv);
 
 	return 0;
 }
@@ -396,11 +376,8 @@ static int wan_iface_ioctl(netdevice_t* dev, struct ifreq* ifr, int cmd)
 
 	WAN_ASSERT(wan_netif_priv(dev) == NULL);
 
-#if 0
-	DEBUG_EVENT("%s: %s:%d\n",dev->name,__FUNCTION__,__LINE__);
-	return err;
-#endif	
 	common = wan_netif_priv(dev);
+	
 	switch(cmd){
 
 	default:
@@ -538,11 +515,11 @@ static int wan_iface_set_proto(netdevice_t* dev, struct ifreq* ifr)
 								WANCONFIG_FR;	
 		if (common->protocol == WANCONFIG_PPP){
 			hdlc_device* hdlc = dev_to_hdlc(dev);
-			wanpipe_common_t* common = wan_netif_priv(dev);
-			common->prot_ptr = &hdlc->state.ppp.pppdev;
+			((wanpipe_common_t*)dev->priv)->prot_ptr = 
+					(netdevice_t*)&hdlc->state.ppp.pppdev;
 #if defined(LINUX2_6)
 			hdlc->state.ppp.syncppp_ptr = (struct ppp_device*)
-				common->prot_ptr;
+					((wanpipe_common_t*)dev->priv)->prot_ptr;
 #endif
 		}
 

@@ -43,29 +43,14 @@
  ****************************************************************************
 */
 
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-#  include <wanpipe_snmp.h>
-# endif
-# include <wanpipe_defines.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe.h>	/* WANPIPE common user API definitions */
-#elif (defined __WINDOWS__)
-# include <wanpipe\wanpipe_include.h>
-#elif (defined __KERNEL__)
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_abstr.h>
-# include <linux/wanpipe.h>
-# if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-#  include <linux/if_wanpipe_common.h>
-#  include <linux/if_wanpipe.h>
-#  include <linux/wanpipe_snmp.h>
-# endif
-#else
-# error "Unsupported Operating System!"
-#endif
+
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe_snmp.h"
+#include "wanpipe.h"
+#include "if_wanpipe_common.h"
 
 
 #ifdef __OpenBSD__
@@ -81,8 +66,18 @@
 */
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 static void wanpipe_debug_timer(void* arg);
+#elif defined(__WINDOWS__)
+static void wanpipe_debug_timer(IN PKDPC Dpc, void* arg, void* arg2, void* arg3);
 #else
 static void wanpipe_debug_timer(unsigned long arg);
+#endif
+
+#ifdef __WINDOWS__
+#define wp_os_lock_irq(card,flags)   wan_spin_lock_irq(card,flags)
+#define wp_os_unlock_irq(card,flags) wan_spin_unlock_irq(card,flags)
+#else
+#define wp_os_lock_irq(card,flags)
+#define wp_os_unlock_irq(card,flags)
 #endif
 
 extern sdla_t*	wanpipe_debug;
@@ -223,7 +218,7 @@ void wanpipe_set_state (void* card_id, int state)
 			DEBUG_EVENT("%s: Link disconnected!\n", card->devname);
 			break;
 		}
-		card->wandev.state = state;
+		card->wandev.state = (char)state;
 
 		if (card->wandev.config_id == WANCONFIG_ADSL) {
 			wanpipe_set_dev_carrier_state(card,state);
@@ -251,7 +246,7 @@ int wan_udp_pkt_type(void* card_id, caddr_t ptr)
 
 	if (wan_udp_pkt->wan_ip_v == 0x04 &&
 	    wan_udp_pkt->wan_ip_p == UDPMGMT_UDP_PROTOCOL &&
-	    wan_udp_pkt->wan_udp_dport == ntohs(udp_port) &&  
+	    wan_udp_pkt->wan_udp_dport == ntohs((u16)udp_port) &&  
 	    wan_udp_pkt->wan_udp_request_reply == UDPMGMT_REQUEST){
 
 		if (!strncmp(wan_udp_pkt->wan_udp_signature,
@@ -315,11 +310,10 @@ int wan_reply_udp(void* card_id, unsigned char *data, unsigned int mbox_len)
 	udp_pkt->wan_udp_request_reply = UDPMGMT_REPLY;
 
 	/* fill in UDP length */
-	udp_length = 
-			sizeof(struct udphdr) + 
+	udp_length = (unsigned short)(sizeof(struct udphdr) + 
 			sizeof(wan_mgmt_t) + 
 			sizeof(wan_cmd_t) +
-			mbox_len;
+			mbox_len);
 
 	if (card->wandev.config_id == WANCONFIG_CHDLC || 
 	    card->wandev.config_id == WANCONFIG_SDLC){
@@ -489,6 +483,8 @@ void wanpipe_debug_timer_init(void* card_id)
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 static void wanpipe_debug_timer(void* arg)
+#elif defined(__WINDOWS__)
+static void wanpipe_debug_timer(IN PKDPC Dpc, void* arg, void* arg2, void* arg3)
 #else
 static void wanpipe_debug_timer(unsigned long arg)
 #endif
@@ -519,7 +515,7 @@ static void wanpipe_debug_timer(unsigned long arg)
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 void wanpipe_debugging (void* data, int pending)
 #else
-void wanpipe_debugging (unsigned long data)
+void wanpipe_debugging (ulong_ptr_t data)
 #endif
 {
 	sdla_t*			card = (sdla_t*)data;
@@ -934,16 +930,17 @@ int wan_tracing_enabled(wan_trace_t *trace_info)
 
 		if ((SYSTEM_TICKS - trace_info->trace_timeout) > WAN_MAX_TRACE_TIMEOUT){
 			DEBUG_EVENT("wanpipe: Disabling trace, timeout!\n");
-			trace_info->tracing_enabled=0;
+			wan_clear_bit(0,&trace_info->tracing_enabled);
+			wan_clear_bit(1,&trace_info->tracing_enabled);
 			return -EINVAL;
 		}
 
-		if (wan_skb_queue_len(&trace_info->trace_queue) < trace_info->max_trace_queue){
+		if (wan_skb_queue_len(&trace_info->trace_queue) < (int)trace_info->max_trace_queue){
 
 			if(wan_test_bit(3,&trace_info->tracing_enabled)){
 				/* Trace ALL cells, including Idle.
 				** Check that trace queue is NOT more than half full. */
-				if (wan_skb_queue_len(&trace_info->trace_queue) < trace_info->max_trace_queue / 2){
+				if (wan_skb_queue_len(&trace_info->trace_queue) < (int)trace_info->max_trace_queue / 2){
 					/*it is ok to enqueue an idle cell. */
 					return 3;
 				}else{
@@ -973,59 +970,15 @@ int wan_tracing_enabled(wan_trace_t *trace_info)
 
 }
 
-
-int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char *data, int len, char direction)
-{
-	void*		new_skb = NULL;
-	wan_trace_pkt_t trc_el;	
-	int		flag = 0;
-	int 	total_len=0;
-	char	*buf;
-
-	/* The tracing is done by wan_capture_trace_packet function */
-	if (!wan_test_bit(8,&trace_info->tracing_enabled)){
-		return -EBUSY;
-	}
-
-	if ((flag = wan_tracing_enabled(trace_info)) >= 0){
-
-		/* Allocate a header mbuf */
-		total_len = len + sizeof(wan_trace_pkt_t);
-
-		new_skb = wan_skb_alloc(total_len);
-		if (new_skb == NULL) 
-			return -1;
-
-		wan_getcurrenttime(&trc_el.sec, &trc_el.usec);
-		trc_el.status		= direction;
-		trc_el.data_avail	= 1;
-		trc_el.time_stamp	= 
-			(unsigned short)((((trc_el.sec * 1000000) + trc_el.usec) / 1000) % 0xFFFF);
-		trc_el.real_length	= len;
-
-		buf=wan_skb_put(new_skb, sizeof(wan_trace_pkt_t));
-		memcpy(buf,(caddr_t)&trc_el,sizeof(wan_trace_pkt_t));
-
-		buf=wan_skb_put(new_skb, len);
-		memcpy(buf,data,sizeof(wan_trace_pkt_t));
-		
-		wan_skb_queue_tail(&trace_info->trace_queue, new_skb);
-	}
-
-	return flag;
-}
-
 int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, char direction)
 {
 	int		len = 0;
 	void*		new_skb = NULL;
 	wan_trace_pkt_t trc_el;	
 	int		flag = 0;
+	wan_smp_flag_t smp_flags;
 
-	/* The tracing is done by wan_capture_trace_packet_buffer function */
-	if (wan_test_bit(8,&trace_info->tracing_enabled)){
-		return -EBUSY;
-	}
+	smp_flags=0;
 
 	if ((flag = wan_tracing_enabled(trace_info)) >= 0){
 
@@ -1041,7 +994,7 @@ int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *sk
 		trc_el.data_avail	= 1;
 		trc_el.time_stamp	= 
 			(unsigned short)((((trc_el.sec * 1000000) + trc_el.usec) / 1000) % 0xFFFF);
-		trc_el.real_length	= wan_skb_len(skb);
+		trc_el.real_length	= (u16)wan_skb_len(skb);
 		
 		wan_skb_copyback(new_skb, 
 				 wan_skb_len(new_skb), 
@@ -1053,11 +1006,14 @@ int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *sk
 				 wan_skb_len(skb),
 				 (caddr_t)wan_skb_data(skb));
 		
+		wp_os_lock_irq(&card->wandev.lock,&smp_flags);
 		wan_skb_queue_tail(&trace_info->trace_queue, new_skb);
+		wp_os_unlock_irq(&card->wandev.lock,&smp_flags);
 	}
 
-	return flag;
+	return 0;
 }
+
 
 
 int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, int off,char direction)
@@ -1087,7 +1043,7 @@ int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netsk
 		trc_el.data_avail	= 1;
 		trc_el.time_stamp	= 
 			(unsigned short)((((trc_el.sec * 1000000) + trc_el.usec) / 1000) % 0xFFFF);
-		trc_el.real_length	= wan_skb_len(skb);
+		trc_el.real_length	= (u16)wan_skb_len(skb);
 		
 		wan_skb_copyback(new_skb, 
 				 wan_skb_len(new_skb), 
@@ -1178,14 +1134,8 @@ u_char x25_variables_oid[] = { 1,3,6,1,2,1,10,5  };
 
 int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 {
-	wanpipe_snmp_t	*snmp;
-
-	snmp = wan_malloc(sizeof(wanpipe_snmp_t));
-	if (!snmp) {
-		return -ENOMEM;
-	}
-	memset(snmp,0,sizeof(wanpipe_snmp_t));
-
+#if !defined(__WINDOWS__)
+	wanpipe_snmp_t	snmp;
 	switch(cmd){
 	case SIOC_WANPIPE_SNMP:
 		break;
@@ -1194,7 +1144,6 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 		if (WAN_COPY_TO_USER(ifr->ifr_data, &card->wandev.bps, sizeof(card->wandev.bps))){
 			DEBUG_EVENT("%s: %s(): Line: %d: Failed to copy kernel space to user snmp data!\n",
 				card->devname, __FUNCTION__, __LINE__);
-			wan_free(snmp);
 			return -EFAULT;
 		}
 		return 0;
@@ -1202,35 +1151,34 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 		DEBUG_EVENT("%s: Unknown cmd: %d (0x%X) \n",__FUNCTION__,cmd,cmd);
 	}
 
-	if (WAN_COPY_FROM_USER(snmp, ifr->ifr_data, sizeof(wanpipe_snmp_t))){
+	if (WAN_COPY_FROM_USER(&snmp, ifr->ifr_data, sizeof(wanpipe_snmp_t))){
 		DEBUG_EVENT("%s: Failed to copy user snmp data to kernel space!\n",
 				card->devname);
-		wan_free(snmp);
 		return -EFAULT;
 	}
 
-	if (strncmp((char *)ds1_variables_oid,(char *)snmp->snmp_name, sizeof(ds1_variables_oid)) == 0){
+	if (strncmp((char *)ds1_variables_oid,(char *)snmp.snmp_name, sizeof(ds1_variables_oid)) == 0){
 		/* SNMP call for ds1 */
 		DEBUG_SNMP("%s: Get T1/E1 SNMP data\n", 
 					card->devname);
 		if(card->wandev.fe_iface.get_snmp_data){
-			card->wandev.fe_iface.get_snmp_data(&card->fe, dev, snmp);
+			card->wandev.fe_iface.get_snmp_data(&card->fe, dev, &snmp);
 		}else{
 			DEBUG_EVENT("%s: Failed to get Front End SNMP data! Request is invalid for Serial Card.\n",
 				card->devname);
 		}
 	}else{
-		if (strncmp((char *)fr_variables_oid,(char *)snmp->snmp_name, sizeof(fr_variables_oid)) == 0){
+		if (strncmp((char *)fr_variables_oid,(char *)snmp.snmp_name, sizeof(fr_variables_oid)) == 0){
 			/* SNMP call for frame relay */
 			DEBUG_SNMP("%s: Get Frame Relay SNMP data\n", card->devname);
 		}
 
-		if (strncmp((char *)ppp_variables_oid,(char *)snmp->snmp_name, sizeof(ppp_variables_oid)) == 0){
+		if (strncmp((char *)ppp_variables_oid,(char *)snmp.snmp_name, sizeof(ppp_variables_oid)) == 0){
 			/* SNMP call for PPP */
 			DEBUG_SNMP("%s: Get PPP SNMP data\n", card->devname);
 		}
 	
-		if (strncmp((char *)x25_variables_oid,(char *)snmp->snmp_name, sizeof(x25_variables_oid)) == 0){
+		if (strncmp((char *)x25_variables_oid,(char *)snmp.snmp_name, sizeof(x25_variables_oid)) == 0){
 			/* SNMP call for x251 */
 			DEBUG_SNMP("%s: Get X.25 SNMP data\n", card->devname);
 		}
@@ -1241,15 +1189,12 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 		}
 	}
 
-	if (WAN_COPY_TO_USER(ifr->ifr_data, snmp, sizeof(wanpipe_snmp_t))){
+	if (WAN_COPY_TO_USER(ifr->ifr_data, &snmp, sizeof(wanpipe_snmp_t))){
 		DEBUG_EVENT("%s: Failed to copy kernel space to user snmp data!\n",
 				card->devname);
-		wan_free(snmp);
 		return -EFAULT;
 	}
-
-	wan_free(snmp);
-
+#endif	
 	return 0;
 }
 #endif
@@ -1357,6 +1302,8 @@ void* wpabs_dma_alloc(void* pcard, unsigned long max_length)
 	dma_descr->max_length = max_length;
 #if defined(__NetBSD__) || defined(__OpenBSD__)
 	card->hw_iface.getcfg(card->hw, SDLA_DMATAG, &dma_descr->dmat);
+#elif defined(__WINDOWS__)
+	dma_descr->DmaAdapterObject = card->DmaAdapterObject;
 #endif
 	if (wan_dma_alloc_org(card->hw, dma_descr)){
 		wan_free(dma_descr);
@@ -1544,7 +1491,8 @@ int wanpipe_globals_util_init(void)
  */
 
 #if defined(__LINUX__)
- 
+
+#if 0 
 int wan_verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode)
 {
 	int size, err, ct;
@@ -1620,5 +1568,79 @@ int wan_memcpy_toiovec(struct iovec *iov, unsigned char *kdata, int len)
 
 	return 0;
 }             
+#endif
+
+void debug_print_udp_pkt(unsigned char *data,int len,char trc_enabled, char direction)
+{
+#if defined(__LINUX__) && defined(__KERNEL__)
+	int i,res;
+	DEBUG_EVENT("\n");
+	DEBUG_EVENT("%s UDP PACKET: ",direction?"RX":"TX");
+	for (i=0; i<sizeof(wan_udp_pkt_t); i++){
+		if (i==0){
+			DEBUG_EVENT("\n");
+			DEBUG_EVENT("IP PKT: ");
+		}
+		if (i==sizeof(struct iphdr)){
+			DEBUG_EVENT("\n");
+			DEBUG_EVENT("UDP PKT: ");
+		}
+		if (i==sizeof(struct iphdr)+sizeof(struct udphdr)){
+			DEBUG_EVENT("\n");
+			DEBUG_EVENT("MGMT PKT: ");
+		}
+		if (i==sizeof(struct iphdr)+sizeof(struct udphdr)+sizeof(wan_mgmt_t)){
+			DEBUG_EVENT("\n");
+			DEBUG_EVENT("CMD PKT: ");
+		}
+		
+		if (trc_enabled){
+			if (i==sizeof(struct iphdr)+sizeof(struct udphdr)+
+			       sizeof(wan_mgmt_t)+sizeof(wan_cmd_t)){
+				DEBUG_EVENT("\n");
+				DEBUG_EVENT("TRACE PKT: ");
+			}
+			if (i==sizeof(struct iphdr)+sizeof(struct udphdr)+
+			       sizeof(wan_mgmt_t)+sizeof(wan_cmd_t)+
+			       sizeof(wan_trace_info_t)){
+
+				DEBUG_EVENT("\n");
+				DEBUG_EVENT("DATA PKT: ");
+			}
+
+			res=len-(sizeof(struct iphdr)+sizeof(struct udphdr)+
+			       sizeof(wan_mgmt_t)+sizeof(wan_cmd_t)+sizeof(wan_trace_info_t));
+		
+			res=(res>10)?10:res;
+
+			if (i==sizeof(struct iphdr)+sizeof(struct udphdr)+
+			       sizeof(wan_mgmt_t)+sizeof(wan_cmd_t)+sizeof(wan_trace_info_t)+res){
+				break;
+			}
+			
+		}else{
+	
+			if (i==sizeof(struct iphdr)+sizeof(struct udphdr)+sizeof(wan_mgmt_t)+sizeof(wan_cmd_t)){
+				DEBUG_EVENT("\n");
+				DEBUG_EVENT("DATA PKT: ");
+			}
+
+			res=len-(sizeof(struct iphdr)+sizeof(struct udphdr)+
+			       sizeof(wan_mgmt_t)+sizeof(wan_cmd_t));
+		
+			res=(res>10)?10:res;
+
+			if (i==sizeof(struct iphdr)+sizeof(struct udphdr)+
+			       sizeof(wan_mgmt_t)+sizeof(wan_cmd_t)+res){
+				break;
+			}
+		}
+
+		_DEBUG_EVENT("%02X ",*(data+i));
+	}
+	DEBUG_EVENT("\n");
+#endif
+}
+
 
 #endif

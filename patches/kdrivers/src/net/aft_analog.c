@@ -21,7 +21,7 @@
 # include <wanpipe_abstr.h>
 # include <if_wanpipe_common.h>    /* Socket Driver common area */
 # include <sdlapci.h>
-# include <sdla_aft_te1.h>
+# include <aft_core.h>
 # include <wanpipe_iface.h>
 # include <sdla_remora.h>
 #elif defined(__WINDOWS__)
@@ -29,7 +29,7 @@
 # include <wanpipe.h>
 # include <if_wanpipe_common.h>    /* Socket Driver common area */
 # include <sdlapci.h>
-# include <sdla_aft_te1.h>
+# include <aft_core.h>
 # include <wanpipe_iface.h>
 # include <wanpipe_tdm_api.h>
 # include <sdla_remora.h>
@@ -44,7 +44,7 @@
 # include <linux/if_wanpipe.h>
 # include <linux/sdlapci.h>
 //# include <linux/sdla_ec.h>
-# include <linux/sdla_aft_te1.h>
+# include <linux/aft_core.h>
 # include <linux/wanpipe_iface.h>
 # include <linux/wanpipe_tdm_api.h>
 # include <linux/sdla_remora.h>
@@ -58,6 +58,7 @@
 #if defined(CONFIG_WANPIPE_HWEC)
 static int aft_analog_hwec_reset(void *pcard, int reset);
 static int aft_analog_hwec_enable(void *pcard, int enable, int fe_chan);
+
 
 static int aft_a600_hwec_reset(void *pcard, int reset);
 #endif
@@ -77,7 +78,7 @@ static int request_fifo_baddr_and_size(sdla_t *card, private_area_t *chan)
 
 	req_fifo_size = 1;
 
-	DEBUG_TEST("%s:%s: Optimal Fifo Size =%d  Timeslots=%d \n",
+	DBG_NEWDRV("%s:%s: Optimal Fifo Size =%d  Timeslots=%d \n",
 		card->devname,chan->if_name,req_fifo_size,chan->num_of_time_slots);
 
 	fifo_size=(unsigned char)aft_map_fifo_baddr_and_size(card,req_fifo_size,&chan->fifo_base_addr);
@@ -87,7 +88,7 @@ static int request_fifo_baddr_and_size(sdla_t *card, private_area_t *chan)
                 return -EINVAL;
         }
 
-	DEBUG_TEST("%s:%s: Optimal Fifo Size =%d  Timeslots=%d New Fifo Size=%d \n",
+	DBG_NEWDRV("%s:%s: Optimal Fifo Size =%d  Timeslots=%d New Fifo Size=%d \n",
                 card->devname,chan->if_name,req_fifo_size,chan->num_of_time_slots,fifo_size);
 
 
@@ -103,7 +104,7 @@ static int request_fifo_baddr_and_size(sdla_t *card, private_area_t *chan)
 			card->devname,chan->if_name,req_fifo_size,fifo_size);
 	}	
 
-	DEBUG_TEST("%s: %s:Fifo Size=%d  Timeslots=%d Fifo Code=%d Addr=%d\n",
+	DBG_NEWDRV("%s: %s:Fifo Size=%d  Timeslots=%d Fifo Code=%d Addr=%d\n",
                 card->devname,chan->if_name,fifo_size,
 		chan->num_of_time_slots,chan->fifo_size_code,
 		chan->fifo_base_addr);
@@ -323,7 +324,6 @@ int aft_analog_led_ctrl(sdla_t *card, int color, int led_pos, int on)
 	return 0;
 }
 
-
 int aft_a600_clock_config(sdla_t *card)
 {
 	u32 reg_1090;
@@ -393,63 +393,56 @@ int aft_a600_clock_config(sdla_t *card)
 	return 0;
 }
 
-
 int aft_analog_global_chip_config(sdla_t *card)
 {
 	u32	reg;
 	int	err;
+	int used_cnt;
 
-	/*============ GLOBAL CHIP CONFIGURATION ===============*/
-	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &reg);
-
-	/* Enable the chip/hdlc reset condition */
-	reg=0;
-	wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
-	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
-
-	if (!IS_A600_CARD(card)) {
-		if (WAN_FE_NETWORK_SYNC(&card->fe)){	/*card->fe.fe_cfg.cfg.remora.network_sync*/
-			DEBUG_EVENT("%s: Analog Clock set to Network Sync!\n",
-					card->devname);
-			wan_set_bit(AFT_CHIPCFG_ANALOG_CLOCK_SELECT_BIT,&reg);	
-		}
+	if (IS_A700_CARD(card)) {
+			wan_set_bit(0,&card->fe_ignore_intr);
 	}
 	
-	DEBUG_CFG("--- AFT Chip Reset. -- \n");
-
-	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
-
-
-	WP_DELAY(10);
-
-	/* Disable the chip/hdlc reset condition */
-	wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
-	wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
-	wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
-
-	/* Do not allow front end interrupt to start */
-	card->fe_no_intr=1;
-
-#if 0
-	wan_set_bit(AFT_CHIPCFG_SPI_SLOW_BIT,&reg);
-#endif
-	DEBUG_CFG("--- Chip enable/config. -- \n");
-
-	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
+	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);
 	
-	if (IS_A600_CARD(card)) {
-		u32 reg_1090 = 0x00;
-		card->hw_iface.bus_read_4(card->hw, 0x1090, &reg_1090);	
-
-		DEBUG_A600("%s: Configuring HWEC CLK SRC to internal oscillator\n",
-			    card->devname);
+	/*============ GLOBAL CHIP CONFIGURATION ===============*/
+	if (used_cnt == 1) {
+		card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card,AFT_CHIP_CFG_REG), &reg);
 		
-		reg_1090 &= ~0x6;
-
-		card->hw_iface.bus_write_4(card->hw, 0x1090, reg_1090);	
+		DEBUG_CFG("--- AFT Chip Reset. -- \n");
+			/* Enable the chip/hdlc reset condition */
+		reg=0;
+		wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
+		wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
 	
-		reg_1090 = 0x00;	
-		card->hw_iface.bus_read_4(card->hw, 0x1090, &reg_1090);	
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG),reg);
+
+		WP_DELAY(10);
+
+		/* Disable the chip/hdlc reset condition */
+		wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
+		wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
+		
+		/* Do not allow front end interrupt to start */
+		if (!IS_A700_CARD(card)) {
+			card->fe_no_intr=1;	
+			DEBUG_CFG("--- Chip enable/config. -- \n");
+			wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
+		}
+		if (IS_A200_CARD(card) || IS_A700_CARD(card)) {
+			if (WAN_FE_NETWORK_SYNC(&card->fe)){	/*card->fe.fe_cfg.cfg.remora.network_sync*/
+				DEBUG_EVENT("%s: Analog Clock set to Network Sync!\n",
+						card->devname);
+				wan_set_bit(AFT_CHIPCFG_ANALOG_CLOCK_SELECT_BIT,&reg);	
+			}
+		}
+
+		DEBUG_CFG("--- Chip enable/config. -- \n");
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG),reg);
+	} else {
+		if (WAN_FE_NETWORK_SYNC(&card->fe)){
+			DEBUG_EVENT("%s: Ignoring Network Sync\n", card->devname);
+		}
 	}
 
 	if (IS_A600_CARD(card)) {
@@ -461,15 +454,16 @@ int aft_analog_global_chip_config(sdla_t *card)
 		}
 	}
 
-	if (!IS_A600_CARD(card)) {
-		/* Set Octasic reset */
-		aft_analog_write_cpld(card, 0x00, 0x00);
-	}	
-	
+	if (used_cnt == 1) {
+		if (!IS_A600_CARD(card)) {
+			/* Set Octasic reset */
+			aft_analog_write_cpld(card, 0x00, 0x00);
+		}	
+	}
 
-
-	DEBUG_EVENT("%s: Global Front End Configuraton!\n",card->devname);
+	DEBUG_EVENT("%s: Global Front End Configuration!\n",card->devname);
 	err = -EINVAL;
+	
 	if (card->wandev.fe_iface.config){
 		err = card->wandev.fe_iface.config(&card->fe);
 	}
@@ -478,34 +472,35 @@ int aft_analog_global_chip_config(sdla_t *card)
 					card->devname);
 		return -EINVAL;
 	}
+
 	/* Run rest of initialization not from lock */
 	if (card->wandev.fe_iface.post_init){
 		err=card->wandev.fe_iface.post_init(&card->fe);
 	}
-		
-	DEBUG_EVENT("%s: Remora config done!\n",card->devname);
 
+	DEBUG_EVENT("%s: Remora config done!\n",card->devname);
 	return 0;
 }
 
 int aft_analog_global_chip_unconfig(sdla_t *card)
 {
 	u32	reg=0;
+	int used_cnt;
 
+	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);
 	if (card->wandev.fe_iface.unconfig){
 		card->wandev.fe_iface.unconfig(&card->fe);
 	}
 
-	/* Set Octasic to reset */
-#if 0
-	aft_analog_write_cpld(card, 0x00, 0x00);
-#endif
-	/* Disable the chip/hdlc reset condition */
-	wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
-	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
-
-	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
-
+	if (used_cnt == 1) {
+		/* Set Octasic to reset */
+		aft_analog_write_cpld(card, 0x00, 0x00);
+		/* Disable the chip/hdlc reset condition */
+		wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
+		wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
+	
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG),reg);
+	}
 	return 0;
 }
 
@@ -513,7 +508,7 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 {
 	u32 reg=0;
 	int err=0;
-
+	
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
 	if (!wan_test_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg)){
 		DEBUG_EVENT("%s: Error: Physical Port %i is busy! \n",
@@ -521,11 +516,11 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 		return -EBUSY;
 	}
 	
-	
 	/*============ LINE/PORT CONFIG REGISTER ===============*/
 
 	card->hw_iface.bus_read_4(card->hw,
-				  AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
+				AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
+	
 	wan_set_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg);
 	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG),reg);
 
@@ -536,7 +531,13 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 	WP_DELAY(10);
 
-	err=aft_analog_test_sync(card,1);
+
+	if (card->adptr_type == AFT_ADPTR_FLEXBRI) {
+		/* A700 works like A700, therefore need to check for RX Sync */
+		err=aft_analog_test_sync(card,0);
+	} else {
+		err=aft_analog_test_sync(card,1);
+	}
 
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
 	if (err != 0){
@@ -550,45 +551,44 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 	/* Enable Octasic Chip */
 	if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
-		u16	max_ec_chans, max_ports_no;
+		u16	max_ec_chans, max_chans_no;
 		u16	max_chip_cfg_ec_chans;
-		u32 	cfg_reg, fe_port_map;
-		u8 core_rev;
+		u32 	cfg_reg, fe_chans_map;
 
 		card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
-		card->hw_iface.getcfg(card->hw, SDLA_PORTS_NO, &max_ports_no);
-		card->hw_iface.getcfg(card->hw, SDLA_PORT_MAP, &fe_port_map);
-		card->hw_iface.getcfg(card->hw, SDLA_COREREV, &core_rev);
+		card->hw_iface.getcfg(card->hw, SDLA_CHANS_NO, &max_chans_no);
+		card->hw_iface.getcfg(card->hw, SDLA_CHANS_MAP, &fe_chans_map);
 
 		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG), &cfg_reg);
 		
 		if (IS_A600_CARD(card)) {
-			max_chip_cfg_ec_chans = aft_chipcfg_get_a600_ec_channels(cfg_reg, core_rev);
+			max_chip_cfg_ec_chans = (u16)aft_chipcfg_get_a600_ec_channels(cfg_reg);	
+		} else if (IS_A700_CARD(card)) {
+			max_chip_cfg_ec_chans = (u16)aft_chipcfg_get_a700_ec_channels(cfg_reg);	
 		} else {
-			max_chip_cfg_ec_chans = aft_chipcfg_get_a200_ec_channels(cfg_reg);	
+			max_chip_cfg_ec_chans = (u16)aft_chipcfg_get_a200_ec_channels(cfg_reg);	
 		}
 		
-		if (max_ec_chans > max_chip_cfg_ec_chans){	
-	        	DEBUG_EVENT(
-			"%s: Critical Error: Exceeded Maximum Available Echo Channels!\n",
+		if (max_ec_chans > max_chip_cfg_ec_chans){
+	        	DEBUG_EVENT("%s: Critical Error: Exceeded Maximum Available Echo Channels!\n",
 					card->devname);
-			DEBUG_EVENT(
-			"%s: Critical Error: Max Allowed=%d Configured=%d (%X)\n",
+			DEBUG_EVENT("%s: Critical Error: Max Allowed=%d Configured=%d (%X)\n",
 				card->devname,
-				aft_chipcfg_get_a200_ec_channels(cfg_reg),
+				max_chip_cfg_ec_chans,
 				max_ec_chans,
 				cfg_reg);  
 			return -EINVAL;
-		}                   
+		}
 
 		if (max_ec_chans){
 #if defined(CONFIG_WANPIPE_HWEC)
 			card->wandev.ec_dev = wanpipe_ec_register(
 							card,
-							fe_port_map,
-							max_ports_no,
+							fe_chans_map,
+							max_chans_no,
 							max_ec_chans,
 							(void*)&conf->oct_conf);
+						
 			
 			if (IS_A600_CARD(card)) {
 				card->wandev.hwec_reset = aft_a600_hwec_reset;
@@ -607,8 +607,7 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 						card->devname);
 		}
 	}
-
-
+ 
 	/* Enable only Front End Interrupt
 	 * Wait for front end to come up before enabling DMA */
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
@@ -626,20 +625,22 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 	/*============ DMA CONTROL REGISTER ===============*/
 	
 	/* Disable Global DMA because we will be 
-	 * waiting for the front end to come up */
+		* waiting for the front end to come up */
 	reg=0;
 	aft_dmactrl_set_max_logic_ch(&reg,0);
 	wan_clear_bit(AFT_DMACTRL_GLOBAL_INTR_BIT,&reg);
 	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
-
+	
 
 
 
 	/*============ ENABLE MUX ==================*/
 
-	reg=0;	/* 0xFFFFFFFF; */
-	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_ANALOG_DATA_MUX_CTRL_REG),reg);
-
+	/* A700 does not use Data Mux, uses similar regs as A500 */
+	if (!IS_A700_CARD(card)) {
+		reg=0;	/* 0xFFFFFFFF; */
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_ANALOG_DATA_MUX_CTRL_REG),reg);
+	}
 
 	aft_wdt_reset(card);
 #if 0
@@ -653,8 +654,10 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 int aft_analog_chip_unconfig(sdla_t *card)
 {
 	u32 reg=0;
+	int used_cnt;
 
 	aft_wdt_reset(card);
+	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);	
 
 	/* Disable Octasic Chip */
 	if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
@@ -677,11 +680,69 @@ int aft_analog_chip_unconfig(sdla_t *card)
 	return 0;
 }
 
+static int aft_analog_ctrl_ram_config_a700(sdla_t *card, private_area_t* chan)
+{
+	u32 ctrl_ram_reg;
+	u32 reg;
+
+	ctrl_ram_reg=AFT_PORT_REG(card,AFT_CONTROL_RAM_ACCESS_BASE_REG);
+	ctrl_ram_reg+=(chan->first_time_slot*4);
+
+	
+
+		BRI_FUNC();
+		
+		wan_set_bit(chan->first_time_slot,&card->u.aft.time_slot_map);
+		
+		card->hw_iface.bus_read_4(card->hw, ctrl_ram_reg, &reg);
+
+		aft_ctrlram_set_logic_ch(&reg,chan->logic_ch_num);
+
+		wan_set_bit(AFT_CTRLRAM_SYNC_FST_TSLOT_BIT,&reg);	
+			
+		aft_ctrlram_set_fifo_size(&reg,chan->fifo_size_code);
+
+		aft_ctrlram_set_fifo_base(&reg,chan->fifo_base_addr);
+		
+		
+		if (chan->hdlc_eng){
+			wan_set_bit(AFT_CTRLRAM_HDLC_MODE_BIT,&reg);
+		}else{
+			wan_clear_bit(AFT_CTRLRAM_HDLC_MODE_BIT,&reg);
+		}
+
+		if (chan->cfg.data_mux){
+			wan_set_bit(AFT_CTRLRAM_DATA_MUX_ENABLE_BIT,&reg);
+		}else{
+			wan_clear_bit(AFT_CTRLRAM_DATA_MUX_ENABLE_BIT,&reg);
+		}
+		
+		if (0){ /* FIXME card->fe.fe_cfg.cfg.te1cfg.fcs == 32){ */
+			wan_set_bit(AFT_CTRLRAM_HDLC_CRC_SIZE_BIT,&reg);
+		}else{
+			wan_clear_bit(AFT_CTRLRAM_HDLC_CRC_SIZE_BIT,&reg);
+		}
+
+		wan_clear_bit(AFT_CTRLRAM_SS7_ENABLE_BIT,&reg);		
+
+		wan_clear_bit(AFT_CTRLRAM_HDLC_TXCH_RESET_BIT,&reg);
+		wan_clear_bit(AFT_CTRLRAM_HDLC_RXCH_RESET_BIT,&reg);
+
+		DEBUG_CFG("%s: Configuring %s LC=%i for timeslot %ld : Offset 0x%X Reg 0x%X\n",
+				card->devname, chan->if_name, chan->logic_ch_num, chan->first_time_slot,
+				ctrl_ram_reg,reg);
+
+		card->hw_iface.bus_write_4(card->hw, ctrl_ram_reg, reg);
+
+	return 0;
+}
+
 int aft_analog_chan_dev_config(sdla_t *card, void *chan_ptr)
 {
 	u32 reg;
 	private_area_t *chan = (private_area_t*)chan_ptr;
 	u32 dma_ram_reg;
+	int err;
 
 
 	chan->logic_ch_num=aft_request_logical_channel_num(card, chan);
@@ -709,7 +770,12 @@ int aft_analog_chan_dev_config(sdla_t *card, void *chan_ptr)
 
 	card->hw_iface.bus_write_4(card->hw, dma_ram_reg, reg);
 
+
 	reg=0;	
+
+	if (IS_A700_CARD(card)) {
+		err = aft_analog_ctrl_ram_config_a700(card, chan);
+	}
 
 	if (chan->channelized_cfg && !chan->hdlc_eng){
 
@@ -788,7 +854,7 @@ int a200_check_ec_security(sdla_t *card)
 {  
 	u32 cfg_reg;	
 	
-    	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &cfg_reg);
+    card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG), &cfg_reg);
 	if (wan_test_bit(AFT_CHIPCFG_A200_EC_SECURITY_BIT,&cfg_reg)){ 
     	return 1; 	
 	}
@@ -916,6 +982,8 @@ static int aft_a600_hwec_reset(void *pcard, int reset)
 	return err;
 }
 
+
+
 static int aft_analog_hwec_reset(void *pcard, int reset)
 {
 	sdla_t		*card = (sdla_t*)pcard;
@@ -931,7 +999,6 @@ static int aft_analog_hwec_reset(void *pcard, int reset)
 	        aft_analog_write_cpld(card, 0x00, 0x01);
 		WP_DELAY(1000);
 		err = 0;
-
 	}else{
 		DEBUG_EVENT("%s: Set Echo Canceller chip reset.\n",
 					card->devname);
@@ -946,6 +1013,31 @@ static int aft_analog_hwec_reset(void *pcard, int reset)
 #endif
 
 #if defined(CONFIG_WANPIPE_HWEC)
+static int aft_a700_analog_hwec_enable(sdla_t* card, int enable, int fe_chan)
+{
+	unsigned int    value, analog_chan;
+	analog_chan = (fe_chan-1); /* {0,1}, {2,3}, {4,5}... */
+	card->hw_iface.bus_read_4(
+					card->hw,
+					AFT_PORT_REG(card,0x1000) + analog_chan * 4,
+					&value);
+	if (enable){
+		value |= 0x20;
+	}else{
+		value &= ~0x20;
+	}
+
+	DEBUG_HWEC("[HWEC A700]: %s: writing: off:0x%X val:0x%08X!\n",card->devname,
+				AFT_PORT_REG(card,0x1000) + analog_chan * 4,
+				value);
+
+	card->hw_iface.bus_write_4(
+				card->hw,
+				AFT_PORT_REG(card,0x1000) + analog_chan * 4,
+				value);
+	return 0;
+}
+
 /******************************************************************************
 **		aft_analog_hwec_enable()
 **
@@ -962,22 +1054,26 @@ static int aft_analog_hwec_enable(void *pcard, int enable, int fe_chan)
 
 	WAN_ASSERT(card == NULL);
 
+	if (card->adptr_type == AFT_ADPTR_FLEXBRI) {
+		return aft_a700_analog_hwec_enable(card, enable, fe_chan);
+	}
 	card->hw_iface.bus_read_4(
 			card->hw,
-			AFT_PORT_REG(card, AFT_REMORA_MUX_TS_EC_ENABLE),
+   			AFT_PORT_REG(card,AFT_REMORA_MUX_TS_EC_ENABLE),
 			&value);
 	if (enable){
 		value |= (1 << hw_chan);
         } else {
-		value &= ~(1 << fe_chan);
+		value &= ~(1 << hw_chan);
         }
+	
 	DEBUG_HWEC("[HWEC]: %s: %s bypass mode for fe_chan:%d (value=%X)...!\n",
 			card->devname,
 			(enable) ? "Enable" : "Disable",
 			fe_chan, value);
 	card->hw_iface.bus_write_4(
 			card->hw,
-			AFT_PORT_REG(card, AFT_REMORA_MUX_TS_EC_ENABLE),
+			AFT_PORT_REG(card,AFT_REMORA_MUX_TS_EC_ENABLE),
 			value);
 	return 0;
 }

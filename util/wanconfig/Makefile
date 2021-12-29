@@ -10,13 +10,24 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-WAN_VIRTUAL=
-LINC=../../patches/kdrivers/include
+DIR_EC_APILIB	= ../wanec_apilib
+WANECDIR=../../patches/kdrivers/wanec
+
+ifeq (,$(wildcard $(WANECDIR)))
+WANECDIR=/common/wanec
+endif
+
 SYSINC=/usr/include/wanpipe
+WAN_VIRTUAL=
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I $(LINC) -I$(SYSINC) -D_DEBUG_=$(DEBUG) -DCONFIG_PRODUCT_WANPIPE_AFT_BRI
-
+SRCS=wanconfig.c $(DIR_EC_APILIB)/wanec_api.c $(DIR_EC_APILIB)/wanec_api_lib.c
+CFLAGS = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
+CFLAGS += -DCONFIG_PRODUCT_WANPIPE_AFT_BRI -DCONFIG_PRODUCT_WANPIPE_USB
+CFLAGS += -I../../patches/kdrivers/include -I$(SYSINC)
+CFLAGS += -I$(DIR_EC_APILIB)
+CFLAGS += -I$(WANECDIR)/oct6100_api/include
+CFLAGS += -I$(WANECDIR) 
 CFLAGS += $(EXTRA_FLAGS)
 
 CFLAGS += -DWAN_HWEC
@@ -26,8 +37,8 @@ CFLAGS += -DWAN_HWEC
 all: wanconfig
 	@echo "Ok."
 
-wanconfig:	wanconfig.c 
-	$(CC) $(CFLAGS) -o $@ $<
+wanconfig:	$(SRCS) 
+	$(CC) $(CFLAGS) -o $@ $^
 
 install:
 	@echo "Installing Wanpipe utilites in $(WAN_VIRTUAL)/usr/sbin"

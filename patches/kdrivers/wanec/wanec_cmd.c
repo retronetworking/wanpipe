@@ -21,19 +21,13 @@
  * Includes
  */
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe.h>
-#elif defined(__LINUX__)
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe.h>
-# include <linux/if_wanpipe.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe.h>
+
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe.h"
+#if defined(__LINUX__)
+# include "if_wanpipe.h"
 #endif
 
 int verbose;
@@ -60,7 +54,7 @@ int verbose;
 /*=============================================================
  * Global Parameters
  */
-UINT32 DetectedSoutToneNumbers[WAN_NUM_DTMF_TONES] = 
+UINT32 WanEcToneListDTMF[] =
 {
 	SOUT_DTMF_0,
 	SOUT_DTMF_1,
@@ -77,13 +71,7 @@ UINT32 DetectedSoutToneNumbers[WAN_NUM_DTMF_TONES] =
 	SOUT_DTMF_C,
 	SOUT_DTMF_D,
 	SOUT_DTMF_STAR,
-	SOUT_DTMF_POUND
-};
-
-
-
-UINT32 DetectedRoutToneNumbers[WAN_NUM_DTMF_TONES] = 
-{
+	SOUT_DTMF_POUND,
 	ROUT_DTMF_0,
 	ROUT_DTMF_1,
 	ROUT_DTMF_2,
@@ -101,19 +89,19 @@ UINT32 DetectedRoutToneNumbers[WAN_NUM_DTMF_TONES] =
 	ROUT_DTMF_STAR,
 	ROUT_DTMF_POUND
 };
-
-UINT32 DetectedSoutFaxTones[WAN_NUM_FAX_TONES] = 
+UINT32 WanEcToneListFaxCalling[] =
 {
-	SOUT_G168_1100GB_ON
-};
-
-UINT32 DetectedRoutFaxTones[WAN_NUM_FAX_TONES] = 
-{
+	SOUT_G168_1100GB_ON,
 	ROUT_G168_1100GB_ON
 };
 
-
-
+UINT32 WanEcToneListFaxCalled[] =
+{
+	SOUT_G168_2100GB_ON,
+	ROUT_G168_2100GB_ON,
+	SOUT_G168_2100GB_WSPR,
+	ROUT_G168_2100GB_WSPR
+};
 /*=============================================================
  * Function prototype
 */
@@ -124,8 +112,8 @@ int wanec_ChipClose(wan_ec_dev_t*, int verbose);
 int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int reset, int verbose);
 int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int verbose);
 
-int wanec_ChannelOpen(wan_ec_dev_t*, int);
-int wanec_ChannelClose(wan_ec_dev_t*, int);
+int wanec_ChannelOpen(wan_ec_dev_t*, INT, int);
+int wanec_ChannelClose(wan_ec_dev_t*, INT, int);
 int wanec_ChannelModifyOpmode(wan_ec_dev_t*, INT, UINT32, int verbose);
 int wanec_ChannelModifyCustom(wan_ec_dev_t*, INT, wanec_chan_custom_t*, int verbose);
 int wanec_ChannelStats(wan_ec_dev_t*, INT channel, wanec_chan_stats_t *chan_stats, int reset);
@@ -133,9 +121,7 @@ int wanec_ChannelStats(wan_ec_dev_t*, INT channel, wanec_chan_stats_t *chan_stat
 int wanec_ChannelMute(wan_ec_dev_t*, INT channel, wanec_chan_mute_t*, int);
 int wanec_ChannelUnMute(wan_ec_dev_t*, INT channel, wanec_chan_mute_t*, int);
 
-int wanec_TonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t*, int verbose);
-int wanec_FaxTonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int verbose);
-int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t*, int verbose);
+int wanec_TonesCtrl(wan_ec_t *ec, int cmd, int ec_chan, wanec_tone_config_t*, int verbose);
 
 int wanec_DebugChannel(wan_ec_dev_t*, INT channel, int verbose);
 int wanec_DebugGetData(wan_ec_dev_t*, wanec_chan_monitor_t *chan_monitor, int verbose);
@@ -177,16 +163,19 @@ u32 wanec_req_read_burst(void*, u32 addr, u16 *data, u32 len);
 extern int wan_ec_write_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 data);
 extern int wan_ec_read_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 *data);
 
+static int wanec_ToneEnable(wan_ec_t *ec, int ec_chan, UINT32 tone_id, int verbose);
+static int wanec_ToneDisable(wan_ec_t *ec, int ec_chan, UINT32 tone_id, int verbose);
+
 /*=============================================================
  * Function definition
 */
 static int wanec_hndl2ec_channel(wan_ec_t *ec, UINT32 ChannelHndl)
 {
-	int	channel = 0;
+	int	ec_chan = 0;
 
-	for(channel = 0; channel < ec->max_channels; channel++){
-		if (ec->pEchoChannelHndl[channel] == ChannelHndl){
-			return channel;
+	for(ec_chan = 0; ec_chan < MAX_EC_CHANS; ec_chan++) {
+		if (ec->pEchoChannelHndl[ec_chan] == ChannelHndl){
+			return ec_chan;
 		}
 	}
 	return 0;
@@ -195,16 +184,30 @@ int wanec_fe2ec_channel(wan_ec_dev_t *ec_dev, int fe_channel)
 {
 	int	ec_channel = 0;
 
-	if (ec_dev->fe_media == WAN_MEDIA_BRI){
-		if (ec_dev->fe_lineno >= 12){
-			ec_channel = WANEC_MAX_PORT_RANGE;
+	/* WANEC_MAX_BRI_PORT_RANGE = 2  */
+	/* WANEC_MAX_PORT_RANGE	= 32 */
+	/* For A500, fe_lineno 1-> 24 */
+
+	/* DavidY Clean up later */
+	if (ec_dev->card->adptr_type == AFT_ADPTR_FLEXBRI) {
+		if (ec_dev->fe_lineno == 4){
+		//if (ec_dev->fe_media == WAN_MEDIA_FXOFXS){
+			ec_channel = WANEC_MAX_PORT_RANGE + (fe_channel-1);
+		} else {
+			ec_channel = (ec_dev->fe_lineno * WANEC_MAX_BRI_PORT_RANGE + (fe_channel-1));
 		}
-		ec_channel += (ec_dev->fe_lineno * WANEC_MAX_BRI_PORT_RANGE + (fe_channel-1));
-	}else if (ec_dev->fe_media == WAN_MEDIA_T1 || ec_dev->fe_media == WAN_MEDIA_FXOFXS){
-		ec_channel = ec_dev->fe_lineno * WANEC_MAX_PORT_RANGE + (fe_channel-1);
-	}else{
-		/*ec_channel = ec_dev->fe_lineno * ec_dev->fe_max_chans + channel;*/
-		ec_channel = ec_dev->fe_lineno * WANEC_MAX_PORT_RANGE + fe_channel;
+	} else {
+		if (ec_dev->fe_media == WAN_MEDIA_BRI){
+			if (ec_dev->fe_lineno >= 12){
+				ec_channel = WANEC_MAX_PORT_RANGE;
+			}
+			ec_channel += (ec_dev->fe_lineno * WANEC_MAX_BRI_PORT_RANGE + (fe_channel-1));
+		}else if (ec_dev->fe_media == WAN_MEDIA_T1 || ec_dev->fe_media == WAN_MEDIA_FXOFXS){
+			ec_channel = ec_dev->fe_lineno * WANEC_MAX_PORT_RANGE + (fe_channel-1);
+		}else{
+			/*ec_channel = ec_dev->fe_lineno * ec_dev->fe_max_chans + channel;*/
+			ec_channel = ec_dev->fe_lineno * WANEC_MAX_PORT_RANGE + fe_channel;
+		}
 	}
 	return ec_channel;
 }
@@ -224,10 +227,10 @@ static int wanec_ec2fe_channel(wan_ec_t *ec, int ec_chan, wan_ec_dev_t **ec_dev)
 	}else{
 		if (ec_dev_tmp->fe_media == WAN_MEDIA_T1 ||
 		    ec_dev_tmp->fe_media == WAN_MEDIA_FXOFXS){
-			fe_chan++; 
+			fe_chan++;
 		}
 	}
-	if (ec_dev && *ec_dev) *ec_dev = ec_dev_tmp; 	
+	if (ec_dev && *ec_dev) *ec_dev = ec_dev_tmp;
 	return fe_chan;
 }
 
@@ -245,7 +248,7 @@ int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int re
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
-	
+
 	if (chip_stats){
 		PRINT2(verbose, "%s: Reading chip statistics...\n",
 					ec->name);
@@ -286,10 +289,10 @@ int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int ve
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
-	
+
 	if (chip_image){
 		PRINT2(verbose, "%s: Reading chip image info...\n",
-					ec->name); 
+					ec->name);
 	}
 
 	Oct6100ChipGetImageInfoDef( &f_ChipImageInfo );
@@ -299,7 +302,7 @@ int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int ve
 	if ( ulResult != cOCT6100_ERR_OK ){
 		DEBUG_EVENT(
 		"%s: Reading chip image info...\tFailed (err=0x%X)\n",
-					ec->name, ulResult); 
+					ec->name, ulResult);
 		return -EINVAL;
 	}
 	if (chip_image){
@@ -324,11 +327,11 @@ int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int ve
 					ec->name, f_ChipImageInfo.ulBuildId);
 			DEBUG_EVENT(
 			"%s: Echo Canceller maximum number of channels\t%d\n",
-					ec->name, f_ChipImageInfo.ulMaxChannels);	
-#if 0	
+					ec->name, f_ChipImageInfo.ulMaxChannels);
+#if 0
 			PRINT2(verbose,
 			"%s: Echo Canceller maximum tail displacement\t\t%d\n",
-					ec->name, f_ChipImageInfo.ulMaxTailDisplacement);	
+					ec->name, f_ChipImageInfo.ulMaxTailDisplacement);
 			PRINT2(verbose,
 			"%s: Echo Canceller per channel tail displacement\t%s\n",
 					ec->name,
@@ -339,65 +342,65 @@ int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int ve
 					(f_ChipImageInfo.fPerChannelTailLength == TRUE)?"TRUE":"FALSE");
 			PRINT2(verbose,
 			"%s: Echo Canceller maximum tail length\t\t%d\n",
-					ec->name, f_ChipImageInfo.ulMaxTailLength);	
+					ec->name, f_ChipImageInfo.ulMaxTailLength);
 			PRINT2(verbose,
 			"%s: Echo Canceller buffer Playout support\t\t%s\n",
-					ec->name, 
-					(f_ChipImageInfo.fBufferPlayout == TRUE)?"TRUE":"FALSE");	
+					ec->name,
+					(f_ChipImageInfo.fBufferPlayout == TRUE)?"TRUE":"FALSE");
 			PRINT2(verbose,
 			"%s: Echo Canceller adaptive noise reduction\t\t%s\n",
-					ec->name, 
-					(f_ChipImageInfo.fAdaptiveNoiseReduction==TRUE)?"TRUE":"FALSE");	
+					ec->name,
+					(f_ChipImageInfo.fAdaptiveNoiseReduction==TRUE)?"TRUE":"FALSE");
 			PRINT2(verbose,
 			"%s: Echo Canceller SOUT noise bleaching\t\t%s\n",
-					ec->name, 
-					(f_ChipImageInfo.fSoutNoiseBleaching==TRUE)?"TRUE":"FALSE");	
+					ec->name,
+					(f_ChipImageInfo.fSoutNoiseBleaching==TRUE)?"TRUE":"FALSE");
 			PRINT2(verbose,
 			"%s: Echo Canceller ROUT noise reduction\t\t%s\n",
-					ec->name, 
-					(f_ChipImageInfo.fRoutNoiseReduction==TRUE)?"TRUE":"FALSE");	
+					ec->name,
+					(f_ChipImageInfo.fRoutNoiseReduction==TRUE)?"TRUE":"FALSE");
 			PRINT2(verbose,
 			"%s: Echo Canceller ROUT noise reduction level\t\t%s\n",
-					ec->name, 
-					(f_ChipImageInfo.fRoutNoiseReductionLevel==TRUE)?"TRUE":"FALSE");	
+					ec->name,
+					(f_ChipImageInfo.fRoutNoiseReductionLevel==TRUE)?"TRUE":"FALSE");
 			PRINT2(verbose,
 			"%s: Echo Canceller automatic level control\t\t%s\n",
-					ec->name, 
-					(f_ChipImageInfo.fAutoLevelControl==TRUE)?"TRUE":"FALSE");	
+					ec->name,
+					(f_ChipImageInfo.fAutoLevelControl==TRUE)?"TRUE":"FALSE");
 			PRINT2(verbose,
 			"%s: Echo Canceller acoustic echo cancellation\t\t%s\n",
-					ec->name, 
-					(f_ChipImageInfo.fAcousticEcho==TRUE)?"TRUE":"FALSE");	
+					ec->name,
+					(f_ChipImageInfo.fAcousticEcho==TRUE)?"TRUE":"FALSE");
 			PRINT2(verbose,
 			"%s: Echo Canceller conferencing\t\t%s\n",
-					ec->name, 
-					(f_ChipImageInfo.fConferencing==TRUE)?"TRUE":"FALSE");	
+					ec->name,
+					(f_ChipImageInfo.fConferencing==TRUE)?"TRUE":"FALSE");
 			PRINT2(verbose,
 			"%s: Echo Canceller conferencing noise reduction\t\t%s\n",
-					ec->name, 
+					ec->name,
 					(f_ChipImageInfo.fConferencingNoiseReduction==TRUE)?"TRUE":"FALSE");
 #endif
 		}
 	}
-	if (f_ChipImageInfo.ulMaxChannels < (unsigned int)ec->max_channels){
-		ec->max_channels = f_ChipImageInfo.ulMaxChannels-1;
+	if (f_ChipImageInfo.ulMaxChannels < (unsigned int)ec->max_ec_chans){
+		ec->max_ec_chans = f_ChipImageInfo.ulMaxChannels-1;
 	}
-	
+
 //	DEBUG_EVENT(verbose, "%s: Reading hw revision...\n",
-//					ec->name); 
+//					ec->name);
 #if 0
 	DEBUG_EVENT(verbose, "%s: Reading hw revision...\n",
-					ec->name); 
+					ec->name);
 	ec->f_Revision.ulUserChipId = 0;
 	ec->f_Revision.pProcessContext = &ec->f_Context;
 	ulResult = Oct6100GetHwRevision(&ec->f_Revision);
 	if ( ulResult != cOCT6100_ERR_OK ){
 		DEBUG_EVENT(
 		"%s: Reading hw revision...\tFailed (err=0x%X)\n",
-					ec->name, ulResult); 
+					ec->name, ulResult);
 		return EINVAL;
 	}
-#endif	
+#endif
 	return 0;
 }
 
@@ -406,7 +409,7 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 	tOCT6100_GET_INSTANCE_SIZE	InstanceSize;
 	wan_ec_t			*ec;
 	UINT32				ulResult;
-	
+
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	WAN_ASSERT(config->imageData == NULL);
@@ -433,7 +436,7 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 	/*==============================================================*/
 	/* General parameters */
 
-	/* Chip ID.*/	
+	/* Chip ID.*/
 	ec->f_OpenChip.ulUserChipId	= ec->chip_no;
 
 	/* Set the max number of accesses to 1024 to speed things up */
@@ -462,11 +465,11 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 	/*
 	**f_OpenChip.ulMemoryChipSize	= cOCT6100_MEMORY_CHIP_SIZE_8MB;
 	**f_OpenChip.ulMemoryChipSize	= cOCT6100_MEMORY_CHIP_SIZE_16MB;*/
-	ec->f_OpenChip.ulMemoryChipSize	= config->memory_chip_size;	
+	ec->f_OpenChip.ulMemoryChipSize	= config->memory_chip_size;
 	ec->f_OpenChip.ulNumMemoryChips	= 2;
 
 	ec->f_OpenChip.ulSoftBufferPlayoutEventsBufSize = 2048;
- 
+
 	ec->f_OpenChip.fEnableChannelRecording	= TRUE;
 
 #if defined(ENABLE_ACOUSTICECHO)
@@ -478,15 +481,15 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 	ec->f_OpenChip.fEnableProductionBist	= TRUE;
 	ec->f_OpenChip.ulNumProductionBistLoops	= 0x1;
 #endif
-	
+
 	ec->f_OpenChip.ulMaxPlayoutBuffers	= WANEC_MAC_PLAYOUT_BUFFERS;
 
 	ec->f_OpenChip.pbyImageFile	= ec->pImageData;
 	ec->f_OpenChip.ulImageSize	= ec->ImageSize;
-		
+
 	/* Assign board index (0). */
  	ec->f_Context.ulBoardId = ec->chip_no;
-	
+
 	/* Handle to driver */
 	ec->f_Context.ec_dev = ec_dev;
 
@@ -502,7 +505,7 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 	}
 
 	/* Allocate memory needed for API instance. */
-	ec->pChipInstance = 
+	ec->pChipInstance =
 		(tPOCT6100_INSTANCE_API)wan_vmalloc(InstanceSize.ulApiInstanceSize);
 	if (ec->pChipInstance == NULL){
 		DEBUG_EVENT(
@@ -524,12 +527,12 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 	}
 
 	ec->ulDebugChannelHndl	= cOCT6100_INVALID_HANDLE;
-	ec->ulDebugDataMode	= config->debug_data_mode;	
+	ec->ulDebugDataMode	= config->debug_data_mode;
 	return 0;
 }
 
 int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
-{	
+{
 	wan_ec_t	*ec;
 	UINT32		ulResult, i = 0;
 	INT		ec_chan = 0;
@@ -537,7 +540,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec	= ec_dev->ec;
-	
+
 	PRINT2(verbose,
 	"%s: Opening Echo Canceller Chip ...\n",
 					ec->name);
@@ -547,11 +550,11 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 					ec->name);
 		return -EINVAL;
 	}
-	ulResult = Oct6100ChipOpen( 
+	ulResult = Oct6100ChipOpen(
 			ec->pChipInstance,	/* API instance memory. */
 			&ec->f_OpenChip );		/* Open chip structure. */
 	if ( ulResult != cOCT6100_ERR_OK ){
-		if (ec->imageLast == WANOPT_YES || 
+		if (ec->imageLast == WANOPT_YES ||
 		    ulResult != cOCT6100_ERR_OPEN_INVALID_FIRMWARE_OR_CAPACITY_PINS){
 			DEBUG_EVENT(
 			"ERROR: %s: Failed to open Echo Canceller Chip (err=0x%X)\n",
@@ -568,7 +571,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 		return EINVAL;
 	}
 
-	ec->pToneBufferIndexes = 
+	ec->pToneBufferIndexes =
 			wan_malloc(sizeof(UINT32) * ec->f_OpenChip.ulMaxPlayoutBuffers);
 	if (ec->pToneBufferIndexes == NULL){
 		DEBUG_EVENT(
@@ -581,8 +584,8 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 	while(i < ec->f_OpenChip.ulMaxPlayoutBuffers){
 		ec->pToneBufferIndexes[i++] = cOCT6100_INVALID_VALUE;
 	}
-	ec->pEchoChannelHndl = 
-			wan_malloc(sizeof(UINT32) * ec->max_channels);
+	ec->pEchoChannelHndl =
+			wan_malloc(sizeof(UINT32) * MAX_EC_CHANS);
 	if (ec->pEchoChannelHndl == NULL){
 		DEBUG_EVENT(
 		"ERROR: %s: Failed allocate memory for channel handle!\n",
@@ -591,9 +594,9 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 		wanec_ChipClose(ec_dev, verbose);
 		return EINVAL;
 	}
-#if !defined(__WINDOWS__)
-	ec->pEcDevMap = wan_malloc(sizeof(wan_ec_dev_t*) * ec->max_channels);
-#endif
+
+	ec->pEcDevMap = wan_malloc(sizeof(wan_ec_dev_t*) * MAX_EC_CHANS);
+
 	if (ec->pEcDevMap == NULL){
 		DEBUG_EVENT(
 		"ERROR: %s: Failed allocate memory for ec channel map!\n",
@@ -603,7 +606,7 @@ int wanec_ChipOpen(wan_ec_dev_t *ec_dev, int verbose)
 		wanec_ChipClose(ec_dev, verbose);
 		return -EINVAL;
 	}
-	for(ec_chan = 0; ec_chan < ec->max_channels; ec_chan++){
+	for(ec_chan = 0; ec_chan < MAX_EC_CHANS; ec_chan++){
 		ec->pEchoChannelHndl[ec_chan] = cOCT6100_INVALID_HANDLE;
 		ec->pEcDevMap[ec_chan] = NULL;
 	}
@@ -615,7 +618,7 @@ int wanec_ChipClose(wan_ec_dev_t *ec_dev, int verbose)
 	wan_ec_t		*ec;
 	tOCT6100_CHIP_CLOSE	f_CloseChip;
 	UINT32			ulResult;
-	
+
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
@@ -623,13 +626,13 @@ int wanec_ChipClose(wan_ec_dev_t *ec_dev, int verbose)
 	"%s: Closing Echo Canceller Chip ...\n",
 				ec->name);
 	Oct6100ChipCloseDef( &f_CloseChip );
-	ulResult = Oct6100ChipClose( 
+	ulResult = Oct6100ChipClose(
 				ec->pChipInstance,
 				&f_CloseChip );
 	if ( ulResult != cOCT6100_ERR_OK ){
 		DEBUG_EVENT(
 		"ERROR: %s: Failed to close Echo Canceller chip (err=0x%X)!\n",
-						ec->name, ulResult); 
+						ec->name, ulResult);
 		return -EINVAL;
 	}
 	if (ec->pChipInstance){
@@ -644,163 +647,154 @@ int wanec_ChipClose(wan_ec_dev_t *ec_dev, int verbose)
 		wan_free(ec->pEchoChannelHndl);
 		ec->pEchoChannelHndl = NULL;
 	}
-#if !defined(__WINDOWS__)
+
 	if (ec->pEcDevMap){
 		wan_free(ec->pEcDevMap);
 		ec->pEcDevMap = NULL;
 	}
-#endif
+
 	return 0;
 }
 
-int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, int verbose)
+int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 {
 	tOCT6100_CHANNEL_OPEN	EchoChannelOpen;
 	wan_ec_t		*ec;
 	sdla_t			*card;
 	UINT32			ulResult;
 	UINT32			stream = 0,timeslot=0;
-	INT			channel, pcm_law_type;
+	INT			pcm_law_type;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	WAN_ASSERT(ec_dev->card == NULL);
 	ec = ec_dev->ec;
 	card = (sdla_t*)ec_dev->card;
-	
-	pcm_law_type = (WAN_FE_TDMV_LAW(&card->fe) == WAN_TDMV_MULAW) ? 
-				cOCT6100_PCM_U_LAW : cOCT6100_PCM_A_LAW;	
+
+	pcm_law_type = (WAN_FE_TDMV_LAW(&card->fe) == WAN_TDMV_MULAW) ?
+				cOCT6100_PCM_U_LAW : cOCT6100_PCM_A_LAW;
 	PRINT2(verbose,
-	"%s: Openning all Echo Canceller channels (%s)...\n",
-				ec->name,
+	"%s: Openning Echo Canceller channel %d (%s)...\n",
+				ec->name, ec_chan,
 				(pcm_law_type == cOCT6100_PCM_U_LAW) ?
 						"MULAW":"ALAW");
 
+	DEBUG_EVENT("%s: Opening HW Echo Canceller (NoiseRed=%s)\n",
+			ec->name,card->hwec_conf.noise_reduction?"On":"Off");
 
 
+	Oct6100ChannelOpenDef( &EchoChannelOpen );
 
-	for(channel = 0; channel < ec->max_channels; channel++){
-		Oct6100ChannelOpenDef( &EchoChannelOpen );
-
-		/* Assign the handle memory.*/
-		EchoChannelOpen.pulChannelHndl = &ec->pEchoChannelHndl[channel];
+	/* Assign the handle memory.*/
+	EchoChannelOpen.pulChannelHndl = &ec->pEchoChannelHndl[ec_chan];
 
 		/* Make sure the channel does not perform echo cancellation */
 #if defined(WANEC_BYDEFAULT_NORMAL)
-		EchoChannelOpen.ulEchoOperationMode =
+	EchoChannelOpen.ulEchoOperationMode =
 					cOCT6100_ECHO_OP_MODE_NORMAL;
-#else	
-		EchoChannelOpen.ulEchoOperationMode =
+#else
+	EchoChannelOpen.ulEchoOperationMode =
 					cOCT6100_ECHO_OP_MODE_POWER_DOWN;
 #endif
-		EchoChannelOpen.fEnableToneDisabler = 	TRUE;
+	EchoChannelOpen.fEnableToneDisabler = 	TRUE;
 
-		stream = (channel % 2 == 1) ? 4 : 0;
-		timeslot = channel / 2;
+	stream = (ec_chan % 2 == 1) ? 4 : 0;
+	timeslot = ec_chan / 2;
 
-		/* Configure the TDM interface.*/
-		EchoChannelOpen.TdmConfig.ulRinPcmLaw		= pcm_law_type; 
-		EchoChannelOpen.TdmConfig.ulRoutPcmLaw		= pcm_law_type; 
-		EchoChannelOpen.TdmConfig.ulSinPcmLaw		= pcm_law_type; 
-		EchoChannelOpen.TdmConfig.ulSoutPcmLaw		= pcm_law_type; 
+	/* Configure the TDM interface.*/
+	EchoChannelOpen.TdmConfig.ulRinPcmLaw		= pcm_law_type;
+	EchoChannelOpen.TdmConfig.ulRoutPcmLaw		= pcm_law_type;
+	EchoChannelOpen.TdmConfig.ulSinPcmLaw		= pcm_law_type;
+	EchoChannelOpen.TdmConfig.ulSoutPcmLaw		= pcm_law_type;
+	EchoChannelOpen.TdmConfig.ulRinStream		= stream + 0;
+	EchoChannelOpen.TdmConfig.ulRinTimeslot		= timeslot;
+	EchoChannelOpen.TdmConfig.ulRoutStream		= stream + 1;
+	EchoChannelOpen.TdmConfig.ulRoutTimeslot	= timeslot;
+	EchoChannelOpen.TdmConfig.ulSinStream		= stream + 2;
+	EchoChannelOpen.TdmConfig.ulSinTimeslot		= timeslot;
+	EchoChannelOpen.TdmConfig.ulSoutStream		= stream + 3;
+	EchoChannelOpen.TdmConfig.ulSoutTimeslot	= timeslot;
 
-		EchoChannelOpen.TdmConfig.ulRinStream		= stream + 0;
-		EchoChannelOpen.TdmConfig.ulRinTimeslot		= timeslot;
-		EchoChannelOpen.TdmConfig.ulRoutStream		= stream + 1;
-		EchoChannelOpen.TdmConfig.ulRoutTimeslot	= timeslot;
-		EchoChannelOpen.TdmConfig.ulSinStream		= stream + 2;
-		EchoChannelOpen.TdmConfig.ulSinTimeslot		= timeslot;
-		EchoChannelOpen.TdmConfig.ulSoutStream		= stream + 3;
-		EchoChannelOpen.TdmConfig.ulSoutTimeslot	= timeslot;
-
-		/* Set the desired VQE features (TRUE/FALSE).*/
-		EchoChannelOpen.VqeConfig.fEnableNlp		= TRUE;
-		EchoChannelOpen.VqeConfig.fRinDcOffsetRemoval	= TRUE;
-		EchoChannelOpen.VqeConfig.fSinDcOffsetRemoval	= TRUE;
+	/* Set the desired VQE features (TRUE/FALSE).*/
+	EchoChannelOpen.VqeConfig.fEnableNlp		= TRUE;
+	EchoChannelOpen.VqeConfig.fRinDcOffsetRemoval	= TRUE;
+	EchoChannelOpen.VqeConfig.fSinDcOffsetRemoval	= TRUE;
 #if defined(ENABLE_ACOUSTICECHO)
-		EchoChannelOpen.VqeConfig.fAcousticEcho		= TRUE;
+	EchoChannelOpen.VqeConfig.fAcousticEcho		= TRUE;
 #endif
-		if (card->hwec_conf.tone_disabler_delay) {
-			UINT32	delay = card->hwec_conf.tone_disabler_delay;
-			delay = ((delay / 512) + 1) * 512 + 300;
-	                EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay = delay;
-			PRINT1(verbose,
-			"%s: Enable special fax detection option on channel %d (%d)\n",
-				ec->name, channel,
-				EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay);
-		}
+	if (card->hwec_conf.tone_disabler_delay) {
+		UINT32	delay = card->hwec_conf.tone_disabler_delay;
+		delay = ((delay / 512) + 1) * 512 + 300;
+                EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay = delay;
+		PRINT1(verbose,
+		"%s: Enable special fax detection option on channel %d (%d)\n",
+			ec->name, ec_chan,
+			EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay);
+	}
 
-		if (card->hwec_conf.noise_reduction) {
-			EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
-		} else {
-			EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
-		}
+	if (card->hwec_conf.noise_reduction) {
+		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
+	} else {
+		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
+	}
 
-		DEBUG_EVENT("%s: Opening HW Echo Canceller (NoiseRed=%s VQE=%i)\n",
-			ec->name,(EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction == TRUE)?"On":"Off",
-			EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay);  
+	EchoChannelOpen.VqeConfig.ulComfortNoiseMode	=
+				cOCT6100_COMFORT_NOISE_NORMAL;
+			/*	cOCT6100_COMFORT_NOISE_NORMAL
+			**	cOCT6100_COMFORT_NOISE_EXTENDED,
+			**	cOCT6100_COMFORT_NOISE_OFF,
+			**	cOCT6100_COMFORT_NOISE_FAST_LATCH */
 
-
-		EchoChannelOpen.VqeConfig.ulComfortNoiseMode	= 
-					cOCT6100_COMFORT_NOISE_NORMAL;
-				/*	cOCT6100_COMFORT_NOISE_NORMAL
-				**	cOCT6100_COMFORT_NOISE_EXTENDED,
-				**	cOCT6100_COMFORT_NOISE_OFF,
-				**	cOCT6100_COMFORT_NOISE_FAST_LATCH */
-
-		PRINT2(verbose,
-		"%s: Openning Echo Canceller channel %d (%s)...\n",
+	PRINT2(verbose,
+	"%s: Openning Echo Canceller channel %d (%s)...\n",
 				ec->name,
-				channel,
+				ec_chan,
 				(pcm_law_type == cOCT6100_PCM_U_LAW) ?
 						"MULAW":"ALAW");
-		/* Open the channel.*/
-		ulResult = Oct6100ChannelOpen(	ec->pChipInstance,
-						&EchoChannelOpen );
-		if (ulResult != cOCT6100_ERR_OK){
-			DEBUG_EVENT(
-			"ERROR: %s: Failed to open Echo Canceller channel %d (err=0x%X)!\n",
-							ec->name,
-							channel,
-							ulResult);
-			return ulResult;
-		}
+	/* Open the channel.*/
+	ulResult = Oct6100ChannelOpen(	ec->pChipInstance,
+					&EchoChannelOpen );
+	if (ulResult != cOCT6100_ERR_OK){
+		DEBUG_EVENT(
+		"ERROR: %s: Failed to open Echo Canceller channel %d (err=0x%X)!\n",
+						ec->name,
+						ec_chan,
+						ulResult);
+		return ulResult;
 	}
 
 	/* Init debug channel handle */
 	ec->ulDebugChannelHndl = cOCT6100_INVALID_HANDLE;
-
 	return 0;
 }
 
-int wanec_ChannelClose(wan_ec_dev_t *ec_dev, int verbose)
+int wanec_ChannelClose(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 {
 	wan_ec_t		*ec;
 	tOCT6100_CHANNEL_CLOSE	EchoChannelClose;
-	UINT32			ulResult, channel;
+	UINT32			ulResult;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
 	PRINT2(verbose,
-	"%s: Closing all Echo Canceller channels ...\n",
-					ec->name);
-	for(channel = 0; channel < (UINT32)ec->max_channels; channel++){
-		Oct6100ChannelCloseDef( &EchoChannelClose );
-		EchoChannelClose.ulChannelHndl =
-					ec->pEchoChannelHndl[channel];
-		ulResult = Oct6100ChannelClose(	ec->pChipInstance,
-						&EchoChannelClose );
-		if (ulResult != cOCT6100_ERR_OK){
-			DEBUG_EVENT(
-			"ERROR: %s: Failed to close Echo Canceller channel %d (err=0x%X)!\n",
+	"%s: Closing Echo Canceller channel %d ...\n",
+					ec->name, ec_chan);
+
+	Oct6100ChannelCloseDef( &EchoChannelClose );
+	EchoChannelClose.ulChannelHndl =
+				ec->pEchoChannelHndl[ec_chan];
+	ulResult = Oct6100ChannelClose(	ec->pChipInstance,
+				&EchoChannelClose );
+	if (ulResult != cOCT6100_ERR_OK){
+		DEBUG_EVENT(
+		"ERROR: %s: Failed to close Echo Canceller channel %d (err=0x%X)!\n",
 							ec->name,
-							channel,
+							ec_chan,
 							ulResult);
-			return -EINVAL;
-		}
-		ec->pEchoChannelHndl[channel] = cOCT6100_INVALID_HANDLE;
+		return -EINVAL;
 	}
+	ec->pEchoChannelHndl[ec_chan] = cOCT6100_INVALID_HANDLE;
 	return 0;
 }
 
@@ -824,11 +818,11 @@ int wanec_ChannelModifyOpmode(	wan_ec_dev_t		*ec_dev,
 	/* Assign the handle memory.*/
 	EchoChannelModify.ulChannelHndl = ec->pEchoChannelHndl[channel];
 
-	/* Echo Channel Operation Mode */	
+	/* Echo Channel Operation Mode */
 	EchoChannelModify.ulEchoOperationMode = opmode;
-			
+
 	/* Open the channel.*/
-	ulResult = Oct6100ChannelModify( 
+	ulResult = Oct6100ChannelModify(
 					ec->pChipInstance,
 					&EchoChannelModify );
 	if (ulResult != cOCT6100_ERR_OK){
@@ -872,7 +866,7 @@ int wanec_ChannelModifyCustom(	wan_ec_dev_t		*ec_dev,
 	}
 
 	/* Open the channel.*/
-	ulResult = Oct6100ChannelModify( 
+	ulResult = Oct6100ChannelModify(
 					ec->pChipInstance,
 					&EchoChannelModify );
 	if (ulResult != cOCT6100_ERR_OK){
@@ -901,13 +895,13 @@ int wanec_ChannelMute(wan_ec_dev_t* ec_dev, INT ec_chan, wanec_chan_mute_t *mute
 	f_ChannelMute.ulChannelHndl	= ec->pEchoChannelHndl[ec_chan];
 	f_ChannelMute.ulPortMask	= cOCT6100_CHANNEL_MUTE_PORT_NONE;
 	if (mute == NULL || mute->port_map & WAN_EC_CHANNEL_PORT_SOUT)
-		f_ChannelMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_SOUT; 
+		f_ChannelMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_SOUT;
 	if (mute == NULL || mute->port_map & WAN_EC_CHANNEL_PORT_SIN)
-		f_ChannelMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_SIN; 
+		f_ChannelMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_SIN;
 	if (mute == NULL || mute->port_map & WAN_EC_CHANNEL_PORT_ROUT)
-		f_ChannelMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_ROUT; 
+		f_ChannelMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_ROUT;
 	if (mute == NULL || mute->port_map & WAN_EC_CHANNEL_PORT_RIN)
-		f_ChannelMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_RIN; 
+		f_ChannelMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_RIN;
 	PRINT2(verbose, "%s: Muting EC Channel %d on port:%X...\n",
 				ec->name, ec_chan, f_ChannelMute.ulPortMask);
 	ulResult = Oct6100ChannelMute(
@@ -935,13 +929,13 @@ int wanec_ChannelUnMute(wan_ec_dev_t *ec_dev, INT ec_chan, wanec_chan_mute_t *mu
 	f_ChannelUnMute.ulChannelHndl	= ec->pEchoChannelHndl[ec_chan];
 	f_ChannelUnMute.ulPortMask	= cOCT6100_CHANNEL_MUTE_PORT_NONE;
 	if (mute == NULL || mute->port_map & WAN_EC_CHANNEL_PORT_SOUT)
-		f_ChannelUnMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_SOUT; 
+		f_ChannelUnMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_SOUT;
 	if (mute == NULL || mute->port_map & WAN_EC_CHANNEL_PORT_SIN)
-		f_ChannelUnMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_SIN; 
+		f_ChannelUnMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_SIN;
 	if (mute == NULL || mute->port_map & WAN_EC_CHANNEL_PORT_ROUT)
-		f_ChannelUnMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_ROUT; 
+		f_ChannelUnMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_ROUT;
 	if (mute == NULL || mute->port_map & WAN_EC_CHANNEL_PORT_RIN)
-		f_ChannelUnMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_RIN; 
+		f_ChannelUnMute.ulPortMask |= cOCT6100_CHANNEL_MUTE_PORT_RIN;
 	PRINT2(verbose, "%s: Un-Muting EC channel %d on port:%X...\n",
 				ec->name, ec_chan, f_ChannelUnMute.ulPortMask);
 	ulResult = Oct6100ChannelUnMute(
@@ -988,284 +982,103 @@ int wanec_ChannelStats(wan_ec_dev_t *ec_dev, INT channel, wanec_chan_stats_t *ch
 	return 0;
 }
 
-int wanec_TonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int verbose)
+
+int wanec_TonesCtrl(wan_ec_t *ec, int cmd, int ec_chan, wanec_tone_config_t *tone, int verbose)
+{
+	UINT32	*tones=NULL;
+	int	tone_no = 0, i = 0, err = 0;
+	uint8_t	port_map = (tone) ? tone->port_map : (WAN_EC_CHANNEL_PORT_ROUT|WAN_EC_CHANNEL_PORT_SOUT);	
+
+	if (tone->id == WP_API_EVENT_TONE_DTMF){
+		tones = WanEcToneListDTMF;
+		tone_no = sizeof(WanEcToneListDTMF)/sizeof(UINT32);
+	}else if (tone->id == WP_API_EVENT_TONE_FAXCALLING){
+		tones = WanEcToneListFaxCalling;
+		tone_no = sizeof(WanEcToneListFaxCalling)/sizeof(UINT32);
+	}else if (tone->id == WP_API_EVENT_TONE_FAXCALLED){
+		tones = WanEcToneListFaxCalled;
+		tone_no = sizeof(WanEcToneListFaxCalled)/sizeof(UINT32);
+	}else{
+		return -EINVAL;
+	}
+
+	for(i = 0; i < tone_no; i++){
+		if (((port_map & WAN_EC_CHANNEL_PORT_ROUT) && (tones[i] & WANEC_TONE_ROUT_MASK)) ||
+		    ((port_map & WAN_EC_CHANNEL_PORT_SOUT) && (tones[i] & WANEC_TONE_SOUT_MASK)) ){
+
+			if (cmd == WAN_TRUE){
+				err = wanec_ToneEnable(ec, ec_chan, tones[i], verbose);
+			}else{
+				err = wanec_ToneDisable(ec, ec_chan, tones[i], verbose);
+			}
+		}
+		if (err) return -EINVAL;
+	}
+	return 0;
+
+}
+
+
+static int wanec_ToneEnable(wan_ec_t *ec, int ec_chan, UINT32 tone_id, int verbose)
 {
 	tOCT6100_TONE_DETECTION_ENABLE	f_ToneDetectionEnable;
 	UINT32				ulResult;
-	int					i;
-	unsigned char		port_map = WAN_EC_CHANNEL_PORT_SOUT;
 
-	if (dtmf) port_map = dtmf->port_map;
-	PRINT2(verbose, "%s: Enable EC tone detection on chan %d port %X ...\n",
-					ec->name,ec_chan,port_map);
-					//(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
-					
-	if (port_map & WAN_EC_CHANNEL_PORT_ROUT){
-		for(i = 0; i < WAN_NUM_DTMF_TONES; i++){
-	
-			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
-			f_ToneDetectionEnable.ulChannelHndl = 
-						ec->pEchoChannelHndl[ec_chan];
-			f_ToneDetectionEnable.ulToneNumber =
-						DetectedRoutToneNumbers[i];
-			ulResult = Oct6100ToneDetectionEnable (
+	PRINT2(verbose, "%s: Enable EC tone (0x%08X) detection on chan %d ...\n",
+				ec->name, tone_id, ec_chan);
+
+	Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
+	f_ToneDetectionEnable.ulChannelHndl = ec->pEchoChannelHndl[ec_chan];
+	f_ToneDetectionEnable.ulToneNumber  = tone_id;
+	ulResult = Oct6100ToneDetectionEnable (
 						ec->pChipInstance,
 						&f_ToneDetectionEnable);
-			if ( ulResult == cOCT6100_ERR_OK ){
-				continue;
-			}else if (ulResult == cOCT6100_ERR_TONE_DETECTION_TONE_ACTIVATED){
-				PRINT2(verbose,
-				"%s: EC Tone detection is already enabled on channel %d for port ROUT!\n",
-					ec->name, ec_chan);
-				continue;	/* already activated */
-			}else{
-				DEBUG_EVENT(
-				"ERROR: %s: Failed to enable EC tone detection on ec chan %d!\n",
-					ec->name, ec_chan);
-				DEBUG_EVENT(
-				"ERROR: %s: (err=0x%X,i=%d)!\n",
-					ec->name,
-					(unsigned int)ulResult, i);
-				return -EINVAL;
-			}
+	if ( ulResult != cOCT6100_ERR_OK ){
+		if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_ACTIVATED){
+			DEBUG_EVENT(
+			"ERROR: %s: Failed to enable EC Tone (0x%08X) detection on ec chan %d (err=0x%08X)!\n",
+						ec->name, tone_id, ec_chan, (unsigned int)ulResult);
+			return -EINVAL;
 		}
+		PRINT2(verbose,
+		"%s: EC Tone (0x%08X) detection is already enabled on channel %d!\n",
+					ec->name, tone_id, ec_chan);
 	}
-	if (port_map & WAN_EC_CHANNEL_PORT_SOUT){
-		for(i = 0; i < WAN_NUM_DTMF_TONES; i++){
-	
-			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
-			f_ToneDetectionEnable.ulChannelHndl = 
-						ec->pEchoChannelHndl[ec_chan];
-			f_ToneDetectionEnable.ulToneNumber =
-						DetectedSoutToneNumbers[i];
-			ulResult = Oct6100ToneDetectionEnable (
-						ec->pChipInstance,
-						&f_ToneDetectionEnable);
-			if ( ulResult == cOCT6100_ERR_OK ){
-				continue;
-			}else if (ulResult == cOCT6100_ERR_TONE_DETECTION_TONE_ACTIVATED){
-				PRINT2(verbose,
-				"%s: EC Tone detection is already enabled on channel %d for port SOUT!\n",
-					ec->name, ec_chan);
-				continue;	/* already activated */
-			}else{
-				DEBUG_EVENT(
-				"ERROR: %s: Failed to enable EC tone detection on channel %d!\n",
-					ec->name, ec_chan);
-				DEBUG_EVENT(
-				"ERROR: %s: (err=0x%X,i=%d)!\n",
-					ec->name,
-					(unsigned int)ulResult, i);
-				return -EINVAL;
-			}
-		}
-	}
-
 	return 0;
 }
 
-int wanec_FaxTonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int verbose)
-{
-	tOCT6100_TONE_DETECTION_ENABLE	f_ToneDetectionEnable;
-	UINT32				ulResult;
-	int					i;
-	unsigned char		port_map = WAN_EC_CHANNEL_PORT_SOUT;
-
-	if (dtmf) port_map = dtmf->port_map;
-	PRINT2(verbose, "%s: Enable EC Fax tone detection on chan %d port %X ...\n",
-					ec->name,ec_chan,port_map);
-//					(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
-					
-	if (port_map & WAN_EC_CHANNEL_PORT_ROUT){
-		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
-	
-			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
-			f_ToneDetectionEnable.ulChannelHndl = 
-						ec->pEchoChannelHndl[ec_chan];
-			f_ToneDetectionEnable.ulToneNumber =
-						DetectedRoutFaxTones[i];
-			ulResult = Oct6100ToneDetectionEnable (
-						ec->pChipInstance,
-						&f_ToneDetectionEnable);
-			if ( ulResult == cOCT6100_ERR_OK ){
-				continue;
-			}else if (ulResult == cOCT6100_ERR_TONE_DETECTION_TONE_ACTIVATED){
-				PRINT2(verbose,
-				"%s: EC Tone detection is already enabled on channel %d for port ROUT!\n",
-					ec->name, ec_chan);
-				continue;	/* already activated */
-			}else{
-				DEBUG_EVENT(
-				"ERROR: %s: Failed to enable EC tone detection on ec chan %d!\n",
-					ec->name, ec_chan);
-				DEBUG_EVENT(
-				"ERROR: %s: (err=0x%X,i=%d)!\n",
-					ec->name,
-					(unsigned int)ulResult, i);
-				return -EINVAL;
-			}
-		}
-	}
-	if (port_map & WAN_EC_CHANNEL_PORT_SOUT){
-		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
-	
-			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
-			f_ToneDetectionEnable.ulChannelHndl = 
-						ec->pEchoChannelHndl[ec_chan];
-			f_ToneDetectionEnable.ulToneNumber =
-						DetectedSoutFaxTones[i];
-			ulResult = Oct6100ToneDetectionEnable (
-						ec->pChipInstance,
-						&f_ToneDetectionEnable);
-			if ( ulResult == cOCT6100_ERR_OK ){
-				continue;
-			}else if (ulResult == cOCT6100_ERR_TONE_DETECTION_TONE_ACTIVATED){
-				PRINT2(verbose,
-				"%s: EC Tone detection is already enabled on channel %d for port SOUT!\n",
-					ec->name, ec_chan);
-				continue;	/* already activated */
-			}else{
-				DEBUG_EVENT(
-				"ERROR: %s: Failed to enable EC Fax tone detection on channel %d!\n",
-					ec->name, ec_chan);
-				DEBUG_EVENT(
-				"ERROR: %s: (err=0x%X,i=%d)!\n",
-					ec->name,
-					(unsigned int)ulResult, i);
-				return -EINVAL;
-			}
-		}
-	}
-
-	return 0;
-}
-
-int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int verbose)
+static int wanec_ToneDisable(wan_ec_t *ec, int ec_chan, UINT32 tone_id, int verbose)
 {
 	tOCT6100_TONE_DETECTION_DISABLE	f_ToneDetectionDisable;
 	UINT32				ulResult;
-	INT				i;
-	unsigned char		port_map = WAN_EC_CHANNEL_PORT_SOUT;
 
-	if (dtmf) port_map = dtmf->port_map;
-	PRINT2(verbose, "%s: Disable EC tone detection on channel %d port %X...\n",
-					ec->name,ec_chan,port_map);
-//					(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
-
-	if (port_map & WAN_EC_CHANNEL_PORT_ROUT){
-	
-		for(i = 0; i < WAN_NUM_DTMF_TONES; i++){
-		
-			Oct6100ToneDetectionDisableDef( &f_ToneDetectionDisable );
-			f_ToneDetectionDisable.ulChannelHndl = 
-						ec->pEchoChannelHndl[ec_chan];
-			if (ec_chan >= 0){
-				f_ToneDetectionDisable.ulToneNumber =
-						DetectedRoutToneNumbers[i];
-			}else{
-				f_ToneDetectionDisable.fDisableAll = TRUE;
-			}
-			ulResult = Oct6100ToneDetectionDisable (
-							ec->pChipInstance,
-							&f_ToneDetectionDisable);
-			if ( ulResult != cOCT6100_ERR_OK ){
-				if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_NOT_ACTIVATED){
-					DEBUG_EVENT(
-					"ERROR: %s: Failed to disable EC tone detection for channel %d (err=0x%X,i=%d)!\n", 
-							ec->name, ec_chan,
-							(unsigned int)ulResult, i);
-					return -EINVAL;
-				}
-			}
-		}
-
-		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
-		
-			Oct6100ToneDetectionDisableDef( &f_ToneDetectionDisable );
-			f_ToneDetectionDisable.ulChannelHndl = 
-						ec->pEchoChannelHndl[ec_chan];
-			if (ec_chan >= 0){
-				f_ToneDetectionDisable.ulToneNumber =
-						DetectedRoutFaxTones[i];
-			}else{
-				f_ToneDetectionDisable.fDisableAll = TRUE;
-			}
-			ulResult = Oct6100ToneDetectionDisable (
-							ec->pChipInstance,
-							&f_ToneDetectionDisable);
-			if ( ulResult != cOCT6100_ERR_OK ){
-				if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_NOT_ACTIVATED){
-					DEBUG_EVENT(
-					"ERROR: %s: Failed to disable EC Fax tone detection for channel %d (err=0x%X,i=%d)!\n", 
-							ec->name, ec_chan,
-							(unsigned int)ulResult, i);
-					return -EINVAL;
-				}
-			}
-		}
-
+	PRINT2(verbose, "%s: Disable EC tone (0x%08X) detection on chan %d ...\n",
+				ec->name, tone_id, ec_chan);
+	Oct6100ToneDetectionDisableDef( &f_ToneDetectionDisable );
+	f_ToneDetectionDisable.ulChannelHndl = ec->pEchoChannelHndl[ec_chan];
+	if (ec_chan >= 0){
+		f_ToneDetectionDisable.ulToneNumber = tone_id;
+	}else{
+		f_ToneDetectionDisable.fDisableAll = TRUE;
 	}
-	if (port_map & WAN_EC_CHANNEL_PORT_SOUT){	
-		
-		for(i = 0; i < WAN_NUM_DTMF_TONES; i++){
-		
-			Oct6100ToneDetectionDisableDef( &f_ToneDetectionDisable );
-			f_ToneDetectionDisable.ulChannelHndl = 
-						ec->pEchoChannelHndl[ec_chan];
-			if (ec_chan >= 0){
-				f_ToneDetectionDisable.ulToneNumber =
-							DetectedSoutToneNumbers[i];
-			}else{
-				f_ToneDetectionDisable.fDisableAll = TRUE;
-			}
-			ulResult = Oct6100ToneDetectionDisable (
-							ec->pChipInstance,
-							&f_ToneDetectionDisable);
-			if ( ulResult != cOCT6100_ERR_OK ){
-				if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_NOT_ACTIVATED){
-					DEBUG_EVENT(
-					"ERROR: %s: Failed to disable EC tone detection for channel %d (err=0x%X,i=%d)!\n", 
-							ec->name, ec_chan,
-							(unsigned int)ulResult, i);
-					return -EINVAL;
-				}
-			}
+	ulResult = Oct6100ToneDetectionDisable (
+					ec->pChipInstance,
+					&f_ToneDetectionDisable);
+	if ( ulResult != cOCT6100_ERR_OK ){
+		if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_NOT_ACTIVATED){
+			DEBUG_EVENT(
+			"ERROR: %s: Failed to disable EC Tone (0x%08X) detection on ec chan %d (err=0x%08X)!\n",
+						ec->name, tone_id, ec_chan, (unsigned int)ulResult);
+			return -EINVAL;
 		}
-
-		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
-		
-			Oct6100ToneDetectionDisableDef( &f_ToneDetectionDisable );
-			f_ToneDetectionDisable.ulChannelHndl = 
-						ec->pEchoChannelHndl[ec_chan];
-			if (ec_chan >= 0){
-				f_ToneDetectionDisable.ulToneNumber =
-							DetectedSoutFaxTones[i];
-			}else{
-				f_ToneDetectionDisable.fDisableAll = TRUE;
-			}
-			ulResult = Oct6100ToneDetectionDisable (
-							ec->pChipInstance,
-							&f_ToneDetectionDisable);
-			if ( ulResult != cOCT6100_ERR_OK ){
-				if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_NOT_ACTIVATED){
-					DEBUG_EVENT(
-					"ERROR: %s: Failed to disable EC Fax tone detection for channel %d (err=0x%X,i=%d)!\n", 
-							ec->name, ec_chan,
-							(unsigned int)ulResult, i);
-					return -EINVAL;
-				}
-			}
-		}
-
 	}
+
 	return 0;
 }
 
-//#if defined(WAN_DEBUG_HWEC)
-#if 1
 static CHAR* wanec_ToneId2Str(UINT32 f_ulToneId)
 {
-	switch (f_ulToneId){ 
+	switch (f_ulToneId){
 	/* DTMF Section */
 	case ROUT_DTMF_0: return "ROUT_DTMF_0";
 	case ROUT_DTMF_1: return "ROUT_DTMF_1";
@@ -1307,68 +1120,61 @@ static CHAR* wanec_ToneId2Str(UINT32 f_ulToneId)
 	case SIN_SYSTEM7_2000: return "SIN_SYSTEM7_2000";
 	case SIN_SYSTEM7_1780: return "SIN_SYSTEM7_1780";
 
-	case SOUT_G168_1100GB_ON: return "SOUT_G168_1100GB_ON";
-	case ROUT_G168_1100GB_ON: return "ROUT_G168_1100GB_ON";
+	case SOUT_G168_2100GB_ON:	return "SOUT_G168_2100GB_ON";
+	case SOUT_G168_2100GB_WSPR:	return "SOUT_G168_2100GB_WSPR";
+	case ROUT_G168_2100GB_ON:	return "ROUT_G168_2100GB_ON";
+	case ROUT_G168_2100GB_WSPR:	return "ROUT_G168_2100GB_WSPR";
+	case SOUT_G168_1100GB_ON:	return "SOUT_G168_1100GB_ON";
+	case ROUT_G168_1100GB_ON:	return "ROUT_G168_1100GB_ON";
 
-	case SOUT_G168_2100GB_ON: return "SOUT_G168_2100GB_ON";
-	case ROUT_G168_2100GB_ON: return "ROUT_G168_2100GB_ON";
-
-	case SOUT_G168_2100GB_WSPR: return "SOUT_G168_2100GB_WSPR";
-	case ROUT_G168_2100GB_WSPR: return "ROUT_G168_2100GB_WSPR";
+	case ROUT_SOUT_G168_2100HB_END:	return "ROUT_SOUT_G168_2100HB_END";
 
 	default: return "INVALID TONE ID!";
 	}
 }
-#endif
 
-static unsigned char wanec_ConvertToneId(UINT32 f_ulToneId, unsigned char *ec_dtmf_port)
+static unsigned char wanec_ConvertToneId(UINT32 f_ulToneId, unsigned char *ec_tone_port)
 {
-	switch (f_ulToneId){ 
+	switch (f_ulToneId){
 	/* DTMF Section */
-	case ROUT_DTMF_0:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '0';
-	case ROUT_DTMF_1:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '1';
-	case ROUT_DTMF_2:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '2';
-	case ROUT_DTMF_3:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '3';
-	case ROUT_DTMF_4:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '4';
-	case ROUT_DTMF_5:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '5';
-	case ROUT_DTMF_6:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '6';
-	case ROUT_DTMF_7:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '7';
-	case ROUT_DTMF_8:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '8';
-	case ROUT_DTMF_9:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '9';
-	case ROUT_DTMF_A:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return 'A';
-	case ROUT_DTMF_B:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return 'B';
-	case ROUT_DTMF_C:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return 'C';
-	case ROUT_DTMF_D:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return 'D';
-	case ROUT_DTMF_STAR:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '*';
-	case ROUT_DTMF_POUND:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return '#';
-	case SOUT_DTMF_0:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '0';
-	case SOUT_DTMF_1:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '1';
-	case SOUT_DTMF_2:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '2';
-	case SOUT_DTMF_3:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '3';
-	case SOUT_DTMF_4:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '4';
-	case SOUT_DTMF_5:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '5';
-	case SOUT_DTMF_6:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '6';
-	case SOUT_DTMF_7:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '7';
-	case SOUT_DTMF_8:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '8';
-	case SOUT_DTMF_9:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '9';
-	case SOUT_DTMF_A:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return 'A';
-	case SOUT_DTMF_B:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return 'B';
-	case SOUT_DTMF_C:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return 'C';
-	case SOUT_DTMF_D:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return 'D';
-	case SOUT_DTMF_STAR:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '*';
-	case SOUT_DTMF_POUND:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '#';
-
-	case SOUT_G168_1100GB_ON:
-	case SOUT_G168_2100GB_ON:	
-	case SOUT_G168_2100GB_WSPR:
-		*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
-	
-			
-	case ROUT_G168_1100GB_ON:	
-	case ROUT_G168_2100GB_ON:
-	case ROUT_G168_2100GB_WSPR:	
-	 	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
-
+	case ROUT_DTMF_0:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '0';
+	case ROUT_DTMF_1:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '1';
+	case ROUT_DTMF_2:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '2';
+	case ROUT_DTMF_3:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '3';
+	case ROUT_DTMF_4:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '4';
+	case ROUT_DTMF_5:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '5';
+	case ROUT_DTMF_6:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '6';
+	case ROUT_DTMF_7:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '7';
+	case ROUT_DTMF_8:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '8';
+	case ROUT_DTMF_9:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '9';
+	case ROUT_DTMF_A:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'A';
+	case ROUT_DTMF_B:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'B';
+	case ROUT_DTMF_C:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'C';
+	case ROUT_DTMF_D:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'D';
+	case ROUT_DTMF_STAR:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '*';
+	case ROUT_DTMF_POUND:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return '#';
+	case SOUT_DTMF_0:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '0';
+	case SOUT_DTMF_1:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '1';
+	case SOUT_DTMF_2:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '2';
+	case SOUT_DTMF_3:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '3';
+	case SOUT_DTMF_4:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '4';
+	case SOUT_DTMF_5:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '5';
+	case SOUT_DTMF_6:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '6';
+	case SOUT_DTMF_7:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '7';
+	case SOUT_DTMF_8:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '8';
+	case SOUT_DTMF_9:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '9';
+	case SOUT_DTMF_A:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'A';
+	case SOUT_DTMF_B:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'B';
+	case SOUT_DTMF_C:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'C';
+	case SOUT_DTMF_D:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'D';
+	case SOUT_DTMF_STAR:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '*';
+	case SOUT_DTMF_POUND:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return '#';
+	case SOUT_G168_2100GB_ON:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
+	case SOUT_G168_2100GB_WSPR:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
+	case ROUT_G168_2100GB_ON:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
+	case ROUT_G168_2100GB_WSPR:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
+	case SOUT_G168_1100GB_ON:	*ec_tone_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
+	case ROUT_G168_1100GB_ON:	*ec_tone_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
 	}
 	return 0x00000000;
 }
@@ -1377,7 +1183,7 @@ static unsigned char wanec_ConvertToneId(UINT32 f_ulToneId, unsigned char *ec_dt
 //#if defined(WAN_DEBUG_HWEC)
 static CHAR* wanec_ToneType2Str(UINT32 f_ulToneType)
 {
-	switch (f_ulToneType){ 
+	switch (f_ulToneType){
 	case cOCT6100_TONE_PRESENT:	return "cOCT6100_TONE_PRESENT";
 	case cOCT6100_TONE_STOP:	return "cOCT6100_TONE_STOP";
 	default: return "INVALID TONE TYPE!";
@@ -1386,7 +1192,7 @@ static CHAR* wanec_ToneType2Str(UINT32 f_ulToneType)
 #endif
 static unsigned char wanec_ConvertToneType(UINT32 f_ulToneType)
 {
-	switch (f_ulToneType){ 
+	switch (f_ulToneType){
 	case cOCT6100_TONE_PRESENT:	return WAN_EC_TONE_PRESENT;
 	case cOCT6100_TONE_STOP:	return WAN_EC_TONE_STOP;
 	}
@@ -1395,7 +1201,7 @@ static unsigned char wanec_ConvertToneType(UINT32 f_ulToneType)
 
 static CHAR* wanec_BufferPlayoutType2Str(UINT32 f_ulBufferPlayoutType)
 {
-	switch (f_ulBufferPlayoutType){ 
+	switch (f_ulBufferPlayoutType){
 	case cOCT6100_BUFFER_PLAYOUT_EVENT_STOP:		return "PLAYOUT_EVENT_STOP";
 #if 0
 	case cOCT6100_BUFFER_PLAYOUT_EVENT_CALLER_ID_STOP:	return "PLAYOUT_EVENT_CALLER_ID_STOP";
@@ -1410,7 +1216,7 @@ static CHAR* wanec_BufferPlayoutType2Str(UINT32 f_ulBufferPlayoutType)
 **
 ** Return:	0  - on success
 **		<0 - on error
-**		1  - pending dtmf events
+**		1  - pending tone events
 **/
 
 int wanec_ToneEvent(wan_ec_t *ec, int verbose)
@@ -1421,7 +1227,8 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 	wan_ec_dev_t		*ec_dev;
 	sdla_t			*card;
 	UINT32			i;
-	int			ec_chan,fe_chan;
+	int			ec_chan;
+	u8			fe_chan;
 
 	PRINT2(verbose, "%s: Getting Tone events ...\n",
 					ec->name);
@@ -1444,13 +1251,13 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 		return -EINVAL;
 	}
 
-	/* No dtmf tone event returned */
+	/* No tone tone event returned */
 	if (!f_GetToneEvent.ulNumValidToneEvent) return 0;
 
 	for(i = 0; i < f_GetToneEvent.ulNumValidToneEvent; i++){
 		ec_chan = wanec_hndl2ec_channel(ec, ToneEvent[i].ulChannelHndl);
 		ec_dev = ec->pEcDevMap[ec_chan];
-		fe_chan = wanec_ec2fe_channel(ec, ec_chan, &ec_dev);
+		fe_chan = (u8)wanec_ec2fe_channel(ec, ec_chan, &ec_dev);
 		if (ec_dev == NULL || ec_dev->card == NULL){
 			DEBUG_EVENT(
 			"%s: Internal Error: Failed to find fe channel (ec_chan=%d)\n",
@@ -1459,30 +1266,29 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 		}
 
 		PRINT2(verbose,
-		"%s: Tone event %s %s on fe_chan=%d ec_chan=%d\n", 
+		"%s: Tone event %s %s on fe_chan=%d ec_chan=%d\n",
 			ec_dev->devname,
 			wanec_ToneId2Str(ToneEvent[i].ulToneDetected),
 			wanec_ToneType2Str(f_GetToneEvent.pToneEvent[i].ulEventType),
 			fe_chan, ec_chan);
 
 		card = (sdla_t*)ec_dev->card;
-		if (card->wandev.event_callback.dtmf){
+		if (card->wandev.event_callback.tone){
 			wan_event_t	event;
-			unsigned char	dtmf_port = WAN_EC_CHANNEL_PORT_ROUT, dtmf_type;
-			
+			unsigned char	tone_port = WAN_EC_CHANNEL_PORT_ROUT;
+
 			event.type	= WAN_EVENT_EC_DTMF;
 			event.channel	= fe_chan;
 			event.digit	= wanec_ConvertToneId(
 						ToneEvent[i].ulToneDetected,
-						&dtmf_port);
-			dtmf_type	= wanec_ConvertToneType(ToneEvent[i].ulEventType);
-			event.dtmf_type = dtmf_type;
-			event.dtmf_port = dtmf_port;
-			card->wandev.event_callback.dtmf(card, &event);
+						&tone_port);
+			event.tone_type = wanec_ConvertToneType(ToneEvent[i].ulEventType);
+			event.tone_port = tone_port;
+			card->wandev.event_callback.tone(card, &event);
 		}
 	}
 
-	/* Return 1 if more dtmf event are present, otherwise - 0 */
+	/* Return 1 if more tone event are present, otherwise - 0 */
 	return (f_GetToneEvent.fMoreEvents == TRUE) ? 1 : 0;
 }
 
@@ -1491,7 +1297,7 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 **
 ** Return:	0  - on success
 **		<0 - on error
-**		1  - pending dtmf events
+**		1  - pending tone events
 **/
 int wanec_PlayoutEvent(wan_ec_t *ec, int verbose)
 {
@@ -1539,7 +1345,7 @@ int wanec_PlayoutEvent(wan_ec_t *ec, int verbose)
 		}
 
 		PRINT2(verbose,
-		"%s: EC Buffer Playout event id %d %s on fe_chan=%d ec_chan=%d port=%s\n", 
+		"%s: EC Buffer Playout event id %d %s on fe_chan=%d ec_chan=%d port=%s\n",
 			ec_dev->devname,
 			PlayoutEvent[i].ulUserEventId,
 			wanec_BufferPlayoutType2Str(PlayoutEvent[i].ulEventType),
@@ -1561,7 +1367,7 @@ int wanec_PlayoutEvent(wan_ec_t *ec, int verbose)
 **
 ** Return:	0  - on success
 **		<0 - on error
-**		1  - pending dtmf events
+**		1  - pending tone events
 **/
 int wanec_ISR(wan_ec_t *ec, int verbose)
 {
@@ -1574,14 +1380,14 @@ int wanec_ISR(wan_ec_t *ec, int verbose)
 					ec->name);
 	Oct6100InterruptServiceRoutineDef(&ec->f_InterruptFlag);
 
-	ulResult = Oct6100InterruptServiceRoutine( 
+	ulResult = Oct6100InterruptServiceRoutine(
 					ec->pChipInstance,
 					&ec->f_InterruptFlag );
 	if ( ulResult != cOCT6100_ERR_OK ){
 		DEBUG_EVENT(
 		"ERROR: %s: Failed to execute interrupt Service Routine (err=%08X)!\n",
 					ec->name,
-					ulResult); 
+					ulResult);
 		return -EINVAL;
 	}
 	/* Critical errors */
@@ -1637,13 +1443,13 @@ int wanec_ISR(wan_ec_t *ec, int verbose)
 		ret = wanec_ToneEvent(ec, ec->tone_verbose);
 	}
 	if (ec->f_InterruptFlag.fBufferPlayoutEventsPending == TRUE){
-		PRINT2(verbose, 
+		PRINT2(verbose,
 		"%s: Buffer Playout Events Pending\n",
 				ec->name);
 		ret = wanec_PlayoutEvent(ec, ec->playout_verbose);
 	}
 	if (ec->f_InterruptFlag.fApiSynch == TRUE){
-		PRINT2(verbose, 
+		PRINT2(verbose,
 		"%s: The chip interrupted the API for purpose of maintaining sync!\n",
 				ec->name);
 	}
@@ -1674,7 +1480,7 @@ int wanec_DebugChannel(wan_ec_dev_t *ec_dev, INT channel, int verbose)
 		DEBUG_EVENT(
 		"ERROR: %s: Echo Canceller daemon can monitor only one ec channel (%d)!\n",
 				ec_dev->name, channel);
-		return -EINVAL;	
+		return -EINVAL;
 	}
 	Oct6100DebugSelectChannelDef( &DebugSelectChannel );
 
@@ -1687,7 +1493,7 @@ int wanec_DebugChannel(wan_ec_dev_t *ec_dev, INT channel, int verbose)
 	DebugSelectChannel.ulChannelHndl= ec->pEchoChannelHndl[channel];
 
 	/* Select Debug channel */
-	ulResult = Oct6100DebugSelectChannel( 
+	ulResult = Oct6100DebugSelectChannel(
 					ec->pChipInstance,
 					&DebugSelectChannel );
 	if (ulResult != cOCT6100_ERR_OK){
@@ -1716,7 +1522,7 @@ int wanec_DebugGetData(wan_ec_dev_t *ec_dev, wanec_chan_monitor_t *chan_monitor,
 					ec->name);
 		return -EINVAL;
 	}
-		
+
 	Oct6100DebugGetDataDef( &fDebugGetData );
 
 	if (!chan_monitor->remain_len){
@@ -1744,7 +1550,7 @@ int wanec_DebugGetData(wan_ec_dev_t *ec_dev, wanec_chan_monitor_t *chan_monitor,
 	fDebugGetData.pbyData		= &chan_monitor->data[0];
 
 	/* Select Debug channel */
-	ulResult = Oct6100DebugGetData( 
+	ulResult = Oct6100DebugGetData(
 			ec->pChipInstance,
 			&fDebugGetData );
 	if (ulResult != cOCT6100_ERR_OK){
@@ -1759,7 +1565,7 @@ int wanec_DebugGetData(wan_ec_dev_t *ec_dev, wanec_chan_monitor_t *chan_monitor,
 	chan_monitor->remain_len= fDebugGetData.ulRemainingNumBytes;
 	//chan_monitor->fe_chan	= ec->DebugChannel;
 	chan_monitor->fe_chan	= wanec_ec2fe_channel(ec, ec->DebugChannel, NULL);
-	
+
 	if (fDebugGetData.ulRemainingNumBytes == 0){
 		/* Last read */
 		ec->ulDebugChannelHndl = cOCT6100_INVALID_HANDLE;
@@ -1771,7 +1577,7 @@ int wanec_DebugGetData(wan_ec_dev_t *ec_dev, wanec_chan_monitor_t *chan_monitor,
 static PUINT32 wanec_search_bufferindex(wan_ec_t *ec, UINT32 index)
 {
 	UINT32	i = 0;
-	
+
 	while(i < ec->f_OpenChip.ulMaxPlayoutBuffers){
 		if (ec->pToneBufferIndexes[i] == index){
 			return &ec->pToneBufferIndexes[i];
@@ -1795,7 +1601,7 @@ int wanec_BufferLoad(wan_ec_dev_t *ec_dev, wanec_buffer_config_t *buffer_config,
 	pcmlaw = (buffer_config->pcmlaw) ? buffer_config->pcmlaw : WAN_EC_PCM_U_LAW;
 	PRINT2(verbose,
 	"%s: Loading Tone buffer (%s) law=%s into Echo Canceller Chip ...\n",
-					ec->name, 
+					ec->name,
 					buffer_config->buffer,
 					WAN_EC_DECODE_PCM_LAW(pcmlaw));
 	size = buffer_config->size * sizeof(INT8);
@@ -1815,11 +1621,11 @@ int wanec_BufferLoad(wan_ec_dev_t *ec_dev, wanec_buffer_config_t *buffer_config,
 		wan_vfree(pData);
 		return -EINVAL;
 	}
-	
+
 	Oct6100BufferPlayoutLoadDef( &BufferLoad );
 	BufferLoad.pulBufferIndex = wanec_search_bufferindex(ec, cOCT6100_INVALID_VALUE);
 	/* FIXME: Can be alaw/mulaw */
-	BufferLoad.ulBufferPcmLaw = (pcmlaw == WAN_EC_PCM_U_LAW) ? 
+	BufferLoad.ulBufferPcmLaw = (pcmlaw == WAN_EC_PCM_U_LAW) ?
 					cOCT6100_PCM_U_LAW : cOCT6100_PCM_A_LAW;
 	BufferLoad.pbyBufferPattern = pData;
 	BufferLoad.ulBufferSize = size;
@@ -1859,7 +1665,7 @@ int wanec_BufferUnload(wan_ec_dev_t *ec_dev, wanec_buffer_config_t *buffer_confi
 	"%s: Unloading buffer from EC chip ...\n",
 					ec->name);
 
-try_next_index:					
+try_next_index:
 	Oct6100BufferPlayoutUnloadDef( &BufferUnload );
 	if (buffer_config->buffer_index != cOCT6100_INVALID_VALUE){
 		pBufferIndex = wanec_search_bufferindex(ec, buffer_config->buffer_index);
@@ -1879,7 +1685,7 @@ try_next_index:
 		}
 		pBufferIndex = &ec->pToneBufferIndexes[index];
 	}
-	
+
 	BufferUnload.ulBufferIndex = *pBufferIndex;
 	ulResult = Oct6100BufferPlayoutUnload (
 					ec->pChipInstance,
@@ -1896,10 +1702,10 @@ try_next_index:
 	*pBufferIndex = 0;
 	if (!buffer_config->buffer_index){
 		index++;
-		goto try_next_index;	
+		goto try_next_index;
 	}
 
-buffer_unload_done:	
+buffer_unload_done:
 	return 0;
 }
 
@@ -1910,7 +1716,7 @@ int wanec_BufferPlayoutAdd(wan_ec_t *ec, int channel, wanec_playout_t *playout, 
 
 	PRINT2(verbose,
 	"%s: Add Tone buffer to ec channel %d port %s duration %d:%d...\n",
-					ec->name, 
+					ec->name,
 					channel,
 					WAN_EC_DECODE_CHANNEL_PORT(playout->port),
 					playout->duration,
@@ -1928,9 +1734,9 @@ int wanec_BufferPlayoutAdd(wan_ec_t *ec, int channel, wanec_playout_t *playout, 
 	}else{
 		BufferPlayoutAdd.fRepeat = TRUE;
 	}
-	BufferPlayoutAdd.ulPlayoutPort	= 
-			(playout->port == WAN_EC_CHANNEL_PORT_ROUT) ? 
-						cOCT6100_CHANNEL_PORT_ROUT : 
+	BufferPlayoutAdd.ulPlayoutPort	=
+			(playout->port == WAN_EC_CHANNEL_PORT_ROUT) ?
+						cOCT6100_CHANNEL_PORT_ROUT :
 						cOCT6100_CHANNEL_PORT_SOUT;
 	BufferPlayoutAdd.ulMixingMode	= cOCT6100_MIXING_MUTE;
 	BufferPlayoutAdd.ulChannelHndl	= ec->pEchoChannelHndl[channel];
@@ -1940,7 +1746,7 @@ int wanec_BufferPlayoutAdd(wan_ec_t *ec, int channel, wanec_playout_t *playout, 
 	BufferPlayoutAdd.ulDuration	= (playout->duration) ?
 						playout->duration : 5000;
 	BufferPlayoutAdd.ulBufferLength	= (playout->buffer_length) ?
-						playout->buffer_length : 
+						playout->buffer_length :
 						cOCT6100_AUTO_SELECT;
 	ulResult = Oct6100BufferPlayoutAdd(
 					ec->pChipInstance,
@@ -1966,9 +1772,9 @@ int wanec_BufferPlayoutStart(wan_ec_t *ec, int channel, wanec_playout_t *playout
 					WAN_EC_DECODE_CHANNEL_PORT(playout->port));
 	Oct6100BufferPlayoutStartDef( &BufferPlayoutStart );
 	BufferPlayoutStart.ulChannelHndl = ec->pEchoChannelHndl[channel];
-	BufferPlayoutStart.ulPlayoutPort	= 
-			(playout->port == WAN_EC_CHANNEL_PORT_ROUT) ? 
-						cOCT6100_CHANNEL_PORT_ROUT : 
+	BufferPlayoutStart.ulPlayoutPort	=
+			(playout->port == WAN_EC_CHANNEL_PORT_ROUT) ?
+						cOCT6100_CHANNEL_PORT_ROUT :
 						cOCT6100_CHANNEL_PORT_SOUT;
 	BufferPlayoutStart.fNotifyOnPlayoutStop = playout->notifyonstop;
 	BufferPlayoutStart.ulUserEventId = playout->user_event_id;
@@ -1998,9 +1804,9 @@ int wanec_BufferPlayoutStop(wan_ec_t *ec, int channel, wanec_playout_t *playout,
 					WAN_EC_DECODE_CHANNEL_PORT(playout->port));
 	Oct6100BufferPlayoutStopDef( &BufferPlayoutStop );
 	BufferPlayoutStop.ulChannelHndl = ec->pEchoChannelHndl[channel];
-	BufferPlayoutStop.ulPlayoutPort	= 
-			(playout->port == WAN_EC_CHANNEL_PORT_ROUT) ? 
-						cOCT6100_CHANNEL_PORT_ROUT : 
+	BufferPlayoutStop.ulPlayoutPort	=
+			(playout->port == WAN_EC_CHANNEL_PORT_ROUT) ?
+						cOCT6100_CHANNEL_PORT_ROUT :
 						cOCT6100_CHANNEL_PORT_SOUT;
 	ulResult = Oct6100BufferPlayoutStop(
 					ec->pChipInstance,
@@ -2029,12 +1835,12 @@ int wanec_ConfBridgeOpen(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int verb
 
 	PRINT2(verbose,
 	"%s: Opening Conference Bridge...\n", ec->name);
-	
+
 	if ((unsigned int)ec->confbridges_no >= ec->f_OpenChip.ulMaxConfBridges){
 		DEBUG_EVENT(
 		"ERROR: %s: Trying to open too many conference bridges (%d:%d)\n",
 					ec->name,
-					ec->confbridges_no, 
+					ec->confbridges_no,
 					ec->f_OpenChip.ulMaxConfBridges);
 		return -EINVAL;
 	}
@@ -2062,7 +1868,7 @@ int wanec_ConfBridgeClose(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int ver
 
 	PRINT2(verbose,
 	"%s: Closing Conference Bridge...\n", ec->name);
-	
+
 	Oct6100ConfBridgeCloseDef( &ConfBridgeClose );
 	ConfBridgeClose.ulConfBridgeHndl = confbridge->ulHndl;
 	ulResult = Oct6100ConfBridgeClose(
@@ -2087,7 +1893,7 @@ int wanec_ConfBridgeChanAdd(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int c
 	PRINT2(verbose,
 	"%s: Add channel %d to Conference Bridge %X...\n",
 					ec->name, channel, confbridge->ulHndl);
-	
+
 	Oct6100ConfBridgeChanAddDef( &ConfBridgeChanAdd );
 	ConfBridgeChanAdd.ulConfBridgeHndl	= confbridge->ulHndl;
 	ConfBridgeChanAdd.ulChannelHndl		= ec->pEchoChannelHndl[channel];
@@ -2113,7 +1919,7 @@ int wanec_ConfBridgeChanRemove(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, in
 	PRINT2(verbose,
 	"%s: Remove channel %d from Conference Bridge %X...\n",
 					ec->name, channel, confbridge->ulHndl);
-	
+
 	Oct6100ConfBridgeChanRemoveDef( &ConfBridgeChanRemove );
 	ConfBridgeChanRemove.ulConfBridgeHndl	= confbridge->ulHndl;
 	ConfBridgeChanRemove.ulChannelHndl	= ec->pEchoChannelHndl[channel];
@@ -2137,9 +1943,9 @@ int wanec_ConfBridgeChanMute(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int 
 	UINT32				ulResult;
 
 	PRINT2(verbose,
-	"%s: Mute channel %d on a conference bridge %X...\n", 
+	"%s: Mute channel %d on a conference bridge %X...\n",
 				ec->name, channel, confbridge->ulHndl);
-	
+
 	Oct6100ConfBridgeChanMuteDef( &ConfBridgeChanMute );
 	ConfBridgeChanMute.ulChannelHndl = ec->pEchoChannelHndl[channel];
 	ulResult = Oct6100ConfBridgeChanMute(
@@ -2162,9 +1968,9 @@ int wanec_ConfBridgeChanUnMute(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, in
 	UINT32					ulResult;
 
 	PRINT2(verbose,
-	"%s: UnMute channel %d on a Conference Bridge %X...\n", 
+	"%s: UnMute channel %d on a Conference Bridge %X...\n",
 					ec->name, channel, confbridge->ulHndl);
-	
+
 	Oct6100ConfBridgeChanUnMuteDef( &ConfBridgeChanUnMute );
 	ConfBridgeChanUnMute.ulChannelHndl = ec->pEchoChannelHndl[channel];
 	ulResult = Oct6100ConfBridgeChanUnMute(
@@ -2187,12 +1993,12 @@ int wanec_ConfBridgeDominantSpeakerSet(wan_ec_t *ec, wan_ec_confbridge_t *confbr
 	UINT32						ulResult;
 
 	PRINT2(verbose,
-	"%s: %s Dominant speaker (channel %d) to a Conference Bridge %X...\n", 
+	"%s: %s Dominant speaker (channel %d) to a Conference Bridge %X...\n",
 					ec->name,
-					(enable) ? "Enable":"Disable", 
-					channel, 
+					(enable) ? "Enable":"Disable",
+					channel,
 					confbridge->ulHndl);
-	
+
 	Oct6100ConfBridgeDominantSpeakerSetDef( &ConfBridgeDominantSpeaker );
 	ConfBridgeDominantSpeaker.ulConfBridgeHndl	= confbridge->ulHndl;
 	if (enable){
@@ -2206,7 +2012,7 @@ int wanec_ConfBridgeDominantSpeakerSet(wan_ec_t *ec, wan_ec_confbridge_t *confbr
 	if ( ulResult != cOCT6100_ERR_OK ){
 		DEBUG_EVENT(
 		"ERROR: %s: Failed to %s dominant speaker to conference bridge (%X, err=%08X)\n",
-					ec->name, 
+					ec->name,
 					(enable) ? "enable" : "disable",
 					confbridge->ulHndl,
 					ulResult);
@@ -2222,10 +2028,10 @@ int wanec_ConfBridgeMaskChange(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, in
 	UINT32					ulResult;
 
 	PRINT2(verbose,
-	"%s: Changing the listener (channel=%d) mask of bridge participant (%d)...\n", 
+	"%s: Changing the listener (channel=%d) mask of bridge participant (%d)...\n",
 					ec->name,
 					channel, confbridge->ulHndl);
-	
+
 	Oct6100ConfBridgeMaskChangeDef( &ConfBridgeMaskChange );
 	ConfBridgeMaskChange.ulChannelHndl	= ec->pEchoChannelHndl[channel];
 	ConfBridgeMaskChange.ulNewListenerMask	= mask;
@@ -2235,7 +2041,7 @@ int wanec_ConfBridgeMaskChange(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, in
 	if ( ulResult != cOCT6100_ERR_OK ){
 		DEBUG_EVENT(
 		"ERROR: %s: Failed to change the listener mask of bridge participant %d (err=%X)!\n",
-					ec->name, 
+					ec->name,
 					channel,
 					ulResult);
 		return -EINVAL;
@@ -2249,9 +2055,9 @@ int wanec_ConfBridgeGetStats(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int 
 	UINT32				ulResult;
 
 	PRINT2(verbose,
-	"%s: Getting bridge statistics %X...\n", 
+	"%s: Getting bridge statistics %X...\n",
 					ec->name, confbridge->ulHndl);
-	
+
 	Oct6100ConfBridgeGetStatsDef( &ConfBridgeStats );
 	ConfBridgeStats.ulConfBridgeHndl	= confbridge->ulHndl;
 	ulResult = Oct6100ConfBridgeGetStats(
@@ -2260,7 +2066,7 @@ int wanec_ConfBridgeGetStats(wan_ec_t *ec, wan_ec_confbridge_t *confbridge, int 
 	if ( ulResult != cOCT6100_ERR_OK ){
 		DEBUG_EVENT(
 		"ERROR: %s: Failed to get conference bridge statistics (err=%X)!\n",
-					ec->name, 
+					ec->name,
 					ulResult);
 		return -EINVAL;
 	}
@@ -2311,18 +2117,18 @@ wan_ec_write_seq(wan_ec_dev_t *ec_dev, u32 write_addr, u16 write_data)
 	/* First write to the address indirection registers. */
 	ulData = ( ulWordAddress >> 19 ) & 0x1FFF;
 	ulResult = wan_ec_write( ec_dev, 0x8, ulData );
-	if (ulResult) 
+	if (ulResult)
 		return ulResult;
 
 	ulData = ( ulWordAddress >> 3 ) & 0xFFFF;
 	ulResult = wan_ec_write( ec_dev, 0xA, ulData );
-	if (ulResult) 
+	if (ulResult)
 		return ulResult;
 
 	/* Next, write data word to read/write data registers. */
 	ulData = write_data & 0xFFFF;
 	ulResult = wan_ec_write( ec_dev, 0x4, ulData );
-	if ( ulResult ) 
+	if ( ulResult )
 		return ulResult;
 
 
@@ -2330,17 +2136,17 @@ wan_ec_write_seq(wan_ec_dev_t *ec_dev, u32 write_addr, u16 write_data)
 	** of wadd and request the write access. */
 	ulData = ( ( 0x0 & 0x3 ) << 14 ) | ( ( 0x3 & 0x3 ) << 12 ) | ( ( ulWordAddress & 0x7 ) << 9 ) | 0x0100;
 	ulResult = wan_ec_write( ec_dev, 0x0, ulData );
-	if ( ulResult ) 
+	if ( ulResult )
 		return ulResult;
 
 	/* Keep polling register contol0 for the access_req bit to go low. */
 	for ( i = 0; i < WANEC_READ_LIMIT; i++ )
 	{
 		ulResult = wan_ec_read( ec_dev, 0, &usData );
-		if ( ulResult ) 
+		if ( ulResult )
 			return ulResult;
 
-		if ( ( ( usData >> 8 ) & 0x1 ) == 0x0 ) 
+		if ( ( ( usData >> 8 ) & 0x1 ) == 0x0 )
 			break;
 	}
 
@@ -2442,7 +2248,7 @@ wan_ec_read_seq(wan_ec_dev_t *ec_dev, u32 read_addr, u16 *read_data, u32 read_le
 	/* First write to the address indirection registers. */
 	ulData = ( ulWordAddress >> 19 ) & 0x1FFF;
 	ulResult = wan_ec_write( ec_dev, 0x8, ulData );
-	if (ulResult) 
+	if (ulResult)
 		return ulResult;
 
 	ulData = ( ulWordAddress >> 3 ) & 0xFFFF;
@@ -2469,7 +2275,7 @@ wan_ec_read_seq(wan_ec_dev_t *ec_dev, u32 read_addr, u16 *read_data, u32 read_le
 	for ( i = 0; i < WANEC_READ_LIMIT; i++ )
 	{
 		ulResult = wan_ec_read( ec_dev, 0x0, &usData );
-		if (ulResult) 
+		if (ulResult)
 			return ulResult;
 
 		if ( ( ( usData >> 8 ) & 0x1 ) == 0x0 )

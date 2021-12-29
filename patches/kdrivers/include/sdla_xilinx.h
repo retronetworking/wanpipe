@@ -41,13 +41,6 @@
 #define XILINX_HDLC_RX_INTR_PENDING_REG	0x54
 
 
-/* Possible RX packet errors */ 
-enum {
-	WP_FIFO_ERROR_BIT,
-	WP_CRC_ERROR_BIT,
-	WP_ABORT_ERROR_BIT,
-};
-
 /* Maximum number of frames in a fifo
  * where frame lengths vary from 1 to 4 bytes */
 #define WP_MAX_FIFO_FRAMES	7
@@ -901,31 +894,6 @@ enum {
 };
 #endif
 
-#pragma pack(1)
-typedef struct {
-	unsigned char	error_flag;
-	unsigned short	time_stamp;
-	unsigned short	channel;
-	unsigned char	reserved[11];
-} api_rx_hdr_t;
-
-typedef struct {
-        api_rx_hdr_t	api_rx_hdr;
-        unsigned char  	data[1];
-} api_rx_element_t;
-
-typedef struct {
-	unsigned char 	attr;
-	unsigned char   misc_Tx_bits;
-	unsigned char  	reserved[14];
-} api_tx_hdr_t;
-
-typedef struct {
-	api_tx_hdr_t 	api_tx_hdr;
-	unsigned char	data[1];
-} api_tx_element_t;
-#pragma pack()
-
 #if !defined(__WINDOWS__)/* use 'wan_udphdr_aft_data'! */
 #undef  wan_udphdr_data
 #define wan_udphdr_data	wan_udphdr_u.aft.data
@@ -1008,39 +976,6 @@ enum {
 	TX_DMA_BUF_USED
 };
 
-#if !defined(__WINDOWS__) 
-enum {
-	ROUTER_UP_TIME = 0x50,
-	ENABLE_TRACING,	
-	DISABLE_TRACING,
-	GET_TRACE_INFO,
-	READ_CODE_VERSION,
-	FLUSH_OPERATIONAL_STATS,
-	OPERATIONAL_STATS,
-	READ_OPERATIONAL_STATS,
-	READ_CONFIGURATION,
-	READ_COMMS_ERROR_STATS,
-	FLUSH_COMMS_ERROR_STATS,
-	AFT_LINK_STATUS,
-	AFT_MODEM_STATUS,
-	AFT_HWEC_STATUS,
-	DIGITAL_LOOPTEST
-};
-#endif
-
-#define UDPMGMT_SIGNATURE		"AFTPIPEA"
-
-/* the line trace status element presented by the frame relay code */
-typedef struct {
-        unsigned char flag	; /* ready flag */
-        unsigned short length   ; /* trace length */
-        unsigned char rsrv0[2]  ; /* reserved */
-        unsigned char attr      ; /* trace attributes */
-        unsigned short tmstamp  ; /* time stamp */
-        unsigned char rsrv1[4]  ; /* reserved */
-        unsigned long offset    ; /* buffer absolute address */
-}aft_trc_el_t;
-
 
 typedef struct wp_rx_element
 {
@@ -1048,9 +983,6 @@ typedef struct wp_rx_element
 	unsigned int reg;
 	unsigned int align;
 	unsigned char pkt_error;
-#if defined(__WINDOWS__)
-	api_header_t rx_info;
-#endif
 }wp_rx_element_t;
 
 
@@ -1152,21 +1084,6 @@ static __inline unsigned short xilinx_dma_buf_bits(unsigned short dma_bufs)
 	}	
 }
 
-static __inline int
-aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
-{	
-	int num_of_slots=0;
-	u32 i;
-	for (i=0;i<total_slots;i++){
-		if (wan_test_bit(i,&chan_slots)){
-			num_of_slots++;
-		}
-	}
-
-	return num_of_slots;
-}
-
-
 #define AFT_TX_TIMEOUT 25
 #define AFT_RX_TIMEOUT 10
 #define AFT_MAX_WTD_TIMEOUT 250
@@ -1195,84 +1112,6 @@ static __inline void aft_enable_tx_watchdog(sdla_t *card, unsigned char timeout)
 
 #endif /* WAN_KERNEL */
 
-
-#if defined(__LINUX__)
-enum {
-	SIOC_AFT_CUSTOMER_ID = SIOC_WANPIPE_DEVPRIVATE
-};
-#endif
-
-#pragma pack(1)
-
-/* the operational statistics structure */
-typedef struct {
-
-	/* Data frame transmission statistics */
-	unsigned long Data_frames_Tx_count ;	
-	/* # of frames transmitted */
-	unsigned long Data_bytes_Tx_count ; 	
-	/* # of bytes transmitted */
-	unsigned long Data_Tx_throughput ;	
-	/* transmit throughput */
-	unsigned long no_ms_for_Data_Tx_thruput_comp ;	
-	/* millisecond time used for the Tx throughput computation */
-	unsigned long Tx_Data_discard_lgth_err_count ;	
-
-	/* Data frame reception statistics */
-	unsigned long Data_frames_Rx_count ;	
-	/* number of frames received */
-	unsigned long Data_bytes_Rx_count ;	
-	/* number of bytes received */
-	unsigned long Data_Rx_throughput ;	
-	/* receive throughput */
-	unsigned long no_ms_for_Data_Rx_thruput_comp ;	
-	/* millisecond time used for the Rx throughput computation */
-	unsigned long Rx_Data_discard_short_count ;	
-	/* received Data frames discarded (too short) */
-	unsigned long Rx_Data_discard_long_count ;	
-	/* received Data frames discarded (too long) */
-	unsigned long Rx_Data_discard_inactive_count ;	
-	/* received Data frames discarded (link inactive) */
-
-	/* Incomming frames with a format error statistics */
-	unsigned short Rx_frm_incomp_CHDLC_hdr_count ;	
-	/* frames received of with incomplete Cisco HDLC header */
-	unsigned short Rx_frms_too_long_count ;		
-	/* frames received of excessive length count */
-
-	/* CHDLC link active/inactive and loopback statistics */
-	unsigned short link_active_count ;		
-	/* number of times that the link went active */
-	unsigned short link_inactive_modem_count ;	
-	/* number of times that the link went inactive (modem failure) */
-	unsigned short link_inactive_keepalive_count ;	
-	/* number of times that the link went inactive (keepalive failure) */
-	unsigned short link_looped_count ;		
-	/* link looped count */
-
-	unsigned long Data_frames_Tx_realign_count;
-
-} aft_op_stats_t;
-
-typedef struct {
-	unsigned int Rx_overrun_err_count;
-	unsigned int Rx_crc_err_count ;		/* receiver CRC error count */
-	unsigned int Rx_abort_count ; 	/* abort frames recvd count */
-	unsigned int Rx_hdlc_corrupiton;	/* receiver disabled */
-	unsigned int Rx_pci_errors;		/* missed tx underrun interrupt count */
-        unsigned int Rx_dma_descr_err;   	/*secondary-abort frames tx count */
-	unsigned int DCD_state_change_count ; /* DCD state change */
-	unsigned int CTS_state_change_count ; /* CTS state change */
-	
-	unsigned int Tx_pci_errors;		/* missed tx underrun interrupt count */
-	unsigned int Tx_dma_errors;		/* missed tx underrun interrupt count */
-	unsigned int Tx_pci_latency;		/* missed tx underrun interrupt count */
-	unsigned int Tx_dma_len_nonzero;	/* Tx dma descriptor len not zero */
-} aft_comm_err_stats_t;
-
- 
-
-#pragma pack()
 
 
 #endif

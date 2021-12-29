@@ -5,13 +5,6 @@
 #include <linux/sdla_chdlc.h>
 #include <linux/sdla_fr.h>
 
-
-#undef  wan_udphdr_data
-#define wan_udphdr_data	wan_udphdr_u.data
-
-#undef  wan_udp_data
-#define wan_udp_data  wan_udp_hdr.wan_udphdr_data
-
 #undef MAX_FR_CHANNELS
 #undef HIGHEST_VALID_DLCI
 

@@ -8,76 +8,6 @@
  * the GNU General Public License
  * 
  * =============================================
- * v1.63 Nenad Corbic <ncorbic@sangoma.com>
- * Jan 27 2010
- * Enabled media pass through so that
- * two woomera servers pass media directly.
- *
- * v1.62 Konrad Hammel <konrad@sangoma.com>
- * Jan 26 2010
- *  Added rbs relay code
- *
- * v1.61 Konrad Hammel <konrad@sangoma.com>
- * Jan 19 2010
- *  changed all_ckt_busy to be per trunk group.
- *
- * v1.60 Nenad Corbic <ncorbic@sangoma.com>
- * Jan 14 2010
- *  Added media sequencing option. 
- *  Check if server has it enabled.
- *
- * v1.59 Nenad Corbic <ncorbic@sangoma.com>
- *  Changed w1g1 to s1c1 
- *
- * v1.58 Nenad Corbic <ncorbic@sangoma.com>
- *  Added bridge tdm to ip functionality
- *
- * v1.57 Nenad Corbic <ncorbic@sangoma.com>
- *  Support for woomera multiple profiles
- *
- * v1.56 David Yat Sin <dyatsin@sangoma.com>
- *  Changed BRI to run with HWEC in non-persist mode
- *  
- * v1.55 Nenad Corbic <ncorbic@sangoma.com>
- *  Updated the base media port to 10000 and max media ports to 5000 
- *
- * v1.54 Nenad Corbic <ncorbic@sangoma.com>
- *  Bug added in 1.51 release causing call on channel 31 to fail.
- *
- * v1.53 Nenad Corbic <ncorbic@sangoma.com>
- *  Added progress message
- * 
- * v1.52 David Yat Sin <dyatsin@sangoma.com>
- *  Changed sangoma_open_span_chan to __sangoma_span_chan
- *  to enabled shared used of file descriptors when using 
- *  with PRI in NFAS mode
- *
- * v1.51 David Yat Sin <dyatsin@sangoma.com>
- *  MAX_SPANS increased to 32.
- *  Fix for server.process_table declared incorrectly
- *
- * v1.50 Nenad Corbic <ncorbic@sangoma.com>
- *  Logic to support multiple woomera clients hanging up the
- *  channel. This feature now supprorts woomera loadbalancing
- *  with extension check on the client end.  Example, two Asterisk
- *  systems setup where Asterisk with correct extension gets the
- *  call.
- *  Changed log levels:  Loglevel 1 = production
- *                       Loglevel 2 = Boost TX/RX EVENTS
- *                       Loglevel 3 = Woomera RX Messages
- *                       Loglevel 4 = call setup debugging
- *                       Loglevel 5 = extra debugging
- *                       Loglevel 10 = full debugging
- *
- * v1.49 Nenad Corbic <ncorbic@sangoma.com>
- *	Removed tv from sigboost to make it binary compatible
- *  Updated release cause on double use return code.
- *
- * v1.48 Nenad Corbic <ncorbic@sangoma.com>
- *       Konrad Hammel <konrad@sangoma.com>
- * Jun 30 2009
- *	Added feature to disable/enable HWEC on channels that are 
- *	passing a call with a "data" only transfer capability
  *
  * v1.47 Nenad Corbic <ncorbic@sangoma.com>
  * Apr 30 2009
@@ -331,23 +261,14 @@ static char ps_progname[]="sangoma_mgd";
 
 static struct woomera_interface woomera_dead_dev;
 
-
-#ifdef BRI_PROT
-static unsigned char tdmv_hwec_persist = 0;
-#else
-static unsigned char tdmv_hwec_persist = 1;
-#endif
 struct woomera_server server; 
-
-struct smg_tdm_ip_bridge g_smg_ip_bridge_idx[MAX_SMG_BRIDGE];
-pthread_mutex_t g_smg_ip_bridge_lock;
 
 #if 0
 #define DOTRACE
 #endif
 
 
-#define SMG_VERSION	"v1.63"
+#define SMG_VERSION	"v1.47"
 
 /* enable early media */
 #if 1
@@ -360,14 +281,21 @@ pthread_mutex_t g_smg_ip_bridge_lock;
 #define SMG_DTMF_RATE  	8000
 #define SMG_DEFAULT_CALL_TIMEOUT 300
 
-#define SANGOMA_USR_PERIOD 10
-
 #if 0
 #define MEDIA_SOCK_SHUTDOWN 1	
 #endif
 
 #ifdef DOTRACE
 static int tc = 0;
+#endif
+
+#if 0
+#warning "OPAL DEFINED"
+#define OPAL
+#endif
+
+#ifdef OPAL
+#define "WARNING: OPAL dialect defined"
 #endif
 
 #if 0
@@ -389,17 +317,9 @@ static int drop_seq=0;
 #undef SMG_DROP_SEQ
 #endif
 
-
-#if 0
-#define SMG_NO_MEDIA
-#warning "SMG No Media Defined"
-#else
-#undef SMG_NO_MEDIA
-#endif
-
 const char WELCOME_TEXT[] =
 "================================================================================\n"
-"Sangoma Media Gateway Daemon v1.63 \n"
+"Sangoma Media Gateway Daemon v1.47 \n"
 "\n"
 "TDM Signal Media Gateway for Sangoma/Wanpipe Cards\n"
 "Copyright 2005, 2006, 2007 \n"
@@ -410,6 +330,7 @@ const char WELCOME_TEXT[] =
 "";
 
 					
+static int master_reset=0;
 
 static int coredump=1;
 static int autoacm=0;
@@ -419,7 +340,6 @@ static int autoacm=0;
 int max_spans=WOOMERA_BRI_MAX_SPAN;
 int max_chans=WOOMERA_BRI_MAX_CHAN;
 #else
-/* PRI_PROT uses these defines as well */
 int max_spans=WOOMERA_MAX_SPAN;
 int max_chans=WOOMERA_MAX_CHAN;
 #endif
@@ -429,8 +349,6 @@ static int launch_woomera_thread(struct woomera_interface *woomera);
 static void woomera_check_digits (struct woomera_interface *woomera); 
 static struct woomera_interface *alloc_woomera(void);
 static void handle_event_dtmf(struct woomera_interface *woomera, unsigned char dtmf_digit);
-static int handle_event_rbs(struct woomera_interface *woomera, unsigned char rbs_digit);
-static int handle_dequeue_and_woomera_tx_event_rbs(struct woomera_interface *woomera);
 
 q931_cause_to_str_array_t q931_cause_to_str_array[255];
 bearer_cap_to_str_array_t bearer_cap_to_str_array[255];
@@ -441,7 +359,7 @@ static int isup_exec_command(int span, int chan, int id, int cmd, int cause)
 	short_signal_event_t oevent;
 	int retry=5;
 	
-	call_signal_event_init((short_signal_event_t*)&oevent, cmd, chan, span);
+	call_signal_event_init(&oevent, cmd, chan, span);
 	oevent.release_cause = cause;
 	
 	if (id >= 0) {
@@ -452,41 +370,16 @@ isup_exec_cmd_retry:
 
 		--retry;
 		if (retry <= 0) {
-			log_printf(SMG_LOG_ALL, server.log, 
+			log_printf(0, server.log, 
 			"Critical System Error: Failed to tx on ISUP socket: %s\n", 
 				strerror(errno));
 			return -1;
 		} else {
-			log_printf(SMG_LOG_ALL, server.log,
+			log_printf(0, server.log,
                         "System Warning: Failed to tx on ISUP socket: %s :retry %i\n",
                                 strerror(errno),retry);
 		}
 
-		goto isup_exec_cmd_retry; 
-	}
-	
-	return 0;
-}
-
-static int isup_exec_event(call_signal_event_t *event)
-{
-	int retry=5;
-	
-isup_exec_cmd_retry:
-	if (call_signal_connection_write(&server.mcon, event) < 0){
-
-		--retry;
-		if (retry <= 0) {
-			log_printf(SMG_LOG_ALL, server.log, 
-					"Critical System Error: Failed to tx on ISUP socket: %s\n", 
-					strerror(errno));
-			return -1;
-		} else {
-			log_printf(SMG_LOG_ALL, server.log,
-					"System Warning: Failed to tx on ISUP socket: %s :retry %i\n",
-					strerror(errno),retry);
-		}
-	
 		goto isup_exec_cmd_retry; 
 	}
 	
@@ -510,12 +403,12 @@ isup_exec_cmd_retry:
 
                 --retry;
                 if (retry <= 0) {
-                        log_printf(SMG_LOG_ALL, server.log,
+                        log_printf(0, server.log,
                         "Critical System Error: Failed to tx on ISUP socket: %s\n",
                                 strerror(errno));
                         return -1;
                 } else {
-                        log_printf(SMG_LOG_ALL, server.log,
+                        log_printf(0, server.log,
                         "System Warning: Failed to tx on ISUP socket: %s :retry %i\n",
                                 strerror(errno),retry);
                 }
@@ -530,16 +423,10 @@ isup_exec_cmd_retry:
 static int get_span_chan_from_interface(char* interface, int *span_ptr, int *chan_ptr)
 {
 	int span, chan;
-	int err;
 	
-	err=sscanf(interface, "s%dc%d", &span, &chan);
-	if (err!=2) {
-		err=sscanf(interface, "w%dg%d", &span, &chan);
-	}
-
-	if (err==2) {
+	if (sscanf(interface, "w%dg%d", &span, &chan) == 2) {
 		if (smg_validate_span_chan(span,chan) != 0) {
-			log_printf(SMG_LOG_DEBUG_CALL, server.log, 
+			log_printf(2, server.log, 
 				"WOOMERA Warning invalid span chan in interface %s\n",
 				interface);
 			return -1;
@@ -549,7 +436,7 @@ static int get_span_chan_from_interface(char* interface, int *span_ptr, int *cha
 		*chan_ptr = chan;
 		return 0;
 	}
-	log_printf(SMG_LOG_ALL, server.log, "ERROR: Failed to get span chan from interface:[%s]\n", interface, span, chan);
+	log_printf(0, server.log, "ERROR: Failed to get span chan from interface:[%s]\n", interface, span, chan);
 	return -1;
 }
 
@@ -573,13 +460,13 @@ static int socket_printf(int socket, char *fmt, ...)
     va_end(ap);
     if (ret == -1) {
 		fprintf(stderr, "Memory Error\n");
-		log_printf(SMG_LOG_ALL, server.log, "Crtical ERROR: Memory Error!\n");
+		log_printf(0, server.log, "Crtical ERROR: Memory Error!\n");
     } else {
 		int err;
 		int len = strlen(data);
 		err=send(socket, data, strlen(data), 0);
 		if (err != strlen(data)) {
-			log_printf(SMG_LOG_DEBUG_8, server.log, "ERROR: Failed to send data to woomera socket(%i): err=%i  len=%d %s\n",
+			log_printf(4, server.log, "ERROR: Failed to send data to woomera socket(%i): err=%i  len=%d %s\n",
 					   socket,err,len,strerror(errno));
 			ret = err;
 		} else {
@@ -641,7 +528,7 @@ static int woomera_next_pair(struct woomera_config *cfg, char **var, char **val)
 
 		if (!(*val = strchr(*var, '='))) {
 			ret = -1;
-			log_printf(SMG_LOG_ALL, server.log, "Invalid syntax on %s: line %d\n", cfg->path, cfg->lineno);
+			log_printf(0, server.log, "Invalid syntax on %s: line %d\n", cfg->path, cfg->lineno);
 			continue;
 		} else {
 			p = *val - 1;
@@ -694,7 +581,7 @@ static struct woomera_event *new_woomera_event_printf(struct woomera_event *ebuf
     if (ebuf) {
 		event = ebuf;
     } else if (!(event = new_woomera_event())) {
-		log_printf(SMG_LOG_ALL, server.log, "Memory Error queuing event!\n");
+		log_printf(0, server.log, "Memory Error queuing event!\n");
 		return NULL;
     } else {
     		return NULL;
@@ -709,7 +596,7 @@ static struct woomera_event *new_woomera_event_printf(struct woomera_event *ebuf
 #endif
     va_end(ap);
     if (ret == -1) {
-		log_printf(SMG_LOG_ALL, server.log, "Memory Error queuing event!\n");
+		log_printf(0, server.log, "Memory Error queuing event!\n");
 		destroy_woomera_event(&event, EVENT_FREE_DATA);
 		return NULL;
     }
@@ -748,7 +635,7 @@ static void enqueue_event(struct woomera_interface *woomera,
     assert(event != NULL);
 
     if (!(clone = woomera_clone_event(event))) {
-		log_printf(SMG_LOG_ALL, server.log, "Error Cloning Event\n");
+		log_printf(0, server.log, "Error Cloning Event\n");
 		return;
     }
 
@@ -849,43 +736,12 @@ static void add_listener(struct woomera_interface *woomera)
 		new->next = server.listeners;
 		server.listeners = new;
     } else {
-		log_printf(SMG_LOG_ALL, server.log, "Memory Error adding listener!\n");
+		log_printf(0, server.log, "Memory Error adding listener!\n");
     }
 
     pthread_mutex_unlock(&server.listen_lock);
 }
 
-static int wanpipe_send_rbs(struct woomera_interface *woomera, char *digits)
-{	
-	struct media_session *ms = woomera_get_ms(woomera);
-	int err;
-	wanpipe_tdm_api_t tdm_api;
-	unsigned int digit;
-
-	memset(&tdm_api,0,sizeof(tdm_api));
-
-	if (!ms) {
-		log_printf(SMG_LOG_PROD, server.log, "[%s]: wanpipe_send_rbs (%X) Error no ms\n",
-				woomera->interface,digit);
-		return -EINVAL;
-	}
-
-	if ((woomera->span+1) <= 0 || !server.rbs_relay[woomera->span+1]) {
-		log_printf(SMG_LOG_PROD, server.log, "[%s]: wanpipe_send_rbs (%X) Error rbs relay not enabled on span %i\n",
-				woomera->interface,digit,woomera->span+1);
-		return -EINVAL;
-	}
-
-	err=sscanf(digits,"%x",&digit);
-	if (err == 1) {
-		log_printf(SMG_LOG_PROD, server.log, "[%s]: Transmitting RBS 0x%X\n",
-				woomera->interface,digit);
-
-		err=sangoma_tdm_write_rbs(ms->sangoma_sock, &tdm_api, digit);
-	}
-
-	return err;
-}
 
 
 static int wanpipe_send_dtmf(struct woomera_interface *woomera, char *digits)
@@ -900,20 +756,20 @@ static int wanpipe_send_dtmf(struct woomera_interface *woomera, char *digits)
 	}
 	
 	if (!ms->dtmf_buffer) {
-		log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "Allocate DTMF Buffer....");
+		log_printf(3, woomera->log, "Allocate DTMF Buffer....");
 
 		err=switch_buffer_create_dynamic(&ms->dtmf_buffer, 1024, server.dtmf_size, 0);
 
 		if (err != 0) {
-			log_printf(SMG_LOG_ALL, woomera->log, "Failed to allocate DTMF Buffer!\n");
+			log_printf(0, woomera->log, "Failed to allocate DTMF Buffer!\n");
 			return -ENOMEM;
 		} else {
-			log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "SUCCESS!\n");
+			log_printf(3, woomera->log, "SUCCESS!\n");
 		}
 		
 	}
 	
-	log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "Sending DTMF %s\n",digits);
+	log_printf(3, woomera->log, "Sending DTMF %s\n",digits);
 	for (cur = digits; *cur; cur++) {
 		if ((wrote = teletone_mux_tones(&ms->tone_session,
 					        &ms->tone_session.TONES[(int)*cur]))) {
@@ -924,10 +780,10 @@ static int wanpipe_send_dtmf(struct woomera_interface *woomera, char *digits)
 
 			pthread_mutex_unlock(&woomera->dtmf_lock);
 
-			log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "Sending DTMF %s Wrote=%i (err=%i)\n",
+			log_printf(3, woomera->log, "Sending DTMF %s Wrote=%i (err=%i)\n",
 					digits,wrote*2,err);
 		} else {
-			log_printf(SMG_LOG_ALL, woomera->log, "Error: Sending DTMF %s (err=%i)\n",
+			log_printf(0, woomera->log, "Error: Sending DTMF %s (err=%i)\n",
                                         digits,wrote);
 		}
 	}
@@ -969,7 +825,7 @@ static struct woomera_interface *new_woomera_interface(int socket, struct sockad
     	struct woomera_interface *woomera = NULL;
 	
     	if (socket < 0) {
-		log_printf(SMG_LOG_ALL, server.log, "Critical: Invalid Socket on new interface!\n");
+		log_printf(0, server.log, "Critical: Invalid Socket on new interface!\n");
 		return NULL;
     	}
 
@@ -1034,7 +890,7 @@ waitfor_socket_tryagain:
 		if (pfds[0].revents & errflags) {
 			res=-1;
 #if 0
-			log_printf(SMG_LOG_DEBUG_10,server.log, "Wait for socket Error in revents 0x%X %s Error=%s!\n",
+			log_printf(6,server.log, "Wait for socket Error in revents 0x%X %s Error=%s!\n",
 				pfds[0].revents,strerror(errno),SMG_DECODE_POLL_ERRORS(pfds[0].revents));
 #endif
 			return res;
@@ -1042,7 +898,7 @@ waitfor_socket_tryagain:
 			if (pfds[0].revents & flags) {
 				res=1;
 			} else {
-				log_printf(SMG_LOG_ALL,server.log, "Wait for socket invalid poll event in revents 0x%X  Error=%s Errno=%s !\n",
+				log_printf(0,server.log, "Wait for socket invalid poll event in revents 0x%X  Error=%s Errno=%s !\n",
 						pfds[0].revents,SMG_DECODE_POLL_ERRORS(pfds[0].revents),strerror(errno));
 			}
 		}
@@ -1050,14 +906,14 @@ waitfor_socket_tryagain:
 		if ((errno == EINTR || errno == EAGAIN)) {
 			goto waitfor_socket_tryagain;
 		}
-		log_printf(SMG_LOG_ALL,server.log, "Wait for socket error!\n");
+		log_printf(0,server.log, "Wait for socket error!\n");
 	}
 
     return res;
 }
 
 
-int waitfor_2sockets(int fda, int fdb, char *a, char *b, int timeout)
+static int waitfor_2sockets(int fda, int fdb, char *a, char *b, int timeout) 
 {
     struct pollfd pfds[2];
     int res = 0;
@@ -1080,6 +936,8 @@ waitfor_2sockets_tryagain:
     pfds[1].fd = fdb;
     pfds[0].events = POLLIN | errflags;
     pfds[1].events = POLLIN | errflags;
+
+
 
     res = poll(pfds, 2, timeout); 
 
@@ -1113,51 +971,37 @@ waitfor_2sockets_tryagain:
     return res;
 }
 
-static int woomera_raw_to_ip(struct media_session *ms, char *raw)
-{
-	int x;
-	char *p;
-	
-	for(x = 0; x < strlen(raw) ; x++) {
-		if (raw[x] == ':') {
-			break;
-		}
-		if (raw[x] == '/') {
-			break;
-		}
-	}	
-	
-	media_set_raw(ms,raw);
-	
-	if (ms->ip) {
-		smg_free(ms->ip);
-	}
-	ms->ip = smg_strndup(raw, x);
-	p = raw + (x+1);
-	ms->port = atoi(p);
-	
-	return 0;
-}
 
 static struct media_session *media_session_new(struct woomera_interface *woomera)
 {
-	struct media_session *ms = NULL;
-	int span,chan;
-
+    	struct media_session *ms = NULL;
+    	int x;
+    	char *p;
+    	int span,chan;
+	
 	span=woomera->span;
 	chan=woomera->chan;
 
-	log_printf(SMG_LOG_DEBUG_CALL, server.log,"Starting new MEDIA session [%s] [%s]\n",
-			woomera->interface,woomera->raw?woomera->raw:"N/A");
+    	log_printf(2, server.log,"Starting new MEDIA session [%s] [%s]\n",
+				woomera->interface,woomera->raw?woomera->raw:"N/A");
 
-	if ((ms = smg_malloc(sizeof(struct media_session)))) {
+    	if ((ms = smg_malloc(sizeof(struct media_session)))) {
 		memset(ms, 0, sizeof(struct media_session));
 		
 		if (woomera->loop_tdm != 1) {
+			for(x = 0; x < strlen(woomera->raw) ; x++) {
+				if (woomera->raw[x] == ':') {
+					break;
+				}
+				if (woomera->raw[x] == '/') {
+					break;
+				}
+			}
 			
-			woomera_raw_to_ip(ms,woomera->raw);
+			ms->ip = smg_strndup(woomera->raw, x);
 			time(&ms->started);
-			
+			p = woomera->raw + (x+1);
+			ms->port = atoi(p);
 		} 
 		
 		time(&ms->started);
@@ -1167,18 +1011,18 @@ static struct media_session *media_session_new(struct woomera_interface *woomera
 		/* Setup artificial DTMF stuff */
 		memset(&ms->tone_session, 0, sizeof(ms->tone_session));
 		if (teletone_init_session(&ms->tone_session, 0, NULL, NULL)) {
-			log_printf(SMG_LOG_ALL, server.log, "ERROR: Failed to initialize TONE [s%ic%i]!\n",
+			log_printf(0, server.log, "ERROR: Failed to initialize TONE [w%ig%i]!\n",
 			span+1,chan+1);			
 		}
-	
+
 		ms->tone_session.rate = SMG_DTMF_RATE;
 		ms->tone_session.duration = server.dtmf_on * (ms->tone_session.rate / 1000);
 		ms->tone_session.wait = server.dtmf_off * (ms->tone_session.rate / 1000);
 	
 		teletone_dtmf_detect_init (&ms->dtmf_detect, SMG_DTMF_RATE);
-		
-	} else {
-		log_printf(SMG_LOG_ALL, server.log, "ERROR: Memory Alloc Failed [s%ic%i]!\n",
+			
+    	} else {
+		log_printf(0, server.log, "ERROR: Memory Alloc Failed [w%ig%i]!\n",
 			span+1,chan+1);	
 	}
 
@@ -1190,10 +1034,7 @@ static void media_session_free(struct media_session *ms)
     if (ms->ip) {
 		smg_free(ms->ip);
     }
-	if (ms->raw) {
-		smg_free(ms->raw);	
-	}
-	
+    
     teletone_destroy_session(&ms->tone_session);
     switch_buffer_destroy(&ms->dtmf_buffer);
 
@@ -1202,20 +1043,6 @@ static void media_session_free(struct media_session *ms)
     smg_free(ms);
 }
 
-static int update_udp_socket(struct media_session *ms, char *ip, int port)
-{
-	struct hostent *result;
-	char buf[512];
-	int err = 0;
-		
-	memset(&ms->remote_hp, 0, sizeof(ms->remote_hp));
-	gethostbyname_r(ip, &ms->remote_hp, buf, sizeof(buf), &result, &err);
-	ms->remote_addr.sin_family = ms->remote_hp.h_addrtype;
-	memcpy((char *) &ms->remote_addr.sin_addr.s_addr, ms->remote_hp.h_addr_list[0], ms->remote_hp.h_length);
-	ms->remote_addr.sin_port = htons(port);
-	
-	return 0;
-}
 
 static int create_udp_socket(struct media_session *ms, char *local_ip, int local_port, char *ip, int port)
 {
@@ -1224,7 +1051,7 @@ static int create_udp_socket(struct media_session *ms, char *local_ip, int local
     char buf[512], local_buf[512];
     int err = 0;
 
-    log_printf(SMG_LOG_DEBUG_9,server.log,"LocalIP %s:%d IP %s:%d \n",local_ip, local_port, ip, port);
+    log_printf(5,server.log,"LocalIP %s:%d IP %s:%d \n",local_ip, local_port, ip, port);
 
     memset(&ms->remote_hp, 0, sizeof(ms->remote_hp));
     memset(&ms->local_hp, 0, sizeof(ms->local_hp));
@@ -1245,7 +1072,7 @@ static int create_udp_socket(struct media_session *ms, char *local_ip, int local
 				close(ms->socket);
 				ms->socket = -1;
     			
-				log_printf(SMG_LOG_DEBUG_9,server.log,
+				log_printf(5,server.log,
 					"Failed to bind LocalIP %s:%d IP %s:%d (%s)\n",
 						local_ip, local_port, ip, port,strerror(errno));
 			} 
@@ -1253,12 +1080,12 @@ static int create_udp_socket(struct media_session *ms, char *local_ip, int local
 			/* OK */
 
 		} else {
-    			log_printf(SMG_LOG_ALL,server.log,
+    			log_printf(0,server.log,
 				"Failed to get hostbyname LocalIP %s:%d IP %s:%d (%s)\n",
 					local_ip, local_port, ip, port,strerror(errno));
 		}
     } else {
-    	log_printf(SMG_LOG_ALL,server.log,
+    	log_printf(0,server.log,
 		"Failed to create/allocate UDP socket\n");
     }
 
@@ -1329,7 +1156,7 @@ static int woomera_dtmf_transmit(struct media_session *ms, int mtu)
 			break;
 		}
 		
-		log_printf(SMG_LOG_DEBUG_MISC,woomera->log,"%s: Write DTMF Got %d bytes MTU=%i Coding=%i Used=%i\n",
+		log_printf(3,woomera->log,"%s: Write DTMF Got %d bytes MTU=%i Coding=%i Used=%i\n",
 				woomera->interface,bread,mtu,ms->hw_coding,used);
 		
 		data=(short*)dtmf;
@@ -1349,7 +1176,7 @@ static int woomera_dtmf_transmit(struct media_session *ms, int mtu)
 					 dtmf_law, mtu, 0);
 				
 		if (err != mtu) {
-			log_printf(SMG_LOG_ALL, woomera->log, "Error: Failed to TX to TDM API on DTMF (err=%i mtu=%i)!\n",err,mtu);
+			log_printf(0, woomera->log, "Error: Failed to TX to TDM API on DTMF (err=%i mtu=%i)!\n",err,mtu);
 		}
 
 		txdtmf++;	 
@@ -1360,7 +1187,7 @@ static int woomera_dtmf_transmit(struct media_session *ms, int mtu)
 		bread = switch_buffer_read(ms->dtmf_buffer, dtmf, mtu);
 		pthread_mutex_unlock(&woomera->dtmf_lock);
 
-		log_printf(SMG_LOG_DEBUG_MISC,woomera->log,"%s: Write DTMF Got %d bytes\n",
+		log_printf(3,woomera->log,"%s: Write DTMF Got %d bytes\n",
 				woomera->interface,bread);
 
 		sangoma_sendmsg_socket(ms->sangoma_sock,
@@ -1391,18 +1218,15 @@ static void media_loop_run(struct media_session *ms)
 	char filename[100];
 	FILE *filed=NULL;
 	int loops=0,flags_out=0;
-	int open_cnt = 0;
-
-	open_cnt=0;
 	
 	sangoma_api_hdr_t hdrframe;
 	memset(&hdrframe,0,sizeof(hdrframe));
 	memset(circuit_frame,0,sizeof(circuit_frame));
 
 retry_loop:
-	ms->sangoma_sock = open_span_chan(woomera->span+1, woomera->chan+1);
+	ms->sangoma_sock = sangoma_open_tdmapi_span_chan(woomera->span+1, woomera->chan+1);
 	
-	log_printf(SMG_LOG_PROD, server.log, "Media Loop Started %s fd=%i\n", 
+	log_printf(1, server.log, "Media Loop Started %s fd=%i\n", 
 			woomera->interface,ms->sangoma_sock);
 
 	if (ms->sangoma_sock < 0) {
@@ -1411,7 +1235,7 @@ retry_loop:
 			usleep(500000);
 			goto retry_loop;
 		}
-		log_printf(SMG_LOG_ALL, server.log, "WANPIPE MEDIA Socket Error (%s) if=[%s]  [s%ic%i]\n", 
+		log_printf(0, server.log, "WANPIPE MEDIA Socket Error (%s) if=[%s]  [w%ig%i]\n", 
 			strerror(errno), woomera->interface, woomera->span+1, woomera->chan+1);
 
 	} else {
@@ -1432,23 +1256,18 @@ retry_loop:
 		sangoma_frame_len = sangoma_tdm_get_usr_mtu_mru(ms->sangoma_sock,&tdm_api);
 
 		sangoma_tdm_disable_hwec(ms->sangoma_sock,&tdm_api);
-		ms->oob_disable = 0;
-#ifdef LIBSANGOMA_VERSION
-		open_cnt = sangoma_get_open_cnt(ms->sangoma_sock, &tdm_api);
-		if (open_cnt > 1) {
-			ms->oob_disable = 1;
-		}
-#endif
+		
 	}
-
+	
 	if (errs) {
-		log_printf(SMG_LOG_ALL, server.log, "Media Loop: failed to open tdm device %s\n", 
+
+		log_printf(0, server.log, "Media Loop: failed to open tdm device %s\n", 
 					woomera->interface);
 		return;
 	}
 
 	if (server.loop_trace) {
-		sprintf(filename,"/smg/s%ic%i-loop.trace",woomera->span+1,woomera->chan+1);	
+		sprintf(filename,"/smg/w%ig%i-loop.trace",woomera->span+1,woomera->chan+1);	
 		unlink(filename);
 		filed = safe_fopen(filename, "w");
 	}
@@ -1458,19 +1277,34 @@ retry_loop:
 		((res = waitfor_socket(ms->sangoma_sock, 1000,  POLLIN, &flags_out)) >= 0)) {
 		
 		if (res == SMG_SOCKET_EVENT_TIMEOUT) {
-			//log_printf(SMG_LOG_DEBUG_8, server.log, "%s: TDM UDP Timeout !!!\n",
+			//log_printf(4, server.log, "%s: TDM UDP Timeout !!!\n",
 			//		woomera->interface);
 			/* NENAD Timeout thus just continue */
 			continue; 
 		}
 
+#if 0
+		if (res == SMG_SOCKET_EVENT_NVAL) {
+			close_socket(&ms->sangoma_sock);
+
+			if (woomera_test_flag(woomera, WFLAG_MEDIA_END)) {
+				break;
+			}
+
+			ms->sangoma_sock = sangoma_open_tdmapi_span_chan(woomera->span+1, woomera->chan+1);
+			log_printf(0, server.log, "Media Loop Restart %s\n",
+				woomera->interface);
+			continue;
+		}
+#endif
+	
 		res = sangoma_readmsg_socket(ms->sangoma_sock, 
 		                             &hdrframe, 
 					     sizeof(hdrframe), 
 					     circuit_frame, 
 					     sizeof(circuit_frame), 0);
 		if (res < 0) {
-			log_printf(SMG_LOG_ALL, server.log, "TDM Loop ReadMsg Error: %s\n", 
+			log_printf(0, server.log, "TDM Loop ReadMsg Error: %s\n", 
 				strerror(errno), woomera->interface);
 			break;
 		}
@@ -1500,7 +1334,7 @@ retry_loop:
 	
 	if (res < 0) {
 		if (!woomera_test_flag(woomera, WFLAG_MEDIA_END)) {
-			log_printf(SMG_LOG_ALL, server.log, "Media Loop: socket error %s (fd=%i) %s\n",
+			log_printf(0, server.log, "Media Loop: socket error %s (fd=%i) %s\n",
 					woomera->interface, ms->sangoma_sock, strerror(errno));
 		}
 	}
@@ -1512,15 +1346,15 @@ retry_loop:
 
 	sangoma_tdm_enable_hwec(ms->sangoma_sock,&tdm_api);
 
-	close_span_chan(&ms->sangoma_sock, woomera->span+1, woomera->chan+1);
+	close_socket(&ms->sangoma_sock);
 
 	if (loops < 1) {
-		log_printf(SMG_LOG_ALL, server.log, "Media Loop FAILED %s Master=%i MediaEnd=%i Loops=%i\n",
+		log_printf(0, server.log, "Media Loop FAILED %s Master=%i MediaEnd=%i Loops=%i\n",
 				woomera->interface, 
 				woomera_test_flag(&server.master_connection, WFLAG_RUNNING), 
 				woomera_test_flag(woomera, WFLAG_MEDIA_END),loops); 
 	} else {
-		log_printf(SMG_LOG_PROD, server.log, "Media Loop PASSED %s Master=%i MediaEnd=%i Loops=%i\n",
+		log_printf(1, server.log, "Media Loop PASSED %s Master=%i MediaEnd=%i Loops=%i\n",
 				woomera->interface, 
 				woomera_test_flag(&server.master_connection, WFLAG_RUNNING), 
 				woomera_test_flag(woomera, WFLAG_MEDIA_END),loops); 
@@ -1563,16 +1397,10 @@ static void *media_thread_run(void *obj)
 	FILE *tx_fd=NULL;
 	int sock_timeout=200;
 
-	int hwec_enabled=0, hwec_reenable=0;
-
-	int open_cnt = 0;
-
-	open_cnt=0;
-
 	if (woomera_test_flag(woomera, WFLAG_MEDIA_END) || 
 	    !woomera->interface ||
 	    woomera_test_flag(woomera, WFLAG_HANGUP)) {
-		log_printf(SMG_LOG_DEBUG_CALL, server.log, 
+		log_printf(2, server.log, 
 			"MEDIA session for [%s] Cancelled! (ptr=%p)\n", 
 				woomera->interface,woomera);
 		/* In this case the call will be closed via woomera_thread_run
@@ -1585,7 +1413,7 @@ static void *media_thread_run(void *obj)
 	}
 
 
-	log_printf(SMG_LOG_DEBUG_CALL, server.log, "MEDIA session for [%s] started (ptr=%p loop=%i)\n",
+	log_printf(2, server.log, "MEDIA session for [%s] started (ptr=%p loop=%i)\n",
 		woomera->interface,woomera,woomera->loop_tdm);
 
 	if (woomera->loop_tdm) {   
@@ -1607,7 +1435,7 @@ static void *media_thread_run(void *obj)
 	woomera->q931_rel_cause_topbx = 41;
 
 	if (ms->udp_sock < 0) {
- 		log_printf(SMG_LOG_ALL, server.log, "UDP Socket Error (%s) [%s] LocalPort=%d\n", 
+ 		log_printf(0, server.log, "UDP Socket Error (%s) [%s] LocalPort=%d\n", 
 				strerror(errno), woomera->interface, local_port);
 
 		errs++;
@@ -1630,19 +1458,19 @@ static void *media_thread_run(void *obj)
 		}
 #else
 media_retry:
-		ms->sangoma_sock = open_span_chan(woomera->span+1, woomera->chan+1);
+		ms->sangoma_sock = sangoma_open_tdmapi_span_chan(woomera->span+1, woomera->chan+1);
 		if (ms->sangoma_sock < 0) {
 
 			if (!woomera_test_flag(woomera, WFLAG_MEDIA_END)) {
 				media_retry_cnt++;
 				if (media_retry_cnt < 5) {
-					log_printf(SMG_LOG_ALL, server.log, "WANPIPE Socket Retry  [s%ic%i]\n",
+					log_printf(0, server.log, "WANPIPE Socket Retry  [w%ig%i]\n",
 							 woomera->span+1, woomera->chan+1);
 					usleep(100000);
 					goto media_retry;
 				}
 
-				log_printf(SMG_LOG_ALL, server.log, "WANPIPE Socket Error (%s) if=[%s]  [s%ic%i]\n",
+				log_printf(0, server.log, "WANPIPE Socket Error (%s) if=[%s]  [w%ig%i]\n",
 					strerror(errno), woomera->interface, woomera->span+1, woomera->chan+1);
 
 				/* Switch Congestion */
@@ -1665,7 +1493,7 @@ media_retry:
 				errs++;
 			}
 			
-			if (sangoma_tdm_set_usr_period(ms->sangoma_sock, &tdm_api, SANGOMA_USR_PERIOD) < 0 ) {
+			if (sangoma_tdm_set_usr_period(ms->sangoma_sock, &tdm_api, 20) < 0 ) {
 				errs++;	
 			}
 
@@ -1684,58 +1512,24 @@ media_retry:
 # ifdef LIBSANGOMA_GET_HWDTMF
 			ms->hw_dtmf=sangoma_tdm_get_hw_dtmf(ms->sangoma_sock, &tdm_api);
 	  		if (ms->hw_dtmf) {
-				log_printf(SMG_LOG_DEBUG_9, server.log, "HW DTMF Supported  [s%ic%i]\n", 
+				log_printf(5, server.log, "HW DTMF Supported  [w%ig%i]\n", 
 					   strerror(errno), woomera->interface, woomera->span+1, woomera->chan+1);
 			} else {
-				log_printf(SMG_LOG_DEBUG_9, server.log, "HW DTMF Not Supported  [s%ic%i]\n", 
+				log_printf(5, server.log, "HW DTMF Not Supported  [w%ig%i]\n", 
 					   strerror(errno), woomera->interface, woomera->span+1, woomera->chan+1);
 			}
 #else
 			ms->hw_dtmf=0;
-			log_printf(SMG_LOG_DEBUG_9, server.log, "HW DTMF Not Supported  [s%ic%i]\n", 
+			log_printf(5, server.log, "HW DTMF Not Supported  [w%ig%i]\n", 
 					   strerror(errno), woomera->interface, woomera->span+1, woomera->chan+1);
 # warning "libsangoma missing hwdtmf feature: not up to date!"
 			
 #endif
 
-			ms->oob_disable = 0;
-#ifdef LIBSANGOMA_VERSION
-			open_cnt = sangoma_get_open_cnt(ms->sangoma_sock, &tdm_api);
-			if (open_cnt > 1) {
-				ms->oob_disable = 1;
-			}
-#endif
 			
-			if (!tdmv_hwec_persist) {
-				// BRI cards start with HWEC in bypass disable state 
-				if (bearer_cap_is_audio(woomera->bearer_cap)) {
-					int err;
-					err=sangoma_tdm_enable_hwec(ms->sangoma_sock, &tdm_api);
-					if (err == 0) {
-						hwec_enabled=1;
-						log_printf(SMG_LOG_DEBUG_8, server.log, "MEDIA [%s] Enabling hwec Ok\n",woomera->interface);
-					} else {
-						log_printf(SMG_LOG_PROD, server.log, "MEDIA [%s] Enabling hwec Failed (%s)\n",woomera->interface, strerror(errno));
-					}
-				}
-			} else {
-				if (!bearer_cap_is_audio(woomera->bearer_cap)) {
-					int err;
-					err=sangoma_tdm_disable_hwec(ms->sangoma_sock, &tdm_api);
-					if (err == 0) {
-						hwec_reenable=1;
-						log_printf(SMG_LOG_DEBUG_8, server.log, "MEDIA [%s] Disabling hwec Ok\n",woomera->interface);
-					} else {
-						log_printf(SMG_LOG_PROD, server.log, "MEDIA [%s] Disabling hwec Failed (%s)\n",woomera->interface, strerror(errno));
-					}
-				}
-			}
-
+	  		
 			sangoma_frame_len = sangoma_tdm_get_usr_mtu_mru(ms->sangoma_sock,&tdm_api);
 
-			if (server.rbs_relay[woomera->span+1]) {
-				sangoma_tdm_enable_rbs_events(ms->sangoma_sock, &tdm_api, 20);
-			}
 		}
 #endif	 	
 	}
@@ -1745,12 +1539,10 @@ media_retry:
 #ifdef WP_HPTDM_API
 	/* No tdm thread */
 #else
-#ifndef SMG_NO_MEDIA
 	if (!errs && 
 	    launch_media_tdm_thread(woomera)) {
 		errs++;
 	}
-#endif
 #endif
 
     if (errs) {
@@ -1762,8 +1554,6 @@ media_retry:
 		unsigned char udp_frame[4096];
 		unsigned int fromlen = sizeof(struct sockaddr_in);
 		int flags_out=0;
-		int rc;
-		unsigned int carrier=0,carrier_diff=0;
 
 		sangoma_api_hdr_t hdrframe;
 		memset(&hdrframe,0,sizeof(hdrframe));
@@ -1809,17 +1599,10 @@ media_retry:
 		if (server.out_tx_test) {
 			tx_fd=fopen("/smg/sound.raw","rb");
 			if (!tx_fd) {
-				log_printf(SMG_LOG_ALL,server.log, "FAILED TO OPEN Sound file!\n");
+				log_printf(0,server.log, "FAILED TO OPEN Sound file!\n");
 			}	
 		}
-
-		for (;;) {
-			if ((packet_len = recvfrom(ms->udp_sock, udp_frame, sizeof(udp_frame), 
-				MSG_DONTWAIT, (struct sockaddr *) &ms->local_addr, &fromlen)) < 1) {
-				break;
-			}
-		}
-
+	
 		
 		for (;;) {
 
@@ -1831,16 +1614,11 @@ media_retry:
 				break;
 			}
 
-			
 			res = waitfor_socket(ms->udp_sock, sock_timeout, POLLIN, &flags_out);
 
 			if (res < 0) {
 				break;
 			}
-
-#ifdef SMG_NO_MEDIA
-			continue;
-#endif
 
 			if (res == 0) {
 				
@@ -1854,7 +1632,7 @@ media_retry:
 					ms->skip_write_frames--;
 				}
 
-				log_printf(SMG_LOG_DEBUG_8, server.log, "%s: UDP Sock Timeout !!!\n",
+				log_printf(4, server.log, "%s: UDP Sock Timeout !!!\n",
 						woomera->interface);
 				/* NENAD Timeout thus just continue */
 				continue;
@@ -1862,40 +1640,25 @@ media_retry:
 	
 			if ((packet_len = recvfrom(ms->udp_sock, udp_frame, sizeof(udp_frame), 
 				MSG_DONTWAIT, (struct sockaddr *) &ms->local_addr, &fromlen)) < 1) {
-				log_printf(SMG_LOG_DEBUG_CALL, server.log, "UDP Recv Error: %s\n",strerror(errno));
+				log_printf(2, server.log, "UDP Recv Error: %s\n",strerror(errno));
 				break;
 			}
 
 
 #ifdef SMG_DROP_SEQ
 			if (drop_seq) {
-				log_printf(SMG_LOG_ALL,server.log,"Dropping TX Sequence! %i\n",drop_seq);
+				log_printf(0,server.log,"Dropping TX Sequence! %i\n",drop_seq);
 				drop_seq--;
 				continue;
 			}
 #endif
 
 #if 0	
-			log_printf(SMG_LOG_DEBUG_10, server.log, "%s: UDP Receive %i !!!\n",
+			log_printf(6, server.log, "%s: UDP Receive %i !!!\n",
 						woomera->interface,packet_len);
 #endif
 			
 			if (packet_len > 0) {
-
-				if (server.udp_seq && packet_len > 4) {
-                    packet_len-=4;
-					if ( woomera->rx_udp_seq != *(unsigned int*)&udp_frame[packet_len]) {
-						 woomera->rx_udp_seq = *(unsigned int*)&udp_frame[packet_len];
-						 log_printf(SMG_LOG_WOOMERA,server.log,"RX UDP SEQ=%i Expected=%i\n",
-						 		*(unsigned int*)&udp_frame[packet_len],woomera->rx_udp_seq);
-
-						pthread_mutex_lock(&server.thread_count_lock);
-						server.media_rx_seq_err++;
-						pthread_mutex_unlock(&server.thread_count_lock);
-					} else {
-                     	 woomera->rx_udp_seq++;
-					}
-				}     
 
 #if 0
 /* NC: This can cause skb_over panic must be retested */
@@ -1906,7 +1669,7 @@ media_retry:
 					sangoma_frame_len =
 						 sangoma_tdm_get_usr_mtu_mru(ms->sangoma_sock,&tdm_api);
 				
-					log_printf(SMG_LOG_DEBUG_MISC, server.log, 
+					log_printf(3, server.log, 
 						"%s: UDP TDM Period ReSync to Len=%i %ims (udp=%i) \n",
 						woomera->interface,sangoma_frame_len,
 						sangoma_frame_len/codec_sample,packet_len);
@@ -1917,7 +1680,7 @@ media_retry:
 				       			&tdm_api, 20);
 				       		sangoma_frame_len =
 				       			sangoma_tdm_get_usr_mtu_mru(ms->sangoma_sock,&tdm_api);
-						log_printf(SMG_LOG_ALL, server.log, 
+						log_printf(0, server.log, 
 								"%s: UDP TDM Period Force ReSync to 20ms \n", 
 								woomera->interface); 
 					}
@@ -1955,45 +1718,17 @@ media_retry:
 					tx_fd=NULL;
 				}
 
-
 #ifdef WP_HPTDM_API
 				if (ms->tdmchan->push) {
 					ms->tdmchan->push(ms->tdmchan,udp_frame,packet_len);
 				}
 #else
 	
-				rc=sangoma_sendmsg_socket(ms->sangoma_sock, 
+				sangoma_sendmsg_socket(ms->sangoma_sock, 
 							&hdrframe, 
 							sizeof(hdrframe), 
 							udp_frame, 
 							packet_len, 0);
-                if (rc != packet_len) {
-					log_printf(SMG_LOG_PROD, server.log, "Error: Sangoma Tx error [%s] len=%i  (%s)\n",woomera->interface, packet_len, strerror(errno));
-				   	pthread_mutex_lock(&server.thread_count_lock);
-				   	server.media_rx_seq_err++;
-				   	pthread_mutex_unlock(&server.thread_count_lock);
-				}
-				
-				sangoma_get_full_cfg(ms->sangoma_sock,&tdm_api);		   
-				if (carrier == 0) {
-					carrier=tdm_api.wp_tdm_cmd.stats.tx_carrier_errors;
-				}
-				if (carrier != tdm_api.wp_tdm_cmd.stats.tx_carrier_errors) {
-					carrier_diff+=tdm_api.wp_tdm_cmd.stats.tx_carrier_errors-carrier;
-					carrier=tdm_api.wp_tdm_cmd.stats.tx_carrier_errors;
-					log_printf(SMG_LOG_WOOMERA, server.log, "Error: Sangoma Tx carrier error [%s] cnt=%i\n",
-						woomera->interface, carrier_diff);
-					pthread_mutex_lock(&server.thread_count_lock);
-					server.media_rx_seq_err++;
-					pthread_mutex_unlock(&server.thread_count_lock);
-				
-					sangoma_sendmsg_socket(ms->sangoma_sock, 
-							&hdrframe, 
-							sizeof(hdrframe), 
-							udp_frame, 
-							packet_len, 0);
-				}
-				
 #endif
 
 			}
@@ -2002,7 +1737,7 @@ media_retry:
 			if (woomera->span == 1 && woomera->chan == 1) {
 				udp_cnt++;
 				if (udp_cnt && udp_cnt % 1000 == 0) { 
-					log_printf(SMG_LOG_ALL, server.log, "%s: MEDIA UDP TX RX CNT %i %i\n",
+					log_printf(0, server.log, "%s: MEDIA UDP TX RX CNT %i %i\n",
 						woomera->interface,udp_cnt,packet_len);
 				}
 			}
@@ -2016,7 +1751,7 @@ media_retry:
 					woomera_test_flag(woomera, WFLAG_HANGUP)) {
 					res=0;
 			} else {
-				log_printf(SMG_LOG_ALL, server.log, "Media Thread: socket error %s SockID=%i %s Poll=%s!\n",
+				log_printf(0, server.log, "Media Thread: socket error %s SockID=%i %s Poll=%s!\n",
 							woomera->interface,ms->sangoma_sock,strerror(errno),SMG_DECODE_POLL_ERRORS(flags_out));
 			}
 		}
@@ -2060,35 +1795,13 @@ media_retry:
 
 	
 media_thread_exit:
-
-	if (!tdmv_hwec_persist) {
-		if (hwec_enabled) {
-			int err;
-			err=sangoma_tdm_disable_hwec(ms->sangoma_sock, &tdm_api);
-			if (err==0) {
-				log_printf(SMG_LOG_DEBUG_8, server.log, "MEDIA [%s] disabling hwec ok\n",woomera->interface);
-			} else {
-				log_printf(SMG_LOG_PROD, server.log, "MEDIA [%s] disabling hwec Failed (%s)\n",woomera->interface, strerror(errno));
-			}
-		}
-	} else {
-		if (hwec_reenable) {
-			int err;
-			err=sangoma_tdm_enable_hwec(ms->sangoma_sock, &tdm_api);
-			if (err==0) {
-				log_printf(SMG_LOG_DEBUG_8, server.log, "MEDIA [%s] Re-enabling hwec ok\n",woomera->interface);
-			} else {
-				log_printf(SMG_LOG_PROD, server.log, "MEDIA [%s] Re-enabling hwec Failed (%s)\n",woomera->interface, strerror(errno));
-			}
-		}
-	}
 	
  	if (woomera_test_flag(woomera, WFLAG_MEDIA_TDM_RUNNING)) {
 		woomera_set_flag(woomera, WFLAG_MEDIA_END);
 
 		/* Dont wait for the other thread */
 		close_socket(&ms->udp_sock);
-		close_span_chan(&ms->sangoma_sock, woomera->span+1, woomera->chan+1);		
+		close_socket(&ms->sangoma_sock);
 		while(woomera_test_flag(woomera, WFLAG_MEDIA_TDM_RUNNING)) {
 			usleep(1000);
 			sched_yield();
@@ -2097,7 +1810,7 @@ media_thread_exit:
 
 	
 	close_socket(&ms->udp_sock);
-	close_span_chan(&ms->sangoma_sock, woomera->span+1, woomera->chan+1);
+	close_socket(&ms->sangoma_sock);
 
 	if (tx_fd){
 		fclose(tx_fd);
@@ -2112,7 +1825,7 @@ media_thread_exit:
 
 	media_session_free(ms);
 	
-	log_printf(SMG_LOG_DEBUG_CALL, server.log, "MEDIA session for [%s] ended (ptr=%p)\n", 
+	log_printf(2, server.log, "MEDIA session for [%s] ended (ptr=%p)\n", 
 			woomera->interface,woomera);
 			
 	
@@ -2134,7 +1847,10 @@ static void *media_tdm_thread_run(void *obj)
 	unsigned char circuit_frame[1024];
 	sangoma_api_hdr_t hdrframe;
 	int flags_out;
-	int poll_opt = POLLIN | POLLPRI;
+
+#if 0
+	int tdm_cnt=0;
+#endif
 
 	memset(&hdrframe,0,sizeof(hdrframe));
 	memset(circuit_frame,0,sizeof(circuit_frame));
@@ -2142,7 +1858,7 @@ static void *media_tdm_thread_run(void *obj)
 	memset(&tdm_api, 0, sizeof(wanpipe_tdm_api_t));
 	
 	if (woomera_test_flag(woomera, WFLAG_MEDIA_END) || !woomera->interface) {
-		log_printf(SMG_LOG_DEBUG_CALL, server.log, "MEDIA TDM session for [%s] Cancelled! (ptr=%p)\n",
+		log_printf(2, server.log, "MEDIA TDM session for [%s] Cancelled! (ptr=%p)\n",
 			 woomera->interface,woomera);
 		/* In this case the call will be closed via woomera_thread_run
 		* function. And the process table will be cleard there */
@@ -2152,19 +1868,9 @@ static void *media_tdm_thread_run(void *obj)
 		return NULL;
 	}
 
-   	log_printf(SMG_LOG_DEBUG_CALL, server.log, "MEDIA TDM session for [%s] started (ptr=%p)\n",
+   	log_printf(2, server.log, "MEDIA TDM session for [%s] started (ptr=%p)\n",
 	 		woomera->interface,woomera);
 
-	for (;;) {
-		res = sangoma_readmsg_socket(ms->sangoma_sock,
-					&hdrframe,
-					sizeof(hdrframe),
-					circuit_frame,
-					sizeof(circuit_frame), 0);
-		if (res < 0) {
-			break;
-		}
-	}
 
 	for (;;) {
 
@@ -2174,14 +1880,9 @@ static void *media_tdm_thread_run(void *obj)
 			res=0;
 			break;
 		}
-	
 
-		if (ms->oob_disable) {
-			poll_opt = POLLIN;
-		} else {
-			poll_opt = POLLIN | POLLPRI;
-		}
-		res = waitfor_socket(ms->sangoma_sock, 1000, poll_opt, &flags_out);
+
+		res = waitfor_socket(ms->sangoma_sock, 1000, (POLLIN | POLLPRI), &flags_out);
 
 
 		if (res < 0) {
@@ -2190,7 +1891,7 @@ static void *media_tdm_thread_run(void *obj)
 
 		if (res == 0) {
 #if 0
-				log_printf(SMG_LOG_DEBUG_8, server.log, "%s: TDM UDP Timeout !!!\n",
+				log_printf(4, server.log, "%s: TDM UDP Timeout !!!\n",
 					woomera->interface);
 				/* NENAD Timeout thus just continue */
 #endif
@@ -2200,10 +1901,6 @@ static void *media_tdm_thread_run(void *obj)
 
 		if (flags_out & POLLIN) {
 
-			if (server.rbs_relay[woomera->span+1]) {
-				handle_dequeue_and_woomera_tx_event_rbs(woomera);
-			}
-
 			res = sangoma_readmsg_socket(ms->sangoma_sock,
 					&hdrframe,
 					sizeof(hdrframe),
@@ -2212,18 +1909,11 @@ static void *media_tdm_thread_run(void *obj)
 
 			if (res < 0) {
 				if (!woomera_test_flag(woomera, WFLAG_MEDIA_END)) {
-					log_printf(SMG_LOG_ALL, server.log, "TDM Read Data Error: %s  %s  Sockid=%i\n",
+					log_printf(0, server.log, "TDM Read Data Error: %s  %s  Sockid=%i\n",
 						 woomera->interface,
 						 strerror(errno),ms->sangoma_sock);
 				}
 				break;
-			}
-
-
-			if (server.udp_seq) {
-            		*(unsigned int*)&circuit_frame[res] = woomera->tx_udp_seq;
-                    woomera->tx_udp_seq++;
-                    res+=4;
 			}
 
 			res = sendto(ms->udp_sock,
@@ -2233,7 +1923,8 @@ static void *media_tdm_thread_run(void *obj)
 						sizeof(ms->remote_addr));
 
 			if (res < 0) {
-				log_printf(SMG_LOG_DEBUG_CALL, server.log, "UDP Sento Error: %s\n", strerror(errno));
+				log_printf(2, server.log, "UDP Sento Error: %s\n", strerror(errno));
+
 			}
 		}
 
@@ -2241,7 +1932,7 @@ static void *media_tdm_thread_run(void *obj)
 
 			res = sangoma_tdm_read_event(ms->sangoma_sock, &tdm_api);
 			if (res < 0) {
-				log_printf(SMG_LOG_ALL, server.log, "TDM Read Event Error: %s  %s  Sockid=%i\n",
+				log_printf(0, server.log, "TDM Read Event Error: %s  %s  Sockid=%i\n",
 						 woomera->interface,
 						 strerror(errno),ms->sangoma_sock);
 				break;
@@ -2266,14 +1957,8 @@ static void *media_tdm_thread_run(void *obj)
 					}
 					break;
 #endif
-				case WP_TDMAPI_EVENT_RBS:
-				   	log_printf(SMG_LOG_WOOMERA, server.log, "[%s] Rx RBS Event Bits=0x%02X\n",
-					                               woomera->interface, rx_event->wp_tdm_api_event_rbs_bits);
-					handle_event_rbs(woomera, rx_event->wp_tdm_api_event_rbs_bits);
-					break;
-
 				default:
-					log_printf(SMG_LOG_ALL, server.log, "TDM API Unknown OOB Event %i\n",
+					log_printf(0, server.log, "TDM API Unknown OOB Event %i\n",
 									rx_event->wp_tdm_api_event_type);
 					break;
 			}
@@ -2283,7 +1968,7 @@ static void *media_tdm_thread_run(void *obj)
 		if (woomera->span == 1 && woomera->chan == 1) {
 			tdm_cnt++;
 			if (tdm_cnt && tdm_cnt % 1000 == 0) { 
-				log_printf(SMG_LOG_ALL, server.log, "%s: MEDIA TDM TX RX CNT %i %i\n",
+				log_printf(0, server.log, "%s: MEDIA TDM TX RX CNT %i %i\n",
 					woomera->interface,tdm_cnt,res);
 			}
 		}
@@ -2301,13 +1986,13 @@ static void *media_tdm_thread_run(void *obj)
 
 		} else {
 
-			log_printf(SMG_LOG_ALL, server.log, "Media TDM Thread: socket error %s Sockid=%i %s Woomera Flags=0x%08X Poll=%s!\n",
+			log_printf(0, server.log, "Media TDM Thread: socket error %s Sockid=%i %s Woomera Flags=0x%08X Poll=%s!\n",
 							woomera->interface,ms->sangoma_sock,strerror(errno),woomera->flags,SMG_DECODE_POLL_ERRORS(flags_out));
 			woomera_print_flags(woomera,0);
 		}
 	}
 
-	log_printf(SMG_LOG_DEBUG_CALL, server.log, "MEDIA TDM session for [%s] ended (ptr=%p)\n",
+	log_printf(2, server.log, "MEDIA TDM session for [%s] ended (ptr=%p)\n",
 		    woomera->interface,woomera);
     
 	woomera_set_flag(woomera, WFLAG_MEDIA_END);
@@ -2338,7 +2023,7 @@ static int launch_media_thread(struct woomera_interface *woomera)
 		woomera_set_flag(woomera, WFLAG_MEDIA_RUNNING);
 		result = pthread_create(&ms->thread, &attr, media_thread_run, ms);
 		if (result) {
-			log_printf(SMG_LOG_ALL, server.log, "%s: Error: Creating Thread! %s\n",
+			log_printf(0, server.log, "%s: Error: Creating Thread! %s\n",
 				 __FUNCTION__,strerror(errno));
 			woomera_clear_flag(woomera, WFLAG_MEDIA_RUNNING);
 			media_session_free(woomera->ms);
@@ -2347,7 +2032,7 @@ static int launch_media_thread(struct woomera_interface *woomera)
 		pthread_attr_destroy(&attr);
 	
     } else {
-		log_printf(SMG_LOG_ALL, server.log, "Failed to start new media session\n");
+		log_printf(0, server.log, "Failed to start new media session\n");
     }
     
     return result;
@@ -2373,7 +2058,7 @@ static int launch_media_tdm_thread(struct woomera_interface *woomera)
 	woomera_set_flag(woomera, WFLAG_MEDIA_TDM_RUNNING);
 	result = pthread_create(&ms->thread, &attr, media_tdm_thread_run, ms);
 	if (result) {
-		log_printf(SMG_LOG_ALL, server.log, "%s: Error: Creating Thread! %s\n",
+		log_printf(0, server.log, "%s: Error: Creating Thread! %s\n",
 				 __FUNCTION__,strerror(errno));
 		woomera_clear_flag(woomera, WFLAG_MEDIA_TDM_RUNNING);
     	} 
@@ -2389,9 +2074,9 @@ static struct woomera_interface * launch_woomera_loop_thread(short_signal_event_
 	struct woomera_interface *woomera = NULL;
 	char callid[20];
 	
-	sprintf(callid, "s%dc%d", event->span+1,event->chan+1);
+	sprintf(callid, "w%dg%d", event->span+1,event->chan+1);
 	
-	if ((woomera = alloc_woomera())) {
+    	if ((woomera = alloc_woomera())) {
 		
 		woomera->chan = event->chan;
 		woomera->span = event->span;
@@ -2403,7 +2088,7 @@ static struct woomera_interface * launch_woomera_loop_thread(short_signal_event_
 		woomera->socket=-1;
 
 	} else {
-		log_printf(SMG_LOG_ALL, server.log, "Critical ERROR: memory/socket error\n");
+		log_printf(0, server.log, "Critical ERROR: memory/socket error\n");
 		return NULL;
 	}
 
@@ -2417,9 +2102,9 @@ static struct woomera_interface * launch_woomera_loop_thread(short_signal_event_
 		pthread_mutex_lock(&server.process_lock);
 		server.process_table[event->span][event->chan].dev = NULL;
 		memset(server.process_table[event->span][event->chan].session,0,SMG_SESSION_NAME_SZ);
-    	pthread_mutex_unlock(&server.process_lock); 
+    		pthread_mutex_unlock(&server.process_lock); 
 		smg_free(woomera);
-		log_printf(SMG_LOG_ALL, server.log, "Critical ERROR: memory/socket error\n");
+		log_printf(0, server.log, "Critical ERROR: memory/socket error\n");
 		return NULL;
 	}
 	
@@ -2440,15 +2125,15 @@ static int woomera_message_parse(struct woomera_interface *woomera, struct woome
     memset(wmsg, 0, sizeof(*wmsg));
 
     if (woomera->socket < 0 ) {
-   	 log_printf(SMG_LOG_DEBUG_CALL, woomera->log, WOOMERA_DEBUG_PREFIX "%s Invalid Socket! %d\n", 
+   	 log_printf(2, woomera->log, WOOMERA_DEBUG_PREFIX "%s Invalid Socket! %d\n", 
 			 woomera->interface,woomera->socket);
 		return -1;
     }
 
 	if (woomera_test_flag(woomera, WFLAG_MEDIA_END) || 
 		woomera_test_flag(woomera, WFLAG_HANGUP)) {
-			log_printf(SMG_LOG_DEBUG_9, woomera->log, WOOMERA_DEBUG_PREFIX 
-				"%s Woomera Message parse: Call Hangup - skipping message parse !\n", 
+			log_printf(5, woomera->log, WOOMERA_DEBUG_PREFIX 
+				"%s MEDIA END or HANGUP !\n", 
 				woomera->interface);
 		return -1;
 	}
@@ -2466,7 +2151,7 @@ static int woomera_message_parse(struct woomera_interface *woomera, struct woome
 
     while (!(eor = strstr(buf, WOOMERA_RECORD_SEPERATOR))) {
 		if (sanity > 1000) {
-			log_printf(SMG_LOG_DEBUG_CALL, woomera->log, WOOMERA_DEBUG_PREFIX "%s Failed Sanity Check!\n[%s]\n\n", woomera->interface, buf);
+			log_printf(2, woomera->log, WOOMERA_DEBUG_PREFIX "%s Failed Sanity Check!\n[%s]\n\n", woomera->interface, buf);
 			return -1;
 		}
 
@@ -2487,7 +2172,7 @@ static int woomera_message_parse(struct woomera_interface *woomera, struct woome
 				if (!woomera_test_flag(&server.master_connection, WFLAG_RUNNING) ||
 				    woomera_test_flag(woomera, WFLAG_MEDIA_END) || 
 				    woomera_test_flag(woomera, WFLAG_HANGUP)) {
-					log_printf(SMG_LOG_DEBUG_9, woomera->log, WOOMERA_DEBUG_PREFIX 
+					log_printf(5, woomera->log, WOOMERA_DEBUG_PREFIX 
 						"%s MEDIA END or HANGUP \n", woomera->interface);
 					return -1;
 				}
@@ -2495,7 +2180,7 @@ static int woomera_message_parse(struct woomera_interface *woomera, struct woome
 				continue;
 
 			} else if (res < 0) {
-				log_printf(SMG_LOG_DEBUG_MISC, woomera->log, WOOMERA_DEBUG_PREFIX 
+				log_printf(3, woomera->log, WOOMERA_DEBUG_PREFIX 
 					"%s error during packet retry (err=%i) Loops#%d (%s)\n", 
 						woomera->interface, res, loops,
 						strerror(errno));
@@ -2509,7 +2194,7 @@ static int woomera_message_parse(struct woomera_interface *woomera, struct woome
 		elapsed = (((ended.tv_sec * 1000) + ended.tv_usec / 1000) - ((started.tv_sec * 1000) + started.tv_usec / 1000));
 
 		if (res < 0) {
-			log_printf(SMG_LOG_DEBUG_CALL, woomera->log, WOOMERA_DEBUG_PREFIX "%s Bad RECV\n", 
+			log_printf(2, woomera->log, WOOMERA_DEBUG_PREFIX "%s Bad RECV\n", 
 				woomera->interface);
 			return res;
 		} else if (res == 0) {
@@ -2518,7 +2203,7 @@ static int woomera_message_parse(struct woomera_interface *woomera, struct woome
 			if (!woomera_test_flag(&server.master_connection, WFLAG_RUNNING) ||
 			    woomera_test_flag(woomera, WFLAG_MEDIA_END) || 
 			    woomera_test_flag(woomera, WFLAG_HANGUP)) {
-				log_printf(SMG_LOG_DEBUG_9, woomera->log, WOOMERA_DEBUG_PREFIX 
+				log_printf(5, woomera->log, WOOMERA_DEBUG_PREFIX 
 					"%s MEDIA END or HANGUP \n", woomera->interface);
 					return -1;
 			}
@@ -2527,14 +2212,14 @@ static int woomera_message_parse(struct woomera_interface *woomera, struct woome
 		}
 
 		if (packet && loops > 150) {
-			log_printf(SMG_LOG_PROD, woomera->log, WOOMERA_DEBUG_PREFIX 
+			log_printf(1, woomera->log, WOOMERA_DEBUG_PREFIX 
 					"%s Timeout waiting for packet.\n", 
 						woomera->interface);
 			return -1;
 		}
 
 		if (timeout > 0 && (elapsed > timeout)) {
-			log_printf(SMG_LOG_PROD, woomera->log, WOOMERA_DEBUG_PREFIX 
+			log_printf(1, woomera->log, WOOMERA_DEBUG_PREFIX 
 					"%s Timeout [%d] reached\n", 
 						woomera->interface, timeout);
 			return failto ? -1 : 0;
@@ -2548,8 +2233,8 @@ static int woomera_message_parse(struct woomera_interface *woomera, struct woome
 		/* what're we still doing here? */
 		if (!woomera_test_flag(&server.master_connection, WFLAG_RUNNING) || 
 		    !woomera_test_flag(woomera, WFLAG_RUNNING)) {
-			log_printf(SMG_LOG_DEBUG_CALL, woomera->log, WOOMERA_DEBUG_PREFIX 
-				"%s Woomera Message Parse: Server or Woomera not Running\n", woomera->interface);
+			log_printf(2, woomera->log, WOOMERA_DEBUG_PREFIX 
+				"%s MASTER RUNNING or RUNNING!\n", woomera->interface);
 			return -1;
 		}
 		loops++;
@@ -2562,7 +2247,12 @@ static int woomera_message_parse(struct woomera_interface *woomera, struct woome
     res = read(woomera->socket, buf, bytes);
     next = buf;
 
-	log_printf(SMG_LOG_WOOMERA, woomera->log, "%s:WOOMERA RX MSG: %s\n",woomera->interface,buf);
+    if (woomera->debug > 1) {
+		log_printf(3, woomera->log, "%s:WOOMERA RX MSG: %s\n",woomera->interface,buf);
+
+    }
+
+	
 	
     while ((cur = next)) {
 
@@ -2640,7 +2330,7 @@ static struct woomera_interface *pull_from_holding_tank(int index, int span , in
 	
 	if (index < 1 || index >= CORE_TANK_LEN) {
 		if (index != 0) {
-			log_printf(SMG_LOG_ALL, server.log, "%s Error on invalid TANK INDEX = %i\n",
+			log_printf(0, server.log, "%s Error on invalid TANK INDEX = %i\n",
 				__FUNCTION__,index);
 		}
 		return NULL;
@@ -2680,7 +2370,7 @@ static struct woomera_interface *check_tank_index(int index)
 
 	if (index < 1 || index >= CORE_TANK_LEN) {
 		if (index != 0) {
-			log_printf(SMG_LOG_ALL, server.log, "%s Error on invalid TANK INDEX = %i\n",
+			log_printf(0, server.log, "%s Error on invalid TANK INDEX = %i\n",
 				__FUNCTION__,index);
 		}
 		return NULL;
@@ -2699,7 +2389,7 @@ static void clear_from_holding_tank(int index, struct woomera_interface *woomera
 
 	if (index < 1 || index >= CORE_TANK_LEN) {
 		if (index != 0) {
-			log_printf(SMG_LOG_ALL, server.log, "%s Error on invalid TANK INDEX = %i\n",
+			log_printf(0, server.log, "%s Error on invalid TANK INDEX = %i\n",
 				__FUNCTION__,index);
 		}
 		return;
@@ -2708,18 +2398,18 @@ static void clear_from_holding_tank(int index, struct woomera_interface *woomera
 	pthread_mutex_lock(&server.ht_lock);
         if (server.holding_tank[index] == &woomera_dead_dev) {
 #if 0
-                log_printf(SMG_LOG_ALL,server.log, "%s Clearing DEAD id=%i OK\n",
+                log_printf(0,server.log, "%s Clearing DEAD id=%i OK\n",
                                         __FUNCTION__,index);
 #endif
                 server.holding_tank[index] = NULL;
         } else if (woomera && server.holding_tank[index] == woomera) {
 #if 0
-                log_printf(SMG_LOG_ALL,server.log, "%s Clearing ACTIVE Woomera id=%i OK\n",
+                log_printf(0,server.log, "%s Clearing ACTIVE Woomera id=%i OK\n",
                                         __FUNCTION__,index);
 #endif
                 server.holding_tank[index] = NULL;
         } else if (server.holding_tank[index]) {
-                log_printf(SMG_LOG_ALL, server.log, "Critical Error: Holding tank index %i not cleared %p !\n",
+                log_printf(0, server.log, "Critical Error: Holding tank index %i not cleared %p !\n",
                                 index, server.holding_tank[index]);
         }
 	pthread_mutex_unlock(&server.ht_lock);
@@ -2733,7 +2423,7 @@ static struct woomera_interface *peek_from_holding_tank(int index)
 	
 	if (index < 1 || index >= CORE_TANK_LEN) {
 		if (index != 0) {
-			log_printf(SMG_LOG_ALL, server.log, "%s Error on invalid TANK INDEX = %i\n",
+			log_printf(0, server.log, "%s Error on invalid TANK INDEX = %i\n",
 				__FUNCTION__,index);
 		}
 		return NULL;
@@ -2762,7 +2452,7 @@ static int add_to_holding_tank(struct woomera_interface *woomera)
 		} 
 	
 		if (next == 0) {
-			log_printf(SMG_LOG_ALL, server.log, "\nCritical Error on TANK INDEX == 0\n");
+			log_printf(0, server.log, "\nCritical Error on TANK INDEX == 0\n");
 			continue;
 		}
 	
@@ -2778,7 +2468,7 @@ static int add_to_holding_tank(struct woomera_interface *woomera)
 		/* This means all tank vales are busy
 		* should never happend */
 		pthread_mutex_unlock(&server.ht_lock);
-		log_printf(SMG_LOG_ALL, server.log, "\nCritical Error failed to obtain a TANK INDEX\n");
+		log_printf(0, server.log, "\nCritical Error failed to obtain a TANK INDEX\n");
 		return 0;
 	}
 
@@ -2790,101 +2480,7 @@ static int add_to_holding_tank(struct woomera_interface *woomera)
 }
 
 
-static int handle_event_rbs(struct woomera_interface *woomera, unsigned char rbs_digit)
-{
-	woomera_rbs_relay_t *rbsrelay;
-
-	if (smg_validate_span_chan(woomera->span,woomera->chan) != 0) {
-		log_printf(SMG_LOG_ALL, server.log, "[%s] handle_event_rbs invalid span chan\n",
-			woomera->interface);
-		return -1;
-	}
-
-	if (!server.rbs_relay[woomera->span+1]) {
-		log_printf(SMG_LOG_ALL, server.log, "[%s] handle_event_rbs rbs_relan not enabled\n",
-			woomera->interface);
-		return -1;	
-	}
-	
-	rbsrelay=&server.process_table[woomera->span][woomera->chan].rbs_relay;
-
-	if (rbsrelay->rbs_bits[rbsrelay->rx_idx].init) {
-		log_printf(SMG_LOG_ALL, server.log, "[%s] Critical Error Rx RBS Overrun\n",
-				  	woomera->interface);
-		return -1;
-	}
-
-	log_printf(SMG_LOG_ALL, server.log, "[%s] woomera rx queue rbs %X idx %i\n",
-			woomera->interface,rbs_digit, rbsrelay->rx_idx);
-
-	rbsrelay->rbs_bits[rbsrelay->rx_idx].abcd=rbs_digit;
-	rbsrelay->rbs_bits[rbsrelay->rx_idx].init=500/SANGOMA_USR_PERIOD;
-	rbsrelay->rx_idx = ((rbsrelay->rx_idx + 1) % WOOMERA_MAX_RBS_BITS);
-	
-	return 0;
-}
-
-static int handle_dequeue_and_woomera_tx_event_rbs(struct woomera_interface *woomera)
-{
-	struct woomera_event wevent;
-	woomera_rbs_relay_t *rbsrelay;
-	unsigned char abcd;
-
-	if (smg_validate_span_chan(woomera->span,woomera->chan) != 0) {
-		log_printf(SMG_LOG_ALL, server.log, "[%s] handle_dequeue_and_woomera_tx_event_rbs invalid span chan\n",
-			woomera->interface);
-		return -1;
-	}
-
-	if (!server.rbs_relay[woomera->span+1]) {
-		log_printf(SMG_LOG_ALL, server.log, "[%s] handle_dequeue_and_woomera_tx_event_rbs rbs_relan not enabled\n",
-			woomera->interface);
-		return -1;	
-	}
-	
-	if (!woomera_test_flag(woomera,WFLAG_ANSWER)) {
-		return 0;
-	}
-	
-	rbsrelay=&server.process_table[woomera->span][woomera->chan].rbs_relay;
-
-	if (rbsrelay->rbs_bits[rbsrelay->tx_idx].init == 0) {
-		return -1;
-	}
-
-	if (rbsrelay->rbs_bits[rbsrelay->tx_idx].init > 1) {
-		rbsrelay->rbs_bits[rbsrelay->tx_idx].init--;
-		return -1;
-	}
-
-	
-	abcd = rbsrelay->rbs_bits[rbsrelay->tx_idx].abcd;
-	rbsrelay->rbs_bits[rbsrelay->tx_idx].init=0;
-	
-
-	log_printf(SMG_LOG_ALL, server.log, "[%s] woomera tx rbs %X idx %i\n",
-			woomera->interface,abcd, rbsrelay->tx_idx);
-
-	rbsrelay->tx_idx = ((rbsrelay->tx_idx + 1) % WOOMERA_MAX_RBS_BITS);
-
-	memset(&wevent, 0, sizeof(struct woomera_event));
-	
-	new_woomera_event_printf(&wevent, "EVENT RBS %sUnique-Call-Id:%s%sContent-Length:%d%s%s%X%s",
-							  WOOMERA_LINE_SEPERATOR,
-							  woomera->session,
-							  WOOMERA_LINE_SEPERATOR,
-							  1,
-							  WOOMERA_LINE_SEPERATOR,
-							  WOOMERA_LINE_SEPERATOR,
-							  abcd,
-							  WOOMERA_RECORD_SEPERATOR);			
-	
-
-	enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
-	
-	return 0;
-}
-	
+ 
 static void handle_event_dtmf(struct woomera_interface *woomera, unsigned char dtmf_digit)
 {
 	struct woomera_event wevent;
@@ -2906,107 +2502,30 @@ static void handle_event_dtmf(struct woomera_interface *woomera, unsigned char d
 	return;
 }
  
-static int handle_woomera_progress(struct woomera_interface *woomera, 
-								   struct woomera_message *wmsg)
-{ 
-	call_signal_event_t event;
-	int err=-1;
-	
-	memset(&event, 0, sizeof(event));
 
-	call_signal_event_init((short_signal_event_t*)&event, SIGBOOST_EVENT_CALL_PROGRESS, woomera->chan, woomera->span);
-	sprintf(event.isup_in_rdnis,"SMG003-EVI-2");
-	event.isup_in_rdnis_size=strlen(event.isup_in_rdnis);
-	if (woomera->index >= 0) {
-		event.call_setup_id = woomera->index;
-	}
-	
-	log_printf(SMG_LOG_WOOMERA, woomera->log, "WOOMERA CMD: %s [%s]\n",
-				wmsg->command, woomera->interface);				
-		
-	if (!woomera_check_running(woomera)) {
-		socket_printf(woomera->socket, "405 PROGRESS Channel already hungup%s"
-				"Unique-Call-Id: %s%s",
-				WOOMERA_LINE_SEPERATOR, 
-				woomera->session,
-				WOOMERA_RECORD_SEPERATOR);
-		return -1;
-	}
-			
-	if (!woomera_test_flag(woomera,WFLAG_CALL_ACKED)) {
-		
-		socket_printf(woomera->socket, "405 PROGRESS Channel not aceked%s"
-				"Unique-Call-Id: %s%s",
-				WOOMERA_LINE_SEPERATOR, 
-				woomera->session,
-				WOOMERA_RECORD_SEPERATOR);
-		return -1;
-	}
-	
-	err=isup_exec_event(&event);
-	if (err == 0) {
-		socket_printf(woomera->socket, 
-					"200 %s PROGRESS OK%s"
-							"Unique-Call-Id: %s%s", 
-					wmsg->callid, 
-					WOOMERA_LINE_SEPERATOR,
-					woomera->session,
-					WOOMERA_RECORD_SEPERATOR);	
-	} else {
-		socket_printf(woomera->socket, "405 PROGRESS Boost failure%s"
-				"Unique-Call-Id: %s%s",
-				WOOMERA_LINE_SEPERATOR, 
-				woomera->session,
-				WOOMERA_RECORD_SEPERATOR);
-	}
-	
-	return err;
-}
 
 static int handle_woomera_media_accept_answer(struct woomera_interface *woomera, 
 				      struct woomera_message *wmsg, 
 				      int media, int answer, int accept)
 {
 	char *raw = woomera_message_header(wmsg, "raw-audio");
-	struct woomera_event wevent;
 	
-	log_printf(SMG_LOG_WOOMERA, woomera->log, "WOOMERA CMD: %s [%s] raw=%s\n",
-			   wmsg->command, woomera->interface, raw?raw:"N/A");	
+	log_printf(4, woomera->log, "WOOMERA CMD: %s [%s]\n",
+		wmsg->command, woomera->interface);	
 		
-	if (!woomera_check_running(woomera)) {
+		
+	if (woomera_test_flag(woomera, WFLAG_HANGUP) || 
+	    !woomera_test_flag(woomera, WFLAG_RUNNING) ||
+	    woomera_test_flag(woomera, WFLAG_MEDIA_END)) {
 	
-		log_printf(SMG_LOG_DEBUG_CALL, server.log,
+		log_printf(2, server.log,
 			"ERROR! call was cancelled MEDIA on HANGUP or MEDIA END!\n");
-			
-		new_woomera_event_printf(&wevent, "EVENT HANGUP %s%s"
-								"Unique-Call-Id: %s%s"
-								"Cause: %s%s"
-								"Q931-Cause-Code: %d%s",
-								wmsg->callid,
-								WOOMERA_LINE_SEPERATOR,
-								woomera->session,
-								WOOMERA_LINE_SEPERATOR,
-							 	q931_rel_to_str(woomera->q931_rel_cause_topbx),
-								WOOMERA_LINE_SEPERATOR,
-							 	woomera->q931_rel_cause_topbx,
-								WOOMERA_RECORD_SEPERATOR
-								);
-			
-		enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
-				
-		new_woomera_event_printf(&wevent, "501 call already hungup!%s"
-										"Unique-Call-Id: %s%s",
-										WOOMERA_LINE_SEPERATOR,
-										woomera->session,
-										WOOMERA_RECORD_SEPERATOR);
-		
-		enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
 
 		woomera->timeout=0;
 		return -1;
 	} 
 		
-	log_printf(SMG_LOG_DEBUG_MISC, server.log,"WOOMERA: GOT %s EVENT: [%s]  RAW=%s\n",
+	log_printf(3, server.log,"WOOMERA: GOT %s EVENT: [%s]  RAW=%s\n",
 			wmsg->command,wmsg->callid,raw);
 
 			
@@ -3019,8 +2538,9 @@ static int handle_woomera_media_accept_answer(struct woomera_interface *woomera,
 		woomera_set_raw(woomera, raw);
 				
 		if (launch_media_thread(woomera)) {
+			struct woomera_event wevent;
 			
-			log_printf(SMG_LOG_DEBUG_8, server.log,"ERROR: Failed to Launch Call [%s]\n",
+			log_printf(4, server.log,"ERROR: Failed to Launch Call [%s]\n",
 				woomera->interface);
 
 			
@@ -3054,30 +2574,10 @@ static int handle_woomera_media_accept_answer(struct woomera_interface *woomera,
 			woomera->timeout=0;
 			return -1;
 		}
-	} else if (media && raw && woomera->ms) {
-		if (strncmp(raw,woomera->raw,20) != 0) {
-			log_printf(SMG_LOG_WOOMERA, server.log, "[%s] MEDIA Address Change from %s to %s\n",
-					   woomera->interface,woomera->raw, raw); 
-			
-			pthread_mutex_lock(&woomera->ms_lock);
-			woomera_set_raw(woomera,raw);
-			woomera_raw_to_ip(woomera->ms,woomera->raw);		
-			update_udp_socket(woomera->ms,woomera->ms->ip, woomera->ms->port);
-	
-			pthread_mutex_unlock(&woomera->ms_lock);
-		}
 	}
 
 	if (!woomera_test_flag(&server.master_connection, WFLAG_MONITOR_RUNNING)) {
-		log_printf(SMG_LOG_ALL, server.log,"ERROR! Monitor Thread not running!\n");
-		new_woomera_event_printf(&wevent, "501 call was cancelled!%s"
-				"Unique-Call-Id: %s%s",
-				WOOMERA_LINE_SEPERATOR,
-				woomera->session,
-				WOOMERA_RECORD_SEPERATOR);
-	
-		enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
-		return -1;
+		log_printf(0, server.log,"ERROR! Monitor Thread not running!\n");
 		
 	} else {
 
@@ -3112,20 +2612,17 @@ static int handle_woomera_media_accept_answer(struct woomera_interface *woomera,
 							0);
 				}
 
-				woomera_set_flag(woomera, WFLAG_ANSWER);
-				
 				isup_exec_command(woomera->span, 
 						  woomera->chan, 
 						  -1,
 						  SIGBOOST_EVENT_CALL_ANSWERED,
 						  0);
-				log_printf(SMG_LOG_DEBUG_CALL, server.log,
-				"Sent SIGBOOST_EVENT_CALL_ANSWERED [s%dc%d]\n",
+				log_printf(2, server.log,
+				"Sent SIGBOOST_EVENT_CALL_ANSWERED [w%dg%d]\n",
 					woomera->span+1,woomera->chan+1);
 			} else {
-				
 				struct woomera_event wevent;
-				log_printf(SMG_LOG_ALL, server.log,
+				log_printf(0, server.log,
 				  "WOOMERA ANSWER: FAILED [%s] no Media \n",
 					wmsg->command,wmsg->callid);	
 
@@ -3146,7 +2643,7 @@ static int handle_woomera_media_accept_answer(struct woomera_interface *woomera,
 			
 				enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
 					
-	    		new_woomera_event_printf(&wevent, "501 call was cancelled!%s"
+				new_woomera_event_printf(&wevent, "501 call was cancelled!%s"
 						"Unique-Call-Id: %s%s",
 						WOOMERA_LINE_SEPERATOR,
 						woomera->session,
@@ -3160,19 +2657,22 @@ static int handle_woomera_media_accept_answer(struct woomera_interface *woomera,
 				return -1;
 			}
 		}
-	} 
+	}
 
-	new_woomera_event_printf(&wevent, "200 %s OK%s"
-					"Unique-Call-Id: %s%s", 
-			answer ? "ANSWER" : 
-			accept ? "ACCEPT" : "MEDIA", 
-			WOOMERA_LINE_SEPERATOR,
-			woomera->session,
-			WOOMERA_RECORD_SEPERATOR);
+	{
+		struct woomera_event wevent;
+		new_woomera_event_printf(&wevent, "200 %s OK%s"
+						"Unique-Call-Id: %s%s", 
+				answer ? "ANSWER" : 
+				accept ? "ACCEPT" : "MEDIA", 
+				WOOMERA_LINE_SEPERATOR,
+				woomera->session,
+				WOOMERA_RECORD_SEPERATOR);
+	
+		enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
+       }
 
-	enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
-
-    return 0;
+       return 0;
 }
 
 static int handle_woomera_call_start (struct woomera_interface *woomera,
@@ -3191,74 +2691,12 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 	char *uil1p = woomera_message_header(wmsg, "uil1p");
 	char *called = wmsg->callid;
 	char *grp = wmsg->callid;
-	char *profile;
 	char *p;
 	int cause = 34;
 	int tg = 0;
 	int huntgroup = SIGBOOST_HUNTGRP_SEQ_ASC;
 
-	/* Remove profile name out of destiantion */
-	if ((profile = strchr(called, ':'))) {
-		profile++; 
-		called=profile;
-		grp=profile;
-	}
-
-	log_printf(SMG_LOG_DEBUG_CALL, woomera->log, "New Call %d/%d  origdest=%s  newdest=%s\n",
-		 server.call_count, server.max_calls, wmsg->callid, called);
-
-	switch(called[0]) {
-		case 'g':
-			huntgroup = SIGBOOST_HUNTGRP_SEQ_ASC;
-			break;
-		case 'G':
-			huntgroup = SIGBOOST_HUNTGRP_SEQ_DESC;
-			break;
-		case 'r':
-			huntgroup = SIGBOOST_HUNTGRP_RR_ASC;
-			break;
-		case 'R':
-			huntgroup = SIGBOOST_HUNTGRP_RR_DESC;
-			break;
-		default:
-			log_printf(SMG_LOG_DEBUG_CALL, woomera->log, 
-					"Warning: Failed to determine huntgroup (%s)\n",
-							called);
-			huntgroup = SIGBOOST_HUNTGRP_SEQ_ASC;
-	}
-
-	if ((p = strchr(called, '/'))) {
-		*p = '\0';
-		called = p+1;
-		tg = atoi(grp+1) - 1;
-		if (tg < 0) {
-			tg=0;
-		}
-	}
-
-	woomera->trunk_group=tg;
-
-	if ( woomera->trunk_group > SMG_MAX_TG ) {
-
-		socket_printf(woomera->socket, "EVENT HANGUP %s"
-										"Cause: %s%s"
-										"Q931-Cause-Code: %d%s",
-										WOOMERA_LINE_SEPERATOR,
-										q931_rel_to_str(cause),
-										WOOMERA_LINE_SEPERATOR,
-										cause,
-										WOOMERA_RECORD_SEPERATOR);
-
-		socket_printf(woomera->socket, 
-			"405 SMG Server: trunk group value not valid!%s", WOOMERA_RECORD_SEPERATOR);
-
-		log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "SMG Server: trunk group value not valid %d\n", 
-			woomera->trunk_group);
-
-		return -1;
-	}
-
-	if (smg_check_all_busy(woomera->trunk_group) || 
+	if (smg_check_all_busy() || 
 	    woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_RESET)){
 
 
@@ -3274,13 +2712,44 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 		socket_printf(woomera->socket, 
 			"405 SMG Server All Ckt Busy!%s", WOOMERA_RECORD_SEPERATOR);
 
-		log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "SMG Server Full %d (ckt busy cnt=%i on tg=%d)\n", 
-			server.call_count, server.all_ckt_busy[woomera->trunk_group],woomera->trunk_group);
+		log_printf(3, woomera->log, "SMG Server Full %d (ckt busy cnt=%i)\n", 
+			server.call_count, server.all_ckt_busy);
 		return -1;
 	}
 
 
+	log_printf(2, woomera->log, "New Call %d/%d\n", server.call_count, server.max_calls);
 
+	switch(called[0]) {
+		case 'g':
+			huntgroup = SIGBOOST_HUNTGRP_SEQ_ASC;
+			break;
+		case 'G':
+			huntgroup = SIGBOOST_HUNTGRP_SEQ_DESC;
+			break;
+		case 'r':
+			huntgroup = SIGBOOST_HUNTGRP_RR_ASC;
+			break;
+		case 'R':
+			huntgroup = SIGBOOST_HUNTGRP_RR_DESC;
+			break;
+		default:
+			log_printf(2, woomera->log, 
+					"Warning: Failed to determine huntgroup (%s)\n",
+							called);
+			huntgroup = SIGBOOST_HUNTGRP_SEQ_ASC;
+	}
+
+	if ((p = strchr(called, '/'))) {
+		*p = '\0';
+		called = p+1;
+		tg = atoi(grp+1) - 1;
+		if (tg < 0) {
+			tg=0;
+		}
+	}
+
+	woomera->trunk_group=tg;
 	if (raw) {
 		woomera_set_raw(woomera, raw);
 	}
@@ -3298,7 +2767,7 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 		socket_printf(woomera->socket, 
 				"405 SMG Server All Tanks Busy!%s", 
 				WOOMERA_RECORD_SEPERATOR);
-		log_printf(SMG_LOG_ALL, woomera->log, "Error: Call Tank Full (Call Cnt=%i)\n", 
+		log_printf(0, woomera->log, "Error: Call Tank Full (Call Cnt=%i)\n", 
 			server.call_count);
 		return -1;				
 	} 
@@ -3326,7 +2795,7 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 	if (rdnis && strlen(rdnis) ) {
 
 		if (strlen(rdnis) > sizeof(event.isup_in_rdnis)){ 
-			log_printf(SMG_LOG_ALL,server.log,"Error: RDNIS Overflow (in size=%i max=%i)\n",
+			log_printf(0,server.log,"Error: RDNIS Overflow (in size=%i max=%i)\n",
 					strlen(rdnis), sizeof(event.isup_in_rdnis));
 			
 		} else {
@@ -3334,14 +2803,13 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 			strncpy(event.isup_in_rdnis,rdnis,
 					sizeof(event.isup_in_rdnis)-1);
 			event.isup_in_rdnis_size=strlen(rdnis)+1;
-			log_printf(SMG_LOG_DEBUG_MISC,server.log,"RDNIS %s\n", rdnis);
+			log_printf(3,server.log,"RDNIS %s\n", rdnis);
 		}
 
 	}
 
 	if (bearer_cap && strlen(bearer_cap)) {
 		event.bearer.capability = bearer_cap_to_code(bearer_cap);
-		woomera->bearer_cap = event.bearer.capability;
 	}
 
 	if (uil1p && strlen(uil1p)) {
@@ -3359,7 +2827,7 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 	event.hunt_group = huntgroup;
 
 	if (call_signal_connection_write(&server.mcon, &event) < 0) {
-		log_printf(SMG_LOG_ALL, server.log, 
+		log_printf(0, server.log, 
 		"Critical System Error: Failed to tx on ISUP socket [%s]: %s\n", 
 			strerror(errno));
 
@@ -3380,7 +2848,7 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 
 	socket_printf(woomera->socket, "100 Trying%s", WOOMERA_RECORD_SEPERATOR);
 
-	log_printf(SMG_LOG_DEBUG_CALL, server.log, "Call Called Event [Setup ID: %d] TG=%d\n",
+	log_printf(2, server.log, "Call Called Event [Setup ID: %d] TG=%d\n",
 					woomera->index,tg);
 	
 	return 0;
@@ -3402,7 +2870,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 			/* Call has already been placed */
 			socket_printf(woomera->socket, "400 Error Call already in progress %s",
 						WOOMERA_RECORD_SEPERATOR);
-			log_printf(SMG_LOG_ALL,server.log,"Woomera RX Call Even while call in progress!\n");
+			log_printf(0,server.log,"Woomera RX Call Even while call in progress!\n");
 			woomera_set_flag(woomera, WFLAG_HANGUP);
 			return;
 		}
@@ -3435,13 +2903,13 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 		char *q931cause = woomera_message_header(wmsg, "Q931-Cause-Code");
 		
 		if (cause) {
-			log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "Bye Cause Received: [%s]\n", cause);
+			log_printf(3, woomera->log, "Bye Cause Received: [%s]\n", cause);
 		}
 		if (q931cause && atoi(q931cause)) {
 			woomera_set_cause_tosig(woomera,atoi(q931cause));
 		}
 
-		log_printf(SMG_LOG_WOOMERA, woomera->log, "WOOMERA CMD: Bye Received: [%s]\n", woomera->interface);
+		log_printf(2, woomera->log, "WOOMERA CMD: Bye Received: [%s]\n", woomera->interface);
 		
 		woomera_clear_flag(woomera, WFLAG_RUNNING);
 		socket_printf(woomera->socket, "200 Connection closed%s"
@@ -3463,7 +2931,18 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 		
 			woomera_set_flag(woomera, WFLAG_LISTENING);
 			add_listener(woomera);
-			log_printf(SMG_LOG_ALL,woomera->log, "Starting Listen Device!\n");
+
+#ifndef OPAL
+			if (!strcmp(wmsg->callid,"MASTER")) {
+#else
+			if (1) {
+#endif
+
+				woomera_set_flag(woomera, WFLAG_MASTER_DEV);
+				log_printf(0,woomera->log, "Starting MASTER Listen Device!\n");
+				master_reset=0;
+			} 
+		
 
 			socket_printf(woomera->socket, "%s", 
 					WOOMERA_RECORD_SEPERATOR);
@@ -3482,7 +2961,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 
 		if (debug_level < 10) {
 			server.debug=debug_level;
-			log_printf(SMG_LOG_ALL,server.log,"SMG Debugging set to %i (window=%i)\n",server.debug,server.mcon.txwindow);
+			log_printf(0,server.log,"SMG Debugging set to %i (window=%i)\n",server.debug,server.mcon.txwindow);
 		}
 
 		return;
@@ -3493,7 +2972,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 
 
 		if (q931cause && atoi(q931cause)) {
-			log_printf(SMG_LOG_DEBUG_8,server.log,"Woomera Hangup setting cause to %s %i\n",
+			log_printf(4,server.log,"Woomera Hangup setting cause to %s %i\n",
 							q931cause,atoi(q931cause));
 							woomera_set_cause_tosig(woomera,atoi(q931cause));
 		}
@@ -3518,7 +2997,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 		socket_printf(woomera->socket, "400 Woomera cmd without uniquie id%s"
 						WOOMERA_RECORD_SEPERATOR);
 
-		log_printf(SMG_LOG_DEBUG_CALL,server.log,"Woomera RX Event (%s) without unique id!\n",wmsg->command);
+		log_printf(2,server.log,"Woomera RX Event (%s) without unique id!\n",wmsg->command);
 		woomera_set_flag(woomera, WFLAG_HANGUP);
 		return;
 	}
@@ -3528,24 +3007,19 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 		char *session=NULL;
 		int span, chan;
 		char ifname[100];
-		int err;
-
 		/* If session does not exist this is an incoming call */
-		err=sscanf(unique_id, "s%dc%d",  &span, &chan);
-		if (err!=2) {
-			err=sscanf(unique_id, "w%dg%d",  &span, &chan);
-		}
+		sscanf(unique_id, "w%dg%d",  &span, &chan);
 		span--;
 		chan--;
 	
-		log_printf(SMG_LOG_DEBUG_MISC, woomera->log, 
+		log_printf(3, woomera->log, 
 			"WOOMERA Got CMD %s Span=%d Chan=%d from session %s\n", 	
 				wmsg->command,span,chan,unique_id);
 
 		if (smg_validate_span_chan(span,chan) != 0) {
 
-			cause=81;
-            socket_printf(woomera->socket, "EVENT HANGUP %s"
+                        cause=34;
+                        socket_printf(woomera->socket, "EVENT HANGUP %s"
                                                   "Cause: %s%s"
                                                   "Q931-Cause-Code: %d%s",
                                                  WOOMERA_LINE_SEPERATOR,
@@ -3553,10 +3027,10 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
                                                  WOOMERA_LINE_SEPERATOR,
                                                  cause,
                                                  WOOMERA_RECORD_SEPERATOR);
-			socket_printf(woomera->socket, "404 Invalid span/chan in session%s",
+			socket_printf(woomera->socket, "404 Invalid span/chan in session%s"
 						WOOMERA_RECORD_SEPERATOR);
 
-			log_printf(SMG_LOG_DEBUG_CALL, woomera->log, 
+			log_printf(2, woomera->log, 
 				"WOOMERA Warning invalid span chan in session %s %s\n",
 				wmsg->command,unique_id);
 			woomera_set_flag(woomera, WFLAG_HANGUP);
@@ -3567,13 +3041,11 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 		session = server.process_table[span][chan].session;
 		session_woomera = server.process_table[span][chan].dev;
 
-		/* This scenario is very common when we have multile clients
-		   where multiple clients race get the incoming call */
 		if (session_woomera) {
 			pthread_mutex_unlock(&server.process_lock);
 
-			cause=81;
-            socket_printf(woomera->socket, "EVENT HANGUP %s"
+                        cause=34;
+                        socket_printf(woomera->socket, "EVENT HANGUP %s"
                                                   "Cause: %s%s"
                                                   "Q931-Cause-Code: %d%s",
                                                  WOOMERA_LINE_SEPERATOR,
@@ -3585,7 +3057,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 						WOOMERA_RECORD_SEPERATOR);
 
 			
-			log_printf(SMG_LOG_DEBUG_8, woomera->log, "WOOMERA Error channel in use %s %s\n",
+			log_printf(0, woomera->log, "WOOMERA Error channel in use %s %s\n",
 				wmsg->command,unique_id);
 			woomera_set_flag(woomera, WFLAG_HANGUP);
 			return;
@@ -3595,120 +3067,66 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 		    strncmp(session,unique_id,sizeof(woomera->session))){
 			pthread_mutex_unlock(&server.process_lock);
 
-			/* Invalid call reference */
-			cause=81;
-			socket_printf(woomera->socket, "event hangup %s"
-                                                  "cause: %s%s"
-                                                  "q931-cause-code: %d%s",
+			cause=34;
+			socket_printf(woomera->socket, "EVENT HANGUP %s"
+                                                  "Cause: %s%s"
+                                                  "Q931-Cause-Code: %d%s",
                                                  WOOMERA_LINE_SEPERATOR,
                                                  q931_rel_to_str(cause),
                                                  WOOMERA_LINE_SEPERATOR,
                                                  cause,
                                                  WOOMERA_RECORD_SEPERATOR);
 
-			socket_printf(woomera->socket, "404 Invalid/Expired Session%s",
+			socket_printf(woomera->socket, "404 Invalid/Expired Session%s"
 						WOOMERA_RECORD_SEPERATOR);
 
-			log_printf(SMG_LOG_DEBUG_MISC, woomera->log, 
+			log_printf(3, woomera->log, 
 				"WOOMERA Warning: Cmd=%s with invalid session %s (orig=%s)\n", 	
 				wmsg->command,unique_id,session?session:"N/A");
 			woomera_set_flag(woomera, WFLAG_HANGUP);
 			return;
 		}
 
-#if 1
-		if (!strcasecmp(wmsg->command, "hangup")) {
-			int clients=server.process_table[span][chan].clients;
-			if (server.process_table[span][chan].clients < 0) {
-
-				log_printf(SMG_LOG_ALL, woomera->log, "WOOMERA CMD: Warning Clients (%i) Race condition on Hangup  [s%dc%d]\n",
-						clients, span+1,chan+1);
-
-			} else if (server.process_table[span][chan].clients > 1) {
-				server.process_table[span][chan].clients--;
-				pthread_mutex_unlock(&server.process_lock);
-			
-				log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "WOOMERA CMD: Got Hungup on Multiple Clients %i, skipping hangup [s%dc%d]\n",
-						clients, span+1,chan+1);
-
-				cause=16;
-				socket_printf(woomera->socket, "event hangup %s"
-                                                  "cause: %s%s"
-                                                  "q931-cause-code: %d%s",
-                                                 WOOMERA_LINE_SEPERATOR,
-                                                 q931_rel_to_str(cause),
-                                                 WOOMERA_LINE_SEPERATOR,
-                                                 cause,
-                                                 WOOMERA_RECORD_SEPERATOR);
-
-				socket_printf(woomera->socket, "404 Hangup on multiple session%s"
-						WOOMERA_RECORD_SEPERATOR);
-
-				woomera_set_flag(woomera, WFLAG_HANGUP);
-                return;
-			}
-			log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "WOOMERA CMD: Hanging up channel [s%dc%d]\n",
-						span+1,chan+1);
-		}
-#endif
-
 		server.process_table[span][chan].dev=woomera;
 		strncpy(woomera->session,unique_id,sizeof(woomera->session));
-		sprintf(ifname,"s%dc%d",span+1,chan+1);
+		sprintf(ifname,"w%dg%d",span+1,chan+1);
 		woomera_set_interface(woomera, ifname);
 
 		woomera->span=span;
 		woomera->chan=chan;
-
-		/* Save bearer cap that came in on incoming call event */
-		woomera->bearer_cap = server.process_table[span][chan].bearer_cap;
 
 		/* set it to 1 so that queued digits are checked on proceed message */
 		woomera->check_digits = 1;
 		
 		pthread_mutex_unlock(&server.process_lock);
 		
-		log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "WOOMERA Got New If=%s Session %s\n", 	
+		log_printf(3, woomera->log, "WOOMERA Got New If=%s Session %s\n", 	
 			woomera->interface, woomera->session);
 	
 	
 	} else if (strncmp(woomera->session,unique_id,sizeof(woomera->session))) {
 
-		cause=81;
-		socket_printf(woomera->socket, "EVENT HANGUP %s"
-										"Cause: %s%s"
-										"Q931-Cause-Code: %d%s",
-										WOOMERA_LINE_SEPERATOR,
-										q931_rel_to_str(cause),
-										WOOMERA_LINE_SEPERATOR,
-										cause,
-										WOOMERA_RECORD_SEPERATOR);
+		 cause=34;
+                 socket_printf(woomera->socket, "EVENT HANGUP %s"
+                                                  "Cause: %s%s"
+                                                  "Q931-Cause-Code: %d%s",
+                                                 WOOMERA_LINE_SEPERATOR,
+                                                 q931_rel_to_str(cause),
+                                                 WOOMERA_LINE_SEPERATOR,
+                                                 cause,
+                                                 WOOMERA_RECORD_SEPERATOR);
 
 		socket_printf(woomera->socket, "404 Session Mis-match%s"
 						WOOMERA_RECORD_SEPERATOR);
-		woomera_set_flag(woomera, WFLAG_HANGUP);
+		 woomera_set_flag(woomera, WFLAG_HANGUP);
 		return;
 	}
 
-	if (!strcasecmp(wmsg->command, "rbs")) {
-		
-		log_printf(SMG_LOG_PROD, server.log,
-				"WOOMERA CMD: RBS Received: [%s]  Digit %s Body %s\n",
-					woomera->interface, wmsg->command_args, wmsg->body);
-	
-		wanpipe_send_rbs(woomera,wmsg->body);
-	
-		socket_printf(woomera->socket, "200 RBS OK%s"
-						"Unique-Call-Id: %s%s",
-						WOOMERA_LINE_SEPERATOR, 
-						woomera->session,
-						WOOMERA_RECORD_SEPERATOR);
 
-	} else if (!strcasecmp(wmsg->command, "dtmf")) {
+    	if (!strcasecmp(wmsg->command, "dtmf")) {
 		
-		log_printf(SMG_LOG_WOOMERA, woomera->log, 
-				"WOOMERA CMD: DTMF Received: [%s]  Digit %s Body %s\n", 	
-					woomera->interface, wmsg->command_args, wmsg->body);
+		log_printf(3, woomera->log, "WOOMERA CMD: DTMF Received: [%s]  Digit %s Body %s\n", 	
+			woomera->interface, wmsg->command_args, wmsg->body);
 	
 		wanpipe_send_dtmf(woomera,wmsg->body);
 	
@@ -3725,6 +3143,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 		char *cause = woomera_message_header(wmsg, "cause");
 		char *q931cause = woomera_message_header(wmsg, "Q931-Cause-Code");
 
+
 		if (q931cause && atoi(q931cause)) {
 			woomera_set_cause_tosig(woomera,atoi(q931cause));
 		}
@@ -3732,7 +3151,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 		span=woomera->span;
 		chan=woomera->chan;
 			
-		log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "WOOMERA CMD: Hangup Received: [%s] MEDIA EXIST Cause=%s\n",
+		log_printf(3, woomera->log, "WOOMERA CMD: Hangup Received: [%s] MEDIA EXIST Cause=%s\n",
 				 	woomera->interface,cause);
 		
 		if (smg_validate_span_chan(span,chan) != 0) {
@@ -3746,7 +3165,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 		}
 
 	
-		log_printf(SMG_LOG_DEBUG_CALL, woomera->log, "Hangup Received: [s%dc%d]\n", 	
+		log_printf(2, woomera->log, "Hangup Received: [w%dg%d]\n", 	
 				span+1,chan+1);	
 
 		
@@ -3759,10 +3178,11 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 						WOOMERA_LINE_SEPERATOR, 
 						woomera->session,
 						WOOMERA_RECORD_SEPERATOR);
-		
+ 
+	
      } else if (!strcasecmp(wmsg->command, "proceed")) {
 		
-		log_printf(SMG_LOG_WOOMERA, woomera->log, "WOOMERA CMD: %s [%s]\n",
+		log_printf(3, woomera->log, "WOOMERA CMD: %s [%s]\n",
 			wmsg->command, woomera->interface);
 		
 		socket_printf(woomera->socket, 
@@ -3772,21 +3192,17 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 				WOOMERA_LINE_SEPERATOR,
 				woomera->session,
 				WOOMERA_RECORD_SEPERATOR);
-		
-	 } else if (!strcasecmp(wmsg->command, "progress")) {
-			
-		handle_woomera_progress(woomera,wmsg);
-
-		 
+        			
     } else if ((media = !strcasecmp(wmsg->command, "media")) || 
                (answer = !strcasecmp(wmsg->command, "answer")) ||
 	       (accept = !strcasecmp(wmsg->command, "accept"))) {
 	       
 		handle_woomera_media_accept_answer(woomera, wmsg, media,answer,accept);
+
     
 
     } else {
-	    log_printf(SMG_LOG_ALL, server.log,"WOOMERA INVALID EVENT:  %s  [%s] \n",
+	    log_printf(0, server.log,"WOOMERA INVALID EVENT:  %s  [%s] \n",
 					wmsg->command,wmsg->callid);
 		socket_printf(woomera->socket, "501 Command '%s' not implemented%s", 
 				wmsg->command, WOOMERA_RECORD_SEPERATOR);
@@ -3811,7 +3227,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 static void handle_call_answer(short_signal_event_t *event)
 {
     	struct woomera_interface *woomera = NULL;
-		int kill = 0;
+	int kill = 0;
 
     	pthread_mutex_lock(&server.process_lock);
     	woomera = server.process_table[event->span][event->chan].dev;
@@ -3824,13 +3240,13 @@ static void handle_call_answer(short_signal_event_t *event)
 		woomera->timeout = 0;
 
 		if (!woomera->raw) {
-			log_printf(SMG_LOG_PROD, server.log, "Refusing to answer call with no media!\n");
+			log_printf(1, server.log, "Refusing to answer call with no media!\n");
 			kill++;
 			goto handle_call_answer_end;
 		}
 
 		if (woomera_test_flag(woomera, WFLAG_ANSWER)) {
-			log_printf(SMG_LOG_PROD, server.log, "Refusing to double-answer a call!\n");
+			log_printf(1, server.log, "Refusing to double-answer a call!\n");
 			kill++;
 			goto handle_call_answer_end;
 		}
@@ -3838,23 +3254,23 @@ static void handle_call_answer(short_signal_event_t *event)
 		woomera_set_flag(woomera, WFLAG_ANSWER);
 
 		if (woomera->span != event->span || woomera->chan != event->chan) {
-			log_printf(SMG_LOG_PROD, server.log, "Refusing to start media on a different channel from the one we agreed on.!\n");
+			log_printf(1, server.log, "Refusing to start media on a different channel from the one we agreed on.!\n");
 			kill++;
 			goto handle_call_answer_end;
 		}
 
 		if (woomera_test_flag(woomera, WFLAG_HANGUP)) {
-			log_printf(SMG_LOG_PROD, server.log, "Refusing to answer a dead call!\n");
+			log_printf(1, server.log, "Refusing to answer a dead call!\n");
 			kill++;
 		} else {
 			int err;
 			err=0;
-			sprintf(callid, "s%dc%d", event->span + 1, event->chan + 1);
+			sprintf(callid, "w%dg%d", event->span + 1, event->chan + 1);
 			woomera_set_interface(woomera, callid);
 #ifndef WOOMERA_EARLY_MEDIA
 			err=launch_media_thread(woomera);
 			if (err) {
-				log_printf(SMG_LOG_ALL, server.log,"ERROR: Failed to Launch Call [%s]\n",
+				log_printf(0, server.log,"ERROR: Failed to Launch Call [%s]\n",
 					woomera->interface);
 
 							 
@@ -3887,7 +3303,7 @@ static void handle_call_answer(short_signal_event_t *event)
 #endif
 
 			if (!kill) {
-				new_woomera_event_printf(&wevent, "EVENT CONNECT s%dc%d%s"
+				new_woomera_event_printf(&wevent, "EVENT CONNECT w%dg%d%s"
 								  "Unique-Call-Id: %s%s",
 									 event->span+1,
 									 event->chan+1,
@@ -3899,7 +3315,7 @@ static void handle_call_answer(short_signal_event_t *event)
 			}
 		}
         } else {
-		log_printf(SMG_LOG_PROD, server.log, "Answer requested on non-existant session. [s%dc%d]\n",
+		log_printf(1, server.log, "Answer requested on non-existant session. [w%dg%d]\n",
 					event->span+1, event->chan+1);
 		kill++;
 	}
@@ -3920,10 +3336,10 @@ handle_call_answer_end:
 					SIGBOOST_EVENT_CALL_STOPPED,
 					SIGBOOST_RELEASE_CAUSE_NORMAL);
 									
-			log_printf(SMG_LOG_PROD, server.log, "Sent CALL STOP to Answer without session [s%dc%d]\n", 
+			log_printf(1, server.log, "Sent CALL STOP to Answer without session [w%dg%d]\n", 
 					event->span+1, event->chan+1);
 #endif
-			log_printf(SMG_LOG_ALL, server.log, "WARNING: Received Answer with no session [s%dc%d]\n", 
+			log_printf(0, server.log, "WARNING: Received Answer with no session [w%dg%d]\n", 
 					event->span+1, event->chan+1);
 		}
 	}
@@ -3939,13 +3355,13 @@ static void handle_call_start_ack(short_signal_event_t *event)
 		char callid[80];
 			
 		if (woomera_test_flag(woomera, WFLAG_HANGUP)) {
-			log_printf(SMG_LOG_PROD, server.log, "Refusing to ack a dead call!\n");
+			log_printf(1, server.log, "Refusing to ack a dead call!\n");
 			kill++;
 		} else {
 			int err, span, chan;
 			
 			pull_from_holding_tank(event->call_setup_id,event->span,event->chan);
-			sprintf(callid, "s%dc%d", event->span + 1, event->chan + 1);
+			sprintf(callid, "w%dg%d", event->span + 1, event->chan + 1);
 			
 			span = event->span;
 			chan = event->chan;
@@ -3959,7 +3375,7 @@ static void handle_call_start_ack(short_signal_event_t *event)
     			struct woomera_interface *tmp_woomera = server.process_table[span][chan].dev;
 		 		woomera_set_flag(tmp_woomera,WFLAG_HANGUP);
 				woomera_set_flag(tmp_woomera,WFLAG_MEDIA_END);
-				log_printf(SMG_LOG_ALL,server.log,"Call Overrun on [s%dc%d] - Call ACK!\n", event->span+1, event->chan+1);
+				log_printf(0,server.log,"Call Overrun on [w%dg%d] - Call ACK!\n", event->span+1, event->chan+1);
 				kill++;
 			} 
 
@@ -3973,8 +3389,7 @@ static void handle_call_start_ack(short_signal_event_t *event)
 			       sizeof(server.process_table[span][chan].digits));
 			
 			server.process_table[span][chan].digits_len = 0;
-			memset(&server.process_table[event->span][event->chan].rbs_relay,0,
-					sizeof(server.process_table[event->span][event->chan].rbs_relay));
+			
 			pthread_mutex_unlock(&server.process_lock);
 			
 			if (kill) {
@@ -3984,7 +3399,7 @@ static void handle_call_start_ack(short_signal_event_t *event)
 #ifdef WOOMERA_EARLY_MEDIA
 			err=launch_media_thread(woomera);
 			if (err) {
-				log_printf(SMG_LOG_ALL, server.log,"ERROR: Failed to Launch Call [%s]\n",
+				log_printf(0, server.log,"ERROR: Failed to Launch Call [%s]\n",
 					woomera->interface);
 					
 	 
@@ -4018,7 +3433,7 @@ static void handle_call_start_ack(short_signal_event_t *event)
 #endif
 			if (!kill) {
 				
-				new_woomera_event_printf(&wevent, "EVENT PROCEED s%dc%d%s"
+				new_woomera_event_printf(&wevent, "EVENT PROCEED w%dg%d%s"
 								  "Channel-Name: g%d/%d%s"
 								  "Unique-Call-Id: %s%s",
 								event->span+1,
@@ -4041,13 +3456,13 @@ static void handle_call_start_ack(short_signal_event_t *event)
 
 				enqueue_event(woomera, &wevent,EVENT_FREE_DATA);
 	
-				log_printf(SMG_LOG_DEBUG_MISC, server.log, "Call Answered Event ID = %d  Device = s%dc%d!\n",
+				log_printf(2, server.log, "Call Answered Event ID = %d  Device = w%dg%d!\n",
 						event->call_setup_id,woomera->span+1,woomera->chan+1);
 			}
 		}
 	} else {
-		log_printf(SMG_LOG_PROD, server.log, 
-			"Event (START ACK) %d referrs to a non-existant session (%d) [s%dc%d]!\n",
+		log_printf(1, server.log, 
+			"Event (START ACK) %d referrs to a non-existant session (%d) [w%dg%d]!\n",
 				event->event_id, event->call_setup_id,event->span+1, event->chan+1);
 		kill++;
 	}
@@ -4063,7 +3478,7 @@ woomera_call_ack_skip:
 					SIGBOOST_EVENT_CALL_STOPPED,
 					SIGBOOST_RELEASE_CAUSE_NORMAL);
 							
-			log_printf(SMG_LOG_PROD, server.log, "Sent CALL STOP to CALL START ACK without session [s%dc%d]\n", 
+			log_printf(1, server.log, "Sent CALL STOP to CALL START ACK without session [w%dg%d]\n", 
 					event->span+1, event->chan+1);
 		}
 	}
@@ -4095,7 +3510,7 @@ static void handle_call_start_nack(short_signal_event_t *event)
 		struct woomera_event wevent;
 
 		if (woomera_test_flag(woomera, WFLAG_HANGUP)) {
-			log_printf(SMG_LOG_ALL, server.log, "Event CALL START NACK on hungup call [%d]!\n",
+			log_printf(0, server.log, "Event CALL START NACK on hungup call [%d]!\n",
 				event->call_setup_id);
 			ack++;
 		} else {
@@ -4103,7 +3518,7 @@ static void handle_call_start_nack(short_signal_event_t *event)
 			woomera_set_cause_topbx(woomera,event->release_cause);	
 			woomera_set_flag(woomera, (WFLAG_HANGUP|WFLAG_HANGUP_NACK_ACK)); 
 
-			new_woomera_event_printf(&wevent, "EVENT HANGUP s%dc%d%s"
+			new_woomera_event_printf(&wevent, "EVENT HANGUP w%dg%d%s"
 							  "Unique-Call-Id: %s%s"
 							  "Cause: %s%s"
 							  "Q931-Cause-Code: %d%s", 
@@ -4162,12 +3577,11 @@ static void handle_call_start_nack(short_signal_event_t *event)
 		
 		if (woomera) {
 			
-			log_printf(SMG_LOG_DEBUG_CALL, server.log, "Event START NACK on s%dc%d ptr=%p ms=%p\n",
+			log_printf(2, server.log, "Event START NACK on w%dg%d ptr=%p ms=%p\n",
 					woomera->span+1,woomera->chan+1,woomera,woomera->ms);
 
 			if (!woomera_test_flag(woomera,WFLAG_HANGUP)){
-				if (event->release_cause == SIGBOOST_CALL_SETUP_CSUPID_DBL_USE ||
-				    event->release_cause == SIGBOOST_CALL_SETUP_NACK_ALL_CKTS_BUSY) {
+				if (event->release_cause == SIGBOOST_CALL_SETUP_CSUPID_DBL_USE) {
 					woomera_set_cause_topbx(woomera,17);
 				} else {
 					woomera_set_cause_topbx(woomera,event->release_cause);
@@ -4182,32 +3596,31 @@ static void handle_call_start_nack(short_signal_event_t *event)
 		} else {
 			/* Valid state when we are not in autoacm mode */
 			ack++;
-			log_printf(SMG_LOG_DEBUG_MISC, server.log, "Event: NACK no woomera on span chan [s%dc%d]!\n",
+			log_printf(3, server.log, "Event: NACK no woomera on span chan [w%dg%d]!\n",
 				event->span+1, event->chan+1);
 		}
   				
 	} else {
-		log_printf(SMG_LOG_ALL, server.log, 
-			"Error: Start Nack Invalid State Should not happen [%d] [s%dc%d]!\n",
+		log_printf(0, server.log, 
+			"Error: Start Nack Invalid State Should not happen [%d] [w%dg%d]!\n",
 				event->call_setup_id, event->span+1, event->chan+1);
 		ack++;
 	}
 
 	if (event->release_cause == SIGBOOST_CALL_SETUP_NACK_ALL_CKTS_BUSY) {
-		smg_all_ckt_busy(woomera->trunk_group);
-		log_printf(SMG_LOG_ALL, server.log, "WARNING: All ckt busy Timeout=%i on tg=%i!\n",
-											 server.all_ckt_busy[woomera->trunk_group], woomera->trunk_group);	
+		smg_all_ckt_busy();
+		log_printf(0, server.log, "WARNING: All ckt busy Timeout=%i!\n",server.all_ckt_busy);	
 	} 
 	if (event->release_cause == SIGBOOST_CALL_SETUP_CSUPID_DBL_USE) {
-		log_printf(SMG_LOG_ALL, server.log, "WARNING: Double use on [s%ic%i] setup id %i!\n",
+		log_printf(0, server.log, "WARNING: Double use on [w%ig%i] setup id %i!\n",
 			event->span+1,event->chan+1,event->call_setup_id);	
 	}
 
 #warning "Ignoring CALL GAP"
 #if 0
 	if (event->release_cause == SIGBOOST_CALL_SETUP_NACK_AUTO_CALL_GAP) {
-		log_printf(SMG_LOG_ALL, server.log, "WARNING: Call Gapping Detected!\n");	
-		smg_all_ckt_gap(woomera->trunk_group);
+		log_printf(0, server.log, "WARNING: Call Gapping Detected!\n");	
+		smg_all_ckt_gap();
  	} 
 #endif
 	
@@ -4226,7 +3639,7 @@ static void handle_call_start_nack(short_signal_event_t *event)
 				  0);
 		
 		if (!woomera) {	
-		log_printf(SMG_LOG_DEBUG_CALL, server.log, "Event (NACK ACK) %d referrs to a non-existant session (%d) [s%dc%d]!\n",
+		log_printf(2, server.log, "Event (NACK ACK) %d referrs to a non-existant session (%d) [w%dg%d]!\n",
 				event->event_id,event->call_setup_id, event->span+1, event->chan+1);
 		}
 	}
@@ -4248,8 +3661,8 @@ static void handle_call_loop_start(short_signal_event_t *event)
 				  17);
 
 	
-		log_printf(SMG_LOG_PROD, server.log, 
-			"Sent (From Handle Loop START) Call Busy SIGBOOST_EVENT_CALL_START_NACK  [s%dc%d] ptr=%d\n", 
+		log_printf(1, server.log, 
+			"Sent (From Handle Loop START) Call Busy SIGBOOST_EVENT_CALL_START_NACK  [w%dg] ptr=%d\n", 
 				event->span+1, event->chan+1, server.process_table[event->span][event->chan].dev);
 	
 		pthread_mutex_unlock(&server.process_lock);
@@ -4257,7 +3670,7 @@ static void handle_call_loop_start(short_signal_event_t *event)
 				
     	}	
 
- 	sprintf(callid, "s%dc%d", event->span+1,event->chan+1);
+ 	sprintf(callid, "w%dg%d", event->span+1,event->chan+1);
         sprintf(server.process_table[event->span][event->chan].session,
                                          "%s-%i-%i",callid,rand(),rand());
         session=server.process_table[event->span][event->chan].session;
@@ -4272,8 +3685,8 @@ static void handle_call_loop_start(short_signal_event_t *event)
 			  -1,
 			  SIGBOOST_EVENT_CALL_START_NACK,
 			  17);
-		log_printf(SMG_LOG_PROD, server.log, 
-		"Sent (From Handle Loop START) Call Busy SIGBOOST_EVENT_CALL_START_NACK  [s%dc%d] ptr=%d\n", 
+		log_printf(1, server.log, 
+		"Sent (From Handle Loop START) Call Busy SIGBOOST_EVENT_CALL_START_NACK  [w%dg] ptr=%d\n", 
 			event->span+1, event->chan+1, server.process_table[event->span][event->chan].dev);
 	}
 		
@@ -4288,8 +3701,6 @@ static void handle_call_start(call_signal_event_t *event)
 	struct woomera_event wevent;
 	char callid[20];
 	char *session;
-	struct woomera_interface *tmp_woomera=NULL;
-	int clients;
 
 	remove_end_of_digits_char((unsigned char*)event->called_number_digits);
 	remove_end_of_digits_char((unsigned char*)event->calling_number_digits);
@@ -4299,20 +3710,14 @@ static void handle_call_start(call_signal_event_t *event)
 		validate_number((unsigned char*)event->calling_number_digits);
 	}
 
-	if (smg_validate_span_chan(event->span,event->chan)) {
-		log_printf(0,server.log,
-			"Error: invalid span=% chan=%i on incoming call [s%dc%d] - Call START!\n", 
-				event->span+1, event->chan+1, event->span+1,event->chan+1);
-		return;	
-	}
-
 	pthread_mutex_lock(&server.process_lock);
 
-	if ((tmp_woomera=server.process_table[event->span][event->chan].dev)) {
+	if (server.process_table[event->span][event->chan].dev) {
 
+		struct woomera_interface *tmp_woomera = server.process_table[event->span][event->chan].dev;
 		woomera_set_flag(tmp_woomera,WFLAG_HANGUP);
 		woomera_set_flag(tmp_woomera,WFLAG_MEDIA_END);
-		log_printf(SMG_LOG_ALL,server.log,"Call Overrun on [s%dc%d] - Call START!\n", event->span+1, event->chan+1);
+		log_printf(0,server.log,"Call Overrun on [w%dg%d] - Call START!\n", event->span+1, event->chan+1);
 
 		isup_exec_command(event->span,
 				event->chan,
@@ -4320,25 +3725,21 @@ static void handle_call_start(call_signal_event_t *event)
 				SIGBOOST_EVENT_CALL_START_NACK,
 				17);
 
-		log_printf(SMG_LOG_ALL, server.log,
-			"Sent (From Handle START) Call Busy SIGBOOST_EVENT_CALL_START_NACK  [s%dc%d]\n",
+		log_printf(0, server.log,
+			"Sent (From Handle START) Call Busy SIGBOOST_EVENT_CALL_START_NACK  [w%dg%d]\n",
 				event->span+1, event->chan+1);
 
 		pthread_mutex_unlock(&server.process_lock);
 		return;
 	}
 	
-	sprintf(callid, "s%dc%d", event->span+1,event->chan+1);
+	sprintf(callid, "w%dg%d", event->span+1,event->chan+1);
 	sprintf(server.process_table[event->span][event->chan].session,
 					 "%s-%i-%i",callid,rand(),rand()); 
 	session=server.process_table[event->span][event->chan].session;
 	server.process_table[event->span][event->chan].dev = NULL;
 	memset(server.process_table[event->span][event->chan].digits, 0, sizeof(server.process_table[event->span][event->chan].digits));
 	server.process_table[event->span][event->chan].digits_len = 0;
-	server.process_table[event->span][event->chan].bearer_cap = event->bearer.capability;
-    server.process_table[event->span][event->chan].clients=0;
- 	memset(&server.process_table[event->span][event->chan].rbs_relay,0,
-			sizeof(server.process_table[event->span][event->chan].rbs_relay));
 	pthread_mutex_unlock(&server.process_lock);
     	
 	if (autoacm) {
@@ -4350,7 +3751,7 @@ static void handle_call_start(call_signal_event_t *event)
 	}	
     
 
-	log_printf(SMG_LOG_DEBUG_8,server.log,"BEARER %i , UIL1P = %i\n",
+	log_printf(4,server.log,"BEARER %i , UIL1P = %i\n",
 		event->bearer.capability,event->bearer.uil1p);
 
 	if (event->bearer.uil1p == 0) {
@@ -4361,18 +3762,14 @@ static void handle_call_start(call_signal_event_t *event)
 		}
 	}
 
-    	new_woomera_event_printf(&wevent, "EVENT INCOMING s%dc%d%s"
+    	new_woomera_event_printf(&wevent, "EVENT INCOMING w%dg%d%s"
 					  		 "Unique-Call-Id: %s%s"
 							 "Remote-Number: %s%s"
 							 "Remote-Name: %s%s"
 #if defined(BRI_PROT)
 							 "Protocol: BRI%s"
 #else
-#if defined(PRI_PROT)
-							 "Protocol: PRI%s"
-#else
 							 "Protocol: SS7%s"
-#endif
 #endif
 							 "User-Agent: sangoma_mgd%s"
 							 "Local-Number: %s%s"
@@ -4414,8 +3811,7 @@ static void handle_call_start(call_signal_event_t *event)
 							 WOOMERA_RECORD_SEPERATOR
 						 );
 
-	clients=enqueue_event_on_listeners(&wevent);
-	if (!clients) {
+	if (!enqueue_event_on_listeners(&wevent)) {
 		
 		pthread_mutex_lock(&server.process_lock);
 		server.process_table[event->span][event->chan].dev = NULL;
@@ -4428,8 +3824,8 @@ static void handle_call_start(call_signal_event_t *event)
 					-1,
 					SIGBOOST_EVENT_CALL_STOPPED,
 					17);
-			log_printf(SMG_LOG_ALL, server.log, 
-				"CALL INCOMING: Enqueue Error Sent SIGBOOST_EVENT_CALL_STOPPED  [s%dc%d]\n", 
+			log_printf(0, server.log, 
+				"CALL INCOMING: Enqueue Error Sent SIGBOOST_EVENT_CALL_STOPPED  [w%dg%d]\n", 
 					event->span+1, event->chan+1);
 
 		} else {
@@ -4438,16 +3834,12 @@ static void handle_call_start(call_signal_event_t *event)
 					  -1,
 					  SIGBOOST_EVENT_CALL_START_NACK,
 					  17);
-			log_printf(SMG_LOG_ALL, server.log, 
-				"CALL INCOMING: Enqueue Error Sent SIGBOOST_EVENT_CALL_START_NACK  [s%dc%d]\n", 
+			log_printf(0, server.log, 
+				"CALL INCOMING: Enqueue Error Sent SIGBOOST_EVENT_CALL_START_NACK  [w%dg%d]\n", 
 					event->span+1, event->chan+1);
 
 		}
 	
-	} else {
-		//pthread_mutex_lock(&server.process_lock);
-		server.process_table[event->span][event->chan].clients = clients;
-		//pthread_mutex_unlock(&server.process_lock);
 	}
 	
 	destroy_woomera_event_data(&wevent);
@@ -4460,20 +3852,20 @@ static void handle_incoming_digit(call_signal_event_t *event)
 	int digits_len;
 	
 	if (smg_validate_span_chan(event->span,event->chan)) {
-		log_printf(SMG_LOG_DEBUG_CALL, server.log, "Event DTMF on invalid span chan [s%dc%d] !\n",
+		log_printf(2, server.log, "Event DTMF on invalid span chan [w%dg%d] !\n",
 			   event->span+1, event->chan+1);
 		return;
 	} 
 	
 	
 	if (!event->called_number_digits_count) {
-		log_printf(SMG_LOG_ALL, server.log, "Error Incoming digit with len %s %d [s%dc%d]\n",
+		log_printf(0, server.log, "Error Incoming digit with len %s %d [w%dg%d]\n",
 			   	event->called_number_digits,
 			   	event->called_number_digits_count,
 			   	event->span+1, event->chan+1);
 	}
 	
-	log_printf(SMG_LOG_DEBUG_9, server.log, "Queuing incoming digits %s [s%dc%d]\n", 
+	log_printf(5, server.log, "Queuing incoming digits %s [w%dg%d]\n", 
 		   			event->called_number_digits,
      					event->span+1, event->chan+1);
 		
@@ -4500,47 +3892,40 @@ static void handle_incoming_digit(call_signal_event_t *event)
 
 static void handle_gap_abate(short_signal_event_t *event)
 {
-	log_printf(SMG_LOG_ALL, server.log, "NOTICE: GAP Cleared!\n", 
+	log_printf(0, server.log, "NOTICE: GAP Cleared!\n", 
 			event->span+1, event->chan+1);
-	smg_clear_ckt_gap(event->trunk_group+1);
+	smg_clear_ckt_gap();
 }
 
 static void handle_restart(call_signal_connection_t *mcon, short_signal_event_t *event)
 {
      	if (!woomera_test_flag(&server.master_connection, WFLAG_MONITOR_RUNNING)) {
-            log_printf(SMG_LOG_ALL, server.log,"ERROR! Monitor Thread not running!\n");
+                log_printf(0, server.log,"ERROR! Monitor Thread not running!\n");
         } else {
-			/* Clear Reset */	
-			/* Tell all threads to go down */
+                int err;
+		/* Clear Reset */	
+		/* Tell all threads to go down */
 
-			log_printf(SMG_LOG_ALL, server.log,
-									   "RESTART Received: resetting all threads\n");
+		log_printf(0, server.log,
+                                   "RESTART Received: resetting all threads\n");
 
-			int i=0;
-			for ( i =0 ; i < SMG_MAX_TG ; i++ ){
-				smg_all_ckt_busy(i);
-			}
-			woomera_set_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
-			gettimeofday(&server.restart_timeout,NULL);
+		woomera_set_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
+		sleep(5);
 
-#if 0
-			sleep(5);
-
-			clear_all_holding_tank();
-			
-			sleep(2);
-			
-			event->event_id = SIGBOOST_EVENT_SYSTEM_RESTART_ACK;	
-			err=call_signal_connection_write(&server.mcon, (call_signal_event_t*)event);
-					if (err < 0) {
-							log_printf(SMG_LOG_ALL, server.log,
-									   "Critical System Error: Failed to tx on ISUP socket [%s]: %s\n",
-											 strerror(errno));
-					}
-			
-			smg_all_ckt_busy();
-			woomera_clear_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
-#endif
+		clear_all_holding_tank();
+		
+		sleep(2);
+		
+	    event->event_id = SIGBOOST_EVENT_SYSTEM_RESTART_ACK;	
+		err=call_signal_connection_write(&server.mcon, (call_signal_event_t*)event);
+                if (err < 0) {
+                        log_printf(0, server.log,
+                                   "Critical System Error: Failed to tx on ISUP socket [%s]: %s\n",
+                                         strerror(errno));
+                }
+		
+		smg_all_ckt_busy();
+		woomera_clear_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
         }
 
 }
@@ -4573,7 +3958,7 @@ static void handle_remove_loop(short_signal_event_t *event)
                 /* We have to close the socket because
                    At this point we are release span chan */
 
-                log_printf(SMG_LOG_DEBUG_MISC, server.log, "Event REMOVE LOOP on s%dc%d ptr=%p ms=%p\n",
+                log_printf(3, server.log, "Event REMOVE LOOP on w%dg%d ptr=%p ms=%p\n",
                                 woomera->span+1,woomera->chan+1,woomera,woomera->ms);
 
 	}
@@ -4582,12 +3967,11 @@ static void handle_remove_loop(short_signal_event_t *event)
 
 static void handle_call_stop(short_signal_event_t *event)
 {
-    struct woomera_interface *woomera;
+    	struct woomera_interface *woomera;
 	int ack=0;
 
-	woomera = NULL;
-    pthread_mutex_lock(&server.process_lock);
-    woomera = server.process_table[event->span][event->chan].dev;
+    	pthread_mutex_lock(&server.process_lock);
+    	woomera = server.process_table[event->span][event->chan].dev;
 	if (woomera) {
 
 		if (!woomera_test_flag(woomera, WFLAG_WAIT_FOR_NACK_ACK_SENT) && 
@@ -4606,7 +3990,7 @@ static void handle_call_stop(short_signal_event_t *event)
 	memset(server.process_table[event->span][event->chan].session,0,SMG_SESSION_NAME_SZ);
 	pthread_mutex_unlock(&server.process_lock);
     
-	if (woomera) {
+        if (woomera) {
 	
 		woomera_set_cause_topbx(woomera,event->release_cause);
 	
@@ -4616,7 +4000,7 @@ static void handle_call_stop(short_signal_event_t *event)
 		/* We have to close the socket because
 	           At this point we are release span chan */
 
-		log_printf(SMG_LOG_DEBUG_MISC, server.log, "Event CALL STOP on s%dc%d ptr=%p ms=%p\n",
+		log_printf(3, server.log, "Event CALL STOP on w%dg%d ptr=%p ms=%p\n",
 				woomera->span+1,woomera->chan+1,woomera,woomera->ms);
 
 	} else {
@@ -4635,7 +4019,7 @@ static void handle_call_stop(short_signal_event_t *event)
 		
 	if (!woomera){
 		/* This is allowed on incoming call if remote app does not answer it */
-		log_printf(SMG_LOG_DEBUG_MISC, server.log, "Event CALL STOP referrs to a non-existant session [s%dc%d]!\n",
+		log_printf(3, server.log, "Event CALL STOP referrs to a non-existant session [w%dg%d]!\n",
 			event->span+1, event->chan+1);
 	}
 }
@@ -4643,11 +4027,11 @@ static void handle_call_stop(short_signal_event_t *event)
 static void handle_heartbeat(short_signal_event_t *event)
 {
 	if (!woomera_test_flag(&server.master_connection, WFLAG_MONITOR_RUNNING)) {
-		log_printf(SMG_LOG_ALL, server.log,"ERROR! Monitor Thread not running!\n");
+		log_printf(0, server.log,"ERROR! Monitor Thread not running!\n");
 	} else {	
 		int err=call_signal_connection_writep(&server.mconp, (call_signal_event_t*)event);
 		if (err < 0) {
-			log_printf(SMG_LOG_ALL, server.log,
+			log_printf(0, server.log,
                                    "Critical System Error: Failed to tx on ISUP socket [%s]: %s\n",
                                          strerror(errno));
 		}
@@ -4669,14 +4053,14 @@ static void handle_call_stop_ack(short_signal_event_t *event)
 
 	
 	if (woomera) {
-		log_printf(SMG_LOG_DEBUG_CALL, server.log, "Stop Ack on [s%dc%d] [Setup ID: %d] [%s]!\n",
+		log_printf(2, server.log, "Stop Ack on [w%dg%d] [Setup ID: %d] [%s]!\n",
 				event->span+1, event->chan+1, event->call_setup_id,
 				woomera->interface);
 
 		woomera_clear_flag(woomera, WFLAG_WAIT_FOR_STOPPED_ACK);
 
 	} else {
-		log_printf(SMG_LOG_DEBUG_CALL, server.log, "Event CALL_STOP_ACK(%d) referrs to a non-existant session [s%dc%d] [Setup ID: %d]!\n",
+		log_printf(2, server.log, "Event CALL_STOP_ACK(%d) referrs to a non-existant session [w%dg%d] [Setup ID: %d]!\n",
 				event->event_id, event->span+1, event->chan+1, event->call_setup_id);
 	}
 	
@@ -4714,14 +4098,14 @@ static void handle_call_start_nack_ack(short_signal_event_t *event)
 			/* Possible if incoming call is NACKed due to
 			 * woomera client being down, in this case no
 		         * woomera thread is created */
-			log_printf(SMG_LOG_DEBUG_8, server.log, 
-			"Event NACK ACK [s%dc%d] with valid span/chan no dev!\n",
+			log_printf(4, server.log, 
+			"Event NACK ACK [w%dg%d] with valid span/chan no dev!\n",
 				event->span+1, event->chan+1);
 		}
 
 	} else {
-		log_printf(SMG_LOG_DEBUG_CALL, server.log, 
-			"Event NACK ACK referrs to a non-existant session [s%dc%d] [Setup ID: %d]!\n",
+		log_printf(2, server.log, 
+			"Event NACK ACK referrs to a non-existant session [w%dg%d] [Setup ID: %d]!\n",
 				event->span+1, event->chan+1, event->call_setup_id);
 	}
 	
@@ -4783,7 +4167,7 @@ static int parse_ss7_event(call_signal_connection_t *mcon, short_signal_event_t 
 			handle_incoming_digit((call_signal_event_t*)event);
 			break;
 	default:
-			log_printf(SMG_LOG_ALL, server.log, "Warning no handler implemented for [%s val:%d]\n", 
+			log_printf(0, server.log, "Warning no handler implemented for [%s val:%d]\n", 
 				call_signal_event_id_name(event->event_id), event->event_id);
 			break;
 	}
@@ -4800,9 +4184,9 @@ static void *monitor_thread_run(void *obj)
 	call_signal_connection_t *mcon=&server.mcon;
 	call_signal_connection_t *mconp=&server.mconp;
 
-	pthread_mutex_lock(&server.thread_count_lock);
+    	pthread_mutex_lock(&server.thread_count_lock);
 	server.thread_count++;
-	pthread_mutex_unlock(&server.thread_count_lock);
+    	pthread_mutex_unlock(&server.thread_count_lock);
 	
 	woomera_set_flag(&server.master_connection, WFLAG_MONITOR_RUNNING);
 	
@@ -4811,7 +4195,7 @@ static void *monitor_thread_run(void *obj)
 					mcon->cfg.local_port,
 					mcon->cfg.remote_ip,
 					mcon->cfg.remote_port) < 0) {
-			log_printf(SMG_LOG_ALL, server.log, "Error: Opening MCON Socket [%d] %s\n", 
+			log_printf(0, server.log, "Error: Opening MCON Socket [%d] %s\n", 
 					mcon->socket,strerror(errno));
 			exit(-1);
 	} 
@@ -4821,7 +4205,7 @@ static void *monitor_thread_run(void *obj)
 					mconp->cfg.local_port,
 					mconp->cfg.remote_ip,
 					mconp->cfg.remote_port) < 0) {
-			log_printf(SMG_LOG_ALL, server.log, "Error: Opening MCONP Socket [%d] %s\n", 
+			log_printf(0, server.log, "Error: Opening MCONP Socket [%d] %s\n", 
 					mconp->socket,strerror(errno));
 			exit(-1);
 	}
@@ -4839,9 +4223,9 @@ static void *monitor_thread_run(void *obj)
 
 	smg_get_current_priority(&policy,&priority);
 	
-	log_printf(SMG_LOG_PROD, server.log, "Open udp socket [%d] [%d]\n",
+	log_printf(1, server.log, "Open udp socket [%d] [%d]\n",
 				 mcon->socket,mconp->socket);
-	log_printf(SMG_LOG_PROD, server.log, "Monitor Thread Started (%i:%i)\n",policy,priority);
+	log_printf(1, server.log, "Monitor Thread Started (%i:%i)\n",policy,priority);
 				
 	
 	while (woomera_test_flag(&server.master_connection, WFLAG_RUNNING) &&
@@ -4862,19 +4246,24 @@ static void *monitor_thread_run(void *obj)
 			if (b) { 
 mcon_retry_priority:
 			    if ((event = call_signal_connection_readp(mconp,i))) {
-					log_printf(SMG_LOG_DEBUG_9, server.log, "Socket Event P [%s] \n",
-									call_signal_event_id_name(event->event_id));
-					parse_ss7_event(mconp,(short_signal_event_t*)event);
-					if (++i < 10) {
-						goto mcon_retry_priority;
-					}
+				struct timeval current;
+                               	struct timeval difftime;
+                               	gettimeofday(&current,NULL);
+                               	timersub (&current, &event->tv, &difftime);
+                               	log_printf(5, server.log, "Socket Event P [%s] T=%d:%d\n",
+                               	call_signal_event_id_name(event->event_id),
+                                       	difftime.tv_sec, difftime.tv_usec);
+                               	parse_ss7_event(mconp,(short_signal_event_t*)event);
+				if (++i < 10) {
+					goto mcon_retry_priority;
+				}
 				
 			    } else if (errno != EAGAIN) {
-					ss=-1;
-					log_printf(SMG_LOG_ALL, server.log, 
-						"Error: Reading from Boost P Socket! (%i) %s\n",
-						errno,strerror(errno));
-					break;
+				ss=-1;
+				log_printf(0, server.log, 
+					"Error: Reading from Boost P Socket! (%i) %s\n",
+					errno,strerror(errno));
+				break;
 			    }
 			}
 		
@@ -4882,56 +4271,34 @@ mcon_retry_priority:
 
 			if (a) {
 			    if ((event = call_signal_connection_read(mcon,i))) {
-                   	log_printf(SMG_LOG_DEBUG_9, server.log, "Socket Event [%s]\n",
-                               	   	call_signal_event_id_name(event->event_id));
-                   	parse_ss7_event(mcon,(short_signal_event_t*)event);
+      				struct timeval current;
+                               	struct timeval difftime;
+                               	gettimeofday(&current,NULL);
+                               	timersub (&current, &event->tv, &difftime);
+                               	log_printf(5, server.log, "Socket Event [%s] T=%d:%d\n",
+                               			call_signal_event_id_name(event->event_id),
+                                       		difftime.tv_sec, difftime.tv_usec);
+                               	parse_ss7_event(mcon,(short_signal_event_t*)event);
 
 			    } else if (errno != EAGAIN) {
-					ss=-1;
-					log_printf(SMG_LOG_ALL, server.log, 
-						"Error: Reading from Boost Socket! (%i) %s\n",
-						errno,strerror(errno));
-					break;
+				ss=-1;
+				log_printf(0, server.log, 
+					"Error: Reading from Boost Socket! (%i) %s\n",
+					errno,strerror(errno));
+				break;
 			    }
 			} 
 
 		} 
 
 		if (ss < 0){
-			log_printf(SMG_LOG_ALL, server.log, "Thread Run: Select Socket Error!\n");
+			log_printf(0, server.log, "Thread Run: Select Socket Error!\n");
 			break;
-		}
-			
-		if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_RESET)) { 
-			short_signal_event_t event;
-			struct timeval current;
-			int elapsed;
-            gettimeofday(&current,NULL);
-
-			elapsed=smg_calc_elapsed(&server.restart_timeout, &current);
-			if (elapsed > 5000) {
-				int err;
-				log_printf(SMG_LOG_ALL, server.log, "Reset Condition Cleared Elapsed=%i!\n",elapsed);
-				clear_all_holding_tank();
-				memset(&event,0,sizeof(event));
-				event.event_id = SIGBOOST_EVENT_SYSTEM_RESTART_ACK;	
-				err=call_signal_connection_write(&server.mcon, (call_signal_event_t*)&event);
-			   	if (err < 0) {
-					log_printf(SMG_LOG_ALL, server.log,
-						   "Critical System Error: Failed to tx on ISUP socket [%s]: %s\n",
-							 strerror(errno));
-				}
-				int i=0;
-				for ( i =0 ; i < SMG_MAX_TG ; i++ ){
-					smg_all_ckt_busy(i);
-				}  
-				woomera_clear_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
-			}
 		}
 		
 	}
  
-	log_printf(SMG_LOG_PROD, server.log, "Close udp socket [%d] [%d]\n", 
+	log_printf(1, server.log, "Close udp socket [%d] [%d]\n", 
 					mcon->socket,mconp->socket);
 	call_signal_connection_close(&server.mcon);
 	call_signal_connection_close(&server.mconp);
@@ -4941,7 +4308,7 @@ mcon_retry_priority:
     	pthread_mutex_unlock(&server.thread_count_lock);
 	
 	woomera_clear_flag(&server.master_connection, WFLAG_MONITOR_RUNNING);
-	log_printf(SMG_LOG_ALL, server.log, "Monitor Thread Ended\n");
+	log_printf(0, server.log, "Monitor Thread Ended\n");
 	
 	return NULL;
 }
@@ -4950,7 +4317,7 @@ static void woomera_loop_thread_run(struct woomera_interface *woomera)
 {
 	int err=launch_media_thread(woomera);
 	if (err) {
-		log_printf(SMG_LOG_ALL, server.log, "Failed to start loop media thread\n");
+		log_printf(0, server.log, "Failed to start loop media thread\n");
 		woomera_set_flag(woomera, 
 				(WFLAG_HANGUP|WFLAG_MEDIA_END));
 		woomera_clear_flag(woomera, WFLAG_RUNNING);
@@ -4970,7 +4337,7 @@ static void woomera_loop_thread_run(struct woomera_interface *woomera)
 		
 	woomera_clear_flag(woomera, WFLAG_RUNNING);
 
-	log_printf(SMG_LOG_DEBUG_CALL, server.log, "Woomera Session: For Loop Test exiting %s\n",woomera->interface);
+	log_printf(2, server.log, "Woomera Session: For Loop Test exiting %s\n",woomera->interface);
 
 	return;
 }
@@ -5017,7 +4384,7 @@ static void *woomera_thread_run(void *obj)
 	
     smg_get_current_priority(&policy,&priority);
 
-    log_printf(SMG_LOG_DEBUG_CALL, server.log, "WOOMERA session started (ptr=%p : loop=%i)(%i:%i) Index=%i\n", 
+    log_printf(2, server.log, "WOOMERA session started (ptr=%p : loop=%i)(%i:%i) Index=%i\n", 
     			woomera,woomera->loop_tdm,policy,priority, woomera->index);
 
     pthread_mutex_lock(&server.thread_count_lock);
@@ -5044,23 +4411,17 @@ static void *woomera_thread_run(void *obj)
 				  "Version: %s%s"
 				  "Remote-Address: %s%s"
 				  "Remote-Port: %d%s"
-				  "Raw-Format: %s%s"
-				  "xUDP-Seq: %s%s"
-				  "xUDP-Seq-Err: %d%s"
-				  "xNative-Bridge: %s%s",
+				  "Raw-Format: %s%s",
 				  WOOMERA_LINE_SEPERATOR,
 				  WOOMERA_LINE_SEPERATOR,
 				  SMG_VERSION, WOOMERA_LINE_SEPERATOR,
 				  inet_ntoa(woomera->addr.sin_addr), WOOMERA_LINE_SEPERATOR,
 				  ntohs(woomera->addr.sin_port), WOOMERA_LINE_SEPERATOR,
-				  server.hw_coding?"ALAW":"ULAW", WOOMERA_LINE_SEPERATOR,
-				  server.udp_seq?"Enabled":"Disabled", WOOMERA_LINE_SEPERATOR,
-				  server.media_rx_seq_err, WOOMERA_LINE_SEPERATOR,
-				  server.media_pass_through?"Enabled":"Disabled", WOOMERA_RECORD_SEPERATOR
+				  server.hw_coding?"ALAW":"ULAW", WOOMERA_RECORD_SEPERATOR
 				  );
 
     if (err) {
-    	log_printf(SMG_LOG_ALL, server.log, "Woomera session socket failure! (ptr=%p)\n",
+    	log_printf(0, server.log, "Woomera session socket failure! (ptr=%p)\n",
 			woomera);
 		woomera_clear_flag(woomera, WFLAG_RUNNING);
 		goto woomera_session_close;
@@ -5068,10 +4429,13 @@ static void *woomera_thread_run(void *obj)
 
     while (	woomera_test_flag(&server.master_connection, WFLAG_RUNNING) &&
 			woomera_test_flag(&server.master_connection, WFLAG_MONITOR_RUNNING) &&
+			!woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_RESET) &&
 			woomera_test_flag(woomera, WFLAG_RUNNING) &&
 			!woomera_test_flag(woomera, WFLAG_MEDIA_END) &&
-			!woomera_test_flag(woomera, WFLAG_HANGUP)) {
+			!woomera_test_flag(woomera, WFLAG_HANGUP) &&
+			!master_reset) {
 					
+	   
 		mwi = woomera_message_parse(woomera, &wmsg, WOOMERA_HARD_TIMEOUT);
 		if (mwi >= 0) {
 	
@@ -5083,7 +4447,7 @@ static void *woomera_thread_run(void *obj)
 						woomera_set_flag(woomera, WFLAG_MEDIA_END);	
 						woomera_clear_flag(woomera, WFLAG_RUNNING);
 						smg_free(event_string);
-						log_printf(SMG_LOG_DEBUG_8, server.log,
+						log_printf(4, server.log,
 							"WOOMERA session (ptr=%p) print string error\n",
 								woomera);
 						break;
@@ -5102,7 +4466,7 @@ static void *woomera_thread_run(void *obj)
 			
 				/* Sent the hangup only after we sent a NACK */	
 	
-				log_printf(SMG_LOG_DEBUG_CALL, server.log, 
+				log_printf(2, server.log, 
 					"WOOMERA session Call Timedout ! [%s]\n",
 						woomera->interface);
 			
@@ -5115,7 +4479,7 @@ static void *woomera_thread_run(void *obj)
 			}
 
 		} else  {
-			log_printf(SMG_LOG_DEBUG_MISC, server.log, "WOOMERA session (ptr=%p) [%s] READ MSG Error %i \n",
+			log_printf(3, server.log, "WOOMERA session (ptr=%p) [%s] READ MSG Error %i \n",
 				woomera,woomera->interface,mwi);
 			break;
 		}
@@ -5124,7 +4488,7 @@ static void *woomera_thread_run(void *obj)
     
 woomera_session_close:
 	
-	log_printf(SMG_LOG_DEBUG_CALL, server.log, "WOOMERA session (ptr=%p) is dying [%s]:  SR=%d WR=%d WF=0x%04X\n",
+	log_printf(2, server.log, "WOOMERA session (ptr=%p) is dying [%s]:  SR=%d WR=%d WF=0x%04X\n",
 			woomera,woomera->interface,
 		woomera_test_flag(&server.master_connection, WFLAG_RUNNING),
 		woomera_test_flag(woomera, WFLAG_RUNNING),
@@ -5170,7 +4534,7 @@ woomera_session_close:
 					woomera_set_flag(woomera, WFLAG_WAIT_FOR_STOPPED_ACK_SENT);
 				
 	
-					log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "Woomera Sent SIGBOOST_EVENT_CALL_STOPPED [s%dc%d] [%s] ptr=%p\n", 
+					log_printf(3, woomera->log, "Woomera Sent SIGBOOST_EVENT_CALL_STOPPED [w%dg%d] [%s] ptr=%p\n", 
 							span+1, chan+1,woomera->interface,woomera);
 				} else {
 					
@@ -5182,11 +4546,11 @@ woomera_session_close:
 							woomera->q931_rel_cause_tosig);
 					woomera_set_flag(woomera, WFLAG_WAIT_FOR_NACK_ACK_SENT);
 		
-					log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "Woomera Sent SIGBOOST_EVENT_CALL_START_NACK [s%dc%d] [%s] ptr=%p\n", 
+					log_printf(3, woomera->log, "Woomera Sent SIGBOOST_EVENT_CALL_START_NACK [w%dg%d] [%s] ptr=%p\n", 
 							span+1, chan+1,woomera->interface,woomera);
 				}
 			} else {
-				log_printf(SMG_LOG_ALL, woomera->log, "Woomera Not Sent CALL STOPPED - Instead NACK [s%dc%d] [%s] ptr=%p\n", 
+				log_printf(0, woomera->log, "Woomera Not Sent CALL STOPPED - Instead NACK [w%dg%d] [%s] ptr=%p\n", 
 						span+1, chan+1,woomera->interface,woomera);
 				
 			}
@@ -5196,7 +4560,7 @@ woomera_session_close:
 			   failure */
 			if (!woomera->index) {
 				/* In this case we really failed to tx STOP */
-				log_printf(SMG_LOG_DEBUG_MISC, woomera->log, "FAILED: Woomera (R) SIGBOOST_EVENT_CALL_STOPPED [s%dc%d] [%s] Index=%d ptr=%p\n", 
+				log_printf(3, woomera->log, "FAILED: Woomera (R) SIGBOOST_EVENT_CALL_STOPPED [w%dg%d] [%s] Index=%d ptr=%p\n", 
 					span+1, chan+1, woomera->interface, woomera->index, woomera);
 			}
 		}
@@ -5223,15 +4587,15 @@ woo_re_hangup:
 			  		  SIGBOOST_EVENT_CALL_STOPPED_ACK,
 					  woomera->q931_rel_cause_tosig);
 			
-			log_printf(SMG_LOG_DEBUG_MISC, woomera->log, 
-				"Sent (Ack) to SIGBOOST_EVENT_CALL_STOPPED_ACK [s%dc%d] [%s] ptr=%p\n", 
+			log_printf(3, woomera->log, 
+				"Sent (Ack) to SIGBOOST_EVENT_CALL_STOPPED_ACK [w%dg%d] [%s] ptr=%p\n", 
 						span+1,chan+1,woomera->interface,woomera);
 
 		}else{
 			/* This should never happen! If it does
 			   we broke protocol */
-			log_printf(SMG_LOG_ALL, woomera->log, 
-				"FAILED: Woomera (R) SIGBOOST_EVENT_CALL_STOPPED_ACK [s%dc%d] [%s] Index=%d ptr=%p\n", 
+			log_printf(0, woomera->log, 
+				"FAILED: Woomera (R) SIGBOOST_EVENT_CALL_STOPPED_ACK [w%dg%d] [%s] Index=%d ptr=%p\n", 
 					span+1, chan+1, woomera->interface, woomera->index, woomera);
 		}
 
@@ -5254,8 +4618,8 @@ woo_re_hangup:
 			  		  SIGBOOST_EVENT_CALL_START_NACK_ACK,
 					  woomera->q931_rel_cause_tosig);
 			
-			log_printf(SMG_LOG_DEBUG_MISC, woomera->log, 
-				"Sent (Nack Ack) to SIGBOOST_EVENT_CALL_START_NACK_ACK [s%dc%d] [%s] ptr=%p\n", 
+			log_printf(3, woomera->log, 
+				"Sent (Nack Ack) to SIGBOOST_EVENT_CALL_START_NACK_ACK [w%dg%d] [%s] ptr=%p\n", 
 						span+1,chan+1,woomera->interface,woomera);
 
 			woomera->index=0;
@@ -5270,8 +4634,8 @@ woo_re_hangup:
 			woomera->index=0;
 
 		} else {
-			log_printf(SMG_LOG_ALL, woomera->log, 
-				"FAILED: Sent (Nack Ack) SIGBOOST_EVENT_CALL_START_NACK_ACK [s%dc%d] [%s] Index=%d ptr=%p\n", 
+			log_printf(0, woomera->log, 
+				"FAILED: Sent (Nack Ack) SIGBOOST_EVENT_CALL_START_NACK_ACK [w%dg%d] [%s] Index=%d ptr=%p\n", 
 					span+1, chan+1, woomera->interface, woomera->index, woomera);
 		}
 
@@ -5324,11 +4688,11 @@ woo_re_hangup:
 					woomera->q931_rel_cause_tosig);
 			woomera_set_flag(woomera, WFLAG_WAIT_FOR_NACK_ACK_SENT);		
 	
-			log_printf(SMG_LOG_DEBUG_CALL, woomera->log, 
+			log_printf(2, woomera->log, 
 				"Sent SIGBOOST_EVENT_CALL_START_NACK [Setup ID: %d] .. WAITING FOR NACK ACK\n", 
 			 	index);
 		} else {
-			log_printf(SMG_LOG_PROD, woomera->log, 
+			log_printf(1, woomera->log, 
 				"Error Failed to Sent SIGBOOST_EVENT_CALL_START_NACK [Setup ID: %d] - index stale!\n", 
 			 	index);
 		}
@@ -5388,12 +4752,12 @@ woo_re_hangup:
 		   will eventually come in :) */
 		if (!woomera_test_flag(&server.master_connection, WFLAG_CALL_ACKED)) {
 			if (woomera_test_flag(woomera, WFLAG_WAIT_FOR_ACK_TIMEOUT)) {
-				log_printf(SMG_LOG_ALL, woomera->log, 
+				log_printf(0, woomera->log, 
 					"Waiting for NACK ACK [Setup ID: %d] .. TIMEOUT on NACK ACK\n", 
 					woomera->index_hold);
 		
 			} else {
-				log_printf(SMG_LOG_DEBUG_8, woomera->log, 
+				log_printf(4, woomera->log, 
 				"Waiting for NACK ACK [Setup ID: %d] .. GOT NACK ACK\n", 
 				woomera->index_hold);
 			}	
@@ -5417,7 +4781,7 @@ woo_re_hangup:
 		   for boost to give us the ACK back before we
 		   release resources. */
 
-                log_printf(SMG_LOG_DEBUG_8, woomera->log,
+                log_printf(4, woomera->log,
                               "Waiting for STOPPED ACK [%s] [id=%i]... \n",
                                          woomera->interface,woomera->index_hold);
 
@@ -5455,12 +4819,12 @@ woo_re_hangup:
 		woomera_clear_flag(woomera, WFLAG_WAIT_FOR_STOPPED_ACK);
 
 		if (woomera_test_flag(woomera, WFLAG_WAIT_FOR_ACK_TIMEOUT)) {
-			log_printf(SMG_LOG_ALL, woomera->log,
+			log_printf(0, woomera->log,
                              		"Wait TIMEDOUT on STOPPED ACK [%s] [id=%i]... \n",
                                        	 woomera->interface,woomera->index_hold);
 
 		} else {
-			log_printf(SMG_LOG_DEBUG_8, woomera->log,
+			log_printf(4, woomera->log,
                           		"Wait GOT STOPPED ACK [%s] [id=%i]... \n",
                                        	woomera->interface,woomera->index_hold);
 		}
@@ -5472,7 +4836,7 @@ woo_re_hangup:
 	 *****************************************************/
 		
 	if (smg_validate_span_chan(span,chan) == 0) {	
-                log_printf(SMG_LOG_DEBUG_CALL, woomera->log,
+                log_printf(2, woomera->log,
                               "WOOMERA Clearing Processs Table ... \n",
                                          woomera->interface);
 		pthread_mutex_lock(&server.process_lock);
@@ -5496,8 +4860,8 @@ woo_re_hangup:
 			/* This is possible in case media thread dies on startup */
 			
     			if (server.process_table[span][chan]){
-				log_printf(SMG_LOG_ALL, server.log, 
-				"Sanity Span Chan Still in use: [s%dc%d] [%s] Index=%d ptr=%p\n", 
+				log_printf(0, server.log, 
+				"Sanity Span Chan Still in use: [w%dg%d] [%s] Index=%d ptr=%p\n", 
 					span+1, chan+1, woomera->interface, woomera->index, woomera);
 				//server.process_table[span][chan] = NULL;
 			}
@@ -5510,12 +4874,12 @@ woo_re_hangup:
 	
 	/* Sanity Check */
 	if (woomera_test_flag(woomera, WFLAG_HANGUP_ACK)) {
-    		log_printf(SMG_LOG_ALL, woomera->log, 
+    		log_printf(0, woomera->log, 
 			"Woomera MISSED HANGUP ACK: Retry HANGUP ACK\n");
 		goto woo_re_hangup;
 	}
 	if (woomera_test_flag(woomera, WFLAG_HANGUP_NACK_ACK)) {
-    		log_printf(SMG_LOG_ALL, woomera->log, 
+    		log_printf(0, woomera->log, 
 			"Woomera MISSED HANGUP ACK: Retry HANGUP NACK ACK\n");
 		goto woo_re_hangup;
 	}
@@ -5533,7 +4897,7 @@ woo_re_hangup:
 			pull_from_holding_tank(woomera->index_hold,-1,-1);
 
 			if (check_tank_index(woomera->index_hold) != NULL){
-    			log_printf(SMG_LOG_PROD, woomera->log, "Woomera Thread: [%s] setup id %i blocked waiting for NACK or ACK\n", 
+    			log_printf(1, woomera->log, "Woomera Thread: [%s] setup id %i blocked waiting for NACK or ACK\n", 
 						woomera->interface ,woomera->index_hold);
 			}
 		} else {
@@ -5543,7 +4907,7 @@ woo_re_hangup:
 		woomera->index_hold=0;
 	}
 
-	log_printf(SMG_LOG_DEBUG_CALL, woomera->log, "Woomera Thread Finished %u\n", (unsigned long) woomera->thread);
+	log_printf(2, woomera->log, "Woomera Thread Finished %u\n", (unsigned long) woomera->thread);
    	close_socket(&woomera->socket);
    	woomera->socket=-1;
 
@@ -5556,9 +4920,15 @@ woo_re_hangup:
 		del_listener(woomera);
     	}
 
-    	log_printf(SMG_LOG_DEBUG_CALL, server.log, "WOOMERA session for [%s] stopped (ptr=%p)\n", 
+    	log_printf(2, server.log, "WOOMERA session for [%s] stopped (ptr=%p)\n", 
     			woomera->interface,woomera);
 
+	if (woomera_test_flag(woomera, WFLAG_MASTER_DEV)) {
+		log_printf(0,server.log,"MASTER Thread Stopped (ptr=%p)\n",woomera);
+		master_reset=0;
+	}
+
+    
    	pthread_mutex_destroy(&woomera->queue_lock);
     	pthread_mutex_destroy(&woomera->ms_lock);
 	pthread_mutex_destroy(&woomera->dtmf_lock);
@@ -5594,7 +4964,7 @@ static int launch_woomera_thread(struct woomera_interface *woomera)
     woomera_set_flag(woomera, WFLAG_RUNNING);
     result = pthread_create(&woomera->thread, &attr, woomera_thread_run, woomera);
     if (result) {
-		log_printf(SMG_LOG_ALL, server.log, "%s: Error: Creating Woomera Thread! (%i) %s\n",
+		log_printf(0, server.log, "%s: Error: Creating Woomera Thread! (%i) %s\n",
 			 __FUNCTION__,result,strerror(errno));
     	woomera_clear_flag(woomera, WFLAG_RUNNING);
     }
@@ -5618,14 +4988,14 @@ static int launch_monitor_thread(void)
 
     result = pthread_attr_setschedparam (&attr, &param);
     
-    log_printf(SMG_LOG_ALL,server.log,"%s: Old Priority =%i res=%i \n",__FUNCTION__,
+    log_printf(0,server.log,"%s: Old Priority =%i res=%i \n",__FUNCTION__,
 			 param.sched_priority,result);
 
 
     woomera_set_flag(&server.master_connection, WFLAG_MONITOR_RUNNING);
     result = pthread_create(&server.monitor_thread, &attr, monitor_thread_run, NULL);
     if (result) {
-	log_printf(SMG_LOG_ALL, server.log, "%s: Error: Creating Thread! %s\n",
+	log_printf(0, server.log, "%s: Error: Creating Thread! %s\n",
 			 __FUNCTION__,strerror(errno));
 	 woomera_clear_flag(&server.master_connection, WFLAG_MONITOR_RUNNING);
     } 
@@ -5641,7 +5011,7 @@ static void *hp_tdmapi_span_run(void *obj)
     hp_tdm_api_span_t *span = obj;
     int err; 
     
-    log_printf(SMG_LOG_ALL,server.log,"Starting %s span!\n",span->ifname);
+    log_printf(0,server.log,"Starting %s span!\n",span->ifname);
     
     while (woomera_test_flag(&server.master_connection, WFLAG_RUNNING) &&
            woomera_test_flag(&server.master_connection, WFLAG_MONITOR_RUNNING)) {
@@ -5662,7 +5032,7 @@ static void *hp_tdmapi_span_run(void *obj)
     }
         
     sleep(3);
-    log_printf(SMG_LOG_ALL,server.log,"Stopping %s span!\n",span->ifname);
+    log_printf(0,server.log,"Stopping %s span!\n",span->ifname);
     
     pthread_exit(NULL);	    
 }
@@ -5685,7 +5055,7 @@ static int launch_hptdm_api_span_thread(int span)
     
     result = pthread_create(&server.monitor_thread, &attr, hp_tdmapi_span_run, &hptdmspan[span]);
     if (result) {
-	 log_printf(SMG_LOG_ALL, server.log, "%s: Error: Creating Thread! %s\n",
+	 log_printf(0, server.log, "%s: Error: Creating Thread! %s\n",
 			 __FUNCTION__,strerror(errno));
     } 
     pthread_attr_destroy(&attr);
@@ -5699,19 +5069,17 @@ static int configure_server(void)
     struct woomera_config cfg;
     char *var, *val;
     int cnt = 0;
-	struct smg_tdm_ip_bridge *ip_bridge=NULL;
 
-	
     server.dtmf_intr_ch = -1;
 
     if (!woomera_open_file(&cfg, server.config_file)) {
-		log_printf(SMG_LOG_ALL, server.log, "open of %s failed\n", server.config_file);
+		log_printf(0, server.log, "open of %s failed\n", server.config_file);
 		return 0;
     }
 
-	log_printf(SMG_LOG_ALL,server.log, "\n======================= \n");
-	log_printf(SMG_LOG_ALL,server.log, "Server - Configuration \n");
-	log_printf(SMG_LOG_ALL,server.log, "======================= \n");
+	log_printf(0,server.log, "\n======================= \n");
+	log_printf(0,server.log, "Server - Configuration \n");
+	log_printf(0,server.log, "======================= \n");
 	
     while (woomera_next_pair(&cfg, &var, &val)) {
 		if (!strcasecmp(var, "boost_local_ip")) {
@@ -5719,27 +5087,27 @@ static int configure_server(void)
 				 sizeof(server.mcon.cfg.local_ip) -1);
 			strncpy(server.mconp.cfg.local_ip, val,
 				 sizeof(server.mconp.cfg.local_ip) -1);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Boost Local IP:    %s\n",val);
+			log_printf(0,server.log, "Server - Boost Local IP:    %s\n",val);
 
 			cnt++;
 		} else if (!strcasecmp(var, "boost_local_port")) {
 			server.mcon.cfg.local_port = atoi(val);
 			server.mconp.cfg.local_port = 
 				server.mcon.cfg.local_port+1;
-			log_printf(SMG_LOG_ALL,server.log, "Server - Boost Local Port:  %i\n",server.mcon.cfg.local_port);
+			log_printf(0,server.log, "Server - Boost Local Port:  %i\n",server.mcon.cfg.local_port);
 			cnt++;
 		} else if (!strcasecmp(var, "boost_remote_ip")) {
 			strncpy(server.mcon.cfg.remote_ip, val,
 				 sizeof(server.mcon.cfg.remote_ip) -1);
 			strncpy(server.mconp.cfg.remote_ip, val,
 				 sizeof(server.mconp.cfg.remote_ip) -1);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Boost Remote IP:   %s\n",server.mcon.cfg.remote_ip);
+			log_printf(0,server.log, "Server - Boost Remote IP:   %s\n",server.mcon.cfg.remote_ip);
 			cnt++;
 		} else if (!strcasecmp(var, "boost_remote_port")) {
 			server.mcon.cfg.remote_port = atoi(val);
 			server.mconp.cfg.remote_port = 
 				server.mcon.cfg.remote_port+1;
-			log_printf(SMG_LOG_ALL,server.log, "Server - Boost Remote Port: %i\n",server.mcon.cfg.local_port);
+			log_printf(0,server.log, "Server - Boost Remote Port: %i\n",server.mcon.cfg.local_port);
 			cnt++;
 		} else if (!strcasecmp(var, "logfile_path")) {
 			if (!server.logfile_path) {
@@ -5747,51 +5115,51 @@ static int configure_server(void)
 			}
 		} else if (!strcasecmp(var, "woomera_port")) {
 			server.port = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Woomera Port:      %i\n",server.port);
+			log_printf(0,server.log, "Server - Woomera Port:      %i\n",server.port);
 		} else if (!strcasecmp(var, "debug_level")) {
 			server.debug = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Debug Level:       %i\n",server.debug);
+			log_printf(0,server.log, "Server - Debug Level:       %i\n",server.debug);
 		} else if (!strcasecmp(var, "out_tx_test")) {
 		        server.out_tx_test = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Tx Media Dbg:      %s\n",server.out_tx_test?"On":"Off (Default)");
+			log_printf(0,server.log, "Server - Tx Media Dbg:      %s\n",server.out_tx_test?"On":"Off (Default)");
 		} else if (!strcasecmp(var, "loop_trace")) {
 		        server.loop_trace = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Media Loop Trace:  %s\n",server.loop_trace?"On":"Off (Default)");
+			log_printf(0,server.log, "Server - Media Loop Trace:  %s\n",server.loop_trace?"On":"Off (Default)");
 		} else if (!strcasecmp(var, "rxgain")) {
 		        server.rxgain = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Rx Gain:           %d\n",server.rxgain);
+			log_printf(0,server.log, "Server - Rx Gain:           %d\n",server.rxgain);
 		} else if (!strcasecmp(var, "txgain")) {
 		        server.txgain = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Tx Gain:           %d\n",server.txgain);
+			log_printf(0,server.log, "Server - Tx Gain:           %d\n",server.txgain);
 		} else if (!strcasecmp(var, "dtmf_on_duration")){
 			server.dtmf_on = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - DTMF ON Duration:  %d ms\n",server.dtmf_on);
+			log_printf(0,server.log, "Server - DTMF ON Duration:  %d ms\n",server.dtmf_on);
 		} else if (!strcasecmp(var, "dtmf_off_duration")){
 			server.dtmf_off = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - DTMF Off Duration: %d ms\n",server.dtmf_off);
+			log_printf(0,server.log, "Server - DTMF Off Duration: %d ms\n",server.dtmf_off);
 		} else if (!strcasecmp(var, "dtmf_inter_ch_duration")){
 			server.dtmf_intr_ch = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - DTMF Spacing:      %d\n",server.dtmf_intr_ch);
+			log_printf(0,server.log, "Server - DTMF Spacing:      %d\n",server.dtmf_intr_ch);
 		} else if (!strcasecmp(var, "strip_cid_non_digits")){
 			server.strip_cid_non_digits = atoi(val);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Strip non digits:  %d\n",server.strip_cid_non_digits);
+			log_printf(0,server.log, "Server - Strip non digits:  %d\n",server.strip_cid_non_digits);
 		} else if (!strcasecmp(var, "max_calls")) {
 			int max = atoi(val);
 			if (max > 0) {
 				server.max_calls = max;
-				log_printf(SMG_LOG_ALL,server.log, "Server - Max Active Calls:  %d\n",server.max_calls);
+				log_printf(0,server.log, "Server - Max Active Calls:  %d\n",server.max_calls);
 			}
 		} else if (!strcasecmp(var, "autoacm")) {
 			int max = atoi(val);
 			if (max >= 0) {
 				autoacm=max;
-				log_printf(SMG_LOG_ALL,server.log, "Server - Auto ACM:          %s\n",autoacm?"On":"Off (Default)");
+				log_printf(0,server.log, "Server - Auto ACM:          %s\n",autoacm?"On":"Off (Default)");
 			}			
 		} else if (!strcasecmp(var, "max_spans")) {
 			int max = atoi(val);
 			if (max > 0) {
 				max_spans = max;
-				log_printf(SMG_LOG_ALL,server.log, "Server - Max Spans:         %d\n",max_spans);
+				log_printf(0,server.log, "Server - Max Spans:         %d\n",max_spans);
 			}
 		} else if (!strcasecmp(var, "call_timeout")) {
 			int max = atoi(val);
@@ -5800,7 +5168,7 @@ static int configure_server(void)
 			} else {
 				server.call_timeout=SMG_DEFAULT_CALL_TIMEOUT;
 			}
-			log_printf(SMG_LOG_ALL,server.log, "Server - Call Comp Timeout: %d s\n",server.call_timeout);
+			log_printf(0,server.log, "Server - Call Comp Timeout: %d s\n",server.call_timeout);
 
 		} else if (!strcasecmp(var, "base_media_port")) {
 			int base = atoi(val);
@@ -5808,99 +5176,25 @@ static int configure_server(void)
 				server.base_media_port = base;
 				server.next_media_port = base;
 				server.max_media_port =  server.base_media_port + 	WOOMERA_MAX_MEDIA_PORTS;
-				log_printf(SMG_LOG_ALL,server.log, "Server - Base Media Port:   %d\n",server.base_media_port);
+				log_printf(0,server.log, "Server - Base Media Port:  %d\n",server.base_media_port);
 			}
 
 		} else if (!strcasecmp(var, "max_media_ports")) {
 			int max = atoi(val);
-			if (max >= 0) {
+			if (max > WOOMERA_MAX_MEDIA_PORTS) {
 				server.max_media_port = server.base_media_port+max;
-				log_printf(SMG_LOG_ALL,server.log, "Server - Max Media Port:    %d\n",server.max_media_port);
+				log_printf(0,server.log, "Server - Max Media Port:   %d\n",server.max_media_port);
 			}
 	
 		} else if (!strcasecmp(var, "media_ip")) {
 			strncpy(server.media_ip, val, sizeof(server.media_ip) -1);
-			log_printf(SMG_LOG_ALL,server.log, "Server - Media IP:          %s\n",server.media_ip);
-		
-		} else if (!strcasecmp(var, "udp_seq")) {
-			int max = atoi(val);
-			if (max > 0) {
-				server.udp_seq=max;
-	   	         log_printf(SMG_LOG_ALL, server.log, "Server - UDP Seq:           %s\n",server.udp_seq?"Enabled":"Disabled");
-			}
-
-		} else if (!strcasecmp(var, "media_pass_through")) {
-			int max = atoi(val);
-			if (max > 0) {
-				server.media_pass_through=max;
-				log_printf(SMG_LOG_ALL, server.log, "Server - Media Pass Through: %s\n",server.media_pass_through?"Enabled":"Disabled");
-			}
-
-			
-		} else if (!strcasecmp(var, "rbs_relay")) {
-			int max = atoi(val);
-			if (max > 0) {
-				server.rbs_relay[max]=max;
-	   	         log_printf(SMG_LOG_ALL, server.log, "Server - RBS Relay Span:    %d\n",max);
-			} 
-
-		} else if (!strcasecmp(var, "bridge_tdm_ip")) {
-			int err=smg_get_ip_bridge_session(&ip_bridge);
-			if (err) {
-				log_printf(SMG_LOG_ALL, server.log, "Error failed to get free ip bridge %i!\n",err);
-			} else {
-				log_printf(SMG_LOG_ALL,server.log, "\n======================= \n");
-				log_printf(SMG_LOG_ALL,server.log, "Bridge - Configuration \n");
-				log_printf(SMG_LOG_ALL,server.log, "======================= \n");
-			}		
-
-		} else if (!strcasecmp(var, "bridge_span")) {
-			int max = atoi(val);
-			if (max > 0 && max <= 32 && ip_bridge) {
-				ip_bridge->span=max;
-				log_printf(SMG_LOG_ALL, server.log, "Bridge Span:                %i\n",ip_bridge->span);
-			} else {
-				log_printf(SMG_LOG_ALL, server.log, "Bridge Span:                ERROR: Invalid Value %s\n",val);
-			}
-		} else if (!strcasecmp(var, "bridge_chan")) {
-			int max = atoi(val);
-			if (max > 0 && max < MAX_SMG_BRIDGE && ip_bridge) {
-				ip_bridge->chan=max;
-				log_printf(SMG_LOG_ALL, server.log, "Bridge Chan:                %i\n",ip_bridge->chan);
-			} else {
-				log_printf(SMG_LOG_ALL, server.log, "Bridge Chan:                ERROR: Invalid Value %s\n",val);
-			}
-		} else if (!strcasecmp(var, "bridge_local_ip")) {
-			if (ip_bridge) {
-				strncpy(ip_bridge->mcon.cfg.local_ip, val,
-				 	sizeof(ip_bridge->mcon.cfg.local_ip) -1);
-				log_printf(SMG_LOG_ALL, server.log, "Bridge Local IP:            %s\n",ip_bridge->mcon.cfg.local_ip);
-			}
-		} else if (!strcasecmp(var, "bridge_remote_ip")) {
-			if (ip_bridge) {
-				strncpy(ip_bridge->mcon.cfg.remote_ip, val,
-					sizeof(ip_bridge->mcon.cfg.remote_ip) -1);
-				log_printf(SMG_LOG_ALL, server.log, "Bridge Remote IP:           %s\n",ip_bridge->mcon.cfg.remote_ip);
-			}
-		} else if (!strcasecmp(var, "bridge_port")) {
-			int max = atoi(val);
-			if (max > 0 && ip_bridge) {
-				ip_bridge->mcon.cfg.local_port=max;
-				ip_bridge->mcon.cfg.remote_port=max;
-				log_printf(SMG_LOG_ALL, server.log, "Bridge Port:                %i\n",max);
-			}
-		} else if (!strcasecmp(var, "bridge_period")) {
-			int max = atoi(val);
-			if (max > 0 && ip_bridge) {
-				ip_bridge->period=max;
-				log_printf(SMG_LOG_ALL, server.log, "Bridge Period:              %ims\n",ip_bridge->period);
-			}
+			log_printf(0,server.log, "Server - Media IP:          %s\n",server.media_ip);
 		} else {
-			log_printf(SMG_LOG_ALL, server.log, "Invalid Option %s at line %d!\n", var, cfg.lineno);
+			log_printf(0, server.log, "Invalid Option %s at line %d!\n", var, cfg.lineno);
 		}
     }
 
-	log_printf(SMG_LOG_ALL,server.log, "======================= \n\n");
+	log_printf(0,server.log, "======================= \n\n");
 
     /* Post initialize */
     if (server.dtmf_on == 0){ 
@@ -5914,7 +5208,7 @@ static int configure_server(void)
     }
     server.dtmf_size=(server.dtmf_on+server.dtmf_off)*10*2;
 
-    log_printf(SMG_LOG_ALL,server.log, "DTMF On=%i Off=%i IntrCh=%i Size=%i\n",
+    log_printf(0,server.log, "DTMF On=%i Off=%i IntrCh=%i Size=%i\n",
 		server.dtmf_on,server.dtmf_off,server.dtmf_intr_ch,server.dtmf_size);
 
     woomera_close_file(&cfg);
@@ -5945,26 +5239,26 @@ static int main_thread(void)
     /* Bind to the local address */
     if (bind(server.master_connection.socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr)) < 0) {
 		fprintf(stderr,"%s:%d socket() bind %i failed %s\n",__FUNCTION__,__LINE__,server.port,strerror(errno));
-		log_printf(SMG_LOG_ALL, server.log, "bind(%d) failed\n", server.port);
+		log_printf(0, server.log, "bind(%d) failed\n", server.port);
 		return 1;
     }
 	 
     /* Mark the socket so it will listen for incoming connections */
     if (listen(server.master_connection.socket, MAXPENDING) < 0) {
 	fprintf(stderr,"%s:%d socket() listen failed %s\n",__FUNCTION__,__LINE__,strerror(errno));
-	log_printf(SMG_LOG_ALL, server.log, "listen() failed\n");
+	log_printf(0, server.log, "listen() failed\n");
 	return 1;
     }
 
     if ((pid = get_pid_from_file(PIDFILE))) {
 	fprintf(stderr,"%s:%d get pid file failed %s\n",__FUNCTION__,__LINE__,strerror(errno));
-	log_printf(SMG_LOG_ALL, stderr, "pid %d already exists.\n", pid);
+	log_printf(0, stderr, "pid %d already exists.\n", pid);
 	exit(0);
     }
 
     if (!(tmp = safe_fopen(PIDFILE, "w"))) {
 	fprintf(stderr,"%s:%d open pid file failed %s\n",__FUNCTION__,__LINE__,strerror(errno));
-	log_printf(SMG_LOG_ALL, stderr, "Error creating pidfile %s\n", PIDFILE);
+	log_printf(0, stderr, "Error creating pidfile %s\n", PIDFILE);
 	return 1;
     } else {
 	fprintf(tmp, "%d", getpid());
@@ -6004,7 +5298,7 @@ static int main_thread(void)
 		if (!hptdmspan[span]) {
 			break;
 		} else {
-			log_printf(SMG_LOG_ALL, server.log, "HP TDM API Span: %d configured...\n", 
+			log_printf(0, server.log, "HP TDM API Span: %d configured...\n", 
 					span);
 			launch_hptdm_api_span_thread(span);
 		}
@@ -6012,7 +5306,7 @@ static int main_thread(void)
     }	
 #endif
     
-    log_printf(SMG_LOG_PROD, server.log, "Main Process Started: Woomera Ready port: %d\n", server.port);
+    log_printf(1, server.log, "Main Process Started: Woomera Ready port: %d\n", server.port);
 
     while (woomera_test_flag(&server.master_connection, WFLAG_RUNNING) &&
            woomera_test_flag(&server.master_connection, WFLAG_MONITOR_RUNNING)) { 
@@ -6024,15 +5318,15 @@ static int main_thread(void)
 		if ((client_sock = accept(server.master_connection.socket, (struct sockaddr *) &client_addr, &len)) < 0) {
 			/* Check if we are supposed to stop */
 			if(!woomera_test_flag(&server.master_connection, WFLAG_RUNNING)) {
-				log_printf(SMG_LOG_ALL, server.log, "accept() stopped\n");
+				log_printf(0, server.log, "accept() stopped\n");
 				return 0;
 			}
-			log_printf(SMG_LOG_ALL, server.log, "accept() failed\n");
+			log_printf(0, server.log, "accept() failed\n");
 			return 1;
 		}
 
 		if ((new_woomera = new_woomera_interface(client_sock, &client_addr, len))) {
-			log_printf(SMG_LOG_DEBUG_CALL, server.log, "Starting Thread for New Connection %s:%d Sock=%d\n",
+			log_printf(2, server.log, "Starting Thread for New Connection %s:%d Sock=%d\n",
 					   inet_ntoa(new_woomera->addr.sin_addr),
 					   ntohs(new_woomera->addr.sin_port),
 					   client_sock);
@@ -6050,14 +5344,14 @@ static int main_thread(void)
 				close_socket(&new_woomera->socket);
 				new_woomera->socket=-1;
 				smg_free(new_woomera);
-				log_printf(SMG_LOG_ALL, server.log, "ERROR: failed to launch woomera thread\n");
+				log_printf(0, server.log, "ERROR: failed to launch woomera thread\n");
 			}
 		} else {
-			log_printf(SMG_LOG_ALL, server.log, "Critical ERROR: memory/socket error\n");
+			log_printf(0, server.log, "Critical ERROR: memory/socket error\n");
 		}
     }
 
-    log_printf(SMG_LOG_PROD, server.log, "Main Process End\n");
+    log_printf(1, server.log, "Main Process End\n");
 
     return 0;
 }
@@ -6076,7 +5370,7 @@ static int do_shut(int sig)
 {
     woomera_clear_flag(&server.master_connection, WFLAG_RUNNING);
     close_socket(&server.master_connection.socket);
-    log_printf(SMG_LOG_PROD, server.log, "Caught SIG %d, Closing Master Socket!\n", sig);
+    log_printf(1, server.log, "Caught SIG %d, Closing Master Socket!\n", sig);
     return 0;
 }
 
@@ -6097,20 +5391,20 @@ static int sangoma_tdm_init (int span)
     return 0;
 }
 
+
 static int woomera_startup(int argc, char **argv)
 {
     int x = 0, pid = 0, bg = 0;
-	int span_cnt, chan_cnt;
     char *cfg=NULL, *debug=NULL, *arg=NULL;
 
     while((arg = argv[x++])) {
 
 		if (!strcasecmp(arg, "-hup")) {
 			if (! (pid = get_pid_from_file(PIDFILE))) {
-				log_printf(SMG_LOG_ALL, stderr, "Error reading pidfile %s\n", PIDFILE);
+				log_printf(0, stderr, "Error reading pidfile %s\n", PIDFILE);
 				exit(1);
 			} else {
-				log_printf(SMG_LOG_ALL, stderr, "Killing PID %d\n", pid);
+				log_printf(0, stderr, "Killing PID %d\n", pid);
 				kill(pid, SIGHUP);
 				sleep(1);
 				exit(0);
@@ -6118,10 +5412,10 @@ static int woomera_startup(int argc, char **argv)
 		
 		 } else if (!strcasecmp(arg, "-term") || !strcasecmp(arg, "--term")) {
                         if (! (pid = get_pid_from_file(PIDFILE))) {
-                                log_printf(SMG_LOG_ALL, stderr, "Error reading pidfile %s\n", PIDFILE);
+                                log_printf(0, stderr, "Error reading pidfile %s\n", PIDFILE);
                                 exit(1);
                         } else {
-                                log_printf(SMG_LOG_ALL, stderr, "Killing PID %d\n", pid);
+                                log_printf(0, stderr, "Killing PID %d\n", pid);
                                 kill(pid, SIGTERM);
                                 unlink(PIDFILE);
 				sleep(1);
@@ -6156,7 +5450,7 @@ static int woomera_startup(int argc, char **argv)
 				server.logfile_path = smg_strdup(argv[x++]);
 			}
 		} else if (*arg == '-') {
-			log_printf(SMG_LOG_ALL, stderr, "Unknown Option %s\n", arg);
+			log_printf(0, stderr, "Unknown Option %s\n", arg);
 			fprintf(stdout, "%s\n%s [-help] | [-hup] | [-wipe] | [[-bg] | [-debug <level>] | [-cfg <path>] | [-log <path>]]\n\n", WELCOME_TEXT, argv[0]);
 			exit(1);
 		}
@@ -6177,15 +5471,9 @@ static int woomera_startup(int argc, char **argv)
     }
 
     if (bg && (pid = fork())) {
-		log_printf(SMG_LOG_ALL, stderr, "Backgrounding!\n");
+		log_printf(0, stderr, "Backgrounding!\n");
 		return 0;
     }
-
-	for	(span_cnt = 0; span_cnt < CORE_MAX_SPANS; span_cnt++) {
-		for	(chan_cnt = 0; chan_cnt < CORE_MAX_CHAN_PER_SPAN; chan_cnt++) {
-			pthread_mutex_init(&server.process_table[span_cnt][chan_cnt].media_lock, NULL);
-		}
-	}
 
     q931_cause_setup();
     bearer_cap_setup();
@@ -6221,14 +5509,14 @@ static int woomera_startup(int argc, char **argv)
     }
 
     if (!configure_server()) {
-		log_printf(SMG_LOG_ALL, server.log, "configuration failed!\n");
+		log_printf(0, server.log, "configuration failed!\n");
 		return 0;
     }
 
 #ifndef USE_SYSLOG
     if (server.logfile_path) {
 		if (!(server.log = safe_fopen(server.logfile_path, "a"))) {
-			log_printf(SMG_LOG_ALL, stderr, "Error setting logfile %s!\n", server.logfile_path);
+			log_printf(0, stderr, "Error setting logfile %s!\n", server.logfile_path);
 			server.log = stderr;
 			return 0;
 		}
@@ -6246,7 +5534,7 @@ static int woomera_startup(int argc, char **argv)
 	l.rlim_cur = RLIM_INFINITY;
 	l.rlim_max = RLIM_INFINITY;
 	if (setrlimit(RLIMIT_CORE, &l)) {
-		log_printf(SMG_LOG_ALL, stderr,  "Warning: Failed to disable core size limit: %s\n", 
+		log_printf(0, stderr,  "Warning: Failed to disable core size limit: %s\n", 
 			strerror(errno));
 	}
     }
@@ -6254,7 +5542,7 @@ static int woomera_startup(int argc, char **argv)
 #ifdef __LINUX__
     if (geteuid() && coredump) {
     	if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) < 0) {
-		log_printf(SMG_LOG_ALL, stderr,  "Warning: Failed to disable core size limit for non-root: %s\n", 
+		log_printf(0, stderr,  "Warning: Failed to disable core size limit for non-root: %s\n", 
 			strerror(errno));
         }
     }
@@ -6272,16 +5560,15 @@ static int woomera_startup(int argc, char **argv)
     usleep(5000);
    
     woomera_set_flag(&server.master_connection, WFLAG_RUNNING);
-
     if (launch_monitor_thread()) {
     	woomera_clear_flag(&server.master_connection, WFLAG_RUNNING);
-		smg_log_cleanup();
-		return 0;
+	smg_log_cleanup();
+	return 0;
     }
 	
     fprintf(stderr, "%s", WELCOME_TEXT);
 
-	log_printf(SMG_LOG_ALL, stderr, "Woomera STARTUP Complete. [AutoACM=%i SDigit=%i]\n",
+	log_printf(0, stderr, "Woomera STARTUP Complete. [AutoACM=%i SDigit=%i]\n",
 			autoacm,server.strip_cid_non_digits);
     return 1;
 }
@@ -6290,13 +5577,6 @@ static int woomera_shutdown(void)
 {
     char *event_string;
     int told = 0, loops = 0;
-	int span_cnt, chan_cnt;
-
-	for	(span_cnt = 0; span_cnt < CORE_MAX_SPANS; span_cnt++) {
-		for	(chan_cnt = 0; chan_cnt < CORE_MAX_CHAN_PER_SPAN; chan_cnt++) {
-			pthread_mutex_destroy(&server.process_table[span_cnt][chan_cnt].media_lock);
-		}
-	}
 
     close_socket(&server.master_connection.socket);
     pthread_mutex_destroy(&server.listen_lock);
@@ -6329,19 +5609,19 @@ static int woomera_shutdown(void)
 		}
 
 		if (loops > 10000) {
-			log_printf(SMG_LOG_ALL, server.log, "Red Alert! threads did not stop\n");
+			log_printf(0, server.log, "Red Alert! threads did not stop\n");
 			assert(server.thread_count == 0);
 		}
 
 		if (told != server.thread_count) {
-			log_printf(SMG_LOG_PROD, server.log, "Waiting For %d thread%s.\n", 
+			log_printf(1, server.log, "Waiting For %d thread%s.\n", 
 					server.thread_count, server.thread_count == 1 ? "" : "s");
 			told = server.thread_count;
 		}
 		ysleep(10000);
     }
     unlink(PIDFILE);
-    log_printf(SMG_LOG_ALL, stderr, "Woomera SHUTDOWN Complete.\n");
+    log_printf(0, stderr, "Woomera SHUTDOWN Complete.\n");
 
     smg_log_cleanup();	
 	
@@ -6351,15 +5631,9 @@ static int woomera_shutdown(void)
 int main(int argc, char *argv[]) 
 {
     int ret = 0;
-
-	memset(&server,0,sizeof(server));
-	memset(&woomera_dead_dev,0,sizeof(woomera_dead_dev));
     
     mlockall(MCL_FUTURE);
-	memset(&server, 0, sizeof(server));
-	memset(&woomera_dead_dev, 0, sizeof(woomera_dead_dev));
-	memset(&g_smg_ip_bridge_idx,0, sizeof(g_smg_ip_bridge_idx));
-	
+
     ret=nice(-5);
     
     sdla_memdbg_init();
@@ -6369,17 +5643,12 @@ int main(int argc, char *argv[])
     openlog (ps_progname ,LOG_PID, LOG_LOCAL2);  
 	
     if (! (ret = woomera_startup(argc, argv))) {
-		exit(0);
+	exit(0);
     }
-
-	ret = smg_ip_bridge_start();
-	if (ret == 0) {
-    	ret = main_thread();
-	}
+    ret = main_thread();
 
     woomera_shutdown();
 
-	smg_ip_bridge_stop();
     sdla_memdbg_free(1);
 
     return ret;

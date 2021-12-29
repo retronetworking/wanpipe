@@ -17,7 +17,7 @@
 #ifndef _SDLA_ATM_IFACE_H
 #define _SDLA_ATM_IFACE_H
 
-#include <linux/wanpipe_cfg.h>
+#include "wanpipe_cfg.h"
 
 extern int  wp_sar_register_device  (void *card, 
 		                     unsigned char *devname,

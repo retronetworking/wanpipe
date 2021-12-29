@@ -13,10 +13,9 @@
 * September 15, 2005	David Rokhvarg	Initial Version
 *****************************************************************************/
 
+
 #ifndef _WANPIPE_LIP_ATM_IFACE_H
 #define _WANPIPE_LIP_ATM_IFACE_H
-
-//#include <linux/wanpipe_cfg.h>
 
 #define wplist_insert_dev(dev, list)	do{\
 	                                   dev->next = list;\

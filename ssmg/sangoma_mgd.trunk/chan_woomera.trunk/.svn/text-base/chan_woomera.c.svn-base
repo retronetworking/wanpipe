@@ -14,68 +14,6 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
- * v1.64 Nenad Corbic <ncorbic@sangoma.com>
- * Jan 27 2010
- * Enabled media pass through so that
- * two woomera servers pass media directly.
- *
- * v1.63 Nenad Corbic <ncorbic@sangoma.com>
- * Jan 26 2010
- * Added bridge code and rbs relay
- *
- * v1.62 Nenad Corbic <ncorbic@sangoma.com>
- * Jan 24 2010
- * Added woomer called blacklist
- *
- * v1.61 Nenad Corbic <ncorbic@sangoma.com>
- * Jan 14 2010
- * Added media sequencing.
- * Enabled only if server HELLO message contains
- * sequence enable status.
- *
- * v1.60 Nenad Corbic <ncorbic@sangoma.com>
- * Nov 22 2009
- * Added Woomera No Answer feature for calling cards.
- *
- * v1.59 Nenad Corbic <ncorbic@sangoma.com>
- * Nov 16 2009
- * Bug fix in woomera profile verbose introduced in 1.58
- *
- * v1.58 Nenad Corbic <ncorbic@sangoma.com>
- * Nov 10 2009
- *  Added verbosity per profile.
- *  Updated cli commands
- *
- * v1.57 Nenad Corbic <ncorbic@sangoma.com>
- * Nov 10 2009
- *  Fixed global set flag. When one profile goes down it shuts down
- *  all calls.
- *
- * v1.56 Nenad Corbic <ncorbic@sangoma.com>
- * Oct 29 2009
- *  Fixed the call incoming call problem on second profile  
- *
- * v1.55 Nenad Corbic <ncorbic@sangoma.com>
- * Sep 22 2009
- *  Updated udp base port to 20000 and numbe of ports to 5000
- *
- * v1.54 Nenad Corbic <ncorbic@sangoma.com>
- * Sep 16 2009
- *  Added Progress Messages
- *
- * v1.53 Nenad Corbic <ncorbic@sangoma.com>
- * Jul 16 2009
- *	Updated for Asterisk load balancing and well
- *  as one to many call calling based on valid extension.
- *
- * v1.52 Konrad Hammel <konrad@sangoma.com>
- * Jun 25 2009
- * 	Bug fix for tg_context in multiple profiles
- *
- * v1.51 Nenad Corbic <ncorbic@sangoma.com>
- * Jun 06 2009
- * 	Updated for Asterisk 1.6.1
- *
  * v1.50 Nenad Corbic <ncorbic@sangoma.com>
  * Apr 24 2009
  * 	Bug fix on write socket. Check that write woomera socket failed.
@@ -292,9 +230,6 @@
  *      from CLI.
  */
 
-#if !defined(CALLWEAVER)
-#include "asterisk.h"
-#endif
 
 #if defined(CALLWEAVER) && defined(HAVE_CONFIG_H)
 #include "confdefs.h"
@@ -344,7 +279,7 @@
 #include "asterisk/musiconhold.h"
 #include "asterisk/transcap.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.64 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
 
 #else
 
@@ -395,7 +330,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.64 $")
 #define CALLWEAVER_19 1
 #endif
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.64 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
 
 #if defined(DSP_FEATURE_FAX_CNG_DETECT)
 #undef		DSP_FEATURE_FAX_DETECT
@@ -702,7 +637,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.64 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.64"
+#define WOOMERA_VERSION "v1.50"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -719,21 +654,17 @@ extern int option_verbose;
 #define woomera_printf(a,b,c,msg...) __woomera_printf(a,b,c,##msg)
 #endif
 
-#define WOOMERA_MAX_CALLED_IGNORE 32 
-
 static int tech_count = 0;
 
 static const char desc[] = "Woomera Channel Driver";
 //static const char type[] = "WOOMERA";
 static const char tdesc[] = "Woomera Channel Driver";
 static char configfile[] = "woomera.conf";
+static char smgversion_init=0;
+static char smgversion[100] = "N/A";
 
 static char mohinterpret[MAX_MUSICCLASS] = "default";
 static char mohsuggest[MAX_MUSICCLASS] = "";
-
-
-/* Used to debug a specific channel */
-static void *debug_tech_pvt=NULL;
 
 
 #if !defined (AST14) && !defined (AST16)
@@ -745,15 +676,6 @@ struct ast_frame ast_null_frame;
   #define AST_JB 1
  #endif
 #endif
-
-#if !defined(DSP_FEATURE_DTMF_DETECT) && defined(DSP_FEATURE_DIGIT_DETECT) 
-#define DSP_FEATURE_DTMF_DETECT DSP_FEATURE_DIGIT_DETECT
-#define ast_dsp_digitmode ast_dsp_set_digitmode
-#define woo_ast_data_ptr data.ptr
-#else
-#define woo_ast_data_ptr data
-#endif
-
 
 #if defined (AST_JB)
 #include "asterisk/abstract_jb.h"
@@ -773,11 +695,11 @@ static struct ast_jb_conf global_jbconf;
 #define WOOMERA_ULAW	1
 #define WOOMERA_ALAW	2
 
-#define WOOMERA_MAX_MEDIA_PORTS 5000
+#define WOOMERA_MAX_MEDIA_PORTS 899
 
 #define WOOMERA_STRLEN 256
 #define WOOMERA_ARRAY_LEN 50
-#define WOOMERA_MIN_PORT  20000
+#define WOOMERA_MIN_PORT  10000
 #define WOOMERA_MAX_PORT WOOMERA_MIN_PORT+WOOMERA_MAX_MEDIA_PORTS
 #define WOOMERA_BODYLEN 2048
 #define WOOMERA_LINE_SEPARATOR "\r\n"
@@ -813,6 +735,7 @@ static int woomera_max_media_port  = WOOMERA_MAX_PORT;
                 found; \
         }) 
 #endif
+
 
 #define FRAME_LEN 480
 
@@ -862,10 +785,7 @@ typedef enum {
 	TFLAG_ANSWER_RECEIVED = (1 << 17),
 	TFLAG_CONFIRM_ANSWER = (1 << 18),
 	TFLAG_CONFIRM_ANSWER_ENABLED = (1 << 19),
-	TFLAG_AST_HANGUP = (1 << 20),
-	TFLAG_PROGRESS = (1 << 21),
-	TFLAG_RBS	= (1 << 22),
-	TFLAG_MEDIA_RELAY	= (1 << 23)
+	TFLAG_AST_HANGUP = (1 << 20)
 } TFLAGS;
 
 static int usecnt = 0;
@@ -918,20 +838,17 @@ struct woomera_profile {
 	struct woomera_event_queue event_queue;
 	int jb_enable;
 	int progress_enable;
-	int progress_on_accept;
 	int coding;
 	float rxgain_val;
 	float txgain_val;
 	unsigned char rxgain[256];
 	unsigned char txgain[256];
-	unsigned int call_out;
-	unsigned int call_in;
-	unsigned int call_ok;
-	unsigned int call_end;
-	unsigned int call_abort;
-	unsigned int call_ast_hungup;
-	unsigned int media_rx_seq_err;
-	unsigned int media_tx_seq_err;
+	int call_out;
+	int call_in;
+	int call_ok;
+	int call_end;
+	int call_abort;
+	int call_ast_hungup;
 	char default_context[WOOMERA_STRLEN];
 	char* tg_context [WOOMERA_MAX_TRUNKGROUPS+1];
 	char language[WOOMERA_STRLEN];
@@ -940,13 +857,6 @@ struct woomera_profile {
 	int rx_sync_check_opt;
 	int tx_sync_check_opt;
 	int tx_sync_gen_opt;
-	unsigned int verbose;
-	char called_ignore[WOOMERA_MAX_CALLED_IGNORE][WOOMERA_STRLEN];
-	int called_ignore_idx;
-	unsigned char rbs_relay;
-	unsigned char bridge_disable;
-	unsigned char media_pass_through;
-	char smgversion[100];
 };
 
 
@@ -962,8 +872,6 @@ struct private_object {
 	struct ast_frame frame;
 	short fdata[FRAME_LEN + AST_FRIENDLY_OFFSET];
 	struct woomera_message call_info;
-	struct woomera_message media_info;
-	char *woomera_relay;
 	struct woomera_profile *profile;
 	char dest[WOOMERA_STRLEN]; 
 	char proto[WOOMERA_STRLEN];
@@ -971,7 +879,6 @@ struct private_object {
 	struct timeval started;
 	int timeout;
 	char dtmfbuf[WOOMERA_STRLEN];
-	unsigned char rbsbuf;
 	char cid_name[WOOMERA_STRLEN];
 	char cid_num[WOOMERA_STRLEN];
 	char mohinterpret[MAX_MUSICCLASS];
@@ -992,8 +899,8 @@ struct private_object {
 	struct woomera_event_queue event_queue;
 	int coding;
 	int pri_cause;
-	unsigned int rx_udp_seq;
-	unsigned int tx_udp_seq;
+	int rx_udp_seq;
+	int tx_udp_seq;
 #ifdef AST_JB
         struct ast_jb_conf jbconf;
 #endif /* AST_JB */
@@ -1003,9 +910,6 @@ struct private_object {
 	unsigned char sync_data_w;
 	unsigned char sync_data_r;
 	int capability;
-	int bridge;
-	int ignore_dtmf;
-	struct ast_frame rbs_frame;
 
 };
 
@@ -1023,17 +927,6 @@ typedef struct woomera_event_queue woomera_event_queue;
                 ast_mutex_lock(lock); \
         } while (0)
 #endif
-
-
-static inline int woomera_profile_verbose(woomera_profile *profile)
-{
-	if (!profile) {
-		/* If profile does not exists then log by default */
-		return 100;
-	}
-
-	return profile->verbose;
-}
 
 
 static int my_ast_channel_trylock(struct ast_channel *chan)
@@ -1133,7 +1026,7 @@ AST_MUTEX_DEFINE_STATIC(lock);
 
 /* local prototypes */
 static void woomera_close_socket(int *socket);
-static void global_set_flag(woomera_profile *profile,int flags);
+static void global_set_flag(int flags);
 #ifdef WOOMERA_PRINTF_DEBUG
 static int __woomera_printf(const char* file, int line, woomera_profile *profile, int fd, char *fmt, ...);
 #else
@@ -1207,7 +1100,7 @@ static int tech_send_text(struct ast_channel *self, const char *text);
 static int tech_send_image(struct ast_channel *self, struct ast_frame *frame);
 static int tech_setoption(struct ast_channel *self, int option, void *data, int datalen);
 static int tech_queryoption(struct ast_channel *self, int option, void *data, int *datalen);
-static enum ast_bridge_result tech_bridge(struct ast_channel *c0, struct ast_channel *c1, int flags, struct ast_frame **fo, struct ast_channel **rc, int timeoutms);
+//static enum ast_bridge_result tech_bridge(struct ast_channel *c0, struct ast_channel *c1, int flags, struct ast_frame **fo, struct ast_channel **rc, int timeoutms);
 static int tech_transfer(struct ast_channel *self, const char *newdest);
 static int tech_write_video(struct ast_channel *self, struct ast_frame *frame);
 //static struct ast_channel *tech_bridged_channel(struct ast_channel *self, struct ast_channel *bridge);
@@ -1234,7 +1127,7 @@ static const struct ast_channel_tech technology = {
 	.send_digit = tech_send_digit,
 #endif
 	.call = tech_call,
-	.bridge = tech_bridge,
+	//.bridge = tech_bridge,
 	.hangup = tech_hangup,
 	.answer = tech_answer,
 	.transfer = tech_transfer,
@@ -1277,16 +1170,14 @@ static int woomera_message_reply_ok(woomera_message *wmsg)
 }
 
 
-static void global_set_flag(woomera_profile * profile, int flags)
+static void global_set_flag(int flags)
 {
 	private_object *tech_pvt;
 
 	ASTOBJ_CONTAINER_TRAVERSE(&private_object_list, 1, do {
 		ASTOBJ_RDLOCK(iterator);
-        	tech_pvt = iterator;
-		if (profile == NULL || tech_pvt->profile == profile ) {
-			ast_set_flag(tech_pvt, flags);
-		}
+        tech_pvt = iterator;
+		ast_set_flag(tech_pvt, flags);
 		ASTOBJ_UNLOCK(iterator);
     } while(0));
 } 
@@ -1449,7 +1340,7 @@ static int __woomera_printf(woomera_profile *profile, int fd, char *fmt, ...)
     } else {
 		res=0;
 		if (profile && globals.debug) {
-			if (option_verbose > 2 && woomera_profile_verbose(profile) > 2) {
+			if (option_verbose > 2) {
 			ast_verbose(WOOMERA_DEBUG_PREFIX "Send Message: {%s} [%s/%d]\n%s\n%s", profile->name, profile->woomera_host, profile->woomera_port, WOOMERA_DEBUG_LINE, stuff);
 			}
 		}
@@ -1617,7 +1508,7 @@ static int woomera_message_parse(int fd, woomera_message *wmsg, int timeout,
 			if (res == 0) {
 				sanity++;
 			} else if (res < 0) {
-				if (option_verbose > 2 && woomera_profile_verbose(profile) > 2) {
+				if (option_verbose > 2) {
 				ast_verbose(WOOMERA_DEBUG_PREFIX "{%s} error during packet retry #%d\n", profile->name, loops);
 				}
 				return res;
@@ -1665,7 +1556,7 @@ static int woomera_message_parse(int fd, woomera_message *wmsg, int timeout,
 	next = buf;
 
 	if (globals.debug) {
-		if (option_verbose > 2 && woomera_profile_verbose(profile) > 2) {
+		if (option_verbose > 2) {
 		ast_verbose(WOOMERA_DEBUG_PREFIX "Receive Message: {%s} [%s/%d]\n%s\n%s", profile->name, profile->woomera_host, profile->woomera_port, WOOMERA_DEBUG_LINE, buf);
 		}
 	}
@@ -1759,7 +1650,7 @@ static int woomera_message_parse(int fd, woomera_message *wmsg, int timeout,
 		int terr;
 		terr=read(fd, wmsg->body, (bytes > sizeof(wmsg->body)) ? sizeof(wmsg->body) : bytes);
 		if (globals.debug) {
-			if (option_verbose > 2 && woomera_profile_verbose(profile) > 2) {
+			if (option_verbose > 2) {
 				ast_verbose("%s\n", wmsg->body);
 			}
 		}
@@ -1767,7 +1658,7 @@ static int woomera_message_parse(int fd, woomera_message *wmsg, int timeout,
 
 	if (event_queue && ast_test_flag(wmsg, WFLAG_EVENT)) {
 		if (globals.debug) {
-			if (option_verbose > 2 && woomera_profile_verbose(profile) > 2) {
+			if (option_verbose > 2) {
 				ast_verbose(WOOMERA_DEBUG_PREFIX "Queue Event: {%s} [%s]\n", profile->name, wmsg->command);
 			}
 		}
@@ -1907,7 +1798,7 @@ retry_activate_again:
 		}
 		
 				
-		if (globals.debug > 1 && option_verbose > 1 && woomera_profile_verbose(tech_pvt->profile) > 1) {
+		if (globals.debug > 1 && option_verbose > 1) {
 			ast_log(LOG_ERROR, "Error: %s call connect to TCP/Woomera Server! tpvt=%p: %s\n",
 					ast_test_flag(tech_pvt, TFLAG_OUTBOUND)?"Out":"In",
 					tech_pvt,strerror(errno));
@@ -2028,12 +1919,6 @@ retry_activate_again:
 				tech_pvt->callid,tech_pvt);
 		}
 		
-
-#if 0
-		/* NC: Took this out becuase its not needed any more.
-		       It was a kluge to get load balancing to work
-			   but now it works properly so it should be removed.
-			   I am keeping it here as depricated */
 		err=woomera_printf(tech_pvt->profile,
 				 tech_pvt->command_channel, 
 				 "PROCEED %s%s"
@@ -2059,8 +1944,7 @@ retry_activate_again:
 			/* Do not hangup on main because
 			 * socket connection has been
 			 * established */
-	     }
-#endif
+		 }
 	}
 	
 
@@ -2179,7 +2063,7 @@ static int tech_init(private_object *tech_pvt, woomera_profile *profile, int fla
 		memcpy(&tech_pvt->jbconf, &global_jbconf, sizeof(struct ast_jb_conf));
 		ast_jb_configure(self, &tech_pvt->jbconf);
 		
-		if (globals.debug > 1 && option_verbose > 10 && woomera_profile_verbose(profile) > 10) {
+		if (globals.debug > 1 && option_verbose > 10) {
 			ast_log(LOG_NOTICE, "%s: Cfg JitterBuffer (F=%i MS=%li Rs=%li Impl=%s)\n",
 					self->name,
 					tech_pvt->jbconf.flags,
@@ -2259,7 +2143,7 @@ static void tech_destroy(private_object *tech_pvt, struct ast_channel *owner)
 	
 	if (tech_pvt->profile && tech_pvt->command_channel > -1) {
 
-		if (globals.debug > 1 && option_verbose > 1 && woomera_profile_verbose(tech_pvt->profile) > 1) {
+		if (globals.debug > 1 && option_verbose > 1) {
 			ast_log(LOG_NOTICE, "+++DESTROY sent HANGUP %s\n",
 				tech_pvt->callid);
 		}
@@ -2326,10 +2210,6 @@ static void tech_destroy(private_object *tech_pvt, struct ast_channel *owner)
 	if (tech_pvt->cid_rdnis) { 
 		ast_free(tech_pvt->cid_rdnis);
 		tech_pvt->cid_rdnis=NULL;
-	}
-
-	if (debug_tech_pvt == tech_pvt) {
-     	debug_tech_pvt=NULL;
 	}
 
 	ast_free(tech_pvt);	
@@ -2561,7 +2441,7 @@ static void *tech_monitor_thread(void *obj)
 					ast_hangup=1;
 
 				} else {
-					if (globals.debug > 2) {
+					if (1) { //globals.debug > 2) {
 						ast_log(LOG_NOTICE,"Tech Thread - Hanging up channel - owner=%p pbx=%i \n",
 							owner,ast_test_flag(tech_pvt, TFLAG_PBX));
 					}
@@ -2687,7 +2567,7 @@ static void *tech_monitor_thread(void *obj)
 				goto tech_thread_continue;
 		
 			} else {
-			
+
 				err=woomera_printf(tech_pvt->profile, tech_pvt->command_channel, 
 							"%s %s%s"
 							"Raw-Audio: %s:%d%s"
@@ -2721,7 +2601,6 @@ static void *tech_monitor_thread(void *obj)
 				ast_set_flag(tech_pvt, TFLAG_ABORT);
 				goto tech_thread_continue;
 			}
-			
 
 			/* It is possible for ACCEPT to have media info
 			 * This is how Early Media is started */
@@ -2738,11 +2617,7 @@ static void *tech_monitor_thread(void *obj)
  
 			ast_set_flag(tech_pvt,TFLAG_ACCEPTED);
 			ast_clear_flag(tech_pvt,TFLAG_ACCEPT);
-			
-			if (tech_pvt->profile->progress_on_accept) {
-				ast_set_flag(tech_pvt, TFLAG_PROGRESS);
-			}
-
+	
 			err=woomera_printf(tech_pvt->profile, tech_pvt->command_channel,
 								"ACCEPT %s%s"
 								"Raw-Audio: %s:%d%s"
@@ -2759,37 +2634,17 @@ static void *tech_monitor_thread(void *obj)
 
 			if(err < 0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
 					ast_set_flag(tech_pvt, TFLAG_ABORT);
-					if (globals.debug > 2) {
-						ast_log(LOG_NOTICE, "ACCEPT ABORT Ch=%d\n",
-										tech_pvt->command_channel);
-					}
+					ast_log(LOG_NOTICE, "ACCEPT ABORT Ch=%d\n",
+									tech_pvt->command_channel);
+					ast_copy_string(tech_pvt->ds, "PROTOCOL_ERROR", sizeof(tech_pvt->ds));
+					tech_pvt->pri_cause=111;
 					goto tech_thread_continue;
 					continue;
 			}
+
 		}
 
-		if (ast_test_flag(tech_pvt, TFLAG_PROGRESS)) {
-			int err;
-			ast_clear_flag(tech_pvt, TFLAG_PROGRESS);
-			err=woomera_printf(tech_pvt->profile, tech_pvt->command_channel,
-							   "PROGRESS %s%s"
-									   "Unique-Call-Id: %s%s",
-							   tech_pvt->callid,
-							   WOOMERA_LINE_SEPARATOR,
-							   tech_pvt->callid,
-							   WOOMERA_RECORD_SEPARATOR);
 
-			if(err < 0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
-				ast_set_flag(tech_pvt, TFLAG_ABORT);
-				if (globals.debug > 2) {
-					ast_log(LOG_NOTICE, "PROGRESS ABORT Ch=%d\n",
-							tech_pvt->command_channel);
-				}
-				goto tech_thread_continue;
-				continue;
-			}
-		}
-		
 		if (ast_test_flag(tech_pvt, TFLAG_ANSWER)) {
 			int err;
 
@@ -2814,10 +2669,10 @@ static void *tech_monitor_thread(void *obj)
 				
 				if(err<0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
 					ast_set_flag(tech_pvt, TFLAG_ABORT);
-					if (globals.debug > 2) {
-						ast_log(LOG_NOTICE, "ANSWER ABORT Ch=%d\n",
+					ast_log(LOG_NOTICE, "ANSWER ABORT Ch=%d\n",
 							tech_pvt->command_channel);
-					}
+					ast_copy_string(tech_pvt->ds, "PROTOCOL_ERROR", sizeof(tech_pvt->ds));
+                			tech_pvt->pri_cause=111;
 					goto tech_thread_continue;
 					continue;
 				}
@@ -2870,61 +2725,6 @@ static void *tech_monitor_thread(void *obj)
 				goto tech_thread_continue;
 				continue;
 			}
-		}
-
-		if (ast_test_flag(tech_pvt, TFLAG_RBS)) {
-			int err;
-			if (globals.debug > 2) {
-			ast_log(LOG_NOTICE, "Woomera Tx RBS %s tpvt=%p %X\n",
-					tech_pvt->callid,tech_pvt,tech_pvt->rbsbuf);
-			}
-
-			ast_mutex_lock(&tech_pvt->iolock);
-
-			err=woomera_printf(tech_pvt->profile, tech_pvt->command_channel, 
-						"RBS %sUnique-Call-Id:%s%sContent-Length:%d%s%s%X%s",
-						WOOMERA_LINE_SEPARATOR,
-						tech_pvt->callid,
-						WOOMERA_LINE_SEPARATOR,
-						1,
-						WOOMERA_LINE_SEPARATOR,
-						WOOMERA_LINE_SEPARATOR,
-						tech_pvt->rbsbuf,
-						WOOMERA_RECORD_SEPARATOR);
-			
-			ast_clear_flag(tech_pvt, TFLAG_RBS);
-			tech_pvt->rbsbuf=0;
-			ast_mutex_unlock(&tech_pvt->iolock);
-
-			if (err<0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
-				ast_set_flag(tech_pvt, TFLAG_ABORT);
-				ast_log(LOG_NOTICE, "RBS ABORT Ch=%d\n",
-						tech_pvt->command_channel);
-				ast_copy_string(tech_pvt->ds, "PROTOCOL_ERROR", sizeof(tech_pvt->ds));
-                		tech_pvt->pri_cause=111;
-				goto tech_thread_continue;
-				continue;
-			}
-		}
-		
-		if (ast_test_flag(tech_pvt, TFLAG_MEDIA_RELAY)) {
-			ast_clear_flag(tech_pvt, TFLAG_MEDIA_RELAY);
-			int err;
-			err=woomera_printf(tech_pvt->profile, tech_pvt->command_channel, tech_pvt->woomera_relay);
-			
-			ast_free(tech_pvt->woomera_relay);
-			tech_pvt->woomera_relay=NULL;
-			
-			if (err<0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
-				ast_set_flag(tech_pvt, TFLAG_ABORT);
-				ast_log(LOG_NOTICE, "MEDIA RELAY ABORT Ch=%d\n",
-						tech_pvt->command_channel);
-				ast_copy_string(tech_pvt->ds, "PROTOCOL_ERROR", sizeof(tech_pvt->ds));
-				tech_pvt->pri_cause=111;
-				goto tech_thread_continue;
-				continue;
-			}
-	
 		}
 
 		if(tech_pvt->timeout) {
@@ -2983,7 +2783,7 @@ static void *tech_monitor_thread(void *obj)
 
 		}
 		if (globals.debug > 4) {
-			if (option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
+			if (option_verbose > 2) {
 				ast_verbose(WOOMERA_DEBUG_PREFIX "CHECK {%s} (%d) %s\n", 
 						tech_pvt->profile->name,  
 						res,tech_pvt->callid);
@@ -3043,7 +2843,7 @@ static int woomera_locate_socket(woomera_profile *profile, int *woomera_socket)
 				profile->name);
 
 			/* When we establish connection update smg version */
-			profile->smgversion[0]='\0';
+			smgversion_init=0;
 			sleep(5);
 		}
 
@@ -3054,7 +2854,7 @@ static int woomera_locate_socket(woomera_profile *profile, int *woomera_socket)
 				ast_log(LOG_NOTICE, "Woomera Master Socket \n");
 				}
 
-				err=woomera_printf(profile, *woomera_socket, "LISTEN %s", WOOMERA_RECORD_SEPARATOR);
+				err=woomera_printf(profile, *woomera_socket, "LISTEN MASTER%s", WOOMERA_RECORD_SEPARATOR);
 				if (err<0) {
 					if (*woomera_socket > -1) {
 						woomera_close_socket(woomera_socket);
@@ -3072,7 +2872,6 @@ static int woomera_locate_socket(woomera_profile *profile, int *woomera_socket)
 							profile->name,__FUNCTION__,__LINE__);
 					if (*woomera_socket > -1) {
 						woomera_close_socket(woomera_socket);
-						profile->smgversion[0]='\0';
 					}
 					continue;
 				}
@@ -3170,7 +2969,7 @@ static void *woomera_thread_run(void *obj)
 					woomera_close_socket(&woomera_socket);
 					profile->woomera_socket=-1;
 				}
-				global_set_flag(profile,TFLAG_ABORT);
+				global_set_flag(TFLAG_ABORT);
 				if (globals.panic > 2) {
 					break;
 				}
@@ -3261,7 +3060,7 @@ static void *woomera_thread_run(void *obj)
 			}
 		}
 		if(globals.debug > 4) {
-			if (option_verbose > 2 && woomera_profile_verbose(profile) > 2) {
+			if (option_verbose > 2) {
 				ast_verbose(WOOMERA_DEBUG_PREFIX "Main Thread {%s} Select Return %d\n", profile->name, res);
 			}
 		}
@@ -3309,7 +3108,7 @@ static int launch_tech_thread(private_object *tech_pvt)
 	int result = 0;
 
 	if (globals.debug > 2) {
-		if (option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
+		if (option_verbose > 2) {
 			ast_verbose(WOOMERA_DEBUG_PREFIX "+++LAUCN TECH THREAD\n");
 		}
 	}
@@ -3416,9 +3215,7 @@ static void destroy_woomera_profile(woomera_profile *profile)
 
 static woomera_profile *clone_woomera_profile(woomera_profile *new_profile, woomera_profile *default_profile) 
 {
-	memcpy(new_profile, default_profile, sizeof(woomera_profile));
-        memset(new_profile->tg_context, 0,sizeof(new_profile->tg_context));
-        return new_profile;
+	return memcpy(new_profile, default_profile, sizeof(woomera_profile));
 }
 
 static woomera_profile *create_woomera_profile(woomera_profile *default_profile) 
@@ -3497,11 +3294,8 @@ static int config_woomera(void)
 						}
 					}
 				}
-				default_context_set = 0;
 				strncpy(profile->name, entry, sizeof(profile->name) - 1);
 				profile->coding=AST_FORMAT_SLINEAR;
-				profile->verbose=100;
-				profile->smgversion[0]='\0';
 
 				/*default is inbound and outbound enabled */
 				ast_set_flag(profile, PFLAG_INBOUND | PFLAG_OUTBOUND);
@@ -3557,22 +3351,8 @@ static int config_woomera(void)
 						}
 					} else if (!strcmp(v->name, "language")) {
 						strncpy(profile->language, v->value, sizeof(profile->language) - 1);
-						
-					} else if (!strcmp(v->name, "exten_blacklist")) {
-						if (profile->called_ignore_idx < WOOMERA_MAX_CALLED_IGNORE) {
-							strncpy(profile->called_ignore[profile->called_ignore_idx], v->value, WOOMERA_STRLEN - 1);
-							profile->called_ignore_idx++;
-						}
-						
 					} else if (!strcmp(v->name, "dtmf_enable")) {
 						profile->dtmf_enable = atoi(v->value);
-
-					} else if (!strcmp(v->name, "bridge_disable")) {
-						profile->bridge_disable = atoi(v->value);
-
-					} else if (!strcmp(v->name, "rbs_relay")) {
-						profile->rbs_relay = atoi(v->value);
-				
 					} else if (!strcmp(v->name, "fax_detect")) {
 						profile->faxdetect = atoi(v->value);
 						ast_log(LOG_NOTICE, "Profile {%s} Fax Detect %s %p \n",
@@ -3590,9 +3370,6 @@ static int config_woomera(void)
 
 					} else if (!strcmp(v->name, "progress_enable")) {
                          profile->progress_enable = atoi(v->value);
-
-					} else if (!strcmp(v->name, "progress_on_accept")) {
-                         profile->progress_on_accept = atoi(v->value);
 						
 					} else if (!strcmp(v->name, "coding")) {
 						if (strcmp(v->value, "alaw") == 0) {
@@ -3601,6 +3378,12 @@ static int config_woomera(void)
 						if (strcmp(v->value, "ulaw") == 0) {
 							profile->coding=AST_FORMAT_ULAW;
 						}	
+					} else if (!strcmp(v->name, "woomera_udp_seq")) {
+						int udp_seq = atoi(v->value);
+						if (udp_seq > 0) {
+							profile->udp_seq=1;
+						}
+
 					} else if (!strcmp(v->name, "base_media_port")) {
 						int base_port = atoi(v->value);
 						if (base_port > 0) {
@@ -3809,54 +3592,16 @@ static int connect_woomera(int *new_socket, woomera_profile *profile, int flags)
 				return *new_socket;
 
 			}else{
-				char *audio_format,*udp_seq, *media_pass;
+				char *audio_format;
 				if (globals.debug > 2) {
-					ast_log(LOG_NOTICE, "{%s} Woomera Got HELLO on connect! SMG Version %s\n", 
-							profile->name,woomera_message_header(&wmsg, "Version"));
+				ast_log(LOG_NOTICE, "Woomera Got HELLO on connect! %s SMG Version %s\n", profile->name,woomera_message_header(&wmsg, "Version"));
 				}
-				if (profile->smgversion[0] == '\0' && woomera_message_header(&wmsg, "Version")) {
-					strncpy(profile->smgversion,
+				if (!smgversion_init &&  woomera_message_header(&wmsg, "Version")) {
+					smgversion_init=1;
+					strncpy(smgversion,
 						woomera_message_header(&wmsg, "Version"),
-						sizeof(profile->smgversion)-1);
+						sizeof(smgversion)-1);
 				}
-				
-				udp_seq = woomera_message_header(&wmsg, "xUDP-Seq");
-				if (udp_seq && strncasecmp(udp_seq,"Enabled",20) == 0) {
-					if (profile->udp_seq == 0) {
-						ast_log(LOG_NOTICE, "{%s} Woomera UDP Sequencing Enabled\n", profile->name);
-                 	 	profile->udp_seq=1;   
-					}
-					udp_seq = woomera_message_header(&wmsg, "xUDP-Seq-Err");
-					if (udp_seq) {
-                     	int seq_err=atoi(udp_seq);
-						if (seq_err > 0) {
-							ast_mutex_lock(&profile->call_count_lock);
-                        	if (seq_err > profile->media_tx_seq_err) {
-                            	profile->media_tx_seq_err=seq_err; 	
-							}
-							ast_mutex_unlock(&profile->call_count_lock);
-						}
-					}
-				} else {
-					if (profile->udp_seq == 1) {
-						ast_log(LOG_NOTICE, "{%s} Woomera UDP Sequencing Disabled\n", profile->name);
-                 	 	profile->udp_seq=0;   
-					}
-				}
-				
-				media_pass = woomera_message_header(&wmsg, "xNative-Bridge");
-				if (media_pass && strncasecmp(media_pass,"Enabled",20) == 0) {
-					if (profile->media_pass_through == 0) {
-						ast_log(LOG_NOTICE, "{%s} Woomera Media Pass Through Enabled\n", profile->name);	
-					}
-					profile->media_pass_through=1;	
-				} else {
-					if (profile->media_pass_through) {
-						ast_log(LOG_NOTICE, "{%s} Woomera Media Pass Through Disable\n", profile->name);		
-					}
-					profile->media_pass_through=0;	
-				}
-				
 					
 				audio_format = woomera_message_header(&wmsg, "Raw-Format");
 				if (!audio_format) {
@@ -3899,6 +3644,28 @@ static int connect_woomera(int *new_socket, woomera_profile *profile, int flags)
 	return *new_socket;
 }
 
+static int init_woomera(void) 
+{
+	woomera_profile *profile;
+	ast_mutex_lock(&lock);
+	
+	if (!config_woomera()) {
+		ast_mutex_unlock(&lock);
+		return 0;
+	}
+	
+	ASTOBJ_CONTAINER_TRAVERSE(&woomera_profile_list, 1, do {
+		ASTOBJ_RDLOCK(iterator);
+		profile = iterator;
+		if (!ast_test_flag(profile, PFLAG_DISABLED)) {
+			launch_woomera_thread(profile);
+		}
+		ASTOBJ_UNLOCK(iterator);
+	} while(0));
+
+	ast_mutex_unlock(&lock);
+	return 1;
+}
 
 static struct ast_channel *woomera_new(const char *type, int format, 
 				       void *data, int *cause, 
@@ -4005,8 +3772,10 @@ static struct ast_channel *tech_requester(const char *type, int format, void *da
 
 		ast_set_flag(tech_pvt, TFLAG_PBX); /* so we know we dont have to free the channel ourselves */
 	
-		if (globals.debug > 1 && option_verbose > 8) {
-		   	ast_verbose(WOOMERA_DEBUG_PREFIX "+++REQ %s\n", chan->name);
+		if (globals.debug > 1 && option_verbose > 1) {
+			if (option_verbose > 2) {
+				ast_verbose(WOOMERA_DEBUG_PREFIX "+++REQ %s\n", chan->name);
+			}
 		}
 
 	} else {
@@ -4030,8 +3799,10 @@ static int tech_send_digit(struct ast_channel *self, char digit)
 	private_object *tech_pvt = self->tech_pvt;
 	int res = 0;
 
-	if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-	   	ast_verbose(WOOMERA_DEBUG_PREFIX "+++DIGIT %s '%c'\n",self->name, digit);
+	if (globals.debug > 1 && option_verbose > 2) {
+		if (option_verbose > 2) {
+			ast_verbose(WOOMERA_DEBUG_PREFIX "+++DIGIT %s '%c'\n",self->name, digit);
+		}
 	}
 
 	/* we don't have time to make sure the dtmf command is successful cos asterisk again 
@@ -4045,29 +3816,6 @@ static int tech_send_digit(struct ast_channel *self, char digit)
 
 	return res;
 }
-
-/*--- tech_senddigit: Send a DTMF character */
-static int tech_send_rbs(struct ast_channel *self, unsigned char digit)
-{
-	private_object *tech_pvt = self->tech_pvt;
-	int res = 0;
-
-	if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-	   	ast_verbose(WOOMERA_DEBUG_PREFIX "+++RBS %s '%X'\n",self->name, digit);
-	}
-
-	/* we don't have time to make sure the dtmf command is successful cos asterisk again 
-	   is much too impaitent... so we will cache the digits so the monitor thread can send
-	   it for us when it has time to actually wait.
-	*/
-	ast_mutex_lock(&tech_pvt->iolock);
-	tech_pvt->rbsbuf=digit;
-	ast_set_flag(tech_pvt, TFLAG_RBS);
-	ast_mutex_unlock(&tech_pvt->iolock);
-
-	return res;
-}
-
 
 /*--- tech_call: Initiate a call on my channel 
  * 'dest' has been passed telling you where to call
@@ -4179,7 +3927,7 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 
 		if (profile->max_calls) {
 			if (profile->call_count >= profile->max_calls) {
-				if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(profile) > 2) {
+				if (globals.debug > 1 && option_verbose > 2) {
 					ast_log(LOG_ERROR, "This profile is at call limit of %d\n",
 						 profile->max_calls);
 				}
@@ -4222,7 +3970,7 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 	return 0;
 
 tech_call_failed:
-	if (globals.debug > 1 && option_verbose > 1) {
+	if (globals.debug > 1 && option_verbose > 2) {
 		ast_log(LOG_ERROR, "Error: Outbound Call Failed %p \n",tech_pvt);
 	}
  	self->hangupcause = AST_CAUSE_NORMAL_CIRCUIT_CONGESTION;
@@ -4352,7 +4100,6 @@ static int tech_answer(struct ast_channel *self)
 {
 	private_object *tech_pvt;
 	int res = 0;
-	const char *noanswer;
 
 	tech_pvt = self->tech_pvt;
 	if (!tech_pvt) {
@@ -4361,22 +4108,19 @@ static int tech_answer(struct ast_channel *self)
 
 	ast_mutex_lock(&tech_pvt->iolock);
 
-	if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-	   	ast_verbose(WOOMERA_DEBUG_PREFIX "+++ANSWER %s\n",self->name);
+	if (globals.debug > 1 && option_verbose > 1) {
+		if (option_verbose > 2) {
+			ast_verbose(WOOMERA_DEBUG_PREFIX "+++ANSWER %s\n",self->name);
+		}
 	}
 	
 	if (!ast_test_flag(tech_pvt, TFLAG_OUTBOUND)) {
 		/* Only answer the inbound calls */
-		noanswer=pbx_builtin_getvar_helper(self, "WOOMERA_NO_ANSWER");
-		if (noanswer && atoi(noanswer) == 1) {
-			ast_clear_flag(tech_pvt, TFLAG_ANSWER);
-		} else {
-			ast_set_flag(tech_pvt, TFLAG_ANSWER);
-		}
+		ast_set_flag(tech_pvt, TFLAG_ANSWER);
 	} else {
 		ast_log(LOG_ERROR, "Warning: AST trying to Answer OUTBOUND Call!\n");
 	}
- 
+
 	ast_set_flag(tech_pvt, TFLAG_UP);
 	ast_setstate(self, AST_STATE_UP);
 
@@ -4404,7 +4148,7 @@ static void handle_fax(private_object *tech_pvt)
 				const char *target_context = ast_strlen_zero(owner->macrocontext) ? owner->context : owner->macrocontext;
 #endif
 				if (ast_exists_extension(owner, target_context, "fax", 1, owner->cid.cid_num)) {
-						if (option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
+						if (option_verbose > 2) {
 								ast_verbose(VERBOSE_PREFIX_3 "Redirecting %s to fax extension\n", owner->name);
 						}
 	
@@ -4467,14 +4211,9 @@ tech_read_again:
 		} else {
 			tech_pvt->rx_udp_seq++;
 			if (tech_pvt->rx_udp_seq != *((unsigned int*)(&rxdata[res]))) {
-				if (globals.debug > 2) {
-					ast_log(LOG_NOTICE, "%s: Error: Missing Rx Sequence Expect %i Received %i!\n", 
-						self->name,tech_pvt->rx_udp_seq, *((unsigned int*)(&rxdata[res])));
-				}
+				ast_log(LOG_NOTICE, "%s: Error: Missing Rx Sequence Expect %i Received %i!\n", 
+					self->name,tech_pvt->rx_udp_seq, *((unsigned int*)(&rxdata[res])));
 				tech_pvt->rx_udp_seq = *((unsigned int*)(&rxdata[res]));
-				ast_mutex_lock(&tech_pvt->profile->call_count_lock);
-				tech_pvt->profile->media_rx_seq_err++;
-				ast_mutex_unlock(&tech_pvt->profile->call_count_lock);
 			}
 		}
 	}
@@ -4510,19 +4249,19 @@ tech_read_again:
 	tech_pvt->frame.offset = AST_FRIENDLY_OFFSET;
 	tech_pvt->frame.datalen = res;
 	tech_pvt->frame.samples = res;
-	tech_pvt->frame.woo_ast_data_ptr = tech_pvt->fdata + AST_FRIENDLY_OFFSET;
+	tech_pvt->frame.data = tech_pvt->fdata + AST_FRIENDLY_OFFSET;
 
 	f=&tech_pvt->frame;
 
 	if (tech_pvt->profile->rxgain_val) {
 		int i;
-		unsigned char *data=tech_pvt->frame.woo_ast_data_ptr;
+		unsigned char *data=tech_pvt->frame.data;
 		for (i=0;i<tech_pvt->frame.datalen;i++) {
 			data[i]=tech_pvt->profile->rxgain[data[i]];
 		}
 	} 	
 
-	if (tech_pvt->owner && !tech_pvt->ignore_dtmf && (tech_pvt->faxdetect || tech_pvt->ast_dsp)) {
+	if (tech_pvt->owner && (tech_pvt->faxdetect || tech_pvt->ast_dsp)) {
 		f = ast_dsp_process(tech_pvt->owner, tech_pvt->dsp, &tech_pvt->frame);
 		if (f && f->frametype == AST_FRAME_DTMF){
 			int answer = 0;
@@ -4571,7 +4310,7 @@ tech_read_again:
 	
 	
 	if (globals.debug > 4) {
-		if (option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
+		if (option_verbose > 2) {
 			ast_verbose(WOOMERA_DEBUG_PREFIX "+++READ %s %d coding %d\n",self->name, res,
 					tech_pvt->coding);
 		}
@@ -4598,7 +4337,7 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 
 	/* Used for debugging only never in production */
 	if (tech_pvt->profile->tx_sync_check_opt){
-		unsigned char *data = frame->woo_ast_data_ptr;
+		unsigned char *data = frame->data;
 		for (i=0;i<frame->datalen;i++) {
 			if (tech_pvt->sync_w == 0) {
 				if (data[i] == 0x01 && data[i+1] == 0x02) {
@@ -4628,38 +4367,37 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 
 	/* Used for debugging only never in production */
 	} else if (tech_pvt->profile->tx_sync_gen_opt){
-		unsigned char *data = frame->woo_ast_data_ptr;
+		unsigned char *data = frame->data;
 		int x;
 		for (x=0;x<frame->datalen;x++) {
 			data[x]=++tech_pvt->sync_data_w;
 		}
 	}
 
-
 	if(ast_test_flag(tech_pvt, TFLAG_MEDIA) && frame->datalen) {
 		if (frame->frametype == AST_FRAME_VOICE) {
 		
 			if (tech_pvt->profile->txgain_val) {
-				unsigned char *data=frame->woo_ast_data_ptr;
+				unsigned char *data=frame->data;
 				for (i=0;i<frame->datalen;i++) {
 					data[i]=tech_pvt->profile->txgain[data[i]];
 				}
 			} 
 
 			if (tech_pvt->profile->udp_seq){	
-				unsigned char *txdata=frame->woo_ast_data_ptr;
-				*((unsigned int*)&txdata[frame->datalen]) = tech_pvt->tx_udp_seq;
+				unsigned char *txdata=frame->data;
 				tech_pvt->tx_udp_seq++;
+				*((unsigned int*)&txdata[frame->datalen]) = tech_pvt->tx_udp_seq;
 				frame->datalen+=4;
 			}
  
-			i = sendto(tech_pvt->udp_socket, frame->woo_ast_data_ptr, frame->datalen, 0, 
+			i = sendto(tech_pvt->udp_socket, frame->data, frame->datalen, 0, 
 				   (struct sockaddr *) &tech_pvt->udpwrite, sizeof(tech_pvt->udpwrite));
 			if (i < 0) {
 				return -1;
 			}
 			if (globals.debug > 4) {
-				if (option_verbose > 9 && woomera_profile_verbose(tech_pvt->profile) > 9) {
+				if (option_verbose > 4) {
 					ast_verbose(WOOMERA_DEBUG_PREFIX "+++WRITE %s %d\n",self->name, i);
 				}
 			}
@@ -4689,8 +4427,10 @@ static struct ast_frame *tech_exception(struct ast_channel *self)
 	private_object *tech_pvt;
 
 	tech_pvt = self->tech_pvt;	
-	if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-	   ast_verbose(WOOMERA_DEBUG_PREFIX "+++EXCEPT %s\n",self->name);
+	if (globals.debug > 1 && option_verbose > 2) {
+		if (option_verbose > 2) {
+			ast_verbose(WOOMERA_DEBUG_PREFIX "+++EXCEPT %s\n",self->name);
+		}
 	}
 
 	return &ast_null_frame;
@@ -4707,7 +4447,6 @@ static int tech_indicate(struct ast_channel *self, int condition)
 	private_object *tech_pvt;
 	int res = -1;
 
-	
 	tech_pvt = self->tech_pvt;
 	if (!tech_pvt) {
 		return res;
@@ -4756,12 +4495,6 @@ static int tech_indicate(struct ast_channel *self, int condition)
 		if (!ast_test_flag(tech_pvt,TFLAG_ACCEPTED)) {
 			ast_set_flag(tech_pvt, TFLAG_ACCEPT);
 		}
-#if 0
-		if (!tech_pvt->profile->progress_on_accept) {
-			ast_set_flag(tech_pvt, TFLAG_PROGRESS);
-		}
-#endif
-
 		break;
 	case AST_CONTROL_HOLD:
 		if (globals.debug > 3) {
@@ -4806,7 +4539,7 @@ static int tech_indicate(struct ast_channel *self, int condition)
                 res = -1;
                 break;
 	}
-	
+
 	ast_mutex_unlock(&tech_pvt->iolock);	
 
 	return res;
@@ -4818,15 +4551,15 @@ static int tech_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
 {
 	struct private_object *p;
 
-	if (!oldchan || !newchan) {
-			ast_log(LOG_ERROR, "Error: Invalid Pointers oldchan=%p newchan=%p\n",oldchan,newchan);
-			return -1;
-	}
-	if (!newchan->tech_pvt) {
-			ast_log(LOG_ERROR, "Error: Invalid Pointer newchan->tech_pvt=%p\n",
-									newchan->tech_pvt);
-			return -1;
-	}
+        if (!oldchan || !newchan) {
+                ast_log(LOG_ERROR, "Error: Invalid Pointers oldchan=%p newchan=%p\n",oldchan,newchan);
+                return -1;
+        }
+        if (!newchan->tech_pvt) {
+                ast_log(LOG_ERROR, "Error: Invalid Pointer newchan->tech_pvt=%p\n",
+                                        newchan->tech_pvt);
+                return -1;
+        }
 
 	p = newchan->tech_pvt;
 
@@ -4834,9 +4567,9 @@ static int tech_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
 	if (p->owner == oldchan) {
 		p->owner = newchan;
 	} else {
-		ast_log(LOG_ERROR, "Error: New p owner=%p instead of %p \n",
-								p->owner, oldchan);
-	}
+                ast_log(LOG_ERROR, "Error: New p owner=%p instead of %p \n",
+                                        p->owner, oldchan);
+        }
 
 #if 0
 	if (newchan->_state == AST_STATE_RINGING) 
@@ -4844,9 +4577,11 @@ static int tech_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
 	update_conf(p);
 #endif
 	
-    if (globals.debug > 1 && option_verbose > 9) {
+        if (globals.debug > 1 && option_verbose > 2) {
+		if (option_verbose > 2) {
 			ast_verbose(WOOMERA_DEBUG_PREFIX "+++FIXUP ChOld=%s ChNew=%s\n",
                                                 oldchan->name,newchan->name);
+		}
 	}
 
 	ast_mutex_unlock(&p->iolock);
@@ -4887,8 +4622,10 @@ static int tech_setoption(struct ast_channel *self, int option, void *data, int 
 {
 	int res = 0;
 
-	if (globals.debug > 1 && option_verbose > 9) {
-	   	ast_verbose(WOOMERA_DEBUG_PREFIX "+++SETOPT %s\n",self->name);
+	if (globals.debug > 1 && option_verbose > 2) {
+		if (option_verbose > 2) {
+			ast_verbose(WOOMERA_DEBUG_PREFIX "+++SETOPT %s\n",self->name);
+		}
 	}
 	return res;
 
@@ -4899,8 +4636,10 @@ static int tech_queryoption(struct ast_channel *self, int option, void *data, in
 {
 	int res = 0;
 
-	if (globals.debug > 1 && option_verbose > 9) {
+	if (globals.debug > 1 && option_verbose > 2) {
+		if (option_verbose > 2) {
 			ast_verbose(WOOMERA_DEBUG_PREFIX "+++GETOPT %s\n",self->name);
+		}
 	}
 	return res;
 }
@@ -4911,7 +4650,7 @@ static struct ast_channel *tech_bridged_channel(struct ast_channel *self, struct
 {
 	struct ast_channel *chan = NULL;
 
-	if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(profile) > 2) {
+	if (globals.debug > 1 && option_verbose > 2) {
 		ast_verbose(WOOMERA_DEBUG_PREFIX "+++BRIDGED %s\n",self->name);
 	}
 	return chan;
@@ -4924,210 +4663,13 @@ static int tech_transfer(struct ast_channel *self, const char *newdest)
 {
 	int res = -1;
 
-	if (globals.debug > 1 && option_verbose > 9) {
+	if (globals.debug > 1 && option_verbose > 2) {
+		if (option_verbose > 2) {
 			ast_verbose(WOOMERA_DEBUG_PREFIX "+++TRANSFER %s\n",self->name);
+		}
 	}
 	return res;
 }
-
-		
-static int woomera_rbs_relay(struct private_object *ch0, struct private_object *ch1, struct ast_channel *c1)
-{
-
-	if (ch0->profile->rbs_relay &&
-		ch1->profile->rbs_relay &&
-		ch0->rbs_frame.frametype == 99) {
-			tech_send_rbs(c1, ch0->rbs_frame.subclass);
-			ch0->rbs_frame.frametype=0;
-	}	
-	
-	return 0;
-}
-
-#define WOOMERA_RELAY_SIZE 4096
-static int woomera_media_pass_through(struct private_object *ch0, struct private_object *ch1)
-{
-	
-	if (ch0->woomera_relay) {
-		ast_log(LOG_NOTICE,"%s: Error: 	woomera_media_pass_through relay used!\n",
-			ch0->callid);	
-		return -1;
-	}
-	
-	if (woomera_message_header(&ch1->media_info, "Raw-Audio") == NULL) {
-		ast_log(LOG_NOTICE,"%s: Error: 	woomera_media_pass_through media info not available!\n",
-				ch1->callid);	
-		return -1;	
-	}
-	
-	ch0->woomera_relay = (char *)ast_malloc(WOOMERA_RELAY_SIZE);	
-	if (!ch0->woomera_relay) {
-		return -1;	
-	}
-	
-	memset(ch0->woomera_relay,0,WOOMERA_RELAY_SIZE);
-	
-	sprintf(ch0->woomera_relay, 
-				"MEDIA %s%s"
-				"Raw-Audio: %s%s"
-				"Request-Audio: Raw%s"
-				"Unique-Call-Id: %s%s",
-				ch0->callid,
-				WOOMERA_LINE_SEPARATOR,
-				woomera_message_header(&ch1->media_info, "Raw-Audio"),
-				WOOMERA_LINE_SEPARATOR,
-				WOOMERA_LINE_SEPARATOR,
-				ch0->callid,
-				WOOMERA_RECORD_SEPARATOR);
-	
-	ast_set_flag(ch0, TFLAG_MEDIA_RELAY);
-		
-	return 0;	
-}
-
-
-static enum ast_bridge_result  tech_bridge (struct ast_channel *c0,
-				      struct ast_channel *c1, int flags,
-				      struct ast_frame **fo,
-				      struct ast_channel **rc,
-				      int timeoutms)
-
-{
-	struct private_object *ch0, *ch1;
-	struct ast_channel *carr[2], *who;
-	int to = -1;
-	struct ast_frame *f;
-	int err=0;
-	int media_pass_through=0;
-	
-	
-	ch0 = c0->tech_pvt;
-	ch1 = c1->tech_pvt;
-
-	carr[0] = c0;
-	carr[1] = c1;
-  
-	if (!ch0 || !ch0->profile || !ch1 || !ch1->profile) {
-		return AST_BRIDGE_FAILED;
-	}
-
-	if (ch0->profile->bridge_disable) {
-		return AST_BRIDGE_FAILED;
-	}
-
-	if (ch1->profile->bridge_disable) {
-		return AST_BRIDGE_FAILED;
-	}
-
-	if (option_verbose > 5) {
-		ast_verbose(VERBOSE_PREFIX_3 "Native bridging %s and %s\n", c0->name, c1->name);
-	}
-
-	//ast_log(LOG_NOTICE, "* Making Native Bridge between %s and %s\n", c0->name, c1->name);
- 
-	if (! (flags & AST_BRIDGE_DTMF_CHANNEL_0) )
-		ch0->ignore_dtmf = 1;
-
-	if (! (flags & AST_BRIDGE_DTMF_CHANNEL_1) )
-		ch1->ignore_dtmf = 1;
-
-	ch0->bridge=1;
-	ch1->bridge=1;
-
-	if (ch0->profile->media_pass_through &&
-	    ch1->profile->media_pass_through) {
-		
-		/* Attempt */
-		err=woomera_media_pass_through(ch0,ch1);
-		if (err == 0) {
-			err=woomera_media_pass_through(ch1,ch0);
-		}
-		
-		if (err == 0) {
-			ast_log(LOG_NOTICE, "woomera: Media pass throught complete %s <--> %s\n", c0->name, c1->name);
-			media_pass_through=1;
-			timeoutms=50;
-			
-		} else {
-			ast_log(LOG_NOTICE, "woomera: Media pass throught failed, proceeding to bridge! %s <-!-> %s\n", c0->name, c1->name);
-		}
-	}
-	
-	
-	for (;/*ever*/;) {
-		to = timeoutms;
-		who = ast_waitfor_n(carr, 2, &to);
-
-		if (!who) {
-			if (media_pass_through) {
-				if (ast_test_flag(ch0, TFLAG_ABORT) || 
-					ast_test_flag(ch1, TFLAG_ABORT)) {
-					break;						
-				}
-				woomera_rbs_relay(ch0,ch1,c1);
-				woomera_rbs_relay(ch1,ch0,c0);
-				continue;
-				
-			}
-			
-			ast_log(LOG_NOTICE, "woomera: Bridge empty read, breaking out\n");
-			break;
-		}
-		
-		f = ast_read(who);
-
-		if (!f || f->frametype == AST_FRAME_CONTROL) {
-			/* got hangup .. */
-
-			if (!f) {
-				if (option_verbose > 10) {
-					ast_log(LOG_NOTICE, "woomera: Bridge Read Null Frame\n");
-				}
-			} else {
-				if (option_verbose > 10) {
-					ast_log(LOG_NOTICE, "woomera: Bridge Read Frame Control class:%d\n", f->subclass);
-				}
-			}
-
-			*fo = f;
-			*rc = who;
-			break;
-		}
-		
-		if (f->frametype == AST_FRAME_DTMF) {
-			ast_log(LOG_NOTICE, "woomera: Bridge Read DTMF %d from %s\n", f->subclass, who->exten);
-
-			*fo = f;
-			*rc = who;
-			break;
-		}
-
-		
-				  
-#if 0
-		if (f->frametype == AST_FRAME_VOICE) {
-			chan_misdn_log(1, ch1->bc->port, "I SEND: Splitting conference with Number:%d\n", ch1->bc->pid +1);
-	
-			continue;
-		}
-#endif
-
-		woomera_rbs_relay(ch0,ch1,c1);
-		woomera_rbs_relay(ch1,ch0,c0);
-
-		if (who == c0) {
-			ast_write(c1, f);
-		} else {
-			ast_write(c0, f);
-		}
-	}
-	
-	ch0->bridge=0;
-	ch1->bridge=0;
-
-	return AST_BRIDGE_COMPLETE;
-}
-
 
 /*--- tech_bridge:  Technology-specific code executed to natively bridge 2 of our channels ---*/
 #if 0
@@ -5159,84 +4701,33 @@ static char *ast16_woomera_cli(struct ast_cli_entry *e, int cmd, struct ast_cli_
 }
 #endif
 
-static int woomera_full_status(int fd)
-{
-	woomera_profile *profile;
-	ASTOBJ_CONTAINER_TRAVERSE(&woomera_profile_list, 1, do { 
-		ASTOBJ_RDLOCK(iterator);
-		profile = iterator;
-
-		if (!ast_test_flag(profile, PFLAG_DISABLED)) {
-            ast_cli(fd,"Profile: {%s} Host=%s WooVer=%s SmgVer=%s CurCalls=%i TotCalls=%i Verb=%i RxSeqErr=%i TxSeqErr=%i\n",
-				profile->name, profile->woomera_host, 
-				WOOMERA_VERSION, profile->smgversion[0] == '\0'?"N/A":profile->smgversion,
-				profile->call_count,
-				profile->call_out+profile->call_in,
-				woomera_profile_verbose(profile),
-				profile->media_rx_seq_err,
-				profile->media_tx_seq_err);
-		 }
-		ASTOBJ_UNLOCK(iterator);
-	} while(0));     
-
-	return 0;
-}
-
-
 static int woomera_cli(int fd, int argc, char *argv[]) 
 {
 	struct woomera_profile *profile;
 	char *profile_name="default";	
 
-	if (argc > 1) {
+	if (argc > 2) {
 
 		profile_name=argv[1];
 		profile = ASTOBJ_CONTAINER_FIND(&woomera_profile_list, profile_name);
 		if (!profile) {
 
-		    if (strcmp(profile_name,"version") == 0) {
-				ast_cli(fd, "Woomera version %s\n",
-					WOOMERA_VERSION);
+			if (strcmp(profile_name,"version") == 0) {
+				ast_cli(fd, "Woomera version %s : SMG Version %s  \n",
+					WOOMERA_VERSION,smgversion);
 				return 0;
 			}
-
-            if (strcmp(profile_name, "debug") == 0) {
-				if (argc > 2) {
-					globals.debug = atoi(argv[2]);
-		   	 	}
-				ast_cli(fd, "Woomera debug=%d\n", globals.debug);  
-            	return 0;
-			}
-
-			if (!strcmp(profile_name, "panic")) {
-				if (argc > 2) {
-					globals.panic = atoi(argv[2]);
-				}
-				ast_cli(fd, "Woomera panic=%d\n", globals.panic);
-				return 0;
-			}
-
-			if (!strcmp(profile_name, "status")) {
-				woomera_full_status(fd);
-				return 0;
-			}  
 
 			ast_cli(fd, "Woomera: Invalid profile name %s\n", profile_name);
-			ast_cli(fd, "Usage: woomera <profile> <cmd> <option>\n");
 			return 0;
 		}
-
+	
 		if (!strcmp(argv[2], "debug")) {
 			if (argc > 3) {
 				globals.debug = atoi(argv[3]);
 			}
 			ast_cli(fd, "Woomera debug=%d\n", globals.debug);
 
-		} else if (!strcmp(argv[2], "verbose")) {
-			if (argc > 3) {
-				profile->verbose = atoi(argv[3]);
-			}
-			ast_cli(fd, "Woomera {%s} verbose=%d\n", profile_name, profile->verbose); 
 
 		} else if (!strcmp(argv[2], "coding")) {
 
@@ -5258,22 +4749,8 @@ static int woomera_cli(int fd, int argc, char *argv[])
 			}
 			
 		} else if (!strcmp(argv[2], "call_status")) {
-			if (argc > 3) {
-					if (!strcmp(argv[3], "clear")) {
-						profile->call_out=0;
-						profile->call_in=0;
-						profile->call_out=0;
-						profile->call_in=0;
-						profile->call_ok=0;
-						profile->call_end=0;
-						profile->call_abort=0;
-						profile->call_ast_hungup=0;
-						profile->media_rx_seq_err=0;
-						profile->media_tx_seq_err=0;
-					}
-			}
 
-			ast_cli(fd, "Woomera {%s} calls=%d tcalls=%d (out=%d in=%d ok=%d end=%d abort=%d hup_pend=%d use=%d) rx_seq_err=%i tx_seq_err=%i\n", 
+			ast_cli(fd, "Woomera {%s} calls=%d tcalls=%d (out=%d in=%d ok=%d end=%d abort=%d hup_pend=%d use=%d)\n", 
 					profile->name,
 					profile->call_count,
 					profile->call_out+profile->call_in,
@@ -5283,16 +4760,13 @@ static int woomera_cli(int fd, int argc, char *argv[])
 					profile->call_end,
 					profile->call_abort,
 					profile->call_ast_hungup,
-					usecnt,
-					profile->media_rx_seq_err,
-					profile->media_tx_seq_err);
+					usecnt);
 
 		} else if (!strcmp(argv[2], "version")) { 
 
-			ast_cli(fd, "Woomera {%s} version %s : SMG Version %s  \n",
-				 profile->name,WOOMERA_VERSION,profile->smgversion[0] == '\0'?"N/A":profile->smgversion);
+			ast_cli(fd, "Woomera version %s : SMG Version %s  \n",
+				WOOMERA_VERSION,smgversion);
 
-			
 		} else if (!strcmp(argv[2], "panic")) {
 			if (argc > 3) {
 				globals.panic = atoi(argv[3]);
@@ -5321,30 +4795,6 @@ static int woomera_cli(int fd, int argc, char *argv[])
 			} 	
 			ast_cli(fd, "Woomera {%s} txgain: %f\n",profile_name,profile->txgain_val);
 			
-		} else if (!strcmp(argv[2], "media_pass_through")) {
-			
-			ast_cli(fd, "Woomera {%s} media_pass_through: %d\n",profile_name,profile->media_pass_through);
-			
-		} else if (!strcmp(argv[2], "udp_seq")) {
-			
-			ast_cli(fd, "Woomera {%s} udp_seq: %d\n",profile_name,profile->udp_seq);
-			
-		} else if (!strcmp(argv[2], "bridge_disable")) {
-			
-			if (argc > 3) { 
-				profile->bridge_disable = atoi(argv[3]);
-			}
-			
-			ast_cli(fd, "Woomera {%s} bridge_disable: %d\n",profile_name,profile->bridge_disable);	
-			
-		} else if (!strcmp(argv[2], "rbs_relay")) {
-			
-			if (argc > 3) { 
-				profile->rbs_relay = atoi(argv[3]);
-			}
-			
-			ast_cli(fd, "Woomera {%s} rbs_relay: %d\n",profile_name,profile->rbs_relay);	
-			
 		} else if (!strcmp(argv[2], "threads")) {
 			ast_cli(fd, "chan_woomera is using %s threads!\n", 
 					globals.more_threads ? "more" : "less");
@@ -5367,7 +4817,7 @@ static int woomera_cli(int fd, int argc, char *argv[])
 				ast_cli(fd, "Woomera Invalid smgdebug usage\n");
 			}
 		} else if (!strcmp(argv[2], "abort")) {
-			global_set_flag(NULL, TFLAG_ABORT);
+			global_set_flag(TFLAG_ABORT);
 		}
 
 	} else {
@@ -5390,7 +4840,7 @@ static struct cw_clicmd cli_woomera[] = {
 	{
 		.cmda = { "woomera", "default", "version", NULL },
 		.handler = woomera_cli,
-		.summary = "Woomera version",
+		.summary = "Woomera Version",
 		//.usage = pri_debug_help,
 		//.generator = complete_span_4,
 	},
@@ -5507,16 +4957,14 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
 	hw_dtmf = woomera_message_header(wmsg, "DTMF");
 	if (hw_dtmf != NULL) {
 		if (strncmp(hw_dtmf, "OutofBand" ,9) == 0) {
-			if (option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
+			if (option_verbose > 2) {
 				ast_verbose(WOOMERA_DEBUG_PREFIX "HW DTMF supported %s\n", tech_pvt->callid);
 			}
 			
-			if(tech_pvt->dsp) {	
-				tech_pvt->dsp_features &= ~DSP_FEATURE_DTMF_DETECT;
-				ast_dsp_set_features(tech_pvt->dsp, tech_pvt->dsp_features);	
-			}
+			tech_pvt->dsp_features &= ~DSP_FEATURE_DTMF_DETECT;
+			ast_dsp_set_features(tech_pvt->dsp, tech_pvt->dsp_features);
 		} else {
-			if (option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
+			if (option_verbose > 2) {
 				ast_verbose(WOOMERA_DEBUG_PREFIX "HW DTMF not supported %s\n", tech_pvt->callid);
 			}
 		}
@@ -5657,20 +5105,6 @@ static int woomera_event_incoming (private_object *tech_pvt)
 		exten = "s";
 	}
 	
-	/* Check for list of blacklisted numbers */
-	if (tech_pvt->profile->called_ignore_idx) {
-		int i;
-		for (i=0; i < tech_pvt->profile->called_ignore_idx; i++) {
-			if (strcmp(tech_pvt->profile->called_ignore[i],exten) == 0) {
-				if (option_verbose > 8 && woomera_profile_verbose(tech_pvt->profile) > 8) {
-					ast_log(LOG_NOTICE, "Woomera {%s} called number %s blacklisted as per woomera.conf\n",
-							tech_pvt->profile->name, exten);
-				}
-				return -1;	
-			}
-		}
-	}
-	
 	tg_string = woomera_message_header(&wmsg, "Trunk-Group");
 	if (!tg_string || ast_strlen_zero(tg_string)) {
 		tg_string="1";	
@@ -5699,13 +5133,7 @@ static int woomera_event_incoming (private_object *tech_pvt)
 	}
 
 	bearer_cap_string = woomera_message_header(&wmsg, "Bearer-Cap");
-	if (bearer_cap_string) {
-		tech_pvt->capability = woomera_capability_to_ast(bearer_cap_string);
-#if 0
-		ast_log(LOG_NOTICE,"Bearer-Cap NENAD %s %d %s\n",
-				bearer_cap_string,woomera_capability_to_ast(bearer_cap_string), ast_transfercapability2str(tech_pvt->capability));
-#endif
-	}
+	tech_pvt->capability = woomera_capability_to_ast(bearer_cap_string);
 
 	uil1p_string = woomera_message_header(&wmsg, "uil1p");
 	tech_pvt->coding = woomera_coding_to_ast(uil1p_string);
@@ -5775,10 +5203,20 @@ static int woomera_event_incoming (private_object *tech_pvt)
 
 	if (validext == 0) {
                if (globals.debug > 1){
-			if (option_verbose > 0) {
+			int group = atoi(tg_string);
+			if(group >= 0 && 
+			   group <= WOOMERA_MAX_TRUNKGROUPS && 
+			   tech_pvt->profile->tg_context[group] != NULL){
+
                                ast_log(LOG_ERROR, "Error: Invalid exten %s@%s called %s!\n",
                                        exten,
                                        owner->context,
+                                       tech_pvt->callid);
+			}else{
+                               ast_log(LOG_ERROR, "Error: Invalid exten %s@%s%s called %s!\n",
+                                       exten,
+                                       tech_pvt->profile->context,
+                                       tg_string,
                                        tech_pvt->callid);
 			}
 		}
@@ -5815,9 +5253,9 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 		char *q931cause;
 		struct ast_channel *owner;
 			
-            
-		if (option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-			ast_verbose(WOOMERA_DEBUG_PREFIX "Hangup [%s] \n", tech_pvt->callid);
+
+		if (option_verbose > 2) {
+			ast_verbose(WOOMERA_DEBUG_PREFIX "Hangup [%s]\n", tech_pvt->callid);
 		}
 		cause = woomera_message_header(wmsg, "Cause");
 		q931cause = woomera_message_header(wmsg, "Q931-Cause-Code");
@@ -5868,7 +5306,7 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 				} else {
 					ast_queue_frame(tech_pvt->owner, &dtmf_frame);
 					
-					if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
+					if (globals.debug > 1 && option_verbose > 2) {
 						ast_verbose(WOOMERA_DEBUG_PREFIX "SEND DTMF [%c] to %s\n", dtmf_frame.subclass,tech_pvt->callid);
 					}
 				}
@@ -5877,35 +5315,6 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 
 		my_tech_pvt_and_owner_unlock(tech_pvt);
 
-	} else if (!strcasecmp(wmsg->command, "RBS")) {
-
-		if (tech_pvt->bridge && tech_pvt->profile->rbs_relay) {
-			my_tech_pvt_and_owner_lock(tech_pvt);
-	
-			char *content_len = woomera_message_header(wmsg, "Content-Length");
-			if (tech_pvt->owner && content_len && atoi(content_len) > 0) {
-				int clen=atoi(content_len);
-				int x;
-				int err;
-				for (x = 0; x < clen; x++) {
-					if (tech_pvt->rbs_frame.frametype == 0) {
-						err=sscanf(&wmsg->body[x], "%X", &tech_pvt->rbs_frame.subclass);
-						if (err==1) {
-							tech_pvt->rbs_frame.frametype = 99;
-						}
-						if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-							ast_verbose(WOOMERA_DEBUG_PREFIX "SEND RBS [%X] to %s\n", tech_pvt->rbs_frame.subclass,tech_pvt->callid);
-						}
-					}
-				}
-			}
-			my_tech_pvt_and_owner_unlock(tech_pvt);
-		} else {
-			if (globals.debug > 1 && option_verbose > 2 && woomera_profile_verbose(tech_pvt->profile) > 2) {
-					ast_verbose(WOOMERA_DEBUG_PREFIX "Ignoring RBS rbs_relay not configured: [%X] to %s\n", tech_pvt->rbs_frame.subclass,tech_pvt->callid);
-			}
-		}
-		
 
 	} else if (!strcasecmp(wmsg->command, "PROCEED")) {
 		/* This packet has lots of info so well keep it */
@@ -5973,9 +5382,6 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 
 	} else if (!strcasecmp(wmsg->command, "MEDIA")) {
 		int err;
-		
-		memcpy(&tech_pvt->media_info,wmsg,sizeof(tech_pvt->media_info));
-	
 		err=woomera_event_media (tech_pvt, wmsg);
 		if (err != 0) {
 			ast_set_flag(tech_pvt, TFLAG_ABORT);
@@ -6059,7 +5465,7 @@ int load_module(void)
 	ast_null_frame.subclass = 0;
 	ast_null_frame.delivery = ast_tv(0,0);
 	ast_null_frame.src = "zt_exception";
-	ast_null_frame.woo_ast_data_ptr = NULL;
+	ast_null_frame.data = NULL;
 #endif
 
 	return 0;
@@ -6076,7 +5482,10 @@ int unload_module(void)
 	woomera_profile *profile = NULL;
 	int x;
 
-	globals.panic=10;
+	globals.panic=1;
+	ast_log(LOG_NOTICE, "WOOMERA Unload %i\n",
+			usecount());
+	sleep(1);
 	
 	ASTOBJ_CONTAINER_TRAVERSE(&woomera_profile_list, 1, do {
 		ASTOBJ_RDLOCK(iterator);
@@ -6098,11 +5507,6 @@ int unload_module(void)
 		}
 		ASTOBJ_UNLOCK(iterator);
 	} while(0));
-
-	sleep(1);
-	
-	ast_log(LOG_NOTICE, "WOOMERA Unload %i\n",
-			usecount());
 
 	ast_mutex_destroy(&default_profile.iolock);
 	ast_mutex_destroy(&default_profile.call_count_lock);
@@ -6172,26 +5576,5 @@ AST_MODULE_INFO(ASTERISK_GPL_KEY, AST_MODFLAG_DEFAULT, "Woomera Protocol (WOOMER
 # endif
 
 #endif
- 
-static int init_woomera(void) 
-{
-	woomera_profile *profile;
-	ast_mutex_lock(&lock);
-	
-	if (!config_woomera()) {
-		ast_mutex_unlock(&lock);
-		return 0;
-	}
-	
-	ASTOBJ_CONTAINER_TRAVERSE(&woomera_profile_list, 1, do {
-		ASTOBJ_RDLOCK(iterator);
-		profile = iterator;
-		if (!ast_test_flag(profile, PFLAG_DISABLED)) {
-			launch_woomera_thread(profile);
-		}
-		ASTOBJ_UNLOCK(iterator);
-	} while(0));
 
-	ast_mutex_unlock(&lock);
-	return 1;
-}                        
+

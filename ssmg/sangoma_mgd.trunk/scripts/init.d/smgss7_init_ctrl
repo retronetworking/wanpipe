@@ -4,14 +4,12 @@
 
 
 WAN_LOCK=/var/lock/wanrouter_lock
-SS7_LOCK=/var/lock/ss7box_wanrouter_lock
+
 
 #Set the ss7boost file name
 ss7boost="ss7boost"
 #Set the ss7box file name
 ss7box="ss7boxd"
-bindir="/usr/sbin"
-ss7box_mon="ss7boxd_monitor.sh"
 
 if [ -f /etc/wanpipe/pbxd ]; then
 	. /etc/wanpipe/pbxd
@@ -120,26 +118,42 @@ function ss7_boost_ctrl ()
 {
 	cmd=$1
 	
-	eval "smg_ctrl $cmd"
+	cd $ss7dir
+
+	if [ $cmd != "start" ]; then
+		echo "Stopping:  $ss7boost" 
+	fi
+	
+	eval "./$ss7boost --term 2>> $smgctrl_log"
+	
+	if [ $cmd != "start" ]; then
+		echo "Stopping:  sangoma_mgd"
+	fi
+	eval "sangoma_mgd -term >> $smgctrl_log 2>> $smgctrl_log"
+
+	if [ $cmd = "start" ]; then
+		sleep 1
+		echo "Starting:  $ss7boost"
+		eval "./$ss7boost >> $smgctrl_log 2>> $smgctrl_log"
+		sleep 5
+		echo "Starting:  sangoma_mgd"
+		eval "$RENICE $(pidof $ss7boost) 2>> $smgctrl_log >> $smgctrl_log"
+		eval "sangoma_mgd -bg >> $smgctrl_log 2>> $smgctrl_log"
+	fi
+
+	cd $homedir
 }
 
 
 function ss7_box_ctrl ()
 {
 	local wp_list
-	local ss7_lock="NO"
-	cmd=$1
+        cmd=$1
 
-	cd $ss7dir
+        cd $ss7dir
 	
 	if [ $cmd != "start" ]; then
 	echo "Stopping:  $ss7box" 
-	fi
-
-
-	if [ -e $bindir/$ss7box_mon ]; then
-		echo "Stopping $ss7box_mon"
-        	eval "killall $ss7box_mon 2>> $smgctrl_log"
 	fi
         eval "kill -TERM $(pidof  $ss7box) 2>> $smgctrl_log"
 	
@@ -152,54 +166,18 @@ function ss7_box_ctrl ()
 	
 	eval "modprobe -r xmtp2km >> $smgctrl_log 2>> $smgctrl_log"
 
-	if [ $cmd = "start" ]; then
-		sleep 1
+        if [ $cmd = "start" ]; then
+                sleep 1
 		echo "Starting:  $ss7box"
-		eval "$NICE ./$ss7box >> $smgctrl_log"
+                eval "$NICE ./$ss7box >> $smgctrl_log"
 		sleep 2
-
-		while [ -e $SS7_LOCK ] 
+		while [ -e $WAN_LOCK ] 
 		do
-			ss7_lock="YES"
-			echo "ss7box lock detected $SS7_LOCK..."
+			echo "wanrouter lock detected $WAN_LOCK..."
 			sleep 1
 		done
-
-		if [ $ss7_lock = "NO" ]; then
-			while [ 1 ]
-			do
-				cnt=5
-				while [ -e $WAN_LOCK ] 
-				do
-					echo "wanrouter lock detected $WAN_LOCK..."
-					sleep 1
-				done
-
-				endloop=0
-				while [ ! -e $WAN_LOCK ]
-				do
-                	echo "Waiting for ss7box to finish wanpipe start ..."
-					sleep 1
-					cnt=$((cnt-1))
-					if [ $cnt -lt 1 ]; then
-						endloop=1
-                      	break;
-					fi
-				done
-
-				if [ $endloop -gt 0 ]; then
-                  	break
-				fi
-
-			done
-		fi
-		sleep 2
+	       	sleep 1
 	
-		if [ -e $bindir/$ss7box_mon ]; then
-			echo "Starting $ss7box_mon"
-			eval "nice $ss7box_mon &"
-		fi
-
 		echo "Starting:  wanrouter start"
 		eval "wanrouter start >> $smgctrl_log 2>> $smgctrl_log"
 
@@ -208,9 +186,9 @@ function ss7_box_ctrl ()
 			sleep 5;
 			echo "Waiting for ss7box to connect $i/6..."
 		done
-	fi
+        fi
 
-	cd $homedir
+        cd $homedir
 }
 
 function stop_running_wanpipes ()
@@ -256,13 +234,13 @@ case "$arg1" in
   stop)
 
 	if [ "$arg2" == isup ]; then
-		pbx_ctrl "$arg1"
-		ss7_boost_ctrl "$arg1"
-	else
-		pbx_ctrl "$arg1"
-		ss7_boost_ctrl "$arg1"
-		ss7_box_ctrl "$arg1"
-	
+                pbx_ctrl "$arg1"
+                ss7_boost_ctrl "$arg1"
+        else
+                pbx_ctrl "$arg1"
+                ss7_boost_ctrl "$arg1"
+                ss7_box_ctrl "$arg1"
+		
 		if [ -e /proc/net/wanrouter/status ]; then 
 			cat /proc/net/wanrouter/status 
 		else 
@@ -270,14 +248,14 @@ case "$arg1" in
 			echo "Wanrouter Stopped"
 			echo
 		fi
-	fi
+        fi
 	;;
 
   restart)
 
 	cd "$homedir"
-	$prog stop "$arg2"
-	$prog start "$arg2"
+        $prog stop "$arg2"
+        $prog start "$arg2"
 	;;
 
 	*)

@@ -319,7 +319,6 @@ typedef struct fr_channel
 #define TMR_INT_ENABLED_UPDATE_DLCI	0x40
 #define TMR_INT_ENABLED_TE		0x80
 
-WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
 
 #pragma pack(1)
 
@@ -1318,15 +1317,8 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	chan->trap_state = SNMP_FR_DISABLED;
 	chan->trap_max_rate = 0;
 
-	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
-	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);
-	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
-	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
-	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
-	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
-	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
-	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
-	wan_netif_set_priv(dev, chan);
+	dev->init = &if_init;
+	dev->priv = chan;
 	chan->common.dev = dev;
 
 	/* Configure this dlci at a later date, when
@@ -1345,8 +1337,8 @@ new_if_error:
 
 	DEBUG_SUB_MEM(sizeof(fr_channel_t));
 	wan_free(chan);
-	wan_netif_set_priv(dev, NULL);
 
+	dev->priv=NULL;
 	return err;
 }
 
@@ -1366,7 +1358,7 @@ new_if_error:
  */
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 	unsigned long smp_flags;
 	sdla_t *card=wandev->priv;
 
@@ -1459,18 +1451,17 @@ static void disable_comm (sdla_t *card)
  */
 static int if_init (netdevice_t* dev)
 {
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 	sdla_t* card = chan->card;
 	wan_device_t* wandev = &card->wandev;
 
 	/* Initialize device driver entry points */
-	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
-	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
-	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
-	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
-
+	dev->open		= &if_open;
+	dev->stop		= &if_close;
+	dev->hard_start_xmit	= &if_send;
+	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4) || defined(LINUX_2_6)
-	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
+	dev->tx_timeout		= &if_tx_timeout;
 	dev->watchdog_timeo	= TX_TIMEOUT;
 #endif
 	
@@ -1527,7 +1518,7 @@ static int if_init (netdevice_t* dev)
 	card->hw_iface.getcfg(card->hw, SDLA_MEMEND, &dev->mem_end); //ALEX_TODAY wandev->maddr + wandev->msize - 1;
 
 	/* SNMP */
-	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
+	dev->do_ioctl	= if_do_ioctl;
 
 	return 0;
 }
@@ -1547,7 +1538,7 @@ static int if_init (netdevice_t* dev)
 
 static int if_open (netdevice_t* dev)
 {
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 	sdla_t* card = chan->card;
 	int err = 0;
 	struct timeval tv;
@@ -1614,7 +1605,7 @@ static int if_open (netdevice_t* dev)
 
 static int if_close (netdevice_t* dev)
 {
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 	sdla_t* card = chan->card;
 
 	if (chan->inarp == INARP_CONFIGURED) {
@@ -1636,7 +1627,7 @@ static int if_close (netdevice_t* dev)
  */
 static void if_tx_timeout (netdevice_t *dev)
 {
-    	fr_channel_t* chan = wan_netif_priv(dev);
+    	fr_channel_t* chan = dev->priv;
 	sdla_t *card = chan->card;
 
 	/* If our device stays busy for at least 5 seconds then we will
@@ -1691,7 +1682,7 @@ static void if_tx_timeout (netdevice_t *dev)
  */
 static int if_send (struct sk_buff* skb, netdevice_t* dev)
 {
-    	fr_channel_t* chan = wan_netif_priv(dev);
+    	fr_channel_t* chan = dev->priv;
     	sdla_t* card = chan->card;
     	unsigned char *sendpacket;
         int err;
@@ -1845,7 +1836,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		if (chan->common.usedby == API) {
 			api_tx_hdr_t* api_tx_hdr;
 			api_tx_hdr = (api_tx_hdr_t*)&skb->data[0x00];
-			attr = api_tx_hdr->attr;
+			attr = api_tx_hdr->wp_api_tx_hdr_fr_attr;
 			skb_pull(skb,sizeof(api_tx_hdr_t));
 		}
 	}
@@ -2002,7 +1993,7 @@ if_send_start_and_exit:
 static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 {
 	unsigned long smp_flags;
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 	sdla_t *card;
 	wan_udp_pkt_t *wan_udp_pkt;
 	int err=0;
@@ -2126,7 +2117,7 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
  */
 static int setup_for_delayed_transmit (netdevice_t* dev, struct sk_buff *skb)
 {
-        fr_channel_t* chan = wan_netif_priv(dev);
+        fr_channel_t* chan = dev->priv;
         sdla_t* card = chan->card;
         fr_dlci_interface_t	dlci_interface;
 	int len = skb->len;
@@ -2183,7 +2174,7 @@ static int chk_bcast_mcast_addr(sdla_t *card, netdevice_t* dev,
         u32 src_ip_addr;
         u32 broadcast_ip_addr = 0;
         struct in_device *in_dev;
-        fr_channel_t* chan = wan_netif_priv(dev);
+        fr_channel_t* chan = dev->priv;
 	iphdr_t *iphdr = (iphdr_t *)skb->data;
 
 	if (skb->len < sizeof(iphdr_t)){
@@ -2399,7 +2390,7 @@ static void switch_net_numbers(unsigned char *sendpacket,
  */
 static struct net_device_stats *if_stats(netdevice_t *dev)
 {
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 	
 	if(chan == NULL)
 		return NULL;
@@ -2592,7 +2583,7 @@ static void rx_intr (sdla_t* card)
 		goto rx_done;
 	}
 
-	if ((chan = wan_netif_priv(dev)) == NULL){
+	if ((chan = dev->priv) == NULL){
 		if( net_ratelimit()) { 
 			printk(KERN_INFO "%s: rx_isr: received data on unconfigured DLCI %d!\n",
                                                 card->devname, dlci);
@@ -2675,8 +2666,8 @@ static void rx_intr (sdla_t* card)
 		
 		skb_push(skb, sizeof(api_rx_hdr_t));
 		api_rx_hdr = (api_rx_hdr_t*)&skb->data[0x00];
-		api_rx_hdr->attr = frbuf.attr;
-		api_rx_hdr->time_stamp = frbuf.tmstamp;
+		api_rx_hdr->wp_api_rx_hdr_fr_attr = frbuf.attr;
+		api_rx_hdr->wp_api_rx_hdr_fr_time_stamp = frbuf.tmstamp;
 
 		skb->protocol = htons(WP_PVC_PROT);
 		wan_skb_reset_mac_header(skb);
@@ -2930,7 +2921,7 @@ static void tx_intr(sdla_t *card)
 		goto end_of_tx_intr;
 	}
 
-        if ((chan = wan_netif_priv(dev)) == NULL){
+        if ((chan = dev->priv) == NULL){
 		printk(KERN_INFO "%s: No DLCI priv area found in TX Interrupt\n",
 				card->devname);	
 		goto end_of_tx_intr;
@@ -3211,7 +3202,7 @@ static void timer_intr(sdla_t *card)
 		dev = card->u.f.arp_dev;
 
 		for (;;){ 
-			fr_channel_t *chan = wan_netif_priv(dev);
+			fr_channel_t *chan = dev->priv;
 
 			/* If the interface is brought down cancel sending In-ARPs */
 			if (!(dev->flags&IFF_UP)){
@@ -3433,7 +3424,7 @@ static int handle_IPXWAN(unsigned char *sendpacket,
 
 static void process_route (netdevice_t *dev)
 {
-	fr_channel_t *chan = wan_netif_priv(dev);
+	fr_channel_t *chan = dev->priv;
 	sdla_t *card = chan->card;
 
 	struct ifreq if_info;
@@ -3864,7 +3855,7 @@ static unsigned int fr_send_hdr (sdla_t*card, int dlci, unsigned int offset)
 	netdevice_t *dev = find_channel(card,dlci);	
 	fr_channel_t *chan;
 
-	if (!dev || !(chan=wan_netif_priv(dev)))
+	if (!dev || !(chan=dev->priv))
 		return offset;
 	
 	if (chan->fr_header_len){
@@ -4211,7 +4202,7 @@ static int fr_dlci_change (sdla_t *card, wan_mbox_t* mb, int mbox_offset)
 				(status->state & FR_DLCI_ACTIVE) ? "Active" : "Inactive");
 
 		}else{
-			fr_channel_t *chan = wan_netif_priv(dev);
+			fr_channel_t *chan = dev->priv;
 			if (!chan){
 				continue;
 			}
@@ -4277,7 +4268,7 @@ static int fr_dlci_change (sdla_t *card, wan_mbox_t* mb, int mbox_offset)
 
 			} else if (status->state & FR_DLCI_ACTIVE) {
 
-				chan = wan_netif_priv(dev);
+				chan = dev->priv;
 		
 				printk(KERN_INFO
 					"%s: DLCI %u reported as Included, Active%s!\n",
@@ -4301,8 +4292,7 @@ static int fr_dlci_change (sdla_t *card, wan_mbox_t* mb, int mbox_offset)
 	WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
 		dev2 = WAN_DEVLE2DEV(devle);
 		if (!dev2 || !wan_netif_priv(dev2)) continue;
-		chan = wan_netif_priv(dev2);
-
+		chan = dev2->priv;
 		if (chan->dlci_configured == DLCI_CONFIG_PENDING) {
 			if (fr_init_dlci(card, chan)){
 				return 1;
@@ -4356,7 +4346,7 @@ static int fr_init_dlci (sdla_t *card, fr_channel_t *chan)
  */
 static int update_chan_state (netdevice_t* dev)
 {
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 	sdla_t* card = chan->card;
 	wan_mbox_t* mb = &card->wan_mbox;
 	int retry = MAX_CMD_RETRY;
@@ -4411,7 +4401,7 @@ static int update_chan_state (netdevice_t* dev)
  */
 static void set_chan_state (netdevice_t* dev, int state)
 {
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 	sdla_t* card = chan->card;
 
 	if (chan->common.state != state) {
@@ -4547,7 +4537,7 @@ static int store_udp_mgmt_pkt(int udp_type, char udp_pkt_src, sdla_t* card,
 	netdevice_t *dev=find_channel(card,dlci);
 	fr_channel_t *chan;
 	
-	if (!dev || !(chan=wan_netif_priv(dev)))
+	if (!dev || !(chan=dev->priv))
 		return 1;
 	
         if(!atomic_read(&card->u.f.udp_pkt_len) && (skb->len <= MAX_LGTH_UDP_MGNT_PKT)){
@@ -4608,7 +4598,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, void *local_dev)
 			atomic_set(&card->u.f.udp_pkt_len,0);
 			return -ENODEV;
 		}
-		if ((chan = wan_netif_priv(dev)) == NULL){
+		if ((chan = dev->priv) == NULL){
 			atomic_set(&card->u.f.udp_pkt_len,0);
 			return -ENODEV;
 		}
@@ -4655,7 +4645,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, void *local_dev)
 		}
 	}else{
 		dev = (netdevice_t *) local_dev;
-		if ((chan = wan_netif_priv(dev)) == NULL){
+		if ((chan = dev->priv) == NULL){
 			return -ENODEV;
 		}
 		dlci=chan->dlci;	
@@ -5142,7 +5132,7 @@ int send_inarp_request(sdla_t *card, netdevice_t *dev)
 
 	arphdr_1490_t *ArpPacket;
 	arphdr_fr_t *arphdr;
-	fr_channel_t *chan = wan_netif_priv(dev);
+	fr_channel_t *chan = dev->priv;
 	struct in_device *in_dev;
 
 	in_dev = dev->ip_ptr;
@@ -5220,7 +5210,7 @@ int process_ARP(arphdr_1490_t *ArpPacket, sdla_t *card, netdevice_t* dev)
 	int err=0;
 	arphdr_fr_t *arphdr = (arphdr_fr_t *)(ArpPacket + 1); /* Skip header */
 	struct in_device *in_dev;
-	fr_channel_t *chan = wan_netif_priv(dev);		
+	fr_channel_t *chan = dev->priv;		
 
 	in_dev = dev->ip_ptr;
 
@@ -5356,7 +5346,7 @@ process_arp_exit:
 
 static void trigger_fr_arp (netdevice_t *dev)
 {
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 
 	del_timer(&chan->fr_arp_timer);
 	chan->fr_arp_timer.expires = jiffies + (chan->inarp_interval * HZ);
@@ -5376,7 +5366,7 @@ static void trigger_fr_arp (netdevice_t *dev)
 static void fr_arp (unsigned long data)
 {
 	netdevice_t *dev = (netdevice_t *)data;
-	fr_channel_t *chan = wan_netif_priv(dev);
+	fr_channel_t *chan = dev->priv;
 	sdla_t *card = chan->card;
 
 	/* Send ARP packets for all devs' until
@@ -5645,7 +5635,7 @@ static void fr_bh (unsigned long data)
  */	
 static void trigger_fr_poll (netdevice_t *dev)
 {
-	fr_channel_t* chan = wan_netif_priv(dev);
+	fr_channel_t* chan = dev->priv;
 	
 	
 	WAN_TASKQ_SCHEDULE((&chan->fr_poll_task));
@@ -5695,7 +5685,7 @@ static void fr_poll (struct work_struct *work)
 #else
 	fr_channel_t* chan;
 	netdevice_t *dev=(netdevice_t*)dev_ptr;
-	if (!dev || (chan = wan_netif_priv(dev)) == NULL) {
+	if (!dev || (chan = dev->priv) == NULL) {
 		return;
 	}
 #endif      
@@ -5827,7 +5817,7 @@ netdevice_t * move_dev_to_next (sdla_t *card, netdevice_t *dev)
 
 static void config_fr_dev (sdla_t *card,netdevice_t *dev)
 {
-	fr_channel_t *chan=wan_netif_priv(dev);
+	fr_channel_t *chan=dev->priv;
 
 	/* If signalling is set to NO, then setup 
        	 * DLCI addresses right away.  Don't have to wait for
@@ -5896,7 +5886,7 @@ static void config_fr_dev (sdla_t *card,netdevice_t *dev)
 
 static void unconfig_fr_dev (sdla_t *card,netdevice_t *dev)
 {
-	fr_channel_t *chan=wan_netif_priv(dev);
+	fr_channel_t *chan=dev->priv;
 
 	if (card->wandev.station == WANOPT_NODE){
 		printk(KERN_INFO "%s: Unconfiguring DLCI %i\n",
@@ -5913,7 +5903,7 @@ static void unconfig_fr_dev (sdla_t *card,netdevice_t *dev)
 static int setup_fr_header(struct sk_buff ** skb_orig, netdevice_t* dev, char op_mode)
 {
 	struct sk_buff *skb = *skb_orig;
-	fr_channel_t *chan=wan_netif_priv(dev);
+	fr_channel_t *chan=dev->priv;
 
 	if (op_mode == WANPIPE){
 
@@ -6194,15 +6184,14 @@ static int fr_set_if_info(struct file *file,
 			  void *data)
 {
 	netdevice_t*	dev = (void*)data;
-	fr_channel_t* 	chan;
-	sdla_t*			card;
+	fr_channel_t* 	chan = (fr_channel_t*)dev->priv;
+	sdla_t*		card = chan->card;
 
-	if (dev == NULL || (chan = wan_netif_priv(dev)) == NULL)
+	if (dev == NULL || dev->priv == NULL)
 		return count;
-
+	chan = (fr_channel_t*)dev->priv;
 	if (chan->card == NULL)
 		return count;
-
 	card = chan->card;
 
 	printk(KERN_INFO "%s: New interface config (%s)\n",
@@ -6314,13 +6303,13 @@ static void fr_handle_front_end_state (void* card_id)
 
 static int fr_snmp_data(sdla_t* card, netdevice_t *dev, void* data)
 {
-	fr_channel_t* 	chan;
+	fr_channel_t* 	chan = NULL;
 	wanpipe_snmp_t*	snmp;
 	struct timeval	tv;
 	
-	if (dev == NULL || (chan = wan_netif_priv(dev)) == NULL)
+	if (dev == NULL || dev->priv == NULL)
 		return -EFAULT;
-
+	chan = (fr_channel_t*)dev->priv;
 	/* Update device statistics */
 	if (card->wandev.update) {
 		int rslt = 0;

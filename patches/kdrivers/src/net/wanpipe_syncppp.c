@@ -139,7 +139,7 @@
 
 #define CHAP_MD5		5	/* hash algorithm - MD5 */
 
-WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 
 struct ppp_header {
 	u8 address;
@@ -2316,13 +2316,13 @@ void wp_sppp_attach(struct ppp_device *pd)
 	/*
 	 *	These 4 are callers but MUST also call sppp_ functions
 	 */
-	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,wp_sppp_do_ioctl);
+	dev->do_ioctl = wp_sppp_do_ioctl;
 #if 0
 	dev->get_stats = NULL;		/* Let the driver override these */
 	dev->open = wp_sppp_open;
 	dev->stop = wp_sppp_close;
 #endif	
-	WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,wp_sppp_change_mtu);
+	dev->change_mtu = wp_sppp_change_mtu;
 	
 	dev->flags = IFF_MULTICAST|IFF_POINTOPOINT|IFF_NOARP;
 	

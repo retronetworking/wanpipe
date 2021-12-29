@@ -56,8 +56,8 @@ char if_name[WAN_IFNAME_SZ];
 char sw_if_name[WAN_IFNAME_SZ];
 char sw_card_name[WAN_IFNAME_SZ];
 
-char tx_file[WAN_FILE_NAME_SZ];
-char rx_file[WAN_FILE_NAME_SZ];
+char tx_file[WAN_IFNAME_SZ];
+char rx_file[WAN_IFNAME_SZ];
 
 char daddr[TX_ADDR_STR_SZ];
 char saddr[TX_ADDR_STR_SZ];
@@ -237,7 +237,7 @@ int init_args(int argc, char *argv[])
 				return WAN_FALSE;
 			}
 
-			strncpy(tx_file, argv[i+1],WAN_FILE_NAME_SZ);
+			strncpy(tx_file, argv[i+1],WAN_IFNAME_SZ);
 			files_used |= TX_FILE_USED;
 			
 		}else if (!strcmp(argv[i],"-rxfile")){
@@ -247,7 +247,7 @@ int init_args(int argc, char *argv[])
 				return WAN_FALSE;
 			}
 
-			strncpy(rx_file, argv[i+1],WAN_FILE_NAME_SZ);
+			strncpy(rx_file, argv[i+1],WAN_IFNAME_SZ);
 			files_used |= RX_FILE_USED;
 
 		}else if (!strcmp(argv[i],"-daddr")){

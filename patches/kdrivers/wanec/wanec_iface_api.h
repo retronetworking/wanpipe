@@ -1,5 +1,5 @@
 /******************************************************************************
- * wanec_iface_api.h	
+ * wanec_iface_api.h
  *
  * Author: 	Alex Feldman  <al.feldman@sangoma.com>
  *
@@ -16,29 +16,22 @@
 #ifndef __WANEC_IFACE_API_H
 # define __WANEC_IFACE_API_H
 
-#if defined(__LINUX__)
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanec_iface.h>
-# include <linux/wanpipe_events.h>
-#elif defined(__WINDOWS__)
-
+#if defined(__WINDOWS__)
 # if defined(__KERNEL__)
 #  define _DEBUG
 #  include <DebugOut.h>
 # else
 #  include <windows.h>
 # endif
-
-# include <wanpipe_defines.h>
-# include <wanpipe_includes.h>
-# include <wanpipe_events.h>
-
-# include <wanec_iface.h>
-
-#elif defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanec_iface.h>
-# include <wanpipe_events.h>
 #endif
+
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_cfg.h"
+#include "wanec_iface.h"
+#include "wanpipe_events.h"
+
+
 #include "oct6100api/oct6100_api.h"
 
 #define	WANEC_BYDEFAULT_NORMAL
@@ -82,8 +75,8 @@
 # define WAN_EC_API_CMD_BYPASS_DISABLE		8
 # define WAN_EC_API_CMD_OPMODE			9
 # define WAN_EC_API_CMD_MODIFY_CHANNEL		10
-# define WAN_EC_API_CMD_DTMF_ENABLE		11
-# define WAN_EC_API_CMD_DTMF_DISABLE		12
+# define WAN_EC_API_CMD_TONE_ENABLE		11
+# define WAN_EC_API_CMD_TONE_DISABLE		12
 # define WAN_EC_API_CMD_STATS			13
 # define WAN_EC_API_CMD_STATS_FULL		14
 # define WAN_EC_API_CMD_STATS_IMAGE		15
@@ -108,8 +101,8 @@
 # define WAN_EC_API_CMD_BYPASS_DISABLE		_IOWR('E', 8, struct wan_ec_api_)
 # define WAN_EC_API_CMD_OPMODE			_IOWR('E', 9, struct wan_ec_api_)
 # define WAN_EC_API_CMD_MODIFY_CHANNEL		_IOWR('E', 10, struct wan_ec_api_)
-# define WAN_EC_API_CMD_DTMF_ENABLE		_IOWR('E', 11, struct wan_ec_api_)
-# define WAN_EC_API_CMD_DTMF_DISABLE		_IOWR('E', 12, struct wan_ec_api_)
+# define WAN_EC_API_CMD_TONE_ENABLE		_IOWR('E', 11, struct wan_ec_api_)
+# define WAN_EC_API_CMD_TONE_DISABLE		_IOWR('E', 12, struct wan_ec_api_)
 # define WAN_EC_API_CMD_STATS			_IOWR('E', 13, struct wan_ec_api_)
 # define WAN_EC_API_CMD_STATS_FULL		_IOWR('E', 14, struct wan_ec_api_)
 # define WAN_EC_API_CMD_STATS_IMAGE		_IOWR('E', 15, struct wan_ec_api_)
@@ -145,8 +138,8 @@
 	(cmd == WAN_EC_API_CMD_RELEASE_ALL)		? "Release all" :	\
 	(cmd == WAN_EC_API_CMD_MONITOR)		? "MONITOR" :		\
 	(cmd == WAN_EC_API_CMD_MODIFY_CHANNEL)	? "MODIFY" :		\
-	(cmd == WAN_EC_API_CMD_DTMF_ENABLE)		? "Enable DTMF" :	\
-	(cmd == WAN_EC_API_CMD_DTMF_DISABLE)		? "Disable DTMF" :	\
+	(cmd == WAN_EC_API_CMD_TONE_ENABLE)		? "Enable TONE" :	\
+	(cmd == WAN_EC_API_CMD_TONE_DISABLE)		? "Disable TONE" :	\
 	(cmd == WAN_EC_API_CMD_CHANNEL_MUTE)	? "Channel Mute" :	\
 	(cmd == WAN_EC_API_CMD_CHANNEL_UNMUTE)	? "Channel Un-mute" :	\
 					"Unknown"
@@ -160,24 +153,24 @@ typedef struct wan_ec_api_ {
 	int		err;
 	int		verbose;
 	int		state;
-	
+
 	int		fe_chan;
 	unsigned long	fe_chan_map;
-	
+
 	union {
 #define u_info		u_ec.info
-#define u_config	u_ec.config	
+#define u_config	u_ec.config
 #define u_config_poll	u_ec.config_poll
-#define u_chip_stats	u_ec.chip_stats	
-#define u_chip_image	u_ec.chip_image	
+#define u_chip_stats	u_ec.chip_stats
+#define u_chip_image	u_ec.chip_image
 #define u_chan_opmode	u_ec.chan_opmode
-#define u_chan_mute	u_ec.chan_mute	
-#define u_chan_custom	u_ec.chan_custom	
-#define u_chan_stats	u_ec.chan_stats		
-#define u_chan_monitor	u_ec.chan_monitor	
-#define u_buffer_config	u_ec.buffer_config	
-#define u_playout	u_ec.playout	
-#define u_dtmf_config	u_ec.dtmf_config
+#define u_chan_mute	u_ec.chan_mute
+#define u_chan_custom	u_ec.chan_custom
+#define u_chan_stats	u_ec.chan_stats
+#define u_chan_monitor	u_ec.chan_monitor
+#define u_buffer_config	u_ec.buffer_config
+#define u_playout	u_ec.playout
+#define u_tone_config	u_ec.tone_config
 		struct info_ {
 			u_int16_t	max_channels;
 		} info;
@@ -192,7 +185,7 @@ typedef struct wan_ec_api_ {
 		wanec_chan_monitor_t	chan_monitor;
 		wanec_buffer_config_t	buffer_config;
 		wanec_playout_t		playout;
-		wanec_dtmf_config_t	dtmf_config;
+		wanec_tone_config_t	tone_config;
 	} u_ec;
 
 	wan_custom_conf_t	custom_conf;

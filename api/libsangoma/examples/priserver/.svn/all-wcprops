@@ -1,35 +1,35 @@
 K 25
 svn:wc:ra_dav:version-url
-V 63
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/priserver
+V 52
+/svn/libsangoma/!svn/ver/17/trunk/examples/priserver
 END
 sound.raw
 K 25
 svn:wc:ra_dav:version-url
-V 73
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/priserver/sound.raw
+V 62
+/svn/libsangoma/!svn/ver/17/trunk/examples/priserver/sound.raw
 END
 priserver.c
 K 25
 svn:wc:ra_dav:version-url
-V 75
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/priserver/priserver.c
+V 64
+/svn/libsangoma/!svn/ver/17/trunk/examples/priserver/priserver.c
 END
 librc
 K 25
 svn:wc:ra_dav:version-url
-V 69
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/priserver/librc
+V 58
+/svn/libsangoma/!svn/ver/17/trunk/examples/priserver/librc
 END
 Makefile
 K 25
 svn:wc:ra_dav:version-url
-V 72
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/priserver/Makefile
+V 61
+/svn/libsangoma/!svn/ver/17/trunk/examples/priserver/Makefile
 END
 README
 K 25
 svn:wc:ra_dav:version-url
-V 70
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/priserver/README
+V 59
+/svn/libsangoma/!svn/ver/17/trunk/examples/priserver/README
 END

@@ -1335,7 +1335,7 @@ int conf_file_writer::form_wanpipe_card_location_str(string& wp_card_location_st
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, "AUTO_PCISLOT \t= %s\n",
       get_keyword_from_look_up_t_table( yes_no_options_table,
-        cfr->link_defs->linkconf->auto_pci_cfg));
+        cfr->link_defs->linkconf->auto_hw_detect));
     wp_card_location_string += tmp_buff;
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, "PCISLOT \t= %d\n",

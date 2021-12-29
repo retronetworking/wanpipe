@@ -46,15 +46,15 @@
 
 #define _K22X_MODULE_FIX_
 
-#include <linux/wanpipe_includes.h>
-#include <linux/wanpipe_defines.h>
-#include <linux/wanpipe_debug.h>
-#include <linux/wanpipe_common.h>
-#include <linux/wanpipe_iface.h>
-#include <linux/wanrouter.h>	/* WAN router API definitions */
-#include <linux/wanpipe.h>	/* WAN router API definitions */
-#include <linux/if_wanpipe.h>
-
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe_iface.h"
+#include "wanrouter.h"	/* WAN router API definitions */
+#include "wanpipe.h"	/* WAN router API definitions */
+#include "if_wanpipe.h"
+#include "wanpipe_cdev_iface.h"
 
 #include <linux/wanpipe_lapb_kernel.h>
 #include <linux/wanpipe_x25_kernel.h>
@@ -153,10 +153,10 @@ MODULE_LICENSE("GPL");
  *	WAN device IOCTL handlers 
  */
 
-static int wan_device_setup(wan_device_t *wandev, wandev_conf_t *u_conf);
+int wan_device_setup(wan_device_t *wandev, wandev_conf_t *u_conf, int user);
 static int wan_device_stat(wan_device_t *wandev, wandev_stat_t *u_stat);
-static int wan_device_shutdown(wan_device_t *wandev, wandev_conf_t *u_conf);
-static int wan_device_new_if(wan_device_t *wandev, wanif_conf_t *u_conf);
+int wan_device_shutdown(wan_device_t *wandev, wandev_conf_t *u_conf);
+int wan_device_new_if(wan_device_t *wandev, wanif_conf_t *u_conf, int user);
 static int wan_device_del_if(wan_device_t *wandev, char *u_name);
 static int wan_device_debugging(wan_device_t *wandev);
 
@@ -182,7 +182,7 @@ static int wan_device_unreg_lip(netdevice_t *dev);
  *	Miscellaneous 
  */
 
-static wan_device_t *find_device (char *name);
+wan_device_t *wan_find_wandev_device (char *name);
 static int delete_interface (wan_device_t *wandev, netdevice_t	*dev, int force);
 
 /*
@@ -263,6 +263,11 @@ int __init wanrouter_init (void)
 		"%s: can't create entry in proc filesystem!\n", modname);
 	}
 
+	err=wanpipe_global_cdev_init();
+	if (err == 0) {
+		wanpipe_wandev_create();
+	}
+
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 	UNREG_PROTOCOL_FUNC(dsp_protocol);
 	UNREG_PROTOCOL_FUNC(x25_protocol);
@@ -296,6 +301,8 @@ void __exit wanrouter_exit (void)
 #endif
 	UNREG_PROTOCOL_FUNC(wp_fw_protocol);
 	wanrouter_proc_cleanup();
+	wanpipe_wandev_free();
+	wanpipe_global_cdev_free();
 }
 
 module_init(wanrouter_init);
@@ -325,6 +332,7 @@ module_exit(wanrouter_exit);
 int register_wan_device(wan_device_t *wandev)
 {
 	int err, namelen;
+	wan_smp_flag_t smp_flags;
 
 	if ((wandev == NULL) || (wandev->magic != ROUTER_MAGIC) ||
 	    (wandev->name == NULL))
@@ -334,7 +342,7 @@ int register_wan_device(wan_device_t *wandev)
 	if (!namelen || (namelen > WAN_DRVNAME_SZ))
 		return -EINVAL;
 		
-	if (find_device(wandev->name) != NULL)
+	if (wan_find_wandev_device(wandev->name) != NULL)
 		return -EEXIST;
 
 #ifdef WANDEBUG		
@@ -362,13 +370,15 @@ int register_wan_device(wan_device_t *wandev)
 	WAN_LIST_INIT(&wandev->dev_head);
 	wan_spin_lock_init(&wandev->dev_head_lock, "wan_dev_head_lock");
 
-	wan_spin_lock(&wan_devlist_lock);
+	wan_spin_lock(&wan_devlist_lock,&smp_flags);
 	WAN_LIST_INSERT_HEAD(&wan_devlist, wandev, next);
-	wan_spin_unlock(&wan_devlist_lock);
+	wan_spin_unlock(&wan_devlist_lock,&smp_flags);
 
 	++devcnt;
 
-    MOD_INC_USE_COUNT;	/* prevent module from unloading */
+#if !defined(LINUX_2_6)
+        MOD_INC_USE_COUNT;	/* prevent module from unloading */
+#endif
 	return 0;
 }
 
@@ -390,6 +400,7 @@ int unregister_wan_device(char *name)
 	int err;
 
 	wan_device_t *wandev;
+	wan_smp_flag_t smp_flags;
 
 	if (name == NULL)
 		return -EINVAL;
@@ -413,13 +424,20 @@ int unregister_wan_device(char *name)
 		if (err) return err;
 	}
 	
-	wan_spin_lock(&wan_devlist_lock);
+	wan_spin_lock(&wan_devlist_lock,&smp_flags);
 	WAN_LIST_REMOVE(wandev, next);
-	wan_spin_unlock(&wan_devlist_lock);
-	
+	wan_spin_unlock(&wan_devlist_lock,&smp_flags);
+
+	if (wandev->port_cfg) {
+		wan_free(wandev->port_cfg);
+		wandev->port_cfg=NULL;
+	}
+
 	--devcnt;
 	wanrouter_proc_delete(wandev);
-    MOD_DEC_USE_COUNT;
+#if !defined(LINUX_2_6)
+        MOD_DEC_USE_COUNT;
+#endif
 	return 0;
 }
 
@@ -565,7 +583,7 @@ int wanrouter_ioctl(struct inode *inode, struct file *file,
 	switch (cmd) {
 	case ROUTER_SETUP:
 		ADMIN_CHECK();
-		err = wan_device_setup(wandev, (void*)arg);
+		err = wan_device_setup(wandev, (void*)arg, 1);
 		break;
 
 	case ROUTER_DOWN:
@@ -580,7 +598,7 @@ int wanrouter_ioctl(struct inode *inode, struct file *file,
 
 	case ROUTER_IFNEW:
 		ADMIN_CHECK();
-		err = wan_device_new_if(wandev, (void*)arg);
+		err = wan_device_new_if(wandev, (void*)arg, 1);
 		break;
 
 	case ROUTER_IFDEL:
@@ -653,7 +671,7 @@ int wanrouter_ioctl(struct inode *inode, struct file *file,
  *	o call driver's setup() entry point
  */
 
-static int wan_device_setup (wan_device_t *wandev, wandev_conf_t *u_conf)
+int wan_device_setup (wan_device_t *wandev, wandev_conf_t *u_conf, int user)
 {
 	void *data = NULL;
 	wandev_conf_t *conf;
@@ -671,15 +689,29 @@ static int wan_device_setup (wan_device_t *wandev, wandev_conf_t *u_conf)
 				wandev->name);
 		return -ENOBUFS;
 	}
-		
-	if(copy_from_user(conf, u_conf, sizeof(wandev_conf_t))) {
-		printk(KERN_INFO "%s: Failed to copy user config data to kernel space!\n",
-				wandev->name);
 
-		DEBUG_SUB_MEM(sizeof(wandev_conf_t));
-		wan_free(conf);
-		return -EFAULT;
+	if (user) {
+		if(copy_from_user(conf, u_conf, sizeof(wandev_conf_t))) {
+			printk(KERN_INFO "%s: Failed to copy user config data to kernel space!\n",
+					wandev->name);
+	
+			DEBUG_SUB_MEM(sizeof(wandev_conf_t));
+			wan_free(conf);
+			return -EFAULT;
+		}
+	} else {
+		memcpy(conf,u_conf,sizeof(wandev_conf_t));
 	}
+
+	if (!wandev->port_cfg) {
+		wandev->port_cfg=wan_kmalloc(sizeof(wanpipe_port_cfg_t));
+		if (!wandev->port_cfg) {
+			return -ENOMEM;
+		}
+		memset(wandev->port_cfg,0,sizeof(wanpipe_port_cfg_t));
+	}
+
+	memcpy(&((wanpipe_port_cfg_t*)wandev->port_cfg)->wandev_conf, conf, sizeof(wandev_conf_t));
 	
 	if (conf->magic != ROUTER_MAGIC){
 		DEBUG_SUB_MEM(sizeof(wandev_conf_t));
@@ -749,13 +781,14 @@ static int wan_device_setup (wan_device_t *wandev, wandev_conf_t *u_conf)
  *	o call driver's shutdown() entry point
  */
  
-static int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf)
+int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf)
 {
 	struct wan_dev_le	*devle;
 	netdevice_t		*dev;
 	wandev_conf_t *conf = NULL;
 	int err=0;
 	int force=0;
+	wan_smp_flag_t smp_flags;
 		
 	if (wandev->state == WAN_UNCONFIGURED){
 		return 0;
@@ -794,10 +827,10 @@ static int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf)
 			return err;
 		}
 
-		wan_spin_lock(&wandev->dev_head_lock);
+		wan_spin_lock(&wandev->dev_head_lock,&smp_flags);
 		WAN_LIST_REMOVE(devle, dev_link);
 		--wandev->ndev;
-		wan_spin_unlock(&wandev->dev_head_lock);
+		wan_spin_unlock(&wandev->dev_head_lock,&smp_flags);
 
 		wan_free(devle);
 		/* the next interface is alwast first */
@@ -861,28 +894,38 @@ static int wan_device_stat (wan_device_t *wandev, wandev_stat_t *u_stat)
  *	o make sure there is no interface name conflict
  *	o register network interface
  */
-static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
+int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf, int user)
 {
 	struct wan_dev_le	*devle;	
 	wanif_conf_t *conf=NULL;
 	netdevice_t  *dev=NULL;
 	int err=-EINVAL;
+	wan_smp_flag_t smp_flags;
 
-	if ((wandev->state == WAN_UNCONFIGURED) || (wandev->new_if == NULL))
+	if ((wandev->state == WAN_UNCONFIGURED) || (wandev->new_if == NULL)) {
+		DEBUG_EVENT("%s: Error wandev state is not configured or new_if=NULL!\n",__FUNCTION__);
 		return -ENODEV;
+	}
 
 	conf = wan_malloc(sizeof(wanif_conf_t));
 	if (!conf){
+		DEBUG_EVENT("%s: Error: Failed to alloc memory\n",__FUNCTION__);
 		return -ENOMEM;
 	}
-	
-	if(copy_from_user(conf, u_conf, sizeof(wanif_conf_t))){
-		err=-EFAULT;
-		goto wan_device_new_if_exit;
+
+	if (user) {
+		if(copy_from_user(conf, u_conf, sizeof(wanif_conf_t))){
+			err=-EFAULT;
+			DEBUG_EVENT("%s: Error: Failed to copy from user\n",__FUNCTION__);
+			goto wan_device_new_if_exit;
+		}
+	} else {
+		memcpy(conf, u_conf, sizeof(wanif_conf_t));
 	}
-		
+
 	if (conf->magic != ROUTER_MAGIC){
 		err=-EINVAL;
+		DEBUG_EVENT("%s: Error: Config magic is wrong!\n",__FUNCTION__);
 		goto wan_device_new_if_exit;
 	}
        
@@ -898,6 +941,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 	
 	dev=wan_netif_alloc(conf->name, WAN_IFT_OTHER, &err);
 	if (dev == NULL){
+		DEBUG_EVENT("%s: Error: failed to allocate net device!\n",__FUNCTION__);
 		goto wan_device_new_if_exit;
 	}
 	wan_netif_set_priv(dev, NULL);
@@ -905,6 +949,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 	devle = wan_malloc(sizeof(struct wan_dev_le));
 	if (devle == NULL){
 		wan_free(dev);
+		DEBUG_EVENT("%s: Error: failed to allocate dev element!\n",__FUNCTION__);
 		goto wan_device_new_if_exit;
 	}
 	
@@ -918,23 +963,27 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 		 */
 
 		if (dev->name == NULL){
+			DEBUG_EVENT("%s: Error: device name is null!\n",__FUNCTION__);
 			err = -EINVAL;
 		}else if ((tmp_dev=wan_dev_get_by_name(dev->name))){
+			DEBUG_EVENT("%s: Error: device name %s alrady exists!\n",__FUNCTION__,dev->name);
 			dev_put(tmp_dev);
 			err = -EEXIST;	/* name already exists */
-		}else if (wan_netif_priv(dev)){
+		}else if (dev->priv){
 			err = register_netdev(dev);
 			if (!err) {
 				devle->dev = dev;
 				
-				wan_spin_lock(&wandev->dev_head_lock);
+				wan_spin_lock(&wandev->dev_head_lock,&smp_flags);
 				WAN_LIST_INSERT_HEAD(&wandev->dev_head, devle, dev_link);
 				++wandev->ndev;
-				wan_spin_unlock(&wandev->dev_head_lock);
+				wan_spin_unlock(&wandev->dev_head_lock,&smp_flags);
 				err = 0;
 
 				wan_free(conf);
 				return 0;
+			} else {
+				DEBUG_EVENT("%s: Error: failed to register net device!\n",__FUNCTION__);
 			}
 		}
 
@@ -943,9 +992,9 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
 
 	/* This code has moved from del_if() function */
-	if (wan_netif_priv(dev)){
-		wan_free(wan_netif_priv(dev));
-		wan_netif_set_priv(dev, NULL);
+	if (dev->priv){
+		wan_free(dev->priv);
+		dev->priv=NULL;
 	}
 
 wan_device_new_if_exit:
@@ -974,7 +1023,8 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
 	struct wan_dev_le	*devle;
 	netdevice_t		*dev=NULL;
 	char name[WAN_IFNAME_SZ + 1];
-        int err = 0;
+    int err = 0;
+	wan_smp_flag_t smp_flags;
 
 	if (wandev->state == WAN_UNCONFIGURED)
 		return -ENODEV;
@@ -1031,10 +1081,10 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
 		return(err);
 	}
 
-       	wan_spin_lock(&wandev->dev_head_lock);
+       	wan_spin_lock(&wandev->dev_head_lock,&smp_flags);
 	WAN_LIST_REMOVE(devle, dev_link);
 	--wandev->ndev;
-       	wan_spin_unlock(&wandev->dev_head_lock);
+       	wan_spin_unlock(&wandev->dev_head_lock,&smp_flags);
 
 	wan_free(devle);
 
@@ -1064,17 +1114,23 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
  *	Return pointer to the WAN device data space or NULL if device not found.
  */
 
-static wan_device_t *find_device(char *name)
+wan_device_t *wan_find_wandev_device(char *name)
 {
 	wan_device_t *wandev;
-	
-	wan_spin_lock(&wan_devlist_lock);
+	wan_smp_flag_t smp_flags;
+
+	wan_spin_lock(&wan_devlist_lock,&smp_flags);
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		if (!strcmp(wandev->name, name)){
 			break;
 		}
 	}
-	wan_spin_unlock(&wan_devlist_lock);
+	wan_spin_unlock(&wan_devlist_lock,&smp_flags);
+
+        if (wandev == NULL) {
+		DEBUG_TEST("wan_find_wandev_device() Name=%s not found!\n",
+			name);
+  	}
 
 	return wandev;
 }
@@ -1099,21 +1155,25 @@ static wan_device_t *find_device(char *name)
 static int delete_interface (wan_device_t *wandev, netdevice_t *dev, int force)
 {
 	int err;
-
+	
 	if (dev == NULL){
 		return -ENODEV;	/* interface not found */
 	}
 
 	if (netif_running(dev)){
 		if (force) {
-			printk(KERN_WARNING "netdevice still open, forcing close...\n");
 			rtnl_lock();
-			err = dev_close(dev);
+			err=dev_change_flags(dev,(dev->flags&~(IFF_UP)));
 			rtnl_unlock();
 			if (err) {
-				printk(KERN_ERR "forced close device failed with error %d\n", err);
 				return err;
 			}
+
+			if (netif_running(dev)){
+				DEBUG_EVENT("%s: Error Device Busy - Force down failed!\n",dev->name);
+				return -EBUSY;
+			}
+
 		} else {
 			return -EBUSY;	/* interface in use */
 		}
@@ -1138,9 +1198,9 @@ static int delete_interface (wan_device_t *wandev, netdevice_t *dev, int force)
 	
 	/* Due to new interface linking method using dev->priv,
 	 * this code has moved from del_if() function.*/
-	if (wan_netif_priv(dev)){
-		wan_free(wan_netif_priv(dev));
-		wan_netif_set_priv(dev, NULL);
+	if (dev->priv){
+		wan_free(dev->priv);
+		dev->priv=NULL;
 	}
 
 	unregister_netdev(dev);
@@ -1457,7 +1517,9 @@ int register_wanpipe_api_socket (struct wanpipe_api_register_struct *wan_api_reg
 	memcpy(&api_socket, wan_api_reg, sizeof(struct wanpipe_api_register_struct)); 
 	REG_PROTOCOL_FUNC(api_socket);
 	++devcnt;
-    MOD_INC_USE_COUNT;
+#if !defined(LINUX_2_6)
+        MOD_INC_USE_COUNT;
+#endif
 	return 0;
 }
 
@@ -1466,7 +1528,9 @@ void unregister_wanpipe_api_socket (void)
 
 	UNREG_PROTOCOL_FUNC(api_socket);
 	--devcnt;
+#if !defined(LINUX_2_6)
 	MOD_DEC_USE_COUNT;
+#endif
 }
 
 

@@ -21,14 +21,30 @@
 #ifndef	__WANPIPE_COMMON_H
 # define __WANPIPE_COMMON_H
 
-#if defined(__LINUX__)
-# include <linux/wanpipe_kernel.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_kernel.h>
-# include <wanpipe_skb.h>
+#if defined(WAN_KERNEL)
+# include "wanpipe_kernel.h"
+#endif
+# include "wanpipe_cfg_def.h"
+
+#if defined(__WINDOWS__)
+# if defined(WAN_KERNEL)
+#  include "wanpipe_skb.h"
+VOID
+free_dma_buffer(
+	IN	PDMA_ADAPTER	DmaAdapterObject,
+	IN	u32				DmaBufferLength,
+	IN	PVOID			virtual_addr,
+	IN	u32				physical_addr
+	);
+int
+allocate_dma_buffer(
+	IN	PDMA_ADAPTER	DmaAdapterObject,
+	IN	u32				DmaBufferLength,
+	OUT PVOID			*virtual_addr,
+	OUT u32				*physical_addr
+	);
+# endif
 # include <sang_status_defines.h>
-#else
-# include <wanpipe_kernel.h>
 #endif
 
 /****************************************************************************
@@ -169,6 +185,8 @@
 	*(elm)->field.le_prev = WAN_LIST_NEXT((elm), field);		\
 } while (0)
 
+#define GFP_KERNEL 0
+
 #else
 # error "WAN_LISTx macros not supported yet!"
 #endif
@@ -217,6 +235,16 @@ static __inline void WP_MDELAY (u32 ms) {
 #  define WAN_NETIF_CARRIER_ON(dev)	
 #  define WAN_NETIF_CARRIER_OK(dev)	1	
 # else
+#if 0
+#  define WAN_NETIF_WAKE_QUEUE(dev)	do{ 				\
+					if (((wanpipe_common_t *)dev->priv)->usedby == TDM_VOICE){ \
+						DEBUG_EVENT("%s: TDM VOICE not waking but starting!!!!\n",dev->name); \
+						netif_start_queue(dev);			\
+					}else{						\
+						netif_wake_queue(dev);			\
+					}						\
+					}while(0)
+#endif
 #  define WAN_NETIF_WAKE_QUEUE(dev)	netif_wake_queue(dev);
 #  define WAN_NETIF_START_QUEUE(dev)	netif_start_queue(dev)
 #  define WAN_NETIF_STOP_QUEUE(dev)	netif_stop_queue(dev)
@@ -255,14 +283,23 @@ static __inline void WP_MDELAY (u32 ms) {
 
 #elif defined(__WINDOWS__)
 # define WAN_NET_RATELIMIT()		1
-# define WAN_NETIF_QUEUE_STOPPED(dev)	test_bit(0,&dev->tbusy)
-# define WAN_NETIF_UP(dev)		((dev)->flags&IFF_UP)
-# define WAN_NETIF_WAKE_QUEUE(dev)	netif_wake_queue(dev)
-# define WAN_NETIF_START_QUEUE(dev)	netif_wake_queue(dev)
-# define WAN_NETIF_CARRIER_OFF(dev)	FUNC_NOT_IMPL
-# define WAN_NETIF_STOP_QUEUE(dev)	FUNC_NOT_IMPL
-# define WAN_IFQ_LEN(ifqueue)		skb_queue_len(ifqueue)
 
+# define WAN_NETIF_QUEUE_STOPPED(dev)	1 /*test_bit(0,&dev->tbusy)*/ /* must be always stopped so aft_core.c would call wanpipe_wake_stack() */
+# define WAN_NETIF_STOP_QUEUE(dev)	
+# define WAN_NETIF_START_QUEUE(dev)	
+
+//# define WAN_NETIF_QUEUE_STOPPED(dev)	test_bit(0,&dev->tbusy)
+//# define WAN_NETIF_STOP_QUEUE(dev)	set_bit(0, &dev->tbusy)
+//# define WAN_NETIF_START_QUEUE(dev)	dev->tbusy = 0;
+
+# define WAN_NETIF_WAKE_QUEUE(dev)	netif_wake_queue(dev)
+
+# define WAN_NETIF_UP(dev)		((dev)->current_line_state == SANG_STATUS_LINE_CONNECTED)
+# define WAN_NETIF_CARRIER_OFF(dev)	if(0)DbgPrint("WAN_NETIF_CARRIER_OFF()\n")
+# define WAN_NETIF_CARRIER_ON(dev)	if(0)DbgPrint("WAN_NETIF_CARRIER_ON()\n")
+
+# define WAN_IFQ_LEN(ifqueue)		skb_queue_len(ifqueue)
+# define NET_ADMIN_CHECK()
 # define WARN_ON(a)
 
 #else
@@ -270,7 +307,7 @@ static __inline void WP_MDELAY (u32 ms) {
 #endif
 
 /* Update Network Interface statistics */
-#if defined(__LINUX__)
+#if defined(__LINUX__) || defined(__WINDOWS__)
 
 # define WAN_NETIF_STATS_INC_RX_PACKETS(common)		(common)->if_stats.rx_packets++
 # define WAN_NETIF_STATS_INC_TX_PACKETS(common)		(common)->if_stats.tx_packets++
@@ -286,19 +323,19 @@ static __inline void WP_MDELAY (u32 ms) {
 # define WAN_NETIF_STATS_INC_MULTICAST(common)		(common)->if_stats.multicast++
 # define WAN_NETIF_STATS_INC_COLLISIONS(common)		(common)->if_stats.collisions++
 # define WAN_NETIF_STATS_INC_RX_LENGTH_ERRORS(common)	(common)->if_stats.rx_length_errors++
-# define WAN_NETIF_STATS_INC_RX_OVER_ERRORS(common)		(common)->if_stats.rx_over_errors++
-# define WAN_NETIF_STATS_INC_RX_CRC_ERRORS(common)		(common)->if_stats.rx_crc_errors++
+# define WAN_NETIF_STATS_INC_RX_OVER_ERRORS(common)	(common)->if_stats.rx_over_errors++
+# define WAN_NETIF_STATS_INC_RX_CRC_ERRORS(common)	(common)->if_stats.rx_crc_errors++
 # define WAN_NETIF_STATS_INC_RX_FRAME_ERRORS(common)	(common)->if_stats.rx_frame_errors++
-# define WAN_NETIF_STATS_INC_RX_FIFO_ERRORS(common)		(common)->if_stats.rx_fifo_errors++
+# define WAN_NETIF_STATS_INC_RX_FIFO_ERRORS(common)	(common)->if_stats.rx_fifo_errors++
 # define WAN_NETIF_STATS_INC_RX_MISSED_ERRORS(common)	(common)->if_stats.rx_missed_errors++
 # define WAN_NETIF_STATS_INC_TX_ABORTED_ERRORS(common)	(common)->if_stats.tx_aborted_errors++
 # define WAN_NETIF_STATS_INC_TX_CARRIER_ERRORS(common)	(common)->if_stats.tx_carrier_errors++
 # define WAN_NETIF_STATS_TX_CARRIER_ERRORS(common)	(common)->if_stats.tx_carrier_errors
-# define WAN_NETIF_STATS_INC_TX_FIFO_ERRORS(common)		(common)->if_stats.tx_fifo_errors++
-# define WAN_NETIF_STATS_INC_TX_HEARTBEAT_ERRORS(common)	(common)->if_stats.tx_heartbeat_errors++
+# define WAN_NETIF_STATS_INC_TX_FIFO_ERRORS(common)	(common)->if_stats.tx_fifo_errors++
+# define WAN_NETIF_STATS_INC_TX_HEARTBEAT_ERRORS(common) (common)->if_stats.tx_heartbeat_errors++
 # define WAN_NETIF_STATS_INC_TX_WINDOW_ERRORS(common)	(common)->if_stats.tx_window_errors++
-# define WAN_NETIF_STATS_INC_RX_COMPRESSED(common)		(common)->if_stats.rx_compressed++
-# define WAN_NETIF_STATS_INC_TX_COMPRESSED(common)		(common)->if_stats.tx_compressed++
+# define WAN_NETIF_STATS_INC_RX_COMPRESSED(common)	(common)->if_stats.rx_compressed++
+# define WAN_NETIF_STATS_INC_TX_COMPRESSED(common)	(common)->if_stats.tx_compressed++
 
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
 
@@ -329,36 +366,6 @@ static __inline void WP_MDELAY (u32 ms) {
 # define WAN_NETIF_STATS_INC_TX_WINDOW_ERRORS(common)	if ((common)->dev) (common)->dev->if_oerrors++
 # define WAN_NETIF_STATS_INC_RX_COMPRESSED(common)	
 # define WAN_NETIF_STATS_INC_TX_COMPRESSED(common)
-
-#elif defined(__WINDOWS__)
-
-# define WAN_NETIF_STATS_INC_RX_PACKETS(common)		(common)->if_stats.rx_packets++
-# define WAN_NETIF_STATS_INC_TX_PACKETS(common)		(common)->if_stats.tx_packets++
-# define WAN_NETIF_STATS_RX_PACKETS(common)		((common)->if_stats.rx_packets)
-# define WAN_NETIF_STATS_TX_PACKETS(common)		((common)->if_stats.tx_packets)
-# define WAN_NETIF_STATS_INC_RX_BYTES(common,len)	(common)->if_stats.rx_bytes+=(len)
-# define WAN_NETIF_STATS_INC_TX_BYTES(common,len)	(common)->if_stats.tx_bytes+=(len)
-# define WAN_NETIF_STATS_INC_RX_ERRORS(common)		(common)->if_stats.rx_errors++
-# define WAN_NETIF_STATS_INC_TX_ERRORS(common)		(common)->if_stats.tx_errors++
-# define WAN_NETIF_STATS_INC_RX_DROPPED(common)		(common)->if_stats.rx_dropped++
-# define WAN_NETIF_STATS_RX_DROPPED(common)		(common)->if_stats.rx_dropped
-# define WAN_NETIF_STATS_INC_TX_DROPPED(common)		(common)->if_stats.tx_dropped++
-# define WAN_NETIF_STATS_INC_MULTICAST(common)		(common)->if_stats.multicast++
-# define WAN_NETIF_STATS_INC_COLLISIONS(common)		(common)->if_stats.collisions++
-# define WAN_NETIF_STATS_INC_RX_LENGTH_ERRORS(common)	(common)->if_stats.rx_length_errors++
-# define WAN_NETIF_STATS_INC_RX_OVER_ERRORS(common)	(common)->if_stats.rx_over_errors++
-# define WAN_NETIF_STATS_INC_RX_CRC_ERRORS(common)	(common)->if_stats.rx_crc_errors++
-# define WAN_NETIF_STATS_INC_RX_FRAME_ERRORS(common)	(common)->if_stats.rx_frame_errors++
-# define WAN_NETIF_STATS_INC_RX_FIFO_ERRORS(common)	(common)->if_stats.rx_fifo_errors++
-# define WAN_NETIF_STATS_INC_RX_MISSED_ERRORS(common)	(common)->if_stats.rx_missed_errors++
-# define WAN_NETIF_STATS_INC_TX_ABORTED_ERRORS(common)	(common)->if_stats.tx_aborted_errors++
-# define WAN_NETIF_STATS_INC_TX_CARRIER_ERRORS(common)	(common)->if_stats.tx_carrier_errors++
-# define WAN_NETIF_STATS_TX_CARRIER_ERRORS(common)	(common)->if_stats.tx_carrier_errors
-# define WAN_NETIF_STATS_INC_TX_FIFO_ERRORS(common)	(common)->if_stats.tx_fifo_errors++
-# define WAN_NETIF_STATS_INC_TX_HEARTBEAT_ERRORS(common) (common)->if_stats.tx_heartbeat_errors++
-# define WAN_NETIF_STATS_INC_TX_WINDOW_ERRORS(common)	(common)->if_stats.tx_window_errors++
-# define WAN_NETIF_STATS_INC_RX_COMPRESSED(common)	(common)->if_stats.rx_compressed++
-# define WAN_NETIF_STATS_INC_TX_COMPRESSED(common)	(common)->if_stats.tx_compressed++
 
 #else
 
@@ -490,11 +497,13 @@ typedef char *va_list;
 /* String library definitions */
 #if defined(__LINUX__)
 # define strncasecmp	strnicmp
+# define _snprintf 	snprintf
 #elif defined(__WINDOWS__)
-# define strlcpy	strncpy
+# define strlcpy		strncpy
 # define strncasecmp	_strnicmp
-# define snprintf	_snprintf
-# define vsnprintf	_vsnprintf
+# define strcasecmp		_stricmp
+# define snprintf		_snprintf
+# define vsnprintf		_vsnprintf
 #endif
 
 /****************************************************************************
@@ -560,7 +569,7 @@ int		wan_tracing_enabled(wan_trace_t *trace_info);
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 void		wanpipe_debugging (void* data, int pending);
 #else
-void		wanpipe_debugging (unsigned long data);
+void		wanpipe_debugging (ulong_ptr_t data);
 #endif
 
 
@@ -606,7 +615,7 @@ static __inline void* wan_malloc(int size)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	ptr = malloc(size, M_DEVBUF, M_NOWAIT); 
 #elif defined(__WINDOWS__)
-	ptr = kmalloc(size);
+	ptr = kmalloc(size, 0);
 #else
 # error "wan_malloc() function is not supported yet!"
 #endif
@@ -634,7 +643,7 @@ static __inline void* wan_kmalloc(int size)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	ptr = malloc(size, M_DEVBUF, M_NOWAIT); 
 #elif defined(__WINDOWS__)
-	ptr = kmalloc(size);
+	ptr = kmalloc(size, 0);
 #else
 # error "wan_malloc() function is not supported yet!"
 #endif
@@ -663,7 +672,9 @@ static __inline void wan_free(void* ptr)
 	}
 	
 #ifdef WAN_DEBUG_MEM
-	sdla_memdbg_pull(ptr, func_name, line);
+	if (sdla_memdbg_pull(ptr, func_name, line) != 0) {
+		DEBUG_EVENT("%s: %d: %s Invalid Free\n",func_name,line,__FUNCTION__);
+	}
 #endif
 
 #if defined(__LINUX__)
@@ -708,8 +719,9 @@ static __inline void* wan_vmalloc(int size)
 		ptr = ptr1++;
 	}
 #elif defined(__SOLARIS__)
-#elif defined(__WINDOWS__)
 	ptr = kmalloc(size);
+#elif defined(__WINDOWS__)
+	ptr = kmalloc(size, 0);
 #else
 # error "wan_vmalloc() function is not supported yet!"
 #endif
@@ -741,7 +753,9 @@ static __inline void wan_vfree(void* ptr)
 	}
 
 #ifdef WAN_DEBUG_MEM
-	sdla_memdbg_pull(ptr, func_name, line);
+	if (sdla_memdbg_pull(ptr, func_name, line) != 0) {
+		DEBUG_EVENT("%s: %d: %s Invalid Free\n",func_name,line,__FUNCTION__);
+	}
 #endif
 
 #if defined(__LINUX__)
@@ -781,7 +795,7 @@ static __inline unsigned long wan_virt2bus(unsigned long* ptr)
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
 	return vtophys((vaddr_t)ptr);
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 	return 0;
 #else
 # error "wan_virt2bus() function is not supported yet!"
@@ -798,7 +812,7 @@ static __inline unsigned long* wan_bus2virt(unsigned long virt_addr)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	return (unsigned long*)virt_addr;
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 	return 0;
 #else
 # error "wan_bus2virt() function is not supported yet!"
@@ -887,8 +901,20 @@ wan_dma_alloc_org(void* hw, wan_dma_descr_org_t* dma_descr)
 		err = -ENOMEM;
 	}
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
-	return -EINVAL;
+	{
+		PVOID	virtual_addr;
+		u32		physical_addr;
+
+		if(allocate_dma_buffer(	dma_descr->DmaAdapterObject, 
+								dma_descr->max_length,
+								&virtual_addr, 
+								&physical_addr)){
+			DEBUG_EVENT("%s(): Error: failed to allocate DMA memory!\n", __FUNCTION__);
+			return -ENOMEM;
+		}
+		dma_descr->vAddr = virtual_addr;
+		dma_descr->pAddr = physical_addr;
+	}
 #else
 # error "wan_dma_alloc() function is not supported yet!"
 #endif
@@ -918,8 +944,10 @@ wan_dma_free_org(void* hw, wan_dma_descr_org_t* dma_descr)
 	dma_descr->vAddr = NULL;
 	dma_descr->pAddr = 0;
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
-	return -EINVAL;
+	free_dma_buffer(dma_descr->DmaAdapterObject, dma_descr->max_length,
+					dma_descr->vAddr, dma_descr->pAddr);
+	dma_descr->vAddr = NULL;
+	dma_descr->pAddr = 0;
 #else
 # error "wan_dma_free() function is not supported yet!"
 #endif
@@ -933,7 +961,11 @@ static __inline unsigned long* wan_dma_get_vaddr(void* card, wan_dma_descr_org_t
 
 static __inline unsigned long wan_dma_get_paddr(void* card, wan_dma_descr_org_t* dma)
 {
+#if defined(__WINDOWS__)
+	return dma->pAddr;
+#else
 	return wan_virt2bus(dma->vAddr);
+#endif
 }
 
 
@@ -1069,6 +1101,7 @@ wan_add_timer(wan_timer_t* wan_timer, unsigned long delay)
 			wan_timer->timer_func,
 			wan_timer->timer_arg); 
 #elif defined(__WINDOWS__)
+#if 0
 	LARGE_INTEGER	large_int_delay;
 
 	if(0)DEBUG_TIMER("%s(): delay: %u\n", __FUNCTION__, delay);
@@ -1081,6 +1114,24 @@ wan_add_timer(wan_timer_t* wan_timer, unsigned long delay)
 
 	KeSetTimer(&wan_timer->timer_info.Timer, large_int_delay,
 		&wan_timer->timer_info.TimerDpcObject);
+#endif
+	LARGE_INTEGER	CurrentTime;
+
+	if(1)DBG_ADSL_SYNCH("%s(): delay: %u\n", __FUNCTION__, delay);
+
+	/* The 'delay' is in SYSTEM TICKS! */
+
+
+	/* 10 000 000
+	 * System time is a count of 100-nanosecond intervals
+	 * since January 1, 1601. System time is typically
+	 * updated approximately every ten milliseconds. (on Intel 32bit) */
+	KeQuerySystemTime(&CurrentTime);
+
+	CurrentTime.QuadPart = CurrentTime.QuadPart + delay * KeQueryTimeIncrement();
+
+	KeSetTimer(&wan_timer->timer_info.Timer, CurrentTime, &wan_timer->timer_info.TimerDpcObject);
+
 #else
 # error "wan_add_timer() function is not supported yet!"
 #endif /* linux */
@@ -1188,7 +1239,9 @@ static __inline void wan_skb_free(void* skb)
 {
 
 #if defined(WAN_DEBUG_MEM)
-	sdla_memdbg_pull(skb, func_name, line);
+	if (sdla_memdbg_pull(skb, func_name, line) != 0) {
+		DEBUG_EVENT("%s: %d: %s Invalid Free\n",func_name,line,__FUNCTION__);
+	}
 #endif
 
 #if defined(__LINUX__)
@@ -1257,22 +1310,23 @@ static __inline void* __wan_skb_alloc(unsigned int len, const char *func_name, c
 static __inline void* wan_skb_alloc(unsigned int len)
 #endif
 {
-#if defined(__LINUX__)
-#if defined(WAN_DEBUG_MEM)
-	struct sk_buff *skb=dev_alloc_skb(len);
+#if defined(__LINUX__) || defined(__WINDOWS__)
+
+	struct sk_buff *skb=dev_alloc_skb(len+64);
 	if (skb){
+		skb_reserve(skb,64);
+#if defined(WAN_DEBUG_MEM)
 		sdla_memdbg_push(skb, func_name,line,skb->truesize);
+#endif
 	}
 	return (void*)skb;
-#else
-	return (void*)dev_alloc_skb(len);
-#endif
+
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct mbuf	*nm = NULL;
 
 	nm = m_getcl(M_DONTWAIT,MT_DATA,M_PKTHDR);
 	if (nm != NULL){
-		nm->m_data += 16;
+		nm->m_data += 64;
 		wan_skb_set_mark(nm);
 # if defined(WAN_DEBUG_MEM)
 		sdla_memdbg_push(nm, func_name,line,sizeof(struct mbuf));
@@ -1280,14 +1334,12 @@ static __inline void* wan_skb_alloc(unsigned int len)
 	}
 	return nm;
 #elif defined (__SOLARIS__)
-	mblk_t *mp=allocb(ROUNDUP(len+16, IOC_LINESIZE), BPRI_MED);
+	mblk_t *mp=allocb(ROUNDUP(len+64, IOC_LINESIZE), BPRI_MED);
 	if (mp){
 		caddr_t ptr= (caddr_t) ROUNDUP((long)mp->b_rptr, 1);
-		mp->b_rptr=(uchar_t *)ptr+16;
+		mp->b_rptr=(uchar_t *)ptr+64;
 	}
 	return mp;
-#elif defined(__WINDOWS__)
-	return (void*)dev_alloc_skb(len);
 #else
 # error "wan_skb_alloc() function is not supported yet!"
 #endif
@@ -1301,22 +1353,22 @@ static __inline void* __wan_skb_kalloc(unsigned int len, const char *func_name, 
 static __inline void* wan_skb_kalloc(unsigned int len)
 #endif
 {
-#if defined(__LINUX__)
-#if defined(WAN_DEBUG_MEM)
-	struct sk_buff *skb=__dev_alloc_skb(len,GFP_KERNEL);
+#if defined(__LINUX__) || defined(__WINDOWS__)
+	struct sk_buff *skb=__dev_alloc_skb(len+64,GFP_KERNEL);
 	if (skb){
+		skb_reserve(skb,64);
+#if defined(WAN_DEBUG_MEM)
 		sdla_memdbg_push(skb, func_name,line,skb->truesize);
+#endif
 	}
 	return (void*)skb;
-#else
-	return (void*)__dev_alloc_skb(len,GFP_KERNEL);
-#endif
+
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct mbuf	*nm = NULL;
 
 	nm = m_getcl(M_DONTWAIT,MT_DATA,M_PKTHDR);
 	if (nm != NULL){
-		nm->m_data += 16;
+		nm->m_data += 64;
 		wan_skb_set_mark(nm);
 # if defined(WAN_DEBUG_MEM)
 		sdla_memdbg_push(nm, func_name,line,sizeof(struct mbuf));
@@ -1324,14 +1376,12 @@ static __inline void* wan_skb_kalloc(unsigned int len)
 	}
 	return nm;
 #elif defined (__SOLARIS__)
-	mblk_t *mp=allocb(ROUNDUP(len+16, IOC_LINESIZE), BPRI_MED);
+	mblk_t *mp=allocb(ROUNDUP(len+64, IOC_LINESIZE), BPRI_MED);
 	if (mp){
 		caddr_t ptr= (caddr_t) ROUNDUP((long)mp->b_rptr, 1);
-		mp->b_rptr=(uchar_t *)ptr+16;
+		mp->b_rptr=(uchar_t *)ptr+64;
 	}
 	return mp;
-#elif defined(__WINDOWS__)
-	return (void*)dev_alloc_skb(len);
 #else
 # error "wan_skb_kalloc() function is not supported yet!"
 #endif
@@ -1397,7 +1447,7 @@ static __inline void wan_skb_set_raw(void* pskb)
 #elif defined(__WINDOWS__)
 	struct sk_buff *skb = (struct sk_buff*)pskb;
 	/* skb->mac.raw = skb->data; */
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 #else
 # warning "wan_skb_set_raw() function is not supported yet!"
 #endif
@@ -1412,7 +1462,7 @@ static __inline void wan_skb_reset_mac_header(void* pskb)
 	}
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 #else
 # warning "wan_skb_reset_mac_hdr() function is not supported yet!"
 #endif
@@ -1427,7 +1477,7 @@ static __inline void wan_skb_reset_network_header(void* pskb)
 	}
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 #else
 # warning "wan_skb_reset_network_hdr() function is not supported yet!"
 #endif
@@ -1461,7 +1511,9 @@ static __inline void wan_skb_set_csum(void* skb, unsigned int csum)
 	}
 #elif defined(__WINDOWS__)
 	struct sk_buff *sk = (struct sk_buff*)skb;
-	sk->csum = csum;
+	if (sk){
+		sk->csum = csum;
+	}
 #else
 # error "wan_skb_set_csum() function is not supported yet!"
 #endif
@@ -1489,7 +1541,7 @@ static __inline unsigned int wan_skb_csum(void* skb)
 # endif
 #elif defined(__WINDOWS__)
 	struct sk_buff *sk = (struct sk_buff*)skb;
-	return sk->csum;
+	return (sk) ? sk->csum : 0;
 #else
 # error "wan_skb_csum() function is not supported yet!"
 #endif
@@ -1548,7 +1600,7 @@ static __inline void wan_skb_copyback(void* skb, int off, int len, caddr_t cp)
 	struct sk_buff* sk = (struct sk_buff*)skb;
 	unsigned char* data = NULL;
 	if (off == wan_skb_len(skb)){
-		if (__wan_skb_tail_pointer(sk) + len > __wan_skb_end_pointer(sk)){	
+		if (sk->tail + len > sk->end){	
 			DEBUG_EVENT(
 			"%s:%d: Internal Error (off=%d,len=%d,skb_len=%d)!\n",
 				__FUNCTION__,__LINE__,
@@ -1670,7 +1722,7 @@ static __inline int wan_skb_copyback_user(void* skb, int off, int len, caddr_t c
 	m->m_len 	= off + len;
 	m->m_pkthdr.len = off + len;
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 #else
 # error "wan_skb_copyback_user() function is not supported yet!"
 #endif
@@ -2011,7 +2063,6 @@ static __inline void wan_skb_init(void* pskb, unsigned int len)
 	struct sk_buff* skb = (struct sk_buff*)pskb;
 	skb->data = skb->head + len;
 	skb->tail = skb->data;
-	skb->len  = 0;
 	skb->data_len = 0;   
 #else
 # error "wan_skb_init() function is not supported yet!"
@@ -2083,7 +2134,6 @@ static __inline void wan_skb_unlink(void* pskb)
 # endif
 #elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
 #else
 # error "wan_skb_unlink() function is not supported yet!"
 #endif
@@ -2114,15 +2164,13 @@ static __inline void wan_skb_queue_init(void *list)
 
 static __inline void wan_skb_queue_purge(void *list)
 {
-#if defined(__LINUX__)
+#if defined(__LINUX__) || defined(__WINDOWS__)
 	struct sk_buff *skb;
 	while ((skb=skb_dequeue(list))!=NULL){
 		wan_skb_free(skb);
 	}
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	WAN_IFQ_PURGE(((wan_skb_queue_t*)list));
-#elif defined(__WINDOWS__)
-	skb_queue_purge(list);
 #else
 # error "wan_skb_queue_purge() function is not supported yet!"
 #endif
@@ -2246,7 +2294,7 @@ static __inline int wan_netif_init(netdevice_t* dev, char* ifname)
 # endif
 	WAN_IFQ_SET_MAXLEN(&dev->if_snd, ifqmaxlen);
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
-	if (strlen(ifname) >= IFNAMSIZ){
+	if (strlen(ifname) >= WAN_IFNAME_SZ){
 		return -ENOMEM;
 	}
     	bcopy(ifname, dev->if_xname, strlen(ifname));
@@ -2258,7 +2306,7 @@ static __inline int wan_netif_init(netdevice_t* dev, char* ifname)
 	strcpy(dev->name, ifname);
 # endif
 #elif defined(__WINDOWS__)
-	strncpy(dev->name, ifname, IFNAMSIZ);
+	strncpy(dev->name, ifname, WAN_IFNAME_SZ);
 #else
 # error "wan_netif_init() function is not supported yet!"
 #endif
@@ -2402,7 +2450,7 @@ wan_netif_alloc(unsigned char *devname, int ifType, int *err)
 	}
 	memset(dev, 0, sizeof(netdevice_t));
 	
-	strncpy(dev->name,devname,IFNAMSIZ);
+	strncpy(dev->name,devname,WAN_IFNAME_SZ);
 	return dev;	
 #else
 # error "wan_netif_alloc() unsupported"
@@ -2439,7 +2487,7 @@ static __inline void wan_netif_free(netdevice_t *dev)
 	
 static __inline char* wan_netif_name(netdevice_t* dev)
 {
-	static char ifname[IFNAMSIZ+1];
+	static char ifname[WAN_IFNAME_SZ+1];
 	WAN_ASSERT2(dev == NULL, NULL);
 #if defined(__LINUX__)
 	strcpy(ifname, dev->name);
@@ -2463,11 +2511,7 @@ static __inline void* wan_netif_priv(netdevice_t* dev)
 {
 	WAN_ASSERT2(dev == NULL, NULL);
 #if defined(__LINUX__)
-#  if  (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
 	return dev->priv;
-#  else
-	return dev->ml_priv;
-#  endif
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	return dev->if_softc;
 #elif defined(__WINDOWS__)
@@ -2485,7 +2529,7 @@ static __inline int wan_netif_up(netdevice_t* dev)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	return WAN_NETIF_UP(dev);
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 #else
 # error "wan_netif_up() function is not supported yet!"
 #endif
@@ -2496,11 +2540,7 @@ static __inline void wan_netif_set_priv(netdevice_t* dev, void* priv)
 {
 	WAN_ASSERT1(dev == NULL);
 #if defined(__LINUX__)
-#  if  (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
 	dev->priv = priv;
-#  else
-	dev->ml_priv = priv;
-#  endif
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	dev->if_softc = priv;
 #elif defined(__WINDOWS__)
@@ -2519,7 +2559,7 @@ static __inline short wan_netif_flags(netdevice_t* dev)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	return dev->if_flags;
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 #else
 # error "wan_netif_flags() function is not supported yet!"
 #endif
@@ -2534,7 +2574,7 @@ static __inline int wan_netif_mcount(netdevice_t* dev)
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
 	return 0;
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 #else
 # error "wan_netif_mcount() function is not supported yet!"
 #endif
@@ -2542,11 +2582,9 @@ static __inline int wan_netif_mcount(netdevice_t* dev)
 
 static __inline int wan_netif_set_ticks(netdevice_t* dev, unsigned long ticks)
 {
-#if defined(__LINUX__)
+#if defined(__LINUX__) || defined(__WINDOWS__)
 	dev->trans_start = ticks;
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-#elif defined(__WINDOWS__)
-	dev->trans_start = ticks;
 #else
 # error "wan_netif_set_ticks() function is not supported yet!"
 #endif
@@ -2555,17 +2593,14 @@ static __inline int wan_netif_set_ticks(netdevice_t* dev, unsigned long ticks)
 
 static __inline int wan_netif_set_mtu(netdevice_t* dev, unsigned long mtu)
 {
-#if defined(__LINUX__)
+#if defined(__LINUX__) || defined(__WINDOWS__)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	dev->if_mtu = mtu;
-#elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
 #else
 # error "wan_netif_set_mtu() function is not supported yet!"
 #endif
 	return 0;
 }
-
 
 static __inline void
 wan_bpf_report(netdevice_t* dev, void* pkt, int flag, int dir)
@@ -2592,7 +2627,7 @@ wan_bpf_report(netdevice_t* dev, void* pkt, int flag, int dir)
 	}
 #elif defined(__WINDOWS__)
 	/* Do nothing */
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 #else
 # error "wan_bpf_report() function is not supported yet!"
 #endif
@@ -2685,11 +2720,12 @@ static __inline void wan_spin_lock_irq(void *lock, wan_smp_flag_t *flag)
 	*flag = splimp();
 # endif
 #elif defined(__WINDOWS__)
-	spin_lock_irqsave((wan_spinlock_t*)lock);
+	spin_lock_irqsave((wan_spinlock_t*)lock, flag/* irql before lock */);
 #else
 # warning "wan_spin_lock_irq() function is not supported yet!"
 #endif	
 }
+
 static __inline void wan_spin_unlock_irq(void *lock, wan_smp_flag_t *flag)
 {
 #if defined(__LINUX__)
@@ -2708,13 +2744,13 @@ static __inline void wan_spin_unlock_irq(void *lock, wan_smp_flag_t *flag)
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
 	splx(*flag);
 #elif defined(__WINDOWS__)
-	spin_unlock_irqrestore((wan_spinlock_t*)lock);
+	spin_unlock_irqrestore((wan_spinlock_t*)lock, flag/* irql to be restored */);
 #else
 # warning "wan_spin_unlock_irq() function is not supported yet!"
 #endif	
 }
 
-static __inline int wan_spin_trylock(void *lock)
+static __inline int wan_spin_trylock(void *lock, wan_smp_flag_t *flag)
 {
 #if defined(__LINUX__)
 	return spin_trylock(((spinlock_t*)lock));	
@@ -2725,14 +2761,14 @@ static __inline int wan_spin_trylock(void *lock)
 #elif defined(__NetBSD__)
 	#warning "FIXME: Complete this code.!!!!!!!!!!!"
 #elif defined(__WINDOWS__)
-	return spin_trylock((wan_spinlock_t*)lock);
+	return spin_trylock((wan_spinlock_t*)lock, flag);
 #else
 # warning "wan_spin_trylock() function is not supported yet!"
 #endif	
 	return 0;
 }
 
-static __inline void wan_spin_lock(void *lock)
+static __inline void wan_spin_lock(void *lock, wan_smp_flag_t *flag)
 {
 #if defined(__LINUX__)
 	spin_lock(((spinlock_t*)lock));	
@@ -2758,12 +2794,12 @@ static __inline void wan_spin_lock(void *lock)
 	*((wan_spinlock_t*)lock) = splimp();
 # endif
 #elif defined(__WINDOWS__)
-	spin_lock((wan_spinlock_t*)lock);	
+	spin_lock((wan_spinlock_t*)lock, flag);	
 #else
 # warning "wan_spin_lock() function is not supported yet!"
 #endif	
 }
-static __inline void wan_spin_unlock(void *lock)
+static __inline void wan_spin_unlock(void *lock,  wan_smp_flag_t *flag)
 {
 #if defined(__LINUX__)
 	spin_unlock(((spinlock_t*)lock));	
@@ -2781,7 +2817,7 @@ static __inline void wan_spin_unlock(void *lock)
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
 	splx(*(wan_spinlock_t*)lock);
 #elif defined(__WINDOWS__)
-	spin_unlock((wan_spinlock_t*)lock);	
+	spin_unlock((wan_spinlock_t*)lock, flag);	
 #else
 # warning "wan_spin_unlock() function is not supported yet!"
 #endif	
@@ -2849,7 +2885,7 @@ static __inline void wan_write_bus_4(void *phw, void *virt, int offset, unsigned
 
 #if defined(__WINDOWS__)
 
-# define WAN_SPIN_LOCK_INIT(pSpinLock)		\
+#define WAN_SPIN_LOCK_INIT(pSpinLock)		\
 {											\
 	int rc=1;								\
 	VERIFY_PASSIVE_IRQL(rc);				\
@@ -2858,35 +2894,24 @@ static __inline void wan_write_bus_4(void *phw, void *virt, int offset, unsigned
 	}										\
 }
 
-///////////////////////////////////////////////////////
-//for use at IRQL <= DISPATCH_LEVEL
-# define WAN_SPIN_LOCK(pSpinLock)		\
+#define WAN_SPIN_LOCK(pSpinLock)				\
 {												\
-	int rc=SILENT;								\
+	int rc=IRQL_CHECK_SILENT;					\
 	VERIFY_DISPATCH_IRQL(rc);					\
 	if(rc == 0){								\
 		KeAcquireSpinLock(pSpinLock, &old_IRQL);\
 	}											\
 }
 
-# define WAN_SPIN_UNLOCK(pSpinLock)	\
-	KeReleaseSpinLock(pSpinLock, old_IRQL);
-
-//for use at IRQL == DISPATCH_LEVEL - more efficient
-//when known to run in DPC
-# define WAN_SPIN_LOCK_DPC(pSpinLock)			\
+#define WAN_SPIN_UNLOCK(pSpinLock)				\
 {												\
-	int rc=1;									\
-	if(0)DBG_IRQLOCK("WAN_SPIN_LOCK_DPC: caller: %s\n",__FUNCTION__);	\
-												\
-	VERIFY_IRQL_EQUAL_DISPATCH(rc);				\
+	int rc=IRQL_CHECK_SILENT;					\
+	VERIFY_DISPATCH_IRQL(rc);					\
 	if(rc == 0){								\
-		KeAcquireSpinLockAtDpcLevel(pSpinLock);	\
+		KeReleaseSpinLock(pSpinLock, old_IRQL);	\
 	}											\
 }
 
-# define WAN_SPIN_UNLOCK_DPC(pSpinLock)	\
-	KeReleaseSpinLockFromDpcLevel(pSpinLock);
 #endif
 
 #endif  /* WAN_KERNEL */

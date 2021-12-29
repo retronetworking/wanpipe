@@ -751,20 +751,20 @@ static int wanec_api_verbose(int verbose)
 }
 
 
-int wanec_api_init(void)
+int _SAPI_CALL wanec_api_init(void)
 {
 	memset(&ec_api, 0, sizeof(ec_api));
 	return 0;
 }
 
-int wanec_api_config(	char			*devname,
+int _SAPI_CALL wanec_api_config(	char			*devname,
 			int			verbose,
 			wanec_api_config_t	*conf)
 {
 	memcpy(ec_api.devname, devname, strlen(devname));
 	ec_api.verbose	= wanec_api_verbose(verbose);
 	ec_api.cmd	= WAN_EC_API_CMD_CONFIG;
-	if (conf->conf.param_no){
+	if (conf && conf->conf.param_no){
 		memcpy(	&ec_api.custom_conf,
 			&conf->conf,
 			sizeof(wan_custom_conf_t));
@@ -772,7 +772,7 @@ int wanec_api_config(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);	//return wanec_api_lib_config(&ec_api, 1);
 }
 
-int wanec_api_release(	char			*devname,
+int _SAPI_CALL wanec_api_release(	char			*devname,
 			int			verbose,
 			wanec_api_release_t	*release)
 {
@@ -783,7 +783,7 @@ int wanec_api_release(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_mode(	char			*devname,
+int _SAPI_CALL wanec_api_mode(	char			*devname,
 			int			verbose,
 			wanec_api_mode_t	*mode)
 {
@@ -797,7 +797,7 @@ int wanec_api_mode(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_bypass(	char			*devname,
+int _SAPI_CALL wanec_api_bypass(	char			*devname,
 			int			verbose,
 			wanec_api_bypass_t	*bypass)
 {
@@ -811,7 +811,7 @@ int wanec_api_bypass(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_opmode(	char			*devname,
+int _SAPI_CALL wanec_api_opmode(	char			*devname,
 			int			verbose,
 			wanec_api_opmode_t	*opmode)
 {
@@ -845,7 +845,7 @@ int wanec_api_opmode(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_modify(	char			*devname,
+int _SAPI_CALL wanec_api_modify(	char			*devname,
 			int			verbose,
 			wanec_api_modify_t	*modify)
 {
@@ -862,7 +862,7 @@ int wanec_api_modify(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_mute(	char			*devname,
+int _SAPI_CALL wanec_api_mute(	char			*devname,
 			int			verbose,
 			wanec_api_mute_t	*mute)
 {
@@ -884,23 +884,24 @@ int wanec_api_mute(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_dtmf(	char			*devname,
+int _SAPI_CALL wanec_api_tone(	char			*devname,
 			int			verbose,
-			wanec_api_dtmf_t	*dtmf)
+			wanec_api_tone_t	*tone)
 {
 		
 	memcpy(ec_api.devname, devname, strlen(devname));
 	ec_api.verbose			= wanec_api_verbose(verbose);
-	ec_api.cmd			= (dtmf->enable) ?
-						WAN_EC_API_CMD_DTMF_ENABLE : 
-						WAN_EC_API_CMD_DTMF_DISABLE;
-	ec_api.fe_chan_map		= dtmf->fe_chan_map;
-	ec_api.u_dtmf_config.port_map	= dtmf->port_map;
-	ec_api.u_dtmf_config.type	= dtmf->type_map;
+	ec_api.cmd			= (tone->enable) ?
+						WAN_EC_API_CMD_TONE_ENABLE : 
+						WAN_EC_API_CMD_TONE_DISABLE;
+	ec_api.fe_chan_map		= tone->fe_chan_map;
+	ec_api.u_tone_config.id		= (unsigned char)tone->id;
+	ec_api.u_tone_config.port_map	= tone->port_map;
+	ec_api.u_tone_config.type	= tone->type_map;
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_stats(	char			*devname,
+int _SAPI_CALL wanec_api_stats(	char			*devname,
 			int			verbose,
 			wanec_api_stats_t	*stats)
 {
@@ -951,7 +952,7 @@ int wanec_api_stats(	char			*devname,
 
 }
 
-int wanec_api_hwimage(	char			*devname,
+int _SAPI_CALL wanec_api_hwimage(	char			*devname,
 			int			verbose,
 			wanec_api_image_t	*image)
 {
@@ -975,7 +976,7 @@ int wanec_api_hwimage(	char			*devname,
 
 }
 
-int wanec_api_buffer_load(char			*devname,
+int _SAPI_CALL wanec_api_buffer_load(char			*devname,
 			int			verbose,
 			wanec_api_bufferload_t	*bufferload)
 {
@@ -993,7 +994,7 @@ int wanec_api_buffer_load(char			*devname,
 	return 0;
 }
 
-int wanec_api_buffer_unload(	char				*devname,
+int _SAPI_CALL wanec_api_buffer_unload(	char				*devname,
 				int				verbose,
 				wanec_api_bufferunload_t	*bufferunload)
 {
@@ -1009,7 +1010,7 @@ int wanec_api_buffer_unload(	char				*devname,
 	return 0;
 }
 
-int wanec_api_playout(	char			*devname,
+int _SAPI_CALL wanec_api_playout(	char			*devname,
 			int			verbose,
 			wanec_api_playout_t	*playout)
 {
@@ -1034,7 +1035,7 @@ int wanec_api_playout(	char			*devname,
 	return 0;
 }
 
-int wanec_api_monitor(	char			*devname,
+int _SAPI_CALL wanec_api_monitor(	char			*devname,
 			int			verbose,
 			wanec_api_monitor_t	*monitor)
 {

@@ -1,0 +1,27 @@
+CC=gcc
+LINUXINC=/lib/modules/$(shell uname -r)/build/include
+WANINC=/usr/include/wanpipe
+INCLUDES=-I../ -I/usr/include -I/usr/src/libpri -I$(WANINC) -I.  -I/usr/local/include 
+CFLAGS=-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O2 -DWANPIPE_TDM_API 
+CCFLAGS=-Wall -Wstrict-prototypes -Wmissing-prototypes -g
+
+all: sample_dtmf 
+
+everything:  sample_dtmf
+
+
+lib_api.o: lib_api.c
+	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -c -o lib_api.o lib_api.c
+
+sample_dtmf.o: sample_dtmf.c
+	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -c -o sample_dtmf.o sample_dtmf.c
+
+sample_dtmf: sample_dtmf.o lib_api.o 
+	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -o sample_dtmf sample_dtmf.o lib_api.o -L. -lsangoma -lm -lpthread
+
+
+clean:
+	rm -fr sample_c *.o *.so *~ *core* *.so* *.a
+
+distclean: clean
+	@echo OK

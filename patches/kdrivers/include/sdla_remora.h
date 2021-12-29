@@ -22,14 +22,12 @@
 # define EXTERN extern
 #endif
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <sdla_remora_proslic.h>
-#elif defined(__WINDOWS__)
-# include <sdla_remora_proslic.h>
-# include <wanpipe_events.h>
-#else
-# include <linux/sdla_remora_proslic.h>
-#endif
+# include "aft_core_options.h"
+# include "sdla_a600_remora.h"
+# include "sdla_remora_proslic.h"
+# include "wanpipe_events.h"
+
+
 
 /*******************************************************************************
 **			  DEFINES and MACROS
@@ -37,10 +35,20 @@
 
 #define IS_FXOFXS_CARD(card)		IS_FXOFXS_FEMEDIA(&(card)->fe)
 
+#define IS_A200(fe) (((sdla_t*)(fe->card))->adptr_type == A200_ADPTR_ANALOG ||\
+		     ((sdla_t*)(fe->card))->adptr_type == A400_ADPTR_ANALOG)
+
+#define IS_A200_CARD(card) (card->adptr_type == A200_ADPTR_ANALOG || \
+				card->adptr_type == A400_ADPTR_ANALOG)
+
+#define IS_A700(fe) (((sdla_t*)(fe->card))->adptr_type == AFT_ADPTR_FLEXBRI)
+#define IS_A700_CARD(card) (card->adptr_type == AFT_ADPTR_FLEXBRI)
+
 #define WAN_RM_START_CHANNEL		1
 
 #define MAX_REMORA_MODULES		24
 #define MAX_FXOFXS_CHANNELS		MAX_REMORA_MODULES
+#define NUM_A700_ANALOG_PORTS	2
 
 #define MOD_TYPE_NONE			0
 #define MOD_TYPE_FXS			1
@@ -55,6 +63,11 @@
 /* SPI interface */
 #define MOD_CHAIN_DISABLED	0
 #define MOD_CHAIN_ENABLED	1
+
+#define A700_ANALOG_SPI_INTERFACE_REG 0x5C
+#define A700_ANALOG_SPI_CS_FXS_CHIP_0 0XFD
+#define A700_ANALOG_SPI_CS_FXS_CHIP_1 0XFE
+#define A700_ANALOG_SPI_MOD_START_BIT (1<<31)
 
 #define SPI_INTERFACE_REG	0x54
 
@@ -157,7 +170,7 @@ typedef struct sdla_remora_cfg_ {
 	int		fxo_txgain;
 
 	int		fxs_ringampl;
-	unsigned int	rm_mode; 	/*Analog Operation mode: default or tapping */
+	u_int8_t	rm_mode; 	/*Analog Operation mode: default or tapping */
 	u_int8_t	fake_polarity;
 } sdla_remora_cfg_t;
 
@@ -324,10 +337,10 @@ typedef struct {
 
 	int	ring_detect;	
 	
-	int	offhook;			/* Xswitch */
+	int	offhook;		/* Xswitch */
 	int	battery;		/* Xswitch */
 	int	battdebounce;		/* Xswitch */
-	int	ringdebounce;		/* Xswitch */
+	int ringdebounce;
 	int	wasringing;
 	int	nobatttimer;
 	int	lastpol;
@@ -339,6 +352,16 @@ typedef struct {
 	int	going_offhook;	/* current ohdebounce is for off-hk or on-hk */
 	
 	unsigned char	imask;		/* interrupt mask */
+
+	/*Additional for Zaptel mode*/
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
+	int				echotune;	/* echo tune */
+	struct wan_rm_echo_coefs	echoregs;	/* echo tune */
+	int   				readcid;
+        unsigned int 			cidtimer;
+
+#endif
+
 } wp_remora_fxo_t;
 
 typedef struct {
@@ -358,12 +381,20 @@ typedef struct {
 	int		debounce;
 	int		debouncehook;
 
+	/*Additional for Zaptel mode */
+	int	lasttxhook_update;
+	/*Flash/hook timer */
+
+	int		itimer;
+	int		rxflashtime;
+
 } wp_remora_fxs_t;
 
 typedef struct {
 	int		type;
 	int		chain;
 	unsigned long	events;
+	unsigned long 	lastcmd;
 
 #if 0
 #if defined(__WINDOWS__)
@@ -415,7 +446,18 @@ typedef struct sdla_remora_param {
 	int		reg_dbg_busy;	
 	int		reg_dbg_ready;	
 	unsigned char	reg_dbg_value;
-	u32		access_counter;
+	/* use REG_SHADOW in all modes */
+	unsigned char	reg0shadow[MAX_REMORA_MODULES];	/* read> fxs: 68 fxo: 5 */
+	unsigned char	reg1shadow[MAX_REMORA_MODULES];	/* read> fxs: 64 fxo: 29 */
+	unsigned char	reg2shadow[MAX_REMORA_MODULES];	/* read> fxs: 64 fxo: 29 */
+	unsigned char	reg3shadow[MAX_REMORA_MODULES]; /* read > fxs : 19 for Ring/Trip Evnet , FXO no use yet */
+	unsigned char	reg4shadow[MAX_REMORA_MODULES]; /* read > fxs : 20 for DTMF Evnet , FXO no use yet */
+
+	unsigned char	reg0shadow_write[MAX_REMORA_MODULES];	/* write> fxs: 68 fxo: 5 */
+	int		reg0shadow_update[MAX_REMORA_MODULES];
+	int		battdebounce;		/* global for FXO */
+	int		battthresh;		/* global for FXO */
+	int		wp_rm_chunk_size;	/* TDM API set as MTU for Zaptel set as ZT_CHUNK_SIZE */
 
 } sdla_remora_param_t;
 
@@ -426,6 +468,8 @@ typedef struct sdla_remora_param {
 **			  FUNCTION PROTOTYPES
 *******************************************************************************/
 extern int	wp_remora_iface_init(void*, void*);
+extern int	wp_a700_remora_iface_init(void*, void*);
 
 #undef EXTERN
 #endif	/* __SDLA_REMORA_H */
+

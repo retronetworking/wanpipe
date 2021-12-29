@@ -15,14 +15,19 @@
 * Jan 07, 2002	Nenad Corbic	Initial version.
 *****************************************************************************/
 
-#include <linux/wanpipe_includes.h>
-#include <linux/wanpipe_defines.h>
-#include <linux/wanpipe.h>	
-#include <linux/wanproc.h>
-#include <linux/sdla_pos.h>
-#include <linux/if_wanpipe_common.h>    /* Socket Driver common area */
-#include <linux/if_wanpipe.h>		
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe.h"
 
+#include "wanproc.h"
+#include "sdla_pos.h"
+#include "if_wanpipe_common.h"    /* Socket Driver common area */
+
+#if defined(__LINUX__)
+#include "if_wanpipe.h"
+#endif
 
 /****** Defines & Macros ****************************************************/
 
@@ -293,7 +298,7 @@ static int update (wan_device_t* wandev)
 	if(dev == NULL)
 		return -ENODEV;
 
-	if((priv_area=wan_netif_priv(dev)) == NULL)
+	if((priv_area=dev->priv) == NULL)
 		return -ENODEV;
 
 
@@ -410,7 +415,7 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 	 * finished successfully.  DO NOT place any code below that
 	 * can return an error */
 	dev->init = &if_init;
-	wan_netif_set_priv(dev, priv_area);
+	dev->priv = priv_area;
 
 	/* Increment the number of network interfaces 
 	 * configured on this card.  
@@ -441,7 +446,7 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
  */
 static int del_if (wan_device_t* wandev, struct net_device* dev)
 {
-	private_area_t* 	priv_area = wan_netif_priv(dev);
+	private_area_t* 	priv_area = dev->priv;
 	sdla_t*			card = priv_area->card;
 
 	/* Decrement the number of network interfaces 
@@ -479,7 +484,7 @@ static int del_if (wan_device_t* wandev, struct net_device* dev)
  */
 static int if_init (struct net_device* dev)
 {
-	private_area_t* priv_area = wan_netif_priv(dev);
+	private_area_t* priv_area = dev->priv;
 	sdla_t* card = priv_area->card;
 	wan_device_t* wandev = &card->wandev;
 
@@ -535,7 +540,7 @@ static int if_init (struct net_device* dev)
  */
 static int if_open (struct net_device* dev)
 {
-	private_area_t* priv_area = wan_netif_priv(dev);
+	private_area_t* priv_area = dev->priv;
 	sdla_t* card = priv_area->card;
 	struct timeval tv;
 	int err = 0;
@@ -585,7 +590,7 @@ static int if_open (struct net_device* dev)
 
 static int if_close (struct net_device* dev)
 {
-	private_area_t* priv_area = wan_netif_priv(dev);
+	private_area_t* priv_area = dev->priv;
 	sdla_t* card = priv_area->card;
 
 	stop_net_queue(dev);
@@ -663,7 +668,7 @@ static void disable_comm (sdla_t *card)
  */
 static int if_send (struct sk_buff* skb, struct net_device* dev)
 {
-	private_area_t *chan = wan_netif_priv(dev);
+	private_area_t *chan = dev->priv;
 	sdla_t *card = chan->card;
 
 	if (skb){
@@ -689,7 +694,7 @@ static struct net_device_stats* if_stats (struct net_device* dev)
 {
 	private_area_t* priv_area;
 
-	if ((priv_area=wan_netif_priv(dev)) == NULL)
+	if ((priv_area=dev->priv) == NULL)
 		return NULL;
 
 	return &priv_area->if_stats;
@@ -719,7 +724,7 @@ static struct net_device_stats* if_stats (struct net_device* dev)
  */
 static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
-	private_area_t* chan= (private_area_t*)wan_netif_priv(dev);
+	private_area_t* chan= (private_area_t*)dev->priv;
 	//unsigned long smp_flags;
 	wan_mbox_t *mb,*usr_mb;
 	sdla_t *card;

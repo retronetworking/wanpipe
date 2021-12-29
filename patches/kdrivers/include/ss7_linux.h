@@ -51,28 +51,6 @@ typedef struct {
 	unsigned char	data[1]		;
 } trace_pkt_t;
 
-typedef struct {
-	unsigned char	SIO	;
-	unsigned short	time_stamp	;
-	unsigned char	reserved[13]	;
-} api_rx_hdr_t;
-
-typedef struct {
-        api_rx_hdr_t	api_rx_hdr      ;
-        void *   	data    	;
-} api_rx_element_t;
-
-typedef struct {
-	unsigned char 	SIO		;
-	unsigned char  	reserved[15]	;
-} api_tx_hdr_t;
-
-typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	;
-	void *		data		;
-} api_tx_element_t;
-
-
 /* modem status changes */
 #define DCD_HIGH	0x08
 #define CTS_HIGH	0x20
@@ -96,7 +74,11 @@ typedef struct {
 #define TRACE_DATA			0x02
 
 #define UDPMGMT_UDP_PROTOCOL 0x11
-#define UDPMGMT_SIGNATURE    "CTPIPEAB"   /* "STPIPEAB" */
+
+#ifdef UDPMGMT_SIGNATURE
+# undef UDPMGMT_SIGNATURE
+# define UDPMGMT_SIGNATURE    "CTPIPEAB"   /* "STPIPEAB" */
+#endif
 
 
 #pragma pack()

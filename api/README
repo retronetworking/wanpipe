@@ -4,30 +4,45 @@ WANPIPE API SAMPLE PROGRAMS
 Author: Nenad Corbic
 
 
-Note: These applications are NOT supported for 
-      kernels lower than 2.2.X.
-      API drivers and applicatons are ONLY 
-      suppoted in 2.2.X kernels and greater.
-
 This directory contains:
 
-X25:	WANPIPE X25 API sample programs. These programs
-        should be used for rapid x25 api development,
+libsangoma: Unified Linux/Windows API library
+
+libstelephony: Telephony API used for dtmf/callerid etc.
+
+sample_c: C sample code that uses libsangoma
+
+sample_cpp: C++ sample code that uses libsangoma + libstelephony
+
+tdm_api: Old test applications based on libsangoma
+
+legacy/ Old Legacy API
+
+legacy/aft:
+	Sample API aplications used on to of all AFT hardware.
+
+legacy/mpapi/x25:	
+	WANPIPE MAPI X25 API sample programs. These programs
+        should be used for rapid mpapi x25 api development,
         and initial testing.
 
-FR:	WANPIPE Frame Relay API sample programs. These programs
+legacy/fr:	
+	WANPIPE Frame Relay API sample programs. These programs
         should be used for rapid frame relay api development,
         and initial testing.
 
-CHDLC:	WANPIPE CHDLC API sample programs. These programs
+legacy/chdlc:	
+	WANPIPE CHDLC API sample programs. These programs
         should be used for rapid chlc api development,
         and initial testing.
 
-BITSTRM: WANPIPE BitStreaming API sample programs. These programs
+legacy/bitstrm: 
+	WANPIPE BitStreaming API sample programs. These programs
         should be used for rapid bitstreaming api development,
         and initial testing.
 
-BiSync: WANPIPE BiSync API sample programs. These programs
+legacy/bisync: 
+	WANPIPE BiSync API sample programs. These programs
         should be used for rapid BiSync api development,
         and initial testing.
 

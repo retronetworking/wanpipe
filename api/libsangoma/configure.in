@@ -2,15 +2,14 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(libsangoma, 1.0.0, ncorbic@sangoma.com)
-AC_CONFIG_HEADERS(config.h)
-AM_INIT_AUTOMAKE(libsangoma,1.0.0)
+AC_INIT([libsangoma],[2.0.1],[ncorbic@sangoma.com])
+AM_INIT_AUTOMAKE(libsangoma,2.0.1)
 # Checks for programs.
-
-# Checks for libraries.
 AC_PROG_CC
 AC_PROG_LIBTOOL
-AC_CHECK_PROG(AR, ar, ar, no)    
+AC_PROG_RANLIB
+AC_CHECK_PROG(AR, ar, ar, no) 
+# Checks for libraries.
 
 AC_CHECK_HEADERS(fcntl.h netinet/in.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h math.h)
 
@@ -28,3 +27,4 @@ AC_FUNC_SELECT_ARGTYPES
 AC_CHECK_FUNCS([gettimeofday memset select socket])
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
+

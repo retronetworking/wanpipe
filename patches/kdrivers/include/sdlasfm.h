@@ -31,11 +31,6 @@
 #define	SFM_MAX_SDLA	16	/* max number of compatible adapters */
 
 /* Adapter types */
-#if defined(__WINDOWS__)
-#define INVALID_DEVICE_TYPE		0x0000
-#define MAX_NUM_OF_CPUS	2
-#endif
-
 #define SDLA_S502A	5020
 #define SDLA_S502E	5021
 #define SDLA_S503	5030
@@ -45,6 +40,7 @@
 #define SDLA_S514	5140
 #define SDLA_ADSL	6000
 #define SDLA_AFT	7000
+#define SDLA_USB	7001
 
 /* S514 PCI adapter CPU numbers */
 #define S514_CPU_A	'A'
@@ -122,53 +118,38 @@ typedef struct sfm			/* SDLA firmware file structire */
 } sfm_t;
 
 /* settings for the 'adapter_type' */
-#define S5141_ADPTR_1_CPU_SERIAL	0x0011	/* S5141, single CPU, serial */
-#define S5142_ADPTR_2_CPU_SERIAL	0x0012	/* S5142, dual CPU, serial */
-#define S5143_ADPTR_1_CPU_FT1		0x0013	/* S5143, single CPU, FT1 */
-#define S5144_ADPTR_1_CPU_T1E1		0x0014	/* S5144, single CPU, T1/E1 */
-#define S5145_ADPTR_1_CPU_56K		0x0015	/* S5145, single CPU, 56K */
-#define S5147_ADPTR_2_CPU_T1E1		0x0017  /* S5147, dual CPU, T1/E1 */
-#define S5148_ADPTR_1_CPU_T1E1		0x0018	/* S5148, single CPU, T1/E1 */
+enum {
+	S5141_ADPTR_1_CPU_SERIAL = 0x01,/* S5141, single CPU, serial */
+	S5142_ADPTR_2_CPU_SERIAL,	/* S5142, dual CPU, serial */
+	S5143_ADPTR_1_CPU_FT1,		/* S5143, single CPU, FT1 */
+	S5144_ADPTR_1_CPU_T1E1,		/* S5144, single CPU, T1/E1 */
+	S5145_ADPTR_1_CPU_56K,		/* S5145, single CPU, 56K */
+	S5147_ADPTR_2_CPU_T1E1,		/* S5147, dual CPU, T1/E1 */
+	S5148_ADPTR_1_CPU_T1E1,		/* S5148, single CPU, T1/E1 */
+	S518_ADPTR_1_CPU_ADSL,		/* S518, adsl card */
+	A101_ADPTR_1TE1,		/* 1 Channel T1/E1  */
+	A101_ADPTR_2TE1,		/* 2 Channels T1/E1 */
+	A104_ADPTR_4TE1,		/* Quad line T1/E1 */
+	A104_ADPTR_4TE1_PCIX,		/* Quad line T1/E1 PCI Express */
+	A108_ADPTR_8TE1,		/* 8 Channels T1/E1 */
+	A100_ADPTR_U_1TE3,		/* 1 Channel T3/E3 (Proto) */
+	A300_ADPTR_U_1TE3,		/* 1 Channel T3/E3 (unchannelized) */
+	A305_ADPTR_C_1TE3,		/* 1 Channel T3/E3 (channelized) */	
+	A200_ADPTR_ANALOG,		/* AFT-200 REMORA analog board */
+	A400_ADPTR_ANALOG,		/* AFT-400 REMORA analog board */
+	AFT_ADPTR_ISDN,			/* AFT ISDN BRI board */
+	AFT_ADPTR_56K,			/* AFT 56K board */
+	AFT_ADPTR_2SERIAL_V35X21,	/* AFT-A142 2 Port V.35/X.21 board */
+	AFT_ADPTR_4SERIAL_V35X21,	/* AFT-A144 4 Port V.35/X.21 board */
+	AFT_ADPTR_2SERIAL_RS232,	/* AFT-A142 2 Port RS232 board */
+	AFT_ADPTR_4SERIAL_RS232,	/* AFT-A144 4 Port RS232 board */
+	U100_ADPTR,			/* USB board */
+	AFT_ADPTR_A600,			/* AFT A600 board */
+	AFT_ADPTR_FLEXBRI,		/* AFT-A700 FlexBRI board */
 
-#define S518_ADPTR_1_CPU_ADSL		0x0018	/* S518, adsl card */
-
-#define A101_ADPTR_TE1_MASK		0x0040	/* Single T1/E1 type mask  */
-#define A101_ADPTR_1TE1			0x0041	/* 1 Channel T1/E1  */
-#define A101_ADPTR_2TE1			0x0042	/* 2 Channels T1/E1 */
-
-#define A104_ADPTR_TE1_MASK		0x0080	/* Quad T1/E1 type mask  */
-#define A104_ADPTR_4TE1			0x0081	/* Quad line T1/E1 */
-#define A104_ADPTR_4TE1_PCIX		0x0082	/* Quad line T1/E1 PCI Express */
-
-#define A108_ADPTR_TE1_MASK		0x0200	/* 8 Channels T1/E1 type mask  */
-#define A108_ADPTR_8TE1			0x0201	/* 8 Channels T1/E1 */
-
-#define A100_ADPTR_T3E3_MASK		0x0100	/* T3/E3  type mask */
-#define A100_ADPTR_U_1TE3		0x0101	/* 1 Channel T3/E3 (Proto) */
-#define A300_ADPTR_U_1TE3		0x0102	/* 1 Channel T3/E3 (unchannelized) */
-#define A305_ADPTR_C_1TE3		0x0104	/* 1 Channel T3/E3 (channelized) */
-
-#define A200_ADPTR_ANALOG_MASK		0x0400	/* AFT-200 REMORA analog board mask */
-#define A200_ADPTR_ANALOG		0x0401	/* AFT-200 REMORA analog board */
-
-#define A400_ADPTR_ANALOG_MASK		0x0800	/* AFT-400 REMORA analog board mask */
-#define A400_ADPTR_ANALOG		0x0801	/* AFT-400 REMORA analog board */
-
-#define AFT_ADPTR_ISDN_MASK		0x1000	/* AFT ISDN BRI board mask */
-#define AFT_ADPTR_ISDN			0x1001	/* AFT ISDN BRI board */
-
-#define AFT_ADPTR_56K_MASK		0x2000	/* AFT 56K board mask */
-#define AFT_ADPTR_56K			0x2001	/* AFT 56K board */
-
-#define AFT_ADPTR_SERIAL_MASK		0x4000	/* AFT Serial base board mask */
-#define AFT_ADPTR_2SERIAL_V35X21	0x4001	/* AFT-A142 2 Port V.35/X.21 board */
-#define AFT_ADPTR_4SERIAL_V35X21	0x4002	/* AFT-A144 4 Port V.35/X.21 board */
-#define AFT_ADPTR_2SERIAL_RS232		0x4003	/* AFT-A142 2 Port RS232 board */
-#define AFT_ADPTR_4SERIAL_RS232		0x4004	/* AFT-A144 4 Port RS232 board */
-
-/* Adapter types cannot be more than 2 bytes */
-#define AFT_ADPTR_A600_MASK             0x8100  /* AFT A600 board mask */
-#define AFT_ADPTR_A600                  0x8101  /* AFT A600 board */
+	AFT_ADPTR_LAST			/* NOTE: Keep it as a last line */
+};
+#define MAX_ADPTRS	AFT_ADPTR_LAST
 
 #define OPERATE_T1E1_AS_SERIAL		0x8000  /* For bitstreaming only 
 						 * Allow the applicatoin to 
@@ -310,7 +291,9 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(adapter_type == AFT_ADPTR_4SERIAL_V35X21) ? "AFT-A144" : \
 		(adapter_type == AFT_ADPTR_2SERIAL_RS232)  ? "AFT-A142" : \
 		(adapter_type == AFT_ADPTR_4SERIAL_RS232)  ? "AFT-A144" : \
+		(adapter_type == U100_ADPTR) 	 	   ? "U100"  : \
 		(adapter_type == AFT_ADPTR_A600)           ? "AFT-B600" : \
+		(adapter_type == AFT_ADPTR_FLEXBRI)  ? "AFT-B700" : \
 							     "UNKNOWN"
 			
 #define AFT_GET_SECURITY(security)					\
@@ -333,7 +316,20 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(adptr_subtype == AFT_SUBTYPE_SHARK)	? "SHARK" : ""
 
 #define AFT_PCITYPE_DECODE(hwcard)				\
-		((hwcard)->pci_bridge_dev) ? "PCIe" : "PCI"
+		((hwcard)->u_pci.pci_bridge_dev) ? "PCIe" : "PCI"
+
+#if defined(__WINDOWS__)
+#define AFT_PCIBRIDGE_DECODE(hwcard)		"not defined"
+#else
+#define AFT_PCIBRIDGE_DECODE(hwcard)							\
+		(!(hwcard)->u_pci.pci_bridge_dev) ? "NONE" :				\
+		 ((hwcard)->u_pci.pci_bridge_dev->vendor == PLX_VENDOR_ID &&		\
+		 (hwcard)->u_pci.pci_bridge_dev->device == PLX_DEVICE_ID) ? "PLX1" :   \
+		((hwcard)->u_pci.pci_bridge_dev->vendor == PLX_VENDOR_ID &&		\
+		 (hwcard)->u_pci.pci_bridge_dev->device == PLX2_DEVICE_ID) ? "PLX2" :  \
+		((hwcard)->u_pci.pci_bridge_dev->vendor == TUNDRA_VENDOR_ID &&		\
+		 (hwcard)->u_pci.pci_bridge_dev->device == TUNDRA_DEVICE_ID) ? "TUND" : "NONE"
+#endif
 
 #if defined(__WINDOWS__)
 #define DECODE_CARD_SUBTYPE(card_sub_type)						\
@@ -344,6 +340,7 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(card_sub_type == A104_4TE1_SUBSYS_VENDOR)	? "A104" :		\
 		(card_sub_type == AFT_4TE1_SHARK_SUBSYS_VENDOR)	? "A104D" :		\
 		(card_sub_type == AFT_8TE1_SHARK_SUBSYS_VENDOR)	? "A108D"  :	\
+		(card_sub_type == AFT_ADPTR_FLEXBRI)		? "B700"  :	\
 		(card_sub_type == A200_REMORA_SHARK_SUBSYS_VENDOR)? "A200"  : "Unknown"
 
 #define SDLA_CARD_TYPE_DECODE(cardtype)				\

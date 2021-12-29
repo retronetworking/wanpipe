@@ -57,20 +57,6 @@ wanec_client_t	ec_client;
 /******************************************************************************
 ** 			FUNCTION PROTOTYPES
 ******************************************************************************/
-int wan_ec_args_parse_and_run(int argc, char* argv[]);
-int wanec_client_config(void);
-int wanec_client_release(void);
-int wanec_client_mode(int enable);
-int wanec_client_bypass(int enable);
-int wanec_client_opmode(int mode);
-int wanec_client_modify(void);
-int wanec_client_mute(int mode);
-int wanec_client_dtmf(int enable);
-int wanec_client_stats(int full);
-int wanec_client_bufferload(char *buffer);
-int wanec_client_bufferunload(unsigned long buffer_id);
-int wanec_client_playout(int start);
-int wanec_client_monitor(int data_mode);
 
 /******************************************************************************
 ** 			FUNCTION DEFINITIONS
@@ -201,20 +187,21 @@ int wanec_client_mute(int mode)
 	
 }
 
-int wanec_client_dtmf(int enable)
+int wanec_client_tone(int id, int enable)
 {
-	wanec_api_dtmf_t	dtmf;
+	wanec_api_tone_t	tone;
 	int			err;
 
-	memset(&dtmf, 0, sizeof(wanec_api_dtmf_t));
-	dtmf.enable		= enable;
-	dtmf.fe_chan_map	= ec_client.fe_chan_map;
-	dtmf.port_map		= ec_client.port_map;
-	dtmf.type_map		= WAN_EC_TONE_PRESENT;
-	err = wanec_api_dtmf(
+	memset(&tone, 0, sizeof(wanec_api_tone_t));
+	tone.id			= id;
+	tone.enable		= enable;
+	tone.fe_chan_map	= ec_client.fe_chan_map;
+	tone.port_map		= ec_client.port_map;
+	tone.type_map		= WAN_EC_TONE_PRESENT;
+	err = wanec_api_tone(
 			ec_client.devname,
 			ec_client.verbose,
-			&dtmf);
+			&tone);
 	return err;
 }
 
@@ -247,15 +234,14 @@ int wanec_client_hwimage(void)
 	return err;
 }
 
-int wanec_client_bufferload(char *buf)
+int wanec_client_bufferload(void)
 {
 	wanec_api_bufferload_t	bufferload;
 	int			err;
 
-	printf("%s(): buf: %s\n", __FUNCTION__, buf);
-
 	memset(&bufferload, 0, sizeof(wanec_api_bufferload_t));
-	bufferload.buffer	= buf;
+	bufferload.buffer	= &ec_client.filename[0];
+	bufferload.pcmlaw	= ec_client.pcmlaw;
 	err = wanec_api_buffer_load(	
 				ec_client.devname,
 				ec_client.verbose,

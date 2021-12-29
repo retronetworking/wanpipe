@@ -14,7 +14,9 @@
  * and this PROTOCOL */
 #include "wanpipe_lip_hdlc_iface.h"
 
-#define IFNAMSIZ 20
+#ifndef WAN_IFNAME_SZ
+#define WAN_IFNAME_SZ 20
+#endif
 
 typedef struct wp_lip_hdlc_header
 {
@@ -164,8 +166,8 @@ typedef struct _lip_hdlc_
 	unsigned char		type;
 	wplip_prot_reg_t	reg;
 	wan_lip_hdlc_if_conf_t	cfg;
-	unsigned char 		name[IFNAMSIZ+1];
-	unsigned char 		hwdevname[IFNAMSIZ+1];
+	unsigned char 		name[WAN_IFNAME_SZ+1];
+	unsigned char 		hwdevname[WAN_IFNAME_SZ+1];
 	unsigned int 		refcnt;
 
 	/* INSERT PROTOCOL SPECIFIC VARIABLES HERE */

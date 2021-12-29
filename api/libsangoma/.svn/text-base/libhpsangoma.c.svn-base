@@ -1,29 +1,46 @@
-/*****************************************************************************
- * libhpsangoma.c:  Sangoma High Performance TDM API - Span Based Library
+/***************************************************************************//**
+ * \file libhpsangoma.c
+ * \brief Sangoma High Performance TDM API - Span Based Library
  *
  * Author(s):	Nenad Corbic <ncorbic@sangoma.com>
  *
- * Copyright:	(c) 2008 Nenad Corbic <ncorbic@sangoma.com>
+ * Copyright:	(c) 2005-2008 Nenad Corbic <ncorbic@sangoma.com>
  *
- *		This program is free software; you can redistribute it and/or
- *		modify it under the terms of the GNU General Public License
- *		as published by the Free Software Foundation; either version
- *		2 of the License, or (at your option) any later version.
- * ============================================================================
+ * * Redistribution and use in source and binary forms, with or without
+ *   modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the <organization> nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
  *
+ * THIS SOFTWARE IS PROVIDED BY <copyright holder> ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL <copyright holder> BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * *******************************************************************************
  */
 
 #include "libhpsangoma.h"
 #include "libhpsangoma_priv.h"
 
-/*---------------------------------------------------------
+/*********************************************************//**
   PRIVATE STRUCTURES
- ----------------------------------------------------------*/
+ *************************************************************/
 
 void (*lib_log)(int level, FILE *fp, char *file, const char *func, int line, char *fmt, ...)=NULL;
 
 
 /*!
+  \fn int sangoma_hp_tdm_chan_push(struct sangoma_hptdm_chan *chan, char *data, int len)
   \brief Channel Method: User tx a chunk into a channel
   \param chan channel object
   \param data pointer to user voice chunk
@@ -86,12 +103,14 @@ static int sangoma_hp_tdm_chan_push(struct sangoma_hptdm_chan *chan, char *data,
 	return 0;
 }
 
-/*-------------------------------------------------
+/*********************************************************//**
   Internal Span Methods
- -------------------------------------------------*/
+ *************************************************************/
+
 
 
 /*!
+  \fn int sangoma_hp_tdm_open_chan(sangoma_hptdm_span_t *span, sangoma_hptdm_chan_reg_t *cfg, unsigned int chan_no, sangoma_hptdm_chan_t **chan_ptr)
   \brief Span Method: Open a channel inside of span
   \param span span object
   \param cfg channel registration structure
@@ -155,6 +174,7 @@ static int sangoma_hp_tdm_open_chan(sangoma_hptdm_span_t *span,
 
 
 /*!
+  \fn int sangoma_hp_tdm_close_chan(sangoma_hptdm_chan_t *chan)
   \brief Span Method: Close channel
   \param chan channel object
   \return 0 = pass, non zero fail
@@ -171,6 +191,7 @@ static int sangoma_hp_tdm_close_chan(sangoma_hptdm_chan_t *chan)
 
 
 /*!
+  \fn sangoma_hp_tdm_is_chan_closed (sangoma_hptdm_chan_t *chan)
   \brief Span Method: Test if channel is closed
   \param chan channel object
   \return 0 = channel is NOT closed,  non zero channel IS closed
@@ -181,6 +202,7 @@ static int sangoma_hp_tdm_is_chan_closed (sangoma_hptdm_chan_t *chan)
 }
 
 /*!
+  \fn sangoma_hp_tdm_close_span(sangoma_hptdm_span_t *span)
   \brief Span Method: Close span
   \param span span object
   \return 0 = pass, non zero fail
@@ -245,7 +267,7 @@ static int sangoma_hp_tdm_event_get_cfg(sangoma_hptdm_span_t *span, wan_if_cfg_t
 static int sangoma_hp_tdm_run_span(sangoma_hptdm_span_t *span)
 {
 	int err=0;
-	fd_set 	sock_read,sock_write,sock_oob;
+	unsigned int flags;
 
 	if (!span->init) {
 		lib_printf(0, NULL, "Span %i not initialized %i\n",span->span_no+1);
@@ -263,20 +285,11 @@ static int sangoma_hp_tdm_run_span(sangoma_hptdm_span_t *span)
 		}
 	}
 
-	/* Initialize all select() descriptors */
-	FD_ZERO(&sock_read);
-	FD_ZERO(&sock_write);
-	FD_ZERO(&sock_oob);
-
-	FD_SET(span->sock,&sock_oob);
-	FD_SET(span->sock,&sock_read);
-	FD_SET(span->sock,&sock_write);
-
-	err=select(span->sock + 1,&sock_read, NULL, &sock_oob, NULL);
+	err=sangoma_socket_waitfor(span->sock,0,(POLLIN|POLLPRI), &flags);
 
 	if (err > 0) {
 
-		if (FD_ISSET(span->sock,&sock_oob)){
+		if (flags & POLLPRI){
 			err=sangoma_hp_tdm_handle_oob_event(span);
 			if (err) {
 				lib_printf(0, NULL, "RUN SPAN: %i oob err %i\n",
@@ -285,7 +298,7 @@ static int sangoma_hp_tdm_run_span(sangoma_hptdm_span_t *span)
 				goto sangoma_hp_tdm_run_span_exit;
 			}
 		}
-		if (FD_ISSET(span->sock,&sock_read)){
+		if (flags & POLLIN){
 			err=sangoma_hp_tdm_handle_read_event(span);
 			if (err) {
 				lib_printf(0, NULL, "RUN SPAN: %i read err %i\n",
@@ -319,8 +332,8 @@ static int sangoma_hp_tdm_run_span(sangoma_hptdm_span_t *span)
 sangoma_hp_tdm_run_span_exit:
 
 	if (err < 0) {
-		if (span->sock) {
-			close(span->sock);
+		if (span->sock >= 0) {
+			sangoma_close(&span->sock);
 			span->sock=-1;
 		}
 	}
@@ -359,7 +372,7 @@ sangoma_hptdm_span_t * __sangoma_hptdm_api_span_init(int span_no, sangoma_hptdm_
 	memset(span,0,sizeof(sangoma_hptdm_span_t));
 
 	span->span_no=span_no;
-	sprintf(span->if_name,"w%ig1",span_no+1);
+	sprintf(span->if_name,"wptdm_s%ic1",span_no+1);
 
 	if (cfg) {
 		memcpy(&span->span_reg,cfg,sizeof(sangoma_hptdm_span_reg_t));

@@ -1,125 +1,125 @@
 K 25
 svn:wc:ra_dav:version-url
-V 81
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html
+V 70
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html
 END
 tabs.css
 K 25
 svn:wc:ra_dav:version-url
-V 90
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/tabs.css
+V 79
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/tabs.css
 END
 annotated.html
 K 25
 svn:wc:ra_dav:version-url
-V 96
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/annotated.html
+V 85
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/annotated.html
 END
 graph_legend.html
 K 25
 svn:wc:ra_dav:version-url
-V 99
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/graph_legend.html
+V 88
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/graph_legend.html
 END
 structchan__idx.html
 K 25
 svn:wc:ra_dav:version-url
-V 102
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/structchan__idx.html
+V 91
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/structchan__idx.html
 END
 tab_l.gif
 K 25
 svn:wc:ra_dav:version-url
-V 91
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/tab_l.gif
+V 80
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/tab_l.gif
 END
 tab_r.gif
 K 25
 svn:wc:ra_dav:version-url
-V 91
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/tab_r.gif
+V 80
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/tab_r.gif
 END
 aft__tdm__hp_8c-source.html
 K 25
 svn:wc:ra_dav:version-url
-V 109
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/aft__tdm__hp_8c-source.html
+V 98
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/aft__tdm__hp_8c-source.html
 END
 doxygen.png
 K 25
 svn:wc:ra_dav:version-url
-V 93
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/doxygen.png
+V 82
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/doxygen.png
 END
 graph_legend.png
 K 25
 svn:wc:ra_dav:version-url
-V 98
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/graph_legend.png
+V 87
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/graph_legend.png
 END
 aft__tdm__hp_8h-source.html
 K 25
 svn:wc:ra_dav:version-url
-V 109
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/aft__tdm__hp_8h-source.html
+V 98
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/aft__tdm__hp_8h-source.html
 END
 doxygen.css
 K 25
 svn:wc:ra_dav:version-url
-V 93
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/doxygen.css
+V 82
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/doxygen.css
 END
 graph_legend.dot
 K 25
 svn:wc:ra_dav:version-url
-V 98
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/graph_legend.dot
+V 87
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/graph_legend.dot
 END
 structspan__idx-members.html
 K 25
 svn:wc:ra_dav:version-url
-V 110
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/structspan__idx-members.html
+V 99
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/structspan__idx-members.html
 END
 files.html
 K 25
 svn:wc:ra_dav:version-url
-V 92
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/files.html
+V 81
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/files.html
 END
 functions_vars.html
 K 25
 svn:wc:ra_dav:version-url
-V 101
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/functions_vars.html
+V 90
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/functions_vars.html
 END
 index.html
 K 25
 svn:wc:ra_dav:version-url
-V 92
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/index.html
+V 81
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/index.html
 END
 tab_b.gif
 K 25
 svn:wc:ra_dav:version-url
-V 91
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/tab_b.gif
+V 80
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/tab_b.gif
 END
 functions.html
 K 25
 svn:wc:ra_dav:version-url
-V 96
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/functions.html
+V 85
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/functions.html
 END
 structspan__idx.html
 K 25
 svn:wc:ra_dav:version-url
-V 102
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/structspan__idx.html
+V 91
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/structspan__idx.html
 END
 structchan__idx-members.html
 K 25
 svn:wc:ra_dav:version-url
-V 110
-/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/docs/doxygen/html/structchan__idx-members.html
+V 99
+/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/docs/doxygen/html/structchan__idx-members.html
 END

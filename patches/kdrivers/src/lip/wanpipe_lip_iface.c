@@ -21,8 +21,6 @@
 #include <linux/wanpipe_lip.h>
 #endif
 
-WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)	
-
 /*=============================================================
  * Definitions
  */
@@ -43,6 +41,8 @@ unsigned char wplip_link_num[MAX_LIP_LINKS];
 #if 0
 int gdbg_flag=0;
 #endif
+
+#undef WAN_DEBUG_MEM_LIP
 
 /*=============================================================
  * Function Prototypes
@@ -74,7 +74,8 @@ extern void unregister_wanpipe_lip_protocol (void);
  * Global Module Interface Functions
  */
 
-# if defined(WAN_DEBUG_MEM)
+/* This should only exist in sdladrv */
+# if defined(WAN_DEBUG_MEM_LIP)
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 # define EXPORT_SYMBOL(symbol)
 #endif
@@ -220,7 +221,6 @@ static int wanpipe_lip_memdbg_free(void)
 }
 
 # endif
-
 
 
 /*=============================================================
@@ -946,7 +946,7 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
         	dev->tx_queue_len=lip_link->latency_qlen;
 	}  
 
-	return WAN_NETDEV_XMIT(skb,dev);
+	return dev->hard_start_xmit(skb,dev);
 #else
 	if (!(WAN_NETIF_QUEUE_STOPPED(dev)) && dev->if_output){
  		return dev->if_output(dev, skb, NULL,NULL);
@@ -994,8 +994,8 @@ int wplip_change_mtu(netdevice_t *dev, int new_mtu)
 		return -ENODEV;
 	}	
 
-	if (WAN_NETDEV_TEST_MTU(hw_dev)) {
-		err = WAN_NETDEV_CHANGE_MTU(hw_dev,new_mtu);
+	if (hw_dev->change_mtu) {
+		err = hw_dev->change_mtu(hw_dev,new_mtu);
 	} 
 		
 	if (err == 0) {
@@ -1725,10 +1725,11 @@ int wanpipe_lip_init(void *arg)
 {
 	wplip_reg_t reg;	
 	int err;
-	
-#if defined(WAN_DEBUG_MEM)
+
+#if defined(WAN_DEBUG_MEM_LIP)
 	wanpipe_lip_memdbg_init();
 #endif
+
 	if (WANPIPE_VERSION_BETA){
 		DEBUG_EVENT("%s Beta %s.%s %s\n",
 			wplip_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,wplip_copyright);
@@ -1779,8 +1780,8 @@ int wanpipe_lip_exit (void *arg)
 
 	unregister_wanpipe_lip_protocol();
 	wplip_free_prot();	
-	
-#if defined(WAN_DEBUG_MEM)
+
+#if defined(WAN_DEBUG_MEM_LIP)
 	wanpipe_lip_memdbg_free();
 #endif
 

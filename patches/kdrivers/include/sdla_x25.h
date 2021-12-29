@@ -27,7 +27,7 @@
  */
 
 
-#include <linux/wanpipe_x25_kernel.h>
+#include "wanpipe_x25_kernel.h"
 
 #pragma pack(1)
 

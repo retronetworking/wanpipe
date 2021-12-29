@@ -61,9 +61,35 @@ int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng,
 			 unsigned char *buf, int len)
 {
 	int i;
+	int word_len;
+	int found=0;
 	int gotdata=0;
 
 	
+	word_len=len-(len%4);
+	/* Before decoding the packet, make sure that the current
+	 * bit stream contains data. Decoding is very expensive,
+	 * thus perform word (32bit) comparision test */
+	
+	for (i=0;i<word_len;i+=4){
+		if ((*(unsigned int*)&buf[i]) != *(unsigned int*)buf){
+			found=1;
+			break;
+		}
+	}
+
+	if ((len%4) && !found){
+		for (i=word_len;i<len;i++){
+			if (buf[i]!=buf[0]){
+				found=1;
+				break;
+			}
+		}
+	}
+	
+	/* Data found proceed to decode
+	 * the bitstream and pull out data packets */
+	if (found){
 		wanpipe_hdlc_decoder_t *hdlc_decoder = &hdlc_eng->decoder;
 
 		for (i=0; i<len; i++){
@@ -73,11 +99,12 @@ int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng,
 		}
 
 		if (hdlc_decoder->rx_decode_len >= MAX_SOCK_HDLC_LIMIT){
- 			//printf("ERROR Rx decode len > max\n");	
+ 			printf("ERROR Rx decode len > max\n");	
 			hdlc_decoder->stats.errors++;
 			hdlc_decoder->stats.frame_overflow++;	
 			init_hdlc_decoder(hdlc_decoder);
 		}
+	}
 	
 	return gotdata;
 }
@@ -99,15 +126,6 @@ int wanpipe_hdlc_encode(wanpipe_hdlc_engine_t *hdlc_eng,
 	memset(&chan->tx_decode_buf[0],0,3);
 	chan->tx_decode_bit_cnt=0;
 	
-	if (hdlc_eng->seven_bit_hdlc){
-		chan->bits_in_byte=7;
-		hdlc_eng->bits_in_byte=7;
-		
-	}else{
-		chan->bits_in_byte=8;
-		hdlc_eng->bits_in_byte=8;
-	}
-
 #if 0 
 //HDLC_IDLE_ABORT	
 	chan->tx_flag_idle=0x7E;

@@ -26,11 +26,14 @@
 #include <linux/wanrouter.h>		/* WAN router definitions */
 #include <linux/wanpipe.h>		/* WANPIPE common user API definitions */
 #include <linux/sdlapci.h>
+#include <linux/wanpipe_api_deprecated.h>
+
 #include <linux/sdla_bitstrm.h>		/* BSTRM firmware API definitions */
 #include <linux/if_wanpipe_common.h>    /* Socket Driver common area */
 #include <linux/if_wanpipe.h>		
 #include <linux/wanproc.h>
 #include <linux/wanpipe_syncppp.h>
+
 
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 # include "wanpipe_lapb_kernel.h"
@@ -919,7 +922,7 @@ static int update (wan_device_t* wandev)
 	if(dev == NULL)
 		return -ENODEV;
 
-	if((bstrm_priv_area=wan_netif_priv(dev)) == NULL)
+	if((bstrm_priv_area=dev->priv) == NULL)
 		return -ENODEV;
 
        	if(bstrm_priv_area->update_comms_stats){
@@ -968,7 +971,8 @@ static int update (wan_device_t* wandev)
 
 #if 0
 	if (bstrm_priv_area->common.usedby == SWITCH && bstrm_priv_area->sw_dev){
-		bitstrm_private_area_t *sw_chan= wan_netif_priv(bstrm_priv_area->sw_dev);
+		bitstrm_private_area_t *sw_chan=
+			(bitstrm_private_area_t *)bstrm_priv_area->sw_dev->priv;	
 		sdla_t *sw_card=sw_chan->card;
 
 		DEBUG_EVENT( "SWITCH DIFF: ISR=%li  Rx=%li Tx=%li RxBh=%li\n",
@@ -1195,7 +1199,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 			wandev->name);
 
 		if (conf->protocol != WANOPT_NO){
-			wan_netif_set_priv(dev, bstrm_priv_area);
+			dev->priv=bstrm_priv_area;
 			if ((err=protocol_init(card,dev,bstrm_priv_area,conf)) != 0){
 				goto new_if_error;
 			}
@@ -1264,7 +1268,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	/* prepare network device data space for registration */
 
 	dev->init = &if_init;
-	wan_netif_set_priv(dev, bstrm_priv_area);
+	dev->priv = bstrm_priv_area;
 	bstrm_priv_area->common.dev = dev;
 
 	bstrm_priv_area->hdlc_flag=0;
@@ -1418,7 +1422,8 @@ new_if_error:
 		bstrm_priv_area->common.dev=NULL;
 		kfree(bstrm_priv_area);
 	}
-	wan_netif_set_priv(dev, NULL);
+
+	dev->priv=NULL;
 
 	return err;
 }
@@ -1428,8 +1433,8 @@ new_if_error:
  */
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
-	bitstrm_private_area_t* bstrm_priv_area = wan_netif_priv(dev);
-	bitstrm_private_area_t* chan = wan_netif_priv(dev);
+	bitstrm_private_area_t* bstrm_priv_area = dev->priv;
+	bitstrm_private_area_t* chan = dev->priv;
 	sdla_t *card = wandev->priv;
 	int i;
 	unsigned long smp_flags;
@@ -1519,7 +1524,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
  */
 static int if_init (netdevice_t* dev)
 {
-	bitstrm_private_area_t* bstrm_priv_area = wan_netif_priv(dev);
+	bitstrm_private_area_t* bstrm_priv_area = dev->priv;
 	sdla_t* card = bstrm_priv_area->card;
 	wan_device_t* wandev = &card->wandev;
 
@@ -1598,7 +1603,7 @@ static int if_init (netdevice_t* dev)
 /* SNMP */ 
 static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 {
-	bitstrm_private_area_t* chan= wan_netif_priv(dev);
+	bitstrm_private_area_t* chan= (bitstrm_private_area_t*)dev->priv;
 	unsigned long smp_flags;
 	sdla_t *card;
 	wan_udp_pkt_t *wan_udp_pkt;
@@ -1907,7 +1912,7 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
  */
 static int if_open (netdevice_t* dev)
 {
-	bitstrm_private_area_t* bstrm_priv_area = wan_netif_priv(dev);
+	bitstrm_private_area_t* bstrm_priv_area = dev->priv;
 	sdla_t* card = bstrm_priv_area->card;
 	struct timeval tv;
 	int err = 0;
@@ -1940,7 +1945,7 @@ static int if_open (netdevice_t* dev)
 			if (bstrm_priv_area->sw_dev && 
 			    bstrm_priv_area->common.state != WAN_CONNECTED){
 				
-				sw_chan = wan_netif_priv(bstrm_priv_area->sw_dev);
+				sw_chan=(bitstrm_private_area_t *)bstrm_priv_area->sw_dev->priv;
 				sw_card=sw_chan->card;
 				
 				if (!sw_card->comm_enabled || !card->comm_enabled){
@@ -1986,7 +1991,7 @@ static int if_open (netdevice_t* dev)
 
 static int if_close (netdevice_t* dev)
 {
-	bitstrm_private_area_t* bstrm_priv_area = wan_netif_priv(dev);
+	bitstrm_private_area_t* bstrm_priv_area = dev->priv;
 	sdla_t* card = bstrm_priv_area->card;
 	unsigned long smp_flags;
 			
@@ -2059,7 +2064,7 @@ static void disable_comm (sdla_t *card)
  */
 static void if_tx_timeout (netdevice_t *dev)
 {
-    	bitstrm_private_area_t* chan = wan_netif_priv(dev);
+    	bitstrm_private_area_t* chan = dev->priv;
 	sdla_t *card = chan->card;
 	
 	/* If our device stays busy for at least 5 seconds then we will
@@ -2109,7 +2114,7 @@ static void if_tx_timeout (netdevice_t *dev)
  */
 static int if_send (struct sk_buff* skb, netdevice_t* dev)
 {
-	bitstrm_private_area_t *bstrm_priv_area = wan_netif_priv(dev);
+	bitstrm_private_area_t *bstrm_priv_area = dev->priv;
 	sdla_t *card = bstrm_priv_area->card;
 	unsigned long smp_flags;
 
@@ -2165,7 +2170,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		dev_kfree_skb_any(skb);
 
 		if (bstrm_priv_area->sw_dev){
-			sw_chan=wan_netif_priv(bstrm_priv_area->sw_dev);
+			sw_chan=(bitstrm_private_area_t *)bstrm_priv_area->sw_dev->priv;
 			if (sw_chan){
 				if (test_bit(WAIT_DEVICE_BUFFERS,&sw_chan->tq_control) &&
 					skb_queue_len(&sw_chan->tx_queue) >= TX_QUEUE_MID){
@@ -2296,7 +2301,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 {
 	bitstrm_private_area_t* bstrm_priv_area;
 
-	if ((bstrm_priv_area=wan_netif_priv(dev)) == NULL)
+	if ((bstrm_priv_area=dev->priv) == NULL)
 		return NULL;
 
 	return &bstrm_priv_area->ifstats;
@@ -4249,7 +4254,7 @@ void timer_intr(sdla_t *card)
 		goto timer_intr_exit;
 	}
 	
-        bstrm_priv_area = wan_netif_priv(dev);
+        bstrm_priv_area = dev->priv;
 
 	/* process a udp call if pending */
 #if 0
@@ -4724,7 +4729,7 @@ static int setup_api_timeslots(sdla_t* card)
 
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
 	if (!dev) return -EINVAL;
-	bstrm_priv_area = wan_netif_priv(dev);
+	bstrm_priv_area = dev->priv;
 	
 	memset(card->u.b.time_slot_map,0,sizeof(card->u.b.time_slot_map));
 
@@ -4973,7 +4978,7 @@ static void port_set_state (sdla_t *card, int state)
 					continue;
 				}
 				
-				sw_chan=wan_netif_priv(bstrm_priv_area->sw_dev);
+				sw_chan=(bitstrm_private_area_t *)bstrm_priv_area->sw_dev->priv;
 				sw_card=sw_chan->card;
 				
 				if (!sw_card->comm_enabled){
@@ -5357,7 +5362,6 @@ static int bstrm_bind_dev_switch (sdla_t *card, bitstrm_private_area_t*chan, cha
 {
 	bitstrm_private_area_t *sw_chan;
 	netdevice_t *sw_dev;
-	wanpipe_common_t *common;
 	sdla_t *sw_card;
 	unsigned long smp_flags;
 	
@@ -5374,15 +5378,14 @@ static int bstrm_bind_dev_switch (sdla_t *card, bitstrm_private_area_t*chan, cha
 		return 0;
 	}
 
-	common = wan_netif_priv(sw_dev);
-	if (!common){
+	if (!sw_dev->priv){
 		DEBUG_EVENT( "%s: Error: Invalid switch device %s: not wanpipe device!\n",
 				card->devname, sw_dev->name);
 		dev_put(sw_dev);
 		return -EINVAL;
 	}
 
-	if (common->usedby != SWITCH){
+	if (((wanpipe_common_t*)sw_dev->priv)->usedby != SWITCH){
 		DEBUG_EVENT( "%s: Error: Device %s not configured for switching\n",
 				card->devname, sw_dev->name);
 		
@@ -5390,15 +5393,15 @@ static int bstrm_bind_dev_switch (sdla_t *card, bitstrm_private_area_t*chan, cha
 		return -EINVAL;
 	}
 
-	if (common->config_id != card->wandev.config_id){
+	if (((wanpipe_common_t*)sw_dev->priv)->config_id != card->wandev.config_id){
 		DEBUG_EVENT( "%s: Error: Invalid switch device (%s) config id 0x%x\n",
-				card->devname, sw_dev->name,common->config_id);
+				card->devname, sw_dev->name,((wanpipe_common_t*)sw_dev->priv)->config_id);
 		
 		dev_put(sw_dev);
 		return -EINVAL;
 	}
 	
-	sw_chan = wan_netif_priv(sw_dev);
+	sw_chan = (bitstrm_private_area_t *)sw_dev->priv;
 	sw_card = sw_chan->card;
 	
 	if ((strcmp(sw_chan->sw_if_name,chan->if_name)) != 0){
@@ -5433,7 +5436,7 @@ static int bstrm_bind_dev_switch (sdla_t *card, bitstrm_private_area_t*chan, cha
 static int bstrm_unbind_dev_switch (sdla_t *card, bitstrm_private_area_t *chan)
 {
 	if (chan->sw_dev){
-		bitstrm_private_area_t *sw_chan=wan_netif_priv(chan->sw_dev);
+		bitstrm_private_area_t *sw_chan=chan->sw_dev->priv;
 		if (sw_chan){
 			if (sw_chan->sw_dev){
 				DEBUG_EVENT( "%s: Unbinding SW dev %s from %s\n",
@@ -5531,7 +5534,7 @@ static int protocol_start (sdla_t *card, netdevice_t *dev)
 {
 	int err=0;
 	
-	bitstrm_private_area_t *chan=wan_netif_priv(dev);
+	bitstrm_private_area_t *chan=dev->priv;
 
 	if (!chan)
 		return 0;
@@ -5547,7 +5550,7 @@ static int protocol_start (sdla_t *card, netdevice_t *dev)
 
 static int protocol_stop (sdla_t *card, netdevice_t *dev)
 {
-	bitstrm_private_area_t *chan=wan_netif_priv(dev);
+	bitstrm_private_area_t *chan=dev->priv;
 
 	if (!chan)
 		return 0;
@@ -5564,7 +5567,7 @@ static int protocol_stop (sdla_t *card, netdevice_t *dev)
 
 static int protocol_shutdown (sdla_t *card, netdevice_t *dev)
 {
-	bitstrm_private_area_t *chan=wan_netif_priv(dev);
+	bitstrm_private_area_t *chan=dev->priv;
 
 	if (!chan)
 		return 0;
@@ -5587,7 +5590,7 @@ static void send_ppp_term_request (netdevice_t *dev)
 {
 	struct sk_buff *new_skb;
 	unsigned char *buf;
-	bitstrm_private_area_t *chan=wan_netif_priv(dev);
+	bitstrm_private_area_t *chan=dev->priv;
 
 	if (chan->ignore_modem)
 		return;
@@ -5635,7 +5638,7 @@ wanpipe_switch_datascope_tx_up(bitstrm_private_area_t *chan,struct sk_buff *skb)
 
 	buf = (api_rx_hdr_t*)skb_push(new_skb,sizeof(api_rx_hdr_t));
 	memset(buf, 0, sizeof(api_rx_hdr_t));
-	buf->direction = 1;
+	buf->wan_hdr_bitstrm_direction = 1;
 		
 	new_skb->protocol = htons(PVC_PROT);
 	wan_skb_reset_mac_header(new_skb);
@@ -5786,7 +5789,7 @@ static int send_rbs_oob_msg (sdla_t *card, bitstrm_private_area_t *chan)
 	api_rx_el=(api_rx_hdr_t *)skb_put(skb,sizeof(api_rx_hdr_t));
 	memset(api_rx_el,0,sizeof(api_rx_hdr_t));
 
-	api_rx_el->channel=chan->rbs_chan;
+	api_rx_el->wan_hdr_bitstrm_channel=chan->rbs_chan;
 	
 	buf = skb_put(skb,1);
 	if (!buf){
@@ -5815,7 +5818,7 @@ static int send_rbs_oob_msg (sdla_t *card, bitstrm_private_area_t *chan)
 static int bind_annexg(netdevice_t *dev, netdevice_t *annexg_dev)
 {
 	unsigned long smp_flags=0;
-	bitstrm_private_area_t* chan = wan_netif_priv(dev);
+	bitstrm_private_area_t* chan = dev->priv;
 	sdla_t *card = chan->card;
 	if (!chan)
 		return -EINVAL;
@@ -5864,7 +5867,7 @@ static netdevice_t * un_bind_annexg(wan_device_t *wandev, netdevice_t *annexg_de
 static void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
 			       void *wp_stats_ptr)
 {
-	bitstrm_private_area_t* 	chan = wan_netif_priv(dev);
+	bitstrm_private_area_t* 	chan = dev->priv;
 	wp_stack_stats_t *wp_stats = (wp_stack_stats_t *)wp_stats_ptr;
 
 	if (chan->common.usedby == ANNEXG && chan->annexg_dev){
@@ -5883,7 +5886,7 @@ static void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
 static int 
 get_map(wan_device_t *wandev, netdevice_t *dev, struct seq_file* m, int* stop_cnt)
 {
-	bitstrm_private_area_t*	chan = wan_netif_priv(dev);
+	bitstrm_private_area_t*	chan = dev->priv;
 
 	if (!(dev->flags&IFF_UP)){
 		return m->count;

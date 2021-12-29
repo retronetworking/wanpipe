@@ -29,15 +29,11 @@
 
 #if defined(WAN_KERNEL)
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
+
 # if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER)
-#  include <wanpipe_edac_iface.h>
+#  include "wanpipe_edac_iface.h"
 # endif
-#else
-# if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER)
-#  include <linux/wanpipe_edac_iface.h>
-# endif
-#endif
+
 
 /******************************************************************************
 **			  DEFINES and MACROS
@@ -94,9 +90,12 @@ typedef struct wan_tdmv_iface_
 	int	(*init)(void*, wanif_conf_t*);
 	int	(*free)(wan_tdmv_t*);
 	int	(*polling)(void*);
-	int	(*buf_rotate)(void *pcard,u32,unsigned long, int);
+	int	(*buf_rotate)(void *pcard,u32,unsigned long);
 	int	(*ec_span)(void *pcard);
 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	int	(*update_regs)(void*, int, u8*);	/* USB-FXO */
+#endif
 } wan_tdmv_iface_t;
 
 /******************************************************************************
@@ -105,6 +104,9 @@ typedef struct wan_tdmv_iface_
 EXTERN int wp_tdmv_te1_init(wan_tdmv_iface_t *iface);
 EXTERN int wp_tdmv_remora_init(wan_tdmv_iface_t *iface);
 EXTERN int wp_tdmv_bri_init(wan_tdmv_iface_t *iface);
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+EXTERN int wp_usb_tdmv_remora_init(wan_tdmv_iface_t *iface);
+#endif
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 EXTERN int wp_tdmv_echo_check(wan_tdmv_t *wan_tdmv, void *current_ztchan, int channo);

@@ -17,9 +17,9 @@
  *==================================================================*/
 
 #define MAX_SOCK_CRC_QUEUE 3
-#define MAX_SOCK_HDLC_BUF 2000
+#define MAX_SOCK_HDLC_BUF 15000
 #define MAX_SOCK_HDLC_LIMIT MAX_SOCK_HDLC_BUF-500
-#define HDLC_ENG_BUF_LEN 5000
+#define HDLC_ENG_BUF_LEN 8000
 
  
 #define INC_CRC_CNT(a)   if (++a >= MAX_SOCK_CRC_QUEUE) a=0;

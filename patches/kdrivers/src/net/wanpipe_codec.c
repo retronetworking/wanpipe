@@ -18,25 +18,13 @@
  ******************************************************************************
 */
 
-#if (defined __FreeBSD__) | (defined __OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe_common.h>
-# include <wanpipe.h>
-# include <wanpipe_codec.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe.h>
-# include <wanpipe_codec.h>
-#else
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe.h>
-# include <linux/wanpipe_codec.h>
-#endif
+
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe.h"
+#include "wanpipe_codec.h"
 
 
 wanpipe_codec_ops_t *WANPIPE_CODEC_OPS[WP_TDM_HW_CODING_MAX][WP_TDM_CODEC_MAX];

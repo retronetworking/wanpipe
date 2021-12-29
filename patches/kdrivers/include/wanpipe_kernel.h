@@ -34,55 +34,6 @@
 #define device_create_drvdata(a,b,c,d,e) device_create(a,b,c,d,e) 
 #endif
 
-//////////////////////
-#ifdef HAVE_NET_DEVICE_OPS
-#define WAN_DECLARE_NETDEV_OPS(_ops_name) static struct net_device_ops _ops_name = {0};
-
-#define WAN_NETDEV_OPS_BIND(dev,_ops_name)  dev->netdev_ops = &_ops_name
-
-#define WAN_NETDEV_OPS_INIT(dev,ops,wan_init)				ops.ndo_init = wan_init
-#define WAN_NETDEV_OPS_OPEN(dev,ops,wan_open)				ops.ndo_open = wan_open
-#define WAN_NETDEV_OPS_STOP(dev,ops,wan_stop)				ops.ndo_stop = wan_stop
-#define WAN_NETDEV_OPS_XMIT(dev,ops,wan_send)				ops.ndo_start_xmit = wan_send
-#define WAN_NETDEV_OPS_STATS(dev,ops,wan_stats)				ops.ndo_get_stats = wan_stats
-#define WAN_NETDEV_OPS_TIMEOUT(dev,ops,wan_timeout)			ops.ndo_tx_timeout = wan_timeout
-#define WAN_NETDEV_OPS_IOCTL(dev,ops,wan_ioctl)				ops.ndo_do_ioctl = wan_ioctl
-#define WAN_NETDEV_OPS_MTU(dev,ops,wan_mtu)				ops.ndo_change_mtu = wan_mtu
-#define WAN_NETDEV_OPS_CONFIG(dev,ops,wan_set_config)			ops.ndo_set_config = wan_set_config
-#define WAN_NETDEV_OPS_SET_MULTICAST_LIST(dev,ops,wan_multicast_list)	ops.ndo_set_multicast_list = wan_multicast_list
-#define WAN_NETDEV_TEST_XMIT(dev)					dev->netdev_ops->ndo_start_xmit
-#define WAN_NETDEV_XMIT(skb,dev)					dev->netdev_ops->ndo_start_xmit(skb,dev)
-#define WAN_NETDEV_TEST_IOCTL(dev)					dev->netdev_ops->ndo_do_ioctl
-#define WAN_NETDEV_IOCTL(dev,ifr,cmd)					dev->netdev_ops->ndo_do_ioctl(dev,ifr,cmd)
-#define WAN_NETDEV_TEST_MTU(dev)					dev->netdev_ops->ndo_change_mtu
-#define WAN_NETDEV_CHANGE_MTU(dev,skb)					dev->netdev_ops->ndo_change_mtu(dev,skb)
-
-#else
-#define WAN_DECLARE_NETDEV_OPS(_ops_name) 
-#define WAN_NETDEV_OPS_BIND(dev,_ops_name)
-#define WAN_NETDEV_OPS_INIT(dev,ops,wan_init)				dev->init = wan_init
-#define WAN_NETDEV_OPS_OPEN(dev,ops,wan_open)				dev->open = wan_open	
-#define WAN_NETDEV_OPS_STOP(dev,ops,wan_stop)				dev->stop = wan_stop
-#define WAN_NETDEV_OPS_XMIT(dev,ops,wan_send)				dev->hard_start_xmit = wan_send
-#define WAN_NETDEV_OPS_STATS(dev,ops,wan_stats)				dev->get_stats = wan_stats
-#define WAN_NETDEV_OPS_TIMEOUT(dev,ops,wan_timeout)			dev->tx_timeout = wan_timeout
-#define WAN_NETDEV_OPS_IOCTL(dev,ops,wan_ioctl)				dev->do_ioctl = wan_ioctl
-#define WAN_NETDEV_OPS_MTU(dev,ops,wan_mtu)				dev->change_mtu = wan_mtu
-#define WAN_NETDEV_OPS_CONFIG(dev,ops,wan_set_config)			dev->set_config = wan_set_config
-#define WAN_NETDEV_OPS_SET_MULTICAST_LIST(dev,ops,wan_multicast_list)	dev->set_multicast_list = wan_multicast_list
-#define WAN_NETDEV_TEST_XMIT(dev)					dev->hard_start_xmit
-#define WAN_NETDEV_XMIT(skb,dev)					dev->hard_start_xmit(skb,dev)
-#define WAN_NETDEV_TEST_IOCTL(dev)					dev->do_ioctl
-#define WAN_NETDEV_IOCTL(dev,ifr,cmd)					dev->do_ioctl(dev,ifr,cmd)
-#define WAN_NETDEV_TEST_MTU(dev)					dev->change_mtu
-#define WAN_NETDEV_CHANGE_MTU(dev,skb)					dev->change_mtu(dev,skb)
-
-#endif
-//////////////////////////
-
-
-
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
 #define __wan_skb_reset_mac_header(skb)  skb_reset_mac_header(skb)
 #define __wan_skb_reset_network_header(skb) skb_reset_network_header(skb)
@@ -100,7 +51,7 @@
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)
-#define	cancel_work_sync(work) ({ cancel_work_sync(work); 0; })
+#define cancel_work_sync(work) ({ cancel_work_sync(work); 0; })
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24) || defined(LINUX_FEAT_2624)
@@ -166,31 +117,18 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
  }
 
 
- static inline int wan_task_dequeue(struct tq_struct *tq)
+ static inline int wan_task_cancel(struct tq_struct *tq)
  {
-#if  LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)
+#if  LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
 	return cancel_work_sync (tq);
-
-#elif defined(work_clear_pending)
-	return cancel_work_sync (tq);
-
-#elif defined(WORK_STRUCT_NOAUTOREL)
-	return 0;
 #else
 	int err;
 	err=cancel_delayed_work(tq);
 	flush_scheduled_work();
 	return err;
 #endif
- }           
+ }
 
-#if 1
-#define MOD_INC_USE_COUNT try_module_get(THIS_MODULE)
-#define MOD_DEC_USE_COUNT module_put(THIS_MODULE)
-#else
-#define MOD_INC_USE_COUNT 
-#define MOD_DEC_USE_COUNT
-#endif  
 
 #define ADMIN_CHECK()  {if (!capable(CAP_SYS_ADMIN)) {\
                              if (WAN_NET_RATELIMIT()) { \
@@ -291,7 +229,8 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
  {
 	schedule_task(tq);
  }
- static inline int wan_task_dequeue(struct tq_struct *tq)
+
+ static inline int wan_task_cancel(struct tq_struct *tq)
  {
 	return 0;
  }
@@ -464,11 +403,11 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
  {
 	queue_task(tq, &tq_scheduler);
  }
-
- static inline int wan_task_dequeue(struct tq_struct *tq)
+ static inline int wan_task_cancel(struct tq_struct *tq)
  {
 	return 0;
  }
+
 
  /* Setup Dma Memory size copied directly from 3c505.c */
  static inline int __get_order(unsigned long size)
@@ -666,15 +605,12 @@ static inline int open_dev_check(netdevice_t *dev)
 #  define WAN_TASKQ_INIT(task, priority, func, arg)	\
 		INIT_WORK((task),func)	
 # endif
-
 # define WAN_IS_TASKQ_SCHEDULE
-
 # define WAN_TASKQ_SCHEDULE(task)			\
 	wan_schedule_task(task)
 
 # define WAN_TASKQ_STOP(task) \
-	wan_task_dequeue(task)
-
+	wan_task_cancel(task)
 
 #else /* __KERNEL__ */
 
@@ -693,7 +629,97 @@ static inline int open_dev_check(netdevice_t *dev)
 #endif
 
 
+
 #endif
+
+
+#if defined(__KERNEL__)
+
+static __inline int wan_verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode)
+{
+	int size, err, ct;
+	
+	m->msg_name = NULL;
+
+	if (m->msg_iovlen == 0) {
+		return -EMSGSIZE;
+	}
+	
+	size = m->msg_iovlen * sizeof(struct iovec);
+
+	
+	if (copy_from_user(iov, m->msg_iov, size))
+		return -EFAULT;
+
+	m->msg_iov = iov;
+	err = 0;
+
+	for (ct = 0; ct < m->msg_iovlen; ct++) {
+		err += iov[ct].iov_len;
+		/*
+		 * Goal is not to verify user data, but to prevent returning
+		 * negative value, which is interpreted as errno.
+		 * Overflow is still possible, but it is harmless.
+		 */
+		if (err < 0)
+			return -EMSGSIZE;
+	}
+
+	return err;
+}
+      
+ /*
+ *	Copy iovec to kernel. Returns -EFAULT on error.
+ *
+ *	Note: this modifies the original iovec.
+ */
+ 
+static __inline int wan_memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len)
+{
+	while (len > 0) {
+		if (iov->iov_len) {
+			int copy = min_t(unsigned int, len, iov->iov_len);
+			if (copy_from_user(kdata, iov->iov_base, copy))
+				return -EFAULT;
+			len -= copy;
+			kdata += copy;
+			iov->iov_base += copy;
+			iov->iov_len -= copy;
+		}
+		iov++;
+	}
+
+	return 0;
+}                
+
+/*
+ *	Copy kernel to iovec. Returns -EFAULT on error.
+ *
+ *	Note: this modifies the original iovec.
+ */
+ 
+static __inline int wan_memcpy_toiovec(struct iovec *iov, unsigned char *kdata, int len)
+{
+	while (len > 0) {
+		if (iov->iov_len) {
+			int copy = min_t(unsigned int, iov->iov_len, len);
+			if (copy_to_user(iov->iov_base, kdata, copy))
+				return -EFAULT;
+			kdata += copy;
+			len -= copy;
+			iov->iov_len -= copy;
+			iov->iov_base += copy;
+		}
+		iov++;
+	}
+
+	return 0;
+}             
+
+
+#endif
+
+
 
 #endif
 

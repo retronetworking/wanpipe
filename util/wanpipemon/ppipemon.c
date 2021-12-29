@@ -41,21 +41,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
-#if defined(__LINUX__)
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_ppp.h>
-#else
+#if !defined (__LINUX__)
 # include <netinet/in_systm.h>
 # include <netinet/in.h>
 # include <netinet/ip.h>
 # include <netinet/udp.h>      
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanpipe.h>
-# include <sdla_ppp.h>
 #endif
+
+#include "wanpipe_api.h"
+#include "sdla_ppp.h"
 #include "fe_lib.h" 
 #include "wanpipemon.h"
 

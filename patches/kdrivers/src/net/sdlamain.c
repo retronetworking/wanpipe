@@ -216,7 +216,9 @@
   #define wp_adccp_init(card,conf) (-EPROTONOSUPPORT)
 #endif
 
-
+#ifndef CONFIG_PRODUCT_WANPIPE_USB
+  #define wp_usb_init(card,conf) (-EPROTONOSUPPORT)
+#endif
 
 /***********FOR DEBUGGING PURPOSES*********************************************
 static void * dbg_kmalloc(unsigned int size, int prio, int line) {
@@ -410,6 +412,9 @@ int __init wanpipe_init(void)
 	/* Probe for wanpipe cards and return the number found */
 	DEBUG_EVENT("wanpipe: Probing for WANPIPE hardware.\n");
 	ncards = sdla_hw_probe();
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	ncards += sdla_get_hw_usb_adptr_cnt();
+#endif
 	if (ncards){
 		DEBUG_EVENT("wanpipe: Allocating maximum %i devices: wanpipe%i - wanpipe%i.\n",
 					ncards,1,ncards);
@@ -446,6 +451,7 @@ int __init wanpipe_init(void)
 		
 		card->next = NULL;
 		sprintf(card->devname, "%s%d", drvname, ++cnt);
+		card->card_no=cnt;
 		wandev->magic    = ROUTER_MAGIC;
 		wandev->name     = card->devname;
 		wandev->priv  = card;
@@ -623,6 +629,11 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		conf->card_type = WANOPT_AFT_SERIAL;
 		conf->S514_CPU_no[0] = 'A';
 		break;
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	case WANCONFIG_USB_ANALOG:
+		conf->card_type = WANOPT_USB_ANALOG;
+		break;
+#endif
 	}
 
 	wandev->card_type  = conf->card_type;
@@ -693,7 +704,10 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 				return err;
 			}
 			break;
-
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+		case WANOPT_USB_ANALOG:
+			break;
+#endif
 		default:
 			DEBUG_EVENT("%s: (1) ERROR, invalid card type 0x%0X!\n",
 					card->devname,conf->card_type);
@@ -750,7 +764,11 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 
 		/* request an interrupt vector - note that interrupts may be shared */
 		/* when using the S514 PCI adapter */
-		if (card->wandev.config_id != WANCONFIG_BSC && card->wandev.config_id != WANCONFIG_POS){ 
+		if (card->wandev.config_id != WANCONFIG_BSC && 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+		    card->wandev.config_id != WANCONFIG_USB_ANALOG && 
+#endif 
+		    card->wandev.config_id != WANCONFIG_POS){ 
 			if(request_irq(irq, sdla_isr, 
 			      (card->type == SDLA_S508) ? 0: IRQF_SHARED, 
 			       wandev->name, card)){
@@ -917,7 +935,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		break;
 		
 	case WANCONFIG_AFT:
-		DEBUG_EVENT("%s: Starting AFT Legacy Hardware Init.\n",
+		DEBUG_EVENT("%s: Starting AFT Hardware Init.\n",
 					card->devname);
 		err = wp_xilinx_init(card,conf);
 		break;
@@ -936,16 +954,16 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 
 	case WANCONFIG_AFT_ANALOG:
 		if (card->adptr_type == AFT_ADPTR_A600) {
-                        DEBUG_EVENT("%s: Starting AFT B600 Hardware Init.\n",
-                                                card->devname);
-                        err = wp_aft_a600_init(card,conf);
-                } else {
-                        DEBUG_EVENT("%s: Starting AFT Analog Hardware Init.\n",
-                                                card->devname);
-                        err = wp_aft_analog_init(card,conf);
-                }
-                break;
-		
+			DEBUG_EVENT("%s: Starting AFT B600 Hardware Init.\n",
+						card->devname);
+			err = wp_aft_a600_init(card,conf);
+		} else {
+			DEBUG_EVENT("%s: Starting AFT Analog Hardware Init.\n",
+						card->devname);
+			err = wp_aft_analog_init(card,conf);
+		}
+		break;
+
 	case WANCONFIG_AFT_ISDN_BRI:
 		DEBUG_EVENT("%s: Starting AFT ISDN BRI Hardware Init.\n",
 					card->devname);
@@ -953,7 +971,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		break;
 
 	case WANCONFIG_AFT_SERIAL:
-		DEBUG_EVENT("%s: Starting AFT Serial (V35/RS232) Hardware Init.\n",
+		DEBUG_EVENT("%s: Starting AFT Serial (V32/RS232) Hardware Init.\n",
 					card->devname);
 		err = wp_aft_serial_init(card,conf);
 		break;
@@ -971,6 +989,14 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		err = wp_lip_atm_init(card,conf);
 		break;
 #endif		
+
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	case WANCONFIG_USB_ANALOG:
+		DEBUG_EVENT("%s: Starting USB Hardware Init.\n",
+					card->devname);		
+		err = wp_usb_init(card,conf);
+		break;
+#endif
 	default:
 		DEBUG_EVENT("%s: Error, Protocol is not supported %u!\n",
 			wandev->name, conf->config_id);
@@ -1460,6 +1486,9 @@ static int shutdown (wan_device_t* wandev, wandev_conf_t* conf)
 	    card->type != SDLA_ADSL && 
 	    card->type != SDLA_AFT &&	
 	    wandev->config_id != WANCONFIG_DEBUG &&	
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	    card->type != SDLA_USB &&
+#endif
 	    !card->configured){
 		u16	io_range;
 		card->hw_iface.getcfg(card->hw, SDLA_IORANGE, &io_range);
@@ -1500,6 +1529,9 @@ static void release_hw (sdla_t *card)
 					card->hw_iface.hw_down(card->next->hw);
 				}
 				if (card->wandev.config_id != WANCONFIG_BSC && 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+				    card->wandev.config_id != WANCONFIG_USB_ANALOG && 
+#endif 
 				    card->wandev.config_id != WANCONFIG_POS){ 
        					free_irq(card->wandev.irq, card->next);
 				}
@@ -1514,6 +1546,9 @@ static void release_hw (sdla_t *card)
 					card->hw_iface.hw_down(card->hw);
 				}
 				if (card->wandev.config_id != WANCONFIG_BSC && 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+				    card->wandev.config_id != WANCONFIG_USB_ANALOG && 
+#endif 
 				    card->wandev.config_id != WANCONFIG_POS){ 
 					free_irq(card->wandev.irq, card);
 				}
@@ -1534,6 +1569,9 @@ static void release_hw (sdla_t *card)
 			card->hw_iface.hw_down(card->hw);
 		}
 		if (card->wandev.config_id != WANCONFIG_BSC && 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+		    card->wandev.config_id != WANCONFIG_USB_ANALOG && 
+#endif 
 		    card->wandev.config_id != WANCONFIG_POS &&
 		    card->wandev.config_id != WANCONFIG_DEBUG){
        			free_irq(card->wandev.irq, card);
@@ -1834,7 +1872,9 @@ STATIC WAN_IRQ_RETVAL sdla_isr (int irq, void* dev_id)
 void wanpipe_open (sdla_t* card)
 {
 	++card->open_cnt;
+#if !defined(LINUX_2_6)
 	MOD_INC_USE_COUNT;
+#endif	
 }
 
 /*============================================================================
@@ -1846,7 +1886,9 @@ void wanpipe_open (sdla_t* card)
 void wanpipe_close (sdla_t* card)
 {
 	--card->open_cnt;
+#if !defined(LINUX_2_6)
 	MOD_DEC_USE_COUNT;
+#endif
 }
 
 sdla_t * wanpipe_find_card_num (int num)

@@ -224,80 +224,81 @@
 # include <netipx/ipx_if.h>
 # include <uvm/uvm_extern.h>
 #elif defined(__LINUX__)
-#ifdef __KERNEL__
+# ifdef __KERNEL__
 /*
 **		***	L I N U X	***
 */
-# include <linux/init.h>
-# include <linux/version.h>	/**/
+#  include <linux/init.h>
+#  include <linux/version.h>	/**/
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
-# include <linux/config.h>	/* OS configuration options */
+#  if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+#   include <linux/config.h>	/* OS configuration options */
+#  endif
+
+#  if LINUX_VERSION_CODE < KERNEL_VERSION(2,3,0)
+#   if !(defined __NO_VERSION__) && !defined(_K22X_MODULE_FIX_)
+#    define __NO_VERSION__	
+#   endif
+#  endif
+#  if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+  /* Remove experimental SEQ support */
+#   define _LINUX_SEQ_FILE_H
 # endif
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2,3,0)
-#  if !(defined __NO_VERSION__) && !defined(_K22X_MODULE_FIX_)
-#   define __NO_VERSION__	
+#  include <linux/module.h>
+#  include <linux/types.h>
+#  include <linux/sched.h>
+#  include <linux/mm.h>
+#  include <linux/slab.h>
+#  include <linux/stddef.h>	/* offsetof, etc. */
+#  include <linux/errno.h>	/* returns codes */
+#  include <linux/string.h>	/* inline memset, etc */
+#  include <linux/ctype.h>
+#  include <linux/kernel.h>	/* printk()m and other usefull stuff */
+#  include <linux/timer.h>
+#  include <linux/kmod.h>
+#  include <net/ip.h>
+#  include <net/protocol.h>
+#  include <net/sock.h>
+#  include <net/route.h>
+#  include <linux/fcntl.h>
+#  include <linux/skbuff.h>
+#  include <linux/socket.h>
+#  include <linux/poll.h>
+#  include <linux/wireless.h>
+#  include <linux/in.h>
+#  include <linux/inet.h>
+#  include <linux/netdevice.h>
+#  include <linux/list.h>
+#  include <asm/io.h>		/* phys_to_virt() */
+#  include <asm/system.h>
+#  include <asm/byteorder.h>
+#  include <asm/delay.h>
+#  include <linux/pci.h>
+# if defined(CONFIG_PRODUCT_WANPIPE_USB)
+#  include <linux/usb.h>
+# endif
+#  include <linux/if.h>
+#  include <linux/if_arp.h>
+#  include <linux/tcp.h>
+#  include <linux/ip.h>
+#  include <linux/udp.h>
+#  include <linux/ioport.h>
+#  include <linux/init.h>
+#  include <linux/pkt_sched.h>
+#  include <linux/etherdevice.h>
+#  include <linux/random.h>
+#  include <asm/uaccess.h>
+#  include <linux/inetdevice.h>
+#  include <linux/vmalloc.h>     /* vmalloc, vfree */
+#  include <asm/uaccess.h>        /* copy_to/from_user */
+#  include <linux/init.h>         /* __initfunc et al. */
+#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#   include <linux/seq_file.h>
+#  endif
+#  ifdef CONFIG_INET
+#   include <net/inet_common.h>
 #  endif
 # endif
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-  /* Remove experimental SEQ support */
-# define _LINUX_SEQ_FILE_H
-#endif
-# include <linux/module.h>
-# include <linux/types.h>
-# include <linux/sched.h>
-# include <linux/mm.h>
-# include <linux/slab.h>
-# include <linux/stddef.h>	/* offsetof, etc. */
-# include <linux/errno.h>	/* returns codes */
-# include <linux/string.h>	/* inline memset, etc */
-# include <linux/ctype.h>
-# include <linux/kernel.h>	/* printk()m and other usefull stuff */
-# include <linux/timer.h>
-# include <linux/kmod.h>
-# include <net/ip.h>
-# include <net/protocol.h>
-# include <net/sock.h>
-# include <net/route.h>
-# include <linux/fcntl.h>
-# include <linux/skbuff.h>
-# include <linux/socket.h>
-# include <linux/poll.h>
-# include <linux/wireless.h>
-# include <linux/in.h>
-# include <linux/inet.h>
-# include <linux/netdevice.h>
-# include <linux/list.h>
-# include <asm/io.h>		/* phys_to_virt() */
-# include <asm/system.h>
-# include <asm/byteorder.h>
-# include <asm/delay.h>
-# include <linux/pci.h>
-# include <linux/if.h>
-# include <linux/if_arp.h>
-# include <linux/tcp.h>
-# include <linux/ip.h>
-# include <linux/udp.h>
-# include <linux/ioport.h>
-# include <linux/init.h>
-# include <linux/pkt_sched.h>
-# include <linux/etherdevice.h>
-# include <linux/random.h>
-# include <asm/uaccess.h>
-# include <linux/inetdevice.h>
-# include <linux/vmalloc.h>     /* vmalloc, vfree */
-# include <asm/uaccess.h>        /* copy_to/from_user */
-# include <linux/init.h>         /* __initfunc et al. */
-# include <linux/time.h>
-
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-#  include <linux/seq_file.h>
-# endif
-# ifdef CONFIG_INET
-#  include <net/inet_common.h>
-# endif
-#endif
 #elif defined(__SOLARIS__)
 /*
 **		***	S O L A R I S	***
@@ -337,15 +338,17 @@
 
 # if defined(VIRTUAL_IF_DRV) || defined(SPROTOCOL) || defined(BUSENUM_DRV)
 # include <ntddk.h>
-# include <wanpipe_ctypes.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_kernel.h>
-# include <wanpipe_skb.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_common.h>
-# include <wanpipe_cfg.h>
-# include <sdladrv.h>	/* API definitions */
-# include <wanpipe_abstr.h>
+# include "wanpipe_ctypes.h"
+# include "wanpipe_kernel_types.h"
+# include "aft_core_options.h"
+# include "wanpipe_debug.h"
+# include "wanpipe_kernel.h"
+# include "wanpipe_skb.h"
+# include "wanpipe_defines.h"
+# include "wanpipe_common.h"
+# include "wanpipe_cfg.h"
+# include "sdladrv.h"	/* API definitions */
+# include "wanpipe_abstr.h"
 # endif
 
 #if defined( NDIS_MINIPORT_DRIVER )
@@ -354,10 +357,11 @@
 # define NDIS50_MINIPORT   1 
 # include <ntddk.h>
 # include <ndis.h>
-# include <wanpipe_debug.h>
+# include "wanpipe_ctypes.h"
+# include "wanpipe_kernel_types.h"
+# include "wanpipe_debug.h"
 #endif
 
-/*# include <windef.h> - UINT*/
 #else
 # include <windows.h>
 #endif

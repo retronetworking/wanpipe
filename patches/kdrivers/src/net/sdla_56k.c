@@ -32,27 +32,20 @@
 			   INCLUDE FILES
  ******************************************************************************
 */
+ 
 
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe.h>
-# include <wanproc.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe.h>	/* WANPIPE common user API definitions */
-#else
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanproc.h>
-# include <linux/wanpipe.h>	/* WANPIPE common user API definitions */
-#endif
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe.h"	/* WANPIPE common user API definitions */
+#include "wanproc.h"
 
 /******************************************************************************
 			  DEFINES AND MACROS
 ******************************************************************************/
-
+# if !defined(AFT_FUNC_DEBUG)
 #define AFT_FUNC_DEBUG()
+#endif
 
 #define WRITE_REG(reg,val) 						\
 	fe->write_fe_reg(						\
@@ -150,7 +143,6 @@ static int sdla_56k_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notu
 
 u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 {
-
 	unsigned short 	status = 0x00;
 	sdla_t		*card = (sdla_t *)fe->card;
 	
@@ -201,7 +193,8 @@ u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 
 		/* if Insertion Loss is less than 44.4 dB, then we are connected */
 		if ((fe->fe_param.k56_param.RRA_reg_56k & 0x0F) > BIT_DEV_STAT_IL_44_dB) {
-			if (fe->fe_status != FE_CONNECTED) {
+			if((fe->fe_status == FE_DISCONNECTED) ||
+			 (fe->fe_status == FE_UNITIALIZED)) {
 				
 				fe->fe_status = FE_CONNECTED;
 				/* reset the Rx code condition changes */
@@ -212,15 +205,15 @@ u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 					DEBUG_EVENT("%s: 56k Receive Signal Recovered\n", 
 							fe->name);
 				}
-				DEBUG_EVENT("%s: 56k Connected\n",
-							fe->name);
+				DEBUG_EVENT("%s: 56k Connected\n", fe->name);
 
 				if (card->wandev.te_link_state){
 					card->wandev.te_link_state(card);
 				}	
 			}
 		}else{
-			if (fe->fe_status != FE_DISCONNECTED) {
+			if((fe->fe_status == FE_CONNECTED) || 
+			 (fe->fe_status == FE_UNITIALIZED)) {
 				
 				fe->fe_status = FE_DISCONNECTED;
 				/* reset the Rx code condition changes */
@@ -230,8 +223,7 @@ u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 					DEBUG_EVENT("%s: 56k Receive Loss of Signal\n", 
 							fe->name);
 				}
-				DEBUG_EVENT("%s: 56k Disconnected (loopback)\n",
-						fe->name);
+				DEBUG_EVENT("%s: 56k Disconnected (loopback)\n", fe->name);
 	
 				if (card->wandev.te_link_state){
 					card->wandev.te_link_state(card);
@@ -252,7 +244,6 @@ int sdla_56k_default_cfg(void* pcard, void* p56k_cfg)
 	AFT_FUNC_DEBUG();
 	return 0;
 }
-
 
 int sdla_56k_iface_init(void *p_fe, void* pfe_iface)
 {
@@ -399,6 +390,7 @@ static int sdla_56k_config(void* pfe)
 		return 1; 
 	}
 
+	fe->fe_status = FE_CONNECTED;
 	return 0;
 }
 
@@ -410,9 +402,6 @@ static int sdla_56k_unconfig(void* pfe)
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-	
-	WRITE_REG(REG_INT_EN_STAT, 0);
-	WRITE_REG(REG_EIA_CTRL, 0);
 
 	fe->fe_status = FE_UNITIALIZED;
 	return 0;
@@ -425,6 +414,8 @@ static int sdla_56k_polling(sdla_fe_t* fe)
 
 	return 0;
 }
+
+
 
 static void display_Rx_code_condition(sdla_fe_t* fe)
 {
@@ -569,6 +560,7 @@ static int sdla_56k_udp_lb(sdla_fe_t *fe, unsigned char* data)
 	return sdla_56k_set_lbmode(fe, lb->type, lb->mode);
 }
 
+
 /*
  ******************************************************************************
  *				sdla_56k_udp()	
@@ -600,12 +592,12 @@ static int sdla_56k_udp(sdla_fe_t *fe, void* pudp_cmd, unsigned char* data)
 		fe->fe_alarm = sdla_56k_alarm(fe, 1); 
 		memcpy(&data[0], &fe->fe_stats, sizeof(sdla_fe_stats_t));
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_fe_stats_t);
+    	udp_cmd->wan_cmd_data_len = sizeof(sdla_fe_stats_t);
 		break;
 
 	case WAN_FE_LB_MODE:
 		/* Activate/Deactivate Line Loopback modes */
-	    	err = sdla_56k_udp_lb(fe, data); 
+		err = sdla_56k_udp_lb(fe, data);
 	    	udp_cmd->wan_cmd_return_code = 
 				(!err) ? WAN_CMD_OK : WAN_UDP_FAILED_CMD;
 	    	udp_cmd->wan_cmd_data_len = 0x00;
@@ -615,7 +607,7 @@ static int sdla_56k_udp(sdla_fe_t *fe, void* pudp_cmd, unsigned char* data)
 	case WAN_FE_GET_CFG:
 	default:
 		udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
-	    	udp_cmd->wan_cmd_data_len = 0;
+    	udp_cmd->wan_cmd_data_len = 0;
 		break;
 	}
 	return 0;

@@ -25,23 +25,33 @@
  * 			INCLUDE FILES					      *
  *****************************************************************************/
 
+#if defined(__WINDOWS__)
+#include <conio.h>				/* for _kbhit */
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t' */
+#include "wanpipe_time.h"		/* for 'struct timeval' */
+#include "wanpipe_common.h"		/* for 'strcasecmp' */
+
+static int kbdhit(int *key)
+{
+	_kbhit();
+	*key = _getch();
+	return *key;
+}
+
+#else
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <sys/time.h>
 #include <sys/types.h>
 
 #include "unixio.h"
-#if defined(__LINUX__)
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
-#else
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanpipe.h>
 #endif
+
+#include "wanpipe_api.h"
 #include "fe_lib.h"
 #include "wanpipemon.h"
 
@@ -1129,24 +1139,30 @@ void read_te1_56k_stat(unsigned char force)
 		printf("***** %s: %s Alarms (Framer) *****\n\n",
 			if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 		printf("ALOS:\t%s\t| LOS:\t%s\n", 
-				WAN_TE_PRN_ALARM_ALOS(fe_stats->alarms), 
-				WAN_TE_PRN_ALARM_LOS(fe_stats->alarms));
+				WAN_TE_ALOS_ALARM(fe_stats->alarms), 
+				WAN_TE_LOS_ALARM(fe_stats->alarms));
 		printf("RED:\t%s\t| AIS:\t%s\n", 
-				WAN_TE_PRN_ALARM_RED(fe_stats->alarms), 
-				WAN_TE_PRN_ALARM_AIS(fe_stats->alarms));
-		printf("LOF:\t%s\t| RAI:\t%s\n", 
-				WAN_TE_PRN_ALARM_LOF(fe_stats->alarms),
-				WAN_TE_PRN_ALARM_RAI(fe_stats->alarms));
+				WAN_TE_RED_ALARM(fe_stats->alarms), 
+				WAN_TE_AIS_ALARM(fe_stats->alarms));
+		if (femedia.media == WAN_MEDIA_T1){ 
+			printf("RAI:\t%s\t| OOF:\t%s\n", 
+					WAN_TE_RAI_ALARM(fe_stats->alarms), 
+					WAN_TE_OOF_ALARM(fe_stats->alarms));
+		}else{
+			printf("OOF:\t%s\t| RAI:\t%s\n", 
+					WAN_TE_OOF_ALARM(fe_stats->alarms),
+					WAN_TE_RAI_ALARM(fe_stats->alarms));
+		}
 
 		if (fe_stats->alarms & WAN_TE_ALARM_LIU){
 			printf("\n***** %s: %s Alarms (LIU) *****\n\n",
 				if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 			printf("Short Circuit:\t%s\n", 
-					WAN_TE_PRN_ALARM_LIU_SC(fe_stats->alarms));
+					WAN_TE_LIU_ALARM_SC(fe_stats->alarms));
 			printf("Open Circuit:\t%s\n", 
-					WAN_TE_PRN_ALARM_LIU_OC(fe_stats->alarms));
+					WAN_TE_LIU_ALARM_OC(fe_stats->alarms));
 			printf("Loss of Signal:\t%s\n", 
-					WAN_TE_PRN_ALARM_LIU_LOS(fe_stats->alarms));
+					WAN_TE_LIU_ALARM_LOS(fe_stats->alarms));
 		}
 
 	}else if  (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){
@@ -1500,21 +1516,16 @@ repeat_read_reg:
 
 void set_fe_tx_mode(unsigned char mode)
 {
-	sdla_fe_debug_t	fe_debug;
-	unsigned char	*data = NULL;
-
 	if(make_hardware_level_connection()){
 		return;
 	}
 
 	wan_udp.wan_udphdr_command	= WAN_FE_TX_MODE;
-	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_debug_t);
+	wan_udp.wan_udphdr_data_len	= 1;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
-	
-	fe_debug.type = WAN_FE_TX_MODE;
-	fe_debug.mode = mode;
-	data = get_wan_udphdr_data_ptr(0);
-	memcpy(data, (unsigned char*)&fe_debug, sizeof(sdla_fe_debug_t));
+
+	set_wan_udphdr_data_byte(0,WAN_FE_TX_MODE);	//not used
+	set_wan_udphdr_data_byte(1,mode);
 
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code != 0){
@@ -1593,7 +1604,7 @@ repeat_read_reg:
 * repetitive word: wanpipemon -i <ifname> -c Tbert <pattern_type> <pattern> <count> <eib> <chan_map>
 
 ******************************************************************************/
-static int set_fe_bert_help(void)
+static int set_fe_bert_help()
 {
 	printf("\n");
 	printf("\tSangoma T1 Bit-Error-Test\n\n");

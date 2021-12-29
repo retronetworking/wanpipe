@@ -176,7 +176,7 @@ again:
     case AUTO_PCISLOT://YES/NO
       //dlci_cfg->data.chanconf->inarp_rx == 0 ? "NO" : "YES"));
       snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s AUTO PCISLOT option?",
-        (linkconf->auto_pci_cfg == 0 ? "Enable" : "Disable"));
+        (linkconf->auto_hw_detect == 0 ? "Enable" : "Disable"));
 
       if(yes_no_question(   selection_index,
                             lxdialog_path,
@@ -188,12 +188,12 @@ again:
       switch(*selection_index)
       {
       case YES_NO_TEXT_BOX_BUTTON_YES:
-        if(linkconf->auto_pci_cfg == 0){
+        if(linkconf->auto_hw_detect == 0){
           //was disabled - enable
-          linkconf->auto_pci_cfg = 1;
+          linkconf->auto_hw_detect = 1;
         }else{
           //was enabled - disable
-          linkconf->auto_pci_cfg = 0;
+          linkconf->auto_hw_detect = 0;
         }
         break;
       }
@@ -475,7 +475,7 @@ void menu_advanced_pci_configuration::
     }
   }
 
-  if(linkconf->auto_pci_cfg == 1){
+  if(linkconf->auto_hw_detect == 1){
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AUTO_PCISLOT);
     str += tmp_buff;

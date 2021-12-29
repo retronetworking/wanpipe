@@ -1,22 +1,6 @@
 chan_woomera.c
 ======================================
 
-Jun 06 2009
- * v1.51 Nenad Corbic <ncorbic@sangoma.com>
- *      Updated for Asterisk 1.6.1
-
-Apr 24 2009
- * v1.50 Nenad Corbic <ncorbic@sangoma.com>
- *      Bug fix on write socket. Check that write woomera socket failed.
- *      This update prevents socket warning messages on call congestion.
- *
-
-Apr 08 2009
- * v1.49 Nenad Corbic <ncorbic@sangoma.com>
- *      Bug fix on transfer. The owner was not
- *      properly updated causing unpredictable behaviour.
-
-
 Apr 05 2009
  * v1.48 Nenad Corbic <ncorbic@sangoma.com>
  *      Updated locking on pbx_start

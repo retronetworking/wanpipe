@@ -2,7 +2,7 @@
 /***********************************************************************
 * wan_plxctr.c	Sangoma PLX Control Utility.
 *
-* Copyright:	(c) 2005 AMFELTEC Corp.
+* Copyright:	(c) 2005 Sangoma Corp.
 *
 * ----------------------------------------------------------------------
 * Nov 1, 2006	Alex Feldman	Initial version.
@@ -29,22 +29,20 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 
+#include "wanpipe_defines.h"
+#include "wanpipe_common.h"
+#include "wanpipe_cfg_def.h"
+#include "sdlapci.h"
+#include "sdlasfm.h"
+#include "wanpipe.h"
+
 #if defined(__LINUX__)
 # include <linux/if.h>
 # include <linux/types.h>
 # include <linux/if_packet.h>
-# include <linux/wanpipe_defines.h>
-//# include <linux/wanpipe_common.h>
-//# include <linux/sdlapci.h>
-//# include <linux/sdlasfm.h>
 # include <linux/if_wanpipe.h>
 #else
 # include <net/if.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_common.h>
-# include <sdlapci.h>
-# include <sdlasfm.h>
-# include <wanpipe.h>
 #endif
 
 #include "wan_plxup.h"
@@ -131,8 +129,8 @@ int exec_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned int *d
 	struct ifreq	ifr;
 	char		msg[100];
 
-	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
-	memset(ifr.ifr_name, 0, IFNAMSIZ);
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
+	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, info->if_name, strlen(info->if_name));
 	ifr.ifr_data = (char*)&api_cmd;
 
@@ -163,8 +161,8 @@ int exec_write_cmd(void *arg, unsigned int off, unsigned int len, unsigned int d
 	struct ifreq	ifr;
 	char		msg[100];
 
-	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
-	memset(ifr.ifr_name, 0, IFNAMSIZ);
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
+	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, info->if_name, strlen(info->if_name));
 	ifr.ifr_data = (char*)&api_cmd;
 

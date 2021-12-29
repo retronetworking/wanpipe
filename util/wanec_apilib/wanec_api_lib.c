@@ -50,15 +50,15 @@
 # include <stddef.h>		//for offsetof()
 # include <stdlib.h>
 # include <wanpipe_ctypes.h>
-# include <sang_status_defines.h>
-# include <sang_api.h>
+# include <wanpipe_time.h>			//for time_t
+# include <wanpipe_api.h>
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
-# include <sang_api.h>
 
-#define sleep	Sleep
-#define FUNC_DEBUG	if(1)printf("%s: line: %d\n", __FILE__, __LINE__);
-#define DBGPRINT if(1)printf
+/* UNIX sleep is in seconds, translate into milliseconds */
+#define sleep(x)	Sleep(x*1000)
+#define FUNC_DEBUG	if(0)printf("%s: line: %d\n", __FILE__, __LINE__);
+#define DBGPRINT	if(0)printf
 
 //////////////////////////////////////////////////////////////////
 //IOCTL management structures and variables.
@@ -96,7 +96,14 @@ wan_udp_hdr_t	wan_udp;
 #define OCT6116_128S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_128S_IMAGE_NAME
 #define OCT6116_256S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_256S_IMAGE_NAME
 
+#ifndef MAX_PATH
+#define MAX_PATH MAXPATHLEN
+#endif
+
 #else
+
+/* HWEC files are in "C:\WINDOWS\sang_ec_files" */
+#define WAN_EC_NAME	"sang_ec_files"
 
 char WAN_EC_DIR[MAX_PATH];
 char WAN_EC_BUFFERS[MAX_PATH];
@@ -160,7 +167,7 @@ typedef struct {
 
 wanec_image_list_t	wanec_image_list[] = 
 	{
-		{ 5,   2, { &wanec_image_64, &wanec_image_32 } },
+		{ 5,  2, { &wanec_image_64, &wanec_image_32 } },
 		{ 16,  2, { &wanec_image_64, &wanec_image_32 } },
 		{ 32,  2, { &wanec_image_64, &wanec_image_32 } },
 		{ 64,  1, { &wanec_image_64  } },
@@ -533,7 +540,7 @@ int wanec_api_lib_chip_load(int dev, wan_ec_api_t *ec_api, u_int16_t max_channel
 	//////////////////////////////////////////////////////////////////////////////////////////
 	//initialize globals
 	GetSystemWindowsDirectory(windows_dir, MAX_PATH);
-	_snprintf(WAN_EC_DIR, MAX_PATH, "%s\\%s", windows_dir, "sang_ec_files");
+	_snprintf(WAN_EC_DIR, MAX_PATH, "%s\\%s", windows_dir, WAN_EC_NAME);
 
 	_snprintf(OCT6116_32S_IMAGE_PATH,	MAX_PATH, "%s\\%s", WAN_EC_DIR, OCT6116_32S_IMAGE_NAME);
 	_snprintf(OCT6116_64S_IMAGE_PATH,	MAX_PATH, "%s\\%s", WAN_EC_DIR, OCT6116_64S_IMAGE_NAME);
@@ -559,7 +566,7 @@ int wanec_api_lib_chip_load(int dev, wan_ec_api_t *ec_api, u_int16_t max_channel
 					max_channels);
 			return -EINVAL;
 		}
-		
+
 		fprintf(stderr, "--> Loading ec image %s...\n",
 						image_info->image_name);
 
@@ -573,6 +580,7 @@ int wanec_api_lib_chip_load(int dev, wan_ec_api_t *ec_api, u_int16_t max_channel
 		if (image_no+1 == image_list->images_no){
 			ec_api->u_config.imageLast	= WANOPT_YES;
 		}
+
 		/* Load the image file */
 		err = wanec_api_lib_loadImageFile(	ec_api,
 						image_info->image_path,
@@ -581,6 +589,7 @@ int wanec_api_lib_chip_load(int dev, wan_ec_api_t *ec_api, u_int16_t max_channel
 		if (err){
 			return -EINVAL;
 		}
+
 		ec_api->cmd = WAN_EC_API_CMD_CONFIG;
 		err = wanec_api_lib_ioctl(dev, ec_api, verbose);
 		if (err || ec_api->err){
@@ -591,11 +600,13 @@ int wanec_api_lib_chip_load(int dev, wan_ec_api_t *ec_api, u_int16_t max_channel
 		ec_api->u_config_poll.cnt = 0;
 config_poll:
 		ec_api->cmd = WAN_EC_API_CMD_CONFIG_POLL;
+
 		err = wanec_api_lib_ioctl(dev, ec_api, verbose);
 		if (err || ec_api->err){
 			wanec_api_lib_close(ec_api, dev);
 			return (err) ? -EINVAL : 0;
 		}
+
 		if (ec_api->state == WAN_EC_STATE_CHIP_OPEN_PENDING){
 			sleep(5);
 			printf(".");
@@ -603,15 +614,14 @@ config_poll:
 				goto config_poll;
 			}
 		}
-		if (ec_api->state != WAN_EC_STATE_CHIP_OPEN &&
-	    	    ec_api->state != WAN_EC_STATE_CHIP_READY){
+		if (ec_api->state != WAN_EC_STATE_CHIP_OPEN){
 		    	image_no ++;
 			continue;
 		}
 		break;
 	}
-	if (ec_api->state != WAN_EC_STATE_CHIP_OPEN &&
-	    ec_api->state != WAN_EC_STATE_CHIP_READY){
+	
+	if (ec_api->state != WAN_EC_STATE_CHIP_OPEN){
 		printf("Timeout!\n");
 		return -EINVAL;
 	}
@@ -656,8 +666,7 @@ int wanec_api_lib_config(wan_ec_api_t *ec_api, int verbose)
 			return -EINVAL;
 		}
 	}
-	if (ec_api->state != WAN_EC_STATE_CHIP_OPEN &&
-	    ec_api->state != WAN_EC_STATE_CHIP_READY){
+	if (ec_api->state != WAN_EC_STATE_CHIP_OPEN){
 		printf("%s: WARNING: Incorrect Echo Canceller state (%s)!\n",
 				ec_api->devname,
 				WAN_EC_STATE_DECODE(ec_api->state));
@@ -666,6 +675,7 @@ int wanec_api_lib_config(wan_ec_api_t *ec_api, int verbose)
 
 	/* Open all channels */	
 	ec_api->cmd = WAN_EC_API_CMD_CHANNEL_OPEN;
+	ec_api->fe_chan_map = 0xFFFFFFFF;
 	err = wanec_api_lib_ioctl(dev, ec_api, verbose);
 	if (err || ec_api->err){
 		wanec_api_lib_close(ec_api, dev);
@@ -703,7 +713,7 @@ int wanec_api_lib_bufferload(wan_ec_api_t *ec_api)
 	sprintf(buffer_path, "%s/%s.pcm", WAN_EC_BUFFERS, ec_api->u_buffer_config.buffer);
 #else
 	GetSystemWindowsDirectory(windows_dir, MAX_PATH);
-	_snprintf(WAN_EC_BUFFERS, MAX_PATH, "%s\\%s", windows_dir, "sang_ec_files");
+	_snprintf(WAN_EC_BUFFERS, MAX_PATH, "%s\\%s", windows_dir, WAN_EC_NAME);
 	sprintf(buffer_path, "%s\\%s.pcm", WAN_EC_BUFFERS, ec_api->u_buffer_config.buffer);
 #endif
 	err = wanec_api_lib_loadImageFile(	ec_api,
@@ -733,7 +743,12 @@ buffer_load_done:
 #define WANEC_API_MONITOR_NEW
 static int wanec_api_lib_monitor_start(wan_ec_api_t *ec_api)
 {
-	int dev, err;
+	int err;
+#if !defined(__WINDOWS__)
+	int	dev;
+#else
+	HANDLE	dev;
+#endif
 	
 	dev = wanec_api_lib_open(ec_api);
 	if (dev < 0){
@@ -756,12 +771,18 @@ static int wanec_api_lib_monitor_start(wan_ec_api_t *ec_api)
 	return 0;
 }
 
+
 static int wanec_api_lib_monitor_stop(wan_ec_api_t *ec_api)
 {
 	FILE	*output = NULL;
 	size_t	len;
-	int	dev, err = 0, cnt = 0;
-	char	filename[MAXPATHLEN];
+	int	err = 0, cnt = 0;
+	char	filename[MAX_PATH];
+#if !defined(__WINDOWS__)
+	int	dev;
+#else
+	HANDLE	dev;
+#endif
 		
 	printf("%s: Reading Monitor Data ..",
 				ec_api->devname); fflush(stdout);
@@ -782,12 +803,12 @@ static int wanec_api_lib_monitor_stop(wan_ec_api_t *ec_api)
 		}
 		if (output == NULL){
 			struct timeval	tv;
-			struct tm	t;
+			struct tm		t;
 			/* Firsr data */
-			memset(filename, 0, MAXPATHLEN);
+			memset(filename, 0, MAX_PATH);
 			gettimeofday(&tv, NULL);
 			localtime_r((time_t*)&tv.tv_sec, &t);
-			snprintf(filename, MAXPATHLEN,
+			snprintf(filename, MAX_PATH,
 			"%s_%s_chan%d_%d.%d.%d_%d.%d.%d.bin",
 					WAN_EC_NAME,
 					ec_api->devname, ec_api->fe_chan,

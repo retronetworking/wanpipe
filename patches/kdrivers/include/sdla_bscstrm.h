@@ -233,28 +233,6 @@ typedef struct {
 #define RX_EXCESSIVE_LGTH_ERR_INT_LVL  0x10   /* the received block was too long (interrupt level) */
 #define RX_EXCESSIVE_LGTH_ERR_APP_LVL  0x20   /* the received block was too long (application level) */
 
-typedef struct {
-	unsigned char	station		;
-	unsigned short	time_stamp	;
-	unsigned char	reserved[13]	;
-} api_rx_hdr_t;
-
-typedef struct {
-        api_rx_hdr_t	api_rx_hdr      ;
-        unsigned char 	data[1]    	;
-} api_rx_element_t;
-
-typedef struct {
-	unsigned char 	station		;
-	unsigned char   misc_tx_rx_bits ;
-	unsigned char  	reserved[14]	;
-} api_tx_hdr_t;
-
-typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	;
-	unsigned char	data[1]		;
-} api_tx_element_t;
-
 #pragma pack()
 
 #define SIOC_WANPIPE_EXEC_CMD	SIOC_WANPIPE_DEVPRIVATE

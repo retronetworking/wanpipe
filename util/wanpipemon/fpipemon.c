@@ -58,20 +58,15 @@
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_fr.h>
 #else
 # include <netinet/in_systm.h>
 # include <netinet/in.h>
 # include <netinet/ip.h>
 # include <netinet/udp.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanpipe.h>
-# include <sdla_fr.h>     
 #endif
+
+#include "wanpipe_api.h"
+#include "sdla_fr.h"     
 #include "fe_lib.h"
 #include "wanpipemon.h"
 

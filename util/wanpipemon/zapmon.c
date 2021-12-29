@@ -2,6 +2,7 @@
 * zapmon.c	AFT Debugger/Monitor
 *
 * Author:       David Rokhvarg <davidr@sangoma.com>	
+*		Alex Feldman <alex@sangoma.com>
 *
 * Copyright:	(c) 1984-2005 Sangoma Technologies Inc.
 *
@@ -11,6 +12,8 @@
 *		2 of the License, or (at your option) any later version.
 * ----------------------------------------------------------------------------
 * Nov 08, 2004	David Rokhvarg	Initial version
+* Jan 27, 2009 Alex Feldman	Update spike test for Dahdi
+*	
 *****************************************************************************/
 
 /******************************************************************************
@@ -31,11 +34,8 @@
 #include <math.h>	/* for log10() */
 #if defined(__LINUX__)
 # include <linux/version.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe_abstr.h>
-# include <linux/wanpipe.h>
-# include <linux/zaptel.h>
+# include "wanpipe_api.h"
+# include "zapcompat.h"
 #else
 #endif
 #include "fe_lib.h"
@@ -48,18 +48,28 @@
 #define LINUX_2_1
 #endif
 
-#define BANNER(str)  banner(str,0)
+#define BANNER(str)  		banner(str,0)
+
+#define ZAPMON_SPIKE_FNAME_DEF	"wan_spike"
+
+#define SPIKE_FNAME_LEN		100
 /******************************************************************************
  * 			TYPEDEF/STRUCTURE				      *
  *****************************************************************************/
 /* Structures for data casting */
 
-
-
 /******************************************************************************
  * 			GLOBAL VARIABLES				      *
  *****************************************************************************/
-static int zfd=0;
+extern int 	zap_monitor, dahdi_monitor;
+extern int 	tdmv_chan;
+
+static int 	zfd=0;
+static char 	*zap_fn = "/dev/zap/channel";
+static char 	*dahdi_fn = "/dev/dahdi/channel";
+static char	spike_fout[SPIKE_FNAME_LEN];
+
+static unsigned char	spike_info[sizeof(wan_espike_hdr_t) + WAN_SPIKE_MAX_SAMPLE_LEN];
 
 int echo_detection_state;
 int is_call_active;
@@ -195,8 +205,8 @@ static unsigned short a2s[] = {
 #endif
 
 #define INITIAL_LINEAR_TX_SPIKE 16384
-#define NO	0
-#define YES 	1
+#define NO			0
+#define YES 			1
 #define DB_LOSS_THRESHOLD	-45.00//-50.00//-60.00
 #define DB_SILENCE		80.00
 
@@ -205,7 +215,7 @@ typedef struct{
 	short linear_power_value;
 }db_sample_t;
 
-db_sample_t db_loss[ECHO_SPIKE_SAMPLE_LEN];
+db_sample_t db_loss[WAN_SPIKE_MAX_SAMPLE_LEN];
 
 /******************************************************************************
  * 			FUNCTION PROTOTYPES				      *
@@ -214,20 +224,14 @@ db_sample_t db_loss[ECHO_SPIKE_SAMPLE_LEN];
 static int zap_do_command(int echo_detect_ioctl, int channo, void *ioctl_result);
 
 /* Echo Detect routines */
-static int get_echo_spike(int channo, char sample_taken_after_echo_canceller);
-static int send_echo_spike(int channo, unsigned int collect_sample_before_ec);
-static void linearize_spike_buffer(unsigned char *spike_buff, int *linearized_buff, int law);
-static int write_spike_buffer_to_file(int channo, int spanno, int *linearized_buff,
-				      char sample_taken_after_echo_canceller);
-static void summary_of_linear_spike_buffer(int *linearized_buff,
-					   echo_spike_struct_t *echo_spike_struct_ptr,
-					   char sample_taken_after_echo_canceller);
-static void proc_sample(unsigned short, int);
-
-
-static void analyze_db_loss(echo_spike_struct_t *echo_spike_struct_ptr,
-				    char sample_taken_after_echo_canceller);
-static int usecsleep(int sec, int usecs);
+static int 	get_echo_spike(int channo, unsigned char sample_mode);
+static int 	send_echo_spike(int channo, unsigned char sample_mode);
+static void	linearize_spike_buffer(wan_espike_hdr_t *, unsigned char*, int*);
+static int 	write_spike_buffer_to_file(wan_espike_hdr_t*, int*);
+static void	summary_of_linear_spike_buffer(wan_espike_hdr_t*, int*);
+static void 	proc_sample(unsigned short, int);
+static void 	analyze_db_loss(wan_espike_hdr_t *spike_hdr);
+static int 	usecsleep(int sec, int usecs);
 
 /*****************************************************************************/
 static char *gui_main_menu[]={
@@ -285,20 +289,21 @@ int ZAPUsage(void)
 	printf("Usage:\n");
 	printf("------\n\n");
 	printf("wanpipemon -zap -c <command>\n\n");
+	printf("wanpipemon -dahdi -f <filename> -c <command>\n\n");
 	printf("\tOption -c: \n");
 	printf("\t\tCommand is split into two parts:\n"); 
 	printf("\t\t\tFirst letter is a command and the rest are options:\n"); 
 	printf("\t\t\tex: ses = Send Echo Spike and collect sample.\n\n");
 	printf("\tSupported Commands: s=send\n\n");
-	printf("\tOption -chanzap: zaptel channel number.\n\n");
+	printf("\tOption -tdmvchan: zaptel/dahdi channel number.\n\n");
 	printf("\tCommand:  Options:	Description \n");	
 	printf("\t-------------------------------- \n\n");    
 	printf("\tSend Echo Spike\n");
 	printf("\t   s         es	Send Echo Spike\n");
-#if 0
 	printf("\t             esa	Send Echo Spike and collect sample After Echo Canceller\n");
-#endif
-	printf("\tExample 1: wanpipemon -zap -c ses -zapchan 1 : Send Echo Spike on zap channel 1\n");
+	printf("\n");
+	printf("\tExample 1: wanpipemon -zap -c ses -tdmvchan 1 : Send Echo Spike on zap channel 1\n");
+	printf("\tExample 1: wanpipemon -dahdi -c ses -tdmvchan 1 : Send Echo Spike on dahdi channel 1\n");
 #if 0
 	printf("\t\t\tand collect the Echo Spike sample BEFORE echo canceller.\n");
 	printf("\tExample 2: wanpipemon -zap -c sesa -zapchan 1 : Send Echo Spike on zap channel 1\n");
@@ -308,43 +313,70 @@ int ZAPUsage(void)
 	return 0;
 }
 
+int Zap_parse_args(int argc, char* argv[])
+{
+	int argi = 0;
+
+	/* default name */
+		
+	memset(&spike_fout[0],0,SPIKE_FNAME_LEN);
+	for(argi = 1; argi < argc; argi++){
+
+		char *parg = argv[argi];
+		if (strcmp(parg, "--file") == 0){
+
+			if (argi + 1 >= argc ){
+				printf("ERROR: Filename is missing!\n");
+				return -EINVAL;				
+			}
+			strcpy(&spike_fout[0], argv[argi+1]);
+		}
+	}
+	return 0;
+}
+
 int ZAPMain(char *command,int argc, char* argv[])
 {
-	char *opt=&command[1];
-	int rc=1;
-	char sample_taken_after_echo_canceller=1;
+	char 		*opt=&command[1];
+	unsigned char	sample_mode = WAN_SPIKE_SAMPLE_NONE;
+	int		err=0;
 
-	/*printf("command: %s\n", command);*/
+	err = Zap_parse_args(argc, argv);
+	if (err){
+		ZAPUsage();
+		goto zapmain_done;
+	}
 
-	switch(command[0])
-	{
+	switch(command[0]){
 	case 's':
 		if (!strcmp(opt,"es")){	
 			/* send Echo Spike. Collect sample BEFORE Software Echo Canceller. */
-			sample_taken_after_echo_canceller = 0;
-			rc = send_echo_spike(zap_chan, 1);
-#if 0
+			sample_mode = WAN_SPIKE_SAMPLE_BEFORE_EC;
 		}else if(!strcmp(opt,"esa")){
 			/* send Echo Spike. Collect sample AFTER Software Echo Canceller. */
-			sample_taken_after_echo_canceller = 1;
-			rc = send_echo_spike(zap_chan, 2);
-#endif
+			sample_mode = WAN_SPIKE_SAMPLE_AFTER_EC;
 		}else{
-			printf("ERROR: Invalid 'send' command.\n\n");
+			printf("ERROR: Invalid 'spike' command.\n\n");
 			ZAPUsage();
-		}
-		if(rc == 0){
-			/* wait for 1 second for echo to return and get the collected sample */
-			usecsleep(1, 0);
-			get_echo_spike(zap_chan, sample_taken_after_echo_canceller);
+			goto zapmain_done;
 		}
 		break;
 	default:
 		printf("ERROR: Invalid Command.\n\n");
 		ZAPUsage();
+		goto zapmain_done;
 		break;
 	}/*switch*/
 
+	err = send_echo_spike(tdmv_chan, sample_mode);
+	if (err){
+		goto zapmain_done;	
+	}
+	/* wait for 1 second for echo to return and get the collected sample */
+	usecsleep(1, 0);
+	get_echo_spike(tdmv_chan, sample_mode);
+	
+zapmain_done:
 	if(zfd != 0){
 		close(zfd);
 	}
@@ -356,10 +388,9 @@ int ZAPMain(char *command,int argc, char* argv[])
 
 int MakeZapConnection()
 {
-	char *fn = "/dev/zap/channel";
+	char *fn = NULL;
 
-	/*printf("Openinng: '%s'\n", fn);*/
-
+	fn = (zap_monitor) ? zap_fn : dahdi_fn;
 	zfd = open(fn, O_RDWR | O_NONBLOCK);
 	if (zfd < 0) {
 		printf("Unable to open '%s': %s. Check Zaptel is loaded.\n",
@@ -377,9 +408,8 @@ static int zap_do_command(int echo_detect_ioctl, int channo, void *ioctl_result)
 	if (ioctl(zfd, echo_detect_ioctl, ioctl_result)){
 		perror("do_echo_detect_ioctl():\n");
 		return 1;
-	}else{
-		return 0;
 	}
+	return 0;
 }
 
 static int usecsleep(int sec, int usecs)
@@ -390,106 +420,108 @@ static int usecsleep(int sec, int usecs)
 	return select(0, NULL, NULL, NULL, &tv);
 }
 
-static int write_spike_buffer_to_file(int channo, int spanno, int *linearized_buff,
-					char sample_taken_after_echo_canceller)
+static int 
+write_spike_buffer_to_file(wan_espike_hdr_t *spike_hdr, int *linearized_buff)
 {
-	FILE *file;
-	int ind;
-	char strbuff[50];
-	char log_file_name_buff[TMP_BUFF_LEN];
+	FILE 			*file;
+	int 			ind;
+	char 			strbuff[50];
 		
 	/* 'fir' - finite impulse response */
-	if(sample_taken_after_echo_canceller == 1){
-		snprintf(log_file_name_buff, TMP_BUFF_LEN, 
-			"/etc/wanpipe/span_%d_chan_%d_after_ec.spike", spanno, channo);
-	}else{
-		snprintf(log_file_name_buff, TMP_BUFF_LEN,
-			"/etc/wanpipe/span_%d_chan_%d.fir", spanno, channo);
-			/*"/etc/wanpipe/span_%d_chan_%d_before_ec.spike", spanno, channo);*/
+	if (!strlen(spike_fout)){
+		snprintf(spike_fout, SPIKE_FNAME_LEN, 
+			"%s.%s.span%d.chan%d.txt", 
+			ZAPMON_SPIKE_FNAME_DEF, 
+			(spike_hdr->sample_mode == WAN_SPIKE_SAMPLE_AFTER_EC) ? "after_ec":"before_ec",
+			spike_hdr->spanno, spike_hdr->channo);
 	}
 
 	/* trancate and open the file for writing */
-	file = fopen(log_file_name_buff, "w");
+	file = fopen(spike_fout, "w");
 	if(file == NULL){
-    		printf("Failed to open %s file for writing!\n", log_file_name_buff);
+    		printf("ERROR: Failed to open %s file for writing!\n", spike_fout);
 		return 1;
   	}
 
-	for(ind = 0; ind < ECHO_SPIKE_SAMPLE_LEN; ind++){
+	for(ind = 0; ind < spike_hdr->sample_len; ind++){
 		snprintf(strbuff, 50, "%d\n", linearized_buff[ind]);
   		fputs(strbuff, file);
 	}/* for() */
 	fclose(file);
 
-	printf("Echo spike was written to '%s' file.\n", log_file_name_buff);
+	printf("Echo spike was written to '%s' file.\n", spike_fout);
 
 	return 0;
 }
 
-static int send_echo_spike(int channo, unsigned int collect_sample_before_ec)
+static int send_echo_spike(int channo, unsigned char sample_mode)
 {
-	unsigned char spike_buff[sizeof(echo_spike_struct_t)];
-	echo_spike_struct_t *echo_spike_struct_ptr = (echo_spike_struct_t *)spike_buff;
-	
-	printf("Sending Echo Spike on channel %d.\n", zap_chan);
+	wan_espike_hdr_t 	spike_hdr;
 
-	echo_spike_struct_ptr->collect_sample_before_ec = collect_sample_before_ec;
+	printf("Sending Echo Spike on channel %d.\n", channo);
 
-	if(zap_do_command(SEND_ECHO_SPIKE, channo, spike_buff) != 0){
-		printf("Command failed on channel %d! Please check kernel messages log.\n", 
-			channo);
+	spike_hdr.sample_mode = sample_mode;
+
+	if(zap_do_command(SEND_ECHO_SPIKE, channo, (void*)&spike_hdr) != 0){
+		printf("ERROR: Command failed on channel %d!\n", channo);
+		printf("Please check kernel messages log.\n"); 
 		return 1;
-	}else if(echo_spike_struct_ptr->return_code == ECHO_NO_ACTIVE_CALL_OR_EC_OFF){
-		printf("Command failed on channel %d! \
-Possible reasons: 1. the 'echocancel' is set to 'no' 2. call is not up.\n", channo);
+	}
+	if (spike_hdr.return_code == WAN_SPIKE_RC_NO_ACTIVE_CALL){
+		printf("ERROR: Command failed on channel %d!\n", channo);
+		printf("Possible reasons:\n");
+		printf("\t1. The 'echocancel' is set to 'no'\n");
+		printf("\t2. Call is not up.\n");
 		return 2;
-	}else{
-		;/* no error. do nothing. may print something but don't have to. */
-		printf("Sent Echo Spike. Collecting sample %s SW Echo Canceller...\n",
-			(collect_sample_before_ec == 1 ? "before" : "after"));
-		return 0;
 	}
+	/* no error. do nothing. may print something but don't have to. */
+	printf("Sent Echo Spike. Collecting sample %s SW Echo Canceller...\n",
+				WAN_SPIKE_SAMPLE_DECODE(spike_hdr.sample_mode));
+	return 0;
 }
 
-static int get_echo_spike(int channo, char sample_taken_after_echo_canceller)
+static int get_echo_spike(int channo, unsigned char sample_mode)
 {
-	static unsigned char spike_buff[sizeof(echo_spike_struct_t) + ECHO_SPIKE_SAMPLE_LEN];
-	echo_spike_struct_t *echo_spike_struct_ptr = (echo_spike_struct_t *)spike_buff;
-	unsigned char *spike_sample_buff_ptr = &spike_buff[sizeof(echo_spike_struct_t)];
-	int linearized_buff[ECHO_SPIKE_SAMPLE_LEN];
+	wan_espike_hdr_t 	*spike_hdr = (wan_espike_hdr_t*)&spike_info[0];
+	unsigned char 		*spike_data = &spike_info[sizeof(wan_espike_hdr_t)];
+	int			linearized_buff[WAN_SPIKE_MAX_SAMPLE_LEN];
 	
-	if(zap_do_command(GET_ECHO_SPIKE_SAMPLE, channo, spike_buff)){
+	if (zap_do_command(GET_ECHO_SPIKE_SAMPLE, channo, spike_info)){
 		return 1;
 	}
 
-	if(echo_spike_struct_ptr->return_code == ECHO_OK){
+	if (spike_hdr->return_code != WAN_SPIKE_RC_OK){
+		printf("ERROR: Command failed on channel %d!\n", channo);
+		printf("Possible reasons:\n");
+		printf("\t1. The 'echocancel' is set to 'no'\n");
+		printf("\t2. Call is not up.\n");
+		return 1;
+	}
 
-		linearize_spike_buffer(	spike_sample_buff_ptr,
-					linearized_buff,
-					echo_spike_struct_ptr->law);
+	if (spike_hdr->sample_len < WAN_SPIKE_MAX_SAMPLE_LEN){
+                printf("\n");
+                printf("WARNING: Number of recorded samples are too small (%d samples)!\n",
+                                spike_hdr->sample_len);
+                printf("Possible reasons:\n");
+                printf("\t1. The 'echocancel' is set to 'no'\n");
+                printf("\t2. Hardware echo canceller is enabled.\n");
+                return 1;
+        }
 
-		write_spike_buffer_to_file(channo,
-					   echo_spike_struct_ptr->spanno,
-					   linearized_buff,
-					   sample_taken_after_echo_canceller);
+	linearize_spike_buffer(	spike_hdr, spike_data, linearized_buff);
+
+	write_spike_buffer_to_file( spike_hdr, linearized_buff);
 		
-		summary_of_linear_spike_buffer(	linearized_buff,
-						echo_spike_struct_ptr,
-						sample_taken_after_echo_canceller);
-		return 0;
-	}else{
-		printf("Command failed on channel %d! \
-Possible reasons: 1. the 'echocancel' is set to 'no' 2. call is not up.\n", channo);
-		return 1;
-	}
+	summary_of_linear_spike_buffer(	spike_hdr, linearized_buff );
+	return 0;
 }
 
-static void linearize_spike_buffer(unsigned char *spike_buff, int *linearized_buff, int law)
+static void linearize_spike_buffer(wan_espike_hdr_t *spike_hdr, unsigned char *spike_data, int *linearized_buff)
 {
 	int		ind;
 	unsigned short 	*linear_table;
 
-	if(law == ZT_LAW_MULAW){
+	if (spike_hdr->law == ZT_LAW_MULAW){
 		printf("Using MULAW table...\n");
 		linear_table = u2s;
 	}else{
@@ -497,30 +529,29 @@ static void linearize_spike_buffer(unsigned char *spike_buff, int *linearized_bu
 		linear_table = a2s;
 	}
 	
-	memset(linearized_buff, 0x00, ECHO_SPIKE_SAMPLE_LEN);
+	memset(linearized_buff, 0x00, WAN_SPIKE_MAX_SAMPLE_LEN);
 
-	for(ind = 0; ind < ECHO_SPIKE_SAMPLE_LEN; ind++){
-		if(linear_table[spike_buff[ind]] == 0){
+	for(ind = 0; ind < spike_hdr->sample_len; ind++){
+		if(linear_table[spike_data[ind]] == 0){
 			linearized_buff[ind] = 0;
-		}else if(spike_buff[ind] < 128){
+		}else if(spike_data[ind] < 128){
 			/* make it negative */
-			linearized_buff[ind] = -65535 + linear_table[spike_buff[ind]];
+			linearized_buff[ind] = -65535 + linear_table[spike_data[ind]];
 		}else{
-			linearized_buff[ind] = linear_table[spike_buff[ind]];
+			linearized_buff[ind] = linear_table[spike_data[ind]];
 		}
 	}/* for() */
 }
 
-static void summary_of_linear_spike_buffer(int *linearized_buff,
-					   echo_spike_struct_t *echo_spike_struct_ptr, 
-					   char sample_taken_after_echo_canceller)
+static void 
+summary_of_linear_spike_buffer(wan_espike_hdr_t *spike_hdr, int *linearized_buff)
 {
 	int i;
 
-	for(i = 0; i < ECHO_SPIKE_SAMPLE_LEN; i ++) {
+	for(i = 0; i < spike_hdr->sample_len; i ++) {
 		proc_sample(linearized_buff[i], i);
 	}
-	analyze_db_loss(echo_spike_struct_ptr, sample_taken_after_echo_canceller);
+	analyze_db_loss(spike_hdr);
 }
 
 static void proc_sample(unsigned short linear, int sample_no)
@@ -555,8 +586,7 @@ static void proc_sample(unsigned short linear, int sample_no)
 	return;
 }
 
-static void analyze_db_loss(echo_spike_struct_t *echo_spike_struct_ptr, 
-			    char sample_taken_after_echo_canceller)
+static void analyze_db_loss(wan_espike_hdr_t *spike_hdr)
 {
 	float min_db_loss = -DB_SILENCE;
 	int min_db_loss_sample_no=0;
@@ -566,7 +596,7 @@ static void analyze_db_loss(echo_spike_struct_t *echo_spike_struct_ptr,
 	int sample_no_last_db_loss_th = 0xFFFF;
 	int i;
 
-	for(i = 0; i < ECHO_SPIKE_SAMPLE_LEN; i ++) {
+	for(i = 0; i < spike_hdr->sample_len; i ++) {
 		if(db_loss[i].db_loss > min_db_loss) {
 			min_db_loss = db_loss[i].db_loss;
 			min_db_loss_sample_no = i;
@@ -587,7 +617,7 @@ static void analyze_db_loss(echo_spike_struct_t *echo_spike_struct_ptr,
 		printf("The line is silent. There is NO Echo on this call.\n");
 	}else if(sample_no_first_db_loss_th == 0xFFFF || sample_no_last_db_loss_th == 0xFFFF){
 
-		if(sample_taken_after_echo_canceller == 1){
+		if (spike_hdr->sample_mode == WAN_SPIKE_SAMPLE_AFTER_EC){
 			printf("Sample Analysis conclusion: There is NO Echo on this call. OR\n");
 			printf("\tIt was removed by the Echo Canceller.\n");
 		}else{
@@ -607,21 +637,20 @@ static void analyze_db_loss(echo_spike_struct_t *echo_spike_struct_ptr,
 			db_loss[sample_no_last_db_loss_th].linear_power_value);
 
 		/* suggest something depending on number of Echo Cancellor taps */
-		printf("\nYour Echo Cancellor set to use %d taps.\n", echo_spike_struct_ptr->echocancel);
-		if(echo_spike_struct_ptr->echocancel < sample_no_first_db_loss_th + 1){
+		printf("\nYour Echo Cancellor set to use %d taps.\n", spike_hdr->echocancel);
+		if(spike_hdr->echocancel < sample_no_first_db_loss_th + 1){
 			printf("It can not cancel the echo because delay is longer than %d taps.\n",
-				echo_spike_struct_ptr->echocancel);	
+				spike_hdr->echocancel);	
 	
-		}else if(echo_spike_struct_ptr->echocancel > sample_no_first_db_loss_th + 1 &&
-		    echo_spike_struct_ptr->echocancel < sample_no_last_db_loss_th + 1){
+		}else if(spike_hdr->echocancel > sample_no_first_db_loss_th + 1 &&
+		    spike_hdr->echocancel < sample_no_last_db_loss_th + 1){
 			printf("Echo starts WITHIN %d taps, but ends AFTER %d taps, it means\n\
 echo can not be cancelled completely.\n",
-				echo_spike_struct_ptr->echocancel, 
-				echo_spike_struct_ptr->echocancel);	
+				spike_hdr->echocancel, 
+				spike_hdr->echocancel);	
 		}else{
 			printf("Echo starts and ends WITHIN %d taps, it should be cancelled properly.\n",
-				echo_spike_struct_ptr->echocancel);	
+				spike_hdr->echocancel);	
 		}
 	}	
 }
-

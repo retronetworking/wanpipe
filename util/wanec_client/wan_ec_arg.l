@@ -3,11 +3,17 @@
 /* Any C code */
 #include <stdio.h>
 #include <string.h>
-#include <fcntl.h>
 #include <stdlib.h>
+#if defined(__WINDOWS__)
+#include "wanpipe_includes.h"
+#include "unistd.h"
+#else
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/ioctl.h>
+#endif
+
 #include "wan_ec_argy.h"
 #include "wan_ecmain.h"
 #include "wanec_api.h"
@@ -51,8 +57,7 @@ int			action = WAN_EC_ACT_CMD;
 char			idstr[YYLMAX];
 int			gl_err = 0;
 
-int wan_ec_args_parse_and_run(int argc, char* argv[]);
-extern unsigned long convert_str(char* str, int type);
+extern long convert_str(char* str, int type);
 extern void yyerror(char*);
 extern int yyparse();
 void yy_reset(void);
@@ -61,6 +66,7 @@ static void s_lookup(int);
 static int lookup_name(void);
 int help(int);
 static int help1(int);
+
 
 %}
 
@@ -115,44 +121,46 @@ static struct table_args_t {
 	char*	descr;
 } table_args[] = {
 	{"alaw",		token(PCM_ALAW_TOKEN),			"Description" },
-	{"all",			token(ALL_TOKEN),			"Description" },
-	{"all_ports",		token(ALL_PORT_TOKEN),			"Description" },
-	{"bd",			token(BYPASS_DISABLE_TOKEN),		"Description" },
+	{"all",			token(ALL_TOKEN),				"Description" },
+	{"all_ports",	token(ALL_PORT_TOKEN),			"Description" },
+	{"bd",			token(BYPASS_DISABLE_TOKEN),	"Description" },
 	{"be",			token(BYPASS_ENABLE_TOKEN),		"Description" },
-	{"buffer_load",		token(BUFFER_LOAD_TOKEN),		"Description" },
-	{"buffer_unload",	token(BUFFER_UNLOAD_TOKEN),		"Description" },
+	{"buffer_load",	token(BUFFER_LOAD_TOKEN),		"Description" },
+	{"buffer_unload",	token(BUFFER_UNLOAD_TOKEN),	"Description" },
 	{"config",		token(CONFIG_TOKEN),			"Description" },
 	{"dd",			token(DTMF_DISABLE_TOKEN),		"Description" },
 	{"de",			token(DTMF_ENABLE_TOKEN),		"Description" },
 	{"disable",		token(DISABLE_TOKEN),			"Description" },
-	{"duration",		token(DURATION_TOKEN),			"Description" },
+	{"duration",	token(DURATION_TOKEN),			"Description" },
 	{"enable",		token(ENABLE_TOKEN),			"Description" },
-	{"help",		token(HELP_TOKEN),			"Description" },
-	{"help1",		token(HELP1_TOKEN),			"Description" },
+	{"fd",			token(FAX_DISABLE_TOKEN),				"Description" },
+	{"fe",			token(FAX_ENABLE_TOKEN),				"Description" },
+	{"help",		token(HELP_TOKEN),				"Description" },
+	{"help1",		token(HELP1_TOKEN),				"Description" },
 	{"hwimage",		token(HWIMAGE_TOKEN),			"Description" },
-	{"kill",		token(KILL_TOKEN),			"Description" },
-	{"load",		token(LOAD_TOKEN),			"Description" },
-	{"mhtf",		token(MODE_HT_FREEZE_TOKEN),		"Description" },
+	{"kill",		token(KILL_TOKEN),				"Description" },
+	{"load",		token(LOAD_TOKEN),				"Description" },
+	{"mhtf",		token(MODE_HT_FREEZE_TOKEN),	"Description" },
 	{"mhtr",		token(MODE_HT_RESET_TOKEN),		"Description" },
 	{"mn",			token(MODE_NORMAL_TOKEN),		"Description" },
 	{"mne",			token(MODE_NO_ECHO_TOKEN),		"Description" },
 	{"modify",		token(MODIFY_TOKEN),			"Description" },
 	{"monitor",		token(MONITOR_TOKEN),			"Description" },
-	{"monitor120",		token(MONITOR120_TOKEN),		"Description" },
-	{"mpd",			token(MODE_POWERDOWN_TOKEN),		"Description" },
+	{"monitor120",	token(MONITOR120_TOKEN),		"Description" },
+	{"mpd",			token(MODE_POWERDOWN_TOKEN),	"Description" },
 	{"msr",			token(MODE_SPEECH_RECOGNITION_TOKEN),	"Description" },
-	{"mute",		token(MUTE_TOKEN),			"Description" },
-	{"playout_start",	token(PLAYOUT_START_TOKEN),		"Description" },
-	{"playout_stop",	token(PLAYOUT_STOP_TOKEN),		"Description" },
+	{"mute",		token(MUTE_TOKEN),				"Description" },
+	{"playout_start",	token(PLAYOUT_START_TOKEN),	"Description" },
+	{"playout_stop",	token(PLAYOUT_STOP_TOKEN),	"Description" },
 	{"release",		token(RELEASE_TOKEN),			"Description" },
 	{"repeat",		token(REPEAT_TOKEN),			"Description" },
 	{"rin",			token(RIN_PORT_TOKEN),			"Description" },
 	{"rout",		token(ROUT_PORT_TOKEN),			"Description" },
 	{"sin",			token(SIN_PORT_TOKEN),			"Description" },
 	{"sout",		token(SOUT_PORT_TOKEN),			"Description" },
-	{"stats",		token(STATS_TOKEN),			"Description" },
-	{"stats_full",		token(STATS_FULL_TOKEN),		"Description" },
-	{"test",		token(TEST_TOKEN),			"Description" },
+	{"stats",		token(STATS_TOKEN),				"Description" },
+	{"stats_full",	token(STATS_FULL_TOKEN),		"Description" },
+	{"test",		token(TEST_TOKEN),				"Description" },
 	{"ulaw",		token(PCM_ULAW_TOKEN),			"Description" },
 	{"unload",		token(UNLOAD_TOKEN),			"Description" },
 	{"unmute",		token(UNMUTE_TOKEN),			"Description" }

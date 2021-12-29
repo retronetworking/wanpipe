@@ -1,14 +1,20 @@
 #ifndef __WAN_AFTUP_H
 # define __WAN_AFTUP_H
 
-#define MAX_IFNAME_LEN	20
+#define MAX_IFNAME_LEN	40
 #define MAX_HWINFO_LEN	100
 
+#include "wanpipe_api.h"
 #include "wan_aft_prg.h"
 
+#if defined(__WINDOWS__)
+#include "wanpipe_time.h"	/* usleep() */
+#else
 #define u32 	unsigned int
 #define u8 	unsigned char
 #define u16	unsigned short
+#endif
+
 #define s16	signed short
 
 
@@ -31,6 +37,5 @@ typedef struct wan_aftup_ {
 
 	WAN_LIST_ENTRY(wan_aftup_) next;
 } wan_aftup_t;
-
 
 #endif	/* __WAN_AFTUP_H */

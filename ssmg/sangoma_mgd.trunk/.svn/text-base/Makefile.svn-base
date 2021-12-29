@@ -30,36 +30,20 @@ ifndef KINSTDIR
 endif
 
 CC = gcc
-
-ifndef DESTDIR
-	ifdef INSTALLPREFIX
-		DESTDIR=$(INSTALLPREFIX)
-	else
-		DESTDIR=
-	endif
-endif
-
-SAFE_D=/etc/wanpipe/safe_sangoma.d
-SMGCTRL_D=/etc/wanpipe/smg_ctrl.d
+INSTALLPREFIX=
 
 INCLUDES = -I ../../ssmg/libsangoma.trunk -I. -I ../../patches/kdrivers/include -I ../../patches/kdrivers/wanec/oct6100_api/include -I ../../patches/kdrivers/wanec -I/usr/local/include -I../../patches/kdrivers/include -I/usr/include/wanpipe -Ilib/libteletone/src
 
 CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 
 
-
-ifeq "${PRI}" "YES"
-	CFLAGS += -DPRI_PROT -DSMG_CALLING_NAME
-	NO_SS7:=YES
+ifeq "${BRI}" "YES"
+CFLAGS += -DBRI_PROT -DSMG_CALLING_NAME
+NO_SS7:=YES
 else
-	ifeq "${BRI}" "YES"
-		CFLAGS += -DBRI_PROT -DSMG_CALLING_NAME
-		NO_SS7:=YES
-	else
-		ifeq "${NO_SS7}" "YES"
-			BRI:=YES
-			CFLAGS += -DBRI_PROT
-		endif
-	endif
+ifeq "${NO_SS7}" "YES"
+BRI:=YES
+CFLAGS += -DBRI_PROT
+endif
 endif
 
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
@@ -79,7 +63,7 @@ endif
 all: sangoma_mgd  
 
 libs: 
-	$(shell cd lib/libteletone; ./configure --prefix=$(DESTDIR); cd ../../; )
+	$(shell cd lib/libteletone; ./configure --prefix=$(INSTALLPREFIX); cd ../../; )
 	$(MAKE) -C lib/libteletone all
 
 switch_buffer.o: switch_buffer.c switch_buffer.h
@@ -94,15 +78,12 @@ sangoma_mgd_memdbg.o: sangoma_mgd_memdbg.c sangoma_mgd_memdbg.h
 sangoma_mgd_logger.o: sangoma_mgd_logger.c 
 	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS)  -c -o sangoma_mgd_logger.o sangoma_mgd_logger.c
 
-sangoma_mgd_ip_bridge.o: sangoma_mgd_ip_bridge.c 
-	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS)  -c -o sangoma_mgd_ip_bridge.o sangoma_mgd_ip_bridge.c
-
 sangoma_mgd.o: sangoma_mgd.c sangoma_mgd.h sigboost.h
 	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -c -o sangoma_mgd.o sangoma_mgd.c 
 
-sangoma_mgd: sangoma_mgd.o sangoma_mgd_memdbg.o  sangoma_mgd_logger.o sangoma_mgd_ip_bridge.o call_signal.o switch_buffer.o sigboost.h sangoma_mgd_memdbg.h
+sangoma_mgd: sangoma_mgd.o sangoma_mgd_memdbg.o  sangoma_mgd_logger.o call_signal.o switch_buffer.o sigboost.h sangoma_mgd_memdbg.h
 	rm -fr core*
-	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -o sangoma_mgd sangoma_mgd.o sangoma_mgd_memdbg.o  sangoma_mgd_logger.o sangoma_mgd_ip_bridge.o switch_buffer.o  call_signal.o $(LDFLAGS)
+	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -o sangoma_mgd sangoma_mgd.o sangoma_mgd_memdbg.o  sangoma_mgd_logger.o switch_buffer.o  call_signal.o $(LDFLAGS)
 
 
 
@@ -117,55 +98,28 @@ distclean: clean
 install: all install_smg old_cleanup
 
 install_smg: old_cleanup 
-	install -D -m 755 sangoma_mgd $(DESTDIR)/usr/sbin/sangoma_mgd
-	@if [ ! -e $(DESTDIR)/etc/sangoma_mgd.conf ]; then \
-		install -D -m 755 sangoma_mgd.conf.sample $(DESTDIR)/etc/sangoma_mgd.conf; \
+	install -D -m 755 sangoma_mgd $(INSTALLPREFIX)/usr/sbin/sangoma_mgd
+	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
+		install -D -m 755 sangoma_mgd.conf.sample $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
 	fi
 	
-	install -D -m 755 ./safe_sangoma $(DESTDIR)/usr/sbin/safe_sangoma
-	install -D -m 755 ./rc/safe_sangoma.rc $(DESTDIR)/etc/wanpipe/safe_sangoma.rc
-	install -D -m 755 ./smg_ctrl $(DESTDIR)/usr/sbin/smg_ctrl
-
-	@if [ ! -d ${SAFE_D} ]; then   \
-		mkdir -p ${SAFE_D}; \
-	fi
-	@if [ ! -d ${SMGCTRL_D} ]; then   \
-		mkdir -p ${SMGCTRL_D}; \
-	fi
-	
-
-ifeq "${PRI}" "YES"
-	@echo "PRI control scripts installed"
-	@if [ ! -e $(DESTDIR)/etc/sangoma_mgd.conf ]; then \
-		install -D -m 755 sangoma_mgd.conf.sample.pri $(DESTDIR)/etc/sangoma_mgd.conf; \
-	fi
-	install -D -m 755 rc/smg.rc.pri $(DESTDIR)/etc/wanpipe/smg.rc
-else
+	install -D -m 755 ./safe_sangoma $(INSTALLPREFIX)/usr/sbin/safe_sangoma
 ifeq "${BRI}" "YES"
 	@echo "BRI control scripts installed"
-	@if [ ! -e $(DESTDIR)/etc/sangoma_mgd.conf ]; then \
-		install -D -m 755 sangoma_mgd.conf.sample.bri $(DESTDIR)/etc/sangoma_mgd.conf; \
+	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
+		install -D -m 755 sangoma_mgd.conf.sample.bri $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
 	fi
-	install -D -m 755 rc/smg.rc.bri $(DESTDIR)/etc/wanpipe/smg.rc
+	install -D -m 755 smg_ctrl_bri $(INSTALLPREFIX)/usr/sbin/smg_ctrl
 else
 	@echo "SS7 control scripts installed"
-	@if [ ! -e $(DESTDIR)/etc/sangoma_mgd.conf ]; then \
-		install -D -m 755 sangoma_mgd.conf.sample.ss7 $(DESTDIR)/etc/sangoma_mgd.conf; \
+	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
+		install -D -m 755 sangoma_mgd.conf.sample.ss7 $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
 	fi
-	@if [ -e $(DESTDIR)/usr/local/ss7box/sangoma_isupd ]; then \
-		echo "install -D -m 755 rc/smg.rc.isupd $(DESTDIR)/etc/wanpipe/smg.rc"; \
-		install -D -m 755 rc/smg.rc.isupd $(DESTDIR)/etc/wanpipe/smg.rc; \
-	else  \
-		echo "install -D -m 755 rc/smg.rc.ss7boost $(DESTDIR)/etc/wanpipe/smg.rc"; \
-		install -D -m 755 rc/smg.rc.ss7boost $(DESTDIR)/etc/wanpipe/smg.rc; \
-	fi
-
-	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(DESTDIR)/etc/init.d/smgss7_init_ctrl
-	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(DESTDIR)/usr/sbin/smgss7_init_ctrl
-	install -D -m 755 scripts/init.d/ss7boxd_monitor.sh $(DESTDIR)/usr/sbin/ss7boxd_monitor.sh
+	install -D -m 755 smg_ctrl_ss7 $(INSTALLPREFIX)/usr/sbin/smg_ctrl
+	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(INSTALLPREFIX)/etc/init.d/smgss7_init_ctrl
+	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(INSTALLPREFIX)/usr/sbin/smgss7_init_ctrl
 
 endif	
-endif
 	@echo "sangoma_mgd Installed"
 
 old_cleanup:
@@ -175,7 +129,7 @@ old_cleanup:
 install_all: all install_smg 
 
 uninstall: 
-	/bin/rm $(DESTDIR)/usr/sbin/sangoma_mgd $(DESTDIR)/etc/sangoma_mgd.conf
+	/bin/rm $(INSTALLPREFIX)/usr/sbin/sangoma_mgd $(INSTALLPREFIX)/etc/sangoma_mgd.conf
 
 
 

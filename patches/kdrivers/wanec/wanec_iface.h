@@ -1,5 +1,5 @@
 /******************************************************************************
- * wanec_iface.h	
+ * wanec_iface.h
  *
  * Author: 	Alex Feldman  <al.feldman@sangoma.com>
  *
@@ -16,27 +16,21 @@
 #ifndef __WANEC_IFACE_H
 # define __WANEC_IFACE_H
 
-#if defined(__LINUX__)
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe_events.h>
-#elif defined(__WINDOWS__)
 
-#if defined(__KERNEL__)
+#if defined(__WINDOWS__)
+# if defined(__KERNEL__)
 # define _DEBUG
 # include <DebugOut.h>
-#else
-# include <windows.h>
+# else
+#  include <windows.h>
+# endif
+
 #endif
 
-#define MAX_EC_CHANS 256
-
-# include <wanpipe_defines.h>
-# include <wanpipe_includes.h>
-# include <wanpipe_events.h>
-
-#elif defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_events.h>
-#endif
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_cfg.h"
+#include "wanpipe_events.h"
 
 #if defined(__WINDOWS__)
 #include <oct6100_api.h>
@@ -63,50 +57,51 @@ enum {
 	WAN_EC_STATE_READY,
 	WAN_EC_STATE_CHIP_OPEN_PENDING,
 	WAN_EC_STATE_CHIP_OPEN,
-	WAN_EC_STATE_CHIP_READY
+	WAN_EC_STATE_CHAN_READY
 };
 #define WAN_EC_STATE_DECODE(state)						\
 	(state == WAN_EC_STATE_RESET)			? "Reset" :		\
 	(state == WAN_EC_STATE_READY)			? "Ready" :		\
 	(state == WAN_EC_STATE_CHIP_OPEN_PENDING)	? "Chip Open Pending" :	\
 	(state == WAN_EC_STATE_CHIP_OPEN)		? "Chip Open" :		\
-	(state == WAN_EC_STATE_CHIP_READY)		? "Chip Ready" :	\
+	(state == WAN_EC_STATE_CHAN_READY)		? "Channels Ready" :	\
 					"Unknown"
 
+#define MAX_EC_CHANS		256
+
 #define WAN_NUM_DTMF_TONES	16
-#define WAN_NUM_FAX_TONES	1
 #define WAN_NUM_PLAYOUT_TONES	16
 #define WAN_MAX_TONE_LEN	100
 
-typedef struct wanec_config_ 
+typedef struct wanec_config_
 {
 	u_int16_t		max_channels;
 	int			memory_chip_size;
 	UINT32			debug_data_mode;
-	PUINT8			imageData;	
+	PUINT8			imageData;
 	UINT32			imageSize;
 	int			imageLast;
 
 	wan_custom_conf_t	custom_conf;
 } wanec_config_t;
 
-typedef struct wanec_config_poll_ 
+typedef struct wanec_config_poll_
 {
 	int			cnt;
 } wanec_config_poll_t;
 
-typedef struct wanec_chip_stats_ 
+typedef struct wanec_chip_stats_
 {
 	int				reset;
 	tOCT6100_CHIP_STATS		f_ChipStats;
 } wanec_chip_stats_t;
 
-typedef struct wanec_chip_image_ 
+typedef struct wanec_chip_image_
 {
 	tOCT6100_CHIP_IMAGE_INFO	*f_ChipImageInfo;
 } wanec_chip_image_t;
 
-typedef struct wanec_chan_opmode_ 
+typedef struct wanec_chan_opmode_
 {
 	UINT32			opmode;
 } wanec_chan_opmode_t;
@@ -114,23 +109,23 @@ typedef struct wanec_chan_opmode_
 typedef struct wanec_chan_mute_
 {
 	unsigned char		port_map;
-	
+
 } wanec_chan_mute_t;
 
-typedef struct wanec_chan_custom_ 
+typedef struct wanec_chan_custom_
 {
 	int			custom;
 	wan_custom_conf_t	custom_conf;
 } wanec_chan_custom_t;
 
-typedef struct wanec_chan_stats_ 
+typedef struct wanec_chan_stats_
 {
 	int				reset;
 	tOCT6100_CHANNEL_STATS		f_ChannelStats;
 } wanec_chan_stats_t;
 
 #define MAX_MONITOR_DATA_LEN	1024
-typedef struct wanec_chan_monitor_ 
+typedef struct wanec_chan_monitor_
 {
 	int			fe_chan;
 	int			data_mode;
@@ -140,9 +135,9 @@ typedef struct wanec_chan_monitor_
 	UINT8			data[MAX_MONITOR_DATA_LEN+1];
 } wanec_chan_monitor_t;
 
-typedef struct wanec_buffer_config_ 
+typedef struct wanec_buffer_config_
 {
-	UINT8	buffer[WAN_MAX_TONE_LEN];	
+	UINT8	buffer[WAN_MAX_TONE_LEN];
 	PUINT8	data;
 	UINT32	size;
 	UINT32	pcmlaw;
@@ -150,7 +145,7 @@ typedef struct wanec_buffer_config_
 } wanec_buffer_config_t;
 
 #define MAX_EC_PLAYOUT_LEN	20
-typedef struct wanec_playout_ 
+typedef struct wanec_playout_
 {
 	UINT32	index;
 	UINT8	port;
@@ -161,16 +156,17 @@ typedef struct wanec_playout_
 	INT32	gaindb;
 	BOOL	notifyonstop;
 	UINT32	user_event_id;
-	
+
 	CHAR	str[MAX_EC_PLAYOUT_LEN];
 	UINT32	delay;
 } wanec_playout_t;
 
-typedef struct wanec_dtmf_config_ 
+typedef struct wanec_tone_config_
 {
+	u_int8_t	id;		/* Tone id */
 	u_int8_t	port_map;	/* SOUT/ROUT */
 	u_int8_t	type;		/* PRESENT or STOP */
-} wanec_dtmf_config_t;
+} wanec_tone_config_t;
 
 
 /*===========================================================================*\
@@ -184,7 +180,7 @@ typedef struct _OCTPCIDRV_USER_PROCESS_CONTEXT_
 	/* Interface name to driver (copied by calling process) */
 	unsigned char	devname[WAN_DRVNAME_SZ+1];
 	/*unsigned char	ifname[WAN_IFNAME_SZ+1];*/
-	
+
 	/* Board index. */
 	unsigned int	ulBoardId;
 
@@ -224,7 +220,7 @@ typedef struct _OCTPCIDRV_USER_PROCESS_CONTEXT_
 	if (v & WAN_EC_VERBOSE_EXTRA2) DEBUG_EVENT(format,##msg)
 #endif
 
-#define WANEC_IGNORE	(TRUE+1)	
+#define WANEC_IGNORE	(TRUE+1)
 
 #define	WANEC_BYDEFAULT_NORMAL
 
@@ -236,7 +232,7 @@ typedef struct _OCTPCIDRV_USER_PROCESS_CONTEXT_
 #define WAN_EC_BIT_CRIT_ERROR 	       	5
 #define WAN_EC_BIT_CRIT 	       	6
 
-#define WAN_EC_BIT_EVENT_DTMF 		4
+#define WAN_EC_BIT_EVENT_TONE 		4
 #define WAN_EC_BIT_EVENT_PLAYOUT	5
 
 #define WAN_EC_POLL_NONE		0x00
@@ -249,20 +245,20 @@ typedef
 struct wan_ec_confbridge_
 {
 	UINT32	ulHndl;
-	
+
 	WAN_LIST_ENTRY(wan_ec_confbridge_)	next;
 } wan_ec_confbridge_t;
 
 
 struct wan_ec_;
-typedef struct wan_ec_dev_ 
+typedef struct wan_ec_dev_
 {
 	char		*name;
 	char		devname[WAN_DRVNAME_SZ+1];
 	char		ecdev_name[WAN_DRVNAME_SZ+1];
 	int		ecdev_no;
 	sdla_t		*card;
-	
+
 	u_int8_t	fe_media;
 	u_int32_t	fe_lineno;
 	int		fe_start_chan, fe_stop_chan;
@@ -280,19 +276,23 @@ typedef struct wan_ec_dev_
 	int		poll_channel;
 
 	u_int32_t	events;			/* enable events map */
+#if 0
+	/* NC: Moved to wan_ec device */
+	wan_ticks_t	lastint_ticks;
+#endif
 
 	struct wan_ec_	*ec;
 	WAN_LIST_ENTRY(wan_ec_dev_)	next;
 } wan_ec_dev_t;
 
-typedef struct wan_ec_ 
+typedef struct wan_ec_
 {
 	char		name[WAN_DRVNAME_SZ+1];
 	int		usage;
 	int		chip_no;
 	int		state;
-	int		ec_active;	
-	u_int16_t	max_channels;		/* max number of ec channels (security) */
+	int		ec_active;
+	u_int16_t	max_ec_chans;		/* max number of ec channels (security) */
 	int		confbridges_no;		/* number of opened conf bridges */
 	void		*ec_dev;
 	u_int32_t	intcount;
@@ -320,24 +320,20 @@ typedef struct wan_ec_
 	UINT32				ulDebugChannelHndl;
 	INT				DebugChannel;
 	UINT32				ulDebugDataMode;
-#if defined(__WINDOWS__)
-	struct wan_ec_dev_		*pEcDevMap[MAX_EC_CHANS*2];
-#else
 	struct wan_ec_dev_		**pEcDevMap;
-#endif
 	WAN_LIST_HEAD(wan_ec_dev_head_, wan_ec_dev_)			ec_dev_head;
 	WAN_LIST_HEAD(wan_ec_confbridge_head_, wan_ec_confbridge_)	ec_confbridge_head;
 	WAN_LIST_ENTRY(wan_ec_)				next;
 } wan_ec_t;
 
 #if 0
-typedef struct wanec_lip_reg 
+typedef struct wanec_lip_reg
 {
 	unsigned long init;
-	
+
 	void* (*reg) 	(void*, int);
 	int (*unreg)	(void*, void*);
-	
+
 	int (*ioctl)	(void);
 	int (*isr)	(void);
 
@@ -353,7 +349,7 @@ static __inline int wan_ec_update_and_check(wan_ec_t *ec, int enable)
                 return 0;
         }
 
-        if (ec->ec_active >= ec->max_channels) {
+        if (ec->ec_active >= ec->max_ec_chans) {
                 return -EINVAL;
         }
 

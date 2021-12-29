@@ -568,12 +568,13 @@ static int config_get_info(char* buf, char** start, off_t offs, int len, int dum
 #endif
 {
 	wan_device_t* wandev = NULL;
+	wan_smp_flag_t flags;
 	PROC_ADD_DECL(m);
 	PROC_ADD_INIT(m, buf, offs, len);
 
 	PROC_ADD_LINE(m, "%s", conf_hdr);
 
-	wan_spin_lock(&wan_devlist_lock);  
+	wan_spin_lock(&wan_devlist_lock,&flags);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		/*for (wandev = router_devlist; wandev; wandev = wandev->next){*/
 		sdla_t*	card = (sdla_t*)wandev->priv;
@@ -600,7 +601,7 @@ static int config_get_info(char* buf, char** start, off_t offs, int len, int dum
 				wandev->bps);
 		}
 	}
-	wan_spin_unlock(&wan_devlist_lock);  
+	wan_spin_unlock(&wan_devlist_lock,&flags);  
 
 	PROC_ADD_RET(m);
 }
@@ -625,6 +626,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 {
 	struct wan_dev_le	*devle;
 	wan_device_t*	wandev = NULL;
+	wan_smp_flag_t flags;
 
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 	netdevice_t *dev;
@@ -637,7 +639,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 
 	devle=NULL;
 
-	wan_spin_lock(&wan_devlist_lock);  
+	wan_spin_lock(&wan_devlist_lock,&flags);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		
 		if (!wandev->state) continue;
@@ -646,7 +648,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 		memset(&wp_stats,0,sizeof(wp_stack_stats_t));
 
 		if (wandev->get_active_inactive){
-			wan_spin_lock(&wandev->dev_head_lock);
+			wan_spin_lock(&wandev->dev_head_lock,&flags);
 			WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 				dev = WAN_DEVLE2DEV(devle);
 				if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
@@ -654,7 +656,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 				}  
 				wandev->get_active_inactive(wandev,dev,&wp_stats);
 			}
-			wan_spin_unlock(&wandev->dev_head_lock);
+			wan_spin_unlock(&wandev->dev_head_lock,&flags);
 		}
 	
 		PROC_ADD_LINE(m, 
@@ -704,7 +706,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 				STATE_DECODE(wandev->state));
 #endif
 	}
-	wan_spin_unlock(&wan_devlist_lock);  
+	wan_spin_unlock(&wan_devlist_lock,&flags);  
 	
 	PROC_ADD_RET(m);
 }
@@ -730,18 +732,19 @@ static int interfaces_get_info(char* buf, char** start, off_t offs, int len, int
 	struct wan_dev_le	*devle;
 	wan_device_t*	wandev = NULL;
 	netdevice_t*	dev=NULL;
+	wan_smp_flag_t flags;
 	PROC_ADD_DECL(m);
 	PROC_ADD_INIT(m, buf, offs, len);
 
 	PROC_ADD_LINE(m, "%s", interfaces_hdr);
 
-	wan_spin_lock(&wan_devlist_lock);  
+	wan_spin_lock(&wan_devlist_lock,&flags);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		wanpipe_common_t *dev_priv;
 		if (!(m->count < (m->size - 80))) break;
 		if (!wandev->state) continue;
 
-		wan_spin_lock(&wandev->dev_head_lock);
+		wan_spin_lock(&wandev->dev_head_lock,&flags);
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			
@@ -760,9 +763,9 @@ static int interfaces_get_info(char* buf, char** start, off_t offs, int len, int
 				wanpipe_lip_get_if_status(dev_priv,m);	
 			}
 		}
-		wan_spin_unlock(&wandev->dev_head_lock);
+		wan_spin_unlock(&wandev->dev_head_lock,&flags);
 	}
-	wan_spin_unlock(&wan_devlist_lock);  
+	wan_spin_unlock(&wan_devlist_lock,&flags);  
 
 	PROC_ADD_RET(m);
 }
@@ -830,11 +833,17 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	if (hw_cnt->aft_isdn_adapters){
 		PROC_ADD_LINE(m, "A500=%d ", hw_cnt->aft_isdn_adapters);
 	}
+	if (hw_cnt->aft_a700_adapters){
+		PROC_ADD_LINE(m, "B700=%d ", hw_cnt->aft_a700_adapters);
+	}
 	if (hw_cnt->aft_serial_adapters){
 		PROC_ADD_LINE(m, "A14x=%d ", hw_cnt->aft_serial_adapters);
 	}
 	if (hw_cnt->aft300_adapters){
 		PROC_ADD_LINE(m, "A300=%d ", hw_cnt->aft300_adapters);
+	}
+	if (hw_cnt->usb_adapters){
+		PROC_ADD_LINE(m, "U100=%d ", hw_cnt->usb_adapters);
 	}
 	if (hw_cnt->aft_a600_adapters){
 		PROC_ADD_LINE(m, "B600=%d ", hw_cnt->aft_a600_adapters);
@@ -880,7 +889,7 @@ static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len, i
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
 	PROC_ADD_LINE(m,
-		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d B600=%d\n",
+		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d A600=%d\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
@@ -963,11 +972,17 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 	if (hw_cnt->aft_isdn_adapters){
 		PROC_ADD_LINE(m, "A500=%d ", hw_cnt->aft_isdn_adapters);
 	}
+	if (hw_cnt->aft_a700_adapters){
+		PROC_ADD_LINE(m, "B700=%d ", hw_cnt->aft_a700_adapters);
+	}
 	if (hw_cnt->aft_serial_adapters){
 		PROC_ADD_LINE(m, "A14x=%d ", hw_cnt->aft_serial_adapters);
 	}
 	if (hw_cnt->aft300_adapters){
 		PROC_ADD_LINE(m, "A300=%d ", hw_cnt->aft300_adapters);
+	}
+	if (hw_cnt->usb_adapters){
+		PROC_ADD_LINE(m, "U100=%d ", hw_cnt->usb_adapters);
 	}
 	if (hw_cnt->aft_a600_adapters){
 		PROC_ADD_LINE(m, "B600=%d ", hw_cnt->aft_a600_adapters);
@@ -1011,7 +1026,7 @@ static int probe_get_info_dump(char* buf, char** start, off_t offs, int len, int
 	
 
 	PROC_ADD_LINE(m,
-		"|Card Cnt|S508=%d|S514X=%d|S518=%d|A101-2=%d|A104=%d|A300=%d|A200=%d|A108=%d|A056=%d|A500=%d|A14x=%d|B600=%d\n",
+		"|Card Cnt|S508=%d|S514X=%d|S518=%d|A101-2=%d|A104=%d|A300=%d|A200=%d|A108=%d|A056=%d|A500=%d|B700=%d|B600=%d|A14x=%d\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
@@ -1022,8 +1037,9 @@ static int probe_get_info_dump(char* buf, char** start, off_t offs, int len, int
 		hw_cnt->aft108_adapters,
 		hw_cnt->aft_56k_adapters,
 		hw_cnt->aft_isdn_adapters,
-		hw_cnt->aft_serial_adapters,
-                hw_cnt->aft_a600_adapters
+		hw_cnt->aft_a700_adapters,
+		hw_cnt->aft_a600_adapters,
+		hw_cnt->aft_serial_adapters
 		);
 
 	PROC_ADD_RET(m);
@@ -1792,13 +1808,14 @@ static int map_get_info(char* buf, char** start, off_t offs, int len, int dummy)
 	wan_device_t*	wandev = NULL;
 	struct wan_dev_le	*devle;
 	netdevice_t*	dev=NULL;
+	wan_smp_flag_t flags;
 
 	PROC_ADD_DECL(m);
 	PROC_ADD_INIT(m, buf, offs, len);
 
 	PROC_ADD_LINE(m, "%s", map_hdr);
 
-	wan_spin_lock(&wan_devlist_lock);  
+	wan_spin_lock(&wan_devlist_lock,&flags);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		
 		if (!wandev->state){ 
@@ -1808,7 +1825,7 @@ static int map_get_info(char* buf, char** start, off_t offs, int len, int dummy)
 			continue;
 		}
 
-		wan_spin_lock(&wandev->dev_head_lock);
+		wan_spin_lock(&wandev->dev_head_lock,&flags);
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
@@ -1817,9 +1834,9 @@ static int map_get_info(char* buf, char** start, off_t offs, int len, int dummy)
 
 			m->count = wandev->get_map(wandev, dev, m, M_STOP_CNT(m));
 		}
-		wan_spin_unlock(&wandev->dev_head_lock);
+		wan_spin_unlock(&wandev->dev_head_lock,&flags);
 	}
-	wan_spin_unlock(&wan_devlist_lock);  
+	wan_spin_unlock(&wan_devlist_lock,&flags);  
 
 	PROC_ADD_RET(m);
 }
@@ -1840,11 +1857,12 @@ static int get_dev_config_info(char* buf, char** start, off_t offs, int len,int 
 {
 	wan_device_t*	wandev = NULL;
 	netdevice_t*	dev = NULL;
+	wan_smp_flag_t flags;
 	struct wan_dev_le	*devle;
 	PROC_ADD_DECL(m);
 	PROC_ADD_INIT(m, buf, offs, len);
 
-	wan_spin_lock(&wan_devlist_lock);  
+	wan_spin_lock(&wan_devlist_lock,&flags);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 	     if (!(m->count < (PROC_BUFSZ - 80))) break;
 		if (!wandev->get_config_info)
@@ -1858,19 +1876,19 @@ static int get_dev_config_info(char* buf, char** start, off_t offs, int len,int 
 			continue;
 #endif
 
-	       	wan_spin_lock(&wandev->dev_head_lock);
+	       	wan_spin_lock(&wandev->dev_head_lock,&flags);
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
 			}
-			m->count = wandev->get_config_info(wan_netif_priv(dev), 
+			m->count = wandev->get_config_info(dev->priv, 
 							   m, 
 							   M_STOP_CNT(m)); 
 		}
-	       	wan_spin_unlock(&wandev->dev_head_lock);
+	       	wan_spin_unlock(&wandev->dev_head_lock,&flags);
 	}
-	wan_spin_unlock(&wan_devlist_lock);  
+	wan_spin_unlock(&wan_devlist_lock,&flags);  
 
 	PROC_ADD_RET(m);
 }	
@@ -1892,11 +1910,12 @@ static int get_dev_status_info(char* buf, char** start, off_t offs, int len, int
 	struct wan_dev_le	*devle;
 	netdevice_t*	dev = NULL;
 	int		cnt = 0;
+	wan_smp_flag_t flags;
 	PROC_ADD_DECL(m);
 	
 	PROC_ADD_INIT(m, buf, offs, len);
 
-	wan_spin_lock(&wan_devlist_lock);  
+	wan_spin_lock(&wan_devlist_lock,&flags);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 	     if (!(cnt < (PROC_BUFSZ - 80))) break;
 
@@ -1911,17 +1930,17 @@ static int get_dev_status_info(char* buf, char** start, off_t offs, int len, int
 			continue;
 #endif
 
-	       	wan_spin_lock(&wandev->dev_head_lock);
+	       	wan_spin_lock(&wandev->dev_head_lock,&flags);
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
 			}
-			m->count = wandev->get_status_info(wan_netif_priv(dev), m, M_STOP_CNT(m)); 
+			m->count = wandev->get_status_info(dev->priv, m, M_STOP_CNT(m)); 
 		}
-	       	wan_spin_unlock(&wandev->dev_head_lock);
+	       	wan_spin_unlock(&wandev->dev_head_lock,&flags);
 	}
-	wan_spin_unlock(&wan_devlist_lock);  
+	wan_spin_unlock(&wan_devlist_lock,&flags);  
 	
 
 	PROC_ADD_RET(m);
@@ -1939,6 +1958,7 @@ static int wandev_mapdir_get_info(char* buf, char** start, off_t offs, int len, 
 	wan_device_t* wandev = PROC_GET_DATA();
 	struct wan_dev_le	*devle;
 	netdevice_t*	dev = NULL;
+	wan_smp_flag_t flags;
 	PROC_ADD_DECL(m);
 
 	if (!wandev){
@@ -1956,7 +1976,7 @@ static int wandev_mapdir_get_info(char* buf, char** start, off_t offs, int len, 
 		goto wandev_mapdir_get_info_exit;
 	}
 
-	wan_spin_lock(&wandev->dev_head_lock);
+	wan_spin_lock(&wandev->dev_head_lock,&flags);
 	WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 		dev = WAN_DEVLE2DEV(devle);
 		if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
@@ -1964,7 +1984,7 @@ static int wandev_mapdir_get_info(char* buf, char** start, off_t offs, int len, 
 		}   
 		m->count = wandev->get_map(wandev, dev, m, M_STOP_CNT(m));
 	}
-        wan_spin_unlock(&wandev->dev_head_lock);
+        wan_spin_unlock(&wandev->dev_head_lock,&flags);
 	
 wandev_mapdir_get_info_exit:
 	PROC_ADD_RET(m);

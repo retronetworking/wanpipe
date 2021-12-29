@@ -85,14 +85,6 @@
 
 #ifdef WAN_KERNEL
 
-#if defined(__NetBSD__) || defined (__FreeBSD__) || defined (__OpenBSD__)
-/*# include <sdla_front_end.h>*/
-#elif defined (__WINDOWS__)
-//# include <sdla_front_end.h>
-#else
-//# include <linux/sdla_front_end.h>
-#endif
-
 typedef struct {
 	unsigned char	RLOS_56k;
 	unsigned char	RR8_reg_56k;

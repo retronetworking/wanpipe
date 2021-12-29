@@ -10,18 +10,25 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
+
+ifneq (,$(wildcard /wanpipe/code/Makefile.in))
+include /wanpipe/code/Makefile.in
+EXTRA_FLAGS+=$(GLOBAL_CFLAGS)
+endif
+
 PROD=wanpipemon_legacy
 # Project file paths.
+SYSINC=/usr/include/wanpipe
 WAN_VIRTUAL=
 LXDIR=../lxdialog
 ENABLE_GUI=YES
 PROTOCOL_DEFS=
-SYSINC=-I/usr/include/wanpipe
 #-DCONFIG_PRODUCT_WANPIPE_ADSL
 
 CC = gcc 
 CPP = gcc -E
-CFLAGS = -Wall -Wstrict-prototypes -D$(OS_TYPE) -I$(SYSINC) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) -DCURSES_LOC="<ncurses.h>"
+CFLAGS = -Wall -Wstrict-prototypes -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) -DCURSES_LOC="<ncurses.h>"
+CFLAGS += -I$(SYSINC)
 WAN_VIRTUAL=
 
 CFLAGS += $(EXTRA_FLAGS)

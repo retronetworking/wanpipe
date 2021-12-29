@@ -44,7 +44,7 @@ typedef struct {
 	unsigned long	fe_chan_map;
 //	char		channels[MAX_EC_CLIENT_CHANNELS_LEN];
 
-	char	filename[MAX_FILENAME_LEN];
+	char		filename[MAX_FILENAME_LEN];
 	unsigned char	pcmlaw;
 
 	unsigned int	buffer_id;
@@ -56,5 +56,22 @@ typedef struct {
 
 	wan_custom_conf_t	conf;
 } wanec_client_t;
+
+
+int wan_ec_args_parse_and_run(int argc, char* argv[]);
+int wanec_client_config(void);
+int wanec_client_release(void);
+int wanec_client_mode(int enable);
+int wanec_client_bypass(int enable);
+int wanec_client_opmode(int mode);
+int wanec_client_modify(void);
+int wanec_client_mute(int mode);
+int wanec_client_tone(int id, int enable);
+int wanec_client_stats(int full);
+int wanec_client_bufferload(void);
+int wanec_client_bufferunload(unsigned long buffer_id);
+int wanec_client_playout(int start);
+int wanec_client_monitor(int data_mode);
+int wanec_client_hwimage(void);
 
 #endif /* __WAN_ECMAIN_H__ */

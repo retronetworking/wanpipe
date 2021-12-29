@@ -53,6 +53,9 @@
 #ifndef	_ROUTER_H
 #define	_ROUTER_H
 
+#include "wanpipe_cfg_def.h"
+#include "wanpipe_api_hdr.h"
+
 #define	ROUTER_NAME	"wanrouter"	/* in case we ever change it */
 #define	ROUTER_IOCTL	'W'		/* for IOCTL calls */
 #define	ROUTER_MAGIC	0x524D4157L	/* signature: 'WANR' reversed */
@@ -128,6 +131,8 @@ enum router_ioctls
 #undef __LINUX__
 #endif
 
+#ifndef SPROTOCOL /* conflict with CISCO_IP in wanpipe_sppp.h */
+
 /* identifiers for displaying proc file data for dual port adapters */
 #define PROC_DATA_PORT_0 0x8000	/* the data is for port 0 */
 #define PROC_DATA_PORT_1 0x8001	/* the data is for port 1 */
@@ -141,11 +146,8 @@ enum router_ioctls
 #define	NLPID_ISIS	0x83	/* ISO/IEC ISIS */
 #define	NLPID_Q933	0x08	/* CCITT Q.933 */
 
-#if !defined(__WINDOWS__)
-#ifndef WAN_DRVNAME_SZ  
-#define WAN_DRVNAME_SZ  15
 #endif
-#endif
+
 /****** Data Types **********************************************************/
 
 /*----------------------------------------------------------------------------
@@ -214,43 +216,24 @@ typedef struct wan_conf
 
 #if defined(WAN_KERNEL)
 
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_debug.h>	
-# include <wanpipe_common.h>	
-# include <wanpipe_events.h>	
-# include <wanpipe_cfg.h>
-# ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
-#  include <sdla_tdmv.h>
-#  include <sdla_tdmv_dummy.h>
+# include "wanpipe_includes.h"
+# include "wanpipe_debug.h"
+# include "wanpipe_common.h"
+# include "wanpipe_events.h"
+# include "wanpipe_cfg.h"
+
+# if defined (CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
+#  include "sdla_tdmv.h"
+#  include "sdla_tdmv_dummy.h"
 # endif
 
-#elif defined(__WINDOWS__)
-# include <wanpipe_debug.h>	
-# include <wanpipe_common.h>	
-# include <wanpipe_events.h>	
-# include <wanpipe_cfg.h>
-#else
-//# include <linux/version.h>
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>	
-# include <linux/wanpipe_common.h>	
-# include <linux/wanpipe_events.h>	
-# include <linux/wanpipe_cfg.h>
-//# include <linux/wanpipe_kernel.h>
+#if defined (__LINUX__)
 # include <linux/fs.h>		/* support for device drivers */
 # include <linux/proc_fs.h>	/* proc filesystem pragmatics */
-# include <linux/inet.h>		/* in_aton(), in_ntoa() prototypes */
-//# include <linux/netdevice.h>	/* support for network drivers */
+# include <linux/inet.h>	/* in_aton(), in_ntoa() prototypes */
 # ifndef KERNEL_VERSION
 #  define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 # endif
-
-# ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
-#  include <linux/sdla_tdmv.h>
-#  include <linux/sdla_tdmv_dummy.h>
-# endif
-
 #endif
 
 
@@ -365,7 +348,6 @@ typedef struct wan_device
 	void	(*te_report_rbsbits) (void* card_id, int channel, unsigned char rbsbits);
 	void	(*te_report_alarms) (void* card_id, unsigned long alarams);
 	void	(*te_link_state)  (void* card_id);
-	void	(*te_link_reset)  (void* card_id);
 	int	(*te_signaling_config) (void* card_id, unsigned long);
 	int	(*te_disable_signaling) (void* card_id, unsigned long);
 	int	(*te_read_signaling_config) (void* card_id);
@@ -373,19 +355,19 @@ typedef struct wan_device
 	void	(*ec_enable_timer) (void* card_id);	
 	struct {
 		void	(*rbsbits) (void* card_id, int, unsigned char);
-		void	(*alarms) (void* card_id, unsigned long);
-		void	(*dtmf) (void* card_id, wan_event_t*);	
+		void	(*alarms) (void* card_id, wan_event_t*);
+		void	(*tone) (void* card_id, wan_event_t*);	
 		void	(*hook) (void* card_id, wan_event_t*);	
 		void	(*ringtrip) (void* card_id, wan_event_t*);	
 		void	(*ringdetect) (void* card_id, wan_event_t*);	
 		void	(*linkstatus) (void* card_id, wan_event_t*);
+		void	(*polarityreverse) (void* card_id, wan_event_t*);
 	} event_callback;
 	
 	unsigned char 		ignore_front_end_status;
 	unsigned char		line_idle;
 #if defined(__WINDOWS__)
 	u32		card_type;
-	sdla_fe_cfg_t	fe_cfg;
 #else
 	unsigned char		card_type;
 #endif
@@ -428,8 +410,7 @@ typedef struct wan_device
 	
 	unsigned long		ec_enable_map;
 	unsigned long		fe_ec_map;
-	wan_ticks_t			ec_intmask;
-	unsigned long		ec_fax_detect_timeout;
+	wan_ticks_t		ec_intmask;
 		
 	int			(*ec_enable)(void *pcard, int, int);
 
@@ -444,6 +425,7 @@ typedef struct wan_device
 	void 			*rtp_dev;
 	int   			rtp_len;
 	void			(*rtp_tap)(void *card, u8 chan, u8* rx, u8* tx, u32 len);
+	void 			*port_cfg;
 } wan_device_t;
 
 WAN_LIST_HEAD(wan_devlist_, wan_device);
@@ -502,6 +484,14 @@ int wanpipe_ec_isr(void*);
 int wanpipe_ec_poll(void*,void*);
 int wanpipe_ec_ready(void*);
 int wanpipe_ec_event_ctrl(void*,void*,wan_event_ctrl_t*);
+int wanpipe_wandev_create(void);
+int wanpipe_wandev_free(void);
+
+int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf, int user);
+int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf);
+int wan_device_setup (wan_device_t *wandev, wandev_conf_t *u_conf, int user);
+wan_device_t *wan_find_wandev_device(char *name);
+
 
 #endif	/* __KERNEL__ */
 #endif	/* _ROUTER_H */

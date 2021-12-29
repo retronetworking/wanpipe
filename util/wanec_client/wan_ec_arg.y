@@ -4,14 +4,19 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#if defined(__WINDOWS__)
+#include "wanpipe_includes.h"
+#else
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/ioctl.h>
+#endif
 
 #include "wan_ecmain.h"
-#include <wanpipe_events.h>
+#include "wanpipe_events.h"
+#include "wanpipe_api_iface.h"
 #include "wanec_api.h"
 
 extern wanec_client_t		ec_client;
@@ -33,21 +38,6 @@ void yyerror(char* msg);
 static int wanec_client_param_name(char *key);
 static int wanec_client_param_sValue(char*);
 static int wanec_client_param_dValue(unsigned int);
-
-extern int wanec_client_config(void);
-extern int wanec_client_release(void);
-extern int wanec_client_mode(int enable);
-extern int wanec_client_bypass(int enable);
-extern int wanec_client_opmode(int mode);
-extern int wanec_client_modify(void);
-extern int wanec_client_mute(int mode);
-extern int wanec_client_dtmf(int enable);
-extern int wanec_client_stats(int full);
-extern int wanec_client_hwimage(int full);
-extern int wanec_client_bufferload(void);
-extern int wanec_client_bufferunload(unsigned long buffer_id);
-extern int wanec_client_playout(int start);
-extern int wanec_client_monitor(int);
 
 %}
 
@@ -75,6 +65,8 @@ extern int wanec_client_monitor(int);
 %token MODE_SPEECH_RECOGNITION_TOKEN
 %token DTMF_ENABLE_TOKEN
 %token DTMF_DISABLE_TOKEN
+%token FAX_ENABLE_TOKEN
+%token FAX_DISABLE_TOKEN
 %token STATS_TOKEN
 %token STATS_FULL_TOKEN
 %token ALL_TOKEN
@@ -150,15 +142,19 @@ command		: CONFIG_TOKEN custom_param_list
 		| UNMUTE_TOKEN		channel_map port_list
 		  { gl_err = wanec_client_mute(2); }
 		| DTMF_ENABLE_TOKEN	channel_map port_list
-		  { gl_err = wanec_client_dtmf(1); }
+		  { gl_err = wanec_client_tone(WP_API_EVENT_TONE_DTMF, 1); }
 		| DTMF_DISABLE_TOKEN	channel_map port_list
-		  { gl_err = wanec_client_dtmf(0); }
+		  { gl_err = wanec_client_tone(WP_API_EVENT_TONE_DTMF, 0); }
+		| FAX_ENABLE_TOKEN	channel_map port_list
+		  { gl_err = wanec_client_tone(WP_API_EVENT_TONE_FAXCALLING, 1); }
+		| FAX_DISABLE_TOKEN	channel_map port_list
+		  { gl_err = wanec_client_tone(WP_API_EVENT_TONE_FAXCALLING, 0); }
 		| STATS_TOKEN		stats_debug_args
 		  { gl_err = wanec_client_stats(0); }
 		| STATS_FULL_TOKEN	stats_debug_args
 		  { gl_err = wanec_client_stats(1); }
 		| HWIMAGE_TOKEN
-		  { gl_err = wanec_client_hwimage(1); }
+		  { gl_err = wanec_client_hwimage(); }
 		| BUFFER_LOAD_TOKEN	CHAR_STRING 
 		  { strcpy(ec_client.filename,$<str>2); }
 			buffer_load_args
@@ -339,7 +335,7 @@ void yyerror(char* msg)
 static int wanec_client_param_name(char *key)
 {
 	if (ec_client.conf.param_no == 0){
-		ec_client.conf.params = malloc(sizeof(wan_custom_param_t));
+		ec_client.conf.params = (wan_custom_param_t *)malloc(sizeof(wan_custom_param_t));
 		if (ec_client.conf.params == NULL){
 			printf("ERROR: Failed to allocate structure for custom configuration!\n");
 			return -EINVAL;

@@ -146,7 +146,7 @@ UINT32 Oct6100ChannelOpenDef(
 	f_pChannelOpen->VqeConfig.lRoutNoiseReductionLevelGainDb = -18;
 	f_pChannelOpen->VqeConfig.lAnrSnrEnhancementDb = -18;
 	f_pChannelOpen->VqeConfig.ulAnrVoiceNoiseSegregation = 6;
-	f_pChannelOpen->VqeConfig.ulToneDisablerVqeActivationDelay = ((UINT16)(1500 / 512) + 1) * 512 + 300; //300;
+	f_pChannelOpen->VqeConfig.ulToneDisablerVqeActivationDelay = 300;
 	f_pChannelOpen->VqeConfig.fEnableMusicProtection = FALSE;
 	/* Older images have idle code detection hard-coded to enabled. */
 	f_pChannelOpen->VqeConfig.fIdleCodeDetection = TRUE;

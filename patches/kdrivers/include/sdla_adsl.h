@@ -22,17 +22,7 @@
 #  define __SDLA_ADSL_H
 
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <sdla_adsl_iface.h>
-#elif defined(__WINDOWS__)
-# include <sdla_adsl_iface.h>
-#elif defined(__LINUX__) || defined(__KERNEL__)
-# include <linux/sdla_adsl_iface.h>
-#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <sdla_adsl_iface.h>
-#else
-# error "Unsuported OS!"
-#endif
+#include "sdla_adsl_iface.h"
 
 #define ADSL_TEST_DRIVER_RESPONSE	0x01
 #define	ADSL_READ_DRIVER_VERSION	0x02    	
@@ -80,7 +70,7 @@ typedef struct adsl_private_area
 {
 	wanpipe_common_t 	common;
 	void*			pAdapter;
-	char			if_name[IFNAMSIZ];
+	char			if_name[WAN_IFNAME_SZ];
 	u_char			macAddr[6];
 	atomic_t		udp_pkt_len;
 	unsigned char 		udp_pkt_data[sizeof(wan_udp_pkt_t)];

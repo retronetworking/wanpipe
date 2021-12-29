@@ -9,6 +9,7 @@ rm -f oct6100_api
 rm -f image/*.ima
 
 ln -s ${REL_SOFTWARE} oct6100_api
+ln -s . linux
 
 cd image
 

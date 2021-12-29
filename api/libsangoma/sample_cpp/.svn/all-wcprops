@@ -1,0 +1,119 @@
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/libsangoma/!svn/ver/156/trunk/sample_cpp
+END
+sangoma_port.h
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/libsangoma/!svn/ver/127/trunk/sample_cpp/sangoma_port.h
+END
+sample.vcproj
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sample.vcproj
+END
+sources
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sources
+END
+sangoma_interface.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sangoma_interface.cpp
+END
+sample.suo
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/libsangoma/!svn/ver/156/trunk/sample_cpp/sample.suo
+END
+sample_linux_compat.h
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/libsangoma/!svn/ver/109/trunk/sample_cpp/sample_linux_compat.h
+END
+sangoma_interface.h
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sangoma_interface.h
+END
+sangoma_port_configurator.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sangoma_port_configurator.cpp
+END
+compile.bat
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/libsangoma/!svn/ver/120/trunk/sample_cpp/compile.bat
+END
+sample.vcproj.DAVIDRNEW.User.user
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/libsangoma/!svn/ver/62/trunk/sample_cpp/sample.vcproj.DAVIDRNEW.User.user
+END
+sangoma_cthread.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/libsangoma/!svn/ver/133/trunk/sample_cpp/sangoma_cthread.cpp
+END
+sangoma_port_configurator.h
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/libsangoma/!svn/ver/127/trunk/sample_cpp/sangoma_port_configurator.h
+END
+sample.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sample.cpp
+END
+sangoma_cthread.h
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/libsangoma/!svn/ver/133/trunk/sample_cpp/sangoma_cthread.h
+END
+Makefile.Windows
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/libsangoma/!svn/ver/36/trunk/sample_cpp/Makefile.Windows
+END
+sample.h
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/libsangoma/!svn/ver/127/trunk/sample_cpp/sample.h
+END
+sangoma_port.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sangoma_port.cpp
+END
+Makefile.Linux
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/libsangoma/!svn/ver/105/trunk/sample_cpp/Makefile.Linux
+END
+sample.sln
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/libsangoma/!svn/ver/65/trunk/sample_cpp/sample.sln
+END

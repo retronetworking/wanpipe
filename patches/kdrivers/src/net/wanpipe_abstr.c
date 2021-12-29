@@ -23,33 +23,14 @@
 **************************************************************************
 */
 
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_version.h>
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe_events.h>
-# include <wanpipe.h>
-# include <wanpipe_abstr.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe.h>
-# define printk DEBUG_EVENT
-#elif defined(__KERNEL__)
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanpipe_common.h>
-# include <linux/wanpipe_events.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
-# include <linux/if_wanpipe.h>
-# include <linux/if_wanpipe_common.h>
-# include <linux/wanpipe_abstr.h>
-#else
-# error "Unsupported Operating System!"
-#endif
+# include "wanpipe_includes.h"
+# include "wanpipe_defines.h"
+# include "wanpipe_debug.h"
+# include "wanpipe_common.h"
+# include "wanpipe_events.h"
+# include "wanpipe.h"
+# include "wanpipe_abstr.h"
+# include "wanproc.h"
 
 
 /*
@@ -153,7 +134,7 @@ void wpabs_skb_copyback(void* skb, int off, int len, unsigned long cp)
 	wan_skb_copyback(skb, off, len, (caddr_t)cp);	
 }
 
-void wpabs_skb_copyback_user(void* skb, int off, int len, unsigned long cp)
+void wpabs_skb_copyback_user(void* skb, int off, int len, ulong_ptr_t cp)
 {
 	wan_skb_copyback_user(skb, off, len, (caddr_t)cp);	
 }
@@ -398,20 +379,12 @@ void wpabs_del_timer(void* timer_info)
 
 unsigned long* wpabs_dma_get_vaddr(void* pcard, void* dma_descr)
 {
-#if defined(__WINDOWS__)
-	return ((wan_dma_descr_t*)dma_descr)->vAddr;
-#else
 	return wan_dma_get_vaddr(pcard,dma_descr);
-#endif
 }
 
 unsigned long wpabs_dma_get_paddr(void* pcard, void* dma_descr)
 {
-#if defined(__WINDOWS__)
-	return ((wan_dma_descr_t*)dma_descr)->physicalAddr.u.LowPart;
-#else
 	return wan_dma_get_paddr(pcard,dma_descr);
-#endif
 }
 
 void* wpabs_malloc(int size)
@@ -423,7 +396,6 @@ void* wpabs_kmalloc(int size)
 {
 	return wan_kmalloc(size);
 }
-
 
 void wpabs_free(void* ptr)
 {
@@ -445,7 +417,6 @@ unsigned long* wpabs_bus2virt(unsigned long ptr)
 {
 	return wan_bus2virt(ptr);
 }
-
 
 /*
 **
@@ -978,7 +949,7 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 		addr = (struct sockaddr_in *)ifa->ifa_addr;
 		return htonl(addr->sin_addr.s_addr);
 #elif defined(__WINDOWS__)
-		FUNC_NOT_IMPL
+		FUNC_NOT_IMPL();
 		return 0;
 #else
 		return ifaddr->ifa_local;
@@ -994,7 +965,7 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
 		return 0;
 #elif defined(__WINDOWS__)
-		FUNC_NOT_IMPL
+		FUNC_NOT_IMPL();
 		return 0;
 #else
 		return ifaddr->ifa_address;
@@ -1005,7 +976,7 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 		return 0;
 #elif defined(__WINDOWS__)
-		FUNC_NOT_IMPL
+		FUNC_NOT_IMPL();
 		return 0;
 #else
 		return ifaddr->ifa_mask;
@@ -1016,7 +987,7 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 		return 0;
 #elif defined(__WINDOWS__)
-		FUNC_NOT_IMPL
+		FUNC_NOT_IMPL();
 		return 0;
 #else
 		return ifaddr->ifa_broadcast;
@@ -1131,7 +1102,7 @@ void wpabs_get_random_bytes(void *ptr, int len)
 #elif defined(__OpenBSD__)
 	get_random_bytes(ptr,len);
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL
+	FUNC_NOT_IMPL();
 #else
 # error "wpabs_get_random_bytes not supported"
 #endif

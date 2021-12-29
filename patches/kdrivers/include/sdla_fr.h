@@ -23,7 +23,7 @@
 #ifndef	_SDLA_FR_H
 #define	_SDLA_FR_H
 
-#include <linux/wanpipe_fr_iface.h>
+#include "wanpipe_fr_iface.h"
 
 /*----------------------------------------------------------------------------
  * Notes:
@@ -543,28 +543,7 @@ typedef struct {
         unsigned int UDP_DRVSTATS_mgmt_passed_to_stack;
         unsigned int UDP_DRVSTATS_mgmt_no_socket;
 } drvstats_gen_t;
-
-typedef struct {
-        unsigned char   attr      	;
-        unsigned short  time_stamp      ;
-        unsigned char   reserved[13]    ;
-} api_rx_hdr_t;
-
-typedef struct {
-        api_rx_hdr_t    api_rx_hdr      ;
-        void *          data            ;
-} api_rx_element_t;
-
-typedef struct {
-        unsigned char   attr            ;
-        unsigned char   reserved[15]    ;
-} api_tx_hdr_t;
-
-typedef struct {
-        api_tx_hdr_t    api_tx_hdr      ;
-        void *          data            ;
-} api_tx_element_t;
-
+	
 
 #pragma pack()
 

@@ -44,7 +44,9 @@ typedef struct {
 #define FLUSH_GLOBAL_STATISTICS				0x05	/* flush the global statistics */
 #define SET_MODEM_STATUS						0x06	/* set the status of DTR and/or RTS */
 #define READ_MODEM_STATUS						0x07	/* read the current status of CTS and DCD */
+#undef READ_COMMS_ERROR_STATS
 #define READ_COMMS_ERROR_STATS				0x08	/* read the communication error statistics */
+#undef FLUSH_COMMS_ERROR_STATS
 #define FLUSH_COMMS_ERROR_STATS				0x09	/* flush the communication error statistics */
 #define READ_ASY_CODE_VERSION					0x20	/* read the code version */
 #define SET_ASY_INTERRUPT_TRIGGERS			0x30	/* set the application interrupt triggers */
@@ -477,7 +479,7 @@ typedef struct {
 
 
 
-
+#undef UDPMGMT_SIGNATURE
 #define UDPMGMT_SIGNATURE	"CTPIPEAB"
 #define UDPMGMT_SIGNATURE_LEN	8
 
@@ -513,28 +515,6 @@ typedef struct {
 	unsigned char	data[1]		;
 } trace_pkt_t;
 #endif
-
-typedef struct {
-	unsigned char	error_flag	;
-	unsigned short	time_stamp	;
-	unsigned char	reserved[13]	;
-} api_rx_hdr_t;
-
-typedef struct {
-        api_rx_hdr_t	api_rx_hdr      ;
-        unsigned char  	data[1]    	;
-} api_rx_element_t;
-
-typedef struct {
-	unsigned char 	attr		;
-	unsigned char   misc_Tx_bits	;
-	unsigned char  	reserved[14]	;
-} api_tx_hdr_t;
-
-typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	;
-	unsigned char	data[1]		;
-} api_tx_element_t;
 
 /* Special UDP drivers management commands */
 #define CPIPE_ENABLE_TRACING				0x50

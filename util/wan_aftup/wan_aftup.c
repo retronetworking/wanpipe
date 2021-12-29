@@ -25,14 +25,21 @@
 **					  filename (version 1.7)
 **	08 Aug 2008	Alex Feldman	* Add USB-FXO firmware update
 **					  (version 1.8)
+**
 **	16 Oct 2008	David Yat Sin	* Added A600 firmware update
-					* Added Tundra and PLX update from *.dat
-					  format files
-					  (version 1.9)
+**					* Added Tundra and PLX update from *.dat
+**					  format files
+**					  (version 1.9)
+**
+**	 5 Mar 2009	David Rokhvarg	Implemented MS Windows support
+**					  (version 1.9)
+**
 *******************************************************************************/
 
 #include <stdlib.h>
 #include <stdio.h>
+
+#if !defined(__WINDOWS__)
 #include <dirent.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -46,15 +53,29 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#endif
+
 #if defined(__LINUX__)
 # include <linux/if.h>
 # include <linux/types.h>
 # include <linux/if_packet.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_common.h>
-# include <linux/sdlapci.h>
-# include <linux/sdlasfm.h>
-# include <linux/if_wanpipe.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_common.h>
+# include <sdlapci.h>
+# include <sdlasfm.h>
+# include <if_wanpipe.h>
+#elif defined(__WINDOWS__)
+# include <windows.h>
+# include <winioctl.h>
+# include <conio.h>
+# include <stddef.h>		//for offsetof()
+# include <string.h>
+
+# include "wanpipe_includes.h"
+# include "wanpipe_common.h"
+# include "sdlasfm.h"
+# include "sdlapci.h"
+
 #else
 # include <net/if.h>
 # include <wanpipe_defines.h>
@@ -80,16 +101,19 @@
 #define WAN_AFTUP_USBFXO		0x08
 #define WAN_AFTUP_PCIEXPRESS_TUNDRA 	0x10
 
-
-#define WAN_IFNAME_SZ IFNAMSIZ
-
 /***********************************************************************
 **			G L O B A L  V A R I A B L E S
 ***********************************************************************/
-static int		sock;
+static sng_fd_t			sock;
 static wan_cmd_api_t	api_cmd;
-static char		ifname_def[20];
+
+static char		ifname_def[MAX_IFNAME_LEN];
+#if defined(__WINDOWS__)
+static wan_aftup_t	global_wan_aftup;
+#else
 static struct ifreq	req;
+#endif
+
 int			options = 0x00;
 static char		aft_firmware_force[MAXPATHLEN];
 
@@ -150,17 +174,18 @@ aft_core_info_t aft_core_table[] = {
 	  "A056_0040_V", "A056_0040_V*.BIN", AFT_CORE_X400_SIZE },
 	{ AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
 	  "A500_0040_V", "A500_0040_V*.BIN", AFT_CORE_X400_SIZE },
-        { AFT_2SERIAL_V35X21_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,
-         "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
-        { AFT_4SERIAL_V35X21_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,
-          "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
+	{ A700_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x01, 0x4F,
+          "B700_0040_V", "B700_0040_V*.BIN", AFT_CORE_X400_SIZE },
 	{ AFT_2SERIAL_RS232_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
 	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ AFT_4SERIAL_RS232_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
 	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
+	{ AFT_2SERIAL_V35X21_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
+	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
+	{ AFT_4SERIAL_V35X21_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
+	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ AFT_A600_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
-	  "B600_0025_V", "B600_0025_V*.BIN", AFT_CORE_X250_SIZE },
-
+	  "B600_0025_V", "AB00_0025_V*.BIN", AFT_CORE_X250_SIZE },
 #if 0
 	{ AFT_TE1_ATM_CORE_ID,	
 	  NULL, NULL, 0x00,
@@ -183,10 +208,10 @@ void registers_and_internal_ram_test_menu(void);
 void setup_chip_configuration_menu(void);
 int exec_command(int cmd);
 int exec_reload_pci_cmd(void);
-int exec_read_cmd(void *, unsigned int off, unsigned int len, unsigned int *data);
-int exec_write_cmd(void *, unsigned int off, unsigned int len, unsigned int data);
-int exec_bridge_read_cmd(void *, unsigned int off, unsigned int len, unsigned int *data);
-int exec_bridge_write_cmd(void *, unsigned int off, unsigned int len, unsigned int data);
+int exec_read_cmd(void *, unsigned int off, unsigned short len, unsigned int *data);
+int exec_write_cmd(void *, unsigned int off, unsigned short len, unsigned int data);
+int exec_bridge_read_cmd(void *, unsigned int off, unsigned short len, unsigned int *data);
+int exec_bridge_write_cmd(void *, unsigned int off, unsigned short len, unsigned int data);
 
 void hit_any_key(void);
 
@@ -199,6 +224,7 @@ extern int board_reset(wan_aft_cpld_t *, int clear);
 extern unsigned char wan_plxctrl_read_ebyte(void*, unsigned char,int);
 extern void wan_plxctrl_write_ebyte(void*, unsigned char, unsigned char);
 
+extern int wan_usbfxo_fwupdate(void*, char*, int);
 	
 /******************************************************************************
 *			  FUNCTION DEFINITION	
@@ -224,6 +250,20 @@ int progress_bar(char *msg, int ci, int mi)
 	fflush(stdout);
 	return 0;
 }
+
+#if defined(__WINDOWS__)
+sng_fd_t open_api_device(char *api_device_name)
+{
+	return CreateFile(	api_device_name, 
+						GENERIC_READ | GENERIC_WRITE, 
+						FILE_SHARE_READ | FILE_SHARE_WRITE,
+						(LPSECURITY_ATTRIBUTES)NULL, 
+						OPEN_EXISTING,
+						FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH,
+						(HANDLE)NULL
+						);
+}
+#endif
 
 int MakeConnection(char *ifname) 
 {
@@ -266,6 +306,13 @@ int MakeConnection(char *ifname)
       		perror("Socket");
       		return -EIO;
    	} /* if */
+#elif defined(__WINDOWS__)
+	printf("%s(): ifname: %s\n", __FUNCTION__, ifname);
+	sock = open_api_device(ifname);
+    if (sock == INVALID_HANDLE_VALUE){
+		printf("Unable to open %s for general commands!\n", ifname);
+		return 1;
+	}
 #endif
 	return 0;
 
@@ -273,26 +320,119 @@ int MakeConnection(char *ifname)
 
 int CloseConnection(char *ifname)
 {
+#if defined(__WINDOWS__)
+	printf("%s(): ifname: %s\n", __FUNCTION__, ifname);
+	CloseHandle(sock);
+#else
 	close(sock);
+#endif
 	return 0;
 }
 
 static int wan_aftup_ioctl(wan_cmd_api_t *api_cmd, int cmd, char *ifname)
 {
 	int ret;
+#if defined(__WINDOWS__)
+	DWORD	ln, err;
+	/*	This program is NOT multithreded, so it's ok to use static buffer
+		for all commands. */
+	static wan_udp_hdr_t	wan_udp;
 
+	memset(&wan_udp, 0x00, sizeof(wan_udp));
+
+	wan_udp.wan_udphdr_return_code	= WAN_UDP_TIMEOUT_CMD;
+	wan_udp.wan_udphdr_command		= SIOC_WAN_DEVEL_IOCTL;
+	wan_udp.wan_udphdr_data_len		= sizeof(wan_cmd_api_t);
+
+	api_cmd->cmd = cmd;
+	/* copy data from caller's buffer to driver's buffer */
+	memcpy( wan_udp.wan_udphdr_data, (void*)api_cmd, sizeof(wan_cmd_api_t));
+
+	if(DeviceIoControl(
+			sock,
+			IoctlManagementCommand,
+			(LPVOID)&wan_udp,
+			sizeof(wan_udp_hdr_t),
+			(LPVOID)&wan_udp,
+			sizeof(wan_udp_hdr_t),
+			(LPDWORD)(&ln),
+			(LPOVERLAPPED)NULL
+			) == FALSE){
+		err = 1;
+	}else{
+		err = 0;
+	}
+
+	if(err){
+		printf("Error: wan_aftup_ioctl(): DeviceIoControl failed!!\n");
+		return 1;
+	}
+	if(wan_udp.wan_udphdr_return_code != WAN_CMD_OK){
+		printf("Error: wan_aftup_ioctl(): command failed! Return code: 0x%X.\n",
+			wan_udp.wan_udphdr_return_code);
+		return 2;
+	}
+
+	/* copy data from driver to caller's buffer */
+	memcpy( (void*)api_cmd,	wan_udp.wan_udphdr_data, sizeof(wan_cmd_api_t));
+
+#else
 	api_cmd->cmd = cmd;
 	req.ifr_data = (void*)api_cmd;
 	strncpy(req.ifr_name, ifname, strlen(ifname));
 	if ((ret = ioctl(sock, SIOC_WAN_DEVEL_IOCTL, &req)) < 0){
 		return -EINVAL;
 	}
+#endif
 	return 0;
 }
 
 static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 {
-	
+#if defined(__WINDOWS__)
+	unsigned short card_type, card_sub_type;
+
+	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_GET_CARD_TYPE, aft->if_name)){
+		printf("%s(): %s: Error: Failed to get Card Type!\n", __FUNCTION__, aft->if_name);
+		return -EINVAL;
+	}
+
+	card_type = *(unsigned short*)&api_cmd.data[0];
+	card_sub_type = *(unsigned short*)&api_cmd.data[sizeof(unsigned short)];
+
+	printf("%s(): Card type: 0x%X (%s), sub_type: 0x%x\n", __FUNCTION__,
+		card_type, SDLA_ADPTR_NAME(card_type), card_sub_type);
+
+	aft->cpld.adptr_type = card_type;
+
+	switch(card_type)
+	{
+	case A101_ADPTR_1TE1:
+	case A101_ADPTR_2TE1:
+	case A104_ADPTR_4TE1:
+	case A108_ADPTR_8TE1:
+	case A300_ADPTR_U_1TE3:
+		aft->cpld.iface	= &aftup_flash_iface;
+		break;
+	case A200_ADPTR_ANALOG:
+	case A400_ADPTR_ANALOG:
+	case A305_ADPTR_C_1TE3:
+	case AFT_ADPTR_56K:
+	case AFT_ADPTR_ISDN:
+	case AFT_ADPTR_FLEXBRI:
+	case AFT_ADPTR_2SERIAL_RS232:
+	case AFT_ADPTR_4SERIAL_RS232:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case AFT_ADPTR_A600:
+		aft->cpld.iface	= &aftup_a600_flash_iface;
+		break;
+	case U100_ADPTR:
+		aft->cpld.iface	= NULL;
+		printf("ERROR: unsupported Card type 0x%X (%s)!\n", card_type, SDLA_ADPTR_NAME(card_type));
+		return -EINVAL;
+	}
+#else
 	if (strncmp(type,"AFT-A101",8) == 0){
 		//strcpy(aft->prefix_fw, "A101");
 		aft->cpld.adptr_type = A101_ADPTR_1TE1;
@@ -333,6 +473,10 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		//strcpy(aft->prefix_fw, "AFT_RM");
 		aft->cpld.adptr_type  = AFT_ADPTR_ISDN;
 		aft->cpld.iface	= &aftup_shark_flash_iface;
+	}else if (strncmp(type,"AFT-B700",8) == 0){
+		//strcpy(aft->prefix_fw, "AFT_RM");
+		aft->cpld.adptr_type = AFT_ADPTR_FLEXBRI;
+		aft->cpld.iface	= &aftup_shark_flash_iface;
 	}else if (strncmp(type,"AFT-A142",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
 		aft->cpld.adptr_type = AFT_ADPTR_2SERIAL_RS232;
@@ -345,13 +489,35 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 	          strncmp(type,"AFT-B600",8) == 0){
 		aft->cpld.adptr_type = AFT_ADPTR_A600;
 		aft->cpld.iface	= &aftup_a600_flash_iface;
+	}else if (strncmp(type,"U100",8) == 0){
+		//strcpy(aft->prefix_fw, "AFT_RM");
+		aft->cpld.adptr_type = U100_ADPTR;
+		aft->cpld.iface	= NULL;
 	}else{
 		printf("ERROR: Unknown Sangoma Card type %s!\n", type);
 		return -EINVAL;
 	}
+#endif
 	return 0;
 }
 
+#if defined(__WINDOWS__)
+static int wan_aftup_getfile(wan_aftup_t *aft)
+{
+	FILE *f;
+
+	f = fopen(aft_firmware_force, "rb");
+	if (f == NULL){
+		printf("%s: Failed to open file '%s'!\n",
+			aft->if_name, aft_firmware_force);
+		return -EINVAL;
+	}
+	fclose(f);
+
+	strcpy(aft->cpld.core_info->firmware, aft_firmware_force);
+	return 0;
+}
+#else
 static int wan_aftup_getfile(wan_aftup_t *aft)
 {
 	FILE 		*f;
@@ -454,6 +620,7 @@ verify_firmware_file:
 	printf("\n");
 	return 0;
 }
+#endif
 
 static int wan_aftup_program_card(wan_aftup_t *aft)
 {
@@ -463,18 +630,22 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 		return -EINVAL;
 	}
 
+	
 	/* Release board internal reset (AFT-T1/E1/T3/E3 */
 	if (board_reset(&aft->cpld, 0)){
 		printf("ERROR: %s: Failed to set board in reset!\n",
 					aft->if_name);
 		return -EINVAL;
 	}
+
+	
 	if (board_reset(&aft->cpld, 1)){
 		printf("ERROR: %s: Failed to clear board reset!\n",
 					aft->if_name);
 		return -EINVAL;
 	}
 
+	
 	/* Check Flash ID */
 	if (aft->cpld.iface){
 		err = aft->cpld.iface->flash_id(&aft->cpld,
@@ -482,6 +653,8 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 					USER_SECTOR_FLASH,
 					&flash_id);
 	}
+
+	
 	if (err){
 		return -EINVAL;
 	}
@@ -550,7 +723,7 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 					aft->if_name);
 		return -EINVAL;
 	}
-
+#if !defined(__WINDOWS__)
 	/* Check Flash ID */
 	if (aft->cpld.iface){
 		aft->cpld.iface->flash_id(	&aft->cpld,
@@ -563,6 +736,7 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 					aft->if_name, tmp);
 		return -EINVAL;
 	}
+#endif
 	
 #if 0
 	/* Read new Flash revision */
@@ -626,7 +800,7 @@ static int aft_a200_a400_warning(wan_aftup_t *aft)
 			aft->board_id=A400_REMORA_SHARK_SUBSYS_VENDOR;
 			return 0;
 		} else {
-                 	return aft_a200_a400_warning(aft);
+         	return aft_a200_a400_warning(aft);
 		}
 	}
 
@@ -634,215 +808,229 @@ static int aft_a200_a400_warning(wan_aftup_t *aft)
 	return -EINVAL;	
 }
 
+static int wan_aftup_update_card(wan_aftup_t *aft)
+{
+	int i, err = 0;
+	unsigned int	tmp = 0x00;
+
+	if (aft->cpld.adptr_type == U100_ADPTR){
+		wan_usbfxo_fwupdate((void*)aft, aft->if_name, (options & WAN_AFTUP_USBFXO));
+		return 0;
+	}
+	
+	if (MakeConnection(aft->if_name)){
+		printf("%s: Failed to create socket to the driver!\n",
+			aft->if_name);
+		return 0;
+	}
+	
+	/* Read core revision */
+	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_COREREV,aft->if_name)){
+		printf("%s: Failed to read flash revision!\n",
+			aft->if_name);
+		err = -EINVAL;
+		goto program_done;
+	}
+	aft->flash_rev = api_cmd.data[0];
+	
+	/* Read subsystem vendor ID */
+	exec_read_cmd(aft, 
+		PCI_DEVICE_ID_WORD, 2, (unsigned int*)&aft->chip_id);
+	exec_read_cmd(aft, 0x08, 1, (unsigned int*)&aft->revision_id);
+#if defined(__OpenBSD__)
+	exec_read_cmd(aft, 
+		PCI_SUBSYS_VENDOR_WORD, 4, (unsigned int*)&aft->board_id);
+	aft->board_id &= 0xFFFF;
+#else
+	exec_read_cmd(aft, 
+		PCI_SUBSYS_VENDOR_WORD, 2, (unsigned int*)&aft->board_id);
+#endif
+	exec_read_cmd(aft, PCI_SUBSYS_ID_WORD, 2, &tmp);
+	aft->core_rev = AFT_CORE_REV(tmp);
+	aft->core_id = AFT_CORE_ID(tmp);
+	
+#if 1
+	err=aft_a200_a400_warning(aft);
+	if (err) {
+		goto program_done;
+	}     
+	
+	for(i = 0; aft_core_table[i].board_id; i++){
+		
+#if 0		
+		printf("DEBUG: %s: %04X:%04X:%04X (%04X:%04X:%04X)\n",
+			aft->if_name,
+			aft_core_table[i].board_id,
+			aft_core_table[i].chip_id,
+			aft_core_table[i].core_id,
+			aft->board_id, aft->chip_id, aft->core_id);
+#endif					
+		if (aft_core_table[i].board_id != aft->board_id){
+			continue;
+		}
+		
+		if ((aft_core_table[i].chip_id == aft->chip_id) &&
+			(aft_core_table[i].core_id == aft->core_id)){
+			aft->cpld.core_info = &aft_core_table[i];
+			break;
+		}
+		/* For the old cards ... */
+		if (aft->board_id == A104_4TE1_SUBSYS_VENDOR){
+			aft->cpld.core_info = &aft_core_table[i];
+			break;
+		}
+		
+		/* Special case for the new A101/2 */
+		if ((aft->cpld.adptr_type == A101_ADPTR_1TE1) ||
+			(aft->cpld.adptr_type == A101_ADPTR_2TE1)){
+			if (aft->chip_id == AFT_CHIP_OLD_X400){
+				i++;
+			}else if (aft->revision_id){
+				/* Special case for the A101/2 new cards */
+				i++;
+			}
+			aft->cpld.core_info = &aft_core_table[i];
+			break;
+		}
+	}
+	
+	if (!aft_core_table[i].board_id){
+		printf("%s: Unsupported board type for firmware update (%04X:%04X)!\n",
+			aft->if_name,
+			aft->board_id,
+			aft->chip_id);
+		err = -EINVAL;
+		goto program_done;
+	}
+	
+	switch(aft->board_id){
+	case A101_1TE1_SUBSYS_VENDOR:
+	case A101_2TE1_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_flash_iface;
+		break;
+	case A104_4TE1_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_flash_iface;
+		break;
+	case A300_UTE3_SUBSYS_VENDOR:
+	case A305_CT3_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_flash_iface;
+		break;
+	case AFT_1TE1_SHARK_SUBSYS_VENDOR:
+	case AFT_2TE1_SHARK_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case AFT_4TE1_SHARK_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case AFT_8TE1_SHARK_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case A200_REMORA_SHARK_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case A400_REMORA_SHARK_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case A300_UTE3_SHARK_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case AFT_56K_SHARK_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
+	case A700_SHARK_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case AFT_2SERIAL_RS232_SUBSYS_VENDOR:
+	case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
+	case AFT_2SERIAL_V35X21_SUBSYS_VENDOR:
+	case AFT_4SERIAL_V35X21_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
+	case AFT_A600_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_a600_flash_iface;
+		break;
+	default:
+		printf("\n%s: These board are not supported (subvendor_id=%04X)!\n",
+			aft->if_name,
+			aft->board_id);
+		err = -EINVAL;
+		goto program_done;
+		break;
+	}
+	
+#else
+	
+	switch(aft->cpld.board_id){
+	case A101_1TE1_SUBSYS_VENDOR:
+	case A101_2TE1_SUBSYS_VENDOR:
+		aft->cpld.chip_id = AFT_CHIP_X300;
+		/* Read revision ID */
+		exec_read_cmd(aft, 
+			0x08, 1, (unsigned int*)&aft->cpld.adptr_subtype);
+		if (aft->cpld.adptr_subtype == 0x01){
+			/* A101/A102 new cards */
+			strncpy(aft->prefix_fw, "A101N", 5);
+			aft->cpld.chip_id = AFT_CHIP_X400;
+		}
+		aft->cpld.flash	= &aft_shark_flash;
+		break;
+	case A104_4TE1_SUBSYS_VENDOR:
+		aft->cpld.chip_id = AFT_CHIP_X400;
+		aft->cpld.flash	= &aft4_flash;
+		break;
+	case A300_UTE3_SUBSYS_VENDOR:
+	case A305_CT3_SUBSYS_VENDOR:
+		aft->cpld.chip_id = AFT_CHIP_X300;
+		aft->cpld.flash	= &aft_shark_flash;
+		break;
+	case AFT_4TE1_SHARK_SUBSYS_VENDOR:
+		aft->cpld.chip_id = AFT_CHIP_X1000;
+		aft->cpld.flash	= &aft_shark_flash;
+		break;
+	case A200_REMORA_SHARK_SUBSYS_VENDOR:
+	case A400_REMORA_SHARK_SUBSYS_VENDOR:
+		aft->cpld.chip_id = AFT_CHIP_X1000;
+		aft->cpld.flash	= &aft_shark_flash;
+		break;
+	case AFT_A600_SUBSYS_VENDOR:
+		aft->cpld.chip_id = AFT_CHIP_X250;
+		aft->cpld.flash = &aft_a600_flash;
+		break;
+	case AFT_1TE1_SHARK_SUBSYS_VENDOR:
+	case AFT_2TE1_SHARK_SUBSYS_VENDOR:
+	case AFT_8TE1_SHARK_SUBSYS_VENDOR:
+	case A300_UTE3_SHARK_SUBSYS_VENDOR:
+	case A305_CTE3_SHARK_SUBSYS_VENDOR:
+		printf("\n%s: These board are not supported (subvendor_id=%04X)!\n",
+			aft->if_name,
+			aft->cpld.board_id);
+		goto program_done;
+		break;
+	}
+	
+#endif
+	if (wan_aftup_program_card(aft)){
+		printf("\n%s: Failed to re-program flash!\n",
+			aft->if_name);
+		err = -EINVAL;
+		goto program_done;
+	}
+	
+program_done:
+	CloseConnection(aft->if_name);
+	return err;	
+}
+
 static int wan_aftup_program(struct wan_aftup_head_t *head)
 {
 	wan_aftup_t	*aft = NULL;
-	unsigned int	tmp = 0x00;
-	int		err, i;
+	int err;
 
 	WAN_LIST_FOREACH(aft, head, next){
-
-		if (MakeConnection(aft->if_name)){
-			printf("%s: Failed to create socket to the driver!\n",
-						 aft->if_name);
-			continue;
+		if((err = wan_aftup_update_card(aft))){
+			return err;
 		}
-
-		/* Read core revision */
-		if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_COREREV,aft->if_name)){
-			printf("%s: Failed to read flash revision!\n",
-						aft->if_name);
-			err = -EINVAL;
-			goto program_done;
-		}
-		aft->flash_rev = api_cmd.data[0];
-
-		/* Read subsystem vendor ID */
-		exec_read_cmd(aft, 
-			PCI_DEVICE_ID_WORD, 2, (unsigned int*)&aft->chip_id);
-		exec_read_cmd(aft, 0x08, 1, (unsigned int*)&aft->revision_id);
-#if defined(__OpenBSD__)
-		exec_read_cmd(aft, 
-			PCI_SUBSYS_VENDOR_WORD, 4, (unsigned int*)&aft->board_id);
-		aft->board_id &= 0xFFFF;
-#else
-		exec_read_cmd(aft, 
-			PCI_SUBSYS_VENDOR_WORD, 2, (unsigned int*)&aft->board_id);
-#endif
-		exec_read_cmd(aft, PCI_SUBSYS_ID_WORD, 2, &tmp);
-		aft->core_rev = AFT_CORE_REV(tmp);
-		aft->core_id = AFT_CORE_ID(tmp);
-		
-#if 1
-                err=aft_a200_a400_warning(aft);
-		if (err) {
-			goto program_done;
-		}     
-		
-		for(i = 0; aft_core_table[i].board_id; i++){
-
-#if 0		
-			printf("DEBUG: %s: %04X:%04X:%04X (%04X:%04X:%04X)\n",
-					aft->if_name,
-					aft_core_table[i].board_id,
-					aft_core_table[i].chip_id,
-					aft_core_table[i].core_id,
-					aft->board_id, aft->chip_id, aft->core_id);
-#endif					
-			if (aft_core_table[i].board_id != aft->board_id){
-				continue;
-			}
-				
-			if ((aft_core_table[i].chip_id == aft->chip_id) &&
-			    (aft_core_table[i].core_id == aft->core_id)){
-				aft->cpld.core_info = &aft_core_table[i];
-				break;
-			}
-			/* For the old cards ... */
-			if (aft->board_id == A104_4TE1_SUBSYS_VENDOR){
-				aft->cpld.core_info = &aft_core_table[i];
-				break;
-			}
-
-			/* Special case for the new A101/2 */
-			if ((aft->cpld.adptr_type == A101_ADPTR_1TE1) ||
-			    (aft->cpld.adptr_type == A101_ADPTR_2TE1)){
-				if (aft->chip_id == AFT_CHIP_OLD_X400){
-					i++;
-				}else if (aft->revision_id){
-					/* Special case for the A101/2 new cards */
-					i++;
-				}
-				aft->cpld.core_info = &aft_core_table[i];
-				break;
-			}
-		}
-
-		if (!aft_core_table[i].board_id){
-			printf("%s: Unsupported board type for firmware update (%04X:%04X)!\n",
-						aft->if_name,
-						aft->board_id,
-						aft->chip_id);
-			err = -EINVAL;
-			goto program_done;
-		}
-		
-		switch(aft->board_id){
-		case A101_1TE1_SUBSYS_VENDOR:
-		case A101_2TE1_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_flash_iface;
-			break;
-		case A104_4TE1_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_flash_iface;
-			break;
-		case A300_UTE3_SUBSYS_VENDOR:
-		case A305_CT3_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_flash_iface;
-			break;
-		case AFT_1TE1_SHARK_SUBSYS_VENDOR:
-		case AFT_2TE1_SHARK_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_shark_flash_iface;
-			break;
-		case AFT_4TE1_SHARK_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_shark_flash_iface;
-			break;
-		case AFT_8TE1_SHARK_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_shark_flash_iface;
-			break;
-		case A200_REMORA_SHARK_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_shark_flash_iface;
-			break;
-		case A400_REMORA_SHARK_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_shark_flash_iface;
-			break;
-		case A300_UTE3_SHARK_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_shark_flash_iface;
-			break;
-		case AFT_56K_SHARK_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_shark_flash_iface;
-			break;
-		case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_shark_flash_iface;
-			break;
-
-		case AFT_2SERIAL_V35X21_SUBSYS_VENDOR:
-	   	case AFT_4SERIAL_V35X21_SUBSYS_VENDOR:
-		case AFT_2SERIAL_RS232_SUBSYS_VENDOR:
-		case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_shark_flash_iface;
-			break;
-		case AFT_A600_SUBSYS_VENDOR:
-			aft->cpld.iface	= &aftup_a600_flash_iface;
-			break;
-		default:
-			printf("\n%s: These board are not supported (subvendor_id=%04X)!\n",
-						aft->if_name,
-						aft->board_id);
-			err = -EINVAL;
-			goto program_done;
-			break;
-		}
-
-#else
-
-		switch(aft->cpld.board_id){
-		case A101_1TE1_SUBSYS_VENDOR:
-		case A101_2TE1_SUBSYS_VENDOR:
-			aft->cpld.chip_id = AFT_CHIP_X300;
-			/* Read revision ID */
-			exec_read_cmd(aft, 
-					0x08, 1, (unsigned int*)&aft->cpld.adptr_subtype);
-			if (aft->cpld.adptr_subtype == 0x01){
-				/* A101/A102 new cards */
-				strncpy(aft->prefix_fw, "A101N", 5);
-				aft->cpld.chip_id = AFT_CHIP_X400;
-			}
-			aft->cpld.flash	= &aft_shark_flash;
-			break;
-		case A104_4TE1_SUBSYS_VENDOR:
-			aft->cpld.chip_id = AFT_CHIP_X400;
-			aft->cpld.flash	= &aft4_flash;
-			break;
-		case A300_UTE3_SUBSYS_VENDOR:
-		case A305_CT3_SUBSYS_VENDOR:
-			aft->cpld.chip_id = AFT_CHIP_X300;
-			aft->cpld.flash	= &aft_shark_flash;
-			break;
-		case AFT_4TE1_SHARK_SUBSYS_VENDOR:
-			aft->cpld.chip_id = AFT_CHIP_X1000;
-			aft->cpld.flash	= &aft_shark_flash;
-			break;
-		case A200_REMORA_SHARK_SUBSYS_VENDOR:
-		case A400_REMORA_SHARK_SUBSYS_VENDOR:
-			aft->cpld.chip_id = AFT_CHIP_X1000;
-			aft->cpld.flash	= &aft_shark_flash;
-			break;
-		case AFT_A600_SUBSYS_VENDOR:
-			aft->cpld.chip_id = AFT_CHIP_X250;
-			aft->cpld.flash = &aft_a600_flash;
-			break;
-		case AFT_1TE1_SHARK_SUBSYS_VENDOR:
-		case AFT_2TE1_SHARK_SUBSYS_VENDOR:
-		case AFT_8TE1_SHARK_SUBSYS_VENDOR:
-		case A300_UTE3_SHARK_SUBSYS_VENDOR:
-		case A305_CTE3_SHARK_SUBSYS_VENDOR:
-			printf("\n%s: These board are not supported (subvendor_id=%04X)!\n",
-						aft->if_name,
-						aft->cpld.board_id);
-			goto program_done;
-			break;
-		}
-		
-#endif
-		if (wan_aftup_program_card(aft)){
-			printf("\n%s: Failed to re-program flash!\n",
-						aft->if_name);
-			err = -EINVAL;
-			goto program_done;
-		}
-
-program_done:
-		CloseConnection(aft->if_name);
 	}
 
 	return 0;
@@ -854,7 +1042,7 @@ static int wan_pcie_ctrl(struct wan_aftup_head_t *head)
 	wan_aftup_t	*aft = NULL;
 	pcie_eeprom_info_t eeprom_info;
 	pcie_bridge_iface_t pcie_iface;
-	int i;
+	unsigned int i;
 	int err = 0;
 	u8 byte;
 
@@ -881,6 +1069,9 @@ static int wan_pcie_ctrl(struct wan_aftup_head_t *head)
 		case AFT_A600_SUBSYS_VENDOR:
 			break;
 		case A300_UTE3_SHARK_SUBSYS_VENDOR:
+			break;
+		case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
+		case A700_SHARK_SUBSYS_VENDOR:
 			break;
 		default:
 			continue;
@@ -967,8 +1158,11 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 	char		sel_name[20], *tmp = NULL;
 	int		j, cnt = 0;
 	
+	
 	tmp = strtok((char*)api_cmd->data, "\n");
+	
 	while (tmp){
+		
 		/* Create new interface structure */
 		aft = malloc(sizeof(wan_aftup_t));
 		if (aft == NULL){
@@ -978,6 +1172,7 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 		aft->cpld.private = aft;
 		strncpy(aft->hwinfo, tmp, strlen(tmp));
 
+		
 		if (aft_prev == NULL){
 			WAN_LIST_INSERT_HEAD(
 					&wan_aftup_head,
@@ -998,14 +1193,18 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 		printf("<%s>\n", aft->hwinfo);
 	}
 #endif
+	
 	if (!(options & WAN_AFTUP_AUTO)){
 		printf("Sangoma AFT card list:\n");
 	}
-	aft = WAN_LIST_FIRST(&wan_aftup_head);
-	while(aft){
+
 	
+	aft = WAN_LIST_FIRST(&wan_aftup_head);
+	
+	while(aft){
 		/* Use api_cmd structure to parse hwprobe info */
 		strncpy((char*)api_cmd->data, aft->hwinfo, strlen(aft->hwinfo));
+	
 		tmp = strtok((char*)api_cmd->data, ":");
 		if (tmp == NULL){
 			printf("ERROR:%d: Internal error (hwinfo:%s)\n",
@@ -1020,14 +1219,19 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 			free(aft_prev);
 			continue;
 		}
+		
 		/* got interface name */
 		strncpy(aft->if_name, tmp, strlen(tmp));
 		tmp = strtok(NULL, ":");
 		while(*tmp == ' ') tmp++;
+
 		j = 0;
 		while(tmp[j] != ' ' && tmp[j] != '\0') j++;
+	
 		tmp[j]='\0';
+
 		if (wan_aftup_gettype(aft, tmp)){
+			
 			aft_prev = aft;
 			aft = WAN_LIST_NEXT(aft_prev, next);
 			if (aft_prev == WAN_LIST_FIRST(&wan_aftup_head)){
@@ -1038,9 +1242,11 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 			free(aft_prev);
 			continue;
 		}
+		
 		if (!(options & WAN_AFTUP_AUTO)){
 			printf(" %s\n", aft->hwinfo);		
 		}
+		
 		aft = WAN_LIST_NEXT(aft, next);
 	}
 
@@ -1084,6 +1290,30 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 	return cnt;
 }
 
+#if defined(__WINDOWS__)
+static int wan_aftup_start(void)
+{
+	wan_aftup_t	*aft = &global_wan_aftup;
+
+	memset(aft, 0x00, sizeof(wan_aftup_t));
+
+	/* got interface name */
+	strncpy(aft->if_name, ifname_def, strlen(ifname_def));
+
+	/* Working with a SINGLE card, but still insert it into 
+	   the global 'wan_aftup_head' list, so wan_aftup_program()
+	   will work the same way as on Linux */
+	WAN_LIST_INSERT_HEAD(&wan_aftup_head, aft, next);
+
+	if(wan_aftup_program(&wan_aftup_head)){
+		return 1;
+	}
+
+	/* Note, that no memory allocation is done for 'aft', so no 
+	   memory de-allocation is required. */
+	return 0;
+}
+#else
 static int wan_aftup_start(void)
 {
 	wan_aftup_t	*aft;
@@ -1093,30 +1323,40 @@ static int wan_aftup_start(void)
 		printf("Starting auto Sangoma Flash update for all card\n");
 	}
 
+	
 	if (MakeConnection(ifname_def)){
 		printf("%s: Failed to create connection\n", ifname_def);
 		return -EINVAL;
 	}
+
+
+	
 	/* Print hardware configuration */
 	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_ALL_HWPROBE, ifname_def)){
 		printf("Failed to read list of Sangoma adapters!\n");
 		return -EINVAL;
 	}
+
+	
 	CloseConnection(ifname_def);
+	
+
 	
 	if (wan_aftup_parse_hwprobe(&api_cmd) == 0){
 		printf("Exiting from update program ...\n");
 		return -EINVAL;
 	}
 
+
+	
 	if ((err = wan_aftup_program(&wan_aftup_head))){
 		goto main_done;
 	}
 
+	
 	/* Extra code here */
 	if (options & WAN_AFTUP_PCIEXPRESS || 
 	    options & WAN_AFTUP_PCIEXPRESS_TUNDRA){
-	
 		err = wan_pcie_ctrl(&wan_aftup_head);
 		//err = wan_aftup_verify_pciexpress(&wan_aftup_head);
 		if (err < 0){
@@ -1143,6 +1383,7 @@ main_done:
 
 	return err;
 }
+#endif
 
 static unsigned char title_info[]=
 "Sangoma AFT Series card update flash software";
@@ -1172,7 +1413,11 @@ void hit_any_key(void)
 	getchar();
 }
 
+#if defined(__WINDOWS__)
+int __cdecl main(int argc, char* argv[])
+#else
 int main(int argc, char* argv[])
+#endif
 {
 	int i=0;
 	int err;
@@ -1186,6 +1431,10 @@ int main(int argc, char* argv[])
 	strncpy(ifname_def, "w1g1", 7);
 #elif defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__)
 	strncpy(ifname_def, "wag1", 7);
+#elif defined(__WINDOWS__)
+	printf("Application compiled on: %s (%s)\n", __DATE__, __TIME__);
+	_snprintf(ifname_def, MAX_IFNAME_LEN, "\\\\.\\%s", "WANPIPE1_IF0");
+	_snprintf(aft_firmware_force , MAX_IFNAME_LEN, "%s", "FilePathNotSet");
 #endif
 	for (i = 0; i < argc; i++){
 
@@ -1215,18 +1464,64 @@ int main(int argc, char* argv[])
 			strncpy(if_name, argv[i+1], strlen(argv[i+1]));
 			i++;
 #endif
+
+#if defined(__WINDOWS__)
+		}else if (!strcmp(argv[i],"-i")){
+			if(argc > i+1){
+				_snprintf(ifname_def , MAX_IFNAME_LEN, "\\\\.\\%s", argv[i+1]);
+				printf("Using Device Name: %s\n", ifname_def);
+			}else{
+				printf("Error: No Interface Name was provided!!\n");
+				return 1;
+			}
+		}else if (!strcmp(argv[i],"-f")){
+			if(argc > i+1){
+				_snprintf(aft_firmware_force , MAX_IFNAME_LEN, "%s", argv[i+1]);
+				printf("Using Firmware file: %s\n", aft_firmware_force);
+			}else{
+				printf("Error: No Firmware file was provided!!\n");
+				return 2;
+			}
+#endif
+		}else if (!strcmp(argv[i],"-usbfxo")){
+			printf("usbfxo....\n");
+			options |= WAN_AFTUP_USBFXO;
 		}
 	}
 
 	wan_aftup_version();
 	err = wan_aftup_start();
+#if defined(__WINDOWS__)
+	if(err){
+		printf("\nFlash Memory update failed\n");
+	}else{
+		printf("\nFlash Memory update was successful\n");
+	}
+	printf("\nPress any key to exit Flash Memory update.(returning: %d)\n", err);
+	_getch();
+#endif
 	return err;
 }
 
-int exec_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned int *data)
+int exec_read_cmd(void *arg, unsigned int off, unsigned short len, unsigned int *data)
 {
 	wan_aftup_t	*aft = (wan_aftup_t*)arg;
 	int		err;
+#if defined(__WINDOWS__)
+
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
+
+	api_cmd.cmd=SIOC_WAN_READ_REG;
+	api_cmd.bar=0;
+	api_cmd.len=len;
+	api_cmd.offset=off;
+
+	err = wan_aftup_ioctl(&api_cmd, api_cmd.cmd, aft->if_name);
+	if (err){
+		printf("Error: %s: Read Cmd Exec failed!\n", aft->if_name);
+	}
+
+#else
 	struct ifreq	ifr;
 	char		msg[100];
 
@@ -1246,6 +1541,7 @@ int exec_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned int *d
 					ifr.ifr_name);
 		perror(msg);
 	}
+#endif
 
 	if (len==1){
 		*(unsigned char*)data = *(unsigned char*)api_cmd.data;
@@ -1259,10 +1555,19 @@ int exec_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned int *d
 
 }
 
-int exec_write_cmd(void *arg, unsigned int off, unsigned int len, unsigned int data)
+int exec_write_cmd(void *arg, unsigned int off, unsigned short len, unsigned int data)
 {
 	wan_aftup_t	*aft = (wan_aftup_t*)arg;
 	int		err;
+#if defined(__WINDOWS__)
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
+
+	api_cmd.cmd=SIOC_WAN_WRITE_REG;
+	api_cmd.bar=0;
+	api_cmd.len=len;
+	api_cmd.offset=off;
+
+#else
 	struct ifreq	ifr;
 	char		msg[100];
 
@@ -1275,6 +1580,7 @@ int exec_write_cmd(void *arg, unsigned int off, unsigned int len, unsigned int d
 	api_cmd.bar=0;
 	api_cmd.len=len;
 	api_cmd.offset=off;
+#endif
 
 	if (len==1){
 		*(unsigned char*)api_cmd.data=(unsigned char)data;
@@ -1284,20 +1590,30 @@ int exec_write_cmd(void *arg, unsigned int off, unsigned int len, unsigned int d
 		*(unsigned int*)api_cmd.data=(unsigned int)data;
 	}
 
+#if defined(__WINDOWS__)
+	err = wan_aftup_ioctl(&api_cmd, api_cmd.cmd, aft->if_name);
+	if (err){
+		printf("Error: %s: Write Cmd Exec failed!\n", aft->if_name);
+	}
+#else
 	err = ioctl(sock,SIOC_WAN_DEVEL_IOCTL,&ifr);
 	if (err){
 		snprintf(msg, 100, "Write Cmd Exec: %s: ",
 					ifr.ifr_name);
 		perror(msg);
 	}
-
+#endif
 	return err;
 }
 
-int exec_bridge_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned int *data)
+int exec_bridge_read_cmd(void *arg, unsigned int off, unsigned short len, unsigned int *data)
 {
 	wan_aftup_t	*aft = (wan_aftup_t*)arg;
 	int		err;
+#if defined(__WINDOWS__)
+	printf("%s(): Error: function not implemented!\n");
+	err = 1;
+#else
 	struct ifreq	ifr;
 	char		msg[100];
 
@@ -1325,15 +1641,19 @@ int exec_bridge_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned
 	}else{
 		*(unsigned int*)data = *(unsigned int*)api_cmd.data;
 	}
-
+#endif
 	return err;
 
 }
 
-int exec_bridge_write_cmd(void *arg, unsigned int off, unsigned int len, unsigned int data)
+int exec_bridge_write_cmd(void *arg, unsigned int off, unsigned short len, unsigned int data)
 {
 	wan_aftup_t	*aft = (wan_aftup_t*)arg;
 	int		err;
+#if defined(__WINDOWS__)
+	printf("%s(): Error: function not implemented!\n");
+	err = 1;
+#else
 	struct ifreq	ifr;
 	char		msg[100];
 
@@ -1361,7 +1681,116 @@ int exec_bridge_write_cmd(void *arg, unsigned int off, unsigned int len, unsigne
 					ifr.ifr_name);
 		perror(msg);
 	}
-
+#endif
 	return err;
+}
+
+int exec_usb_data_write(void *arg, int off, char *data, unsigned short len)
+{
+	wan_aftup_t	*aft = (wan_aftup_t*)arg;
+	int		err, cnt;
+#if defined(__WINDOWS__)
+	printf("%s(): Error: function not implemented!\n");
+	err = 1;
+#else
+	struct ifreq	ifr;
+	char		msg[100];
+	
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
+	memset(ifr.ifr_name, 0, IFNAMSIZ);
+	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
+	ifr.ifr_data = (char*)&api_cmd;
+
+	cnt = 0;
+write_data_again:
+	api_cmd.cmd	= SIOC_WAN_USB_WRITE_REG;
+	api_cmd.ret	= 3;
+	api_cmd.bar	= 0;
+	api_cmd.len	= len;
+	api_cmd.offset	= off;
+	memcpy(&api_cmd.data[0], data, len);
+
+	err = ioctl(sock, SIOC_WAN_DEVEL_IOCTL, &ifr);
+	if (err){
+		snprintf(msg, 100, "Write Data Exec: %s: ",
+					ifr.ifr_name);
+		perror(msg);
+		return -EINVAL;
+	}
+	if (api_cmd.ret != len){
+		usleep(1000);
+		printf("Failed (Write %d:%d bytes)\n",  api_cmd.ret, len);
+	//	if (++cnt < 10) goto write_data_again;
+		return -EINVAL;
+	}
+
+	/* poll for ready */
+	cnt = 0;
+write_data_poll_again:
+	api_cmd.cmd	= SIOC_WAN_USB_WRITE_REG;
+	api_cmd.ret	= 3;
+	api_cmd.bar	= 0;
+	api_cmd.len	= 0;
+	api_cmd.offset	= 0;
+	err = ioctl(sock, SIOC_WAN_DEVEL_IOCTL, &ifr);
+	if (err){
+		snprintf(msg, 100, "USB Write Data Poll Exec: %s: ",
+					ifr.ifr_name);
+		perror(msg);
+		return -EINVAL;
+	}
+
+	if (api_cmd.ret == -EBUSY){
+		api_cmd.ret = 0;
+		usleep(1000);
+		if (++cnt < 100) goto write_data_poll_again;
+		printf("Failed (timeout:tx:%s)\n", ifr.ifr_name);
+		return -EINVAL;
+	}
+#endif
+	return err;
+}
+
+int exec_usb_data_read(void *arg, unsigned int *data, unsigned short len)
+{
+	wan_aftup_t	*aft = (wan_aftup_t*)arg;
+	int		err, cnt = 0;
+#if defined(__WINDOWS__)
+	printf("%s(): Error: function not implemented!\n");
+	return 1;
+#else
+	struct ifreq	ifr;
+	char		msg[100];
+
+	if (!len) return -EINVAL;
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
+	memset(ifr.ifr_name, 0, IFNAMSIZ);
+	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
+	ifr.ifr_data = (char*)&api_cmd;
+
+try_read_again:
+	api_cmd.cmd	= SIOC_WAN_USB_READ_REG;
+	api_cmd.ret	= 3;			// Original call uses ret as mod_no
+	api_cmd.bar	= 0;
+	api_cmd.len	= len;
+	api_cmd.offset	= 0;
+	err = ioctl(sock, SIOC_WAN_DEVEL_IOCTL, &ifr);
+	if (err){
+		snprintf(msg, 100, "USB Read Data Exec: %s: ",
+					ifr.ifr_name);
+		perror(msg);
+		return -EINVAL;
+	}
+
+	if (!api_cmd.ret){
+		usleep(1000);
+		if (++cnt < 1000) goto try_read_again;
+		printf("Failed (timeout:rx:%s)\n", ifr.ifr_name);
+		return -EINVAL;
+	}
+
+	memcpy(data, &api_cmd.data[0], api_cmd.len);
+	return 0;
+#endif
 }
 

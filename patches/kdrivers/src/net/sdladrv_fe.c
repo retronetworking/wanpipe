@@ -30,40 +30,20 @@
 /***************************************************************************
 ****		I N C L U D E  		F I L E S			****
 ***************************************************************************/
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_version.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe.h>
-# include <sdlasfm.h>
-# include <sdlapci.h>
-# include <sdladrv.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_version.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <sdlasfm.h>	/* SDLA firmware module definitions */
-# include <sdlapci.h>	/* SDLA PCI hardware definitions */
-# include <wanpipe.h>
-# include <sdladrv.h>	/* API definitions */
-#elif defined(__LINUX__)||defined(__KERNEL__)
+#if defined(__LINUX__)||defined(__KERNEL__)
 # define _K22X_MODULE_FIX_
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_version.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanpipe_common.h>
-# include <linux/sdlasfm.h>	/* SDLA firmware module definitions */
-# include <linux/sdlapci.h>	/* SDLA PCI hardware definitions */
-# include <linux/wanpipe.h>
-# include <linux/sdladrv.h>	/* API definitions */
-#else
-# error "Unsupported Operating System!"
 #endif
+
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe.h"
+
+#include "sdlasfm.h"	/* SDLA firmware module definitions */
+#include "sdlapci.h"	/* SDLA PCI hardware definitions */
+#include "sdladrv.h"	/* API definitions */
+
 
 #if defined(WAN_DEBUG_FE)
 # warning "WAN_DEBUG_FE - Debugging Enabled"
@@ -72,8 +52,10 @@
 # warning "WAN_DEBUG_REG - Debugging Enabled"
 #endif
 
+
 #define AFT_A600_BASE_REG_OFF	0x1000
 #define A600_REG_OFF(reg) reg+AFT_A600_BASE_REG_OFF
+
 
 /***************************************************************************
 ****                     M A C R O S / D E F I N E S                    ****
@@ -122,11 +104,15 @@ u_int32_t	sdla_shark_serial_read_fe (void *phw, ...);
 int		sdla_te3_write_fe(void *phw, ...);
 u_int8_t	sdla_te3_read_fe(void *phw, ...);
 
+
 static int	__sdla_a600_write_fe(void *phw, ...);
 int		sdla_a600_write_fe(void *phw, ...);
 u_int8_t	__sdla_a600_read_fe (void *phw, ...);
 u_int8_t	sdla_a600_read_fe (void *phw, ...);
 void		sdla_a600_reset_fe (void *fe);
+
+void		sdla_a700_reset_fe (void *fe);
+
 
 extern int sdla_bus_write_1(void* phw, unsigned int offset, u8 value);
 extern int sdla_bus_read_1(void* phw, unsigned int offset, u8* value);
@@ -412,10 +398,8 @@ int sdla_shark_te1_write_fe (void *phw, ...)
 	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 		if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT(
-			"%s: %s:%d: Critical Error: Re-entry in FE!\n",
-					hw->devname,
-					__FUNCTION__,__LINE__);
+			DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+					hw->devname, __FUNCTION__,__LINE__);
 		}
 		return -EINVAL;
 	}
@@ -633,10 +617,6 @@ u_int8_t sdla_shark_56k_read_fe (void *phw, ...)
 }
 
 
-/***************************************************************************
-	Front End FXS/FXO interface for Shark subtype cards - A600
-***************************************************************************/
-
 static int __sdla_a600_write_fe(void *phw, ...)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
@@ -738,9 +718,12 @@ int sdla_a600_write_fe(void *phw, ...)
 	}
 	
 	__sdla_a600_write_fe(hw, mod_no, type, chain, reg, value);
+
 	sdla_hw_fe_clear_bit(hw,0);
 	return 0;
 }
+
+
 
 u_int8_t __sdla_a600_read_fe (void *phw, ...)
 {
@@ -814,6 +797,7 @@ spi_read_done:
 	return (u8) data;
 }
 
+
 u_int8_t sdla_a600_read_fe (void *phw, ...)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
@@ -841,6 +825,337 @@ u_int8_t sdla_a600_read_fe (void *phw, ...)
 	return data;
 }
 
+
+
+
+/***************************************************************************
+	Front End FXS/FXO interface for A700
+***************************************************************************/
+
+static int __sdla_a700_analog_write_fe (void* phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain;
+	int		reg, value;
+	u32		data = 0;
+	unsigned char	cs = 0x00, ctrl_byte = 0x00;
+	int		i;
+
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	value	= va_arg(args, int);
+	va_end(args);
+#if 0
+	if (!wan_test_bit(mod_no, card->fe.fe_param.remora.module_map)){
+		DEBUG_EVENT("%s: %s:%d: Internal Error: Module %d\n",
+			card->devname, __FUNCTION__,__LINE__,mod_no);
+		return -EINVAL;
+	}
+#endif
+	if(0)DEBUG_RM("%s:%d: Module %d: Write RM FE code (reg %d, value %02X)!\n",
+				__FUNCTION__,__LINE__,
+				/*FIXME: hw->devname,*/mod_no, reg, (u8)value);
+	
+	mod_no+=4;
+
+	/* bit 0-7: data byte */
+	data = value & 0xFF;
+	if (type == MOD_TYPE_FXO){
+		/* bit 8-15: register number */
+		data |= (reg & 0xFF) << 8;
+
+		/* bit 16-23: chip select byte */
+		cs = 0x20;
+		cs |= MOD_SPI_CS_FXO_WRITE;
+		if (mod_no % 2 == 1){
+			/* Select second chip in a chain */
+			cs |= MOD_SPI_CS_FXO_CHIP_1;
+		}
+
+		data |= (cs & 0xFF) << 16;
+
+		/* bit 24-31: ctrl byte */
+		ctrl_byte = mod_no / 2;
+
+		ctrl_byte |= MOD_SPI_CTRL_CHAIN;	/* always chain */
+		data |= ctrl_byte << 24;
+
+	}else if (type == MOD_TYPE_FXS){
+		/* bit 8-15: register byte */
+		reg = reg & 0x7F;
+		reg |= MOD_SPI_ADDR_FXS_WRITE; 
+		data |= (reg & 0xFF) << 8;
+		
+		/* bit 16-23: chip select byte */
+		if (mod_no % 2 == 0){
+			/* Select first chip in a chain */
+			cs = A700_ANALOG_SPI_CS_FXS_CHIP_0;
+		}else {
+			/* Select second chip in a chain */
+			cs = A700_ANALOG_SPI_CS_FXS_CHIP_1;
+		}
+		data |= cs << 16;
+
+		/* bit 24-31: ctrl byte */
+		ctrl_byte = mod_no / 2;
+
+		ctrl_byte |= MOD_SPI_CTRL_FXS;
+		if (chain){
+			ctrl_byte |= MOD_SPI_CTRL_CHAIN;
+		}
+		data |= ctrl_byte << 24;
+
+	}else{
+		DEBUG_EVENT("%s: Module %d: Unsupported module type %d!\n",
+				hw->devname, mod_no, type);
+		return -EINVAL;
+	}
+
+	sdla_bus_write_4(hw, A700_ANALOG_SPI_INTERFACE_REG, data);	
+
+	WP_DELAY(10);
+	data |= A700_ANALOG_SPI_MOD_START_BIT;
+	
+	sdla_bus_write_4(hw, A700_ANALOG_SPI_INTERFACE_REG, data);	
+
+	for (i=0;i<10;i++){	
+		WP_DELAY(10);
+		sdla_bus_read_4(hw, A700_ANALOG_SPI_INTERFACE_REG, &data);
+
+		if (data & MOD_SPI_BUSY){
+			continue;
+		}
+	}
+
+	if (data & MOD_SPI_BUSY) {
+		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d)!\n",
+					hw->devname, mod_no,
+					__FUNCTION__,__LINE__);
+		return -EINVAL;
+	}
+        return 0;
+}
+
+int sdla_a700_analog_write_fe (void* phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain, reg, value;
+#if defined(WAN_DEBUG_FE)
+	char		*fname;	
+	int		fline;
+#endif
+
+	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	value	= va_arg(args, int);
+#if defined(WAN_DEBUG_FE)
+	fname	= va_arg(args, char*);
+	fline	= va_arg(args, int);
+#endif
+	va_end(args);
+
+	if (sdla_hw_fe_test_and_set_bit(hw,0)){
+#if defined(WAN_DEBUG_FE)
+		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+			hw->devname, __FUNCTION__,__LINE__, fname, fline);
+#else
+		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+			hw->devname, __FUNCTION__,__LINE__);
+#endif			
+		return -EINVAL;
+	}
+
+	DEBUG_REG("%s: Remora Direct Register %d = %02X\n",
+			hw->devname, reg, value);
+	__sdla_a700_analog_write_fe(hw, (mod_no-4), type, chain, reg, value);
+
+	sdla_hw_fe_clear_bit(hw,0);
+        return 0;
+}
+
+u_int8_t __sdla_a700_analog_read_fe (void* phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain, reg;
+	u32		data = 0;
+	unsigned char	cs = 0x00, ctrl_byte = 0x00;
+	int		i;
+
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	va_end(args);
+	
+	if(0)DEBUG_RM("%s:%d: Module %d: Read RM FE code (reg %d)!\n",
+				__FUNCTION__,__LINE__,
+				/*FIXME: hw->devname, */mod_no, reg);
+
+	mod_no+=4;
+
+	/* bit 0-7: data byte */
+	data = 0x00;
+	if (type == MOD_TYPE_FXO){
+
+		/* bit 8-15: register byte */
+		data |= (reg & 0xFF) << 8;
+
+		/* bit 16-23: chip select byte */
+		cs = 0x20;
+		cs |= MOD_SPI_CS_FXO_READ;
+
+		if (mod_no % 2 == 1) {
+			/* Select second chip in a chain */
+			cs |= MOD_SPI_CS_FXO_CHIP_1;
+		}
+
+		data |= (cs & 0xFF) << 16;
+
+		/* bit 24-31: ctrl byte	*/
+		ctrl_byte = mod_no / 2;
+		ctrl_byte |= MOD_SPI_CTRL_CHAIN;	/* always chain */
+		data |= ctrl_byte << 24;
+
+	}else if (type == MOD_TYPE_FXS){
+
+		/* bit 8-15: register byte */
+		reg = reg & 0x7F;
+		reg |= MOD_SPI_ADDR_FXS_READ; 
+		data |= (reg & 0xFF) << 8;
+		
+		/* bit 16-23: chip select byte */
+		if (mod_no % 2 == 0){
+			/* Select first chip in a chain */
+			cs = A700_ANALOG_SPI_CS_FXS_CHIP_0;
+		}else{
+			/* Select second chip in a chain */
+			cs = A700_ANALOG_SPI_CS_FXS_CHIP_1;
+		}
+		data |= cs << 16;
+
+		/* bit 24-31: ctrl byte */
+		ctrl_byte = mod_no / 2;
+		ctrl_byte |= MOD_SPI_CTRL_FXS;
+		if (chain){
+			ctrl_byte |= MOD_SPI_CTRL_CHAIN;
+		} else {
+		}
+		data |= ctrl_byte << 24;
+
+	}else{
+		DEBUG_EVENT("%s: Module %d: Unsupported module type %d!\n",
+				hw->devname, mod_no, type);
+		return -EINVAL;
+	}
+
+	sdla_bus_write_4(hw, A700_ANALOG_SPI_INTERFACE_REG, data);	
+
+	WP_DELAY(10);
+	data |= A700_ANALOG_SPI_MOD_START_BIT;
+	sdla_bus_write_4(hw, A700_ANALOG_SPI_INTERFACE_REG, data);	
+
+	for (i=0;i<10;i++){
+		WP_DELAY(10);
+		sdla_bus_read_4(hw, A700_ANALOG_SPI_INTERFACE_REG, &data);
+		if (data & MOD_SPI_BUSY) {
+			continue;
+		}
+	}
+
+	if (data & MOD_SPI_BUSY){
+		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d)!\n",
+					hw->devname, mod_no,
+					__FUNCTION__,__LINE__);
+		return 0xFF;
+	}
+
+	return (u8)(data & 0xFF);
+}
+
+u_int8_t sdla_a700_analog_read_fe (void* phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain, reg;
+	unsigned char	data = 0;
+#if defined(WAN_DEBUG_FE)
+	char		*fname;
+	int		fline;
+#endif
+
+	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+#if defined(WAN_DEBUG_FE)
+	fname	= va_arg(args, char*);
+	fline	= va_arg(args, int);
+#endif
+	va_end(args);
+
+	if (sdla_hw_fe_test_and_set_bit(hw,0)){
+#if defined(WAN_DEBUG_FE)
+		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+			hw->devname, __FUNCTION__,__LINE__,fname,fline);
+#else
+		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+			hw->devname, __FUNCTION__,__LINE__);
+#endif		
+		return 0x00;
+	}
+	data = __sdla_a700_analog_read_fe (hw, (mod_no-4), type, chain, reg);
+
+	sdla_hw_fe_clear_bit(hw,0);
+	return data;
+}
+
+
+
+/***************************************************************************
+	Front End FXS/FXO interface for Shark subtype cards
+***************************************************************************/
+
+
+void sdla_a700_reset_fe (void *fe)
+{
+	sdla_t  *card;
+	
+	WAN_ASSERT1(fe == NULL);
+
+	card = (sdla_t*)((sdla_fe_t*)fe)->card;
+	
+	WAN_ASSERT1(card == NULL);
+	card->hw_iface.bus_write_4(card->hw,
+								A700_ANALOG_SPI_INTERFACE_REG,
+								MOD_SPI_RESET);
+	WP_DELAY(1000);
+	card->hw_iface.bus_write_4(card->hw,
+								A700_ANALOG_SPI_INTERFACE_REG,
+								0x00000000);
+	WP_DELAY(1000);
+}
+
 void sdla_a600_reset_fe (void *fe)  
 {
 	u32 reg;
@@ -852,7 +1167,7 @@ void sdla_a600_reset_fe (void *fe)
 
 	WAN_ASSERT1(card == NULL);
 	
-	DEBUG_RM("%s: Resetting SPI\n", fe->name);
+	DEBUG_RM("%s: Resetting SPI\n", ((sdla_fe_t*)fe)->name);
 	
 	/* Reset FXO */
 	reg = 0x00;
@@ -869,7 +1184,7 @@ void sdla_a600_reset_fe (void *fe)
 	wan_clear_bit(A600_SPI_REG_FX0_RESET_BIT, &reg);
 	card->hw_iface.bus_write_4(card->hw,
 				   A600_REG_OFF(SPI_INTERFACE_REG),
-					   reg);
+						   reg);
 	
 	WP_DELAY(1000);
 	
@@ -891,10 +1206,30 @@ void sdla_a600_reset_fe (void *fe)
 	WP_DELAY(1000);
 }
 
-/***************************************************************************
-	Front End FXS/FXO interface for Shark subtype cards - A200/A400
-***************************************************************************/
+void sdla_a200_reset_fe (void *fe)
+{
+	sdla_t *card;
 
+	WAN_ASSERT1(fe == NULL);
+	card = (sdla_t*)((sdla_fe_t*)fe)->card;
+
+	WAN_ASSERT1(card == NULL);
+	
+	card->hw_iface.bus_write_4(card->hw,
+					SPI_INTERFACE_REG,
+     					MOD_SPI_RESET);
+	
+	WP_DELAY(1000);
+	card->hw_iface.bus_write_4(card->hw,
+					SPI_INTERFACE_REG,
+     					0x00000000);
+	WP_DELAY(1000);
+}
+
+
+/*============================================================================
+ * Read TE1/56K Front end registers
+ */
 static int __sdla_shark_rm_write_fe (void* phw, ...)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
@@ -1275,25 +1610,6 @@ u_int8_t sdla_shark_rm_read_fe (void* phw, ...)
 	return data;
 }
 
-void sdla_a200_reset_fe (void *fe)
-{
-	sdla_t *card;
-
-	WAN_ASSERT1(fe == NULL);
-	card = (sdla_t*)((sdla_fe_t*)fe)->card;
-
-	WAN_ASSERT1(card == NULL);
-	
-	card->hw_iface.bus_write_4(card->hw,
-					SPI_INTERFACE_REG,
-     					MOD_SPI_RESET);
-	
-	WP_DELAY(1000);
-	card->hw_iface.bus_write_4(card->hw,
-					SPI_INTERFACE_REG,
-     					0x00000000);
-	WP_DELAY(1000);
-}
 
 /***************************************************************************
 	ISDN BRI Front End interface
@@ -1422,7 +1738,6 @@ int sdla_shark_bri_write_fe (void* phw, ...)
 	char		*fname;	
 	int		fline;
 #endif
-
 	va_start(args, phw);
 	mod_no	= va_arg(args, int);
 	reg	= va_arg(args, int);

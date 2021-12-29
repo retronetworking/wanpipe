@@ -276,7 +276,7 @@ again:
       goto cleanup;
     }
 
-    linkconf->auto_pci_cfg = WANOPT_NO;
+    linkconf->auto_hw_detect = WANOPT_NO;
 
     rc = YES;
     exit_dialog = YES;

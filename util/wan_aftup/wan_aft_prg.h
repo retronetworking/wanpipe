@@ -1,8 +1,14 @@
 #ifndef __WAN_AFT_PRG_H
 # define __WAN_AFT_PRG_H
 
-#define u32 unsigned int
-#define u8 unsigned char
+#if defined(__WINDOWS__)
+# include "wanpipe_ctypes.h"
+# define MAXPATHLEN	_MAX_PATH
+#else
+# define u32 unsigned int
+# define u8 unsigned char
+#endif
+
 
 #define MEMORY_TYPE_SRAM	0x00
 #define MEMORY_TYPE_FLASH	0x01

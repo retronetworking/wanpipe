@@ -11,6 +11,7 @@
  *		2 of the License, or (at your option) any later version.
  * ============================================================================
  * Sep 06,  2008 Moises Silva   Initial Version
+ * Nov 20,  2008 Alex Feldman   Added ZT_XLAW
  ******************************************************************************
  */
 
@@ -21,18 +22,15 @@
 // for DAHDI we need to map values and functions from ZT_XX to DAHDI_XX
 #if defined (DAHDI_ISSUES)
 
-#ifdef __KERNEL__
-#include <dahdi/kernel.h> // this will bring dahdi kernel stuff plus dahdi/user.h and friends
-#endif
-
-#ifdef DAHDI_ECHOCANCEL_FAX_MODE 
-#define DAHDI_22
+#ifdef WAN_KERNEL
+# include <dahdi/kernel.h> // this will bring dahdi kernel stuff plus dahdi/user.h and friends
 #else
-#undef DAHDI_22
+# include <dahdi/user.h> // this will bring dahdi user stuff
 #endif
 
 // defines 
 #define ZT_CODE DAHDI_CODE
+
 
 #define ZT_ONHOOKTRANSFER DAHDI_ONHOOKTRANSFER
 #define ZT_SETPOLARITY DAHDI_SETPOLARITY
@@ -90,7 +88,7 @@
 
 #define ZT_LAW_ALAW DAHDI_LAW_ALAW
 #define ZT_LAW_MULAW DAHDI_LAW_MULAW
-#define ZT_XLAW	DAHDI_XLAW     
+#define ZT_XLAW	DAHDI_XLAW
 
 #define ZT_MAINT_REMOTELOOP DAHDI_MAINT_REMOTELOOP
 #define ZT_MAINT_NONE DAHDI_MAINT_NONE
@@ -143,12 +141,17 @@
 #define zt_qevent_lock dahdi_qevent_lock
 
 
+# define WP_ZT_QEVENT_LOCK(chan, event)	dahdi_qevent_lock((chan),(event))
+
 #else
 // zaptel is present
 // we will keep the same old names in wanpipe code, I thought of changing them
 // to something like WP_XX instead of ZT_XX, but I don't see any benefit on it
 // and would make this file bigger 
 #include <zaptel.h>
+
+
+# define WP_ZT_QEVENT_LOCK(chan, event)	zt_qevent_lock(&(chan),(event))
 #endif
 
 #endif	/* __ZAPCOMPAT_H */

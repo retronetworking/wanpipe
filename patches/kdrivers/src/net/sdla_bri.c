@@ -37,41 +37,17 @@
 **			   INCLUDE FILES
 *******************************************************************************/
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe_common.h>
-# include <wanpipe_events.h>
-# include <wanpipe.h>
-# include <sdla_remora.h>
-# include <wanpipe_events.h>
-# include <if_wanpipe_common.h>	/* for 'wanpipe_common_t' used in 'sdla_aft_te1.h'*/
-# include <sdla_aft_te1.h>	/* for 'private_area_t' */
-#elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe_events.h>
-# include <wanpipe.h>
-# include <sdla_bri.h>
-# include <wanpipe_events.h>
-# include <if_wanpipe_common.h>	/* for 'wanpipe_common_t' used in 'sdla_aft_te1.h'*/
-# include <sdla_aft_te1.h>	/* for 'private_area_t' */
-#else
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanpipe_common.h>
-# include <linux/wanpipe_events.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_bri.h>
-# include <linux/wanpipe_events.h>
-# include <linux/if_wanpipe_common.h>	/* for 'wanpipe_common_t' used in 'sdla_aft_te1.h'*/
-# include <linux/sdla_aft_te1.h>	/* for 'private_area_t' */
-#endif
+# include "wanpipe_includes.h"
+# include "wanpipe_defines.h"
+# include "wanpipe_debug.h"
+# include "wanpipe_abstr.h"
+# include "wanpipe_common.h"
+# include "wanpipe_events.h"
+# include "wanpipe.h"
+# include "wanpipe_events.h"
+# include "if_wanpipe_common.h"	/* for 'wanpipe_common_t' used in 'aft_core.h'*/
+# include "aft_core.h"		/* for 'private_area_t' */
+# include "sdla_bri.h"
 
 #undef	DEBUG_BRI
 #define DEBUG_BRI		if(0)DEBUG_EVENT
@@ -94,7 +70,6 @@
 #define DBG_RX_DATA		if(0)DEBUG_EVENT
 
 #define DEBUG_HFC_CLOCK		if(0)DEBUG_EVENT
-
 #define DBG_MODULE_TESTER	if(0)DEBUG_EVENT
 
 #define NT_STATE_FUNC()		if(0)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
@@ -115,10 +90,6 @@
 static void dump_chip_SRAM(sdla_fe_t *fe, u8 mod_no, u8 port_no);
 static void dump_data(u8 *data, int data_len);
 static int check_data(u8 *data, int data_len);
-#endif
-
-#if defined(__WINDOWS__)
-extern int bri_dchan_rx_enqueue(private_area_t *chan, u8 *rx_data, int data_length);
 #endif
 
 /*******************************************************************************
@@ -261,10 +232,6 @@ static void l1_timer_stop_t4(void *pport);
 static void __l1_timer_expire_t3(sdla_fe_t *fe);
 /*******************************************************************************/
 
-#if defined(AFT_TDM_API_SUPPORT)
-static int32_t wp_bri_watchdog(sdla_fe_t *fe);
-#endif
-
 static int32_t	wp_bri_spi_bus_reset(sdla_fe_t	*fe);
 static int32_t	reset_chip(sdla_fe_t *fe, u32 mod_no);
 static int32_t	init_xfhc(sdla_fe_t *fe, u32 mod_no);
@@ -317,7 +284,8 @@ int32_t _write_xhfc(sdla_fe_t *fe, u32 mod_no, u8 reg, u8 val, const char *calle
 static void xhfc_waitbusy(sdla_fe_t *fe, u32 mod_no)
 {	
 	u32	wait_counter = 0;
-#define MAX_XHFC_WAIT_COUNTER	500
+#define MAX_XHFC_WAIT_COUNTER	200
+
 	do{
 		if(!(READ_REG(R_STATUS) & M_BUSY)){
 			break;
@@ -432,10 +400,10 @@ static int32_t reset_chip(sdla_fe_t *fe, u32 mod_no)
 
 	/* general soft chip reset */
 	WRITE_REG(R_CIRM, M_SRES);
-	WP_DELAY(50);
+	WP_DELAY(5);
 	WRITE_REG(R_CIRM, 0);
 	/* wait for XHFC init seqeuence to be finished */
-	WP_DELAY(2000);	
+	WP_DELAY(500);	
 
 
 	return 0;
@@ -605,7 +573,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 {
 	sdla_bri_param_t	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
-	int32_t			err = 0, i, timeout = 500; /*0x2000;*/
+	int32_t			err = 0, i, timeout = 1000 /*0x2000*/;
 
 	u8			port_no, bchan;
 	reg_a_su_ctrl0		a_su_ctrl0;
@@ -653,9 +621,8 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 	DBG_MODULE_TESTER("general soft chip reset\n");
 	/* general soft chip reset */
 	WRITE_REG(R_CIRM, M_SRES);
-	WP_DELAY(50);
+	WP_DELAY(5);
 	WRITE_REG(R_CIRM, 0);
-	WP_DELAY(2000);
 
 	/* amplitude */
 	WRITE_REG(R_PWM_MD, 0x80);
@@ -668,7 +635,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 
 	DBG_MODULE_TESTER("wait 1 second for XHFC init seqeuence to be finished\n");
 	/* wait for XHFC init seqeuence to be finished */
-	WP_DELAY(1000);	
+	WP_DELAY(500);	
 
 	DBG_MODULE_TESTER("read chip 'busy' bit\n");
 	while ((READ_REG(R_STATUS) & (M_BUSY | M_PCM_INIT)) && (timeout)){
@@ -1486,10 +1453,6 @@ int32_t wp_bri_iface_init(void *pfe_iface)
 
 	fe_iface->isdn_bri_dchan_tx	= &wp_bri_dchan_tx;
 
-#if defined(AFT_TDM_API_SUPPORT)
-	fe_iface->watchdog		= &wp_bri_watchdog;
-#endif
-
 	fe_iface->clock_ctrl		= &config_clock_routing;
 
 	return 0;
@@ -1507,11 +1470,11 @@ static int32_t wp_bri_spi_bus_reset(sdla_fe_t	*fe)
 	card->hw_iface.bus_write_4(	card->hw,
 					SPI_INTERFACE_REG,
 					MOD_SPI_RESET);
-	WP_DELAY(1000);
+	WP_DELAY(500);
 	card->hw_iface.bus_write_4(	card->hw,
 					SPI_INTERFACE_REG,
 					0x00000000);
-	WP_DELAY(1000);
+	WP_DELAY(500);
 	return 0;
 }
 
@@ -1560,7 +1523,7 @@ static u_int8_t scan_modules(sdla_fe_t *fe, u_int8_t rm_no)
 		fe->bri_param.use_512khz_recovery_clock = 1;
 	}else{
 
-		if(((value >> 7) & 0x01) || ((value >> 8) & 0x01)){
+		if(((value >> 7) & 0x01)){
 			DEBUG_EVENT("%s: Remora number %d does not exist.\n", fe->name, rm_no);
 			return 0;
 		}else{
@@ -1808,7 +1771,7 @@ static int32_t wp_bri_config(void *pfe)
 		
 	bri_module = &bri->mod[mod_no];
 
-	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &physical_card_config_counter);
+	card->hw_iface.getcfg(card->hw, SDLA_HWTYPE_USEDCNT, &physical_card_config_counter);
 
 	if(physical_card_config_counter == 1){
 		/* Per-card initialization. Important to do only ONCE.*/
@@ -1830,7 +1793,7 @@ static int32_t wp_bri_config(void *pfe)
 	WAN_LIST_INIT(&fe->event);
 	/* wan_spin_lock_init(&fe->lock, "wp_bri_lock"); FIXME: 'lock' is not there, but what is there? */
 
-	card->hw_iface.getcfg(card->hw, SDLA_HWPORTREG, &physical_module_config_counter);
+	card->hw_iface.getcfg(card->hw, SDLA_HWLINEREG, &physical_module_config_counter);
 
 	bri_module->fe = fe;
 
@@ -1988,7 +1951,7 @@ static int32_t wp_bri_unconfig(void *pfe)
 	bri_module = &bri->mod[mod_no];
 	port_ptr   = &bri_module->port[port_no];
 
-	card->hw_iface.getcfg(card->hw, SDLA_HWPORTREG, &physical_module_config_counter);
+	card->hw_iface.getcfg(card->hw, SDLA_HWLINEREG, &physical_module_config_counter);
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
@@ -2131,12 +2094,7 @@ static void l1_timer_start_t3(void *pport)
 
 		DEBUG_HFC_S0_STATES("Starting T3 timer...\n");
 
-#if defined(__WINDOWS__)
-		/* delay is in MS, so it can be used directly by wan_add_timer() */
-		wan_add_timer(&port_ptr->t3_timer, XHFC_TIMER_T3);
-#else	
 		wan_add_timer(&port_ptr->t3_timer, (XHFC_TIMER_T3 * HZ) / 1000);
-#endif
 	}
 }
 
@@ -2243,12 +2201,7 @@ static void l1_timer_start_t4(void *pport)
 
 		wan_set_bit(HFC_L1_DEACTTIMER, &port_ptr->l1_flags);
 
-#if defined(__WINDOWS__)
-		/* delay is in MS, so it can be used directly by wan_add_timer() */
-		wan_add_timer(&port_ptr->t4_timer, XHFC_TIMER_T4);
-#else	
 		wan_add_timer(&port_ptr->t4_timer, (XHFC_TIMER_T4 * HZ) / 1000);
-#endif
 	}
 }
 
@@ -2406,7 +2359,8 @@ static void bri_enable_interrupts(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 static int wp_bri_disable_fe_irq(void *pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
-	u32 mod_no, port_no;
+	u32 mod_no;
+	u8  port_no;
 
 	mod_no = fe_line_no_to_physical_mod_no(fe);	
 	port_no = fe_line_no_to_port_no(fe);
@@ -2587,28 +2541,29 @@ static int32_t wp_bri_polling(sdla_fe_t* fe)
 *******************************************************************************/
 static int32_t wp_bri_udp(sdla_fe_t *fe, void* p_udp_cmd, u8* data)
 {
-	int32_t		err = -EINVAL;
+	wan_cmd_t		*udp_cmd = (wan_cmd_t*)p_udp_cmd;
+	wan_femedia_t		*fe_media;
+	sdla_fe_timer_event_t	event;
 
 	BRI_FUNC();
-#if 0
-	wan_cmd_t	*udp_cmd = (wan_cmd_t*)p_udp_cmd;
-
+	memset(&event, 0, sizeof(sdla_fe_timer_event_t));
 	switch(udp_cmd->wan_cmd_command){
-	case WAN_FE_REGDUMP:
-		err = wp_bri_regdump(fe, data);
-		if (err){
-			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-			udp_cmd->wan_cmd_data_len = (u16)err; 
+		case WAN_GET_MEDIA_TYPE:
+                fe_media = (wan_femedia_t*)data;
+                memset(fe_media, 0, sizeof(wan_femedia_t));
+                fe_media->media         = fe->fe_cfg.media;
+                fe_media->sub_media     = fe->fe_cfg.sub_media;
+                fe_media->chip_id       = 0x00;
+                fe_media->max_ports     = 1;
+                udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+                udp_cmd->wan_cmd_data_len = sizeof(wan_femedia_t);
+                break;
+		default:
+			udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
+				udp_cmd->wan_cmd_data_len = 0;
+			break;
 		}
-		break;
-
-	default:
-		udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
-	    	udp_cmd->wan_cmd_data_len = 0;
-		break;
-	}
-#endif
-	return err;
+	return 0;
 }
 
 /******************************************************************************
@@ -2645,15 +2600,15 @@ static int bchan_loopback_control(sdla_fe_t *fe, u8 bchan_no, u8 loopback_enable
 	port_ptr = &bri_module->port[port_no];
 
 
-        DEBUG_LOOPB("%s()\n", __FUNCTION__);
+	DEBUG_LOOPB("%s()\n", __FUNCTION__);
 
-        if (!((bchan_no == 0) || (bchan_no == 1))) {
-                DEBUG_LOOPB("%s %s(): port_no(%i) ERROR: bchan_no(%i) invalid!\n",
+    if (!((bchan_no == 0) || (bchan_no == 1))) {
+		DEBUG_LOOPB("%s %s(): port_no(%i) ERROR: bchan_no(%i) invalid!\n",
                        fe->name, __FUNCTION__, port_no, bchan_no);
-                return 1;
-        }
+		return 1;
+	}
 
-        DEBUG_LOOPB("%s %s(): %s loopback, port_no(%i), bchan_no(%i)\n",
+    DEBUG_LOOPB("%s %s(): %s loopback, port_no(%i), bchan_no(%i)\n",
 		fe->name, __FUNCTION__,
 		(loopback_enable) ? ("enable") : ("disable"), port_no, bchan_no);
 
@@ -2707,7 +2662,7 @@ static int bchan_loopback_control(sdla_fe_t *fe, u8 bchan_no, u8 loopback_enable
 static int wp_bri_control(sdla_fe_t *fe, u32 command)
 {
 	u8			mod_no, port_no;
-	int			rc = 0;
+	int			rc;
 	sdla_bri_param_t	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
 	bri_xhfc_port_t		*port_ptr;
@@ -2725,22 +2680,22 @@ static int wp_bri_control(sdla_fe_t *fe, u32 command)
 	{
 	case HFC_L1_ENABLE_LOOP_B1:
 		DEBUG_LOOPB("HFC_L1_ENABLE_LOOP_B1\n");
-		bchan_loopback_control(fe, 0, 1);
+		rc = bchan_loopback_control(fe, 0, 1);
 		break;
 
 	case HFC_L1_ENABLE_LOOP_B2:
 		DEBUG_LOOPB("HFC_L1_ENABLE_LOOP_B2\n");
-		bchan_loopback_control(fe, 1, 1);
+		rc = bchan_loopback_control(fe, 1, 1);
 		break;
 
 	case HFC_L1_DISABLE_LOOP_B1:
 		DEBUG_LOOPB("HFC_L1_DISABLE_LOOP_B1\n");
-		bchan_loopback_control(fe, 0, 0);
+		rc = bchan_loopback_control(fe, 0, 0);
 		break;
 
 	case HFC_L1_DISABLE_LOOP_B2:
 		DEBUG_LOOPB("HFC_L1_DISABLE_LOOP_B2\n");
-		bchan_loopback_control(fe, 1, 0);
+		rc = bchan_loopback_control(fe, 1, 0);
 		break;
 
 	default:
@@ -2871,7 +2826,6 @@ static int wp_bri_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 	return err;
 }
 
-#if defined(AFT_TDM_API_SUPPORT)
 /******************************************************************************
 *			wp_bri_watchdog()	
 *
@@ -2879,10 +2833,9 @@ static int wp_bri_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 * Arguments: mod_no -  Module number (1,2,3,... MAX_REMORA_MODULES)
 * Returns:
 ******************************************************************************/
+#if 0
 static int32_t wp_bri_watchdog(sdla_fe_t *fe)
 {
-	int32_t	mod_no;
-
 	BRI_FUNC();
 	
 	return 0;
@@ -3348,13 +3301,8 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 							card->devname, BRI_DCHAN_LOGIC_CHAN);
 					break;
 				}
-#if defined(__WINDOWS__)
-				bri_dchan_rx_enqueue(chan, wan_skb_data(skb), wan_skb_len(skb));
-				wan_skb_free(skb);
-#else
 				wan_skb_queue_tail(&chan->wp_rx_bri_dchan_complete_list, skb);
 				WAN_TASKLET_SCHEDULE((&chan->common.bh_task));
-#endif
 			}
 
 		}/* if ( fifo_irq & (1 << (port_no*8+5)) ) */

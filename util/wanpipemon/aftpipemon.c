@@ -42,16 +42,10 @@
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_aft_te1.h>
-#else
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanpipe.h>
-# include <sdla_aft_te1.h>
 #endif
+
+#include "wanpipe_api.h"
+
 #include "fe_lib.h"
 #include "wanpipemon.h"
 
@@ -405,29 +399,29 @@ static void operational_stats (void)
 		BANNER("AFT OPERATIONAL STATISTICS");
 		stats = (aft_op_stats_t *)&wan_udp.wan_udphdr_data[0];
  
-		printf(    "             Number of frames transmitted:   %lu",
+		printf(    "             Number of frames transmitted:   %u",
 				stats->Data_frames_Tx_count);
-		printf(  "\n              Number of bytes transmitted:   %lu",
+		printf(  "\n              Number of bytes transmitted:   %u",
 				stats->Data_bytes_Tx_count);
-		printf(  "\n                      Transmit Throughput:   %lu",
+		printf(  "\n                      Transmit Throughput:   %u",
 				stats->Data_Tx_throughput);
-		printf(  "\n Transmit frames discarded (length error):   %lu",
+		printf(  "\n Transmit frames discarded (length error):   %u",
 				stats->Tx_Data_discard_lgth_err_count);
-		printf(  "\n                Transmit frames realigned:   %lu",
+		printf(  "\n                Transmit frames realigned:   %u",
 				stats->Data_frames_Tx_realign_count);
 
 
-		printf("\n\n                Number of frames received:   %lu",
+		printf("\n\n                Number of frames received:   %u",
 				stats->Data_frames_Rx_count);
-		printf(  "\n                 Number of bytes received:   %lu",
+		printf(  "\n                 Number of bytes received:   %u",
 				stats->Data_bytes_Rx_count);
-		printf(  "\n                       Receive Throughput:   %lu",
+		printf(  "\n                       Receive Throughput:   %u",
 				stats->Data_Rx_throughput);
-		printf(  "\n    Received frames discarded (too short):   %lu",
+		printf(  "\n    Received frames discarded (too short):   %u",
 				stats->Rx_Data_discard_short_count);
-		printf(  "\n     Received frames discarded (too long):   %lu",
+		printf(  "\n     Received frames discarded (too long):   %u",
 				stats->Rx_Data_discard_long_count);
-		printf(  "\nReceived frames discarded (link inactive):   %lu",
+		printf(  "\nReceived frames discarded (link inactive):   %u",
 				stats->Rx_Data_discard_inactive_count);
 
 
@@ -451,17 +445,6 @@ static void flush_operational_stats( void )
 	DO_COMMAND(wan_udp);
 #endif
 }; /* flush_operational_stats */
-
-
-static void wp_span_debugging( unsigned char toggle ) 
-{
-	wan_udp.wan_udphdr_command= WANPIPEMON_CHAN_SEQ_DEBUGGING;
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 1;
-	wan_udp.wan_udphdr_data[0] = toggle;
-	DO_COMMAND(wan_udp);
-}; /* flush_operational_stats */
-
 
 
 int AFTDisableTrace(void)
@@ -700,9 +683,6 @@ loop_rx_exit:
 }
 
 extern int mtp2_msu_only;
-extern int trace_only_diff;
-extern int trace_rx_only;
-extern int trace_tx_only;
 extern wanpipe_hdlc_engine_t *rx_hdlc_eng;  
 wp_trace_output_iface_t hdlc_trace_iface;
 
@@ -738,8 +718,6 @@ static int trace_aft_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int 
 	return 0;	
 }
 
-static int previous_trace_len=0;
-static int previous_trace_data[5000];
 
 static void line_trace(int trace_mode) 
 {
@@ -803,7 +781,7 @@ static void line_trace(int trace_mode)
 		     
 			num_frames = wan_udp.wan_udphdr_aft_num_frames;
 
-		     	for ( i = 0; i < num_frames; i++) {
+		   	for ( i = 0; i < num_frames; i++) {
 				trace_pkt= (wan_trace_pkt_t *)&wan_udp.wan_udphdr_data[curr_pos];
 	
 				/*  frame type */
@@ -818,7 +796,14 @@ static void line_trace(int trace_mode)
 					} else if (trace_pkt->status & 0x40) {
 						trace_iface.status |= WP_TRACE_OVERRUN;
 					}
-				}
+		   		}
+
+#if 0
+        if (trace_pkt->real_length != 4800){
+          printf("Trace Len = %i Num frames =%i  Current=%i status=0x%X\n",trace_pkt->real_length,num_frames,i, trace_pkt->status);
+          continue;
+        }
+#endif
 
 				trace_iface.len = trace_pkt->real_length;
 				trace_iface.timestamp=trace_pkt->time_stamp;
@@ -856,12 +841,6 @@ static void line_trace(int trace_mode)
 				hdlc_trace_iface.data = trace_iface.data;
 				hdlc_trace_iface.len = trace_iface.len;
 
-				if (trace_rx_only && (trace_iface.status & WP_TRACE_OUTGOING)) {
-					continue;
-				}
-				if (trace_tx_only && !(trace_iface.status & WP_TRACE_OUTGOING)) {
-					continue;
-				}
 
 				/*
 				if (raw_data) {
@@ -874,27 +853,12 @@ static void line_trace(int trace_mode)
 					wanpipe_hdlc_decode(rx_hdlc_eng,trace_iface.data,trace_iface.len);
 					continue;		
 				} 
-	
-				if (mtp2_msu_only) {
-					if (trace_iface.data[2] < 3) {
-						continue;
-					}
-				}			
 
-				if (trace_only_diff) { 
-					if (trace_iface.len == previous_trace_len) {
-						int err=memcmp(trace_iface.data,previous_trace_data,trace_iface.len);
-						if (err == 0) {
-							continue;
-						}	
-					}
-					previous_trace_len=trace_iface.len;
-					memcpy(previous_trace_data,trace_iface.data,trace_iface.len);
-				}
-
-
-			       	if (pcap_output){
+			  if (pcap_output){
 					trace_iface.type=WP_OUT_TRACE_PCAP;
+				}
+			  if (trace_binary){
+					trace_iface.type=WP_OUT_TRACE_BIN;
 				}
 				/*
 				else{
@@ -965,12 +929,17 @@ static int aft_remora_tones(int mod_no)
 {
 	int	cnt = 0;
 	char	ch;
+	wan_remora_udp_t        *rm_udp;
+
 	/* Disable trace to ensure that the buffers are flushed */
 	wan_udp.wan_udphdr_command	= WAN_FE_TONES;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 	wan_udp.wan_udphdr_data_len	= 2;
-	wan_udp.wan_udphdr_data[0]	= mod_no;
-	wan_udp.wan_udphdr_data[1]	= 1;
+
+	rm_udp = (wan_remora_udp_t *)get_wan_udphdr_data_ptr(0);
+	rm_udp->mod_no 	= mod_no;
+	rm_udp->type	= 1;
+
 	DO_COMMAND(wan_udp);
 
 	if (wan_udp.wan_udphdr_return_code) { 
@@ -985,8 +954,11 @@ tone_stop_again:
 	wan_udp.wan_udphdr_command	= WAN_FE_TONES;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 	wan_udp.wan_udphdr_data_len	= 2;
-	wan_udp.wan_udphdr_data[0]	= mod_no;
-	wan_udp.wan_udphdr_data[1]	= 0;
+
+	rm_udp = (wan_remora_udp_t *)get_wan_udphdr_data_ptr(0);
+	rm_udp->mod_no 	= mod_no;
+	rm_udp->type	= 0;
+
 	DO_COMMAND(wan_udp);
 
 	if (wan_udp.wan_udphdr_return_code) {
@@ -1006,13 +978,17 @@ static int aft_remora_ring(int mod_no)
 {
 	int	cnt=0;
 	char	ch;
+	wan_remora_udp_t        *rm_udp;
 
 	/* Enable A200/A400 Ring event */
 	wan_udp.wan_udphdr_command	= WAN_FE_RING;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 	wan_udp.wan_udphdr_data_len	= 2;
-	wan_udp.wan_udphdr_data[0]	= mod_no;
-	wan_udp.wan_udphdr_data[1]	= 1;
+
+	rm_udp = (wan_remora_udp_t *)get_wan_udphdr_data_ptr(0);
+	rm_udp->mod_no 	= mod_no;
+	rm_udp->type	= 1;
+
 	DO_COMMAND(wan_udp);
 
 	if (wan_udp.wan_udphdr_return_code) { 
@@ -1028,8 +1004,11 @@ ring_stop_again:
 	wan_udp.wan_udphdr_command	= WAN_FE_RING;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 	wan_udp.wan_udphdr_data_len	= 2;
-	wan_udp.wan_udphdr_data[0]	= mod_no;
-	wan_udp.wan_udphdr_data[1]	= 0;
+
+	rm_udp = (wan_remora_udp_t *)get_wan_udphdr_data_ptr(0);
+	rm_udp->mod_no 	= mod_no;
+	rm_udp->type	= 0;
+
 	DO_COMMAND(wan_udp);
 
 	if (wan_udp.wan_udphdr_return_code) { 
@@ -1051,7 +1030,7 @@ static int aft_remora_regdump(int mod_no)
 	wan_remora_udp_t	*rm_udp;
 	int			reg;
 
-	rm_udp = (wan_remora_udp_t *)&wan_udp.wan_udphdr_data[0];
+	rm_udp = (wan_remora_udp_t *)get_wan_udphdr_data_ptr(0);
 	rm_udp->mod_no = mod_no;
 	wan_udp.wan_udphdr_command	= WAN_FE_REGDUMP;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
@@ -1063,7 +1042,7 @@ static int aft_remora_regdump(int mod_no)
 		fflush(stdout);
 		return 0;
 	}
-	rm_udp = (wan_remora_udp_t *)&wan_udp.wan_udphdr_data[0];
+	rm_udp = (wan_remora_udp_t *)get_wan_udphdr_data_ptr(0);
 	printf("\t------- Direct registers (%s,port %d) -------\n",
 					WP_REMORA_DECODE_TYPE(rm_udp->type),
 					rm_udp->mod_no);
@@ -1104,19 +1083,21 @@ static int aft_remora_stats(int mod_no)
 {
 	wan_remora_udp_t	*rm_udp;
 
-	rm_udp = (wan_remora_udp_t *)&wan_udp.wan_udphdr_data[0];
+	rm_udp = (wan_remora_udp_t *)get_wan_udphdr_data_ptr(0);
 	rm_udp->mod_no = mod_no;
 	wan_udp.wan_udphdr_command	= WAN_FE_STATS;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 	wan_udp.wan_udphdr_data_len	= sizeof(wan_remora_udp_t);
-	DO_COMMAND(wan_udp);
 
+	DO_COMMAND(wan_udp);
+	
 	if (wan_udp.wan_udphdr_return_code || !wan_udp.wan_udphdr_data_len) { 
 		printf("Failed to get voltage stats!\n"); 
 		fflush(stdout);
 		return 0;
 	}
-	rm_udp = (wan_remora_udp_t *)&wan_udp.wan_udphdr_data[0];
+
+	rm_udp = (wan_remora_udp_t *)get_wan_udphdr_data_ptr(0);
 	if (rm_udp->type == MOD_TYPE_FXS){
 		printf("\t------- Voltage Status  (%s,port %d) -------\n\n",
 					WP_REMORA_DECODE_TYPE(rm_udp->type),
@@ -1199,16 +1180,20 @@ int AFTUsage(void)
 	printf("\t             dplb    Deactive Payload Loopback mode (T1/E1 cards)\n");  
 	printf("\t             adlb    Active Diagnostic Digital Loopback mode (T1/E1 cards)\n");  
 	printf("\t             ddlb    Deactive Diagnostic Digital Loopback mode (T1/E1 cards)\n");  
-	printf("\t             salb    Send Loopback Activate Code (T1/E1 PMC card only)\n");  
-	printf("\t             sdlb    Send Loopback Deactive Code (T1/E1 PMC card only)\n");  
+	printf("\t             salb    Send Loopback Activate Code (T1/E1 cards)\n");  
+	printf("\t             sdlb    Send Loopback Deactive Code (T1/E1 cards)\n");  
+	printf("\t             saplb   Send Payload Loopback Activate Code (T1/E1 cards)\n");  
+	printf("\t             sdplb   Send Payload Loopback Deactive Code (T1/E1 cards)\n");  
 	printf("\t             alalb   Active LIU Analog Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             dlalb   Deactive LIU Analog Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             alllb   Active LIU Local Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             dlllb   Deactive LIU Local Loopback mode (T1/E1 DM card only)\n");  
+	printf("\t             alrlb   Active LIU Remote Loopback mode (T1/E1 DM card only)\n");  
+	printf("\t             dlrlb   Deactive LIU Remote Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             aldlb   Active LIU Dual Loopback mode (T1/E1 DM card only)\n");  
 	printf("\t             dldlb   Deactive LIU Dual Loopback mode (T1/E1 DM card only)\n");
-	printf("\t             allb3   Active Analog Local Loopback mode (DS3/E3 cards)\n");  
-	printf("\t             dllb3   Deactive Analog Local Loopback mode (DS3/E3 cards)\n");  
+	printf("\t             allb3   Active Analog Loopback mode (DS3/E3 cards)\n");  
+	printf("\t             dllb3   Deactive Analog Loopback mode (DS3/E3 cards)\n");  
 	printf("\t             arlb3   Active Remote Loopback mode (DS3/E3 cards)\n");  
 	printf("\t             drlb3   Deactive Remote Loopback mode (DS3/E3 cards)\n");  
 	printf("\t             adlb3   Active Digital Loopback mode (DS3/E3 cards)\n");  
@@ -1245,19 +1230,19 @@ int AFTUsage(void)
 
 static void aft_router_up_time( void )
 {
-     	u_int32_t time;
-     
-     	wan_udp.wan_udphdr_command= ROUTER_UP_TIME;
+	u_int32_t time;
+	
+	wan_udp.wan_udphdr_command= ROUTER_UP_TIME;
 	wan_udp.wan_udphdr_return_code = 0xaa;
-     	wan_udp.wan_udphdr_data_len = 0;
-     	wan_udp.wan_udphdr_data[0] = 0;
-     	DO_COMMAND(wan_udp);
-    
-     	time = *(u_int32_t*)&wan_udp.wan_udphdr_data[0];
+	wan_udp.wan_udphdr_data_len = 0;
+	wan_udp.wan_udphdr_data[0] = 0;
+	DO_COMMAND(wan_udp);
+	
+	time = *(u_int32_t*)&wan_udp.wan_udphdr_data[0];
 	
 	BANNER("ROUTER UP TIME");
-
-        print_router_up_time(time);
+	
+	print_router_up_time(time);
 }
 
 static void read_ft1_te1_56k_config (void)
@@ -1291,10 +1276,60 @@ static void read_ft1_te1_56k_config (void)
 	return;
 }
 
+static u_int32_t parse_channel_arg(int argc, char* argv[])
+{
+	u_int32_t	chan_map = 0x00;
+	int		argi = 0, chan;
+
+	for(argi = 1; argi < argc; argi++){
+
+		char *parg = argv[argi], *param;
+
+		if (strcmp(parg, "--chan") == 0){
+
+			if (argi + 1 >= argc ){
+				printf("ERROR: Channel argument is missing!\n");
+				return ENABLE_ALL_CHANNELS;
+			}
+
+			param 	= argv[argi+1];
+			chan_map= 0x00;
+			if (strcasecmp(param,"all") == 0){
+				return ENABLE_ALL_CHANNELS;
+			}else{
+				char	chan[10];
+				int	i, j = 0, len=strlen(param);
+				int	start_ch = 0, stop_ch = 0, range = 0;
+			
+				for(i = 0; i < len; i++){
+					if (param[i] == '-'){
+						range = 1;
+						start_ch = atoi(chan);
+						j = 0;
+						continue;
+					}
+					chan[j++] = param[i];
+				}
+				if (!range){
+					start_ch = atoi(chan);
+				}
+				stop_ch = atoi(chan);
+				chan_map = 0x00;
+				for(i = stop_ch; i >= start_ch; i--){
+					chan_map |= (0x01 << i);
+				}
+			}
+			return chan_map;
+		}
+	}
+	return ENABLE_ALL_CHANNELS;
+}
+
 int AFTMain(char *command,int argc, char* argv[])
 {
 	char		*opt=&command[1];
-	int		mod_no = 0, i, err = 0;
+	int		mod_no = 0, i, err=0;
+	u_int32_t	chan_map;
 	sdla_fe_debug_t	fe_debug;
 			
 	switch(command[0]){
@@ -1377,6 +1412,13 @@ int AFTMain(char *command,int argc, char* argv[])
  				aft_digital_loop_test();
 			}else if (!strcmp(opt,"lb")){
 				get_lb_modes(0);
+			}else if (!strcmp(opt,"apclb")){
+				chan_map = parse_channel_arg(argc, argv);
+				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_ENABLE);
+				set_lb_modes_per_chan(WAN_TE1_PCLB_MODE, WAN_TE1_LB_ENABLE, chan_map);
+			}else if (!strcmp(opt,"dpclb")){
+				chan_map = parse_channel_arg(argc, argv);
+				set_lb_modes_per_chan(WAN_TE1_PCLB_MODE, WAN_TE1_LB_DISABLE, chan_map);
 			}else if (!strcmp(opt,"allb")){
 				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dllb")){
@@ -1393,6 +1435,10 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_lb_modes(WAN_TE1_TX_LINELB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"sdlb")){
 				set_lb_modes(WAN_TE1_TX_LINELB_MODE, WAN_TE1_LB_DISABLE);
+			}else if (!strcmp(opt,"saplb")){
+				set_lb_modes(WAN_TE1_TX_PAYLB_MODE, WAN_TE1_LB_ENABLE);
+			}else if (!strcmp(opt,"sdplb")){
+				set_lb_modes(WAN_TE1_TX_PAYLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"alalb")){
 				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dlalb")){
@@ -1516,12 +1562,6 @@ int AFTMain(char *command,int argc, char* argv[])
 					fe_debug.fe_debug_reg.value = value;
 				}
 				set_fe_debug_mode(&fe_debug);
-
-			}else if (!strcmp(opt,"e_span_seq")){
-				wp_span_debugging(1);
-			}else if (!strcmp(opt,"d_span_seq")){
-				wp_span_debugging(0);
-
 			}else{
 				printf("ERROR: Invalid Status Command 'd', Type wanpipemon <cr> for help\n\n");
 			}

@@ -24,18 +24,20 @@
 #ifndef	__SDLA_BRI_H
 # define __SDLA_BRI_H
 
-#if defined(__LINUX__)
-# include <linux/xhfc24succ.h>
-#else
-# include <xhfc24succ.h>
-#endif
+
+#include "xhfc24succ.h"
 
 /*******************************************************************************
 **			  DEFINES and MACROS
 *******************************************************************************/
 
 #define IS_BRI_CARD(card)		IS_BRI_FEMEDIA(&(card)->fe)
-#define IS_BRI_CLK(card)		card->fe.fe_cfg.cfg.bri.clock_mode
+
+#define BRI_FE_CFG(fe_cfg)		(fe_cfg.cfg.bri)
+
+#define BRI_FE_CLK(fe_cfg)		BRI_FE_CFG(fe_cfg).clock_mode
+
+#define BRI_CARD_CLK(card)		BRI_FE_CLK(card->fe.fe_cfg)
 
 #define WAN_BRI_START_CHANNEL		1
 
@@ -50,6 +52,7 @@
 #define MAX_BRI_MODULES			12
 #define MAX_BRI_CHANNELS		2	/* Number of channels per device */
 #define MAX_BRI_LINES			(MAX_BRI_MODULES*MAX_BRI_CHANNELS)
+#define A700_MAX_BRI_LINES		4
 
 /*	
 	The maximum number of BRI timeslots is 32.

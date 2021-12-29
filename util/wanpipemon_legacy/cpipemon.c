@@ -22,9 +22,11 @@
 /******************************************************************************
  * 			INCLUDE FILES					      *
  *****************************************************************************/
+
 #include <stdio.h>
 #include <stddef.h>	/* offsetof(), etc. */
 #include <ctype.h>
+#include <time.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -39,24 +41,23 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+
 #if defined(__LINUX__)
 # include <linux/version.h>
 # include <linux/types.h>
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_chdlc.h>
-#else
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanpipe.h>
-# include <sdla_chdlc.h>
 #endif
+
+#include "wanpipe_defines.h"
+#include "wanpipe_cfg.h"
+#include "wanpipe.h"
+#include "sdla_chdlc.h"
+
 #include "fe_lib.h"
 #include "wanpipemon.h"
+#include "wanpipe_sppp_iface.h"
 
 
 /******************************************************************************

@@ -16,36 +16,22 @@
  ******************************************************************************
 			   INCLUDE FILES
  ******************************************************************************
-*/ 
+*/
 
-#if (defined __FreeBSD__) | (defined __OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe_common.h>
-# include <wanpipe.h>
-# include <wanpipe_codec.h>
-#elif (defined __WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe.h>
-# include <wanpipe_codec.h>
 
-#define __init
-#define inline __inline
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe.h"
+#include "wanpipe_codec.h"
 
-#define DBG_LAW	if(1)DbgPrint
 
-#else
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanpipe_common.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_tdmv.h>
-# include <linux/wanpipe_codec.h>
+#if (defined __WINDOWS__)
+# define __init
+# define inline __inline
+# define DBG_LAW	if(1)DbgPrint
 #endif
-
 
 
 /* MULAW table */

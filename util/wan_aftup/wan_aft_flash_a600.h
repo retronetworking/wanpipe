@@ -1,6 +1,9 @@
 #ifndef __WAN_AFT_FLASH_A600_H__
 #define __WAN_AFT_FLASH_A600_H__
 
+#if defined(__WINDOWS__)
+# include "wanpipe_time.h"	/* usleep() */
+#endif
 
 
 #define M25P40_COMMAND_WREN      0x06 /* write enable */
@@ -37,6 +40,7 @@
 
 #define MAX_RETRIES 2000
 #define M25P40_FLASH_SIZE 524288
+
 
 #define ST_FLASH_DELAY usleep(5);
 

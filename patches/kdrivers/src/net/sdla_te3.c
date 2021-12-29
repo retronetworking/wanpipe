@@ -23,26 +23,14 @@
 **			   INCLUDE FILES
 ******************************************************************************/
 
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-#  include <wanpipe_snmp.h>
-# endif
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanproc.h>
-# include <wanpipe.h>	/* WANPIPE common user API definitions */
-# include <sdla_te3_reg.h>
-#elif (defined __LINUX__) || (defined __KERNEL__)
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanproc.h>
-# include <linux/sdla_te3_reg.h>
-# include <linux/wanpipe.h>	/* WANPIPE common user API definitions */
-#else
-# error "No OS Defined"
-#endif
+
+# include "wanpipe_includes.h"
+# include "wanpipe_defines.h"
+# include "wanpipe_debug.h"
+# include "wanproc.h"
+# include "sdla_te3_reg.h"
+# include "wanpipe.h"
+
 
 /******************************************************************************
 **			  DEFINES AND MACROS
@@ -217,67 +205,39 @@ static int sdla_te3_set_status(sdla_fe_t *fe)
 		}
 	}else if (IS_E3(&fe->fe_cfg)){
 		if (IS_E3_ALARM(fe->fe_alarm)){
-
 			if (fe->fe_status != FE_DISCONNECTED){
 				fe->fe_param.te3.e3_connect_delay=0;
 
 				if (fe->fe_param.te3.e3_lb_ctrl == 1) {
-					fe->fe_param.te3.e3_lb_ctrl=2;
-				} else if (fe->fe_param.te3.e3_lb_ctrl == 3) {
-					fe->fe_param.te3.e3_lb_ctrl=4;
+					fe->fe_param.te3.e3_lb_ctrl = 2;
+				} else {
+					sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_ENABLE);
+					fe->fe_param.te3.e3_lb_ctrl=0;
 				}
+				//sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
 
 				DEBUG_EVENT("%s: E3 disconnected! State=%i\n",
 						fe->name,fe->fe_param.te3.e3_lb_ctrl);
 				fe->fe_status = FE_DISCONNECTED;
-			} else {
-
-				if (fe->fe_param.te3.e3_lb_ctrl==2) {
-					fe->fe_param.te3.e3_connect_delay++;
-					DEBUG_EVENT("%s: Waiting for link up %i/8...!\n", 
-								fe->name,fe->fe_param.te3.e3_connect_delay);
-					if (fe->fe_param.te3.e3_connect_delay >= 8) {
-						DEBUG_EVENT("%s: Link Up Timeout - Link in loopback!\n", fe->name);
-						sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
-						fe->fe_param.te3.e3_lb_ctrl=4;
-						fe->fe_param.te3.e3_connect_delay=0;
-					}
-				}
 			}
-
 		}else{
 
 			if (fe->fe_status != FE_CONNECTED){
+
 				fe->fe_param.te3.e3_connect_delay++;
-			  	if (fe->fe_param.te3.e3_connect_delay >= 5) {
+				if (fe->fe_param.te3.e3_connect_delay >= 5) {
 					fe->fe_param.te3.e3_connect_delay=0;
 
 					if (fe->fe_param.te3.e3_lb_ctrl == 0) {
 						fe->fe_param.te3.e3_lb_ctrl=1;
-						sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_ENABLE);
-					} else if (fe->fe_param.te3.e3_lb_ctrl == 2) {
-						fe->fe_param.te3.e3_lb_ctrl = 3;
 						sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
-					} else {
-						fe->fe_param.te3.e3_lb_ctrl = 0;
 					}
 
 					DEBUG_EVENT("%s: E3 connected! State=%i\n",
 							fe->name,fe->fe_param.te3.e3_lb_ctrl);
 					fe->fe_status = FE_CONNECTED;
-			   	} 
-			} else { 
-				if (fe->fe_param.te3.e3_lb_ctrl==1) {
-					fe->fe_param.te3.e3_connect_delay++;
-					DEBUG_EVENT("%s: Waiting for link down %i/10...!\n", 
-						fe->name,fe->fe_param.te3.e3_connect_delay);
-					if (fe->fe_param.te3.e3_connect_delay > 10) {
-						sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
-						fe->fe_param.te3.e3_lb_ctrl = 3;
-						fe->fe_param.te3.e3_connect_delay=0;
-					}
 				}
-		  	}
+			}
 			
 		}
 	}else{
@@ -903,6 +863,7 @@ static u32 sdla_te3_get_lb(sdla_fe_t *fe)
 	return type;
 }
 
+
 /******************************************************************************
 *				sdla_te3_udp_lb()	
 *
@@ -949,9 +910,9 @@ static int sdla_te3_udp_lb(sdla_fe_t *fe, unsigned char *data)
  */
 static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 {
-	wan_femedia_t		*fe_media = NULL;
+	wan_femedia_t	*fe_media = NULL;
 	sdla_fe_debug_t	*fe_debug = NULL;
-	wan_cmd_t		*udp_cmd = (wan_cmd_t*)pudp_cmd;
+	wan_cmd_t	*udp_cmd = (wan_cmd_t*)pudp_cmd;
 
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
@@ -1030,6 +991,8 @@ static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 	return 0;
 }
 
+#if 0
+/* No using interrupts */
 static int sdla_te3_set_intr(sdla_fe_t *fe)
 {
 	sdla_fe_cfg_t	*fe_cfg = &fe->fe_cfg;
@@ -1083,7 +1046,7 @@ static int sdla_te3_set_intr(sdla_fe_t *fe)
 
 	return 0;
 }
-
+#endif
 
 /******************************************************************************
  *				sdla_te3_liu_config()	
@@ -1340,6 +1303,10 @@ static int sdla_te3_config(void *p_fe)
 	data |= BIT_IO_CONTROL_RxLINECLK;
 	WRITE_REG(REG_IO_CONTROL, data);
 
+	if (IS_E3(&fe->fe_cfg)){
+		sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_ENABLE);
+	}
+
 	fe->fe_param.te3.e3_lb_ctrl=0;
 	fe->fe_param.te3.e3_connect_delay=10;
 
@@ -1350,7 +1317,10 @@ static int sdla_te3_config(void *p_fe)
 					fe->name, FE_MEDIA_DECODE(fe));
 	sdla_te3_read_alarms(fe, 1);
 
-	//sdla_te3_set_intr(fe);
+	/* No using interrupts, only polling */
+#if 0
+	sdla_te3_set_intr(fe);
+#endif
 	return 0;
 }
 
@@ -1364,13 +1334,7 @@ static int sdla_te3_add_timer(sdla_fe_t* fe, unsigned long delay)
 		return 0;
 	}
 
-#if defined(__WINDOWS__)
-	/* delay is in MS, so it can be used directly by wan_add_timer() */
-	err = wan_add_timer(&fe->timer, delay);
-#else	
 	err = wan_add_timer(&fe->timer, delay * HZ / 1000);
-#endif
-
 	if (err){
 		/* Failed to add timer */
 		return -EINVAL;

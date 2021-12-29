@@ -1,26 +1,26 @@
 /*************************************************************************
-* wanpipe_cfg_def.h							 *
-*									 *
-*	WANPIPE(tm)	Wanpipe Global configuration defines 		 *
-*									 *
-* Author:	Alex Feldman <al.feldman@sangoma.com>			 *
-*========================================================================*
-* Aug 27, 2008	Alex Feldman	Initial version				 *
-*									 *
+* wanpipe_cfg_def.h														*
+*																		*
+*	WANPIPE(tm)	Wanpipe Global configuration defines 					*
+*																		*
+* Author:	Alex Feldman <al.feldman@sangoma.com>						*
+*=======================================================================*
+* Aug 27, 2008	Alex Feldman	Initial version							*
+*																		*
 *************************************************************************/
 
 #ifndef __WANPIPE_CFG_DEF_H__
 # define __WANPIPE_CFG_DEF_H__
 
 #if defined(__WINDOWS__)
-#define	WAN_IFNAME_SZ	IFNAMSIZ/* max length of the interface name */
-#define	WAN_DRVNAME_SZ	IFNAMSIZ/* max length of the link driver name */
-#define	WAN_ADDRESS_SZ	31	/* max length of the WAN media address */
+ #define	WAN_IFNAME_SZ	128		/* max length of the interface name */
 #else
-#define	WAN_IFNAME_SZ	15	/* max length of the interface name */
-#define	WAN_DRVNAME_SZ	15	/* max length of the link driver name */
-#define	WAN_ADDRESS_SZ	31	/* max length of the WAN media address */
+ #define	WAN_IFNAME_SZ	15		/* max length of the interface name */
 #endif
+
+#define	WAN_DRVNAME_SZ	WAN_IFNAME_SZ	/* max length of the link driver name */
+#define	WAN_ADDRESS_SZ	31		/* max length of the WAN media address */
+
 
 typedef enum {
     RFC_MODE_BRIDGED_ETH_LLC    = 0,
@@ -101,7 +101,8 @@ enum {
 #define WANOPT_AFT_56K		12
 #define WANOPT_AFT101		13
 #define WANOPT_AFT_SERIAL	14
-#define WANOPT_AFT600		15
+#define WANOPT_USB_ANALOG       15
+#define WANOPT_AFT600           16
 
 /*
  * Configuration options defines.
@@ -116,8 +117,8 @@ enum {
 
 /* intercace options */
 #define	WANOPT_RS232	0
-#define	WANOPT_V35		1
-#define WANOPT_X21		2
+#define	WANOPT_V35	1
+#define WANOPT_X21      3
 
 /* data encoding options */
 #define	WANOPT_NRZ	0
@@ -136,7 +137,6 @@ enum {
 /* clocking options */
 #define	WANOPT_EXTERNAL	0
 #define	WANOPT_INTERNAL	1
-#define	WANOPT_RECOVERY 2
 
 /* station options */
 #define	WANOPT_DTE		0
@@ -218,7 +218,7 @@ enum {
 #define WANOPT_NETWORK_SYNC_OUT	0x00
 #define WANOPT_NETWORK_SYNC_IN	0x01
 
-#define WAN_CLK_OUT_OSC         0x03
-#define WAN_CLK_OUT_LINE        0x04
+#define WAN_CLK_OUT_OSC		0x03
+#define WAN_CLK_OUT_LINE	0x04
 
 #endif /* __WANPIPE_CFG_DEF_H__ */

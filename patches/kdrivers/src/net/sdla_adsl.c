@@ -68,35 +68,25 @@
 **			I N C L U D E S  F I L E S			**
 **************************************************************************
 */
+
+
+#include "wanpipe_version.h"
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_abstr.h"
+#include "wanpipe.h"
+#include "if_wanpipe_common.h"
+#include "sdla_adsl.h"
+
 #if defined(__LINUX__)
-# include <linux/wanpipe_version.h>
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_abstr.h>
-# include <linux/wanpipe.h>
-# include <linux/if_wanpipe.h>
-# include <linux/if_wanpipe_common.h>
-# include <linux/wanpipe_syncppp.h>
-# include <linux/sdla_adsl.h>
-#elif defined(__WINDOWS__)
+#include "if_wanpipe.h"
+#include "wanpipe_syncppp.h"
+#endif
 
-# include <wanpipe_includes.h>
-# include <wanpipe.h>
-# include <if_wanpipe_common.h>
-# include <sdla_adsl.h>
-# include <array_queue.h>
-# include <sdladrv_private.h>
 
-#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_version.h>
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe.h>
-# include <if_wanpipe_common.h>
-# include <sdla_adsl.h>
-#else
-# error "Unsupported Operating System!"
+#if defined(__WINDOWS__)
+#include "array_queue.h"
+#include "sdladrv_private.h"	/* prototypes of global functions */
 #endif
 
 /*
@@ -104,7 +94,9 @@
 **				D E F I N E S				**
 **************************************************************************
 */
+
 #define MAX_TRACE_QUEUE		100
+
 #define MAX_TRACE_BUFFER	(MAX_LGTH_UDP_MGNT_PKT - 	\
 	sizeof(iphdr_t) - 		\
 	sizeof(udphdr_t) - 		\
@@ -142,8 +134,6 @@
 #else
 # error "Undefined LIST_FIRST_MCLIST/LIST_NEXT_MCLIST macros!"
 #endif
-
-WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
 
 enum {
 	TX_BUSY_SET
@@ -315,7 +305,9 @@ int wp_adsl_init (sdla_t* card, wandev_conf_t* conf)
 			adsl_disable_comm(card->u.adsl.adapter);
 			return err;
 		}
+#if !defined(LINUX_2_6)
 		MOD_INC_USE_COUNT;
+#endif
 	}
 #endif
 
@@ -328,6 +320,17 @@ int wp_adsl_init (sdla_t* card, wandev_conf_t* conf)
 #endif
 
 	card->wandev.state = WAN_CONNECTING;	
+
+#if defined(__WINDOWS__)
+	//connect to the Interrupt Line
+	if(connect_to_interrupt_line(card)){
+		return 1;
+	}else{
+		//at this point we can handle front end interrupts
+		card->init_flag = 0;
+	}
+#endif
+
 	return 0;
 }
 
@@ -432,7 +435,6 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 #elif defined(__LINUX__) || defined(__WINDOWS__)
 
 #if defined(__LINUX__)
-	WAN_NETDEV_OPS_BIND(ifp,wan_netdev_ops);
 	WAN_TASKQ_INIT((&adsl->common.wanpipe_task), 0, process_bh, ifp);
 #elif defined(__WINDOWS__)
 	/* # define WAN_TASKQ_INIT(task, priority, func, arg) */
@@ -440,13 +442,13 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 	WAN_TASKQ_INIT((&adsl->adsl_if_send_task), 0, adsl_if_send_task_func, ifp);
 #endif
 
-	wan_netif_set_priv(ifp, adsl);
+	ifp->priv	= adsl;
 	ifp->irq        = card->wandev.irq;
 	card->hw_iface.getcfg(card->hw, SDLA_MEMBASE, &ifp->mem_start);
 	card->hw_iface.getcfg(card->hw, SDLA_MEMEND, &ifp->mem_end);
 
-	WAN_NETDEV_OPS_OPEN(ifp,wan_netdev_ops,&adsl_open);
-	WAN_NETDEV_OPS_STOP(ifp,wan_netdev_ops,&adsl_close);
+	ifp->open               = &adsl_open;
+	ifp->stop               = &adsl_close;
 
 #if defined(__WINDOWS__)
 	ifp->hard_start_xmit    = &adsl_if_send;/* will call adsl_output() */
@@ -461,18 +463,18 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 	adsl->sdla_net_dev = ifp;
 
 #else
-	WAN_NETDEV_OPS_XMIT(ifp,wan_netdev_ops,&adsl_output);
+	ifp->hard_start_xmit    = &adsl_output;
 #endif
 
-	WAN_NETDEV_OPS_STATS(ifp,wan_netdev_ops,&adsl_stats);
+	ifp->get_stats          = &adsl_stats;
 
 #if !defined(__WINDOWS__)
-	WAN_NETDEV_OPS_SET_MULTICAST_LIST(ifp,wan_netdev_ops,&adsl_multicast);
+	ifp->set_multicast_list = &adsl_multicast;
 #endif
-	WAN_NETDEV_OPS_TIMEOUT(ifp,wan_netdev_ops,&adsl_tx_timeout);
+	ifp->tx_timeout		= &adsl_tx_timeout;
 	ifp->watchdog_timeo     = (1*HZ);
 
-	WAN_NETDEV_OPS_IOCTL(ifp,wan_netdev_ops,adsl_ioctl);
+	ifp->do_ioctl		= adsl_ioctl;
 #endif/*#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)*/
 
 	adsl->common.card	= card;
@@ -484,7 +486,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 		del_if(wandev, ifp);
 		return -EINVAL;
 	}
-#if defined(__WINDOWS__)
+#if 0//defined(__WINDOWS__)
 	//connect to the Interrupt Line
 	if(connect_to_interrupt_line(card)){
 		return 1;
@@ -588,15 +590,14 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 		}
 		ifp->tx_queue_len = 100;
 
-		WAN_NETDEV_OPS_OPEN(ifp,wan_netdev_ops,&adsl_open);
-		WAN_NETDEV_OPS_STOP(ifp,wan_netdev_ops,&adsl_close);
-		WAN_NETDEV_OPS_XMIT(ifp,wan_netdev_ops,&adsl_output);
-		WAN_NETDEV_OPS_STATS(ifp,wan_netdev_ops,&adsl_stats);
-		WAN_NETDEV_OPS_SET_MULTICAST_LIST(ifp,wan_netdev_ops,&adsl_multicast);
-		WAN_NETDEV_OPS_TIMEOUT(ifp,wan_netdev_ops,&adsl_tx_timeout);
+		ifp->open               = &adsl_open;
+		ifp->stop               = &adsl_close;
+		ifp->hard_start_xmit    = &adsl_output;
+		ifp->get_stats          = &adsl_stats;
+		ifp->set_multicast_list = &adsl_multicast;
+		ifp->tx_timeout		= &adsl_tx_timeout;
 		ifp->watchdog_timeo     = (1*HZ);
-		WAN_NETDEV_OPS_IOCTL(ifp,wan_netdev_ops,adsl_ioctl);
-
+		ifp->do_ioctl		= adsl_ioctl;
 #endif
 		break;
 #endif /* #if !defined(__WINDOWS__) */
@@ -652,7 +653,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* ifp)
 			if (adsl->common.prot_ptr){
 				wp_sppp_detach(ifp);
 
-				WAN_NETDEV_OPS_IOCTL(ifp,wan_netdev_ops,NULL);
+				ifp->do_ioctl = NULL;
 
 				wan_free(adsl->common.prot_ptr);
 				adsl->common.prot_ptr= NULL;
@@ -742,7 +743,9 @@ static void disable_comm(sdla_t* card)
 
 	if (wan){
 #if !defined(__WINDOWS__)
+#if !defined(LINUX_2_6)
 		MOD_DEC_USE_COUNT;
+#endif
 #endif
 	}
 }
@@ -815,7 +818,9 @@ static int adsl_open(netdevice_t* ifp)
 		wanpipe_lip_connect(adsl,0);
 	}
 
+#if !defined(LINUX_2_6)	
 	MOD_INC_USE_COUNT;
+#endif
 	return status;
 }
 
@@ -845,7 +850,9 @@ int adsl_close(netdevice_t* ifp)
 	/* Stop Tx queuing */
 	WAN_NETIF_STOP_QUEUE(ifp);
 	WAN_NETDEVICE_STOP(ifp);
+#if !defined(LINUX_2_6)
 	MOD_DEC_USE_COUNT;
+#endif
 	return status;
 }
 #elif defined(__WINDOWS__)
@@ -1189,7 +1196,7 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 	adsl_private_area_t*	adsl = wan_netif_priv(dev);
 	int			status = 0;
 #if defined(__LINUX__) || defined(__WINDOWS__)
-	unsigned long		smp_flags;
+	wan_smp_flag_t		smp_flags;
 #endif
 #if defined(ALTQ)
 	WAN_PKTATTR_DECL(pktattr);
@@ -1838,6 +1845,7 @@ static int adsl_ioctl(netdevice_t* ifp, struct ifreq *ifr, int command)
 
 			wan_atomic_set(&adsl->udp_pkt_len,0);
 			break;
+
 #endif
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -2066,6 +2074,17 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* netdev, adsl_private_
 		wan_udp_pkt->wan_udp_data_len = 1;
 		break;
 
+	case WAN_GET_HW_MAC_ADDR:
+		DEBUG_UDP("WAN_GET_HW_MAC_ADDR\n");
+		{
+			int i;
+			for(i = 0; i < ETHER_ADDR_LEN; i++){
+				wan_udp_pkt->wan_udp_data[i] = chan->macAddr[i];
+			}
+		}
+		wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+		break;
+
 	default:
 		wan_udp_pkt->wan_udp_data_len = 0;
 		wan_udp_pkt->wan_udp_return_code = 0xCD;
@@ -2216,6 +2235,7 @@ static int process_udp_cmd(netdevice_t* ifp, wan_udp_hdr_t* udp_hdr)
 	sdla_t* 		card = adsl->common.card;
 	int 			buffer_length=0;
 	adsl_trace_info_t *trace_info = adsl_get_trace_ptr(adsl->pAdapter);
+
 
 	udp_hdr->wan_udphdr_return_code=0;
 	if (card->u.adsl.adapter == NULL){
@@ -2407,7 +2427,7 @@ static int process_udp_cmd(netdevice_t* ifp, wan_udp_hdr_t* udp_hdr)
 #if defined (__LINUX__)
 static int wanpipe_attach_sppp(sdla_t *card, netdevice_t *dev, wanif_conf_t *conf)
 {
-	adsl_private_area_t *adsl=wan_netif_priv(dev);
+	adsl_private_area_t *adsl=dev->priv;
 	struct ppp_device *pppdev=NULL;
 	struct sppp *sp=NULL;
 
@@ -2490,7 +2510,7 @@ static int netif_rx(netdevice_t	*sdla_net_dev, netskb_t *rx_skb)
 {
 	TX_RX_DATA_STRUCT	*tx_rx_struct;
 	int					rc;
-	unsigned long		smp_flags;
+	wan_smp_flag_t		smp_flags;
 	adsl_private_area_t *chan = (adsl_private_area_t*)wan_netif_priv(sdla_net_dev);
 	sdla_t				*card = (sdla_t*)chan->common.card;
 
@@ -2662,7 +2682,7 @@ static void adsl_if_send_task_func(
 	netdevice_t			*sdla_net_dev = (netdevice_t *)arg;
 	adsl_private_area_t *chan = (adsl_private_area_t*)wan_netif_priv(sdla_net_dev);
 	sdla_t				*card = (sdla_t*)chan->common.card;
-	unsigned long		smp_flags;
+	wan_smp_flag_t		smp_flags;
 	netskb_t			*skb;
 	DATA_QUEUE_ELEMENT	*tmp_tx_q_el;
 	unsigned int		tx_retry_counter;

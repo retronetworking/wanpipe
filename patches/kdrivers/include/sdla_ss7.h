@@ -45,7 +45,9 @@ typedef struct {
 #define FLUSH_GLOBAL_STATISTICS				0x05	/* flush the global statistics */
 #define SET_MODEM_STATUS						0x06	/* set the status of DTR and/or RTS */
 #define READ_MODEM_STATUS						0x07	/* read the current status of CTS and DCD */
+#undef READ_COMMS_ERROR_STATS
 #define READ_COMMS_ERROR_STATS				0x08	/* read the communication error statistics */
+#undef FLUSH_COMMS_ERROR_STATS
 #define FLUSH_COMMS_ERROR_STATS				0x09	/* flush the communication error statistics */
 #define SET_TRACE_CONFIGURATION				0x0A	/* set the line trace configuration */
 #define READ_TRACE_CONFIGURATION				0x0B	/* read the line trace configuration */

@@ -58,7 +58,8 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "S514CPU",    smemof(wandev_conf_t, S514_CPU_no), DTYPE_STR },
   { "PCISLOT",    smemof(wandev_conf_t, PCI_slot_no), DTYPE_UINT },
   { "PCIBUS", 	  smemof(wandev_conf_t, pci_bus_no),	DTYPE_UINT },
-  { "AUTO_PCISLOT",smemof(wandev_conf_t, auto_pci_cfg), DTYPE_UCHAR },
+  { "AUTO_PCISLOT",smemof(wandev_conf_t, auto_hw_detect), DTYPE_UCHAR },
+  { "AUTO_DETECT",smemof(wandev_conf_t, auto_hw_detect), DTYPE_UCHAR },
   { "COMMPORT",   smemof(wandev_conf_t, comm_port),   DTYPE_UINT },
 
   /* Front-End parameters */
@@ -1034,7 +1035,7 @@ int conf_file_reader::init()
   //PCI config
   linkconf->S514_CPU_no[0] = 'A';
   linkconf->comm_port = WANOPT_PRI;
-  linkconf->auto_pci_cfg = WANOPT_YES;
+  linkconf->auto_hw_detect = WANOPT_YES;
   //serial config
   linkconf->electrical_interface = WANOPT_V35;
 

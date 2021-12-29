@@ -215,8 +215,16 @@
 				RelativePath=".\sangoma_pri.h"
 				>
 			</File>
+		</Filter>
+		<Filter
+			Name="Other Files"
+			>
 			<File
-				RelativePath="win_api_common.h"
+				RelativePath=".\libsangoma.def"
+				>
+			</File>
+			<File
+				RelativePath=".\sources"
 				>
 			</File>
 		</Filter>

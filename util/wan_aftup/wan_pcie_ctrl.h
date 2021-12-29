@@ -3,6 +3,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+
+#if !defined(__WINDOWS__)
 #include <dirent.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -16,6 +18,8 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#endif
+
 #if defined(__LINUX__)
 # include <linux/if.h>
 # include <linux/types.h>
@@ -25,6 +29,13 @@
 # include <linux/sdlapci.h>
 # include <linux/sdlasfm.h>
 # include <linux/if_wanpipe.h>
+#elif defined(__WINDOWS__)
+# include <windows.h>
+# include <winioctl.h>
+# include <conio.h>
+# include <stddef.h>		//for offsetof()
+# include <sdlasfm.h>
+# include <sdlapci.h>
 #else
 # include <net/if.h>
 # include <wanpipe_defines.h>

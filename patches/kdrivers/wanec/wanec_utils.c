@@ -10,19 +10,13 @@
 **			   INCLUDE FILES
 ******************************************************************************/
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe.h>
-#elif defined(__LINUX__)
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe.h>
-# include <linux/if_wanpipe.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe.h>
+
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe.h"
+#if defined(__LINUX__)
+# include "if_wanpipe.h"
 #endif
 
 #include "oct6100_api.h"
@@ -245,11 +239,11 @@ set_conf_param (	wan_ec_t		*ec,
 				ec->name, dtab->dtype);
 			return -EINVAL;
 		}
-		PRINT1(verbose, "%s: * Setting %s to %s\n", 
+		PRINT1(verbose, "%s: * Setting %s to %s\n",
 					ec->name, param->name, param->sValue);
 		break;
 	case DTYPE_UINT32:
-		PRINT1(verbose, "%s: * Setting %s to %d\n", 
+		PRINT1(verbose, "%s: * Setting %s to %d\n",
 					ec->name, param->name, param->dValue);
 		*(UINT32*)((char*)conf + dtab->offset) = param->dValue;
 		break;
@@ -271,7 +265,7 @@ int wanec_ChipParam(	wan_ec_t		*ec,
 {
 	unsigned int	iParam=0;
 
-	PRINT1(verbose, "%s: Parsing advanced Chip params\n", 
+	PRINT1(verbose, "%s: Parsing advanced Chip params\n",
 					ec->name);
 	while(iParam < custom_conf->param_no){
 		set_conf_param(	ec,
@@ -322,7 +316,7 @@ int wanec_ChanParamList(wan_ec_t *ec)
 	key_word_t	*dtab = ChannelModifyParam;
 
 	for (; dtab->key; ++dtab){
-		
+
 		switch (dtab->dtype) {
 
 		case DTYPE_UINT32:

@@ -80,18 +80,15 @@
 #include <signal.h>
 #include <time.h>
 #include "lib/safe-read.h"
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_version.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanproc.h>
-# include <wanpipe.h>
-#else
-# include <linux/wanpipe_version.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
-#endif
+#include "wanpipe_version.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_cfg.h"
+#include "wanproc.h"
+
+#include "wanpipe_events.h"
+#include "wanec_api.h"
+
+#include "wanpipe.h"
 
 #define smemof(TYPE, MEMBER) offsetof(TYPE,MEMBER),(sizeof(((TYPE *)0)->MEMBER))
 
@@ -298,9 +295,8 @@ static int wanconfig_hwec(chan_def_t *def);
 static int wanconfig_hwec_config(char *devname);
 static int wanconfig_hwec_release(char *devname);
 static int wanconfig_hwec_enable(char *devname, char *ifname, char *);
-static int wanconfig_hwec_bypass(char *devname, chan_def_t *def, int enable);
 static int wanconfig_hwec_modify(char *devname, chan_def_t *def);
-static int wanconfig_hwec_dtmf_enable(char *devname, char *ifname, char *);
+static int wanconfig_hwec_tone(char *devname, char *ifname, int, int, char *);
 #endif
 extern	int close (int);
 
@@ -542,7 +538,9 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "S514CPU",    smemof(wandev_conf_t, S514_CPU_no), DTYPE_STR },
   { "PCISLOT",    smemof(wandev_conf_t, PCI_slot_no), DTYPE_UINT },
   { "PCIBUS", 	  smemof(wandev_conf_t, pci_bus_no),	DTYPE_UINT },
-  { "AUTO_PCISLOT",smemof(wandev_conf_t, auto_pci_cfg), DTYPE_UCHAR },
+  { "AUTO_PCISLOT",smemof(wandev_conf_t, auto_hw_detect), DTYPE_UCHAR },
+  { "AUTO_DETECT",smemof(wandev_conf_t, auto_hw_detect), DTYPE_UCHAR },
+  { "USB_BUSID",	  smemof(wandev_conf_t, usb_busid), DTYPE_STR },
   { "COMMPORT",   smemof(wandev_conf_t, comm_port),   DTYPE_UINT },
 
   /* TE1 New hardware parameters for T1/E1 board */
@@ -559,6 +557,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "FE_POLL",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, poll_mode),  DTYPE_UCHAR },
   { "FE_TXTRISTATE",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, tx_tristate_mode),  DTYPE_UCHAR },
   { "FE_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, network_sync), DTYPE_UINT },
+
   /* Front-End parameters (old style) */
   /* Front-End parameters (old style) */
   { "MEDIA",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, media), DTYPE_UCHAR },
@@ -592,7 +591,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "RM_OHTHRESH",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, ohthresh), DTYPE_UINT },
   { "RM_BATTTHRESH",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battthresh), DTYPE_UINT },
   { "RM_BATTDEBOUNCE",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battdebounce), DTYPE_UINT },
-  { "RM_MODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, rm_mode), DTYPE_UINT },
+  { "RM_MODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, rm_mode), DTYPE_UCHAR },
 
   { "RM_BRI_CLOCK_MASTER",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_bri_cfg_t, clock_mode), DTYPE_UCHAR },
   { "RM_BRI_CLOCK",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_bri_cfg_t, clock_mode), DTYPE_UCHAR },
@@ -609,10 +608,11 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "RM_FAKE_POLARITY",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity), DTYPE_UCHAR },
   
   /* TDMV parameters */
-  { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UINT},
+  { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UCHAR},
   { "TDMV_DCHAN",    offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, dchan),   DTYPE_UINT},
   { "TDMV_HW_DTMF",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_dtmf), DTYPE_UCHAR},
-  { "TDMV_HW_FAX_DETECT",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_fax_detect), DTYPE_UCHAR},  
+  { "TDMV_HW_FAX_DETECT",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_fax_detect), DTYPE_UCHAR},
+  { "TDMV_HW_FAXCALLED",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_faxcalled), DTYPE_UCHAR},
 
   { "TDMV_DUMMY_REF",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, sdla_tdmv_dummy_enable), DTYPE_UCHAR},
 
@@ -720,7 +720,6 @@ key_word_t sppp_conftab[] =	/* PPP-CHDLC specific configuration */
  
   { "PAP",	      smemof(wan_sppp_if_conf_t, pap),    DTYPE_UCHAR},		
   { "CHAP",	      smemof(wan_sppp_if_conf_t, chap),    DTYPE_UCHAR},		
-  { "CHAP",	      smemof(wan_sppp_if_conf_t, chap),    DTYPE_UCHAR},		
 
   { "USERID",         smemof(wan_sppp_if_conf_t, userid), 	DTYPE_STR},
   { "PASSWD",         smemof(wan_sppp_if_conf_t, passwd),	DTYPE_STR},
@@ -729,7 +728,7 @@ key_word_t sppp_conftab[] =	/* PPP-CHDLC specific configuration */
      inside wanif_conf_t, and data gets to wrong place */
   { "KEEPALIVE_ERROR_MARGIN", smemof(wan_sppp_if_conf_t, keepalive_err_margin),    DTYPE_UINT },
 
-   { "MAGIC_DISABLE",      smemof(wan_sppp_if_conf_t, disable_magic),    DTYPE_UCHAR},
+  { "MAGIC_DISABLE",      smemof(wan_sppp_if_conf_t, disable_magic),    DTYPE_UCHAR},
 
   { NULL, 0, 0 }
 };
@@ -754,11 +753,9 @@ key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
 {
   { "MRU",     	     smemof(wan_xilinx_conf_t, mru),          DTYPE_USHORT },
   { "DMA_PER_CH",    smemof(wan_xilinx_conf_t, dma_per_ch),   DTYPE_USHORT },
-  { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UINT },
+  { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UCHAR },
   { "DATA_MUX_MAP",  smemof(wan_xilinx_conf_t, data_mux_map), DTYPE_UINT },
   { "RX_CRC_BYTES",  smemof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
-  { "DTR_CTRL",  smemof(wan_xilinx_conf_t, serial_dtr_ctrl), DTYPE_UCHAR},
-  { "RTS_CTRL",  smemof(wan_xilinx_conf_t, serial_rts_ctrl), DTYPE_UCHAR},
   
   { NULL, 0, 0 }
 };
@@ -1357,7 +1354,7 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_DEBUG,    	"WAN_DEBUG"   	},
 	{ WANCONFIG_ADCCP,    	"WAN_ADCCP"   	},
 	{ WANCONFIG_MLINK_PPP, 	"WAN_MLINK_PPP" },
-//	{ WANCONFIG_USB, 	"WAN_USB" },
+	{ WANCONFIG_USB_ANALOG,	"WAN_USB_ANALOG"	},
 	{ 0,			NULL,		}
 };
 
@@ -1374,7 +1371,6 @@ look_up_t	sym_table[] =
 	/*----- Interface type ----------------*/
 	{ WANOPT_RS232,		"RS232"		},
 	{ WANOPT_V35,		"V35"		},
-	{ WANOPT_X21,		"X21"		},
 	/*----- Data encoding -----------------*/
 	{ WANOPT_NRZ,		"NRZ"		}, 
 	{ WANOPT_NRZI,		"NRZI"		}, 
@@ -1384,9 +1380,6 @@ look_up_t	sym_table[] =
 	/*----- Idle Line ----------------------*/
 	{ WANOPT_IDLE_FLAG,	"FLAG"	}, 
 	{ WANOPT_IDLE_MARK,	"MARK"	},
-	
-	{ WANOPT_HIGH,		"HIGH"	}, 
-	{ WANOPT_LOW,		"LOW"	},
 
 	/*----- Link type ---------------------*/
 	{ WANOPT_POINTTOPOINT,	"POINTTOPOINT"	},
@@ -1394,7 +1387,6 @@ look_up_t	sym_table[] =
 	/*----- Clocking ----------------------*/
 	{ WANOPT_EXTERNAL,	"EXTERNAL"	}, 
 	{ WANOPT_INTERNAL,	"INTERNAL"	}, 
-	{ WANOPT_RECOVERY,	"RECOVERY"	}, 
 	/*----- Station -----------------------*/
 	{ WANOPT_DTE,		"DTE"		}, 
 	{ WANOPT_DCE,		"DCE"		}, 
@@ -2530,6 +2522,8 @@ int build_chandef_list (FILE* file)
 		
 		if (!(chandef->usedby) ||(( strcmp(chandef->usedby, "WANPIPE")     != 0 ) &&
 					  ( strcmp(chandef->usedby, "API")         != 0 ) && 
+					  ( strcmp(chandef->usedby, "API_LEGACY")         != 0 ) && 
+					  ( strcmp(chandef->usedby, "DATA_API")         != 0 ) && 
 					  ( strcmp(chandef->usedby, "BRIDGE")      != 0 ) &&
 					  ( strcmp(chandef->usedby, "SWITCH")      != 0 ) &&
 					  ( strcmp(chandef->usedby, "PPPoE")       != 0 ) &&
@@ -2541,6 +2535,7 @@ int build_chandef_list (FILE* file)
 					  ( strcmp(chandef->usedby, "TDM_VOICE") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_VOICE_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_SPAN_VOICE_API") 	   != 0 ) &&
+					  ( strcmp(chandef->usedby, "TDM_CHAN_VOICE_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TRUNK") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "ANNEXG")      != 0 )))
@@ -5214,48 +5209,6 @@ unsigned int get_active_channels(int channel_flag, int start_channel, int stop_c
 	return tmp;
 }
 
-
-int get_active_channels_str(unsigned int chan_map, int start_channel, int stop_channel, char* chans_str)
-{
-	int i;
-	unsigned char enabled = 0;
-	unsigned char  first_chan = 0;
-	unsigned char last_chan = 0;
-	int str_len = 0;
-	
-	for(i = start_channel; i <= stop_channel; i++) {
-		if (chan_map & (1 <<( i-1))) {
-			if (!enabled) {
-				enabled = 1;
-				if (str_len > 0) {
-					str_len += sprintf(&chans_str[str_len], ".");
-				}
-				first_chan = i;
-			}
-			if (last_chan < i) {
-				last_chan = i;
-			}
-		} else {
-			if (enabled) {
-				enabled = 0;
-				if (last_chan > first_chan) {
-					str_len += sprintf(&chans_str[str_len], "%d-%d", first_chan, last_chan);
-				} else {
-					str_len += sprintf(&chans_str[str_len], "%d", first_chan);
-				}
-			}
-		}
-	}
-	if (enabled) {
-		if (last_chan > first_chan) {
-			str_len += sprintf(&chans_str[str_len], "%d-%d", first_chan, last_chan);
-		} else {
-			str_len += sprintf(&chans_str[str_len], "%d", first_chan);
-		}
-	}
-	return 0;
-}
-
 #if defined(WAN_HWEC)	
 
 
@@ -5286,30 +5239,24 @@ static int wanconfig_hwec(chan_def_t *def)
 		return err;
 	}
 
-	 if (linkdef->config_id == WANCONFIG_AFT_ISDN_BRI ||
-		linkdef->linkconf->hwec_conf.persist_disable) {
-		
-		if ((err = wanconfig_hwec_bypass(linkdef->name, def, 0))){
-			wanconfig_hwec_release(linkdef->name);
-			return err;
-		}
-	} else {
-		if ((err = wanconfig_hwec_bypass(linkdef->name, def, 1))){
-			wanconfig_hwec_release(linkdef->name);
-			return err;
-		}
-	}
-
 	if ((err = wanconfig_hwec_modify(linkdef->name, def))){
 		wanconfig_hwec_release(linkdef->name);
 		return err;
 	}
 		
 	if (linkdef->linkconf->tdmv_conf.hw_dtmf == WANOPT_YES){
-		err = wanconfig_hwec_dtmf_enable(linkdef->name, def->name, def->active_ch);
+		err = wanconfig_hwec_tone(linkdef->name, def->name, 1, WP_API_EVENT_TONE_DTMF, def->active_ch);
 		if (err){
 			wanconfig_hwec_release(linkdef->name);
 			return err;		
+		}
+
+		if (linkdef->linkconf->tdmv_conf.hw_fax_detect){
+			err = wanconfig_hwec_tone(linkdef->name, def->name, 1, WP_API_EVENT_TONE_FAXCALLING, def->active_ch);
+			if (err){
+				wanconfig_hwec_release(linkdef->name);
+				return err;		
+			}
 		}
 	}
 	return 0;
@@ -5317,49 +5264,15 @@ static int wanconfig_hwec(chan_def_t *def)
 
 static int wanconfig_hwec_config(char *devname)
 {
-	int	status;
-	char	cmd[100];
-#if defined(__LINUX__)
-	DIR 	*dir;
-
-	dir = opendir(WAN_EC_DIR);
-
-        if(dir == NULL) {
-        	return 0;
-        }
-
-	closedir(dir);
-#endif
-
-	/*HW_EC*/
-	snprintf(cmd, 100, "wan_ec_client %s config", devname);
-	status = system(cmd);
-
-	if (WEXITSTATUS(status) != 0){
-		fprintf(stderr,
-		"wanconfig: Failed to configure EC device %s (err=%d)!\n",
-				devname,WEXITSTATUS(status));
-		return -EINVAL;
-	}
-
-	return 0;
+	return wanec_api_config(devname, 0, NULL);
 }
 
 static int wanconfig_hwec_release(char *devname)
 {
-	int	status;
-	char	cmd[100];
-	
-       	snprintf(cmd, 100, "wan_ec_client %s release",
-				devname);
-	status = system(cmd);
-	if (WEXITSTATUS(status) != 0){
-		fprintf(stderr,
-		"wanconfig: Failed to release EC device %s (err=%d)!\n",
-				devname,WEXITSTATUS(status));
-		return -EINVAL;
-	}
-	return 0;
+	wanec_api_release_t	release;
+
+	memset(&release, 0, sizeof(wanec_api_release_t));
+	return wanec_api_release(devname, 0, &release);
 }
 
 
@@ -5425,131 +5338,48 @@ static int wanconfig_hwec_modify(char *devname, chan_def_t *def)
 	return 0;
 }
 
-
-static int wanconfig_hwec_bypass(char *devname, chan_def_t *def, int enable)
-{
-	int	status;
-	char	cmd[50];
-	
-
-	if (strcasecmp(def->active_ch, "all") == 0){
-		char chan_str [20];
-		unsigned int tdmv_dchan_map = def->link->linkconf->tdmv_conf.dchan;
-		memset(chan_str, 0, sizeof(chan_str));
-
-		/* Disalbe EC on CAS channel */
-		if (def->link->linkconf->fe_cfg.media == WAN_MEDIA_E1 &&
-			def->link->linkconf->fe_cfg.cfg.te_cfg.sig_mode == WAN_TE1_SIG_CAS) {
-		      tdmv_dchan_map|=1<<15;
-		}
-
-		if (tdmv_dchan_map) {
-			if (def->link->linkconf->fe_cfg.media == WAN_MEDIA_T1) {
-				get_active_channels_str(~tdmv_dchan_map, 1, 24, chan_str);
-			} else {
-				get_active_channels_str(~tdmv_dchan_map, 1, 31, chan_str);
-			}
-			snprintf(cmd, 50, "wan_ec_client %s %s %s",
-						devname, (enable)?"be":"bd", chan_str);
-		} else {
-			snprintf(cmd, 50, "wan_ec_client %s %s all",
-						devname, (enable)?"be":"bd");
-		}
-	}else{
-		snprintf(cmd, 50, "wan_ec_client %s %s %s",
-					devname, 
-					(enable)?"be":"bd",
-					def->active_ch);
-	}
-	
-	status = system(cmd);
-	if (WEXITSTATUS(status) != 0){
-		fprintf(stderr,"--> Error: system command: %s\n",cmd);
-		fprintf(stderr,
-		"wanconfig: Failed to Bypass enable EC device %s (err=%d)!\n",
-				devname,WEXITSTATUS(status));
-		return -EINVAL;
-	}
-	return 0;
-}
-
 static int
 wanconfig_hwec_enable(char *devname, char *ifname, char *channel_list)
 {
-	int	status;
-	char	cmd[100];
-#if defined(__LINUX__)	
-	DIR 	*dir;
-	dir = opendir(WAN_EC_DIR);
+# if 1
+	wanec_api_opmode_t	opmode;
+	unsigned int		fe_chan_map;
 
-        if(dir == NULL) {
-        	return 0;
-        }
-	closedir(dir);
-#endif
+	fe_chan_map = parse_active_channel(channel_list);
+	memset(&opmode, 0, sizeof(wanec_api_opmode_t));
+	opmode.mode		= WANEC_API_OPMODE_NORMAL;
+	opmode.fe_chan_map	= fe_chan_map;
+	return wanec_api_opmode(devname, 0, &opmode);
+# else
+	wanec_api_mode_t	mode;
+	unsigned int		fe_chan_map;
 
-	return 0;
-	
-#if 1
-	if (strcasecmp(channel_list, "all") == 0){
-		snprintf(cmd, 100, "wan_ec_client %s mn all",
-					devname);
-	}else{
-		snprintf(cmd, 100, "wan_ec_client %s mn %s",
-					devname,channel_list);
-	}
-#else
-	if (strcasecmp(channel_list, "all") == 0){
-		snprintf(cmd, 100, "wan_ec_client %s enable all",
-					devname);
-	}else{
-		snprintf(cmd, 100, "wan_ec_client %s enable %s",
-					devname,channel_list);
-	}
-#endif
-
-	status = system(cmd);
-
-	if (WEXITSTATUS(status) != 0){
-		fprintf(stderr,
-		"wanconfig: Failed to enable EC device %s : channels %s (err=%d)!\n",
-				devname, channel_list,WEXITSTATUS(status));
-		return -EINVAL;
-	}
-	return 0;
+	fe_chan_map = parse_active_channel(channel_list);
+	memset(&mode, 0, sizeof(wanec_api_mode_t));
+	mode.enable	= 1;
+	mode.fe_chan_map= fe_chan_map;
+	return wanec_api_mode(devname, 0, &mode);
+# endif
 }
 
 static int
-wanconfig_hwec_dtmf_enable(char *devname, char *ifname, char *channel_list)
+wanconfig_hwec_tone(char *devname, char *ifname, int enable, int id, char *channel_list)
 {
-	int	status;
-	char	cmd[100];
-#if defined(__LINUX__)	
-	DIR 	*dir;
-	dir = opendir(WAN_EC_DIR);
+	wanec_api_tone_t	tone;
+	unsigned int		fe_chan_map;
+	int			err;
 
-        if(dir == NULL) {
-        	return 0;
-        }
-	closedir(dir);
-#endif
-	
-	if (strcasecmp(channel_list, "all") == 0){
-		snprintf(cmd, 100, "wan_ec_client %s de all sout",
-					devname);
-	}else{
-		snprintf(cmd, 100, "wan_ec_client %s de %s sout",
-					devname,channel_list);
-	}
-	status = system(cmd);
-	if (WEXITSTATUS(status) != 0){
-		fprintf(stderr,
-		"wanconfig: %s: Failed to enable HWEC DTMF (channels %s, err=%d)!\n",
-				devname, channel_list,WEXITSTATUS(status));
-		return -EINVAL;
-	}
-	return 0;
+	fe_chan_map = parse_active_channel(channel_list);
+	memset(&tone, 0, sizeof(wanec_api_tone_t));
+	tone.id			= id;
+	tone.enable		= enable;
+	tone.fe_chan_map	= fe_chan_map;
+	tone.port_map		= WAN_EC_CHANNEL_PORT_SOUT;
+	tone.type_map		= WAN_EC_TONE_PRESENT;
+	err = wanec_api_tone(devname, 0, &tone);
+	return err;
 }
+
 #endif
 
 //****** End *****************************************************************/

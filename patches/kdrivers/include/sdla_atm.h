@@ -43,14 +43,19 @@ typedef struct {
 #define FLUSH_GLOBAL_STATISTICS				0x05	/* flush the global statistics */
 #define SET_MODEM_STATUS						0x06	/* set the status of DTR and/or RTS */
 #define READ_MODEM_STATUS						0x07	/* read the current status of CTS and DCD */
+#undef READ_COMMS_ERROR_STATS
 #define READ_COMMS_ERROR_STATS				0x08	/* read the communication error statistics */
+
+#undef FLUSH_COMMS_ERROR_STATS
 #define FLUSH_COMMS_ERROR_STATS				0x09	/* flush the communication error statistics */
 #define SET_TRACE_CONFIGURATION				0x0A	/* set the line trace configuration */
 #define READ_TRACE_CONFIGURATION				0x0B	/* read the line trace configuration */
 #define READ_TRACE_STATISTICS					0x0C	/* read the trace statistics */
+#undef FLUSH_TRACE_STATISTICS
 #define FLUSH_TRACE_STATISTICS				0x0D	/* flush the trace statistics */
 
 /* PHY-level interface commands */
+#undef 	PHY_READ_CODE_VERSION
 #define PHY_READ_CODE_VERSION					0x20	/* read the ATM code version */
 #define PHY_READ_EXCEPTION_CONDITION		0x21	/* read a PHY-level exception condition from the adapter */
 #define PHY_SET_CONFIGURATION					0x22	/* set the PHY-level configuration */
@@ -658,9 +663,10 @@ typedef struct {
 #define TIMER_APP_INT_PEND		PHY_TIMER_INT_PEND
 #define TRACE_APP_INT_PEND		PHY_TRACE_INT_PEND
 
-
+#undef READ_CODE_VERSION
 #define READ_CODE_VERSION		PHY_READ_CODE_VERSION
 
+#undef READ_CONFIGURATION
 #define READ_CONFIGURATION		PHY_READ_CONFIGURATION
 #define SET_CONFIGURATION		PHY_SET_CONFIGURATION
 
@@ -669,8 +675,6 @@ typedef struct {
 
 #define SET_INTERRUPT_TRIGGERS		PHY_SET_INTERRUPT_TRIGGERS
 #define READ_INTERRUPT_TRIGGERS		PHY_READ_INTERRUPT_TRIGGERS
-
-#define UDPMGMT_SIGNATURE		"ATMPIPEA"
 
 //#define FT1_MONITOR_STATUS_CTRL		DFLT_TEMPLATE_VALUE
 //#define ENABLE_READ_FT1_STATUS		DFLT_TEMPLATE_VALUE
@@ -686,12 +690,7 @@ typedef struct {
 //#define GET_TRACE_INFO			DFLT_TEMPLATE_VALUE
 
 enum {
-	ROUTER_UP_TIME = 0x50,
-	FT1_READ_STATUS,
-	SET_FT1_MODE,
-	ENABLE_TRACING,	
-	DISABLE_TRACING,
-	GET_TRACE_INFO,
+	FT1_READ_STATUS = WANPIPE_PROTOCOL_PRIVATE,
 	FT1_MONITOR_STATUS_CTRL,
 	ENABLE_READ_FT1_STATUS,
 	ENABLE_READ_FT1_OP_STATS,
@@ -703,7 +702,7 @@ enum {
 #define	ATM_TRACE_PDU   0x02
 #define ATM_TRACE_DATA  0x04
 
-
+#undef READ_OPERATIONAL_STATS
 #define READ_OPERATIONAL_STATS		PHY_READ_OPERATIONAL_STATS
 //#define SET_TRACE_CONFIGURATION		DFLT_TEMPLATE_VALUE
 //#define TRACE_ACTIVE			DFLT_TEMPLATE_VALUE	

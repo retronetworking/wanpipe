@@ -2006,7 +2006,7 @@ void set_default_t1_configuration(sdla_fe_cfg_t* fe_cfg)
   te1_cfg->te_clock = WAN_NORMAL_CLK;
   te1_cfg->active_ch = ENABLE_ALL_CHANNELS;
   te1_cfg->high_impedance_mode = WANOPT_NO;
-	te1_cfg->rx_slevel = 120;
+  te1_cfg->rx_slevel = 360;
 }
 /*
 EncapMode	= ETH_LLC_OA

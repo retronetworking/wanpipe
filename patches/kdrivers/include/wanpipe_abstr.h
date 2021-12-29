@@ -24,13 +24,9 @@
 #ifndef _WANPIPE_ABSTR_H
 #define _WANPIPE_ABSTR_H
 
-#if defined(__LINUX__)
-# include <linux/wanpipe_abstr_types.h>
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <wanpipe_abstr_types.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_abstr_types.h>
-#endif
+
+#include "wanpipe_abstr_types.h"
+
 
 extern unsigned char* 	wpabs_skb_data(void* skb);
 extern unsigned char* 	wpabs_skb_tail(void* skb);
@@ -43,7 +39,7 @@ extern void 		wpabs_skb_copyback(void*, int, int, caddr_t);
 extern void 		wpabs_skb_copyback(void*, int, int, unsigned long); 
 #endif
 
-extern void 		wpabs_skb_copyback_user(void* skb, int off, int len, unsigned long cp);
+extern void 		wpabs_skb_copyback_user(void* skb, int off, int len, ulong_ptr_t cp);
 extern unsigned char* 	wpabs_skb_pull(void* skb, int len);
 extern unsigned char* 	wpabs_skb_put(void* skb, int len);
 extern unsigned char* 	wpabs_skb_push(void* skb, int len);

@@ -1,12 +1,12 @@
 /*
  ************************************************************************
- * wanpipe_debug.h	WANPIPE(tm) 	Global definition for Sangoma 	*
- *					Debugging messages		*
- *									*
- * Author:		Alex Feldman <al.feldman@sangoma.com>		*
+ * wanpipe_debug.h	WANPIPE(tm) 	Global definition for Sangoma 		*
+ *					Debugging messages									*
+ *																		*
+ * Author:		Alex Feldman <al.feldman@sangoma.com>					*
  *======================================================================*
- *	May 10 2002		Alex Feldman	Initial version		*
- *									*
+ *	May 10 2002		Alex Feldman	Initial version						*
+ *																		*
  ************************************************************************
  */
 
@@ -48,6 +48,7 @@
 #undef WAN_DEBUG_MEM
 #undef WAN_DEBUG_BRI
 #undef WAN_DEBUG_BRI_INIT
+#undef WAN_DEBUG_USB
 #undef WAN_DEBUG_FUNC
 
 #if defined (__WINDOWS__)
@@ -61,8 +62,11 @@ void OutputLogString(PUCHAR pvFormat, ...);
 # define PRINT	if(1)DbgPrint
 #endif
 
+
 # define DEBUG_PRINT	DbgPrint
 # define _DEBUG_PRINT	DbgPrint
+
+#define _DEBUG_EVENT 	DbgPrint
 
 # define DEBUG_KERNEL	DEBUG_NONE
 # define DEBUG_EVENT	DEBUG_NONE
@@ -175,11 +179,11 @@ void OutputLogString(PUCHAR pvFormat, ...);
 # ifdef WAN_DEBUG_56K
 #  undef  DEBUG_56K
 #  define DEBUG_56K	DEBUG_PRINT
-# endif
+# endif 
 # ifdef WAN_DEBUG_A600
 #  undef  DEBUG_A600
 #  define DEBUG_A600	DEBUG_PRINT
-# endif  
+# endif 
 # ifdef WAN_DEBUG_BRI
 #  undef  DEBUG_BRI
 #  define DEBUG_BRI	DEBUG_PRINT
@@ -236,6 +240,25 @@ void OutputLogString(PUCHAR pvFormat, ...);
 #  undef  DEBUG_BRI_INIT
 #  define DEBUG_BRI_INIT DEBUG_PRINT
 # endif 
+# ifdef WAN_DEBUG_USB
+#  undef  DEBUG_USB
+#  define DEBUG_USB	DEBUG_PRINT
+# endif 
+
+//uncomment -DSANG_DBG in C_DEFINES in Sources to get debug output
+#if defined(SANG_DBG)
+ //print driver name and a line
+ #define DbgOut(_f_, _x_) if(_f_) { DbgPrint("%s: ", DRIVER_NAME); DbgPrint _x_;}
+ //print a line. used when driver name is not needed
+ #define DbgOutL(_f_, _x_) if(_f_) { DbgPrint _x_;}
+ #define BUS_DEFAULT_DEBUG_OUTPUT_LEVEL 0x000FFFFF
+#else //#if SANG_DBG
+ #define BUS_DEFAULT_DEBUG_OUTPUT_LEVEL 0x0
+ #define DbgOut(_f_, _x_)
+ #define DbgOutL(_f_, _x_)
+#endif//#if SANG_DBG
+
+extern ULONG BusEnumDebugLevel;
 
 # define DEBUG_ADD_MEM
 # define DEBUG_SUB_MEM
@@ -243,65 +266,72 @@ void OutputLogString(PUCHAR pvFormat, ...);
 # define splimp() 0
 # define splx(l)
 
-#define	ERR_DBG_OUT	if(0)DbgPrint
-#define DBG_NOT_IMPL	if(0)DbgPrint
-#define FUNC_NOT_IMPL	if(0)DbgPrint("%s()-Not Implemented(Line:%i)\n", __FUNCTION__, __LINE__);
-#define DBG_DSL_NOT_IMPLD if(0)DbgPrint("%s()-Not Implemented(Line:%i)\n", __FUNCTION__, __LINE__);
+#define	ERR_DBG_OUT			if(0)DbgPrint
+#define DBG_NOT_IMPL		if(0)DbgPrint
+#define FUNC_NOT_IMPL()		if(0)DbgPrint("%s()-Not Implemented(File:%s, Line:%i)\n", __FUNCTION__, __FILE__, __LINE__)
+#define DBG_DSL_NOT_IMPLD	FUNC_NOT_IMPL()
 
 /* debugging of SngBus.sys */
 #define DEBUG_SNGBUS	if(0)DbgPrint
 
+#define DBG_SINGLE_IRQLOCK if(0)DbgPrint
+
 /* debugging of wanpipe_kernel.h */
-#define DBG_KRN		if(0)DbgPrint
-#define DBG_8TE1	if(0)DbgPrint
-#define DG_TDMCODEC	if(0)DbgPrint
-#define DBG_G3		if(0)DbgPrint
+#define DBG_KRN			if(0)DbgPrint
+#define DBG_COPY_FROM_TO_USER if(0)DbgPrint
+#define DBG_SHUTDOWN	if(0)DbgPrint
 
-#define DBG_FAST_TX	if(0)DbgPrint
-#define DBG_ACUAPI	if(0)DbgPrint
-#define DEBUG_IDLE_TX	if(0)DbgPrint
+#define DBG_FAST_TX		if(0)DbgPrint
+
 #define DEBUG_SHARED_EVENT if(0)DbgPrint
-#define DBG_ADSL_TX	if(0)DbgPrint
-#define DEBUG_NEW_TX	if(0)DbgPrint
-#define DBG_IRQLOCK	if(0)DbgPrint
+#define DBG_ADSL_TX		if(0)DbgPrint
+#define DBG_IRQLOCK		if(0)DbgPrint
 #define DBG_ADSL_FAST_TX if(0)DbgPrint
-#define DBG_S514_INIT	if(0)DbgPrint
-#define DBG_SET_CFG	if(0)DbgPrint
+
+#define DBG_SET_CFG		if(0)DbgPrint
 #define DBG_ADSL_INIT	if(0)DbgPrint
-#define DBG_HIGH_IMPED	if(0)DbgPrint
-#define DBG_LIP_OOB	if(0)DbgPrint
+
+#define DBG_A200_INIT	if(0)DbgPrint
+
+#define DBG_LIP_OOB		if(0)DbgPrint
 #define DEBUG_XLNX_AFT	if(0)DbgPrint
-#define DEBUG_AFT	if(0)DbgPrint
-#define DBG_TE1_INTERRUPT if(0)DbgPrint
-#define DBG_BSTRM	if(0)DbgPrint
+#define DEBUG_AFT		if(0)DbgPrint
+
+#define DBG_BSTRM		if(0)DbgPrint
 #define DEBUG_FIRMWARE_UPDATE if(0)DbgPrint
-#define DBG_ADSL_RX	if(0)DbgPrint
-#define DBG_8TE1_START	if(0)DbgPrint
-#define DBG_BITSTRM	if(0)DbgPrint
+#define DBG_ADSL_RX		if(0)DbgPrint
 
-#define DBG_BRI_START	if(0)DbgPrint
-#define DBG_BRI_CLOCK	if(0)DbgPrint
-#define DBG_BRI_ISR	if(0)DbgPrint
-#define DBG_BRI_RESTART	if(0)DbgPrint
-
-#define	DBG_FE_LOCK	if(0)DbgPrint
-#define DBG_DRVSTOP	if(0)DbgPrint
+#define	DBG_FE_LOCK		if(0)DbgPrint
+#define DBG_DRVSTOP		if(0)DbgPrint
 #define DBG_GET_REGISTRY if(0)DbgPrint
-#define	DBG_FE_LOCK	if(0)DbgPrint
+#define	DBG_FE_LOCK		if(0)DbgPrint
 
 #define DEBUG_RX_FIFO	if(0)DbgPrint
 
 /* sprotocol.sys */
-#define DEBUG_LIP	if(0)DbgPrint
-#define DBG_LIP_SKB	if(0)DbgPrint
+#define DEBUG_LIP		if(0)DbgPrint
+#define DBG_LIP_SKB		if(0)DbgPrint
 /* wanpipe.sys */
 #define DEBUG_REQUEST	if(0)DbgPrint
-#define DEBUG_IF_TX	if(0)DbgPrint
+#define DEBUG_IF_TX		if(0)DbgPrint
 #define DEBUG_COMMON	if(0)DbgPrint
-#define DEBUG_IF_RX	if(0)DbgPrint
+#define DEBUG_IF_RX		if(0)DbgPrint
 #define DEBUG_NET_IF	if(0)DbgPrint
 
-#define DBG_TX_TIMEOUT	if(0)DbgPrint
+#define DBG_RBS_EVENT	if(0)DbgPrint
+
+#define DBG_ADSL_MACADDR	if(0)DbgPrint
+#define DBG_ADSL_SYNCH		if(0)DbgPrint
+
+#define DBG_MEM		if(0)DbgPrint
+
+#define DBG_PNP		if(0)DbgPrint(DRIVER_NAME);if(0)DbgPrint
+
+#define DBG_SYMB_LINK if(0)DbgPrint
+
+#define DBG_BUFLEN	 if(0)DbgPrint
+
+#define ADSL_TEST 0
 
 /* These are defined in "sources" file of each driver */
 #if defined( VIRTUAL_IF_DRV )
@@ -321,16 +351,16 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 	DbgPrint("%s:%s(): File: %s, Line: %d.\n", drv_name, func, file, line);
 }
 
-#define AFT_FUNC_DEBUG() if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-#define TDM_FUNC_DBG()	 if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-#define EC_FUNC_DEBUG()	 if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-#define DBG_SET_CFG_FUNC() if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-#define DBG_ACUAPI_FUNC() if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-#define FUNC_DEBUG()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-#define TDM_FUNC_DBG()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-#define SKB_FUNC()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+//#define AFT_FUNC_DEBUG()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define TDM_FUNC_DBG()		if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define EC_FUNC_DEBUG()		if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define DBG_SET_CFG_FUNC()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define DBG_ACUAPI_FUNC()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define FUNC_DEBUG()		if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define TDM_FUNC_DBG()		if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define SKB_FUNC()		if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
 #define PROT_FUNC_DEBUG()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-
+#define TDMAPI_FUNC_DEBUG()	if()my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
 
 #else	/* !__WINDOWS__*/
 
@@ -375,6 +405,7 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 # define WAN_DEBUG_FUNC_LINE
 # define DEBUG_BRI(format,msg...)
 # define DEBUG_BRI_INIT(format,msg...)
+# define DEBUG_USB(format,msg...)
 
 #define AFT_FUNC_DEBUG() 
 
@@ -537,8 +568,18 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 #  undef  DEBUG_NG
 #  define DEBUG_NG(format,msg...)		DEBUG_PRINT(format,##msg)
 # endif 
+# ifdef WAN_DEBUG_USB
+#  undef  DEBUG_USB
+#  define DEBUG_USB(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif 
 
 #endif	/* __WINDOWS__ */
+
+#if defined (__WINDOWS__)
+#define	WAN_KRN_BREAK_POINT()	if(0)DbgBreakPoint()
+#else
+#define	WAN_KRN_BREAK_POINT()
+#endif
 
 #define WAN_DEBUG_FLINE	DEBUG_EVENT("[%s]: %s:%d\n",			\
 				__FILE__,__FUNCTION__,__LINE__);
@@ -562,6 +603,7 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 #define WAN_ASSERT(val) if (val){					\
 	DEBUG_EVENT("************** ASSERT FAILED **************\n");	\
 	DEBUG_EVENT("%s:%d - Critical error\n",__FILE__,__LINE__);	\
+	WAN_KRN_BREAK_POINT();	\
 	return -EINVAL;							\
 			}
 #define WAN_ASSERT_EINVAL(val) WAN_ASSERT(val)
@@ -695,7 +737,7 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 	DEBUG_TEST("%s:%d: WULock %u\n",__FILE__,__LINE__,(u32)lock); 	\
 	splx(flag); }
 
-#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__WINDOWS__)
+#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 # define WP_READ_LOCK(lock,flag)   {					\
 	DEBUG_TEST("%s:%d: RLock %u\n",__FILE__,__LINE__,(u32)lock);	\
 	flag = splimp(); }
@@ -710,6 +752,24 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 
 # define WP_WRITE_UNLOCK(lock,flag) {					\
 	DEBUG_TEST("%s:%d: WULock %u\n",__FILE__,__LINE__,(u32)lock); 	\
+	splx(flag); }
+
+#elif defined(__WINDOWS__)
+
+# define WP_READ_LOCK(lock,flag)   {							\
+	DEBUG_TEST("%s:%d: RLock 0x%p\n",__FILE__,__LINE__,lock);	\
+	flag = splimp(); }
+				     
+# define WP_READ_UNLOCK(lock,flag) {							\
+	DEBUG_TEST("%s:%d: RULock 0x%p\n",__FILE__,__LINE__,lock);	\
+	splx(flag);}
+
+# define WP_WRITE_LOCK(lock,flag) {								\
+	DEBUG_TEST("%s:%d: WLock 0x%p\n",__FILE__,__LINE__,lock); 	\
+	flag = splimp(); }
+
+# define WP_WRITE_UNLOCK(lock,flag) {							\
+	DEBUG_TEST("%s:%d: WULock 0x%p\n",__FILE__,__LINE__,lock); \
 	splx(flag); }
 
 #elif defined(__LINUX__)
@@ -764,6 +824,14 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 #endif
 
 
+#if defined(__WINDOWS__)
+#define DBG_NEWDRV		if(0)DbgPrint
+#define FUNC_NEWDRV()	if(0)DbgPrint("%s():Line:%i\n", __FUNCTION__, __LINE__)
+#else
+#define DBG_NEWDRV		if(1)DEBUG_TEST
+#define FUNC_NEWDRV()	if(1)DEBUG_TEST("%s():Line:%i\n", __FUNCTION__, __LINE__)
+#endif
+
 static __inline void debug_print_skb_pkt(unsigned char *name, unsigned char *data, int len, int direction)
 {
 #if defined(__LINUX__) && defined(__KERNEL__)
@@ -777,6 +845,8 @@ static __inline void debug_print_skb_pkt(unsigned char *name, unsigned char *dat
 #endif
 }
 
+
+#if 0
 
 static __inline void debug_print_udp_pkt(unsigned char *data,int len,char trc_enabled, char direction)
 {
@@ -850,6 +920,7 @@ static __inline void debug_print_udp_pkt(unsigned char *data,int len,char trc_en
 #endif
 }
 
+#endif
 
 
 

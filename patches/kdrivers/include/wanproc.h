@@ -13,7 +13,7 @@
 * Aug 20, 2001  Alex Feldman	Initial version.
 */
 
-#ifndef __WANPROC_H
+#if !defined(__WANPROC_H) && !defined(__WINDOWS__)
 # define __WANPROC_H
 
 # if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)

@@ -231,8 +231,8 @@ int wanpipe_bind_sk_to_parent(struct sock *sk, netdevice_t *dev, struct wan_sock
 		
 		ifr.ifr_data = (void*)parent_sk;
 		err=-EINVAL;
-		if (WAN_NETDEV_TEST_IOCTL(dev))
-			err=WAN_NETDEV_IOCTL(dev,&ifr,SIOC_WANPIPE_BIND_SK);
+		if (dev->do_ioctl)
+			err=dev->do_ioctl(dev,&ifr,SIOC_WANPIPE_BIND_SK);
 
 		if (err != 0){
 			DEBUG_EVENT("%s: Error: Dev busy with another protocol!\n",
@@ -256,7 +256,7 @@ int wanpipe_bind_sk_to_parent(struct sock *sk, netdevice_t *dev, struct wan_sock
 					PPRIV(parent_sk)->seven_bit_hdlc?7:8);
 
 		PPRIV(parent_sk)->time_slots = 
-		                      WAN_NETDEV_IOCTL(dev,NULL,SIOC_WANPIPE_GET_TIME_SLOTS);
+		                      dev->do_ioctl(dev,NULL,SIOC_WANPIPE_GET_TIME_SLOTS);
 		if (PPRIV(parent_sk)->time_slots < 0){
 			DEBUG_EVENT("%s: Error, failed to obtain time slots from driver!\n",
 					dev->name);
@@ -265,7 +265,7 @@ int wanpipe_bind_sk_to_parent(struct sock *sk, netdevice_t *dev, struct wan_sock
 		}
 		
 		PPRIV(parent_sk)->media      =
-		                      WAN_NETDEV_IOCTL(dev,NULL,SIOC_WANPIPE_GET_MEDIA_TYPE);
+		                      dev->do_ioctl(dev,NULL,SIOC_WANPIPE_GET_MEDIA_TYPE);
 		if (PPRIV(parent_sk)->media < 0){
 			DEBUG_EVENT("%s: Error, failed to obtain media type from driver!\n",
 					dev->name);
@@ -302,7 +302,7 @@ int wanpipe_bind_sk_to_parent(struct sock *sk, netdevice_t *dev, struct wan_sock
 #endif
 		write_unlock_irqrestore(&wanpipe_parent_sklist_lock,flags);
 
-		err=WAN_NETDEV_IOCTL(dev,&ifr,SIOC_WANPIPE_DEV_STATE);
+		err=dev->do_ioctl(dev,&ifr,SIOC_WANPIPE_DEV_STATE);
 		if (err == WANSOCK_CONNECTED){
 			parent_sk->sk_state = WANSOCK_CONNECTED;
 		}else{
@@ -1726,12 +1726,12 @@ static void wanpipe_free_parent_sock(struct sock *sk)
 	write_lock_irqsave(&PPRIV(sk)->lock,flags);
 
 	dev=SK_PRIV(sk)->dev;
-	if (dev && WAN_NETDEV_TEST_IOCTL(dev)){
+	if (dev && dev->do_ioctl){
 		struct ifreq ifr;
 		memset(&ifr,0,sizeof(struct ifreq));
 		ifr.ifr_data = (void*)sk;
 		DEBUG_TEST("%s: UNBINDING SK dev=%s\n",__FUNCTION__,dev->name);
-		WAN_NETDEV_IOCTL(dev,&ifr,SIOC_WANPIPE_UNBIND_SK);
+		dev->do_ioctl(dev,&ifr,SIOC_WANPIPE_UNBIND_SK);
 	}
 
 	sk->sk_socket = NULL;

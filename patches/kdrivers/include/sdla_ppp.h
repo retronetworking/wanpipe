@@ -27,7 +27,7 @@
  *	GNU C		Linux		
  */
 
-#include <linux/wanpipe_sppp_iface.h>
+#include "wanpipe_sppp_iface.h"
 
 #pragma pack(1)
 
@@ -335,33 +335,37 @@ typedef struct ppp_intr_info{
 
 
 #define FT1_MONITOR_STATUS_CTRL                         0x80
-#define SET_FT1_MODE                                    0x81
+//#define SET_FT1_MODE                                    0x81
 
 
 
 /* Special UDP drivers management commands */
-#define PPIPE_ENABLE_TRACING                            0x20
-#define PPIPE_DISABLE_TRACING                           0x21
-#define PPIPE_GET_TRACE_INFO                            0x22
-#define PPIPE_GET_IBA_DATA                              0x23
-#define PPIPE_KILL_BOARD     				0x24
-#define PPIPE_FT1_READ_STATUS                           0x25
-#define PPIPE_DRIVER_STAT_IFSEND                        0x26
-#define PPIPE_DRIVER_STAT_INTR                          0x27
-#define PPIPE_DRIVER_STAT_GEN                           0x28
-#define PPIPE_FLUSH_DRIVER_STATS                        0x29
-#define PPIPE_ROUTER_UP_TIME                            0x30
-#define PPIPE_TE1_56K_STAT 	    			0x40	/* TE1_56K */
+#define PPIPE_ENABLE_TRACING                            WANPIPEMON_ENABLE_TRACING
+#define PPIPE_DISABLE_TRACING                           WANPIPEMON_DISABLE_TRACING
+#define PPIPE_GET_TRACE_INFO                            WANPIPEMON_GET_TRACE_INFO
+#define PPIPE_GET_IBA_DATA                              WANPIPEMON_GET_IBA_DATA
+
+#define PPIPE_FT1_READ_STATUS                           WANPIPEMON_FT1_READ_STATUS
+#define PPIPE_DRIVER_STAT_IFSEND                        WANPIPEMON_DRIVER_STAT_IFSEND
+#define PPIPE_DRIVER_STAT_INTR                          WANPIPEMON_DRIVER_STAT_INTR
+#define PPIPE_DRIVER_STAT_GEN                           WANPIPEMON_DRIVER_STAT_GEN
+#define PPIPE_FLUSH_DRIVER_STATS                        WANPIPEMON_FLUSH_DRIVER_STATS
+#define PPIPE_ROUTER_UP_TIME                            WANPIPEMON_ROUTER_UP_TIME
+#define PPIPE_TE1_56K_STAT 	    				0x40	/* TE1_56K */
 #define PPIPE_GET_MEDIA_TYPE	 	    		0x41	/* TE1_56K */
-#define PPIPE_FLUSH_TE1_PMON 	   			0x42	/* TE1     */
-#define PPIPE_READ_REGISTER 	   			0x43	/* TE1_56K */
-#define PPIPE_TE1_CFG 		   			0x44	/* TE1     */
+#define PPIPE_FLUSH_TE1_PMON 	   				0x42	/* TE1     */
+#define PPIPE_READ_REGISTER 	   				0x43	/* TE1_56K */
+#define PPIPE_TE1_CFG 		   					0x44	/* TE1     */
 
-#define DISABLE_TRACING 				0x00
+//#define DISABLE_TRACING 					0x00
 #define TRACE_SIGNALLING_FRAMES				0x01
-#define TRACE_DATA_FRAMES				0x02
+#define TRACE_DATA_FRAMES					0x02
 
+#ifdef UDPMGMT_SIGNATURE
+#undef UDPMGMT_SIGNATURE
 #define UDPMGMT_SIGNATURE    "PTPIPEAB"
+#endif
+
 #define UDPDRV_SIGNATURE     "DRVSTATS"
 #define UDPMGMT_UDP_PROTOCOL 0x11
 

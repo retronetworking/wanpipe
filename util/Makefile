@@ -1,5 +1,9 @@
 PWD=$(shell pwd)
+ifneq (,$(wildcard $(PWD)/../patches/kdrivers/include))
 SYSINC=$(PWD)/../patches/kdrivers/include
+else
+SYSINC=/usr/include/wanpipe
+endif
 WAN_VIRTUAL=$(PREFIX)
 WANINCDIR=/usr/include/wanpipe
 ARCH=$(shell uname -m)
@@ -8,14 +12,14 @@ all:
 	make -C ft1 all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 	make -C lxdialog all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 	make -C sdladump all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
-	make -C lib/hdlc all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wanconfig all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wanec_client all CC=$(CC)  SYSINC=$(SYSINC) WANINCDIR=$(WANINCDIR) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wan_plxctrl all CC=$(CC)  SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
-	make -C wan_aftup all CC=$(CC)  SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wanpipemon all  CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" ENABLE_WANPIPEMON_ZAP=$(ENABLE_WANPIPEMON_ZAP) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)  
 	make -C wanpipemon_legacy all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)  
 	make -C bwm all SYSINC=$(SYSINC) CC=$(CC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
+	make -C wancfg all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
+	make -C wan_aftup all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 
 all_wancfg:
 	make -C wancfg all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
@@ -28,10 +32,10 @@ install:
 	make -C wanconfig install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanec_client install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_plxctrl install WAN_VIRTUAL=$(WAN_VIRTUAL) 
-	make -C wan_aftup install WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C wanpipemon install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanpipemon_legacy install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wancfg install WAN_VIRTUAL=$(WAN_VIRTUAL)
+	make -C wan_aftup install WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C bwm install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wancfg_zaptel install WAN_VIRTUAL=$(WAN_VIRTUAL)
 
@@ -43,10 +47,10 @@ uninstall:
 	make -C wanconfig uninstall WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanec_client uninstall WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_plxctrl uninstall WAN_VIRTUAL=$(WAN_VIRTUAL) 
-	make -C wan_aftup uninstall WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C wanpipemon uninstall WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanpipemon_legacy uninstall WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wancfg uninstall WAN_VIRTUAL=$(WAN_VIRTUAL)
+	make -C wan_aftup uninstall WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C bwm uninstall   WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wancfg_zaptel uninstall WAN_VIRTUAL=$(WAN_VIRTUAL)  
 
@@ -57,11 +61,8 @@ clean:
 	make -C wanconfig clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanec_client clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_plxctrl clean WAN_VIRTUAL=$(WAN_VIRTUAL) 
-	make -C wan_aftup clean WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C wanpipemon clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanpipemon_legacy clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wancfg clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_aftup clean WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C bwm clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
-	make -C lib/hdlc clean WAN_VIRTUAL=$(WAN_VIRTUAL)
-

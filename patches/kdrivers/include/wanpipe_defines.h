@@ -1,16 +1,16 @@
-/*************************************************************************
-* wanpipe_defines.h							 *
-*		WANPIPE(tm) 	Global definition for Sangoma 		 *
-*				Mailbox/API/UDP	structures.		 *
-*									 *
-* Author:	Alex Feldman <al.feldman@sangoma.com>			 *
-*========================================================================*
-* May 10, 2002	Alex Feldman	Initial version				 *
-*									 * 
-* Nov 27,  2007 David Rokhvarg	Implemented functions/definitions for    *
-*                              Sangoma MS Windows Driver and API.        *
-*									 *
-*									 *
+/************************************************************************
+* wanpipe_defines.h														*
+*		WANPIPE(tm) 	Global definition for Sangoma 					*
+*				Mailbox/API/UDP	structures.								*
+*																		*
+* Author:	Alex Feldman <al.feldman@sangoma.com>						*
+*=======================================================================*
+* May 10, 2002	Alex Feldman	Initial version							*
+*																		* 
+* Nov 27,  2007 David Rokhvarg	Implemented functions/definitions for   *
+*                              Sangoma MS Windows Driver and API.       *
+*																		*
+*																		*
 *************************************************************************/
 
 #ifndef __WANPIPE_DEFINES_H
@@ -25,26 +25,19 @@
 # endif
 #endif
 
-#if defined(__LINUX__)
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_version.h>
-# include <linux/wanpipe_kernel.h>
-# include <linux/wanpipe_abstr_types.h>
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <wanpipe_version.h>
-# if defined(WAN_KERNEL)
-#  include <wanpipe_kernel.h>
-# endif
-# include <wanpipe_abstr_types.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_version.h>
-# include <wanpipe_ctypes.h> /* Basic data types */
-# include <wanpipe_debug.h>
-# if defined(WAN_KERNEL)
-# include <wanpipe_kernel.h>
-# endif
-# include <wanpipe_abstr_types.h>
+#include "wanpipe_version.h"
+#if defined(WAN_KERNEL)
+ #include "wanpipe_kernel.h"
 #endif
+#include "wanpipe_abstr_types.h"
+
+#if defined(__WINDOWS__)
+# include "wanpipe_ctypes.h" /* Basic data types */
+# if defined(WAN_KERNEL)
+#  include "wanpipe_skb.h"
+# endif
+#endif
+
 
 /************************************************
  *	GLOBAL SANGOMA PLATFORM DEFINITIONS	*
@@ -71,27 +64,6 @@
 # define WAN_PLATFORM_ID	WAN_WIN2K_PLATFORM
 #endif
 
-/************************************************
- *	GLOBAL SANGOMA COMMAND RANGES		*
- ************************************************/
-#define WAN_PROTOCOL_CMD_START	0x01
-#define WAN_PROTOCOL_CMD_END	0x4F
-
-#define WAN_UDP_CMD_START	0x60
-#define WAN_GET_PROTOCOL	(WAN_UDP_CMD_START+0)
-#define WAN_GET_PLATFORM	(WAN_UDP_CMD_START+1)
-#define WAN_GET_MEDIA_TYPE	(WAN_UDP_CMD_START+2)
-#define WAN_GET_MASTER_DEV_NAME	(WAN_UDP_CMD_START+3)
-#define WAN_UDP_CMD_END		0x6F	
-
-#define WAN_FE_CMD_START	0x90
-#define WAN_FE_CMD_END		0x9F
-
-#define WAN_INTERFACE_CMD_START	0xA0
-#define WAN_INTERFACE_CMD_END	0xAF
-
-#define WAN_FE_UDP_CMD_START	0xB0
-#define WAN_FE_UDP_CMD_END	0xBF	
 
 /*
 ************************************************
@@ -169,13 +141,8 @@ typedef	struct tcphdr		tcphdr_t;
 # define w_tcp_seq	seq
 # define w_tcp_ack_seq	ack_seq
 
-#if 0
-typedef time_t	wan_time_t;
-typedef suseconds_t	wan_suseconds_t;
-#else
-#define wan_time_t unsigned long
-#define wan_suseconds_t unsigned long
-#endif
+# define wan_time_t	 unsigned long
+# define wan_suseconds_t unsigned long
 
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 typedef	struct ip		iphdr_t;
@@ -200,12 +167,15 @@ typedef	struct tcphdr		tcphdr_t;
 # define w_tcp_dport	th_dport
 # define w_tcp_seq	th_seq
 # define w_tcp_ack_seq	th_ack
+
 # if (__FreeBSD_version > 700000)
-typedef time_t	wan_time_t;
+# define wan_time_t time_t
 # else /* includes FreeBSD-5/6/OpenBSD/NetBSD */
-typedef long wan_time_t;
+# define wan_time_t long
 # endif
-typedef suseconds_t	wan_suseconds_t;
+#define wan_suseconds_t suseconds_t
+
+
 
 #elif defined(__WINDOWS__)
 /* Intel X86 */
@@ -243,8 +213,37 @@ struct udphdr {
 typedef	struct	iphdr	iphdr_t;
 typedef	struct	udphdr	udphdr_t;
 
-typedef unsigned long	wan_time_t;
-typedef unsigned long	wan_suseconds_t;
+
+# define w_eth_dest	h_dest
+# define w_eth_src	h_source
+# define w_eth_proto	h_proto
+# define w_ip_v		version
+# define w_ip_hl	ihl
+# define w_ip_tos	tos
+# define w_ip_len	tot_len
+# define w_ip_id	id
+# define w_ip_off	frag_off
+# define w_ip_ttl	ttl
+# define w_ip_p		protocol
+# define w_ip_sum	check
+# define w_ip_src	saddr
+# define w_ip_dst	daddr
+# define w_udp_sport	source
+# define w_udp_dport	dest
+# define w_udp_len	len
+# define w_udp_sum	check
+# define w_tcp_sport	source
+# define w_tcp_dport	dest
+# define w_tcp_seq	seq
+# define w_tcp_ack_seq	ack_seq
+
+# define wan_time_t	 unsigned long
+# define wan_suseconds_t unsigned long
+
+#if !defined snprintf
+# define snprintf	_snprintf
+#endif
+
 #else
 # error "Unknown OS system!"
 #endif
@@ -278,442 +277,8 @@ typedef u_int64_t		u64;
 # endif
 #endif
 
-/************************************************
- *	GLOBAL DEFINITION FOR SANGOMA MAILBOX	*
- ************************************************/
-#define WAN_MAILBOX_SIZE	16
-#define WAN_MAX_DATA_SIZE	2032
-#define WAN_MAX_CMD_DATA_SIZE	1000
-#define WAN_MAX_POS_DATA_SIZE	1030
-
-#pragma pack(1)
-typedef struct {
-	union {
-		struct {
-			unsigned char  opp_flag;
-			unsigned char  command;
-			unsigned short data_len;	
-			unsigned char  return_code;
-			union {
-				struct {
-					unsigned char	PF_bit;		/* the HDLC P/F bit */
-				} hdlc;
-				struct {
-					unsigned short	dlci;		/* DLCI number */
-					unsigned char	attr;		/* FECN, BECN, DE and C/R bits */
-					unsigned short	rxlost1;	/* frames discarded at int. level */
-					u_int32_t	rxlost2;	/* frames discarded at app. level */
-				} fr;
-				struct {
-					unsigned char	pf;			/* P/F bit */
-					unsigned short	lcn;		/* logical channel */
-					unsigned char	qdm;		/* Q/D/M bits */
-					unsigned char	cause;		/* cause field */
-					unsigned char	diagn;		/* diagnostics */
-					unsigned char	pktType;	/* packet type */
-				} x25;
-				struct {
-					unsigned char	misc_Tx_Rx_bits; /* miscellaneous transmit and receive bits */
-					unsigned char	Rx_error_bits; /* an indication of a block received with an error */
-					unsigned short	Rx_time_stamp; /* a millisecond receive time stamp */
-					unsigned char	port;		/* comm port */
-				} bscstrm;
-				struct {
-					unsigned char 	misc_tx_rx_bits;
-					unsigned short 	heading_length;
-					unsigned short 	notify;
-					unsigned char 	station;
-					unsigned char 	poll_address;
-					unsigned char 	select_address;
-					unsigned char 	device_address;
-					unsigned char 	notify_extended;
-				} bsc;
-				struct {
-					unsigned char	sdlc_address;
-					unsigned char	PF_bit;
-					unsigned short	poll_interval;
-					unsigned char	general_mailbox_byte;
-				} sdlc;
-				struct {
-					unsigned char	force;
-				} fe;
-			} wan_protocol;
-		} wan_p_cmd;
-		struct {
-			unsigned char opp_flag;
-			unsigned char pos_state;
-			unsigned char async_state;
-		} wan_pos_cmd;
-		unsigned char mbox[WAN_MAILBOX_SIZE];
-	} wan_cmd_u;
-#define wan_cmd_opp_flag		wan_cmd_u.wan_p_cmd.opp_flag
-#define wan_cmd_command			wan_cmd_u.wan_p_cmd.command
-#define wan_cmd_data_len		wan_cmd_u.wan_p_cmd.data_len
-#define wan_cmd_return_code		wan_cmd_u.wan_p_cmd.return_code
-#define wan_cmd_hdlc_PF_bit		wan_cmd_u.wan_p_cmd.wan_protocol.hdlc.PF_bit
-#define wan_cmd_fe_force		wan_cmd_u.wan_p_cmd.wan_protocol.fe.force
-#define wan_cmd_fr_dlci			wan_cmd_u.wan_p_cmd.wan_protocol.fr.dlci
-#define wan_cmd_fr_attr			wan_cmd_u.wan_p_cmd.wan_protocol.fr.attr
-#define wan_cmd_fr_rxlost1		wan_cmd_u.wan_p_cmd.wan_protocol.fr.rxlost1
-#define wan_cmd_fr_rxlost2		wan_cmd_u.wan_p_cmd.wan_protocol.fr.rxlost2
-#define wan_cmd_x25_pf			wan_cmd_u.wan_p_cmd.wan_protocol.x25.pf
-#define wan_cmd_x25_lcn			wan_cmd_u.wan_p_cmd.wan_protocol.x25.lcn
-#define wan_cmd_x25_qdm			wan_cmd_u.wan_p_cmd.wan_protocol.x25.qdm
-#define wan_cmd_x25_cause		wan_cmd_u.wan_p_cmd.wan_protocol.x25.cause
-#define wan_cmd_x25_diagn		wan_cmd_u.wan_p_cmd.wan_protocol.x25.diagn
-#define wan_cmd_x25_pktType		wan_cmd_u.wan_p_cmd.wan_protocol.x25.pktType
-#define wan_cmd_bscstrm_misc_bits	wan_cmd_u.wan_p_cmd.wan_protocol.bscstrm.misc_Tx_Rx_bits
-#define wan_cmd_bscstrm_Rx_err_bits	wan_cmd_u.wan_p_cmd.wan_protocol.bscstrm.Rx_error_bits
-#define wan_cmd_bscstrm_Rx_time_stamp	wan_cmd_u.wan_p_cmd.wan_protocol.bscstrm.Rx_time_stamp
-#define wan_cmd_bscstrm_port		wan_cmd_u.wan_p_cmd.wan_protocol.bscstrm.port
-#define wan_cmd_bsc_misc_bits		wan_cmd_u.wan_p_cmd.wan_protocol.bsc.misc_tx_rx_bits
-#define wan_cmd_bsc_heading_len		wan_cmd_u.wan_p_cmd.wan_protocol.bsc.heading_length
-#define wan_cmd_bsc_notify		wan_cmd_u.wan_p_cmd.wan_protocol.bsc.notify
-#define wan_cmd_bsc_station		wan_cmd_u.wan_p_cmd.wan_protocol.bsc.station
-#define wan_cmd_bsc_poll_addr		wan_cmd_u.wan_p_cmd.wan_protocol.bsc.poll_address
-#define wan_cmd_bsc_select_addr		wan_cmd_u.wan_p_cmd.wan_protocol.bsc.select_address
-#define wan_cmd_bsc_device_addr		wan_cmd_u.wan_p_cmd.wan_protocol.bsc.device_address
-#define wan_cmd_bsc_notify_ext		wan_cmd_u.wan_p_cmd.wan_protocol.bsc.notify_extended
-#define wan_cmd_sdlc_address		wan_cmd_u.wan_p_cmd.wan_protocol.sdlc.sdlc_address
-#define wan_cmd_sdlc_pf			wan_cmd_u.wan_p_cmd.wan_protocol.sdlc.PF_bit
-#define wan_cmd_sdlc_poll_interval	wan_cmd_u.wan_p_cmd.wan_protocol.sdlc.poll_interval
-#define wan_cmd_sdlc_general_mb_byte	wan_cmd_u.wan_p_cmd.wan_protocol.sdlc.general_mailbox_byte
-
-#define wan_cmd_pos_opp_flag		wan_cmd_u.wan_pos_cmd.opp_flag
-#define wan_cmd_pos_pos_state		wan_cmd_u.wan_pos_cmd.pos_state
-#define wan_cmd_pos_async_state		wan_cmd_u.wan_pos_cmd.async_state
-} wan_cmd_t;
-
-
-typedef struct {
-	wan_cmd_t	wan_cmd;
-	union {
-		struct {
-			unsigned char  command;
-			unsigned short data_len;	
-			unsigned char  return_code;
-			unsigned char  port_num;
-			unsigned char  attr;
-			unsigned char  reserved[10];
-			unsigned char  data[WAN_MAX_POS_DATA_SIZE];
-		} pos_data;
-		unsigned char data[WAN_MAX_DATA_SIZE];
-	} wan_u_data;
-#define wan_opp_flag			wan_cmd.wan_cmd_opp_flag
-#define wan_command			wan_cmd.wan_cmd_command
-#define wan_data_len			wan_cmd.wan_cmd_data_len
-#define wan_return_code			wan_cmd.wan_cmd_return_code
-#define wan_hdlc_PF_bit			wan_cmd.wan_cmd_hdlc_PF_bit
-#define wan_fr_dlci			wan_cmd.wan_cmd_fr_dlci
-#define wan_fr_attr			wan_cmd.wan_cmd_fr_attr
-#define wan_fr_rxlost1			wan_cmd.wan_cmd_fr_rxlost1
-#define wan_fr_rxlost2			wan_cmd.wan_cmd_fr_rxlost2
-#define wan_x25_pf			wan_cmd.wan_cmd_x25_pf
-#define wan_x25_lcn			wan_cmd.wan_cmd_x25_lcn
-#define wan_x25_qdm			wan_cmd.wan_cmd_x25_qdm
-#define wan_x25_cause			wan_cmd.wan_cmd_x25_cause
-#define wan_x25_diagn			wan_cmd.wan_cmd_x25_diagn
-#define wan_x25_pktType			wan_cmd.wan_cmd_x25_pktType
-#define wan_bscstrm_misc_bits		wan_cmd.wan_cmd_bscstrm_misc_bits
-#define wan_bscstrm_Rx_err_bits		wan_cmd.wan_cmd_bscstrm_Rx_error_bits
-#define wan_bscstrm_Rx_time_stamp	wan_cmd.wan_cmd_bscstrm_Rx_time_stamp
-#define wan_bscstrm_port		wan_cmd.wan_cmd_bscstrm_port
-#define wan_bsc_misc_bits		wan_cmd.wan_cmd_bsc_misc_bits
-#define wan_bsc_heading_len		wan_cmd.wan_cmd_bsc_heading_length
-#define wan_bsc_notify			wan_cmd.wan_cmd_bsc_notify
-#define wan_bsc_station			wan_cmd.wan_cmd_bsc_station
-#define wan_bsc_poll_addr		wan_cmd.wan_cmd_bsc_poll_address
-#define wan_bsc_select_addr		wan_cmd.wan_cmd_bsc_select_address
-#define wan_bsc_device_addr		wan_cmd.wan_cmd_bsc_device_address
-#define wan_bsc_notify_ext		wan_cmd.wan_cmd_bsc_notify_extended
-#define wan_sdlc_address		wan_cmd.wan_cmd_sdlc_address		
-#define wan_sdlc_pf			wan_cmd.wan_cmd_sdlc_pf			
-#define wan_sdlc_poll_interval		wan_cmd.wan_cmd_sdlc_poll_interval	
-#define wan_sdlc_general_mb_byte	wan_cmd.wan_cmd_sdlc_general_mb_byte	
-#define wan_data			wan_u_data.data	
-
-#define wan_pos_opp_flag		wan_cmd.wan_cmd_pos_opp_flag
-#define wan_pos_pos_state		wan_cmd.wan_cmd_pos_pos_state
-#define wan_pos_async_state		wan_cmd.wan_cmd_pos_async_state
-#define wan_pos_command			wan_u_data.pos_data.command
-#define wan_pos_data_len		wan_u_data.pos_data.data_len
-#define wan_pos_return_code		wan_u_data.pos_data.return_code
-#define wan_pos_port_num		wan_u_data.pos_data.port_num
-#define wan_pos_attr			wan_u_data.pos_data.attr
-#define wan_pos_data			wan_u_data.pos_data.data
-} wan_mbox_t;
-
-#define WAN_MBOX_INIT(mbox)	memset(mbox, 0, sizeof(wan_cmd_t));
-
-/********************************************************
- *	GLOBAL DEFINITION FOR SANGOMA API STRUCTURE	*
- *******************************************************/
-#define WAN_API_MAX_DATA	2048
-typedef struct{
-	unsigned char	pktType;
-	unsigned short	length;
-	unsigned char	result;
-	union {
-		struct {
-			unsigned char	arg1;
-			unsigned short	time_stamp;
-		} chdlc;
-		struct {
-	        	unsigned char   attr;
-	        	unsigned short  time_stamp;
-		} fr;
-		struct {
-			unsigned char	qdm;
-			unsigned char	cause;
-			unsigned char	diagn;
-			unsigned short	lcn;
-		} x25;
-		struct {
-			unsigned char  station;
-			unsigned char  PF_bit;
-			unsigned short poll_interval;
-			unsigned char  general_mailbox_byte;
-		}sdlc;
-		struct {
-			unsigned char  exception;
-		}xdlc;
-	} wan_protocol;
-#define wan_apihdr_chdlc_error_flag	wan_protocol.chdlc.arg1
-#define wan_apihdr_chdlc_attr		wan_protocol.chdlc.arg1
-#define wan_apihdr_chdlc_time_stamp	wan_protocol.chdlc.time_stamp
-#define wan_apihdr_fr_attr		wan_protocol.fr.attr
-#define wan_apihdr_fr_time_stamp	wan_protocol.fr.time_stamp
-#define wan_apihdr_x25_qdm		wan_protocol.x25.qdm
-#define wan_apihdr_x25_cause		wan_protocol.x25.cause
-#define wan_apihdr_x25_diagn		wan_protocol.x25.diagn
-#define wan_apihdr_x25_lcn		wan_protocol.x25.lcn
-
-#define wan_apihdr_sdlc_station		wan_protocol.sdlc.station
-#define wan_apihdr_sdlc_pf		wan_protocol.sdlc.PF_bit
-#define wan_apihdr_sdlc_poll_interval	wan_protocol.sdlc.poll_interval
-#define wan_apihdr_sdlc_general_mb_byte	wan_protocol.sdlc.general_mailbox_byte
-
-#define wan_apihdr_xdlc_exception	wan_protocol.xdlc.exception
-} wan_api_hdr_t;
-
-
-typedef struct{
-	wan_api_hdr_t	api_hdr;
-	unsigned char	data[WAN_API_MAX_DATA];
-#define wan_api_pktType			api_hdr.pktType
-#define wan_api_length			api_hdr.length
-#define wan_api_result			api_hdr.result
-#define wan_api_chdlc_error_flag	api_hdr.wan_apihdr_chdlc_error_flag
-#define wan_api_chdlc_time_stamp	api_hdr.wan_apihdr_chdlc_time_stamp
-#define wan_api_chdlc_attr		api_hdr.wan_apihdr_chdlc_attr
-#define wan_api_chdlc_misc_Tx_bits	api_hdr.wan_apihdr_chdlc_misc_Tx_bits
-#define wan_api_fr_attr			api_hdr.wan_apihdr_fr_attr
-#define wan_api_fr_time_stamp		api_hdr.wan_apihdr_fr_time_stamp
-#define wan_api_x25_qdm			api_hdr.wan_apihdr_x25_qdm
-#define wan_api_x25_cause		api_hdr.wan_apihdr_x25_cause
-#define wan_api_x25_diagn		api_hdr.wan_apihdr_x25_diagn
-#define wan_api_x25_lcn			api_hdr.wan_apihdr_x25_lcn
-#define	wan_api_sdlc_station		api_hdr.wan_apihdr_sdlc_station
-#define wan_api_sdlc_pf			api_hdr.wan_apihdr_sdlc_pf
-#define wan_api_sdlc_poll_interval	api_hdr.wan_apihdr_sdlc_poll_interval
-#define wan_api_sdlc_general_mb_byte	api_hdr.wan_apihdr_sdlc_general_mb_byte
-#define wan_api_xdlc_exception		api_hdr.wan_apihdr_xdlc_exception
-} wan_api_t;
-
-
-typedef struct {
-	union {
-		struct {
-			unsigned char	error_flag;
-			unsigned short	time_stamp;
-		}chdlc,hdlc;
-		struct {
-			unsigned char   exception;
-			unsigned char 	pf;
-		}lapb;
-		struct {
-			unsigned char	state;
-			unsigned char	address;
-			unsigned short  exception;
-		}xdlc;
-		unsigned char	reserved[16];
-	}u;
-
-#define wan_hdr_xdlc_state	u.xdlc.state
-#define wan_hdr_xdlc_address	u.xdlc.address
-#define wan_hdr_xdlc_exception	u.xdlc.exception
-} wan_api_rx_hdr_t;
-
-typedef struct {
-        wan_api_rx_hdr_t	api_rx_hdr;
-#if defined(__WINDOWS__)/* zero-sized array does not comply to ANSI 'C' standard! */
-        unsigned char  		data[1];
-#else
-        unsigned char  		data[0];
-#endif
-#define wan_rxapi_xdlc_state		api_rx_hdr.wan_hdr_xdlc_state
-#define wan_rxapi_xdlc_address		api_rx_hdr.wan_hdr_xdlc_address
-#define wan_rxapi_xdlc_exception	api_rx_hdr.wan_hdr_xdlc_exception
-} wan_api_rx_element_t;
-
-typedef struct {
-	union{
-		struct {
-			unsigned char 	attr;
-			unsigned char   misc_Tx_bits;
-		}chdlc,hdlc;
-		struct {
-			unsigned char 	pf;
-		}lapb;
-		struct {
-			unsigned char  pf;
-		}xdlc;
-		unsigned char  	reserved[16];
-	}u;
-} wan_api_tx_hdr_t;
-
-typedef struct {
-	wan_api_tx_hdr_t 	api_tx_hdr;
-#if defined(__WINDOWS__)/* zero-sized array does not comply to ANSI 'C' standard! */
-	unsigned char		data[1];
-#else
-	unsigned char		data[0];
-#endif
-}wan_api_tx_element_t;
-
-#pragma pack()
-
-#if !defined(__WINDOWS__)
-enum {
-	SIOC_WAN_READ_REG = 0x01,
-	SIOC_WAN_WRITE_REG,
-	SIOC_WAN_HWPROBE,
-	SIOC_WAN_ALL_HWPROBE,
-	SIOC_WAN_ALL_READ_REG,
-	SIOC_WAN_ALL_WRITE_REG,
-	SIOC_WAN_ALL_SET_PCI_BIOS,
-	SIOC_WAN_SET_PCI_BIOS,
-	SIOC_WAN_COREREV,
-	SIOC_WAN_GET_CFG,
-	SIOC_WAN_FE_READ_REG,
-	SIOC_WAN_FE_WRITE_REG,
-	SIOC_WAN_EC_REG,
-	SIOC_WAN_READ_PCIBRIDGE_REG,
-	SIOC_WAN_ALL_READ_PCIBRIDGE_REG,
-	SIOC_WAN_WRITE_PCIBRIDGE_REG,
-	SIOC_WAN_ALL_WRITE_PCIBRIDGE_REG
-};
-#endif
-
-typedef struct wan_cmd_api_
-{
-	unsigned int	cmd;
-	unsigned short	len;
-	unsigned char	bar;
-	u_int32_t	offset;
-	unsigned char	data[WAN_MAX_CMD_DATA_SIZE];
-} wan_cmd_api_t;
-
-
-/********************************************************
- *	GLOBAL DEFINITION FOR SANGOMA UDP STRUCTURE	*
- *******************************************************/
-#define GLOBAL_UDP_SIGNATURE		"WANPIPE"
-#define GLOBAL_UDP_SIGNATURE_LEN	7
-#define UDPMGMT_UDP_PROTOCOL 		0x11
-
-typedef struct {
-	unsigned char	signature[8];
-	unsigned char	request_reply;
-	unsigned char	id;
-	unsigned char	reserved[6];
-} wan_mgmt_t;
-
-
-/****** DEFINITION OF UDP HEADER AND STRUCTURE PER PROTOCOL ******/
-typedef struct {
-	unsigned char	num_frames;
-	unsigned char	ismoredata;
-} wan_trace_info_t;
-
-typedef struct wan_udp_hdr{
-	wan_mgmt_t	wan_mgmt;
-	wan_cmd_t	wan_cmd;
-	union {
-		struct {
-			wan_trace_info_t	trace_info;
-			unsigned char		data[WAN_MAX_DATA_SIZE];
-		} chdlc, adsl, atm, ss7,bitstrm,aft;
-#define xilinx aft
-		unsigned char data[WAN_MAX_DATA_SIZE];
-	} wan_udphdr_u;
-#define wan_udphdr_signature			wan_mgmt.signature
-#define wan_udphdr_request_reply		wan_mgmt.request_reply
-#define wan_udphdr_id				wan_mgmt.id
-#define wan_udphdr_opp_flag			wan_cmd.wan_cmd_opp_flag
-#define wan_udphdr_command			wan_cmd.wan_cmd_command
-#define wan_udphdr_data_len			wan_cmd.wan_cmd_data_len
-#define wan_udphdr_return_code			wan_cmd.wan_cmd_return_code
-#define wan_udphdr_fe_force			wan_cmd.wan_cmd_fe_force
-#define wan_udphdr_hdlc_PF_bit			wan_cmd.wan_cmd_hdlc_PF_bit
-#define wan_udphdr_fr_dlci			wan_cmd.wan_cmd_fr_dlci
-#define wan_udphdr_fr_attr			wan_cmd.wan_cmd_fr_attr	
-#define wan_udphdr_fr_rxlost1			wan_cmd.wan_cmd_fr_rxlost1
-#define wan_udphdr_fr_rxlost2			wan_cmd.wan_cmd_fr_rxlost2
-#define wan_udphdr_x25_pf			wan_cmd.wan_cmd_x25_pf
-#define wan_udphdr_x25_lcn			wan_cmd.wan_cmd_x25_lcn			
-#define wan_udphdr_x25_qdm			wan_cmd.wan_cmd_x25_qdm	
-#define wan_udphdr_x25_cause			wan_cmd.wan_cmd_x25_cause
-#define wan_udphdr_x25_diagn			wan_cmd.wan_cmd_x25_diagn
-#define wan_udphdr_x25_pktType			wan_cmd.wan_cmd_x25_pktType
-#define wan_udphdr_bscstrm_misc_bits		wan_cmd.wan_cmd_bscstrm_misc_bits
-#define wan_udphdr_bscstrm_Rx_err_bits		wan_cmd.wan_cmd_bscstrm_Rx_err_bits
-#define wan_udphdr_bscstrm_Rx_time_stamp	wan_cmd.wan_cmd_bscstrm_Rx_time_stamp
-#define wan_udphdr_bscstrm_port			wan_cmd.wan_cmd_bscstrm_port
-#define wan_udphdr_bsc_misc_bits		wan_cmd.wan_cmd_bsc_misc_bit
-#define wan_udphdr_bsc_misc_heading_len		wan_cmd.wan_cmd_bsc_misc_heading_len
-#define wan_udphdr_bsc_misc_notify		wan_cmd.wan_cmd_bsc_misc_notify
-#define wan_udphdr_bsc_misc_station		wan_cmd.wan_cmd_bsc_misc_station
-#define wan_udphdr_bsc_misc_poll_add		wan_cmd.wan_cmd_bsc_misc_poll_addr
-#define wan_udphdr_bsc_misc_select_addr		wan_cmd.wan_cmd_bsc_misc_select_addr
-#define wan_udphdr_bsc_misc_device_addr		wan_cmd.wan_cmd_bsc_misc_device_addr
-#define wan_udphdr_chdlc_num_frames		wan_udphdr_u.chdlc.trace_info.num_frames
-#define wan_udphdr_chdlc_ismoredata		wan_udphdr_u.chdlc.trace_info.ismoredata
-#define wan_udphdr_chdlc_data			wan_udphdr_u.chdlc.data
-
-#define wan_udphdr_bitstrm_num_frames		wan_udphdr_u.bitstrm.trace_info.num_frames
-#define wan_udphdr_bitstrm_ismoredata		wan_udphdr_u.bitstrm.trace_info.ismoredata
-#define wan_udphdr_bitstrm_data			wan_udphdr_u.bitstrm.data
-
-#define wan_udphdr_adsl_num_frames		wan_udphdr_u.adsl.trace_info.num_frames
-#define wan_udphdr_adsl_ismoredata		wan_udphdr_u.adsl.trace_info.ismoredata
-#define wan_udphdr_adsl_data			wan_udphdr_u.adsl.data
-#define wan_udphdr_atm_num_frames		wan_udphdr_u.atm.trace_info.num_frames
-#define wan_udphdr_atm_ismoredata		wan_udphdr_u.atm.trace_info.ismoredata
-#define wan_udphdr_atm_data			wan_udphdr_u.atm.data
-#define wan_udphdr_ss7_num_frames		wan_udphdr_u.ss7.trace_info.num_frames
-#define wan_udphdr_ss7_ismoredata		wan_udphdr_u.ss7.trace_info.ismoredata
-#define wan_udphdr_ss7_data			wan_udphdr_u.ss7.data
-#define wan_udphdr_aft_num_frames		wan_udphdr_u.aft.trace_info.num_frames
-#define wan_udphdr_aft_ismoredata		wan_udphdr_u.aft.trace_info.ismoredata
-#define wan_udphdr_aft_data			wan_udphdr_u.aft.data	
-#if defined(__WINDOWS__)
-# define wan_udphdr_data			wan_udphdr_aft_data
-#else
-# define wan_udphdr_data			wan_udphdr_u.data
-#endif
-} wan_udp_hdr_t;
-
-
 #ifdef WAN_KERNEL
 
-#if 0
-#if defined(__LINUX__)
-# include <linux/wanpipe_events.h>
-#elif defined(__FreeBSD__) || defned(__OpenBSD__)
-# include <wanpipe_events.h>
-#endif
-#endif
 
 /*
 ******************************************************************
@@ -795,9 +360,18 @@ typedef int			wan_ioctl_cmd_t;
 #elif defined(__WINDOWS__)
 /******************* W I N D O W S ******************************/
 # define ETHER_ADDR_LEN		6
-# define WP_DELAY(usecs)	KeStallExecutionProcessor(usecs);/* usecs is in MicroSeconds */
-# define SYSTEM_TICKS		get_systemticks()
+# define WP_DELAY(usecs)						\
+{												\
+	unsigned long i, j = usecs / 50;			\
+	for(i = 0; i < j; i++){						\
+		KeStallExecutionProcessor(50);			\
+	}											\
+	KeStallExecutionProcessor((usecs % 50));	\
+}
+
+# define SYSTEM_TICKS	get_systemticks()
 # define jiffies		SYSTEM_TICKS
+
 # define wan_atomic_read	atomic_read
 # define wan_atomic_set		atomic_set
 # define wan_atomic_inc		atomic_inc
@@ -805,18 +379,21 @@ typedef int			wan_ioctl_cmd_t;
 # define RW_LOCK_UNLOCKED	0
 typedef int			wan_ioctl_cmd_t;
 
-/* this macro allowed only at IRQL = PASSIVE_LEVEL */
-/* Convert timeout in Milliseconds to relative timeout in 100ns units
-suitable as parameter 5 to KeWaitForSingleObject(..., TimeOut). */
-#define WP_MILLISECONDS_DELAY(ms_delay){			\
-	KEVENT		WaitEvent;				\
-	LARGE_INTEGER	TimeOut;				\
-								\
+/* This macro allowed only at IRQL <= PASSIVE_LEVEL.
+ * Convert timeout in Milliseconds to relative timeout in 100ns units
+ * suitable as parameter 5 to KeWaitForSingleObject(..., TimeOut). */
+#define WP_MILLISECONDS_DELAY(ms_delay){		\
+	KEVENT		WaitEvent;						\
+	LARGE_INTEGER	TimeOut;					\
+												\
 	KeInitializeEvent(&WaitEvent, NotificationEvent, FALSE);\
 	TimeOut.QuadPart = -( (LONGLONG) (ms_delay)*10*1000 );	\
 	KeWaitForSingleObject(&WaitEvent, Executive, KernelMode, FALSE, &TimeOut);\
 }
-#endif
+
+# define WP_SCHEDULE(arg,name)	WP_MILLISECONDS_DELAY(arg)
+
+#endif /* __WINDOWS__ */
 
 #if defined(__FreeBSD__)
 # define WAN_MODULE_VERSION(module, version)			\
@@ -1057,10 +634,6 @@ typedef mblk_t			netskb_t;
 #elif defined(__WINDOWS__)
 /**************************** W I N D O W S **********************************/
 
-/*********************************************************************/
-
-/*********************************************************************/
-
 typedef struct sk_buff		netskb_t;
 typedef struct sk_buff_head	wan_skb_queue_t;
 
@@ -1071,24 +644,16 @@ typedef struct
     u16 EtherType;
 } ethhdr_t;
 
-typedef void*			wan_timer_arg_t;
-typedef PKDEFERRED_ROUTINE	wan_tasklet_func_t;
-typedef PKDEFERRED_ROUTINE	wan_taskq_func_t;
-
-typedef struct _wan_timer_info_t{
-	KTIMER			Timer;
-	KDPC			TimerDpcObject;
-	LARGE_INTEGER		TimerDueTime;
-}wan_timer_info_t;
-
-typedef void (*wan_timer_func_t)(IN PKDPC Dpc, void* context, void * arg2, void * arg3);
 
 typedef struct { ULONG counter; } atomic_t;
 
-typedef int 			wan_rwlock_t;
-typedef int			wan_rwlock_flag_t;
-typedef int			pid_t;
+typedef int		wan_rwlock_t;
+typedef int		wan_rwlock_flag_t;
+typedef int		pid_t;
+typedef void	(wan_pci_ifunc_t)(void*);
+
 #endif
+
 
 /*
  * Spin Locks
@@ -1132,9 +697,9 @@ typedef struct _wan_rwlock
 typedef struct _wan_dma_descr_org
 {
 	unsigned long*		vAddr;
-        unsigned long		pAddr;
-        unsigned long		length;
-        unsigned long		max_length;
+    unsigned long		pAddr;
+    unsigned long		length;
+    unsigned long		max_length;
 #if defined(__FreeBSD__)
 	bus_dma_tag_t		dmat;
 	bus_dmamap_t		dmamap;
@@ -1146,6 +711,8 @@ typedef struct _wan_dma_descr_org
 	bus_dma_tag_t		dmat;
 	bus_dma_segment_t	dmaseg;
 	int			rsegs;
+#elif defined(__WINDOWS__)
+	PDMA_ADAPTER	DmaAdapterObject;
 #else	/* other OS */
 #endif
 } wan_dma_descr_org_t;/*, *PDMA_DESCRIPTION;*/
@@ -1170,7 +737,7 @@ typedef struct _wan_tasklet
 #endif
 } wan_tasklet_t;
 
-#ifndef __LINUX__
+#if !defined(__LINUX__) && !defined(__WINDOWS__)
 typedef struct _wan_taskq
 {
 	unsigned char		running;
@@ -1188,8 +755,6 @@ typedef struct _wan_taskq
 # else
         struct work_struct 	tqueue;
 # endif
-#elif  defined(__WINDOWS__)
-	KDPC 	tqueue;
 #elif  defined(__SOLARIS__)
 #error "_wan_taskq: not defined in solaris"
 #endif
@@ -1205,6 +770,7 @@ typedef struct wan_trace
 	unsigned int   		max_trace_queue;
 	unsigned char		last_trace_direction;
 	u_int32_t		missed_idle_rx_counter;
+	u_int32_t		time_stamp;
 }wan_trace_t;
 
 
@@ -1212,6 +778,7 @@ typedef struct wan_trace
 /*
 ** TIMER structure
 */
+#if !defined(__WINDOWS__)
 typedef struct _wan_timer
 {
 #define NDIS_TIMER_TAG 0xBEEF0005
@@ -1222,11 +789,11 @@ typedef struct _wan_timer
 	wan_timer_info_t	timer_info;
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	wan_timer_func_t	timer_func;
-#elif defined(__WINDOWS__)
-	wan_timer_func_t	timer_func;
 #endif
 	void*			timer_arg;
 } wan_timer_t;
+#endif
+
 
 #if !defined(LINUX_2_6) && !defined(__WINDOWS__)
 /* Define this structure for BSDs and not Linux-2.6 */
@@ -1243,84 +810,6 @@ struct seq_file {
 	int		stop_cnt;/* last stop offset*/
 };
 #endif
-
-
-
-/****** DEFINITION OF UDP HEADER AND STRUCTURE PER PROTOCOL *******/
-typedef struct wan_udp_pkt {
-	iphdr_t		ip_hdr;
-	udphdr_t	udp_hdr;
-	wan_udp_hdr_t	wan_udp_hdr;
-
-
-#define wan_ip				ip_hdr
-#define wan_ip_v			ip_hdr.w_ip_v
-#define wan_ip_hl			ip_hdr.w_ip_hl
-#define wan_ip_tos			ip_hdr.w_ip_tos
-#define wan_ip_len			ip_hdr.w_ip_len
-#define wan_ip_id			ip_hdr.w_ip_id
-#define wan_ip_off			ip_hdr.w_ip_off
-#define wan_ip_ttl			ip_hdr.w_ip_ttl
-#define wan_ip_p			ip_hdr.w_ip_p
-#define wan_ip_sum			ip_hdr.w_ip_sum
-#define wan_ip_src			ip_hdr.w_ip_src
-#define wan_ip_dst			ip_hdr.w_ip_dst
-#define wan_udp_sport			udp_hdr.w_udp_sport
-#define wan_udp_dport			udp_hdr.w_udp_dport
-#define wan_udp_len			udp_hdr.w_udp_len
-#define wan_udp_sum			udp_hdr.w_udp_sum
-#define wan_udp_cmd			wan_udp_hdr.wan_cmd
-#define wan_udp_signature		wan_udp_hdr.wan_udphdr_signature
-#define wan_udp_request_reply		wan_udp_hdr.wan_udphdr_request_reply
-#define wan_udp_id			wan_udp_hdr.wan_udphdr_id
-#define wan_udp_opp_flag		wan_udp_hdr.wan_udphdr_opp_flag
-#define wan_udp_command			wan_udp_hdr.wan_udphdr_command
-#define wan_udp_data_len		wan_udp_hdr.wan_udphdr_data_len
-#define wan_udp_return_code		wan_udp_hdr.wan_udphdr_return_code
-#define wan_udp_hdlc_PF_bit 		wan_udp_hdr.wan_udphdr_hdlc_PF_bit
-#define wan_udp_fr_dlci 		wan_udp_hdr.wan_udphdr_fr_dlci
-#define wan_udp_fr_attr 		wan_udp_hdr.wan_udphdr_fr_attr
-#define wan_udp_fr_rxlost1 		wan_udp_hdr.wan_udphdr_fr_rxlost1
-#define wan_udp_fr_rxlost2 		wan_udp_hdr.wan_udphdr_fr_rxlost2
-#define wan_udp_x25_pf 			wan_udp_hdr.wan_udphdr_x25_pf	
-#define wan_udp_x25_lcn 		wan_udp_hdr.wan_udphdr_x25_lcn	
-#define wan_udp_x25_qdm 		wan_udp_hdr.wan_udphdr_x25_qdm
-#define wan_udp_x25_cause 		wan_udp_hdr.wan_udphdr_x25_cause
-#define wan_udp_x25_diagn 		wan_udp_hdr.wan_udphdr_x25_diagn
-#define wan_udp_x25_pktType 		wan_udp_hdr.wan_udphdr_x25_pktType
-#define wan_udp_bscstrm_misc_bits 	wan_udp_hdr.wan_udphdr_bscstrm_misc_bits
-#define wan_udp_bscstrm_Rx_err_bits 	wan_udp_hdr.wan_udphdr_bscstrm_Rx_err_bits
-#define wan_udp_bscstrm_Rx_time_stam 	wan_udp_hdr.wan_udphdr_bscstrm_Rx_time_stamp
-#define wan_udp_bscstrm_port 		wan_udp_hdr.wan_udphdr_bscstrm_port
-#define wan_udp_bsc_misc_bits 		wan_udp_hdr.wan_udphdr_bsc_misc_bits
-#define wan_udp_bsc_misc_heading_len  	wan_udp_hdr.wan_udphdr_bsc_misc_heading_len
-#define wan_udp_bsc_misc_notify 	wan_udp_hdr.wan_udphdr_bsc_misc_notify
-#define wan_udp_bsc_misc_station 	wan_udp_hdr.wan_udphdr_bsc_misc_station
-#define wan_udp_bsc_misc_poll_add 	wan_udp_hdr.wan_udphdr_bsc_misc_poll_add
-#define wan_udp_bsc_misc_select_addr 	wan_udp_hdr.wan_udphdr_bsc_misc_select_addr
-#define wan_udp_bsc_misc_device_addr 	wan_udp_hdr.wan_udphdr_bsc_misc_device_addr
-#define wan_udp_bsc_misc_notify_ext 	wan_udp_hdr.wan_udphdr_bsc_misc_notify_ext
-#define wan_udp_chdlc_num_frames	wan_udp_hdr.wan_udphdr_chdlc_num_frames
-#define wan_udp_chdlc_ismoredata	wan_udp_hdr.wan_udphdr_chdlc_ismoredata
-#define wan_udp_chdlc_data		wan_udp_hdr.wan_udphdr_chdlc_data
-
-#define wan_udp_bitstrm_num_frames	wan_udp_hdr.wan_udphdr_bitstrm_num_frames
-#define wan_udp_bitstrm_ismoredata	wan_udp_hdr.wan_udphdr_bitstrm_ismoredata
-#define wan_udp_bitstrm_data		wan_udp_hdr.wan_udphdr_bitstrm_data
-
-#define wan_udp_adsl_num_frames		wan_udp_hdr.wan_udphdr_adsl_num_frames
-#define wan_udp_adsl_ismoredata		wan_udp_hdr.wan_udphdr_adsl_ismoredata
-#define wan_udp_adsl_data		wan_udp_hdr.wan_udphdr_adsl_data
-#define wan_udp_atm_num_frames		wan_udp_hdr.wan_udphdr_atm_num_frames
-#define wan_udp_atm_ismoredata		wan_udp_hdr.wan_udphdr_atm_ismoredata	
-#define wan_udp_atm_data		wan_udp_hdr.wan_udphdr_atm_data
-#define wan_udp_ss7_num_frames		wan_udp_hdr.wan_udphdr_ss7_num_frames
-#define wan_udp_ss7_ismoredata		wan_udp_hdr.wan_udphdr_ss7_ismoredata	
-#define wan_udp_ss7_data		wan_udp_hdr.wan_udphdr_ss7_data
-#define wan_udp_aft_num_frames		wan_udp_hdr.wan_udphdr_aft_num_frames
-#define wan_udp_aft_ismoredata		wan_udp_hdr.wan_udphdr_aft_ismoredata	
-#define wan_udp_data			wan_udp_hdr.wan_udphdr_data
-} wan_udp_pkt_t;
 
 
 #pragma pack(1)

@@ -46,7 +46,9 @@ typedef struct {
 #define FLUSH_GLOBAL_STATISTICS				0x05	/* flush the global statistics */
 #define SET_MODEM_STATUS						0x06	/* set the status of DTR and/or RTS */
 #define READ_MODEM_STATUS						0x07	/* read the current status of CTS and DCD */
+#undef	READ_COMMS_ERROR_STATS
 #define READ_COMMS_ERROR_STATS				0x08	/* read the communication error statistics */
+#undef	FLUSH_COMMS_ERROR_STATS
 #define FLUSH_COMMS_ERROR_STATS				0x09	/* flush the communication error statistics */
 
 /* BSTRM-level interface commands */
@@ -443,52 +445,30 @@ typedef struct {
 } SHARED_MEMORY_INFO_STRUCT;
 
 
-
- 
-
-
-typedef struct {
-	unsigned char	error_flag	;
-	unsigned short	time_stamp	;
-	unsigned char	channel		;
-	unsigned char   direction	;
-	unsigned char	reserved[11]	;
-} api_rx_hdr_t;
-
-typedef struct {
-        api_rx_hdr_t	api_rx_hdr      ;
-        unsigned char   data[1]    	;
-} api_rx_element_t;
-
-typedef struct {
-	unsigned char 	attr		;
-	unsigned char  	reserved[15]	;
-} api_tx_hdr_t;
-
-typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	;
-	unsigned char	data[1]		;
-} api_tx_element_t;
-
-
 /* Special UDP drivers management commands */
-#define BPIPE_ENABLE_TRACING				0x50
-#define BPIPE_DISABLE_TRACING				0x51
-#define BPIPE_GET_TRACE_INFO				0x52
-#define BPIPE_GET_IBA_DATA				0x53
-#define BPIPE_FT1_READ_STATUS				0x54
-#define BPIPE_DRIVER_STAT_IFSEND			0x55
-#define BPIPE_DRIVER_STAT_INTR				0x56
-#define BPIPE_DRIVER_STAT_GEN				0x57
-#define BPIPE_FLUSH_DRIVER_STATS			0x58
-#define BPIPE_ROUTER_UP_TIME				0x59
+#define BPIPE_ROUTER_UP_TIME				WANPIPEMON_ROUTER_UP_TIME
+#define BPIPE_ENABLE_TRACING				WANPIPEMON_ENABLE_TRACING
+#define BPIPE_DISABLE_TRACING				WANPIPEMON_DISABLE_TRACING
+#define BPIPE_GET_TRACE_INFO				WANPIPEMON_GET_TRACE_INFO
+
+#define CPIPE_GET_IBA_DATA					WANPIPEMON_GET_IBA_DATA
+
+#define BPIPE_FT1_READ_STATUS				WANPIPEMON_DRIVER_STAT_IFSEND
+#define BPIPE_DRIVER_STAT_IFSEND			WANPIPEMON_DRIVER_STAT_IFSEND
+#define BPIPE_DRIVER_STAT_INTR				WANPIPEMON_DRIVER_STAT_INTR
+#define BPIPE_DRIVER_STAT_GEN				WANPIPEMON_DRIVER_STAT_GEN
+#define BPIPE_FLUSH_DRIVER_STATS			WANPIPEMON_FLUSH_DRIVER_STATS
+
 
 
 /* modem status changes */
 #define DCD_HIGH			0x08
 #define CTS_HIGH			0x20
 
-#define UDPMGMT_SIGNATURE	"BTPIPEAB"
+#ifdef UDPMGMT_SIGNATURE
+ #undef UDPMGMT_SIGNATURE
+ #define UDPMGMT_SIGNATURE	"BTPIPEAB"
+#endif
 /* valid ip_protocol for UDP management */
 #define UDPMGMT_UDP_PROTOCOL 0x11
 

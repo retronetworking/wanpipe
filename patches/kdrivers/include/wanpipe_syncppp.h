@@ -195,7 +195,7 @@ struct sppp
 	unsigned long task_working;
 	int	dynamic_failures;
 
-	unsigned char hwdevname[IFNAMSIZ+1];
+	unsigned char hwdevname[WAN_IFNAME_SZ+1];
 };
 
 struct ppp_device
@@ -208,8 +208,8 @@ struct ppp_device
 
 static inline struct sppp *sppp_of(netdevice_t *dev)
 {
-	wanpipe_common_t *chan = wan_netif_priv(dev);
-	struct ppp_device *pppdev = (struct ppp_device *) chan->prot_ptr;
+	wanpipe_common_t *chan=dev->priv;
+	struct ppp_device *pppdev=(struct ppp_device *)chan->prot_ptr;
 	return &pppdev->sppp;
 }
 

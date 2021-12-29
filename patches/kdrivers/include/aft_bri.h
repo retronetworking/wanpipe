@@ -69,6 +69,7 @@ aft_is_bri_512khz_card(sdla_t *card)
 	return card->fe.bri_param.use_512khz_recovery_clock;	
 }
 
+#define IS_A700_CARD(card) (card->adptr_type == AFT_ADPTR_FLEXBRI) 
 
 #endif/* WAN_KERNEL */
 

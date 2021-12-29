@@ -12,6 +12,7 @@ DEBUG	= 2
 
 PROD=wanpipemon
 
+SYSINC=/usr/include/wanpipe
 
 WAN_VIRTUAL=
 LXDIR=../lxdialog
@@ -26,7 +27,8 @@ CC = gcc
 CPP = gcc -E
 CFLAGS = -Wall -Wstrict-prototypes 
 CFLAGS += $(EXTRA_FLAGS)
-CFLAGS +=  -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG)
+CFLAGS += $(GLOBAL_CFLAGS)
+CFLAGS +=  -D$(OS_TYPE) -I$(SYSINC) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG)
 WAN_VIRTUAL=
 
 
@@ -51,7 +53,7 @@ endif
 CFLAGS += -DCURSES_LOC="<ncurses.h>"       
 endif
 
-OBJS= wanpipemon.o fpipemon.o cpipemon.o ppipemon.o xpipemon.o atmpipemon.o aftpipemon.o dslpipemon.o prot_trace.o ss7pipemon.o bpipemon.o fe_lib.o xml_lib.o ../ft1/unixio.o
+OBJS= wanpipemon.o fpipemon.o cpipemon.o ppipemon.o xpipemon.o atmpipemon.o aftpipemon.o usbpipemon.o dslpipemon.o prot_trace.o ss7pipemon.o bpipemon.o fe_lib.o xml_lib.o ../ft1/unixio.o
 OBJS+=$(GUI_OBJ)
 
 ifeq "${ENABLE_WANPIPEMON_ZAP}" "YES"

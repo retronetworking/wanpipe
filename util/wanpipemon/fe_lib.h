@@ -66,7 +66,9 @@ extern int  remote_running_RT_test( void );
 extern void display_FT1_LEDs( void );
 
 extern int get_fe_type(unsigned char*);
-extern int set_lb_modes(unsigned char type, unsigned char mode);
+extern int		set_lb_modes(unsigned char type, unsigned char mode);
+extern int		set_lb_modes_per_chan(u_int8_t, u_int8_t, u_int32_t);
+extern u_int32_t	get_lb_modes(int);
 extern void read_te1_56k_stat(unsigned char);
 extern void read_te1_56k_config (void);
 
@@ -74,9 +76,9 @@ extern void set_debug_mode(unsigned char type, unsigned char mode);
 extern void set_fe_debug_mode(sdla_fe_debug_t *);
 extern void set_fe_tx_mode(unsigned char mode);
 
-extern void aft_remora_debug_mode(sdla_fe_debug_t *);
+extern void remora_debug_mode(sdla_fe_debug_t *);
 
-extern int set_fe_bert(int argc, char *argv[]);
+extern int 		set_fe_bert(int argc, char *argv[]);
 
 #define WAN_TRUE  1 
 #define WAN_FALSE 0

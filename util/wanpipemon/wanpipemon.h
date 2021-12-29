@@ -5,11 +5,50 @@
 #include "../lxdialog/dialog.h"
 #endif
 
+#if defined(__WINDOWS__)
+
+#include "wanpipe_cfg.h"	/* for WANCONFIG_USB_ANALOG */
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
+
+#include <string.h>
+#include <ctype.h>
+
+#include <time.h>
+
+
+#define inline __inline
+
+#else
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <string.h>
+#include <ctype.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <sys/un.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <signal.h>
+#include <time.h>
 #include <wanpipe_hdlc.h>
+#endif
+
+
 
 #ifdef WANPIPEMON_ZAP
 extern int MakeZapConnection(void);
-extern int zap_chan;
 #endif
 
 extern int 	output_start_xml_router (void);
@@ -22,7 +61,6 @@ extern void 	output_xml_val_asc (char *value_name, char * value);
 extern void 	output_error(char *value);
 
 extern void 	flush_te1_pmon(void);
-extern void 	read_te1_56k_stat(unsigned char);
 extern void	banner(char *, int);
 extern int DoCommand(wan_udp_hdr_t*);
 
@@ -75,6 +113,10 @@ extern int pcap_isdn_network;
 extern FILE *pcap_output_file;
 extern char pcap_output_file_name[];
 
+extern int trace_binary;
+extern FILE * trace_bin_in;
+extern FILE * trace_bin_out;
+
 
 #define MAX_CMD_ARG 10
 #define MAX_CMD_LENGTH 15
@@ -121,6 +163,11 @@ extern char ** ADSLget_cmd_menu(char *cmd_name,int *len);
 extern char ** ATMget_cmd_menu(char *cmd_name,int *len);
 extern char ** AFTget_cmd_menu(char *cmd_name,int *len);
 extern char ** ZAPget_cmd_menu(char *cmd_name,int *len);
+
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+extern char ** USBget_main_menu(int *len);
+extern char ** USBget_cmd_menu(char *cmd_name,int *len);
+#endif
 
 typedef int	config_t(void);
 typedef int 	usage_t(void);
@@ -184,6 +231,12 @@ extern main_t		X25Main;
 extern main_t		BITSTRMMain;
 #endif
 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+extern main_t		USBMain;
+extern config_t 	USBConfig;
+extern usage_t		USBUsage;
+#endif
+
 extern dis_trace_t	CHDLCDisableTrace;
 extern dis_trace_t	FRDisableTrace;
 extern dis_trace_t	PPPDisableTrace;
@@ -208,6 +261,7 @@ extern struct fun_protocol function_lookup[];
 			  (prot==WANCONFIG_AFT_TE1)?"AFT_TE1":\
 			  (prot==WANCONFIG_AFT_TE3)?"AFT_TE3":\
 			  (prot==WANCONFIG_AFT_ANALOG)?"AFT_ANALOG":\
+			  (prot==WANCONFIG_USB_ANALOG)?"U100_ANALOG":\
 			  (prot==WANCONFIG_ZAP)?"Zaptel":\
 							"Unknown")
 
@@ -317,12 +371,15 @@ static inline unsigned char *get_wan_udphdr_data_ptr(unsigned char off)
 					DECODE_PROT(wan_protocol)); 
 			break;
 		};
-	
-		if (function_lookup[i].protocol_id == wan_protocol){
 
+		return &wan_udp.wan_udphdr_data[0];
+
+#if 0
+		if (function_lookup[i].protocol_id == wan_protocol){
 			return &(((unsigned char*)&wan_udp.wan_udphdr_data[0])+
 				function_lookup[i].mbox_offset)[off];
 		}
+#endif
 		i++;
 	}
 
@@ -342,6 +399,13 @@ static inline unsigned char set_wan_udphdr_data_byte(unsigned char off, unsigned
 		};
 	
 		if (function_lookup[i].protocol_id == wan_protocol){
+
+#if 0
+			printf( "Protocol = %i OffsetUdpData=%i  Mbox Offset=%i\n", 
+					wan_protocol,
+					offsetof(wan_udp_hdr_t, wan_udphdr_data),
+					function_lookup[i].mbox_offset); 
+#endif			
 
 			(((unsigned char*)&wan_udp.wan_udphdr_data[0])+
 				function_lookup[i].mbox_offset)[off] = data;
@@ -404,7 +468,8 @@ enum {
 	WP_OUT_TRACE_INTERP_IPV4,
 	WP_OUT_TRACE_ATM_RAW_PHY,
 	WP_OUT_TRACE_ATM_INTERPRETED_PHY,
-	WP_OUT_TRACE_HDLC
+	WP_OUT_TRACE_HDLC,
+	WP_OUT_TRACE_BIN
 };
 
 #define WP_TRACE_OUTGOING 0x01
@@ -484,6 +549,7 @@ extern char*	get_hardware_level_interface_name(char* interface_name);
 extern int 	make_hardware_level_connection(void);
 extern void	cleanup_hardware_level_connection(void);
 
+extern void	read_te1_56k_stat(unsigned char);
 extern void	flush_te1_pmon(void);
 
 extern void	hw_line_trace(int trace_mode);
@@ -495,7 +561,7 @@ extern void	hw_flush_comm_err( void );
 extern void	hw_router_up_time(void);
 extern void	hw_read_code_version(void);
 extern void     hw_link_status(void);
-extern u_int32_t get_lb_modes(int silent);
+extern void aft_remora_debug_mode(sdla_fe_debug_t *fe_debug);
 
 #ifndef LONG_MAX 
 #define LONG_MAX	((long)(~0UL>>1))

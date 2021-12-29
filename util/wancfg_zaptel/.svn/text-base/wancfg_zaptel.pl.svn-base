@@ -9,8 +9,6 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
-# Jul 06   2009  2.35	Jignesh Patel 	Update enable/disable chan_woomera.so loading in Asterisk
-# May 26   2009	 2.34	Jignesh Patel 	Added support for USB FXO HW EC/DTMF/ Dahdi
 # May 5	   2009	 2.33	Jignesh Patel	Update start script for smgbri and wancfg_fs update
 # Apr 28   2009  2.32					smg_ctrl boot script update
 # Apr 27   2009  2,31   Yannick Lam     Added support --silent --safe_mode for smg
@@ -59,7 +57,7 @@ system('clear');
 print "\n########################################################################";
 print "\n#    		           Sangoma Wanpipe                             #";
 print "\n#        Dahdi/Zaptel/SMG/TDMAPI/BOOT Configuration Script             #";
-print "\n#                             v2.35                                  #";
+print "\n#                             v2.32                                    #";
 print "\n#                     Sangoma Technologies Inc.                        #";
 print "\n#                        Copyright(c) 2009.                            #";
 print "\n########################################################################\n\n";
@@ -357,7 +355,7 @@ if ($os_type_list =~ m/FreeBSD/ && $zaptel_dahdi_installed==$TRUE) {
 	update_zaptel_cfg_script();
 }
 
-if( $zaptel_installed==$TRUE && $os_type_list =~ m/Linux/ && $is_fs == $FALSE) {
+if( $zaptel_installed==$TRUE && $os_type_list =~ m/Linux/ ) {
 	set_zaptel_hwhdlc();
 }
 
@@ -370,7 +368,6 @@ if($usb_device_support == $TRUE && $os_type_list =~ m/Linux/) {
 	config_usbfxo();
 }
 config_tdmv_dummy();
-update_module_load();
 summary();
 apply_changes();
 
@@ -379,13 +376,11 @@ if ($os_type_list =~ m/FreeBSD/){
 	config_boot_freebsd();
 } else {
 	config_boot_linux();
+	config_smg_ctrl_boot();	
 }
 
 config_ztcfg_start();
 config_smg_ctrl_start();
-if($os_type_list =~ m/Linux/){
-config_smg_ctrl_boot();
-}
 clean_files();
 print "Sangoma cards configuration complete, exiting...\n\n";
 
@@ -1266,7 +1261,7 @@ sub write_zaptel_conf{
 	open(FH, "$zaptel_conf_template") or die "cannot open $zaptel_conf_template";
 	while (<FH>) {
 		$zp_file .= $_;
-	}
+}
 	close (FH);
 	$zp_file=$zp_file.$zaptel_conf;	
 	open(FH, ">$zaptel_conf_file") or die "cannot open $zaptel_conf_file";
@@ -3041,9 +3036,9 @@ sub config_analog{
 					if ($silent==$FALSE){
 						if ($card->hwec_mode eq "YES"){
 							$card->hw_dtmf(&prompt_hw_dtmf());
-                                if ($card->hw_dtmf eq "YES"){
-									$card->hw_fax(&prompt_hw_fax());
-                               }
+                                                        if ($card->hw_dtmf eq "YES"){
+								$card->hw_fax(&prompt_hw_fax());
+                                                        }
 						} else {
 							$card->hw_dtmf("NO");
 							$card->hw_fax("NO");
@@ -3210,114 +3205,104 @@ sub config_usbfxo{
 		$zapata_conf.="\n";
 	}
 	foreach my $dev (@hwprobe) {
-			if (( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d).*HWEC=(\w+).*/)||
-				( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d).*/)){		
-				$skip_card=$FALSE;
-				my $card = eval {new Card(); } or die ($@);
-				$card->current_dir($current_dir);
-				$card->cfg_dir($cfg_dir);
-				$card->device_no($devnum);
-				$card->card_model($1);
-				$card->pci_bus($2);
-				my $hwec=$3;
-				if($dahdi_installed == $TRUE) {
-						$card->dahdi_conf('YES');
-						$card->dahdi_echo($dahdi_echo)
-					}
-				if ($hwec==0){
-					$card->hwec_mode('NO');
-				}else{
-					$card->hwec_mode('YES');
+			if ( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d.*\s).* /){
+		
+			$skip_card=$FALSE;
+			my $card = eval {new Card(); } or die ($@);
+			$card->current_dir($current_dir);
+			$card->cfg_dir($cfg_dir);
+			$card->device_no($devnum);
+			$card->card_model($1);
+			$card->pci_bus($2);
+			
+			if ($card->card_model eq 'U100'){
+				$num_usb_devices_total++;
+				
+				if($silent==$FALSE) {
+					system('clear');
+					print "\n-----------------------------------------------------------\n";
+					print "USB $1 detected on  bus:$2\n";
+					print "-----------------------------------------------------------\n";
 				}
-				if ($card->card_model eq 'U100'){
-					$num_usb_devices_total++;
+				if($is_trixbox==$FALSE){
+					if ($silent==$FALSE){
+						print "\nWould you like to configure USB $1 on bus:$2\n";
+						if (&prompt_user_list(("YES","NO","")) eq 'NO'){
+							$skip_card=$TRUE;	
+						}
+					}
+				}
+				if ($skip_card==$FALSE){
 					
-					if($silent==$FALSE) {
-						system('clear');
-						print "\n-----------------------------------------------------------\n";
-						print "USB $1 detected on  bus:$2\n";
-						print "-----------------------------------------------------------\n";
-					}
-					if($is_trixbox==$FALSE){
-						if ($silent==$FALSE){
-							print "\nWould you like to configure USB $1 on bus:$2\n";
-							if (&prompt_user_list(("YES","NO","")) eq 'NO'){
-								$skip_card=$TRUE;	
-							}
-						}
-					}
-					if ($skip_card==$FALSE){
+					$u10x = eval {new U10x(); } or die ($@);
+					$u10x->card($card);
+					$card->first_chan($current_zap_channel);
+			
+									
+					if ($silent==$FALSE){
+						$u10x->tdm_law(&prompt_tdm_law());
+						$u10x->tdm_opermode(&prompt_tdm_opemode());
+		
+					} else {
+												
+						if($#silent_tdm_laws >= 0){
+							$silent_tdm_law=pop(@silent_tdm_laws);
+						}						
 						
-						$u10x = eval {new U10x(); } or die ($@);
-						$u10x->card($card);
-						$card->first_chan($current_zap_channel);
-				
-										
-						if ($silent==$FALSE){
-							$u10x->tdm_law(&prompt_tdm_law());
-							$u10x->tdm_opermode(&prompt_tdm_opemode());
-							if ($card->hwec_mode eq "YES"){
-								$card->hw_fax(&prompt_hw_fax());
-							} 	
-						} else {
-													
-							if($#silent_tdm_laws >= 0){
-								$silent_tdm_law=pop(@silent_tdm_laws);
-							}						
-							
-							$u10x->tdm_law($silent_tdm_law);
-							
-						} 
-				
-						$startup_string.="wanpipe$devnum ";
-						$cfg_string.="wanpipe$devnum ";
+						$u10x->tdm_law($silent_tdm_law);
 						
-						if($silent==$FALSE){
-							prompt_user("Press any key to continue");
-						}
-						my $i;
-						if( $is_tdm_api == $FALSE) {
-							print "$1 configured on  bus:$2 span:$current_zap_span\n";
-							$zaptel_conf.="#Sangoma USB $1  [bus:$2 span:$current_zap_span] <wanpipe".$u10x->card->device_no.">\n";
-							$zapata_conf.=";Sangoma A$1 [slot:$3 bus:$4 span:$current_zap_span]  <wanpipe".$u10x->card->device_no.">\n";
-							$current_zap_channel+=2;	
-							$num_zaptel_config++;
-							$card->tdmv_span_no($current_zap_span);
-							$current_zap_span++;
-						}else{
-							print "A$1 configured on slot:$3 bus:$4 span:$current_tdmapi_span\n";
-							$u10x->is_tdm_api($TRUE);
-							$card->tdmv_span_no($current_tdmapi_span);
-							$current_tdmapi_span++;
-						}
-							$devnum++;
-							$num_usb_devices++;
-						if ($os_type_list =~ m/FreeBSD/){
-							$u10x->gen_wanpipe_conf(1);
-						} else {
-							$u10x->gen_wanpipe_conf(0);
-						}
-						for (my $mod = 0; $mod <= 1; $mod++){
-							my $zap_pos = $mod+$current_zap_channel-2;
-							if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
-								if($#silent_zapata_contexts >= 0){
-									$silent_zapata_context=pop(@silent_zapata_contexts);
-								}
-								$u10x->card->zap_context($silent_zapata_context);
-							} else {
-								$u10x->card->zap_context("from-zaptel");
-							}
-							$u10x->card->zap_group("0");
-							$zaptel_conf.=$u10x->gen_zaptel_conf($zap_pos,"fxs");
-							$zapata_conf.=$u10x->gen_zapata_conf($zap_pos,"fxs");
-						}
-						
-					}else{
-						print "$1 on  bus:$2 not configured\n";
+					} 
+			
+					$startup_string.="wanpipe$devnum ";
+					$cfg_string.="wanpipe$devnum ";
+					
+					if($silent==$FALSE){
 						prompt_user("Press any key to continue");
 					}
+					my $i;
+					if( $is_tdm_api == $FALSE) {
+						print "$1 configured on  bus:$2 span:$current_zap_span\n";
+						$zaptel_conf.="#Sangoma USB $1  [bus:$2 span:$current_zap_span] <wanpipe".$u10x->card->device_no.">\n";
+						$zapata_conf.=";Sangoma A$1 [slot:$3 bus:$4 span:$current_zap_span]  <wanpipe".$u10x->card->device_no.">\n";
+						$current_zap_channel+=2;	
+						$num_zaptel_config++;
+						$card->tdmv_span_no($current_zap_span);
+						$current_zap_span++;
+					}else{
+						print "A$1 configured on slot:$3 bus:$4 span:$current_tdmapi_span\n";
+						$u10x->is_tdm_api($TRUE);
+						$card->tdmv_span_no($current_tdmapi_span);
+						$current_tdmapi_span++;
+					}
+						$devnum++;
+						$num_usb_devices++;
+					if ($os_type_list =~ m/FreeBSD/){
+						$u10x->gen_wanpipe_conf(1);
+					} else {
+						$u10x->gen_wanpipe_conf(0);
+					}
+					for (my $mod = 0; $mod <= 1; $mod++){
+						my $zap_pos = $mod+$current_zap_channel-2;
+						if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
+							if($#silent_zapata_contexts >= 0){
+								$silent_zapata_context=pop(@silent_zapata_contexts);
+							}
+							$u10x->card->zap_context($silent_zapata_context);
+						} else {
+							$u10x->card->zap_context("from-zaptel");
+						}
+						$u10x->card->zap_group("0");
+						$zaptel_conf.=$u10x->gen_zaptel_conf($zap_pos,"fxs");
+						$zapata_conf.=$u10x->gen_zapata_conf($zap_pos,"fxs");
+					}
+					
+				}else{
+					print "$1 on  bus:$2 not configured\n";
+					prompt_user("Press any key to continue");
 				}
 			}
+		
+		}
 	}
 	if($num_usb_devices_total!=0){
 		print("\nUSB analog card configuration complete\n\n");
@@ -3426,7 +3411,7 @@ sub config_smg_ctrl_boot {
 	if($silent==$FALSE){
 		print ("Would you like $script_name to start on system boot?\n");
 		$res= &prompt_user_list("YES","NO","");
-		if($res eq "NO"){
+		if($res=='NO'){
 			return;
 		}
 	}
@@ -3499,42 +3484,3 @@ sub config_smg_ctrl_boot {
 	}
 	
 }
-sub update_module_load {
-	if ($os_type_list =~ m/FreeBSD/){
-		return;	
-	}
-
-	my @mod_file;
-	my $mod_file='';
-	if(-e "$asterisk_conf_dir/modules.conf") {
-
-		if(!(-e "$asterisk_conf_dir/modules.conf.bak")){
-				exec_command("cp -f $asterisk_conf_dir/modules.conf $asterisk_conf_dir/modules.conf.bak");	
-			}
-	
-		open(FH, "$asterisk_conf_dir/modules.conf") or die "cannot open $asterisk_conf_dir/modules.conf";
-		@mod_file=<FH>;
-		close (FH);
-		foreach my $line (@mod_file){
-			if(!($line =~ m/woomera/)){
-				$mod_file .= $line;
-				if($line =~ m/\[modules]/) {
-					if($num_bri_devices !=0){
-						if(-e "/usr/lib/asterisk/modules/chan_woomera.so") {
-							$mod_file .= "load=>chan_woomera.so\n";
-						}
-					}else{
-						$mod_file .= "noload=>chan_woomera.so\n";
-						
-					}
-				}
-			}
-			open (FH,">$asterisk_conf_dir/modules.conf") or die "cannot open $asterisk_conf_dir/modules.conf";;
-			print FH $mod_file;
-			close (FH);
-
-		}
-	}
-	return;
-}
-

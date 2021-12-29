@@ -21,9 +21,11 @@
 #define FLUSH_BSC_ERROR_STATISTICS     0x0C
 #define FLUSH_BSC_TEXT_BUFFERS         0x0D
 #define SET_CONFIGURATION              0x0E
+#undef READ_CONFIGURATION
 #define READ_CONFIGURATION             0x0F
 #define SET_MODEM_STATUS               0x10
 #define READ_MODEM_STATUS              0x11
+#undef READ_CODE_VERSION         
 #define READ_CODE_VERSION              0x12
 #define ADD_STATION						0x20
 #define DELETE_STATION					0x21
@@ -113,27 +115,6 @@ typedef struct {
 	unsigned char station_flags	;
 }ADD_STATION_STRUCT;
 
-typedef struct {
-	unsigned char	station		;
-	unsigned short	time_stamp	;
-	unsigned char	reserved[13]	;
-} api_rx_hdr_t;
-
-typedef struct {
-        api_rx_hdr_t	api_rx_hdr      ;
-        void *   	data    	;
-} api_rx_element_t;
-
-typedef struct {
-	unsigned char 	station		;
-	unsigned char   misc_tx_rx_bits ;
-	unsigned char  	reserved[14]	;
-} api_tx_hdr_t;
-
-typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	;
-	void *		data		;
-} api_tx_element_t;
 
 #define SIOC_WANPIPE_EXEC_CMD	SIOC_WANPIPE_DEVPRIVATE
 

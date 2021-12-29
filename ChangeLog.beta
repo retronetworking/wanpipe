@@ -1,0 +1,40 @@
+------------------------------------------------------------------------------
+WANPIPE TDM VOICE - IP/WAN Package
+
+------------------------------------------------------------------------------
+Author: Nenad Corbic <ncorbic@sangoma.com>
+Copyright (c) 1995-2009 Sangoma Technologies Inc.
+
+For more info visit: http://wiki.sangoma.com
+------------------------------------------------------------------------------
+
+* Thu May 07 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.5.1
+===================================================================
+
+- New Hardware Support
+  B700 - Mixed BRI & Analog
+  B600 - Analog 4FXO/FXS
+  USB-FXO - USB Fxo device
+
+- New Unified API for Linux & Windows 
+  API Library - libsangoma
+  Unified Voice API for Linux & Windows
+  
+  -More Info
+  http://wiki.sangoma.com/wanpipe-api
+
+  - SPAN mode API
+  - CHAN mode API
+
+- Unified driver for Linux & Windows
+- Updated BRI Stack and Support
+- New BRI A500 & B700 firmware that fixes PCI parity errors.
+  On some systems A500 & B700 cards can generate parity errors.
+
+- FreeSwitch Tested
+- Update for 2.6.26 kernel
+
+Note this is a major release. It has been fully regression
+tested and stress tested in the lab and in the field.
+
+

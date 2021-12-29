@@ -39,6 +39,7 @@ unsigned char aft_analog_read_cpld(sdla_t *card, unsigned short cpld_off);
 
 void aft_analog_fifo_adjust(sdla_t *card,u32 level);
 
+#define IS_A700_ANALOG_CARD(card) (card->adptr_type == AFT_ADPTR_FLEXBRI && card->comm_port == 1)
 
 #endif
 

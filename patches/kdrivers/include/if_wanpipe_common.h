@@ -19,20 +19,16 @@
 
 #if defined(WAN_KERNEL)
 
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe_kernel.h>
-#elif defined(__LINUX__)
+#if defined(__LINUX__)
 # include <linux/version.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanpipe_common.h>
-# include <linux/wanpipe_kernel.h>
-# include <linux/if_wanpipe.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe_kernel.h>
+#endif
+
+# include "wanpipe_debug.h"
+# include "wanpipe_common.h"
+# include "wanpipe_kernel.h"
+
+#if defined(__LINUX__)
+# include "if_wanpipe.h"
 #endif
 
 
@@ -125,25 +121,39 @@ typedef struct {
 	void 		*lip;
 	unsigned int    lip_prot;
 #elif defined(__WINDOWS__)
-
-	void		*prot_ptr;
-	netdevice_t*	dev;
-	unsigned char	state;
-	unsigned char	usedby;
-
+	/* !!! IMPORTANT !!! <- Do not move this parameter (GENERIC-PPP) */
+	void*		*prot_ptr;
+	netdevice_t 	*next;		/*slave;*/
 	void		*card;	
+	struct net_device_stats	if_stats;
+	
+	atomic_t receive_block;
+	atomic_t command;
+	atomic_t disconnect;
+	
+	struct sock *sk;		/* Wanpipe Sock bind's here */ 
+	
+	wan_tasklet_t wanpipe_task;    /* Immediate BH handler task */
+	
+	unsigned char rw_bind;			  /* Sock bind state */
+	unsigned char usedby;
+	unsigned char state;
+	unsigned char svc;
+	unsigned short lcn;
+	unsigned int config_id;
+	
+	unsigned long	used;
+	unsigned long	api_state;
+	netdevice_t	*dev;
+	wan_skb_queue_t rx_queue;
+	wan_tasklet_t	bh_task;
+	wan_timer_t	dev_timer;
 
-	void* sk;
+	unsigned int	protocol;
 
 	void 		*lip;
-
-	//A104 additions
-	unsigned int	protocol;
-	wan_tasklet_t	bh_task;
-
-	//ADSL additions
-	wan_tasklet_t	wanpipe_task;    /* Immediate BH handler task */
 	unsigned int    lip_prot;
+
 #endif
 	int			is_netdev;
 	wanpipe_common_iface_t	iface;
@@ -279,7 +289,7 @@ static __inline int wan_unreg_api(void *chan_ptr, char *devname)
 	wanpipe_common_t *common = (wanpipe_common_t*)chan_ptr;
 	
 	if (!wan_test_and_clear_bit(WAN_API_INIT,&common->used)){
-		DEBUG_EVENT("%s: Error: Failed to unregister API!\n",
+		DEBUG_TEST("%s: Error: Failed to unregister API!\n",
 				devname);
 		return -EINVAL;
 	}

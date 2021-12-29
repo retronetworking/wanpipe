@@ -1,14 +1,14 @@
 8
 
 dir
-254
+173
 https://www.sangomapbx.com/svn/sangoma_mgd/trunk/scripts
 https://www.sangomapbx.com/svn/sangoma_mgd
 
 
 
-2010-01-15T05:43:55.436338Z
-239
+2009-04-13T23:22:24.548199Z
+167
 ncorbic
 
 
@@ -32,30 +32,17 @@ file
 
 
 
-2009-04-30T20:22:39.000000Z
+2009-03-30T18:03:12.000000Z
 e98e8f26dd275cc20245f47316812ad0
 2007-09-21T20:53:51.260136Z
 1
 root
 
-callgen
-dir
-
 init.d
 dir
 
-stats.sh
-file
-
-
-
-
-2010-01-26T01:30:55.000000Z
-3870b7b34ce1c44db4ef27ca3a36703e
-2010-01-15T05:43:55.436338Z
-239
-ncorbic
-has-props
+callgen
+dir
 
 set_debug.sh
 file
@@ -63,24 +50,11 @@ file
 
 
 
-2009-04-30T20:22:39.000000Z
+2009-03-30T18:03:12.000000Z
 fb580ba2a5e39574a4980ca545e01d27
 2007-09-21T20:53:51.260136Z
 1
 root
-has-props
-
-sig_state.sh
-file
-
-
-
-
-2009-11-24T17:29:10.000000Z
-d10d944bb164db02c3317dfa0d5e82da
-2009-11-20T23:39:34.767214Z
-231
-ncorbic
 has-props
 
 ss7
@@ -92,7 +66,7 @@ file
 
 
 
-2009-04-30T20:22:39.000000Z
+2009-03-30T18:03:12.000000Z
 a94061bf84e9f89de0842eb1249d0975
 2007-09-21T20:53:51.260136Z
 1
@@ -105,7 +79,7 @@ file
 
 
 
-2009-04-30T20:22:39.000000Z
+2009-04-16T18:24:58.000000Z
 31da6bda5c1e1959791ae79f5b890104
 2009-04-13T23:22:24.548199Z
 167

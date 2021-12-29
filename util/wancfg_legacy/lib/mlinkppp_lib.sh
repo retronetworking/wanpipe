@@ -343,7 +343,7 @@ function parse_mpd_conf_file() {
 # starting with a "#" are comments and get completely
 # ignored.
 #
-# $Id: mlinkppp_lib.sh,v 1.2 2004/01/28 17:14:48 sangoma Exp $
+# $Id: mlinkppp_lib.sh,v 1.2 2004-01-28 17:14:48 sangoma Exp $
 #
 #################################################################
 
@@ -444,7 +444,7 @@ function parse_mpd_links_file() {
 #
 # The first command for each link should be "set link type ..."
 #
-# $Id: mlinkppp_lib.sh,v 1.2 2004/01/28 17:14:48 sangoma Exp $
+# $Id: mlinkppp_lib.sh,v 1.2 2004-01-28 17:14:48 sangoma Exp $
 #
 #################################################################
 

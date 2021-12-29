@@ -20,41 +20,20 @@
 **			   INCLUDE FILES
 *******************************************************************************/
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe_common.h>
-# include <wanpipe_events.h>
-# include <wanpipe.h>
-# include <sdla_serial.h>
-# include <wanpipe_events.h>
-# include <if_wanpipe_common.h>	/* for 'wanpipe_common_t' used in 'sdla_aft_te1.h'*/
-# include <sdla_aft_te1.h>	/* for 'private_area_t' */
-#elif (defined __WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe_events.h>
-# include <wanpipe.h>
-# include <sdla_serial.h>
-# include <wanpipe_events.h>
-# include <if_wanpipe_common.h>	/* for 'wanpipe_common_t' used in 'sdla_aft_te1.h'*/
-# include <sdla_aft_te1.h>	/* for 'private_area_t' */
-#else
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanpipe_common.h>
-# include <linux/wanpipe_events.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_serial.h>
-# include <linux/wanpipe_events.h>
-# include <linux/if_wanpipe_common.h>	/* for 'wanpipe_common_t' used in 'sdla_aft_te1.h'*/
-# include <linux/sdla_aft_te1.h>	/* for 'private_area_t' */
-#endif
+
+# include "wanpipe_includes.h"
+# include "wanpipe_defines.h"
+# include "wanpipe_debug.h"
+# include "wanpipe_abstr.h"
+# include "wanpipe_common.h"
+# include "wanpipe_events.h"
+# include "wanpipe.h"
+# include "wanpipe_events.h"
+# include "if_wanpipe_common.h"	/* for 'wanpipe_common_t' used in 'aft_core.h'*/
+# include "sdla_serial.h"
+# include "aft_core.h" /* Map of Zaptel -> DAHDI definitions */
+
+
 
 #undef	DEBUG_SERIAL
 #define DEBUG_SERIAL		if(0)DEBUG_EVENT
@@ -206,10 +185,6 @@ static void wp_serial_timer(void*);
 #endif
 #endif /* if 0 */
 
-#if defined(AFT_TDM_API_SUPPORT)
-static int32_t wp_serial_watchdog(sdla_fe_t *fe);
-#endif
-
 
 /* for selecting PCM direction */
 #define XHFC_DIRECTION_TX 0
@@ -270,10 +245,6 @@ int32_t wp_serial_iface_init(void *pfe_iface)
 	fe_iface->intr_ctrl		= &wp_serial_intr_ctrl;
 	fe_iface->event_ctrl		= &wp_serial_event_ctrl;
 
-
-#if defined(AFT_TDM_API_SUPPORT)
-	fe_iface->watchdog	= &wp_serial_watchdog;
-#endif
 
 	return 0;
 }
@@ -372,18 +343,18 @@ static int32_t wp_serial_config(void *pfe)
 
 	SERIAL_FUNC();
 
-	DEBUG_EVENT("%s: %s: Line %d Front End configuration\n",
+	DEBUG_EVENT("%s: %s: Line %d Front End configuration\n", 
 			fe->name, FE_MEDIA_DECODE(fe), WAN_FE_LINENO(fe) + 1);
 
 	if(validate_fe_line_no(fe, __FUNCTION__)){
 		return 1;
 	}
 
-
-	switch (card->wandev.line_coding){
+	
+	switch (card->wandev.line_coding){ 
 	case WANOPT_NRZ:
 	case WANOPT_NRZI:
-		break;
+		break;		
 	default:
 		DEBUG_EVENT("%s: A140: Error: Unsupported line coding mode 0x%X\n",
 			card->devname,
@@ -397,71 +368,68 @@ static int32_t wp_serial_config(void *pfe)
 
 	case AFT_ADPTR_2SERIAL_V35X21:
 	case AFT_ADPTR_4SERIAL_V35X21:
-		DEBUG_EVENT("%s: A140: Configuring for %s\n",
+			DEBUG_EVENT("%s: A140: Configuring for %s\n",
 				card->devname,card->wandev.electrical_interface==WANOPT_X21?"X21":"V35");
 
-		switch(WAN_FE_LINENO(fe)) {
+			switch(WAN_FE_LINENO(fe)) {
 
-		case 0:
-		case 2:
-				cpld_reg=0x08;
-				break;
-		case 1:
-		case 3:
-				cpld_reg=0x09;
-				break;
-		default:
-				DEBUG_EVENT("%s: Error: Invalid Serial Port Number! (%i) \n",
-						card->devname,WAN_FE_LINENO(fe));
-				return -EINVAL;
-		};
+			case 0:
+			case 2:
+					cpld_reg=0x08;
+					break;
+			case 1:
+			case 3:
+					cpld_reg=0x09;
+					break;
+			default:
+					DEBUG_EVENT("%s: Error: Invalid Serial Port Number! (%i) \n",
+							card->devname,WAN_FE_LINENO(fe));
+					return -EINVAL;
+			};
 
-		cpld_reg_val=aft_serial_read_cpld(card,cpld_reg);
+			cpld_reg_val=aft_serial_read_cpld(card,cpld_reg);
+	
+			if (card->wandev.electrical_interface == WANOPT_X21) {
+				wan_set_bit(AFT_SERIAL_LCFG_X21_MODE_BIT, &reg);
+			} else {
+				if (wan_test_bit(2,&cpld_reg)) {
+					/* In this case port is trying to configure for V35
+					* where previous port already configured for X21 */
+					DEBUG_EVENT("%s: Error: Invalid V35 Configuration, Previous Port configured for X21\n",
+							card->devname);
+					return -EINVAL;
+				}
+				wan_clear_bit(AFT_SERIAL_LCFG_X21_MODE_BIT, &reg);
+			}	
+			DEBUG_SERIAL("%s(): cpld_reg_val: 0x%X\n", __FUNCTION__, cpld_reg_val);
 
-		if (card->wandev.electrical_interface == WANOPT_X21) {
-			wan_set_bit(AFT_SERIAL_LCFG_X21_MODE_BIT, &reg);
-		} else {
-			if (wan_test_bit(2,&cpld_reg)) {
-				/* In this case port is trying to configure for V35
-				 * where previous port already configured for X21 */
-				DEBUG_EVENT("%s: Error: Invalid V35 Configuration, Previous Port configured for X21\n",
-						card->devname);
-				return -EINVAL;
-			}
-			wan_clear_bit(AFT_SERIAL_LCFG_X21_MODE_BIT, &reg);
-		}	
-
-		if (card->wandev.clocking) {
+			if(card->wandev.clocking) {
 
 					/*FIXME: Must check for case where first port started in external mode
 					At this time, if port 1 start in normal & prot 3 in master, the
 					port 1 will silently be reconfigured to Master after port 3 starts */
 
-					if (card->wandev.clocking == WANOPT_INTERNAL) {
-						if (card->wandev.electrical_interface == WANOPT_X21) {
-							aft_serial_write_cpld(card,cpld_reg,0x07);
-						}else{
-							aft_serial_write_cpld(card,cpld_reg,0x05);
-						}
+					if (card->wandev.electrical_interface == WANOPT_X21) {
+						aft_serial_write_cpld(card,cpld_reg,0x07);
+					}else{
+						aft_serial_write_cpld(card,cpld_reg,0x05);
+					}
+			} else {
+   				if (wan_test_bit(2,&cpld_reg_val)) {
+							DEBUG_EVENT("%s: Error: Clocking configuration mismatch!\n",
+											card->devname);
+							DEBUG_EVENT("%s:        Ports 1&3 and 2&4 must use same clock source!\n",
+											card->devname);
+							return -EINVAL;
+					}
+
+					if (card->wandev.electrical_interface == WANOPT_X21) {
+						aft_serial_write_cpld(card,cpld_reg,0x03);
 					} else {
 						aft_serial_write_cpld(card,cpld_reg,0x01);
 					}
-		} else {
-			if (wan_test_bit(2,&cpld_reg_val)) {
-					DEBUG_EVENT("%s: Error: Clocking configuration mismatch!\n",
-									card->devname);
-					DEBUG_EVENT("%s:        Ports 1&3 and 2&4 must use same clock source!\n",
-									card->devname);
-					return -EINVAL;
 			}
-
-			if (card->wandev.electrical_interface == WANOPT_X21) {
-				aft_serial_write_cpld(card,cpld_reg,0x03);
-			} else {
-				aft_serial_write_cpld(card,cpld_reg,0x01);
-			}
-		}
-		break;
+			break;
 
 	case AFT_ADPTR_2SERIAL_RS232:
 	case AFT_ADPTR_4SERIAL_RS232:
@@ -492,50 +460,17 @@ static int32_t wp_serial_config(void *pfe)
 	}
 
 	
-
+	
 	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X\n",
 			card->devname,
 			reg);
 
-
 	if (card->wandev.clocking) {
-		int err;
-
-		DEBUG_EVENT("%s: A140: Configuring for %s Clocking: Baud=%i\n",
+		DEBUG_EVENT("%s: A140: Configuring for Internal Clocking: Baud=%i\n",
 			card->devname,
-			card->wandev.clocking == WANOPT_INTERNAL?"Internal":"Recovery",
 			card->wandev.bps);
-
-		if (card->wandev.bps == 0) {
-			DEBUG_EVENT("%s: Error Invalid Baud Rate selected 0Kbps!\n",
-				card->devname);
-			return -EINVAL;
-		}
-
 		wan_set_bit(AFT_SERIAL_LCFG_CLK_SRC_BIT, &reg);
-
-		if (card->u.aft.firm_ver < 0x07) {	
-			if (card->wandev.clocking == WANOPT_INTERNAL) {
-				err=aft_serial_set_legacy_baud_rate(&reg,card->wandev.bps);
-			} else {
-				DEBUG_EVENT("%s: RECOVERY Clocking only supported on Fimware Ver 7 or greater!\n",
-						card->devname);
-				return -EINVAL;
-			}
-		} else {
-			if (card->wandev.clocking == WANOPT_INTERNAL) {
-				err=aft_serial_set_baud_rate(&reg,card->wandev.bps,0);
-			} else {
-				err=aft_serial_set_baud_rate(&reg,card->wandev.bps*32,1);
-			}
-		}
-
-		if (err) {
-			return -EINVAL;
-		}
-
-		DEBUG_TEST("%s: Setting REG to 0x%08X!\n",
-			card->devname,reg);
+		aft_serial_set_baud_rate(&reg,card->wandev.bps);
 	} else {
 		DEBUG_EVENT("%s: A140: Configuring for External Clocking: Baud=%i\n",
 			card->devname,
@@ -543,7 +478,7 @@ static int32_t wp_serial_config(void *pfe)
 		wan_clear_bit(AFT_SERIAL_LCFG_CLK_SRC_BIT, &reg);
 	}
 
-	switch (card->wandev.line_coding){
+	switch (card->wandev.line_coding){ 
 	case WANOPT_NRZ:
 		DEBUG_EVENT("%s: A140: Configuring for NRZ\n",
 			card->devname);
@@ -553,7 +488,7 @@ static int32_t wp_serial_config(void *pfe)
 		DEBUG_EVENT("%s: A140: Configuring for NRZI\n",
 			card->devname);
 		aft_serial_set_lcoding(&reg,WANOPT_NRZI);
-		break;
+		break;		
 	default:
 		/* Should never happen because we check above */
 		DEBUG_EVENT("%s: A140: Error: Unsupported line coding mode 0x%X\n",
@@ -571,11 +506,9 @@ static int32_t wp_serial_config(void *pfe)
 		wan_clear_bit(AFT_SERIAL_LCFG_IDLE_DET_BIT,&reg);
 	}
 
-	if (card->wandev.clocking == WANOPT_RECOVERY) {
-		wan_set_bit(AFT_SERIAL_LCFG_IFACE_TYPE_BIT,&reg);
-	} else {
-		wan_clear_bit(AFT_SERIAL_LCFG_IFACE_TYPE_BIT,&reg);
-	}
+
+	/* Hardcode to sync device type */
+	wan_clear_bit(AFT_SERIAL_LCFG_IFACE_TYPE_BIT,&reg);
 
 	/* CTS/DCD Interrupt Enable */
 	if (card->wandev.ignore_front_end_status == WANOPT_YES) {
@@ -589,28 +522,18 @@ static int32_t wp_serial_config(void *pfe)
 
 	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),reg);
 
-	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X CTS/DCD ISR=%s DTR=%i RTS=%i\n",
+	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X CTS/DCD ISR=%s\n",
 			card->devname,
-			reg,card->wandev.ignore_front_end_status == WANOPT_YES?"Off":"On",
-			card->u.aft.cfg.serial_rts_ctrl == WANOPT_HIGH, card->u.aft.cfg.serial_dtr_ctrl == WANOPT_HIGH);
+			reg,card->wandev.ignore_front_end_status == WANOPT_YES?"Off":"On");
 
-	/* Raise RTS and DTR */
-	if (card->u.aft.cfg.serial_rts_ctrl == WANOPT_HIGH) {
-		wan_set_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg);
-	} else {
-		wan_clear_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg);
-	}
-
-	if (card->u.aft.cfg.serial_dtr_ctrl == WANOPT_HIGH) {
-		wan_set_bit(AFT_SERIAL_LCFG_DTR_BIT,&reg);
-	} else {
-		wan_clear_bit(AFT_SERIAL_LCFG_DTR_BIT,&reg);
-	}
-
+	/* Raise RTS and DTR */	
+	wan_set_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg);
+	wan_set_bit(AFT_SERIAL_LCFG_DTR_BIT,&reg);
+	
 	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),reg);
 
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),&reg);
-
+	
 	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X\n",
 			card->devname,
 			reg);
@@ -823,28 +746,26 @@ static int32_t wp_serial_polling(sdla_fe_t* fe)
 *******************************************************************************/
 static int32_t wp_serial_udp(sdla_fe_t *fe, void* p_udp_cmd, u8* data)
 {
-	int32_t		err = -EINVAL;
-
-	SERIAL_FUNC();
-#if 0
-	wan_cmd_t	*udp_cmd = (wan_cmd_t*)p_udp_cmd;
+	wan_cmd_t		*udp_cmd = (wan_cmd_t*)p_udp_cmd;
+	wan_femedia_t		*fe_media;
 
 	switch(udp_cmd->wan_cmd_command){
-	case WAN_FE_REGDUMP:
-		err = wp_serial_regdump(fe, data);
-		if (err){
-			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-			udp_cmd->wan_cmd_data_len = (u16)err; 
-		}
+	case WAN_GET_MEDIA_TYPE:
+		fe_media = (wan_femedia_t*)data;
+		memset(fe_media, 0, sizeof(wan_femedia_t));
+		fe_media->media		= fe->fe_cfg.media;
+		fe_media->sub_media	= fe->fe_cfg.sub_media;
+		fe_media->chip_id	= 0;
+		fe_media->max_ports	= fe->fe_max_ports;
+		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+		udp_cmd->wan_cmd_data_len = sizeof(wan_femedia_t); 
 		break;
-
 	default:
 		udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
 	    	udp_cmd->wan_cmd_data_len = 0;
 		break;
 	}
-#endif
-	return err;
+	return 0;
 }
 
 /******************************************************************************
@@ -905,23 +826,6 @@ wp_serial_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 	return err;
 }
 
-#if defined(AFT_TDM_API_SUPPORT)
-/******************************************************************************
-*			wp_serial_watchdog()	
-*
-* Description:
-* Arguments: mod_no -  Module number (1,2,3,... MAX_REMORA_MODULES)
-* Returns:
-******************************************************************************/
-static int32_t wp_serial_watchdog(sdla_fe_t *fe)
-{
-	int32_t	mod_no;
-
-	SERIAL_FUNC();
-	
-	return 0;
-}
-#endif
 
 /******************************************************************************
 *				wp_serial_intr_ctrl()	

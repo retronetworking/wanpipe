@@ -19,30 +19,15 @@
  ******************************************************************************
 */
 
-#if (defined __FreeBSD__) | (defined __OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe_common.h>
-# include <wanpipe.h>
-# include <sdla_tdmv.h>	/* WANPIPE TDM Voice definitions */
-# include <zaptel.h>
-# include <wanpipe_edac_iface.h>
 
-#else
-
-#if 0
-# define CONFIG_ZAPATA_BRI_DCHANS 
-#endif
-
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_tdmv.h>	/* WANPIPE TDM Voice definitions */
-# include <zaptel.h>
-# include <linux/wanpipe_edac_iface.h>
-#endif
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe.h"
+#include "sdla_tdmv.h"
+#include "zaptel.h"
+#include "wanpipe_edac_iface.h"
 
 /*
  ******************************************************************************

@@ -1,14 +1,14 @@
 8
 
 dir
-263
-http://192.168.1.168/svn/libsangoma/branches/rel_34/docs/doxygen
-http://192.168.1.168/svn/libsangoma
+156
+https://www.sangomapbx.com/svn/libsangoma/trunk/docs/doxygen
+https://www.sangomapbx.com/svn/libsangoma
 
 
 
-2008-08-18T04:23:57.469320Z
-16
+2008-12-10T00:19:42.126253Z
+49
 ncorbic
 
 
@@ -25,7 +25,4 @@ svn:special svn:externals svn:needs-lock
 
 
 8fe45b59-3c47-0410-bdf9-e5d932a076a6
-
-html
-dir
 

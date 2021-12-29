@@ -13,11 +13,16 @@ DEBUG	= 2
 # Project file paths.
 SYSINC=../../patches/kdrivers/include
 
+WANINCDIR=/usr/include/wanpipe
 #/lib/modules/$(shell uname -r)/build/include
 
+EXTRA_FLAGS=
+
 # Tools options.
-CFLAGS  = -D__LINUX__ -Wall -O2 -D_GNUC_ -I$(SYSINC) -D$(OS_TYPE) -D_DEBUG_=$(DEBUG)  
+CFLAGS  = -D__LINUX__ -Wall -O2 -D_GNUC_ -I$(WANINCDIR) -I$(SYSINC) -D$(OS_TYPE) -D_DEBUG_=$(DEBUG)  
 LIBS = -lncurses
+
+CFLAGS += $(EXTRA_FLAGS)
 
 ####### RULES ################################################################
 

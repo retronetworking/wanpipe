@@ -1,5 +1,8 @@
 /* ProSlic Header File - sdla_remora_proslic.h */
 
+#ifndef __SDLA_REMORA_PROSLIC_H__
+#define __SDLA_REMORA_PROSLIC_H__
+
 typedef struct {
 	unsigned char address;
 	unsigned char altaddr;
@@ -188,3 +191,6 @@ typedef struct {
 #define	CM_BIAS_RINGING	40
 #define	DCDC_MIN_V	41
 #define	DCDC_XTRA	42
+
+#endif
+

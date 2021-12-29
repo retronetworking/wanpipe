@@ -356,7 +356,7 @@ UINT32 Oct6100UserCreateSerializeObject(
 				signal( SIGALRM, SigArlmHandler );
 				
 				/* Keep pointer to semaphore information. */
-				f_pCreate->ulSerialObjHndl = (tOCT6100_USER_SERIAL_OBJECT)pSemInf;	
+				f_pCreate->ulSerialObjHndl = (UINT32)pSemInf;	
 			}
 		}
 		else
@@ -409,7 +409,7 @@ UINT32 Oct6100UserCreateSerializeObject(
 
 	wan_spin_lock_init(pLockInf, "wan_ecapi_lock");
 	/* Keep pointer to semaphore information. */
-	f_pCreate->ulSerialObjHndl = (tOCT6100_USER_SERIAL_OBJECT)pLockInf;	
+	f_pCreate->ulSerialObjHndl = (PVOID)pLockInf;	
 
 	return cOCT6100_ERR_OK;
 #endif
@@ -618,7 +618,7 @@ UINT32 Oct6100UserSeizeSerializeObject(
 
 	/* Check mutex handle */
 	if ( pLockInf ){
-		if (wan_spin_trylock(pLockInf)){
+		if (wan_spin_trylock(pLockInf, NULL)){/* FIXME: no local 'flags' - NULL will cause the use of the internal 'flags' in the wan_spinlock_t */
 			return cOCT6100_ERR_OK;
 		}
 		return cOCT6100_SEIZE_SERIAL_FAILED_1;
@@ -688,7 +688,7 @@ UINT32 Oct6100UserReleaseSerializeObject(
 
 	/* Check mutex handle */
 	if ( pLockInf ){
-		wan_spin_unlock(pLockInf);
+		wan_spin_unlock(pLockInf, NULL);/* FIXME: no local 'flags' - NULL will cause the use of the internal 'flags' in the wan_spinlock_t */
 		return cOCT6100_ERR_OK;
 	}
 	return cOCT6100_ERR_OK;
@@ -870,7 +870,7 @@ UINT32 Oct6100UserDriverWriteBurstApi(
 	unsigned short	*data;
 #if defined(__WINDOWS__)
 	unsigned char tmp_buf[OCT_TMP_MEMORY_SIZE];
-	int rc = SILENT;
+	int rc = IRQL_CHECK_SILENT;
 #endif
 
 	/*  The pProcessContext is there in case the user needs context information
@@ -923,7 +923,7 @@ UINT32 Oct6100UserDriverWriteBurstApi(
 # if !defined(__WINDOWS__)
 	wan_free( data );
 # else
-	rc = SILENT;
+	rc = IRQL_CHECK_SILENT;
 	VERIFY_DISPATCH_IRQL(rc);
 	if(rc == 0){
 		wan_free(data);
@@ -1067,7 +1067,7 @@ UINT32 Oct6100UserDriverReadBurstApi(
 	unsigned short	*data;
 #if defined(__WINDOWS__)
 	unsigned char tmp_buf[OCT_TMP_MEMORY_SIZE];
-	int rc = SILENT;
+	int rc = IRQL_CHECK_SILENT;
 #endif
 
 	/*  The pProcessContext is there in case the user needs context information
@@ -1123,7 +1123,7 @@ UINT32 Oct6100UserDriverReadBurstApi(
 # if !defined(__WINDOWS__)
 	wan_free(data);
 # else
-	rc = SILENT;
+	rc = IRQL_CHECK_SILENT;
 	VERIFY_DISPATCH_IRQL(rc);
 	if(rc == 0){
 		wan_free(data);

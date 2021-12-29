@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
+
+#if !defined(__WINDOWS__)
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -10,6 +12,8 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <netinet/in.h>
+#endif
+
 #if defined(__LINUX__)
 # include <linux/if.h>
 # include <linux/types.h>
@@ -18,6 +22,16 @@
 # include <linux/sdlasfm.h>
 # include <linux/wanpipe_cfg.h>
 # include <linux/sdlapci.h>
+#elif defined(__WINDOWS__)
+# include <windows.h>
+# include <winioctl.h>
+# include <conio.h>
+# include <stddef.h>		//for offsetof()
+# include <sdlasfm.h>
+# include <sdlapci.h>
+
+# define strncasecmp	_strnicmp
+
 #else
 # include <net/if.h>
 # include <wanpipe_defines.h>
@@ -27,6 +41,7 @@
 #endif
 
 #include "wan_aft_prg.h"
+#include "wanpipe_api.h"
 
 #define JP8_VALUE               0x02
 #define JP7_VALUE               0x01
@@ -288,7 +303,7 @@ static int parse_hex_line(char *line, int data[], int *addr, int *num, int *type
 	       	return -EINVAL;
 	}
 	ptr += 2;
-	if (strlen(line) < (MIN_HEX_LINE_LEN + (len * 2))){
+	if (strlen(line) < (unsigned int)(MIN_HEX_LINE_LEN + (len * 2))){
 		printf("Wrong HEX line length (too small)!\n");
 	       	return -EINVAL;
 	}
@@ -415,9 +430,9 @@ aft_flash_bin_file (wan_aft_cpld_t *cpld, int stype, char *filename, int cmd)
 {
 	char*		data = NULL;
 	u8*		tmp_data_read;
-	unsigned long	findex = 0;
-	long		fsize = 0;
-	int 		page_size;
+	long	findex = 0;
+	long	fsize = 0;
+	int 	page_size;
 	int		i;
 
 	fsize = read_bin_data_file(filename, &data);
@@ -610,13 +625,14 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 	       	else data |= 0x04;
 		break;
 	case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
+	case A700_SHARK_SUBSYS_VENDOR:
 		if (clear) data &= ~0x06;
 	       	else data |= 0x06;
 		break;
-	case AFT_2SERIAL_V35X21_SUBSYS_VENDOR:
-        case AFT_4SERIAL_V35X21_SUBSYS_VENDOR:
 	case AFT_2SERIAL_RS232_SUBSYS_VENDOR:
 	case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
+	case AFT_2SERIAL_V35X21_SUBSYS_VENDOR:
+	case AFT_4SERIAL_V35X21_SUBSYS_VENDOR:
 		if (clear) data &= ~0x06;
 	       	else data |= 0x06;
 		break;

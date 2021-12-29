@@ -649,13 +649,23 @@ interf_config()
 				API=${API%% }
 			fi
 		
-			if [ "$API" = API ] || [ "$API" = TDM_API ] || [ "$API" = TDM_VOICE_API ]; then
+			if [ "$API" = "API" ] || [ "$API" = "TDM_API" ] || [ "$API" = "API_LEGACY" ]  ; then
 				echo -n "$int_file "
 				ifconfig $int_file up
 				continue
 			fi
 
-			
+			if [ "$API" = "TDM_VOICE_API" ] || [ "$API" = "TDM_SPAN_VOICE_API" ] || [ "$API" = "TDM_CHAN_VOICE_API" ]; then
+				echo -n "$int_file "
+				ifconfig $int_file up
+				continue
+			fi
+
+			if [ "$API" = "DATA_API" ]; then
+				echo -n "$int_file "
+				ifconfig $int_file up
+				continue
+			fi
 
 			if [ "$API" = TTY ]; then
 				continue
@@ -864,8 +874,8 @@ unconfig_devices()
 
 	cd $WAN_HOME
 	echo -e "No devices running, Unloading Modules"
-	remove_cdev
 	unload_module
+	remove_cdev
 
 	for dev in $devices; do
 		WAN_CONF=$WAN_CONF_DIR/$dev.conf
@@ -2043,18 +2053,18 @@ wanrouter_script()
 	if [ "$ifname" != "" ]; then
 		#Interface name exists
 		if [ -f "$WAN_SCRIPTS_DIR/$dev-$ifname-$cmd" ]; then
-			eval "bash $WAN_SCRIPTS_DIR/$dev-$ifname-$cmd $dev $ifname"
+			eval "sh $WAN_SCRIPTS_DIR/$dev-$ifname-$cmd $dev $ifname"
 		fi
 		
 	elif [ "$dev" != "" ]; then
 		#Device name exists
 		if [ -f "$WAN_SCRIPTS_DIR/$dev-$cmd" ]; then
-			eval "bash $WAN_SCRIPTS_DIR/$dev-$cmd $dev"
+			eval "sh $WAN_SCRIPTS_DIR/$dev-$cmd $dev"
 		fi
 	else
 		#Global Cmd
 		if [ -f "$WAN_SCRIPTS_DIR/$cmd" ]; then
-			eval "bash $WAN_SCRIPTS_DIR/$cmd"
+			eval "sh $WAN_SCRIPTS_DIR/$cmd"
 		fi
 	fi
 }
@@ -2195,7 +2205,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=3.4.9
+		ROUTER_VERSION=3.5.1
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"
@@ -2698,7 +2708,6 @@ case "$1" in
 
 			unconfig_devices $WAN_DEVICES
 
-
 		elif [ -z $3 ]; then
 		#WANROUTER STOP WANPIPE
 
@@ -3010,15 +3019,15 @@ case "$1" in
 			else
 				wanconfig hwprobe verbose
 			fi
-		elif [ "$2" = "legacy" ]; then
-			if [ $OSYSTEM = "Linux" ]; then
-				cat /proc/net/wanrouter/hwprobe_legacy
-			else
-				wanconfig hwprobe legacy
-			fi
 		elif [ "$2" = "dump" ]; then
 			if [ $OSYSTEM = "Linux" ]; then
 				cat /proc/net/wanrouter/hwprobe_dump
+			else
+				wanconfig hwprobe verbose
+			fi
+		elif [ "$2" = "legacy" ]; then
+			if [ $OSYSTEM = "Linux" ]; then
+				cat /proc/net/wanrouter/hwprobe_legacy
 			else
 				wanconfig hwprobe legacy
 			fi

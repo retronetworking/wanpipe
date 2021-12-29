@@ -19,16 +19,18 @@
 * Jan 07, 2002	Nenad Corbic	Initial version.
 *****************************************************************************/
 
-#include <linux/wanpipe_includes.h>
-#include <linux/wanpipe_defines.h>
-#include <linux/wanpipe.h>	
-#include <linux/wanproc.h>
-#include <linux/wanpipe_abstr.h>
-#include <linux/wanpipe_atm_iface.h>
-#include <linux/sdla_atm.h>
-#include <linux/if_wanpipe_common.h>    /* Socket Driver common area */
-#include <linux/if_wanpipe.h>		
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe.h"
+#include "wanproc.h"
+#include "wanpipe_abstr.h"
+#include "wanpipe_atm_iface.h"
+#include "sdla_atm.h"
+#include "if_wanpipe_common.h"    /* Socket Driver common area */
 
+#if defined(__LINUX__)
+#include <linux/if_wanpipe.h>
+#endif
 
 /****** Defines & Macros ****************************************************/
 #define MAX_TRACE_QUEUE		100
@@ -41,8 +43,6 @@
 
 #define ATM_TIMER_TIMEOUT	1
 #define POLL_DELAY_TIMEOUT	1
-
-WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
 
 /* Private critical flags */
 enum { 
@@ -201,8 +201,8 @@ static int 	process_udp_mgmt_pkt(sdla_t* card, struct net_device* dev,
 				private_area_t*,
 				int local_dev);
 
-static void 	s508_lock (sdla_t *card, unsigned long *smp_flags);
-static void 	s508_unlock (sdla_t *card, unsigned long *smp_flags);
+static void 	s508_lock (sdla_t *card, unsigned long *smp_flags, unsigned long *smp_flags1);
+static void 	s508_unlock (sdla_t *card, unsigned long *smp_flags, unsigned long *smp_flags1);
 
 static void 	wp_handle_rx_packets(netskb_t *skb);
 static int 	wp_handle_tx_packets(sdla_t* card, netskb_t *skb);
@@ -678,7 +678,7 @@ static int update (wan_device_t* wandev)
 	if(dev == NULL)
 		return -ENODEV;
 
-	if((priv_area=wan_netif_priv(dev)) == NULL)
+	if((priv_area=dev->priv) == NULL)
 		return -ENODEV;
 
 
@@ -923,14 +923,8 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 	/* Only setup the dev pointer once the new_if function has
 	 * finished successfully.  DO NOT place any code below that
 	 * can return an error */
-	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
-	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);	
-	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
-	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
-	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
-	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
-	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
-	wan_netif_set_priv(dev, priv_area);
+	dev->init = &if_init;
+	dev->priv = priv_area;
 
 	/* Increment the number of network interfaces 
 	 * configured on this card.  
@@ -950,7 +944,8 @@ new_if_error:
 	}
 	
 	wan_free(priv_area);
-	wan_netif_set_priv(dev, NULL);
+
+	dev->priv=NULL;
 
 	return err;
 }
@@ -974,7 +969,7 @@ new_if_error:
  */
 static int del_if (wan_device_t* wandev, struct net_device* dev)
 {
-	private_area_t* 	priv_area = wan_netif_priv(dev);
+	private_area_t* 	priv_area = dev->priv;
 	sdla_t*			card = wandev->priv;
 	unsigned long		flags;
 
@@ -1036,20 +1031,20 @@ static int del_if (wan_device_t* wandev, struct net_device* dev)
  */
 static int if_init (struct net_device* dev)
 {
-	private_area_t* priv_area = wan_netif_priv(dev);
+	private_area_t* priv_area = dev->priv;
 	sdla_t* card = priv_area->card;
 	wan_device_t* wandev = &card->wandev;
 
 	/* Initialize device driver entry points */
-	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
-	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
-	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
-	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+	dev->open		= &if_open;
+	dev->stop		= &if_close;
+	dev->hard_start_xmit	= &if_send;
+	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
+	dev->tx_timeout		= &if_tx_timeout;
 	dev->watchdog_timeo	= TX_TIMEOUT;
 #endif
-	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,if_do_ioctl);
+	dev->do_ioctl		= if_do_ioctl;
 
 	if (priv_area->cfg.encap_mode == RFC_MODE_BRIDGED_ETH_LLC ||
 	    priv_area->cfg.encap_mode == RFC_MODE_BRIDGED_ETH_VC){
@@ -1113,7 +1108,7 @@ static int if_init (struct net_device* dev)
  */
 static int if_open (struct net_device* dev)
 {
-	private_area_t* priv_area = wan_netif_priv(dev);
+	private_area_t* priv_area = dev->priv;
 	sdla_t* card = priv_area->card;
 	struct timeval tv;
 	int err = 0;
@@ -1174,7 +1169,7 @@ static int if_open (struct net_device* dev)
 
 static int if_close (struct net_device* dev)
 {
-	private_area_t* priv_area = wan_netif_priv(dev);
+	private_area_t* priv_area = dev->priv;
 	sdla_t* card = priv_area->card;
 
 	stop_net_queue(dev);
@@ -1279,7 +1274,7 @@ static void disable_comm (sdla_t *card)
  */
 static void if_tx_timeout (struct net_device *dev)
 {
-    	private_area_t* chan = wan_netif_priv(dev);
+    	private_area_t* chan = dev->priv;
 	sdla_t *card = chan->card;
 	
 	/* If our device stays busy for at least 5 seconds then we will
@@ -1330,10 +1325,14 @@ static void if_tx_timeout (struct net_device *dev)
  */
 static int if_send (netskb_t* skb, struct net_device* dev)
 {
-	private_area_t *chan = wan_netif_priv(dev);
+	private_area_t *chan = dev->priv;
 	sdla_t *card = chan->card;
 	unsigned long smp_flags;
+	unsigned long smp_flags1;
 	int err=0;
+
+	smp_flags=0;
+	smp_flags1=0;
 
 	/* Mark interface as busy. The kernel will not
 	 * attempt to send any more packets until we clear
@@ -1398,7 +1397,7 @@ static int if_send (netskb_t* skb, struct net_device* dev)
         }
 
       	if(card->type != SDLA_S514){
-		s508_lock(card,&smp_flags);
+		s508_lock(card,&smp_flags,&smp_flags1);
 	} 
 
 	if(card->wandev.state != WAN_CONNECTED){
@@ -1461,7 +1460,7 @@ if_send_exit_crit:
 
 	/* End of critical area for re-entry and for S508 card */
 	if(card->type != SDLA_S514){
-		s508_unlock(card,&smp_flags);
+		s508_unlock(card,&smp_flags,&smp_flags1);
 	}
 	
 	return err;
@@ -1480,7 +1479,7 @@ static int chk_bcast_mcast_addr(sdla_t *card, struct net_device* dev,
 {
 	u32 src_ip_addr;
         u32 broadcast_ip_addr = 0;
-	private_area_t *priv_area=wan_netif_priv(dev);
+	private_area_t *priv_area=dev->priv;
         struct in_device *in_dev;
         /* read the IP source address from the outgoing packet */
         src_ip_addr = *(u32 *)(wan_skb_data(skb) + 12);
@@ -1529,7 +1528,7 @@ static struct net_device_stats* if_stats (struct net_device* dev)
 {
 	private_area_t* priv_area;
 
-	if ((priv_area=wan_netif_priv(dev)) == NULL)
+	if ((priv_area=dev->priv) == NULL)
 		return NULL;
 
 	return &priv_area->if_stats;
@@ -1559,7 +1558,7 @@ static struct net_device_stats* if_stats (struct net_device* dev)
  */
 static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
-	private_area_t* chan = wan_netif_priv(dev);
+	private_area_t* chan= (private_area_t*)dev->priv;
 	unsigned long smp_flags;
 	wan_udp_pkt_t *wan_udp_pkt;
 	sdla_t *card;
@@ -2218,7 +2217,7 @@ static void wp_bh (unsigned long data)
 
 		err=wanpipe_sar_rx(card->u.atm.atm_device,skb);
 		
-		wan_skb_init(skb,16);
+		wan_skb_init(skb,sizeof(wp_api_hdr_t));
 		skb->len=1;
 		wan_skb_trim(skb,0);
 
@@ -2291,7 +2290,7 @@ static int wp_handle_out_of_sync_condition(sdla_t *card, unsigned char irq)
 
 
 	while ((skb=wan_skb_dequeue(&card->u.atm.wp_rx_used_list))){
-		wan_skb_init(skb,16);
+		wan_skb_init(skb,sizeof(wp_api_hdr_t));
 		skb->len=1;
 		wan_skb_trim(skb,0);
 		wan_skb_queue_tail(&card->u.atm.wp_rx_free_list,skb);
@@ -2479,7 +2478,7 @@ static void tx_intr (sdla_t* card)
 			goto tx_intr_dev_skip;
 		}
 		
-		chan = wan_netif_priv(dev);
+		chan = dev->priv;
 		if (WAN_NETIF_QUEUE_STOPPED(dev)){
 
 			if (dev_kicked){
@@ -2654,7 +2653,7 @@ void timer_intr(sdla_t *card)
 		goto timer_isr_exit;
 	}
 	
-        priv_area = wan_netif_priv(dev);
+        priv_area = dev->priv;
 
 	/* process a udp call if pending */
        	if(card->timer_int_enabled & TMR_INT_ENABLED_UDP) {
@@ -3747,7 +3746,7 @@ static void trigger_poll (struct net_device *dev)
 	if (!dev)
 		return;
 	
-	if ((priv_area = wan_netif_priv(dev))==NULL)
+	if ((priv_area = dev->priv)==NULL)
 		return;
 
 	card = priv_area->card;
@@ -3838,18 +3837,18 @@ static void handle_front_end_state(void* card_id)
  *
  */
 
-void s508_lock (sdla_t *card, unsigned long *smp_flags)
+void s508_lock (sdla_t *card, unsigned long *smp_flags, unsigned long *smp_flags1)
 {
 	wan_spin_lock_irq(&card->wandev.lock, smp_flags);
         if (card->next){
-        	wan_spin_lock(&card->next->wandev.lock);
+        	wan_spin_lock(&card->next->wandev.lock,smp_flags1);
 	}
 }
 
-void s508_unlock (sdla_t *card, unsigned long *smp_flags)
+void s508_unlock (sdla_t *card, unsigned long *smp_flags, unsigned long *smp_flags1)
 {
         if (card->next){
-        	wan_spin_unlock(&card->next->wandev.lock);
+        	wan_spin_unlock(&card->next->wandev.lock,smp_flags1);
         }
         wan_spin_unlock_irq(&card->wandev.lock, smp_flags);
 }
@@ -4006,7 +4005,7 @@ static int get_if_info(char* buf, char** start, off_t offs, int len, int dummy)
 {
 	int 			cnt = 0;
 	struct net_device*	dev = (void*)start;
-	private_area_t* 	priv_area = wan_netif_priv(dev);
+	private_area_t* 	priv_area = dev->priv;
 	sdla_t*			card = priv_area->card;
 	int 			size = 0;
 	PROC_ADD_DECL(stop_cnt);
@@ -4045,10 +4044,13 @@ static int set_if_info(struct file *file,
 		       void *data)
 {
 	struct net_device*	dev = (void*)data;
-	private_area_t* 	priv_area;
+	private_area_t* 	priv_area = NULL;
 
-	if (dev == NULL || (priv_area = wan_netif_priv(dev)) == NULL)
+	if (dev == NULL || dev->priv == NULL)
 		return count;
+
+	priv_area = (private_area_t*)dev->priv;
+
 
 	DEBUG_EVENT( "%s: New interface config (%s)\n",
 			priv_area->if_name, buffer);

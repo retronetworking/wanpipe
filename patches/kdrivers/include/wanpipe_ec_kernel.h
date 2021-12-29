@@ -16,9 +16,8 @@
 #ifndef __WANPIPE_EC_KERNEL_H
 # define __WANPIPE_EC_KERNEL_H
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-#elif defined(__LINUX__)
-# include <linux/wanpipe_tdm_api.h>
+#if defined(__LINUX__)
+# include "wanpipe_tdm_api.h"
 #endif
 
 #if defined(WAN_KERNEL)

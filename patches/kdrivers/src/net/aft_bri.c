@@ -22,7 +22,7 @@
 # include <wanpipe_abstr.h>
 # include <if_wanpipe_common.h>    /* Socket Driver common area */
 # include <sdlapci.h>
-# include <sdla_aft_te1.h>
+# include <aft_core.h>
 # include <wanpipe_iface.h>
 
 #elif defined(__WINDOWS__)
@@ -34,7 +34,7 @@
 # include <wanpipe_abstr.h>
 # include <if_wanpipe_common.h>    /* Socket Driver common area */
 # include <sdlapci.h>
-# include <sdla_aft_te1.h>
+# include <aft_core.h>
 
 #else
  
@@ -48,7 +48,7 @@
 # include <linux/if_wanpipe_common.h>    /* Socket Driver common area */
 # include <linux/if_wanpipe.h>
 # include <linux/sdlapci.h>
-# include <linux/sdla_aft_te1.h>
+# include <linux/aft_core.h>
 # include <linux/wanpipe_iface.h>
 # include <linux/wanpipe_tdm_api.h>
 
@@ -504,6 +504,7 @@ int aft_bri_global_chip_config(sdla_t *card)
 {
 	u32 reg;
 	int err=0;
+	int used_cnt;
 	wan_smp_flag_t smp_flags,flags;
 
 	BRI_FUNC();
@@ -513,50 +514,60 @@ int aft_bri_global_chip_config(sdla_t *card)
 
 	/*============ GLOBAL CHIP CONFIGURATION ===============*/
 
-	/* Enable the chip/hdlc reset condition */
-	reg=0;
-	wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
-	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
-
-	DEBUG_CFG("--- AFT Chip Reset. -- \n");
-
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);
 	
-	WP_DELAY(10);
-
-	/* Disable the chip/hdlc reset condition */
-	wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
-	wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
+	if (used_cnt == 1) {
+		/* Enable the chip/hdlc reset condition */
+		reg=0;
+		wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
+		wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
 	
-	wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
+		DEBUG_CFG("--- AFT Chip Reset. -- \n");
 	
-	if (!IS_BRI_CARD(card)) {
-		DEBUG_EVENT("%s: Error: Xilinx doesn't support non BRI interface!\n",
-				card->devname);
-		return -EINVAL;
-	}
-
-	DEBUG_CFG("--- Chip enable/config. -- \n");
-
-	if (WAN_FE_NETWORK_SYNC(&card->fe)){	/*card->fe.fe_cfg.cfg.remora.network_sync*/
-		DEBUG_EVENT("%s: ISDN BRI Clock set to (External) Network Sync!\n",
-				card->devname);
-		wan_set_bit(AFT_CHIPCFG_A500_NET_SYNC_CLOCK_SELECT_BIT,&reg);	
-	} else {
-		wan_clear_bit(AFT_CHIPCFG_A500_NET_SYNC_CLOCK_SELECT_BIT,&reg);	
+		card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
 		
+		WP_DELAY(10);
+	
+		/* Disable the chip/hdlc reset condition */
+		wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
+		wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
+		
+		wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
+	
+		if (WAN_FE_NETWORK_SYNC(&card->fe)){	/*card->fe.fe_cfg.cfg.remora.network_sync*/
+			DEBUG_EVENT("%s: ISDN BRI Clock set to (External) Network Sync!\n",
+					card->devname);
+			wan_set_bit(AFT_CHIPCFG_A500_NET_SYNC_CLOCK_SELECT_BIT,&reg);	
+		} else {
+			wan_clear_bit(AFT_CHIPCFG_A500_NET_SYNC_CLOCK_SELECT_BIT,&reg);	
+			
+		}
+		DEBUG_CFG("--- Chip enable/config. -- \n");
+
+		card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+
+	} else {
+		if (WAN_FE_NETWORK_SYNC(&card->fe)){
+			DEBUG_EVENT("%s: Ignoring Network Sync\n", card->devname);
+		}
 	}
 
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	if (!IS_BRI_CARD(card)) {
+			DEBUG_EVENT("%s: Error: Xilinx doesn't support non BRI interface!\n",
+					card->devname);
+			return -EINVAL;
+	}
 
-	card->hw_iface.hw_lock(card->hw,&smp_flags);
-	wan_spin_lock_irq(&card->wandev.lock,&flags);
-	
-	/* Reset HWEC and Set CPLD based on network sync */
-	aft_bri_cpld0_set(card,1);
-
-	wan_spin_unlock_irq(&card->wandev.lock,&flags);
-	card->hw_iface.hw_unlock(card->hw,&smp_flags);
+	if (used_cnt == 1) {
+		card->hw_iface.hw_lock(card->hw,&smp_flags);
+		wan_spin_lock_irq(&card->wandev.lock,&flags);
+		
+		/* Reset HWEC and Set CPLD based on network sync */
+		aft_bri_cpld0_set(card,1);
+		
+		wan_spin_unlock_irq(&card->wandev.lock,&flags);
+		card->hw_iface.hw_unlock(card->hw,&smp_flags);
+	}
      	
 	err=aft_test_hdlc(card);
 	if (err != 0){
@@ -585,23 +596,27 @@ int aft_bri_global_chip_config(sdla_t *card)
 int aft_bri_global_chip_unconfig(sdla_t *card)
 {
 	u32 reg=0;
+	int used_cnt;
 	
 	BRI_FUNC();
 
+	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);
 	/* Global BRI unconfig */
 	if (card->wandev.fe_iface.global_unconfig){
 		card->wandev.fe_iface.global_unconfig(&card->fe);
 	}
 
-	/* Set Octasic to reset */
-	aft_bri_cpld0_set(card,1);
-
-	/* Disable the chip/hdlc reset condition */
-	wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
-	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
-	wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
-
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	if (used_cnt == 1) {
+		/* Set Octasic to reset */
+		aft_bri_cpld0_set(card,1);
+	
+		/* Disable the chip/hdlc reset condition */
+		wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
+		wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
+		wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
+	
+		card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	}
 
 	return 0;
 }
@@ -610,8 +625,8 @@ int aft_bri_global_chip_unconfig(sdla_t *card)
 int aft_bri_hwec_config(sdla_t *card, wandev_conf_t *conf)
 {
 	/* Enable Octasic Chip */
-	u16	max_ec_chans, max_ports_no;
-	u32 	cfg_reg, fe_port_map;
+	u16	max_ec_chans, max_chans_no;
+	u32 	cfg_reg, fe_chans_map;
 
 	
 	card->wandev.ec_dev = NULL;
@@ -619,8 +634,8 @@ int aft_bri_hwec_config(sdla_t *card, wandev_conf_t *conf)
 	card->wandev.hwec_enable = NULL;
 
 	card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
-	card->hw_iface.getcfg(card->hw, SDLA_PORTS_NO, &max_ports_no);
-	card->hw_iface.getcfg(card->hw, SDLA_PORT_MAP, &fe_port_map);
+	card->hw_iface.getcfg(card->hw, SDLA_CHANS_NO, &max_chans_no);
+	card->hw_iface.getcfg(card->hw, SDLA_CHANS_MAP, &fe_chans_map);
 
 	card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg); 
 
@@ -630,23 +645,21 @@ int aft_bri_hwec_config(sdla_t *card, wandev_conf_t *conf)
 				card->devname);
 		DEBUG_EVENT(
 		"%s: Critical Error: Max Allowed=%d Configured=%d (%X)\n",
-			card->devname,
-			A500_MAX_EC_CHANS,
-			max_ec_chans,
-			cfg_reg);  
+				card->devname,
+				A500_MAX_EC_CHANS,
+				max_ec_chans,
+				cfg_reg);  
 		return -EINVAL;
-	}                   
+	}
 
 	if (max_ec_chans){
 #if defined(CONFIG_WANPIPE_HWEC)
-		max_ports_no = 2;/* number of B-chans on BRI line is 2 */
 		card->wandev.ec_dev = wanpipe_ec_register(
 						card,
-						fe_port_map,
-						max_ports_no,
+						fe_chans_map,
+						max_chans_no,	/* b-chans number is 2 */
 						max_ec_chans,
 						(void*)&conf->oct_conf);
-
 		if (!card->wandev.ec_dev) {
 			DEBUG_EVENT(
 			"%s: Failed to register device in HW Echo Canceller module!\n",
@@ -654,7 +667,7 @@ int aft_bri_hwec_config(sdla_t *card, wandev_conf_t *conf)
 			return -EINVAL;
 		}
 
-		card->wandev.hwec_reset = aft_bri_hwec_reset;
+		card->wandev.hwec_reset  = aft_bri_hwec_reset;
 		card->wandev.hwec_enable = aft_bri_hwec_enable;
 
 		/* Only suppress H100 errors for old CPLD */
@@ -688,12 +701,13 @@ int aft_bri_chip_config(sdla_t *card, wandev_conf_t *conf)
 	int i,err=0;
 	wan_smp_flag_t smp_flags;
 	int used_cnt;
-	u32 physical_card_config_counter;
+	int used_type_cnt;
 
 	BRI_FUNC();
 
-
 	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);
+	card->hw_iface.getcfg(card->hw, SDLA_HWTYPE_USEDCNT, &used_type_cnt);
+
 
 	/* Check for NETWORK SYNC IN Clocking, if network sync in
          * is enabled ignore all clock_modes */
@@ -704,7 +718,7 @@ int aft_bri_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 	reg=0;
 
-	if (used_cnt > 1) {
+	if (used_type_cnt > 1) {
 
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
 
@@ -771,15 +785,12 @@ int aft_bri_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 
 	/*============ LINE/PORT CONFIG REGISTER ===============*/
-	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &physical_card_config_counter);
-	DEBUG_BRI("physical_card_config_counter: %d\n", physical_card_config_counter);
 
-	if (physical_card_config_counter == 1){
-		/* FE synch. For BRI reset done only ONCE for both lines */
-		card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
-		wan_set_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg);
-		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG),reg);
-	}
+	/* FE synch. For BRI reset done only ONCE for both lines */
+	card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
+	wan_set_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg);
+	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG),reg);
+
 
 	WP_DELAY(10);
 
@@ -878,13 +889,14 @@ int aft_bri_chip_unconfig(sdla_t *card)
 	if (card->wandev.fe_iface.pre_release){
 		card->wandev.fe_iface.pre_release(&card->fe);
 	}
+
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
-        __aft_fe_intr_ctrl(card,0);
+	__aft_fe_intr_ctrl(card,0);
 	if (card->wandev.fe_iface.unconfig){
 		card->wandev.fe_iface.unconfig(&card->fe);
 	}
-        __aft_fe_intr_ctrl(card,0);
+	__aft_fe_intr_ctrl(card,0);
 	wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 	card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 

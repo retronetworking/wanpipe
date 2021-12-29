@@ -18,25 +18,20 @@
 /*******************************************************************************
 **			  INCLUDE FILES
 *******************************************************************************/
+
+
+#include "wanpipe_includes.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe.h"
+
+#if defined(WAN_OCT6100_DAEMON)
+# include "sdla_ec.h"
+#endif
+
 #if defined (__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_abstr.h>
-# include <wanpipe_common.h>
-# include <wanpipe.h>
 # include <sdla_cdev.h>
-# if defined(WAN_OCT6100_DAEMON)
-#  include <sdla_ec.h>
-# endif
-#else
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe.h>
-# include <linux/wanpipe.h>
-# if defined(WAN_OCT6100_DAEMON)
-#  include <linux/sdla_ec.h>
-# endif
 #endif
 
 #define WAN_OCT6100_MOD

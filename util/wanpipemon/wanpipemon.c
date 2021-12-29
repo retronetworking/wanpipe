@@ -38,20 +38,15 @@
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanrouter.h>
-# include <linux/wanpipe.h>
-# include <linux/sdla_fr.h>
 #else
 # include <netinet/in_systm.h>
 # include <netinet/in.h>
 # include <netinet/ip.h>
 # include <netinet/udp.h>  
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanpipe.h>
 #endif
+
+
+#include "wanpipe_api.h"
 #include "fe_lib.h"
 #include "wanpipemon.h"
 
@@ -102,7 +97,8 @@ int stop_xml_router=1;
 int raw_data=0;
 int trace_all_data=0;
 int zap_monitor=0;
-int zap_chan = 0;
+int dahdi_monitor=0;
+int tdmv_chan = 0;
 int lcn_number=0;
 unsigned char par_port_A_byte, par_port_B_byte;
 
@@ -123,10 +119,11 @@ int pcap_isdn_network=0;
 FILE *pcap_output_file;
 char pcap_output_file_name[50];
 
+FILE *trace_bin_out;
+FILE *trace_bin_in;
+int  trace_binary=0;
+
 int mtp2_msu_only=0;
-int trace_only_diff=0;
-int trace_rx_only=0;
-int trace_tx_only=0;
 
 wanpipe_hdlc_engine_t *rx_hdlc_eng; 
 
@@ -245,6 +242,11 @@ struct fun_protocol function_lookup[] = {
 	{ WANCONFIG_AFT_ANALOG,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+         { WANCONFIG_USB_ANALOG, "usb",  USBConfig, USBUsage, USBMain, NULL,
+                                         USBget_main_menu, USBget_cmd_menu,
+                                         NULL,NULL, 2 },
+#endif
 
 #ifdef WANPIPEMON_ZAP
 	{ WANCONFIG_ZAP,	"zap",   NULL, ZAPUsage, ZAPMain, NULL, 
@@ -287,7 +289,7 @@ struct fun_protocol function_lookup[] = {
 int MakeConnection( void )
 {
 #ifdef WANPIPEMON_ZAP
-	if(zap_monitor == 1){
+	if(zap_monitor == 1 || dahdi_monitor == 1){
 		return MakeZapConnection();
 	}
 #endif
@@ -816,19 +818,24 @@ static int init(int argc, char *argv[], char* command)
 			printf("wanpipemon: Warning GUI interface not compiled in!\n\n");
 #endif	
 
-#ifdef WANPIPEMON_ZAP
 		}else if (!strcmp(argv[i],"-zap")){
+
 			zap_monitor=1;
 			wan_protocol = WANCONFIG_ZAP;
 
-		
-		}else if (!strcmp(argv[i],"-zapchan")){
+		}else if (!strcmp(argv[i],"-dahdi")){
+
+			dahdi_monitor=1;
+			wan_protocol = WANCONFIG_ZAP;
+
+		}else if (!strcmp(argv[i],"-tdmvchan")){
+#ifdef WANPIPEMON_ZAP
 			if (i+1 > argc-1){
 				printf("ERROR: No Zap channel specified! i.e. '-zapchan 1'\n");
 				return WAN_FALSE;
 			}
-			if(isdigit(argv[i+1][0]) == 0 || (zap_chan = atoi(argv[i+1])) == 0){
-				printf("ERROR: Invalid -zapchan input: %s! Has to be a number greater than zero.\n",
+			if(isdigit(argv[i+1][0]) == 0 || (tdmv_chan = atoi(argv[i+1])) == 0){
+				printf("ERROR: Invalid -tdmvchan input: %s! Has to be a number greater than zero.\n",
 					argv[i+1]);
 				return WAN_FALSE;
 			}
@@ -925,16 +932,6 @@ static int init(int argc, char *argv[], char* command)
 		}else if (!strcmp(argv[i], "-mtp2-msu")){
 			mtp2_msu_only=1;
 			printf("MTP2 Trace MSU Only\n"); 
-		}else if (!strcmp(argv[i], "-diff")){
-			trace_only_diff=1;
-			printf("Trace Diff Only\n"); 
-		}else if (!strcmp(argv[i], "-rx")){
-			trace_rx_only=1;
-			printf("Trace Rx Only\n"); 
-		}else if (!strcmp(argv[i], "-tx")){
-			trace_tx_only=1;
-			printf("Trace Tx Only\n"); 
-		
 		}else if (!strcmp(argv[i], "-7bit-hdlc")){
 			if (rx_hdlc_eng) {
 				rx_hdlc_eng->seven_bit_hdlc = 1;	
@@ -994,6 +991,10 @@ static int init(int argc, char *argv[], char* command)
 		}else if (!strcmp(argv[i], "-pcap")){
 
 			pcap_output=1;
+
+		}else if (!strcmp(argv[i], "-trace_bin")){
+
+			trace_binary=1;
 		
 		}else if (!strcmp(argv[i], "-pcap_isdn_network")) {
 
@@ -1033,11 +1034,15 @@ static int init(int argc, char *argv[], char* command)
 		} 
 	}
 
+	if (zap_monitor == 1 || dahdi_monitor == 1){
 #ifdef WANPIPEMON_ZAP
-	if (zap_monitor == 1){
 		return WAN_TRUE;
-	}
+#else
+		printf("ERROR: Wanpipe Spike Test is not enabled!\n");
+		printf("\n"); 
+		return WAN_FALSE;
 #endif
+	}
 	
 	if (!i_cnt){
 		printf("ERROR: No IP address or Interface Name!\n");
@@ -1302,7 +1307,7 @@ static unsigned char trace_info[]="\n"
 "	-systime		#Display timestamp as system time\n"
 "	                        #instead of absolute number\n"
 "\n"
-"	-mtp2-msu		#Trace MTP2 MSU only\n"
+"	-mtp2-msu		#Trace MTP2 MSU Only layer\n"
 "\n"
 "	-7bit-hdlc		#Decode hdlc stream as 7bit instead of 8bit\n"
 "\n"
@@ -1360,6 +1365,14 @@ void sig_end(int signal)
 		fclose(pcap_output_file);
 		pcap_output_file=NULL;
 	}
+    if (trace_bin_out) {
+      fclose(trace_bin_out);
+      trace_bin_out=NULL;
+    }
+    if (trace_bin_in) {
+      fclose(trace_bin_in);
+      trace_bin_in=NULL;
+    }
 
 	if (sock) {
 		close(sock);
@@ -1420,6 +1433,27 @@ int main(int argc, char* argv[])
 				goto main_exit;
 			}
 		}
+		if (trace_binary){
+
+			printf("Using binary trace\n");
+			
+			unlink("trace_bin.out");
+			unlink("trace_bin.in");
+			trace_bin_in=fopen("trace_bin.in","wb");
+			if (!trace_bin_in){
+				printf("wanpipemon: Failed to open %s binary file!\n",
+						"trace_bin.in");
+				err=-EINVAL;
+				goto main_exit;
+			}
+			trace_bin_out=fopen("trace_bin.out","wb");
+			if (!trace_bin_out){
+				printf("wanpipemon: Failed to open %s binary file!\n",
+						"trace_bin.out");
+				err=-EINVAL;
+				goto main_exit;
+			}
+		}
 
 #ifdef WANPIPEMON_GUI
 		if (gui_interface && ip_addr==-1){
@@ -1438,7 +1472,9 @@ gui_loop:
 		}
 
 		/* Read fe media info for current interface */		
-		get_femedia_type(&femedia);
+		if (zap_monitor == 0 && dahdi_monitor == 0){
+			get_femedia_type(&femedia);
+		}
 	
 		//get_hardware_level_interface_name(if_name);
 			
@@ -1458,6 +1494,14 @@ gui_loop:
 			fclose(pcap_output_file);
 			pcap_output_file=NULL;
 		}
+    if (trace_bin_out) {
+      fclose(trace_bin_out);
+      trace_bin_out=NULL;
+    }
+    if (trace_bin_in) {
+      fclose(trace_bin_in);
+      trace_bin_in=NULL;
+    }
    	}else{
     		usage();
    	}

@@ -56,21 +56,19 @@
 
 #define WOOMERA_MAX_CHAN	31
 
-#define SMG_MAX_TG	32
-
 #define SMG_SESSION_NAME_SZ	100
 #define SMG_CHAN_NAME_SZ	20
 
 #define PIDFILE "/var/run/sangoma_mgd.pid"
 #define PIDFILE_UNIT "/var/run/sangoma_mgd_unit.pid"
 
-#define WOOMERA_MAX_MEDIA_PORTS 5000
+#define WOOMERA_MAX_MEDIA_PORTS 899
 
 #define CORE_EVENT_LEN 512
 #define WOOMERA_STRLEN 256
 #define WOOMERA_ARRAY_LEN 50
 #define WOOMERA_BODYLEN 2048
-#define WOOMERA_MIN_MEDIA_PORT 10000
+#define WOOMERA_MIN_MEDIA_PORT 9000
 #define WOOMERA_MAX_MEDIA_PORT (WOOMERA_MIN_MEDIA_PORT + WOOMERA_MAX_MEDIA_PORTS)
 #define WOOMERA_HARD_TIMEOUT 0
 #define WOOMERA_LINE_SEPERATOR "\r\n"
@@ -110,22 +108,6 @@ typedef enum {
     WFLAG_SYSTEM_RESET 		= (1 << 19),		/* Initial System Reset Condition no calls allowed */
     WFLAG_WAIT_FOR_ACK_TIMEOUT 	= (1 << 20),		/* Timeout flag indicating that incoming ACK or NACK timedout */
 } WFLAGS;
-
-enum {
-
-	SMG_LOG_ALL  		= 0,
-	SMG_LOG_PROD  		= 1,
-	SMG_LOG_BOOST 		= 2,
-	SMG_LOG_WOOMERA 	= 3,
-	SMG_LOG_DEBUG_CALL  = 4,
-	SMG_LOG_DEBUG_MISC	= 5,
-	SMG_LOG_DEBUG_6		= 6,
-	SMG_LOG_DEBUG_7		= 7,
-	SMG_LOG_DEBUG_8		= 8,
-	SMG_LOG_DEBUG_9		= 9,
-	SMG_LOG_DEBUG_10  	= 10
-};
-
 
 #define woomera_print_flags(woomera,level) \
     log_printf(level,woomera->log,"%s: WFLAG_RUNNING                    = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_RUNNING));\
@@ -205,7 +187,6 @@ struct media_session {
     int sangoma_sock;
     char *ip;
     int port;
-	char *raw;
     time_t started;
     time_t answered;
     pthread_t thread;
@@ -228,7 +209,7 @@ struct media_session {
     teletone_dtmf_detect_state_t dtmf_detect;
     teletone_generation_session_t tone_session;
     switch_buffer_t *dtmf_buffer;
-	unsigned char oob_disable;
+    
 };
 
 struct woomera_message {
@@ -285,70 +266,20 @@ struct woomera_interface {
 	int loop_tdm;
 	char session[SMG_SESSION_NAME_SZ];
 	int check_digits;	/* set to 1 when session comes up */
-	int bearer_cap;
-	unsigned int rx_udp_seq;
-	unsigned int tx_udp_seq;
-	struct woomera_interface *next;
+    	struct woomera_interface *next;
 };
 
-#define WOOMERA_MAX_RBS_BITS 4
-
-typedef struct woomera_rbs_bits
-{
-	int init;
-	unsigned char abcd;
-}woomera_rbs_bits_t;
-
-typedef struct woomera_rbs_relay
-{
-	int init;
-	woomera_rbs_bits_t rbs_bits[WOOMERA_MAX_RBS_BITS];
-	int rx_idx;
-	int tx_idx;
-} woomera_rbs_relay_t;
-
 struct  woomera_session {
-	struct woomera_interface *dev;
+ 	struct woomera_interface *dev;	
 	char session[SMG_SESSION_NAME_SZ];
 	char digits[MAX_DIALED_DIGITS+1];
 	int  digits_len;
-	int bearer_cap;
-	int clients;
-	unsigned char media_used;
-	pthread_mutex_t media_lock;
-	woomera_rbs_relay_t rbs_relay;
-	int sangoma_fd;
-	int sangoma_fd_usage;
 };
 
-struct smg_tdm_ip_bridge {
-	int init;
-	int end;
-	int span;
-	int chan;
-#if 0
-	int port;
-	char local_ip[25];
-	char remote_ip[25];
-#endif
-	int period;
-	int tdm_fd;
-	call_signal_connection_t mcon;
-	pthread_t thread;
-};
-
-extern struct smg_tdm_ip_bridge g_smg_ip_bridge_idx[];
-extern pthread_mutex_t g_smg_ip_bridge_lock;
-
-
-
-
-#define MAX_SMG_RBS_RELAY 32
-#define MAX_SMG_BRIDGE 32
 #define CORE_TANK_LEN CORE_MAX_CHAN_PER_SPAN*CORE_MAX_SPANS
 
 struct woomera_server {
-	struct  woomera_session process_table[CORE_MAX_SPANS][CORE_MAX_CHAN_PER_SPAN+1];
+	struct  woomera_session process_table[CORE_MAX_CHAN_PER_SPAN][CORE_MAX_SPANS];
 	struct woomera_interface *holding_tank[CORE_TANK_LEN];
 	int holding_tank_index;
 	struct woomera_interface master_connection;
@@ -385,21 +316,15 @@ struct woomera_server {
 	uint32_t hw_coding;
 	uint32_t loop_trace;
 	uint32_t hungup_waiting;
-	int all_ckt_gap[SMG_MAX_TG+1];
-	int all_ckt_busy[SMG_MAX_TG+1];
-	struct timeval all_ckt_busy_time[SMG_MAX_TG+1];
-	struct timeval restart_timeout;
+	int all_ckt_gap;
+	int all_ckt_busy;
+	struct timeval all_ckt_busy_time;
 	int dtmf_on; 
-	int dtmf_off;
-	int dtmf_intr_ch;
-	int dtmf_size;
+    	int dtmf_off;
+    	int dtmf_intr_ch;
+    	int dtmf_size;
 	int strip_cid_non_digits;
 	int call_timeout;
-	struct smg_tdm_ip_bridge ip_bridge_idx[MAX_SMG_BRIDGE];
-	int udp_seq; 
-	unsigned int media_rx_seq_err;
-	unsigned char rbs_relay[MAX_SMG_RBS_RELAY];
-	unsigned char media_pass_through;
 };
 
 extern struct woomera_server server;
@@ -412,28 +337,6 @@ struct woomera_config {
     int lineno;
 };
 
-static inline int smg_get_ip_bridge_session(struct smg_tdm_ip_bridge **ip_bridge)
-{
-	int i;
-	for (i=0;i<MAX_SMG_BRIDGE;i++) {
-		if (g_smg_ip_bridge_idx[i].init) {
-			continue;
-		}
-		g_smg_ip_bridge_idx[i].init=1;
-		*ip_bridge=&g_smg_ip_bridge_idx[i];
-		return 0;
-	}
-
-	*ip_bridge=NULL;	
-	return -1;
-
-}
-
-static inline int smg_free_ip_bridge_session(struct smg_tdm_ip_bridge *ip_bridge)
-{
-	memset(ip_bridge,0,sizeof(struct smg_tdm_ip_bridge));
-	return 0;
-}
 
 static inline void smg_get_current_priority(int *policy, int *priority)
 {
@@ -449,25 +352,25 @@ static inline int smg_calc_elapsed(struct timeval *started, struct timeval *ende
 		((started->tv_sec * 1000) + started->tv_usec / 1000));
 }
 
-static inline int smg_check_all_busy(int tg)
+static inline int smg_check_all_busy(void)
 {
 	struct timeval ended;
 	int elapsed;
 
-	if (server.all_ckt_gap[tg]) {
-		return server.all_ckt_gap[tg];
+	if (server.all_ckt_gap) {
+		return server.all_ckt_gap;
 	}
  
-	if (server.all_ckt_busy[tg]==0) {
+	if (server.all_ckt_busy==0) {
 		return 0;
 	}
  
 	gettimeofday(&ended,NULL);
-	elapsed = smg_calc_elapsed(&server.all_ckt_busy_time[tg],&ended);
+	elapsed = smg_calc_elapsed(&server.all_ckt_busy_time,&ended);
 	
 	/* seconds elapsed */
-	if (elapsed > server.all_ckt_busy[tg]) {
-		server.all_ckt_busy[tg]=0;
+	if (elapsed > server.all_ckt_busy) {
+		server.all_ckt_busy=0;
 		return 0;
 	} else {
 		return 1;
@@ -475,55 +378,54 @@ static inline int smg_check_all_busy(int tg)
 
 #if 0
 
-	if (server.all_ckt_busy[tg] > 50) {
+	if (server.all_ckt_busy > 50) {
 		/* When in GAP mode wait 10s */
-		return server.all_ckt_busy[tg];
+		return server.all_ckt_busy;
 	}
 	
-	--server.all_ckt_busy[tg];
-	if (server.all_ckt_busy[tg] < 0) {
-		server.all_ckt_busy[tg]=0;
+	--server.all_ckt_busy;
+	if (server.all_ckt_busy < 0) {
+		server.all_ckt_busy=0;
 	}
 	
-	return server.all_ckt_busy[tg];
+	return server.all_ckt_busy;
 #endif
 }
 
  
-static inline void smg_all_ckt_busy(int tg)
+static inline void smg_all_ckt_busy(void)
 {
 
 	if (server.call_count*10 < 1500) {
-		server.all_ckt_busy[tg]+=1500;
+		server.all_ckt_busy+=1500;
 	} else {
-		server.all_ckt_busy[tg]+=server.call_count*15;
+		server.all_ckt_busy+=server.call_count*15;
 	}
-
-	if (server.all_ckt_busy[tg] > 10000) {
-		server.all_ckt_busy[tg] = 10000;
-	}
+	if (server.all_ckt_busy > 10000) {
+                server.all_ckt_busy = 10000;
+        }
 
 #if 0	
-	if (server.all_ckt_busy[tg] >= 5) {
-		server.all_ckt_busy[tg]=10;
-	} else if (server.all_ckt_busy[tg] >= 10) {
-		server.all_ckt_busy[tg]=15;
-	} else if (server.all_ckt_busy[tg] == 0) {
-		server.all_ckt_busy[tg]=5;
+	if (server.all_ckt_busy >= 5) {
+		server.all_ckt_busy=10;
+	} else if (server.all_ckt_busy >= 10) {
+		server.all_ckt_busy=15;
+	} else if (server.all_ckt_busy == 0) {
+		server.all_ckt_busy=5;
 	}
 #endif
-	gettimeofday(&server.all_ckt_busy_time[tg],NULL);
+	gettimeofday(&server.all_ckt_busy_time,NULL);
 }
 
-static inline void smg_all_ckt_gap(int tg)
+static inline void smg_all_ckt_gap(void)
 {
-	server.all_ckt_gap[tg]=1;		
+	server.all_ckt_gap=1;		
 }
 
-static inline void smg_clear_ckt_gap(int tg)
+static inline void smg_clear_ckt_gap(void)
 {
-	server.all_ckt_gap[tg]=0;		
-	gettimeofday(&server.all_ckt_busy_time[tg],NULL);
+	server.all_ckt_gap=0;		
+	gettimeofday(&server.all_ckt_busy_time,NULL);
 }
 
 
@@ -585,7 +487,7 @@ static inline int woomera_open_file(struct woomera_config *cfg, char *path)
     FILE *f;
 
     if (!(f = fopen(path, "r"))) {
-		log_printf(SMG_LOG_ALL, stderr, "Cannot open file %s\n", path);
+		log_printf(0, stderr, "Cannot open file %s\n", path);
 		return 0;
     }
 
@@ -633,21 +535,6 @@ static inline void woomera_set_raw(struct woomera_interface *woomera, char *raw)
    	if (oldraw) {
 		smg_free(oldraw);
     	}
-}
-
-static inline void media_set_raw(struct media_session *ms, char *raw)
-{
-	char *oldraw=ms->raw;
-
-	if (raw) {
-		ms->raw = smg_strdup(raw);
-	} else {
-		ms->raw = NULL;
-	}
-
-	if (oldraw) {
-		smg_free(oldraw);
-	}
 }
 
 static inline struct media_session * woomera_get_ms(struct woomera_interface *woomera)
@@ -755,7 +642,7 @@ static inline void remove_end_of_digits_char(unsigned char *s)
         unsigned char *p;
         for (p = s; *p; p++) {
                 if (*p == 'F' || *p > 'f') {
-                        log_printf(SMG_LOG_DEBUG_MISC, server.log, "Removing a non-numeric character [%c]!\n", *p);
+                        log_printf(2, server.log, "Removing a non-numeric character [%c]!\n", *p);
                         *p = '\0';
                         break;
                 }
@@ -767,67 +654,18 @@ static inline void validate_number(unsigned char *s)
         unsigned char *p;
         for (p = s; *p; p++) {
                 if (*p < 48 || *p > 57) {
-                        log_printf(SMG_LOG_DEBUG_CALL, server.log, "Encountered a non-numeric character [%c]!\n", *p);
+                        log_printf(2, server.log, "Encountered a non-numeric character [%c]!\n", *p);
                         *p = '\0';
                         break;
                 }
         }
 }
 
-static inline int woomera_check_running(struct woomera_interface *woomera) 
-{
-	if (woomera_test_flag(woomera, WFLAG_HANGUP) || 
-		!woomera_test_flag(woomera, WFLAG_RUNNING) ||
-		woomera_test_flag(woomera, WFLAG_MEDIA_END)) {
-		
-		return 0;
-	}
-		
-	return 1;
-}
 
-static inline int open_span_chan (unsigned char span, unsigned char chan)
-{
-	int fd = -1;
-#ifndef LIBSANGOMA_VERSION
-	fd = sangoma_open_tdmapi_span_chan(span, chan);
-#else
-	if (chan == 24) {
-		pthread_mutex_lock(&server.process_table[span][chan].media_lock);
-		if(server.process_table[span][chan].media_used > 0) {
-			log_printf(SMG_LOG_ALL, server.log, 
-				"Critical Error: channel already opened [s%ic%i]\n", span, chan);
-		} else {
-			server.process_table[span][chan].media_used++;
-	
-			fd = __sangoma_open_api_span_chan(span, chan);
-		}
-		pthread_mutex_unlock(&server.process_table[span][chan].media_lock);
-	} else {
-		fd = sangoma_open_api_span_chan(span, chan);
-	}
-#endif
-	return fd;
-}
 
-static inline void close_span_chan (int *socket, unsigned char span, unsigned char chan)
-{
-	if (chan == 24) {
-		pthread_mutex_lock(&server.process_table[span][chan].media_lock);
-		if(server.process_table[span][chan].media_used > 0) {
-			server.process_table[span][chan].media_used--;
-		}
-		close_socket(socket);
-		pthread_mutex_unlock(&server.process_table[span][chan].media_lock);
-	} else {
-		close_socket(socket);
-	}
-}
+
 
 extern int smg_log_init(void);
 extern void smg_log_cleanup(void);
-extern int smg_ip_bridge_start(void);
-extern int smg_ip_bridge_stop(void);
-extern int waitfor_2sockets(int fda, int fdb, char *a, char *b, int timeout);
 #endif
 

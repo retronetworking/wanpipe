@@ -49,7 +49,6 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/mman.h>
-#include <time.h>
 #if defined(__LINUX__)
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe_cfg.h>

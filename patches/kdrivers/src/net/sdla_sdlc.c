@@ -365,7 +365,7 @@ static int update (wan_device_t* wandev)
 	if(dev == NULL)
 		return -ENODEV;
 
-	if((sdlc_priv_area=wan_netif_priv(dev)) == NULL)
+	if((sdlc_priv_area=dev->priv) == NULL)
 		return -ENODEV;
 
        	if(sdlc_priv_area->update_comms_stats){
@@ -465,7 +465,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	sdlc_priv_area->mc = conf->mc;
 
 	dev->init = &if_init;
-	wan_netif_set_priv(dev, sdlc_priv_area);
+	dev->priv = sdlc_priv_area;
 
 #if 0
 	/*
@@ -491,7 +491,7 @@ new_if_error:
 		kfree(sdlc_priv_area);
 	}
 
-	wan_netif_set_priv(dev, NULL);
+	dev->priv=NULL;
 
 	return err;
 
@@ -504,7 +504,7 @@ new_if_error:
  */
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
-	sdlc_private_area_t *sdlc_priv_area = wan_netif_priv(dev);
+	sdlc_private_area_t *sdlc_priv_area = dev->priv;
 	sdla_t *card = sdlc_priv_area->card;
 	unsigned long smp_lock;
 	
@@ -545,7 +545,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 /* SNMP */ 
 static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 {
-	sdlc_private_area_t* chan= (sdlc_private_area_t*)wan_netif_priv(dev);
+	sdlc_private_area_t* chan= (sdlc_private_area_t*)dev->priv;
 	unsigned long smp_flags;
 	sdla_t *card;
 	wan_udp_pkt_t *wan_udp_pkt;
@@ -757,7 +757,7 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
  */
 static int if_init (netdevice_t* dev)
 {
-	sdlc_private_area_t* sdlc_priv_area = wan_netif_priv(dev);
+	sdlc_private_area_t* sdlc_priv_area = dev->priv;
 	sdla_t* card = sdlc_priv_area->card;
 	wan_device_t* wandev = &card->wandev;
 	
@@ -810,7 +810,7 @@ static int if_init (netdevice_t* dev)
  */
 static int if_open (netdevice_t* dev)
 {
-	sdlc_private_area_t* sdlc_priv_area = wan_netif_priv(dev);
+	sdlc_private_area_t* sdlc_priv_area = dev->priv;
 	sdla_t* card = sdlc_priv_area->card;
 	struct timeval tv;
 
@@ -841,7 +841,7 @@ static int if_open (netdevice_t* dev)
  */
 static int if_close (netdevice_t* dev)
 {
-	sdlc_private_area_t* sdlc_priv_area = wan_netif_priv(dev);
+	sdlc_private_area_t* sdlc_priv_area = dev->priv;
 	sdla_t* card = sdlc_priv_area->card;
 
 	stop_net_queue(dev);
@@ -875,7 +875,7 @@ static int if_close (netdevice_t* dev)
  */
 static int if_send (struct sk_buff* skb, netdevice_t* dev)
 {
-	sdlc_private_area_t *sdlc_priv_area = wan_netif_priv(dev);
+	sdlc_private_area_t *sdlc_priv_area = dev->priv;
 	sdla_t *card = sdlc_priv_area->card;
 	unsigned long smp_flags;
 	int err=0;
@@ -975,7 +975,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
          * dev->priv pointer. This function, gets
          * called after del_if(), thus check
          * if pointer has been deleted */
-	if ((sdlc_priv_area=wan_netif_priv(dev)) == NULL)
+	if ((sdlc_priv_area=dev->priv) == NULL)
 		return NULL;
 
 	my_card = sdlc_priv_area->card;
@@ -1320,7 +1320,7 @@ static WAN_IRQ_RETVAL wp_sdlc_isr (sdla_t* card)
 		
 	/* If we get an interrupt with no network device, stop the interrupts
 	 * and issue an error */
-	if ((!dev || !wan_netif_priv(dev)) && flags.interrupt_type != COMMAND_COMPLETE_INTERRUPT_PENDING){
+	if ((!dev || !dev->priv) && flags.interrupt_type != COMMAND_COMPLETE_INTERRUPT_PENDING){
 		goto isr_done;
 	}
 
@@ -1415,7 +1415,7 @@ static void rx_intr (sdla_t* card)
 	}
 #endif
 
-	chan = wan_netif_priv(dev);
+	chan = dev->priv;
 
 	
 	if (sdlc_list_stations_with_ifrms(card) != 0){
@@ -1560,7 +1560,7 @@ static void tx_intr(sdla_t *card)
 		return;
 	}
 
-	if ((sdlc_priv_area=wan_netif_priv(dev)) == NULL){
+	if ((sdlc_priv_area=dev->priv) == NULL){
 		return;
 	}
 
@@ -1585,7 +1585,7 @@ void timer_intr(sdla_t *card)
 
         dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head)); 
 	if (!dev) return;
-        sdlc_priv_area = wan_netif_priv(dev);
+        sdlc_priv_area = dev->priv;
 
 	/* read the communications statistics if required */
 	if(sdlc_priv_area->timer_int_enabled & TMR_INT_ENABLED_UPDATE){
@@ -1806,7 +1806,7 @@ static void sdlc_state_change(sdla_t *card, wan_mbox_t *mb)
 	if (!dev)
 		return;
 
-	if ((sdlc_chan=wan_netif_priv(dev)) == NULL)
+	if ((sdlc_chan=dev->priv) == NULL)
 		return;
 	
 	for (i=0;i<mb->wan_data_len;i+=sizeof(SDLC_STATE_STRUCT)){
@@ -2078,11 +2078,11 @@ static void port_set_state (sdla_t *card, int state)
 	sdlc_private_area_t *sdlc_priv_area;
 
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
-	if (!dev || !wan_netif_priv(dev)){
+	if (!dev || !dev->priv){
 		return;
 	}
 	
-	sdlc_priv_area=wan_netif_priv(dev);
+	sdlc_priv_area=dev->priv;
 		
         if (card->u.sdlc.state != state)
         {
@@ -2281,9 +2281,9 @@ static int chdlc_set_if_info(struct file *file,
 	sdlc_private_area_t* 	sdlc_priv_area = NULL;
 	sdla_t*			card = NULL;
 
-	if (dev == NULL || wan_netif_priv(dev) == NULL)
+	if (dev == NULL || dev->priv == NULL)
 		return count;
-	sdlc_priv_area = (sdlc_private_area_t*)wan_netif_priv(dev);
+	sdlc_priv_area = (sdlc_private_area_t*)dev->priv;
 	if (sdlc_priv_area->card == NULL)
 		return count;
 	card = sdlc_priv_area->card;
@@ -2312,7 +2312,7 @@ int wanpipe_sdlc_register(netdevice_t *dev, void *reg_data)
 		return -EINVAL;
 	}
 	
-	if ((chan=wan_netif_priv(dev)) == NULL){
+	if ((chan=dev->priv) == NULL){
 		return -ENODEV;
 	}
 
@@ -2356,7 +2356,7 @@ int wanpipe_sdlc_unregister(netdevice_t *dev)
 		return -ENODEV;
 	}
 
-	if ((chan=wan_netif_priv(dev)) == NULL){
+	if ((chan=dev->priv) == NULL){
 		return -ENODEV;
 	}
 

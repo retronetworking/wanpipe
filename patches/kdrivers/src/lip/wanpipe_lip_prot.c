@@ -477,42 +477,34 @@ unsigned char wplip_ppp_variables_oid[] = { 1,3,6,1,2,1,10,23 };
 
 int wplip_prot_udp_snmp_pkt(wplip_dev_t * lip_dev, int cmd, struct ifreq* ifr)
 {
-	wanpipe_snmp_t	*snmp;
+	wanpipe_snmp_t	snmp;
 	wplip_prot_iface_t *prot_iface;	
 	int err;
-
-	snmp=wan_malloc(sizeof(wanpipe_snmp_t));
-	if (!snmp) {
-		return -ENOMEM;
-	}
-
-	memset(snmp,0,sizeof(wanpipe_snmp_t));
+	
+	memset(&snmp,0,sizeof(wanpipe_snmp_t));
 		
-	if (WAN_COPY_FROM_USER(snmp, ifr->ifr_data, sizeof(wanpipe_snmp_t))){
+	if (WAN_COPY_FROM_USER(&snmp, ifr->ifr_data, sizeof(wanpipe_snmp_t))){
 		DEBUG_EVENT("%s: Failed to copy user snmp data to kernel space!\n",
 				lip_dev->name);
-		wan_free(snmp);
 		return -EFAULT;
 	}
 	
-	if (strncmp((char *)wplip_fr_variables_oid,(char *)snmp->snmp_name, sizeof(wplip_fr_variables_oid)) == 0){
+	if (strncmp((char *)wplip_fr_variables_oid,(char *)snmp.snmp_name, sizeof(wplip_fr_variables_oid)) == 0){
 		/* SNMP call for frame relay */
 		DEBUG_EVENT("%s: Get Frame Relay SNMP data\n", 
 					lip_dev->name);
 
 		if (lip_dev->protocol != WANCONFIG_FR){
-			wan_free(snmp);
 			return 	-EAFNOSUPPORT;
 		}
 		
-	}else if (strncmp((char *)wplip_ppp_variables_oid,(char *)snmp->snmp_name, sizeof(wplip_ppp_variables_oid)) == 0){
+	}else if (strncmp((char *)wplip_ppp_variables_oid,(char *)snmp.snmp_name, sizeof(wplip_ppp_variables_oid)) == 0){
 		/* SNMP call for PPP */
 		DEBUG_EVENT("%s: Get PPP SNMP data\n", 
 					lip_dev->name);
-		wan_free(snmp);
+
 		return 	-EAFNOSUPPORT;
 	}else{
-		wan_free(snmp);
 		return 	-EAFNOSUPPORT;
 	}
 
@@ -522,26 +514,22 @@ int wplip_prot_udp_snmp_pkt(wplip_dev_t * lip_dev, int cmd, struct ifreq* ifr)
 	prot_iface=wplip_prot_ops[lip_dev->protocol];
 
 	if (!prot_iface->snmp){
-		wan_free(snmp);
 		return -EAFNOSUPPORT;
 	}
 
 	err=prot_iface->snmp(lip_dev->common.prot_ptr, 
-			     snmp);
+			     &snmp);
 	if (err){
-		wan_free(snmp);
 		return -EAFNOSUPPORT;	
 	}
 	
 
-	if (WAN_COPY_TO_USER(ifr->ifr_data, snmp, sizeof(wanpipe_snmp_t))){
+	if (WAN_COPY_TO_USER(ifr->ifr_data, &snmp, sizeof(wanpipe_snmp_t))){
 		DEBUG_EVENT("%s: Failed to copy kernel space to user snmp data!\n",
 				lip_dev->name);
-		wan_free(snmp);
 		return -EFAULT;
 	}
 
-	wan_free(snmp);
 	return 0;
 }
 

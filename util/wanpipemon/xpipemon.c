@@ -36,12 +36,15 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 
+#if defined (__LINUX__)
 #include <linux/if_ether.h>
-#include <linux/wanpipe_defines.h>
-#include <linux/wanpipe_cfg.h>
-#include <linux/wanpipe.h>
 #include <linux/if_packet.h>
-#include <linux/sdla_x25.h>
+#else
+#error "Not supported on NON Linux Platforms"
+#endif
+
+#include "wanpipe_api.h"
+#include "sdla_x25.h"
 #include "fe_lib.h"
 #include "wanpipemon.h"
 

@@ -41,7 +41,6 @@ home=`pwd`;
 
 force="false"
 noss7="invalid"
-pri="false"
 rootdir=""
 pbxdir=/usr/src/asterisk
 pbxd="asterisk"
@@ -49,7 +48,7 @@ cfgdir="/etc/asterisk"
 mysyslog=" "
 smg_installed=0
 chan_woomera_installed=0
-no_woomera="false"
+
 
 
 while [ ! -z $1 ]
@@ -62,12 +61,6 @@ do
 		noss7="flase"
 	elif [ $1 = '-bri' ]; then
 		noss7="true"
-	elif [ $1 = '-no_woomera' ]; then
-		noss7="true"
-		no_woomera="true"
-	elif [ $1 = '-pri' ]; then
-		noss7="true"
-		pri="true"
 	elif [ $1 = '-pbxdir' ]; then
 		shift
                 pbxdir=$1
@@ -93,8 +86,7 @@ do
 	else
 		echo "Invalid option: $1";
 		echo
-		echo "Usage: ./install [-bri|-ss7]"
-		echo "Please specify if smg is being installed for BRI or SS7"
+		echo "Usage: ./install <optinal args>"
 		echo
 		exit 1
 	fi
@@ -111,10 +103,10 @@ else
 	cfgdir="/etc/asterisk"
 fi
 
-if [ $noss7 == 'invalid' ] && [ $pri == 'false' ]; then
+if [ $noss7 == 'invalid' ]; then
 	echo
-	echo "Usage Error: ./install [-bri|-pri|-ss7]"
-	echo "Please specify if smg is being installed for BRI or SS7 or PRI"
+	echo "Usage Error: ./install [-bri|-ss7]"
+	echo "Please specify if smg is being installed for BRI or SS7"
 	echo
 	exit 1
 fi
@@ -218,13 +210,13 @@ if [ $? -ne 0 ]; then
 	echo "Error: Logrotate not found !"
 fi
 
-if [ -e /etc/logrotate.d ] && [ -e /etc/logrotate.d/$mysyslog ]; then
+if [ -e /etc/logrotate.d ] && [ -e /etc/logrotate.d/syslog ]; then
 
-	eval "grep sangoma_mgd /etc/logrotate.d/$mysyslog" > /dev/null 2> /dev/null
+	eval "grep sangoma_mgd /etc/logrotate.d/syslog" > /dev/null 2> /dev/null
 	if [ $? -ne 0 ]; then
-		eval "sed -e 's/messages/messages \/var\/log\/sangoma_mgd.log/' /etc/logrotate.d/$mysyslog >tmp2.$$ 2>/dev/null"
-		eval "cp -f tmp2.$$ /etc/logrotate.d/$mysyslog"
-		eval "logrotate -f /etc/logrotate.d/$mysyslog" 
+		eval "sed -e 's/messages/messages \/var\/log\/sangoma_mgd.log/' /etc/logrotate.d/syslog >tmp2.$$ 2>/dev/null"
+		eval "cp -f tmp2.$$ /etc/logrotate.d/syslog"
+		eval "logrotate -f /etc/logrotate.d/syslog" 
 		if [ $? -ne 0 ]; then
 			echo "Error: logrotate restart failed!";
 			exit 1;
@@ -245,7 +237,7 @@ if [ ! -e  /usr/include/netinet/sctp.h ] && [ ! -e /usr/include/sctp.h ]; then
 	echo
 	echo "Error: lksctp-tools-devel package missing"
 	echo "Please install sctp using a package manager"
-	echo "eg: yum install lksctp-tools-devel"
+	echo "eg: yum install ksctp-tools-devel"
 	echo
 	exit 1
 fi 
@@ -290,29 +282,21 @@ echo "Compiling Sangoma MGD ..."
 echo
 sleep 1
 eval "make clean 2> /dev/null > /dev/null"
-if [ $pri = "true" ]; then
-        eval "make PRI=YES" 
-else
 if [ $noss7 = "true" ]; then
         eval "make NO_SS7=YES" 
 else
         eval "make" 
-fi
 fi
 
 if [ $? -ne 0 ]; then
 	exit 1;
 fi
 
-if [ $pri = "true" ]; then
-	eval "make INSTALLPREFIX=$rootdir PRI=YES install"
-else
 if [ $noss7 = "true" ]; then
 	#This case is currently used for bri
 	eval "make INSTALLPREFIX=$rootdir NO_SS7=YES install"
 else
 	eval "make INSTALLPREFIX=$rootdir install"
-fi
 fi
 
 if [ $? -ne 0 ]; then
@@ -328,44 +312,42 @@ else
 	smg_installed=1;
 fi
 
-if [ "$no_woomera" == "false" ]; then 
-	if [ -d chan_woomera.trunk ]; then
+if [ -d chan_woomera.trunk ]; then
 
-		cd chan_woomera.trunk
+	cd chan_woomera.trunk
 
-		echo "Compiling Woomera Channel ..."
+	echo "Compiling Woomera Channel ..."
 
-		if [ ! -e $pbxdir ]; then
-			echo
-			echo "Error: $pbxdir directory does not exist!"
-			echo "       Please provide the path to Asterik or CallWeaver source."
-			echo "       Then re-run eg: ./install -pbxdir /usr/src/asterisk "
-			echo
-			getyn "Would you like to continue installation?"
-			if [ $? -ne 0 ]; then
-				exit 1;
-			fi
-		else
-			eval "make clean 2> /dev/null > /dev/null"
-			eval "make PBXDIR=$pbxdir"
-			if [ $? -ne 0 ]; then
-				exit 1;
-			fi
-			make INSTALLPREFIX=$rootdir install
-			if [ $? -ne 0 ]; then
-				echo
-				echo "Error: Failed to compile chan_woomera into PBX source!"
-				echo
-				exit 1;
-			fi
-			echo "Ok."
-			chan_woomera_installed=1;
+	if [ ! -e $pbxdir ]; then
+		echo
+		echo "Error: $pbxdir directory does not exist!"
+		echo "       Please provide the path to Asterik or CallWeaver source."
+		echo "       Then re-run eg: ./install -pbxdir /usr/src/asterisk "
+		echo
+		getyn "Would you like to continue installation?"
+		if [ $? -ne 0 ]; then
+			exit 1;
 		fi
-
 	else
-		echo "Warning: chan_woomera directory does not exist!"
-		exit 1
+		eval "make clean 2> /dev/null > /dev/null"
+		eval "make PBXDIR=$pbxdir"
+		if [ $? -ne 0 ]; then
+			exit 1;
+		fi
+		make INSTALLPREFIX=$rootdir install
+		if [ $? -ne 0 ]; then
+			echo
+			echo "Error: Failed to compile chan_woomera into PBX source!"
+			echo
+			exit 1;
+		fi
+		echo "Ok."
+		chan_woomera_installed=1;
 	fi
+
+else
+	echo "Warning: chan_woomera directory does not exist!"
+	exit 1
 fi
 
 if [ $smg_installed -eq 1 ]; then
@@ -394,10 +376,6 @@ if [ $chan_woomera_installed -eq 1 ]; then
 	echo "--> Start: start $pbxd (part of $pbxd)"
 	echo
 	echo "---------------------------------"
-elif [ $no_woomera = "true" ];then
-	echo
-	echo " You chose not to install Chan Woomera"
-	echo 
 else
 	echo
 	echo " Chan Woomera Installatin Failed"

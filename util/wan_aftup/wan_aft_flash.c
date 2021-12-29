@@ -1,5 +1,8 @@
+
 #include <stdlib.h>
 #include <stdio.h>
+
+#if !defined(__WINDOWS__)
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -10,6 +13,8 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <netinet/in.h>
+#endif
+
 #if defined(__LINUX__)
 # include <linux/if.h>
 # include <linux/types.h>
@@ -17,6 +22,19 @@
 # include <linux/wanpipe_defines.h>
 # include <linux/sdlasfm.h>
 # include <linux/wanpipe_cfg.h>
+#elif defined(__WINDOWS__)
+# include <windows.h>
+# include <winioctl.h>
+# include <conio.h>
+# include <stddef.h>	/* offsetof() */
+# include <string.h>
+
+# include "wanpipe_includes.h"
+# include "wanpipe_common.h"
+# include "wanpipe_time.h"	/* usleep() */
+# include "sdlasfm.h"
+# include "sdlapci.h"
+
 #else
 # include <net/if.h>
 # include <wanpipe_defines.h>
@@ -103,12 +121,16 @@ struct {
 ******************************************************************************/
 int do_wait(int sec)
 {
+#if defined(__WINDOWS__)
+	/* convert seconds to milliseconds */
+	Sleep(sec*1000);
+#else
 	struct timeval	timeout;
 	int		err;
-
 	timeout.tv_sec = sec;
 	timeout.tv_usec = 0;
 	err=select(0,NULL, NULL, NULL, &timeout);
+#endif
 	return 0;
 }
 
@@ -174,7 +196,7 @@ __aft_write_flash_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long
 	}
 	write_cpld(cpld, 0x07, offset);
 	write_cpld(cpld, 0x04, data);
-        write_cpld(cpld, 0x07, 0x00);  // disable CS signal for the Boot FLASH/SRAM
+    write_cpld(cpld, 0x07, 0x00);  // disable CS signal for the Boot FLASH/SRAM
 
 	return 0;
 }

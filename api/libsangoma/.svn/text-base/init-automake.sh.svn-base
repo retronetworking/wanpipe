@@ -1,27 +1,32 @@
 #!/bin/sh
 
 PWD=$(pwd)
+eval "cd . && /bin/sh $PWD/missing --run aclocal"
+if [ $? -ne 0 ]; then
+	exit $?
+fi
+eval "cd . && /bin/sh $PWD/missing --run automake --gnu"
+if [ $? -ne 0 ]; then
+	exit $?
+fi
+eval "cd . && /bin/sh $PWD/missing --run autoconf"
+if [ $? -ne 0 ]; then
+	exit $?
+fi
 
-eval "autoheader"
-if [ $? -ne 0 ]; then
-	exit $?
+cd sample_c
+if [ -f Makefile ]; then
+	rm -f Makefile
 fi
-eval "libtoolize --force"
-if [ $? -ne 0 ]; then
-	exit $?
+ln -s Makefile.Linux Makefile
+
+cd ..
+
+cd sample_cpp
+if [ -f Makefile ]; then
+	rm -f Makefile
 fi
-eval "aclocal"
-if [ $? -ne 0 ]; then
-	exit $?
-fi
-eval "automake --add-missing"
-if [ $? -ne 0 ]; then
-	exit $?
-fi
-eval "autoconf"
-if [ $? -ne 0 ]; then
-	exit $?
-fi
+ln -s Makefile.Linux Makefile
 
 echo "Automake Init Done"
 echo 

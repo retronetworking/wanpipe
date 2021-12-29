@@ -19,16 +19,12 @@
 #if defined(__LINUX__)
 # include <wait.h>
 # include <netinet/in.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
 #else
 # include <sys/wait.h>
 # include <netinet/in.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanpipe.h>
 #endif
+
+#include "wanpipe_api.h"
 #include "unixio.h"
 #include "fe_lib.h"
 #include "wanpipemon.h"

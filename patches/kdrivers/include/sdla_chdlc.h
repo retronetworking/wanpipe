@@ -32,14 +32,11 @@
 #define _SDLA_CHDLC_H
 
 #if defined(__LINUX__)
-# include <linux/if_wanpipe.h>
-# include <linux/wanpipe_sppp_iface.h>
-#elif defined(__WINDOWS__)
-#if defined(__KERNEL__)
-# include <wanpipe_sppp_iface.h>
+# include "if_wanpipe.h"
 #endif
-#else
-# include <wanpipe_sppp_iface.h>
+
+#if defined (__KERNEL__)
+# include "wanpipe_sppp_iface.h"
 #endif
 
 /*------------------------------------------------------------------------
@@ -92,7 +89,11 @@ typedef struct {
 #define FLUSH_GLOBAL_STATISTICS		0x05
 #define SET_MODEM_STATUS		0x06	/* set status of DTR or RTS */
 #define READ_MODEM_STATUS		0x07	/* read status of CTS and DCD */
-#define READ_COMMS_ERROR_STATS		0x08	
+
+#undef  READ_COMMS_ERROR_STATS
+#define READ_COMMS_ERROR_STATS		0x08
+
+#undef 	FLUSH_COMMS_ERROR_STATS
 #define FLUSH_COMMS_ERROR_STATS		0x09
 #define SET_TRACE_CONFIGURATION		0x0A	/* set the line trace config */
 #define READ_TRACE_CONFIGURATION	0x0B	/* read the line trace config */
@@ -106,13 +107,15 @@ typedef struct {
 #define FT1_MONITOR_STATUS_CTRL		0x1C	/* set the status of the FT1 monitoring */
 
 #define READ_FT1_OPERATIONAL_STATS	0x1D	/* read the S508/FT1 operational statistics */
+
+#undef 	SET_FT1_MODE
 #define SET_FT1_MODE			0x1E	/* set the operational mode of the S508/FT1 module */
 
 /* CHDLC-level interface commands */
-/*#define READ_CHDLC_CODE_VERSION		0x20*/	
+#define READ_CHDLC_CODE_VERSION		0x20	
 #define READ_CHDLC_EXCEPTION_CONDITION	0x21	/* read exception condition from the adapter */
 #define SET_CHDLC_CONFIGURATION		0x22
-/*#define READ_CHDLC_CONFIGURATION	0x23*/
+#define READ_CHDLC_CONFIGURATION	0x23
 #define ENABLE_CHDLC_COMMUNICATIONS	0x24
 #define DISABLE_CHDLC_COMMUNICATIONS	0x25
 #define READ_CHDLC_LINK_STATUS		0x26
@@ -132,27 +135,18 @@ typedef struct {
 /* read application interrupt trigger configuration */
 
 /* Special UDP drivers management commands */
-#define CPIPE_ENABLE_TRACING				0x50
-#define CPIPE_DISABLE_TRACING				0x51
-#define CPIPE_GET_TRACE_INFO				0x52
-#define CPIPE_GET_IBA_DATA				0x53
-#define DIGITAL_LOOPTEST				CPIPE_GET_IBA_DATA
-#define CPIPE_FT1_READ_STATUS				0x54
-#define CPIPE_DRIVER_STAT_IFSEND			0x55
-#define CPIPE_DRIVER_STAT_INTR				0x56
-#define CPIPE_DRIVER_STAT_GEN				0x57
-#define CPIPE_FLUSH_DRIVER_STATS			0x58
-#define CPIPE_ROUTER_UP_TIME				0x59
+#define CPIPE_ROUTER_UP_TIME				WANPIPEMON_ROUTER_UP_TIME
+#define CPIPE_ENABLE_TRACING				WANPIPEMON_ENABLE_TRACING
+#define CPIPE_DISABLE_TRACING				WANPIPEMON_DISABLE_TRACING
+#define CPIPE_GET_TRACE_INFO				WANPIPEMON_GET_TRACE_INFO
+#define DIGITAL_LOOPTEST					WANPIPEMON_DIGITAL_LOOPTEST
+#define CPIPE_GET_IBA_DATA					WANPIPEMON_GET_IBA_DATA
+#define CPIPE_FT1_READ_STATUS				WANPIPEMON_FT1_READ_STATUS
+#define CPIPE_DRIVER_STAT_IFSEND			WANPIPEMON_DRIVER_STAT_IFSEND
+#define CPIPE_DRIVER_STAT_INTR				WANPIPEMON_DRIVER_STAT_INTR
+#define CPIPE_DRIVER_STAT_GEN				WANPIPEMON_DRIVER_STAT_GEN	
+#define CPIPE_FLUSH_DRIVER_STATS			WANPIPEMON_FLUSH_DRIVER_STATS
 
-#if 0
-#define CPIPE_MPPP_TRACE_ENABLE				0x60
-#define CPIPE_MPPP_TRACE_DISABLE			0x61
-#define CPIPE_TE1_56K_STAT				0x62	/* TE1_56K */
-#define CPIPE_GET_MEDIA_TYPE				0x63	/* TE1_56K */
-#define CPIPE_FLUSH_TE1_PMON				0x64	/* TE1     */
-#define CPIPE_READ_REGISTER				0x65	/* TE1_56K */
-#define CPIPE_TE1_CFG					0x66	/* TE1     */
-#endif
 
 /* Driver specific commands for API */
 #define	CHDLC_READ_TRACE_DATA		0xE4	/* read trace data */
@@ -706,7 +700,14 @@ typedef struct {
 } ft1_exec_t;
 
 
+/* By default UDPMGMT Signature is AFT, if user
+   includes the sdla_chdlc.h file then its assumed that
+   they wan't to use legacy API variant */
+#ifdef UDPMGMT_SIGNATURE
+#undef UDPMGMT_SIGNATURE
 #define UDPMGMT_SIGNATURE	"CTPIPEAB"
+#endif
+
 #define UDPMGMT_SIGNATURE_LEN	8
 
 
@@ -741,30 +742,6 @@ typedef struct {
 	unsigned char	data[1]		;
 } trace_pkt_t;
 #endif
-
-typedef struct {
-	unsigned char	error_flag	;
-	unsigned short	time_stamp	;
-	unsigned int	sec		;
-	unsigned int    usec		;
-	unsigned char	reserved[5]	;
-} api_rx_hdr_t;
-
-typedef struct {
-        api_rx_hdr_t	api_rx_hdr      ;
-        unsigned char  	data[1]    	;
-} api_rx_element_t;
-
-typedef struct {
-	unsigned char 	attr		;
-	unsigned char   misc_Tx_bits	;
-	unsigned char  	reserved[14]	;
-} api_tx_hdr_t;
-
-typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	;
-	unsigned char	data[1]		;
-} api_tx_element_t;
 
 #endif  //HDLC_PROT_ONLY
 /* ----------------------------------------------------------------------------

@@ -5,23 +5,19 @@
 # ============================================================================
 
 APIINC=/usr/include/wanpipe
+LIB_INSTALL_DIR=/usr
 
 ####### RULES ################################################################
 
 all:	
-	make -C x25 all  APIINC=$(APIINC)
-	make -C chdlc all  APIINC=$(APIINC)
-	make -C fr all  APIINC=$(APIINC)
-	make -C bitstrm all APIINC=$(APIINC)
-	make -C bisync all APIINC=$(APIINC)
-#	make -C ss7 all  APIINC=$(APIINC)
+	make -C sample_c
+	make -C sample_cpp
+	make -C tdm_api
+	make -C legacy
 
 clean:
-	make -C x25 clean 
-	make -C chdlc clean 
-	make -C fr clean 
-	make -C bitstrm clean
-	make -C bisync clean
-	make -C tdmapi clean
+	make -C sample_c clean
+	make -C sample_cpp clean
+	make -C tdm_api clean 
+	make -C legacy clean 
 	make -C lib/hdlc clean
-#	make -C ss7 clean

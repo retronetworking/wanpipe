@@ -13,15 +13,19 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
+ifneq (,$(wildcard /wanpipe/code/Makefile.in))
+include /wanpipe/code/Makefile.in
+EXTRA_FLAGS+=$(GLOBAL_CFLAGS)
+endif
 
+SYSINC=/usr/include/wanpipe
 WAN_VIRTUAL=
-SYSINC=-I/usr/include/wanpipe
 
 PRODS=wan_plxup
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
-CFLAGS  += $(EXTRA_FLAGS)
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG)
+CFLAGS  += $(EXTRA_FLAGS) -I$(SYSINC)
 
 
 ####### RULES ################################################################

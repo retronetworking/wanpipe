@@ -29,11 +29,13 @@
 /*----------------------------------------------------------------------------
  * Frame relay specific link-level configuration.
  */
-#if defined(__WINDOWS__)
-# define DLCI_LIST_LEN MAX_NUMBER_OF_PROTOCOL_INTERFACES
-#else
-# define DLCI_LIST_LEN 100
+
+#ifndef MAX_NUMBER_OF_PROTOCOL_INTERFACES
+#define MAX_NUMBER_OF_PROTOCOL_INTERFACES 100
 #endif
+
+# define DLCI_LIST_LEN MAX_NUMBER_OF_PROTOCOL_INTERFACES
+
 
 typedef struct wan_fr_conf
 {
@@ -49,9 +51,7 @@ typedef struct wan_fr_conf
 	unsigned char station;  	/* Node or CPE */
 	unsigned int eek_cfg;		/* EEK Request Reply Mode */
 	unsigned int eek_timer;		/* EEK Request Reply Timer */
-#if defined(__WINDOWS__)
 	unsigned char auto_dlci;	/* 1 - yes, 0 - no */
-#endif
 } wan_fr_conf_t;
 
 /* used by wanpipemon to get DLCI status */
@@ -68,3 +68,4 @@ typedef struct wan_lip_fr_dlci
 
 
 #endif /* __WANPIPE_CFG_FR_H__ */
+

@@ -17,18 +17,12 @@
 # include <netinet/tcp.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe.h>
 #else
 # include <netinet/in_systm.h>
 # include <netinet/ip.h>
 # include <netinet/tcp.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanpipe.h>
-# include <sdla_chdlc.h>
 #endif
+#include "wanpipe_api.h"
 #include "fe_lib.h"
 #include "wanpipemon.h"
 
@@ -1805,8 +1799,6 @@ try_trace_again:
 		case WANCONFIG_AFT:
 		case WANCONFIG_AFT_TE1:
 		case WANCONFIG_AFT_TE3:
-		case WANCONFIG_AFT_56K:
-		case WANCONFIG_AFT_SERIAL:
 			if (trace_iface->data[0] == 0x8F || trace_iface->data[0] == 0x0F){
 				trace_iface->link_type=WANCONFIG_CHDLC;
 				goto try_trace_again;
@@ -1970,6 +1962,22 @@ try_trace_again:
 
 		break;                                                
 		
+
+  case WP_OUT_TRACE_BIN:
+  
+   
+#if 0
+   if (trace_iface->len != 4800) {
+    printf("ERROR: Trace Len %i\n",trace_iface->len );
+   } 
+#endif
+	if (trace_iface->status) {
+		  fwrite(&trace_iface->data[0], trace_iface->len, 1, trace_bin_out);
+    } else {
+		  fwrite(&trace_iface->data[0], trace_iface->len, 1, trace_bin_in);
+    }
+
+    break;
 		
 	case WP_OUT_TRACE_RAW:
 	default:

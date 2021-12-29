@@ -20,8 +20,6 @@
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined (__OpenBSD__)
 # define SIOC_WANPIPE_SNMP		_IOWR('i', 100, struct ifreq)
 # define SIOC_WANPIPE_SNMP_IFSPEED	_IOWR('i', 101, struct ifreq)
-#else
-//# include <linux/if_wanpipe.h>
 #endif
 
 #define SNMP_READ	1
