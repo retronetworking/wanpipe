@@ -2336,7 +2336,7 @@ int sdla_get_hw_info(sdlahw_t* hw)
 				from PCI_CORE_REV_REG (0xFC) */
 		u16 new_core_rev = 0x00;
 		sdla_bus_read_2(hw, SDLA_REG_OFF(hwcard, PCI_CORE_REV_REG), &new_core_rev);
-		hwcard->core_rev = new_core_rev;
+		hwcard->core_rev = (unsigned char)new_core_rev;
 	}
 
 	if (hwcard->adptr_subtype == AFT_SUBTYPE_NORMAL){
@@ -11174,7 +11174,7 @@ static sdla_dma_addr_t sdla_pci_map_dma(void *phw, void *buf, int len, int ctrl)
 	{
 		/* translate virtual to physical */
 		PHYSICAL_ADDRESS	phaTemp = MmGetPhysicalAddress(buf);
-		return phaTemp.QuadPart;
+		return (sdla_dma_addr_t)phaTemp.QuadPart;
 	}
 #else	
 	return virt_to_phys(buf);

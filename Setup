@@ -193,7 +193,27 @@ check_kern_sock_for_feature ()
 	fi	
 }
 
+check_kern_netdevice_feature ()
+{
+	if [ -e $SOURCEDIR/include/linux/netdevice.h ];then
+		eval "grep \"netif_trans_update\" $SOURCEDIR/include/linux/netdevice.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			KERN_NETIF_TRANS_UPDATE="-DKERN_NETIF_TRANS_UPDATE=1"
+		else
+			KERN_NETIF_TRANS_UPDATE="-DKERN_NETIF_TRANS_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_NETIF_TRANS_UPDATE "
 
+	elif [ -e $DEBSRCDIR/include/linux/netdevice.h ];then
+		eval "grep \"netif_trans_update\" $DEBSRCDIR/include/linux/netdevice.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			KERN_NETIF_TRANS_UPDATE="-DKERN_NETIF_TRANS_UPDATE=1"
+		else
+			KERN_NETIF_TRANS_UPDATE="-DKERN_NETIF_TRANS_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_NETIF_TRANS_UPDATE "
+	fi
+}
 
 # ----------------------------------------------------------------------------
 # Display error message.
@@ -3604,7 +3624,8 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		check_kern_pde_feature
 
 		check_kern_sock_for_feature
-		
+
+		check_kern_netdevice_feature
 
 		if [ "$BRI_MODULE_TEST" = "YES" ]; then
 			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DBUILD_MOD_TESTER"
@@ -7387,7 +7408,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=7.0.20
+PROD_VER=7.0.21
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

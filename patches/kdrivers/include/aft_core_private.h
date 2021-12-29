@@ -237,8 +237,9 @@ typedef struct aft_config
 
 static __inline u32 AFT_PORT_REG(sdla_t *card, u32 reg)
 {
+	char comm_port;
         if (AFT_NEEDS_DEFAULT_REG_OFFSET(card->adptr_type)) {
-		char comm_port = card->wandev.comm_port;
+		comm_port = (char)card->wandev.comm_port;
 		if (card->adptr_type == AFT_ADPTR_W400) {
 			/* Force GSM comm port to 0, as we fake ports in the driver */
 			comm_port = 0;

@@ -1093,6 +1093,30 @@ int _LIBSNG_CALL sangoma_set_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsi
 
 
 
+#ifdef WP_API_FEATURE_GET_FE_STATS
+
+/*!
+  \fn int sangoma_set_fe_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, sdla_te_pmon_t *pmon_stats)
+  \brief Get Front End Statistics
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \param pmon_stats front end satistics structure
+  \return non-zero: error, 0: ok
+*/
+int _LIBSNG_CALL sangoma_get_fe_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, sdla_te_pmon_t *pmon_stats);
+
+/*!
+  \fn int sangoma_reset_fe_stats(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Get Front End Statistics
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: ok
+*/
+int _LIBSNG_CALL sangoma_reset_fe_stats(sng_fd_t fd, wanpipe_api_t *tdm_api);
+#endif
+
+
+
 #ifdef WP_API_FEATURE_BUFFER_MULT
 /*!
   \fn int sangoma_tdm_set_buffer_multiplier(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned int multiplier)
@@ -1625,6 +1649,44 @@ int _LIBSNG_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t
 				zero:		no system error. Check port_mgmt->operation_status.
 */
 int _LIBSNG_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
+
+
+/*!
+  \fn int sangoma_driver_port_start_if(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no, unsigned short if_no)
+  \brief Start a Port's interface, create Sangoma Communication interfaces.
+  \param[in] fd			Port Device file descriptor
+  \param[out] port_mgmnt	pointer to a port_management_struct_t structure.
+							On return, sangoma_driver_port_stop() updates operation_status field
+							of this structure.
+  \param[in] port_no		1-based Port Number. Port numbers correspond to Port Names.
+							For example, a 2-Port card will have ports named WANPIPE1 and WANPIPE2.
+  \param[in] if_no 		1-based Interface Number. Interface numbers correspond to Interface Names.
+							For example, w1g1 on linux, wanpipe1_if2 on windows
+  \return	non-zero:		system error. Call OS specific code to find cause of the error.
+							Linux example: strerror(errno)
+							Windows example: combination of GetLastError()/FormatMessage()
+				zero:		no system error. Check port_mgmt->operation_status.
+*/
+int _LIBSNG_CALL sangoma_driver_port_start_if(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no, unsigned short if_no);
+
+
+/*!
+  \fn int sangoma_driver_port_stop_if(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no, unsigned short if_no)
+  \brief Start a Port's interface, create Sangoma Communication interfaces.
+  \param[in] fd			Port Device file descriptor
+  \param[out] port_mgmnt	pointer to a port_management_struct_t structure.
+							On return, sangoma_driver_port_stop() updates operation_status field
+							of this structure.
+  \param[in] port_no		1-based Port Number. Port numbers correspond to Port Names.
+							For example, a 2-Port card will have ports named WANPIPE1 and WANPIPE2.
+  \param[in] if_no 		1-based Interface Number. Interface numbers correspond to Interface Names.
+							For example, w1g1 on linux, wanpipe1_if2 on windows
+  \return	non-zero:		system error. Call OS specific code to find cause of the error.
+							Linux example: strerror(errno)
+							Windows example: combination of GetLastError()/FormatMessage()
+				zero:		no system error. Check port_mgmt->operation_status.
+*/
+int _LIBSNG_CALL sangoma_driver_port_stop_if(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no, unsigned short if_no);
 
 
 /*!

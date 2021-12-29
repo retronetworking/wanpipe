@@ -259,8 +259,8 @@ static void s508_unlock (sdla_t *card, unsigned long *smp_flags);
 
 static int chdlc_get_config_info(void* priv, struct seq_file* m, int*);
 static int chdlc_get_status_info(void* priv, struct seq_file* m, int*);
-static int chdlc_set_dev_config(struct file*, const char*, unsigned long, void *);
-static int chdlc_set_if_info(struct file*, const char*, unsigned long, void *);
+static int chdlc_set_dev_config(struct file*, const char *, unsigned long, void *);
+static int chdlc_set_if_info(struct file*, const char *, unsigned long, void *);
 
 static void chdlc_enable_timer(void* card_id);
 static void chdlc_handle_front_end_state(void* card_id);
@@ -299,7 +299,7 @@ int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf)
 
 	/* Verify configuration ID */
 	if (conf->config_id != WANCONFIG_ASYHDLC) {
-		printk(KERN_INFO "%s: invalid configuration ID %u!\n",
+		printk(KERN_INFO "%s: invalid configuration ID %lu!\n",
 				  card->devname, conf->config_id);
 		return -EINVAL;
 	}
@@ -451,8 +451,8 @@ int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf)
 	// Proc fs functions
 	card->wandev.get_config_info 	= &chdlc_get_config_info;
 	card->wandev.get_status_info 	= &chdlc_get_status_info;
-	card->wandev.set_dev_config    	= &chdlc_set_dev_config;
-	card->wandev.set_if_info     	= &chdlc_set_if_info;
+	card->wandev.set_dev_config    	= chdlc_set_dev_config;
+	card->wandev.set_if_info     	= chdlc_set_if_info;
 
 	/* reset the number of times the 'update()' proc has been called */
 	card->u.c.update_call_count = 0;
@@ -1292,8 +1292,12 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		}else{
 			++card->wandev.stats.tx_packets;
                         card->wandev.stats.tx_bytes += len;
-#if defined(LINUX_2_4)||defined(LINUX_2_6)
-		 	dev->trans_start = jiffies;
+#if defined(LINUX_2_4) || defined(LINUX_2_6)
+# if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+			netif_trans_update(dev);
+# else
+			dev->trans_start = jiffies;
+#endif
 #endif
 		}	
 	}

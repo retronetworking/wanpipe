@@ -249,7 +249,7 @@ static int	wp_bri_event_ctrl(sdla_fe_t*, wan_event_ctrl_t*);
 
 static int32_t	wp_bri_dchan_tx(sdla_fe_t *fe, void *src_data_buffer, u32 buffer_len);
 
-static void	*wp_bri_dchan_rx(sdla_fe_t *fe, u8 mod_no, u8 port_no);
+static void	*wp_bri_dchan_rx(sdla_fe_t *fe, u8 mod_no, u8 port_no, u32 * pending_data);
 
 static int	wp_bri_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notused);
 static int	wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char status);
@@ -357,10 +357,15 @@ static void xhfc_waitbusy(sdla_fe_t *fe, u32 mod_no)
 	}
 }
 
+static inline void xhfc_resetfifo_flag(sdla_fe_t *fe, u32 mod_no, u8 flag)
+{
+	WRITE_REG(A_INC_RES_FIFO, flag);
+	xhfc_waitbusy(fe, mod_no);
+}
+
 static inline void xhfc_resetfifo(sdla_fe_t *fe, u32 mod_no)
 {
-	WRITE_REG(A_INC_RES_FIFO, M_RES_FIFO | M_RES_FIFO_ERR);
-	xhfc_waitbusy(fe, mod_no);
+    return xhfc_resetfifo_flag(fe, mod_no,M_RES_FIFO | M_RES_FIFO_ERR);
 }
 
 static void xhfc_select_fifo(sdla_fe_t *fe, u32 mod_no, u8 fifo)
@@ -523,20 +528,19 @@ static int32_t __config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode)
 	}
 
 	if (fe->bri_param.mod[mod_no].type != MOD_TYPE_TE && master_mode) {
-		DEBUG_ERROR("%s: Module %d: error configuring clock routing on NT\n", 
+		DEBUG_ERROR("%s: Module %d: error configuring clock routing on NT\n",
 			fe->name, mod_no);
 		return 1;
-	} 
+	}
 
-	
-	DEBUG_EVENT("%s: %s Clock line recovery Module=%d Port=%d: %s\n", 
-		fe->name, WP_BRI_DECODE_MOD_TYPE(fe->bri_param.mod[mod_no].type), 
-		REPORT_MOD_NO(mod_no), fe_line_no_to_port_no(fe)+1, 
+	DEBUG_EVENT("%s: %s Clock line recovery Module=%d Port=%d: %s\n",
+		fe->name, WP_BRI_DECODE_MOD_TYPE(fe->bri_param.mod[mod_no].type),
+		REPORT_MOD_NO(mod_no), fe_line_no_to_port_no(fe)+1,
 		(master_mode == WANOPT_YES ? "Enabled" : "Disabled"));
-	
 
-	/************************************************************************/
+
 #if 0
+	/************************************************************************/
 	{
 		reg_r_su_sync		r_su_sync;
 		r_su_sync.reg = 0;
@@ -728,9 +732,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 		a_con_hdlc.reg = 0;
 			
 		a_con_hdlc.bit.v_iff = 1;/* InterFrameFill=ones */
-		/* Interrupt every 2^n bytes. n = V_FIFO_IRQ+2 in register A_CON_HDLC. p. 137 */
-		/*a_con_hdlc.bit.v_fifo_irq = 3;*/	/* 2^(3+2) = 32 bytes an interrupt is generated */
-		a_con_hdlc.bit.v_fifo_irq = 4;		/* 2^(4+2) = 64 bytes an interrupt is generated */
+		a_con_hdlc.bit.v_fifo_irq = 1;  	/* an interrupt is generated */
 
 		DEBUG_HFC_INIT("=========== port_no: %d ========\n", port_no);
 		/* D - Tx of port_no */
@@ -739,9 +741,9 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 		WRITE_REG(A_CON_HDLC, a_con_hdlc.reg);
 		/* 16kbit/s */
 		WRITE_REG(A_SUBCH_CFG, 2);
-#if 0
+#if 1
 		/* interrupts at end of frame only */
-		WRITE_REG(A_FIFO_CTRL, 1);
+		WRITE_REG(A_FIFO_CTRL, 0x1);
 #else
 		/* Interrupts at end of frame AND at fifo threshold.
 		   Will work as 'transmit interrupt'. */
@@ -754,9 +756,10 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 		WRITE_REG(A_CON_HDLC, a_con_hdlc.reg);
 		/* 16kbit/s */
 		WRITE_REG(A_SUBCH_CFG, 2);
-#if 0
+
+#if 1
 		/* interrupts at end of frame only */
-		WRITE_REG(A_FIFO_CTRL, 1);
+		WRITE_REG(A_FIFO_CTRL, 0x1);
 #else
 		/* interrupts at end of frame AND at fifo threshold */
 		WRITE_REG(A_FIFO_CTRL, 0x5);
@@ -975,6 +978,40 @@ static int32_t check_f0cl_increment(sdla_fe_t *fe, u8 old_f0cl, u8 new_f0cl, int
 	return 0;
 }
 
+// these functions are used for making sure indexes are properly read
+
+static u8 read_reg_volatile(sdla_fe_t *fe,  u8 mod_no, u8 reg)
+{
+	const u16 max_num = 128;
+	      u16 cur_num = max_num+1;
+
+	u8  res = READ_REG(reg);
+
+	while (--cur_num)
+	{
+		const u8 chk = READ_REG(reg);
+
+		if (res == chk)
+		{
+			if (cur_num != max_num) {
+				DEBUG_RX1("%s: stable 0x%02X (0x%02X) after %u reads\n",
+				          fe->name, reg, res, max_num - cur_num + 1);
+			}
+
+			return res;
+		}
+
+		res = chk;
+	}
+
+	DEBUG_WARNING("%s: unable to get stable read from 0x%02X (using 0x%02X)\n", fe->name, reg, res);
+	return res;
+}
+
+#define READ_REG_VOLATILE(reg) \
+	read_reg_volatile(fe, mod_no, reg)
+
+
 typedef enum _DCHAN_RC{
 	DCHAN_STATUS_BUSY = 1,
 	DCHAN_STATUS_COMPLETE,
@@ -991,15 +1028,20 @@ static u8 xhfc_write_fifo_dchan(sdla_fe_t *fe,	u8 mod_no,
 	u8	*buf = NULL;
 	int 	*len = NULL,
 		*idx = NULL;
+
 	u8	fcnt, tcnt, i;
-	u8	free;
 	u8	f1, f2;
+	u8  z1, z2;
+
 	reg_a_fifo_sta	fstat;
+
 	u8	*data;	
 	u8	rc;
 	sdla_t	*card = (sdla_t*)fe->card;
 	private_area_t *chan=NULL;
-	int	fifo_usage;
+
+	u8	fifo_free;
+	u8	fifo_usage;
 
 	buf = port->dtxbuf;		/* data buffer */
 	len = &port->bytes2transmit;	/* hdlc packet len */
@@ -1010,67 +1052,95 @@ static u8 xhfc_write_fifo_dchan(sdla_fe_t *fe,	u8 mod_no,
 	/* select the D-channel TX fifo */
 	xhfc_select_fifo(fe, mod_no, (port->idx*8+4));
 
-	fstat.reg = READ_REG(A_FIFO_STA);
-	if (fstat.reg) WRITE_REG( A_INC_RES_FIFO, 8);
+	fstat.reg = READ_REG_VOLATILE(A_FIFO_STA);
 
-	free = (bri_module->max_z - (READ_REG( A_USAGE)));
-	*free_space = free;
-	
-	TX_FAST_DBG("%s(): Line:%d: free: %d\n", __FUNCTION__, __LINE__, free);
+	if (fstat.reg & (M_FIFO_ERR|M_ABO_DONE)) {
+		xhfc_resetfifo_flag(fe, mod_no, M_RES_FIFO_ERR);
+		TX_FAST_DBG("%s(%d, %d) TX FIFO ERROR (%02X)\n", __FUNCTION__, mod_no, port->idx, fstat.reg);
+	}
 
-	tcnt = ((free >= (*len - *idx)) ? (*len - *idx) : free);
+	z1 = READ_REG_VOLATILE( A_Z1);
+	z2 = READ_REG_VOLATILE( A_Z2);
 
-	f1 = READ_REG( A_F1);
-	f2 = READ_REG( A_F2);
-	fcnt = 0x07 - ((f1 - f2) & 0x07);	/* free frame count in tx fifo */
+	fifo_usage = z1 >= z2 ? (z1 - z2) : (bri_module->max_z - (z2 - z1)) + 1;
+	fifo_free = (bri_module->max_z - fifo_usage);
 
-	TX_FAST_DBG("%s(): free: %d, fcnt: %d, tcnt: %d\n", __FUNCTION__, free, fcnt, tcnt);
+	*free_space = fifo_free;
 
-	TX_EXTRA_DBG("%s(): START: usage: 0x%X, z1: 0x%X z2: 0x%X f1: 0x%X: f2:0x%X f0c:0x%X\n", 
-		__FUNCTION__, READ_REG( A_USAGE),READ_REG( A_Z1),READ_REG( A_Z2),f1,f2,READ_REG( R_F0_CNTL));
+	TX_FAST_DBG("%s(): Line:%d: free: %d\n", __FUNCTION__, __LINE__, fifo_free);
 
-	if (free && fcnt && tcnt) {
-		data = buf + *idx;
-		*idx += tcnt;
+	tcnt = ((fifo_free >= (*len - *idx)) ? (*len - *idx) : fifo_free);
 
-		TX_EXTRA_DBG("%s(): tcnt: %d, *idx: %d, fstat.reg: 0x%X, fstat.bit.v_fifo_err: %d\n", 
-			__FUNCTION__, tcnt, *idx, fstat.reg, fstat.bit.v_fifo_err);
+	TX_EXTRA_DBG("%s(): tcnt: %d, *idx: %d, *len %d, fstat.reg: 0x%X, free %d, usage: %d\n",
+	             __FUNCTION__, tcnt, *idx, *len, fstat.reg, fifo_free, fifo_usage);
 
-		/* write data to FIFO */
-		i=0;
-		while (i<tcnt) {
-			WRITE_REG(A_FIFO_DATA, *(data+i));
-			i++;
-		}
+	if (tcnt) {
+		f1 = READ_REG_VOLATILE( A_F1);
+		f2 = READ_REG_VOLATILE( A_F2);
 
-		/* terminate frame */
-		if (*idx == *len) {
-			xhfc_increment_fifo(fe, mod_no);/* incrementing fifo sends the frame out */
+		/******** free frame/byte count in FIFOs *********
+		*                                                *
+		*   condition          buffer sections           *
+		*               0                           LAST *
+		*   f1 >= f2 -> | (free) F2 (used) F1 (free) |   *
+		*   f1 <  f2 -> | (busy) F1 (free) F2 (busy) |   *
+		*                                                *
+		**************************************************/
+
+		fcnt = (f1 >= f2 ? (0x07 - f1) + f2 : (f2 - f1) - 1);
+
+		TX_FAST_DBG("%s(): free: %d, fcnt: %d, tcnt: %d\n", __FUNCTION__, fifo_free, fcnt, tcnt);
+
+		TX_EXTRA_DBG("%s(): START: usage: 0x%X, z1: 0x%X z2: 0x%X f1: 0x%X: f2:0x%X f0c:0x%X\n", 
+		             __FUNCTION__, READ_REG( A_USAGE),READ_REG( A_Z1),READ_REG( A_Z2),f1,f2,READ_REG( R_F0_CNTL));
+
+		if (fifo_free && fcnt) {
+			data = buf + *idx;
+			*idx += tcnt;
+
+			/* write data to FIFO */
+			i=0;
+			while (i<tcnt) {
+				WRITE_REG(A_FIFO_DATA, *(data+i));
+				i++;
+			}
+
+			/* terminate frame */
+			if (*idx == *len) {
+				xhfc_increment_fifo(fe, mod_no);/* incrementing fifo sends the frame out */
 #if !TX_EMPTY_FIFO
-			*len = 0;
-			*idx = 0;
-#endif			
-			DEBUG_HFC_TX("%s(): finished frame transmission.\n", __FUNCTION__);
-			rc = DCHAN_STATUS_COMPLETE;
-#if !TX_EMPTY_FIFO
-			chan=(private_area_t*)card->u.aft.dev_to_ch_map[BRI_DCHAN_LOGIC_CHAN];
-			if (chan) {
 				*len = 0;
 				*idx = 0;
-				TX_FAST_DBG("%s(): calling wanpipe_wake_stack()\n", __FUNCTION__);
-				wanpipe_wake_stack(chan);
-			}
+#endif			
+				DEBUG_HFC_TX("%s(%d, %d): finished frame transmission.\n", __FUNCTION__, mod_no, port->idx);
+				rc = DCHAN_STATUS_COMPLETE;
+#if !TX_EMPTY_FIFO
+				chan=(private_area_t*)card->u.aft.dev_to_ch_map[BRI_DCHAN_LOGIC_CHAN];
+				if (chan) {
+					*len = 0;
+					*idx = 0;
+					TX_FAST_DBG("%s(): calling wanpipe_wake_stack()\n", __FUNCTION__);
+					wanpipe_wake_stack(chan);
+				}
 #endif
 
-		}else{
-			xhfc_select_fifo(fe, mod_no, (port->idx*8+4));/* addition ?? */
+			}else{
+				xhfc_select_fifo(fe, mod_no, (port->idx*8+4));/* addition ?? */
 
-			DEBUG_HFC_TX("%s(): transmitted a part of frame.\n", __FUNCTION__);
-			rc = DCHAN_STATUS_INCOMPLETE;
+				DEBUG_HFC_TX(KERN_INFO "%s(%d, %d): transmitted part of a frame.\n", __FUNCTION__, mod_no, port->idx);
+				rc = DCHAN_STATUS_INCOMPLETE;
+			}
+		}else{
+			DEBUG_HFC_TX(KERN_INFO "%s(%d, %d): NO space (free=%u, usage=%u, fcnt=%u, tcnt=%u)!\n",
+			             __FUNCTION__, mod_no, port->idx, fifo_free, fifo_usage, fcnt, tcnt);
+
+			rc = DCHAN_STATUS_BUSY; /* there is NO free space in tx fifo */
 		}
-	}else{
-		DEBUG_HFC_TX("%s(): NO free space in tx fifo!!\n", __FUNCTION__);
-		rc = DCHAN_STATUS_BUSY; /* there is NO free space in tx fifo */
+	} else {
+		DEBUG_HFC_TX("%s(%d, %d): nothing to send (free=%u, usage=%u, fcnt=%u, tcnt=%u)\n",
+		      __FUNCTION__, mod_no, port->idx, fifo_free, fifo_usage, fcnt, tcnt);
+
+		rc = DCHAN_STATUS_COMPLETE;
 	}
 
 	TX_EXTRA_DBG("%s(): END: eof usage: 0x%X, z1: 0x%X z2: 0x%X f1: 0x%X: f2:0x%X f0c:0x%X\n",
@@ -1080,13 +1150,15 @@ static u8 xhfc_write_fifo_dchan(sdla_fe_t *fe,	u8 mod_no,
 #if TX_EMPTY_FIFO
 	chan=(private_area_t*)card->u.aft.dev_to_ch_map[BRI_DCHAN_LOGIC_CHAN];
 
-	/* make sure FIFO is empty before notifying the kernel about free TX space */
-	fifo_usage = READ_REG(A_USAGE);
-	TX_FAST_DBG("%s(): chan: 0x%p, TX FIFO usage: %d\n", __FUNCTION__, chan, fifo_usage);
+	z1 = READ_REG_VOLATILE( A_Z1);
+	z2 = READ_REG_VOLATILE( A_Z2);
+
+	fifo_usage = z1 >= z2 ? (z1 - z2) : bri_module->max_z - (z2 - z1);
+	fifo_free = (bri_module->max_z - fifo_usage);
 
 	if (chan) {
-		if(fifo_usage == 0){
-			/* FIFO is empty */
+		if(fifo_usage < (bri_module->max_z >> 1)) {
+			/* FIFO has enough space */
 			/*WP_DELAY(10000);*/
 			*len = 0;
 			*idx = 0;
@@ -1095,6 +1167,9 @@ static u8 xhfc_write_fifo_dchan(sdla_fe_t *fe,	u8 mod_no,
 			wanpipe_wake_stack(chan);
 		}
 	}
+
+	TX_EXTRA_DBG("%s(): tcnt: %d, *idx: %d, *len %d, fstat.reg: 0x%X, free %d, usage: %d\n",
+	            __FUNCTION__, tcnt, *idx, *len, fstat.reg, fifo_free, fifo_usage);
 #endif
 
 	DEBUG_HFC_TX("%s(): returning: %d.\n", __FUNCTION__, rc);
@@ -1152,6 +1227,8 @@ static int32_t wp_bri_dchan_tx(sdla_fe_t *fe, void *src_data_buffer, u32 buffer_
 	}
 
 	if(port_ptr->bytes2transmit){
+		TX_EXTRA_DBG("%s(): %s: transmit EBUSY (queued = %u)\n",
+		           fe->name, __FUNCTION__, port_ptr->bytes2transmit);
 		/* still transmitting previous frame */
 		return -EBUSY;
 	}
@@ -1263,171 +1340,201 @@ static void dump_data(u8 *data, int data_len)
 #endif/* CHECK_DATA */
 
 static int xhfc_read_fifo_dchan(sdla_fe_t *fe,	u8 mod_no,
-			wp_bri_module_t *bri_module, bri_xhfc_port_t *port, int *rx_data_len)
+			wp_bri_module_t *bri_module, bri_xhfc_port_t *port, u32 *rx_data_len)
 {
 	u8	*buf = port->drxbuf;
 	int	*idx = &port->drx_indx;
 	u8	*data; /* pointer for new data */
-	u8	rcnt, i;
+	u8	rcnt, fcnt, i;
 	u8	f1=0, f2=0, z1=0, z2=0;
+
+	reg_a_fifo_sta	fstat;
 
 	/* select D-RX fifo */
 	xhfc_select_fifo(fe, mod_no, (port->idx * 8) + 5);
 
+	fstat.reg = READ_REG(A_FIFO_STA);
+
+	if (fstat.reg & M_FIFO_ERR) {
+		xhfc_resetfifo_flag(fe, mod_no, M_RES_FIFO_ERR);
+		RX_EXTRA_DBG("%s(%d, %d) RX FIFO ERROR (%u)\n", __FUNCTION__, mod_no, port->idx, fstat.reg);
+	}
+
 	/* hdlc rcnt */
-	f1 = READ_REG( A_F1);
-	f2 = READ_REG( A_F2);
-	z1 = READ_REG( A_Z1);
-	z2 = READ_REG( A_Z2);
+	f1 = READ_REG_VOLATILE( A_F1);
+	f2 = READ_REG_VOLATILE( A_F2);
 
-	rcnt = (z1 - z2) & bri_module->max_z;
-	if (f1 != f2)
-		rcnt++;	
+	z1 = READ_REG_VOLATILE( A_Z1);
+	z2 = READ_REG_VOLATILE( A_Z2);
 
-	/* debug message of F and Z counters */
+	/* used frame + index count in rx fifo                                 *
+     *                                                                     *
+	 * same logic as tx, but reversed (free instead of used)               *
+     *                                                                     *
+     * when overlap happens we need to add one (+1) to the used byte/frame *
+     * count for considering the extra "empty" slot represented by f1==f2  */
+
+	fcnt = f1 >= f2 ? (f1 - f2) : (0x07 - f2) + f1 + 1;
+	rcnt = z1 >= z2 ? (z1 - z2) : (bri_module->max_z - z2) + z1 + 1;
+
+	RX_EXTRA_DBG("%s(%d, %d): fcnt: %d, rcnt: %d, *idx %d, z1 %d, z2 %d, f1 %d, f2 %d\n",
+	             __FUNCTION__, mod_no, port->idx, fcnt, rcnt, *idx, z1, z2, f1, f2);
+
+		/* debug message of F and Z counters */
 	RX_EXTRA_DBG("%s(): START: usage: 0x%X, z1: 0x%X z2: 0x%X f1: 0x%X: f2:0x%X f0c:0x%X\n",
-		__FUNCTION__, 
+		__FUNCTION__,
 		READ_REG(A_USAGE), READ_REG( A_Z1), READ_REG(A_Z2),f1,f2,READ_REG( R_F0_CNTL));
 
-	if (rcnt > 0) {
-		data = buf + *idx;
-		*idx += rcnt;
-		if(*idx >= MAX_DFRAME_LEN_L1){
+	if (!fcnt)
+	{
+		RX_EXTRA_DBG("%s(): END: eof usage: 0x%X, z1: 0x%X z2: 0x%X f1: 0x%X: f2:0x%X f0c:0x%X\n",
+				__FUNCTION__,
+				READ_REG(A_USAGE), READ_REG( A_Z1), READ_REG(A_Z2),f1,f2,READ_REG( R_F0_CNTL));
+
+		*rx_data_len = rcnt;
+
+		if (rcnt != 0) {
+			RX_EXTRA_DBG("%s: no frame, %u bytes\n", fe->name, rcnt);
+		} else {
+			RX_EXTRA_DBG("%s(): RX FIFO is empty! (z1=%u,z2=%u,f1=%u,f2=%u)\n", __FUNCTION__, z1, z2, f1, f2);
+		}
+		return DCHAN_STATUS_EMPTY;
+	} else {
+		// extra byte after end of frame
+		++rcnt;
+	}
+
+	data = buf + *idx;
+	*idx += rcnt;
+	if(*idx >= MAX_DFRAME_LEN_L1){
+		if (0 && WAN_NET_RATELIMIT()) {
+			DEBUG_EVENT("%s: %s(): frame in mod_no %d, port_no %d > maximum size of %d bytes!\n",
+				fe->name, __FUNCTION__, mod_no, port->idx, MAX_DFRAME_LEN_L1);
+		}
+		*idx = 0;
+		*rx_data_len = 0;
+		return DCHAN_STATUS_EMPTY;
+	}
+
+	DEBUG_HFC_RX("rcnt: %d\n", rcnt);
+	/* read data from FIFO */
+	i=0;
+	while (i < rcnt) {
+		*(data+i) = READ_REG(A_FIFO_DATA);
+		i++;
+	}
+
+	/* hdlc frame termination */	
+	if (fcnt) {
+		xhfc_increment_fifo(fe, mod_no);
+		/* check minimum frame size */
+		if (*idx < 4) {
 			if (0 && WAN_NET_RATELIMIT()) {
-				DEBUG_EVENT("%s: %s(): frame in mod_no %d, port_no %d > maximum size of %d bytes!\n",
-					fe->name, __FUNCTION__, mod_no, port->idx, MAX_DFRAME_LEN_L1);
+				DEBUG_EVENT("%s: %s(): frame in mod_no %d, port_no %d < minimum size of 4 bytes (%u)!\n",
+				            fe->name, __FUNCTION__, mod_no, port->idx, *idx);
 			}
 			*idx = 0;
 			*rx_data_len = 0;
 			return DCHAN_STATUS_EMPTY;
 		}
 
-		DEBUG_HFC_RX("rcnt: %d\n", rcnt);
-		/* read data from FIFO */
-		i=0;
-		while (i < rcnt) {
-			*(data+i) = READ_REG(A_FIFO_DATA);
-			i++;
-		}
-
-		/* hdlc frame termination */	
-		if (f1 != f2) {
-			xhfc_increment_fifo(fe, mod_no);
-			/* check minimum frame size */
-			if (*idx < 4) {
-				if (0 && WAN_NET_RATELIMIT()) {
-					DEBUG_EVENT("%s: %s(): frame in mod_no %d, port_no %d < minimum size of 4 bytes!\n",
-							  fe->name, __FUNCTION__, mod_no, port->idx);
-				}
-				*idx = 0;
-				*rx_data_len = 0;
-				return DCHAN_STATUS_EMPTY;
+		/* check crc */
+		if (buf[(*idx) - 1]) {
+			if (0 && WAN_NET_RATELIMIT()) {
+				DEBUG_EVENT("%s: %s(): CRC-error in frame in mod_no %d, port_no %d!\n",
+				            fe->name, __FUNCTION__, mod_no, port->idx);
 			}
-
-			/* check crc */
-			if (buf[(*idx) - 1]) {
-				if (0 && WAN_NET_RATELIMIT()) {
-					DEBUG_ERROR("%s: %s(): CRC-error in frame in mod_no %d, port_no %d!\n",
-							  fe->name, __FUNCTION__, mod_no, port->idx);
-				}
-				*idx = 0;
-				*rx_data_len = 0;
-				return DCHAN_STATUS_EMPTY;
-			}
-
-			/* D-Channel debug to syslog */
-			DBG_RX_DATA("%lu:D-RX len(%02i):\n", jiffies, (*idx));
-#if 0
-			i = 0;
-			while(i < (*idx)){
-				printk("%02x ", buf[i++]);
-				if (i == (*idx - 3)){
-					printk ("- ");
-				}
-			}
-			printk("\n");
-#endif
-			*rx_data_len = *idx - 3;/* discard CRC and STATUS - 3 bytes */
-						/* STATUS is the last byte of a frame in the fifo
-						   which is used to check if CRC is correct or not.
-
-				After the ending flag of a frame the XHFC-2SU checks the HDLC CRC checksum.
-				If it is correct one byte with all �0�s is inserted behind
-				the CRC data in the FIFO named STAT (see Fig. 4.2). This last byte of a frame in the FIFO is different
-				from all �0�s if there is no correct CRC field at the end of the frame.
-				If the STAT value is 0xFF, the HDLC frame ended with at least 8 bits �1�s. This is similar to an abort
-				HDLC frame condition.
-				The ending flag of a HDLC frame can also be the starting flag of the next frame.
-				page 122.
-			*/
-#if CHECK_DATA
-			if(check_data(port->drxbuf, *rx_data_len)){
-				dump_chip_SRAM(fe, mod_no, port->idx);
-				dump_chip_SRAM(fe, mod_no, port->idx);
-				reset_chip(fe, mod_no);
-				dump_data(port->drxbuf, *idx);
-			}
-#endif
 			*idx = 0;
-
-			RX_EXTRA_DBG("%s(): END: eof usage: 0x%X, z1: 0x%X z2: 0x%X f1: 0x%X: f2:0x%X f0c:0x%X\n",
-				__FUNCTION__, 
-				READ_REG(A_USAGE), READ_REG( A_Z1), READ_REG(A_Z2),f1,f2,READ_REG( R_F0_CNTL));
-
-			DEBUG_HFC_RX("%s(): finished receiving a frame.\n", __FUNCTION__);
-			return DCHAN_STATUS_COMPLETE;
-		}else{
-
-			RX_EXTRA_DBG("%s(): END: eof usage: 0x%X, z1: 0x%X z2: 0x%X f1: 0x%X: f2:0x%X f0c:0x%X\n",
-				__FUNCTION__, 
-				READ_REG(A_USAGE), READ_REG( A_Z1), READ_REG(A_Z2),f1,f2,READ_REG( R_F0_CNTL));
-
-			DEBUG_HFC_RX("%s(): received a part of frame.\n", __FUNCTION__);
-			return DCHAN_STATUS_INCOMPLETE;
+			*rx_data_len = 0;
+			return DCHAN_STATUS_EMPTY;
 		}
-	}else{
+
+#if 0
+		/* D-Channel debug to syslog */
+		DBG_RX_DATA("%lu:D-RX len(%02i):\n", jiffies, (*idx));
+		i = 0;
+		while(i < (*idx)){
+			printk("%02x ", buf[i++]);
+			if (i == (*idx - 3)){
+				printk ("- ");
+			}
+		}
+		printk("\n");
+#endif
+		*rx_data_len = *idx - 3;/* discard CRC and STATUS - 3 bytes */
+					/* STATUS is the last byte of a frame in the fifo
+					   which is used to check if CRC is correct or not.
+
+			After the ending flag of a frame the XHFC-2SU checks the HDLC CRC checksum.
+			If it is correct one byte with all �0�s is inserted behind
+			the CRC data in the FIFO named STAT (see Fig. 4.2). This last byte of a frame in the FIFO is different
+			from all �0�s if there is no correct CRC field at the end of the frame.
+			If the STAT value is 0xFF, the HDLC frame ended with at least 8 bits �1�s. This is similar to an abort
+			HDLC frame condition.
+			The ending flag of a HDLC frame can also be the starting flag of the next frame.
+			page 122.
+		*/
+#if CHECK_DATA
+		if(check_data(port->drxbuf, *rx_data_len)){
+			dump_chip_SRAM(fe, mod_no, port->idx);
+			dump_chip_SRAM(fe, mod_no, port->idx);
+			reset_chip(fe, mod_no);
+			dump_data(port->drxbuf, *idx);
+		}
+#endif
+		*idx = 0;
 
 		RX_EXTRA_DBG("%s(): END: eof usage: 0x%X, z1: 0x%X z2: 0x%X f1: 0x%X: f2:0x%X f0c:0x%X\n",
-				__FUNCTION__, 
-				READ_REG(A_USAGE), READ_REG( A_Z1), READ_REG(A_Z2),f1,f2,READ_REG( R_F0_CNTL));
+			__FUNCTION__, 
+			READ_REG(A_USAGE), READ_REG( A_Z1), READ_REG(A_Z2),f1,f2,READ_REG( R_F0_CNTL));
 
-		DEBUG_HFC_RX("%s(): RX FIFO is empty!\n", __FUNCTION__);
-		return DCHAN_STATUS_EMPTY;
+		DEBUG_HFC_RX("%s(): finished receiving a frame.\n", __FUNCTION__);
+		return DCHAN_STATUS_COMPLETE;
+	} else {
+		RX_EXTRA_DBG("%s(): END: eof usage: 0x%X, z1: 0x%X z2: 0x%X f1: 0x%X: f2:0x%X f0c:0x%X\n",
+			__FUNCTION__, 
+			READ_REG(A_USAGE), READ_REG( A_Z1), READ_REG(A_Z2),f1,f2,READ_REG( R_F0_CNTL));
+
+		DEBUG_HFC_RX("%s(): received a part of frame.\n", __FUNCTION__);
+		return DCHAN_STATUS_INCOMPLETE;
 	}
 }
 
 
-static void *wp_bri_dchan_rx(sdla_fe_t *fe, u8 mod_no, u8 port_no)
+static void *wp_bri_dchan_rx(sdla_fe_t *fe, u8 mod_no, u8 port_no, u32 * rx_data_len)
 {
 	sdla_bri_param_t	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
 	bri_xhfc_port_t		*port_ptr;
 	netskb_t		*skb;
 	u8			*skb_data_area;
-	int			rc, rx_data_len = 0;
-	
+	int			rc;
+
 	/* Note: D channel is slow (less than 2 bytes / ms!!) */
 	DEBUG_HFC_RX("%s(): line: %d, mod_no: %d port_no: %d\n", __FUNCTION__, __LINE__, mod_no, port_no);
 
 	bri_module = &bri->mod[mod_no];
 	port_ptr = &bri_module->port[port_no];
 
-	rc = xhfc_read_fifo_dchan(fe, mod_no, bri_module, port_ptr, &rx_data_len);
+	*rx_data_len = 0;
+
+	rc = xhfc_read_fifo_dchan(fe, mod_no, bri_module, port_ptr, rx_data_len);
 
 	skb = NULL;
-	if((rc == DCHAN_STATUS_COMPLETE) && (rx_data_len < MAX_DFRAME_LEN_L1) && (rx_data_len > 0)){
+	if((rc == DCHAN_STATUS_COMPLETE) && (*rx_data_len < MAX_DFRAME_LEN_L1) && (*rx_data_len > 0)){
 		/**************************/
-		skb = wan_skb_alloc(rx_data_len);
+		skb = wan_skb_alloc(*rx_data_len);
 		if(skb == NULL){
 			return NULL;
 		}
 	
-		skb_data_area = wan_skb_put(skb, rx_data_len);
-		memcpy(skb_data_area, port_ptr->drxbuf, rx_data_len);
+		skb_data_area = wan_skb_put(skb, *rx_data_len);
+		memcpy(skb_data_area, port_ptr->drxbuf, *rx_data_len);
+
 #if 0
 		{
 			int ind;
-			for(ind = 0; ind < rx_data_len; ind++){
+			for(ind = 0; ind < *rx_data_len; ind++){
 				if(skb_data_area[ind] != ind){
 					DEBUG_RX1("rx: skb_data_area[0x%x] is: 0x%x != 0x%x!!\n", 
 						ind, skb_data_area[ind], ind);
@@ -2518,9 +2625,9 @@ static void bri_enable_interrupts(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 	WRITE_REG(R_SU_IRQMSK, 0);
 
 	r_ti_wd.reg = 0x0;
-	/* Configure Timer Interrupt - every 2.048 seconds (page 289, 297).
-	   Used for SU port_no state monitoring. */
-	r_ti_wd.bit.v_ev_ts = 0xD;
+	/* Configure Timer Interrupt - every 1 sec (page 289, 297).
+	   Used for SU port_no state monitoring + polling fifo IRQs. */
+	r_ti_wd.bit.v_ev_ts = 0xC;
 	/* Watch Dog interrupt not used */
 	r_ti_wd.bit.v_wd_ts = 0x0;
 	WRITE_REG(R_TI_WD, r_ti_wd.reg);
@@ -3469,13 +3576,14 @@ sdla_fe_t *get_FE_ptr_for_port(sdla_fe_t *original_fe, u8 mod_no, u8 port_no)
 static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 {
 	sdla_fe_t		*new_fe;
-	int32_t			fifo_irq = 0;
+	uint32_t		fifo_irq;
 	sdla_bri_param_t 	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
 	u8			port_no, i;
 	reg_a_su_rd_sta		new_su_state;
 	reg_r_su_irq		r_su_irq;
 	reg_r_misc_irq		r_misc_irq;
+	uint32_t		rx_chan_bit;
 
 	if(validate_physical_mod_no(mod_no, __FUNCTION__)){
 		return 0;
@@ -3494,8 +3602,21 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 	r_misc_irq.reg = READ_REG(R_MISC_IRQ);
 
 	/***************************************************************************/
+
 	fifo_irq = 0;
-	for (port_no = 0; port_no < bri_module->num_ports; port_no++) {
+	for (i = 0; i < bri_module->num_ports; i++)
+	{
+		new_fe = get_FE_ptr_for_port(fe, mod_no, i);
+
+		if(new_fe == NULL){
+			/* 'port_no' is not used by any 'wanpipe' */
+			continue;
+		}
+
+		fe = new_fe;
+
+		mod_no = fe_line_no_to_physical_mod_no(fe);	
+		port_no = fe_line_no_to_port_no(fe);
 
 		DBG_MODULE_TESTER("get fifo IRQ state for port_no %d\n", port_no);
 
@@ -3503,6 +3624,14 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 		fifo_irq |= (READ_REG(R_FIFO_BL0_IRQ + port_no) << (port_no * 8));
 
 		DBG_MODULE_TESTER("fifo_irq: 0x%X\n", fifo_irq);
+
+	}
+
+	if (bri_module->prev_fifoirq != fifo_irq)
+	{
+		DEBUG_HFC_IRQ("%s():%s: fifo IRQ: now = 0x%04X, prev = 0x%04X (%d)\n",
+		              __FUNCTION__, fe->name,
+		              fifo_irq, bri_module->prev_fifoirq, bri_module->num_ports);
 	}
 
 	/***************************************************************************/
@@ -3519,6 +3648,9 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 
 		mod_no = fe_line_no_to_physical_mod_no(fe);	
 		port_no = fe_line_no_to_port_no(fe);
+
+		rx_chan_bit = 1 << (port_no*8+5);
+
 		/****************************************************************/
 
 		if(r_misc_irq.reg & M_TI_IRQ){
@@ -3570,25 +3702,20 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 
 		}/* if(r_misc_irq.reg & M_TI_IRQ || (r_su_irq.reg & (1 << port_no))) */
 
-		if(bri_module->port[port_no].bytes2transmit){
-			u8 free_space;
-
-			TX_FAST_DBG("%s(): port_no: %d, bytes2transmit: %d, dtx_indx: %d\n", 
-				__FUNCTION__, port_no,	bri_module->port[port_no].bytes2transmit,
-							bri_module->port[port_no].dtx_indx);
-
-			xhfc_write_fifo_dchan(fe, mod_no, bri_module, &bri_module->port[port_no], &free_space);
-		}
 
 		/* receive D-Channel Data */
-		if (fifo_irq & (1 << (port_no*8+5)) ) {
-			netskb_t *skb = NULL;
-			DBG_MODULE_TESTER("There is Rx D-Channel Data for port_no %d\n", port_no);
 
-			skb = wp_bri_dchan_rx(fe, mod_no, port_no);
-			if(skb != NULL){
+		if (((fifo_irq | bri_module->prev_fifoirq) & rx_chan_bit) || (r_misc_irq.reg & M_TI_IRQ)) {
+			uint32_t rx_chan_pending = 0;
+			u8 rx_read_skb = 0;
+
+			for (;;) {
 				sdla_t	*card = (sdla_t*)fe->card;
 				private_area_t *chan;
+
+				netskb_t *skb = wp_bri_dchan_rx(fe, mod_no, port_no, &rx_chan_pending);
+
+				if (!skb) break;
 
 				DEBUG_HFC_IRQ("%s(): Module: %d, port_no: %d.\n", __FUNCTION__, mod_no, port_no);
 				chan=(private_area_t*)card->u.aft.dev_to_ch_map[BRI_DCHAN_LOGIC_CHAN];
@@ -3600,11 +3727,43 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 					break;
 				}
 				wan_skb_queue_tail(&chan->wp_rx_bri_dchan_complete_list, skb);
+
+				if (skb || rx_chan_pending) {
+					rx_read_skb = 1;
+				}
+			}
+
+			if (rx_read_skb) {
+				sdla_t	*card = (sdla_t*)fe->card;
+				private_area_t *chan=(private_area_t*)card->u.aft.dev_to_ch_map[BRI_DCHAN_LOGIC_CHAN];
+
+				DEBUG_HFC_IRQ("%s(): chan ptr: 0x%p\n", __FUNCTION__, chan);
+				if (!chan){
+					DEBUG_ERROR("%s: Error: BRI D-Chan: No Device for Rx data.(logical ch=%d)\n",
+							card->devname, BRI_DCHAN_LOGIC_CHAN);
+					break;
+				}
+
 				WAN_TASKLET_SCHEDULE((&chan->common.bh_task));
 			}
 
-		}/* if ( fifo_irq & (1 << (port_no*8+5)) ) */
-	}/* for (port_no = 0; port_no < bri_module->num_ports; port_no++) */
+			if (rx_read_skb || rx_chan_pending) {
+				bri_module->prev_fifoirq |=  rx_chan_bit;
+			} else {
+				bri_module->prev_fifoirq &= ~rx_chan_bit;
+			}
+		}
+
+		if(bri_module->port[port_no].bytes2transmit){
+			u8 free_space;
+
+			TX_FAST_DBG("%s(): port_no: %d, bytes2transmit: %d, dtx_indx: %d\n", 
+				__FUNCTION__, port_no,	bri_module->port[port_no].bytes2transmit,
+							bri_module->port[port_no].dtx_indx);
+
+			xhfc_write_fifo_dchan(fe, mod_no, bri_module, &bri_module->port[port_no], &free_space);
+		}
+	}
 	/***************************************************************************/
 
 	return 1;

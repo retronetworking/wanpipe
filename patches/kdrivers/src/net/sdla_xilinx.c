@@ -654,7 +654,7 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 
 	card->u.aft.cfg.mru=conf->u.aft.mru;
 	if (!card->u.aft.cfg.mru){
-		card->u.aft.cfg.mru = card->wandev.mtu;
+		card->u.aft.cfg.mru = (unsigned short)card->wandev.mtu;
 	}
 
 	if (card->u.aft.cfg.mru > MAX_WP_PRI_MTU ||
@@ -1596,7 +1596,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	if (!chan->hdlc_eng){
 		unsigned char *buf;
 
-		chan->max_idle_size=chan->mru;
+		chan->max_idle_size=(u16)chan->mru;
 		chan->idle_flag = conf->u.aft.idle_flag;
 
 		DEBUG_EVENT("%s:    Idle Flag     :0x%02X\n",
@@ -2645,7 +2645,7 @@ static int wanpipe_xilinx_send (netskb_t* skb, netdevice_t* dev)
 			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 			goto xilinx_tx_dma;
 
-		} else if (wan_skb_queue_len(&chan->wp_tx_pending_list) > chan->max_tx_bufs){
+		} else if (wan_skb_queue_len(&chan->wp_tx_pending_list) > (int)chan->max_tx_bufs){
 			wan_smp_flag_t smp_flags;
 			DEBUG_TEST("%s(): line: %d\n", __FUNCTION__, __LINE__);
 
@@ -4495,7 +4495,7 @@ static void xilinx_rx_post_complete (sdla_t *card, private_area_t *chan,
 		* on alignment value, received from DMA */
 		len=(((chan->dma_mru>>2)-len)<<2) - (~(rx_el->align)&RxDMA_LO_ALIGNMENT_BIT_MASK);
 
-		if (len < 1 || len > chan->dma_mru){
+		if (len < 1 || len > (unsigned int)chan->dma_mru){
 			chan->if_stats.rx_frame_errors++;
 			chan->errstats.Rx_hdlc_corrupiton++;
 			goto rx_comp_error;
@@ -4507,7 +4507,7 @@ static void xilinx_rx_post_complete (sdla_t *card, private_area_t *chan,
 		* the RX buffers are all of equal length  */
 		len=(((chan->mru>>2)-len)<<2) - (~(0x03)&RxDMA_LO_ALIGNMENT_BIT_MASK);
 
-		if (len < 1 || len > chan->mru){
+		if (len < 1 || len > (unsigned int)chan->mru){
 			chan->if_stats.rx_frame_errors++;
 			goto rx_comp_error;
 		}
@@ -4535,7 +4535,7 @@ static void xilinx_rx_post_complete (sdla_t *card, private_area_t *chan,
 	}
 
 
-	if (len > aft_rx_copyback){
+	if (len > (unsigned int)aft_rx_copyback){
 
 #if defined(__OpenBSD__)
 		/* Try not to return our mbuf to the kernel.
@@ -4620,7 +4620,7 @@ static char request_xilinx_logical_channel_num (sdla_t *card, private_area_t *ch
 
 	for (i=0;i<card->u.aft.num_of_time_slots;i++){
 		if (!wan_test_and_set_bit(i,&card->u.aft.logic_ch_map)){
-			logic_ch=i;
+			logic_ch=(char)i;
 			break;
 		}
 	}
@@ -4662,7 +4662,7 @@ static void free_xilinx_logical_channel_num (sdla_t *card, int logic_ch)
 	card->u.aft.dev_to_ch_map[logic_ch]=NULL;
 
 	if (logic_ch >= card->u.aft.top_logic_ch){
-		int i;
+		unsigned char i;
 
 		card->u.aft.top_logic_ch=XILINX_DEFLT_ACTIVE_CH;
 
@@ -5781,7 +5781,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 
 
 		case WAN_GET_PROTOCOL:
-			wan_udp_pkt->wan_udp_data[0] = card->wandev.config_id;
+			wan_udp_pkt->wan_udp_data[0] = (unsigned char)card->wandev.config_id;
 			wan_udp_pkt->wan_udp_return_code = CMD_OK;
 			wan_udp_pkt->wan_udp_data_len = 1;
 			break;
@@ -5807,7 +5807,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			break;
 
 		case WANPIPEMON_GET_BIOS_ENCLOSURE3_SERIAL_NUMBER:
-			wan_udp_pkt->wan_udp_return_code = 
+			wan_udp_pkt->wan_udp_return_code = (unsigned int) 
 				wp_get_motherboard_enclosure_serial_number(wan_udp_pkt->wan_udp_data, 
 						sizeof(wan_udp_pkt->wan_udp_data));
 
@@ -5875,7 +5875,7 @@ static void port_set_state (sdla_t *card, int state)
 		break;
 	}
 
-	card->wandev.state = state;
+	card->wandev.state = (char)state;
 #if defined(__WINDOWS__)
 	{
 		int i;
@@ -6199,7 +6199,7 @@ static int xilinx_write_bios(sdla_t *card, wan_cmd_api_t *api_cmd)
 #endif
 	card->hw_iface.pci_write_config_dword(card->hw,
 		(card->wandev.S514_cpu_no[0] == SDLA_CPU_A) ? 0x10 : 0x14,
-		card->u.aft.bar);
+		(u32)card->u.aft.bar);
 	card->hw_iface.pci_write_config_dword(card->hw, 0x3C, card->wandev.irq);
 	card->hw_iface.pci_write_config_dword(card->hw, 0x0C, 0x0000ff00);
 
@@ -6735,10 +6735,10 @@ static int set_chan_state(sdla_t* card, netdevice_t* dev, int state)
 	set_netdev_state(card, dev, state);
 #endif
 
-	chan->common.state = state;
+	chan->common.state = (unsigned char)state;
 
 	for (ch_ptr=chan; ch_ptr != NULL; ch_ptr=ch_ptr->next){
-		ch_ptr->common.state=state;
+		ch_ptr->common.state=(unsigned char)state;
 		if (ch_ptr->tdmv_zaptel_cfg) {
 			continue;
 		}
@@ -6836,7 +6836,7 @@ static int request_fifo_baddr_and_size(sdla_t *card, private_area_t *chan)
 	DEBUG_TEST("%s:%s: Optimal Fifo Size =%d  Timeslots=%d \n",
 		card->devname,chan->if_name,req_fifo_size,chan->num_of_time_slots);
 
-	fifo_size=map_fifo_baddr_and_size(card,req_fifo_size,&chan->fifo_base_addr);
+	fifo_size=(unsigned char)map_fifo_baddr_and_size(card,req_fifo_size,&chan->fifo_base_addr);
 	if (fifo_size == 0 || chan->fifo_base_addr == 31){
 		DEBUG_EVENT("%s:%s: Error: Failed to obtain fifo size %d or addr %d \n",
 			card->devname,chan->if_name,fifo_size,chan->fifo_base_addr);
@@ -6887,7 +6887,7 @@ static int map_fifo_baddr_and_size(sdla_t *card, unsigned char fifo_size, unsign
 			continue;
 		}
 		card->u.aft.fifo_addr_map |= reg<<i;
-		*addr=i;
+		*addr=(unsigned char)i;
 
 		DEBUG_TEST("%s: Card fifo Map 0x%lX Addr =%d\n",
 			card->devname,card->u.aft.fifo_addr_map,i);
@@ -7793,7 +7793,7 @@ static int aft_tdmv_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *co
 			return -EINVAL;
 		}
 
-		chan->mtu = chan->mru = card->u.aft.cfg.mru = card->wandev.mtu;
+		chan->mtu = chan->mru = card->u.aft.cfg.mru = (unsigned short)card->wandev.mtu;
 
 	}
 

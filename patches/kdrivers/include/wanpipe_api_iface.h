@@ -36,6 +36,7 @@
 #define __WANPIPE_API_IFACE_H_
 
 #include "wanpipe_api_hdr.h"
+#include "sdla_te1.h"
 
 /*!
   \typedef sng_fd_t
@@ -96,6 +97,7 @@ typedef int sng_fd_t;
 #define WP_API_FEATURE_SS7_FORCE_RX 1
 #define WP_API_FEATURE_SS7_CFG_STATUS 1
 #define WP_API_FEATURE_LIBSNG_HWEC_DTMF_REMOVAL 1
+#define WP_API_FEATURE_GET_FE_STATS		1
 
 
 /*!
@@ -300,6 +302,8 @@ enum wanpipe_api_cmds
 	WP_API_CMD_EC_IOCTL,			/*!< Execute command in HWEC module of the Driver */
 	WP_API_CMD_SS7_FORCE_RX,		/*!< Force SS7 Receive */
 	WP_API_CMD_SS7_GET_CFG_STATUS,	/*!< Get current ss7 configuration status */
+	WP_API_CMD_GET_FE_STATS, 		/*!< Get full fe statistics */
+	WP_API_CMD_RESET_FE_STATS, 		/*!< Reset FE Pmon statistics */
 
 	/* Add only debugging commands here */
     WP_API_CMD_GEN_FIFO_ERR_TX=500,
@@ -753,6 +757,7 @@ typedef struct wanpipe_api_cmd
 		wan_driver_version_t version;
 		wan_iovec_list_t	iovec_list;
 		wan_api_ss7_cfg_status_t   ss7_cfg_status;
+		sdla_te_pmon_t pmon_stats;
 		struct {
 			unsigned char data[WANPIPE_API_CMD_SZ_UNION];
 			unsigned int data_len;

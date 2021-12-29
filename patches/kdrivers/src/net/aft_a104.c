@@ -503,18 +503,18 @@ int a104_led_ctrl(sdla_t *card, int color, int led_pos, int on)
 		}
 
 		if(IS_56K_CARD(card)){
-			aft_56k_write_cpld(card,card->wandev.comm_port + 0x08,card->u.aft.led_ctrl);
+			aft_56k_write_cpld(card,card->wandev.comm_port + 0x08,(u16)card->u.aft.led_ctrl);
 		}else{
 			if (card->adptr_type == A108_ADPTR_8TE1) {
 				/* On A108 Card the leds are flipped. So the top offset is for leds 1 to 4 
 				   and vice versa */
 				if (card->wandev.comm_port < 4) {
-					aft_te1_write_cpld(card,(4+card->wandev.comm_port) + 0x08,card->u.aft.led_ctrl);
+					aft_te1_write_cpld(card,(4+card->wandev.comm_port) + 0x08,(u16)card->u.aft.led_ctrl);
 				} else {
-					aft_te1_write_cpld(card,(card->wandev.comm_port-4) + 0x08,card->u.aft.led_ctrl);
+					aft_te1_write_cpld(card,(card->wandev.comm_port-4) + 0x08,(u16)card->u.aft.led_ctrl);
 				}
 			} else {
-				aft_te1_write_cpld(card,card->wandev.comm_port + 0x08,card->u.aft.led_ctrl);
+				aft_te1_write_cpld(card,card->wandev.comm_port + 0x08,(u16)card->u.aft.led_ctrl);
 			}
 		}
 
@@ -997,6 +997,10 @@ int a104_set_digital_fe_clock(sdla_t * card)
 			if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID){
 				mclk_ver=AFT_TDMV_SHARK_A108_FRM_CLK_SYNC_VER;
 				switch(card->adptr_type){
+				case A116_ADPTR_16TE1:
+					/* A116 is actually two 8 port cards */
+					max_port=8;
+					break;
 				case A108_ADPTR_8TE1:
 					max_port=8;
 					break;

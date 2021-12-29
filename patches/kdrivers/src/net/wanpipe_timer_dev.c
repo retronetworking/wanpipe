@@ -245,7 +245,7 @@ static int wp_tdev_ioctl(void *obj, int cmd, void *udata)
 	/* udata is a pointer to wanpipe_tdm_api_cmd_t */
 	memcpy(utcmd, udata, sizeof(wanpipe_timer_api_t));
 #else
-	if (WAN_COPY_FROM_USER(&utcmd, /* davidr: looks like a wrong pointer */
+	if (WAN_COPY_FROM_USER(utcmd, /* davidr: looks like a wrong pointer */
 			       udata,
 			       sizeof(wanpipe_timer_api_t))){
 	       return -EFAULT;
@@ -292,9 +292,9 @@ static int wp_tdev_ioctl(void *obj, int cmd, void *udata)
 	/* udata is a pointer to wanpipe_tdm_api_cmd_t */
 	memcpy(udata, utcmd, sizeof(wanpipe_timer_api_t));
 #else
-	if (WAN_COPY_FROM_USER(&udata,
-			       &utcmd,
-			       sizeof(wanpipe_timer_api_t))){
+	if (WAN_COPY_TO_USER(udata,
+			     utcmd,
+			     sizeof(wanpipe_timer_api_t))){
   	     return -EFAULT;
 	}
 #endif

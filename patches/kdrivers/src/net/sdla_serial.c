@@ -340,7 +340,7 @@ static int32_t wp_serial_config(void *pfe)
 					return -EINVAL;
 			};
 
-			cpld_reg_val=aft_serial_read_cpld(card,cpld_reg);
+			cpld_reg_val=aft_serial_read_cpld(card,(unsigned short)cpld_reg);
 	
 			if (card->wandev.electrical_interface == WANOPT_X21) {
 				wan_set_bit(AFT_SERIAL_LCFG_X21_MODE_BIT, &reg);
@@ -364,12 +364,12 @@ static int32_t wp_serial_config(void *pfe)
 					
 					if (card->wandev.clocking == WANOPT_INTERNAL) {
 						if (card->wandev.electrical_interface == WANOPT_X21) {
-							aft_serial_write_cpld(card,cpld_reg,0x07);
+							aft_serial_write_cpld(card,(unsigned short)cpld_reg,0x07);
 						}else{
-							aft_serial_write_cpld(card,cpld_reg,0x05);
+							aft_serial_write_cpld(card,(unsigned short)cpld_reg,0x05);
 						}
 					} else {
-						aft_serial_write_cpld(card,cpld_reg,0x01);
+						aft_serial_write_cpld(card,(unsigned short)cpld_reg,0x01);
 					}
 			} else {
    				if (wan_test_bit(2,&cpld_reg_val)) {
@@ -381,9 +381,9 @@ static int32_t wp_serial_config(void *pfe)
 					}
 
 					if (card->wandev.electrical_interface == WANOPT_X21) {
-						aft_serial_write_cpld(card,cpld_reg,0x03);
+						aft_serial_write_cpld(card,(unsigned short)cpld_reg,0x03);
 					} else {
-						aft_serial_write_cpld(card,cpld_reg,0x01);
+						aft_serial_write_cpld(card,(unsigned short)cpld_reg,0x01);
 					}
 			}
 			break;
@@ -400,13 +400,13 @@ static int32_t wp_serial_config(void *pfe)
 					cpld_reg=0x09;
 			}
 
-			cpld_reg_val=aft_serial_read_cpld(card,cpld_reg);
+			cpld_reg_val=aft_serial_read_cpld(card,(unsigned short)cpld_reg);
 			if(card->wandev.clocking) {
 					wan_set_bit((WAN_FE_LINENO(fe)%2), &cpld_reg_val);
 			} else {
 					wan_clear_bit((WAN_FE_LINENO(fe)%2), &cpld_reg_val);
 			}
-			aft_serial_write_cpld(card,cpld_reg,cpld_reg_val);
+			aft_serial_write_cpld(card,(unsigned short)cpld_reg,(u16)cpld_reg_val);
 
 			break;
 
@@ -558,9 +558,9 @@ static int32_t wp_serial_unconfig(void *pfe)
 			cpld_reg=0x09;
 		}
 
-		cpld_reg_val=aft_serial_read_cpld(card,cpld_reg);
+		cpld_reg_val=aft_serial_read_cpld(card,(unsigned short)cpld_reg);
 		wan_clear_bit((WAN_FE_LINENO(fe)%2), &cpld_reg_val);
-		aft_serial_write_cpld(card,cpld_reg,cpld_reg_val);
+		aft_serial_write_cpld(card,(unsigned short)cpld_reg,(u16)cpld_reg_val);
 		break;
 	}
 

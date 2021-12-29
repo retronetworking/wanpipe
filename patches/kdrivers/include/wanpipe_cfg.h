@@ -363,6 +363,7 @@ typedef struct wan_xilinx_conf
 	unsigned char	hw_port_map; 	/* A108 hw port map: Default or Linear */
 	unsigned short	rx_fifo_trigger;
 	unsigned short	tx_fifo_trigger;
+	unsigned char   fe_sync_disable;
 } wan_xilinx_conf_t;
 
 typedef struct wan_xilinx_conf_if

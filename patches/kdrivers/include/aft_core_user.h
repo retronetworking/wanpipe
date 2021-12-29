@@ -644,7 +644,9 @@ enum {
 
 	FLUSH_PORT_OPERATIONAL_STATS, //Reset port's statistics counters in API driver.
 
-	WANPIPE_HARDWARE_RESCAN		/* Re scan the PCI & USB bus for sangoma hardware */
+	WANPIPE_HARDWARE_RESCAN,		/* Re scan the PCI & USB bus for sangoma hardware */
+	START_PORT_IF_CONFIG,		/* Start interface with Port number and interface number */
+	STOP_PORT_IF			/* Stop interface with Port number and interface number */
 
 };
 
@@ -711,6 +713,7 @@ typedef struct {
 	unsigned int	command_code;		/* Management Command Code */
 	unsigned int	operation_status;	/* operation completion status */
 	unsigned short	port_no;			/* port number */
+	unsigned short	intf_no;			/* interface number */
 	unsigned char	data[PORT_MGMT_MAX_DATA_SIZE]; /* data buffer passed from/to caller */
 }port_management_struct_t;
 

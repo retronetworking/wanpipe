@@ -280,10 +280,10 @@ static int wp_gsm_udp(sdla_fe_t *fe, void *p_udp_cmd, unsigned char *data)
 			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			udp_cmd->wan_cmd_data_len = 0; 
 			if (gsm_udp && gsm_udp->u.uart_debug == WAN_TRUE) {
-				wan_set_bit(AFT_GSM_UART_DEBUG_ENABLED_BIT, &card->TracingEnabled);
+				wan_set_bit(AFT_GSM_UART_DEBUG_ENABLED_BIT, (volatile long *)&card->TracingEnabled);
 				DEBUG_EVENT("%s: UART debugging enabled\n", card->devname);
 			} else {
-				wan_clear_bit(AFT_GSM_UART_DEBUG_ENABLED_BIT, &card->TracingEnabled);
+				wan_clear_bit(AFT_GSM_UART_DEBUG_ENABLED_BIT, (volatile long *)&card->TracingEnabled);
 				DEBUG_EVENT("%s: UART debugging disabled\n", card->devname);
 			}
 		}
@@ -294,7 +294,7 @@ static int wp_gsm_udp(sdla_fe_t *fe, void *p_udp_cmd, unsigned char *data)
 			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			udp_cmd->wan_cmd_data_len = 0; 
 			DEBUG_EVENT("%s: Audio debugging toggled\n", card->devname);
-			wan_set_bit(AFT_GSM_AUDIO_DEBUG_TOGGLE_BIT, &card->TracingEnabled);
+			wan_set_bit(AFT_GSM_AUDIO_DEBUG_TOGGLE_BIT, (volatile long *)&card->TracingEnabled);
 		}
 		break;
 
@@ -553,7 +553,7 @@ int wp_gsm_uart_rx_fifo(void *pcard, unsigned char *rx_buff, int reqlen)
 			card->hw_iface.bus_read_4(card->hw, AFT_GSM_MOD_REG(mod_no, AFT_GSM_UART_RX_REG), &reg);
 			rx_buff[i] = (reg & 0xFF);
 		}
-		if (wan_test_bit(AFT_GSM_UART_DEBUG_ENABLED_BIT, &card->TracingEnabled)) {
+		if (wan_test_bit(AFT_GSM_UART_DEBUG_ENABLED_BIT, (volatile long *)&card->TracingEnabled)) {
 			DEBUG_EVENT("%s: UART RX %d bytes: %s\n", card->devname, num_bytes, format_uart_data(rx_debug, rx_buff, num_bytes));
 		}
 		return num_bytes;
@@ -629,7 +629,7 @@ int wp_gsm_uart_tx_fifo(void *pcard, unsigned char *tx_buff, int len)
 		reg = (tx_buff[i] & 0xFF);
 		card->hw_iface.bus_write_4(card->hw, AFT_GSM_MOD_REG(mod_no, AFT_GSM_UART_TX_REG), reg);
 	}
-	if (wan_test_bit(AFT_GSM_UART_DEBUG_ENABLED_BIT, &card->TracingEnabled)) {
+	if (wan_test_bit(AFT_GSM_UART_DEBUG_ENABLED_BIT, (volatile long *)&card->TracingEnabled)) {
 		DEBUG_EVENT("%s: UART TX %d bytes: %s\n", card->devname, len, format_uart_data(tx_debug, tx_buff, len));
 	}
 	return len;

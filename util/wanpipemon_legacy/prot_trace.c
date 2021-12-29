@@ -1831,7 +1831,7 @@ try_trace_again:
 			}
 			
 			print_pcap_file_header(trace_iface);		
-			printf("Staring PCAP File Trace in: %s\n\n",
+			printf("Starting PCAP File Trace in: %s\n\n",
 					pcap_output_file_name);
 			trace_iface->init=1;
 		}

@@ -1639,7 +1639,11 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 			++card->wandev.stats.tx_packets;
                         card->wandev.stats.tx_bytes += len;
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-		 	dev->trans_start = jiffies;
+# if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+			netif_trans_update(dev);
+# else
+			dev->trans_start = jiffies;
+# endif
 #endif
 		}	
 	}

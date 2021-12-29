@@ -15,7 +15,9 @@
 
 #include "wanpipe_cdev_iface.h"
 
+#ifdef LINUX_2_4
 #define WP_CDEV_MAJOR 241
+#endif
 #define WP_CDEV_MINOR_OFFSET 0
 #define WP_CDEV_MAX_MINORS 5000
 
@@ -49,6 +51,8 @@ static struct class_simple *wp_cdev_class = NULL;
 # define	UNIT(file) MINOR(file->f_dentry->d_inode->i_rdev)
 
 #endif/* #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0) */
+
+static dev_t wanpipe_dev = 0;
 
 
 # define WP_CDEV_SPAN_MASK		0xFFFF
@@ -183,17 +187,16 @@ int wanpipe_global_cdev_init(void)
 	wp_cdev_class = class_create(THIS_MODULE, "wanpipe");
 
 #else
-	dev_t dev = MKDEV(WP_CDEV_MAJOR, 0);
 
-	if ((err=register_chrdev_region(dev, WP_CDEV_MAX_MINORS, "wanpipe"))) {
-		DEBUG_ERROR("%s(): Error unable to register device!\n",__FUNCTION__);
+	if ((err=alloc_chrdev_region(&wanpipe_dev, 0, WP_CDEV_MAX_MINORS, "wanpipe"))) {
+		DEBUG_ERROR("%s(): Error unable to alloc wanpipe device: %d\n",__FUNCTION__, err);
 		return err;
 	}
 
 	cdev_init(&wp_cdev_dev, &wp_cdev_fops);
-	if (cdev_add(&wp_cdev_dev, dev, WP_CDEV_MAX_MINORS)) {
+	if (cdev_add(&wp_cdev_dev, wanpipe_dev, WP_CDEV_MAX_MINORS)) {
 		kobject_put(&wp_cdev_dev.kobj);
-		unregister_chrdev_region(dev, WP_CDEV_MAX_MINORS);
+		unregister_chrdev_region(wanpipe_dev, WP_CDEV_MAX_MINORS);
 		DEBUG_ERROR("%s(): Error cdev_add!\n",__FUNCTION__);
 		return -EINVAL;
 	}
@@ -202,7 +205,7 @@ int wanpipe_global_cdev_init(void)
 	if (IS_ERR(wp_cdev_class)) {
 		DEBUG_ERROR("%s(): Error creating class!\n",__FUNCTION__);
 		cdev_del(&wp_cdev_dev);
-		unregister_chrdev_region(dev, WP_CDEV_MAX_MINORS);
+		unregister_chrdev_region(wanpipe_dev, WP_CDEV_MAX_MINORS);
 		return -EINVAL;
 	}
 		
@@ -242,7 +245,7 @@ int wanpipe_global_cdev_free(void)
 	unregister_chrdev(WP_CDEV_MAJOR, "wanpipe");
 #else
 	cdev_del(&wp_cdev_dev);
-  	unregister_chrdev_region(MKDEV(WP_CDEV_MAJOR, 0), WP_CDEV_MAX_MINORS);
+	unregister_chrdev_region(wanpipe_dev, WP_CDEV_MAX_MINORS);
 	
 	bus_unregister(&wanpipe_device_bus);
 #endif
@@ -509,8 +512,12 @@ static int wanpipe_create_cdev(wanpipe_cdev_t *cdev, int minor, int *counter)
 	wan_spin_lock_init(&cdev_priv->lock, lname);
 	init_waitqueue_head(&cdev_priv->poll_wait);
 
+#ifdef LINUX_2_4
 	WP_CLASS_DEV_CREATE(wp_cdev_class,
 			    MKDEV(WP_CDEV_MAJOR, minor), NULL, NULL,cdev->name);
+#else
+	WP_CLASS_DEV_CREATE(wp_cdev_class, MKDEV(MAJOR(wanpipe_dev), minor), NULL, NULL,cdev->name);
+#endif
 
 	DEBUG_CDEV("%s(): CREATING CDEV DEVICE MINOR 0x%X!  cdev=%p idx=%p\n",
 			__FUNCTION__,minor,cdev,wandev.idx[minor]);
@@ -550,8 +557,12 @@ static int wanpipe_free_cdev(wanpipe_cdev_t *cdev, int minor, int *counter)
 	cdev->priv=NULL;
 	wan_free(cdev_priv);
 
+#ifdef LINUX_2_4
 	class_device_destroy(wp_cdev_class,
 			     MKDEV(WP_CDEV_MAJOR, minor));
+#else
+	class_device_destroy(wp_cdev_class, MKDEV(MAJOR(wanpipe_dev), minor));
+#endif
 
 	DEBUG_CDEV("%s(): FREEING CDEV DEVICE MINOR 0x%X!\n",__FUNCTION__,minor);
 
@@ -728,6 +739,8 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 	wanpipe_cdev_t *cdev;
 	wan_iovec_t iovstack[WP_UIO_MAX_SZ];
 	wan_iovec_t *iov=iovstack;
+	wan_iovec_t iovstack1[WP_UIO_MAX_SZ];
+	wan_iovec_t *iov1=iovstack1;
 	wan_msghdr_t msg_sys;
 	wan_msghdr_t msg_sys1;
 	wan_msghdr_t *msg = (wan_msghdr_t*)usrbuf;
@@ -756,8 +769,12 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 	if (msg_sys.msg_iovlen > WP_UIO_MAX_SZ)
 		return -EFAULT;
 
-
 	err=wan_verify_iovec(&msg_sys, iov, NULL, 0);
+	if (err < 0) {
+		return err;
+	}
+
+	err=wan_verify_iovec(&msg_sys1, iov1, NULL, 0);
 	if (err < 0) {
 		return err;
 	}

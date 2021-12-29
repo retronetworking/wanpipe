@@ -181,6 +181,13 @@ KERN_SK_FOR_NODE_FEATURE=$(shell grep "sk_for_each.*node" $(KSRC)/include/net/so
 EXTRA_CFLAGS+=-DKERN_SK_FOR_NODE_FEATURE=$(KERN_SK_FOR_NODE_FEATURE)
 endif
 
+ifneq (,$(wildcard $(KDIR)/include/linux/netdevice.h))
+KERN_NETIF_TRANS_UPDATE=$(shell grep "netif_trans_update" $(KDIR)/include/linux/netdevice.h -c)
+EXTRA_CFLAGS+=-DKERN_NETIF_TRANS_UPDATE=$(KERN_NETIF_TRANS_UPDATE)
+else
+KERN_NETIF_TRANS_UPDATE=$(shell grep "netif_trans_update" $(KSRC)/include/linux/netdevice.h -c)
+EXTRA_CFLAGS+=-DKERN_NETIF_TRANS_UPDATE=$(KERN_NETIF_TRANS_UPDATE)
+endif
 
 # First pass, kernel Makefile reads module objects
 ifneq ($(KERNELRELEASE),)

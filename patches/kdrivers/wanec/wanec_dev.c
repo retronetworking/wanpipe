@@ -46,8 +46,10 @@
 # endif
 #endif
 
+#ifdef WP_CONFIG_DEVFS_FS
 #define WP_ECDEV_MAJOR 242
-#define WP_ECDEV_MINOR_OFFSET 0
+#endif
+#define WANEC_DEV_MAX_MINORS 256
 
 #ifdef WP_ECDEV_UDEV
 
@@ -65,6 +67,13 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,13)
 static struct class *wanec_dev_class = NULL;
+static struct cdev wanec_cdev = {
+#ifndef LINUX_FEAT_2624
+	.kobj	=	{.name = "wp_ec", },
+#endif
+	.owner	=	THIS_MODULE,
+};
+static dev_t wanec_dev = 0;
 #else
 static struct class_simple *wanec_dev_class = NULL;
 #define class_create class_simple_create
@@ -140,15 +149,22 @@ int wanec_create_dev(void)
 	    	return err;
 	}
 #else
-	if ((err = register_chrdev(WP_ECDEV_MAJOR, "wp_ec", &wanec_dev_fops))) {
-		DEBUG_EVENT("Unable to register tor device on %d\n", WP_ECDEV_MAJOR);
+	if ((err=alloc_chrdev_region(&wanec_dev, 0, WANEC_DEV_MAX_MINORS, "wp_ec"))) {
+		DEBUG_EVENT("Unable to alloc chrdev region for wanpipe ec device with %d minors\n", WANEC_DEV_MAX_MINORS);
 		return err;
+	}
+	cdev_init(&wanec_cdev, &wanec_dev_fops);
+	if (cdev_add(&wanec_cdev, wanec_dev, WANEC_DEV_MAX_MINORS)) {
+		kobject_put(&wanec_cdev.kobj);
+		unregister_chrdev_region(wanec_dev, WANEC_DEV_MAX_MINORS);
+		DEBUG_ERROR("%s(): Error wanec cdev_add!\n",__FUNCTION__);
+		return -EINVAL;
 	}
 #endif
 
 #ifdef WP_ECDEV_UDEV
 	WP_CLASS_DEV_CREATE(	wanec_dev_class,
-				MKDEV(WP_ECDEV_MAJOR, 0),
+				MKDEV(MAJOR(wanec_dev), 0),
 				NULL,NULL,
 				WANEC_DEV_NAME);
 #endif
@@ -170,7 +186,7 @@ int wanec_remove_dev(void)
 
 #ifdef WP_ECDEV_UDEV
 	class_device_destroy(	wanec_dev_class,
-				MKDEV(WP_ECDEV_MAJOR, 0));
+				MKDEV(MAJOR(wanec_dev), 0));
 #endif
 
 #ifdef WP_CONFIG_DEVFS_FS
@@ -184,7 +200,8 @@ int wanec_remove_dev(void)
 #ifdef WP_CONFIG_DEVFS_FS
         devfs_unregister_chrdev(WP_ECDEV_MAJOR, "wp_ec");
 #else
-	unregister_chrdev(WP_ECDEV_MAJOR, "wp_ec");
+	cdev_del(&wanec_cdev);
+	unregister_chrdev_region(wanec_dev, WANEC_DEV_MAX_MINORS);
 #endif
 	return 0;
 }

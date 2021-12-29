@@ -23,7 +23,6 @@
 #include "wanpipe_cdev_iface.h"
 #include "sdladrv.h"
 
-
 /*=================================================
  * Type Defines
  *================================================*/
@@ -55,6 +54,8 @@ static int wanpipe_mgmnt_get_hardware_info(wanpipe_wandev_t *wdev, wan_device_t 
 static int wanpipe_mgmnt_stop_port(wanpipe_wandev_t *wdev, wan_device_t *wandev, port_management_struct_t *usr_port_mgmnt);
 static int wanpipe_mgmnt_start_port(wanpipe_wandev_t *wdev, wan_device_t *wandev, port_management_struct_t *usr_port_mgmnt);
 static int wanpipe_mgmnt_get_driver_version(wanpipe_wandev_t *wdev, wan_device_t *wandev, port_management_struct_t *usr_port_mgmnt);
+static int wanpipe_mgmnt_start_port_if(wanpipe_wandev_t *wdev,  wan_device_t *wandev, unsigned short if_no);
+static int wanpipe_mgmnt_stop_port_if(wanpipe_wandev_t *wdev,  wan_device_t *wandev, char* if_name);
 
 
 /*=================================================
@@ -254,6 +255,16 @@ static int wanpipe_port_management(wanpipe_wandev_t *wdev, void *data)
 
 		/* Not supported */
 		break;
+
+	case START_PORT_IF_CONFIG:
+		/* Start specific port/interface */
+		err=wanpipe_mgmnt_start_port_if(wdev, wandev, (unsigned short)usr_port_mgmnt->data[0]);
+		break;
+	case STOP_PORT_IF:
+		/* Stop specific port/interface */
+		err=wanpipe_mgmnt_stop_port_if(wdev, wandev, usr_port_mgmnt->data);
+		break;
+
 
 	case GET_DRIVER_VERSION:
 		/* Fill in "DRIVER_VERSION" structure. */
@@ -527,7 +538,62 @@ static int wanpipe_mgmnt_start_port(wanpipe_wandev_t *wdev, wan_device_t *wandev
 	return err;
 }
 
+static int wanpipe_mgmnt_stop_port_if(wanpipe_wandev_t *wdev,  wan_device_t *wandev, char * if_name)
+{
+	return wan_device_del_if (wandev, if_name, 0);
+}
 
 
+static int wanpipe_mgmnt_start_port_if(wanpipe_wandev_t *wdev,  wan_device_t *wandev, unsigned short if_no)
+{
+	int err=-EINVAL;
+	int i;
+	wanpipe_port_cfg_t *port_cfg=wandev->port_cfg;
+
+	if (!wandev->port_cfg) {
+		/* No configuration present */
+		return -EINVAL;
+	}
+
+#if 0
+	err=wan_device_setup(wandev, &port_cfg->wandev_conf, 0);
+	if (err) {
+		DEBUG_EVENT("%s: Error: Failed to configure device\n",
+					__FUNCTION__);
+		return err;
+	}
+#endif
+
+	for (i = 0; i < port_cfg->num_of_ifs; i++) {
+		if (i==if_no-1) {
+			err=wan_device_new_if (wandev, &port_cfg->if_cfg[i], 0);
+			if (err) {
+				DEBUG_EVENT("%s: Error: Failed to configure interface %i\n",
+						__FUNCTION__,i);
+				return err;
+			}
+		}
+	}
+
+	err=-ENODEV;
+	for (i = 0; i < port_cfg->num_of_ifs; i++) {
+		if (i==if_no-1) {
+			netdevice_t *dev = wan_dev_get_by_name(port_cfg->if_cfg[i].name);
+			if (dev) {
+				dev_put(dev);
+				rtnl_lock();
+				err=dev_change_flags(dev,(dev->flags|IFF_UP));
+				rtnl_unlock();
+			} else {
+				err=-ENODEV;
+			}
+
+			if (err) {
+				break;
+			}
+		}
+	}
+	return err;
+}
 
 

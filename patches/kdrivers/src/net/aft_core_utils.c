@@ -1825,7 +1825,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			break;
 
 		case WANPIPEMON_GET_BIOS_ENCLOSURE3_SERIAL_NUMBER:
-			wan_udp_pkt->wan_udp_return_code = 
+			wan_udp_pkt->wan_udp_return_code = (unsigned char) 
 				wp_get_motherboard_enclosure_serial_number(wan_udp_pkt->wan_udp_data, 
 						sizeof(wan_udp_pkt->wan_udp_data));
 
@@ -1907,7 +1907,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 					}
 
 				} else {
-					wan_udp_pkt->wan_udp_return_code = err;
+					wan_udp_pkt->wan_udp_return_code = (unsigned char)err;
 				}
 				wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);	
 			}
@@ -2528,6 +2528,7 @@ void wanpipe_wake_stack(private_area_t* chan)
 #ifdef AFT_TDM_API_SUPPORT
 			if (is_tdm_api(chan,chan->wp_tdm_api_dev)) {
 				wanpipe_tdm_api_kick(chan->wp_tdm_api_dev);
+				wan_netif_set_ticks(chan->common.dev, SYSTEM_TICKS);
 			}
 #endif
 		} else {
@@ -2542,6 +2543,7 @@ void wanpipe_wake_stack(private_area_t* chan)
 #ifdef AFT_TDM_API_SUPPORT
 		if (is_tdm_api(chan,chan->wp_tdm_api_dev)){
 			wanpipe_tdm_api_kick(chan->wp_tdm_api_dev);
+			wan_netif_set_ticks(chan->common.dev, SYSTEM_TICKS);
 		}
 #endif
 	} else if (chan->common.usedby == ANNEXG) {

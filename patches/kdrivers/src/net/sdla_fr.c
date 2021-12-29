@@ -1655,7 +1655,9 @@ static void if_tx_timeout (netdevice_t *dev)
 	atomic_inc(&card->u.f.tx_interrupts_pending);
 	card->hw_iface.set_bit(card->hw, card->intr_perm_off, FR_INTR_TXRDY);
 
-#if defined(LINUX_2_4) || defined(LINUX_2_6)
+#if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+	netif_trans_update(dev);
+#elif defined(LINUX_2_4) || defined(LINUX_2_6)
 	dev->trans_start = jiffies;
 #endif
 
@@ -1959,7 +1961,9 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 			
 			chan->ifstats.tx_bytes += skb->len;
 			card->wandev.stats.tx_bytes += skb->len;
-#if defined(LINUX_2_4) || defined(LINUX_2_6)
+#if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+			netif_trans_update(dev);
+#elif defined(LINUX_2_4) || defined(LINUX_2_6)
 			dev->trans_start = jiffies;
 #endif
 		}
@@ -3074,7 +3078,9 @@ static void tx_intr(sdla_t *card)
 		chan->delay_skb = NULL;				
         	chan->transmit_length = 0;
 
-#if defined(LINUX_2_4) || defined(LINUX_2_6)
+#if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+		netif_trans_update(dev);
+#elif defined(LINUX_2_4) || defined(LINUX_2_6)
 		dev->trans_start = jiffies;
 #endif
 

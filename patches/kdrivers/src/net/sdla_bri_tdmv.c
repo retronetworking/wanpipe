@@ -1738,9 +1738,9 @@ static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan)
 	WAN_ASSERT_VOID(wp->card == NULL);
 	card = wp->card;
 
-	/* If the module is TE and line is not connected, we could be in
-	   power saving mode. Try to wake up the line */
-	if (aft_is_bri_te_card(card) && card->wandev.state != WAN_CONNECTED) {
+	/* If line is not connected, we could be in power saving mode.
+	 * Therefore, try to wake up the line */
+	if (card->wandev.state != WAN_CONNECTED) {
 		wan_smp_flag_t smp_flags;
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
 		card->wandev.fe_iface.set_fe_status(&card->fe, WAN_FE_CONNECTED);

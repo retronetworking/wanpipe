@@ -130,7 +130,7 @@ static int __inline aft_timing_stop_calculate_elapsed(aft_driver_timing_t *drv_t
 
 	struct timeval current_tv;
 	do_gettimeofday(&current_tv);
-	elapsed=aft_calc_elapsed(&drv_timing->timing_tv,&current_tv);
+	elapsed=(unsigned long)aft_calc_elapsed(&drv_timing->timing_tv,&current_tv);
 
 	if (elapsed > drv_timing->max_latency) {
 		drv_timing->max_latency=elapsed;
@@ -173,7 +173,7 @@ static int __inline aft_timing_stop_calculate_elapsed(aft_driver_timing_t *drv_t
 	if (elapsed > drv_timing->latency_avg + limit) {
 		drv_timing->above_avg++;	
 	}
-	if (drv_timing->latency_avg >  limit) {
+	if ((int)drv_timing->latency_avg >  limit) {
 		if (drv_timing->latency_avg - limit > elapsed) {
 			drv_timing->below_avg++;
 		}

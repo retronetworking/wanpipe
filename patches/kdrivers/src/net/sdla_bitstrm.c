@@ -2288,7 +2288,9 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		    !test_bit(WAIT_DEVICE_BUFFERS,&bstrm_priv_area->tq_control)){
 			card->hw_iface.set_bit(card->hw, card->intr_perm_off, APP_INT_ON_TX_BLOCK);
 		}
-#if defined(LINUX_2_4)||defined(LINUX_2_6)
+#if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+	netif_trans_update(dev);
+#elif defined(LINUX_2_4) || defined(LINUX_2_6)
 	 	dev->trans_start = jiffies;
 #endif
 	

@@ -268,7 +268,7 @@
 #define WAN_T1_ALARM_THRESHOLD_AIS_OFF	(1)	// must be 10s
 #define WAN_T1_ALARM_THRESHOLD_LOS_ON	(3)   // must be 2.5s
 #define WAN_T1_ALARM_THRESHOLD_LOS_OFF	(1)    // must be 10s
-#define WAN_T1_ALARM_THRESHOLD_RAI_ON	(3)   // must be 2.5s
+#define WAN_T1_ALARM_THRESHOLD_RAI_ON	(4)   // in loopback condition we have to set higher debounce time
 #define WAN_T1_ALARM_THRESHOLD_RAI_OFF	(1)    // must be 10s
 
 /* TE1 critical flag */

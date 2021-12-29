@@ -265,7 +265,11 @@ static int wan_iface_init(netdevice_t* dev)
 	dev->addr_len		= 0;
 	*(u8*)dev->dev_addr	= 0; 
 
+#if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+	netif_trans_update(dev);
+#else
 	dev->trans_start	= SYSTEM_TICKS;
+#endif
 
 	/* Initialize socket buffers */
 	dev_init_buffers(dev);
@@ -300,7 +304,11 @@ static int wan_iface_eth_init(netdevice_t* dev)
 	}
 	dev->tx_queue_len	= 100;
 
+#if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+	netif_trans_update(dev);
+#else
 	dev->trans_start	= SYSTEM_TICKS;
+#endif
 
 	/* Initialize socket buffers */
 	dev_init_buffers(dev);

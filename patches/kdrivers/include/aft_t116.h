@@ -68,7 +68,7 @@ static __inline int read_reg_ds26519_fpga (sdla_t* card, u32 addr){
 	addr = addr & 0X3FFF; 
 	addr = addr | 0x8000;
 	SDLA_HW_T116_FE_ACCESS_BLOCK;
-	card->hw_iface.bus_write_2(card->hw,0x44,addr);
+	card->hw_iface.bus_write_2(card->hw,0x44,(u16)addr);
 	SDLA_HW_T116_FE_ACCESS_BLOCK;
 	card->hw_iface.bus_read_4(card->hw,0x44,&data);
 	SDLA_HW_T116_FE_ACCESS_BLOCK;
@@ -82,7 +82,7 @@ static __inline int write_reg_ds26519_fpga (sdla_t* card, u32 addr, u32 data){
 	addr = addr & 0X3FFF; 
 	addr = addr | 0x8000;
 	SDLA_HW_T116_FE_ACCESS_BLOCK;
-	card->hw_iface.bus_write_2(card->hw,0x44,addr);
+	card->hw_iface.bus_write_2(card->hw,0x44,(u16)addr);
 	SDLA_HW_T116_FE_ACCESS_BLOCK;
 	shifted_data = (data << 16) & 0x00FF0000;
 	card->hw_iface.bus_write_4(card->hw,0x44,shifted_data);

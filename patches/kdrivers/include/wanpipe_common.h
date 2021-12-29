@@ -2392,7 +2392,6 @@ static __inline void wan_netif_fake_init(netdevice_t *d)
 
 	return;
 }
-#endif
 
 static struct net_device *sng_alloc_netdev(int sizeof_priv, const char *name,
                                            void (*setup)(struct net_device *))
@@ -2403,6 +2402,7 @@ static struct net_device *sng_alloc_netdev(int sizeof_priv, const char *name,
 	return alloc_netdev(sizeof_priv, name, setup);
 #endif
 }
+#endif
 
 
 static __inline void*
@@ -2642,7 +2642,9 @@ static __inline int wan_netif_mcount(netdevice_t* dev)
 
 static __inline int wan_netif_set_ticks(netdevice_t* dev, unsigned long ticks)
 {
-#if defined(__LINUX__) || defined(__WINDOWS__)
+#if defined(__LINUX__) && defined(KERN_NETIF_TRANS_UPDATE) && (KERN_NETIF_TRANS_UPDATE > 0)
+	netif_trans_update(dev);
+#elif defined(__LINUX__) || defined(__WINDOWS__)
 	dev->trans_start = ticks;
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 #else

@@ -401,7 +401,7 @@ static void rx_bit_to_su (wp_mtp1_link_t * p_lnk, u8 bit)
 			/* a reasonable SU octet has been recovered; store it in a
 			* signal unit buffer; TODO: this buffer should be allocated
 			* mem, right? */
-			p_lnk->rx_buf[p_lnk->rx_buf_len]=p_lnk->r_accum;
+			p_lnk->rx_buf[p_lnk->rx_buf_len]=(u8)p_lnk->r_accum;
 			p_lnk->rx_buf_len++;
 
 			/* reset the counters */
@@ -946,10 +946,10 @@ int wp_mtp1_tx_bh_handler(void *mtp1, u8 *data, int mtu)
 	int k;
 	u16 crc;
 	
-	while ((p_lnk->tbs.cur_index - p_lnk->tbs.card_index) < mtu) {
+	while ((int)(p_lnk->tbs.cur_index - p_lnk->tbs.card_index) < mtu) {
 		skb=wan_skb_dequeue(&p_lnk->tbs.tx_q);
 		if (skb) {
-			crc = wan_skb_csum(skb);
+			crc = (u16)wan_skb_csum(skb);
 			daed_tx(mtp1_link, wan_skb_data(skb), wan_skb_len(skb), &crc);
 			wan_skb_queue_tail(&p_lnk->tbs.tx_q_dealloc,skb);
 			if (wan_skb_queue_len(&p_lnk->tbs.tx_q) < WP_MTP1_MAX_TX_Q) {
@@ -968,7 +968,7 @@ int wp_mtp1_tx_bh_handler(void *mtp1, u8 *data, int mtu)
 				}
 			}
 			if (skb) {
-				crc = wan_skb_csum(skb);
+				crc = (u16)wan_skb_csum(skb);
 				daed_tx(mtp1_link, wan_skb_data(skb), wan_skb_len(skb), &crc);
 				if (wan_skb_queue_len(&p_lnk->tbs.tx_r_q)){
 					wan_skb_queue_tail(&p_lnk->tbs.tx_q_dealloc,skb);

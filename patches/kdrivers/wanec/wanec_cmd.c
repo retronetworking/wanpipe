@@ -1756,43 +1756,43 @@ int wanec_ISR(wan_ec_t *ec, int verbose)
 	}
 	if (ec->f_InterruptFlag.fFatalReadTimeout == TRUE){
 		wan_ec_isr_error_print(
-		"%s: A read to the external memory has failed!\n",
-				ec->name);
+		"%s: A read to the external memory has failed!\n %s",
+				ec->name, " ");
 	}
 	if (ec->f_InterruptFlag.fErrorRefreshTooLate == TRUE){
 		wan_ec_isr_error_print(
-		"%s: Error Refresh Too Late!\n",
-				ec->name);
+		"%s: Error Refresh Too Late!\n %s",
+				ec->name, " ");
 	}
 	if (ec->f_InterruptFlag.fErrorPllJitter == TRUE){
 		wan_ec_isr_error_print(
-		"%s: Error Pll Jitter\n",
-				ec->name);
+		"%s: Error Pll Jitter\n %s",
+				ec->name, " ");
 	}
 	if (ec->f_InterruptFlag.fErrorH100OutOfSync == TRUE && !ec->ignore_H100){
 		wan_ec_isr_error_print(
-		"%s: The H100 slave has lost its framing on the bus!\n",
-				ec->name);
+		"%s: The H100 slave has lost its framing on the bus!\n %s",
+				ec->name, " ");
 	}
 	if (ec->f_InterruptFlag.fErrorH100ClkA == TRUE){
 		wan_ec_isr_error_print(
-		"%s: The CT_C8_A clock behavior does not conform to the H.100 spec!\n",
-				ec->name);
+		"%s: The CT_C8_A clock behavior does not conform to the H.100 spec!\n %s",
+				ec->name, " ");
 	}
 	if (ec->f_InterruptFlag.fErrorH100FrameA == TRUE){
 		wan_ec_isr_error_print(
-		"%s: The CT_FRAME_A clock behavior does not comform to the H.100 spec!\n",
-				ec->name);
+		"%s: The CT_FRAME_A clock behavior does not comform to the H.100 spec!\n %s",
+				ec->name, " ");
 	}
 	if (ec->f_InterruptFlag.fErrorH100ClkB == TRUE){
 		wan_ec_isr_error_print(
-		"%s: The CT_C8_B clock is not running a 16.384 MHz!\n",
-				ec->name);
+		"%s: The CT_C8_B clock is not running a 16.384 MHz!\n %s",
+				ec->name, " ");
 	}
 	if (ec->f_InterruptFlag.fErrorOverflowToneEvents == TRUE){
 		wan_ec_isr_error_print(
-		"%s: Error: Tone Event buffer has overflowed\n",
-				ec->name);
+		"%s: Error: Tone Event buffer has overflowed\n %s",
+				ec->name, " ");
 	}
 	if (ec->f_InterruptFlag.fToneEventsPending == TRUE){
 		PRINT2(verbose, "%s: Tone Event pending....\n",

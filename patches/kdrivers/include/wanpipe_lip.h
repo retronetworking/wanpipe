@@ -261,6 +261,7 @@ typedef struct wplip_link
 
 #ifdef WPLIP_TTY_SUPPORT
 	struct tty_struct 		*tty;
+	struct tty_port			tty_port;
 	unsigned int 			tty_minor;
 	unsigned int 			tty_open;
 	unsigned char 			*tty_buf;

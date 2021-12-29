@@ -148,6 +148,46 @@ int _LIBSNG_CALL sangoma_mgmt_cmd(sng_fd_t fd, wan_udp_hdr_t* wan_udp)
 	return 0;
 }
 
+int _LIBSNG_CALL sangoma_driver_port_start_if(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no, unsigned short if_no)
+{
+	int err;
+	port_mgmnt->operation_status = SANG_STATUS_GENERAL_ERROR;
+	port_mgmnt->command_code = START_PORT_IF_CONFIG;
+	port_mgmnt->port_no	= port_no;
+	port_mgmnt->data[0] = if_no;
+	port_mgmnt->intf_no = if_no;
+
+	err = sangoma_port_mgmnt_ioctl(fd, port_mgmnt);
+	if (err) {
+		/* ioctl failed */
+		return err;
+	}
+
+	return port_mgmnt->operation_status;
+}
+
+int _LIBSNG_CALL sangoma_driver_port_stop_if(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no, unsigned short if_no)
+{
+	int err;
+	port_mgmnt->operation_status = SANG_STATUS_GENERAL_ERROR;
+	port_mgmnt->command_code = STOP_PORT_IF;
+	port_mgmnt->port_no	= port_no;
+
+#if defined __LINUX__
+	sprintf(port_mgmnt->data,"w%dg%d",port_no, if_no);
+#else
+	port_mgmnt->intf_no = if_no;
+#endif
+
+	err = sangoma_port_mgmnt_ioctl(fd, port_mgmnt);
+	if (err) {
+		/* ioctl failed */
+		return err;
+	}
+
+	return port_mgmnt->operation_status;
+}
+
 int _LIBSNG_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
 {
 	int err;

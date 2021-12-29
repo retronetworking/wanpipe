@@ -654,7 +654,7 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 	chan->wp_tdm_api_dev->cfg.tx_queue_sz = MAX_AFT_DMA_CHAINS;
 
 
-	chan->wp_tdm_api_dev->tdm_chan = chan_no;
+	chan->wp_tdm_api_dev->tdm_chan = (u8)chan_no;
 
 	if (IS_TE1_CARD(card)) {
 		if (IS_T1_CARD(card)){
@@ -742,7 +742,7 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		chan->wp_tdm_api_dev->cfg.usr_mtu_mru = chan->mtu;
 
 		/* Overwite the chan number based on group number */	
-		chan->wp_tdm_api_dev->tdm_chan = (u8)chan->if_cnt;
+		chan->wp_tdm_api_dev->tdm_chan = (u8)chan->first_time_slot;
 	}
 
 	switch(chan->wp_tdm_api_dev->cfg.hw_tdm_coding)	{
@@ -855,7 +855,7 @@ int aft_sw_hdlc_rx_data (void *priv_ptr, u8 *rx_data, int rx_len, uint32_t err_c
 	data=wan_skb_put(skb,rx_len);
 	memcpy(data,rx_data,rx_len);
 	
-	err=aft_bh_rx(chan, skb, err_code, rx_len);
+	err=aft_bh_rx(chan, skb, (u8)err_code, rx_len);
 	if (err) {
 		/* FIXME: This will not work on WINDOWS */
 		wan_skb_free(skb);

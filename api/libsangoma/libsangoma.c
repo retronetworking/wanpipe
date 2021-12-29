@@ -2871,6 +2871,36 @@ int _LIBSNG_CALL sangoma_get_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsi
 }
 #endif
 
+
+#ifdef WP_API_FEATURE_GET_FE_STATS
+int _LIBSNG_CALL sangoma_get_fe_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, sdla_te_pmon_t *pmon_stats)
+{
+	int err;
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	SANGOMA_INIT_TDM_API_CMD_RESULT(*tdm_api);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_FE_STATS;
+	err = sangoma_cmd_exec(fd, tdm_api);
+	if (err == 0) {
+		if (pmon_stats) {
+			memcpy(pmon_stats, &tdm_api->wp_cmd.pmon_stats, sizeof(tdm_api->wp_cmd.pmon_stats));
+		}
+	}
+
+	return err;
+}
+int _LIBSNG_CALL sangoma_reset_fe_stats(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	int err;
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	SANGOMA_INIT_TDM_API_CMD_RESULT(*tdm_api);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_RESET_FE_STATS;
+	err = sangoma_cmd_exec(fd, tdm_api);
+	return err;
+}
+#endif
+
 /* get current Line Connection state - Connected/Disconnected */
 #ifdef WP_API_FEATURE_LINK_STATUS
 int _LIBSNG_CALL sangoma_get_link_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *current_status)

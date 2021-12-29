@@ -5723,7 +5723,7 @@ static void aft_rx_post_complete (sdla_t *card, private_area_t *chan,
 		* flag. If data is not greater than 3, then
 		* we have a 0 length frame. Thus discard
 		* (only if HDLC engine enabled) */
-		if (len <= 3 || len >= chan->dma_mru) {
+		if (len <= 3 || len >= (unsigned int)chan->dma_mru) {
 
 			/* if we got an invalid hdlc frame and pkt_error is not set.
 			   we must indicate that the packet is bad and update statistics */
@@ -5794,7 +5794,7 @@ static void aft_rx_post_complete (sdla_t *card, private_area_t *chan,
 		wan_skb_pull(skb, sizeof(wp_rx_element_t));
 		*new_skb=skb;
 		
-	} else if (!skip_copy_back && len > aft_rx_copyback) {
+	} else if (!skip_copy_back && len > (unsigned int)aft_rx_copyback) {
 		/* The rx size is big enough, thus
 		 * send this buffer up the stack
 		 * and allocate another one */
@@ -6388,7 +6388,7 @@ static void wp_bh (void *data, int pending)
 
 	do {
 
-		if (SYSTEM_TICKS-timeout > 2){
+		if (SYSTEM_TICKS-timeout > 10) {
 #if 0
 			DEBUG_EVENT("%s: BH Squeeze - breaking out of wp_bh loop!\n",chan->if_name);
 #if defined(__WINDOWS__)
@@ -6827,7 +6827,7 @@ static int wp_aft_fifo_per_port_isr(sdla_t *card)
 		void **card_list=__sdla_get_ptr_isr_array(card->hw);
 		sdla_t *tmp_card;
 		int max_lines = AFT_MAX_PORTS(card);
-		for (i=0;i<max_lines;i++) {
+		for (i=0;i<(u32)max_lines;i++) {
 			tmp_card=(sdla_t*)card_list[i];
 			if (tmp_card &&
 			    !wan_test_bit(CARD_DOWN,&tmp_card->wandev.critical)) {
@@ -7373,7 +7373,7 @@ if (1){
 		/* All ports within the card share the same port */
 		comm_port = 0;
 	} else {
-		comm_port = card->wandev.comm_port;
+		comm_port = (char)card->wandev.comm_port;
 	}
 
 	if (wan_test_bit(AFT_LCFG_FIFO_INTR_BIT,&card->u.aft.lcfg_reg) &&
@@ -7767,14 +7767,26 @@ global_irq_skip:
 					__sdla_bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), lcfg_reg);
 					__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &lcfg_reg);
 					card->u.aft.lcfg_reg=lcfg_reg;
-					
-					disable_data_error_intr(card,LINK_DOWN);
+
+					if (!card->u.aft.cfg.fe_sync_disable) {
+						disable_data_error_intr(card,LINK_DOWN);
+					}
 					WAN_PMON_SYNC_ERROR(card);
 					
 					if (!wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)) {
-						DEBUG_ERROR("%s: Warning: Front End Lost Synchronization (sync_cnt=%i,c=%i,f=%i)\n",
-								card->devname,sync_cnt,card->wandev.state,card->fe.fe_status);
-						aft_core_taskq_trigger(card,AFT_FE_RESTART);
+						DEBUG_ERROR("%s: Warning: Front End Lost Sync (sync_cnt=%i,state=%i,fe=%i,rsync_cfg=%i framer:[lcv=%i,bee=%i,oof=%i,feb=%i,crc4=%i,fer=%i,fas=%i])\n",
+								card->devname,sync_cnt,card->wandev.state,card->fe.fe_status,
+								card->u.aft.cfg.fe_sync_disable,
+								card->fe.fe_stats.te_pmon.lcv_errors,
+								card->fe.fe_stats.te_pmon.bee_errors,
+								card->fe.fe_stats.te_pmon.oof_errors,
+								card->fe.fe_stats.te_pmon.feb_errors,
+								card->fe.fe_stats.te_pmon.crc4_errors,
+								card->fe.fe_stats.te_pmon.fer_errors,
+								card->fe.fe_stats.te_pmon.fas_errors);
+						if (!card->u.aft.cfg.fe_sync_disable) {
+							aft_core_taskq_trigger(card,AFT_FE_RESTART);
+						}
 					}
 				}
 			}
@@ -8380,7 +8392,7 @@ static void wp_aft_wdt_per_port_isr(sdla_t *card, int wdt_intr)
 	   to distrub the timer interrup by reseting it */
 	if (wdt_intr && card->wdt_timeout) {
 		aft_wdt_reset(card);
-		aft_wdt_set(card,card->wdt_timeout);
+		aft_wdt_set(card,(unsigned char)card->wdt_timeout);
 	}
 
 	if (AFT_HAS_FAKE_PORTS(card)) {
@@ -11477,7 +11489,7 @@ static void aft_port_task (void * card_ptr, int arg)
 
 	if (wan_test_and_clear_bit(AFT_FE_SET_CLOCK,&card->u.aft.port_task_cmd)){
 		if (wan_test_bit(CARD_REF_OSC,&card->wandev.critical) && WAN_TE1_CLK(&card->fe) == WAN_MASTER_CLK) {
-			int tmp = WAN_TE1_REFCLK(&card->fe);
+			UINT8 tmp = WAN_TE1_REFCLK(&card->fe);
 		    WAN_TE1_REFCLK(&card->fe)=0;
 			aft_chip_set_clock(card);
 		    WAN_TE1_REFCLK(&card->fe)=tmp;

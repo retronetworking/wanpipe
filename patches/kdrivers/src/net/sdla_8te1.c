@@ -568,7 +568,7 @@ static int sdla_ds_te1_device_id(sdla_fe_t* fe)
 
 	/*CHECK FOF THE T116 ID*/
 	if (value == DEVICE_ID_DS26519){
-		fe->fe_chip_id = value;
+		fe->fe_chip_id = (unsigned char)value;
 	}else{
 		fe->fe_chip_id = WAN_TE1_DEVICE_ID;
 	}
@@ -4340,6 +4340,10 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 
 	if (swirq->subtype == WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON){
 
+		if (fe->fe_status == FE_DISCONNECTED && type == WAN_TE1_SWIRQ_TYPE_ALARM_RAI) {
+			swirq->delay=0;
+		}
+
 		if (WAN_STIMEOUT(swirq->start, swirq->delay)){
 			/* Got real LOS alarm */
 			if (type == WAN_TE1_SWIRQ_TYPE_ALARM_AIS){
@@ -6104,7 +6108,7 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 				event.type	= TE_RBS_READ;
 				event.delay	= POLLING_TE1_TIMER;
 				err=sdla_ds_te1_exec_event(fe, &event, &pending);
-				udp_cmd->wan_cmd_return_code = err;
+				udp_cmd->wan_cmd_return_code = (unsigned char)err;
 				
 			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_PRINT){
 				/* Enable extra debugging */
@@ -6166,7 +6170,7 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 				event.te_event.rbs_channel = fe_debug->fe_debug_rbs.channel;
 				event.te_event.rbs_abcd	= fe_debug->fe_debug_rbs.abcd;
 				err=sdla_ds_te1_exec_event(fe, &event, &pending);
-				udp_cmd->wan_cmd_return_code = err;
+				udp_cmd->wan_cmd_return_code = (unsigned char)err;
 				
 			}
 			break;
@@ -6221,7 +6225,7 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 				fe->te_param.reg_dbg_busy = 0;
 			}
 			
-			udp_cmd->wan_cmd_return_code = err;
+			udp_cmd->wan_cmd_return_code = (unsigned char)err;
 			break;
 		
 		case WAN_FE_DEBUG_ALARM:

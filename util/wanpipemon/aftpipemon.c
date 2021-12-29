@@ -1034,7 +1034,15 @@ static void line_trace(int trace_mode)
 	to.tv_sec = 0;
 	to.tv_usec = 0;
 	for(;;) {
-		
+
+	/* sleep for some time in order to control CPU utilization
+	 * by wanpipemon trace command when no_exit is enable */
+	if (no_exit) {
+		if (to.tv_usec) {
+			wp_usleep(to.tv_usec);
+		}
+	}
+
 #ifdef __WINDOWS__
 	if (!no_exit) {
 		if(to.tv_usec){
@@ -1977,7 +1985,9 @@ static int write_ft1_te1_56k_config (void)
 
 	case WAN_MEDIA_T1:
 	case WAN_MEDIA_E1:
+#if defined(__LINUX__)
 		err=write_te1_56k_config();
+#endif
 		break;
 
 	case WAN_MEDIA_DS3:

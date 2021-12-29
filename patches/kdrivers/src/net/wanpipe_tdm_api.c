@@ -1017,7 +1017,7 @@ int wanpipe_tdm_api_kick(wanpipe_tdm_api_dev_t *tdm_api)
 				rc=tdm_api->write_hdlc_check(tdm_api->chan, 0, tdm_api->buffer_multiplier);
 			}
 			if (rc == 0 ||
-				wan_skb_queue_len(&tdm_api->wp_rx_list) >= tdm_api->buffer_multiplier ||
+				wan_skb_queue_len(&tdm_api->wp_rx_list) >= (int)tdm_api->buffer_multiplier ||
 				wan_skb_queue_len(&tdm_api->wp_event_list)) {
 				wp_tdm_api_start(tdm_api);
 				if (wan_test_bit(0,&tdm_api->used)) {
@@ -1374,6 +1374,8 @@ static int wp_tdmapi_read_msg(void *obj, netskb_t **skb_ptr, wp_api_hdr_t *hdr, 
 	hdr->wp_api_hdr_operation_status = SANG_STATUS_RX_DATA_AVAILABLE;
 	hdr->wp_api_hdr_data_length = wan_skb_len(skb)-sizeof(wp_api_hdr_t);
 
+	hdr->wp_api_rx_hdr_errors = card->fe.fe_stats.te_pmon.sync_errors;
+
 	if (wan_skb_len(skb) >= sizeof(wp_api_hdr_t)) {
 		/* Copy back the updated header info into the skb header
            section. */
@@ -1433,7 +1435,7 @@ static int wp_tdmapi_tx (wanpipe_tdm_api_dev_t *tdm_api, netskb_t *skb,  wp_api_
 
 			len = wan_skb_len(skb) / tdm_api->buffer_multiplier;
 
-			for (i=0;i<tdm_api->buffer_multiplier;i++) {
+			for (i=0;i<(int)tdm_api->buffer_multiplier;i++) {
 
 				nskb=wan_skb_kalloc(len+sizeof(wp_api_hdr_t));
 				if (!nskb) {
@@ -1869,7 +1871,7 @@ static unsigned int wp_tdmapi_poll(void *obj)
 	if (!wan_test_bit(0,&tdm_api->cfg.rx_disable)) {
 		/* tdm_api->buffer_multiplir is by default 1 so we can use it to check
 		   for available buffers */
-		if (wan_skb_queue_len(&tdm_api->wp_rx_list) >= tdm_api->buffer_multiplier) {
+		if (wan_skb_queue_len(&tdm_api->wp_rx_list) >= (int)tdm_api->buffer_multiplier) {
 			ret |= POLLIN | POLLRDNORM;
 		}
 	}
@@ -1895,7 +1897,7 @@ static int wanpipe_tdm_api_handle_event(wanpipe_tdm_api_dev_t *tdm_api, netskb_t
 
 	wan_get_timestamp(&sec, &usec);
 
-	p_tdmapi_event->time_stamp_sec = sec;
+	p_tdmapi_event->time_stamp_sec = (u32)sec;
 	p_tdmapi_event->time_stamp_usec = usec;
 
 	wan_skb_queue_tail(&tdm_api->wp_event_list,skb);
@@ -1969,7 +1971,7 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 
 
 	/* Set the span/channel so that user knows which channel its using */
-    usr_tdm_api.chan=channel;
+    usr_tdm_api.chan=(unsigned int)channel;
 
 	if (card) {
 		/* must NOT do it for ctrl device! */
@@ -1985,6 +1987,8 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		case WP_API_CMD_GET_STATS:
 		case WP_API_CMD_GET_FULL_CFG:
 		case WP_API_CMD_GET_FE_STATUS:
+		case WP_API_CMD_GET_FE_STATS:
+		case WP_API_CMD_RESET_FE_STATS:
 		case WP_API_CMD_SET_FE_STATUS:
        	case WP_API_CMD_READ_EVENT:
        	case WP_API_CMD_GET_FE_ALARMS:
@@ -2300,6 +2304,27 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 
 		err = card->wandev.ec_tdmapi_ioctl(card->wandev.ec_dev, &usr_tdm_api.iovec_list);
 
+		break;
+
+	case WP_API_CMD_GET_FE_STATS:
+		if (card && card->wandev.fe_iface.read_pmon){
+			wan_smp_flag_t smp_flags1;
+			card->hw_iface.hw_lock(card->hw,&smp_flags1);
+			card->wandev.fe_iface.read_pmon(&card->fe, 0);
+			card->hw_iface.hw_unlock(card->hw,&smp_flags1);
+			memcpy(&usr_tdm_api.pmon_stats, &card->fe.fe_stats.te_pmon, sizeof(card->fe.fe_stats.te_pmon));
+		}
+		break;
+
+	case WP_API_CMD_RESET_FE_STATS:
+		if (card && card->wandev.fe_iface.flush_pmon){
+			wan_smp_flag_t smp_flags1;
+			card->hw_iface.hw_lock(card->hw,&smp_flags1);
+			card->wandev.fe_iface.flush_pmon(&card->fe);
+			card->hw_iface.hw_unlock(card->hw,&smp_flags1);
+			memcpy(&usr_tdm_api.pmon_stats, &card->fe.fe_stats.te_pmon, sizeof(card->fe.fe_stats.te_pmon));
+		}
+		memset(&card->fe.fe_stats.te_pmon, 0x00, sizeof(card->fe.fe_stats.te_pmon));
 		break;
 
 	case WP_API_CMD_GET_STATS:
@@ -2682,7 +2707,7 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		if (tdm_api->rx_gain) {
 			int i;
 			for (i=0;i<256;i++) {
-				tdm_api->rx_gain[i]=i;
+				tdm_api->rx_gain[i]=(u8)i;
 			}
 		}
 		break;
@@ -2691,7 +2716,7 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		if (tdm_api->tx_gain) {
 			int i;
 			for (i=0;i<256;i++) {
-				tdm_api->tx_gain[i]=i;
+				tdm_api->tx_gain[i]=(u8)i;
 			}
 		}
 		break;
@@ -3363,7 +3388,7 @@ static int wanpipe_tdm_api_channelized_rx (wanpipe_tdm_api_dev_t *tdm_api, u8 *r
 	memcpy((u8*)data_ptr,rx_data,len);
 
 	skblen = wan_skb_len(tdm_api->rx_skb);
-	if (skblen >= tdm_api->mtu_mru) {
+	if (skblen >= (int)tdm_api->mtu_mru) {
 
 		wanpipe_tdm_timestamp_hdr(rx_hdr);
 
@@ -3443,13 +3468,13 @@ static __inline int wp_tdmapi_check_fakepolarity(u8 *buf, int len, wanpipe_tdm_a
 		lower_thres_val = -1 * fake_polarity_thres;
 
 		for (i=0;i<len;i++) {
-			linear_sample = wanpipe_codec_convert_to_linear(buf[i],tdm_api->cfg.hw_tdm_coding);
+			linear_sample = wanpipe_codec_convert_to_linear(buf[i],(u8)tdm_api->cfg.hw_tdm_coding);
 
 			if (linear_sample > upper_thres_val || linear_sample < lower_thres_val) {
 				if (WAN_NET_RATELIMIT()) {
 					DEBUG_EVENT("%s: Possible CID signal detected, faking polarity reverse event on module %d\n", card->devname, channo);
 				}
-				wp_tdmapi_report_fakepolarityreverse(card,channo);
+				wp_tdmapi_report_fakepolarityreverse(card,(u8)channo);
 				fxo->readcid = 1;
 				fxo->cidtimer = fe->rm_param.intcount;
 				return 1;
@@ -3718,7 +3743,7 @@ int wanpipe_tdm_api_span_rx (wanpipe_tdm_api_dev_t *tdm_api, netskb_t *skb)
 
 	/* Buffer multiplier is by default 1 so we can use it to check if there
 	   is something in the rx_list */
-	if (wan_skb_queue_len(&tdm_api->wp_rx_list) >= tdm_api->buffer_multiplier) {
+	if (wan_skb_queue_len(&tdm_api->wp_rx_list) >= (int)tdm_api->buffer_multiplier) {
 		wp_wakeup_rx_tdmapi(tdm_api);
 	}
 

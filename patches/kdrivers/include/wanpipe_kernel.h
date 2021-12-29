@@ -179,7 +179,7 @@ void *PDE_DATA(const struct inode *inode)
  #define LINUX_3_0
  /* Not sure exactly when they removed write_proc_t, but in 3.11.8 is not there anymore */
  #if defined(KERN_PROC_PDE_FEATURE) && KERN_PROC_PDE_FEATURE > 0
-   typedef int (write_proc_t)(char *, char **, off_t, int, int);
+   typedef int (write_proc_t)(struct file *, const char *, unsigned long, void *);
  #endif
  #ifndef pci_dev_b
    #define pci_dev_b(n) list_entry(n, struct pci_dev, bus_list)

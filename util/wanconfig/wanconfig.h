@@ -454,6 +454,7 @@ static key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
   { "RX_FIFO_TRIGGER",  smemof(wan_xilinx_conf_t, rx_fifo_trigger), DTYPE_USHORT },
   { "TX_FIFO_TRIGGER",  smemof(wan_xilinx_conf_t, tx_fifo_trigger), DTYPE_USHORT },
   { "GLOBAL_POLL_IRQ",  smemof(wan_xilinx_conf_t, global_poll_irq), DTYPE_UCHAR },
+  { "FE_SYNC_DISABLE",  smemof(wan_xilinx_conf_t, fe_sync_disable), DTYPE_UCHAR},
   { NULL, 0, 0 }
 };
 

@@ -831,7 +831,7 @@ void *process_con_tx(void *obj)
 			break;
 		}
 	}
-	log_printf("\nTx Unloading HDLC  %p\n",slot);
+	log_printf("\nTx Unloading HDLC  \n");
 
 thread_exit:
 

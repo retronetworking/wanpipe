@@ -482,17 +482,17 @@ int aft_bri_led_ctrl(sdla_t *card, int color, int led_pos, int on)
 		
 	case WAN_AFT_RED:
 		if (on){
-			wan_set_bit(red_bit,&reg);
+			wan_set_bit(red_bit,(volatile long *)&reg);
 		}else{
-			wan_clear_bit(red_bit,&reg);
+			wan_clear_bit(red_bit,(volatile long *)&reg);
 		}	
 		break;
 
 	case WAN_AFT_GREEN:
 		if (on){
-			wan_set_bit(green_bit,&reg);
+			wan_set_bit(green_bit,(volatile long *)&reg);
 		}else{
-			wan_clear_bit(green_bit,&reg);
+			wan_clear_bit(green_bit,(volatile long *)&reg);
 		}	
 		break;			
 	default:
@@ -534,7 +534,7 @@ int aft_bri_cpld0_set(sdla_t *card, int hwec_reset)
 	DEBUG_TEST("%s: Writing to CPLD0 0x%02X (REG=0x%08X)\n",
 		card->devname,cpld_reg,reg);
 
-	aft_bri_write_cpld(card,0x00,cpld_reg);
+	aft_bri_write_cpld(card,0x00,(unsigned short)cpld_reg);
 
 	return 0;
 }

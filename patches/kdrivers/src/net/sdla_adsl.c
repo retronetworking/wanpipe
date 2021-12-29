@@ -753,9 +753,11 @@ static void adsl_tx_timeout (netdevice_t *dev)
 	* that our device never stays busy more than 5 seconds. So this 
 	* is only used as a last resort.
 	*/
-#if defined(__LINUX__)
+# if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+	netif_trans_update(dev);
+# elif defined(__LINUX__)
 	dev->trans_start = SYSTEM_TICKS;
-#endif
+# endif
 	card->wandev.stats.collisions++;
 
 	adsl_timeout(card->u.adsl.adapter);
@@ -1223,7 +1225,9 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 		wpabs_skb_free(skb);
 		WAN_NETIF_START_QUEUE(dev);
 		card->wandev.stats.tx_carrier_errors++;
-#if defined(__LINUX__) || defined(__WINDOWS__)
+#if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+	netif_trans_update(dev);
+#elif defined(__LINUX__) || defined(__WINDOWS__)
 		dev->trans_start = SYSTEM_TICKS;
 		return 0;
 #else
@@ -1249,7 +1253,11 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 #endif
 
 #if defined(__LINUX__)
+# if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+	netif_trans_update(dev);
+# else
 	dev->trans_start = SYSTEM_TICKS;
+# endif
 	status = adsl_send(adsl->pAdapter, skb, 0);
 	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);	
 	if (status == 1){
@@ -1266,7 +1274,11 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 	}
 	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);	
 #elif defined(__WINDOWS__)
+# if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+	netif_trans_update(dev);
+# else
 	dev->trans_start = SYSTEM_TICKS;
+# endif
 	status = adsl_send(adsl->pAdapter, skb, 0);
 	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 	if (status == 1){
@@ -1499,7 +1511,11 @@ void adsl_tx_complete(void* dev_id, int length, int txStatus)
 	}
 
 #if defined(__LINUX__) || defined(__WINDOWS__)
+# if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+	netif_trans_update(ifp);
+# else
 	ifp->trans_start = SYSTEM_TICKS;
+# endif
 #endif
 
 #if defined(__WINDOWS__)
@@ -2036,7 +2052,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* netdev, adsl_private_
 		break;
 
 	case WANPIPEMON_GET_BIOS_ENCLOSURE3_SERIAL_NUMBER:
-		wan_udp_pkt->wan_udp_return_code = 
+		wan_udp_pkt->wan_udp_return_code = (unsigned char) 
 			wp_get_motherboard_enclosure_serial_number(wan_udp_pkt->wan_udp_data, 
 						sizeof(wan_udp_pkt->wan_udp_data));
 

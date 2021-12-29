@@ -87,6 +87,7 @@ int write_data_to_file(unsigned char *data,	unsigned int data_length);
 int sangoma_print_stats(sng_fd_t sangoma_dev);
 void cleanup(void);
 int handle_fe_rw (void);
+int sangoma_print_fe_stats(sng_fd_t sangoma_dev);
 
 #ifdef __WINDOWS__
 BOOL WINAPI TerminateHandler(DWORD dwCtrlType);
@@ -217,6 +218,65 @@ int sangoma_print_stats(sng_fd_t sangoma_dev)
 	}
 	printf("\tCPLD Version: %X\n",
 				cpld_ver);
+
+	return 0;
+}
+
+
+int sangoma_print_fe_stats(sng_fd_t sangoma_dev)
+{
+    int err;
+	wanpipe_api_t wp_api;
+	sdla_fe_stats_t fe_stats_struct;
+	sdla_fe_stats_t *fe_stats = &fe_stats_struct;
+	sdla_te_pmon_t pmon_struct;
+	sdla_te_pmon_t* pmon = &pmon_struct;
+	memset(&wp_api,0,sizeof(wp_api));
+
+#if 0
+	sangoma_reset_fe_stats(sangoma_dev, &wp_api);
+#endif
+
+	err=sangoma_get_fe_stats(sangoma_dev, &wp_api, pmon);
+	if (err) {
+		printf("sangoma_get_fe_stats(() failed (err: %d (0x%X))!\n", err, err);
+		return 1;
+	}
+
+	printf("\n******* FE STATISTICS *******\n");
+
+	printf("\n\n***** Performance Monitoring Counters *****\n\n");
+	if (pmon->mask & WAN_TE_BIT_PMON_LCV){
+		printf("Line Code Violation\t: %d\n",
+					pmon->lcv_errors);
+	}
+	if (pmon->mask & WAN_TE_BIT_PMON_BEE){
+		printf("Bit Errors (CRC6/Ft/Fs)\t: %d\n",
+					pmon->bee_errors);
+	}
+	if (pmon->mask & WAN_TE_BIT_PMON_OOF){
+		printf("Out of Frame Errors\t: %d\n",
+					pmon->oof_errors);
+	}
+	if (pmon->mask & WAN_TE_BIT_PMON_FEB){
+		printf("Far End Block Errors\t: %d\n",
+					pmon->feb_errors);
+	}
+	if (pmon->mask & WAN_TE_BIT_PMON_CRC4){
+		printf("CRC4 Errors\t\t: %d\n",
+					pmon->crc4_errors);
+	}
+	if (pmon->mask & WAN_TE_BIT_PMON_FER){
+		printf("Framing Bit Errors\t: %d\n",
+					pmon->fer_errors);
+	}
+	if (pmon->mask & WAN_TE_BIT_PMON_FAS){
+		printf("FAS Errors\t\t: %d\n",
+					pmon->fas_errors);
+	}
+	printf("Sync Errors\t\t: %d\n",
+					pmon->sync_errors);
+
 
 	return 0;
 }
@@ -972,6 +1032,8 @@ int open_sangoma_device()
 	sangoma_flush_bufs(dev_fd,&tdm_api);
 
 	sangoma_print_stats(dev_fd);
+	sangoma_print_fe_stats(dev_fd);
+
 
 
 	return err;

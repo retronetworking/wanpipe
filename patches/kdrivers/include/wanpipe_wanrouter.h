@@ -478,6 +478,7 @@ int wanpipe_wandev_create(void);
 int wanpipe_wandev_free(void);
 
 int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf, int user);
+int wan_device_del_if (wan_device_t *wandev, char *u_name, int user);
 int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf);
 int wan_device_setup (wan_device_t *wandev, wandev_conf_t *u_conf, int user);
 wan_device_t *wan_find_wandev_device(char *name);

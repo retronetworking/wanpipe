@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.20
+%define VERSION           7.0.21
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,6 +259,15 @@ fi
 ################################################################################
 
 %changelog
+* Tue Oct 4 2017 7.0.21
+==================================================================
+- Fix BRI intermittent frame loss or delay
+- Support for Kernel version 4.7+
+- BRI LINK activation logic update when hardhdlc is enable
+- Added verification for temporary storage
+- Setup and Makefile to support kernel version 4.7+
+- Fix tx timeout print undir tdm api data mode.
+
 
 * Mon May 19 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.20
 ==================================================================

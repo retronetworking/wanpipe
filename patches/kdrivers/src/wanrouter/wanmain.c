@@ -156,7 +156,6 @@ int wan_device_setup(wan_device_t *wandev, wandev_conf_t *u_conf, int user);
 static int wan_device_stat(wan_device_t *wandev, wandev_stat_t *u_stat);
 int wan_device_shutdown(wan_device_t *wandev, wandev_conf_t *u_conf);
 int wan_device_new_if(wan_device_t *wandev, wanif_conf_t *u_conf, int user);
-static int wan_device_del_if(wan_device_t *wandev, char *u_name);
 static int wan_device_debugging(wan_device_t *wandev);
 
 static int wan_device_new_if_lip(wan_device_t *wandev, wanif_conf_t *u_conf);
@@ -585,7 +584,7 @@ WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wanrouter_ioctl, struct file *file, unsigne
 
 	case ROUTER_IFDEL:
 		ADMIN_CHECK();
-		err = wan_device_del_if(wandev, (void*)arg);
+		err = wan_device_del_if(wandev, (void*)arg, 1);
 		break;
 		
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
@@ -1002,7 +1001,7 @@ wan_device_new_if_exit:
  *	 o copy configuration data to kernel address space
  */
 
-static int wan_device_del_if (wan_device_t *wandev, char *u_name)
+int wan_device_del_if (wan_device_t *wandev, char *u_name, int user)
 {
 	struct wan_dev_le	*devle;
 	netdevice_t		*dev=NULL;
@@ -1015,15 +1014,19 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
 	
 	memset(name, 0, sizeof(name));
 
-	if(copy_from_user(name, u_name, WAN_IFNAME_SZ))
-		return -EFAULT;
+	if (user) {
+		if(copy_from_user(name, u_name, WAN_IFNAME_SZ))
+			return -EFAULT;
+	} else {
+		memcpy(name, u_name, WAN_IFNAME_SZ);
+	}
 
 	WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 		dev = WAN_DEVLE2DEV(devle);
 		if (dev && !strcmp(name, wan_netif_name(dev))){
 			break;
 		}
-        }
+	}
 
 	if (devle == NULL || dev == NULL){
 		if ((dev = wan_dev_get_by_name(name)) == NULL){

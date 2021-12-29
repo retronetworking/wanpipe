@@ -285,8 +285,9 @@ typedef struct {
 	int		num_ports;			/* number of S and U interfaces */
 	int		max_fifo;			/* always 4 fifos per port */
 	u_int8_t	max_z;				/* fifo depth -1 */
-        
+
 	u32		fifo_irqmsk;
+	u32		prev_fifoirq;
 
 	bri_xhfc_port_t port[BRI_MAX_PORTS_PER_CHIP]; /* 2 ports - one for each Line intercace */
 
