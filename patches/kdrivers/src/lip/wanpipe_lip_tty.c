@@ -74,7 +74,10 @@ static void tty_poll_task (struct work_struct *work)
 		return;
 
 	while ((skb=wan_skb_dequeue(&lip_link->tty_rx)) != NULL){
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31))
+		const struct tty_ldisc_ops *ops = tty->ldisc->ops;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
 		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
 #else
 		const struct tty_ldisc *ops = &tty->ldisc;
@@ -93,7 +96,9 @@ static void tty_poll_task (struct work_struct *work)
 	wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
 	
 	if (err){
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31))
+		const struct tty_ldisc_ops *ops = tty->ldisc->ops;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
 		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
 #else
 		const struct tty_ldisc *ops = &tty->ldisc;
@@ -435,7 +440,9 @@ static void wanpipe_tty_flush_buffer(struct tty_struct *tty)
 	wake_up_interruptible(&tty->poll_wait);
 #endif
 	if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP))) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31))
+		const struct tty_ldisc_ops *ops = tty->ldisc->ops;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
 		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
 #else
 		const struct tty_ldisc *ops = &tty->ldisc;

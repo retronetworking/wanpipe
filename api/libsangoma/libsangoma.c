@@ -785,6 +785,26 @@ int sangoma_tdm_disable_rbs_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
 	return 0;
 }
 
+#ifdef WP_API_FEATURE_LOOP
+ 
+int sangoma_tdm_enable_loop(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
+{
+	int err;
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_ENABLE_LOOP;
+	err = sangoma_tdm_cmd_exec(fd, tdm_api);
+	return err;
+}      
+
+int sangoma_tdm_disable_loop(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
+{
+	int err;
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_DISABLE_LOOP;
+	err = sangoma_tdm_cmd_exec(fd, tdm_api);
+	return err;
+}      
+
+#endif
+
 int sangoma_tdm_write_rbs(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char rbs) 
 {
 	

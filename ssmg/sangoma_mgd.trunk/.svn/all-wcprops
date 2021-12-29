@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 35
-/svn/sangoma_mgd/!svn/ver/235/trunk
+/svn/sangoma_mgd/!svn/ver/254/trunk
 END
 sigboost.h
 K 25
@@ -19,7 +19,7 @@ sangoma_mgd.conf.sample
 K 25
 svn:wc:ra_dav:version-url
 V 59
-/svn/sangoma_mgd/!svn/ver/221/trunk/sangoma_mgd.conf.sample
+/svn/sangoma_mgd/!svn/ver/253/trunk/sangoma_mgd.conf.sample
 END
 sound.raw
 K 25
@@ -73,7 +73,7 @@ sangoma_mgd.c
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/234/trunk/sangoma_mgd.c
+/svn/sangoma_mgd/!svn/ver/255/trunk/sangoma_mgd.c
 END
 woomera.conf
 K 25
@@ -109,7 +109,7 @@ sangoma_mgd.h
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/222/trunk/sangoma_mgd.h
+/svn/sangoma_mgd/!svn/ver/253/trunk/sangoma_mgd.h
 END
 q931_cause.h
 K 25

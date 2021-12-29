@@ -1,6 +1,42 @@
 AFT A108dm Firmware Change Log
 ===============================
 
+Release V41
+-----------
+Feb 01 2010
+Type:		Recommended A108dm Firmware
+		Fixed PCIe dma timeouts.  On some new Dell/HP servers the PCIe timeouts
+		on dma transactions were causing PCI fatal error messages
+		in the logs.  This has now been fixed.
+
+
+
+Release V40
+-----------
+Dec 23 2009
+Type:		Recommended A108dm Firmware
+		Added a framery sync sanity check.  This check is now used by the latest
+		driver to monitor the health of the T1/E1 stream entering the FPGA.
+		In case of a resync driver will ensure that timeslot sync is maintained.
+
+		The latest driver 3.4.8/3.5.9 will use this hardware feature if its
+		available. If the firmware does not have this feature, a front end OOF
+		alarm will be used as a timeslot sync trigger.
+
+Changes:	Firmware bug fix
+		Recomended feature.
+
+Release V39
+-----------
+Oct 07 2009
+Type:		Recommended A108dm Firmware
+		Bug fix on hw echo canceller. On some machines it was possible for
+		echo canceller to start in a noisy mode. When in this mode all
+		channels would have noise on them.
+
+Changes:	Firmware bug fix
+        This firmware fixes the hwec startup procedure.
+
 Release V38
 -----------
 Aug 13 2009

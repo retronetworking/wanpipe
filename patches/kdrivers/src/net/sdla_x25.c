@@ -163,6 +163,8 @@
 
 #define MAX_X25_TRACE_QUEUE 100
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 /* Private critical flags */
 enum { 
 	POLL_CRIT = PRIV_CRIT 
@@ -1219,7 +1221,14 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		chan->network_number = 0xDEADBEEF;
 
 	/* prepare network device data space for registration */
-	dev->init = &if_init;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&x25_ioctl);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 
 	init_x25_channel_struct(chan);
 
@@ -1336,15 +1345,15 @@ static int if_init (netdevice_t* dev)
 	wan_device_t* wandev = &card->wandev;
 
 	/* Initialize device driver entry points */
-	dev->open		= &if_open;
-	dev->stop		= &if_close;
-	dev->hard_start_xmit	= &if_send;
-	dev->get_stats		= &if_stats;
-	dev->do_ioctl		= &x25_ioctl;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&x25_ioctl);
 
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
 	if (chan->common.usedby != API){
-		dev->tx_timeout		= &if_tx_timeout;
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 		dev->watchdog_timeo	= TX_TIMEOUT;
 	}
 #endif

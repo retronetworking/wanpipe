@@ -433,20 +433,29 @@ aft_chipcfg_get_a200_ec_channels(u32 reg)
 	return 0;
 }
 
+#define AFT_CHIPCFG_EC_CHIP_PRESENT_BIT 20
+
 static __inline u32
-aft_chipcfg_get_a600_ec_channels(u32 reg)
+aft_chipcfg_get_a600_ec_channels(u32 reg, u8 core_rev)
 {
-	switch ((reg>>AFT_CHIPCFG_A600_EC_SEC_KEY_SHIFT)&AFT_CHIPCFG_A600_EC_SEC_KEY_MASK){
-		case 0x00:
-			return 0;
-		case 0x01:
+	if (core_rev >= 3) {
+		if (wan_test_bit(AFT_CHIPCFG_EC_CHIP_PRESENT_BIT, &reg)) {
 			return 5;
-		default:
-			return 0;
+		}
+		return 0;
+	} else {
+		switch ((reg>>AFT_CHIPCFG_A600_EC_SEC_KEY_SHIFT) & AFT_CHIPCFG_A600_EC_SEC_KEY_MASK){
+			case 0x00:
+				return 0;
+			case 0x01:
+				return 5;
+			default:
+				return 0;
+		}
 	}
-	
 	return 0;
 }
+
 
 # define AFT_WDTCTRL_MASK		0xFF
 # define AFT_WDTCTRL_TIMEOUT 		75	/* ms */

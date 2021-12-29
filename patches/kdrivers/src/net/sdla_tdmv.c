@@ -102,6 +102,7 @@
 extern short *__zt_mulaw;
 #endif
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
 
 #if 0
 static unsigned char wp_tdmv_ulaw[] = {
@@ -2358,7 +2359,7 @@ static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan)
 		DEBUG_EVENT("%s: ERROR: TX HW DCHAN %d bytes (res %d)\n",
 					wp->devname, size, res);
 	}
-	err = wp->dchan_dev->hard_start_xmit(skb, wp->dchan_dev);
+	err = WAN_NETDEV_XMIT(skb, wp->dchan_dev);
 	if (err){
 		wan_skb_free(skb);
 	}

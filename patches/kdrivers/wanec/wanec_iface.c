@@ -443,7 +443,12 @@ static int wanec_enable(void *pcard, int enable, int fe_chan)
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
 
-	if (ec->state != WAN_EC_STATE_CHIP_OPEN){
+	if (ec->state != WAN_EC_STATE_CHIP_OPEN &&
+	    ec->state != WAN_EC_STATE_CHIP_READY){
+		if (WAN_NET_RATELIMIT()) {
+		DEBUG_EVENT("%s: Failed to enable ec chip is not ready!\n",
+			ec->name);
+		}
    		return -EINVAL; 		
 	}
 

@@ -88,6 +88,8 @@
 
 #undef _DBG_ANNEXG_
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 /* Private critical flags */
 enum { 
 	SEND_TXIRQ_CRIT = PRIV_CRIT,
@@ -944,7 +946,8 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		return err;
 	}
 
-	dev->init = NULL;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,NULL);
 	wan_netif_set_priv(dev, chan);
 
 	chan->dlci_state=0;
@@ -1096,15 +1099,15 @@ static int if_init (netdevice_t* dev)
          */
 
 	/* Initialize device driver entry points */
-	dev->open		= &if_open;
-	dev->stop		= &if_close;
-	dev->hard_start_xmit	= &if_send;
-	dev->get_stats		= &if_stats;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-	dev->tx_timeout		= &if_tx_timeout;
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 	dev->watchdog_timeo	= TX_TIMEOUT;
 #endif
-	dev->do_ioctl		= if_do_ioctl;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
 		
 	dev->hard_header_len = 0;
 	dev->addr_len = 2;

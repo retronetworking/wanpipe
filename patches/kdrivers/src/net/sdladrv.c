@@ -1877,6 +1877,8 @@ static int sdla_pcibridge_info(sdlahw_t* hw)
 #define AFT_CHIP_CFG_REG		0x40
 #define AFT_CHIPCFG_SFR_IN_BIT		2
 #define AFT_CHIPCFG_SFR_EX_BIT		1
+#define AFT_CHIPCFG_EC_CHIP_PRESENT_BIT 20
+
 #if !defined(__WINDOWS__)
 static 
 #endif
@@ -2054,8 +2056,12 @@ int sdla_get_hw_info(sdlahw_t* hw)
 				/* Delay for C2 Security to be done */
 				WP_DELAY(1000);
 				sdla_bus_read_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), &reg);
-				hwcard->hwec_chan_no = A600_ECCHAN((reg >> 4) & 0x3); 
-				
+				if (hwcard->core_rev < 3) {
+					hwcard->hwec_chan_no = A600_ECCHAN((reg >> 4) & 0x3); 
+				} else if (wan_test_bit(AFT_CHIPCFG_EC_CHIP_PRESENT_BIT, &reg)) {
+					hwcard->hwec_chan_no =  5;
+				}
+
 				if (hwcard->hwec_chan_no) {					
 					/* Clear octasic reset */
 					reg &= ~0x1000000;
@@ -2670,7 +2676,7 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 		}
 
 		number_of_cards++;
-		DEBUG_EVENT("%s: %s%s A600 card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
+		DEBUG_EVENT("%s: %s %s card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
 					wan_drvname,
 					hwcard->adptr_name,
 					AFT_PCITYPE_DECODE(hwcard),

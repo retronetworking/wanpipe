@@ -106,6 +106,9 @@
 #define MAX_TRACE_BUFFER	WAN_MAX_DATA_SIZE
 
 #define MAX_RX_QUEUE 100
+
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 /******Data Structures*****************************************************/
 
 /* This structure is placed in the private data area of the device structure.
@@ -903,7 +906,14 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	wan_netif_set_priv(dev, chan);
 	chan->dev=dev;
 #if defined(__LINUX__)
-	dev->init = &if_init;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
 #else
 	chan->common.iface.open      = &if_open;
         chan->common.iface.close     = &if_close;
@@ -1028,7 +1038,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 	 * We must manually remove the ioctl call binding
 	 * since in some cases (mrouted) daemons continue
 	 * to call ioctl() after the device has gone down */
-	dev->do_ioctl = NULL;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,NULL);
 #endif
 
 	if (chan->common.prot_ptr){
@@ -1092,12 +1102,12 @@ static int if_init (netdevice_t* dev)
          */
 
 	/* Initialize device driver entry points */
-	dev->open		= &if_open;
-	dev->stop		= &if_close;
-	dev->hard_start_xmit	= &if_send;
-	dev->get_stats		= &if_stats;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-	dev->tx_timeout		= &if_tx_timeout;
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 	dev->watchdog_timeo	= TX_TIMEOUT;
 #endif
 
@@ -1112,7 +1122,7 @@ static int if_init (netdevice_t* dev)
 	/* Overwrite the sppp ioctl, because we need to run
 	 * our debugging commands via ioctl(). However
 	 * call syncppp ioctl with in it :) */
-	dev->do_ioctl 		= &if_do_ioctl;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
 
 	/* Initialize hardware parameters */
 	dev->irq	= wandev->irq;

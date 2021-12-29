@@ -615,7 +615,8 @@ static int wp_tdmapi_open(struct inode *inode, struct file *file)
 	}
 	
 	file->private_data = tdm_api; 
-	
+	tdm_api->loop=0;
+
 	wan_spin_unlock(&tdm_api->lock);
 	wan_spin_unlock_irq(&wp_tdmapi_hash_lock,&flags);
 	
@@ -1021,9 +1022,9 @@ static int wp_tdmapi_release(struct inode *inode, struct file *file)
 
 	tdm_api->cfg.rbs_rx_bits=-1;
 	tdm_api->cfg.rbs_tx_bits=-1;
-	
+
 	tdm_api->cfg.rbs_poll=0;
-	
+
 	file->private_data=NULL;
 	
 	wan_spin_unlock(&tdm_api->lock);
@@ -1494,7 +1495,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		if (card && card->wandev.ec_enable && card->wandev.ec_dev) {
 			wan_smp_flag_t smp_flags1;
 			card->hw_iface.hw_lock(card->hw,&smp_flags1);   
-                	card->wandev.ec_enable(card, 1, tdm_api->tdm_chan);
+            err=card->wandev.ec_enable(card, 1, tdm_api->tdm_chan);
 			card->hw_iface.hw_unlock(card->hw,&smp_flags1);   
 		}
 		break;
@@ -1503,7 +1504,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		if (card && card->wandev.ec_enable && card->wandev.ec_dev) {
 			wan_smp_flag_t smp_flags1;
 			card->hw_iface.hw_lock(card->hw,&smp_flags1);   
-                	card->wandev.ec_enable(card, 0, tdm_api->tdm_chan);
+            err=card->wandev.ec_enable(card, 0, tdm_api->tdm_chan);
 			card->hw_iface.hw_unlock(card->hw,&smp_flags1);   
 		}
 		break;	
@@ -1514,6 +1515,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		} else {
 			usr_tdm_api.hw_dtmf = WANOPT_NO;
 		}
+		break;
+
+	case SIOC_WP_TDM_ENABLE_LOOP:
+		tdm_api->loop=1;
+		break;
+	
+	case SIOC_WP_TDM_DISABLE_LOOP:
+		tdm_api->loop=0;
 		break;
 		
 	case SIOC_WP_TDM_GET_STATS:
@@ -1534,23 +1543,37 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		usr_tdm_api.rbs_poll=HZ/usr_tdm_api.rbs_poll;
 		
 		tdm_api->cfg.rbs_poll = usr_tdm_api.rbs_poll;
-		if (card && card->wandev.fe_iface.set_fe_sigctrl){
-                 	card->wandev.fe_iface.set_fe_sigctrl(
+
+		if (card->u.aft.cfg.rbs) {
+			err=0;
+
+		} else if (card && card->wandev.fe_iface.set_fe_sigctrl){
+            err = card->wandev.fe_iface.set_fe_sigctrl(
 					&card->fe,
 					WAN_TE_SIG_POLL,
 					ENABLE_ALL_CHANNELS,
 					WAN_ENABLE);
+			if (err == 0) {
+				card->u.aft.cfg.rbs=1;
+			}
 		}
 		break;
 		
 	case SIOC_WP_TDM_DISABLE_RBS_EVENTS:	
 		tdm_api->cfg.rbs_poll=0;
-		if (card && card->wandev.fe_iface.set_fe_sigctrl){
-                 	card->wandev.fe_iface.set_fe_sigctrl(
-					&card->fe,
-					WAN_TE_SIG_POLL,
-					ENABLE_ALL_CHANNELS,
-					WAN_DISABLE);
+
+		if (card->u.aft.cfg.rbs == 0) {
+			err=0;
+			/* Do nothing */
+		} else if (card && card->wandev.fe_iface.set_fe_sigctrl){
+			err=card->wandev.fe_iface.set_fe_sigctrl(
+				&card->fe,
+				WAN_TE_SIG_POLL,
+				ENABLE_ALL_CHANNELS,
+				WAN_DISABLE);
+			if (err == 0) {
+				card->u.aft.cfg.rbs=0;
+			}
 		}
 		break;
 
@@ -2122,6 +2145,9 @@ int wanpipe_tdm_api_rx_tx (wanpipe_tdm_api_dev_t *tdm_api, u8 *rx_data, u8 *tx_d
 	wanpipe_tdm_api_rx (tdm_api, rx_data, tx_data, len);
 	wanpipe_tdm_api_tx (tdm_api, tx_data, len);
 
+	if (tdm_api->loop) {
+		memcpy(tx_data,rx_data,len);
+	}
 	
 	return 0;
 }

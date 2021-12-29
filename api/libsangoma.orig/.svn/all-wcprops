@@ -1,0 +1,209 @@
+K 25
+svn:wc:ra_dav:version-url
+V 33
+/svn/libsangoma/!svn/ver/22/trunk
+END
+configure
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/libsangoma/!svn/ver/11/trunk/configure
+END
+doxygen.config
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/libsangoma/!svn/ver/18/trunk/doxygen.config
+END
+Makefile.in
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/libsangoma/!svn/ver/21/trunk/Makefile.in
+END
+AUTHORS
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/libsangoma/!svn/ver/1/trunk/AUTHORS
+END
+libhpsangoma_priv.c
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/libsangoma/!svn/ver/18/trunk/libhpsangoma_priv.c
+END
+depcomp
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/libsangoma/!svn/ver/1/trunk/depcomp
+END
+compile
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/libsangoma/!svn/ver/1/trunk/compile
+END
+config.guess
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/libsangoma/!svn/ver/1/trunk/config.guess
+END
+libhpsangoma_priv.h
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/libsangoma/!svn/ver/18/trunk/libhpsangoma_priv.h
+END
+ltmain.sh
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/libsangoma/!svn/ver/1/trunk/ltmain.sh
+END
+config.sub
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/libsangoma/!svn/ver/1/trunk/config.sub
+END
+libsangoma.c
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/libsangoma/!svn/ver/12/trunk/libsangoma.c
+END
+libsangoma.dsp
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/libsangoma/!svn/ver/1/trunk/libsangoma.dsp
+END
+libsangoma.h
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/libsangoma/!svn/ver/11/trunk/libsangoma.h
+END
+g711.h
+K 25
+svn:wc:ra_dav:version-url
+V 39
+/svn/libsangoma/!svn/ver/1/trunk/g711.h
+END
+INSTALL
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/libsangoma/!svn/ver/1/trunk/INSTALL
+END
+libsangoma.dsw
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/libsangoma/!svn/ver/1/trunk/libsangoma.dsw
+END
+COPYING
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/libsangoma/!svn/ver/1/trunk/COPYING
+END
+NEWS
+K 25
+svn:wc:ra_dav:version-url
+V 37
+/svn/libsangoma/!svn/ver/1/trunk/NEWS
+END
+sangoma_pri.c
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/libsangoma/!svn/ver/1/trunk/sangoma_pri.c
+END
+libsangoma.so.conf
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/libsangoma/!svn/ver/1/trunk/libsangoma.so.conf
+END
+win_api_common.h
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/libsangoma/!svn/ver/1/trunk/win_api_common.h
+END
+sangoma_pri.h
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/libsangoma/!svn/ver/1/trunk/sangoma_pri.h
+END
+version
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/libsangoma/!svn/ver/1/trunk/version
+END
+libhpsangoma.c
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/libsangoma/!svn/ver/18/trunk/libhpsangoma.c
+END
+configure.in
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/libsangoma/!svn/ver/1/trunk/configure.in
+END
+ChangeLog
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/libsangoma/!svn/ver/1/trunk/ChangeLog
+END
+libhpsangoma.h
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/libsangoma/!svn/ver/18/trunk/libhpsangoma.h
+END
+README
+K 25
+svn:wc:ra_dav:version-url
+V 39
+/svn/libsangoma/!svn/ver/1/trunk/README
+END
+config.h.in
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/svn/libsangoma/!svn/ver/1/trunk/config.h.in
+END
+Makefile.am
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/libsangoma/!svn/ver/21/trunk/Makefile.am
+END
+missing
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/libsangoma/!svn/ver/1/trunk/missing
+END
+install-sh
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/libsangoma/!svn/ver/1/trunk/install-sh
+END
+libsangoma.vcproj
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/libsangoma/!svn/ver/1/trunk/libsangoma.vcproj
+END

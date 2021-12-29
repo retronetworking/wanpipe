@@ -181,6 +181,7 @@ typedef struct wanpipe_tdm_api_dev {
 #endif
 
 	uint8_t		dtmfsupport;
+	uint8_t		loop;
 	
 }wanpipe_tdm_api_dev_t;
 

@@ -1,35 +1,35 @@
 K 25
 svn:wc:ra_dav:version-url
-V 52
-/svn/libsangoma/!svn/ver/22/trunk/examples/hptdm_api
+V 63
+/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api
 END
 rebuild.sh
 K 25
 svn:wc:ra_dav:version-url
-V 63
-/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/rebuild.sh
+V 74
+/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/rebuild.sh
 END
 doxygen.config
 K 25
 svn:wc:ra_dav:version-url
-V 67
-/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/doxygen.config
+V 78
+/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/doxygen.config
 END
 aft_tdm_hp.c
 K 25
 svn:wc:ra_dav:version-url
-V 65
-/svn/libsangoma/!svn/ver/22/trunk/examples/hptdm_api/aft_tdm_hp.c
+V 76
+/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/aft_tdm_hp.c
 END
 aft_tdm_hp.h
 K 25
 svn:wc:ra_dav:version-url
-V 65
-/svn/libsangoma/!svn/ver/17/trunk/examples/hptdm_api/aft_tdm_hp.h
+V 76
+/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/aft_tdm_hp.h
 END
 Makefile
 K 25
 svn:wc:ra_dav:version-url
-V 61
-/svn/libsangoma/!svn/ver/22/trunk/examples/hptdm_api/Makefile
+V 72
+/svn/libsangoma/!svn/ver/254/branches/rel_34/examples/hptdm_api/Makefile
 END

@@ -116,6 +116,7 @@ enum {
  * 0=Remove Disabled
  */
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
 
 static int aft_rx_copyback=1000;
 
@@ -1009,10 +1010,16 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	 * can return an error */
 	wan_netif_set_priv(dev,chan);
 #if defined(__LINUX__)
-	dev->init = &if_init;
-# ifdef WANPIPE_GENERIC
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);	
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,if_do_ioctl);
+	WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,if_change_mtu);
 	if_init(dev);
-# endif
 #else
 	chan->common.is_netdev = 1;
 	chan->common.iface.open = &if_open;
@@ -1190,21 +1197,22 @@ static int if_init (netdevice_t* dev)
 #endif
 
 	/* Initialize device driver entry points */
-	dev->open		= &if_open;
-	dev->stop		= &if_close;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+
 #ifdef WANPIPE_GENERIC
 	hdlc		= dev_to_hdlc(dev);
 	hdlc->xmit 	= if_send;
 #else
-	dev->hard_start_xmit	= &if_send;
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
 #endif
-	dev->get_stats		= &if_stats;
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-	dev->tx_timeout		= &if_tx_timeout;
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 	dev->watchdog_timeo	= 2*HZ;
 #endif
-	dev->do_ioctl		= if_do_ioctl;
-	dev->change_mtu		= if_change_mtu;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,if_do_ioctl);
+	WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,if_change_mtu);
 
 	if (chan->common.usedby == BRIDGE ||
             chan->common.usedby == BRIDGE_NODE){

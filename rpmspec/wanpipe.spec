@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.4.8
+%define version           3.4.9
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -255,7 +255,27 @@ install_init;
 
 %changelog
 
-* Mon Nov 30 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.7.3
+* Wed Feb 17 2010 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.9
+================================================================================
+
+- New Firmware 
+  A108 - V41
+  A104/2/1 - V37
+  A200 - V13
+  Updates for latest PCIe latency specifications.
+
+- Support for Linux 2.6.31 and higher
+
+- BRI EC Bug fix introduced in 3.4.8 release.
+  The EC was not properly turned off on call stop
+  causing noise on the line of the multipoint setup.
+  Where there are multiple devices on a single bri line.
+
+- Support for B600 rev3 hwec detection.
+
+  
+
+* Wed Dec 30 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.8
 ================================================================================
 
 - Fixed RBS signalling for E1 channel 31

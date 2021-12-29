@@ -6,14 +6,14 @@
 	.long Oct6100PhasingTsstOpenDef + 163
 	.long Oct6100PhasingTsstOpenDef + 269
 	.long Oct6100PhasingTsstOpenDef + 311
-	.long Oct6100PhasingTsstOpenDef + 381
-	.long Oct6100PhasingTsstOpenDef + 494
-	.long Oct6100PhasingTsstOpenDef + 582
-	.long Oct6100PhasingTsstOpenDef + 662
-	.long Oct6100PhasingTsstOpenDef + 839
-	.long Oct6100PhasingTsstOpenDef + 922
-	.long Oct6100PhasingTsstOpenDef + 1032
-	.long Oct6100PhasingTsstOpenDef + 1202
-	.long Oct6100PhasingTsstOpenDef + 1276
-	.long Oct6100PhasingTsstOpenDef + 1376
-	.long Oct6100PhasingTsstOpenDef + 1467
+	.long Oct6100PhasingTsstOpenDef + 379
+	.long Oct6100PhasingTsstOpenDef + 492
+	.long Oct6100PhasingTsstOpenDef + 580
+	.long Oct6100PhasingTsstOpenDef + 660
+	.long Oct6100PhasingTsstOpenDef + 837
+	.long Oct6100PhasingTsstOpenDef + 919
+	.long Oct6100PhasingTsstOpenDef + 1031
+	.long Oct6100PhasingTsstOpenDef + 1201
+	.long Oct6100PhasingTsstOpenDef + 1275
+	.long Oct6100PhasingTsstOpenDef + 1375
+	.long Oct6100PhasingTsstOpenDef + 1465

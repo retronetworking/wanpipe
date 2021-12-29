@@ -45,7 +45,9 @@ enum {
 	TX_BUSY,
 	RX_BUSY,
 	TASK_POLL,
-	CARD_DOWN
+	CARD_DOWN,
+	CARD_PORT_TASK_DOWN,
+	CARD_PORT_TASK_RUNNING
 };
 
 enum wp_device_down_states{ 
@@ -98,6 +100,7 @@ static int aft_rx_copyback=1000;
 #include "xmtp2km_kiface.h"
 #endif
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
 
 /******Data Structures*****************************************************/
 
@@ -113,14 +116,14 @@ typedef struct private_area
 	wan_skb_queue_t 	wp_tx_free_list;
 	wan_skb_queue_t 	wp_tx_pending_list;
 	wan_skb_queue_t 	wp_tx_complete_list;
-	netskb_t 		*tx_dma_skb;
-	u8			tx_dma_cnt;
+	netskb_t 			*tx_dma_skb;
+	u8					tx_dma_cnt;
 
 	wan_skb_queue_t 	wp_rx_free_list;
 	wan_skb_queue_t 	wp_rx_complete_list;
-	netskb_t 		*rx_dma_skb;
+	netskb_t 			*rx_dma_skb;
 
-	u32	 		time_slot_map;
+	u32	 				time_slot_map;
 	unsigned char 		num_of_time_slots;
 	long          		logic_ch_num;
 
@@ -130,7 +133,7 @@ typedef struct private_area
 
 	struct net_device_stats	if_stats;
 
-	int 		tracing_enabled;		/* For enabling Tracing */
+	int 			tracing_enabled;		/* For enabling Tracing */
 	wan_time_t		router_start_time;	/*unsigned long 	router_start_time;*/
 	unsigned long   trace_timeout;
 
@@ -158,9 +161,9 @@ typedef struct private_area
 	struct proc_dir_entry	*dent;
 
 	unsigned char 	udp_pkt_data[sizeof(wan_udp_pkt_t)+10];
-	atomic_t 	udp_pkt_len;
+	atomic_t 		udp_pkt_len;
 
-	char 		if_name[WAN_IFNAME_SZ+1];
+	char 			if_name[WAN_IFNAME_SZ+1];
 
 	u8		idle_flag;
 	u16		max_idle_size;
@@ -172,8 +175,8 @@ typedef struct private_area
 	int		first_time_slot;
 	
 	netskb_t  	*tx_idle_skb;
-	u32		tx_dma_addr;
-	u32		tx_dma_len;
+	u32			tx_dma_addr;
+	u32			tx_dma_len;
 	unsigned char	rx_dma;
 	unsigned char   pci_retry;
 	
@@ -185,7 +188,7 @@ typedef struct private_area
 	int		mru;
 	int		mtu;
 
-	void *		prot_ch;
+	void *	prot_ch;
 	int		prot_state;
 
 	wan_trace_t	trace_info;
@@ -213,6 +216,7 @@ typedef struct private_area
 	unsigned int		max_tx_bufs;
 
 	int xmtp2_api_index;
+	unsigned char		rbsbits;
 
 	struct private_area	*next;
 }private_area_t;
@@ -263,7 +267,8 @@ static int	wan_aft_output(netdevice_t*, netskb_t*, struct sockaddr*,
 				struct rtentry*);
 #endif
 
-static void 	handle_front_end_state(void* card_id);
+static void		handle_front_end_state(void* card_id);
+static void 	callback_front_end_state(void *card_id);
 static void 	enable_timer(void* card_id);
 static void 	wanpipe_xilinx_tx_timeout (netdevice_t* dev);
 
@@ -367,7 +372,8 @@ static void 	aft_unmap_tx_dma(sdla_t *card, private_area_t *chan);
 
 static int 	channel_timeslot_sync_ctrl(sdla_t *card, private_area_t * chan, int enable);
 static int 	rx_chan_timeslot_sync_ctrl(sdla_t *card,int start);
-static void 	aft_report_rbsbits(void* pcard, int channel, unsigned char status);
+static void aft_report_rbsbits(void* pcard, int channel, unsigned char status);
+static void aft_poll_rbsbits(sdla_t *card);
 
 static int 	aft_realign_skb_pkt(private_area_t *chan, netskb_t *skb);
 
@@ -528,6 +534,7 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 		}
 	}
 
+
 	/* TE1 Make special hardware initialization for T1/E1 board */
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 
@@ -544,7 +551,7 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 		
 		card->wandev.te_report_rbsbits = aft_report_rbsbits;
 		card->wandev.fe_enable_timer = enable_timer;
-		card->wandev.te_link_state = handle_front_end_state;
+		card->wandev.te_link_state = callback_front_end_state;
 		
 		if (card->fe.fe_cfg.cfg.te_cfg.te_clock == WAN_NORMAL_CLK){
 			/* If using normal clocking disable 
@@ -558,6 +565,14 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 		if (card->wandev.comm_port == WANOPT_PRI){
 			conf->clocking = WANOPT_EXTERNAL;
 		}
+
+		if (IS_E1_CARD(card) && WAN_TE1_SIG_MODE(&card->fe) == WAN_TE1_SIG_CCS){
+			if (card->u.aft.cfg.rbs) {
+				DEBUG_EVENT("%s: Warning: Cannot enable rbs on E1 CCS line. Please remove RBS=YES in %s.conf\n",
+					card->devname,card->devname);
+				card->u.aft.cfg.rbs=0;
+			}
+		} 	
 		
 	}else{
 		DEBUG_EVENT("%s: Error: Unknown Front end cfg 0x%X (T1/E1)\n",
@@ -640,6 +655,8 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 		return -EINVAL;
 	}
 
+	__sdla_push_ptr_isr_array(card->hw,card,WAN_FE_LINENO(&card->fe));
+
 	write_cpld(card,LED_CONTROL_REG,0x0E);
 
 	
@@ -654,10 +671,11 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 
 	xilinx_delay(1);
 #if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-        card->isr = &wp_xilinx_isr;
+	card->isr = &wp_xilinx_isr;
 	err=xilinx_chip_configure(card);
 	if (err){
 		xilinx_chip_unconfigure(card);
+		__sdla_pull_ptr_isr_array(card->hw,card,WAN_FE_LINENO(&card->fe));
 		return err;
 	}
 #endif
@@ -695,7 +713,7 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 	
 	DEBUG_EVENT("\n");
 
-    	err=aft_tdmv_init(card,conf);
+	err=aft_tdmv_init(card,conf);
 	if (err){
 		disable_comm(card);
 		return err;
@@ -1505,7 +1523,14 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	
 
 #if defined(__LINUX__)
-	dev->init = &if_init;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);	
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wanpipe_xilinx_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wanpipe_xilinx_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wanpipe_xilinx_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wanpipe_xilinx_ifstats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wanpipe_xilinx_tx_timeout);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,wanpipe_xilinx_ioctl);
 # ifdef CONFIG_PRODUCT_WANPIPE_GENERIC
 	if_init(dev);
 # endif
@@ -1870,21 +1895,22 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 #if defined(__LINUX__)
 # ifndef CONFIG_PRODUCT_WANPIPE_GENERIC
-	dev->open		= &wanpipe_xilinx_open;
-	dev->stop		= &wanpipe_xilinx_close;
-	dev->hard_start_xmit	= &wanpipe_xilinx_send;
-	dev->get_stats		= &wanpipe_xilinx_ifstats;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wanpipe_xilinx_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wanpipe_xilinx_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wanpipe_xilinx_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wanpipe_xilinx_ifstats);
+
 #  if defined(LINUX_2_4)||defined(LINUX_2_6)
 	if (chan->common.usedby == TDM_VOICE ||
 	    chan->common.usedby == TDM_VOICE_DCHAN ||
 	    chan->common.usedby == TDM_VOICE_API) {
-		dev->tx_timeout		= NULL;	
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,NULL);
 	} else {
-		dev->tx_timeout		= &wanpipe_xilinx_tx_timeout;
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wanpipe_xilinx_tx_timeout);
 	}
        	dev->watchdog_timeo	= 2*HZ;
 #  endif
-	dev->do_ioctl		= wanpipe_xilinx_ioctl;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,wanpipe_xilinx_ioctl);
 # endif
 
 	if (chan->common.usedby == BRIDGE ||
@@ -2121,6 +2147,14 @@ static int wanpipe_xilinx_close (netdevice_t* dev)
 	return 0;
 }
 
+/* Wait for 100 ms hardcoded */
+static void disable_comm_delay(void)
+{
+        unsigned long timeout=SYSTEM_TICKS;
+        while ((SYSTEM_TICKS-timeout)< (HZ/10)){
+                WP_SCHEDULE(10,"disable_comm_delay");
+        }
+}
 
 /*=============================================================
  * disable_comm - Main shutdown function
@@ -2141,7 +2175,20 @@ static int wanpipe_xilinx_close (netdevice_t* dev)
 static void disable_comm (sdla_t *card)
 {
 	wan_smp_flag_t	flags;
-	
+	int port_task_timeout=0;
+
+	/* Make sure that Task is disabled for this card */
+	wan_set_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical);
+
+	while (wan_test_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical)) {
+		disable_comm_delay();	/* 100 ms */
+		port_task_timeout++;
+		if (port_task_timeout > 20) {
+			DEBUG_EVENT("%s: Warning: Port Task stuck! timing out!\n",card->devname);
+			break;
+		}
+	}
+
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
 		wan_smp_flag_t smp_flags,smp_flags1;
@@ -2165,6 +2212,8 @@ static void disable_comm (sdla_t *card)
 	disable_data_error_intr(card,DEVICE_DOWN);
 
 	wan_set_bit(CARD_DOWN,&card->wandev.critical);
+
+	__sdla_pull_ptr_isr_array(card->hw,card,WAN_FE_LINENO(&card->fe));
 
 	wan_spin_unlock_irq(&card->wandev.lock,&flags);
 
@@ -4080,6 +4129,15 @@ static void xilinx_dma_rx_complete (sdla_t *card, private_area_t *chan)
 			chan->if_stats.rx_dropped++;
 		}
 	}else{
+
+		if ((SYSTEM_TICKS - card->u.aft.rbs_timeout) > HZ/50) {
+		 	card->u.aft.rbs_timeout = SYSTEM_TICKS;
+			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+				wan_set_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+			}
+		}
+
 		wan_skb_queue_tail(&chan->wp_rx_complete_list,skb);
 		WAN_TASKLET_SCHEDULE(&chan->common.bh_task);
 	}
@@ -4463,8 +4521,10 @@ static void enable_timer (void* card_id)
 	sdla_t	*card = (sdla_t*)card_id;
 
 #if defined(__LINUX__)
-	wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
-	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+	if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+		wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
+		WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+	}
 #else	
 	wan_smp_flag_t	smp_flags;
 	int		delay = 0;
@@ -4886,20 +4946,48 @@ static int fifo_error_interrupt(sdla_t *card, u32 reg,u32 tx_status,u32 rx_statu
 	return err;
 }
 
-
-static void front_end_interrupt(sdla_t *card, unsigned long reg,int lock)
+static void front_end_interrupt(sdla_t *card, unsigned long reg, int lock)
 {
-	DEBUG_ISR("%s: front_end_interrupt!\n",card->devname);
+	void **card_list;
+	u32 max_number_of_ports, i;
+	sdla_t	*tmp_card;
+   	wan_smp_flag_t smp_flags;
 
-	card->wandev.fe_iface.isr(&card->fe);
-	if (lock){
-		wan_smp_flag_t smp_flags;
-		wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
-		handle_front_end_state(card);
-		wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
-	}else{
-		handle_front_end_state(card);
+	max_number_of_ports = 8; /* 24 */
+
+	
+	card_list=__sdla_get_ptr_isr_array(card->hw);
+
+	DEBUG_TEST("%s(): card_list ptr: 0x%p\n", __FUNCTION__, card_list);
+
+	for (i=0; i<max_number_of_ports; i++) {
+ 
+		tmp_card=(sdla_t*)card_list[i];
+		if (tmp_card == NULL || wan_test_bit(CARD_DOWN,&tmp_card->wandev.critical)) {
+			continue;
+		} 
+			
+		DEBUG_TEST("%s(): card ptr: %s, tmp_card ptr: %s\n", __FUNCTION__, card->devname, tmp_card->devname);
+
+		if (tmp_card->wandev.fe_iface.check_isr && 
+		    tmp_card->wandev.fe_iface.check_isr(&tmp_card->fe)) {
+
+			if (tmp_card->wandev.fe_iface.isr &&
+		            tmp_card->wandev.fe_iface.isr(&tmp_card->fe)) {
+	
+				if (lock) {
+					wan_spin_lock_irq(&tmp_card->wandev.lock,&smp_flags);
+					handle_front_end_state(tmp_card);
+					wan_spin_unlock_irq(&tmp_card->wandev.lock,&smp_flags);
+				} else {
+					/* This section should never happen becaues all front end
+					   interrupts are running from port task */
+					handle_front_end_state(tmp_card);
+				}
+			}
+		}
 	}
+
 	return;
 }
 
@@ -4964,22 +5052,29 @@ static WAN_IRQ_RETVAL wp_xilinx_isr (sdla_t* card)
          * is being shared.  (Check 'cat /proc/interrupts') 
 	 */
 
-        if (wan_test_bit(FRONT_END_INTR_ENABLE_BIT,&reg)){
-		if (wan_test_bit(FRONT_END_INTR_FLAG,&reg)){
-#if defined(__LINUX__)
-			if (card->wandev.fe_iface.check_isr &&
-			    card->wandev.fe_iface.check_isr(&card->fe)){
-				wan_set_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
-				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+	if (wan_test_bit(FRONT_END_INTR_ENABLE_BIT,&reg)) {
+		if (wan_test_bit(FRONT_END_INTR_FLAG,&reg)) {
 
+			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+				/* Only execute front end interrupt on very first card
+				   In the list. This way we do not get into a race condition
+				   between port task on wanpipe1 versus trigger from wanpipe2.
+				   Since Front end interrupt is global interrupt per card */
+				DEBUG_TEST("%s: TRIGGERING FE INTERRUPT\n",card->devname);
+				wan_set_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
 				__aft_fe_intr_ctrl(card,0);
+
+				card->front_end_irq_timeout=SYSTEM_TICKS;
+
+				/* NC: Bug fix: We must update the reg value since it
+					was changed in fe_intr_ctrl */
+				__sdla_bus_read_4(card->hw,XILINX_CHIP_CFG_REG, &reg);
 			}
-#else
-              		front_end_interrupt(card,reg,0);
-#endif
+
 			WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 		}
-        }
+	}
 
 	/* Test Fifo Error Interrupt,
 	 * If set shutdown all interfaces and
@@ -5520,6 +5615,33 @@ static void port_set_state (sdla_t *card, int state)
         }
 }
 
+
+/*============================================================
+ * callback_front_end_state
+ * 
+ * Called by front end code to indicate that state has
+ * changed. We will call the poll task to update the state.
+ */
+
+static void callback_front_end_state(void *card_id)
+{	
+	sdla_t		*card = (sdla_t*)card_id;
+
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
+		return;
+	}
+
+	if (wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)){
+		return;
+	}
+
+	/* Call the poll task to update the state */
+	wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
+	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+
+	return;
+}
+
 /*============================================================
  * handle_front_end_state
  *
@@ -5582,8 +5704,10 @@ static void handle_front_end_state(void *card_id)
 			aft_red_led_ctrl(card, AFT_LED_OFF);
 			card->wandev.fe_iface.led_ctrl(&card->fe, AFT_LED_ON);
 
-			if (card->u.aft.cfg.rbs){
+			if (card->u.aft.cfg.rbs == 1){
+				card->u.aft.cfg.rbs++;
 				if (card->wandev.fe_iface.set_fe_sigctrl){
+					DEBUG_EVENT("%s: Enabling rbs for all channels !\n",card->devname);
 					card->wandev.fe_iface.set_fe_sigctrl(
 								&card->fe,
 								WAN_TE_SIG_INTR,
@@ -5612,7 +5736,7 @@ static void handle_front_end_state(void *card_id)
 				card->devname);
 		}
 
-	}else{
+	} else {
 
 		if (card->tdmv_conf.span_no){
 			/* If running in TDMV voice mode, just note
@@ -6764,14 +6888,13 @@ static int rx_chan_timeslot_sync_ctrl(sdla_t *card, int start)
 	return 0;
 }
 
-static int send_rbs_oob_msg (sdla_t *card, private_area_t *chan, int channel, int status)
+static int send_rbs_oob_msg (sdla_t *card, private_area_t *chan, int channel, unsigned char status)
 {
 #if defined(__LINUX__)
 	unsigned char *buf;
 	api_rx_hdr_t *api_rx_el;
 	struct sk_buff *skb;
 	int err=0, len=5;
-	unsigned char signal=0;
 
 	if (chan->common.usedby != API){
 		return -ENODEV;
@@ -6805,7 +6928,7 @@ This conversion is done in te1 sources.
 	if (status & BIT_SIGX_D) signal |= WAN_RBS_SIG_D;
 #endif
 
-	buf[0]=signal;
+	buf[0]=status;
 
 	skb->pkt_type = WAN_PACKET_ERR;
 	skb->protocol=htons(PVC_PROT);
@@ -6827,20 +6950,34 @@ This conversion is done in te1 sources.
 #endif
 }
 
+static void aft_poll_rbsbits(sdla_t *card)
+{
+	int i;
+
+	for (i=0; i<card->u.aft.num_of_time_slots ;i++){
+
+		if (!wan_test_bit(i,&card->u.aft.time_slot_map)){
+			continue;
+		}
+
+		card->wandev.fe_iface.read_rbsbits(
+					&card->fe,
+					i+1,
+					WAN_TE_RBS_UPDATE|WAN_TE_RBS_REPORT);
+	}
+}
+
 
 static void aft_report_rbsbits(void* pcard, int channel, unsigned char status)
 {
 	sdla_t *card=(sdla_t *)pcard;
 	int i;
 
-	DEBUG_TEST("%s: Report Ch=%i Status=0x%X\n",
-		card->devname,channel,status);
-	
-	if (!wan_test_bit(channel-1, &card->u.aft.time_slot_map)){
+	if (!wan_test_bit(channel-1, &card->u.aft.time_slot_map)) {
 		return;
 	}
 
-	for (i=0; i<card->u.aft.num_of_time_slots;i++){
+	for (i=0; i<card->u.aft.num_of_time_slots;i++) {
 		private_area_t *chan;
 
 		if (!wan_test_bit(i,&card->u.aft.logic_ch_map)){
@@ -6859,6 +6996,15 @@ static void aft_report_rbsbits(void* pcard, int channel, unsigned char status)
 		if (!wan_test_bit(channel-1, &chan->time_slot_map)){
 			continue;
 		}	
+
+		if (chan->rbsbits == status) {
+			continue;
+		}
+
+		chan->rbsbits = status;
+
+		DEBUG_TEST("%s: Report FirstTs=%i Ch=%i Status=0x%X TSMAP=0x%X\n",
+				card->devname,chan->first_time_slot, channel,status,card->u.aft.time_slot_map);
 
 		send_rbs_oob_msg (card, chan, channel, status);
 		break;
@@ -6968,8 +7114,10 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan, netskb_t *skb)
 			if (card->wan_tdmv.sc){
 				WAN_TDMV_CALL(is_rbsbits, (&card->wan_tdmv), err);
 				if (err == 1){
-					wan_set_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
-					WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+					if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+						wan_set_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
+						WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+					}	
 				}
 			}
 #endif
@@ -7077,7 +7225,7 @@ static void aft_port_task (void * card_ptr, int arg)
 {
 #if defined(__LINUX__)
 # if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
-        sdla_t 		*card = (sdla_t *)container_of(work, sdla_t, u.aft.port_task);
+	sdla_t 		*card = (sdla_t *)container_of(work, sdla_t, u.aft.port_task);
 # else
 	sdla_t 		*card = (sdla_t *)card_ptr;
 # endif
@@ -7086,9 +7234,19 @@ static void aft_port_task (void * card_ptr, int arg)
 #endif 
 	wan_smp_flag_t	smp_flags;
 
-	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
+
+	wan_set_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
+
+	if (wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)){
+		wan_clear_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
 		return;
 	}
+
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
+		wan_clear_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
+		return;
+	}
+
 
 	DEBUG_TEST("%s: AFT PORT TASK CMD=0x%X!\n",
 			card->devname,card->u.aft.port_task_cmd);
@@ -7123,18 +7281,29 @@ static void aft_port_task (void * card_ptr, int arg)
 		wan_clear_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
 	}
 
-#ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
+
 	if (wan_test_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd)){
 		int	err;
 		aft_fe_intr_ctrl(card, 0);
-		WAN_TDMV_CALL(rbsbits_poll, (&card->wan_tdmv, card), err);
+
+#ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
+		if (card->wan_tdmv.sc) {
+			WAN_TDMV_CALL(rbsbits_poll, (&card->wan_tdmv, card), err);
+		} 
+#endif
+
+		if (card->u.aft.cfg.rbs && !card->u.aft.global_tdm_irq) {
+			aft_poll_rbsbits(card);
+		}
+
 		aft_fe_intr_ctrl(card, 1);
 		wan_clear_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
 	}
-#endif
 
 
 	card->hw_iface.hw_unlock(card->hw,&smp_flags);
+
+	wan_clear_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
 }
 
 

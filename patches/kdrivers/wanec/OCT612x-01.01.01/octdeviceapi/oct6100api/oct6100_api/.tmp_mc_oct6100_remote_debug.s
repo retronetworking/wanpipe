@@ -12,10 +12,10 @@
 	.long Oct6100RemoteDebugDef + 1103
 	.long Oct6100RemoteDebugDef + 1286
 	.long Oct6100RemoteDebugDef + 1406
-	.long Oct6100RemoteDebugDef + 1667
-	.long Oct6100RemoteDebugDef + 1867
-	.long Oct6100RemoteDebugDef + 2596
-	.long Oct6100RemoteDebugDef + 2911
-	.long Oct6100RemoteDebugDef + 3151
-	.long Oct6100RemoteDebugDef + 3661
-	.long Oct6100RemoteDebugDef + 3766
+	.long Oct6100RemoteDebugDef + 1656
+	.long Oct6100RemoteDebugDef + 1856
+	.long Oct6100RemoteDebugDef + 2585
+	.long Oct6100RemoteDebugDef + 2900
+	.long Oct6100RemoteDebugDef + 3140
+	.long Oct6100RemoteDebugDef + 3650
+	.long Oct6100RemoteDebugDef + 3755

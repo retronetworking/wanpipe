@@ -21,6 +21,8 @@
 #include <linux/wanpipe_lip.h>
 #endif
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)	
+
 /*=============================================================
  * Definitions
  */
@@ -944,7 +946,7 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
         	dev->tx_queue_len=lip_link->latency_qlen;
 	}  
 
-	return dev->hard_start_xmit(skb,dev);
+	return WAN_NETDEV_XMIT(skb,dev);
 #else
 	if (!(WAN_NETIF_QUEUE_STOPPED(dev)) && dev->if_output){
  		return dev->if_output(dev, skb, NULL,NULL);
@@ -992,8 +994,8 @@ int wplip_change_mtu(netdevice_t *dev, int new_mtu)
 		return -ENODEV;
 	}	
 
-	if (hw_dev->change_mtu) {
-		err = hw_dev->change_mtu(hw_dev,new_mtu);
+	if (WAN_NETDEV_TEST_MTU(hw_dev)) {
+		err = WAN_NETDEV_CHANGE_MTU(hw_dev,new_mtu);
 	} 
 		
 	if (err == 0) {

@@ -1,6 +1,14 @@
 AFT A101dm Firmware Change Log
 =============================
 
+Release V37
+-----------
+Feb 22 2010
+Type:	Recommended A101dm Firmware
+		Fixed PCIe dma timeouts.  On some new Dell/HP servers the PCIe timeouts
+		on dma transactions were causing PCI fatal error messages
+		in the logs.  This has now been fixed.
+
 Release V36
 -----------
 Aug 13 2009

@@ -6,14 +6,14 @@
 	.long Oct6100AdpcmChanOpenDef + 308
 	.long Oct6100AdpcmChanOpenDef + 435
 	.long Oct6100AdpcmChanOpenDef + 477
-	.long Oct6100AdpcmChanOpenDef + 547
-	.long Oct6100AdpcmChanOpenDef + 745
-	.long Oct6100AdpcmChanOpenDef + 937
-	.long Oct6100AdpcmChanOpenDef + 1094
-	.long Oct6100AdpcmChanOpenDef + 1381
-	.long Oct6100AdpcmChanOpenDef + 1706
-	.long Oct6100AdpcmChanOpenDef + 2064
-	.long Oct6100AdpcmChanOpenDef + 2203
-	.long Oct6100AdpcmChanOpenDef + 2277
-	.long Oct6100AdpcmChanOpenDef + 2377
-	.long Oct6100AdpcmChanOpenDef + 2468
+	.long Oct6100AdpcmChanOpenDef + 545
+	.long Oct6100AdpcmChanOpenDef + 744
+	.long Oct6100AdpcmChanOpenDef + 936
+	.long Oct6100AdpcmChanOpenDef + 1093
+	.long Oct6100AdpcmChanOpenDef + 1380
+	.long Oct6100AdpcmChanOpenDef + 1705
+	.long Oct6100AdpcmChanOpenDef + 2052
+	.long Oct6100AdpcmChanOpenDef + 2191
+	.long Oct6100AdpcmChanOpenDef + 2265
+	.long Oct6100AdpcmChanOpenDef + 2365
+	.long Oct6100AdpcmChanOpenDef + 2455

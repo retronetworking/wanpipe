@@ -84,6 +84,19 @@ typedef HANDLE sng_fd_t;
 #define FUNC_DBG(x)		if(0)printf("%s:%d\n", x, __LINE__)
 #define DBG_PRINT		if(1)printf
 
+/*!
+   \def	SANGOMA_DECLARE_TDM_API_CMD
+   \brief Instantiate/Declare a tdm api cmd strucure
+   \def SANGOMA_INIT_TDM_API_CMD
+   \brief Initialize the tdm api cmd structure. Set to 0.
+   \def SANGOMA_DECLARE_INIT_TDM_API_CMD
+   \brief Declare and initialize the tdm api cmd structure.
+*/
+#define SANGOMA_DECLARE_TDM_API_CMD(_name_)  		wanpipe_tdm_api_t _name_
+#define SANGOMA_INIT_TDM_API_CMD(_name_) 			memset(&_name_,0,sizeof(_name_)) 
+#define SANGOMA_DECLARE_INIT_TDM_API_CMD(_name_)  	SANGOMA_DECLARE_TDM_API_CMD(_name_); SANGOMA_INIT_TDM_API_CMD(_name_)
+
+
 typedef wp_tdm_api_rx_hdr_t sangoma_api_hdr_t;
 
 /* Decodec Span/Chan from interface name */
@@ -223,6 +236,27 @@ int sangoma_tdm_get_hw_dtmf(int fd, wanpipe_tdm_api_t *tdm_api);
 #define LIBSANGOMA_TDMAPI_CTRL 1
 #endif
 int sangoma_open_tdmapi_ctrl(void);
+
+
+#ifdef WP_API_FEATURE_LOOP
+/*!
+  \fn int sangoma_tdm_enable_loop(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Enable channel loop: All rx data will be transmitted back out.
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero = error, 0 = ok
+*/ 
+int sangoma_tdm_enable_loop(int fd, wanpipe_tdm_api_t *tdm_api);
+
+/*!
+  \fn int sangoma_tdm_disable_loop(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Disable channel loop
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero = error, 0 = ok
+*/
+int sangoma_tdm_disable_loop(int fd, wanpipe_tdm_api_t *tdm_api);    
+#endif
 
 #endif 	/* WANPIPE_TDM_API */
 

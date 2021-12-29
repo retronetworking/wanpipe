@@ -5,9 +5,9 @@
 	.long Oct6100ApiBufferPlayoutMemorySwInit + 358
 	.long Oct6100ApiBufferPlayoutMemorySwInit + 436
 	.long Oct6100ApiBufferPlayoutMemorySwInit + 971
-	.long Oct6100ApiBufferPlayoutMemorySwInit + 1373
-	.long Oct6100ApiBufferPlayoutMemorySwInit + 1411
-	.long Oct6100ApiBufferPlayoutMemorySwInit + 1477
-	.long Oct6100ApiBufferPlayoutMemorySwInit + 1546
-	.long Oct6100ApiBufferPlayoutMemorySwInit + 1650
-	.long Oct6100ApiBufferPlayoutMemorySwInit + 1765
+	.long Oct6100ApiBufferPlayoutMemorySwInit + 1378
+	.long Oct6100ApiBufferPlayoutMemorySwInit + 1416
+	.long Oct6100ApiBufferPlayoutMemorySwInit + 1484
+	.long Oct6100ApiBufferPlayoutMemorySwInit + 1551
+	.long Oct6100ApiBufferPlayoutMemorySwInit + 1653
+	.long Oct6100ApiBufferPlayoutMemorySwInit + 1768

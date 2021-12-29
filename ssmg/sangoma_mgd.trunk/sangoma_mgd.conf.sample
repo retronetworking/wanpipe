@@ -83,8 +83,8 @@ strip_cid_non_digits => 0
 #This must be enabled on chan_woomera
 #side as well in order to work.
 #0-Disable (Default)
-#1-Eanble
-woomera_udp_seq => 0
+#1-Enable
+udp_seq => 0
 
 
 #Timeout an outboud call, if call setup is
@@ -93,6 +93,16 @@ woomera_udp_seq => 0
 #Terminated call will be released with cause 19
 call_timeout=100
 
+
+#Enable woomera sever
+#native bridging. On woomer to woomera
+#calls between two SMG gateways
+#Asterisk chan_woomera will indicate
+#to SMG servers to pass media directly
+#and not pass it through asterisk
+#0-Disable 
+#1-Enable (Default)
+media_pass_through => 1
 
 #Enable tdm bridge profile 1
 #Note profile number must not be zero.

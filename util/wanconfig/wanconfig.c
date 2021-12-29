@@ -754,7 +754,7 @@ key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
 {
   { "MRU",     	     smemof(wan_xilinx_conf_t, mru),          DTYPE_USHORT },
   { "DMA_PER_CH",    smemof(wan_xilinx_conf_t, dma_per_ch),   DTYPE_USHORT },
-  { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UCHAR },
+  { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UINT },
   { "DATA_MUX_MAP",  smemof(wan_xilinx_conf_t, data_mux_map), DTYPE_UINT },
   { "RX_CRC_BYTES",  smemof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
   { "DTR_CTRL",  smemof(wan_xilinx_conf_t, serial_dtr_ctrl), DTYPE_UCHAR},
@@ -5436,6 +5436,12 @@ static int wanconfig_hwec_bypass(char *devname, chan_def_t *def, int enable)
 		char chan_str [20];
 		unsigned int tdmv_dchan_map = def->link->linkconf->tdmv_conf.dchan;
 		memset(chan_str, 0, sizeof(chan_str));
+
+		/* Disalbe EC on CAS channel */
+		if (def->link->linkconf->fe_cfg.media == WAN_MEDIA_E1 &&
+			def->link->linkconf->fe_cfg.cfg.te_cfg.sig_mode == WAN_TE1_SIG_CAS) {
+		      tdmv_dchan_map|=1<<15;
+		}
 
 		if (tdmv_dchan_map) {
 			if (def->link->linkconf->fe_cfg.media == WAN_MEDIA_T1) {

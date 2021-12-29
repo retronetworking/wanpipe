@@ -15,34 +15,34 @@
 	.long Oct6100GetInstanceSizeDef + 1494
 	.long Oct6100GetInstanceSizeDef + 1548
 	.long Oct6100GetInstanceSizeDef + 1576
-	.long Oct6100GetInstanceSizeDef + 1669
-	.long Oct6100GetInstanceSizeDef + 2016
-	.long Oct6100GetInstanceSizeDef + 2446
-	.long Oct6100GetInstanceSizeDef + 3717
-	.long Oct6100GetInstanceSizeDef + 3988
-	.long Oct6100GetInstanceSizeDef + 7902
-	.long Oct6100GetInstanceSizeDef + 8229
-	.long Oct6100GetInstanceSizeDef + 8951
-	.long Oct6100GetInstanceSizeDef + 9060
-	.long Oct6100GetInstanceSizeDef + 9728
-	.long Oct6100GetInstanceSizeDef + 9894
-	.long Oct6100GetInstanceSizeDef + 11276
-	.long Oct6100GetInstanceSizeDef + 13985
-	.long Oct6100GetInstanceSizeDef + 15199
-	.long Oct6100GetInstanceSizeDef + 15903
-	.long Oct6100GetInstanceSizeDef + 16603
-	.long Oct6100GetInstanceSizeDef + 17185
-	.long Oct6100GetInstanceSizeDef + 17309
-	.long Oct6100GetInstanceSizeDef + 17413
-	.long Oct6100GetInstanceSizeDef + 18217
-	.long Oct6100GetInstanceSizeDef + 18362
-	.long Oct6100GetInstanceSizeDef + 18415
-	.long Oct6100GetInstanceSizeDef + 19651
-	.long Oct6100GetInstanceSizeDef + 20213
-	.long Oct6100GetInstanceSizeDef + 20243
-	.long Oct6100GetInstanceSizeDef + 20273
-	.long Oct6100GetInstanceSizeDef + 20294
-	.long Oct6100GetInstanceSizeDef + 20396
+	.long Oct6100GetInstanceSizeDef + 1661
+	.long Oct6100GetInstanceSizeDef + 2008
+	.long Oct6100GetInstanceSizeDef + 2438
+	.long Oct6100GetInstanceSizeDef + 3710
+	.long Oct6100GetInstanceSizeDef + 3981
+	.long Oct6100GetInstanceSizeDef + 7895
+	.long Oct6100GetInstanceSizeDef + 8222
+	.long Oct6100GetInstanceSizeDef + 8944
+	.long Oct6100GetInstanceSizeDef + 9053
+	.long Oct6100GetInstanceSizeDef + 9721
+	.long Oct6100GetInstanceSizeDef + 9882
+	.long Oct6100GetInstanceSizeDef + 11264
+	.long Oct6100GetInstanceSizeDef + 13964
+	.long Oct6100GetInstanceSizeDef + 15179
+	.long Oct6100GetInstanceSizeDef + 15883
+	.long Oct6100GetInstanceSizeDef + 16583
+	.long Oct6100GetInstanceSizeDef + 17161
+	.long Oct6100GetInstanceSizeDef + 17285
+	.long Oct6100GetInstanceSizeDef + 17389
+	.long Oct6100GetInstanceSizeDef + 18193
+	.long Oct6100GetInstanceSizeDef + 18338
+	.long Oct6100GetInstanceSizeDef + 18391
+	.long Oct6100GetInstanceSizeDef + 19627
+	.long Oct6100GetInstanceSizeDef + 20188
+	.long Oct6100GetInstanceSizeDef + 20218
+	.long Oct6100GetInstanceSizeDef + 20248
+	.long Oct6100GetInstanceSizeDef + 20269
+	.long Oct6100GetInstanceSizeDef + 20371
 	.long Oct6100GetInstanceSizeDef + 20600
 	.long Oct6100GetInstanceSizeDef + 20660
 	.long Oct6100GetInstanceSizeDef + 24304
@@ -58,5 +58,5 @@
 	.long Oct6100GetInstanceSizeDef + 33285
 	.long Oct6100GetInstanceSizeDef + 33620
 	.long Oct6100GetInstanceSizeDef + 33678
-	.long Oct6100GetInstanceSizeDef + 33769
-	.long Oct6100GetInstanceSizeDef + 33864
+	.long Oct6100GetInstanceSizeDef + 33768
+	.long Oct6100GetInstanceSizeDef + 33862

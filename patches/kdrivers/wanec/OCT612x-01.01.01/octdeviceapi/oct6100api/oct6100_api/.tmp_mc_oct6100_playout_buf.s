@@ -16,25 +16,25 @@
 	.long Oct6100BufferPlayoutLoadDef + 1352
 	.long Oct6100BufferPlayoutLoadDef + 1575
 	.long Oct6100BufferPlayoutLoadDef + 1610
-	.long Oct6100BufferPlayoutLoadDef + 1669
-	.long Oct6100BufferPlayoutLoadDef + 7182
-	.long Oct6100BufferPlayoutLoadDef + 7247
-	.long Oct6100BufferPlayoutLoadDef + 11370
-	.long Oct6100BufferPlayoutLoadDef + 11462
-	.long Oct6100BufferPlayoutLoadDef + 13458
-	.long Oct6100BufferPlayoutLoadDef + 13515
-	.long Oct6100BufferPlayoutLoadDef + 13627
-	.long Oct6100BufferPlayoutLoadDef + 13712
-	.long Oct6100BufferPlayoutLoadDef + 14115
-	.long Oct6100BufferPlayoutLoadDef + 14175
-	.long Oct6100BufferPlayoutLoadDef + 14267
-	.long Oct6100BufferPlayoutLoadDef + 14388
-	.long Oct6100BufferPlayoutLoadDef + 14495
-	.long Oct6100BufferPlayoutLoadDef + 14611
-	.long Oct6100BufferPlayoutLoadDef + 14746
-	.long Oct6100BufferPlayoutLoadDef + 14837
-	.long Oct6100BufferPlayoutLoadDef + 14933
-	.long Oct6100BufferPlayoutLoadDef + 15024
-	.long Oct6100BufferPlayoutLoadDef + 15120
-	.long Oct6100BufferPlayoutLoadDef + 15211
-	.long Oct6100BufferPlayoutLoadDef + 15302
+	.long Oct6100BufferPlayoutLoadDef + 1666
+	.long Oct6100BufferPlayoutLoadDef + 7233
+	.long Oct6100BufferPlayoutLoadDef + 7298
+	.long Oct6100BufferPlayoutLoadDef + 11471
+	.long Oct6100BufferPlayoutLoadDef + 11563
+	.long Oct6100BufferPlayoutLoadDef + 13571
+	.long Oct6100BufferPlayoutLoadDef + 13628
+	.long Oct6100BufferPlayoutLoadDef + 13740
+	.long Oct6100BufferPlayoutLoadDef + 13825
+	.long Oct6100BufferPlayoutLoadDef + 14224
+	.long Oct6100BufferPlayoutLoadDef + 14284
+	.long Oct6100BufferPlayoutLoadDef + 14376
+	.long Oct6100BufferPlayoutLoadDef + 14497
+	.long Oct6100BufferPlayoutLoadDef + 14604
+	.long Oct6100BufferPlayoutLoadDef + 14720
+	.long Oct6100BufferPlayoutLoadDef + 14855
+	.long Oct6100BufferPlayoutLoadDef + 14945
+	.long Oct6100BufferPlayoutLoadDef + 15040
+	.long Oct6100BufferPlayoutLoadDef + 15130
+	.long Oct6100BufferPlayoutLoadDef + 15225
+	.long Oct6100BufferPlayoutLoadDef + 15315
+	.long Oct6100BufferPlayoutLoadDef + 15405

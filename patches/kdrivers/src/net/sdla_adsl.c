@@ -143,6 +143,8 @@
 # error "Undefined LIST_FIRST_MCLIST/LIST_NEXT_MCLIST macros!"
 #endif
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 enum {
 	TX_BUSY_SET
 };
@@ -430,6 +432,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 #elif defined(__LINUX__) || defined(__WINDOWS__)
 
 #if defined(__LINUX__)
+	WAN_NETDEV_OPS_BIND(ifp,wan_netdev_ops);
 	WAN_TASKQ_INIT((&adsl->common.wanpipe_task), 0, process_bh, ifp);
 #elif defined(__WINDOWS__)
 	/* # define WAN_TASKQ_INIT(task, priority, func, arg) */
@@ -442,8 +445,8 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 	card->hw_iface.getcfg(card->hw, SDLA_MEMBASE, &ifp->mem_start);
 	card->hw_iface.getcfg(card->hw, SDLA_MEMEND, &ifp->mem_end);
 
-	ifp->open               = &adsl_open;
-	ifp->stop               = &adsl_close;
+	WAN_NETDEV_OPS_OPEN(ifp,wan_netdev_ops,&adsl_open);
+	WAN_NETDEV_OPS_STOP(ifp,wan_netdev_ops,&adsl_close);
 
 #if defined(__WINDOWS__)
 	ifp->hard_start_xmit    = &adsl_if_send;/* will call adsl_output() */
@@ -458,18 +461,18 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 	adsl->sdla_net_dev = ifp;
 
 #else
-	ifp->hard_start_xmit    = &adsl_output;
+	WAN_NETDEV_OPS_XMIT(ifp,wan_netdev_ops,&adsl_output);
 #endif
 
-	ifp->get_stats          = &adsl_stats;
+	WAN_NETDEV_OPS_STATS(ifp,wan_netdev_ops,&adsl_stats);
 
 #if !defined(__WINDOWS__)
-	ifp->set_multicast_list = &adsl_multicast;
+	WAN_NETDEV_OPS_SET_MULTICAST_LIST(ifp,wan_netdev_ops,&adsl_multicast);
 #endif
-	ifp->tx_timeout		= &adsl_tx_timeout;
+	WAN_NETDEV_OPS_TIMEOUT(ifp,wan_netdev_ops,&adsl_tx_timeout);
 	ifp->watchdog_timeo     = (1*HZ);
 
-	ifp->do_ioctl		= adsl_ioctl;
+	WAN_NETDEV_OPS_IOCTL(ifp,wan_netdev_ops,adsl_ioctl);
 #endif/*#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)*/
 
 	adsl->common.card	= card;
@@ -585,14 +588,15 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 		}
 		ifp->tx_queue_len = 100;
 
-		ifp->open               = &adsl_open;
-		ifp->stop               = &adsl_close;
-		ifp->hard_start_xmit    = &adsl_output;
-		ifp->get_stats          = &adsl_stats;
-		ifp->set_multicast_list = &adsl_multicast;
-		ifp->tx_timeout		= &adsl_tx_timeout;
+		WAN_NETDEV_OPS_OPEN(ifp,wan_netdev_ops,&adsl_open);
+		WAN_NETDEV_OPS_STOP(ifp,wan_netdev_ops,&adsl_close);
+		WAN_NETDEV_OPS_XMIT(ifp,wan_netdev_ops,&adsl_output);
+		WAN_NETDEV_OPS_STATS(ifp,wan_netdev_ops,&adsl_stats);
+		WAN_NETDEV_OPS_SET_MULTICAST_LIST(ifp,wan_netdev_ops,&adsl_multicast);
+		WAN_NETDEV_OPS_TIMEOUT(ifp,wan_netdev_ops,&adsl_tx_timeout);
 		ifp->watchdog_timeo     = (1*HZ);
-		ifp->do_ioctl		= adsl_ioctl;
+		WAN_NETDEV_OPS_IOCTL(ifp,wan_netdev_ops,adsl_ioctl);
+
 #endif
 		break;
 #endif /* #if !defined(__WINDOWS__) */
@@ -648,7 +652,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* ifp)
 			if (adsl->common.prot_ptr){
 				wp_sppp_detach(ifp);
 
-				ifp->do_ioctl = NULL;
+				WAN_NETDEV_OPS_IOCTL(ifp,wan_netdev_ops,NULL);
 
 				wan_free(adsl->common.prot_ptr);
 				adsl->common.prot_ptr= NULL;

@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 43
-/svn/sangoma_mgd/!svn/ver/235/trunk/scripts
+/svn/sangoma_mgd/!svn/ver/239/trunk/scripts
 END
 astxs
 K 25
@@ -13,7 +13,7 @@ stats.sh
 K 25
 svn:wc:ra_dav:version-url
 V 52
-/svn/sangoma_mgd/!svn/ver/229/trunk/scripts/stats.sh
+/svn/sangoma_mgd/!svn/ver/239/trunk/scripts/stats.sh
 END
 set_debug.sh
 K 25

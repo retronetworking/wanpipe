@@ -4,7 +4,7 @@
 # Copyright (c) 1995-2000 Sangoma Technologies Inc.  All Rights Reserved.
 # ============================================================================
 
-APIINC=/etc/wanpipe/api/include
+APIINC=/usr/include/wanpipe
 
 ####### RULES ################################################################
 

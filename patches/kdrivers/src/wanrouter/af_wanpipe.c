@@ -289,12 +289,12 @@ dev_private_ioctl:
 				if (!dev)
 					return -ENODEV;
 
-				if (!dev->do_ioctl)
+				if (!WAN_NETDEV_TEST_IOCTL(dev))
 					return -ENODEV;
 				
 				ifr.ifr_data = (void*)arg;
 			
-				return dev->do_ioctl(dev,&ifr,cmd);
+				return WAN_NETDEV_IOCTL(dev,&ifr,cmd);
 			}
 
 			DEBUG_EVENT("%s: Ioctl call not supported DevPriv %i Cmd %i \n",
@@ -426,7 +426,7 @@ static int wanpipe_listen_rcv (struct sk_buff *skb,  struct sock *sk)
 	/* Bind the new socket into the lower layer. The lower
 	 * layer will increment the sock reference count. */
 	ifr.ifr_data = (void*)newsk;
-	if (!dev->do_ioctl || dev->do_ioctl(dev,&ifr,SIOC_ANNEXG_BIND_SK) != 0){
+	if (!WAN_NETDEV_TEST_IOCTL(dev) || WAN_NETDEV_IOCTL(dev,&ifr,SIOC_ANNEXG_BIND_SK) != 0){
 		wanpipe_kill_sock(newsk);
 		return -ENODEV;
 	}
@@ -603,9 +603,9 @@ static int wanpipe_accept(struct socket *sock, struct socket *newsock, int flags
 		if (wansk_is_zapped(newsk) && SK_PRIV(newsk) && 
 		   (dev = (struct net_device *)SK_PRIV(newsk)->dev)){
 
-			if (dev && dev->do_ioctl){
+			if (dev && WAN_NETDEV_TEST_IOCTL(dev)){
 				struct sock* dev_sk;
-				dev->do_ioctl(dev,&ifr,SIOC_ANNEXG_GET_SK);
+				WAN_NETDEV_IOCTL(dev,&ifr,SIOC_ANNEXG_GET_SK);
 				
 				if ((dev_sk=(struct sock*)ifr.ifr_data)!=NULL){
 					__sock_put(dev_sk);
@@ -623,8 +623,8 @@ static int wanpipe_accept(struct socket *sock, struct socket *newsock, int flags
 				}
 
 				ifr.ifr_data=(void*)newsk;
-				if (dev->do_ioctl(dev,&ifr,SIOC_ANNEXG_UNBIND_SK)==0){
-					dev->do_ioctl(dev,NULL,SIOC_ANNEXG_CLEAR_CALL);	
+				if (WAN_NETDEV_IOCTL(dev,&ifr,SIOC_ANNEXG_UNBIND_SK)==0){
+					WAN_NETDEV_IOCTL(dev,NULL,SIOC_ANNEXG_CLEAR_CALL);	
 				}
 			}else{
 				printk(KERN_INFO "af_wanpipe: Accept killing newsk, lower layer down!\n");
@@ -971,7 +971,7 @@ static int wanpipe_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 #endif
 
 	AF_SKB_DEC(skb->truesize);
-	if (!dev->hard_start_xmit(skb,dev)){
+	if (!WAN_NETDEV_XMIT(skb,dev)){
 		return(len);
 	}else{
 		err = -EBUSY;
@@ -1078,11 +1078,11 @@ static void release_queued_pending_sockets(struct sock *sk)
 
 		if (SK_PRIV(deadsk)){
 			dev = (struct net_device *)SK_PRIV(deadsk)->dev;
-			if (dev && dev->do_ioctl){
+			if (dev && WAN_NETDEV_TEST_IOCTL(dev)){
 				struct ifreq ifr;
 				ifr.ifr_data=(void*)sk;
-				if (dev->do_ioctl(dev,&ifr,SIOC_ANNEXG_UNBIND_SK)==0){
-					dev->do_ioctl(dev,NULL,SIOC_ANNEXG_CLEAR_CALL);
+				if (WAN_NETDEV_IOCTL(dev,&ifr,SIOC_ANNEXG_UNBIND_SK)==0){
+					WAN_NETDEV_IOCTL(dev,NULL,SIOC_ANNEXG_CLEAR_CALL);
 				}
 			}	
 		}
@@ -1158,11 +1158,11 @@ static int wanpipe_release(struct socket *sock, struct socket *peersock)
 
 		netdevice_t *dev = (struct net_device *)SK_PRIV(sk)->dev;
 		if (dev){
-			if(dev->do_ioctl){
+			if(WAN_NETDEV_TEST_IOCTL(dev)){
 				struct ifreq ifr;
 				ifr.ifr_data=(void*)sk;
-				if (dev->do_ioctl(dev,&ifr,SIOC_ANNEXG_UNBIND_SK)==0){
-					dev->do_ioctl(dev,NULL,SIOC_ANNEXG_CLEAR_CALL);
+				if (WAN_NETDEV_IOCTL(dev,&ifr,SIOC_ANNEXG_UNBIND_SK)==0){
+					WAN_NETDEV_IOCTL(dev,NULL,SIOC_ANNEXG_CLEAR_CALL);
 				}
 			}
 		}else{
@@ -1171,10 +1171,10 @@ static int wanpipe_release(struct socket *sock, struct socket *peersock)
 	}else if (wansk_is_zapped(sk)){
 		netdevice_t *dev = (struct net_device *)SK_PRIV(sk)->dev;
 		if (dev){
-			if(dev->do_ioctl){
+			if(WAN_NETDEV_TEST_IOCTL(dev)){
 				struct ifreq ifr;
 				ifr.ifr_data=(void*)sk;
-				dev->do_ioctl(dev,&ifr,SIOC_ANNEXG_UNBIND_SK);
+				WAN_NETDEV_IOCTL(dev,&ifr,SIOC_ANNEXG_UNBIND_SK);
 			}
 		}else{
 			DEBUG_EVENT("%s: No dev on pvc release !\n",__FUNCTION__);
@@ -1459,8 +1459,8 @@ wanpipe_svc_listen_skip:
 		}
 #endif
 		
-		if (dev->do_ioctl)
-			err=dev->do_ioctl(dev,&ifr,SIOC_ANNEXG_BIND_SK);
+		if (WAN_NETDEV_TEST_IOCTL(dev))
+			err=WAN_NETDEV_IOCTL(dev,&ifr,SIOC_ANNEXG_BIND_SK);
 		
 		if (err == 0){
 			sk->sk_bound_dev_if = dev->ifindex; 
@@ -1472,7 +1472,7 @@ wanpipe_svc_listen_skip:
 			    SK_PRIV(sk)->num == htons(DSP_PROT)){
 				sk->sk_state = WANSOCK_DISCONNECTED;
 			}else{
-				err=dev->do_ioctl(dev,&ifr,SIOC_WANPIPE_DEV_STATE);
+				err=WAN_NETDEV_IOCTL(dev,&ifr,SIOC_WANPIPE_DEV_STATE);
 				if (err == WANSOCK_CONNECTED){
 					sk->sk_state = WANSOCK_CONNECTED;
 				}else{
@@ -1616,8 +1616,8 @@ static int wanpipe_recvmsg(struct socket *sock, struct msghdr *msg, int len,
 
 	dev = (struct net_device *)SK_PRIV(sk)->dev;
 	if (dev){
-		if (dev->do_ioctl){
-			dev->do_ioctl(dev,NULL,SIOC_ANNEXG_KICK);
+		if (WAN_NETDEV_TEST_IOCTL(dev)){
+			WAN_NETDEV_IOCTL(dev,NULL,SIOC_ANNEXG_KICK);
 		}
 	}
 	
@@ -1960,13 +1960,13 @@ static int wanpipe_connect(struct socket *sock, struct sockaddr *uaddr, int addr
 		return -ENETUNREACH;
 	}
 
-	if (!dev->do_ioctl)
+	if (!WAN_NETDEV_TEST_IOCTL(dev))
 		return -ENETUNREACH;
 
 	sock->state   = SS_CONNECTING;
 	sk->sk_state     = WANSOCK_CONNECTING;
 
-	err=dev->do_ioctl(dev,NULL,SIOC_ANNEXG_PLACE_CALL);
+	err=WAN_NETDEV_IOCTL(dev,NULL,SIOC_ANNEXG_PLACE_CALL);
 	if (err){
 		sk->sk_state   = WANSOCK_DISCONNECTED;	
 		sock->state = SS_UNCONNECTED;

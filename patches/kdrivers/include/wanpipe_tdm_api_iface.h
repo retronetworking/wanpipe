@@ -51,6 +51,7 @@ typedef int sng_fd_t;
 #define WP_TDM_FEATURE_FE_ALARM		1
 #define WP_TDM_FEATURE_EVENTS		1
 #define WP_TDM_FEATURE_LINK_STATUS	1
+#define WP_API_FEATURE_LOOP			1
 
 enum wanpipe_tdm_api_cmds {
 
@@ -104,6 +105,9 @@ enum wanpipe_tdm_api_cmds {
 	SIOC_WP_TDM_GET_FE_STATUS,	/* 0x1F */
 
 	SIOC_WP_TDM_GET_HW_DTMF,	/* 0x20 */
+
+	SIOC_WP_TDM_ENABLE_LOOP,	/* 0x21 */
+	SIOC_WP_TDM_DISABLE_LOOP,	/* 0x21 */
 
 	SIOC_WP_TDM_NOTSUPP		/*  */
 

@@ -224,6 +224,8 @@
 
 aft_hw_dev_t aft_hwdev[MAX_AFT_HW_DEV];
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 enum {
         TDM_RUNNING,
 	TDM_PENDING,
@@ -2705,7 +2707,17 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	 * finished successfully.  DO NOT place any code below that
 	 * can return an error */
 #if defined(__LINUX__)
-	dev->init = &if_init;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops, &if_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,NULL);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,if_do_ioctl);
+	WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,if_change_mtu);
+
 # if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	if_init(dev);
 # endif
@@ -3346,15 +3358,16 @@ static int if_init (netdevice_t* dev)
 #endif
 	
 	/* Initialize device driver entry points */
-	dev->open		= &if_open;
-	dev->stop		= &if_close;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	hdlc		= dev_to_hdlc(dev);
 	hdlc->xmit 	= if_send;
 #else
-	dev->hard_start_xmit	= &if_send;
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
 #endif
-	dev->get_stats		= &if_stats;
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops, &if_stats);
 
 #if 0
 	dev->tx_timeout		= &if_tx_timeout;
@@ -3362,15 +3375,16 @@ static int if_init (netdevice_t* dev)
 #else
 	if (chan->common.usedby == TDM_VOICE || 
 	    chan->common.usedby == TDM_VOICE_API){
-		dev->tx_timeout		= NULL;
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,NULL);
 	}else{
-		dev->tx_timeout		= &if_tx_timeout;
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
+
 	}
 	dev->watchdog_timeo	= 2*HZ;
 		
 #endif	
-	dev->do_ioctl		= if_do_ioctl;
-	dev->change_mtu		= if_change_mtu;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,if_do_ioctl);
+	WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,if_change_mtu);
 
 	if (chan->common.usedby == BRIDGE ||
             chan->common.usedby == BRIDGE_NODE){
@@ -4749,10 +4763,8 @@ static void aft_dma_tx_complete (sdla_t *card, private_area_t *chan, int wdt, in
 	if (reset){
 		return;
 	}
-
-	if (!wdt) {
-		aft_dma_tx(card,chan);
-	}
+ 
+	aft_dma_tx(card,chan);
 
 	if (WAN_NETIF_QUEUE_STOPPED(chan->common.dev)){
 		/* Wakeup stack also wakes up DCHAN,
@@ -5592,11 +5604,21 @@ static void wp_bh (void *data, int pending)
 	int		len;
 
 #ifdef AFT_IRQ_STAT_DEBUG
-      	card->wandev.stats.collisions++;
+	card->wandev.stats.collisions++;
 #endif	     
 	
 	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
-		WAN_TASKLET_END((&chan->common.bh_task));
+		/* Do not touch the chan structure as it could be 
+		   deallocated */
+		return;
+	}
+
+	if (!wan_test_bit(0,&chan->up)){
+		/* Do not touch the chan structure as it could be 
+		   deallocated */
+		if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT("wp_bh() chan not up!\n");
+		}
 		return;
 	}
 	
@@ -5608,15 +5630,6 @@ static void wp_bh (void *data, int pending)
 	
 	DEBUG_TEST("%s: ------------ BEGIN --------------: %ld\n",
 			__FUNCTION__,(u_int64_t)SYSTEM_TICKS);
-
-	if (!wan_test_bit(0,&chan->up)){
-		if (WAN_NET_RATELIMIT()){
-		DEBUG_EVENT("%s: wp_bh() chan not up!\n",
-                                chan->if_name);
-		}
-		WAN_TASKLET_END((&chan->common.bh_task));
-		return;
-	}
 
 	while((skb=wan_skb_dequeue(&chan->wp_rx_complete_list)) != NULL){
 #if 0
@@ -11384,6 +11397,10 @@ static void aft_port_task (void * card_ptr, int arg)
 	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
 		return;	
 	}
+
+	if (wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)){
+		return;
+	}
 	
 	/* If there are more commands pending requeue the task */
 	if (card->u.aft.port_task_cmd) {
@@ -14046,9 +14063,13 @@ static int aft_handle_clock_master (sdla_t *card_ptr)
 		legacy_tdm_timer_enable = 0;
 	}
 
-	if (master_clock_src_found || legacy_tdm_timer_enable == 0) {
+   	if (IS_BRI_CARD(card_ptr)) {
+		if (master_clock_src_found) {
+	    	return 0;
+		}
+	} else if (legacy_tdm_timer_enable == 0) {
 		return 0;
-	}
+	}    
 
 	/* At this point the recovery clock must be set on any connected port */
 	for (i=0; i<max_number_of_ports; i++) {

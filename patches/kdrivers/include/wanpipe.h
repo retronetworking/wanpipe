@@ -762,6 +762,7 @@ typedef struct
 	wan_skb_queue_t	rtp_tap_list;
 	unsigned int	serial_status;
 	unsigned char	global_tdm_irq;
+	wan_ticks_t		rbs_timeout;
 
 } sdla_xilinx_t;
 

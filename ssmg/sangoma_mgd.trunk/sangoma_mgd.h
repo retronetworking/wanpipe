@@ -56,6 +56,8 @@
 
 #define WOOMERA_MAX_CHAN	31
 
+#define SMG_MAX_TG	32
+
 #define SMG_SESSION_NAME_SZ	100
 #define SMG_CHAN_NAME_SZ	20
 
@@ -203,6 +205,7 @@ struct media_session {
     int sangoma_sock;
     char *ip;
     int port;
+	char *raw;
     time_t started;
     time_t answered;
     pthread_t thread;
@@ -283,8 +286,26 @@ struct woomera_interface {
 	char session[SMG_SESSION_NAME_SZ];
 	int check_digits;	/* set to 1 when session comes up */
 	int bearer_cap;
+	unsigned int rx_udp_seq;
+	unsigned int tx_udp_seq;
 	struct woomera_interface *next;
 };
+
+#define WOOMERA_MAX_RBS_BITS 4
+
+typedef struct woomera_rbs_bits
+{
+	int init;
+	unsigned char abcd;
+}woomera_rbs_bits_t;
+
+typedef struct woomera_rbs_relay
+{
+	int init;
+	woomera_rbs_bits_t rbs_bits[WOOMERA_MAX_RBS_BITS];
+	int rx_idx;
+	int tx_idx;
+} woomera_rbs_relay_t;
 
 struct  woomera_session {
 	struct woomera_interface *dev;
@@ -295,6 +316,9 @@ struct  woomera_session {
 	int clients;
 	unsigned char media_used;
 	pthread_mutex_t media_lock;
+	woomera_rbs_relay_t rbs_relay;
+	int sangoma_fd;
+	int sangoma_fd_usage;
 };
 
 struct smg_tdm_ip_bridge {
@@ -316,6 +340,10 @@ struct smg_tdm_ip_bridge {
 extern struct smg_tdm_ip_bridge g_smg_ip_bridge_idx[];
 extern pthread_mutex_t g_smg_ip_bridge_lock;
 
+
+
+
+#define MAX_SMG_RBS_RELAY 32
 #define MAX_SMG_BRIDGE 32
 #define CORE_TANK_LEN CORE_MAX_CHAN_PER_SPAN*CORE_MAX_SPANS
 
@@ -357,9 +385,9 @@ struct woomera_server {
 	uint32_t hw_coding;
 	uint32_t loop_trace;
 	uint32_t hungup_waiting;
-	int all_ckt_gap;
-	int all_ckt_busy;
-	struct timeval all_ckt_busy_time;
+	int all_ckt_gap[SMG_MAX_TG+1];
+	int all_ckt_busy[SMG_MAX_TG+1];
+	struct timeval all_ckt_busy_time[SMG_MAX_TG+1];
 	struct timeval restart_timeout;
 	int dtmf_on; 
 	int dtmf_off;
@@ -368,6 +396,10 @@ struct woomera_server {
 	int strip_cid_non_digits;
 	int call_timeout;
 	struct smg_tdm_ip_bridge ip_bridge_idx[MAX_SMG_BRIDGE];
+	int udp_seq; 
+	unsigned int media_rx_seq_err;
+	unsigned char rbs_relay[MAX_SMG_RBS_RELAY];
+	unsigned char media_pass_through;
 };
 
 extern struct woomera_server server;
@@ -417,25 +449,25 @@ static inline int smg_calc_elapsed(struct timeval *started, struct timeval *ende
 		((started->tv_sec * 1000) + started->tv_usec / 1000));
 }
 
-static inline int smg_check_all_busy(void)
+static inline int smg_check_all_busy(int tg)
 {
 	struct timeval ended;
 	int elapsed;
 
-	if (server.all_ckt_gap) {
-		return server.all_ckt_gap;
+	if (server.all_ckt_gap[tg]) {
+		return server.all_ckt_gap[tg];
 	}
  
-	if (server.all_ckt_busy==0) {
+	if (server.all_ckt_busy[tg]==0) {
 		return 0;
 	}
  
 	gettimeofday(&ended,NULL);
-	elapsed = smg_calc_elapsed(&server.all_ckt_busy_time,&ended);
+	elapsed = smg_calc_elapsed(&server.all_ckt_busy_time[tg],&ended);
 	
 	/* seconds elapsed */
-	if (elapsed > server.all_ckt_busy) {
-		server.all_ckt_busy=0;
+	if (elapsed > server.all_ckt_busy[tg]) {
+		server.all_ckt_busy[tg]=0;
 		return 0;
 	} else {
 		return 1;
@@ -443,55 +475,55 @@ static inline int smg_check_all_busy(void)
 
 #if 0
 
-	if (server.all_ckt_busy > 50) {
+	if (server.all_ckt_busy[tg] > 50) {
 		/* When in GAP mode wait 10s */
-		return server.all_ckt_busy;
+		return server.all_ckt_busy[tg];
 	}
 	
-	--server.all_ckt_busy;
-	if (server.all_ckt_busy < 0) {
-		server.all_ckt_busy=0;
+	--server.all_ckt_busy[tg];
+	if (server.all_ckt_busy[tg] < 0) {
+		server.all_ckt_busy[tg]=0;
 	}
 	
-	return server.all_ckt_busy;
+	return server.all_ckt_busy[tg];
 #endif
 }
 
  
-static inline void smg_all_ckt_busy(void)
+static inline void smg_all_ckt_busy(int tg)
 {
 
 	if (server.call_count*10 < 1500) {
-		server.all_ckt_busy+=1500;
+		server.all_ckt_busy[tg]+=1500;
 	} else {
-		server.all_ckt_busy+=server.call_count*15;
+		server.all_ckt_busy[tg]+=server.call_count*15;
 	}
 
-	if (server.all_ckt_busy > 10000) {
-		server.all_ckt_busy = 10000;
+	if (server.all_ckt_busy[tg] > 10000) {
+		server.all_ckt_busy[tg] = 10000;
 	}
 
 #if 0	
-	if (server.all_ckt_busy >= 5) {
-		server.all_ckt_busy=10;
-	} else if (server.all_ckt_busy >= 10) {
-		server.all_ckt_busy=15;
-	} else if (server.all_ckt_busy == 0) {
-		server.all_ckt_busy=5;
+	if (server.all_ckt_busy[tg] >= 5) {
+		server.all_ckt_busy[tg]=10;
+	} else if (server.all_ckt_busy[tg] >= 10) {
+		server.all_ckt_busy[tg]=15;
+	} else if (server.all_ckt_busy[tg] == 0) {
+		server.all_ckt_busy[tg]=5;
 	}
 #endif
-	gettimeofday(&server.all_ckt_busy_time,NULL);
+	gettimeofday(&server.all_ckt_busy_time[tg],NULL);
 }
 
-static inline void smg_all_ckt_gap(void)
+static inline void smg_all_ckt_gap(int tg)
 {
-	server.all_ckt_gap=1;		
+	server.all_ckt_gap[tg]=1;		
 }
 
-static inline void smg_clear_ckt_gap(void)
+static inline void smg_clear_ckt_gap(int tg)
 {
-	server.all_ckt_gap=0;		
-	gettimeofday(&server.all_ckt_busy_time,NULL);
+	server.all_ckt_gap[tg]=0;		
+	gettimeofday(&server.all_ckt_busy_time[tg],NULL);
 }
 
 
@@ -601,6 +633,21 @@ static inline void woomera_set_raw(struct woomera_interface *woomera, char *raw)
    	if (oldraw) {
 		smg_free(oldraw);
     	}
+}
+
+static inline void media_set_raw(struct media_session *ms, char *raw)
+{
+	char *oldraw=ms->raw;
+
+	if (raw) {
+		ms->raw = smg_strdup(raw);
+	} else {
+		ms->raw = NULL;
+	}
+
+	if (oldraw) {
+		smg_free(oldraw);
+	}
 }
 
 static inline struct media_session * woomera_get_ms(struct woomera_interface *woomera)

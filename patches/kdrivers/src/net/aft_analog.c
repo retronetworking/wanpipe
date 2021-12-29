@@ -553,15 +553,17 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 		u16	max_ec_chans, max_ports_no;
 		u16	max_chip_cfg_ec_chans;
 		u32 	cfg_reg, fe_port_map;
+		u8 core_rev;
 
 		card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
 		card->hw_iface.getcfg(card->hw, SDLA_PORTS_NO, &max_ports_no);
 		card->hw_iface.getcfg(card->hw, SDLA_PORT_MAP, &fe_port_map);
+		card->hw_iface.getcfg(card->hw, SDLA_COREREV, &core_rev);
 
-        	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG), &cfg_reg);
+		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG), &cfg_reg);
 		
 		if (IS_A600_CARD(card)) {
-			max_chip_cfg_ec_chans = aft_chipcfg_get_a600_ec_channels(cfg_reg);	
+			max_chip_cfg_ec_chans = aft_chipcfg_get_a600_ec_channels(cfg_reg, core_rev);
 		} else {
 			max_chip_cfg_ec_chans = aft_chipcfg_get_a200_ec_channels(cfg_reg);	
 		}

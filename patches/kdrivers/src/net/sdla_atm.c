@@ -42,6 +42,8 @@
 #define ATM_TIMER_TIMEOUT	1
 #define POLL_DELAY_TIMEOUT	1
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 /* Private critical flags */
 enum { 
 	POLL_CRIT = PRIV_CRIT, 
@@ -921,7 +923,13 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 	/* Only setup the dev pointer once the new_if function has
 	 * finished successfully.  DO NOT place any code below that
 	 * can return an error */
-	dev->init = &if_init;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);	
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 	wan_netif_set_priv(dev, priv_area);
 
 	/* Increment the number of network interfaces 
@@ -1033,15 +1041,15 @@ static int if_init (struct net_device* dev)
 	wan_device_t* wandev = &card->wandev;
 
 	/* Initialize device driver entry points */
-	dev->open		= &if_open;
-	dev->stop		= &if_close;
-	dev->hard_start_xmit	= &if_send;
-	dev->get_stats		= &if_stats;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-	dev->tx_timeout		= &if_tx_timeout;
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 	dev->watchdog_timeo	= TX_TIMEOUT;
 #endif
-	dev->do_ioctl		= if_do_ioctl;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,if_do_ioctl);
 
 	if (priv_area->cfg.encap_mode == RFC_MODE_BRIDGED_ETH_LLC ||
 	    priv_area->cfg.encap_mode == RFC_MODE_BRIDGED_ETH_VC){

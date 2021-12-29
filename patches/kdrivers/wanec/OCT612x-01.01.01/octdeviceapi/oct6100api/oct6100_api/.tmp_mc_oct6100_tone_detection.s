@@ -13,4 +13,4 @@
 	.long Oct6100ToneDetectionEnableDef + 1748
 	.long Oct6100ToneDetectionEnableDef + 2358
 	.long Oct6100ToneDetectionEnableDef + 2453
-	.long Oct6100ToneDetectionEnableDef + 2544
+	.long Oct6100ToneDetectionEnableDef + 2543

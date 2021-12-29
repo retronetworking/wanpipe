@@ -2244,6 +2244,11 @@ static int sdla_ds_te1_rbs_ctrl(sdla_fe_t* fe, u_int32_t ch_map, int enable)
 	u_int8_t	value;
 	unsigned int	ch, bit, off;
 
+	if (IS_E1_FEMEDIA(fe) &&
+		WAN_TE1_SIG_MODE(fe) != WAN_TE1_SIG_CAS){
+		return -EINVAL;
+	}
+
 	value = READ_REG(REG_TCR1);
 	if (IS_T1_FEMEDIA(fe)){
 		if (enable == WAN_TRUE){		
@@ -3580,7 +3585,22 @@ sdla_ds_te1_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *event)
 		DEBUG_EVENT("ADBG> %s: Event in progress...\n", fe->name);
 		return -EINVAL;
 	}
-	
+
+	switch (event->type) {
+
+	case TE_RBS_READ:
+	case TE_SET_RBS:
+	case TE_RBS_ENABLE:
+	case TE_RBS_DISABLE:
+		if (IS_E1_FEMEDIA(fe) &&
+			WAN_TE1_SIG_MODE(fe) != WAN_TE1_SIG_CAS) {
+			DEBUG_EVENT("%s: Refusing to Enable/Disable/Read/Write RBS on non CAS E1!\n",
+					fe->name);
+			return -EINVAL;
+		}
+		break;
+	}
+
 	/* Creating event timer */	
 	tevent = wan_malloc(sizeof(sdla_fe_timer_event_t));
 	if (tevent == NULL){
@@ -3620,7 +3640,8 @@ sdla_ds_te1_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *event)
 		if (tmp == NULL){
 			DEBUG_EVENT("%s: ERROR: Internal Error!!!\n", fe->name);
 			wan_clear_bit(event->type,(void*)&fe->event_map);
-			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
+			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);
+  	 		wan_free(tevent);
 			return -EINVAL;
 		}
 		if (cnt > WAN_FE_MAX_QEVENT_LEN){
