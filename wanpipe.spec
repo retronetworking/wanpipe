@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.24
+%define VERSION           7.0.25
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,7 +259,11 @@ fi
 ################################################################################
 
 %changelog
-* Thu Oct 12 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.24
+* Wed Feb 23 2019 Nenad Corbic <ncorbic@sangoma.com> - 7.0.25
+==================================================================
+- Fix the build for DATA
+
+* Wed Nov 15 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.24
 ==================================================================
 - Adding backward compatibility for older kernel both debian as well redhat
 
