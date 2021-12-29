@@ -113,7 +113,7 @@ static __inline wan_time_t aft_calc_elapsed(struct timeval *started, struct time
 
 static int __inline aft_timing_start(aft_driver_timing_t *drv_timing)
 {
-	do_gettimeofday(&drv_timing->timing_tv);
+	wan_gettimeofday(&drv_timing->timing_tv);
 	return 0;
 }
 
@@ -129,7 +129,7 @@ static int __inline aft_timing_stop_calculate_elapsed(aft_driver_timing_t *drv_t
 	int limit=0;
 
 	struct timeval current_tv;
-	do_gettimeofday(&current_tv);
+	wan_gettimeofday(&current_tv);
 	elapsed=(unsigned long)aft_calc_elapsed(&drv_timing->timing_tv,&current_tv);
 
 	if (elapsed > drv_timing->max_latency) {

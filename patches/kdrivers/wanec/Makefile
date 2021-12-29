@@ -30,8 +30,10 @@ KVER    ?= $(shell uname -r)
 PWD	:= $(shell pwd)
 KBUILD_VERBOSE=
 	
+KBUILD_MODPOST_WARN=
+	
 all:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(SUBDIRS) CC=$(CC) KBUILD_VERBOSE=$(KBUILD_VERBOSE) modules
+	$(MAKE) -C $(KDIR) SUBDIRS=$(SUBDIRS) CC=$(CC) KBUILD_VERBOSE=$(KBUILD_VERBOSE)  KBUILD_MODPOST_WARN=$(KBUILD_MODPOST_WARN) modules
 
 clean:
 	$(shell find  $(SUBDIRS) -name '*.*o'  | xargs rm)

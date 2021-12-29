@@ -178,8 +178,13 @@ struct sppp
         int     confflags;      /* administrative configuration flags */
 #define CONF_ENABLE_VJ    0x01  /* VJ header compression enabled */
 #define CONF_ENABLE_IPV6  0x02  /* IPv6 administratively enabled */
+#if defined (KERN_TIMER_32BIT) && (KERN_TIMER_32BIT > 0)
         time_t  pp_last_recv;   /* time last packet has been received */
         time_t  pp_last_sent;   /* time last packet has been sent */
+#else
+        time64_t  pp_last_recv;   /* time last packet has been received */
+        time64_t  pp_last_sent;   /* time last packet has been sent */
+#endif
 
 	struct sauth myauth;		/* auth params, i'm peer */
 	struct sauth hisauth;		/* auth params, i'm authenticator */

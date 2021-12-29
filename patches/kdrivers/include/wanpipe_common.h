@@ -502,6 +502,10 @@ static __inline void WP_MDELAY (u32 ms) {
 
 #define WAN_MAX_TRACE_TIMEOUT	(5*HZ)
 
+#if defined (KERN_GET_KENEL_DS) && (KERN_GET_KENEL_DS == 0)
+#define get_ds() 	(KERNEL_DS)
+#endif
+
 #if 0
 /*
  * Variable argument list macro definitions
@@ -977,7 +981,44 @@ static __inline unsigned long wan_dma_get_paddr(void* card, wan_dma_descr_org_t*
 
 
 /********************** WANPIPE TIMER FUNCTION **************************/
+#if defined(__LINUX__)
+static __inline int wan_gettimeofday(struct timeval *wp_tv)
+{
+#if defined (KERN_DO_GET_TIME) && (KERN_DO_GET_TIME == 0)
+	struct timespec64 tv;
+	ktime_get_real_ts64(&tv);
+#else
+	struct timeval tv;
+	do_gettimeofday(&tv);
+#endif
+        wp_tv->tv_sec = tv.tv_sec;
 
+#if defined (KERN_DO_GET_TIME) && (KERN_DO_GET_TIME == 0)
+        wp_tv->tv_usec = tv.tv_nsec/1000;
+#else
+        wp_tv->tv_usec = tv.tv_usec;
+#endif
+	return 0;
+}
+
+static __inline int wan_fill_time_interval(wan_time_t *sec, wan_suseconds_t *usec)
+{
+#if defined (KERN_DO_GET_TIME) && (KERN_DO_GET_TIME == 0)
+	struct timespec64 tv;
+	ktime_get_real_ts64(&tv);
+#else
+	struct timeval tv;
+	do_gettimeofday(&tv);
+#endif
+	if (sec) *sec = tv.tv_sec;
+#if defined (KERN_DO_GET_TIME) && (KERN_DO_GET_TIME == 0)
+	if (usec) *usec = tv.tv_nsec/1000;
+#else
+	if (usec) *usec = tv.tv_usec;
+#endif
+	return 0;
+}
+#endif
 
 
 static __inline int wan_getcurrenttime(wan_time_t *sec, wan_suseconds_t *usec)
@@ -989,10 +1030,7 @@ static __inline int wan_getcurrenttime(wan_time_t *sec, wan_suseconds_t *usec)
 	if (usec) *usec = tv.tv_usec;
 	return 0;
 #elif defined(__LINUX__)
-	struct timeval 	tv;
-	do_gettimeofday(&tv);
-	if (sec) *sec = tv.tv_sec;
-	if (usec) *usec = tv.tv_usec;
+	wan_fill_time_interval(sec, usec);
 	return 0;
 #elif defined(__WINDOWS__)
 	struct timeval 	tv;
@@ -1024,10 +1062,7 @@ static __inline int wan_get_timestamp(wan_time_t *sec, wan_suseconds_t *usec)
 	if (usec) *usec = tv.tv_usec;
 	return 0;
 #elif defined(__LINUX__)
-	struct timeval 	tv;
-	jiffies_to_timeval(jiffies,&tv);
-	if (sec) *sec = tv.tv_sec;
-	if (usec) *usec = tv.tv_usec;
+	wan_fill_time_interval(sec, usec);
 	return 0;
 #elif defined(__WINDOWS__)
 	struct timeval 	tv;

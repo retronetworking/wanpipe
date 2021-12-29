@@ -13,6 +13,7 @@
 
 PWD=$(shell pwd)
 KBUILD_VERBOSE=0
+KBUILD_MODPOST_WARN=1
 CC=gcc
 LDCONFIG=/sbin/ldconfig
 
@@ -215,10 +216,30 @@ endif
 
 ifneq (,$(wildcard $(KDIR)/include/linux/device.h))
 KERN_CLASS_DEV_GROUPS=$(shell awk 'BEGIN { s=0 } /\*\*dev_groups;/ { s=1; exit } END { print s }' $(KDIR)/include/linux/device.h)
+ifneq ($(KERN_CLASS_DEV_GROUPS),0)
+EXTRA_CFLAGS+=-DKERN_CLASS_DEV_GROUPS=$(KERN_CLASS_DEV_GROUPS)
+endif
+else ifneq (,$(wildcard $(KSRC)/include/linux/device.h))
+KERN_CLASS_DEV_GROUPS=$(shell awk 'BEGIN { s=0 } /\*\*dev_groups;/ { s=1; exit } END { print s }' $(KSRC)/include/linux/device.h)
+ifneq ($(KERN_CLASS_DEV_GROUPS),0)
+EXTRA_CFLAGS+=-DKERN_CLASS_DEV_GROUPS=$(KERN_CLASS_DEV_GROUPS)
+endif
+else
+KERN_CLASS_DEV_GROUPS=0
+endif
+
+
+ifeq ($(KERN_CLASS_DEV_GROUPS),0)
+ifneq (,$(wildcard $(KDIR)/include/linux/device/bus.h))
+KERN_CLASS_DEV_GROUPS=$(shell awk 'BEGIN { s=0 } /\*\*dev_groups;/ { s=1; exit } END { print s }' $(KDIR)/include/linux/device/bus.h)
+EXTRA_CFLAGS+=-DKERN_CLASS_DEV_GROUPS=$(KERN_CLASS_DEV_GROUPS)
+else ifneq (,$(wildcard $(KSRC)/include/linux/device/bus.h))
+KERN_CLASS_DEV_GROUPS=$(shell awk 'BEGIN { s=0 } /\*\*dev_groups;/ { s=1; exit } END { print s }' $(KSRC)/include/linux/device/bus.h)
 EXTRA_CFLAGS+=-DKERN_CLASS_DEV_GROUPS=$(KERN_CLASS_DEV_GROUPS)
 else
-KERN_CLASS_DEV_GROUPS=$(shell awk 'BEGIN { s=0 } /\*\*dev_groups;/ { s=1; exit } END { print s }' $(KSRC)/include/linux/device.h)
+KERN_CLASS_DEV_GROUPS=0
 EXTRA_CFLAGS+=-DKERN_CLASS_DEV_GROUPS=$(KERN_CLASS_DEV_GROUPS)
+endif
 endif
 
 ifneq (,$(wildcard $(KDIR)/include/linux/timer.h))
@@ -284,6 +305,50 @@ KERN_NDO_TIMEOUT_UPDATE=0
 EXTRA_CFLAGS+=-DKERN_NDO_TIMEOUT_UPDATE=$(KERN_NDO_TIMEOUT_UPDATE)
 endif
 
+ifneq (,$(wildcard $(KDIR)/include/linux/time.h))
+KERN_DO_GET_TIME=$(shell grep 'do_gettimeofday' $(KDIR)/include/linux/time* | wc -l)
+EXTRA_CFLAGS+=-DKERN_DO_GET_TIME=$(KERN_DO_GET_TIME)
+else ifneq (,$(wildcard $(KSRC)/include/linux/*))
+KERN_DO_GET_TIME=$(shell grep 'do_gettimeofday' $(KSRC)/include/linux/time* | wc -l)
+EXTRA_CFLAGS+=-DKERN_DO_GET_TIME=$(KERN_DO_GET_TIME)
+else
+KERN_DO_GET_TIME=0
+EXTRA_CFLAGS+=-DKERN_DO_GET_TIME=$(KERN_DO_GET_TIME)
+endif
+
+ifneq (,$(wildcard $(KDIR)/include/asm-generic/uaccess.h))
+KERN_GET_KENEL_DS=$(shell grep 'define get_ds' $(KDIR)/include/asm-generic/uaccess.h -c)
+EXTRA_CFLAGS+=-DKERN_GET_KENEL_DS=$(KERN_GET_KENEL_DS)
+else ifneq (,$(wildcard $(KSRC)/include/asm-generic/uaccess.h))
+KERN_GET_KENEL_DS=$(shell grep 'define get_ds' $(KSRC)/include/asm-generic/uaccess.h -c)
+EXTRA_CFLAGS+=-DKERN_GET_KENEL_DS=$(KERN_GET_KENEL_DS)
+else
+KERN_GET_KENEL_DS=0
+EXTRA_CFLAGS+=-DKERN_GET_KENEL_DS=$(KERN_GET_KENEL_DS)
+endif
+
+ifneq (,$(wildcard $(KDIR)/include/linux/proc_fs.h))
+KERN_PROC_CREATE=$(shell grep -A 2 'proc_create' $(KDIR)/include/linux/proc_fs.h | grep file_operations -c)
+EXTRA_CFLAGS+=-DKERN_PROC_CREATE=$(KERN_PROC_CREATE)
+else ifneq (,$(wildcard $(KSRC)/include/linux/proc_fs.h))
+KERN_PROC_CREATE=$(shell grep -A 2 'proc_create' $(KSRC)/include/linux/proc_fs.h | grep file_operations -c)
+EXTRA_CFLAGS+=-DKERN_PROC_CREATE=$(KERN_PROC_CREATE)
+else
+KERN_PROC_CREATE=0
+EXTRA_CFLAGS+=-DKERN_PROC_CREATE=$(KERN_PROC_CREATE)
+endif
+
+ifneq (,$(wildcard $(KDIR)/include/linux/types.h))
+KERN_TIMER_32BIT=$(shell grep 'time_t' $(KDIR)/include/linux/t* | grep typedef -c)
+EXTRA_CFLAGS+=-DKERN_TIMER_32BIT=$(KERN_TIMER_32BIT)
+else ifneq (,$(wildcard $(KSRC)/include/linux/types.h))
+KERN_TIMER_32BIT=$(shell grep 'time_t' $(KSRC)/include/linux/t* | grep typedef -c)
+EXTRA_CFLAGS+=-DKERN_TIMER_32BIT=$(KERN_TIMER_32BIT)
+else
+KERN_TIMER_32BIT=0
+EXTRA_CFLAGS+=-DKERN_TIMER_32BIT=$(KERN_TIMER_32BIT)
+endif
+
 # First pass, kernel Makefile reads module objects
 ifneq ($(KERNELRELEASE),)
 obj-m := sdladrv.o wanrouter.o wanpipe.o wanpipe_syncppp.o wanec.o 
@@ -328,10 +393,10 @@ cleanup_local:
 
 #Build only kernel modules
 all_kmod_dahdi:  _checkzap _checksrc _cleanoldwanpipe _check_kver
-	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(DAHDI_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) ZAPHDLC=$(ZAPHDLC_PRIV) HOMEDIR=$(PWD) modules  
+	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) KBUILD_MODPOST_WARN=$(KBUILD_MODPOST_WARN) -C $(KDIR) M=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(DAHDI_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) ZAPHDLC=$(ZAPHDLC_PRIV) HOMEDIR=$(PWD) modules  
 
 all_kmod:  _checksrc _cleanoldwanpipe _check_kver
-	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR= ZAPHDLC= HOMEDIR=$(PWD) modules  
+	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) KBUILD_MODPOST_WARN=$(KBUILD_MODPOST_WARN) -C $(KDIR) M=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR= ZAPHDLC= HOMEDIR=$(PWD) modules  
 
 all_kmod_ss7: _checkzap _checksrc _cleanoldwanpipe _check_kver
 	@if [ -e  $(PWD)/ss7_build_dir ]; then \
@@ -353,8 +418,8 @@ all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 #Clean utilites and kernel modules
 .PHONY: clean
 clean: cleanup_local  clean_util _cleanoldwanpipe
-	$(MAKE) -C $(KDIR) SUBDIRS=$(WAN_DIR) clean
-	$(MAKE) -C api SUBDIRS=$(WAN_DIR) clean
+	$(MAKE) -C $(KDIR) M=$(WAN_DIR) clean
+	$(MAKE) -C api M=$(WAN_DIR) clean
 	@find patches/kdrivers -name '.*.cmd' | xargs rm -f
 	@find . -name 'Module.symver*' | xargs rm -f
 	@if [ -e .no_legacy_smg ]; then \

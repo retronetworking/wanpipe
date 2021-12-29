@@ -55,8 +55,21 @@ typedef unsigned long		wan_time_t;
 typedef unsigned long		wan_suseconds_t; 
 typedef long				long_t;	
 typedef unsigned long 		ulong_t;
+
+#if defined (KERN_DO_GET_TIME) && (KERN_DO_GET_TIME == 0)
+struct wan_timeval
+{
+	wan_time_t		tv_sec;
+	wan_suseconds_t		tv_usec;
+};
+
+typedef	struct wan_timeval wan_timeval_t;
+#define timeval wan_timeval/* kernel-mode only - will NOT conflict with winsock.h */
+#else
 #define wan_timeval			timeval
 #define wan_timeval_t		struct timeval
+#endif
+
 typedef unsigned int 		wan_bitmap_t; /* 32 bit-wide on both 32 and 64 bit systems */
 #elif defined(__WINDOWS__)
 /******************* W I N D O W S ******************************/

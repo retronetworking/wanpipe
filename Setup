@@ -158,7 +158,7 @@ check_kern_pde_feature ()
 		else
 			PDE_FEATURE="-DKERN_PROC_PDE_FEATURE=0"
 		fi
-		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $PDE_FEATURE " 
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $PDE_FEATURE "
 	elif [ -e $DEBSRCDIR/include/linux/proc_fs.h ];then
 		eval "grep PDE_DATA $DEBSRCDIR/include/linux/proc_fs.h >/dev/null 2>/dev/null"
 		if [ $? -eq 0 ]; then 
@@ -169,6 +169,25 @@ check_kern_pde_feature ()
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $PDE_FEATURE " 
 		
 	fi	
+
+	if [ -e $SOURCEDIR/include/linux/proc_fs.h ];then
+		eval "grep -A 2 \"proc_create\" $SOURCEDIR/include/linux/proc_fs.h | grep file_operations > /dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			PROC_FEATURE="-DKERN_PROC_CREATE=1"
+		else
+			PROC_FEATURE="-DKERN_PROC_CREATE=0"
+		fi
+	elif [ -e $DEBSRCDIR/include/linux/proc_fs.h ];then
+		eval "grep -A 2 \"proc_create\" $DEBSRCDIR/include/linux/proc_fs.h | grep file_operations > /dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			PROC_FEATURE="-DKERN_PROC_CREATE=1"
+		else
+			PROC_FEATURE="-DKERN_PROC_CREATE=0"
+		fi
+	else
+		PROC_FEATURE="-DKERN_PROC_CREATE=0"
+	fi
+	PROTOCOL_DEFINES="$PROTOCOL_DEFINES $PROC_FEATURE "
 }
 
 check_kern_sock_for_feature ()
@@ -326,19 +345,36 @@ check_kern_dev_group_struct ()
 		eval "grep \"\*\*dev_groups;\" $SOURCEDIR/include/linux/device.h >/dev/null 2>/dev/null"
 		if [ $? -eq 0 ]; then
 			DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=1"
-		else
-			DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=0"
 		fi
-		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $DEV_GRP_STRUCT "
 	elif [ -e $DEBSRCDIR/include/linux/device.h ];then
 		eval "grep \"\*\*dev_groups;\" $DEBSRCDIR/include/linux/device.h >/dev/null 2>/dev/null"
 		if [ $? -eq 0 ]; then
 			DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=1"
-		else
-			DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=0"
 		fi
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $DEV_GRP_STRUCT "
 	fi
+
+	if [[ "$DEV_GRP_STRUCT" != "-DKERN_CLASS_DEV_GROUPS=1" ]];then
+		if [ -e $SOURCEDIR/include/linux/device/bus.h ];then
+			eval "grep \"\*\*dev_groups;\" $SOURCEDIR/include/linux/device/bus.h >/dev/null 2>/dev/null"
+			if [ $? -eq 0 ]; then
+				DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=1"
+			else
+				DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=0"
+			fi
+		elif [ -e $DEBSRCDIR/include/linux/device/bus.h ];then
+			eval "grep \"\*\*dev_groups;\" $DEBSRCDIR/include/linux/device/bus.h >/dev/null 2>/dev/null"
+			if [ $? -eq 0 ]; then
+				DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=1"
+			else
+				DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=0"
+			fi
+		else
+			DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=0"
+		fi
+
+	fi
+	PROTOCOL_DEFINES="$PROTOCOL_DEFINES $DEV_GRP_STRUCT "
 }
 
 check_kern_timer_struct ()
@@ -359,6 +395,24 @@ check_kern_timer_struct ()
 			TIMER_STRUCT="-DKERN_TIMER_SETUP=0"
 		fi
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $TIMER_STRUCT "
+	fi
+
+	if [ -e $SOURCEDIR/include/linux/types.h ];then
+		eval "grep \"define timer_setup\" $SOURCEDIR/include/linux/t* >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			TIMER_32BIT="-DKERN_TIMER_32BIT=1"
+		else
+			TIMER_32BIT="-DKERN_TIMER_32BIT=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $TIMER_32BIT "
+	elif [ -e $DEBSRCDIR/include/linux/types.h ];then
+		eval "grep \"define timer_setup\" $DEBSRCDIR/include/linux/t* >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			TIMER_32BIT="-DKERN_TIMER_32BIT=1"
+		else
+			TIMER_32BIT="-DKERN_TIMER_32BIT=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $TIMER_32BIT "
 	fi
 }
 
@@ -425,6 +479,49 @@ check_kern_proto_ops_struct ()
 	fi
 }
 
+check_kern_timeofday ()
+{
+	if [ -e $SOURCEDIR/include/linux/time.h ];then
+		eval "grep \"do_gettimeofday\" $SOURCEDIR/include/linux/time* >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			KERN_TIME_UPDATE="-DKERN_DO_GET_TIME=1"
+		else
+			KERN_TIME_UPDATE="-DKERN_DO_GET_TIME=0"
+		fi
+	elif [ -e $DEBSRCDIR/include/linux/time.h ];then
+		eval "grep \"do_gettimeofday\" $DEBSRCDIR/include/linux/time* >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			KERN_TIME_UPDATE="-DKERN_DO_GET_TIME=1"
+		else
+			KERN_TIME_UPDATE="-DKERN_DO_GET_TIME=0"
+		fi
+	else
+		KERN_TIME_UPDATE="-DKERN_DO_GET_TIME=0"
+	fi
+	PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_TIME_UPDATE "
+}
+
+check_kern_ds ()
+{
+	if [ -e $SOURCEDIR/include/asm-generic/uaccess.h ];then
+		eval "grep \"define get_ds\" $SOURCEDIR/include/asm-generic/uaccess.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			KERN_DS_UPDATE="-DKERN_GET_KENEL_DS=1"
+		else
+			KERN_DS_UPDATE="-DKERN_GET_KENEL_DS=0"
+		fi
+	elif [ -e $DEBSRCDIR/include/asm-generic/uaccess.h ];then
+		eval "grep \"define get_ds\" $DEBSRCDIR/include/asm-generic/uaccess.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			KERN_DS_UPDATE="-DKERN_GET_KENEL_DS=1"
+		else
+			KERN_DS_UPDATE="-DKERN_GET_KENEL_DS=0"
+		fi
+	else
+		KERN_DS_UPDATE="-DKERN_GET_KENEL_DS=0"
+	fi
+	PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_DS_UPDATE "
+}
 # ----------------------------------------------------------------------------
 # Display error message.
 # ----------------------------------------------------------------------------
@@ -1208,8 +1305,15 @@ get_kernel_ver ()
 
 	KERNEL_VERSION=$KVER"."$KPATCH"."$KLVL$KEVER
 
-	if [ "$KVER" -eq "3" ] || [ "$KVER" -eq "4" ]; then
+	if [ "$KVER" -eq "3" ] || [ "$KVER" -eq "4" ] || [ "$KVER" -eq "5" ]; then
 		KERN_VER=30;
+		if [ "$KVER" -eq "5" ]; then
+			SUBKERN_VER=50;
+		elif [ "$KVER" -eq "4" ]; then
+			SUBKERN_VER=40;
+		else
+			SUBKERN_VER=30;
+		fi
 		LINUXDRIVERS_NET="drivers/net/wan"
 	elif [ "$KVER" -eq "2" ] && [ "$KPATCH" -eq "6" ]; then
 		KERN_VER=26;
@@ -2611,14 +2715,14 @@ function update_redhat_as()
 
 function wan_get_kernel_flags()
 {
-#	echo "make -C $SOURCEDIR  SUBDIRS=$PWD drivers/net/wan/sdladrv 2> /dev/null"
+#	echo "make -C $SOURCEDIR  M=$PWD drivers/net/wan/sdladrv 2> /dev/null"
 
 	if [ ! -d $SOURCEDIR/wanpipe ]; then
 		mkdir -p $SOURCEDIR/wanpipe
 	fi
 	cp $DRIVER_UPDATE_DIR/src/net/sdladrv.c $SOURCEDIR/wanpipe 
 
-	tmp1=`make -C $SOURCEDIR  KBUILD_VERBOSE=0 SUBDIRS=$PWD wanpipe/sdladrv 2> /dev/null`
+	tmp1=`make -C $SOURCEDIR  KBUILD_VERBOSE=0 KBUILD_MODPOST_WARN=1 M=$PWD wanpipe/sdladrv 2> /dev/null`
 
 	#echo "TMP =---$tmp1---"
 
@@ -2699,7 +2803,7 @@ function build_kernel_module()
 			local_link=$local_link" $file.o "
 		done
 
-		echo "make MODULE_NAME=$modname OBJS=\"$ofiles\" SUBDIRS=$PWD CC=$CC KDIR=$SOURCEDIR \
+		echo "make MODULE_NAME=$modname OBJS=\"$ofiles\" M=$PWD CC=$CC KDIR=$SOURCEDIR \
                      EXTRA_CFLAGS=\"-D__LINUX__ $PROTOCOL_DEFINES $extra_flags \"" >> $CMP_BUILD
 
 		chmod 755 $CMP_BUILD
@@ -2710,7 +2814,7 @@ function build_kernel_module()
 			kverbose=$KBUILD_VERBOSE
 		fi
 
-		make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$kverbose KDIR=$SOURCEDIR \
+		make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC M=$PWD KBUILD_VERBOSE=$kverbose KBUILD_MODPOST_WARN=1 KDIR=$SOURCEDIR \
                      EXTRA_CFLAGS="-D__LINUX__ $PROTOCOL_DEFINES $extra_flags " >> $CMP_LOG 2>> $CMP_LOG 
 
 		if [ $? -ne 0 ]; then
@@ -2758,10 +2862,10 @@ function build_kernel_module()
 			rm -f $modname.ko
 			rm -f $modname.mod.o
 
-			echo " make MODULE_NAME=$modname OBJS=\"$ofiles\" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KDIR=$SOURCEDIR \
+			echo " make MODULE_NAME=$modname OBJS=\"$ofiles\" CC=$CC M=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KBUILD_MODPOST_WARN=$KBUILD_MODPOST_WARN KDIR=$SOURCEDIR \
                      	EXTRA_CFLAGS=\"-D__LINUX__ $PROTOCOL_DEFINES $extra_flags \""  >> $CMP_BUILD 
 
-			make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KDIR=$SOURCEDIR \
+			make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC M=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KBUILD_MODPOST_WARN=$KBUILD_MODPOST_WARN KDIR=$SOURCEDIR \
                      	EXTRA_CFLAGS="-D__LINUX__ $PROTOCOL_DEFINES $extra_flags " >> $CMP_LOG 2>> $CMP_LOG 
 		#	echo "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o" >> $CMP_BUILD 
 		#	$EVALCMD "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o"
@@ -2856,7 +2960,7 @@ function build_wanec_module ()
     fi
 
 	
-	eval "make SUBDIRS=$PWD clean >> $CMP_BUILD  2>> $CMP_BUILD "
+	eval "make M=$PWD clean >> $CMP_BUILD  2>> $CMP_BUILD "
 
 	if [ $KERN_VER -eq 24 ]; then
         	if [ -e wanectmp ]; then
@@ -3851,6 +3955,10 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 
 		check_kern_proto_ops_struct
 
+		check_kern_timeofday
+
+		check_kern_ds
+
 		if [ "$BRI_MODULE_TEST" = "YES" ]; then
 			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DBUILD_MOD_TESTER"
 		fi
@@ -3867,7 +3975,13 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		if [ $KERN_VER -eq 26 ]; then
 			echo -n "Compiling General ${DISTR_NAME} Driver for 2.6.X Kernel ."
 		else 
-			echo -n "Compiling General ${DISTR_NAME} Driver for 3.X.X Kernel ."
+			if [ $SUBKERN_VER -eq 40 ]; then
+				echo -n "Compiling General ${DISTR_NAME} Driver for 4.X.X Kernel ."
+			elif [ $SUBKERN_VER -eq 50 ]; then
+				echo -n "Compiling General ${DISTR_NAME} Driver for 5.X.X Kernel ."
+			else
+				echo -n "Compiling General ${DISTR_NAME} Driver for 3.X.X Kernel ."
+			fi
 		fi
 		
 	
@@ -7628,7 +7742,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=7.0.31
+PROD_VER=7.0.32
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7824,6 +7938,7 @@ USR_CC=
 GCC_VER=3
 GCC_CHECK="INIT"
 KBUILD_VERBOSE=0
+KBUILD_MODPOST_WARN=1
 REGPARM_DISABLE=0
 KBUILD_DISABLE=0
 NO_AUTO_START=0
@@ -7994,6 +8109,10 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 			;;
 		--kbuild-verbose*)
 			KBUILD_VERBOSE=1
+			;;
+
+		--kbuild-modpost-warn*)
+			KBUILD_MODPOST_WARN=1
 			;;
 			
 		--regparm_disable*)

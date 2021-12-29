@@ -62,6 +62,17 @@ if(0){	\
 	WAN_LOGGER_SET_TIME_STAMP(logger_event)	\
 }
 
+#if defined (KERN_DO_GET_TIME) && (KERN_DO_GET_TIME == 0)
+#define WAN_LOGGER_SET_TIME_STAMP(logger_event) \
+{       \
+	struct timespec64 tv;           \
+	\
+	ktime_get_real_ts64(&tv);;      \
+	\
+	logger_event->time_stamp_sec = tv.tv_sec;               \
+	logger_event->time_stamp_usec = tv.tv_nsec/1000;        \
+}
+#else
 #define WAN_LOGGER_SET_TIME_STAMP(logger_event)	\
 {	\
 	struct timeval tv;	\
@@ -71,7 +82,7 @@ if(0){	\
 	logger_event->time_stamp_sec = tv.tv_sec;	\
 	logger_event->time_stamp_usec = tv.tv_usec;	\
 }
-
+#endif
 
 /*=================================================================
  * Static Defines

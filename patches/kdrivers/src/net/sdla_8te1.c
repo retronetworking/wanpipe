@@ -4051,6 +4051,8 @@ static int sdla_ds_te1_intr_handler(sdla_fe_t *fe, int silent)
 		//WRITE_REG(REG_GBISR, (1<<WAN_FE_LINENO(fe)));
 		WRITE_REG(REG_GBISR, (1<<WAN_DS_REGBITMAP(fe)));
 	}
+
+	return 0;
 }
 
 static int sdla_ds_te1_intr(sdla_fe_t *fe)

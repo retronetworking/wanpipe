@@ -268,6 +268,7 @@ static int status_open(struct inode *inode, struct file *file)
 	return single_open(file, status_get_info, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations config_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = config_open,
@@ -283,12 +284,28 @@ static struct file_operations status_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops config_fops = {
+	.proc_open	 = config_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release 	 = single_release,
+};
+
+static struct proc_ops status_fops = {
+	.proc_open	 = status_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release 	 = single_release,
+};
+#endif
 
 static int wandev_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, wandev_get_info, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wandev_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wandev_open,
@@ -297,12 +314,23 @@ static struct file_operations wandev_fops = {
 	.release = single_release,
 	.WAN_IOCTL	 = wanrouter_ioctl,
 };
+#else
+static struct proc_ops wandev_fops = {
+	.proc_open	 = wandev_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release 	 = single_release,
+	.proc_ioctl	 = wanrouter_ioctl,
+};
+
+#endif
 
 static int wp_hwprobe_open(struct inode *inode, struct file *file)
 {
  	return single_open(file, probe_get_info, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wp_hwprobe_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wp_hwprobe_open,
@@ -310,12 +338,22 @@ static struct file_operations wp_hwprobe_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops wp_hwprobe_fops = {
+	.proc_open	 = wp_hwprobe_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release 	 = single_release,
+};
+
+#endif
 
 static int wp_hwprobe_legacy_open(struct inode *inode, struct file *file)
 {
  	return single_open(file, probe_get_info_legacy, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wp_hwprobe_legacy_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wp_hwprobe_legacy_open,
@@ -323,6 +361,14 @@ static struct file_operations wp_hwprobe_legacy_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops wp_hwprobe_legacy_fops = {
+	.proc_open	 = wp_hwprobe_legacy_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release 	 = single_release,
+};
+#endif
 
 static int wp_hwprobe_verbose_open(struct inode *inode, struct file *file)
 {
@@ -331,6 +377,7 @@ static int wp_hwprobe_verbose_open(struct inode *inode, struct file *file)
 
 
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wp_hwprobe_verbose_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wp_hwprobe_verbose_open,
@@ -338,12 +385,22 @@ static struct file_operations wp_hwprobe_verbose_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops wp_hwprobe_verbose_fops = {
+	.proc_open	 = wp_hwprobe_verbose_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release 	 = single_release,
+};
+
+#endif
 
 static int wp_hwprobe_dump_open(struct inode *inode, struct file *file)
 {
  	return single_open(file, probe_get_info_dump, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wp_hwprobe_dump_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wp_hwprobe_dump_open,
@@ -351,12 +408,22 @@ static struct file_operations wp_hwprobe_dump_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops wp_hwprobe_dump_fops = {
+	.proc_open	 = wp_hwprobe_dump_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release  	 = single_release,
+};
+
+#endif
 
 static int wp_map_open(struct inode *inode, struct file *file)
 {
  	return single_open(file, map_get_info, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wp_map_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wp_map_open,
@@ -364,12 +431,21 @@ static struct file_operations wp_map_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops wp_map_fops = {
+	.proc_open	 = wp_map_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release 	 = single_release,
+};
+#endif
 
 static int wp_iface_open(struct inode *inode, struct file *file)
 {
  	return single_open(file, interfaces_get_info, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wp_iface_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wp_iface_open,
@@ -377,12 +453,21 @@ static struct file_operations wp_iface_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops wp_iface_fops = {
+	.proc_open	 = wp_iface_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release 	 = single_release,
+};
+#endif
 
 static int wandev_mapdir_open(struct inode *inode, struct file *file)
 {
  	return single_open(file, wandev_mapdir_get_info, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wandev_mapdir_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wandev_mapdir_open,
@@ -390,12 +475,21 @@ static struct file_operations wandev_mapdir_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops wandev_mapdir_fops = {
+	.proc_open	 = wandev_mapdir_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release  	 = single_release,
+};
+#endif
 
 static int  wp_get_dev_config_open(struct inode *inode, struct file *file)
 {
  	return single_open(file, get_dev_config_info, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wp_get_dev_config_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 =  wp_get_dev_config_open,
@@ -403,12 +497,21 @@ static struct file_operations wp_get_dev_config_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops wp_get_dev_config_fops = {
+	.proc_open	 =  wp_get_dev_config_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release    = single_release,
+};
+#endif
 
 static int wp_get_dev_status_open(struct inode *inode, struct file *file)
 {
  	return single_open(file, get_dev_status_info, WP_PDE_DATA(inode));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations wp_get_dev_status_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 =  wp_get_dev_status_open,
@@ -416,6 +519,14 @@ static struct file_operations wp_get_dev_status_fops = {
 	.llseek	 = seq_lseek,
 	.release = single_release,
 };
+#else
+static struct proc_ops wp_get_dev_status_fops = {
+	.proc_open	 =  wp_get_dev_status_open,
+	.proc_read	 = seq_read,
+	.proc_lseek	 = seq_lseek,
+	.proc_release 	 = single_release,
+};
+#endif
 
 
 #if 0
@@ -1265,14 +1376,25 @@ wandev_get_info_end:
 #define FPTR(st) NULL
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static inline struct proc_dir_entry *wp_proc_create(const char *name,
 		umode_t mode,
 		struct proc_dir_entry *parent,
 		struct file_operations *proc_fops)
+#else
+static inline struct proc_dir_entry *wp_proc_create(const char *name,
+		umode_t mode,
+		struct proc_dir_entry *parent,
+		struct proc_ops *proc_fops)
+#endif
 {
 	struct proc_dir_entry *p = NULL;
 #ifdef LINUX_3_0
+#if defined (KERN_PROC_CREATE) && (KERN_PROC_CREATE > 0)
 	p = proc_create(name, mode, parent, proc_fops);
+#else
+	p = proc_create(name, mode, parent, (struct proc_ops *)proc_fops);
+#endif
 #elif defined(LINUX_2_6)
 	p = create_proc_entry(name, mode, parent);
 	if (!p) {
@@ -1301,14 +1423,25 @@ static inline struct proc_dir_entry *wp_proc_create(const char *name,
 	return p;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static inline struct proc_dir_entry *wp_proc_create_data(const char *name,
 		umode_t mode,
 		struct proc_dir_entry *parent,
 		struct file_operations *proc_fops, void *data)
+#else
+static inline struct proc_dir_entry *wp_proc_create_data(const char *name,
+		umode_t mode,
+		struct proc_dir_entry *parent,
+		struct proc_ops *proc_fops, void *data)
+#endif
 {
 	struct proc_dir_entry *p = NULL;
 #ifdef LINUX_3_0
+#if defined (KERN_PROC_CREATE) && (KERN_PROC_CREATE > 0)
 	p = proc_create_data(name, mode, parent, proc_fops, data);
+#else
+	p = proc_create_data(name, mode, parent, (struct proc_ops *)proc_fops, data);
+#endif
 #else
 	p = wp_proc_create(name, mode, parent, proc_fops);
 	if (p) {
