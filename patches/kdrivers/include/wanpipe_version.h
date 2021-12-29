@@ -10,14 +10,14 @@
 #define WANPIPE_COMPANY         "Sangoma Technologies Inc"
 
 /********** LINUX **********/
-#define WANPIPE_VERSION			"3.5.27"
+#define WANPIPE_VERSION			"3.5.28"
 #define WANPIPE_SUB_VERSION				"0"
 #define WANPIPE_LITE_VERSION			"1.1.1"
 
 #if defined(__LINUX__)
 #define WANPIPE_VERSION_MAJOR			3
 #define WANPIPE_VERSION_MINOR			5
-#define WANPIPE_VERSION_MINOR1			27
+#define WANPIPE_VERSION_MINOR1			28
 #define WANPIPE_VERSION_MINOR2			0
 #endif
 

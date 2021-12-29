@@ -119,14 +119,9 @@ int			options = 0x00;
 static char		aft_firmware_force[MAXPATHLEN];
 
 extern aftup_flash_iface_t aftup_flash_iface;
+extern aftup_flash_iface_t aftup_shark_flash_116_iface;
 extern aftup_flash_iface_t aftup_shark_flash_iface;
 extern aftup_flash_iface_t aftup_a600_flash_iface;
-
-extern aftup_flash_t	aft_flash;
-extern aftup_flash_t	aft4_flash;
-extern aftup_flash_t	aft_shark_flash;
-extern aftup_flash_t	aft_shark_flash_ds;
-extern aftup_flash_t	aft_a600_flash;
 
 extern pcie_bridge_iface_t aft_pci_bridge_iface_tundra;
 extern pcie_bridge_iface_t aft_pci_bridge_iface_plx;
@@ -157,6 +152,8 @@ aft_core_info_t aft_core_table[] = {
 	  "A104dm_0100_V", "A104dm_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ AFT_8TE1_SHARK_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_DS_FE_CORE_ID, 0x20, 0x5B,
 	  "A108dm_0100_V", "A108dm_0100_V*.BIN", AFT_CORE_X1000_SIZE },
+	{ AFT_16TE1_SHARK_SUBSYS_VENDOR, AFT_CHIP_X1600, AFT_DS_FE_CORE_ID, 0x20, 0x5B,
+	  "A116dm_0160_V", "A116dm_0160_V*.BIN", AFT_CORE_X1600_SIZE },
 	{ A200_REMORA_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_ANALOG_FE_CORE_ID, 0x01, 0x4F,	
 	  "A200_0040_V", "A200_0040_V*.BIN", AFT_CORE_X400_SIZE },
 	{ AFT_B800_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_ANALOG_FE_CORE_ID, 0x01, 0x4F,	
@@ -425,6 +422,9 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 	case A300_ADPTR_U_1TE3:
 		aft->cpld.iface	= &aftup_flash_iface;
 		break;
+	case A116_ADPTR_16TE1:
+		aft->cpld.iface	= &aftup_shark_flash_116_iface;
+		break;
 	case A200_ADPTR_ANALOG:
 	case AFT_ADPTR_B800:
 	case A400_ADPTR_ANALOG:
@@ -462,6 +462,10 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		//strcpy(aft->prefix_fw, "A104");
 		aft->cpld.adptr_type = A108_ADPTR_8TE1;
 		aft->cpld.iface	= &aftup_flash_iface;
+	}else if (strncmp(type,"AFT-A116",8) == 0){
+		//strcpy(aft->prefix_fw, "A104");
+		aft->cpld.adptr_type = A116_ADPTR_16TE1;
+		aft->cpld.iface	= &aftup_shark_flash_116_iface;
 	}else if (strncmp(type,"AFT-A300",8) == 0){
 		//strcpy(aft->prefix_fw, "A301");
 		aft->cpld.adptr_type = A300_ADPTR_U_1TE3;
@@ -506,6 +510,7 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		aft->cpld.adptr_type = AFT_ADPTR_4SERIAL_RS232;
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 	}else if (strncmp(type,"AFT-A600",8) == 0 ||
+	          strncmp(type,"AFT-B610",8) == 0 ||
 	          strncmp(type,"AFT-B600",8) == 0){
 		aft->cpld.adptr_type = AFT_ADPTR_A600;
 		aft->cpld.iface	= &aftup_a600_flash_iface;
@@ -892,7 +897,6 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 	aft->core_rev = AFT_CORE_REV(tmp);
 	aft->core_id = AFT_CORE_ID(tmp);
 	
-#if 1
 	err=aft_a200_a400_warning(aft);
 	if (err) {
 		goto program_done;
@@ -968,6 +972,9 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 	case AFT_8TE1_SHARK_SUBSYS_VENDOR:
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 		break;
+	case AFT_16TE1_SHARK_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_116_iface;
+		break;
 	case A200_REMORA_SHARK_SUBSYS_VENDOR:
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 		break;
@@ -996,6 +1003,7 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 		break;
 	case AFT_A600_SUBSYS_VENDOR:
 	case AFT_B601_SUBSYS_VENDOR:
+	case AFT_B610_SUBSYS_VENDOR:
 	case AFT_W400_SUBSYS_VENDOR:
 		aft->cpld.iface	= &aftup_a600_flash_iface;
 		break;
@@ -1008,60 +1016,6 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 		break;
 	}
 	
-#else
-	
-	switch(aft->cpld.board_id){
-	case A101_1TE1_SUBSYS_VENDOR:
-	case A101_2TE1_SUBSYS_VENDOR:
-		aft->cpld.chip_id = AFT_CHIP_X300;
-		/* Read revision ID */
-		exec_read_cmd(aft, 
-			0x08, 1, (unsigned int*)&aft->cpld.adptr_subtype);
-		if (aft->cpld.adptr_subtype == 0x01){
-			/* A101/A102 new cards */
-			strncpy(aft->prefix_fw, "A101N", 5);
-			aft->cpld.chip_id = AFT_CHIP_X400;
-		}
-		aft->cpld.flash	= &aft_shark_flash;
-		break;
-	case A104_4TE1_SUBSYS_VENDOR:
-		aft->cpld.chip_id = AFT_CHIP_X400;
-		aft->cpld.flash	= &aft4_flash;
-		break;
-	case A300_UTE3_SUBSYS_VENDOR:
-	case A305_CT3_SUBSYS_VENDOR:
-		aft->cpld.chip_id = AFT_CHIP_X300;
-		aft->cpld.flash	= &aft_shark_flash;
-		break;
-	case AFT_4TE1_SHARK_SUBSYS_VENDOR:
-		aft->cpld.chip_id = AFT_CHIP_X1000;
-		aft->cpld.flash	= &aft_shark_flash;
-		break;
-	case A200_REMORA_SHARK_SUBSYS_VENDOR:
-	case A400_REMORA_SHARK_SUBSYS_VENDOR:
-	case AFT_B800_SUBSYS_VENDOR:
-		aft->cpld.chip_id = AFT_CHIP_X1000;
-		aft->cpld.flash	= &aft_shark_flash;
-		break;
-	case AFT_A600_SUBSYS_VENDOR:
-	case AFT_B601_SUBSYS_VENDOR:
-	case AFT_W400_SUBSYS_VENDOR:
-		aft->cpld.chip_id = AFT_CHIP_X250;
-		aft->cpld.flash = &aft_a600_flash;
-		break;
-	case AFT_1TE1_SHARK_SUBSYS_VENDOR:
-	case AFT_2TE1_SHARK_SUBSYS_VENDOR:
-	case AFT_8TE1_SHARK_SUBSYS_VENDOR:
-	case A300_UTE3_SHARK_SUBSYS_VENDOR:
-	case A305_CTE3_SHARK_SUBSYS_VENDOR:
-		printf("\n%s: These board are not supported (subvendor_id=%04X)!\n",
-			aft->if_name,
-			aft->cpld.board_id);
-		goto program_done;
-		break;
-	}
-	
-#endif
 	if (wan_aftup_program_card(aft)){
 		printf("\n%s: Failed to re-program flash!\n",
 			aft->if_name);
@@ -1115,6 +1069,7 @@ static int wan_pcie_ctrl(struct wan_aftup_head_t *head)
 		case AFT_2TE1_SHARK_SUBSYS_VENDOR:
 		case AFT_4TE1_SHARK_SUBSYS_VENDOR:
 		case AFT_8TE1_SHARK_SUBSYS_VENDOR:
+		case AFT_16TE1_SHARK_SUBSYS_VENDOR:
 			break;
 		case A200_REMORA_SHARK_SUBSYS_VENDOR:
 		case A400_REMORA_SHARK_SUBSYS_VENDOR:

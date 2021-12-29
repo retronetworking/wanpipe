@@ -42,7 +42,10 @@ CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__  -I$
 
 CFLAGS += $(EXTRA_FLAGS)
 CFLAGS += -lstdc++
-CFLAGS += -lncurses
+CFLAGS += -lncurses 
+
+#For gcc 4.6 to be added later 
+#-Wno-write-strings -Wno-unused-but-set-variable -Wno-int-to-pointer-cast
 
 ifeq "${ENABLE_ZAPTEL_PARSER}" "YES"
 CFLAGS += -DZAPTEL_PARSER -I$(ZAPINC)

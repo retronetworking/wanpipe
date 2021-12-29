@@ -301,6 +301,31 @@ static void modem( void )
 #endif
 }; /* modem */
 
+
+static int set_bri_loopback(int enable)
+{
+	/*! API command structure used to execute API commands. 
+	This command structure is used with libsangoma library */
+	wanpipe_api_t wp_api;
+	int err;
+
+	if (tdmv_chan != 1 && tdmv_chan != 2) {
+		printf("Error: Please specify the channel using -chan option. eg -chan 1 or -chan 2\n"); 
+		return -1;
+	}
+
+	if (enable) {
+		err=sangoma_enable_bri_bchan_loopback(sangoma_fd, &wp_api, tdmv_chan);
+	} else {
+		err=sangoma_disable_bri_bchan_loopback(sangoma_fd, &wp_api, tdmv_chan);
+	}
+
+	printf ("BRI Loopback Channel=%i %s: %s\n",tdmv_chan, enable?"Enabled":"Disabled",err?"Failed":"Ok");
+
+	return err;
+}
+
+
 int get_if_operational_stats(void)
 {
 	/*! API command structure used to execute API commands. 
@@ -1397,7 +1422,7 @@ static int aft_gsm_uart_debug(int enable)
 	return 0;
 }
 
-static int aft_gsm_audio_debug()
+static int aft_gsm_audio_debug(void)
 {
 	wan_udp.wan_udphdr_command = WAN_GSM_AUDIO_DEBUG;
 	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -1415,7 +1440,7 @@ static int aft_gsm_audio_debug()
 	return 0;
 }
 
-static int aft_gsm_pll_reset()
+static int aft_gsm_pll_reset(void)
 {
 	wan_udp.wan_udphdr_command = WAN_GSM_PLL_RESET;
 	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -1433,7 +1458,7 @@ static int aft_gsm_pll_reset()
 	return 0;
 }
 
-static int aft_gsm_power_toggle()
+static int aft_gsm_power_toggle(void)
 {
 	wan_udp.wan_udphdr_command = WAN_GSM_POWER_TOGGLE;
 	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -1668,6 +1693,10 @@ int AFTUsage(void)
 	printf("\t   T  tx_ais_on    Enable  AIS Alarm - Maintenance On  (AFT card only)\n");  
 	printf("\t   T  tx_ais_off   Disable AIS Alarm - Maintenance Off (AFT card only)\n");  
 	printf("\n");
+	printf("\t   T  bri_loop_on  Enable  BRI Remote Loopback  (BRI card only, -chan option to specify bchan 1 or 2\n");  
+	printf("\t   T  bri_loop_off Disable BRI Remote Loopback  (BRI card only, -chan option to specify bchan 1 or 2\n");  
+
+	printf("\n");
 
 	printf("\tFlush Statistics\n");
 	printf("\t   f         c       Flush Communication Error Statistics\n");
@@ -1692,6 +1721,9 @@ int AFTUsage(void)
 	printf("\t   g         adt Toggle (enable/disable) audio debugging (play demo-congrats at the kernel level ignoring audio from user space)\n");
 	printf("\t   g         uss Update GSM SIM status\n");
 	printf("\t   g         plt Toggle the PCM audio loopback\n");
+	printf("\tAFT BRI\n");
+	printf("\t   b         aloop   Enable  BRI b-channel loop\n");
+	printf("\t   b         dloop   Disable BRI b-channel loop\n");
 	printf("\tAFT Debugging\n");
 	printf("\t   d         err     Enable RX RBS debugging\n");
 	printf("\t   d         drr     Disable RX RBS debugging\n");
@@ -2162,6 +2194,10 @@ int AFTMain(char *command,int argc, char* argv[])
 				read_te1_56k_stat(0);
 			}else if (!strcmp(opt,"af")){
 				read_te1_56k_stat(1);
+			}else if (!strcmp(opt,"bri_loop_on")){
+				set_bri_loopback(1);
+			}else if (!strcmp(opt,"bri_loop_off")){
+				set_bri_loopback(0);
 			}else if (!strcmp(opt,"txe")){
 				set_fe_tx_mode(WAN_FE_TXMODE_ENABLE);
 			}else if (!strcmp(opt,"txd")){

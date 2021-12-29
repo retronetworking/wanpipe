@@ -773,6 +773,7 @@ typedef struct sdla_hw_type_cnt
 	unsigned char aft_x_adapters;
 	unsigned char usb_adapters;
 	unsigned char aft_w400_adapters;
+	unsigned char aft116_adapters;
 }sdla_hw_type_cnt_t;
 
 typedef struct sdladrv_callback_ {

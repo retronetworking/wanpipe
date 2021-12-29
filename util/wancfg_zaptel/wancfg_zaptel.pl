@@ -2,7 +2,7 @@
 # config-zaptel.pl 
 # Sangoma Dahdi/Zaptel/TDM API/SMG Configuration Script.
 #
-# Copyright     (c) 2009, Sangoma Technologies Inc.
+# Copyright     (c) 2009-2012, Sangoma Technologies Inc.
 #
 #               This program is free software; you can redistribute it and/or
 #               modify it under the terms of the GNU General Public License
@@ -2864,7 +2864,7 @@ sub config_t1e1{
 		system('clear');
 	}
 	print "---------------------------------------------\n";
-	print "Configuring T1/E1 cards [A101/A102/A104/A108]\n";
+	print "Configuring T1/E1 cards [A101/A102/A104/A108/A116]\n";
 	print "---------------------------------------------\n";
 	
 	foreach my $dev (@hwprobe) {
@@ -2916,6 +2916,7 @@ sub config_t1e1{
 			     $card->card_model eq '102' |  
 			     $card->card_model eq '104' |  
 			     $card->card_model eq '108' |
+			     $card->card_model eq '116' |
 				 ($card->card_model eq '601' && $port eq '2') ){
 				if (!$first_cfg && $silent==$FALSE) {
 					system('clear');

@@ -499,6 +499,9 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	case A108_ADPTR_8TE1:
 		WP_DAHDI_SET_STR_INFO(wp,devicetype, "A108");
 		break;	
+	case A116_ADPTR_16TE1:
+		WP_DAHDI_SET_STR_INFO(wp,devicetype, "A116");
+		break;	
 	case AFT_ADPTR_B601:
 		WP_DAHDI_SET_STR_INFO(wp,devicetype, "B601");
 		break;
@@ -1024,7 +1027,7 @@ static void wp_tdmv_report_alarms(void* pcard, uint32_t te_alarm)
 	/*
 	** if (wp->alarmtimer)
 	** alarms |= ZT_ALARM_RECOVER; */
-	if (te_alarm & WAN_TE_BIT_ALARM_YEL)
+	if (te_alarm & WAN_TE_BIT_ALARM_YEL || te_alarm & WAN_TE_BIT_ALARM_RAI)
 		alarms |= ZT_ALARM_YELLOW;
 
 	wp->span.alarms = alarms;

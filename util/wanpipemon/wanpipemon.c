@@ -972,8 +972,7 @@ static int init(int argc, char *argv[], char* command)
 			dahdi_monitor=1;
 			wan_protocol = WANCONFIG_ZAP;
 
-		}else if (!strcmp(argv[i],"-tdmvchan")){
-#ifdef WANPIPEMON_ZAP
+		}else if (!strcmp(argv[i],"-tdmvchan") || !strcmp(argv[i],"-chan")){
 			if (i+1 > argc-1){
 				printf("ERROR: No Zap channel specified! i.e. '-zapchan 1'\n");
 				return WAN_FALSE;
@@ -983,7 +982,6 @@ static int init(int argc, char *argv[], char* command)
 					argv[i+1]);
 				return WAN_FALSE;
 			}
-#endif				
 		}else if (!strcmp(argv[i],"-u")){
 
 			if (i+1 > argc-1){

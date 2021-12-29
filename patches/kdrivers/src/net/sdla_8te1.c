@@ -2477,21 +2477,18 @@ static int sdla_ds_te1_rbs_ctrl(sdla_fe_t* fe, u_int32_t ch_map, int enable)
 	u_int8_t	value;
 	unsigned int	ch, bit, off;
 
-	value = READ_REG(REG_TCR1);
 	if (IS_T1_FEMEDIA(fe)){
+		value = READ_REG(REG_TCR1);
 		if (enable == WAN_TRUE){		
 			value |= BIT_TCR1_T1_TSSE;
 		}else{
 			value &= ~BIT_TCR1_T1_TSSE;
 		}
+		WRITE_REG(REG_TCR1, value);
 	}else{
-		if (enable == WAN_TRUE){		
-			value |= BIT_TCR1_E1_T16S;
-		}else{
-			value &= ~BIT_TCR1_E1_T16S;
-		}
+		WAN_TE1_SIG_MODE(fe) = WAN_TE1_SIG_CAS;
+		sdla_ds_e1_set_sig_mode(fe,1);
 	}
-	WRITE_REG(REG_TCR1, value);
 			
 	for(ch = 1; ch <= fe->te_param.max_channels; ch++){
 		if (!wan_test_bit(ch, &ch_map)){
@@ -2515,6 +2512,7 @@ static int sdla_ds_te1_rbs_ctrl(sdla_fe_t* fe, u_int32_t ch_map, int enable)
 					fe->name, ch, REG_SSIE1+off, value);
 		WRITE_REG(REG_SSIE1+off, value);	
 	}
+
 	return 0;
 }
 

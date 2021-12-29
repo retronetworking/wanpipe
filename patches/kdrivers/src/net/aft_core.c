@@ -899,6 +899,7 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 	case A104_ADPTR_4TE1:	/* Quad line T1/E1 */
 	case A104_ADPTR_4TE1_PCIX:		/* Quad line T1/E1 PCI Express */
 	case A108_ADPTR_8TE1:
+	case A116_ADPTR_16TE1:
 	case AFT_ADPTR_B601:
 		break;
 	default:
@@ -1415,6 +1416,10 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 #endif
 				 wan_set_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status);
 					
+		}
+		if (card->adptr_type == A116_ADPTR_16TE1) {
+			wan_set_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status);
+            wan_set_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status);
 		}
 		
 	} else {
@@ -1991,7 +1996,12 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 			if (IS_B601_CARD(card) && chan->mtu > 16) {
              	chan->mtu=8;
 			}
-	
+
+			/* Analog only supports 8 & 16 bytes hw chunk size */
+			if (card->wandev.config_id == WANCONFIG_AFT_ANALOG && chan->mtu > 16) {
+				chan->mtu=8;
+			}
+
 			if (chan->mtu % 8 != 0) {
 				DEBUG_ERROR("%s:%s: Error: MTU %d is not 8 byte aligned!\n",
 					card->devname, chan->if_name, chan->mtu);
@@ -2049,7 +2059,11 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 			if (chan->cfg.seven_bit_hdlc || IS_B601_CARD(card) || chan->cfg.sw_hdlc) {
 				chan->sw_hdlc_mode=1;	
 			}
-			
+		
+			if (card->wandev.config_id == WANCONFIG_AFT_ANALOG && chan->mtu > 16) {
+				chan->mtu=8;
+			}
+	
 			
 		} else {
 
@@ -6885,6 +6899,8 @@ static u32 aft_master_dev=0xF;
 static int gdma_cnt=0;
 #endif
 
+static int aft_spurrious=0;
+
 #define EC_IRQ_TIMEOUT (HZ/32)
 
 static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
@@ -7112,6 +7128,7 @@ if (1){
 			}
 
 		}
+		aft_spurrious=0;
          	/* Pass Through */
 	} else {
 
@@ -7119,9 +7136,19 @@ if (1){
 			AFT_PERF_STAT_INC(card,isr,non_aft);
 		}
 
+		if (IS_SERIAL_CARD(card)) {
+		   aft_spurrious++;
+		   if (aft_spurrious > 1000) {
+			   aft_spurrious=0;
+			   DEBUG_ERROR("%s: Error: Wanpipe serial card acking spurrious interrtup\n",card->devname);
+			   WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
+		   }
+		}
+
 		/* No more interrupts for us */
 		goto aft_global_isr_exit;
 	}
+	aft_spurrious=0;
 
 	if (IS_GSM_CARD(card)) {
 		/* All ports within the card share the same port */

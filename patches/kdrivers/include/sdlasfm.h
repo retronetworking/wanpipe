@@ -151,6 +151,7 @@ enum {
 	AFT_ADPTR_B500,			/* AFT B500 BRI board */
 	AFT_ADPTR_W400,                 /* AFT-W400 (GSM) */
 	AFT_ADPTR_B610,			/* AFT-B610 Single FXS board */
+	A116_ADPTR_16TE1,		/* 16 Channels T1/E1 */
 	AFT_ADPTR_LAST			/* NOTE: Keep it as a last line */
 };
 #define MAX_ADPTRS	AFT_ADPTR_LAST
@@ -295,6 +296,7 @@ enum {
 		(adapter_type == A101_ADPTR_2TE1)	   ? "AFT-A102" : \
 		(adapter_type == A104_ADPTR_4TE1)	   ? "AFT-A104" : \
 		(adapter_type == A108_ADPTR_8TE1)	   ? "AFT-A108" : \
+		(adapter_type == A116_ADPTR_16TE1)	   ? "AFT-A116" : \
 		(adapter_type == A300_ADPTR_U_1TE3) 	   ? "AFT-A301" : \
 		(adapter_type == A200_ADPTR_ANALOG) 	   ? "AFT-A200" : \
 		(adapter_type == A400_ADPTR_ANALOG) 	   ? "AFT-A400" : \
@@ -358,6 +360,7 @@ enum {
 		(card_sub_type == A104_4TE1_SUBSYS_VENDOR)	? "A104" :		\
 		(card_sub_type == AFT_4TE1_SHARK_SUBSYS_VENDOR)	? "A104D" :		\
 		(card_sub_type == AFT_8TE1_SHARK_SUBSYS_VENDOR)	? "A108D"  :	\
+		(card_sub_type == AFT_16TE1_SHARK_SUBSYS_VENDOR)	? "A116D"  :	\
 		(card_sub_type == AFT_ADPTR_FLEXBRI)		? "B700"  :	\
 		(card_sub_type == A200_REMORA_SHARK_SUBSYS_VENDOR)? "A200"  : "Unknown"
 

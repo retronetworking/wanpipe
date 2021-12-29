@@ -523,6 +523,7 @@ int menu_hardware_probe::parse_selected_card_line(char *selected_card_line,
   //August 11, 2006: added A101/A102 Shark
   if( strstr(selected_card_line, "AFT-A104") 	!= NULL ||
       strstr(selected_card_line, "AFT-A108") 	!= NULL	||
+      strstr(selected_card_line, "AFT-A116") 	!= NULL	||
       strstr(selected_card_line, "AFT-A101-SH") != NULL ||
       strstr(selected_card_line, "AFT-A102-SH") != NULL){
     

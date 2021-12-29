@@ -154,9 +154,10 @@ enum {
 		(card_type == WANOPT_AFT101 ||			\
 		 card_type == WANOPT_AFT102 ||			\
 		 card_type == WANOPT_AFT104 ||			\
-		 card_type == WANOPT_AFT108) ?     "A101/1D/A102/2D/4/4D/8" :	\
+		 card_type == WANOPT_AFT108 ||			\
+		 card_type == WANOPT_AFT116) ?     "A101/1D/2/2D/4/4D/8/8D/16/16D" :	\
 		(card_type == WANOPT_AFT300) ?     "A300"  :	\
-		(card_type == WANOPT_AFT_ANALOG) ? "A200/A400/B600/B700/B800"  :	\
+		(card_type == WANOPT_AFT_ANALOG) ? "A200/A400/B600/B700/B800/B610"  :	\
 		(card_type == WANOPT_AFT_GSM) ?    "W400"  :	\
 		(card_type == WANOPT_AFT_ISDN) ?   "A500/B700/B500"  :	\
 		(card_type == WANOPT_AFT_56K) ?    "A056"  :	\

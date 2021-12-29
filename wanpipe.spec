@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.27
+%define VERSION           3.5.28
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -258,6 +258,12 @@ fi
 ################################################################################
 
 %changelog
+
+* Thu Aug 10 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.28
+==================================================================
+
+- Added A116 card support
+- Minor fixes for R2 CAS for NBE
 
 * Thu May 6 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.27
 ==================================================================

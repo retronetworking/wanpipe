@@ -985,7 +985,8 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 			break;
 		
 		case A104_ADPTR_4TE1:
-		case A108_ADPTR_8TE1:
+		case A108_ADPTR_8TE1: 
+		case A116_ADPTR_16TE1:
 			if (hwcpu->hwcard->adptr_subtype == AFT_SUBTYPE_SHARK){
 				SDLA_PROBE_SPRINT(hwprobe->hw_info,
 					sizeof(hwprobe->hw_info),
@@ -2405,7 +2406,8 @@ int sdla_get_hw_info(sdlahw_t* hw)
 			case A101_ADPTR_1TE1:
 			case A101_ADPTR_2TE1:
 			case A104_ADPTR_4TE1:
-			case A108_ADPTR_8TE1:
+			case A108_ADPTR_8TE1: 
+			case A116_ADPTR_16TE1:
 				/* Enable memory access */	
 				sdla_bus_read_4(hw, SDLA_REG_OFF(hwcard, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG)), &reg1);
 				reg = reg1;
@@ -2951,9 +2953,30 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 			hwcard->u_pci.bus_no, hwcard->u_pci.slot_no, irq);
 		break;
 
-	case A108_ADPTR_8TE1:
+	case A108_ADPTR_8TE1: 
 		hwcard->cfg_type = WANOPT_AFT108;
 		sdla_adapter_cnt.aft108_adapters++;
+		if ((hwcpu = sdla_hwcpu_register(hwcard, cpu_no, irq, dev)) == NULL){
+			return 0;
+		}
+		if ((hw = sdla_hwdev_te1_register(hwcpu, 0, 8)) == NULL){
+			sdla_hwcpu_unregister(hwcpu);
+			return 0;
+		}
+		number_of_cards += 8;
+		DEBUG_EVENT(
+		"%s: %s %s T1/E1 card found (%s rev.%X), cpu(s) 1, line(s) 8, bus #%d, slot #%d, irq #%d\n",
+			wan_drvname,
+			hwcard->adptr_name,
+			AFT_PCITYPE_DECODE(hwcard),
+			AFT_CORE_ID_DECODE(hwcard->core_id),
+			hwcard->core_rev,
+			hwcard->u_pci.bus_no, hwcard->u_pci.slot_no, irq);
+		break;
+
+	case A116_ADPTR_16TE1:
+		hwcard->cfg_type = WANOPT_AFT108;
+		sdla_adapter_cnt.aft116_adapters++;
 		if ((hwcpu = sdla_hwcpu_register(hwcard, cpu_no, irq, dev)) == NULL){
 			return 0;
 		}
@@ -3470,6 +3493,10 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 		hwcard->adptr_type	= A108_ADPTR_8TE1;
 		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
 		break;
+	case AFT_16TE1_SHARK_SUBSYS_VENDOR:
+		hwcard->adptr_type	= A116_ADPTR_16TE1;
+		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+		break;
 	case A300_UTE3_SHARK_SUBSYS_VENDOR:
 		hwcard->adptr_type	= A300_ADPTR_U_1TE3;
 		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
@@ -3559,6 +3586,7 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 	case AFT_2TE1_SHARK_SUBSYS_VENDOR:
 	case AFT_4TE1_SHARK_SUBSYS_VENDOR:
 	case AFT_8TE1_SHARK_SUBSYS_VENDOR:
+	case AFT_16TE1_SHARK_SUBSYS_VENDOR:
 	case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
 	case B500_SHARK_SUBSYS_VENDOR:
 	case AFT_56K_SHARK_SUBSYS_VENDOR:
@@ -5148,7 +5176,8 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 			}
 			break;
 		case A104_ADPTR_4TE1:
-		case A108_ADPTR_8TE1:
+		case A108_ADPTR_8TE1: 
+		case A116_ADPTR_16TE1:
 			hw_iface->fe_read = sdla_shark_te1_read_fe;
 			hw_iface->__fe_read = __sdla_shark_te1_read_fe; 
 			hw_iface->fe_write = sdla_shark_te1_write_fe;
@@ -5238,7 +5267,8 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 		case A101_ADPTR_1TE1:
 		case A101_ADPTR_2TE1:
 		case A104_ADPTR_4TE1:
-		case A108_ADPTR_8TE1:
+		case A108_ADPTR_8TE1: 
+		case A116_ADPTR_16TE1:
 		case A200_ADPTR_ANALOG:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_ISDN:
@@ -5743,7 +5773,8 @@ static int sdla_setup (void* phw, wandev_conf_t* conf)
 		case A101_ADPTR_1TE1:
 		case A101_ADPTR_2TE1:
 		case A104_ADPTR_4TE1:
-		case A108_ADPTR_8TE1:
+		case A108_ADPTR_8TE1: 
+		case A116_ADPTR_16TE1:
 		case A200_ADPTR_ANALOG:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_ISDN:
@@ -6440,7 +6471,8 @@ static int sdla_down (void* phw)
 		case A101_ADPTR_1TE1:
 		case A101_ADPTR_2TE1:
 		case A104_ADPTR_4TE1:
-		case A108_ADPTR_8TE1:
+		case A108_ADPTR_8TE1: 
+		case A116_ADPTR_16TE1:
 		case A200_ADPTR_ANALOG:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_ISDN:
@@ -8277,7 +8309,8 @@ static int sdla_memory_map(sdlahw_t* hw)
 		case AFT_ADPTR_4SERIAL_V35X21:
 		case AFT_ADPTR_2SERIAL_RS232:
 		case AFT_ADPTR_4SERIAL_RS232:
-		case A108_ADPTR_8TE1:
+		case A108_ADPTR_8TE1: 
+		case A116_ADPTR_16TE1:
 			hwcpu->memory = AFT8_PCI_MEM_SIZE; 
 			break;
 		case AFT_ADPTR_56K:
@@ -8908,7 +8941,8 @@ adapter_found:
 			conf->fe_cfg.line_no--;
 			conf->comm_port = 0;
 			break;
-		case A108_ADPTR_8TE1:
+		case A108_ADPTR_8TE1: 
+		case A116_ADPTR_16TE1:
 			if (conf->fe_cfg.line_no < 1 || conf->fe_cfg.line_no > 8){
 				DEBUG_ERROR("%s: Error, Invalid T1/E1 port selected %d (Min=1 Max=8)\n",
 						devname, conf->fe_cfg.line_no);
@@ -8991,7 +9025,8 @@ adapter_found:
 				}
 				break;
 			case A104_ADPTR_4TE1:
-			case A108_ADPTR_8TE1:
+			case A108_ADPTR_8TE1: 
+			case A116_ADPTR_16TE1:
 				DEBUG_EVENT(
 				"%s: Error, %s resources busy: (bus #%d, slot #%d, cpu %c, line %d)\n",
         	        	       	devname, 
@@ -9204,7 +9239,8 @@ static int sdla_is_te1(void* phw)
 	case A101_ADPTR_1TE1:
 	case A101_ADPTR_2TE1:
 	case A104_ADPTR_4TE1:
-	case A108_ADPTR_8TE1:
+	case A108_ADPTR_8TE1: 
+	case A116_ADPTR_16TE1:
 		return 0;
 	}
 	return -EINVAL;
@@ -11219,7 +11255,8 @@ static int sdla_hw_read_cpld(void *phw, u16 off, u8 *data)
 			case A101_ADPTR_1TE1:
 			case A101_ADPTR_2TE1:
 			case A104_ADPTR_4TE1:
-			case A108_ADPTR_8TE1:
+			case A108_ADPTR_8TE1: 
+			case A116_ADPTR_16TE1:
 				off &= ~AFT8_BIT_DEV_ADDR_CLEAR;
 				off |= AFT8_BIT_DEV_ADDR_CPLD;
 		
@@ -11384,8 +11421,9 @@ static int sdla_hw_write_cpld(void *phw, u16 off, u8 data)
 			switch(hwcard->adptr_type){
 			case A101_ADPTR_1TE1:
 			case A101_ADPTR_2TE1:
-		        case A104_ADPTR_4TE1:
-			case A108_ADPTR_8TE1:
+		    case A104_ADPTR_4TE1:
+			case A108_ADPTR_8TE1: 
+			case A116_ADPTR_16TE1:
 				off &= ~AFT8_BIT_DEV_ADDR_CLEAR;
 				off |= AFT8_BIT_DEV_ADDR_CPLD;
 				/* Save current original address */

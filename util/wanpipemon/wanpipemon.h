@@ -139,6 +139,8 @@ extern char pcap_output_file_name[];
 extern int trace_binary;
 extern FILE * trace_bin_in;
 extern FILE * trace_bin_out;
+extern int tdmv_chan;
+
 
 
 #define MAX_CMD_ARG 10

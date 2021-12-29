@@ -574,6 +574,7 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 		switch(cpld->adptr_type){
 		case A104_ADPTR_4TE1:
 		case A108_ADPTR_8TE1:
+		case A116_ADPTR_16TE1:
        			if (clear) data &= ~0x06;
        	       	       	else data |= 0x06;
 			break;
@@ -594,6 +595,7 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 	case AFT_2TE1_SHARK_SUBSYS_VENDOR:
 	case AFT_4TE1_SHARK_SUBSYS_VENDOR:
 	case AFT_8TE1_SHARK_SUBSYS_VENDOR:
+	case AFT_16TE1_SHARK_SUBSYS_VENDOR:
 		switch(cpld->core_info->core_id){
 		case AFT_PMC_FE_CORE_ID:
 			switch(cpld->adptr_type){
@@ -645,6 +647,7 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 		break;
 	case AFT_A600_SUBSYS_VENDOR:
 	case AFT_B601_SUBSYS_VENDOR:
+	case AFT_B610_SUBSYS_VENDOR:
 	case AFT_W400_SUBSYS_VENDOR:
 		if (clear) data &= ~0x06;
 	       	else data |= 0x06;

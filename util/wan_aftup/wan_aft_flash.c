@@ -96,9 +96,6 @@ aftup_flash_iface_t aftup_flash_iface =
 	aft_erase_flash_sector
 };
 
-aftup_flash_t	aft_flash = {  0x014F, AFT_CORE_SIZE };
-aftup_flash_t	aft4_flash = {  0x2053, AFT_CORE_SIZE };
-
 struct {
 	unsigned long	start_addr;
 	unsigned long	start_off;

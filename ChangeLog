@@ -8,6 +8,12 @@ Copyright (c) 1995-2012 Sangoma Technologies Inc.
 For more info visit: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
 
+* Thu Aug 10 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.28
+==================================================================
+
+- Added A116 card support
+- Minor fixes for R2 CAS for NBE
+
 * Thu May 6 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.27
 ==================================================================
 

@@ -96,6 +96,12 @@ check_gcc ()
         return 0;                       
     fi
 
+	if [ "$GCC_CHECK" = "INIT" ]; then
+	    GCC_CHECK=DONE
+	else
+	    return 0
+	fi
+
 	GCC_VER=3
 
 	eval "gcc --version 2> /dev/null > /dev/null"
@@ -642,6 +648,15 @@ prepare()
 		missing_packages=$missing_packages"flex "
     fi
 
+	is_distr_fedora16
+	if [ $? -eq 1 ]; then
+		flx=`rpm -qa  | grep flex-static`
+		if [ "$flx" = "" ]; then
+			echo "Failed!"
+			missing_packages=$missing_packages"flex-static "
+		fi
+	fi
+
     echo -n "Checking for Patch ..."
     eval "patch --version 2> /dev/null > /dev/null"
     if [ $? -eq 0 ]; then
@@ -728,6 +743,11 @@ prepare()
 					echo -e "\n Flex package ."
 					echo -e "    Required for Wancfg configuration utility."
 					echo -e "    Install flex package (e.g yum install flex)."
+				;;
+				flex-static)
+					echo -e "\n flex-static package ."
+					echo -e "    Required for Wancfg configuration utility."
+					echo -e "    Install flex package (e.g yum install flex-static)."
 				;;
 				bison)
 					echo -e "\n Bison."
@@ -2246,6 +2266,24 @@ function is_distr_fedora2()
 	fi
 	
 	distr=`cat /etc/issue | grep "(Tettnang)"`
+	
+	#If release is not Fedora2 then
+	#get out
+	if [ "$distr" = "" ]; then
+		return 0
+	fi
+
+	return 1
+}
+function is_distr_fedora16()
+{
+	local distr
+
+	if [ ! -f /etc/issue ]; then
+		return 0
+	fi
+	
+	distr=`cat /etc/issue | grep "(Verne)"`
 	
 	#If release is not Fedora2 then
 	#get out
@@ -7333,7 +7371,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.27
+PROD_VER=3.5.28
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7525,6 +7563,8 @@ API_PROTOCOLS="SS7-BISYNC-BSCSTRM-BITSTRM-POS-EDU-SDLC-MPAPI-ADCCP-TDM-XDLC-ASYH
 
 CC=gcc
 USR_CC=
+GCC_VER=3
+GCC_CHECK="INIT"
 KBUILD_VERBOSE=0
 REGPARM_DISABLE=0
 KBUILD_DISABLE=0
