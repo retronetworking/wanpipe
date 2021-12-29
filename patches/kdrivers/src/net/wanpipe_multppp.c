@@ -258,8 +258,6 @@ static void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
 static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt);
 
 /* TE1 */
-static WRITE_FRONT_END_REG_T write_front_end_reg;
-static READ_FRONT_END_REG_T  read_front_end_reg;
 static void handle_front_end_state(void* card_id);
 
 /****** Public Functions ****************************************************/
@@ -370,8 +368,8 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
+		card->fe.write_fe_reg	= card->hw_iface.fe_write;
+		card->fe.read_fe_reg		= card->hw_iface.fe_read;
 
 		card->wandev.fe_enable_timer = chdlc_enable_timer;
 		card->wandev.te_link_state = handle_front_end_state;
@@ -388,8 +386,8 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
+		card->fe.write_fe_reg	= card->hw_iface.fe_write;
+		card->fe.read_fe_reg		= card->hw_iface.fe_read;
 		
 	}else{
 		card->fe.fe_status = FE_CONNECTED;
@@ -1031,8 +1029,6 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 	 * since in some cases (mrouted) daemons continue
 	 * to call ioctl() after the device has gone down */
 	dev->do_ioctl = NULL;
-	dev->hard_header = NULL;
-	dev->rebuild_header = NULL;
 #endif
 
 	if (chan->common.prot_ptr){
@@ -1111,8 +1107,6 @@ static int if_init (netdevice_t* dev)
 		dev->type	= ARPHRD_PPP;
 		dev->mtu		= card->wandev.mtu;
 		dev->hard_header_len	= 0;
-		dev->hard_header	= NULL; 
-		dev->rebuild_header	= NULL;
 	}
 
 	/* Overwrite the sppp ioctl, because we need to run
@@ -1677,68 +1671,6 @@ static int chdlc_send (sdla_t* card, void* data, unsigned len)
 	if (card->u.c.txbuf_off > card->u.c.txbuf_last_off)
 		card->u.c.txbuf_off = card->u.c.txbuf_base_off;
 	return 0;
-}
-/*============================================================================
- * TE1
- * Read value from PMC register.
- */
-static unsigned char read_front_end_reg (void* card1, ...)
-{
-	va_list		args;
-        sdla_t		*card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-        char* data = mb->wan_data;
-	u16		reg, line_no;
-        int err;
-
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	va_end(args);
-
-        ((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-        mb->wan_command = READ_FRONT_END_REGISTER;
-        err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-        if (err != COMMAND_OK)
-                chdlc_error(card,err,mb);
-        return(((FRONT_END_REG_STRUCT *)data)->register_value);
-}  
-
-/*============================================================================
- * TE1
- * Write value to PMC register.
- */
-static int write_front_end_reg (void* card1, ... )
-{
-	va_list		args;
-        sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	u16		reg, line_no;
-	u8		value;
-        char* data = mb->wan_data;
-        int err;
-	int retry=15;
-
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	value	= (u8)va_arg(args, int);
-	va_end(args);
-
-	do {
-
-		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-		((FRONT_END_REG_STRUCT *)data)->register_value = value;
-		mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-		mb->wan_command = WRITE_FRONT_END_REGISTER;
-		err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-		if (err != COMMAND_OK){
-			chdlc_error(card,err,mb);
-		}
-	}while(err && --retry);
-
-        return err;
 }
 
 /****** Firmware Error Handler **********************************************/

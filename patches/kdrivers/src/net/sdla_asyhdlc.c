@@ -260,9 +260,6 @@ static int chdlc_get_status_info(void* priv, struct seq_file* m, int*);
 static int chdlc_set_dev_config(struct file*, const char*, unsigned long, void *);
 static int chdlc_set_if_info(struct file*, const char*, unsigned long, void *);
 
-/* TE1 */
-static WRITE_FRONT_END_REG_T write_front_end_reg;
-static READ_FRONT_END_REG_T  read_front_end_reg;
 static void chdlc_enable_timer(void* card_id);
 static void chdlc_handle_front_end_state(void* card_id);
 
@@ -382,9 +379,8 @@ int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf)
 		sdla_te_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
-
+		card->fe.write_fe_reg = card->hw_iface.fe_write;
+		card->fe.read_fe_reg	 = card->hw_iface.fe_read;
 		card->wandev.fe_enable_timer = chdlc_enable_timer;
 		card->wandev.te_link_state = chdlc_handle_front_end_state;
 		conf->electrical_interface = 
@@ -400,8 +396,8 @@ int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf)
 		sdla_56k_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
+		card->fe.write_fe_reg = card->hw_iface.fe_write;
+		card->fe.read_fe_reg	 = card->hw_iface.fe_read;
 		
 		if (card->u.c.comm_port == WANOPT_PRI){
 			conf->clocking = WANOPT_EXTERNAL;
@@ -919,8 +915,6 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
-	dev->hard_header	= NULL; 
-	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
@@ -1712,67 +1706,6 @@ static int chdlc_send (sdla_t* card, void* data, unsigned len, unsigned char tx_
 	}
 	
 	return 0;
-}
-
-/*============================================================================
- * Read TE1/56K Front end registers
- */
-static unsigned char read_front_end_reg (void* card1, ...)
-{
-	va_list		args;
-	sdla_t		*card = (sdla_t*)card1;
-        wan_mbox_t	*mb = &card->wan_mbox;
-	char		*data = mb->wan_data;
-	u16		reg, line_no;
-        int		err;
-
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	va_end(args);
-	
-	((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-        mb->wan_command = READ_FRONT_END_REGISTER;
-        err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-        if (err != COMMAND_OK){
-                chdlc_error(card,err,mb);
-	}
-
-	return(((FRONT_END_REG_STRUCT *)data)->register_value);
-}
-
-/*============================================================================
- * Write to TE1/56K Front end registers  
- */
-static unsigned char write_front_end_reg (void* card1, ...)
-{
-	va_list		args;
-	sdla_t		*card = (sdla_t*)card1;
-        wan_mbox_t	*mb = &card->wan_mbox;
-	char		*data = mb->wan_data;
-	u16		reg, line_no;
-	u8		value;
-        int 		err, retry=15;
-	
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	value	= (u8)va_arg(args, int);
-	va_end(args);
-		
-	do {
-		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-		((FRONT_END_REG_STRUCT *)data)->register_value = value;
-		mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-		mb->wan_command = WRITE_FRONT_END_REGISTER;
-		err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-		if (err != COMMAND_OK){
-			chdlc_error(card,err,mb);
-		}
-	}while(err && --retry);
-	
-        return err;
 }
 
 /*============================================================================

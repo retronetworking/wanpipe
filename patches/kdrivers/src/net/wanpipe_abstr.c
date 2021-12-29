@@ -602,6 +602,19 @@ void wpabs_debug_event(const char * fmt, ...)
 #endif
 }
 
+
+void __wpabs_debug_event(const char * fmt, ...)
+{
+#ifdef WAN_DEBUG_EVENT
+	va_list args;
+	char buf[1024];
+	va_start(args, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, args);
+	printk("%s", buf);
+	va_end(args);
+#endif
+}
+
 /*
 **
 */

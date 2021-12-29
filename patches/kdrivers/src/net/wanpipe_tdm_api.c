@@ -231,7 +231,9 @@ static void wp_wakeup_tdmapi(wanpipe_tdm_api_dev_t *tdm_api)
 }
 
 static struct cdev wptdm_cdev = {
+#ifndef LINUX_FEAT_2624
 	.kobj	=	{.name = "wptdm", },
+#endif
 	.owner	=	THIS_MODULE,
 };
 #endif
@@ -1084,8 +1086,8 @@ static void wanpipe_tdm_api_rbs_poll(wanpipe_tdm_api_dev_t *tdm_api)
 #endif
 
 	tdm_api->read_rbs_bits(	tdm_api->chan, 
-							tdm_api->tdm_chan, 
-							&rbs_bits);
+				tdm_api->tdm_chan, 
+				&rbs_bits);
 	if (tdm_api->cfg.rbs_rx_bits == rbs_bits) {
 		return;
 	}

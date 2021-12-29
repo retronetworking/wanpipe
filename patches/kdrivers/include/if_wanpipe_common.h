@@ -50,6 +50,9 @@ typedef struct {
 #endif
 	int	 (*ioctl) (netdevice_t*, struct ifreq*, wan_ioctl_cmd_t);
 	void	 (*tx_timeout) (netdevice_t*);
+#if defined (__LINUX__)
+       int     (*change_mtu)(netdevice_t *dev, int new_mtu);
+#endif
 } wanpipe_common_iface_t;
 
 typedef struct {

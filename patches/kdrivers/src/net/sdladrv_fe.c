@@ -83,6 +83,10 @@
 /***************************************************************************
 ****               F U N C T I O N   P R O T O T Y P E S                ****
 ***************************************************************************/
+extern int sdla_cmd (void* phw, unsigned long offset, wan_mbox_t* mbox);
+u_int8_t sdla_legacy_read_fe (void *phw, ...);
+int sdla_legacy_write_fe (void *phw, ...);
+
 int		sdla_te1_write_fe(void* phw, ...);
 u_int8_t	sdla_te1_read_fe (void* phw, ...);
 
@@ -115,10 +119,10 @@ int		sdla_te3_write_fe(void *phw, ...);
 u_int8_t	sdla_te3_read_fe(void *phw, ...);
 
 extern int sdla_bus_write_1(void* phw, unsigned int offset, u8 value);
-extern int sdla_bus_write_2(void* phw, unsigned int offset, u16 value);
-extern int sdla_bus_write_4(void* phw, unsigned int offset, u32 value);
 extern int sdla_bus_read_1(void* phw, unsigned int offset, u8* value);
+extern int sdla_bus_write_2(void* phw, unsigned int offset, u16 value);
 extern int sdla_bus_read_2(void* phw, unsigned int offset, u16* value);
+extern int sdla_bus_write_4(void* phw, unsigned int offset, u32 value);
 extern int sdla_bus_read_4(void* phw, unsigned int offset, u32* value);
 
 extern int sdla_hw_fe_test_and_set_bit(void *phw, int value);
@@ -153,7 +157,7 @@ int sdla_te3_write_fe(void *phw, ...)
         off &= ~AFT_BIT_DEV_ADDR_CLEAR;
 
 	DEBUG_TEST("%s: WRITE FRAMER OFFSET=0x%02X DATA=0x%02X\n",
-			hw->devname, framer_off,framer_data);
+			hw->devname, off,value);
 
        	sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, (u16)off);
        	sdla_bus_write_2(hw, AFT_MCPU_INTERFACE, (u16)value);
@@ -181,6 +185,88 @@ u_int8_t sdla_te3_read_fe(void *phw, ...)
         return value;
 }
 
+/***************************************************************************
+**	Front End T1/E1 interface for S-Series cards
+***************************************************************************/
+typedef struct {
+	unsigned short 	register_number;
+	unsigned char		register_value;
+} sdla_legacy_fe_t;
+wan_mbox_t	wan_legacy_mbox;
+
+static int sdla_legacy_fe_error (sdlahw_t *hw, int err, u_int8_t cmd)
+{
+	switch (err) {
+	case WAN_CMD_TIMEOUT:
+		DEBUG_EVENT("%s: command 0x%02X timed out!\n",
+					hw->devname, cmd);
+		break;
+
+	default:
+		DEBUG_EVENT("%s: command 0x%02X returned 0x%02X!\n",
+					hw->devname, cmd, err);
+	}
+	return 0;
+}
+
+u_int8_t sdla_legacy_read_fe (void *phw, ...)
+{
+	va_list	args;
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+       wan_mbox_t	*mb = &wan_legacy_mbox;
+	char		*data = mb->wan_data;
+	int		qaccess, reg, line_no;
+	int		err;
+
+	va_start(args, phw);
+	qaccess = va_arg(args, int);
+	line_no = va_arg(args, int);
+	reg	 = va_arg(args, int);
+	va_end(args);
+
+	((sdla_legacy_fe_t*)data)->register_number = (unsigned short)reg;
+	mb->wan_data_len = sizeof(sdla_legacy_fe_t);
+       mb->wan_command = 0x90;
+	/* Mailbox address 0xE000 */
+       err = sdla_cmd(hw, 0xE000, mb);
+       if (err){
+		sdla_legacy_fe_error(hw,err,0x90);
+	}
+
+	return(((sdla_legacy_fe_t*)data)->register_value);
+}
+
+/*============================================================================
+ * Write to TE1/56K Front end registers  
+ */
+int sdla_legacy_write_fe (void *phw, ...)
+{
+	va_list	args;
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+       wan_mbox_t	*mb = &wan_legacy_mbox;
+	char		*data = mb->wan_data;
+	int		qaccess, reg, line_no, value;
+	int		err, retry=15;
+
+	va_start(args, phw);
+	qaccess = va_arg(args, int);
+	line_no = va_arg(args, int);
+	reg	 = va_arg(args, int);
+	value	 = va_arg(args, int);
+	va_end(args);
+	
+	do {
+		((sdla_legacy_fe_t*)data)->register_number = (unsigned short)reg;
+		((sdla_legacy_fe_t*)data)->register_value = (unsigned char)value;
+		mb->wan_data_len = sizeof(sdla_legacy_fe_t);
+		mb->wan_command = 0x91;
+		err = sdla_cmd(hw, 0xE000, mb);
+		if (err){
+			sdla_legacy_fe_error(hw,err,0x91);
+		}
+	}while(err && --retry);
+	return err;
+}
 
 /***************************************************************************
 	Front End T1/E1 interface for Normal cards
@@ -571,7 +657,7 @@ static int __sdla_shark_rm_write_fe (void* phw, ...)
 		return -EINVAL;
 	}
 #endif
-	DEBUG_RM("%s:%d: Module %d: Write RM FE code (reg %d, value %02X)!\n",
+	if(0)DEBUG_RM("%s:%d: Module %d: Write RM FE code (reg %d, value %02X)!\n",
 				__FUNCTION__,__LINE__,
 				/*FIXME: hw->devname,*/mod_no, reg, (u8)value);
 	
@@ -761,7 +847,7 @@ u_int8_t __sdla_shark_rm_read_fe (void* phw, ...)
 		return 0x00;
 	}
 #endif
-	DEBUG_RM("%s:%d: Module %d: Read RM FE code (reg %d)!\n",
+	if(0)DEBUG_RM("%s:%d: Module %d: Read RM FE code (reg %d)!\n",
 				__FUNCTION__,__LINE__,
 				/*FIXME: hw->devname, */mod_no, reg);
 
@@ -1039,7 +1125,7 @@ __write_bri_fe_byte (
 
 	/* write the actual data */
 	sdla_bus_write_4(hw, SPI_INTERFACE_REG, *data_ptr);
-        return 0;
+	return 0;
 }
 
 int sdla_shark_bri_write_fe (void* phw, ...)
@@ -1076,7 +1162,7 @@ int sdla_shark_bri_write_fe (void* phw, ...)
 	__write_bri_fe_byte(hw, (u8)mod_no, (u8)reg, (u8)value);
 
 	sdla_hw_fe_clear_bit(hw,0);
-    return 0;
+	return 0;
 }
 
 /*============================================================================
@@ -1116,9 +1202,8 @@ __read_bri_fe_byte(
 		/* the only case we get here is if running module detection code. */
 		rm_no = optional_arg;
 	}else{
-		/*	Input mod_no is an even number between 0 and 22 (including).
-			Calculate rm_no - should be between 0 and 3 (including). 
-		*/
+		/* Input mod_no is an even number between 0 and 22 (including).
+		   Calculate rm_no - should be between 0 and 3 (including). */
 		if(mod_no % 2){
 			DEBUG_BRI("%s(): Warning: module number (%d) is not even!!\n",
 				__FUNCTION__, mod_no);
@@ -1145,7 +1230,12 @@ __read_bri_fe_byte(
 	data.data = reg;
 	data.contrl = 0;
 	data.contrl |= ADDR_BIT;
-	
+
+	if(type == MOD_TYPE_NONE){
+		/* DavidR (April 10, 2008): for module detection set 512 khz bit */
+		data.contrl |= CPLD_USE_512KHZ_RECOVERY_CLOCK_BIT;
+	}
+
 	/* check spi not busy */
 	for (retry_counter = 0; retry_counter < SPI_MAX_RETRY_COUNT; retry_counter++){
 		sdla_bus_read_4(hw, SPI_INTERFACE_REG, dummy_ptr);
@@ -1186,6 +1276,14 @@ __read_bri_fe_byte(
 	data.contrl = 0;
 	data.contrl |= READ_BIT;
 
+	if(type == MOD_TYPE_NONE){
+		/* DavidR (April 10, 2008): for module detection set 512 khz bit */
+		data.contrl |= CPLD_USE_512KHZ_RECOVERY_CLOCK_BIT;
+	}
+
+	DEBUG_REG("%s(Line: %i): (data: 0x%08X) reset: 0x%X, start: 0x%X, reserv1: 0x%X, remora_addr: 0x%X, mod_addr: 0x%X, data: 0x%X, contrl: 0x%X\n",
+		__FUNCTION__, __LINE__, *((u32*)&data), data.reset, data.start, data.reserv1, data.remora_addr, data.mod_addr, data.data, data.contrl);
+
 #if FAST_SPI
 	SPI_DELAY;
 #else
@@ -1219,6 +1317,9 @@ __read_bri_fe_byte(
 	//DEBUG_BRI("3. data: 0x%08X\n", *data_ptr);
 
 	value = (u_int8_t)data.data;
+
+	DEBUG_REG("%s(Line: %i): (data: 0x%08X) reset: 0x%X, start: 0x%X, reserv1: 0x%X, remora_addr: 0x%X, mod_addr: 0x%X, data: 0x%X, contrl: 0x%X\n",
+		__FUNCTION__, __LINE__, *((u32*)&data), data.reset, data.start, data.reserv1, data.remora_addr, data.mod_addr, data.data, data.contrl);
 
 	DEBUG_REG("%s():%s: mod_no:%d reg=0x%X (%d) value=0x%02X\n",
 		__FUNCTION__,

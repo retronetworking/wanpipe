@@ -276,6 +276,8 @@ custom_param_value : CHAR_STRING
 		     { wanec_client_param_sValue($<str>1); }
                    | DEC_CONSTANT
 		     { wanec_client_param_dValue($<val>1); }
+                   | '-' DEC_CONSTANT
+		     { wanec_client_param_dValue((-1) * $<val>2); }
 		   ;
 %%
 

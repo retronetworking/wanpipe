@@ -82,16 +82,29 @@
 			          (prot == WANCONFIG_PPP) ? ((cap)?"PPP":"ppp") : \
 				    (prot == WANCONFIG_CHDLC) ? ((cap)?"CHDLC":"chdlc") :\
 				     (prot == WANCONFIG_ADSL) ? ((cap)?"ADSL":"adsl") :\
-				      (prot == WANCONFIG_MPPP) ? ((cap)?"MPPP":"mppp") : \
+				      (prot == WANCONFIG_MPPP) ? ((cap)?"S51X":"s51x") : \
 				       (prot == WANCONFIG_SDLC) ? ((cap)?"SDLC":"sdlc") : \
 				       (prot == WANCONFIG_ATM) ? ((cap)?"ATM":"atm") : \
-+				       (prot == WANCONFIG_AFT) ? ((cap)?"AFT HDLC":"aft hdlc") : \
-+				       (prot == WANCONFIG_AFT_TE1) ? ((cap)?"AFT HDLC":"aft hdlc") : \
-+				       (prot == WANCONFIG_AFT_TE3) ? ((cap)?"AFT HDLC":"aft hdlc") : \
+				       (prot == WANCONFIG_AFT) ? ((cap)?"AFT TE1":"aft te1") : \
+				       (prot == WANCONFIG_AFT_SERIAL) ? ((cap)?"A-SERIAL":"aft serial") : \
+				       (prot == WANCONFIG_AFT_ANALOG) ? ((cap)?"A-ANALOG":"aft analog") : \
+				       (prot == WANCONFIG_AFT_ISDN_BRI) ? ((cap)?"AFT ISDN":"aft isdn") : \
+				       (prot == WANCONFIG_AFT_56K) ? ((cap)?"AFT 56K":"aft 56k") : \
+				       (prot == WANCONFIG_AFT_TE1) ? ((cap)?"AFT TE1":"aft te1") : \
+				       (prot == WANCONFIG_AFT_TE3) ? ((cap)?"AFT TE3":"aft te3") : \
 				        PROT_UNKNOWN )
 	
 #define CARD_DECODE(wandev)    ((wandev->card_type == WANOPT_ADSL) ? "ADSL" : \
 				(wandev->card_type == WANOPT_S50X) ? "S508" : \
+				(wandev->card_type == WANOPT_AFT) ? "AFT TE1" : \
+				(wandev->card_type == WANOPT_AFT_101) ? "A101" : \
+				(wandev->card_type == WANOPT_AFT_102) ? "A102" : \
+				(wandev->card_type == WANOPT_AFT_104) ? "A104" : \
+				(wandev->card_type == WANOPT_AFT_108) ? "A108" : \
+				(wandev->card_type == WANOPT_AFT_300) ? "A301" : \
+				(wandev->card_type == WANOPT_AFT_ANALOG) ? "A200/A400" : \
+				(wandev->card_type == WANOPT_AFT_ISDN) ? "A500" : \
+				(wandev->card_type == WANOPT_AFT_SERIAL) ? "A14X" : \
 				(wandev->fe_iface.get_fe_media_string) ? 			\
 		 		wandev->fe_iface.get_fe_media_string() : "S514")
 
@@ -170,6 +183,7 @@ static ssize_t router_proc_write(struct file*, const char*, size_t,loff_t*);
 static int config_get_info(struct seq_file *m, void *v);
 static int status_get_info(struct seq_file *m, void *v);
 static int probe_get_info(struct seq_file *m, void *v);
+static int probe_get_info_legacy(struct seq_file *m, void *v);
 static int probe_get_info_verbose(struct seq_file *m, void *v);
 static int wandev_get_info(struct seq_file *m, void *v);
 
@@ -185,6 +199,7 @@ static int wandev_mapdir_get_info(struct seq_file *m, void *v);
 static int config_get_info(char* buf, char** start, off_t offs, int len);
 static int status_get_info(char* buf, char** start, off_t offs, int len);
 static int probe_get_info(char* buf, char** start, off_t offs, int len);
+static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len);
 static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len);
 static int wandev_get_info(char* buf, char** start, off_t offs, int len);
 
@@ -200,6 +215,7 @@ static int wandev_mapdir_get_info(char* buf, char** start, off_t offs, int len);
 static int config_get_info(char* buf, char** start, off_t offs, int len, int dummy);
 static int status_get_info(char* buf, char** start, off_t offs, int len, int dummy);
 static int probe_get_info(char* buf, char** start, off_t offs, int len, int dummy);
+static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len, int dummy);
 static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, int dummy);
 static int wandev_get_info(char* buf, char** start, off_t offs, int len, int dummy);
 
@@ -281,6 +297,19 @@ static int wp_hwprobe_open(struct inode *inode, struct file *file)
 static struct file_operations wp_hwprobe_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wp_hwprobe_open,
+	.read	 = seq_read,
+	.llseek	 = seq_lseek,
+	.release = single_release,
+};
+
+static int wp_hwprobe_legacy_open(struct inode *inode, struct file *file)
+{
+ 	return single_open(file, probe_get_info_legacy, WP_PDE(inode)->data);
+}
+
+static struct file_operations wp_hwprobe_legacy_fops = {
+	.owner	 = THIS_MODULE,
+	.open	 = wp_hwprobe_legacy_open,
 	.read	 = seq_read,
 	.llseek	 = seq_lseek,
 	.release = single_release,
@@ -494,7 +523,6 @@ wan_proc_entry_t proc_router_fr;
 wan_proc_entry_t proc_router_chdlc;
 wan_proc_entry_t proc_router_ppp;
 wan_proc_entry_t proc_router_x25;
-wan_proc_entry_t proc_router_mppp;
 
 #endif /* __LINUX__ */
 
@@ -547,7 +575,7 @@ static int config_get_info(char* buf, char** start, off_t offs, int len, int dum
 				wandev->irq,
 				arg,
 				wandev->ndev,
-				CLK_DECODE(wandev->clocking),
+				(wandev->card_type==WANOPT_S51X || wandev->card_type==WANOPT_AFT_SERIAL) ? CLK_DECODE(wandev->clocking) : "N/A",
 				wandev->bps);
 		}
 	}
@@ -753,6 +781,80 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
+	PROC_ADD_LINE(m, "\nCard Cnt: ");
+	if (hw_cnt->s508_adapters){
+		PROC_ADD_LINE(m, "S508=%d ", hw_cnt->s508_adapters);
+	}
+	if (hw_cnt->s514x_adapters){
+		PROC_ADD_LINE(m, "S514X=%d ", hw_cnt->s514x_adapters);
+	}
+	if (hw_cnt->s518_adapters){
+		PROC_ADD_LINE(m, "S518=%d ", hw_cnt->s518_adapters);
+	}
+	if (hw_cnt->aft101_adapters){
+		PROC_ADD_LINE(m, "A101-2=%d ", hw_cnt->aft101_adapters);
+	}
+	if (hw_cnt->aft104_adapters){
+		PROC_ADD_LINE(m, "A104=%d ", hw_cnt->aft104_adapters);
+	}
+	if (hw_cnt->aft108_adapters){
+		PROC_ADD_LINE(m, "A108=%d ", hw_cnt->aft108_adapters);
+	}
+	if (hw_cnt->aft200_adapters){
+		PROC_ADD_LINE(m, "A200=%d ", hw_cnt->aft200_adapters);
+	}
+	if (hw_cnt->aft_56k_adapters){
+		PROC_ADD_LINE(m, "A056=%d ", hw_cnt->aft_56k_adapters);
+	}
+	if (hw_cnt->aft_isdn_adapters){
+		PROC_ADD_LINE(m, "A500=%d ", hw_cnt->aft_isdn_adapters);
+	}
+	if (hw_cnt->aft_serial_adapters){
+		PROC_ADD_LINE(m, "A14x=%d ", hw_cnt->aft_serial_adapters);
+	}
+	if (hw_cnt->aft300_adapters){
+		PROC_ADD_LINE(m, "A300=%d ", hw_cnt->aft300_adapters);
+	}
+	PROC_ADD_LINE(m, "\n");
+
+	PROC_ADD_RET(m);
+}
+
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(LINUX_2_4)
+STATIC int probe_get_info_legacy(char* buf, char** start, off_t offs, int len)
+#else
+#if defined(LINUX_2_6)
+static int probe_get_info_legacy(struct seq_file *m, void *v)
+#elif defined(LINUX_2_4)
+static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len)
+#else
+static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len, int dummy)
+#endif
+#endif
+{
+	int i=0;
+	sdla_hw_probe_t* hw_probe;
+	sdla_hw_type_cnt_t *hw_cnt;
+	PROC_ADD_DECL(m);
+	PROC_ADD_INIT(m, buf, offs, len);
+
+	PROC_ADD_LINE(m,  "----------------------------------------\n");
+	PROC_ADD_LINE(m,  "| Wanpipe Hardware Probe Info (Legacy) |\n");
+	PROC_ADD_LINE(m,  "----------------------------------------\n");
+
+	hw_probe = (sdla_hw_probe_t *)sdla_get_hw_probe();	
+	
+	for (;
+	     hw_probe;
+	     hw_probe = WAN_LIST_NEXT(hw_probe, next)) {
+
+		i++;
+		PROC_ADD_LINE(m, 
+		       "%-2d. %s\n", i, hw_probe->hw_info);
+	}
+
+	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
+	
 	PROC_ADD_LINE(m,
 		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d\n",
 		hw_cnt->s508_adapters,
@@ -808,20 +910,41 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
-	PROC_ADD_LINE(m,
-		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d\n",
-		hw_cnt->s508_adapters,
-		hw_cnt->s514x_adapters,
-		hw_cnt->s518_adapters,
-		hw_cnt->aft101_adapters,
-		hw_cnt->aft104_adapters,
-		hw_cnt->aft300_adapters,
-		hw_cnt->aft200_adapters,
-		hw_cnt->aft108_adapters,
-		hw_cnt->aft_56k_adapters,
-		hw_cnt->aft_isdn_adapters,
-		hw_cnt->aft_serial_adapters
-		);
+	PROC_ADD_LINE(m, "\nCard Cnt: ");
+	if (hw_cnt->s508_adapters){
+		PROC_ADD_LINE(m, "S508=%d ", hw_cnt->s508_adapters);
+	}
+	if (hw_cnt->s514x_adapters){
+		PROC_ADD_LINE(m, "S514X=%d ", hw_cnt->s514x_adapters);
+	}
+	if (hw_cnt->s518_adapters){
+		PROC_ADD_LINE(m, "S518=%d ", hw_cnt->s518_adapters);
+	}
+	if (hw_cnt->aft101_adapters){
+		PROC_ADD_LINE(m, "A101-2=%d ", hw_cnt->aft101_adapters);
+	}
+	if (hw_cnt->aft104_adapters){
+		PROC_ADD_LINE(m, "A104=%d ", hw_cnt->aft104_adapters);
+	}
+	if (hw_cnt->aft108_adapters){
+		PROC_ADD_LINE(m, "A108=%d ", hw_cnt->aft108_adapters);
+	}
+	if (hw_cnt->aft200_adapters){
+		PROC_ADD_LINE(m, "A200=%d ", hw_cnt->aft200_adapters);
+	}
+	if (hw_cnt->aft_56k_adapters){
+		PROC_ADD_LINE(m, "A056=%d ", hw_cnt->aft_56k_adapters);
+	}
+	if (hw_cnt->aft_isdn_adapters){
+		PROC_ADD_LINE(m, "A500=%d ", hw_cnt->aft_isdn_adapters);
+	}
+	if (hw_cnt->aft_serial_adapters){
+		PROC_ADD_LINE(m, "A14x=%d ", hw_cnt->aft_serial_adapters);
+	}
+	if (hw_cnt->aft300_adapters){
+		PROC_ADD_LINE(m, "A300=%d ", hw_cnt->aft300_adapters);
+	}
+	PROC_ADD_LINE(m, "\n");
 
 	PROC_ADD_RET(m);
 }
@@ -952,7 +1075,7 @@ wandev_get_info_end:
 int wanrouter_proc_init (void)
 {
 	struct proc_dir_entry *p;
-	proc_router = proc_mkdir(ROUTER_NAME, proc_net);
+	proc_router = proc_mkdir(ROUTER_NAME, wan_init_net(proc_net));
 	if (!proc_router)
 		goto fail;
 	
@@ -1002,6 +1125,22 @@ int wanrouter_proc_init (void)
 	p->ops = &router_inode;
 	p->nlink = 1;
 	p->get_info = probe_get_info;
+#endif
+
+	p = create_proc_entry("hwprobe_legacy",0,proc_router);
+	if (!p)
+		goto fail_probe_legacy;
+
+#if defined(LINUX_2_6)
+	p->proc_fops = &wp_hwprobe_legacy_fops;
+#elif defined(LINUX_2_4)
+	p->proc_fops = &router_fops;
+	p->proc_iops = &router_inode;
+	p->get_info = probe_get_info_legacy;
+#else
+	p->ops = &router_inode;
+	p->nlink = 1;
+	p->get_info = probe_get_info_legacy;
 #endif
 
 	p = create_proc_entry("hwprobe_verbose",0,proc_router);
@@ -1065,8 +1204,6 @@ int wanrouter_proc_init (void)
 	proc_router_ppp.protocol_entry = NULL;
 	proc_router_x25.count = 0;
 	proc_router_x25.protocol_entry = NULL;
-	proc_router_mppp.count = 0;
-	proc_router_mppp.protocol_entry = NULL;
 	return 0;
 
 fail_dev_map:
@@ -1074,15 +1211,17 @@ fail_dev_map:
 fail_interfaces:	
 	remove_proc_entry("map", proc_router);
 fail_map:	
-	remove_proc_entry("hwprobe", proc_router);
-fail_probe:
 	remove_proc_entry("hwprobe_verbose", proc_router);
 fail_probe_verbose:	
+	remove_proc_entry("hwprobe_legacy", proc_router);
+fail_probe_legacy:
+	remove_proc_entry("hwprobe", proc_router);
+fail_probe:
 	remove_proc_entry("status", proc_router);
 fail_stat:
 	remove_proc_entry("config", proc_router);
 fail_config:
-	remove_proc_entry(ROUTER_NAME, proc_net);
+	remove_proc_entry(ROUTER_NAME, wan_init_net(proc_net));
 fail:
 	return -ENOMEM;
 }
@@ -1103,11 +1242,12 @@ void wanrouter_proc_cleanup (void)
 	remove_proc_entry("config", proc_router);
 	remove_proc_entry("status", proc_router);
 	remove_proc_entry("hwprobe", proc_router);
+	remove_proc_entry("hwprobe_legacy", proc_router);
 	remove_proc_entry("hwprobe_verbose", proc_router);
 	remove_proc_entry("map", proc_router);
 	remove_proc_entry("interfaces", proc_router);
 	remove_proc_entry("dev_map",proc_router);
-	remove_proc_entry(ROUTER_NAME,proc_net);
+	remove_proc_entry(ROUTER_NAME,wan_init_net(proc_net));
 }
 
 /*
@@ -1211,10 +1351,6 @@ int wanrouter_proc_add_protocol(wan_device_t* wandev)
 			proc_protocol = &proc_router_x25;
 			break;
 			
-		case WANCONFIG_MPPP:
-			proc_protocol = &proc_router_mppp;
-			break;
-
 		default:
 			proc_protocol = NULL;
 			return 0;
@@ -1347,10 +1483,6 @@ int wanrouter_proc_delete_protocol(wan_device_t* wandev)
 			
 		case WANCONFIG_X25:
 			proc_protocol = &proc_router_x25;
-			break;
-			
-		case WANCONFIG_MPPP:
-			proc_protocol = &proc_router_mppp;
 			break;
 			
 		default:

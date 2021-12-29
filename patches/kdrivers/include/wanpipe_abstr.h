@@ -119,6 +119,7 @@ extern void 		wpabs_write_rw_lock_irq(void*,unsigned long*);
 extern void		wpabs_write_rw_unlock_irq(void*,unsigned long*);
 
 extern void 		wpabs_debug_event(const char * fmt, ...);
+extern void 		__wpabs_debug_event(const char * fmt, ...);
 extern void 		wpabs_debug_init(const char * fmt, ...);
 extern void 		wpabs_debug_cfg(const char * fmt, ...);
 extern void 		wpabs_debug_tx(const char * fmt, ...);

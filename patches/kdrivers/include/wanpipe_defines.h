@@ -784,12 +784,16 @@ typedef int			wan_ioctl_cmd_t;
 # define RW_LOCK_UNLOCKED	0
 typedef int			wan_ioctl_cmd_t;
 
-#define ONE_MILLISECOND_INTERVAL    1000
-/* this macro allowed only at IRQL = PASSIVE_LEVEL*/
+/* this macro allowed only at IRQL = PASSIVE_LEVEL */
+/* Convert timeout in Milliseconds to relative timeout in 100ns units
+suitable as parameter 5 to KeWaitForSingleObject(..., TimeOut). */
 #define WP_MILLISECONDS_DELAY(ms_delay){			\
-	LARGE_INTEGER Interval;				\
-	Interval.QuadPart = Int32x32To64(ONE_MILLISECOND_INTERVAL*ms_delay, -10);\
-        KeDelayExecutionThread(KernelMode, FALSE, &Interval);	\
+	KEVENT		WaitEvent;				\
+	LARGE_INTEGER	TimeOut;				\
+								\
+	KeInitializeEvent(&WaitEvent, NotificationEvent, FALSE);\
+	TimeOut.QuadPart = -( (LONGLONG) (ms_delay)*10*1000 );	\
+	KeWaitForSingleObject(&WaitEvent, Executive, KernelMode, FALSE, &TimeOut);\
 }
 #endif
 

@@ -12,12 +12,15 @@ LIP_KATMDIR=../lip_katm
 LIP_ATMDIR=../lip_atm
 COMMON=../wanpipe
 ROUTER=../router
+LIP_HDLC=../lip_hdlc
 
 CONFIG_WANPIPE_FR=y
 CONFIG_WANPIPE_SPPP=y
 CONFIG_WANPIPE_ATM=n 
 CONFIG_WANPIPE_LIP_KATM=y 
 CONFIG_WANPIPE_LIP_ATM=y 
+CONFIG_WANPIPE_LIP_TTY=y 
+CONFIG_WANPIPE_LIP_HDLC=y 
 
 EXTRA_CFLAGS=$(EXTRA_FLAGS)
 EXTRA_CFLAGS+=-DWANLIP_DRIVER -DWPLIP_TTY_SUPPORT 
@@ -27,7 +30,15 @@ wanpipe_lip-y 	+= wanpipe_lip_netdev.o wanpipe_lip_prot.o
 wanpipe_lip-y 	+= wanpipe_lip_bh.o wanpipe_lip_ipx.o 
 wanpipe_lip-y 	+= $(COMMON)/wanpipe_abstr.o $(ROUTER)/wanpipe_linux_iface.o  
 
-ifeq "${CONFIG_WANPIPE_FR}" "y"
+
+ifeq "${CONFIG_WANPIPE_LIP_HDLC}" "y"
+PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_LIP_HDLC 
+wanpipe_lip-y			+= wanpipe_hdlc_iface.o
+wanpipe_lip-y			+= wanpipe_hdlc_eng.o
+endif 
+
+
+ifeq "${CONFIG_WANPIPE_LIP_TTY}" "y"
 PRODUCT_DEFINES			+= -DWPLIP_TTY_SUPPORT 
 wanpipe_lip-y			+= wanpipe_lip_tty.o
 endif 

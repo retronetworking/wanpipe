@@ -36,17 +36,6 @@
 # include <sdlapci.h>
 # include <sdla_aft_te1.h>
 
-# include <wanec_iface.h>
-
-extern
-void 
-sdla_te_timer(
-	IN PKDPC,
-	void*,
-	void*,
-	void*
-	);
-
 #else
  
 /* L I N U X */
@@ -147,7 +136,7 @@ static char fifo_code_vector[] =  {0, 1, 3, 7,0xF,0x1F};
 static int request_fifo_baddr_and_size(sdla_t *card, private_area_t *chan)
 {
 	unsigned char req_fifo_size,fifo_size;
-	int i;
+	u32 i;
 
 	BRI_FUNC();
 
@@ -238,7 +227,7 @@ static int aft_map_fifo_baddr_and_size(sdla_t *card, unsigned char fifo_size, un
 		*addr=i;
 
 		DEBUG_TEST("%s: Card fifo Map 0x%lX Addr =%d\n",
-	                card->devname,aft_get_bri_fifo_map(card)p,i);
+	                card->devname,aft_get_bri_fifo_map(card),i);
 
 		return fifo_size;
 	}
@@ -267,7 +256,7 @@ static int aft_free_fifo_baddr_and_size (sdla_t *card, private_area_t *chan)
 	DEBUG_TEST("%s: Unmapping 0x%X from 0x%lX\n",
 		card->devname,reg<<chan->fifo_base_addr, aft_get_bri_fifo_map(card));
 
-	aft_clear_bri_fifo_map(card, ~(reg<<chan->fifo_base_addr))
+	aft_clear_bri_fifo_map(card, ~(reg<<chan->fifo_base_addr));
 
 	DEBUG_TEST("%s: New Map is 0x%lX\n",
                 card->devname, aft_get_bri_fifo_map(card));
@@ -668,8 +657,8 @@ int aft_bri_hwec_config(sdla_t *card, wandev_conf_t *conf)
 		card->wandev.hwec_reset = aft_bri_hwec_reset;
 		card->wandev.hwec_enable = aft_bri_hwec_enable;
 
-		/* FIXME: For BRI cards always suppress H100 Errors until H100 is fixed */
-		{
+		/* Only suppress H100 errors for old CPLD */
+		if (!aft_is_bri_512khz_card(card)){
 			wan_event_ctrl_t *event = wan_malloc(sizeof(wan_event_ctrl_t));
 			if (event) {
 				memset(event,0,sizeof(wan_event_ctrl_t));
@@ -817,15 +806,6 @@ int aft_bri_chip_config(sdla_t *card, wandev_conf_t *conf)
 	if (err) {
 		return err;
 	}	
-
-#if defined(__WINDOWS__)
-	/*connect to interrupt line and only AFTER THAT enable device's interrupts.*/
-	if(connect_to_interrupt_line(card)){
-		return 1;
-	}
-	/*at this point we can handle front end interrupts*/
-	card->init_flag = 0;
-#endif
 
 	/* Enable only Front End Interrupt
 	 * Wait for front end to come up before enabling DMA */
@@ -1360,6 +1340,7 @@ static int aft_bri_hwec_enable(void *pcard, int enable, int fe_chan)
 
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
 
+#if 1
 /*============================================================================
  * Write BRI register
  */
@@ -1368,7 +1349,7 @@ int aft_bri_write_fe(void* pcard, ...)
 {
 	va_list		args;
 	sdla_t		*card = (sdla_t*)pcard;
-	int		mod_no, type, chain, reg, value;
+	u8		mod_no, type, reg, value;
 #if defined(WAN_DEBUG_FE)
 	char		*fname;	
 	int		fline;
@@ -1379,11 +1360,10 @@ int aft_bri_write_fe(void* pcard, ...)
 	WAN_ASSERT(card->hw_iface.bus_read_4 == NULL);
 
 	va_start(args, pcard);
-	mod_no	= va_arg(args, int);
-	type	= va_arg(args, int);
-	chain	= va_arg(args, int);
-	reg	= va_arg(args, int);
-	value	= va_arg(args, int);
+	mod_no		= (u8)va_arg(args, int);
+	type		= (u8)va_arg(args, int);
+	reg		= (u8)va_arg(args, int);
+	value		= (u8)va_arg(args, int);
 #if defined(WAN_DEBUG_FE)
 	fname	= va_arg(args, char*);
 	fline	= va_arg(args, int);
@@ -1404,7 +1384,7 @@ int aft_bri_write_fe(void* pcard, ...)
 	write_bri_fe_byte(card, mod_no, reg, value);
 
 	card->hw_iface.fe_clear_bit(card->hw,0);
-    return 0;
+	return 0;
 }
 
 
@@ -1416,11 +1396,11 @@ unsigned char aft_bri_read_fe (void* pcard, ...)
 {
 	va_list		args;
 	sdla_t		*card = (sdla_t*)pcard;
-	int			mod_no, type, optional_arg, reg;
+	u8		mod_no, type, optional_arg, reg;
 	unsigned char	data = 0;
 #if defined(WAN_DEBUG_FE)
 	char		*fname;
-	int			fline;
+	int		fline;
 #endif
 
 	WAN_ASSERT(card == NULL);
@@ -1428,10 +1408,10 @@ unsigned char aft_bri_read_fe (void* pcard, ...)
 	WAN_ASSERT(card->hw_iface.bus_read_4 == NULL);
 
 	va_start(args, pcard);
-	mod_no			= va_arg(args, int);
-	type			= va_arg(args, int);
-	optional_arg		= va_arg(args, int);
-	reg			= va_arg(args, int);
+	mod_no			= (u8)va_arg(args, int);
+	type			= (u8)va_arg(args, int);
+	optional_arg		= (u8)va_arg(args, int);
+	reg			= (u8)va_arg(args, int);
 #if defined(WAN_DEBUG_FE)
 	fname	= va_arg(args, char*);
 	fline	= va_arg(args, int);
@@ -1463,11 +1443,11 @@ unsigned char __aft_bri_read_fe (void* pcard, ...)
 {
 	va_list		args;
 	sdla_t		*card = (sdla_t*)pcard;
-	int			mod_no, type, optional_arg, reg;
+	u8		mod_no, type, optional_arg, reg;
 	unsigned char	data = 0;
 #if defined(WAN_DEBUG_FE)
 	char		*fname;
-	int			fline;
+	int		fline;
 #endif
 
 	WAN_ASSERT(card == NULL);
@@ -1475,10 +1455,10 @@ unsigned char __aft_bri_read_fe (void* pcard, ...)
 	WAN_ASSERT(card->hw_iface.bus_read_4 == NULL);
 
 	va_start(args, pcard);
-	mod_no			= va_arg(args, int);
-	type			= va_arg(args, int);
-	optional_arg	= va_arg(args, int);
-	reg				= va_arg(args, int);
+	mod_no		= (u8)va_arg(args, int);
+	type		= (u8)va_arg(args, int);
+	optional_arg	= (u8)va_arg(args, int);
+	reg		= (u8)va_arg(args, int);
 #if defined(WAN_DEBUG_FE)
 	fname	= va_arg(args, char*);
 	fline	= va_arg(args, int);
@@ -1560,7 +1540,11 @@ read_bri_fe_byte(sdla_t *card, unsigned char mod_no, unsigned char reg, unsigned
 	data.data = reg;
 	data.contrl = 0;
 	data.contrl |= ADDR_BIT;
-	
+	if(type == MOD_TYPE_NONE){
+		/* DavidR (April 10, 2008): for module detection set 512 khz bit */
+		data.contrl |= CPLD_USE_512KHZ_RECOVERY_CLOCK_BIT;
+	}
+
 	/* check spi not busy */
 	for (retry_counter = 0; retry_counter < SPI_MAX_RETRY_COUNT; retry_counter++){
 		card->hw_iface.bus_read_4(card->hw, SPI_INTERFACE_REG, dummy_ptr);
@@ -1604,6 +1588,13 @@ read_bri_fe_byte(sdla_t *card, unsigned char mod_no, unsigned char reg, unsigned
 	data.data = 0;
 	data.contrl = 0;
 	data.contrl |= READ_BIT;
+	if(type == MOD_TYPE_NONE){
+		/* DavidR (April 10, 2008): for module detection set 512 khz bit */
+		data.contrl |= CPLD_USE_512KHZ_RECOVERY_CLOCK_BIT;
+	}
+
+	BRI_DBG("%s(Line: %i): (data: 0x%08X) reset: 0x%X, start: 0x%X, reserv1: 0x%X, remora_addr: 0x%X, mod_addr: 0x%X, data: 0x%X, contrl: 0x%X\n",
+		__FUNCTION__, __LINE__, *((u32*)&data), data.reset, data.start, data.reserv1, data.remora_addr, data.mod_addr, data.data, data.contrl);
 
 #if FAST_SPI
 	SPI_DELAY;
@@ -1769,6 +1760,8 @@ write_bri_fe_byte(sdla_t *card, unsigned char mod_no, unsigned char addr, unsign
 */
 	return 0;
 }
+
+#endif
 
 /********************************************************************************/
 /* D channel Transmit */

@@ -149,7 +149,7 @@ enum {
 	((type) == WP_RM_POLL_SETPOLARITY) ? "Set polarity":			\
 	((type) == WP_RM_POLL_RING_DETECT) ? "Ring Detect":			\
 	((type) == WP_RM_POLL_READ) ? "FE Read":				\
-	((type) == WP_RM_POLL_WRITE) ? "FE Write":"Unknown RM poll event"	\
+	((type) == WP_RM_POLL_WRITE) ? "FE Write":	\
 	((type) == WP_RM_POLL_RXSIG_OFFHOOK) ? "RX Sig Off-hook":		\
 	((type) == WP_RM_POLL_RXSIG_ONHOOK) ? "RX Sig On-hook":			\
 						"Unknown RM poll event"
@@ -1069,18 +1069,20 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 	WRITE_RM_REG(mod_no, 20, 0xff);
 	WRITE_RM_REG(mod_no, 73, 0x04);
 
-	if (!strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "AUSTRALIA")) {
+	if (!strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "AUSTRALIA") ||
+	    !strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "TBR21")) {
+
 		value = (unsigned char)acim2tiss[fxo_modes[fe->fe_cfg.cfg.remora.opermode].acim];
 		WRITE_RM_REG(mod_no, 10, 0x8 | value);
 		if (fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_osc){
 			wp_proslic_setreg_indirect(
 				fe, mod_no, 20,
-				(unsigned char)fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_osc);
+				(unsigned short)fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_osc);
 		}
 		if (fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_x){
 			wp_proslic_setreg_indirect(
 				fe, mod_no, 21,
-				(unsigned char)fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_x);
+				(unsigned short)fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_x);
 		}
 	}
 
@@ -1999,11 +2001,7 @@ static int wp_remora_polling(sdla_fe_t* fe)
 	WAN_LIST_REMOVE(fe_event, next);
 	wan_spin_unlock_irq(&fe->lockirq,&smp_flags);
 
-#if defined(__WINDOWS__)
-	/* FIXME: Try to make common code for all OS */
-	/* poll is NOT locked outside! */
 	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
-#endif
 	
 	mod_no = fe_event->rm_event.mod_no;
 	DEBUG_RM("[RM] %s: Module %d: RM Polling State=%s Cmd=%s(%X) Mode=%s!\n", 
@@ -2194,14 +2192,6 @@ static int wp_remora_polling(sdla_fe_t* fe)
 		/* Can't change polarity while ringing or when open */
 		if ((fe->rm_param.mod[mod_no].u.fxs.lasttxhook == 0x04) ||
 		    (fe->rm_param.mod[mod_no].u.fxs.lasttxhook == 0x00)){
-#if 0 /*defined(__WINDOWS__)*/
-			//done with the event, reset the pointer.
-			fe->rm_param.mod[mod_no].current_control_event_ptr = NULL;
-
-			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
-			card->event_control_running = 0;
-			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
-#endif
 			break;
 		}
 	
@@ -2272,20 +2262,8 @@ static int wp_remora_polling(sdla_fe_t* fe)
 		break;
 	}
 
-#if defined(__WINDOWS__)
-	/* poll is NOT locked outside! */
 	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
-#endif
 
-#if 0/*defined(__WINDOWS__)*/
-	//done with the event, reset the pointer.
-	fe->rm_param.mod[mod_no].current_control_event_ptr = NULL;
-
-	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
-	card->event_control_running = 0;
-	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
-#endif   
-	
 	/* Add new event */
 	if (pending){
 		wp_remora_add_event(fe, fe_event);

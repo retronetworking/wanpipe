@@ -41,11 +41,10 @@
 #define	WAN_ADDRESS_SZ	31	/* max length of the WAN media address */
 
 #define WAN_AUTHNAMELEN 64
-/*
-This is the maximum number of interfaces that any protocol may have.
-For example: a number of DLCIs.
-*/
-#define MAX_NUMBER_OF_PROTOCOL_INTERFACES	(1007+16)
+/* This is the maximum number of interfaces that any protocol may have.
+For example: a number of DLCIs. */
+#define MAX_NUMBER_OF_PROTOCOL_INTERFACES	(160)
+
 
 /********** compilation flags ************/
 /* compile protocols in the LIP layer */
@@ -64,6 +63,8 @@ For example: a number of DLCIs.
 #define CONFIG_PRODUCT_WANPIPE_ADSL
 /* compile TDM API code */
 #define AFT_TDM_API_SUPPORT
+/* compile ISDN BRI code */
+#define CONFIG_PRODUCT_WANPIPE_AFT_BRI
 /********** end of compilation flags ************/
 
 
@@ -627,6 +628,15 @@ typedef struct wan_lip_fr_dlci
 	unsigned char 	type;
 } wan_fr_dlci_t;
 
+typedef struct wan_lip_hdlc_if_conf
+{
+	/* IMPLEMENT USER CONFIG OPTIONS HERE */
+	unsigned char seven_bit_hdlc;
+	unsigned char rx_crc_bytes;
+
+}wan_lip_hdlc_if_conf_t;
+
+
 typedef struct wan_rtp_conf
 {
    	unsigned int	rtp_ip;
@@ -1016,7 +1026,7 @@ typedef struct wandev_conf
 	int irq;		/* interrupt request level */
 	int dma;		/* DMA request level */
 	char S514_CPU_no[1];	/* S514 PCI adapter CPU number ('A' or 'B') */
-        unsigned PCI_slot_no;	/* S514 PCI adapter slot number */
+	unsigned PCI_slot_no;	/* S514 PCI adapter slot number */
 	char auto_pci_cfg;	/* S515 PCI automatic slot detection */
 	unsigned int comm_port;	/* Communication Port (PRI=0, SEC=1) */ 
 	unsigned int bps;	/* data transfer rate */
@@ -1089,9 +1099,6 @@ typedef struct wandev_conf
 	unsigned int  max_rx_queue;
 #endif
 
-#if defined(__WINDOWS__)
-	u16 card_sub_type; /* "S" 5141/5142/5143 or "A" 101/102/104/108/200/056 */
-#endif/* __WINDOWS__ */
 } wandev_conf_t;
 
 /* 'config_id' definitions */
@@ -1134,6 +1141,7 @@ typedef struct wandev_conf
 #define WANCONFIG_AFT_56K  	136	/* AFT 56K Support */
 #define WANCONFIG_AFT_ISDN_BRI	137	/* AFT ISDN BRI Driver */
 #define WANCONFIG_AFT_SERIAL	138	/* AFT Serial V32/RS232 Driver */
+#define WANCONFIG_LIP_HDLC	139	/* LIP HDLC protocol */
 
 /*FIXME: This should be taken out, I just
 //used it so I don't break the apps that are
@@ -1176,6 +1184,9 @@ typedef struct wandev_conf
 	(protocol ==  WANCONFIG_AFT_SERIAL) ? "Serial V35/RS232": \
 	(protocol ==  WANCONFIG_AFT_ANALOG) ? "Analog FXO/FXS": \
 	(protocol ==  WANCONFIG_AFT_TE1)    ? "AFT A1/2/4/8" : \
+	(protocol ==  WANCONFIG_LIP_HDLC)   ? "LIP HDLC" : \
+	(protocol ==  WANCONFIG_AFT_SERIAL)  ? "AFT Serial" : \
+	(protocol ==  WANCONFIG_AFT_ISDN_BRI)  ? "AFT BRI" : \
 	(protocol ==  WANCONFIG_TTY)	    ? "TTY" : "Unknown Protocol"
 
 
@@ -1305,6 +1316,7 @@ typedef struct wanif_conf
 	unsigned char lip_prot;
 #if defined(__WINDOWS__)
 	DEVICE_CONFIGURATION device_cfg;
+	unsigned char line_mode[USED_BY_FIELD];
 	struct {
 #else
 	union {
@@ -1323,6 +1335,7 @@ typedef struct wanif_conf
 #else
 		wan_chdlc_conf_t	chdlc;
 #endif
+		wan_lip_hdlc_if_conf_t	lip_hdlc;
 	}u;
 
 } wanif_conf_t;
@@ -1422,7 +1435,11 @@ typedef struct {
 	unsigned short	time_stamp;
 	unsigned long	sec;
 	unsigned long   usec;
+#if defined(__WINDOWS__)/* zero-sized array does not comply to ANSI 'C' standard! */
+	unsigned char	data[1];
+#else
 	unsigned char	data[0];
+#endif
 } wan_trace_pkt_t;
 #pragma pack()
 
@@ -1431,6 +1448,7 @@ typedef struct {
 #define ACU_MTU 2048
 #define MODE_OPTION_HDLC		"HDLC"
 #define MODE_OPTION_BITSTRM		"BitStream"
+#define ISDN_BRI_DCHAN			"BRI D-chan"
 
 #define SDLA_DECODE_USEDBY_FIELD(usedby)			\
 	(usedby == WANPIPE)		? "WANPIPE"	:	\
@@ -1455,9 +1473,10 @@ typedef struct {
 	(cardtype == WANOPT_AFT108) ? "WANOPT_AFT108": 		\
 	(cardtype == WANOPT_AFT_ANALOG) ? "WANOPT_AFT_ANALOG": 		\
 	(cardtype == WANOPT_AFT_56K) ? "WANOPT_AFT_56K": 		\
-	(cardtype == WANOPT_AFT300) ? "WANOPT_AFT300": "Invalid card")
+	(cardtype == WANOPT_AFT300) ? "WANOPT_AFT300":	\
+	(cardtype == WANOPT_AFT_ISDN) ? "WANOPT_AFT_ISDN": "Invalid card")
 
-#if 1
+
 
 typedef struct _buffer_settings{
 	/* Number of received blocks of data before Receive event is indicated to API caller. */
@@ -1465,9 +1484,9 @@ typedef struct _buffer_settings{
 
 	/* Number of buffers for receiving or transmitting data on an API interface. */
 	/* EACH buffer will contain 'buffer_multiplier_factor' blocks of data before
-	   Receive event is indicated to API caller.
-	*/
+	   Receive event is indicated to API caller. */
 	u16 number_of_buffers_per_api_interface;
+
 }buffer_settings_t;
 
 #define MIN_BUFFER_MULTIPLIER_FACTOR 1
@@ -1476,23 +1495,24 @@ typedef struct _buffer_settings{
 #define MIN_NUMBER_OF_BUFFERS_PER_API_INTERFACE	50
 #define MAX_NUMBER_OF_BUFFERS_PER_API_INTERFACE	100
 
-/* structure used with IoctlDriverConfigurationCommand*/
+/* Structure used with START_PORT_VOLATILE_CONFIG and START_PORT_REGISTRY_CONFIG
+   commands. The commands are defined in sang_api.h. */
 typedef struct {
-	unsigned char command_code;
-	unsigned int return_code;
-	/* Port configuration */
+	unsigned int	command_code;		// Configuration Command Code
+	unsigned int	operation_status;	// operation completion status 
+
+	/* Port configuration such T1 or E1... */
 	wandev_conf_t wandev_conf;
 
-	/*
-	Per-Interface configuration.
-	For AFT card maximum NUM_OF_E1_CHANNELS (31) logic channels.
-	Configuration of each logic channel ('active_ch', HDLC or Transparent...)
-	*/
+	/* Per-Interface configuration.
+	   For AFT card maximum NUM_OF_E1_CHANNELS (32) logic channels.
+	   Configuration of each logic channel ('active_ch', HDLC or Transparent...) */
 	wanif_conf_t if_cfg[NUM_OF_E1_CHANNELS];
 
 	buffer_settings_t buffer_settings;
-}driver_cfg_t;
-#endif
+
+}port_cfg_t;
+
 
 #define DRV_MODE_NORMAL	0
 #define DRV_MODE_AFTUP	1

@@ -51,19 +51,6 @@
 /******************************************************************************
 			  DEFINES AND MACROS
 ******************************************************************************/
-#if defined(__WINDOWS__)
-#define WRITE_REG(reg,val) 						\
-	fe->write_fe_reg(						\
-		((sdla_t*)fe->card)->hw, 				\
-		0, 							\
-		(int)(reg),(int)(val))
-#define READ_REG(reg)	   						\
-	fe->read_fe_reg(						\
-		((sdla_t*)fe->card)->hw, 				\
-		0,							\
-		(int)(reg))
-
-#else
 
 #define WRITE_REG(reg,val) 						\
 	fe->write_fe_reg(						\
@@ -82,8 +69,6 @@
 #define AFT_FUNC_DEBUG()
 #else
 #define AFT_FUNC_DEBUG()  DEBUG_EVENT("%s:%d\n",__FUNCTION__,__LINE__)
-#endif
-
 #endif
 
 /******************************************************************************
@@ -127,7 +112,6 @@ static int sdla_56k_check_intr(sdla_fe_t *fe);
  */
 static char* sdla_56k_get_fe_media_string(void)
 {
-	AFT_FUNC_DEBUG();
 	return ("S514_56K");
 	/*return ("S514_AFT_56K"); ??*/
 }

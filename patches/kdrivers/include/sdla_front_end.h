@@ -553,10 +553,6 @@ typedef struct {
 	int		(*get_snmp_data)(sdla_fe_t*, void*, void*);
 	/* Check if the interrupt is for this port */
 	int		(*check_isr)(sdla_fe_t *fe);
-#if defined(__WINDOWS__)
-	/* Enable TE1 poll timer (WINDOWS ONLY) */
-	void	(*enable_timer)(sdla_fe_t* fe, unsigned char cmd, unsigned int delay);
-#endif
 	/* Available front-end map */
 	/* BRI addition - one Wanpipe may have two lines, provide the 'line_no' when
 	   getting the active channels map.

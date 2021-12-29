@@ -169,7 +169,9 @@ static void wp_tdmv_bri_dtmf (void* card_id, wan_event_t *event);
 extern int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane);
 extern int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane);
 
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(ZT_DCHAN_TX)
 static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len);
+#endif
 static int wp_tdmv_rx_dchan(wan_tdmv_t*, int, unsigned char*, unsigned int); 
 
 static int wp_tdmv_span_buf_rotate(void *pcard, u32, unsigned long);
@@ -187,7 +189,9 @@ wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, caddr_t data)
 wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 #endif
 {
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(ZT_DCHAN_TX)
 	wp_tdmv_bri_t	*wp = NULL;
+#endif
 	int		err = -ENOTTY;
 
 	DEBUG_TDMV_BRI("%s(): line: %d\n", __FUNCTION__, __LINE__);
@@ -1127,6 +1131,7 @@ static void wp_tdmv_bri_dtmf (void* card_id, wan_event_t *event)
 	return;
 }
 
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(ZT_DCHAN_TX)
 static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len)
 {
 	wp_tdmv_bri_t	*wp = NULL;
@@ -1173,6 +1178,7 @@ static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len)
 
 	return err;
 }
+#endif
 
 /******************************************************************************
 ** wp_tdmv_rx_dchan() - 

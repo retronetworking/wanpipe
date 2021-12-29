@@ -1699,6 +1699,7 @@ typedef struct private_area
 #if defined(__WINDOWS__)
 	aft_dma_chain_t tx_dma_chain_table;
 	aft_dma_chain_t rx_dma_chain_table;
+	unsigned char	tx_chain_indx,tx_pending_chain_indx;
 #else
 	unsigned char	tx_chain_indx,tx_pending_chain_indx;
 	wan_dma_descr_t/*aft_dma_chain_t*/ tx_dma_chain_table[MAX_AFT_DMA_CHAINS];
@@ -1756,6 +1757,9 @@ typedef struct private_area
 	int dchan_time_slot;
 
 	aft_dma_swring_t swring;
+
+	netdevice_t *annexg_dev;
+	unsigned char label[WAN_IF_LABEL_SZ+1];
 
 }private_area_t;
 

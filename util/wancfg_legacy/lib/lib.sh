@@ -533,6 +533,11 @@ function interface_menu () {
 		if [ -z ${MPPP_MODEM_IGNORE[$num]} ]; then
 			MPPP_MODEM_IGNORE[$num]="YES"
 		fi
+
+		if [ $DEVICE_TYPE = "AFT" ]; then
+			MPPP_PROT[$num]="HDLC";		
+			OP_MODE[$num]="ANNEXG";
+		fi
 		
 	menu_options="'get_interface_name' 'Interface Name -----------> ${IF_NAME[$num]}' \
 		      'get_operation_mode' 'Operation Mode -----------> ${OP_MODE[$num]}' \\"
@@ -3020,15 +3025,21 @@ function probe_wanpipe_hw ()
 			   [ $PROTOCOL != "WAN_PPP" ] && 
 			   [ $PROTOCOL != "WAN_CHDLC" ]; then
 				unset val  
-				val=`echo $dev | grep AFT`
-				if [ ! -z "$val" ]; then
-					continue
-				fi	
 
-				val=`echo $dev | grep A105`
-				if [ ! -z "$val" ]; then
-					continue
-				fi	
+				val=`echo $dev | grep AFT-A14`
+				if [ -z "$val" ]; then
+
+					val=`echo $dev | grep AFT`
+					if [ ! -z "$val" ]; then
+						continue
+					fi	
+
+					val=`echo $dev | grep A105`
+					if [ ! -z "$val" ]; then
+						continue
+					fi	
+
+				fi
 
 			fi
 		fi
@@ -3121,11 +3132,17 @@ function probe_wanpipe_hw ()
 		
 			AFT*)
 
-				PROTOCOL=WAN_AFT
 				DEVICE_TYPE=AFT;
-				DEVICE_TE1_TYPE=YES
 				DEVICE_56K_TYPE=NO
 				DEVICE_TE3_TYPE=NO
+		
+				TYPE=`echo $choice | cut -d' ' -f1 | cut -d'-' -f2`
+				if [ "$TYPE" = "A144" ] ||  [ "$TYPE" = "A142" ]; then
+					DEVICE_TE1_TYPE=NO;
+				else
+					PROTOCOL=WAN_AFT
+					DEVICE_TE1_TYPE=YES
+				fi
 		
 				S514CPU=`echo $choice | cut -d'=' -f5 | cut -d' ' -f1` 
 				PCISLOT=`echo $choice | cut -d'=' -f2 | cut -d' ' -f1`
@@ -4511,7 +4528,14 @@ EOM
 	fi
 
 	echo "[devices]" >> $WAN_CONFIG
-	echo "wanpipe$DEVICE_NUM = $prot, Comment" 	>> $WAN_CONFIG
+
+	echo "SAVING PROTOCOL=$PROTOCOL DEVICE_TYPE=$DEVICE_TYPE"
+
+	if [ "$PROTOCOL" = "WAN_MULTPROT" ] && [ "$DEVICE_TYPE" = "AFT" ]; then
+		echo "wanpipe$DEVICE_NUM = WAN_AFT_SERIAL, Comment" 	>> $WAN_CONFIG
+	else
+		echo "wanpipe$DEVICE_NUM = $prot, Comment" 	>> $WAN_CONFIG
+	fi
 
 	# -------------- [interface] Area -----------------
 
@@ -4638,7 +4662,11 @@ EOM
 		echo "LineIdle	= $LINEIDLE"	>> $WAN_CONFIG
 	fi
 	if [ $PROTOCOL = WAN_MULTPPP ] || [ $PROTOCOL = WAN_MULTPROT ]; then
-		echo "CommPort	= $COMMPORT" 		>> $WAN_CONFIG
+		if [ $DEVICE_TYPE = "AFT" ]; then
+			echo "FE_LINE	= $COMMPORT" 		>> $WAN_CONFIG
+		else
+			echo "CommPort	= $COMMPORT" 		>> $WAN_CONFIG
+		fi
 	fi
 	if [ $PROTOCOL = WAN_BITSTRM ] || [ $PROTOCOL = WAN_BSCSTRM ]; then
 		echo "CommPort	= $COMMPORT" 		>> $WAN_CONFIG
@@ -5020,25 +5048,29 @@ EOM
 			echo >> $WAN_CONFIG
 			echo "[${IF_NAME[$if_num]}]" 			>> $WAN_CONFIG	
 			echo "HDLC_STREAMING	= YES" 	>> $WAN_CONFIG
-			
-			MPPP_PROT[$if_num]=${MPPP_PROT[$if_num]:-MP_PPP}
-			MPPP_MODEM_IGNORE[$if_num]=${MPPP_MODEM_IGNORE[$if_num]:-YES}
-			
-			echo "MPPP_PROT	= ${MPPP_PROT[$if_num]}" >>$WAN_CONFIG
-			echo "IGNORE_DCD	= ${MPPP_MODEM_IGNORE[$if_num]}" >>$WAN_CONFIG 
-			
-			echo "IGNORE_CTS	= ${MPPP_MODEM_IGNORE[$if_num]}" >>$WAN_CONFIG
+		
+			if [ $DEVICE_TYPE = "AFT" ]; then
+				echo "ACTIVE_CH	= 1" 	>> $WAN_CONFIG
+			else
+				MPPP_PROT[$if_num]=${MPPP_PROT[$if_num]:-MP_PPP}
+				MPPP_MODEM_IGNORE[$if_num]=${MPPP_MODEM_IGNORE[$if_num]:-YES}
+				
+				echo "MPPP_PROT	= ${MPPP_PROT[$if_num]}" >>$WAN_CONFIG
+				echo "IGNORE_DCD	= ${MPPP_MODEM_IGNORE[$if_num]}" >>$WAN_CONFIG 
+				
+				echo "IGNORE_CTS	= ${MPPP_MODEM_IGNORE[$if_num]}" >>$WAN_CONFIG
 
 
-			if [ "$OS_SYSTEM" = Linux ] && [ "${MPPP_PROT[$if_num]}" = MP_PPP ]; then
-				PAP[$if_num]=${PAP[$if_num]:-NO}
-				CHAP[$if_num]=${CHAP[$if_num]:-NO}
+				if [ "$OS_SYSTEM" = Linux ] && [ "${MPPP_PROT[$if_num]}" = MP_PPP ]; then
+					PAP[$if_num]=${PAP[$if_num]:-NO}
+					CHAP[$if_num]=${CHAP[$if_num]:-NO}
 
-				echo "PAP 		= ${PAP[$if_num]}"		>> $WAN_CONFIG
-				echo "CHAP		= ${CHAP[$if_num]}"		>> $WAN_CONFIG
-				if [ ${PAP[$if_num]} = YES -o  ${CHAP[$if_num]} = YES ]; then
-					echo "USERID    	= ${USERID[$if_num]}"	>> $WAN_CONFIG
-					echo "PASSWD		= ${PASSWD[$if_num]}"	>> $WAN_CONFIG
+					echo "PAP 		= ${PAP[$if_num]}"		>> $WAN_CONFIG
+					echo "CHAP		= ${CHAP[$if_num]}"		>> $WAN_CONFIG
+					if [ ${PAP[$if_num]} = YES -o  ${CHAP[$if_num]} = YES ]; then
+						echo "USERID    	= ${USERID[$if_num]}"	>> $WAN_CONFIG
+						echo "PASSWD		= ${PASSWD[$if_num]}"	>> $WAN_CONFIG
+					fi
 				fi
 			fi
 

@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1.h,v 1.71 2008/03/03 19:21:02 sangoma Exp $
+ *	$Id: sdla_te1.h,v 1.72 2008/04/02 20:52:09 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -533,7 +533,7 @@ typedef struct {
 
 	unsigned char	lb_rx_code;
 	
-	unsigned char	critical;
+	unsigned long	critical;
 	
 	//unsigned char	timer_cmd;
 	//unsigned long	timer_ch_map;

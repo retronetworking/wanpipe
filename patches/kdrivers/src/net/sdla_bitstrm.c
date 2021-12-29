@@ -337,10 +337,6 @@ static int bstrm_get_config_info(void* priv, struct seq_file* m, int*);
 static void 
 wanpipe_switch_datascope_tx_up(bitstrm_private_area_t *chan,struct sk_buff *skb);
 
-
-/* TE1 */
-static WRITE_FRONT_END_REG_T write_front_end_reg;
-static READ_FRONT_END_REG_T  read_front_end_reg;
 static void bstrm_enable_timer (void* card_id);
 static void bstrm_handle_front_end_state(void* card_id);
 static int bstrm_bh_data_tx_up(sdla_t *card, struct sk_buff *skb, bitstrm_private_area_t * chan);
@@ -495,8 +491,8 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
+		card->fe.write_fe_reg = card->hw_iface.fe_write;
+		card->fe.read_fe_reg	 = card->hw_iface.fe_read;
 
 		card->wandev.fe_enable_timer = bstrm_enable_timer;
 		card->wandev.te_link_state = bstrm_handle_front_end_state;
@@ -521,8 +517,8 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
+		card->fe.write_fe_reg = card->hw_iface.fe_write;
+		card->fe.read_fe_reg	 = card->hw_iface.fe_read;
 		
 		if (card->u.c.comm_port == WANOPT_PRI){
 			conf->clocking = WANOPT_EXTERNAL;
@@ -941,7 +937,7 @@ static int update (wan_device_t* wandev)
 	bstrm_priv_area->ifstats.tx_fifo_errors=0;
 #endif
 
-#if 1
+#if 0
 	DEBUG_EVENT( "%s:%s: Tx B=%i:  Rx U=%i:  Rx F=%i:  Rx-U-BH=%i Rx-F-Bh=%i Idle 0x%x\n",
 			card->devname,
 			dev->name,
@@ -1749,22 +1745,19 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 					unsigned char val = 0;
 					unsigned char new_val;
 						
-					val = read_front_end_reg(card, 1, custom_control_pkt.reg);
-				
+					val = card->fe.read_fe_reg(card->hw, 0, 1, custom_control_pkt.reg);
 					DEBUG_DBG("%s: read val : 0x%02X\n", card->devname, val);
 
 					new_val = val | (0x01 << custom_control_pkt.bit_number);
 					
-					err = write_front_end_reg(card, 1, custom_control_pkt.reg, new_val);
-					
+					err = card->fe.write_fe_reg(card->hw, 0, 1, custom_control_pkt.reg, new_val);
 					if(err){
 						printk(	KERN_INFO
 							"%s:SET_BIT_IN_PMC_REGISTER command failed! err : 0x%02X\n",
 								card->devname, err);
 					}
 
-					val = read_front_end_reg(card, 1, custom_control_pkt.reg);
-				
+					val = card->fe.read_fe_reg(card->hw, 0, 1, custom_control_pkt.reg);
 					DEBUG_DBG("%s: read val after OR : 0x%02X\n", card->devname, val);
 
 				}else{
@@ -1781,12 +1774,10 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 					unsigned char val = 0;
 					unsigned char new_val;
 						
-					val = read_front_end_reg(card, 1, custom_control_pkt.reg);
-				
+					val = card->fe.read_fe_reg(card->hw, 0, 1, custom_control_pkt.reg);
 					new_val = val &= (~(0x01 << custom_control_pkt.bit_number));
 					
-					err = write_front_end_reg(card, 1, custom_control_pkt.reg, new_val);
-					
+					err = card->fe.write_fe_reg(card->hw, 0, 1, custom_control_pkt.reg, new_val);
 					if(err){
 						DEBUG_EVENT(
 						"%s:RESET_BIT_IN_PMC_REGISTER command failed! err : 0x%02X\n",
@@ -2255,9 +2246,9 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 			int i;
 			DEBUG_EVENT( "\n");
 			DEBUG_EVENT( "\n");
-			DEBUG_EVENT( "Tx Packet: \n");
+			DEBUG_EVENT( "Tx Packet: idle 0x%02X \n",bstrm_priv_area->tx_flag_idle);
 			for (i=0;i<skb->len;i++){
-				printk("%x ",skb->data[i]);
+				printk("%02X ",skb->data[i]);
 			}
 			printk("\n");
 		}
@@ -2568,67 +2559,6 @@ static int bstrm_send (sdla_t* card, void* data, unsigned len, unsigned char fla
 	if (card->u.b.txbuf_off > card->u.b.txbuf_last_off)
 		card->u.b.txbuf_off = card->u.b.txbuf_base_off;
 	return 0;
-}
-
-/*============================================================================
- * TE1
- * Read value from PMC register.
- */
-static unsigned char read_front_end_reg (void* card1, ...)
-{
-	va_list		args;
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	u16		reg, line_no;
-        int rc;
-	char* data = mb->wan_data;
-
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	va_end(args);
-
-	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-        mb->wan_command = READ_FRONT_END_REGISTER;
-	((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-        rc = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-        if (rc == WAN_CMD_TIMEOUT)
-                bstrm_error(card,rc,mb);
-        return(((FRONT_END_REG_STRUCT *)data)->register_value);
-}
-
-/*============================================================================
- * TE1 
- * Write value to PMC register.
- */
-static int write_front_end_reg (void* card1, ...)
-{
-	va_list		args;
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	u16		reg, line_no;
-	u8		value;
-        int rc;
-	char* data = mb->wan_data;
-	int retry=10;
-
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	value	= (u8)va_arg(args, int);
-	va_end(args);
-
-	do {
-		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-		((FRONT_END_REG_STRUCT *)data)->register_value = value;
-		mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-		mb->wan_command = WRITE_FRONT_END_REGISTER;
-		rc = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-		if (rc == WAN_CMD_TIMEOUT)
-			bstrm_error(card,rc,mb);
-	}while (rc && --retry);
-	
-	return rc;
 }
 
 /*============================================================================
@@ -4031,6 +3961,9 @@ static void encode_byte (bitstrm_private_area_t *chan, unsigned char *byte_ptr, 
 	int j;
 	unsigned long byte=*byte_ptr;
 	
+
+
+
 	for (j=0;j<BITSINBYTE;j++){
 
 		if (test_bit(j,&byte)){
@@ -4080,7 +4013,7 @@ static void encode_byte (bitstrm_private_area_t *chan, unsigned char *byte_ptr, 
 		 * the next outgoing packet */
 		chan->tx_flag_offset_data=chan->tx_decode_buf[chan->tx_decode_len];
 	}
-	
+
 	return;
 }
 
@@ -5433,7 +5366,7 @@ static int bstrm_bind_dev_switch (sdla_t *card, bitstrm_private_area_t*chan, cha
 		return 0;
 	}
 	
-	sw_dev = dev_get_by_name(sw_dev_name);
+	sw_dev = wan_dev_get_by_name(sw_dev_name);
 	if (!sw_dev){
 		DEBUG_EVENT( "%s: Device %s waiting for switch device %s\n",
 				card->devname, chan->if_name,sw_dev_name);
@@ -5641,8 +5574,6 @@ static int protocol_shutdown (sdla_t *card, netdevice_t *dev)
 		wp_sppp_detach(dev);
 		
 		dev->do_ioctl = NULL;
-		dev->hard_header = NULL;
-		dev->rebuild_header = NULL;
 
 		if (chan->common.prot_ptr){
 			kfree(chan->common.prot_ptr);

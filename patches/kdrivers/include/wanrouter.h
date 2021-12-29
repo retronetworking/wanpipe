@@ -325,7 +325,6 @@ typedef struct wan_device
 	unsigned reserved[16];		/* reserved for future use */
 	unsigned long critical;		/* critical section flag */
 	wan_spinlock_t	lock;           /* Support for SMP Locking */
-
 					/****** device management methods ***/
 	int (*setup) (struct wan_device *wandev, wandev_conf_t *conf);
 	int (*shutdown) (struct wan_device *wandev, wandev_conf_t* conf);

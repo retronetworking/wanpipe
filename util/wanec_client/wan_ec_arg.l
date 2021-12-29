@@ -83,7 +83,7 @@ blank			[ \t]
 "--h"				{ help(0); exit(0); }
 "--h1"				{ help(1); help1(1); exit(0); }
 
-{sign}*{digit}{digit}*{integer_suffix}?	{ /* decimal */ 
+{digit}{digit}*{integer_suffix}?	{ /* decimal */ 
 				s_lookup(token(DEC_CONSTANT));
 				return token(DEC_CONSTANT);
 				}

@@ -290,7 +290,7 @@ int aft_analog_test_sync(sdla_t *card, int tx_only)
 		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
 		if (tx_only){
 			if (wan_test_bit(AFT_LCFG_TX_FE_SYNC_STAT_BIT,&reg)){
-				err=-1;
+				err=-EINVAL;
 				WP_DELAY(200);
 			}else{
 				err=0;
@@ -299,7 +299,7 @@ int aft_analog_test_sync(sdla_t *card, int tx_only)
 		}else{	
 			if (wan_test_bit(AFT_LCFG_TX_FE_SYNC_STAT_BIT,&reg) ||
 			    wan_test_bit(AFT_LCFG_RX_FE_SYNC_STAT_BIT,&reg)){
-				err=-1;
+				err=-EINVAL;
 				WP_DELAY(200);
 			}else{
 				err=0;
@@ -489,14 +489,6 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 		}
 	}
 
-#if defined(__WINDOWS__)
-	/*connect to interrupt line and only AFTER THAT enable device's interrupts.*/
-	if(connect_to_interrupt_line(card)){
-		return 1;
-	}
-	/*at this point we can handle front end interrupts*/
-	card->init_flag = 0;
-#endif
 
 	/* Enable only Front End Interrupt
 	 * Wait for front end to come up before enabling DMA */

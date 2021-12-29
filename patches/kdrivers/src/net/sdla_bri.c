@@ -48,7 +48,7 @@
 # include <wanpipe_events.h>
 # include <if_wanpipe_common.h>	/* for 'wanpipe_common_t' used in 'sdla_aft_te1.h'*/
 # include <sdla_aft_te1.h>	/* for 'private_area_t' */
-#elif (defined __WINDOWS__)
+#elif defined(__WINDOWS__)
 # include <wanpipe_includes.h>
 # include <wanpipe_defines.h>
 # include <wanpipe_debug.h>
@@ -117,6 +117,10 @@ static void dump_data(u8 *data, int data_len);
 static int check_data(u8 *data, int data_len);
 #endif
 
+#if defined(__WINDOWS__)
+extern int bri_dchan_rx_enqueue(private_area_t *chan, u8 *rx_data, int data_length);
+#endif
+
 /*******************************************************************************
 **			  DEFINES AND MACROS
 *******************************************************************************/
@@ -153,7 +157,7 @@ static u8 fe_line_no_to_physical_mod_no(sdla_fe_t *fe)
 {
 	u8 mod_no;
 
-	mod_no = WAN_FE_LINENO(fe);
+	mod_no = (u8)WAN_FE_LINENO(fe);
 	/* get quotient between 0 and 11 (including) */
 	mod_no = mod_no / BRI_MAX_PORTS_PER_CHIP; 
 	/* here WAN_FE_LINENO(fe) is translated into an EVEN number between 0 and 22 (including). */
@@ -273,7 +277,7 @@ static int32_t	config_clock_routing(sdla_fe_t *fe, u8 master_mode);
 
 static void xhfc_ph_command(sdla_fe_t *fe, bri_xhfc_port_t *port, u_char command);
 
-static u8 __su_new_state(sdla_fe_t *fe, u32 mod_no, u8 port_no);
+static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no);
 static void sdla_bri_set_status(sdla_fe_t* fe, u8 mod_no, u8 port_no, u8 status);
 
 /* for selecting PCM direction */
@@ -522,22 +526,38 @@ static int32_t __config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode)
 	WRITE_REG(R_GPIO_EN0, r_gpio_en0.reg);
 
 	/************************************************************************/
-#if 1
 	pcm_md0.reg = 0;
 	pcm_md0.bit.v_pcm_idx = 0xA;	/* get access to R_PCM_MD2 */
+#if 0
+	/* PCM master mode test */
+	pcm_md0.bit.v_pcm_md = 0x1;	/* PCM bus mode.
+					’0’ = slave (pins C4IO and F0IO are inputs)
+					’1’ = master (pins C4IO and F0IO are outputs)
+					If no external C4IO and F0IO signal is provided
+					this bit must be set for operation. */
+#endif
+
 	WRITE_REG(R_PCM_MD0, pcm_md0.reg);
 
 	r_pcm_md2.reg = 0;
 	if(master_mode == WANOPT_YES){
 		CLOCK_FUNC();
-		r_pcm_md2.bit.v_sync_out1 = 0;/* 0 = SYNC_O is either SYNC_I or the received
-						synchronization pulse. page 244. */
-	}else{
-		/* r_pcm_md2.bit.v_sync_out1 = 1;*/ /* 1 = SYNC_O is either 512 kHz from the PLL or
-							the received multiframe / superframe
-								synchronization pulse. page 244. */
-	}
+			
+		if(fe->bri_param.use_512khz_recovery_clock == 1){
+			DEBUG_EVENT("%s: Module=%d Port=%d: using 512khz from PLL\n",
+				fe->name, REPORT_MOD_NO(mod_no), fe_line_no_to_port_no(fe)+1);
 
+			r_pcm_md2.bit.v_sync_out1 = 1;/* 1 = SYNC_O is either 512 kHz from the PLL or
+							the received multiframe / superframe
+							synchronization pulse. page 244. */
+		}else{
+			DEBUG_EVENT("%s: Module=%d Port=%d: SYNC_O -> SYNC_I / Sync Pulse.\n",
+				fe->name, REPORT_MOD_NO(mod_no), fe_line_no_to_port_no(fe)+1);
+
+			r_pcm_md2.bit.v_sync_out1 = 0;/* 0 = SYNC_O is either SYNC_I or the received
+							synchronization pulse. page 244. */
+		}
+	}
 	r_pcm_md2.bit.v_sync_out2 = 0;/* SYNC_O output selection
 					0 = ST/Up receive from the selected line interface
 					in TE mode (see R_SU_SYNC register for synchronization source selection)
@@ -553,7 +573,6 @@ static int32_t __config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode)
 #endif
 
 	WRITE_REG(R_PCM_MD2, r_pcm_md2.reg);
-#endif
 	/************************************************************************/
 
 	return 0;
@@ -752,18 +771,18 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 	for (port_no = 0; port_no < bri_module->num_ports; port_no++) {
 		for (bchan = 0; bchan < 2; bchan++) {
 
-			u_int8_t	pcm_slot;
+			u8	pcm_slot;
 
 			DEBUG_HFC_INIT("port_no: %d, bchan: %d\n", port_no, bchan);
 
 			if(mod_no >= MAX_BRI_MODULES){
 				/* adjust mod_no to be between 0 and 10 (including)*/
-				pcm_slot = calculate_pcm_timeslot(mod_no - MAX_BRI_MODULES, port_no, bchan);
+				pcm_slot = (u8)calculate_pcm_timeslot(mod_no - MAX_BRI_MODULES, port_no, bchan);
 				/* AFT Line 1 will use odd PCM timeslots */
 				pcm_slot += 1;
 			}else{
 				/* AFT Line 0 will use even PCM timeslots */
-				pcm_slot = calculate_pcm_timeslot(mod_no, port_no, bchan);
+				pcm_slot = (u8)calculate_pcm_timeslot(mod_no, port_no, bchan);
 			}
 
 			DEBUG_HFC_INIT("selecting TX pcm_slot: %d\n", pcm_slot);
@@ -960,7 +979,7 @@ typedef enum _DCHAN_RC{
 
 #define TX_EMPTY_FIFO	1
 
-static int xhfc_write_fifo_dchan(sdla_fe_t *fe,	u8 mod_no,
+static u8 xhfc_write_fifo_dchan(sdla_fe_t *fe,	u8 mod_no,
 			wp_bri_module_t *bri_module, bri_xhfc_port_t *port, 
 			u8 *free_space)
 {
@@ -1498,9 +1517,9 @@ static int32_t wp_bri_spi_bus_reset(sdla_fe_t	*fe)
 *
 * Returns	: number of discovered modules.
 *******************************************************************************/
-static int32_t scan_modules(sdla_fe_t *fe, u_int8_t rm_no)
+static u_int8_t scan_modules(sdla_fe_t *fe, u_int8_t rm_no)
 {
-	u_int8_t mod_no = 0x3;	/* to read remora status register ALWAYS put 0x3 into mod_addr. */
+	u_int8_t mod_no = RM_BRI_STATUS_READ/*0x3*/;/* to read remora status register ALWAYS put 0x3 into mod_addr. */
 	u_int8_t value, ind, mod_counter = 0;
 	u_int8_t mod_no_index;	/* index in the array of ALL modules (NOT lines) on ALL remoras. From 0 to 11 */
 
@@ -1529,11 +1548,17 @@ static int32_t scan_modules(sdla_fe_t *fe, u_int8_t rm_no)
 
 	DEBUG_BRI_INIT("remora number: %d, remora status register: 0x%02X\n", rm_no, value);
 
-	if(((value >> 7) & 0x01) || ((value >> 8) & 0x01)){
-		DEBUG_EVENT("%s: Remora number %d does not exist.\n", fe->name, rm_no);
-		return 0;
+	if((value >> 6) == 0x2){
+		DEBUG_EVENT("%s: Remora number %d: Found 512khz Recovery clock remora.\n", fe->name, rm_no);
+		fe->bri_param.use_512khz_recovery_clock = 1;
 	}else{
-		DEBUG_EVENT("%s: Remora number %d exist.\n", fe->name, rm_no);
+
+		if(((value >> 7) & 0x01) || ((value >> 8) & 0x01)){
+			DEBUG_EVENT("%s: Remora number %d does not exist.\n", fe->name, rm_no);
+			return 0;
+		}else{
+			DEBUG_EVENT("%s: Remora number %d exist.\n", fe->name, rm_no);
+		}
 	}
 
 	for(ind = 0; ind < 6; ind++){
@@ -1610,8 +1635,8 @@ static int32_t scan_modules(sdla_fe_t *fe, u_int8_t rm_no)
 *******************************************************************************/
 static int32_t scan_remoras_and_modules(void* pfe)
 {
-	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
-	int32_t				rm_no, modules_counter = 0;
+	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+	u8		rm_no, modules_counter = 0;
 
 	BRI_FUNC();
 
@@ -1782,6 +1807,8 @@ static int32_t wp_bri_config(void *pfe)
 		/* Per-card initialization. Important to do only ONCE.*/
 		wp_bri_spi_bus_reset(fe);
 	}
+
+	fe->bri_param.use_512khz_recovery_clock = 0;
 
 	if(scan_remoras_and_modules(fe)){
 		return 1;
@@ -2073,7 +2100,7 @@ static void l1_timer_start_t3(void *pport)
 {
 	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
 	wp_bri_module_t	*bri_module = port_ptr->hw;
-	u8		mod_no = bri_module->mod_no;
+	u8		mod_no = (u8)bri_module->mod_no;
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
@@ -2097,7 +2124,7 @@ static void l1_timer_stop_t3(void *pport)
 {
 	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
 	wp_bri_module_t	*bri_module = port_ptr->hw;
-	u8		mod_no = bri_module->mod_no;
+	u8		mod_no = (u8)bri_module->mod_no;
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
         DEBUG_HFC_S0_STATES("Stopping T3 timer...\n");
@@ -2168,7 +2195,7 @@ static void l1_timer_start_t4(void *pport)
 {
 	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
 	wp_bri_module_t	*bri_module = port_ptr->hw;
-	u8		mod_no = bri_module->mod_no;
+	u8		mod_no = (u8)bri_module->mod_no;
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
@@ -2194,7 +2221,7 @@ static void l1_timer_stop_t4(void *pport)
 {
 	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
 	wp_bri_module_t	*bri_module = port_ptr->hw;
-	u8		mod_no = bri_module->mod_no;
+	u8		mod_no = (u8)bri_module->mod_no;
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 	DEBUG_HFC_S0_STATES("Stopping T4 timer...\n");
@@ -2573,12 +2600,12 @@ static int bchan_loopback_control(sdla_fe_t *fe, u8 bchan_no, u8 loopback_enable
 
 	if(mod_no >= MAX_BRI_MODULES){
 		/* adjust mod_no to be between 0 and 10 (including)*/
-		pcm_slot = calculate_pcm_timeslot(mod_no - MAX_BRI_MODULES, port_no, bchan_no);
+		pcm_slot = (u8)calculate_pcm_timeslot(mod_no - MAX_BRI_MODULES, port_no, bchan_no);
 		/* AFT Line 1 will use odd PCM timeslots */
 		pcm_slot += 1;
 	}else{
 		/* AFT Line 0 will use even PCM timeslots */
-		pcm_slot = calculate_pcm_timeslot(mod_no, port_no, bchan_no);
+		pcm_slot = (u8)calculate_pcm_timeslot(mod_no, port_no, bchan_no);
 	}
 
 	DEBUG_LOOPB("selecting pcm_slot: %i, HFC channel: %i\n", pcm_slot, port_no*4+bchan_no);
@@ -2821,7 +2848,7 @@ static int wp_bri_intr_ctrl(sdla_fe_t *fe, int mod_no, u_int8_t type, u_int8_t m
 static void xhfc_ph_command(sdla_fe_t *fe, bri_xhfc_port_t *port, u_char command)
 {
 	wp_bri_module_t	*bri_module = port->hw;
-	u8		mod_no = bri_module->mod_no;
+	u8		mod_no = (u8)bri_module->mod_no;
 
 	DEBUG_HFC_S0_STATES("%s()\n", __FUNCTION__);
 
@@ -2934,7 +2961,7 @@ static void sdla_bri_set_status(sdla_fe_t* fe, u8 mod_no, u8 port_no, u8 new_sta
 *
 * Returns:	nothing
 ******************************************************************************/
-static void su_new_state(sdla_fe_t *fe, u32 mod_no, u8 port_no)
+static void su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 {
 	bri_xhfc_port_t		*port;
 	sdla_bri_param_t 	*bri = &fe->bri_param;
@@ -2957,7 +2984,7 @@ static void su_new_state(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 }
 
 
-static u8 __su_new_state(sdla_fe_t *fe, u32 mod_no, u8 port_no)
+static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 {
 	bri_xhfc_port_t		*port_ptr;
 	sdla_bri_param_t 	*bri = &fe->bri_param;
@@ -3135,10 +3162,10 @@ sdla_fe_t *get_FE_ptr_for_port(sdla_fe_t *original_fe, u8 mod_no, u8 port_no)
 static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 {
 	sdla_fe_t		*new_fe;
-	int32_t			fifo_irq = 0, i;
+	int32_t			fifo_irq = 0;
 	sdla_bri_param_t 	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
-	u8			port_no;
+	u8			port_no, i;
 	reg_a_su_rd_sta		new_su_state;
 	reg_r_su_irq		r_su_irq;
 	reg_r_misc_irq		r_misc_irq;
@@ -3253,9 +3280,13 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 							card->devname, BRI_DCHAN_LOGIC_CHAN);
 					break;
 				}
-
+#if defined(__WINDOWS__)
+				bri_dchan_rx_enqueue(chan, wan_skb_data(skb), wan_skb_len(skb));
+				wan_skb_free(skb);
+#else
 				wan_skb_queue_tail(&chan->wp_rx_bri_dchan_complete_list, skb);
 				WAN_TASKLET_SCHEDULE((&chan->common.bh_task));
+#endif
 			}
 
 		}/* if ( fifo_irq & (1 << (port_no*8+5)) ) */

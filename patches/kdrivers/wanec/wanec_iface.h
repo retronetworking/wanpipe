@@ -315,7 +315,7 @@ typedef struct wan_ec_
 	INT				DebugChannel;
 	UINT32				ulDebugDataMode;
 #if defined(__WINDOWS__)
-	struct wan_ec_dev_		*pEcDevMap[MAX_EC_CHANS];
+	struct wan_ec_dev_		*pEcDevMap[MAX_EC_CHANS*2];
 #else
 	struct wan_ec_dev_		**pEcDevMap;
 #endif

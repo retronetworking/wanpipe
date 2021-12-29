@@ -177,6 +177,7 @@ typedef struct data_buf		/* General data buffer */
 #define ANNEXG_LIP_ATM   12
 #define ANNEXG_LIP_LAPD  13
 #define ANNEXG_LIP_KATM  14
+#define ANNEXG_LIP_HDLC  15
 
 #define WANCONFIG_SOCKET "/etc/wanpipe/wanconfig_socket"
 #define WANCONFIG_PID    "/var/run/wanconfig.pid"
@@ -480,6 +481,7 @@ enum	/* modes */
 	DO_SHOW_STATUS,
 	DO_SHOW_CONFIG,
 	DO_SHOW_HWPROBE,
+	DO_SHOW_HWPROBE_LEGACY,
 	DO_SHOW_HWPROBE_VERBOSE,
 	DO_DEBUGGING,
 	DO_DEBUG_READ,
@@ -1059,6 +1061,17 @@ key_word_t x25_conftab[] =	/* X.25-specific configuration */
   { NULL, 0, 0 }
 };
 
+
+key_word_t lip_hdlc_annexg_conftab[] =
+{
+	
+  { "SEVEN_BIT_HDLC", smemof(wan_lip_hdlc_if_conf_t, seven_bit_hdlc), DTYPE_CHAR },
+  { "RX_CRC_BYTES", smemof(wan_lip_hdlc_if_conf_t, rx_crc_bytes), DTYPE_CHAR },
+  { NULL, 0, 0 }
+
+};
+
+
 key_word_t lapb_annexg_conftab[] =
 {
   //LAPB STUFF
@@ -1286,6 +1299,7 @@ look_up_t conf_annexg_def_tables[] =
 	{ ANNEXG_LIP_TTY,	tty_conftab	},
 	{ ANNEXG_LIP_XMTP2,	xmtp2_conftab	},
 	{ ANNEXG_LIP_LAPD,	lapb_annexg_conftab	},
+	{ ANNEXG_LIP_HDLC,	lip_hdlc_annexg_conftab	},
 	{ ANNEXG_X25,		x25_annexg_conftab	},
 	{ ANNEXG_DSP,		dsp_annexg_conftab	},
 	{ ANNEXG_FR,		fr_conftab	},
@@ -1485,6 +1499,7 @@ look_up_t	sym_table[] =
 	{ WANCONFIG_LIP_KATM, 	"MP_KATM"	},
 	{ WANCONFIG_XMTP2, 	"MP_XMTP2"	},
 	{ WANCONFIG_LAPD, 	"MP_LAPD"	},
+	{ WANCONFIG_LIP_HDLC,	"MP_HDLC"	},
 	{ WANOPT_NO,		"RAW"		},
 	{ WANOPT_NO,		"HDLC"		},
 	{ WANCONFIG_PPP,	"PPP"		}, 
@@ -1789,6 +1804,9 @@ int main (int argc, char *argv[])
 				if ((optind + 1 < argc) && (strcmp( argv[optind+1], "verbose" ) == 0 )){
 					set_action(DO_SHOW_HWPROBE_VERBOSE);
 					optind++;
+				}else if ((optind + 1 < argc) && (strcmp( argv[optind+1], "legacy" ) == 0 )){
+					set_action(DO_SHOW_HWPROBE_LEGACY);
+					optind++;
 				}else{
 					set_action(DO_SHOW_HWPROBE);
 				}
@@ -1868,6 +1886,7 @@ int main (int argc, char *argv[])
 		break;
 
 	case DO_SHOW_HWPROBE:
+	case DO_SHOW_HWPROBE_LEGACY:
 	case DO_SHOW_HWPROBE_VERBOSE:
 		return show_hwprobe(action);
 		break;
@@ -2469,6 +2488,9 @@ int build_chandef_list (FILE* file)
 			}else if (!strcmp(token[4],"lip_lapd")){
 				chandef->annexg = ANNEXG_LIP_LAPD;
 				chandef->protocol = strdup("MP_LAPD");
+			}else if (!strcmp(token[4],"lip_hdlc")){
+				chandef->annexg = ANNEXG_LIP_HDLC;
+				chandef->protocol = strdup("MP_HDLC");
 			}else if (!strcmp(token[4],"lip_xdlc")){
 				chandef->annexg = ANNEXG_LIP_XDLC;
 				chandef->protocol = strdup("MP_XDLC");
@@ -3137,6 +3159,7 @@ int exec_chan_cmd(int dev, chan_def_t *def)
 	case ANNEXG_LIP_X25:
 	case ANNEXG_LIP_ATM:
 	case ANNEXG_LIP_KATM:
+	case ANNEXG_LIP_HDLC:
 		strncpy((char*)def->chanconf->master, (char*)master_lip_dev, WAN_IFNAME_SZ);
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -4864,8 +4887,9 @@ int show_hwprobe(int action)
 	memset(&procfs, 0, sizeof(wan_procfs_t));
 	procfs.magic 	= ROUTER_MAGIC;
 	procfs.max_len 	= 2048;
-	procfs.cmd	= (action == DO_SHOW_HWPROBE) ? 
-					WANPIPE_PROCFS_HWPROBE : WANPIPE_PROCFS_HWPROBE_VERBOSE ;
+	procfs.cmd	= (action == DO_SHOW_HWPROBE) ? WANPIPE_PROCFS_HWPROBE : 
+			  (action == DO_SHOW_HWPROBE_LEGACY) ? WANPIPE_PROCFS_HWPROBE_LEGACY : 
+									WANPIPE_PROCFS_HWPROBE_VERBOSE ;
 	procfs.data	= malloc(2048);
 	if (procfs.data == NULL){
 		 show_error(ERR_SYSTEM);
@@ -5180,7 +5204,9 @@ static int wanconfig_hwec(chan_def_t *def)
 	if ((linkdef->config_id != WANCONFIG_AFT_TE1 &&
 	     linkdef->config_id != WANCONFIG_AFT_ANALOG &&
 	     linkdef->config_id != WANCONFIG_AFT_ISDN_BRI) ||
-	    def->chanconf->hwec.enable != WANOPT_YES){
+	     (def->chanconf->hwec.enable != WANOPT_YES &&
+	      linkdef->linkconf->tdmv_conf.hw_dtmf != WANOPT_YES)){
+		linkdef->linkconf->tdmv_conf.hw_dtmf = WANOPT_NO;
 		return 0;    
 	}
 	     
@@ -5259,7 +5285,7 @@ static int wanconfig_hwec_release(char *devname)
 static int wanconfig_hwec_modify(char *devname, chan_def_t *def)
 {
 	int	status, len, i;
-	char	cmd[100], *conf_string;
+	char	cmd[500], *conf_string;
 	
 #if defined(__LINUX__)
 	DIR 	*dir;
@@ -5278,6 +5304,12 @@ static int wanconfig_hwec_modify(char *devname, chan_def_t *def)
 		len += (strlen(def->chanconf->ec_conf.params[i].name) +
 			strlen(def->chanconf->ec_conf.params[i].sValue) + 5);
 	}
+
+	/* Nenad: if no parameters to modify do not run modify */
+	if (len == 0) {
+		return 0;
+	}
+
 	conf_string = malloc(len+1);
 	if (conf_string == NULL){
 		fprintf(stderr,
@@ -5291,15 +5323,17 @@ static int wanconfig_hwec_modify(char *devname, chan_def_t *def)
 				def->chanconf->ec_conf.params[i].name,
 				def->chanconf->ec_conf.params[i].sValue);
 	}
+
 	if (strcasecmp(def->active_ch, "all") == 0){
-		snprintf(cmd, 100, "wan_ec_client %s modify all %s",
+		snprintf(cmd, 500, "wan_ec_client %s modify all %s",
 					devname, conf_string);
 	}else{
-		snprintf(cmd, 100, "wan_ec_client %s modify %s %s",
+		snprintf(cmd, 500, "wan_ec_client %s modify %s %s",
 					devname, def->active_ch, conf_string);
 	}
 	status = system(cmd);
 	if (WEXITSTATUS(status) != 0){
+		fprintf(stderr,"--> Error: system command: %s\n",cmd);
 		fprintf(stderr,
 		"wanconfig: Failed to modify EC device %s (err=%d)!\n",
 				devname,WEXITSTATUS(status));

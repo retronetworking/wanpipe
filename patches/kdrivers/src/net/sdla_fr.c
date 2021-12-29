@@ -480,8 +480,6 @@ static int fr_get_status_info(void* priv, struct seq_file* m, int*);
 static int fr_set_dev_config(struct file*, const char*, unsigned long, void *);
 static int fr_set_if_info(struct file*, const char*, unsigned long, void *);
 
-static WRITE_FRONT_END_REG_T write_front_end_reg;
-static READ_FRONT_END_REG_T  read_front_end_reg;
 static void fr_enable_timer(void* card_id);
 static void fr_handle_front_end_state (void* card_id);
 
@@ -574,9 +572,8 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
-
+		card->fe.write_fe_reg = card->hw_iface.fe_write;
+		card->fe.read_fe_reg	 = card->hw_iface.fe_read;
 		card->wandev.fe_enable_timer = fr_enable_timer;
 		card->wandev.te_link_state = fr_handle_front_end_state;
 		conf->electrical_interface = 
@@ -589,9 +586,8 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
-
+		card->fe.write_fe_reg = card->hw_iface.fe_write;
+		card->fe.read_fe_reg	 = card->hw_iface.fe_read;
 	}else{
 
 		card->fe.fe_status = FE_CONNECTED;
@@ -1462,8 +1458,6 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
-	dev->hard_header	= NULL;
-	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4) || defined(LINUX_2_6)
@@ -3958,78 +3952,6 @@ static int fr_send (sdla_t* card, int dlci, unsigned char attr, int len,
 
 	return err;
 }
-
-
-/*============================================================================
- * TE1
- * Read value from PMC register.
- */
-//static unsigned char read_front_end_reg (void* card1, unsigned short reg)
-static unsigned char read_front_end_reg (void* card1, ...)
-{
-	va_list		args;
-	sdla_t		*card = (sdla_t*)card1;
-        wan_mbox_t	*mb = &card->wan_mbox;
-	char		*data = mb->wan_data;
-	u16		reg, line_no;
-        int		err;
-	int		retry=15;
-
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	va_end(args);
-	WAN_MBOX_INIT(mb);
-	do {
-		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-		mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-		mb->wan_command = READ_FRONT_END_REGISTER;
-		err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-		if (err != 0){
-			fr_event(card,err,mb);
-		}
-	}while(err && --retry);
-
-	return(((FRONT_END_REG_STRUCT *)data)->register_value);
-}
-
-/*============================================================================
- * TE1 
- * Write value to PMC register.
- */
-//static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
-static int write_front_end_reg (void* card1, ...)
-{
-	va_list		args;
-	sdla_t		*card = (sdla_t*)card1;
-        wan_mbox_t	*mb = &card->wan_mbox;
-	char		*data = mb->wan_data;
-	u16		reg, line_no;
-	u8		value;
-        int		err;
-	int		retry=15;
-
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	value	= (u8)va_arg(args, int);
-	va_end(args);
-
-	WAN_MBOX_INIT(mb);
-	do {
-		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-		((FRONT_END_REG_STRUCT *)data)->register_value = value;
-		mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-		mb->wan_command = WRITE_FRONT_END_REGISTER;
-		err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-		if (err != 0){
-			fr_event(card,err,mb);
-        	}
-	}while(err && --retry);
-	
-	return err;
-}
-
 
 /*============================================================================
  * Enable timer interrupt  

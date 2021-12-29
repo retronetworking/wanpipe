@@ -56,7 +56,6 @@ MODTYPE=ko
 #Setup include path and extra cflags
 EXTRA_CFLAGS := -I$(PWD)/$(WINCLUDE) -I$(PWD)/$(WINCLUDE)/annexg -I$(PWD)/patches/kdrivers/wanec -D__LINUX__
 EXTRA_CFLAGS += -I$(WANEC_DIR) -I$(WANEC_DIR)/oct6100_api -I$(WANEC_DIR)/oct6100_api/include
-EXTRA_CFLAGS += -I$(KDIR)/include/linux -I$(ZAPDIR)
 
 #Setup utility extra flags and include path
 EXTRA_UTIL_FLAGS = -I$(PWD)/$(WINCLUDE) -I$(KDIR)/include/ -I$(INSTALLPREFIX)/include -I$(INSTALLPREFIX)/usr/include 
@@ -64,6 +63,7 @@ EXTRA_UTIL_FLAGS += -I$(PWD)/patches/kdrivers/wanec -I$(PWD)/patches/kdrivers/wa
 
 ENABLE_WANPIPEMON_ZAP=NO
 ZAPHDLC_PRIV=/etc/wanpipe/.zaphdlc
+
 
 
 #Check if zaptel exists
@@ -74,11 +74,22 @@ ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
 	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
 	ZAP_PROT=TDM
 else
-	ZAP_OPTS=
-	ZAP_PROT=
-	ZAPDIR_PRIV=
-	ENABLE_WANPIPEMON_ZAP=NO
+	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
+		ZAPDIR=/usr/src/zaptel/kernel
+		ZAPDIR_PRIV=$(ZAPDIR) 
+		ENABLE_WANPIPEMON_ZAP=YES
+		EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+		ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
+		ZAP_PROT=TDM
+	else
+		ZAP_OPTS=
+		ZAP_PROT=
+		ZAPDIR_PRIV=
+		ENABLE_WANPIPEMON_ZAP=NO
+	endif
 endif  
+
+EXTRA_CFLAGS += -I$(KDIR)/include/linux -I$(ZAPDIR)
 
 RM      = @rm -rf
 JUNK	= *~ *.bak DEADJOE

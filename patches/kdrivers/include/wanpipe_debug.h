@@ -40,7 +40,6 @@
 #undef WAN_DEBUG_SNMP
 #undef WAN_DEBUG_TE3
 #undef WAN_DEBUG_RM
-#undef WAN_DEBUG_BRI
 #undef WAN_DEBUG_HWEC
 #undef WAN_DEBUG_TDMAPI
 #undef WAN_DEBUG_FE
@@ -99,6 +98,7 @@ void OutputLogString(PUCHAR pvFormat, ...);
 # define WAN_DEBUG_FUNC_END	DEBUG_NONE
 # define WAN_DEBUG_FUNC_LINE	DEBUG_NONE
 # define DEBUG_BRI	DEBUG_NONE
+# define DEBUG_BRI_INIT DEBUG_NONE
 
 # ifdef WAN_DEBUG_KERNEL
 #  undef  DEBUG_KERNEL
@@ -228,7 +228,7 @@ void OutputLogString(PUCHAR pvFormat, ...);
 # endif 
 # ifdef WAN_DEBUG_BRI_INIT
 #  undef  DEBUG_BRI_INIT
-#  define DEBUG_BRI_INIT	DEBUG_PRINT
+#  define DEBUG_BRI_INIT DEBUG_PRINT
 # endif 
 
 # define DEBUG_ADD_MEM
@@ -237,10 +237,13 @@ void OutputLogString(PUCHAR pvFormat, ...);
 # define splimp() 0
 # define splx(l)
 
-#define	ERR_DBG_OUT	if(1)DbgPrint
+#define	ERR_DBG_OUT	if(0)DbgPrint
 #define DBG_NOT_IMPL	if(0)DbgPrint
-#define FUNC_NOT_IMPL	if(0)DbgPrint("%s()-Not Implemented\n", __FUNCTION__);
-#define DBG_DSL_NOT_IMPLD if(0)DbgPrint("%s()-Not Implemented\n", __FUNCTION__);
+#define FUNC_NOT_IMPL	if(0)DbgPrint("%s()-Not Implemented(Line:%i)\n", __FUNCTION__, __LINE__);
+#define DBG_DSL_NOT_IMPLD if(0)DbgPrint("%s()-Not Implemented(Line:%i)\n", __FUNCTION__, __LINE__);
+
+/* debugging of SngBus.sys */
+#define DEBUG_SNGBUS	if(0)DbgPrint
 
 /* debugging of wanpipe_kernel.h */
 #define DBG_KRN		if(0)DbgPrint
@@ -261,6 +264,7 @@ void OutputLogString(PUCHAR pvFormat, ...);
 #define DBG_ADSL_INIT	if(0)DbgPrint
 #define DBG_HIGH_IMPED	if(0)DbgPrint
 #define DBG_LIP_OOB	if(0)DbgPrint
+#define DEBUG_XLNX_AFT	if(0)DbgPrint
 #define DEBUG_AFT	if(0)DbgPrint
 #define DBG_TE1_INTERRUPT if(0)DbgPrint
 #define DBG_BSTRM	if(0)DbgPrint
@@ -269,7 +273,13 @@ void OutputLogString(PUCHAR pvFormat, ...);
 #define DBG_8TE1_START	if(0)DbgPrint
 #define DBG_BITSTRM	if(0)DbgPrint
 
+#define DBG_BRI_START	if(0)DbgPrint
+
 #define	DBG_FE_LOCK	if(0)DbgPrint
+
+#define DBG_DRVSTOP	if(0)DbgPrint
+
+#define DBG_GET_REGISTRY if(0)DbgPrint
 
 /* sprotocol.sys */
 #define DEBUG_LIP	if(0)DbgPrint
@@ -281,11 +291,13 @@ void OutputLogString(PUCHAR pvFormat, ...);
 #define DEBUG_IF_RX	if(0)DbgPrint
 #define DEBUG_NET_IF	if(0)DbgPrint
 
+#define DBG_TX_TIMEOUT	if(0)DbgPrint
+
 /* These are defined in "sources" file of each driver */
 #if defined( VIRTUAL_IF_DRV )
 	#define DRIVER_NAME "SDLADRV"
 #elif defined( BUSENUM_DRV )
-	#define DRIVER_NAME "SangBus"
+	#define DRIVER_NAME "SngBus"
 #elif defined( NDIS_MINIPORT_DRIVER )
 	#define DRIVER_NAME "WANPIPE"
 #elif defined( SPROTOCOL )
@@ -525,7 +537,7 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 # define WAN_DEBUG_FUNC_LINE	DEBUG_EVENT("[%s]: %s:%d: (%d)\n",	\
 	       		__FILE__,__FUNCTION__,__LINE__,(unsigned int)SYSTEM_TICKS);
 
-#define BRI_FUNC()	if(1)DEBUG_EVENT("%s(): line:%d\n", __FUNCTION__, __LINE__)
+#define BRI_FUNC()	if(0)DEBUG_EVENT("%s(): line:%d\n", __FUNCTION__, __LINE__)
 #else
 #define BRI_FUNC()
 #endif

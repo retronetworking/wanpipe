@@ -1,6 +1,6 @@
 #=============================================================================
 #
-#    File: oct6100api.mak    ($Revision: 1.2 $)
+#    File: oct6100api.mak    ($Revision: 1.3 $)
 #
 #    Description:  Makefile for building the OCT6100 API library.
 #
@@ -19,6 +19,7 @@ OUTPATH = ../../../lib/
 OUTFILE = $(OUTPATH)liboct6100api.a
 
 PWD	:=  $(shell cd)
+ARCH	:=  $(shell uname -m)
 
 VPATH	= 	../../octdeviceapiw/oct6100_apiw_linux \
 		../../octdeviceapi/oct6100api/oct6100_api \
@@ -49,13 +50,19 @@ INC = 	-I../../include \
 	-I../../octdeviceapi/oct6100api \
 	-I/usr/include/wanpipe -I../../../
 
-CCFLAGS		= -m32 -DDEVICE_IOCTL -DWAN_EC_USER -D__LINUX__ -L/usr/local/lib \
-		-fPIC -ansi -Wall -Wpointer-arith -Winline -fno-builtin \
+CCFLAGS		= -DDEVICE_IOCTL -DWAN_EC_USER -D__LINUX__ -L/usr/local/lib \
+		-fPIC -Wall -Wpointer-arith -Winline -fno-builtin \
 		-fno-defer-pop -D_REENTRANT -D_GNU_SOURCE \
 		-include /usr/include/pthread.h \
 		$(DEBUG) $(INC)
 	#	-fno-defer-pop -fno-rtti -fvolatile -D_REENTRANT -D_GNU_SOURCE \
-			
+		
+ifeq ("$(ARCH)","x86_64")
+CCFLAGS += -m64
+else
+CCFLAGS += -m32
+endif
+
 CCFLAGS2	=   -D__LINUX__ -L/usr/local/lib -MM $(INC)
 
 # OUTDEP = Executed to create depedencies

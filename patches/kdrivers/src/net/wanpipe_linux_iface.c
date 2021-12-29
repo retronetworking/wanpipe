@@ -58,6 +58,7 @@ static int wan_iface_send(netskb_t*, netdevice_t*);
 static int wan_iface_ioctl(netdevice_t*, struct ifreq*, int);
 static struct net_device_stats* wan_iface_get_stats (netdevice_t*);
 static void wan_iface_tx_timeout (netdevice_t*);
+static int wan_iface_change_mtu (netdevice_t *dev, int new_mtu);
 
 #ifdef CONFIG_PRODUCT_WANPIPE_GENERIC
 static int wan_iface_hdlc_attach(hdlc_device*, unsigned short,unsigned short);
@@ -223,11 +224,11 @@ static int wan_iface_init(netdevice_t* dev)
 	dev->open		= &wan_iface_open;
 	dev->stop		= &wan_iface_close;
 
-	dev->hard_header	= NULL;
-	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &wan_iface_send;
 	dev->get_stats		= &wan_iface_get_stats;
 	dev->tx_timeout		= &wan_iface_tx_timeout;
+	dev->change_mtu		= &wan_iface_change_mtu;
+
 	dev->watchdog_timeo	= HZ*2;
 	dev->hard_header_len	= 32;
 	dev->set_config		= NULL;
@@ -266,9 +267,6 @@ static int wan_iface_eth_init(netdevice_t* dev)
 	dev->do_ioctl		= &wan_iface_ioctl;
 	dev->open		= &wan_iface_open;
 	dev->stop		= &wan_iface_close;
-
-	dev->hard_header	= NULL;
-	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &wan_iface_send;
 	dev->get_stats		= &wan_iface_get_stats;
 	dev->tx_timeout		= &wan_iface_tx_timeout;
@@ -418,11 +416,12 @@ On shutdown, this is possible
 	common = wan_netif_priv(dev);
 	if (common && common->iface.get_stats){
 		return common->iface.get_stats(dev);
-	}else{
-		return &gif_stats;
 	}
-	return NULL; 
+	return &gif_stats;
 }
+
+
+
 
 /*============================================================================
  * Handle transmit timeout event from netif watchdog
@@ -442,6 +441,25 @@ static void wan_iface_tx_timeout (netdevice_t *dev)
 		common->iface.tx_timeout(dev);
 	}
 	return;
+}
+
+
+static int wan_iface_change_mtu (netdevice_t *dev, int new_mtu)
+{
+	wanpipe_common_t	*common;
+
+	WAN_ASSERT(wan_netif_priv(dev) == NULL);
+	common = wan_netif_priv(dev);
+	/* If our device stays busy for at least 5 seconds then we will
+	 * kick start the device by making dev->tbusy = 0.  We expect
+	 * that our device never stays busy more than 5 seconds. So this 
+	 * is only used as a last resort.
+	 */
+	if (common->iface.change_mtu){
+		return common->iface.change_mtu(dev,new_mtu);
+	}
+
+	return 0;
 }
 
 static int wan_iface_input(netdevice_t* dev, netskb_t* skb)

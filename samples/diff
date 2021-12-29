@@ -1,0 +1,279 @@
+--- /usr/sbin/wanrouter	2008-04-09 17:27:26.000000000 -0400
++++ /common/wantools/scripts/wanrouter	2008-04-09 17:31:12.000000000 -0400
+@@ -106,9 +106,7 @@
+ 	major_ver=${RELEASE%%.*}
+ 	if [ $OSYSTEM = "Linux" ]; then
+ 		eval "type awk 2> /dev/null > /dev/null"
+-	elif [ $OSYSTEM = "FreeBSD" -a "$major_ver" = "5" ]; then
+-		eval "type awk 2> /dev/null > /dev/null"
+-	elif [ $OSYSTEM = "FreeBSD" -a "$major_ver" = "6" ]; then
++	elif [ $OSYSTEM = "FreeBSD" ]; then
+ 		eval "type awk 2> /dev/null > /dev/null"
+ 	else
+ 		eval "awk 2> /dev/null > /dev/null"
+@@ -194,6 +192,11 @@
+ 	POINTOPOINT=
+ 	GATEWAY=
+ 
++	if [ ! -d "$WAN_INTR_DIR" ]; then
++		error "Directory $WAN_INTR_DIR not found"
++		return 1
++	fi
++
+ 	if [ $NEW_IF_TYPE = YES ]; then
+ 		if [ $LINUX_DISTR = redhat ]; then
+ 			if [ $WAN_INTR_DIR = "/etc/sysconfig/network-scripts" ]; then
+@@ -552,10 +555,6 @@
+ 	#echo "============  iterf_config ================"
+ 
+ 	# Configure network interfaces.
+-	if [ ! -d "$WAN_INTR_DIR" ]; then
+-		error "Directory $WAN_INTR_DIR not found"
+-		return 1
+-	fi
+ 
+ 	#If TTY is defined there are no network interfaces
+ 	eval "grep \"TTY.*=.*YES\" -i $WAN_CONF > /dev/null"
+@@ -595,7 +594,7 @@
+ #		fi
+ #	fi
+ 
+-	cd $WAN_INTR_DIR
++#	cd $WAN_INTR_DIR
+ 
+ #	if [ -f $WAN_INTERFACE_PROC_FILE ]; then
+ #		INTERFACES=`cat $WAN_INTERFACE_PROC_FILE | grep $device | cut -d' ' -f1`
+@@ -617,7 +616,7 @@
+ 		int_file=${i%%=*}
+ 		
+ 		#Not every system has egrep. Egrep uses the regular expression matching. 
+-	
++
+ 		check_command_exist egrep
+ 		if [ $? -eq 0 ]; then
+ 			API=`egrep "$int_file[[:space:]]*=" -i $WAN_CONF | cut -d',' -f3 2> /dev/null`
+@@ -720,6 +719,12 @@
+ 			if_file=$int_file;
+ 		fi
+ 
++		if [ ! -d "$WAN_INTR_DIR" ]; then
++			error "Directory $WAN_INTR_DIR not found"
++			return 1
++		fi
++		cd $WAN_INTR_DIR
++
+ 		if [ -s $if_file ]; then
+ 			echo -n "$int_file "
+ 			interface_up $int_file || {
+@@ -751,17 +756,17 @@
+ 	local INTERFACES
+ 
+ 	# Shut down network interfaces.
+-	[ -d "$WAN_INTR_DIR" ] && {
+-		cd $WAN_INTR_DIR
+-		INTERFACES=`grep ".*=.*$device" -i $WAN_CONF | cut -d' ' -f1 2> /dev/null`
+-		for i in $INTERFACES
+-		do
+-			int_file=${i%%=*}
+-			wanrouter_script stop $device $int_file #excutes interface stop script
+-			echo "Shutting down $device interface: $int_file"
+-			ifconfig $int_file down
+-		done
+-	}
++	#if [ ! -d "$WAN_INTR_DIR" ]; then
++	#	return;
++	#}
++	INTERFACES=`grep ".*=.*$device" -i $WAN_CONF | cut -d' ' -f1 2> /dev/null`
++	for i in $INTERFACES
++	do
++		int_file=${i%%=*}
++		wanrouter_script stop $device $int_file #excutes interface stop script
++		echo "Shutting down $device interface: $int_file"
++		ifconfig $int_file down
++	done
+ }
+ 
+ # ----------------------------------------------------------------------------
+@@ -1152,7 +1157,6 @@
+ {
+ 	for dev in $WAN_DEVICES; do
+ 		check_file "$WAN_CONF_DIR/$dev.conf" || {
+-			echo -e "\n$SCRIPT: Error, $WAN_CONF_DIR/$dev.conf not found!\n";
+ 			return 1;
+ 		}
+ 	done
+@@ -1166,7 +1170,8 @@
+ 	[ ! -f "$file" ] && {
+ 			if [ ! -z $file ]; 
+ 			then
+-				echo -e "ERROR: Wanpipe configuration file not found: $file\n"
++				echo -e "ERROR: Wanpipe configuration file not found:"
++				echo -e "               $file\n"
+ 			else
+ 				echo -e "ERROR: Wanpipe configuration file not found in $WAN_CONF_DIR\n"
+ 			fi
+@@ -1792,6 +1797,56 @@
+ 	fi
+ }
+ 
++
++pci_parity_ctrl ()
++{
++
++	if [ $OSYSTEM != "Linux" ]; then
++		echo "Error: PCI Parity Ctrl only available on Linux"
++		echo
++		return
++	fi
++
++	IDS=`lspci | cut -d' ' -f1`
++
++	if [ -z $1 ]; then
++		echo "Displaying System PCI Parity Configuration";
++		echo "=========================================="
++		echo
++		lspci -vvv | grep Parity
++		echo
++		echo "=========================================="
++		return
++	fi
++	
++	parity_cmd=${1:-"off"}
++
++	if [ $parity_cmd != "on" ]; then
++		parity_cmd="off";
++	fi
++
++	eval "type setpci 2> /dev/null > /dev/null"
++	if [ $? -ne 0 ]; then
++		echo "Parity Set Error: setpci utility not found!"
++		return
++	fi
++
++
++	echo "Setting PCI Parity to $parity_cmd";
++
++	for dev in $IDS
++	do
++		if [ "$parity_cmd" = "on" ]; then
++			eval "setpci -s $dev 3e.b=0x7"
++		else
++			eval "setpci -s $dev 3e.b=0x4"
++		fi
++
++	done
++
++	return
++}
++
+ wanrouter_debug ()
+ {
+ 	local err=0
+@@ -2120,7 +2175,7 @@
+ {
+ 
+ 	if [ $OSYSTEM = "Linux" ]; then
+-		ROUTER_VERSION=3.3.6.1
++		ROUTER_VERSION=3.3.2.p3
+ 		IFCONFIG_LIST=ifconfig
+ 		MODULE_STAT=lsmod
+ 		WAN_DRIVERS="wanpipe"
+@@ -2224,7 +2279,8 @@
+ 		AWK=/usr/bin/awk
+ 		PKGINFO=/usr/sbin/pkg_info
+ 		major_ver=${RELEASE%%.*}
+-		ROUTER_VERSION=`$PKGINFO | $AWK '$1~/wanpipe/ {$1=""; print }'`
++		ROUTER_VERSION=`$PKGINFO | $AWK '$1~/wanpipe/ {print $1}'`
++		ROUTER_VERSION=${ROUTER_VERSION#wanpipe-}
+ 		IFCONFIG_LIST=ifconfig
+ 		CDEV_WANROUTER=/dev/$SCRIPT
+ 		CDEV_MAJOR=139
+@@ -2242,12 +2298,17 @@
+ 	
+ 		if [ -z ${WAN_MODULE_DIR} ]; then
+ 			WAN_MODULE_DIR=${MODULE_DIR}
+-		else
+-			if [ "${WAN_MODULE_DIR}" != ${MODULE_DIR} ]; then
+-				DEPMOD=NO	
+-			fi
+ 		fi
+-	
++		dir=`kldconfig -r |grep $WAN_MODULE_DIR 2>/dev/null`
++		if [ -z $dir ]; then
++			kldconfig -m $WAN_MODULE_DIR 2>/dev/null
++		fi
++
++		usymbol=`nm $WAN_MODULE_DIR/wanpipe.ko | grep " U zt_register" > /dev/null`
++		if [ -n $usymbol ]; then
++			kldconfig -m /usr/local/lib/zaptel 2>/dev/null
++		fi
++			
+ 		MOD9="${WAN_MODULE_DIR}/wanpipe_lip"
+ 		WANPIPE_LIP_MOD_DIR=${WAN_MODULE_DIR}
+ 		MOD10="${WAN_MODULE_DIR}/wanec"
+@@ -2922,6 +2983,12 @@
+ 			else
+ 				wanconfig hwprobe verbose
+ 			fi
++		elif [ "$2" = "legacy" ]; then
++			if [ $OSYSTEM = "Linux" ]; then
++				cat /proc/net/wanrouter/hwprobe_legacy
++			else
++				wanconfig hwprobe legacy
++			fi
+ 		else
+ 			if [ $OSYSTEM = "Linux" ]; then
+ 				cat /proc/net/wanrouter/hwprobe
+@@ -2929,6 +2996,7 @@
+ 				wanconfig hwprobe
+ 			fi
+ 		fi
++		echo
+ 		cleanup 0;
+ 		;;
+ 
+@@ -2942,43 +3010,7 @@
+ 		;;
+ 
+ 	parity)
+-		IDS=`lspci | cut -d' ' -f1`
+-
+-
+-		if [ -z $2 ]; then
+-			echo "Displaying System PCI Parity Configuration";
+-			echo "=========================================="
+-			echo
+-			lspci -vvv | grep Parity
+-			echo
+-			echo "=========================================="
+-			cleanup 0;
+-		fi
+-		
+-		parity_cmd=${2:-"off"}
+-
+-		if [ $parity_cmd != "on" ]; then
+-			parity_cmd="off";
+-		fi
+-
+-		eval "type setpci 2> /dev/null > /dev/null"
+-		if [ $? -ne 0 ]; then
+-			echo "Parity Set Error: setpci utility not found!"
+-			cleanup 0;
+-		fi
+-
+-
+-		echo "Setting PCI Parity to $parity_cmd";
+-	
+-		for dev in $IDS
+-		do
+-			if [ "$parity_cmd" = "on" ]; then
+-				eval "setpci -s $dev 3e.b=0x7"
+-			else
+-				eval "setpci -s $dev 3e.b=0x4"
+-			fi
+-
+-		done
++		pci_parity_ctrl $2
+ 		;;
+ 
+ 	wanrc)

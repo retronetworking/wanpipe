@@ -35,8 +35,8 @@
  * Version 2.0, Fri Aug 30 09:59:07 EDT 2002
  * Version 2.1, Wed Mar 26 10:03:00 EDT 2003
  * 
- * $Id: wanpipe_syncppp.c,v 1.31 2008/01/02 15:26:22 sangoma Exp $
- * $Id: wanpipe_syncppp.c,v 1.31 2008/01/02 15:26:22 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.29 2007/02/28 02:01:05 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.29 2007/02/28 02:01:05 sangoma Exp $
  */
 
 /*
@@ -1398,8 +1398,19 @@ sppp_phase_name(enum ppp_phase phase)
  *	Handle transmit packets.
  */
  
+
+
+
+
+#ifdef LINUX_FEAT_2624
+static int sppp_hard_header(struct sk_buff *skb,
+			    struct net_device *dev, __u16 type,
+			    const void *daddr, const void *saddr,
+			    unsigned int len)
+#else
 static int sppp_hard_header(struct sk_buff *skb, struct net_device *dev, __u16 type,
 		void *daddr, void *saddr, unsigned int len)
+#endif
 {
 	struct sppp *sp = (struct sppp *)sppp_of(dev);
 	struct ppp_header *h;
@@ -1442,10 +1453,13 @@ static int sppp_hard_header(struct sk_buff *skb, struct net_device *dev, __u16 t
 	return sizeof(struct ppp_header);
 }
 
-static int sppp_rebuild_header(struct sk_buff *skb)
-{
-	return 0;
-}
+#ifdef LINUX_FEAT_2624
+static const struct header_ops sppp_header_ops = {
+	.create = sppp_hard_header,
+};
+#endif
+
+
 
 /*
  * Send keepalive packets, every 10 seconds.
@@ -2288,9 +2302,12 @@ void wp_sppp_attach(struct ppp_device *pd)
 	 *	Device specific setup. All but interrupt handler and
 	 *	hard_start_xmit.
 	 */
-	 
+#ifdef LINUX_FEAT_2624
+	dev->header_ops = &sppp_header_ops;
+#else
 	dev->hard_header = sppp_hard_header;
-	dev->rebuild_header = sppp_rebuild_header;
+#endif
+
 	dev->tx_queue_len = 100;
 	dev->type = ARPHRD_HDLC;
 	dev->addr_len = 0;
@@ -2306,8 +2323,7 @@ void wp_sppp_attach(struct ppp_device *pd)
 	dev->stop = wp_sppp_close;
 #endif	
 	dev->change_mtu = wp_sppp_change_mtu;
-	dev->hard_header_cache = NULL;
-	dev->header_cache_update = NULL;
+	
 	dev->flags = IFF_MULTICAST|IFF_POINTOPOINT|IFF_NOARP;
 	
 #if 0				

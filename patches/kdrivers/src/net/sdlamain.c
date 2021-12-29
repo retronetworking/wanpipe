@@ -623,12 +623,10 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 
 	wandev->card_type  = conf->card_type;
 	
-
 	card->hw = sdla_register(&card->hw_iface, conf, card->devname);
 	if (card->hw == NULL){
 		return -EINVAL;
 	}
-
 	/* Reset the wandev confid, because sdla_register
          * could have changed our config_id, in order to
          * support A102 config file for A102-SH */	 

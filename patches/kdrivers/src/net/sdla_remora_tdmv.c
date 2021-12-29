@@ -529,12 +529,13 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 		DEBUG_TDMV("[TDMV_RM]: %s: %s HW echo canceller on channel %d\n",        
 				wr->devname,
 				(enable) ? "Enable" : "Disable",
-				channel);
+				fe_chan);
 	}
 	return err;
 }
 
-static void wp_tdmv_remora_proslic_recheck_sanity(wp_tdmv_remora_t *wr, int mod_no)
+static void
+wp_tdmv_remora_proslic_recheck_sanity(wp_tdmv_remora_t *wr, int mod_no)
 {
 	sdla_t		*card = NULL;	
 	sdla_fe_t	*fe = NULL;

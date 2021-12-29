@@ -333,7 +333,7 @@
 # include <stdlib.h>
 # include <time.h>	/* clock_t */
 
-# if defined(VIRTUAL_IF_DRV) || defined(SPROTOCOL)
+# if defined(VIRTUAL_IF_DRV) || defined(SPROTOCOL) || defined(BUSENUM_DRV)
 # include <ntddk.h>
 # include <wanpipe_ctypes.h>
 # include <wanpipe_debug.h>

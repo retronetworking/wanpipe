@@ -527,16 +527,15 @@ int wp_aft_te3_init (sdla_t* card, wandev_conf_t* conf)
 		card->fe.name = card->devname;
 		card->fe.card = card;
 		card->fe.write_cpld	= write_cpld;
+//		card->fe.read_cpld	= read_cpld;
+
 		card->fe.write_fe_cpld	= write_fe_cpld;
 
-//		card->fe.read_cpld	= read_cpld;
 		card->fe.write_fe_reg	= card->hw_iface.fe_write;
 		card->fe.read_fe_reg	= card->hw_iface.fe_read;
 		//card->fe.write_framer	= write_framer;
 		//card->fe.read_framer	= read_framer;
 
-//		card->wandev.write_front_end_reg = write_front_end_reg;
-//		card->wandev.read_front_end_reg = read_front_end_reg;
 		card->wandev.fe_enable_timer = enable_timer;
 		card->wandev.te_link_state = handle_front_end_state;
 //ALEX		conf->electrical_interface =
@@ -1208,8 +1207,6 @@ static int if_init (netdevice_t* dev)
 			dev->type	= ARPHRD_PPP;
 			dev->mtu		= card->wandev.mtu;
 			dev->hard_header_len	= 16;
-			dev->hard_header	= NULL; 
-			dev->rebuild_header	= NULL;
 			dev->addr_len		= 0;
 		}
 
@@ -3510,41 +3507,6 @@ static int write_fe_cpld(void *pcard, unsigned short off,unsigned char data)
                                 org_off);
         return 0;
 }
-
-#if 0
-static unsigned char write_front_end_reg (void* card1, unsigned short off, unsigned char value)
-{
-        sdla_t* card = (sdla_t*)card1;
-	       	 
-	off &= ~BIT_DEV_ADDR_CLEAR;
-       	card->hw_iface.bus_write_2(card->hw,XILINX_MCPU_INTERFACE_ADDR, off);
-	/* NC: Mar 25 2004
-	 * This delays are required to avoid bridge optimization 
-	 * (combining two writes together)
-	 */
-	WP_DELAY(5);
-        card->hw_iface.bus_write_1(card->hw,XILINX_MCPU_INTERFACE, value);
-	WP_DELAY(5);
-
-        return 0;
-}
-
-/*============================================================================
- * Read TE1/56K Front end registers
- */
-static unsigned char read_front_end_reg (void* card1, unsigned short off)
-{
-        sdla_t* card = (sdla_t*)card1;
-	u8	tmp;
-
-        off &= ~BIT_DEV_ADDR_CLEAR;
-        card->hw_iface.bus_write_2(card->hw, XILINX_MCPU_INTERFACE_ADDR, off);
-        card->hw_iface.bus_read_1(card->hw,XILINX_MCPU_INTERFACE, &tmp);
-	WP_DELAY(5);
-
-        return tmp;
-}
-#endif
 
 static int xilinx_read(sdla_t *card, wan_cmd_api_t *api_cmd)
 {

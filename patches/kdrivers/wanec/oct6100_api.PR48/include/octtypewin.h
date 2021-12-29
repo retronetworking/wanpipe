@@ -35,7 +35,13 @@ $Octasic_Revision: 16 $
 /*--------------------------------------------------------------------------
 	C language
 ----------------------------------------------------------------------------*/
+#if !defined(__WINDOWS__)
+/* DavidR: this is already defined in Windows header files,
+ *	   redefinition here causing copiler errors.
+ */
 #define WIN32_LEAN_AND_MEAN	/* just get the base type definition from Windows */
+#endif
+
 #include <windows.h>
 
 /* Disable argument not used warning */

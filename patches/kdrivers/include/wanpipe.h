@@ -792,7 +792,7 @@ typedef struct sdla
 #endif/* __WINDOWS__ */
 
 	char devname[WAN_DRVNAME_SZ+1];	/* card name */
-	void*	hw;			/* hardware configuration */
+	void*	hw;			/* hardware configuration ('sdlahw_t*') */
 	wan_device_t wandev;		/* WAN device data space */
 	
 	unsigned	open_cnt;		/* number of open interfaces */

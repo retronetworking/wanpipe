@@ -15,7 +15,10 @@
  *
  */
 
-#include <linux/config.h>
+#include <linux/version.h>
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+	# include <linux/config.h>	/* OS configuration options */
+# endif
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
@@ -34,6 +37,7 @@
 #include <asm/uaccess.h>	/* copy_*_user */
 
 #include "_xmtp2km.h"
+#include "kern_if.h"
 #include "fwmsg.h"
 
 /* parameters which can be set at load time */
@@ -78,6 +82,23 @@ int xmtp2km_ioctl_getopm (unsigned int cmd, unsigned long arg);
 void xmtp2km_init (void);
 void xmtp2km_shutdown (void);
 
+
+
+void* xmtp2_memset(void *b, int c, int len)
+{
+	return memset(b,c,len);
+}
+
+void xmtp2_printk(const char * fmt, ...)
+{
+	va_list args;
+	char buf[1024];
+	va_start(args, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, args);
+	printk(KERN_INFO "%s", buf);
+	va_end(args);
+}
+
 void * xmtp2km_kmalloc (const unsigned int bsize)
 /***************************************************************************************/
 {
@@ -93,7 +114,18 @@ void xmtp2km_kfree (void * p_buffer)
 int xmtp2km_access_ok   (int type, const void *p_addr, unsigned long n)
 /***************************************************************************************/
 {
-	return access_ok (type, p_addr, n);
+	switch (type) 
+	{
+		case XMTP2_VERIFY_WRITE:
+			return access_ok (VERIFY_WRITE, p_addr, n);
+			break;
+		case XMTP2_VERIFY_READ:
+			return access_ok (VERIFY_READ, p_addr, n);
+			break;
+		default:
+			break;
+	}
+	return 0;
 }
 
 unsigned long xmtp2km_copy_to_user   (void *p_to, const void *p_from, unsigned long n)
@@ -186,6 +218,7 @@ int xmtp2km_ioctl(struct inode *inode, struct file *filp,
 			ret = xmtp2km_ioctl_pwr_on (cmd, arg);
 			break;
 		case XMTP2KM_IOCS_EMERGENCY:
+		case XMTP2KM_IOCS_EMERGENCY_CEASES:
 			//printk ("%s ptr %u size %u\n", __FUNCTION__, (unsigned int)((void __user *)arg), _IOC_SIZE(cmd));
 			ret = xmtp2km_ioctl_emergency (cmd, arg);
 			break;

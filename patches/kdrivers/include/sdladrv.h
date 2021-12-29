@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdladrv.h,v 1.93 2008/03/06 14:02:42 sangoma Exp $
+ *	$Id: sdladrv.h,v 1.96 2008/04/16 17:23:17 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -56,7 +56,11 @@
 #endif
 
 #if defined(__LINUX__)
+#ifdef CONFIG_ISA
 # define WAN_ISA_SUPPORT
+#else
+# undef WAN_ISA_SUPPORT
+#endif
 #endif
 
 /*
@@ -129,7 +133,8 @@
 #define SDLA_MAX_CPUS		2
 
 /* Serial card - 2, A104 - 4, A108 - 8, A200/A400 - 1, A500-24  */
-#define SDLA_MAX_PORTS		24
+#define SDLA_MAX_HWDEVS		32
+#define SDLA_MAX_HWPORTS	32
 
 /* Status values */
 #define SDLA_MEM_RESERVED	0x0001
@@ -304,18 +309,6 @@ typedef struct sdla_hw_probe
 	WAN_LIST_ENTRY(sdla_hw_probe)	next;
 } sdla_hw_probe_t;
 
-/*-------------------------------------------------------------
- *
- */
-#if 0
-typedef struct sdlahw_port
-{
-	int			used;
-	char			*devname;
-	sdla_hw_probe_t		*hwprobe;
-} sdlahw_port_t;
-#endif
-
 /*
  * This structure keeps common parameters per physical card.
  */
@@ -353,11 +346,7 @@ typedef struct sdlahw_card {
 	u16			hwec_chan_no;	/* max hwec channels number */
 	int			hwec_ind;	/* hwec index */
 	WAN_LIST_ENTRY(sdlahw_card)	next;
-
-#if defined(__WINDOWS__)
-	int	rm_mod_type[MAX_REMORA_MODULES];
-#endif
-
+	unsigned char		cpld_rev;
 } sdlahw_card_t;
 
 
@@ -365,7 +354,7 @@ typedef struct sdlahw_card {
  * Adapter hardware configuration. Pointer to this structure is passed to all
  * APIs.
  */
-struct sdlahw_port;
+struct sdlahw_;
 typedef struct sdlahw_cpu
 {
 	int			internal_used;
@@ -378,7 +367,7 @@ typedef struct sdlahw_cpu
 #endif
 	int 			irq;		/* interrupt request level */
 #if (defined(__FreeBSD__) && __FreeBSD_version >= 450000)
-	void*			irqh[SDLA_MAX_PORTS];
+	void*			irqh[SDLA_MAX_HWDEVS];
 #endif
 	unsigned int		cpu_no;		/* PCI CPU Number */
 	char 			auto_pci_cfg;	/* Auto PCI configuration */
@@ -402,32 +391,48 @@ typedef struct sdlahw_cpu
 	u16			configured;
 
 	int			max_ports;	/* number of ports */
+
 	u_int32_t		port_map;	/* installed modules for A200/A400/ISDN */
-	int			reg_port[SDLA_MAX_PORTS];
+	int			reg_port[SDLA_MAX_HWDEVS];
+
 	u_int32_t		reg_port_map;	/* configured port */
-	struct sdlahw_port	*hwport[SDLA_MAX_PORTS];
+	struct sdlahw_dev	*hwdev[SDLA_MAX_HWDEVS];
 		
-	void			*port_ptr_isr_array[SDLA_MAX_PORTS];
+	void			*port_ptr_isr_array[SDLA_MAX_HWDEVS];
 
 	sdlahw_card_t		*hwcard;
 	WAN_LIST_ENTRY(sdlahw_cpu)	next;
+#if defined(__WINDOWS__)
+	PHYSICAL_ADDRESS unmapped_memory_base;/* memory BEFORE it was mapped in to virtual space */
+	ulong_t	unmapped_memory_length;/* actual memory aperture size */
+#endif
 } sdlahw_cpu_t;
 
-typedef struct sdlahw_port
+typedef struct sdlahw_port_
+{
+	int			used;
+	char			*devname;
+	sdla_hw_probe_t		*hwprobe;
+} sdlahw_port_t;
+
+typedef struct sdlahw_dev
 {
 	int			internal_used;
 	int			used;
 	char			*devname;
 	unsigned		magic;
-	unsigned int		port_no;	/* Port number per CPU */
-	sdla_hw_probe_t		*hwprobe;
+	unsigned int		port_no;	/* Port number per CPU (line) */
+//	sdla_hw_probe_t		*hwprobe;
 	sdlahw_cpu_t*		hwcpu;
+	int			max_port_no;
+	sdlahw_port_t		hwport[SDLA_MAX_HWPORTS];
 
-	WAN_LIST_ENTRY(sdlahw_port)	next;
+	WAN_LIST_ENTRY(sdlahw_dev)	next;
 #if defined(__WINDOWS__)
-	void *p_sdla;
+	void *level1_dev_pdx;
 #endif
 } sdlahw_t;
+
 
 typedef struct sdlahw_iface
 {
@@ -863,7 +868,7 @@ static __inline int __sdla_bus_read_4(void* phw, unsigned int offset, u32* value
 	*value = READ_REGISTER_ULONG((PULONG)((PUCHAR)hw->hwcpu->dpmbase + offset));
 #else
 	*value = 0;
-# warning "sdla_bus_read_4: Not supported yet!"
+# warning "__sdla_bus_read_4: Not supported yet!"
 #endif
 		if (offset == 0x40 && *value == (u32)-1) {
 			if (WAN_NET_RATELIMIT()){
@@ -900,7 +905,7 @@ static __inline int __sdla_bus_write_4(void* phw, unsigned int offset, u32 value
 #elif defined(__WINDOWS__)
 	WRITE_REGISTER_ULONG((PULONG)((PUCHAR)hwcpu->dpmbase + offset), value);
 #else
-# warning "sdla_bus_write_4: Not supported yet!"
+# warning "__sdla_bus_write_4: Not supported yet!"
 #endif
 	return 0;
 }
@@ -940,7 +945,7 @@ static __inline void __sdla_push_ptr_isr_array(void *phw, void *card, int line)
 	WAN_ASSERT_VOID(hw == NULL);
 	WAN_ASSERT_VOID(hw->hwcpu == NULL);
 	hwcpu = hw->hwcpu;
-	if (line >= SDLA_MAX_PORTS) {
+	if (line >= SDLA_MAX_HWDEVS) {
 		return;
 	}
  	hwcpu->port_ptr_isr_array[line]=card;
@@ -954,10 +959,9 @@ static __inline void __sdla_pull_ptr_isr_array(void *phw, void *card, int line)
 	WAN_ASSERT_VOID(hw == NULL);
 	WAN_ASSERT_VOID(hw->hwcpu == NULL);
 	hwcpu = hw->hwcpu;
-	if (line >= SDLA_MAX_PORTS) {
+	if (line >= SDLA_MAX_HWDEVS) {
         	return;
 	}	
-
 	hwcpu->port_ptr_isr_array[line]=NULL;
 	return;
 }  

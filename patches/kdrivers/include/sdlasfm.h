@@ -33,6 +33,7 @@
 /* Adapter types */
 #if defined(__WINDOWS__)
 #define INVALID_DEVICE_TYPE		0x0000
+#define MAX_NUM_OF_CPUS	2
 #endif
 
 #define SDLA_S502A	5020

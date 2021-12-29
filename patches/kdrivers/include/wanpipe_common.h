@@ -2,7 +2,7 @@
  * Copyright (c) 2002
  *	Alex Feldman <al.feldman@sangoma.com>.  All rights reserved.
  *
- *	$Id: wanpipe_common.h,v 1.213 2008/02/21 19:39:18 sangoma Exp $
+ *	$Id: wanpipe_common.h,v 1.215 2008/04/16 17:23:17 sangoma Exp $
  */
 
 /****************************************************************************
@@ -273,6 +273,8 @@ static __inline void WP_MDELAY (u32 ms) {
 # define WAN_NETIF_STOP_QUEUE(dev)	FUNC_NOT_IMPL
 # define WAN_IFQ_LEN(ifqueue)		skb_queue_len(ifqueue)
 
+# define WARN_ON(a)
+
 #else
 # error "Undefined WAN_NETIF_x macros!"
 #endif
@@ -354,19 +356,19 @@ static __inline void WP_MDELAY (u32 ms) {
 # define WAN_NETIF_STATS_INC_MULTICAST(common)		(common)->if_stats.multicast++
 # define WAN_NETIF_STATS_INC_COLLISIONS(common)		(common)->if_stats.collisions++
 # define WAN_NETIF_STATS_INC_RX_LENGTH_ERRORS(common)	(common)->if_stats.rx_length_errors++
-# define WAN_NETIF_STATS_INC_RX_OVER_ERRORS(common)		(common)->if_stats.rx_over_errors++
-# define WAN_NETIF_STATS_INC_RX_CRC_ERRORS(common)		(common)->if_stats.rx_crc_errors++
+# define WAN_NETIF_STATS_INC_RX_OVER_ERRORS(common)	(common)->if_stats.rx_over_errors++
+# define WAN_NETIF_STATS_INC_RX_CRC_ERRORS(common)	(common)->if_stats.rx_crc_errors++
 # define WAN_NETIF_STATS_INC_RX_FRAME_ERRORS(common)	(common)->if_stats.rx_frame_errors++
-# define WAN_NETIF_STATS_INC_RX_FIFO_ERRORS(common)		(common)->if_stats.rx_fifo_errors++
+# define WAN_NETIF_STATS_INC_RX_FIFO_ERRORS(common)	(common)->if_stats.rx_fifo_errors++
 # define WAN_NETIF_STATS_INC_RX_MISSED_ERRORS(common)	(common)->if_stats.rx_missed_errors++
 # define WAN_NETIF_STATS_INC_TX_ABORTED_ERRORS(common)	(common)->if_stats.tx_aborted_errors++
 # define WAN_NETIF_STATS_INC_TX_CARRIER_ERRORS(common)	(common)->if_stats.tx_carrier_errors++
 # define WAN_NETIF_STATS_TX_CARRIER_ERRORS(common)	(common)->if_stats.tx_carrier_errors
-# define WAN_NETIF_STATS_INC_TX_FIFO_ERRORS(common)		(common)->if_stats.tx_fifo_errors++
-# define WAN_NETIF_STATS_INC_TX_HEARTBEAT_ERRORS(common)	(common)->if_stats.tx_heartbeat_errors++
+# define WAN_NETIF_STATS_INC_TX_FIFO_ERRORS(common)	(common)->if_stats.tx_fifo_errors++
+# define WAN_NETIF_STATS_INC_TX_HEARTBEAT_ERRORS(common) (common)->if_stats.tx_heartbeat_errors++
 # define WAN_NETIF_STATS_INC_TX_WINDOW_ERRORS(common)	(common)->if_stats.tx_window_errors++
-# define WAN_NETIF_STATS_INC_RX_COMPRESSED(common)		(common)->if_stats.rx_compressed++
-# define WAN_NETIF_STATS_INC_TX_COMPRESSED(common)		(common)->if_stats.tx_compressed++
+# define WAN_NETIF_STATS_INC_RX_COMPRESSED(common)	(common)->if_stats.rx_compressed++
+# define WAN_NETIF_STATS_INC_TX_COMPRESSED(common)	(common)->if_stats.tx_compressed++
 
 #else
 
@@ -2656,7 +2658,7 @@ static __inline void wan_spin_lock_init(void *lock, char *name)
 	mtx_init((struct mtx*)lock, name, MTX_NETWORK_LOCK, MTX_DEF);
 #endif
 #elif defined(__WINDOWS__)
-	spin_lock_init((wan_spinlock_t*)lock);	
+	spin_lock_init((wan_spinlock_t*)lock, name);	
 #else
 # warning "wan_spin_lock_init() function is not supported yet!"
 #endif	
@@ -2673,7 +2675,7 @@ static __inline void wan_spin_lock_irq_init(void *lock, char *name)
 	mtx_init((struct mtx*)lock, name, MTX_NETWORK_LOCK, MTX_SPIN);
 #endif
 #elif defined(__WINDOWS__)
-	spin_lock_init((wan_spinlock_t*)lock);	
+	spin_lock_init((wan_spinlock_t*)lock, name);	
 #else
 # warning "wan_spin_lock_init() function is not supported yet!"
 #endif	
@@ -2903,7 +2905,7 @@ static __inline void wan_write_bus_4(void *phw, void *virt, int offset, unsigned
 
 ///////////////////////////////////////////////////////
 //for use at IRQL <= DISPATCH_LEVEL
-# define WAN_SPIN_LOCK_IRQSAVE(pSpinLock)		\
+# define WAN_SPIN_LOCK(pSpinLock)		\
 {												\
 	int rc=SILENT;								\
 	VERIFY_DISPATCH_IRQL(rc);					\
@@ -2912,7 +2914,7 @@ static __inline void wan_write_bus_4(void *phw, void *virt, int offset, unsigned
 	}											\
 }
 
-# define WAN_SPIN_UNLOCK_IRQSAVE(pSpinLock)	\
+# define WAN_SPIN_UNLOCK(pSpinLock)	\
 	KeReleaseSpinLock(pSpinLock, old_IRQL);
 
 //for use at IRQL == DISPATCH_LEVEL - more efficient

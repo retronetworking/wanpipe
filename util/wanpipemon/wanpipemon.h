@@ -68,6 +68,7 @@ extern char *csudsu_menu[];
 
 extern int pcap_output;
 extern int pcap_prot;
+extern int pcap_isdn_network;
 extern FILE *pcap_output_file;
 extern char pcap_output_file_name[];
 
@@ -357,6 +358,7 @@ static inline unsigned char set_wan_udphdr_data_byte(unsigned char off, unsigned
 #define CHDLC 0x10
 #define ETH   0x20
 #define IP    0x40
+#define LAPD  0x80
 #define ALL_PROT (FRAME|LAPB|X25|PPP|CHDLC);
 
 #define DATA 0x1

@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1.c,v 1.286 2008/03/14 19:14:10 sangoma Exp $
+ *	$Id: sdla_te1.c,v 1.287 2008/03/28 13:49:53 sangoma Exp $
  */
 
 /*
@@ -185,10 +185,6 @@ static int te_reg_verify = 0;
 # define TEST_TPSC_REG(fe,reg,channel,value)
 #endif
 
-#if 0
-#define READ_REG(reg)			card->wandev.read_front_end_reg(card,reg)
-#define WRITE_REG(reg,value)		card->wandev.write_front_end_reg(card,reg,(unsigned char)(value))
-#endif
 #define READ_RPSC_REG(reg,channel)	ReadRPSCReg(fe,reg,channel)
 #define READ_TPSC_REG(reg,channel)	ReadTPSCReg(fe,reg,channel)
 #define READ_SIGX_REG(reg,channel)	ReadSIGXReg(fe,reg,channel)

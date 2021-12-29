@@ -948,7 +948,11 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 					card->devname,
 					aft_chipcfg_get_ec_channels(cfg_reg),
 					max_ec_chans);  
-        		    return -EINVAL;
+#if defined(__WINDOWS__)
+			max_ec_chans = 0;
+#else
+        		return -EINVAL;
+#endif
 		}
 	
 		if (max_ec_chans){	
@@ -983,16 +987,6 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 		}
 	}
 
-#if defined(__WINDOWS__)
-	/*connect to interrupt line and only AFTER THAT enable device's interrupts.*/
-	if(connect_to_interrupt_line(card)){
-		return 1;
-	}
-	/*at this point we can handle front end interrupts*/
-	card->init_flag = 0;
-#endif
-	AFT_FUNC_DEBUG();
-
 	/* Enable only Front End Interrupt
 	 * Wait for front end to come up before enabling DMA */
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
@@ -1004,7 +998,6 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 	card->u.aft.lcfg_reg=reg;
 	
-	AFT_FUNC_DEBUG();
 	
 	/*============ DMA CONTROL REGISTER ===============*/
 	

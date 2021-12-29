@@ -291,8 +291,6 @@ static int capture_trace_packet (sdla_t *card,fr_private_area_t*chan,struct sk_b
 
 /* TE1 */
 #ifdef TE1_56_CARD_SUPPORT
-static WRITE_FRONT_END_REG_T write_front_end_reg;
-static READ_FRONT_END_REG_T  read_front_end_reg;
 static void hdlc_enable_timer (void* card_id);
 static void fr_handle_front_end_state (void* card_id);
 #endif
@@ -437,9 +435,8 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
-
+		card->fe.write_fe_reg = card->hw_iface.fe_write;
+		card->fe.read_fe_reg	 = card->hw_iface.fe_read;
 		card->wandev.fe_enable_timer = hdlc_enable_timer;
 		card->wandev.te_link_state = fr_handle_front_end_state;
 		conf->electrical_interface = 
@@ -459,9 +456,8 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 		sdla_56k_iface_init(&card->fe,&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
-
+		card->fe.write_fe_reg = card->hw_iface.fe_write;
+		card->fe.read_fe_reg	 = card->hw_iface.fe_read;
 		if (card->u.c.comm_port == WANOPT_PRI){
 			conf->clocking = WANOPT_EXTERNAL;
 		}
@@ -1110,7 +1106,6 @@ static int if_init (netdevice_t* dev)
 #endif
 	dev->do_ioctl		= if_do_ioctl;
 		
-	dev->hard_header = NULL;  
 	dev->hard_header_len = 0;
 	dev->addr_len = 2;
 	*(u16*)dev->dev_addr = htons(chan->dlci);
@@ -1869,64 +1864,6 @@ static int set_adapter_config (sdla_t* card)
 	return (err);
 }
 
-
-
-/*============================================================================
- * Read TE1/56K Front end registers
- */
-static unsigned char read_front_end_reg (void* card1, ...)
-{
-	va_list		args;
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	u16		reg, line_no;
-	char* data = mb->wan_data;
-        int err;
-
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	va_end(args);
-
-	((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-        mb->wan_command = READ_FRONT_END_REGISTER;
-        err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-        if (err != COMMAND_OK)
-                hdlc_error(card,err,mb);
-
-	return(((FRONT_END_REG_STRUCT *)data)->register_value);
-}
-
-
-/*============================================================================
- * Write to TE1/56K Front end registers  
- */
-static int write_front_end_reg (void* card1, ...)
-{
-	va_list		args;
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	u16		reg, line_no;
-	u8		value;
-	char* data = mb->wan_data;
-        int err;
-	
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	reg	= (u16)va_arg(args, int);
-	value	= (u8)va_arg(args, int);
-	va_end(args);
-
-	((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
-	((FRONT_END_REG_STRUCT *)data)->register_value = value;
-	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
-        mb->wan_command = WRITE_FRONT_END_REGISTER;
-        err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
-        if (err != COMMAND_OK)
-                hdlc_error(card,err,mb);
-        return err;
-}
 
 /*============================================================================
  * Enable timer interrupt  

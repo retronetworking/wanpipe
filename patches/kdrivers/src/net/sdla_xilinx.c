@@ -315,9 +315,9 @@ static unsigned char write_cpld(sdla_t *card, unsigned short cpld_off,
 static int 	aft_devel_ioctl(sdla_t *card,struct ifreq *ifr);
 static int 	xilinx_write_bios(sdla_t *card,wan_cmd_api_t *api_cmd);
 static int 	xilinx_write(sdla_t *card,wan_cmd_api_t *api_cmd);
-static int 	xilinx_fe_write(sdla_t *card,wan_cmd_api_t *api_cmd);
+static int 	xilinx_api_fe_write(sdla_t *card,wan_cmd_api_t*);
 static int 	xilinx_read(sdla_t *card,wan_cmd_api_t *api_cmd);
-static int 	xilinx_fe_read(sdla_t *card,wan_cmd_api_t *api_cmd);
+static int 	xilinx_api_fe_read(sdla_t *card,wan_cmd_api_t*);
 
 static void 	front_end_interrupt(sdla_t *card, unsigned long reg, int lock);
 static void  	enable_data_error_intr(sdla_t *card);
@@ -380,11 +380,6 @@ static int  aft_dev_open(sdla_t *card, private_area_t *chan);
 static void aft_dev_close(sdla_t *card, private_area_t *chan);
 
 static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan, netskb_t *skb);
-
-
-/* TE1 Control registers  */
-static WRITE_FRONT_END_REG_T write_front_end_reg;
-static READ_FRONT_END_REG_T  read_front_end_reg;
 
 /* Procfs functions */
 static int	wan_aft_get_info(void* pcard, struct seq_file* m, int* stop_cnt); 
@@ -534,8 +529,8 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= card->hw_iface.fe_write;	//write_front_end_reg;
-		card->fe.read_fe_reg	= card->hw_iface.fe_read;	//read_front_end_reg;
+		card->fe.write_fe_reg	= card->hw_iface.fe_write;
+		card->fe.read_fe_reg	= card->hw_iface.fe_read;
 		
 		card->wandev.te_report_rbsbits = aft_report_rbsbits;
 		card->wandev.fe_enable_timer = enable_timer;
@@ -1884,8 +1879,6 @@ static int if_init (netdevice_t* dev)
 			}
 
 			dev->hard_header_len	= 0;
-			dev->hard_header	= NULL; 
-			dev->rebuild_header	= NULL;
 
 			/* Enable Mulitcasting if user selected */
 			if (chan->mc == WANOPT_YES){
@@ -5648,66 +5641,6 @@ static unsigned char write_cpld(sdla_t *card, unsigned short off,unsigned char d
         return 0;
 }
 
-static int write_front_end_reg (void* card1, ...)
-{
-	va_list	args;
-        sdla_t* card = (sdla_t*)card1;
-	u16	off, line_no;
-	u8	value;
-	u8	qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
-	       	 
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	off	= (u16)va_arg(args, int);
-	value	= (u8)va_arg(args, int);
-	va_end(args);
-
-	off &= ~BIT_DEV_ADDR_CLEAR;
-       	card->hw_iface.bus_write_2(card->hw,XILINX_MCPU_INTERFACE_ADDR, off);
-	/* AF: Sep 10, 2003
-	 * IMPORTANT
-	 * This delays are required to avoid bridge optimization 
-	 * (combining two writes together)
-	 */
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-        card->hw_iface.bus_write_1(card->hw,XILINX_MCPU_INTERFACE, value);
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-
-        return 0;
-}
-
-
-/*============================================================================
- * Read TE1/56K Front end registers
- */
-static unsigned char read_front_end_reg (void* card1, ...)
-{
-	va_list	args;
-        sdla_t* card = (sdla_t*)card1;
-	u16	off, line_no;
-	u8	tmp;
-	u8	qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
-
-	va_start(args, card1);
-	line_no	= (u16)va_arg(args, int);
-	off	= (u16)va_arg(args, int);
-	va_end(args);
-
-        off &= ~BIT_DEV_ADDR_CLEAR;
-        card->hw_iface.bus_write_2(card->hw, XILINX_MCPU_INTERFACE_ADDR, off);
-        card->hw_iface.bus_read_1(card->hw,XILINX_MCPU_INTERFACE, &tmp);
-	
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-
-        return tmp;
-}
-
 static int xilinx_read(sdla_t *card, wan_cmd_api_t *api_cmd)
 {
 	if (api_cmd->offset <= 0x3C){
@@ -5728,12 +5661,13 @@ static int xilinx_read(sdla_t *card, wan_cmd_api_t *api_cmd)
 	return 0;
 }
 
-static int xilinx_fe_read(sdla_t *card, wan_cmd_api_t *api_cmd)
+static int xilinx_api_fe_read(sdla_t *card, wan_cmd_api_t *api_cmd)
 {
-	wan_smp_flag_t smp_flags;
+	wan_smp_flag_t	smp_flags;
+	int			qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
 
 	card->hw_iface.hw_lock(card->hw,&smp_flags);
-	api_cmd->data[0] = (u8)read_front_end_reg (card, 1, api_cmd->offset);
+	api_cmd->data[0] = card->fe.read_fe_reg(card->hw, qaccess, 1, (int)api_cmd->offset);
 	card->hw_iface.hw_unlock(card->hw,&smp_flags);
 
 #ifdef DEB_XILINX
@@ -5779,10 +5713,12 @@ static int xilinx_write(sdla_t *card, wan_cmd_api_t *api_cmd)
 }
 
 
-static int xilinx_fe_write(sdla_t *card, wan_cmd_api_t *api_cmd)
+static int xilinx_api_fe_write(sdla_t *card, wan_cmd_api_t *api_cmd)
 {
-	wan_smp_flag_t smp_flags;
+	wan_smp_flag_t	smp_flags;
+	int			err, qaccess;
 
+	qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
 #ifdef DEB_XILINX
 	DEBUG_EVENT("%s: Writting Bar%d Offset=0x%X Len=%d\n",
 			card->devname,
@@ -5790,10 +5726,10 @@ static int xilinx_fe_write(sdla_t *card, wan_cmd_api_t *api_cmd)
 #endif
 
 	card->hw_iface.hw_lock(card->hw,&smp_flags);
-	write_front_end_reg (card, 1, api_cmd->offset, (u8)api_cmd->data[0]);
+	err = card->fe.write_fe_reg(card->hw, qaccess, 1, (int)api_cmd->offset, (int)api_cmd->data[0]);
 	card->hw_iface.hw_unlock(card->hw,&smp_flags);
 	
-	return 0;
+	return err;
 }
 
 
@@ -5837,11 +5773,11 @@ static int aft_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 		break;
 
 	case SIOC_WAN_FE_READ_REG:
-		err=xilinx_fe_read(card,&api_cmd);
+		err=xilinx_api_fe_read(card,&api_cmd);
 		break;
 
 	case SIOC_WAN_FE_WRITE_REG:
-		err=xilinx_fe_write(card,&api_cmd);
+		err=xilinx_api_fe_write(card,&api_cmd);
 		break;
 	
 	case SIOC_WAN_SET_PCI_BIOS:

@@ -20,6 +20,7 @@
 enum {
 	WANPIPE_PROCFS_CONFIG	= 0x1,
 	WANPIPE_PROCFS_HWPROBE,
+	WANPIPE_PROCFS_HWPROBE_LEGACY,
 	WANPIPE_PROCFS_HWPROBE_VERBOSE,
 	WANPIPE_PROCFS_STATUS,
 	WANPIPE_PROCFS_INTERFACES,
@@ -84,6 +85,7 @@ enum {
 int config_get_info(char* buf, char** start, off_t offs, int len);
 int status_get_info(char* buf, char** start, off_t offs, int len);
 int probe_get_info(char* buf, char** start, off_t offs, int len);
+int probe_get_info_legacy(char* buf, char** start, off_t offs, int len);
 int probe_get_info_verbose(char* buf, char** start, off_t offs, int len);
 int wandev_get_info(char* buf, char** start, off_t offs, int len);
 int interfaces_get_info(char* buf, char** start, off_t offs, int len);

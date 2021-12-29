@@ -591,6 +591,10 @@ static void wplip_prot_timer(wan_timer_arg_t arg)
 		return;
 	}
 
+	if (!prot_iface->timer) {
+		return;
+	}
+
 	wan_spin_lock_irq(&lip_link->bh_lock,&flags);
 
 	if (lip_link->carrier_state == WAN_CONNECTED){
@@ -929,6 +933,34 @@ int wplip_init_prot(void)
 	prot_iface->bh				= NULL;
 	prot_iface->snmp			= NULL;
 #endif
+
+
+	/* LIP HDLC initialization */
+#ifdef CONFIG_PRODUCT_WANPIPE_LIP_HDLC
+	offset+=sprintf(&tmp[offset],"%s ","LIP_HDLC");
+	prot_iface=wan_kmalloc(sizeof(wplip_prot_iface_t));
+	if (!prot_iface){
+		return -ENOMEM;
+	}
+	memset(prot_iface,0,sizeof(wplip_prot_iface_t));
+	wplip_prot_ops[WANCONFIG_LIP_HDLC]=prot_iface;
+	
+	prot_iface->init			= 1;
+	prot_iface->prot_link_register 		= wp_register_lip_hdlc_prot;
+	prot_iface->prot_link_unregister	= wp_unregister_lip_hdlc_prot; 
+	prot_iface->prot_chan_register		= wp_register_lip_hdlc_chan;	
+	prot_iface->prot_chan_unregister	= wp_unregister_lip_hdlc_chan;
+	prot_iface->open_chan			= wp_lip_hdlc_open;
+	prot_iface->close_chan			= wp_lip_hdlc_close; 
+	prot_iface->tx				= wp_lip_hdlc_tx;
+	prot_iface->ioctl			= NULL; 
+	prot_iface->pipemon			= wp_lip_hdlc_pipemon;
+	prot_iface->rx				= wp_lip_hdlc_rx; 
+	prot_iface->timer			= wp_lip_hdlc_timer;
+	prot_iface->bh				= NULL;
+	prot_iface->snmp			= NULL;
+#endif
+
 
 	/* XMTP2 initialization */
 #ifdef CONFIG_PRODUCT_WANPIPE_VISDN_LAPD

@@ -1,4 +1,4 @@
-/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.43 2008/01/09 17:45:29 sangoma Exp $ */
+/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.44 2008/03/25 22:46:01 sangoma Exp $ */
 
 #ifndef _WANPIPE_LIP_HEADER_
 #define _WANPIPE_LIP_HEADER_
@@ -76,6 +76,9 @@ int sdla_data_rx_up(void* sdla_net_dev, void *rx_skb);
 # if defined(CONFIG_PRODUCT_WANPIPE_XMTP2)
 #  include <linux/wanpipe_xmtp2_iface.h>
 # endif 
+# if defined(CONFIG_PRODUCT_WANPIPE_LIP_HDLC)
+#  include <linux/wanpipe_lip_hdlc_iface.h>
+# endif
 # include <linux/wanpipe_lip_kernel.h>
 # include <linux/wanpipe_iface.h>
 

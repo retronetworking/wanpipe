@@ -63,6 +63,12 @@ aft_is_bri_te_card(sdla_t *card)
 	return IS_BRI_TE_MOD(&(card)->fe.bri_param, WAN_FE_LINENO(&card->fe));
 }
 
+static __inline int
+aft_is_bri_512khz_card(sdla_t *card)
+{
+	return card->fe.bri_param.use_512khz_recovery_clock;	
+}
+
 
 #endif/* WAN_KERNEL */
 

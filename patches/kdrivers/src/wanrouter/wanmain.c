@@ -885,7 +885,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
        
 
-	if ((dev=dev_get_by_name(conf->name))){
+	if ((dev=wan_dev_get_by_name(conf->name))){
 		dev_put(dev);
 		dev=NULL;
 	       	err = -EEXIST;	/* name already exists */
@@ -917,7 +917,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 
 		if (dev->name == NULL){
 			err = -EINVAL;
-		}else if ((tmp_dev=dev_get_by_name(dev->name))){
+		}else if ((tmp_dev=wan_dev_get_by_name(dev->name))){
 			dev_put(tmp_dev);
 			err = -EEXIST;	/* name already exists */
 		}else if (dev->priv){
@@ -990,8 +990,8 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
         }
 
 	if (devle == NULL || dev == NULL){
-		if ((dev = dev_get_by_name(name)) == NULL){
-			printk(KERN_INFO "%s: dev_get_by_name failed\n", name);
+		if ((dev = wan_dev_get_by_name(name)) == NULL){
+			printk(KERN_INFO "%s: wan_dev_get_by_name failed\n", name);
 			return err;
 		}
 
@@ -1522,7 +1522,7 @@ static int wan_device_new_if_lapb (wan_device_t *wandev, wanif_conf_t *u_conf)
 		goto wan_device_new_if_lapb_exit;
 	}
 	
-	if ((tmp_dev=dev_get_by_name(conf->name)) != NULL){
+	if ((tmp_dev=wan_dev_get_by_name(conf->name)) != NULL){
 		printk(KERN_INFO "%s: Device already exists!\n",
 				conf->name);
 		dev_put(tmp_dev);
@@ -1662,7 +1662,7 @@ static int wan_device_new_if_x25 (wan_device_t *wandev, wanif_conf_t *u_conf)
 		goto wan_device_new_if_x25_exit;
 	}
 
-	if ((tmp_dev=dev_get_by_name(conf->name)) != NULL){
+	if ((tmp_dev=wan_dev_get_by_name(conf->name)) != NULL){
 		printk(KERN_INFO "%s: Device already exists!\n",
 				conf->name);
 		dev_put(tmp_dev);
@@ -1686,7 +1686,7 @@ static int wan_device_new_if_x25 (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
 		
 	//Find a master device for our x25 lcn
-	if ((dev = dev_get_by_name(conf->master)) == NULL){
+	if ((dev = wan_dev_get_by_name(conf->master)) == NULL){
 		printk(KERN_INFO "%s: Master device %s used by X25 SVC %s no found!\n",
 				wandev->name,conf->master,conf->name);
 		goto wan_device_new_if_x25_exit;
@@ -1773,7 +1773,7 @@ static int wan_device_new_if_dsp (wan_device_t *wandev, wanif_conf_t *u_conf)
 		goto wan_device_new_if_dsp_exit;
 	}
 
-	if ((tmp_dev=dev_get_by_name(conf->name)) != NULL){
+	if ((tmp_dev=wan_dev_get_by_name(conf->name)) != NULL){
 		printk(KERN_INFO "%s: Device already exists!\n",
 				conf->name);
 		dev_put(tmp_dev);
@@ -1792,7 +1792,7 @@ static int wan_device_new_if_dsp (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
 	
 	//Find a master device for our x25 lcn
-	if ((dev = dev_get_by_name(conf->master)) == NULL){
+	if ((dev = wan_dev_get_by_name(conf->master)) == NULL){
 		printk(KERN_INFO "%s: Master device %s, no found for %s\n",
 				wandev->name, conf->master,conf->name);
 		goto wan_device_new_if_dsp_exit;
@@ -1918,7 +1918,7 @@ static int wan_device_new_if_lip (wan_device_t *wandev, wanif_conf_t *u_conf)
 		goto wan_device_new_if_lip_exit;
 	}
 
-	if ((tmp_dev=dev_get_by_name(conf->name)) != NULL){
+	if ((tmp_dev=wan_dev_get_by_name(conf->name)) != NULL){
 		printk(KERN_INFO "%s: Device already exists!\n",
 				conf->name);
 		dev_put(tmp_dev);
@@ -1936,7 +1936,7 @@ static int wan_device_new_if_lip (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
 		
 	//Find a master device lip device
-	if ((dev = dev_get_by_name(conf->master)) == NULL){
+	if ((dev = wan_dev_get_by_name(conf->master)) == NULL){
 		printk(KERN_INFO "%s: Master device %s used by LIP %s no found!\n",
 				wandev->name,conf->master,conf->name);
 		goto wan_device_new_if_lip_exit;

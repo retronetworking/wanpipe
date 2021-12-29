@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.3.6
+%define version           3.3.7
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,66 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+
+* Wed Apr 23 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.7
+======================================================================
+
+- BRI HWEC MAJOR Bug Fix
+  BRI hwec was not configured properly on startup.
+  Every second channel on each span was not being configured for hwec.
+  This would result in random echo problems.
+
+- Support for 2.6.24 kernels and up
+  This release will now compile properly on 2.6.24 kernels and up.
+
+- AFT Analog Update
+  Added TBR21 operation mode
+  Used for most european countries.
+  -> this option must be added manually in wanpipe#.conf
+  -> TDMV_OPERMODE=TBR21
+
+- AFT A144 Update
+  Added MPAPI X25 support to AFT A144/A142 cards
+  Use: wancfg_legacy to configure MPAPI over AFT cards.
+  http://wiki.sangoma.com/wanpipe-linux-mpapi-x25
+
+- BRI Updated
+  BRI driver updated for new 512hz clock used to improve
+  hardware echo canceler.  This feature imporves the operation
+  of the HWEC and should solve any random Echo problems on 
+  BRI cards. To check your BRI hardware version run:	
+  -> wanrouter hwprobe verbose
+	-C00 -> old bri cpld
+	-C01 -> new bri cpld
+
+- Wanpipemon PRI/BRI PCAP Tracing for Wireshark
+  Using wanpipemon dchan trace one can now capture
+  pcap files that can be opened by Wireshark.
+  http://wiki.sangoma.com/wanpipe-wireshark-pcap-pri-bri-wan-t1-e1-tracing
+
+- S514 Secondary port bug fix
+  The secondary port was not working.
+
+- Updated wanrouter hwprobe
+  New wanrouter hwprobe device summary line will only contain
+  found devices. For backward compatibility we created "wanrouter hwprobe legacy"
+  that can be used to revert hwprobe output to the original format.
+
+- Add pci parity check to wanrouter 
+  wanrouter parity  	-> displays current system pci parity
+  wanrouter parity off 	-> disables system pci parity
+  wanrouter parity on	-> enables system pci parity
+  
+  /etc/wanpipe/wanrouter.rc  
+	WAN_PCI_PARITY=OFF -> on wanrouter start disable pci parity
+			   -> event logged in /var/log/wanrouter
+
+  On some servers pci parity can cause NMI interrupts that
+  can lead to reboots.  Parity can be caused by unsuported
+  or buggy pci/bridge chipsets.  The above commands can be used
+  to combat pci parity reboots.
+
+  Another option is to disable PCI parity in BIOS :)
 
 
 * Wed Apr 4 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.6

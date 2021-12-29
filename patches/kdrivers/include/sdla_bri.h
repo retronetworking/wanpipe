@@ -75,9 +75,6 @@
 		(type == MOD_TYPE_TE) ? "TE" :	"Unknown"
 
 /* SPI interface */
-#define MOD_CHAIN_DISABLED	0
-#define MOD_CHAIN_ENABLED	1
-
 #define SPI_INTERFACE_REG	0x54
 #define SPI_MAX_RETRY_COUNT	10
 
@@ -176,17 +173,17 @@ typedef struct sdla_bri_cfg_ {
 /* no debugging info compiled */
 /* NT/TE */
 # define WRITE_BRI_REG(mod_no,reg,val)					\
-	fe->write_fe_reg(	fe->card,			\
-				(int)mod_no,			\
-				fe->bri_param.mod[mod_no].type,	\
-				fe->bri_param.mod[mod_no].chain,	\
-				(int)reg, (int)val)
+	fe->write_fe_reg(	fe->card,				\
+				(int)mod_no,				\
+				(int)fe->bri_param.mod[mod_no].type,	\
+				(int)reg,				\
+				(int)val)
 
 # define READ_BRI_REG(mod_no,reg)					\
 	fe->read_fe_reg(	fe->card,				\
 				(int)mod_no,				\
-				fe->bri_param.mod[mod_no].type,		\
-				fe->bri_param.mod[mod_no].chain,		\
+				(int)fe->bri_param.mod[mod_no].type,	\
+				(int)0,					\
 				(int)reg)
 
 #else
@@ -197,15 +194,14 @@ typedef struct sdla_bri_cfg_ {
 # define WRITE_BRI_REG(mod_no,reg,val)					\
 	fe->write_fe_reg(	fe->card,				\
 				(int)mod_no,				\
-				fe->bri_param.mod[mod_no].type,		\
-				fe->bri_param.mod[mod_no].chain,		\
+				(int)fe->bri_param.mod[mod_no].type,	\
 				(int)reg, (int)val,__FILE__,(int)__LINE__)
 
 # define READ_BRI_REG(mod_no,reg)					\
 	fe->read_fe_reg(	fe->card,				\
 				(int)mod_no,				\
-				fe->bri_param.mod[mod_no].type,		\
-				fe->bri_param.mod[mod_no].chain,		\
+				(int)fe->bri_param.mod[mod_no].type,	\
+				(int)0,					\
 				(int)reg,__FILE__,(int)__LINE__)
 
 #endif/* #if !defined(WAN_DEBUG_FE) */
@@ -213,8 +209,8 @@ typedef struct sdla_bri_cfg_ {
 #define __READ_BRI_REG(mod_no,reg)					\
 	fe->__read_fe_reg(	fe->card,				\
 				(int)mod_no,				\
-				fe->bri_param.mod[mod_no].type,		\
-				fe->bri_param.mod[mod_no].chain,		\
+				(int)fe->bri_param.mod[mod_no].type,	\
+				(int)0,					\
 				(int)reg)
 
 
@@ -261,17 +257,8 @@ typedef struct {
 	/* Both ports of a module will always be in the
 	   SAME mode - TE or NT. */
 	int		type;
-	int		chain;
 	unsigned long	events;
 
-#if 0
-#if defined(__WINDOWS__)
-	wan_event_ctrl_t	 current_control_event;
-	wan_event_ctrl_t	*current_control_event_ptr;
-#else
-	WAN_LIST_HEAD(, wan_event_ctrl_)	event_head;
-#endif
-#endif	
 	/* TDM Voice applications */
 	int		sig;
 
@@ -336,6 +323,8 @@ typedef struct sdla_bri_param {
 	*/
 	u_int8_t	is_clock_master;
 
+	u_int8_t	use_512khz_recovery_clock;
+
 } sdla_bri_param_t;
 
 /* macros to find out type of module */
@@ -348,24 +337,26 @@ typedef struct sdla_bri_param {
 				  DEFINES AND MACROS
  *******************************************************************************/
 
-/* AFT register - Intel x86 definition. */
+/* Definition of AFT 32bit register at offset 0x54. */
 typedef struct bri_reg{
-	u_int32_t	data:8;	/* lsb */
-	u_int32_t	contrl:8;
+	u8	data;		/* lsb */
+	u8	contrl;
 
-	u_int32_t	reserv1:8;
-	u_int32_t	mod_addr:2;	/* 00, 01, 10 - adresses modules,
-					   code 11 - address of status register per-remora.
-					*/
+	u8	reserv1;
+	u8	mod_addr:2;	/* 00, 01, 10 - adresses modules,
+				   code 11 - address of status register per-remora. */
 
-	u_int32_t	remora_addr:4;	/* Select Remora. Maximum is 4 (from 0 to 3) for BRI */
-
-	u_int32_t	reset:1;
-	u_int32_t	start:1;/* msb */
+	u8	remora_addr:4;	/* Select Remora. Maximum is 4 (from 0 to 3) for BRI */
+	u8	reset:1;
+	u8	start:1;	/* msb */
 }bri_reg_t;
 
+#define RM_BRI_STATUS_READ	0x3
+
+#define CPLD_USE_512KHZ_RECOVERY_CLOCK_BIT (1)
 #define READ_BIT	(1 << 7)
 #define ADDR_BIT	(1 << 6)
+
 
 /*******************************************************************************
 **			  FUNCTION PROTOTYPES
