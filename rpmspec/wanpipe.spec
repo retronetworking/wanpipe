@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.4.7
+%define version           3.4.8
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -255,7 +255,20 @@ install_init;
 
 %changelog
 
-* Wed Nov 05 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.7
+* Mon Nov 30 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.7.3
+================================================================================
+
+- Fixed RBS signalling for E1 channel 31
+- Added Front end Reset Detection
+  -> Support for new A108 Firmware V40
+- Fixed RTP TAP bug: Caused high system load on RTP TAP usage.
+- Added excessive fifo error sanity check. Fixes random pci dma errors.
+- Increased EC VQE Delay: Fixes random fax failure due to hwec.
+- HWEC: Check state before bypass enable.
+- HWEC: Disable bypass on release
+
+
+* Tue Nov 25 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.7
 ================================================================================
 
 - New A200 Firmware V12

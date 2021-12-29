@@ -773,7 +773,8 @@ enum {
 	AFT_TDM_RING_BUF,
 	AFT_TDM_FAST_ISR,
 	AFT_TDM_SW_RING_BUF,
-	AFT_TDM_FREE_RUN_ISR
+	AFT_TDM_FREE_RUN_ISR,
+	AFT_TDM_FE_SYNC_CNT
 };
 
 typedef struct 
@@ -987,6 +988,8 @@ typedef struct sdla
 
 	unsigned char wp_debug_chan_seq;
 	unsigned int wp_gen_fifo_err;
+	unsigned int wp_rx_fifo_sanity;
+	unsigned int wp_tx_fifo_sanity;
 
 #if defined(WANPIPE_PERFORMANCE_DEBUG)
  	wan_ticks_t				debug_timeout;

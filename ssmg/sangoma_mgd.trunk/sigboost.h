@@ -37,7 +37,6 @@ enum	e_sigboost_event_id_values
 	SIGBOOST_EVENT_REMOVE_CHECK_LOOP		= 0x8b, /*139*/
 	SIGBOOST_EVENT_AUTO_CALL_GAP_ABATE		= 0x8c, /*140*/
 	SIGBOOST_EVENT_DIGIT_IN					= 0x8d, /*141*/
-	SIGBOOST_EVENT_CALL_START_ACK_NO_MEDIA	= 0x8e, /*141*/
 };
 enum	e_sigboost_release_cause_values
 {

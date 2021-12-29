@@ -3257,7 +3257,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
                                                  WOOMERA_LINE_SEPERATOR,
                                                  cause,
                                                  WOOMERA_RECORD_SEPERATOR);
-			socket_printf(woomera->socket, "404 Invalid span/chan in session%s"
+			socket_printf(woomera->socket, "404 Invalid span/chan in session%s",
 						WOOMERA_RECORD_SEPERATOR);
 
 			log_printf(SMG_LOG_DEBUG_CALL, woomera->log, 
@@ -3310,7 +3310,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
                                                  cause,
                                                  WOOMERA_RECORD_SEPERATOR);
 
-			socket_printf(woomera->socket, "404 Invalid/Expired Session%s"
+			socket_printf(woomera->socket, "404 Invalid/Expired Session%s",
 						WOOMERA_RECORD_SEPERATOR);
 
 			log_printf(SMG_LOG_DEBUG_MISC, woomera->log, 

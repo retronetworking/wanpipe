@@ -192,8 +192,8 @@ typedef struct wp_tdmv_pvt_area
 	unsigned char	rbs_tx1[31];
 	unsigned char	rbs_rx[31];
 	unsigned long	rbs_rx_pending;
-	u32		intcount;
-	u32		rbscount;
+	u32				intcount;
+	unsigned long	rbs_timeout;
 	unsigned int	brt_ctrl;
 	unsigned char	hwec;
 	unsigned char	echo_off;
@@ -1062,14 +1062,6 @@ static int wp_tdmv_rx_tx(void* pcard, netskb_t* skb)
 			wan_skb_data(skb),
 			wan_skb_len(skb)); 
 
-	if (wan_test_bit(WP_TDMV_RBS_UPDATE, &wp->flags)){
-		if (card->wandev.fe_iface.report_rbsbits){
-			card->wandev.fe_iface.report_rbsbits(&card->fe);
-		}
-		wan_clear_bit(WP_TDMV_RBS_UPDATE, &wp->flags);
-		wan_clear_bit(WP_TDMV_RBS_BUSY, &wp->flags);
-	}
-
 	return wp->max_rxtx_len;
 }
 
@@ -1682,6 +1674,7 @@ static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits)
 	}else{
 		wp->rbs_tx[chan->chanpos-1] = ABCD_bits;
 	}
+
 #if 0
 	wan_set_bit(7, &ABCD_bits);
 	if (wan_test_and_set_bit(7, &wp->rbs_tx[chan->chanpos-1])){
@@ -1721,6 +1714,11 @@ static int wp_tdmv_is_rbsbits(wan_tdmv_t *wan_tdmv)
 		return 0;
 	}
 
+	if (!IS_TDMV_UP(wp)){
+		wan_clear_bit(WP_TDMV_RBS_BUSY, &wp->flags);
+		return 0;
+	}
+
 	if (wan_test_and_set_bit(WP_TDMV_RBS_BUSY, &wp->flags)){
 		/* RBS read still in progress or not ready*/
 		return 0;
@@ -1730,17 +1728,9 @@ static int wp_tdmv_is_rbsbits(wan_tdmv_t *wan_tdmv)
 		return 1;
 	}
 
-	if (!IS_TDMV_UP(wp)){
-		wan_clear_bit(WP_TDMV_RBS_BUSY, &wp->flags);
-		return 0;
-	}
-
-	/* Increment RX/TX interrupt counter */	
-	wp->rbscount++;
-
-	/* RBS_POLL
-	** Update RBS bits now (we don't have to do very often) */
-	if (!(wp->rbscount & 0xF)){
+	/* Check rbs every 20ms */
+	if ((SYSTEM_TICKS - wp->rbs_timeout) > HZ/50) {
+		 wp->rbs_timeout = SYSTEM_TICKS;
 		return 1;
 	}
 
@@ -1754,12 +1744,15 @@ static int wp_tdmv_is_rbsbits(wan_tdmv_t *wan_tdmv)
 **
 **	DONE
 */
+
 static int wp_tdmv_rbsbits_poll(wan_tdmv_t *wan_tdmv, void *card1)
 {
 	sdla_t		*card = (sdla_t*)card1;
 	wp_tdmv_softc_t	*wp = NULL;
 	int 		i, x;
-	
+	unsigned char status=0;
+	int 		status_change=0;
+
 	WAN_ASSERT(wan_tdmv->sc == NULL);
 	wp = wan_tdmv->sc;
 
@@ -1772,60 +1765,58 @@ static int wp_tdmv_rbsbits_poll(wan_tdmv_t *wan_tdmv, void *card1)
 		wan_clear_bit(WP_TDMV_RBS_BUSY, &wp->flags);
 		return 0;
 	}
+
 	if (wp->rbs_rx_pending){
-		DEBUG_TEST("%s: %s:%d: Reading RBS (pending)\n", 
-				wp->devname,
-				__FUNCTION__,__LINE__);
+
+		DEBUG_TEST("%s: %s:%d: Reading RBS pending=0x%08X max_time_slot=%i\n",
+				wp->devname,__FUNCTION__,__LINE__, wp->rbs_rx_pending,wp->max_timeslots);
+				
 		for(i=0; i < wp->max_timeslots;i++){
 			if (wan_test_bit(i, &wp->rbs_rx_pending)){
 				wan_clear_bit(i, &wp->rbs_rx_pending);
+
+				DEBUG_TEST("%s: %s:%d: Reading RBS (pending=0x%08X) maxts=%i chan=%i\n",
+				wp->devname,
+				__FUNCTION__,__LINE__,
+				wp->rbs_rx_pending,wp->max_timeslots,i+1);
+
 				card->wandev.fe_iface.read_rbsbits(
 					&card->fe, 
 					i+1,
 					WAN_TE_RBS_UPDATE|WAN_TE_RBS_REPORT);
 			}
 		}
-		wan_set_bit(WP_TDMV_RBS_UPDATE, &wp->flags);
+
+		wan_clear_bit(WP_TDMV_RBS_BUSY, &wp->flags);
 		return 0;
 	}
 
 	/* RX rbsbits */
-	DEBUG_TEST("%s: %s:%d: Reading RBS (%s)\n", 
+
+	DEBUG_TEST("%s: %s:%d: Reading RBS \n",
 				wp->devname,
-				__FUNCTION__,__LINE__,
-				(wp->rbscount % 1000) ? "Normal" : "Sanity");
-	if (wp->rbscount % 1000 == 0){
-		for(x = 0; x < wp->max_timeslots; x++){
-			if (wan_test_bit(x, &wp->sig_timeslot_map)){
-				card->wandev.fe_iface.read_rbsbits(
+				__FUNCTION__,__LINE__);
+
+	/* NENAD: The check_rbs seems to be broken for
+	          E1 channel 31.  Default to reading rbs
+	 		  each time intead of using check_rbs */
+
+	for (x=0; x < wp->max_timeslots; x++) {
+		if (wan_test_bit(x, &wp->sig_timeslot_map)) {
+			status = card->wandev.fe_iface.read_rbsbits(
 					&card->fe,
 					x+1,
-					WAN_TE_RBS_UPDATE);
+					WAN_TE_RBS_UPDATE|WAN_TE_RBS_REPORT);
+
+			if (status != wp->rbs_rx[x]) {
+				wp->rbs_rx[x]=status;
+				status_change++;
 			}
 		}
-	}else{
-		if (card->wandev.fe_iface.check_rbsbits == NULL){
-                	DEBUG_EVENT("%s: Internal Error [%s:%d]!\n",
-					wp->devname,
-					__FUNCTION__,__LINE__); 
-			return -EINVAL;
-		}
-		card->wandev.fe_iface.check_rbsbits(
-				&card->fe, 
-				1, wp->sig_timeslot_map, 0);
-		card->wandev.fe_iface.check_rbsbits(
-				&card->fe, 
-				9, wp->sig_timeslot_map, 0);
-		card->wandev.fe_iface.check_rbsbits(
-				&card->fe, 
-				17, wp->sig_timeslot_map, 0);
-		if (wp->ise1){	
-			card->wandev.fe_iface.check_rbsbits(
-					&card->fe, 
-					25, wp->sig_timeslot_map, 0);
-		}
 	}
-	wan_set_bit(WP_TDMV_RBS_UPDATE, &wp->flags);
+
+	wan_clear_bit(WP_TDMV_RBS_BUSY, &wp->flags);
+
 	return 0;
 }
 
@@ -2689,16 +2680,6 @@ static int wp_tdmv_rx_tx_span(void *pcard)
 				wp->max_rxtx_len);
 	}
 
-	if (wan_test_bit(WP_TDMV_RBS_UPDATE, &wp->flags)){
-		DEBUG_TEST("%s: %s:%d: Updating RBS status \n",
-				wp->devname,
-				__FUNCTION__,__LINE__);
-		if (card->wandev.fe_iface.report_rbsbits){
-			card->wandev.fe_iface.report_rbsbits(&card->fe);
-		}
-		wan_clear_bit(WP_TDMV_RBS_UPDATE, &wp->flags);
-		wan_clear_bit(WP_TDMV_RBS_BUSY, &wp->flags);
-	}
 	return 0;
 }
 

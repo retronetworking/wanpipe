@@ -365,6 +365,7 @@ typedef struct wan_device
 	void	(*te_report_rbsbits) (void* card_id, int channel, unsigned char rbsbits);
 	void	(*te_report_alarms) (void* card_id, unsigned long alarams);
 	void	(*te_link_state)  (void* card_id);
+	void	(*te_link_reset)  (void* card_id);
 	int	(*te_signaling_config) (void* card_id, unsigned long);
 	int	(*te_disable_signaling) (void* card_id, unsigned long);
 	int	(*te_read_signaling_config) (void* card_id);

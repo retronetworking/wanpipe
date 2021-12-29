@@ -2941,7 +2941,7 @@ static int sdla_ds_te1_fr_rxintr_rls1(sdla_fe_t *fe, int silent)
     	}
 	if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
 		if (rim1 & (BIT_RIM1_RLOFC | BIT_RIM1_RLOFD)){
-    			if (rls1 & (BIT_RLS1_RLOFC|BIT_RLS1_RLOFD)){
+			if (rls1 & (BIT_RLS1_RLOFC|BIT_RLS1_RLOFD)){
 				if (rrts1 & BIT_RRTS1_RLOF){
 					sdla_ds_te1_swirq_trigger(
 							fe,
@@ -2949,14 +2949,23 @@ static int sdla_ds_te1_fr_rxintr_rls1(sdla_fe_t *fe, int silent)
 							WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
 							WAN_T1_ALARM_THRESHOLD_LOF_ON);
 				}else{
+
+
+					if (fe->fe_status == FE_CONNECTED){
+						sdla_t 	*card = (sdla_t*)fe->card;
+						if (card && card->wandev.te_link_reset){
+							card->wandev.te_link_reset(card);
+						}
+					}
+
 					sdla_ds_te1_swirq_trigger(
 							fe,
 							WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
 							WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
 							WAN_T1_ALARM_THRESHOLD_LOF_OFF);
 				}
-    			}
-            	}    			
+			}
+		}    			
 	}
 	WRITE_REG(REG_RLS1, rls1);
 	return 0;

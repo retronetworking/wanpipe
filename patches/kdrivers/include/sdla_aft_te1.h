@@ -546,6 +546,9 @@ aft_fifo_mark_gset(u32 *reg, u8 mark)
 # define AFT_LCFG_A108_CLK_ROUTE_MASK	0x0F
 # define AFT_LCFG_A108_CLK_ROUTE_SHIFT	16
 
+# define AFT_LCFG_FE_SYNC_CNT_MASK		0xFF
+# define AFT_LCFG_FE_SYNC_CNT_SHIFT		20
+
 # define AFT_LCFG_CLR_CHNL_EN		26
 
 # define AFT_LCFG_FE_CLK_ROUTE_BIT	27
@@ -559,6 +562,20 @@ aft_fifo_mark_gset(u32 *reg, u8 mark)
 # define AFT_LCFG_RED_LED_BIT		31
 # define AFT_LCFG_A108_FE_TE1_MODE_BIT	30	/* A108 */
 
+
+static __inline u32
+aft_lcfg_get_fe_sync_cnt(u32 reg)
+{
+	return (reg>>AFT_LCFG_FE_SYNC_CNT_SHIFT)&AFT_LCFG_FE_SYNC_CNT_MASK;
+}
+
+static __inline void
+aft_lcfg_set_fe_sync_cnt(u32 *reg, int cnt)
+{
+	*reg&=~(AFT_LCFG_FE_SYNC_CNT_MASK<<AFT_LCFG_FE_SYNC_CNT_SHIFT);
+	*reg|=((cnt&AFT_LCFG_FE_SYNC_CNT_MASK)<<AFT_LCFG_FE_SYNC_CNT_SHIFT);
+}
+        
 
 static __inline void
 aft_lcfg_fe_clk_source(u32 *reg, u32 src)

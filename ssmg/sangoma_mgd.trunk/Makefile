@@ -162,6 +162,7 @@ else
 
 	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(DESTDIR)/etc/init.d/smgss7_init_ctrl
 	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(DESTDIR)/usr/sbin/smgss7_init_ctrl
+	install -D -m 755 scripts/init.d/ss7boxd_monitor.sh $(DESTDIR)/usr/sbin/ss7boxd_monitor.sh
 
 endif	
 endif

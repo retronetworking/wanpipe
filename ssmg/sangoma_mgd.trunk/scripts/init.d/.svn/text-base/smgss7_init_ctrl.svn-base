@@ -10,6 +10,8 @@ SS7_LOCK=/var/lock/ss7box_wanrouter_lock
 ss7boost="ss7boost"
 #Set the ss7box file name
 ss7box="ss7boxd"
+bindir="/usr/sbin"
+ss7box_mon="ss7boxd_monitor.sh"
 
 if [ -f /etc/wanpipe/pbxd ]; then
 	. /etc/wanpipe/pbxd
@@ -133,6 +135,12 @@ function ss7_box_ctrl ()
 	if [ $cmd != "start" ]; then
 	echo "Stopping:  $ss7box" 
 	fi
+
+
+	if [ -e $bindir/$ss7box_mon ]; then
+		echo "Stopping $ss7box_mon"
+        	eval "killall $ss7box_mon 2>> $smgctrl_log"
+	fi
         eval "kill -TERM $(pidof  $ss7box) 2>> $smgctrl_log"
 	
 	if [ $cmd != "start" ]; then
@@ -187,6 +195,11 @@ function ss7_box_ctrl ()
 		fi
 		sleep 2
 	
+		if [ -e $bindir/$ss7box_mon ]; then
+			echo "Starting $ss7box_mon"
+			eval "nice $ss7box_mon &"
+		fi
+
 		echo "Starting:  wanrouter start"
 		eval "wanrouter start >> $smgctrl_log 2>> $smgctrl_log"
 

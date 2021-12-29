@@ -1,13 +1,13 @@
 K 25
 svn:wc:ra_dav:version-url
 V 35
-/svn/sangoma_mgd/!svn/ver/232/trunk
+/svn/sangoma_mgd/!svn/ver/235/trunk
 END
 sigboost.h
 K 25
 svn:wc:ra_dav:version-url
 V 46
-/svn/sangoma_mgd/!svn/ver/230/trunk/sigboost.h
+/svn/sangoma_mgd/!svn/ver/233/trunk/sigboost.h
 END
 switch_buffer.h
 K 25
@@ -73,7 +73,7 @@ sangoma_mgd.c
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/222/trunk/sangoma_mgd.c
+/svn/sangoma_mgd/!svn/ver/234/trunk/sangoma_mgd.c
 END
 woomera.conf
 K 25
@@ -157,7 +157,7 @@ Makefile
 K 25
 svn:wc:ra_dav:version-url
 V 44
-/svn/sangoma_mgd/!svn/ver/232/trunk/Makefile
+/svn/sangoma_mgd/!svn/ver/235/trunk/Makefile
 END
 sangoma_mgd_memdbg.h
 K 25

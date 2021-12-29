@@ -5,7 +5,7 @@
 *
 * Authors: 	Nenad Corbic <ncorbic@sangoma.com>
 *
-* Copyright:	(c) 2003-2008 Sangoma Technologies Inc.
+* Copyright:	(c) 2003-2009 Sangoma Technologies Inc.
 *
 *		This program is free software; you can redistribute it and/or
 *		modify it under the terms of the GNU General Public License
@@ -319,6 +319,7 @@ static int aft_rx_copyback=500;
 
 #define WP_WAIT 	0
 #define WP_NO_WAIT	1
+#define WP_RX_TX_FIFO_SANITY 100
 
 /* variable for keeping track of enabling/disabling FT1 monitor status */
 /* static int rCount; */
@@ -545,6 +546,8 @@ static void wan_aft_api_ringdetect (void* card_id, wan_event_t *event);
 #endif
 
 static void callback_front_end_state(void *card_id);
+static void callback_front_end_reset(void *card_id);
+
 static int aft_hwec_config_ch (sdla_t *card, private_area_t *chan, wanif_conf_t *conf, int fe_chan, int ctrl);
 
 #if 0
@@ -1067,6 +1070,8 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 		card->wandev.fe_enable_timer = enable_timer;
 		card->wandev.ec_enable_timer = enable_ec_timer;
 		card->wandev.te_link_state = callback_front_end_state;
+		card->wandev.te_link_reset = callback_front_end_reset;
+
 		conf->electrical_interface =
 			IS_T1_CARD(card) ? WANOPT_V35 : WANOPT_RS232;
 
@@ -1394,8 +1399,9 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 			card->devname,
 			card->u.aft.cfg.rx_crc_bytes);
 
-        wan_clear_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status);
-        wan_clear_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status);    
+	wan_clear_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status);
+	wan_clear_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status);
+	wan_clear_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status);
 
 	if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
 		if ((card->adptr_type == A108_ADPTR_8TE1 &&
@@ -1418,6 +1424,18 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 		    (card->adptr_type == A101_ADPTR_1TE1 &&
 		     card->u.aft.firm_ver >= 0x36)) {
 	    	     	wan_set_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status);
+		}
+
+		if ((card->adptr_type == A108_ADPTR_8TE1 &&
+		     card->u.aft.firm_ver >= 0x40) ||
+	            (card->adptr_type == A104_ADPTR_4TE1 &&
+		     card->u.aft.firm_ver >= 0x37) ||
+		    (card->adptr_type == A101_ADPTR_2TE1 &&
+		     card->u.aft.firm_ver >= 0x37) ||
+		    (card->adptr_type == A101_ADPTR_1TE1 &&
+		     card->u.aft.firm_ver >= 0x37)) {
+	    	     	wan_set_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status);
+					
 		}
 	} else {
             	if ((card->adptr_type == A104_ADPTR_4TE1 &&
@@ -2513,10 +2531,12 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	}	   
 #endif
 
+#if 0
 	err=aft_hwec_config(card,chan,conf,1);
 	if (err){
 		goto new_if_error;
 	}
+#endif
 
        	if (chan->channelized_cfg && !chan->hdlc_eng) {
        	 	chan->dma_mru = 1024;
@@ -5163,7 +5183,7 @@ aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, int irq)
 #endif	
 		} else {
 			if (irq) {
-                        	skb=wan_skb_alloc(chan->dma_mru); 
+                  	skb=wan_skb_alloc(chan->dma_mru); 
 			} else {
 			        skb=wan_skb_kalloc(chan->dma_mru); 	
 			}	
@@ -5718,22 +5738,26 @@ static int __wp_aft_fifo_per_port_isr(sdla_t *card, u32 rx_status, u32 tx_status
 
 	num_of_logic_ch=card->u.aft.num_of_time_slots;
 
-#ifdef WANPIPE_PERFORMANCE_DEBUG
-	if (rx_status) {
-		AFT_PERF_STAT_INC(card,isr,fifo_rx);
-	}
-
-	if (tx_status) {
-		AFT_PERF_STAT_INC(card,isr,fifo_tx);
-	}
-#endif
-
 	if (!tx_status && !rx_status) {
 		return irq_handled;
 	}
 
 	/* At this point we know that fifo interrupt is real */
 	irq_handled=1;
+
+	if (rx_status) {
+		card->wp_rx_fifo_sanity++;
+#ifdef WANPIPE_PERFORMANCE_DEBUG
+		AFT_PERF_STAT_INC(card,isr,fifo_rx);
+#endif
+	}
+
+	if (tx_status) {
+		card->wp_tx_fifo_sanity++;
+#ifdef WANPIPE_PERFORMANCE_DEBUG
+		AFT_PERF_STAT_INC(card,isr,fifo_tx);
+#endif
+	}
 
 	if (!wan_test_bit(0,&card->u.aft.comm_enabled)){
 		if (tx_status){
@@ -6313,7 +6337,13 @@ if (serial_reg) {
 		card->wandev.stats.rx_crc_errors++;
 #endif
 
+#if 0
+#warning "Nenad: Unit Testing Code"
+		/* Nenad; Unit Testing code */
+		if (ring_buf_enabled && card->wp_gen_fifo_err==0) {
+#else
 		if (ring_buf_enabled) {
+#endif
 			 /* NC: Bug fix: We must update the reg. Its too dangerous to trust the reg
 			        value that was read at the top of the file. Register could have changed */
 			__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &reg);
@@ -6493,28 +6523,74 @@ if (serial_reg) {
 			aft_critical_shutdown(card);
 		}
 	
-        } else if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID &&
-	           card->wandev.state == WAN_CONNECTED &&
-	           SYSTEM_TICKS-card->u.aft.sec_chk_cnt > HZ) {
-		
-		u32 lcfg_reg;
-
+	} else if (card->wandev.state == WAN_CONNECTED &&
+	           SYSTEM_TICKS-card->u.aft.sec_chk_cnt > (HZ/50)) {
+	
 		card->u.aft.sec_chk_cnt=SYSTEM_TICKS;
-		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_LINE_CFG_REG), &lcfg_reg);
-		card->u.aft.lcfg_reg=lcfg_reg;
-		if (wan_test_bit(AFT_LCFG_TX_FE_SYNC_STAT_BIT,&lcfg_reg) ||
-			wan_test_bit(AFT_LCFG_RX_FE_SYNC_STAT_BIT,&lcfg_reg)){	
-			if (++card->u.aft.chip_security_cnt > AFT_MAX_CHIP_SECURITY_CNT){
-				DEBUG_EVENT("%s: Critical: A108 Lost Sync with Front End: Disabling Driver (0x%08X : A108S=0x%08X)!\n",
-							card->devname,lcfg_reg,a108_reg);
-				DEBUG_EVENT("%s: Please call Sangoma Tech Support (www.sangoma.com)!\n",
-							card->devname);
-			
-				aft_critical_shutdown(card);
+
+		if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
+			u32 lcfg_reg;
+			__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_LINE_CFG_REG), &lcfg_reg);
+			card->u.aft.lcfg_reg=lcfg_reg;
+	
+			if (wan_test_bit(AFT_LCFG_TX_FE_SYNC_STAT_BIT,&lcfg_reg) ||
+				wan_test_bit(AFT_LCFG_RX_FE_SYNC_STAT_BIT,&lcfg_reg)){	
+				if (++card->u.aft.chip_security_cnt > AFT_MAX_CHIP_SECURITY_CNT){
+					DEBUG_EVENT("%s: Critical: A108 Lost Sync with Front End: Disabling Driver (0x%08X : A108S=0x%08X)!\n",
+								card->devname,lcfg_reg,a108_reg);
+					DEBUG_EVENT("%s: Please call Sangoma Tech Support (www.sangoma.com)!\n",
+								card->devname);
+				
+					aft_critical_shutdown(card);
+				}
+			} else {
+				card->u.aft.chip_security_cnt=0;
+	
+				if (wan_test_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status)) {
+					u32 sync_cnt = aft_lcfg_get_fe_sync_cnt(lcfg_reg);
+					if (sync_cnt) {
+						DEBUG_EVENT("%s: Warning: Front End Lost Synchronization (sync_cnt=%i)\n",
+								card->devname,sync_cnt);
+					
+						aft_lcfg_set_fe_sync_cnt(&lcfg_reg,0);
+						__sdla_bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), lcfg_reg);
+						__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &lcfg_reg);
+						card->u.aft.lcfg_reg=lcfg_reg;
+	
+						if (!wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)) {
+							if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)){
+								wan_set_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+								WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+							}
+						}
+					}
+				}
 			}
-		} else {
-			card->u.aft.chip_security_cnt=0;
 		}
+
+#if 0
+#warning "Nenad: Unit Testing Code"
+		/* Nenad: Unit testing code */
+		if (card->wp_rx_fifo_sanity ||  card->wp_tx_fifo_sanity) {
+			DEBUG_EVENT("%s: Warning: Excessive Fifo Errors: Resync (rx=%i/tx=%i) (max=%i slots=%i)  \n",
+				card->devname, card->wp_rx_fifo_sanity,card->wp_tx_fifo_sanity, WP_RX_TX_FIFO_SANITY,card->u.aft.num_of_time_slots);
+		}
+#else
+
+		if (card->wp_rx_fifo_sanity > WP_RX_TX_FIFO_SANITY || card->wp_tx_fifo_sanity > WP_RX_TX_FIFO_SANITY) {
+			DEBUG_EVENT("%s: Warning: Excessive Fifo Errors: Resync (rx=%i/tx=%i)\n",
+				card->devname, card->wp_rx_fifo_sanity,card->wp_tx_fifo_sanity);
+			if (!wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)) {
+				if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)){
+					wan_set_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+					WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+				}
+			}
+		}
+#endif
+		card->wp_rx_fifo_sanity=0;
+		card->wp_tx_fifo_sanity=0;
+
 	} else {
 		card->u.aft.chip_security_cnt=0;
 	}		
@@ -7360,6 +7436,16 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			memset(&chan->errstats,0,sizeof(aft_comm_err_stats_t));
 			memset(&card->wandev.stats,0,sizeof(card->wandev.stats));
 			wan_udp_pkt->wan_udp_data_len=0;
+
+#if 0
+/* FE_SYNC_CNT Debugging code to be taken out */
+{
+u32 reg;
+			card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+			aft_lcfg_set_fe_sync_cnt(&reg,1);
+			card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
+}
+#endif
 			break;
 
 		case WANPIPEMON_CHAN_SEQ_DEBUGGING:
@@ -7539,6 +7625,11 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			wan_udp_pkt->wan_udp_return_code = 0;
 
 #ifdef AFT_FIFO_GEN_DEBUG
+			card->wp_gen_fifo_err=1;
+#endif
+#if 0
+#warning "Nenad: Unit Test"
+			/* Nenad: Unit Testing */
 			card->wp_gen_fifo_err=1;
 #endif
 			break;
@@ -7726,6 +7817,28 @@ static void callback_front_end_state(void *card_id)
 	return;
 }
 
+
+static void callback_front_end_reset(void *card_id)
+{
+	sdla_t		*card = (sdla_t*)card_id;
+
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
+		return;
+	}
+
+	if (wan_test_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status)) {
+		return;
+	}
+
+	DEBUG_EVENT("%s: Warning: Front End Lost Synchronization\n",
+			card->devname);
+ 
+	/* Call the poll task to update the state */
+	if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)){
+		wan_set_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+		WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+	}
+}
 
 /*============================================================
  * handle_front_end_state
@@ -8201,13 +8314,17 @@ static void enable_data_error_intr(sdla_t *card)
 	}
 
 	if (card->u.aft.global_tdm_irq){
-		card->hw_iface.bus_read_4(card->hw,
-				AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+		card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
 		wan_set_bit(AFT_LCFG_TDMV_INTR_BIT,&reg);
-		card->hw_iface.bus_write_4(card->hw,
-				AFT_PORT_REG(card, AFT_LINE_CFG_REG), reg);
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_LINE_CFG_REG), reg);
 	}
-	
+
+	if (wan_test_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status)) {
+		card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+		aft_lcfg_set_fe_sync_cnt(&reg,0);
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
+	}
+
 	for (i=0; i<card->u.aft.num_of_time_slots;i++){
 		private_area_t *chan;
 
@@ -8548,19 +8665,7 @@ static void disable_data_error_intr(sdla_t *card, unsigned char event)
 		card->fe_no_intr=1;
 		__aft_fe_intr_ctrl(card, 0);
 
-	} else 	if (IS_TE1_CARD(card) && event == LINK_DOWN){
-		/* Only on Link down start zaptel timing watchdog interrupt.
-                   Zaptel timing only applies to T1/E1 cards, all other cards 
-		   do not disable DMA on link down */
-		if (card->u.aft.global_tdm_irq){
-			DEBUG_EVENT("%s: Starting TDMV 1ms Timer\n",
-					card->devname);
-			
-#ifdef AFT_WDT_ENABLE			
-			aft_wdt_set(card,1);
-#endif
-		}
-	} 
+	}
 
 	wan_clear_bit(0,&card->u.aft.comm_enabled);
 }
@@ -8679,6 +8784,7 @@ static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 
 static void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 {
+
 #ifdef AFT_FIFO_GEN_DEBUG
 	if (card->wp_gen_fifo_err) {
 		DEBUG_EVENT("%s: TX FIFO ERROR\n", card->devname);
@@ -11209,9 +11315,14 @@ static void aft_port_task (void * card_ptr, int arg)
 
 	if (wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)){
 
+#if 0
+#warning "Nenad: Unit Testing Code"
+		/* Nenad: Unit testing code */
+		card->wp_gen_fifo_err=0;
+#endif
 		if (IS_BRI_CARD(card)) {
 
-			DEBUG_EVENT("%s: BRI IRQ Restart\n",
+			DEBUG_EVENT("%s: AFT BRI Sync Restart\n",
                                        card->devname);
 
 			card->hw_iface.hw_lock(card->hw,&smp_flags);
@@ -11219,38 +11330,29 @@ static void aft_port_task (void * card_ptr, int arg)
 			wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 			wan_clear_bit(0,&card->u.aft.comm_enabled);
 			enable_data_error_intr(card);
+			wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
 			wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
 
 			card->hw_iface.hw_unlock(card->hw,&smp_flags);
 
 		} else if (card->fe.fe_status == FE_CONNECTED) {
 
-			DEBUG_EVENT("%s: TDM IRQ Restart\n",
+			DEBUG_EVENT("%s: AFT Sync Restart\n",
 							card->devname);
 
 			card->hw_iface.hw_lock(card->hw,&smp_flags);
-
 			wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
-			card->fe.fe_status = FE_DISCONNECTED;
-			handle_front_end_state(card);
-
-			/* BRI has special behaviour, we need to make sure
-		  	 * that restart will trigger interrupts */
-			wan_clear_bit(0,&card->u.aft.comm_enabled);
-
-			card->fe.fe_status = FE_CONNECTED;
-			handle_front_end_state(card);
+			/* Purposely leave comm_enabled flag set so that
+   			   enable_data_error_intr will restart comms */
+			enable_data_error_intr(card);
+			wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
 			wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
-
 			card->hw_iface.hw_unlock(card->hw,&smp_flags);
-	    
+
 			aft_handle_clock_master(card);
 
 		}
-		
-		wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
-		wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
-		wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
+
 	}
 
 
@@ -11259,7 +11361,7 @@ static void aft_port_task (void * card_ptr, int arg)
 		netskb_t *skb;
 
 		wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
-		wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+		wan_clear_bit(AFT_RTP_TAP_Q,&card->u.aft.port_task_cmd);
 		wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
 
 		while ((skb=wan_skb_dequeue(&card->u.aft.rtp_tap_list))) { 

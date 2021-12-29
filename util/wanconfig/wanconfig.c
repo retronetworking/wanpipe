@@ -298,6 +298,7 @@ static int wanconfig_hwec(chan_def_t *def);
 static int wanconfig_hwec_config(char *devname);
 static int wanconfig_hwec_release(char *devname);
 static int wanconfig_hwec_enable(char *devname, char *ifname, char *);
+static int wanconfig_hwec_bypass(char *devname, chan_def_t *def, int enable);
 static int wanconfig_hwec_modify(char *devname, chan_def_t *def);
 static int wanconfig_hwec_dtmf_enable(char *devname, char *ifname, char *);
 #endif
@@ -5213,6 +5214,48 @@ unsigned int get_active_channels(int channel_flag, int start_channel, int stop_c
 	return tmp;
 }
 
+
+int get_active_channels_str(unsigned int chan_map, int start_channel, int stop_channel, char* chans_str)
+{
+	int i;
+	unsigned char enabled = 0;
+	unsigned char  first_chan = 0;
+	unsigned char last_chan = 0;
+	int str_len = 0;
+	
+	for(i = start_channel; i <= stop_channel; i++) {
+		if (chan_map & (1 <<( i-1))) {
+			if (!enabled) {
+				enabled = 1;
+				if (str_len > 0) {
+					str_len += sprintf(&chans_str[str_len], ".");
+				}
+				first_chan = i;
+			}
+			if (last_chan < i) {
+				last_chan = i;
+			}
+		} else {
+			if (enabled) {
+				enabled = 0;
+				if (last_chan > first_chan) {
+					str_len += sprintf(&chans_str[str_len], "%d-%d", first_chan, last_chan);
+				} else {
+					str_len += sprintf(&chans_str[str_len], "%d", first_chan);
+				}
+			}
+		}
+	}
+	if (enabled) {
+		if (last_chan > first_chan) {
+			str_len += sprintf(&chans_str[str_len], "%d-%d", first_chan, last_chan);
+		} else {
+			str_len += sprintf(&chans_str[str_len], "%d", first_chan);
+		}
+	}
+	return 0;
+}
+
 #if defined(WAN_HWEC)	
 
 
@@ -5241,6 +5284,20 @@ static int wanconfig_hwec(chan_def_t *def)
 	if ((err = wanconfig_hwec_enable(linkdef->name, def->name, def->active_ch))){
 		wanconfig_hwec_release(linkdef->name);
 		return err;
+	}
+
+	 if (linkdef->config_id == WANCONFIG_AFT_ISDN_BRI ||
+		linkdef->linkconf->hwec_conf.persist_disable) {
+		
+		if ((err = wanconfig_hwec_bypass(linkdef->name, def, 0))){
+			wanconfig_hwec_release(linkdef->name);
+			return err;
+		}
+	} else {
+		if ((err = wanconfig_hwec_bypass(linkdef->name, def, 1))){
+			wanconfig_hwec_release(linkdef->name);
+			return err;
+		}
 	}
 
 	if ((err = wanconfig_hwec_modify(linkdef->name, def))){
@@ -5365,6 +5422,48 @@ static int wanconfig_hwec_modify(char *devname, chan_def_t *def)
 		return -EINVAL;
 	}
 	if (conf_string) free(conf_string);
+	return 0;
+}
+
+
+static int wanconfig_hwec_bypass(char *devname, chan_def_t *def, int enable)
+{
+	int	status;
+	char	cmd[50];
+	
+
+	if (strcasecmp(def->active_ch, "all") == 0){
+		char chan_str [20];
+		unsigned int tdmv_dchan_map = def->link->linkconf->tdmv_conf.dchan;
+		memset(chan_str, 0, sizeof(chan_str));
+
+		if (tdmv_dchan_map) {
+			if (def->link->linkconf->fe_cfg.media == WAN_MEDIA_T1) {
+				get_active_channels_str(~tdmv_dchan_map, 1, 24, chan_str);
+			} else {
+				get_active_channels_str(~tdmv_dchan_map, 1, 31, chan_str);
+			}
+			snprintf(cmd, 50, "wan_ec_client %s %s %s",
+						devname, (enable)?"be":"bd", chan_str);
+		} else {
+			snprintf(cmd, 50, "wan_ec_client %s %s all",
+						devname, (enable)?"be":"bd");
+		}
+	}else{
+		snprintf(cmd, 50, "wan_ec_client %s %s %s",
+					devname, 
+					(enable)?"be":"bd",
+					def->active_ch);
+	}
+	
+	status = system(cmd);
+	if (WEXITSTATUS(status) != 0){
+		fprintf(stderr,"--> Error: system command: %s\n",cmd);
+		fprintf(stderr,
+		"wanconfig: Failed to Bypass enable EC device %s (err=%d)!\n",
+				devname,WEXITSTATUS(status));
+		return -EINVAL;
+	}
 	return 0;
 }
 

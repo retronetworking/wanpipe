@@ -676,8 +676,7 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, int verbose)
 				(pcm_law_type == cOCT6100_PCM_U_LAW) ?
 						"MULAW":"ALAW");
 
-	DEBUG_EVENT("%s: Opening HW Echo Canceller (NoiseRed=%s)\n",
-			ec->name,card->hwec_conf.noise_reduction?"On":"Off");
+
 
 
 	for(channel = 0; channel < ec->max_channels; channel++){
@@ -736,6 +735,11 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, int verbose)
 		} else {
 			EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
 		}
+
+		DEBUG_EVENT("%s: Opening HW Echo Canceller (NoiseRed=%s VQE=%i)\n",
+			ec->name,(EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction == TRUE)?"On":"Off",
+			EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay);  
+
 
 		EchoChannelOpen.VqeConfig.ulComfortNoiseMode	= 
 					cOCT6100_COMFORT_NOISE_NORMAL;

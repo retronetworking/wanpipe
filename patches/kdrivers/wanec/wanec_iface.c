@@ -429,16 +429,23 @@ static int wanec_reset(wan_ec_dev_t *ec_dev, int reset)
 static int wanec_enable(void *pcard, int enable, int fe_chan)
 {
 	sdla_t		*card = (sdla_t*)pcard;
-	wan_ec_dev_t	*ec_dev = NULL;
+	wan_ec_t	*ec = NULL;
+	wan_ec_dev_t *ec_dev = NULL;
 	int err;
 
-	ec_dev = 
 #if defined(__WINDOWS__)
-		card->ec_dev_ptr;
+	ec_dev = card->ec_dev_ptr;
 #else
-		wanec_search(card->devname);
+	ec_dev = card->wandev.ec_dev;
 #endif
+
 	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+
+	if (ec->state != WAN_EC_STATE_CHIP_OPEN){
+   		return -EINVAL; 		
+	}
 
 #if defined(WANEC_BYDEFAULT_NORMAL)
 	WAN_ASSERT(ec_dev->ec == NULL);
@@ -970,7 +977,9 @@ int wanec_api_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
 		if (ec->pEcDevMap){
 			ec->pEcDevMap[ec_chan] = NULL;
 		}
+		wanec_bypass(ec_dev, fe_chan, 0, 0);
 	}
+
 	ec_dev->state = WAN_EC_STATE_RESET;
 	if (ec_dev_tmp){
 		/* EC device is still in used */
