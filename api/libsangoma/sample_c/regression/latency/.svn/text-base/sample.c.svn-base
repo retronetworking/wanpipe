@@ -89,6 +89,10 @@ typedef struct {
 	int    elapsed_max;
 	int    elapsed_min;
 
+	unsigned char rx_sync;
+	unsigned char tx_sync;
+	struct timeval tv_sync_start;
+
 	wanpipe_chan_stats_t stats;
 }sangoma_channel_t;
 
@@ -244,12 +248,30 @@ int read_data(sangoma_channel_t *schan)
 		sangoma_tdm_write_rbs(dev_fd, &tdm_api, schan->chan, schan->rx_rbs_bits);
 	}
 
+	if (schan->tx_sync && !schan->rx_sync) {
+		int i;
+		for (i=0;i<Rx_lgth;i++) {
+    		if (rx_el->data[i]==tx_data) {
+				struct timeval last;
+				int elapsed;
+				gettimeofday(&last, NULL);
+				elapsed = abs((((last.tv_sec * 1000) + last.tv_usec / 1000) - ((schan->tv_sync_start.tv_sec * 1000) + schan->tv_sync_start.tv_usec / 1000)));
+
+
+				printf("wanpipe%d: Rx Sync Time %i ms Data=0x%X\n", 
+						schan->span, elapsed, tx_data);
+            	schan->rx_sync=1;
+				break;
+			}
+		}
+	}
+
 	/* if user needs Rx data to be written into a file: */
 	if(files_used & RX_FILE_USED){
 		write_data_to_file(schan, rx_el->data, Rx_lgth);
 	}
 
-	return 0;
+	return Rx_lgth;
 }
 
 /*!
@@ -329,12 +351,22 @@ int handle_data(sangoma_channel_t *schan)
 #endif
 
 	if(api_poll_status & POLLIN){
-
-		if(read_data(schan) == 0){
-
+		int err;
+               
+		err = read_data(schan);
+		if(err > 0) {
 			if(rx2tx){
 				/* Send back received data (create a "software loopback"), just a test. */
-				int err=write_data(schan, &rx_el->hdr, rx_el->data);
+				if (tx_data) {
+					memset(rx_el->data, tx_data, err);
+				}
+				if (!schan->tx_sync) {
+					schan->tx_sync=1;
+					sangoma_flush_bufs(schan->sangoma_wait_object.fd,&tdm_api);
+					sangoma_flush_stats(schan->sangoma_wait_object.fd,&tdm_api);
+					gettimeofday(&schan->tv_sync_start, NULL);
+				}
+				err=write_data(schan, &rx_el->hdr, rx_el->data);
 				if (err) {
 					return err;
 				}
@@ -342,6 +374,7 @@ int handle_data(sangoma_channel_t *schan)
 		}
 	}
 
+#if 0
 	if((api_poll_status & POLLOUT) && write_enable){
 
 		int err;
@@ -363,12 +396,20 @@ int handle_data(sangoma_channel_t *schan)
 			}
 		}
 
+		if (!schan->tx_sync) {
+			schan->tx_sync=1;
+			sangoma_flush_bufs(schan->sangoma_wait_object.fd,&tdm_api);
+			sangoma_flush_stats(schan->sangoma_wait_object.fd,&tdm_api);
+			gettimeofday(&schan->tv_sync_start, NULL);
+		}
+
 		err=write_data(schan, api_tx_hdr, tx_el->data);
 		if (err != 0) {
 			return err;
 		}
 
 	}/* if() */
+#endif
 	return 0;
 }
 
@@ -691,8 +732,12 @@ static void *handle_span_chan(void *obj)
 		if (flush_period &&
 			schan->loop_cnt % flush_period == 0) {
 			printf("%s: Flushing Buffers\n",schan->name);
-			sangoma_flush_bufs(schan->sangoma_wait_object.fd,&tdm_api);
-			sangoma_get_print_stats(schan);
+			//sangoma_flush_bufs(schan->sangoma_wait_object.fd,&tdm_api);
+			tdm_api.wp_cmd.cmd = WP_API_CMD_GEN_FIFO_ERR;
+			sangoma_cmd_exec(schan->sangoma_wait_object.fd,&tdm_api);
+			schan->tx_sync=0;
+			schan->rx_sync=0;
+			//sangoma_get_print_stats(schan);
 		} 
 
 	}/* for() */

@@ -2968,6 +2968,7 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 	case AFT_2SERIAL_RS232_SUBSYS_VENDOR:
 	case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
 	case AFT_A600_SUBSYS_VENDOR:
+	case A700_SHARK_SUBSYS_VENDOR:
 		sdla_pcibridge_detect(hwcard);
 		break;
 	}	

@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.5.1
+%define version           3.5.2
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -254,6 +254,12 @@ install_init;
 
 
 %changelog
+
+* Fri May 08 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.5.2
+===================================================================
+
+- B700 PCIe cards were being desplayed as PCI cards in hwprobe
+- Bug fix in wancfg_zaptel 
 
 * Thu May 07 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.5.1
 ===================================================================

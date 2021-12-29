@@ -355,7 +355,7 @@ if ($os_type_list =~ m/FreeBSD/ && $zaptel_dahdi_installed==$TRUE) {
 	update_zaptel_cfg_script();
 }
 
-if( $zaptel_installed==$TRUE && $os_type_list =~ m/Linux/ ) {
+if( $zaptel_installed==$TRUE && $os_type_list =~ m/Linux/ && $is_fs == $FALSE) {
 	set_zaptel_hwhdlc();
 }
 
@@ -376,11 +376,13 @@ if ($os_type_list =~ m/FreeBSD/){
 	config_boot_freebsd();
 } else {
 	config_boot_linux();
-	config_smg_ctrl_boot();	
 }
 
 config_ztcfg_start();
 config_smg_ctrl_start();
+if($os_type_list =~ m/Linux/){
+config_smg_ctrl_boot();
+}
 clean_files();
 print "Sangoma cards configuration complete, exiting...\n\n";
 
@@ -3411,7 +3413,7 @@ sub config_smg_ctrl_boot {
 	if($silent==$FALSE){
 		print ("Would you like $script_name to start on system boot?\n");
 		$res= &prompt_user_list("YES","NO","");
-		if($res=='NO'){
+		if($res eq "NO"){
 			return;
 		}
 	}

@@ -21,23 +21,23 @@ svn:wc:ra_dav:version-url
 V 97
 /svn/wanpipe/!svn/ver/7323/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/uninstall.sh
 END
-boostspan.pm
-K 25
-svn:wc:ra_dav:version-url
-V 97
-/svn/wanpipe/!svn/ver/7535/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/boostspan.pm
-END
 setup-sangoma
 K 25
 svn:wc:ra_dav:version-url
 V 98
 /svn/wanpipe/!svn/ver/7323/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/setup-sangoma
 END
-wancfg_zaptel
+boostspan.pm
 K 25
 svn:wc:ra_dav:version-url
-V 98
-/svn/wanpipe/!svn/ver/7323/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/wancfg_zaptel
+V 97
+/svn/wanpipe/!svn/ver/7535/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/boostspan.pm
+END
+A10x.pm
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/svn/wanpipe/!svn/ver/7635/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/A10x.pm
 END
 Card.pm
 K 25
@@ -45,11 +45,11 @@ svn:wc:ra_dav:version-url
 V 92
 /svn/wanpipe/!svn/ver/7608/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/Card.pm
 END
-A10x.pm
+wancfg_zaptel
 K 25
 svn:wc:ra_dav:version-url
-V 92
-/svn/wanpipe/!svn/ver/7635/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/A10x.pm
+V 98
+/svn/wanpipe/!svn/ver/7323/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/wancfg_zaptel
 END
 A20x.pm
 K 25
@@ -81,17 +81,17 @@ svn:wc:ra_dav:version-url
 V 94
 /svn/wanpipe/!svn/ver/7535/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/wancfg_fs
 END
+wancfg_zaptel.pl
+K 25
+svn:wc:ra_dav:version-url
+V 101
+/svn/wanpipe/!svn/ver/7682/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/wancfg_zaptel.pl
+END
 wancfg_dahdi
 K 25
 svn:wc:ra_dav:version-url
 V 97
 /svn/wanpipe/!svn/ver/7323/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/wancfg_dahdi
-END
-wancfg_zaptel.pl
-K 25
-svn:wc:ra_dav:version-url
-V 101
-/svn/wanpipe/!svn/ver/7669/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/wancfg_zaptel.pl
 END
 analogspan.pm
 K 25

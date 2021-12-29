@@ -1058,7 +1058,7 @@ int _SAPI_CALL sangoma_get_full_cfg(sng_fd_t fd, wanpipe_api_t *tdm_api)
 		return err;
 	}
 
-#if 1
+#if 0
 	printf("TDM API CFG:\n");
 	printf("\thw_tdm_coding:\t%d\n",tdm_api->wp_cmd.hw_tdm_coding);
 	printf("\thw_mtu_mru:\t%d\n",tdm_api->wp_cmd.hw_mtu_mru);
