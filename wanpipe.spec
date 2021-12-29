@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.1
+%define VERSION           7.0.2
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -258,6 +258,23 @@ fi
 ################################################################################
 
 %changelog
+
+* Fri May 10 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.2
+==================================================================
+
+- Added sync error statistic in wanpipeomon Ta command
+  Sync error indicates clocking or synchronizatio errors
+  on T1/E1 lines.  Provides added statistic to debug line,
+  slip errors on T1/E1.
+
+- Fixed DAHDI reconfiguration issues.
+  running dahdi_cfg multiple times will not bring down T1/E1 link
+  Added config option to change clocking from MASTER to NORMAL
+  from dahdi system.conf
+
+- New sample_data_tapping sample application for T116 and other
+  tapping boards.
+
 
 * Tue Mar 19 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.1
 ==================================================================

@@ -6961,8 +6961,9 @@ static void t116_error_counter_check(sdla_t *card)
 	}
 
 	if (wan_test_and_clear_bit(AFT_LCFG_T116_FE_RX_SYNC, &dump)){
-		err++;
+		WAN_PMON_SYNC_ERROR(card);
 		DEBUG_ERROR("%s: Error: T116 Lost Sync\n",card->devname);
+		err++;
 	}	
 
 	if (err) {
@@ -7714,6 +7715,7 @@ global_irq_skip:
 					card->u.aft.lcfg_reg=lcfg_reg;
 					
 					disable_data_error_intr(card,LINK_DOWN);
+					WAN_PMON_SYNC_ERROR(card);
 					
 					if (!wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)) {
 						DEBUG_ERROR("%s: Warning: Front End Lost Synchronization (sync_cnt=%i,c=%i,f=%i)\n",

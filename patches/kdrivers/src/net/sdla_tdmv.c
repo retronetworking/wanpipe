@@ -1690,6 +1690,7 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 	sdla_t		*card = NULL;
 	int		err = 0;
 	wan_smp_flag_t smp_flags;
+	int 	need_reconfig=0;
 
 	WAN_ASSERT2(span == NULL, -ENODEV);
 
@@ -1697,8 +1698,20 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 	WAN_ASSERT2(wp == NULL, -ENODEV);
 
 	card = (sdla_t*)wp->card;
-	DEBUG_EVENT("%s: DAHDI Configuring span device..\n", wp->devname);
+	DEBUG_EVENT("%s: DAHDI Configuring device [name=%s, span=%i, sync=%i, lcfg=0x%X,]\n", 
+			wp->devname,lc->name, lc->span,lc->sync,lc->lineconfig);
 
+	if (lc->sync == 0) {
+		if (WAN_TE1_CLK(&card->fe) != WAN_MASTER_CLK) {
+			WAN_TE1_CLK(&card->fe) = WAN_MASTER_CLK;
+			need_reconfig=1;	
+		}
+	} else {
+		if (WAN_TE1_CLK(&card->fe) != WAN_NORMAL_CLK) {
+			WAN_TE1_CLK(&card->fe) = WAN_NORMAL_CLK;
+			need_reconfig=1;		
+		}
+	}
 
 	if (!wp->ise1) {
 		if (lc->lineconfig & ZT_CONFIG_B8ZS) {
@@ -1725,7 +1738,10 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
             return -EINVAL;
 		}
 
-		WAN_TE1_LBO(&card->fe) =  lc->lbo+WAN_T1_0_133;
+		if (WAN_TE1_LBO(&card->fe) != (lc->lbo+WAN_T1_0_133)) {
+			WAN_TE1_LBO(&card->fe) =  lc->lbo+WAN_T1_0_133;
+			need_reconfig=1;
+		}
 
 	} else {
 		if (lc->lineconfig & ZT_CONFIG_HDB3){
@@ -1743,35 +1759,52 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
             wp->frame = WAN_FR_CRC4;
         } 
 
-		card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CAS;
 		if (lc->lineconfig & ZT_CONFIG_CCS) {
 			span->lineconfig |= ZT_CONFIG_CCS;
-			card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CCS;
+
+			if (card->fe.fe_cfg.cfg.te_cfg.sig_mode != WAN_TE1_SIG_CCS) {
+				card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CCS;
+				need_reconfig=1;
+			}
+		} else {
+			if (card->fe.fe_cfg.cfg.te_cfg.sig_mode != WAN_TE1_SIG_CAS) {
+				need_reconfig=1;
+				card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CAS;
+			}
         } 
 
 		WAN_TE1_LBO(&card->fe) = WAN_E1_120; 
 	}
-	
-	WAN_FE_LCODE(&card->fe) = wp->lcode;
-    WAN_FE_FRAME(&card->fe) =  wp->frame;
-		
 
-	if (card->wandev.fe_iface.config && 
-		card->wandev.fe_iface.unconfig &&
-		card->wandev.fe_iface.reconfig) {
+	if (WAN_FE_LCODE(&card->fe) != wp->lcode ||
+        WAN_FE_FRAME(&card->fe) != wp->frame) {
 
-		card->hw_iface.hw_lock(card->hw,&smp_flags);
-		card->wandev.fe_iface.unconfig(&card->fe);
-		card->hw_iface.hw_unlock(card->hw,&smp_flags);
+		WAN_FE_LCODE(&card->fe) = wp->lcode;
+		WAN_FE_FRAME(&card->fe) =  wp->frame;
+		need_reconfig=1;
+	}
 
-		card->wandev.fe_iface.post_unconfig(&card->fe);
 
-		card->hw_iface.hw_lock(card->hw,&smp_flags);
-		card->wandev.fe_iface.config(&card->fe);
-		card->wandev.fe_iface.reconfig(&card->fe);
-		card->hw_iface.hw_unlock(card->hw,&smp_flags);
+	if (need_reconfig) { 
+		if (card->wandev.fe_iface.config && 
+			card->wandev.fe_iface.unconfig &&
+			card->wandev.fe_iface.reconfig) {
 
-		card->wandev.fe_iface.post_init(&card->fe);
+			card->hw_iface.hw_lock(card->hw,&smp_flags);
+			card->wandev.fe_iface.unconfig(&card->fe);
+			card->hw_iface.hw_unlock(card->hw,&smp_flags);
+
+			card->wandev.fe_iface.post_unconfig(&card->fe);
+
+			card->hw_iface.hw_lock(card->hw,&smp_flags);
+			card->wandev.fe_iface.config(&card->fe);
+			card->wandev.fe_iface.reconfig(&card->fe);
+			card->hw_iface.hw_unlock(card->hw,&smp_flags);
+
+			card->wandev.fe_iface.post_init(&card->fe);
+		}
+	} else {
+		DEBUG_EVENT("%s: Wanpipe front end skipped, no changes in config\n", wp->devname);
 	}
 		
 	span->txlevel = 0;

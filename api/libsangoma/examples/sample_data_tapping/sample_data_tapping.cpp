@@ -3,8 +3,9 @@
 // sample_data_tapping.cpp : Defines the entry point for the console application.
 //
 
+#include <ctime>
 #include <iostream>
-#include "SangomaCard.h"
+#include "Sangoma/SangomaCard.h"
 
 #ifndef __WINDOWS__
 # include <stdio.h>
@@ -15,6 +16,7 @@
 int _kbhit(void);
 #endif
 
+#include "libsangoma.h"
 
 using namespace Sangoma;
 
@@ -33,7 +35,6 @@ bool gRunning = false;	///< Flag which is true if the sample program is currentl
 std::vector<SangomaCard*> sangoma_cards;			//stores all the cards in the system
 std::vector<SangomaPort*> sangoma_ports;			//stores ALL the ports in the system
 std::vector<SangomaPort*> sangoma_ports_bank2;		//stores ALL the ports in the system
-std::vector<unsigned int> next_framing_type_index;	//for each port store the index of the next framing type to open the port with
 
 #define DBG_MAIN	if(0)printf
 #define INFO_MAIN	if(1)printf
@@ -43,9 +44,9 @@ std::vector<unsigned int> next_framing_type_index;	//for each port store the ind
 #define FUNC_MAIN()	if(1)printf("%s():line:%d\n", __FUNCTION__, __LINE__)
 
 //SETUP FOR DETERMING PORT CONFIGURATION
-const unsigned int NUMBER_OF_E1_FRAME_TYPES = 6;
+const unsigned int NUMBER_OF_E1_FRAME_TYPES = 2;
 const unsigned int NUMBER_OF_T1_FRAME_TYPES = 2;
-const FramingType E1_TYPES[NUMBER_OF_E1_FRAME_TYPES] = {E1_CCS_CRC4_ON, E1_CCS_CRC4_OFF, E1_CAS_CRC4_ON, E1_CAS_CRC4_OFF, E1_CCS_UNFRAMED, E1_CAS_UNFRAMED};
+const FramingType E1_TYPES[NUMBER_OF_E1_FRAME_TYPES] = {E1_CCS_CRC4_ON, E1_CCS_CRC4_OFF};
 const FramingType T1_TYPES[NUMBER_OF_T1_FRAME_TYPES] = {T1_EXTENDED_SUPERFRAME, T1_SUPERFRAME};	
 
 static int iForcedLineType = -1;//< When greater than zero, will disable "Line Discovery" and configure for Line Type specified on command line.
@@ -166,9 +167,9 @@ Example 4: sample_data_tapping a108 -e1_cas_crc4 -tx_file c:\\tmp\\test_file.pcm
 			printf(USAGE_STR);
 			return 1;
 		}else if(wp_strncasecmp(argv[i], "T1",  strlen(argv[i])) == 0){
-			configuration.e1Ort1 = T1;
+			configuration.E1OrT1 = T1;
 		}else if(wp_strncasecmp(argv[i], "E1", strlen(argv[i])) == 0){
-			configuration.e1Ort1 = E1;
+			configuration.E1OrT1 = E1;
 		}else if(wp_strncasecmp(argv[i], "a104",  strlen(argv[i])) == 0){
 			*model = A104;
 			*number_of_ports_per_card = NUMBER_OF_A104_PORTS;
@@ -213,13 +214,13 @@ Example 4: sample_data_tapping a108 -e1_cas_crc4 -tx_file c:\\tmp\\test_file.pcm
 				return 1;
 			}
 			buffer_settings.BufferMultiplierFactor = atoi(argv[i+1]);
-			if(	buffer_settings.BufferMultiplierFactor < MIN_BUFFER_MULTIPLIER_FACTOR ||
-				buffer_settings.BufferMultiplierFactor > MAX_BUFFER_MULTIPLIER_FACTOR){
+			if(	buffer_settings.BufferMultiplierFactor < BufferSettings::MINIMUM_BUFFER_MULTIPLIER_FACTOR ||
+				buffer_settings.BufferMultiplierFactor > BufferSettings::MAXIMUM_BUFFER_MULTIPLIER_FACTOR){
 				ERR_MAIN("The 'Buffer Multiplier' value of %d is invalid! Minimum is: %d, maximum is: %d! Setting to %d.\n",
 					buffer_settings.BufferMultiplierFactor, 
-					MIN_BUFFER_MULTIPLIER_FACTOR, MAX_BUFFER_MULTIPLIER_FACTOR,
-					MIN_BUFFER_MULTIPLIER_FACTOR);
-				buffer_settings.BufferMultiplierFactor = MIN_BUFFER_MULTIPLIER_FACTOR;
+					BufferSettings::MINIMUM_BUFFER_MULTIPLIER_FACTOR, BufferSettings::MAXIMUM_BUFFER_MULTIPLIER_FACTOR,
+					BufferSettings::MINIMUM_BUFFER_MULTIPLIER_FACTOR);
+				buffer_settings.BufferMultiplierFactor = BufferSettings::MINIMUM_BUFFER_MULTIPLIER_FACTOR;
 				printf(USAGE_STR);
 				return 1;
 			}else{
@@ -253,28 +254,28 @@ Example 4: sample_data_tapping a108 -e1_cas_crc4 -tx_file c:\\tmp\\test_file.pcm
 			rx2tx = 1;
 		}else if(wp_strncasecmp(argv[i], "-e1_cas_crc4", strlen(argv[i])) == 0){
 			iForcedLineType = E1_CAS_CRC4_ON;
-			configuration.e1Ort1 = E1;
+			configuration.E1OrT1 = E1;
 		}else if(wp_strncasecmp(argv[i], "-e1_cas_no_crc", strlen(argv[i])) == 0){
 			iForcedLineType = E1_CAS_CRC4_OFF;
-			configuration.e1Ort1 = E1;
+			configuration.E1OrT1 = E1;
 		}else if(wp_strncasecmp(argv[i], "-e1_ccs_crc4", strlen(argv[i])) == 0){
 			iForcedLineType = E1_CCS_CRC4_ON;
-			configuration.e1Ort1 = E1;
+			configuration.E1OrT1 = E1;
 		}else if(wp_strncasecmp(argv[i], "-e1_ccs_no_crc", strlen(argv[i])) == 0){
 			iForcedLineType = E1_CCS_CRC4_OFF;
-			configuration.e1Ort1 = E1;
+			configuration.E1OrT1 = E1;
 		}else if(wp_strncasecmp(argv[i], "-e1_cas_unframed", strlen(argv[i])) == 0){
 			iForcedLineType = E1_CAS_UNFRAMED;
-			configuration.e1Ort1 = E1;
+			configuration.E1OrT1 = E1;
 		}else if(wp_strncasecmp(argv[i], "-e1_ccs_unframed", strlen(argv[i])) == 0){
 			iForcedLineType = E1_CCS_UNFRAMED;
-			configuration.e1Ort1 = E1;
+			configuration.E1OrT1 = E1;
 		}else if(wp_strncasecmp(argv[i], "-t1_esf", strlen(argv[i])) == 0){
 			iForcedLineType = T1_EXTENDED_SUPERFRAME;
-			configuration.e1Ort1 = T1;
+			configuration.E1OrT1 = T1;
 		}else if(wp_strncasecmp(argv[i], "-t1_sf", strlen(argv[i])) == 0){
 			iForcedLineType = T1_SUPERFRAME;
-			configuration.e1Ort1 = T1;
+			configuration.E1OrT1 = T1;
 		}
 	}//for()
 
@@ -303,7 +304,7 @@ Example 4: sample_data_tapping a108 -e1_cas_crc4 -tx_file c:\\tmp\\test_file.pcm
 	} else {
 		//user wants to tap a line - first must run Line Discovery
 		INFO_MAIN("CardModel: %s, Line Type: %s, HighImpedance: %s, MaxCableLoss: %u, TxTristateMode: %s\n\n", 
-			DECODE_CARD_TYPE(*model), (configuration.e1Ort1 == T1 ? "T1":"E1"),
+			DECODE_CARD_TYPE(*model), (configuration.E1OrT1 == T1 ? "T1":"E1"),
 			(configuration.HighImpedanceMode == true ? "On":"Off"), configuration.MaxCableLoss,
 			(configuration.TxTristateMode == true ? "On":"Off"));
 	}
@@ -354,6 +355,7 @@ bool PortEventHandler(SangomaPort* p_port, unsigned int out_flags)
 	{
 	case ReadDataAvailable:
 		DBG_MAIN("ReadDataAvailable\n");
+		p_port->RxCount++;
 #if 0
 		//As an example of how to access Rx data, print the Rx data:
 		if (p_port->GetPortNumber() == 0) {
@@ -366,17 +368,17 @@ bool PortEventHandler(SangomaPort* p_port, unsigned int out_flags)
 			printf("rx len: %d\n", p_port->GetRxDataLength());
 		}
 #endif
-		p_port->rx_len=p_port->GetRxDataLength();
+        p_port->RxLength=p_port->GetRxDataLength();
 
 		//As an example of how to transmit data, call Write() whith Rx data as input.
-		p_port->rx_discard_counter++;
+        p_port->RxDiscardCounter++;
 		if (rx2tx) {
 			//To avoid blocking receiver when waiting for transmitter,
 			//discard 1-st hundred rx buffers before starting rx2tx 
 			//(it will clear the Tx queue before we start transmitting).
-			if (1 || p_port->rx_discard_counter > 100) {
+			if (1 || p_port->RxDiscardCounter > 100) {
 				p_port->Write(p_port->GetRxDataBuffer(), p_port->GetRxDataLength());
-				if (p_port->rx_discard_counter == 1) {
+				if (p_port->RxDiscardCounter == 1) {
 					p_port->ClearStatistics();
 				}
 			}
@@ -386,7 +388,7 @@ bool PortEventHandler(SangomaPort* p_port, unsigned int out_flags)
 		//DBG_MAIN("LineConnected\n");
 		/// \todo Handle the line connected event
 		//DAVIDR: port is open, line connected --> start handling incoming data.
-		p_port->rx_discard_counter = 0;
+		p_port->RxDiscardCounter = 0;
 		p_port->ClearStatistics();
 		p_port->FlushBuffers();
 		break;
@@ -403,7 +405,7 @@ bool PortEventHandler(SangomaPort* p_port, unsigned int out_flags)
 		//real world it is not changing often. If the LineConnected event not received within
 		//some timeout, it may make sense to close the port and start the Line type discovery.
 		break;
-	case ERROR_NO_DATA_AVILABLE:
+	case ERROR_NO_DATA_AVAILABLE:
 		//FIXME: This condition may occur only during Line Discovery. Since no data can be received from
 		//a disconnected port, this should be treated as a Warning, not an Error. Still, should be debugged in the future.
 		//For now, ignore the warning.
@@ -579,9 +581,6 @@ void* SangomaThreadFunc(void *p_param)
 			if( port_output_flags[port_index] & (~port_input_flags[port_index]) ){
 				WRN_MAIN("\nUnexpected port_output_flags[%d]: 0x%X\n\n", port_index, port_output_flags[port_index]);
 				iResult = SANG_STATUS_IO_ERROR;
-
-				//FIXME Don't assert in production
-				exit(1);
 			}
 		}//for()
 
@@ -595,20 +594,6 @@ void* SangomaThreadFunc(void *p_param)
 	pthread_exit(NULL);
     return NULL;
 #endif
-}
-
-const char *decode_port_sync_status(SynchronizationStatus & status)
-{
-	switch( status )
-	{
-	case PORT_IN_SYNC: 
-		return "PORT_IN_SYNC"; 
-	case PORT_NOT_IN_SYNC:
-		return "PORT_NOT_IN_SYNC"; 
-	case PORT_WAITING_FOR_SYNC:
-		return "PORT_WAITING_FOR_SYNC"; 
-	}
-	return "Unknown sync status";
 }
 
 void load_driver_modules()
@@ -639,18 +624,29 @@ void print_cfg_stats(void *p_param)
 	for(unsigned int port_index = 0; port_index < p_ports->size(); ++port_index)
 	{
 		SangomaPort* p_port = p_ports->at(port_index);		//make a copy of the pointer to make it easier to work with
-		SynchronizationStatus status = p_port->GetSynchronizationStatus();	//retrieve the synchronization status. DAVIDR: requires context switch to kernel-mode, should not be called too often.
+        bool synchronization_achieved = p_port->GetSynchronizationStatus();	//retrieve the synchronization status. DAVIDR: requires context switch to kernel-mode, should not be called too often.
 
-		if (p_port->sync_cnt == 1) {
+		if (p_port->SyncCount == 1) {
 			p_port->GetStatistics();	
 		}
 
 		Statistics stats = p_port->GetStatistics();							//Get the statistics for this port
 
-		INFO_MAIN("Port:%02d(unmapped:%02d):%20s,\tRx Count: %8u\tTx Count: %8u\tErrors: %8u\tRx Len: %i\n",
+        float receiver_level_db;
+        bool receiver_level_retrieved = p_port->GetReceiverLevelInDb(receiver_level_db);
+		INFO_MAIN("Port:%02d(unmapped:%02d):%20s,\tRx Count: %8u\tTx Count: %8u\tErrors: %8u\tRx Len: %i\t",
 			p_port->GetPortNumber(), p_port->GetUnmappedPortNumber(),
-			decode_port_sync_status(status), 
-			stats.BytesReceived, stats.BytesSent,stats.Errors,p_port->rx_len); 
+			(synchronization_achieved ? "synchronized" : "not synchronized"), 
+			stats.BytesReceived, stats.BytesSent,stats.Errors,p_port->RxLength);
+
+        if(receiver_level_retrieved)
+        {
+            printf("Receiver level: %.1fdB\n", receiver_level_db);
+        }
+        else
+        {
+            printf("Receiver level: ERROR (Could not retrieve receiver level)\n");
+        }
 	}
 
 }
@@ -664,14 +660,15 @@ void print_io_stats(void *p_param)
 	for(unsigned int port_index = 0; port_index < p_ports->size(); ++port_index)
 	{
 		SangomaPort* p_port = p_ports->at(port_index);		//make a copy of the pointer to make it easier to work with
-		SynchronizationStatus status = p_port->GetSynchronizationStatus();	//retrieve the synchronization status. DAVIDR: requires context switch to kernel-mode, should not be called too often.
-		Configuration cfg = p_port->GetConfiguration();
+		bool synchronization_achieved = p_port->GetSynchronizationStatus();	//retrieve the synchronization status. DAVIDR: requires context switch to kernel-mode, should not be called too often.
+		Configuration cfg;
+        bool configuration_obtained = p_port->GetConfiguration(cfg);
 
 		INFO_MAIN("Port %d: %20s,\tLineType: %s,\tFraming: %s\n",
 			p_port->GetPortNumber(),
-			decode_port_sync_status(status), 
-			(cfg.e1Ort1 == E1 ? "E1" : "T1"), 
-			DECODE_FRAMING(cfg.Framing));
+			(synchronization_achieved ? "synchronized" : "not synchronized"), 
+			(cfg.E1OrT1 == E1 ? "E1" : "T1"), 
+			configuration_obtained ? (DECODE_FRAMING(cfg.Framing)) : "could not obtain configuration");
 	}
 }
 
@@ -682,22 +679,57 @@ int main_loop_per_port_bank(void *p_param, Configuration & configuration)
 	//DETERMINE EACH PORTS CONFIGURATION
 	for(unsigned int port_index = 0; port_index < p_ports->size(); ++port_index)
 	{
-		//RETRIEVE THE SYNCHRONIZATION STATUS
-		SangomaPort* p_port = p_ports->at(port_index);		//make a copy of the pointer to make it easier to work with
-		SynchronizationStatus status = p_port->GetSynchronizationStatus();	//retrieve the synchronization status. DAVIDR: requires context switch to kernel-mode, should not be called too often.
+        // CHECK WHETHER THE PORT HAS BEEN PREVIOUSLY OPENED.
+        SangomaPort* p_port = p_ports->at(port_index);		//make a copy of the pointer to make it easier to work with
+        time_t port_open_time = p_port->GetStatistics().TimeLastOpened;
+        bool portWasPreviouslyOpened = (port_open_time != 0);
+        if(portWasPreviouslyOpened)
+        {
+            // Check how long it has been since opening the port.
+            time_t current_time;
+            time(&current_time);
+            double seconds_since_opening_port = difftime(current_time, port_open_time);
+            const double SECONDS_REQUIRED_FOR_PORT_SYNCHRONIZATION = 22.0;
+            bool port_has_been_open_long_enough_for_synchronization = (seconds_since_opening_port > SECONDS_REQUIRED_FOR_PORT_SYNCHRONIZATION);
+            if(!port_has_been_open_long_enough_for_synchronization)
+            {
+                // Allow this port to continue attempting synchronization. Move on to the next port.
+                continue;
+            }
+        }
 
-		DBG_MAIN("Port %d: %s\n", port_index, decode_port_sync_status(status)); 
+		//RETRIEVE THE SYNCHRONIZATION STATUS
+		bool synchronization_achieved = p_port->GetSynchronizationStatus();	//retrieve the synchronization status. DAVIDR: requires context switch to kernel-mode, should not be called too often.
+
+		DBG_MAIN("Port %d: %s\n", port_index, (synchronization_achieved ? "synchronized" : "not synchronized")); 
 		//BASED ON THE STATUS DETERMINE WHAT TO DO
-		switch( status )
-		{
-		case PORT_IN_SYNC: 
-			//do nothing here, Read() will be performed in their separate threads
-			break;
-		case PORT_NOT_IN_SYNC:
+
+		if (synchronization_achieved) {
+			if (!p_port->RxCount) {
+				time_t current_time;
+            	time(&current_time);
+				if (p_port->rx_pkt_timeout == 0) {
+					time(&p_port->rx_pkt_timeout);
+				} else {
+					double rx_timeout_in_sec  = difftime(current_time, p_port->rx_pkt_timeout);			
+					if (rx_timeout_in_sec > 5) {
+						synchronization_achieved=0;
+						printf("Error: Connected by no RX - going out of sync");
+					}	
+				}
+			} else {
+				p_port->rx_pkt_timeout=0;
+			}
+		}
+
+		if(!synchronization_achieved)
+        {
+			p_port->rx_pkt_timeout=0;
+			p_port->RxCount=0;
 			if (iForcedLineType != -1)
 			{	//user specified the Line Type - do not attempt to run Line Discovery.
 				if (p_port->GetIsOpen() == false) {
-					configuration.lineCoding = ON;
+					configuration.LineCoding = ON;
 					p_port->Open(configuration);//open the port with FORCED configuration, only a single time.
 
 					if (szTxFileName[0] != '\0') {
@@ -716,28 +748,21 @@ int main_loop_per_port_bank(void *p_param, Configuration & configuration)
 				}
 			} else {
 				//determine the next configuration to try
-				unsigned int next_frame_type = next_framing_type_index.at(port_index);						//retrieve the next frame type to try
-				if(configuration.e1Ort1 == T1){
-					next_framing_type_index.at(port_index) = (next_frame_type + 1) % NUMBER_OF_T1_FRAME_TYPES;	//move the stored index to the frame type to try next time
+				unsigned int next_frame_type = p_port->next_framing_type;						//retrieve the next frame type to try
+				if(configuration.E1OrT1 == T1){
+					p_port->next_framing_type = (next_frame_type + 1) % NUMBER_OF_T1_FRAME_TYPES;	//move the stored index to the frame type to try next time
 					configuration.Framing = T1_TYPES[next_frame_type];
-					configuration.lineCoding = ON;
+					configuration.LineCoding = ON;
 				}else{
-					next_framing_type_index.at(port_index) = (next_frame_type + 1) % NUMBER_OF_E1_FRAME_TYPES;	//move the stored index to the frame type to try next time
+					p_port->next_framing_type = (next_frame_type + 1) % NUMBER_OF_E1_FRAME_TYPES;	//move the stored index to the frame type to try next time
 					configuration.Framing = E1_TYPES[next_frame_type];
-					configuration.lineCoding = ON;
+					configuration.LineCoding = ON;
 				}
 
 				p_port->Close();				//close the port
 				p_port->Open(configuration);	//re-open the port with the new configuration
 			}
-			break;
-		case PORT_WAITING_FOR_SYNC:
-			//do nothing because we are waiting on a configuration to find sync
-			break;
-		default:
-			//error, unknown synchronization status
-			break;
-		} // switch( status )
+        }
 	} // for(unsigned int port_index = 0; port_index < ports.size(); ++port_index)
 
 	return 0;
@@ -920,16 +945,16 @@ int __cdecl main(int argc, char* argv[])
 	CardModel model;
 	unsigned int number_of_ports_per_card = 0;
 	//default line type is T1
-	configuration.e1Ort1 = T1;
+	configuration.E1OrT1 = T1;
 	configuration.HighImpedanceMode = false;
 	configuration.MaxCableLoss = MCLV_12_0dB;//default value for both Hi Impedance and Normal mode
 	configuration.TxTristateMode = false;
 	configuration.Master=0;
 
 
-	buffer_settings.BufferMultiplierFactor = MIN_BUFFER_MULTIPLIER_FACTOR;// go to higher mulitiplier only if CPU usage is high
+	buffer_settings.BufferMultiplierFactor = BufferSettings::MINIMUM_BUFFER_MULTIPLIER_FACTOR;// go to higher mulitiplier only if CPU usage is high
 	//buffer_settings.BufferMultiplierFactor = 7;// go to higher mulitiplier only if CPU usage is high
-	buffer_settings.NumberOfBuffersPerPort = MIN_NUMBER_OF_BUFFERS_PER_API_INTERFACE;
+    buffer_settings.NumberOfBuffersPerPort = BufferSettings::MINIMUM_NUMBER_OF_BUFFERS_PER_API_INTERFACE;
 
 	if(parse_command_line_args(argc, argv, &model, &number_of_ports_per_card, configuration, buffer_settings)){
 		return 1;
@@ -965,13 +990,17 @@ int __cdecl main(int argc, char* argv[])
 		for(unsigned int port_index = 0; port_index < number_of_ports; ++port_index)
 		{
 			total_number_of_ports++;
+#if 0
+			/* NC Debug code */
+			if (total_number_of_ports > 8) {
+				break;
+			}
+#endif
 			if (total_number_of_ports > MAX_HANDLES) {
 				sangoma_ports_bank2.push_back(p_card->GetPort(port_index) );
 			} else {
 				sangoma_ports.push_back(p_card->GetPort(port_index) );
 			}
-			next_framing_type_index.push_back(0);	//Start with the first framing type, this indexes T1/E1_TYPES to find
-													//the frame type to use.
 		}
 	} // for (unsigned int card_number = 0; card_number < number_of_cards; card_number++)
 

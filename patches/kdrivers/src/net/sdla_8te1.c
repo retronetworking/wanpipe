@@ -1984,8 +1984,6 @@ static int sdla_ds_te1_unconfig(void* pfe)
 	DEBUG_EVENT("%s: %s Front End unconfigation!\n",
 				fe->name, FE_MEDIA_DECODE(fe));	
 
-	sdla_ds_te1_set_alarms(fe,WAN_TE_BIT_ALARM_AIS);
-		
 	/* FIXME: Alex to disable interrupts here */
 	sdla_ds_te1_disable_irq(fe);
 	
@@ -4784,8 +4782,18 @@ static int sdla_ds_te1_pmon(sdla_fe_t *fe, int action)
 					WAN_TE_BIT_PMON_CRC4 |
 					WAN_TE_BIT_PMON_FAS |
 					WAN_TE_BIT_PMON_FEB;
-			pmon->crc4_diff = pmon2;
-			pmon->crc4_errors = pmon->crc4_errors + pmon2;
+			if (fe->fe_chip_id == DEVICE_ID_DS26519) {
+				if (WAN_FE_FRAME(fe) == WAN_FR_CRC4){
+					pmon->crc4_diff = pmon2;
+					pmon->crc4_errors = pmon->crc4_errors + pmon2;
+				} else {
+					pmon->crc4_diff = 0;
+					pmon->crc4_errors = 0;
+				}
+			} else {
+					pmon->crc4_diff = pmon2;
+					pmon->crc4_errors = pmon->crc4_errors + pmon2;
+			}
 			pmon->fas_diff = pmon3;
 			pmon->fas_errors = pmon->fas_errors + pmon3;
 			pmon->feb_diff = pmon4;

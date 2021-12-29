@@ -475,7 +475,14 @@ typedef struct {
 	u_int16_t	feb_diff;
 	u_int32_t	fer_errors;	/* Framing bit errors (T1) */
 	u_int16_t	fer_diff;
+	u_int32_t	sync_errors;
 } sdla_te_pmon_t;
+
+#define WAN_PMON_SYNC_ERROR(card) do { \
+									sdla_te_pmon_t	*pmon; \
+									pmon = &card->fe.fe_stats.te_pmon; \
+									pmon->sync_errors++; \
+								  } while (0);
 
 #define WAN_TE_RXLEVEL_LEN	20
 typedef struct {

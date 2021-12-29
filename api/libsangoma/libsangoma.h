@@ -2270,6 +2270,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_global_chip_statistics(sng_fd_t f
 sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_chip_image_info(sng_fd_t fd,
 			int *hwec_api_return_code, wanec_chip_image_t *wanec_chip_image, int verbose);
 
+#ifdef WP_API_FEATURE_LIBSNG_HWEC_DTMF_REMOVAL
 /*!
   \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_set_hwdtmf_removal(sng_fd_t fd, unsigned int fe_chan,
 		int *hwec_api_return_code, int enable)
@@ -2292,6 +2293,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_chip_image_info(sng_fd_t fd,
 sangoma_status_t _LIBSNG_CALL sangoma_hwec_set_hwdtmf_removal(sng_fd_t fd, unsigned int fe_chan,
 		int *hwec_api_return_code, int enable, int verbose);
 #endif /* WP_API_FEATURE_LIBSNG_HWEC */
+#endif
 
 
 

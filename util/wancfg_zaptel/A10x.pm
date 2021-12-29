@@ -443,6 +443,11 @@ sub gen_wanpipe_conf{
 	$wp_file =~ s/RXSLEVEL/$rx_slevel/g;
     $wp_file =~ s/FELBO/$fe_lbo/g;
 
+	if ($fe_lcode eq "AMI" && $fe_frame eq "D4" ){
+		print "Setting DCHAN $dchan to zero\n";
+		$dchan=0;
+	}
+
 	if($self->is_data_api eq '0') {
     	$wp_file =~ s/TDMVDCHAN/0/g;
 		$hw_dtmf="NO";

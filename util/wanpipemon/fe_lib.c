@@ -1277,6 +1277,8 @@ void read_te1_56k_stat(unsigned char force)
 			printf("FAS Errors\t\t: %d\n",
 						pmon->fas_errors);
 		}
+		printf("Sync Errors\t\t: %d\n",
+						pmon->sync_errors);
 	}
 
 	if (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){
