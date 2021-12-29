@@ -43,6 +43,7 @@
 #endif       
 
 
+
 //#define DEBUG 1
 
 enum  e_mtp2_daed_rx_states
@@ -74,6 +75,7 @@ typedef struct wp_mtp1_link{
 	char name[100];
 	
 	u8  state_daedr;
+	u8  prev_state_daedr;
 	u32 r_total_octet_count;
 	u32 r_su_accepted;
 	u32 r_su_rejected;
@@ -170,6 +172,7 @@ static __inline int su_accept(wp_mtp1_link_t *p_lnk, int err_code)
 		}
 		return err;
 	}
+	
 
 	if (p_lnk->reg.trace && err_code == 0) {
 		p_lnk->reg.trace(p_lnk->reg.priv_ptr, &p_lnk->rx_buf[0], p_lnk->rx_buf_len-2, 1);
@@ -215,6 +218,8 @@ static void octet_count_inc (wp_mtp1_link_t * p_lnk)
 static void octet_count_start (wp_mtp1_link_t * p_lnk)
 		/******************************************************************************/
 {
+
+#if 0
 	if (p_lnk->r_octet_counting_mode)
 	{
 #ifdef DEBUG
@@ -222,8 +227,11 @@ static void octet_count_start (wp_mtp1_link_t * p_lnk)
 #endif
 		//putchar ('.');
 		octet_count_inc (p_lnk);
+		p_lnk->state_daedr = DAEDRX_0;
 	}
 	else
+#endif
+
 	{
 #ifdef DEBUG
 		DEBUG_EVENT("START OCTET COUNTING MODE\n");
@@ -241,6 +249,14 @@ static void rx_bit_to_su (wp_mtp1_link_t * p_lnk, u8 bit)
 {
 	uint16_t crc;
 	uint8_t	su_bit;
+
+#ifdef DEBUG
+		if (p_lnk->prev_state_daedr != p_lnk->state_daedr) {
+			DEBUG_EVENT("%s: Old State %i New State = %i\n",
+					p_lnk->name,p_lnk->prev_state_daedr,p_lnk->state_daedr);
+			p_lnk->prev_state_daedr = p_lnk->state_daedr;
+		}
+#endif
 
 	switch (p_lnk->state_daedr)
 	{
@@ -722,7 +738,7 @@ int daed_tx (wp_mtp1_link_t * mtp1_link, u8* buf, int len, u16 *crc)
 /*===============================================
   PUBLIC FUNCTIONS
   ==============================================*/
-
+static int mtp1_gcnt=0;
 void *wp_mtp1_register(wp_mtp1_reg_t *reg)
 {
 	wp_mtp1_link_t *mtp1_link;
@@ -754,6 +770,8 @@ void *wp_mtp1_register(wp_mtp1_reg_t *reg)
 	wan_skb_queue_init(&mtp1_link->tx_list);
 
 	memset(mtp1_link->tbs.idle_buf,0x7E,sizeof(mtp1_link->tbs.idle_buf));
+
+	sprintf(mtp1_link->name,"mtp1-%i",++mtp1_gcnt);
 	
 	return mtp1_link;
 }
@@ -794,6 +812,24 @@ int wp_mtp1_rx_handler(void *mtp1, u8 *data, int len)
 	}
 	
 	return err;	
+}
+
+int wp_mtp1_reset(void *mtp1)
+{
+	wp_mtp1_link_t *mtp1_link = (wp_mtp1_link_t*)mtp1;
+	mtp1_link->state_daedr = INIT;
+	return 0;
+}
+
+int wp_mtp1_tx_check(void *mtp1)
+{
+	wp_mtp1_link_t *mtp1_link = (wp_mtp1_link_t*)mtp1;
+	
+	if (wan_skb_queue_len(&mtp1_link->tbs.tx_q) > WP_MTP1_MAX_TX_Q) {
+		return 1;
+	}
+	
+	return 0;
 }
 
 int wp_mtp1_tx_data(void *mtp1, netskb_t *skb, wp_api_hdr_t *hdr, netskb_t *rskb)
@@ -916,7 +952,7 @@ int wp_mtp1_tx_bh_handler(void *mtp1, u8 *data, int mtu)
 			crc = wan_skb_csum(skb);
 			daed_tx(mtp1_link, wan_skb_data(skb), wan_skb_len(skb), &crc);
 			wan_skb_queue_tail(&p_lnk->tbs.tx_q_dealloc,skb);
-			if (wan_skb_queue_len(&p_lnk->tbs.tx_q) < WP_MTP1_MAX_TX_Q/2) {
+			if (wan_skb_queue_len(&p_lnk->tbs.tx_q) < WP_MTP1_MAX_TX_Q) {
 				p_lnk->reg.wakeup(p_lnk->reg.priv_ptr);	
 			}
 		} else if (wan_skb_queue_len(&p_lnk->tbs.tx_r_q)) {

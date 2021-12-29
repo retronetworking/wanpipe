@@ -34,6 +34,7 @@ sub new	{
 		_mtu_mru => undef,
 		_old_a10u => undef,
 		_smg_sig_mode => '1',
+		_hw_port_map_mode => 'DEFAULT',
 	};			
 	bless $self, $class;
     	return $self;
@@ -179,6 +180,12 @@ sub rx_slevel {
 	            my ( $self, $rx_slevel ) = @_;
 		                    $self->{_rx_slevel} = $rx_slevel if defined($rx_slevel);
 				                        return $self->{_rx_slevel};
+}
+
+sub hw_port_map_mode {
+	my ( $self, $hw_port_map_mode ) = @_;
+	$self->{_hw_port_map_mode} = $hw_port_map_mode if defined($hw_port_map_mode);
+	return $self->{_hw_port_map_mode};
 }
 
 
@@ -338,6 +345,7 @@ sub gen_wanpipe_conf{
 	my $te_sig_mode_line='';
 	my $card_model = $self->card->card_model;
 	my $rx_slevel= $self->rx_slevel;
+	my $hw_port_map_mode = $self->hw_port_map_mode;
 	if ($ss7_option == 1){
 	        $wanpipe_conf_template = $self->card->current_dir."/templates/ss7_a100/wanpipe.ss7.4";
 	} elsif ($ss7_option == 2){
@@ -369,10 +377,6 @@ sub gen_wanpipe_conf{
 				$dchan=16;
 			}
 		}
-	}
-	if($card_model eq '601'){
-		#601 doesn't have hardware HDLC support
-		$dchan = '0';
 	}
 
    	if($self->fe_media eq 'T1'){
@@ -424,7 +428,11 @@ sub gen_wanpipe_conf{
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
     $wp_file =~ s/HWECMODE/$hwec_mode/g;
     $wp_file =~ s/HWDTMF/$hw_dtmf/g;
-		
+	if($card_model eq '108'){
+		$wp_file =~ s/HWRJ45PORTMAP/$hw_port_map_mode/g;
+	} else {
+		$wp_file =~ s/HWRJ45PORTMAP/DEFAULT/g;
+	}
     $wp_file =~ s/HWFAX/$hw_fax/g;
 	$wp_file =~ s/MTUSIZE/$mtu_size/g;
 	       
@@ -445,10 +453,6 @@ sub gen_zaptel_conf{
 	my $dahdi_echo = $self->card->dahdi_echo;
 	my $card_model = $self->card->card_model;
 			
-	if($card_model eq '601'){
-		#601 doesn't have hardware HDLC support
-		$dchan_str = 'dchan';
-	}	
 
     if ( $self->fe_lcode eq 'B8ZS' ){
 		$zap_lcode='b8zs';

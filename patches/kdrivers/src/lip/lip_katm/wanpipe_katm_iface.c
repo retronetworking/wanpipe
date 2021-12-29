@@ -127,10 +127,14 @@ void *wp_register_katm_prot(void *link_ptr,
 	
 	wpabs_memcpy(&atm_link->cfg,cfg_ptr,sizeof(atm_link->cfg));
 	
-	atm_link->dev_list_lock=RW_LOCK_UNLOCKED;
+	wan_rwlock_init(&atm_link->dev_list_lock);
 	
 	/* INITIALIZE THE PROTOCOL HERE */
+#ifdef MODULE_ALIAS_NETDEV
+	atmdev = atm_dev_register(devname, NULL, &ops, -1, NULL);
+#else
 	atmdev = atm_dev_register(devname, &ops, -1, NULL);
+#endif
 	if (atmdev == NULL) {
 		wpabs_debug_event("%s: couldn't register atm device!\n", devname);
 		wpabs_free(atm_link);

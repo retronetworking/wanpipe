@@ -76,6 +76,7 @@ static int app_end=0;
 static int gerr=0;
 static int verbose=0;
 static int timeout=0;
+static int err_limit=4;
 pthread_mutex_t g_lock;
 
 void *process_con_tx(void *obj); 
@@ -89,7 +90,9 @@ static int log_printf(char *fmt, ...)
 	struct tm now;
 	time_t epoch;
 
-	if (!verbose) {
+	if (verbose < 0) {
+		/* Continue through */
+	} else if (!verbose) {
      		return 0;
 	}
 	
@@ -889,6 +892,12 @@ int main (int argc, char* argv[])
 			log_printf("Timeout = %i\n",timeout);
 			continue;
 		}
+		if (strcmp(argv[x+1], "-err_limit") == 0) {
+			x++;
+         	err_limit=atoi(argv[x+1]);
+			log_printf("Error Limit = %i\n",err_limit);
+			continue;
+		}
 
 		sangoma_span_chan_fromif(argv[x+1],&span,&chan);
 		if (span > 0 && span <= 32 && chan > 0 && chan < 32) {
@@ -939,6 +948,12 @@ int main (int argc, char* argv[])
 		}
 	}
 
+#if 0
+	if (verbose < 0) {
+		verbose=0;
+	}
+#endif
+
 	if (gerr==0) {
  		process_con_rx();
 		app_end=1;
@@ -946,6 +961,7 @@ int main (int argc, char* argv[])
      	app_end=1;
 		sleep(1);
 	}
+
 
 	while(1) {
 		active_check=0;
@@ -969,6 +985,7 @@ int main (int argc, char* argv[])
     printf("\nProduction Test Results\n");
 	for (x=0;x<MAX_NUM_OF_TIMESLOTS;x++){
 		timeslot_t *slot;
+		char str_status[100];
 		slot=&tslot_array[x];
 
        	if (slot->active) { 
@@ -983,17 +1000,23 @@ int main (int argc, char* argv[])
                  	gerr++;
 					status++;
 				}
-				if (wanpipe_get_rx_hdlc_errors(slot->hdlc_eng) > 4) {
+				if (wanpipe_get_rx_hdlc_errors(slot->hdlc_eng) >= err_limit) {
                  	gerr++;
 					status++;
 				}
 
-				if (slot->stats.errors > 4) {
+				if (slot->stats.errors >= err_limit) {
                  	gerr++;
 					status++;
 				}
+
+				if (status) {
+					sprintf(str_status,"failed");
+				} else {
+					sprintf(str_status,"passed");
+				}
 				
-				printf("|name=%-05s|span=%02i|chan=%02i|rx_frm=%04i|rx_hdlc_pkt=%04i|hdlc_err=%04i|h_c=%04i|h_a=%04i|h_f=%04i|drv_err=%04i|d_fifo=%04i|status=%s|",
+				printf("|name=%-05s|span=%02i|chan=%02i|rx_frm=%04i|rx_hdlc_pkt=%04i|hdlc_err=%04i|h_c=%04i|h_a=%04i|h_f=%04i|drv_err=%04i|d_fifo=%04i|status=%s|\n",
 					slot->if_name,
 					slot->span,slot->chan,
 					slot->frames, 
@@ -1004,7 +1027,7 @@ int main (int argc, char* argv[])
 					slot->hdlc_eng->decoder.stats.frame_overflow,
 					slot->stats.errors,
 					slot->stats.rx_fifo_errors,
-					status?"failed":"passed");
+					str_status);
 
 				if (slot->stats.errors) {
 					print_stats(slot);

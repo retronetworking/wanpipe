@@ -1288,8 +1288,9 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 		card->hw_iface.bus_write_4(card->hw, ctrl_ram_reg, reg);
 	}
 
+	/* Only start the watchdog timer 
+	 * when link comes up */
 	aft_wdt_reset(card);
-	aft_wdt_set(card,AFT_WDTCTRL_TIMEOUT);
 
 	AFT_FUNC_DEBUG();
 

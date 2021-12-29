@@ -101,7 +101,7 @@ void sigint(int sig) {
 
 inline void init() {
 	if_count=0;
-	delay=500;
+	delay=1000;
 #if EXTENDED_STATS	
 	avg_length=0;
 #endif

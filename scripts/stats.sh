@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 CMD=none
 token=overrun

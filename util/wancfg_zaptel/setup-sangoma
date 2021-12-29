@@ -9,8 +9,8 @@ if [ ! -z $1 ]; then
 		echo "Invalid option $1 "
 	fi
 else
-	#./wancfg_zaptel.pl --trixbox
-	wancfg_dahdi
+	./wancfg_zaptel.pl --trixbox
+	#wancfg_dahdi
 fi
 
 

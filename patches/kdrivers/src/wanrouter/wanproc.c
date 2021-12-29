@@ -270,7 +270,7 @@ static struct file_operations config_fops = {
 	.open	 = config_open,
 	.read	 = seq_read,
 	.llseek	 = seq_lseek,
-	.release = seq_release,
+	.release = single_release,
 };
 
 static struct file_operations status_fops = {
@@ -278,7 +278,7 @@ static struct file_operations status_fops = {
 	.open	 = status_open,
 	.read	 = seq_read,
 	.llseek	 = seq_lseek,
-	.release = seq_release,
+	.release = single_release,
 };
 
 static int wandev_open(struct inode *inode, struct file *file)

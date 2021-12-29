@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.23
+%define VERSION           3.5.24
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -207,6 +207,10 @@ fi
 # install start scripts
 rm -f /etc/init.d/wanrouter
 ln -s /usr/sbin/wanrouter /etc/init.d/wanrouter
+
+\cp -f /etc/wanpipe/wancfg_zaptel/setup-sangoma /usr/local/sbin/setup-sangoma
+chmod 755 /usr/local/sbin/setup-sangoma
+
 chkconfig --add wanrouter
 
 # we're done...print a happy message
@@ -254,6 +258,20 @@ fi
 ################################################################################
 
 %changelog
+
+* Tue Nov 15 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.24
+==================================================================
+
+- Bug fixes in Setup
+- Bug fixes in wancfg_dahdi
+- Updated scripts for Debian/Ubuntu
+- Added MTP1 msu/lssu filter option
+- New LINEAR mapping of A108 ports for use with T3Mux
+- Updates and fixes to MTP1 engine
+- Fix for potential memory leak in proc file system
+- Fix for analog dma sync on 64bit kernels 
+- Dahdi BRI fix: wakeup of powered down line
+- Fixed RPM spec for trixbox
 
 * Wed Sep 07 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.23
 ==================================================================

@@ -360,7 +360,7 @@ typedef struct aft_driver_port_task_stats {
 	unsigned long rbs;
 }aft_driver_port_task_stats_t;
 
-#define MAX_SMA_IDX 255
+#define MAX_SMA_IDX 3
 typedef struct aft_driver_timing {
 	unsigned long			max_latency;
 	unsigned long			min_latency;

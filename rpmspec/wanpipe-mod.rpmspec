@@ -1,12 +1,9 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.5.23
+%define version           3.5.24
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
-%define USR_INCLUDE_DIR   /usr/include
-
-%define KVERSION          %{?kern_ver}
  
 
 Summary: 	Sangoma WANPIPE package for Linux. It contains the WANPIPE kernel drivers.  Please install wanpipe-util package for wanpipe utilties and configuration files.
@@ -14,7 +11,7 @@ Name: 		%{name}-%{?kern_ver}
 Version: 	%{version}
 Release: 	%{release}
 License: 	GPL
-Group: 		Applications/Communications
+Group: 		Applications/Communicatios
 Vendor:		Sangoma Technologies Inc.
 Url:		www.sangoma.com
 Group:		Networking/WAN
@@ -41,15 +38,40 @@ echo "Uninstalling WANPIPE..."
 %post
 
 #check dependancies for the new modules
-depmod -ae -F /boot/System.map-%{KVERSION} %{KVERSION}
-echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"   
+depmod -a >> /dev/null 2>> /dev/null
+
+modprobe wanrouter
+if [ $? -eq 0 ]; then
+	echo "Wanpipe kernel modules installed successfully"
+	modprobe -r wanrouter 2>> /dev/null
+else
+	echo "Failed to load Wanpipe modules!"
+	echo
+	echo "Make sure you are installing correct RPMS for you system!"
+	echo
+	echo "Otherwise call Sangoma Tech Support"
+fi
+
 
 %files
 %{MODULES_DIR}
-%{USR_INCLUDE_DIR}
 
 
 %changelog
+
+* Tue Nov 15 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.24
+==================================================================
+
+- Bug fixes in Setup
+- Bug fixes in wancfg_dahdi
+- Updated scripts for Debian/Ubuntu
+- Added MTP1 msu/lssu filter option
+- New LINEAR mapping of A108 ports for use with T3Mux
+- Updates and fixes to MTP1 engine
+- Fix for potential memory leak in proc file system
+- Fix for analog dma sync on 64bit kernels 
+- Dahdi BRI fix: wakeup of powered down line
+- Fixed RPM spec for trixbox
 
 * Wed Sep 07 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.23
 ==================================================================

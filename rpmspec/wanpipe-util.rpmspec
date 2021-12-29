@@ -1,11 +1,8 @@
-%define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.5.23
+%define version           3.5.24
 %define release           0
 %define	serial	 	  1
-%define ETC_DIR 	  /etc
-%define USR_DIR 	  /usr
 %define UTILS_DIR 	  /usr/sbin
 %define PROD_HOME  	  /etc/wanpipe
 %define WANCFG_LIBS_DIR   /etc/wanpipe/wancfg/lib
@@ -17,11 +14,10 @@
 %define WAN_INTR_DIR      %{PROD_HOME}/interfaces
 %define WAN_CONF_DIR      %{PROD_HOME}
 %define PROD_CONF         %{WAN_CONF_DIR}/wanpipe1.conf
-%define LIBSANGOMA_CONF   /etc/ld.so.conf.d/libsangoma.so.conf
-#%define START_SCRIPT      S07%{PROD}
-#%define OLD_START         S07router
-#%define STOP_SCRIPT       K10%{PROD}
-#%define OLD_STOP          K10router
+%define START_SCRIPT      S07%{PROD}
+%define OLD_START         S07router
+%define STOP_SCRIPT       K10%{PROD}
+%define OLD_STOP          K10router
 %define ROUTER_RC         %{META_CONF}
 %define WANROUTER_STARTUP_SMPL    %{PROD_HOME}/samples/wanrouter
 %define WANROUTER_STARTUP         /usr/sbin/wanrouter
@@ -65,13 +61,6 @@ echo "Uninstalling WANPIPE..."
 # ----------------------------------------------------------------------------
 remove_init()
 {
-        chkconfig --del wanrouter
-        rm /etc/init.d/wanrouter
-}
-
-remove_init_old()
-{
-
         # Examine system bootstrap files.
         if [ -d /etc/rc0.d ]
         then RC_DIR=/etc
@@ -178,93 +167,6 @@ ENDOFTEXT
 # ----------------------------------------------------------------------------
 install_init()
 {
-        ln -s /usr/sbin/wanrouter /etc/init.d/wanrouter
-        chkconfig --add wanrouter
-	chkconfig wanrouter on
-}
-
-# ----------------------------------------------------------------------------
-# Enable MGD and BRI  log for A500-BRI
-# ----------------------------------------------------------------------------
-enable_smg_log()
-{
-if [ -e  /etc/syslog.conf ]; then
-        eval "grep "local2.*sangoma_mgd" /etc/syslog.conf" > /dev/null 2> /dev/null
-        if [ $? -ne 0 ]; then
-                eval "grep "local2" /etc/syslog.conf " > /dev/null 2> /dev/null
-                if [ $? -eq 0 ]; then
-                        echo
-                        echo "Warning : local2 is already used in syslog.conf"
-                        echo
-                fi
-                echo -e "\n# Sangoma Media Gateway log" > tmp.$$
-                echo -e "local2.*                /var/log/sangoma_mgd.log\n" >> tmp.$$
-                eval "cat /etc/syslog.conf tmp.$$ > tmp1.$$"
-                \cp -f tmp1.$$ /etc/syslog.conf
-                eval "/etc/init.d/syslog restart" > /dev/null 2>/dev/null
-        fi
-        eval "grep "local3.*sangoma_bri" /etc/syslog.conf" > /dev/null 2> /dev/null
-        if [ $? -ne 0 ]; then
-                eval "grep "local3" /etc/syslog.conf " > /dev/null 2> /dev/null
-                if [ $? -eq 0 ]; then
-                        echo
-                        echo "Warning : local3 is already used in syslog.conf"
-                        echo
-                fi
-                echo -e "\n# Sangoma BRI Daemon (smg_bri)  log" > tmp.$$
-                echo -e "local3.*                /var/log/sangoma_bri.log\n" >> tmp.$$
-                eval "cat /etc/syslog.conf tmp.$$ > tmp1.$$"
-                \cp -f tmp1.$$ /etc/syslog.conf
-                eval "/etc/init.d/syslog restart" > /dev/null 2> /dev/null
-        fi
-else
-        echo "Warning: /etc/syslog.conf not found"
-fi
-
-if [ -f tmp1.$$ ]; then
-        rm -f  tmp1.$$
-fi
-if [ -f tmp.$$ ]; then
-        rm -f  tmp.$$
-fi
-
-echo "Ok"
-echo
-
-echo "Checking logrotate ..."
-eval "type logrotate" > /dev/null 2> /dev/null
-if [ $? -ne 0 ]; then
-        echo "Error: Logrotate not found !"
-fi
-
-if [ -e /etc/logrotate.d ] && [ -e /etc/logrotate.d/syslog ]; then
-
-        eval "grep sangoma_mgd /etc/logrotate.d/syslog" > /dev/null 2> /dev/null
-        if [ $? -ne 0 ]; then
-                eval "sed -e 's/messages/messages \/var\/log\/sangoma_mgd.log/' /etc/logrotate.d/syslog >tmp2.$$ 2>/dev/null"
-                eval "cp -f tmp2.$$ /etc/logrotate.d/syslog"
-                eval "logrotate -f /etc/logrotate.d/syslog"
-                if [ $? -ne 0 ]; then
-                        echo "Error: logrotate restart failed!";
-                        exit 1;
-                fi
-                echo "Logrotate is being changed and restarted!"
-        else
-                echo "Logrotate is configured!"
-        fi
-
-else
-        echo "Error: Logrotate dir: /etc/logrotate.d not found !"
-fi
-echo "OK."
-echo
-
-}
-
-
-
-install_init_old()
-{
 	#Examine system bootstrap files.
         if [ -d /etc/rc0.d ]
         then RC_DIR=/etc
@@ -315,18 +217,31 @@ EOM
 install_init;
 #create wanrouter.rc in /etc/wanpipe
 #create_metaconf;
-enable_smg_log;
+\cp -f /etc/wanpipe/wancfg_zaptel/setup-sangoma /usr/local/sbin/setup-sangoma
+chmod 755 /usr/local/sbin/setup-sangoma
+
 
 
 %files
-%{ETC_DIR}
-%{USR_DIR}
-%{UTILS_DIR}
-%{PROD_HOME}
-%{DOCS_DIR}
+/etc
+/usr
 
 
 %changelog
+
+* Tue Nov 15 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.24
+==================================================================
+
+- Bug fixes in Setup
+- Bug fixes in wancfg_dahdi
+- Updated scripts for Debian/Ubuntu
+- Added MTP1 msu/lssu filter option
+- New LINEAR mapping of A108 ports for use with T3Mux
+- Updates and fixes to MTP1 engine
+- Fix for potential memory leak in proc file system
+- Fix for analog dma sync on 64bit kernels 
+- Dahdi BRI fix: wakeup of powered down line
+- Fixed RPM spec for trixbox
 
 * Wed Sep 07 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.23
 ==================================================================

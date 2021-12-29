@@ -18,7 +18,7 @@
 
 #include <linux/wanpipe_lip_atm_iface.h>
 
-#define WPIFNAMSIZ 20
+#define WPWAN_IFNAME_SZ 20
 
 /* RWM Added #defines to limit speed to T1 rates / connections */
 /* This will have to increase for E1, specifically the CELL_RATE */
@@ -46,8 +46,8 @@ typedef struct _katm_
 	unsigned char			type;
 	wplip_prot_reg_t		reg;
 	wan_atm_conf_if_t		cfg;
-	unsigned char 			name[WPIFNAMSIZ+1];
-	unsigned char 			hwdevname[WPIFNAMSIZ+1];
+	unsigned char 			name[WPWAN_IFNAME_SZ+1];
+	unsigned char 			hwdevname[WPWAN_IFNAME_SZ+1];
 	int				state;
 	
 	/* INSERT PROTOCOL SPECIFIC VARIABLES HERE */
@@ -102,7 +102,7 @@ typedef struct wp_katm_channel
      ***********************************************/
     ulong			      tx_cellrate; /* Requested Transmission data rate (CBR only) */
     
-    char name[WPIFNAMSIZ+1];
+    char name[WPWAN_IFNAME_SZ+1];
     
     /* Link back to the wp_katm_t device */
     wp_katm_t *atm_link;

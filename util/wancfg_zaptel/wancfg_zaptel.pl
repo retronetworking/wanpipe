@@ -108,6 +108,7 @@ my $module_unload="";
 my $os_type_name="";
 my $dchan_str="dchan";
 my $have_update_rc_d = 0;
+my $modules_loaded="";
 
 my $os_type_list=`sysctl -a 2>/dev/null |grep ostype`;
 if ($os_type_list =~ m/Linux/){
@@ -117,6 +118,7 @@ if ($os_type_list =~ m/Linux/){
 	$module_load="modprobe";
 	$module_unload="modprobe -r";
 	$module_list="lsmod";
+	$modules_loaded="lsmod";
 	$include_dir="/usr/include";
 }elsif ($os_type_list =~ m/FreeBSD/){
 	$os_type_name="FreeBSD";
@@ -125,6 +127,7 @@ if ($os_type_list =~ m/Linux/){
 	$module_load="kldload";
 	$module_unload="kldunload";
 	$module_list="kldstat";
+	$modules_loaded="kldstat";
 }else{
 	print("Failed to determine OS type\n");
 	print("Exiting...\n");
@@ -204,6 +207,7 @@ my $bri_trunk_type='';
 
 my $def_femedia='';
 my $def_feclock='';
+my $def_hw_port_map='DEFAULT';
 my $def_bri_option='';
 my $def_bri_default_tei='';
 my $def_bri_default_tei_opt=$FALSE;
@@ -290,10 +294,13 @@ my $current_run_level=3;
 my $zaptel_start_level=9;
 my $fs_conf_dir="/usr/local/freeswitch/conf";
 
+my $is_dahdi=$FALSE;
+my $is_zaptel=$FALSE;
+
 my $tdm_api_span_num=0;
 my $zaptel_installed=$FALSE;
 my $dahdi_installed=$FALSE;
-my $modprobe_list=`$module_list`;
+my $modprobe_list=`$modules_loaded`;
 my $is_ss7_xmpt2_only = $FALSE;
 my $zaptel_dahdi_installed=$FALSE;
 my $dahdi_echo='mg2';
@@ -324,8 +331,33 @@ unless ( -d $curdircfg ) {
 
 my $debug_info_file="$current_dir/$cfg_dir/debug_info";
 my @hwprobe=`wanrouter hwprobe verbose`;
-check_dahdi();
 check_zaptel();
+check_dahdi();
+
+if ($is_dahdi == $TRUE) {
+	if( $dahdi_installed==$FALSE ) {
+		print("Warning: Dahdi modules not found: Wanpipe not build for DAHDI\n");
+		if ( $zaptel_installed == $TRUE ) {
+			print("Warning: Zaptel modules found - configuring for Zaptel!\n");
+		} else {
+			print("Error: Dahdi and/or Zaptel modules not found! Please install DAHDI and compile Wanpipe for DAHDI!\n");
+			exit(1);
+		}
+	} 
+}
+
+if ($is_zaptel == $TRUE) {
+	if( $zaptel_installed==$FALSE ) {
+		print("Warning: Zaptel modules not found: Wanpipe not build for Zaptel\n");
+		if ( $dahdi_installed==$TRUE ) {
+			print("Warning: Dahdi modules found - configuring for Dahdi!\n");
+		} else {
+			print("Error: Dahdi and/or Zaptel modules not found! Please install Zaptel and compile Wanpipe for Zaptel!\n");
+			exit(1);
+		}
+	}
+}
+
 
 my $wanpipe_conf_dir="$etc_dir/wanpipe";
 my $asterisk_conf_dir="$etc_dir/asterisk";
@@ -794,6 +826,9 @@ sub check_zaptel{
 
 	if ((system("$module_list | grep zaptel > /dev/null 2>  /dev/null")) == 0){
 		$zaptel_installed=$TRUE;
+		$dahdi_installed=$FALSE;
+	} else {
+		$zaptel_installed=$FALSE;
 	}
 }
 
@@ -802,6 +837,9 @@ sub check_dahdi
 	
 	if ((system("$module_list | grep dahdi > /dev/null 2>  /dev/null")) == 0){
 		$dahdi_installed=$TRUE;
+		$zaptel_installed=$FALSE;
+	} else {
+		$dahdi_installed=$FALSE;
 	}
 }
 
@@ -1735,6 +1773,11 @@ sub read_args {
 		$_ = $ARGV[$arg_num];
 		if( /^--trixbox$/){
 			$is_trixbox=$TRUE;
+			$is_dahdi=$TRUE;
+		}elsif ( /^--dahdi/){
+			$is_dahdi=$TRUE;
+		}elsif ( /^--zaptel/){
+			$is_zaptel=$TRUE;
 		}elsif ( /^--install_boot_script/){
                         $boot_only=$TRUE;
 		}elsif ( /^--tdm_api/){
@@ -2134,7 +2177,7 @@ sub config_bri{
 				$card->pci_slot($3);
 				$card->pci_bus($4);
 				
-				if($dahdi_installed == $TRUE && $is_smg == $FALSE ) {
+				if($dahdi_installed == $TRUE && $is_smg == $FALSE && $is_tdm_api == $FALSE) {
 					$card->dahdi_conf('YES');
 					$card->dahdi_echo($dahdi_echo)
 				}
@@ -2956,6 +2999,14 @@ skip_card:
 					$def_te_ref_clock=&get_te_ref_clock(@device_normal_clocks);
 					$a10x->te_ref_clock($def_te_ref_clock);
 				}
+			     
+				if ($card->card_model eq '108') {
+					my @options = ("DEFAULT", "LINEAR");
+					printf ("Select A108 RJ45 HW Port Mapping Mode\n  DEFAULT [1,5] [2,6] [3,7] [4,8]\n  LINEAR  [1,2] [3,4] [5,6] [7,8] \n  Select LINEAR when connecting A108 to T3Mux\n\n");
+					$def_hw_port_map=&prompt_user_list(@options, $def_hw_port_map);
+					$a10x->hw_port_map_mode($def_hw_port_map);
+				}
+
 				my @options="";	
 				if ($is_smg==$TRUE && $zaptel_dahdi_installed==$TRUE){
 					if($a10x->old_a10u eq 'NO'){

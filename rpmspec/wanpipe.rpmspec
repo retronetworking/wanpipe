@@ -1,18 +1,14 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.5.23
+%define version           3.5.24
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
-%define ETC_DIR		  /etc
-%define USR_DIR		  /usr
 %define PROD_HOME  	  /etc/wanpipe
 %define WANCFG_LIBS_DIR   /etc/wanpipe/lib
 %define API_DIR           /etc/wanpipe/api
 %define DOCS_DIR	  /usr/share/doc/wanpipe
-%define USR_INCLUDE_DIR	  /usr/include
-%define LIBSANGOMA_CONF   /etc/ld.so.conf.d/libsangoma.so.conf
 %define PROD		  wanrouter
 %define MODULES_DIR	  /lib/modules
 %define META_CONF         %{PROD_HOME}/%{PROD}.rc
@@ -28,8 +24,6 @@
 %define WANROUTER_STARTUP         /usr/sbin/wanrouter
 %define NEW_IF_TYPE               NO
 %define PROD_INIT                 /usr/sbin/
-
-%define KVERSION          %{?kern_ver}
  
 
 Summary: 	Sangoma WANPIPE package for Linux. It contains the WANPIPE kernel drivers and configuration/startup/debugging utilities for Linux.
@@ -62,11 +56,6 @@ echo "Uninstalling WANPIPE..."
 # Remove initialization scripts.
 # ----------------------------------------------------------------------------
 remove_init()
-{
-	chkconfig --del wanrouter
-	rm /etc/init.d/wanrouter
-}
-remove_init_old()
 {
         # Examine system bootstrap files.
         if [ -d /etc/rc0.d ]
@@ -175,11 +164,6 @@ ENDOFTEXT
 # ----------------------------------------------------------------------------
 install_init()
 {
-	ln -s /usr/sbin/wanrouter /etc/init.d/wanrouter
-	chkconfig wanrouter on
-}
-install_init_old()
-{
 	#Examine system bootstrap files.
         if [ -d /etc/rc0.d ]
         then RC_DIR=/etc
@@ -234,26 +218,47 @@ cat <<EOM
 
 EOM
 #check dependancies for the new modules
-
-depmod -ae -F /boot/System.map-%{KVERSION} %{KVERSION}
-echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"   
+depmod -a >> /dev/null 2>> /dev/null
+echo
+modprobe wanrouter
+if [ $? -eq 0 ]; then
+	modprobe -r wanrouter 2>> /dev/null
+else
+	echo "Failed to load wanpipe modules!"
+	echo
+	echo "Make sure you are installing correct RPMS for you system!"
+	echo
+	echo "Otherwise call Sangoma Tech Support"
+fi
 
 #install start-on-boot scripts
 install_init;
 #create wanrouter.rc in /etc/wanpipe
 #create_metaconf;
+\cp -f %{PROD_HOME}/wancfg_zaptel/setup-sangoma /usr/local/sbin/setup-sangoma
+chmod 755 /usr/local/sbin/setup-sangoma
 
 %files
-%{UTILS_DIR}
-%{ETC_DIR}
-%{USR_DIR}
-%{PROD_HOME}
-%{DOCS_DIR}
 %{MODULES_DIR}
-%{USR_INCLUDE_DIR}
+/usr
+/etc
 
 
 %changelog
+
+* Tue Nov 15 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.24
+==================================================================
+
+- Bug fixes in Setup
+- Bug fixes in wancfg_dahdi
+- Updated scripts for Debian/Ubuntu
+- Added MTP1 msu/lssu filter option
+- New LINEAR mapping of A108 ports for use with T3Mux
+- Updates and fixes to MTP1 engine
+- Fix for potential memory leak in proc file system
+- Fix for analog dma sync on 64bit kernels 
+- Dahdi BRI fix: wakeup of powered down line
+- Fixed RPM spec for trixbox
 
 * Wed Sep 07 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.23
 ==================================================================

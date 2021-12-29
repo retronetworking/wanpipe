@@ -47,5 +47,5 @@ if [ $? -ne 0 ]; then
 fi
 
 cd ${WAN_HOME}/wancfg_zaptel
-./wancfg_zaptel.pl  --conf_dir=$WAN_BASE $ARGS
+./wancfg_zaptel.pl --dahdi  --conf_dir=$WAN_BASE $ARGS
 cd $home

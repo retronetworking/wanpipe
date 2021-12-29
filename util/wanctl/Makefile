@@ -12,7 +12,7 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 # Project file paths.
-SYSINC=/lib/modules/$(shell uname -r)/build/include 
+SYSINC	= /usr/src/linux/include
 VPATH	= $(SYSINC)
 
 # Tools options.

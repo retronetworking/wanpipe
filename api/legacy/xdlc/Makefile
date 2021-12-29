@@ -13,7 +13,7 @@ DEBUG	= 2
 # Project file paths.
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I/usr/include/wanpipe
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib 
 
 ####### RULES ################################################################
 

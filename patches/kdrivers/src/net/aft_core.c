@@ -301,6 +301,7 @@ static void  	disable_data_error_intr(sdla_t *card, unsigned char);
 
 void 			aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan);
 static void     aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan);
+static 			sdla_t * aft_find_first_card_in_list(sdla_t *card, int type);
 
 
 /* Bottom half handlers */
@@ -885,19 +886,19 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 
 	ASSERT_AFT_HWDEV(card->wandev.card_type);
   
-  switch (card->adptr_type){
-    case A101_ADPTR_1TE1:		/* 1 Channel T1/E1  */
-    case A101_ADPTR_2TE1:	/* 2 Channels T1/E1 */
-    case A104_ADPTR_4TE1:	/* Quad line T1/E1 */
-    case A104_ADPTR_4TE1_PCIX:		/* Quad line T1/E1 PCI Express */
-    case A108_ADPTR_8TE1:
+	switch (card->adptr_type){
+	case A101_ADPTR_1TE1:		/* 1 Channel T1/E1  */
+	case A101_ADPTR_2TE1:	/* 2 Channels T1/E1 */
+	case A104_ADPTR_4TE1:	/* Quad line T1/E1 */
+	case A104_ADPTR_4TE1_PCIX:		/* Quad line T1/E1 PCI Express */
+	case A108_ADPTR_8TE1:
 	case AFT_ADPTR_B601:
-      break;
-  default:
-	  	DEBUG_ERROR( "%s: Error: Attempting to configure for T1/E1 on non AFT A101/2/4/8 hw (%d)!\n",
+		break;
+	default:
+		DEBUG_ERROR( "%s: Error: Attempting to configure for T1/E1 on non AFT A101/2/4/8 hw (%d)!\n",
 				  card->devname,card->adptr_type);
-		  return -EINVAL;
-  } 
+		return -EINVAL;
+	} 
 
 	card->hw_iface.getcfg(card->hw, SDLA_COREREV, &card->u.aft.firm_ver);
 	card->hw_iface.getcfg(card->hw, SDLA_COREID, &card->u.aft.firm_id);
@@ -931,6 +932,7 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 	/* TE1 Make special hardware initialization for T1/E1 board */
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		int max_ports = 4;
+		sdla_t *tmp_card;
 
 		if (conf->fe_cfg.cfg.te_cfg.active_ch == 0){
 			conf->fe_cfg.cfg.te_cfg.active_ch = -1;
@@ -961,6 +963,53 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 		if (card->wandev.comm_port == WANOPT_PRI){
 			conf->clocking = WANOPT_EXTERNAL;
 		}
+
+		/* Make sure that hw_port_map option is global. Thus if first port was already
+		   started use the hw_port_map value of the first port started */
+		tmp_card=aft_find_first_card_in_list(card, AFT_CARD_TYPE_GLOBAL_ISR); 
+		if (tmp_card) {
+			if (conf->u.aft.hw_port_map != tmp_card->u.aft.cfg.hw_port_map) {
+				DEBUG_WARNING("%s: Warning: Overriding card hw_port_map value to %s\n",
+							  card->devname,
+							  conf->u.aft.hw_port_map == WANOPT_HW_PORT_MAP_DEFAULT ? "DEFAULT":"LINEAR");
+			 	conf->u.aft.hw_port_map = tmp_card->u.aft.cfg.hw_port_map;    	
+			}
+		}
+		
+		if (card->adptr_type == A108_ADPTR_8TE1 && conf->u.aft.hw_port_map == WANOPT_HW_PORT_MAP_LINEAR) {
+        	/* Map A108 Ports linearly [1,2] [3,4] [5,6] [7,8] 
+                              default  [1,5] [2,6] [3,7] [4,8]
+             */
+			card->fe.fe_cfg.line_no++; 
+			switch (card->fe.fe_cfg.line_no) {
+				case 2:
+					card->fe.fe_cfg.line_no=5;
+					break;
+				case 3:
+					card->fe.fe_cfg.line_no=2;
+					break;
+				case 4:
+					card->fe.fe_cfg.line_no=6;
+					break;
+				case 5:
+					card->fe.fe_cfg.line_no=3;
+					break;
+				case 6:
+					card->fe.fe_cfg.line_no=7;
+					break;
+				case 7:
+					card->fe.fe_cfg.line_no=4;
+					break;
+				default:
+					break;
+			}
+            card->fe.fe_cfg.line_no--;
+
+			DEBUG_EVENT("%s: AFT A108 HW RJ45 Port Map: LINEAR  [1,2] [3,4] [5,6] [7,8]\n",card->devname);
+		} else if (card->adptr_type == A108_ADPTR_8TE1) {
+			DEBUG_EVENT("%s: AFT A108 HW RJ45 Port Map: DEFAULT [1,5] [2,6] [3,7] [4,8]\n",card->devname);
+		}
+
 
 		card->wandev.comm_port=card->fe.fe_cfg.line_no;
 
@@ -5926,6 +5975,42 @@ int aft_bh_rx(private_area_t* chan, netskb_t *new_skb, u8 pkt_error, int len)
 				return -1;
 			}
 
+           if (chan->cfg.hdlc_repeat && chan->cfg.mtp1_filter == WANOPT_YES) {
+
+               unsigned char *data2=wan_skb_data(new_skb);
+
+               if (chan->cfg.mtp1_filter == WANOPT_YES) {
+                   chan->cfg.mtp1_filter = 128;
+               }
+
+               if (pkt_error || wan_skb_len(new_skb) < 3 || (data2[2]&0x3F) > 2 ||
+                   wan_skb_len(new_skb) >= sizeof(chan->rx_hdlc_filter)) {
+                  /* Packet is invalid or packet is not LSSU or FISU
+                     drop cached packet and pass the rx frame up */
+                  chan->rx_hdlc_filter_len=0;
+               } else if (chan->rx_hdlc_filter_len == 0) {
+                  /* We received first FISSU/LSSU save it */
+                  chan->rx_hdlc_filter_len=wan_skb_len(new_skb);
+                  memcpy(chan->rx_hdlc_filter,data2,wan_skb_len(new_skb));
+               } else if (chan->rx_hdlc_filter_len != wan_skb_len(new_skb)) {
+                  chan->rx_hdlc_filter_len=wan_skb_len(new_skb);
+                  memcpy(chan->rx_hdlc_filter,data2,wan_skb_len(new_skb));
+               } else {
+                  if (memcmp(chan->rx_hdlc_filter,data2,wan_skb_len(new_skb)) != 0) {
+                       chan->rx_hdlc_filter_len=wan_skb_len(new_skb);
+                       memcpy(chan->rx_hdlc_filter,data2,wan_skb_len(new_skb));
+                  } else if (chan->rx_filter_cnt++ < chan->cfg.mtp1_filter){
+                       /* Drop the frame as its same as our previous frame */
+                       return -1;
+                  }
+               }
+
+               /* Send up a duplicate frame after  AFT_RX_FILTER_CNT dupliate frames */
+               chan->rx_filter_cnt=0;
+           }
+
+
+
 			rx_hdr->rx_h.crc=pkt_error;
 			rx_hdr->rx_h.current_number_of_frames_in_rx_queue = wan_skb_queue_len(&chan->wp_rx_complete_list);
 			rx_hdr->rx_h.max_rx_queue_length = chan->dma_per_ch;
@@ -9210,7 +9295,7 @@ static int aft_tx_dma_chain_handler(private_area_t *chan, int wdt, int reset_fla
 			aft_transaction(chan,"%s:%s tx complete: GO BIT SET!\n",
 					card->devname,chan->if_name);
 			break;
-	    }
+	    	}
 
 
 		if (!wan_test_bit(AFT_TXDMA_HI_INTR_DISABLE_BIT,&reg)){
@@ -9228,7 +9313,12 @@ static int aft_tx_dma_chain_handler(private_area_t *chan, int wdt, int reset_fla
 		if (chan->hdlc_eng){
 
 			if (dma_chain->skb == chan->tx_hdlc_rpt_skb) {
-				if (wan_skb_queue_len(&chan->wp_tx_hdlc_rpt_list) == 0) {
+				/* If the repeat list is empty, then the current
+				   repeat packets should be re-inserted into the 
+				   repeat list. However, if a new repeat packet is pending
+				   in the repeat list, then just drop the current
+				   repeat packet. */ 
+				if (wan_skb_queue_len(&chan->wp_tx_hdlc_rpt_list) == 0) { 
 					wan_skb_queue_tail(&chan->wp_tx_hdlc_rpt_list,dma_chain->skb);
 					dma_chain->skb=NULL;
 				} else {
@@ -9726,7 +9816,7 @@ int aft_dma_tx (sdla_t *card,private_area_t *chan)
 				if (chan->sw_hdlc_dev) {
 					skb=aft_core_sw_raw_hdlc_tx(card,chan);
 					if (IS_B601_CARD(card) && skb) {
-                     	wan_skb_reverse(skb);	
+                     				wan_skb_reverse(skb);	
 					}
 				} else {
 					skb=wan_skb_dequeue(&chan->wp_tx_pending_list);
@@ -9787,9 +9877,11 @@ int aft_dma_tx (sdla_t *card,private_area_t *chan)
 					if (skb) {
 						chan->tx_hdlc_rpt_skb=skb;
 					} else {
-						WAN_NETIF_STATS_INC_TX_CARRIER_ERRORS(&chan->common);
-						WP_AFT_CHAN_ERROR_STATS(chan->chan_stats,tx_carrier_errors);
-						WP_AFT_CHAN_ERROR_STATS(chan->chan_stats,tx_idle_packets);
+						if (!chan->tx_hdlc_rpt_skb) {
+							WAN_NETIF_STATS_INC_TX_CARRIER_ERRORS(&chan->common);
+							WP_AFT_CHAN_ERROR_STATS(chan->chan_stats,tx_carrier_errors);
+							WP_AFT_CHAN_ERROR_STATS(chan->chan_stats,tx_idle_packets);
+						}
 						/* Pass throught to no skb condition */
 					}
 				}
@@ -11680,13 +11772,6 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 	   be ready and garbage will be copied from/to dma descriptors */
 	card->hw_iface.busdma_sync(
 			card->hw,
-			&chan->tx_dma_chain_table[0],
-			MAX_AFT_DMA_CHAINS,
-			(WP_GET_DMA_OPMODE_TX(chan) == WAN_AFT_DMA_CHAIN_SINGLE),
-			SDLA_DMA_PREWRITE);
-	
-	card->hw_iface.busdma_sync(
-			card->hw,
 			&chan->rx_dma_chain_table[0],
 			MAX_AFT_DMA_CHAINS,
 			(WP_GET_DMA_OPMODE_RX(chan) == WAN_AFT_DMA_CHAIN_SINGLE),
@@ -11730,7 +11815,19 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 	}
 
 	err=0;
+	card->hw_iface.busdma_sync(
+			card->hw,
+			&chan->rx_dma_chain_table[0],
+			MAX_AFT_DMA_CHAINS,
+			(WP_GET_DMA_OPMODE_RX(chan) == WAN_AFT_DMA_CHAIN_SINGLE),
+			SDLA_DMA_PREREAD);
 
+	card->hw_iface.busdma_sync(
+			card->hw,
+			&chan->tx_dma_chain_table[0],
+			MAX_AFT_DMA_CHAINS,
+			(WP_GET_DMA_OPMODE_TX(chan) == WAN_AFT_DMA_CHAIN_SINGLE),
+			SDLA_DMA_PREWRITE);
 
 #if 0
 	/*Measure the round trip delay*/

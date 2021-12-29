@@ -1,5 +1,5 @@
 
-#!/bin/sh
+#!/bin/bash
 
 if [ -e kdrvcmp ]; then
 	rm -rf kdrvcmp

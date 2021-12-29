@@ -289,7 +289,7 @@ void handle_span_chan(void)
 		}
 	}
 
-	sangoma_tdm_txsig_onhook(dev_fd, &tdm_api);
+//	sangoma_tdm_txsig_onhook(dev_fd, &tdm_api);
 
 	event_type=WP_TDMAPI_EVENT_RING_DETECT;
 	aft_tdm_api_event_ctrl(&tdm_api, 1);
@@ -299,6 +299,11 @@ void handle_span_chan(void)
 
 	event_type=WP_TDMAPI_EVENT_RXHOOK;
 	aft_tdm_api_event_ctrl(&tdm_api, 1);
+
+	event_type=WP_TDMAPI_EVENT_RING;
+	aft_tdm_api_event_ctrl(&tdm_api, 1);		
+			
+
 
 	/* Main Rx Tx OOB routine */
 	for(;;) {	

@@ -445,6 +445,7 @@ static key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
   { "DATA_MUX_MAP",  smemof(wan_xilinx_conf_t, data_mux_map), DTYPE_UINT },
   { "RX_CRC_BYTES",  smemof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
   { "SPAN_TX_ONLY_IRQ",  smemof(wan_xilinx_conf_t, span_tx_only_irq), DTYPE_UCHAR},
+  { "HW_RJ45_PORT_MAP",   smemof(wan_xilinx_conf_t, hw_port_map), DTYPE_UCHAR },
   
   { NULL, 0, 0 }
 };
@@ -539,6 +540,7 @@ static key_word_t xilinx_if_conftab[] =
   { "SS7_LSSU_SZ",  smemof(wan_xilinx_conf_if_t, ss7_lssu_size),  DTYPE_UCHAR},
   { "RBS_CAS_IDLE",  smemof(wan_xilinx_conf_if_t, rbs_cas_idle), DTYPE_UCHAR },
   { "HDLC_REPEAT",  smemof(wan_xilinx_conf_if_t, hdlc_repeat), DTYPE_UCHAR },
+  { "MTP1_FILTER",  smemof(wan_xilinx_conf_if_t, mtp1_filter), DTYPE_USHORT },
   { NULL, 0, 0 }
 };
 
@@ -1349,6 +1351,9 @@ static look_up_t	sym_table[] =
 	{ WANOPT_OCT_CHAN_OPERMODE_NORMAL, "OCT_NORMAL" },
 	{ WANOPT_OCT_CHAN_OPERMODE_SPEECH, "OCT_SPEECH" },
 	{ WANOPT_OCT_CHAN_OPERMODE_NO_ECHO, "OCT_NO_ECHO" },
+
+	{ WANOPT_HW_PORT_MAP_DEFAULT,"DEFAULT" },
+	{ WANOPT_HW_PORT_MAP_LINEAR, "LINEAR" },
 	
 	/*----- End ---------------------------*/
 	{ 0,			NULL		}, 

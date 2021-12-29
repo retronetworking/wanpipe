@@ -33,7 +33,7 @@
 # include "sdla_bri.h"
 # include "zapcompat.h"
 # include "sdla_tdmv.h"
-
+# include "aft_bri.h"
 
 /*******************************************************************************
 **			  DEFINES AND MACROS
@@ -754,8 +754,17 @@ static int wp_tdmv_bri_software_init(wan_tdmv_t *wan_tdmv)
 
 	WP_DELAY(1000);	
 
-	wr->span.alarms = ZT_ALARM_NONE;//FIXME: report real line state, also report alarms on line connect/disconnect.
+	/* FIXME: report real line state, also report alarms on line connect/disconnect. */
+
+	wr->span.alarms = ZT_ALARM_NONE;
+
+	/* Do not notify dahdi/zaptel on init, due to power saving
+	   mode issues. Dahdi will be notified with the line becomes connected.
+	   The zt_alarm_notify below is included for historical puposes. It should be
+	   removed in the future. */
+#if 0
 	zt_alarm_notify(&wr->span);
+#endif
 
 	return 0;
 }
@@ -1651,48 +1660,65 @@ static void wp_tdmv_report_alarms(void* pcard, uint32_t te_alarm)
 		return;
 	}
 
+    /* On line change state, we do not know if the line went down
+	   due to power saving mode, or physical link down.  Only 
+	   notify dahdi that alarm is cleared. Do not indicate
+	   alarm condition to dahdi, this way dahdi will try to 
+	   wakeup the line by transmitting hdlc packets.
+	*/
+
 	if(te_alarm == 0){
 		wp->span.alarms = ZT_ALARM_NONE;
-	}else{
-		wp->span.alarms = ZT_ALARM_RED;
+		zt_alarm_notify(&wp->span);
 	}
-	zt_alarm_notify(&wp->span);
 	return;
 }
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
 static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan)
 {
-        wp_tdmv_bri_t   *wp     = NULL;
-        netskb_t        *skb = NULL;
-        unsigned char   *data = NULL;
-        int             size = 0, err = 0, res = 0;
+	wp_tdmv_bri_t   *wp     = NULL;
+	netskb_t        *skb = NULL;
+	unsigned char   *data = NULL;
+	int             size = 0, err = 0, res = 0;
+	sdla_t		*card = NULL;
 
-        WAN_ASSERT_VOID(chan == NULL);
-        WAN_ASSERT_VOID(chan->pvt == NULL);
-        wp      = chan->pvt;
-        WAN_ASSERT_VOID(wp->dchan_dev == NULL);
+	WAN_ASSERT_VOID(chan == NULL);
+	WAN_ASSERT_VOID(chan->pvt == NULL);
+	wp      = chan->pvt;
+	WAN_ASSERT_VOID(wp->dchan_dev == NULL);
+	WAN_ASSERT_VOID(wp->card == NULL);
+	card = wp->card;
 
-        size = chan->writen[chan->outwritebuf] - chan->writeidx[chan->outwritebuf]-2;
-        if (!size) {
-                /* Do not transmit zero length frame */
-                zt_hdlc_getbuf(chan, data, &size);
-                return;
-        }
+	/* If the module is TE and line is not connected, we could be in
+	   power saving mode. Try to wake up the line */
+	if (aft_is_bri_te_card(card) && card->wandev.state != WAN_CONNECTED) {
+		wan_smp_flag_t smp_flags;
+		card->hw_iface.hw_lock(card->hw,&smp_flags);
+		card->wandev.fe_iface.set_fe_status(&card->fe, WAN_FE_CONNECTED);
+		card->hw_iface.hw_unlock(card->hw,&smp_flags);           	
+	}
 
-        skb = wan_skb_alloc(size+1);
-        if (skb == NULL){
-                return;
-        }
-        data = wan_skb_put(skb, size);
-        res = zt_hdlc_getbuf(chan, data, &size);
-        if (res == 0){
-                DEBUG_ERROR("%s: ERROR: TX HW DCHAN %d bytes (res %d)\n",
-                                        wp->devname, size, res);
-        }
-        err = WAN_NETDEV_XMIT(skb,wp->dchan_dev);
-        if (err){
-                wan_skb_free(skb);
-        }
+	size = chan->writen[chan->outwritebuf] - chan->writeidx[chan->outwritebuf]-2;
+	if (!size) {
+			/* Do not transmit zero length frame */
+			zt_hdlc_getbuf(chan, data, &size);
+			return;
+	}
+
+	skb = wan_skb_alloc(size+1);
+	if (skb == NULL){
+			return;
+	}
+	data = wan_skb_put(skb, size);
+	res = zt_hdlc_getbuf(chan, data, &size);
+	if (res == 0){
+			DEBUG_ERROR("%s: ERROR: TX HW DCHAN %d bytes (res %d)\n",
+									wp->devname, size, res);
+	}
+	err = WAN_NETDEV_XMIT(skb,wp->dchan_dev);
+	if (err){
+			wan_skb_free(skb);
+	}
 }
 #endif

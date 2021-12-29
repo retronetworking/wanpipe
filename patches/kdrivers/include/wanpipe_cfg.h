@@ -353,6 +353,7 @@ typedef struct wan_xilinx_conf
 	unsigned int	rx_crc_bytes;
 	unsigned char	span_tx_only_irq; /* SPAN mode API to use rx irq only */
 	unsigned char   global_poll_irq;
+	unsigned char	hw_port_map; 	/* A108 hw port map: Default or Linear */
 } wan_xilinx_conf_t;
 
 typedef struct wan_xilinx_conf_if
@@ -372,6 +373,7 @@ typedef struct wan_xilinx_conf_if
 	unsigned char	hdlc_repeat;
 	unsigned int	mtu_idle;
 	unsigned char 	sw_hdlc;
+	unsigned short  mtp1_filter;
 }wan_xilinx_conf_if_t;
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)

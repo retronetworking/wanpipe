@@ -551,7 +551,7 @@ void wpkatm_insert_vccdev(wp_katm_t *atm_link, wp_katm_channel_t *atm_chan)
 
         }
 
-	WAN_DEV_HOLD(atm_chan);
+	WAN_HOLD(atm_chan);
 	atm_link->dev_cnt++;
 	WP_WRITE_UNLOCK(&atm_link->dev_list_lock,flags);
 }
@@ -562,7 +562,7 @@ void wpkatm_remove_vccdev(wp_katm_t *atm_link, wp_katm_channel_t *atm_chan)
 	unsigned long flags;
 	
 	WP_WRITE_LOCK(&atm_link->dev_list_lock,flags);
-	WAN_DEV_PUT(atm_chan);
+	__WAN_PUT(atm_chan);
 	WAN_LIST_REMOVE(atm_chan,list_entry);
 	atm_link->cur_tx=NULL;
 	atm_link->dev_cnt--;

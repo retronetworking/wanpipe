@@ -455,10 +455,16 @@ static int aft_write_hdlc_check(void *chan_ptr, int lock, int buffers)
 		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 	}
 
-	rc = wan_chan_dev_stopped(chan);
-	if (!rc && buffers > 1) {
-		if (chan->max_tx_bufs - wan_skb_queue_len(&chan->wp_tx_pending_list) <= buffers) {
-			rc=1;
+	if (chan->sw_hdlc_mode) {
+		if (wp_mtp1_tx_check(chan->sw_hdlc_dev)) {
+			rc=1; 
+		}
+	} else {
+		rc = wan_chan_dev_stopped(chan);
+		if (!rc && buffers > 1) {
+			if (chan->max_tx_bufs - wan_skb_queue_len(&chan->wp_tx_pending_list) <= buffers) {
+				rc=1;
+			}
 		}
 	}
 
@@ -584,6 +590,9 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 		if (err) {
 			return err;
 		}
+		if (chan->tx_hdlc_rpt_on_close_skb == NULL) {
+			chan->tx_hdlc_rpt_on_close_skb = wan_skb_copy(repeat_skb);
+		}
 	}
 	
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
@@ -599,6 +608,7 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 			WAN_NETIF_STOP_QUEUE(chan->common.dev);
 
 			/* FIXME: Update the header queue len based on sw_hdlc queues */
+#if 0
 			hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
 			hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
 
@@ -608,10 +618,20 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 			}
 
 			hdr->tx_h.tx_idle_packets = chan->chan_stats.tx_idle_packets;
+#endif
 			wan_chan_dev_stop(chan);
 			aft_dma_tx(card,chan);
-			
+
 			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+
+			if (repeat_skb) {
+				if (chan->tx_hdlc_rpt_on_close_skb == repeat_skb) {
+					chan->tx_hdlc_rpt_on_close_skb = NULL;
+				}
+
+				wan_skb_free(repeat_skb);
+			}
+
 			return -EBUSY;
 		}
 		
@@ -632,6 +652,14 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 			wan_chan_dev_stop(chan);
 			aft_dma_tx(card,chan);
 			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+			
+			if (repeat_skb) {
+				if (chan->tx_hdlc_rpt_on_close_skb == repeat_skb) {
+					chan->tx_hdlc_rpt_on_close_skb = NULL;
+				}
+
+				wan_skb_free(repeat_skb);
+			}
 			return -EBUSY;
 		}
 	
@@ -1154,15 +1182,13 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 	case WP_API_CMD_FLUSH_BUFFERS:
 		{
 		netskb_t *skb;
-		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
-        for (;;) {
-			skb=wan_skb_dequeue(&chan->wp_tx_hdlc_rpt_list);
-			if (!skb) {
-				break;
-			}
-			wan_aft_skb_defered_dealloc(chan,skb);
-		}            
-		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+		if (chan->tx_hdlc_rpt_on_close_skb) {
+			skb=chan->tx_hdlc_rpt_on_close_skb;
+			chan->tx_hdlc_rpt_on_close_skb=NULL;
+			wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
+			wan_skb_queue_tail(&chan->wp_tx_hdlc_rpt_list,skb);
+			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+		}
 		}
 		break;             
 

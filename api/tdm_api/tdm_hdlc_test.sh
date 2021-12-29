@@ -25,6 +25,9 @@ do
 
     if [ "$IFACES" = "" ]; then
 		for ((i=$IFACE_START;i<=$IFACE_STOP;i+=1)); do
+			if [ $i -eq 16 ]; then
+              	continue
+			fi
 			#CMD=$CMD" w"$wanpipe_num"g"$i   
 			CMD=$CMD" s"$wanpipe_num"c"$i   
 		done

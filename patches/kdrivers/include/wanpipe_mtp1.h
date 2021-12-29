@@ -69,3 +69,4 @@ extern int wp_mtp1_tx_bh_handler(void *mtp1, u8 *data, int mtu);
 extern int wp_mtp1_dealloc_q_len(void *mtp1);
 extern int wp_mtp1_poll_check(void *mtp1);
 extern int wp_mtp1_poll(void *mtp1, wan_spinlock_t *lock);
+extern int wp_mtp1_tx_check(void *mtp1);

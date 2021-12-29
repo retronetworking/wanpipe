@@ -239,7 +239,6 @@ clean: cleanup_local  clean_util _cleanoldwanpipe
 .PHONY: _cleanoldwanpipe
 _cleanoldwanpipe: _checksrc
 	@eval "./patches/build_links.sh"
-	@eval "./patches/clean_old_wanpipe.sh $(WINCLUDE) $(KDIR)/include/linux"
 	
 
 #Check for linux headers
@@ -323,8 +322,10 @@ install: install_etc install_util install_kmod install_inc
 	@if [ -e .all_lib ] ; then \
 		$(MAKE) -C api/libsangoma install DESTDIR=$(INSTALLPREFIX); \
 		$(MAKE) -C api/libstelephony install DESTDIR=$(INSTALLPREFIX); \
-		$(LDCONFIG) ; \
-    fi
+		if [ "$(shell id -u)" = "0" ]; then \
+			$(LDCONFIG) ; \
+		fi \
+    	fi
 
 
 #Install kernel modules only
@@ -356,7 +357,7 @@ install_kmod:
 endif
 
 #Compile utilities only
-all_util:  install_inc all_lib 
+all_util:  all_lib 
 	$(MAKE) -C util all EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I $(PWD)/api/libsangoma/include" CC=$(CC) \
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(WARCH) 
 	$(MAKE) -C util all_wancfg EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I$(PWD)/api/libsangoma/include" CC=$(CC)  \
@@ -444,6 +445,7 @@ install_etc:
 		mkdir -p $(INSTALLPREFIX)/etc/wanpipe/scripts; \
 	fi   
 	@\cp -rf wan_ec  $(INSTALLPREFIX)/etc/wanpipe/
+	@\rm -f $(INSTALLPREFIX)/etc/wanpipe/api/Makefile*
 	@\cp -rf api  $(INSTALLPREFIX)/etc/wanpipe/
 	@\cp -rf scripts  $(INSTALLPREFIX)/etc/wanpipe/
 	@\cp -rf util/wan_aftup   $(INSTALLPREFIX)/etc/wanpipe/util/

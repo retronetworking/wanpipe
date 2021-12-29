@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # router.rc	WAN router meta-configuration file.
 #
 #		This file defines variables used by the router shell scripts
@@ -27,8 +27,8 @@ WAN_CONF_DIR=/etc/wanpipe
 WAN_INTR_DIR=/etc/wanpipe/interfaces
 WAN_BIN_DIR=/usr/sbin
 WAN_LOG=/var/log/wanrouter
-WAN_LOCK=/var/lock/subsys/wanrouter
-WAN_LOCK_DIR=/var/lock/subsys
+WAN_LOCK=/var/lock/wanrouter
+WAN_LOCK_DIR=/var/lock
 WAN_IP_FORWARD=NO
 NEW_IF_TYPE=NO
 WAN_LIB_DIR=/etc/wanpipe/lib

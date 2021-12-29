@@ -62,7 +62,8 @@ CMD=$CMD" -timeout $timeout"
 
 #echo "./hdlc_test  $CMD" 
 
-eval "nice -n 20 ./hdlc_test  $CMD" 
+#eval "nice -n 20 ./hdlc_test  $CMD -err_limit 1" 
+eval "nice -n 20 ./hdlc_test  $CMD " 
 rc=$?
 
 exit $rc

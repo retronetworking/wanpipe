@@ -262,6 +262,7 @@ typedef struct dma_history{
 #define MAX_TX_BUF		MAX_AFT_DMA_CHAINS*2+1
 #define MAX_RX_BUF		MAX_AFT_DMA_CHAINS*4+1
 #define AFT_DMA_INDEX_OFFSET	0x200
+#define AFT_MAX_HDLC_REPEAT_SZ 16
 
 
 typedef struct aft_dma_ring
@@ -371,6 +372,7 @@ typedef struct private_area
 	
 	netskb_t			*tx_idle_skb;
 	netskb_t			*tx_hdlc_rpt_skb;
+	netskb_t			*tx_hdlc_rpt_on_close_skb;
 
 	unsigned char		rx_dma;
 	unsigned char   	pci_retry;
@@ -426,6 +428,11 @@ typedef struct private_area
 
 	unsigned char 		*udp_pkt_data;
 	atomic_t 			udp_pkt_len;
+
+	unsigned int        rx_filter_cnt;
+	unsigned int        rx_hdlc_filter_len;
+	unsigned char       rx_hdlc_filter[AFT_MAX_HDLC_REPEAT_SZ];
+
 
 	struct private_area *next;
 

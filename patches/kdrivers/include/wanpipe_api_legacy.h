@@ -135,7 +135,7 @@ typedef struct wan_cmd_api_
 	unsigned int	cmd;
 	unsigned short	len;
 	unsigned char	bar;
-	u_int32_t		offset;
+	unsigned int	offset;
 	int 		ret; 		/* return value */
 	unsigned char	data[WAN_MAX_CMD_DATA_SIZE];
 } wan_cmd_api_t;
@@ -167,7 +167,7 @@ typedef struct wan_cmd {
 					unsigned short	dlci;		/* DLCI number */
 					unsigned char	attr;		/* FECN, BECN, DE and C/R bits */
 					unsigned short	rxlost1;	/* frames discarded at int. level */
-					u_int32_t	rxlost2;	/* frames discarded at app. level */
+					unsigned int	rxlost2;	/* frames discarded at app. level */
 				} fr;
 				struct {
 					unsigned char	pf;			/* P/F bit */

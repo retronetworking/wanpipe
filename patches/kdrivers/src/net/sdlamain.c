@@ -417,6 +417,11 @@ int __init wanpipe_init(void)
 #endif
 
 
+#if defined(WANPIPE_DEVICE_ALLOC_CNT)
+	if (WANPIPE_DEVICE_ALLOC_CNT > cnt) {
+		cnt=WANPIPE_DEVICE_ALLOC_CNT;
+	}
+#endif
 	if (cnt){
 		DEBUG_EVENT("wanpipe: Allocating maximum %i devices: wanpipe%i - wanpipe%i.\n",
 					cnt,1,cnt);

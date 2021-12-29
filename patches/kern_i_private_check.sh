@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if [ ! -e patches ]; then
   	echo "Error: This script must be run from wanpipe/ directory!"

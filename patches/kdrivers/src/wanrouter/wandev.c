@@ -289,6 +289,16 @@ static int wanpipe_port_management(wanpipe_wandev_t *wdev, void *data)
 #endif
 		DEBUG_EVENT("wandev: hardware rescan: total=%i new=%i\n",cnt,new_cards);
 
+		
+#if defined(WANPIPE_DEVICE_ALLOC_CNT)
+		if (WANPIPE_DEVICE_ALLOC_CNT > cnt) {
+			/* The pre defined number of cards still exceed
+			 * the newly detected cards, thus no need to 
+			 * allocate more */
+			new_cards=0;
+		}	
+#endif
+
 		/* Only add new cards */
 		if (new_cards) {
 			int i;

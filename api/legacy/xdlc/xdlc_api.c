@@ -143,10 +143,10 @@ int MakeConnection(void)
 *
 *   o Read a socket 
 *   o Cast data received to wan_api_rx_element_t data type 
-*   o The received packet contains 16 bytes header 
+*   o The received packet contains 64 bytes header 
 *
 *	------------------------------------------
-*      |  16 bytes      |        X bytes        ...
+*      |  64 bytes      |        X bytes        ...
 *	------------------------------------------
 * 	   Header              Data
 *
@@ -197,7 +197,7 @@ void handle_socket(void)
 	}
 
 	/* Cast the Tx data packet with the tx element
-	 * structure.  We must insert a 16 byte
+	 * structure.  We must insert a 64 byte
 	 * driver header, which driver will remove 
 	 * before passing packet out the physical port */
 	api_tx_el = (wan_api_tx_element_t*)&Tx_data[0];
@@ -294,7 +294,8 @@ void handle_socket(void)
 					if (api_rx_el->wan_rxapi_xdlc_exception == EXCEP_SEC_SNRM_FRAME_RECEIVED){
 						printf("Enabling I Frames\n");
 						ioctl(sock,WAN_DEVPRIV_SIOC(SIOCS_XDLC_ENABLE_IFRAMES),NULL);
-#endif					}
+					}
+#endif
 					
 					Tx_count=0;
 					Rx_count=0;
@@ -310,7 +311,7 @@ void handle_socket(void)
 				 * 	   buffer. Confirm len > 0
 				 *
 				 * 	2: Cast Rx_data to the api_rx_element.
-				 * 	   Thus, removing a 16 byte header
+				 * 	   Thus, removing a 64 byte header
 				 * 	   attached by the driver.
 				 *
 				 * 	3. Check error_flag:
@@ -362,10 +363,8 @@ void handle_socket(void)
 					break;
 				}
 
-			
-bitstrm_skip_read:
-
 		   	}
+bitstrm_skip_read:
 		
 		   	if (FD_ISSET(sock,&write)){
 

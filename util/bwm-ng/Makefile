@@ -74,18 +74,18 @@ DIST_ARCHIVES = $(distdir).tar.gz
 GZIP_ENV = --best
 distuninstallcheck_listfiles = find . -type f -print
 distcleancheck_listfiles = find . -type f -print
-ACLOCAL = ${SHELL} /root/3.5/wanpipe-3.5.0.51/util/bwm/bwm-ng/missing --run aclocal-1.9
+ACLOCAL = ${SHELL} /common/bwm-ng/missing --run aclocal-1.9
 AMDEP_FALSE = #
 AMDEP_TRUE = 
-AMTAR = ${SHELL} /root/3.5/wanpipe-3.5.0.51/util/bwm/bwm-ng/missing --run tar
-AUTOCONF = ${SHELL} /root/3.5/wanpipe-3.5.0.51/util/bwm/bwm-ng/missing --run autoconf
-AUTOHEADER = ${SHELL} /root/3.5/wanpipe-3.5.0.51/util/bwm/bwm-ng/missing --run autoheader
-AUTOMAKE = ${SHELL} /root/3.5/wanpipe-3.5.0.51/util/bwm/bwm-ng/missing --run automake-1.9
+AMTAR = ${SHELL} /common/bwm-ng/missing --run tar
+AUTOCONF = ${SHELL} /common/bwm-ng/missing --run autoconf
+AUTOHEADER = ${SHELL} /common/bwm-ng/missing --run autoheader
+AUTOMAKE = ${SHELL} /common/bwm-ng/missing --run automake-1.9
 AWK = gawk
-CC = cc
+CC = gcc
 CCDEPMODE = depmode=gcc3
 CFLAGS = -O2 -Wall -Wno-long-long
-CPP = cc -E
+CPP = gcc -E
 CPPFLAGS = 
 CYGPATH_W = echo
 DEFS = -DHAVE_CONFIG_H
@@ -104,7 +104,7 @@ LDFLAGS =
 LIBOBJS = 
 LIBS = -lcurses 
 LTLIBOBJS = 
-MAKEINFO = ${SHELL} /root/3.5/wanpipe-3.5.0.51/util/bwm/bwm-ng/missing --run makeinfo
+MAKEINFO = ${SHELL} /common/bwm-ng/missing --run makeinfo
 NETSTAT_CMD = netstat
 OBJEXT = o
 PACKAGE = bwm-ng
@@ -118,7 +118,7 @@ SET_MAKE =
 SHELL = /bin/sh
 STRIP = strip ${TARGET}
 VERSION = 0.6
-ac_ct_CC = cc
+ac_ct_CC = gcc
 ac_ct_STRIP = 
 am__fastdepCC_FALSE = #
 am__fastdepCC_TRUE = 
@@ -134,7 +134,7 @@ exec_prefix = ${prefix}
 host_alias = 
 includedir = ${prefix}/include
 infodir = ${prefix}/info
-install_sh = /root/3.5/wanpipe-3.5.0.51/util/bwm/bwm-ng/install-sh
+install_sh = /common/bwm-ng/install-sh
 libdir = ${exec_prefix}/lib
 libexecdir = ${exec_prefix}/libexec
 localstatedir = ${prefix}/var
@@ -431,7 +431,7 @@ distdir: $(DISTFILES)
 	      || exit 1; \
 	  fi; \
 	done
-	-find $(distdir) -type d ! -perm -777 -exec chmod a+rwx {} \; -o \
+	-find $(distdir) -type d ! -perm -755 -exec chmod a+rwx,go+rx {} \; -o \
 	  ! -type d ! -perm -444 -links 1 -exec chmod a+r {} \; -o \
 	  ! -type d ! -perm -400 -exec chmod a+r {} \; -o \
 	  ! -type d ! -perm -444 -exec $(SHELL) $(install_sh) -c -m a+r {} {} \; \
