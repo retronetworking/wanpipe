@@ -14,10 +14,11 @@ SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else ec
 ifeq "$(SYSINC)" "" 
 SYSINC=/lib/modules/$(shell uname -r)/build/include
 endif
+SRCINC=../../patches/kdrivers/include
 VPATH	= $(SYSINC)
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib/hdlc -I../lib -I$(SYSINC)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib/hdlc -I../lib -I$(SYSINC) -I$(SRCINC)
 
 TARGETS = aft_tdm_voice_api
 TARGETS += aft_tdm_hdlc_test

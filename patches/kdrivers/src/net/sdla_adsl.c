@@ -540,8 +540,6 @@ static int del_if (wan_device_t* wandev, netdevice_t* ifp)
 			wp_sppp_detach(ifp);
 
 			ifp->do_ioctl = NULL;
-			ifp->hard_header = NULL;
-			ifp->rebuild_header = NULL;
 
 			kfree(adsl->common.prot_ptr);
 			adsl->common.prot_ptr= NULL;

@@ -46,6 +46,20 @@
 #define wan_skb_set_tail_pointer(skb,offset) ((skb)->tail = ((skb)->data + offset))
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24) || defined(LINUX_FEAT_2624)
+# ifndef LINUX_FEAT_2624
+#  define LINUX_FEAT_2624 1
+# endif
+# define wan_dev_get_by_name(name) dev_get_by_name(&init_net,name)
+# define wan_dev_get_by_index(idx) dev_get_by_index(&init_net,idx)
+# define wan_init_net(name)  init_net.name
+#else
+# define wan_dev_get_by_name(name) dev_get_by_name(name)
+# define wan_dev_get_by_index(idx) dev_get_by_index(idx)
+# define wan_init_net(name)  name
+#endif
+
+
 #ifndef IRQF_SHARED
 #define IRQF_SHARED SA_SHIRQ
 #endif

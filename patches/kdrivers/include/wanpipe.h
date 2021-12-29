@@ -731,12 +731,25 @@ typedef struct
 	unsigned short	tdm_tx_dma_toggle;
 	unsigned int	tdm_logic_ch_map;
 
-	void *rtp_dev;
-	int   rtp_len;
-	netskb_t *rx_rtp_skb;
-	netskb_t *tx_rtp_skb;
 	unsigned long	sec_chk_cnt;
+
+	wan_skb_queue_t	rtp_tap_list;
+	unsigned int	rx_errors_hist;
+	unsigned int 	rx_errors_over_cnt;
+	unsigned long	rx_errors_timeout;
+	unsigned long	rx_errors_down_timeout;
+	
 } sdla_xilinx_t;
+
+
+enum {
+	AFT_CHIP_CONFIGURED,
+	AFT_FRONT_END_UP,
+	AFT_TDM_GLOBAL_ISR,
+	AFT_TDM_RING_BUF,
+	AFT_TDM_FAST_ISR,
+	AFT_TDM_SW_RING_BUF
+};
 
 typedef struct 
 {
@@ -849,6 +862,7 @@ typedef struct sdla
 	unsigned long  	update_comms_stats;
 	
 	sdla_fe_t	fe;		/* front end structures */
+	u8		fe_no_intr;	/* do not enable global fe intr */
 		
 	unsigned int	rCount;
 
@@ -874,6 +888,7 @@ typedef struct sdla
 #endif
 
 	wan_hwec_conf_t		hwec_conf;
+	wan_rtp_conf_t		rtp_conf;
 	
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	struct sdla*	same_card;
@@ -972,7 +987,9 @@ extern void wp_tasklet_per_cpu_init (void);
 //extern int wan_reply_udp( unsigned char *data, unsigned int mbox_len, int trace_opt);
 //extern int wan_udp_pkt_type(sdla_t* card,unsigned char *data);
 
-extern int wan_ip_udp_setup(void* card_id, u32 ip, u32 udp_port, 
+extern int wan_ip_udp_setup(void* card_id, 
+			    wan_rtp_conf_t *rtp_conf,
+			    u32 chan,
 		            unsigned char *data, unsigned int mbox_len);
 
 extern int wanpipe_sdlc_unregister(netdevice_t *dev);

@@ -1107,7 +1107,6 @@ static int if_init (netdevice_t* dev)
 #endif
 	dev->do_ioctl		= if_do_ioctl;
 		
-	dev->hard_header = NULL;  
 	dev->hard_header_len = 0;
 	dev->addr_len = 2;
 	*(u16*)dev->dev_addr = htons(chan->dlci);

@@ -35,6 +35,7 @@
 #include <syslog.h> 
 #include <g711.h>
 
+#include "sangoma_mgd_memdbg.h"
 
 #ifdef __LINUX__
 #include <sys/prctl.h>
@@ -63,7 +64,6 @@
 #define WOOMERA_RECORD_SEPERATOR "\r\n\r\n"
 #define WOOMERA_DEBUG_PREFIX "[DEBUG] "
 #define WOOMERA_DEBUG_LINE "------------------------------------------------------------------------------------------------"
-
 
 
 
@@ -278,6 +278,7 @@ struct woomera_server {
     	int dtmf_off;
     	int dtmf_intr_ch;
     	int dtmf_size;
+	int strip_cid_non_digits;
 } server;
 
 struct woomera_config {
@@ -478,13 +479,13 @@ static inline void woomera_set_raw(struct woomera_interface *woomera, char *raw)
 	char *oldraw=woomera->raw;
 
 	if (raw) {
-		woomera->raw = strdup(raw);
+		woomera->raw = smg_strdup(raw);
     	} else {
 		woomera->raw = NULL;
 	}
 
    	if (oldraw) {
-		free(oldraw);
+		smg_free(oldraw);
     	}
 }
 
@@ -510,13 +511,13 @@ static inline void woomera_set_interface(struct woomera_interface *woomera, char
 	char *iface = woomera->interface;
 	
 	if (interface) {
-		woomera->interface = strdup(interface);
+		woomera->interface = smg_strdup(interface);
     	} else {
 		woomera->interface = NULL;
 	}
 	
     	if (iface) {
-		free(iface);
+		smg_free(iface);
     	}
 }
 
@@ -549,7 +550,7 @@ static inline struct woomera_event *new_woomera_event(void)
 {
     struct woomera_event *event = NULL;
 
-    if ((event = malloc(sizeof(*event)))) {
+    if ((event = smg_malloc(sizeof(*event)))) {
 		memset(event, 0, sizeof(*event));
 		_woomera_set_flag(event, WFLAG_MALLOC);
     }
@@ -561,7 +562,7 @@ static inline struct woomera_event *new_woomera_event(void)
 static inline void destroy_woomera_event_data(struct woomera_event *event)
 {
     if (event->data) {
-	free (event->data);
+	smg_free (event->data);
 	event->data=NULL;
     }
 }
@@ -569,10 +570,12 @@ static inline void destroy_woomera_event_data(struct woomera_event *event)
 static inline void destroy_woomera_event(struct woomera_event **event, event_args free_data)
 {
     if (free_data) {
-		free ((*event)->data);
+		smg_free ((*event)->data);
     }
+
+    (*event)->data=NULL;
     if (woomera_test_flag((*event), WFLAG_MALLOC)) {	
-		free (*event);
+		smg_free (*event);
 		*event = NULL;
     }
 }

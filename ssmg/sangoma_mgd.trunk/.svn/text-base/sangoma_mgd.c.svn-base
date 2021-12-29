@@ -8,14 +8,30 @@
  * the GNU General Public License
  * 
  * =============================================
+ * v1.30 Nenad Corbic  <ncorbic@sangoma.com>
+ * Feb 08 2008
+ *	The fix in v1.26 causes double stop.
+ *      I took out the v1.26 fix and added
+ *      a big warning if that condition is
+ *      ever reached.
+ *
+ * v1.29 Nenad Corbic  <ncorbic@sangoma.com>
+ * Feb 07 2008
+ *	Added strip_cid_non_digits option
+ *
+ * v1.28 Nenad Corbic  <ncorbic@sangoma.com>
+ * Feb 06 2008
+ * 	Fixed a memory leak in clone event
+ *      function. Added memory check subsystem  
+ *
  * v1.27 Nenad Corbic  <ncorbic@sangoma.com>
- * Jan 24 2007
+ * Jan 24 2008
  *	Fixed a memory leak on incoming calls
  *	Removed the use of server listener which 
  *	was not used
  *
  * v1.26 Nenad Corbic  <ncorbic@sangoma.com>
- * Jan 18 2007
+ * Jan 18 2008
  *	Fixed hangup after invalid Answer or Ack Session 
  *	Can cause double use of setup id - now fixed
  *	Update on autoacm on accept check for acked.
@@ -120,6 +136,7 @@
  *********************************************************************************/
 
 #include "sangoma_mgd.h"
+#include "sangoma_mgd_memdbg.h"
 #include "q931_cause.h"
 
 
@@ -141,7 +158,7 @@ static struct woomera_interface woomera_dead_dev;
 #endif
 
 
-#define SMG_VERSION	"v1.27"
+#define SMG_VERSION	"v1.30"
 
 /* enable early media */
 #if 1
@@ -176,7 +193,7 @@ hp_tdm_api_span_t *hptdmspan[WOOMERA_MAX_SPAN];
 
 const char WELCOME_TEXT[] =
 "================================================================================\n"
-"Sangoma Media Gateway Daemon v1.27 \n"
+"Sangoma Media Gateway Daemon v1.30 \n"
 "TDM Signal Media Gateway for Sangoma/Wanpipe Cards\n"
 "Copyright 2005, 2006, 2007 \n"
 "Nenad Corbic <ncorbic@sangoma.com>, Anthony Minessale II <anthmct@yahoo.com>\n"
@@ -289,13 +306,17 @@ void __log_printf(int level, FILE *fp, char *file, const char *func, int line, c
 		return;
     }
 
+    if (fp == NULL) {
+ 	fp = server.log;
+    } 
+
     if (level && level > server.debug) {
 		return;
     }
 
     va_start(ap, fmt);
 #ifdef SOLARIS
-    data = (char *) malloc(2048);
+    data = (char *) smg_malloc(2048);
     vsnprintf(data, 2048, fmt, ap);
 #else
     ret = vasprintf(&data, fmt, ap);
@@ -371,7 +392,7 @@ static int socket_printf(int socket, char *fmt, ...)
 	
     va_start(ap, fmt);
 #ifdef SOLARIS
-    data = (char *) malloc(2048);
+    data = (char *) smg_malloc(2048);
     vsnprintf(data, 2048, fmt, ap);
 #else
     ret = vasprintf(&data, fmt, ap);
@@ -508,10 +529,10 @@ static struct woomera_event *new_woomera_event_printf(struct woomera_event *ebuf
 
     va_start(ap, fmt);
 #ifdef SOLARIS
-    event->data = (char *) malloc(2048);
+    event->data = (char *) smg_malloc(2048);
     vsnprintf(event->data, 2048, fmt, ap);
 #else
-    ret = vasprintf(&event->data, fmt, ap);
+    ret = smg_vasprintf(&event->data, fmt, ap);
 #endif
     va_end(ap);
     if (ret == -1) {
@@ -532,9 +553,14 @@ static struct woomera_event *woomera_clone_event(struct woomera_event *event)
 		return NULL;
     }
 
+    /* This overwrites the MALLOC in clone causing a memory leak */	
     memcpy(clone, event, sizeof(*event));
+
+    /* We must set the malloc flag back so that this event
+     * will be deleted */
+    _woomera_set_flag(clone, WFLAG_MALLOC);
     clone->next = NULL;
-    clone->data = strdup(event->data);
+    clone->data = smg_strdup(event->data);
 
     return clone;
 }
@@ -570,7 +596,7 @@ static void enqueue_event(struct woomera_interface *woomera,
     if (free_data && event->data) {
     	/* The event has been duplicated, the original data
 	 * should be freed */
-    	free(event->data);	
+    	smg_free(event->data);	
 	event->data=NULL;
     }
 }
@@ -630,7 +656,7 @@ static void del_listener(struct woomera_interface *woomera)
 			} else {
 				server.listeners = ptr->next;
 			}
-			free(ptr);
+			smg_free(ptr);
 			break;
 		}
 		last = ptr;
@@ -644,7 +670,7 @@ static void add_listener(struct woomera_interface *woomera)
 
     pthread_mutex_lock(&server.listen_lock);
 	
-    if ((new = malloc(sizeof(*new)))) {
+    if ((new = smg_malloc(sizeof(*new)))) {
 		memset(new, 0, sizeof(*new));
 		new->woomera = woomera;
 		new->next = server.listeners;
@@ -710,7 +736,7 @@ static struct woomera_interface *alloc_woomera(void)
 {
 	struct woomera_interface *woomera = NULL;
 
-	if ((woomera = malloc(sizeof(struct woomera_interface)))) {
+	if ((woomera = smg_malloc(sizeof(struct woomera_interface)))) {
 
 		memset(woomera, 0, sizeof(struct woomera_interface));
 		
@@ -934,7 +960,7 @@ static struct media_session *media_session_new(struct woomera_interface *woomera
     	log_printf(2, server.log,"Starting new MEDIA session [%s] [%s]\n",
 				woomera->interface,woomera->raw?woomera->raw:"N/A");
 
-    	if ((ms = malloc(sizeof(struct media_session)))) {
+    	if ((ms = smg_malloc(sizeof(struct media_session)))) {
 		memset(ms, 0, sizeof(struct media_session));
 		
 		if (woomera->loop_tdm != 1) {
@@ -947,7 +973,7 @@ static struct media_session *media_session_new(struct woomera_interface *woomera
 				}
 			}
 			
-			ms->ip = strndup(woomera->raw, x);
+			ms->ip = smg_strndup(woomera->raw, x);
 			time(&ms->started);
 			p = woomera->raw + (x+1);
 			ms->port = atoi(p);
@@ -981,7 +1007,7 @@ static struct media_session *media_session_new(struct woomera_interface *woomera
 static void media_session_free(struct media_session *ms) 
 {
     if (ms->ip) {
-		free(ms->ip);
+		smg_free(ms->ip);
     }
     
     teletone_destroy_session(&ms->tone_session);
@@ -989,7 +1015,7 @@ static void media_session_free(struct media_session *ms)
 
     ms->woomera = NULL;
 
-    free(ms);
+    smg_free(ms);
 }
 
 
@@ -1907,7 +1933,7 @@ static struct woomera_interface * launch_woomera_loop_thread(call_signal_event_t
 		server.process_table[event->span][event->chan].dev = NULL;
 		memset(server.process_table[event->span][event->chan].session,0,SMG_SESSION_NAME_SZ);
     		pthread_mutex_unlock(&server.process_lock); 
-		free(woomera);
+		smg_free(woomera);
 		log_printf(0, server.log, "Critical ERROR: memory/socket error\n");
 		return NULL;
 	}
@@ -2969,6 +2995,10 @@ handle_call_answer_end:
 		if (woomera) {
 			woomera_set_flag(woomera,WFLAG_MEDIA_END);
 		} else {
+
+/* This can casuse a double STOP 
+   must be debugged further */
+#if 0
 			isup_exec_command(event->span, 
 					event->chan, 
 					-1,
@@ -2976,6 +3006,9 @@ handle_call_answer_end:
 					SIGBOOST_RELEASE_CAUSE_NORMAL);
 									
 			log_printf(1, server.log, "Sent CALL STOP to Answer without session [w%dg%d]\n", 
+					event->span+1, event->chan+1);
+#endif
+			log_printf(0, server.log, "WARNING: Received Answer with no session [w%dg%d]\n", 
 					event->span+1, event->chan+1);
 		}
 	}
@@ -3566,7 +3599,6 @@ static void handle_call_start_nack_ack(call_signal_event_t *event)
 	return;
 }
 
-#if 0
 static void validate_number(unsigned char *s)
 {
 	unsigned char *p;
@@ -3578,16 +3610,15 @@ static void validate_number(unsigned char *s)
 		}
 	}
 }
-#endif
 
 static int parse_ss7_event(call_signal_connection_t *mcon, call_signal_event_t *event)
 {
     	int ret = 0;
 
-#if 0	
-	validate_number((unsigned char*)event->called_number_digits);
-	validate_number((unsigned char*)event->calling_number_digits);
-#endif
+	if (server.strip_cid_non_digits) {	
+		validate_number((unsigned char*)event->called_number_digits);
+		validate_number((unsigned char*)event->calling_number_digits);
+	}
 
 #if 1
  	log_printf(2, server.log,
@@ -3948,13 +3979,13 @@ static void *woomera_thread_run(void *obj)
 				if (socket_printf(woomera->socket, "%s", event_string)) {
 					woomera_set_flag(woomera, WFLAG_MEDIA_END);	
 					woomera_clear_flag(woomera, WFLAG_RUNNING);
-					free(event_string);
+					smg_free(event_string);
 					log_printf(4, server.log, 
 						"WOOMERA session (ptr=%p) print string error\n",
 							woomera);
 					break;
 				}
-				free(event_string);
+				smg_free(event_string);
 			}
 			woomera_clear_flag(woomera, WFLAG_EVENT);
 		}
@@ -4165,7 +4196,7 @@ woo_re_hangup:
 
 		while ((event_string = dequeue_event(woomera))) {
                         socket_printf(woomera->socket, "%s", event_string);
-                        free(event_string);
+                        smg_free(event_string);
                 }
 
 		if (peek_from_holding_tank(index)) {
@@ -4236,7 +4267,7 @@ woo_re_hangup:
     	if (woomera_test_flag(woomera, WFLAG_EVENT)){
 		while ((event_string = dequeue_event(woomera))) {
 			socket_printf(woomera->socket, "%s", event_string);
-			free(event_string);
+			smg_free(event_string);
 		}
 		woomera_clear_flag(woomera, WFLAG_EVENT);
     	}
@@ -4360,7 +4391,7 @@ woo_re_hangup:
 
     	/* delete queue */
    	while ((event_string = dequeue_event(woomera))) {
-		free(event_string);
+		smg_free(event_string);
     	}
 	
 	if (woomera_test_flag(woomera, WFLAG_LISTENING)) {
@@ -4386,7 +4417,7 @@ woo_re_hangup:
 
 	woomera_message_clear(&wmsg);
 
-    	free(woomera);
+    	smg_free(woomera);
     	pthread_mutex_lock(&server.thread_count_lock);
     	server.call_count--;
     	server.thread_count--;
@@ -4549,7 +4580,7 @@ static int configure_server(void)
 			cnt++;
 		} else if (!strcasecmp(var, "logfile_path")) {
 			if (!server.logfile_path) {
-				server.logfile_path = strdup(val);
+				server.logfile_path = smg_strdup(val);
 			}
 		} else if (!strcasecmp(var, "woomera_port")) {
 			server.port = atoi(val);
@@ -4569,6 +4600,8 @@ static int configure_server(void)
 			server.dtmf_off = atoi(val);
 		} else if (!strcasecmp(var, "dtmf_inter_ch_duration")){
 			server.dtmf_intr_ch = atoi(val);
+		} else if (!strcasecmp(var, "strip_cid_non_digits")){
+			server.strip_cid_non_digits = atoi(val);
 		} else if (!strcasecmp(var, "max_calls")) {
 			int max = atoi(val);
 			if (max > 0) {
@@ -4722,7 +4755,7 @@ static int main_thread(void)
 				
 				 close_socket(&new_woomera->socket);
    				 new_woomera->socket=-1;
-				 free(new_woomera);
+				 smg_free(new_woomera);
 			}
 		} else {
 			log_printf(0, server.log, "Critical ERROR: memory/socket error\n");
@@ -4736,7 +4769,8 @@ static int main_thread(void)
 
 static int do_ignore(int sig)
 {
-    return 0;
+	sdla_memdbg_free(0);
+    	return 0;
 }
 
 static int do_shut(int sig)
@@ -4820,7 +4854,7 @@ static int woomera_startup(int argc, char **argv)
 			}
 		} else if (!strcasecmp(arg, "-log")) {
 			if (argv[x] && *(argv[x]) != '-') {
-				server.logfile_path = strdup(argv[x++]);
+				server.logfile_path = smg_strdup(argv[x++]);
 			}
 		} else if (*arg == '-') {
 			log_printf(0, stderr, "Unknown Option %s\n", arg);
@@ -4913,6 +4947,7 @@ static int woomera_startup(int argc, char **argv)
 
     (void) signal(SIGINT,(void *) do_shut);
     (void) signal(SIGPIPE,(void *) do_ignore);
+    (void) signal(SIGUSR1,(void *) do_ignore);	
     (void) signal(SIGHUP,(void *) do_shut);
 
    
@@ -4923,7 +4958,8 @@ static int woomera_startup(int argc, char **argv)
     }
 	
     fprintf(stderr, "%s", WELCOME_TEXT);
-    log_printf(0, stderr, "Woomera STARTUP Complete. [AutoACM=%i]\n",autoacm);
+    log_printf(0, stderr, "Woomera STARTUP Complete. [AutoACM=%i SDigit=%i]\n",
+		autoacm,server.strip_cid_non_digits);
 
     return 1;
 }
@@ -4946,13 +4982,13 @@ static int woomera_shutdown(void)
 
 
     if (server.logfile_path) {
-		free(server.logfile_path);
+		smg_free(server.logfile_path);
 		server.logfile_path = NULL;
     }
 
     /* delete queue */
     while ((event_string = dequeue_event(&server.master_connection))) {
-		free(event_string);
+		smg_free(event_string);
     }
 
     while(server.thread_count > 0) {
@@ -4985,6 +5021,7 @@ int main(int argc, char *argv[])
     
     mlockall(MCL_FUTURE);
     
+    sdla_memdbg_init();
 
     server.hw_coding=0;
 
@@ -4996,6 +5033,8 @@ int main(int argc, char *argv[])
     ret = main_thread();
 
     woomera_shutdown();
+
+    sdla_memdbg_free(1);
 
     return ret;
 }

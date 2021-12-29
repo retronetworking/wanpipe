@@ -59,3 +59,10 @@ dtmf_off_duration => 10
 #1-Enable (Default)
 autoacm => 1
 
+
+#Strip non digits from incoming
+#calls. Removes F from incoming cid
+#when overlap signalling is used.
+#0-Disable
+#1-Enable
+strip_cid_non_digits => 0

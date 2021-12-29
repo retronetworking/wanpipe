@@ -53,10 +53,6 @@ enum wp_device_down_states{
 	DEVICE_DOWN
 };
 
-enum {
-	AFT_CHIP_CONFIGURED,
-	AFT_FRONT_END_UP,
-};
 
 enum {
 	AFT_FE_CFG_ERR,
@@ -1875,8 +1871,6 @@ static int if_init (netdevice_t* dev)
 			}
 
 			dev->hard_header_len	= 0;
-			dev->hard_header	= NULL; 
-			dev->rebuild_header	= NULL;
 
 			/* Enable Mulitcasting if user selected */
 			if (chan->mc == WANOPT_YES){

@@ -367,7 +367,7 @@ static int wp_remora_udp(sdla_fe_t*, void*, unsigned char*);
 static unsigned int wp_remora_active_map(sdla_fe_t* fe);
 static unsigned char wp_remora_fe_media(sdla_fe_t *fe);
 static int wp_remora_set_dtmf(sdla_fe_t*, int, unsigned char);
-static int wp_remora_intr_ctrl(sdla_fe_t*, int, int, int, unsigned int);
+static int wp_remora_intr_ctrl(sdla_fe_t*, int, u_int8_t, u_int8_t, unsigned int);
 static int wp_remora_event_ctrl(sdla_fe_t*, wan_event_ctrl_t*);
 
 static int sdla_rm_add_timer(sdla_fe_t*, unsigned long);
@@ -2965,7 +2965,7 @@ static int wp_remora_watchdog(sdla_fe_t *fe)
 * Returns:
 ******************************************************************************/
 static int
-wp_remora_intr_ctrl(sdla_fe_t *fe, int mod_no, int type, int mode, unsigned int ts_map)
+wp_remora_intr_ctrl(sdla_fe_t *fe, int mod_no, u_int8_t type, u_int8_t mode, unsigned int ts_map)
 {
 	int		err = 0;
 
@@ -2982,8 +2982,7 @@ wp_remora_intr_ctrl(sdla_fe_t *fe, int mod_no, int type, int mode, unsigned int 
 	}
 	if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS){
 
-		switch(type){
-		case WAN_RM_INTR_GLOBAL:
+		if (type & WAN_RM_INTR_GLOBAL){
 			if (mode == WAN_FE_INTR_ENABLE){
 				WRITE_RM_REG(mod_no, 21, fe->rm_param.mod[mod_no].u.fxs.imask1);
 				WRITE_RM_REG(mod_no, 22, fe->rm_param.mod[mod_no].u.fxs.imask2);
@@ -2993,30 +2992,16 @@ wp_remora_intr_ctrl(sdla_fe_t *fe, int mod_no, int type, int mode, unsigned int 
 				WRITE_RM_REG(mod_no, 22, 0x00);
 				WRITE_RM_REG(mod_no, 23, 0x00);
 			}
-			break;
-		default:
-			DEBUG_EVENT(
-			"%s: Module %d: Unsupported FXS interrupt type (%X)!\n",
-					fe->name, mod_no, type);
-			err = -EINVAL;
-			break;
 		}
 
 	}else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
-		switch(type){
-		case WAN_RM_INTR_GLOBAL:
+
+		if (type & WAN_RM_INTR_GLOBAL){
 			if (mode == WAN_FE_INTR_ENABLE){
 				WRITE_RM_REG(mod_no, 3, fe->rm_param.mod[mod_no].u.fxo.imask);
 			}else{
 				WRITE_RM_REG(mod_no, 3, 0x00);
 			}
-			break;
-		default:
-			DEBUG_EVENT(
-			"%s: Module %d: Unsupported FXO interrupt type (%X)!\n",
-					fe->name, mod_no, type);
-			err = -EINVAL;
-			break;
 		}
 	}
 	return err;

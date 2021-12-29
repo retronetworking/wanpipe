@@ -486,8 +486,6 @@ static int if_init (struct net_device* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
-	dev->hard_header	= NULL; 
-	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 	dev->do_ioctl		= if_do_ioctl;

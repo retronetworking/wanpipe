@@ -974,8 +974,6 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 	 * since in some cases (mrouted) daemons continue
 	 * to call ioctl() after the device has gone down */
 	dev->do_ioctl = NULL;
-	dev->hard_header = NULL;
-	dev->rebuild_header = NULL;
 
 	if (chan->common.prot_ptr){
 		kfree(chan->common.prot_ptr);
@@ -1046,8 +1044,7 @@ static int if_init (netdevice_t* dev)
 		dev->type	= ARPHRD_PPP;
 		dev->mtu		= card->wandev.mtu;
 		dev->hard_header_len	= 0;
-		dev->hard_header	= NULL; 
-		dev->rebuild_header	= NULL;
+
 	}
 
 	/* Overwrite the sppp ioctl, because we need to run

@@ -1412,6 +1412,7 @@ static int wp_tdmv_remora_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 	wan_tdmv_rxtx_pwr_t	*pwr_rxtx = NULL;
 #endif
+	sdla_t *card;
 	
 	WAN_ASSERT2(wr == NULL, -EINVAL);
 	WAN_ASSERT2(channo < 0, -EINVAL);
@@ -1420,6 +1421,7 @@ static int wp_tdmv_remora_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 	if (!IS_TDMV_UP(wr)){
 		return -EINVAL;
 	}
+	card = wr->card;
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 	pwr_rxtx = &wan_tdmv->chan_pwr[channo];
@@ -1445,22 +1447,23 @@ DEBUG_EVENT("Module %d: RX: %02X %02X %02X %02X %02X %02X %02X %02X\n",
 	wp_tdmv_echo_check(wan_tdmv, &wr->chans[channo], channo);
 #endif		
 
-	if (!wan_test_bit(channo, &wr->echo_off_map)){
+	if ((!card->wandev.ec_enable || card->wandev.ec_enable_map == 0) && 
+	     !wan_test_bit(channo, &wr->echo_off_map)) {
+
 /*Echo spike starts at 25bytes*/
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 		if(pwr_rxtx->current_state != ECHO_ABSENT){
 #endif
-#if 0
-/* Echo spike starts at 16 bytes */	
-
+			
+		if (wan_test_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status)) {
+			/* Updated for SWRING buffer 
+ 		 	 * Sets up the spike at 3 bytes */
 			zt_ec_chunk(
 				&wr->chans[channo], 
 				wr->chans[channo].readchunk, 
 				wr->chans[channo].writechunk);
-#endif
-
-#if 1			
-/*Echo spike starts at 9 bytes*/
+		} else {
+			/* This should be used without SWRING Echo spike starts at 9 bytes*/
 			zt_ec_chunk(
 				&wr->chans[channo], 
 				wr->chans[channo].readchunk, 
@@ -1469,7 +1472,7 @@ DEBUG_EVENT("Module %d: RX: %02X %02X %02X %02X %02X %02X %02X %02X\n",
 				wr->ec_chunk1[channo],
 				wr->chans[channo].writechunk,
 				ZT_CHUNKSIZE);
-#endif
+		}
 
 #if 0			
 /*Echo spike starts at bytes*/

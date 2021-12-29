@@ -257,7 +257,7 @@ static int sdla_ds_te1_pre_release(void* pfe);
 static int sdla_ds_te1_TxChanCtrl(sdla_fe_t* fe, int channel, int enable);
 static int sdla_ds_te1_RxChanCtrl(sdla_fe_t* fe, int channel, int enable);
 static int sdla_ds_te1_disable_irq(void* pfe);	/* Change to static */
-static int sdla_ds_te1_intr_ctrl(sdla_fe_t*, int, int, int, unsigned int); 
+static int sdla_ds_te1_intr_ctrl(sdla_fe_t*, int, u_int8_t, u_int8_t, unsigned int); 
 static int sdla_ds_te1_check_intr(sdla_fe_t *fe); 
 static int sdla_ds_te1_intr(sdla_fe_t *fe); 
 static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data);
@@ -664,6 +664,160 @@ static int sdla_ds_te1_global_unconfig(void* pfe)
 }
 
 /******************************************************************************
+**				sdla_ds_te1_cfg_verify()	
+**
+** Description: Verify T1/E1 Front-End configuration
+** Arguments:	
+** Returns:	0 - successfully, otherwise -EINVAL.
+*******************************************************************************/
+static int sdla_ds_te1_cfg_verify(void* pfe)
+{
+	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+
+
+	if (IS_T1_FEMEDIA(fe) || IS_J1_FEMEDIA(fe)){
+
+		/* Verify FE framing type */
+		switch(WAN_FE_FRAME(fe)){
+		case WAN_FR_D4: case WAN_FR_ESF: case WAN_FR_UNFRAMED:
+			break;
+		case WAN_FR_NONE:
+			DEBUG_EVENT("%s: Defaulting T1 Frame      = ESF\n",
+						fe->name);
+			WAN_FE_FRAME(fe) = WAN_FR_ESF;
+			break;
+		default:
+			DEBUG_EVENT("%s: Error: Invalid %s FE Framing type (%X)\n",
+						fe->name,
+						FE_MEDIA_DECODE(fe),
+						WAN_FE_FRAME(fe));
+			return -EINVAL;
+			break;
+		}
+
+		/* Verify FE line code type */
+		switch(WAN_FE_LCODE(fe)){
+		case WAN_LCODE_B8ZS: case WAN_LCODE_AMI:
+			break;
+		case WAN_LCODE_NONE:
+			DEBUG_EVENT("%s: Defaulting T1 Line Code  = B8ZS\n",
+						fe->name);
+			WAN_FE_LCODE(fe) = WAN_LCODE_B8ZS;
+			break;
+		default:
+			DEBUG_EVENT("%s: Error: Invalid %s FE Line code type (%X)\n",
+						fe->name,
+						FE_MEDIA_DECODE(fe),
+						WAN_FE_LCODE(fe));
+			return -EINVAL;
+			break;
+		}
+
+		/* Verify LBO */
+		switch(WAN_TE1_LBO(fe)) {
+		case WAN_T1_LBO_0_DB: case WAN_T1_LBO_75_DB:
+		case WAN_T1_LBO_15_DB: case WAN_T1_LBO_225_DB:
+		case WAN_T1_0_133: case WAN_T1_133_266: case WAN_T1_110_220:
+		case WAN_T1_266_399: case WAN_T1_220_330:
+		case WAN_T1_399_533: case WAN_T1_330_440: case WAN_T1_440_550:
+		case WAN_T1_533_655: case WAN_T1_550_660:
+			break;
+		case WAN_T1_LBO_NONE:
+			DEBUG_EVENT("%s: Defaulting T1 LBO        = 0 db\n",
+						fe->name);
+			WAN_TE1_LBO(fe) = WAN_T1_LBO_0_DB;
+			break;
+		default:
+			DEBUG_EVENT("%s: Error: Invalid %s LBO value (%X)\n",
+						fe->name,
+						FE_MEDIA_DECODE(fe),
+						WAN_TE1_LBO(fe));
+			return -EINVAL;
+			break;
+		}
+
+	}else if (IS_E1_FEMEDIA(fe)){
+
+		/* Verify FE framing type */
+		switch(WAN_FE_FRAME(fe)){
+		case WAN_FR_NCRC4: case WAN_FR_CRC4: case WAN_FR_UNFRAMED:
+			break;
+		case WAN_FR_NONE:
+			DEBUG_EVENT("%s: Defaulting E1 Frame      = CRC4\n",
+						fe->name);
+			WAN_FE_FRAME(fe) = WAN_FR_CRC4;
+			break;
+		default:
+			DEBUG_EVENT("%s: Error: Invalid %s FE Framing type (%X)\n",
+						fe->name,
+						FE_MEDIA_DECODE(fe),
+						WAN_FE_FRAME(fe));
+			return -EINVAL;
+			break;
+		}
+
+		/* Verify FE line code type */
+		switch(WAN_FE_LCODE(fe)){
+		case WAN_LCODE_HDB3: case WAN_LCODE_AMI:
+			break;
+		case WAN_LCODE_NONE:
+			DEBUG_EVENT("%s: Defaulting E1 Line Code  = HDB3\n",
+						fe->name);
+			WAN_FE_LCODE(fe) = WAN_LCODE_HDB3;
+			break;
+		default:
+			DEBUG_EVENT("%s: Error: Invalid %s FE Line code type (%X)\n",
+						fe->name,
+						FE_MEDIA_DECODE(fe),
+						WAN_FE_LCODE(fe));
+			return -EINVAL;
+			break;
+		}
+
+		/* Verify LBO */
+		switch(WAN_TE1_LBO(fe)) {
+		case WAN_E1_120: case WAN_E1_75:
+			break;
+		case WAN_T1_LBO_NONE:
+			DEBUG_EVENT("%s: Defaulting E1 LBO        = 120 OH\n",
+						fe->name);
+			WAN_TE1_LBO(fe) = WAN_E1_120;
+			break;
+		default:
+			DEBUG_EVENT("%s: Error: Invalid %s LBO value (%X)\n",
+						fe->name,
+						FE_MEDIA_DECODE(fe),
+						WAN_TE1_LBO(fe));
+			return -EINVAL;
+			break;
+		}
+
+		switch(WAN_TE1_SIG_MODE(fe)){
+		case WAN_TE1_SIG_CAS: case WAN_TE1_SIG_CCS:
+			break;
+		case WAN_TE1_SIG_NONE:
+			DEBUG_EVENT("%s: Defaulting E1 Signalling = CCS\n",
+						fe->name);
+			WAN_TE1_SIG_MODE(fe) = WAN_TE1_SIG_CCS;
+			break;
+		default:
+			DEBUG_EVENT("%s: Error: Invalid E1 Signalling type (%X)\n",
+						fe->name,
+						WAN_TE1_SIG_MODE(fe));
+			return -EINVAL;
+			break;
+		}
+	}else{
+		DEBUG_EVENT("%s: Error: Invalid FE Media type (%X)\n",
+				fe->name,
+				WAN_FE_MEDIA(fe));
+		return -EINVAL;
+	}
+	return 0;
+}
+
+
+/******************************************************************************
 **				sdla_ds_te1_chip_config()	
 **
 ** Description: Configure Dallas Front-End chip
@@ -766,8 +920,10 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		WRITE_REG(REG_RCR1, value | BIT_RCR1_E1_SYNCE);
 		break;
 	default:
-		DEBUG_EVENT("%s: Unsupported DS Frame mode (%X)\n",
-				fe->name, WAN_FE_FRAME(fe));
+		DEBUG_EVENT("%s: Error: Invalid %s Frame mode (%X:%s)\n",
+				fe->name, 
+				FE_MEDIA_DECODE(fe),
+				WAN_FE_FRAME(fe), FE_FRAME_DECODE(fe));
 		return -EINVAL;
 	}
 	
@@ -805,8 +961,10 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		break;
 
 	default:
-		DEBUG_EVENT("%s: Unsupported DS Line code mode (%X)\n",
-				fe->name, WAN_FE_LCODE(fe));
+		DEBUG_EVENT("%s: Error: Invalid %s Line code value (%X:%s)\n",
+				fe->name, 
+				FE_MEDIA_DECODE(fe),
+				WAN_FE_LCODE(fe), FE_LCODE_DECODE(fe));
 		return -EINVAL;
 	}
 
@@ -873,6 +1031,7 @@ static int sdla_ds_te1_chip_config(void* pfe)
 	}
 
 	value = 0x00;
+
 	switch(WAN_TE1_LBO(fe)) {
 	case WAN_T1_LBO_0_DB:
 		value = 0x00;
@@ -899,6 +1058,7 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		break;
 	case WAN_T1_399_533:
 	case WAN_T1_330_440:
+	case WAN_T1_440_550:
 		value = BIT_LTITSR_L1 | BIT_LTITSR_L0;
 		break;
 	case WAN_T1_533_655:
@@ -912,10 +1072,11 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		value = 0x00;
 		break;
 	default:
-		if (IS_E1_FEMEDIA(fe)){
-			value = BIT_LTITSR_L0;
-		}
-		break;
+		DEBUG_EVENT("%s: Error: Invalid %s LBO value (%X)\n",
+					fe->name,
+					FE_MEDIA_DECODE(fe),
+					WAN_TE1_LBO(fe));
+		return -EINVAL;
 	}
 	if (IS_T1_FEMEDIA(fe)){
 		WRITE_REG(REG_LTITSR, value | BIT_LTITSR_TIMPL0);
@@ -977,13 +1138,19 @@ static int sdla_ds_te1_chip_config(void* pfe)
 	if (IS_T1_FEMEDIA(fe)){
 		WRITE_REG(REG_LRISMR, value | BIT_LRISMR_RIMPM0);
 	}else{
-		value |= BIT_LRISMR_RIMPOFF;		
+		//value |= BIT_LRISMR_RIMPOFF;		
 		if (WAN_TE1_LBO(fe) == WAN_E1_120){
 			value |= BIT_LRISMR_RIMPM1 | BIT_LRISMR_RIMPM0;
 		}
 		WRITE_REG(REG_LRISMR, value);
 	}
 		
+	if (IS_E1_FEMEDIA(fe) && WAN_TE1_LBO(fe) == WAN_E1_120){
+		/* Feb 7, 2008
+		** Adjust DAC gain (-4.88%) */
+		WRITE_REG(REG_LTXLAE, 0x09);
+	}
+
 	/* Additional front-end settings */
 	value = READ_REG(REG_ERCNT);
 	if (WAN_FE_LCODE(fe) == WAN_LCODE_AMI){
@@ -1083,6 +1250,8 @@ static int sdla_ds_te1_config(void* pfe)
 		break;		
 	}
 
+	if (sdla_ds_te1_cfg_verify(fe)) return -EINVAL;
+
 	DEBUG_EVENT("%s: Configuring DS %s %s FE\n", 
 				fe->name, 
 				DECODE_CHIPID(fe->fe_chip_id),
@@ -1104,7 +1273,12 @@ static int sdla_ds_te1_config(void* pfe)
 					fe->name, 
 					WAN_TE1_SIG_DECODE(fe));
 	}
-
+	if (fe->fe_cfg.poll_mode == WANOPT_YES){
+		sdla_t	*card = (sdla_t*)fe->card;
+		DEBUG_EVENT("%s:    FE Poll driven\n",
+				fe->name);
+		card->fe_no_intr = 1;
+	}
 	if (sdla_ds_te1_chip_config(fe)){
 		return -EINVAL;
 	}
@@ -1119,10 +1293,13 @@ static int sdla_ds_te1_config(void* pfe)
 
 	wan_set_bit(TE_CONFIGURED,(void*)&fe->te_param.critical);
 
+#if 0
+/* Do not enable it here */
 	/* Enable interrupts */
 	sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_GLOBAL, WAN_FE_INTR_ENABLE, 0x00); 
 	/* Enable manual update pmon counter */
 	sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_PMON, WAN_FE_INTR_MASK, 0x00);
+#endif
 	return 0;
 }
 
@@ -1243,11 +1420,13 @@ static int sdla_ds_te1_disable_irq(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
 
-	/* FIXME: Alex to disable interrupts here */
-	sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_GLOBAL, WAN_FE_INTR_MASK, 0x00);
-	sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_BASIC, WAN_FE_INTR_MASK, 0x00);
-	sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_PMON, WAN_FE_INTR_MASK, 0x00);
-
+	if (fe->fe_cfg.poll_mode == WANOPT_NO){
+		/* Disable interrupts here */
+		sdla_ds_te1_intr_ctrl(
+			fe, 0, 
+			(WAN_TE_INTR_GLOBAL|WAN_TE_INTR_BASIC|WAN_TE_INTR_PMON),
+			WAN_FE_INTR_MASK, 0x00);
+	}
 	return 0;
 }
 
@@ -2175,7 +2354,7 @@ sdla_ds_te1_rbs_print(sdla_fe_t* fe, int last_status)
  ******************************************************************************
  */
 static int
-sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, int type, int mode, unsigned int ts_map) 
+sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, u_int8_t type, u_int8_t mode, unsigned int ts_map) 
 {
 	unsigned char	mask, value;
 	unsigned char	rscse;
@@ -2183,12 +2362,12 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, int type, int mode, unsigned int
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
+	WAN_ASSERT(fe->fe_cfg.poll_mode == WANOPT_YES);
 
 	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->te_param.critical)){
 		return 0;
 	}
-	switch(type){
-	case WAN_TE_INTR_GLOBAL:
+	if (type & WAN_TE_INTR_GLOBAL){
 		mask = READ_REG(REG_GFIMR);
 		if (mode == WAN_FE_INTR_ENABLE){
 			//mask |= (1<<WAN_FE_LINENO(fe));
@@ -2218,9 +2397,9 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, int type, int mode, unsigned int
 			mask &= ~(1<<WAN_DS_REGBITMAP(fe));
 		}
 		WRITE_REG(REG_GBIMR, mask);
-		break;
+	}
 
-	case WAN_TE_INTR_BASIC:
+	if (type & WAN_TE_INTR_BASIC){
 		if (mode == WAN_FE_INTR_ENABLE){
 			unsigned char	mask = 0x00;
 
@@ -2253,9 +2432,9 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, int type, int mode, unsigned int
 
 			WRITE_REG(REG_LSIMR, 0x00);
 		}
-		break;
+	}
 
-	case WAN_TE_INTR_SIGNALLING:
+	if (type & WAN_TE_INTR_SIGNALLING){
 		for(ch = 1; ch <= fe->te_param.max_channels; ch++){
 			if (!wan_test_bit(ch, &ts_map)){
 				continue;
@@ -2285,9 +2464,9 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, int type, int mode, unsigned int
 			value &= ~BIT_RIM4_RSCOS;
 		}
 		WRITE_REG(REG_RIM4, value);
-		break;
+	}
 
-	case WAN_TE_INTR_PMON:
+	if (type & WAN_TE_INTR_PMON){
 		value = READ_REG(REG_ERCNT);
 		if (mode == WAN_FE_INTR_ENABLE){
 			value &= ~BIT_ERCNT_EAMS;
@@ -2295,12 +2474,6 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, int type, int mode, unsigned int
 			value |= BIT_ERCNT_EAMS;
 		}
 		WRITE_REG(REG_ERCNT, value); 
-		break;
-
-	default:
-		DEBUG_EVENT("%s: Unsupported interrupt type %X!\n",
-					fe->name, type);
-		return -EINVAL;
 	}
 
 	return 0;
@@ -2672,6 +2845,7 @@ static int sdla_ds_te1_check_intr(sdla_fe_t *fe)
 	
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
+	WAN_ASSERT(fe->fe_cfg.poll_mode == WANOPT_YES);
 
 	framer_istatus	= __READ_REG(REG_GFISR);
 	liu_istatus	= __READ_REG(REG_GLISR);
@@ -2755,12 +2929,13 @@ static int sdla_ds_te1_intr(sdla_fe_t *fe)
 #if 1
 	if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC){
 		sdla_fe_timer_event_t	event;
-		/* AL: March 1, 2006: Mask global FE intr */
+		/* AL: March 1, 2006
+		** Mask global FE intr
+		** Disable automatic update */
 		sdla_ds_te1_intr_ctrl(
-			fe, 0, WAN_TE_INTR_BASIC, WAN_FE_INTR_MASK, 0x00);
-		/* Disable automatic update */
-		sdla_ds_te1_intr_ctrl(
-			fe, 0, WAN_TE_INTR_PMON, WAN_FE_INTR_MASK, 0x00);
+			fe, 0, 
+			(WAN_TE_INTR_GLOBAL|WAN_TE_INTR_BASIC|WAN_TE_INTR_PMON),
+			WAN_FE_INTR_MASK, 0x00);
 		/* Start LINKDOWN poll */
 		event.type	= TE_LINKCRIT_TIMER;
 		event.delay	= POLLING_TE1_TIMER*5;
@@ -2777,18 +2952,13 @@ static int sdla_ds_te1_intr(sdla_fe_t *fe)
 	if (status != fe->fe_status){
 		if (fe->fe_status != FE_CONNECTED){
 			sdla_fe_timer_event_t	event;
-			/* AL: March 1, 2006: Mask global FE intr */
+			/* AL: March 1, 2006
+			** Mask global FE intr
+			** Disable automatic update */
 			sdla_ds_te1_intr_ctrl(
-					fe, 0,
-					WAN_TE_INTR_BASIC,
-					WAN_FE_INTR_MASK,
-					0x00);
-			/* Disable automatic update */
-			sdla_ds_te1_intr_ctrl(
-					fe, 0,
-					WAN_TE_INTR_PMON,
-					WAN_FE_INTR_MASK,
-					0x00);
+				fe, 0, 
+				(WAN_TE_INTR_GLOBAL|WAN_TE_INTR_BASIC|WAN_TE_INTR_PMON),
+				WAN_FE_INTR_MASK, 0x00);
 			/* Start LINKDOWN poll */
 			event.type	= TE_LINKDOWN_TIMER;
 			event.delay	= POLLING_TE1_TIMER*5;
@@ -3049,16 +3219,19 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 		** because it cause to stay longer in interrupt handler
 	        ** (critical for XILINX code) */
 		if (fe->fe_status == FE_CONNECTED){
-			/* Enable Basic Interrupt */
-			sdla_ds_te1_intr_ctrl(	fe, 0, 
-						WAN_TE_INTR_BASIC, 
-						WAN_FE_INTR_ENABLE, 
-						0x00);
-			/* Enable automatic update pmon counters */
-			sdla_ds_te1_intr_ctrl(	fe, 0, 
-						WAN_TE_INTR_PMON, 
-						WAN_FE_INTR_ENABLE, 
-						0x00);
+			if (fe->fe_cfg.poll_mode == WANOPT_YES){
+				event->type	= WAN_TE_POLL_LINKREADY;
+				event->delay	= POLLING_TE1_TIMER;
+				pending	= 1;
+			}else{
+				/* Enable Basic Interrupt */
+				/* Enable automatic update pmon counters */
+				sdla_ds_te1_intr_ctrl(	
+					fe, 0, 
+					(WAN_TE_INTR_GLOBAL|WAN_TE_INTR_BASIC|WAN_TE_INTR_PMON), 
+					WAN_FE_INTR_ENABLE, 
+					0x00);
+			}
 			if (card->wandev.te_link_state){
 				card->wandev.te_link_state(card);
 			}
@@ -3066,6 +3239,28 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 			event->type	= TE_LINKDOWN_TIMER;
 			event->delay	= POLLING_TE1_TIMER;
 			pending	= 1;
+		}
+		break;
+
+
+	case WAN_TE_POLL_LINKREADY:
+		/* Only used in no interrupt driven front-end mode */
+		sdla_ds_te1_read_alarms(fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
+		if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC){
+			/* Short circuit detected, go to LINKCRIT state */
+			event->type	= TE_LINKCRIT_TIMER;
+			event->delay	= POLLING_TE1_TIMER;
+			pending	= 1;
+			break;
+		}
+		sdla_ds_te1_set_status(fe, fe->fe_alarm);
+		if (fe->fe_status == FE_CONNECTED){
+			pending	= 1;
+		}else{
+			event->type	= TE_LINKDOWN_TIMER;
+			event->delay	= POLLING_TE1_TIMER;
+			pending	= 1;
+			break;
 		}
 		break;
 
@@ -3139,24 +3334,22 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 					fe->name);
 			return -EINVAL;
 		}
-		/* Enable interrupts */
-		sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_BASIC, WAN_FE_INTR_ENABLE, 0x00); 
-		/* Enable manual update pmon counter */
-		sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_PMON, WAN_FE_INTR_ENABLE, 0x00);
 		event->type	= TE_LINKDOWN_TIMER;
 		event->delay	= POLLING_TE1_TIMER;
 		pending = 1;
 		break;
 		
 	case TE_POLL_READ:
-		DEBUG_EVENT("%s: Reading %s Front-End register: Reg[%04X]=%02X\n",
+		fe->te_param.reg_dbg_value = READ_REG(event->te_event.reg);
+		DEBUG_TE1("%s: Read %s Front-End Reg:%04X=%02X\n",
 					fe->name, FE_MEDIA_DECODE(fe),
 					event->te_event.reg,
-					READ_REG(event->te_event.reg));
+					fe->te_param.reg_dbg_value);
+		fe->te_param.reg_dbg_ready = 1;	
 		break;
 		
 	case TE_POLL_WRITE:
-		DEBUG_EVENT("%s: Writting %s Front-End register: Reg[%04X]=%02X\n",
+		DEBUG_EVENT("%s: Write %s Front-End Reg:%04X=%02X\n",
 					fe->name, FE_MEDIA_DECODE(fe),
 					event->te_event.reg,
 					event->te_event.value);
@@ -3241,7 +3434,7 @@ static int sdla_ds_te1_pmon(sdla_fe_t *fe, int action)
 		pmon2 = READ_REG(REG_PCVCR1) << 8 | READ_REG(REG_PCVCR2);
 		/* OOF Error for T1/E1 */
 		pmon3 = READ_REG(REG_FOSCR1) << 8 | READ_REG(REG_FOSCR2);
-		if (IS_E1_FEMEDIA(fe)){
+		if (IS_E1_FEMEDIA(fe) && WAN_FE_FRAME(fe) == WAN_FR_CRC4){
 			/* E-bit counter (Far End Block Errors) */
 			pmon4 = READ_REG(REG_E1EBCR1) << 8 | READ_REG(REG_E1EBCR2);
 		}
@@ -3665,11 +3858,24 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
     			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			break;
 		case WAN_FE_DEBUG_REG:
+			if (fe->te_param.reg_dbg_busy){
+				if (fe_debug->fe_debug_reg.read == 2 && fe->te_param.reg_dbg_ready){
+					/* Poll the register value */
+					fe_debug->fe_debug_reg.value = fe->te_param.reg_dbg_value;
+					udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+					fe->te_param.reg_dbg_busy = 0;
+				}
+				break;
+			}
 			event.type		= (fe_debug->fe_debug_reg.read) ? 
 							TE_POLL_READ : TE_POLL_WRITE;
-			event.te_event.reg	= fe_debug->fe_debug_reg.reg;
+			event.te_event.reg	= (u_int16_t)fe_debug->fe_debug_reg.reg;
 			event.te_event.value	= fe_debug->fe_debug_reg.value;
 			event.delay		= POLLING_TE1_TIMER;
+			if (fe_debug->fe_debug_reg.read){
+				fe->te_param.reg_dbg_busy = 1;
+				fe->te_param.reg_dbg_ready = 0;
+			}
 			sdla_ds_te1_add_event(fe, &event);
 			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			break;

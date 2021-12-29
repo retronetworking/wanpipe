@@ -32,6 +32,7 @@
 
 #include "sangoma_mgd.h"
 #include "switch_buffer.h"
+#include "sangoma_mgd_memdbg.h"
 
 static uint32_t buffer_id = 0;
 
@@ -46,8 +47,8 @@ SWITCH_DECLARE(switch_status_t) switch_buffer_create(switch_buffer_t **buffer, s
 	switch_buffer_t *new_buffer;
 
 	
-	if ((new_buffer = malloc(sizeof(switch_buffer_t))) != 0
-		&& (new_buffer->data = malloc(max_len)) != 0) {
+	if ((new_buffer = smg_malloc(sizeof(switch_buffer_t))) != 0
+		&& (new_buffer->data = smg_malloc(max_len)) != 0) {
 
 		new_buffer->datalen = max_len;
 		new_buffer->id = buffer_id++;
@@ -64,12 +65,12 @@ switch_buffer_create_dynamic(switch_buffer_t **buffer, switch_size_t blocksize,
 {
 	switch_buffer_t *new_buffer;
 
-	if ((new_buffer = malloc(sizeof(*new_buffer)))) {
+	if ((new_buffer = smg_malloc(sizeof(*new_buffer)))) {
 		memset(new_buffer, 0, sizeof(*new_buffer));
 
 		if (start_len) {
-			if (!(new_buffer->data = malloc(start_len))) {
-				free(new_buffer);
+			if (!(new_buffer->data = smg_malloc(start_len))) {
+				smg_free(new_buffer);
 				return SWITCH_STATUS_MEMERR;
 			}
 			memset(new_buffer->data, 0, start_len);
@@ -260,8 +261,8 @@ SWITCH_DECLARE(void) switch_buffer_zero(switch_buffer_t *buffer)
 SWITCH_DECLARE(void) switch_buffer_destroy(switch_buffer_t **buffer)
 {
 	if (*buffer) {
-		free((*buffer)->data);
-		free(*buffer);
+		smg_free((*buffer)->data);
+		smg_free(*buffer);
 	}
 
 	*buffer = NULL;

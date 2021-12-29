@@ -13,7 +13,7 @@ PWD = $(shell pwd)
 PROD	= wan_ec_setup
 VERSION	= 1.0
 DEBUG	= 2
-YACC	= yacc
+YACC	= bison
 
 # Project File Paths.
 TMPDIR		= tmp
@@ -45,7 +45,7 @@ wan_ec_client:	$(SRC_CLIENT) $(SRC_EC_APILIB)
 	$(CC) $(CFLAGS) -o $@ $^ 
 
 y.tab.c:
-	$(YACC) -d wan_ec_arg.y
+	$(YACC) -d -o y.tab.c wan_ec_arg.y
 
 wan_ec_argl.c:
 	$(LEX)	-owan_ec_argl.c wan_ec_arg.l

@@ -2,7 +2,7 @@
 #
 # Setup		WANPIPE WAN Router Installation/Removal Script.
 #
-# Copyright	(c) 1996-2007, Sangoma Technologies Inc.
+# Copyright	(c) 1996-2008, Sangoma Technologies Inc.
 #
 #		This program is free software; you can redistribute it and/or
 #		modify it under the terms of the GNU General Public License
@@ -543,15 +543,9 @@ prepare()
         eval "type bison 2> /dev/null > /dev/null"
         if [  $? -eq 0 ]; then
                 echo "OK"
-        else
-        	echo -n "Checking for yacc..."
-        	eval "type yacc 2> /dev/null > /dev/null"
-        	if [  $? -eq 0 ]; then
-               	 	echo "OK"
-        	else
-                	echo "Failed!"
-                	missing_packages=$missing_packages"bison "
-		fi
+	else
+               	echo "Failed!"
+               	missing_packages=$missing_packages"bison "
         fi
 
         echo
@@ -606,10 +600,10 @@ prepare()
                                         echo -e "    Required for Wancfg configuration utility."
 					echo -e "    Install flex package (e.g yum install flex)."
                                 ;;
-                                yacc)
-                                        echo -e "\n Yacc."
+                                bison)
+                                        echo -e "\n Bison."
                                         echo -e "    Required for Wanpipe Utilities."
-                                        echo -e "    Install byacc package (e.g yum install byacc)."
+                                        echo -e "    Install bison package (e.g yum install bison)."
                                 ;;
 
                         esac
@@ -1944,7 +1938,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 
     	WANCFG_DEFS=
     	if [ "$TDM_PROT" = "YES" ]; then
- 		WANCFG_DEFS=$WANCFG_DEFS" ENABLE_ZAPTEL_PARSER=YES ZAPINC=$ZAPTEL_INSTALL_DIR"
+ 		WANCFG_DEFS=$WANCFG_DEFS" ENABLE_ZAPTEL_PARSER=YES ZAPINC=$ZAPTEL_SOURCE_DIR"
     	fi
     	eval "make -C wancfg all CC=$CC SYSINC=$SOURCEDIR/include $WANCFG_DEFS >> $CMP_LOG 2>> $CMP_LOG"
 
@@ -3728,7 +3722,7 @@ WANPIPE_OBJS=
 		\cp $DRIVER_UPDATE_DIR/src/net/sdla_tdmv.c .
 		\cp $DRIVER_UPDATE_DIR/src/net/sdla_remora_tdmv.c .
 		WANPIPE_OBJS=$WANPIPE_OBJS"sdla_tdmv sdla_remora_tdmv "
-		WANPIPE_EXTRA_CFLAGS=$WANPIPE_EXTRA_CFLAGS"-I$ZAPTEL_INSTALL_DIR "
+		WANPIPE_EXTRA_CFLAGS=$WANPIPE_EXTRA_CFLAGS"-I$ZAPTEL_SOURCE_DIR "
 	fi
 
 	if [ "$AFT_TE1_PROT" = "YES" ]; then
@@ -4847,44 +4841,55 @@ search_and_replace()
 }
 function tdmv_get_zaptel_path ()
 {
-
         if [ $ZAPTEL_PATH_OP != "YES" ]; then
 		find_zap_dirs
 	fi
 
-if [ 0 ]; then
-        if [ $ZAPTEL_PATH_OP != "YES" ]; then
-                echo
-                echo -e "\nPlease specify absolute path to Zaptel source directory"
-		echo -e "\n[default:$ZAPTEL_INSTALL_DIR]\n"
-	       	echo -n "<specify path:> "
-                if [ ! -d $ZAPTEL_INSTALL_DIR ]; then
-                 	echo -e "Warning: $ZAPTEL_INSTALL_DIR does not exist\n"
+	if [ 0 ]; then
+        	if [ $ZAPTEL_PATH_OP != "YES" ]; then
+                	echo
+                	echo -e "\nPlease specify absolute path to Zaptel source directory"
+			echo -e "\n[default:$ZAPTEL_SOURCE_DIR]\n"
+	       		echo -n "<specify path:> "
+                	if [ ! -d $ZAPTEL_SOURCE_DIR ]; then
+                	 	echo -e "Warning: $ZAPTEL_SOURCE_DIR does not exist\n"
+			fi
+                	if test -z $NONINTERACTIVE; then
+                	        read response
+	
+        	                        [ $response ] && {
+                	                 ZAPTEL_SOURCE_DIR=$response
+                	        }
+                	fi
+        	fi
+		
+		#Check if this post Zaptel-1.4.9
+		if [ -d $ZAPTEL_SOURCE_DIR/kernel ]; then 
+			ZAPTEL_INSTALL_DIR=$ZAPTEL_SOURCE_DIR
+			ZAPTEL_SOURCE_DIR=$ZAPTEL_SOURCE_DIR/kernel
+		else
+			if [ -z $ZAPTEL_INSTALL_DIR ]; then
+				ZAPTEL_INSTALL_DIR=$ZAPTEL_SOURCE_DIR
+			fi
 		fi
-                if test -z $NONINTERACTIVE; then
-                        read response
-
-                                [ $response ] && {
-                                 ZAPTEL_INSTALL_DIR=$response
-                        }
-                fi
-        fi
-        if [ ! -f $ZAPTEL_INSTALL_DIR/zaptel.h ]; then
-                echo "   Zaptel source not found in $ZAPTEL_INSTALL_DIR"
-                ZAPTEL_INSTALL_DIR="/usr/src/zaptel"
-                if test $NONINTERACTIVE; then
-                        return 1
-                else
-                        getyn "   Press Y to specify another Zaptel source directory, N to exit"
-                        if [ $? -ne 0 ]; then
-                                exit 1;
-                        fi
-                        tdmv_get_zaptel_path
-                fi
-       fi
-fi
+	
+        	if [ ! -f $ZAPTEL_SOURCE_DIR/zaptel.h ]; then
+        	        echo "   Zaptel source not found in $ZAPTEL_INSTALL_DIR"
+        	        ZAPTEL_SOURCE_DIR="/usr/src/zaptel"
+			ZAPTEL_INSTALL_DIR=$ZAPTEL_SOURCE_DIR
+        	        if test $NONINTERACTIVE; then
+        	                return 1
+        	        else
+        	                getyn "   Press Y to specify another Zaptel source directory, N to exit"
+        	                if [ $? -ne 0 ]; then
+        	                        exit 1;
+        	                fi
+        	                tdmv_get_zaptel_path
+        	        fi
+       		fi
+	fi
 	#zaptel.c renamed to zaptel-base.c in zaptel v1.2.13 and later
-        if [ -e $ZAPTEL_INSTALL_DIR/zaptel-base.c ]; then
+        if [ -e $ZAPTEL_SOURCE_DIR/zaptel-base.c ]; then
                 ZAPTEL_C_FILE="zaptel-base.c";
         fi
         return 0;
@@ -4903,7 +4908,7 @@ function tdmv_apply_zaptel_dchan_patch_old ()
 	
 	lhome=`pwd`
 
-	cd $ZAPTEL_INSTALL_DIR
+	cd $ZAPTEL_SOURCE_DIR
 
 	
 	if [ ! -e CVS ]; then
@@ -4927,7 +4932,7 @@ function tdmv_apply_zaptel_dchan_patch_old ()
 			cd $lhome
 			return 0
 		else
-			echo "ERROR: Old Zaptel DCHAN patch detected in $ZAPTEL_INSTALL_DIR"
+			echo "ERROR: Old Zaptel DCHAN patch detected in $ZAPTEL_SOURCE_DIR"
 			echo
 			echo "       Please install a fresh version of Zaptel source and"
 			echo "       run ./Setup again."
@@ -4965,8 +4970,8 @@ function tdmv_apply_zaptel_dchan_patch_old ()
 function tdmv_apply_zaptel_chunk_patch () {
         lhome=`pwd`
         TEMP=tmp
-        cd $ZAPTEL_INSTALL_DIR
-        echo "Applying Zaptel Chunk patch..."
+	cd $ZAPTEL_SOURCE_DIR
+	echo "Applying Zaptel Chunk patch..."
         echo " "
         #modify zaptel.h
         eval "cat zaptel.h | sed '/^#define ZT_CHUNKSIZE/c\#define ZT_CHUNKSIZE          $ZAP_CHUNK' >$TEMP 2>/dev/null"
@@ -4984,6 +4989,7 @@ function tdmv_apply_zaptel_chunk_patch () {
                 fi
         fi
 
+	cd $ZAPTEL_INSTALL_DIR
         #remove wct4xxp module from Makefile
         eval "cat Makefile |sed 's/wct1xxp wct4xxp wcte11xp/wct1xxp wcte11xp/g'>$TEMP 2>/dev/null "
         if [ $? -ne 0 ]; then
@@ -5052,7 +5058,7 @@ function tdmv_apply_zaptel_echo_debug_patch ()
 
 	#######################################################################################
 	lhome=`pwd`
-	cd $ZAPTEL_INSTALL_DIR
+	cd $ZAPTEL_SOURCE_DIR
 
 	#check if some version of the patch is already installed in $ZAPTEL_C_FILE
 	eval "grep \"GET_ECHO_SPIKE_SAMPLE\" $ZAPTEL_C_FILE > /dev/null 2> /dev/null"
@@ -5126,7 +5132,7 @@ function tdmv_apply_zaptel_edac_patch ()
 
 	lhome=`pwd`
 
-	cd $ZAPTEL_INSTALL_DIR
+	cd $ZAPTEL_SOURCE_DIR
 
 	#check if some version of the patch is already installed
 	eval "grep \"SANGOMA_GET_ED_STATE\" $ZAPTEL_C_FILE > /dev/null 2> /dev/null"
@@ -5139,7 +5145,7 @@ function tdmv_apply_zaptel_edac_patch ()
 	
 	cp $PROD_HOME/edac/$EDAC_ZAP_PATCH_FILE .
 
-	#eval "patch -F 3 -c -d $ZAPTEL_INSTALL_DIR < $EDAC_ZAP_PATCH_FILE"
+	#eval "patch -F 3 -c -d $ZAPTEL_SOURCE_DIR < $EDAC_ZAP_PATCH_FILE"
 	eval "patch -p1 < $EDAC_ZAP_PATCH_FILE"
 	rc=$?
 	
@@ -5417,7 +5423,7 @@ function find_zap_dirs ()
 			continue
 		fi
 
-		if [ ! -f $dir/zaptel.h ];then
+		if [ ! -f $dir/zaptel.h ] && [ ! -f $dir/kernel/zaptel.h ];then
 			continue;
 		fi
 	
@@ -5481,9 +5487,9 @@ function find_zap_dirs ()
 		read response
 		
 		if [ "$response" = "" ]; then
-			ZAPTEL_INSTALL_DIR=$ZAPTEL_DFLT_INSTALL_DIR		
+			ZAPTEL_SOURCE_DIR=$ZAPTEL_DFLT_INSTALL_DIR		
 		else
-			ZAPTEL_INSTALL_DIR=$response
+			ZAPTEL_SOURCE_DIR=$response
 		fi
 
 		zapdir_manual=1
@@ -5493,14 +5499,22 @@ function find_zap_dirs ()
 #		return 1;
 
 	elif [ $response -gt 0 ] && [ $response -lt $cnt ]; then
-		ZAPTEL_INSTALL_DIR=${zapdir_array[$response]}
+		ZAPTEL_SOURCE_DIR=${zapdir_array[$response]}
 	else
 		find_zap_dirs_invalid "$zapdirs"
 	fi	
 
-	if [ ! -f $ZAPTEL_INSTALL_DIR/zaptel.h ]; then
+	#Check if this post Zaptel-1.4.9
+	if [ -d $ZAPTEL_SOURCE_DIR/kernel ]; then 
+		ZAPTEL_INSTALL_DIR=$ZAPTEL_SOURCE_DIR
+		ZAPTEL_SOURCE_DIR=$ZAPTEL_SOURCE_DIR/kernel
+	else
+		ZAPTEL_INSTALL_DIR=$ZAPTEL_SOURCE_DIR
+	fi
+
+	if [ ! -f $ZAPTEL_SOURCE_DIR/zaptel.h ]; then
 		echo
-		echo "Error: zaptel.h not found in $ZAPTEL_INSTALL_DIR"
+		echo "Error: zaptel.h not found in $ZAPTEL_SOURCE_DIR"
 		echo
 		echo
 		zapdir_manual=0
@@ -5510,26 +5524,25 @@ function find_zap_dirs ()
 	fi
 	
 	if [ $find_zap_dir_quit -eq 1 ] ; then
-		ZAPTEL_INSTALL_DIR=$ZAPTEL_DFLT_INSTALL_DIR	
+		ZAPTEL_SOURCE_DIR=$ZAPTEL_DFLT_INSTALL_DIR	
 		return 1
 	fi
 
 	if [ $zapdir_manual -eq 1 ]; then
-		eval "grep \"$ZAPTEL_INSTALL_DIR\" $PROD_HOME/zaptel/zaptel.path 2> /dev/null > /dev/null "
+		eval "grep \"$ZAPTEL_SOURCE_DIR\" $PROD_HOME/zaptel/zaptel.path 2> /dev/null > /dev/null "
 		if [ $? -ne 0 ]; then
-			echo "$ZAPTEL_INSTALL_DIR" >> $PROD_HOME/zaptel/zaptel.path
+			echo "$ZAPTEL_SOURCE_DIR" >> $PROD_HOME/zaptel/zaptel.path
 		fi
 	fi
 
-	#echo "GO AUTOMATIC ZAPDIR= $ZAPTEL_INSTALL_DIR"
+	#echo "GO AUTOMATIC ZAPDIR= $ZAPTEL_SOURCE_DIR"
 
 	ZAPTEL_PATH_OP="YES";
 
 	#zaptel.c renamed to zaptel-base.c in zaptel v1.2.13 and later
-        if [ -e $ZAPTEL_INSTALL_DIR/zaptel-base.c ]; then
+        if [ -e $ZAPTEL_SOURCE_DIR/zaptel-base.c ]; then
                 ZAPTEL_C_FILE="zaptel-base.c";
         fi
-
 	return 0;
 	
 }
@@ -5844,7 +5857,7 @@ ENDOFTEXT
 	echo "$PROTOCOL" | grep "TDM" > /dev/null
 	if [ $? -eq 0 ]; then
 		tdmv_get_zaptel_path
-                if [ $? -eq 0 ]; then
+		if [ $? -eq 0 ]; then
                         ZAP_MOD_DIR=/lib/modules/$(uname -r)
 	
 			if [ $KERN_VER -eq 24 ]; then
@@ -5886,14 +5899,14 @@ ENDOFTEXT
 				if [ $TDM_PROT != YES ]; then
 					echo "Enabling the TDM Voice Asterisk Support"
 					PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE "		
-					ASTERISK_IFLAGS="-I$ZAPTEL_INSTALL_DIR"
+					ASTERISK_IFLAGS="-I$ZAPTEL_SOURCE_DIR"
 					WANCFG_ZAPTEL_CFG=YES
 				fi
 
 
 				#Check for new zaptel hw hdlc option
-				if [ -f $ZAPTEL_INSTALL_DIR/zaptel-base.c ]; then
-					eval "grep hdlc_hard_xmit $ZAPTEL_INSTALL_DIR/zaptel-base.c > /dev/null 2> /dev/null"
+				if [ -f $ZAPTEL_SOURCE_DIR/zaptel-base.c ]; then
+					eval "grep hdlc_hard_xmit $ZAPTEL_SOURCE_DIR/zaptel-base.c > /dev/null 2> /dev/null"
 					if [ $? -eq 0 ] ; then
 						echo
 						echo "Native Zaptel HW HDLC Support Detected - No patch required"
@@ -5911,7 +5924,7 @@ ENDOFTEXT
 
 				#Check if dchan patch is already enabled 
 				if [ "$TDM_DCHAN" = "" ]; then
-					eval "grep ZT_DCHAN_TX_V2 $ZAPTEL_INSTALL_DIR/* 2> /dev/null > /dev/null"
+					eval "grep ZT_DCHAN_TX_V2 $ZAPTEL_SOURCE_DIR/* 2> /dev/null > /dev/null"
 					if [ $? -eq 0 ]; then
 						TDM_DCHAN="(DCHAN)"
 						PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN"
@@ -5928,7 +5941,7 @@ ENDOFTEXT
 
 					PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN"
 					echo
-					eval "$PROD_HOME/patches/sangoma-zaptel-patch.sh $ZAPTEL_INSTALL_DIR"
+					eval "$PROD_HOME/patches/sangoma-zaptel-patch.sh $ZAPTEL_SOURCE_DIR"
 					result=$?
 					if [ $result -eq 0 ]; then
 						TDM_DCHAN="(DCHAN)"
@@ -5954,7 +5967,7 @@ ENDOFTEXT
 				fi
 			fi
                         if [ $ZAP_CHUNK_OP == "YES" ] ; then
-                               tdmv_apply_zaptel_chunk_patch
+			       tdmv_apply_zaptel_chunk_patch
                         fi
 
 			####################################################################
@@ -6328,7 +6341,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.2.3
+PROD_VER=3.2.4
 PROD_HOME=`pwd`
 WAN_CONF_DIR=/etc/wanpipe
 META_CONF=$PROD_HOME/$PROD.rc      
@@ -6413,7 +6426,8 @@ ANNEXG_LOAD=NO
 SCTP_LOAD=NO
 
 ZAPTEL_DFLT_INSTALL_DIR="/usr/src/zaptel"
-ZAPTEL_INSTALL_DIR=$ZAPTEL_DFLT_INSTALL_DIR
+ZAPTEL_SOURCE_DIR=$ZAPTEL_DFLT_INSTALL_DIR	#Location of Zaptel Source Files
+ZAPTEL_INSTALL_DIR=""     #Location of Zaptel Install Files
 ZAPTEL_C_FILE="zaptel.c"
 ASTERISK_IFLAGS=
 EDAC_ZAP_PATCH_FILE=ed_zaptel.patch
@@ -6687,10 +6701,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 				echo "Error invalid --zaptel-path option";
 				exit 1;
 			fi
-			if [ ! -d "$ZAPTEL_INSTALL_DIR" ]; then
-				echo "Error: Zaptel source directory not found: $ZAPTEL_INSTALL_DIR";
-				exit 1;
-			fi
+			ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR			
 			if [ ! -f "$ZAPTEL_INSTALL_DIR/Makefile" ]; then
 				echo "Error: Invalid zaptel source found in $ZAPTEL_INSTALL_DIR";
 				exit 1;
@@ -6705,10 +6716,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 				echo "Error invalid --with-zaptel option";
 				exit 1;
 			fi
-			if [ ! -d "$ZAPTEL_INSTALL_DIR" ]; then
-				echo "Error: Zaptel source directory not found: $ZAPTEL_INSTALL_DIR";
-				exit 1;
-			fi
+			ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR			
 			if [ ! -f "$ZAPTEL_INSTALL_DIR/Makefile" ]; then
 				echo "Error: Invalid zaptel source found in $ZAPTEL_INSTALL_DIR";
 				exit 1;
@@ -6716,8 +6724,8 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 			ZAPTEL_PATH_OP="YES";
 			echo "Zaptel path defined as: $ZAPTEL_INSTALL_DIR"
 			;;
-	
-		 --no-zaptel-compile*)
+		 
+		--no-zaptel-compile*)
                         ZAPTEL_COMPILE_DISABLE="YES";
                         ;;
 
@@ -6928,7 +6936,7 @@ following Environment variables.
 "
 
 	if [ $TDM_PROT = "YES"  ]; then
-echo "	7. Zaptel Build Dir  : $ZAPTEL_INSTALL_DIR "
+echo "	7. Zaptel Build Dir  : $ZAPTEL_SOURCE_DIR "
 	fi
 	echo
 	echo
@@ -6952,7 +6960,7 @@ you know what you are doing :)
 		fi
 
 		if [ $TDM_PROT = "YES" ]; then
-			$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile --zaptel-path=$ZAPTEL_INSTALL_DIR --usr-cc=$CC
+			$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile --zaptel-path=$ZAPTEL_SOURCE_DIR --usr-cc=$CC
 		else
 			$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --usr-cc=$CC 
 		fi

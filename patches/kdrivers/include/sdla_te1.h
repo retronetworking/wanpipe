@@ -127,6 +127,7 @@
 #define WAN_TE_STATS_BIT_RXLEVEL	0x0002
 
 /* For T1 only */
+#define WAN_T1_LBO_NONE		0x00
 #define WAN_T1_LBO_0_DB		0x01
 #define WAN_T1_LBO_75_DB	0x02
 #define WAN_T1_LBO_15_DB	0x03
@@ -277,6 +278,7 @@
 #define TE_POLL_READ		0x0C
 #define TE_POLL_WRITE		0x0D
 #define TE_LINKCRIT_TIMER	0x0F
+#define WAN_TE_POLL_LINKREADY	0x10
 
 /* TE1 T1/E1 interrupt setting delay */
 #define INTR_TE1_TIMER		150	/* 50 ms */
@@ -365,9 +367,9 @@
 #define WAN_TE_INTR_NONE	0x00
 #define WAN_TE_INTR_GLOBAL	0x01
 #define WAN_TE_INTR_BASIC	0x02
-#define WAN_TE_INTR_SIGNALLING	0x03
-#define WAN_TE_INTR_FXS_DTMF	0x04
-#define WAN_TE_INTR_PMON	0x05
+#define WAN_TE_INTR_SIGNALLING	0x04
+#define WAN_TE_INTR_FXS_DTMF	0x08
+#define WAN_TE_INTR_PMON	0x10
 
 /*----------------------------------------------------------------------------
  * T1/E1 configuration structures.
@@ -563,6 +565,10 @@ typedef struct {
 	
 	u_int16_t	status_cnt;
 	
+	int		reg_dbg_busy;	
+	int		reg_dbg_ready;	
+	unsigned char	reg_dbg_value;
+
 	wan_ticks_t	crit_alarm_start;
 	unsigned int	lb_mode;
 } sdla_te_param_t;

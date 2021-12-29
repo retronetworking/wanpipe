@@ -660,6 +660,8 @@
 #define BIT_LRISMR_RSMS1	0x02
 #define BIT_LRISMR_RSMS0	0x01
 
+#define REG_LTXLAE		0x100C
+
 /* BERT Register Definitions */
 #define REG_BLSR		0x110E
 #define BIT_BLSR_BBED		0x40

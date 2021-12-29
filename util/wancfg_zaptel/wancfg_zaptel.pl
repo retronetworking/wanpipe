@@ -255,7 +255,7 @@ print "Sangoma cards configuration complete, exiting...\n\n";
 
 
 sub set_zaptel_hwhdlc{
-	if ((system("grep hdlc_hard_xmit '$include_dir/zaptel/zaptel.h'>/dev/null 2>/dev/null")==0)){
+	 if ((system("ztcfg -t -c $current_dir/templates/zaptel.conf_test > /dev/null 2>/dev/null")==0)){
 		$dchan_str="hardhdlc";
 	}
 }
@@ -558,7 +558,6 @@ sub apply_changes{
 	
 	if ($is_trixbox==$TRUE){
 		exec_command("amportal stop");
-		unload_zap_modules();
 	} elsif ($is_tdm_api==$FALSE ){
 		if (`(pidof asterisk)` != 0 ){
 			print "\nStopping Asterisk...\n";

@@ -1880,6 +1880,13 @@ static int wp_tdmv_hwec(struct zt_chan *chan, int enable)
 	WAN_ASSERT2(wp->card == NULL, -ENODEV);
 	card = wp->card;
 
+	if (enable) {
+		wan_set_bit(channel,&card->wandev.rtp_tap_call_map);
+	} else {
+		wan_clear_bit(channel,&card->wandev.rtp_tap_call_map);
+	}
+
+
 	if (card->wandev.ec_enable){
 		DEBUG_TDMV("[TDMV]: %s: %s HW echo canceller on channel %d\n",
 				wp->devname,
@@ -2337,6 +2344,12 @@ static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask)
       			prefetch(wp->chans[x].writechunk);
 #endif
 
+			if (card->wandev.rtp_len && card->wandev.rtp_tap) {
+				card->wandev.rtp_tap(card,x,
+						     wp->chans[x].readchunk,
+						     wp->chans[x].writechunk,
+						     ZT_CHUNKSIZE);
+			}
 		}
 	}          
 

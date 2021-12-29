@@ -14,7 +14,7 @@ DEBUG	= 2
 SYSINC=/lib/modules/$(shell uname -r)/build/include
 
 # Tools options.
-CFLAGS  = -D__LINUX__ -Wall -O2 -D_GNUC_ -I$(SYSINC) -D$(OS_TYPE) -D_DEBUG_=$(DEBUG)  
+CFLAGS  = -D__LINUX__ -Wall -O2 -D_GNUC_ -I$(SYSINC) -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -I../../patches/kdrivers/include 
 LIBS = -lncurses
 
 ####### RULES ################################################################

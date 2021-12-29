@@ -13,6 +13,11 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.25 Nenad Corbic <ncorbic@sangoma.com>
+ * Feb 06 2008
+ *	Bug fix in woomera message declaration
+ *      Possible memory overflow
+ *
  * v1.24 Nenad Corbic <ncorbic@sangoma.com>
  * Jan 23 2008
  *	Removed LISTEN on every woomera channel. Listen
@@ -150,7 +155,7 @@
 #include "asterisk/dsp.h"
 #include "asterisk/musiconhold.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.24 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.25 $")
 
 #else
 
@@ -172,7 +177,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.24 $")
 #include "callweaver/dsp.h"
 #include "callweaver.h"
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.24 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.25 $")
 
 // strings...
 
@@ -295,7 +300,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.24 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.24"
+#define WOOMERA_VERSION "v1.25"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -430,8 +435,8 @@ struct woomera_message {
 	int mval;
 	char command[WOOMERA_STRLEN];
 	char command_args[WOOMERA_STRLEN];
-	char names[WOOMERA_STRLEN][WOOMERA_ARRAY_LEN];
-	char values[WOOMERA_STRLEN][WOOMERA_ARRAY_LEN];
+	char names[WOOMERA_ARRAY_LEN][WOOMERA_STRLEN];
+	char values[WOOMERA_ARRAY_LEN][WOOMERA_STRLEN];
 	char body[WOOMERA_BODYLEN];
 	char cause[WOOMERA_STRLEN]; 
 	unsigned int flags;
@@ -1080,6 +1085,11 @@ static int woomera_message_parse(int fd, woomera_message *wmsg, int timeout,
 
 		}
 		wmsg->last++;
+
+		if (wmsg->last >= WOOMERA_ARRAY_LEN) {
+			ast_log(LOG_NOTICE, "Woomera parse error: index overflow!\n");
+			break;
+		}
 	}
 
 	wmsg->last--;

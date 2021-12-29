@@ -300,7 +300,8 @@ typedef struct wanpipe_tdm_api{
 
 #ifdef WAN_KERNEL
 
-#define WP_TDM_API_MAX_LEN 	1024
+/* Maximum API Len = 200ms = 1600 */
+#define WP_TDM_API_MAX_LEN 	8*200 
 #define WP_TDM_API_CHUNK_SZ 	8
 
 enum {

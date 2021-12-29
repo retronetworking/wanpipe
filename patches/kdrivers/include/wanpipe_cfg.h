@@ -549,6 +549,19 @@ typedef struct wan_lip_fr_dlci
 	unsigned char 	type;
 } wan_fr_dlci_t;
 
+
+typedef struct wan_rtp_conf
+{
+   	unsigned int	rtp_ip;
+	unsigned int	rtp_local_ip;
+	unsigned short	rtp_port;
+	unsigned short	rtp_sample;
+	unsigned char	rtp_devname[WAN_IFNAME_SZ+1];
+	unsigned char	rtp_mac[WAN_IFNAME_SZ+1];
+	unsigned char	rtp_local_mac[WAN_IFNAME_SZ+1]; 
+}wan_rtp_conf_t;
+
+
 typedef struct wan_xilinx_conf
 {
 	unsigned short	dma_per_ch; 	/* DMA buffers per logic channel */
@@ -563,10 +576,16 @@ typedef struct wan_xilinx_conf
 //	unsigned int	ec_persist_disable;	/* HW EC Persist */
 	
 	
+#if 0
 	unsigned int	rtp_ip;
 	unsigned short	rtp_port;
 	unsigned short	rtp_sample;
 	char		rtp_devname[WAN_IFNAME_SZ+1];
+#endif
+	unsigned int	err_throttle_period;
+	unsigned int	err_throttle_timeout;
+	
+	
 } wan_xilinx_conf_t;
 
 typedef struct wan_xilinx_conf_if
@@ -958,6 +977,8 @@ typedef struct wandev_conf
 
 	wan_tdmv_conf_t	tdmv_conf;
 	wan_hwec_conf_t	hwec_conf;
+	wan_rtp_conf_t  rtp_conf;
+
 	
 	unsigned char line_idle; /* IDLE FLAG/ IDLE MARK */
 	unsigned char ignore_front_end_status;

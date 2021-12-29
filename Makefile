@@ -19,6 +19,29 @@ ifndef ZAPDIR
 	ZAPDIR=/usr/src/zaptel
 endif
 
+#Check if zaptel exists
+ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
+	ZAPDIR_PRIV=$(ZAPDIR) 
+	ENABLE_WANPIPEMON_ZAP=YES
+	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
+	ZAP_PROT=TDM
+else
+	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
+		ZAPDIR=/usr/src/zaptel/kernel
+		ZAPDIR_PRIV=$(ZAPDIR) 
+		ENABLE_WANPIPEMON_ZAP=YES
+		EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+		ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
+		ZAP_PROT=TDM
+	else
+		ZAP_OPTS=
+		ZAP_PROT=
+		ZAPDIR_PRIV=
+		ENABLE_WANPIPEMON_ZAP=NO
+	endif
+endif  
+
 #Kernel version and location
 ifndef KVER
 	KVER=$(shell uname -r)
@@ -65,18 +88,27 @@ RM      = @rm -rf
 JUNK	= *~ *.bak DEADJOE
 
 #Check if zaptel exists
-ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
-	ZAPDIR_PRIV=$(ZAPDIR) 
-	ENABLE_WANPIPEMON_ZAP=YES
-	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
-	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
-	ZAP_PROT=TDM
-else
-	ZAP_OPTS=
-	ZAP_PROT=
-	ZAPDIR_PRIV=
-	ENABLE_WANPIPEMON_ZAP=NO
-endif  
+#ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
+#	ZAPDIR_PRIV=$(ZAPDIR) 
+#	ENABLE_WANPIPEMON_ZAP=YES
+#	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+#	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
+#	ZAP_PROT=TDM
+#else
+#	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
+#		ZAPDIR=/usr/src/zaptel/kernel
+#		ZAPDIR_PRIV=$(ZAPDIR) 
+#		ENABLE_WANPIPEMON_ZAP=YES
+#		EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+#		ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
+#		ZAP_PROT=TDM
+#	else
+#		ZAP_OPTS=
+#		ZAP_PROT=
+#		ZAPDIR_PRIV=
+#		ENABLE_WANPIPEMON_ZAP=NO
+#	endif
+#endif  
 
 
 
@@ -151,7 +183,7 @@ _check_kver:
 _checkzap:
 	@echo
 	@echo " +--------- Wanpipe Build Info --------------+"  
-	@echo 
+	@echo
 	@if [ ! -e $(ZAPDIR)/zaptel.h ]; then \
 		echo " Compiling Wanpipe without ZAPTEL Support!"; \
 		ZAPDIR_PRIV=; \

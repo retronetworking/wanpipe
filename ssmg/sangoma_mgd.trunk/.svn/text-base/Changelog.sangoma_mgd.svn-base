@@ -1,12 +1,32 @@
 sangoma_mgd.c
 ======================================
-Jan 24 2007
+
+Feb 08 2008
+ * v1.30 Nenad Corbic  <ncorbic@sangoma.com>
+ *      The fix in v1.26 causes double stop.
+ *      I took out the v1.26 fix and added
+ *      a big warning if that condition is
+ *      ever reached.
+
+
+ Feb 07 2008
+ * v1.29 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Added strip_cid_non_digits option
+ *
+
+ Feb 06 2008
+ * v1.28 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Fixed a memory leak in clone event
+ *      function. Added memory check subsystem
+ *
+
+Jan 24 2008
  * v1.27 Nenad Corbic  <ncorbic@sangoma.com>
  *	Fixed a memory leak on incoming calls
  *	Removed the use of server listener which 
  *	was not used
 
-Jan 18 2007
+Jan 18 2008
  * v1.26 Nenad Corbic  <ncorbic@sangoma.com>
  *      Fixed hangup after invalid Answer or Ack Session
  *      Can cause double use of setup id - now fixed

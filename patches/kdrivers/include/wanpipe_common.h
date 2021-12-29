@@ -2018,6 +2018,16 @@ static __inline int wan_netif_del(netdevice_t* dev)
 #if defined(__LINUX__)
 static __inline void wan_netif_fake_init(netdevice_t *d)
 {
+
+#ifdef LINUX_FEAT_2624
+	d->header_ops = NULL;
+#else
+	d->hard_header	= NULL; 
+	d->rebuild_header = NULL;
+	d->header_cache_update = NULL;
+	d->hard_header_cache = NULL;
+#endif
+
 	return;
 }
 #endif

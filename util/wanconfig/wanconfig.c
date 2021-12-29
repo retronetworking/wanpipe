@@ -68,6 +68,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <netdb.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -543,6 +544,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "FE_FRAME",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, frame), DTYPE_UCHAR },
   { "FE_LINE",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, line_no),  DTYPE_UINT },
   { "FE_TXTRISTATE",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, tx_tristate_mode),  DTYPE_UCHAR },
+  { "FE_POLL",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, poll_mode),  DTYPE_UCHAR },
   /* Front-End parameters (old style) */
   /* Front-End parameters (old style) */
   { "MEDIA",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, media), DTYPE_UCHAR },
@@ -579,6 +581,13 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UINT},
   { "TDMV_DCHAN",    offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, dchan),   DTYPE_UINT},
   { "TDMV_HW_DTMF",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_dtmf), DTYPE_UCHAR},
+
+  { "RTP_TAP_IP",   offsetof(wandev_conf_t, rtp_conf)+smemof(wan_rtp_conf_t, rtp_ip), DTYPE_UINT},
+  { "RTP_TAP_PORT",  offsetof(wandev_conf_t, rtp_conf)+smemof(wan_rtp_conf_t, rtp_port), DTYPE_USHORT},
+  { "RTP_TAP_SAMPLE",  offsetof(wandev_conf_t, rtp_conf)+smemof(wan_rtp_conf_t, rtp_sample), DTYPE_USHORT},
+  { "RTP_TAP_DEV", offsetof(wandev_conf_t, rtp_conf)+smemof(wan_rtp_conf_t, rtp_devname), DTYPE_STR},
+  { "RTP_TAP_MAC",  offsetof(wandev_conf_t, rtp_conf)+smemof(wan_rtp_conf_t, rtp_mac), DTYPE_STR},           
+
   
   { "HWEC_CLKSRC",   offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, clk_src), DTYPE_UINT},  
   { "HWEC_PERSIST_DISABLE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
@@ -711,6 +720,10 @@ key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
 //  { "HWEC_CLKSRC",   smemof(wan_xilinx_conf_t, ec_clk_src),   DTYPE_UINT},
 //  { "TDMV_HWEC",     smemof(wan_xilinx_conf_t, tdmv_hwec),    DTYPE_UCHAR},
   { "RX_CRC_BYTES",  smemof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
+
+  { "ERR_CHECK_PERIOD",  smemof(wan_xilinx_conf_t, err_throttle_period), DTYPE_UINT},
+  { "ERR_TIMEOUT",  smemof(wan_xilinx_conf_t, err_throttle_timeout), DTYPE_UINT},
+
   { NULL, 0, 0 }
 };
 
@@ -3216,6 +3229,61 @@ int set_conf_param (char* key, char* val, key_word_t* dtab, void* conf)
 	}
 
 	if (verbose) printf(" * Setting %s to %s\n", key, val);
+
+
+	if (strcmp(key, "RTP_TAP_IP") == 0) {
+		int err;
+		struct hostent *result = NULL;
+#if defined(__LINUX__)
+		char buf[512];
+		struct hostent hp;
+		gethostbyname_r(val, &hp, buf, sizeof(buf), &result, &err);	
+#else
+		result = gethostbyname(val);
+		err = h_errno;
+#endif
+		if (result) {
+#if defined(__LINUX__)
+			memcpy((char*)conf + dtab->offset, hp.h_addr_list[0], hp.h_length);
+#else
+			memcpy((char*)conf + dtab->offset, result->h_addr_list[0], result->h_length);
+#endif
+		} else {
+			printf("Error: Invalid IP Address %s (%s)\n",
+						val, hstrerror(err));
+			memset((char*)conf + dtab->offset, 0, sizeof(unsigned int));
+			err=1;
+		}
+		return err;
+	}
+	
+	if (strcmp(key, "RTP_TAP_MAC") == 0) {
+		char *token;
+		char *cp = strdup(val); 
+		int cnt=0;
+		unsigned char *mac =(unsigned char*)conf + dtab->offset;
+		token=strtok(cp, ":");
+		if (token) {
+			mac[cnt] = (unsigned char)strtoul(token,NULL,16);
+			cnt++;
+		
+			while ((token=strtok(NULL, ":")) != NULL){
+				mac[cnt] = strtoul(token,NULL,16);	
+				cnt++;
+				if (cnt >= 6) {
+					break;
+				}
+			}	
+		}
+		free(cp);
+		
+		if (cnt != 6) {
+			printf("Error: Invalid MAC Address %s\n",val);
+			return 1;
+		}
+		
+		return 0;
+	}
 
 	if (dtab->dtype == DTYPE_STR) {
 		strcpy((char*)conf + dtab->offset, val);

@@ -5290,7 +5290,7 @@ static int bstrm_bind_dev_switch (sdla_t *card, bitstrm_private_area_t*chan, cha
 		return 0;
 	}
 	
-	sw_dev = dev_get_by_name(sw_dev_name);
+	sw_dev = wan_dev_get_by_name(sw_dev_name);
 	if (!sw_dev){
 		DEBUG_EVENT( "%s: Device %s waiting for switch device %s\n",
 				card->devname, chan->if_name,sw_dev_name);
@@ -5498,8 +5498,6 @@ static int protocol_shutdown (sdla_t *card, netdevice_t *dev)
 		wp_sppp_detach(dev);
 		
 		dev->do_ioctl = NULL;
-		dev->hard_header = NULL;
-		dev->rebuild_header = NULL;
 
 		if (chan->common.prot_ptr){
 			kfree(chan->common.prot_ptr);

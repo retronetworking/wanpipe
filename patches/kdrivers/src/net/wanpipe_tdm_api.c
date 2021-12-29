@@ -223,7 +223,9 @@ static void wp_wakeup_tdmapi(wanpipe_tdm_api_dev_t *tdm_api)
 #endif
 
 static struct cdev wptdm_cdev = {
+#ifndef LINUX_FEAT_2624
 	.kobj	=	{.name = "wptdm", },
+#endif
 	.owner	=	THIS_MODULE,
 };
 
@@ -750,7 +752,13 @@ static ssize_t wp_tdmapi_write_msg(struct file *file, struct msghdr *msg, size_t
 			return -EINVAL;
 		}
 #endif
-		skb_len=WP_TDM_API_MAX_LEN;
+		if (count > (WP_TDM_API_MAX_LEN+sizeof(wp_tdm_api_tx_hdr_t))) {
+			DEBUG_TEST("%s: Error: TDM API Tx packet too big %d\n",
+				tdm_api->name,count);
+			return -EFBIG;
+		}
+
+		skb_len=WP_TDM_API_MAX_LEN+sizeof(wp_tdm_api_tx_hdr_t);
 	}
 	
 	if (wan_skb_queue_len(&tdm_api->wp_tx_list) > tdm_api->tx_q_len){

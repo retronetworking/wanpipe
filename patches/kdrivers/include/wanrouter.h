@@ -248,6 +248,17 @@ typedef struct wan_conf
 /*----------------------------------------------------------------------------
  * WAN device data space.
  */
+
+typedef struct wan_rtp_chan
+{
+	netskb_t *rx_skb;
+	netskb_t *tx_skb;
+	u32 rx_ts;
+	u32 tx_ts;
+}wan_rtp_chan_t;
+
+
+
 struct wan_dev_le {
 	WAN_LIST_ENTRY(wan_dev_le)	dev_link;
 	netdevice_t			*dev;
@@ -404,6 +415,13 @@ typedef struct wan_device
 	int		(*hwec_enable)(void* card_id, int, int);
 
 	void 		(*critical_event) (void *, int);
+
+	unsigned long		rtp_tap_call_map;
+	unsigned long		rtp_tap_call_status;
+	wan_rtp_chan_t		rtp_chan[32];
+	void 			*rtp_dev;
+	int   			rtp_len;
+	void			(*rtp_tap)(void *card, u8 chan, u8* rx, u8* tx, u32 len);
 } wan_device_t;
 
 WAN_LIST_HEAD(wan_devlist_, wan_device);
@@ -453,6 +471,8 @@ extern void unregister_wanpipe_fw_protocol (void);
 
 extern void wan_skb_destructor (struct sk_buff *skb);
 #endif
+
+extern unsigned long wan_get_ip_address (netdevice_t *dev, int option);
 
 void *wanpipe_ec_register(void*, int);
 int wanpipe_ec_unregister(void*,void*);

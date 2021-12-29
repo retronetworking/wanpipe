@@ -1211,8 +1211,6 @@ static int if_init (netdevice_t* dev)
 			dev->type	= ARPHRD_PPP;
 			dev->mtu		= card->wandev.mtu;
 			dev->hard_header_len	= 16;
-			dev->hard_header	= NULL; 
-			dev->rebuild_header	= NULL;
 			dev->addr_len		= 0;
 		}
 

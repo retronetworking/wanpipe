@@ -1201,9 +1201,34 @@ void set_fe_debug_mode(sdla_fe_debug_t *fe_debug)
 	}
 #endif
 	err = DO_COMMAND(wan_udp);
+	if (fe_debug->type == WAN_FE_DEBUG_REG && fe_debug->fe_debug_reg.read == 1){
+		if (err == 0 && wan_udp.wan_udphdr_return_code == 0){
+			int	cnt = 0;
+			printf("Please wait.");fflush(stdout);
+repeat_read_reg:
+			wan_udp.wan_udphdr_return_code	= 0xaa;
+			fe_debug->fe_debug_reg.read = 2;
+			memcpy(data, (unsigned char*)fe_debug, sizeof(sdla_fe_debug_t));
+			usleep(100000);
+			err = DO_COMMAND(wan_udp);
+			if (err || wan_udp.wan_udphdr_return_code != 0){
+				if (cnt < 5){
+					printf(".");fflush(stdout);
+					goto repeat_read_reg;
+				}
+			}
+			printf("\n\n");
+		}
+	}
+
 	if (err || wan_udp.wan_udphdr_return_code != 0){
-		printf("Failed to %s mode.\n",
+		if (fe_debug->type == WAN_FE_DEBUG_RBS){
+			printf("Failed to %s mode.\n",
 				WAN_FE_DEBUG_RBS_DECODE(fe_debug->mode));
+		}else{
+			printf("Failed to execute debug mode (%02X).\n",
+						fe_debug->type);		
+		}
 	}else{
 		fe_debug = (sdla_fe_debug_t*)get_wan_udphdr_data_ptr(0);
 		switch(fe_debug->type){
@@ -1224,11 +1249,11 @@ void set_fe_debug_mode(sdla_fe_debug_t *fe_debug)
 					WAN_FE_DEBUG_ALARM_DECODE(fe_debug->mode));
 			break;
 		case WAN_FE_DEBUG_REG:
-			if (fe_debug->fe_debug_reg.read){
-				printf("Read %02X value from register %X.\n",
-						fe_debug->fe_debug_reg.value,
-						fe_debug->fe_debug_reg.reg);
-			}		
+			if (fe_debug->fe_debug_reg.read == 2){
+				printf("Read Front-End Reg:%04X=%02X\n",
+						fe_debug->fe_debug_reg.reg,
+						fe_debug->fe_debug_reg.value);
+			}
 			break;
 		}
 	}

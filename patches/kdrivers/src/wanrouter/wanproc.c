@@ -960,7 +960,7 @@ wandev_get_info_end:
 int wanrouter_proc_init (void)
 {
 	struct proc_dir_entry *p;
-	proc_router = proc_mkdir(ROUTER_NAME, proc_net);
+	proc_router = proc_mkdir(ROUTER_NAME, wan_init_net(proc_net));
 	if (!proc_router)
 		goto fail;
 	
@@ -1090,7 +1090,7 @@ fail_probe_verbose:
 fail_stat:
 	remove_proc_entry("config", proc_router);
 fail_config:
-	remove_proc_entry(ROUTER_NAME, proc_net);
+	remove_proc_entry(ROUTER_NAME, wan_init_net(proc_net));
 fail:
 	return -ENOMEM;
 }
@@ -1115,7 +1115,7 @@ void wanrouter_proc_cleanup (void)
 	remove_proc_entry("map", proc_router);
 	remove_proc_entry("interfaces", proc_router);
 	remove_proc_entry("dev_map",proc_router);
-	remove_proc_entry(ROUTER_NAME,proc_net);
+	remove_proc_entry(ROUTER_NAME,wan_init_net(proc_net));
 }
 
 /*

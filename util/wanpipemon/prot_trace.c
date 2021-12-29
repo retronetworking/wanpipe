@@ -1524,8 +1524,8 @@ static void print_pcap_record_header(wp_trace_output_iface_t *trace_iface)
 	struct pcaprec_hdr ph;
 	
  	/* Write PCap header */
-        ph.ts_sec = trace_iface->pkts_written;
-        ph.ts_usec = trace_iface->pkts_written;
+        ph.ts_sec = trace_iface->sec;
+        ph.ts_usec = trace_iface->usec;
         ph.incl_len =  trace_iface->len;
         ph.orig_len = trace_iface->len;
 

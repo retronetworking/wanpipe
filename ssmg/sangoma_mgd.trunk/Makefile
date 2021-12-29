@@ -38,6 +38,10 @@ CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
 LDFLAGS=-L lib/libteletone/.libs -L. -L/usr/local/lib -L ../../ssmg/libsangoma.trunk/.libs -lpthread -lsangoma -lm
 
+#Enable memory leak subsystem
+#Not to be used in production
+#CFLAGS += -DSMG_MEMORY_DEBUG
+
 
 ifeq "${SMG_DTMF}" "YES"
 LDFLAGS+= -lteletone
@@ -57,12 +61,16 @@ switch_buffer.o: switch_buffer.c switch_buffer.h
 call_signal.o: call_signal.c call_signal.h
 	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS)  -c -o call_signal.o call_signal.c
 
-sangoma_mgd: sangoma_mgd.o call_signal.o switch_buffer.o sigboost.h
-	rm -fr core*
-	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -o sangoma_mgd sangoma_mgd.o switch_buffer.o call_signal.o $(LDFLAGS)
+sangoma_mgd_memdbg.o: sangoma_mgd_memdbg.c sangoma_mgd_memdbg.h 
+	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS)  -c -o sangoma_mgd_memdbg.o sangoma_mgd_memdbg.c
 
 sangoma_mgd.o: sangoma_mgd.c sangoma_mgd.h sigboost.h
-	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -c -o sangoma_mgd.o sangoma_mgd.c
+	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -c -o sangoma_mgd.o sangoma_mgd.c 
+
+sangoma_mgd: sangoma_mgd.o sangoma_mgd_memdbg.o call_signal.o switch_buffer.o sigboost.h sangoma_mgd_memdbg.h
+	rm -fr core*
+	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -o sangoma_mgd sangoma_mgd.o sangoma_mgd_memdbg.o switch_buffer.o  call_signal.o $(LDFLAGS)
+
 
 
 clean:  old_cleanup

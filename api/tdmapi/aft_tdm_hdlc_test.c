@@ -53,7 +53,7 @@
 #define MAX_NUM_OF_TIMESLOTS  31*16
 
 #define LGTH_CRC_BYTES	2
-#define MAX_TX_DATA     1000 //MAX_NUM_OF_TIMESLOTS*10	/* Size of tx data */
+#define MAX_TX_DATA     5000 //MAX_NUM_OF_TIMESLOTS*10	/* Size of tx data */
 #define MAX_TX_FRAMES 	1000000     /* Number of frames to transmit */  
 
 #define WRITE 1
@@ -126,6 +126,7 @@ int MakeConnection(timeslot_t *slot, char *router_name )
 
 	int span,chan;
 	sangoma_span_chan_fromif(slot->if_name,&span,&chan);
+	printf("Socket bound %s to Span=%i Chan=%i\n\n",slot->if_name,span,chan);
 	
 	if (span > 0 && chan > 0) {
 		wanpipe_tdm_api_t tdm_api;
@@ -274,6 +275,8 @@ void process_con_rx(void)
 							 &Rx_data[sizeof(wp_tdm_api_rx_hdr_t)],
 							 sizeof(Rx_data), 0);
 
+			//printf("RX DATA HDLC: Len=%i\n",err-sizeof(wp_tdm_api_tx_hdr_t));
+        		//print_packet(&Rx_data[sizeof(wp_tdm_api_tx_hdr_t)],err-sizeof(wp_tdm_api_tx_hdr_t));
 				/* err indicates bytes received */
 				if(err > 0) {
 					unsigned char *rx_frame = 
@@ -390,7 +393,7 @@ void process_con_rx(void)
  
 void process_con_tx(timeslot_t *slot) 
 {
-	unsigned int Tx_count, max_tx_len, Tx_length,Tx_hdlc_len;
+	unsigned int Tx_count, max_tx_len, Tx_offset=0, Tx_length,Tx_hdlc_len, Tx_encoded_hdlc_len;
 	fd_set 	write;
 	int err=0,i,tx_ok=1;
 	unsigned char Tx_data[MAX_TX_DATA + sizeof(wp_tdm_api_tx_hdr_t)];
@@ -415,9 +418,12 @@ void process_con_tx(timeslot_t *slot)
 	}else{
        	 	Tx_length = max_tx_len = sangoma_tdm_get_usr_mtu_mru(slot->sock, &tdm_api);
 	}
-        Tx_length=max_tx_len*0.75;
 
-	printf("MAX TX PACKET IS %i Tx Len = %i\n",max_tx_len,Tx_length);
+	/* Send double of max so that a single big frame gets separated into two actual packets */
+	Tx_hdlc_len=(max_tx_len*2);
+	Tx_hdlc_len*= 0.75;
+
+	printf("MAX TX PACKET IS %i Tx Len = %i \n",max_tx_len,Tx_hdlc_len);
 	
 	/* If running HDLC_STREAMING then the received CRC bytes
          * will be passed to the application as part of the 
@@ -427,7 +433,7 @@ void process_con_tx(timeslot_t *slot)
 
 	memset(&Tx_data[0],0,MAX_TX_DATA + sizeof(wp_tdm_api_tx_hdr_t));
 	slot->data=1;
-	for (i=0;i<Tx_length;i++){
+	for (i=0;i<Tx_hdlc_len;i++){
 		if (slot->data){
 			Tx_data[i+sizeof(wp_tdm_api_tx_hdr_t)] = slot->data;
 		}else{
@@ -446,7 +452,7 @@ void process_con_tx(timeslot_t *slot)
 	 */
 
 	printf("%s: Tx Starting to write on sock %i data (0x%X)  f=%x l=%x hdr_sz=%i\n",
-	 	slot->if_name,slot->sock,slot->data,Tx_data[16],Tx_data[Tx_length+sizeof(wp_tdm_api_tx_hdr_t)-1],
+	 	slot->if_name,slot->sock,slot->data,Tx_data[16],Tx_data[Tx_hdlc_len+sizeof(wp_tdm_api_tx_hdr_t)-1],
 		sizeof(wp_tdm_api_tx_hdr_t));	
 
 		
@@ -471,42 +477,44 @@ void process_con_tx(timeslot_t *slot)
 		/* If we got busy on last frame repeat the frame */
 		if (tx_ok == 1){
 #if 0
-		printf("TX DATA ORIG: Len=%i\n",Tx_length);
-	      	print_packet(&Tx_data[sizeof(wp_tdm_api_tx_hdr_t)],Tx_length);
+			printf("TX DATA ORIG: Len=%i\n",Tx_hdlc_len);
+	      		print_packet(&Tx_data[sizeof(wp_tdm_api_tx_hdr_t)],Tx_hdlc_len);
 #endif		
-		wanpipe_hdlc_encode(hdlc_eng,&Tx_data[16],Tx_length,&Tx_hdlc_data[16],&Tx_hdlc_len,&next_idle);
+			wanpipe_hdlc_encode(hdlc_eng,&Tx_data[16],Tx_hdlc_len,&Tx_hdlc_data[16],(int*)&Tx_encoded_hdlc_len,&next_idle);
+			if (Tx_encoded_hdlc_len < (max_tx_len*2)){
+				int j;
+				for (j=0;j<((max_tx_len*2) - Tx_encoded_hdlc_len);j++){
+					Tx_hdlc_data[16+Tx_encoded_hdlc_len+j]=next_idle;
+				}
+				Tx_encoded_hdlc_len+=j;
+			}	
 #if 0		
-		printf("TX DATA HDLC: Olen=%i Len=%i\n",Tx_length,Tx_hdlc_len);
-        	print_packet(&Tx_hdlc_data[sizeof(wp_tdm_api_tx_hdr_t)],Tx_hdlc_len);
+			printf("TX DATA HDLC: Olen=%i Len=%i\n",Tx_hdlc_len,Tx_encoded_hdlc_len);
+        		print_packet(&Tx_hdlc_data[sizeof(wp_tdm_api_tx_hdr_t)],Tx_encoded_hdlc_len);
 #endif		
-		if (Tx_hdlc_len < max_tx_len){
-			int j;
-			for (j=0;j<(max_tx_len - Tx_hdlc_len);j++){
-				Tx_hdlc_data[16+Tx_hdlc_len+j]=next_idle;
+			if (Tx_encoded_hdlc_len > (max_tx_len*2)){
+				printf("Tx hdlc len > max %i\n",Tx_encoded_hdlc_len);
+				continue;
 			}
-			Tx_hdlc_len+=j;
-		}else if (Tx_hdlc_len > max_tx_len) {
-			/* Skip this frame only happends on very first tx
-			   Something is weird with the hdlc engine... otherwise
-			   rest of the frames are good */
-			tx_ok=1;
-			continue;
-		}	
+
+			Tx_length=max_tx_len;
+			Tx_offset=0;
+			//printf("INITIAL Fragment Chunk tx! %i Tx_encoded =%i \n", Tx_offset,Tx_encoded_hdlc_len);
 	
 #if 0		
-		if ((Tx_count % 60) == 0){
-			Tx_hdlc_len++; /* Introduce Error */
-		}
+			if ((Tx_count % 60) == 0){
+				Tx_hdlc_len++; /* Introduce Error */
+			}
 #endif
 #if 0 
-		printf("Data %i\n",Tx_hdlc_len);
-		for (i=0;i<Tx_hdlc_len;i++){
-			printf(" 0x%X",Tx_hdlc_data[16+i]);
-		}
-		printf("\n");
+			printf("Data %i\n",Tx_hdlc_len);
+			for (i=0;i<Tx_hdlc_len;i++){
+				printf(" 0x%X",Tx_hdlc_data[16+i]);
+			}
+			printf("\n");
 #endif		
 			tx_ok=0;
-		}
+		} 
 #endif		
   		if(select(slot->sock + 1,NULL, &write, NULL, NULL)){
 
@@ -516,18 +524,36 @@ void process_con_tx(timeslot_t *slot)
 #if 1
 			        err=sangoma_writemsg_tdm(slot->sock, 
 						     Tx_hdlc_data, sizeof(wp_tdm_api_tx_hdr_t), 
-						     &Tx_hdlc_data[sizeof(wp_tdm_api_tx_hdr_t)],
-						     Tx_hdlc_len,0);
+						     &Tx_hdlc_data[sizeof(wp_tdm_api_tx_hdr_t)+Tx_offset],
+						     Tx_length,0);
 #endif
 				if (err > 0){
 					/* Packet sent ok */
 					//printf("\t\t%s:Packet sent: Len=%i Data=0x%x : %i\n",
 					//		slot->if_name,err,slot->data,++Tx_count);
 					//putchar('T');
+						
+					Tx_offset+=Tx_length;
+
+					if (Tx_offset >= Tx_encoded_hdlc_len){ 
+						//printf("LAST Chunk tx! %i \n", Tx_offset);
+						Tx_offset=0;
+						Tx_length=max_tx_len;
+						/* Last fragment transmitted */
+						/* pass throught */
+					} else {
+						Tx_length = Tx_encoded_hdlc_len - Tx_length;
+						if (Tx_length > max_tx_len) {
+							Tx_length=max_tx_len;
+						}
+	//					printf("MIDDLE Fragment Chunk tx! %i \n", Tx_offset);
+						continue;
+					}		
+
 #if RAND_FRAME 	
 					if (Tx_count%10 == 0){
-						Tx_length=myrand(max_tx_len*0.75);
-						for (i=0;i<Tx_length;i++){
+						Tx_hdlc_len=myrand(max_tx_len*2*0.75);
+						for (i=0;i<Tx_hdlc_len;i++){
 							Tx_data[i+sizeof(wp_tdm_api_tx_hdr_t)] = myrand(255);
 						}
 						mysrand(myrand(255));

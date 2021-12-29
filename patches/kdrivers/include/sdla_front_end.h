@@ -25,12 +25,14 @@
 #define WAN_MEDIA_FXOFXS	0x08
 
 /*The line code */
+#define WAN_LCODE_NONE          0x00
 #define WAN_LCODE_AMI           0x01	/* T1/E1/DS3/E3 */
 #define WAN_LCODE_B8ZS          0x02	/* T1 */
 #define WAN_LCODE_HDB3          0x03	/* E1/E3 */
 #define WAN_LCODE_B3ZS          0x04	/* DS3 */
 
 /* Framing modes */
+#define WAN_FR_NONE		0x00
 #define WAN_FR_ESF		0x01
 #define WAN_FR_D4		0x02
 #define WAN_FR_ESF_JAPAN	0x03
@@ -185,6 +187,7 @@ typedef struct {
 	unsigned int	line_no;
 	unsigned char	tx_tristate_mode;
 	unsigned int	tdmv_law;
+	unsigned char	poll_mode;	/* enable fe poll driven arch */
 	union {
 		sdla_te_cfg_t		te_cfg;
 		sdla_te3_cfg_t		te3_cfg;
@@ -521,7 +524,7 @@ typedef struct {
 	/* Transmit DTMF number */
 	int		(*set_dtmf)(sdla_fe_t*, int, unsigned char);
 	/* Enable/Disable FE interrupt */
-	int		(*intr_ctrl)(sdla_fe_t*, int, int, int, unsigned int);
+	int		(*intr_ctrl)(sdla_fe_t*, int, u_int8_t, u_int8_t, unsigned int);
 	/* Event Control */
 	int		(*event_ctrl)(sdla_fe_t*, wan_event_ctrl_t*);
 	/* Front-End watchdog */

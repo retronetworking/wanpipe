@@ -1374,6 +1374,9 @@ enum {
 
 #define AFT_MIN_ANALOG_FRMW_VER 0x05
 
+
+
+
 typedef struct aft_dma_chain
 {
 	unsigned long	init;
@@ -1406,6 +1409,21 @@ typedef struct dma_history{
 #define MAX_TX_BUF		MAX_AFT_DMA_CHAINS*2+1
 #define MAX_RX_BUF		MAX_AFT_DMA_CHAINS*4+1
 #define AFT_DMA_INDEX_OFFSET	0x200
+
+
+typedef struct aft_dma_ring
+{
+	unsigned char rxdata[128];
+	unsigned char txdata[128];
+}aft_dma_ring_t;
+
+#define AFT_DMA_RING_MAX 4
+
+typedef struct aft_dma_swring {
+	int tx_toggle;
+	int rx_toggle;
+	aft_dma_ring_t  rbuf[AFT_DMA_RING_MAX];
+}aft_dma_swring_t;
 
 
 typedef struct private_area
@@ -1541,8 +1559,112 @@ typedef struct private_area
 	netskb_t *tx_rtp_skb;
 	u32	  tdm_call_status;
 	struct private_area *next;
-	
+
+	aft_dma_swring_t swring;
+
 }private_area_t;
+
+
+static __inline int aft_decode_dma_status(sdla_t *card, private_area_t *chan, u32 reg)
+{
+	u32 dma_status=aft_rxdma_hi_get_dma_status(reg);
+	u32 data_error=0;
+
+	if (dma_status){
+
+		if (wan_test_bit(AFT_RXDMA_HIDMASTATUS_PCI_M_ABRT,&dma_status)){
+			if (WAN_NET_RATELIMIT()){
+                	DEBUG_EVENT("%s:%s: Rx Error: Abort from Master: pci fatal error 0x%X!\n",
+                                   card->devname,chan->if_name,reg);
+			}
+                }
+		if (wan_test_bit(AFT_RXDMA_HIDMASTATUS_PCI_T_ABRT,&dma_status)){
+                        if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT("%s:%s: Rx Error: Abort from Target: pci fatal error 0x%X!\n",
+                                   card->devname,chan->if_name,reg);
+			}
+                }
+		if (wan_test_bit(AFT_RXDMA_HIDMASTATUS_PCI_DS_TOUT,&dma_status)){
+                        if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT("%s:%s: Rx Error: No 'DeviceSelect' from target: pci fatal error 0x%X!\n",
+                                    card->devname,chan->if_name,reg);
+			}
+                }
+		if (wan_test_bit(AFT_RXDMA_HIDMASTATUS_PCI_RETRY,&dma_status)){
+                        if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT("%s:%s: Rx Error: 'Retry' exceeds maximum (64k): pci fatal error 0x%X!\n",
+                                    card->devname,chan->if_name,reg);
+			}
+                }
+
+		chan->errstats.Rx_pci_errors++;
+		chan->if_stats.rx_errors++;
+		card->wandev.stats.rx_errors++;
+		return 1;
+	}
+
+	if (chan->hdlc_eng){
+ 
+		/* Checking Rx DMA Frame start bit. (information for api) */
+		if (!wan_test_bit(AFT_RXDMA_HI_START_BIT,&reg)){
+			DEBUG_TEST("%s:%s RxDMA Intr: Start flag missing: MTU Mismatch! Reg=0x%X\n",
+					card->devname,chan->if_name,reg);
+			chan->if_stats.rx_frame_errors++;
+			chan->opstats.Rx_Data_discard_long_count++;
+			chan->errstats.Rx_hdlc_corrupiton++;
+			card->wandev.stats.rx_errors++;
+			return 1;
+		}
+    
+		/* Checking Rx DMA Frame end bit. (information for api) */
+		if (!wan_test_bit(AFT_RXDMA_HI_EOF_BIT,&reg)){
+			DEBUG_TEST("%s:%s: RxDMA Intr: End flag missing: MTU Mismatch! Reg=0x%X\n",
+					card->devname,chan->if_name,reg);
+			chan->if_stats.rx_frame_errors++;
+			chan->opstats.Rx_Data_discard_long_count++;
+			chan->errstats.Rx_hdlc_corrupiton++;
+			card->wandev.stats.rx_errors++;
+			return 1;
+		
+       	 	} else {  /* Check CRC error flag only if this is the end of Frame */
+        	
+			if (wan_test_bit(AFT_RXDMA_HI_FCS_ERR_BIT,&reg)){
+                   		DEBUG_TEST("%s:%s: RxDMA Intr: CRC Error! Reg=0x%X Len=%d\n",
+                                		card->devname,chan->if_name,reg,
+						(reg&AFT_RXDMA_HI_DMA_LENGTH_MASK)>>2);
+				chan->if_stats.rx_frame_errors++;
+				chan->errstats.Rx_crc_err_count++;
+				card->wandev.stats.rx_crc_errors++;
+                   		data_error = 1;
+               		}
+
+			/* Check if this frame is an abort, if it is
+                 	 * drop it and continue receiving */
+			if (wan_test_bit(AFT_RXDMA_HI_FRM_ABORT_BIT,&reg)){
+				DEBUG_TEST("%s:%s: RxDMA Intr: Abort! Reg=0x%X\n",
+						card->devname,chan->if_name,reg);
+				chan->if_stats.rx_frame_errors++;
+				chan->errstats.Rx_hdlc_corrupiton++;
+				card->wandev.stats.rx_frame_errors++;
+				data_error = 1;
+			}
+		
+#if 0	
+			if (chan->common.usedby != API && data_error){
+				return 1;
+			}
+#else
+			if (data_error) {
+				return 1;
+			}
+#endif	
+
+		}
+	}
+
+	return 0;
+}
+
 
 
 void 	aft_free_logical_channel_num (sdla_t *card, int logic_ch);
@@ -1551,6 +1673,7 @@ void 	aft_fe_intr_ctrl(sdla_t *card, int status);
 void 	__aft_fe_intr_ctrl(sdla_t *card, int status);
 void 	aft_wdt_set(sdla_t *card, unsigned char val);
 void 	aft_wdt_reset(sdla_t *card);
+
 
 
 #endif

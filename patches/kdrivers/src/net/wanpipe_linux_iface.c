@@ -223,8 +223,6 @@ static int wan_iface_init(netdevice_t* dev)
 	dev->open		= &wan_iface_open;
 	dev->stop		= &wan_iface_close;
 
-	dev->hard_header	= NULL;
-	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &wan_iface_send;
 	dev->get_stats		= &wan_iface_get_stats;
 	dev->tx_timeout		= &wan_iface_tx_timeout;
@@ -266,9 +264,6 @@ static int wan_iface_eth_init(netdevice_t* dev)
 	dev->do_ioctl		= &wan_iface_ioctl;
 	dev->open		= &wan_iface_open;
 	dev->stop		= &wan_iface_close;
-
-	dev->hard_header	= NULL;
-	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &wan_iface_send;
 	dev->get_stats		= &wan_iface_get_stats;
 	dev->tx_timeout		= &wan_iface_tx_timeout;

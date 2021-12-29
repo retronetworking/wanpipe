@@ -1,5 +1,10 @@
 chan_woomera.c
 ======================================
+ Feb 06 2008
+* v1.25 Nenad Corbic <ncorbic@sangoma.com>
+ *      Bug fix in woomera message declaration
+ *      Possible memory overflow
+ *
 
  Jan 23 2008
  * v1.24 Nenad Corbic <ncorbic@sangoma.com>

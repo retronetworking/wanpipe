@@ -585,6 +585,20 @@ int a104_global_chip_config(sdla_t *card)
 			__FUNCTION__, __LINE__);
 		return err;
 	}
+
+	if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
+		u16		max_ec_chans;
+		card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);  
+
+		if (max_ec_chans) {
+			DEBUG_EVENT("%s: Global HWEC Clock Source : %i\n", 
+					card->devname,card->wandev.comm_port+1); 
+			card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG,&reg); 
+                 	aft_chipcfg_set_oct_clk_src(&reg,card->wandev.comm_port);  
+			card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg); 
+		}
+	}
+
 #endif/*INIT_FE_ONLY*/
 	return 0;
 }
@@ -668,6 +682,31 @@ static int aft_ds_set_clock_ref(sdla_t *card, u32 *reg, u32 master_port)
 	return 0;
 }
 
+static void aft_set_hwec_clock_src(sdla_t *card)
+{
+	wan_smp_flag_t smp_flags, flags;
+
+	if (card->adptr_subtype == AFT_SUBTYPE_SHARK && card->hwec_conf.clk_src){
+		
+		u32 cfg_reg;
+		card->hwec_conf.clk_src = WAN_FE_LINENO(&card->fe);
+	
+	       	DEBUG_EVENT("%s: Global EC Clock Port = %d\n",
+	                card->devname,
+	                 card->hwec_conf.clk_src+1);
+
+
+		card->hw_iface.hw_lock(card->hw,&smp_flags);
+		wan_spin_lock_irq(&card->wandev.lock,&flags);
+
+		card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg);
+	     	aft_chipcfg_set_oct_clk_src(&cfg_reg,card->hwec_conf.clk_src);
+		card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG, cfg_reg);
+
+		wan_spin_unlock_irq(&card->wandev.lock,&flags);
+		card->hw_iface.hw_unlock(card->hw,&smp_flags);
+	}
+}
 
 int a104_chip_config(sdla_t *card)
 {
@@ -689,25 +728,6 @@ int a104_chip_config(sdla_t *card)
 				card->devname, card->wandev.comm_port+1);
 		return -EBUSY;
 	}
-
-#if 0
-	if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
-	
-	   	/* FIXME: Do not hardcode port numbers */
-	      	if ((int)card->hwec_conf.clk_src < 0 ||
-	             card->hwec_conf.clk_src > 7) {
-	           	DEBUG_EVENT("%s: ERROR: Invalid SHARK Octasic Clock Source %d\n",
-	                    card->devname,card->hwec_conf.clk_src);
-	             	return -EINVAL;
-	        }
-	
-	       	DEBUG_EVENT("%s: Global EC Clock Port = %d\n",
-	                card->devname,
-	                 card->hwec_conf.clk_src+1);
-
-	     	aft_chipcfg_set_oct_clk_src(&reg,card->hwec_conf.clk_src);
-	}
-#endif
 	
 	/* On A108 Cards the T1/E1 will be configured per PORT  
 	 * not per CARD */
@@ -894,6 +914,7 @@ int a104_chip_config(sdla_t *card)
 
 		card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
 
+
 		card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg); 
 		if (max_ec_chans > aft_chipcfg_get_ec_channels(cfg_reg)){
 	        	DEBUG_EVENT("%s: Critical Error: Exceeded Maximum Available Echo Channels!\n",
@@ -913,6 +934,8 @@ int a104_chip_config(sdla_t *card)
 			if (!card->wandev.ec_dev) {
                          	return -EINVAL;
 			}
+
+			aft_set_hwec_clock_src(card);
 #else
 			
 			DEBUG_EVENT("%s: Wanpipe HW Echo Canceller module is not compiled!\n",

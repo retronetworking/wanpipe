@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.2.3
+%define version           3.2.4
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -246,12 +246,47 @@ install_init;
 
 
 %changelog
-* Thu Jan 24 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.2.1
+
+* Thu Mar 6 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.4
 ======================================================================== 
 
-- Fixed a compile bug that occured on some kernels due to inlining.
-- Updates Setup script
+- Updated for 2.6.24 kernels
+  TDM Voice (Zaptel) tested with 2.6.24 kernel.
+  Known issues: WAN protocols are broken for 2.6.24 kernels.
+                Its a compilation issue that will be fixed ASAP.
 
+- TDM API bug fix
+  Check for max frame size on audio stream
+
+- Updated for Zaptel 1.4.9
+
+- AFT IRQ Throttling feature
+  This feature is use to protect the server from 
+  terrible lines.  In some cases a bad hdlc line can
+  cause thousands of interrupts per sec. Rx errors are now
+  throttled so that system does not get compromized.
+
+- AFT RTP TAP Feature
+  RTP TAP Feature allows user to tap voice channels during
+  Asterisk-Zaptel/TMD API operation at the driver/kernel level.  
+  Each voice stream is encapsulated in UDP/RTP header and transmitted over
+  neghbouring ethernet address directly from kenrel space.
+  Tapping 4E1s worth of voice channels adds estra 2% system load :)
+  http://wiki.sangoma.com/wanpipe-voice-rtp-tap
+
+- AFT Software Ring Buffers on A200/A400 Analog Cards
+  This feature improves analog preformance under Asterisk/TDM API 
+  mode. In particualr it improves faxing reliability and 
+  minimizes frame slippage due to system load or bad incoming
+  clock from the line.  
+  Note: All AFT T1/E1 cards have this feature in hardare :)
+
+
+* Thu Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.3
+======================================================================== 
+
+- No changes from 3.2.2
+  Version updated for versioning sake.
 
 * Thu Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.2
 ======================================================================== 

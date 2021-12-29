@@ -894,8 +894,6 @@ static int if_init(netdevice_t *dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
-	dev->hard_header	= NULL;
-	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
