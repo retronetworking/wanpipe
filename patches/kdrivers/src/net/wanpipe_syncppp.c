@@ -35,8 +35,8 @@
  * Version 2.0, Fri Aug 30 09:59:07 EDT 2002
  * Version 2.1, Wed Mar 26 10:03:00 EDT 2003
  * 
- * $Id: wanpipe_syncppp.c,v 1.19 2004/11/01 22:54:47 sangoma Exp $
- * $Id: wanpipe_syncppp.c,v 1.19 2004/11/01 22:54:47 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.21 2005/07/28 19:30:56 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.21 2005/07/28 19:30:56 sangoma Exp $
  */
 
 /*
@@ -440,6 +440,7 @@ void wp_sppp_input (struct net_device *dev, struct sk_buff *skb)
 	
 	skb->dev=dev;
 	skb->mac.raw=skb->data;
+	skb->nh.raw=skb->data;
 
 	if (dev->flags & IFF_RUNNING)
 	{
@@ -1602,19 +1603,6 @@ badreq:
 			sppp_cp_send (sp, PPP_LCP, LCP_CONF_ACK, h->ident, len-4, h+1);
 		}
 
-		//AFTER the ack send PAP request
-		if(rc_from_lcp_options == PPP_PAP){
-			
-			//authenticator wants PAP. initiate PAP request.
-			sp->confid[IDX_PAP] = h->ident;
-			sppp_pap_scr(sp);
-			break;
-		}
-
-		//NC. Kernel change 
-		//sppp_cp_send (sp, PPP_LCP, LCP_CONF_ACK,
-		//		h->ident, len-4, h+1);
-				
 		/* Change the state. */
 		switch (sp->lcp.state) {
 		case LCP_STATE_CLOSED:
@@ -1622,6 +1610,19 @@ badreq:
 			break;
 		case LCP_STATE_ACK_RCVD:
 			sp->lcp.state = LCP_STATE_OPENED;
+
+                        /* 3/20/2006 CXH begin */
+			if(sp->pp_flags & PP_NEEDAUTH){
+				//authenticator wants PAP. initiate PAP request.
+				sp->confid[IDX_PAP] = h->ident;
+				sppp_pap_scr(sp);
+
+				/* we don't want to continue to wpsppp_ipcp_open() 
+				 * yet, PAP_ACK will do it for us */
+				break;  
+			}
+			/* CXH end */   
+			
 			sppp_ipcp_open (sp);
 			break;
 		case LCP_STATE_OPENED:
@@ -1658,6 +1659,19 @@ badreq:
 			break;
 		case LCP_STATE_ACK_SENT:
 			sp->lcp.state = LCP_STATE_OPENED;
+
+			/* 3/20/2006 CXH begin */
+			if(sp->pp_flags & PP_NEEDAUTH){
+				//authenticator wants PAP. initiate PAP request.
+				sp->confid[IDX_PAP] = h->ident;
+				sppp_pap_scr(sp);
+
+				/* we don't want to continue to wpsppp_ipcp_open() 
+				 * yet, PAP_ACK will do it for us */
+				break;  
+			}
+			/* CXH end */
+
 			sppp_ipcp_open (sp);
 			break;
 		}
@@ -1967,6 +1981,8 @@ static void sppp_cp_send (struct sppp *sp, u16 proto, u8 type,
 	skb->priority=TC_PRIO_CONTROL;
 	skb->dev = dev;
 	skb->protocol = htons(PPP_IP);
+        skb->mac.raw=skb->data;
+	skb->nh.raw=skb->data;     
 	dev_queue_xmit(skb);
 }
 
@@ -2009,6 +2025,8 @@ static void sppp_cisco_send (struct sppp *sp, int type, long par1, long par2)
 	sp->obytes += skb->len;
 	skb->priority=TC_PRIO_CONTROL;
 	skb->dev = dev;
+	skb->mac.raw=skb->data;
+	skb->nh.raw=skb->data;    
 	dev_queue_xmit(skb);
 }
 

@@ -47,6 +47,8 @@ int	rx_cnt=0;
 int	tx_size=10;
 int	tx_delay=0;
 int	tx_data=-1;
+int	tx_ss7_type=0;
+int	rx_ss7_timer=0;
 
 unsigned char card_name[WAN_IFNAME_SZ];
 unsigned char if_name[WAN_IFNAME_SZ];
@@ -201,6 +203,33 @@ int init_args(int argc, char *argv[])
 				printf("ERROR: Invalid tx data, must be a digit!\n");
 				return WAN_FALSE;
 			}
+		}else if (!strcmp(argv[i],"-tx_ss7_type")){
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid tx ss7 type!\n");
+				return WAN_FALSE;
+			}
+	
+			if(isdigit(argv[i+1][0])){
+				tx_ss7_type = atoi(argv[i+1]);
+			}else{
+				printf("ERROR: Invalid tx ss7 type, must be a digit!\n");
+				return WAN_FALSE;
+			}
+		 
+		}else if (!strcmp(argv[i],"-rx_ss7_timer")){
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid rx ss7 timer!\n");
+				return WAN_FALSE;
+			}
+	
+			if(isdigit(argv[i+1][0])){
+				rx_ss7_timer = atoi(argv[i+1]);
+			}else{
+				printf("ERROR: Invalid tx ss7 type, must be a digit!\n");
+				return WAN_FALSE;
+			}
+		 
+
 		}else if (!strcmp(argv[i],"-txfile")){
 
 			if (i+1 > argc-1){
@@ -395,6 +424,10 @@ static unsigned char api_usage[]="\n"
 "	-txfile  <file>   #Use file to tx instead\n"
 "	-rxfile  <file>   #Save all rx data to a file\n"
 "	\n"
+"\n"
+"	-tx_ss7_type  <digit> # 1=FISU   2=LSSU (repeating)\n"
+"	-rx_ss7_timer <digit> #Force receive timeout value \n"
+"\n"
 "	-rxcnt   <digit>  #number of rx packets before exit\n"
 "			  #this number overwrites the txcnt\n"
 "	                  #Thus, app will only exit after it\n"

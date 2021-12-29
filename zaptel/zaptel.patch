@@ -1,0 +1,31 @@
+diff -dur zaptel.orig/zaptel.c zaptel/zaptel.c
+--- zaptel.orig/zaptel.c	2005-10-03 10:52:42.936229976 -0400
++++ zaptel/zaptel.c	2005-10-03 10:46:57.123801456 -0400
+@@ -1760,6 +1760,13 @@
+ 		} else {
+ 			if (copy_from_user(chan->writebuf[chan->inwritebuf], usrbuf, amnt))
+ 				return -EFAULT;
++
++			if ((chan->flags & ZT_FLAG_HDLC) && chan->span->ioctl != NULL){
++				if (chan->span->ioctl(chan, ZT_DCHAN_TX_V2, amnt)==0){
++					return amnt;
++				}
++			}
++
+ 			chan->writen[chan->inwritebuf] = amnt;
+ 		}
+ 		chan->writeidx[chan->inwritebuf] = 0;
+diff -dur zaptel.orig/zaptel.h zaptel/zaptel.h
+--- zaptel.orig/zaptel.h	2005-10-03 10:52:43.094205960 -0400
++++ zaptel/zaptel.h	2005-10-03 10:48:53.974037520 -0400
+@@ -611,6 +611,10 @@
+  *  60-80 are reserved for private drivers
+  *  80-85 are reserved for dynamic span stuff
+  */
++#define ZT_DCHAN_TX 	_IOR (ZT_CODE, 60, int)
++#define ZT_DCHAN_TX_V1  ZT_DCHAN_TX
++#define ZT_DCHAN_TX_V2  ZT_DCHAN_TX
++
+ 
+ /*
+  * Create a dynamic span

@@ -221,7 +221,7 @@ int wp_sdlc_init (sdla_t* card, wandev_conf_t* conf)
 
 	
         /* TE1 and 56K boards are not supported by this firmware */
-        if (IS_TE1_MEDIA(conf->fe_cfg.media) || IS_56K_MEDIA(conf->fe_cfg.media)) {
+        if (IS_TE1_MEDIA(&conf->fe_cfg) || IS_56K_MEDIA(&conf->fe_cfg)) {
 		printk(KERN_INFO "%s: SDLC protocol doesn't support TE1 or 56K cards\n",
 				card->devname);
 		return -EINVAL;

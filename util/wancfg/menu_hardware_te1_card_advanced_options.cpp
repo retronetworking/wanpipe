@@ -17,6 +17,7 @@
 
 #include "menu_hardware_te1_card_advanced_options.h"
 #include "text_box.h"
+#include "text_box_yes_no.h"
 #include "menu_te1_select_media.h"
 #include "menu_te_select_line_decoding.h"
 #include "menu_te_select_framing.h"
@@ -75,7 +76,53 @@ char* te1_options_help_str =
 " 7.  DSX: 220-330ft\n"
 " 8.  DSX: 330-440ft\n"
 " 9.  DSX: 440-550ft\n"
-" 10. DSX: 550-660ft\n";
+" 10. DSX: 550-660ft\n"
+"\n\n"
+"Reference Clock Port:\n"
+"or \"A104/2 TE1 Clock Synchronization\"\n"
+"\n"
+"A104 Supported from Release: beta7-2.3.3 or greater\n"
+"Firmware Version: V.12\n"
+"A102 Supported from Release: beta7-2.3.2 or greater.\n"
+"Firmware Version: V.24\n"
+"\n"		
+"TE1 Clock synchronization is used to propagate\n"
+"a single clock source throughout the\n"
+"TE1 network.\n"
+"\n"
+"wanpipe1->Port A-> Normal Mode:\n"
+"	Receives T1 Clock from Telco\n"
+"wanpipe2->Port B-> Master Mode:\n"
+"	Transmits the SAME T1\n" 
+"Clock as a master source.\n"
+"\n"	
+"In order to enable this option on wanpipe2:\n"
+"Set the Reference Clock Port to a non zero\n"
+"value which is the port number\n"
+"that is supplying to clock.\n"
+"Range: 0   - dislable\n"
+"       1-4 - supported ports\n"
+"	For A102: 1=PortA\n"
+"                 2=PortB\n"
+"\n"
+"\n"		
+"Note: That TE_CLOCK must be set as MASTER\n"
+"      The Clock source is the Port 1 LINE.\n"
+"\n"
+"IMPORTANT: When start and stopping devices\n"
+"START:  Master(wanpipe1) then Slave(wanpipe2)\n"
+"STOP:   Slave(wanpipe2) then Master(wanpipe1)\n"
+"\n"		      
+"This is done automatically by the wanrouter\n"
+"startup script.\n" 
+"i.e: wanrouter stop: will stop devices in\n" 
+"inverse order.\n"
+"\n"		     
+"IMPORTANT:\n"
+"	If the wanpipe1 device is stopped, the\n"
+"	wanpipe2 device, that is using the clock\n"
+"	from wanpipe1, will loose its clock thus\n"
+"	resulting in unpredictable operation.\n";
 
 
 enum TE1_ADVANCED_OPTIONS{
@@ -84,7 +131,9 @@ enum TE1_ADVANCED_OPTIONS{
 	TE1_FRAME,
 	T1_LBO,
 	TE1_CLOCK,
-	TE1_ACTIVE_CH
+	TE1_ACTIVE_CH,
+  	AFT_FE_TXTRISTATE,
+	TE_REF_CLOCK
 };
 
 #define DBG_MENU_HARDWARE_TE1_CARD_ADVANCED_OPTIONS 1
@@ -120,8 +169,16 @@ int menu_hardware_te1_card_advanced_options::run(OUT int * selection_index)
 
   link_def_t * link_def;
   wandev_conf_t *linkconf;
+  sdla_te_cfg_t*  te_cfg;
 
   input_box_active_channels act_channels_ip;
+
+  input_box inb;
+  char backtitle[MAX_PATH_LENGTH];
+  char explanation_text[MAX_PATH_LENGTH];
+  char initial_text[MAX_PATH_LENGTH];
+
+  snprintf(backtitle, MAX_PATH_LENGTH, "WANPIPE Configuration Utility");
 
   Debug(DBG_MENU_HARDWARE_TE1_CARD_ADVANCED_OPTIONS, ("menu_net_interface_setup::run()\n"));
 
@@ -132,14 +189,15 @@ again:
 
   link_def = cfr->link_defs;
   linkconf = cfr->link_defs->linkconf;
+  te_cfg = &linkconf->fe_cfg.cfg.te_cfg;
 
   Debug(DBG_MENU_HARDWARE_TE1_CARD_ADVANCED_OPTIONS,
     ("cfr->link_defs->name: %s\n", link_def->name));
 
   if(linkconf->fe_cfg.media == WAN_MEDIA_T1){
-    number_of_items = 6;
+    number_of_items = 7;
   }else if(linkconf->fe_cfg.media == WAN_MEDIA_E1){
-    number_of_items = 5;
+    number_of_items = 6;
   }else{
     ERR_DBG_OUT(("Unknown Media Type!! te_cfg.media: 0x%X\n", linkconf->fe_cfg.media));
     return NO;
@@ -151,7 +209,7 @@ again:
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_MEDIA);
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Physical Medium--> %s\" ",
-    		MEDIA_DECODE(linkconf->fe_cfg.media));
+    		MEDIA_DECODE(&linkconf->fe_cfg));
   menu_str += tmp_buff;
 
   //////////////////////////////////////////////////////////////////////////////////////
@@ -160,21 +218,21 @@ again:
   menu_str += tmp_buff;
 
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Line decoding----> %s\" ", 
-		  	LCODE_DECODE(linkconf->fe_cfg.lcode));
+		  	LCODE_DECODE(&linkconf->fe_cfg));
   menu_str += tmp_buff;
 
   //////////////////////////////////////////////////////////////////////////////////////
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_FRAME);
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Framing----------> %s\" ", 
-		  FRAME_DECODE(linkconf->fe_cfg.frame));
+		  FRAME_DECODE(&linkconf->fe_cfg));
   menu_str += tmp_buff;
 
   //////////////////////////////////////////////////////////////////////////////////////
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_CLOCK);
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TE clock mode----> %s\" ",
-    		TECLK_DECODE(linkconf->fe_cfg.cfg.te_cfg.te_clock));
+    		TECLK_DECODE(&linkconf->fe_cfg));
 #if 0
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TE clock mode----> %s\" ",
     (linkconf->fe_cfg.cfg.te_cfg.te_clock == WANOPT_NORMAL_CLK ? "Normal" : "Master"));
@@ -198,7 +256,27 @@ again:
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", T1_LBO);
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"LBO--------------> %s\" ", 
-		    LBO_DECODE(linkconf->fe_cfg.cfg.te_cfg.lbo));
+		    LBO_DECODE(&linkconf->fe_cfg));
+    menu_str += tmp_buff;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////
+  if(linkconf->card_type == WANOPT_AFT    ||
+     linkconf->card_type == WANOPT_AFT104  ){
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_FE_TXTRISTATE);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Disable Transmitter---> %s\" ",
+      (linkconf->fe_cfg.tx_tristate_mode == WANOPT_YES ? "YES" : "NO"));
+    menu_str += tmp_buff;
+
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE_REF_CLOCK);
+    menu_str += tmp_buff;
+    if(te_cfg->te_ref_clock == 0){
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Reference Clock Port--> %s\" ",  "Not Used");
+    }else{
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Reference Clock Port--> %d\" ", 
+        te_cfg->te_ref_clock);
+    }
     menu_str += tmp_buff;
   }
 
@@ -287,6 +365,44 @@ again:
       }
       break;
 
+    case TE_REF_CLOCK:
+      {
+	unsigned int ref_clock_port;
+
+show_ref_clock_input_box:
+        snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify Reference Clock Port (0 to disable).\
+If this option is used, TE1 Clock MUST be set to Master!");
+        snprintf(initial_text, MAX_PATH_LENGTH, "%d", te_cfg->te_ref_clock);
+
+        inb.set_configuration(lxdialog_path,
+                              backtitle,
+                              explanation_text,
+                              INPUT_BOX_HIGTH,
+                              INPUT_BOX_WIDTH,
+                              initial_text);
+
+        inb.show(selection_index);
+
+        switch(*selection_index)
+        {
+        case INPUT_BOX_BUTTON_OK:
+          ref_clock_port = atoi(remove_spaces_in_int_string(inb.get_lxdialog_output_string()));
+
+          if(ref_clock_port < 0 || ref_clock_port > 4){
+            tb.show_error_message(lxdialog_path, WANCONFIG_AFT, "Invalid Reference Clock Port!");
+            goto show_ref_clock_input_box;
+          }else{
+            te_cfg->te_ref_clock = ref_clock_port;
+          }
+          break;
+
+        case INPUT_BOX_BUTTON_HELP:
+          tb.show_help_message(lxdialog_path, WANCONFIG_AFT, te1_options_help_str);
+          goto show_ref_clock_input_box;
+        }//switch(*selection_index)
+      }
+      break;
+
     case TE1_ACTIVE_CH:
       Debug(DBG_MENU_HARDWARE_TE1_CARD_ADVANCED_OPTIONS,
         ("cfr->link_defs->linkconf->config_id: %d\n", cfr->link_defs->linkconf->config_id));
@@ -316,6 +432,36 @@ again:
           break;
         }
         goto again;
+      }
+      break;
+
+    case AFT_FE_TXTRISTATE:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s transmitter?",
+	(linkconf->fe_cfg.tx_tristate_mode == WANOPT_NO ? "Disable" : "Enable"));
+
+      if(yes_no_question( selection_index,
+                          lxdialog_path,
+                          NO_PROTOCOL_NEEDED,
+                          tmp_buff) == NO){
+	//error displaying dialog
+	rc = NO;
+	goto cleanup;
+      }
+
+      switch(*selection_index)
+      {
+      case YES_NO_TEXT_BOX_BUTTON_YES:
+	if(linkconf->fe_cfg.tx_tristate_mode == WANOPT_NO){
+	  //transmitter enabled, user wants to disable
+	  linkconf->fe_cfg.tx_tristate_mode = WANOPT_YES;
+	}else{
+	  linkconf->fe_cfg.tx_tristate_mode = WANOPT_NO;
+	}
+        break;
+
+      case YES_NO_TEXT_BOX_BUTTON_NO:
+	//don't do anything
+	break;
       }
       break;
 

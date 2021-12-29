@@ -430,7 +430,7 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 	}
 	
 	/* TE1 Make special hardware initialization for T1/E1 board */
-        if (IS_TE1_MEDIA(conf->fe_cfg.media)) {
+        if (IS_TE1_MEDIA(&conf->fe_cfg)) {
 
 #ifdef TE1_56_CARD_SUPPORT
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
@@ -451,7 +451,7 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 		return -EINVAL;
 #endif
 		
-        }else if (IS_56K_MEDIA(conf->fe_cfg.media)) {
+        }else if (IS_56K_MEDIA(&conf->fe_cfg)) {
 
 #ifdef TE1_56_CARD_SUPPORT
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
@@ -668,7 +668,7 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 	card->wandev.state = WAN_DUALPORT;
 	card->u.c.state = WAN_DISCONNECTED;
 
-	tasklet_init(&fr_prot->wanpipe_task,fr_bh,(unsigned long)card);
+	tasklet_init(&fr_prot->wanpipe_task,fr_bh,(u32)card);
 	
 	fr_prot->max_trace_queue = MAX_TRACE_QUEUE;
 	if (conf->max_trace_queue && conf->max_trace_queue<TRACE_QUEUE_LIMIT){
@@ -1765,7 +1765,7 @@ static int hdlc_send_hdr_data (sdla_t* card, netdevice_t *dev, void* data, unsig
 	if (txbuf.opp_flag)
 		return 1;
 	
-#if TX_PKT_DEBUG
+#ifdef TX_PKT_DEBUG
 	if (len <= 5 && !(((char *)data)[1]&0x01)){
 		int x;
 
@@ -3357,6 +3357,7 @@ static void init_hdlc_tx_rx_buff( sdla_t* card)
 
       		/* Setup Head and Tails for buffers */
 	card->hw_iface.peek(card->hw, tx_config_off, &tx_config, sizeof(tx_config));
+	card->hw_iface.peek(card->hw, rx_config_off, &rx_config, sizeof(rx_config));
        	card->u.c.txbuf_base_off =
                 tx_config.base_addr_Tx_status_elements;
        	card->u.c.txbuf_last_off = 
@@ -3364,7 +3365,6 @@ static void init_hdlc_tx_rx_buff( sdla_t* card)
 		(tx_config.number_Tx_status_elements - 1) * 
 			sizeof(CHDLC_DATA_TX_STATUS_EL_STRUCT);
 	card->hw_iface.peek(card->hw, tx_config_off, &tx_config, sizeof(tx_config));
-	card->hw_iface.peek(card->hw, rx_config_off, &rx_config, sizeof(rx_config));
        	card->u.c.rxbuf_base_off =
 		rx_config.base_addr_Rx_status_elements;
        	card->u.c.rxbuf_last_off =

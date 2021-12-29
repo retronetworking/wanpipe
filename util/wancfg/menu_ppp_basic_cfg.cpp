@@ -125,8 +125,7 @@ enum PPP_BASIC_CFG_OPTION{
 #define DBG_MENU_PPP_BASIC_CFG  1
 
 menu_ppp_basic_cfg::menu_ppp_basic_cfg(	IN char * lxdialog_path,
-					IN list_element_chan_def* parent_element_logical_ch,
-					IN wan_ppp_conf_t* global_ppp_cfg)
+					IN list_element_chan_def* parent_element_logical_ch)
 {
   Debug(DBG_MENU_PPP_BASIC_CFG, ("menu_ppp_basic_cfg::menu_ppp_basic_cfg()\n"));
 
@@ -134,7 +133,6 @@ menu_ppp_basic_cfg::menu_ppp_basic_cfg(	IN char * lxdialog_path,
   
   this->parent_list_element_logical_ch = parent_element_logical_ch;
   name_of_parent_layer = parent_element_logical_ch->data.name;
-  this->global_ppp_cfg = global_ppp_cfg;
 }
 
 menu_ppp_basic_cfg::~menu_ppp_basic_cfg()
@@ -200,14 +198,14 @@ again:
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", IP_MODE);
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"IP Mode-----------------> %s\" ",
-      (global_ppp_cfg->ip_mode == WANOPT_PPP_STATIC ?
+      (list_el_chan_def->data.chanconf->u.ppp.dynamic_ip == WANOPT_PPP_STATIC ?
         "Static (default)" :
-        (global_ppp_cfg->ip_mode == WANOPT_PPP_HOST ? "Host" : "Peer")));
+        (list_el_chan_def->data.chanconf->u.ppp.dynamic_ip == WANOPT_PPP_HOST ? "Host" : "Peer")));
     menu_str += tmp_buff;
   }
 
   //////////////////////////////////////////////////////////////////////////////////////
-  if(list_el_chan_def->data.chanconf->pap == 1 || list_el_chan_def->data.chanconf->chap == 1){
+  if(list_el_chan_def->data.chanconf->u.ppp.pap == 1 || list_el_chan_def->data.chanconf->u.ppp.chap == 1){
     authentication = YES;
     number_of_items = 5;
   }else{
@@ -217,9 +215,9 @@ again:
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AUTHENTICATION_PROTOCOL);
   menu_str += tmp_buff;
 
-  if(list_el_chan_def->data.chanconf->pap == 1){
+  if(list_el_chan_def->data.chanconf->u.ppp.pap == 1){
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Authentication Protocol-> %s\" ", "PAP");
-  }else if(list_el_chan_def->data.chanconf->chap == 1){
+  }else if(list_el_chan_def->data.chanconf->u.ppp.chap == 1){
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Authentication Protocol-> %s\" ", "CHAP");
   }else{
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Authentication Protocol-> %s\" ", "Disabled (default)");
@@ -231,19 +229,19 @@ again:
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", USERID);
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"User ID-----------------> %s\" ",
-      list_el_chan_def->data.chanconf->userid);
+      list_el_chan_def->data.chanconf->u.ppp.userid);
     menu_str += tmp_buff;
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", PASSWD);
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Password----------------> %s\" ",
-      list_el_chan_def->data.chanconf->passwd);
+      list_el_chan_def->data.chanconf->u.ppp.passwd);
     menu_str += tmp_buff;
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", SYSNAME);
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"System Name-------------> %s\" ",
-      list_el_chan_def->data.chanconf->sysname);
+      list_el_chan_def->data.chanconf->u.ppp.sysname);
     menu_str += tmp_buff;
   }
 
@@ -288,7 +286,7 @@ again:
     case IP_MODE:
       {
 	menu_ppp_ip_mode ppp_ip_mode(lxdialog_path);
-        if(ppp_ip_mode.run(&global_ppp_cfg->ip_mode) == NO){
+        if(ppp_ip_mode.run(&list_el_chan_def->data.chanconf->u.ppp.dynamic_ip) == NO){
           rc = NO;
           exit_dialog = YES;
         }
@@ -312,7 +310,7 @@ show_user_id_input_box:
 
       snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify your User Id");
       snprintf(initial_text, MAX_PATH_LENGTH, "%s",
-        replace_new_line_with_zero_term((char*)list_el_chan_def->data.chanconf->userid));
+        replace_new_line_with_zero_term((char*)list_el_chan_def->data.chanconf->u.ppp.userid));
 
       inb.set_configuration(  lxdialog_path,
                               backtitle,
@@ -337,7 +335,7 @@ show_user_id_input_box:
                                 authentication_string_validation_result);
           goto show_user_id_input_box;
         }
-        snprintf( (char*)list_el_chan_def->data.chanconf->userid,
+        snprintf( (char*)list_el_chan_def->data.chanconf->u.ppp.userid,
                   MAX_PPP_AUTHENTICATION_STR_LEN,
                   inb.get_lxdialog_output_string());
         break;
@@ -357,7 +355,7 @@ show_password_input_box:
 
       snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify your Password");
       snprintf(initial_text, MAX_PATH_LENGTH, "%s",
-        replace_new_line_with_zero_term((char*)list_el_chan_def->data.chanconf->passwd));
+        replace_new_line_with_zero_term((char*)list_el_chan_def->data.chanconf->u.ppp.passwd));
 
       inb.set_configuration(  lxdialog_path,
                               backtitle,
@@ -383,7 +381,7 @@ show_password_input_box:
           goto show_password_input_box;
         }
 
-        snprintf( (char*)list_el_chan_def->data.chanconf->passwd,
+        snprintf( (char*)list_el_chan_def->data.chanconf->u.ppp.passwd,
                   MAX_PPP_AUTHENTICATION_STR_LEN,
                   inb.get_lxdialog_output_string());
         break;
@@ -402,7 +400,7 @@ show_sysname_input_box:
 
       snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify your System Name");
       snprintf(initial_text, MAX_PATH_LENGTH, "%s",
-        replace_new_line_with_zero_term((char*)list_el_chan_def->data.chanconf->sysname));
+        replace_new_line_with_zero_term((char*)list_el_chan_def->data.chanconf->u.ppp.sysname));
 
       inb.set_configuration(  lxdialog_path,
                               backtitle,
@@ -428,7 +426,7 @@ show_sysname_input_box:
           goto show_sysname_input_box;
         }
 
-        snprintf( (char*)list_el_chan_def->data.chanconf->sysname,
+        snprintf( (char*)list_el_chan_def->data.chanconf->u.ppp.sysname,
                   MAX_PPP_AUTHENTICATION_STR_LEN,
                   inb.get_lxdialog_output_string());
         break;
@@ -437,7 +435,7 @@ show_sysname_input_box:
         tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
           option_not_implemented_yet_help_str);
         goto show_sysname_input_box;
-        break;
+
       }//switch(*selection_index)
       /////////////////////////////////////////////////////////////
       break;

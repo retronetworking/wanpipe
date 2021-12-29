@@ -1631,7 +1631,11 @@ int CHDLCMain(char *command,int argc, char* argv[])
 				if(!gfail){
 					FT1_operational_mode();
 				}
-				set_FT1_monitor_status(0x00);
+					}else if (!strcmp(opt,"txe")){
+				set_fe_tx_mode(WAN_FE_TXMODE_ENABLE);
+			}else if (!strcmp(opt,"txd")){
+				set_fe_tx_mode(WAN_FE_TXMODE_DISABLE);
+set_FT1_monitor_status(0x00);
 			}else if (!strcmp(opt, "p")){
 				set_FT1_monitor_status(0x02);
 				if(!gfail)

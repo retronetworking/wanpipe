@@ -691,7 +691,10 @@ int DoCommand(wan_udp_hdr_t* wan_udp)
 		ifr.ifr_data = (caddr_t)wan_udp;
 
         	if ((err=ioctl(sock, SIOC_WANPIPE_MONITOR , &ifr)) < 0){
-			perror("Ioctl: ");
+			if (errno != EBUSY){
+				perror("Ioctl: ");
+				exit (1);
+			}
 			return err;
     		}
 	}

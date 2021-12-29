@@ -73,19 +73,12 @@
 # define ROUTER_USER_MAX 	_IOW(ROUTER_IOCTL, 31, u_int)
 # define SIOC_WANPIPE_PIPEMON	_IOWR('i', 150, struct ifreq) /* get monitor statistics */
 # define SIOC_WANPIPE_DEVICE	_IOWR('i', 151, struct ifreq) /* set generic device */
-# define SIOC_WAN_HWPROBE	_IOWR('i', 152, struct ifreq) /* get hwprobe string */
+# define SIOC_WAN_DEVEL_IOCTL	_IOWR('i', 152, struct ifreq) /* get hwprobe string */
 # define SIOC_WANPIPE_DUMP	_IOWR('i', 153, struct ifreq) /* get memdump string (GENERIC) */
 # define SIOC_AFT_CUSTOMER_ID	_IOWR('i', 154, struct ifreq) /* get AFT customer ID */
-# define SIOC_WAN_READ_REG	_IOWR('i', 155, struct ifreq) /* read AFT register */
-# define SIOC_WAN_WRITE_REG	_IOWR('i', 156, struct ifreq) /* write AFT register */
-# define SIOC_WAN_SET_PCI_BIOS	_IOWR('i', 159, struct ifreq) /* set pci BIOS register */
-# define SIOC_WAN_ALL_READ_REG	_IOWR('i', 157, struct ifreq) /* read register for all AFT cards */
-# define SIOC_WAN_ALL_WRITE_REG	_IOWR('i', 158, struct ifreq) /* write register to all AFT cards */
-# define SIOC_WAN_ALL_SET_PCI_BIOS	_IOWR('i', 162, struct ifreq) /* set ALL pci BIOS register */
-# define SIOC_WAN_ALL_HWPROBE	_IOWR('i', 163, struct ifreq) /* get hwprobe string */
-# define SIOC_WAN_GET_CFG	_IOWR('i', 160, struct ifreq) /* get configuration */
-# define SIOC_WAN_COREREV	_IOWR('i', 161, struct ifreq) /* get core revision */
+
 #else
+
 enum router_ioctls
 {
 	ROUTER_SETUP	= ROUTER_IOCTL<<8,	/* configure device */
@@ -212,6 +205,10 @@ typedef struct wan_conf
 # include <net/wanpipe_debug.h>	
 # include <net/wanpipe_cfg.h>
 # include <net/wanpipe_common.h>	
+# ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
+#  include <net/sdla_tdmv.h>
+# endif
+
 #else
 //# include <linux/version.h>
 # include <linux/wanpipe_includes.h>
@@ -383,6 +380,10 @@ typedef struct wan_device
 	unsigned char	macAddr[ETHER_ADDR_LEN];
 	sdla_fe_iface_t	fe_iface;
 
+#if defined(CONFIG_PRODUCT_WANPIPE_TDMV_EC)
+	unsigned char	(*write_ec)(void*, unsigned short, unsigned char);
+	unsigned char	(*read_ec)(void*, unsigned short);
+#endif
 } wan_device_t;
 
 WAN_LIST_HEAD(wan_devlist_, wan_device);
@@ -406,6 +407,7 @@ extern int wanpipe_lip_rx(void *chan, void *sk_id);
 extern int wanpipe_lip_connect(void *chan, int );
 extern int wanpipe_lip_disconnect(void *chan, int);
 extern int wanpipe_lip_kick(void *chan,int);
+extern int wanpipe_lip_get_if_status(void *chan, void *m);
 #elif defined(__LINUX__)
 unsigned short wanrouter_type_trans(struct sk_buff *skb, netdevice_t *dev);
 int wanrouter_encapsulate(struct sk_buff *skb, netdevice_t *dev,unsigned short type);

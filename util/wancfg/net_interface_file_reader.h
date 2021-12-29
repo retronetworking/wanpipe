@@ -36,8 +36,8 @@ class net_interface_file_reader {
 public:
   if_config_t if_config;
 
-	net_interface_file_reader(char* interface_name);
-	~net_interface_file_reader();
+  net_interface_file_reader(char* interface_name);
+  ~net_interface_file_reader();
 
   int parse_net_interface_file();//to read file
   int create_net_interface_file(if_config_t* if_config);//to save updated file

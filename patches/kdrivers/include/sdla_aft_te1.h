@@ -37,15 +37,13 @@
 
 #define AFT_CHIP_CFG_REG		0x40
 
-/* Moved to sdlasfm.h #define AFT_MCPU_INTERFACE		0x44 */
 #define AFT_MCPU_INTERFACE_RW		0x54
-
-/* Moved to sdlasfm.h #define AFT_MCPU_INTERFACE_ADDR		0x46 */
 
 #define AFT_WDT_CTRL_REG		0x48 
 
 #define AFT_DATA_MUX_REG		0x4C 
 
+#define AFT_FIFO_MARK_REG		0x50
 
 # define AFT_CHIPCFG_TE1_CFG_BIT	0
 # define AFT_CHIPCFG_SFR_EX_BIT		1
@@ -54,6 +52,11 @@
 # define AFT_CHIPCFG_SECURITY_CFG_BIT	6
 # define AFT_CHIPCFG_RAM_READY_BIT	7
 # define AFT_CHIPCFG_HDLC_CTRL_RDY_BIT  8
+
+# define AFT_CHIPCFG_P1_TDMV_INTR_BIT	14	
+# define AFT_CHIPCFG_P2_TDMV_INTR_BIT	15	
+# define AFT_CHIPCFG_P3_TDMV_INTR_BIT	16	
+# define AFT_CHIPCFG_P4_TDMV_INTR_BIT	17	
 
 # define AFT_CHIPCFG_P1_WDT_INTR_BIT	18
 # define AFT_CHIPCFG_P2_WDT_INTR_BIT	19
@@ -71,6 +74,9 @@
 
 # define AFT_CHIPCFG_WDT_INTR_MASK	0x0F
 # define AFT_CHIPCFG_WDT_INTR_SHIFT	18
+
+# define AFT_CHIPCFG_TDMV_INTR_MASK	0x0F
+# define AFT_CHIPCFG_TDMV_INTR_SHIFT	14
 
 #  define AFT_CHIPCFG_WDT_FE_INTR_STAT	0
 #  define AFT_CHIPCFG_WDT_TX_INTR_STAT  1
@@ -99,6 +105,15 @@ aft_chipcfg_get_wdt_intr_stats(u32 reg)
 	return reg;
 }
 
+static __inline u32
+aft_chipcfg_get_tdmv_intr_stats(u32 reg)
+{
+	reg=reg>>AFT_CHIPCFG_TDMV_INTR_SHIFT;
+	reg&=AFT_CHIPCFG_TDMV_INTR_MASK;
+	return reg;
+}
+
+
 
 # define AFT_WDTCTRL_MASK		0xFF
 # define AFT_WDTCTRL_TIMEOUT 		75	/* ms */
@@ -116,6 +131,33 @@ aft_wdt_ctrl_set(u8 *reg, u8 timeout)
 }
 
 
+#define AFT_FIFO_MARK_32_MASK	0x3F
+#define AFT_FIFO_MARK_32_SHIFT	0
+
+#define AFT_FIFO_MARK_64_MASK	0x3F
+#define AFT_FIFO_MARK_64_SHIFT	6
+
+#define AFT_FIFO_MARK_128_MASK	0x3F
+#define AFT_FIFO_MARK_128_SHIFT	12
+
+#define AFT_FIFO_MARK_256_MASK	0x3F
+#define AFT_FIFO_MARK_256_SHIFT	18
+
+#define AFT_FIFO_MARK_512_MASK	0x3F
+#define AFT_FIFO_MARK_512_SHIFT	24
+
+static __inline void
+aft_fifo_mark_gset(u32 *reg, u8 mark)
+{	
+	mark&=AFT_FIFO_MARK_32_MASK;
+	
+	*reg=0;
+	*reg=(mark<<AFT_FIFO_MARK_32_SHIFT)|
+	     (mark<<AFT_FIFO_MARK_64_SHIFT)|
+	     (mark<<AFT_FIFO_MARK_128_SHIFT)|
+	     (mark<<AFT_FIFO_MARK_256_SHIFT)|
+	     (mark<<AFT_FIFO_MARK_512_SHIFT);
+}
 
 
 /*======================================================
@@ -151,11 +193,49 @@ aft_wdt_ctrl_set(u8 *reg, u8 timeout)
 
 # define AFT_LCFG_DMA_INTR_BIT		8
 # define AFT_LCFG_FIFO_INTR_BIT		9
-# define AFT_LCFG_SYNC_ENABLE_BIT	10
+
+# define AFT_LCFG_TDMV_CH_NUM_MASK	0x1F
+# define AFT_LCFG_TDMV_CH_NUM_SHIFT	10
+
+# define AFT_LCFG_TDMV_INTR_BIT		15
+
+# define AFT_LCFG_FE_CLK_ROUTE_BIT	27
+
+# define AFT_LCFG_FE_CLK_SOURCE_MASK	0x03
+# define AFT_LCFG_FE_CLK_SOURCE_SHIFT	28
 
 # define AFT_LCFG_GREEN_LED_BIT		30
 # define AFT_LCFG_RED_LED_BIT		31
 
+
+static __inline void
+aft_lcfg_fe_clk_source(u32 *reg, u32 src)
+{
+	*reg&=~(AFT_LCFG_FE_CLK_SOURCE_MASK<<AFT_LCFG_FE_CLK_SOURCE_SHIFT);
+	*reg|=(src&AFT_LCFG_FE_CLK_SOURCE_MASK)<<AFT_LCFG_FE_CLK_SOURCE_SHIFT;
+}
+
+
+static __inline void
+aft_lcfg_tdmv_cnt_inc(u32 *reg)
+{
+	u32 cnt = (*reg>>AFT_LCFG_TDMV_CH_NUM_SHIFT)&AFT_LCFG_TDMV_CH_NUM_MASK;
+	if (cnt < 32){
+		cnt++;
+	}
+	*reg&=~(AFT_LCFG_TDMV_CH_NUM_MASK<<AFT_LCFG_TDMV_CH_NUM_SHIFT);
+	*reg|=(cnt&AFT_LCFG_TDMV_CH_NUM_MASK)<<AFT_LCFG_TDMV_CH_NUM_SHIFT;
+}
+static __inline void
+aft_lcfg_tdmv_cnt_dec(u32 *reg)
+{
+	u32 cnt = (*reg>>AFT_LCFG_TDMV_CH_NUM_SHIFT)&AFT_LCFG_TDMV_CH_NUM_MASK;
+	if (cnt > 0){
+		cnt--;
+	}
+	*reg&=~(AFT_LCFG_TDMV_CH_NUM_MASK<<AFT_LCFG_TDMV_CH_NUM_SHIFT);
+	*reg|=(cnt&AFT_LCFG_TDMV_CH_NUM_MASK)<<AFT_LCFG_TDMV_CH_NUM_SHIFT;
+}
 
 /* SS7 LCFG MODE
  * 0: 128
@@ -202,6 +282,8 @@ aft_lcfg_ss7_mode4096_cfg(u32 *reg, int lssu_size)
 
 #define AFT_RX_DMA_CTRL_REG		0x208
 
+# define AFT_DMACTRL_TDMV_RX_TOGGLE	14
+# define AFT_DMACTRL_TDMV_TX_TOGGLE	15
 
 # define AFT_DMACTRL_MAX_LOGIC_CH_SHIFT 16
 # define AFT_DMACTRL_MAX_LOGIC_CH_MASK  0x1F
@@ -215,7 +297,6 @@ aft_dmactrl_set_max_logic_ch(u32 *reg, int max_logic_ch)
 	max_logic_ch&=AFT_DMACTRL_MAX_LOGIC_CH_MASK;
 	*reg|=(max_logic_ch<<AFT_DMACTRL_MAX_LOGIC_CH_SHIFT);
 }
-
 
 /*======================================================
  * PER PORT 
@@ -240,12 +321,14 @@ aft_dmactrl_set_max_logic_ch(u32 *reg, int max_logic_ch)
 # define AFT_CTRLRAM_SS7_ENABLE_BIT	 12
 
 # define AFT_CTRLRAM_DATA_MUX_ENABLE_BIT 13
+# define AFT_CTRLRAM_SS7_FORCE_RX_BIT	 14
 
-# define AFT_CTRLRAM_FIFO_SIZE_SHIFT	16
-# define AFT_CTRLRAM_FIFO_SIZE_MASK	0x1F
+# define AFT_CTRLRAM_FIFO_SIZE_SHIFT	 16
+# define AFT_CTRLRAM_FIFO_SIZE_MASK	 0x1F
 
-# define AFT_CTRLRAM_FIFO_BASE_SHIFT	24
-# define AFT_CTRLRAM_FIFO_BASE_MASK	0x1F
+# define AFT_CTRLRAM_FIFO_BASE_SHIFT	 24
+# define AFT_CTRLRAM_FIFO_BASE_MASK	 0x1F
+
 
 static __inline void
 aft_ctrlram_set_logic_ch(u32 *reg, int logic_ch)
@@ -290,8 +373,21 @@ aft_ctrlram_set_fifo_base(u32 *reg, int base)
 # define AFT_DMACHAIN_FIFO_SIZE_MASK	0x1F
 # define AFT_DMACHAIN_FIFO_SIZE_SHIFT	16
 
+/* AFT_DMACHAIN_TDMV_SIZE Bit Map
+ * 00=  8byte size
+ * 01= 16byte size
+ * 10= 32byte size
+ * 11= 64byte size 
+ */
+# define AFT_DMACHAIN_TDMV_SIZE_MASK	0x03
+# define AFT_DMACHAIN_TDMV_SIZE_SHIFT	21
+
+# define AFT_DMACHAIN_TDMV_ENABLE_BIT	23
+
 # define AFT_DMACHAIN_FIFO_BASE_MASK	0x1F
 # define AFT_DMACHAIN_FIFO_BASE_SHIFT	24
+
+# define AFT_DMACHAIN_SS7_FORCE_RX	29
 
 # define AFT_DMACHAIN_SS7_ENABLE_BIT	30
 
@@ -321,6 +417,8 @@ aft_dmachain_get_rx_dma_addr(u32 reg)
 	reg&=AFT_DMACHAIN_RX_ADDR_CNT_MASK;
 	return reg;
 }
+
+
 static __inline void
 aft_dmachain_set_rx_dma_addr(u32 *reg, int addr)
 {
@@ -344,6 +442,35 @@ aft_dmachain_set_fifo_base(u32 *reg, int base)
 	*reg&=~(AFT_DMACHAIN_FIFO_BASE_MASK<<AFT_DMACHAIN_FIFO_BASE_SHIFT);
 	base&=AFT_DMACHAIN_FIFO_BASE_MASK;
 	*reg|=(base<<AFT_DMACHAIN_FIFO_BASE_SHIFT);
+}
+
+static __inline void
+aft_dmachain_enable_tdmv_and_mtu_size(u32 *reg, int size)
+{
+	*reg&=~(AFT_DMACHAIN_TDMV_SIZE_MASK<<AFT_DMACHAIN_TDMV_SIZE_SHIFT);
+
+	switch(size){
+	case 8:
+		size=0x00;
+		break;
+	case 16:
+		size=0x01;
+		break;
+	case 32:
+		size=0x02;
+		break;
+	case 64:
+		size=0x03;
+		break;
+	default:
+		size=0x00;
+		break;
+	}
+	
+	size&=AFT_DMACHAIN_TDMV_SIZE_MASK;
+	*reg|=(size<<AFT_DMACHAIN_TDMV_SIZE_SHIFT);
+
+	wan_set_bit(AFT_DMACHAIN_TDMV_ENABLE_BIT,reg);
 }
 
 
@@ -670,6 +797,20 @@ aft_set_led(unsigned int color, int led_pos, int on, u32 *reg)
 	}
 }
 
+static __inline int
+aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
+{	
+	int num_of_slots=0;
+	int i;
+	for (i=0;i<total_slots;i++){
+		if (wan_test_bit(i,&chan_slots)){
+			num_of_slots++;
+		}
+	}
+
+	return num_of_slots;
+}
+
 #endif /* WAN_KERNEL */
 
 /*================================================================
@@ -743,7 +884,8 @@ typedef struct aft_config
 
 #if defined(__LINUX__)
 enum {
-	SIOC_AFT_CUSTOMER_ID = SIOC_WANPIPE_DEVPRIVATE
+	SIOC_AFT_CUSTOMER_ID = SIOC_WANPIPE_DEVPRIVATE,
+	SIOC_AFT_SS7_FORCE_RX
 };
 #endif
 

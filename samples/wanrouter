@@ -32,6 +32,127 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # wanrouter	WANPIPE WAN Router Initialization Script.
 #
 # copyright	(c) 1999-2002, Sangoma Technologies Inc.
@@ -1756,7 +1877,7 @@ DEPMOD=YES
 LINEPROBE_PATH=/usr/sbin/lineprobe
 
 if [ $OSYSTEM = "Linux" ]; then
-	ROUTER_VERSION=2.3.2-7
+	ROUTER_VERSION=2.3.3-7
 	IFCONFIG_LIST=ifconfig
 	MODULE_STAT=lsmod
 	WAN_DRIVERS="wanpipe"
@@ -1781,7 +1902,7 @@ if [ $OSYSTEM = "Linux" ]; then
 	MOD5=/lib/modules/af_wanpipe.o
 
 	if [ -d /lib/modules/$(uname -r) ]; then
-		uname -r | grep "2.4.*" > /dev/null
+		uname -r | grep "^2.4.*" > /dev/null
 		if [ $? -eq 0 ]; then
 			if [ -d /lib/modules/$(uname -r)/kernel ]; then
 				MOD1=/lib/modules/$(uname -r)/kernel/drivers/net/wan/sdladrv.o
@@ -1797,7 +1918,7 @@ if [ $OSYSTEM = "Linux" ]; then
 			fi
 		else
 
-			uname -r | grep "2.6.*" > /dev/null
+			uname -r | grep "^2.6.*" > /dev/null
 			if [ $? -eq 0 ]; then
 				if [ -d /lib/modules/$(uname -r)/kernel ]; then	
 					MOD1=/lib/modules/$(uname -r)/kernel/drivers/net/wan/sdladrv.ko
@@ -2183,9 +2304,12 @@ case "$1" in
 			else
 				eval "/usr/sbin/wanconfig card $dev dev $if_name up"
 			fi
-			if [ $? -ne 0 ]; then
-				cleanup 1
-			fi
+
+			#Regardles of config try to bring up the interface
+			#Interface up command will fail on its own
+			#if [ $? -ne 0 ]; then
+			#	cleanup 1
+			#fi   
 			
 			interface_up $if_name
 			if [ $? -ne 0 ]; then

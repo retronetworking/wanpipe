@@ -21,6 +21,8 @@ extern int 	rx_cnt;
 extern int	tx_size;
 extern int 	tx_delay;
 extern int 	tx_data;
+extern int	tx_ss7_type;
+extern int	rx_ss7_timer;
 extern int	files_used;
 extern int	verbose;
 extern int	ds_prot;

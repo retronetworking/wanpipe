@@ -129,7 +129,11 @@
 
 #endif
 
- 
+
+#ifndef CONFIG_PRODUCT_WANPIPE_ASYHDLC
+ #define wp_asyhdlc_init(a,b) (-EPROTONOSUPPORT)
+#endif
+
 #ifndef CONFIG_PRODUCT_WANPIPE_SDLC
  #define wp_sdlc_init(a,b) (-EPROTONOSUPPORT)
 #endif
@@ -269,13 +273,13 @@ static void dbg_kfree(void * v, int line) {
 	  u16	adapter_type = 0x00;						\
 	  card->hw_iface.getcfg(card->hw, SDLA_ADAPTERTYPE, &adapter_type);	\
 	  if (adapter_type == S5144_ADPTR_1_CPU_T1E1 || 			\
-	      IS_TE1_MEDIA((cfg).media)){					\
+	      IS_TE1_MEDIA(&(cfg))){					\
 	      	DEBUG_EVENT("%s: Error: Protocol not supported on S514-4 T1/E1 Adapter\n", \
 			    	card->devname); 				\
 		err = -EPFNOSUPPORT; 						\
 		break; 								\
 	  }else if (adapter_type == S5145_ADPTR_1_CPU_56K || 			\
-	            IS_56K_MEDIA((cfg).media)){ 						\
+	            IS_56K_MEDIA(&(cfg))){ 						\
 	        DEBUG_EVENT("%s: Error: Protocol not supported on S514-5 56K Adapter\n", \
 			    	card->devname); 				\
 		err = -EPFNOSUPPORT; 						\
@@ -381,7 +385,7 @@ int __init wanpipe_init(void)
 		DEBUG_EVENT("wanpipe: Allocating maximum %i devices: wanpipe%i - wanpipe%i.\n",
 					ncards,1,ncards);
 	}else{
-		DEBUG_EVENT("wanpipe: No S514/S508 cards found, unloading modules!\n");
+		DEBUG_EVENT("wanpipe: No AFT/S514/S508 cards found, unloading modules!\n");
 		return -ENODEV;
 	}
 
@@ -545,9 +549,11 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		break;
 	case WANCONFIG_AFT_TE1:
 		conf->card_type = WANOPT_AFT104;
+		conf->S514_CPU_no[0] = 'A';
 		break;
 	case WANCONFIG_AFT_TE3:
 		conf->card_type = WANOPT_AFT300;
+		conf->S514_CPU_no[0] = 'A';
 		break;
 	}
 	wandev->card_type  = conf->card_type;
@@ -619,6 +625,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 	
 	card->hw_iface.getcfg(card->hw, SDLA_CARDTYPE, &card->type);
 	card->hw_iface.getcfg(card->hw, SDLA_ADAPTERTYPE, &card->adptr_type);
+	card->hw_iface.getcfg(card->hw, SDLA_ADAPTERSUBTYPE, &card->adptr_subtype);
 	card->isr=NULL;
 
 	/* If the current card has already been configured
@@ -738,6 +745,12 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		err = wp_sdlc_init(card, conf);
 		break;
 
+	case WANCONFIG_ASYHDLC:
+		DEBUG_EVENT("%s: Starting ASY HDLC Protocol Init.\n",
+				card->devname);
+		err = wp_asyhdlc_init(card, conf);
+		break;
+		
 	case WANCONFIG_CHDLC:
 		if (conf->ft1){		
 			DEBUG_EVENT("%s: Starting FT1 CSU/DSU Config Driver.\n",
@@ -992,6 +1005,8 @@ static int check_s508_conflicts (sdla_t* card,wandev_conf_t* conf, int *irq)
 			      nxt_card->wandev.config_id == WANCONFIG_CHDLC) ||
 		             (conf->config_id == WANCONFIG_MPPP && 
 			      nxt_card->wandev.config_id == WANCONFIG_MPPP)  ||
+			     (conf->config_id == WANCONFIG_ASYHDLC && 
+			      nxt_card->wandev.config_id == WANCONFIG_ASYHDLC)  ||
 			     (conf->config_id == WANCONFIG_BSCSTRM && 
 			      nxt_card->wandev.config_id == WANCONFIG_BSCSTRM))){
 				
@@ -1096,6 +1111,8 @@ static int check_s514_conflicts(sdla_t* card,wandev_conf_t* conf, int *irq)
 			      nxt_card->wandev.config_id == WANCONFIG_CHDLC) ||
 		             (conf->config_id == WANCONFIG_MPPP && 
 			      nxt_card->wandev.config_id == WANCONFIG_MPPP)  ||
+			     (conf->config_id == WANCONFIG_ASYHDLC && 
+			      nxt_card->wandev.config_id == WANCONFIG_ASYHDLC)  ||
 			     (conf->config_id == WANCONFIG_BSCSTRM && 
 			      nxt_card->wandev.config_id == WANCONFIG_BSCSTRM))){
 
@@ -1772,9 +1789,11 @@ unsigned long get_ip_address (netdevice_t *dev, int option)
 	struct in_ifaddr *ifaddr;
 	struct in_device *in_dev;
 
-	if ((in_dev = __in_dev_get(dev)) == NULL){
+	if ((in_dev = in_dev_get(dev)) == NULL){
 		return 0;
 	}
+	in_dev_put(in_dev);
+
 #elif defined(LINUX_2_1)
 	struct in_ifaddr *ifaddr;
 	struct in_device *in_dev;

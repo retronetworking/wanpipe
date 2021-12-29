@@ -322,6 +322,15 @@ multilink
 lcp-echo-interval 5
 lcp-echo-failure 12
 
+nodeflate	#Do not use compression
+nobsdcomp	#Do not use bsd compression
+noccp		#Disable CCP (Compression Control Protocol)
+noaccomp	#Disable  Address/Control compression
+nopcomp		#Disable  protocol  field compres.
+novj		#Disable Van Jacobson TCP/IP header compres.
+novjccomp	#Disable the connection-ID compression
+nopredictor1	#Do not accept or agree to Predictor-1 compres.
+
 
 #On some CISCO routers we must
 #be in silent mode

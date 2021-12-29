@@ -91,23 +91,15 @@ struct if_settings
 };
 #endif
 
-#if 0
-typedef struct {
-	int		proto;
-	int		iface;
-	char		hwprobe[100];
-	sdla_te_cfg_t	te_cfg;
-	wan_dev_conf_t	devconf;
-	union {
-		cisco_proto	cisco;
-		fr_proto	fr;
-		fr_proto_pvc	fr_pvc;
-	} protocol;
-} wanlite_def_t;
-#endif
-
 /* WANPIPE Generic function interface */
 # if defined(WAN_KERNEL)
+
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
+# define WAN_IFT_OTHER	IFT_OTHER
+#elif defined(__LINUX__)
+# define WAN_IFT_OTHER	0x00
+#endif
+
 typedef struct
 {
 	netdevice_t*(*alloc)(int);
@@ -116,20 +108,8 @@ typedef struct
 	void(*detach)(netdevice_t*, int);
 	int(*input)(netdevice_t*, netskb_t*);
 	int(*set_proto)(netdevice_t*, struct ifreq*);
+	int(*attach_eth)(netdevice_t*, char*, int);
 } wan_iface_t;
-
-#if 0
-/* ALEX Remove it !!! */
-netdevice_t*	wan_iface_alloc (int);
-void		wan_iface_free (netdevice_t* dev);
-int		wan_iface_attach(netdevice_t*, char*, int);
-void		wan_iface_detach(netdevice_t*, int);
-int		wan_iface_open(netdevice_t* dev);
-int		wan_iface_close(netdevice_t* dev);
-int		wan_iface_input(netdevice_t*, netskb_t*);
-int		wan_iface_tx_timeout(netdevice_t*);
-int		wan_iface_set_proto(netdevice_t* dev, struct ifreq* ifr);
-#endif
 
 # endif
 #endif /* __WANPIPE_IFACE_H */

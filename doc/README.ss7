@@ -77,7 +77,7 @@ Run:	wanrouter hwprobe
 Configuring SS7 API
 --------------------
 
-Run: /usr/sbin/wancfg
+Run: /usr/sbin/wancfg_legacy
 
 1. Create new device
 
@@ -179,6 +179,44 @@ Example:
 
 Use this app as a building block for you custom
 APP.
+
+
+SS7 Commands
+------------
+
+
+/* SS7-level interface commands */
+#define READ_SS7_CODE_VERSION		0x20	/* read the SS7 code version */
+#define L2_READ_EXCEPTION_CONDITION	0x21	/* L2 - read an exception condition from the adapter */
+#define L2_SET_CONFIGURATION		0x22	/* L2 - set the operational configuration */
+#define L2_READ_CONFIGURATION		0x23	/* L2 - read the current configuration */
+#define L2_READ_LINK_STATUS		0x24	/* L2 - read the link status */
+#define L2_READ_OPERATIONAL_STATS	0x25	/* L2 - retrieve the operational statistics */
+#define L2_FLUSH_OPERATIONAL_STATS	0x26	/* L2 - flush the operational statistics */
+#define L2_READ_HISTORY_TABLE		0x27	/* L2 - read the history table */
+#define L2_FLUSH_HISTORY_TABLE		0x28	/* L2 - flush the history table */
+#define L2_SET_INTERRUPT_TRIGGERS	0x30	/* L2 - set the application interrupt triggers */
+#define L2_READ_INTERRUPT_TRIGGERS	0x31	/* L2 - read the application interrupt trigger configuration */
+#define L2_POWER_ON			0x40	/* L2 - power on */
+#define L2_EMERGENCY			0x41	/* L2 - emergency */
+#define L2_EMERGENCY_CEASES		0x42	/* L2 - emergency ceases */
+#define L2_START			0x43	/* L2 - start */
+#define L2_STOP				0x44	/* L2 - stop */
+#define L2_RESUME			0x45	/* L2 - resume (ANSI) / local processor recovered (ITU) */
+#define L2_RETRIEVE_BSNT		0x46	/* L2 - retrieve BSNT */
+#define L2_RETRIEVAL_REQ_AND_FSNC	0x47	/* L2 - retrieval request and FSNC */
+#define L2_CLEAR_BUFFERS		0x48	/* L2 - clear buffers (ANSI) / flush buffers (ITU) */
+#define L2_CLEAR_RTB			0x49	/* L2 - clear RTB */
+#define L2_LOCAL_PROCESSOR_OUTAGE	0x4A	/* L2 - local processor outage */
+#define L2_CONTINUE			0x4B	/* L2 - continue (ITU) */
+#define L2_SET_TX_CONG_CFG		0x50	/* L2 - set the transmission congestion configuration */
+#define L2_READ_TX_CONG_STATUS		0x51	/* L2 - read the transmission congestion status */
+#define L2_SET_RX_CONG_CFG		0x52	/* L2 - set the receive congestion configuration */
+#define L2_READ_RX_CONG_STATUS		0x53	/* L2 - read the receive congestion status */
+#define L2_DEBUG			0x5F	/* L2 - debug */
+
+
+
 
 
 

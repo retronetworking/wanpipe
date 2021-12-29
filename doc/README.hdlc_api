@@ -39,7 +39,13 @@ option in
 script to enable CHDLC.
 
 After successful installation proceed to 
-configure you RAW HDLC card using /usr/sbin/wancfg 
+configure you RAW HDLC card using:
+
+For AFT cards:
+	/usr/sbin/wancfg
+For Legacy S514 cards:
+	/usr/sbin/wancfg_legacy
+ 
 GUI configurator.
 
 
@@ -62,10 +68,44 @@ Run:	wanrouter hwprobe
 
 
 
-Configuring RAW HDLC API
-------------------------
 
-Run: /usr/sbin/wancfg
+
+Configuring RAW HDLC API : AFT cards
+------------------------------------
+
+Run /usr/sbin/wancfg
+
+1. Select card from Hardware Probe
+
+2. Configure for T1 or E1 (Default T1)
+
+3. Select HDLC Streaming Protocol
+
+4. Under Interface Section
+
+   Selcect API operation mode.
+
+5. Save exit
+
+
+NOTE: 
+To Disable HDLC engine per interface
+one can manually change HDLC_STREAMING NO option
+to NO under interface section in /etc/wanpipe/ 
+wanpip#.conf config file. 
+This MODE is called TRANSPARENT.
+
+IMPORTANT: When configuring for Transparent mode (HDLC Disabled)
+           The MTU/MRU must be in multiples of channel numbers
+           eg: T1 = 24 channels: 24*50  MTU/MRU=1200
+               E1 = 31 channels: 31*40  MTU/MRU=1240
+	
+		
+
+Configuring RAW HDLC API : Legacy S514
+--------------------------------------
+
+Run: /usr/sbin/wancfg_legacy
 
 1. Create new device
 
@@ -128,6 +168,7 @@ Run: wanrouter messages
 	Check for any error events.
 
 
+
 Ethereal Tracing
 ================
 
@@ -154,22 +195,28 @@ Note: No Custom API application is necessary for
 
 
 
+
+
+
 Custom API Application
 ======================
 
 A sample API application exists in
-/etc/wanpipe/api/chdlc directory.
+/etc/wanpipe/api directory.
 
 To compile it run:  make
 
-Run:    ./chdlc_api 
+For AFT Cards:
+Run: /etc/wanpipe/api/aft/aft_api
+
+For S514 Cards:
+Run: /etc/wanpipe/api/chdlc/chdlc_api 
 
 
+API aft_api or chdlc_api USAGE:
 
-API ./chdlc_api USAGE:
-
+./aft_api <options> <extra options>
 ./chdlc_api <options> <extra options>
-
 
 
 <options>:
@@ -197,11 +244,13 @@ API ./chdlc_api USAGE:
 
 eg: To enable read:
 	
+	./aft_api -i w1g1 -c wanpipe1 -r -verbose
 	./chdlc_api -i wp1chdlc -c wanpipe1 -r -verbose
 
 
 eg: To enable read and write:
 	
+	./aft_api -i w1g1 -c wanpipe1 -r -w -txsize 100 -txcnt 10 -verbose
 	./chdlc_api -i wp1chdlc -c wanpipe1 -r -w -txsize 100 -txcnt 10 -verbose
 
 	

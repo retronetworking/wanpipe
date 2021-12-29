@@ -23,7 +23,8 @@ void print_key_word_t_table(key_word_t* table);
 extern key_word_t common_conftab[];
 extern look_up_t config_id_str[];
 extern key_word_t fr_conftab[];
-extern key_word_t ppp_conftab[];
+extern key_word_t synch_ppp_conftab[];
+extern key_word_t lapb_annexg_conftab[];
 extern key_word_t chdlc_conftab[];
 extern key_word_t chan_conftab[];
 extern key_word_t adsl_conftab[];
@@ -35,7 +36,6 @@ enum {
   FORM_PROFILE_SECTION
 };
 
-int current_profile_number = 55;
 
 //////////////////////////////////////////////////////////////
 //Tables for converting integer values to string values
@@ -140,7 +140,14 @@ look_up_t frame_relay_station_type_options_table[] =
 {
 	{ WANOPT_CPE,		(void*)"CPE"		},
 	{ WANOPT_NODE,		(void*)"NODE"		},
-	{ 0,			              NULL	    }
+	{ 0,			NULL	    		}
+};
+
+look_up_t lapb_station_type_options_table[] =
+{
+	{ WANOPT_DTE,		(void*)"DTE"		},
+	{ WANOPT_DCE,		(void*)"DCE"		},
+	{ 0,			 NULL	    		}
 };
 
 look_up_t commport_type_options_table[] =
@@ -360,7 +367,7 @@ int conf_file_writer::write()
   interfaces_section_str = tmp_buff;
 
   traverse_interfaces(interfaces_section_str, main_obj_list,
-		  FORM_INTERFACES_SECTION);
+		  FORM_INTERFACES_SECTION, NULL);
   
   if(append_string_to_file((char*)full_file_path.c_str(),
                           (char*)interfaces_section_str.c_str()) == NO){
@@ -385,7 +392,7 @@ int conf_file_writer::write()
   //[profile]. i.g.: [fr.fr2]
   interfaces_section_str = "";
   traverse_interfaces(interfaces_section_str, main_obj_list,
-		  FORM_PROFILE_SECTION);
+		  FORM_PROFILE_SECTION, NULL);
   
   return YES;
 }
@@ -605,17 +612,16 @@ void print_look_up_t_table(look_up_t* table)
 
 int conf_file_writer::traverse_interfaces(string& interfaces_section_str,
 					  objects_list * obj_list,
-					  IN int task_type)
+					  IN int task_type,
+					  IN list_element_chan_def* parent_list_el_chan_def)
 {
   char tmp_buff[MAX_PATH_LENGTH];
   
   chan_def_t* chandef;
   wanif_conf_t* chanconf;
   int config_id;
-  int if_counter = 1;
   
   Debug(DBG_CONF_FILE_WRITER, ("traverse_interfaces()\n"));
-  
   
   if(obj_list == NULL){
     ERR_DBG_OUT(("traverse_interfaces(): obj_list == NULL!!\n"));
@@ -625,7 +631,6 @@ int conf_file_writer::traverse_interfaces(string& interfaces_section_str,
 
   list_element_chan_def* list_el_chan_def = (list_element_chan_def*)obj_list->get_first();
  	
-
   while(list_el_chan_def != NULL){
     chandef = &list_el_chan_def->data;
     chanconf = chandef->chanconf;
@@ -633,27 +638,24 @@ int conf_file_writer::traverse_interfaces(string& interfaces_section_str,
 
     Debug(DBG_CONF_FILE_WRITER, ("device name->: %s\n",chandef->name ));
  
-
     switch(task_type)
     {
     case FORM_INTERFACES_SECTION:
       //has to use 'pre-traversing'
-      if(form_interface_str(interfaces_section_str, list_el_chan_def) == NO){
+      Debug(DBG_CONF_FILE_WRITER, ("calling form_interface_str():line:%d\n", __LINE__));
+      if(form_interface_str(interfaces_section_str, list_el_chan_def, parent_list_el_chan_def) == NO){
         return NO;
       }
       break;
     }
 
     if(list_el_chan_def->next_objects_list != NULL){
-      //profile number has the sequence number of curren 'group of channels' which
-      //has LIP layer above it.	    
-      current_profile_number = if_counter++;
-      Debug(DBG_CONF_FILE_WRITER, ("++++++++++++ current_profile_number: %d\n",
-			    current_profile_number));
       //recursive call
       traverse_interfaces(interfaces_section_str, 
 		      (objects_list*)list_el_chan_def->next_objects_list, 
-		      task_type);
+		      task_type,
+		      list_el_chan_def
+		      );
     }
 
     switch(task_type)
@@ -663,29 +665,18 @@ int conf_file_writer::traverse_interfaces(string& interfaces_section_str,
       if(chandef->usedby == STACK){
 	
 	//write profile for the level above this one
+        Debug(DBG_CONF_FILE_WRITER, ("calling form_profile_str():line:%d\n", __LINE__));
 	if(form_profile_str(interfaces_section_str, list_el_chan_def) == NO){
 	  return NO;
 	}
-	if(form_per_interface_str(interfaces_section_str, list_el_chan_def, 0) == NO){
-	  return NO;
-	}
-	
-      }else{
-	switch(config_id)
-	{
-	case WANCONFIG_ADSL:
-	case WANCONFIG_HDLC:
-	case WANCONFIG_EDUKIT:
-	case WANCONFIG_AFT:
-	default:
-	  if(form_per_interface_str(interfaces_section_str, list_el_chan_def, 0) == NO){
-	    return NO;
-	  }
-	  break;
-	}
+      }
+      
+      Debug(DBG_CONF_FILE_WRITER, ("calling form_per_interface_str():line:%d\n", __LINE__));
+      if(form_per_interface_str(interfaces_section_str, list_el_chan_def, 0) == NO){
+        return NO;
       }
       break;
-    }
+    }//case()
 
     if(append_string_to_file((char*)full_file_path.c_str(),
                           (char*)interfaces_section_str.c_str()) == NO){
@@ -702,42 +693,26 @@ int conf_file_writer::traverse_interfaces(string& interfaces_section_str,
 
 //wp2fr16 = wanpipe2, 16, WANPIPE, Comment
 int conf_file_writer::form_interface_str(string& interfaces_section_str,
-                                         list_element_chan_def* list_el_chan_def)
+                                         list_element_chan_def* list_el_chan_def,
+					 IN list_element_chan_def* parent_list_el_chan_def)
 {
   char tmp_buff[MAX_PATH_LENGTH];
   chan_def_t* chandef = &list_el_chan_def->data;
   wanif_conf_t* chanconf = chandef->chanconf;
   int config_id = chanconf->config_id;
-#if DBG_FLAG
-  int protocol = chanconf->protocol;
-#endif
   link_def_t* link_def = cfr->link_defs;
 
   Debug(DBG_CONF_FILE_WRITER, ("form_interface_str(): name: %s\n", chandef->name));
   Debug(DBG_CONF_FILE_WRITER, ("config_id: %d (%s)\n", config_id, get_protocol_string(config_id)));
-  Debug(DBG_CONF_FILE_WRITER, ("protocol: %d (%s)\n", protocol, get_protocol_string(protocol)));
   Debug(DBG_CONF_FILE_WRITER, ("chandef->usedby: %s\n", get_used_by_string(chandef->usedby)));
 
-  //part1: w3g1 = wanpipe3,
+  //w3g1 = wanpipe3,
   snprintf(tmp_buff, MAX_PATH_LENGTH,
       "%s = %s,",
       chandef->name,
       link_def->name);
     interfaces_section_str += tmp_buff;
-
-  //part2 for STACK 
-  //if(protocol == 0){
-  if(chandef->usedby == STACK){
-     snprintf(tmp_buff, MAX_PATH_LENGTH,
-	      " , %s, %s\n",
-	      get_used_by_string(chandef->usedby),
-	      (chandef->label == NULL ? "Comment" : chandef->label));
   
-    interfaces_section_str += tmp_buff;
-    return YES;
-  }
-  
-  //part2 for non-STACK
   switch(config_id)
   {
   case WANCONFIG_ADSL:
@@ -754,43 +729,66 @@ int conf_file_writer::form_interface_str(string& interfaces_section_str,
       break;
   
   case WANCONFIG_MFR:
+    if(parent_list_el_chan_def == NULL){
+      ERR_DBG_OUT(("Interface %s does NOT have a 'parent' STACK interface!!\n",
+		  chandef->name));
+      return NO;
+    }
     snprintf(tmp_buff, MAX_PATH_LENGTH,
       //" %s, %s, %s, %s.%s%s\n",
-      " %s, %s, %s, %s.%s%d\n",
+      " %s, %s, %s, %s.%s\n",
       ((atoi(chandef->addr) == 1) ? "auto" : chandef->addr),
       get_used_by_string(chandef->usedby),
       get_aft_lip_layer_protocol(config_id),
-      get_aft_lip_layer_protocol(config_id),
-      get_aft_lip_layer_protocol(config_id),
-      current_profile_number);
-      //chandef->addr);
+      parent_list_el_chan_def->data.name,
+      get_aft_lip_layer_protocol(config_id));
     break;
 
+  case WANCONFIG_LAPB:
+    if(parent_list_el_chan_def == NULL){
+      ERR_DBG_OUT(("Interface %s does NOT have a 'parent' STACK interface!!\n",
+		  chandef->name));
+      return NO;
+    }
+    snprintf(tmp_buff, MAX_PATH_LENGTH,
+      " %s, %s, %s, %s.%s\n",
+      chandef->addr,
+      get_used_by_string(chandef->usedby),
+      get_aft_lip_layer_protocol(config_id),
+      parent_list_el_chan_def->data.name,
+      get_aft_lip_layer_protocol(config_id));
+    break;
+    
   case WANCONFIG_TTY:
+    if(parent_list_el_chan_def == NULL){
+      ERR_DBG_OUT(("Interface %s does NOT have a 'parent' STACK interface!!\n",
+		  chandef->name));
+      return NO;
+    }
     snprintf(tmp_buff, MAX_PATH_LENGTH,
       //" %s, %s, %s, %s.%s%s\n",
-      " %s, %s, %s, %s.%s%d\n",
+      " %s, %s, %s, %s.%s\n",
       chandef->chanconf->addr,
       get_used_by_string(chandef->usedby),
       get_aft_lip_layer_protocol(config_id),
-      get_aft_lip_layer_protocol(config_id),
-      get_aft_lip_layer_protocol(config_id),
-      current_profile_number);
-      //chandef->chanconf->addr);
-      //chandef->addr);
+      parent_list_el_chan_def->data.name,
+      get_aft_lip_layer_protocol(config_id));
     break;
 
   default:
+    if(parent_list_el_chan_def == NULL){
+      ERR_DBG_OUT(("Interface %s does NOT have a 'parent' STACK interface!!\n",
+		  chandef->name));
+      return NO;
+    }
     //for all others there the 'addr' is not used at all
     snprintf(tmp_buff, MAX_PATH_LENGTH,
       //" , %s, %s, %s.%s%s\n",
-      " , %s, %s, %s.%s%d\n",
+      " , %s, %s, %s.%s\n",
       get_used_by_string(chandef->usedby),
       get_aft_lip_layer_protocol(config_id),
-      get_aft_lip_layer_protocol(config_id),
-      get_aft_lip_layer_protocol(config_id),
-      current_profile_number);
-      //chandef->addr);
+      parent_list_el_chan_def->data.name,
+      get_aft_lip_layer_protocol(config_id));
   }
 
   interfaces_section_str += tmp_buff;
@@ -1336,6 +1334,10 @@ int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string)
         te_cfg->te_clock));
     te1_cfg_string += tmp_buff;
 
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "TE_REF_CLOCK 	= %d\n",
+      te_cfg->te_ref_clock);
+    te1_cfg_string += tmp_buff;
+
     snprintf(tmp_buff, MAX_PATH_LENGTH, "ACTIVE_CH	= %s\n",
       cfr->link_defs->active_channels_string);
     te1_cfg_string += tmp_buff;
@@ -1343,6 +1345,7 @@ int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string)
     snprintf(tmp_buff, MAX_PATH_LENGTH, "TE_HIGHIMPEDANCE	= %s\n",
       (te_cfg->high_impedance_mode == WANOPT_YES ? "YES" : "NO"));
     te1_cfg_string += tmp_buff;
+
     break; 
   }
 
@@ -1442,7 +1445,11 @@ TE3_TXLBO	= NO		# NO (default) / YES
     te1_cfg_string += tmp_buff;     
     break;
   }
-  
+ 
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_TXTRISTATE	= %s\n", 
+	(fe_cfg->tx_tristate_mode == WANOPT_YES ? "YES" : "NO"));
+  te1_cfg_string += tmp_buff;
+ 
   return YES;
 }
 
@@ -1477,7 +1484,8 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
      break;
   }
  
-  if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL){
+  if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL &&
+     cfr->link_defs->linkconf->card_type != WANOPT_AFT){
 
     misc_opt_string += form_keyword_and_value_str(  common_conftab,
                                                     offsetof(wandev_conf_t, interface),
@@ -1511,6 +1519,21 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
                                       cfr->link_defs->linkconf->ignore_front_end_status));
   misc_opt_string += tmp_buff;
 
+  if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL &&
+     cfr->link_defs->linkconf->card_type != WANOPT_S50X &&
+     cfr->link_defs->linkconf->card_type != WANOPT_S51X &&
+     is_there_a_voice_if == YES){
+
+    wan_xilinx_conf_t* wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
+
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_SPAN\t= %u\n",
+       wan_xilinx_conf->tdmv_span_no);
+    misc_opt_string += tmp_buff;
+
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_DCHAN\t= %u\n",
+       wan_xilinx_conf->tdmv_dchan);
+    misc_opt_string += tmp_buff;
+  }
   return YES;
 }
 
@@ -1696,17 +1719,162 @@ int conf_file_writer::form_frame_relay_global_configuration_string( wan_fr_conf_
   return YES;
 }
 
-int conf_file_writer::form_ppp_global_configuration_string(wan_ppp_conf_t* ppp_cfg,
+int conf_file_writer::form_ppp_global_configuration_string(wan_sppp_if_conf_t* ppp_cfg,
                                                            string& global_protocol_cfg)
 {
   global_protocol_cfg = "";
 
-  global_protocol_cfg += form_keyword_and_value_str(  ppp_conftab,
-                                                      offsetof(wan_ppp_conf_t, ip_mode),
-                                                      ppp_ip_mode_options_table,
-                                                      ppp_cfg->ip_mode);
+  Debug(DBG_CONF_FILE_WRITER, ("ppp_cfg->dynamic_ip: %d\n", ppp_cfg->dynamic_ip));
+
+  global_protocol_cfg += form_keyword_and_value_str(  
+		  			synch_ppp_conftab,
+                                        offsetof(wan_sppp_if_conf_t, dynamic_ip),
+                                        ppp_ip_mode_options_table,
+                                        ppp_cfg->dynamic_ip
+					);
+
+  Debug(DBG_CONF_FILE_WRITER, ("global_protocol_cfg': %s\n",  global_protocol_cfg.c_str()));
+  
   return YES;
 }
+
+int conf_file_writer::form_lapb_global_configuration_string(wan_lapb_if_conf_t *lapb_cfg,
+                                                            string& global_protocol_cfg)
+{
+  char* keyword;
+  char tmp_buff[MAX_PATH_LENGTH];
+
+  global_protocol_cfg = "";
+
+  ///////////////////////////////////////////////////////////////////////////////////////
+  global_protocol_cfg += form_keyword_and_value_str(  
+		  			lapb_annexg_conftab,
+                                        offsetof(wan_lapb_if_conf_t, station),
+                                        lapb_station_type_options_table,
+                                        lapb_cfg->station
+					);
+ 
+  ///////////////////////////////////////////////////////////////////////////////////////
+  keyword = get_keyword_from_key_word_t_table(lapb_annexg_conftab,
+		  			      offsetof(wan_lapb_if_conf_t, t1));
+  if(keyword == NULL){
+    ERR_DBG_OUT(("failed to find keyword for 't1'!\n"));
+    return NO;
+  }
+  Debug(DBG_CONF_FILE_WRITER, ("keyword for 't1': %s\n", keyword));
+
+  global_protocol_cfg += keyword;
+  global_protocol_cfg += "\t= ";
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", lapb_cfg->t1);
+  global_protocol_cfg += tmp_buff;
+  ///////////////////////////////////////////////////////////////////////////////////////
+  keyword = get_keyword_from_key_word_t_table(lapb_annexg_conftab,
+		  			      offsetof(wan_lapb_if_conf_t, t2));
+  if(keyword == NULL){
+    ERR_DBG_OUT(("failed to find keyword for 't2'!\n"));
+    return NO;
+  }
+  Debug(DBG_CONF_FILE_WRITER, ("keyword for 't2': %s\n", keyword));
+
+  global_protocol_cfg += keyword;
+  global_protocol_cfg += "\t= ";
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", lapb_cfg->t2);
+  global_protocol_cfg += tmp_buff;
+  ///////////////////////////////////////////////////////////////////////////////////////
+  keyword = get_keyword_from_key_word_t_table(lapb_annexg_conftab,
+		  			      offsetof(wan_lapb_if_conf_t, n2));
+  if(keyword == NULL){
+    ERR_DBG_OUT(("failed to find keyword for 'n2'!\n"));
+    return NO;
+  }
+  Debug(DBG_CONF_FILE_WRITER, ("keyword for 'n2': %s\n", keyword));
+
+  global_protocol_cfg += keyword;
+  global_protocol_cfg += "\t= ";
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", lapb_cfg->n2);
+  global_protocol_cfg += tmp_buff;
+  ///////////////////////////////////////////////////////////////////////////////////////
+  keyword = get_keyword_from_key_word_t_table(lapb_annexg_conftab,
+		  			      offsetof(wan_lapb_if_conf_t, t3));
+  if(keyword == NULL){
+    ERR_DBG_OUT(("failed to find keyword for 't3'!\n"));
+    return NO;
+  }
+  Debug(DBG_CONF_FILE_WRITER, ("keyword for 't3': %s\n", keyword));
+
+  global_protocol_cfg += keyword;
+  global_protocol_cfg += "\t= ";
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", lapb_cfg->t3);
+  global_protocol_cfg += tmp_buff;
+  ///////////////////////////////////////////////////////////////////////////////////////
+  keyword = get_keyword_from_key_word_t_table(lapb_annexg_conftab,
+		  			      offsetof(wan_lapb_if_conf_t, t4));
+  if(keyword == NULL){
+    ERR_DBG_OUT(("failed to find keyword for 't4'!\n"));
+    return NO;
+  }
+  Debug(DBG_CONF_FILE_WRITER, ("keyword for 't4': %s\n", keyword));
+
+  global_protocol_cfg += keyword;
+  global_protocol_cfg += "\t= ";
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", lapb_cfg->t4);
+  global_protocol_cfg += tmp_buff;
+  ///////////////////////////////////////////////////////////////////////////////////////
+  keyword = get_keyword_from_key_word_t_table(lapb_annexg_conftab,
+		  			      offsetof(wan_lapb_if_conf_t, mode));
+  if(keyword == NULL){
+    ERR_DBG_OUT(("failed to find keyword for 'mode'!\n"));
+    return NO;
+  }
+  Debug(DBG_CONF_FILE_WRITER, ("keyword for 'mode': %s\n", keyword));
+
+  global_protocol_cfg += keyword;
+  global_protocol_cfg += "\t= ";
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", lapb_cfg->mode);
+  global_protocol_cfg += tmp_buff;
+  ///////////////////////////////////////////////////////////////////////////////////////  
+  //window
+  keyword = get_keyword_from_key_word_t_table(lapb_annexg_conftab,
+		  			      offsetof(wan_lapb_if_conf_t, window));
+  if(keyword == NULL){
+    ERR_DBG_OUT(("failed to find keyword for 'window'!\n"));
+    return NO;
+  }
+  Debug(DBG_CONF_FILE_WRITER, ("keyword for 'window': %s\n", keyword));
+
+  global_protocol_cfg += keyword;
+  global_protocol_cfg += "\t= ";
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", lapb_cfg->window);
+  global_protocol_cfg += tmp_buff;
+  
+  ///////////////////////////////////////////////////////////////////////////////////////  
+  //mtu
+  keyword = get_keyword_from_key_word_t_table(lapb_annexg_conftab,
+		  			      offsetof(wan_lapb_if_conf_t, mtu));
+  if(keyword == NULL){
+    ERR_DBG_OUT(("failed to find keyword for 'mtu'!\n"));
+    return NO;
+  }
+  Debug(DBG_CONF_FILE_WRITER, ("keyword for 'mtu': %s\n", keyword));
+
+  global_protocol_cfg += keyword;
+  global_protocol_cfg += "\t= ";
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", lapb_cfg->mtu);
+  global_protocol_cfg += tmp_buff;
+  
+  Debug(DBG_CONF_FILE_WRITER, ("global_protocol_cfg': %s\n",  global_protocol_cfg.c_str()));
+  
+  return YES;
+}
+
 
 /*
 Receive_Only	= NO
@@ -1758,26 +1926,20 @@ int conf_file_writer::form_per_interface_str( string& wp_interface,
 {
   char tmp_buff[MAX_PATH_LENGTH];
   string tmp_str;
-  
-  link_def_t* link_def = cfr->link_defs;
-  //linkconf = cfr->link_defs->linkconf;
 
   Debug(DBG_CONF_FILE_WRITER, ("form_per_interface_str()\n"));
 
   chan_def_t* chandef = &list_el_chan_def->data;
   wanif_conf_t* chanconf = chandef->chanconf;
   int config_id = chanconf->config_id;
-#if DBG_FLAG
-  int protocol = chanconf->protocol;
-#endif
+  int interface_type;
 
   snprintf(tmp_buff, MAX_PATH_LENGTH, "\n[%s]\n", chandef->name);
   /*
   //this is very useful for debugging:
-  snprintf(tmp_buff, MAX_PATH_LENGTH, "\n[%s]:config_id: %d, protocol: %d, usedby: %s\n",
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "\n[%s]:config_id: %d, usedby: %s\n",
 		 chandef->name,
 		 config_id,
-		 protocol,
 		 get_used_by_string(chandef->usedby));
   */
   wp_interface += tmp_buff;
@@ -1785,29 +1947,34 @@ int conf_file_writer::form_per_interface_str( string& wp_interface,
   Debug(DBG_CONF_FILE_WRITER, ("config_id: %d (%s)\n", config_id,
     get_protocol_string(config_id)));
   
-  Debug(DBG_CONF_FILE_WRITER, ("protocol: %d (%s)\n", protocol,
-    get_protocol_string(protocol)));
-  
-  int interface_type;
+/*
   if(chandef->usedby == STACK){
     interface_type = WANCONFIG_AFT;
   }else{
-/*
-    if(config_id == WANCONFIG_HDLC){
+    interface_type = config_id;
+  }
+*/
 
+//  interface_type = config_id;
+  //  
+  /*
+  if(chandef->usedby == STACK){
+    if(config_id == protocol){
       interface_type = WANCONFIG_AFT;
     }else{
-*/	    
       interface_type = config_id;
-//    }
-  }
+    }
+  }else{
+  */
+    interface_type = config_id;
+  //}
 
   if(interface_type == PROTOCOL_TDM_VOICE){
     interface_type = WANCONFIG_HDLC;
   }
   
   Debug(DBG_CONF_FILE_WRITER, ("interface_type: %d\n", interface_type));
-  
+    
   switch(interface_type)//(config_id)
   {
   case WANCONFIG_MFR:
@@ -1822,11 +1989,8 @@ int conf_file_writer::form_per_interface_str( string& wp_interface,
     break;
     
   case WANCONFIG_MPPP:
-    /* moved to profile section. do nothing here.
-    if(form_ppp_per_interface_str(tmp_str, list_el_chan_def) == NO){
-      return NO;
-    }
-    */
+  case WANCONFIG_LAPB:
+    /* everything done in the profile section. do nothing here.*/
     break;
 
   case WANCONFIG_MPCHDLC:
@@ -1837,8 +2001,8 @@ int conf_file_writer::form_per_interface_str( string& wp_interface,
 
   case WANCONFIG_ADSL:
     //depending on Encapsulation ( and sub_config_id )
-    if(link_def->sub_config_id == WANCONFIG_MPPP){
-      if(form_ppp_per_interface_str(tmp_str, list_el_chan_def) == NO){
+    if( cfr->link_defs->sub_config_id == WANCONFIG_MPPP){
+      if(form_ppp_per_interface_str(tmp_str, chanconf) == NO){
        return NO;
       }
     }
@@ -1861,7 +2025,13 @@ int conf_file_writer::form_per_interface_str( string& wp_interface,
       interface_type));
     return NO;
   }
-
+/*
+  if(interface_type == WANCONFIG_HDLC || interface_type == WANCONFIG_AFT){
+    if(form_hardware_interface_str(tmp_str, list_el_chan_def) == NO){
+      return NO;
+    } 
+  }
+*/
   wp_interface += tmp_str;
 
   if(chandef->usedby != STACK){
@@ -1938,20 +2108,12 @@ int conf_file_writer::form_common_per_interface_str( string& wp_interface,
                                                      list_element_chan_def* list_el_chan_def)
 {
   char tmp_buff[MAX_PATH_LENGTH];
-  wandev_conf_t *linkconf = cfr->link_defs->linkconf;
-
-  ///////////////////////////////////////////////////////////////////////////////////////
-  //multicast
-  wp_interface += form_keyword_and_value_str( chan_conftab,
-                                              offsetof(wanif_conf_t, mc),
-                                              yes_no_options_table,
-                                              list_el_chan_def->data.chanconf->mc);
 
   ///////////////////////////////////////////////////////////////////////////////////////
   //ipx
-  if( linkconf->config_id == WANCONFIG_MFR ||
-      linkconf->config_id == WANCONFIG_MPPP){
-
+  if(list_el_chan_def->data.chanconf->config_id == WANCONFIG_MFR ||
+     list_el_chan_def->data.chanconf->config_id == WANCONFIG_MPPP){
+	  
     wp_interface += form_keyword_and_value_str( chan_conftab,
                                                 offsetof(wanif_conf_t, enable_IPX),
                                                 yes_no_options_table,
@@ -1967,22 +2129,34 @@ int conf_file_writer::form_common_per_interface_str( string& wp_interface,
     }
   }
 
-  ///////////////////////////////////////////////////////////////////////////////////////
-  wp_interface += form_keyword_and_value_str( chan_conftab,
-                                              offsetof(wanif_conf_t, true_if_encoding),
-                                              yes_no_options_table,
-                                              list_el_chan_def->data.chanconf->true_if_encoding);
-
-  ///////////////////////////////////////////////////////////////////////////////////////
-  //DYN_INTR_CFG
   switch(list_el_chan_def->data.usedby)
   {
   case WANPIPE:
   case BRIDGE_NODE:
+    //multicast
+    wp_interface += form_keyword_and_value_str( chan_conftab,
+                                                offsetof(wanif_conf_t, mc),
+                                                yes_no_options_table,
+                                                list_el_chan_def->data.chanconf->mc);
+
+	  
+    //DYN_INTR_CFG
     wp_interface += form_keyword_and_value_str( chan_conftab,
                                                 offsetof(wanif_conf_t, if_down),
                                                 yes_no_options_table,
                                                 list_el_chan_def->data.chanconf->if_down);
+
+    //TRUE_ENCODING_TYPE
+    wp_interface += form_keyword_and_value_str( chan_conftab,
+                                                offsetof(wanif_conf_t, true_if_encoding),
+                                                yes_no_options_table,
+                                                list_el_chan_def->data.chanconf->true_if_encoding);
+
+    //GATEWAY
+    wp_interface += form_keyword_and_value_str( chan_conftab,
+                                                offsetof(wanif_conf_t, gateway),
+                                                yes_no_options_table,
+                                                list_el_chan_def->data.chanconf->gateway);
     break;
   }
   return YES;
@@ -1996,47 +2170,47 @@ PASSWD   	= my_password
 SYSNAME  	= my_system_name
 */
 int conf_file_writer::form_ppp_per_interface_str( string& wp_interface,
-                                                  list_element_chan_def* list_el_chan_def)
+						  wanif_conf_t* chanconf)
 {
   char authenticate = NO;
-
-  if(list_el_chan_def->data.chanconf->pap == WANOPT_YES){
-
-    authenticate = YES;
-  }
-  if(list_el_chan_def->data.chanconf->chap == WANOPT_YES){
+	
+  if(chanconf->u.ppp.pap == WANOPT_YES){
     authenticate = YES;
   }
 
-  wp_interface += form_keyword_and_value_str( chan_conftab,
-                                              offsetof(wanif_conf_t, pap),
-                                              yes_no_options_table,
-                                              list_el_chan_def->data.chanconf->pap);
+  if(chanconf->u.ppp.chap == WANOPT_YES){
+    authenticate = YES;
+  }
 
-  wp_interface += form_keyword_and_value_str( chan_conftab,
-                                              offsetof(wanif_conf_t, chap),
+  wp_interface += form_keyword_and_value_str( synch_ppp_conftab,
+                                              offsetof(wan_sppp_if_conf_t, pap),
                                               yes_no_options_table,
-                                              list_el_chan_def->data.chanconf->chap);
+                                              chanconf->u.ppp.pap);
+
+  wp_interface += form_keyword_and_value_str( synch_ppp_conftab,
+                                              offsetof(wan_sppp_if_conf_t, chap),
+                                              yes_no_options_table,
+                                              chanconf->u.ppp.chap);
 
 
   if(authenticate == YES){
 
-    wp_interface += get_keyword_from_key_word_t_table(chan_conftab,
-                                                      offsetof(wanif_conf_t, userid));
+    wp_interface += get_keyword_from_key_word_t_table(synch_ppp_conftab,
+                                                      offsetof(wan_sppp_if_conf_t, userid));
     wp_interface += "\t= ";
-    wp_interface += (char*)list_el_chan_def->data.chanconf->userid;
+    wp_interface += (char*)chanconf->u.ppp.userid;
     wp_interface += "\n";
 
-    wp_interface += get_keyword_from_key_word_t_table(chan_conftab,
-                                                      offsetof(wanif_conf_t, passwd));
+    wp_interface += get_keyword_from_key_word_t_table(synch_ppp_conftab,
+                                                      offsetof(wan_sppp_if_conf_t, passwd));
     wp_interface += "\t= ";
-    wp_interface += (char*)list_el_chan_def->data.chanconf->passwd;
+    wp_interface += (char*)chanconf->u.ppp.passwd;
     wp_interface += "\n";
 
-    wp_interface += get_keyword_from_key_word_t_table(chan_conftab,
-                                                      offsetof(wanif_conf_t, sysname));
+    wp_interface += get_keyword_from_key_word_t_table(synch_ppp_conftab,
+                                                      offsetof(wan_sppp_if_conf_t, sysname));
     wp_interface += "\t= ";
-    wp_interface += (char*)list_el_chan_def->data.chanconf->sysname;
+    wp_interface += (char*)chanconf->u.ppp.sysname;
     wp_interface += "\n";
   }
 
@@ -2133,14 +2307,18 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
   //conf_file_reader* tmp_cfr = (conf_file_reader*)list_el_chan_def->conf_file_reader;
   char tmp_buff[MAX_PATH_LENGTH];
   chan_def_t* chandef = &list_el_chan_def->data;
- 
+
+/*
+  //not used anymore:
   wp_interface += "PROTOCOL",
   wp_interface += "\t= ";
   wp_interface += get_keyword_from_look_up_t_table( protocol_options_table,
-                                                    list_el_chan_def->data.chanconf->protocol);
+                                                    list_el_chan_def->data.chanconf->config_id);
   wp_interface += "\n";
-
-  if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL){
+*/
+  if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL &&
+     chandef->usedby != TDM_VOICE){
+	  
     wp_interface += form_keyword_and_value_str( chan_conftab,
                                               offsetof(wanif_conf_t, hdlc_streaming),
                                               yes_no_options_table,
@@ -2157,31 +2335,31 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
     wp_interface += list_el_chan_def->data.active_channels_string;
     wp_interface += "\n";
 
-    wp_interface += "IDLE_FLAG",
-    wp_interface += "\t= ";
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "0x%02X", list_el_chan_def->data.chanconf->u.aft.idle_flag);
-    wp_interface += tmp_buff;
-    wp_interface += "\n";
+    if(chandef->usedby != TDM_VOICE){
+	
+      if(list_el_chan_def->data.chanconf->hdlc_streaming == WANOPT_NO){    
+        wp_interface += "IDLE_FLAG",
+        wp_interface += "\t= ";
+        snprintf(tmp_buff, MAX_PATH_LENGTH, "0x%02X", list_el_chan_def->data.chanconf->u.aft.idle_flag);
+        wp_interface += tmp_buff;
+        wp_interface += "\n";
+      }
 
-    wp_interface += "MTU";
-    wp_interface += "\t\t= ";
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "%u", list_el_chan_def->data.chanconf->u.aft.mtu);
-    wp_interface += tmp_buff;
-    wp_interface += "\n";
-
-    wp_interface += "MRU";
-    wp_interface += "\t\t= ";
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "%u", list_el_chan_def->data.chanconf->u.aft.mru);
-    wp_interface += tmp_buff;
-    wp_interface += "\n";
-
-    if(chandef->usedby == TDM_VOICE){
-      wp_interface += "TDMV_SPAN";
-      wp_interface += "\t= ";
-      snprintf(tmp_buff, MAX_PATH_LENGTH, "%u", chandef->chanconf->spanno);
+      wp_interface += "MTU";
+      wp_interface += "\t\t= ";
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "%u", list_el_chan_def->data.chanconf->u.aft.mtu);
       wp_interface += tmp_buff;
       wp_interface += "\n";
 
+      wp_interface += "MRU";
+      wp_interface += "\t\t= ";
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "%u", list_el_chan_def->data.chanconf->u.aft.mru);
+      wp_interface += tmp_buff;
+      wp_interface += "\n";
+    }
+    
+    if(chandef->usedby == TDM_VOICE){
+ 
       wp_interface += "TDMV_ECHO_OFF";
       wp_interface += "\t= ";
       snprintf(tmp_buff, MAX_PATH_LENGTH, "%s",
@@ -2222,6 +2400,9 @@ char* conf_file_writer::get_aft_lip_layer_protocol(int protocol)
   case WANCONFIG_MPCHDLC:
     return "chdlc";
 
+  case WANCONFIG_LAPB:
+    return "lip_lapb";
+
   default:
     return "unknown";
   }
@@ -2235,46 +2416,13 @@ int conf_file_writer::form_profile_str(string& profile_str,
   string tmp_str = "";
   
   wan_fr_conf_t* fr_cfg;
-  wan_ppp_conf_t* ppp_cfg;
+  wan_sppp_if_conf_t* ppp_cfg;
   //wan_chdlc_conf_t* chdlc_cfg;
 
   Debug(DBG_CONF_FILE_WRITER, ("form_profile_str(): name: %s\n",
     parent_list_el_chan_def->data.name));
 
-  chan_def_t* parent_chandef = &parent_list_el_chan_def->data;
-  wanif_conf_t* parent_chanconf = parent_chandef->chanconf;
-  int config_id = parent_chanconf->config_id;
-#if DBG_FLAG
-  int protocol = parent_chanconf->protocol;
-#endif
-  Debug(DBG_CONF_FILE_WRITER, ("config_id: %d (%s)\n", config_id,
-    get_protocol_string(config_id)));
-  
-  Debug(DBG_CONF_FILE_WRITER, ("protocol: %d (%s)\n", protocol,
-    get_protocol_string(protocol)));
-
   //this function should be called only for 'STACK' interfaces
-  if(parent_chandef->usedby != STACK){
-    ERR_DBG_OUT(("Not a 'STACK' interface - no profile needed!!\n"));
-    return NO;
-  }
-
-  //for TTY the '.conf' file is inconsistent again!! because 'PROTOCOL=NONE'
-  //instead of for example, 'MP_TTY'. So, config_id stays set to 'WANCONFIG_AFT' or
-  //'WANCONFIG_ADSL'. And this is invalid.
-  if(config_id == WANCONFIG_AFT || config_id == WANCONFIG_ADSL){
-    config_id = WANCONFIG_TTY;
-  }
-  
-  //form profile name
-  //snprintf(tmp_buff, MAX_PATH_LENGTH, "\n[%s.%s%s]\n",
-  snprintf(tmp_buff, MAX_PATH_LENGTH, "\n[%s.%s%d]\n",
-      get_aft_lip_layer_protocol(config_id),
-      get_aft_lip_layer_protocol(config_id),
-      current_profile_number);
-      //parent_chandef->addr);
-  profile_str += tmp_buff;
-  
   objects_list* obj_list = (objects_list*)parent_list_el_chan_def->next_objects_list;
   if(obj_list == NULL){
     ERR_DBG_OUT(("Invalid 'obj_list' pointer in 'STACK'!!\n"));
@@ -2282,14 +2430,32 @@ int conf_file_writer::form_profile_str(string& profile_str,
   }
 
   //profile is the same for all interfaces, so just use the 1-st one
-  list_element_chan_def* list_el_chan_def = (list_element_chan_def*)obj_list->get_first();
-  if(list_el_chan_def == NULL){
-    ERR_DBG_OUT(("Invalid 'list_el_chan_def' pointer in 'STACK'!!\n"));
+  list_element_chan_def* child_list_el_chan_def = (list_element_chan_def*)obj_list->get_first();
+  if(child_list_el_chan_def == NULL){
+    ERR_DBG_OUT(("Invalid 'child_list_el_chan_def' pointer in 'STACK'!!\n"));
     return NO;
   }
 
-  chan_def_t* chandef = &list_el_chan_def->data;
+  chan_def_t* chandef = &child_list_el_chan_def->data;
   wanif_conf_t* chanconf = chandef->chanconf;
+  int config_id = chanconf->config_id;
+
+  Debug(DBG_CONF_FILE_WRITER, ("config_id: %d (%s)\n", config_id,
+    get_protocol_string(config_id)));
+  
+  //FIXME: is used at all??
+  //for TTY the '.conf' file is inconsistent again!! because 'PROTOCOL=NONE'
+  //instead of for example, 'MP_TTY'. So, config_id stays set to 'WANCONFIG_AFT' or
+  //'WANCONFIG_ADSL'. And this is invalid.
+  if(config_id == WANCONFIG_AFT || config_id == WANCONFIG_ADSL){
+    config_id = WANCONFIG_TTY;
+  }
+ 
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "\n[%s.%s]\n",
+      parent_list_el_chan_def->data.name ,
+      get_aft_lip_layer_protocol(config_id));
+  profile_str += tmp_buff;
+
 
   //the only protocol which has consistent '.conf' file is MFR.
   //all others are 'special cases'.
@@ -2315,14 +2481,21 @@ int conf_file_writer::form_profile_str(string& profile_str,
     break;
 
   case WANCONFIG_MPPP:
-    ppp_cfg = &cfr->link_defs->linkconf->u.ppp;
+    ppp_cfg = &chanconf->u.ppp;
     if(form_ppp_global_configuration_string(ppp_cfg, global_protocol_cfg) == NO){
       return NO;
     }
-    if(form_ppp_per_interface_str(tmp_str, list_el_chan_def) == NO){
+    if(form_ppp_per_interface_str(tmp_str, chanconf) == NO){
       return NO;
     }
     global_protocol_cfg += tmp_str;
+    break;
+
+  case WANCONFIG_LAPB:
+    //configuration is in 'profile' only, no per-interface cfg
+    if(form_lapb_global_configuration_string(&chanconf->u.lapb, global_protocol_cfg) == NO){
+      return NO;
+    }
     break;
 
   case WANCONFIG_MPCHDLC:
@@ -2347,4 +2520,5 @@ int conf_file_writer::form_profile_str(string& profile_str,
 
   return YES;
 }
+
 

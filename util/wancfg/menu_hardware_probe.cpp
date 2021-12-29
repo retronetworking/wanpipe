@@ -447,7 +447,8 @@ int menu_hardware_probe::parse_selected_card_line(char* selected_card_line,
   //
   if( strstr(selected_card_line, "A105-1-PCI") != NULL ||
       strstr(selected_card_line, "A105-2-PCI") != NULL ||
-      strstr(selected_card_line, "AFT-A300") != NULL){
+      strstr(selected_card_line, "AFT-A300") != NULL || 
+      strstr(selected_card_line, "AFT-A301") != NULL) {
     rc = YES;
     *card_type = WANOPT_AFT;
     *card_version = A300_ADPTR_U_1TE3;//WAN_MEDIA_DS3;//indicates A105
@@ -610,11 +611,12 @@ int menu_hardware_probe::get_port_from_str(char * str_buff, int* comm_port)
   }
 
   tmp += strlen("PORT=");
+  
 
-  if(strcmp(tmp, "PRI") == 0){
+  if(strncmp(tmp, "PRI",3) == 0){
     *comm_port = 0;
     Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): PORT : PRI\n"));
-  }else if(strcmp(tmp, "SEC") == 0){
+  }else if(strncmp(tmp, "SEC",3) == 0){
     *comm_port = 1;
     Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): PORT : SEC\n"));
   }else{

@@ -1020,14 +1020,14 @@ void read_te1_56k_config (void)
 #endif
 			printf("CSU/DSU %s Conriguration:\n", if_name);
 			printf("\tMedia type\t%s\n",
-				MEDIA_DECODE(fe_cfg->media));
+				MEDIA_DECODE(fe_cfg));
 			printf("\tFraming\t\t%s\n",
-				FRAME_DECODE(fe_cfg->frame));
+				FRAME_DECODE(fe_cfg));
 			printf("\tEncoding\t%s\n",
-				LCODE_DECODE(fe_cfg->lcode));
+				LCODE_DECODE(fe_cfg));
 			if (adapter_type == WAN_MEDIA_T1){
 				printf("\tLine Build\t%s\n",
-						LBO_DECODE(fe_cfg->cfg.te_cfg.lbo));
+						LBO_DECODE(fe_cfg));
 			}
 			printf("\tChannel Base\t");
 			for (i = 0, start_chan = 0; i < num_of_chan; i++){
@@ -1056,7 +1056,7 @@ void read_te1_56k_config (void)
 			}
 			printf("\n");
 			printf("\tClock Mode\t%s\n",
-				TECLK_DECODE(fe_cfg->cfg.te_cfg.te_clock));
+				TECLK_DECODE(fe_cfg));
 		}
 	}
 	return;

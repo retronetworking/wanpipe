@@ -1,0 +1,286 @@
+diff -dur zaptel-1.0.9.1_original/zaptel.c zaptel/zaptel.c
+--- zaptel-1.0.9.1_original/zaptel.c	2005-08-16 16:27:17.491862664 +0000
++++ zaptel/zaptel.c	2005-08-16 17:21:24.896182168 +0000
+@@ -289,6 +289,8 @@
+ 
+ static int zt_chan_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long data, int unit);
+ 
++static void sang_zt_ec_chunk_spike_store(struct zt_chan *ss, unsigned char *rxchunk);
++
+ #if defined(CONFIG_ZAPTEL_MMX) || defined(ECHO_CAN_FP)
+ /* XXX kernel_fpu_begin() is NOT exported properly (in 2.4), so we have to make
+        a local version.  Somebody fix this! XXX */
+@@ -4113,6 +4115,11 @@
+ 				chan->echostate = ECHO_STATE_IDLE;
+ 				chan->echolastupdate = 0;
+ 				chan->echotimer = 0;
++				chan->echo_spike_struct.state_bits = SANGOMA_INITIAL_STATE;
++                	        chan->echo_spike_struct.sample_len_counter = 0;
++				if(chan->echo_detect_struct.ed_enabled == 1){
++					chan->echo_detect_struct.echo_detection_state = ECHO_DETECT_ON;
++				}
+ 				echo_can_disable_detector_init(&chan->txecdis);
+ 				echo_can_disable_detector_init(&chan->rxecdis);
+ 			}
+@@ -4127,6 +4134,7 @@
+ 			chan->echostate = ECHO_STATE_IDLE;
+ 			chan->echolastupdate = 0;
+ 			chan->echotimer = 0;
++			chan->echo_detect_struct.echo_detection_state = ECHO_DETECT_OFF;
+ 			/* Attempt hardware native echo can */
+ 			if (chan->span && chan->span->echocan)
+ 				chan->span->echocan(chan, 0);
+@@ -4270,6 +4278,92 @@
+ 			return -EINVAL;
+ 		break;
+ #endif
++	case SANGOMA_GET_ED_STATE:
++		if(chan->span->ioctl != NULL){
++			if (chan->span->ioctl(chan, cmd, 0) != 0){
++				return -EINVAL;
++			}
++		        copy_to_user((echo_detect_struct_t*)data, &chan->echo_detect_struct,
++				sizeof(echo_detect_struct_t));
++		}else{
++			printk(KERN_INFO "SANGOMA_GET_ED_STATE: channo: %d : chan->span->ioctl == NULL !!\n",
++				chan->channo);
++			return -EINVAL;
++		}
++		break;
++
++	case SANGOMA_ENABLE_ED:
++		chan->echo_detect_struct.ed_enabled = 1;
++		break;
++
++	case SANGOMA_DISABLE_ED:
++		chan->echo_detect_struct.ed_enabled = 0;
++		break;
++
++	case SANGOMA_GET_ECHO_SPIKE_SAMPLE:
++		if(chan->echo_spike_struct.sample_buffer){
++			unsigned char *tmp_ptr = (unsigned char*)data;
++
++			chan->echo_spike_struct.return_code = SANGOMA_OK;
++
++			/* first copy the 'echo_spike_struct_t' structure */
++		        copy_to_user(tmp_ptr, &chan->echo_spike_struct, sizeof(echo_spike_struct_t));
++
++			/* second copy the data AFTER the 'echo_spike_struct_t' structure */
++		        copy_to_user	(&tmp_ptr[sizeof(echo_spike_struct_t)], 
++					chan->echo_spike_struct.sample_buffer,
++					SANGOMA_SPIKE_SAMPLE_LEN);
++
++			/* free the sample buffer */
++			kfree(chan->echo_spike_struct.sample_buffer);
++			chan->echo_spike_struct.sample_buffer = NULL;
++
++			chan->echo_spike_struct.state_bits = SANGOMA_INITIAL_STATE;
++			chan->echo_spike_struct.sample_len_counter = 0;
++		}else{
++			unsigned char *tmp_ptr = (unsigned char*)data;
++
++			chan->echo_spike_struct.return_code = SANGOMA_NO_ACTIVE_CALL_OR_EC_OFF;
++			/* copy the 'echo_spike_struct_t' structure */
++		        copy_to_user(tmp_ptr, &chan->echo_spike_struct, sizeof(echo_spike_struct_t));
++		}
++		break;
++
++	case SANGOMA_SEND_SPIKE:
++		/* allocate EchoTest buffer */
++		chan->echo_spike_struct.sample_buffer = kmalloc(SANGOMA_SPIKE_SAMPLE_LEN, GFP_KERNEL);
++		if (chan->echo_spike_struct.sample_buffer == NULL) {
++			printk(KERN_INFO "channo: %d: Failed to allocate %d bytes for EchoTest storage!!!\n",
++				chan->channo, SANGOMA_SPIKE_SAMPLE_LEN);
++			return -ENOMEM;
++		}
++		
++		spin_lock_irqsave(&chan->lock, flags);
++		/* send echo spike */
++		if (chan->ec) {
++			chan->echo_spike_struct.state_bits = SANGOMA_INITIAL_STATE;
++			chan->echo_spike_struct.sample_len_counter = 0;
++			/* these two lines will make zaptel to send the spike: */
++			chan->echostate = ECHO_STATE_PRETRAINING;
++			chan->echotimer = 2048;	/*Number of silence bytes to transmit before the spike.
++						  It makes the line clean from noise, so spike is easy
++						  to detect on return.*/
++			/* must unlock here!! */
++			spin_unlock_irqrestore(&chan->lock, flags);
++		}else{
++			unsigned char *tmp_ptr = (unsigned char*)data;
++
++			chan->echo_spike_struct.return_code = SANGOMA_NO_ACTIVE_CALL_OR_EC_OFF;
++
++			/* Must unlock here, BEFORE copy_to_user() call.
++			   Or will get warnings from the kernel. */
++			spin_unlock_irqrestore(&chan->lock, flags);
++
++			/* copy the 'echo_spike_struct_t' structure */
++		        copy_to_user(tmp_ptr, &chan->echo_spike_struct, sizeof(echo_spike_struct_t));
++		}
++		break;
++
+ 	default:
+ 		return zt_chanandpseudo_ioctl(inode, file, cmd, data, unit);
+ 	}
+@@ -5325,7 +5419,13 @@
+ 	short rxlin, txlin;
+ 	int x;
+ 	unsigned long flags;
++	unsigned char rxchunk_backup[ZT_CHUNKSIZE];
++
+ 	spin_lock_irqsave(&ss->lock, flags);
++
++	//original rxchank is modyfied, make a backup copy for future use.
++	memcpy(rxchunk_backup, rxchunk, ZT_CHUNKSIZE);
++
+ 	/* Perform echo cancellation on a chunk if necessary */
+ 	if (ss->ec) {
+ #if defined(CONFIG_ZAPTEL_MMX) || defined(ECHO_CAN_FP)
+@@ -5345,12 +5445,30 @@
+ 				if ((ss->echostate == ECHO_STATE_AWAITINGECHO) && (txlin > 8000)) {
+ 					ss->echolastupdate = 0;
+ 					ss->echostate = ECHO_STATE_TRAINING;
++
++					//printk(KERN_INFO "ss->echostate == ECHO_STATE_AWAITINGECHO\n");
++
++					if(ss->echo_spike_struct.state_bits == SANGOMA_INITIAL_STATE){
++						ss->echo_spike_struct.state_bits = SANGOMA_BUSY_COLLECTING_SAMPLE;
++						ss->echo_spike_struct.sample_len_counter = 0;
++					}
+ 				}
+ 				if (ss->echostate == ECHO_STATE_TRAINING) {
++					//printk(KERN_INFO "rxchunk[%d]: 0x%02X\n", x, rxchunk[x]);
++
+ 					if (echo_can_traintap(ss->ec, ss->echolastupdate++, rxlin)) {
+ #if 0
+ 						printk("Finished training (%d taps trained)!\n", ss->echolastupdate);
+ #endif						
++						/*
++						//sang
++						printk(KERN_INFO 
++							"span:%d,chan:%d:Finished training (%d taps trained)!\n",
++							(ss->span ? ss->span->spanno : 0),
++							ss->channo,
++							ss->echolastupdate);
++						*/
++
+ 						ss->echostate = ECHO_STATE_ACTIVE;
+ 					}
+ 				}
+@@ -5364,6 +5482,9 @@
+ 				rxchunk[x] = ZT_LIN2X((int)rxlin, ss);
+ 			}
+ 		}
++
++		sang_zt_ec_chunk_spike_store(ss, rxchunk_backup);
++
+ #if defined(CONFIG_ZAPTEL_MMX) || defined(ECHO_CAN_FP)
+ 		kernel_fpu_end();
+ #endif		
+@@ -6500,3 +6621,60 @@
+ 
+ module_init(zt_init);
+ module_exit(zt_cleanup);
++
++
++static void sang_zt_ec_chunk_spike_store(struct zt_chan *ss, unsigned char *rxchunk)
++{
++	int x;
++
++	if(ss->echo_spike_struct.state_bits != SANGOMA_BUSY_COLLECTING_SAMPLE ||
++	   ss->echo_spike_struct.sample_buffer == NULL){
++		return;
++	}
++
++	//check input values
++	if(ss->echo_spike_struct.sample_len_counter >= SANGOMA_SPIKE_SAMPLE_LEN){
++		printk(KERN_INFO "chan: %d: Invalid sample_len_counter! (%d)\n", 
++			ss->channo, ss->echo_spike_struct.sample_len_counter);
++		return;
++	}
++	
++	if(ss->echo_spike_struct.state_bits == SANGOMA_BUSY_COLLECTING_SAMPLE){
++					
++		for (x = 0; x < ZT_CHUNKSIZE; x++) {
++			ss->echo_spike_struct.sample_buffer[ss->echo_spike_struct.sample_len_counter] 
++				= rxchunk[x];
++				
++			ss->echo_spike_struct.sample_len_counter++;
++
++			if(ss->echo_spike_struct.sample_len_counter >= SANGOMA_SPIKE_SAMPLE_LEN){
++				//finished collecting the sample
++				ss->echo_spike_struct.state_bits = SANGOMA_FINISHED_COLLECTING_SAMPLE;
++				break;
++			}//if()
++		}//for()
++	}//if()
++
++#if 0
++	if(ss->echo_spike_struct.state_bits == SANGOMA_FINISHED_COLLECTING_SAMPLE){
++				
++                printk(KERN_INFO "chan: %d: spike sample buffer(len:%d):\n",
++                        ss->channo, SANGOMA_SPIKE_SAMPLE_LEN);
++		//print out the sample buffer
++		for (x = 0; x < SANGOMA_SPIKE_SAMPLE_LEN; x++) {
++			printk(KERN_INFO "0x%02X\n", ss->echo_spike_struct.sample_buffer[x]);
++		}
++		printk(KERN_INFO "end of spike sample buffer\n");
++
++		printk(KERN_INFO "chan: %d: LINEAR (ALAW) spike sample buffer(len:%d):\n",
++                        ss->channo, SANGOMA_SPIKE_SAMPLE_LEN);
++		//print out the sample buffer
++		for (x = 0; x < SANGOMA_SPIKE_SAMPLE_LEN; x++) {
++			printk(KERN_INFO "0x%04X\n", 
++				ZT_ALAW(ss->echo_spike_struct.sample_buffer[x]) & 0xFFFF);
++		}
++		printk(KERN_INFO "end of spike sample buffer\n");
++	}
++#endif
++}
++
+diff -dur zaptel-1.0.9.1_original/zaptel.h zaptel/zaptel.h
+--- zaptel-1.0.9.1_original/zaptel.h	2005-08-16 16:27:17.503860840 +0000
++++ zaptel/zaptel.h	2005-08-16 17:22:11.279130888 +0000
+@@ -61,6 +61,8 @@
+ #endif /* CONFIG_DEVFS_FS */
+ #include <linux/ioctl.h>
+ 
++#include <linux/wanpipe_edac_iface.h>
++
+ #ifndef ELAST
+ #define ELAST 500
+ #endif
+@@ -608,6 +610,21 @@
+  *  80-85 are reserved for dynamic span stuff
+  */
+ 
++
++
++
++
++
++
++
++
++
++#define SANGOMA_GET_ED_STATE 	_IOR (ZT_CODE, 61, int)
++#define SANGOMA_ENABLE_ED 	_IOR (ZT_CODE, 62, int)
++#define SANGOMA_DISABLE_ED 	_IOR (ZT_CODE, 63, int)
++#define SANGOMA_GET_ECHO_SPIKE_SAMPLE _IOR (ZT_CODE, 64, int)
++#define SANGOMA_SEND_SPIKE	_IOR (ZT_CODE, 65, int)
++
+ /*
+  * Create a dynamic span
+  */
+@@ -1150,6 +1167,10 @@
+ 	devfs_handle_t fhandle;  /* File handle in devfs for the channel */
+ 	devfs_handle_t fhandle_symlink;
+ #endif /* CONFIG_DEVFS_FS */
++
++	//SANGOMA	
++	echo_detect_struct_t echo_detect_struct;
++	echo_spike_struct_t echo_spike_struct;	
+ };
+ 
+ /* defines for transmit signalling */

@@ -20,6 +20,7 @@ WAN_VIRTUAL=
 LXDIR=../lxdialog
 ENABLE_GUI=YES
 PROTOCOL_DEFS=
+ASTBROOT=/usr
 #-DCONFIG_PRODUCT_WANPIPE_ADSL
 
 CC = gcc 
@@ -30,14 +31,15 @@ WAN_VIRTUAL=
 
 
 HOSTCFLAGS=-I$(SYSINC)
-ifeq (/usr/include/ncurses/ncurses.h, $(wildcard /usr/include/ncurses/ncurses.h))
-        HOSTCFLAGS += -I/usr/include/ncurses
-else
-ifeq (/usr/include/ncurses/curses.h, $(wildcard /usr/include/ncurses/curses.h))
-        HOSTCFLAGS += -I/usr/include/ncurses
-else
-endif
-endif
+HOSTCFLAGS += -I$(ASTBROOT)/include      
+#ifeq (/usr/include/ncurses/ncurses.h, $(wildcard /usr/include/ncurses/ncurses.h))
+#        HOSTCFLAGS += -I/usr/include/ncurses
+#else
+#ifeq (/usr/include/ncurses/curses.h, $(wildcard /usr/include/ncurses/curses.h))
+#        HOSTCFLAGS += -I/usr/include/ncurses
+#else
+#endif
+#endif
 # Tools options.
 
 ifeq "${ENABLE_GUI}" "NO"
@@ -49,21 +51,22 @@ LX_OBJ = $(LXDIR)/checklist.o $(LXDIR)/menubox.o $(LXDIR)/inputbox.o $(LXDIR)/ut
 GUI_OBJ = wangui.o
 LDLIBS = -lncurses
 
-CFLAGS += -DWANPIPEMON_GUI -DLOCALE  
+CFLAGS += -DWANPIPEMON_GUI -DLOCALE -DCURSES_LOC="<ncurses.h>"  
 
-ifeq (/usr/include/ncurses/ncurses.h, $(wildcard /usr/include/ncurses/ncurses.h))
-        CFLAGS += -I/usr/include/ncurses -DCURSES_LOC="<ncurses.h>"
-else
-ifeq (/usr/include/ncurses/curses.h, $(wildcard /usr/include/ncurses/curses.h))
-        CFLAGS += -I/usr/include/ncurses -DCURSES_LOC="<ncurses/curses.h>"
-else
-ifeq (/usr/include/ncurses.h, $(wildcard /usr/include/ncurses.h))
-        CFLAGS += -DCURSES_LOC="<ncurses.h>"
-else
-	CFLAGS += -DCURSES_LOC="<curses.h>"
-endif
-endif
-endif
+#ifeq (/usr/include/ncurses/ncurses.h, $(wildcard /usr/include/ncurses/ncurses.h))
+#        CFLAGS += -I/usr/include/ncurses -DCURSES_LOC="<ncurses.h>"
+#else
+#ifeq (/usr/include/ncurses/curses.h, $(wildcard /usr/include/ncurses/curses.h))
+#        CFLAGS += -I/usr/include/ncurses -DCURSES_LOC="<ncurses/curses.h>"
+#else
+#ifeq (/usr/include/ncurses.h, $(wildcard /usr/include/ncurses.h))
+#        CFLAGS += -DCURSES_LOC="<ncurses.h>"
+#else
+#	CFLAGS += -DCURSES_LOC="<curses.h>"
+#endif
+#endif
+#endif
+
 
 endif
 
@@ -83,7 +86,7 @@ all:    ncurses \
 $(PROD):  $(OBJS) 
 
 ncurses:
-	@x=`find /lib/ /usr/lib/ /usr/lib64/ /usr/local/lib/ -maxdepth 1 -name 'libncurses.*'` ;\
+	@x=`find $(ASTBROOT)/lib/ /lib/ /usr/lib/ /usr/lib64/ /usr/local/lib/ -maxdepth 1 -name 'libncurses.*' 2> /dev/null`  ;\
 	if [ ! "$$x" ]; then \
 		echo -e "\007" ;\
 		echo ">> Unable to find the Ncurses libraries." ;\

@@ -1,4 +1,4 @@
-/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.25 2005/02/10 18:53:45 sangoma Exp $ */
+/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.33 2005/11/10 18:02:32 sangoma Exp $ */
 
 #ifndef _WANPIPE_LIP_HEADER_
 #define _WANPIPE_LIP_HEADER_
@@ -39,12 +39,16 @@
 # include <linux/if_wanpipe.h>
 # include <linux/if_wanpipe_common.h>
 # include <linux/wanpipe_fr_iface.h>
+# include <linux/wanpipe_lip_atm_iface.h>
 # include <linux/wanpipe_sppp_iface.h>
 # if defined(CONFIG_PRODUCT_WANPIPE_LAPB)
 #  include <linux/wanpipe_lapb_iface.h>
 # endif 
 # if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
 #  include <linux/wanpipe_xdlc_iface.h>
+# endif 
+# if defined(CONFIG_PRODUCT_WANPIPE_XMTP2)
+#  include <linux/wanpipe_xmtp2_iface.h>
 # endif 
 # include <linux/wanpipe_lip_kernel.h>
 # include <linux/wanpipe_iface.h>
@@ -88,6 +92,25 @@
 #define MAX_LINK_RX_Q_LEN 10
 #define MAX_TAIL_ROOM 16
 #define MAX_LIP_LINKS 255
+
+#if 0
+/* This option defaults the inital network
+ * interface state to STOPPED/DISABLED.
+ *
+ * In this case, all traffic will be blocked
+ * and data pushed back up the protocol stack. 
+ * This can cause memory starvation if there are
+ * many interfaces running, because each interface
+ * queue can be up to 100 packets, and fames will
+ * only be dropped once the queue is overfilled 
+ *
+ * By disabling this option, all packets received
+ * by the interface in disconnected state, will be
+ * silently discarded with carrier stat incremented.
+ */
+#define  WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF
+#endif
+
 /* BH flags */
 enum{
 	WPLIP_BH_RUNNING,
@@ -138,7 +161,9 @@ enum {
 #define MAX_PROC_EVENT_SIZE X25_CALL_STR_SZ+200+1
 
 
+/*#define MAX_TX_BUF 10*/
 #define MAX_TX_BUF 10
+#define MAX_ATM_TX_BUF 35
 #define MAX_RX_Q 32
 
 #define WPLIP_MAGIC_LINK  	0xDAFE1234
@@ -239,6 +264,9 @@ typedef struct wplip_link
 	unsigned char			async_mode;
 #endif
 
+	wan_taskq_t 			prot_task;
+	unsigned int			latency_qlen;
+
 } wplip_link_t;
 
 
@@ -281,10 +309,15 @@ typedef struct wplip_dev{
 	unsigned long			ipx_net_num;
 
 	unsigned int			prot_addr;
-	
+
+	unsigned int			max_mtu_sz;
+	unsigned int			max_mtu_sz_orig;
+
 	atomic_t			refcnt;
 	pid_t				pid;
 
+	unsigned int			interface_down;
+	wan_taskq_t 			if_task;
 	
 } wplip_dev_t;
 
@@ -330,6 +363,7 @@ typedef struct wplip_prot_iface
 	int (*timer)  (void *prot_ptr, unsigned int *period, unsigned int);
 	int (*bh)     (void *);
 	int (*snmp)   (void *, void *);
+	int (*task)   (void *prot_ptr);
 
 }wplip_prot_iface_t;
 
@@ -377,6 +411,8 @@ extern int 		wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb);
 extern int 		wplip_data_tx_down(wplip_link_t *lip_link, void *skb);
 extern int 		wplip_callback_tx_down(void *lip_dev, void *skb);
 extern int 		wplip_link_callback_tx_down(void *lip_link, void *skb);
+extern int		wplip_callback_kick_prot_task(void *lip_link);
+extern int 		wplip_set_hw_idle_frame (void *liplink_ptr, unsigned char *data, int len);
 
 /* wanpipe_lip_sub.c */
 extern wplip_link_t*	wplip_create_link(char *devname);
@@ -384,6 +420,7 @@ extern void 		wplip_remove_link(wplip_link_t *lip_link);
 extern void 		wplip_insert_link(wplip_link_t *lip_link);
 extern int 		wplip_link_exists(wplip_link_t *lip_link);
 extern void 		wplip_free_link(wplip_link_t *lip_link);
+extern int		wplip_lipdev_latency_change(wplip_link_t *lip_link);
 
 
 #if 1
@@ -406,6 +443,8 @@ extern int wplip_stop_dev(netdevice_t *dev);
 extern struct net_device_stats * wplip_ifstats (netdevice_t *dev);
 extern int wplip_if_send (netskb_t *skb, netdevice_t *dev);
 extern int wplip_if_init(netdevice_t *dev);
+extern void wplip_kick(void *wplip_id,int reason);
+
 
 # ifdef WPLIP_TTY_SUPPORT
 /* wanpipe_lip_tty.c */
@@ -452,6 +491,7 @@ extern int wplip_set_ipv4_addr (void *wplip_id,
 		         	unsigned int,
 		         	unsigned int);
 extern void wplip_add_gateway(void *wplip_id);
+extern void wplip_trigger_if_task(wplip_dev_t *lip_dev);
 
 void wplip_ipxwan_switch_net_num(unsigned char *sendpacket, 
 		                unsigned long network_number, 
@@ -506,10 +546,11 @@ static __inline int wplip_kick_trigger_bh(wplip_link_t *lip_link)
 	return 0;
 }
 
-static __inline int wplip_decode_protocol(void *ptr)
+static __inline int wplip_decode_protocol(wplip_dev_t *lip_dev, void *ptr)
 {
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct sockaddr *sa = (struct sockaddr *)ptr;
+	
 	
 	switch (sa->sa_family){
 
@@ -525,7 +566,24 @@ static __inline int wplip_decode_protocol(void *ptr)
 		
 #elif defined(__LINUX__) 
 	struct sk_buff *skb=(struct sk_buff*)ptr;
-	
+
+	if (lip_dev->common.usedby == BRIDGE || 
+            lip_dev->common.usedby == BRIDGE_NODE){
+		return WPLIP_ETH;
+
+	}
+
+	if (lip_dev->common.usedby == STACK){
+		switch (lip_dev->common.lip_prot){
+		case WANCONFIG_PPP:
+		case WANCONFIG_TTY:
+			return WPLIP_PPP;
+		case WANCONFIG_FR:
+			return WPLIP_FR;
+		}	
+		/* Break out down */
+	}
+
 	switch (htons(skb->protocol)){
 
 	case ETH_P_IP:
@@ -535,13 +593,31 @@ static __inline int wplip_decode_protocol(void *ptr)
 	case ETH_P_IPX:
 		return WPLIP_IPX;
 	}
-	
+
 	return WPLIP_IP;	
 #else
 # error ("wplip_decode_protocol: Unknown Protocol!\n");
 #endif
 
 }
+
+
+#if defined(__LINUX__)
+static __inline void wp_lip_config_bridge_mode(wplip_dev_t *lip_dev)
+{
+	netdevice_t * dev = lip_dev->common.dev;
+	/* Setup the interface for Bridging */
+	int hw_addr=0;
+	ether_setup(dev);
+
+	/* Use a random number to generate the MAC address */
+	memcpy(dev->dev_addr, "\xFE\xFC\x00\x00\x00\x00", 6);
+	get_random_bytes(&hw_addr, sizeof(hw_addr));
+	*(int *)(dev->dev_addr + 2) += hw_addr;
+}
+#endif
+
+
 
 /*__KERNEL__*/
 #endif  

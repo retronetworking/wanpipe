@@ -70,6 +70,8 @@ extern void set_lb_modes(unsigned char type, unsigned char mode);
 extern void read_te1_56k_stat(void);
 extern void read_te1_56k_config (void);
 
+extern void set_debug_mode(unsigned char type, unsigned char mode);
+extern void set_fe_tx_mode(unsigned char mode);
 
 #define WAN_TRUE  1 
 #define WAN_FALSE 0

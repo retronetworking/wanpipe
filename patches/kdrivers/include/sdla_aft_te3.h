@@ -911,6 +911,21 @@ get_current_tx_dma_ptr(u32 reg)
 {
 	return ((reg & AFT_TE3_CRNT_TX_DMA_MASK));
 }
+
+static __inline void
+set_current_rx_dma_ptr(u32 *reg, u32 val)
+{
+	*reg &= ~AFT_TE3_CRNT_RX_DMA_MASK;
+	*reg |= (val << AFT_TE3_CRNT_RX_DMA_SHIFT) & AFT_TE3_CRNT_RX_DMA_MASK; 
+}
+
+static __inline void
+set_current_tx_dma_ptr(u32 *reg, u32 val)
+{
+	*reg &= ~AFT_TE3_CRNT_TX_DMA_MASK;
+	*reg |= val & AFT_TE3_CRNT_TX_DMA_MASK;
+}
+
 #endif
 
 /*=======================================
@@ -1172,10 +1187,10 @@ typedef struct {
 
 typedef struct wp_rx_element
 {
-	unsigned long dma_addr;
+	unsigned int dma_addr;
 	unsigned int reg;
 	unsigned int align;
-	unsigned char pkt_error;
+	unsigned char  pkt_error;
 }wp_rx_element_t;
 
 

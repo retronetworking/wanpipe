@@ -283,6 +283,7 @@ again:
         {
         case YES_NO_TEXT_BOX_BUTTON_YES:
           fr->station = WANOPT_NODE;
+	  fr->signalling = WANOPT_FR_ANSI;
           break;
         }
         goto again;

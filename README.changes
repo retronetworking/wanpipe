@@ -1,0 +1,848 @@
+------------------------------------------------------------------------------
+WANPIPE
+
+Linux WAN Router Package
+------------------------------------------------------------------------------
+Author: Nenad Corbic <ncorbic@sangoma.com>
+Copyright (c) 1995-2006 Sangoma Technologies Inc.
+------------------------------------------------------------------------------
+
+Release Stable 2.3.3-7
+=======================
+Oct 03 2006
+
+	o Bug fix in AFT T3 drivers.
+	o Bug fix in hwprobe for AFT 300 cards
+
+	o CHDLC Protocol 
+	  The wancfg does not properly configures CHDLC
+	  keepalive values.  One has to set them in
+	  CHDLC profile section as follows:
+		[w1g1.chdlc]
+			KEEPALIVE_TIMER		= 5
+			KEEPALIVE_ERROR_MARGIN	= 5 
+
+	  By default if initial values are NOT Set, driver
+	  initializes the keepalive values to above.
+
+
+Release Stable 2.3.3-6
+=======================
+Sep 14 2006
+
+	o Latency Update for AFT and S514 Cards.
+	  New interface config option SINGLE_TX_BUF=YES
+ 	  	-> Configures hardware for single tx buffer.
+	
+	o Adjustable tx queue in driver via ifconfig txqueuelen field.
+	  
+	  When one decreases the value of txqueuelen using ifconfig
+	  below the driver treshold, Driver will lower its queue len
+	  to the value of txqueuelen.
+
+	  When txqueuelen is increased the driver will reset its queue
+	  len to the original value.
+
+
+
+Release Stable 2.3.3-5
+======================
+Aug 23 2006
+
+	o Added new features to LIP PPP Protocol
+	  Three IP Configuration Modes
+		STATIC:  No ip negotiation. Will not give away IP address to peer.
+		HOST:    Same as static, but will give away local IP address to peer.
+		PEER:	 Dynamic IP mode. PPP will ask for IP address from peer.
+
+
+	o Added checks to /proc file system, when interigating interface status.
+
+	o Bug fix in LIP TX algorithm.
+	  In some conditions on high load and very small packets its possible
+	  for the LIP TX handler to hang and 2sec timeout. 
+	  After the timeout the operation would continue.          
+
+
+Release Stable 2.3.3-4
+======================
+Jul 05 2006
+
+	o Bug fix for all LIP API protocols.
+          Possible memory leak if rx socket is full, and packet
+          cannot be delivered up the stack.
+
+	o Updated AFT firmware update program.
+    	  
+	o Added wanpipe firmware version to wanrouter hwprobe.
+
+	o Updated Frame Relay EEK Protocol
+		EEK_CFG=[NO | EEK_REQ ]
+		EEK_TIMER=[intiger]     
+
+Release Stable 2.3.3-3
+======================
+Apr 12 2006
+
+	o Driver updates for 2.6.16 kernel and greater.
+	  The TTY Layer has been updated which broke wanpipe drivers.
+
+	o LIP Frame Relay Protocol Update
+	  Added NO_LMI option
+	  Updated Frame Relay Bridging
+	  Potential bug fix where top layer gives us
+	  a packet with zero length headroom
+	  Updated MAX DLCI to 1007. Used by CISCO LMI.
+	
+	o LIP PPP/CHDLC Protocol Update
+	  Potential bug fix where top layer gives us
+	  a packet with zero length headroom
+	  Updated PAP/CHAP to follow the spec and not attemp
+	  authentication until LCP is finished.
+
+	o LIP ATM Protocol Update
+	  The ATM protocol has been completed to comply with
+	  full ATM specifications and RFCs.
+
+	o LIP Layer: Interface UP/DOWN Optional Feature
+	  Added a neceassary feature in LIP Interface layer.
+	  The Interface will follow the line status.
+	  If interface state is disconnected the interface
+	  IFF_UP flag will be cleared.
+	  If interface state is connected teh interface
+	  IFF_UP flags will be set.
+	  This feature is useful on 2.4 kernels in SNMP and TEQL
+	  applications where higher service wants to know the
+	  state of the underlining protocol based on interface state.
+	  Note: This feature will support ALL LIP protocols: 
+	        Frame Relay, PPP, CHDLC ..etc
+	  Wanpipe configuration option: DYN_INTER_CFG=YES
+	  By default its set to NO.
+
+	o AFT A104/A104D HDLC API Update
+	  The API will not pass up CRC values, unless the configuration
+	  option RX_CRC_BYTES=2 is set in wanpipe1.conf file.
+
+	o S514 CHDLC Protocol
+	  Allow to bind to API interface without having to be super-user.
+	
+	o AFT Firmware Flash Utility
+	  Firmware flash utility caused unpredicatable behaviour on some
+	  new systems with advanced PCI bridges.  The fix prevents 
+	  back-to-back pci accesses.
+
+	        
+
+Release Stable 2.3.3-2
+======================
+Mar 03 2006
+
+	o AFT Front End T1/E1 Alarm Update/Polling
+	  On some embedded machines the A104D cards exhibited
+	  unreliable ports i.e. The port would not come up due to
+	  missing interrupts from the front end chip.  
+	  The Front End polling mechanism has been updated to solve this problem.
+	  Feature pushed back from 2.3.4 release 
+
+	o Compilation support on 2.4 Kernels
+	  Feature pushed back from 2.3.4 release
+	
+	o The A104D LED Update
+	  The A104-Shark card can be used without 
+	  hardware echo cancellation on 2.3.3 release.
+	  Feature pushed back from 2.3.4 release
+
+	o AFT A101/2 TDM Voice Update
+	  On extremely noisy lines that can occur during a
+	  lightning strike, the TDM Driver on A101/2 cards could
+	  print a lot of messages into the log that can cause
+	  unstable system behavior.  This has now be fix.
+	  Feature pushed back from 2.3.4 release
+	
+	o Setup Installation updates
+	  Compilation on 2.4 64bit kernels 
+	  Features pushed back from 2.3.4 release    
+
+
+Release Stable 2.3.3-1
+======================
+Feb 06 2006
+
+	o The Beta18 has been stable for months now thus the whole
+	  2.3.3 release is now stable.
+
+
+Release Beta18-2.3.3
+====================
+Dec 05 2005 
+
+	o Updated support for 2.6.14 kernels.
+       	  This change only affects S514 bitstreaming drivers.
+	  The bitstreaming driver was not updated for 2.6.14
+
+
+Release Beta17-2.3.3
+====================
+Nov 22 2005
+
+	o Support for Linux kernel 2.6.14 
+          The new kernel broke wanpipe drivers
+
+	o A102 Driver BUG Fix introducted in Beta16
+          When two ports are running, if one port is shutdown 
+          the second port becomes disabled as well.
+
+	o Bug fix in A104 TDM Clock Sync
+          The clock sync feature where port 2 would
+          use the T1/E1 clock from port 1 had issues.
+          A new AFT 104 firmware V14 has been release to 
+          fix this problem.
+	
+          NOTE: The Clock Sync bug fix has two parts
+		1.Driver update
+		2.Firmware update
+
+	o New AFT A104 Firmware V14. 
+	  Fixes the ClockSync problem
+
+	o Minor updates to PPP Dynamic/Static IP negotiation.
+           
+
+
+
+Release Beta16-2.3.3
+====================
+Oct 24 2005
+
+	o AFT Update for 64Bit Kernels
+	  Updated how AFT cards map dma buffers in 64 bit space.
+
+	o AFT Hardware support for ia64 architectures
+
+	o Setup update: Startup Sequence
+
+          Setup installation will now check for current wanpipe 
+          startup sequence and will give the use an option of
+          keeping the original wanpipe startup sequence.
+
+	  Wanpipe startup scripts now moved to order number 03
+	  This will start wanpipe before zaptel on bootup.
+
+
+Release Beta15-2.3.3
+====================
+Oct 05 2005
+	
+	o AFT A101/2 HDLC Bug Fix
+	  An HDLC bug was been introduced in beta13/14 release.
+          It has now been fixed.
+
+
+Release Beta14-2.3.3
+====================
+Oct 02 2005
+
+	o Wanpipe ZAPTEL DCHAN Patch Update
+          The zaptel cvs head broke wanpipe
+          zaptel patches. 
+          Created new zaptel patches :)
+
+
+Re-Releaes Beta13-2.3.3
+====================
+Sep 26 2005
+
+	o AFT Firmware update bug fix.
+          A debug code was left in the AFT
+          firmware update utility.
+
+
+Releaes Beta13-2.3.3
+====================
+Sep 24 2005
+
+
+	o AFT A102 TDM Bug Fix
+          The AFT A102 card could experience unpredicted
+          behavior on extremely noisy T1/E1 lines.
+          This issue has now been fixed.
+
+	o New AFT A104 Firmware Update V13
+          Fixes PCI issues on new high-end Servers.
+          The symptom of this bug is distorted metallic 
+          Voice sound on TDM calls. 
+  
+	  New firmware is located at:
+	  ftp.sangoma.com/linux/current_wanpipe/firmware
+ 
+	o TDMV Driver Feature 
+          EDAC: Echo Cancel and Control Support
+          Dynamically tests whether the echo is present
+          on the line at the beginning of each call.
+          If no echo is present the echo canceler is turned
+          OFF on that particular channel to improve resources.
+
+          Since EDAC is in BETA release one has to specify 
+          edac option during install in order to install it:
+		./Setup install --edac 
+
+	o TDMV Updates
+          RBS Bug Fix and Updates
+
+	o TDMV Timing Update
+          TDMV provides Asterisk Timing while the link 
+	  is disconnected
+
+	o XMTP2 Updates
+	
+	o Added Async for S514 Cards.
+          One can now configure LIP one a PRI port of S514 card
+          and Async API SEC port.
+          Needs old firmware: cdual514asy.sfm 
+
+
+Release Beta11-2.3.3
+Jun 23 2005
+====================
+
+	
+	o TDMV AFT A104 DCHAN Bug Fix
+          The A104 drivers failed to unload
+          cleanly on AMI Wink setup. 		
+
+	o New ADSL drivers
+          Update to ADSL drivers, with major bug
+          fixes to handle DMA Timeouts.
+          These fixes have been tested on customer
+          production boxes.
+
+ 	o Driver and Installation updates for 
+          Itanium64 Kernel.
+          Note: Compilation Option #2 is only valid
+                compilation option for Itanium64. 
+		Option#2: TDM Voice Only Mode.
+
+        o Further updates to ./Setup installation script.
+
+
+Release Beta10-2.3.3
+Jun 15 2005
+===================
+
+
+    	o TDMV AFT A102 DCHAN Bug Fix
+      	  The A101/2 card dropped DCHAN on some
+          bad/noisy T1/E1 lines.
+          This problem has now been resolved.
+     
+    	o Major update to ./Setup installation script.
+          Wanpipe driver compilation will now work
+          against partial linux headers.
+          Thus no need for full linux sources.
+          Furthermore, latest distributions of Fedora,
+          Suse and others will compile much easier now.
+
+    	o Updates for Linux kernel 2.6.12
+          Updated for Fedora Core 4
+
+    	o Front End TX TriState Option.
+          Option to disable the TE1 Front End
+          Transmitter. This option is useful in backup
+          recovery situations, where multiple TE1
+          ports are connected to a single TE1 line.
+          Master port would have TX/RX enabled and
+          the rest would have only RX enabled.
+         
+Release Beta9-2.3.3
+Jun 09 2005
+===================
+
+	o TDMV AFT A102 DCHAN Bug Fix
+	  The A101/2 card dropped DCHAN on some
+          bad/noisy T1/E1 lines.
+          This problem has now been resolved.
+
+	o Wanpipemon TDMV DCHAN Tracing 
+          wanpipemon utility can now trace 
+          TDMV DCHAN.
+	  eg: wanpipemon -i w1g1 -c trd
+
+          On T1 Dchan is hardcoded to 24
+          On E1 Dchan is hardcoded to 16
+
+
+
+Release Beta8-2.3.3
+May 30 2005
+===================
+
+	o AFT TDMV A104 Driver
+	  Bug fix on A104 shutdown.
+
+	o AFT TDMV Driver
+	  Added additional sanity checks.
+
+	o A102 TDMV Driver
+	  The A102 Driver will now provide clocking to
+	  zaptel even if the front end is disconnected.
+
+	o TDMV Driver Update
+	  Wink/RBS Update
+	  Further updates for E1
+	 
+	o AMI Support for AFT TDMV Drivers
+	  Cards: A101/2/4
+	  
+	o A104 Clock Sync Support
+	  New AFT V.12 Firmware Required
+	  
+	o Setup Installation Script Update
+	  New TDMV compilation Option
+
+	o A104 TDMV Driver
+	  On some machines A104 TDMV driver failed to unload
+	  cleanly.
+
+
+Release A104 Firmware V.11
+Apr 25 2005
+===============
+	
+	o The A104 Firmware update contains
+           fixes to the A104 HDLC engine.
+ 	   The A104 HDLC engine contained a flaw that
+           caused packet loss on some hdlc lines.
+
+	   This is an important update and should be
+           applied ASAP.   
+
+           No device driver upgrade is required!
+	
+           Location: ftp.sangoma.com/linux/current_wanpipe/firmware
+
+Release Beta7-2.3.3
+Apr 26 2005
+===============
+
+	o TDMV Driver updates to A104 and A101
+	  drivers.  Minor fixes to DCHAN driver
+	  for E1.
+
+	o A104 Firmware V.11 Update required for 
+	  A104 drivers.  
+
+	  NOTE: A104 Drivers will not load on cards that
+	        have firmware versions lower than V.11
+
+	  Update Utility Located: wanpipe/utils/wan_aftup
+	  Instructions:           wanpipe/utils/wan_aftup/README
+
+	o The A104 V.11 Firmware update contains
+           fixes to the A104 HDLC engine.
+ 	   The A104 HDLC engine contained a flaw that
+           caused packet loss on some hdlc lines.
+
+	   This is an important update and should be
+           applied ASAP.   
+
+
+Release Beta6-2.3.3
+Apr 21 2005
+===============
+
+	o TDMV DCHAN PRI HDLC channelized driver
+	  for A101/A102 cards.
+
+	  Using the TDMV_DCHAN option one can enable
+	  the hardware HDLC engine for the PRI 
+	  T1/E1 timeslot.
+	
+	  Read README.asterisk for more info	  
+
+	o Updates to TE1 front end.  Improved
+	   front end handling.
+
+
+Re-Release Beta5-2.3.3
+Apr 15 2005
+===============
+
+	o Minor WanCfg compile bug on gcc 3.X
+           Wancfg failed to compile on some gcc versions.
+	   
+
+Release Beta5-2.3.3
+Apr 12 2005
+===============
+
+	o New Async HDLC API Protocol
+	  Read the wanpipe/doc/README.asyhdlc_api
+
+	o WANCFG Update for DCHAN PRI HW HDLC 
+	  The DCHAN PRI hardware HDLC Timeslot option
+	  is now part of the WanCfg Interface Setup.
+          Use the HELP button for more information, or
+	  read the README.asterisk
+	
+	o TDMV Update for E1 (A104)
+	  A minor bug fix for E1 Channelized driver.
+	  Channel 31 was not being configured properly.
+
+
+Releaes Beta-4-2.3.3
+Apr 07 2005
+===============
+
+	o Optimized AFT Front End (TE1) Performance
+	  
+ 	o Fixed the A101/2 TDMV Driver
+	   From now on the AFT A101/2 driver is equivalent 
+	   to the STABLE 2.3.2 release driver.  
+
+	o Updated ./Setup script to catch common
+           ZAPTEL misconfigurations.  
+
+Releaes Beta-3-2.3.3
+Apr 05 2005
+===============
+
+	o AFT A104 TDMV Driver Channelization
+	  
+	  The A104 TDMV Driver uses the channelization feature
+	  of the A104 Card, to DMA 8byte chunks directly
+	  into Zaptel buffers.  Thus, there is no copying of data
+	  inside the interrupt. Results in better performance and
+	  scalability.
+
+
+	o AFT TDMV DCHAN Feature
+	  The DCHAN PRI has hardware HDLC support.
+	  The configuration option is TDMV_DCHAN=<Ch number>
+	  	eg: TDMV_CHAN=24  Identifies the channel 
+                                  24 as pri DCHAN.
+
+ 	  Note: This option is not part of wancfg configurator.
+	  	One must insert this option manually under the 
+		TDMV_SPAN option:
+			
+		eg.
+		.
+		.
+		TDMV_SPAN=1
+		TDMV_DCHAN=24
+		.
+		.
+		
+	o AFT TDMV Update
+	  Added WINK support to TDMV driver.
+	
+	o AFT Updates to the Front End TE1 
+	  Results in faster T1/E1 connections.
+
+	o HOTPLUG Conflicts with WANPIPE
+  	  The HOTPLUG Service should be disabled because it 
+  	  conflicts with Wanpipe interface startup.
+  	  The HOTPLUG can conflict with startup of TDMV drivers.
+  	  Please read the README.faq on how to prevent this.
+
+
+
+Release beta7-2.3.2
+Mar 16 2005
+================
+
+	o AFT TDMV Update
+	  Added WINK support to TDMV driver.
+
+	o AFT TDMV Update
+          Fixed up latecny issues with RBS signalling
+	  For A104 and A101/2 cards.
+	
+	o AFT A104 and 101/2 drivers updates
+	  Added checks to prevent stopping wanpipe while
+	  Asterisk is running
+
+	o AFT A300 TE3 Update
+	  Fixed the link restart recovery.
+
+	o AFT A104 TE1 Configuration Update
+	  Update to the TE1 physical layer paramters
+
+	o AFT Firmware Update
+	  The firmware update utility was updated
+	  from the AFT300 TE3 card.
+
+	o AFT TE3 Driver Update
+	  Removed the chip security check
+
+
+
+Re-release of bata6-2.3.2
+Mar 01 2005
+===================
+	
+	o AFT A104 TE1 Update
+           This is a front end configuration update.
+ 	   The A104 TE1 doesn't connect to some TE1 lines.
+           This update fixes that problem.
+
+Release of beta6-2.3.2
+=================
+
+	o AFT A104 Drivers: TDMV Update
+
+          The A104 cards did not default to bit
+	  swapping in TDMV voice mode.  This was
+	  available as a configuration option.  
+		[wanpipe1] 
+			...	
+		    DATA_MUX_MAP=0x01234567
+		    ...
+
+	  This update configures the board for 
+          automatic bitswapping in hardware by default.
+
+	  This is an important update for all customers 
+          using A104 Quad prot card in TDMV voice mode.
+
+Release beta5-2.3.2
+===============
+
+	o AFT A104 Drivers
+	  Fixed the FIFO leveling so that single timeslot
+	  interfaces can operate properly
+	  (TDMV Voice Only)
+
+	o AFT Front End TE1 Update
+	  Synchronized fe timers and added checks
+	  to avoid adding an already pending timer.
+
+	o AFT A101/2 Driver update
+	  Fixed the 2 HDLC channel operation on
+	  unchannelized card.
+
+	  Add support for Master clocking from
+	  a adjacent line, instead of the oscillator.
+	  Used by TDM_VOICE switching applications.
+	  Need: AFT A101/2 Firmware version V24
+
+	  Fixed Synchronization issues with TDM VOICE
+	  Racing condition exists during driver startup.
+	  If the Front End comes up before interfaces
+	  come up, timeslot synchornization can go out
+	  of sync.
+
+	o New wan_aftup Utility
+	  Located wanpipe/util/wan_aftup
+
+	  Used to update AFT firmware.
+
+	  Please read the README file
+	  	wanpipe/util/wan_aftup/README
+
+	o LIP Update
+	  Updated Carrier loss recover on all LIP protocols.
+	  Frame Relay, PPP, CHDLC
+
+	o Updated LIP Frame Relay API 
+	  Support for 1 byte reception
+
+	o Updated Hardware Probe 
+	  Includes the distinction between Channalized and
+	  UnChannalized AFT cards.
+
+	o TDMV Echo Update
+	  Improved echo canceling performance
+
+	o Wancfg
+	  Updated the TDMV parameters
+
+	o Wanpipe TE3 Driver Update
+          Better front end recovery after
+	  a front end disconnect.
+
+	o Wanpipe LIP Frame Relay API update
+	  Wanpipe LIP debug messages removed
+
+	o Wanpipe hwprobe 
+	  Distinction between Channalized and Unchannalized cards
+
+	o AFT Security Check 
+	  Due to some bad pci busses, the chip security
+	  checking has been made more robust.
+
+	o TDMV Span Number Update
+
+
+
+Re-Release beta4-2.3.2
+Feb 09 2005
+==================
+
+	o Wancfg Update
+           Updated echo cancel cfg option
+           
+ 	o TDMV Echo Cancellation Tweak
+           Improved echo cancellation 
+          
+           Updates also included in beta5 prerelease
+           in linux/custom/2.3.2 directory
+
+
+Re-Release beta4-2.3.2
+Feb 07 2005
+==================
+
+	o Update to LIP API driver
+           This update only affects Frame Relay API
+           in the LIP layer.  
+
+
+Release beta4-2.3.2
+Feb 04 2005
+===============
+
+	o Voice TDM BUG FIX
+
+          Both A104 and A101/2 card had a bug where
+	  on T1/E1 re-connect an rx buffer would get
+	  deallocated by mistake. After enough re-connects
+	  all reallocated rx buffers would run out, 
+	  causing stop in commnunications.
+	
+	o LIP Frame Relay Update
+	  Added Frame Relay API capability
+	  Added Frame Relay Q933 Signalling
+	
+
+	o Voice TDM for European Standars BRI
+	
+	  If you compile zaptel with the BRI
+	  patch, you must manually edit the
+
+	  patches/kdrivers/src/net/sdla_tdmv.c file
+	  and uncomment the:
+	  	CONFIG_ZAPATA_BRI_DCHANS option.
+
+
+	o Lip Frame Relay API Support
+	  Update LIP API frame releay
+	  support
+
+	o General Driver Update
+	  Network interface behaviour on carrier 
+	  disconnect.
+	  This update changes the network interface
+	  state in case of carrier state change.
+	   
+	  TEQL will now work properly over AFT
+	  and LIP interfaces.
+
+	o TDM Voice
+	  Added on an extra option under the
+	  TDM network interface section:
+	  	TDMV_ECHO_OFF=[YES/NO]
+	 
+	  This option should be used to disable
+	  echo on particular span, since asterisk
+	  echo configuration is global to all spans.
+		
+	  This way echo cancellation can be performed
+	  only on a span that needs this service.
+
+	o Wanpipemon Update
+	  A more integrated wanpipemon that works with
+	  the different layers of LIP and AFT.
+
+beta3-2.3.2
+Jan 04 2005
+
+	o A104 Quad Port TE1 Hardware Support
+	  
+  	o X86_64 bit support for AMD Opteron and
+	  Intel Itanium.
+
+	o Lip layer TTY support for Multilink PPP
+	  Support up to 32 TTY links
+        
+	o Major Bug Fix in LIP Layer
+	  The bug could result in unexpected behaviour
+	  on some distributions.
+
+	o Updated /proc/net/wanrouter/interface
+	  statistics.
+
+	o PPP Multilink Support for AFT and ADSL cards.
+	  Refer to wanpipe/doc/README.multilink
+
+	o Support for Fedora Core 3 distribution.
+
+	o Fixed support for REGPARM kernels.
+	
+	o Updated Sangoma ASTERISK drivers.
+	  Voice TDM update for A104 drivers.
+
+	o wanpipemon update
+	  Works with LIP layer only. 
+
+	o wanpipemon_legacy
+	  Works with legacy drivers.
+
+	o wancfg update
+	  Configures all drivers AFT,S514,ADSL
+	  using LIP layer only.
+
+	o wancfg_legacy created
+	  Used to configure legacy protocols
+	  and API's.
+
+
+beta2-2.3.2
+Nov 8 2004
+
+	o AFT Update
+	  Cleaned up messages in case of PCI errors
+
+	o TDM Voice Update
+	  Added echo cancelation to the Asterisk
+	  support.
+	  
+
+beta1-2.3.2
+Oct 18 2004
+
+	o Support for 2.6.X kernels
+	  Fixed broken support for 2.6.9 kernel
+	
+	o New Hardware Abstracion Layer
+	  Cleanly separates the hardware
+	  layer from the data/protocol layers.
+
+	o New AFT Hardware Support
+          Sangomas new high-speed T1/E1
+	  adapters.
+
+	o New AFT T3 Support
+	  Sangomas new high-speed T3/E3
+	  adapters
+	
+	o New LIP Network Layer
+	  Separates Wanpipe hardware from
+	  the Network Protocols. 
+		Frame Relay Protocol
+		CHDLC Protocol
+		PPP   Protocol
+		LAPB  API
+		XDLC  API
+
+	o New wancfg configuration utilty
+		One can only configure:
+		Frame Relay
+		PPP, 
+		CHDLC,
+		HDLC (RAW) (TDM VOICE)
+	  
+	  Note:
+	  The old wancfg utility is called wancfg_adv.
+
+

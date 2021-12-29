@@ -33,7 +33,7 @@ menu_ppp_ip_mode::~menu_ppp_ip_mode()
     ("menu_ppp_ip_mode::~menu_ppp_ip_mode()\n"));
 }
 
-int menu_ppp_ip_mode::run(OUT char* new_ip_mode)
+int menu_ppp_ip_mode::run(OUT unsigned char* new_ip_mode)
 {
   string menu_str;
   int rc = YES;

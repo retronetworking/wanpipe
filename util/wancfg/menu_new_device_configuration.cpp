@@ -80,12 +80,18 @@ menu_new_device_configuration::menu_new_device_configuration( IN char * lxdialog
   snprintf(this->lxdialog_path, MAX_PATH_LENGTH, "%s", lxdialog_path);
   this->ptr_cfr = ptr_cfr;
   cfr = *ptr_cfr;
+
+  wanrouter_rc_fr = NULL;
 }
 
 menu_new_device_configuration::~menu_new_device_configuration()
 {
   Debug(DBG_MENU_NEW_DEVICE_CONFIG,
     ("menu_new_device_configuration::~menu_new_device_configuration()\n"));
+
+  if(wanrouter_rc_fr != NULL){
+    delete wanrouter_rc_fr;
+  }
 }
 
 int menu_new_device_configuration::run(OUT int * selection_index)
@@ -106,6 +112,7 @@ int menu_new_device_configuration::run(OUT int * selection_index)
   list_element_chan_def*  list_el_chan_def;
   sdla_fe_cfg_t*	  fe_cfg;
   
+
 again:
   rc = YES;
   exit_dialog = NO;
@@ -115,6 +122,8 @@ again:
   link_def = cfr->link_defs;
   linkconf = cfr->link_defs->linkconf;
   fe_cfg = &link_def->linkconf->fe_cfg;
+
+  wanrouter_rc_fr = new wanrouter_rc_file_reader(cfr->wanpipe_number);
 
   Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("menu_new_device_configuration::run()\n"));
   Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("cfr->link_defs->name: %s\n", link_def->name));
@@ -185,7 +194,10 @@ again:
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Advanced WANPIPE options\" " );
     menu_str += tmp_buff;
+  }else{
+    ;//exit(0);
   }
+  
 
   Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("\nmenu_str:%s\n", menu_str.c_str()));
 
@@ -371,11 +383,10 @@ display_hw_setup_dialog_label:
       break;
     }
      
-#if 1
     ///////////////////////////////////////////////////////////
     //if no errors found ask confirmation to save to file.
     ///////////////////////////////////////////////////////////
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want save '%s.conf' configuration file?",
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to save '%s.conf' configuration file?",
       cfr->link_defs->name);
 
     if(yes_no_question(   selection_index,
@@ -400,13 +411,39 @@ display_hw_setup_dialog_label:
       break;
     }
     ///////////////////////////////////////////////////////////
-#endif
+    //check if this wanpipe is in wanrouter.rc->WAN_DEVICES list
+    if(wanrouter_rc_fr->search_boot_start_device() == NO){
+    
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to add  '%s' to\n 'wanrouter start' sequence?",
+        cfr->link_defs->name);
+
+      if(yes_no_question(  selection_index,
+                           lxdialog_path,
+                           NO_PROTOCOL_NEEDED,
+                           tmp_buff) == NO){
+        //error displaying dialog
+        rc = NO;
+        goto cleanup;
+      }
+
+      switch(*selection_index)
+      {
+      case YES_NO_TEXT_BOX_BUTTON_YES:
+        wanrouter_rc_fr->update_wanrouter_rc_file();
+        break;
+      case YES_NO_TEXT_BOX_BUTTON_NO:
+        break;
+      }
+      ///////////////////////////////////////////////////////////
+    }
+
     rc = YES;
     exit_dialog = YES;
     break;
     
   }//switch(*selection_index)
 
+  
   if(exit_dialog == NO){
     goto again;
   }
@@ -560,6 +597,8 @@ int menu_new_device_configuration::create_logical_channels_list_str(
 
       Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("this_level_chandef->addr: %s\n",
 			     this_level_chandef->addr));
+
+      Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("config_id: %d\n", this_level_chandef->chanconf->config_id));
       
       if(this_level_chandef->chanconf->config_id != PROTOCOL_NOT_SET){
   
@@ -574,12 +613,12 @@ int menu_new_device_configuration::create_logical_channels_list_str(
 	    ERR_DBG_OUT(("The Protocol layer interface list is empty!!\n\
 Usually means the name of an interface does NOT start with name of it's 'parent' STACK device.\n\
 For example: if name of 'parent' STACK device is 'w1g1', name of PPP interface running above it\n\
-should be 'w1g1ppp' or 'w1g1????' where '?' is alphanumerical, up to 8 characters.\n"));
+should be 'w1g1ppp' or 'w1g1?' where '?' is alphanumerical, up to 8 characters.\n"));
 #elif (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__) || BSD_DEBG
 	    ERR_DBG_OUT(("The Protocol layer interface list is empty!!\n\
 Usually means the name of an interface does NOT start with name of it's 'parent' STACK device.\n\
 For example: if name of 'parent' STACK device is 'waga', name of PPP interface running above it\n\
-should be 'wagappp0' or 'waga????#' where '?' is alphabetical and '#' is numerical.\n"));
+should be 'wagappp0' or 'waga?#' where '?' is alphabetical and '#' is numerical.\n"));
 #endif
 	    return NO;
 	  }
@@ -603,9 +642,18 @@ should be 'wagappp0' or 'waga????#' where '?' is alphabetical and '#' is numeric
 	  
 	  //General case - more than one logical channel.
 	  //Usually AFT groups of channels because protocols are in the LIP layer.
-	  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s %s: %s\" ",
-	    TIME_SLOT_GROUP_STR, list_el_chan_def->data.addr,
-	    get_protocol_string(chandef->chanconf->config_id));
+	  
+          if(chandef->chanconf->config_id == WANCONFIG_AFT ||
+             chandef->chanconf->config_id == WANCONFIG_AFT_TE3){
+
+	    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s %s: %s\" ",
+	      TIME_SLOT_GROUP_STR, list_el_chan_def->data.addr,
+	      "HDLC Streaming");
+	  }else{
+	    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s %s: %s\" ",
+	      TIME_SLOT_GROUP_STR, list_el_chan_def->data.addr,
+	      get_protocol_string(chandef->chanconf->config_id));
+	  }
 	  menu_str += tmp_buff;
 	  
 	}else{
@@ -613,9 +661,17 @@ should be 'wagappp0' or 'waga????#' where '?' is alphabetical and '#' is numeric
           Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("-- 4\n"));
 	  
 	  //Special case - exactly one logical channel.
-	  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s %s\" ",
-	    "Protocol-------->",
-	    get_protocol_string(chandef->chanconf->config_id));
+          if(chandef->chanconf->config_id == WANCONFIG_AFT ||
+             chandef->chanconf->config_id == WANCONFIG_AFT_TE3){
+		  
+	    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s %s\" ",
+	      "Protocol-------->",
+	      "HDLC Streaming");
+	  }else{
+	    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s %s\" ",
+	      "Protocol-------->",
+	      get_protocol_string(chandef->chanconf->config_id));
+	  }
 	  menu_str += tmp_buff;
 
 	  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", NET_IF_SETUP);
@@ -676,17 +732,17 @@ should be 'wagappp0' or 'waga????#' where '?' is alphabetical and '#' is numeric
   return YES;
 }
 
-
 //all Timeslot Groups check
 int menu_new_device_configuration::check_aft_timeslot_groups_cfg()
 {
-#if 1
   objects_list * obj_list = cfr->main_obj_list;
   list_element_chan_def* list_el_chan_def = NULL;
   list_element_chan_def* first_list_el_chan_def = NULL;
   chan_def_t* chandef;
   text_box tb;
   char tmp_buff[MAX_PATH_LENGTH];
+  wan_xilinx_conf_t* wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
+  char local_is_there_a_voice_if = NO;
   
   Debug(DBG_MENU_NEW_DEVICE_CONFIG,
       ("int menu_new_device_configuration::check_aft_timeslot_groups_cfg()\n"));
@@ -695,7 +751,6 @@ int menu_new_device_configuration::check_aft_timeslot_groups_cfg()
 
   if(list_el_chan_def != NULL){
     chandef = &list_el_chan_def->data;
-    first_group_spanno = chandef->chanconf->spanno;
   }
 	  
   //int i = 0;
@@ -706,29 +761,22 @@ int menu_new_device_configuration::check_aft_timeslot_groups_cfg()
 
     chandef = &list_el_chan_def->data;
 
-    Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("chandef->usedby: %d, \
-first_group_spanno: %d, chandef->chanconf->spanno: %d\n",
-chandef->usedby,
-first_group_spanno,
-chandef->chanconf->spanno));
+    Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("chandef->usedby: %d, tdmv_span_no: %d\n",
+      chandef->usedby, wan_xilinx_conf->tdmv_span_no));
   
     //some special checks may be needed, depending how 'group' is actually used.
     switch(chandef->usedby)
     {
     case TDM_VOICE:
-      if(first_group_spanno != chandef->chanconf->spanno){
-
-        snprintf(tmp_buff, MAX_PATH_LENGTH,
-"Error!\n\
-Span Number for '%s' is %d, for '%s' is %d!\n\
-All TDM Voice interfaces of this instance\n\
-of WANPIPE must use the same Span Number.",
-	  chandef->name,
-	  chandef->chanconf->spanno,
-          first_list_el_chan_def->data.name,
-	  first_group_spanno);
+      local_is_there_a_voice_if = YES;
       
-	tb.show_error_message(lxdialog_path, NO_PROTOCOL_NEEDED, tmp_buff);
+      if(wan_xilinx_conf->tdmv_span_no == 0){
+	//user must initialize the span_no!
+        snprintf(tmp_buff, MAX_PATH_LENGTH, "Error: Span Number not set!\n\
+Must be a non-zero number.\n\
+Can be set under \"Interface Setup\" \n\
+for any of TDM Voice interfaces.");
+      	tb.show_error_message(lxdialog_path, NO_PROTOCOL_NEEDED, tmp_buff);
         return NO;
       }
       break;
@@ -737,7 +785,9 @@ of WANPIPE must use the same Span Number.",
     list_el_chan_def =
       (list_element_chan_def*)obj_list->get_next_element(list_el_chan_def);
   }
-#endif
+  
+  is_there_a_voice_if = local_is_there_a_voice_if;
+  
   return YES;
 }
 

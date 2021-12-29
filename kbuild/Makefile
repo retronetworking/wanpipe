@@ -26,9 +26,10 @@ obj-m	:= $(MODULE_NAME).o
 else
 KVER    ?= $(shell uname -r)
 PWD	:= $(shell pwd)
-
+KBUILD_VERBOSE=
+	
 all:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) modules
+	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) CC=$(CC) KBUILD_VERBOSE=$(KBUILD_VERBOSE) modules
 
 clean:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) clean

@@ -92,7 +92,9 @@ typedef struct {
 	wan_timer_t	dev_timer;
 
 	unsigned int	protocol;
+
 	void 		*lip;
+	unsigned int    lip_prot;
 #endif
 	int			is_netdev;
 	wanpipe_common_iface_t	iface;
@@ -142,6 +144,16 @@ static __inline int wan_set_lip_ptr(netdevice_t *dev, void *lipreg)
 	}
 	return -ENODEV;
 }
+
+static __inline int wan_set_lip_prot(netdevice_t *dev, int protocol)
+{
+	if (wan_netif_priv(dev)){
+		((wanpipe_common_t*)wan_netif_priv(dev))->lip_prot = protocol;	
+		return 0;
+	}
+	return -ENODEV;
+}
+
 
 static __inline int wan_api_rx(void *chan_ptr,netskb_t *skb)
 {

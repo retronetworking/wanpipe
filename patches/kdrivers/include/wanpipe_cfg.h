@@ -6,11 +6,13 @@
 # include <net/sdla_56k.h>
 # include <net/sdla_te1.h>
 # include <net/sdla_te3.h>
+# include <net/sdla_remora.h>
 # include <net/sdla_front_end.h>
 #elif defined(__LINUX__)
 # include <linux/sdla_56k.h>
 # include <linux/sdla_te1.h>
 # include <linux/sdla_te3.h>
+# include <linux/sdla_remora.h>
 # include <linux/sdla_front_end.h>
 #else
 # error "No OS Defined!"
@@ -24,7 +26,7 @@
 #define	WAN_IFNAME_SZ	15	/* max length of the interface name */
 #define	WAN_DRVNAME_SZ	15	/* max length of the link driver name */
 #define	WAN_ADDRESS_SZ	31	/* max length of the WAN media address */
-#define USED_BY_FIELD	10	/* max length of the used by field */
+#define USED_BY_FIELD	30	/* max length of the used by field */
 
 #define WAN_AUTHNAMELEN 64
 
@@ -62,12 +64,13 @@
 #define CRITICAL_INTR_HANDLED	0xB1
 
 /* Card Types */
-#define WANOPT_S50X	1
-#define WANOPT_S51X	2
-#define WANOPT_ADSL	3
-#define WANOPT_AFT	4
-#define WANOPT_AFT104	5
-#define WANOPT_AFT300	6
+#define WANOPT_S50X		1
+#define WANOPT_S51X		2
+#define WANOPT_ADSL		3
+#define WANOPT_AFT		4
+#define WANOPT_AFT104		5
+#define WANOPT_AFT300		6
+#define WANOPT_AFT_ANALOG	7
 
 /*
  * Configuration options defines.
@@ -108,6 +111,7 @@
 #define	WANOPT_SECONDARY	0
 #define	WANOPT_PRIMARY		1
 
+
 /* connection options */
 #define	WANOPT_PERMANENT	0	/* DTR always active */
 #define	WANOPT_SWITCHED		1	/* use DTR to setup link (dial-up) */
@@ -118,6 +122,10 @@
 #define	WANOPT_FR_ANSI		1	/* ANSI T1.617 Annex D */
 #define	WANOPT_FR_Q933		2	/* ITU Q.933A */
 #define	WANOPT_FR_LMI		3	/* LMI */
+#define WANOPT_FR_NO_LMI        4
+
+#define WANOPT_FR_EEK_REQUEST	1
+#define WANOPT_FR_EEK_REPLY	2
 
 /* PPP IP Mode Options */
 #define	WANOPT_PPP_STATIC	0
@@ -148,8 +156,8 @@
 #define WANOPT_SS7_MODE_128 	0
 #define WANOPT_SS7_MODE_4096	1
 
-#define WANOPT_SS7_FISU_4096_SZ 6
 #define WANOPT_SS7_FISU_128_SZ  3
+#define WANOPT_SS7_FISU_4096_SZ 6
 
 
 /* CHDLC Protocol Options */
@@ -190,17 +198,28 @@
 #define WANOPT_FE_OSC_CLOCK 	0x00
 #define WANOPT_FE_LINE_CLOCK 	0x01
 
-/* Interface Operation Modes */
-#define WANPIPE		0x00
-#define API		0x01
-#define BRIDGE		0x02
-#define BRIDGE_NODE	0x03
-#define SWITCH		0x04
-#define STACK		0x05
-#define ANNEXG		0x06
-#define TDM_VOICE	0x07
-#define TTY		0x08
 
+enum wan_codec_format{
+	WP_NONE,
+	WP_SLINEAR
+};
+
+
+/* Interface Operation Modes */
+enum {
+	WANPIPE,
+	API,
+	BRIDGE,
+	BRIDGE_NODE,
+	SWITCH,
+	STACK,
+	ANNEXG,
+	TTY,
+	TDM_VOICE,
+	TDM_VOICE_DCHAN,
+	TDM_VOICE_API,
+	TDM_API
+};
 
 /* POS protocols */
 enum {
@@ -282,7 +301,9 @@ enum {
 		(card_type == WANOPT_ADSL) ? "ADSL" :		\
 		(card_type == WANOPT_AFT)  ? "A101/2" :		\
 		(card_type == WANOPT_AFT104) ? "A104" :		\
-		(card_type == WANOPT_AFT300) ?  "A300"  : "Unknown"
+		(card_type == WANOPT_AFT300) ?  "A300"  :	\
+		(card_type == WANOPT_AFT_ANALOG) ?  "A200"  :	\
+					"Unknown"
 
 #define COMPORT_DECODE(port)	(port == WANOPT_PRI) ? "PRI" : "SEC"
 
@@ -412,6 +433,18 @@ typedef struct wan_atm_conf_if
 	unsigned char	  atm_arp;
 	unsigned char	  atm_arp_intr;
 
+	unsigned short	  mtu;
+
+	unsigned char	 atm_sync_mode;
+	unsigned short	 atm_sync_data;
+	unsigned char	 atm_sync_offset;
+	unsigned short   atm_hunt_timer;
+
+	unsigned char	 atm_cell_cfg;
+	unsigned char	 atm_cell_pt;
+	unsigned char	 atm_cell_clp;
+	unsigned char	 atm_cell_payload;
+
 }wan_atm_conf_if_t;
 
 
@@ -488,6 +521,8 @@ typedef struct wan_fr_conf
 	unsigned dlci[100];     /* List of all DLCIs */
 	unsigned char issue_fs_on_startup;
 	unsigned char station;  /* Node or CPE */
+	unsigned int eek_cfg; 	/* Cisco End-to-End Keepalive: REQUEST/REPY */
+	unsigned int eek_timer; /* EEK Timer */
 } wan_fr_conf_t;
 
 
@@ -495,10 +530,13 @@ typedef struct wan_xilinx_conf
 {
 	unsigned short dma_per_ch; 	/* DMA buffers per logic channel */
 	unsigned short mru;		/* MRU of transparent channels */
-	unsigned char  rbs;		/* Robbit signalling support */
+	unsigned int   rbs;		/* Robbit signalling support */
 	unsigned int   data_mux_map;	/* Data mux map */
-	unsigned int   fe_ref_clock;	/* Front End Reference Clock */
 	unsigned int   tdmv_span_no;
+	unsigned int   tdmv_dchan;	/* hwHDLC: PRI SIG */
+	unsigned int   rx_crc_bytes;
+	unsigned char  tdmv_hwec;	/* Congiure HW EC */
+	unsigned char  tdmv_hwec_map[50];	/* Enable/Disable HW EC */
 }wan_xilinx_conf_t;
 
 
@@ -514,6 +552,7 @@ typedef struct wan_xilinx_conf_if
 	unsigned char	ss7_enable;
 	unsigned char 	ss7_mode;
 	unsigned char	ss7_lssu_size;
+	unsigned char	tdmv_master_if;
 }wan_xilinx_conf_if_t;
 
 
@@ -656,6 +695,7 @@ typedef struct wan_chdlc_conf
 	unsigned keepalive_err_margin;	/* keepalive_error_tolerance */
 	unsigned slarp_timer;		/* SLARP request timer */
 	unsigned char fast_isr;		/* Fast interrupt option */
+	unsigned int protocol_options;
 } wan_chdlc_conf_t;
 
 
@@ -684,7 +724,7 @@ typedef struct lapb_parms_struct {
 
 typedef struct sppp_parms_struct {
 
-	unsigned char dynamic_ip;
+	unsigned char dynamic_ip;/* Static/Host/Peer (the same as ip_mode) */
 	unsigned int  local_ip;
 	unsigned int  remote_ip;
 	
@@ -696,9 +736,12 @@ typedef struct sppp_parms_struct {
 	unsigned char chap;
 	unsigned char userid[WAN_AUTHNAMELEN];	
 	unsigned char passwd[WAN_AUTHNAMELEN];	
-
+#define SYSTEM_NAME_LEN	31
+	unsigned char sysname[SYSTEM_NAME_LEN];
+	
 	unsigned int  gateway;
 	unsigned char ppp_prot;
+	unsigned int keepalive_err_margin; 
 }wan_sppp_if_conf_t;
 
 
@@ -866,6 +909,7 @@ typedef struct wandev_conf
 	unsigned int  max_trace_queue;
 	unsigned int  max_rx_queue;
 
+
 #if 0
 	/* Bitstreaming options */
 	unsigned int  sync_options;
@@ -880,8 +924,6 @@ typedef struct wandev_conf
 #endif
 	
 } wandev_conf_t;
-
-
 
 /* 'config_id' definitions */
 #define	WANCONFIG_X25		101	/* X.25 link */
@@ -913,6 +955,11 @@ typedef struct wandev_conf
 #define WANCONFIG_XDLC		126	/* LIP XDLC Protocol Support */
 #define WANCONFIG_TTY		127	/* LIP TTY Support */
 #define WANCONFIG_AFT_TE1    	128	/* AFT Quad Hardware Support */
+#define WANCONFIG_XMTP2    	129	/* LIP XMTP2 Protocol Support */
+#define WANCONFIG_ASYHDLC	130	/* S514 ASY HDLC API Support */
+#define WANCONFIG_LIP_ATM	131	/* ATM in LIP layer */
+#define WANCONFIG_AFT_ANALOG	132	/* AFT Analog Driver */
+#define WANCONFIG_ZAP		133	/* Used in wanpipemon when working with Zaptel driver */
 
 /*FIXME: This should be taken out, I just
 //used it so I don't break the apps that are
@@ -920,6 +967,34 @@ typedef struct wandev_conf
 //changed, remove this definition
 */
 #define WANCONFIG_ETH WANCONFIG_ADSL
+
+#define SDLA_DECODE_PROTOCOL(protocol)			\
+	(protocol ==  WANCONFIG_X25) 	? "X25" :	\
+	(protocol ==  WANCONFIG_FR)	? "Frame Relay" : \
+	(protocol ==  WANCONFIG_PPP)	? "PPP" : \
+	(protocol ==  WANCONFIG_CHDLC)	? "CHDLC" : \
+	(protocol ==  WANCONFIG_BSC)	? "BiSync Streaming": \
+	(protocol ==  WANCONFIG_HDLC)	? "HDLC Streaming": \
+	(protocol ==  WANCONFIG_MPPP)	? "PPP": \
+	(protocol ==  WANCONFIG_BITSTRM) ? "Bit Stream": \
+	(protocol ==  WANCONFIG_EDUKIT)	? "WAN EduKit": \
+	(protocol ==  WANCONFIG_SS7)	? "SS7": \
+	(protocol ==  WANCONFIG_BSCSTRM) ? "Bisync Streaming Nasdaq": \
+	(protocol ==  WANCONFIG_MFR)	? "Frame Relay": \
+	(protocol ==  WANCONFIG_ADSL)	? "LLC Ethernet (ADSL)": \
+	(protocol ==  WANCONFIG_SDLC)	? "SDLC": \
+	(protocol ==  WANCONFIG_ATM)	? "ATM": \
+	(protocol ==  WANCONFIG_LIP_ATM)? "LIP_ATM": \
+	(protocol ==  WANCONFIG_POS)	? "Point-of-Sale": \
+	(protocol ==  WANCONFIG_AFT)	? "AFT": \
+	(protocol ==  WANCONFIG_AFT_TE3) ? "AFT TE3": \
+	(protocol ==  WANCONFIG_DEBUG)	 ? "Real Time Debugging": \
+	(protocol ==  WANCONFIG_ADCCP)	 ? "Special HDLC LAPB": \
+	(protocol ==  WANCONFIG_MLINK_PPP) ? "Multi-Link PPP": \
+	(protocol ==  WANCONFIG_GENERIC)   ? "WANPIPE Generic driver": \
+	(protocol ==  WANCONFIG_MPCHDLC)   ? "CHDLC": \
+	(protocol ==  WANCONFIG_TTY)	   ? "TTY": "Unknown Protocol"
+
 
 /*----------------------------------------------------------------------------
  * WAN interface (logical channel) configuration (for ROUTER_IFNEW IOCTL).
@@ -948,7 +1023,7 @@ typedef struct wanif_conf
 	char 		local_addr[WAN_ADDRESS_SZ+1];/* local media address, ASCIIZ */
         unsigned char 	port;             /* board port */
         unsigned char 	protocol;         /* prococol used in this channel (TCPOX25 or X25) */
-	char 		pap;			/* PAP enabled or disabled */
+	char 		pap;			/* PAP enabled or disabled */ 
 	char 		chap;			/* CHAP enabled or disabled */
 #ifdef ENABLE_IPV6
 	unsigned char 	chap_userid[WAN_AUTHNAMELEN];	/* List of User Id */
@@ -959,7 +1034,7 @@ typedef struct wanif_conf
 	unsigned char 	userid[WAN_AUTHNAMELEN];	/* List of User Id */
 	unsigned char 	passwd[WAN_AUTHNAMELEN];	/* List of passwords */
 #endif
-	unsigned char 	sysname[31];		/* Name of the system */
+	unsigned char 	sysname[SYSTEM_NAME_LEN];		/* Name of the system */
 	unsigned char 	ignore_dcd;		/* Protocol options: */
 	unsigned char 	ignore_cts;	 	/*  Ignore these to determine */
 	unsigned char 	ignore_keepalive; 	/*  link status (Yes or No) */
@@ -1018,12 +1093,14 @@ typedef struct wanif_conf
 	unsigned char station;
 	unsigned char label[WAN_IF_LABEL_SZ+1];
 
-	unsigned int	spanno;		/* TDMV span device number */
-	unsigned char	tdmv_echo_off;  /* TDMV echo disable */
+	unsigned char tdmv_echo_off;  /* TDMV echo disable */
+	unsigned char tdmv_codec;     /* TDMV codec */
+
+	unsigned char single_tx_buf; 	/* Used in low latency applications */
 
 	unsigned char lip_prot;
 	union {
-		wan_atm_conf_if_t 	atm;	
+		wan_atm_conf_if_t 	atm;		/* per interface configuration */
 		wan_x25_if_conf_t 	x25;
 		wan_lapb_if_conf_t 	lapb;
 		wan_dsp_if_conf_t 	dsp;
@@ -1032,6 +1109,7 @@ typedef struct wanif_conf
 		wan_xilinx_conf_if_t 	aft;
 		wan_xdlc_conf_t 	xdlc;
 		wan_sppp_if_conf_t	ppp;
+		wan_chdlc_conf_t	chdlc;
 	}u;
 
 } wanif_conf_t;
@@ -1102,6 +1180,7 @@ typedef struct wplip_prot_reg
 			     unsigned int,
 			     unsigned int,
 			     unsigned int);
+	int (*kick_task)     (void *);
 	int mtu;
 }wplip_prot_reg_t;
 
@@ -1110,7 +1189,10 @@ enum {
 	WPLIP_IP,
 	WPLIP_IPV6,
 	WPLIP_IPX,
-	WPLIP_FR_ARP
+	WPLIP_FR_ARP,
+	WPLIP_PPP,
+	WPLIP_FR,
+	WPLIP_ETH
 };
 
 #endif

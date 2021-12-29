@@ -51,8 +51,7 @@ char* get_master_dev_name(wplip_link_t 	*lip_link);
 int wplip_open_dev(netdevice_t *dev)
 {
 	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
-	int err;
-
+	
 	if (!lip_dev || !lip_dev->lip_link){
 		return -ENODEV;
 	}
@@ -64,12 +63,37 @@ int wplip_open_dev(netdevice_t *dev)
 # endif
 #endif
 
+
+#if 0
+	/* Done in if register now, do it interface up down
+	 * feature on 2.4 kernels */
 	err=wplip_open_lipdev_prot(lip_dev);
 	if (err){
 		return err;
 	}
-	WAN_NETIF_START_QUEUE(dev);
-	
+#endif
+
+#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
+	if (lip_dev->lip_link->state == WAN_CONNECTED){
+		WAN_NETIF_CARRIER_ON(dev);		
+		WAN_NETIF_WAKE_QUEUE(dev);
+	}else{
+		WAN_NETIF_CARRIER_OFF(dev);
+		WAN_NETIF_STOP_QUEUE(dev);
+	}
+#else
+	if (lip_dev->lip_link->state == WAN_CONNECTED){
+		WAN_NETIF_CARRIER_ON(dev);		
+	}else{
+		WAN_NETIF_CARRIER_OFF(dev);
+	}	
+	WAN_NETIF_WAKE_QUEUE(dev);
+#endif
+
+	if (!wan_test_bit(WAN_DEV_READY,&lip_dev->interface_down)) {
+		wan_set_bit(WAN_DEV_READY,&lip_dev->interface_down);
+		wplip_trigger_if_task(lip_dev);
+	}
 	return 0;
 }
 
@@ -106,7 +130,11 @@ int wplip_stop_dev(netdevice_t *dev)
 	}
 #endif
 
+#if 0
+	/* Done in if register now, do it interface up down
+	 * feature on 2.4 kernels */
 	wplip_close_lipdev_prot(lip_dev);
+#endif
 
 	return 0;
 }
@@ -181,14 +209,20 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 		WAN_NETIF_STOP_QUEUE(dev);
 		return 1;
 	}
+
+
 #if 1
 	if (lip_dev->common.state != WAN_CONNECTED){
 #else
 	if (lip_dev->lip_link->carrier_state != WAN_CONNECTED || 
 	    lip_dev->common.state != WAN_CONNECTED){
 #endif
-		
-#if 1
+
+#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)		
+		/* This causes a buffer starvations on some 
+                 * applications like OSPF, since packets are
+                 * trapped in the Interface TX queue */
+
 		WAN_NETIF_STOP_QUEUE(dev);
 		wan_netif_set_ticks(dev, SYSTEM_TICKS);
 		++lip_dev->ifstats.tx_carrier_errors;
@@ -226,13 +260,13 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 		type = WPLIP_RAW;
 	}else{
 #if defined(__LINUX__)
-		type = wplip_decode_protocol(skb);
+		type = wplip_decode_protocol(lip_dev,skb);
 #else
-		type = wplip_decode_protocol(sa);
+		type = wplip_decode_protocol(lip_dev,sa);
 #endif
 	}
-	
 
+	
 	err=wplip_prot_tx(lip_dev, api_tx_hdr, skb, type);
 	switch (err){
 
@@ -260,9 +294,29 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 	}
 
 	wplip_trigger_bh(lip_dev->lip_link);
+
+#if defined(__LINUX__)
+        if (lip_dev->protocol != WANCONFIG_LIP_ATM) {
+          	if (dev->tx_queue_len < lip_dev->max_mtu_sz && 
+	    	    dev->tx_queue_len > 0) {
+        		DEBUG_EVENT("%s: Resizing Tx Queue Len to %li\n",
+				lip_dev->name,dev->tx_queue_len);
+			lip_dev->max_mtu_sz = dev->tx_queue_len;      	  
+			wplip_lipdev_latency_change(lip_dev->lip_link);
+
+		} else if (dev->tx_queue_len > lip_dev->max_mtu_sz &&
+	    	    	lip_dev->max_mtu_sz != lip_dev->max_mtu_sz_orig) {
+         		DEBUG_EVENT("%s: Resizing Tx Queue Len to %i\n",
+				lip_dev->name,lip_dev->max_mtu_sz_orig);
+		        lip_dev->max_mtu_sz = lip_dev->max_mtu_sz_orig;
+			wplip_lipdev_latency_change(lip_dev->lip_link);
+		}
+	}
+#endif
 	return err;
 }
 
+#if defined(__LINUX__)
 static void wplip_tx_timeout (netdevice_t *dev)
 {
 	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
@@ -288,7 +342,7 @@ static void wplip_tx_timeout (netdevice_t *dev)
 
 	wan_netif_set_ticks(dev, SYSTEM_TICKS);
 }
-
+#endif
 
 static int wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
 {
@@ -525,35 +579,6 @@ int wplip_if_init(netdevice_t *dev)
 	lip_dev->common.iface.tx_timeout= &wplip_tx_timeout;
 	lip_dev->common.iface.get_stats	= &wplip_ifstats;
 
-#if 0
-	dev->open		= &wplip_open_dev;
-	dev->stop		= &wplip_stop_dev;
-	dev->hard_header	= NULL;
-	dev->rebuild_header	= NULL;
-	dev->hard_start_xmit	= &wplip_if_send;
-	dev->get_stats		= &wplip_ifstats;
-
-	dev->tx_timeout		= &if_tx_timeout;
-	dev->watchdog_timeo	= HZ*2;
-	dev->hard_header_len	= 16;
-	dev->do_ioctl		= &wplip_ioctl;
-	dev->set_config		= NULL; //&wplip_set_config;
-	
-		/* Initialize media-specific parameters */
-	dev->flags		|= IFF_POINTOPOINT;
-	dev->flags		|= IFF_NOARP;
-
-	dev->mtu = 1500;
-	dev->tx_queue_len = 100;
-	dev->type = ARPHRD_PPP;
-	dev->addr_len = 0;
-	*(u8*)dev->dev_addr = 0; 
-
-	dev->trans_start = SYSTEM_TICKS;
-
-	/* Initialize socket buffers */
-	dev_init_buffers(dev);
-#endif
 	return 0;
 #else
 	DEBUG_EVENT("%s: Initialize network interface...\n",

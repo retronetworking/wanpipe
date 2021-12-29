@@ -124,14 +124,14 @@ int ADSLConfig( void )
 		}
 		if (wan_udp.wan_udphdr_return_code == 0xaa){
 			printf("Error: Command timeout occurred\n"); 
-			return(WAN_FALSE);
+			return(FALSE);
 		}
 
-		if (wan_udp.wan_udphdr_return_code == 0xCC ) return(WAN_FALSE);
+		if (wan_udp.wan_udphdr_return_code == 0xCC ) return(FALSE);
 		wan_udp.wan_udphdr_return_code 	= 0xAA;
 	}
 
-	if (x >= 4) return(WAN_FALSE);
+	if (x >= 4) return(FALSE);
 
 	strcpy(codeversion, "?.??");
   
@@ -144,7 +144,7 @@ int ADSLConfig( void )
 		strcpy(codeversion, wan_udp.wan_udphdr_data);
 	}
 	protocol_cb_size=sizeof(wan_mgmt_t) + sizeof(wan_cmd_t) + sizeof(wan_trace_info_t) + 1;
-	return WAN_TRUE;
+	return TRUE;
 } /* ObtainConfiguration */
 
 

@@ -28,25 +28,21 @@ Pre requisites
 
 
 Installing WANPIPE with MPAPI X25 support
------------------------------------------
+----------------------------------------
 
 The MPAPI X25 API is NOT distributed with standard
-wanpipe release. One has the request the MPAPI
+wanpipe release. One has to request the MPAPI
 binary or source from Sangoma Technologies.
+
+ 1. Untar latest wanpipe release located at
+      ftp.sangoma.com/linux/current_wanpipe
+
+ 2. Untar the MPAPI release obtained from Sangoma
+    in the same directory as wanpipe release.
+    
 
 The MPAPI X25 API support IS NOT installed by default
 during WANPIPE installation process.
-
-Untar the wanpipe-2.3.2-mpapi.tgz release in
-the same directory as current wanpipe source.
-
-
-eg: cp wanpipe-2.3.2.tgz /tmp
-    cp wanpipe-2.3.3-mpapi.tgz /tmp
-	
-    Untar wanpipe-2.3.2.tgz first
-    Untar wanpipe-2.3.2-mpapi.tgz second
-
 
 Use the CUSTOM driver compilation 
 option in 

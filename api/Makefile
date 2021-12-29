@@ -4,7 +4,10 @@
 # Copyright (c) 1995-2000 Sangoma Technologies Inc.  All Rights Reserved.
 # ============================================================================
 
+SYSINC=$(shell if [ -f ../.sysinclude ]; then cat ../.sysinclude;  else echo ""; fi)
+ifeq "$(SYSINC)" "" 
 SYSINC=/usr/src/linux/include
+endif
 APIINC=/etc/wanpipe/api/include
 
 ####### RULES ################################################################

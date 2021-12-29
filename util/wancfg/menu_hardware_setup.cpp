@@ -209,6 +209,7 @@ int menu_hardware_setup::run(OUT int * selection_index)
   link_def_t * link_def;
   wandev_conf_t *linkconf;
   wan_adsl_conf_t* adsl_cfg;
+  sdla_fe_cfg_t*  fe_cfg;
 
 again:
   number_of_items = 0;
@@ -216,6 +217,7 @@ again:
   link_def = cfr->link_defs;
   linkconf = cfr->link_defs->linkconf;
   adsl_cfg = &linkconf->u.adsl;
+  fe_cfg = &linkconf->fe_cfg;
 
   Debug(DBG_MENU_HARDWARE_SETUP, ("menu_hardware_setup::run(): cfr->link_defs->name: %s\n", link_def->name));
 
@@ -365,7 +367,6 @@ again:
     }
 
     form_pci_card_locations_options_menu(menu_str, number_of_items);
-
     break;
 
   case WANOPT_ADSL:
@@ -878,7 +879,7 @@ show_vpi_input_box:
         }
       }
       break;
-      
+
     default:
       ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
         get_lxdialog_output_string()));
@@ -992,7 +993,7 @@ void menu_hardware_setup::form_s514_TE1_options_menu(string& str, int& number_of
 
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Physical Medium-> %s\" ",
   //snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Media-----------> %s\" ",
-    		MEDIA_DECODE(linkconf->fe_cfg.media));
+    		MEDIA_DECODE(&linkconf->fe_cfg));
   str += tmp_buff;
 
   number_of_items++;

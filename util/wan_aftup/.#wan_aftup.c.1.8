@@ -1,0 +1,474 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#if defined(__LINUX__)
+# include <linux/if.h>
+# include <linux/if_packet.h>
+# include <linux/wanpipe_defines.h>
+# include <linux/if_wanpipe.h>
+#else
+#endif
+
+#include "wan_aft_cpld.h"
+
+#define WAN_AFTUP_VERSION	"1.2"
+
+static int		sock;
+static wan_cmd_api_t	api_cmd;
+static unsigned char	if_name[20];
+static struct ifreq	req;
+struct if_settings 	ifsettings;
+int			card_type = 0;
+
+int progress_bar(char*);
+void main_menu(void);
+void read_chip_control_menu(void);
+void registers_and_internal_ram_test_menu(void);
+void setup_chip_configuration_menu(void);
+int exec_command(int cmd);
+int exec_reload_pci_cmd(void);
+int exec_read_cmd(unsigned int off, unsigned int len, unsigned int *data);
+int exec_write_cmd(unsigned int off, unsigned int len, unsigned int data);
+
+void hit_any_key(void);
+
+extern int pmc_initialization (int sock);
+//extern int cpld_initialization (int sock);
+extern int check_flash_id(int, int, int*);
+extern int reload_flash(int);
+extern int update_flash(int, int, char*);
+extern int release_board(int);
+
+//struct cmd_list_struct cmd_list[]={
+//	{"READ", SIOC_WAN_READ_REG},
+//	{"WRITE",SIOC_WAN_WRITE_REG},
+//	{".",0xFF}
+//};
+
+int progress_bar(char *msg)
+{
+	static int index = 0;
+
+	if (index++ == 0){
+		printf("\r%s |", msg);
+	}else if (index++ == 1){
+		printf("\r%s /", msg);
+	}else{
+		printf("\r%s -", msg);
+		index = 0;
+	}
+	fflush(stdout);
+	return 0;
+}
+int MakeConnection(void) 
+{
+	struct sockaddr_ll	sa;
+	struct ifreq		ifr;
+	char			error_msg[100];
+	
+	memset(&sa,0,sizeof(struct sockaddr_ll));
+	errno = 0;
+   	sock = socket(AF_PACKET, SOCK_DGRAM, 0);
+   	if( sock < 0 ) {
+      		perror("Socket");
+      		return -EIO;
+   	} /* if */
+  
+	strcpy(ifr.ifr_name,if_name);
+	if (ioctl(sock,SIOCGIFINDEX,&ifr)){
+		sprintf(error_msg, "Get index: %s", if_name);
+		perror(error_msg);
+		return -EIO;
+	}
+
+	sa.sll_protocol = htons(0x17);
+	sa.sll_family=AF_PACKET;
+	sa.sll_ifindex = ifr.ifr_ifindex;
+
+        if(bind(sock, (struct sockaddr *)&sa, sizeof(struct sockaddr_ll)) < 0){
+		sprintf(error_msg, "Bind: %s", if_name);
+                perror(error_msg);
+                exit(0);
+        }
+	return 0;
+
+}
+
+int CloseConnection(void)
+{
+	close(sock);
+	return 0;
+}
+
+int wan_aftup_ioctl(wan_cmd_api_t *api_cmd, int cmd)
+{
+	int ret;
+
+	req.ifr_data = (void*)api_cmd;
+	strcpy(req.ifr_name, if_name);
+	if ((ret = ioctl(sock, cmd, &req)) < 0){
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int wan_aftup_getfile(char *filename)
+{
+	FILE 		*f;
+	char		*tmp, ver[3];
+	DIR		*dir;
+	struct dirent	*ent;
+	int		versions_no = 0, ver_no = -1;
+
+	/* Get AFT card type */
+	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_HWPROBE)){
+		printf("Failed to read hardware configuration!\n");
+		return -EINVAL;
+	}
+	tmp = strtok(api_cmd.data, " ");
+	tmp = strtok(NULL, " ");
+	if (tmp == NULL) return -EINVAL;
+	if (strcmp(tmp, "AFT-A101") == 0 || strcmp(tmp, "AFT-A102") == 0){
+		strcpy(filename, "A101_V");
+		card_type = WAN_AFTUP_A101;
+	}else if (strcmp(tmp, "AFT-A104") == 0){
+		strcpy(filename, "A104_V");
+		card_type = WAN_AFTUP_A104;
+	}else{
+		printf("%s: Unsupported Sangoma card type (%s)!\n",
+				if_name, tmp);
+		return -EINVAL;
+	}
+	if (!(dir = opendir("."))){
+		perror("opendir");
+		return -EINVAL;
+	}
+	printf("List of available versions: \n");
+	while((ent = readdir(dir))){
+		if (strncmp(ent->d_name, filename, strlen(filename)) ==0){
+			int	i = strlen(filename);
+			int	new_ver;
+			
+			new_ver = (ent->d_name[i]-'0') * 16 + (ent->d_name[i+1]-'0');
+			if (ver_no == -1 || new_ver > ver_no){
+				ver_no = new_ver;
+				ver[0] = ent->d_name[i];
+				ver[1] = ent->d_name[i+1];
+			}
+			printf("\t Version no. %X (filename=%s)\n", 
+					new_ver, ent->d_name);
+			versions_no++;
+		}
+	}
+	if (versions_no == 0){
+		printf("Your curretn directory doesn't include any updates file!\n");
+		printf("Please download the update file from ftp.sangoma.com.\n");
+		return -EINVAL;
+	}else{
+		char	sel_ver[3];
+		int	err = 0;
+
+wan_aftup_getfile_again:
+		printf("Please specify new update version number [default=%X] > ", ver_no);
+		if ((err = scanf("%s", sel_ver))){
+			if (strlen(sel_ver) == 2){
+				strcpy(ver, sel_ver);
+			}else if (strlen(sel_ver) == 1){
+				ver[0] = '0';
+				ver[1] = sel_ver[0];
+				ver[2] = '\0';
+			}else{
+				goto wan_aftup_getfile_again;
+			}
+		}
+		strcat(filename, ver);
+		strcat(filename, ".BIN");
+	}
+	
+	f = fopen(filename, "rb");
+	if (f == NULL){
+		return -EINVAL;
+	}
+	fclose(f);
+	printf("\n");
+	return 0;
+}
+
+static int wan_aftup_program(char flash_rev)
+{
+	char	filename[100];
+	int	flash_id, tmp;
+	char	ch;
+	
+	if (wan_aftup_getfile(filename)){
+		printf("Bad file name or file doesn't exists: %s\n",filename);
+		return -EINVAL;
+	}
+
+	/* Release board internal reset (AFT-T1/E1/T3/E3 */
+	if (release_board(card_type)){
+		printf("Failed access to the board!\n");
+		return -EINVAL;
+	}
+
+	/* Check Flash ID */
+	check_flash_id(MEMORY_TYPE_FLASH, USER_SECTOR_FLASH, &flash_id);
+	if (flash_id != 0x014F && flash_id != 0x20E3){
+		printf("Failed to read Flash id (%04X)\n",
+				flash_id);
+		return -EINVAL;
+	}
+	printf("Current Sangoma Flash revision\t%X\n", flash_rev);
+	printf("Current Sangoma Flash ID\t0x%04X\n", flash_id);
+
+	if (update_flash(USER_SECTOR_FLASH, MEMORY_TYPE_FLASH, filename)){
+		printf("Failed to re-program flash!\n");
+		return -EINVAL;
+	}
+	
+	printf("Sangoma Flash is updated!\n");
+	printf("\nYou have to reload flash in order to new flash code will take place\n");
+	printf("Do you want to reload now (Y/N)?");
+	ch = getchar();
+	ch = getchar();
+	if (ch != 'y' && ch != 'Y'){
+		printf("Please, reboot your computer before using Sangoma AFT Series card\n");
+		printf("New flash code will reload while rebooting computer!\n");
+		return 0;
+	}
+	printf("Reloading flash....\n");
+	reload_flash(USER_SECTOR_FLASH);
+
+	usleep(1000000);
+
+	/* Read flash revision */
+	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_SET_PCI_BIOS)){
+		printf("Failed!\n");
+		return -EINVAL;
+	}
+
+	/* Release board internal reset (AFT-T1/E1/T3/E3 */
+	if (release_board(card_type)){
+		printf("Failed access to the board!\n");
+		return -EINVAL;
+	}
+
+	/* Check Flash ID */
+	check_flash_id(MEMORY_TYPE_FLASH, USER_SECTOR_FLASH, &tmp);
+	if (tmp != flash_id){
+		printf("Failed to read Flash ID (new flash id %04X)\n",
+				tmp);
+		return -EINVAL;
+	}
+	
+	/* Read new Flash revision */
+	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_COREREV)){
+		printf("Failed to read new Flash revision!\n");
+		return -EINVAL;
+	}
+	printf("New Sangoma Flash revision %X\n",
+				api_cmd.data[0]);
+	if (api_cmd.data[0] < flash_rev){
+		printf("New flash revision is %d (previous flash revision %d)\n",
+				api_cmd.data[0], flash_rev);
+		printf("You re-program flash with older version!\n");
+		printf("Please, contact Sangoma Technologies (905.474.1990)!\n");
+		return -EINVAL;
+	}
+
+	printf("Sangoma Flash updated successfully!\n\n");
+	return 0;	
+}
+
+static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
+{
+	char	sel_name[20], *tmp;
+	int	i;
+	
+	printf("Sangoma AFT card list:\n ");
+	for(i = 0; (i < api_cmd->len) && (i < WAN_MAX_DATA_SIZE); i++){
+		if (api_cmd->data[i] == '\n'){
+			printf("\n ");
+		}else{
+			printf("%c", api_cmd->data[i]);		
+		}
+	}
+	tmp = strtok(api_cmd->data, ":");
+	if (tmp){
+		strcpy(if_name, tmp);
+	}
+	printf("\n");
+	printf("Please select card interface [default=%s] > ",
+				if_name);
+	if (scanf("%s", sel_name)){
+		strcpy(if_name, sel_name);
+	}
+	printf("\n");
+	return 0;
+}
+
+static int wan_aftup_start(void)
+{
+	int	err = 0;
+	
+	if (MakeConnection()){
+		return -EINVAL;
+	}
+	/* Print hardware configuration */
+	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_ALL_HWPROBE)){
+		printf("Failed to read hardware configuration!\n");
+		return -EINVAL;
+	}
+	CloseConnection();
+	wan_aftup_parse_hwprobe(&api_cmd);
+
+	if (MakeConnection()){
+		return -EINVAL;
+	}
+
+	/* Read revision */
+	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_COREREV)){
+		printf("Failed to read flash revision!\n");
+		err = -EINVAL;
+		goto wan_aftup_done;
+	}
+
+	if (wan_aftup_program(api_cmd.data[0])){
+		printf("Failed to re-program flash!\n");
+		err = -EINVAL;
+		goto wan_aftup_done;
+	}
+
+wan_aftup_done:
+	CloseConnection();
+	return err;
+}
+
+static unsigned char title_info[]=
+"Sangoma AFT Series card update flash software";
+
+static unsigned char usage_info[]="\n"
+"Usage:\n"
+"	wan_aftup -h	: Print help message\n"
+"	wan_aftup -v	: Print utility version\n";
+
+static void wan_aftup_usage (void)
+{
+	printf("%s\n",title_info);
+	printf("%s\n",usage_info);
+}
+
+static void wan_aftup_version (void)
+{
+	printf("\n%s",title_info);
+	printf(" (version %s)\n\n", WAN_AFTUP_VERSION);
+}
+
+void hit_any_key(void)
+{
+	printf("Hit any key to continue... \n");
+	getchar();
+	getchar();
+}
+
+int main(int argc, char* argv[])
+{
+	int i=0;
+	int err;
+
+	memset(&api_cmd,0,sizeof(wan_cmd_api_t));
+	api_cmd.cmd=0xFF;
+
+	strcpy(if_name, "wp1aft1");
+	for (i = 0; i < argc; i++){
+
+		if (!strcmp(argv[i],"-h")){
+			wan_aftup_usage();
+			return 0;
+		}else if (!strcmp(argv[i],"-v")){
+			wan_aftup_version();
+			return 0;
+#if 0
+		}else if (!strcmp(argv[i],"-i")){
+			strcpy(if_name, argv[i+1]);
+			i++;
+#endif
+		}
+	}
+
+	wan_aftup_version();
+	err = wan_aftup_start();	
+	return err;
+}
+
+int exec_read_cmd(unsigned int off, unsigned int len, unsigned int *data)
+{
+	int err;
+	struct ifreq ifr;
+
+	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
+	strcpy(ifr.ifr_name,if_name);
+	ifr.ifr_data = (char*)&api_cmd;
+
+	api_cmd.cmd=SIOC_WAN_READ_REG;
+	api_cmd.bar=0;
+	api_cmd.len=len;
+	api_cmd.offset=off;
+
+	err = ioctl(sock,api_cmd.cmd,&ifr);
+	if (err){
+		perror("Read Cmd Exec: ");
+	}
+
+	if (len==1){
+		*(unsigned char*)data = *(unsigned char*)api_cmd.data;
+	}else if (len==2){
+		*(unsigned short*)data = *(unsigned short*)api_cmd.data;
+	}else{
+		*(unsigned int*)data = *(unsigned int*)api_cmd.data;
+	}
+
+	return err;
+
+}
+
+int exec_write_cmd(unsigned int off, unsigned int len, unsigned int data)
+{
+	int err;
+	struct ifreq ifr;
+
+	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
+	strcpy(ifr.ifr_name,if_name);
+	ifr.ifr_data = (char*)&api_cmd;
+
+	api_cmd.cmd=SIOC_WAN_WRITE_REG;
+	api_cmd.bar=0;
+	api_cmd.len=len;
+	api_cmd.offset=off;
+
+	if (len==1){
+		*(unsigned char*)api_cmd.data=(unsigned char)data;
+	}else if (len==2){
+		*(unsigned short*)api_cmd.data=(unsigned short)data;
+	}else{
+		*(unsigned int*)api_cmd.data=(unsigned int)data;
+	}
+
+	err = ioctl(sock,api_cmd.cmd,&ifr);
+	if (err){
+		perror("Write Cmd Exec: ");
+	}
+
+	return err;
+}
+
+

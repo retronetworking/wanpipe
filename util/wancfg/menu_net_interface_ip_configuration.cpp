@@ -185,19 +185,12 @@ again:
   menu_str += tmp_buff;
 
   /////////////////////////////////////////////////
-  /*
-  if(interface_file_reader.if_config.gateway[0] != '\0'){
-    chandef->chanconf->gateway = 1;
-  }else{
-    chandef->chanconf->gateway = 0;
-  }
-  */
   menu_str += " \"5\" ";
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Default Gateway----------> %s\" ",
-    (chandef->chanconf->gateway == 1 ? "YES" : "NO"));
+    (chandef->chanconf->gateway == WANOPT_YES ? "YES" : "NO"));
   menu_str += tmp_buff;
 
-  if(chandef->chanconf->gateway == 1){
+  if(chandef->chanconf->gateway == WANOPT_YES){
     menu_str += " \"6\" ";
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"            Gateway IP---> %s\" ",
       replace_new_line_with_zero_term(interface_file_reader.if_config.gateway));
@@ -416,7 +409,7 @@ as a default route?");
       switch(*selection_index)
       {
       case YES_NO_TEXT_BOX_BUTTON_YES:
-        chandef->chanconf->gateway = 1;
+        chandef->chanconf->gateway = WANOPT_YES;
 
 	//if p-to-p is know use it for gateway, if not put '0.0.0.0'
 	if(interface_file_reader.if_config.point_to_point_ipaddr[0] != '\0'){
@@ -430,7 +423,7 @@ as a default route?");
 
       case YES_NO_TEXT_BOX_BUTTON_NO:
         //was enabled - disable
-        chandef->chanconf->gateway = 0;
+        chandef->chanconf->gateway = WANOPT_NO;
         memset(interface_file_reader.if_config.gateway, 0x00, IF_CONFIG_BUF_LEN);
         break;
       }

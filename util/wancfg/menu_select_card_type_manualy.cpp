@@ -143,7 +143,7 @@ again:
   //////////////////////////////////////////////////////////////////////////
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", A300_ADPTR_U_1TE3);
   menu_str += tmp_buff;
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", "A300 - T3/E3");
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", "A301 - T3/E3");
   menu_str += tmp_buff;
 
 /*

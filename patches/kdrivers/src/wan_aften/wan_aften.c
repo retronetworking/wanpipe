@@ -14,7 +14,9 @@
 
 #include "wan_aften.h"
 
-/*#define DEBUG_REG*/
+#if 0
+# define DEBUG_REG
+#endif
 
 static char	*wan_drvname = "wan_aften";
 static char 	wan_fullname[]	= "WANPIPE(tm) Sangoma AFT (lite) Driver";
@@ -119,9 +121,9 @@ static int wan_aften_init(void *arg)
 
 #if defined(__LINUX__)
 		/*sprintf(card->devname, "hdlc%d", if_index++);*/
-		sprintf(card->devname, "wp%daft1", ++if_index);
+		sprintf(card->devname, "w%dg1", ++if_index);
 #else
-		sprintf(card->devname, "wp%caft1", 
+		sprintf(card->devname, "w%cg1", 
 			'a' + if_index++);
 
 #endif
@@ -148,8 +150,10 @@ static int wan_aften_init(void *arg)
 		}else{
 			card_list = card;
 		}
-		//card->list	= card_list;
-		//card_list	= card;
+#if 0
+		card->list	= card_list;
+		card_list	= card;
+#endif
 		if (wan_aften_setup(card, dev)){
 			DEBUG_EVENT("%s: Failed setup new device!\n", 
 					card->devname);
@@ -234,7 +238,7 @@ static int wan_aften_setup(sdla_t *card, netdevice_t *dev)
 		goto wan_aften_setup_error;
 	}
 
-
+		      
 	WAN_HWCALL(getcfg, (card->hw, SDLA_BUS, &priv->bus));
 	WAN_HWCALL(getcfg, (card->hw, SDLA_SLOT, &priv->slot));
 	WAN_HWCALL(getcfg, (card->hw, SDLA_IRQ, &priv->irq));
@@ -250,6 +254,14 @@ static int wan_aften_setup(sdla_t *card, netdevice_t *dev)
 			priv->base_class,
 			priv->base_addr0,
 			priv->irq);
+#if defined(ENABLED_IRQ)
+	if(request_irq(irq, wan_aften_isr, SA_SHIRQ, card->devname, card)){
+		DEBUG_EVENT("%s: Can't reserve IRQ %d!\n", 
+				card->devname, irq);
+		sdla_unregister(&card->hw, card->devname);
+		goto wan_aften_setup_error;			
+	}
+#endif
 	return 0;
 
 wan_aften_setup_error:
@@ -259,7 +271,10 @@ wan_aften_setup_error:
 
 static int wan_aften_shutdown(sdla_t *card)
 {
-	
+#if defined(ENABLED_IRQ)
+	struct wan_aften_priv	*priv = wan_netif_priv(dev);
+	free_irq(priv->irq, card);
+#endif
 	if (card->hw_iface.down){
 		card->hw_iface.down(card->hw);
 	}
@@ -393,7 +408,9 @@ static int wan_aften_all_read_reg(sdla_t *card_head, wan_cmd_api_t *api_cmd)
 	int 		idata = 0;
 	
 	for (card=card_list; card; card = card->list){
-		//if (prev == NULL || prev->hw != card->hw){
+#if 0
+		if (prev == NULL || prev->hw != card->hw){
+#endif
 		if (prev == NULL||!card->hw_iface.hw_same(prev->hw, card->hw)){
 			wan_aften_read_reg(card, api_cmd, idata);
 			idata += api_cmd->len;
@@ -455,7 +472,9 @@ static int wan_aften_all_write_reg(sdla_t *card_head, wan_cmd_api_t *api_cmd)
 	sdla_t		*card, *prev = NULL;
 
 	for (card=card_list; card; card = card->list){
-		//if (prev == NULL || prev->hw != card->hw){
+#if 0
+		if (prev == NULL || prev->hw != card->hw){
+#endif
 		if (prev == NULL||!card->hw_iface.hw_same(prev->hw, card->hw)){
 			wan_aften_write_reg(card, api_cmd);
 		}
@@ -500,8 +519,10 @@ static int wan_aften_all_set_pci_bios(sdla_t *card_head)
 	sdla_t		*card, *prev = NULL;
 
 	for (card=card_list; card; card = card->list){
+#if 0
+		if (prev == NULL || prev->hw != card->hw){
+#endif
 		if (prev == NULL||!card->hw_iface.hw_same(prev->hw, card->hw)){
-		//if (prev == NULL || prev->hw != card->hw){
 			if (wan_aften_set_pci_bios(card)){
 				return -EINVAL;
 			}

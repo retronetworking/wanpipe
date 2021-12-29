@@ -11,9 +11,9 @@ extern wan_iface_t wan_iface;
  * Funciton Prototypes
  */
 
-static netdevice_t *wplip_create_netif(char *dev_name, int protocol);
+static netdevice_t *wplip_create_netif(char *dev_name, int iftype);
 static int wplip_free_netif(netdevice_t *dev);
-static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev);
+static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int iftype);
 static void wplip_unregister_netif(netdevice_t *dev, wplip_dev_t *lip_dev);
 #if defined(__LINUX__)
 extern void wplip_link_bh(unsigned long data);
@@ -218,7 +218,7 @@ void wplip_remove_link(wplip_link_t *lip_link)
  *	x25_register 
  */
 
-wplip_dev_t *wplip_create_lipdev(char *dev_name, int protocol)
+wplip_dev_t *wplip_create_lipdev(char *dev_name, int iftype)
 {
 	wplip_dev_t *lip_dev;
 
@@ -230,7 +230,6 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int protocol)
 	memset(lip_dev, 0x00, sizeof(wplip_dev_t));
 	
 	lip_dev->magic=WPLIP_MAGIC_DEV;
-	lip_dev->protocol = protocol;
 
 	/* FIXME: No Entry Intializer */	
 	/*WPLIP_INIT_LIST_HEAD(&lip_dev->list_entry);*/
@@ -239,13 +238,13 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int protocol)
 
 	wan_atomic_set(&lip_dev->refcnt,0);
 
-	lip_dev->common.dev=wplip_create_netif(dev_name, protocol);	
+	lip_dev->common.dev=wplip_create_netif(dev_name, iftype);	
 	if (!lip_dev->common.dev){
 		wan_free(lip_dev);
 		return NULL;
 	}
 
-	if (wplip_register_netif(lip_dev->common.dev, lip_dev)){
+	if (wplip_register_netif(lip_dev->common.dev, lip_dev, iftype)){
 		wplip_free_netif(lip_dev->common.dev);	
 		lip_dev->common.dev=NULL;
 		wan_free(lip_dev);
@@ -253,6 +252,7 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int protocol)
 	}
 
 	lip_dev->common.state = WAN_DISCONNECTED;
+	lip_dev->common.usedby = iftype;
 
 	strncpy(lip_dev->name,dev_name,MAX_PROC_NAME);
 	
@@ -342,6 +342,46 @@ int wplip_lipdev_exists(wplip_link_t *lip_link, char *dev_name)
 	return -ENODEV;
 }
 
+/*==============================================================
+ * wplip_lipdev_latency_change
+ *
+ * Description:
+ *
+ * Purpose:
+ * 	Indicate a latency queue len change
+ *      to the link.
+ * 
+ * Used by: 
+ */
+
+int wplip_lipdev_latency_change(wplip_link_t *lip_link)
+{
+	wplip_dev_t *cur_dev;
+	wan_rwlock_flag_t flag;
+	unsigned int latency_qlen=0xFFFF;
+	
+	WP_READ_LOCK(&lip_link->dev_list_lock,flag);
+
+	/* Get the smallest queue latency out of all 
+	 * protocol interfaces. The smallest value will be
+	 * used as the new latency for the master device */
+
+	WAN_LIST_FOREACH(cur_dev,&lip_link->list_head_ifdev,list_entry){
+		if (cur_dev->max_mtu_sz < latency_qlen) {
+			latency_qlen=cur_dev->max_mtu_sz;	
+		}
+	}
+
+	WP_READ_UNLOCK(&lip_link->dev_list_lock,flag);
+
+	if (latency_qlen > 0 && latency_qlen < 0xFFFF) {
+        	lip_link->latency_qlen = latency_qlen;
+	}
+	
+	return -ENODEV;
+}        
+
+
 
 /*==============================================================
  * wplip_remove_lipdev
@@ -403,7 +443,7 @@ unsigned int dec_to_uint (unsigned char* str, int len)
  */
 
 
-static netdevice_t *wplip_create_netif(char *dev_name, int protocol)
+static netdevice_t *wplip_create_netif(char *dev_name, int iftype)
 {
 	netdevice_t *dev;
 	int err;
@@ -439,7 +479,7 @@ static int wplip_free_netif(netdevice_t *dev)
 }
 
 
-static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev)
+static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int iftype)
 {
 	int err = -EINVAL;
 
@@ -449,16 +489,22 @@ static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev)
 	/* From this point forward, wplip_free_if() will deallocate
 	 * both dev and lip_dev */
 	lip_dev->common.is_netdev = 1;
-	if (wan_iface.attach){
-		err = wan_iface.attach(dev, NULL, lip_dev->common.is_netdev);
+
+	if (iftype == BRIDGE ||
+            iftype == BRIDGE_NODE){
+		if (wan_iface.attach_eth){
+			err = wan_iface.attach_eth(dev, NULL, lip_dev->common.is_netdev);
+		}
+	}else{
+		if (wan_iface.attach){
+			err = wan_iface.attach(dev, NULL, lip_dev->common.is_netdev);
+		}
 	}
 
 	if (err){
-#if defined(__LINUX__)
-		// ALEX NEW dev->init = NULL;
-#endif
 		wan_netif_set_priv(dev, NULL);
 	}
+
 
 	return err;
 }
@@ -469,6 +515,10 @@ static void wplip_unregister_netif(netdevice_t *dev, wplip_dev_t *lip_dev)
 	if (wan_iface.detach){
 		wan_iface.detach(dev, lip_dev->common.is_netdev);
 	}
+
+	if (wan_iface.free){
+		wan_iface.free(dev);
+	} 
 	return;
 }
 

@@ -10,8 +10,10 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-# Project file paths.
+SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
+ifeq "$(SYSINC)" "" 
 SYSINC=/usr/src/linux/include
+endif
 WAN_VIRTUAL=
 
 # Tools options.

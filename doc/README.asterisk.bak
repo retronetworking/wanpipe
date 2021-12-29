@@ -1,0 +1,406 @@
+Asterisk Open PBC/IVR Project using the Sangoma A101 and A102 cards
+===================================================================
+
+Alex Feldman: Mar 2005
+Nenad Corbic:
+
+WANPIPE supports the Asterisk Open PBX/IVR project through an interface
+of the Zaptel family of hardware devices. These devices share a common 
+driver suite, called the ZAPATA Telephony Driver Suite (zaptel).
+
+
+IMPORTANT
+---------
+	Please read the APPENDIX for IMPORTANT INFO
+
+
+ASTERISK / ZAPTEL Installation
+-------------------------------
+
+First install:
+	zaptel, zapata, libpri and asterisk 	
+	software on your system. 
+
+The Asterisk distributions can be found at http://www.asterisk.org.
+
+1. Download the LATEST sources from http://www.asterisk.org;
+
+2. Untar zaptel, libpri and asterisk source 
+   in /usr/src directory
+
+3. Proceed with ASTERISK/ZAPTEL installation as per
+   Asterisk instructions
+
+
+Note: 
+   Zaptel kernel drivers must compiled and 
+   installed BEFORE loading WANPIPE drivers.
+
+
+
+WANPIPE Releases
+----------------
+
+2.3.3: Latest Wanpipe Release 
+       All the NEW features are for A104 Card ONLY
+	       
+       o New channelized TDMV Driver for A104 Card
+       	 
+	 Voice data is channelized and grouped into
+	 8 byte chunks in HARDWARE.  Each voice 
+	 channel is then DMAed directly into the ZAPTEL
+	 buffers.  Thus there is ZERO copy from HARDWARE
+	 to ZAPTEL, resulting in better performance and
+	 scalability.
+		 
+       o New DCHAN PRI Hardware HDLC support
+         
+	 Instead of using ZAPTEL HDLC engines in software,
+	 WANPIPE drivers use HARDWARE HDLC engine to
+	 handle PRI traffic.  The HDLC frames are
+	 then passed directly into the LIBPRI, resulting
+	 in better performance and scalability.
+
+       o New TDMV API
+
+         Customers that develop Voice Applications in User Space, can now develop using Channelized TDMV API.
+
+	 The TDMV API works in the same way as standard HDLC API.
+	 Application creates a socket to a network interface and
+	 uses standard system calls to read and write.
+	 However, data received from the TDMV API socket, will be
+	 in 8,16,32 or 63 byte CHUNKS for each configured timeslot.
+	 
+	 Thus for full T1 1-23 voice channels the rx data would 
+	 look like:
+	 	__________________________________
+		| 8bytes  |  8   |     | ... | 8  |
+	 	---------------------------------- 
+	 	  Slot 1     2      3          23
+	
+	 The DCHAN PRI HDLC frames would be received as OOB messages
+	 on the same socket.
+	 
+	 OR
+	 
+	 The DCHAN PRI HDLC frames could be received using another
+	 socket that is connected to a network interface that is
+	 bound to channel 24.
+	 
+
+2.3.2: Stable Wanpipe TDMV Release
+       
+       o The ORIGINAL TDMV driver for both A101/2 and A104 cards.
+         TDMV Driver has been optimized for best Echo cancel
+	 performance.
+	
+	 This driver has been fully tested in the field and is
+	 considered stable.
+
+	 
+	      
+
+WANPIPE Installation for Asterisk
+---------------------------------
+
+1. Download the LATEST Wanpipe 2.3.2 Release or Greater!
+   
+   Note: Wanpipe does not support Asterisk in releases
+         LOWER than 2.3.2!
+
+	ftp.sangoma.com/linux/current_wanpipe
+	
+
+2. Untar wanpipe release in /usr/src/ directory
+
+	eg: tar xvfz wanpipe-beta3-2.3.2.tgz
+
+
+3. Run ./Setup install
+	
+	Proceed with installation choose YES for each option.
+
+	IMPORTANT:
+		Under compilation mode: select CUSTOM 
+
+		Then select: DEF  :for default protocols
+		             TDM  :for TDM Voice asterisk support
+
+				Enable TDMV_DCHAN option for Hardware HDLC for
+						             DCHAN PRI.
+
+				This option will also PATCH the ZAPTEL driver.
+				Thus, ZAPTEL MUST be recompiled and installed
+				after the ./Setup is completed.
+				
+		Proceed to compile wanpipe drivers.
+
+4. To confirm successful installation run:
+
+	wanrouter hwprobe
+
+	Confirm that Sangoma cards have been found.
+
+    Note: 
+	Zaptel kernel drivers must compiled and 
+	installed BEFORE loading WANPIPE drivers.
+
+
+WANPIPE Configuration for the A100 series of cards
+--------------------------------------------------
+
+You can use the A101 or A102 cards for both data and voice. The 
+following describes how to configure the Asterisk system for 
+voice, with an auxiliary data interface, if needed.
+
+1. Run the configuration utility wancfg. 
+
+	/usr/sbin/wancfg
+
+	Hardware Setup:
+		Select Hardware: AFT
+		
+		T1/E1 CSU/DSU Setup can be configured via
+		  	"Advanced Physical Medium Config"
+
+		If all the 24 (T1) or 30 (E1) timeslots will 
+		be used by Asterisk then there is no need to 
+		configure the T1/E1 Channelization.
+
+		If less than the full span is used by Asterisk, 
+		set the channel span in 
+			"Advanced Timeslot Groups Configuration"
+			
+	Protocol Setup:
+		Select Protocol: TDM VOICE 
+		No other options
+
+	Interface Setup:
+		Select SPAN Number: 1-24
+		The SPAN usually starts with 1
+		No other options
+
+
+
+2.	DCHAN Configuration (A104 Card Only):
+
+		Release		: beta1-2.3.3 or greater.
+		Firmware Version: V.10
+		
+		Currently DCHAN is not supported in wancfg,
+		thus one has to add it manually to wanpipe#.conf file.
+		
+		Add it under the SPAN configuration.
+		.
+		.
+		TDMV_SPAN=1
+		TDMV_DCHAN=24
+		.
+		.
+		
+		Note: TDMV_DCHAN value is ALWAYS from (1-24).
+		      (Don't confuse with Asterisk configuration 
+		       that uses values greater than 24 for DCHAN
+		       specification)
+		
+3. 	A102 TE1 Clock Synchronization (A102 Card Only):
+
+		Release		: beta7-2.3.2 or greater.
+		Firmware Version: V.24
+		
+		This option is NOT supported in wancfg, thus
+		one has to add it manually to wanpipe#.conf file.
+		
+		TE1 Clock synchronization is used to propagate
+		a single clock source throughout the
+		TE1 network.
+
+		wanpipe1->Port A-> Normal Mode: Receives T1 Clock from Telco
+		wanpipe2->Port B-> Master Mode: Transmits the SAME T1 
+				                Clock as a master source.
+	
+		In order to enable this option on wanpipe2:
+		Add FE_REF_CLOCK option under the "TE_CLOCK" option.
+		.
+		.
+		TE_CLOCK 	= MASTER	
+		FE_REF_CLOCK	= LINE
+		.
+		.
+		Note: That TE_CLOCK must be set as MASTER
+		      The Clock source is the Port A LINE.
+		      
+
+Channelization Notes:
+--------------------
+ 
+	If you re using PRI mode, channel 24 must be included in the
+        "Timeslots in Group" list for the Asterisk T1 span, and channel 
+	16 for the Asterisk E1 span. 
+
+        For the non-Asterisk data channels, if any, configure 
+	the interface as standard WANPIPE interface, 
+	running:  Frame Relay, PPP, Cisco HDLC or X.25 with IP or API 
+	access.
+
+
+Zaptel configuration
+--------------------
+
+Download the documentation how to configure Zaptel driver from
+
+(http://www.digium.com/downloads/configuring_zaptel.pdf).
+
+When configuring the Zaptel driver (/etc/zaptel.conf)
+
+ 1) Select the same span configurations as you used for WANPIPE 
+       (i.e. LBO, framing, coding parameters).
+	  
+	Otherwise the Zaptel configuration is completely 
+	standard, except that if there are data channels that 
+	will be handled by WANPIPE, those channels should be ignored, 
+	and not configured as 'nethdlc'.
+
+ 2) If you are using multiple WANPIPE devices for Asterisk
+	
+	For example, an A102 card might be configured as: 
+		
+		wanpipe1 and wanpipe2 
+	 
+	then you need to set your starting scripts to start 
+	the wanpipes in the same sequence as defined in zaptel.conf.
+
+		Run: wanrouter wanrc 
+		
+		to set the wanpipe startup order.
+
+ 3) If you are using some channels for DATA
+ 
+ 	You don't need to set the channel list for this 
+	interface under /etc/zaptel.conf because all data will go
+	through the separate WANPIPE driver to the kernel.
+
+
+
+APPENDIX
+========
+
+-------------------------------------------------------------
+
+1)HOTPLUG Conflicts with WANPIPE
+  ===============================
+
+  
+The HOTPLUG Service should be disabled because it 
+conflicts with Wanpipe interface startup.
+The HOTPLUG can conflict with startup of TDMV drivers.
+   
+Possible Solutions:
+
+	1) Insert wanpipe interface name into the hotplug
+  		 interface list, and restart hotplug.
+	
+		vi /etc/hotplug/net.agent
+		
+			Insert wanpipe interface name into 
+			the ignore list:
+		
+			...ppp*|lo*|w*)
+
+			Where w* relates to all wanpipe interfaces 
+			starting with letter "w"
+
+		Restart hotplug agent:
+		
+		/etc/init.d/hotplug restart
+
+	2) Remove the Hotplug RPM
+		rpm -qa | grep hotplug
+		rpm -e <hotplug name>
+ 
+	3) Stop hotplug:
+		/etc/init.d/hotplug stop
+	
+		However, you must do this each
+		time you boot up. Thus insert this
+		command in rc.local.
+
+
+-------------------------------------------------------------------
+
+
+2) Exec "ztcfg" after wanrouter start
+   ==================================
+
+The "ztcfg" tool must be executed before starting
+asterisk. WANPIPE "wanrouter" script has the capability
+to execute an external script after "wanrouter start"
+command is complted.
+
+The wanrouter looks to /etc/wanpipe/scritps directory
+for any configured bash scripts.
+
+	1) Create a file called "start" (lower case)
+		
+	   vi start
+	   ----------Cut Here----------------
+	   #!/bin/sh
+
+	   ztcvf -vvvv  
+
+	   ----------Cut Here----------------
+
+	2) Copy the file "start" into /etc/wanpipe/scripts directory.
+	   (Note: the file doesn't have to have exec privilages)
+
+
+	The script "start" will execute each time the "wanrouter start"
+	command executes.
+
+
+Please Refer to README.external_scripts for more info about 
+wanrouter and external scritps.
+
+
+------------------------------------------------------------
+
+
+2) Updating FLASH on AFT Cards
+   ===========================
+
+   The AFT FLASH update utility is located in:
+   	wanpipe/util/wan_aftup directory.
+
+   The same directory contains the latest AFT
+   FLASH Firmware BIN files since the release
+   of the driver.
+
+   The latest AFT Firmware bins are located in
+   ftp.sangoma.com/linux/current_wanpipe/firmware.
+   
+
+   To update flash on ANY AFT card do the following:
+
+   1) Make sure you have the latest AFT Firmware BIN
+      The latest file necessary for the current release
+      will be in the wan_aftup/ directory.
+      One can also check the ftp site above.
+
+      The AFT Binary file must reside in wan_aftup/ directory.
+
+   2) Make sure that wanpipe drivers are NOT Loaded
+   	lsmod | grep wanpipe
+
+   3) Run ./update_aft_firm.sh
+   
+   	Specify interface name that corresponds to the
+	AFT card.
+
+	Specify the latest AFT Firmware version
+
+	Once the flashing is done, select Y to reload firmware.
+	(This step only reloads flash, not your machine!)
+
+   4) Card is ready for normal operation. (No reboot needed)	
+	
+	

@@ -17,7 +17,11 @@ static wplip_prot_iface_t *wplip_prot_ops[MAX_LIP_PROTOCOLS];
 
 static wplip_prot_reg_t wplip_prot_reg_ops;
 static void wplip_prot_timer(wan_timer_arg_t arg);
-
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+static void wplip_port_task (void *arg, int);
+#else
+static void wplip_port_task (void *arg);
+#endif
 
 
 /*==============================================================
@@ -28,8 +32,9 @@ int wplip_reg_link_prot(wplip_link_t *lip_link, wanif_conf_t *conf)
 {
 	wplip_prot_iface_t *prot_iface;	
 
-	DEBUG_TEST("%s: (DEBUG) Registering Protocol 0x%X\n",
-			lip_link->name,conf->protocol,WANCONFIG_XDLC);
+	DEBUG_TEST("%s: (DEBUG) Registering Protocol %d(%s)\n",
+			lip_link->name,conf->protocol,
+			SDLA_DECODE_PROTOCOL(conf->protocol));
 	
 	lip_link->protocol = conf->protocol;
 
@@ -38,6 +43,9 @@ int wplip_reg_link_prot(wplip_link_t *lip_link, wanif_conf_t *conf)
 	wan_init_timer(&lip_link->prot_timer,
 		       wplip_prot_timer,
 		       (wan_timer_arg_t)lip_link);
+
+	WAN_TASKQ_INIT((&lip_link->prot_task),0,wplip_port_task,lip_link);
+
 
 #ifdef WPLIP_TTY_SUPPORT
 	if (lip_link->protocol == WANCONFIG_TTY){
@@ -48,6 +56,17 @@ int wplip_reg_link_prot(wplip_link_t *lip_link, wanif_conf_t *conf)
 		return wplip_reg_tty(lip_link,conf);
 	}
 #endif	
+
+#if defined(CONFIG_PRODUCT_WANPIPE_CHDLC) || defined(CONFIG_PRODUCT_WANPIPE_PPP)  
+        if (lip_link->protocol == WANCONFIG_CHDLC){
+		if (!conf->u.ppp.sppp_keepalive_timer) {
+		      conf->u.ppp.sppp_keepalive_timer=5;
+		}
+		if (!conf->u.ppp.keepalive_err_margin) {
+                      conf->u.ppp.keepalive_err_margin=5;  
+		}
+	}       
+#endif
 	
 	WPLIP_PROT_EXIST(lip_link->protocol,-ENODEV);
 	
@@ -62,8 +81,9 @@ int wplip_reg_link_prot(wplip_link_t *lip_link, wanif_conf_t *conf)
 				        	      &wplip_prot_reg_ops);
 		
 	if (!lip_link->prot){
-		DEBUG_EVENT("%s: Failed to register FR protocol %d\n",
-			lip_link->name,lip_link->protocol);
+		DEBUG_EVENT("%s: Failed to register protocol %d(%s)\n",
+			lip_link->name,lip_link->protocol,
+		       	SDLA_DECODE_PROTOCOL(lip_link->protocol));
 		return -EINVAL;
 	}
 
@@ -145,6 +165,13 @@ int wplip_reg_lipdev_prot(wplip_dev_t *lip_dev, wanif_conf_t *conf)
 
 	}
 #endif
+#ifdef CONFIG_PRODUCT_WANPIPE_LIP_ATM	
+	if (lip_dev->protocol == WANCONFIG_LIP_ATM){
+		lip_dev->max_mtu_sz=MAX_ATM_TX_BUF;
+		lip_dev->max_mtu_sz_orig=MAX_ATM_TX_BUF;
+
+	}
+#endif                     	
 	
 #ifdef CONFIG_PRODUCT_WANPIPE_XDLC	
 	if (lip_dev->protocol == WANCONFIG_XDLC){
@@ -330,7 +357,6 @@ int wplip_prot_oob(wplip_dev_t *lip_dev, unsigned char *data, int len)
 	return 0;
 #endif
 }
-
 int wplip_prot_ioctl(wplip_dev_t *lip_dev, int cmd, void *arg)
 {	
 	wplip_prot_iface_t *prot_iface;	
@@ -354,12 +380,12 @@ int wplip_prot_tx(wplip_dev_t *lip_dev, wan_api_tx_hdr_t *api_tx_hdr, netskb_t *
 #endif
 	WPLIP_PROT_ASSERT(lip_dev->protocol,-EINVAL);
 	WPLIP_PROT_EXIST(lip_dev->protocol,-ENODEV);
-	
+
 	prot_iface=wplip_prot_ops[lip_dev->protocol];
 
 	WPLIP_PROT_FUNC_ASSERT(prot_iface,tx,-EFAULT);
 
-	if (wan_skb_queue_len(&lip_dev->tx_queue) >= MAX_TX_BUF){
+	if (wan_skb_queue_len(&lip_dev->tx_queue) >= lip_dev->max_mtu_sz){
 		return 1;
 	}
 
@@ -372,7 +398,7 @@ int wplip_prot_tx(wplip_dev_t *lip_dev, wan_api_tx_hdr_t *api_tx_hdr, netskb_t *
 					    0);	
 	}
 #endif
-
+	
 	err=prot_iface->tx(lip_dev->common.prot_ptr,skb,type);
 	if (err){
 #ifdef WPLIP_IPX_SUPPORT		
@@ -381,7 +407,7 @@ int wplip_prot_tx(wplip_dev_t *lip_dev, wan_api_tx_hdr_t *api_tx_hdr, netskb_t *
 						     dnet,snet);
 		}
 #endif
-		return 1;
+		return err;
 	}
 
 	return 0;
@@ -507,6 +533,28 @@ int wplip_prot_udp_snmp_pkt(wplip_dev_t * lip_dev, int cmd, struct ifreq* ifr)
 	return 0;
 }
 
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+static void wplip_port_task (void *arg, int dummy)
+#else
+static void wplip_port_task (void *arg)
+#endif
+{
+	wplip_link_t	*lip_link=(wplip_link_t *)arg;
+	wplip_prot_iface_t *prot_iface;	
+
+	if (wan_test_bit(WPLIP_LINK_DOWN,&lip_link->tq_working)){
+		return;
+	}
+	
+	prot_iface=wplip_prot_ops[lip_link->protocol];
+	if (!prot_iface){
+		return;
+	}
+
+	if (prot_iface->task){
+		prot_iface->task(lip_link->prot);
+	}
+}
 
 
 static void wplip_prot_timer(wan_timer_arg_t arg)
@@ -562,29 +610,40 @@ static int wplip_prot_rx_up(void *lip_dev_ptr, void *skb, int type)
 	 * Only in WANPIPE mode. */
 
 	wan_skb_set_dev(skb,lip_dev->common.dev);
+
+#if defined(__LINUX__)
+	if (lip_dev->common.usedby == BRIDGE || 
+            lip_dev->common.usedby == BRIDGE_NODE){
+		((netskb_t*)skb)->protocol = eth_type_trans(skb,lip_dev->common.dev);
+		wplip_data_rx_up(lip_dev,skb);
+		return 0;
+	}	
+#endif
+
 	wan_skb_set_raw(skb);
 
 	switch (type){
 
 	case WPLIP_RAW:
-
 		wplip_data_rx_up(lip_dev,skb);
 		break;
 		
 	case WPLIP_IP:
-
 		wan_skb_set_protocol(skb,ETH_P_IP);
-		
 		wplip_data_rx_up(lip_dev,skb);
 		break;
 
 	case WPLIP_IPV6:
-		
 		wan_skb_set_protocol(skb,ETH_P_IPV6);
-
 		wplip_data_rx_up(lip_dev,skb);
 		break;
-		
+
+#if defined(__LINUX__)
+	case WPLIP_PPP:
+		wan_skb_set_protocol(skb,ETH_P_WAN_PPP);
+		wplip_data_rx_up(lip_dev,skb);
+		break;
+#endif
 
 	case WPLIP_IPX:
 
@@ -620,7 +679,7 @@ static int wplip_prot_rx_up(void *lip_dev_ptr, void *skb, int type)
 		DEBUG_EVENT("%s: FR ARP not supported \n",lip_dev->name);
 		wan_skb_free(skb);
 		break;
-		
+
 	default:
 
 		DEBUG_EVENT("%s: Unsupported Rx Packet 0x%X \n",
@@ -635,15 +694,13 @@ static int wplip_prot_rx_up(void *lip_dev_ptr, void *skb, int type)
 
 
 
+static char tmp[500];
 
 int wplip_init_prot(void)
 {
-	char tmp[500];
-	int  offset;
+	int  offset=0;
+
 	wplip_prot_iface_t *prot_iface;	
-	
-	offset=0;
-	prot_iface=NULL;
 
 	wplip_prot_reg_ops.prot_set_state	= wplip_link_prot_change_state;
 	wplip_prot_reg_ops.chan_set_state	= wplip_lipdev_prot_change_state;
@@ -653,10 +710,14 @@ int wplip_init_prot(void)
 	wplip_prot_reg_ops.rx_up		= wplip_prot_rx_up;
 	wplip_prot_reg_ops.get_ipv4_addr	= wplip_get_ipv4_addr;
 	wplip_prot_reg_ops.set_ipv4_addr	= wplip_set_ipv4_addr;
+	wplip_prot_reg_ops.kick_task	        = wplip_callback_kick_prot_task;
 
 	
+	sprintf(&tmp[0]," No Protocol Compiled\n");
 	memset(&wplip_prot_ops,0,sizeof(wplip_prot_ops));
 
+	offset = 0;
+	prot_iface = NULL;
 	/* FR initialization */
 #ifdef CONFIG_PRODUCT_WANPIPE_FR
 	offset+=sprintf(&tmp[offset],"%s ","FR");
@@ -683,7 +744,6 @@ int wplip_init_prot(void)
 	prot_iface->snmp			= wp_fr_snmp;
 #endif
 
-
 	/* PPP initialization */
 
 #if defined(CONFIG_PRODUCT_WANPIPE_CHDLC) || defined(CONFIG_PRODUCT_WANPIPE_PPP)
@@ -709,6 +769,7 @@ int wplip_init_prot(void)
 	prot_iface->timer			= wp_sppp_timer;
 	prot_iface->bh				= NULL;
 	prot_iface->snmp			= NULL;
+	prot_iface->task			= wp_sppp_task;
 
 
 	/* CHDLC initialization */
@@ -777,8 +838,8 @@ int wplip_init_prot(void)
 	prot_iface->init			= 1;
 	prot_iface->prot_link_register 		= wp_register_lapb_prot;
 	prot_iface->prot_link_unregister	= wp_unregister_lapb_prot; 
-	prot_iface->prot_chan_register		= NULL;	
-	prot_iface->prot_chan_unregister	= NULL;
+	prot_iface->prot_chan_register		= wp_register_lapb_chan_prot;	
+	prot_iface->prot_chan_unregister	= wp_unregister_lapb_chan_prot;
 	prot_iface->open_chan			= wp_lapb_open;
 	prot_iface->close_chan			= wp_lapb_close; 
 	prot_iface->tx				= wp_lapb_tx;
@@ -789,11 +850,88 @@ int wplip_init_prot(void)
 	prot_iface->bh				= wp_lapb_bh;
 	prot_iface->snmp			= NULL;
 #endif
+
+	/* XMTP2 initialization */
+#ifdef CONFIG_PRODUCT_WANPIPE_XMTP2
+	offset+=sprintf(&tmp[offset],"%s ","XMTP2");
+	prot_iface=wan_malloc(sizeof(wplip_prot_iface_t));
+	if (!prot_iface){
+		return -ENOMEM;
+	}
+	memset(prot_iface,0,sizeof(wplip_prot_iface_t));
+	wplip_prot_ops[WANCONFIG_XMTP2]=prot_iface;
+	
+	prot_iface->init			= 1;
+	prot_iface->prot_link_register 		= wp_register_xmtp2_prot;
+	prot_iface->prot_link_unregister	= wp_unregister_xmtp2_prot; 
+	prot_iface->prot_chan_register		= wp_register_xmtp2_chan;	
+	prot_iface->prot_chan_unregister	= wp_unregister_xmtp2_chan;
+	prot_iface->open_chan			= wp_xmtp2_open;
+	prot_iface->close_chan			= wp_xmtp2_close; 
+	prot_iface->tx				= wp_xmtp2_tx;
+	prot_iface->ioctl			= NULL; 
+	prot_iface->pipemon			= NULL;
+	prot_iface->rx				= wp_xmtp2_rx; 
+	prot_iface->timer			= wp_xmtp2_timer;
+	prot_iface->bh				= NULL;
+	prot_iface->snmp			= NULL;
+#endif
+
+	/* X25 initialization */
+#ifdef CONFIG_PRODUCT_WANPIPE_LIP_X25
+	offset+=sprintf(&tmp[offset],"%s ","X25");
+	prot_iface=wan_malloc(sizeof(wplip_prot_iface_t));
+	if (!prot_iface){
+		return -ENOMEM;
+	}
+	memset(prot_iface,0,sizeof(wplip_prot_iface_t));
+	wplip_prot_ops[WANCONFIG_X25]=prot_iface;
+	
+	prot_iface->init			= 1;
+	prot_iface->prot_link_register 		= wp_register_x25_prot;
+	prot_iface->prot_link_unregister	= wp_unregister_x25_prot; 
+	prot_iface->prot_chan_register		= wp_register_x25_chan;	
+	prot_iface->prot_chan_unregister	= wp_unregister_x25_chan;
+	prot_iface->open_chan			= wp_x25_open_chan;
+	prot_iface->close_chan			= wp_x25_close_chan;
+	prot_iface->tx				= wp_x25_tx;
+	prot_iface->ioctl			= wp_x25_ioctl; 
+	prot_iface->pipemon			= wp_x25_pipemon;
+	prot_iface->rx				= wp_x25_rx; 
+	prot_iface->timer			= wp_x25_timer;
+	prot_iface->bh				= NULL;
+	prot_iface->snmp			= NULL;
+#endif
+
+	/* LIP ATM initialization */
+#ifdef 	CONFIG_PRODUCT_WANPIPE_LIP_ATM
+	offset+=sprintf(&tmp[offset],"%s ","LIP_ATM");
+	prot_iface=wan_malloc(sizeof(wplip_prot_iface_t));
+	if (!prot_iface){
+		return -ENOMEM;
+	}
+	memset(prot_iface,0,sizeof(wplip_prot_iface_t));
+	wplip_prot_ops[WANCONFIG_LIP_ATM]=prot_iface;
+	
+	prot_iface->init			= 1;
+	prot_iface->prot_link_register 		= wp_register_atm_prot;
+	prot_iface->prot_link_unregister	= wp_unregister_atm_prot; 
+	prot_iface->prot_chan_register		= wp_register_atm_chan;	
+	prot_iface->prot_chan_unregister	= wp_unregister_atm_chan;
+	prot_iface->open_chan			= wp_atm_open_chan;
+	prot_iface->close_chan			= wp_atm_close_chan;
+	prot_iface->tx				= wp_atm_tx;
+	prot_iface->ioctl			= wp_atm_ioctl; 
+	prot_iface->pipemon			= wp_atm_pipemon;
+	prot_iface->rx				= wp_atm_rx; 
+	prot_iface->timer			= wp_atm_timer;
+	prot_iface->bh				= NULL;
+	prot_iface->snmp			= NULL;
+#endif
+
 	DEBUG_EVENT("WanpipeLIP: Protocols: %s\n",tmp);
 	return 0;
 }
-
-
 
 
 int wplip_free_prot(void)

@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: wanpipe_utils.c,v 1.71 2005/01/21 17:40:59 sangoma Exp $
+ *	$Id: wanpipe_utils.c,v 1.76 2005/06/16 17:15:20 sangoma Exp $
  */
 
 /*
@@ -179,90 +179,6 @@ void wanpipe_set_state (void* card_id, int state)
 		card->wandev.state = state;
 	}
 	card->state_tick = SYSTEM_TICKS;
-}
-
-/*
- * ============================================================================
- * Get IP address for WAN interface
- */
-unsigned long wan_get_ip_addr(void* dev, int option)
-{
-	netdevice_t*		ifp = (netdevice_t*)dev;
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-	struct ifaddr*		ifa = NULL;		
-	struct sockaddr_in*	addr = NULL;
-
-	if (ifp == NULL){
-		return 0;
-	}
-	ifa = WAN_TAILQ_FIRST(ifp);
-	if (ifa == NULL || ifa->ifa_addr == NULL){
-		return 0;
-	}
-#elif defined(__LINUX__)
-# if defined(LINUX_2_4)||defined(LINUX_2_6)
-	struct in_ifaddr *ifaddr;
-	struct in_device *in_dev;
-
-	if ((in_dev = __in_dev_get(ifp)) == NULL){
-		return 0;
-	}
-	if ((ifaddr = in_dev->ifa_list)== NULL ){
-		return 0;
-	}
-# elif defined(LINUX_2_1)
-	struct in_ifaddr *ifaddr;
-	struct in_device *in_dev;
-	
-	if ((in_dev = ifp->ip_ptr) == NULL){
-		return 0;
-	}
-	if ((ifaddr = in_dev->ifa_list)== NULL ){
-		return 0;
-	}
-# endif
-#endif	
-
-	switch (option){
-	case WAN_LOCAL_IP:
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-		addr = (struct sockaddr_in *)ifa->ifa_addr;
-		return htonl(addr->sin_addr.s_addr);
-#else
-		return ifaddr->ifa_local;
-#endif
-		break;
-	
-	case WAN_POINTOPOINT_IP:
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-		return 0;
-#else
-		return ifaddr->ifa_address;
-#endif
-		break;	
-
-	case WAN_NETMASK_IP:
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-		return 0;
-#else
-		return ifaddr->ifa_mask;
-#endif
-		break;
-
-	case WAN_BROADCAST_IP:
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-		return 0;
-#else
-		return ifaddr->ifa_broadcast;
-#endif
-		break;
-	default:
-		return 0;
-	}
-
-	return 0;
-
-
 }
 
 /*
@@ -964,7 +880,7 @@ int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *sk
 int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, int off,char direction)
 {
        	int	flag = 0;
-	if ((flag = wan_tracing_enabled((void*)trace_info)) >= 0){
+	if ((flag = wan_tracing_enabled(trace_info)) >= 1){
 
 		int             len = 0;
 	        void*           new_skb = NULL;
@@ -972,9 +888,12 @@ int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netsk
        	 	int             i,drop=1;
         	unsigned char   diff=0,*src_ptr,*dest_ptr;
 
+		if (off < 1){
+			return -EINVAL;
+		}
 
 		/* Allocate a header mbuf */
-		len = 	wan_skb_len(skb) + sizeof(wan_trace_pkt_t);
+		len = 	wan_skb_len(skb) + sizeof(wan_trace_pkt_t) + 16;
 
 		new_skb = wan_skb_alloc(len);
 		if (new_skb == NULL) 
@@ -994,22 +913,28 @@ int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netsk
 
 		trc_el.real_length=0;
 		src_ptr=wan_skb_data(skb);
-		for (i=off;i<wan_skb_len(skb);i+=off){	
+		for (i=(off-1);i<wan_skb_len(skb);){	
 			dest_ptr=wan_skb_put(new_skb,1);
 			dest_ptr[0]=src_ptr[i];
 			trc_el.real_length++;
 
-			if (i==off){
+			if (i==(off-1)){
 				diff=dest_ptr[0];
 			}
 
 			if (diff != dest_ptr[0]){
 				drop=0;
 			}
-			i+=16;
+
+			if (IS_T1_CARD(card)){
+				i+=24;
+			}else{
+				i+=31;
+			}
 		}
 
 		if (drop){
+			wan_skb_free(new_skb);
 			return 0;
 		}
 
@@ -1205,11 +1130,6 @@ int wpabs_trace_enqueue(void *trace_ptr, void *skb_ptr)
 void wpabs_set_state (void* card_id, int state)
 {
 	wanpipe_set_state(card_id, state);
-}
-
-unsigned long wpabs_get_ip_addr(void* dev, int option)
-{
-	return wan_get_ip_addr(dev, option);
 }
 
 /* 

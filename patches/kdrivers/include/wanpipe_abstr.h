@@ -52,8 +52,11 @@ extern void*		wpabs_skb_dequeue(void *queue);
 extern void		wpabs_skb_set_dev(void *skb, void *dev);
 extern void		wpabs_skb_set_raw(void *skb);
 extern void		wpabs_skb_set_protocol(void *skb, unsigned int prot);
+extern void 		wpabs_skb_set_csum(void *skb_new_ptr, unsigned int csum);
+extern unsigned int	wpabs_skb_csum(void *skb_new_ptr);
 
-extern void*		wpabs_netif_alloc(unsigned char *,int*);
+
+extern void*		wpabs_netif_alloc(unsigned char *,int,int*);
 extern void		wpabs_netif_free(void *);
 extern unsigned char*	wpabs_netif_name(void *);
 extern int 		wpabs_netif_queue_stopped(void*);
@@ -149,9 +152,9 @@ extern int		wpabs_strlen(unsigned char *);
 
 extern void		wpabs_debug_print_skb(void*,char);
  
-extern void 		wpabs_decode_ipaddr(unsigned long, unsigned char *);
+extern void 		wpabs_decode_ipaddr(unsigned long, unsigned char *,int);
 
-extern int 		wpabs_detect_prot_header(unsigned char *,int, char*);
+extern int 		wpabs_detect_prot_header(unsigned char *,int, char*,int);
 extern int		wpabs_net_ratelimit(void);
 extern void 		wpabs_get_random_bytes(void *ptr, int len);
 

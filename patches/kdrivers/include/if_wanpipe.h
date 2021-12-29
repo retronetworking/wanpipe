@@ -150,10 +150,15 @@ enum {
 	SIOC_WANPIPE_SNMP,
 	SIOC_WANPIPE_SNMP_IFSPEED,
 
+#if 0
 	SIOC_WANPIPE_DEVICE,	/* GENERIC */
 	SIOC_WANPIPE_DUMP,	/* GENERIC */
-
+#endif
+	
 	SIOC_WAN_DEVEL_IOCTL,	/* uses wan_cmd_api_t */
+# if defined(CONFIG_PRODUCT_WANPIPE_TDMV_EC)
+	SIOC_WAN_OCT6100_IOCTL,
+#endif
 
 	SIOC_WANAPI_DEVPRIVATE = SIOCDEVPRIVATE + 20,
 
@@ -318,7 +323,7 @@ typedef struct wanpipe_parent
 	unsigned char hdlc_enabled;
 	
 	rwlock_t lock;
-	char time_slots;
+	signed char time_slots;
 	char media;
 	unsigned char seven_bit_hdlc;
 

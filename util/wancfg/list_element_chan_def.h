@@ -95,12 +95,19 @@ public:
     data.chanconf->config_id = PROTOCOL_NOT_SET;
 
     data.chanconf->hdlc_streaming = WANOPT_YES;
-    //for AFT
+    data.chanconf->mtu = 1500;
+    data.chanconf->mc = WANOPT_NO;
+    data.chanconf->true_if_encoding = WANOPT_NO;
+    data.chanconf->if_down = WANOPT_NO;
+
+    //for AFT?? - it may corrupt default values for other protocols?
+    /*
     data.chanconf->u.aft.mtu = 1500;
     data.chanconf->u.aft.mru = 1500;
     data.chanconf->u.aft.idle_flag = 0x7E;
-    data.chanconf->spanno = 1;
-    data.chanconf->spanno = 1;
+    */
+    //data.chanconf->u.aft.tdmv_span_no = 1;//moved to wandev initialization
+    
     //for S514, when running HDLC streaming
     data.chanconf->keepalive_tx_tmr = 10000;
     data.chanconf->keepalive_rx_tmr = 11000;

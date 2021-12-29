@@ -26,6 +26,7 @@
 #include "menu_frame_relay_basic_cfg.h"
 #include "menu_ppp_basic_cfg.h"
 #include "menu_chdlc_basic_cfg.h"
+#include "menu_lapb_basic_cfg.h"
 
 #include "menu_net_interfaces_list.h"
 
@@ -116,7 +117,6 @@ again:
   Debug(DBG_MENU_WAN_CHANNEL_CFG, ("1-st level: chan_def->usedby: %d\n", chandef->usedby));
   Debug(DBG_MENU_WAN_CHANNEL_CFG, ("1-st level: chandef->chanconf->config_id: %d\n",
 			 chandef->chanconf->config_id));
-  //exit(0);
 #endif
 
   next_level_obj_list = (objects_list*)list_element_logical_ch->next_objects_list;
@@ -134,20 +134,29 @@ again:
   }
 
   /////////////////////////////////////////////////////////////////////////////////////
-  Debug(DBG_MENU_WAN_CHANNEL_CFG, ("1. chandef->chanconf->config_id: %d\n",
-			 chandef->chanconf->config_id));
+  Debug(DBG_MENU_WAN_CHANNEL_CFG, ("chandef->chanconf->config_id: %d\n",
+			chandef->chanconf->config_id));
   Debug(DBG_MENU_WAN_CHANNEL_CFG, ("chan_def->usedby: %d\n",
-			  chandef->usedby));
-
-  Debug(DBG_MENU_WAN_CHANNEL_CFG, ("2. chandef->config_id: %d\n",
-        chandef->chanconf->config_id));
+			chandef->usedby));
 
   if(chandef->chanconf->config_id != PROTOCOL_NOT_SET ){
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", CURRENT_PROTOCOL);
     menu_str += tmp_buff;
-    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"[Selected Protocol : %s]\" ",
-      get_protocol_string(chandef->chanconf->config_id));
+
+    if(chandef->chanconf->config_id == WANCONFIG_AFT ||
+       chandef->chanconf->config_id == WANCONFIG_AFT_TE3){
+
+      //if(chandef->chanconf->hdlc_streaming == WANOPT_NO){
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"[Selected Protocol : %s]\" ",
+        "HDLC Streaming");
+      //}
+
+    }else{
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"[Selected Protocol : %s]\" ",
+        get_protocol_string(chandef->chanconf->config_id));
+    }
     menu_str += tmp_buff;
+	    
   }else{
     //go directly to 'change protocol'
     goto select_new_protocol;
@@ -179,6 +188,7 @@ again:
   case WANCONFIG_TTY:
   case WANCONFIG_HDLC:
   case PROTOCOL_TDM_VOICE:
+  case WANCONFIG_AFT:
     //do nothing - there is nothing to configure.
     break;
 	  
@@ -198,7 +208,7 @@ again:
   /////////////////////////////////////////////////////////////////////////////////
   //NOTE!! display 'interface configuration' option only if
   //number of channels in the 'cfr->main_obj_list' is greater than one.
-  //because otherize it is repetition of what can be done in 'menu_new_device_configuration'
+  //because otherwize it is repetition of what can be done in 'menu_new_device_configuration'
   if(obj_list->get_size() > 1){
     switch(chandef->chanconf->config_id)
     {
@@ -243,7 +253,7 @@ again:
                           WANCFG_PROGRAM_NAME,
                           tmp_buff,
                           MENU_HEIGTH, MENU_WIDTH,
-                          (num_of_visible_items > 8 ? 8 : num_of_visible_items),
+                          num_of_visible_items,
                           (char*)menu_str.c_str()
                           ) == NO){
     rc = NO;
@@ -339,6 +349,7 @@ select_new_protocol:
 	  case WANCONFIG_MPPP:
 	  case WANCONFIG_MPCHDLC:
 	  case WANCONFIG_TTY:
+	  case WANCONFIG_LAPB:
 	    linkconf->config_id = WANCONFIG_MPROT;
 	    break;
 	    
@@ -366,6 +377,7 @@ select_new_protocol:
 	  case WANCONFIG_MPPP:
 	  case WANCONFIG_MPCHDLC:
 	  case WANCONFIG_TTY:
+	  case WANCONFIG_LAPB:
 	  case WANCONFIG_HDLC:	    //exception
 	  case PROTOCOL_TDM_VOICE:  //exception
 	    linkconf->config_id = WANCONFIG_AFT;
@@ -494,12 +506,6 @@ int menu_wan_channel_cfg::display_protocol_cfg(IN list_element_chan_def* list_el
     //there must be a LIP layer above for this function to work
     ERR_DBG_OUT(("Invalid 'next_level_obj_list' pointer!\n"));
     return NO;    
-    /*
-    Debug(DBG_MENU_WAN_CHANNEL_CFG, ("next_level_obj_list == NULL\n"));
-    //the same pointer. should never get here.
-    next_level_list_el_chan_def = list_element_logical_ch;
-    chandef = &list_element_logical_ch->data;
-    */
   }
 
   Debug(DBG_MENU_WAN_CHANNEL_CFG, ("chandef->chanconf->config_id: %d\n",
@@ -520,10 +526,7 @@ int menu_wan_channel_cfg::display_protocol_cfg(IN list_element_chan_def* list_el
   case WANCONFIG_MPPP://and WANCONFIG_MPROT too
 ppp_cfg:
     {
-      wan_ppp_conf_t* global_ppp_cfg = &linkconf->u.ppp;//global PPP cfg is at link!!!
-
-      menu_ppp_basic_cfg ppp_basic_cfg(lxdialog_path, list_element_logical_ch, global_ppp_cfg);
-
+      menu_ppp_basic_cfg ppp_basic_cfg(lxdialog_path, list_element_logical_ch);
       ppp_basic_cfg.run(&selection_index);
     }
     break;
@@ -539,6 +542,13 @@ ppp_cfg:
   case WANCONFIG_ADSL:
     tb.show_help_message( lxdialog_path, WANCONFIG_AFT, 
 			  no_configuration_onptions_available_help_str);
+    break;
+    
+  case WANCONFIG_LAPB:
+    {
+      menu_lapb_basic_cfg lapb_basic_cfg(lxdialog_path, list_element_logical_ch);
+      lapb_basic_cfg.run(&selection_index);
+    }
     break;
     
   default:
@@ -561,14 +571,8 @@ int menu_wan_channel_cfg::handle_protocol_change(
 
   chan_def_t* chandef = &list_element_logical_ch->data;
   wanif_conf_t* chanconf = chandef->chanconf;
-#if DBG_FLAG
-  wan_xilinx_conf_if_t* aft_ptr = &chanconf->u.aft;
-#endif
-  wan_sppp_if_conf_t* ppp_chdlc =  &chanconf->u.ppp;//for both PPP and CHDLC, for channel only,
-  wan_ppp_conf_t* global_ppp_cfg = &linkconf->u.ppp;//global PPP cfg is at link!!!
 
   Debug(DBG_MENU_WAN_CHANNEL_CFG, ("handle_protocol_change()\n"));
-
      
   //for protocols which need the LIP layer
   objects_list* next_level_obj_list;
@@ -585,10 +589,20 @@ int menu_wan_channel_cfg::handle_protocol_change(
   }
   //////////////////////////////////////////////////////////////////////////////////////
 	
-  if(linkconf->card_type == WANOPT_ADSL){
-    chandef->chanconf->config_id = WANCONFIG_ADSL;
-  }else{
-    chandef->chanconf->config_id = new_protocol;
+  //for each card type the Hardware Level interface should have
+  //a config_id.
+  switch(linkconf->card_type)
+  {
+  case WANOPT_ADSL:
+    chanconf->config_id = WANCONFIG_ADSL;
+    break;
+  case WANOPT_AFT:
+  case WANOPT_AFT104:
+  case WANOPT_AFT300:
+  case WANOPT_S50X:
+  case WANOPT_S51X:
+    chanconf->config_id = WANCONFIG_HDLC;
+    break;
   }
   
   //initialize firmware to default
@@ -599,6 +613,8 @@ int menu_wan_channel_cfg::handle_protocol_change(
   {
   case WANCONFIG_EDUKIT:
     //no LIP layer	
+    chanconf->config_id = new_protocol;
+    
     chandef->usedby = WANPIPE;
     chanconf->mc = WANOPT_NO;
     chanconf->true_if_encoding = WANOPT_NO;
@@ -614,7 +630,7 @@ int menu_wan_channel_cfg::handle_protocol_change(
     chandef->usedby = WANPIPE;
     //chanconf->hdlc_streaming = WANOPT_YES;//???? - don't do it!! or it may overwrite
     					    //user setting for BitStreaming mode!
-    chanconf->protocol = WANCONFIG_HDLC;
+    chanconf->config_id = WANCONFIG_HDLC;
     chanconf->mtu = 1500;
     chanconf->mc = WANOPT_NO;
     chanconf->true_if_encoding = WANOPT_NO;
@@ -632,7 +648,9 @@ int menu_wan_channel_cfg::handle_protocol_change(
     //no LIP layer	
     chandef->usedby = TDM_VOICE;
     chanconf->hdlc_streaming = WANOPT_YES;
-    chanconf->protocol = WANCONFIG_HDLC;
+    
+    chanconf->config_id = PROTOCOL_TDM_VOICE;//WANCONFIG_HDLC;
+
     chanconf->mtu = 1500;
     chanconf->mc = WANOPT_NO;
     chanconf->true_if_encoding = WANOPT_NO;
@@ -654,18 +672,7 @@ int menu_wan_channel_cfg::handle_protocol_change(
     
     //needs LIP layer
     chandef->usedby = STACK;
-    chanconf->hdlc_streaming = WANOPT_YES;
-    chanconf->protocol = WANCONFIG_MPPP;
-    chanconf->mtu = 1500;
-    chanconf->mc = WANOPT_NO;
-    chanconf->true_if_encoding = WANOPT_NO;
-    chanconf->if_down = WANOPT_NO;
-
-    ppp_chdlc->pap = WANOPT_NO;
-    ppp_chdlc->chap = WANOPT_NO;
-
-    global_ppp_cfg->ip_mode = WANOPT_PPP_STATIC;
-
+    
     list_element_logical_ch->next_objects_list = new objects_list();
     
     //create the one and only PPP interface insert it into the list
@@ -678,12 +685,6 @@ int menu_wan_channel_cfg::handle_protocol_change(
   case WANCONFIG_MFR:
     //needs LIP layer
     chandef->usedby = STACK;
-    chanconf->hdlc_streaming = WANOPT_YES;
-    chanconf->protocol = WANCONFIG_MFR;
-    chanconf->mtu = 1500;
-    chanconf->mc = WANOPT_NO;
-    chanconf->true_if_encoding = WANOPT_NO;
-    chanconf->if_down = WANOPT_NO;
     
     list_element_logical_ch->next_objects_list = new objects_list();
     
@@ -699,13 +700,7 @@ int menu_wan_channel_cfg::handle_protocol_change(
   case WANCONFIG_MPCHDLC:
     //needs LIP layer
     chandef->usedby = STACK;
-    chanconf->hdlc_streaming = WANOPT_YES;
-    chanconf->protocol = WANCONFIG_MPCHDLC;
-    chanconf->mtu = 1500;
-    chanconf->mc = WANOPT_NO;
-    chanconf->true_if_encoding = WANOPT_NO;
-    chanconf->if_down = WANOPT_NO;
-    
+
     list_element_logical_ch->next_objects_list = new objects_list();
     
     //create the interface and insert it into the list
@@ -715,18 +710,25 @@ int menu_wan_channel_cfg::handle_protocol_change(
 					      1);
     break;
 
+  case WANCONFIG_LAPB:
+    //needs LIP layer
+    chandef->usedby = STACK;
+
+    list_element_logical_ch->next_objects_list = new objects_list();
+    
+    //create the interface and insert it into the list
+    adjust_number_of_logical_channels_in_list(WANCONFIG_LAPB,
+					      list_element_logical_ch->next_objects_list,
+					      list_element_logical_ch->data.name,
+					      1);
+	  
+    break;
+    
   case WANCONFIG_TTY:
     Debug(DBG_MENU_WAN_CHANNEL_CFG, ("WANCONFIG_TTY is the new protocol\n"));
-    //exit(0);
     
     //needs LIP layer
     chandef->usedby = STACK;
-    chanconf->hdlc_streaming = WANOPT_YES;
-    chanconf->protocol = WANOPT_NONE;
-    chanconf->mtu = 1500;
-    chanconf->mc = WANOPT_NO;
-    chanconf->true_if_encoding = WANOPT_NO;
-    chanconf->if_down = WANOPT_NO;
 
     list_element_logical_ch->next_objects_list = new objects_list();
     
@@ -744,8 +746,6 @@ int menu_wan_channel_cfg::handle_protocol_change(
     //no LIP layer	
     chandef->usedby = WANPIPE;
     chanconf->hdlc_streaming = WANOPT_YES;
-    //chanconf->protocol = WANCONFIG_ADSL;
-    chanconf->protocol = WANOPT_NONE;
     chanconf->mtu = 1500;
     chanconf->mc = WANOPT_NO;
     chanconf->true_if_encoding = WANOPT_NO;

@@ -445,7 +445,7 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 	}
 	
 	/* TE1 Make special hardware initialization for T1/E1 board */
-	if (IS_TE1_MEDIA(conf->fe_cfg.media)){
+	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;
@@ -462,7 +462,7 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 			conf->clocking = WANOPT_EXTERNAL;
 		}
 
-	}else if (IS_56K_MEDIA(conf->fe_cfg.media)){
+	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;
@@ -586,7 +586,6 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 
 	/* Setup the Port MTU */
 	if((port_num == WANOPT_PRI) || card->u.c.receive_only) {
-
 		/* For Primary Port 0 */
 		card->wandev.mtu =
 			(conf->mtu >= MIN_LGTH_CHDLC_DATA_CFG) ?
@@ -615,9 +614,11 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
  	 */
 	mb1->wan_data_len = 0;
 	mb1->wan_command = READ_CHDLC_CONFIGURATION;
+
 	err = card->hw_iface.cmd(card->hw, card->mbox_off, mb1);
 	if(err != COMMAND_OK) {
-                if(card->type != SDLA_S514)
+                
+		if(card->type != SDLA_S514)
                 	enable_irq(card->wandev.irq);
 
 		chdlc_error(card, err, mb1);
@@ -1053,6 +1054,11 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		printk(KERN_INFO "%s: Interface %s is set as a gateway.\n",
 			card->devname,chdlc_priv_area->if_name);
 	}
+
+	if (conf->single_tx_buf) {
+		DEBUG_EVENT("%s: Enabling Single Tx Buffer \n",chdlc_priv_area->if_name);
+		card->u.c.protocol_options|=SINGLE_TX_BUFFER;
+	}    
 
 	/* Get Multicast Information */
 	chdlc_priv_area->mc = conf->mc;
@@ -3360,9 +3366,8 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 			break;
 
 		case SIOC_WANPIPE_PIPEMON: 
-
+	
 			NET_ADMIN_CHECK();
-
 			
 			if (atomic_read(&chan->udp_pkt_len) != 0){
 				return -EBUSY;
@@ -4839,6 +4844,25 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 	
 
 	if (card->u.c.async_mode){
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+		unsigned char *buf;
+		struct sk_buff *skb;      
+    		
+		if (len > TTY_CHDLC_MAX_MTU){
+			if (net_ratelimit()){
+				printk(KERN_INFO 
+				"%s: Received packet size too big: %i bytes, Max: %i!\n",
+					card->devname,len,TTY_FLIPBUF_SIZE);
+			}
+			return;
+		}
+		
+		skb=skb_dequeue(&card->tty_rx_empty);
+		if (skb == NULL){
+			return;
+		}      
+#else		
 		if ((tty->flip.count+len) >= TTY_FLIPBUF_SIZE){
 			if (net_ratelimit()){
 				printk(KERN_INFO 
@@ -4848,23 +4872,46 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 			return;
 		}
 
-		
+#endif
 		if((addr + len) > card->u.c.rx_top_off + 1) {
 			offset = card->u.c.rx_top_off - addr + 1;
 			
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+                        buf=skb_put(skb,offset);
+			card->hw_iface.peek(card->hw, addr, buf, offset);  
+
+			addr = card->u.c.rx_base_off;
+			len -= offset;
+
+			tty_insert_flip_string(tty,buf,offset);
+			
+#else			
 			card->hw_iface.peek(card->hw, addr, tty->flip.char_buf_ptr, offset);
 			
 			addr = card->u.c.rx_base_off;
 			len -= offset;
 			
+
 			tty->flip.char_buf_ptr+=offset;
 			tty->flip.count+=offset;
 			for (i=0;i<offset;i++){
 				*tty->flip.flag_buf_ptr = 0;
 				tty->flip.flag_buf_ptr++;
 			}
+#endif
 		}
 		
+		
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+                buf=skb_put(skb,len);
+		card->hw_iface.peek(card->hw, addr, buf, len);
+		
+		tty_insert_flip_string(tty,buf,len);
+
+		skb_trim(skb,0);
+		skb_queue_tail(&card->tty_rx_empty,skb);
+#else		
 		card->hw_iface.peek(card->hw, addr, tty->flip.char_buf_ptr, len);
 		
 		tty->flip.char_buf_ptr+=len;
@@ -4873,9 +4920,9 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 			*tty->flip.flag_buf_ptr = 0;
 			tty->flip.flag_buf_ptr++;
 		}
-
+#endif
 		tty->low_latency=1;
-		tty_flip_buffer_push(tty);
+		tty_flip_buffer_push(tty); 
 	}else{
 		if (len > TTY_CHDLC_MAX_MTU){
 			if (net_ratelimit()){

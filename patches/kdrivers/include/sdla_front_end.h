@@ -50,47 +50,83 @@
 #define WAN_FE_SET_LB_MODE	(WAN_FE_UDP_CMD_START + 1)
 #define WAN_FE_FLUSH_PMON	(WAN_FE_UDP_CMD_START + 2)
 #define WAN_FE_GET_CFG		(WAN_FE_UDP_CMD_START + 3)
+#define WAN_FE_SET_DEBUG_MODE	(WAN_FE_UDP_CMD_START + 4)
+#define WAN_FE_TX_MODE		(WAN_FE_UDP_CMD_START + 5)
 
-#define IS_T1_MEDIA(media)	((media) == WAN_MEDIA_T1)
-#define IS_E1_MEDIA(media)	((media) == WAN_MEDIA_E1)
-#define IS_J1_MEDIA(media)	((media) == WAN_MEDIA_J1)
-#define IS_TE1_MEDIA(media)	((media) == WAN_MEDIA_T1 ||	\
-	       			 (media) == WAN_MEDIA_E1 ||	\
-			       	 (media) == WAN_MEDIA_J1)
-#define IS_56K_MEDIA(media)	((media) == WAN_MEDIA_56K)
-#define IS_TE1_56K_MEDIA(media)	((media) == WAN_MEDIA_T1 || 	\
-				 (media) == WAN_MEDIA_E1 ||	\
-				 (media) == WAN_MEDIA_J1 ||	\
-				 (media) == WAN_MEDIA_56K)
-#define IS_DS3_MEDIA(media)	((media) == WAN_MEDIA_DS3)
-#define IS_E3_MEDIA(media)	((media) == WAN_MEDIA_E3)
+/* Front-End DEBUG flags */
+#define WAN_FE_DEBUG_RBS_RX_ENABLE	0x01
+#define WAN_FE_DEBUG_RBS_TX_ENABLE	0x02
+#define WAN_FE_DEBUG_RBS_RX_DISABLE	0x04
+#define WAN_FE_DEBUG_RBS_TX_DISABLE	0x08
+#define WAN_FE_DEBUG_RBS_READ		0x10
 
-#define IS_TE1_56K(te_cfg)	((te_cfg).media == WAN_MEDIA_T1 || \
-				 (te_cfg).media == WAN_MEDIA_E1 || \
-				 (te_cfg).media == WAN_MEDIA_J1 || \
-				 (te_cfg).media == WAN_MEDIA_56K)?1:0
+#define WAN_FE_DEBUG_ALARM_AIS_ENABLE	0x01
+#define WAN_FE_DEBUG_ALARM_AIS_DISABLE	0x02
 
-#define MEDIA_DECODE(media)	((media) == WAN_MEDIA_T1) ? "T1" :	\
-				((media) == WAN_MEDIA_E1) ? "E1" : 	\
-				((media) == WAN_MEDIA_J1) ? "J1" : 	\
-				((media) == WAN_MEDIA_56K) ? "56K" : 	\
-				((media) == WAN_MEDIA_DS3) ? "DS3" : 	\
-				((media) == WAN_MEDIA_E3) ? "E3" : "Unknown"
+#define WAN_FE_DEBUG_NONE	0x00
+#define WAN_FE_DEBUG_RBS	0x01
+#define WAN_FE_DEBUG_ALARM	0x02
 
-#define LCODE_DECODE(lcode)	((lcode) == WAN_LCODE_AMI)  ? "AMI" :	\
-				((lcode) == WAN_LCODE_B8ZS) ? "B8ZS" :	\
-				((lcode) == WAN_LCODE_HDB3) ? "HDB3" : 	\
-				((lcode) == WAN_LCODE_B3ZS) ? "B3ZS" : "Unknown"
+/* Front-End TX tri-state mode flags */
+#define WAN_FE_TXMODE_ENABLE	0x01
+#define WAN_FE_TXMODE_DISABLE	0x02
 
-#define FRAME_DECODE(frame)	((frame) == WAN_FR_ESF)		? "ESF"  : \
-				((frame) == WAN_FR_D4) 		? "D4"   : \
-				((frame) == WAN_FR_CRC4)	? "CRC4" : \
-				((frame) == WAN_FR_NCRC4)	? "non-CRC4" :	\
-				((frame) == WAN_FR_UNFRAMED)	? "Unframed" : 	\
-				((frame) == WAN_FR_E3_G751)	? "G.751" : 	\
-				((frame) == WAN_FR_E3_G832)	? "G.832" : 	\
-				((frame) == WAN_FR_DS3_Cbit)	? "C-bit" : 	\
-				((frame) == WAN_FR_DS3_M13)	? "M13" : "Unknown"
+/* Read alarm flag */
+#define WAN_FE_ALARM_NONE	0x00
+#define WAN_FE_ALARM_READ	0x01
+#define WAN_FE_ALARM_PRINT	0x02
+#define IS_FE_ALARM_READ(action)	((action) & WAN_FE_ALARM_READ)
+#define IS_FE_ALARM_PRINT(action)	((action) & WAN_FE_ALARM_PRINT)
+
+#define FE_MEDIA(fe_cfg)	((fe_cfg)->media)
+#define FE_SUBMEDIA(fe_cfg)	((fe_cfg)->sub_media)
+#define FE_LCODE(fe_cfg)	((fe_cfg)->lcode)
+#define FE_FRAME(fe_cfg)	((fe_cfg)->frame)
+#define FE_LINENO(fe_cfg)	((fe_cfg)->line_no)
+#define FE_TXTRISTATE(fe_cfg)	((fe_cfg)->tx_tristate_mode)
+
+#define IS_T1_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_T1)
+#define IS_E1_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_E1)
+#define IS_J1_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_T1 &&	\
+				FE_SUBMEDIA(fe_cfg) == WAN_MEDIA_J1)
+#define IS_TE1_MEDIA(fe_cfg)	(IS_T1_MEDIA(fe_cfg) ||	\
+	       			 IS_E1_MEDIA(fe_cfg) || 	\
+				 IS_J1_MEDIA(fe_cfg))
+#define IS_56K_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_56K)
+#define IS_TE1_56K_MEDIA(fe_cfg)(IS_TE1_MEDIA(fe_cfg) || 	\
+				 IS_56K_MEDIA(fe_cfg)
+#define IS_DS3_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_DS3)
+#define IS_E3_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_E3)
+
+#define IS_TXTRISTATE(fe_cfg)	(FE_TXTRISTATE(fe_cfg) == WANOPT_YES)
+
+#define MEDIA_DECODE(fe_cfg)					\
+		(FE_MEDIA(fe_cfg) == WAN_MEDIA_T1 &&		\
+		 	FE_SUBMEDIA(fe_cfg)==WAN_MEDIA_J1)?"J1" :\
+		(FE_MEDIA(fe_cfg) == WAN_MEDIA_T1) ? "T1" :	\
+		(FE_MEDIA(fe_cfg) == WAN_MEDIA_E1) ? "E1" : 	\
+		(FE_MEDIA(fe_cfg) == WAN_MEDIA_J1) ? "J1" : 	\
+		(FE_MEDIA(fe_cfg) == WAN_MEDIA_56K) ? "56K" : 	\
+		(FE_MEDIA(fe_cfg) == WAN_MEDIA_DS3) ? "DS3" : 	\
+		(FE_MEDIA(fe_cfg) == WAN_MEDIA_E3) ? "E3" : "Unknown"
+
+#define LCODE_DECODE(fe_cfg)					\
+		(FE_LCODE(fe_cfg) == WAN_LCODE_AMI)  ? "AMI" :	\
+		(FE_LCODE(fe_cfg) == WAN_LCODE_B8ZS) ? "B8ZS" :	\
+		(FE_LCODE(fe_cfg) == WAN_LCODE_HDB3) ? "HDB3" :	\
+		(FE_LCODE(fe_cfg) == WAN_LCODE_B3ZS) ? "B3ZS" : "Unknown"
+
+#define FRAME_DECODE(fe_cfg)					\
+		(FE_FRAME(fe_cfg) == WAN_FR_ESF)	? "ESF"  : 	\
+		(FE_FRAME(fe_cfg) == WAN_FR_D4) 	? "D4"   : 	\
+		(FE_FRAME(fe_cfg) == WAN_FR_CRC4)	? "CRC4" : 	\
+		(FE_FRAME(fe_cfg) == WAN_FR_NCRC4)	? "non-CRC4" :	\
+		(FE_FRAME(fe_cfg) == WAN_FR_UNFRAMED)	? "Unframed" : 	\
+		(FE_FRAME(fe_cfg) == WAN_FR_E3_G751)	? "G.751" : 	\
+		(FE_FRAME(fe_cfg) == WAN_FR_E3_G832)	? "G.832" : 	\
+		(FE_FRAME(fe_cfg) == WAN_FR_DS3_Cbit)	? "C-bit" : 	\
+		(FE_FRAME(fe_cfg) == WAN_FR_DS3_M13)	? "M13" : "Unknown"
+
 
 
 /* front-end configuration and access interface commands */
@@ -106,6 +142,7 @@ typedef struct {
 	unsigned char	lcode;
 	unsigned char	frame;
 	unsigned int	line_no;
+	unsigned char	tx_tristate_mode;
 	union {
 		sdla_te_cfg_t	te_cfg;
 		sdla_te3_cfg_t	te3_cfg;
@@ -128,6 +165,23 @@ typedef struct {
 
 #define WAN_FECALL(dev, func, x)					\
 	((dev)->fe_iface.func) ? (dev)->fe_iface.func x : -EINVAL
+
+#define IS_T1_FEMEDIA(fe)	IS_T1_MEDIA(&((fe)->fe_cfg))
+#define IS_E1_FEMEDIA(fe)	IS_E1_MEDIA(&((fe)->fe_cfg))
+#define IS_TE1_FEMEDIA(fe)	IS_TE1_MEDIA(&((fe)->fe_cfg))
+#define IS_56K_FEMEDIA(fe)	IS_56K_MEDIA(&((fe)->fe_cfg))
+#define IS_J1_FEMEDIA(fe)	IS_J1_MEDIA(&((fe)->fe_cfg))
+#define IS_FE_TXTRISTATE(fe)	IS_TXTRISTATE(&((fe)->fe_cfg))
+
+#define WAN_FE_MEDIA(fe)	FE_MEDIA(&((fe)->fe_cfg))
+#define WAN_FE_LCODE(fe)	FE_LCODE(&((fe)->fe_cfg))
+#define WAN_FE_FRAME(fe)	FE_FRAME(&((fe)->fe_cfg))
+#define WAN_FE_LINENO(fe)	FE_LINENO(&((fe)->fe_cfg))
+#define WAN_FE_TXTRISTATE(fe)	FE_TXTRISTATE(&((fe)->fe_cfg))
+
+#define FE_MEDIA_DECODE(fe)	MEDIA_DECODE(&((fe)->fe_cfg))
+#define FE_LCODE_DECODE(fe)	LCODE_DECODE(&((fe)->fe_cfg))
+#define FE_FRAME_DECODE(fe)	FRAME_DECODE(&((fe)->fe_cfg))
 
 /* Front-End status */
 #if 0
@@ -178,14 +232,27 @@ enum fe_status {
 #define READ_REG(reg)		card->wandev.read_front_end_reg(card, reg)
 #define WRITE_REG(reg, value)	card->wandev.write_front_end_reg(card, reg, (unsigned char)(value))
 #endif
-#define WRITE_REG(reg,val)					\
-		fe->write_fe_reg(fe->card, reg + (fe->fe_cfg.line_no*PMC4_LINE_DELTA), (unsigned char)val) 
-#define WRITE_REG_LINE(fe_line_no, reg,val)					\
-		fe->write_fe_reg(fe->card, reg + fe_line_no*PMC4_LINE_DELTA, (unsigned char)val) 
-#define READ_REG(reg)						\
-		fe->read_fe_reg(fe->card, reg + (fe->fe_cfg.line_no*PMC4_LINE_DELTA))
-#define READ_REG_LINE(fe_line_no, reg)						\
-		fe->read_fe_reg(fe->card, reg + fe_line_no*PMC4_LINE_DELTA)
+#define WRITE_REG(reg,val)						\
+	fe->write_fe_reg(						\
+		fe->card,						\
+		(unsigned short)((reg) + (fe->fe_cfg.line_no*PMC4_LINE_DELTA)),	\
+		(unsigned char)(val))
+
+#define WRITE_REG_LINE(fe_line_no, reg,val)				\
+	fe->write_fe_reg(						\
+		fe->card,						\
+		(unsigned short)((reg) + (fe_line_no)*PMC4_LINE_DELTA),	\
+		(unsigned char)(val))
+	
+#define READ_REG(reg)							\
+	fe->read_fe_reg(						\
+		fe->card,						\
+		(unsigned short)((reg) + (fe->fe_cfg.line_no*PMC4_LINE_DELTA)))
+	
+#define READ_REG_LINE(fe_line_no, reg)					\
+	fe->read_fe_reg(						\
+		fe->card,						\
+		(unsigned short)((reg) + (fe_line_no)*PMC4_LINE_DELTA))
 
 /* the structure used for the SET_FE_RX_DISC_TX_IDLE_CFG/READ_FE_RX_DISC_TX_IDLE_CFG command */
 #pragma pack(1)
@@ -274,6 +341,8 @@ typedef struct {
 	/* FIXME: Remove the following parameters from wandev_t */
 	unsigned char	fe_status;
 	unsigned long	fe_alarm;
+	unsigned char	fe_chip_id;
+	unsigned char	fe_debug;
 	/* ^^^ */
 	union {
 		sdla_te_param_t		te_param;
@@ -314,13 +383,13 @@ typedef struct {
 	int		(*polling)(sdla_fe_t *fe);
 	int		(*isr)(sdla_fe_t *fe);
 	int		(*process_udp)(sdla_fe_t *fe, void*, unsigned char*);
-	unsigned long	(*read_alarm)(sdla_fe_t *fe, int);
+ 	unsigned long	(*read_alarm)(sdla_fe_t *fe, int);
 	int		(*read_pmon)(sdla_fe_t *fe);
 	int		(*flush_pmon)(sdla_fe_t *fe);
 	/* Set Front-End alarm (T1/E1) */
 	int		(*set_fe_alarm)(sdla_fe_t *fe, unsigned long);
 	/* Set extra interrupt type (after link get connected)) */
-	int		(*set_fe_sigcfg)(sdla_fe_t*, unsigned long);
+	int		(*set_fe_sigctrl)(sdla_fe_t*, int);
 	/* Print Front-End alarm (T1/E1/56K) */
 	char*		(*print_fe_act_channels)(sdla_fe_t*);
 	/* Print Front-End alarm (T1/E1/56K) */
@@ -339,14 +408,24 @@ typedef struct {
 	int		(*update_pmon_info)(sdla_fe_t*, struct seq_file* m, int* stop_cnt);
 	/* AFT T1/E1 cards only */
 	int		(*led_ctrl)(sdla_fe_t*, int mode);
+	/* Check RBS bits (T1/E1 cards) */
+	int		(*check_rbsbits)(sdla_fe_t*, int, unsigned long, int);
 	/* Read RBS bits (T1/E1 cards) */
-	int		(*read_rbsbits)(sdla_fe_t*, int);
+	unsigned char	(*read_rbsbits)(sdla_fe_t*, int, int);
 	/* Set RBS bits (T1/E1 cards, voice) */
 	int		(*set_rbsbits)(sdla_fe_t*, int, unsigned char);
+	/* Report RBS bits (T1/E1 cards) */
+	int		(*report_rbsbits)(sdla_fe_t*);
 	/* Get Front-End SNMP data */
 	int		(*get_snmp_data)(sdla_fe_t*, void*, void*);
 	/* Check if the interrupt is for this port */
 	int		(*check_isr)(sdla_fe_t *fe);
+#if defined(__WINDOWS__)
+	/* Enable TE1 poll timer (WINDOWS ONLY) */
+	void		(*enable_timer)(sdla_fe_t*, unsigned char, unsigned long);
+#endif
+	/* Set extra T1/E1 configuration */
+	int		(*post_config)(sdla_fe_t*);
 } sdla_fe_iface_t;
 
 #endif	/* WAN_KERNEL */

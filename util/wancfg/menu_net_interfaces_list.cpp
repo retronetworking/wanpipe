@@ -100,9 +100,8 @@ again:
   menu_str = "";
   protocol = chandef->chanconf->config_id;
     
-  Debug(DBG_MENU_NET_INTERFACES_LIST,
-      ("chandef->chanconf->config_id: %d, chandef->chanconf->protocol: %d\n",
-      chandef->chanconf->config_id, chandef->chanconf->protocol));
+  Debug(DBG_MENU_NET_INTERFACES_LIST, ("chandef->chanconf->config_id: %d\n",
+      chandef->chanconf->config_id));
     
   Debug(DBG_MENU_NET_INTERFACES_LIST, ("next_level_list_el_chan_def->data.addr: %s\n",
       next_level_list_el_chan_def->data.addr));

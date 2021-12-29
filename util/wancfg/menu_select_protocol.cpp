@@ -155,6 +155,12 @@ int menu_select_protocol::form_protocol_list_valid_for_lip_layer(OUT string& men
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_TTY));
   menu_str += tmp_buff;
   num_of_items++;
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_LAPB);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_LAPB));
+  menu_str += tmp_buff;
+  num_of_items++;
 #endif
 
   return num_of_items;
@@ -169,9 +175,6 @@ int menu_select_protocol::form_protocol_list_valid_for_hardware(string& menu_str
   int num_of_items = 0;
   char tmp_buff[MAX_PATH_LENGTH];
 
-  if(card_type != WANOPT_ADSL){ 
-    num_of_items += form_protocol_list_valid_for_lip_layer(menu_str);
-  }
  
   switch(card_type)
   {
@@ -215,17 +218,18 @@ int menu_select_protocol::form_protocol_list_valid_for_hardware(string& menu_str
     {
     case A101_ADPTR_1TE1://WAN_MEDIA_T1:
     case A104_ADPTR_4TE1:
+      //the 'TDM_VOICE' should be displayed as protocol, not 'operational mode'
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", PROTOCOL_TDM_VOICE);
+      menu_str += tmp_buff;
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(PROTOCOL_TDM_VOICE));
+      menu_str += tmp_buff;
+
 #if defined(__LINUX__) && !BSD_DEBG
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_HDLC);
       menu_str += tmp_buff;
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_HDLC));
       menu_str += tmp_buff;
 #endif
-      //the 'TDM_VOICE' should be displayed as protocol, not 'operational mode'
-      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", PROTOCOL_TDM_VOICE);
-      menu_str += tmp_buff;
-      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(PROTOCOL_TDM_VOICE));
-      menu_str += tmp_buff;
            
       num_of_items += 2;
       break;
@@ -245,6 +249,10 @@ int menu_select_protocol::form_protocol_list_valid_for_hardware(string& menu_str
     
   default:
     ERR_DBG_OUT(("Invalid card type: %d!\n", card_type));
+  }
+
+  if(card_type != WANOPT_ADSL){ 
+    num_of_items += form_protocol_list_valid_for_lip_layer(menu_str);
   }
 
   return num_of_items;

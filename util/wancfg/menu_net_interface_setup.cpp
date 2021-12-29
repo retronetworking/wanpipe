@@ -19,11 +19,14 @@
 #include "text_box_help.h"
 #include "input_box.h"
 #include "text_box_yes_no.h"
+#include "conf_file_reader.h"
 
 #include "net_interface_file_reader.h"
 #include "menu_net_interface_ip_configuration.h"
 #include "menu_net_interface_operation_mode.h"
 #include "menu_net_interface_miscellaneous_options.h"
+
+#include "menu_wan_channel_cfg_v1.h"
 
 enum NET_IF_OPTIONS{
   IF_NAME,
@@ -33,7 +36,9 @@ enum NET_IF_OPTIONS{
   TTY_MINOR_NUMBER,
   EMPTY_LINE,
   TDMV_SPAN_NUMBER,
-  TDMV_ECHO_OPTIONS
+  TDMV_ECHO_OPTIONS,
+  TDMV_D_CHANNEL,
+  CONFIGURE_NEXT_LEVEL
 };
 
 char* net_if_name_help_str =
@@ -119,6 +124,33 @@ char* net_if_miscellaneous_help_str =
 "6. True Encoding option\n";
 
 
+char* net_if_tdmv_dchan_help_str =
+"TDMV DCHAN PRI HDLC OPTIONS:\n"
+"---------------------------\n"
+"\n"
+"   The DCHAN TDMV PRI HDLC option enables the\n"
+"HARDWARE HDLC engine for a particular PRI\n"
+"timeslot. (A104 Option Only)\n"
+"\n"
+"  If enabled, WANPIPE AFT card will encode/decode\n"
+"              HDLC pri frames in HARDWARE and tx/rx\n"
+"              hdlc frames to and from Zaptel.\n"
+"\n"
+"  If disabled,WANPIPE will pass raw pri bits to\n"
+"              ZAPTEL HDLC engine for encoding/decoding.\n"
+"\n"
+"Options:  [0, 1-31]\n"
+"\n"
+"PRI Timeslot:  0    : Hardware HDLC Disabled.\n"
+"                      Use Zaptel HDLC engine to encode\n"
+"                      decode pri frames\n"
+"         T1    1-24 : Hardware HDLC Enabled on\n"
+"                      particular timeslot 1 to 24\n"
+"		       Default: 24\n"
+"         E1    1-31 : Hardware HDLC Enabled on\n"
+"                      particular timeslot 1 to 31\n"
+"		       Default: 16\n\n";
+
 
 #define DBG_MENU_NET_INTERFACE_SETUP 1
 
@@ -151,6 +183,10 @@ int menu_net_interface_setup::run(OUT int * selection_index)
   net_interface_file_reader* interface_file_reader = NULL;
   chan_def_t* chandef;
 
+  conf_file_reader* local_cfr = (conf_file_reader*)global_conf_file_reader_ptr;
+  wan_xilinx_conf_t* wan_xilinx_conf = &local_cfr->link_defs->linkconf->u.aft;
+  sdla_fe_cfg_t*  fe_cfg = &local_cfr->link_defs->linkconf->fe_cfg;
+ 
   //help text box
   text_box tb;
 
@@ -218,9 +254,9 @@ again:
 
     //check what was in the parsed file:
     if(interface_file_reader->if_config.gateway[0] != '\0'){
-      chandef->chanconf->gateway = 1;
+      chandef->chanconf->gateway = WANOPT_YES;
     }else{
-      chandef->chanconf->gateway = 0;
+      chandef->chanconf->gateway = WANOPT_NO;
     }
   
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", IP_SETUP);
@@ -247,7 +283,8 @@ again:
   case TDM_VOICE:
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_SPAN_NUMBER);
     menu_str += tmp_buff;
-    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM Voice Span-----------------> %d\" ", chandef->chanconf->spanno);
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM Voice Span-----------------> %d\" ", 
+		    wan_xilinx_conf->tdmv_span_no);
     menu_str += tmp_buff;
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_ECHO_OPTIONS);
@@ -255,8 +292,28 @@ again:
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Override Asterisk Echo Enable -> %s\" ",
 	(chandef->chanconf->tdmv_echo_off == WANOPT_YES ? "Yes" : "No"));
     menu_str += tmp_buff;
+
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_D_CHANNEL);
+    menu_str += tmp_buff;
+    
+    if(wan_xilinx_conf->tdmv_dchan != 0){
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM PRI HW-HDLC Timeslot-------> %d\" ", 
+		    wan_xilinx_conf->tdmv_dchan);
+    }else{
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM PRI HW-HDLC Timeslot-------> %d Not Used\" ", 
+		    wan_xilinx_conf->tdmv_dchan);
+    }
+    menu_str += tmp_buff;
+   
     break;
-  
+ 
+  case STACK:
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", CONFIGURE_NEXT_LEVEL);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Configure Protocol above STACK interface\" ");
+    menu_str += tmp_buff;
+    break;
+
   default:
     break;
   }
@@ -463,7 +520,9 @@ show_tty_minor_no_input_box:
       //number 1 and greater
       int tdm_spanno;
       snprintf(explanation_text, MAX_PATH_LENGTH, "TDM Voice Span Number (1 and greater)");
-      snprintf(initial_text, MAX_PATH_LENGTH, "%d", chandef->chanconf->spanno);
+      snprintf(initial_text, MAX_PATH_LENGTH, "%d", 
+		      local_cfr->wanpipe_number);//suggest span number to be the same as wanpipe number
+//		      wan_xilinx_conf->tdmv_span_no);
 
 show_tdm_spanno_input_box:
       inb.set_configuration(  lxdialog_path,
@@ -489,7 +548,7 @@ show_tdm_spanno_input_box:
                                 "Invalid TDMV Span Number. Min: 1");
           goto show_tdm_spanno_input_box;
         }else{
-          chandef->chanconf->spanno = tdm_spanno;
+          wan_xilinx_conf->tdmv_span_no = tdm_spanno;
         }
         break;
 
@@ -501,6 +560,67 @@ show_tdm_spanno_input_box:
       }//switch(*selection_index)
       break;
 
+    case TDMV_D_CHANNEL:
+      //0 - disabled,
+      //T1 - 1-24, 24 is default
+      //E1 - 1-31, 16 is default
+      int tdm_dchan;
+      snprintf(explanation_text, MAX_PATH_LENGTH, "PRI Timeslot (set to 0 to disable)");
+      snprintf(initial_text, MAX_PATH_LENGTH, "%d", wan_xilinx_conf->tdmv_dchan);
+
+show_tdm_dchan_input_box:
+      inb.set_configuration(  lxdialog_path,
+                              backtitle,
+                              explanation_text,
+                              INPUT_BOX_HIGTH,
+                              INPUT_BOX_WIDTH,
+                              initial_text);
+
+      inb.show(selection_index);
+
+      switch(*selection_index)
+      {
+      case INPUT_BOX_BUTTON_OK:
+        Debug(DBG_MENU_NET_INTERFACE_SETUP,
+          ("dchan on return: %s\n", inb.get_lxdialog_output_string()));
+
+        tdm_dchan = atoi(remove_spaces_in_int_string(inb.get_lxdialog_output_string()));
+
+	switch(fe_cfg->media)
+	{
+        case WAN_MEDIA_T1:
+          if(tdm_dchan < 0 || tdm_dchan > 24){
+
+            tb.show_error_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+                                  "Invalid PRI Timeslot. Maximum value: 24");
+            goto show_tdm_dchan_input_box;
+          }
+	  break;
+
+        case WAN_MEDIA_E1:
+          if(tdm_dchan < 0 || tdm_dchan > 31){
+
+            tb.show_error_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+                                  "Invalid PRI Timeslot. Maximum value: 31");
+            goto show_tdm_dchan_input_box;
+          }
+	  break;
+
+	}
+	wan_xilinx_conf->tdmv_dchan = tdm_dchan;
+        break;
+
+      case INPUT_BOX_BUTTON_HELP:
+
+        tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+          "Enter PRI Hardware-HDLC Timeslot Number.\n"
+"0 - to disable Harware HDLC,\n"
+"T1 - 1-24, 24 is default\n"
+"E1 - 1-31, 16 is default");
+        goto show_tdm_dchan_input_box;
+      }//switch(*selection_index) 
+      break;
+	
     case TDMV_ECHO_OPTIONS:
       snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s Echo Cancel option?",
 	(chandef->chanconf->tdmv_echo_off == WANOPT_NO ? "Enable" : "Disable"));
@@ -538,6 +658,21 @@ show_tdm_spanno_input_box:
       }
       break;
 
+    case CONFIGURE_NEXT_LEVEL:
+     {	//for single 'channels group' case
+	menu_wan_channel_cfg_v1 per_wan_channel_cfg_v1( lxdialog_path,
+						        list_element_logical_ch);
+
+        rc = per_wan_channel_cfg_v1.run( ((conf_file_reader*)global_conf_file_reader_ptr)->wanpipe_number,
+		       selection_index, 
+		       1);
+		       //obj_list->get_size());
+        //if(rc == YES){
+        //  goto again;
+        //}
+      }	
+      break;
+
     case EMPTY_LINE:
       break;
       
@@ -569,6 +704,10 @@ show_tdm_spanno_input_box:
       tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, net_if_miscellaneous_help_str);
       break;
 
+    case TDMV_D_CHANNEL:
+      tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, net_if_tdmv_dchan_help_str);
+      break;
+      
     default:
       tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, option_not_implemented_yet_help_str);
     }

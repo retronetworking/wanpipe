@@ -11,9 +11,9 @@ OS_TYPE	= _LINUX_
 DEBUG	= 2
 
 # Project file paths.
-SYSINC = /usr/src/linux/include
+SYSINC = /usr/include
 
-HOSTCFLAGS=-I/usr/src/linux/include 
+HOSTCFLAGS=-I/usr/include
 ifeq (/usr/include/ncurses/ncurses.h, $(wildcard /usr/include/ncurses/ncurses.h))
         HOSTCFLAGS += -I/usr/include/ncurses
 else

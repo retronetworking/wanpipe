@@ -777,7 +777,7 @@ static void handle_rx_data(sdla_t* card, TX_RX_DATA* rx_data)
         skb->mac.raw  = skb->data;
         netif_rx(skb);
 rx_exit:
-	
+	return;
 }
 
 
@@ -839,7 +839,7 @@ static void DoIoctl(sdla_t *card)
 	case SDLA_CMD_STOP_S514:
 		DEBUG_IOCTL("SDLA_CMD_STOP_S514\n");
 
-		ioctl_cmd->return_code = card->hw_iface.halt(card->hw);
+		ioctl_cmd->return_code = card->hw_iface.hw_halt(card->hw);
 		break;
 	
 	case SDLA_CMD_IS_TX_DATA_AVAILABLE:

@@ -21,14 +21,10 @@ trap '' 2
 
 eval "./scripts/load.sh"
 
-if [ "$cmd" == "" ]; then
-	eval "./wan_aftup"
-elif [ "$cmd" == "-auto" ]; then
+if [ "$cmd" == "auto" ]; then
 	eval "./wan_aftup -auto"
 else
-	echo
-	echo "Warning: Unknown command argument ($1)!"
-	echo
+	eval "./wan_aftup"
 fi
 
 eval "./scripts/unload.sh"

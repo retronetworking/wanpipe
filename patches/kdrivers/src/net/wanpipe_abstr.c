@@ -281,8 +281,19 @@ void wpabs_skb_set_protocol(void *skb_new_ptr, unsigned int prot)
 	wan_skb_set_protocol(skb_new_ptr,prot);
 }
 
+void wpabs_skb_set_csum(void *skb_new_ptr, unsigned int csum)
+{
+	wan_skb_set_csum(skb_new_ptr,csum);
+}
 
-void *wpabs_netif_alloc(unsigned char *dev_name,int *err)
+unsigned int wpabs_skb_csum(void *skb_new_ptr)
+{
+	return wan_skb_csum(skb_new_ptr);
+}
+
+
+
+void *wpabs_netif_alloc(unsigned char *dev_name,int ifType, int *err)
 {
 	return wan_netif_alloc(dev_name,err);
 }
@@ -851,7 +862,8 @@ int wpabs_strlen(unsigned char *str)
 
 void wpabs_debug_print_skb(void *skb_ptr, char dir)
 {
-#ifdef WAN_DEBUG_TX
+#if 1
+/*#ifdef WAN_DEBUG_TX*/
 	netskb_t*	skb = (netskb_t*)skb_ptr;
 	unsigned char*	data = NULL;
 	int i;
@@ -873,12 +885,86 @@ void wpabs_debug_print_skb(void *skb_ptr, char dir)
  * Set WAN device state.
  */
 
-void wpabs_decode_ipaddr(unsigned long ipaddr, unsigned char *string)
+void wpabs_decode_ipaddr(unsigned long ipaddr, unsigned char *str, int len)
 {
-	sprintf(string,"%u.%u.%u.%u",NIPQUAD(ipaddr));
+	snprintf(str,len,"%u.%u.%u.%u",NIPQUAD(ipaddr));
 }
 
 
+
+unsigned long wan_get_ip_addr(void* dev, int option)
+{
+	netdevice_t*		ifp = (netdevice_t*)dev;
+
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+	struct ifaddr*		ifa = NULL;		
+	struct sockaddr_in*	addr = NULL;
+
+	if (ifp == NULL){
+		return 0;
+	}
+	ifa = WAN_TAILQ_FIRST(ifp);
+	if (ifa == NULL || ifa->ifa_addr == NULL){
+		return 0;
+	}
+#elif defined(__LINUX__)
+	struct in_ifaddr *ifaddr;
+	struct in_device *in_dev;
+
+	if ((in_dev = in_dev_get(ifp)) == NULL){
+		return 0;
+	}
+	if ((ifaddr = in_dev->ifa_list)== NULL ){
+		in_dev_put(in_dev);
+		return 0;
+	}
+	in_dev_put(in_dev);
+#endif	
+
+	switch (option){
+	case WAN_LOCAL_IP:
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+		addr = (struct sockaddr_in *)ifa->ifa_addr;
+		return htonl(addr->sin_addr.s_addr);
+#else
+		return ifaddr->ifa_local;
+#endif
+		break;
+	
+	case WAN_POINTOPOINT_IP:
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+		return 0;
+#else
+		return ifaddr->ifa_address;
+#endif
+		break;	
+
+	case WAN_NETMASK_IP:
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+		return 0;
+#else
+		return ifaddr->ifa_mask;
+#endif
+		break;
+
+	case WAN_BROADCAST_IP:
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+		return 0;
+#else
+		return ifaddr->ifa_broadcast;
+#endif
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+unsigned long wpabs_get_ip_addr(void* dev, int option)
+{
+	return wan_get_ip_addr(dev, option);
+}
 
 #define UNKNOWN_PROT	"Unknown Prot"
 #define IP_LLC_ATM	"Classic IP (LLC) over ATM"
@@ -887,10 +973,14 @@ void wpabs_decode_ipaddr(unsigned long ipaddr, unsigned char *string)
 #define B_VC_ETH	"Bridged VC Ethernet over ATM"
 #define PPP_LLC_ATM	"PPP (LLC) over ATM"
 #define PPP_VC_ATM	"PPP (VC) over ATM"
-int wpabs_detect_prot_header(unsigned char *data,int len, char* temp)
+int wpabs_detect_prot_header(unsigned char *data,int dlen, char* temp, int tlen)
 {
 	int i,cnt=0;
 
+	if (temp){
+		memset(temp, 0, tlen);
+	}
+	
 	if (data[0] == 0xAA && data[1] == 0xAA){
 		if (data[6] == 0x08){
 			if (data[7] == 0x00 || data[7] == 0x06){
@@ -932,9 +1022,10 @@ int wpabs_detect_prot_header(unsigned char *data,int len, char* temp)
 	
 detect_unknown:
 	if (temp){
-		for (i=0;i<len && i<10;i++){
+		for (i=0;i<dlen && i<10;i++){
 			cnt+=sprintf(temp+cnt,"%02X ",data[i]);
 		}
+		temp[cnt] = '\0';
 	}
 	return 1;
 }

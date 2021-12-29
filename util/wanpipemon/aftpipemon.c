@@ -136,7 +136,6 @@ static char *aft_flush_menu[]={
 "."
 };
 
-
 static struct cmd_menu_lookup_t gui_cmd_menu_lookup[]={
 	{"aft_card_stats_menu",aft_card_stats_menu},
 	{"aft_stats_menu",aft_stats_menu},
@@ -622,6 +621,8 @@ int AFTUsage(void)
 	printf("\t             ddlb    Deactive Diagnostic Digital Loopback mode (T1/E1 card only)\n");  
 	printf("\t             salb    Send Loopback Activate Code (T1/E1 card only)\n");  
 	printf("\t             sdlb    Send Loopback Deactive Code (T1/E1 card only)\n");  
+	printf("\t             txe     Enable TX (AFT card only)\n");  
+	printf("\t             txd     Disable TX (AFT card only)\n");  
 	printf("\tFlush Statistics\n");
 	printf("\t   f         c       Flush Communication Error Statistics\n");
 	printf("\t             o       Flush Operational Statistics\n");
@@ -718,6 +719,10 @@ int AFTMain(char *command,int argc, char* argv[])
 				raw_data = WAN_TRUE;
 				trace_iface.type=WP_OUT_TRACE_RAW;
 				line_trace(0);
+			}else if (!strcmp(opt, "rd")){
+				raw_data = WAN_TRUE;
+				trace_iface.type=WP_OUT_TRACE_RAW;
+				line_trace(1);
 			}else if (!strcmp(opt, "i")){
 				raw_data = WAN_FALSE;
 				trace_iface.type=WP_OUT_TRACE_INTERP;
@@ -767,11 +772,34 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_DEACTIVATE_LB);
 			}else if (!strcmp(opt,"a")){
 				read_te1_56k_stat();
-			} else{
+			}else if (!strcmp(opt,"txe")){
+				set_fe_tx_mode(WAN_FE_TXMODE_ENABLE);
+			}else if (!strcmp(opt,"txd")){
+				set_fe_tx_mode(WAN_FE_TXMODE_DISABLE);
+			}else{
 				printf("ERROR: Invalid FT1 Command 'T', Type wanpipemon <cr> for help\n\n");
 			} 
 			break;
 
+		case 'd':
+			if (!strcmp(opt,"err")){	
+				set_debug_mode(WAN_FE_DEBUG_RBS, WAN_FE_DEBUG_RBS_RX_ENABLE);
+			}else if (!strcmp(opt,"ert")){
+				set_debug_mode(WAN_FE_DEBUG_RBS, WAN_FE_DEBUG_RBS_TX_ENABLE);
+			}else if (!strcmp(opt,"drr")){
+				set_debug_mode(WAN_FE_DEBUG_RBS, WAN_FE_DEBUG_RBS_RX_DISABLE);
+			}else if (!strcmp(opt,"drt")){
+				set_debug_mode(WAN_FE_DEBUG_RBS, WAN_FE_DEBUG_RBS_TX_DISABLE);
+			}else if (!strcmp(opt,"rbs")){
+				set_debug_mode(WAN_FE_DEBUG_RBS, WAN_FE_DEBUG_RBS_READ);
+			}else if (!strcmp(opt,"eais")){
+				set_debug_mode(WAN_FE_DEBUG_ALARM, WAN_FE_DEBUG_ALARM_AIS_ENABLE);
+			}else if (!strcmp(opt,"dais")){
+				set_debug_mode(WAN_FE_DEBUG_ALARM, WAN_FE_DEBUG_ALARM_AIS_DISABLE);
+			}else{
+				printf("ERROR: Invalid Status Command 'x', Type wanpipemon <cr> for help\n\n");
+			}
+			break;	
 		default:
 			printf("ERROR: Invalid Command, Type wanpipemon <cr> for help\n\n");
 			break;

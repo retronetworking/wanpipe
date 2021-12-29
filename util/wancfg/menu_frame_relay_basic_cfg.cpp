@@ -325,7 +325,7 @@ again:
   	  // dlcis belonging to this frame relay device, so we can use profile of the 1-st dlci in the list.
   	  fr = &tmp_dlci_ptr->data.chanconf->u.fr;
   
-	  //important to keep the global configuration untoched!
+	  //important to keep the global configuration untouched!
 #if 1
 	  fr->signalling = fr_cfg_of_first.signalling;
 	  fr->t391 = fr_cfg_of_first.t391;		/* link integrity verification timer */

@@ -41,7 +41,7 @@ CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
 all:	wan_aftup 
 	@echo "Ok."
 
-wan_aftup:	wan_aftup.c wan_aft_cpld.c
+wan_aftup:	wan_aftup.c wan_aft_prg.c wan_aft_flash.c wan_aft_flash_shark.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:

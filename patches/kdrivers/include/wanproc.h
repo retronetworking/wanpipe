@@ -87,48 +87,9 @@ int wandev_get_info(char* buf, char** start, off_t offs, int len);
 int interfaces_get_info(char* buf, char** start, off_t offs, int len);
 int wanproc_active_dev(char* buf, char** start, off_t offs, int len);
 #endif
+extern int proc_add_line(struct seq_file* m, char* frm, ...);
 
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-static int proc_add_line(struct seq_file* m, char* frm, ...)
-#else
-static inline int proc_add_line(struct seq_file* m, char* frm, ...)
-#endif
-{
-#if defined(LINUX_2_6)
-	return 0;
-#else
-	char 	tmp[400];
-	int 	ret = PROC_BUF_CONT;
-	int 	size = 0;
-	va_list	arg;
-	
-	va_start(arg, frm);
-	if (m->count && m->stop_cnt){
-		va_end(arg);
-		return PROC_BUF_EXIT;
-	}
-	size = vsprintf(tmp, frm, arg);
-	if (m->stop_cnt){
-		if (m->stop_cnt < size){
-			DEBUG_EVENT("!!! Error in writting in proc buffer !!!\n");
-			m->stop_cnt = size;
-		}
-		m->stop_cnt -= size;
-	}else{
-		if (size < m->size - m->count){
-			/*vsprintf(&m->buf[m->count], frm, arg);*/
-			memcpy(&m->buf[m->count], tmp, size);
-			m->count += size;
-			/* *cnt += vsprintf(&buf[*cnt], frm, arg); */
-		}else{
-			m->stop_cnt = m->from + m->count;
-			ret = PROC_BUF_EXIT;
-		}
-	}
-	va_end(arg);
-	return ret;
-#endif
-}
+
 
 /*
  * ******************************************************************

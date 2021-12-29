@@ -11,8 +11,6 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ----------------------------------------------------------------------------
-* Feb  2, 2006  David Rokhvarg  Made sure to call FRConfig() each time before
-*				using 'station_config', otherwise left uninitialized.
 * Jan 12, 2005  David Rokhvarg  Added code to run above AFT card with protocol
 * 				in the LIP layer.
 * Jul 05, 2004	David Rokhvarg	Added i4 option to decode IPV4 level data
@@ -90,8 +88,6 @@
 #define HDR_SIZE sizeof(fr_encap_hdr_t)+sizeof(ip_pkt_t)+sizeof(udp_pkt_t) 
 #define CB_SIZE sizeof(wp_mgmt_t)+sizeof(cblock_t)+1
 
-#define FR_DBG if(1) printf
-
 /******************************************************************************
  * 			GLOBAL VARIABLES				      *
  *****************************************************************************/
@@ -116,13 +112,13 @@ char *fr_stats_menu[]={
 "sg","Global Statistics",
 "sc","Communication Error Statistics",
 "se","Error Statistics",
-//"sd","Read Statistics for a specific DLCI",
+"sd","Read Statistics for a specific DLCI",
 "."
 };
 
 char *fr_trace_menu[]={
 "ti","Trace and Interpret ALL frames",
-//"ti4","Trace and Interpret IP V4 DATA frames",
+"ti4","Trace and Interpret IP V4 DATA frames",
 "tr","Trace ALL frames in HEX format",
 //"tip","Trace and Interpret PROTOCOL frames",
 //"tid","Trace and Interpret DATA frames",
@@ -169,7 +165,7 @@ char *fr_flush_menu[]={
 "fg","Flush Global Statistics",
 "fc","Flush Communication Error Statistics",
 "fe","Flush Error Statistics",
-//"fi","Flush DLCI Statistics",
+"fi","Flush DLCI Statistics",
 "fd","Flush Driver Statistics",
 "fpm","Flush T1/E1 performance monitoring cnters",
 "."
@@ -178,7 +174,7 @@ char *fr_flush_menu[]={
 
 char *fr_main_menu[]={
 "fr_card_stats_menu","Card Status",
-//"fr_card_config_menu","Card Configuration",
+"fr_card_config_menu","Card Configuration",
 "fr_stats_menu","Card Statistics",
 "fr_trace_menu","Trace Data",
 "csudsu_menu","CSU DSU Config/Stats",
@@ -277,7 +273,7 @@ int FRConfig( void )
    
 	if (x >= 4) return(WAN_FALSE);
    	station_config = wan_udp.wan_udphdr_data[0];
-	
+   
    	strcpy(codeversion, "?.??");
    
    	wan_udp.wan_udphdr_command = FR_READ_CODE_VERSION;
@@ -399,9 +395,6 @@ static void error( char return_code )
 static void global_stats( void ) 
 {
 	fr_link_stat_t *link_stats;
-
-	FRConfig();
-
    	ResetWanUdp(&wan_udp);
    	wan_udp.wan_udphdr_command = FR_READ_STATISTICS;
       	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -512,9 +505,7 @@ static void flush_global_stats( void )
 
 static void error_stats( void ) 
 {
-	FRConfig();
 	ResetWanUdp(&wan_udp);
-
 	wan_udp.wan_udphdr_command = FR_READ_STATISTICS;
       	wan_udp.wan_udphdr_return_code = 0xaa;
    	wan_udp.wan_udphdr_data_len = 0;

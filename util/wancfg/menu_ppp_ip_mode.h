@@ -35,7 +35,7 @@ public:
 
   ~menu_ppp_ip_mode();
 
-  int run(OUT char * new_ip_mode);
+  int run(OUT unsigned char * new_ip_mode);
 };
 
 #endif

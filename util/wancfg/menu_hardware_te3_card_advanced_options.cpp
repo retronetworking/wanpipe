@@ -15,17 +15,17 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "menu_hardware_te3_card_advanced_options.h"
 #include "text_box.h"
+#include "text_box_yes_no.h"
+#include "input_box.h"
+
+#include "menu_hardware_te3_card_advanced_options.h"
 #include "menu_te3_select_media.h"
 #include "menu_te_select_line_decoding.h"
 #include "menu_te_select_framing.h"
 #include "menu_t1_lbo.h"
 #include "input_box_active_channels.h"
 #include "menu_te1_clock_mode.h"
-#include "input_box.h"
-
-#include "text_box_yes_no.h"
 
 enum TE3_ADVANCED_OPTIONS{
 	TE3_MEDIA=1,
@@ -37,7 +37,8 @@ enum TE3_ADVANCED_OPTIONS{
       	LIU_RX_EQUAL,
   	LIU_TAOS,
 	LIU_LB_MODE,
-	LIU_TX_LBO
+	LIU_TX_LBO,
+  	AFT_FE_TXTRISTATE
 };
 
 #define DBG_MENU_HARDWARE_TE3_CARD_ADVANCED_OPTIONS 1
@@ -106,21 +107,21 @@ again:
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE3_MEDIA);
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Physical Medium--> %s\" ",
-    	MEDIA_DECODE(linkconf->fe_cfg.media));
+    	MEDIA_DECODE(&linkconf->fe_cfg));
   menu_str += tmp_buff;
 
   //////////////////////////////////////////////////////////////////////////////////////
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE3_LCODE);
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Line decoding----> %s\" ", 
-		  LCODE_DECODE(linkconf->fe_cfg.lcode));
+		  LCODE_DECODE(&linkconf->fe_cfg));
   menu_str += tmp_buff;
 
   //////////////////////////////////////////////////////////////////////////////////////
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE3_FRAME);
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Framing----------> %s\" ", 
-		  FRAME_DECODE(linkconf->fe_cfg.frame));
+		  FRAME_DECODE(&linkconf->fe_cfg));
   menu_str += tmp_buff;
 
   //////////////////////////////////////////////////////////////////////////////////////
@@ -171,6 +172,13 @@ again:
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"tx lbo------> %s\" ",
     (liu_cfg->tx_lbo == WANOPT_YES ? "Yes" : "No"));
+  menu_str += tmp_buff;
+  
+  //////////////////////////////////////////////////////////////////////////////////////
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_FE_TXTRISTATE);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Disable Transmitter---> %s\" ",
+    (linkconf->fe_cfg.tx_tristate_mode == WANOPT_YES ? "YES" : "NO"));
   menu_str += tmp_buff;
 
   //////////////////////////////////////////////////////////////////////////////////////
@@ -463,6 +471,36 @@ show_fcs_input_box:
 
       default:
         return NO;
+      }
+      break;
+
+    case AFT_FE_TXTRISTATE:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s transmitter?",
+        (linkconf->fe_cfg.tx_tristate_mode == WANOPT_NO ? "Disable" : "Enable"));
+
+      if(yes_no_question( selection_index,
+                          lxdialog_path,
+                          NO_PROTOCOL_NEEDED,
+                          tmp_buff) == NO){
+        //error displaying dialog
+        rc = NO;
+	goto cleanup;
+      }
+
+      switch(*selection_index)
+      {
+      case YES_NO_TEXT_BOX_BUTTON_YES:
+        if(linkconf->fe_cfg.tx_tristate_mode == WANOPT_NO){
+	  //transmitter enabled, user wants to disable
+	  linkconf->fe_cfg.tx_tristate_mode = WANOPT_YES;
+	}else{
+	  linkconf->fe_cfg.tx_tristate_mode = WANOPT_NO;
+	}
+        break;
+
+      case YES_NO_TEXT_BOX_BUTTON_NO:
+        //don't do anything
+	break;
       }
       break;
       

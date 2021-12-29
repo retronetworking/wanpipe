@@ -268,7 +268,7 @@ typedef struct fr_channel
 	/* True interface type */
 	u8 true_if_encoding;
 	u8 fr_header[FR_HEADER_LEN];
-	char fr_header_len;
+	int fr_header_len;
 
 	/* Encapsulation varialbes, default
 	 * is IETF, however, if we detect CISCO
@@ -559,7 +559,7 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 	
 	/* Determine the board type user is trying to configure
 	 * and make sure that the HW matches */
-	if (IS_TE1_MEDIA(conf->fe_cfg.media)) {
+	if (IS_TE1_MEDIA(&conf->fe_cfg)) {
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;
@@ -570,10 +570,10 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 		card->wandev.te_enable_timer = fr_enable_timer;
 		card->wandev.te_link_state = fr_handle_front_end_state;
 		conf->interface = 
-			(IS_T1_MEDIA(conf->fe_cfg.media)) ? WANOPT_V35 : WANOPT_RS232;
+			(IS_T1_FEMEDIA(&card->fe)) ? WANOPT_V35 : WANOPT_RS232;
 		conf->clocking = WANOPT_EXTERNAL;
 		
-        }else if (IS_56K_MEDIA(conf->fe_cfg.media)) {
+        }else if (IS_56K_MEDIA(&conf->fe_cfg)) {
                 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;
@@ -2123,7 +2123,7 @@ static int setup_for_delayed_transmit (netdevice_t* dev, struct sk_buff *skb)
 		return 1;
 	}
 
-	skb_unlink(skb);
+	wan_skb_unlink(skb);
 	
         chan->transmit_length = len;
 	chan->delay_skb = skb;

@@ -112,18 +112,18 @@ again:
     switch(atoi(get_lxdialog_output_string()))
     {
     case PPP_CHAP:
-      list_el_chan_def->data.chanconf->pap = 0;
-      list_el_chan_def->data.chanconf->chap = 1;
+      list_el_chan_def->data.chanconf->u.ppp.pap = 0;
+      list_el_chan_def->data.chanconf->u.ppp.chap = 1;
       break;
 
     case PPP_PAP:
-      list_el_chan_def->data.chanconf->pap = 1;
-      list_el_chan_def->data.chanconf->chap = 0;
+      list_el_chan_def->data.chanconf->u.ppp.pap = 1;
+      list_el_chan_def->data.chanconf->u.ppp.chap = 0;
       break;
 
     case PPP_NO_AUTHENTICATION:
-      list_el_chan_def->data.chanconf->pap = 0;
-      list_el_chan_def->data.chanconf->chap = 0;
+      list_el_chan_def->data.chanconf->u.ppp.pap = 0;
+      list_el_chan_def->data.chanconf->u.ppp.chap = 0;
       break;
     }
     exit_dialog = YES;

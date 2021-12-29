@@ -1,6 +1,6 @@
 # 05 Jun 93
 #
-# $Id: Makefile.FreeBSD,v 1.2 2004/12/28 15:40:24 sangoma Exp $
+# $Id: Makefile.FreeBSD,v 1.5 2005/05/03 21:36:58 sangoma Exp $
 #
 
 # Uncomment this to output debug messages
@@ -88,6 +88,9 @@ menu_adsl_rx_bin_adjust.cpp\
 menu_adsl_framing_struct.cpp\
 menu_adsl_exchange_type.cpp\
 menu_adsl_clock_type.cpp\
+wanrouter_rc_file_reader.cpp\
+menu_wan_channel_cfg_v1.cpp\
+menu_lapb_basic_cfg.cpp\
 main.cpp
 
 NOMAN   	=

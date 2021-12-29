@@ -583,7 +583,9 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 		if (wandev->get_active_inactive){
 			WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 				dev = WAN_DEVLE2DEV(devle);
-				if (!dev) continue;
+				if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
+			   	     continue;
+				}  
 				wandev->get_active_inactive(wandev,dev,&wp_stats);
 			}
 		}
@@ -669,9 +671,9 @@ static int interfaces_get_info(char* buf, char** start, off_t offs, int len, int
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			
-			if (!dev){ 
+			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
-			}
+			}  
 
 			dev_priv = wan_netif_priv(dev);
 			PROC_ADD_LINE(m, 
@@ -1463,8 +1465,7 @@ static int map_get_info(char* buf, char** start, off_t offs, int len, int dummy)
 		spin_lock(&wandev->get_map_lock);
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
-			if (!dev) continue;
-			if (!(dev->flags&IFF_UP)){
+			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
 			}
 			m->count = wandev->get_map(wandev, dev, m, M_STOP_CNT(m));
@@ -1510,7 +1511,9 @@ static int get_dev_config_info(char* buf, char** start, off_t offs, int len,int 
 
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
-			if (!dev) continue;
+			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
+				continue;
+			}
 			m->count = wandev->get_config_info(dev->priv, 
 							   m, 
 							   M_STOP_CNT(m)); 
@@ -1557,7 +1560,9 @@ static int get_dev_status_info(char* buf, char** start, off_t offs, int len, int
 
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
-			if (!dev) continue;
+			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
+				continue;
+			}
 			m->count = wandev->get_status_info(dev->priv, m, M_STOP_CNT(m)); 
 		}
 	}
@@ -1597,7 +1602,9 @@ static int wandev_mapdir_get_info(char* buf, char** start, off_t offs, int len, 
 	spin_lock(&wandev->get_map_lock);
 	WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 		dev = WAN_DEVLE2DEV(devle);
-		if (!dev) continue;
+		if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
+		       	continue;
+		}
 
 		if (!wandev->get_map || !(dev->flags&IFF_UP)){
 			continue;
@@ -1692,6 +1699,84 @@ static int device_write(
 }
 #endif
 
+
+ #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+int proc_add_line(struct seq_file* m, char* frm, ...)
+{
+	char 	tmp[400];
+	int 	ret = PROC_BUF_CONT;
+	int 	size = 0;
+	va_list	arg;
+	
+	va_start(arg, frm);
+	if (m->count && m->stop_cnt){
+		va_end(arg);
+		return PROC_BUF_EXIT;
+	}
+	size = vsprintf(tmp, frm, arg);
+	if (m->stop_cnt){
+		if (m->stop_cnt < size){
+			DEBUG_EVENT("!!! Error in writting in proc buffer !!!\n");
+			m->stop_cnt = size;
+		}
+		m->stop_cnt -= size;
+	}else{
+		if (size < m->size - m->count){
+			/*vsprintf(&m->buf[m->count], frm, arg);*/
+			memcpy(&m->buf[m->count], tmp, size);
+			m->count += size;
+			/* *cnt += vsprintf(&buf[*cnt], frm, arg); */
+		}else{
+			m->stop_cnt = m->from + m->count;
+			ret = PROC_BUF_EXIT;
+		}
+	}
+	va_end(arg);
+	return ret;
+}
+#endif
+
+
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+#else
+int proc_add_line(struct seq_file* m, char* frm, ...)
+{
+#if defined(LINUX_2_6)
+	return 0;
+#else
+	char 	tmp[400];
+	int 	ret = PROC_BUF_CONT;
+	int 	size = 0;
+	va_list	arg;
+	
+	va_start(arg, frm);
+	if (m->count && m->stop_cnt){
+		va_end(arg);
+		return PROC_BUF_EXIT;
+	}
+	size = vsprintf(tmp, frm, arg);
+	if (m->stop_cnt){
+		if (m->stop_cnt < size){
+			DEBUG_EVENT("!!! Error in writting in proc buffer !!!\n");
+			m->stop_cnt = size;
+		}
+		m->stop_cnt -= size;
+	}else{
+		if (size < m->size - m->count){
+			/*vsprintf(&m->buf[m->count], frm, arg);*/
+			memcpy(&m->buf[m->count], tmp, size);
+			m->count += size;
+			/* *cnt += vsprintf(&buf[*cnt], frm, arg); */
+		}else{
+			m->stop_cnt = m->from + m->count;
+			ret = PROC_BUF_EXIT;
+		}
+	}
+	va_end(arg);
+	return ret;
+#endif
+}
+#endif      
 
 /*
  *	End

@@ -51,6 +51,8 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "FE_LCODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, lcode), DTYPE_UCHAR },
   { "FE_FRAME",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, frame), DTYPE_UCHAR },
   { "FE_LINE",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, line_no),  DTYPE_UINT },
+  { "FE_TXTRISTATE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, tx_tristate_mode),  DTYPE_UCHAR },
+
   /* Front-End parameters (old style) */
   { "MEDIA",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, media), DTYPE_UCHAR },
   { "LCODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, lcode), DTYPE_UCHAR },
@@ -62,6 +64,8 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TE_ACTIVE_CH",offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, active_ch),
 	 DTYPE_ULONG },
   { "TE_HIGHIMPEDANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, high_impedance_mode), DTYPE_UCHAR },
+  { "TE_REF_CLOCK",offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, te_ref_clock),
+	 DTYPE_UINT },
   /* T1/E1 Front-End parameters (old style) */
   { "LBO",           offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, lbo), DTYPE_UCHAR },
   { "ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, active_ch), DTYPE_ULONG },
@@ -110,7 +114,8 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { NULL, 0, 0 }
 };
 
-key_word_t ppp_conftab[] =	/* PPP-specific configuration */
+/*
+key_word_t ppp_conftab[] =	// PPP-specific configuration (on Firmware PPP)
  {
   { "RESTARTTIMER",   offsetof(wan_ppp_conf_t, restart_tmr),   DTYPE_UINT },
   { "AUTHRESTART",    offsetof(wan_ppp_conf_t, auth_rsrt_tmr), DTYPE_UINT },
@@ -124,6 +129,37 @@ key_word_t ppp_conftab[] =	/* PPP-specific configuration */
   { "AUTHRETRY",      offsetof(wan_ppp_conf_t, auth_retry),    DTYPE_UINT },
   { "AUTHENTICATOR",  offsetof(wan_ppp_conf_t, authenticator), DTYPE_UCHAR},
   { "IP_MODE",        offsetof(wan_ppp_conf_t, ip_mode),       DTYPE_UCHAR},
+  { NULL, 0, 0 }
+};
+*/
+
+key_word_t synch_ppp_conftab[] =	/* PPP-on LIP layer configuration */
+ {
+#if 0
+  { "IP_MODE",        	offsetof(wan_sppp_if_conf_t, dynamic_ip),       DTYPE_UCHAR},
+  { "IP_MODE",		offsetof(wan_sppp_if_conf_t, dynamic_ip),       DTYPE_UCHAR},
+  { "PAP",   	     	offsetof(wan_sppp_if_conf_t, pap),		DTYPE_UCHAR},
+  { "CHAP",          	offsetof(wan_sppp_if_conf_t, chap),		DTYPE_UCHAR},
+  { "USERID",        	offsetof(wan_sppp_if_conf_t, userid),	 	DTYPE_STR},
+  { "PASSWD",        	offsetof(wan_sppp_if_conf_t, passwd),		DTYPE_STR},
+  { "SYSNAME",       	offsetof(wan_sppp_if_conf_t, sysname),		DTYPE_STR},
+#endif
+
+  { "IP_MODE",        offsetof(wan_sppp_if_conf_t, dynamic_ip),       DTYPE_UCHAR},
+	
+  { "AUTH_TIMER",     offsetof(wan_sppp_if_conf_t, pp_auth_timer),    DTYPE_UINT},
+  { "KEEPALIVE_TIMER",offsetof(wan_sppp_if_conf_t, sppp_keepalive_timer),    DTYPE_UINT},
+  { "PPP_TIMER",      offsetof(wan_sppp_if_conf_t, pp_timer),    DTYPE_UINT},
+ 
+  { "PAP",	      offsetof(wan_sppp_if_conf_t, pap),    DTYPE_UCHAR},		
+  { "CHAP",	      offsetof(wan_sppp_if_conf_t, chap),    DTYPE_UCHAR},		
+  { "CHAP",	      offsetof(wan_sppp_if_conf_t, chap),    DTYPE_UCHAR},		
+
+  { "USERID",         offsetof(wan_sppp_if_conf_t, userid), 	DTYPE_STR},
+  { "PASSWD",         offsetof(wan_sppp_if_conf_t, passwd),	DTYPE_STR},
+  { "SYSNAME",        offsetof(wan_sppp_if_conf_t, sysname),	DTYPE_STR},
+
+  { "KEEPALIVE_ERROR_MARGIN", offsetof(wan_sppp_if_conf_t, keepalive_err_margin),    DTYPE_UINT },        
   { NULL, 0, 0 }
 };
 
@@ -160,8 +196,12 @@ key_word_t fr_conftab[] =	/* Frame relay-specific configuration */
 
 key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
 {
-  { "MRU",     offsetof(wan_xilinx_conf_t, mru),       DTYPE_USHORT },
+  { "MRU",     	     offsetof(wan_xilinx_conf_t, mru),       DTYPE_USHORT },
   { "DMA_PER_CH",    offsetof(wan_xilinx_conf_t, dma_per_ch),      DTYPE_USHORT },
+  { "RBS",    	     offsetof(wan_xilinx_conf_t, rbs),      DTYPE_UCHAR },
+  { "DATA_MUX_MAP",  offsetof(wan_xilinx_conf_t, data_mux_map),      DTYPE_UINT },
+  { "TDMV_SPAN",     offsetof(wan_xilinx_conf_t, tdmv_span_no),      DTYPE_UINT},
+  { "TDMV_DCHAN",    offsetof(wan_xilinx_conf_t, tdmv_dchan),   DTYPE_UINT},
   { NULL, 0, 0 }
 };
 
@@ -391,6 +431,8 @@ key_word_t lapb_annexg_conftab[] =
 
   { "MAX_PKT_SIZE", 	offsetof(wan_lapb_if_conf_t,mtu), DTYPE_UINT},
 
+  { "STATION" ,          offsetof(wan_lapb_if_conf_t, station),     DTYPE_UCHAR },
+  
   { NULL, 0, 0 }
 };
 
@@ -474,11 +516,15 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
   { "MULTICAST",     	offsetof(wanif_conf_t, mc),		DTYPE_UCHAR},
   { "IPX",	     	offsetof(wanif_conf_t, enable_IPX),	DTYPE_UCHAR},
   { "NETWORK",       	offsetof(wanif_conf_t, network_number),	DTYPE_ULONG},
-  { "PAP",     	     	offsetof(wanif_conf_t, pap),		DTYPE_UCHAR},
-  { "CHAP",          	offsetof(wanif_conf_t, chap),		DTYPE_UCHAR},
-  { "USERID",        	offsetof(wanif_conf_t, userid),	 	DTYPE_STR},
-  { "PASSWD",        	offsetof(wanif_conf_t, passwd),		DTYPE_STR},
-  { "SYSNAME",       	offsetof(wanif_conf_t, sysname),		DTYPE_STR},
+  
+ // { "PAP",   	     	offsetof(wanif_conf_t, pap),		DTYPE_UCHAR},
+ // { "CHAP",          	offsetof(wanif_conf_t, chap),		DTYPE_UCHAR},
+ // { "USERID",        	offsetof(wanif_conf_t, userid),	 	DTYPE_STR},
+ // { "PASSWD",        	offsetof(wanif_conf_t, passwd),		DTYPE_STR},
+ // { "SYSNAME",       	offsetof(wanif_conf_t, sysname),		DTYPE_STR},
+  //PPP profile kept in "wanif_conf_t.u.ppp"
+ // { "IP_MODE",       	offsetof(wanif_conf_t, u) + offsetof(wan_sppp_if_conf_t, dynamic_ip),	DTYPE_UINT},
+  
   { "INARP", 	     	offsetof(wanif_conf_t, inarp),          	DTYPE_UCHAR},
   { "INARPINTERVAL", 	offsetof(wanif_conf_t, inarp_interval), 	DTYPE_UINT },
   { "INARP_RX",      	offsetof(wanif_conf_t, inarp_rx),          	DTYPE_UCHAR},
@@ -514,8 +560,9 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
   { "RX_COMPLETE_LENGTH",      offsetof(wanif_conf_t, rx_complete_length),    DTYPE_UINT },
   { "XON_CHAR",                offsetof(wanif_conf_t, xon_char),    DTYPE_UINT },	
   { "XOFF_CHAR",               offsetof(wanif_conf_t, xoff_char),    DTYPE_UINT },	
-  { "MPPP_PROT",	       offsetof(wanif_conf_t, protocol),  DTYPE_UCHAR},
-  { "PROTOCOL",	       	       offsetof(wanif_conf_t, protocol),  DTYPE_UCHAR},
+  //{ "MPPP_PROT",	       offsetof(wanif_conf_t, protocol),  DTYPE_UCHAR},
+  { "PROTOCOL",      	       offsetof(wanif_conf_t, protocol),  DTYPE_UCHAR},	//note!! it is read, ignored and
+  										//NOT written!
   
   { "ACTIVE_CH",	       offsetof(wanif_conf_t, active_ch),  DTYPE_ULONG},
   { "SW_DEV_NAME",	       offsetof(wanif_conf_t, sw_dev_name),  DTYPE_STR},
@@ -523,7 +570,6 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
   { "DLCI_TRACE_QUEUE",		offsetof(wanif_conf_t, max_trace_queue), DTYPE_UINT},
   { "MAX_TRACE_QUEUE",		offsetof(wanif_conf_t, max_trace_queue), DTYPE_UINT},
 
-  { "TDMV_SPAN",		offsetof(wanif_conf_t, spanno), DTYPE_UINT},
   { "TDMV_ECHO_OFF",		offsetof(wanif_conf_t, tdmv_echo_off), DTYPE_UCHAR},
  
   { NULL, 0, 0 }
@@ -531,7 +577,7 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
 
 look_up_t conf_def_tables[] =
 {
-	{ WANCONFIG_PPP,	ppp_conftab	},
+	{ WANCONFIG_PPP,	synch_ppp_conftab},//ppp_conftab	},
 	{ WANCONFIG_FR,		fr_conftab	},
 	{ WANCONFIG_X25,	x25_conftab	},
 	{ WANCONFIG_ADCCP,	x25_conftab	},
@@ -547,6 +593,7 @@ look_up_t conf_def_tables[] =
 	{ WANCONFIG_EDUKIT,     edukit_conftab  },
 	{ WANCONFIG_AFT_TE3,    xilinx_conftab  },
 	{ WANCONFIG_BITSTRM,    bitstrm_conftab },
+	{ WANCONFIG_LAPB,       lapb_annexg_conftab},
 	{ 0,			NULL		}
 };
 
@@ -575,8 +622,8 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_CHDLC,	(void*)"WAN_CHDLC"	},
   	{ WANCONFIG_BSC,        (void*)"WAN_BSC"       },
   	{ WANCONFIG_HDLC,       (void*)"WAN_HDLC"      },
-	{ WANCONFIG_MPPP,       (void*)"WAN_MULTPPP"   },
 	{ WANCONFIG_MPROT,      (void*)"WAN_MULTPROT"  },
+	{ WANCONFIG_MPPP,       (void*)"WAN_MULTPPP"   },
 	{ WANCONFIG_BITSTRM, 	(void*)"WAN_BITSTRM"	},
 	{ WANCONFIG_EDUKIT, 	(void*)"WAN_EDU_KIT"	},
 	{ WANCONFIG_SS7,        (void*)"WAN_SS7"       },
@@ -591,6 +638,7 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_AFT_TE3,	(void*)"WAN_AFT_TE3"	},
 	{ WANCONFIG_AFT,	(void*)"WAN_XILINX"	},
 	{ WANCONFIG_MFR,    	(void*)"WAN_MFR"   	},
+	{ WANCONFIG_LAPB,	(void*)"WAN_LAPB"	},
 	{ WANCONFIG_DEBUG,    	(void*)"WAN_DEBUG"   	},
 	{ WANCONFIG_ADCCP,    	(void*)"WAN_ADCCP"   	},
 	{ WANCONFIG_MLINK_PPP, 	(void*)"WAN_MLINK_PPP"  },
@@ -732,6 +780,7 @@ look_up_t	sym_table[] =
 	{ WANCONFIG_MPPP,	(void*)"MP_PPP"		},
 	{ WANCONFIG_MPCHDLC,	(void*)"MP_CHDLC"	},
 	{ WANCONFIG_MFR, 	(void*)"MP_FR"		},
+	{ WANCONFIG_LAPB,	(void*)"MP_LAPB"	},
 	{ WANOPT_NO,		(void*)"RAW"		},
 	{ WANCONFIG_HDLC,	(void*)"HDLC"		},
 	{ WANCONFIG_PPP,	(void*)"PPP"		},
@@ -859,7 +908,8 @@ int conf_file_reader::init()
   wandev_conf_t* linkconf;
   sdla_fe_cfg_t*  fe_cfg;
   sdla_te_cfg_t*  te_cfg;
-   
+  wan_xilinx_conf_t* wan_xilinx_conf;
+
   Debug(DBG_CONF_FILE_READER, ("conf_file_reader::init(%d)\n", wanpipe_number));
 
   main_obj_list = new objects_list();
@@ -898,6 +948,17 @@ int conf_file_reader::init()
   linkconf->ttl = 255;
   linkconf->ignore_front_end_status = 0;
 
+  wan_xilinx_conf = &linkconf->u.aft;
+  //wan_xilinx_conf->tdmv_span_no = 0;
+  wan_xilinx_conf->tdmv_dchan = 0;//by default NOT used or DISABLED
+				  //OR
+				  //the actual value will be read from conf file
+  /*
+  wan_xilinx_conf->tdmv_dchan = 24;//when media type will be known,
+  				   //must be set to a default value: 24-T1, 16-E1
+				   //OR
+				   //the actual value will be read from conf file
+  */
   //at this point hardware type is not known, so initialize the firmware to most common.
   //good for all except EduKit.
   snprintf(link_defs->firmware_file_path, MAX_PATH_LENGTH, "%sfirmware/%s", 
@@ -967,7 +1028,7 @@ int conf_file_reader::read_conf_file()
 ///////////////////////////////////////////////////////
   #if DBG_FLAG
   sdla_fe_cfg_t*  fe_cfg = &link_defs->linkconf->fe_cfg;
-  sdla_te_cfg_t*  te_cfg = &fe_cfg->cfg.te_cfg;
+  //sdla_te_cfg_t*  te_cfg = &fe_cfg->cfg.te_cfg;
   sdla_te3_cfg_t* te3_cfg= &fe_cfg->cfg.te3_cfg; 
   #endif
  
@@ -983,8 +1044,7 @@ int conf_file_reader::read_conf_file()
   Debug(DBG_CONF_FILE_READER, ("form_fe_card_cfg_str(): te3_cfg->liu_cfg.taos: %d\n",
  	te3_cfg->liu_cfg.taos));
 
-///////////////////////////////////////////////////////
-  
+  /////////////////////////////////////////////////////////////////////////////////////////////
   //if S514X card, get the version (S514-1/2/3...7)
   if(link_defs->linkconf->card_type == WANOPT_S51X){
 
@@ -996,19 +1056,8 @@ int conf_file_reader::read_conf_file()
         ("conf_file_reader: S514 card_version 0x%04X\n", link_defs->card_version));
     }
   }
-
-  int current_line_number = 0;
-  err = read_interfaces_section(
-		  conf_file_ptr,      //FILE* file,
-		  main_obj_list,      //objects_list* parent_objects_list,
-		  NULL,		      //char* parent_dev_name,
-		  &current_line_number//int* current_line_number
-		  );
-
-  if (err){
-    return err;
-  }
-
+ 
+  /////////////////////////////////////////////////////////////////////////////////////////////
   if(link_defs->linkconf->card_type == WANOPT_ADSL){
 
     wandev_conf_t *linkconf = link_defs->linkconf;
@@ -1034,7 +1083,21 @@ int conf_file_reader::read_conf_file()
       break;
     }//switch(adsl_cfg->EncapMode)
   }//if()
+  
+  /////////////////////////////////////////////////////////////////////////////////////////////
+  int current_line_number = 0;
+  err = read_interfaces_section(
+		  conf_file_ptr,      //FILE* file,
+		  main_obj_list,      //objects_list* parent_objects_list,
+		  NULL,		      //char* parent_dev_name,
+		  &current_line_number//int* current_line_number
+		  );
 
+  if (err){
+    return err;
+  }
+
+ 
   return err;
 }
 
@@ -1278,6 +1341,9 @@ char* conf_file_reader::read_conf_section (FILE* file, char* section)
   }
   Debug(DBG_CONF_FILE_READER, ("\n\n"));
 */
+  
+  //Debug(DBG_CONF_FILE_READER, ("returning buf: %p\n", buf));
+  
   return buf;
 }
 
@@ -1565,6 +1631,7 @@ int conf_file_reader::read_interfaces_section(
     channel_sect=strdup(token[0]);
 		
     if (toknum > 5){
+      //there is LIP layer
       char *section=strdup(token[5]);
 
       /* X25_SW */
@@ -1584,23 +1651,45 @@ int conf_file_reader::read_interfaces_section(
         ("calling 'chandef->conf_profile = read_conf_section(file, section: %s)'\n",
 	  section));
 
+      //read the profile
       chandef->conf_profile = read_conf_section(file, section);
       free(section);
 
     }else{
       chandef->conf_profile = NULL;
-    }
+    }//if(toknum > 5)
 
     chandef->conf = read_conf_section(file, channel_sect);	
     free(channel_sect);
+
+    //If 'chanconf->config_id' is 0, it means it is NOT a LIP Interface,
+    //it is Hardware Interface, so it will have the same config_id as
+    //the actual Hardware which is WANCONFIG_HDLC.
+    //Note, that 'link_defs->linkconf->config_id' can NOT always be used because
+    //for example, on S514 with LIP layer it will be set to WAN_MULTPROT or WAN_MULTPPP,
+    //which indicates PPP!!! Inconsistency of conf file again.
+    
+    if(chanconf->config_id == 0){
+      //Right now 'WANCONFIG_MPPP' is the same as 'WANCONFIG_MPROT',
+      //but in case it changed one day, check for both.
+      if(link_defs->linkconf->config_id == WANCONFIG_MPPP ||
+	 link_defs->linkconf->config_id ==  WANCONFIG_MPROT){
+
+        chanconf->config_id = WANCONFIG_HDLC;
+      }else{
+        chanconf->config_id = link_defs->linkconf->config_id;
+      }
+    }
+
+    /*
+    if(chanconf->config_id == WANCONFIG_AFT || chanconf->config_id == WANCONFIG_AFT_TE3){
+      chanconf->config_id = WANCONFIG_HDLC;
+    }
+    */
     
     //now, when configuration was read to a buffer, set all structures
     //to real values 
-    err = configure_chan(
-		    chandef,
-		    //chanconf->config_id
-		    (chanconf->config_id == 0 ? link_defs->linkconf->config_id : chanconf->config_id)
-		    );
+    err = configure_chan(chandef, chanconf->config_id);
     if (err){
       return ERR_CONFIG;
     }
@@ -1790,6 +1879,7 @@ int conf_file_reader::set_conf_param (char* key, char* val, key_word_t* dtab, vo
 /*============================================================================
  * Configure WAN logical channel.
  */
+#if 0
 int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
 {
   int err = 0;
@@ -1852,55 +1942,16 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
       }
     }
 
-    Debug(DBG_CONF_FILE_READER, ("Current 'chandef->chanconf->config_id': %d, chandef->chanconf->protocol: %d.\n",
-		    chandef->chanconf->config_id, chandef->chanconf->protocol));
-
-    //If at this point, if 'chanconf->config_id' is still zero,
-    //we have the case of 'chanconf->protocol' actually holding the
-    //the 'config_id'. One of the many inconsistences of current 'conf'
-    //file.
-    if(chandef->chanconf->config_id == 0){
-      if(conf_table != NULL && chandef->chanconf->protocol){
-	chandef->chanconf->config_id = chandef->chanconf->protocol;
-      }else{
-	chandef->chanconf->config_id = id;
-      }
-    }
+    Debug(DBG_CONF_FILE_READER, ("Current 'chandef->chanconf->config_id': %d\n", 
+	chandef->chanconf->config_id));
 
     if(chandef->usedby == TDM_VOICE){
     	Debug(DBG_CONF_FILE_READER, ("VOICE channel!!\n"));
 	chandef->chanconf->config_id = PROTOCOL_TDM_VOICE;
     }
-    if(chandef->usedby == TTY){
-    	Debug(DBG_CONF_FILE_READER, ("TTY channel!!\n"));
-	chandef->chanconf->config_id = WANCONFIG_TTY;
-	chandef->chanconf->protocol  = WANCONFIG_TTY;
-    }
-
-
-    if(link_defs->linkconf->card_type == WANOPT_S50X ||
-       link_defs->linkconf->card_type == WANOPT_S51X){
-      //make sure that if 'PROTOCOL' is set, 'config_id' is the same
-      //as the protocol. otherwise it will be set to WANCONFIG_MPROT
-      //which is the same number as WANCONFIG_MPPP and 'conf_file_writer.cpp'
-      //will get confused.
-      if(chandef->chanconf->protocol){
-	chandef->chanconf->config_id = chandef->chanconf->protocol;
-      }
-    }
 
     Debug(DBG_CONF_FILE_READER, ("Final 'chandef->chanconf->config_id': %d.\n",
 			    chandef->chanconf->config_id));
-
-    Debug(DBG_CONF_FILE_READER, ("Final 'chandef->chanconf->protocol': %d.\n",
-			    chandef->chanconf->protocol));
-
-    //if after all that 'chanconf->config_id' is still zero, it's an err
-    if(chandef->chanconf->config_id == 0){
-      ERR_DBG_OUT(("Invalid 'chandef->chanconf->config_id': %d! (chandef->chanconf->protocol: %d)\n",
-		    chandef->chanconf->config_id, chandef->chanconf->protocol));
-      return ERR_CONFIG;
-    }
 
     len=0;
       
@@ -1950,25 +2001,18 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
 	  break;
 	  
 	case WANCONFIG_MPPP:
-	  //the profile part is kept in the 'link'
 	  Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_MPPP\n"));	
 	  Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
 	  Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
 
-	  //Read profile section. Some data stored directly in 'wanif_conf_t',
-	  //some (like "IP_MODE") is in 'wandev_conf_t->wan_ppp_conf_t->ip_mode' -
-	  //inconsistency of the conf file.
-	  if (set_conf_param(token[0], token[1], chan_conftab, chandef->chanconf, NULL, chandef)) {
+	  if(set_conf_param(token[0], token[1], synch_ppp_conftab, &chandef->chanconf->u.ppp,
+			  NULL, chandef)) {
+	    ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
+	    return ERR_CONFIG;
+	  }//if()
 
-	    if(set_conf_param(token[0], token[1], ppp_conftab, &link_defs->linkconf->u.ppp,
-				link_defs, NULL)) {
-	      ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
-	      return ERR_CONFIG;
-	    }//if()
-	  }
-
-	  Debug(DBG_CONF_FILE_READER_AFT, ("link_defs->linkconf->u.ppp.ip_mode: %d\n",
-				 link_defs->linkconf->u.ppp.ip_mode));
+	  //Debug(DBG_CONF_FILE_READER_AFT, ("link_defs->linkconf->u.ppp.ip_mode: %d\n",
+	  //			 link_defs->linkconf->u.ppp.ip_mode));
 	  break;
 
 	case WANCONFIG_MPCHDLC:
@@ -1977,18 +2021,219 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
 	  Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
 	  Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
 	  break;
+	
+	case WANCONFIG_LAPB:
+	  Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_LAPB\n"));	
+	  Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
+	  Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
 
+	  if(set_conf_param(token[0], token[1], lapb_annexg_conftab, &chandef->chanconf->u.lapb,
+			  NULL, chandef)) {
+	    ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
+	    return ERR_CONFIG;
+	  }//if()
+	  break;
+	  
 	default:
-	  //it actually means that this protocol SHOULD NOT have a profile
-	  ERR_DBG_OUT(("Unsupported protocol (chanconf->config_id: %d)!\n", 
-				    chanconf->config_id));
+	  //it actually means that this protocol MUST NOT have a profile section
+	  ERR_DBG_OUT(("Protocol %d(%s) MUST NOT have a profile section!\n", 
+	    	chanconf->config_id, get_protocol_string(chanconf->config_id)));
 	  return ERR_CONFIG;
 	}//switch()
 
       }//for()
     }//if(chandef->conf_profile)
+    {
+      Debug(DBG_CONF_FILE_READER, ("chandef->conf_profile == NULL!!\n"));
+    }
   }//if(chandef->conf)
+  else
+  {  Debug(DBG_CONF_FILE_READER, ("chandef->conf == NULL!!\n"));	  
+  }	
+  return err;
+}
+#endif
+
+int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
+{
+  int err = 0;
+  int len = 0;
+  char* conf_rec;
+  char *token[MAX_TOKENS];
+  key_word_t* conf_table = (key_word_t*)lookup(id, conf_if_def_tables);
+#if DBG_FLAG
+  wan_fr_conf_t* fr = &chandef->chanconf->u.fr;
+#endif
+
+  Debug(DBG_CONF_FILE_READER, ("conf_file_reader::configure_chan(): id: %d\n", id));
 	
+  if(!conf_table){
+    Debug(DBG_CONF_FILE_READER, ("conf_table is NULL!!\n"));
+  }
+
+  /* Prepare configuration data */
+  strncpy(chandef->chanconf->name, chandef->name, WAN_IFNAME_SZ);
+  if (chandef->addr){
+    strncpy(chandef->chanconf->addr, chandef->addr, WAN_ADDRESS_SZ);
+  }
+	
+  if (chandef->usedby){
+    strncpy(chandef->chanconf->usedby, get_used_by_string(chandef->usedby), USED_BY_FIELD);
+  }
+	
+  if(chandef->label){
+    Debug(DBG_CONF_FILE_READER, ("configure_chan(): chandef->label: %s\n", chandef->label));
+    memcpy(chandef->chanconf->label, chandef->label, WAN_IF_LABEL_SZ);
+  }else{
+    Debug(DBG_CONF_FILE_READER, ("configure_chan(): no 'chandef->label'\n"));	
+  }
+ 
+  //if there is any information in the [interface] section, get it.
+  //some interfaces have no information.
+  if (chandef->conf){
+    for (conf_rec = chandef->conf; *conf_rec; conf_rec += len) {
+      int toknum;
+		
+      len = strlen(conf_rec) + 1;
+      toknum = tokenize(conf_rec, token);
+      if (toknum < 2) {
+        return -EINVAL;
+      }
+
+      // Look up a keyword first in common, then media-specific
+      // configuration definition tables.
+      strupcase(token[0]);
+      if (set_conf_param(token[0], token[1], chan_conftab, chandef->chanconf, NULL, chandef)) {
+
+        if (!conf_table ||
+	    set_conf_param(token[0], token[1], conf_table, &chandef->chanconf->u, NULL, chandef)) {
+
+          if(id == WANCONFIG_ADSL && link_defs->sub_config_id == WANCONFIG_MPPP){
+            //on ADSL there can be PPP without the LIP layer!!
+	    if(set_conf_param(token[0], token[1], synch_ppp_conftab, &chandef->chanconf->u.ppp,
+			  NULL, chandef)) {
+	      ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
+	      return ERR_CONFIG;
+	    }//if()
+	  }else{
+	    //not found in 'conf_if_def_tables' too !!
+	    ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
+	   return ERR_CONFIG;
+	  }
+	}
+      }//if()
+    }//for()
+
+    Debug(DBG_CONF_FILE_READER, ("Current 'chandef->chanconf->config_id': %d\n", 
+	chandef->chanconf->config_id));
+
+    if(chandef->usedby == TDM_VOICE){
+    	Debug(DBG_CONF_FILE_READER, ("VOICE channel!!\n"));
+	chandef->chanconf->config_id = PROTOCOL_TDM_VOICE;
+    }
+
+    Debug(DBG_CONF_FILE_READER, ("Final 'chandef->chanconf->config_id': %d.\n",
+			    chandef->chanconf->config_id));
+
+    len=0;
+      
+  }//if(chandef->conf)
+  else
+  {  Debug(DBG_CONF_FILE_READER, ("chandef->conf == NULL!!\n"));	  
+  }	
+
+  //if there is anything in [profile] section, get it
+  if (chandef->conf_profile){
+     
+    for(conf_rec = chandef->conf_profile; *conf_rec; conf_rec += len) {
+	      
+      int toknum;
+      wanif_conf_t* chanconf = chandef->chanconf;
+	     
+      len = strlen(conf_rec) + 1;
+      toknum = tokenize(conf_rec, token);
+
+      Debug(DBG_CONF_FILE_READER_AFT, ("toknum: %d\n", toknum));	
+
+      if (toknum != 2) {
+        return -EINVAL;
+      }
+
+      strupcase(token[0]);
+
+      Debug(DBG_CONF_FILE_READER_AFT, ("chandef->addr: %s\n", chandef->addr));	
+      Debug(DBG_CONF_FILE_READER_AFT, ("0x%p, chanconf->config_id: %d (%s)\n",
+		    chanconf, chanconf->config_id, get_protocol_string(chanconf->config_id)));	
+
+      switch(chanconf->config_id)
+      {
+      case WANCONFIG_MFR:
+        Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_MFR\n"));	
+
+	if(set_conf_param(token[0], token[1], fr_conftab, &chandef->chanconf->u.fr,
+			  NULL, chandef)) {
+	  ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
+	  return ERR_CONFIG;
+	}//if()
+
+	Debug(DBG_CONF_FILE_READER_AFT, ("fr->signalling: %d\n", fr->signalling));	
+	Debug(DBG_CONF_FILE_READER_AFT, ("fr->station   : %d\n", fr->station));	
+	break;
+
+      case WANCONFIG_TTY:
+        //do nothing - everything was read already from : 'chan_conftab'
+	//and/or  'conf_table'
+	Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_TTY\n"));	
+	Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
+	Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
+	break;
+	  
+      case WANCONFIG_MPPP:
+	Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_MPPP\n"));	
+	Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
+	Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
+
+	if(set_conf_param(token[0], token[1], synch_ppp_conftab, &chandef->chanconf->u.ppp,
+			  NULL, chandef)) {
+	  ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
+	  return ERR_CONFIG;
+	}//if()
+
+	//Debug(DBG_CONF_FILE_READER_AFT, ("link_defs->linkconf->u.ppp.ip_mode: %d\n",
+	//			 link_defs->linkconf->u.ppp.ip_mode));
+	break;
+
+      case WANCONFIG_MPCHDLC:
+        //profile for this protocol is empty, so we never get here.
+	Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_MPCHDLC\n"));	
+	Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
+	Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
+	break;
+	
+      case WANCONFIG_LAPB:
+        Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_LAPB\n"));	
+	Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
+	Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
+
+	if(set_conf_param(token[0], token[1], lapb_annexg_conftab, &chandef->chanconf->u.lapb,
+			  NULL, chandef)) {
+	  ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
+	  return ERR_CONFIG;
+	}//if()
+	break;
+	  
+      default:
+        //it actually means that this protocol MUST NOT have a profile section
+	ERR_DBG_OUT(("Protocol %d(%s) MUST NOT have a profile section!\n", 
+	    	chanconf->config_id, get_protocol_string(chanconf->config_id)));
+	return ERR_CONFIG;
+      }//switch()
+    }//for()
+  }//if(chandef->conf_profile)
+  {
+    Debug(DBG_CONF_FILE_READER, ("chandef->conf_profile == NULL!!\n"));
+  }
+  
   return err;
 }
 

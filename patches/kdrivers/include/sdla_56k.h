@@ -22,7 +22,7 @@
 			  DEFINES AND MACROS
  ******************************************************************************/
 
-#define IS_56K_CARD(card)	IS_56K_MEDIA(card->fe.fe_cfg.media)
+#define IS_56K_CARD(card)	IS_56K_FEMEDIA(&(card)->fe)
 
 #define RRA(alarm) ((alarm>>8)&0xFF)
 #define RRC(alarm) ((alarm)&0xFF)

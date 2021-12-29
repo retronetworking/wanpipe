@@ -10,8 +10,10 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-# Project file paths.
-SYSINC	= /usr/src/linux/include
+SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
+ifeq "$(SYSINC)" "" 
+SYSINC=/usr/src/linux/include
+endif
 APIINC  = /usr/src/linux/include
 
 # Tools options.

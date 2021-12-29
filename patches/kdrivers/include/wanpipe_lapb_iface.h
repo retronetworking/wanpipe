@@ -28,6 +28,16 @@ extern void *wp_register_lapb_prot(void *, char *,
 		                   void *, 
 				   wplip_prot_reg_t *);
 extern int wp_unregister_lapb_prot(void *);
+
+extern void *wp_register_lapb_chan_prot(void *callback_dev_ptr, 
+		       		 void *link_ptr,
+		       		 char *devname, 
+		       		 void *cfg_ptr,
+		       		 unsigned char type);
+
+extern int wp_unregister_lapb_chan_prot(void *dev_ptr);
+
+
 extern int wp_lapb_open(void *lapb_ptr);
 extern int wp_lapb_close(void *lapb_ptr);
 extern int wp_lapb_rx(void *lapb_ptr, void *skb);

@@ -19,7 +19,7 @@
  ************************************************/
 #if defined (__KERNEL__) || defined (KERNEL) || defined (_KERNEL)
 # ifndef WAN_KERNEL
-# define WAN_KERNEL
+#  define WAN_KERNEL
 # endif
 #endif
 
@@ -479,8 +479,7 @@ typedef struct {
 
 #pragma pack()
 
-enum  {
-
+enum {
 	SIOC_WAN_READ_REG = 0x01,
 	SIOC_WAN_WRITE_REG,
 	SIOC_WAN_HWPROBE,
@@ -492,9 +491,9 @@ enum  {
 	SIOC_WAN_COREREV,
 	SIOC_WAN_GET_CFG,
 	SIOC_WAN_FE_READ_REG,
-	SIOC_WAN_FE_WRITE_REG
+	SIOC_WAN_FE_WRITE_REG,
+	SIOC_WAN_OCT6100_REG
 };
-
 typedef struct wan_cmd_api_
 {
 	unsigned int	cmd;
@@ -674,7 +673,7 @@ typedef struct wan_udp_hdr{
 # define WAN_MODULE_VERSION(module, version)
 # define WAN_MODULE_DEPEND(module, mdepend, vmin, vpref, vmax)
 # define WAN_MODULE_DEFINE(name,name_str,author,descr,lic,mod_init,mod_exit,devsw)\
-	int (##name)(struct lkm_table* lkmtp, int cmd, int ver);\
+	int (name)(struct lkm_table* lkmtp, int cmd, int ver);\
 	MOD_DEV(name_str, LM_DT_CHAR, -1, (devsw));	\
 	int load_##name(struct lkm_table* lkm_tp, int cmd){	\
 		switch(cmd){					\
@@ -683,7 +682,7 @@ typedef struct wan_udp_hdr{
 		}						\
 		return -EINVAL;					\
 	}							\
-	int (##name)(struct lkm_table* lkmtp, int cmd, int ver){\
+	int (name)(struct lkm_table* lkmtp, int cmd, int ver){\
 		DISPATCH(lkmtp,cmd,ver,load_##name,load_##name,lkm_nofunc);\
 	}
 #elif defined(__NetBSD__)
@@ -718,6 +717,30 @@ typedef struct wan_udp_hdr{
 	void __exit unload_##name(void){mod_exit(NULL);}	\
 	module_init(load_##name);				\
 	module_exit(unload_##name);				
+
+#elif defined(__SOLARIS__)
+# define WAN_MODULE_VERSION(module, version)
+# define WAN_MODULE_DEPEND(module, mdepend, vmin, vpref, vmax)
+# define WAN_MODULE_DEFINE(name,name_str,author,descr,lic,mod_init,mod_exit,devsw)\
+	int _init(void){\
+		int err=mod_init(NULL);				\
+		if (err) return err; 				\
+		err=mod_install(&modlinkage)			\
+		if (err) cmn_err(CE_CONT, "mod_install: failed\n"); \
+		return err;					\
+	}\
+	void _fini(void){					\
+		int status					\
+		mod_exit(NULL); 				\
+		if ((status = mod_remove(&modlinkage)) != 0)	\
+        		cmn_err(CE_CONT, "mod_remove: failed\n"); \
+		return status;					\
+	}\
+	int _info(struct modinfo* modinfop)			\
+	{							\
+    		dcmn_err((CE_CONT, "Get module info!\n"));	\
+    		return (mod_info(&modlinkage, modinfop));	\
+	}
 #endif
 
 /*
@@ -753,6 +776,7 @@ typedef struct termios		termios_t;
 #  define vsnprintf(a,b,c,d)	vsprintf(a,c,d)
 # endif
 typedef void*			wan_dma_tag_t;
+typedef wait_queue_head_t	wan_waitq_head_t;
 #elif defined(__FreeBSD__)
 typedef u_int8_t		u8;
 typedef u_int16_t		u16;
@@ -788,6 +812,7 @@ typedef struct proc		wan_dev_thread_t;
 typedef d_thread_t		wan_dev_thread_t;
 # endif
 typedef bus_dma_tag_t		wan_dma_tag_t;
+typedef int			wan_waitq_head_t;
 #elif defined(__OpenBSD__)
 typedef u_int8_t		u8;
 typedef u_int16_t		u16;
@@ -848,6 +873,10 @@ typedef int			wan_spinlock_t;
 typedef int			wan_smp_flag_t;
 typedef int 			wan_rwlock_t;
 typedef int			wan_rwlock_flag_t;
+#elif defined(__SOLARIS__)
+typedef mblk_t			netskb_t;
+
+
 #elif defined(__WINDOWS__)
 typedef UCHAR	u8;
 typedef UINT	u16;
@@ -938,6 +967,8 @@ typedef struct _wan_tasklet
 	void*			data;	
 #elif defined(__LINUX__)
 	struct tasklet_struct 	task_id;
+#elif  defined(__SOLARIS__)
+#error "wan_tasklet: not defined in solaris"
 #endif
 } wan_tasklet_t;
 
@@ -952,6 +983,8 @@ typedef struct _wan_taskq
 	void*			data;	
 #elif defined(__LINUX__)
     	struct tq_struct 	tqueue;
+#elif  defined(__SOLARIS__)
+#error "_wan_taskq: not defined in solaris"
 #endif
 } wan_taskq_t;
 

@@ -432,7 +432,7 @@ int wpp_init(sdla_t *card, wandev_conf_t *conf)
 	}
 		
 	/* TE1 Make special hardware initialization for T1/E1 board */
-	if (IS_TE1_MEDIA(conf->fe_cfg.media)){
+	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;
@@ -446,7 +446,7 @@ int wpp_init(sdla_t *card, wandev_conf_t *conf)
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
 		conf->clocking = WANOPT_EXTERNAL;
 
-	}else if (IS_56K_MEDIA(conf->fe_cfg.media)){
+	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;

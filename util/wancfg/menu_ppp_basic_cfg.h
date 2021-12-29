@@ -30,13 +30,11 @@ class menu_ppp_basic_cfg : public menu_base  {
 
   char lxdialog_path[MAX_PATH_LENGTH];
   list_element_chan_def* parent_list_element_logical_ch;
-  wan_ppp_conf_t* global_ppp_cfg;
   char* name_of_parent_layer;
   
 public: 
   menu_ppp_basic_cfg(	IN char * lxdialog_path,
-			IN list_element_chan_def* parent_element_logical_ch,
-			IN wan_ppp_conf_t* global_ppp_cfg);
+			IN list_element_chan_def* parent_element_logical_ch);
   
   ~menu_ppp_basic_cfg();
 

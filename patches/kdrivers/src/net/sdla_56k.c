@@ -380,7 +380,7 @@ static int sdla_56k_udp(sdla_fe_t *fe, void* pudp_cmd, unsigned char* data)
 
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
-		data[0] = (IS_56K_MEDIA(fe->fe_cfg.media) ? WAN_MEDIA_56K : 
+		data[0] = (IS_56K_FEMEDIA(fe) ? WAN_MEDIA_56K : 
 						WAN_MEDIA_NONE);
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 		udp_cmd->wan_cmd_data_len = sizeof(unsigned char); 

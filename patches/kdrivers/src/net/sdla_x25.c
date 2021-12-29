@@ -4453,7 +4453,7 @@ static int restart_event (sdla_t* card, int cmd, int lcn, wan_mbox_t* mb)
 }
 
 
-static int x25_down_event (sdla_t* card, int cmd, int lcn, wan_mbox_t* mb, unsigned char pkt_type )
+static int x25_down_event (sdla_t* card, int cmd, int lcn, wan_mbox_t* mb, unsigned char x25_pkt_type )
 {
 	struct wan_dev_le	*devle;	
 	netdevice_t* dev;
@@ -4476,7 +4476,7 @@ static int x25_down_event (sdla_t* card, int cmd, int lcn, wan_mbox_t* mb, unsig
 		old_state = chan->common.state;
 
 		if (chan->common.usedby == API){
-			mb->wan_x25_pktType=pkt_type;
+			mb->wan_x25_pktType=x25_pkt_type;
 			send_oob_msg(card,dev,mb);				
 		}
 

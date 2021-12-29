@@ -33,7 +33,8 @@ class conf_file_writer {
   int form_top_comment_str(string& top_comment_str);
   int form_devices_section_str(string& devices_section_str);
   int form_interface_str(string& interfaces_section_str,
-                         list_element_chan_def* list_el_chan_def);
+                         list_element_chan_def* list_el_chan_def,
+			 IN list_element_chan_def* parent_list_el_chan_def);
   int form_wanpipe_section_str(string& wanpipe_section_str);
   int form_wanpipe_card_location_str(string& wp_card_location_string);
   int form_fe_card_cfg_str(string& te1_cfg_string);
@@ -43,7 +44,7 @@ class conf_file_writer {
   int form_frame_relay_global_configuration_string( wan_fr_conf_t* fr_cfg,
                                                     string& fr_global_cfg);
 
-  int form_ppp_global_configuration_string(wan_ppp_conf_t* ppp_cfg,
+  int form_ppp_global_configuration_string(wan_sppp_if_conf_t* ppp_cfg,
                                            string& global_protocol_cfg);
 
   int form_chdlc_global_configuration_string( wan_chdlc_conf_t* chdlc_cfg,
@@ -54,8 +55,12 @@ class conf_file_writer {
 
   int form_adsl_global_cfg_str(string& tmp_string);
 
+  int form_lapb_global_configuration_string(wan_lapb_if_conf_t *lapb_cfg,
+                                           string& global_protocol_cfg);
+  
   ///////////////////////////////////////////////////////////////////////////////////////////
-  int traverse_interfaces(string& interfaces_section_str, objects_list * obj_list, IN int task_type);
+  int traverse_interfaces(string& interfaces_section_str, objects_list * obj_list, IN int task_type,
+	IN list_element_chan_def* parent_list_el_chan_def);
 
   int form_per_interface_str( string& wp_interface, list_element_chan_def* list_el_chan_def,
                               int lip_layer_flag);
@@ -66,8 +71,8 @@ class conf_file_writer {
   int form_frame_relay_per_interface_str( string& wp_interface,
                                           list_element_chan_def* list_el_chan_def);
   int form_ppp_per_interface_str(string& wp_interface,
-                                 list_element_chan_def* list_el_chan_def);
-
+		  		 wanif_conf_t* chanconf);
+                                 
   int form_chdlc_per_interface_str(string& wp_interface,
                                    list_element_chan_def* list_el_chan_def);
 

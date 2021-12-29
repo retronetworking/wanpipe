@@ -15,6 +15,46 @@
  *                                                                         *
  ***************************************************************************/
 
+/* WANCFG Structure diagram.
+ * Notes:
+ *  1. All LIP interfaces belonging to
+ *     the same HW interface will have a redunant copy
+ *     of the 'profile'. For example, each DLCI in Frame Relay
+ *     will have the same copy of 'global' FR configuration.
+ *     And, each interface will have it's own configuration:
+ *     CIR, and so on.
+ *  2. Each LIP interface in turn, may be 'used by' as STACK
+ *     and the same logic apply recursively.
+ *     
+ -------------------------------
+ |conf_file_reader(CFR)|	|
+ |---------------------		|		   Hardware Interfaces			LIP Interfaces
+ |				|		   --------------------			--------------
+ |link_def_t* link_defs		|			    
+ |				|		---------------------------
+ |objects_list* main_obj_list	|-------------->|list_element_chan_def|	  |
+ |------------------------------	|	----------------------	  |
+					|	|			  |
+					|	|chan_def_t data	  |
+					|	|			  |	  --------------------------
+					|	|void* next_objects_list  |------>|list_element_chan_def|   |
+					|	|-------------------------|   |	  |----------------------   |
+					|				      |	  |(DLCI 16)		    |
+					|				      |	  |chan_def_t data	    |
+					|				      |	  |			    |
+					|				      |	  |void* next_objects_list  |
+					|				      |	  --------------------------
+					|				      |
+					|	---------------------------   |   ---------------------------
+					|------>|list_element_chan_def|	  |   |-->|list_element_chan_def|   |
+ 						----------------------	  |       |----------------------   |
+						|			  |       |(DLCI 17)		    |
+						|chan_def_t data	  |	  |chan_def_t data	    |
+						|			  |	  |			    |
+						|void* next_objects_list  |	  |void* next_objects_list  |
+						|-------------------------|	  |-------------------------|
+*/
+
 #ifndef WANCFG_H
 #define WANCFG_H
 
@@ -65,14 +105,13 @@ BSD interface names rules:
 //////////////////////////////////////////////////////////////////////////
 #define MAX_LEN_OF_ACTIVE_CHANNELS_STRING 100
 
-typedef struct chan_def			/* Logical Channel definition */
+typedef struct chan_def		/* Logical Channel definition */
 {
   char name[WAN_IFNAME_SZ+1];	/* interface name for this channel */
   char* addr;			/* -> media address */
   char* conf;			/* -> configuration data */
   char* conf_profile;		/* -> protocol profile data */
   char	usedby;			/* used by WANPIPE or API */
-  //char  annexg;			/* -> anexg interface */
   char* label;			/* -> user defined label/comment */
   char* virtual_addr;		/* -> X.25 virtual addr */
   char* real_addr;		/* -> X.25 real addr */
@@ -82,7 +121,7 @@ typedef struct chan_def			/* Logical Channel definition */
   char active_channels_string[MAX_LEN_OF_ACTIVE_CHANNELS_STRING];
 } chan_def_t;
 
-typedef struct link_def			/* WAN Link definition */
+typedef struct link_def		/* WAN Link definition */
 {
   char name[WAN_DRVNAME_SZ+1];	/* link device name */
   int  sub_config_id;		/* configuration ID for internal use only */
@@ -93,7 +132,7 @@ typedef struct link_def			/* WAN Link definition */
   char start_script;
   char stop_script;
   
-  unsigned int card_version;  //S514 has many versions: S514-1/2/3/...7
+  unsigned int card_version;	//S514 has many versions: S514-1/2/3/...7
 
   char active_channels_string[MAX_LEN_OF_ACTIVE_CHANNELS_STRING];
   char firmware_file_path[MAX_PATH_LENGTH];
@@ -127,11 +166,6 @@ Press <ESC> to go back, <Help> for help."
 
 #define NOT_SET 100 //can be used for storage as small as 1 byte.
 #define NOT_SET_STR "Not Set"
-
-#define IF_NAME_NOT_INIT  "noname"
-
-//it is the count of 'config_id' definitions in wanpipe_cfg.h
-#define NUMBER_OF_PROTOCOLS 28//21
 
 #define NO_OPER_MODE YES+1
 
@@ -309,6 +343,8 @@ char* replace_numeric_with_char(char* str);
 ///////////////////////////////////////////////////////////////////////
 //errors display
 void err_printf(char* format, ...);
+
+//macro to display a fatal error and to exit the program
 #define ERR_DBG_OUT(_x_)                                              \
 { printf("%s: Error in File: %s, Function: %s(), Line: %d. Text:\n",  \
     prognamed, __FILE__, __FUNCTION__, __LINE__);                     \
@@ -406,6 +442,10 @@ extern char *verbose_log;
 //menu_list_all_wanpipes.cpp, 
 //make sure initialize it each time "new conf_file_reader()" is called
 extern void* global_conf_file_reader_ptr;
-
+//when writing conf file, TDMV_SPAN, TDMV_DCHAN and all other 
+//Voice related should be written only if at least one interface
+//is actually configured for VOICE
+extern char is_there_a_voice_if;
 #endif//WANCFG_H
+
 

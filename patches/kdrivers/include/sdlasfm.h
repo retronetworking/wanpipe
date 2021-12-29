@@ -134,18 +134,33 @@ typedef struct sfm			/* SDLA firmware file structire */
 #define A104_ADPTR_TE1_MASK		0x0080	/* Quad T1/E1 type mask  */
 #define A104_ADPTR_4TE1			0x0081	/* Quad line T1/E1 */
 
+#define A108_ADPTR_TE1_MASK		0x0200	/* 8 Channels T1/E1 type mask  */
+#define A108_ADPTR_8TE1			0x0201	/* 8 Channels T1/E1 */
+
 #define A100_ADPTR_T3E3_MASK		0x0100	/* T3/E3  type mask */
 #define A100_ADPTR_U_1TE3		0x0101	/* 1 Channel T3/E3 (Proto) */
-#define A300_ADPTR_U_1TE3		0x0102	/* 1 Channel T3/E3 */
+#define A300_ADPTR_U_1TE3		0x0102	/* 1 Channel T3/E3 (unchannelized) */
+#define A305_ADPTR_C_1TE3		0x0104	/* 1 Channel T3/E3 (channelized) */
+
+#define A200_ADPTR_ANALOG_MASK		0x0400	/* AFT-REMORA analog board mask */
+#define A200_ADPTR_ANALOG		0x0401	/* AFT-REMORA analog board */
 
 #define OPERATE_T1E1_AS_SERIAL		0x8000  /* For bitstreaming only 
 						 * Allow the applicatoin to 
 						 * E1 front end */
 
+/* settings for the 'adapter_subtype' */
+#define AFT_SUBTYPE_NORMAL	0x00
+#define AFT_SUBTYPE_SHARK	0x01
+
 /* settings for the 'adapter_security' */
 #define AFT_SECURITY_NONE	0x00
 #define AFT_SECURITY_CHAN	0x01
 #define AFT_SECURITY_UNCHAN	0x02
+
+/* settings for the 'adptr_subtype' */
+#define AFT_SUBTYPE_SHIFT	8
+#define AFT_SUBTYPE_MASK	0x0F
 
 /* CPLD definitions */
 #define AFT_SECURITY_1LINE_UNCH		0x00
@@ -175,7 +190,8 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(adapter_type == A101_ADPTR_1TE1) 	   ? "AFT-A101" : \
 		(adapter_type == A101_ADPTR_2TE1)	   ? "AFT-A102" : \
 		(adapter_type == A104_ADPTR_4TE1)	   ? "AFT-A104" : \
-		(adapter_type == A300_ADPTR_U_1TE3) 	   ? "AFT-A300" : \
+		(adapter_type == A300_ADPTR_U_1TE3) 	   ? "AFT-A301" : \
+		(adapter_type == A200_ADPTR_ANALOG) 	   ? "AFT-A200" : \
 							     "UNKNOWN"
 
 #if 0
@@ -190,20 +206,28 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(adapter_type == A101_ADPTR_1TE1) 	   ? "AFT-A101  " : \
 		(adapter_type == A101_ADPTR_2TE1)	   ? "AFT-A102  " : \
 		(adapter_type == A104_ADPTR_4TE1)	   ? "AFT-A104  " : \
-		(adapter_type == A300_ADPTR_U_1TE3) 	   ? "AFT-A300  " : \
+		(adapter_type == A300_ADPTR_U_1TE3) 	   ? "AFT-A301  " : \
 							     "UNKNOWN   "
 #endif
 
-#define AFT_GET_SECURITY(security)		\
+#define AFT_GET_SECURITY(security)					\
 		((security >> AFT_SECURITY_CPLD_SHIFT) & AFT_SECURITY_CPLD_MASK)
 
 #define AFT_SECURITY(adapter_security)					\
-		(adapter_security == AFT_SECURITY_CHAN) 	? "c" : 	\
+		(adapter_security == AFT_SECURITY_CHAN) 	? "c" : \
 		(adapter_security == AFT_SECURITY_UNCHAN) 	? "u" : ""
 
-#define AFT_SECURITY_DECODE(adapter_security)					\
+#define AFT_SECURITY_DECODE(adapter_security)						\
 		(adapter_security == AFT_SECURITY_CHAN) 	? "Channelized" : 	\
 		(adapter_security == AFT_SECURITY_UNCHAN) 	? "Unchannelized" : ""
+
+#define AFT_SUBTYPE(adptr_subtype)					\
+		(adptr_subtype == AFT_SUBTYPE_NORMAL)	? "" :		\
+		(adptr_subtype == AFT_SUBTYPE_SHARK)	? "-SH" : ""
+
+#define AFT_SUBTYPE_DECODE(adptr_subtype)				\
+		(adptr_subtype == AFT_SUBTYPE_NORMAL)	? "" :		\
+		(adptr_subtype == AFT_SUBTYPE_SHARK)	? "SHARK" : ""
 
 #endif	/* _SDLASFM_H */
 

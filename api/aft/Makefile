@@ -10,24 +10,34 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-# Project file paths.
-SYSINC	= /usr/src/linux/include
+SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
+ifeq "$(SYSINC)" "" 
+SYSINC=/usr/src/linux/include
+endif
 VPATH	= $(SYSINC)
 
 # Tools options.
 CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I$(SYSINC)
 
+TARGETS=aft_api
+TARGETS+= aft_api_ss7
+TARGETS+= aft_api_check
+
 ####### RULES ################################################################
 
-all:	aft_api aft_api_rbs 
+all:	$(TARGETS)  
 	@echo "Ok."
 
 aft_api:     	aft_api.c ../lib/lib_api.c
 	$(CC) $(CFLAGS) -o $@ $^
-	
-aft_api_rbs:     	aft_api_rbs.c ../lib/lib_api.c
+
+aft_api_check: 	aft_api_check.c ../lib/lib_api.c
 	$(CC) $(CFLAGS) -o $@ $^
 
+aft_api_ss7: 	aft_api_ss7.c ../lib/lib_api.c
+	$(CC) $(CFLAGS) -o $@ $^
+
+
+
 clean:
-	rm -f aft_api
-	rm -f aft_api_rbs
+	rm -f $(TARGETS)

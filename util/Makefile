@@ -1,11 +1,11 @@
 SYSINC=/usr/src/linux/include
 
 all:
-	make -C ft1 all SYSINC=$(SYSINC) 
+	make -C ft1 all #SYSINC=$(SYSINC) 
 	make -C lxdialog all SYSINC=$(SYSINC)
 	make -C sdladump all SYSINC=$(SYSINC)
 	make -C wanconfig all SYSINC=$(SYSINC)
-	make -C wanpipemon all SYSINC=$(SYSINC) PROTOCOL_DEFS=$(PROTOCOL_DEFS) 
+	make -C wanpipemon all SYSINC=$(SYSINC) PROTOCOL_DEFS=$(PROTOCOL_DEFS) ENABLE_WANPIPEMON_ZAP=$(ENABLE_WANPIPEMON_ZAP)  
 	make -C wanpipemon_legacy all SYSINC=$(SYSINC) PROTOCOL_DEFS=$(PROTOCOL_DEFS) 
 #	make -C wancfg all SYSINC=$(SYSINC) 
 	make -C bwm all SYSINC=$(SYSINC) PROTOCOL_DEFS=$(PROTOCOL_DEFS)
@@ -40,5 +40,5 @@ clean:
 	make -C wanpipemon clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanpipemon_legacy clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wancfg clean WAN_VIRTUAL=$(WAN_VIRTUAL)
-	make -C wan_aftup clean WAN_VIRTUAL=$(WAN_VIRTUAL)
+	make -C wan_aftup clean 
 	make -C bwm clean SYSINC=$(SYSINC) PROTOCOL_DEFS=$(PROTOCOL_DEFS)

@@ -37,19 +37,17 @@ public:
     Debug(DBG_LIST_ELEMENT_PPP_INTERFACE,
       ("list_element_ppp_interface::list_element_ppp_interface()\n"));
 
-    //set default configuration
     data.chanconf->config_id = WANCONFIG_MPPP;
 
-    data.chanconf->pap = 0;
-    data.chanconf->chap = 0;
-    //data.chanconf->userid
-    //data.chanconf->passwd 
-    //data.chanconf->sysname
-
-    //the above actually should be here, but legacy
-    //structures do not allow.
-    //nothing to do for now
+    //set default configuration
     ppp = &data.chanconf->u.ppp;
+
+    ppp->dynamic_ip = WANOPT_PPP_STATIC;
+    ppp->pap = WANOPT_NO;
+    ppp->chap = WANOPT_NO;
+    //data.chanconf->u.ppp.userid
+    //data.chanconf->u.ppp.passwd 
+    //data.chanconf->u.ppp.sysname
   }
 
   ~list_element_ppp_interface()

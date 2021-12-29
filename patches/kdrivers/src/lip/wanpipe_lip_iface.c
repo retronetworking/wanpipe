@@ -23,7 +23,7 @@
  * Definitions
  */
 
-
+ 
 /*=============================================================
  * Global Parameters
  */
@@ -44,11 +44,16 @@ int gdbg_flag=0;
 static int wplip_if_unreg (netdevice_t *dev);
 static int wplip_bind_link(void *lip_id,netdevice_t *dev);
 static int wplip_unbind_link(void *lip_id,netdevice_t *dev);
-static void wplip_kick(void *wplip_id,int reason);
 static void wplip_disconnect(void *wplip_id,int reason);
 static void wplip_connect(void *wplip_id,int reason);
 static int wplip_rx(void *wplip_id, void *skb);
 static int wplip_unreg(void *reg_ptr);
+
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+static void wplip_if_task (void *arg, int dummy);
+#else
+static void wplip_if_task (void *arg);
+#endif
 
 extern int register_wanpipe_lip_protocol (wplip_reg_t *lip_reg);
 extern void unregister_wanpipe_lip_protocol (void);
@@ -100,6 +105,9 @@ static int wplip_register (void **lip_link_ptr, wanif_conf_t *conf, char *devnam
 	lip_link->state = WAN_DISCONNECTED;
 	lip_link->carrier_state = WAN_DISCONNECTED;
 
+	lip_link->latency_qlen=100;
+
+
 	*lip_link_ptr = lip_link;
 
 	return 0;	
@@ -141,12 +149,12 @@ static int wplip_unreg(void *lip_link_ptr)
 	wan_del_timer(&lip_link->prot_timer);
 
 	wan_set_bit(WPLIP_LINK_DOWN,&lip_link->tq_working);
-
 	while((lip_dev = WAN_LIST_FIRST(&lip_link->list_head_ifdev)) != NULL){
 		
 		DEBUG_EVENT("%s: Unregistering dev %s\n",
 				lip_link->name,lip_dev->name);
-		
+	
+
 		err=wplip_if_unreg(lip_dev->common.dev);
 		if (err<0){
 			wan_clear_bit(WPLIP_LINK_DOWN,&lip_link->tq_working);
@@ -187,6 +195,13 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 {		
 	wplip_link_t *lip_link = (wplip_link_t*)lip_link_ptr;
 	wplip_dev_t *lip_dev;
+	int usedby=0;
+	int err;
+
+	if (!conf){
+		DEBUG_EVENT("%s: LIP DEV: If Registartion without configuration!\n",dev_name);
+		return -EINVAL;
+	}
 
 #ifdef WPLIP_TTY_SUPPORT
 	if (lip_link->tty_opt){
@@ -212,18 +227,43 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 		return -EEXIST;
 	}
 	
+	if(strcmp(conf->usedby, "API") == 0) {
+		usedby = API;
+	}else if(strcmp(conf->usedby, "WANPIPE") == 0){
+		usedby = WANPIPE;
+	}else if(strcmp(conf->usedby, "STACK") == 0){
+		usedby = STACK;
+	}else if(strcmp(conf->usedby, "BRIDGE") == 0){
+		usedby = BRIDGE;
+	}else if(strcmp(conf->usedby, "BRIDGE_NODE") == 0){
+		usedby = BRIDGE_NODE;
+	}else{
+		DEBUG_EVENT( "%s: LIP device invalid 'usedby': %s\n",
+				dev_name, conf->usedby);
+		return -EINVAL;
+	}
 
-	if ((lip_dev = wplip_create_lipdev(dev_name, conf->protocol)) == NULL){
+	if ((lip_dev = wplip_create_lipdev(dev_name, usedby)) == NULL){
 		DEBUG_EVENT("%s: LIP: Failed to create lip priv device %s\n",
 				lip_link->name,dev_name);
 		return -ENOMEM;
 	}
 
+	
+	
 	WAN_HOLD(lip_link);
 	lip_dev->lip_link 	= lip_link;
-	lip_dev->common.usedby 	= WANPIPE;
+	lip_dev->protocol	= conf->protocol;
+	lip_dev->common.usedby 	= usedby;
 	lip_dev->common.state	= WAN_DISCONNECTED;
 
+		
+	if (lip_link->state == WAN_CONNECTED){
+		WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
+	}else{
+		WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+	}
+	
 #if defined(__LINUX__)
 	if (conf->true_if_encoding){
 		DEBUG_EVENT("%s: LIP: Setting IF Type to Broadcast\n",dev_name);
@@ -232,36 +272,82 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 	}
 #endif
 
-	if (conf){
-		int err;
+	switch (usedby){
 
-		if(strcmp(conf->usedby, "API") == 0) {
-			lip_dev->common.usedby = API;
-			wan_reg_api(lip_dev, lip_dev->common.dev, lip_link->name);
-			DEBUG_EVENT( "%s: Running in API mode\n",
-					lip_dev->name);
-		}else{
-			lip_dev->common.usedby = WANPIPE;
-			DEBUG_EVENT( "%s: Running in WANPIPE mode\n",
-					lip_dev->name);
-		}
+	case API:
+		wan_reg_api(lip_dev, lip_dev->common.dev, lip_link->name);
+		DEBUG_EVENT( "%s: Running in API mode\n",
+				lip_dev->name);
+		break;
+	case WANPIPE:
+		DEBUG_EVENT( "%s: Running in WANPIPE mode\n",
+				lip_dev->name);
+		break;
+	case STACK:
+		DEBUG_EVENT( "%s: Running in STACK mode\n",
+				lip_dev->name);
+		break;
 
-		lip_dev->ipx_net_num = conf->network_number;
+	case BRIDGE:
+		DEBUG_EVENT( "%s: Running in BRIDGE mode\n",
+				lip_dev->name);
+		break;
 
+	case BRIDGE_NODE:
+		DEBUG_EVENT( "%s: Running in BRIDGE Node mode\n",
+				lip_dev->name);
+		break;
+
+	default:
+		DEBUG_EVENT( "%s: LIP device invalid 'usedby': %s\n",
+				lip_dev->name, conf->usedby);
+		__WAN_PUT(lip_link);
+		lip_dev->lip_link = NULL;
+		wplip_free_lipdev(lip_dev);
+		return -EINVAL;
+	}
+
+	lip_dev->ipx_net_num = conf->network_number;
+	if (lip_dev->ipx_net_num) {
 		DEBUG_EVENT("%s: IPX Network Number = 0x%lX\n",
 				lip_dev->name, lip_dev->ipx_net_num);
-		
-		err=wplip_reg_lipdev_prot(lip_dev,conf);
-		if (err){
-			__WAN_PUT(lip_link);
-			lip_dev->lip_link = NULL;
-			wplip_free_lipdev(lip_dev);
-			return err;
-		}
+	}
+	
+	lip_dev->max_mtu_sz=MAX_TX_BUF;
+	lip_dev->max_mtu_sz_orig=MAX_TX_BUF;
+	
+	err=wplip_reg_lipdev_prot(lip_dev,conf);
+	if (err){
+		__WAN_PUT(lip_link);
+		lip_dev->lip_link = NULL;
+		wplip_free_lipdev(lip_dev);
+		return err;
 	}
 	
 	wplip_insert_lipdev(lip_link,lip_dev);
+	WAN_TASKQ_INIT((&lip_dev->if_task),0,wplip_if_task,lip_dev);
+	
+	err=wplip_open_lipdev_prot(lip_dev);
+	if (err){
+		wplip_remove_lipdev(lip_link,lip_dev);
+		__WAN_PUT(lip_link);
+		lip_dev->lip_link = NULL;
+		wplip_free_lipdev(lip_dev);
+		return err;
+	}
 
+	
+#ifdef __LINUX__	
+	if (conf->if_down && usedby != API && usedby != STACK){
+		wan_set_bit(DYN_OPT_ON,&lip_dev->interface_down);
+		DEBUG_EVENT("%s: Dynamic interface configuration enabled\n",
+			   dev_name);
+	}else{
+		wan_clear_bit(DYN_OPT_ON,&lip_dev->interface_down);
+	}
+	lip_link->latency_qlen=lip_dev->common.dev->tx_queue_len;
+#endif
+	
 	DEBUG_TEST("%s: LIP LIPDEV Created %p Magic 0x%lX\n",
 			lip_link->name,
 			lip_dev,
@@ -288,6 +374,7 @@ static int wplip_if_unreg (netdevice_t *dev)
 {
 	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
 	wplip_link_t *lip_link = NULL;
+	wplip_link_t *stack_lip_link = NULL;
 	wan_smp_flag_t flags;
 
 	if (!lip_dev)
@@ -307,7 +394,24 @@ static int wplip_if_unreg (netdevice_t *dev)
 		return -ENODEV;
 	}
 
+	/* Check for a Higher Lip Link layer attached 
+	 * to this device. If exists, call unregister to
+	 * remove it before unregistering this device */	
+	stack_lip_link=lip_dev->common.lip; /*STACK*/
+	if (stack_lip_link){
+		int err;
+		DEBUG_TEST("%s: IF UNREG: Calling Top Layer LIP UNREG\n",
+				lip_dev->name);
+		err=wplip_unreg(stack_lip_link);
+		if (err){
+			return err;
+		}
+	}
+
+	wplip_close_lipdev_prot(lip_dev);
+	
 	wan_set_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical);
+	wan_clear_bit(WAN_DEV_READY,&lip_dev->interface_down);
 	
 
 	wan_spin_lock_irq(&lip_link->bh_lock,&flags);
@@ -520,6 +624,7 @@ int wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb)
 	
 		((netskb_t *)skb)->protocol = htons(PVC_PROT);
 		((netskb_t *)skb)->mac.raw  = wan_skb_data(skb);
+		((netskb_t *)skb)->nh.raw   = wan_skb_data(skb);
 		((netskb_t *)skb)->dev      = lip_dev->common.dev;
 		((netskb_t *)skb)->pkt_type = WAN_PACKET_DATA;		
 
@@ -530,7 +635,14 @@ int wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb)
 					lip_dev->name,err);
 			}
 #endif
+
+#if 0
+			/* Must implement for LAPB */
 			wan_skb_pull(skb,sizeof(wan_api_rx_hdr_t));
+#else
+		        wan_skb_free(skb);
+#endif
+			lip_dev->ifstats.rx_errors++;		
 			return 1;
 		}else{
 			lip_dev->ifstats.rx_packets++;
@@ -539,6 +651,23 @@ int wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb)
 		}
 		break;
 #endif	
+
+	case STACK:
+		if (lip_dev->common.lip){
+			int err=wplip_rx(lip_dev->common.lip,skb);
+			if (err){
+				wan_skb_free(skb);
+				lip_dev->ifstats.rx_dropped++;
+			}else{
+				lip_dev->ifstats.rx_packets++;
+				lip_dev->ifstats.rx_bytes+=len;
+			}
+		}else{
+			wan_skb_free(skb);
+			lip_dev->ifstats.rx_dropped++;
+		}
+
+		break;
 	default:
 		if (wan_iface.input && wan_iface.input(lip_dev->common.dev, skb) == 0){
 			lip_dev->ifstats.rx_packets++;
@@ -617,10 +746,16 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
 		return -EBUSY;
 	}
 
+	
 #if defined(__LINUX__)
+        if (lip_link->latency_qlen != dev->tx_queue_len) {
+        	dev->tx_queue_len=lip_link->latency_qlen;
+	}
+
 	return dev->hard_start_xmit(skb,dev);
 #else
  	if (dev->if_output) return dev->if_output(dev, skb, NULL,NULL);
+	wan_skb_free(skb);
 	return 0;
 #endif
 }
@@ -629,7 +764,7 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
  * wplip_link_prot_change_state
  *
  * Description:
- * 	The lowyer layer calls this function, when it
+ * 	The lower layer calls this function, when it
  * 	becomes disconnected.  
  */
 
@@ -666,11 +801,11 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 	wplip_dev_t *lip_dev = (wplip_dev_t *)wplip_id;
 
 	DEBUG_EVENT("%s: Lip Dev Prot State %s!\n",
-		lip_dev->name,STATE_DECODE(state));
+		lip_dev->name, STATE_DECODE(state));
 
 	lip_dev->common.state = state;
 
-	if (lip_dev->common.usedby == API){
+	if (lip_dev->common.usedby == API) {
 
 		if (data && len){
 			wplip_prot_oob(lip_dev,data,len);
@@ -686,6 +821,21 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 		}
 
 		wplip_trigger_bh(lip_dev->lip_link);
+
+	}else if (lip_dev->common.lip) { /*STACK*/
+		
+		if (lip_dev->common.state == WAN_CONNECTED){
+			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
+			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
+			wplip_connect(lip_dev->common.lip,0);
+		}else{
+			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
+			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
+#endif
+			wplip_disconnect(lip_dev->common.lip,0);
+		}
+		
 	}else{
 		if (lip_dev->common.state == WAN_CONNECTED){
 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
@@ -693,8 +843,11 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 			wplip_trigger_bh(lip_dev->lip_link);
 		}else{
 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
+#endif
 		}
+		wplip_trigger_if_task(lip_dev);
 	}
 	
 	return 0;
@@ -772,7 +925,7 @@ static void wplip_disconnect(void *wplip_id,int reason)
  * Description:
  */
 
-static void wplip_kick(void *wplip_id,int reason)
+void wplip_kick(void *wplip_id,int reason)
 {
 	wplip_link_t *lip_link = (wplip_link_t *)wplip_id;
 	
@@ -823,7 +976,7 @@ int wplip_link_callback_tx_down(void *wplink_id, void *skb)
 {
 	wplip_link_t *lip_link   = (wplip_link_t *)wplink_id;	
 
-	if (!lip_link){
+	if (!lip_link || !skb){
 		DEBUG_EVENT("%s: Assertion error lip_dev=NULL!\n",
 				__FUNCTION__);
 		return 1;
@@ -835,7 +988,7 @@ int wplip_link_callback_tx_down(void *wplink_id, void *skb)
 
 	if (lip_link->carrier_state != WAN_CONNECTED){
 		DEBUG_TEST("%s: %s() Error Lip Link Carrier not connected !\n",
-				lip_dev->name,__FUNCTION__);
+				lip_link->name,__FUNCTION__);
 		wan_skb_free(skb);
 		return 0;
 	}
@@ -853,7 +1006,6 @@ int wplip_link_callback_tx_down(void *wplink_id, void *skb)
 
 	return 0;
 }
-
 int wplip_callback_tx_down(void *wplip_id, void *skb)
 {
 	wplip_dev_t *lip_dev   = (wplip_dev_t *)wplip_id;	
@@ -863,6 +1015,15 @@ int wplip_callback_tx_down(void *wplip_id, void *skb)
 				__FUNCTION__);
 		return 1;
 	}
+
+	if (!skb){
+		if (lip_dev->max_mtu_sz - wan_skb_queue_len(&lip_dev->tx_queue) < 0) {
+			return 0;
+		} else {
+			return lip_dev->max_mtu_sz - wan_skb_queue_len(&lip_dev->tx_queue);
+		}
+	}
+
 
 	DEBUG_TEST("%s:%s: Packet Len=%i\n",
 			lip_dev->name,__FUNCTION__,wan_skb_len(skb));
@@ -876,12 +1037,11 @@ int wplip_callback_tx_down(void *wplip_id, void *skb)
 		return 0;
 	}
 
-	if (wan_skb_queue_len(&lip_dev->tx_queue) >= MAX_TX_BUF){
+	if (wan_skb_queue_len(&lip_dev->tx_queue) > lip_dev->max_mtu_sz){
 		wplip_trigger_bh(lip_dev->lip_link);
-		DEBUG_TEST("%s: %s() Error  Tx queue full Kick=%i!\n",
+		DEBUG_TEST("%s: %s() Error  Tx queue full Kick=%d!\n",
 				lip_dev->name,__FUNCTION__,
-				wan_test_bit(WPLIP_BH_AWAITING_KICK,&lip_dev->lip_link->tq_working)
-);
+				wan_test_bit(WPLIP_BH_AWAITING_KICK,&lip_dev->lip_link->tq_working));
 		return 1;
 	}
 
@@ -892,22 +1052,38 @@ int wplip_callback_tx_down(void *wplip_id, void *skb)
 	return 0;
 }
 
+int wplip_callback_kick_prot_task (void *wplink_id)
+{
+	wplip_link_t *lip_link   = (wplip_link_t *)wplink_id;	
+
+	if (!lip_link){
+		DEBUG_EVENT("%s: Assertion error lip_dev=NULL!\n",
+				__FUNCTION__);
+		return 1;
+	}
+
+	WAN_TASKQ_SCHEDULE((&lip_link->prot_task));
+
+	return 0;
+}
 
 unsigned int wplip_get_ipv4_addr (void *wplip_id, int type)
 {
-#ifdef __LINUX__
 	wplip_dev_t *lip_dev   = (wplip_dev_t *)wplip_id;	
+#ifdef __LINUX__
 
 	struct in_ifaddr *ifaddr;
 	struct in_device *in_dev;
 
-	if ((in_dev = __in_dev_get(lip_dev->common.dev)) == NULL){
+	if ((in_dev = in_dev_get(lip_dev->common.dev)) == NULL){
 		return 0;
 	}
 
 	if ((ifaddr = in_dev->ifa_list)== NULL ){
+		in_dev_put(in_dev);
 		return 0;
 	}
+	in_dev_put(in_dev);
 	
 	switch (type){
 
@@ -929,10 +1105,50 @@ unsigned int wplip_get_ipv4_addr (void *wplip_id, int type)
 	default:
 		return 0;
 	}
+#else
+	netdevice_t		*ifp = NULL;
+	struct ifaddr		*ifa = NULL;
+	struct sockaddr_in	*si;
+
+	ifp = lip_dev->common.dev;
+	for (ifa = WAN_TAILQ_FIRST(ifp); ifa; ifa = WAN_TAILQ_NEXT(ifa)){
+		if (ifa->ifa_addr->sa_family == AF_INET) {
+			si = (struct sockaddr_in *)ifa->ifa_addr;
+			if (si) break;
+		}
+	}
+
+	if (ifa) {
+		switch (type){
+		case WAN_LOCAL_IP:
+			if (ifa->ifa_addr){
+				return (satosin(ifa->ifa_addr))->sin_addr.s_addr;
+			}
+			break;
+		case WAN_POINTOPOINT_IP:
+			if (ifa->ifa_dstaddr){
+				return (satosin(ifa->ifa_dstaddr))->sin_addr.s_addr;
+			}
+			break;
+		case WAN_NETMASK_IP:
+			if (ifa->ifa_netmask){
+				return (satosin(ifa->ifa_netmask))->sin_addr.s_addr;
+			}
+			break;
+		case WAN_BROADCAST_IP:
+			if (ifa->ifa_broadaddr){
+				return (satosin(ifa->ifa_broadaddr))->sin_addr.s_addr;
+			}
+			break;
+		}
+	}
 #endif
 	return 0;
 }
 
+
+/* PROTOCOL MUST CALL THIS ONLY 
+ * FROM A PROT TASK */
 
 int wplip_set_ipv4_addr (void *wplip_id, 
 		         unsigned int local,
@@ -940,32 +1156,244 @@ int wplip_set_ipv4_addr (void *wplip_id,
 		         unsigned int netmask,
 		         unsigned int dns)
 {
-#if 0
 	wplip_dev_t *lip_dev   = (wplip_dev_t *)wplip_id;	
-#endif
-	return 0;
+#if defined(__LINUX__)
+	struct sockaddr_in *if_data;
+	struct ifreq if_info;	
+	int err=0;
+	mm_segment_t fs;
+	netdevice_t *dev=lip_dev->common.dev;
+	
+	 /* Setup a structure for adding/removing routes */
+        memset(&if_info, 0, sizeof(if_info));
+        strcpy(if_info.ifr_name, dev->name);
 
+	if_data = (struct sockaddr_in *)&if_info.ifr_addr;
+	if_data->sin_addr.s_addr = local;
+	if_data->sin_family = AF_INET;
+
+	fs = get_fs();                  /* Save file system  */
+       	set_fs(get_ds());    
+	err = devinet_ioctl(SIOCSIFADDR, &if_info);
+	set_fs(fs);
+        
+	memset(&if_info, 0, sizeof(if_info));
+        strcpy(if_info.ifr_name, dev->name);
+
+	if_data = (struct sockaddr_in *)&if_info.ifr_dstaddr;
+	if_data->sin_addr.s_addr = remote;
+	if_data->sin_family = AF_INET;
+
+	fs = get_fs();                  /* Save file system  */
+       	set_fs(get_ds());  
+	err = devinet_ioctl(SIOCSIFDSTADDR, &if_info);
+	set_fs(fs);
+
+	return 0;
+#else
+	netdevice_t		*ifp = NULL;
+	struct ifaddr		*ifa = NULL;
+	struct sockaddr_in	*si = NULL;
+
+	ifp = lip_dev->common.dev;
+	for (ifa = WAN_TAILQ_FIRST(ifp); ifa; ifa = WAN_TAILQ_NEXT(ifa)){
+		if (ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_INET){
+			si = (struct sockaddr_in *)ifa->ifa_addr;
+			if (si) break;
+		}
+	}
+	if (ifa && si){
+		int error;
+		struct in_ifaddr *ia;
+
+#if __NetBSD_Version__ >= 103080000
+		struct sockaddr_in new_sin = *si;
+
+		new_sin.sin_addr.s_addr = htonl(src);
+		error = in_ifinit(ifp, ifatoia(ifa), &new_sin, 1);
+#else
+		/* delete old route */
+		error = rtinit(ifa, (int)RTM_DELETE, RTF_HOST);
+
+		/* set new address */
+		si->sin_addr.s_addr = local;
+#if defined(__FreeBSD__)
+		ia = ifatoia(ifa);
+		LIST_REMOVE(ia, ia_hash);
+		LIST_INSERT_HEAD(INADDR_HASH(si->sin_addr.s_addr), ia, ia_hash);
+#endif
+#if 0
+		/* Local IP address */
+		si = (struct sockaddr_in*)ifa->ifa_addr;
+		if (si){
+			/* write new local IP address */
+			si->sin_addr.s_addr = local;
+		}
+#endif
+		/* Remote IP address */
+		si = (struct sockaddr_in*)ifa->ifa_dstaddr;
+		if (si){
+			/* write new remote IP address */
+			si->sin_addr.s_addr = remote;
+		}
+		/* Netmask */
+		si = (struct sockaddr_in*)ifa->ifa_netmask;
+		if (si){
+			/* write new remote IP address */
+			si->sin_addr.s_addr = htonl(0xFFFFFFFC);
+		}
+
+		/* add new route */
+		error = rtinit(ifa, (int)RTM_ADD, RTF_HOST);
+#endif
+	}
+	return 0;
+#endif
 }
 
 void wplip_add_gateway(void *wplip_id)
 {
+
 #if 0
 	wplip_dev_t *lip_dev   = (wplip_dev_t *)wplip_id;	
 #endif
-
 	return;
 }
 
 
+int wplip_set_hw_idle_frame (void *liplink_ptr, unsigned char *data, int len)
+{
+
+     	wplip_link_t *lip_link   = (wplip_link_t *)liplink_ptr;	
+
+	if (!lip_link){
+		DEBUG_EVENT("%s: Assertion error lip_dev=NULL!\n",
+				__FUNCTION__);
+		return 1;
+	}            
+
+        DEBUG_EVENT("%s: Warning: %s Not supported!\n",
+		      lip_link->name,__FUNCTION__);  
+	
+	return 0;
+}
 
 
 /***************************************************************
  * Private Device Functions
  */
+ 
+#ifdef __LINUX__
+static int wplip_change_dev_flags (netdevice_t *dev, unsigned flags)
+{
+	struct ifreq if_info;
+	mm_segment_t fs = get_fs();
+	int err;
+
+	memset(&if_info, 0, sizeof(if_info));
+	strcpy(if_info.ifr_name, dev->name);
+	if_info.ifr_flags = flags;	
+
+	set_fs(get_ds());     /* get user space block */ 
+	err = devinet_ioctl(SIOCSIFFLAGS, &if_info);
+	set_fs(fs);
+
+	return err;
+}        
+#endif
 
 
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+static void wplip_if_task (void *arg, int dummy)
+#else
+static void wplip_if_task (void *arg)
+#endif
+{
+#ifdef __LINUX__
+	wplip_dev_t	*lip_dev=(wplip_dev_t *)arg;
+	wplip_link_t	*lip_link;
+	netdevice_t 	*dev;
+	
+	if (!lip_dev || !lip_dev->common.dev){
+		return;
+	}
+	
+	if (wan_test_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical)){
+		return;
+	}
+	
+	if (!wan_test_bit(DYN_OPT_ON,&lip_dev->interface_down) ||
+	    !wan_test_bit(WAN_DEV_READY,&lip_dev->interface_down)){
+		return;
+	}
+	
+	DEBUG_TEST("%s:%d: Device %s\n",__FUNCTION__,__LINE__,lip_dev->name);
+	
+	lip_link = lip_dev->lip_link;
+	dev=lip_dev->common.dev;
+	
+	switch (lip_dev->common.state){
+
+	case WAN_DISCONNECTED:
+
+		/* If the dynamic interface configuration is on, and interface 
+		 * is up, then bring down the netowrk interface */
+		
+		if (wan_test_bit(DYN_OPT_ON,&lip_dev->interface_down) && 
+		    !wan_test_bit(DEV_DOWN,  &lip_dev->interface_down) &&		
+		    dev->flags & IFF_UP){	
+
+			DEBUG_EVENT("%s: Interface %s down.\n",
+				lip_link->name,dev->name);
+			wplip_change_dev_flags(dev,(dev->flags&~IFF_UP));
+			wan_set_bit(DEV_DOWN,&lip_dev->interface_down);
+
+		}
+
+		break;
+
+	case WAN_CONNECTED:
+
+		/* In SMP machine this code can execute before the interface
+		 * comes up.  In this case, we must make sure that we do not
+		 * try to bring up the interface before dev_open() is finished */
 
 
+		/* DEV_DOWN will be set only when we bring down the interface
+		 * for the very first time. This way we know that it was us
+		 * that brought the interface down */
+
+		if (wan_test_bit(DYN_OPT_ON,&lip_dev->interface_down) &&
+		    wan_test_bit(DEV_DOWN,  &lip_dev->interface_down) &&
+		    !(dev->flags & IFF_UP)){
+			
+			DEBUG_EVENT("%s: Interface %s up.\n",
+				lip_link->name,dev->name);
+			wplip_change_dev_flags(dev,(dev->flags|IFF_UP));
+			wan_clear_bit(DEV_DOWN,&lip_dev->interface_down);
+		}
+		
+		break;
+	}	
+
+#endif
+	
+}
+
+void wplip_trigger_if_task(wplip_dev_t *lip_dev)
+{
+	
+	if (wan_test_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical)){
+		return;
+	}
+	
+	if (wan_test_bit(DYN_OPT_ON,&lip_dev->interface_down) && 
+	    wan_test_bit(WAN_DEV_READY,&lip_dev->interface_down)){
+		WAN_TASKQ_SCHEDULE((&lip_dev->if_task));
+	}	
+
+	return;
+}
 
 /***************************************************************
  * Module Interface Functions

@@ -10,8 +10,10 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-# Project file paths.
-SYSINC	= /usr/src/linux/include
+SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
+ifeq "$(SYSINC)" "" 
+SYSINC=/usr/src/linux/include
+endif
 
 # Tools options.
 CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I$(SYSINC) -I$(APIINC)

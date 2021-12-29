@@ -141,6 +141,7 @@ enum {
  */
 #define DYN_OPT_ON	0x00
 #define DEV_DOWN	0x01
+#define WAN_DEV_READY	0x02
 
 /*
  * Data structures for IOCTL calls.
@@ -206,37 +207,6 @@ typedef struct global_stats
 
 } global_stats_t;
 
-#if ALEX
-typedef struct{
-	unsigned short	udp_src_port		PACKED;
-	unsigned short	udp_dst_port		PACKED;
-	unsigned short	udp_length		PACKED;
-	unsigned short	udp_checksum		PACKED;
-} udp_pkt_t;
-
-
-typedef struct {
-	unsigned char	ver_inet_hdr_length	PACKED;
-	unsigned char	service_type		PACKED;
-	unsigned short	total_length		PACKED;
-	unsigned short	identifier		PACKED;
-	unsigned short	flags_frag_offset	PACKED;
-	unsigned char	ttl			PACKED;
-	unsigned char	protocol		PACKED;
-	unsigned short	hdr_checksum		PACKED;
-	unsigned long	ip_src_address		PACKED;
-	unsigned long	ip_dst_address		PACKED;
-} ip_pkt_t;
-
-
-typedef struct {
-        unsigned char           signature[8]    PACKED;
-        unsigned char           request_reply   PACKED;
-        unsigned char           id              PACKED;
-        unsigned char           reserved[6]     PACKED;
-} wp_mgmt_t;
-#endif
-
 /*************************************************************************
  Data Structure for if_send  statistics
 *************************************************************************/  
@@ -288,7 +258,7 @@ typedef struct {
 	struct sk_buff *skb;
 } bh_data_t, cmd_data_t;
 
-#define MAX_LGTH_UDP_MGNT_PKT 2000
+#define MAX_LGTH_UDP_MGNT_PKT WAN_MAX_DATA_SIZE
  
 
 /* This is used for interrupt testing */
@@ -339,7 +309,10 @@ typedef struct {
 #endif
 
 #define MAX_E1_CHANNELS 32
-#define MAX_FR_CHANNELS (991+1)
+#define MAX_FR_CHANNELS (1007+1)
+
+#define WAN_ENABLE	0x01
+#define WAN_DISABLE	0x02
 
 #ifndef	min
 #define min(a,b) (((a)<(b))?(a):(b))
@@ -731,7 +704,21 @@ typedef struct
 	unsigned int	security_cnt;
 	unsigned char	firm_ver;
 	unsigned int	chip_security_cnt;
-	unsigned int 	comm_enabled;
+	unsigned long	rx_timeout,gtimeout;
+	unsigned int	comm_enabled;
+	unsigned int	lcfg_reg;
+	unsigned int    tdmv_master_if_up;
+	unsigned int	tdmv_mtu;
+	unsigned int	tdmv_zaptel_cfg;
+	netskb_t	*tdmv_api_rx;
+	netskb_t	*tdmv_api_tx;
+	wan_skb_queue_t	tdmv_api_tx_list;
+
+	unsigned int 	tdmv_dchan_cfg_on_master;
+	unsigned int	tdmv_chan;	
+	unsigned int	tdmv_dchan_active_ch;
+	void 		*tdmv_chan_ptr;
+	unsigned char	led_ctrl;   
 } sdla_xilinx_t;
 
 typedef struct 
@@ -829,6 +816,7 @@ typedef struct sdla
 	/*Should be in wandev */
 	unsigned int 	type;				/* card type */
 	unsigned int 	adptr_type;			/* adapter type */
+	unsigned char 	adptr_subtype;			/* adapter subtype */
 	wan_tasklet_t	debug_task;
 	wan_timer_t	debug_timer;
 	unsigned long	debug_running;
@@ -866,6 +854,10 @@ typedef struct sdla
 	
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	struct sdla*	same_card;
+#endif
+
+#if defined(CONFIG_PRODUCT_WANPIPE_TDMV_EC)
+	void		*oct6100;
 #endif
 
 #if defined(__FreeBSD__)
@@ -914,6 +906,7 @@ int wpx_init (sdla_t* card, wandev_conf_t* conf);	/* wpx.c */
 int wpf_init (sdla_t* card, wandev_conf_t* conf);	/* wpf.c */
 int wpp_init (sdla_t* card, wandev_conf_t* conf);	/* wpp.c */
 int wpc_init (sdla_t* card, wandev_conf_t* conf); 	/* Cisco HDLC */
+int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf); /* Async HDLC */
 int wpbsc_init (sdla_t* card, wandev_conf_t* conf);	/* BSC streaming */
 int wph_init(sdla_t* card, wandev_conf_t* conf);	/* HDLC support */
 int wpft1_init (sdla_t* card, wandev_conf_t* conf);     /* FT1 Config support */

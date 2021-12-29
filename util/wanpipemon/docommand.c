@@ -182,10 +182,10 @@ unsigned char DoCommand(void* pkt, int data_len)
 			ioctl(sock,SIOC_WANPIPE_PIPEMON,&ifr);
 			
 			if (err < 0){
-				perror("Ioctl:");	
 				if (errno == -EBUSY){
 					continue;
 				}else{
+					perror("Ioctl:");	
 					break;
 				}	
 			}

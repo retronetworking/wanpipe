@@ -471,11 +471,8 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 
 	card->u.b.serial=0;
 
-	DEBUG_EVENT("%s: Config Media = %s\n",
-			card->devname,MEDIA_DECODE(conf->fe_cfg.media));
 			
-
-	if (IS_TE1_MEDIA(conf->fe_cfg.media)){
+	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;
@@ -497,7 +494,10 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 			card->u.b.serial=1;
 		}
 
-	}else if (IS_56K_MEDIA(conf->fe_cfg.media)){
+		DEBUG_EVENT("%s: Config Media = %s\n",
+			card->devname, FE_MEDIA_DECODE(&card->fe));
+		
+	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;
@@ -511,10 +511,16 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 
 		card->u.b.serial=1;
 		
+		DEBUG_EVENT("%s: Config Media = %s\n",
+			card->devname, FE_MEDIA_DECODE(&card->fe));
+
 	}else{
 		card->u.b.serial=1;
 		/* FIXME: Remove this line */
 		card->fe.fe_status = FE_CONNECTED;
+		
+		DEBUG_EVENT("%s: Config Media = Unknown\n",
+			card->devname);
 	}
 
 	if (card->u.b.serial){
@@ -697,7 +703,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 		card->u.b.time_slots=NUM_OF_E1_CHANNELS;
 	}
 
-	if (IS_TE1_MEDIA(conf->fe_cfg.media)){
+	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		int tx_time_slots=card->u.b.time_slots;
 		
 		if (IS_E1_CARD(card) && !IS_TE1_UNFRAMED(&card->fe) && card->u.b.time_slots == 32){
@@ -1186,6 +1192,11 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		DEBUG_EVENT( "%s: Running in API mode !\n",
 			wandev->name);
 		
+	} else if( strcmp(conf->usedby, "STACK") == 0) {
+		bstrm_priv_area->common.usedby=STACK;
+		bstrm_priv_area->protocol=0;
+		DEBUG_EVENT( "%s: Running in STACK mode !\n",
+			wandev->name);
 		
 	} else if( strcmp(conf->usedby, "SWITCH") == 0) {
 		bstrm_priv_area->common.usedby=SWITCH;
@@ -1997,7 +2008,10 @@ static void if_tx_timeout (netdevice_t *dev)
 
 	if (chan->common.usedby == API){
 		wan_wakeup_api(chan);
+	}else if (chan->common.usedby == STACK){
+		wanpipe_lip_kick(chan,0);
 	}
+
 }
 
 
@@ -2124,7 +2138,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		 * is larger than the API header
 	         */
 
-		skb_unlink(skb);
+		wan_skb_unlink(skb);
 
 		if (bstrm_priv_area->common.usedby == SWITCH){
 			wanpipe_switch_datascope_tx_up(bstrm_priv_area,skb);
@@ -2683,6 +2697,9 @@ static void bstrm_tx_bh (unsigned long data)
 				if (chan->common.usedby == API){
 					start_net_queue(chan->common.dev);	
 					wan_wakeup_api(chan);
+				}else if (chan->common.usedby == STACK){
+					start_net_queue(chan->common.dev);	
+					wanpipe_lip_kick(chan,0);
 				}else if (chan->common.usedby == SWITCH){
 					start_net_queue(chan->common.dev);
 				}else{
@@ -3190,35 +3207,48 @@ switch_hdlc_send:
 			}
 #endif		
 
-				buf = skb_push(new_skb,sizeof(api_rx_hdr_t));
-				memset(buf, 0, sizeof(api_rx_hdr_t));
-
-				new_skb->protocol = htons(PVC_PROT);
-				new_skb->mac.raw  = new_skb->data;
-				new_skb->dev      = dev;
-				new_skb->pkt_type = WAN_PACKET_DATA;
-
-				api_err=wan_api_rx(chan,new_skb);
-
-				if (api_err != 0){
-					/* Sock full cannot send, queue us for another
-					 * try */
-					if (net_ratelimit()){
-						DEBUG_EVENT( "%s: Error: Rx sock full err %d used 0x%lx sk %p\n",
-								card->devname,\
-								err,
-								chan->common.used,
-								chan->common.sk);
+				if (chan->common.usedby == STACK){	
+					
+					if (wanpipe_lip_rx(chan,new_skb) != 0){
+						wan_skb_free(new_skb);
+						++card->wandev.stats.rx_dropped;
+						++chan->ifstats.rx_dropped;
+						goto tx_up_skb_recover;
 					}
-					wan_skb_free(new_skb);
 
-					++card->wandev.stats.rx_dropped;
-					++chan->ifstats.rx_dropped;
+				}else{
+					
+					buf = skb_push(new_skb,sizeof(api_rx_hdr_t));
+					memset(buf, 0, sizeof(api_rx_hdr_t));
 
-					wan_wakeup_api(chan);
-					goto tx_up_skb_recover;
+					new_skb->protocol = htons(PVC_PROT);
+					new_skb->mac.raw  = new_skb->data;
+					new_skb->dev      = dev;
+					new_skb->pkt_type = WAN_PACKET_DATA;
+
+					api_err=wan_api_rx(chan,new_skb);
+
+					if (api_err != 0){
+						/* Sock full cannot send, queue us for another
+						 * try */
+						if (net_ratelimit()){
+							DEBUG_EVENT( "%s: Error: Rx sock full err %d used 0x%lx sk %p\n",
+									card->devname,\
+									err,
+									chan->common.used,
+									chan->common.sk);
+						}
+						wan_skb_free(new_skb);
+
+						++card->wandev.stats.rx_dropped;
+						++chan->ifstats.rx_dropped;
+
+						wan_wakeup_api(chan);
+						goto tx_up_skb_recover;
+					}
+
 				}
-
+				
 				++card->wandev.stats.rx_packets;
 				card->wandev.stats.rx_bytes+=skb->len;
 				chan->ifstats.rx_packets++;
@@ -3572,7 +3602,20 @@ static void tx_up_decode_pkt(bitstrm_private_area_t *chan)
 		return;
 	}
 
-	if (chan->common.usedby==API || chan->common.usedby==SWITCH){
+	if (chan->common.usedby==STACK){
+				
+		if (wanpipe_lip_rx(chan,skb) != 0){
+			dev_kfree_skb_any(skb);
+			chan->card->wandev.stats.rx_dropped++;
+			chan->ifstats.rx_dropped++;
+		}else{
+			chan->card->wandev.stats.rx_packets++;
+			chan->card->wandev.stats.rx_bytes += chan->rx_decode_len;
+			chan->ifstats.rx_packets++;
+			chan->ifstats.rx_bytes+=chan->rx_decode_len;
+		}
+	
+	}else if (chan->common.usedby==API || chan->common.usedby==SWITCH){
 
 		buf = skb_put(skb,sizeof(api_rx_hdr_t));
 		memset(buf, 0, sizeof(api_rx_hdr_t));
@@ -3783,7 +3826,7 @@ static int hdlc_encode(bitstrm_private_area_t *chan,struct sk_buff **skb_ptr)
 		skb=skb2;
 		*skb_ptr=skb2;
 	
-		skb_unlink(skb);
+		wan_skb_unlink(skb);
 	}
 	
 	/* Copy the encoded bit stream into the skb buffer which will be
@@ -4865,7 +4908,13 @@ static void port_set_state (sdla_t *card, int state)
 
 			bstrm_priv_area->common.state = state;
 
-			if (bstrm_priv_area->common.usedby == API){
+			if (bstrm_priv_area->common.usedby == STACK){
+				if (state == WAN_CONNECTED){
+					wanpipe_lip_connect(bstrm_priv_area,0);
+				}else{
+					wanpipe_lip_disconnect(bstrm_priv_area,0);
+				}
+			}else if (bstrm_priv_area->common.usedby == API){
 				wan_wakeup_api(bstrm_priv_area);
 				wan_update_api_state(bstrm_priv_area);
 

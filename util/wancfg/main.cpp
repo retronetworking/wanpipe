@@ -27,6 +27,7 @@
 #include "list_element_ppp_interface.h"
 #include "list_element_chdlc_interface.h"
 #include "list_element_tty_interface.h"
+#include "list_element_lapb_interface.h"
 
 #include "objects_list.h"
 #include "menu_main_configuration_options.h"
@@ -81,6 +82,9 @@ char banner[] =		"WAN Router Configurator"
 
 char *krnl_log_file = "/var/log/messages";
 char *verbose_log = "/var/log/wanrouter";
+
+char is_there_a_voice_if=NO;
+
 ///////////////////////////////////////////////
 
 int active_channels_str_invalid_characters_check(char* active_ch_str);
@@ -195,11 +199,11 @@ char * get_protocol_string(int protocol)
     break;
 
   case WANCONFIG_AFT:
-    snprintf((char*)protocol_name, MAX_PATH_LENGTH, "AFT");
+    snprintf((char*)protocol_name, MAX_PATH_LENGTH, "AFT(TE1)");
     break;
 
   case WANCONFIG_AFT_TE3:
-    snprintf((char*)protocol_name, MAX_PATH_LENGTH, "AFT");
+    snprintf((char*)protocol_name, MAX_PATH_LENGTH, "AFT(TE3)");
     break;
     
   case WANCONFIG_DEBUG:
@@ -231,6 +235,10 @@ char * get_protocol_string(int protocol)
    snprintf((char*)protocol_name, MAX_PATH_LENGTH, "TDM Voice");
    break;
    
+  case WANCONFIG_LAPB:
+    snprintf((char*)protocol_name, MAX_PATH_LENGTH, "HDLC LAPB");
+    break;
+    
   default:
     ERR_DBG_OUT(("Invalid protocol: %d\n", protocol));
     snprintf((char*)protocol_name, MAX_PATH_LENGTH, INVALID_PROTOCOL);
@@ -258,7 +266,6 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
      
   Debug(DBG_WANCFG_MAIN, ("old number: %d, new: %d.\n",
       obj_list->get_size(), new_number_of_logical_channels));
-  //exit(0);
 
   fr_config_info_t* fr_config_info = (fr_config_info_t*)info;
 
@@ -267,6 +274,7 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
   case WANCONFIG_MPPP:
   case WANCONFIG_MPCHDLC:
   case WANCONFIG_TTY:
+  case WANCONFIG_LAPB:
     name_of_parent_layer = (char*)info;
     break;
 	  
@@ -323,6 +331,10 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	chan_def_tmp = (list_element_chan_def*)(new list_element_tty_interface());
 	break;
 	
+      case WANCONFIG_LAPB:
+	chan_def_tmp = (list_element_chan_def*)(new list_element_lapb_interface());
+	break;
+	
       default:
 	chan_def_tmp = new list_element_chan_def();
       }
@@ -339,18 +351,19 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	  
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d",
                                           atoi(list_el_chan_def_last->data.addr) + 1);
-	  chan_def_tmp->data.chanconf->protocol = WANCONFIG_MFR;
+	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_MFR;
 	  break;
 	  
 	case WANCONFIG_MPPP:
 	case WANCONFIG_TTY:
 	case WANCONFIG_MPCHDLC:
+	case WANCONFIG_LAPB:
 	  //list has to be empty before adding an interface.
 	  ERR_DBG_OUT(("Can NOT add more than one interface for protocol: %d !\n", config_id));
 	  /*
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d",
                                           atoi(list_el_chan_def_last->data.addr) + 1);
-	  chan_def_tmp->data.chanconf->protocol = WANCONFIG_MPPP;
+	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_MPPP;
 	  */
 	  break;
 
@@ -358,15 +371,19 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	case WANCONFIG_GENERIC:
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d",
                                           atoi(list_el_chan_def_last->data.addr) + 1);
-	  chan_def_tmp->data.chanconf->protocol = PROTOCOL_NOT_SET;
+	  //chan_def_tmp->data.chanconf->config_id = PROTOCOL_NOT_SET;
+	  chan_def_tmp->data.chanconf->config_id = PROTOCOL_NOT_SET;
+	  chan_def_tmp->data.chanconf->u.aft.mtu = 1500;
+          chan_def_tmp->data.chanconf->u.aft.mru = 1500;
+          chan_def_tmp->data.chanconf->u.aft.idle_flag = 0x7E;
 	  break;
 	/*
 	case WANCONFIG_ADSL:
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d",
                                           atoi(list_el_chan_def_last->data.addr) + 1);
-	  //chan_def_tmp->data.chanconf->protocol = WANCONFIG_ADSL;
 	  //chan_def_tmp->data.chanconf->config_id = WANCONFIG_ADSL;
-	  chan_def_tmp->data.chanconf->protocol = PROTOCOL_NOT_SET;
+	  //chan_def_tmp->data.chanconf->config_id = WANCONFIG_ADSL;
+	  chan_def_tmp->data.chanconf->config_id = PROTOCOL_NOT_SET;
 	  break;
 	*/
 	}
@@ -383,34 +400,42 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	  }else{
 	    snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d", 16);
 	  }
-	  chan_def_tmp->data.chanconf->protocol = WANCONFIG_MFR;
+	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_MFR;
 	  break;
 
 	case WANCONFIG_MPCHDLC:
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d", 1);
-	  chan_def_tmp->data.chanconf->protocol = WANCONFIG_MPCHDLC;
+	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_MPCHDLC;
 	  break;
 	  
 	case WANCONFIG_MPPP:
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d", 1);
-	  chan_def_tmp->data.chanconf->protocol = WANCONFIG_MPPP;
+	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_MPPP;
 	  break;
 
 	case WANCONFIG_TTY:
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d", 1);
-	  chan_def_tmp->data.chanconf->protocol = WANCONFIG_TTY;
+	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_TTY;
 	  break;
 
+	case WANCONFIG_LAPB:
+	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d", 1);
+	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_LAPB;
+	  break;
+	  
 	case WANCONFIG_AFT:
 	case WANCONFIG_GENERIC:
 	case WANCONFIG_ADSL:
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d", 1);
-	  chan_def_tmp->data.chanconf->protocol = PROTOCOL_NOT_SET;
+	  chan_def_tmp->data.chanconf->config_id = PROTOCOL_NOT_SET;
+	  chan_def_tmp->data.chanconf->u.aft.mtu = 1500;
+          chan_def_tmp->data.chanconf->u.aft.mru = 1500;
+          chan_def_tmp->data.chanconf->u.aft.idle_flag = 0x7E;
 	  break;
 	/*  
 	case WANCONFIG_ADSL:
 	  //snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d", 1);
-	  //chan_def_tmp->data.chanconf->protocol = WANCONFIG_ADSL;
+	  //chan_def_tmp->data.chanconf->config_id = WANCONFIG_ADSL;
 	  //chan_def_tmp->data.chanconf->config_id = WANCONFIG_ADSL;
 	  break;
 	*/
@@ -481,6 +506,17 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 #endif
 	break;
 	
+      case WANCONFIG_LAPB:
+#if defined(__LINUX__) && !BSD_DEBG
+	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%slapb",
+	    name_of_parent_layer);
+#elif (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__) || BSD_DEBG
+	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%slapb0",
+	    //underlying layer name ends with digit - change it
+	    replace_numeric_with_char(name_of_parent_layer));
+#endif
+	break;
+
       case WANCONFIG_AFT:
 	//create name for the new Channel Group
 #if defined(__LINUX__) && !BSD_DEBG
@@ -554,6 +590,8 @@ int get_config_id_from_profile(char* config_id)
     return WANCONFIG_MPCHDLC;
   }else if(!strcmp(config_id, "tty")){
     return WANCONFIG_TTY;
+  }else if(!strcmp(config_id, "lip_lapb")){
+    return WANCONFIG_LAPB;
   }else{
     return PROTOCOL_NOT_SET;
   }
@@ -606,7 +644,7 @@ char * get_card_type_string(int card_type, int card_version)
 	break;
 	
     case A300_ADPTR_U_1TE3://WAN_MEDIA_DS3:
-    	snprintf(card_type_name, MAX_PATH_LENGTH, "A300-T3/E3");
+    	snprintf(card_type_name, MAX_PATH_LENGTH, "A301-T3/E3");
 	break;
     }
     break;
@@ -1788,6 +1826,7 @@ void set_default_e3_configuration(sdla_fe_cfg_t* fe_cfg)
   fe_cfg->lcode = WAN_LCODE_HDB3;
   fe_cfg->frame = WAN_FR_E3_G751;
   fe_cfg->line_no = 1;
+  fe_cfg->tx_tristate_mode = WANOPT_NO;
   
   te3_cfg->fractional = WANOPT_NO;
   te3_cfg->rdevice_type = WAN_TE3_RDEVICE_KENTROX;
@@ -1808,6 +1847,7 @@ void set_default_t3_configuration(sdla_fe_cfg_t* fe_cfg)
   fe_cfg->lcode = WAN_LCODE_B3ZS;
   fe_cfg->frame = WAN_FR_DS3_Cbit;
   fe_cfg->line_no = 1;
+  fe_cfg->tx_tristate_mode = WANOPT_NO;
   
   te3_cfg->fractional = WANOPT_NO;
   te3_cfg->rdevice_type = WAN_TE3_RDEVICE_KENTROX;
@@ -1826,6 +1866,7 @@ void set_default_t1_configuration(sdla_fe_cfg_t* fe_cfg)
   fe_cfg->media = WAN_MEDIA_T1;
   fe_cfg->lcode = WAN_LCODE_B8ZS;
   fe_cfg->frame = WAN_FR_ESF;
+  fe_cfg->tx_tristate_mode = WANOPT_NO;
 
   if(fe_cfg->line_no == 0){
     //set to default '1' only if it is NOT set to a valid value
@@ -1961,6 +2002,11 @@ int main(int argc, char *argv[])
 
   Debug(DBG_WANCFG_MAIN, ("%s: main()\n", WANCFG_PROGRAM_NAME));
 
+  if(argc == 2 && !strcmp(argv[1], "-v")){
+    printf("\nwancfg version: 1.05\n");
+    return EXIT_SUCCESS;
+  }
+  
   if(is_console_size_valid() == NO){
     rc = EXIT_FAILURE;
     goto cleanup;

@@ -994,6 +994,7 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 		WAN_NETIF_START_QUEUE(dev);
 		card->wandev.stats.tx_carrier_errors++;
 #if defined(__LINUX__)
+		dev->trans_start = SYSTEM_TICKS;
 		return 0;
 #else
 		return -EINVAL;
@@ -1248,6 +1249,10 @@ void adsl_tx_complete(void* dev_id, int length, int txStatus)
 #endif
        	}
 
+#if defined(__LINUX__)
+	ifp->trans_start = SYSTEM_TICKS;
+#endif
+
 	if (WAN_NETIF_QUEUE_STOPPED(ifp) ||
 	    wan_test_bit(TX_BUSY_SET,&card->wandev.critical)){
 		
@@ -1333,8 +1338,9 @@ static void adsl_multicast(netdevice_t* dev)
  *
  * Description:
  *   Return the current LAN device statistics.
+ *
+ * Note: For 2.6 kernels we are not allowed to return NULL
  *-F*************************************************************************/
-
 static struct net_device_stats gstats;
 static struct net_device_stats* adsl_stats(netdevice_t* dev)
 {

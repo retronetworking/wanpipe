@@ -327,7 +327,7 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 	}
 
 	/* TE1 Make special hardware initialization for T1/E1 board */
-	if (IS_TE1_MEDIA(conf->fe_cfg.media)){
+	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;
@@ -344,7 +344,7 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 			conf->clocking = WANOPT_EXTERNAL;
 		}
 
-	}else if (IS_56K_MEDIA(conf->fe_cfg.media)){
+	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		card->fe.name		= card->devname;
@@ -858,6 +858,11 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 			err=-EINVAL;
 			goto new_if_error;
 		}
+	}
+
+	if (conf->single_tx_buf) {
+		DEBUG_EVENT("%s: Enabling Single Tx Buffer \n",chan->if_name);
+		card->u.c.protocol_options|=SINGLE_TX_BUFFER;
 	}
 
 	/* Get Multicast Information */

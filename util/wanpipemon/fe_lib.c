@@ -60,6 +60,7 @@
 #endif	
 
 static void hw_set_lb_modes(unsigned char type, unsigned char mode);
+static void hw_set_debug_mode(unsigned char type, unsigned char mode);
 static int hw_get_fe_type(unsigned char* adapter_type);
 
 /******************************************************************************
@@ -1061,14 +1062,14 @@ void read_te1_56k_config (void)
 #endif
 			printf("CSU/DSU %s Conriguration:\n", if_name);
 			printf("\tMedia type\t%s\n",
-				MEDIA_DECODE(fe_cfg->media));
+				MEDIA_DECODE(fe_cfg));
 			printf("\tFraming\t\t%s\n",
-				FRAME_DECODE(fe_cfg->frame));
+				FRAME_DECODE(fe_cfg));
 			printf("\tEncoding\t%s\n",
-				LCODE_DECODE(fe_cfg->lcode));
+				LCODE_DECODE(fe_cfg));
 			if (adapter_type == WAN_MEDIA_T1){
 				printf("\tLine Build\t%s\n",
-						LBO_DECODE(fe_cfg->cfg.te_cfg.lbo));
+						LBO_DECODE(fe_cfg));
 			}
 			printf("\tChannel Base\t");
 			for (i = 0, start_chan = 0; i < num_of_chan; i++){
@@ -1097,10 +1098,97 @@ void read_te1_56k_config (void)
 			}
 			printf("\n");
 			printf("\tClock Mode\t%s\n",
-				TECLK_DECODE(fe_cfg->cfg.te_cfg.te_clock));
+				TECLK_DECODE(fe_cfg));
 		}
 	}
     	cleanup_hardware_level_connection();
+	return;
+}
+
+void set_debug_mode(unsigned char type, unsigned char mode)
+{
+  if(make_hardware_level_connection()){
+    return;
+  }
+  hw_set_debug_mode(type, mode);
+
+  cleanup_hardware_level_connection();
+}
+
+static void hw_set_debug_mode(unsigned char type, unsigned char mode)
+{
+	wan_udp.wan_udphdr_command	= WAN_FE_SET_DEBUG_MODE;
+	wan_udp.wan_udphdr_data_len	= 1;
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+
+	set_wan_udphdr_data_byte(0,type);
+	set_wan_udphdr_data_byte(1,mode);
+
+#if 0
+	if (wan_protocol == WANCONFIG_CHDLC){
+		wan_udp.wan_udphdr_chdlc_data[0] = type;
+		wan_udp.wan_udphdr_chdlc_data[1] = mode;
+	}else{
+		wan_udp.wan_udphdr_data[0] = type;
+		wan_udp.wan_udphdr_data[1] = mode;
+	}
+#endif
+	DO_COMMAND(wan_udp);
+	if (wan_udp.wan_udphdr_return_code != 0){
+		printf("Failed to Enable/Disable Rx/TX debugging mode.\n");
+	}else{
+		switch(type){
+		case WAN_FE_DEBUG_RBS:
+			if (mode == WAN_FE_DEBUG_RBS_READ){
+				printf("Reading RBS status is finished!\n");
+			}else{
+				printf("%s debug mode!\n",
+					(mode == WAN_FE_DEBUG_RBS_RX_ENABLE) ? 
+						"Enable RBS RX" :
+					(mode == WAN_FE_DEBUG_RBS_TX_ENABLE) ? 
+						"Enable RBS TX" :
+					(mode == WAN_FE_DEBUG_RBS_RX_DISABLE) ? 
+						"Disable RBS RX" :
+					(mode == WAN_FE_DEBUG_RBS_TX_DISABLE) ? 
+						"Disable RBS Tx" : "Unknown");
+			}
+			break;
+		case WAN_FE_DEBUG_ALARM:
+			printf("%s AIS alarm!\n",
+				(mode == WAN_FE_DEBUG_ALARM_AIS_ENABLE) ? 
+					"Enable TX" :
+				(mode == WAN_FE_DEBUG_ALARM_AIS_DISABLE) ?
+					"Disable TX" : "Unknown");
+			break;
+		}
+	}
+	return;
+}
+
+void set_fe_tx_mode(unsigned char mode)
+{
+	if(make_hardware_level_connection()){
+		return;
+	}
+
+	wan_udp.wan_udphdr_command	= WAN_FE_TX_MODE;
+	wan_udp.wan_udphdr_data_len	= 1;
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+
+	set_wan_udphdr_data_byte(0,mode);
+
+	DO_COMMAND(wan_udp);
+	if (wan_udp.wan_udphdr_return_code != 0){
+		printf("Failed to %s transmitter.\n",
+			(mode == WAN_FE_TXMODE_ENABLE) ? 
+				"enable" : "disable");
+	}else{
+		printf("%s transmitter!\n",
+			(mode == WAN_FE_TXMODE_ENABLE) ? 
+					"Enable" : "Disable");
+	}
+  	
+	cleanup_hardware_level_connection();
 	return;
 }
 

@@ -13,7 +13,7 @@
 #ifndef __WANPIPE_INCLUDES_H
 # define __WANPIPE_INCLUDES_H
 
-#if !defined(__NetBSD__) && !defined(__FreeBSD__) && !defined (__OpenBSD__) && !defined(__WINDOWS__) && !defined(__LINUX__)
+#if !defined(__NetBSD__) && !defined(__FreeBSD__) && !defined (__OpenBSD__) && !defined(__WINDOWS__) && !defined(__SOLARIS__) && !defined(__LINUX__)
 # if defined(__KERNEL__)
 #  define __LINUX__
 # endif
@@ -188,7 +188,7 @@
 # include <machine/param.h>
 # include <machine/cpufunc.h>
 # include <machine/bus.h>
-# include <machine/stdarg.h>
+/*# include <machine/stdarg.h>*/
 # include <net/bpf.h>
 # include <net/bpfdesc.h>
 # include <net/if_dl.h>
@@ -278,6 +278,33 @@
 #  include <net/inet_common.h>
 # endif
 #endif
+#elif defined(__SOLARIS__)
+/*
+**		***	S O L A R I S	***
+*/
+#include <sys/types.h>
+#include <sys/systm.h>
+#include <sys/cmn_err.h>
+#include <sys/stream.h>
+#include <sys/stropts.h>
+#include <sys/strsun.h>
+#include <sys/kmem.h>
+#include <sys/stat.h>
+#include <sys/modctl.h>
+#include <sys/dditypes.h>
+#include <sys/ddi.h>
+#include <sys/conf.h>
+#include <sys/ethernet.h>
+#include <sys/sunddi.h>
+#include <sys/ddidmareq.h>
+#include <sys/ddimapreq.h>
+#include <sys/ddipropdefs.h>
+#include <sys/ddidevmap.h>
+#include <sys/devops.h>
+#include <sys/pci.h>
+#include <sys/dlpi.h>
+#include <sys/gld.h>
+
 #elif defined(__WINDOWS__)
 /*
 **		***	W I N D O W S	***
@@ -291,6 +318,26 @@
 #  include <stdarg.h>
 #  include <stdio.h>
 # endif
+#elif defined (__SOLARIS__)
+#  include <sys/types.h>
+#  include <sys/systm.h>
+#  include <sys/cmn_err.h>
+#  include <sys/kmem.h>
+#  include <sys/stat.h>
+#  include <sys/modctl.h>
+#  include <sys/ddi.h>
+#  include <sys/conf.h>
+#  include <sys/sunddi.h>
+#  include <sys/ethernet.h>
+#  include <sys/dditypes.h>
+#  include <sys/ddidmareq.h>
+#  include <sys/ddimapreq.h>
+#  include <sys/ddipropdefs.h>
+#  include <sys/ddidevmap.h>
+#  include <sys/devops.h>
+#  include <sys/pci.h>
+#  include <sys/gld.h>
+#  include <netinet/in.h>
 #else
 # error "Unsupported Operating System!";
 #endif

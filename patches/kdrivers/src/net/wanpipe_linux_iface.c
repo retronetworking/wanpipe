@@ -43,9 +43,11 @@
 /****** Function Prototypes *************************************************/
 static netdevice_t* wan_iface_alloc (int);
 static void wan_iface_free (netdevice_t*);
-static int wan_iface_attach (netdevice_t*, char*,int);
+static int wan_iface_attach (netdevice_t*, char*,int is_netdev);
+static int wan_iface_attach_eth (netdevice_t* dev, char *ifname, int is_netdev);
 static void wan_iface_detach (netdevice_t*, int);
 static int wan_iface_init(netdevice_t* dev);
+static int wan_iface_eth_init(netdevice_t* dev);
 static int wan_iface_input(netdevice_t*, netskb_t*);
 static int wan_iface_set_proto(netdevice_t*, struct ifreq*);
 
@@ -69,7 +71,8 @@ wan_iface_t wan_iface =
 	wan_iface_attach,	/* attach */	
 	wan_iface_detach,	/* detach */	
 	wan_iface_input,	/* input */	
-	wan_iface_set_proto	/* set_proto */	
+	wan_iface_set_proto,	/* set_proto */	
+	wan_iface_attach_eth	/* attach ethernet interface */
 };
 
 /******* WAN Device Driver Entry Points *************************************/
@@ -105,8 +108,57 @@ static netdevice_t* wan_iface_alloc (int is_netdev)
 
 static void wan_iface_free(netdevice_t* dev)
 {
+
+	    /* On 2.4 kernels device is freed
+	 * on unregisger_netdev.  However,
+	 * on 2.6 kernels we must call free
+	 * ouselves.
+	 *
+	 * IMPORTANT: This function should
+	 * only be used by outside code.
+	 *
+	 * For internal use wan_netif_free(dev) */
+
+#ifdef LINUX_2_4
+	return;
+#else
 	wan_netif_free(dev);
+#endif
 }
+
+
+static int wan_iface_attach_eth (netdevice_t* dev, char *ifname, int is_netdev)
+{
+	int err = 0;
+	if (is_netdev){
+		if (ifname){
+			wan_netif_init(dev, ifname);
+		}
+		dev->init = &wan_iface_eth_init;
+		err=register_netdev(dev);
+	}else{
+#ifdef CONFIG_PRODUCT_WANPIPE_GENERIC
+		hdlc_device*	hdlc = dev_to_hdlc(dev);
+
+		hdlc->attach 	= wan_iface_hdlc_attach;
+		hdlc->xmit 	= wan_iface_send;
+
+		err = register_hdlc_device(hdlc);
+#else
+		err = -EINVAL;
+#endif
+	}
+	if (err){
+		DEBUG_EVENT("%s: Failed to register interface (%d)\n",
+					wan_netif_name(dev), err);
+		dev->init = NULL;
+		*(dev->name) = 0;
+		wan_netif_free(dev);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 
 static int wan_iface_attach (netdevice_t* dev, char *ifname, int is_netdev)
 {
@@ -134,7 +186,7 @@ static int wan_iface_attach (netdevice_t* dev, char *ifname, int is_netdev)
 					wan_netif_name(dev), err);
 		dev->init = NULL;
 		*(dev->name) = 0;
-		wan_iface_free(dev);
+		wan_netif_free(dev);
 		return -EINVAL;
 	}
 	return 0;
@@ -199,6 +251,53 @@ static int wan_iface_init(netdevice_t* dev)
 
 	return 0;
 }
+
+static int wan_iface_eth_init(netdevice_t* dev)
+{
+	int hw_addr=0;
+
+//	dev->priv = NULL;	/* We need 'priv', hdlc doesn't */
+	dev->get_stats		= &wan_iface_get_stats;
+	dev->do_ioctl		= &wan_iface_ioctl;
+	dev->open		= &wan_iface_open;
+	dev->stop		= &wan_iface_close;
+
+	dev->hard_header	= NULL;
+	dev->rebuild_header	= NULL;
+	dev->hard_start_xmit	= &wan_iface_send;
+	dev->get_stats		= &wan_iface_get_stats;
+	dev->tx_timeout		= &wan_iface_tx_timeout;
+	dev->watchdog_timeo	= HZ*2;
+	dev->hard_header_len	= 16;
+	dev->set_config		= NULL;
+	
+	dev->mtu		= 1500;
+	dev->tx_queue_len	= 100;
+
+	dev->trans_start	= SYSTEM_TICKS;
+
+	/* Initialize socket buffers */
+	dev_init_buffers(dev);
+
+
+	/* Setup the interface for Bridging */
+	ether_setup(dev);
+		
+	/* Use a random number to generate the MAC address */
+	memcpy(dev->dev_addr, "\xFE\xFC\x00\x00\x00\x00", 6);
+	get_random_bytes(&hw_addr, sizeof(hw_addr));
+	*(int *)(dev->dev_addr + 2) += hw_addr;
+
+	dev->hard_header_len = 32;
+
+	DEBUG_TEST("%s: %s:%d %p\n",
+			dev->name,
+			__FUNCTION__,__LINE__,
+			dev->priv);
+
+	return 0;
+}
+
 
 static int wan_iface_open(netdevice_t* dev)
 {
@@ -349,6 +448,7 @@ static int wan_iface_input(netdevice_t* dev, netskb_t* skb)
 		skb->protocol = htons(ETH_P_HDLC);
 		skb->dev = dev;
 		skb->mac.raw  = skb->data;
+		skb->nh.raw   = skb->data;
 	}
 #endif
 

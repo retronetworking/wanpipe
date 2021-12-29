@@ -37,11 +37,26 @@
 #define A300_UTE3_SUBSYS_VENDOR	0xA020		/* A300 with T3/E3 (unchannelized) */
 #define A305_CT3_SUBSYS_VENDOR	0xA030		/* A305 with T3 (channelized) */
 
+#define A104_1TE1_SHARK_SUBSYS_VENDOR	0xA111	/* A101-SHARK T1/E1 1 lines */
+#define A104_2TE1_SHARK_SUBSYS_VENDOR	0xA112	/* A102-SHARK T1/E1 2 lines */
+#define A104_4TE1_SHARK_SUBSYS_VENDOR	0xA113	/* A104-SHARK T1/E1 4 lines */
+#define A104_8TE1_SHARK_SUBSYS_VENDOR	0xA114	/* A108-SHARK T1/E1 8 lines */
+#define A300_UTE3_SHARK_SUBSYS_VENDOR	0xA115	/* A300-SHARK with T3/E3 (unchannelized) */
+#define A305_CTE3_SHARK_SUBSYS_VENDOR	0xA116	/* A305-SHARK with T3 (channelized) */
+#define A200_REMORA_SHARK_SUBSYS_VENDOR	0xA200	/* AFT-REMORA SHARK analog board */
+
 #define AFT_CORE_ID_MASK	0x00FF
 #define AFT_CORE_REV_MASK	0xFF00
 #define AFT_HDLC_CORE_ID	0x00	/* HDLC core */
 #define AFT_ATM_CORE_ID		0x01	/* ATM core */
 #define AFT_SS7_CORE_ID		0x02	/* SS7 core */
+
+#define AFT_CHIP_UNKNOWN	0x0000
+#define AFT_CHIP_OLD_X300	0x0300
+#define AFT_CHIP_OLD_X400	0x0400
+#define AFT_CHIP_X300		0x0030
+#define AFT_CHIP_X400		0x0040
+#define AFT_CHIP_X1000		0x0100
 
 #define AFT_PCI_MEM_SIZE	0x2FF
 #define XILINX_PCI_LATENCY	0x0000FF00
@@ -54,6 +69,7 @@
 /* Local PCI register offsets */ 
 #define PCI_VENDOR_ID_WORD	0x00		/* vendor ID */
 #define PCI_DEVICE_ID_WORD	0x02		/* device ID */
+#define PCI_REVISION_ID_BYTE	0x08		/* revision ID */
 #define PCI_SUBCLASS_ID_BYTE	0x0a		/* subclass ID byte */
 #define PCI_IO_BASE_DWORD	0x10		/* IO base */	
 #define PCI_MEM_BASE0_DWORD	0x14		/* memory base - apperture 0 */

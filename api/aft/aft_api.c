@@ -102,6 +102,63 @@ int MakeConnection(void)
 
 }
 
+
+int sangoma_read_socket(int sock, void *data, int len, int flag)
+{
+	return recv(sock,data,len,flag);
+	
+}
+
+int sangoma_readmsg_socket(int sock, void *hdrbuf, int hdrlen, void *databuf, int datalen, int flag)
+{
+	struct msghdr msg;
+	struct iovec iov[2];
+
+	memset(&msg,0,sizeof(struct msghdr));
+
+	iov[0].iov_len=hdrlen;
+	iov[0].iov_base=hdrbuf;
+
+	iov[1].iov_len=datalen;
+	iov[1].iov_base=databuf;
+
+	msg.msg_iovlen=2;
+	msg.msg_iov=iov;
+
+	printf("RECVMSG: \n");
+
+	return recvmsg(sock,&msg,flag);
+}
+
+int sangoma_send_socket(int sock, void *data, int len, int flag)
+{
+	return send(sock,data,len,flag);
+	
+}
+
+int sangoma_sendmsg_socket(int sock, void *hdrbuf, int hdrlen, void *databuf, int datalen, int flag)
+{
+	struct msghdr msg;
+	struct iovec iov[2];
+
+	memset(&msg,0,sizeof(struct msghdr));
+
+	iov[0].iov_len=hdrlen;
+	iov[0].iov_base=hdrbuf;
+
+	iov[1].iov_len=datalen;
+	iov[1].iov_base=databuf;
+
+	msg.msg_iovlen=2;
+	msg.msg_iov=iov;
+
+	printf("SENDMSG: \n");
+
+	return sendmsg(sock,&msg,flag);
+}
+
+
+
 /***************************************************
 * HANDLE SOCKET 
 *
@@ -137,8 +194,9 @@ void handle_socket(void)
 	fd_set 	ready,write,oob;
 	int err,i;
 	int rlen;
+#if 0
 	int stream_sync=0;
-
+#endif
         Rx_count = 0;
 	Tx_count = 0;
 	Tx_length = tx_size;
@@ -264,105 +322,119 @@ void handle_socket(void)
 				 * 	3. Check error_flag:
 				 * 		CRC,Abort..etc 
 				 */
-				err = recv(sock, Rx_data, MAX_RX_DATA, 0);
 
+				memset(Rx_data, 0, sizeof(Rx_data));
+
+#if 1
+				err = sangoma_readmsg_socket(sock,
+                                                             Rx_data,16, 
+							     &Rx_data[16], MAX_RX_DATA-16, 
+							     0);
+#else
+				err = sangoma_read_socket(sock, Rx_data, MAX_RX_DATA, 0);
+#endif
 				if (!read_enable){
 					goto bitstrm_skip_read;
 				}
+
 				
 				/* err indicates bytes received */
-				if(err > 0) {
-
-					api_rx_el = (api_rx_element_t*)&Rx_data[0];
-
-		                	/* Check the packet length */
-                                	Rx_lgth = err - sizeof(api_rx_hdr_t);
-                                	if(Rx_lgth<=0) {
-                                        	printf("\nShort frame received (%d)\n",
-                                                	Rx_lgth);
-                                        	return;
-                                	}
-
-					if (api_rx_el->api_rx_hdr.error_flag){
-						printf("Data: ");
-                                                for(i=0;i<20; i ++) {
-                                                        printf("0x%02X ", Rx_data[i]);
-                                                }
-                                                printf("\n");
-					}
-
-					if (api_rx_el->api_rx_hdr.error_flag & (1<<WP_FIFO_ERROR_BIT)){
-						printf("\nPacket with fifo overflow err=0x%X len=%i\n",
-							api_rx_el->api_rx_hdr.error_flag,Rx_lgth);
-						continue;
-					}
-
-					if (api_rx_el->api_rx_hdr.error_flag & (1<<WP_CRC_ERROR_BIT)){
-                                                printf("\nPacket with invalid crc!  err=0x%X len=%i\n",
-                                                        api_rx_el->api_rx_hdr.error_flag,Rx_lgth);
-                                                continue;
-                                        }
-
-					if (api_rx_el->api_rx_hdr.error_flag & (1<<WP_ABORT_ERROR_BIT)){
-                                                printf("\nPacket with abort!  err=0x%X len=%i\n",
-                                                        api_rx_el->api_rx_hdr.error_flag,Rx_lgth);
-                                                continue;
-                                        }
-
-#if 0
-					if (api_rx_el->data[0] == tx_data && api_rx_el->data[1] == (tx_data+1)){
-						if (!stream_sync){
-							printf("GOT SYNC %x\n",api_rx_el->data[0]);
-						}
-						stream_sync=1;
-					}else{
-						if (stream_sync){
-							printf("OUT OF SYNC: %x\n",api_rx_el->data[0]);
-						}
-					}
-#endif					
-
-					if ((files_used & RX_FILE_USED) && rx_fd){
-						fwrite((void*)&Rx_data[sizeof(api_rx_hdr_t)],
-						       sizeof(char),
-						       Rx_lgth,
-						       rx_fd);	
-					}
-				
-					++Rx_count;
-
-					if (verbose){
-						printf("Received %i Olen=%i Length = %i\n", 
-								Rx_count, err,Rx_lgth);
-#if 1
-						printf("Data: ");
-                                                for(i=0;i<Rx_lgth; i ++) {
-                                                        printf("0x%02X ", api_rx_el->data[i]);
-                                                }
-                                                printf("\n");
-#endif
-					}else{
-						//putchar('R');
-					}
-
-					if (rx_cnt > 0  && Rx_count >= rx_cnt){
-						break;
-					}
-	
-				} else {
+				if(err <= 0) {
 					printf("\nError receiving data\n");
 					break;
 				}
 
-			
-bitstrm_skip_read:
+				api_rx_el = (api_rx_element_t*)&Rx_data[0];
 
+				/* Check the packet length */
+				Rx_lgth = err - sizeof(api_rx_hdr_t);
+				if(Rx_lgth<=0) {
+					printf("\nShort frame received (%d)\n",
+						Rx_lgth);
+					return;
+				}
+
+				if (api_rx_el->api_rx_hdr.error_flag){
+					printf("Data: ");
+					for(i=0;i<Rx_lgth; i ++) {
+						printf("0x%02X ", Rx_data[i+16]);
+					}
+					printf("\n");
+				}
+
+				if (api_rx_el->api_rx_hdr.error_flag & (1<<WP_FIFO_ERROR_BIT)){
+					printf("\nPacket with fifo overflow err=0x%X len=%i\n",
+						api_rx_el->api_rx_hdr.error_flag,Rx_lgth);
+					continue;
+				}
+
+				if (api_rx_el->api_rx_hdr.error_flag & (1<<WP_CRC_ERROR_BIT)){
+					printf("\nPacket with invalid crc!  err=0x%X len=%i\n",
+						api_rx_el->api_rx_hdr.error_flag,Rx_lgth);
+					continue;
+				}
+
+				if (api_rx_el->api_rx_hdr.error_flag & (1<<WP_ABORT_ERROR_BIT)){
+					printf("\nPacket with abort!  err=0x%X len=%i\n",
+						api_rx_el->api_rx_hdr.error_flag,Rx_lgth);
+					continue;
+				}
+
+#if 0
+				if (api_rx_el->data[0] == tx_data && api_rx_el->data[1] == (tx_data+1)){
+					if (!stream_sync){
+						printf("GOT SYNC %x\n",api_rx_el->data[0]);
+					}
+					stream_sync=1;
+				}else{
+					if (stream_sync){
+						printf("OUT OF SYNC: %x\n",api_rx_el->data[0]);
+					}
+				}
+#endif					
+
+				if ((files_used & RX_FILE_USED) && rx_fd){
+					fwrite((void*)&Rx_data[sizeof(api_rx_hdr_t)],
+					       sizeof(char),
+					       Rx_lgth,
+					       rx_fd);	
+				}
+			
+				++Rx_count;
+
+				if (verbose){
+					printf("Received %i Olen=%i Length = %i\n", 
+							Rx_count, err,Rx_lgth);
+#if 1
+					printf("Data: ");
+					for(i=0;i<Rx_lgth; i ++) {
+						printf("0x%02X ", api_rx_el->data[i]);
+					}
+					printf("\n");
+#endif
+				}else{
+					//putchar('R');
+				}
+
+				if (rx_cnt > 0  && Rx_count >= rx_cnt){
+					break;
+				}
+bitstrm_skip_read:
+;
 		   	}
 		
 		   	if (FD_ISSET(sock,&write)){
 
-				err = send(sock,Tx_data, Tx_length + sizeof(api_tx_hdr_t), 0);
 
+#if 1
+				err = sangoma_sendmsg_socket(sock,
+						       Tx_data,16, 
+						       &Tx_data[16], Tx_length, 
+						       0);
+#else	
+				err = sangoma_send_socket(sock,Tx_data, 
+                                                          Tx_length + sizeof(api_tx_hdr_t), 0);
+#endif
 				if (err <= 0){
 					if (errno == EBUSY){
 						if (verbose){
@@ -484,4 +556,6 @@ void sig_end(int sigid)
 
 	exit(1);
 }
+
+
 

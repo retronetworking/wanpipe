@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           2.3.2
+%define version           2.3.3
 %define release           7
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules

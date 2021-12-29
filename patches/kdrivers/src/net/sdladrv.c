@@ -243,8 +243,8 @@ static int sdla_clear_bit (void* phw, unsigned long addr, u8);
 static void sdla_peek_by_4 (sdlahw_t* hw, unsigned long offset, void* pbuf, unsigned int len);
 static void sdla_poke_by_4 (sdlahw_t* hw, unsigned long offset, void* pbuf, unsigned int len);
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-static int sdla_set_intrhand(void* phw, void (*isr_func)(void*), void* arg);
-static int sdla_restore_intrhand(void* phw);
+static int sdla_set_intrhand(void* phw, void (*isr_func)(void*), void* arg, int);
+static int sdla_restore_intrhand(void* phw, int);
 #endif
 static int sdla_get_hwcard(void* phw, void** phwcard);
 static int sdla_get_hwprobe(void* phw, int port, void** str);
@@ -305,7 +305,13 @@ static void sdla_save_hw_probe (sdlahw_t* hw, int port);
 
 static int sdla_hw_unlock(void *phw, wan_smp_flag_t *flag);
 static int sdla_hw_lock(void *phw, wan_smp_flag_t *flag);
+
+static sdla_dma_addr_t sdla_pci_map_dma(void *phw, void *buf, int len, int ctrl);
+static int sdla_pci_unmap_dma(void *phw, sdla_dma_addr_t buf, int len, int ctrl);
+
 static int sdla_is_same_hwcard(void* phw1, void *phw2);
+static int sdla_hw_fe_test_and_set(void *phw);
+static int sdla_hw_fe_clear(void *phw);
 #if defined(__LINUX__)
 #if defined(WAN_DEBUG_MEM)
 	atomic_t wan_debug_mem;
@@ -571,18 +577,33 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 	memset(tmp_hw_probe,0,sizeof(sdla_hw_probe_t));
 	
 	if (hw->hwcard->hw_type == SDLA_PCI_CARD){
-		switch(hw->hwcard->adapter_type){
+		switch(hw->hwcard->adptr_type){
 		case A104_ADPTR_4TE1:
 			snprintf(tmp_hw_probe->hw_info, 
 				sizeof(tmp_hw_probe->hw_info),
-				"%-10s : SLOT=%d : BUS=%d : IRQ=%d : CPU=%c : PORT=%d", 
+				"%-10s : SLOT=%d : BUS=%d : IRQ=%d : CPU=%c : PORT=%d : V=%02X", 
 				hw->hwcard->adptr_name,
 				hw->hwcard->slot_no, 
 				hw->hwcard->bus_no, 
 				hw->irq, 
 				SDLA_GET_CPU(hw->cpu_no), 
-				port+1);	/* line_no */
+				port+1,
+				hw->hwcard->core_rev);	/* line_no */
 			break;
+		case A101_ADPTR_1TE1:
+		case A101_ADPTR_2TE1: 
+                        snprintf(tmp_hw_probe->hw_info,
+                                sizeof(tmp_hw_probe->hw_info),
+                                "%-10s : SLOT=%d : BUS=%d : IRQ=%d : CPU=%c : PORT=%s : V=%02X",
+                                hw->hwcard->adptr_name,
+                                hw->hwcard->slot_no,
+                                hw->hwcard->bus_no,
+                                hw->irq,
+                                SDLA_GET_CPU(hw->cpu_no),
+                                port ? "SEC" : "PRI",
+                                hw->hwcard->core_rev);
+			break;
+
 		default:
 			/*sprintf(tmp_hw_probe->hw_info,*/
 			snprintf(tmp_hw_probe->hw_info, 
@@ -630,8 +651,8 @@ static void sdla_get_adptr_name(sdlahw_t* hw)
 	unsigned short	cpld_off;
         unsigned char	adptr_sec, tmp = 0;
 
-	if (!sdla_memory_map(hw, SDLA_CPU_A)){
-		switch(hw->hwcard->adapter_type){
+	if (sdla_memory_map(hw, SDLA_CPU_A) == 0){
+		switch(hw->hwcard->adptr_type){
 		case A101_ADPTR_1TE1:
 		case A101_ADPTR_2TE1:
 			cpld_off = AFT_SECURITY_CPLD_REG;
@@ -668,11 +689,15 @@ static void sdla_get_adptr_name(sdlahw_t* hw)
         		cpld_off &= ~AFT4_BIT_DEV_ADDR_CLEAR;
 			cpld_off |= AFT4_BIT_DEV_ADDR_CPLD;
 			sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, cpld_off);
+
 			sdla_bus_read_1(hw, AFT_MCPU_INTERFACE, &tmp);
 			adptr_sec = AFT_GET_SECURITY(tmp);
 			if (adptr_sec == AFT_SECURITY_1LINE_UNCH){
 				hw->hwcard->adptr_security = AFT_SECURITY_UNCHAN;
 			}else if (adptr_sec == AFT_SECURITY_1LINE_CH){
+				hw->hwcard->adptr_security = AFT_SECURITY_CHAN;
+			}else if (adptr_sec == 0x02){
+				/*FIXME: ALEX CHANGE HARDCODED VALUE FOR SHARK */
 				hw->hwcard->adptr_security = AFT_SECURITY_CHAN;
 			}else{
 				DEBUG_EVENT("%s: AFT-A104 Critical error: Unknown Security ID (0x%02X)!\n",
@@ -686,12 +711,18 @@ static void sdla_get_adptr_name(sdlahw_t* hw)
 			/* By default, AFT-A300 is unchannelized! */
 			hw->hwcard->adptr_security = AFT_SECURITY_UNCHAN;
 			break;
+		case A200_ADPTR_ANALOG:
+			break;
 		}
+
 		sdla_memory_unmap(hw);
+
 	}
-	sprintf(hw->hwcard->adptr_name, "%s%s",
-				SDLA_ADPTR_NAME(hw->hwcard->adapter_type),
+	sprintf(hw->hwcard->adptr_name, "%s%s%s",
+				SDLA_ADPTR_NAME(hw->hwcard->adptr_type),
+				AFT_SUBTYPE(hw->hwcard->adptr_subtype),
 				AFT_SECURITY(hw->hwcard->adptr_security));
+
 	return;
 }
 
@@ -708,7 +739,7 @@ static int sdla_s514_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void
 	hwcard->cfg_type = WANOPT_S51X;
 	hwcard->type = SDLA_S514;
 	sdla_adapter_cnt.s514x_adapters++;
-	switch(hwcard->adapter_type){
+	switch(hwcard->adptr_type){
 	case S5144_ADPTR_1_CPU_T1E1:
 		if ((hw = sdla_hw_register(hwcard, cpu_no, irq, dev))){
 			sdla_get_adptr_name(hw);
@@ -798,7 +829,7 @@ static int sdla_s514_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void
 		break;
 
 	case S5148_ADPTR_1_CPU_T1E1:
-		hwcard->adapter_type = S5144_ADPTR_1_CPU_T1E1;
+		hwcard->adptr_type = S5144_ADPTR_1_CPU_T1E1;
 		if ((hw = sdla_hw_register(hwcard, cpu_no, irq, dev))){
 			sdla_get_adptr_name(hw);
 			DEBUG_EVENT(
@@ -832,7 +863,7 @@ static int sdla_adsl_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void
 	
 	hwcard->cfg_type = WANOPT_ADSL;
 	hwcard->type = SDLA_ADSL;
-	switch(hwcard->adapter_type){
+	switch(hwcard->adptr_type){
 	case S518_ADPTR_1_CPU_ADSL:
 		sdla_adapter_cnt.s518_adapters++;
 		if ((hw = sdla_hw_register(hwcard, cpu_no, irq, dev))){
@@ -864,7 +895,7 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 	int		number_of_cards = 0;
 	
 	hwcard->type = SDLA_AFT;
-	switch(hwcard->adapter_type){
+	switch(hwcard->adptr_type){
 	case A101_ADPTR_1TE1:
 		hwcard->cfg_type = WANOPT_AFT;
 		sdla_adapter_cnt.aft101_adapters++;
@@ -944,11 +975,27 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 		}
 		break;
 
+	case A200_ADPTR_ANALOG:
+		hwcard->cfg_type = WANOPT_AFT_ANALOG;
+		sdla_adapter_cnt.aft_analog_adapters++;
+
+		if ((hw = sdla_hw_register(hwcard, cpu_no, irq, dev))){
+			sdla_get_adptr_name(hw);
+			sdla_save_hw_probe(hw, 0);
+			number_of_cards += 1;
+			DEBUG_EVENT("%s: %s FXO/FXS card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
+					wan_drvname,
+               	        		hwcard->adptr_name,
+					AFT_CORE_ID_DECODE(hwcard->core_id),
+					hwcard->core_rev,
+					hwcard->bus_no, hwcard->slot_no, irq);
+		}
+		break;
 		
 	default:
 		DEBUG_EVENT(
 			"%s: Unknown adapter %04X (bus #%d, slot #%d, irq #%d)!\n",
-                       	wan_drvname, hwcard->adapter_type, hwcard->bus_no, hwcard->slot_no, irq);
+                       	wan_drvname, hwcard->adptr_type, hwcard->bus_no, hwcard->slot_no, irq);
 
 		break;		
 	}
@@ -967,6 +1014,7 @@ static int sdla_pci_probe(sdlahw_t *hw)
 	sdlahw_card_t*	tmp_hwcard = NULL;
 	sdlahw_card_t*	hwcard = NULL;
         int		number_pci_cards = 0;
+	u16		pci_device_id;
         u16		PCI_subsys_vendor;
 	u16		pci_subsystem_id;
         struct pci_dev*	pci_dev = NULL;
@@ -997,7 +1045,7 @@ static int sdla_pci_probe(sdlahw_t *hw)
 		if (hwcard == NULL){
 			continue;
 		}
-		hwcard->adapter_type	= pci_subsystem_id & 0xFF;
+		hwcard->adptr_type	= pci_subsystem_id & 0xFF;
 		hwcard->pci_dev		= pci_dev;
 
 		/* A dual cpu card can support up to 4 physical connections,
@@ -1019,9 +1067,16 @@ static int sdla_pci_probe(sdlahw_t *hw)
 		tmp_hwcard->pci_dev = pci_dev;	
 		sdla_pci_read_config_word(hw, PCI_SUBSYS_ID_WORD, &pci_subsystem_id);
 
+#if 0
+		/* Disalbe subsystem check, due to production
+		 * errors. Hunderds of cards out there without this value set.
+		 */
 		if ((pci_subsystem_id & 0xFF) != S518_ADPTR_1_CPU_ADSL){
 			continue;
 		}
+#else
+                pci_subsystem_id=S518_ADPTR_1_CPU_ADSL;
+#endif
 		
 		hwcard = sdla_card_register(SDLA_PCI_CARD, 
 					 ((pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK),
@@ -1030,12 +1085,107 @@ static int sdla_pci_probe(sdlahw_t *hw)
 		if (hwcard == NULL){
 			continue;
 		}
-		hwcard->adapter_type	= pci_subsystem_id & 0xFF;
+		hwcard->adptr_type	= pci_subsystem_id & 0xFF;
 		hwcard->pci_dev		= pci_dev;
 		
 		number_pci_cards += 
 			sdla_adsl_hw_select(hwcard, SDLA_CPU_A, pci_dev->irq, NULL);
 
+        }
+
+	pci_dev=NULL;
+	while((pci_dev = pci_get_device(SANGOMA_PCI_VENDOR, PCI_ANY_ID, pci_dev)) != NULL){
+		
+		bus = pci_dev->bus;
+
+		tmp_hwcard->pci_dev = pci_dev;	
+		/* ALEX 11/18 
+		 * Supporting different aft cards */
+                sdla_pci_read_config_word(hw, 
+					PCI_DEVICE_ID_WORD, 
+					&pci_device_id);
+		if (pci_device_id == SANGOMA_PCI_DEVICE || pci_device_id == SANGOMA_PCI_4_DEVICE){
+			/* Old A-series cards, keep original sequence */
+			continue;
+		}
+                sdla_pci_read_config_word(hw, 
+					PCI_SUBSYS_VENDOR_WORD, 
+					&PCI_subsys_vendor);
+		sdla_pci_read_config_word(hw, 
+					PCI_SUBSYS_ID_WORD, 
+					&pci_subsystem_id);
+
+		hwcard = sdla_card_register(SDLA_PCI_CARD, 
+					 ((pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK),
+					 pci_dev->bus->number,
+					 0);
+		if (hwcard == NULL){
+			continue;
+		}
+
+		switch(PCI_subsys_vendor){	
+		case A101_1TE1_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A101_ADPTR_1TE1;
+			break;
+
+		case A101_2TE1_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A101_ADPTR_2TE1;
+			break;
+
+		case A104_4TE1_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A104_ADPTR_4TE1;
+			break;
+
+		case A104_1TE1_SHARK_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A101_ADPTR_1TE1;
+			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+			break;
+	
+		case A104_2TE1_SHARK_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A101_ADPTR_2TE1;
+			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+			break;
+	
+		case A104_4TE1_SHARK_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A104_ADPTR_4TE1;
+			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+			break;
+	
+		case A104_8TE1_SHARK_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A108_ADPTR_8TE1;
+			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+			break;
+	
+		case A300_UTE3_SHARK_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A300_ADPTR_U_1TE3;
+			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+			break;
+
+		case A305_CTE3_SHARK_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A305_ADPTR_C_1TE3;
+			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+			break;
+
+		case A200_REMORA_SHARK_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A200_ADPTR_ANALOG;
+			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+			break;
+	
+		default:
+			DEBUG_EVENT("%s: Unsupported subsystem vendor id %04X (bus=%d, slot=%d)\n",
+					wan_drvname,
+					PCI_subsys_vendor, 
+					pci_dev->bus->number, 
+					((pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK));
+			continue;
+		}
+
+		hwcard->core_id	= pci_subsystem_id & AFT_CORE_ID_MASK;
+		hwcard->core_rev= (pci_subsystem_id & AFT_CORE_REV_MASK) >> 8;
+		hwcard->pci_dev	= pci_dev;
+		number_pci_cards += 
+			sdla_aft_hw_select(hwcard, SDLA_CPU_A, pci_dev->irq, NULL);
+		/* ALEX sdla_adapter_cnt.AFT_adapters++; */
         }
 
 	pci_dev=NULL;
@@ -1060,15 +1210,15 @@ static int sdla_pci_probe(sdlahw_t *hw)
 
 		switch(PCI_subsys_vendor){	
 		case A101_1TE1_SUBSYS_VENDOR:
-			hwcard->adapter_type	= A101_ADPTR_1TE1;
+			hwcard->adptr_type	= A101_ADPTR_1TE1;
 			break;
 
 		case A101_2TE1_SUBSYS_VENDOR:
-			hwcard->adapter_type	= A101_ADPTR_2TE1;
+			hwcard->adptr_type	= A101_ADPTR_2TE1;
 			break;
 
 		case A300_UTE3_SUBSYS_VENDOR:
-			hwcard->adapter_type	= A300_ADPTR_U_1TE3;
+			hwcard->adptr_type	= A300_ADPTR_U_1TE3;
 			break;
 
 		default:
@@ -1100,8 +1250,11 @@ static int sdla_pci_probe(sdlahw_t *hw)
 		/* ALEX 11/18 
 		 * Supporting different aft cards */
                 sdla_pci_read_config_word(hw, 
-				PCI_SUBSYS_VENDOR_WORD, 
-				&PCI_subsys_vendor);
+					PCI_SUBSYS_VENDOR_WORD, 
+					&PCI_subsys_vendor);
+		sdla_pci_read_config_word(hw, 
+					PCI_SUBSYS_ID_WORD, 
+					&pci_subsystem_id);
 
 		hwcard = sdla_card_register(SDLA_PCI_CARD, 
 					 ((pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK),
@@ -1112,10 +1265,23 @@ static int sdla_pci_probe(sdlahw_t *hw)
 		}
 
 		switch(PCI_subsys_vendor){	
-		case A104_4TE1_SUBSYS_VENDOR:
-			hwcard->adapter_type	= A104_ADPTR_4TE1;
+		case A101_1TE1_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A101_ADPTR_1TE1;
 			break;
 
+		case A101_2TE1_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A101_ADPTR_2TE1;
+			break;
+
+		case A104_4TE1_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A104_ADPTR_4TE1;
+			break;
+
+		case A104_4TE1_SHARK_SUBSYS_VENDOR:
+			hwcard->adptr_type	= A104_ADPTR_4TE1;
+			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+			break;
+	
 		default:
 			DEBUG_EVENT("%s: Unsupported subsystem vendor id %04X (bus=%d, slot=%d)\n",
 					wan_drvname,
@@ -1125,9 +1291,6 @@ static int sdla_pci_probe(sdlahw_t *hw)
 			continue;
 		}
 
-		sdla_pci_read_config_word(hw, 
-					PCI_SUBSYS_ID_WORD, 
-					&pci_subsystem_id);
 		hwcard->core_id	= pci_subsystem_id & AFT_CORE_ID_MASK;
 		hwcard->core_rev= (pci_subsystem_id & AFT_CORE_REV_MASK) >> 8;
 		hwcard->pci_dev	= pci_dev;
@@ -1159,15 +1322,15 @@ static int sdla_pci_probe(sdlahw_t *hw)
 
 		switch(PCI_subsys_vendor){	
 		case A101_1TE1_SUBSYS_VENDOR:
-			hwcard->adapter_type	= A101_ADPTR_1TE1;
+			hwcard->adptr_type	= A101_ADPTR_1TE1;
 			break;
 
 		case A101_2TE1_SUBSYS_VENDOR:
-			hwcard->adapter_type	= A101_ADPTR_2TE1;
+			hwcard->adptr_type	= A101_ADPTR_2TE1;
 			break;
 
 		case A300_UTE3_SUBSYS_VENDOR:
-			hwcard->adapter_type	= A300_ADPTR_U_1TE3;
+			hwcard->adptr_type	= A300_ADPTR_U_1TE3;
 			break;
 
 		default:
@@ -1231,7 +1394,7 @@ unsigned int sdla_hw_probe(void)
 			if (hwcard == NULL){
 				continue;
 			}
-			hwcard->adapter_type	= 0x00;
+			hwcard->adptr_type	= 0x00;
 			hwcard->pci_dev		= NULL;
 			hwcard->cfg_type 	= WANOPT_S50X;
 
@@ -1272,7 +1435,7 @@ unsigned int sdla_hw_probe(void)
 						  sdladev_ioport(dev));
 			if (hwcard == NULL) continue;
 
-			hwcard->adapter_type	= 0x00;
+			hwcard->adptr_type	= 0x00;
 			hwcard->pci_dev		= NULL;
 			hwcard->cfg_type 	= WANOPT_S50X;
 
@@ -1308,7 +1471,7 @@ unsigned int sdla_hw_probe(void)
 		if (hwcard == NULL){
 			continue;
 		}
-		hwcard->adapter_type	= dev->adapter_type;
+		hwcard->adptr_type	= dev->adapter_type;
 		hwcard->pci_dev		= pci_dev;
 #if defined(__NetBSD__) || defined(__OpenBSD__)
 	    	hwcard->memt		= pci_dev->pa_memt;
@@ -1709,7 +1872,6 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	hw_iface->load		= sdla_load;
 #endif
-	hw_iface->down		= sdla_down;
 	hw_iface->intack	= sdla_intack;
 	hw_iface->read_int_stat	= sdla_read_int_stat;
 	hw_iface->mapmem	= sdla_mapmem;
@@ -1738,7 +1900,11 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	hw_iface->get_hwprobe	= sdla_get_hwprobe;
 	hw_iface->hw_lock	= sdla_hw_lock;
 	hw_iface->hw_unlock	= sdla_hw_unlock;
+	hw_iface->pci_map_dma	= sdla_pci_map_dma;
+	hw_iface->pci_unmap_dma = sdla_pci_unmap_dma;
 	hw_iface->hw_same	= sdla_is_same_hwcard;
+	hw_iface->fe_test_and_set_bit = sdla_hw_fe_test_and_set;
+	hw_iface->fe_clear_bit =  sdla_hw_fe_clear;
 	switch(hwcard->cfg_type){
 	case WANOPT_S50X:
 		hwcard->type		= SDLA_S508;
@@ -1755,7 +1921,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	case WANOPT_S51X:
 		hwcard->type			= SDLA_S514;
 		hw_iface->load			= sdla_load;	/* For Edukit */
-		hw_iface->halt			= sdla_halt;	/* For Edukit */
+		hw_iface->hw_halt		= sdla_halt;	/* For Edukit */
 		hw_iface->start			= sdla_start;	/* For Edukit */
 		hw_iface->cmd			= sdla_cmd;
 		hw_iface->set_bit		= sdla_set_bit;
@@ -1793,6 +1959,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	case WANOPT_AFT:
 	case WANOPT_AFT104:
 	case WANOPT_AFT300:
+	case WANOPT_AFT_ANALOG:
 		hwcard->type			= SDLA_AFT;
 		hw_iface->set_bit		= sdla_set_bit;
 		hw_iface->clear_bit		= sdla_clear_bit;
@@ -1802,7 +1969,9 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 		hw_iface->pci_write_config_byte = sdla_pci_write_config_byte;
 		hw_iface->pci_write_config_word = sdla_pci_write_config_word;
 		hw_iface->pci_write_config_dword = sdla_pci_write_config_dword;
-		if (hw->hwcard->adapter_type == A104_ADPTR_4TE1){
+		switch(hw->hwcard->adptr_type){
+		case A104_ADPTR_4TE1:
+		case A200_ADPTR_ANALOG:
 			DEBUG_EVENT("%s: Found: %s card, CPU %c, PciSlot=%d, PciBus=%d, Port=%d\n",
 					devname, 
 					SDLA_DECODE_CARDTYPE(hwcard->cfg_type),
@@ -1810,13 +1979,15 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 					hwcard->slot_no, 
 					hwcard->bus_no,
 					(conf) ? conf->comm_port : hw->used);
-		}else{
+			break;
+		default:
 			DEBUG_EVENT("%s: Found: %s card, CPU %c, PciSlot=%d, PciBus=%d\n",
 					devname, 
 					SDLA_DECODE_CARDTYPE(hwcard->cfg_type),
 					SDLA_GET_CPU(hw->cpu_no), 
 					hwcard->slot_no, 
 					hwcard->bus_no);
+			break;
 		}
 		break;
 
@@ -1861,10 +2032,12 @@ int sdla_unregister(void** p_hw, char* devname)
 				break;
 			}
 		}
+
 		hw->used--;
 		if (!hw->used){
 			hw->devname = NULL;
 		}
+
 		*p_hw = NULL;
 	}
 	return 0;
@@ -1956,6 +2129,16 @@ static int sdla_register_check (wandev_conf_t* conf, char* devname)
 		}
 		break;
 		
+	case WANOPT_AFT_ANALOG:
+		if (conf->auto_pci_cfg && sdla_adapter_cnt.aft_analog_adapters > 1){
+ 			DEBUG_EVENT( "%s: HW Auto PCI failed: Multiple AFT-ANALOG cards found! \n"
+				     "%s:    Disable the Autodetect feature and supply\n"
+				     "%s:    the PCI Slot and Bus numbers for each card.\n",
+               			        devname,devname,devname);
+			return -EINVAL;
+		}
+		break;
+
 	case WANOPT_AFT300:
 		if (conf->auto_pci_cfg && sdla_adapter_cnt.aft300_adapters > 1){
 			DEBUG_EVENT( "%s: HW Auto PCI failed: Multiple AFT-300 cards found! \n"
@@ -1964,15 +2147,6 @@ static int sdla_register_check (wandev_conf_t* conf, char* devname)
                			        devname,devname,devname);
 			return -EINVAL;
 		}
-#if 0
-		if (conf->auto_pci_cfg && sdla_adapter_cnt.AFT_adapters > 1){
- 			DEBUG_EVENT( "%s: HW Autodetect failed: Multiple AFT cards found! \n"
-				     "%s:    Disable the Autodetect feature and supply\n"
-				     "%s:    the PCI Slot and Bus numbers for each card.\n",
-               			        devname,devname,devname);
-				return -EINVAL;
-		}
-#endif
 		break;
 
 	default:
@@ -2078,27 +2252,15 @@ static int sdla_setup (void* phw, wandev_conf_t* conf)
 		break;
 	
 	case SDLA_AFT:
-#if 0
-		hw->cpu_no = SDLA_CPU_A;
-		hw->slot_no = conf->PCI_slot_no;
-		hw->auto_pci_cfg = conf->auto_pci_cfg;
-		hw->bus_no  = conf->pci_bus_no;
-		if (hw->auto_pci_cfg == WANOPT_YES){
-			DEBUG_EVENT("%s: Setting Slot and Bus to Auto\n",
-					hw->devname);
-		}else{
-			DEBUG_EVENT("%s: Setting Slot to %i Bus to %i\n",
-					hw->devname, 
-					hwcard->slot_no,
-					hwcard->bus_no);
-		}
-		hw->dpmbase = (sdla_mem_handle_t)conf->maddr;
-#endif
 
-		if (hw->hwcard->adapter_type == A104_ADPTR_4TE1 &&
-		    hw->used > 1){
-			if (conf) conf->irq = hw->irq;
-			return 0;
+		switch(hw->hwcard->adptr_type){
+		case A104_ADPTR_4TE1:
+		case A200_ADPTR_ANALOG:
+			if (hw->used > 1){
+				if (conf) conf->irq = hw->irq;
+				return 0;
+			}
+			break;
 		}
 		
 		hw->fwid = SFID_AFT; 
@@ -2320,7 +2482,7 @@ static int sdla_bootcfg (sdlahw_t* hw, sfm_info_t* sfminfo)
 	if (card->type == SDLA_S514){
 		offset = sfminfo->dataoffs;
 	}else{
-		offset = sfminfo->dataoffs - (u32)hw->vector;
+		offset = sfminfo->dataoffs - (unsigned long)hw->vector;
 	}
 
 	sdla_bus_set_region_1(hw, 0x00, 0x00, sfminfo->datasize);
@@ -2720,34 +2882,17 @@ static int sdla_down (void* phw)
 
 	case SDLA_AFT:
 
-		if (hw->hwcard->adapter_type == A104_ADPTR_4TE1 &&
-		    hw->used > 1){
-			
+		switch(hw->hwcard->adptr_type){
+		case A104_ADPTR_4TE1:
+		case A200_ADPTR_ANALOG:
+			if (hw->used > 1){
+				break;
+			}
+			/* fall throught */
+		default:
+			sdla_memory_unmap(hw);
 			break;
 		}
-
-		sdla_memory_unmap(hw);
-#if 0
-		DEBUG_TEST("AFT RELEASE MEMORY Cnt=%i!\n",hw->used);
-
-		
-		if (hw->status & SDLA_MEM_RESERVED){
-			sdla_release_mem_region(hw, 
-				hw->mem_base_addr, 
-				(hw->hwcard->adapter_type == A104_ADPTR_4TE1)?
-					AFT4_PCI_MEM_SIZE:AFT_PCI_MEM_SIZE); 
-			hw->status &= ~SDLA_MEM_RESERVED;
-		}
-		
-		/* free up the allocated virtual memory */
-		if (hw->status & SDLA_MEM_MAPPED){
-			sdla_bus_space_unmap(hw, 
-				hw->dpmbase, 
-				(hw->hwcard->adapter_type == A104_ADPTR_4TE1)?
-					AFT4_PCI_MEM_SIZE:AFT_PCI_MEM_SIZE); 
-			hw->status &= ~SDLA_MEM_MAPPED;
-		}
-#endif
                 break;
 
 	default:
@@ -4345,125 +4490,129 @@ static int sdla_detect_pulsar(sdlahw_t* hw)
 static int sdla_memory_map(sdlahw_t* hw, int cpu_no)
 {
 	sdlahw_card_t	*hwcard;
-	void		*presource = NULL;
-	int		err;
+	void		*presource;
+	int		err=-EINVAL;
+	unsigned char   reserve_name[50];
+
+	
 
 	WAN_ASSERT(hw == NULL);
 	WAN_ASSERT(hw->hwcard == NULL);
 	hwcard = hw->hwcard;
+	presource =NULL;
+
 	switch (hwcard->type){ 
+
 	case SDLA_S508:
+		err=0;
 		break;
 
 	case SDLA_ADSL:
-		sdla_pci_read_config_dword(hw, PCI_IO_BASE_DWORD, (u32*)&hw->mem_base_addr);
-		if(!hw->mem_base_addr) {
-			DEBUG_EVENT( "%s: No PCI memory allocated to card!\n",
-						hw->devname);
-			return -EINVAL;
-		}
-	
-		if (sdla_pci_enable_device(hw)){
-			DEBUG_EVENT( "%s: Error: S518 ADSL PCI enable failed\n",
-				hw->devname);
-			return -EINVAL;
-	    	}
-		hw->status |= SDLA_PCI_ENABLE;
-
-		sdla_pci_set_master(hw);
-
 		hw->memory=GSI_PCI_MEMORY_SIZE;
-		if (!(hw->status & SDLA_MEM_RESERVED)){
-			err = sdla_request_mem_region(
-						hw,
-						hw->mem_base_addr, 
-						hw->memory,
-						"WANPIPE ADSL",
-						&presource); 
-			if (err){
-				DEBUG_EVENT("%s: Error: Unable to reserve S518 ADSL pci bar0 memory\n",
-					hw->devname);
-				return -EINVAL;
-    			}
-			hw->status |= SDLA_MEM_RESERVED;
-		}
-
-		if (!(hw->status & SDLA_MEM_MAPPED)){
-			/* map the physical PCI memory to virtual memory */
-			sdla_bus_space_map(hw, 0x0, GSI_PCI_MEMORY_SIZE, &hw->dpmbase);
-		        if(!hw->dpmbase) {
-				DEBUG_EVENT( "%s: Error: S518 ADSL PCI virtual memory ioremap failed\n",
-					hw->devname);
-	                	return -EINVAL;
-			}
-			hw->status |= SDLA_MEM_MAPPED;
-		}
+		cpu_no=SDLA_CPU_A;
+		sprintf(reserve_name,"WANPIPE ADSL");
 		break;
 
 	case SDLA_AFT:
-
-		sdla_pci_read_config_dword(
-				hw,
-				(cpu_no == SDLA_CPU_A) ? 
-					PCI_IO_BASE_DWORD : PCI_MEM_BASE0_DWORD,
-				(u32*)&hw->mem_base_addr);
-		if (!hw->mem_base_addr){
-			if(cpu_no == SDLA_CPU_B){
-				DEBUG_EVENT( "%s: CPU #B not present on the card\n",
-					hw->devname);
-			}else{
-				DEBUG_EVENT( "%s: No PCI memory allocated to card\n",
-					hw->devname);
-			}
-			return -EINVAL;
-		}
-	
-		if (sdla_pci_enable_device(hw)){
-			DEBUG_EVENT( "%s: Error: AFT PCI enable failed\n",
-				hw->devname);
-			return -EINVAL;
-		}
-		hw->status |= SDLA_PCI_ENABLE;
-		/* Enable master operation on PCI and enable
-		 * bar0 memory */
-		sdla_pci_set_master(hw);
-
-		hw->memory = (hw->hwcard->adapter_type == A104_ADPTR_4TE1)?
-					AFT4_PCI_MEM_SIZE : AFT_PCI_MEM_SIZE; 
-		if (!(hw->status & SDLA_MEM_RESERVED)){
-			err = sdla_request_mem_region(
-					hw, 
-					hw->mem_base_addr, 
-					hw->memory,
-					"WANPIPE AFT", 
-					&presource);
-			if (err){
-   
-				DEBUG_EVENT("%s: Error: Unable to reserve AFT pci bar0 memory\n",
-					hw->devname);
-				sdla_memory_unmap(hw);
-				return -EINVAL;
-			}
-			hw->status |= SDLA_MEM_RESERVED;
-	    	}
-	
-		if (!(hw->status & SDLA_MEM_MAPPED)){
-			/* map the physical PCI memory to virtual memory */
-			sdla_bus_space_map(hw, 
-					0x0, 
-					hw->memory,
-					&hw->dpmbase);
-		        if (!hw->dpmbase){
-				DEBUG_EVENT( "%s: Error: AFT PCI virtual memory ioremap failed\n",
-					hw->devname);
-				sdla_memory_unmap(hw);
-				return -EINVAL;
-			}	
-			hw->status |= SDLA_MEM_MAPPED;
+		sprintf(reserve_name,"WANPIPE AFT");
+		switch(hw->hwcard->adptr_type){
+		case A104_ADPTR_4TE1:
+		case A200_ADPTR_ANALOG:
+			hw->memory = AFT4_PCI_MEM_SIZE; 
+			break;
+		default:
+			hw->memory = AFT_PCI_MEM_SIZE; 
+			break;
 		}
 		break;
+	
+	default:
+		DEBUG_EVENT("%s:%d Error: Invalid hw adapter type (0x%X)\n",
+			__FUNCTION__,__LINE__,hwcard->type);
+		return -EINVAL;
 	}
-	return 0;
+
+	DEBUG_TEST("NCDEBUG: MEMORY MAPPING AFT\n");
+
+	if (sdla_pci_enable_device(hw)){
+		DEBUG_EVENT( "%s: Error: AFT PCI enable failed\n",
+			hw->devname);
+		return -EINVAL;
+	}
+	hw->status |= SDLA_PCI_ENABLE;
+	
+	if (!(hw->status & SDLA_MEM_RESERVED)){
+#if defined(__LINUX__)
+		err = pci_request_region(hw->hwcard->pci_dev, (cpu_no == SDLA_CPU_A)?0:1 ,reserve_name);
+#else
+		err = sdla_request_mem_region(
+				hw, 
+				hw->mem_base_addr, 
+				hw->memory,
+				reserve_name,
+				&presource);
+#endif
+		if (err){
+
+			DEBUG_EVENT("%s: Error: Unable to reserve AFT pci bar%i memory\n",
+				hw->devname,(cpu_no == SDLA_CPU_A)?0:1);
+
+			err = -EINVAL;
+			goto aft_pci_error;
+		}
+		hw->status |= SDLA_MEM_RESERVED;
+	}
+
+#if defined(__LINUX__) && defined(DMA_32BIT_MASK)
+	if((err = pci_set_dma_mask(hw->hwcard->pci_dev, DMA_32BIT_MASK))) {
+		DEBUG_EVENT("%s: Error: No usable DMA configuration, aborting.\n",
+				hw->devname);
+		err = -EINVAL;
+		goto aft_pci_error;
+	}
+#endif
+	sdla_get_pci_base_resource_addr(hw,
+				(cpu_no == SDLA_CPU_A) ? 
+					PCI_IO_BASE_DWORD : 
+					PCI_MEM_BASE0_DWORD,
+				&hw->mem_base_addr);
+
+	if (!hw->mem_base_addr){
+		if(cpu_no == SDLA_CPU_B){
+			DEBUG_EVENT( "%s: Error: CPU #B not present on adapter\n",
+				hw->devname);
+		}else{
+			DEBUG_EVENT( "%s: Error: Failed to allocate PCI memory on AFT/ADSL card\n",
+				hw->devname);
+		}
+		err = -EINVAL;
+		goto aft_pci_error;
+	}
+
+	if (!(hw->status & SDLA_MEM_MAPPED)){
+		/* map the physical PCI memory to virtual memory */
+		sdla_bus_space_map(hw, 
+				0x0, 
+				hw->memory,
+				&hw->dpmbase);
+		if (!hw->dpmbase){
+			DEBUG_EVENT( "%s: Error: AFT PCI virtual memory ioremap failed\n",
+				hw->devname);
+			err = -EINVAL;
+			goto aft_pci_error;
+		}	
+		hw->status |= SDLA_MEM_MAPPED;
+	}
+	
+	sdla_pci_set_master(hw);
+	err=0;
+
+	return err;
+
+
+aft_pci_error:
+	sdla_memory_unmap(hw);
+	return err;
 }
 
 /*============================================================================
@@ -4479,29 +4628,12 @@ static int sdla_memory_unmap(sdlahw_t* hw)
 	switch (hwcard->type){ 
 	case SDLA_S508:
 		break;
+
 	case SDLA_ADSL:
-		if (hw->status & SDLA_MEM_RESERVED){
-			sdla_release_mem_region(hw, hw->mem_base_addr, hw->memory);
-			hw->status &= ~SDLA_MEM_RESERVED;
-		}
-
-		/* free up the allocated virtual memory */
-		if (hw->status & SDLA_MEM_MAPPED){
-			sdla_bus_space_unmap(hw, hw->dpmbase, hw->memory);
-			hw->status &= ~SDLA_MEM_MAPPED;
-		}
-		break;
 	case SDLA_AFT:
-		DEBUG_TEST("AFT RELEASE MEMORY Cnt=%d!\n",hw->used);
 
-		if (hw->status & SDLA_MEM_RESERVED){
-			sdla_release_mem_region(
-					hw,
-					hw->mem_base_addr,
-					hw->memory);
-			hw->status &= ~SDLA_MEM_RESERVED;
-		}
-		
+		DEBUG_TEST("NCDEBUG: MEMORY UNMAPPING AFT\n");
+
 		/* free up the allocated virtual memory */
 		if (hw->status & SDLA_MEM_MAPPED){
 			sdla_bus_space_unmap(
@@ -4510,6 +4642,26 @@ static int sdla_memory_unmap(sdlahw_t* hw)
 					hw->memory);
 			hw->status &= ~SDLA_MEM_MAPPED;
 		}
+
+		if (hw->status & SDLA_MEM_RESERVED){
+#if defined(__LINUX__)
+			pci_release_region(hw->hwcard->pci_dev,(hw->cpu_no == SDLA_CPU_A)?0:1);
+#else
+			sdla_release_mem_region(
+					hw,
+					hw->mem_base_addr,
+					hw->memory);
+#endif
+			hw->status &= ~SDLA_MEM_RESERVED;
+		}
+
+		if (hw->status & SDLA_PCI_ENABLE){
+			/* FIXME: No allowed to do this because bar1 might 
+                         *        still be used.  Need a pci dev counter */
+			/* sdla_pci_disable_device(hw); */
+			hw->status &= ~SDLA_PCI_ENABLE;
+		}
+			
 		break;
 	}
 	return 0;
@@ -4530,85 +4682,24 @@ static int sdla_detect_aft(sdlahw_t* hw)
 	if ((err = sdla_memory_map(hw, hw->cpu_no))){
 		return err;
 	}
-#if 0
-	sdla_pci_read_config_dword(hw,
-		   (hw->cpu_no == SDLA_CPU_A) ? PCI_IO_BASE_DWORD : 
-			    	PCI_MEM_BASE0_DWORD, (u32*)&hw->mem_base_addr);
-	if (!hw->mem_base_addr){
-		if(hw->cpu_no == SDLA_CPU_B){
-			DEBUG_EVENT( "%s: CPU #B not present on the card\n",
-					hw->devname);
-		}else{
-			DEBUG_EVENT( "%s: No PCI memory allocated to card\n",
-					hw->devname);
-		}
-		return -EINVAL;
-	}
-#endif
+
 	DEBUG_EVENT( "%s: AFT PCI memory at 0x%lX\n",
 				hw->devname, (unsigned long)hw->mem_base_addr);
 
+#if defined(__LINUX__)
+	hw->irq = hwcard->pci_dev->irq;
+#else
 	sdla_pci_read_config_byte(hw, PCI_INT_LINE_BYTE, (u8*)&hw->irq);
+#endif
         if(hw->irq == PCI_IRQ_NOT_ALLOCATED) {
+		sdla_memory_unmap(hw);
                 DEBUG_EVENT( "%s: IRQ not allocated to AFT adapter\n",
 			hw->devname);
                 return -EINVAL;
         }
 
-#if defined(__LINUX__)
-	hw->irq = hwcard->pci_dev->irq;
-#endif
 	DEBUG_EVENT( "%s: IRQ %d allocated to the AFT PCI card\n",
-		hw->devname, hw->irq);
-
-#if 0	
-	if (sdla_pci_enable_device(hw)){
-		DEBUG_EVENT( "%s: Error: AFT PCI enable failed\n",
-			hw->devname);
-		return -EINVAL;
-	}
-	hw->status |= SDLA_PCI_ENABLE;
-
-	/* Enable master operation on PCI and enable
-	 * bar0 memory */
-	sdla_pci_set_master(hw);
-
-	if (!(hw->status & SDLA_MEM_RESERVED)){
-		void	*presource = NULL;
-		if (sdla_request_mem_region(hw, 
-				hw->mem_base_addr, 
-				(hw->hwcard->adapter_type == A104_ADPTR_4TE1)?
-					AFT4_PCI_MEM_SIZE:AFT_PCI_MEM_SIZE, 
-				"WANPIPE AFT", 
-				&presource)){
-   
-			DEBUG_EVENT("%s: Error: Unable to reserve AFT pci bar0 memory\n",
-				hw->devname);
-			return -EINVAL;
-		}
-		hw->status |= SDLA_MEM_RESERVED;
-    	}
-	
-	hw->memory = (hw->hwcard->adapter_type == A104_ADPTR_4TE1)?
-				AFT4_PCI_MEM_SIZE:AFT_PCI_MEM_SIZE; 
-	
-	if (!(hw->status & SDLA_MEM_MAPPED)){
-		/* map the physical PCI memory to virtual memory */
-		sdla_bus_space_map(hw, 
-				0x0, 
-				(hw->hwcard->adapter_type == A104_ADPTR_4TE1)?
-					AFT4_PCI_MEM_SIZE:AFT_PCI_MEM_SIZE, 
-				&hw->dpmbase);
-	        if (!hw->dpmbase){
-			DEBUG_EVENT( "%s: Error: AFT PCI virtual memory ioremap failed\n",
-				hw->devname);
-			return -EINVAL;
-		}
-
-		hw->status |= SDLA_MEM_MAPPED;
-
-	}
-#endif
+				hw->devname, hw->irq);
 
 	/* Set PCI Latency of 0xFF*/
 	sdla_pci_write_config_dword(hw, XILINX_PCI_LATENCY_REG, XILINX_PCI_LATENCY); 
@@ -4651,25 +4742,10 @@ static sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 				
 			case WANOPT_S51X:
 			case WANOPT_ADSL:
-				if (conf->auto_pci_cfg){
-					if (hw->cpu_no == cpu_no &&
-					    hw->hwcard->cfg_type == conf->card_type){
-						goto adapter_found;
-					}
-				}else{
-					
-					if ((hw->hwcard->slot_no == conf->PCI_slot_no) && 
-				    	    (hw->hwcard->bus_no == conf->pci_bus_no) &&
-				    	    (hw->cpu_no == cpu_no) &&
-					    (hw->hwcard->cfg_type == conf->card_type)){
-						goto adapter_found;
-					}
-				}
-				break;
-
 			case WANOPT_AFT:
 			case WANOPT_AFT104:
 			case WANOPT_AFT300:
+			case WANOPT_AFT_ANALOG:
 				if (conf->auto_pci_cfg){
 					if (hw->cpu_no == cpu_no &&
 					    hw->hwcard->cfg_type == conf->card_type){
@@ -4691,16 +4767,16 @@ static sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 						devname, conf->card_type);
 				return NULL;
 	       }
-		
 	}
 
 adapter_found:
 	if (hw){
-		switch(hw->hwcard->adapter_type){
+		switch(hw->hwcard->adptr_type){
 		case S5144_ADPTR_1_CPU_T1E1:
 		case S5147_ADPTR_2_CPU_T1E1:
 		case A101_ADPTR_1TE1:
 		case A101_ADPTR_2TE1:
+		case A200_ADPTR_ANALOG:
 			conf->comm_port = 0;
 			conf->fe_cfg.line_no = 0;
 			break;
@@ -4720,30 +4796,34 @@ adapter_found:
 		switch(conf->card_type){
 		case WANOPT_S50X:
 	                DEBUG_EVENT(
-				"%s: Error, Sangoma ISA resource busy: (ioport #%x, %s)\n",
+			"%s: Error, Sangoma ISA resource busy: (ioport #%x, %s)\n",
                 	        devname, conf->ioport, COMPORT_DECODE(conf->comm_port));
 			break;
 
 		case WANOPT_S51X:
 		case WANOPT_ADSL:
 		case WANOPT_AFT:
-			if (hw->hwcard->adapter_type == A104_ADPTR_4TE1){
+			switch(hw->hwcard->adptr_type){
+			case A104_ADPTR_4TE1:
 				DEBUG_EVENT(
-					"%s: Error, %s resources busy: (bus #%d, slot #%d, cpu %c, line %d)\n",
+				"%s: Error, %s resources busy: (bus #%d, slot #%d, cpu %c, line %d)\n",
         	        	       	devname, 
 					SDLA_DECODE_CARDTYPE(conf->card_type),
 					conf->pci_bus_no, 
 					conf->PCI_slot_no,
 					conf->S514_CPU_no[0],
 					conf->fe_cfg.line_no);
-			}else{
+				break;
+
+			default:
 				DEBUG_EVENT(
-					"%s: Error, %s resources busy: (bus #%d, slot #%d, cpu %c)\n",
+				"%s: Error, %s resources busy: (bus #%d, slot #%d, cpu %c)\n",
         	        	       	devname, 
 					SDLA_DECODE_CARDTYPE(conf->card_type),
 					conf->pci_bus_no, 
 					conf->PCI_slot_no,
 					conf->S514_CPU_no[0]);
+				break;
 			}
 		}
 		return NULL;
@@ -4753,12 +4833,12 @@ adapter_found:
 		switch(conf->card_type){
 		case WANOPT_S50X:
 	                DEBUG_EVENT(
-				"%s: Error, Sangoma ISA card not found on ioport #%x, %s\n",
+			"%s: Error, Sangoma ISA card not found on ioport #%x, %s\n",
                 	        devname, conf->ioport, COMPORT_DECODE(conf->comm_port));
 			break;
 		case WANOPT_S51X:
 		         DEBUG_EVENT(
-				"%s: Error, %s card not found on bus #%d, slot #%d, cpu %c, %s\n",
+			"%s: Error, %s card not found on bus #%d, slot #%d, cpu %c, %s\n",
                 	        	devname, 
 					SDLA_DECODE_CARDTYPE(conf->card_type),
 					conf->pci_bus_no, 
@@ -4768,15 +4848,18 @@ adapter_found:
 			break;
 		case WANOPT_ADSL:
 			DEBUG_EVENT(
-				"%s: Error, %s card not found on bus #%d, slot #%d\n",
+			"%s: Error, %s card not found on bus #%d, slot #%d\n",
                 	        	devname, 
 					SDLA_DECODE_CARDTYPE(conf->card_type),
 					conf->pci_bus_no, 
 					conf->PCI_slot_no); 
 			break;
 		case WANOPT_AFT:
+		case WANOPT_AFT104:
+		case WANOPT_AFT300:
+		case WANOPT_AFT_ANALOG:
 			DEBUG_EVENT(
-				"%s: Error, %s card not found on bus #%d, slot #%d, cpu %c, line %d\n",
+			"%s: Error, %s card not found on bus #%d, slot #%d, cpu %c, line %d\n",
                 	        	devname, 
 					SDLA_DECODE_CARDTYPE(conf->card_type),
 					conf->pci_bus_no, 
@@ -4786,8 +4869,9 @@ adapter_found:
 			break;
 		default:
 			DEBUG_EVENT(
-				"%s: Error, %s card not found!\n",
-				devname, SDLA_DECODE_CARDTYPE(conf->card_type));
+			"%s: Error, %s card not found!\n",
+					devname,
+					SDLA_DECODE_CARDTYPE(conf->card_type));
 			break;
         	}
 	}else{
@@ -4860,7 +4944,7 @@ static int sdla_is_te1(void* phw)
 	SDLA_MAGIC(hw);
 	WAN_ASSERT(hw->hwcard == NULL);
 	hwcard = hw->hwcard;
-	switch(hwcard->adapter_type){
+	switch(hwcard->adptr_type){
 	case S5144_ADPTR_1_CPU_T1E1:
 	case S5147_ADPTR_2_CPU_T1E1:
 	case S5148_ADPTR_1_CPU_T1E1:
@@ -4882,7 +4966,7 @@ static int sdla_is_56k(void* phw)
 	SDLA_MAGIC(hw);
 	WAN_ASSERT(hw->hwcard == NULL);
 	hwcard = hw->hwcard;
-	if (hwcard->adapter_type == S5145_ADPTR_1_CPU_56K){
+	if (hwcard->adptr_type == S5145_ADPTR_1_CPU_56K){
 		return 0;
 	}
 	return -EINVAL;
@@ -4902,28 +4986,28 @@ static int sdla_check_mismatch(void* phw, unsigned char media)
 	hwcard = hw->hwcard;
 	if (media == WAN_MEDIA_T1 || 
 	    media == WAN_MEDIA_E1){
-		if (hwcard->adapter_type != S5144_ADPTR_1_CPU_T1E1 &&
-		    hwcard->adapter_type != S5147_ADPTR_2_CPU_T1E1 &&
-		    hwcard->adapter_type != S5148_ADPTR_1_CPU_T1E1){
+		if (hwcard->adptr_type != S5144_ADPTR_1_CPU_T1E1 &&
+		    hwcard->adptr_type != S5147_ADPTR_2_CPU_T1E1 &&
+		    hwcard->adptr_type != S5148_ADPTR_1_CPU_T1E1){
 			DEBUG_EVENT("%s: Error: Card type mismatch: User=T1/E1 Actual=%s\n",
 				hw->devname,
 				hwcard->adptr_name);
 			return -EIO;
 		}
-		hwcard->adapter_type = S5144_ADPTR_1_CPU_T1E1;
+		hwcard->adptr_type = S5144_ADPTR_1_CPU_T1E1;
 		
 	}else if (media == WAN_MEDIA_56K){
-		if (hwcard->adapter_type != S5145_ADPTR_1_CPU_56K){
+		if (hwcard->adptr_type != S5145_ADPTR_1_CPU_56K){
 			DEBUG_EVENT("%s: Error: Card type mismatch: User=56K Actual=%s\n",
 				hw->devname,
 				hwcard->adptr_name);
 			return -EIO;
 		}
 	}else{
-		if (hwcard->adapter_type == S5145_ADPTR_1_CPU_56K ||
-		    hwcard->adapter_type == S5144_ADPTR_1_CPU_T1E1 ||
-		    hwcard->adapter_type == S5147_ADPTR_2_CPU_T1E1 ||
-		    hwcard->adapter_type == S5148_ADPTR_1_CPU_T1E1){
+		if (hwcard->adptr_type == S5145_ADPTR_1_CPU_56K ||
+		    hwcard->adptr_type == S5144_ADPTR_1_CPU_T1E1 ||
+		    hwcard->adptr_type == S5147_ADPTR_2_CPU_T1E1 ||
+		    hwcard->adptr_type == S5148_ADPTR_1_CPU_T1E1){
 			DEBUG_EVENT("%s: Error: Card type mismatch: User=S514(1/2/3) Actual=%s\n",
 				hw->devname,
 				hwcard->adptr_name);
@@ -4951,7 +5035,8 @@ static int sdla_is_same_hwcard(void* phw1, void *phw2)
  * o For S514, register new interrupt handler for each CPU. 
  */
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-static int sdla_set_intrhand(void* phw, void (*isr_func)(void*), void* arg)
+static int
+sdla_set_intrhand(void* phw, void (*isr_func)(void*), void* arg, int line_no)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
     	sdladev_t*	adapter = NULL;
@@ -4961,13 +5046,18 @@ static int sdla_set_intrhand(void* phw, void (*isr_func)(void*), void* arg)
 
 	SDLA_MAGIC(hw);
 	adapter = (sdladev_t*)hw->dev;
-    	if (adapter == NULL) return -EINVAL;
+	WAN_ASSERT(adapter == NULL);
+	WAN_ASSERT(adapter->sc == NULL);
 
 #if defined(__FreeBSD__) && (__FreeBSD_version >= 450000)
 
      	error = bus_setup_intr(
-				adapter->dev, adapter->sc->irq_res, INTR_TYPE_NET,
-				isr_func, arg, &hw->irqh);
+			adapter->dev,
+			adapter->sc->irq_res,
+			INTR_TYPE_NET,
+			isr_func,
+			arg,
+			&hw->irqh[line_no]);
     	if (error){
 		DEBUG_EVENT("%s: Failed set interrupt handler for CPU A!\n",
 					device_get_name(adapter->dev));
@@ -4989,18 +5079,19 @@ static int sdla_set_intrhand(void* phw, void (*isr_func)(void*), void* arg)
  * o For S514, call pci_unmap_int().
  */
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-static int sdla_restore_intrhand(void* phw)
+static int sdla_restore_intrhand(void* phw, int line_no)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
     	sdladev_t*	adapter = NULL;
 
 	SDLA_MAGIC(hw);
 	adapter = (sdladev_t*)hw->dev;
-    	if (adapter == NULL) return -EINVAL;
+	WAN_ASSERT(adapter == NULL);
+	WAN_ASSERT(adapter->sc == NULL);
 
 #if defined(__FreeBSD__) && (__FreeBSD_version >= 450000)
 
-	if (bus_teardown_intr(adapter->dev, adapter->sc->irq_res, hw->irqh)){
+	if (bus_teardown_intr(adapter->dev, adapter->sc->irq_res, hw->irqh[line_no])){
 		DEBUG_EVENT("%s: Failed unregister interrupt handler!\n",
 					device_get_name(adapter->dev));
 		return -EINVAL;
@@ -5056,7 +5147,7 @@ static int sdla_getcfg(void* phw, int type, void* value)
 		*(u16*)value = hw->io_range;
 		break;
 	case SDLA_ADAPTERTYPE:
-		*(u16*)value = hwcard->adapter_type;
+		*(u16*)value = hwcard->adptr_type;
 		break;
 	case SDLA_CPU:
 		*(u16*)value = hw->cpu_no;
@@ -5085,6 +5176,9 @@ static int sdla_getcfg(void* phw, int type, void* value)
 		break;
 	case SDLA_USEDCNT:
 		*(u32*)value = hw->used;
+		break;
+	case SDLA_ADAPTERSUBTYPE:
+		*(u8*)value = hwcard->adptr_subtype;
 		break;
 	}
 	return 0;
@@ -5535,5 +5629,64 @@ static int sdla_hw_unlock(void *phw, wan_smp_flag_t *flag)
 	WAN_ASSERT(hw->hwcard == NULL);
 	hwcard = hw->hwcard;
 	wan_spin_unlock(&hwcard->pcard_lock);
+	return 0;
+}
+
+static sdla_dma_addr_t sdla_pci_map_dma(void *phw, void *buf, int len, int ctrl)
+{
+	sdlahw_t*	hw = (sdlahw_t*)phw;
+	sdlahw_card_t*	hwcard;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcard == NULL);
+	hwcard = hw->hwcard;
+
+#if defined(__LINUX__)
+	return pci_map_single(hwcard->pci_dev, buf, len, ctrl);
+#else	
+	return virt_to_phys(buf);
+#endif
+}
+
+static int sdla_pci_unmap_dma(void *phw, sdla_dma_addr_t buf, int len, int ctrl)
+{
+	sdlahw_t*	hw = (sdlahw_t*)phw;
+	sdlahw_card_t*	hwcard;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcard == NULL);
+	hwcard = hw->hwcard;
+
+#if defined(__LINUX__)
+	pci_unmap_single(hwcard->pci_dev, buf, len, ctrl);
+#endif
+	return 0;
+}
+
+
+static int sdla_hw_fe_test_and_set(void *phw)
+{
+	sdlahw_t*	hw = (sdlahw_t*)phw;
+	sdlahw_card_t*	hwcard;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcard == NULL);
+	hwcard = hw->hwcard;
+	return wan_test_and_set_bit(0, &hwcard->fe_rw_flag);
+}
+
+static int sdla_hw_fe_clear(void *phw)
+{
+	sdlahw_t*	hw = (sdlahw_t*)phw;
+	sdlahw_card_t*	hwcard;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcard == NULL);
+	hwcard = hw->hwcard;
+	wan_clear_bit(0, &hwcard->fe_rw_flag);
 	return 0;
 }

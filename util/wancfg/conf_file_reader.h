@@ -136,7 +136,7 @@ class conf_file_reader {
       	
   int read_devices_section(FILE* file);
   int read_wanpipe_section(FILE* file);
-  int conf_file_reader::read_interfaces_section(
+  int read_interfaces_section(
 		FILE* file,
 	       	objects_list* parent_objects_list,
 		char* parent_dev_name,

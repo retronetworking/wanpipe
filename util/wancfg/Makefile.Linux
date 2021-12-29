@@ -101,6 +101,9 @@ menu_adsl_rx_bin_adjust.cpp\
 menu_adsl_framing_struct.cpp\
 menu_adsl_exchange_type.cpp\
 menu_adsl_clock_type.cpp\
+wanrouter_rc_file_reader.cpp\
+menu_wan_channel_cfg_v1.cpp\
+menu_lapb_basic_cfg.cpp\
 main.cpp
 
 	$(CC) $(CFLAGS) -o $@ $^ -lfl -lm

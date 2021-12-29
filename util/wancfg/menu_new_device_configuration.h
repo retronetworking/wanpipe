@@ -20,6 +20,8 @@
 
 #include "menu_base.h"
 #include "conf_file_reader.h"
+#include "wanrouter_rc_file_reader.h"
+
 //#include "conf_file_writer.h"
 
 /**Presents selections: 1. Protocol/Operation Mode 2. Hardware Setup
@@ -32,8 +34,6 @@
 class menu_new_device_configuration : public menu_base  {
   char lxdialog_path[MAX_PATH_LENGTH];
   conf_file_reader* cfr;
-
-  unsigned int first_group_spanno;
 
   //if different protocol is selected by user from one passed on
   //creation of this object, old configuration will be deleted,
@@ -62,6 +62,7 @@ class menu_new_device_configuration : public menu_base  {
   char err_buf[MAX_PATH_LENGTH];
   char* check_configuration_of_interfaces(objects_list * obj_list);
 
+  wanrouter_rc_file_reader*  wanrouter_rc_fr;
 public: 
   menu_new_device_configuration(IN char * lxdialog_path, IN conf_file_reader** cfr);
   ~menu_new_device_configuration();

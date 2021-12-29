@@ -152,7 +152,7 @@ again:
                           WANCFG_PROGRAM_NAME,
                           tmp_buff,
                           MENU_HEIGTH, MENU_WIDTH,
-                          4,//number of items in the menu, including the empty lines
+                          number_of_items_in_menu,//number of items in the menu, including the empty lines
                           (char*)menu_str.c_str()
                           ) == NO){
     rc = NO;
@@ -319,7 +319,10 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
     operation_modes_str += QUOTED_4;
     operation_modes_str += OP_MODE_BRIDGE_NODE;
 
-    number_of_items_in_menu = 4;
+    operation_modes_str += QUOTED_6;
+    operation_modes_str += OP_MODE_STACK;
+
+    number_of_items_in_menu = 5;
     break;
 
   //case WANCONFIG_PPP:
@@ -333,7 +336,10 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
     operation_modes_str += QUOTED_4;
     operation_modes_str += OP_MODE_BRIDGE_NODE;
 
-    number_of_items_in_menu = 3;
+    operation_modes_str += QUOTED_6;
+    operation_modes_str += OP_MODE_STACK;
+    
+    number_of_items_in_menu = 4;
     break;
 
   case WANCONFIG_HDLC:
@@ -372,7 +378,10 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
     operation_modes_str += QUOTED_4;
     operation_modes_str += OP_MODE_BRIDGE_NODE;
 
-    number_of_items_in_menu = 4;
+    operation_modes_str += QUOTED_6;
+    operation_modes_str += OP_MODE_STACK;
+
+    number_of_items_in_menu = 5;
     break;
 
   case WANCONFIG_BSC:
@@ -436,6 +445,17 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
     operation_modes_str += OP_MODE_TTY;
 
     number_of_items_in_menu = 1;
+    break;
+
+  case WANCONFIG_LAPB:
+
+    operation_modes_str += QUOTED_2;
+    operation_modes_str += OP_MODE_API;
+
+    operation_modes_str += QUOTED_6;
+    operation_modes_str += OP_MODE_STACK;
+
+    number_of_items_in_menu = 2;
     break;
 
   case WANCONFIG_ADSL:

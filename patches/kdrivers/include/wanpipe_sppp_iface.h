@@ -40,6 +40,7 @@ extern int wp_sppp_bh(void *sppp_ptr);
 extern int wp_sppp_tx(void *sppp_ptr, void *skb, int type);
 extern int wp_sppp_timer(void *sppp_ptr, unsigned int *period, unsigned int carrier_reliable);
 extern int wp_sppp_pipemon(void *sppp, int cmd, int addr, unsigned char* data, unsigned int *len);
+extern int wp_sppp_task(void *sppp_ptr);
 
 #endif
 
@@ -57,6 +58,7 @@ extern int wp_sppp_pipemon(void *sppp, int cmd, int addr, unsigned char* data, u
 #define	PPP_SET_INBOUND_AUTH	0x30
 #define	PPP_SET_OUTBOUND_AUTH	0x31
 #define	PPP_GET_CONNECTION_INFO	0x32
+#define	PPP_GET_LINK_STATUS	0x34
 
 #define PPP_COMM_ENABLE		0x03	/* operational commands */
 #define PPP_COMM_DISABLE	0x04

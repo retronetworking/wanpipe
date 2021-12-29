@@ -92,9 +92,18 @@ enum {
 # define HARD_FIFO_CODE 0x01
 #endif
 
+
+#if 0 
+#define AFT_T3_SINGLE_DMA_CHAIN 1
+#else
+#undef AFT_T3_SINGLE_DMA_CHAIN 
+#endif
+
 #define MAX_AFT_DMA_CHAINS 	16
-#define MAX_TX_BUF		MAX_AFT_DMA_CHAINS+1
-#define MAX_RX_BUF		MAX_AFT_DMA_CHAINS*4+1
+#define MAX_TX_BUF		(MAX_AFT_DMA_CHAINS)+1
+#define MAX_RX_BUF		((MAX_AFT_DMA_CHAINS)*4)+1
+#define MAX_RX_SCHAIN_BUF	(MAX_RX_BUF)*2
+
 
 #define AFT_MAX_CHIP_SECURITY_CNT	100
 /* Remove HDLC Address 
@@ -102,7 +111,7 @@ enum {
  * 0=Remove Disabled
  */
 
-static int aft_rx_copyback=500;
+static int aft_rx_copyback=1000;
 
 /******Data Structures*****************************************************/
 
@@ -224,6 +233,8 @@ typedef struct private_area
 	unsigned long 	up;
 
 	unsigned char   *tx_realign_buf;
+	unsigned int	single_dma_chain;
+	unsigned int	dma_bufs;
 
 }private_area_t;
 
@@ -307,15 +318,14 @@ static void 	xilinx_rx_post_complete (sdla_t *card, private_area_t *chan,
 
 
 #if 0
-//FIXME: Not used check with M.F. if still needed
 static unsigned char read_cpld(sdla_t *card, unsigned short cpld_off);
 #endif
 static int	write_cpld(void *pcard, unsigned short cpld_off,unsigned char cpld_data);
 
-static int 	xilinx_devel_ioctl(sdla_t *card,struct ifreq *ifr);
-static int 	xilinx_write_bios(sdla_t *card, wan_cmd_api_t*);
-static int 	xilinx_write(sdla_t *card, wan_cmd_api_t*);
-static int 	xilinx_read(sdla_t *card, wan_cmd_api_t*);
+static int 	aft_devel_ioctl(sdla_t *card,struct ifreq *ifr);
+static int 	xilinx_write_bios(sdla_t *card, wan_cmd_api_t *api_cmd);
+static int 	xilinx_write(sdla_t *card, wan_cmd_api_t *api_cmd);
+static int 	xilinx_read(sdla_t *card, wan_cmd_api_t *api_cmd);
 
 static void 	front_end_interrupt(sdla_t *card, unsigned long reg);
 static void  	enable_data_error_intr(sdla_t *card);
@@ -485,16 +495,14 @@ int wp_aft_te3_init (sdla_t* card, wandev_conf_t* conf)
 		card->fe.name = card->devname;
 		card->fe.card = card;
 		card->fe.write_cpld	= write_cpld;
-//		card->fe.read_cpld	= read_cpld;
+		//card->fe.read_cpld	= read_cpld;
 		card->fe.write_framer	= write_framer;
 		card->fe.read_framer	= read_framer;
 
-//		card->wandev.write_front_end_reg = write_front_end_reg;
-//		card->wandev.read_front_end_reg = read_front_end_reg;
+		//card->wandev.write_front_end_reg = write_front_end_reg;
+		//card->wandev.read_front_end_reg = read_front_end_reg;
 		card->wandev.te_enable_timer = enable_timer;
 		card->wandev.te_link_state = handle_front_end_state;
-//ALEX		conf->interface =
-//			IS_T1_CARD(card) ? WANOPT_V35 : WANOPT_RS232;
 
 		if (card->wandev.comm_port == WANOPT_PRI){
 			conf->clocking = WANOPT_EXTERNAL;
@@ -545,13 +553,9 @@ int wp_aft_te3_init (sdla_t* card, wandev_conf_t* conf)
   	}
 
         /* For Primary Port 0 */
-#ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
-        card->wandev.mtu = conf->mtu;
-#else
         card->wandev.mtu =
                 (conf->mtu >= MIN_WP_PRI_MTU) ?
                  wp_min(conf->mtu, MAX_WP_PRI_MTU) : DEFAULT_WP_PRI_MTU;
-#endif
 
 
 	if (!card->u.xilinx.cfg.mru){
@@ -563,6 +567,7 @@ int wp_aft_te3_init (sdla_t* card, wandev_conf_t* conf)
 			card->devname, card->wandev.mtu);
 
 	card->hw_iface.getcfg(card->hw, SDLA_BASEADDR, &card->u.xilinx.bar);
+        card->isr = &wp_aft_te3_isr;
 
 	xilinx_delay(1);
 	port_set_state(card,WAN_DISCONNECTED);
@@ -576,7 +581,6 @@ int wp_aft_te3_init (sdla_t* card, wandev_conf_t* conf)
 	if (err){
 		return err;
 	}
-        card->isr = &wp_aft_te3_isr;
 
 	xilinx_delay(1);
 
@@ -723,6 +727,11 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 	memset(chan, 0, sizeof(private_area_t));
 
 	chan->first_time_slot=-1;
+	chan->single_dma_chain=0;
+
+#ifdef AFT_T3_SINGLE_DMA_CHAIN
+	chan->single_dma_chain=1;
+#endif
 
 	strncpy(chan->if_name, dev->name, WAN_IFNAME_SZ);
 
@@ -803,14 +812,11 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 		DEBUG_EVENT( "%s:%s: Running in WANPIPE (BRIDGE_NODE) mode.\n",
 				card->devname,chan->if_name);
 
-	}else if (strcmp(conf->usedby, "TDM_VOICE") == 0) {
-		chan->common.usedby = TDM_VOICE;
-		DEBUG_EVENT( "%s:%s: Running in TDM Voice mode.\n",
-				card->devname,chan->if_name);
-
 	}else if (strcmp(conf->usedby, "STACK") == 0) {
 		chan->common.usedby = STACK;
-		card->wandev.mtu+=32;
+		if (chan->hdlc_eng){
+			card->wandev.mtu+=32;
+		}
 		DEBUG_EVENT( "%s:%s: Running in Stack mode.\n",
 				card->devname,chan->if_name);
 
@@ -821,16 +827,6 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 		err=-EINVAL;
 		goto new_if_error;
 	}
-
-#ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
-	if (chan->common.usedby == TDM_VOICE){
-		card->wandev.mtu = wp_tdmv_check_mtu(card, conf->active_ch);
-		if (wp_tdmv_init(card, conf)){
-			err = -EINVAL;
-			goto new_if_error;
-		}
-	}
-#endif
 
 	xilinx_delay(1);
 
@@ -867,12 +863,6 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 
 		chan->idle_flag=0x7E;     
 
-#ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
-		if (chan->common.usedby == TDM_VOICE){
-			chan->idle_flag = WAN_TDMV_IDLE_FLAG;
-		}
-#endif
-
 		chan->tx_idle_skb = wan_skb_alloc(chan->max_idle_size); 
 		if (!chan->tx_idle_skb){
 			err=-ENOMEM;
@@ -895,13 +885,19 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 		goto new_if_error;
 	}
 
-	DEBUG_EVENT("%s:%s: Allocating %i dma skb len=%i\n",
+	chan->dma_bufs=card->u.xilinx.cfg.dma_per_ch;
+	if (chan->single_dma_chain){
+		chan->dma_bufs=MAX_RX_SCHAIN_BUF;
+	}
+
+	DEBUG_EVENT("%s:%s: Allocating %i dma len=%i Chains=%s\n",
 			card->devname,chan->if_name,
-			card->u.xilinx.cfg.dma_per_ch,
-			chan->dma_mtu);
+			chan->dma_bufs,
+			chan->dma_mtu,
+			chan->single_dma_chain ? "Off":"On");
 
 	
-	err=aft_alloc_rx_dma_buff(card, chan, card->u.xilinx.cfg.dma_per_ch);
+	err=aft_alloc_rx_dma_buff(card, chan, chan->dma_bufs);
 	if (err){
 		goto new_if_error;
 	}
@@ -1037,14 +1033,6 @@ static int del_if (wan_device_t* wandev, struct net_device* dev)
 	struct sk_buff 		*skb;
 	wan_smp_flag_t		flags;
 
-#ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
-	if (chan->common.usedby == TDM_VOICE){
-		int err;
-		if ((err = wp_tdmv_remove(card)) != 0){
-			return err;
-		}
-	}
-#endif
 	xilinx_t3_exar_dev_unconfigure(card,chan);
 	
 	WAN_TASKLET_KILL(&chan->common.bh_task);
@@ -1055,6 +1043,7 @@ static int del_if (wan_device_t* wandev, struct net_device* dev)
 
 	protocol_shutdown(card,dev);
 
+	
 	wan_spin_lock_irq(&card->wandev.lock,&flags);
 
 	while ((skb=wan_skb_dequeue(&chan->wp_rx_free_list)) != NULL){
@@ -1078,8 +1067,7 @@ static int del_if (wan_device_t* wandev, struct net_device* dev)
 		chan->tx_realign_buf=NULL;
 	}
 
-	wan_spin_unlock_irq(&card->wandev.lock,&flags);	
-	
+	wan_spin_unlock_irq(&card->wandev.lock,&flags);
 
 	/* Delete interface name from proc fs. */
 #if 0
@@ -1164,9 +1152,10 @@ static int if_init (struct net_device* dev)
 			dev->flags     |= IFF_NOARP;
 			dev->type	= ARPHRD_PPP;
 			dev->mtu		= card->wandev.mtu;
-			dev->hard_header_len	= 0;
+			dev->hard_header_len	= 16;
 			dev->hard_header	= NULL; 
 			dev->rebuild_header	= NULL;
+			dev->addr_len		= 0;
 		}
 
 		if (chan->common.usedby == API){
@@ -1436,7 +1425,7 @@ static void if_tx_timeout (struct net_device *dev)
 			chan->tx_chain_indx,
 			chan->tx_pending_chain_indx,
 			cur_dma_ptr,
-			chan->if_stats.tx_fifo_errors);
+		        chan->if_stats.tx_fifo_errors);
 	
 	/* The Interrupt didn't trigger.
 	 * Clear the interrupt pending flag and
@@ -1729,7 +1718,7 @@ static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			break;
 
 		case SIOC_WAN_DEVEL_IOCTL:
-			err = xilinx_devel_ioctl(card, ifr);
+			err = aft_devel_ioctl(card, ifr);
 			break;
 
 		case SIOC_AFT_CUSTOMER_ID:
@@ -1823,9 +1812,16 @@ static int xilinx_init_rx_dev_fifo(sdla_t *card, private_area_t *chan, unsigned 
 	unsigned int cur_dma_ptr;
 	
         /* Clean RX DMA fifo */
+	if (chan->single_dma_chain){
+		card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
+		set_current_rx_dma_ptr(&reg,0);
+		card->hw_iface.bus_write_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,reg);
+		cur_dma_ptr=0;
+	}else{
+		card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
+		cur_dma_ptr=get_current_rx_dma_ptr(reg);
+	}
 
-	card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
-	cur_dma_ptr=get_current_rx_dma_ptr(reg);
 
         dma_descr=(unsigned long)(cur_dma_ptr<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
         reg=0;
@@ -1870,9 +1866,16 @@ static int xilinx_init_tx_dev_fifo(sdla_t *card, private_area_t *chan, unsigned 
 	u16 i;
 	unsigned int cur_dma_ptr;
 
-	card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
-	cur_dma_ptr=get_current_tx_dma_ptr(reg);
-	
+	if (chan->single_dma_chain){
+		card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
+		set_current_tx_dma_ptr(&reg,0);
+		card->hw_iface.bus_write_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,reg);
+		cur_dma_ptr=0;
+	}else{
+		card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
+		cur_dma_ptr=get_current_tx_dma_ptr(reg);
+	}
+
         /* Clean TX DMA fifo */
         dma_descr=(unsigned long)(cur_dma_ptr<<4) + XILINX_TxDMA_DESCRIPTOR_HI;
         reg=0;
@@ -2017,8 +2020,10 @@ static void xilinx_dma_tx_complete (sdla_t *card, private_area_t *chan, int wtd)
 #endif
 	}
 #endif
-	
-	aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
+
+	if (!chan->single_dma_chain){	
+		aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
+	}
 
 	return;
 }
@@ -2249,18 +2254,14 @@ static void xilinx_rx_post_complete (sdla_t *card, private_area_t *chan,
 		}
 	}
 
-	wan_skb_pull(skb, sizeof(wp_rx_element_t));
-	
-	
 	if (len > aft_rx_copyback){
 		/* The rx size is big enough, thus
 		 * send this buffer up the stack
 		 * and allocate another one */
-#if 0	
-		memset(&skb->cb[0],0,sizeof(wp_rx_element_t));
-#endif
 
+		memset(wan_skb_data(skb),0,sizeof(wp_rx_element_t));
 		wan_skb_put(skb,len);	
+		wan_skb_pull(skb, sizeof(wp_rx_element_t));      
 		*new_skb=skb;
 
 		aft_alloc_rx_dma_buff(card,chan,1);
@@ -2386,10 +2387,13 @@ static void wp_bh (unsigned long data)
 		chan->if_stats.rx_errors++;
 #endif
 
-		if (jiffies-timeout > 1){
+		if (jiffies-timeout > 2){
+			chan->if_stats.rx_errors++;
+#if 0
 			if (WAN_NET_RATELIMIT()){
 				DEBUG_EVENT("%s: BH Squeeze!\n",chan->if_name);
 			}
+#endif
 			wan_skb_queue_head(&chan->wp_rx_complete_list,skb);
 			break;
 		}
@@ -2460,11 +2464,6 @@ static void wp_bh (unsigned long data)
 				}
 # endif
 #endif
-			}else if (chan->common.usedby == TDM_VOICE){
-
-				++chan->if_stats.rx_dropped;
-				wan_skb_free(new_skb);
-				continue;
 
 			}else if (chan->common.usedby == STACK){
 
@@ -2482,6 +2481,16 @@ static void wp_bh (unsigned long data)
 			chan->if_stats.rx_bytes+=len;
 		}
 
+		if (jiffies-timeout > 2){
+			chan->if_stats.rx_errors++;
+#if 0
+			if (WAN_NET_RATELIMIT()){
+				DEBUG_EVENT("%s: BH Squeeze! %i\n",
+				chan->if_name,jiffies-timeout);
+			}
+#endif
+			break;
+		}
 	}
 
 	while((skb=wan_skb_dequeue(&chan->wp_tx_complete_list)) != NULL){
@@ -2516,7 +2525,7 @@ static void wp_bh (unsigned long data)
  *
  **********************************************************/
 
-static int fifo_error_interrupt(sdla_t *card, u32 reg, u32 rx_status, u32 tx_status)
+static int fifo_error_interrupt(sdla_t *card, u32 reg, u32 tx_status, u32 rx_status)
 {
 	u32 err=0;
 	u32 i;
@@ -2566,7 +2575,6 @@ static int fifo_error_interrupt(sdla_t *card, u32 reg, u32 rx_status, u32 tx_sta
 					}
                                         continue;
 				}
-
                 		DEBUG_TEST("%s:%s: Warning TX Fifo Error on LogicCh=%li Slot=%i!\n",
                            		card->devname,chan->if_name,chan->logic_ch_num,i);
 
@@ -2754,7 +2762,7 @@ static void wp_aft_te3_isr (sdla_t* card)
 			rx_fifo_status&=card->u.aft.active_ch_map;
 			tx_fifo_status&=card->u.aft.active_ch_map;
 
-			fifo_error_interrupt(card,reg,rx_fifo_status,tx_fifo_status);
+			fifo_error_interrupt(card,reg,tx_fifo_status,rx_fifo_status);
 		}
 	}
 
@@ -3444,7 +3452,6 @@ static int xilinx_write(sdla_t *card, wan_cmd_api_t *api_cmd)
 
 static int xilinx_write_bios(sdla_t *card, wan_cmd_api_t *api_cmd)
 {
-
 #ifdef DEB_XILINX
 	DEBUG_EVENT("Setting PCI 0x%X=0x%08lX   0x3C=0x%08X\n",
 			(card->wandev.S514_cpu_no[0] == SDLA_CPU_A) ? 0x10 : 0x14,
@@ -3459,7 +3466,7 @@ static int xilinx_write_bios(sdla_t *card, wan_cmd_api_t *api_cmd)
 	return 0;
 }
 
-static int xilinx_devel_ioctl(sdla_t *card,struct ifreq *ifr)
+static int aft_devel_ioctl(sdla_t *card,struct ifreq *ifr)
 {
 	wan_cmd_api_t	api_cmd;	
 	int		err;
@@ -3495,7 +3502,6 @@ static int xilinx_devel_ioctl(sdla_t *card,struct ifreq *ifr)
 	}
 	return 0;
 }
-
 
 /*=========================================
  * enable_data_error_intr
@@ -3783,7 +3789,7 @@ static int update_comms_stats(sdla_t* card)
 
 static void xilinx_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 {
-		
+
 #if 1
 	u32 reg;
 	/* Enable DMA controler, in order to start the
@@ -3798,7 +3804,7 @@ static void xilinx_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 #endif
 	aft_free_tx_descriptors(chan);
 	
-#if 1
+#if 1 
 	xilinx_init_tx_dev_fifo(card,chan,WP_NO_WAIT);
 	
 	card->hw_iface.bus_read_4(card->hw,XILINX_DMA_CONTROL_REG,&reg);
@@ -4150,14 +4156,14 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 //FIXME: Alex to put in Exar T3/E3 Configuration
 	DEBUG_EVENT("%s: Config %s Front End: Clock=%s\n",
 			card->devname,
-			(IS_DS3(&card->fe.fe_cfg))?"T3":"E3",
+			FE_MEDIA_DECODE(&card->fe),
 			(card->fe.fe_cfg.cfg.te3_cfg.clock == WAN_MASTER_CLK)?
 			 "Master":"Normal");
 
 	if (sdla_te3_config(&card->fe, &card->wandev.fe_iface)){
        		DEBUG_EVENT("%s: Failed %s configuratoin!\n",
                                	card->devname,
-                             	MEDIA_DECODE(card->fe.fe_cfg.media));
+                             	FE_MEDIA_DECODE(&card->fe));
              	return -EINVAL;
        	}
 #endif
@@ -4519,6 +4525,10 @@ static void aft_tx_dma_chain_handler(unsigned long data)
 
 		aft_tx_dma_chain_init(chan,dma_chain);
 
+		if (chan->single_dma_chain){
+			break;
+		}
+
 		if (++chan->tx_pending_chain_indx >= MAX_AFT_DMA_CHAINS){
 			chan->tx_pending_chain_indx=0;
 		}
@@ -4552,7 +4562,7 @@ static int aft_dma_chain_tx(aft_dma_chain_t *dma_chain,private_area_t *chan, int
 
 	dma_descr=(dma_ch_indx<<4) + XILINX_TxDMA_DESCRIPTOR_HI;
 
-	DEBUG_TEST("%s:%d: chan logic ch=%i chain=%li dma_descr=0x%x set!\n",
+	DEBUG_TX("%s:%d: chan logic ch=%i chain=%li dma_descr=0x%x set!\n",
                     __FUNCTION__,__LINE__,chan->logic_ch_num,dma_ch_indx,dma_descr);
 
 	card->hw_iface.bus_read_4(card->hw,dma_descr,&reg);
@@ -4580,7 +4590,7 @@ static int aft_dma_chain_tx(aft_dma_chain_t *dma_chain,private_area_t *chan, int
 		len_align=1;
 	}
 
-	DEBUG_TEST("%s: TXDMA_LO=0x%X PhyAddr=0x%X DmaDescr=0x%X\n",
+	DEBUG_TX("%s: TXDMA_LO=0x%X PhyAddr=0x%X DmaDescr=0x%X\n",
 			__FUNCTION__,reg,dma_chain->dma_addr,dma_descr);
 
 	card->hw_iface.bus_write_4(card->hw,dma_descr,reg);
@@ -4596,14 +4606,21 @@ static int aft_dma_chain_tx(aft_dma_chain_t *dma_chain,private_area_t *chan, int
         reg|=(chan->fifo_base_addr&DMA_FIFO_BASE_ADDR_MASK)<<
                               DMA_FIFO_BASE_ADDR_SHIFT;
 
-	wan_set_bit(DMA_HI_TE3_NOT_LAST_FRAME_BIT,&reg);
 
-	if (intr){
-		DEBUG_TEST("%s: Setting Interrupt on index=%i\n",
-				chan->if_name,dma_ch_indx);
+	if (chan->single_dma_chain){
+		wan_clear_bit(DMA_HI_TE3_NOT_LAST_FRAME_BIT,&reg);
 		wan_clear_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
 	}else{
-		wan_set_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
+
+		wan_set_bit(DMA_HI_TE3_NOT_LAST_FRAME_BIT,&reg);
+
+		if (intr){
+			DEBUG_TEST("%s: Setting Interrupt on index=%i\n",
+					chan->if_name,dma_ch_indx);
+			wan_clear_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
+		}else{
+			wan_set_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
+		}
 	}
 	
 	if (chan->hdlc_eng){
@@ -4616,8 +4633,8 @@ static int aft_dma_chain_tx(aft_dma_chain_t *dma_chain,private_area_t *chan, int
 
 	wan_set_bit(TxDMA_HI_DMA_GO_READY_BIT,&reg);
 
-	DEBUG_TEST("%s: TXDMA_HI=0x%X DmaDescr=0x%lX len=%i\n",
-			__FUNCTION__,reg,dma_descr,len);
+	DEBUG_TX("%s: TXDMA_HI=0x%X DmaDescr=0x%lX len=%i\n",
+			__FUNCTION__,reg,dma_chain->dma_addr,len);
 
 	card->hw_iface.bus_write_4(card->hw,dma_descr,reg);
 
@@ -4643,7 +4660,7 @@ static void aft_tx_dma_chain_init(private_area_t *chan, aft_dma_chain_t *dma_cha
 {
 
 	if (dma_chain->dma_addr){
-		pci_unmap_single(NULL,
+		chan->card->hw_iface.pci_unmap_dma(chan->card->hw,
 			 dma_chain->dma_addr,
 	 		 dma_chain->dma_len,
 	 		 PCI_DMA_TODEVICE);
@@ -4665,7 +4682,7 @@ static void aft_rx_dma_chain_init(private_area_t *chan, aft_dma_chain_t *dma_cha
 {
 
 	if (dma_chain->dma_addr){
-		pci_unmap_single(NULL,
+		chan->card->hw_iface.pci_unmap_dma(chan->card->hw,
 			 dma_chain->dma_addr,
 	 		 dma_chain->dma_len,
 	 		 PCI_DMA_FROMDEVICE);
@@ -4753,7 +4770,9 @@ static int xilinx_dma_te3_tx (sdla_t *card,private_area_t *chan, struct sk_buff 
 	if (chan->tx_chain_indx >= MAX_AFT_DMA_CHAINS){
 		DEBUG_EVENT("%s: MAJOR ERROR: TE3 Tx: Dma tx chain = %i\n",
 				chan->if_name,chan->tx_chain_indx);
-		aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
+		if (!chan->single_dma_chain){
+			aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
+		}
 		return -EBUSY;
 	}
 
@@ -4784,7 +4803,8 @@ static int xilinx_dma_te3_tx (sdla_t *card,private_area_t *chan, struct sk_buff 
 
 	dma_chain->skb=skb;
 		
-	dma_chain->dma_addr = pci_map_single(NULL,
+	dma_chain->dma_addr = 
+			      card->hw_iface.pci_map_dma(card->hw,
 				  		wan_skb_data(dma_chain->skb),
 				  		wan_skb_len(dma_chain->skb),
 				  		PCI_DMA_TODEVICE); 	
@@ -4792,15 +4812,14 @@ static int xilinx_dma_te3_tx (sdla_t *card,private_area_t *chan, struct sk_buff 
 	dma_chain->dma_len = wan_skb_len(dma_chain->skb);
 
 	
-	DEBUG_TEST("%s: DMA Chain %i:  Cur=%i Pend=%i\n",
+	DEBUG_TX("%s: DMA Chain %i:  Cur=%i Pend=%i Len=%i\n",
 			chan->if_name,dma_chain->index,
-			chan->tx_chain_indx,chan->tx_pending_chain_indx);
-
-	//FIXME: BIT FAT WARNING: THE index Values
-	//are not SMP protected figure it out !!!!!
+			chan->tx_chain_indx,chan->tx_pending_chain_indx,
+			wan_skb_len(dma_chain->skb));
 
 	intr=0;
-	if (!wan_test_bit(TX_INTR_PENDING,&chan->dma_chain_status)){
+	if (!chan->single_dma_chain && 
+            !wan_test_bit(TX_INTR_PENDING,&chan->dma_chain_status)){
 		int pending_indx=chan->tx_pending_chain_indx;
 		if (chan->tx_chain_indx >= pending_indx){
 			intr = ((MAX_AFT_DMA_CHAINS-(chan->tx_chain_indx - 
@@ -4831,14 +4850,16 @@ static int xilinx_dma_te3_tx (sdla_t *card,private_area_t *chan, struct sk_buff 
 	/* We are sure that the packet will
 	 * be bound and transmitted, thus unhook
 	 * it from the protocol stack */
-	skb_unlink(skb);
+	wan_skb_unlink(skb);
 
-	if (++chan->tx_chain_indx >= MAX_AFT_DMA_CHAINS){
-		chan->tx_chain_indx=0;
-	}
+	if (!chan->single_dma_chain){
+		if (++chan->tx_chain_indx >= MAX_AFT_DMA_CHAINS){
+			chan->tx_chain_indx=0;
+		}
 
-	if (!wan_test_bit(TX_INTR_PENDING,&chan->dma_chain_status)){
-		aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
+		if (!wan_test_bit(TX_INTR_PENDING,&chan->dma_chain_status)){
+			aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
+		}
 	}
 	
 	wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
@@ -4899,19 +4920,24 @@ static int aft_dma_chain_rx(aft_dma_chain_t *dma_chain, private_area_t *chan, in
 
     	reg =0;
 
-	wan_set_bit(DMA_HI_TE3_NOT_LAST_FRAME_BIT,&reg);
-
-	if (intr){
-		DEBUG_TEST("%s: Setting Rx Interrupt on index=%i\n",
-				chan->if_name,dma_ch_indx);
+	if (chan->single_dma_chain){
+		wan_clear_bit(DMA_HI_TE3_NOT_LAST_FRAME_BIT,&reg);
 		wan_clear_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
 	}else{
-		wan_set_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
-	}
 	
+		wan_set_bit(DMA_HI_TE3_NOT_LAST_FRAME_BIT,&reg);
+
+		if (intr){
+			DEBUG_TEST("%s: Setting Rx Interrupt on index=%i\n",
+					chan->if_name,dma_ch_indx);
+			wan_clear_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
+		}else{
+			wan_set_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
+		}
+
+	}	
+
 	if (chan->hdlc_eng){
-		//reg|=(chan->dma_mtu>>2)&RxDMA_HI_DMA_DATA_LENGTH_MASK;
-//NENAD FIXME: USE ABOVE
 		reg|=((chan->dma_mtu>>2)-1)&RxDMA_HI_DMA_DATA_LENGTH_MASK;
 	}else{
 		reg|=(card->wandev.mtu>>2)&RxDMA_HI_DMA_DATA_LENGTH_MASK;
@@ -4924,7 +4950,7 @@ static int aft_dma_chain_rx(aft_dma_chain_t *dma_chain, private_area_t *chan, in
 	wan_set_bit(RxDMA_HI_DMA_GO_READY_BIT,&reg);
 
 	DEBUG_RX("%s: RXDMA_HI = 0x%X, BusAddr=0x%X DmaDescr=0x%X\n",
- 	             __FUNCTION__,reg,bus_addr,dma_descr);
+ 	             __FUNCTION__,reg,dma_chain->dma_addr,dma_descr);
 
 	card->hw_iface.bus_write_4(card->hw,dma_descr,reg);
 
@@ -4953,43 +4979,50 @@ static int xilinx_dma_rx(sdla_t *card, private_area_t *chan, int gcur_ptr)
 
 	aft_reset_rx_watchdog(card);
 
-	free_queue_len=wan_skb_queue_len(&chan->wp_rx_free_list);
-	if (free_queue_len == 0){
-		aft_free_rx_complete_list(chan);
+	if (chan->single_dma_chain) {
+		max_dma_cnt=MAX_AFT_DMA_CHAINS;
+		cur_dma_ptr=0;
+		free_queue_len=MAX_AFT_DMA_CHAINS;
+	}else{
+
 		free_queue_len=wan_skb_queue_len(&chan->wp_rx_free_list);
 		if (free_queue_len == 0){
-			DEBUG_EVENT("%s: %s() CRITICAL ERROR: No free rx buffers\n",
-					card->devname,__FUNCTION__);
-			goto te3_rx_skip;
+			aft_free_rx_complete_list(chan);
+			free_queue_len=wan_skb_queue_len(&chan->wp_rx_free_list);
+			if (free_queue_len == 0){
+				DEBUG_EVENT("%s: %s() CRITICAL ERROR: No free rx buffers\n",
+						card->devname,__FUNCTION__);
+				goto te3_rx_skip;
+			}
 		}
-	}
 
-	if (gcur_ptr >= 0){
-		cur_dma_ptr=gcur_ptr;
-	}else{
-		card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
-		cur_dma_ptr=get_current_rx_dma_ptr(reg);
-	}
-	
-	if (chan->rx_chain_indx >= cur_dma_ptr){
-		max_dma_cnt = MAX_AFT_DMA_CHAINS - (chan->rx_chain_indx-cur_dma_ptr);
-	}else{
-		max_dma_cnt = cur_dma_ptr - chan->rx_chain_indx;
-	}
-
-	if (free_queue_len < max_dma_cnt){
-#if 0
-		if (WAN_NET_RATELIMIT()){
-		DEBUG_EVENT("%s: Free List(%d) lower than max dma %d\n",
-			card->devname,
-			free_queue_len,
-			max_dma_cnt);
+		if (gcur_ptr >= 0){
+			cur_dma_ptr=gcur_ptr;
+		}else{
+			card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
+			cur_dma_ptr=get_current_rx_dma_ptr(reg);
 		}
-#endif
-		max_dma_cnt = free_queue_len;
+		
+		if (chan->rx_chain_indx >= cur_dma_ptr){
+			max_dma_cnt = MAX_AFT_DMA_CHAINS - (chan->rx_chain_indx-cur_dma_ptr);
+		}else{
+			max_dma_cnt = cur_dma_ptr - chan->rx_chain_indx;
+		}
+
+		if (free_queue_len < max_dma_cnt){
+	#if 0
+			if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT("%s: Free List(%d) lower than max dma %d\n",
+				card->devname,
+				free_queue_len,
+				max_dma_cnt);
+			}
+	#endif
+			max_dma_cnt = free_queue_len;
+		}
+
 	}
 
-	
 	DEBUG_TEST("%s: DMA RX: CBoardPtr=%i  Driver=%i MaxDMA=%i\n",
 			card->devname,cur_dma_ptr,chan->rx_chain_indx,max_dma_cnt);
 	
@@ -5010,17 +5043,20 @@ static int xilinx_dma_rx(sdla_t *card, private_area_t *chan, int gcur_ptr)
 		
 		dma_chain->skb=wan_skb_dequeue(&chan->wp_rx_free_list);
 		if (!dma_chain->skb){
-			DEBUG_EVENT("%s: Warning Rx chain = %i: no free rx bufs\n",
-					chan->if_name,dma_chain->index);
+			DEBUG_TEST("%s: Warning Rx chain = %i: no free rx bufs (RxComp=%i RxFree=%i)\n",
+					chan->if_name,dma_chain->index,
+					wan_skb_queue_len(&chan->wp_rx_complete_list),
+					wan_skb_queue_len(&chan->wp_rx_free_list));
 			wan_clear_bit(0,&dma_chain->init);
 			err=-EINVAL;
 			break;
 		}
 		
-		dma_chain->dma_addr = cpu_to_le32(pci_map_single(NULL,
+		dma_chain->dma_addr = 
+				      card->hw_iface.pci_map_dma(card->hw,
 			      	       		wan_skb_tail(dma_chain->skb),
 						chan->dma_mtu,
-		    		       		PCI_DMA_FROMDEVICE)); 	
+		    		       		PCI_DMA_FROMDEVICE); 	
 		
 		dma_chain->dma_len  = chan->dma_mtu;
 
@@ -5061,6 +5097,10 @@ static int xilinx_dma_rx(sdla_t *card, private_area_t *chan, int gcur_ptr)
 			break;
 		}
 
+		if (chan->single_dma_chain){
+			break;
+		}
+
 		if (++chan->rx_chain_indx >= MAX_AFT_DMA_CHAINS){
 			chan->rx_chain_indx=0;
 		}
@@ -5068,7 +5108,9 @@ static int xilinx_dma_rx(sdla_t *card, private_area_t *chan, int gcur_ptr)
 
 te3_rx_skip:
 
-	aft_enable_rx_watchdog(card,AFT_RX_TIMEOUT);
+	if (!chan->single_dma_chain){
+		aft_enable_rx_watchdog(card,AFT_RX_TIMEOUT);
+	}
 	
 	wan_clear_bit(RX_DMA_BUSY,&chan->dma_status);
 	
@@ -5147,7 +5189,7 @@ static void aft_rx_dma_chain_handler(private_area_t *chan, int wtd, int reset)
 			break;
 		}
 
-		pci_unmap_single(NULL, 
+		card->hw_iface.pci_unmap_dma(card->hw,
 				 dma_chain->dma_addr,
 				 chan->dma_mtu,
 				 PCI_DMA_FROMDEVICE);
@@ -5185,6 +5227,11 @@ static void aft_rx_dma_chain_handler(private_area_t *chan, int wtd, int reset)
 		dma_chain->pkt_error=0;
 		wan_clear_bit(0,&dma_chain->init);
 
+
+		if (chan->single_dma_chain){
+			break;
+		}
+
 		if (++chan->rx_pending_chain_indx >= MAX_AFT_DMA_CHAINS){
 			chan->rx_pending_chain_indx=0;
 		}
@@ -5202,14 +5249,16 @@ static void aft_rx_dma_chain_handler(private_area_t *chan, int wtd, int reset)
 		WAN_TASKLET_SCHEDULE((&chan->common.bh_task));
 		chan->rx_no_data_cnt=0;
 	}else{
-		if ((chan->rx_no_data_cnt >= 0)  && (++chan->rx_no_data_cnt < 3)){
-			aft_enable_rx_watchdog(card,AFT_RX_TIMEOUT);
-		}else{
-			/* Enable Rx Interrupt on pending rx descriptor */
-			DEBUG_TEST("%s: Setting Max Rx Watchdog Timeout\n",
-					chan->if_name);
-			aft_enable_rx_watchdog(card,AFT_MAX_WTD_TIMEOUT);
-			chan->rx_no_data_cnt=-1;
+		if (!chan->single_dma_chain){
+			if ((chan->rx_no_data_cnt >= 0)  && (++chan->rx_no_data_cnt < 3)){
+				aft_enable_rx_watchdog(card,AFT_RX_TIMEOUT);
+			}else{
+				/* Enable Rx Interrupt on pending rx descriptor */
+				DEBUG_TEST("%s: Setting Max Rx Watchdog Timeout\n",
+						chan->if_name);
+				aft_enable_rx_watchdog(card,AFT_MAX_WTD_TIMEOUT);
+				chan->rx_no_data_cnt=-1;
+			}
 		}
 	}
 
@@ -5237,12 +5286,18 @@ static void aft_init_tx_rx_dma_descr(private_area_t *chan)
 	int i;
 	u32 reg=0;
 	sdla_t *card=chan->card;
-	unsigned long tx_dma_descr,rx_dma_descr;
+	unsigned int tx_dma_descr,rx_dma_descr;
+	unsigned int dma_cnt=MAX_AFT_DMA_CHAINS;
 
-	for (i=0;i<MAX_AFT_DMA_CHAINS;i++){
+	if (chan->single_dma_chain){
+		dma_cnt=1;
+	}
 
-		tx_dma_descr=(unsigned long)(i<<4) + XILINX_TxDMA_DESCRIPTOR_HI;
-		rx_dma_descr=(unsigned long)(i<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
+
+	for (i=0;i<dma_cnt;i++){
+
+		tx_dma_descr=(unsigned int)(i<<4) + XILINX_TxDMA_DESCRIPTOR_HI;
+		rx_dma_descr=(unsigned int)(i<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
         	card->hw_iface.bus_write_4(card->hw,tx_dma_descr,reg);
 		card->hw_iface.bus_write_4(card->hw,rx_dma_descr,reg);
 
@@ -5462,7 +5517,7 @@ static void aft_free_rx_descriptors(private_area_t *chan)
 		reg=0;
 		card->hw_iface.bus_write_4(card->hw,dma_descr,reg);
 
-		pci_unmap_single(NULL, 
+		card->hw_iface.pci_unmap_dma(card->hw,
 				 dma_chain->dma_addr,
 				 chan->dma_mtu,
 				 PCI_DMA_FROMDEVICE);
@@ -5485,7 +5540,14 @@ static void aft_reset_tx_chain_cnt(private_area_t *chan)
 	u32 reg,cur_dma_ptr;
 	sdla_t *card=chan->card;
 	card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
-	cur_dma_ptr=get_current_tx_dma_ptr(reg);
+
+	if (chan->single_dma_chain){
+		set_current_tx_dma_ptr(&reg,0);
+		cur_dma_ptr=0;
+	}else{
+		cur_dma_ptr=get_current_tx_dma_ptr(reg);
+	}
+
 	chan->tx_pending_chain_indx = chan->tx_chain_indx = cur_dma_ptr;
 	return;
 }
@@ -5498,13 +5560,14 @@ static void aft_free_tx_descriptors(private_area_t *chan)
 	u32 dma_descr;
 	int i;
 	void *skb;
+	unsigned int dma_cnt=MAX_AFT_DMA_CHAINS;
 
 	DEBUG_TEST("%s:%s: Tx: Freeing Descripors\n",card->devname,chan->if_name);
 
 	wan_clear_bit(TX_INTR_PENDING,&chan->dma_chain_status);
 	wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
 
-	for (i=0;i<MAX_AFT_DMA_CHAINS;i++){
+	for (i=0;i<dma_cnt;i++){
 
 		dma_chain = &chan->tx_dma_chain_table[i];
 		if (!dma_chain){

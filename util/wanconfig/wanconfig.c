@@ -150,17 +150,19 @@ typedef struct data_buf		/* General data buffer */
 #define	DTYPE_STR	10
 #define	DTYPE_FILENAME	11
 
-#define NO_ANNEXG	0x00
-#define ANNEXG_LAPB	0x01
-#define ANNEXG_X25	0x02
-#define ANNEXG_DSP	0x03
+#define NO_ANNEXG	 0
+#define ANNEXG_LAPB	 1
+#define ANNEXG_X25	 2
+#define ANNEXG_DSP	 3
 
-#define ANNEXG_FR	0x04
-#define ANNEXG_PPP	0x05
-#define ANNEXG_CHDLC	0x06
-#define ANNEXG_LIP_LAPB 0x07
-#define ANNEXG_LIP_XDLC 0x08
-#define ANNEXG_LIP_TTY  0x09
+#define ANNEXG_FR	 4
+#define ANNEXG_PPP	 5
+#define ANNEXG_CHDLC	 6
+#define ANNEXG_LIP_LAPB  7
+#define ANNEXG_LIP_XDLC  8
+#define ANNEXG_LIP_TTY   9
+#define ANNEXG_LIP_XMTP2 10
+#define ANNEXG_LIP_X25   11
 
 #define WANCONFIG_SOCKET "/etc/wanpipe/wanconfig_socket"
 #define WANCONFIG_PID    "/var/run/wanconfig.pid"
@@ -450,7 +452,7 @@ char *card_name = NULL;
 static char *command=NULL;
 char *krnl_log_file = "/var/log/messages";
 char *verbose_log = "/var/log/wanrouter";
-int  weanie_flag = 0;
+int  weanie_flag = 1;
 int  nodev_flag = 0;
 link_def_t* link_defs;			/* list of WAN link definitions */
 union
@@ -493,6 +495,8 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "FE_LCODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, lcode), DTYPE_UCHAR },
   { "FE_FRAME",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, frame), DTYPE_UCHAR },
   { "FE_LINE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, line_no),  DTYPE_UINT },
+  { "FE_TXTRISTATE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, tx_tristate_mode),  DTYPE_UCHAR },
+  /* Front-End parameters (old style) */
   /* Front-End parameters (old style) */
   { "MEDIA",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, media), DTYPE_UCHAR },
   { "LCODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, lcode), DTYPE_UCHAR },
@@ -503,6 +507,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TE_ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, active_ch), DTYPE_ULONG },
   { "TE_RBS_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, te_rbs_ch), DTYPE_ULONG },
   { "TE_HIGHIMPEDANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, high_impedance_mode), DTYPE_UCHAR },
+  { "TE_REF_CLOCK",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, te_ref_clock), DTYPE_UINT },
   /* T1/E1 Front-End parameters (old style) */
   { "LBO",           offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, lbo), DTYPE_UCHAR },
   { "ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, active_ch), DTYPE_ULONG },
@@ -579,6 +584,7 @@ key_word_t chdlc_conftab[] =	/* Cisco HDLC-specific configuration */
   { "KEEPALIVE_ERR_MARGIN", offsetof(wan_chdlc_conf_t, keepalive_err_margin),    DTYPE_UINT },
   { "SLARP_TIMER", offsetof(wan_chdlc_conf_t, slarp_timer),    DTYPE_UINT },
   { "FAST_ISR", offsetof(wan_chdlc_conf_t,fast_isr), DTYPE_UCHAR },
+  { "PROTOCOL_OPTIONS",	  offsetof(wan_chdlc_conf_t,protocol_options), DTYPE_UINT },
   { NULL, 0, 0 }
 };
 
@@ -597,6 +603,8 @@ key_word_t sppp_conftab[] =	/* PPP-CHDLC specific configuration */
 
   { "USERID",         offsetof(wan_sppp_if_conf_t, userid), 	DTYPE_STR},
   { "PASSWD",         offsetof(wan_sppp_if_conf_t, passwd),	DTYPE_STR},
+
+  { "KEEPALIVE_ERROR_MARGIN", offsetof(wan_sppp_if_conf_t, keepalive_err_margin),    DTYPE_UINT },
  
   { NULL, 0, 0 }
 };
@@ -613,16 +621,20 @@ key_word_t fr_conftab[] =	/* Frame relay-specific configuration */
   { "FR_ISSUE_FS",   offsetof(wan_fr_conf_t, issue_fs_on_startup),DTYPE_UCHAR },
   { "NUMBER_OF_DLCI",    offsetof(wan_fr_conf_t, dlci_num),       DTYPE_UINT },
   { "STATION",       offsetof(wan_fr_conf_t, station),     DTYPE_UCHAR },
+  { "EEK_CFG",       offsetof(wan_fr_conf_t, eek_cfg),     DTYPE_UINT },
+  { "EEK_TIMER",     offsetof(wan_fr_conf_t, eek_timer),     DTYPE_UINT },   
   { NULL, 0, 0 }
 };
 
 key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
 {
-  { "MRU",     	     offsetof(wan_xilinx_conf_t, mru),       DTYPE_USHORT },
-  { "DMA_PER_CH",    offsetof(wan_xilinx_conf_t, dma_per_ch),      DTYPE_USHORT },
-  { "RBS",    	     offsetof(wan_xilinx_conf_t, rbs),      DTYPE_UCHAR },
-  { "DATA_MUX_MAP",  offsetof(wan_xilinx_conf_t, data_mux_map),      DTYPE_UINT },
-  { "FE_REF_CLOCK",  offsetof(wan_xilinx_conf_t, fe_ref_clock),      DTYPE_UINT },
+  { "MRU",     	     offsetof(wan_xilinx_conf_t, mru),          DTYPE_USHORT },
+  { "DMA_PER_CH",    offsetof(wan_xilinx_conf_t, dma_per_ch),   DTYPE_USHORT },
+  { "RBS",    	     offsetof(wan_xilinx_conf_t, rbs),          DTYPE_UCHAR },
+  { "DATA_MUX_MAP",  offsetof(wan_xilinx_conf_t, data_mux_map), DTYPE_UINT },
+  { "TDMV_SPAN",     offsetof(wan_xilinx_conf_t, tdmv_span_no), DTYPE_UINT},
+  { "TDMV_DCHAN",    offsetof(wan_xilinx_conf_t, tdmv_dchan),   DTYPE_UINT},
+  { "RX_CRC_BYTES",  offsetof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
   { NULL, 0, 0 }
 };
 
@@ -630,7 +642,7 @@ key_word_t bitstrm_conftab[] =	/* Bitstreaming specific configuration */
 {
  /* Bit strm options */
   { "SYNC_OPTIONS",	       offsetof(wan_bitstrm_conf_t, sync_options), DTYPE_USHORT },
-  { "RX_SYNC_CHAR",	       offsetof(wan_bitstrm_conf_t, rx_sync_char), DTYPE_USHORT },
+  { "RX_SYNC_CHAR",	       offsetof(wan_bitstrm_conf_t, rx_sync_char), DTYPE_USHORT},
   { "MONOSYNC_TX_TIME_FILL_CHAR", offsetof(wan_bitstrm_conf_t, monosync_tx_time_fill_char), DTYPE_UCHAR},
   { "MAX_LENGTH_TX_DATA_BLOCK", offsetof(wan_bitstrm_conf_t,max_length_tx_data_block), DTYPE_UINT},
   { "RX_COMPLETE_LENGTH",       offsetof(wan_bitstrm_conf_t,rx_complete_length), DTYPE_UINT},
@@ -690,6 +702,11 @@ key_word_t xdlc_conftab[] =
 };
 
 key_word_t tty_conftab[] =
+{
+  { NULL, 0, 0 }
+};
+
+key_word_t xmtp2_conftab[] =
 {
   { NULL, 0, 0 }
 };
@@ -1049,8 +1066,9 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
   { "DLCI_TRACE_QUEUE", offsetof(wanif_conf_t, max_trace_queue), DTYPE_UINT},
   { "MAX_TRACE_QUEUE", offsetof(wanif_conf_t, max_trace_queue), DTYPE_UINT},
 
-  { "TDMV_SPAN",	offsetof(wanif_conf_t, spanno), DTYPE_UINT},
   { "TDMV_ECHO_OFF",	offsetof(wanif_conf_t, tdmv_echo_off), DTYPE_UCHAR},
+
+  { "SINGLE_TX_BUF",    offsetof(wanif_conf_t, single_tx_buf), DTYPE_UCHAR},    
   
   { NULL, 0, 0 }
 };
@@ -1062,6 +1080,7 @@ look_up_t conf_def_tables[] =
 	{ WANCONFIG_X25,	x25_conftab	},
 	{ WANCONFIG_ADCCP,	x25_conftab	},
 	{ WANCONFIG_CHDLC,	chdlc_conftab	},
+	{ WANCONFIG_ASYHDLC,	chdlc_conftab	},
 	{ WANCONFIG_MPPP,	chdlc_conftab	},
 	{ WANCONFIG_MFR,	fr_conftab	},
 	{ WANCONFIG_SS7,	ss7_conftab 	},
@@ -1084,6 +1103,7 @@ look_up_t conf_if_def_tables[] =
 	{ WANCONFIG_AFT,	xilinx_if_conftab },
 	{ WANCONFIG_AFT_TE1,	xilinx_if_conftab },
 	{ WANCONFIG_AFT_TE3,    xilinx_if_conftab },
+	{ WANCONFIG_ASYHDLC,	chdlc_conftab	},
 	{ 0,			NULL		}
 };
 
@@ -1093,11 +1113,13 @@ look_up_t conf_annexg_def_tables[] =
 	{ ANNEXG_LIP_LAPB,	lapb_annexg_conftab	},
 	{ ANNEXG_LIP_XDLC,	xdlc_conftab	},
 	{ ANNEXG_LIP_TTY,	tty_conftab	},
+	{ ANNEXG_LIP_XMTP2,	xmtp2_conftab	},
 	{ ANNEXG_X25,		x25_annexg_conftab	},
 	{ ANNEXG_DSP,		dsp_annexg_conftab	},
 	{ ANNEXG_FR,		fr_conftab	},
 	{ ANNEXG_CHDLC,		sppp_conftab	},
 	{ ANNEXG_PPP,		sppp_conftab	},
+	{ ANNEXG_LIP_X25,	x25_annexg_conftab	},
 	{ 0,			NULL		}
 };
 
@@ -1107,6 +1129,7 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_FR,		"WAN_FR"	},
 	{ WANCONFIG_X25,	"WAN_X25"	},
 	{ WANCONFIG_CHDLC,	"WAN_CHDLC"	},
+	{ WANCONFIG_ASYHDLC,	"WAN_ASYHDLC"	},
         { WANCONFIG_BSC,        "WAN_BSC"       },
         { WANCONFIG_HDLC,       "WAN_HDLC"      },
 	{ WANCONFIG_MPPP,       "WAN_MULTPPP"   },
@@ -1201,6 +1224,9 @@ look_up_t	sym_table[] =
 	{ WANOPT_TTY_SYNC,	"SYNC"		},
 	{ WANOPT_TTY_ASYNC,     "ASYNC"		},
 
+        { WANOPT_FR_EEK_REQUEST,	"EEK_REQ"	},
+	{ WANOPT_FR_EEK_REPLY,	"EEK_REPLY"	},       
+
 
 	/* TE1 T1/E1 defines */
         /*------TE Cofngiuration --------------*/
@@ -1256,15 +1282,24 @@ look_up_t	sym_table[] =
 	{ WANCONFIG_LAPB, 	"MP_LAPB"	},
 	{ WANCONFIG_XDLC, 	"MP_XDLC"	},
 	{ WANCONFIG_TTY, 	"MP_TTY"	},
+	{ WANCONFIG_X25, 	"MP_X25"	},
+	{ WANCONFIG_XMTP2, 	"MP_XMTP2"	},
 	{ WANOPT_NO,		"RAW"		},
 	{ WANOPT_NO,		"HDLC"		},
 	{ WANCONFIG_PPP,	"PPP"		}, 
 	{ WANCONFIG_CHDLC,	"CHDLC"		},
+	{ WANCONFIG_ASYHDLC,	"ASYHDLC"	},
 	
 	/*-------------SS7 options--------------*/
 	{ WANOPT_SS7_ANSI,      "ANSI"          },
 	{ WANOPT_SS7_ITU,       "ITU"           },
 	{ WANOPT_SS7_NTT,       "NTT"           },
+
+	{ WANOPT_SS7_FISU,	"FISU"		},
+	{ WANOPT_SS7_LSSU,	"LSSU"		},
+
+	{ WANOPT_SS7_MODE_128, 	"SS7_128"	},
+	{ WANOPT_SS7_MODE_4096,	"SS7_4096"	},
 	
 	{ WANOPT_S50X,		"S50X"		},
 	{ WANOPT_S51X,		"S51X"		},
@@ -2169,9 +2204,17 @@ int build_chandef_list (FILE* file)
 			}else if (!strcmp(token[4],"chdlc")){
 				chandef->annexg = ANNEXG_CHDLC;	
 				chandef->protocol = strdup("MP_CHDLC");
+
+			}else if (!strcmp(token[4],"lip_x25")){
+				chandef->annexg = ANNEXG_LIP_X25;	
+				chandef->protocol = strdup("MP_X25");
+			
 			}else if (!strcmp(token[4],"lip_lapb")){
 				chandef->annexg = ANNEXG_LIP_LAPB;
 				chandef->protocol = strdup("MP_LAPB");
+			}else if (!strcmp(token[4],"lip_xmtp2")){
+				chandef->annexg = ANNEXG_LIP_XMTP2;
+				chandef->protocol = strdup("MP_XMTP2");
 			}else if (!strcmp(token[4],"lip_xdlc")){
 				chandef->annexg = ANNEXG_LIP_XDLC;
 				chandef->protocol = strdup("MP_XDLC");
@@ -2193,6 +2236,7 @@ int build_chandef_list (FILE* file)
 					  ( strcmp(chandef->usedby, "TTY")       != 0 ) &&
 					  ( strcmp(chandef->usedby, "BRIDGE_NODE") != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_VOICE") 	   != 0 ) &&
+					  ( strcmp(chandef->usedby, "TDM_VOICE_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "ANNEXG")      != 0 )))
 		{
 
@@ -2412,7 +2456,7 @@ int configure_link (link_def_t* def, char init)
 					strncpy(master_dsp_dev,chandef->name, WAN_IFNAME_SZ);
 					break;
 			}
-			
+
 			if (!init){
 				if(dev_name != NULL && strcmp(dev_name, chandef->name) != 0 )
 					continue;
@@ -2440,6 +2484,10 @@ int configure_link (link_def_t* def, char init)
 			err=configure_chan(dev, chandef, init, def->config_id);
 			if (err){
 				break;
+			}
+
+		        if (strcmp(chandef->usedby, "STACK") == 0){
+				strncpy(master_lip_dev,chandef->name, WAN_IFNAME_SZ);
 			}
 		}
 	}
@@ -2785,6 +2833,8 @@ int exec_chan_cmd(int dev, chan_def_t *def)
 	case ANNEXG_LIP_LAPB:
 	case ANNEXG_LIP_XDLC:
 	case ANNEXG_LIP_TTY:
+	case ANNEXG_LIP_XMTP2:
+	case ANNEXG_LIP_X25:
 		strncpy(def->chanconf->master, master_lip_dev, WAN_IFNAME_SZ);
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)

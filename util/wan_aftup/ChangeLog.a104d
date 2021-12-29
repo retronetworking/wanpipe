@@ -1,0 +1,15 @@
+AFT A104D Firmware Change Log
+=============================
+
+Release V17
+-----------
+Jan 23 2005
+
+Type:  		Mandatory/Critical
+
+Chagnes:	This release fixes a critical bug in A104D hw. 
+			Bug is machine based and only occurs on some pci busses 
+			when hardware echo cancellation is being used.   	 
+
+Symptions:	Noise and clicking sounds on hardware echo cancelled channels.
+		    

@@ -204,7 +204,7 @@ again:
     case BOUND_TE1_CHANNELS:
 //label_show_bound_timeslots:
       if(act_channels_ip.show(  lxdialog_path,
-                                logical_ch_cfg->data.chanconf->protocol,
+                                logical_ch_cfg->data.chanconf->config_id,
                                 logical_ch_cfg->data.active_channels_string,//initial text
                                 selection_index,
                                 cfr->link_defs->linkconf->fe_cfg.media) == NO){
