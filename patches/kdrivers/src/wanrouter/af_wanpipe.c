@@ -84,8 +84,7 @@
  #define AF_MEM_INC(x)	
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
-#ifndef KERN_MEMCPY_FROM_MSG
+#if KERN_MEMCPY_FROM_MSG == 0
 static inline int memcpy_from_msg(void *data, struct msghdr *msg, int len)
 {
 	/* XXX: stripping const */
@@ -93,6 +92,7 @@ static inline int memcpy_from_msg(void *data, struct msghdr *msg, int len)
 }
 #endif
 
+#if KERN_MEMCPY_TO_MSG == 0
 static inline int memcpy_to_msg(struct msghdr *msg, void *data, int len)
 {
 	return memcpy_toiovec((struct iovec *)msg->msg_iov, data, len);

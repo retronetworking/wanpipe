@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.23
+%define VERSION           7.0.24
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,6 +259,11 @@ fi
 ################################################################################
 
 %changelog
+* Thu Oct 12 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.24
+==================================================================
+- Adding backward compatibility for older kernel both debian as well redhat
+
+
 * Thu Oct 12 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.23
 ==================================================================
 - Support to create proper wanec device for dahdi

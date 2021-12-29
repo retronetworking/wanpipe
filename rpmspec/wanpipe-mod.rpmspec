@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           7.0.23
+%define version           7.0.24
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -58,6 +58,11 @@ fi
 
 
 %changelog
+* Thu Oct 12 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.24
+==================================================================
+- Adding backward compatibility for older kernel both debian as well redhat
+
+
 * Thu Oct 12 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.23
 ==================================================================
 - Support to create proper wanec device for dahdi

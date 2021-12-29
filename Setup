@@ -220,22 +220,42 @@ check_kern_memcpy_from_msg ()
 	if [ -e $SOURCEDIR/include/linux/skbuff.h ];then
 		eval "grep \"memcpy_from_msg\" $SOURCEDIR/include/linux/skbuff.h >/dev/null 2>/dev/null"
 		if [ $? -eq 0 ]; then
-			MEMCPY_MSG_FEATURE="-DKERN_MEMCPY_FROM_MSG=1"
+			MEMCPY_FROM_MSG_FEATURE="-DKERN_MEMCPY_FROM_MSG=1"
 		else
-			MEMCPY_MSG_FEATURE="-DKERN_MEMCPY_FROM_MSG=0"
+			MEMCPY_FROM_MSG_FEATURE="-DKERN_MEMCPY_FROM_MSG=0"
 		fi
-		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $MEMCPY_MSG_FEATURE "
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $MEMCPY_FROM_MSG_FEATURE "
 	elif [ -e $DEBSRCDIR/include/linux/skbuff.h ];then
 		eval "grep PDE_DATA $DEBSRCDIR/include/linux/skbuff.h >/dev/null 2>/dev/null"
 		if [ $? -eq 0 ]; then
-			MEMCPY_MSG_FEATURE="-DKERN_MEMCPY_FROM_MSG=1"
+			MEMCPY_FROM_MSG_FEATURE="-DKERN_MEMCPY_FROM_MSG=1"
 		else
-			MEMCPY_MSG_FEATURE="-DKERN_MEMCPY_FROM_MSG=0"
+			MEMCPY_FROM_MSG_FEATURE="-DKERN_MEMCPY_FROM_MSG=0"
 		fi
-		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $MEMCPY_MSG_FEATURE "
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $MEMCPY_FROM_MSG_FEATURE "
 	fi
 }
 
+check_kern_memcpy_to_msg ()
+{
+	if [ -e $SOURCEDIR/include/linux/skbuff.h ];then
+		eval "grep \"memcpy_to_msg\" $SOURCEDIR/include/linux/skbuff.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			MEMCPY_TO_MSG_FEATURE="-DKERN_MEMCPY_TO_MSG=1"
+		else
+			MEMCPY_TO_MSG_FEATURE="-DKERN_MEMCPY_TO_MSG=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $MEMCPY_TO_MSG_FEATURE "
+	elif [ -e $DEBSRCDIR/include/linux/skbuff.h ];then
+		eval "grep PDE_DATA $DEBSRCDIR/include/linux/skbuff.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			MEMCPY_TO_MSG_FEATURE="-DKERN_MEMCPY_TO_MSG=1"
+		else
+			MEMCPY_TO_MSG_FEATURE="-DKERN_MEMCPY_TO_MSG=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $MEMCPY_TO_MSG_FEATURE "
+	fi
+}
 # ----------------------------------------------------------------------------
 # Display error message.
 # ----------------------------------------------------------------------------
@@ -3649,6 +3669,8 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		check_kern_netdevice_feature
 
 		check_kern_memcpy_from_msg
+
+		check_kern_memcpy_to_msg
 
 		if [ "$BRI_MODULE_TEST" = "YES" ]; then
 			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DBUILD_MOD_TESTER"
@@ -7427,7 +7449,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=7.0.23
+PROD_VER=7.0.24
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
