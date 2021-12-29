@@ -2,7 +2,7 @@
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
 %define version           2.3.4
-%define release           12
+%define release           13
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
 %define UTILS_LOCAL_DIR   /usr/local/sbin
@@ -252,6 +252,18 @@ install_init;
 
 
 %changelog
+
+* Mon Jun 30 2007 Nenad Corbic <ncorbic@sangoma.com> - 2.3.4-13
+==================================================================== 
+
+- Update to Ocatsic Hardware Echo Canceler Library
+  Turned of the NOISE suppression because it can interfere
+  with faxes. If you faxes did not work properly on 2.3.4-12
+  release they will work fine with this one.
+
+- Cleaned up the Setup installation script.
+
+
 * Mon Jun 16 2007 Nenad Corbic <ncorbic@sangoma.com> - 2.3.4-12
 ==================================================================== 
 

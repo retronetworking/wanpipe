@@ -62,27 +62,27 @@ libsangoma_la-libsangoma.lo libsangoma_la-libsangoma.o: libsangoma.c \
   /lib/modules/2.6.18-8.el5/build/include/linux/socket.h \
   /lib/modules/2.6.18-8.el5/build/include/linux/hdlc/ioctl.h \
   /usr/include/poll.h /usr/include/sys/poll.h /usr/include/bits/poll.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_defines.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_version.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_kernel.h \
+  ../../patches/kdrivers/include/linux/wanpipe_defines.h \
+  ../../patches/kdrivers/include/linux/wanpipe_version.h \
+  ../../patches/kdrivers/include/linux/wanpipe_kernel.h \
   /lib/modules/2.6.18-8.el5/build/include/linux/version.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_cfg.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/sdla_56k.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/sdla_te1.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/sdla_te3.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/sdla_remora.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/sdla_remora_proslic.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/sdla_front_end.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_debug.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_common.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_events.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanrouter.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_tdm_api.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_includes.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/if_wanpipe.h \
+  ../../patches/kdrivers/include/linux/wanpipe_cfg.h \
+  ../../patches/kdrivers/include/linux/sdla_56k.h \
+  ../../patches/kdrivers/include/linux/sdla_te1.h \
+  ../../patches/kdrivers/include/linux/sdla_te3.h \
+  ../../patches/kdrivers/include/linux/sdla_remora.h \
+  ../../patches/kdrivers/include/linux/sdla_remora_proslic.h \
+  ../../patches/kdrivers/include/linux/sdla_front_end.h \
+  ../../patches/kdrivers/include/linux/wanpipe.h \
+  ../../patches/kdrivers/include/linux/wanpipe_debug.h \
+  ../../patches/kdrivers/include/linux/wanpipe_common.h \
+  ../../patches/kdrivers/include/linux/wanpipe_events.h \
+  ../../patches/kdrivers/include/linux/wanrouter.h \
+  ../../patches/kdrivers/include/linux/wanpipe_tdm_api.h \
+  ../../patches/kdrivers/include/linux/wanpipe_includes.h \
+  ../../patches/kdrivers/include/linux/if_wanpipe.h \
   /lib/modules/2.6.18-8.el5/build/include/linux/sockios.h \
-  /lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_codec_iface.h
+  ../../patches/kdrivers/include/linux/wanpipe_codec_iface.h
 
 libsangoma.h:
 
@@ -294,44 +294,44 @@ libsangoma.h:
 
 /usr/include/bits/poll.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_defines.h:
+../../patches/kdrivers/include/linux/wanpipe_defines.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_version.h:
+../../patches/kdrivers/include/linux/wanpipe_version.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_kernel.h:
+../../patches/kdrivers/include/linux/wanpipe_kernel.h:
 
 /lib/modules/2.6.18-8.el5/build/include/linux/version.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_cfg.h:
+../../patches/kdrivers/include/linux/wanpipe_cfg.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/sdla_56k.h:
+../../patches/kdrivers/include/linux/sdla_56k.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/sdla_te1.h:
+../../patches/kdrivers/include/linux/sdla_te1.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/sdla_te3.h:
+../../patches/kdrivers/include/linux/sdla_te3.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/sdla_remora.h:
+../../patches/kdrivers/include/linux/sdla_remora.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/sdla_remora_proslic.h:
+../../patches/kdrivers/include/linux/sdla_remora_proslic.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/sdla_front_end.h:
+../../patches/kdrivers/include/linux/sdla_front_end.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe.h:
+../../patches/kdrivers/include/linux/wanpipe.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_debug.h:
+../../patches/kdrivers/include/linux/wanpipe_debug.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_common.h:
+../../patches/kdrivers/include/linux/wanpipe_common.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_events.h:
+../../patches/kdrivers/include/linux/wanpipe_events.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanrouter.h:
+../../patches/kdrivers/include/linux/wanrouter.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_tdm_api.h:
+../../patches/kdrivers/include/linux/wanpipe_tdm_api.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_includes.h:
+../../patches/kdrivers/include/linux/wanpipe_includes.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/if_wanpipe.h:
+../../patches/kdrivers/include/linux/if_wanpipe.h:
 
 /lib/modules/2.6.18-8.el5/build/include/linux/sockios.h:
 
-/lib/modules/2.6.18-8.el5/build/include/linux/wanpipe_codec_iface.h:
+../../patches/kdrivers/include/linux/wanpipe_codec_iface.h:

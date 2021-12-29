@@ -1929,7 +1929,7 @@ WANPIPE_IS_RUNNING=/var/run/wanpipe_is_running
 RUGGEDCOM=No
 
 if [ $OSYSTEM = "Linux" ]; then
-	ROUTER_VERSION=2.3.4-12
+	ROUTER_VERSION=2.3.4-13
 	IFCONFIG_LIST=ifconfig
 	MODULE_STAT=lsmod
 	WAN_DRIVERS="wanpipe"

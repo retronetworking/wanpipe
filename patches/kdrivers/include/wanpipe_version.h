@@ -7,7 +7,7 @@
 
 /********** LINUX **********/
 #define WANPIPE_VERSION			"2.3.4"
-#define WANPIPE_SUB_VERSION		"12"
+#define WANPIPE_SUB_VERSION		"13"
 #define WANPIPE_VERSION_BETA		0
 #define WANPIPE_LITE_VERSION		"1.1.1"
 

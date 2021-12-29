@@ -1672,14 +1672,17 @@ ENDOFTEXT
 		[ -d $RC_DIR/init.d ] && install -D -m 755 $WANROUTER_STARTUP_SMPL $ROOT/$RC_DIR/init.d/$PROD
 	fi
 
-	pause
     	if [ "$TDM_PROT" = "YES" ]; then
 		getyn "Would you like to auto-execute ztcfg after wanrouter start?" || return 0
-			cp $PROD_HOME/samples/wanpipe_zaptel_start /etc/wanpipe/scripts/start
+			if [ ! -d $WAN_CONF_DIR/scripts ]; then
+				eval "\mkdir -p $WAN_CONF_DIR/scripts >/dev/null 2>/dev/null"
+			fi 
+			eval "\cp -f  $PROD_HOME/samples/wanpipe_zaptel_start $WAN_CONF_DIR/scripts/start >/dev/null 2>/dev/null"
 			if [ ! -f $WAN_CONF_DIR/scripts/start ]; then
 				echo "Error: Could not copy auto-ztcfg script"
 			fi
 	fi
+	pause
 	return 0
 
 }
@@ -2635,7 +2638,7 @@ Custom Compilation:
   protocols that you need.  This way one can reduce
   the size of the WANPIPE kernel drivers.
 
-Refer to the WapipeIntallation.(pdf/txt) documentation.
+Refer to the WanpipeIntallation.(pdf/txt) documentation.
 ENDOFTEXT
 	fi
 
@@ -2663,7 +2666,6 @@ ENDOFTEXT
 			return 1
 		fi
 	fi
-
 
 	ANNEXG_LOAD=NO
 
@@ -2785,14 +2787,15 @@ ENDOFTEXT
 	#Copy the WANPIPE device drivers  
 	#into a temporary directory
 
-	\cp -f $DRIVER_UPDATE_DIR/src/net/* .
-	\cp -f $DRIVER_UPDATE_DIR/src/wanrouter/* .	
+	eval "\cp -f $DRIVER_UPDATE_DIR/src/net/* . >/dev/null 2>/dev/null"
+	eval "\cp -f $DRIVER_UPDATE_DIR/src/wanrouter/* .>/dev/null 2>/dev/null"
 
-	\cp -f $PROD_HOME/kbuild/Makefile .	
+
+	eval "\cp -f $PROD_HOME/kbuild/Makefile . >/dev/null 2>/dev/null"
 
 	for file in $DRIVERS_MOD_LIST
 	do
-		\cp $DRIVER_UPDATE_DIR/src/net/$file .
+		eval "\cp $DRIVER_UPDATE_DIR/src/net/$file . >/dev/null 2>/dev/null" 
 	done
 
 	update_redhat_as 0
@@ -3099,7 +3102,7 @@ ENDOFTEXT
 	
 - TDM Voice Hardware Support for Asterisk PBX Software
 	Hardware Support for Asterisk PBX Software over 
-	S514 T1/E1 Cards.
+	AFT T1/E1 Cards.
 	
 ENDOFTEXT
 	pause
@@ -3122,6 +3125,12 @@ ENDOFTEXT
 
 	
 	if test -z $NONINTERACTIVE; then
+		if [ -e $SOURCEDIR/include/config/kernel.release ]; then
+			KERNEL_VERSION=`cat $SOURCEDIR/include/config/kernel.release`
+			echo "Source kernel name:$KERNEL_VERSION"
+		fi
+
+		
                 if [ $KERNEL_VERSION != $KERNEL_UNAME ]; then
 			echo 
                         echo -e "WARNING: Module installation dir mismatch!"
@@ -6127,7 +6136,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=2.3.4-12
+PROD_VER=2.3.4-13
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

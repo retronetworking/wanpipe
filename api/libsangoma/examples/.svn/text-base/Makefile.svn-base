@@ -1,5 +1,7 @@
 CC=gcc
-INCLUDES=-I/usr/include -I/usr/src/libpri -I/usr/src/linux/include -I.  -I/usr/local/include 
+LINUXINC=/lib/modules/$(shell uname -r)/build/include
+WANINC=../../../patches/kdrivers/include
+INCLUDES=-I/usr/include -I/usr/src/libpri -I$(WANINC) -I.  -I/usr/local/include 
 CFLAGS=-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 -march=i686 -DAFT_A104
 CCFLAGS=-Wall -Wstrict-prototypes -Wmissing-prototypes -g
 

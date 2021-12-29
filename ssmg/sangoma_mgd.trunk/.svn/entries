@@ -1,14 +1,14 @@
 8
 
 dir
-228
+229
 svn://sangoma.freeswitch.org/sangoma_mgd/trunk
 svn://sangoma.freeswitch.org
 
 
 
-2007-07-17T15:22:31.637247Z
-228
+2007-07-20T19:21:42.003810Z
+229
 ncorbic
 
 
@@ -137,10 +137,10 @@ file
 
 
 
-2007-06-14T04:10:02.000000Z
-9aa3a4dddd5f60be4c78e08d3e37c87c
-2007-06-14T04:08:55.484670Z
-208
+2007-07-17T20:46:57.000000Z
+d284fd9aab77a95945af9695cb6fd4ee
+2007-07-20T19:21:42.003810Z
+229
 ncorbic
 has-props
 

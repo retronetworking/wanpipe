@@ -176,15 +176,18 @@ int sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 
 int sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 
+<<<<<<< .mine
 int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api); 
 
 
+=======
 int sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 
+>>>>>>> .r229
 #ifndef LIBSANGOMA_GET_HWCODING
 #define LIBSANGOMA_GET_HWCODING 1
 #endif
