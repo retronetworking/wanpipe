@@ -1134,8 +1134,6 @@ static int32_t wp_bri_dchan_tx(sdla_fe_t *fe, void *src_data_buffer, u32 buffer_
 	bri_module = &bri->mod[mod_no];
 	port_ptr = &bri_module->port[port_no];
 
-	DEBUG_HFC_S0_STATES("%s(): fe->fe_status: %i \n", __FUNCTION__, fe->fe_status);
-
 	if(src_data_buffer == NULL){
 		/* Caller is interested in tx buffer space, 
 		   return how many bytes is still left to transmit */
@@ -1172,8 +1170,7 @@ static int32_t wp_bri_dchan_tx(sdla_fe_t *fe, void *src_data_buffer, u32 buffer_
 	rc = xhfc_write_fifo_dchan(fe, mod_no, bri_module, port_ptr, &free_space);
 
 	/* The frame was accepted for transmission. Return ZERO even if the frame
-	   will be actually transmitted in parts!!!
-	*/
+	   will be actually transmitted in parts!!! */
 	return 0;
 }
 
@@ -1735,7 +1732,7 @@ static int wp_bri_pre_release(void* pfe)
 	mod_no = fe_line_no_to_physical_mod_no(fe);	
 	port_no = fe_line_no_to_port_no(fe);
 
-	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port_no: %i\n", __FUNCTION__, mod_no, port_no);
+	DEBUG_HFC_INIT("%s(): mod_no: %i, port_no: %i\n", __FUNCTION__, mod_no, port_no);
 	
 	bri_module = &bri->mod[mod_no];
 
@@ -2019,7 +2016,7 @@ static int32_t wp_bri_unconfig(void *pfe)
 	line interface state change interrupts will be generated. */
 	WRITE_REG(R_SU_SEL, port_no);
 
-	DEBUG_HFC_S0_STATES("%s(): port_no: %i, port_ptr: 0x%p, port_ptr->mode: %i\n", __FUNCTION__, port_no, port_ptr, port_ptr->mode);
+	DEBUG_HFC_INIT("%s(): port_no: %i, port_ptr: 0x%p, port_ptr->mode: %i\n", __FUNCTION__, port_no, port_ptr, port_ptr->mode);
 
 	a_su_wr_sta.reg = 0;
 	if (port_ptr->mode & PORT_MODE_TE) {
@@ -2064,14 +2061,14 @@ static int32_t wp_bri_post_init(void *pfe)
 	mod_no = fe_line_no_to_physical_mod_no(fe);	
 	port_no = fe_line_no_to_port_no(fe);
 
-	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port_no: %i\n", __FUNCTION__, mod_no, port_no);
+	DEBUG_HFC_INIT("%s(): mod_no: %i, port_no: %i\n", __FUNCTION__, mod_no, port_no);
 	
 	bri_module = &bri->mod[mod_no];
 
 	/* */
 	for (port_no = 0; port_no < bri_module->num_ports; port_no++) {
 		port_ptr = &bri_module->port[port_no];
-				
+
 		wan_init_timer(&port_ptr->t3_timer, l1_timer_expire_t3, (wan_timer_arg_t)port_ptr);
 		wan_init_timer(&port_ptr->t4_timer, l1_timer_expire_t4, (wan_timer_arg_t)port_ptr);
 	}/* for (port_no = 0; port_no < bri_module->num_ports; port_no++) */
@@ -2099,10 +2096,26 @@ static int32_t wp_bri_post_init(void *pfe)
 static void l1_timer_start_t3(void *pport)
 {
 	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
-	wp_bri_module_t	*bri_module = port_ptr->hw;
-	u8		mod_no = (u8)bri_module->mod_no;
+	wp_bri_module_t	*bri_module;
+	sdla_fe_t	*fe;
+	u8		mod_no;
+
+	WAN_ASSERT_VOID(port_ptr == NULL);
+
+	WAN_ASSERT_VOID(port_ptr->hw == NULL);
+	bri_module = port_ptr->hw;
+
+	WAN_ASSERT_VOID(bri_module->fe == NULL);
+	fe = (sdla_fe_t*)bri_module->fe;
+
+	mod_no = (u8)bri_module->mod_no;
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
+
+	if(fe->fe_status == FE_UNITIALIZED){
+		/* may get here during unload!! */
+		return;
+	}
 
 	if(!wan_test_and_set_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags)){
 
@@ -2127,7 +2140,6 @@ static void l1_timer_stop_t3(void *pport)
 	u8		mod_no = (u8)bri_module->mod_no;
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
-        DEBUG_HFC_S0_STATES("Stopping T3 timer...\n");
 
 	wan_clear_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags);
         wan_clear_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags);
@@ -2194,10 +2206,26 @@ static void __l1_timer_expire_t3(sdla_fe_t *fe)
 static void l1_timer_start_t4(void *pport)
 {
 	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
-	wp_bri_module_t	*bri_module = port_ptr->hw;
-	u8		mod_no = (u8)bri_module->mod_no;
+	wp_bri_module_t	*bri_module;
+	sdla_fe_t	*fe;
+	u8		mod_no;
+
+	WAN_ASSERT_VOID(port_ptr == NULL);
+
+	WAN_ASSERT_VOID(port_ptr->hw == NULL);
+	bri_module = port_ptr->hw;
+
+	WAN_ASSERT_VOID(bri_module->fe == NULL);
+	fe = (sdla_fe_t*)bri_module->fe;
+
+	mod_no = (u8)bri_module->mod_no;
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
+
+	if(fe->fe_status == FE_UNITIALIZED){
+		/* may get here during unload!! */
+		return;
+	}
 
 	if(!wan_test_and_set_bit(T4_TIMER_ACTIVE, &port_ptr->timer_flags)){
 
@@ -2214,6 +2242,7 @@ static void l1_timer_start_t4(void *pport)
 	}
 }
 
+
 /**
  * l1_timer_stop_t4
  */
@@ -2224,7 +2253,6 @@ static void l1_timer_stop_t4(void *pport)
 	u8		mod_no = (u8)bri_module->mod_no;
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
-	DEBUG_HFC_S0_STATES("Stopping T4 timer...\n");
 
 	wan_clear_bit(T4_TIMER_ACTIVE, &port_ptr->timer_flags);
 	wan_clear_bit(HFC_L1_DEACTTIMER, &port_ptr->l1_flags);
@@ -3046,6 +3074,10 @@ static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 			connected = 1;
 			return connected;
 
+		case (6):/* synchronized */
+			connected = 1;
+			return connected;
+
 		default:
 			return connected;
 		}
@@ -3178,7 +3210,7 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 
 	bri_module = &bri->mod[mod_no];
 
-	/*DEBUG_HFC_SU_IRQ("%s(%lu): %s: mod_no: %d\n", __FUNCTION__, jiffies, fe->name, mod_no);*/
+	//DEBUG_HFC_SU_IRQ("%s(%lu): %s: mod_no: %d\n", __FUNCTION__, jiffies, fe->name, mod_no);
 
 	/* clear SU state interrupt (for all ports) */
 	r_su_irq.reg = READ_REG(R_SU_IRQ);

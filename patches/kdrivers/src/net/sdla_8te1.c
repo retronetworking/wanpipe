@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_8te1.c,v 1.119 2008/03/14 19:14:10 sangoma Exp $
+ *	$Id: sdla_8te1.c,v 1.121 2008/04/25 16:23:20 sangoma Exp $
  */
 
 /******************************************************************************
@@ -729,9 +729,9 @@ static int sdla_ds_t1_cfg_verify(void* pfe)
 		case WAN_TE1_RX_SLEVEL_175_DB: case WAN_TE1_RX_SLEVEL_12_DB:
 			break;
 		case  WAN_TE1_RX_SLEVEL_NONE:
-			DEBUG_EVENT("%s: Defaulting T1 Rx Sens. Gain= 12 db\n",
+			DEBUG_EVENT("%s: Defaulting T1 Rx Sens. Gain= 30 db\n",
 						fe->name);
-			fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_12_DB;
+			fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_30_DB;
 			break;
 		default:
 			DEBUG_EVENT(
@@ -848,9 +848,9 @@ static int sdla_ds_e1_cfg_verify(void* pfe)
 		case WAN_TE1_RX_SLEVEL_175_DB: case WAN_TE1_RX_SLEVEL_12_DB:
 			break;
 		case  WAN_TE1_RX_SLEVEL_NONE:
-			DEBUG_EVENT("%s: Defaulting E1 Rx Sens. Gain= 12 db\n",
+			DEBUG_EVENT("%s: Defaulting E1 Rx Sens. Gain= 30 db\n",
 							fe->name);
-			fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_12_DB;
+			fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_30_DB;
 			break;
 		default:
 			DEBUG_EVENT(
@@ -1207,17 +1207,16 @@ static int sdla_ds_te1_chip_config(void* pfe)
 			break;
 		case WAN_TE1_RX_SLEVEL_36_DB:
 		case WAN_TE1_RX_SLEVEL_43_DB:
-			value |= (BIT_LRISMR_RSMS1 | BIT_LRISMR_RSMS0);
-			break;
 		default:	/* set default value */ 
-			fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_12_DB;
+			value |= (BIT_LRISMR_RSMS1 | BIT_LRISMR_RSMS0);
 			break;
 		}
 		DEBUG_EVENT("%s:    Rx Sensitivity Gain %s%s.\n", 
 			fe->name, 
 			WAN_TE1_RX_SLEVEL_DECODE(fe->fe_cfg.cfg.te_cfg.rx_slevel),
-			(fe->fe_cfg.cfg.te_cfg.rx_slevel==WAN_TE1_RX_SLEVEL_12_DB)?
-							" (default)":"");
+			((IS_T1_FEMEDIA(fe) && (fe->fe_cfg.cfg.te_cfg.rx_slevel==WAN_TE1_RX_SLEVEL_36_DB)) ||
+			 (IS_E1_FEMEDIA(fe) && (fe->fe_cfg.cfg.te_cfg.rx_slevel==WAN_TE1_RX_SLEVEL_43_DB))) ?
+					 " (default)": "");
 	}
 	if (IS_T1_FEMEDIA(fe)){
 		value |= BIT_LRISMR_RIMPM0;

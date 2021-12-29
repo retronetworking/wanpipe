@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 41
-/svn/sangoma_mgd/!svn/ver/75/branches/bri
+/svn/sangoma_mgd/!svn/ver/76/branches/bri
 END
 sigboost.h
 K 25
@@ -9,11 +9,11 @@ svn:wc:ra_dav:version-url
 V 52
 /svn/sangoma_mgd/!svn/ver/74/branches/bri/sigboost.h
 END
-switch_buffer.h
+sound.raw
 K 25
 svn:wc:ra_dav:version-url
-V 57
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/switch_buffer.h
+V 51
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/sound.raw
 END
 sangoma_mgd.conf.sample
 K 25
@@ -21,11 +21,11 @@ svn:wc:ra_dav:version-url
 V 65
 /svn/sangoma_mgd/!svn/ver/73/branches/bri/sangoma_mgd.conf.sample
 END
-sound.raw
+switch_buffer.h
 K 25
 svn:wc:ra_dav:version-url
-V 51
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/sound.raw
+V 57
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/switch_buffer.h
 END
 callgettest.sh
 K 25
@@ -39,23 +39,17 @@ svn:wc:ra_dav:version-url
 V 48
 /svn/sangoma_mgd/!svn/ver/73/branches/bri/ss7box
 END
-re-sync.sh
-K 25
-svn:wc:ra_dav:version-url
-V 52
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/re-sync.sh
-END
 call_signal.c
 K 25
 svn:wc:ra_dav:version-url
 V 55
 /svn/sangoma_mgd/!svn/ver/74/branches/bri/call_signal.c
 END
-sangoma_mgd.c
+re-sync.sh
 K 25
 svn:wc:ra_dav:version-url
-V 55
-/svn/sangoma_mgd/!svn/ver/74/branches/bri/sangoma_mgd.c
+V 52
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/re-sync.sh
 END
 woomera.conf
 K 25
@@ -63,23 +57,29 @@ svn:wc:ra_dav:version-url
 V 54
 /svn/sangoma_mgd/!svn/ver/73/branches/bri/woomera.conf
 END
+sangoma_mgd.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/sangoma_mgd/!svn/ver/74/branches/bri/sangoma_mgd.c
+END
 call_signal.h
 K 25
 svn:wc:ra_dav:version-url
 V 55
 /svn/sangoma_mgd/!svn/ver/74/branches/bri/call_signal.h
 END
-sangoma_mgd.h
-K 25
-svn:wc:ra_dav:version-url
-V 55
-/svn/sangoma_mgd/!svn/ver/74/branches/bri/sangoma_mgd.h
-END
 Changelog.sangoma_mgd
 K 25
 svn:wc:ra_dav:version-url
 V 63
 /svn/sangoma_mgd/!svn/ver/73/branches/bri/Changelog.sangoma_mgd
+END
+sangoma_mgd.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/sangoma_mgd/!svn/ver/74/branches/bri/sangoma_mgd.h
 END
 q931_cause.h
 K 25

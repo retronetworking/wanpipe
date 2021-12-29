@@ -11900,6 +11900,11 @@ static int aft_hwec_config (sdla_t *card, private_area_t *chan, wanif_conf_t *co
 	int fe_chan = 0;
 	unsigned int tdmv_hwec_option=0;
 	
+	/* If not hardware echo nothing to configure */
+	if (!card->wandev.ec_enable) {
+		return 0;
+	}
+		
 	if (conf) {
         	tdmv_hwec_option=conf->hwec.enable;
 	}
@@ -11920,10 +11925,7 @@ static int aft_hwec_config (sdla_t *card, private_area_t *chan, wanif_conf_t *co
 		       	fe_chan = chan->first_time_slot+1; 
 		}              
 
-		if (!card->wandev.ec_enable) {
-			return -ENODEV;
-		}
-		
+
 #if defined(CONFIG_WANPIPE_HWEC)  
 		if (ctrl == 0) { 
 

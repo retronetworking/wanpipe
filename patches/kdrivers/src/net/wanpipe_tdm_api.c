@@ -2019,16 +2019,28 @@ static wanpipe_tdm_api_dev_t *wp_tdmapi_search(sdla_t *card, int fe_chan)
 	}
 	return tdm_api;
 #else
+	int tmp_fe_chan;
+	tmp_fe_chan = fe_chan;
+
 	for(i = 0; i < WP_TDMAPI_HASH_SZ; i++){
 		tdm_api = wp_tdmapi_hash[i];
 		
 		if (tdm_api == NULL || tdm_api->card != card){
 			continue;
 		}
-		if (wan_test_bit(fe_chan, &tdm_api->active_ch)){
+		
+		if (IS_BRI_CARD(card)) {
+			tmp_fe_chan = (2*(tdm_api->tdm_span-1))+fe_chan;
+		} 	
+
+		if (wan_test_bit(tmp_fe_chan, &tdm_api->active_ch)){
 			return tdm_api;		 
 		}
 	}
+	DEBUG_EVENT("%s: Error: Received EVENT on invalid chan:%d\n", 
+			card->devname,			
+			fe_chan);
+
 	return NULL;
 #endif
 }

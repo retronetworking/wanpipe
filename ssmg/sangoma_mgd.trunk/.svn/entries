@@ -1,15 +1,15 @@
 8
 
 dir
-75
+78
 https://www.sangomapbx.com/svn/sangoma_mgd/branches/bri
 https://www.sangomapbx.com/svn/sangoma_mgd
 
 
 
-2008-04-04T17:43:05.753942Z
-75
-davidy
+2008-04-04T19:45:44.586071Z
+76
+ncorbic
 
 
 svn:special svn:externals svn:needs-lock
@@ -38,29 +38,8 @@ f3b4f42e0521dd697525509cff55ec01
 74
 davidy
 
-switch_buffer.h
-file
-
-
-
-
-2008-04-04T17:49:20.000000Z
-f4832443a621cbb88e92535898d11b83
-2007-09-21T20:53:51.260136Z
-1
-root
-
-sangoma_mgd.conf.sample
-file
-
-
-
-
-2008-04-04T17:49:20.000000Z
-31bd051e4281dc2e6e705cded0c30971
-2008-02-07T18:04:31.680485Z
-64
-ncorbic
+app
+dir
 
 sound.raw
 file
@@ -75,8 +54,29 @@ da36acc78b83d5047481df0cca63d969
 root
 has-props
 
-app
-dir
+sangoma_mgd.conf.sample
+file
+
+
+
+
+2008-04-04T17:49:20.000000Z
+31bd051e4281dc2e6e705cded0c30971
+2008-02-07T18:04:31.680485Z
+64
+ncorbic
+
+switch_buffer.h
+file
+
+
+
+
+2008-04-04T17:49:20.000000Z
+f4832443a621cbb88e92535898d11b83
+2007-09-21T20:53:51.260136Z
+1
+root
 
 callgettest.sh
 file
@@ -90,6 +90,9 @@ file
 1
 root
 has-props
+
+conf
+dir
 
 ss7box
 file
@@ -107,11 +110,20 @@ has-props
 
 svn:special
 
-conf
-dir
-
 scripts
 dir
+
+call_signal.c
+file
+
+
+
+
+2008-04-04T17:49:20.000000Z
+db2da6edaa8ffa025a8bf3c719955fe6
+2008-04-04T17:37:44.985328Z
+74
+davidy
 
 re-sync.sh
 file
@@ -126,17 +138,17 @@ file
 ncorbic
 has-props
 
-call_signal.c
+woomera.conf
 file
 
 
 
 
 2008-04-04T17:49:20.000000Z
-db2da6edaa8ffa025a8bf3c719955fe6
-2008-04-04T17:37:44.985328Z
-74
-davidy
+356d6fc18e0670efac6de6001e58648e
+2007-09-21T20:53:51.260136Z
+1
+root
 
 sangoma_mgd.c
 file
@@ -149,18 +161,6 @@ file
 2008-04-04T17:37:44.985328Z
 74
 davidy
-
-woomera.conf
-file
-
-
-
-
-2008-04-04T17:49:20.000000Z
-356d6fc18e0670efac6de6001e58648e
-2007-09-21T20:53:51.260136Z
-1
-root
 
 call_signal.h
 file
@@ -227,7 +227,7 @@ dir
 
 install
 file
-76
+
 
 
 

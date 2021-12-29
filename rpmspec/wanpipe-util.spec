@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.3.7
+%define version           3.3.8
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -328,6 +328,23 @@ enable_smg_log;
 
 %changelog
 
+
+* Fri Apr 25 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.8
+======================================================================
+
+- AFT Update
+  A bug was introduced in 3.3.7 release that failed to load
+  AFT cards without HWEC.  
+
+- AFT TE1 Code
+  Defaulted Maxim T1 Rx Level to 36DB
+  Defaulted Maxim E1 Rx Level to 42DB
+  This will improve T1/E1 connectivity on noisy or low power lines.
+
+- AFT BRI Update
+  Minor update on BRI to conform better to TBR3 Certification 
+
+
 * Wed Apr 23 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.7
 ======================================================================
 
@@ -352,9 +369,12 @@ enable_smg_log;
 
 - BRI Updated
   BRI driver updated for new 512hz clock used to improve
-  hardware echo canceler.  This feature imporves the operation
-  of the HWEC and should solve any random Echo problems on 
-  BRI cards. To check your BRI hardware version run:	
+  hardware echo canceler with clock recovery mechanism.
+  This featue will solve any random hwec warning messages
+  one might see in /var/log/messages.  Note these random
+  warning messages did not cause any abnormal behaviour 
+  in extensive lab testings.   
+  To check your BRI hardware version run:	
   -> wanrouter hwprobe verbose
 	-C00 -> old bri cpld
 	-C01 -> new bri cpld
