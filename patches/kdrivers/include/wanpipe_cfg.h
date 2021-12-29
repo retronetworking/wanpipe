@@ -33,6 +33,14 @@
 # include <linux/wanpipe_cfg_atm.h>
 # include <linux/wanpipe_cfg_lip.h>
 # include <linux/wanpipe_cfg_adsl.h>
+
+#ifndef wan_time_t 
+#define wan_time_t unsigned long
+#endif
+#ifndef wan_suseconds_t
+#define wan_suseconds_t unsigned long
+#endif
+
 #elif defined(__WINDOWS__)
 # include <sdla_56k.h>
 # include <sdla_te1.h>
@@ -254,6 +262,10 @@ enum {
 
 #define DEFAULT_TE_RX_SLEVEL 120
 
+/* Serial RTS/DTS control, default is alwasy HIGH */
+#define WANOPT_HIGH 	0
+#define WANOPT_LOW  	1
+
 typedef char devname_t[WAN_DRVNAME_SZ+1];
 
 
@@ -347,6 +359,8 @@ typedef struct wan_xilinx_conf
 	unsigned int	rbs;		/* Robbit signalling support */
 	unsigned int	data_mux_map;	/* Data mux map */
 	unsigned int	rx_crc_bytes;
+	unsigned char	serial_dtr_ctrl;
+	unsigned char	serial_rts_ctrl;
 #if defined(__WINDOWS__)
 	unsigned short num_of_ch;	/* Number of logical channels */
 	unsigned int   tdmv_span_no;

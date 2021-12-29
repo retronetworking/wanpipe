@@ -114,6 +114,13 @@ if [ "$ZAPTEL_DIR" == "" ]; then
 fi
 
 cd $ZAPTEL_DIR
+
+if [ -e kernel/zaptel.h ]; then
+	cd kernel
+	TMP_ZAPDIR=$ZAPTEL_DIR/kernel
+	ZAPTEL_DIR=$TMP_ZAPDIR
+fi
+
 if [ -e $ZAPTEL_DIR/zaptel-base.c ]; then
         ZAPTEL_C_FILE=zaptel-base.c
 fi

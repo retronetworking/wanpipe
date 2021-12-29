@@ -60,7 +60,8 @@
 			}	
 #endif	
 
-static void hw_set_lb_modes(unsigned char type, unsigned char mode);
+static int set_lb_modes_status(u_int8_t, u_int8_t, u_int32_t, int);
+static int loopback_command(u_int8_t type, u_int8_t mode, u_int32_t);
 static int hw_get_femedia_type(wan_femedia_t*);
 static int hw_get_fe_type(unsigned char* adapter_type);
 
@@ -173,8 +174,8 @@ char *csudsu_menu_te1_dm[]={
 "Tdlllb","D LIU Local Loopback T1/E1",
 "Taldlb","E LIU Dual Loopback T1/E1",
 "Tdldlb","D LIU Dual Loopback T1/E1",
-"Tsalb","Send Loopback Activate Code",  
-"Tsdlb","Send Loopback Deactive Code",  
+"Tsalb","Send Line Loopback Activate Code",  
+"Tsdlb","Send Line Loopback Deactive Code",  
 "."
 };
 
@@ -898,52 +899,94 @@ int get_fe_type(unsigned char* adapter_type)
 
 #endif
 
-void set_lb_modes(unsigned char type, unsigned char mode)
+int set_lb_modes(unsigned char type, unsigned char mode)
 {
-  if(make_hardware_level_connection()){
-    return;
-  }
-  hw_set_lb_modes(type, mode);
+	int 	err = 0;
 
-  cleanup_hardware_level_connection();
+	err = loopback_command(type, mode, ENABLE_ALL_CHANNELS);
+
+	set_lb_modes_status(type, mode, ENABLE_ALL_CHANNELS, err);
+
+	return err;
 }
 
-static void hw_set_lb_modes(unsigned char type, unsigned char mode)
+static int set_lb_modes_status(unsigned char type, unsigned char mode, u_int32_t chan_map, int err)
 {
-	wan_udp.wan_udphdr_command	= WAN_FE_LB_MODE;
-	wan_udp.wan_udphdr_data_len	= 2;
-	wan_udp.wan_udphdr_return_code	= 0xaa;
 
-	set_wan_udphdr_data_byte(0,type);
-	set_wan_udphdr_data_byte(1,mode);
-
-#if 0
-	if (wan_protocol == WANCONFIG_CHDLC){
-		wan_udp.wan_udphdr_chdlc_data[0] = type;
-		wan_udp.wan_udphdr_chdlc_data[1] = mode;
-	}else{
-		wan_udp.wan_udphdr_data[0] = type;
-		wan_udp.wan_udphdr_data[1] = mode;
-	}
-#endif
-	DO_COMMAND(wan_udp);
 	if (femedia.media == WAN_MEDIA_T1 || femedia.media == WAN_MEDIA_E1){
-		printf("%s %s mode ... %s!\n",
+		if (chan_map != ENABLE_ALL_CHANNELS){
+			printf("%s %s mode for channels %08X ... %s!\n",
 				WAN_TE1_LB_ACTION_DECODE(mode),
 				WAN_TE1_LB_MODE_DECODE(type),
-				(!wan_udp.wan_udphdr_return_code)?"Done":"Failed");
+				chan_map,
+				(!err)?"Done":"Failed");
+		}else{
+			printf("%s %s mode ... %s!\n",
+				WAN_TE1_LB_ACTION_DECODE(mode),
+				WAN_TE1_LB_MODE_DECODE(type),
+				(!err)?"Done":"Failed");
+		}
 	}else if (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){
 		printf("%s %s mode ... %s!\n",
 				WAN_TE3_LB_ACTION_DECODE(mode),
 				WAN_TE3_LB_TYPE_DECODE(type),
-				(!wan_udp.wan_udphdr_return_code)?"Done":"Failed");
+				(!err)?"Done":"Failed");
 	}else{
 		printf("%s %s mode ... %s (default)!\n",
 				WAN_TE1_LB_ACTION_DECODE(mode),
 				WAN_TE1_LB_MODE_DECODE(type),
-				(!wan_udp.wan_udphdr_return_code)?"Done":"Failed");
+				(!err)?"Done":"Failed");
 	}
-	return;
+	return err;
+}
+
+
+static int loopback_command(u_int8_t type, u_int8_t mode, u_int32_t chan_map)
+{
+	sdla_fe_lbmode_t	*lb;
+	int			err = 0, cnt = 0;
+
+	if (make_hardware_level_connection()){
+		return -EINVAL;
+	}
+
+	lb = (sdla_fe_lbmode_t*)get_wan_udphdr_data_ptr(0);
+	memset(lb, 0, sizeof(sdla_fe_lbmode_t));
+	lb->cmd		= WAN_FE_LBMODE_CMD_SET;
+	lb->type	= type;
+	lb->mode	= mode;
+	lb->chan_map	= chan_map;
+
+lb_poll_again:
+	wan_udp.wan_udphdr_command	= WAN_FE_LB_MODE;
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_lbmode_t);
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	
+	DO_COMMAND(wan_udp);
+	
+	if (wan_udp.wan_udphdr_return_code){
+		err = -EINVAL;
+	}
+	if (lb->rc == WAN_FE_LBMODE_RC_PENDING){
+
+		if (!cnt) printf("Please wait ..");fflush(stdout);
+		if (cnt++ < 10){
+			printf(".");fflush(stdout);
+			sleep(1);
+			lb->cmd	= WAN_FE_LBMODE_CMD_POLL;
+			lb->rc	= 0x00;
+			goto lb_poll_again;
+		}
+		err = -EINVAL;
+		goto loopback_command_exit;
+	}else if (lb->rc != WAN_FE_LBMODE_RC_SUCCESS){
+		err = -EINVAL;
+	}
+	if (cnt) printf("\n");
+
+loopback_command_exit:
+	cleanup_hardware_level_connection();
+	return err;
 }
 
 void get_lb_modes(void)
@@ -1506,5 +1549,442 @@ repeat_read_reg:
 	}
 	cleanup_hardware_level_connection();
 	return;
+}
+
+/******************************************************************************
+*
+* 
+* pseudorandom:    wanpipemon -i <ifname> -c Tbert <pattern_type> <eib> <chan_map> 
+* repetitive:      wanpipemon -i <ifname> -c Tbert <pattern_type> <pattern> <pattern_len> <eib> <chan_map>
+* repetitive word: wanpipemon -i <ifname> -c Tbert <pattern_type> <pattern> <count> <eib> <chan_map>
+
+******************************************************************************/
+static int set_fe_bert_help()
+{
+	printf("\n");
+	printf("\tSangoma T1 Bit-Error-Test\n\n");
+	printf("Usage:\n");
+	printf("\n");
+	printf(" wanpipemon -i <ifname> -c Tbert <command> <pattern type> [pattern] [pattern len] [wcount] [eib type] [loopback mode] [channel list]\n"); 
+	printf(" wanpipemon -i <ifname> -c Tbert help                  : print help message\n"); 
+	printf("\n");
+	printf("* command (--cmd <command>)\t: BERT command\n");
+	printf("    start:\tStart BERT\n");
+	printf("    stop:\tStop BERT\n");
+	printf("    status:\tPrint BERT statistics\n");
+	printf("    eib:\tInsert Error bit\n");
+	printf("    reset:\tReset BERT counters\n");
+	printf("    running:\tVerify if BERT is running\n");
+	printf("    help:\tPrint help message\n");
+	printf("* pattern type (--ptype <type>)\t: BERT pattern type\n");
+	printf("    pseudor1:\tPseudorandom 2E7-1 (default)\n");
+	printf("    pseudor2:\tPseudorandom 2E11-1\n");
+	printf("    pseudor3:\tPseudorandom 2E15-1\n");
+	printf("    pseudor4:\tPseudorandom Pattern QRSS\n");
+	printf("    pseudor5:\tPseudorandom 2E9-1\n");
+	printf("    repet:\tRepetitive Pattern (pattern 32 bits)\n");
+	printf("    alterw:\tAleternating Word Pattern (pattern 16/32 bits)\n");
+	printf("    daly:\tModified 55 Octet (Daly) Pattern\n");
+	printf("\n");
+	printf("* pattern (--pattern <pattern>)\t: BERT Repetitive Pattern (32 bits)\n");
+	printf("* pattern len (--plen <number)\t: BERT Repetitive Pattern Length\n");
+	printf("* wcount (--wcount <number)\t: BERT Alternating Word Count (1-256)\n");
+	printf("* eib type (--eib <type>)\t: Error Insert Bit type:\n");
+	printf("    none:\tNo errors automatically inserted (default)\n");
+	printf("    single:\tInsert Single Bit Error\n");
+	printf("    eib1:\t10E-1 Bit Error Insert\n");
+	printf("    eib2:\t10E-2 Bit Error Insert\n");
+	printf("    eib3:\t10E-3 Bit Error Insert\n");
+	printf("    eib4:\t10E-4 Bit Error Insert\n");
+	printf("    eib5:\t10E-5 Bit Error Insert\n");
+	printf("    eib6:\t10E-6 Bit Error Insert\n");
+	printf("    eib7:\t10E-7 Bit Error Insert\n");
+	printf("\n");
+	printf("* loopback mode (--loop <mode>)\t: BERT Loopback mode (T1 only)\n");
+	printf("    none:\tNo required to send loopback mode code (default)\n");
+	printf("    payload:\tSend payload loopback code to far end before and after BERT\n");
+	printf("    line:\tSend line loopback code to far end before and after BERT\n");
+	printf("\n");
+	printf("* channle list (--chan <list>)\t: Channel list for BERT\n");
+	printf("    all:\tUse all active channels (default)\n");
+	printf("    A:\tSingle channel\n");
+	printf("    A-B:\tChannel map defined as a range (A..B)\n");
+	printf("\n");
+	printf("Examples:\n");
+	printf("  wanpipemon -i w1g1 -c Tbert --cmd start --ptype pseudor1 --eib none --loop none --chan all\n"); 
+	printf("  wanpipemon -i w1g1 -c Tbert --cmd start --ptype repetp --pattern 12345678 --plen 32 --eib none --loop none --chan all\n"); 
+	printf("  wanpipemon -i w1g1 -c Tbert --cmd start --ptype daly --eib none --loop none --chan all\n"); 
+	printf("  wanpipemon -i w1g1 -c Tbert --cmd start --ptype alterw --pattern 1234abcd --wcount 101 --eib none --loop none --chan all\n"); 
+	printf("  wanpipemon -i w1g1 -c Tbert --cmd status\n"); 
+	printf("\n");
+	return 0;
+}
+
+
+int parse_bert_args(int argc, char *argv[], sdla_te_bert_t *bert, int *silent)
+{
+	int	argi = 0;
+
+	*silent = 0;
+	for(argi = 1; argi < argc; argi++){
+
+		char *parg = argv[argi], *param;
+
+		if (strcmp(parg, "--cmd") == 0){
+
+			if (argi + 1 >= argc ){
+				printf("ERROR: BERT command is missing!\n");
+				return -EINVAL;
+			}
+			param = argv[argi+1]; 
+			if (strcmp(param,"start") == 0){
+				bert->cmd = WAN_TE_BERT_CMD_START;
+			}else if (strcmp(param,"stop") == 0){
+				bert->cmd = WAN_TE_BERT_CMD_STOP;
+			}else if (strcmp(param,"status") == 0){
+				bert->cmd = WAN_TE_BERT_CMD_STATUS;
+			}else if (strcmp(param,"running") == 0){
+				bert->cmd = WAN_TE_BERT_CMD_RUNNING;
+			}else if (strcmp(param,"reset") == 0){
+				bert->cmd = WAN_TE_BERT_CMD_RESET;
+			}else if (strcmp(param,"eib") == 0){
+				bert->cmd = WAN_TE_BERT_CMD_EIB;
+			}else if (strcmp(param,"help") == 0){
+				bert->cmd = 0x00;
+				return 0;
+			}else{
+				printf("ERROR: Invalid BERT command (%s)!\n", param);
+				return -EINVAL;
+			}
+			
+		} else if (strcmp(parg, "--ptype") == 0){
+	
+			if (argi + 1 >= argc ){
+				printf("ERROR: BERT pattern type is missing!\n");
+				return -EINVAL;
+			}
+			param = argv[argi+1]; 
+			if (strncmp(param,"pseudor1",8) == 0){
+				bert->un.cfg.pattern_type = WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E7;
+			}else if (strncmp(param,"pseudor2",8) == 0){
+				bert->un.cfg.pattern_type = WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E11;
+			}else if (strncmp(param,"pseudor3",8) == 0){
+				bert->un.cfg.pattern_type = WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E15;
+			}else if (strncmp(param,"pseudor4",8) == 0){
+				bert->un.cfg.pattern_type = WAN_TE_BERT_PATTERN_PSEUDORANDOM_QRSS;
+			}else if (strncmp(param,"pseudor5",8) == 0){
+				bert->un.cfg.pattern_type = WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E9;
+			}else if (strncmp(param,"repet",5) == 0){
+				bert->un.cfg.pattern_type = WAN_TE_BERT_PATTERN_REPETITIVE;
+			}else if (strncmp(param,"alterw",6) == 0){
+				bert->un.cfg.pattern_type = WAN_TE_BERT_PATTERN_WORD;
+			}else if (strncmp(param,"daly",5) == 0){
+				bert->un.cfg.pattern_type = WAN_TE_BERT_PATTERN_DALY;
+			}else{
+				printf("ERROR: Invalid BERT pattern type (%s)!\n", param);
+				return -EINVAL;
+			}
+
+		}else if (strcmp(parg, "--pattern") == 0){
+
+			int 	num = 0, i = 0, len;
+			char	ch;
+	
+			if (argi + 1 >= argc ){
+				printf("ERROR: BERT pattern is missing!\n");
+				return -EINVAL;
+			}
+			len = strlen(argv[argi+1]);
+			bert->un.cfg.pattern = 0x00;
+			for(i=0; i < len; i++){
+				bert->un.cfg.pattern = bert->un.cfg.pattern << 4;
+				ch = argv[argi+1][i];
+				if (isdigit(ch)){
+					num = ch - '0'; 
+				}else if (ch >= 'A' && ch <= 'F'){
+					num = 10 + (ch-'A'); 
+				}else if (ch >= 'a' && ch <= 'f'){
+					num = 10 + (ch-'a'); 
+				}else{
+					printf("ERROR: Invalid BERT pattern (%s)!\n", argv[argi+1]);
+					return -EINVAL;
+				}
+				bert->un.cfg.pattern |= num;
+			}
+
+		}else if (strcmp(parg, "--plen") == 0){
+
+			if (argi + 1 >= argc ){
+				printf("ERROR: BERT pattern len is missing!\n");
+				return -EINVAL;
+			}
+			bert->un.cfg.pattern_len = atoi(argv[argi+1]);
+	
+		}else if (strcmp(parg, "--wcount") == 0){
+
+			if (argi + 1 >= argc ){
+				printf("ERROR: BERT Alternating Word Count is missing!\n");
+				return -EINVAL;
+			}
+			bert->un.cfg.count = atoi(argv[argi+1]);
+
+		}else if (strcmp(parg, "--eib") == 0){
+
+			if (argi + 1 >= argc ){
+				printf("ERROR: BERT EIB parameter is missing!\n");
+				return -EINVAL;
+			}
+			param = argv[argi+1]; 
+			if (strncmp(param, "none", 4) == 0){
+				bert->un.cfg.eib = WAN_TE_BERT_EIB_NONE;
+			} else if (strncmp(param, "single", 6) == 0){
+				bert->un.cfg.eib = WAN_TE_BERT_EIB_SINGLE;
+			} else if (strncmp(param, "eib1", 4) == 0){
+				bert->un.cfg.eib = WAN_TE_BERT_EIB1;
+			} else if (strncmp(param, "eib2", 4) == 0){
+				bert->un.cfg.eib = WAN_TE_BERT_EIB2;
+			} else if (strncmp(param, "eib3", 4) == 0){
+				bert->un.cfg.eib = WAN_TE_BERT_EIB3;
+			} else if (strncmp(param, "eib4", 4) == 0){
+				bert->un.cfg.eib = WAN_TE_BERT_EIB4;
+			} else if (strncmp(param, "eib5", 4) == 0){
+				bert->un.cfg.eib = WAN_TE_BERT_EIB5;
+			} else if (strncmp(param, "eib6", 4) == 0){
+				bert->un.cfg.eib = WAN_TE_BERT_EIB6;
+			} else if (strncmp(param, "eib7", 4) == 0){
+				bert->un.cfg.eib = WAN_TE_BERT_EIB7;
+			} else {
+				printf("ERROR: Invalid BERT EIB type (%s)!\n", param);
+				return -EINVAL;
+			}
+
+		}else if (strcmp(parg, "--loop") == 0){
+
+			if (argi + 1 >= argc ){
+				printf("ERROR: BERT loop mode is missing!\n");
+				return -EINVAL;
+			}
+			if (femedia.media == WAN_MEDIA_E1){
+				printf("ERROR: BERT loop parameter is invalid in E1 mode!\n");
+				return -EINVAL;
+			}
+			if (strncmp(argv[argi+1],"none",4) == 0){
+				bert->un.cfg.lb_type = WAN_TE_BERT_LOOPBACK_NONE;
+			}else if (strncmp(argv[argi+1],"payload",7) == 0){
+				bert->un.cfg.lb_type = WAN_TE_BERT_LOOPBACK_PAYLOAD;
+			}else if (strncmp(argv[argi+1],"line",4) == 0){
+				bert->un.cfg.lb_type = WAN_TE_BERT_LOOPBACK_LINE;
+			} else {
+				printf("ERROR: Invalid BERT Loopback mode (%s)!\n", argv[argi+1]);
+				return -EINVAL;
+			}
+
+		}else if (strcmp(parg, "--chan") == 0){
+
+			if (argi + 1 >= argc ){
+				printf("ERROR: BERT channel list is missing!\n");
+				return -EINVAL;
+			}
+			param = argv[argi+1]; 
+			if (strcasecmp(param,"all") == 0){
+				bert->un.cfg.chan_map = ENABLE_ALL_CHANNELS;
+			}else{
+				char	chan[10];
+				int	i, j = 0, len=strlen(param);
+				int	start_ch = 0, stop_ch = 0, range = 0;
+			
+				for(i = 0; i < len; i++){
+					if (param[i] == '-'){
+						range = 1;
+						start_ch = atoi(chan);
+						j = 0;
+						continue;
+					}
+					chan[j++] = param[i];
+				}
+				if (!range){
+					start_ch = atoi(chan);
+				}
+				stop_ch = atoi(chan);
+				bert->un.cfg.chan_map = 0x00;
+				for(i = stop_ch; i >= start_ch; i--){
+					bert->un.cfg.chan_map |= (0x01 << i);
+				}
+			}
+		}else if (strcmp(parg, "--verbose") == 0){
+
+			bert->verbose = 1;
+
+		}else if (strcmp(parg, "--silent") == 0){
+			*silent = 1;
+		}
+	}
+	return 0;
+}
+
+int set_fe_bert(int argc, char *argv[])
+{
+	sdla_te_bert_t	bert;
+	int		silent = 0;
+	u_int8_t	lb_type = 0; 
+	char		*data = NULL;
+
+	if (femedia.media != WAN_MEDIA_T1 && femedia.media != WAN_MEDIA_E1){
+		printf("ERROR: Sangoma Bit-Error-Test supports only for T1/E1 (DM) cards!\n");
+		return -EINVAL;
+	}
+
+	memset(&bert, 0, sizeof(sdla_te_bert_t));
+
+	/* default value */
+	bert.cmd = WAN_TE_BERT_CMD_NONE;
+	if (bert.cmd == WAN_TE_BERT_CMD_START){
+		bert.un.cfg.pattern_type	= WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E7;
+		bert.un.cfg.eib			= WAN_TE_BERT_EIB_NONE;
+		bert.un.cfg.chan_map		= ENABLE_ALL_CHANNELS;
+	}
+
+	if (parse_bert_args(argc, argv, &bert, &silent)){
+		return -EINVAL;
+	}
+
+	if (!bert.cmd){
+		set_fe_bert_help();
+		return 0;
+	}
+
+#if 0
+	if (bert->verbose){
+		printf("BERT command        : %s\n", WAN_TE_BERT_CMD_DECODE(bert.cmd));
+		printf("BERT channel list   : %08X\n", bert.chan_map); 
+		printf("BERT pattern type   : %s\n", WAN_TE_BERT_PATTERN_DECODE(bert.pattern_type)); 
+		printf("BERT pattern length : %d\n", bert.pattern_len); 
+		printf("BERT pattern        : %08X\n",bert.pattern);
+		printf("BERT word count     : %d\n", bert.count); 
+		printf("BERT loopback mode  : %s\n", WAN_TE_BERT_LOOPBACK_DECODE(bert.lb_mode)); 
+		printf("BERT EIB            : %s\n", WAN_TE_BERT_EIB_DECODE(bert.eib)); 
+	}
+#endif
+	
+	if (bert.cmd == WAN_TE_BERT_CMD_START && bert.un.cfg.lb_type != WAN_TE_BERT_LOOPBACK_NONE){
+
+		if (bert.un.cfg.lb_type == WAN_TE_BERT_LOOPBACK_LINE){
+			lb_type = WAN_TE1_TX_LINELB_MODE;
+		}else if (bert.un.cfg.lb_type == WAN_TE_BERT_LOOPBACK_PAYLOAD){
+			lb_type = WAN_TE1_TX_PAYLB_MODE;
+		}
+		if (set_lb_modes(lb_type, WAN_TE1_LB_ENABLE)){
+			printf("ERROR: Failed to execute BERT %s command (%s)!\n",
+					WAN_TE_BERT_CMD_DECODE(bert.cmd),
+					WAN_TE_BERT_LOOPBACK_DECODE(bert.un.cfg.lb_type));
+			return -EINVAL;
+		}
+	}
+
+	if(make_hardware_level_connection()){
+		if (lb_type) set_lb_modes(lb_type, WAN_TE1_LB_DISABLE);
+		return -EINVAL;
+	}
+	data = (char*)get_wan_udphdr_data_ptr(0);
+	memcpy(data, &bert, sizeof(sdla_te_bert_t));
+	wan_udp.wan_udphdr_command	= WAN_FE_BERT_MODE;
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_te_bert_t);
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+
+	DO_COMMAND(wan_udp);
+	if (wan_udp.wan_udphdr_return_code != 0){
+		printf("Failed to execute BERT %s command\n",
+				WAN_TE_BERT_CMD_DECODE(bert.cmd));
+		cleanup_hardware_level_connection();
+		if (lb_type) set_lb_modes(lb_type, WAN_TE1_LB_DISABLE);
+		return -EINVAL;
+	}
+
+	memcpy(&bert, data, sizeof(sdla_te_bert_t));
+	if (bert.rc != WAN_TE_BERT_RC_SUCCESS){
+		printf("ERROR: Failed to execute BERT %s command (%s)!\n",
+					WAN_TE_BERT_CMD_DECODE(bert.cmd),
+					WAN_TE_BERT_RC_DECODE(bert.rc));
+		cleanup_hardware_level_connection();
+		if (lb_type) set_lb_modes(lb_type, WAN_TE1_LB_DISABLE);
+		return -EINVAL;
+	}
+
+	if (bert.cmd == WAN_TE_BERT_CMD_RUNNING){
+		if (silent == 0){
+			printf("BERT test is %s\n",
+				(bert.status == WAN_TE_BERT_STATUS_RUNNING)?
+					"running":"not running");
+		}
+		return (bert.status == WAN_TE_BERT_STATUS_RUNNING) ? 0 : 1;
+	}
+	if (bert.cmd == WAN_TE_BERT_CMD_STATUS){
+
+		sdla_te_bert_stats_t	*stats = &bert.un.stats;
+		double			value;
+
+		printf("****************************************\n");
+		printf("***           BERT Results           ***\n");
+		printf("****************************************\n");
+		printf("--- BERT test is %s ---\n",
+				(bert.status == WAN_TE_BERT_STATUS_RUNNING)?
+					"running":"not running");
+		printf("--- Tx/Rx:\n");
+		printf("\tBit Counts\t\t: %ld\n", 
+					stats->bit_cnt);
+		printf("--- Errors:\n");
+		printf("\tBit Errors\t\t: %ld\n", 
+					stats->err_cnt);
+		printf("\tErrored Seconds\t\t: %d\n", 
+					stats->err_sec);
+		printf("\tError Free Seconds\t: %d\n", 
+					stats->err_free_sec);
+		printf("--- Statistics:\n");
+		printf("\tLock status\t\t: %s\n",
+					(stats->inlock)?
+						"** IN-LOCK **":
+						"** OUT-OF-LOCK **");
+		printf("\tAvailable Seconds\t: %d\n", 
+					stats->avail_sec);
+		value = 0;
+		if (stats->bit_cnt == 0){
+			printf("\tBit Error Rate\t\t: %e\n", value); 
+		}else if (stats->err_cnt == 0){
+			printf("\tBit Error Rate\t\t: %e\n", value); 
+		}else{
+			value = (double)stats->err_cnt / (double)stats->bit_cnt;
+			printf("\tBit Error Rate\t\t: %e\n", value); 
+		}
+		if (stats->avail_sec == 0){
+			printf("\t%% Error Free Seconds\t: 100.00%%\n"); 
+		}else{
+			printf("\t%% Error Free Seconds\t: %d.%d%%\n", 
+				(stats->err_free_sec * 100) / stats->avail_sec,
+				(stats->err_free_sec * 100) % stats->avail_sec);
+		}
+	}else{
+		printf("Execute BERT %s command... Done!\n",
+				WAN_TE_BERT_CMD_DECODE(bert.cmd));
+	}
+
+	cleanup_hardware_level_connection();
+
+	if (bert.cmd == WAN_TE_BERT_CMD_STOP){
+		printf("\n");
+		printf("Stopping Bit-Error-Test... Done!\n");
+		if (bert.un.stop.lb_type != WAN_TE_BERT_LOOPBACK_NONE){
+			if (bert.un.stop.lb_type == WAN_TE_BERT_LOOPBACK_LINE){
+				lb_type = WAN_TE1_TX_LINELB_MODE;
+			}else if (bert.un.stop.lb_type == WAN_TE_BERT_LOOPBACK_PAYLOAD){
+				lb_type = WAN_TE1_TX_PAYLB_MODE;
+			}
+			if (set_lb_modes(lb_type, WAN_TE1_LB_DISABLE)){
+				printf("WARNING: Failed to deactivate Remote %s mode!\n",
+						WAN_TE_BERT_LOOPBACK_DECODE(bert.un.stop.lb_type));
+			}
+		}
+	}
+
+	return 0;
 }
 

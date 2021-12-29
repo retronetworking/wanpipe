@@ -20,13 +20,14 @@ ENABLE_HDLC=YES
 ENABLE_WANPIPEMON_ZAP=
 PROTOCOL_DEFS=
 ASTBROOT=/usr
+SYSINC=-I/usr/include/wanpipe
 #-DCONFIG_PRODUCT_WANPIPE_ADSL
 
 CC = gcc 
 CPP = gcc -E
 CFLAGS = -Wall -Wstrict-prototypes 
 CFLAGS += $(EXTRA_FLAGS)
-CFLAGS +=  -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG)
+CFLAGS +=  -D$(OS_TYPE) -I$(SYSINC) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG)
 WAN_VIRTUAL=
 
 

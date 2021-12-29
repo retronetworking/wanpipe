@@ -2013,23 +2013,23 @@ static int wanec_isr(void *arg)
 	}
 	if (wan_test_bit(WAN_EC_BIT_EVENT_DTMF, &ec_dev->events)){
 		/* DTMF event is enabled */
-		if ((SYSTEM_TICKS - ec_dev->lastint_ticks) > WAN_EC_DTMF_IRQ_TIMEOUT){
-			ec_dev->lastint_ticks = SYSTEM_TICKS;
+		if ((SYSTEM_TICKS - ec_dev->ec->lastint_ticks) > WAN_EC_DTMF_IRQ_TIMEOUT){
+			ec_dev->ec->lastint_ticks = SYSTEM_TICKS;
 			return 1; 
 		}
 		return 0;
 	}
 	if (wan_test_bit(WAN_EC_BIT_EVENT_PLAYOUT, &ec_dev->events)){
 		/* Playout event is enabled */
-		if ((SYSTEM_TICKS - ec_dev->lastint_ticks) > WAN_EC_PLAYOUT_IRQ_TIMEOUT){
-			ec_dev->lastint_ticks = SYSTEM_TICKS;
+		if ((SYSTEM_TICKS - ec_dev->ec->lastint_ticks) > WAN_EC_PLAYOUT_IRQ_TIMEOUT){
+			ec_dev->ec->lastint_ticks = SYSTEM_TICKS;
 			return 1; 
 		}
 		return 0;
 	}
 
-	if ((SYSTEM_TICKS - ec_dev->lastint_ticks) > WAN_EC_IRQ_TIMEOUT){
-		ec_dev->lastint_ticks = SYSTEM_TICKS;
+	if ((SYSTEM_TICKS - ec_dev->ec->lastint_ticks) > WAN_EC_IRQ_TIMEOUT){
+		ec_dev->ec->lastint_ticks = SYSTEM_TICKS;
 		return 1; 
 	}
 	return 0;

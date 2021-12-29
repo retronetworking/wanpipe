@@ -1,22 +1,39 @@
 chan_woomera.c
 ======================================
-
+ Dec 19 2008
+ * v1.39 David Yat Sin <dyatsin@sangoma.com>
+ * 	Support for Asterisk 1.6
+ 
  Dec 05 2008
  * v1.38 David Yat Sin <dyatsin@sangoma.com>
- *      Support for fax detect using Asterisk software DSP
-
+ *	Support for fax_detect using Asterisk software DSP
+ 
  Nov 26 2008
  * v1.37 Nenad Corbic <ncorbic@sangoma.com>
- *      tech_read try again now checks for hangup
-
+ *	Bug Fix: tech_read try again now checks for hangup
+ 
  Oct 14 2008
- * v1.36 David Yat Sin <davidy@sangoma.com>
- *      Fix for call hangup on call park
+ * v1.36 David Yat Sin <dyatsin@sangoma.com>
+ *  Bug Fix: Call hangup on call park
+
+ Jul 23 2008
+ * v1.35 Nenad Corbic <ncorbic@sangoma.com>
+ *  Bug Fix: Check for cid_name.
+ 
+ Jul 23 2008
+ * v1.34 Nenad Corbic <ncorbic@sangoma.com>
+ *  Added udp tagging and rx/tx sync options for
+ *	voice streams debugging. Not for production.
+ 
+ Jul 18 2008
+ * v1.33 Nenad Corbic <ncorbic@sangoma.com>
+ *	Added UDP Sequencing to check for dropped frames
+ *	Should only be used for debugging.
 
  Jun 3 2008
  * v1.32 David Yat Sin <davidy@sangoma.com>
  *      Updated for callweaver v1.2.0
-     
+ 
  Jun 2 2008
  * v1.31 Nenad Corbic <ncorbic@sangoma.com>
  * v1.30 Nenad Corbic <ncorbic@sangoma.com>

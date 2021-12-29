@@ -63,8 +63,9 @@ void handle_span_chan(int dev_fd)
 		 * 	1: OOB event, link level change
 		 * 	2: Rx data available
 		 * 	3: Interface able to Tx */
-		
-  		if (select(dev_fd + 1,NULL, NULL, &oob, NULL)){
+		err=select(dev_fd + 1,NULL, NULL, &oob, NULL);
+			
+  		if (err > 0){
 
 			fflush(stdout);	
 		   	if (FD_ISSET(dev_fd,&oob)){
@@ -84,15 +85,27 @@ void handle_span_chan(int dev_fd)
 
 				switch (rx_event->wp_tdm_api_event_type){
 
+#if 0
 				case WP_TDMAPI_EVENT_ALARM:
 					printf("GOT ALARM EVENT 0x%0X Span=%i Chan=%i\n",
 						rx_event->wp_tdm_api_event_alarm,rx_event->span,rx_event->channel);
 					break;
+#endif
+				case WP_TDMAPI_EVENT_LINK_STATUS:
+					printf("GOT LINK STATUS Span=%i Chan=%i State=%s\n",
+						rx_event->span,rx_event->channel,
+						rx_event->wp_tdm_api_event_link_status == WP_TDMAPI_EVENT_LINK_STATUS_CONNECTED ? "Connected" : "Disconnected");
+					break;	
 				default:			
-					printf("GOT UNKNOWN OOB %i \n",rx_event->wp_tdm_api_event_type);
+					//printf("GOT UNKNOWN OOB %i \n",rx_event->wp_tdm_api_event_type);
 					break;
 				}
 			}	
+		}
+		if (err < 0) {
+			printf("Device Down!\n");
+			fflush(stdout);	
+			break;
 		}
 	}
 } 

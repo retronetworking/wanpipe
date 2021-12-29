@@ -15,11 +15,12 @@ DEBUG	= 2
 
 
 WAN_VIRTUAL=
+SYSINC=-I/usr/include/wanpipe
 
 PRODS=wan_plxup
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG)
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
 CFLAGS  += $(EXTRA_FLAGS)
 
 

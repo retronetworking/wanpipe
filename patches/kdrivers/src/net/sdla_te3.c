@@ -903,6 +903,41 @@ static u32 sdla_te3_get_lb(sdla_fe_t *fe)
 	return type;
 }
 
+/******************************************************************************
+*				sdla_te3_udp_lb()	
+*
+* Description:
+* Arguments:	
+* Returns:
+******************************************************************************/
+static int sdla_te3_udp_lb(sdla_fe_t *fe, unsigned char *data)
+{
+	sdla_t			*card = (sdla_t*)fe->card;
+	sdla_fe_lbmode_t	*lb = (sdla_fe_lbmode_t*)data;
+	int			err = 0;
+
+	WAN_ASSERT(card == NULL);
+	if (lb->cmd == WAN_FE_LBMODE_CMD_SET){
+
+		/* Activate/Deactivate Line Loopback modes */
+		if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
+			err = sdla_te3_old_set_lb_modes(fe, lb->type, lb->mode); 
+		}else if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
+			err = sdla_te3_set_lb_modes(fe, lb->type, lb->mode); 
+		}
+
+	}else if (lb->cmd == WAN_FE_LBMODE_CMD_SET){
+
+		if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
+			lb->type_map = sdla_te3_old_get_lb(fe);
+		}else if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
+			lb->type_map= sdla_te3_get_lb(fe);
+		}
+	}else{
+		return -EINVAL;
+	}
+	return err;
+}
 
 /******************************************************************************
  *				sdla_te3_udp()	
@@ -914,11 +949,9 @@ static u32 sdla_te3_get_lb(sdla_fe_t *fe)
  */
 static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 {
-	sdla_t			*card = (sdla_t*)fe->card;
 	wan_femedia_t		*fe_media = NULL;
 	sdla_fe_debug_t	*fe_debug = NULL;
 	wan_cmd_t		*udp_cmd = (wan_cmd_t*)pudp_cmd;
-	int			err = -EINVAL;
 
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
@@ -930,27 +963,13 @@ static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 		break;
 
 	case WAN_FE_LB_MODE:
-		if (!data[0]){
-			u32	mode = 0;
-			if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
-				mode = sdla_te3_old_get_lb(fe);
-			}else if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
-				mode = sdla_te3_get_lb(fe);
-			}
-		       	memcpy(&data[0], (u8*)&mode, sizeof(mode));
-		    	udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-    		    	udp_cmd->wan_cmd_data_len = sizeof(mode);
+		if (sdla_te3_udp_lb(fe, data)){
+		    	udp_cmd->wan_cmd_return_code	= WAN_UDP_FAILED_CMD;
+	    		udp_cmd->wan_cmd_data_len	= 0x00;
 			break;
 		}
-		/* Activate/Deactivate Line Loopback modes */
-		if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
-			err = sdla_te3_old_set_lb_modes(fe, data[0], data[1]); 
-		}else if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
-			err = sdla_te3_set_lb_modes(fe, data[0], data[1]); 
-		}
-	    	udp_cmd->wan_cmd_return_code = 
-				(!err) ? WAN_CMD_OK : WAN_UDP_FAILED_CMD;
-	    	udp_cmd->wan_cmd_data_len = 0x00;
+	    	udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_fe_lbmode_t);
 		break;
 
 	case WAN_FE_GET_STAT:

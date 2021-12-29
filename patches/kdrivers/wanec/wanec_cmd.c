@@ -78,6 +78,7 @@ UINT32 DetectedSoutToneNumbers[WAN_NUM_DTMF_TONES] =
 	SOUT_DTMF_D,
 	SOUT_DTMF_STAR,
 	SOUT_DTMF_POUND,
+	SOUT_G168_1100GB_ON
 };
 UINT32 DetectedRoutToneNumbers[WAN_NUM_DTMF_TONES] = 
 {
@@ -96,7 +97,8 @@ UINT32 DetectedRoutToneNumbers[WAN_NUM_DTMF_TONES] =
 	ROUT_DTMF_C,
 	ROUT_DTMF_D,
 	ROUT_DTMF_STAR,
-	ROUT_DTMF_POUND
+	ROUT_DTMF_POUND,
+	ROUT_G168_1100GB_ON
 };
 
 /*=============================================================
@@ -1156,6 +1158,9 @@ static CHAR* wanec_ToneId2Str(UINT32 f_ulToneId)
 	case SIN_SYSTEM7_2000: return "SIN_SYSTEM7_2000";
 	case SIN_SYSTEM7_1780: return "SIN_SYSTEM7_1780";
 
+	case SOUT_G168_1100GB_ON: return "SOUT_G168_1100GB_ON";
+	case ROUT_G168_1100GB_ON: return "ROUT_G168_1100GB_ON";
+
 	default: return "INVALID TONE ID!";
 	}
 }
@@ -1197,6 +1202,9 @@ static unsigned char wanec_ConvertToneId(UINT32 f_ulToneId, unsigned char *ec_dt
 	case SOUT_DTMF_D:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return 'D';
 	case SOUT_DTMF_STAR:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '*';
 	case SOUT_DTMF_POUND:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '#';
+
+	case SOUT_G168_1100GB_ON:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
+	case ROUT_G168_1100GB_ON:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
 	}
 	return 0x00000000;
 }

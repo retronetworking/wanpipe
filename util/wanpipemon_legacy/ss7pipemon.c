@@ -1187,9 +1187,9 @@ int SS7Main(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt,"ddlb")){
 				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"salb")){
-				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_LB_ENABLE);
+				set_lb_modes(WAN_TE1_TX_LINELB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"sdlb")){
-				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_LB_DISABLE);
+				set_lb_modes(WAN_TE1_TX_LINELB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"a")){
 				read_te1_56k_stat();
 			} else{

@@ -136,6 +136,7 @@ enum {
 /* clocking options */
 #define	WANOPT_EXTERNAL	0
 #define	WANOPT_INTERNAL	1
+#define	WANOPT_RECOVERY 2
 
 /* station options */
 #define	WANOPT_DTE		0

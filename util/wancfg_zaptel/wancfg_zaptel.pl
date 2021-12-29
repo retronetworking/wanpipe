@@ -1794,12 +1794,14 @@ select_bri_option:
 					$current_bri_default_tei=$def_bri_default_tei;
 				}
 				printf("\nConfiguring span:%s as TEI:%s\n", $bri_pos, $current_bri_default_tei);
-				my @options = ("YES - Keep this setting", "NO  - Specify a different TEI");
-				my $res = &prompt_user_list(@options, "YES");
-				if ($res =~ m/NO/) {
-					$def_bri_default_tei_opt=$TRUE;
-					$current_bri_default_tei=get_bri_default_tei();	
-	                        }
+                                if($silent==$FALSE){
+                                        my @options = ("YES - Keep this setting", "NO  - Specify a different TEI");
+                                        my $res = &prompt_user_list(@options, "YES");
+                                        if ($res =~ m/NO/) {
+                                                $def_bri_default_tei_opt=$TRUE;
+                                                $current_bri_default_tei=get_bri_default_tei();	
+                                        }
+                                }
 				if ($def_bri_default_tei_opt==$FALSE){
 					$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_te", $group, $country, $operator, $conn_type, '');
 				} else { 

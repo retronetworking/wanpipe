@@ -1919,15 +1919,18 @@ static void rx_intr (sdla_t* card)
 
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
 	if (!dev){ 
+		++card->wandev.stats.rx_dropped;
 		goto rx_exit;
 	}
 	
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
 	if (!netif_running(dev)){
+		++card->wandev.stats.rx_dropped;
 		goto rx_exit;
 	}
 #elif defined(__LINUX__)
 	if (!dev->start){ 
+		++card->wandev.stats.rx_dropped;
 		goto rx_exit;
 	}
 #endif
@@ -1938,10 +1941,12 @@ static void rx_intr (sdla_t* card)
 	chan->prev_error=rxbuf.error_flag;
 	
 	if (rxbuf.error_flag){	
+		++card->wandev.stats.rx_dropped;
 		goto rx_exit;
 	}
 
 	if (tmp_prev_error){
+		++card->wandev.stats.rx_dropped;
 		goto rx_exit;
 	}
 
@@ -1950,6 +1955,7 @@ static void rx_intr (sdla_t* card)
 		if (rxbuf.frame_length <= 2 || rxbuf.frame_length > 4103){
 			DEBUG_EVENT("%s: Bad Rx Frame Length %i\n",
 					card->devname,rxbuf.frame_length);
+			++card->wandev.stats.rx_dropped;
 			goto rx_exit;
 		}	
 	} else 
@@ -1958,10 +1964,12 @@ static void rx_intr (sdla_t* card)
 		if (rxbuf.frame_length <= 2 || rxbuf.frame_length > 4103){
 			DEBUG_EVENT("%s: Bad Rx Frame Length %i\n",
 					card->devname,rxbuf.frame_length);
+			++card->wandev.stats.rx_dropped;
 			goto rx_exit;
 		}	
 	}else{
-		if (rxbuf.frame_length < 7 || rxbuf.frame_length > 4103){
+		if (rxbuf.frame_length <= 2 || rxbuf.frame_length > 4103){
+			++card->wandev.stats.rx_dropped;
 			goto rx_exit;
 		}
 	}

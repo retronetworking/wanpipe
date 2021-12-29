@@ -170,20 +170,24 @@
 #define WAN_TE1_LINELB_MODE	0x01
 #define WAN_TE1_PAYLB_MODE	0x02
 #define WAN_TE1_DDLB_MODE	0x03
-#define WAN_TE1_TX_LB_MODE	0x04
+#define WAN_TE1_TX_LINELB_MODE	0x04
 #define WAN_TE1_LIU_ALB_MODE	0x05
 #define WAN_TE1_LIU_LLB_MODE	0x06
 #define WAN_TE1_LIU_RLB_MODE	0x07
 #define WAN_TE1_LIU_DLB_MODE	0x08
+#define WAN_TE1_TX_PAYLB_MODE	0x09
+#define WAN_TE1_PCLB_MODE	0x0A
 #define WAN_TE1_LB_MODE_DECODE(mode)						\
 		((mode) == WAN_TE1_LINELB_MODE) ? "Line/Remote Loopback" :	\
 		((mode) == WAN_TE1_PAYLB_MODE) ? "Payload Loopback" :		\
 		((mode) == WAN_TE1_DDLB_MODE) ? "Diagnostic Digital Loopback" :	\
-		((mode) == WAN_TE1_TX_LB_MODE) ? "TX Loopback" :		\
+		((mode) == WAN_TE1_TX_LINELB_MODE) ? "TX Line Loopback" :	\
 		((mode) == WAN_TE1_LIU_ALB_MODE) ? "Analog LIU Loopback" :	\
 		((mode) == WAN_TE1_LIU_LLB_MODE) ? "Local LIU Loopback" :	\
 		((mode) == WAN_TE1_LIU_RLB_MODE) ? "Remote LIU Loopback" :	\
 		((mode) == WAN_TE1_LIU_DLB_MODE) ? "Dual LIU Loopback" :	\
+		((mode) == WAN_TE1_TX_PAYLB_MODE) ? "TX Payload Loopback" :	\
+		((mode) == WAN_TE1_PCLB_MODE) ? "Per-channel Loopback" :	\
 						"Unknown Loopback"
 
 /* Line loopback activate/deactive modes */
@@ -202,46 +206,25 @@
 #define WAN_TE1_REFCLK_LINE4	0x04
 
 /* Loopback commands (T1.107-1995 p.44) */
-#define LINELB_TE1_TIMER	40	/* 40ms */
-#define LINELB_CODE_CNT		10	/* no. of repetitions for lb_code */
-#define LINELB_CHANNEL_CNT	10	/* no. of repetitions for channel */
+#define WAN_T1_FDL_MSG_TIME		250	/* 250 us */
+#define WAN_T1_ESF_LINELB_TX_CNT	10	
+#define WAN_T1_D4_LINELB_TX_CNT		5	
 
 #define RBOC_CODE_YEL		0x00
 #define LINELB_ACTIVATE_CODE	0x07
 #define LINELB_DEACTIVATE_CODE	0x1C
-#define LINELB_DS3LINE		0x1B
-#define LINELB_DS1LINE_1	0x21	
-#define LINELB_DS1LINE_2	0x22
-#define LINELB_DS1LINE_3	0x23
-#define LINELB_DS1LINE_4	0x24
-#define LINELB_DS1LINE_5	0x25
-#define LINELB_DS1LINE_6	0x26
-#define LINELB_DS1LINE_7	0x27
-#define LINELB_DS1LINE_8	0x28
-#define LINELB_DS1LINE_9	0x29
-#define LINELB_DS1LINE_10	0x2A
-#define LINELB_DS1LINE_11	0x2B
-#define LINELB_DS1LINE_12	0x2C
-#define LINELB_DS1LINE_13	0x2D
-#define LINELB_DS1LINE_14	0x2E
-#define LINELB_DS1LINE_15	0x2F
-#define LINELB_DS1LINE_16	0x30
-#define LINELB_DS1LINE_17	0x31
-#define LINELB_DS1LINE_18	0x32
-#define LINELB_DS1LINE_19	0x33
-#define LINELB_DS1LINE_20	0x34
-#define LINELB_DS1LINE_21	0x35
-#define LINELB_DS1LINE_22	0x36
-#define LINELB_DS1LINE_23	0x37
-#define LINELB_DS1LINE_24	0x38
-#define LINELB_DS1LINE_25	0x39
-#define LINELB_DS1LINE_26	0x3A
-#define LINELB_DS1LINE_27	0x3B
-#define LINELB_DS1LINE_28	0x3C
-#define LINELB_DS1LINE_ALL	0x13
-#define LINELB_DS1LINE_DISABLE	0x3F
-#define LINELB_DS1LINE_MASK	0x3F
+#define PAYLB_ACTIVATE_CODE	0x0A
+#define PAYLB_DEACTIVATE_CODE	0x19
+#define UNIVLB_DEACTIVATE_CODE	0x12
 
+#define WAN_TE1_BOC_LB_CODE_DECODE(boc)						\
+		((boc) == LINELB_ACTIVATE_CODE) ? "LINELB Activate"	:	\
+		((boc) == LINELB_DEACTIVATE_CODE) ? "LINELB Deactivate"	:	\
+		((boc) == PAYLB_ACTIVATE_CODE) ? "PAYLB Activate"	:	\
+		((boc) == PAYLB_DEACTIVATE_CODE) ? "PAYLB Deactivate"	:	\
+		((boc) == UNIVLB_DEACTIVATE_CODE) ? "Universal LB Deactivate"	:	\
+							"Unsupported BOC"
+ 
 /* Interrupt polling delay */
 #define POLLING_TE1_TIMER	1000	/* 1 sec */
 
@@ -271,6 +254,7 @@
 #define TE_POLL_CONFIG_VERIFY	0x0E
 #define TE_LINKCRIT_TIMER	0x0F
 #define WAN_TE_POLL_LINKREADY	0x10
+#define WAN_TE_POLL_BERT	0x11
 
 /* TE1 T1/E1 interrupt setting delay */
 #define INTR_TE1_TIMER		150	/* 50 ms */
@@ -359,6 +343,7 @@
 #define WAN_FE_GET_CFG		(WAN_FE_UDP_CMD_START + 3)
 #define WAN_FE_SET_DEBUG_MODE	(WAN_FE_UDP_CMD_START + 4)
 #define WAN_FE_TX_MODE		(WAN_FE_UDP_CMD_START + 5)
+#define WAN_FE_BERT_MODE	(WAN_FE_UDP_CMD_START + 6)
 
 /* FE interrupt types bit-map */
 #define WAN_TE_INTR_NONE	0x00
@@ -408,6 +393,142 @@ typedef struct {
 	sdla_te_pmon_t	pmon;
 	char		rxlevel[WAN_TE_RXLEVEL_LEN];
 } sdla_te_stats_t;
+
+/******************************************************************************
+**  BERT definitions
+**/
+#define WAN_TE_BERT_CMD_NONE	0x00
+#define WAN_TE_BERT_CMD_STOP	0x01
+#define WAN_TE_BERT_CMD_START	0x02
+#define WAN_TE_BERT_CMD_STATUS	0x03
+#define WAN_TE_BERT_CMD_EIB	0x04
+#define WAN_TE_BERT_CMD_RESET	0x05
+#define WAN_TE_BERT_CMD_RUNNING	0x06
+#define WAN_TE_BERT_CMD_DECODE(cmd)				\
+	((cmd) == WAN_TE_BERT_CMD_STOP) ? "Stop" :	\
+	((cmd) == WAN_TE_BERT_CMD_START) ? "Start" :		\
+	((cmd) == WAN_TE_BERT_CMD_STATUS) ? "Status" :		\
+	((cmd) == WAN_TE_BERT_CMD_EIB) ? "Error Insert Bit" : 	\
+	((cmd) == WAN_TE_BERT_CMD_RESET) ? "Reset Status" : 	\
+	((cmd) == WAN_TE_BERT_CMD_RUNNING) ? "Running" : 	\
+						"Unknown"
+
+/* BERT: Pattern type */
+#define WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E7	0x01
+#define WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E11	0x02
+#define WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E15	0x03
+#define WAN_TE_BERT_PATTERN_PSEUDORANDOM_QRSS	0x04
+#define WAN_TE_BERT_PATTERN_REPETITIVE		0x05
+#define WAN_TE_BERT_PATTERN_WORD		0x06
+#define WAN_TE_BERT_PATTERN_DALY		0x07
+#define WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E9	0x08
+#define WAN_TE_BERT_PATTERN_DECODE(type)						\
+	((type) == WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E7) ? "PseudoRandom 2E7-1" :	\
+	((type) == WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E11) ? "PseudoRandom 2E11-1" :	\
+	((type) == WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E15) ? "PseudoRandom 2E15-1" :	\
+	((type) == WAN_TE_BERT_PATTERN_PSEUDORANDOM_QRSS) ? "PseudoRandom QRSS" :	\
+	((type) == WAN_TE_BERT_PATTERN_REPETITIVE) ? "Repetitive Pattern" :		\
+	((type) == WAN_TE_BERT_PATTERN_WORD) ? "Alternating Word Pattern" :		\
+	((type) == WAN_TE_BERT_PATTERN_DALY) ? "Daly Pattern" :			\
+	((type) == WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E9) ? "PseudoRandom 2E-9-1" : "Unknown"
+
+#define WAN_TE_BERT_LOOPBACK_NONE		0x00
+#define WAN_TE_BERT_LOOPBACK_PAYLOAD		0x01
+#define WAN_TE_BERT_LOOPBACK_LINE		0x02
+#define WAN_TE_BERT_LOOPBACK_DECODE(type)				\
+	((type) == WAN_TE_BERT_LOOPBACK_NONE) ? "Loopback (None)" :	\
+	((type) == WAN_TE_BERT_LOOPBACK_PAYLOAD) ? "Payload Loopback" :	\
+	((type) == WAN_TE_BERT_LOOPBACK_LINE) ? "Line Loopback" :	\
+						"Unknown"
+
+/* BERT: Errot Insert Bits */
+#define WAN_TE_BERT_EIB_NONE	0x00
+#define WAN_TE_BERT_EIB_SINGLE	0x01
+#define WAN_TE_BERT_EIB1	0x02
+#define WAN_TE_BERT_EIB2	0x03
+#define WAN_TE_BERT_EIB3	0x04
+#define WAN_TE_BERT_EIB4	0x05
+#define WAN_TE_BERT_EIB5	0x06
+#define WAN_TE_BERT_EIB6	0x07
+#define WAN_TE_BERT_EIB7	0x08
+#define WAN_TE_BERT_EIB_DECODE(eib)					\
+	((eib) == WAN_TE_BERT_EIB_NONE) ? "No error insertion" :	\
+	((eib) == WAN_TE_BERT_EIB_SINGLE) ? "Single Bit Error Insert" :	\
+	((eib) == WAN_TE_BERT_EIB1) ? "EIB 10E-1" :			\
+	((eib) == WAN_TE_BERT_EIB2) ? "EIB 10E-2" :			\
+	((eib) == WAN_TE_BERT_EIB3) ? "EIB 10E-3" :			\
+	((eib) == WAN_TE_BERT_EIB4) ? "EIB 10E-4" :			\
+	((eib) == WAN_TE_BERT_EIB5) ? "EIB 10E-5" :			\
+	((eib) == WAN_TE_BERT_EIB6) ? "EIB 10E-6" :			\
+	((eib) == WAN_TE_BERT_EIB7) ? "EIB 10E-7" : 			\
+					"Unknown"
+
+#define WAN_TE_BERT_STATUS_AUTO		0x00
+#define WAN_TE_BERT_STATUS_MANUAL	0x01
+#define WAN_TE_BERT_STATUS_RUNNING	0x02
+#define WAN_TE_BERT_STATUS_STOPPED	0x03
+
+#define WAN_TE_BERT_FLAG_VERBOSE	1
+#define WAN_TE_BERT_FLAG_READY		2
+#define WAN_TE_BERT_FLAG_INLOCK		3
+
+#define WAN_TE_BERT_RC_SUCCESS		0
+#define WAN_TE_BERT_RC_EINVAL		1
+#define WAN_TE_BERT_RC_FAILED		2
+#define WAN_TE_BERT_RC_RUNNING		3
+#define WAN_TE_BERT_RC_STOPPED		4
+#define WAN_TE_BERT_RC_DECODE(rc)					\
+	((rc) == WAN_TE_BERT_RC_SUCCESS) ? "Success" :			\
+	((rc) == WAN_TE_BERT_RC_EINVAL) ? "Invalid parameter" :		\
+	((rc) == WAN_TE_BERT_RC_FAILED) ? "Failed" :			\
+	((rc) == WAN_TE_BERT_RC_RUNNING) ? "BERT is still running" :	\
+	((rc) == WAN_TE_BERT_RC_STOPPED) ? "BERT is not running" :	\
+						"Unknown"
+
+typedef struct 
+{
+	u_int32_t	chan_map;	/* */
+	u_int16_t	pattern_type;	/* pattern type */
+	u_int16_t	pattern_len;	/* pattern length */
+	u_int32_t	pattern;	/* pattern */
+	int		count;
+	u_int8_t	lb_type;
+	u_int16_t	eib;
+
+} sdla_te_bert_cfg_t;
+
+typedef struct 
+{
+	int		avail_sec;	/* out: */
+	int		err_sec;	/* out: */
+	int		err_free_sec;	/* out: */
+	unsigned long	bit_cnt;	/* out: */
+	unsigned long	err_cnt;	/* out: */	
+	int		inlock;		/* out: */
+
+} sdla_te_bert_stats_t;
+
+typedef struct 
+{
+	u_int32_t		chan_map;
+	u_int8_t		lb_type;
+
+} sdla_te_bert_stop_t;
+
+typedef struct 
+{
+	u_int8_t	cmd;
+	int		verbose;
+	int		rc;
+	u_int8_t	status;
+
+	union {
+		sdla_te_bert_cfg_t	cfg;
+		sdla_te_bert_stats_t	stats;
+		sdla_te_bert_stop_t	stop;
+	} un;
+
+} sdla_te_bert_t;
 
 /*
  ******************************************************************************
@@ -514,13 +635,11 @@ typedef struct {
 } sdla_te_event_t;
 
 typedef struct {
-	unsigned char	lb_cmd;
-	unsigned long	lb_time;
-	
-	unsigned char	lb_tx_cmd;
-	unsigned long	lb_tx_cnt;
 
-	unsigned char	lb_rx_code;
+	unsigned char	lb_tx_cmd;
+	unsigned char	lb_tx_mode;
+	unsigned char	lb_tx_code;
+	unsigned long	lb_tx_cnt;
 	
 	unsigned long	critical;
 	
@@ -568,9 +687,15 @@ typedef struct {
 	unsigned char	reg_dbg_value;
 
 	wan_ticks_t	crit_alarm_start;
-	unsigned int	lb_mode;
+	unsigned int	lb_mode_map;
 	
 	int		tx_yel_alarm;
+
+	unsigned int		bert_flag;
+	wan_ticks_t		bert_start;
+	sdla_te_bert_cfg_t	bert_cfg;
+	sdla_te_bert_stats_t	bert_stats;
+
 } sdla_te_param_t;
 
 

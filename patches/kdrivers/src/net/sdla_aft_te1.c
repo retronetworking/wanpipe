@@ -191,6 +191,8 @@ extern void xmtp2km_bs_handler (int fi, int len, unsigned char * p_rxbs, unsigne
 extern int xmtp2km_register    (void *, char *, int (*callback)(void*, unsigned char*, int));
 extern int xmtp2km_unregister  (int);
 extern int xmtp2km_facility_state_change (int fi, int state);
+extern int xmtp2km_tap_disable(int card_iface_id);
+extern int xmtp2km_tap_enable(int card_iface_id, void *dev, int (*frame)(void *ptr, int slot, int dir, unsigned char *data, int len));
 #endif
 
 
@@ -1273,7 +1275,7 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	card->hw_iface.getcfg(card->hw, SDLA_BASEADDR, &card->u.aft.bar);
 	card->hw_iface.getcfg(card->hw, SDLA_MEMBASE, &card->u.aft.bar_virt);
 
-	port_set_state(card,WAN_CONNECTING);
+	port_set_state(card,WAN_DISCONNECTED);
 
 	WAN_TASKQ_INIT((&card->u.aft.port_task),0,aft_port_task,card);
 	
@@ -1744,6 +1746,33 @@ static int wp_xmtp2_callback (void *prot_ptr, unsigned char *data, int len)
 					__FUNCTION__,__LINE__,chan,data,len);
 	
 	return -1;
+}
+
+
+static int xmtp2km_tap_func(void *prot_ptr, int slot, int dir, unsigned char *data, int len)
+{
+	private_area_t *chan = (private_area_t*)prot_ptr;
+	int err;
+
+	if (!chan) {
+		return -1;
+	}
+
+	if (dir) {
+		err=wan_capture_trace_packet_buffer(chan->card, &chan->trace_info, data, len ,TRC_INCOMING_FRM);
+	} else {
+		err=wan_capture_trace_packet_buffer(chan->card, &chan->trace_info, data, len ,TRC_OUTGOING_FRM);
+	}
+
+	if (err == -EINVAL) {
+		xmtp2km_tap_disable(chan->xmtp2_api_index);
+	}
+
+	if (err) {
+		WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common);
+	}
+
+	return 0;
 }
 #endif
 
@@ -2650,7 +2679,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	   we have to go back to it */
 	chan->max_tx_bufs_orig = chan->max_tx_bufs;
 
-	set_chan_state(card, dev, WAN_CONNECTING);	//chan->common.state = WAN_CONNECTING;
+	set_chan_state(card, dev, WAN_DISCONNECTED);	//chan->common.state = WAN_CONNECTING;
 
 	DEBUG_EVENT( "\n");
 
@@ -2857,6 +2886,11 @@ new_if_cfg_skip:
 
 			wan_spin_lock_irq(&card->wandev.lock,&flags);
 			enable_data_error_intr(card);
+
+#if defined (BUILD_MOD_TESTER)
+#warning "Compiling for BRI Module tester"
+                        handle_front_end_state(card);
+#endif
 			wan_spin_unlock_irq(&card->wandev.lock,&flags);
 		}
 	
@@ -6604,11 +6638,12 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
          * we have to re-start it */
 	if (card->rsync_timeout){
         if (!IS_BRI_CARD(card)) {
-			if (SYSTEM_TICKS - card->rsync_timeout > 5*HZ) {
+			if (SYSTEM_TICKS - card->rsync_timeout > 2*HZ) {
 				card->rsync_timeout=0;
 				if (card->fe.fe_status == FE_CONNECTED) {
 					DEBUG_EVENT("%s: TDM IRQ Timeout \n",
 						card->devname);
+					card->hw_iface.fe_clear_bit(card->hw,1);
 					if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
 						wan_set_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
 						WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
@@ -6616,7 +6651,7 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
 				}
 			}
 		} else {
-			if (SYSTEM_TICKS - card->rsync_timeout > 5*HZ) {
+			if (SYSTEM_TICKS - card->rsync_timeout > 1*HZ) {
 				int x;
 				void **card_list=__sdla_get_ptr_isr_array(card->hw);
 				sdla_t *first_card=NULL;
@@ -6633,6 +6668,7 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
 				if (first_card) {
 					DEBUG_EVENT("%s: BRI TDM IRQ Timeout \n",
 						first_card->devname);
+					card->hw_iface.fe_clear_bit(card->hw,1);
 					if (!wan_test_bit(AFT_FE_RESTART,&first_card->u.aft.port_task_cmd)) {
 						if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
 							wan_set_bit(AFT_FE_RESTART,&first_card->u.aft.port_task_cmd);
@@ -6943,6 +6979,16 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 				}
 				wan_set_bit (0,&trace_info->tracing_enabled);
 
+#if defined(AFT_XMTP2_API_SUPPORT)
+				if (chan->common.usedby == XMTP2_API &&
+					chan->xmtp2_api_index >= 0) {
+					int err=0;
+					wan_set_bit(8,&trace_info->tracing_enabled);
+					err=xmtp2km_tap_enable(chan->xmtp2_api_index, chan, xmtp2km_tap_func);
+					DEBUG_EVENT("%s XMTP2 Trace Tap Enabled (err=%i)!\n",chan->if_name,err);
+				}
+#endif
+
 			}else{
 				DEBUG_EVENT("%s: Error: ATM trace running!\n",
 						card->devname);
@@ -6956,11 +7002,21 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			
 			if(wan_test_bit(0,&trace_info->tracing_enabled)) {
-					
+				
+				trace_info->tracing_enabled=0;	
 				wan_clear_bit(0,&trace_info->tracing_enabled);
 				wan_clear_bit(1,&trace_info->tracing_enabled);
 				wan_clear_bit(2,&trace_info->tracing_enabled);
-				
+
+#if defined(AFT_XMTP2_API_SUPPORT)
+				if (chan->common.usedby == XMTP2_API &&
+					chan->xmtp2_api_index >= 0) {
+					xmtp2km_tap_disable(chan->xmtp2_api_index);
+					wan_clear_bit(8,&trace_info->tracing_enabled);
+					DEBUG_EVENT("%s XMTP2 Trace Tap Disabled!\n",chan->if_name);
+				}
+#endif
+
 				wan_trace_purge(trace_info);
 				
 				DEBUG_UDP("%s: Disabling AFT trace\n",
@@ -7291,6 +7347,13 @@ static void handle_front_end_state(void *card_id)
 
 	if (card->fe.fe_status == FE_CONNECTED || card->wandev.ignore_front_end_status == WANOPT_YES){
 		if (card->wandev.state != WAN_CONNECTED){
+
+				if (IS_TE1_CARD(card) && card->hw_iface.fe_test_bit(card->hw,1)) {
+					DEBUG_EVENT("%s: Skipping AFT Communication wait for ReSync...\n",
+									card->devname);
+					card->fe.fe_status = FE_DISCONNECTED;
+					return;
+				}
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 				if (card->wan_tdmv.sc){
@@ -8143,9 +8206,9 @@ static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 	if (chan->hdlc_eng) {
 		aft_channel_rxdma_ctrl(card, chan, 0);
 		aft_tslot_sync_ctrl(card,chan,0);
+		aft_free_rx_complete_list(chan);
 	}
-
-	aft_free_rx_complete_list(chan);
+	
 	aft_free_rx_descriptors(chan);
 
 	if (chan->hdlc_eng) {
@@ -8203,9 +8266,8 @@ static void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 		aft_channel_txdma_ctrl(card, chan, 1);
 		aft_init_tx_dev_fifo(card,chan,WP_WAIT);
 		aft_reset_tx_chain_cnt(chan);
-	}
-
-	wan_clear_bit(0,&chan->idle_start);
+		wan_clear_bit(0,&chan->idle_start);
+	}	
 
 	aft_dma_tx(card,chan);
 
@@ -8219,38 +8281,60 @@ static int set_chan_state(sdla_t* card, netdevice_t* dev, int state)
 {
 	private_area_t *chan = wan_netif_priv(dev);
 	private_area_t *ch_ptr;
-
+	
 	if (!chan){
-                if (WAN_NET_RATELIMIT()){
-                DEBUG_EVENT("%s: %s:%d No chan ptr!\n",
-                               card->devname,__FUNCTION__,__LINE__);
-                }	
+				if (WAN_NET_RATELIMIT()){
+				DEBUG_EVENT("%s: %s:%d No chan ptr!\n",
+								card->devname,__FUNCTION__,__LINE__);
+				}
 		return -EINVAL;
 	}
 
-       	chan->common.state = state;
-       	for (ch_ptr=chan; ch_ptr != NULL; ch_ptr=ch_ptr->next){
-		ch_ptr->common.state=state;	 
-		
+	for (ch_ptr=chan; ch_ptr != NULL; ch_ptr=ch_ptr->next){
+
+		if (ch_ptr->common.state == state) {
+			DEBUG_TEST("%s: CHANNEL %i already has state %i\n",
+					ch_ptr->if_name,ch_ptr->wp_tdm_api_dev.tdm_chan, state);
+			continue;
+		}
+
+		ch_ptr->common.state=state;
+	
 		if (ch_ptr->tdmv_zaptel_cfg) {
 			continue;
 		}
-		
-		if (ch_ptr->common.usedby == TDM_VOICE_API || 
-	            ch_ptr->common.usedby == TDM_VOICE_DCHAN) {
+
+		if (ch_ptr->common.usedby == TDM_VOICE_API ||
+			ch_ptr->common.usedby == TDM_VOICE_DCHAN) {
 #ifdef AFT_TDM_API_SUPPORT
 			if (is_tdm_api(ch_ptr,&ch_ptr->wp_tdm_api_dev)) {
-				wanpipe_tdm_api_update_state(&ch_ptr->wp_tdm_api_dev, state);
+				if (card->wandev.config_id != WANCONFIG_AFT_ANALOG) {
+					wan_event_t	event;
+	
+					event.type	= WAN_EVENT_LINK_STATUS;
+					event.channel	= ch_ptr->wp_tdm_api_dev.tdm_chan;
+					if (state == WAN_CONNECTED) {
+						event.link_status= WAN_EVENT_LINK_STATUS_CONNECTED;
+					} else {
+						event.link_status= WAN_EVENT_LINK_STATUS_DISCONNECTED;
+					}
+	
+					if (card->wandev.event_callback.linkstatus) {
+						card->wandev.event_callback.linkstatus(card, &event);
+					}
+	
+					wanpipe_tdm_api_update_state(&ch_ptr->wp_tdm_api_dev, state);
+				}
 			}
 #endif
 		} 
 
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
-		if (ch_ptr->common.usedby == ANNEXG && 
-		 	ch_ptr->annexg_dev){
+		if (ch_ptr->common.usedby == ANNEXG &&
+			ch_ptr->annexg_dev){
 			if (state == WAN_CONNECTED){
 				if (IS_FUNC_CALL(lapb_protocol,lapb_link_up)){
-					lapb_protocol.lapb_link_up(ch_ptr->annexg_dev);
+						lapb_protocol.lapb_link_up(ch_ptr->annexg_dev);
 				}
 			} else {
 				if (IS_FUNC_CALL(lapb_protocol,lapb_link_down)){
@@ -8260,7 +8344,9 @@ static int set_chan_state(sdla_t* card, netdevice_t* dev, int state)
 		}
 #endif
 	}
-       
+
+	chan->common.state = state;
+
 	if (state == WAN_CONNECTED){
 		wan_clear_bit(0,&chan->idle_start);
 		WAN_NETIF_START_QUEUE(dev);
@@ -8272,7 +8358,7 @@ static int set_chan_state(sdla_t* card, netdevice_t* dev, int state)
 		WAN_NETIF_CARRIER_OFF(dev);
 		WAN_NETIF_STOP_QUEUE(dev);
 	}
-	      
+
 #if defined(__LINUX__)
 # if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	if (chan->common.usedby == API) {
@@ -8305,7 +8391,7 @@ static int set_chan_state(sdla_t* card, netdevice_t* dev, int state)
 	}
 #endif
 
-       return 0;
+	return 0;
 }
 
 

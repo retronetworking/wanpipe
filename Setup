@@ -2,7 +2,7 @@
 #
 # Setup		WANPIPE WAN Router Installation/Removal Script.
 #
-# Copyright	(c) 1996-2008, Sangoma Technologies Inc.
+# Copyright	(c) 1996-2009, Sangoma Technologies Inc.
 #
 #		This program is free software; you can redistribute it and/or
 #		modify it under the terms of the GNU General Public License
@@ -278,7 +278,7 @@ banner()
 	clearscr
 	echo -e "\t----------------------------------------------------------"
 	echo -e "\t          WANPIPE v$PROD_VER Installation Script"
-	echo -e "\t    Copyright (c) 1995-2008, Sangoma Technologies Inc."
+	echo -e "\t    Copyright (c) 1995-2009, Sangoma Technologies Inc."
 	echo -e "\t----------------------------------------------------------"
 	echo ""
 	return 0
@@ -837,9 +837,11 @@ update_wanpipe_drivers ()
 
 	cd $DRIVER_UPDATE_DIR/include/     
 
-	if [ ! -e $WANPIPE_INCLUDE_DIR ]; then
-          	eval "\mkdir -p $WANPIPE_INCLUDE_DIR"
-	fi
+	if [ -e $WANPIPE_INCLUDE_DIR ]; then
+                eval "\rm -rf $WANPIPE_INCLUDE_DIR"
+        fi
+
+        eval "\mkdir -p $WANPIPE_INCLUDE_DIR"
 
 	if [ ! -e $WANPIPE_INCLUDE_DIR/linux ]; then
 		cd $WANPIPE_INCLUDE_DIR
@@ -3050,9 +3052,9 @@ if [ -z $NONINTERACTIVE ]; then
 
 	read response
 
-	#if [ -z $response ]; then
-	#	response=1
-	#fi
+	if [ -z $response ]; then
+		response=0
+	fi
 
 	if [ "$response"  -eq 1 ]; then
 		enable_protocols $DEFAULT_PROTOCOLS
@@ -3839,10 +3841,6 @@ WANPIPE_OBJS=
 		do
 			\cp $DRIVER_UPDATE_DIR/src/net/annexg/$file .
 		done
-		for file in $DRIVERS_MPAPI_MOD_FILES
-		do
-			\cp $DRIVER_UPDATE_DIR/src/net/annexg/$file .
-		done
 
 		build_kernel_module wanpipe_lapb "lapb_iface lapb_in lapb_out lapb_proc lapb_subr lapb_timer lapb_x25_iface"
 
@@ -4289,8 +4287,8 @@ WANPIPE_OBJS=
 
 	#Link in appropriate protocols as needed.
 	if [ "$TDM_PROT" = "YES" ]; then
-		if [ -f $ZAPTEL_SOURCE_DIR/$MODSYM ]; then
-			cat $ZAPTEL_SOURCE_DIR/$MODSYM >> $MODSYM
+		if [ -f $ZAPTEL_SYM_DIR/$MODSYM ]; then
+			cat $ZAPTEL_SYM_DIR/$MODSYM >> $MODSYM
 		fi
 	fi
 	if [ -f  $PROD_HOME/$MODSYM.wanec ]; then
@@ -5265,14 +5263,17 @@ set_zaptel_source_dir()
 		# when Dahdi present ZAPTEL_SOURCE_DIR is not really the source dir, but the headers dir
 		# no harm done, no conflict, just a bit misleading variable name 
 		ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR/include
+		ZAPTEL_SYM_DIR=$ZAPTEL_INSTALL_DIR/drivers/dahdi
 		DAHDI_SUPPORT="YES"
 		ZAPTEL_SUPPORT="NO"
 	#Check if this is post Zaptel-1.4.9
 	elif [ -d $ZAPTEL_INSTALL_DIR/kernel ]; then
 		ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR/kernel
+		ZAPTEL_SYM_DIR=$ZAPTEL_INSTALL_DIR/kernel
 	#Good ol' zaptel
 	else
 		ZAPTEL_SOURCE_DIR=$ZAPTEL_INSTALL_DIR
+		ZAPTEL_SYM_DIR=$ZAPTEL_INSTALL_DIR
 	fi
 }
 
@@ -7133,7 +7134,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.3.15
+PROD_VER=3.3.16
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7192,7 +7193,6 @@ echo "-----------------------------------" >> $CMP_LOG
 
 
 DRIVERS_MOD_LIST="sdladrv.mod.c wanrouter.mod.c wanpipe_syncppp.mod.c wanpipe.mod.c af_wanpipe.mod.c"
-DRIVERS_MPAPI_MOD_FILES="wanpipe_lapb.mod.c wanpipe_x25.mod.c wanpipe_dsp.mod.c"
 
 DRIVERS_MPAPI_DSP="dsp_timer.c dsp_subr.c dsp_proc.c dsp_out.c dsp_in.c dsp_iface.c dsp_api_iface.c"
 DRIVERS_MPAPI_LAPB="lapb_iface.c lapb_in.c lapb_out.c lapb_proc.c lapb_subr.c lapb_timer.c lapb_x25_iface.c"
@@ -7821,8 +7821,12 @@ you know what you are doing :)
 			exit 1
 		fi
 
-
-		$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile --zaptel-path=$ZAPTEL_INSTALL_DIR
+		echo "$PROTS" | grep "TDM" > /dev/null
+		if [ $? -eq 0 ]; then
+			$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile --zaptel-path=$ZAPTEL_INSTALL_DIR 
+		else
+			$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile 
+		fi
 
 		if [ $? -ne 0 ]; then
 			echo "Error: WANPIPE Installation Failed!"

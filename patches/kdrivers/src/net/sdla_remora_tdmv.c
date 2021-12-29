@@ -535,7 +535,6 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card = wr->card;
 	
-	fe_chan--;
 
 	if (enable) {
 		wan_set_bit(fe_chan,&card->wandev.rtp_tap_call_map);

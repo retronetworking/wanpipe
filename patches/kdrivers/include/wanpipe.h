@@ -1053,6 +1053,7 @@ extern struct wanpipe_lapb_register_struct lapb_protocol;
 int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr);
 
 int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, char direction);
+int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char *data, int len, char direction);
 int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, int off,char direction);
 
 #if defined(__LINUX__)

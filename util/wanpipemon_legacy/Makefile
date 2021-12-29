@@ -16,11 +16,12 @@ WAN_VIRTUAL=
 LXDIR=../lxdialog
 ENABLE_GUI=YES
 PROTOCOL_DEFS=
+SYSINC=-I/usr/include/wanpipe
 #-DCONFIG_PRODUCT_WANPIPE_ADSL
 
 CC = gcc 
 CPP = gcc -E
-CFLAGS = -Wall -Wstrict-prototypes -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) -DCURSES_LOC="<ncurses.h>"
+CFLAGS = -Wall -Wstrict-prototypes -D$(OS_TYPE) -I$(SYSINC) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) -DCURSES_LOC="<ncurses.h>"
 WAN_VIRTUAL=
 
 CFLAGS += $(EXTRA_FLAGS)

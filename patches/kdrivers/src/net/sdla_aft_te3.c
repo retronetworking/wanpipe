@@ -4460,7 +4460,7 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 		if (!wan_test_bit(HDLC_CORE_READY_FLAG_BIT,&reg)){
 			/* The HDLC Core is not ready! we have
 			 * an error. */
-			if (++cnt > 5){
+			if (++cnt > 20){
 				err = -EINVAL;
 				break;
 			}else{
@@ -5073,7 +5073,7 @@ static int aft_realign_skb_pkt(private_area_t *chan, netskb_t *skb)
 
 static int xilinx_dma_te3_tx (sdla_t *card,private_area_t *chan)
 {
-	int err=0, intr=0;
+	int err=0, intr=0, cnt;
 	aft_dma_chain_t *dma_chain;
 	netskb_t *skb=NULL;
 
@@ -5090,132 +5090,142 @@ static int xilinx_dma_te3_tx (sdla_t *card,private_area_t *chan)
 		if (!chan->single_dma_chain){
 			aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
 		}
-		return -EBUSY;
-	}
-
-	dma_chain = &chan->tx_dma_chain_table[chan->tx_chain_indx];	
-
-	/* If the current DMA chain is in use,then
-	 * all chains are busy */
-	if (wan_test_and_set_bit(0,&dma_chain->init)){
 		wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
 		return -EBUSY;
 	}
 
-	skb=wan_skb_dequeue(&chan->wp_tx_pending_list);
-	if (!skb) {
-		if (!chan->hdlc_eng) {
-			skb=chan->tx_idle_skb;
-			if (!skb) {
-				if (WAN_NET_RATELIMIT()){
-					DEBUG_EVENT("%s: Error: Tx Idle not allocated\n",
-				 		card->devname);
+	aft_reset_tx_watchdog(card);
+
+	for (cnt=0;cnt<MAX_AFT_DMA_CHAINS;cnt++) {
+
+		dma_chain = &chan->tx_dma_chain_table[chan->tx_chain_indx];	
+	
+		/* If the current DMA chain is in use,then
+		* all chains are busy */
+		if (wan_test_and_set_bit(0,&dma_chain->init)){
+			wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
+			return -EBUSY;
+		}
+	
+		skb=wan_skb_dequeue(&chan->wp_tx_pending_list);
+		if (!skb) {
+			if (!chan->hdlc_eng) {
+				skb=chan->tx_idle_skb;
+				if (!skb) {
+					if (WAN_NET_RATELIMIT()){
+						DEBUG_EVENT("%s: Error: Tx Idle not allocated\n",
+							card->devname);
+					}
+					wan_clear_bit(0,&dma_chain->init);
+					wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
+					return 0;
 				}
+			} else {
 				wan_clear_bit(0,&dma_chain->init);
 				wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
 				return 0;
 			}
-		} else {
-			wan_clear_bit(0,&dma_chain->init);
-			wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
-			return 0;
 		}
-	}
-
-	aft_reset_tx_watchdog(card);
 	
-	if ((unsigned long)wan_skb_data(skb) & 0x03){
-		err=aft_realign_skb_pkt(chan,skb);
-		if (err){
-			if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("%s: Tx Error: Non Aligned packet %p: dropping...\n",
-					chan->if_name,wan_skb_data(skb));
+		
+		
+		if ((unsigned long)wan_skb_data(skb) & 0x03){
+			err=aft_realign_skb_pkt(chan,skb);
+			if (err){
+				if (WAN_NET_RATELIMIT()){
+				DEBUG_EVENT("%s: Tx Error: Non Aligned packet %p: dropping...\n",
+						chan->if_name,wan_skb_data(skb));
+				}
+				wan_skb_free(skb);
+				wan_clear_bit(0,&dma_chain->init);
+				chan->if_stats.tx_errors++;
+				wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
+				return -EINVAL;
 			}
-			wan_skb_free(skb);
-			wan_clear_bit(0,&dma_chain->init);
-			chan->if_stats.tx_errors++;	
+		}
+	
+	#if 0
+		if (0){
+			netskb_t *nskb=__dev_alloc_skb(wan_skb_len(skb),GFP_DMA|GFP_ATOMIC);
+			if (!nskb) {
+				wan_skb_free(skb);
+							wan_clear_bit(0,&dma_chain->init);
+							chan->if_stats.tx_errors++;
+							return -EINVAL;
+			} else {
+				unsigned char *buf = wan_skb_put(nskb,wan_skb_len(skb));
+				memcpy(buf,wan_skb_data(skb),wan_skb_len(skb));
+				wan_skb_free(skb);
+				skb=nskb;
+			}
+		}
+	#endif
+	
+	
+		dma_chain->skb=skb;
+			
+		dma_chain->dma_addr = 
+					card->hw_iface.pci_map_dma(card->hw,
+							wan_skb_data(dma_chain->skb),
+							wan_skb_len(dma_chain->skb),
+							PCI_DMA_TODEVICE);
+			
+		dma_chain->dma_len = wan_skb_len(dma_chain->skb);
+	
+		DEBUG_TX("%s: DMA Chain %i:  Cur=%i Pend=%i Len=%i\n",
+				chan->if_name,dma_chain->index,
+				chan->tx_chain_indx,chan->tx_pending_chain_indx,
+				wan_skb_len(dma_chain->skb));
+	
+	
+		intr=0;
+		if (!chan->single_dma_chain && 
+				!wan_test_bit(TX_INTR_PENDING,&chan->dma_chain_status)){
+			int pending_indx=chan->tx_pending_chain_indx;
+			if (chan->tx_chain_indx >= pending_indx){
+				intr = ((MAX_AFT_DMA_CHAINS-(chan->tx_chain_indx - 
+								pending_indx))<=2);
+			}else{
+				intr = ((pending_indx - chan->tx_chain_indx)<=2);
+			}
+	
+			if (intr){
+				DEBUG_TEST("%s: Setting tx interrupt on chain=%i\n",
+						chan->if_name,dma_chain->index);
+				wan_set_bit(TX_INTR_PENDING,&chan->dma_chain_status);
+			}
+		}
+			
+		err=aft_dma_chain_tx(dma_chain,chan,intr);
+		if (err){
+			DEBUG_EVENT("%s: Tx dma chain %i overrun error: should never happen!\n",
+					chan->if_name,dma_chain->index);
+			aft_tx_dma_chain_init(chan,dma_chain);
+			chan->if_stats.tx_errors++;
+			
+			wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
 			return -EINVAL;
 		}
-	}
-
-#if 0
-	if (0){
- 		netskb_t *nskb=__dev_alloc_skb(wan_skb_len(skb),GFP_DMA|GFP_ATOMIC);
-		if (!nskb) {
- 			wan_skb_free(skb);
-                        wan_clear_bit(0,&dma_chain->init);
-                        chan->if_stats.tx_errors++;
-                        return -EINVAL;
+	
+	
+		/* We are sure that the packet will
+		* be bound and transmitted, thus unhook
+		* it from the protocol stack */
+		wan_skb_unlink(skb);
+	
+		if (!chan->single_dma_chain){
+			if (++chan->tx_chain_indx >= MAX_AFT_DMA_CHAINS){
+				chan->tx_chain_indx=0;
+			}
+	
+			if (!wan_test_bit(TX_INTR_PENDING,&chan->dma_chain_status)){
+				aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
+			}
 		} else {
-			unsigned char *buf = wan_skb_put(nskb,wan_skb_len(skb));
-			memcpy(buf,wan_skb_data(skb),wan_skb_len(skb));
-			wan_skb_free(skb);
-			skb=nskb;
+			/* Single DMA Mode */
+			break;
 		}
 	}
-#endif
-
-
-	dma_chain->skb=skb;
-		
-	dma_chain->dma_addr = 
-			      card->hw_iface.pci_map_dma(card->hw,
-				  		wan_skb_data(dma_chain->skb),
-				  		wan_skb_len(dma_chain->skb),
-				  		PCI_DMA_TODEVICE); 	
-		
-	dma_chain->dma_len = wan_skb_len(dma_chain->skb);
-
-	DEBUG_TX("%s: DMA Chain %i:  Cur=%i Pend=%i Len=%i\n",
-			chan->if_name,dma_chain->index,
-			chan->tx_chain_indx,chan->tx_pending_chain_indx,
-			wan_skb_len(dma_chain->skb));
-
-
-	intr=0;
-	if (!chan->single_dma_chain && 
-            !wan_test_bit(TX_INTR_PENDING,&chan->dma_chain_status)){
-		int pending_indx=chan->tx_pending_chain_indx;
-		if (chan->tx_chain_indx >= pending_indx){
-			intr = ((MAX_AFT_DMA_CHAINS-(chan->tx_chain_indx - 
-						     pending_indx))<=2);
-		}else{
-			intr = ((pending_indx - chan->tx_chain_indx)<=2);
-		}
-
-		if (intr){
-			DEBUG_TEST("%s: Setting tx interrupt on chain=%i\n",
-					chan->if_name,dma_chain->index);
-			wan_set_bit(TX_INTR_PENDING,&chan->dma_chain_status);
-		}
-	}
-		
-	err=aft_dma_chain_tx(dma_chain,chan,intr);
-	if (err){
-		DEBUG_EVENT("%s: Tx dma chain %i overrun error: should never happen!\n",
-				chan->if_name,dma_chain->index);
-		aft_tx_dma_chain_init(chan,dma_chain);
-		chan->if_stats.tx_errors++;
-		
-		wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
-		return -EINVAL;
-	}
-
-
-	/* We are sure that the packet will
-	 * be bound and transmitted, thus unhook
-	 * it from the protocol stack */
-	wan_skb_unlink(skb);
-
-	if (!chan->single_dma_chain){
-		if (++chan->tx_chain_indx >= MAX_AFT_DMA_CHAINS){
-			chan->tx_chain_indx=0;
-		}
-
-		if (!wan_test_bit(TX_INTR_PENDING,&chan->dma_chain_status)){
-			aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
-		}
-	} 
 	
 	wan_clear_bit(TX_DMA_BUSY,&chan->dma_status);
 

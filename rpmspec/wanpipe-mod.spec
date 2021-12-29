@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.3.15
+%define version           3.3.16
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,13 +50,54 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+
+
+* Mon Feb 24 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.16
+=====================================================================
+
+- Fixed S514 2 Byte receive
+
+- A14X Serial Driver Update
+  Added clock recovery option
+  Added control of DTR/RTS on startup using 
+  DTR_CTRL and RTS_CTRL config variables.
+
+- AFT T1/E1 BIRT Feature
+  Ability to run Birt tests on T1/E1 cards using wanpipemon
+
+- AFT HWEC
+  Hardware DTMF detection now detects FAX tones as well,
+  and passes then up to Zaptel/Asterisk
+
+- PPP Protocol
+  Added option to disable MAGIC number in negotiation
+  Set MAGIC_DISABLE=YES in ppp profile section.
+
+- Updates for new 2.6.X kernels
+  Added queue check on shutdown
+  Support for latest 2.6 kernels
+
+- Updated T3/E3 Code
+  The T3/E3 dma logic had a bug that was demonstrated under
+  high load. Was introduced in 3.3.15 release.
+
+- Added hardware probe DUMP 
+  wanrouter hwprobe dump
+  To be used by developers to easily parse the hwprobe output
+
+- ADSL Update
+  Bug fix in adsl. Could cause period disconnects on
+  some equipment. The SNR value was not being properly reported
+  the the upstream.
+ 
+
 * Tue Dec 08 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.15
 =====================================================================
 
 - Added support for new B600 Analog Card
 
 - Added task stop function on shutdown.
-  This feature prevents an unlikey event that task gets
+  This feature prevents an unlikely event that task gets
   scheduled after card has shutdown.
 
 - Fixed tty driver for new Linux Kernel 2.6.26 and greater
@@ -85,17 +126,17 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 - Updated AFT Core to fix XMTP2 startup with 16E1 links.
 
 - Updated API for A14X Serial Cards
-  Ability to recevie Modem Events.
+  Ability to receive Modem Events.
 
 - Updated for Serial A14X API
   API for setting and receiving line events
   Sample code wanpipe-<version>/api/aft/aft_api_serial.c
 
 - Updated Serial A14X for NRZI
-  New firware update v05
+  New firmware update v05
 
 - Added wanrouter hwprobe dump
-  Should be used for programs to parse hwprobe easilty
+  Should be used for programs to parse hwprobe easily
 
 
 * Tue Oct 8 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.14

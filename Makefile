@@ -16,7 +16,7 @@ KBUILD_VERBOSE=0
 
 #Default zaptel directory to be overwritten by user
 ifndef ZAPDIR
-	ZAPDIR=/usr/src/zaptel
+	ZAPDIR=/usr/src/dahdi
 endif
 
 #Kernel version and location
@@ -58,41 +58,51 @@ EXTRA_CFLAGS := -I$(PWD)/$(WINCLUDE) -I$(PWD)/$(WINCLUDE)/annexg -I$(PWD)/patche
 EXTRA_CFLAGS += -I$(WANEC_DIR) -I$(WANEC_DIR)/oct6100_api -I$(WANEC_DIR)/oct6100_api/include
 
 #Setup utility extra flags and include path
-EXTRA_UTIL_FLAGS = -I$(PWD)/$(WINCLUDE) -I$(KDIR)/include/ -I$(INSTALLPREFIX)/include -I$(INSTALLPREFIX)/usr/include 
+EXTRA_UTIL_FLAGS = -I$(PWD)/$(WINCLUDE) -I$(INSTALLPREFIX)/include -I$(INSTALLPREFIX)/usr/include 
 EXTRA_UTIL_FLAGS += -I$(PWD)/patches/kdrivers/wanec -I$(PWD)/patches/kdrivers/wanec/oct6100_api/include
 
 ENABLE_WANPIPEMON_ZAP=NO
 ZAPHDLC_PRIV=/etc/wanpipe/.zaphdlc
 
 
-
 #Check if zaptel exists
 ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
 	ZAPDIR_PRIV=$(ZAPDIR) 
 	ENABLE_WANPIPEMON_ZAP=YES
-	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+	EXTRA_CFLAGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
 	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
 	ZAP_PROT=TDM
 	PROTS=DEF-TDM
 else
 	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
-		ZAPDIR=/usr/src/zaptel/kernel
 		ZAPDIR_PRIV=$(ZAPDIR) 
 		ENABLE_WANPIPEMON_ZAP=YES
-		EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+		EXTRA_CFLAGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE -I$(ZAPDIR)/kernel
 		ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
 		ZAP_PROT=TDM
 		PROTS=DEF-TDM
 	else
-		ZAP_OPTS=
-		ZAP_PROT=
-		ZAPDIR_PRIV=
-		ENABLE_WANPIPEMON_ZAP=NO
-		PROTS=DEF
+		ifneq (,$(wildcard $(ZAPDIR)/include/dahdi/kernel.h))
+			ZAPDIR_PRIV=$(ZAPDIR) 
+			ENABLE_WANPIPEMON_ZAP=YES
+			EXTRA_CFLAGS+= -DSTANDALONE_ZAPATA -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL -DDAHDI_ISSUES -DBUILDING_TONEZONE -I$(ZAPDIR)/include -I$(ZAPDIR)/include/dahdi -I$(ZAPDIR)/drivers/dahdi
+			ifneq (,$(wildcard $(ZAPDIR)/drivers/dahdi/Makefile))
+				ZAP_OPTS= --zaptel-path=$(ZAPDIR)/drivers/dahdi/
+			endif
+			ZAP_PROT=TDM
+			PROTS=DEF-TDM
+		else
+			ZAP_OPTS=
+			ZAP_PROT=
+			ZAPDIR_PRIV=
+			ENABLE_WANPIPEMON_ZAP=NO
+			PROTS=DEF
+		endif
 	endif
 endif  
 
-EXTRA_CFLAGS += -I$(KDIR)/include/linux -I$(ZAPDIR)
+
+EXTRA_CFLAGS += -I$(KDIR)/include/linux -I$(ZAPDIR) 
 
 RM      = @rm -rf
 JUNK	= *~ *.bak DEADJOE
@@ -167,20 +177,44 @@ _checkzap:
 	@echo
 	@echo " +--------- Wanpipe Build Info --------------+"  
 	@echo 
-	@if [ ! -e $(ZAPDIR)/zaptel.h ]; then \
-		echo " Compiling Wanpipe without ZAPTEL Support!"; \
+	@if [ ! -e $(ZAPDIR)/zaptel.h ] && [ ! -e $(ZAPDIR)/kernel/zaptel.h ] && [ ! -e $(ZAPDIR)/include/dahdi/kernel.h ] ; then \
+		echo " Compiling Wanpipe without ZAPTEL/DAHDI Support!"; \
+		echo "      Zaptel/Dahdi Dir: $(ZAPDIR)"; \
 		ZAPDIR_PRIV=; \
 		ENABLE_WANPIPEMON_ZAP=NO; \
 	else \
-		echo "   Compiling Wanpipe with ZAPTEL Support!"; \
-		echo "      Zaptel Dir: $(ZAPDIR)"; \
-		echo; \
-		eval "$(PWD)/patches/sangoma-zaptel-patch.sh $(ZAPDIR)"; \
-		ZAPDIR_PRIV=$(ZAPDIR); \
-		ENABLE_WANPIPEMON_ZAP=YES; \
-		cp -f $(ZAPDIR)/Module.symvers $(WAN_DIR)/; \
-		echo ; \
-		echo "Please recompile and reinstall ZAPTEL after installation"; \
+		if [ -e $(ZAPDIR)/include/dahdi/kernel.h ]; then \
+			echo "   Compiling Wanpipe with DAHDI Support!"; \
+			echo "      Dahdi Dir: $(ZAPDIR)"; \
+			echo; \
+			ZAPDIR_PRIV=$(ZAPDIR); \
+			ENABLE_WANPIPEMON_ZAP=YES; \
+			if [ -f $(ZAPDIR)/drivers/dahdi/Module.symvers ]; then \
+			  	cp -f $(ZAPDIR)/drivers/dahdi/Module.symvers $(WAN_DIR)/; \
+			elif [ -f $(ZAPDIR)/src/dahdi-headers/drivers/dahdi/Module.symvers ]; then \
+			  	cp -f $(ZAPDIR)/src/dahdi-headers/drivers/dahdi/Module.symvers $(WAN_DIR)/; \
+			else \
+				echo "Error: Dahdi source not compiled, missing Module.symvers file"; \
+				echo "	     Please recompile Dahdi directory first"; \
+			fi; \
+		else \
+			echo "   Compiling Wanpipe with ZAPTEL Support!"; \
+			echo "      Zaptel Dir: $(ZAPDIR)"; \
+			echo; \
+			eval "$(PWD)/patches/sangoma-zaptel-patch.sh $(ZAPDIR)"; \
+			ZAPDIR_PRIV=$(ZAPDIR); \
+			ENABLE_WANPIPEMON_ZAP=YES; \
+			if [ -f $(ZAPDIR)/kernel/Module.symvers ]; then \
+				cp -f $(ZAPDIR)/kernel/Module.symvers $(WAN_DIR)/; \
+			elif [ -f -f $(ZAPDIR)/Module.symvers ]; then \
+				cp -f $(ZAPDIR)/Module.symvers $(WAN_DIR)/; \
+			else \
+				echo "Error: Zaptel source not compiled, missing Module.symvers file"; \
+				echo "       Please recompile zaptel directory first"; \
+			fi; \
+			echo ; \
+			echo "Please recompile and reinstall ZAPTEL after installation"; \
+		fi \
 	fi
 	@echo 
 	@echo " +-------------------------------------------+" 
@@ -230,7 +264,7 @@ install_util:
 install_smgbri:
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)
 	install -D -m 755 ssmg/sangoma_bri/smg_ctrl $(INSTALLPREFIX)/usr/sbin/smg_ctrl
-	install -D -m 755 ssmg/sangoma_bri/sangoma_brid $(INSTALLPREFIX)/usr/sbin/sangoma_brid
+	install -D -m 755 ssmg/sangoma_bri/sangoma_brid.$(ARCH) $(INSTALLPREFIX)/usr/sbin/sangoma_brid
 	$(MAKE) -C ssmg/libsangoma.trunk/ install DESTDIR=$(INSTALLPREFIX)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone install DESTDIR=$(INSTALLPREFIX)
 

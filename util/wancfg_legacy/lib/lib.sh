@@ -2734,7 +2734,10 @@ function get_device_type () {
 
 	# TE1 Add new device type
 	if [ $probe = "PROBE" ]; then
-		menu_options="'S514'     'S514 V35   PCI Card' \
+		menu_options="
+			      'A14X'     'A14X V35   PCI Card' \
+			      'A14X'     'A14X RS234   PCI Card' \
+			      'S514'     'S514 V35   PCI Card' \
 			      'S514'     'S514 FT1   PCI Card' \	
 			      'S514-TE1' 'S514 T1/E1 PCI Card' \
 			      'S514-56k' 'S514 56K PCI Card' 2> $MENU_TMP"

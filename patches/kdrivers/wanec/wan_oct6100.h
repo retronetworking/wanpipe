@@ -35,7 +35,7 @@
 #define MAX_PARAM_LEN	50
 #define MAX_VALUE_LEN	50
 
-#define WAN_NUM_DTMF_TONES	32
+#define WAN_NUM_DTMF_TONES	34
 #define WAN_NUM_PLAYOUT_TONES	16
  
 enum {

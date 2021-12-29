@@ -689,6 +689,9 @@ loop_rx_exit:
 }
 
 extern int mtp2_msu_only;
+extern int trace_only_diff;
+extern int trace_rx_only;
+extern int trace_tx_only;
 extern wanpipe_hdlc_engine_t *rx_hdlc_eng;  
 wp_trace_output_iface_t hdlc_trace_iface;
 
@@ -724,6 +727,8 @@ static int trace_aft_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int 
 	return 0;	
 }
 
+static int previous_trace_len=0;
+static int previous_trace_data[5000];
 
 static void line_trace(int trace_mode) 
 {
@@ -840,6 +845,12 @@ static void line_trace(int trace_mode)
 				hdlc_trace_iface.data = trace_iface.data;
 				hdlc_trace_iface.len = trace_iface.len;
 
+				if (trace_rx_only && (trace_iface.status & WP_TRACE_OUTGOING)) {
+					continue;
+				}
+				if (trace_tx_only && !(trace_iface.status & WP_TRACE_OUTGOING)) {
+					continue;
+				}
 
 				/*
 				if (raw_data) {
@@ -852,6 +863,24 @@ static void line_trace(int trace_mode)
 					wanpipe_hdlc_decode(rx_hdlc_eng,trace_iface.data,trace_iface.len);
 					continue;		
 				} 
+	
+				if (mtp2_msu_only) {
+					if (trace_iface.data[2] < 3) {
+						continue;
+					}
+				}			
+
+				if (trace_only_diff) { 
+					if (trace_iface.len == previous_trace_len) {
+						int err=memcmp(trace_iface.data,previous_trace_data,trace_iface.len);
+						if (err == 0) {
+							continue;
+						}	
+					}
+					previous_trace_len=trace_iface.len;
+					memcpy(previous_trace_data,trace_iface.data,trace_iface.len);
+				}
+
 
 			       	if (pcap_output){
 					trace_iface.type=WP_OUT_TRACE_PCAP;
@@ -1175,6 +1204,7 @@ int AFTUsage(void)
 	printf("\t             ddlb3   Deactive Digital Loopback mode (DS3/E3 cards)\n");  
 	printf("\t             txe     Enable TX (AFT card only)\n");  
 	printf("\t             txd     Disable TX (AFT card only)\n");  
+	printf("\t             bert    T1/E1 BERT test (T1/E1 DM cards only)\n");  
 	printf("\tFlush Statistics\n");
 	printf("\t   f         c       Flush Communication Error Statistics\n");
 	printf("\t             o       Flush Operational Statistics\n");
@@ -1253,7 +1283,7 @@ static void read_ft1_te1_56k_config (void)
 int AFTMain(char *command,int argc, char* argv[])
 {
 	char		*opt=&command[1];
-	int		mod_no = 0, i, err;
+	int		mod_no = 0, i, err = 0;
 	sdla_fe_debug_t	fe_debug;
 			
 	switch(command[0]){
@@ -1349,9 +1379,9 @@ int AFTMain(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt,"ddlb")){
 				set_lb_modes(WAN_TE1_DDLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"salb")){
-				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_LB_ENABLE);
+				set_lb_modes(WAN_TE1_TX_LINELB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"sdlb")){
-				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_LB_DISABLE);
+				set_lb_modes(WAN_TE1_TX_LINELB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"alalb")){
 				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dlalb")){
@@ -1388,6 +1418,8 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_fe_tx_mode(WAN_FE_TXMODE_ENABLE);
 			}else if (!strcmp(opt,"txd")){
 				set_fe_tx_mode(WAN_FE_TXMODE_DISABLE);
+			}else if (!strcmp(opt,"bert")){
+				err = set_fe_bert(argc, argv);
 			}else{
 				printf("ERROR: Invalid FT1 Command 'T', Type wanpipemon <cr> for help\n\n");
 			} 
@@ -1556,5 +1588,5 @@ int AFTMain(char *command,int argc, char* argv[])
 	}//switch 
    	printf("\n");
    	fflush(stdout);
-   	return 0;
+   	return err;
 }; //main

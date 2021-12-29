@@ -114,7 +114,7 @@ static struct class_simple *wp_tdmapi_class = NULL;
 #define WP_TDM_MAX_TX_Q_LEN 5
 #define WP_TDM_MAX_HDLC_TX_Q_LEN 17
 #define WP_TDM_MAX_EVENT_Q_LEN 10
-#define WP_TDM_MAX_CTRL_EVENT_Q_LEN 1024
+#define WP_TDM_MAX_CTRL_EVENT_Q_LEN 20000 /* 500 channels * 40 events (At same time) */
 #define WP_TDM_MAX_RX_FREE_Q_LEN 10
 
 #define WP_TDMAPI_MAX_SPANS 64
@@ -317,9 +317,23 @@ static int wp_tdmapi_reg_globals(void)
  
 static int wp_tdmapi_unreg_globals(void)
 {
+	unsigned long timeout=SYSTEM_TICKS;
 	DEBUG_EVENT("%s: Unregistering Wanpipe TDM Device!\n",__FUNCTION__);
 
-#if !defined(__WINDOWS__)	
+#if !defined(__WINDOWS__)
+
+	wan_clear_bit(0,&tdmapi_ctrl.init);
+
+	while(wan_test_bit(0,&tdmapi_ctrl.used)) {
+		if (SYSTEM_TICKS - timeout > HZ*2) {
+			DEBUG_EVENT("wanpipe_tdm_api: Warning: Ctrl Device still in use on shutdown!\n");
+			break;	
+		}
+		WP_DELAY(1000);
+		WP_SCHEDULE("tdmapi_ctlr",10);
+		wp_wakeup_tdmapi(&tdmapi_ctrl);
+	}
+
 	wan_clear_bit(0,&tdmapi_ctrl.init);	
 	wp_tdmapi_init_buffs(&tdmapi_ctrl);
 
@@ -472,6 +486,8 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 int wanpipe_tdm_api_unreg(wanpipe_tdm_api_dev_t *tdm_api)
 {
 	wan_smp_flag_t flags;	
+	wan_event_t	event;
+	sdla_t *card = tdm_api->card;
 
 	wan_set_bit(WP_TDM_DOWN,&tdm_api->critical);
 	
@@ -480,7 +496,13 @@ int wanpipe_tdm_api_unreg(wanpipe_tdm_api_dev_t *tdm_api)
 			tdm_api->name,tdm_api->tdm_span,tdm_api->tdm_chan);
 		return -EBUSY;
 	}
-	
+
+	event.type	= WAN_EVENT_LINK_STATUS;
+	event.channel	= tdm_api->tdm_chan;
+	event.link_status= WAN_EVENT_LINK_STATUS_DISCONNECTED;
+
+	wp_tdmapi_linkstatus(card,&event);
+
 	wan_spin_lock_irq(&wp_tdmapi_hash_lock,&flags);
 #if !defined(__WINDOWS__)	
 	wpunhash_tdm_api_dev(tdm_api);
@@ -509,12 +531,12 @@ int wanpipe_tdm_api_update_state(wanpipe_tdm_api_dev_t *tdm_api, int state)
 	if (tdm_api == NULL || !wan_test_bit(0,&tdm_api->init)){
 		return -ENODEV;
 	}
-		
+
        	tdm_api->state = (u8)state;
        	tdm_api->cfg.fe_alarms = (state == WAN_CONNECTED ? 0 : 1);
 
 	wanpipe_tdm_api_fe_alarm_event(tdm_api,state);
-	
+
 	return 0;
 }
 
@@ -985,9 +1007,12 @@ static int wp_tdmapi_release(struct inode *inode, struct file *file)
 
 #if !defined(__WINDOWS__)
 	if (tdm_api == NULL || !wan_test_bit(0,&tdm_api->init)){
+		if (tdm_api) {
+			wan_clear_bit(0,&tdm_api->used);
+		}
 		return -ENODEV;
 	}
-	
+
 	wan_clear_bit(0,&tdm_api->used);
 	wp_wakeup_tdmapi(tdm_api);
 	
@@ -1088,11 +1113,11 @@ static unsigned int wp_tdmapi_poll(struct file *file, struct poll_table_struct *
 	wanpipe_tdm_api_dev_t *tdm_api = file->private_data;
 	
 	if (tdm_api == NULL || !wan_test_bit(0,&tdm_api->init) || !wan_test_bit(0,&tdm_api->used)){
-		return -ENODEV;
+		return POLLPRI;
 	}
 	
 	if (wan_test_bit(WP_TDM_DOWN,&tdm_api->critical)) {
-		return -ENODEV;
+		return POLLPRI;
 	}
 
 	poll_wait(file, &tdm_api->poll_wait, wait_table);
@@ -2153,6 +2178,12 @@ static wanpipe_tdm_api_dev_t *wp_tdmapi_search(sdla_t *card, int fe_chan)
 		}
 		
 		if (IS_BRI_CARD(card)) {
+			/* BRI - d-channel does not have a bit mask in tdm_api->active_ch,
+				but channel 3 is still a valid event */
+			if (fe_chan == 3) {
+				return tdm_api;
+			}
+
 			tmp_fe_chan = (2*(tdm_api->tdm_span-1))+fe_chan;
 		} 	
 
@@ -2369,20 +2400,22 @@ static void wp_tdmapi_linkstatus (void* card_id, wan_event_t *event)
 	memset(p_tdmapi_event, 0, sizeof(wp_tdm_api_event_t));
 	p_tdmapi_event->type	= WP_TDMAPI_EVENT_LINK_STATUS;
 	p_tdmapi_event->channel	= (u_int16_t)event->channel;
+	p_tdmapi_event->span = wp_tdmapi_get_span(card);
 	
-	
-	switch(event->link_status){
-	case WAN_EVENT_LINK_STATUS_CONNECTED:
+	if (event->link_status == WAN_EVENT_LINK_STATUS_CONNECTED) {
 		p_tdmapi_event->wp_tdm_api_event_link_status = 
 					WP_TDMAPI_EVENT_LINK_STATUS_CONNECTED;
-		break;
-	case WAN_EVENT_LINK_STATUS_DISCONNECTED	:
+	} else {
 		p_tdmapi_event->wp_tdm_api_event_link_status = 
 					WP_TDMAPI_EVENT_LINK_STATUS_DISCONNECTED;
-		break;
 	}
 
-	
+	wan_skb_push_to_ctrl_event(skb);
+
+	if (!wan_test_bit(0,&tdm_api->used)) {
+		wan_skb_free(skb);
+		return;
+	}
 #if 0
 	rx_hdr->event_time_stamp = gettimeofday();
 #endif					

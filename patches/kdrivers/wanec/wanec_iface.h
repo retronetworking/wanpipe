@@ -73,7 +73,7 @@ enum {
 	(state == WAN_EC_STATE_CHIP_READY)		? "Chip Ready" :	\
 					"Unknown"
 
-#define WAN_NUM_DTMF_TONES	16
+#define WAN_NUM_DTMF_TONES	17
 #define WAN_NUM_PLAYOUT_TONES	16
 #define WAN_MAX_TONE_LEN	100
 
@@ -279,7 +279,6 @@ typedef struct wan_ec_dev_
 	int		poll_channel;
 
 	u_int32_t	events;			/* enable events map */
-	wan_ticks_t	lastint_ticks;
 
 	struct wan_ec_	*ec;
 	WAN_LIST_ENTRY(wan_ec_dev_)	next;
@@ -304,6 +303,7 @@ typedef struct wan_ec_
 	u_int32_t	events;			/* enable events map */
 	int		tone_verbose;		/* verbose mode for tone events */
 	int		playout_verbose;	/* verbose mode for playout events */
+	wan_ticks_t	lastint_ticks;
 
 	PUINT8				pImageData;
 	UINT32				ImageSize;

@@ -255,6 +255,24 @@ typedef struct {
 #define fe_debug_hook	fe_debug_un.hook	
 } sdla_fe_debug_t;
 
+#define WAN_FE_LBMODE_CMD_POLL		0x00
+#define WAN_FE_LBMODE_CMD_SET		0x01
+#define WAN_FE_LBMODE_CMD_GET		0x02
+
+#define WAN_FE_LBMODE_RC_SUCCESS	0x00
+#define WAN_FE_LBMODE_RC_PENDING	0x01
+#define WAN_FE_LBMODE_RC_FAILED		0x02
+typedef struct 
+{
+	u_int8_t 	cmd;
+	u_int8_t 	type;
+	u_int8_t 	mode;
+	u_int32_t	chan_map;
+	u_int32_t	type_map;	/* out: bit-map of loopbacks */
+	u_int8_t	rc;		/* out: */
+
+} sdla_fe_lbmode_t;
+
 
 /* Front-End status */
 #define FE_STATUS_DECODE(fe_status)					\

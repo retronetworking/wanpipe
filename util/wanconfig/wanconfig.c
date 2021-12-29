@@ -726,6 +726,8 @@ key_word_t sppp_conftab[] =	/* PPP-CHDLC specific configuration */
      inside wanif_conf_t, and data gets to wrong place */
   { "KEEPALIVE_ERROR_MARGIN", smemof(wan_sppp_if_conf_t, keepalive_err_margin),    DTYPE_UINT },
 
+   { "MAGIC_DISABLE",      smemof(wan_sppp_if_conf_t, disable_magic),    DTYPE_UCHAR},
+
   { NULL, 0, 0 }
 };
 
@@ -752,6 +754,8 @@ key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
   { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UCHAR },
   { "DATA_MUX_MAP",  smemof(wan_xilinx_conf_t, data_mux_map), DTYPE_UINT },
   { "RX_CRC_BYTES",  smemof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
+  { "DTR_CTRL",  smemof(wan_xilinx_conf_t, serial_dtr_ctrl), DTYPE_UCHAR},
+  { "RTS_CTRL",  smemof(wan_xilinx_conf_t, serial_rts_ctrl), DTYPE_UCHAR},
   
   { NULL, 0, 0 }
 };
@@ -1377,6 +1381,9 @@ look_up_t	sym_table[] =
 	/*----- Idle Line ----------------------*/
 	{ WANOPT_IDLE_FLAG,	"FLAG"	}, 
 	{ WANOPT_IDLE_MARK,	"MARK"	},
+	
+	{ WANOPT_HIGH,		"HIGH"	}, 
+	{ WANOPT_LOW,		"LOW"	},
 
 	/*----- Link type ---------------------*/
 	{ WANOPT_POINTTOPOINT,	"POINTTOPOINT"	},
@@ -1384,6 +1391,7 @@ look_up_t	sym_table[] =
 	/*----- Clocking ----------------------*/
 	{ WANOPT_EXTERNAL,	"EXTERNAL"	}, 
 	{ WANOPT_INTERNAL,	"INTERNAL"	}, 
+	{ WANOPT_RECOVERY,	"RECOVERY"	}, 
 	/*----- Station -----------------------*/
 	{ WANOPT_DTE,		"DTE"		}, 
 	{ WANOPT_DCE,		"DCE"		}, 

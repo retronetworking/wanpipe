@@ -14,6 +14,10 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.39 David Yat Sin <dyatsin@sangoma.com>
+ * Dec 19 2008
+ * 	Support for Asterisk 1.6
+ *
  * v1.38 David Yat Sin <dyatsin@sangoma.com>
  * Dec 05 2008
  *	Support for fax_detect using Asterisk software DSP
@@ -201,6 +205,13 @@
 #include "asterisk/sched.h"
 #include "asterisk/astobj.h"
 #include "asterisk/lock.h"
+#if defined(AST16)
+#include "asterisk/linkedlists.h"
+#include "asterisk/channel.h"
+#endif
+#if !defined (AST14) && !defined (AST16)
+#include "asterisk/options.h"
+#endif
 #include "asterisk/manager.h"
 #include "asterisk/pbx.h"
 #include "asterisk/cli.h"
@@ -227,6 +238,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.38 $")
 #endif
 #include "callweaver/lock.h"
 #include "callweaver/manager.h"
+#include "callweaver/options.h"
 #include "callweaver/channel.h"
 #include "callweaver/pbx.h"
 #include "callweaver/cli.h"
@@ -240,7 +252,6 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.38 $")
 #include "callweaver/dsp.h"
 #include "callweaver.h"
 #include "confdefs.h"
-
 
 
 #ifdef CALLWEAVER_CWOBJ
@@ -380,7 +391,15 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.38 $")
 #define         ast_cause2str           cw_cause2str
 #define         ast_pbx_start           cw_pbx_start
 #define         ast_hangup	 	cw_hangup
-		
+#define		macrocontext		proc_context
+#define		ast_async_goto		cw_async_goto_n
+
+#if defined(DSP_FEATURE_FAX_CNG_DETECT)
+#undef		DSP_FEATURE_FAX_DETECT
+#define		DSP_FEATURE_FAX_DETECT DSP_FEATURE_FAX_CNG_DETECT
+#endif
+
+	
 #else /* CALLWEAVER prior to v1.9 */
 
 #define		ast_config		opbx_config
@@ -537,13 +556,18 @@ static char smgversion[100] = "N/A";
 static char mohinterpret[MAX_MUSICCLASS] = "default";
 static char mohsuggest[MAX_MUSICCLASS] = "";
 
-#ifdef AST14
- #ifndef AST_JB
+
+#if !defined (AST14) && !defined (AST16)
+struct ast_frame ast_null_frame;
+#endif
+
+#if defined (AST14) || defined (AST16)
+ #if !defined (AST_JB)
   #define AST_JB 1
  #endif
 #endif
 
-#ifdef AST_JB
+#if defined (AST_JB)
 #include "asterisk/abstract_jb.h"
 /* Global jitterbuffer configuration - by default, jb is disabled */
 static struct ast_jb_conf default_jbconf =
@@ -776,6 +800,35 @@ typedef struct woomera_message woomera_message;
 typedef struct woomera_profile woomera_profile;
 typedef struct woomera_event_queue woomera_event_queue;
 
+static int my_ast_channel_trylock(struct ast_channel *chan)
+{
+#if defined (AST14) || defined (AST16)
+	return ast_channel_trylock(chan);
+#else
+	return ast_mutex_trylock(&chan->lock);
+#endif
+}
+
+#if !defined (CALLWEAVER_19)
+static int my_ast_channel_lock(struct ast_channel *chan)
+{
+#if defined (AST14) || defined (AST16)
+	return ast_channel_lock(chan);
+#else
+	return ast_mutex_lock(&chan->lock);
+#endif
+}
+#endif
+
+static int my_ast_channel_unlock(struct ast_channel *chan)
+{
+#if defined (AST14) || defined (AST16)
+	return ast_channel_unlock(chan);
+#else
+	return ast_mutex_unlock(&chan->lock);
+#endif
+}
+
 
 static void my_ast_softhangup(struct ast_channel *chan, private_object *tech_pvt, int cause)
 {
@@ -840,6 +893,9 @@ static int config_woomera(void);
 static int create_udp_socket(char *ip, int port, struct sockaddr_in *sockaddr, int client);
 static int connect_woomera(int *new_socket, woomera_profile *profile, int flags);
 static int init_woomera(void);
+#if defined (AST16)
+static char *ast16_woomera_cli(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a);
+#endif
 static int woomera_cli(int fd, int argc, char *argv[]);
 static void tech_destroy(private_object *tech_pvt, struct ast_channel *owner);
 static struct ast_channel *woomera_new(const char *type, int format, void *data, int *cause, woomera_profile *profile);
@@ -868,7 +924,7 @@ int reload(void);
  */
 static struct ast_channel *tech_requester(const char *type, int format, void *data, int *cause);
 static int tech_send_digit(struct ast_channel *self, char digit);
-#ifdef AST14
+#if defined (AST14) || defined (AST16)
 static int tech_digit_end(struct ast_channel *ast, char digit, unsigned int duration);
 #endif
 static int tech_call(struct ast_channel *self, char *dest, int timeout);
@@ -878,7 +934,7 @@ static struct ast_frame *tech_read(struct ast_channel *self);
 static struct ast_frame *tech_exception(struct ast_channel *self);
 static int tech_write(struct ast_channel *self, struct ast_frame *frame);
 #ifdef  USE_TECH_INDICATE
-# ifdef AST14
+# if defined (AST14) || defined (AST16)
 static int tech_indicate(struct ast_channel *self, int condition, const void *data, size_t datalen);
 # else
 static int tech_indicate(struct ast_channel *self, int condition);
@@ -910,7 +966,7 @@ static const struct ast_channel_tech technology = {
 	.description = tdesc,
 	.capabilities = (AST_FORMAT_SLINEAR | AST_FORMAT_ULAW | AST_FORMAT_ALAW),
 	.requester = tech_requester,
-#ifdef AST14
+#if defined (AST14) || defined (AST16)
 	.send_digit_begin = tech_send_digit,
 	.send_digit_end = tech_digit_end,
 #else
@@ -1682,7 +1738,7 @@ static int tech_init(private_object *tech_pvt, woomera_profile *profile, int fla
 	}
 
 	if (profile->jb_enable) {
-#ifdef AST_JB
+#if defined AST_JB
 		/* Assign default jb conf to the new zt_pvt */
 		memcpy(&tech_pvt->jbconf, &global_jbconf, sizeof(struct ast_jb_conf));
 		ast_jb_configure(self, &tech_pvt->jbconf);
@@ -2046,15 +2102,16 @@ static void *tech_monitor_thread(void *obj)
                                 	}
 
 					while(tech_pvt->owner && 
-					      ast_mutex_trylock(&tech_pvt->owner->lock)) {
-                                   	     usleep(1);
-                                	}
+						  my_ast_channel_trylock(tech_pvt->owner)) {
+
+							usleep(1);
+					}
 						
         	                        if ((owner=tech_pvt->owner)) {
 						tech_pvt->owner=NULL;
 						/* Issue a softhangup */
 						ast_softhangup(owner, AST_SOFTHANGUP_DEV);
-						ast_mutex_unlock(&owner->lock);
+						my_ast_channel_unlock(owner);
 					}
 				}
 			}
@@ -2830,6 +2887,9 @@ static woomera_profile *create_woomera_profile(woomera_profile *default_profile)
 static int config_woomera(void) 
 {
 	struct ast_config *cfg;
+#if defined (AST16)
+	struct ast_flags config_flags = {0};
+#endif
 	char *entry;
 	struct ast_variable *v;
 	woomera_profile *profile;
@@ -2837,13 +2897,17 @@ static int config_woomera(void)
 	int count = 0;
 
 	memset(&default_profile, 0, sizeof(default_profile));
-#ifdef AST_JB
+#if defined (AST_JB)
 	memcpy(&global_jbconf, &default_jbconf, sizeof(struct ast_jb_conf));
 #endif
 	
 	default_profile.coding=0;
 
+#if defined (AST16)
+	if ((cfg = ast_config_load(configfile, config_flags))) {
+#else
 	if ((cfg = ast_config_load(configfile))) {
+#endif
 		for (entry = ast_category_browse(cfg, NULL); entry != NULL; entry = ast_category_browse(cfg, entry)) {
 			if (strcmp(entry, "settings") == 0) {
 				
@@ -2854,7 +2918,7 @@ static int config_woomera(void)
 					} else if (!strcmp(v->name, "more_threads")) {
 						globals.more_threads = ast_true(v->value);
 					}
-#ifdef AST_JB
+#if defined (AST_JB)
 					if (ast_jb_read_conf(&global_jbconf, v->name, v->value) == 0) {
 						ast_log(LOG_NOTICE, "Woomera AST JB Opt %s = %s \n",	
 								v->name,v->value);
@@ -3252,14 +3316,14 @@ static struct ast_channel *woomera_new(const char *type, int format,
 	}
 	memset(tech_pvt, 0, sizeof(private_object));
 
-#ifdef AST14
+#if defined (AST14) || defined (AST16)
 	chan =  ast_channel_alloc(0, AST_STATE_DOWN, "", "", "", "", "", 0, "%s", name);
 #else
 	chan = ast_channel_alloc(1);
 #endif
 	if (chan) {
 		chan->nativeformats = WFORMAT;
-#ifndef AST14
+#if !defined (AST14) && !defined (AST16)
 		chan->type = type;
 		snprintf(chan->name, sizeof(chan->name), "%s/%s-%04x", chan->type, (char *)data, rand() & 0xffff);
 #endif
@@ -3360,7 +3424,7 @@ static struct ast_channel *tech_requester(const char *type, int format, void *da
 	return chan;
 }
 
-#ifdef AST14
+#if defined (AST14) || defined (AST16)
 static int tech_digit_end(struct ast_channel *ast, char digit, unsigned int duration)
 {
 	return 0;
@@ -3406,7 +3470,7 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 	char *p;
 	char *c;
 
-#ifndef AST14
+#if !defined (AST14) && !defined (AST16)
 	self->type = WOOMERA_CHAN_NAME;	
 #endif
 	
@@ -3900,7 +3964,11 @@ tech_read_again:
 					if (!tech_pvt->faxhandled) {
 						tech_pvt->faxhandled++;
 						if (strcmp(owner->exten, "fax")) {
+#if defined (AST14) || defined (AST16)
 							const char *target_context = S_OR(owner->macrocontext, owner->context);
+#else
+							const char *target_context = ast_strlen_zero(owner->macrocontext) ? owner->context : owner->macrocontext;
+#endif
 				
 							if (ast_exists_extension(owner, target_context, "fax", 1, owner->cid.cid_num)) {
 								if (option_verbose > 2) {
@@ -4051,12 +4119,13 @@ static struct ast_frame *tech_exception(struct ast_channel *self)
 			ast_verbose(WOOMERA_DEBUG_PREFIX "+++EXCEPT %s\n",self->name);
 		}
 	}
+
 	return &ast_null_frame;
 }
 
 /*--- tech_indicate: Indicaate a condition to my channel ---*/
 #ifdef  USE_TECH_INDICATE
-#ifdef AST14
+#if defined (AST14) || defined (AST16)
 static int tech_indicate(struct ast_channel *self, int condition, const void *data, size_t datalen)
 #else
 static int tech_indicate(struct ast_channel *self, int condition)
@@ -4119,10 +4188,10 @@ static int tech_indicate(struct ast_channel *self, int condition)
 		if (!ast_test_flag(tech_pvt,TFLAG_ACCEPTED)) {
 			ast_set_flag(tech_pvt, TFLAG_ACCEPT);
 		}
-#ifdef AST14
-		ast_mutex_lock(&self->lock);
+#if defined (AST14) || defined (AST16)
+		my_ast_channel_lock(self);
 		ast_moh_start(self, data, tech_pvt->mohinterpret);
-		ast_mutex_unlock(&self->lock);
+		my_ast_channel_unlock(self);
 #endif
 		break;
 	case AST_CONTROL_UNHOLD:
@@ -4132,10 +4201,10 @@ static int tech_indicate(struct ast_channel *self, int condition)
 		if (!ast_test_flag(tech_pvt,TFLAG_ACCEPTED)) {
 			ast_set_flag(tech_pvt, TFLAG_ACCEPT);
 		}
-#ifdef AST14
-		ast_mutex_lock(&self->lock);
+#if defined (AST14) || defined (AST16)
+		my_ast_channel_lock(self);
 		ast_moh_stop(self);
-		ast_mutex_unlock(&self->lock);
+		my_ast_channel_unlock(self);
 #endif
 		break;
 	case AST_CONTROL_VIDUPDATE: 
@@ -4280,6 +4349,22 @@ static enum ast_bridge_result tech_bridge(struct ast_channel *c0, struct ast_cha
 }
 #endif
 
+#if defined(AST16)
+static char *ast16_woomera_cli(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	switch (cmd) {
+		case CLI_INIT:
+			e->command = "woomera";
+			e->usage = "Usage: woomera <profile> <cmd> <option>\n";
+			return NULL;
+		case CLI_GENERATE:
+			return NULL;
+	}
+
+	woomera_cli(a->fd, a->argc, a->argv);
+	return CLI_SUCCESS;
+}
+#endif
 
 static int woomera_cli(int fd, int argc, char *argv[]) 
 {
@@ -4399,6 +4484,7 @@ static int woomera_cli(int fd, int argc, char *argv[])
 	return 0;
 }
 
+
 #ifdef CALLWEAVER
 #ifdef CALLWEAVER_OPBX_CLI_ENTRY
 static struct opbx_cli_entry cli_woomera[] = {
@@ -4419,7 +4505,13 @@ static struct cw_clicmd cli_woomera[] = {
 };
 
 #else
+#if defined (AST16)
+static struct ast_cli_entry cli_woomera[] = {
+	AST_CLI_DEFINE(ast16_woomera_cli, "Prints Woomera options"),
+};
+#else
 static struct ast_cli_entry  cli_woomera = { { "woomera", NULL }, woomera_cli, "Woomera", "Woomera" };
+#endif
 #endif
 
 /******************************* CORE INTERFACE ********************************************
@@ -4580,13 +4672,13 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
 
 		if (ast_test_flag(tech_pvt, TFLAG_INBOUND)) {
 			int pbx_res;
-#ifdef AST14
-			ast_mutex_lock(&owner->lock);
+#if defined (AST14) || defined (AST16)
+			my_ast_channel_lock(owner);
 			ast_setstate(owner, AST_STATE_RINGING);
 #endif
 			pbx_res=ast_pbx_start(owner);
-#ifdef AST14
-			ast_mutex_unlock(&owner->lock);
+#if defined (AST14) || defined (AST16)
+			my_ast_channel_unlock(owner);
 #endif
  
 			if (pbx_res) {
@@ -4601,7 +4693,7 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
 				/* Let destroy hangup */
 				return -1;
 			} else {
-#ifndef AST14
+#if !defined (AST14) && !defined (AST16)
 				ast_setstate(owner, AST_STATE_RINGING);
 #endif
 				ast_set_flag(tech_pvt, TFLAG_PBX);
@@ -4868,7 +4960,7 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 			struct ast_channel *owner = tech_get_owner(tech_pvt);
 			
 			if (owner) {
-#ifdef AST14
+#if defined (AST14) || defined (AST16)
 				char newname[100];
                         	snprintf(newname, 100, "%s/%s", WOOMERA_CHAN_NAME, chan_name);
 				ast_change_name(owner,newname);
@@ -4994,8 +5086,25 @@ int load_module(void)
 	opbx_cli_register_multiple(cli_woomera, arraysize(cli_woomera));
 #endif
 #else
+#if defined(AST16)
+	ast_cli_register(cli_woomera);
+#else
 	ast_cli_register(&cli_woomera);
 #endif
+#endif
+
+#if !defined (AST14) && !defined (AST16) && !defined (CALLWEAVER_19) 
+	ast_null_frame.frametype = AST_FRAME_NULL;
+	ast_null_frame.datalen = 0;
+	ast_null_frame.samples = 0;
+	ast_null_frame.mallocd = 0;
+	ast_null_frame.offset = 0;
+	ast_null_frame.subclass = 0;
+	ast_null_frame.delivery = ast_tv(0,0);
+	ast_null_frame.src = "zt_exception";
+	ast_null_frame.data = NULL;
+#endif
+
 	return 0;
 }
 
@@ -5045,14 +5154,18 @@ int unload_module(void)
 		ast_mutex_destroy(&tech_pvt_idx_lock[x]);
 	}
 	
-#ifdef CALLWEAVER
-#ifdef CALLWEAVER_19
+#if defined (CALLWEAVER)
+#if defined (CALLWEAVER_19)
 	cw_cli_unregister_multiple(cli_woomera, sizeof(cli_woomera) / sizeof(cli_woomera[0]));
 #else
 	opbx_cli_unregister_multiple(cli_woomera, sizeof(cli_woomera) / sizeof(cli_woomera[0]));
 #endif
 #else
+#if defined(AST16)
+	ast_cli_unregister(cli_woomera);
+#else
 	ast_cli_unregister(&cli_woomera);
+#endif
 #endif
 	ASTOBJ_CONTAINER_DESTROY(&private_object_list);
 	ASTOBJ_CONTAINER_DESTROYALL(&woomera_profile_list, destroy_woomera_profile);
@@ -5076,7 +5189,7 @@ char *description()
 #else 
 
 
-# ifndef AST14
+# if !defined (AST14) && !defined (AST16)
 
 char *key()
 {

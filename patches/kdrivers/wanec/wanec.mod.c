@@ -55,4 +55,4 @@ __attribute__((section(".modinfo"))) =
 "depends=wanrouter";
 
 
-MODULE_INFO(srcversion, "8652C39C810608A275EFEE3");
+MODULE_INFO(srcversion, "32399AA343F2934896D1701");

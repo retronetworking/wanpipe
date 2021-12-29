@@ -552,6 +552,22 @@ sdla_56k_set_lbmode(sdla_fe_t *fe, unsigned char mode, unsigned char enable)
 
 }
 
+/******************************************************************************
+*				sdla_56k_udp_lb()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_56k_udp_lb(sdla_fe_t *fe, unsigned char* data)
+{
+	sdla_fe_lbmode_t	*lb = (sdla_fe_lbmode_t*)data;
+
+	if (lb->cmd != WAN_FE_LBMODE_CMD_SET){
+		return -EINVAL;
+	}
+	return sdla_56k_set_lbmode(fe, lb->type, lb->mode);
+}
 
 /*
  ******************************************************************************
@@ -589,7 +605,7 @@ static int sdla_56k_udp(sdla_fe_t *fe, void* pudp_cmd, unsigned char* data)
 
 	case WAN_FE_LB_MODE:
 		/* Activate/Deactivate Line Loopback modes */
-	    	err = sdla_56k_set_lbmode(fe, data[0], data[1]); 
+	    	err = sdla_56k_udp_lb(fe, data); 
 	    	udp_cmd->wan_cmd_return_code = 
 				(!err) ? WAN_CMD_OK : WAN_UDP_FAILED_CMD;
 	    	udp_cmd->wan_cmd_data_len = 0x00;

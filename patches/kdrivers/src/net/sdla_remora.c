@@ -639,7 +639,7 @@ static int wp_remora_chain_enable(sdla_fe_t *fe)
 					fe->name, mod_no+1);
 				fe->rm_param.mod[mod_no].type	=
 						MOD_TYPE_FXS;
-			}else if (byte == 0x0A){
+			}else if (byte == 0x00){
 				DEBUG_RM("%s: Module %d TEST\n",
 					fe->name, mod_no+1);
 				fe->rm_param.mod[mod_no].type	=

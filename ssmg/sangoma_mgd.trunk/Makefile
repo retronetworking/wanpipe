@@ -32,7 +32,7 @@ endif
 CC = gcc
 INSTALLPREFIX=
 
-INCLUDES = -I$(KDIR)/include -I ../../ssmg/libsangoma.trunk -I. -I ../../patches/kdrivers/include -I ../../patches/kdrivers/wanec/oct6100_api/include -I ../../patches/kdrivers/wanec -I/usr/local/include -I../../patches/kdrivers/include -I/usr/include/wanpipe -Ilib/libteletone/src
+INCLUDES = -I ../../ssmg/libsangoma.trunk -I. -I ../../patches/kdrivers/include -I ../../patches/kdrivers/wanec/oct6100_api/include -I ../../patches/kdrivers/wanec -I/usr/local/include -I../../patches/kdrivers/include -I/usr/include/wanpipe -Ilib/libteletone/src
 
 CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 
 ifeq "${NO_SS7}" "YES"

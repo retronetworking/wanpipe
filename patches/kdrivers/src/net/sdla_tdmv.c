@@ -1353,7 +1353,7 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 				       wp->card->devname);	
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
-					WAN_TE1_TX_LB_MODE,
+					WAN_TE1_TX_LINELB_MODE,
 				       	WAN_TE1_LB_ENABLE);
 			break;
 	    	case ZT_MAINT_LOOPDOWN:
@@ -1361,7 +1361,7 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 				       wp->card->devname);	
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
-					WAN_TE1_TX_LB_MODE,
+					WAN_TE1_TX_LINELB_MODE,
 				       	WAN_TE1_LB_DISABLE);
 			break;
 	    	case ZT_MAINT_LOOPSTOP:

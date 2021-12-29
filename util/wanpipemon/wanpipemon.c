@@ -123,7 +123,10 @@ int pcap_isdn_network=0;
 FILE *pcap_output_file;
 char pcap_output_file_name[50];
 
-int mtp2_msu_only=1;
+int mtp2_msu_only=0;
+int trace_only_diff=0;
+int trace_rx_only=0;
+int trace_tx_only=0;
 
 wanpipe_hdlc_engine_t *rx_hdlc_eng; 
 
@@ -919,9 +922,19 @@ static int init(int argc, char *argv[], char* command)
 		}else if (!strcmp(argv[i], "-systime")){
 			sys_timestamp=1;
 		
-		}else if (!strcmp(argv[i], "-mtp2-all")){
-			mtp2_msu_only=0;
-			printf("MTP2 Trace All\n"); 
+		}else if (!strcmp(argv[i], "-mtp2-msu")){
+			mtp2_msu_only=1;
+			printf("MTP2 Trace MSU Only\n"); 
+		}else if (!strcmp(argv[i], "-diff")){
+			trace_only_diff=1;
+			printf("Trace Diff Only\n"); 
+		}else if (!strcmp(argv[i], "-rx")){
+			trace_rx_only=1;
+			printf("Trace Rx Only\n"); 
+		}else if (!strcmp(argv[i], "-tx")){
+			trace_tx_only=1;
+			printf("Trace Tx Only\n"); 
+		
 		}else if (!strcmp(argv[i], "-7bit-hdlc")){
 			if (rx_hdlc_eng) {
 				rx_hdlc_eng->seven_bit_hdlc = 1;	
@@ -1289,7 +1302,7 @@ static unsigned char trace_info[]="\n"
 "	-systime		#Display timestamp as system time\n"
 "	                        #instead of absolute number\n"
 "\n"
-"	-mtp2-all		#Trace full MTP2 layer FISU/LSSU/MSU\n"
+"	-mtp2-msu		#Trace MTP2 MSU only\n"
 "\n"
 "	-7bit-hdlc		#Decode hdlc stream as 7bit instead of 8bit\n"
 "\n"

@@ -436,11 +436,15 @@ static int32_t wp_serial_config(void *pfe)
 					/*FIXME: Must check for case where first port started in external mode
 					At this time, if port 1 start in normal & prot 3 in master, the
 					port 1 will silently be reconfigured to Master after port 3 starts */
-	
-					if (card->wandev.electrical_interface == WANOPT_X21) {
-						aft_serial_write_cpld(card,cpld_reg,0x07);
-					}else{
-						aft_serial_write_cpld(card,cpld_reg,0x05);
+
+					if (card->wandev.clocking == WANOPT_INTERNAL) {
+						if (card->wandev.electrical_interface == WANOPT_X21) {
+							aft_serial_write_cpld(card,cpld_reg,0x07);
+						}else{
+							aft_serial_write_cpld(card,cpld_reg,0x05);
+						}
+					} else {
+						aft_serial_write_cpld(card,cpld_reg,0x01);
 					}
 		} else {
 			if (wan_test_bit(2,&cpld_reg_val)) {
@@ -495,11 +499,43 @@ static int32_t wp_serial_config(void *pfe)
 
 
 	if (card->wandev.clocking) {
-		DEBUG_EVENT("%s: A140: Configuring for Internal Clocking: Baud=%i\n",
+		int err;
+
+		DEBUG_EVENT("%s: A140: Configuring for %s Clocking: Baud=%i\n",
 			card->devname,
+			card->wandev.clocking == WANOPT_INTERNAL?"Internal":"Recovery",
 			card->wandev.bps);
+
+		if (card->wandev.bps == 0) {
+			DEBUG_EVENT("%s: Error Invalid Baud Rate selected 0Kbps!\n",
+				card->devname);
+			return -EINVAL;
+		}
+
 		wan_set_bit(AFT_SERIAL_LCFG_CLK_SRC_BIT, &reg);
-		aft_serial_set_baud_rate(&reg,card->wandev.bps);
+
+		if (card->u.aft.firm_ver < 0x07) {	
+			if (card->wandev.clocking == WANOPT_INTERNAL) {
+				err=aft_serial_set_legacy_baud_rate(&reg,card->wandev.bps);
+			} else {
+				DEBUG_EVENT("%s: RECOVERY Clocking only supported on Fimware Ver 7 or greater!\n",
+						card->devname);
+				return -EINVAL;
+			}
+		} else {
+			if (card->wandev.clocking == WANOPT_INTERNAL) {
+				err=aft_serial_set_baud_rate(&reg,card->wandev.bps,0);
+			} else {
+				err=aft_serial_set_baud_rate(&reg,card->wandev.bps*32,1);
+			}
+		}
+
+		if (err) {
+			return -EINVAL;
+		}
+
+		DEBUG_TEST("%s: Setting REG to 0x%08X!\n",
+			card->devname,reg);
 	} else {
 		DEBUG_EVENT("%s: A140: Configuring for External Clocking: Baud=%i\n",
 			card->devname,
@@ -535,10 +571,11 @@ static int32_t wp_serial_config(void *pfe)
 		wan_clear_bit(AFT_SERIAL_LCFG_IDLE_DET_BIT,&reg);
 	}
 
-
-
-	/* Hardcode to sync device type */
-	wan_clear_bit(AFT_SERIAL_LCFG_IFACE_TYPE_BIT,&reg);
+	if (card->wandev.clocking == WANOPT_RECOVERY) {
+		wan_set_bit(AFT_SERIAL_LCFG_IFACE_TYPE_BIT,&reg);
+	} else {
+		wan_clear_bit(AFT_SERIAL_LCFG_IFACE_TYPE_BIT,&reg);
+	}
 
 	/* CTS/DCD Interrupt Enable */
 	if (card->wandev.ignore_front_end_status == WANOPT_YES) {
@@ -552,13 +589,23 @@ static int32_t wp_serial_config(void *pfe)
 
 	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),reg);
 
-	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X CTS/DCD ISR=%s\n",
+	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X CTS/DCD ISR=%s DTR=%i RTS=%i\n",
 			card->devname,
-			reg,card->wandev.ignore_front_end_status == WANOPT_YES?"Off":"On");
+			reg,card->wandev.ignore_front_end_status == WANOPT_YES?"Off":"On",
+			card->u.aft.cfg.serial_rts_ctrl == WANOPT_HIGH, card->u.aft.cfg.serial_dtr_ctrl == WANOPT_HIGH);
 
 	/* Raise RTS and DTR */
-	wan_set_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg);
-	wan_set_bit(AFT_SERIAL_LCFG_DTR_BIT,&reg);
+	if (card->u.aft.cfg.serial_rts_ctrl == WANOPT_HIGH) {
+		wan_set_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg);
+	} else {
+		wan_clear_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg);
+	}
+
+	if (card->u.aft.cfg.serial_dtr_ctrl == WANOPT_HIGH) {
+		wan_set_bit(AFT_SERIAL_LCFG_DTR_BIT,&reg);
+	} else {
+		wan_clear_bit(AFT_SERIAL_LCFG_DTR_BIT,&reg);
+	}
 
 	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),reg);
 

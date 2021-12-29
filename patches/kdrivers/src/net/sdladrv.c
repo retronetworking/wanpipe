@@ -2079,8 +2079,6 @@ int sdla_get_hw_info(sdlahw_t* hw)
 				wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT, &reg);
 				sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg);
 		
-				/* Restore original value */	
-				//sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg1);
 				cpld_off = A200_SH_CPLD_BOARD_STATUS_REG;
 				sdla_hw_read_cpld(hw, cpld_off, &status);
 
@@ -2100,6 +2098,8 @@ int sdla_get_hw_info(sdlahw_t* hw)
 					cpld_off = 0x00;
 					sdla_hw_write_cpld(hw, cpld_off, 0x00);
 				}
+				/* Restore original value */	
+				sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg1);
 				break;
 			case AFT_ADPTR_56K:
 				AFT_FUNC_DEBUG();
@@ -2113,6 +2113,9 @@ int sdla_get_hw_info(sdlahw_t* hw)
 				cpld_off = AFT_SH_CPLD_BOARD_STATUS_REG;
 				sdla_hw_read_cpld(hw, cpld_off, &status);
 				hwcard->hwec_chan_no = 0;
+				
+				/* Restore original value */	
+				sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg1);
 				break;
 
 			case AFT_ADPTR_2SERIAL_V35X21:
@@ -2133,9 +2136,19 @@ int sdla_get_hw_info(sdlahw_t* hw)
 	/* For all SUBTYPES SHARK AND OLD */
 	switch(hwcard->adptr_type){
 	case A300_ADPTR_U_1TE3:
+			sdla_bus_read_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), &reg1);
+                        reg = reg1;
+                        wan_clear_bit(5, &reg);
+                        wan_clear_bit(4, &reg);
+                        sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg);
+
 			sdla_hw_read_cpld(hw, AFT_A300_VER_CUSTOMER_ID, &status);
 			hw->hwcpu->hwcard->cpld_rev = (status>>AFT_A300_VER_SHIFT)&AFT_A300_VER_MASK;
+
 			hwcard->hwec_chan_no = 0;
+				
+			/* Restore original value */	
+			sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg1);
 			break;
 	}
 
@@ -9768,11 +9781,14 @@ static int sdla_hw_read_cpld(void *phw, u16 off, u8 *data)
 		switch(hwcpu->hwcard->adptr_type){
 		case A101_ADPTR_1TE1:
 		case A101_ADPTR_2TE1:
+		case A300_ADPTR_U_1TE3:
 			off &= ~AFT_BIT_DEV_ADDR_CLEAR;
 			off |= AFT_BIT_DEV_ADDR_CPLD;
 			/* Save current original address */
 			sdla_bus_read_2(hw, AFT_MCPU_INTERFACE_ADDR, &org_off);
+			WP_DELAY(5);
 			sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, off);
+			WP_DELAY(5);
 			sdla_bus_read_1(hw, AFT_MCPU_INTERFACE, data);
 			/* Restore the original address */
 			sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, org_off);
@@ -9881,9 +9897,21 @@ static int sdla_hw_read_cpld(void *phw, u16 off, u8 *data)
 				sdla_bus_read_1(hw, AFT_MCPU_INTERFACE, data);
 				/* Restore the original address */
 				sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, org_off);
-
-
 				break;
+
+			case A300_ADPTR_U_1TE3:
+				off &= ~AFT_BIT_DEV_ADDR_CLEAR;
+				off |= AFT_BIT_DEV_ADDR_CPLD;
+				/* Save current original address */
+				sdla_bus_read_2(hw, AFT_MCPU_INTERFACE_ADDR, &org_off);
+				WP_DELAY(5);
+				sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, off);
+				WP_DELAY(5);
+				sdla_bus_read_1(hw, AFT_MCPU_INTERFACE, data);
+				/* Restore the original address */
+				sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, org_off);
+				break;
+
 			default:
 				DEBUG_EVENT("%s: ERROR: Invalid read access to cpld (SHARK)!\n",
 						hw->devname);

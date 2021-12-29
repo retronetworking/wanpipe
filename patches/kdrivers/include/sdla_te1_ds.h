@@ -102,6 +102,13 @@
 #define BIT_T1RCR2_RAIIE	0x02
 #define BIT_T1RCR2_RD4RM	0x01
 
+#define REG_T1RBOCC		0x15
+#define BIT_T1RBOCC_RBR		0x80
+#define BIT_T1RBOCC_RBD1	0x02
+#define BIT_T1RBOCC_RBD0	0x01
+#define BIT_T1RBOCC_RBF1	0x04
+#define BIT_T1RBOCC_RBF0	0x02
+
 #define REG_RS1			0x40
 #define BIT_RS_A		0x08
 #define BIT_RS_B		0x04
@@ -135,6 +142,8 @@
 #define REG_E1EBCR1		0x56
 #define REG_E1EBCR2		0x57
 
+#define REG_T1RBOC		0x63
+
 #define REG_E1RNAF		0x65
 #define BIT_E1RNAF_A		0x20
 
@@ -160,6 +169,14 @@
 #define BIT_RCR1_E1_FRC		0x04
 #define BIT_RCR1_E1_SYNCE	0x02
 #define BIT_RCR1_E1_RESYNC	0x01
+
+#define REG_T1RIBCC		0x82
+#define BIT_T1RIBCC_RUP2	0x20
+#define BIT_T1RIBCC_RUP1	0x10
+#define BIT_T1RIBCC_RUP0	0x08
+#define BIT_T1RIBCC_RDN2	0x04
+#define BIT_T1RIBCC_RDN1	0x02
+#define BIT_T1RIBCC_RDN0	0x01
 
 #define REG_RCR3		0x83
 #define BIT_RCR3_IDF		0x80
@@ -190,6 +207,11 @@
 #define BIT_ERCNT_FSBE		0x04
 #define BIT_ERCNT_MOSCR		0x02
 #define BIT_ERCNT_LCVCRF	0x01
+
+#define REG_RXPC		0x8A
+#define BIT_RXPC_RBPDIR		0x04
+#define BIT_RXPC_RBPFUS		0x02
+#define BIT_RXPC_RBPEN		0x01
 
 #define REG_RLS1		0x90
 #define BIT_RLS1_RRAIC		0x80
@@ -361,6 +383,8 @@
 #define REG_RIM7		0xA6
 #define BIT_RIM7_RSLC96		0x08
 #define BIT_RIM7_RFDLF		0x04
+#define BIT_RIM7_T1_BC		0x02
+#define BIT_RIM7_T1_BD		0x01
 
 #define REG_RSCSE1		0xA8
 #define BITS_RSCSE1_ALL		0xFF
@@ -406,6 +430,11 @@
 #define BIT_RSCSE4_CH31		0x02
 #define BIT_RSCSE4_CH32		0x01
 
+#define REG_T1RUPCD1		0xAC
+#define REG_T1RUPCD2		0xAD
+#define REG_T1RDNCD1		0xAE
+#define REG_T1RNDCD2		0xAF
+
 #define REG_RRTS1		0xB0
 #define BIT_RRTS1_RRAI		0x08
 #define BIT_RRTS1_RAIS		0x04
@@ -431,7 +460,22 @@
 #define REG_RCICE3		0xD2
 #define REG_RCICE4		0xD3
 
+#define REG_RBPCS1		0xD4
+#define REG_RBPCS2		0xD5
+#define REG_RBPCS3		0xD6
+#define REG_RBPCS4		0xD7
+
 /* TX Framer Register Definitions */
+#define REG_THC2		0x113
+#define BIT_THC2_TABT		0x80
+#define BIT_THC2_SBOC		0x40
+#define BIT_THC2_THCEN		0x20
+#define BIT_THC2_THCS4		0x10
+#define BIT_THC2_THCS3		0x08
+#define BIT_THC2_THCS2		0x04
+#define BIT_THC2_THCS1		0x02
+#define BIT_THC2_THCS0		0x01
+
 #define REG_E1TSACR		0x114
 #define BIT_E1TSACR_SiAF	0x80
 #define BIT_E1TSACR_SiNAF	0x40
@@ -514,6 +558,8 @@
 
 #define REG_T1TFDL		0x162
 
+#define REG_T1TBOC		0x163
+
 #define REG_E1TAF		0x164
 
 #define REG_E1TNAF		0x165
@@ -580,6 +626,21 @@
 #define BIT_TESCR_TGPCKEN	0x40
 #define BIT_TESCR_TESE		0x01
 
+#define REG_TCR4		0x186
+#define BIT_TCR4_TRAIM		0x08
+#define BIT_TCR4_TAISM		0x04
+#define BIT_TCR4_TC1		0x02
+#define BIT_TCR4_TC0		0x01
+#define BITS_TCR4_CL_ENCODE(len)				\
+		((len)==6 || (len)==3) 	? BIT_TCR4_TC0 :	\
+		((len)==7) 		? BIT_TCR4_TC1 :	\
+		((len)==5)		? 0x00 : (BIT_TCR4_TC1|BIT_TCR4_TC0)
+		
+#define REG_TXPC		0x18A
+#define BIT_TXPC_TBPDIR		0x04
+#define BIT_TXPC_TBPFUS		0x02
+#define BIT_TXPC_TBPEN		0x01
+
 #define REG_TLS1		0x190
 #define BIT_TLS1_TPDV		0x08
 #define BIT_TLS1_TMF		0x04
@@ -598,10 +659,23 @@
 #define REG_TIM2		0x1A1
 #define REG_TIM3		0x1A2
 
+#define REG_T1TCD1		0x1AC
+#define REG_T1TCD2		0x1AD
+
 #define REG_TGCCS1		0x1CC
 #define REG_TGCCS2		0x1CD
 #define REG_TGCCS3		0x1CE
 #define REG_TGCCS4		0x1CF
+
+#define REG_PCL1		0x1D0
+#define REG_PCL2		0x1D1
+#define REG_PCL3		0x1D2
+#define REG_PCL4		0x1D3
+
+#define REG_TBPCS1		0x1D4
+#define REG_TBPCS2		0x1D5
+#define REG_TBPCS3		0x1D6
+#define REG_TBPCS4		0x1D7
 
 /* LIU Register Definitions */
 #define REG_LTRCR		0x1000
@@ -677,6 +751,60 @@
 #define REG_LTXLAE		0x100C
 
 /* BERT Register Definitions */
+#define REG_BAWC		0x1100
+
+#define REG_BRP1		0x1101
+#define REG_BRP2		0x1102
+#define REG_BRP3		0x1103
+#define REG_BRP4		0x1104
+
+#define REG_BC1			0x1105
+#define BIT_BC1_TC		0x80
+#define BIT_BC1_TINV		0x40
+#define BIT_BC1_RINV		0x20
+#define BIT_BC1_PS2		0x10
+#define BIT_BC1_PS1		0x08
+#define BIT_BC1_PS0		0x04
+#define BIT_BC1_LC		0x02
+#define BIT_BC1_RESYNC		0x01
+
+#define REG_BC2			0x1106
+#define BIT_BC2_EIB2		0x80
+#define BIT_BC2_EIB1		0x40
+#define BIT_BC2_EIB0		0x20
+#define BIT_BC2_SBE		0x10
+#define BIT_BC2_RPL3		0x08
+#define BIT_BC2_RPL2		0x04
+#define BIT_BC2_RPL1		0x02
+#define BIT_BC2_RPL0		0x01
+
+#define REG_BBC1		0x1107
+#define REG_BBC2		0x1108
+#define REG_BBC3		0x1109
+#define REG_BBC4		0x110A
+
+#define REG_BEC1		0x110B
+#define REG_BEC2		0x110C
+#define REG_BEC3		0x110D
+
+#define REG_BLSR		0x110E
+#define BIT_BLSR_BBED		0x40
+#define BIT_BLSR_BBCO		0x20
+#define BIT_BLSR_BECO		0x10
+#define BIT_BLSR_BRA1		0x08
+#define BIT_BLSR_BRA0		0x04
+#define BIT_BLSR_BRLOS		0x02
+#define BIT_BLSR_BSYNC		0x01
+
+#define REG_BSIM		0x110F
+#define BIT_BSIM_BBED		0x40
+#define BIT_BSIM_BBCO		0x20
+#define BIT_BSIM_BECO		0x10
+#define BIT_BSIM_BRA1		0x08
+#define BIT_BSIM_BRA0		0x04
+#define BIT_BSIM_BRLOS		0x02
+#define BIT_BSIM_BSYNC		0x01
+
 #define REG_BLSR		0x110E
 #define BIT_BLSR_BBED		0x40
 #define BIT_BLSR_BBCO		0x20

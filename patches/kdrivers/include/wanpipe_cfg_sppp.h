@@ -46,6 +46,7 @@ typedef struct sppp_parms_struct {
 #else
 	unsigned int keepalive_err_margin;
 #endif
+	unsigned char disable_magic;
 }wan_sppp_if_conf_t;
 
 

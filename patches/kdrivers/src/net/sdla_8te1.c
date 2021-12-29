@@ -231,7 +231,7 @@ static int sdla_ds_te1_set_alarms(sdla_fe_t* fe, u_int32_t alarms);
 static int sdla_ds_te1_clear_alarms(sdla_fe_t* fe, u_int32_t alarms);
 static void sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms);
 static int sdla_ds_te1_print_alarms(sdla_fe_t*, unsigned int);
-static int sdla_ds_te1_set_lb(sdla_fe_t*, unsigned char, unsigned char); 
+static int sdla_ds_te1_set_lb(sdla_fe_t*, u_int8_t,u_int8_t); 
 static int sdla_ds_te1_rbs_update(sdla_fe_t* fe, int, unsigned char);
 static int sdla_ds_te1_set_rbsbits(sdla_fe_t *fe, int, unsigned char);
 static int sdla_ds_te1_rbs_report(sdla_fe_t* fe);
@@ -253,6 +253,15 @@ static void sdla_ds_te1_timer(unsigned long pfe);
 
 static int sdla_ds_te1_update_alarm_info(sdla_fe_t*, struct seq_file*, int*);
 static int sdla_ds_te1_update_pmon_info(sdla_fe_t*, struct seq_file*, int*);
+
+static int sdla_ds_te1_txlbcode_done(sdla_fe_t *fe);
+
+static int sdla_ds_te1_boc(sdla_fe_t *fe, int mode);
+static int sdla_ds_te1_liu_rlb(sdla_fe_t* fe, unsigned char cmd);
+static int sdla_ds_te1_fr_plb(sdla_fe_t* fe, unsigned char cmd);
+
+static int sdla_ds_te1_bert_read_status(sdla_fe_t *fe);
+static int sdla_ds_te1_bert_status(sdla_fe_t *fe, sdla_te_bert_stats_t *);
 
 /******************************************************************************
 *			  FUNCTION DEFINITIONS
@@ -1080,6 +1089,14 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		}
 	}
 
+// FIXME: BOC
+	if (IS_T1_FEMEDIA(fe)){
+		WRITE_REG(REG_T1RBOCC, BIT_T1RBOCC_RBD0 | BIT_T1RBOCC_RBF1 | BIT_T1RBOCC_RBF0);
+	}
+
+	WRITE_REG(REG_T1RIBCC, BIT_T1RIBCC_RUP2 | BIT_T1RIBCC_RDN1);
+	WRITE_REG(REG_T1RUPCD1, 0x80);
+	WRITE_REG(REG_T1RDNCD1, 0x80);
 
 	if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
 		/* Set INIT_DONE (for not unframed mode) */
@@ -1678,7 +1695,7 @@ static u_int32_t sdla_ds_e1_is_alarm(sdla_fe_t *fe, u_int32_t alarms)
 
 	if (WAN_FE_FRAME(fe) == WAN_FR_UNFRAMED){
 		alarm_mask = WAN_TE1_UNFRAMED_ALARMS;
-		if (!fe->te_param.lb_mode){
+		if (!fe->te_param.lb_mode_map){
 			alarm_mask |= ( WAN_TE_BIT_LIU_ALARM_OC |
 					WAN_TE_BIT_LIU_ALARM_SC |
 					WAN_TE_BIT_LIU_ALARM_LOS);
@@ -1728,6 +1745,7 @@ static void sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms)
 		}
 	}
 
+#if 0
 	if ((IS_T1_FEMEDIA(fe) && sdla_ds_t1_is_alarm(fe, alarms)) ||
 	    (IS_E1_FEMEDIA(fe) && sdla_ds_e1_is_alarm(fe, alarms))){
 		if (fe->fe_status != FE_DISCONNECTED){
@@ -1746,6 +1764,7 @@ static void sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms)
 			fe->fe_status = FE_CONNECTED;
 		}
 	}
+#endif
 
 	if (curr_fe_status != fe->fe_status){
 		if (fe->fe_status == FE_CONNECTED){
@@ -2600,8 +2619,10 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, u_int8_t type, u_int8_t mode, un
 			mask |= (BIT_RIM1_RLOSC | BIT_RIM1_RLOSD);
 #endif
 			WRITE_REG(REG_RIM1, mask);
-			/*WRITE_REG(REG_RIM4, BIT_RIM4_TIMER);*/
-			/*WRITE_REG(REG_RIM7, BIT_RIM7_RSLC96);*/
+			/* In-band loop codes */
+			WRITE_REG(REG_RIM3, BIT_RIM3_T1_LDNC|BIT_RIM3_T1_LUPC|BIT_RIM3_T1_LDND|BIT_RIM3_T1_LUPD);
+			WRITE_REG(REG_RIM4, BIT_RIM4_TIMER);
+			WRITE_REG(REG_RIM7, BIT_RIM7_T1_BC | BIT_RIM7_T1_BD);
 			WRITE_REG(REG_LSIMR,
 				BIT_LSIMR_OCCIM | BIT_LSIMR_OCDIM |
 				BIT_LSIMR_SCCIM | BIT_LSIMR_SCCIM |
@@ -2785,9 +2806,11 @@ static int sdla_ds_te1_framer_rx_intr(sdla_fe_t *fe, int silent)
 	}
 	if (istatus & BIT_RIIR_RLS3){
 		unsigned char	rls3 = READ_REG(REG_RLS3);
+		unsigned char	rrts3 = READ_REG(REG_RRTS3);
 		if (!silent) DEBUG_TE1("%s: RX Latched Status Register 3 %02X\n",
 					fe->name, rls3);
 		if (IS_T1_FEMEDIA(fe)){
+
 			if (rls3 & BIT_RLS3_T1_LORCC){
 				if (!silent) DEBUG_EVENT(
 				"%s: Loss of Receive Clock Condition Clear!\n",
@@ -2797,6 +2820,33 @@ static int sdla_ds_te1_framer_rx_intr(sdla_fe_t *fe, int silent)
 				if (!silent) DEBUG_EVENT(
 				"%s: Loss of Receive Clock Condition Detect!\n",
 						fe->name);
+			}
+			if (rls3 & (BIT_RLS3_T1_LUPD|BIT_RLS3_T1_LUPC)){
+				if (rrts3 & BIT_RRTS3_T1_LUP){
+					if (!silent) DEBUG_EVENT(
+					"%s: Loop-Up Code Detected Condition Detect!\n",
+							fe->name);
+					sdla_ds_te1_set_lb(
+						fe, WAN_TE1_LINELB_MODE,WAN_TE1_LB_ENABLE); 
+
+				}else{
+					if (!silent) DEBUG_TE1(
+					"%s: Loop-Up Code Detected Condition Clear!\n",
+							fe->name);
+				}
+			}
+			if (rls3 & (BIT_RLS3_T1_LDND|BIT_RLS3_T1_LDNC)){
+				if (rrts3 & BIT_RRTS3_T1_LDN){
+					if (!silent) DEBUG_EVENT(
+					"%s: Loop-Down Code Detected Condition Detect!\n",
+							fe->name);
+					sdla_ds_te1_set_lb(
+						fe, WAN_TE1_LINELB_MODE,WAN_TE1_LB_DISABLE);
+				}else{
+					if (!silent) DEBUG_TE1(
+					"%s: Loop-Down Code Detected Condition Clear!\n",
+							fe->name);
+				}
 			}
 		}else{
 			if (rls3 & BIT_RLS3_E1_LORCC){
@@ -2886,16 +2936,18 @@ static int sdla_ds_te1_framer_rx_intr(sdla_fe_t *fe, int silent)
 					fe->name);
 		}					
 		if (rls7 & BIT_RLS7_RFDLF){
-			if (!silent) DEBUG_EVENT("%s: Receive FDL Register Full Event!\n",
+			if (!silent) DEBUG_TE1("%s: Receive FDL Register Full Event!\n",
 					fe->name);
 		}					
 		if (rls7 & BIT_RLS7_BC){
-			if (!silent) DEBUG_EVENT("%s: BOC Clear Event!\n",
+			if (!silent) DEBUG_TE1("%s: BOC Clear Event!\n",
 					fe->name);
+			sdla_ds_te1_boc(fe, 0);
 		}					
 		if (rls7 & BIT_RLS7_BD){
-			if (!silent) DEBUG_EVENT("%s: BOC Detect Event!\n",
+			if (!silent) DEBUG_TE1("%s: BOC Detect Event!\n",
 					fe->name);
+			sdla_ds_te1_boc(fe, 1);
 		}					
 		WRITE_REG(REG_RLS7, rls7);
 	}
@@ -2937,34 +2989,40 @@ static int sdla_ds_te1_framer_tx_intr(sdla_fe_t *fe, int silent)
 static int sdla_ds_te1_bert_intr(sdla_fe_t *fe, int silent) 
 {
 	unsigned char	blsr = READ_REG(REG_BLSR);
+	unsigned char	bsim = READ_REG(REG_BSIM);
 	
-	if (blsr & BIT_BLSR_BBED){
-		if (!silent) DEBUG_EVENT("%s: BERT bit error detected!\n",
+	if (blsr & BIT_BLSR_BBED && bsim & BIT_BSIM_BBED){
+		if (!silent && WAN_NET_RATELIMIT())
+			DEBUG_EVENT("%s: BERT bit error detected!\n",
 					fe->name);
 	}
-	if (blsr & BIT_BLSR_BBCO){
+	if (blsr & BIT_BLSR_BBCO && bsim & BIT_BSIM_BBCO){
 		if (!silent) DEBUG_EVENT("%s: BERT Bit Counter overflows!\n",
 					fe->name);
 	}
-	if (blsr & BIT_BLSR_BECO){
+	if (blsr & BIT_BLSR_BECO && bsim & BIT_BSIM_BECO){
 		if (!silent) DEBUG_EVENT("%s: BERT Error Counter overflows!\n",
 					fe->name);
 	}
-	if (blsr & BIT_BLSR_BRA1){
+	if (blsr & BIT_BLSR_BRA1 && bsim & BIT_BSIM_BRA1){
 		if (!silent) DEBUG_EVENT("%s: BERT Receive All-Ones Condition!\n",
 					fe->name);
 	}
-	if (blsr & BIT_BLSR_BRA0){
+	if (blsr & BIT_BLSR_BRA0 && bsim & BIT_BSIM_BRA0){
 		if (!silent) DEBUG_EVENT("%s: BERT Receive All-Zeros Condition!\n",
 					fe->name);	
 	}
-	if (blsr & BIT_BLSR_BRLOS){
-		if (!silent) DEBUG_EVENT("%s: BERT Receive Loss of Synchronization Condition!\n",
-					fe->name);	
+	if (blsr & BIT_BLSR_BRLOS && bsim & BIT_BSIM_BRLOS){
+		if (!silent && WAN_NET_RATELIMIT())
+			DEBUG_EVENT("%s: BERT Receive Loss of Synchronization Condition!\n",
+					fe->name);
+		wan_clear_bit(WAN_TE_BERT_FLAG_INLOCK, &fe->te_param.bert_flag);
 	}
-	if (blsr & BIT_BLSR_BSYNC){
-		if (!silent) DEBUG_EVENT("%s: BERT in synchronization Condition!\n",
+	if (blsr & BIT_BLSR_BSYNC && bsim & BIT_BSIM_BSYNC){
+		if (!silent && WAN_NET_RATELIMIT())
+			DEBUG_EVENT("%s: BERT in synchronization Condition!\n",
 					fe->name);	
+		wan_set_bit(WAN_TE_BERT_FLAG_INLOCK, &fe->te_param.bert_flag);
 	}
 
 	WRITE_REG(REG_BLSR, blsr);
@@ -3591,6 +3649,18 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 		WRITE_REG(event->te_event.reg, event->te_event.value);
 		break;
 
+	case TE_LINELB_TIMER:		
+		if (IS_T1_FEMEDIA(fe)){
+			sdla_ds_te1_txlbcode_done(fe);
+		}
+		break;
+
+	case WAN_TE_POLL_BERT:
+		if (!sdla_ds_te1_bert_read_status(fe)){
+			pending = 1;
+		}
+		break;
+
 	default:
 		DEBUG_EVENT("%s: Unknown DS TE1 Polling type %02X\n",
 				fe->name, event->type);
@@ -3610,6 +3680,43 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 	}else{
 		sdla_ds_te1_add_timer(fe, POLLING_TE1_TIMER);
 	}
+	return 0;
+}
+
+/******************************************************************************
+*				sdla_ds_te1_txlbcode_done()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_txlbcode_done(sdla_fe_t *fe)
+{
+
+	if (WAN_FE_FRAME(fe) == WAN_FR_D4){
+
+		WRITE_REG(REG_TCR3, READ_REG(REG_TCR3) & ~BIT_TCR3_TLOOP);
+		WRITE_REG(REG_RIM3, BIT_RIM3_T1_LDNC|BIT_RIM3_T1_LUPC|BIT_RIM3_T1_LDND|BIT_RIM3_T1_LUPD);
+
+	}else if (WAN_FE_FRAME(fe) == WAN_FR_ESF){
+
+		WRITE_REG(REG_THC2, READ_REG(REG_THC2) & ~BIT_THC2_SBOC);
+
+	}else{
+		return -EINVAL;
+	}
+	
+	DEBUG_TE1("%s: T1 %s loopback code sent.\n",
+					fe->name,	
+					WAN_TE1_BOC_LB_CODE_DECODE(fe->te_param.lb_tx_code));
+	if (fe->te_param.lb_tx_cmd == WAN_TE1_LB_ENABLE){
+		wan_set_bit(fe->te_param.lb_tx_mode, &fe->te_param.lb_mode_map);
+	}else{
+		wan_clear_bit(fe->te_param.lb_tx_mode, &fe->te_param.lb_mode_map);
+	}
+	fe->te_param.lb_tx_cmd	= 0x00;
+	fe->te_param.lb_tx_code = 0x00;
+	wan_clear_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
 	return 0;
 }
 
@@ -3713,6 +3820,67 @@ static int sdla_ds_te1_pmon(sdla_fe_t *fe, int action)
 			DEBUG_EVENT("%s: Far End Block errors:\t\t%d\n",
 					fe->name, pmon->feb_errors);
 		}
+	}
+	return 0;
+}
+
+/******************************************************************************
+*				sdla_ds_te1_boc()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_boc(sdla_fe_t *fe, int mode)
+{
+	unsigned char	boc, lb_mode, lb_cmd;
+
+	boc = READ_REG(REG_T1RBOC);
+	if (!mode){
+		DEBUG_TE1("%s: BOC Clear Event (BOC=%02X)!\n",
+					fe->name, boc);
+		return 0;
+	}
+
+	DEBUG_TE1("%s: BOC Detect Event (BOC=%02X)!\n",
+					fe->name, boc);
+	switch(boc){
+	case LINELB_ACTIVATE_CODE:
+	case LINELB_DEACTIVATE_CODE:
+	case PAYLB_ACTIVATE_CODE:
+	case PAYLB_DEACTIVATE_CODE:
+		if (boc == LINELB_ACTIVATE_CODE || boc == LINELB_DEACTIVATE_CODE){
+			lb_mode = WAN_TE1_LINELB_MODE;
+		}else{
+			lb_mode = WAN_TE1_PAYLB_MODE;
+		} 
+		if (boc == LINELB_ACTIVATE_CODE || boc == PAYLB_ACTIVATE_CODE){
+			lb_cmd	= WAN_TE1_LB_ENABLE;
+		}else{
+			lb_cmd	= WAN_TE1_LB_DISABLE;
+		} 
+		sdla_ds_te1_set_lb(fe, lb_mode, lb_cmd);
+		DEBUG_TE1("%s: Received T1 %s %s code from far end.\n", 
+				fe->name, 
+				WAN_TE1_LB_ACTION_DECODE(lb_cmd),
+				WAN_TE1_LB_MODE_DECODE(lb_mode));
+		break;
+
+	case UNIVLB_DEACTIVATE_CODE:
+		DEBUG_TE1("%s: Received T1 %s code from far end.(%08X)\n", 
+				fe->name, WAN_TE1_BOC_LB_CODE_DECODE(boc),fe->te_param.lb_mode_map);
+		if (wan_test_bit(WAN_TE1_LINELB_MODE, &fe->te_param.lb_mode_map)){
+			sdla_ds_te1_set_lb(fe, WAN_TE1_LINELB_MODE, WAN_TE1_LB_DISABLE);
+		}
+		if (wan_test_bit(WAN_TE1_PAYLB_MODE, &fe->te_param.lb_mode_map)){
+			sdla_ds_te1_set_lb(fe, WAN_TE1_PAYLB_MODE, WAN_TE1_LB_DISABLE);
+		}
+		break;
+
+	default:
+		DEBUG_TE1("%s: Received Unsupport Bit-Oriented code %02X!\n", 
+							fe->name, boc);
+		break;
 	}
 	return 0;
 }
@@ -3880,6 +4048,84 @@ static int sdla_ds_te1_fr_plb(sdla_fe_t* fe, unsigned char mode)
 	return 0;
 }
 
+/******************************************************************************
+*				sdla_ds_te1_tx_lb()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int
+sdla_ds_te1_tx_lb(sdla_fe_t* fe, u_int8_t mode, u_int8_t cmd) 
+{
+	sdla_fe_timer_event_t	fe_event;
+	int			delay;
+	
+	WAN_ASSERT(fe->write_fe_reg == NULL);
+	WAN_ASSERT(fe->read_fe_reg == NULL);
+
+	if (!IS_T1_FEMEDIA(fe) || (fe->fe_status != FE_CONNECTED)){
+		return -EINVAL;
+	}
+	if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical)){
+		DEBUG_TE1("%s: Still waiting for far end to send loopback signal back!\n",
+				fe->name);
+		return -EBUSY;			
+	}
+	fe->te_param.lb_tx_mode	= mode;
+	fe->te_param.lb_tx_cmd	= cmd;
+	if (mode == WAN_TE1_TX_LINELB_MODE){
+		if (cmd == WAN_TE1_LB_ENABLE){
+			fe->te_param.lb_tx_code = LINELB_ACTIVATE_CODE;
+		}else{
+			fe->te_param.lb_tx_code = LINELB_DEACTIVATE_CODE;
+		}
+	}else if (mode == WAN_TE1_TX_PAYLB_MODE){
+		if (cmd == WAN_TE1_LB_ENABLE){
+			fe->te_param.lb_tx_code = PAYLB_ACTIVATE_CODE;
+		}else{
+			fe->te_param.lb_tx_code = PAYLB_DEACTIVATE_CODE;
+		}
+	}
+
+	DEBUG_TE1("%s: Sending T1 %s loopback code...\n",
+		fe->name, WAN_TE1_BOC_LB_CODE_DECODE(fe->te_param.lb_tx_code));
+		
+ 	delay = (WAN_T1_FDL_MSG_TIME * (WAN_T1_ESF_LINELB_TX_CNT + 1)) / 1000;
+
+	if (WAN_FE_FRAME(fe) == WAN_FR_ESF){
+
+		delay = (WAN_T1_FDL_MSG_TIME * (WAN_T1_ESF_LINELB_TX_CNT + 1)) / 1000;
+
+		/* Start BOC transmition */
+		WRITE_REG(REG_T1TBOC, fe->te_param.lb_tx_code); 
+		WRITE_REG(REG_THC2, READ_REG(REG_THC2) | BIT_THC2_SBOC);
+
+	}else if (WAN_FE_FRAME(fe) == WAN_FR_D4){
+
+		delay = (WAN_T1_FDL_MSG_TIME * (WAN_T1_D4_LINELB_TX_CNT + 1)) / 1000;
+
+		WRITE_REG(REG_RIM3, READ_REG(REG_RIM3) & ~(BIT_RIM3_T1_LDNC|BIT_RIM3_T1_LUPC|BIT_RIM3_T1_LDND|BIT_RIM3_T1_LUPD));
+
+		if (fe->te_param.lb_tx_cmd == WAN_TE1_LB_ENABLE){
+			WRITE_REG(REG_T1TCD1, 0x80);
+			WRITE_REG(REG_TCR4, 0x00);
+		}else{
+			WRITE_REG(REG_T1TCD1, 0x80);
+			WRITE_REG(REG_TCR4, BIT_TCR4_TC0);
+		}
+		WRITE_REG(REG_TCR3, READ_REG(REG_TCR3) | BIT_TCR3_TLOOP);
+	}
+
+	wan_set_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
+	wan_set_bit(LINELB_CODE_BIT,(void*)&fe->te_param.critical);
+	wan_set_bit(LINELB_CHANNEL_BIT,(void*)&fe->te_param.critical);
+	fe_event.type	= TE_LINELB_TIMER;
+	fe_event.delay	= delay + 1;
+	sdla_ds_te1_add_event(fe, &fe_event);
+	return 0;
+}
+
 /*
  ******************************************************************************
  *				sdla_ds_te1_set_lb()	
@@ -3890,7 +4136,7 @@ static int sdla_ds_te1_fr_plb(sdla_fe_t* fe, unsigned char mode)
  ******************************************************************************
  */
 static int 
-sdla_ds_te1_set_lb(sdla_fe_t *fe, unsigned char mode, unsigned char action) 
+sdla_ds_te1_set_lb(sdla_fe_t *fe, u_int8_t mode, u_int8_t cmd) 
 {
 	int	err = 0;
 
@@ -3898,27 +4144,32 @@ sdla_ds_te1_set_lb(sdla_fe_t *fe, unsigned char mode, unsigned char action)
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 	switch(mode){
 	case WAN_TE1_LIU_ALB_MODE:
-		err = sdla_ds_te1_liu_alb(fe, action);
+		err = sdla_ds_te1_liu_alb(fe, cmd);
 		break;
 	case WAN_TE1_LIU_LLB_MODE:
-		err = sdla_ds_te1_liu_llb(fe, action);
+		err = sdla_ds_te1_liu_llb(fe, cmd);
 		break;
 	//case WAN_TE1_LIU_RLB_MODE:
-	//	err = sdla_ds_te1_liu_rlb(fe, action);
+	//	err = sdla_ds_te1_liu_rlb(fe, cmd);
 	//	break;
 	case WAN_TE1_LIU_DLB_MODE:
-		if (!sdla_ds_te1_liu_llb(fe, action)){
-			err = sdla_ds_te1_liu_rlb(fe, action);
+		if (!sdla_ds_te1_liu_llb(fe, cmd)){
+			err = sdla_ds_te1_liu_rlb(fe, cmd);
 		}
 		break;
+	case WAN_TE1_LIU_RLB_MODE:
 	case WAN_TE1_LINELB_MODE:
-		err = sdla_ds_te1_liu_rlb(fe, action);
+		err = sdla_ds_te1_liu_rlb(fe, cmd);
 		break;
 	case WAN_TE1_PAYLB_MODE:
-		err = sdla_ds_te1_fr_plb(fe, action);
+		err = sdla_ds_te1_fr_plb(fe, cmd);
 		break;
 	case WAN_TE1_DDLB_MODE:
-		err = sdla_ds_te1_fr_flb(fe, action);
+		err = sdla_ds_te1_fr_flb(fe, cmd);
+		break;
+	case WAN_TE1_TX_LINELB_MODE:
+	case WAN_TE1_TX_PAYLB_MODE:
+		return sdla_ds_te1_tx_lb(fe, mode, cmd); 
 		break;
 	default:
 		DEBUG_EVENT("%s: Unsupported loopback mode (%s)!\n",
@@ -3927,44 +4178,541 @@ sdla_ds_te1_set_lb(sdla_fe_t *fe, unsigned char mode, unsigned char action)
 		return -EINVAL;
 	}
 	if (!err){
-		if (action == WAN_TE1_LB_ENABLE){
-			wan_set_bit(mode, &fe->te_param.lb_mode);
+		if (cmd == WAN_TE1_LB_ENABLE){
+			wan_set_bit(mode, &fe->te_param.lb_mode_map);
 		}else{
-			wan_clear_bit(mode, &fe->te_param.lb_mode);
+			wan_clear_bit(mode, &fe->te_param.lb_mode_map);
 		}
 	}
 	DEBUG_EVENT("%s: %s %s mode... %s\n",
 			fe->name,
-			WAN_TE1_LB_ACTION_DECODE(action),
+			WAN_TE1_LB_ACTION_DECODE(cmd),
 			WAN_TE1_LB_MODE_DECODE(mode),
 			(!err) ? "Done" : "Failed");
 	return err;
 }
 
 /******************************************************************************
- *				sdla_ds_te1_set_lb()	
+ *				sdla_ds_te1_get_lbmode()	
  *
  * Description:
  * Arguments:
  * Returns:
  *****************************************************************************/
-static u32 sdla_ds_te1_get_lb(sdla_fe_t *fe) 
+static u32 sdla_ds_te1_get_lbmode(sdla_fe_t *fe) 
 {
-	u32	mode = 0;
+	u32	type_map = 0;
 	u8	lmcr, rcr3;
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
 	lmcr = READ_REG(REG_LMCR);
-	if (lmcr & BIT_LMCR_ALB) wan_set_bit(WAN_TE1_LIU_ALB_MODE, &mode);
-	if (lmcr & BIT_LMCR_LLB) wan_set_bit(WAN_TE1_LIU_LLB_MODE, &mode);
- 	if (lmcr & BIT_LMCR_RLB) wan_set_bit(WAN_TE1_LINELB_MODE, &mode);
+	if (lmcr & BIT_LMCR_ALB && lmcr & BIT_LMCR_LLB){
+		wan_set_bit(WAN_TE1_LIU_DLB_MODE, &type_map);
+	}else if (lmcr & BIT_LMCR_ALB){
+		wan_set_bit(WAN_TE1_LIU_ALB_MODE, &type_map);
+	}else if (lmcr & BIT_LMCR_LLB){
+		wan_set_bit(WAN_TE1_LIU_LLB_MODE, &type_map);
+	}
+ 	if (lmcr & BIT_LMCR_RLB) wan_set_bit(WAN_TE1_LINELB_MODE, &type_map);
 
 	rcr3 = READ_REG(REG_RCR3);
-	if (rcr3 & BIT_RCR3_FLB) wan_set_bit(WAN_TE1_DDLB_MODE, &mode); 
-	if (rcr3 & BIT_RCR3_PLB) wan_set_bit(WAN_TE1_PAYLB_MODE, &mode);
-	return mode;
+	if (rcr3 & BIT_RCR3_FLB) wan_set_bit(WAN_TE1_DDLB_MODE, &type_map); 
+	if (rcr3 & BIT_RCR3_PLB) wan_set_bit(WAN_TE1_PAYLB_MODE, &type_map);
+
+	/* Check remote loopback modes */
+	if (wan_test_bit(WAN_TE1_TX_PAYLB_MODE, &fe->te_param.lb_mode_map)){
+		wan_set_bit(WAN_TE1_TX_PAYLB_MODE, &type_map);
+	}
+	if (wan_test_bit(WAN_TE1_TX_LINELB_MODE, &fe->te_param.lb_mode_map)){
+		wan_set_bit(WAN_TE1_TX_LINELB_MODE, &type_map);
+	}
+	return type_map;
+}
+
+/******************************************************************************
+ *				sdla_ds_te1_udp_lb()	
+ *
+ * Description:
+ * Arguments:
+ * Returns:
+ *****************************************************************************/
+static int sdla_ds_te1_udp_lb(sdla_fe_t *fe, char *data) 
+{
+	sdla_fe_lbmode_t	*lb = (sdla_fe_lbmode_t*)data;
+
+	if (lb->cmd == WAN_FE_LBMODE_CMD_SET){
+		if (sdla_ds_te1_set_lb(fe, lb->type, lb->mode)){
+			lb->rc = WAN_FE_LBMODE_RC_FAILED;
+			return 0;
+		}
+	}else if (lb->cmd == WAN_FE_LBMODE_CMD_GET){
+		lb->type_map = sdla_ds_te1_get_lbmode(fe);
+	}
+	if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical)){
+		lb->rc = WAN_FE_LBMODE_RC_PENDING;
+		return 0;
+	}
+	lb->rc = WAN_FE_LBMODE_RC_SUCCESS;
+	return 0;
+}
+
+/******************************************************************************
+*			sdla_ds_te1_bert_count()	
+*
+* Description: should be called each second
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_bert_count(sdla_fe_t *fe)
+{
+	u32	count;
+	u8	value;
+
+	DEBUG_TE1("%s: Reading BERT status ...\n", fe->name);
+	value = READ_REG(REG_BC1);
+	WRITE_REG(REG_BC1, value & ~BIT_BC1_LC);
+	WP_DELAY(1000);
+	WRITE_REG(REG_BC1, value | BIT_BC1_LC);
+	WP_DELAY(100);
+	
+	/* Bit count */
+	count = READ_REG(REG_BBC1);
+	count |= (READ_REG(REG_BBC2) << 8);
+	count |= (READ_REG(REG_BBC3) << 16);
+	count |= (READ_REG(REG_BBC4) << 24);
+	DEBUG_TE1("%s: BERT Bit Count (diff)  : %08X\n", fe->name, count);
+	fe->te_param.bert_stats.bit_cnt += count;
+				
+	/* Error count */
+	count = READ_REG(REG_BEC1);
+	count |= (READ_REG(REG_BEC2) << 8);
+	count |= (READ_REG(REG_BEC3) << 16);
+	DEBUG_TE1("%s: BERT Error Count (diff): %08X\n", fe->name, count);
+	fe->te_param.bert_stats.err_cnt += count;
+	if (count){
+		fe->te_param.bert_stats.err_sec++;
+	}else{
+		fe->te_param.bert_stats.err_free_sec++;
+	}
+	fe->te_param.bert_stats.avail_sec++;
+	return 0;
+}
+
+/******************************************************************************
+*			sdla_ds_te1_bert_reset()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_bert_reset(sdla_fe_t *fe)
+{
+
+	if (!wan_test_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag)){
+		return -EINVAL;
+	}
+	memset(&fe->te_param.bert_stats, 0, sizeof(sdla_te_bert_stats_t));
+	return 0; 
+}
+
+/******************************************************************************
+*			sdla_ds_te1_bert_read_status()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_bert_read_status(sdla_fe_t *fe)
+{
+
+	if (!wan_test_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag)){
+		return -EINVAL;
+	}
+	if (!wan_test_bit(WAN_TE_BERT_FLAG_INLOCK, &fe->te_param.bert_flag)){
+		return 0;
+	}
+	if (fe->fe_status != FE_CONNECTED){
+		return 0;
+	}
+	sdla_ds_te1_bert_count(fe);
+	return 0;
+}
+
+/******************************************************************************
+*			sdla_ds_te1_bert_status()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_bert_status(sdla_fe_t *fe, sdla_te_bert_stats_t *bert_stats)
+{
+
+	if (wan_test_bit(WAN_TE_BERT_FLAG_INLOCK, &fe->te_param.bert_flag)){
+		fe->te_param.bert_stats.inlock = 1;
+	}else{
+		fe->te_param.bert_stats.inlock = 0;
+	}
+	if (fe->fe_status != FE_CONNECTED){
+		fe->te_param.bert_stats.inlock = 0;	/* Force */
+	}
+	memcpy(bert_stats, &fe->te_param.bert_stats, sizeof(sdla_te_bert_stats_t));
+	return 0;
+}
+
+/******************************************************************************
+*			sdla_ds_te1_bert_stop()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_bert_stop(sdla_fe_t *fe)
+{
+
+	DEBUG_EVENT("%s: Stopping Bit-Error-Test ...\n", fe->name);
+	WRITE_REG(REG_BSIM, 0x00);
+
+	WRITE_REG(REG_RXPC, READ_REG(REG_RXPC) & ~BIT_RXPC_RBPEN);
+	WRITE_REG(REG_TXPC, READ_REG(REG_TXPC) & ~BIT_TXPC_TBPEN);
+
+	WRITE_REG(REG_BC1, 0x00); 
+	WRITE_REG(REG_BC2, 0x00); 
+
+	WRITE_REG(REG_TBPCS1, 0x00);
+	WRITE_REG(REG_TBPCS2, 0x00);
+	WRITE_REG(REG_TBPCS3, 0x00);
+	WRITE_REG(REG_TBPCS4, 0x00);
+	WRITE_REG(REG_RBPCS1, 0x00);
+	WRITE_REG(REG_RBPCS2, 0x00);
+	WRITE_REG(REG_RBPCS3, 0x00);
+	WRITE_REG(REG_RBPCS4, 0x00);
+
+	wan_clear_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag);
+	memset(&fe->te_param.bert_cfg, 0, sizeof(sdla_te_bert_cfg_t));
+	return 0;
+}
+
+/******************************************************************************
+*			sdla_ds_te1_bert_eib()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_bert_eib(sdla_fe_t *fe, sdla_te_bert_t *bert)
+{
+	unsigned char	value;
+
+	if (bert->un.cfg.eib == WAN_TE_BERT_EIB_NONE) return 0;
+
+	if (bert->cmd == WAN_TE_BERT_CMD_EIB){
+		if (!wan_test_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag)){
+			return -EINVAL;
+		}
+	}else if (bert->cmd != WAN_TE_BERT_CMD_START){
+		/* Invalid BERT command */
+		return -EINVAL;
+	}
+
+	value = READ_REG(REG_BC2);
+	value &= ~(BIT_BC2_EIB2|BIT_BC2_EIB1|BIT_BC2_EIB0|BIT_BC2_SBE);
+	WRITE_REG(REG_BC2, value);
+	switch(bert->un.cfg.eib){
+	case WAN_TE_BERT_EIB_SINGLE:
+		value |= BIT_BC2_SBE;
+		break;
+	case WAN_TE_BERT_EIB1:
+		value |= BIT_BC2_EIB0;
+		break;
+	case WAN_TE_BERT_EIB2:
+		value |= BIT_BC2_EIB1;
+		break;
+	case WAN_TE_BERT_EIB3:
+		value |= (BIT_BC2_EIB1|BIT_BC2_EIB0);
+		break;
+	case WAN_TE_BERT_EIB4:
+		value |= BIT_BC2_EIB2;
+		break;
+	case WAN_TE_BERT_EIB5:
+		value |= (BIT_BC2_EIB2|BIT_BC2_EIB0);
+		break;
+	case WAN_TE_BERT_EIB6:
+		value |= (BIT_BC2_EIB2|BIT_BC2_EIB1);
+		break;
+	case WAN_TE_BERT_EIB7:
+		value |= (BIT_BC2_EIB2|BIT_BC2_EIB1|BIT_BC2_EIB0);
+		break;
+	}
+	WP_DELAY(100);
+	if (bert->cmd == WAN_TE_BERT_CMD_EIB){
+		DEBUG_EVENT("%s: Insert Bit Errors: %s\n", 
+				fe->name, WAN_TE_BERT_EIB_DECODE(bert->un.cfg.eib));
+	}
+	WRITE_REG(REG_BC2, value); 
+	return 0;
+}
+
+/******************************************************************************
+*			sdla_ds_te1_bert_config()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_bert_config(sdla_fe_t *fe, sdla_te_bert_t *bert)
+{
+	sdla_fe_timer_event_t	fevent;
+	unsigned long		active_ch;
+	u8			rxpc, txpc, value;	
+	int			i = 0, channel_range = (IS_T1_FEMEDIA(fe)) ? 
+							NUM_OF_T1_CHANNELS : 
+							NUM_OF_E1_TIMESLOTS;
+
+	DEBUG_EVENT("%s: Starting Bit-Error-Test ...\n", fe->name);
+	if (bert->verbose){
+		DEBUG_EVENT("%s: BERT command        : %s\n", fe->name, WAN_TE_BERT_CMD_DECODE(bert->cmd));
+		DEBUG_EVENT("%s: BERT channel list   : %08X\n", fe->name, bert->un.cfg.chan_map); 
+		DEBUG_EVENT("%s: BERT pattern type   : %s\n", fe->name, WAN_TE_BERT_PATTERN_DECODE(bert->un.cfg.pattern_type)); 
+		DEBUG_EVENT("%s: BERT pattern length : %d\n", fe->name, bert->un.cfg.pattern_len); 
+		DEBUG_EVENT("%s: BERT pattern        : %08X\n",fe->name, bert->un.cfg.pattern);
+		DEBUG_EVENT("%s: BERT word count     : %d\n", fe->name, bert->un.cfg.count); 
+		DEBUG_EVENT("%s: BERT loopback mode  : %s\n", fe->name, WAN_TE_BERT_LOOPBACK_DECODE(bert->un.cfg.lb_type)); 
+		DEBUG_EVENT("%s: BERT EIB            : %s\n", fe->name, WAN_TE_BERT_EIB_DECODE(bert->un.cfg.eib)); 
+	}
+
+	memset(&fe->te_param.bert_stats, 0, sizeof(sdla_te_bert_stats_t));
+
+	/* Enable BERT */
+	rxpc = READ_REG(REG_RXPC);
+	txpc = READ_REG(REG_TXPC);
+	if (WAN_FE_FRAME(fe) == WAN_FR_UNFRAMED){
+		rxpc |= BIT_RXPC_RBPFUS;
+		txpc |= BIT_TXPC_TBPFUS;
+	}
+	WRITE_REG(REG_RXPC, rxpc | BIT_RXPC_RBPEN);
+	WRITE_REG(REG_TXPC, txpc | BIT_TXPC_TBPEN);
+
+	/* Channel assignment (def. all channels) */
+	WRITE_REG(REG_TBPCS1, 0x00);
+	WRITE_REG(REG_TBPCS2, 0x00);
+	WRITE_REG(REG_TBPCS3, 0x00);
+	WRITE_REG(REG_TBPCS4, 0x00);
+	WRITE_REG(REG_RBPCS1, 0x00);
+	WRITE_REG(REG_RBPCS2, 0x00);
+	WRITE_REG(REG_RBPCS3, 0x00);
+	WRITE_REG(REG_RBPCS4, 0x00);
+
+	active_ch  = WAN_TE1_ACTIVE_CH(fe);
+	if (bert->un.cfg.chan_map == ENABLE_ALL_CHANNELS){
+		bert->un.cfg.chan_map  = WAN_TE1_ACTIVE_CH(fe);
+	}
+	for(i = 1; i <= channel_range; i++){
+		int 		off, shift;
+		u_int8_t	val;
+		if (wan_test_bit(i, (void*)&bert->un.cfg.chan_map) && wan_test_bit(i,(void*)&active_ch)){
+			off = (i-1) / 8;
+			shift = (i-1) % 8;
+			val = READ_REG(REG_TBPCS1+off);
+			WRITE_REG(REG_TBPCS1+off, val | (0x01 << shift));
+			val = READ_REG(REG_RBPCS1+off);
+			WRITE_REG(REG_RBPCS1+off, val | (0x01 << shift));
+		}
+	}
+
+	/* BERT pattern (def. preusorandom 2e7-1) */
+	value = 0;
+	switch(bert->un.cfg.pattern_type){
+	case WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E7:
+		value = 0x00;
+		break;
+	case WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E11:
+		value = BIT_BC1_PS0;
+		break;
+	case WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E15:
+		value = BIT_BC1_PS1;
+		break;
+	case WAN_TE_BERT_PATTERN_PSEUDORANDOM_QRSS:
+		value = BIT_BC1_PS1 | BIT_BC1_PS0;
+		break;
+	case WAN_TE_BERT_PATTERN_REPETITIVE:
+		value = BIT_BC1_PS2;
+		if (bert->un.cfg.pattern_len > 32){
+			DEBUG_EVENT("%s: ERROR: Invalid BERT pattern length %d bits (0-32)!\n",
+							fe->name, bert->un.cfg.pattern_len);
+			return -EINVAL;
+		}
+		break;
+	case WAN_TE_BERT_PATTERN_WORD:
+		value = BIT_BC1_PS2 | BIT_BC1_PS0;
+		if (bert->un.cfg.count >= 256){
+			DEBUG_EVENT("%s: ERROR: Invalid BERT Alternating Word Count %d (1-256)!\n",
+							fe->name, bert->un.cfg.count);
+			return -EINVAL;
+		}
+		break;
+	case WAN_TE_BERT_PATTERN_DALY:
+		value = BIT_BC1_PS2 | BIT_BC1_PS1;
+		break;
+	case WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E9:
+		value = BIT_BC1_PS2 | BIT_BC1_PS1 | BIT_BC1_PS0;
+		break;
+	default:
+		DEBUG_EVENT("%s: Error: Invalid BERT pattern type %s\n", 
+				fe->name,
+				WAN_TE_BERT_PATTERN_DECODE(bert->un.cfg.pattern_type));
+		return -EINVAL;
+	}
+	WRITE_REG(REG_BC1, value);
+
+	/* BERT pattern string */
+	if (bert->un.cfg.pattern_type == WAN_TE_BERT_PATTERN_REPETITIVE){
+		u_int32_t	pattern = bert->un.cfg.pattern;
+		int		i = 0;
+		u16		repeat = 0;
+		
+		if (bert->un.cfg.pattern_len < 17){
+			repeat = 32 / bert->un.cfg.pattern_len;
+			for(i=0; i < repeat; i++){
+				bert->un.cfg.pattern |= (pattern << bert->un.cfg.pattern_len);
+			} 
+			bert->un.cfg.pattern_len *= repeat; 
+		}
+		WRITE_REG(REG_BRP1, bert->un.cfg.pattern & 0xFF);
+		WRITE_REG(REG_BRP2, (bert->un.cfg.pattern >> 8) & 0xFF);
+		WRITE_REG(REG_BRP3, (bert->un.cfg.pattern >> 16) & 0xFF);
+		WRITE_REG(REG_BRP4, (bert->un.cfg.pattern >> 24) & 0xFF);
+
+		/* pattern length */	
+		value = READ_REG(REG_BC2);
+		WRITE_REG(REG_BC2, value | (bert->un.cfg.pattern_len-17)); 
+
+	} else if (bert->un.cfg.pattern_type == WAN_TE_BERT_PATTERN_WORD){
+
+		WRITE_REG(REG_BRP1, bert->un.cfg.pattern & 0xFF);
+		WRITE_REG(REG_BRP2, (bert->un.cfg.pattern >> 8) & 0xFF);
+		WRITE_REG(REG_BRP3, bert->un.cfg.pattern & 0xFF);
+		WRITE_REG(REG_BRP4, (bert->un.cfg.pattern >> 8) & 0xFF);
+
+		WRITE_REG(REG_BAWC, bert->un.cfg.count/2); 
+
+	}else{
+		WRITE_REG(REG_BRP1, 0xFF);
+		WRITE_REG(REG_BRP2, 0xFF);
+		WRITE_REG(REG_BRP3, 0xFF);
+		WRITE_REG(REG_BRP4, 0xFF);
+	}
+
+	/* EIB */
+	sdla_ds_te1_bert_eib(fe, bert);
+
+	/* Load pattern */
+	value = READ_REG(REG_BC1);
+	WRITE_REG(REG_BC1, value & ~BIT_BC1_TC);
+	WP_DELAY(1000);
+	WRITE_REG(REG_BC1, value | BIT_BC1_TC);
+
+	/* Force resynchronization */
+	value = READ_REG(REG_BC1);
+	WRITE_REG(REG_BC1, value & ~BIT_BC1_RESYNC);
+	WP_DELAY(1000);
+	WRITE_REG(REG_BC1, value | BIT_BC1_RESYNC);
+
+	/* Enable BERT events */
+	WRITE_REG(REG_BSIM, BIT_BSIM_BRLOS|BIT_BSIM_BSYNC);
+
+	/* Clear counters */
+	value = READ_REG(REG_BC1);
+	WRITE_REG(REG_BC1, value & ~BIT_BC1_LC);
+	WP_DELAY(1000);
+	WRITE_REG(REG_BC1, value | BIT_BC1_LC);
+	
+	wan_set_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag);
+	sdla_ds_te1_bert_reset(fe);
+	memcpy(&fe->te_param.bert_cfg, &bert->un.cfg, sizeof(sdla_te_bert_cfg_t));
+	fe->te_param.bert_start = SYSTEM_TICKS;
+
+	fevent.type		= WAN_TE_POLL_BERT;	
+	fevent.delay		= POLLING_TE1_TIMER;
+	sdla_ds_te1_add_event(fe, &fevent);
+	return 0;
+}
+
+
+/******************************************************************************
+*			sdla_ds_te1_bert()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_ds_te1_bert(sdla_fe_t *fe, sdla_te_bert_t *bert)
+{
+
+	switch(bert->cmd){
+	case WAN_TE_BERT_CMD_START:
+		if (wan_test_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag)){
+			DEBUG_EVENT("%s: ERROR: BERT test is still running!\n", 
+						fe->name);
+			bert->rc = WAN_TE_BERT_RC_RUNNING;
+			return 0;
+		}
+		break;
+	case WAN_TE_BERT_CMD_STOP:
+	case WAN_TE_BERT_CMD_EIB:
+	case WAN_TE_BERT_CMD_RESET:
+		if (!wan_test_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag)){
+			DEBUG_EVENT("%s: ERROR: BERT test is not running!\n",
+						fe->name);
+			bert->rc = WAN_TE_BERT_RC_STOPPED;
+			return 0;
+		}
+		break;
+	case WAN_TE_BERT_CMD_STATUS:
+	case WAN_TE_BERT_CMD_RUNNING:
+		break;
+	default:
+		DEBUG_EVENT("%s: ERROR: Invalid BERT command (%02X)\n", 
+						fe->name, bert->cmd);
+		bert->rc = WAN_TE_BERT_RC_EINVAL;
+		return 0;
+	}
+	if (bert->cmd == WAN_TE_BERT_CMD_STATUS){
+		if (wan_test_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag)){
+			bert->status = WAN_TE_BERT_STATUS_RUNNING;
+		}else{
+			bert->status = WAN_TE_BERT_STATUS_STOPPED;
+		}
+		return sdla_ds_te1_bert_status(fe, &bert->un.stats);
+	}
+	if (bert->cmd == WAN_TE_BERT_CMD_RESET){
+		return sdla_ds_te1_bert_reset(fe);
+	}
+	if (bert->cmd == WAN_TE_BERT_CMD_RUNNING){
+		if (wan_test_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag)){
+			bert->status = WAN_TE_BERT_STATUS_RUNNING;
+		}else{
+			bert->status = WAN_TE_BERT_STATUS_STOPPED;
+		}
+		return 0;	
+	}
+	if (bert->cmd == WAN_TE_BERT_CMD_EIB){
+		return sdla_ds_te1_bert_eib(fe, bert);
+	}
+	if (bert->cmd == WAN_TE_BERT_CMD_STOP){
+		if (fe->te_param.bert_cfg.lb_type != WAN_TE_BERT_LOOPBACK_NONE){
+			bert->un.stop.chan_map = fe->te_param.bert_cfg.chan_map;
+			bert->un.stop.lb_type  = fe->te_param.bert_cfg.lb_type;
+		}
+		sdla_ds_te1_bert_stop(fe);
+		return 0;
+	}
+	if (sdla_ds_te1_bert_config(fe, bert)){
+		bert->rc = WAN_TE_BERT_RC_EINVAL;
+	}
+	return 0;
 }
 
 /*
@@ -3982,7 +4730,6 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 	wan_femedia_t		*fe_media;
 	sdla_fe_debug_t		*fe_debug;
 	sdla_fe_timer_event_t	event;
-	int			err = 0;
 
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
@@ -3998,26 +4745,9 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 
 	case WAN_FE_LB_MODE:
 		/* Activate/Deactivate Line Loopback modes */
-		if (!data[0]){
-			u32	mode = 0;
-			mode = sdla_ds_te1_get_lb(fe);
-		       	memcpy(&data[0], (u8*)&mode, sizeof(mode));
-		    	udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-    		    	udp_cmd->wan_cmd_data_len = sizeof(mode);
-			break;
-		}
-#if 1
-		err = sdla_ds_te1_set_lb(fe, data[0], data[1]); 
-#else
-		event.type		= TE_SET_LB_MODE;	
-		event.te_event.lb_type	= data[0];		/* LB type */
-		event.mode		= data[1];		/* LB action (activate/deactivate) */
-		event.delay		= POLLING_TE1_TIMER;
-		err = sdla_ds_te1_add_event(fe, &event);	
-#endif		
-	    	udp_cmd->wan_cmd_return_code = 
-				(!err) ? WAN_CMD_OK : WAN_UDP_FAILED_CMD;
-	    	udp_cmd->wan_cmd_data_len = 0x00;
+		sdla_ds_te1_udp_lb(fe, data);
+	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_fe_lbmode_t);
+	    	udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 		break;
 
 	case WAN_FE_GET_STAT:
@@ -4192,6 +4922,13 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 			break;
 		}
 		break;
+
+	case WAN_FE_BERT_MODE:
+		sdla_ds_te1_bert(fe, (sdla_te_bert_t*)&data[0]);
+    	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_te_bert_t);
+		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+		break;
+
 	default:
 		udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
 	    	udp_cmd->wan_cmd_data_len = 0;

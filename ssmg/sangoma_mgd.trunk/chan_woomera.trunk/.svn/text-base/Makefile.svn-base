@@ -71,9 +71,17 @@ ifneq (,$(wildcard $(PBXDIR)/include/callweaver.h))
 	PBXCFGDIR=/usr/local/etc/callweaver
 
 else 
-ifneq (,$(wildcard $(PBXDIR)/configure))
-	PBXFLAGS_EXTRA+=-DAST14 
-endif	
+
+#Check for Asterisk 1.6
+DUMMY:=$(shell if [[ -f $(PBXDIR)/.version ]]; then grep -c ^1.6  $(PBXDIR)/.version > .ast16_check; else echo 0 > .ast16_check; fi;)
+ifneq (0,$(shell cat .ast16_check))
+        PBXFLAGS_EXTRA+=-DAST16
+endif
+
+DUMMY:=$(shell if [[ -f $(PBXDIR)/.version ]]; then grep -c ^1.4  $(PBXDIR)/.version > .ast14_check; else echo 0 > .ast14_check; fi;)
+ifneq (0,$(shell cat .ast14_check))
+        PBXFLAGS_EXTRA+=-DAST14
+endif
 endif
 
 

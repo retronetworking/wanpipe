@@ -95,7 +95,6 @@
 
 #define DEBUG_HFC_CLOCK		if(0)DEBUG_EVENT
 
-#define BUILD_MOD_TESTER	0	/* for Production Test */
 #define DBG_MODULE_TESTER	if(0)DEBUG_EVENT
 
 #define NT_STATE_FUNC()		if(0)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
@@ -318,12 +317,12 @@ int32_t _write_xhfc(sdla_fe_t *fe, u32 mod_no, u8 reg, u8 val, const char *calle
 static void xhfc_waitbusy(sdla_fe_t *fe, u32 mod_no)
 {	
 	u32	wait_counter = 0;
-#define MAX_XHFC_WAIT_COUNTER	10000
-
+#define MAX_XHFC_WAIT_COUNTER	500
 	do{
 		if(!(READ_REG(R_STATUS) & M_BUSY)){
 			break;
 		}
+		WP_DELAY(10);
 	}while(wait_counter++ < MAX_XHFC_WAIT_COUNTER);
 
 	if(wait_counter >= MAX_XHFC_WAIT_COUNTER){
@@ -436,7 +435,7 @@ static int32_t reset_chip(sdla_fe_t *fe, u32 mod_no)
 	WP_DELAY(5);
 	WRITE_REG(R_CIRM, 0);
 	/* wait for XHFC init seqeuence to be finished */
-	WP_DELAY(1000);	
+	WP_DELAY(500);	
 
 
 	return 0;
@@ -606,7 +605,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 {
 	sdla_bri_param_t	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
-	int32_t			err = 0, i, timeout = 0x2000;
+	int32_t			err = 0, i, timeout = 500; /*0x2000;*/
 
 	u8			port_no, bchan;
 	reg_a_su_ctrl0		a_su_ctrl0;
@@ -668,11 +667,12 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 
 	DBG_MODULE_TESTER("wait 1 second for XHFC init seqeuence to be finished\n");
 	/* wait for XHFC init seqeuence to be finished */
-	WP_DELAY(1000);	
+	WP_DELAY(500);	
 
 	DBG_MODULE_TESTER("read chip 'busy' bit\n");
 	while ((READ_REG(R_STATUS) & (M_BUSY | M_PCM_INIT)) && (timeout)){
 		CLOCK_FUNC();
+		WP_DELAY(10);
 		timeout--;
 	}
 
@@ -867,7 +867,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 		WRITE_REG(A_ST_CTRL3, 0xf8);
 
 		/* WRITE_REG(R_SU_SEL, port_no); */
-#if BUILD_MOD_TESTER
+#if defined(BUILD_MOD_TESTER)
 		DBG_MODULE_TESTER("Activate ST port_no state machines (NT only!!)\n");
 		/* try to activate port_no */
 		switch(bri_module->type)
@@ -915,7 +915,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 
 	}/* for (port_no = 0; port_no < bri_module->num_ports; port_no++) */
 
-#if BUILD_MOD_TESTER
+#if defined(BUILD_MOD_TESTER)
 	/* for debugging only - read line status */
 	WP_MDELAY(300);
 
@@ -1121,7 +1121,7 @@ static int32_t wp_bri_dchan_tx(sdla_fe_t *fe, void *src_data_buffer, u32 buffer_
 	DEBUG_TX_DATA("%lu: %s(): Module: %d, port_no: %d. fe->name: %s blen=%i\n",
 		jiffies, __FUNCTION__, mod_no, port_no, fe->name, buffer_len);
 
-#if BUILD_MOD_TESTER
+#if defined(BUILD_MOD_TESTER)
 	{
 		u32	i;
 		u8	*tmp = (u8*)src_data_buffer;
@@ -1506,11 +1506,11 @@ static int32_t wp_bri_spi_bus_reset(sdla_fe_t	*fe)
 	card->hw_iface.bus_write_4(	card->hw,
 					SPI_INTERFACE_REG,
 					MOD_SPI_RESET);
-	WP_DELAY(1000);
+	WP_DELAY(500);
 	card->hw_iface.bus_write_4(	card->hw,
 					SPI_INTERFACE_REG,
 					0x00000000);
-	WP_DELAY(1000);
+	WP_DELAY(500);
 	return 0;
 }
 
@@ -1820,7 +1820,7 @@ static int32_t wp_bri_config(void *pfe)
 		return 1;
 	} 
 
-#if BUILD_MOD_TESTER
+#if defined(BUILD_MOD_TESTER)
 	/* for Production Test nothing else should be done */
 	return 0;
 #endif
@@ -2369,7 +2369,7 @@ static void bri_enable_interrupts(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 	WRITE_REG(R_TI_WD, r_ti_wd.reg);
 
 	r_misc_irqmsk.reg = 0;
-#if !BUILD_MOD_TESTER
+#if !defined(BUILD_MOD_TESTER)
 	r_misc_irqmsk.bit.v_ti_irqmsk = 1;/* Enable (one) / Disable (zero) timer interrupts */
 #endif
 	WRITE_REG( R_MISC_IRQMSK, r_misc_irqmsk.reg);
@@ -2781,6 +2781,11 @@ static int wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char new_status)
 
 	bri_module = &bri->mod[mod_no];
 	port_ptr = &bri_module->port[port_no];
+
+#if defined (BUILD_MOD_TESTER)
+        sdla_bri_set_status(fe, mod_no, port_no, FE_CONNECTED);
+        return 0;
+#endif
 
 	switch(new_status)
 	{

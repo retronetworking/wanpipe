@@ -2306,12 +2306,14 @@ static int sdla_te_polling(sdla_fe_t*);
 static int sdla_te_udp(sdla_fe_t*, void*, unsigned char*);
 static void sdla_te_set_status(sdla_fe_t*, u_int32_t );
 static int sdla_te_get_snmp_data(sdla_fe_t* fe, void* pdev, void* data);
-static int sdla_te_set_lbmode(sdla_fe_t*, unsigned char, unsigned char);
+static int sdla_te_set_lbmode(sdla_fe_t*, u_int8_t, u_int8_t);
+static int sdla_t1_boc(sdla_fe_t *fe, u_int8_t boc_status); 
 
 static int sdla_te_linelb(sdla_fe_t*, unsigned char);
 static int sdla_te_paylb(sdla_fe_t*, unsigned char);
 static int sdla_te_ddlb(sdla_fe_t*, unsigned char);
-static int sdla_te_lb(sdla_fe_t*, unsigned char);
+static int sdla_te_tx_lb(sdla_fe_t*, u_int8_t, u_int8_t);
+static int sdla_te_txlbcode_done(sdla_fe_t *fe);
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static void sdla_te_timer(void*);
 #elif defined(__WINDOWS__)
@@ -4314,7 +4316,6 @@ static int sdla_te_chip_config(sdla_fe_t *fe)
 	card->hw_iface.getcfg(card->hw, SDLA_ADAPTERTYPE, &adapter_type);
 	fe->te_param.max_channels = 
 		(IS_E1_FEMEDIA(fe)) ? NUM_OF_E1_TIMESLOTS: NUM_OF_T1_CHANNELS;
-	fe->te_param.lb_rx_code = LINELB_DS1LINE_DISABLE;
 	switch(fe->fe_chip_id){
 	case CHIP_ID_COMET:
 		sdla_pmc4351_te_config(fe, adapter_type);
@@ -5640,140 +5641,7 @@ static void sdla_t1_rx_intr(sdla_fe_t* fe)
 	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_RBOC){
 		status = READ_REG(REG_T1_RBOC_CODE_STATUS);
 		if (status & BIT_T1_RBOC_CODE_STATUS_BOCI){
-			wan_ticks_t	time;
-
-			time = SYSTEM_TICKS;	
-			status &= MASK_T1_RBOC_CODE_STATUS;
-			switch(status){
-			case RBOC_CODE_YEL:
-			        if (WAN_NET_RATELIMIT()){
-					DEBUG_EVENT(
-					"%s: Received Yellow alarm condition!\n", 
-								fe->name);
-				}
-				break;
-			case LINELB_ACTIVATE_CODE:
-			case LINELB_DEACTIVATE_CODE:
-				if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical) &&
-				    wan_test_bit(LINELB_CODE_BIT,(void*)&fe->te_param.critical)){
-				    	wan_clear_bit(LINELB_CODE_BIT,(void*)&fe->te_param.critical);
-					break;
-				}
-				
-				DEBUG_TE1("%s: T1 loopback %s code received.\n",
-						fe->name,
-						(status==LINELB_ACTIVATE_CODE)?
-							"activation" : "deactivation");
-				fe->te_param.lb_cmd = status;
-				fe->te_param.lb_time = time;
-				break;
-
-			case LINELB_DS1LINE_ALL:
-				if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical) &&
-				    wan_test_bit(LINELB_CHANNEL_BIT,(void*)&fe->te_param.critical)){
-				    	wan_clear_bit(LINELB_CHANNEL_BIT,(void*)&fe->te_param.critical);
-				    	wan_clear_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
-					break;
-				}
-				if (!fe->te_param.lb_cmd)
-					break; 
-				if ((time - fe->te_param.lb_time) < LINELB_TE1_TIMER){
-					DEBUG_EVENT("%s: T1 loopback %s mode cancelled (timeout)!\n",
-							fe->name,
-							(fe->te_param.lb_cmd == LINELB_ACTIVATE_CODE) ? 
-								"activatation" : 
-								"deactivation");
-				}else{
-					if (fe->te_param.lb_cmd == LINELB_ACTIVATE_CODE){
-						DEBUG_EVENT("%s: T1 loopback mode activated.\n", 
-							fe->name); 
-						WRITE_REG(REG_MASTER_DIAG, 
-							READ_REG(REG_MASTER_DIAG) | 
-							BIT_MASTER_DIAG_PAYLB);
-						fe->te_param.lb_rx_code = LINELB_DS1LINE_ALL;
-					}else{
-						DEBUG_EVENT("%s: T1 loopback mode deactivated.\n", 
-							fe->name);
-						WRITE_REG(REG_MASTER_DIAG, 
-							READ_REG(REG_MASTER_DIAG) & 
-							~BIT_MASTER_DIAG_PAYLB);
-						fe->te_param.lb_rx_code = LINELB_DS1LINE_DISABLE;
-					}
-				}
-				fe->te_param.lb_cmd = 0x00;
-				fe->te_param.lb_time = 0x00;
-				break;
-		
-			case LINELB_DS3LINE:
-				break;
-
-			case LINELB_DS1LINE_1:
-			case LINELB_DS1LINE_2:
-			case LINELB_DS1LINE_3:	
-			case LINELB_DS1LINE_4:
-			case LINELB_DS1LINE_5:	
-			case LINELB_DS1LINE_6:	
-			case LINELB_DS1LINE_7:	
-			case LINELB_DS1LINE_8:	
-			case LINELB_DS1LINE_9:
-			case LINELB_DS1LINE_10:
-			case LINELB_DS1LINE_11:
-			case LINELB_DS1LINE_12:
-			case LINELB_DS1LINE_13:
-			case LINELB_DS1LINE_14:
-			case LINELB_DS1LINE_15:
-			case LINELB_DS1LINE_16:
-			case LINELB_DS1LINE_17:
-			case LINELB_DS1LINE_18:
-			case LINELB_DS1LINE_19:
-			case LINELB_DS1LINE_20:
-			case LINELB_DS1LINE_21:
-			case LINELB_DS1LINE_22:	
-			case LINELB_DS1LINE_23:	
-			case LINELB_DS1LINE_24:	
-			case LINELB_DS1LINE_25:
-			case LINELB_DS1LINE_26:	
-			case LINELB_DS1LINE_27:
-			case LINELB_DS1LINE_28:
-				if (!fe->te_param.lb_cmd)
-					break;
-				if ((time - fe->te_param.lb_time) < LINELB_TE1_TIMER){
-					DEBUG_EVENT("%s: T1 loopback %s mode cancelled (timeout)!\n",
-							fe->name,
-							(fe->te_param.lb_cmd == LINELB_ACTIVATE_CODE) ? 
-								"activatation" : 
-								"deactivation");
-				}else{
-					int channel = status & LINELB_DS1LINE_MASK; 
-					DEBUG_EVENT("%s: T1 loopback mode %s on channel %d.\n", 
-						fe->name,
-						(fe->te_param.lb_cmd == LINELB_ACTIVATE_CODE) ? "activated" : "deactivated",
-						channel);
-					SetLoopBackChannel(fe, channel, fe->te_param.lb_cmd);
-					fe->te_param.lb_rx_code = status;
-				}
-				fe->te_param.lb_cmd = 0x00;				
-				fe->te_param.lb_time = 0x00;				
-				break;
-
-			case BITS_T1_XBOC_DISABLE:
-				if (fe->te_param.lb_rx_code == LINELB_DS1LINE_ALL){
-					DEBUG_EVENT("%s: T1 loopback mode deactivated.\n", 
-								fe->name);
-					WRITE_REG(REG_MASTER_DIAG, 
-						READ_REG(REG_MASTER_DIAG) & 
-						~BIT_MASTER_DIAG_PAYLB);
-					fe->te_param.lb_rx_code = LINELB_DS1LINE_DISABLE;
-				}
-				break;
-
-			default:
-			        if (WAN_NET_RATELIMIT()){
-				DEBUG_EVENT("%s: Received Reserved LoopBack code %02X!\n", 
-								fe->name, status);
-				}
-				break;
-			}
+			sdla_t1_boc(fe, status);
 		}
 	}
 
@@ -6228,6 +6096,81 @@ static void sdla_e1_rx_intr(sdla_fe_t* fe)
 	return;
 }
 
+/******************************************************************************
+*				sdla_t1_boc()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_t1_boc(sdla_fe_t *fe, u_int8_t boc_value) 
+{
+	unsigned char	lb_cmd, lb_mode;
+
+	boc_value &= MASK_T1_RBOC_CODE_STATUS;
+	DEBUG_TE1("%s: BOC Detect Event (BOC=%02X)!\n",
+					fe->name, boc_value);
+	switch(boc_value){
+	case RBOC_CODE_YEL:
+	        if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT(
+			"%s: Received Yellow alarm condition!\n", 
+						fe->name);
+		}
+		break;
+
+	case LINELB_ACTIVATE_CODE:
+	case LINELB_DEACTIVATE_CODE:
+	case PAYLB_ACTIVATE_CODE:
+	case PAYLB_DEACTIVATE_CODE:
+		if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical) &&
+		    wan_test_bit(LINELB_CODE_BIT,(void*)&fe->te_param.critical)){
+		    	wan_clear_bit(LINELB_CODE_BIT,(void*)&fe->te_param.critical);
+			break;
+		}
+			
+		if (boc_value == LINELB_ACTIVATE_CODE || boc_value == LINELB_DEACTIVATE_CODE){
+			lb_mode	= WAN_TE1_LINELB_MODE;
+		}else{
+			lb_mode	= WAN_TE1_PAYLB_MODE;
+		}
+		if (boc_value == LINELB_ACTIVATE_CODE || boc_value == PAYLB_ACTIVATE_CODE){
+			lb_cmd	= WAN_TE1_LB_ENABLE;
+		}else{
+			lb_cmd	= WAN_TE1_LB_DISABLE;
+		}
+		DEBUG_TE1("%s: T1 loopback %s %s code received.\n",
+				fe->name,
+				WAN_TE1_LB_ACTION_DECODE(lb_cmd),
+				WAN_TE1_LB_MODE_DECODE(lb_mode));
+		sdla_te_set_lbmode(fe, lb_mode, lb_cmd); 
+		break;
+
+	case UNIVLB_DEACTIVATE_CODE:
+		DEBUG_TE1("%s: Received T1 %s code from far end.\n", 
+				fe->name, WAN_TE1_BOC_LB_CODE_DECODE(boc_value));
+		sdla_te_set_lbmode(fe, WAN_TE1_LINELB_MODE, WAN_TE1_LB_DISABLE);
+		sdla_te_set_lbmode(fe, WAN_TE1_PAYLB_MODE, WAN_TE1_LB_DISABLE);
+		break;
+
+	case BITS_T1_XBOC_DISABLE:
+		DEBUG_EVENT("%s: T1 loopback mode deactivated.\n", 
+					fe->name);
+		WRITE_REG(REG_MASTER_DIAG, 
+			READ_REG(REG_MASTER_DIAG) & 
+			~BIT_MASTER_DIAG_PAYLB);
+		break;
+
+	default:
+	        if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT("%s: Received Reserved LoopBack code %02X!\n", 
+							fe->name, boc_value);
+		}
+		break;
+	}
+	return 0;
+}
+
 /*
  ******************************************************************************
  *				sdla_te_set_lbmode()	
@@ -6238,7 +6181,7 @@ static void sdla_e1_rx_intr(sdla_fe_t* fe)
  ******************************************************************************
  */
 static int 
-sdla_te_set_lbmode(sdla_fe_t *fe, unsigned char mode, unsigned char enable) 
+sdla_te_set_lbmode(sdla_fe_t *fe, u_int8_t mode, u_int8_t enable) 
 {
 	int	err = 1;
 
@@ -6255,8 +6198,9 @@ sdla_te_set_lbmode(sdla_fe_t *fe, unsigned char mode, unsigned char enable)
 	case WAN_TE1_DDLB_MODE:
 		err = sdla_te_ddlb(fe, enable);
 		break;
-	case WAN_TE1_TX_LB_MODE:
-		err = sdla_te_lb(fe, enable); 
+	case WAN_TE1_TX_LINELB_MODE:
+	case WAN_TE1_TX_PAYLB_MODE:
+		return sdla_te_tx_lb(fe, mode, enable); 
 		break;
 	default:
 		DEBUG_EVENT("%s: Unsupported loopback mode (%s)!\n",
@@ -6560,30 +6504,8 @@ static int sdla_te_polling(sdla_fe_t* fe)
 	case TE_LINELB_TIMER:
 		
 		if (IS_T1_FEMEDIA(fe)){
-
-			/* Sending T1 activation/deactivation loopback signal */
-			if (fe->te_param.lb_tx_cnt > 11){
-				WRITE_REG(REG_T1_XBOC_CODE, 
-					(fe->te_param.lb_tx_cmd == WAN_TE1_LB_ENABLE) ? 
-						LINELB_ACTIVATE_CODE : LINELB_DEACTIVATE_CODE);
-			}else if (fe->te_param.lb_tx_cnt){
-				WRITE_REG(REG_T1_XBOC_CODE, LINELB_DS1LINE_ALL);  
-			}else{
-				WRITE_REG(REG_T1_XBOC_CODE, BITS_T1_XBOC_DISABLE);			
-			}
-			
-			if (fe->te_param.lb_tx_cnt--){
-				fe_event->type	= TE_LINELB_TIMER;
-				fe_event->delay	= LINELB_TE1_TIMER;
-				pending	= 1;
-			}else{
-				DEBUG_EVENT("%s: T1 loopback %s signal sent.\n",
-						fe->name,	
-						(fe->te_param.lb_tx_cmd == WAN_TE1_LB_ENABLE) ? 
-							"activation" : "deactivation");
-				wan_clear_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
-				fe->te_param.lb_tx_cmd = 0x00;
-			}
+			sdla_te_txlbcode_done(fe);
+			break;
 		}
 		break;
 
@@ -6683,49 +6605,112 @@ static int sdla_te_polling(sdla_fe_t* fe)
 	return 0;
 }
 
+/******************************************************************************
+*				sdla_te_txlbcode_done()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_te_txlbcode_done(sdla_fe_t *fe)
+{
+
+	if (WAN_FE_FRAME(fe) != WAN_FR_ESF){
+		return -EINVAL;
+	}
+
+	WRITE_REG(REG_T1_XBOC_CODE, BITS_T1_XBOC_DISABLE);			
+	DEBUG_EVENT("%s: T1 loopback %s %s code sent.\n",
+				fe->name,	
+				WAN_TE1_LB_ACTION_DECODE(fe->te_param.lb_tx_cmd),
+				WAN_TE1_LB_MODE_DECODE(fe->te_param.lb_tx_mode)); 
+	wan_clear_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
+	fe->te_param.lb_tx_cmd = 0x00;
+	return 0;
+}
+
 /*
  ******************************************************************************
- *				sdla_te_lb()	
+ *				sdla_te_tx_lb()	
  *
  * Description:
  * Arguments:
  * Returns:
  ******************************************************************************
  */
-static int sdla_te_lb(sdla_fe_t* fe, unsigned char mode) 
+static int sdla_te_tx_lb(sdla_fe_t* fe, u_int8_t mode, u_int8_t cmd) 
 {
 	sdla_fe_timer_event_t	fe_event;
+	int			delay;
 	
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
 	if (!IS_T1_FEMEDIA(fe)){
-		return 1;
+		return -EINVAL;
 	}
 	if (fe->fe_status != FE_CONNECTED){
-		return 1;
+		return -EINVAL;
+	}
+	if (WAN_FE_FRAME(fe) != WAN_FR_ESF){
+		DEBUG_EVENT("%s: ERROR: TX loopback code is available only for T1 ESF mode!\n",
+				fe->name);				
+		return -EINVAL;
 	}
 	if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical)){
 		DEBUG_TE1("%s: Still waiting for far end to send loopback signal back!\n",
 				fe->name);				
 	}
-	DEBUG_TE1("%s: Sending %s loopback %s signal...\n",
+	fe->te_param.lb_tx_mode	= mode;
+	fe->te_param.lb_tx_cmd	= cmd;
+	if (mode == WAN_TE1_TX_LINELB_MODE){
+		if (cmd == WAN_TE1_LB_ENABLE){
+			fe->te_param.lb_tx_code = LINELB_ACTIVATE_CODE;
+		}else{
+			fe->te_param.lb_tx_code = LINELB_DEACTIVATE_CODE;
+		}
+	}else if (mode == WAN_TE1_TX_PAYLB_MODE){
+		if (cmd == WAN_TE1_LB_ENABLE){
+			fe->te_param.lb_tx_code = PAYLB_ACTIVATE_CODE;
+		}else{
+			fe->te_param.lb_tx_code = PAYLB_DEACTIVATE_CODE;
+		}
+	}
+	DEBUG_TE1("%s: Sending %s %s loopback code...\n",
 			fe->name, 
 			FE_MEDIA_DECODE(fe),
-			(mode == WAN_TE1_LB_ENABLE) ? 
-				"activation" : "deactivation");
-	fe->te_param.lb_tx_cmd		= mode;
-	fe->te_param.lb_tx_cnt		= LINELB_CODE_CNT + LINELB_CHANNEL_CNT + 1;
+			WAN_TE1_BOC_LB_CODE_DECODE(fe->te_param.lb_tx_code));
+
+	WRITE_REG(REG_T1_XBOC_CODE,fe->te_param.lb_tx_code);
+	delay = (WAN_T1_FDL_MSG_TIME * (WAN_T1_ESF_LINELB_TX_CNT + 1)) / 1000;
+
 	wan_set_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
 	wan_set_bit(LINELB_CODE_BIT,(void*)&fe->te_param.critical);
 	wan_set_bit(LINELB_CHANNEL_BIT,(void*)&fe->te_param.critical);
 	fe_event.type	= TE_LINELB_TIMER;
-	fe_event.delay	= LINELB_TE1_TIMER;
+	fe_event.delay	= delay + 1;
 	sdla_te_add_event(fe, &fe_event);
 	return 0;
 }
 
+/******************************************************************************
+*				sdla_te_udp_lbmode()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_te_udp_lbmode(sdla_fe_t *fe, unsigned char* data)
+{
+	sdla_fe_lbmode_t	*lbmode = (sdla_fe_lbmode_t*)data;
 
+	if (lbmode->cmd == WAN_FE_LBMODE_CMD_SET){
+		sdla_te_set_lbmode(fe, lbmode->type, lbmode->mode); 
+	}else if (lbmode->cmd == WAN_FE_LBMODE_CMD_GET){
+		lbmode->type_map = sdla_te_get_lbmode(fe);
+	}
+	return 0;
+}
 
 /*
  ******************************************************************************
@@ -6742,7 +6727,6 @@ static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 	wan_femedia_t		*fe_media;
 	sdla_fe_debug_t		*fe_debug;
 	sdla_fe_timer_event_t	fe_event;
-	int			err = 0;
 
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
@@ -6758,17 +6742,9 @@ static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 
 	case WAN_FE_LB_MODE:
 		/* Activate/Deactivate Line Loopback modes */
-		if (data[0]){
-	    		err = sdla_te_set_lbmode(fe, data[0], data[1]); 
-	    		udp_cmd->wan_cmd_return_code = 
-				(!err) ? WAN_CMD_OK : WAN_UDP_FAILED_CMD;
-	    		udp_cmd->wan_cmd_data_len = 0x00;
-		}else{
-			u32	mode = sdla_te_get_lbmode(fe);
-		       	memcpy(&data[0], (u8*)&mode, sizeof(mode));
-	    		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-	    		udp_cmd->wan_cmd_data_len = sizeof(u32);
-		}
+		sdla_te_udp_lbmode(fe, data);
+	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_fe_lbmode_t);
+	    	udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 		break;
 
 	case WAN_FE_GET_STAT:

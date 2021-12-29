@@ -169,8 +169,13 @@ typedef	struct tcphdr		tcphdr_t;
 # define w_tcp_seq	seq
 # define w_tcp_ack_seq	ack_seq
 
+#if 0
 typedef time_t	wan_time_t;
 typedef suseconds_t	wan_suseconds_t;
+#else
+#define wan_time_t unsigned long
+#define wan_suseconds_t unsigned long
+#endif
 
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 typedef	struct ip		iphdr_t;

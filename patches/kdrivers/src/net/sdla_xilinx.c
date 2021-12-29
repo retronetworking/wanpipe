@@ -7528,6 +7528,20 @@ static int aft_tdm_api_update_state_channelized(sdla_t *card, private_area_t *ch
 			continue;
 		}
 		if (is_tdm_api(chan,&chan->wp_tdm_api_dev_idx[x])){
+			wan_event_t	event;
+
+			event.type	= WAN_EVENT_LINK_STATUS;
+			event.channel	= chan->wp_tdm_api_dev_idx[x].tdm_chan;
+			if (state == WAN_CONNECTED) { 
+				event.link_status= WAN_EVENT_LINK_STATUS_CONNECTED;
+			} else {
+				event.link_status= WAN_EVENT_LINK_STATUS_DISCONNECTED;
+			}
+
+			if (card->wandev.event_callback.linkstatus) {
+				card->wandev.event_callback.linkstatus(card, &event);
+			}
+
 			wanpipe_tdm_api_update_state(&chan->wp_tdm_api_dev_idx[x], state);
 		}
 	}

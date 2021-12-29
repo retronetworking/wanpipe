@@ -30,6 +30,9 @@
 # define wp_devinet_ioctl(_cmd_,_rptr_)  devinet_ioctl(_cmd_,_rptr_)
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28) 
+#define device_create_drvdata(a,b,c,d,e) device_create(a,b,c,d,e) 
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
 #define __wan_skb_reset_mac_header(skb)  skb_reset_mac_header(skb)
@@ -47,6 +50,9 @@
 #define __wan_skb_set_tail_pointer(skb,offset) ((skb)->tail = ((skb)->data + offset))
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)
+#define	cancel_work_sync(work) ({ cancel_work_sync(work); 0; })
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24) || defined(LINUX_FEAT_2624)
 # ifndef LINUX_FEAT_2624
