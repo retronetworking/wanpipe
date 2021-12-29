@@ -1486,121 +1486,104 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 	wp_tdmv_softc_t	*wp;
 	sdla_t		*card;
 	int		res = 0;
-	wan_smp_flag_t	flags;
+	wan_smp_flag_t	flags,smp_flags;
 	
 	WAN_ASSERT2(span == NULL, -ENODEV);
 	wp		= WP_PRIV_FROM_SPAN(span, wp_tdmv_softc_t);
 	WAN_ASSERT2(wp == NULL, -ENODEV);
    	card = wp->card;   
 
+	card->hw_iface.hw_lock(card->hw,&smp_flags);
 	wan_spin_lock_irq(&wp->lockirq, &flags);
-	if (wp->ise1) {
+	switch(cmd) {
+	case ZT_MAINT_NONE:
+		DEBUG_EVENT("%s: Set to normal mode (no local/remote loop)\n",
+				   wp->card->devname);	
+		card->wandev.fe_iface.set_fe_lbmode(
+				&wp->card->fe,
+				WAN_TE1_DDLB_MODE,
+				WAN_TE1_LB_DISABLE,
+				ENABLE_ALL_CHANNELS);
+		card->wandev.fe_iface.set_fe_lbmode(
+				&wp->card->fe,
+				WAN_TE1_LINELB_MODE,
+				WAN_TE1_LB_DISABLE,
+				ENABLE_ALL_CHANNELS);
+		card->wandev.fe_iface.set_fe_lbmode(
+				&wp->card->fe,
+				WAN_TE1_PAYLB_MODE,
+				WAN_TE1_LB_DISABLE,
+				ENABLE_ALL_CHANNELS);
+		break;
+	case ZT_MAINT_LOCALLOOP:
+		DEBUG_EVENT("%s: Set to local loopback mode (local/no remote loop)\n",
+				   wp->card->devname);	
+		card->wandev.fe_iface.set_fe_lbmode(
+				&wp->card->fe,
+				WAN_TE1_DDLB_MODE,
+				WAN_TE1_LB_ENABLE,
+				ENABLE_ALL_CHANNELS);
+		card->wandev.fe_iface.set_fe_lbmode(
+				&wp->card->fe,
+				WAN_TE1_LINELB_MODE,
+				WAN_TE1_LB_DISABLE,
+				ENABLE_ALL_CHANNELS);
+		break;
+	case ZT_MAINT_REMOTELOOP:
+		DEBUG_EVENT("%s: Set to remote loopback mode (no local/remote loop)\n",
+				   wp->card->devname);	
+		card->wandev.fe_iface.set_fe_lbmode(
+				&wp->card->fe,
+				WAN_TE1_LINELB_MODE,
+				WAN_TE1_LB_ENABLE,
+				ENABLE_ALL_CHANNELS);
+		card->wandev.fe_iface.set_fe_lbmode(
+				&wp->card->fe,
+				WAN_TE1_DDLB_MODE,
+				WAN_TE1_LB_DISABLE,
+				ENABLE_ALL_CHANNELS);
+		break;
+#if DAHDI_ISSUES
+	case DAHDI_RESET_COUNTERS:
+		DEBUG_EVENT("%s: Reset Front End Counters\n",
+				   wp->card->devname);	
+		card->wandev.fe_iface.flush_pmon(&wp->card->fe);
+		break;
+#endif
 #if 0
-		/* FIXME: Support E1 */
-		switch(cmd) {
-		case ZT_MAINT_NONE:
-			DEBUG_EVENT("%s: E1: Set to normal mode (no local/remote loops)\n",
-				       wp->card->devname);	
-			/* FIXME __t1_set_reg(wp,0xa8,0); */ /* no loops */
-			break;
-		case ZT_MAINT_LOCALLOOP:
-			DEBUG_EVENT("%s: E1: Set to local loopback mode\n",
-				       wp->card->devname);	
-			/* FIXME __t1_set_reg(wp,0xa8,0x40); */ /* local loop */
-			break;
-		case ZT_MAINT_REMOTELOOP:
-			DEBUG_EVENT("%s: E1: Set to remote loopback mode\n",
-				       wp->card->devname);	
-			/* FIXME __t1_set_reg(wp,0xa8,0x80);*/ /* remote loop */
-			break;
-		case ZT_MAINT_LOOPUP:
-		case ZT_MAINT_LOOPDOWN:
-		case ZT_MAINT_LOOPSTOP:
-			res = -ENOSYS;
-			break;
-		default:
-			DEBUG_EVENT("%s: E1: Unknown maintenance mode (%d)\n", 
-					wp->card->devname, cmd);
-			res = -EINVAL;
-			break;
-		}
-#endif
-	}else{
-		switch(cmd) {
-		case ZT_MAINT_NONE:
-			DEBUG_EVENT("%s: T1: Set to normal mode (no local/remote loop)\n",
-				       wp->card->devname);	
-			card->wandev.fe_iface.set_fe_lbmode(
-					&wp->card->fe,
-					WAN_TE1_DDLB_MODE,
-				       	WAN_TE1_LB_DISABLE,
-					ENABLE_ALL_CHANNELS);
-			card->wandev.fe_iface.set_fe_lbmode(
-					&wp->card->fe,
-					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_LB_DISABLE,
-					ENABLE_ALL_CHANNELS);
-			break;
-	    	case ZT_MAINT_LOCALLOOP:
-			DEBUG_EVENT("%s: T1: Set to local loopback mode (local/no remote loop)\n",
-				       wp->card->devname);	
-			card->wandev.fe_iface.set_fe_lbmode(
-					&wp->card->fe,
-					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_LB_DISABLE,
-					ENABLE_ALL_CHANNELS);
-			card->wandev.fe_iface.set_fe_lbmode(
-					&wp->card->fe,
-					WAN_TE1_DDLB_MODE,
-				       	WAN_TE1_LB_ENABLE,
-					ENABLE_ALL_CHANNELS);
-			break;
-	    	case ZT_MAINT_REMOTELOOP:
-			DEBUG_EVENT("%s: T1: Set to remote loopback mode (no local/remote loop)\n",
-				       wp->card->devname);	
-			card->wandev.fe_iface.set_fe_lbmode(
-					&wp->card->fe,
-					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_LB_ENABLE,
-					ENABLE_ALL_CHANNELS);
-			card->wandev.fe_iface.set_fe_lbmode(
-					&wp->card->fe,
-					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_LB_DISABLE,
-					ENABLE_ALL_CHANNELS);
-			break;
-	    	case ZT_MAINT_LOOPUP:
-			DEBUG_EVENT("%s: T1: Send loopup code\n",
-				       wp->card->devname);	
-			card->wandev.fe_iface.set_fe_lbmode(
-					&wp->card->fe,
-					WAN_TE1_TX_LINELB_MODE,
-				       	WAN_TE1_LB_ENABLE,
-					ENABLE_ALL_CHANNELS);
-			break;
-	    	case ZT_MAINT_LOOPDOWN:
-			DEBUG_EVENT("%s: T1: Send loopdown code\n",
-				       wp->card->devname);	
-			card->wandev.fe_iface.set_fe_lbmode(
-					&wp->card->fe,
-					WAN_TE1_TX_LINELB_MODE,
-				       	WAN_TE1_LB_DISABLE,
-					ENABLE_ALL_CHANNELS);
-			break;
+	case ZT_MAINT_LOOPUP:
+		DEBUG_EVENT("%s: Send loopup code\n",
+				   wp->card->devname);	
+		card->wandev.fe_iface.set_fe_lbmode(
+				&wp->card->fe,
+				WAN_TE1_TX_LINELB_MODE,
+				WAN_TE1_LB_ENABLE,
+				ENABLE_ALL_CHANNELS);
+		break;
+	case ZT_MAINT_LOOPDOWN:
+		DEBUG_EVENT("%s: Send loopdown code\n",
+				   wp->card->devname);	
+		card->wandev.fe_iface.set_fe_lbmode(
+				&wp->card->fe,
+				WAN_TE1_TX_LINELB_MODE,
+				WAN_TE1_LB_DISABLE,
+				ENABLE_ALL_CHANNELS);
+		break;
 #ifndef DAHDI_25
-	    	case ZT_MAINT_LOOPSTOP:
-			DEBUG_EVENT("%s: T1: Stop sending loop code\n",
-				       wp->card->devname);	
-			/* FIXME __t1_set_reg(wp,0x30,0); */	/* stop sending loopup code */
-			break;
+	case ZT_MAINT_LOOPSTOP:
+		DEBUG_EVENT("%s: Stop sending loop code\n",
+				   wp->card->devname);	
+		/* FIXME __t1_set_reg(wp,0x30,0); */	/* stop sending loopup code */
+		break;
 #endif
-	    	default:
-			DEBUG_EVENT("%s: T1: Unknown maintenance mode (%d)\n", 
-					wp->card->devname, cmd);
-			res = -EINVAL;
-	   	}
+#endif
+	default:
+		DEBUG_EVENT("%s: T1: Unknown maintenance mode (%d)\n", 
+				wp->card->devname, cmd);
+		res = -EINVAL;
 	}
 	wan_spin_unlock_irq(&wp->lockirq, &flags);
+	card->hw_iface.hw_unlock(card->hw,&smp_flags);
 	return res;
 }
 
@@ -1714,45 +1697,83 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 	WAN_ASSERT2(wp == NULL, -ENODEV);
 
 	card = (sdla_t*)wp->card;
-	DEBUG_TDMV("%s: Configuring span device..\n", wp->devname);
-	switch(wp->lcode){
-	case WAN_LCODE_AMI:
-		span->lineconfig |= ZT_CONFIG_AMI;
-		break;			
-	case WAN_LCODE_B8ZS:
-		span->lineconfig |= ZT_CONFIG_B8ZS;
-		break;			
-	case WAN_LCODE_HDB3:
-		span->lineconfig |= ZT_CONFIG_HDB3;
-		break;	
-	}		
-	switch(wp->frame){
-	case WAN_FR_ESF:
-		span->lineconfig |= ZT_CONFIG_ESF;
-		break;			
-	case WAN_FR_D4:
-		span->lineconfig |= ZT_CONFIG_D4;
-		break;			
-	case WAN_FR_CRC4:
-		span->lineconfig |= ZT_CONFIG_CRC4;
-		break;	
-	}
-	if (wp->ise1){
-	       if (lc->lineconfig & ZT_CONFIG_CCS){
-			span->lineconfig |= ZT_CONFIG_CCS;
-			card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CCS;
-		}else{
-			card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CAS;
+	DEBUG_EVENT("%s: DAHDI Configuring span device..\n", wp->devname);
+
+
+	if (!wp->ise1) {
+		if (lc->lineconfig & ZT_CONFIG_B8ZS) {
+			span->lineconfig |= ZT_CONFIG_B8ZS;
+	    	wp->lcode = WAN_LCODE_B8ZS; 
+		} else if (lc->lineconfig & ZT_CONFIG_AMI) { 
+			span->lineconfig |= ZT_CONFIG_AMI;
+			wp->lcode = WAN_LCODE_AMI;
+		} else {
+			DEBUG_ERROR("%s: Error: Invalid DAHDI T1 Coding: Lineconfig (0x%X)\n",
+					card->devname, lc->lineconfig);
+			return -EINVAL;
 		}
 
-		
-		if (card->wandev.fe_iface.reconfig){
-			card->hw_iface.hw_lock(card->hw,&smp_flags);
-			card->wandev.fe_iface.reconfig(&card->fe);
-			card->hw_iface.hw_unlock(card->hw,&smp_flags);
+		if (lc->lineconfig & ZT_CONFIG_ESF) {
+			span->lineconfig |= ZT_CONFIG_ESF;
+			wp->frame = WAN_FR_ESF; 
+		} else if (lc->lineconfig & ZT_CONFIG_D4) {
+			span->lineconfig |= ZT_CONFIG_D4;
+			wp->frame = WAN_FR_D4;
+		} else {
+			DEBUG_ERROR("%s: Error: Invalid DAHDI T1 Framing: Lineconfig (0x%X)\n",
+                    card->devname, lc->lineconfig);
+            return -EINVAL;
 		}
-		
+
+		WAN_TE1_LBO(&card->fe) =  lc->lbo+WAN_T1_0_133;
+
+	} else {
+		if (lc->lineconfig & ZT_CONFIG_HDB3){
+			span->lineconfig |= ZT_CONFIG_HDB3;
+			wp->lcode = WAN_LCODE_HDB3;
+		} else {
+			DEBUG_ERROR("%s: Error: Invalid DAHDI E1 Coding: Lineconfig (0x%X)\n",
+					card->devname, lc->lineconfig);
+			return -EINVAL;
+		}
+
+        wp->frame = WAN_FR_NCRC4;
+		if (lc->lineconfig & ZT_CONFIG_CRC4) {
+			span->lineconfig |= ZT_CONFIG_CRC4;
+            wp->frame = WAN_FR_CRC4;
+        } 
+
+		card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CAS;
+		if (lc->lineconfig & ZT_CONFIG_CCS) {
+			span->lineconfig |= ZT_CONFIG_CCS;
+			card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CCS;
+        } 
+
+		WAN_TE1_LBO(&card->fe) = WAN_E1_120; 
 	}
+	
+	WAN_FE_LCODE(&card->fe) = wp->lcode;
+    WAN_FE_FRAME(&card->fe) =  wp->frame;
+		
+
+	if (card->wandev.fe_iface.config && 
+		card->wandev.fe_iface.unconfig &&
+		card->wandev.fe_iface.reconfig) {
+
+		card->hw_iface.hw_lock(card->hw,&smp_flags);
+		card->wandev.fe_iface.unconfig(&card->fe);
+		card->hw_iface.hw_unlock(card->hw,&smp_flags);
+
+		card->wandev.fe_iface.post_unconfig(&card->fe);
+
+		card->hw_iface.hw_lock(card->hw,&smp_flags);
+		card->wandev.fe_iface.config(&card->fe);
+		card->wandev.fe_iface.reconfig(&card->fe);
+		card->hw_iface.hw_unlock(card->hw,&smp_flags);
+
+		card->wandev.fe_iface.post_init(&card->fe);
+	}
+		
 	span->txlevel = 0;
 	switch(wp->lbo){
 	case WAN_T1_LBO_0_DB:  

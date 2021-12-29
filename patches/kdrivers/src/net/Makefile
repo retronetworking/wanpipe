@@ -31,7 +31,7 @@ endif
 wanpipe-y			+= sdla_ft1.o sdla_te1.o sdla_te3.o sdla_56k.o sdla_8te1.o 
 wanpipe-y			+= wanpipe_tdm_api.o 
 wanpipe-y                       += aft_core.o aft_core_api_events.o aft_core_prot.o aft_core_utils.o
-wanpipe-y                       += sdla_xilinx.o aft_a104.o
+wanpipe-y                       += sdla_xilinx.o aft_a104.o aft_t116.o
 wanpipe-y			+= aft_gsm.o aft_analog.o sdla_aft_te3.o wanpipe_utils.o sdla_remora_analog.o 
 wanpipe-y			+= wanpipe_abstr.o wanpipe_linux_iface.o 
 wanpipe-y			+= wanpipe_tdm_api.o sdla_remora.o 

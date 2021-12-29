@@ -133,7 +133,7 @@ int wpft1_init (sdla_t* card, wandev_conf_t* conf)
 
 	/* Verify configuration ID */
 	if (conf->config_id != WANCONFIG_CHDLC) {
-		printk(KERN_INFO "%s: invalid configuration ID %u!\n",
+		printk(KERN_INFO "%s: invalid configuration ID %lu!\n",
 				  card->devname, conf->config_id);
 		return -EINVAL;
 	}

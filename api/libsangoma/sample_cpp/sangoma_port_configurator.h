@@ -105,6 +105,7 @@ public:
 	int initialize_t1_tdm_span_voice_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span);
 	int initialize_e1_tdm_span_voice_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span);
 	int initialize_bri_tdm_span_voice_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span);
+	int initialize_gsm_tdm_span_voice_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span);
 	int initialize_serial_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span);
 
 	int write_configration_on_persistent_storage(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span);

@@ -107,7 +107,7 @@ BSD interface names rules:
 # include <sdla_remora.h>
 #endif
 
-#define MAX_PATH_LENGTH 4096
+#define MAX_PATH_LENGTH 8192
 #define NO  1
 #define YES 2
 

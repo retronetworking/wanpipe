@@ -108,6 +108,8 @@ extern int wanec_ChannelUnMute(wan_ec_dev_t*, INT ec_chan, wanec_chan_mute_t*, i
 
 extern int wanec_TonesCtrl(wan_ec_t*, int, int, wanec_tone_config_t*, int);
 
+extern int wanec_DtmfRemoval(wan_ec_dev_t *ec_dev, int channel, int enable, int verbose);
+
 extern int wanec_DebugChannel(wan_ec_dev_t*, INT, int);
 extern int wanec_DebugGetData(wan_ec_dev_t*, wanec_chan_monitor_t*, int);
 
@@ -138,6 +140,7 @@ static int wanec_api_stats_image(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static int wanec_api_buffer(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static int wanec_api_playout(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static int wanec_api_monitor(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_chan_dtmf_removal(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 
 static wan_ec_dev_t *wanec_search(char *devname);
 
@@ -1210,6 +1213,7 @@ static int wanec_api_channel_mute(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
+	
 	if (ec_api->fe_chan_map == 0xFFFFFFFF){
 		/* All channels selected */
 		ec_api->fe_chan_map = ec_dev->fe_channel_map;
@@ -1236,6 +1240,50 @@ static int wanec_api_channel_mute(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 	return err;
 }
 
+static int wanec_api_chan_dtmf_removal(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+{
+	wan_ec_t	*ec = NULL;
+	int		fe_chan, ec_chan;
+	int		err = WAN_EC_API_RC_OK;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+
+	if (ec_dev->state != WAN_EC_STATE_CHAN_READY){
+		DEBUG_EVENT("ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
+					ec_dev->devname,
+					ec->name,
+					WAN_EC_STATE_DECODE(ec->state));
+
+		return WAN_EC_API_RC_INVALID_STATE;
+	}
+	
+	if (ec_api->fe_chan_map == 0xFFFFFFFF){
+		/* All channels selected */
+		ec_api->fe_chan_map = ec_dev->fe_channel_map;
+	}
+
+	if (!ec_api->fe_chan_map){
+		return WAN_EC_API_RC_NOACTION;
+	}
+	for(fe_chan = ec_dev->fe_start_chan; fe_chan <= ec_dev->fe_stop_chan; fe_chan++){
+		if (!(ec_api->fe_chan_map & (1 << fe_chan))){
+			continue;
+		}
+		if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0) continue;
+
+		ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
+
+		err = wanec_DtmfRemoval(ec_dev, ec_chan, (ec_api->cmd == WAN_EC_API_CMD_HWDTMF_REMOVAL_ENABLE) ? 1 : 0, ec_api->verbose);
+		if (err){
+			return WAN_EC_API_RC_FAILED;
+		}
+	}
+	return err;
+}
+
+		
 static int wanec_api_tone(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
@@ -1677,6 +1725,10 @@ static void __wanec_ioctl(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 		err = wanec_api_monitor(ec_dev, ec_api);
 		break;
 	case WAN_EC_API_CMD_RELEASE_ALL:
+		break;
+	case WAN_EC_API_CMD_HWDTMF_REMOVAL_ENABLE:
+	case WAN_EC_API_CMD_HWDTMF_REMOVAL_DISABLE:
+		err = wanec_api_chan_dtmf_removal(ec_dev, ec_api);
 		break;
 	}
 	

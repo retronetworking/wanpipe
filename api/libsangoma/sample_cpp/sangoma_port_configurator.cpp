@@ -620,6 +620,57 @@ int sangoma_port_configurator::initialize_bri_tdm_span_voice_api_configration_st
 	return 0;
 }
 
+int sangoma_port_configurator::initialize_gsm_tdm_span_voice_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
+{
+  wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
+  sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
+  wan_tdmv_conf_t  *tdmv_cfg = &wandev_conf->tdmv_conf;
+  wanif_conf_t     *wanif_cfg = &port_cfg->if_cfg[0];
+
+  // BRI parameters
+  FE_MEDIA(sdla_fe_cfg) = WAN_MEDIA_GSM;
+  FE_LINENO(sdla_fe_cfg) = hardware_info->port_number;
+  FE_TDMV_LAW(sdla_fe_cfg) = WAN_TDMV_MULAW;
+  FE_NETWORK_SYNC(sdla_fe_cfg) = 0;
+
+  FE_REFCLK(sdla_fe_cfg) = 0;
+
+  //BRI_FE_CLK((*sdla_fe_cfg)) = WAN_MASTER_CLK;
+  FE_CLK((sdla_fe_cfg)) = WAN_MASTER_CLK;
+
+  port_cfg->num_of_ifs = 1;
+
+  wandev_conf->config_id = WANCONFIG_AFT_GSM;
+  wandev_conf->magic = ROUTER_MAGIC;
+
+  wandev_conf->mtu = 1500;
+  wandev_conf->PCI_slot_no = hardware_info->pci_slot_number;
+  wandev_conf->pci_bus_no = hardware_info->pci_bus_number;
+  wandev_conf->card_type = WANOPT_AFT_GSM; //m_DeviceInfoData.card_model;
+
+  wanif_cfg->magic = ROUTER_MAGIC;
+  wanif_cfg->active_ch = 0xFFFFFFFF;
+  sprintf(wanif_cfg->usedby,"TDM_VOICE_API");
+  wanif_cfg->u.aft.idle_flag=0xFF;
+  wanif_cfg->mtu = 160;
+  wanif_cfg->u.aft.mtu = 160;
+  wanif_cfg->u.aft.mru = 160;
+  sprintf(wanif_cfg->name,"w%dg1",span);
+
+  if (hardware_info->max_hw_ec_chans) {
+    /* wan_hwec_conf_t - HWEC configuration for Port */
+    /*wandev_conf->hwec_conf.dtmf = 1;*/
+    /* wan_hwec_if_conf_t - HWEC configuration for Interface */
+    wanif_cfg->hwec.enable = 1;
+  }
+
+  tdmv_cfg->span_no = (unsigned char)span;
+	
+  tdmv_cfg->dchan = (1<<2);/* Channel 2. This is a bitmap, not a channel number. */
+
+  return 0;
+}
+
 int sangoma_port_configurator::initialize_serial_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
 {
     wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;

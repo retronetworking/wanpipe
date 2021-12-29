@@ -2270,6 +2270,27 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_global_chip_statistics(sng_fd_t f
 sangoma_status_t _LIBSNG_CALL sangoma_hwec_get_chip_image_info(sng_fd_t fd,
 			int *hwec_api_return_code, wanec_chip_image_t *wanec_chip_image, int verbose);
 
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_set_hwdtmf_removal(sng_fd_t fd, unsigned int fe_chan,
+		int *hwec_api_return_code, int enable)
+
+  \brief Enable/Disable HW DTMF removal. 
+
+  \param fd device file descriptor
+
+  \param fe_chan Channel number (a timeslot for Digital, a line for Analog) where 
+		the call will read statistics. Valid values are from 1 to 31.
+
+  \param hwec_api_return_code	will contain one of WAN_EC_API_RC_x codes which are defined in wanec_iface_api.h
+
+  \param verbose Flag indicating to the Driver to print additional information about the command into Wanpipe Log file.
+
+  \param enable Flag to remove DTMF tones, if set to 1.
+
+  \return SANG_STATUS_SUCCESS: success, or error status of IOCTL
+ */
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_set_hwdtmf_removal(sng_fd_t fd, unsigned int fe_chan,
+		int *hwec_api_return_code, int enable, int verbose);
 #endif /* WP_API_FEATURE_LIBSNG_HWEC */
 
 

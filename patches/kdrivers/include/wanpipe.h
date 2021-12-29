@@ -219,7 +219,9 @@ typedef struct {
 
 # if defined(LINUX_2_4) || defined(LINUX_2_6)
 #  include <linux/serial.h>
-#  include <linux/serialP.h>
+#  if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
+#   include <linux/serialP.h>
+#  endif
 #  include <linux/serial_reg.h>
 #  include <asm/serial.h>
 # endif

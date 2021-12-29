@@ -89,6 +89,11 @@ int		sdla_shark_te1_write_fe(void *phw, ...);
 u_int8_t	__sdla_shark_te1_read_fe (void *phw, ...);
 u_int8_t	sdla_shark_te1_read_fe (void *phw, ...);
 
+static int     __sdla_shark_tap_write_fe(void *phw, ...);
+int            sdla_shark_tap_write_fe(void *phw, ...);
+u_int8_t       __sdla_shark_tap_read_fe (void *phw, ...);
+u_int8_t       sdla_shark_tap_read_fe (void *phw, ...);
+
 static int	__sdla_shark_rm_write_fe (void* phw, ...);
 int		sdla_shark_rm_write_fe (void* phw, ...);
 u_int8_t	__sdla_shark_rm_read_fe (void* phw, ...);
@@ -425,6 +430,48 @@ static int __sdla_shark_te1_write_fe (void *phw, ...)
     return 0;
 }
 
+static int __sdla_shark_tap_write_fe (void *phw, ...)
+{
+	sdlahw_t*       hw = (sdlahw_t*)phw;
+	sdlahw_cpu_t    *hwcpu;
+	sdlahw_card_t   *hwcard;
+	va_list         args;
+	int             qaccess=0, line_no=0, off=0, value=0;
+
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+	hwcpu = hw->hwcpu;
+	hwcard = hwcpu->hwcard;
+	va_start(args, phw);
+	qaccess = (u_int16_t)va_arg(args, int);
+	line_no = (u_int16_t)va_arg(args, int);
+	off     = (u_int16_t)va_arg(args, int);
+	value   = (u_int8_t)va_arg(args, int);
+	va_end(args);
+	WAN_ASSERT(qaccess != 0 && qaccess != 1);
+
+	if (hwcard->core_id == AFT_PMC_FE_CORE_ID){
+		off &= ~AFT4_BIT_DEV_ADDR_CLEAR;
+	}else if (hwcard->core_id == AFT_DS_FE_CORE_ID){
+		off &= 0X3FFF;
+		if ((hwcard->adptr_type == A101_ADPTR_2TE1 ||
+			hwcard->adptr_type == A101_ADPTR_1TE1) && line_no == 1){
+				off |= AFT8_BIT_DEV_MAXIM_ADDR_CPLD;
+		}
+	}
+
+	sdla_bus_write_2(hw,AFT_MCPU_INTERFACE, (u16)off);
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
+	value = (value << 16) & 0x00FF0000;
+	DEBUG_TEST("VALUE in __sdla_shark_tap_write_fe = 0x%x\n",value);
+	sdla_bus_write_4(hw,AFT_MCPU_INTERFACE, (u32)value);
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
+	return 0;
+}
+
 int sdla_shark_te1_write_fe (void *phw, ...)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
@@ -449,6 +496,34 @@ int sdla_shark_te1_write_fe (void *phw, ...)
 	DEBUG_REG("%s: Writting T1/E1 Reg: Line:%d: %02X=%02X\n", 
 					hw->devname, line_no, off, value);
 	__sdla_shark_te1_write_fe(hw, qaccess, line_no, off, value);
+	sdla_hw_fe_clear_bit(hw,0);
+	return 0;
+}
+
+int sdla_shark_tap_write_fe (void *phw, ...)
+{
+	sdlahw_t*       hw = (sdlahw_t*)phw;
+	va_list         args;
+	int             qaccess=0, line_no=0, off=0, value=0;
+
+	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+	if (sdla_hw_fe_test_and_set_bit(hw,0)){
+		if (WAN_NET_RATELIMIT()){
+			DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+					hw->devname, __FUNCTION__,__LINE__);
+		}
+		return -EINVAL;
+	}
+	va_start(args, phw);
+	qaccess = va_arg(args, int);
+	line_no = va_arg(args, int);
+	off     = va_arg(args, int);
+	value   = va_arg(args, int);
+	va_end(args);
+
+	DEBUG_TEST("%s:IN TAP Writting T1/E1 Reg: Line:%d: %02X=%02X\n",
+			hw->devname, line_no, off, value);
+	__sdla_shark_tap_write_fe(hw, qaccess, line_no, off, value);
 	sdla_hw_fe_clear_bit(hw,0);
 	return 0;
 }
@@ -510,6 +585,48 @@ u_int8_t __sdla_shark_te1_read_fe (void *phw, ...)
     return (u8)tmp;
 }
 
+u_int8_t __sdla_shark_tap_read_fe (void *phw, ...)
+{
+	sdlahw_t*       hw = (sdlahw_t*)phw;
+	sdlahw_cpu_t    *hwcpu;
+	sdlahw_card_t   *hwcard;
+	va_list         args;
+	int             qaccess=0, line_no=0, off=0, tmp=0;
+
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+	hwcpu = hw->hwcpu;
+	hwcard = hwcpu->hwcard;
+	va_start(args, phw);
+	qaccess = (u_int16_t)va_arg(args, int);
+	line_no = (u_int16_t)va_arg(args, int);
+	off     = (u_int16_t)va_arg(args, int);
+	va_end(args);
+	WAN_ASSERT(qaccess != 0 && qaccess != 1);
+
+	if (hwcard->core_id == AFT_PMC_FE_CORE_ID){
+		off &= ~AFT4_BIT_DEV_ADDR_CLEAR;
+	}else if (hwcard->core_id == AFT_DS_FE_CORE_ID){
+		off &= 0x3FFF;
+		if ((hwcard->adptr_type == A101_ADPTR_1TE1 ||
+			hwcard->adptr_type == A101_ADPTR_2TE1) && line_no == 1){
+			off |= AFT8_BIT_DEV_MAXIM_ADDR_CPLD;
+		}
+	}
+
+	sdla_bus_write_2(hw, AFT_MCPU_INTERFACE, (u16)off);
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
+	sdla_bus_read_4(hw,AFT_MCPU_INTERFACE, (u32*)&tmp);
+	tmp = (tmp >> 16) & 0xFF;
+
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
+	return (u8)tmp;
+}
+
 u_int8_t sdla_shark_te1_read_fe (void *phw, ...)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
@@ -538,6 +655,36 @@ u_int8_t sdla_shark_te1_read_fe (void *phw, ...)
 					hw->devname, line_no, off, tmp);
         return tmp;
 }
+
+u_int8_t sdla_shark_tap_read_fe (void *phw, ...)
+{
+	sdlahw_t*       hw = (sdlahw_t*)phw;
+	va_list         args;
+	int             qaccess=0, line_no=0, off=0;
+	u_int8_t        tmp;
+
+	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+	if (sdla_hw_fe_test_and_set_bit(hw,0)){
+		if (WAN_NET_RATELIMIT()){
+			DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+					hw->devname, __FUNCTION__,__LINE__);
+		}
+		return 0x00;
+	}
+
+	va_start(args, phw);
+	qaccess = va_arg(args, int);
+	line_no = va_arg(args, int);
+	off     = va_arg(args, int);
+	va_end(args);
+
+	tmp = __sdla_shark_tap_read_fe(hw, qaccess, line_no, off);
+	sdla_hw_fe_clear_bit(hw,0);
+	DEBUG_TEST("%s: IN TAP Reading T1/E1 Reg: Line:%d: %02X=%02X\n",
+			hw->devname, line_no, off, tmp);
+	return tmp;
+}
+
 
 /***************************************************************************
 	56K Front End interface for Shark subtype cards

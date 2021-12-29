@@ -1578,7 +1578,7 @@ print_wanpipe_config () {
 
 	echo -e "Wanpipe Config:\n"
 	if [ $OSYSTEM = "Linux" ]; then
-		cat /proc/net/wanrouter/config | sort
+		cat /proc/net/wanrouter/config 
 	else
 		wanconfig config
 	fi
@@ -1588,7 +1588,7 @@ print_wanrouter_status () {
 
 	echo -e "\nWanrouter Status:\n"
 	if [ $OSYSTEM = "Linux" ]; then
-		cat /proc/net/wanrouter/status | sort
+		cat /proc/net/wanrouter/status 
 	else
 		wanconfig status
 	fi
@@ -2045,9 +2045,12 @@ read_meta_conf ()
 
 	# Read meta-configuration file.
 	if [ -f $META_CONF ]
-	then . $META_CONF
+		then . $META_CONF
 	else
 		return 1 
+	fi
+	if [ -f $WAN_HOME/global.conf ]; then
+		. $WAN_HOME/global.conf
 	fi
 	return 0
 }
@@ -2228,7 +2231,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=3.5.28
+		ROUTER_VERSION=7.0.0
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"
@@ -2592,6 +2595,15 @@ case "$1" in
 		# WANROUTER START
 		if [ -z $2 ]; then	
 
+			if [ "$WANPIPE_GLOBAL_CFG" = "DAHDI" ]; then
+				echo "Executing DAHDI config $WANPIPE_GLOBAL_FE_MEDIA"
+				if [ -z $WANPIPE_GLOBAL_FE_MEDIA ]; then
+					WANPIPE_GLOBAL_FE_MEDIA=T1
+				fi
+				eval "rm -f $WAN_PROG_LOCK 2> /dev/null > /dev/null"
+				eval "wancfg_dahdi --no-dahdi --no-chan-dahdi --silent --fe_media=$WANPIPE_GLOBAL_FE_MEDIA"
+			fi	
+
 			check_config || cleanup 1
 
 			load_module
@@ -2785,7 +2797,6 @@ case "$1" in
 				do
 					wanconfig card $cardshutdown stop
 				done
-				FLAG_UNLOAD_NO_CHECK="YES"
 				unload_module
 				cleanup 0
 			fi

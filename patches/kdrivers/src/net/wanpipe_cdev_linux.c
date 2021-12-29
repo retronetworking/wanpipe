@@ -17,7 +17,7 @@
 
 #define WP_CDEV_MAJOR 241
 #define WP_CDEV_MINOR_OFFSET 0
-#define WP_CDEV_MAX_MINORS 4096
+#define WP_CDEV_MAX_MINORS 5000
 
 #define WP_CDEV_MAX_VOICE_MINOR
 
@@ -59,7 +59,7 @@ static struct class_simple *wp_cdev_class = NULL;
 # define WP_CDEV_GET_SPAN_FROM_MINOR(minor) ((((minor)>>WP_CDEV_SPAN_SHIFT)&WP_CDEV_SPAN_MASK)+1)
 # define WP_CDEV_GET_CHAN_FROM_MINOR(minor) ((minor)&WP_CDEV_CHAN_MASK)
 
-# define WP_CDEV_MAX_SPANS 64
+# define WP_CDEV_MAX_SPANS 128
 # define WP_CDEV_MAX_CHANS 31
 
 # define WP_CDEV_MAX_SPAN_CHAN_MINOR (WP_CDEV_MAX_SPANS+1)
@@ -767,7 +767,7 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 	}
 
 	buf = skb_put(skb,count);
-	err = wan_memcpy_fromiovec(buf, msg->msg_iov, count);
+	err = wan_memcpy_fromiovec(buf, msg_sys.msg_iov, count);
 	if (err){
 		wan_skb_free(skb);
 		return -ENOMEM;

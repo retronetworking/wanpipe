@@ -2337,6 +2337,8 @@ int AFTMain(char *command,int argc, char* argv[])
 				aft_perf_stats_enable();
 			}else if (!strcmp(opt,"perf_off")) {
 				aft_perf_stats_disable();
+			}else if (!strcmp(opt,"dma_restart")) {
+				wp_get_fifo_sync_cnt();
 			}else{
 				printf("ERROR: Invalid Status Command 'd', Type wanpipemon <cr> for help\n\n");
 			}

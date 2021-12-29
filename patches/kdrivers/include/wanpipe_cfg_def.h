@@ -107,6 +107,7 @@ enum {
 #define WANOPT_AFT_GSM          18
 #define WANOPT_AFT610           19
 #define WANOPT_AFT116           20
+#define WANOPT_T116		21
 
 /*
  * Configuration options defines.

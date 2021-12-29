@@ -288,6 +288,7 @@ extern struct fun_protocol function_lookup[];
 			  (prot==WANCONFIG_AFT_ANALOG)?"AFT_ANALOG":\
 			  (prot==WANCONFIG_USB_ANALOG)?"U100_ANALOG":\
 			  (prot==WANCONFIG_AFT_GSM)?"AFT_GSM":\
+			  (prot==WANCONFIG_AFT_T116)?"AFT_T116":\
 			  (prot==WANCONFIG_ZAP)?"Zaptel":\
 							"Unknown")
 

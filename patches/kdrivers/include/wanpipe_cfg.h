@@ -156,6 +156,7 @@ enum {
 		 card_type == WANOPT_AFT104 ||			\
 		 card_type == WANOPT_AFT108 ||			\
 		 card_type == WANOPT_AFT116) ?     "A101/1D/2/2D/4/4D/8/8D/16/16D" :	\
+		(card_type == WANOPT_T116) ?     "T116"  :	\
 		(card_type == WANOPT_AFT300) ?     "A300"  :	\
 		(card_type == WANOPT_AFT_ANALOG) ? "A200/A400/B600/B700/B800/B610"  :	\
 		(card_type == WANOPT_AFT_GSM) ?    "W400"  :	\
@@ -357,6 +358,8 @@ typedef struct wan_xilinx_conf
 	unsigned char	span_tx_only_irq; /* SPAN mode API to use rx irq only */
 	unsigned char   global_poll_irq;
 	unsigned char	hw_port_map; 	/* A108 hw port map: Default or Linear */
+	unsigned short	rx_fifo_trigger;
+	unsigned short	tx_fifo_trigger;
 } wan_xilinx_conf_t;
 
 typedef struct wan_xilinx_conf_if
@@ -693,7 +696,7 @@ typedef struct wan_custom_conf_
 typedef struct wandev_conf
 {
 	unsigned magic;		/* magic number (for verification) */
-	unsigned config_id;	/* configuration structure identifier */
+	unsigned long config_id;	/* configuration structure identifier */
 				/****** hardware configuration ******/
 	unsigned ioport;	/* adapter I/O port base */
 	unsigned long maddr;	/* dual-port memory address */
@@ -822,6 +825,7 @@ typedef struct wandev_conf
 #define WANCONFIG_LIP_HDLC	139	/* LIP HDLC protocol */
 #define WANCONFIG_USB_ANALOG	140	/* Wanpipe USB Driver */
 #define WANCONFIG_AFT_GSM       141     /* Wanpipe GSM Driver */
+#define WANCONFIG_AFT_T116      142     /* Wanpipe T116 Driver */
 
 /*FIXME: This should be taken out, I just
 //used it so I don't break the apps that are
@@ -869,6 +873,7 @@ typedef struct wandev_conf
 	(protocol ==  WANCONFIG_AFT_ISDN_BRI)  ? "AFT BRI" : \
 	(protocol ==  WANCONFIG_TTY)	    ? "TTY" : \
 	(protocol ==  WANCONFIG_USB_ANALOG)  ? "USB Analog FXO/FXS" : \
+	(protocol ==  WANCONFIG_AFT_GSM)  ? "AFT GSM " : \
 						"Unknown Protocol"
 
 
@@ -892,7 +897,7 @@ typedef struct wan_hwec_if_conf
 typedef struct wanif_conf
 {
 	unsigned 	magic;			/* magic number */
-	unsigned 	config_id;		/* configuration identifier */
+	unsigned long 	config_id;		/* configuration identifier */
 	char 		name[WAN_IFNAME_SZ+1];	/* interface name, ASCIIZ */
 	char 		addr[WAN_ADDRESS_SZ+1];	/* media address, ASCIIZ */
 	char 		usedby[USED_BY_FIELD+1];/* used by API or WANPIPE */
@@ -1089,6 +1094,7 @@ typedef struct {
 	(cardtype == WANOPT_AFT102) ? "WANOPT_AFT102": 		\
 	(cardtype == WANOPT_AFT104) ? "WANOPT_AFT104": 		\
 	(cardtype == WANOPT_AFT108) ? "WANOPT_AFT108": 		\
+	(cardtype == WANOPT_T116) ? "WANOPT_T116": 		\
 	(cardtype == WANOPT_AFT_ANALOG) ? "WANOPT_AFT_ANALOG": 		\
 	(cardtype == WANOPT_AFT_GSM) ? "WANOPT_AFT_GSM": 		\
 	(cardtype == WANOPT_AFT_56K) ? "WANOPT_AFT_56K": 		\

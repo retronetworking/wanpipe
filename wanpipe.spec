@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.28
+%define VERSION           7.0.0
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -258,6 +258,27 @@ fi
 ################################################################################
 
 %changelog
+
+* Thu Sep 28 2012 Nenad Corbic <ncorbic@sangoma.com> -  7.0.0.0
+==================================================================
+
+- Updated Major revision in order to syncronize versions with Windows.
+  There is no major driver change from 2.5.28 to 7.0.0
+- Support for T116 16 Port T1/E1 Tapping Card
+- Added sample_data_tapping application for tapping customers
+  wanpipe-7.0.0/api/libsangoma/examples/sample_data_tapping
+- Wanpipe DAHDI Interation
+  Updated wanpipe dahdi integration
+  Allow dahdi system.conf to configure sangoma drivers
+  This feature removes the need for Sangoma wanpipe configuration files.
+  Currently this feature is being used by OEM vendors.
+  More information on Sangoma wiki - Asterisk Section.
+- Bug fix in UBXFXO causing a kernel crash.
+- Fixed for 3.5.4 kenrel
+- Updated rx/tx fifo thresholds in case of excessive fifo error recovery.
+- Default lowered to 50 per sec
+- Allows configuration of rx/tx fifo thresholds
+
 
 * Thu Aug 10 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.28
 ==================================================================

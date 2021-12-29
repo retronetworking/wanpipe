@@ -643,7 +643,7 @@ void aft_list_tx_descriptors(private_area_t *chan);
 
 #define AFT_HAS_FAKE_PORTS(card) (IS_BRI_CARD(card) || IS_GSM_CARD(card))
 #define AFT_HAS_FAKE_DCHAN(card) (IS_BRI_CARD(card) || IS_GSM_CARD(card))
-#define AFT_MAX_PORTS(card) IS_BRI_CARD(card) ? MAX_BRI_LINES : IS_GSM_CARD(card) ? MAX_GSM_MODULES : 8
+#define AFT_MAX_PORTS(card) IS_BRI_CARD(card) ? MAX_BRI_LINES : IS_GSM_CARD(card) ? MAX_GSM_MODULES : 16
 
 #endif /* WAN_KERNEL */
 

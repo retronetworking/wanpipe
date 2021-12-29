@@ -305,6 +305,9 @@ int sangoma_interface::get_fe_type(unsigned char* adapter_type)
 	case WAN_MEDIA_SERIAL:
 		INFO_IFACE("Serial");
 		break;
+	case WAN_MEDIA_GSM:
+		INFO_IFACE("GSM");
+		break;
 	default:
 		INFO_IFACE( "Unknown");
 		err = WAN_FALSE;
@@ -933,6 +936,10 @@ int sangoma_interface::get_interface_configuration(if_cfg_t *wanif_conf_ptr)
 
 	case WAN_MEDIA_SERIAL:
 		INFO_IFACE("Media sub-type\t\t: %s\n", INT_DECODE(wanif_conf_ptr->sub_media));
+		break;
+
+	case WAN_MEDIA_GSM:
+    INFO_IFACE("GSM Media \n");
 		break;
 	}
 	INFO_IFACE( "****************************\n");

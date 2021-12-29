@@ -103,6 +103,8 @@
 		IS_LIUREG(reg)	? 0x020 :	\
 		IS_BERTREG(reg)	? 0x010 : 0x001
 
+#define IS_DS16P(val) (val==DEVICE_ID_DS26519)
+
 /* Read/Write to front-end register */
 #define WRITE_REG(reg,val)						\
 	fe->write_fe_reg(						\
@@ -372,11 +374,54 @@ static int sdla_ds_te1_get_fe_status(sdla_fe_t *fe, unsigned char *status,int no
  */
 static int sdla_ds_te1_address(sdla_fe_t *fe, int port_no, int reg)
 {
+	/* for T116 */
+	int line_no = port_no;
+	int port = port_no+1;
+
+	if (fe->fe_chip_id == DEVICE_ID_DS26519){
+		DEBUG_TEST("Port Number = %d\n",port_no);
+
+		if (reg >= 0xF0 && reg <=0xFF){
+		}
+		else if (reg < 0x1F0){
+			/* Framer registers */
+			if (port > 8 ){
+				reg = reg + 0x200 * (line_no - 8);
+			}else{
+				reg = reg + 0x200 * line_no;
+			}
+		}else if (reg >= 0x1000 && reg <= 0x101F){
+			/* LIU registers */
+			if (port > 8 ){
+				reg = reg + 0x20 * (line_no - 8);
+			}else{
+				reg = reg + 0x20 * line_no;
+			}
+		}else if (reg >= 0x1100 && reg <= 0x110F){
+			/* BERT registers */
+			if (port > 8 ){
+				reg = reg + 0x10 * (line_no - 8);
+			}else{
+				reg = reg + 0x10 * line_no;
+			}
+		}
+
+		if (port > 8){
+			reg =  reg + 0x2000;
+		}
+
+	}
+	
 	/* for a102, replace port number of second chip to 1 (1->0) */
 	if (fe->fe_chip_id == DEVICE_ID_DS26521){
 		port_no = 0;
 	}
-	return (int)((reg) + ((port_no)*(DLS_PORT_DELTA(reg))));
+
+	if (fe->fe_chip_id == DEVICE_ID_DS26519){
+		return reg;
+	}else{
+		return (int)((reg) + ((port_no)*(DLS_PORT_DELTA(reg))));
+	}
 }
 
 /*
@@ -501,12 +546,43 @@ int sdla_ds_te1_iface_init(void *p_fe, void *p_fe_iface)
 static int sdla_ds_te1_device_id(sdla_fe_t* fe)
 {
 //	u_int8_t	value;
-	
+	u_int32_t       value;
+
 	/* Revision/Chip ID (Reg. 0x0D) */
 //	value = READ_REG_LINE(0, REG_IDR);
 //	fe->fe_chip_id = DEVICE_ID_DS(value);
-	fe->fe_chip_id = WAN_TE1_DEVICE_ID;
+
+#ifdef T116_FE_RESET
+	if(fe->fe_chip_id == DEVICE_ID_DS26519){
+		WRITE_REG_LINE(1, 0x44, 0x4000);
+		READ_REG_LINE(1, REG_GLSRR);
+		WRITE_REG_LINE(1, 0x44, 0x00054000);
+		WP_DELAY(1000);
+	}
+#endif
+
+	value = READ_REG_LINE(0, REG_IDR);
+
+	/*CHECK FOF THE T116 ID*/
+	if (value == DEVICE_ID_DS26519){
+		fe->fe_chip_id = value;
+	}else{
+		fe->fe_chip_id = WAN_TE1_DEVICE_ID;
+	}
+	
+#ifdef T116_FE_RESET
+	if(fe->fe_chip_id == DEVICE_ID_DS26519){
+		WRITE_REG_LINE(1, 0x44, 0x4000);
+		READ_REG_LINE(1, REG_GLSRR);
+		WRITE_REG_LINE(1, 0x44, 0x00054000);
+		WP_DELAY(1000);
+	}
+#endif
+
 	switch(fe->fe_chip_id){
+	case DEVICE_ID_DS26519:
+		fe->fe_max_ports = 16;
+		break;
 	case DEVICE_ID_DS26528:
 		fe->fe_max_ports = 8;
 		break;
@@ -602,6 +678,16 @@ static int sdla_ds_te1_reset(void* pfe, int port_no, int reset)
 			WRITE_REG_LINE(1, REG_GFSRR, value);	
 		}
 	}
+
+#ifdef T116_FE_RESET
+	if(fe->fe_chip_id == DEVICE_ID_DS26519){
+		WRITE_REG_LINE(1, 0x44, 0x4000);
+		READ_REG_LINE(1, REG_GLSRR);
+		WRITE_REG_LINE(1, 0x44, 0x00054000);
+		WP_DELAY(1000);
+	}
+#endif
+
 	return 0;
 }
 
@@ -810,7 +896,7 @@ static int sdla_ds_t1_cfg_verify(void* pfe)
 			break;
 		default:
 			DEBUG_EVENT(
-			"%s: Error: Invalid T1 Rx Sensitivity Gain (%d).\n", 
+			"%s: Error: Invalid High-Mode T1 Rx Sensitivity Gain (%d).\n", 
 					fe->name,
 					fe->fe_cfg.cfg.te_cfg.rx_slevel);
 			return -EINVAL;
@@ -957,6 +1043,40 @@ static int sdla_ds_e1_cfg_verify(void* pfe)
 	return 0;
 }
 
+void t116_errata_reset(sdla_fe_t *fe)
+{
+	int i;
+	/* Note: Due to errata with the soft reset we have to manually clear
+	 * all registers in the port framer and liu before reconfiguring */
+
+	for(i = 0; i < 0xF0; i++) {
+		WRITE_REG(0x00+i, 0);
+	}
+
+	for(i = 0; i < 0xF0; i++) {
+		WRITE_REG(0x100+i, 0);
+	}
+	
+	for(i = 0; i < 0x20; i++) {
+		WRITE_REG(0x1000+i, 0);
+	}
+
+	/* Errata: now we need to write FF to all latched status registers */
+	WRITE_REG(REG_RLS1, 0xFF);
+	WRITE_REG(REG_RLS2, 0xFF);
+	WRITE_REG(REG_RLS3, 0xFF);
+	WRITE_REG(REG_RLS4, 0xFF);
+	WRITE_REG(REG_RLS5, 0xFF);
+	WRITE_REG(REG_RSS1, 0xFF);
+	WRITE_REG(REG_RSS2, 0xFF);
+	WRITE_REG(REG_RSS3, 0xFF);
+	WRITE_REG(REG_RSS4, 0xFF);
+	WRITE_REG(REG_TLS1, 0xFF);
+	WRITE_REG(REG_TLS2, 0xFF);
+	WRITE_REG(REG_TLS3, 0xFF);
+
+}
+
 /******************************************************************************
 **				sdla_ds_te1_chip_config()	
 **
@@ -968,6 +1088,18 @@ static int sdla_ds_te1_chip_config(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
 	unsigned char	value = 0x00;
+	unsigned char	value_lrcr = 0x00;
+	unsigned char	value_lrismr = 0x00;
+	unsigned char	tmp_rsms0 = 0x00;
+	unsigned char	tmp_rsms1 = 0x00;
+	unsigned char	tmp_rmonen = 0x00;
+	unsigned char	tmp_rtr = 0x00;
+	unsigned char	tmp_rimpm0 = 0x00;
+	unsigned char	tmp_rimpm1 = 0x00;
+	unsigned char	tmp_rg703 = 0x00;
+	u_int32_t       value_id;
+
+	value_id = READ_REG_LINE(0, REG_IDR); 
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
@@ -981,10 +1113,22 @@ static int sdla_ds_te1_chip_config(void* pfe)
 	/* Init BERT registers */
 	CLEAR_REG(0x1100, 0x1110);
 
-	/* Set Rx Framer soft reset */
-	WRITE_REG(REG_RMMR, BIT_RMMR_SFTRST);
-	/* Set Tx Framer soft reset */
-	WRITE_REG(REG_TMMR, BIT_RMMR_SFTRST);
+	/* T116 Errata - SOFT RST does not work */
+	if (IS_DS16P(value_id)){
+		/* Clear Rx Framer soft reset */
+		WRITE_REG(REG_RMMR, 0x00);
+		/* Clear Tx Framer soft reset */
+		WRITE_REG(REG_TMMR, 0x00);
+
+		t116_errata_reset(fe);
+
+	} else {
+		/* Set Rx Framer soft reset */
+		WRITE_REG(REG_RMMR, BIT_RMMR_SFTRST);
+		/* Set Tx Framer soft reset */
+		WRITE_REG(REG_TMMR, BIT_RMMR_SFTRST);
+	}
+
 	if (IS_T1_FEMEDIA(fe)){
 		/* Clear Rx Framer soft reset */
 		WRITE_REG(REG_RMMR, 0x00);
@@ -1005,32 +1149,52 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		WRITE_REG(REG_TMMR, (BIT_TMMR_FRM_EN | BIT_TMMR_T1E1));
 	}
 
+
 	if (IS_T1_FEMEDIA(fe)){
+		/* Toggle from 0 to 1: resynchronization of rx framer
+		   is initiated */
 		WRITE_REG(REG_RCR1, BIT_RCR1_T1_SYNCT); 
 	}
 	switch(WAN_FE_FRAME(fe)){
 	case WAN_FR_D4:
+
+		/* Enable D4 on rx framer */
 		value = READ_REG(REG_RCR1);
 		WRITE_REG(REG_RCR1, value | BIT_RCR1_T1_RFM/* | BIT_RCR1_T1_SYNCC*/);
 
+		/* Source FDL or Fs bits from internal TFDL register 	
+		   or the SLC-96 data formatter */
 		value = READ_REG(REG_TCR2);
 		WRITE_REG(REG_TCR2, value & ~BIT_TCR2_T1_TFDLS);
-		
+	
+		/* Enable D4 on tx framer */	
 		value = READ_REG(REG_TCR3);
 		WRITE_REG(REG_TCR3, value | BIT_TCR3_TFM);
-		
+	
+		/* Transmit 0x1C in Tx FDL Register */	
 		WRITE_REG(REG_T1TFDL, 0x1c);
 		break;
 
 	case WAN_FR_ESF:
+
+		/* Enable ESF on rx framer */
 		value = READ_REG(REG_RCR1);
-		value |= BIT_RCR1_T1_SYNCC;
-		value &= ~BIT_RCR1_T1_RFM;
+		value |= BIT_RCR1_T1_SYNCC; /* Auto sync disabled */
+		value &= ~BIT_RCR1_T1_RFM;  /* ESF mode */
 		WRITE_REG(REG_RCR1, value);
-		
+	
+		/* Enable ESF on tx framer */
 		value = READ_REG(REG_TCR3);
 		value &= ~BIT_TCR3_TFM;
 		WRITE_REG(REG_TCR3, value);
+
+		/* NC as per ncomm stack */
+		value = READ_REG(REG_TCR2);
+		WRITE_REG(REG_TCR2, (value | BIT_TCR2_T1_TFDLS));
+		
+		/* Transmit 0x7e in Tx FDL Register */	
+		WRITE_REG(REG_T1TFDL, 0x7e);
+
 		break;
 		
 	case WAN_FR_SLC96:
@@ -1055,15 +1219,39 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		WRITE_REG(REG_TCR3, value | BIT_TCR3_TFM);
 		break;
 	case WAN_FR_NCRC4:
+		value = READ_REG(REG_RCR1);
+		value &= ~BIT_RCR1_E1_RCRC4;
+		value |= BIT_RCR1_E1_RSIGM;
+		WRITE_REG(REG_RCR1, value);
+
+		value = READ_REG(REG_TCR1);
+		value &= ~BIT_TCR1_E1_TCRC4;
+		WRITE_REG(REG_TCR1, value);
+
+		value = READ_REG(REG_TCR2);
+		value &= ~BIT_TCR2_E1_AEBE;
+		WRITE_REG(REG_TCR2, value);
+
+		WRITE_REG(REG_SSIE1+0, 0);	
+		WRITE_REG(REG_SSIE1+1, 0);	
+		WRITE_REG(REG_SSIE1+2, 0);	
+		WRITE_REG(REG_SSIE1+3, 0);	
 		break;
 	case WAN_FR_CRC4:
 		value = READ_REG(REG_RCR1);
+		value |= BIT_RCR1_E1_RSIGM; /* CCS */
 		WRITE_REG(REG_RCR1, value | BIT_RCR1_E1_RCRC4);
+
 		value = READ_REG(REG_TCR1);
 		WRITE_REG(REG_TCR1, value | BIT_TCR1_E1_TCRC4);
 		/* EBIT: Enable auto E-bit support */
 		value = READ_REG(REG_TCR2);
 		WRITE_REG(REG_TCR2, value | BIT_TCR2_E1_AEBE);
+
+		WRITE_REG(REG_SSIE1+0, 0);	
+		WRITE_REG(REG_SSIE1+1, 0);	
+		WRITE_REG(REG_SSIE1+2, 0);	
+		WRITE_REG(REG_SSIE1+3, 0);	
 		break;
 	case WAN_FR_UNFRAMED:
 		/* Nov 23, 2007 UNFRM */
@@ -1088,6 +1276,12 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		WRITE_REG(REG_RCR1, value | BIT_RCR1_T1_RB8ZS);
 		value = READ_REG(REG_TCR1);
 		WRITE_REG(REG_TCR1, value | BIT_TCR1_T1_TB8ZS);
+
+		/* NC as per ncomm */
+		value = READ_REG(REG_TCR2);
+		value &= ~BIT_TCR2_T1_TCR2_PDE; 
+		WRITE_REG(REG_TCR2, value);
+		
 		break;
 
 	case WAN_LCODE_HDB3:
@@ -1184,6 +1378,8 @@ static int sdla_ds_te1_chip_config(void* pfe)
 	if (IS_T1_FEMEDIA(fe)){
 		WRITE_REG(REG_T1RBOCC, BIT_T1RBOCC_RBD0 | BIT_T1RBOCC_RBF1 | BIT_T1RBOCC_RBF0);
     	WRITE_REG(REG_T1RIBCC, BIT_T1RIBCC_RUP2 | BIT_T1RIBCC_RDN1);
+		/* Errata: read any reg before CDN1 */
+		READ_REG(REG_RIIR);
     	WRITE_REG(REG_T1RUPCD1, 0x80);
     	WRITE_REG(REG_T1RDNCD1, 0x80);
 	}
@@ -1249,20 +1445,56 @@ static int sdla_ds_te1_chip_config(void* pfe)
 			value | BIT_LTITSR_TIMPL0);
 	}
 
+	if (IS_DS16P(value_id)){
+		tmp_rmonen = BIT_LRCR_TAP_RMONEN;
+		tmp_rsms0 = BIT_LRCR_TAP_RSMS0;
+		tmp_rsms1 = BIT_LRCR_TAP_RSMS1;
+		tmp_rtr = BIT_LRCR_TAP_RTR;
+		tmp_rimpm0 = BIT_LRISMR_TAP_RIMPM0;
+		tmp_rimpm1 = BIT_LRISMR_TAP_RIMPM1;
+		tmp_rg703 = BIT_LRCR_TAP_RG703;
+	}else{
+		tmp_rmonen = BIT_LRISMR_RMONEN;
+		tmp_rsms0 = BIT_LRISMR_RSMS0;
+		tmp_rsms1 = BIT_LRISMR_RSMS1;
+		tmp_rtr = BIT_LRISMR_RTR;
+		tmp_rimpm0 = BIT_LRISMR_RIMPM0;
+		tmp_rimpm1 = BIT_LRISMR_RIMPM1;
+		tmp_rg703 = BIT_LRISMR_RG703;
+	}
 	value = 0x00;
+	value_lrcr=0;
+	value_lrismr=0;
+
 	if (WAN_TE1_HI_MODE(fe)){
-		value |= BIT_LRISMR_RMONEN;
+		if (IS_DS16P(value_id)) {
+			value_lrcr |= tmp_rmonen;	
+		} else {
+			value_lrismr |= tmp_rmonen;
+		}
 		switch(fe->fe_cfg.cfg.te_cfg.rx_slevel){
 		case WAN_TE1_RX_SLEVEL_30_DB:
 			break;
 		case WAN_TE1_RX_SLEVEL_225_DB:
-			value |= BIT_LRISMR_RSMS0;
+			if (IS_DS16P(value_id)) {
+				value_lrcr |=tmp_rsms0;
+			} else {
+				value_lrismr |= tmp_rsms0;
+			}
 			break;
 		case WAN_TE1_RX_SLEVEL_175_DB:
-			value |= BIT_LRISMR_RSMS1;
+			if (IS_DS16P(value_id)) {
+				value_lrcr |=tmp_rsms1;
+			} else {
+				value_lrismr |= tmp_rsms1;
+			}
 			break;
 		case WAN_TE1_RX_SLEVEL_12_DB:
-			value |= (BIT_LRISMR_RSMS1 | BIT_LRISMR_RSMS0);
+			if (IS_DS16P(value_id)) {
+				value_lrcr |=(tmp_rsms1|tmp_rsms0);
+			} else {
+				value_lrismr |= (tmp_rsms1 | tmp_rsms0);
+			}
 			break;
 		default:	/* set default value */ 
 			fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_30_DB;
@@ -1279,15 +1511,27 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		case WAN_TE1_RX_SLEVEL_12_DB:
 			break;
 		case WAN_TE1_RX_SLEVEL_18_DB:
-			value |= BIT_LRISMR_RSMS0;
+			if (IS_DS16P(value_id)) {
+				value_lrcr |=tmp_rsms0;
+			} else {
+				value_lrismr |= tmp_rsms0;
+			}
 			break;
 		case WAN_TE1_RX_SLEVEL_30_DB:
-			value |= BIT_LRISMR_RSMS1;
+			if (IS_DS16P(value_id)) {
+				value_lrcr |=tmp_rsms1;
+			} else {
+				value_lrismr |= tmp_rsms1;
+			}
 			break;
 		case WAN_TE1_RX_SLEVEL_36_DB:
 		case WAN_TE1_RX_SLEVEL_43_DB:
 		default:	/* set default value */ 
-			value |= (BIT_LRISMR_RSMS1 | BIT_LRISMR_RSMS0);
+			if (IS_DS16P(value_id)) {
+				value_lrcr |=(tmp_rsms1|tmp_rsms0);
+			} else {
+				value_lrismr |= (tmp_rsms1 | tmp_rsms0);
+			}
 			break;
 		}
 		DEBUG_EVENT("%s:    Rx Sensitivity Gain %s%s.\n", 
@@ -1297,15 +1541,39 @@ static int sdla_ds_te1_chip_config(void* pfe)
 			 (IS_E1_FEMEDIA(fe) && (fe->fe_cfg.cfg.te_cfg.rx_slevel==WAN_TE1_RX_SLEVEL_43_DB))) ?
 					 " (default)": "");
 	}
+
 	if (IS_T1_FEMEDIA(fe)){
-		value |= BIT_LRISMR_RIMPM0;
+		if (IS_DS16P(value_id)){
+			/* Setting Impedance to 120H with External Resistor */
+			value_lrismr |= BIT_LRISMR_TAP_RIMPM0;
+			value_lrismr |= BIT_LRISMR_TAP_RIMPON;
+		}else{
+			value_lrismr |= BIT_LRISMR_RIMPM0;
+		}
 	}else{
 		//value |= BIT_LRISMR_RIMPOFF;		
-		if (WAN_TE1_LBO(fe) == WAN_E1_120){
-			value |= BIT_LRISMR_RIMPM1 | BIT_LRISMR_RIMPM0;
+		if (IS_DS16P(value_id)){
+			/* Setting Impedance to 120H with External Resistor */
+			value_lrismr |= BIT_LRISMR_TAP_RIMPON;
+			if (WAN_TE1_LBO(fe) == WAN_E1_120){
+				value_lrismr |= BIT_LRISMR_TAP_RIMPM0;
+				value_lrismr |= BIT_LRISMR_TAP_RIMPM1;
+			}
+		} else {
+			if (WAN_TE1_LBO(fe) == WAN_E1_120){
+				value_lrismr |= tmp_rimpm1 | tmp_rimpm0;
+			}
 		}
 	}
-	WRITE_REG(REG_LRISMR, value);
+
+	if (IS_DS16P(value_id)){
+		WRITE_REG(REG_LRISMR_TAP, value_lrismr);
+		WRITE_REG(REG_LRCR_TAP, value_lrcr);
+		DEBUG_EVENT("%s: Configurig DS16 for %s LRISMR=0x%X LRCR=0x%X\n",fe->name,IS_T1_FEMEDIA(fe)?"T1":"E1",value_lrismr,value_lrcr);
+	}else{
+		WRITE_REG(REG_LRISMR, value_lrismr);
+		DEBUG_EVENT("%s: Configurig DS8/4/2/1 for %s LRISMR=0x%X \n",fe->name,IS_T1_FEMEDIA(fe)?"T1":"E1",value_lrismr);
+	}
 
 	if (IS_E1_FEMEDIA(fe) && WAN_TE1_LBO(fe) == WAN_E1_120){
 		/* Feb 7, 2008
@@ -1400,11 +1668,9 @@ static int sdla_ds_te1_chip_config(void* pfe)
 
 	}
 
+
 	/* INIT RBS bits to 1 */
 	sdla_ds_te1_rbs_init(fe);
-
-	
-
 
 
 	return 0;
@@ -1498,6 +1764,16 @@ static int sdla_ds_te1_config(void* pfe)
 	/* Revision/Chip ID (Reg. 0x0D) */
 	if (sdla_ds_te1_device_id(fe)) return -EINVAL;
 	switch(fe->fe_chip_id){
+	case DEVICE_ID_DS26519:
+		if ((int)WAN_FE_LINENO(fe) < 0 || WAN_FE_LINENO(fe) > 16){
+			DEBUG_EVENT(
+			"%s: TE Config: Invalid Port selected %d (Min=1 Max=16)\n",
+					fe->name,
+					WAN_FE_LINENO(fe)+1);
+			return -EINVAL;
+		}
+		fe->fe_cfg.poll_mode=WANOPT_YES;
+		break;
 	case DEVICE_ID_DS26528:
 		if ((int)WAN_FE_LINENO(fe) < 0 || WAN_FE_LINENO(fe) > 8){
 			DEBUG_EVENT(
@@ -4460,6 +4736,9 @@ static int sdla_ds_te1_flush_pmon(sdla_fe_t *fe)
  * Returns:
  ******************************************************************************
  */
+
+#define VUC_FIELD(a, b, c) (((a) & (0xff >> (8 - (c)))) << (b)
+
 static int sdla_ds_te1_pmon(sdla_fe_t *fe, int action)
 {
 	sdla_te_pmon_t	*pmon = &fe->fe_stats.te_pmon;
@@ -4480,16 +4759,16 @@ static int sdla_ds_te1_pmon(sdla_fe_t *fe, int action)
 	if (IS_FE_PMON_READ(action)){
 		pmon->mask = 0x00;
 		/* Line code violation count register */	
-		pmon1 = READ_REG(REG_LCVCR1) << 8 | READ_REG(REG_LCVCR2);
+		pmon1 = (READ_REG(REG_LCVCR1)&0xFF) << 8 | (READ_REG(REG_LCVCR2)&0xFF);
 		/* Path code violation count for E1/T1 */
-		pmon2 = READ_REG(REG_PCVCR1) << 8 | READ_REG(REG_PCVCR2);
+		pmon2 = (READ_REG(REG_PCVCR1)&0xFF) << 8 | (READ_REG(REG_PCVCR2)&0xFF);
 		/* OOF Error for T1/E1 */
 		pmon3 = READ_REG(REG_FOSCR1) << 8 | READ_REG(REG_FOSCR2);
 		if (IS_E1_FEMEDIA(fe) && WAN_FE_FRAME(fe) == WAN_FR_CRC4){
 			/* E-bit counter (Far End Block Errors) for CRC4 */
 			pmon4 = READ_REG(REG_E1EBCR1) << 8 | READ_REG(REG_E1EBCR2);
 		}
-	
+
 		pmon->lcv_diff = pmon1;
 		pmon->lcv_errors = pmon->lcv_errors + pmon1;	
 		if (IS_T1_FEMEDIA(fe)){

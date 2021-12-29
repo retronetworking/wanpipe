@@ -447,7 +447,8 @@ static key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
   { "RX_CRC_BYTES",  smemof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
   { "SPAN_TX_ONLY_IRQ",  smemof(wan_xilinx_conf_t, span_tx_only_irq), DTYPE_UCHAR},
   { "HW_RJ45_PORT_MAP",   smemof(wan_xilinx_conf_t, hw_port_map), DTYPE_UCHAR },
-  
+  { "RX_FIFO_TRIGGER",  smemof(wan_xilinx_conf_t, rx_fifo_trigger), DTYPE_USHORT },
+  { "TX_FIFO_TRIGGER",  smemof(wan_xilinx_conf_t, tx_fifo_trigger), DTYPE_USHORT },
   { NULL, 0, 0 }
 };
 

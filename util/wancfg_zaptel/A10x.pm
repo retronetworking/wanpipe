@@ -10,6 +10,7 @@ sub new	{
 	my ($class) = @_;
 	my $self = {
 		_is_tdm_api => undef,
+		_is_data_api => undef,
 		_current_dir => undef,
 		_card      => undef,		
  		_fe_line   => undef,
@@ -35,6 +36,7 @@ sub new	{
 		_old_a10u => undef,
 		_smg_sig_mode => '1',
 		_hw_port_map_mode => 'DEFAULT',
+		_tapping_mode => undef,
 	};			
 	bless $self, $class;
     	return $self;
@@ -169,6 +171,11 @@ sub is_tdm_api {
 		                    $self->{_is_tdm_api} = $is_tdm_api if defined($is_tdm_api);
 				                        return $self->{_is_tdm_api};
 }
+sub is_data_api {
+	            my ( $self, $is_data_api ) = @_;
+		                    $self->{_is_data_api} = $is_data_api if defined($is_data_api);
+				                        return $self->{_is_data_api};
+}
 
 sub old_a10u {
           my ( $self, $old_a10u ) = @_;
@@ -186,6 +193,12 @@ sub hw_port_map_mode {
 	my ( $self, $hw_port_map_mode ) = @_;
 	$self->{_hw_port_map_mode} = $hw_port_map_mode if defined($hw_port_map_mode);
 	return $self->{_hw_port_map_mode};
+}
+
+sub tapping_mode {
+	my ( $self, $tapping_mode ) = @_;
+	$self->{_tapping_mode} = $tapping_mode if defined($tapping_mode);
+	return $self->{_tapping_mode};
 }
 
 
@@ -346,6 +359,7 @@ sub gen_wanpipe_conf{
 	my $card_model = $self->card->card_model;
 	my $rx_slevel= $self->rx_slevel;
 	my $hw_port_map_mode = $self->hw_port_map_mode;
+	my $tapping_mode = $self->tapping_mode;
 	if ($ss7_option == 1){
 	        $wanpipe_conf_template = $self->card->current_dir."/templates/ss7_a100/wanpipe.ss7.4";
 	} elsif ($ss7_option == 2){
@@ -387,7 +401,11 @@ sub gen_wanpipe_conf{
 		$te_sig_mode_line= 'TE_SIG_MODE     = '.$te_sig_mode;
 	}
 
-	if($self->is_tdm_api eq '0') {
+	if($self->is_data_api eq '0') {
+		$tdm_voice_op_mode = "DATA_API";
+		$mtu_size='80';
+		$dchan = $self->hw_dchan;
+	} elsif($self->is_tdm_api eq '0') {
 		$tdm_voice_op_mode = "TDM_VOICE_API";
 		#for tdm_api hw_dchan is set by user
 		$dchan = $self->hw_dchan;
@@ -424,16 +442,42 @@ sub gen_wanpipe_conf{
 	$wp_file =~ s/TEREFCLOCK/$te_ref_clock/g;
 	$wp_file =~ s/RXSLEVEL/$rx_slevel/g;
     $wp_file =~ s/FELBO/$fe_lbo/g;
-    $wp_file =~ s/TDMVDCHAN/$dchan/g;
+
+	if($self->is_data_api eq '0') {
+    	$wp_file =~ s/TDMVDCHAN/0/g;
+		$hw_dtmf="NO";
+		$hw_fax="NO";
+		$hwec_mode="NO";
+	} else {
+    	$wp_file =~ s/TDMVDCHAN/$dchan/g;
+	}
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
     $wp_file =~ s/HWECMODE/$hwec_mode/g;
     $wp_file =~ s/HWDTMF/$hw_dtmf/g;
+
+	if ($tapping_mode eq 'YES') {
+		$wp_file =~ s/TE_HIGHIMPEDANCE.*/TE_HIGHIMPEDANCE\t= YES/g;
+		$wp_file =~ s/TE_RX_SLEVEL.*/TE_RX_SLEVEL\t= 120/g;
+	}
+
+	if($self->is_data_api eq '0') {
+		if ($dchan == 'NO') {
+			$wp_file =~ s/ACTIVE_CH(.*)/HDLC_STREAMING\t= NO\nACTIVE_CH$1/g;
+		} elsif ($dchan == '7bit') {
+			$wp_file =~ s/ACTIVE_CH(.*)/HDLC_STREAMING\t= YES\nSEVEN_BIT_HDLC\t= YES\nACTIVE_CH$1/g;
+		} else {
+			$wp_file =~ s/ACTIVE_CH(.*)/HDLC_STREAMING\t= YES\nACTIVE_CH$1/g;
+			$mtu_size=0;
+		}
+	}
 	if($card_model eq '108'){
 		$wp_file =~ s/HWRJ45PORTMAP/$hw_port_map_mode/g;
 	} else {
 		$wp_file =~ s/HWRJ45PORTMAP/DEFAULT/g;
 	}
+
     $wp_file =~ s/HWFAX/$hw_fax/g;
+
 	$wp_file =~ s/MTUSIZE/$mtu_size/g;
 	       
 	print FH $wp_file;

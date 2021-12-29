@@ -98,6 +98,8 @@
 # define WAN_EC_API_CMD_CONFIG_POLL		22
 # define WAN_EC_API_CMD_CHANNEL_MUTE		23
 # define WAN_EC_API_CMD_CHANNEL_UNMUTE		24
+# define WAN_EC_API_CMD_HWDTMF_REMOVAL_ENABLE	25
+# define WAN_EC_API_CMD_HWDTMF_REMOVAL_DISABLE	26
 #else
 # define WAN_EC_API_CMD_NONE			_IOWR('E', 0, struct wan_ec_api_)
 # define WAN_EC_API_CMD_GETINFO			_IOWR('E', 1, wan_ec_api_t)
@@ -124,6 +126,8 @@
 # define WAN_EC_API_CMD_CONFIG_POLL		_IOWR('E', 22, struct wan_ec_api_)
 # define WAN_EC_API_CMD_CHANNEL_MUTE		_IOWR('E', 23, struct wan_ec_api_)
 # define WAN_EC_API_CMD_CHANNEL_UNMUTE		_IOWR('E', 24, struct wan_ec_api_)
+# define WAN_EC_API_CMD_HWDTMF_REMOVAL_ENABLE	_IOWR('E', 25, struct wan_ec_api_)
+# define WAN_EC_API_CMD_HWDTMF_REMOVAL_DISABLE	_IOWR('E', 26, struct wan_ec_api_)
 #endif
 
 # define WAN_EC_API_CMD_DECODE(cmd)					\
@@ -151,6 +155,8 @@
 	(cmd == WAN_EC_API_CMD_TONE_DISABLE)		? "Disable TONE" :	\
 	(cmd == WAN_EC_API_CMD_CHANNEL_MUTE)	? "Channel Mute" :	\
 	(cmd == WAN_EC_API_CMD_CHANNEL_UNMUTE)	? "Channel Un-mute" :	\
+	(cmd == WAN_EC_API_CMD_HWDTMF_REMOVAL_ENABLE)	? "DTMF Removal enable" :	\
+	(cmd == WAN_EC_API_CMD_HWDTMF_REMOVAL_DISABLE)	? "DTMF Removal disable" :	\
 					"Unknown"
 
 #define WAN_

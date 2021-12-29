@@ -112,6 +112,7 @@ int wanec_ChipClose(wan_ec_dev_t*, int verbose);
 int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int reset, int verbose);
 int wanec_ChipImage(wan_ec_dev_t *ec_dev, wanec_chip_image_t *chip_image, int verbose);
 
+
 int wanec_ChannelOpen(wan_ec_dev_t*, INT, int);
 int wanec_ChannelClose(wan_ec_dev_t*, INT, int);
 int wanec_ChannelModifyOpmode(wan_ec_dev_t*, INT, UINT32, int verbose);
@@ -120,6 +121,8 @@ int wanec_ChannelStats(wan_ec_dev_t*, INT channel, wanec_chan_stats_t *chan_stat
 
 int wanec_ChannelMute(wan_ec_dev_t*, INT channel, wanec_chan_mute_t*, int);
 int wanec_ChannelUnMute(wan_ec_dev_t*, INT channel, wanec_chan_mute_t*, int);
+
+int wanec_DtmfRemoval(wan_ec_dev_t *ec_dev, INT channel, int enable, int verbose);
 
 int wanec_TonesCtrl(wan_ec_t *ec, int cmd, int ec_chan, wanec_tone_config_t*, int verbose);
 
@@ -762,8 +765,10 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 
 	if (card->tdmv_conf.hw_dtmf && card->hwec_conf.dtmf_removal) {
     	EchoChannelOpen.VqeConfig.fDtmfToneRemoval = TRUE;
+		ec_dev->fe_dtmf_removal_map = 0xFFFFFFFF;
 	} else {
     	EchoChannelOpen.VqeConfig.fDtmfToneRemoval = FALSE;
+		ec_dev->fe_dtmf_removal_map = 0;
 	}
 
 	if (card->hwec_conf.tone_disabler_delay) {
@@ -909,6 +914,49 @@ int wanec_ChannelModifyOpmode(	wan_ec_dev_t		*ec_dev,
 		DEBUG_EVENT(
 		"%s: Failed to modify EC Channel OPMOde for ec_chan:%d (err=0x%X)\n",
 				ec->name, channel, ulResult);
+		return EINVAL;
+	}
+	return	0;
+}
+
+int wanec_DtmfRemoval(wan_ec_dev_t *ec_dev, INT channel, int enable, int verbose)
+{
+	wan_ec_t		*ec;
+	tOCT6100_CHANNEL_MODIFY	EchoChannelModify;
+	UINT32			ulResult;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+
+	ec = ec_dev->ec;
+
+	if (enable) {
+		if (ec_dev->fe_dtmf_removal_map & (1 << channel)) {
+			return 0;
+		}
+		ec_dev->fe_dtmf_removal_map |= (1 << channel);
+	} else { /* Disable */
+		if (!(ec_dev->fe_dtmf_removal_map & (1 << channel))) {
+			return 0;
+		}
+		ec_dev->fe_dtmf_removal_map &= ~(1 << channel);
+	}
+
+	PRINT2(verbose, "%s: %s EC Channel DTMF Removal ec_chan:%d...\n",
+		   enable ? "Enable" : "Disable", ec->name, channel);
+
+	Oct6100ChannelModifyDef(&EchoChannelModify);
+	/* Assign the handle memory.*/
+	EchoChannelModify.ulChannelHndl = ec->pEchoChannelHndl[channel];
+
+	EchoChannelModify.fVqeConfigModified = TRUE;
+	EchoChannelModify.VqeConfig.fDtmfToneRemoval = enable ? TRUE : FALSE;
+
+	/* Open the channel.*/
+	ulResult = Oct6100ChannelModify(ec->pChipInstance, &EchoChannelModify);
+	if (ulResult != cOCT6100_ERR_OK){
+		DEBUG_EVENT("%s: Failed to %s EC Channel DTMF Removal for ec_chan:%d (err=0x%X)\n",
+					ec->name, enable ? "Enable" : "Disable", channel, ulResult);
 		return EINVAL;
 	}
 	return	0;

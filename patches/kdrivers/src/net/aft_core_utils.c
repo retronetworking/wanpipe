@@ -248,6 +248,14 @@ void aft_wdt_reset(sdla_t *card)
 		wdt_ctrl_reg=AFT_WDT_4TO8_CTRL_REG+(card->wandev.comm_port%4);	
 	}
 	
+	if (card->adptr_type == AFT_ADPTR_T116 && card->wandev.comm_port > 7){
+		wdt_ctrl_reg=AFT_WDT_1TO4_CTRL_REG2+card->wandev.comm_port%4;
+	}
+
+	if (card->adptr_type == AFT_ADPTR_T116 && card->wandev.comm_port > 11){
+		wdt_ctrl_reg=AFT_WDT_4TO8_CTRL_REG2+(card->wandev.comm_port%4);
+	}
+	
 	card->hw_iface.bus_read_1(card->hw, AFT_PORT_REG(card,wdt_ctrl_reg), &reg);		
 	aft_wdt_ctrl_reset(&reg);
 	card->hw_iface.bus_write_1(card->hw, AFT_PORT_REG(card,wdt_ctrl_reg), reg);
@@ -274,6 +282,14 @@ void aft_wdt_set(sdla_t *card, unsigned char val)
 		wdt_ctrl_reg=AFT_WDT_4TO8_CTRL_REG+(card->wandev.comm_port%4);	
 	}
 	
+	if (card->adptr_type == AFT_ADPTR_T116 && card->wandev.comm_port > 7){
+		wdt_ctrl_reg=AFT_WDT_1TO4_CTRL_REG2+(card->wandev.comm_port%4);
+	}
+
+	if (card->adptr_type == AFT_ADPTR_T116 && card->wandev.comm_port > 11){
+		wdt_ctrl_reg=AFT_WDT_4TO8_CTRL_REG2+(card->wandev.comm_port%4);
+	}
+
 	card->hw_iface.bus_read_1(card->hw,AFT_PORT_REG(card,wdt_ctrl_reg), &reg);		
 	aft_wdt_ctrl_set(&reg,val);
 	card->hw_iface.bus_write_1(card->hw,AFT_PORT_REG(card,wdt_ctrl_reg), reg);
@@ -1676,16 +1692,15 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 
 				DEBUG_EVENT("%s: FE SYNC Cnt %i!\n",card->devname,cnt);
 
-				//aft_lcfg_set_fe_sync_cnt(&reg,1);
-				//card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
+				aft_lcfg_set_fe_sync_cnt(&reg,1);
+				card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
 			
-				wan_udp_pkt->wan_udp_data_len = 0;
-				wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			} else {
-				DEBUG_EVENT("%s: Error: WANPIPEMON_GEN_FE_SYNC_ERR not supported on this hw!\n",card->devname);
-				wan_udp_pkt->wan_udp_data_len = 0;
-				wan_udp_pkt->wan_udp_return_code = EPFNOSUPPORT;
+				DEBUG_EVENT("%s: Note: Fimrmware does not support FE SYNC CNT. Restarting DMA!\n",card->devname);
+				aft_core_taskq_trigger(card,AFT_FE_RESTART);
 			}
+			wan_udp_pkt->wan_udp_data_len = 0;
+			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			break;
 
 		case WAN_GET_PROTOCOL:
@@ -3586,7 +3601,7 @@ int aft_hdlc_repeat_mangle(sdla_t *card,private_area_t *chan, netskb_t *skb, wp_
 	}
 
 	*rskb=wan_skb_alloc(128);
-	if (!rskb) {
+	if (!*rskb) {
 		DEBUG_ERROR("%s: %s() failed to allocate mem\n",
 			chan->if_name, __FUNCTION__);
 		return -ENOMEM;

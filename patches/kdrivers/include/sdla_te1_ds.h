@@ -64,6 +64,7 @@
 #define REG_GFSRR		0xF6
 
 #define REG_IDR			0xF8
+#define DEVICE_ID_DS26519       0xD9
 #define DEVICE_ID_DS26528	0x0B
 #define DEVICE_ID_DS26524	0x0C
 #define DEVICE_ID_DS26522	0x0D
@@ -73,6 +74,7 @@
 #define DEVICE_ID_MASK		0x1F
 #define DEVICE_ID_DS(dev_id)	((dev_id) >> DEVICE_ID_SHIFT) & DEVICE_ID_MASK
 #define DECODE_CHIPID(chip_id)					\
+		(chip_id == DEVICE_ID_DS26519) ? "DS26519" :	\
 		(chip_id == DEVICE_ID_DS26528) ? "DS26528" :	\
 		(chip_id == DEVICE_ID_DS26524) ? "DS26524" :	\
 		(chip_id == DEVICE_ID_DS26522) ? "DS26522" :	\
@@ -773,6 +775,24 @@
 #define BIT_LRISMR_RMONEN	0x04
 #define BIT_LRISMR_RSMS1	0x02
 #define BIT_LRISMR_RSMS0	0x01
+
+
+#define REG_LRISMR_TAP		0x1007
+#define BIT_LRISMR_TAP_REXTON	0x80
+#define BIT_LRISMR_TAP_RIMPON	0x40
+#define BIT_LRISMR_TAP_RIMPM2	0x04
+#define BIT_LRISMR_TAP_RIMPM1	0x02
+#define BIT_LRISMR_TAP_RIMPM0	0x01
+
+
+#define REG_LRCR_TAP		0x1008
+#define BIT_LRCR_TAP_RG703	0x80
+#define BIT_LRCR_TAP_RTR	0x08
+#define BIT_LRCR_TAP_RMONEN	0x04
+#define BIT_LRCR_TAP_RSMS1	0x02
+#define BIT_LRCR_TAP_RSMS0	0x01
+
+
 
 #define REG_LTXLAE		0x100C
 

@@ -21,6 +21,9 @@ do
 	if [ "$1" = "ifstat-tx" ]; then
       	token="TX.*packet"
 	fi
+	if [ "$1" = "pmon" ]; then
+      	token="pmon"
+	fi
 	if [ "$1" = "record" ]; then
       	rec=1
 	fi
@@ -38,7 +41,22 @@ for dev in $DEVS
 do
 	if [ "$CMD" = "clear" ]; then
 		wanpipemon -i $dev -c fc
+		wanpipemon -i $dev -c fpm
 	fi	
+
+	if [ "$token" = "pmon" ]; then
+		wanpipemon -i $dev -c Ta > t.$$ 
+		line=`cat t.$$ | grep -e Line |  cut -d':' -f2 | awk ' { print $1 }'` 
+		bit=`cat t.$$ | grep -e Bit |  cut -d':' -f2 | awk ' { print $1 }'` 
+		out=`cat t.$$ | grep -e Out |  cut -d':' -f2 | awk ' { print $1 }'` 
+		r_over=`ifconfig $dev | grep RX.*overruns | awk '{ print $5 }' | cut -d':' -f2`
+		t_over=`ifconfig $dev | grep TX.*overruns | awk '{ print $5 }' | cut -d':' -f2`
+		con_status=`ifconfig $dev | grep -c RUNNING`
+		level=`cat t.$$ | grep "Rx Level" | awk '{print $5}'`
+		rm t.$$
+		echo -e "IF $dev | Pmon: Line=$line Bit=$bit Out=$out Lvl=$level | Overrun: R=$r_over T=$t_over | Status=$con_status"
+		continue
+	fi
 
 	if [ "$token" = "overrun" ]; then
 		line=`wanpipemon -i $dev -c sc | grep "$token"`

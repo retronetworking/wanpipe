@@ -75,6 +75,8 @@
 # include "wanpipe_common.h"
 # include "sdlasfm.h"
 # include "sdlapci.h"
+# include "wancfglib.h"
+# include "libsangoma.h"
 
 #else
 # include <net/if.h>
@@ -122,6 +124,8 @@ extern aftup_flash_iface_t aftup_flash_iface;
 extern aftup_flash_iface_t aftup_shark_flash_116_iface;
 extern aftup_flash_iface_t aftup_shark_flash_iface;
 extern aftup_flash_iface_t aftup_a600_flash_iface;
+extern aftup_flash_iface_t aftup_t116_flash_iface;
+extern aftup_flash_iface_t aftup_t116_base_flash_iface;
 
 extern pcie_bridge_iface_t aft_pci_bridge_iface_tundra;
 extern pcie_bridge_iface_t aft_pci_bridge_iface_plx;
@@ -192,6 +196,8 @@ aft_core_info_t aft_core_table[] = {
 	  "B610_0025_V", "B610_0025_V*.BIN", AFT_CORE_X250_SIZE },
 	{ AFT_B601_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
 	  "B601_0025_V", "B601_0025_V*.BIN", AFT_CORE_X250_SIZE },
+	{ AFT_T116_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_DS_FE_CORE_ID, 0x20, 0x5B,
+	  "T116_0025_V", "T116_0025_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ AFT_W400_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
 	  "W400_0025_V", "W400_0025_V*.BIN", AFT_CORE_X250_SIZE },
 #if 0
@@ -318,7 +324,7 @@ int MakeConnection(char *ifname)
 	printf("%s(): ifname: %s\n", __FUNCTION__, ifname);
 	sock = open_api_device(ifname);
     if (sock == INVALID_HANDLE_VALUE){
-		printf("Unable to open %s for general commands!\n", ifname);
+		printf("Unable to open %s for general commands! err=%i\n", ifname,sock);
 		return 1;
 	}
 #endif
@@ -440,6 +446,9 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 	case AFT_ADPTR_W400:
 		aft->cpld.iface	= &aftup_a600_flash_iface;
 		break;
+	case AFT_ADPTR_T116:
+		aft->cpld.iface	= &aftup_t116_flash_iface;
+		break;
 	case U100_ADPTR:
 		aft->cpld.iface	= NULL;
 		printf("ERROR: unsupported Card type 0x%X (%s)!\n", card_type, SDLA_ADPTR_NAME(card_type));
@@ -466,6 +475,10 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		//strcpy(aft->prefix_fw, "A104");
 		aft->cpld.adptr_type = A116_ADPTR_16TE1;
 		aft->cpld.iface	= &aftup_shark_flash_116_iface;
+	}else if (strncmp(type,"AFT-T116",8) == 0){
+		//strcpy(aft->prefix_fw, "A104");
+		aft->cpld.adptr_type = AFT_ADPTR_T116;
+		aft->cpld.iface	= &aftup_t116_flash_iface;
 	}else if (strncmp(type,"AFT-A300",8) == 0){
 		//strcpy(aft->prefix_fw, "A301");
 		aft->cpld.adptr_type = A300_ADPTR_U_1TE3;
@@ -660,13 +673,28 @@ verify_firmware_file:
 static int wan_aftup_program_card(wan_aftup_t *aft)
 {
 	int	flash_id = 0, tmp = 0, err = -EINVAL;
-	
-	if (wan_aftup_getfile(aft)){
-		return -EINVAL;
+	char	*filename_tmp;
+
+	if ((aft->cpld.adptr_type == AFT_ADPTR_T116) && (strcmp(aft->cpld.core_info->firmware, "") != 0)  ){
+		filename_tmp = strstr(aft->cpld.core_info->firmware,"T116_0025");
+		if (filename_tmp) {
+			strncpy(filename_tmp,"T116_base",9);
+			strcpy(aft->cpld.core_info->firmware, filename_tmp);
+			printf("NEW FILENAME = %s, filename_tmp = %s\n",aft->cpld.core_info->firmware,filename_tmp);
+		} else {
+			if (wan_aftup_getfile(aft)){
+	            return -EINVAL;
+    	    }
+		}
+	}else{
+		if (wan_aftup_getfile(aft)){
+			return -EINVAL;
+		}
 	}
 
-	
+#if 1	
 	/* Release board internal reset (AFT-T1/E1/T3/E3 */
+	printf("ABOUT TO board_reset\n\n");
 	if (board_reset(&aft->cpld, 0)){
 		printf("ERROR: %s: Failed to set board in reset!\n",
 					aft->if_name);
@@ -679,8 +707,9 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 					aft->if_name);
 		return -EINVAL;
 	}
-
+#endif
 	
+	printf("FINISH  board_reset\n\n");
 	/* Check Flash ID */
 	if (aft->cpld.iface){
 		err = aft->cpld.iface->flash_id(&aft->cpld,
@@ -761,6 +790,7 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 	}
 
 	/* Release board internal reset (AFT-T1/E1/T3/E3 */
+#if 1
 	if (board_reset(&aft->cpld, 0)){
 		printf("ERROR: %s: Failed to set board in reset!\n",
 					aft->if_name);
@@ -771,6 +801,7 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 					aft->if_name);
 		return -EINVAL;
 	}
+#endif
 #if !defined(__WINDOWS__)
 	/* Check Flash ID */
 	if (aft->cpld.iface){
@@ -904,8 +935,8 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 	
 	for(i = 0; aft_core_table[i].board_id; i++){
 		
-#if 0		
-		printf("DEBUG: %s: %04X:%04X:%04X (%04X:%04X:%04X)\n",
+#if 0
+		printf("DEBUG: %s:\n table.board_id:%04X table.chip_id:%04X table.core_id:%04X\n (board_id:%04X chip_id:%04X core_id:%04X)\n",
 			aft->if_name,
 			aft_core_table[i].board_id,
 			aft_core_table[i].chip_id,
@@ -1007,6 +1038,11 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 	case AFT_W400_SUBSYS_VENDOR:
 		aft->cpld.iface	= &aftup_a600_flash_iface;
 		break;
+	case AFT_T116_SUBSYS_VENDOR:
+		//aft->cpld.iface = &aftup_t116_base_flash_iface;
+		aft->cpld.iface	= &aftup_t116_flash_iface;
+
+		break;
 	default:
 		printf("\n%s: These board are not supported (subvendor_id=%04X)!\n",
 			aft->if_name,
@@ -1021,6 +1057,20 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 			aft->if_name);
 		err = -EINVAL;
 		goto program_done;
+	}
+
+	if (aft->board_id == AFT_T116_SUBSYS_VENDOR){
+		//aft->cpld.iface = &aftup_t116_flash_iface;
+		aft->cpld.iface = &aftup_t116_base_flash_iface;
+
+		//FIXME
+
+		if (wan_aftup_program_card(aft)){
+			printf("\n%s: Failed to re-program flash!\n",
+					aft->if_name);
+			err = -EINVAL;
+			goto program_done;
+		}
 	}
 	
 program_done:
@@ -1070,6 +1120,7 @@ static int wan_pcie_ctrl(struct wan_aftup_head_t *head)
 		case AFT_4TE1_SHARK_SUBSYS_VENDOR:
 		case AFT_8TE1_SHARK_SUBSYS_VENDOR:
 		case AFT_16TE1_SHARK_SUBSYS_VENDOR:
+		case AFT_T116_SUBSYS_VENDOR:
 			break;
 		case A200_REMORA_SHARK_SUBSYS_VENDOR:
 		case A400_REMORA_SHARK_SUBSYS_VENDOR:
@@ -1169,9 +1220,8 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 	char		sel_name[20], *tmp = NULL;
 	int		j, cnt = 0;
 	
-	
 	tmp = strtok((char*)api_cmd->data, "\n");
-	
+
 	while (tmp){
 		
 		/* Create new interface structure */
@@ -1180,9 +1230,9 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 			printf("ERROR: Failed allocate memory!\n");
 			return 0;
 		}
+		memset(aft,0,sizeof(wan_aftup_t));
 		aft->cpld.private = aft;
-		strncpy(aft->hwinfo, tmp, strlen(tmp));
-
+		sprintf(aft->hwinfo, tmp);
 		
 		if (aft_prev == NULL){
 			WAN_LIST_INSERT_HEAD(
@@ -1201,7 +1251,7 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 
 #if 0
 	WAN_LIST_FOREACH(aft, &wan_aftup_head, next){
-		printf("<%s>\n", aft->hwinfo);
+		printf("LIST: <%s>\n", aft->hwinfo);
 	}
 #endif
 	
@@ -1214,7 +1264,7 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 	
 	while(aft){
 		/* Use api_cmd structure to parse hwprobe info */
-		strncpy((char*)api_cmd->data, aft->hwinfo, strlen(aft->hwinfo));
+		sprintf((char*)api_cmd->data, aft->hwinfo);
 	
 		tmp = strtok((char*)api_cmd->data, ":");
 		if (tmp == NULL){
@@ -1232,7 +1282,8 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 		}
 		
 		/* got interface name */
-		strncpy(aft->if_name, tmp, strlen(tmp));
+		sprintf(aft->if_name, tmp);
+
 		tmp = strtok(NULL, ":");
 		while(*tmp == ' ') tmp++;
 
@@ -1240,7 +1291,7 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 		while(tmp[j] != ' ' && tmp[j] != '\0') j++;
 	
 		tmp[j]='\0';
-
+		
 		if (wan_aftup_gettype(aft, tmp)){
 			
 			aft_prev = aft;
@@ -1309,7 +1360,7 @@ static int wan_aftup_start(void)
 	memset(aft, 0x00, sizeof(wan_aftup_t));
 
 	/* got interface name */
-	strncpy(aft->if_name, ifname_def, strlen(ifname_def));
+	sprintf(aft->if_name, ifname_def);
 
 	aft->cpld.private = aft;
 
@@ -1352,15 +1403,15 @@ static int wan_aftup_start(void)
 
 	
 	CloseConnection(ifname_def);
-	
 
+#if defined(__WINDOWS__)
+	wancfglib_get_hwprobe_str(api_cmd.data, sizeof(api_cmd.data), 0);
+#endif
 	
 	if (wan_aftup_parse_hwprobe(&api_cmd) == 0){
 		printf("Exiting from update program ...\n");
 		return -EINVAL;
 	}
-
-
 	
 	if ((err = wan_aftup_program(&wan_aftup_head))){
 		goto main_done;
@@ -1509,8 +1560,18 @@ int main(int argc, char* argv[])
 		}
 	}
 
+#if defined(__WINDOWS__)
+	printf("Configuring driver for Firmware Update\n");
+	sangoma_set_driver_mode_of_all_hw_devices(1);
+	printf("Configuring unloading Driver Update\n");
+	sangoma_unload_driver();
+	printf("Loading Driver Update\n");
+	sangoma_load_driver();
+#endif
+
 	wan_aftup_version();
 	err = wan_aftup_start();
+
 #if defined(__WINDOWS__)
 	if(err){
 		printf("\nFlash Memory update failed\n");
@@ -1524,6 +1585,10 @@ int main(int argc, char* argv[])
 		printf("\nPress any key to exit Flash Memory update.(returning: %d)\n", err);
 		_getch();
 	}
+	
+	sangoma_set_driver_mode_of_all_hw_devices(0);
+	sangoma_unload_driver();
+	sangoma_load_driver();
 #endif
 	return err;
 }

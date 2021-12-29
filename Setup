@@ -2,7 +2,7 @@
 #
 # Setup		WANPIPE WAN Router Installation/Removal Script.
 #
-# Copyright	(c) 1996-2012, Sangoma Technologies Inc.
+# Copyright	(c) 1996-2013, Sangoma Technologies Inc.
 #
 #		This program is free software; you can redistribute it and/or
 #		modify it under the terms of the GNU General Public License
@@ -297,7 +297,7 @@ banner()
 
 	echo -e "\t----------------------------------------------------------"
 	echo -e "\t          WANPIPE v$PROD_VER Installation Script"
-	echo -e "\t    Copyright (c) 1995-2012, Sangoma Technologies Inc."
+	echo -e "\t    Copyright (c) 1995-2013, Sangoma Technologies Inc."
 	echo -e "\t----------------------------------------------------------"
 	echo ""
 
@@ -2344,9 +2344,9 @@ function wan_get_kernel_flags()
 	fi
 	cp $DRIVER_UPDATE_DIR/src/net/sdladrv.c $SOURCEDIR/wanpipe 
 
-	tmp1=`make -C $SOURCEDIR SUBDIRS=$PWD wanpipe/sdladrv 2> /dev/null`
+	tmp1=`make -C $SOURCEDIR  KBUILD_VERBOSE=0 SUBDIRS=$PWD wanpipe/sdladrv 2> /dev/null`
 
-#	echo "TMP =---$tmp---"
+	#echo "TMP =---$tmp1---"
 
 	tmp=${tmp1#*gcc}
 
@@ -2383,7 +2383,17 @@ function wan_get_kernel_flags()
 		\rm -rf $SOURCEDIR/wanpipe
 	fi
 
+	eval "echo \"$CFLAGS_EXTRA\" | grep \"mregparm=3\" > /dev/null"
+	if [ $? -eq 0 ]; then
+		echo "Checking fo regparm: Enabled"
+		REGPARM_OPT=".regparm"
+	else
+		echo "Checking fo regparm: Disabled"
+		REGPARM_OPT=""
+	fi	
+
 	#echo "CFLAGS_EXTRA=$CFLAGS_EXTRA"
+
 	
 
 	echo
@@ -2419,8 +2429,14 @@ function build_kernel_module()
                      EXTRA_CFLAGS=\"-D__LINUX__ $PROTOCOL_DEFINES $extra_flags \"" >> $CMP_BUILD
 
 		chmod 755 $CMP_BUILD
+		
+		if [ "$CHECK_REGPARM" = "" ]; then
+			kverbose=1
+		else 
+			kverbose=$KBUILD_VERBOSE
+		fi
 
-		make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KDIR=$SOURCEDIR \
+		make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$kverbose KDIR=$SOURCEDIR \
                      EXTRA_CFLAGS="-D__LINUX__ $PROTOCOL_DEFINES $extra_flags " >> $CMP_LOG 2>> $CMP_LOG 
 
 		if [ $? -ne 0 ]; then
@@ -2436,6 +2452,18 @@ function build_kernel_module()
 			if [ $KBUILD_VERBOSE -eq 1 ]; then
 			cat $CMP_LOG
 			fi
+		fi
+
+		if [ "$CHECK_REGPARM" = "" ]; then
+			CHECK_REGPARM="done"
+			eval "cat $CMP_LOG | grep \"mregparm=3\" > /dev/null"
+			if [ $? -eq 0 ]; then
+				echo
+				echo "Kernel build option regparm: Enabled"
+				REGPARM_OPT=".regparm"
+			else
+				REGPARM_OPT=""
+			fi	
 		fi
 
 		if [ "$bin_link" != "" ]; then
@@ -3351,8 +3379,14 @@ ENDOFTEXT
 #		return 1
 #	fi
 
-	if [ -e $SOURCEDIR/include/linux/autoconf.h ]; then 
-		eval "grep \"define *CONFIG_WAN_ROUTER *1\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
+	if [ -e $SOURCEDIR/include/linux/autoconf.h ] || [ -e $SOURCEDIR/include/generated/autoconf.h ]; then 
+
+		if [ -e $SOURCEDIR/include/linux/autoconf.h ]; then
+			confdir=include
+		else
+			confdir=generated
+		fi
+		eval "grep \"define *CONFIG_WAN_ROUTER *1\" $SOURCEDIR/include/$confdir/autoconf.h > /dev/null"
 		if [ $? -eq 0 ]; then
 			echo -e "\n"
 			echo "ERROR: The ${DISTR_NAME} drivers in $SOURCEDIR have been"
@@ -3367,7 +3401,7 @@ ENDOFTEXT
 		fi
 
 
-		eval "grep \"define *CONFIG_MODVERSIONS\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
+		eval "grep \"define *CONFIG_MODVERSIONS\" $SOURCEDIR/include/$confdir/autoconf.h > /dev/null"
 		if [ $? -eq 0 ]; then
 			if [ $KERN_VER -ne 26 ] && [ $KERN_VER -ne 30 ]; then
 				MODVER=" -DMODVERSIONS -include $SOURCEDIR/include/linux/modversions.h "
@@ -3418,6 +3452,9 @@ ENDOFTEXT
 	if [ -e $SOURCEDIR/include/linux/autoconf.h ]; then 
 		eval "grep \"CONFIG_SMP *1\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
 		rc=$?
+	elif [ -e $SOURCEDIR/include/generated/autoconf.h ]; then 
+		eval "grep \"CONFIG_SMP *1\" $SOURCEDIR/include/generated/autoconf.h > /dev/null"
+		rc=$?
 	else
 		rc=0;
 	fi
@@ -3448,6 +3485,12 @@ ENDOFTEXT
 		grep "CONFIG_ARCH \"" $SOURCEDIR/include/linux/autoconf.h > /dev/null 
 		if [ $? -eq 0 ] ; then
 			ARCH=`grep "CONFIG_ARCH \"" $SOURCEDIR/include/linux/autoconf.h  | cut -d '"' -f2`
+		fi
+	fi
+	if [ -e $SOURCEDIR/include/generated/autoconf.h ]; then
+		grep "CONFIG_ARCH \"" $SOURCEDIR/include/generated/autoconf.h > /dev/null 
+		if [ $? -eq 0 ] ; then
+			ARCH=`grep "CONFIG_ARCH \"" $SOURCEDIR/include/generated/autoconf.h  | cut -d '"' -f2`
 		fi
 	fi
 
@@ -3525,82 +3568,6 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		echo "--------------------------------------------------"
 		echo
 		fi
-
-		echo -n "Checking for REGPARM kernel option ..."
-		if [ -e $SOURCEDIR/include/linux/autoconf.h ]; then 
-			eval "grep \"define *CONFIG_REGPARM *1\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
-			rc=$?
-		else
-			rc=1
-		fi
-		if [ $rc -eq 0 ]; then
-			echo -e "Enabled.\n"
-			REGPARM_OPT=".regparm"
-		else
-
-			#Taken from kernel Makefile
-			SUBARCH=$( uname -m | sed -e s/i.86/i386/ -e s/sun4u/sparc64/ \
-                                  -e s/arm.*/arm/ -e s/sa110/arm/ \
-                                  -e s/s390x/s390/ -e s/parisc64/parisc/ \
-                                  -e s/ppc.*/powerpc/ -e s/mips.*/mips/ )
-
-
-			#New way of checking REGPARM because its enabled
-                        #by default on 2.6.20 kernel and up
-			if [ $SUBARCH != "" ]; then
-                                if [ -f $SOURCEDIR/arch/$SUBARCH/Makefile ]; then
-					if [ -f $SOURCEDIR/arch/$SUBARCH/Makefile ]; then 
-                                        	eval "grep \"CFLAGS.*=.*regparm\" $SOURCEDIR/arch/$SUBARCH/Makefile*" > /dev/null 2> /dev/null
-                                        	res=$?
-					else
-                                        	echo
-                                        	echo "Warning: Failed to determine regparm from Makefile defaulting to YES!"
-                                        	echo
-						res=0
-					fi
-                                elif [ -d $SOURCEDIR/arch/x86 ]; then
-					if [ -f $SOURCEDIR/arch/x86/Makefile ]; then 
-                                        	eval "grep \"CFLAGS.*=*regparm\" $SOURCEDIR/arch/x86/Makefile*" > /dev/null 2> /dev/null
-                                        	res=$?
-					else
-                                        	echo
-                                        	echo "Warning: Failed to determine regparm from Makefile defaulting to YES!"
-                                        	echo
-						res=0
-					fi
-                                else
-                                        echo
-                                        echo "Warning: Failed to determine regparm from Makefile defaulting to YES!"
-                                        echo
-                                        res=0
-                                fi
-		
-				if [ $KERN_VER -eq 30 ]; then
-					res=1;
-				fi
-				if [ $KERN_VER -eq 26 ] && [ $KLVL -gt 29  ]; then
-					res=1;
-				fi
-
-                                if [ $res -eq 0 ]; then
-
-                                        echo -e "Enabled.\n"
-                                        REGPARM_OPT=".regparm"
-                                else
-                                        echo -e "Disabled.\n"
-                                fi
-                        else
-                                echo
-                                echo "Warning: Failed to determine ARCH: regparm defaulting to YES!"
-                                echo
-                                REGPARM_OPT=".regparm"
-                                echo -e "Enabled.\n"
-                        fi
-
-		fi
-
-		
-
 
 
 		if [ $KERN_VER -eq 26 ]; then
@@ -3739,14 +3706,14 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 			eval "ld $LD_ELF -r -o mod/wanpipe_lite.$MEXT tmp/wanpipe_main.o tmp/wanpipe_hdlc.o \
 				tmp/wanpipe_linux_iface.o tmp/sdla_te1.o tmp/sdla_8te1.o tmp/sdla_te3.o tmp/sdla_56k.o \
 				tmp/wanpipe_utils.o tmp/wanpipe_abstr.o tmp/sdla_xilinx.o tmp/sdla_aft_te1.o \
-				tmp/sdladrv.o tmp/aft_a104.o tmp/aft_analog.o "
+				tmp/sdladrv.o tmp/aft_a104.o tmp/aft_t116.o tmp/aft_analog.o "
 
 		else
 			eval "ld $LD_ELF -r -o mod/wanpipe_lite.$MEXT tmp/wanpipe_main.o tmp/wanpipe_hdlc.o \
 				tmp/wanpipe_linux_iface.o tmp/sdla_te1.o tmp/sdla_8te1.o tmp/sdla_te3.o tmp/sdla_56k.o \
 			    tmp/wanpipe_utils.o tmp/wanpipe_abstr.o tmp/sdla_xilinx.o \
 				tmp/aft_core.o tmp/aft_core_api_events.o tmp/aft_core_prot.o tmp/aft_core_utils.o \
-				tmp/sdladrv.o tmp/aft_a104.o tmp/aft_analog.o "
+				tmp/sdladrv.o tmp/aft_a104.o tmp/aft_t116.o tmp/aft_analog.o "
 		fi
 
 		install -D -m 644 mod/wanpipe_lite.$MEXT $ROOT/lib/modules/$KERNEL_VERSION/kernel/drivers/net/wan/wanpipe_lite.$MEXT
@@ -4049,9 +4016,9 @@ WANPIPE_OBJS=
 
 	if [ "$AFT_TE1_PROT" = "YES" ]; then
 		if [ $REL = "3.4" ]; then
-		WANPIPE_OBJS=$WANPIPE_OBJS"sdla_xilinx sdla_aft_te1 aft_a104 sdla_remora aft_analog "
+		WANPIPE_OBJS=$WANPIPE_OBJS"sdla_xilinx sdla_aft_te1 aft_a104 aft_t116 sdla_remora aft_analog "
 		else 
-		WANPIPE_OBJS=$WANPIPE_OBJS"sdla_xilinx aft_core aft_core_api_events aft_core_prot aft_core_utils aft_a104 sdla_remora sdla_remora_analog aft_analog wanpipe_timer_dev "
+		WANPIPE_OBJS=$WANPIPE_OBJS"sdla_xilinx aft_core aft_core_api_events aft_core_prot aft_core_utils aft_a104 aft_t116 sdla_remora sdla_remora_analog aft_analog wanpipe_timer_dev "
 
 		fi
 	fi
@@ -7371,7 +7338,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.28
+PROD_VER=7.0.0
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

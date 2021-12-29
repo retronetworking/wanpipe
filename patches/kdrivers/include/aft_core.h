@@ -29,6 +29,7 @@
 #include "aft_core_prot.h"
 
 #include "aft_a104.h"
+#include "aft_t116.h"
 
 #if defined(CONFIG_WANPIPE_PRODUCT_AFT_RM)
 # include "aft_analog.h"
@@ -42,6 +43,7 @@
 #include "aft_analog.h"
 #include "aft_bri.h"
 #include "aft_gsm.h"
+#include "aft_t116.h"
 
 
 #if defined(__WINDOWS__)
@@ -63,7 +65,9 @@
 #define AFT_ANALOG_MCPU_IFACE_RW	0x44
 
 #define AFT_WDT_CTRL_REG		0x48 
+#define AFT_WDT_CTRL_REG2		0x64 
 #define AFT_WDT_1TO4_CTRL_REG		AFT_WDT_CTRL_REG
+#define AFT_WDT_1TO4_CTRL_REG2		AFT_WDT_CTRL_REG2
 
 #define AFT_DATA_MUX_REG		0x4C 
 
@@ -74,8 +78,10 @@
 #define AFT_ANALOG_SPI_IFACE_RW		0x54
 
 #define AFT_CHIP_STAT_REG		0x58
+#define AFT_CHIP_STAT_REG2		0x60
 
 #define AFT_WDT_4TO8_CTRL_REG		0x5C
+#define AFT_WDT_4TO8_CTRL_REG2		0x68
 
 #define AFT_FREE_RUN_TIMER_CTRL_REG		0x98
 
@@ -401,6 +407,7 @@ aft_chipcfg_a108_get_fifo_intr_stats(u32 reg)
 static __inline u32
 aft_chipcfg_a108_get_dma_intr_stats(u32 reg)
 {
+	DEBUG_TEST("INSIDE aft_chipcfg_a108_get_dma_intr_stats, reg= 0x%X\n",reg);
 	reg=reg>>AFT_CHIPCFG_A108_DMA_INTR_SHIFT;
 	reg&=AFT_CHIPCFG_A108_DMA_INTR_MASK;
 	return reg;
@@ -698,6 +705,21 @@ aft_fifo_mark_gset(u32 *reg, u8 mark)
 
 # define AFT_LCFG_RED_LED_BIT		31
 # define AFT_LCFG_A108_FE_TE1_MODE_BIT	30	/* A108 */
+
+/*A116 TAP*/
+#define AFT_LCFG_T116_PORT_REG		0x06
+#define AFT_LCFG_T116_FE_FIFO_WRITE_ERR	0
+#define AFT_LCFG_T116_FE_FIFO_UNDERFLOW	1
+#define AFT_LCFG_T116_FE_FIFO_OVERFLOW	2
+#define AFT_LCFG_T116_FE_RX_SYNC	3
+#define AFT_LCFG_T116_FE_RESET		6
+#define AFT_LCFG_T116_FE_MODE		7
+
+#define AFT_DCM_T116_REG			0x03
+#define AFT_DCM_T116_PHASE_ERR_BIT		0
+#define AFT_DCM_T116_LOSS_OF_CLOCK_BIT	1
+#define AFT_DCM_T116_CLKFX_ERROR_BIT	2
+
 
 #define AFT_LCFG_B601_CLK_ROUTE_MASK		0x07
 #define AFT_LCFG_B601_CLK_ROUTE_SHIFT		16
@@ -1596,7 +1618,7 @@ aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
 	return num_of_slots;
 }
 
-#define MAX_AFT_HW_DEV 20
+#define MAX_AFT_HW_DEV 22
 
 typedef struct aft_hw_dev{
 

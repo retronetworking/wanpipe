@@ -762,6 +762,7 @@ int __cdecl main(int argc, char* argv[])
 		cleanup(sang_if);
 		return rc;
 	}
+
 	if(program_settings.txgain !=  0xFFFF) {
 		INFO_MAIN("Applying  txgain...\n");
 		if (sang_if->tdm_control_rm_txgain(program_settings.txgain)){
@@ -1439,7 +1440,7 @@ static int set_port_configuration()
 	 * some are Analog some Digital.
 	 * On non-hybrid cards such as A108, all ports are of the same
 	 * type - T1/E1. */
-	int		is_te1_port = 0, is_analog_port = 0, is_bri_port = 0, is_serial_port = 0;
+	int		is_te1_port = 0, is_analog_port = 0, is_bri_port = 0, is_serial_port = 0, is_gsm_port=0;
 	hardware_info_t	hardware_info;
 	port_cfg_t		port_cfg;
 
@@ -1509,6 +1510,10 @@ static int set_port_configuration()
 		is_serial_port = 1;
 		INFO_MAIN("Serial Port on non-Hybrid Card (A14[2/4]).\n");
 		break;
+	case AFT_ADPTR_W400:
+		is_gsm_port = 1;
+		INFO_MAIN("GSM Port on GSM Card (W400).\n");
+		break;
 	default:
 		INFO_MAIN("Warning: configuration of card model 0x%08X can not be changed!\n",
 			hardware_info.card_model);
@@ -1572,7 +1577,11 @@ try_again:
 		rc=sng_port_cfg_obj->initialize_serial_api_configration_structure(&port_cfg,&hardware_info,program_settings.wanpipe_number);
 	}
 
-	if(!is_te1_port && !is_analog_port && !is_bri_port && !is_serial_port){
+  if (is_gsm_port) {
+    rc=sng_port_cfg_obj->initialize_gsm_tdm_span_voice_api_configration_structure(&port_cfg,&hardware_info,program_settings.wanpipe_number);
+  }
+
+	if(!is_te1_port && !is_analog_port && !is_bri_port && !is_serial_port && !is_gsm_port){
 		INFO_MAIN("Unsupported Card %d\n", hardware_info.card_model);
 		rc = 1;
 	}

@@ -1,7 +1,7 @@
 @echo off
 
 set CURRENT_DIR=%cd%
-set SANG_WP_DEVEL=d:\development
+set SANG_WP_DEVEL=c:\development-git
 
 set SANG_WARNING_LEVEL=-W3 -WX
 

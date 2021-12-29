@@ -599,7 +599,6 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 	int err = 0;
 	int irq=0;
 
-
 	/* Sanity checks */
 	if ((wandev == NULL) || (wandev->priv == NULL) || (conf == NULL)){
 		DEBUG_EVENT("%s: Failed Sdlamain Setup wandev %p, card %p, conf %p !\n",
@@ -626,6 +625,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 	 * Used for counting number of times new_if and 
          * del_if get called.
 	 */
+	//conf->config_id = WANCONFIG_AFT_T116;
 	wandev->del_if_cnt = 0;
 	wandev->new_if_cnt = 0;
 	wandev->config_id  = conf->config_id;
@@ -656,6 +656,10 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		break;
 	case WANCONFIG_AFT_SERIAL:
 		conf->card_type = WANOPT_AFT_SERIAL;
+		conf->S514_CPU_no[0] = 'A';
+		break;
+	case WANCONFIG_AFT_T116:
+		conf->card_type = WANOPT_T116;
 		conf->S514_CPU_no[0] = 'A';
 		break;
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
@@ -727,6 +731,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		case WANOPT_AFT_56K:
 		case WANOPT_AFT_SERIAL:
 		case WANOPT_AFT_GSM:
+		case WANOPT_T116:
 
 			err=0;
 			if ((err=check_aft_conflicts(card,conf,&irq)) != 0){
@@ -973,6 +978,12 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 
 	case WANCONFIG_AFT_TE1:
 		DEBUG_EVENT("%s: Starting AFT 2/4/8 Hardware Init.\n",
+					card->devname);
+		err = wp_aft_te1_init(card,conf);
+		break;
+
+	case WANCONFIG_AFT_T116:
+		DEBUG_EVENT("%s: Starting Tapping Hardware Init.\n",
 					card->devname);
 		err = wp_aft_te1_init(card,conf);
 		break;

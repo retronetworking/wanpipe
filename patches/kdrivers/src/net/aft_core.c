@@ -187,7 +187,7 @@
 
 
 
-#define WP_RX_TX_FIFO_SANITY 100
+#define WP_RX_TX_FIFO_SANITY 50
 
 
 #ifdef __WINDOWS__
@@ -546,6 +546,22 @@ int aft_global_hw_device_init(void)
 	aft_hwdev[WANOPT_AFT_GSM].aft_fifo_adjust		= aft_gsm_fifo_adjust;
 	aft_hwdev[WANOPT_AFT_GSM].aft_check_ec_security	        = w400_check_ec_security;
 
+#if 1
+	aft_hwdev[WANOPT_T116].init				= 1;
+	aft_hwdev[WANOPT_T116].aft_global_chip_config		= t116_global_chip_config;
+	aft_hwdev[WANOPT_T116].aft_global_chip_unconfig		= t116_global_chip_unconfig;
+	aft_hwdev[WANOPT_T116].aft_chip_config			= t116_chip_config;
+	aft_hwdev[WANOPT_T116].aft_chip_unconfig		= t116_chip_unconfig;
+	aft_hwdev[WANOPT_T116].aft_chan_config			= t116_chan_dev_config;
+	aft_hwdev[WANOPT_T116].aft_chan_unconfig		= t116_chan_dev_unconfig;
+	aft_hwdev[WANOPT_T116].aft_led_ctrl			= t116_led_ctrl;
+	aft_hwdev[WANOPT_T116].aft_test_sync			= t116_test_sync;
+	aft_hwdev[WANOPT_T116].aft_read_cpld			= aft_te1_read_cpld;
+	aft_hwdev[WANOPT_T116].aft_write_cpld			= aft_te1_write_cpld;
+	aft_hwdev[WANOPT_T116].aft_fifo_adjust			= t116_fifo_adjust;
+	aft_hwdev[WANOPT_T116].aft_check_ec_security		= t116_check_ec_security;
+#endif
+
 	return 0;
 }
 
@@ -881,15 +897,22 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 	
 	AFT_FUNC_DEBUG();
 
+#if 0
 	min_firm_ver= AFT_MIN_FRMW_VER;
 	wan_set_bit(CARD_DOWN,&card->wandev.critical);
+#endif
 
 	/* Verify configuration ID */
-	if (card->wandev.config_id != WANCONFIG_AFT_TE1) {
+	if ((card->wandev.config_id != WANCONFIG_AFT_TE1) && (card->wandev.config_id != WANCONFIG_AFT_T116)) {
 		DEBUG_EVENT( "%s: invalid configuration ID %u!\n",
 				  card->devname, card->wandev.config_id);
 		return -EINVAL;
 	}
+
+	if (card->adptr_type == AFT_ADPTR_T116) {
+		card->wandev.card_type=WANOPT_T116;
+	}
+
 
 	ASSERT_AFT_HWDEV(card->wandev.card_type);
   
@@ -901,6 +924,7 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 	case A108_ADPTR_8TE1:
 	case A116_ADPTR_16TE1:
 	case AFT_ADPTR_B601:
+	case AFT_ADPTR_T116:
 		break;
 	default:
 		DEBUG_ERROR( "%s: Error: Attempting to configure for T1/E1 on non AFT A101/2/4/8 hw (%d)!\n",
@@ -915,14 +939,18 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 		min_firm_ver = AFT_MIN_B601_FRMW_VER;
 		card->u.aft.firm_id = AFT_DS_FE_CORE_ID;
 	}
+	
+	if (card->adptr_type == AFT_ADPTR_T116){
+		min_firm_ver = 1;
+	}
 
 	if (card->u.aft.firm_ver < min_firm_ver){
 		DEBUG_EVENT( "%s: Invalid/Obselete AFT firmware version %X (not >= %X)!\n",
-				  card->devname, card->u.aft.firm_ver,min_firm_ver);
+					card->devname, card->u.aft.firm_ver,min_firm_ver);
 		DEBUG_EVENT( "%s  Refer to /usr/share/doc/wanpipe/README.aft_firm_update\n",
-				  card->devname);
+					card->devname);
 		DEBUG_EVENT( "%s: Please contact Sangoma Technologies for more info.\n",
-				  card->devname);
+					card->devname);
 		return -EINVAL;
 	}
 
@@ -939,7 +967,6 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 
 	/* TE1 Make special hardware initialization for T1/E1 board */
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
-		int max_ports = 4;
 		sdla_t *tmp_card;
 
 		if (conf->fe_cfg.cfg.te_cfg.active_ch == 0){
@@ -948,7 +975,6 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
-			max_ports = 8;
 			sdla_ds_te1_iface_init(&card->fe, &card->wandev.fe_iface);
 		}else{
 			sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
@@ -1133,6 +1159,7 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	int err;
 	int used_cnt;
 	int used_type_cnt;
+	int dump;
 
 	/* Obtain hardware configuration parameters */
 	card->wandev.clocking 			= conf->clocking;
@@ -1162,8 +1189,12 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 
 
 	card->u.aft.global_poll_irq=card->u.aft.cfg.global_poll_irq;
-
+	
 #if 0
+	if (card->adptr_type == AFT_ADPTR_T116){
+		card->u.aft.global_poll_irq=1;
+	}
+
 	//Nenad Test code
 	card->u.aft.cfg.dma_per_ch = 16*20+1;
 	conf->mtu=512;
@@ -1431,6 +1462,11 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 		}
 	}
 
+	if (card->adptr_type == AFT_ADPTR_T116){
+		wan_set_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status);
+		wan_set_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status);
+	}
+
 	if(IS_BRI_CARD(card) || IS_A700_CARD(card)){
 		wan_set_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status);
 #if 0
@@ -1468,10 +1504,20 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	}else{
 		card->u.aft.tdmv_hw_tone = WANOPT_NO;
 	}
+
 	DEBUG_EVENT("%s:    TDM HW TONE    = %s\n",
 			card->devname,
 			(card->u.aft.tdmv_hw_tone == WANOPT_YES) ?
 				"Enabled" : "Disabled");
+
+	if (!card->u.aft.cfg.rx_fifo_trigger) {
+		card->u.aft.cfg.rx_fifo_trigger=WP_RX_TX_FIFO_SANITY;
+	}
+	if (!card->u.aft.cfg.tx_fifo_trigger) {
+		card->u.aft.cfg.tx_fifo_trigger=WP_RX_TX_FIFO_SANITY;
+	}
+	DEBUG_EVENT("%s:    Fifo Trigger   = rx:%d tx:%d (events per sec)\n",
+			card->devname,card->u.aft.cfg.rx_fifo_trigger,card->u.aft.cfg.tx_fifo_trigger);
 
 	err=aft_tdmv_init(card,conf);
 	if (err){
@@ -1488,6 +1534,38 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 			card->devname,
 			err == 0 ? "Enabled" : "Disabled");
 #endif
+
+	if (card->adptr_type == AFT_ADPTR_T116) {
+		wan_smp_flag_t flags;
+		card->hw_iface.hw_lock(card->hw,&flags);
+
+		if (used_cnt == 1) {	
+			dump = read_reg_ds26519_fpga (card, 0x02);
+			/* Take daughter board out of reset */
+			wan_clear_bit(1, &dump);
+			/* Disable daughter board interrupt */
+			wan_clear_bit(2, &dump);
+			write_reg_ds26519_fpga(card, 0x02, dump);
+		}
+
+		dump = read_reg_ds26519_fpga (card, (AFT_LCFG_T116_PORT_REG + card->wandev.comm_port));
+		wan_clear_bit(AFT_LCFG_T116_FE_RESET, &dump);
+		wan_clear_bit(AFT_LCFG_T116_FE_RX_SYNC, &dump);
+		wan_clear_bit(AFT_LCFG_T116_FE_FIFO_OVERFLOW, &dump);
+		wan_clear_bit(AFT_LCFG_T116_FE_FIFO_UNDERFLOW, &dump);
+		wan_clear_bit(AFT_LCFG_T116_FE_FIFO_WRITE_ERR, &dump);
+
+		if (IS_E1_CARD(card)){
+			DEBUG_EVENT("%s: Configuring for T116 E1\n",card->devname);
+			wan_set_bit(AFT_LCFG_T116_FE_MODE,&dump);
+		} else {
+			DEBUG_EVENT("%s: Configuring for T116 T1\n",card->devname);
+			wan_clear_bit(AFT_LCFG_T116_FE_MODE,&dump);
+		}
+		write_reg_ds26519_fpga(card, (AFT_LCFG_T116_PORT_REG + card->wandev.comm_port),dump);
+
+		card->hw_iface.hw_unlock(card->hw,&flags);
+	}
 
 	card->wandev.read_ec = aft_read_ec;
 	card->wandev.write_ec = aft_write_ec;
@@ -4994,6 +5072,10 @@ static int aft_init_tx_dev_fifo(sdla_t *card, private_area_t *chan, unsigned cha
         u8  timeout=1;
 	u16 i;
 	unsigned int cur_dma_ptr;
+		
+	if(card->adptr_type == AFT_ADPTR_T116){
+		return 0;
+	}
 
 	if (WP_GET_DMA_OPMODE_TX(chan) == WAN_AFT_DMA_CHAIN_SINGLE){
 		dma_descr=(chan->logic_ch_num<<4) + AFT_PORT_REG(card,AFT_TX_DMA_HI_DESCR_BASE_REG);
@@ -5057,7 +5139,12 @@ static void aft_dev_enable(sdla_t *card, private_area_t *chan)
 	DEBUG_CFG("%s: Enabling Global Inter Mask !\n",chan->if_name);
 
 	/* Enable TX DMA for Logic Channel */
-	aft_channel_txdma_ctrl(card,chan,1);
+	if(card->adptr_type == AFT_ADPTR_T116){
+		/* T116 card does not support TX */
+		aft_channel_txdma_ctrl(card,chan,0);
+	} else {
+		aft_channel_txdma_ctrl(card,chan,1);
+	}
 
 	/* Enable RX DMA for Logic Channel */
 	aft_channel_rxdma_ctrl(card,chan,1);
@@ -5066,11 +5153,11 @@ static void aft_dev_enable(sdla_t *card, private_area_t *chan)
 	if (card->u.aft.global_poll_irq) {
 		aft_channel_txintr_ctrl(card,chan,0);
 		aft_channel_rxintr_ctrl(card,chan,0);
-	}else if (CHAN_GLOBAL_IRQ_CFG(chan)){
+	} else if (CHAN_GLOBAL_IRQ_CFG(chan)){
 		aft_channel_txintr_ctrl(card,chan,0);
 		aft_channel_rxintr_ctrl(card,chan,0);
 		chan->tdmv_irq_cfg=1;
-	}else{
+	} else {
 
 		DEBUG_CFG("%s: Enabling FOR NON CHANNELIZED !\n",chan->if_name);
 
@@ -5084,7 +5171,11 @@ static void aft_dev_enable(sdla_t *card, private_area_t *chan)
 			aft_channel_rxintr_ctrl(card,chan,1);
 		}
 
-		aft_channel_txintr_ctrl(card,chan,1);
+		if(card->adptr_type == AFT_ADPTR_T116){
+			aft_channel_txintr_ctrl(card,chan,0);
+		} else {
+			aft_channel_txintr_ctrl(card,chan,1);
+		}
 	}
 
 	wan_set_bit(chan->logic_ch_num,&card->u.aft.active_ch_map);
@@ -5116,7 +5207,9 @@ static void aft_dev_open_private(sdla_t *card, private_area_t *chan)
 		aft_dev_enable(card,chan);
 
 		aft_init_rx_dev_fifo(card,chan,WP_WAIT);
-		aft_init_tx_dev_fifo(card,chan,WP_WAIT);
+		if (card->adptr_type == A116_ADPTR_16TE1) {
+			aft_init_tx_dev_fifo(card,chan,WP_WAIT);
+		}
 
 #ifdef AFT_DMA_HISTORY_DEBUG
 		chan->dma_index=0;
@@ -6493,6 +6586,18 @@ static int __wp_aft_fifo_per_port_isr(sdla_t *card, u32 rx_status, u32 tx_status
 		card->wp_rx_fifo_sanity++;
 	}
 
+#ifdef DEBUG_CNT
+	if (gcnt < 500) {
+		DEBUG_EVENT("%s: FIFO RX=0x%08X  TX=0x%08X\n",
+			card->devname,rx_status, tx_status);
+	}
+#endif
+	
+	/* Sanity check, T116 does not support TX DMA or fifo*/	
+	if(card->adptr_type == AFT_ADPTR_T116){
+		tx_status=0;
+	}
+
 	for (i=0;i<num_of_logic_ch;i++){
 
 		chan_valid=0;
@@ -6556,8 +6661,7 @@ static int __wp_aft_fifo_per_port_isr(sdla_t *card, u32 rx_status, u32 tx_status
 			card->wandev.stats.tx_aborted_errors++;
 			__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_TX_FIFO_INTR_PENDING_REG),&tmp_fifo_reg);
 		}
-
-
+		
 		if (wan_test_bit(i,&rx_status)){
 
 			if (!chan_valid) {
@@ -6664,7 +6768,7 @@ static int wp_aft_fifo_per_port_isr(sdla_t *card)
 	int irq=0;
 
 	/* Clear HDLC pending registers */
-    __sdla_bus_read_4(card->hw, AFT_PORT_REG(card,AFT_TX_FIFO_INTR_PENDING_REG),&tx_status);
+    	__sdla_bus_read_4(card->hw, AFT_PORT_REG(card,AFT_TX_FIFO_INTR_PENDING_REG),&tx_status);
 	__sdla_bus_read_4(card->hw, AFT_PORT_REG(card,AFT_RX_FIFO_INTR_PENDING_REG),&rx_status);
 
 	if (AFT_HAS_FAKE_PORTS(card)) {
@@ -6732,6 +6836,7 @@ sdla_t * aft_find_first_card_in_list(sdla_t *card, int type)
 	return NULL;
 }
 
+#ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
 static void aft_trigger_b601_digital_port(sdla_t *card)
 {
     void **card_list;
@@ -6770,6 +6875,7 @@ static void aft_trigger_b601_digital_port(sdla_t *card)
 
 	return;
 }
+#endif
 
 
 static int aft_is_first_card_in_list(sdla_t *card, int type, int fe_isr) 
@@ -6835,6 +6941,60 @@ static int aft_is_first_card_in_list(sdla_t *card, int type, int fe_isr)
 	return 1;
 }
 
+static void t116_error_counter_check(sdla_t *card)
+{
+	u32 dump=0;
+	int err=0;
+	
+	dump = read_reg_ds26519_fpga(card, (AFT_LCFG_T116_PORT_REG + card->wandev.comm_port));
+
+	if (wan_test_and_clear_bit(AFT_LCFG_T116_FE_FIFO_WRITE_ERR, &dump)){
+		DEBUG_ERROR("%s: Error: T116 FIFO Write Error\n",card->devname);
+		err++;
+	}
+	if (wan_test_and_clear_bit(AFT_LCFG_T116_FE_FIFO_UNDERFLOW, &dump)){
+		DEBUG_ERROR("%s: Error: T116 FIFO Underflow\n",card->devname);
+		err++;
+	}
+	if (wan_test_and_clear_bit(AFT_LCFG_T116_FE_FIFO_OVERFLOW, &dump)){
+		DEBUG_ERROR("%s: Error: T116 FIFO Overflow\n",card->devname);
+		err++;
+	}
+
+	if (wan_test_and_clear_bit(AFT_LCFG_T116_FE_RX_SYNC, &dump)){
+		err++;
+		DEBUG_ERROR("%s: Error: T116 Lost Sync\n",card->devname);
+	}	
+
+	if (err) {
+		write_reg_ds26519_fpga(card, (AFT_LCFG_T116_PORT_REG + card->wandev.comm_port),dump);
+		card->wandev.stats.rx_errors++;
+	}
+
+	err=0;
+	
+	dump = read_reg_ds26519_fpga(card, AFT_DCM_T116_REG);
+	
+	if (wan_test_and_clear_bit(AFT_DCM_T116_PHASE_ERR_BIT,&dump)) {
+		DEBUG_ERROR("%s: Error: T116 DCM Phase Error\n",card->devname);
+		err++;
+	}
+	if (wan_test_and_clear_bit(AFT_DCM_T116_LOSS_OF_CLOCK_BIT,&dump)) {
+		DEBUG_ERROR("%s: Error: T116 DCM Loss of Clock\n",card->devname);
+		err++;
+	}
+	if (wan_test_and_clear_bit(AFT_DCM_T116_CLKFX_ERROR_BIT,&dump)) {
+		DEBUG_ERROR("%s: Error: T116 DCM CLKFX has stopped\n",card->devname);
+		err++;
+	}
+	if (err) {
+		write_reg_ds26519_fpga(card, AFT_DCM_T116_REG,dump);
+		card->wandev.stats.rx_errors++;
+	}
+
+	return;
+}
+
 static void front_end_interrupt(sdla_t *card, unsigned long reg, int lock)
 {
 	void **card_list;
@@ -6854,8 +7014,10 @@ static void front_end_interrupt(sdla_t *card, unsigned long reg, int lock)
 			continue;
 		}
 
+		
+
 		if (tmp_card->fe_no_intr) {
-			/* Skip cards that i	gnore front end interrupts */
+			/* Skip cards that ignore front end interrupts */
 			continue;
 		}
 
@@ -7040,7 +7202,11 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 	    IS_GSM_CARD(card) ||
 	    IS_A700_CARD(card)) {
 
-		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_STAT_REG), &a108_reg);
+		if(card->adptr_type == AFT_ADPTR_T116 && card->wandev.comm_port > 7){
+			__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_STAT_REG2), &a108_reg);
+		}else{
+			__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_STAT_REG), &a108_reg);
+		}
 
 		fifo_port_intr	= aft_chipcfg_a108_get_fifo_intr_stats(a108_reg);
 		dma_port_intr	= aft_chipcfg_a108_get_dma_intr_stats(a108_reg);
@@ -7099,11 +7265,10 @@ if (1){
 	if (gcnt < 50) {
 			DEBUG_EVENT("%s: ISR: REG=0x%08X TDM=0x%08X DMA=0x%08X FIFO=0x%08X STAT=0x%08X WDT=0x%08X FREE=0x%08X\n",  
 		 	   card->devname,reg_sec, tdmv_port_intr,dma_port_intr,fifo_port_intr,
-		  	   status_port_intr,wdt_port_intr,free_run_intr);
+		  	   status_port_intr,wdt_port_intr,free_port_intr);
 	}
 }
 #endif
-
 
 	if (tdmv_port_intr ||
 		dma_port_intr  ||
@@ -7158,7 +7323,8 @@ if (1){
 	}
 
 	if (wan_test_bit(AFT_LCFG_FIFO_INTR_BIT,&card->u.aft.lcfg_reg) &&
-	    wan_test_bit(comm_port, &fifo_port_intr)){
+	    //wan_test_bit((comm_port), &fifo_port_intr)){
+	    wan_test_bit((comm_port%8), &fifo_port_intr)){ //FIXME...Need to find out why this is not good for T116
 
 		int irq_handled=wp_aft_fifo_per_port_isr(card);
 		AFT_PERF_STAT_INC(card,isr,fifo);
@@ -7171,7 +7337,7 @@ if (1){
 
 #if 1
 	if (wan_test_bit(AFT_LCFG_DMA_INTR_BIT,&card->u.aft.lcfg_reg) &&
-	    wan_test_bit(comm_port,&dma_port_intr)) {
+	    wan_test_bit((comm_port%8),&dma_port_intr)) {
 
 		handle_dma=1;
 
@@ -7208,6 +7374,7 @@ if (1){
 			card->u.aft.global_tdm_irq &&
 		    !wan_test_bit(aft_chipcfg_get_fifo_reset_bit(card),&reg)) {
 
+
 			int ring_buf_enabled=wan_test_bit(AFT_CHIPCFG_A108_A104_TDM_DMA_RINGBUF_BIT,&reg);
 			int ring_rsync=0;
 			void **card_list;
@@ -7237,7 +7404,7 @@ if (1){
 					}
 				}
 				__sdla_bus_write_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG),reg);
-			}
+			} 
 
 			card_list=__sdla_get_ptr_isr_array(card->hw);
 
@@ -7332,11 +7499,20 @@ global_irq_skip:
 				if (tmp_card != card) {
 					wan_spin_unlock_irq(&tmp_card->wandev.lock,&flags);
 				}
+#else
+        ;
 #endif
-
+				
 			}
 
+#if 0
+#warning "Nenad: Unit Testing Code"
+			/* Nenad; Unite Testing */
+			if (!ring_buf_enabled &&
+				card->wp_debug_gen_fifo_err_tx == 0) {
+#else
 			if (!ring_buf_enabled) {
+#endif
 				/* NC: Bug fix we must read before writting, reg might have changed above */
 				__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG), &reg);
 				if (card->adptr_type == A104_ADPTR_4TE1 &&
@@ -7365,7 +7541,14 @@ global_irq_skip:
 							continue;
 						}
 	
+#if 0
+#warning "Nenad: Unit Testing Code"
+						/* Nenad; Unite Testing */
+						if (wan_test_bit(AFT_TDM_RING_SYNC_RESET,&tmp_card->u.aft.chip_cfg_status) &&
+							card->wp_debug_gen_fifo_err_tx == 0) {
+#else
 						if (wan_test_bit(AFT_TDM_RING_SYNC_RESET,&tmp_card->u.aft.chip_cfg_status)) {
+#endif
 							DEBUG_TEST("%s: Global TDM Ring Resync Clear TDM = 0x%X\n",
 													tmp_card->devname,tdmv_port_intr);
 							wan_clear_bit(AFT_TDM_RING_SYNC_RESET,&tmp_card->u.aft.chip_cfg_status);
@@ -7389,11 +7572,13 @@ global_irq_skip:
 		}
 
 	} else {
-
-		
 		
 		if (wan_test_bit(AFT_LCFG_TDMV_INTR_BIT,&card->u.aft.lcfg_reg) &&
-			wan_test_bit(comm_port, &tdmv_port_intr)){
+#if 0
+#warning "Nenad: Unit Testing Code"
+			card->wp_debug_gen_fifo_err_tx == 0 &&
+#endif
+			wan_test_bit((comm_port%8), &tdmv_port_intr)){
 
 			WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 
@@ -7433,10 +7618,11 @@ global_irq_skip:
 		wp_aft_free_timer_status_isr(card, free_port_intr);
 	}
 
-	if (wan_test_bit(comm_port,&wdt_port_intr)){
+	if (wan_test_bit((comm_port%8),&wdt_port_intr)){
 		WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 		wp_aft_wdt_per_port_isr(card,1);
 		card->u.aft.wdt_tx_cnt=SYSTEM_TICKS;
+
 #if 0
 		if (card->wandev.state != WAN_CONNECTED ||
 			card->fe.fe_status != FE_CONNECTED ) {
@@ -7458,7 +7644,6 @@ global_irq_skip:
 		AFT_PERF_STAT_INC(card,isr,wdt_software);
 	}
 #endif
-
 	/* -----------------2/6/2003 10:36AM-----------------
 	 *	  Finish of the interupt handler
 	 * --------------------------------------------------*/
@@ -7498,41 +7683,43 @@ global_irq_skip:
 			u32 lcfg_reg=0;
 			__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &lcfg_reg);
 			card->u.aft.lcfg_reg=lcfg_reg;
-	
-			if (wan_test_bit(AFT_LCFG_TX_FE_SYNC_STAT_BIT,&lcfg_reg) ||
-				wan_test_bit(AFT_LCFG_RX_FE_SYNC_STAT_BIT,&lcfg_reg)){
-				if (++card->u.aft.chip_security_cnt > AFT_MAX_CHIP_SECURITY_CNT){
-					DEBUG_ERROR("%s: Critical: A108 Lost Sync with Front End: Disabling Driver (0x%08X : A108S=0x%08X)!\n",
+
+			if(card->adptr_type != AFT_ADPTR_T116){
+				if (wan_test_bit(AFT_LCFG_TX_FE_SYNC_STAT_BIT,&lcfg_reg) ||
+						wan_test_bit(AFT_LCFG_RX_FE_SYNC_STAT_BIT,&lcfg_reg)){
+					if (++card->u.aft.chip_security_cnt > AFT_MAX_CHIP_SECURITY_CNT){
+						DEBUG_ERROR("%s: Critical: A108 Lost Sync with Front End: Disabling Driver (0x%08X : A108S=0x%08X)!\n",
 								card->devname,
 								lcfg_reg,a108_reg);
-					DEBUG_ERROR("%s: Please call Sangoma Tech Support (www.sangoma.com)!\n",
+						DEBUG_ERROR("%s: Please call Sangoma Tech Support (www.sangoma.com)!\n",
 								card->devname);
-	
-					aft_critical_trigger(card);
+						
+						aft_critical_trigger(card);
+					}
+				} else {
+					card->u.aft.chip_security_cnt=0;
 				}
-			} else {
-				card->u.aft.chip_security_cnt=0;
-
-				if (wan_test_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status) &&
+			}
+					
+			if (wan_test_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status) &&
 					!aft_fe_loop_back_status(card) &&
 					wan_test_bit(0,&card->u.aft.comm_enabled) &&
-				    card->wandev.state == WAN_CONNECTED &&
+						card->wandev.state == WAN_CONNECTED &&
 					card->fe.fe_status == FE_CONNECTED) {
-					u32 sync_cnt = aft_lcfg_get_fe_sync_cnt(lcfg_reg);
-					if (sync_cnt) {
-
-						aft_lcfg_set_fe_sync_cnt(&lcfg_reg,0);
-						__sdla_bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), lcfg_reg);
-						__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &lcfg_reg);
-						card->u.aft.lcfg_reg=lcfg_reg;
-				
-						disable_data_error_intr(card,LINK_DOWN);
-	
-						if (!wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)) {
-							DEBUG_ERROR("%s: Warning: Front End Lost Synchronization (sync_cnt=%i,c=%i,f=%i)\n",
+				u32 sync_cnt = aft_lcfg_get_fe_sync_cnt(lcfg_reg);
+				if (sync_cnt) {
+					
+					aft_lcfg_set_fe_sync_cnt(&lcfg_reg,0);
+					__sdla_bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), lcfg_reg);
+					__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &lcfg_reg);
+					card->u.aft.lcfg_reg=lcfg_reg;
+					
+					disable_data_error_intr(card,LINK_DOWN);
+					
+					if (!wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)) {
+						DEBUG_ERROR("%s: Warning: Front End Lost Synchronization (sync_cnt=%i,c=%i,f=%i)\n",
 								card->devname,sync_cnt,card->wandev.state,card->fe.fe_status);
-							aft_core_taskq_trigger(card,AFT_FE_RESTART);
-						}
+						aft_core_taskq_trigger(card,AFT_FE_RESTART);
 					}
 				}
 			}
@@ -7546,7 +7733,7 @@ global_irq_skip:
 				card->devname, card->wp_rx_fifo_sanity,card->wp_tx_fifo_sanity, WP_RX_TX_FIFO_SANITY,card->u.aft.num_of_time_slots);
 		}
 #else
-		if (card->wp_rx_fifo_sanity > WP_RX_TX_FIFO_SANITY || card->wp_tx_fifo_sanity > WP_RX_TX_FIFO_SANITY) {
+		if (card->wp_rx_fifo_sanity > card->u.aft.cfg.rx_fifo_trigger || card->wp_tx_fifo_sanity > card->u.aft.cfg.tx_fifo_trigger) {
 			DEBUG_ERROR("%s: Warning: Excessive Fifo Errors: Resync (rx=%i/tx=%i)\n",
 				card->devname, card->wp_rx_fifo_sanity,card->wp_tx_fifo_sanity);
 			if (!wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)) {
@@ -7698,6 +7885,11 @@ static void __wp_aft_per_per_port_isr(sdla_t *card, u32 dma_rx_reg, u32 dma_tx_r
 		if (dma_tx_reg) {
 			AFT_PERF_STAT_INC(card,isr,dma_tx);
 		}
+	}
+
+	/* Sanity check, T116 does not support TX DMA */	
+	if(card->adptr_type == AFT_ADPTR_T116){
+		dma_tx_reg=0;
 	}
 
 	for (i=0; i<card->u.aft.num_of_time_slots;i++){
@@ -7933,6 +8125,9 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
 					__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_RX_DMA_INTR_PENDING_REG),&dma_rx_reg);
 					__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_TX_DMA_INTR_PENDING_REG),&dma_tx_reg);
 					__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_STAT_REG), &reg);
+					if (card->adptr_type == AFT_ADPTR_T116 && card->wandev.comm_port > 7){
+					__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_STAT_REG2), &reg);
+					}
 					DEBUG_EVENT("%s: TDM IRQ Timeout  0x%08X  rx=0x%08X  tx=0x%08X\n",card->devname,reg,dma_rx_reg,dma_tx_reg);
 #else
 					DEBUG_EVENT("%s: TDM IRQ Timeout\n",card->devname);
@@ -8801,7 +8996,7 @@ static void enable_data_error_intr(sdla_t *card)
 
 
 	wan_set_bit(0,&card->u.aft.comm_enabled);
-	DEBUG_EVENT("%s: AFT communications enabled!\n",
+	DEBUG_EVENT("%s: AFT communications enabled\n",
 			card->devname);
 
 	/* Enable Channelized Driver if configured */
@@ -9015,7 +9210,7 @@ void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 	if (chan->hdlc_eng && (chan->channelized_cfg || card->u.aft.global_tdm_irq)) {
 		aft_dma_tx_complete(card,chan,0, 1);
 		aft_free_tx_descriptors(chan);
-   		aft_init_tx_dev_fifo(card,chan,WP_WAIT);
+		aft_init_tx_dev_fifo(card,chan,WP_WAIT);
 		aft_dma_tx(card,chan);
 		wanpipe_wake_stack(chan);
      	return;
@@ -9041,10 +9236,15 @@ void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 
 	aft_free_tx_descriptors(chan);
 
-   	aft_init_tx_dev_fifo(card,chan,WP_NO_WAIT);
-   	aft_channel_txdma_ctrl(card, chan, 1);
-   	aft_init_tx_dev_fifo(card,chan,WP_WAIT);
-   	aft_reset_tx_chain_cnt(chan);
+	if (card->adptr_type == A116_ADPTR_16TE1) {
+		aft_init_tx_dev_fifo(card,chan,WP_NO_WAIT);
+	}
+
+	aft_channel_txdma_ctrl(card, chan, 1);
+	if (card->adptr_type == A116_ADPTR_16TE1) {
+		aft_init_tx_dev_fifo(card,chan,WP_WAIT);
+		aft_reset_tx_chain_cnt(chan);
+	}
 
 	wan_clear_bit(0,&chan->idle_start);
 
@@ -11110,6 +11310,10 @@ static void aft_port_task (void * card_ptr, int arg)
 		AFT_PERF_STAT_INC(card,port_task,fe_poll);
 
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
+		
+		if (card->adptr_type == AFT_ADPTR_T116){
+			t116_error_counter_check(card);
+		}
 
 		if (card->wandev.fe_iface.polling){
 			card->wandev.fe_iface.polling(&card->fe);
@@ -11196,9 +11400,7 @@ static void aft_port_task (void * card_ptr, int arg)
 
 		AFT_PERF_STAT_INC(card,port_task,restart);
 
-#if 0
-#warning "NENAD Debugging"
-		/* Nenad: Unit testing code */
+#ifdef AFT_FIFO_GEN_DEBUGGING_RX
 		card->wp_debug_gen_fifo_err_rx=0;
 		card->wp_debug_gen_fifo_err_tx=0;
 #endif

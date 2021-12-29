@@ -12,6 +12,7 @@ install -D -m 755 wancfg_zaptel $WAN_VIRTUAL/usr/sbin/wancfg_zaptel
 install -D -m 755 wancfg_dahdi $WAN_VIRTUAL/usr/sbin/wancfg_dahdi
 install -D -m 755 wancfg_smg $WAN_VIRTUAL/usr/sbin/wancfg_smg
 install -D -m 755 wancfg_tdmapi $WAN_VIRTUAL/usr/sbin/wancfg_tdmapi
+install -D -m 755 wancfg_data_api $WAN_VIRTUAL/usr/sbin/wancfg_data_api
 install -D -m 755 wancfg_hp_tdmapi $WAN_VIRTUAL/usr/sbin/wancfg_hp_tdmapi
 install -D -m 755 wancfg_fs $WAN_VIRTUAL/usr/sbin/wancfg_fs
 install -D -m 755 wancfg_openzap $WAN_VIRTUAL/usr/sbin/wancfg_openzap

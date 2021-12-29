@@ -1,6 +1,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+
+#if !defined(__WINDOWS__)
 #include <dirent.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -14,6 +16,8 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#endif
+
 #if defined(__LINUX__)
 # include <linux/if.h>
 # include <linux/types.h>
@@ -23,6 +27,15 @@
 # include <linux/sdlapci.h>
 # include <linux/sdlasfm.h>
 # include <linux/if_wanpipe.h>
+
+#elif defined(__WINDOWS__)
+# include <windows.h>
+# include <winioctl.h>
+# include <conio.h>
+# include <stddef.h>		//for offsetof()
+# include <sdlasfm.h>
+# include <sdlapci.h>
+
 #else
 # include <net/if.h>
 # include <wanpipe_defines.h>
@@ -94,7 +107,7 @@ int EE_WaitIdle(void* aft)
 		/* loop until idle */
 		if ((eeCtl & (1 << EEPROM_BUSY)) == 0)
 			return(eeCtl);
-		usleep(100);
+		wp_usleep(100);
 	}
 	printf("ERROR: EEPROM Busy timeout!\n");
 	return(eeCtl);
@@ -418,7 +431,7 @@ int aft_bridge_write_byte_plx(void* aft, u8 addr, u8 data)
 	}
 	
 	EE_Off(aft); /* turn off EEPROM */
-	usleep(100000);
+	wp_usleep(100000);
 	return 0;
 }
 

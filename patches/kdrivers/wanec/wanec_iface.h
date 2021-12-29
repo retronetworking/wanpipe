@@ -265,6 +265,7 @@ typedef struct wan_ec_dev_
 	int			fe_start_chan, fe_stop_chan;
 	int			fe_max_chans;
 	u_int32_t	fe_channel_map;
+	u_int32_t   fe_dtmf_removal_map; /* Bitmap of channels that have dtmf removal enabled already */
 	u_int32_t	fe_ec_map;
 	u_int32_t	fe_tdmv_law;
 	u_int32_t	channel;

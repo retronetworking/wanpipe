@@ -1516,7 +1516,7 @@ wanpipe_svc_listen_skip:
  *      Crates AF_WANPIPE socket.
  *===========================================================*/
 
-#if defined(DECLARE_SOCKADDR)
+#if defined(DECLARE_SOCKADDR) || LINUX_VERSION_CODE > KERNEL_VERSION(2,6,31)	
 int wanpipe_create(struct net *net, struct socket *sock, int protocol, int kern)
 #elif defined(LINUX_FEAT_2624) 
 int wanpipe_create(struct net *net, struct socket *sock, int protocol)

@@ -10,6 +10,7 @@ sub new {
 	_device_no => undef,
 	_tdmv_span_no => undef,
         _card_model => undef,
+        _card_model_name => undef,
         _pci_slot  => undef,
         _pci_bus   => undef,
 	_fe_cpu	   => 'A',
@@ -42,6 +43,14 @@ sub card_model {
     my ( $self, $card_model ) = @_;
     $self->{_card_model} = $card_model if defined($card_model);
     return $self->{_card_model};
+}
+
+sub card_model_name {
+    my ( $self, $card_model_name ) = @_;
+	if ($card_model_name =~ m/(\w\d\d*)/) {
+		$self->{_card_model_name} = $1
+	}
+    return $self->{_card_model_name};
 }
 
 sub pci_slot {

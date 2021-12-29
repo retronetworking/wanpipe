@@ -21,6 +21,38 @@
 
 #ifdef __LINUX__
 
+#ifndef SSTATE_MAGIC
+  #define SSTATE_MAGIC 0x5301
+/*
+ * This is our internal structure for each serial port's state.
+ */
+struct serial_state {
+    int magic;
+    int baud_base;
+    unsigned long   port;
+    int irq;
+    int flags;
+    int hub6;
+    int type;
+    int line;
+    int revision;   /* Chip revision (950) */
+    int xmit_fifo_size;
+    int custom_divisor;
+    int count;
+    u8  *iomem_base;
+    u16 iomem_reg_shift;
+    unsigned short  close_delay;
+    unsigned short  closing_wait; /* time to wait before closing */
+    struct async_icount icount;
+    int io_type;
+    struct async_struct *info;
+    struct pci_dev  *dev;
+};
+
+#endif
+
+
+
 static struct tty_driver 	*serial_driver;
 static int 			tty_init_cnt=0;
 static struct serial_state 	rs_table[NR_PORTS];

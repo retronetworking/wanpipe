@@ -24,6 +24,7 @@ int wan_aftup_te1_reg_read(void *card, unsigned short reg, unsigned char *out_da
 
 /* Maxim chip definitions */
 #define REG_IDR				0xF8
+#define DEVICE_ID_DS26519   0xD9
 #define DEVICE_ID_DS26528   0x0B
 #define DEVICE_ID_DS26524   0x0C
 #define DEVICE_ID_DS26522   0x0D
@@ -34,6 +35,7 @@ int wan_aftup_te1_reg_read(void *card, unsigned short reg, unsigned char *out_da
 #define DEVICE_ID_MASK      0x1F
 #define DEVICE_ID_DS(dev_id)    ((dev_id) >> DEVICE_ID_SHIFT) & DEVICE_ID_MASK
 #define DECODE_CHIPID(chip_id)                  \
+        (chip_id == DEVICE_ID_DS26519) ? "DS26519" :    \
         (chip_id == DEVICE_ID_DS26528) ? "DS26528" :    \
         (chip_id == DEVICE_ID_DS26524) ? "DS26524" :    \
         (chip_id == DEVICE_ID_DS26522) ? "DS26522" :    \

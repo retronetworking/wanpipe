@@ -220,6 +220,9 @@ struct fun_protocol function_lookup[] = {
 	{ WANCONFIG_AFT_TE1,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
+	{ WANCONFIG_AFT_T116,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
+		                         AFTget_main_menu, AFTget_cmd_menu, 
+					 NULL,NULL, 2 },
 
 	{ 0, "N/A", 0, 0, 0, 0,0 }, 
 };
@@ -273,6 +276,9 @@ struct fun_protocol function_lookup[] = {
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 	{ WANCONFIG_AFT_GSM,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
+		                         AFTget_main_menu, AFTget_cmd_menu, 
+					 NULL,NULL, 2 },
+	{ WANCONFIG_AFT_T116,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)

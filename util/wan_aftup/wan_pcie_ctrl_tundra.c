@@ -1,6 +1,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+
+#if !defined(__WINDOWS__) 
 #include <dirent.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -14,6 +16,8 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#endif
+
 #if defined(__LINUX__)
 # include <linux/if.h>
 # include <linux/types.h>
@@ -23,6 +27,13 @@
 # include <linux/sdlapci.h>
 # include <linux/sdlasfm.h>
 # include <linux/if_wanpipe.h>
+#elif defined(__WINDOWS__)
+# include <windows.h>
+# include <winioctl.h>
+# include <conio.h>
+# include <stddef.h>		//for offsetof()
+# include <sdlasfm.h>
+# include <sdlapci.h>
 #else
 # include <net/if.h>
 # include <wanpipe_defines.h>
@@ -64,7 +75,7 @@ int exec_tundra_wait_eeprom_ready(void* aft)
 	data_read = 0x00;
 	exec_bridge_read_cmd(aft, TUNDRA_EECTRL_REG_OFF, 4, &data_read);
 	while (data_read & TUNDRA_EECTRL_BIT_BUSY) {
-		usleep(100);
+		wp_usleep(100);
 		exec_bridge_read_cmd(aft, TUNDRA_EECTRL_REG_OFF, 4, &data_read);
 		if(cnt++ > 1000) {
 			return -1;
@@ -190,8 +201,8 @@ int aft_bridge_read_byte_tundra(void* aft, u8 off, u8 *val)
 int aft_bridge_write_byte_tundra(void* aft, u8 off, u8 val)
 {
 	unsigned int cmd;
-	cmd = 0x00;
 	int err;
+	cmd = 0x00;
 	
 	if(exec_tundra_wait_eeprom_ready(aft)) {
 		printf("PCIe Bridge EEPROM read timeout\n");
@@ -218,3 +229,6 @@ int aft_bridge_reload_tundra(void* aft)
 {
 	return 0;
 }
+
+
+

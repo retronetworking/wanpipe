@@ -34,11 +34,11 @@ ifndef WANINCDIR
 endif
 
 # Tools options.
-SRCS	= wan_aftup.c wan_aft_prg.c wan_aft_flash.c wan_aft_flash_shark.c wan_aft_flash_shark_116.c 
+SRCS	= wan_aftup.c wan_aft_prg.c wan_aft_flash.c wan_aft_flash_shark.c wan_aft_flash_shark_116.c wan_aft_flash_shark_t116_base.c
 #wan_aft_flash_shark_ds.c wan_aft_flash_shark_116.c 
-SRCS	+= wan_pcie_ctrl.c wan_pcie_ctrl_plx.c wan_pcie_ctrl_tundra.c wan_aft_flash_a600.c
+SRCS	+= wan_pcie_ctrl.c wan_pcie_ctrl_plx.c wan_pcie_ctrl_tundra.c wan_aft_flash_a600.c wan_aft_flash_t116.c
 SRC2	+= wan_usb_fwupdate.cpp mem.cpp
-CFLAGS  = -Wall -O0 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) 
+CFLAGS  = -Wall -O0 -g -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) 
 CFLAGS += $(EXTRA_FLAGS)
 CFLAGS += -I/usr/include -I$(WANINCDIR) -I$(SYSINC)
 

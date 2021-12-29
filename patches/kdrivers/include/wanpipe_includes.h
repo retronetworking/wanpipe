@@ -270,7 +270,9 @@
 #  include <linux/netdevice.h>
 #  include <linux/list.h>
 #  include <asm/io.h>		/* phys_to_virt() */
-#  include <asm/system.h>
+#  if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
+#   include <asm/system.h>
+#  endif
 #  include <asm/byteorder.h>
 #  include <asm/delay.h>
 #  include <linux/pci.h>

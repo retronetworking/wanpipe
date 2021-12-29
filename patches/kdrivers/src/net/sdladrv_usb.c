@@ -1955,7 +1955,7 @@ static int wp_usb_start_transfer(struct wan_urb *wurb)
 	int	ret;
 
 #ifdef LINUX26
-	ret = usb_submit_urb(&wurb->urb, GFP_KERNEL); 
+	ret = usb_submit_urb(&wurb->urb, GFP_ATOMIC); 
 #else
 	ret = usb_submit_urb(q); 
 #endif

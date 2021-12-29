@@ -67,7 +67,7 @@ void print_packet(unsigned char *buf, int len)
 		}
 		if (x && x%8 == 0)
 			printf(" | ");
-		printf("%02d ",buf[x]);
+		printf("%02X ",buf[x]);
 	}
 	printf("}\n");
 }

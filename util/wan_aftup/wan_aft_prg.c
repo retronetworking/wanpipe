@@ -362,6 +362,8 @@ aft_flash_hex_file(wan_aft_cpld_t *cpld, int stype, char *filename, int cmd)
 					filename);
 		return -EINVAL;
 	}
+
+
 	while(!feof(f)){
 		if (!fgets(line, MAX_HEX_LINE_LEN, f)){
 			if (feof(f)){
@@ -387,6 +389,7 @@ aft_flash_hex_file(wan_aft_cpld_t *cpld, int stype, char *filename, int cmd)
 			continue;
 		}
 		i = 0;
+
 		while(i < len){
 			if (cmd == CMD_FLASH_PRG){
 				page_size = cpld->iface->prg(cpld, stype, seg+addr+i, (u8*) &data[i]);
@@ -419,6 +422,7 @@ aft_flash_hex_file(wan_aft_cpld_t *cpld, int stype, char *filename, int cmd)
 	}else{
 		printf("\r\tVerification\t\t\t\tPassed\n");
 	}
+
 	fflush(stdout);
 	fclose(f);
 	return 0;
@@ -439,35 +443,41 @@ aft_flash_bin_file (wan_aft_cpld_t *cpld, int stype, char *filename, int cmd)
 	if (fsize < 0){
 		return -EINVAL;
 	}
-
+#if 1
 	if (cmd == CMD_FLASH_PRG){
 		cpld->iface->erase(cpld, stype, 0);
 	}
-	
+#endif	
+#if 1
 	while (findex < fsize) {
 		if (cmd == CMD_FLASH_PRG){
 			page_size = cpld->iface->prg(cpld, stype, findex, (u8*)&data[findex]);
 		} else {
 			page_size = cpld->iface->read(cpld, stype, MEMORY_TYPE_FLASH, findex, &tmp_data_read);
+#if 1
+			//printf("&data[findex]=0x%x,tmp_data_read=0x%x\n",data[findex], *tmp_data_read);
 			if (memcmp(&data[findex], tmp_data_read, page_size)) {
-				printf("\r\tVerification\t\t\t\tFailed(%lx)\n",
+				printf("\r\taft_flash_bin_file Verification\t\t\t\tFailed(%lx)\n",
 					findex);
 				free(data);
 				return -EINVAL;
 			}
+#endif
 		}
+		
 		if (page_size < 0) {
 			if (cmd == CMD_FLASH_PRG) {
-				printf("\r\tUpdating\t\t\t\tFailed(%lx)\n",
+				printf("\r\taft_flash_bin_file Updating\t\t\t\tFailed(%lx)\n",
 						findex);
 			} else {
-				printf("\r\tVerification\t\t\t\tFailed(%lx)\n",
+				printf("\r\taft_flash_bin_file Verification\t\t\t\tFailed(%lx)\n",
 						findex);
 			}
 			free(data);
 			return -EINVAL;
 		}
 		findex += page_size;
+		//findex += 4;
 		for(i=0;i<1000;i++);
 		if ((findex & 0x1FFF) == 0x1000){
 			if (cmd == CMD_FLASH_PRG){
@@ -481,11 +491,11 @@ aft_flash_bin_file (wan_aft_cpld_t *cpld, int stype, char *filename, int cmd)
 	}	
 
 	if (cmd == CMD_FLASH_PRG){
-		printf("\r\tUpdating flash\t\t\t\tPassed\n");
+		printf("\n\r\tUpdating flash\t\t\t\tPassed\n");
 	}else{
 		printf("\r\tVerification\t\t\t\tPassed\n");
 	}
-
+#endif
 	fflush(stdout);
 	free(data);
 	return 0;
@@ -525,9 +535,11 @@ int update_flash(wan_aft_cpld_t *cpld, int stype, int mtype, char* filename)
 				__FUNCTION__,__LINE__);
 		return -EINVAL;
 	}
+#if 1
 	if (cpld->iface->reset){
 		cpld->iface->reset(cpld);
 	}
+#endif
 	// Checking write enable to the Default Boot Flash Sector 
 	if (cpld->iface->is_protected){
 		if (cpld->iface->is_protected(cpld, stype)){
@@ -645,12 +657,22 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 		if (clear) data &= ~0x06;
 	       	else data |= 0x06;
 		break;
+	case AFT_T116_SUBSYS_VENDOR:
+		exec_read_cmd(cpld->private, 0x40, 4, &data);
+		data &= ~0x06;
+		exec_write_cmd(cpld->private,0x40,4,data);
+		//exec_read_cmd(cpld->private, 0x40, 4, &data);
+		//printf("New data 0f 0x40 = 0x%x\n",data);
+		exec_write_cmd(cpld->private,0x44,2,0x4000);	
+		exec_read_cmd(cpld->private, iface_reg_off, 4, &data);
+		exec_write_cmd(cpld->private,0x44,4,0x00054000);	
+		break;
 	case AFT_A600_SUBSYS_VENDOR:
 	case AFT_B601_SUBSYS_VENDOR:
 	case AFT_B610_SUBSYS_VENDOR:
 	case AFT_W400_SUBSYS_VENDOR:
 		if (clear) data &= ~0x06;
-	       	else data |= 0x06;
+		else data |= 0x06;
 		break;
 	default:
 		printf("Unsupported card type (board_id=%X)!\n", cpld->core_info->board_id);		
@@ -661,6 +683,7 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 		printf("Failed access (write) to the board!\n");
 		return -EINVAL;
 	}
+	
 	return 0;
 }
 

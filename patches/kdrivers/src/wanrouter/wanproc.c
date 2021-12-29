@@ -89,6 +89,7 @@
 				       (prot == WANCONFIG_SDLC) ? ((cap)?"SDLC":"sdlc") : \
 				       (prot == WANCONFIG_ATM) ? ((cap)?"ATM":"atm") : \
 				       (prot == WANCONFIG_AFT) ? ((cap)?"AFT TE1":"aft te1") : \
+				       (prot == WANCONFIG_AFT_T116) ? ((cap)?"AFT TE1":"aft te1") : \
 				       (prot == WANCONFIG_AFT_SERIAL) ? ((cap)?"A-SERIAL":"aft serial") : \
 				       (prot == WANCONFIG_AFT_ANALOG) ? ((cap)?"A-ANALOG":"aft analog") : \
 				       (prot == WANCONFIG_AFT_GSM) ? ((cap)?"AFT GSM":"aft gsm") : \
@@ -105,6 +106,7 @@
 				(wandev->card_type == WANOPT_AFT_102) ? "A102" : \
 				(wandev->card_type == WANOPT_AFT_104) ? "A104" : \
 				(wandev->card_type == WANOPT_AFT_108) ? "A108" : \
+				(wandev->card_type == WANOPT_AFT_300) ? "A301" : \
 				(wandev->card_type == WANOPT_AFT_300) ? "A301" : \
 				(wandev->card_type == WANOPT_AFT_ANALOG) ? "A200/A400" : \
 				(wandev->card_type == WANOPT_AFT_ISDN) ? "A500" : \
@@ -883,6 +885,9 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	if (hw_cnt->aft116_adapters){
 		PROC_ADD_LINE(m, "A116=%d ", hw_cnt->aft116_adapters);
 	}
+	if (hw_cnt->aft_t116_adapters){
+		PROC_ADD_LINE(m, "T116=%d ", hw_cnt->aft_t116_adapters);
+	}
 	PROC_ADD_LINE(m, "\n");
 
 	PROC_ADD_RET(m);
@@ -1056,6 +1061,9 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 	if (hw_cnt->aft116_adapters){
 		PROC_ADD_LINE(m, "A116=%d ", hw_cnt->aft116_adapters);
 	}
+	if (hw_cnt->aft_t116_adapters){
+		PROC_ADD_LINE(m, "T116=%d ", hw_cnt->aft_t116_adapters);
+	}
 	PROC_ADD_LINE(m, "\n");
 
 	PROC_ADD_RET(m);
@@ -1109,7 +1117,7 @@ static int probe_get_info_dump(char* buf, char** start, off_t offs, int len, int
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
 	PROC_ADD_LINE(m,
-		"|Card Cnt|S508=%d|S514X=%d|S518=%d|A101-2=%d|A104=%d|A300=%d|A200=%d|A108=%d|A056=%d|A500=%d|B700=%d|B600=%d|B601=%d|A14x=%d|A116=%d|W400=%d|\n",
+		"|Card Cnt|S508=%d|S514X=%d|S518=%d|A101-2=%d|A104=%d|A300=%d|A200=%d|A108=%d|A056=%d|A500=%d|B700=%d|B600=%d|B601=%d|A14x=%d|A116=%d|T116=%d|W400=%d|\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
@@ -1125,6 +1133,7 @@ static int probe_get_info_dump(char* buf, char** start, off_t offs, int len, int
 		hw_cnt->aft_b601_adapters,
 		hw_cnt->aft_serial_adapters,
 		hw_cnt->aft116_adapters,
+		hw_cnt->aft_t116_adapters,
 		hw_cnt->aft_w400_adapters);
 
 	PROC_ADD_RET(m);
