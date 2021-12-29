@@ -275,6 +275,7 @@ static void wp_tdmapi_init_buffs(wanpipe_tdm_api_dev_t *tdm_api, int option)
 	} while(skb);
 	
 
+
 #undef wptdm_queue_lock_irq
 #undef wptdm_queue_unlock_irq
 
@@ -1666,6 +1667,7 @@ static int wp_tdmapi_tx_timeout(void *obj)
 static int wp_tdmapi_release(void *obj)
 {
 	wanpipe_tdm_api_dev_t *tdm_api = (wanpipe_tdm_api_dev_t*)obj;
+	wanpipe_api_cmd_t usr_tdm_api;
 	wan_smp_flag_t flag;
 	u32 cnt;
 
@@ -1687,6 +1689,10 @@ static int wp_tdmapi_release(void *obj)
 		tdm_api->cfg.rbs_tx_bits=-1;
 	
 		wan_mutex_unlock(&tdm_api->lock,&flag);
+	
+		if (tdm_api != &tdmapi_ctrl && tdm_api->driver_ctrl) {
+			tdm_api->driver_ctrl(tdm_api->chan,WP_API_CMD_FLUSH_BUFFERS,&usr_tdm_api);
+		}
 	}
 
 	return 0;

@@ -49,6 +49,7 @@ void 	aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan);
 unsigned char aft_write_ec (void *pcard, unsigned short off, unsigned char value);
 unsigned char aft_read_cpld(sdla_t *card, unsigned short cpld_off);
 unsigned char aft_read_ec (void *pcard, unsigned short off);
+unsigned char aft_read_customer_id(sdla_t *card);
 
 int 	aft_read(sdla_t *card, wan_cmd_api_t *api_cmd);
 int 	aft_write_cpld(void *pcard, unsigned short off,unsigned char data);

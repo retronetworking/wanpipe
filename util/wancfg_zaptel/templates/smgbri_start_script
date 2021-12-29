@@ -10,7 +10,7 @@ do
 	fi
 
 	echo "Waiting for TDM iAPI device /dev/wanpipe ($i/$max_delay)..."
-	i = $(i+1);
+	i=$((i+1));
   	sleep 2
 done
 

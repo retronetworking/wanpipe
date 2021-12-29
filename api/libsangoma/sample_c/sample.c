@@ -86,6 +86,7 @@ int ringtrip_event (sng_fd_t fd, unsigned char ring_state);
 int write_data_to_file(unsigned char *data,	unsigned int data_length);
 int sangoma_print_stats(sng_fd_t sangoma_dev);
 void cleanup(void);
+int handle_fe_rw (void);
 
 #ifdef __WINDOWS__
 BOOL WINAPI TerminateHandler(DWORD dwCtrlType);
@@ -329,6 +330,7 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer, int tx
 	static int	Tx_count = 0;
 
 	if (hdlc_repeat) {
+		printf("Repeating Frame\n");
         tx_hdr->wp_api_tx_hdr_hdlc_rpt_len=4;
 		memset(tx_hdr->wp_api_tx_hdr_hdlc_rpt_data,Tx_count,4);
 	}
@@ -366,7 +368,7 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer, int tx
 		 * have nothing for transmission, sangoma_socket_waitfor() will return
 		 * immediately, creating a busy loop. */
 		//sangoma_wait_objects[dev_index].flags_in &= (~POLLOUT);
-		return 1;
+		return 0;
 	}
 #endif
 	return 0;
@@ -404,7 +406,7 @@ int handle_data(uint32_t dev_index, int flags_out)
 	if( (flags_out & POLLOUT) && write_enable ){
 	
 		wp_api_hdr_t txhdr;
-		static unsigned char tx_test_byte = 0;
+		static unsigned char tx_test_byte = 2;
 
 		memset(&txhdr, 0, sizeof(txhdr));
 		txhdr.data_length = (unsigned short)tx_size;/* use '-txsize' command line option to change 'tx_size' */
@@ -414,7 +416,7 @@ int handle_data(uint32_t dev_index, int flags_out)
 		
 		err = write_data(dev_index, &txhdr, txdata, tx_size);
 		if (err== 0) {
-			tx_test_byte++;
+			//tx_test_byte++;
 		}
 	}
 	return err;
@@ -882,6 +884,38 @@ int open_sangoma_device()
 	return err;
 }
 
+
+static int sangoma_hardware_rescan(void)
+{
+
+#ifdef  WP_API_FEATURE_HARDWARE_RESCAN 
+	int err;
+	int cnt;
+ 	port_management_struct_t port;
+ 	sng_fd_t fd = sangoma_open_driver_ctrl(1);
+	if (fd == INVALID_HANDLE_VALUE) {
+		printf("Hardware Rescan failed to open driver ctrl\n");
+    	return -1;
+	}
+
+	memset(&port,0,sizeof(port));
+
+	err=sangoma_driver_hw_rescan(fd,&port,&cnt);
+	if (err < 0) {
+		printf("Hardware Rescan error %i\n",err);
+     	return err;
+	}
+
+	printf("Hardware Rescan %i\n",cnt);
+
+	sangoma_close(&fd);
+	
+#endif	
+
+	return err;
+}
+
+
 /*!
   \fn int __cdecl main(int argc, char* argv[])
   \brief Main function that starts the sample code
@@ -891,6 +925,12 @@ int open_sangoma_device()
 int __cdecl main(int argc, char* argv[])
 {
 	int proceed, i;
+
+#if 0
+	/* Function used to rescan pci/usb bus.
+	   added here as use example. Uncomment to use. */
+	sangoma_hardware_rescan();
+#endif
 
 	proceed=init_args(argc,argv);
 	if (proceed != WAN_TRUE){

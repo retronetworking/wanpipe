@@ -180,7 +180,6 @@ static int wp_wandev_ioctl(void *obj, int cmd, void *data)
 	case WANPIPE_IOCTL_PORT_CONFIG:
 		err=wanpipe_port_cfg(wdev,data);
 		break;
-
 	}
 	
 	wan_mutex_unlock(&wdev->lock,&flag);
@@ -195,6 +194,7 @@ static int wanpipe_port_management(wanpipe_wandev_t *wdev, void *data)
 	int err=-EINVAL;
 	char card_name[100];
 	wan_device_t *wandev;
+	int cnt;
 
 	DEBUG_WANDEV("%s: WPCTRL PORT MANAGMENT IOCTL \n",__FUNCTION__);
 
@@ -268,6 +268,27 @@ static int wanpipe_port_management(wanpipe_wandev_t *wdev, void *data)
 	case FLUSH_PORT_OPERATIONAL_STATS:
 		/* Reset port's statistics counters in API driver */
 	
+		break;
+
+	case WANPIPE_HARDWARE_RESCAN:
+
+		cnt = sdla_hw_probe(); 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)       		
+		cnt += sdla_get_hw_usb_adptr_cnt();
+#endif
+		DEBUG_EVENT("WANPIPE_HARDWARE_RESCAN %i\n",cnt);
+	
+		if (cnt) {
+			int i;
+			for (i = 0; i < cnt; i++){
+				 if (sdladrv_callback.add_device){
+					sdladrv_callback.add_device();
+				}
+			}
+		}
+		usr_port_mgmnt->port_no=cnt;
+		
+		err=0;
 		break;
 	}
 

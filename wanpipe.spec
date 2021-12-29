@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.19
+%define VERSION           3.5.20
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -239,6 +239,18 @@ echo "Done"
 
 %changelog
 
+* Mon Apr 11 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.20
+==================================================================
+
+- Fixed customer id read
+- Added hwrescan libsangoma command
+- Updated the analog ring debouncing threshold
+  so that ring is properly debounced
+- Fixed AIS alarm clear flag bug
+  The AIS alarm flag was not being cleared in the driver.
+- New Octasic Image 1.6.2 
+  Fix for AGC
+- Fixed start script for ubuntu
 
 * Fri Mar 1 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.19
 ==================================================================

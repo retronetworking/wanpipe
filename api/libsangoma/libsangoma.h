@@ -1667,6 +1667,24 @@ int _LIBSNG_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_
 int _LIBSNG_CALL sangoma_driver_get_version(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
 
 
+
+
+#ifdef  WP_API_FEATURE_HARDWARE_RESCAN
+/*!
+  \fn int sangoma_driver_hw_rescan(sng_fd_t fd, port_management_struct_t *port_mgmnt, int *detected_port_cnt)
+  \brief Rescan the pci and usb bus for newly added hardware
+  \param[in]    fd          	Port Device file descriptor
+  \param[out]   port_mgmnt      pointer to port_management_struct_t structure which will contain wan_driver_version_t at
+                                it's "data" field, when this function returns.
+  \param[out]   detected_port_cnt     newly detected ports.
+  \return       less than zero:       system error. Call OS specific code to find cause of the error.
+                                                        Linux example: strerror(errno)
+                                                        Windows example: combination of GetLastError()/FormatMessage()
+                zero or greater: number of new ports found.       
+*/
+int _LIBSNG_CALL sangoma_driver_hw_rescan(sng_fd_t fd, port_management_struct_t *port_mgmnt, int *detected_port_cnt);
+#endif
+
 /*!
   \fn int sangoma_write_port_config_on_persistent_storage(hardware_info_t *hardware_info, port_cfg_t *port_cfg)
   \brief Write Port's configuration on the hard disk. 

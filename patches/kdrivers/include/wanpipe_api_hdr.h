@@ -156,7 +156,7 @@ typedef struct wp_api_event
 #define WAN_MAX_HDR_SZ_UNION WAN_MAX_HDR_SZ-sizeof(u_int8_t)-sizeof(u_int16_t)-(sizeof(u_int32_t)*2)
 
 /*!
-  \struct wp_api_hdr_t
+  \struct wp_api_hdr
   \brief Wanpipe API Header Structure
 
   \typedef wp_api_hdr_t

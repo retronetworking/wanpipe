@@ -39,13 +39,15 @@ bool sangoma_cthread::CreateThread (int iParam)
 {
 
 #if defined (__WINDOWS__)
-	DWORD		dwThreadId;
+
 	ThreadParam	*pParam = new ThreadParam;
 		
 	pParam->pThread	= this;
 	pParam->iParam = iParam;
 
-	if(::CreateThread (NULL, 0, (unsigned long (__stdcall *)(void *))runThread, (void *)(pParam), 0, &dwThreadId)){
+	hThread = ::CreateThread (NULL, 0, (unsigned long (__stdcall *)(void *))runThread, (void *)(pParam), 0, &dwThreadId);
+
+	if(hThread){
 		return true;
 	}else{
 		return false;

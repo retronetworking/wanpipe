@@ -1737,25 +1737,15 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			{
 			unsigned char cid=0;
 			wan_smp_flag_t smp_flags1;
+
 			card->hw_iface.hw_lock(card->hw,&smp_flags1);
 			wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
-#if defined(__WINDOWS__)
-			/* FIXME: should it be done for Linux too? */
-#define WIN_CUSTOMER_CPLD_ID_REG		0xA0
-#define CUSTOMER_CPLD_ID_TE1_OFFSET		0x02
-#define CUSTOMER_CPLD_ID_ANALOG_OFFSET	0x0A
-			if (IS_TE1_CARD(card)) {
-				cid = aft_read_cpld(card,WIN_CUSTOMER_CPLD_ID_REG + CUSTOMER_CPLD_ID_TE1_OFFSET);
-			}else if(IS_FXOFXS_CARD(card)){
-				cid = aft_read_cpld(card,WIN_CUSTOMER_CPLD_ID_REG + CUSTOMER_CPLD_ID_ANALOG_OFFSET);
-			}else{
-				cid = aft_read_cpld(card,WIN_CUSTOMER_CPLD_ID_REG);
-			}
-#else
-			cid=aft_read_cpld(card,CUSTOMER_CPLD_ID_REG);
-#endif
+
+			cid = aft_read_customer_id(card);
+
 			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 			card->hw_iface.hw_unlock(card->hw,&smp_flags1);
+
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			wan_udp_pkt->wan_udp_data[0]=cid;
 			wan_udp_pkt->wan_udp_data_len=sizeof(cid);

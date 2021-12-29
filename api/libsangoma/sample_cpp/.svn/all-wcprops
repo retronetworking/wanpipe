@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 77
-/svn/libsangoma/!svn/ver/333/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp
 END
 sangoma_port.h
 K 25
@@ -9,17 +9,17 @@ svn:wc:ra_dav:version-url
 V 92
 /svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp/sangoma_port.h
 END
-sample.vcproj
-K 25
-svn:wc:ra_dav:version-url
-V 91
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp/sample.vcproj
-END
 sources
 K 25
 svn:wc:ra_dav:version-url
 V 85
 /svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp/sources
+END
+sample.vcproj
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp/sample.vcproj
 END
 sangoma_interface.cpp
 K 25
@@ -55,7 +55,7 @@ sangoma_cthread.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 97
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp/sangoma_cthread.cpp
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp/sangoma_cthread.cpp
 END
 sangoma_port_configurator.h
 K 25
@@ -73,7 +73,7 @@ sangoma_cthread.h
 K 25
 svn:wc:ra_dav:version-url
 V 95
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp/sangoma_cthread.h
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5/sample_cpp/sangoma_cthread.h
 END
 sample.h
 K 25

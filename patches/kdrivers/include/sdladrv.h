@@ -1253,5 +1253,7 @@ static __inline u32 SDLA_REG_OFF(sdlahw_card_t	*hwcard, u32 reg)
 }
 
 
+extern sdladrv_callback_t sdladrv_callback;  
+
 #undef WP_EXTERN 
 #endif	/* _SDLADRV_H */

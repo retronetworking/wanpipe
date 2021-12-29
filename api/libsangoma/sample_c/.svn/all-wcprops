@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 75
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5/sample_c
 END
 sample-doxygen.config
 K 25
@@ -19,7 +19,7 @@ sample.c
 K 25
 svn:wc:ra_dav:version-url
 V 84
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sample_c/sample.c
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5/sample_c/sample.c
 END
 sources
 K 25

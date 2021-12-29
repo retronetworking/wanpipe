@@ -2370,7 +2370,7 @@ static int sdla_ds_te1_clear_alarms(sdla_fe_t* fe, u_int32_t alarms)
 							fe->name);
 			WRITE_REG(REG_TCR1, value & ~BIT_TCR1_T1_TAIS);
 		}
-		fe->te_param.tx_ais_alarm = 1;
+		fe->te_param.tx_ais_alarm = 0;
 		fe->fe_stats.tx_alarms &= ~WAN_TE_BIT_ALARM_AIS;
 	}
 
@@ -4307,7 +4307,7 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 			if (!(fe->fe_alarm & WAN_TE_BIT_ALARM_LOS)) {
 				fe->te_param.tx_ais_startup_timeout=0;
 				sdla_ds_te1_clear_alarms(fe,WAN_TE_BIT_ALARM_AIS);
-			}
+			} 
 		}
 	}
 

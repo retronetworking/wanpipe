@@ -635,7 +635,10 @@ enum {
 
 	GET_PORT_OPERATIONAL_STATS,	//Fill in "port_stats_t" structure.
 
-	FLUSH_PORT_OPERATIONAL_STATS//Reset port's statistics counters in API driver.
+	FLUSH_PORT_OPERATIONAL_STATS, //Reset port's statistics counters in API driver.
+
+	WANPIPE_HARDWARE_RESCAN		/* Re scan the PCI & USB bus for sangoma hardware */
+
 };
 
 /* port statistics for low-level debugging and techsupport */

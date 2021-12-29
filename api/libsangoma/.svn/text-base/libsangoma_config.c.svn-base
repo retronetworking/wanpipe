@@ -191,6 +191,25 @@ int _LIBSNG_CALL sangoma_driver_get_version(sng_fd_t fd, port_management_struct_
         return port_mgmnt->operation_status;
 }
 
+#ifdef  WP_API_FEATURE_HARDWARE_RESCAN
+int _LIBSNG_CALL sangoma_driver_hw_rescan(sng_fd_t fd, port_management_struct_t *port_mgmnt, int *cnt)
+{
+    int err;
+    port_mgmnt->command_code = WANPIPE_HARDWARE_RESCAN;
+    port_mgmnt->port_no     = 1;
+
+    err = sangoma_port_mgmnt_ioctl(fd, port_mgmnt);
+    if (err < 0) {
+    	return err;
+    }
+
+	*cnt=port_mgmnt->port_no;
+     
+    return port_mgmnt->operation_status;   
+}
+#endif
+
+
 int _LIBSNG_CALL sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no)
 {
 	port_cfg->operation_status = SANG_STATUS_GENERAL_ERROR;
@@ -248,5 +267,8 @@ int _LIBSNG_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t
 #endif
 	return err;
 }
+
+
+
 
 #endif /* #ifndef LIBSANGOMA_LIGHT */   

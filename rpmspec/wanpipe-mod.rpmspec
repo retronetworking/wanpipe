@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.5.19
+%define version           3.5.20
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -51,6 +51,18 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 %changelog
 
+* Mon Apr 11 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.20
+==================================================================
+
+- Fixed customer id read
+- Added hwrescan libsangoma command
+- Updated the analog ring debouncing threshold
+  so that ring is properly debounced
+- Fixed AIS alarm clear flag bug
+  The AIS alarm flag was not being cleared in the driver.
+- New Octasic Image 1.6.2 
+  Fix for AGC
+- Fixed start script for ubuntu
 
 * Fri Mar 1 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.19
 ==================================================================

@@ -93,6 +93,7 @@ typedef int sng_fd_t;
 #define WP_API_FEATURE_FE_RW        1
 #define WP_API_FEATURE_HWEC_PERSIST 1
 #define WP_API_FEATURE_FAX_TYPE_EVENTS 1
+#define WP_API_FEATURE_HARDWARE_RESCAN     1
 
 /*!
   \enum WANPIPE_IOCTL_CODE
@@ -108,7 +109,7 @@ enum WANPIPE_IOCTL_CODE {
 	WANPIPE_IOCTL_SET_IDLE_TX_BUFFER,	/*!< Set idle buffer on a device */
 	WANPIPE_IOCTL_API_POLL,				/*!< Poll cmd, Windows Only */
 	WANPIPE_IOCTL_SET_SHARED_EVENT,		/*!< Shared Event cmd, Windows Only */
-	WANPIPE_IOCTL_PORT_MGMT,			/*!< Port Mgmnt Event cmd, Windows Only */
+	WANPIPE_IOCTL_PORT_MGMT,			/*!< Port Mgmnt Event cmd */
 	WANPIPE_IOCTL_PORT_CONFIG,			/*!< Port Config Event */
 	WANPIPE_IOCTL_API_CMD,				/*!< Wanpipe API command  */
 	WANPIPE_IOCTL_PIPEMON,				/*!< PIPEMON command, debugging */
@@ -118,7 +119,7 @@ enum WANPIPE_IOCTL_CODE {
 	WANPIPE_IOCTL_WRITE_NON_BLOCKING,	/*!< Non-Blocking Write cmd, Windows Only */
 	WANPIPE_IOCTL_READ_NON_BLOCKING,	/*!< Non-Blocking Read cmd, Windows Only */
 	WANPIPE_IOCTL_CDEV_CTRL,			/*!< Non-Blocking Cdev control cmd, Windows Only */
-	WANPIPE_IOCTL_LOGGER_CMD			/*!< Wanpipe Logger command */
+	WANPIPE_IOCTL_LOGGER_CMD,			/*!< Wanpipe Logger command */
 };
 
 

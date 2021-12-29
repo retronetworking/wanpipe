@@ -18,7 +18,11 @@ public:
 
 protected:
 	virtual unsigned long threadFunction(struct ThreadParam& thParam) = 0;
-	
+#if defined (__WINDOWS__)
+	DWORD	dwThreadId;
+	HANDLE	hThread;
+#endif
+
 private:
 #if defined(__WINDOWS__)
 	static int runThread (void *p);

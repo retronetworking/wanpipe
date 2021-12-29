@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 66
-/svn/libsangoma/!svn/ver/333/branches/unified_rlease_Win6.0_Lnx3.5
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5
 END
 init-automake.sh
 K 25
@@ -13,7 +13,7 @@ configure
 K 25
 svn:wc:ra_dav:version-url
 V 76
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/configure
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5/configure
 END
 Makefile.in
 K 25
@@ -25,7 +25,7 @@ libsangoma_config.c
 K 25
 svn:wc:ra_dav:version-url
 V 86
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/libsangoma_config.c
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5/libsangoma_config.c
 END
 sources
 K 25
@@ -91,7 +91,7 @@ libsangoma.h
 K 25
 svn:wc:ra_dav:version-url
 V 79
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/libsangoma.h
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5/libsangoma.h
 END
 libsangoma_hwec.c
 K 25
@@ -111,17 +111,17 @@ svn:wc:ra_dav:version-url
 V 74
 /svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/INSTALL
 END
-build.sh
-K 25
-svn:wc:ra_dav:version-url
-V 75
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/build.sh
-END
 COPYING
 K 25
 svn:wc:ra_dav:version-url
 V 74
 /svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/COPYING
+END
+build.sh
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/build.sh
 END
 NEWS
 K 25
@@ -141,17 +141,17 @@ svn:wc:ra_dav:version-url
 V 80
 /svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/libsangoma.rc
 END
-libsangoma.so.conf
-K 25
-svn:wc:ra_dav:version-url
-V 85
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/libsangoma.so.conf
-END
 sangoma_pri.c
 K 25
 svn:wc:ra_dav:version-url
 V 80
 /svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sangoma_pri.c
+END
+libsangoma.so.conf
+K 25
+svn:wc:ra_dav:version-url
+V 85
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/libsangoma.so.conf
 END
 libhpsangoma-doxygen.config
 K 25
@@ -159,11 +159,11 @@ svn:wc:ra_dav:version-url
 V 94
 /svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/libhpsangoma-doxygen.config
 END
-version
+libhpsangoma.c
 K 25
 svn:wc:ra_dav:version-url
-V 74
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/version
+V 81
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/libhpsangoma.c
 END
 sangoma_pri.h
 K 25
@@ -171,17 +171,17 @@ svn:wc:ra_dav:version-url
 V 80
 /svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/sangoma_pri.h
 END
-libhpsangoma.c
+version
 K 25
 svn:wc:ra_dav:version-url
-V 81
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/libhpsangoma.c
+V 74
+/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/version
 END
 configure.in
 K 25
 svn:wc:ra_dav:version-url
 V 79
-/svn/libsangoma/!svn/ver/331/branches/unified_rlease_Win6.0_Lnx3.5/configure.in
+/svn/libsangoma/!svn/ver/345/branches/unified_rlease_Win6.0_Lnx3.5/configure.in
 END
 ChangeLog
 K 25

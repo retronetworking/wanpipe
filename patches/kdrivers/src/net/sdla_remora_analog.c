@@ -221,7 +221,7 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 #if !RING_DEBOUNCE_FIX
 			fxo->ringdebounce += (fe->rm_param.wp_rm_chunk_size * 16);
 #else
-			fxo->ringdebounce += (fe->rm_param.wp_rm_chunk_size * 4);
+			fxo->ringdebounce += (fe->rm_param.wp_rm_chunk_size * 8);
 #endif
 
 			/*DEBUG_FALSE_RING("RING ON: (res & 0x60): 0x%X, fxo->battery: %d, fxo->ringdebounce: %d, fe->rm_param.wp_rm_chunk_size: %d, fxo->wasringing: %d!\n",
@@ -230,7 +230,7 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 #if !RING_DEBOUNCE_FIX
 # define RING_DEBOUNCE_COUNTER	64
 #else
-# define RING_DEBOUNCE_COUNTER	128
+# define RING_DEBOUNCE_COUNTER	80
 #endif
 
 			if (fxo->ringdebounce >= fe->rm_param.wp_rm_chunk_size * RING_DEBOUNCE_COUNTER) {

@@ -630,11 +630,8 @@ static unsigned char s507_irqmask[] =
 };
 #endif /* WAN_ISA_SUPPORT */
 
-#if defined(CONFIG_PRODUCT_WANPIPE_USB)
 sdladrv_callback_t sdladrv_callback;
 EXPORT_SYMBOL(sdladrv_callback);
-
-#endif
 
 #if defined(SDLADRV_HW_IFACE)
 static void init_sdladrv_hw_probe_iface();
@@ -2965,6 +2962,7 @@ sdla_pci_probe_S(sdlahw_t *hw, int slot, int bus, int irq)
 
 	sdla_pci_read_config_word(hw,PCI_SUBSYS_ID_WORD,&pci_subsystem_id);
 	
+
 	hwcard = sdla_card_register(SDLA_PCI_CARD, bus, slot, 0, NULL);
 	if (hwcard == NULL) return 0;
 

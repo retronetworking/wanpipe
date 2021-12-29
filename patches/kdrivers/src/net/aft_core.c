@@ -4507,6 +4507,26 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 }
 #endif
 
+/* caller of this function must take care of spin-locking */
+unsigned char aft_read_customer_id(sdla_t *card)
+{
+	unsigned char cid;
+
+	if (IS_TE1_CARD(card) || IS_SERIAL_CARD(card)) {
+		cid = aft_read_cpld(card,AFT_CUSTOMER_CPLD_ID_REG + AFT_CUSTOMER_CPLD_ID_TE1_SERIAL_OFFSET);
+	}else if(IS_FXOFXS_CARD(card)){
+		cid = aft_read_cpld(card,AFT_CUSTOMER_CPLD_ID_REG + AFT_CUSTOMER_CPLD_ID_ANALOG_OFFSET);
+	}else{
+		/* Note that BRI card is in the default case - the reason is
+		* no customer requested this feature, so the offset is NOT
+		* defined for BRI card yet (March 10, 2011). */
+		cid = aft_read_cpld(card,AFT_CUSTOMER_CPLD_ID_REG);
+	}
+
+	return cid;
+}
+
+
 /*========================================================================
  *
  * if_do_ioctl - Ioctl handler for fr
@@ -4621,7 +4641,7 @@ if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 				wan_smp_flag_t smp_flags1;
 				card->hw_iface.hw_lock(card->hw,&smp_flags1);
 				wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
-				cid=aft_read_cpld(card,CUSTOMER_CPLD_ID_REG);
+				cid=aft_read_customer_id(card);
 				wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 				card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 				return WAN_COPY_TO_USER(ifr->ifr_data,&cid,sizeof(unsigned char));

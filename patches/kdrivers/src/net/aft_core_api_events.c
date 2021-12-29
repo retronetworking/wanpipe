@@ -1116,6 +1116,21 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 		card->wp_debug_chan_seq=0;
         break;
 
+	case WP_API_CMD_FLUSH_BUFFERS:
+		{
+		netskb_t *skb;
+		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
+        for (;;) {
+			skb=wan_skb_dequeue(&chan->wp_tx_hdlc_rpt_list);
+			if (!skb) {
+				break;
+			}
+			wan_aft_skb_defered_dealloc(chan,skb);
+		}            
+		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+		}
+		break;
+
 	case WP_API_CMD_SET_IDLE_FLAG:
 		if(chan->tx_idle_skb){
 					

@@ -401,6 +401,9 @@ int __init wanpipe_init(void)
 
 	ncards=0;
 
+	/* Hot-plug is not supported yet */
+	sdladrv_callback.add_device = wan_add_device;
+	sdladrv_callback.delete_device = wan_delete_device;
 
   	DEBUG_EVENT("%s %s.%s %s %s\n",
 			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
@@ -411,10 +414,9 @@ int __init wanpipe_init(void)
 	cnt = sdla_hw_probe();
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 	cnt += sdla_get_hw_usb_adptr_cnt();
-	/* Hot-plug is not supported yet */
-	sdladrv_callback.add_device = wan_add_device;
-	sdladrv_callback.delete_device = wan_delete_device;
 #endif
+
+
 	if (cnt){
 		DEBUG_EVENT("wanpipe: Allocating maximum %i devices: wanpipe%i - wanpipe%i.\n",
 					cnt,1,cnt);
@@ -472,10 +474,9 @@ void __exit wanpipe_exit(void)
 		return;
 	}
 		
-#if defined(CONFIG_PRODUCT_WANPIPE_USB)
 	sdladrv_callback.add_device = NULL;
 	sdladrv_callback.delete_device = NULL;
-#endif
+
 	/* Remove all devices */
 	while(card_list){
 		wan_delete_device(card_list->devname);

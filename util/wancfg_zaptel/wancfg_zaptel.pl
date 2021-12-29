@@ -9,6 +9,7 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Mar 09   2011  2.50   Yannick Lam     Fixed bug in wancfg_tdmapi for A500
 # Dec 02   2010  2.49   Yannick Lam     Fixed wancfg_fs bug (removea all the unwsnted msg in summary, fix the sangoma_pri_spans, fixed the name of cards when inputing context name
 # Nov 09   2010  2.48   Yannick Lam     Fixed wancfg_fs bug(take out asterisk and smg_ctrl stuffs, fixed context, fixed config profile)
 # Oct 12   2010  2.47   Yannick Lam     Added d-channel in freetdm.conf for SMG/trillium stack(trillium=freetdm_conf ; socket mode=freetdm_conf_legacy)
@@ -434,7 +435,9 @@ config_analog();
 if($usb_device_support == $TRUE && $os_type_list =~ m/Linux/) {
 	config_usbfxo();
 }
-config_tdmv_dummy();
+if( $is_tdm_api == $FALSE ) {
+	config_tdmv_dummy();
+}
 update_module_load();
 summary();
 apply_changes();
@@ -447,10 +450,12 @@ if ($os_type_list =~ m/FreeBSD/){
 }
 
 if($is_trillium == $FALSE){
-	config_ztcfg_start();
-	config_smg_ctrl_start();
-	if($os_type_list =~ m/Linux/){
-		config_smg_ctrl_boot();
+	if ($is_tdm_api == $FALSE ){
+		config_ztcfg_start();
+		config_smg_ctrl_start();
+		if($os_type_list =~ m/Linux/){
+			config_smg_ctrl_boot();
+		}
 	}
 }
 
@@ -927,14 +932,18 @@ sub apply_changes{
 				}
 			}
 
-		}elsif ($is_trillium == $FALSE) {
-			print "\nAsterisk is not running...\n";
+		}elsif ($is_trillium == $FALSE){
+			if ($is_tdm_api == $FALSE) {
+				print "\nAsterisk is not running...\n";
+			}
 		}
 			
 	} 
-	if ($is_trillium == $FALSE) {
-		if(-f "/usr/sbin/smg_ctrl" ){
-			exec_command("/usr/sbin/smg_ctrl stop");
+	if ($is_trillium == $FALSE){
+		if($is_tdm_api==$FALSE) {
+			if(-f "/usr/sbin/smg_ctrl" ){
+				exec_command("/usr/sbin/smg_ctrl stop");
+			}
 		}
 	}
 
@@ -942,9 +951,11 @@ sub apply_changes{
 	exec_command("wanrouter stop all");
 
 	if ($zaptel_dahdi_installed==$TRUE){
-		if($is_tdm_api==$FALSE || $is_hp_tdm_api==$FALSE){
-			print "\nUnloading $zaptel_string modules...\n";
-			unload_zap_modules();
+		if($is_tdm_api==$FALSE){
+			if ($is_hp_tdm_api==$FALSE){
+				print "\nUnloading $zaptel_string modules...\n";
+				unload_zap_modules();
+			}
 		}
 	}
 
@@ -954,18 +965,22 @@ sub apply_changes{
 	
 	gen_wanrouter_rc();
 	if($is_trillium == $FALSE){
-		if( $num_bri_devices != 0 | $num_digital_smg != 0) { 
-					gen_smg_rc();
+		if ($is_tdm_api == $FALSE){
+			if( $num_bri_devices != 0 | $num_digital_smg != 0) { 
+				gen_smg_rc();
+			}
 		}
 	}
 	print "\nCopying new Wanpipe configuration files...\n";
 	copy_config_files();
 	if($num_bri_devices != 0){
 		if($is_trillium == $FALSE){
-			print "\nCopying new sangoma_brid configuration files ($bri_conf_file_t)...\n";
-			exec_command("cp -f $bri_conf_file $bri_conf_file_t");
-			if($config_woomera == $TRUE){
-				exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
+			if($is_tdm_api == $FALSE){
+				print "\nCopying new sangoma_brid configuration files ($bri_conf_file_t)...\n";
+				exec_command("cp -f $bri_conf_file $bri_conf_file_t");
+				if($config_woomera == $TRUE){
+					exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
+				}
 			}
 		}
 	}
@@ -986,7 +1001,7 @@ sub apply_changes{
 	}
 
 	if( $num_digital_smg != 0){
-		if($is_trillium == $FALSE){
+		if(($is_trillium == $FALSE) || ($is_tdm_api == $FALSE)){
 			print "\nCopying new sangoma_prid configuration files ($pri_conf_file_t)...\n";
 			exec_command("cp -f $pri_conf_file $pri_conf_file_t");
 				if($config_woomera == $TRUE){
@@ -998,8 +1013,10 @@ sub apply_changes{
 	
 	if ($num_digital_smg !=0 || $num_bri_devices !=0){
 		if ($is_trillium == $FALSE){
-			print "\nCopying new smg.rc configuration files ($smg_rc_file_t)...\n";
-			exec_command("cp -f $smg_rc_file $smg_rc_file_t");
+			if($is_tdm_api == $FALSE){
+				print "\nCopying new smg.rc configuration files ($smg_rc_file_t)...\n";
+				exec_command("cp -f $smg_rc_file $smg_rc_file_t");
+			}
 		}
 	}
 
@@ -1543,8 +1560,10 @@ sub summary{
 		$file_list++;
 		
 		if (($num_bri_devices != 0) && ($is_trillium == $FALSE)){
-			print "\t$file_list. sangoma_brid config file $wanpipe_conf_dir/smg_bri\n";
-			$file_list++;
+			if($is_tdm_api == $FALSE){
+				print "\t$file_list. sangoma_brid config file $wanpipe_conf_dir/smg_bri\n";
+				$file_list++;
+			}
 		}
 		if(($num_digital_smg != 0) && ($is_trillium == $FALSE)){
 			print "\t$file_list. sangoma_prid config file $wanpipe_conf_dir/smg_pri\n";
@@ -1576,8 +1595,10 @@ sub summary{
 		}
 				
 		if (($num_digital_smg !=0 || $num_bri_devices !=0) && ($is_trillium == $FALSE)){
-			print "\t$file_list. smg.rc config file $wanpipe_conf_dir/smg.rc\n";
-			$file_list++
+			if($is_tdm_api == $FALSE){
+				print "\t$file_list. smg.rc config file $wanpipe_conf_dir/smg.rc\n";
+				$file_list++
+			}
 			
 		}
 		
@@ -2070,7 +2091,7 @@ sub get_bri_conn_type{
 
 
 sub config_bri{
-	if($is_smg!=$TRUE && $is_trixbox==$FALSE &&  $is_fs==$FALSE){
+	if($is_smg!=$TRUE && $is_trixbox==$FALSE &&  $is_fs==$FALSE && $is_tdm_api==$FALSE){
 		return;
 	}
 	my $a50x;
@@ -2202,21 +2223,23 @@ select_bri_option:
 				}
 				
 			}else {
-				$group=get_woomera_group();
-				#if a context has already been assigned to this group, do not prompt for options
-				foreach my $f_group (@woomera_groups) {
-					if($f_group eq $group){
-						$context="WOOMERA_NO_CONFIG";
-					}
-				}			
-				if(!($context eq "WOOMERA_NO_CONFIG")){
-					if ( $dev =~ /(\d+):NT/ ){	
-						$context=get_woomera_context($group, $a50x->card->card_model(),$a50x->fe_line(),'bri_nt');
-					} else {
-					 	$context=get_woomera_context($group, $a50x->card->card_model(),$a50x->fe_line(),'bri_te');
-					}
-					push(@woomera_groups, $group);
+				if ($is_tdm_api == $FALSE){
+					$group=get_woomera_group();
+					#if a context has already been assigned to this group, do not prompt for options
+					foreach my $f_group (@woomera_groups) {
+						if($f_group eq $group){
+							$context="WOOMERA_NO_CONFIG";
+						}
+					}			
+					if(!($context eq "WOOMERA_NO_CONFIG")){
+						if ( $dev =~ /(\d+):NT/ ){	
+							$context=get_woomera_context($group, $a50x->card->card_model(),$a50x->fe_line(),'bri_nt');
+						} else {
+					 		$context=get_woomera_context($group, $a50x->card->card_model(),$a50x->fe_line(),'bri_te');
+						}
+						push(@woomera_groups, $group);
 
+					}
 				}
 			}
 			if ($os_type_list =~ m/FreeBSD/){

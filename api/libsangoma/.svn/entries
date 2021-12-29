@@ -1,15 +1,15 @@
 8
 
 dir
-342
+345
 http://192.168.1.168/svn/libsangoma/branches/unified_rlease_Win6.0_Lnx3.5
 http://192.168.1.168/svn/libsangoma
 
 
 
-2011-01-19T21:27:38.629735Z
-333
-davidr
+2011-03-18T18:43:55.463633Z
+345
+ncorbic
 has-props
 
 svn:special svn:externals svn:needs-lock
@@ -45,10 +45,10 @@ file
 
 
 
-2011-01-28T17:40:50.000000Z
-26519856dd60c05ce26bcad1c142f37c
-2010-10-08T21:37:17.977975Z
-316
+2011-03-18T16:36:03.000000Z
+14ef3d04574ed194caabf5e90c172559
+2011-03-18T18:43:55.463633Z
+345
 ncorbic
 has-props
 
@@ -70,11 +70,11 @@ file
 
 
 
-2011-01-28T17:40:50.000000Z
-de99c99d999b3c9d39337397856a839f
-2010-09-28T19:41:22.543877Z
-314
-davidr
+2011-03-18T16:36:03.000000Z
+5df2279fe67ff8153e0cd7c096d17f55
+2011-03-18T18:43:55.463633Z
+345
+ncorbic
 
 sample_cpp
 dir
@@ -214,11 +214,11 @@ file
 
 
 
-2011-01-28T17:40:50.000000Z
-20fe03549343f6c4cc937be854da7328
-2011-01-06T17:30:24.762134Z
-329
-davidr
+2011-03-18T16:36:03.000000Z
+99d973eee188637442e08918f190dc9d
+2011-03-18T18:43:55.463633Z
+345
+ncorbic
 has-props
 
 libsangoma_hwec.c
@@ -258,6 +258,18 @@ file
 1
 root
 
+COPYING
+file
+
+
+
+
+2011-01-28T17:40:50.000000Z
+d41d8cd98f00b204e9800998ecf8427e
+2008-02-28T18:51:53.196120Z
+1
+root
+
 build.sh
 file
 
@@ -270,18 +282,6 @@ f9109b55d1a9940209c4430121564f71
 222
 ncorbic
 has-props
-
-COPYING
-file
-
-
-
-
-2011-01-28T17:40:50.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2008-02-28T18:51:53.196120Z
-1
-root
 
 NEWS
 file
@@ -319,18 +319,6 @@ file
 146
 davidr
 
-libsangoma.so.conf
-file
-
-
-
-
-2011-01-28T17:40:50.000000Z
-bcdcb23c5d5fb460cee2ce315ef7bd32
-2008-02-28T18:51:53.196120Z
-1
-root
-
 sangoma_pri.c
 file
 
@@ -344,8 +332,17 @@ file
 ncorbic
 has-props
 
-sample_c
-dir
+libsangoma.so.conf
+file
+
+
+
+
+2011-01-28T17:40:50.000000Z
+bcdcb23c5d5fb460cee2ce315ef7bd32
+2008-02-28T18:51:53.196120Z
+1
+root
 
 libhpsangoma-doxygen.config
 file
@@ -359,18 +356,8 @@ file
 50
 ncorbic
 
-sangoma_pri.h
-file
-
-
-
-
-2011-01-28T17:40:50.000000Z
-7e23f30d22f5d2542866f5b9a81bcc80
-2009-08-12T18:36:20.606028Z
-222
-ncorbic
-has-props
+sample_c
+dir
 
 version
 file
@@ -383,6 +370,19 @@ file
 2008-02-28T18:51:53.196120Z
 1
 root
+
+sangoma_pri.h
+file
+
+
+
+
+2011-01-28T17:40:50.000000Z
+7e23f30d22f5d2542866f5b9a81bcc80
+2009-08-12T18:36:20.606028Z
+222
+ncorbic
+has-props
 
 libhpsangoma.c
 file
@@ -403,10 +403,10 @@ file
 
 
 
-2011-01-28T17:40:50.000000Z
-75141da81ea6073c199e7ee14bafd972
-2010-10-08T21:37:17.977975Z
-316
+2011-03-18T16:36:03.000000Z
+a82b1a840e9275f2da38496b7a569b82
+2011-03-18T18:43:55.463633Z
+345
 ncorbic
 
 ChangeLog

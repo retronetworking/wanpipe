@@ -1495,8 +1495,10 @@ int AFTUsage(void)
 	printf("\t      ddlb3  Deactivate Digital Loopback mode (DS3/E3 cards)\n");  
 	printf("\t   ***** End of DS3/E3 Test modes *****\n");  
 	printf("\n");
-	printf("\t      txe    Enable TX (AFT card only)\n");  
-	printf("\t      txd    Disable TX (AFT card only)\n");  
+	printf("\t      txe          Enable TX (AFT card only)\n");  
+	printf("\t      txd          Disable TX (AFT card only)\n");  
+	printf("\t      tx_ais_on    Enable  AIS Alarm - Maintenance On  (AFT card only)\n");  
+	printf("\t      tx_ais_off   Disable AIS Alarm - Maintenance Off (AFT card only)\n");  
 	printf("\n");
 
 	printf("\tFlush Statistics\n");

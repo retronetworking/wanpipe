@@ -26,7 +26,7 @@ if [ "$ROUTER_VERSION" = "" ]; then
 fi
 
 
-PRI_PACKAGE_FORMAT="sangoma_prid-*-$ROUTER_VERSION.$MY_ARCH.tgz"
+PRI_PACKAGE_FORMAT="sangoma_prid-*-$ROUTER_VERSION$MY_ARCH.tgz"
 PRI_PACKAGE_NAME="`find -name \"$PRI_PACKAGE_FORMAT\" | cut -d "/" -f2`"
 
 if [ "$PRI_PACKAGE_NAME" != "" ] && [ "$UPDATE" != "YES" ]; then

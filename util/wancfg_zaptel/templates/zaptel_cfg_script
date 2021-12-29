@@ -3,15 +3,17 @@
 #has come up.
 cnt=0
 max_delay=30
-
+i=0
 
 echo -n "Waiting for zaptel device /dev/zap ..."
-for ((i=0;i<$max_delay;i++))
+#for ((i=0;i<$max_delay;i++))
+while [ $i != $max_delay ]
 do
 	if [ -e /dev/zap ]; then
         	break;
 	fi
 	echo -n "." 
+	i=$((i+1));
   	sleep 2
 done
 echo " " 
