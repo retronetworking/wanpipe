@@ -173,9 +173,8 @@
 
 #define WAN_DS_REGBITMAP(fe)	(((fe)->fe_chip_id==DEVICE_ID_DS26521)?0:WAN_FE_LINENO((fe)))
 
-/******************************************************************************
-*			  STRUCTURES AND TYPEDEFS
-******************************************************************************/
+
+extern int a104_set_digital_fe_clock(sdla_t * card);
 
 typedef struct {
     unsigned int reg;
@@ -252,9 +251,11 @@ static int sdla_ds_te1_global_unconfig(void* pfe);	/* Change to static */
 static int sdla_ds_te1_chip_config(void* pfe);
 /*static int sdla_ds_te1_chip_config_verify(sdla_fe_t* pfe);*/
 static int sdla_ds_te1_config(void* pfe);	/* Change to static */
+static int sdla_ds_te1_force_config(void* pfe);	/* Change to static */
 static int sdla_ds_te1_reconfig(sdla_fe_t* fe);
 static int sdla_ds_te1_post_init(void *pfe);
 static int sdla_ds_te1_unconfig(void* pfe);	/* Change to static */
+static int sdla_ds_te1_force_unconfig(void* pfe);	/* Change to static */
 static int sdla_ds_te1_post_unconfig(void* pfe);
 static int sdla_ds_te1_TxChanCtrl(sdla_fe_t* fe, int channel, int enable);
 static int sdla_ds_te1_RxChanCtrl(sdla_fe_t* fe, int channel, int enable);
@@ -485,9 +486,11 @@ int sdla_ds_te1_iface_init(void *p_fe, void *p_fe_iface)
 	fe_iface->global_unconfig	= &sdla_ds_te1_global_unconfig;
 	fe_iface->chip_config		= &sdla_ds_te1_chip_config;
 	fe_iface->config			= &sdla_ds_te1_config;
+	fe_iface->force_config		= &sdla_ds_te1_force_config;
 	fe_iface->post_init			= &sdla_ds_te1_post_init;
 	fe_iface->reconfig			= &sdla_ds_te1_reconfig;
 	fe_iface->unconfig			= &sdla_ds_te1_unconfig;
+	fe_iface->force_unconfig	= &sdla_ds_te1_force_unconfig;
 	fe_iface->post_unconfig		= &sdla_ds_te1_post_unconfig;
 	fe_iface->disable_irq		= &sdla_ds_te1_disable_irq;
 	fe_iface->isr				= &sdla_ds_te1_intr;
@@ -1761,6 +1764,10 @@ static int sdla_ds_te1_config(void* pfe)
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
+	if (wan_test_bit(TE_CONFIG_PAUSED,&fe->te_param.critical)) {
+		return 0;
+	}
+
 	/* Revision/Chip ID (Reg. 0x0D) */
 	if (sdla_ds_te1_device_id(fe)) return -EINVAL;
 	switch(fe->fe_chip_id){
@@ -1887,6 +1894,15 @@ static int sdla_ds_te1_config(void* pfe)
 	return 0;
 }
 
+static int sdla_ds_te1_force_config(void* pfe)
+{
+	sdla_fe_t       *fe = (sdla_fe_t*)pfe;
+
+	wan_clear_bit(TE_CONFIG_PAUSED,&fe->te_param.critical);
+
+	return sdla_ds_te1_config(pfe);
+}
+
 /*
  ******************************************************************************
  *			sdla_ds_te1_post_init()	
@@ -1900,6 +1916,10 @@ static int sdla_ds_te1_post_init(void* pfe)
 {
 	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
 	
+	if (wan_test_bit(TE_CONFIG_PAUSED,&fe->te_param.critical)) {
+		return 0;
+	}
+
 	/* Initialize and start T1/E1 timer */
 	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
 	
@@ -2005,6 +2025,13 @@ static int sdla_ds_te1_unconfig(void* pfe)
 	return 0;
 }
 
+static int sdla_ds_te1_force_unconfig(void* pfe)
+{
+	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+	wan_set_bit(TE_CONFIG_PAUSED,&fe->te_param.critical);
+	return sdla_ds_te1_unconfig(pfe);
+}
+
 /*
  ******************************************************************************
  *			sdla_ds_te1_disable_irq()	
@@ -2039,6 +2066,9 @@ static int sdla_ds_te1_disable_irq(void* pfe)
  */
 static int sdla_ds_te1_reconfig(sdla_fe_t* fe)
 {
+	if (wan_test_bit(TE_CONFIG_PAUSED,&fe->te_param.critical)) {
+		return 0;
+	}
 
 	if (IS_E1_FEMEDIA(fe)){
 		sdla_ds_e1_set_sig_mode(fe, 1);
@@ -6007,6 +6037,35 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 			sizeof(sdla_fe_cfg_t));
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			udp_cmd->wan_cmd_data_len = sizeof(sdla_fe_cfg_t);
+		break;
+
+	case WAN_FE_SET_CFG:
+		/* Read T1/E1 configuration */
+		memcpy(&fe->fe_cfg,
+			   &data[0],
+			   sizeof(sdla_fe_cfg_t));
+		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+		DEBUG_EVENT("%s: Set FE Config!\n",
+					fe->name );
+
+		DEBUG_EVENT("%s:    Port %d,%s,%s,%s,%s\n",
+                fe->name,
+                WAN_FE_LINENO(fe)+1,
+                FE_LCODE_DECODE(fe),
+                FE_FRAME_DECODE(fe),
+                TE_CLK_DECODE(fe),
+                TE_LBO_DECODE(fe));
+
+
+		sdla_ds_te1_unconfig(fe);
+		sdla_ds_te1_post_unconfig(fe);
+
+		a104_set_digital_fe_clock(fe->card);
+
+		sdla_ds_te1_config(fe);
+		sdla_ds_te1_reconfig(fe);
+		sdla_ds_te1_post_init(fe);
+
 		break;
 
 	case WAN_FE_SET_DEBUG_MODE:

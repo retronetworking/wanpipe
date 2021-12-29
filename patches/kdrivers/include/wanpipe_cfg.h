@@ -265,6 +265,9 @@ static __inline const char* wp_decode_submedia(int media, int sub_media)
 (wan_media == WAN_MEDIA_BRI)	? "MEDIA_BRI":	\
 (wan_media == WAN_MEDIA_SERIAL)	? "MEDIA_SERIAL":	"Media Unknown"
 
+#pragma pack(1)
+
+
 typedef struct wan_atm_conf
 {
 	unsigned char	atm_sync_mode;
@@ -687,6 +690,10 @@ typedef struct wan_custom_conf_
 {
 	unsigned int		param_no;
 	wan_custom_param_t	*WP_POINTER_64 params;
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved;	
+#endif
+
 } wan_custom_conf_t;
 
 
@@ -697,9 +704,15 @@ typedef struct wandev_conf
 {
 	unsigned magic;		/* magic number (for verification) */
 	unsigned long config_id;	/* configuration structure identifier */
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved_config_id;	/* configuration structure identifier */
+#endif
 				/****** hardware configuration ******/
 	unsigned ioport;	/* adapter I/O port base */
 	unsigned long maddr;	/* dual-port memory address */
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved_maddr;	/* configuration structure identifier */
+#endif
 	unsigned msize;		/* dual-port memory size */
 	int irq;		/* interrupt request level */
 	int dma;		/* DMA request level */
@@ -731,6 +744,9 @@ typedef struct wandev_conf
 	unsigned data_size;	/* data buffer size */
 
 	void *WP_POINTER_64 data;		/* data buffer, e.g. firmware */
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved_data;	/* configuration structure identifier */
+#endif
 
 	union{			/****** protocol-specific ************/
 		wan_x25_conf_t 		x25;	/* X.25 configuration */
@@ -777,6 +793,7 @@ typedef struct wandev_conf
 #endif
 
 } wandev_conf_t;
+
 
 #if defined(__WINDOWS__)
 #define WANCONFIG_AFT_FIRMWARE_UPDATE	89
@@ -898,6 +915,9 @@ typedef struct wanif_conf
 {
 	unsigned 	magic;			/* magic number */
 	unsigned long 	config_id;		/* configuration identifier */
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved;	/* configuration structure identifier */
+#endif
 	char 		name[WAN_IFNAME_SZ+1];	/* interface name, ASCIIZ */
 	char 		addr[WAN_ADDRESS_SZ+1];	/* media address, ASCIIZ */
 	char 		usedby[USED_BY_FIELD+1];/* used by API or WANPIPE */
@@ -1037,11 +1057,11 @@ typedef struct {
 
 /* ALEX_DEBUG*/
 typedef struct wan_debug {
-	unsigned long 	magic;	/* for verification */
-	unsigned long	len;
-	unsigned long	num;
-	unsigned long	max_len;
-	unsigned long	offs;
+	unsigned int 	magic;	/* for verification */
+	unsigned int	len;
+	unsigned int	num;
+	unsigned int	max_len;
+	unsigned int	offs;
 	int		is_more;
 	char*		data;
 } wan_kernel_msg_t;
@@ -1049,12 +1069,14 @@ typedef struct wan_debug {
 typedef struct wanpipe_debug_msg_hdr_t {
 	int len;
 	wan_time_t time;
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved;	/* configuration structure identifier */
+#endif
 } wanpipe_kernel_msg_hdr_t;
 
 
 #define TRC_INCOMING_FRM              0x00
 #define TRC_OUTGOING_FRM              0x01
-#pragma pack(1)
 typedef struct {
 	unsigned char	status;
 	unsigned char	data_avail;
@@ -1062,10 +1084,15 @@ typedef struct {
 	unsigned short	time_stamp;
 	unsigned char	channel;
 	wan_time_t	sec;		/* unsigned long	sec; */
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved;	/* configuration structure identifier */
+#endif
 	wan_suseconds_t	usec;	/* unsigned long   usec; */
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved1;	/* configuration structure identifier */
+#endif
 	unsigned char	data[0];
 } wan_trace_pkt_t;
-#pragma pack()
 
 
 #define MODE_OPTION_HDLC		"HDLC"
@@ -1145,6 +1172,8 @@ typedef struct {
 	buffer_settings_t buffer_settings;
 
 }wanpipe_port_cfg_t;
+
+#pragma pack()
 
 #define port_cfg_t wanpipe_port_cfg_t
 

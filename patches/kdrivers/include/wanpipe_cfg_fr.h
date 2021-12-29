@@ -36,6 +36,7 @@
 
 # define DLCI_LIST_LEN MAX_NUMBER_OF_PROTOCOL_INTERFACES
 
+#pragma pack(1)
 
 typedef struct wan_fr_conf
 {
@@ -66,6 +67,7 @@ typedef struct wan_lip_fr_dlci
 	unsigned char 	type;
 } wan_fr_dlci_t;
 
+#pragma pack()
 
 #endif /* __WANPIPE_CFG_FR_H__ */
 

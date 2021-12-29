@@ -638,6 +638,8 @@ typedef struct {
 	/* Enable/Disable Clock recovery from the line */
 	int		(*clock_ctrl)(sdla_fe_t*, u_int8_t /* WANOPT_NO/WANOPT_YES */);
 	u_int32_t 	(*read_tx_alarm)(sdla_fe_t *fe, int);
+	int 	(*force_unconfig) (void*);
+	int 	(*force_config) (void*);
 } sdla_fe_iface_t;
 
 /* 

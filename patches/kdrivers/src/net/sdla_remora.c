@@ -1746,6 +1746,11 @@ retry_cfg:
 		DEBUG_EVENT("%s: A200/A400 Remora Battery Debounce changed %d -> %d\n", 
 					fe->name, DEFAULT_BATT_DEBOUNCE, fe->rm_param.battdebounce);
 	}
+	if (fe->fe_cfg.cfg.remora.ringdebounce) {
+		fe->rm_param.ringdebounce = fe->fe_cfg.cfg.remora.ringdebounce;
+		DEBUG_EVENT("%s: A200/A400 Remora Ring Debounce %d\n",
+					fe->name, fe->rm_param.ringdebounce);
+	}
 	return 0;
 }
 

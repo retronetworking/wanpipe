@@ -35,6 +35,8 @@ enum {
 	WAN_EC_ACT_TEST
 };
 
+#pragma pack(1)
+
 typedef struct {
 	char		devname[WAN_DRVNAME_SZ+1];
 //	unsigned char	if_name[WAN_IFNAME_SZ+1];
@@ -42,6 +44,10 @@ typedef struct {
 	
 	int		fe_chan;
 	unsigned long	fe_chan_map;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;
+#endif
+
 //	char		channels[MAX_EC_CLIENT_CHANNELS_LEN];
 
 	char		filename[MAX_FILENAME_LEN];
@@ -56,6 +62,8 @@ typedef struct {
 
 	wan_custom_conf_t	conf;
 } wanec_client_t;
+
+#pragma pack()
 
 
 int wan_ec_args_parse_and_run(int argc, char* argv[]);

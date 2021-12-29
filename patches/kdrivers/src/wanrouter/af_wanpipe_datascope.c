@@ -151,10 +151,10 @@ int wanpipe_bind_sk_to_parent(struct sock *sk, netdevice_t *dev, struct wan_sock
 	write_lock_irqsave(&wanpipe_parent_sklist_lock,flags);
 #ifdef LINUX_2_6
 	{
-	struct hlist_node *node;
-#ifdef LINUX_3_0
+#if KERN_SK_FOR_NODE_FEATURE == 0
 	sk_for_each(parent_sk, &wanpipe_parent_sklist) {
 #else
+	struct hlist_node *node;
 	sk_for_each(parent_sk, node, &wanpipe_parent_sklist) {
 #endif
 		if (SK_PRIV((parent_sk))->dev == dev) {

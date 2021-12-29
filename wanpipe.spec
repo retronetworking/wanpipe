@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.10
+%define VERSION           7.0.12
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -46,7 +46,8 @@
 %{!?karch: %{expand: %%define KARCH %(uname -m)}}
 %{!?libprefix:%define LIBPREFIX /usr }
 
-%define KVER_REL %(echo %{KVERSION} | sed -e s/-/./g)
+%define KVER_REL %(echo %{KVERSION} | sed -e s/-/./g | sed -e s/\.x86_64//g)
+%define REQUIRE_KERNEL %(echo %{KVERSION} | sed -e s/\.x86_64//g)
 
 %define RELEASE kernel.%{KVER_REL}
 
@@ -77,7 +78,7 @@ BuildRoot: %{_tmppath}/%{name}-%(id -un)
 AutoReq: 		1		
 
 Requires: coreutils
-Requires: kernel-%{KARCH} = %{KVERSION}
+Requires: kernel-%{KARCH} = %{REQUIRE_KERNEL}
 
 
 %define build_for_dahdi 0
@@ -258,6 +259,27 @@ fi
 ################################################################################
 
 %changelog
+
+* Sat Sep 27 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.12
+==================================================================
+
+- New A104/2/1 Fimrware: A104 v45 A102/1 v40
+  Provides FE sync feature, that recovers DMA in case of loss of sync.
+  This feature is already enabled on A108/16
+- Wanpipe config structures are now 32bit 64bit binary compatible.
+- Proper India DTMF caller ID support via FAKE POLARITY feature.
+- Support for Debian kernels
+- Support for Debian and Ubuntu kernels
+
+- Updated Reference clock logic.
+  wanpipe1 - Clock from Telco
+  wanpipe2 - Use the clock from wanpipe1 to provide clock to PBX
+  
+  If wanpipe1 goes down, wanpipe2 will have unreliable clock.
+  This patch switches wanpipe2 clock to internal oscillator when
+  wanpipe1 goes down.  And switches the clock back to wanpipe1
+  when it comes back up. 
+
 
 * Tue Feb 11 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.10
 ==================================================================

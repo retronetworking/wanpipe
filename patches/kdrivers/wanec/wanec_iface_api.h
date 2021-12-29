@@ -161,9 +161,14 @@
 
 #define WAN_
 
+#pragma pack(1)
+
 typedef struct wan_ec_api_ {
 	char		devname[WAN_DRVNAME_SZ+1];
 	unsigned long	cmd;
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved_cmd;	/* configuration structure identifier */
+#endif
 	unsigned int	type;
 	int		err;
 	int		verbose;
@@ -171,6 +176,9 @@ typedef struct wan_ec_api_ {
 
 	int		fe_chan;
 	unsigned long	fe_chan_map;
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved_fe_chan_map;	/* configuration structure identifier */
+#endif
 
 	union {
 #define u_info		u_ec.info
@@ -205,5 +213,7 @@ typedef struct wan_ec_api_ {
 
 	wan_custom_conf_t	custom_conf;
 } wan_ec_api_t;
+
+#pragma pack()
 
 #endif /* __WANEC_IFACE_API_H */

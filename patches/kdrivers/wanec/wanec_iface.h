@@ -71,12 +71,18 @@ enum {
 #define WAN_NUM_PLAYOUT_TONES	16
 #define WAN_MAX_TONE_LEN	100
 
+#pragma pack(1)
+
 typedef struct wanec_config_
 {
 	u_int16_t		max_channels;
 	int			memory_chip_size;
 	UINT32			debug_data_mode;
 	UINT8 *WP_POINTER_64	imageData;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;  
+#endif
+
 	UINT32			imageSize;
 	int			imageLast;
 
@@ -97,6 +103,9 @@ typedef struct wanec_chip_stats_
 typedef struct wanec_chip_image_
 {
 	tOCT6100_CHIP_IMAGE_INFO *WP_POINTER_64 f_ChipImageInfo;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;  
+#endif
 } wanec_chip_image_t;
 
 typedef struct wanec_chan_opmode_
@@ -137,6 +146,9 @@ typedef struct wanec_buffer_config_
 {
 	UINT8	buffer[WAN_MAX_TONE_LEN];
 	UINT8 *WP_POINTER_64	data;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;  
+#endif
 	UINT32	size;
 	UINT32	pcmlaw;
 	UINT32	buffer_index;		/* value return by ec */
@@ -205,6 +217,8 @@ typedef struct _OCTPCIDRV_USER_PROCESS_CONTEXT_
 #endif
 } tOCTPCIDRV_USER_PROCESS_CONTEXT, *tPOCTPCIDRV_USER_PROCESS_CONTEXT;
 
+#pragma pack()
+
 
 #if defined(WAN_KERNEL)
 
@@ -241,6 +255,8 @@ typedef struct _OCTPCIDRV_USER_PROCESS_CONTEXT_
 #define WAN_EC_POLL_CHIPOPENPENDING	0x02
 #define WAN_EC_POLL_DTMF_MUTE_ON	0x03
 #define WAN_EC_POLL_DTMF_MUTE_OFF	0x04
+
+#pragma pack(1)
 
 typedef
 struct wan_ec_confbridge_
@@ -332,6 +348,8 @@ typedef struct wan_ec_
 	WAN_LIST_HEAD(wan_ec_confbridge_head_, wan_ec_confbridge_)	ec_confbridge_head;
 	WAN_LIST_ENTRY(wan_ec_)				next;
 } wan_ec_t;
+
+#pragma pack()
 
 #if 0
 typedef struct wanec_lip_reg

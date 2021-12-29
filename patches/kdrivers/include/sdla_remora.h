@@ -179,6 +179,7 @@ typedef struct sdla_remora_cfg_ {
         int             fake_polarity_thres; /*Threshold value(only for Analoge cards,units defined in L16 sample value)
 					       to decide generation of FAKE Polarity event*/
 	u_int8_t	rm_lcm; /*Analog Loop Current Measure (LCM) : Yes Or NO */
+	int 		ringdebounce;
 } sdla_remora_cfg_t;
 
 typedef struct {
@@ -362,6 +363,7 @@ typedef struct {
 	unsigned char	imask;		/* interrupt mask */
 
 	int   				readcid;
+	int   				ring_skip;
         unsigned int 			cidtimer;
 
 	/*Additional for Zaptel mode*/
@@ -465,6 +467,7 @@ typedef struct sdla_remora_param {
 	int		reg0shadow_update[MAX_REMORA_MODULES];
 	int		battdebounce;		/* global for FXO */
 	int		battthresh;		/* global for FXO */
+	int 		ringdebounce;		/* global for FXO */
 	int		wp_rm_chunk_size;	/* TDM API set as MTU for Zaptel set as ZT_CHUNK_SIZE */
 
 #if DBG_FALSE_RING1

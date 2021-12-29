@@ -44,6 +44,9 @@ endif
 ifndef KDIR
 	KDIR=$(KMOD)/build
 endif
+ifndef KSRC
+	KSRC=$(KMOD)/source
+endif
 ifndef KINSTDIR
 	KINSTDIR=$(KMOD)/kernel
 endif
@@ -162,8 +165,22 @@ RM      = @rm -rf
 JUNK	= *~ *.bak DEADJOE
 
 #Check for PDE_DATA kernel feature
+ifneq (,$(wildcard $(KDIR)/include/linux/proc_fs.h))
 KERN_PROC_PDE_FEATURE=$(shell grep PDE_DATA $(KDIR)/include/linux/proc_fs.h -c)
 EXTRA_CFLAGS+=-DKERN_PROC_PDE_FEATURE=$(KERN_PROC_PDE_FEATURE)
+else
+KERN_PROC_PDE_FEATURE=$(shell grep PDE_DATA $(KSRC)/include/linux/proc_fs.h -c)
+EXTRA_CFLAGS+=-DKERN_PROC_PDE_FEATURE=$(KERN_PROC_PDE_FEATURE)
+endif
+
+ifneq (,$(wildcard $(KDIR)/include/net/sock.h))
+KERN_SK_FOR_NODE_FEATURE=$(shell grep "sk_for_each.*node" $(KDIR)/include/net/sock.h -c)
+EXTRA_CFLAGS+=-DKERN_SK_FOR_NODE_FEATURE=$(KERN_SK_FOR_NODE_FEATURE)
+else
+KERN_SK_FOR_NODE_FEATURE=$(shell grep "sk_for_each.*node" $(KSRC)/include/net/sock.h -c)
+EXTRA_CFLAGS+=-DKERN_SK_FOR_NODE_FEATURE=$(KERN_SK_FOR_NODE_FEATURE)
+endif
+
 
 # First pass, kernel Makefile reads module objects
 ifneq ($(KERNELRELEASE),)

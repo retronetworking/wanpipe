@@ -1701,6 +1701,8 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 	DEBUG_EVENT("%s: DAHDI Configuring device [name=%s, span=%i, sync=%i, lcfg=0x%X,]\n", 
 			wp->devname,lc->name, lc->span,lc->sync,lc->lineconfig);
 
+#if 0
+	/* This is not supported yet */
 	if (lc->sync == 0) {
 		if (WAN_TE1_CLK(&card->fe) != WAN_MASTER_CLK) {
 			WAN_TE1_CLK(&card->fe) = WAN_MASTER_CLK;
@@ -1712,6 +1714,7 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 			need_reconfig=1;		
 		}
 	}
+#endif
 
 	if (!wp->ise1) {
 		if (lc->lineconfig & ZT_CONFIG_B8ZS) {

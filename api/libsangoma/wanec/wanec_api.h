@@ -30,6 +30,8 @@
 #define WANEC_API_OPMODE_NO_ECHO		4
 #define WANEC_API_OPMODE_SPEECH_RECOGNITION	5
 
+#pragma pack(1)
+
 typedef struct {
 	wan_custom_conf_t	conf;
 } wanec_api_config_t;
@@ -39,28 +41,46 @@ typedef struct {
 typedef struct {
 	int			enable;
 	unsigned long		fe_chan_map;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;
+#endif
 } wanec_api_mode_t;
 typedef struct {
 	int			enable;
 	unsigned long		fe_chan_map;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;
+#endif
 } wanec_api_bypass_t;
 typedef struct {
 	int			mode;
 	unsigned long		fe_chan_map;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;
+#endif
 } wanec_api_opmode_t;
 typedef struct {
 	unsigned long		fe_chan_map;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;
+#endif
 	wan_custom_conf_t	conf;
 } wanec_api_modify_t;
 typedef struct {
 	int			mode;
 	unsigned long		fe_chan_map;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;
+#endif
 	unsigned char		port_map;
 } wanec_api_mute_t;
 typedef struct {
 	int			id;
 	int			enable;
 	unsigned long		fe_chan_map;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;
+#endif
 	unsigned char		port_map;
 	unsigned char		type_map;
 } wanec_api_tone_t;
@@ -75,6 +95,9 @@ typedef struct {
 } wanec_api_image_t;
 typedef struct {
 	char			*buffer;
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved;
+#endif
 	unsigned char		pcmlaw;
 	unsigned int		buffer_id;
 } wanec_api_bufferload_t;
@@ -98,10 +121,15 @@ typedef struct {
 
 typedef struct {
 	char			*buffer;
+#if defined(__GNUC__) && !defined(__x86_64__)
+	unsigned int reserved;
+#endif
 	unsigned int	size;
 	unsigned char	pcmlaw;
 	unsigned int	buffer_id;
 } wanec_api_membufferload_t;
+
+#pragma pack()
 
 
 extern int _WANEC_API_CALL wanec_api_init(void);

@@ -1649,6 +1649,8 @@ typedef struct aft_hw_dev{
 
 	int (*aft_check_ec_security)(sdla_t *card);
 
+	int (*aft_set_fe_clock)(sdla_t *card);
+
 }aft_hw_dev_t;
 
 extern aft_hw_dev_t aft_hwdev[MAX_AFT_HW_DEV];

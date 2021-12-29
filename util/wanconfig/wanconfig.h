@@ -442,7 +442,7 @@ static key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
 {
   { "MRU",     	     smemof(wan_xilinx_conf_t, mru),          DTYPE_USHORT },
   { "DMA_PER_CH",    smemof(wan_xilinx_conf_t, dma_per_ch),   DTYPE_USHORT },
-  { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UCHAR },
+  { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UINT },
   { "DATA_MUX_MAP",  smemof(wan_xilinx_conf_t, data_mux_map), DTYPE_UINT },
   { "RX_CRC_BYTES",  smemof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
   { "SPAN_TX_ONLY_IRQ",  smemof(wan_xilinx_conf_t, span_tx_only_irq), DTYPE_UCHAR},

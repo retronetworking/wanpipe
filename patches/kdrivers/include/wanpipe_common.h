@@ -212,7 +212,7 @@ static __inline void WP_MDELAY (u32 ms) {
 }
 
 #define WAN_STIMEOUT(start, timeout)					\
-		((SYSTEM_TICKS - (start)) > ((timeout) * HZ))
+		((SYSTEM_TICKS - (start)) >= ((timeout) * HZ))
 
 
 

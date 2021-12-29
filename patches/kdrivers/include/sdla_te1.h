@@ -263,11 +263,11 @@
 /* Interrupt polling delay */
 #define POLLING_TE1_TIMER		1	/* 1 sec */
 #define WAN_T1_ALARM_THRESHOLD_LOF_ON	(3)	/* 2-3 sec */
-#define WAN_T1_ALARM_THRESHOLD_LOF_OFF	(10)	/* 10 sec */
+#define WAN_T1_ALARM_THRESHOLD_LOF_OFF	(1)	/* 10 sec */
 #define WAN_T1_ALARM_THRESHOLD_AIS_ON	(3)   // must be 2.5s
-#define WAN_T1_ALARM_THRESHOLD_AIS_OFF	(10)	// must be 10s
+#define WAN_T1_ALARM_THRESHOLD_AIS_OFF	(1)	// must be 10s
 #define WAN_T1_ALARM_THRESHOLD_LOS_ON	(3)   // must be 2.5s
-#define WAN_T1_ALARM_THRESHOLD_LOS_OFF	(10)    // must be 10s
+#define WAN_T1_ALARM_THRESHOLD_LOS_OFF	(1)    // must be 10s
 
 /* TE1 critical flag */
 #define TE_TIMER_RUNNING 		0x01
@@ -279,6 +279,7 @@
 #define TE_TIMER_EVENT_PENDING 		0x07
 #define TE_TIMER_EVENT_INPROGRESS	0x08
 #define TE_AIS_TX_STARTUP		0x09				
+#define TE_CONFIG_PAUSED		0x0A
 
 /* TE1 sw irq types */
 enum {
@@ -431,6 +432,7 @@ enum {
 #define WAN_FE_SET_DEBUG_MODE	(WAN_FE_UDP_CMD_START + 4)
 #define WAN_FE_TX_MODE		(WAN_FE_UDP_CMD_START + 5)
 #define WAN_FE_BERT_MODE	(WAN_FE_UDP_CMD_START + 6)
+#define WAN_FE_SET_CFG  	(WAN_FE_UDP_CMD_START + 7)
 
 /* FE interrupt types bit-map */
 #define WAN_TE_INTR_NONE	0x00

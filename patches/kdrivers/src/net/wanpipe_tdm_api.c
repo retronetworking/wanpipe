@@ -485,7 +485,7 @@ static int wp_tdmapi_reg_globals(void)
 		return EINVAL;
 	}
 
-	DEBUG_EVENT("WANPIPE API: HDR_SZ=%i CMD_SZ=%i EVENT_SZ=%i DEV_CFG_SZ=%i\n",
+	DEBUG_TEST("WANPIPE API: HDR_SZ=%i CMD_SZ=%i EVENT_SZ=%i DEV_CFG_SZ=%i\n",
 			sizeof(wp_api_hdr_t),sizeof(wanpipe_api_cmd_t),
 			sizeof(wp_api_event_t),sizeof(wanpipe_api_dev_cfg_t));
 

@@ -105,6 +105,12 @@ extern unsigned char 	par_port_A_byte;
 extern unsigned char 	par_port_B_byte;
 extern int 		gfail;
 extern 			FT1_LED_STATUS FT1_LED;
+
+extern int fe_lcode;
+extern int fe_framing;
+extern int fe_clock;
+extern int fe_sig;
+
 extern int 		wan_protocol;
 extern wan_udp_hdr_t	wan_udp;
 extern wan_femedia_t	femedia;
@@ -1343,6 +1349,59 @@ void flush_te1_pmon(void)
 	return;
 }
 
+int write_te1_56k_config (void)
+{
+	int err=-1;
+
+	if (femedia.media == WAN_MEDIA_T1 || femedia.media == WAN_MEDIA_E1){
+
+		if(make_hardware_level_connection()){
+			return err;
+		}
+
+		/* T1/E1 card */
+		wan_udp.wan_udphdr_command = WAN_FE_GET_CFG;
+		wan_udp.wan_udphdr_data_len = 0;
+		wan_udp.wan_udphdr_return_code = 0xaa;
+
+		DO_COMMAND(wan_udp);
+		err=wan_udp.wan_udphdr_return_code;
+		if (wan_udp.wan_udphdr_return_code != 0){
+			printf("CSU/DSU Read Configuration Failed");
+		}else{
+			sdla_fe_cfg_t *fe_cfg = NULL;
+
+			fe_cfg = (sdla_fe_cfg_t *)get_wan_udphdr_data_ptr(0);
+
+			wan_udp.wan_udphdr_command = WAN_FE_SET_CFG;
+			wan_udp.wan_udphdr_data_len = sizeof (sdla_fe_cfg_t);
+			wan_udp.wan_udphdr_return_code = 0xaa;
+
+			if (fe_lcode > 0) {
+				FE_LCODE(fe_cfg) = fe_lcode;
+			}
+			if (fe_framing > 0) {
+				FE_FRAME(fe_cfg) = fe_framing;
+			}
+			if (fe_clock > 0) {
+				FE_CLK(fe_cfg) = fe_clock;
+			}
+			if (fe_sig > 0) {
+				FE_SIG_MODE(fe_cfg) = fe_sig;
+			}
+
+			DO_COMMAND(wan_udp);
+			err=wan_udp.wan_udphdr_return_code;
+			if (wan_udp.wan_udphdr_return_code != 0){
+				printf("CSU/DSU Write Configuration Failed");
+			} else {
+				read_te1_56k_config();
+			}
+		}
+	}
+	cleanup_hardware_level_connection();
+	return err;
+}
 
 void read_te1_56k_config (void)
 {
@@ -1377,17 +1436,17 @@ void read_te1_56k_config (void)
 			}
 #endif
 			printf("CSU/DSU %s Configuration:\n", if_name);
-			printf("\tMedia type\t%s\n",
+			printf("Media type:\t%s\n",
 				MEDIA_DECODE(fe_cfg));
-			printf("\tFraming\t\t%s\n",
+			printf("Framing:\t%s\n",
 				FRAME_DECODE(fe_cfg));
-			printf("\tEncoding\t%s\n",
+			printf("Encoding:\t%s\n",
 				LCODE_DECODE(fe_cfg));
 			if (femedia.media == WAN_MEDIA_T1){
-				printf("\tLine Build\t%s\n",
+				printf("Line Build:\t%s\n",
 						LBO_DECODE(fe_cfg));
 			}
-			printf("\tChannel Base\t");
+			printf("Channel Base:\t");
 			for (i = 0, start_chan = 0; i < num_of_chan; i++){
 				if (fe_cfg->cfg.te_cfg.active_ch & (1 << i)){
 					if (!start_chan){
@@ -1413,8 +1472,10 @@ void read_te1_56k_config (void)
 				}
 			}
 			printf("\n");
-			printf("\tClock Mode\t%s\n",
+			printf("Clock Mode:\t%s\n",
 				TECLK_DECODE(fe_cfg));
+			printf("Sig Mode:\t%s\n",
+				TE1SIG_DECODE(fe_cfg));
 		}
 	}
 	else if (femedia.media == WAN_MEDIA_DS3){

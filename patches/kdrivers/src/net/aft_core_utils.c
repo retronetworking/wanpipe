@@ -1688,6 +1688,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			break;
 
 		case WANPIPEMON_GEN_FE_SYNC_ERR:
+
 			if (wan_test_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status)) {
 				u32 reg,cnt;
 				card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
@@ -2267,6 +2268,42 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 
 	card_list=__sdla_get_ptr_isr_array(card_ptr->hw);
 
+	/* Take down any clock ref ports if clock ref master goes down */
+	for (i=0; i<max_number_of_ports; i++) {
+		card=(sdla_t*)card_list[i];
+		if (card == NULL || wan_test_bit(CARD_DOWN,&card->wandev.critical) || !IS_TE1_CARD(card)) {
+			continue;
+		}
+
+		if (WAN_TE1_REFCLK((&card->fe))) {
+			int port=WAN_TE1_REFCLK((&card->fe))-1;
+			sdla_t *master_card;
+
+			DEBUG_TEST("%s: Found Ref Clock (%d) Device %s\n",
+					card->devname, WAN_TE1_REFCLK((&card->fe)),
+					card->wandev.state == WAN_CONNECTED ? "Connected":"Disconnected");
+
+			master_card=(sdla_t *)card_list[port];
+			if (master_card && !wan_test_bit(CARD_DOWN,&master_card->wandev.critical)) {
+				if (master_card->wandev.state != WAN_CONNECTED) {
+					if (!wan_test_bit(CARD_REF_OSC,&card->wandev.critical)) {
+						wan_set_bit(CARD_REF_OSC,&card->wandev.critical);
+						DEBUG_EVENT("%s: Slave port pause: Master %s disconnected\n", card->devname, master_card->devname);
+						aft_core_taskq_trigger(card,AFT_FE_SET_CLOCK);
+					}
+
+				} else {
+					if (wan_test_bit(CARD_REF_OSC,&card->wandev.critical)) {
+						wan_clear_bit(CARD_REF_OSC,&card->wandev.critical);
+						DEBUG_EVENT("%s: Slave port resume: Master %s connected\n", card->devname, master_card->devname);
+						aft_core_taskq_trigger(card,AFT_FE_SET_CLOCK);
+					}
+				}
+			}
+		}
+	}
+
+
 	for (i=0; i<max_number_of_ports; i++) {
 		card=(sdla_t*)card_list[i];
 		if (card == NULL || wan_test_bit(CARD_DOWN,&card->wandev.critical)) {
@@ -2457,7 +2494,9 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 		 	wan_spin_lock_irq(&card->wandev.lock,&flags);
 
 			if (!wan_test_bit(CARD_MASTER_CLOCK,&card->wandev.critical)) {	
-				if (card->wandev.state == WAN_CONNECTED) {
+
+				/* Select a new card for EC clock master. But it must not be a ref clock port */
+				if (card->wandev.state == WAN_CONNECTED && !WAN_TE1_REFCLK((&card->fe))) {
 					if (card->wandev.ec_clock_ctrl){
 						DEBUG_EVENT("%s: HWEC Master Clock Set!\n",
 							card->devname);

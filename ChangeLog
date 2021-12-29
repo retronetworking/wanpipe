@@ -3,10 +3,31 @@ WANPIPE TDM VOICE - IP/WAN Package
 
 ------------------------------------------------------------------------------
 Author: Nenad Corbic <ncorbic@sangoma.com>
-Copyright (c) 1995-2013 Sangoma Technologies Inc.
+Copyright (c) 1995-2014 Sangoma Technologies Inc.
 
 For more info visit: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
+
+* Sat Sep 27 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.12
+==================================================================
+
+- New A104/2/1 Fimrware: A104 v45 A102/1 v40
+  Provides FE sync feature, that recovers DMA in case of loss of sync.
+  This feature is already enabled on A108/16
+- Wanpipe config structures are now 32bit 64bit binary compatible.
+- Proper India DTMF caller ID support via FAKE POLARITY feature.
+- Support for Debian kernels
+- Support for Debian and Ubuntu kernels
+
+- Updated Reference clock logic.
+  wanpipe1 - Clock from Telco
+  wanpipe2 - Use the clock from wanpipe1 to provide clock to PBX
+  
+  If wanpipe1 goes down, wanpipe2 will have unreliable clock.
+  This patch switches wanpipe2 clock to internal oscillator when
+  wanpipe1 goes down.  And switches the clock back to wanpipe1
+  when it comes back up. 
+
 
 * Tue Feb 11 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.10
 ==================================================================

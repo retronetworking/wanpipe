@@ -105,6 +105,7 @@ static void aft_router_up_time( void );
 static void flush_operational_stats( void );
 static void flush_comm_err_stats( void );
 static void read_ft1_te1_56k_config( void );
+static int  write_ft1_te1_56k_config( void );
 
 static int aft_read_hwec_status(void);
 
@@ -1959,6 +1960,37 @@ static void flush_aft_perf_stats( void )
 	DO_COMMAND(wan_udp);
 }
 
+static int write_ft1_te1_56k_config (void)
+{
+	unsigned char	adapter_type = 0x00;
+	int err=-1;
+
+	/* Read Adapter Type */
+	if (get_fe_type(&adapter_type)){
+		return err;
+	}
+
+	switch(adapter_type){
+	case WAN_MEDIA_NONE:
+		printf("CSU/DSU Write Configuration Failed");
+		break;
+
+	case WAN_MEDIA_T1:
+	case WAN_MEDIA_E1:
+		err=write_te1_56k_config();
+		break;
+
+	case WAN_MEDIA_DS3:
+	case WAN_MEDIA_56K:
+		break;
+
+	default:
+		printf("Unknown Front End Adapter Type: 0x%X",adapter_type);
+		break;
+	}
+	return err;
+}
+
 static void read_ft1_te1_56k_config (void)
 {
 	unsigned char	adapter_type = 0x00;
@@ -2142,6 +2174,8 @@ int AFTMain(char *command,int argc, char* argv[])
 			if (!strcmp(opt,"read")){
 				read_ft1_te1_56k_config();
 				/* T1/E1 begins */
+			}else if (!strcmp(opt,"write")){
+				write_ft1_te1_56k_config();
 			}else if (!strcmp(opt,"lt")){
  				aft_digital_loop_test();
 			}else if (!strcmp(opt,"lb")){

@@ -46,7 +46,7 @@ int verbose;
 #define WANEC_READ_LIMIT		0x10000
 
 #define WANEC_MAX_CONFBRIDGE_DEF	32
-#define WANEC_MAC_PLAYOUT_BUFFERS	20
+#define WANEC_MAC_PLAYOUT_BUFFERS	32
 
 #define WANEC_MAX_TONEEVENTS		8
 #define WANEC_MAX_PLAYOUTEVENTS		8
@@ -1744,42 +1744,42 @@ int wanec_ISR(wan_ec_t *ec, int verbose)
 				ec->f_InterruptFlag.ulFatalGeneralFlags);
 	}
 	if (ec->f_InterruptFlag.fFatalReadTimeout == TRUE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: A read to the external memory has failed!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorRefreshTooLate == TRUE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: Error Refresh Too Late!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorPllJitter == TRUE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: Error Pll Jitter\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorH100OutOfSync == TRUE && !ec->ignore_H100){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: The H100 slave has lost its framing on the bus!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorH100ClkA == TRUE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: The CT_C8_A clock behavior does not conform to the H.100 spec!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorH100FrameA == TRUE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: The CT_FRAME_A clock behavior does not comform to the H.100 spec!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorH100ClkB == TRUE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: The CT_C8_B clock is not running a 16.384 MHz!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorOverflowToneEvents == TRUE){
-		DEBUG_EVENT(
+		DEBUG_ERROR(
 		"%s: Error: Tone Event buffer has overflowed\n",
 				ec->name);
 	}

@@ -91,6 +91,8 @@ extern "C" {	/* for C++ users */
   \typedef sangoma_wait_obj_t
   \brief Sangoma wait object structure. Used to setup a poll on a specific device
 */
+#pragma pack(1)
+
 typedef struct sangoma_wait_obj
 {
 	/*****************************************
@@ -103,6 +105,9 @@ typedef struct sangoma_wait_obj
 
 	/*!\brief context provided by the user */	
 	void *context;
+#if defined(__GNUC__) && !defined(__x86_64__)
+    unsigned int reserved;
+#endif
 
 	/*! type of the object to wait on */
 	sangoma_wait_obj_type_t object_type;
@@ -138,6 +143,8 @@ static void libsng_dbg(const char * fmt, ...)
 #endif
 	va_end(args);
 }
+
+#pragma pack()
 
 extern int libsng_dbg_level;
 

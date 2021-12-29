@@ -93,7 +93,14 @@ static int wanec_dev_release(struct inode*, struct file*);
 int wanec_dev_ioctl(void *data, char *card_devname);
 #else
 static WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wanec_dev_ioctl, struct file*, unsigned int, unsigned long);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+static long wanec_dev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long data);
 #endif
+
+#endif
+
+
 
 #if !defined(__WINDOWS__)
 /*==============================================================
@@ -105,6 +112,9 @@ static struct file_operations wanec_dev_fops = {
 	open: wanec_dev_open,
 	release: wanec_dev_release,
 	WAN_IOCTL: wanec_dev_ioctl,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+    compat_ioctl: wanec_dev_compat_ioctl,
+#endif
 	read: NULL,
 	write: NULL,
 	poll: NULL,
@@ -258,5 +268,19 @@ static WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wanec_dev_ioctl, struct file *file, 
 	return wanec_ioctl(cmd,(void*)data);
 #endif
 }
+
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+static long wanec_dev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long data)
+{
+#ifdef HAVE_UNLOCKED_IOCTL
+    long err = (long) wanec_dev_ioctl(file, cmd, data);
+#else
+    long err = (long) wanec_dev_ioctl(NULL, file, cmd, data);
+#endif
+    return err;
+}
+#endif
+
 
 #endif

@@ -16,6 +16,8 @@
 #define WAN_INTERFACE 	0
 #define LAN_INTERFACE	1
 
+#pragma pack(1)
+
 typedef struct wan_adsl_vcivpi
 {
 	unsigned short	vci;
@@ -72,5 +74,6 @@ typedef struct wan_adsl_conf
 
 }wan_adsl_conf_t;
 
+#pragma pack()
 
 #endif /* __WANPIPE_CFG_ADSL_H__ */

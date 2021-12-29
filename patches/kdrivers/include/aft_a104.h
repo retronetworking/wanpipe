@@ -29,6 +29,7 @@ int a104_chan_dev_unconfig(sdla_t *card, void *chan);
 int a104_led_ctrl(sdla_t *card, int color, int led_pos, int on);
 int a104_test_sync(sdla_t *card, int tx_only);
 int a104_check_ec_security(sdla_t *card);
+int a104_set_digital_fe_clock(sdla_t *card);
 
 
 //int a104_write_fe (sdla_t* card, unsigned short off, unsigned char value);

@@ -88,6 +88,11 @@ int		protocol_cb_size = sizeof(wan_mgmt_t)+sizeof(wan_cmd_t)+1;
 int 		is_508;
 int		gui_interface=0;
 
+int 	fe_framing=-1;
+int 	fe_lcode=-1;
+int 	fe_clock=-1;
+int 	fe_sig=-1;
+
 
 extern int trace_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int len);
 extern int get_femedia_type(wan_femedia_t *fe_media);
@@ -1177,6 +1182,62 @@ static int init(int argc, char *argv[], char* command)
 			}
 
 			snprintf(pcap_output_file_name, sizeof(pcap_output_file_name), argv[i+1]);
+		}else if (!strcmp(argv[i], "-fe_lcode")){
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid Command!\n");
+				printf("Type wanpipemon <cr> for help\n");
+				return WAN_FALSE;
+			}
+			if (!strcmp(argv[i+1],"HDB3")){
+				fe_lcode=WAN_LCODE_HDB3;
+			} else if (!strcmp(argv[i+1],"AMI")){
+				fe_lcode=WAN_LCODE_AMI;
+			} else {
+				return WAN_FALSE;
+			}
+			i++;
+		}else if (!strcmp(argv[i], "-fe_framing")){
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid Command!\n");
+				printf("Type wanpipemon <cr> for help\n");
+				return WAN_FALSE;
+			}
+			if (!strcmp(argv[i+1],"NCRC4")){
+				fe_framing=WAN_FR_NCRC4;
+			} else if (!strcmp(argv[i+1],"CRC4")){
+				fe_framing=WAN_FR_CRC4;
+			} else {
+				return WAN_FALSE;
+			}
+			i++;
+		}else if (!strcmp(argv[i], "-fe_clock")){
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid Command!\n");
+				printf("Type wanpipemon <cr> for help\n");
+				return WAN_FALSE;
+			}
+			if (!strcmp(argv[i+1],"MASTER")){
+				fe_clock=WAN_MASTER_CLK;
+			} else if (!strcmp(argv[i+1],"NORMAL")) {
+				fe_clock=WAN_NORMAL_CLK;
+			} else {
+				return WAN_FALSE;
+			}
+			i++;
+		}else if (!strcmp(argv[i], "-fe_sig")){
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid Command!\n");
+				printf("Type wanpipemon <cr> for help\n");
+				return WAN_FALSE;
+			}
+			if (!strcmp(argv[i+1],"CAS")){
+				fe_sig=0x02;
+			} else if (!strcmp(argv[i+1],"CCS")) {
+				fe_sig=0x01;
+			} else {
+				return WAN_FALSE;
+			}
+			i++;
 		}else if (!strcmp(argv[i], "-x25opt")){
 			int x;
 			if (i+1 > argc-1){

@@ -159,6 +159,37 @@ check_kern_pde_feature ()
 			PDE_FEATURE="-DKERN_PROC_PDE_FEATURE=0"
 		fi
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $PDE_FEATURE " 
+	elif [ -e $DEBSRCDIR/include/linux/proc_fs.h ];then
+		eval "grep PDE_DATA $DEBSRCDIR/include/linux/proc_fs.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then 
+			PDE_FEATURE="-DKERN_PROC_PDE_FEATURE=1"
+		else
+			PDE_FEATURE="-DKERN_PROC_PDE_FEATURE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $PDE_FEATURE " 
+		
+	fi	
+}
+
+check_kern_sock_for_feature ()
+{
+	if [ -e $SOURCEDIR/include/net/sock.h ];then
+		eval "grep \"sk_for_each.*node\" $SOURCEDIR/include/net/sock.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then 
+			KERN_SK_FOR_NODE_FEATURE="-DKERN_SK_FOR_NODE_FEATURE=1"
+		else
+			KERN_SK_FOR_NODE_FEATURE="-DKERN_SK_FOR_NODE_FEATURE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_SK_FOR_NODE_FEATURE " 
+
+	elif [ -e $DEBSRCDIR/include/net/sock.h ];then 
+		eval "grep \"sk_for_each.*node\" $DEBSRCDIR/include/net/sock.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then 
+			KERN_SK_FOR_NODE_FEATURE="-DKERN_SK_FOR_NODE_FEATURE=1"
+		else
+			KERN_SK_FOR_NODE_FEATURE="-DKERN_SK_FOR_NODE_FEATURE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_SK_FOR_NODE_FEATURE " 
 	fi	
 }
 
@@ -3571,6 +3602,8 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		check_inode_struct
 
 		check_kern_pde_feature
+
+		check_kern_sock_for_feature
 		
 
 		if [ "$BRI_MODULE_TEST" = "YES" ]; then
@@ -7354,7 +7387,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=7.0.10
+PROD_VER=7.0.12
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7364,6 +7397,7 @@ PROD_PATCH=$PROD_HOME/patches
 PROD_INIT=/usr/sbin/
 FILELIST=$PROD_HOME/Filelist
 SOURCEDIR=/lib/modules/$(uname -r)/build
+DEBSRCDIR=/lib/modules/$(uname -r)/source
 START_SCRIPT=S11$PROD
 OLD_START=S05router
 STOP_SCRIPT=K70$PROD
@@ -7759,6 +7793,7 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 
 		--with-linux*)
 			SOURCEDIR=`echo $arg | cut -d'=' -f2`;
+			DEBSRCDIR=$SOURCEDIR
 			if [ "$SOURCEDIR" = "" ]; then
 				echo "Error invalied --with-linux option";
 				exit 1;

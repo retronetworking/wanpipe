@@ -802,11 +802,14 @@ static int wanec_api_config(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 						ec_api->custom_conf.param_no * sizeof(wan_custom_param_t));
 				if (err){
 					DEBUG_ERROR(
-					"ERROR: Failed to copy Custom Parameters from user space [%s():%d]!\n",
-							__FUNCTION__,__LINE__);
+					"ERROR: Failed to copy Custom Parameters from user space [%s():%d] param_no=%i (size=%i)!\n",
+							__FUNCTION__,__LINE__,ec_api->custom_conf.param_no,sizeof(wan_custom_param_t));
+					wan_free(ec_api->u_config.custom_conf.params);
+					ec_api->u_config.custom_conf.params = NULL;
+					ec_api->u_config.custom_conf.param_no = 0;
+				} else {
+					ec_api->u_config.custom_conf.param_no = ec_api->custom_conf.param_no;
 				}
-				
-				ec_api->u_config.custom_conf.param_no = ec_api->custom_conf.param_no;
 			}
 		}
 

@@ -1725,7 +1725,7 @@ static int wanpipe_getname(struct socket *sock, struct sockaddr *uaddr,
 int wanpipe_notifier(struct notifier_block *this, unsigned long msg, void *data)
 {
 	struct sock *sk;
-#ifdef LINUX_2_6
+#if KERN_SK_FOR_NODE_FEATURE > 0
 	struct hlist_node *node;
 #endif
 	netdevice_t *dev = (netdevice_t*)data;
@@ -1736,7 +1736,7 @@ int wanpipe_notifier(struct notifier_block *this, unsigned long msg, void *data)
 	}	
 
 	read_lock(&wanpipe_sklist_lock);
-#if defined(LINUX_3_0)
+#if KERN_SK_FOR_NODE_FEATURE == 0
 	sk_for_each(sk, &wanpipe_sklist) {
 #elif defined(LINUX_2_6)
 	sk_for_each(sk, node, &wanpipe_sklist) {

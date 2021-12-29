@@ -976,82 +976,10 @@ static void aft_set_hwec_clock_src(sdla_t *card)
 	}
 }
 
-int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
+int a104_set_digital_fe_clock(sdla_t * card)
 {
-	u32 reg=0, ctrl_ram_reg=0;
-	int i,err=0, max_channels;
-
+	u32 reg=0;
 	wan_smp_flag_t smp_flags, flags;
-	AFT_FUNC_DEBUG();
-	
-	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
-	if (!wan_test_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg)){
-	
-		DEBUG_ERROR("%s: Error: Physical Port %d is busy!\n",
-				card->devname, card->wandev.comm_port+1);
-		return -EBUSY;
-	}
-
-	
-	/* On A108 Cards the T1/E1 will be configured per PORT  
-	 * not per CARD */
-	if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
-
-		if (IS_T1_CARD(card)) {
-			wan_clear_bit(AFT_LCFG_A108_FE_TE1_MODE_BIT,&reg);
-		} else {
-			wan_set_bit(AFT_LCFG_A108_FE_TE1_MODE_BIT,&reg);
-		}
-
-		card->hw_iface.hw_lock(card->hw,&smp_flags);
-		wan_spin_lock_irq(&card->wandev.lock,&flags);
-
-		if (IS_B601_CARD(card)) {
-			aft_ds_set_clock_ref_b601(card,&reg,WAN_FE_LINENO(&card->fe));
-		} else {
-			aft_ds_set_clock_ref(card,&reg,WAN_FE_LINENO(&card->fe));
-		}
-
-		wan_spin_unlock_irq(&card->wandev.lock,&flags);
-		card->hw_iface.hw_unlock(card->hw,&smp_flags);
-
-		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
-	}
-
-	card->hw_iface.hw_lock(card->hw,&smp_flags);
-
-	if(card->adptr_type == AFT_ADPTR_56K){
-		
-		aft_56k_write_cpld(card, 0x00,0x00);//reset_on_LXT441PE(card);
-		WP_DELAY(1000);
-
-		aft_56k_write_cpld(card, 0x00, 0x03);//reset_off_LXT441PE(card);
-		WP_DELAY(1000);
-	}
-
-	err = -EINVAL;
-	if (card->wandev.fe_iface.config){
-		err=card->wandev.fe_iface.config(&card->fe);
-	}
-		
-	a104_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_ON);
-	a104_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_OFF);
-
-	card->hw_iface.hw_unlock(card->hw,&smp_flags);
-
-	if (err){
-		DEBUG_EVENT("%s: Failed %s configuration!\n",
-                                	card->devname,
-                                	(IS_T1_CARD(card))?"T1":"E1");
-		return -EINVAL;
-   	}
-	/* Run rest of initialization not from lock */
-	if (card->wandev.fe_iface.post_init){
-		err=card->wandev.fe_iface.post_init(&card->fe);
-	}
-	
-	DEBUG_EVENT("%s: Front end successful\n",
-			card->devname);
 
 	if (card->adptr_type == A104_ADPTR_4TE1 ||
 	    card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
@@ -1126,6 +1054,7 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 	
 					WAN_TE1_CLK(&card->fe) = WAN_NORMAL_CLK;
 					aft_ds_set_clock_ref(card,&reg,WAN_TE1_REFCLK(&card->fe)-1);
+					WAN_TE1_CLK(&card->fe) = WAN_MASTER_CLK;
 				}
 
 				wan_spin_unlock_irq(&card->wandev.lock,&flags);
@@ -1145,9 +1074,108 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 					card->devname,
 					card->wandev.comm_port+1,
 					WAN_TE1_REFCLK(&card->fe));
+		} else {
+			DEBUG_EVENT("%s: Configuring FE Line=%d Clock Source: Line=%d %s\n",
+					card->devname,
+					card->wandev.comm_port+1,
+					WAN_FE_LINENO(&card->fe)+1,
+					WAN_TE1_CLK(&card->fe) == WAN_MASTER_CLK?"Master":"Normal");
+
+			card->hw_iface.bus_read_4(card->hw,
+						  AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
+
+			aft_ds_set_clock_ref(card,&reg,WAN_FE_LINENO(&card->fe));
+
+			card->hw_iface.bus_write_4(card->hw,
+						   AFT_PORT_REG(card,AFT_LINE_CFG_REG),reg);
 		}
-		
 	} 
+
+	return 0;
+
+}
+
+int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
+{
+	u32 reg=0, ctrl_ram_reg=0;
+	int i,err=0, max_channels;
+
+	wan_smp_flag_t smp_flags, flags;
+	AFT_FUNC_DEBUG();
+
+	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+	if (!wan_test_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg)){
+
+		DEBUG_ERROR("%s: Error: Physical Port %d is busy!\n",
+				card->devname, card->wandev.comm_port+1);
+		return -EBUSY;
+	}
+
+
+	/* On A108 Cards the T1/E1 will be configured per PORT 
+	 * not per CARD */
+	if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
+
+		if (IS_T1_CARD(card)) {
+			wan_clear_bit(AFT_LCFG_A108_FE_TE1_MODE_BIT,&reg);
+		} else {
+			wan_set_bit(AFT_LCFG_A108_FE_TE1_MODE_BIT,&reg);
+		}
+
+		card->hw_iface.hw_lock(card->hw,&smp_flags);
+		wan_spin_lock_irq(&card->wandev.lock,&flags);
+
+		if (IS_B601_CARD(card)) {
+			aft_ds_set_clock_ref_b601(card,&reg,WAN_FE_LINENO(&card->fe));
+		} else {
+			aft_ds_set_clock_ref(card,&reg,WAN_FE_LINENO(&card->fe));
+		}
+
+		wan_spin_unlock_irq(&card->wandev.lock,&flags);
+		card->hw_iface.hw_unlock(card->hw,&smp_flags);
+
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
+	}
+
+	card->hw_iface.hw_lock(card->hw,&smp_flags);
+
+	if(card->adptr_type == AFT_ADPTR_56K){
+
+		aft_56k_write_cpld(card, 0x00,0x00);//reset_on_LXT441PE(card);
+		WP_DELAY(1000);
+
+		aft_56k_write_cpld(card, 0x00, 0x03);//reset_off_LXT441PE(card);
+		WP_DELAY(1000);
+	}
+
+	err = -EINVAL;
+	if (card->wandev.fe_iface.config){
+		err=card->wandev.fe_iface.config(&card->fe);
+	}
+
+	a104_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_ON);
+	a104_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_OFF);
+
+	card->hw_iface.hw_unlock(card->hw,&smp_flags);
+
+	if (err){
+		DEBUG_EVENT("%s: Failed %s configuration!\n",
+				card->devname,
+                (IS_T1_CARD(card))?"T1":"E1");
+		return -EINVAL;
+	}
+	/* Run rest of initialization not from lock */
+	if (card->wandev.fe_iface.post_init){
+		err=card->wandev.fe_iface.post_init(&card->fe);
+	}
+
+	DEBUG_EVENT("%s: Front end successful\n",
+			card->devname);
+
+	err=a104_set_digital_fe_clock(card);
+	if (err) {
+		return err;
+	}
 
 	/*============ LINE/PORT CONFIG REGISTER ===============*/
 

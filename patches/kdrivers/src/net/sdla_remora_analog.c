@@ -52,6 +52,7 @@ static int ohdebounce = 16;
 /* January 13 2011 - David R - fixed ring debounce */
 #define RING_DEBOUNCE_FIX	1
 
+
 int
 wp_tdmv_remora_proslic_recheck_sanity(sdla_fe_t	*fe, int mod_no)
 {
@@ -232,13 +233,18 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 #else
 # define RING_DEBOUNCE_COUNTER	56
 #endif
+			if (!fe->rm_param.ringdebounce) {
+				fe->rm_param.ringdebounce=RING_DEBOUNCE_COUNTER;
+			}
 
-			if (fxo->ringdebounce >= fe->rm_param.wp_rm_chunk_size * RING_DEBOUNCE_COUNTER) {
+			if (fxo->ringdebounce >= fe->rm_param.wp_rm_chunk_size * fe->rm_param.ringdebounce) {
 				if (!fxo->wasringing) {
 					fxo->wasringing = 1;
 					if (card->u.aft.tdmv_zaptel_cfg) {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)	
-						zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_RING);
+						if (fxo->ring_skip <= 0) {
+							zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_RING);
+						}
 						DEBUG_TDMV("%s: Module %d: RING on span %d!\n",
 								fe->name,
 								mod_no + 1,
@@ -260,7 +266,7 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 					}
 
 				}
-				fxo->ringdebounce = fe->rm_param.wp_rm_chunk_size * RING_DEBOUNCE_COUNTER;
+				fxo->ringdebounce = fe->rm_param.wp_rm_chunk_size * fe->rm_param.ringdebounce;
 			}
 		} else {
 
@@ -274,7 +280,12 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 					fxo->wasringing = 0;
 					if (card->u.aft.tdmv_zaptel_cfg) {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-						zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
+						if (fxo->ring_skip <= 0) {
+							zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
+						}
+						if (fxo->ring_skip > 0)
+							fxo->ring_skip--;
+
 						DEBUG_TDMV("%s: Module %d: NO RING on span %d!\n",
 								fe->name,
 								mod_no + 1,
@@ -1459,3 +1470,4 @@ int wp_tdmv_remora_rx_tx_span_common(void *pcard )
 #endif
 	return 0;
 }
+

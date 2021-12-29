@@ -1311,11 +1311,12 @@ static inline void wp_tdmv_dtmfcheck_fakepolarity(wp_tdmv_remora_t *wr, int chan
 		sample = ZT_XLAW((*rxbuf), (&(wr->chans[channo])));
 		if (sample > 16000 || sample < -16000) {
 			wr->mod[channo].fxo.readcid = 1;
+			wr->mod[channo].fxo.ring_skip = 1;
 			wr->mod[channo].fxo.cidtimer = fe->rm_param.intcount;
-			DEBUG_TEST("DTMF CLIP on %i\n",channo+1);
+			DEBUG_TDMV("DTMF CLIP on %i\n",channo+1);
 			zt_qevent_lock(&wr->chans[channo], ZT_EVENT_POLARITY);
 		}
-	} else if(wr->mod[channo].fxo.readcid && fe->rm_param.intcount > wr->mod[channo].fxo.cidtimer + 2000) {
+	} else if(wr->mod[channo].fxo.readcid && fe->rm_param.intcount > wr->mod[channo].fxo.cidtimer + 4000) {
         /* reset flags if it's been a while */
 		wr->mod[channo].fxo.cidtimer = fe->rm_param.intcount;
 		wr->mod[channo].fxo.readcid = 0;
