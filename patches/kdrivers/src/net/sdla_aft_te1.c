@@ -8933,9 +8933,9 @@ static void aft_port_task (void * card_ptr, int arg)
 		if (card->wandev.fe_iface.polling){
 			wan_smp_flag_t	smp_irq_flags;
 			int		err = 0;
-			wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 			err = card->wandev.fe_iface.polling(&card->fe);
 
+			wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 			handle_front_end_state(card);
 			wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
 		}

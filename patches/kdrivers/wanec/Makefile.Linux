@@ -1,0 +1,226 @@
+# ============================================================================
+# Makefile	Multiprotocol WAN Router for Linux.  Make Script.
+#
+# Copyright	(c) 1995-1997 Sangoma Technologies Inc.  All Rights Reserved.
+# ----------------------------------------------------------------------------
+# Mar 27  2000  Nenad Corbic	Version 2.0.5 to 2.1.2
+# Jan 07, 1999	Jaspreet Singh	Version 2.0.4
+# Aug 25, 1998	Jaspreet Singh  Version 2.0.3
+# Nov 06, 1997	Jaspreet Singh	Version 2.0.0
+# Jul 28, 1997	Jaspreet Singh  Version 1.0.5
+# Jul 10, 1997  Jaspreet Singh	Version 1.0.4
+# June 3, 1997	Jaspreet Singh	Version 1.0.3	
+# Jan 15, 1997	Gene Kozin	Version 1.0.1.
+# Dec 31, 1996	Gene Kozin	Initial version.
+# ============================================================================
+
+####### DEFINES ##############################################################
+
+ARCH=$(shell uname -m)
+
+OUTDIR  = mod
+TMPDIR  = tmp
+MODDIR  = modinfo
+
+KERN := $(shell grep 2.4 /usr/src/linux/include/linux/version.h)
+KERN_V26 := $(shell grep 2.6 /usr/src/linux/include/linux/version.h)
+
+BTDIR		= oct6100_api/apilib/bt
+LARGMATHDIR	= oct6100_api/apilib/largmath
+LLMANDIR	= oct6100_api/apilib/llman
+OCTAPIDIR	= oct6100_api/octdeviceapi/oct6100api/oct6100_api
+OCTAPIMIDIR	= oct6100_api/octdeviceapi/oct6100api/oct6100_apimi
+
+ifneq "${KERN}" ""
+
+MODTYPE=o
+K_WAN_DIR=drivers/net/wan
+
+else
+
+ifneq "${KERN_V26}" ""
+
+ifeq "${ARCH}" "x86_64"
+#LDFLAGS=-m elf_x86_64
+LD_ELF=-m elf_x86_64
+else
+#LDFLAGS=-m elf_i386
+LD_ELF=-m elf_i386
+endif
+
+
+MODTYPE=ko
+K_WAN_DIR=drivers/net/wan
+
+else
+
+MODTYPE=o
+K_WAN_DIR=drivers/net
+
+endif
+
+endif
+
+CFLAGS =  $(shell cat /wanpipe/GCFLAGS)
+CFLAGS += -I. -Ioct6100_api -Ioct6100_api/include				\
+		-Ioct6100_api/include  -Ioct6100_api/include/apilib		\
+		-Ioct6100_api/include/apilib -Ioct6100_api/include/octrpc	\
+		-Ioct6100_api/include/oct6100api				\
+		-Ioct6100_api/octdeviceapi/oct6100api
+
+CFLAGS += -DENABLE_TONE_PLAY -I/usr/include/wanpipe
+
+#CFLAGS=-Wp,-MD,.wanpipe_lip.o.d -nostdinc -iwithprefix include -D__KERNEL__ -D__LINUX__ -Iinclude -I/usr/src/linux/include  -Wall -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -pipe -mpreferred-stack-boundary=2 -march=$(ARCH) -I/usr/src/linux/include/asm-i386/mach-default -O2  -DWANLIP_DRIVER -DMODULE
+
+#CFLAGS+= -DCONFIG_PRODUCT_WANPIPE_FR -DCONFIG_PRODUCT_WANPIPE_CHDLC -DCONFIG_PRODUCT_WANPIPE_PPP -DCONFIG_PRODUCT_WANPIPE_XDLC -DCONFIG_PRODUCT_WANPIPE_LAPB -DCONFIG_PRODUCT_WANPIPE_XMTP2
+
+####### RULES ################################################################
+
+all:	$(OUTDIR)/wanec.$(MODTYPE)
+	@echo "Ok."
+
+$(OUTDIR)/wanec.ko: $(OUTDIR)/wanec.o $(MODDIR)/wanec.mod.o
+	ld $(LD_ELF) -r -o $@ $^
+	chmod 664 $@
+
+$(MODDIR)/wanec.mod.o:	$(MODDIR)/wanec.mod.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=wanec -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+#----------------------------------------------------
+
+$(OUTDIR)/wanec.o: $(TMPDIR)/wanec_iface.o  $(TMPDIR)/wanec_cmd.o $(TMPDIR)/wanec_utils.o $(TMPDIR)/wanec_dev.o $(TMPDIR)/octapi_bt0.o $(TMPDIR)/octapi_largmath.o $(TMPDIR)/octapi_llman.o $(TMPDIR)/oct6100_mask_interrupts.o $(TMPDIR)/oct6100_adpcm_chan.o $(TMPDIR)/oct6100_channel.o $(TMPDIR)/oct6100_chip_open.o $(TMPDIR)/oct6100_chip_stats.o $(TMPDIR)/oct6100_conf_bridge.o  $(TMPDIR)/oct6100_debug.o $(TMPDIR)/oct6100_events.o $(TMPDIR)/oct6100_interrupts.o $(TMPDIR)/oct6100_memory.o $(TMPDIR)/oct6100_miscellaneous.o $(TMPDIR)/oct6100_mixer.o $(TMPDIR)/oct6100_phasing_tsst.o $(TMPDIR)/oct6100_playout_buf.o $(TMPDIR)/oct6100_remote_debug.o $(TMPDIR)/oct6100_tlv.o $(TMPDIR)/oct6100_tone_detection.o $(TMPDIR)/oct6100_tsi_cnct.o $(TMPDIR)/oct6100_tsst.o $(TMPDIR)/oct6100_user.o
+	ld $(LD_ELF) -r -o $@ $^
+	chmod 664 $@
+
+
+#-----------------------------------------------------
+
+$(TMPDIR)/wanec_main.o:			wanec_main.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=wanec_main -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/wanec_iface.o:			wanec_iface.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=wanec_iface -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/wanec_cmd.o:			wanec_cmd.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=wanec_cmd -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/wanec_utils.o:		wanec_utils.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=wanec_utils -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/wanec_dev.o:			wanec_dev.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=wanec_dev -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/octapi_bt0.o:			$(BTDIR)/octapi_bt0.c
+	$(CC) $(CFLAGS) -I$(BT)  -DKBUILD_BASENAME=octapi_bt0 -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/octapi_largmath.o:		$(LARGMATHDIR)/octapi_largmath.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=octapi_largmath -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/octapi_llman.o:		$(LLMANDIR)/octapi_llman.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=octapi_llman -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_mask_interrupts.o:	$(OCTAPIMIDIR)/oct6100_mask_interrupts.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_mask_interrupts -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_adpcm_chan.o:		$(OCTAPIDIR)/oct6100_adpcm_chan.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_adpcm_chan -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_channel.o:		$(OCTAPIDIR)/oct6100_channel.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_channel -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_chip_open.o:		$(OCTAPIDIR)/oct6100_chip_open.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_chip_open -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_chip_stats.o:		$(OCTAPIDIR)/oct6100_chip_stats.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_chip_stats -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_conf_bridge.o:	$(OCTAPIDIR)/oct6100_conf_bridge.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_conf_bridge -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_debug.o:	$(OCTAPIDIR)/oct6100_debug.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_debug -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_events.o:	$(OCTAPIDIR)/oct6100_events.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_events -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_interrupts.o:	$(OCTAPIDIR)/oct6100_interrupts.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_interrupts -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_memory.o:	$(OCTAPIDIR)/oct6100_memory.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_memory -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_miscellaneous.o:	$(OCTAPIDIR)/oct6100_miscellaneous.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_miscellaneous -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_oct6100_debug.o:	$(OCTAPIDIR)/oct6100_oct6100_debug.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_oct6100_debug -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_mixer.o:	$(OCTAPIDIR)/oct6100_mixer.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_mixer -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_phasing_tsst.o:	$(OCTAPIDIR)/oct6100_phasing_tsst.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_phasing_tsst -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_playout_buf.o:	$(OCTAPIDIR)/oct6100_playout_buf.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_playout_buf -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_remote_debug.o:	$(OCTAPIDIR)/oct6100_remote_debug.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_remote_debug -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_tlv.o:	$(OCTAPIDIR)/oct6100_tlv.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_tlv -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_tone_detection.o:	$(OCTAPIDIR)/oct6100_tone_detection.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_tone_detection -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_tsi_cnct.o:	$(OCTAPIDIR)/oct6100_tsi_cnct.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_tsi_cnt -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_tsst.o:	$(OCTAPIDIR)/oct6100_tsst.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_tsst -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+$(TMPDIR)/oct6100_user.o:	$(OCTAPIDIR)/oct6100_user.c
+	$(CC) $(CFLAGS) -DKBUILD_BASENAME=oct6100_user -DKBUILD_MODNAME=wanec -c -o $@ $^
+	chmod 664 $@
+
+clean:
+	rm -f wanec.$(MODTYPE)
+	rm -f *.o*
+	rm -f mod/*.*o
+	rm -f tmp/*.*o
+	rm -f modinfo/*.*o
+
+install:
+	install -D $(OUTDIR)/wanec.${MODTYPE} /lib/modules/$(shell uname -r)/kernel/net/wanrouter/wanec.${MODTYPE}
+
+uninstall:
+	rm -f /lib/modules/$(shell uname -r)/kernel/net/wanrouter/wanec.${MODTYPE}

@@ -802,9 +802,7 @@ int menu_hardware_probe::get_port_from_str(char * str_buff, unsigned int* comm_p
     *comm_port = 1;
     Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): PORT : SEC\n"));
   }else{
-    Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): Invalid Port!!\n"));
-    ERR_DBG_OUT(("Failed to get 'comm_port' from line: %s!\n", str_buff));
-    return NO;
+    *comm_port = 0;
   }
   return YES;
 }
