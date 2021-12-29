@@ -225,7 +225,7 @@ struct media_session {
     teletone_dtmf_detect_state_t dtmf_detect;
     teletone_generation_session_t tone_session;
     switch_buffer_t *dtmf_buffer;
-    
+	unsigned char oob_disable;
 };
 
 struct woomera_message {
@@ -283,23 +283,24 @@ struct woomera_interface {
 	char session[SMG_SESSION_NAME_SZ];
 	int check_digits;	/* set to 1 when session comes up */
 	int bearer_cap;
-    	struct woomera_interface *next;
+	struct woomera_interface *next;
 };
 
 struct  woomera_session {
- 	struct woomera_interface *dev;	
+	struct woomera_interface *dev;
 	char session[SMG_SESSION_NAME_SZ];
 	char digits[MAX_DIALED_DIGITS+1];
 	int  digits_len;
 	int bearer_cap;
 	int clients;
+	unsigned char media_used;
+	pthread_mutex_t media_lock;
 };
 
 #define CORE_TANK_LEN CORE_MAX_CHAN_PER_SPAN*CORE_MAX_SPANS
 
 struct woomera_server {
-//	struct  woomera_session process_table[CORE_MAX_CHAN_PER_SPAN][CORE_MAX_SPANS];
-	struct  woomera_session process_table[CORE_MAX_SPANS][CORE_MAX_CHAN_PER_SPAN];
+	struct  woomera_session process_table[CORE_MAX_SPANS][CORE_MAX_CHAN_PER_SPAN+1];
 	struct woomera_interface *holding_tank[CORE_TANK_LEN];
 	int holding_tank_index;
 	struct woomera_interface master_connection;
@@ -683,9 +684,55 @@ static inline void validate_number(unsigned char *s)
         }
 }
 
+static inline int woomera_check_running(struct woomera_interface *woomera) 
+{
+	if (woomera_test_flag(woomera, WFLAG_HANGUP) || 
+		!woomera_test_flag(woomera, WFLAG_RUNNING) ||
+		woomera_test_flag(woomera, WFLAG_MEDIA_END)) {
+		
+		return 0;
+	}
+		
+	return 1;
+}
 
+static inline int open_span_chan (unsigned char span, unsigned char chan)
+{
+	int fd = -1;
+#ifndef LIBSANGOMA_VERSION
+	fd = sangoma_open_tdmapi_span_chan(span, chan);
+#else
+	if (chan == 24) {
+		pthread_mutex_lock(&server.process_table[span][chan].media_lock);
+		if(server.process_table[span][chan].media_used > 0) {
+			log_printf(SMG_LOG_ALL, server.log, 
+				"Critical Error: channel already opened [w%ig%i]\n", span, chan);
+		} else {
+			server.process_table[span][chan].media_used++;
+	
+			fd = __sangoma_open_api_span_chan(span, chan);
+		}
+		pthread_mutex_unlock(&server.process_table[span][chan].media_lock);
+	} else {
+		fd = sangoma_open_api_span_chan(span, chan);
+	}
+#endif
+	return fd;
+}
 
-
+static inline void close_span_chan (int *socket, unsigned char span, unsigned char chan)
+{
+	if (chan == 24) {
+		pthread_mutex_lock(&server.process_table[span][chan].media_lock);
+		if(server.process_table[span][chan].media_used > 0) {
+			server.process_table[span][chan].media_used--;
+		}
+		close_socket(socket);
+		pthread_mutex_unlock(&server.process_table[span][chan].media_lock);
+	} else {
+		close_socket(socket);
+	}
+}
 
 extern int smg_log_init(void);
 extern void smg_log_cleanup(void);

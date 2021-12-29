@@ -1,6 +1,7 @@
-#!/bin/bash
+#!/bin/bash 
 cmd=$1;
 sigd=$2;
+xtraargs='';
 cnt=0;
 max_retry=10;
 use_syslog=1;
@@ -45,45 +46,6 @@ function usage()
 	return 1
 }
 
-if [ $sigd = "ss7boost" ] || [ $sigd = "sangoma_isupd" ]; then
-	sigd_safe_args="-i"
-	sigd_bg_args=""
-	SIG_LOG=/var/log/messages
-	
-	eval "type $sigd 2> /dev/null > /dev/null"
-	if [ $? -ne 0 ]; then
-		export PATH=$PATH:/usr/local/ss7box
-	fi
-	eval "type $sigd 2> /dev/null > /dev/null"
-	if [ $? -ne 0 ]; then
-		echo
-		echo "Error $sigd is not found"
-		echo
-		exit 1
-	fi
-
-	SS7=1;
-elif [ $sigd = "sangoma_brid" ]; then
-	sigd_safe_args=""
-	sigd_bg_args="-bg"
-	BRI=1;
-elif [ $sigd = "sangoma_prid" ]; then
-	sigd_safe_args=""
-	sigd_bg_args="-bg"
-	PRI=1;
-	eval "export LD_LIBRARY_PATH=/usr/lib/sangoma_prid:${LD_LIBRARY_PATH} "
-else
-	echo
-	usage
-	exit 1
-fi
-
-while [ ! -z "$3" ]; 
-do
-	args=$args"$3 "
-	shift
-done
-
 
 function stop_all()
 {
@@ -93,7 +55,11 @@ function stop_all()
 	
 	stop_safe_sangoma
 	stop_sigdaemon
-	stop_sangoma_mgd
+	#post_args=$post_args" >/dev/null 2>/dev/null &"
+	if [ "$xtraargs" != "sigdonly" ]; then
+		stop_sangoma_mgd
+	fi
+	
 	remove_pid_files
 }
 
@@ -261,13 +227,28 @@ function start_test()
 	
 }
 
-
 function start_all()
 {
-	check_running
+	#post_args=$post_args" >/dev/null 2>/dev/null &"
+	if [ "$xtraargs" = "sigdonly" ]; then
+		start_sigd
+		ret=$?
+	else 
+		start_sigd
+		ret=$?
+		if [ $ret -eq 0 ]; then
+			start_smg
+			ret=$?
+		fi
+	fi	
+	return $ret
+}
+
+function start_sigd()
+{
+	check_sigd_running
 	pre_args="";
 	post_args="";
-	#post_args=$post_args" >/dev/null 2>/dev/null &"
 	echo " " 
 	echo "Starting processes..."
 	echo -n "Loading SCTP..."
@@ -318,16 +299,32 @@ function start_all()
 		return 1;
 	fi
 	sleep 3	
+	if [ "$xtraargs" = "sigdonly" ]; then
+		
+			echo "Sangoma $sigd running.."
+			if [ $use_syslog -eq 1 ]; then
+				echo "log file: $LOG and /var/log/messages"
+			else
+				echo "log file: $LOG and /var/log/messages"
+			fi
+	echo " "
+	fi
+	return 0
 
+}
+function start_smg()
+{
+	#check_sigd_running
+	check_smg_running
 	pre_args="";
 	post_args="";
+
 	if [ $use_safe -eq 1 ]; then
 		pre_args=" safe_sangoma"
 		post_args=""
 	else 
 		post_args=" -bg"
 	fi
-
 
   if [ -e /etc/wanpipe/.no_smg_load ]; then
     echo "Skipping sangoma_mgd..."
@@ -360,10 +357,11 @@ function start_all()
 	echo " "
 
 	return 0
+
+
 }
 
-
-function check_running ()
+function check_sigd_running()
 {
 	local rc
 	eval "pidof $sigd 2> /dev/null > /dev/null"
@@ -373,7 +371,13 @@ function check_running ()
 		echo "exiting..."
 		exit 0
 	fi
+	return 0
 
+}
+
+function check_smg_running()
+{
+	local rc
 	eval "pidof sangoma_mgd 2> /dev/null > /dev/null"
 	rc=$?
 	if [ $rc -eq 0 ]; then
@@ -387,7 +391,6 @@ function check_running ()
 	if [ -e /var/run/sangoma_mgd.pid ];then
 		eval "rm -f /var/run/sangoma_mgd.pid >/dev/null 2>/dev/null";
 	fi
-
 	return 0
 }
 
@@ -492,14 +495,101 @@ function parse_args()
 
 	done	
 }
+read_smg_conf ()
+{
+	
+	WAN_HOME=/etc/wanpipe
+	WAN_CONF_DIR=$WAN_HOME
+	META_SMG_CONF=$WAN_HOME/smg.rc
+
+	# Read meta-configuration file.
+	
+	if [ -f $META_SMG_CONF ] 
+	then . $META_SMG_CONF
+	else
+		echo	" $META_SMG_CONF not found !!!!"
+		return 1 
+	fi
+	return 0
+}
+
+function init_smg_conf()
+{
+SMG_BOOT=
+SANGOMA_PRID=
+SANGOMA_BRID=
+SANGOMA_SS7ISUP=
+SANGOMA_MEDIA_GATEWAY=
+}
+######################
+#main start here
+######################
 
 parse_args
+init_smg_conf
+read_smg_conf
+#Set sigd
+if [ $SANGOMA_PRID = "YES" ]; then
+	sigd="sangoma_prid"
+elif [ $SANGOMA_BRID = "YES" ]; then
+	sigd="sangoma_brid"
+elif [ $SANGOMA_PRID = "YES" ]; then
+	sigd="sangoma_prid"
+elif [ $SANGOMA_SS7ISUP = "YES" ]; then
+	sigd="sangoma_isupd"
+elif [ $SANGOMA_SS7BOOST = "YES" ]; then
+	sigd="ss7boost"
+else 
+	echo "Failed to specify sigd!!! check $META_SMG_CONF "
+	exit 1
+fi
+
+
+if [ $SANGOMA_MEDIA_GATEWAY = "NO" ]; then
+	xtraargs="sigdonly"
+fi
+if [ $sigd = "ss7boost" ] || [ $sigd = "sangoma_isupd" ]; then
+	sigd_safe_args="-i"
+	sigd_bg_args=""
+	SIG_LOG=/var/log/messages
+	
+	eval "type $sigd 2> /dev/null > /dev/null"
+	if [ $? -ne 0 ]; then
+		export PATH=$PATH:/usr/local/ss7box
+	fi
+	eval "type $sigd 2> /dev/null > /dev/null"
+	if [ $? -ne 0 ]; then
+		echo
+		echo "Error $sigd is not found"
+		echo
+		exit 1
+	fi
+
+	SS7=1;
+elif [ $sigd = "sangoma_brid" ]; then
+	sigd_safe_args=""
+	sigd_bg_args="-bg"
+	BRI=1;
+elif [ $sigd = "sangoma_prid" ]; then
+	sigd_safe_args=""
+	sigd_bg_args="-bg"
+	PRI=1;
+else
+	usage
+	exit 1
+fi
+
+while [ ! -z "$3" ]; 
+do
+	args=$args"$3 "
+	shift
+done
 
 ret=0
 
 if [ "$cmd" = "start" ]; then
-	start_all
-	ret=$?
+		start_all
+		ret=$?
 	if [ $ret -ne 0 ]; then
 		stop_all
 	fi

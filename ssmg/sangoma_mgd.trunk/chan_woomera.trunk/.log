@@ -148,3 +148,27 @@ echo 0 .cw_module_info_check
 grep -c 1.6 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version  .ast16_check
 1.4 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version .ast14_check 
 grep -c 1.4 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version  .ast14_check
+AST_CONTROL_SRC /usr/src/ast1.6/asterisk-1.6.0-rc5/include/asterisk/frame.h .ast_src_check 
+grep -c AST_CONTROL_SRC /usr/src/ast1.6/asterisk-1.6.0-rc5/include/asterisk/frame.h  .ast_src_check
+opbx_cli_entry /usr/src/ast1.6/asterisk-1.6.0-rc5/include/callweaver/cli.h .opbx_cli_entry_check 
+echo 0 .opbx_cli_entry_check
+cw_cli_entry /usr/src/ast1.6/asterisk-1.6.0-rc5/include/callweaver/cli.h .cw_cli_entry_check 
+echo 0 .cw_cli_entry_check
+MODULE_INFO /usr/src/ast1.6/asterisk-1.6.0-rc5/include/callweaver/module.h .cw_module_info_check 
+echo 0 .cw_module_info_check
+1.6 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version .ast16_check 
+grep -c 1.6 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version  .ast16_check
+1.4 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version .ast14_check 
+grep -c 1.4 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version  .ast14_check
+AST_CONTROL_SRC /usr/src/ast1.6/asterisk-1.6.0-rc5/include/asterisk/frame.h .ast_src_check 
+grep -c AST_CONTROL_SRC /usr/src/ast1.6/asterisk-1.6.0-rc5/include/asterisk/frame.h  .ast_src_check
+opbx_cli_entry /usr/src/ast1.6/asterisk-1.6.0-rc5/include/callweaver/cli.h .opbx_cli_entry_check 
+echo 0 .opbx_cli_entry_check
+cw_cli_entry /usr/src/ast1.6/asterisk-1.6.0-rc5/include/callweaver/cli.h .cw_cli_entry_check 
+echo 0 .cw_cli_entry_check
+MODULE_INFO /usr/src/ast1.6/asterisk-1.6.0-rc5/include/callweaver/module.h .cw_module_info_check 
+echo 0 .cw_module_info_check
+1.6 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version .ast16_check 
+grep -c 1.6 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version  .ast16_check
+1.4 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version .ast14_check 
+grep -c 1.4 /usr/src/ast1.6/asterisk-1.6.0-rc5/.version  .ast14_check

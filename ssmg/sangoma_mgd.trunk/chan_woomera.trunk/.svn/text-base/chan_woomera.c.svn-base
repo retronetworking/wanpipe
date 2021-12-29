@@ -14,6 +14,10 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.54 Nenad Corbic <ncorbic@sangoma.com>
+ * Sep 16 2009
+ *  Added Progress Messages
+ *
  * v1.53 Nenad Corbic <ncorbic@sangoma.com>
  * Jul 16 2009
  *	Updated for Asterisk load balancing and well
@@ -292,7 +296,7 @@
 #include "asterisk/musiconhold.h"
 #include "asterisk/transcap.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.53 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.54 $")
 
 #else
 
@@ -343,7 +347,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.53 $")
 #define CALLWEAVER_19 1
 #endif
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.53 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.54 $")
 
 #if defined(DSP_FEATURE_FAX_CNG_DETECT)
 #undef		DSP_FEATURE_FAX_DETECT
@@ -650,7 +654,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.53 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.53"
+#define WOOMERA_VERSION "v1.54"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -811,7 +815,8 @@ typedef enum {
 	TFLAG_ANSWER_RECEIVED = (1 << 17),
 	TFLAG_CONFIRM_ANSWER = (1 << 18),
 	TFLAG_CONFIRM_ANSWER_ENABLED = (1 << 19),
-	TFLAG_AST_HANGUP = (1 << 20)
+	TFLAG_AST_HANGUP = (1 << 20),
+	TFLAG_PROGRESS = (1 << 21),
 } TFLAGS;
 
 static int usecnt = 0;
@@ -864,6 +869,7 @@ struct woomera_profile {
 	struct woomera_event_queue event_queue;
 	int jb_enable;
 	int progress_enable;
+	int progress_on_accept;
 	int coding;
 	float rxgain_val;
 	float txgain_val;
@@ -2655,7 +2661,11 @@ static void *tech_monitor_thread(void *obj)
  
 			ast_set_flag(tech_pvt,TFLAG_ACCEPTED);
 			ast_clear_flag(tech_pvt,TFLAG_ACCEPT);
-	
+			
+			if (tech_pvt->profile->progress_on_accept) {
+				ast_set_flag(tech_pvt, TFLAG_PROGRESS);
+			}
+
 			err=woomera_printf(tech_pvt->profile, tech_pvt->command_channel,
 								"ACCEPT %s%s"
 								"Raw-Audio: %s:%d%s"
@@ -2679,9 +2689,30 @@ static void *tech_monitor_thread(void *obj)
 					goto tech_thread_continue;
 					continue;
 			}
-
 		}
 
+		if (ast_test_flag(tech_pvt, TFLAG_PROGRESS)) {
+			int err;
+			ast_clear_flag(tech_pvt, TFLAG_PROGRESS);
+			err=woomera_printf(tech_pvt->profile, tech_pvt->command_channel,
+							   "PROGRESS %s%s"
+									   "Unique-Call-Id: %s%s",
+							   tech_pvt->callid,
+							   WOOMERA_LINE_SEPARATOR,
+							   tech_pvt->callid,
+							   WOOMERA_RECORD_SEPARATOR);
+
+			if(err < 0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
+				ast_set_flag(tech_pvt, TFLAG_ABORT);
+				if (globals.debug > 2) {
+					ast_log(LOG_NOTICE, "PROGRESS ABORT Ch=%d\n",
+							tech_pvt->command_channel);
+				}
+				goto tech_thread_continue;
+				continue;
+			}
+		}
+		
 		if (ast_test_flag(tech_pvt, TFLAG_ANSWER)) {
 			int err;
 
@@ -3409,6 +3440,9 @@ static int config_woomera(void)
 
 					} else if (!strcmp(v->name, "progress_enable")) {
                          profile->progress_enable = atoi(v->value);
+
+					} else if (!strcmp(v->name, "progress_on_accept")) {
+                         profile->progress_on_accept = atoi(v->value);
 						
 					} else if (!strcmp(v->name, "coding")) {
 						if (strcmp(v->value, "alaw") == 0) {
@@ -4486,6 +4520,7 @@ static int tech_indicate(struct ast_channel *self, int condition)
 	private_object *tech_pvt;
 	int res = -1;
 
+	
 	tech_pvt = self->tech_pvt;
 	if (!tech_pvt) {
 		return res;
@@ -4534,6 +4569,10 @@ static int tech_indicate(struct ast_channel *self, int condition)
 		if (!ast_test_flag(tech_pvt,TFLAG_ACCEPTED)) {
 			ast_set_flag(tech_pvt, TFLAG_ACCEPT);
 		}
+		if (!tech_pvt->profile->progress_on_accept) {
+			ast_set_flag(tech_pvt, TFLAG_PROGRESS);
+		}
+
 		break;
 	case AST_CONTROL_HOLD:
 		if (globals.debug > 3) {
@@ -4578,7 +4617,7 @@ static int tech_indicate(struct ast_channel *self, int condition)
                 res = -1;
                 break;
 	}
-
+	
 	ast_mutex_unlock(&tech_pvt->iolock);	
 
 	return res;

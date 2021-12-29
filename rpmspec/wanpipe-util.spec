@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.4.5
+%define version           3.4.6
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -328,7 +328,14 @@ enable_smg_log;
 
 %changelog
 
-* Tue Aug 18 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.5
+* Tue Sep 18 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.6
+=====================================================================
+
+- Fund a bug in Sangoma_mgd causing channel 31 in each span to
+  fail. This bug was introduced in 3.4.5 release.
+
+
+* Tue Sep 16 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.5
 =====================================================================
 
 - New firmawre feature for A101/2/5/8: Free Run Timer Interrupt 

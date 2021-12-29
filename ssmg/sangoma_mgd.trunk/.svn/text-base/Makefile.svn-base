@@ -33,7 +33,7 @@ CC = gcc
 
 ifndef DESTDIR
 	ifdef INSTALLPREFIX
-		DESTDIR=$(INSTALL_PREFIX)
+		DESTDIR=$(INSTALLPREFIX)
 	else
 		DESTDIR=
 	endif
@@ -117,27 +117,34 @@ install_smg: old_cleanup
 	fi
 	
 	install -D -m 755 ./safe_sangoma $(DESTDIR)/usr/sbin/safe_sangoma
-	install -D -m 755 ./__smg_ctrl_common $(DESTDIR)/usr/sbin/__smg_ctrl_common
+	install -D -m 755 ./smg_ctrl $(DESTDIR)/usr/sbin/smg_ctrl
 
 ifeq "${PRI}" "YES"
 	@echo "PRI control scripts installed"
-	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
-		install -D -m 755 sangoma_mgd.conf.sample.pri $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
+	@if [ ! -e $(DESTDIR)/etc/sangoma_mgd.conf ]; then \
+		install -D -m 755 sangoma_mgd.conf.sample.pri $(DESTDIR)/etc/sangoma_mgd.conf; \
 	fi
-	install -D -m 755 smg_ctrl_pri $(INSTALLPREFIX)/usr/sbin/smg_ctrl
+	install -D -m 755 rc/smg.rc.pri $(DESTDIR)/etc/wanpipe/smg.rc
 else
 ifeq "${BRI}" "YES"
 	@echo "BRI control scripts installed"
 	@if [ ! -e $(DESTDIR)/etc/sangoma_mgd.conf ]; then \
 		install -D -m 755 sangoma_mgd.conf.sample.bri $(DESTDIR)/etc/sangoma_mgd.conf; \
 	fi
-	install -D -m 755 smg_ctrl_bri $(DESTDIR)/usr/sbin/smg_ctrl
+	install -D -m 755 rc/smg.rc.bri $(DESTDIR)/etc/wanpipe/smg.rc
 else
 	@echo "SS7 control scripts installed"
 	@if [ ! -e $(DESTDIR)/etc/sangoma_mgd.conf ]; then \
 		install -D -m 755 sangoma_mgd.conf.sample.ss7 $(DESTDIR)/etc/sangoma_mgd.conf; \
 	fi
-	install -D -m 755 smg_ctrl_ss7 $(DESTDIR)/usr/sbin/smg_ctrl
+	@if [ -e $(DESTDIR)/usr/local/ss7box/sangoma_isupd ]; then \
+		echo "install -D -m 755 rc/smg.rc.isupd $(DESTDIR)/etc/wanpipe/smg.rc"; \
+		install -D -m 755 rc/smg.rc.isupd $(DESTDIR)/etc/wanpipe/smg.rc; \
+	else  \
+		echo "install -D -m 755 rc/smg.rc.ss7boost $(DESTDIR)/etc/wanpipe/smg.rc"; \
+		install -D -m 755 rc/smg.rc.ss7boost $(DESTDIR)/etc/wanpipe/smg.rc; \
+	fi
+
 	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(DESTDIR)/etc/init.d/smgss7_init_ctrl
 	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(DESTDIR)/usr/sbin/smgss7_init_ctrl
 
