@@ -1234,11 +1234,17 @@ static sdlahw_t *sdla_hwport_Remora_register(sdlahw_cpu_t* hwcpu, int *max_ports
 	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no ++){
 	
 		if (rm_mod_type[mod_no] == MOD_TYPE_FXS){
-			sprintf(str, "\n+%02d:FXS", mod_no+1);
+			sprintf(str, "\n+%02d:FXS:%s", 
+				mod_no+1,
+				AFT_PCITYPE_DECODE(hwcpu->hwcard));
+
 			port_cnt++;
 			port_map |= (1 << (mod_no+1));
 		}else if (rm_mod_type[mod_no] == MOD_TYPE_FXO){
-			sprintf(str, "\n+%02d:FXO", mod_no+1);
+			sprintf(str, "\n+%02d:FXO:%s", 
+				mod_no+1,
+				AFT_PCITYPE_DECODE(hwcpu->hwcard));
+
 			port_cnt++;		
 			port_map |= (1 << (mod_no+1));
 		}else{
@@ -1325,10 +1331,16 @@ static sdlahw_t *sdla_hwport_ISDN_register(sdlahw_cpu_t* hwcpu, int *ports_no)
 	for(mod_no = 0; mod_no < MAX_BRI_LINES; mod_no ++){
 
 		if (rm_mod_type[mod_no] == MOD_TYPE_TE){
-			sprintf(str, "\n+%02d:TE", mod_no+1);
+			sprintf(str, "\n+%02d:TE:%s", 
+				mod_no+1,
+				AFT_PCITYPE_DECODE(hwcpu->hwcard));
+
 			port_map |= (1 << (mod_no+1));
 		}else if (rm_mod_type[mod_no] == MOD_TYPE_NT){
-			sprintf(str, "\n+%02d:NT", mod_no+1);
+			sprintf(str, "\n+%02d:NT:%s", 
+				mod_no+1,
+				AFT_PCITYPE_DECODE(hwcpu->hwcard));
+
 			port_map |= (1 << (mod_no+1));
 		}else{
 			/* EMPTY */		

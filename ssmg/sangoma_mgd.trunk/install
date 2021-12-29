@@ -255,7 +255,12 @@ echo
 
 echo "Compiling Sangoma MGD ..."
 eval "make clean 2> /dev/null > /dev/null"
-eval "make"
+if [ $noss7 == 'true' ]; then
+        eval "make NO_SS7=YES" 
+else
+        eval "make" 
+fi
+
 if [ $? -ne 0 ]; then
 	exit 1;
 fi

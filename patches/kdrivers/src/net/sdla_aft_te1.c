@@ -207,7 +207,9 @@ enum {
 	CARD_DOWN,
 	TE_CFG,
 	CARD_HW_EC,
-	CARD_MASTER_CLOCK
+	CARD_MASTER_CLOCK,
+	CARD_PORT_TASK_DOWN,
+	CARD_PORT_TASK_RUNNING
 };
 
 enum { 
@@ -516,12 +518,6 @@ static void 	aft_display_chain_history(private_area_t *chan);
 static void 	aft_chain_history(private_area_t *chan,u8 end, u8 cur, u8 begin, u8 loc);
 #endif 
 
-
-/* TE1 Control registers  */
-#if 0
-static WRITE_FRONT_END_REG_T write_front_end_reg;
-static READ_FRONT_END_REG_T  read_front_end_reg;
-#endif
 
 unsigned char aft_read_cpld(sdla_t *card, unsigned short cpld_off);
 int aft_write_cpld(void *pcard, unsigned short off,unsigned char data);
@@ -3168,35 +3164,58 @@ static int if_close (netdevice_t* dev)
  * o Unconfigure TE1 card
  */
 
+/* Wait for 100 ms hardcoded */
+static void disable_comm_delay(void)
+{
+        unsigned long timeout=SYSTEM_TICKS;
+        while ((SYSTEM_TICKS-timeout)< (HZ/10)){
+                schedule();
+        }
+}
+
 static void disable_comm (sdla_t *card)
 {
 	wan_smp_flag_t smp_flags,smp_flags1;
 	int used_cnt;
+	int port_task_timeout=0;
 
 	AFT_FUNC_DEBUG();
 #if INIT_FE_ONLY
 	aft_chip_unconfigure(card);
 #else
 
+	
+	/* Make sure that Task is disabled for this card */
+	wan_set_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical);
+	
+	while (wan_test_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical)) {
+		disable_comm_delay();	/* 100 ms */
+		port_task_timeout++;
+		if (port_task_timeout > 20) {
+			DEBUG_EVENT("%s: Warning: Port Task stuck! timing out!\n",card->devname);
+			break;
+		}
+	}
+	
+	__aft_fe_intr_ctrl(card, 0);
+	
    	/* Unconfiging, only on shutdown */
 	if (card->wandev.fe_iface.pre_release){
 		card->wandev.fe_iface.pre_release(&card->fe);
 	}
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
-	__aft_fe_intr_ctrl(card, 0);
 	if (card->wandev.fe_iface.unconfig){
 		card->wandev.fe_iface.unconfig(&card->fe);
 	}
-	__aft_fe_intr_ctrl(card, 1);
 	wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 	card->hw_iface.hw_unlock(card->hw,&smp_flags1);
-
+	
 	/* Disable DMA ENGINE before we perform 
          * core reset.  Otherwise, we will receive
          * rx fifo errors on subsequent resetart. */
 	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
-	disable_data_error_intr(card,LINK_DOWN);
+	disable_data_error_intr(card,DEVICE_DOWN);
 
 	aft_handle_clock_master(card);
 
@@ -3215,21 +3234,18 @@ static void disable_comm (sdla_t *card)
 	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 	
 	WP_DELAY(10);
-	
 
 	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);
 	
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);
 	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
-       	__aft_fe_intr_ctrl(card, 0);
 	aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_ON);
 	aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_ON);
-       	__aft_fe_intr_ctrl(card, 1);
 	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 	card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 
 	__sdla_pull_ptr_isr_array(card->hw,card,WAN_FE_LINENO(&card->fe));
-
+	
 	if (used_cnt<=1){
 		DEBUG_EVENT("%s: Global Chip Shutdown Usage=%d\n",
 				card->devname,used_cnt);
@@ -3237,6 +3253,10 @@ static void disable_comm (sdla_t *card)
 		wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 		aft_global_chip_disable(card);		
 		wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
+	} else {
+		/* only re-enable front end interrupt if this
+		 * card is not last card */
+		__aft_fe_intr_ctrl(card, 1);
 	}
 
 	/* Initialize the AFT operation structure so on subsequent restart
@@ -5157,6 +5177,8 @@ static void wp_bh (void *data, int pending)
 
 	while((skb=wan_skb_dequeue(&chan->wp_rx_stack_complete_list)) != NULL){
 		len=wan_skb_len(skb);
+		wan_capture_trace_packet(chan->card, &top_chan->trace_info,
+                                             skb,TRC_INCOMING_FRM);
 		if (wanpipe_lip_rx(chan,skb) != 0){
 			WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common);	//++chan->if_stats.rx_dropped;
 			wan_skb_free(skb);
@@ -5170,6 +5192,8 @@ static void wp_bh (void *data, int pending)
 
 	while((skb=wan_skb_dequeue(&chan->wp_rx_bri_dchan_complete_list)) != NULL){
 		/* for BRI the rx data on D-chan is in 'wp_rx_bri_dchan_complete_list'. */
+		wan_capture_trace_packet(chan->card, &top_chan->trace_info,
+                                             skb,TRC_INCOMING_FRM);
 		wp_bh_rx(chan, skb, 0, wan_skb_len(skb));
 	}
 
@@ -6017,7 +6041,9 @@ static void wp_aft_dma_per_port_isr(sdla_t *card)
 {
 	int i;
 	u32 dma_tx_reg=0,dma_rx_reg=0;
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 	private_area_t *chan;
+#endif
 	
        /* -----------------2/6/2003 9:37AM------------------
       	* Checking for Interrupt source:
@@ -6846,40 +6872,6 @@ int aft_write_cpld(void *pcard, unsigned short off,unsigned char data)
 	return 	aft_hwdev[card->wandev.card_type].aft_write_cpld(card,off,data);
 }
 
-#if 0
-/*============================================================================
- * Read TE1/56K Front end registers
- */
-static unsigned char
-write_front_end_reg (void* card1, unsigned short off, unsigned char value)
-{
-	sdla_t* card = (sdla_t*)card1;
-
-	if (card->wandev.card_type == WANOPT_AFT_ANALOG){
-		DEBUG_EVENT("%s: Internal Error (%s:%d)\n",
-					card->devname, __FUNCTION__,__LINE__);
-		return 0x00;
-	}
-	return aft_hwdev[card->wandev.card_type].aft_write_fe(card1,off,value);
-}
-
-/*============================================================================
- * Read TE1/56K Front end registers
- */
-static unsigned char
-read_front_end_reg (void* card1, unsigned short off)
-{
-	sdla_t* card = (sdla_t*)card1;
-
-	if (card->wandev.card_type == WANOPT_AFT_ANALOG){
-		DEBUG_EVENT("%s: Internal Error (%s:%d)\n",
-					card->devname, __FUNCTION__,__LINE__);
-		return 0x00;
-	}
-	return aft_hwdev[card->wandev.card_type].aft_read_fe(card1,off);
-}
-#endif
-
 static unsigned char
 aft_write_ec (void *pcard, unsigned short off, unsigned char value)
 {
@@ -7563,9 +7555,7 @@ static void disable_data_error_intr(sdla_t *card, unsigned char event)
 	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
 
 
-	if (event==DEVICE_DOWN){
-		wan_set_bit(CARD_DOWN,&card->wandev.critical);
-	}else{
+	if (event!=DEVICE_DOWN){
 		if (card->tdmv_conf.span_no){
 			DEBUG_EVENT("%s: Starting TDMV 1ms Timer\n",
 					card->devname);
@@ -9884,10 +9874,19 @@ static void aft_port_task (void * card_ptr, int arg)
 	sdla_t 		*card = (sdla_t *)card_ptr;
 #endif 
 	wan_smp_flag_t smp_flags;
+	
+	wan_set_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
 
-	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
+	if (wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)){
+		wan_clear_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
 		return;
 	}
+
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
+		wan_clear_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
+		return;
+	}
+
 
 	DEBUG_56K("%s: PORT TASK: 0x%X\n", card->devname,card->u.aft.port_task_cmd);
 
@@ -10020,6 +10019,7 @@ static void aft_port_task (void * card_ptr, int arg)
 	}
 #endif
 
+	wan_clear_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
 
 	return;
 }
@@ -10027,6 +10027,8 @@ static void aft_port_task (void * card_ptr, int arg)
 void __aft_fe_intr_ctrl(sdla_t *card, int status)
 {
 	u32 reg;
+
+	/* if fe_no_intr is set then only allow disabling of fe interrupt */
 
 	if (!card->fe_no_intr || !status){
 		card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG,&reg);
@@ -11635,6 +11637,7 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb)
 	sdla_t *card=chan->card;
 	wan_smp_flag_t smp_flags;
 	int err=-EINVAL;
+	private_area_t	*top_chan;
 	
 	if (!chan_ptr || !chan->common.dev || !card){
 		WAN_ASSERT(1);
@@ -11644,7 +11647,12 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb)
 	if (wan_skb_len(skb) > chan->mtu) {
 		return -EINVAL;
 	}
-	
+
+	if (card->u.aft.tdmv_dchan){
+		top_chan=wan_netif_priv(chan->common.dev);
+	}else{
+		top_chan=chan;
+	}
 	
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
 	if(IS_BRI_CARD(card)){
@@ -11664,7 +11672,11 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb)
 						wan_skb_data(skb),
 						wan_skb_len(skb));
 			card->hw_iface.hw_unlock(card->hw,&smp_flags);
+
 			if (err == 0) {
+				wan_capture_trace_packet(chan->card, &top_chan->trace_info,
+					     skb,TRC_OUTGOING_FRM);
+
 				wan_skb_free(skb);
 				err = 0;
 			} else {
@@ -12298,8 +12310,6 @@ static int aft_handle_clock_master (sdla_t *card_ptr)
 	}
 
 	if (card_ptr->wandev.fe_iface.clock_ctrl == NULL){
-		DEBUG_EVENT("%s: Error: clock_ctrl not enabled!\n",
-							card_ptr->devname);
 		return 0;
 	}
 
@@ -12328,11 +12338,15 @@ static int aft_handle_clock_master (sdla_t *card_ptr)
 							card->devname);
 						card->wandev.fe_iface.clock_ctrl(&card->fe, 0);
 						aft_bri_clock_control(card,0);
+					
 					} else {
 						DEBUG_EVENT("%s: Internal Error: ctrl_clock feature not available!\n",
 							card->devname);
+						aft_bri_clock_control(card,0);
 					}
+					
 					wan_clear_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
+
 				} else {
 					DEBUG_TEST("%s: Master Clock Found!\n",
 							card->devname);
@@ -12347,7 +12361,7 @@ static int aft_handle_clock_master (sdla_t *card_ptr)
 		return 0;
 	}
 
-	/* At this point the MASTER clock must be set on any connected port */
+	/* At this point the recovery clock must be set on any connected port */
 	for (i=0; i<max_number_of_ports; i++) {
 
 		card=(sdla_t*)card_list[i];
@@ -12356,6 +12370,12 @@ static int aft_handle_clock_master (sdla_t *card_ptr)
 		}
 
 		if (IS_BRI_CARD(card)) {
+
+			/* Check if this module is forced configured in oscillator mode */
+			if (IS_BRI_CLK(card) == WAN_MASTER_CLK) {
+				continue;
+			}
+
 			if (aft_is_bri_te_card(card) && !wan_test_bit(CARD_MASTER_CLOCK,&card->wandev.critical)) {	
 				if (card->wandev.state == WAN_CONNECTED) {
 					if (card->wandev.fe_iface.clock_ctrl){
@@ -12363,12 +12383,10 @@ static int aft_handle_clock_master (sdla_t *card_ptr)
 							card->devname);
 						card->wandev.fe_iface.clock_ctrl(&card->fe, 1);
 						aft_bri_clock_control(card,1);
-					} else {
-						DEBUG_EVENT("%s: Internal Error: ctrl_clock feature not available!\n",
-							card->devname);
+					
+						wan_set_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
+						master_clock_src_found=1;
 					}
-					wan_set_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
-					master_clock_src_found=1;
 					break;
 				} 
 			}
@@ -12376,15 +12394,6 @@ static int aft_handle_clock_master (sdla_t *card_ptr)
 
 	}
 
-#if 0
-	if (master_clock_src_found) {
-		DEBUG_EVENT("%s: Master Clock Set!\n",
-					card->devname);
-	} else {
-		DEBUG_EVENT("%s: NO Master Clock Set!\n",
-					__FUNCTION__);
-	}
-#endif
 	return 0;
 
 }

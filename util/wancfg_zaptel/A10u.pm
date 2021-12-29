@@ -82,6 +82,12 @@ sub fe_clock {
 		    return $self->{_fe_clock};
 }
 
+sub hw_dchan {
+            my ( $self, $hw_dchan ) = @_;
+                $self->{_hw_dchan} = $hw_dchan if defined($hw_dchan);
+                    return $self->{_hw_dchan};
+}
+
 sub pri_switchtype {
 	   my ( $self, $pri_switchtype ) = @_;
 	        $self->{_pri_switchtype} = $pri_switchtype if defined($pri_switchtype);

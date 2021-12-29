@@ -189,7 +189,6 @@ static int tc = 0;
 hp_tdm_api_span_t *hptdmspan[WOOMERA_MAX_SPAN];
 #endif
 
-#define SMG_CALLING_NAME 1
 
 const char WELCOME_TEXT[] =
 "================================================================================\n"
@@ -207,6 +206,15 @@ static int master_reset=0;
 
 static int coredump=1;
 static int autoacm=1;
+
+/* FIXME: Should be done in cfg file */
+#if defined(BRI_PROT)
+int max_spans=WOOMERA_BRI_MAX_SPAN;
+int max_chans=WOOMERA_BRI_MAX_CHAN;
+#else
+int max_spans=WOOMERA_MAX_SPAN;
+int max_chans=WOOMERA_MAX_CHAN;
+#endif
 
 static int launch_media_tdm_thread(struct woomera_interface *woomera);
 static int launch_woomera_thread(struct woomera_interface *woomera);
@@ -2437,7 +2445,7 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
        char *raw = woomera_message_header(wmsg, "raw-audio");
        call_signal_event_t event;
        char *calling = woomera_message_header(wmsg, "local-number");
-#ifdef SMG_CALLING_NAME
+#ifdef BRI_PROT
        char *calling_name = woomera_message_header(wmsg, "local-name");
 #endif
 	char *presentation = woomera_message_header(wmsg, "Presentation");
@@ -2524,7 +2532,7 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 
 	}
 
-#ifdef SMG_CALLING_NAME
+#ifdef BRI_PROT
 	if (calling_name) {
 		strncpy((char*)event.calling_name,calling_name,
 				sizeof(event.calling_name)-1);
@@ -3099,7 +3107,7 @@ static void handle_call_start_ack(call_signal_event_t *event)
 								event->chan+1,
 								WOOMERA_LINE_SEPERATOR,
 								woomera->trunk_group+1,
-								(event->span*31)+event->chan+1,
+								(event->span*max_chans)+event->chan+1,
 								WOOMERA_LINE_SEPERATOR,
 								woomera->session,
 								WOOMERA_RECORD_SEPERATOR
@@ -3395,7 +3403,7 @@ static void handle_call_start(call_signal_event_t *event)
 							 WOOMERA_LINE_SEPERATOR,
 							 event->calling_number_digits,
 							 WOOMERA_LINE_SEPERATOR,
-#ifdef SMG_CALLING_NAME
+#ifdef BRI_PROT
 							 event->calling_name,
 #else
 							 "",
@@ -3406,7 +3414,7 @@ static void handle_call_start(call_signal_event_t *event)
 							 event->called_number_digits,
 							 WOOMERA_LINE_SEPERATOR,
 							 event->trunk_group+1,
-							 (event->span*31)+event->chan+1,
+							 (event->span*max_chans)+event->chan+1,
 							 WOOMERA_LINE_SEPERATOR,
 							 event->trunk_group+1,
 							 WOOMERA_LINE_SEPERATOR,
@@ -3587,11 +3595,11 @@ static void handle_call_start_nack_ack(call_signal_event_t *event)
 
 		if (woomera) {
 			woomera_clear_flag(woomera, WFLAG_WAIT_FOR_NACK_ACK);
-		} else if (autoacm==0){
-			log_printf(2, server.log, "Nack Ack on [w%dg%d] [Setup ID: %d] [%s]!\n",
-					event->span+1, event->chan+1, event->call_setup_id);
 		} else {
-			log_printf(0, server.log, 
+			/* Possible if incoming call is NACKed due to
+			 * woomera client being down, in this case no
+		         * woomera thread is created */
+			log_printf(4, server.log, 
 			"Event NACK ACK [w%dg%d] with valid span/chan no dev!\n",
 				event->span+1, event->chan+1);
 		}
@@ -4623,7 +4631,11 @@ static int configure_server(void)
 			if (max >= 0) {
 				autoacm=max;
 			}			
-
+		} else if (!strcasecmp(var, "max_spans")) {
+			int max = atoi(val);
+			if (max > 0) {
+				max_spans = max;
+			}
 		} else if (!strcasecmp(var, "media_ip")) {
 			strncpy(server.media_ip, val, sizeof(server.media_ip) -1);
 		} else {
@@ -5031,7 +5043,7 @@ int main(int argc, char *argv[])
     int ret = 0;
     
     mlockall(MCL_FUTURE);
-    
+
     sdla_memdbg_init();
 
     server.hw_coding=0;

@@ -330,13 +330,19 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 	
 	if (tdm_api->hdlc_framing) {
 	
-		tdm_api->cfg.hw_mtu_mru		=1500;	
+		if (IS_BRI_CARD(card)) {
+			tdm_api->cfg.hw_mtu_mru		=300;	
+			tdm_api->cfg.usr_mtu_mru	=300;	
+		} else {
+			tdm_api->cfg.hw_mtu_mru		=1500;	
+			tdm_api->cfg.usr_mtu_mru	=1500;	
+		}
+
 		tdm_api->cfg.usr_period		=0;	
 		tdm_api->cfg.tdm_codec		=WP_NONE;		
 		tdm_api->cfg.power_level	=0;	
 		tdm_api->cfg.rx_disable		=0;	
 		tdm_api->cfg.tx_disable		=0;			
-		tdm_api->cfg.usr_mtu_mru	=1500;	
 		tdm_api->cfg.ec_tap		=0;	
 		tdm_api->cfg.rbs_rx_bits	=-1;
 		tdm_api->cfg.hdlc		=1;

@@ -35,6 +35,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 
+#include "sangoma_mgd_common.h"
 
 
 

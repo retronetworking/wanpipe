@@ -1,17 +1,17 @@
 K 25
 svn:wc:ra_dav:version-url
-V 55
-/svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/.deps
+V 63
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/.deps
 END
 libteletone_la-libteletone_detect.Plo
 K 25
 svn:wc:ra_dav:version-url
-V 93
-/svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/.deps/libteletone_la-libteletone_detect.Plo
+V 101
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/.deps/libteletone_la-libteletone_detect.Plo
 END
 libteletone_la-libteletone_generate.Plo
 K 25
 svn:wc:ra_dav:version-url
-V 95
-/svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/.deps/libteletone_la-libteletone_generate.Plo
+V 103
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/.deps/libteletone_la-libteletone_generate.Plo
 END

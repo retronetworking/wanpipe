@@ -88,7 +88,7 @@
 
 #define DEBUG_FE_STATUS		if(0)DEBUG_EVENT
 
-#define SERIAL_FUNC()		if(1)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
+#define SERIAL_FUNC()		if(0)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
 
 /* Timer interrupt counter - used by activation timer T3 */
 #define HFC_TIMER_COUNTER_T3	2

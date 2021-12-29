@@ -1,17 +1,17 @@
 K 25
 svn:wc:ra_dav:version-url
-V 38
-/svn/sangoma_mgd/!svn/ver/1/trunk/conf
+V 46
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/conf
 END
 woomera_ext.conf
 K 25
 svn:wc:ra_dav:version-url
-V 55
-/svn/sangoma_mgd/!svn/ver/1/trunk/conf/woomera_ext.conf
+V 63
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/conf/woomera_ext.conf
 END
 woomera_iax.conf
 K 25
 svn:wc:ra_dav:version-url
-V 55
-/svn/sangoma_mgd/!svn/ver/1/trunk/conf/woomera_iax.conf
+V 63
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/conf/woomera_iax.conf
 END

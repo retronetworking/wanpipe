@@ -19,7 +19,6 @@
 extern void __log_printf(int level, FILE *fp, char *file, const char *func, int line, char *fmt, ...);
 #define clog_printf(level, fp, fmt, ...) __log_printf(level, fp, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 
-
 struct call_signal_map {
 	uint32_t event_id;
 	char *name;
@@ -153,7 +152,7 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 
 #if 0
 /* Debugging only not to be used in production because span/chan can be invalid */
-	   	if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > 16 || mcon->event.chan > 31) {
+	   	if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > max_spans || mcon->event.chan > max_chans) {
                 	clog_printf(0, mcon->log,
                         	"------------------------------------------\n");
                 	clog_printf(0, mcon->log,
@@ -202,7 +201,7 @@ call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon
 
 #if 0
 	/* Debugging only not to be used in production because span/chan can be invalid */
-               if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > 16 || mcon->event.chan > 31) {
+               if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > max_spans || mcon->event.chan > max_chans) {
                         clog_printf(0, mcon->log,
                                 "------------------------------------------\n");
                         clog_printf(0, mcon->log,
@@ -241,7 +240,7 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 		return -EINVAL;
 	}
 
-	if (event->span < 0 || event->chan < 0 || event->span > 16 || event->chan > 31) {
+	if (event->span < 0 || event->chan < 0 || event->span > max_spans || event->chan > max_chans) {
 		clog_printf(0, mcon->log, 
 			"------------------------------------------\n");
 		clog_printf(0, mcon->log, 

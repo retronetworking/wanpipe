@@ -2081,7 +2081,7 @@ void set_default_adsl_configuration(wan_adsl_conf_t* adsl_cfg)
 // i.g.  1->a, 2->b, 3->c ...
 char* replace_numeric_with_char(char* str)
 {
-	unsigned int i;
+	unsigned int i, is_num = 0;
 	unsigned int original_len = strlen(str);
 	static char new_str[1024];
 		
@@ -2093,7 +2093,14 @@ char* replace_numeric_with_char(char* str)
 			Debug(DBG_WANCFG_MAIN, ("new_str[%d]: 0x%X (+0x30: 0x%X)\n",
 				i, new_str[i], new_str[i]+0x30));
 			
-			new_str[i] = 'a' + (new_str[i] - '0');
+			if (!is_num){
+				new_str[i] = 'a' + (new_str[i] - '1');
+			}else{
+				new_str[i] = 'a' + (new_str[i] - '0');
+			}
+			is_num = 1;
+		}else{
+			is_num = 0;
 		}
 	}
 	return new_str;

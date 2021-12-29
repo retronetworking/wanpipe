@@ -1,11 +1,11 @@
 K 25
 svn:wc:ra_dav:version-url
-V 49
-/svn/sangoma_mgd/!svn/ver/50/trunk/scripts/init.d
+V 56
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/init.d
 END
 smgss7_init_ctrl
 K 25
 svn:wc:ra_dav:version-url
-V 66
-/svn/sangoma_mgd/!svn/ver/50/trunk/scripts/init.d/smgss7_init_ctrl
+V 73
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/init.d/smgss7_init_ctrl
 END

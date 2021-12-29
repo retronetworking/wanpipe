@@ -1,29 +1,29 @@
 K 25
 svn:wc:ra_dav:version-url
-V 49
-/svn/sangoma_mgd/!svn/ver/1/trunk/scripts/callgen
+V 57
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/callgen
 END
 sample.call.template
 K 25
 svn:wc:ra_dav:version-url
-V 70
-/svn/sangoma_mgd/!svn/ver/1/trunk/scripts/callgen/sample.call.template
+V 78
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/callgen/sample.call.template
 END
 channel-testL.pl
 K 25
 svn:wc:ra_dav:version-url
-V 66
-/svn/sangoma_mgd/!svn/ver/1/trunk/scripts/callgen/channel-testL.pl
+V 74
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/callgen/channel-testL.pl
 END
 run.sh
 K 25
 svn:wc:ra_dav:version-url
-V 56
-/svn/sangoma_mgd/!svn/ver/1/trunk/scripts/callgen/run.sh
+V 64
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/callgen/run.sh
 END
 clog.sh
 K 25
 svn:wc:ra_dav:version-url
-V 57
-/svn/sangoma_mgd/!svn/ver/1/trunk/scripts/callgen/clog.sh
+V 65
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/callgen/clog.sh
 END

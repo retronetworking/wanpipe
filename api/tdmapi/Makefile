@@ -12,13 +12,13 @@ DEBUG	= 2
 
 SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
 ifeq "$(SYSINC)" "" 
-SYSINC=/usr/src/linux/include
+SYSINC=/lib/modules/$(uname -r)/build/include
 endif
 VPATH	= $(SYSINC)
 
 # Tools options.
 CFLAGS	= -Wall -O2 -D$(OS_TYPE) -DWANPIPE_TDM_API -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib/hdlc -I../lib
-CFLAGS	+= -I/usr/include/wanpipe
+CFLAGS	+= -I/usr/include/wanpipe -I../../patches/kdrivers/include/ 
 #CFLAGS	= -I$(SYSINC)
 
 TARGETS = aft_tdm_voice_api
@@ -36,7 +36,7 @@ all:	$(TARGETS)
 	@echo "Ok."
 
 install:
-        for x in $(TARGETS); do \
+	for x in $(TARGETS); do \
                 install -D -m 755 $$x /usr/bin/$$x; \
         done;
 

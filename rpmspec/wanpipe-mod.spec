@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.3.5
+%define version           3.3.6
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -52,8 +52,29 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 %changelog
 
 
+* Wed Apr 4 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.6
+======================================================================
+
+- BRI Driver bug fixes
+  Secured the bri restart logic to prevent possible
+  race conditions.
+
+- BRI Stack update
+  Bug Fix: bri stack update fixes reconnect on etsi lines
+  Feature: group outbound calls skip disconnected lines
+
+- T3 update
+  Fixed dma issues on some machines when tx/rx mixed
+  voip and data traffic.
+
+- Hardware Probe Verbose Update
+  Analog and BRI cards now display PCI/PCIe info on
+  wanrouter hwrobe verbose.
+
+
 * Wed Mar 27 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.5
 ======================================================================
+
 
 - Removed debugging out of firmware update utility
 - Updated firmware bin files

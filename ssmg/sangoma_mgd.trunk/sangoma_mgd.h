@@ -30,11 +30,12 @@
 #include <netinet/tcp.h>
 #include <libsangoma.h>
 #include <assert.h>
-#include <call_signal.h>
 #include <sys/mman.h>
 #include <syslog.h> 
 #include <g711.h>
 
+#include "sangoma_mgd_common.h"
+#include "call_signal.h"
 #include "sangoma_mgd_memdbg.h"
 
 #ifdef __LINUX__
@@ -45,9 +46,6 @@
 #include <libteletone.h>
 #include <switch_buffer.h>
 
-
-#define WOOMERA_MAX_SPAN	16
-#define WOOMERA_MAX_CHAN	31
 
 #define SMG_SESSION_NAME_SZ	100
 #define SMG_CHAN_NAME_SZ	20
@@ -389,7 +387,7 @@ static inline void smg_clear_ckt_gap(void)
 
 static inline int smg_validate_span_chan(int span, int chan)
 {
-	if (span < 0 || span > WOOMERA_MAX_SPAN) {
+	if (span < 0 || span > max_spans) {
 		return -1;
 	}
 

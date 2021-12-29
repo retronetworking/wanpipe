@@ -5428,8 +5428,13 @@ static void aft_rx_dma_chain_handler(private_area_t *chan, int wtd, int reset)
 	if (reset){
 		goto reset_skip_rx_setup;
 	}
-	
-	xilinx_dma_rx(card,chan,cur_dma_ptr);
+
+	/* Major Bug fix: Only reload dma desc on real interrupt
+           not on every watchdog. This caused pci errors when sending
+           mixed voip and data traffic */	
+	if (!wtd){
+		xilinx_dma_rx(card,chan,cur_dma_ptr);
+	}
 	
 	if (wan_skb_queue_len(&chan->wp_rx_complete_list)){
 		DEBUG_TEST("%s: Rx Queued list triggering\n",chan->if_name);

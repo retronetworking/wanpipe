@@ -1,15 +1,15 @@
 8
 
 dir
-66
-https://www.sangomapbx.com/svn/sangoma_mgd/trunk
+75
+https://www.sangomapbx.com/svn/sangoma_mgd/branches/bri
 https://www.sangomapbx.com/svn/sangoma_mgd
 
 
 
-2008-02-08T17:46:54.335012Z
-66
-ncorbic
+2008-04-04T17:43:05.753942Z
+75
+davidy
 
 
 svn:special svn:externals svn:needs-lock
@@ -32,39 +32,11 @@ file
 
 
 
-2007-11-26T18:06:19.000000Z
-d2023784f5d89a5623927a366705e22a
-2007-11-24T22:45:32.820698Z
-36
-ncorbic
-
-app
-dir
-
-sound.raw
-file
-
-
-
-
-2007-11-30T16:39:49.000000Z
-da36acc78b83d5047481df0cca63d969
-2007-09-21T20:53:51.260136Z
-1
-root
-has-props
-
-sangoma_mgd.conf.sample
-file
-
-
-
-
-2008-02-13T19:12:32.000000Z
-31bd051e4281dc2e6e705cded0c30971
-2008-02-07T18:04:31.680485Z
-64
-ncorbic
+2008-04-04T17:49:20.000000Z
+f3b4f42e0521dd697525509cff55ec01
+2008-04-04T17:37:44.985328Z
+74
+davidy
 
 switch_buffer.h
 file
@@ -72,11 +44,39 @@ file
 
 
 
-2007-11-30T16:39:49.000000Z
+2008-04-04T17:49:20.000000Z
 f4832443a621cbb88e92535898d11b83
 2007-09-21T20:53:51.260136Z
 1
 root
+
+sangoma_mgd.conf.sample
+file
+
+
+
+
+2008-04-04T17:49:20.000000Z
+31bd051e4281dc2e6e705cded0c30971
+2008-02-07T18:04:31.680485Z
+64
+ncorbic
+
+sound.raw
+file
+
+
+
+
+2008-04-04T17:49:20.000000Z
+da36acc78b83d5047481df0cca63d969
+2007-09-21T20:53:51.260136Z
+1
+root
+has-props
+
+app
+dir
 
 callgettest.sh
 file
@@ -84,15 +84,12 @@ file
 
 
 
-2007-11-30T16:39:49.000000Z
+2008-04-04T17:49:20.000000Z
 2403f191bdc1959c4cfd186b5030b9b1
 2007-09-21T20:53:51.260136Z
 1
 root
 has-props
-
-conf
-dir
 
 ss7box
 file
@@ -100,7 +97,7 @@ file
 
 
 
-2008-01-14T17:24:55.000000Z
+2008-04-04T17:49:20.000000Z
 f20dab977386b2508903e24a307ca2d6
 2007-09-21T20:53:51.260136Z
 1
@@ -110,28 +107,11 @@ has-props
 
 svn:special
 
-scripts
+conf
 dir
 
-call_signal.c
-file
-
-
-
-
-2008-01-14T15:56:22.000000Z
-bcf6ba51a26281d7a0963c364f8610f1
-2007-11-28T21:12:42.416435Z
-42
-ncorbic
-
-
-
-
-
-call_signal.c.r40
-call_signal.c.r53
-call_signal.c.mine
+scripts
+dir
 
 re-sync.sh
 file
@@ -139,24 +119,24 @@ file
 
 
 
-2007-10-12T19:24:17.000000Z
+2008-04-04T17:49:20.000000Z
 1cd822495b7d97b8e089c93bac1ad71a
 2007-09-25T02:04:57.936973Z
 20
 ncorbic
 has-props
 
-woomera.conf
+call_signal.c
 file
 
 
 
 
-2007-10-11T20:07:11.000000Z
-356d6fc18e0670efac6de6001e58648e
-2007-09-21T20:53:51.260136Z
-1
-root
+2008-04-04T17:49:20.000000Z
+db2da6edaa8ffa025a8bf3c719955fe6
+2008-04-04T17:37:44.985328Z
+74
+davidy
 
 sangoma_mgd.c
 file
@@ -164,19 +144,23 @@ file
 
 
 
-2007-09-25T06:19:28.000000Z
-fb2f3311aca106d27d61957211903a0d
-2008-02-08T17:46:54.335012Z
-66
-ncorbic
+2008-04-04T17:49:20.000000Z
+74649fe6bcf1f2bfa9ac77256789bb9f
+2008-04-04T17:37:44.985328Z
+74
+davidy
+
+woomera.conf
+file
 
 
 
 
-
-sangoma_mgd.c.r33
-sangoma_mgd.c.r40
-sangoma_mgd.c.mine
+2008-04-04T17:49:20.000000Z
+356d6fc18e0670efac6de6001e58648e
+2007-09-21T20:53:51.260136Z
+1
+root
 
 call_signal.h
 file
@@ -184,31 +168,11 @@ file
 
 
 
-2007-10-11T20:07:11.000000Z
-1a8b734edbabbe1e04c0086460cf1565
-2007-09-21T20:53:51.260136Z
-1
-root
-
-sangoma_mgd.h
-file
-
-
-
-
-2008-01-14T15:37:07.000000Z
-0e349003dfb2ecb954424d503cee4c9e
-2008-02-07T18:04:31.680485Z
-64
-ncorbic
-
-
-
-
-
-sangoma_mgd.h.r56
-sangoma_mgd.h.r59
-sangoma_mgd.h.mine
+2008-04-04T17:49:20.000000Z
+6b86fe0e87d63115f1d2ac44590e1488
+2008-04-04T17:37:44.985328Z
+74
+davidy
 
 Changelog.sangoma_mgd
 file
@@ -216,11 +180,23 @@ file
 
 
 
-2008-02-13T19:12:32.000000Z
+2008-04-04T17:49:20.000000Z
 24d92bda7769867980fd44e68f2eb422
 2008-02-08T17:46:54.335012Z
 66
 ncorbic
+
+sangoma_mgd.h
+file
+
+
+
+
+2008-04-04T17:49:20.000000Z
+ee446dc280d6dcefa014a5fd0646b9fb
+2008-04-04T17:37:44.985328Z
+74
+davidy
 
 q931_cause.h
 file
@@ -228,7 +204,7 @@ file
 
 
 
-2007-10-11T20:07:11.000000Z
+2008-04-04T17:49:20.000000Z
 a31121fb876e49155ae5d77812b68cc3
 2007-09-21T20:53:51.260136Z
 1
@@ -240,7 +216,7 @@ file
 
 
 
-2007-10-11T20:07:11.000000Z
+2008-04-04T17:49:20.000000Z
 0f725f95ced42af15dcaef21f3a1722b
 2007-09-21T20:53:51.260136Z
 1
@@ -251,14 +227,14 @@ dir
 
 install
 file
+76
 
 
 
-
-2007-09-25T06:34:30.000000Z
-0e00003cd276e523b9b6e6df6a2f823f
-2007-12-20T00:59:56.095828Z
-51
+2008-04-04T19:53:27.000000Z
+a332d6943b0c446943c102dba0366d96
+2008-04-04T19:45:44.586071Z
+76
 ncorbic
 has-props
 
@@ -268,7 +244,7 @@ file
 
 
 
-2008-02-13T19:12:32.000000Z
+2008-04-04T17:49:20.000000Z
 c97ea5c4ee482db2409549e9c320d633
 2008-02-06T22:23:25.673829Z
 62
@@ -280,12 +256,24 @@ file
 
 
 
-2008-01-18T22:26:34.000000Z
+2008-04-04T17:49:20.000000Z
 305c8fe9341c230ec32af102688736fd
 2008-01-18T20:47:52.049290Z
 56
 ncorbic
 has-props
+
+sangoma_mgd_common.h
+file
+
+
+
+
+2008-04-04T17:53:13.000000Z
+f413ade50c4afbd2d267f310140b4019
+2008-04-04T17:43:05.753942Z
+75
+davidy
 
 switch_buffer.c
 file
@@ -293,7 +281,7 @@ file
 
 
 
-2008-02-13T19:12:32.000000Z
+2008-04-04T17:49:20.000000Z
 c8cc3aa052980e6c7cb766ae564882d1
 2008-02-06T22:22:53.766395Z
 61
@@ -305,11 +293,11 @@ file
 
 
 
-2008-01-14T15:59:16.000000Z
-d03c6e24e68df0f99cee78567a623583
-2008-02-07T18:15:41.313227Z
-65
-ncorbic
+2008-04-04T17:49:20.000000Z
+d57cadf19c1416f7a50bdafd684299cc
+2008-04-04T17:37:44.985328Z
+74
+davidy
 
 sangoma_mgd_memdbg.h
 file
@@ -317,7 +305,7 @@ file
 
 
 
-2008-02-13T19:12:32.000000Z
+2008-04-04T17:49:20.000000Z
 81957c6e3d9a6caa2e223e954c15c49c
 2008-02-06T22:23:25.673829Z
 62

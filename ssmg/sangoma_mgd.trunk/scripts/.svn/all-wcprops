@@ -1,29 +1,29 @@
 K 25
 svn:wc:ra_dav:version-url
-V 42
-/svn/sangoma_mgd/!svn/ver/50/trunk/scripts
+V 49
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts
 END
 astxs
 K 25
 svn:wc:ra_dav:version-url
-V 47
-/svn/sangoma_mgd/!svn/ver/1/trunk/scripts/astxs
+V 55
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/astxs
 END
 set_debug.sh
 K 25
 svn:wc:ra_dav:version-url
-V 54
-/svn/sangoma_mgd/!svn/ver/1/trunk/scripts/set_debug.sh
+V 62
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/set_debug.sh
 END
 clog.sh
 K 25
 svn:wc:ra_dav:version-url
-V 49
-/svn/sangoma_mgd/!svn/ver/1/trunk/scripts/clog.sh
+V 57
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/clog.sh
 END
 old_cleanup.sh
 K 25
 svn:wc:ra_dav:version-url
-V 57
-/svn/sangoma_mgd/!svn/ver/47/trunk/scripts/old_cleanup.sh
+V 64
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/old_cleanup.sh
 END

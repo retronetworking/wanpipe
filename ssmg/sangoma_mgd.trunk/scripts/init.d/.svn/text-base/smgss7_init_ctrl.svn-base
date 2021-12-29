@@ -1,4 +1,7 @@
 #!/bin/sh
+# chkconfig: 2345 15 15
+# description: Starts and stop SS7/Wanpipe devices
+
 
 WAN_LOCK=/var/lock/wanrouter_lock
 

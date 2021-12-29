@@ -35,6 +35,7 @@
 *******************************************************************************/
 
 #define IS_BRI_CARD(card)		IS_BRI_FEMEDIA(&(card)->fe)
+#define IS_BRI_CLK(card)		card->fe.fe_cfg.cfg.bri.clock_mode
 
 #define WAN_BRI_START_CHANNEL		1
 

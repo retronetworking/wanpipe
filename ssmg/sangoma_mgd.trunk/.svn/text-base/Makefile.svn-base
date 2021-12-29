@@ -35,6 +35,14 @@ INSTALLPREFIX=
 INCLUDES = -I$(KDIR)/include -I ../../ssmg/libsangoma.trunk -I. -I ../../patches/kdrivers/include -I ../../patches/kdrivers/wanec/oct6100_api/include -I ../../patches/kdrivers/wanec -I/usr/local/include -I../../patches/kdrivers/include -I/usr/include/wanpipe -Ilib/libteletone/src
 
 CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 
+ifeq "${NO_SS7}" "YES"
+CFLAGS += -DBRI_PROT
+endif
+
+ifeq "${BRI}" "YES"
+CFLAGS += -DBRI_PROT
+endif
+
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
 LDFLAGS=-L lib/libteletone/.libs -L. -L/usr/local/lib -L ../../ssmg/libsangoma.trunk/.libs -lpthread -lsangoma -lm
 
@@ -89,11 +97,20 @@ install_smg: old_cleanup
 		install -D -m 755 sangoma_mgd.conf.sample $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
 	fi
 ifeq "${NO_SS7}" "YES"
-	@echo"SS7 control and service script not installed"
-else	
+	@echo "BRI control scripts installed"
+	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
+		install -D -m 755 sangoma_mgd.conf.sample.bri $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
+	fi
+	install -D -m 755 ../sangoma_bri/smg_ctrl $(INSTALLPREFIX)/usr/sbin/smg_ctrl
+else
+	@echo "SS7 control scripts installed"
+	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
+		install -D -m 755 sangoma_mgd.conf.sample.ss7 $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
+	fi
 	install -D -m 755 smg_ctrl $(INSTALLPREFIX)/usr/sbin/smg_ctrl
 	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(INSTALLPREFIX)/etc/init.d/smgss7_init_ctrl
 	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(INSTALLPREFIX)/usr/sbin/smgss7_init_ctrl
+
 endif	
 	@echo "sangoma_mgd Installed"
 

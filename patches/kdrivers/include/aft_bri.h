@@ -50,6 +50,20 @@ void aft_bri_fifo_adjust(sdla_t *card,u32 level);
 int aft_bri_dchan_transmit(sdla_t *card, void *chan_ptr, void *src_data_buffer, unsigned int buffer_len);
 int aft_bri_dchan_receive( sdla_t *card, void *chan_ptr, void *dst_data_buffer, unsigned int buffer_len);
 
+
+static __inline int
+aft_is_bri_nt_card(sdla_t *card)
+{
+	return IS_BRI_NT_MOD(&(card)->fe.bri_param, WAN_FE_LINENO(&card->fe));
+}
+
+static __inline int
+aft_is_bri_te_card(sdla_t *card)
+{
+	return IS_BRI_TE_MOD(&(card)->fe.bri_param, WAN_FE_LINENO(&card->fe));
+}
+
+
 #endif/* WAN_KERNEL */
 
 #endif/* _AFT_BRI_H */

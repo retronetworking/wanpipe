@@ -1,8 +1,8 @@
 8
 
 dir
-66
-https://www.sangomapbx.com/svn/sangoma_mgd/trunk/lib/libteletone/.deps
+75
+https://www.sangomapbx.com/svn/sangoma_mgd/branches/bri/lib/libteletone/.deps
 https://www.sangomapbx.com/svn/sangoma_mgd
 
 
@@ -32,7 +32,7 @@ file
 
 
 
-2007-10-12T21:16:10.000000Z
+2008-04-04T17:49:20.000000Z
 fc88672102538198c5fcc7b0a0cfc4b9
 2007-09-21T20:53:51.260136Z
 1
@@ -44,7 +44,7 @@ file
 
 
 
-2007-10-12T21:16:09.000000Z
+2008-04-04T17:49:20.000000Z
 c763fc59d24f080c3a707e2f0454808c
 2007-09-21T20:53:51.260136Z
 1

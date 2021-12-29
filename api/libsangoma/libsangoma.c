@@ -838,7 +838,8 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 		if (tdm_api->wp_tdm_event.wp_fe_alarm_event) {
 			tdm_api->wp_tdm_event.wp_fe_alarm_event(fd,
                               rx_event->wp_tdm_api_event_alarm);
-		}    
+		}   
+		break; 
 #endif
 		
 	default:

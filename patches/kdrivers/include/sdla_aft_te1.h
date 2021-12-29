@@ -1183,19 +1183,6 @@ aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
 	return num_of_slots;
 }
 
-static __inline int
-aft_is_bri_nt_card(sdla_t *card)
-{
-	return IS_BRI_NT_MOD(&(card)->fe.bri_param, WAN_FE_LINENO(&card->fe));
-}
-
-static __inline int
-aft_is_bri_te_card(sdla_t *card)
-{
-	return IS_BRI_TE_MOD(&(card)->fe.bri_param, WAN_FE_LINENO(&card->fe));
-}
-
-
 #define MAX_AFT_HW_DEV 20
 
 typedef struct aft_hw_dev{
