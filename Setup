@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash -p
 #
 # Setup		WANPIPE WAN Router Installation/Removal Script.
 #
@@ -1518,7 +1518,7 @@ create_mataconf()
 	fi
 
 	cat > $META_CONF << ENDOFTEXT
-#!/bin/sh
+#!/bin/bash
 # router.rc	WAN router meta-configuration file.
 #
 #		This file defines variables used by the router shell scripts
@@ -3491,7 +3491,7 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 
 cat <<ENDOFTEXT > $PROD_HOME/Compile_Setup.sh
 
-#!/bin/sh
+#!/bin/bash
 
 if [ -e kdrvcmp ]; then
 	rm -rf kdrvcmp
@@ -3525,7 +3525,7 @@ ENDOFTEXT
 tmp=${CFLAGS/$CC/}
 cat <<ENDOFTEXT > $PROD_HOME/Compile.sh
 
-#!/bin/sh
+#!/bin/bash
 
 make CFLAGS="$tmp"  PROTOCOL_DEFINES="$PROTOCOL_DEFINES"
 
@@ -4159,7 +4159,7 @@ WANPIPE_OBJS=
 
 
 	   cat <<ENDOFTEXT > $CMP_INSTALL
-#!/bin/sh
+#!/bin/bash
 
 	   mv *.ko mod/ > /dev/null 2> /dev/null
 
@@ -4204,7 +4204,7 @@ ENDOFTEXT
 	   chmod 755 $CMP_INSTALL
 
 	 cat <<ENDOFTEXT > .clean.$$
-#!/bin/sh
+#!/bin/bash
 	
 rm -f *.ko
 rm -f tmp/*.*o
@@ -6357,7 +6357,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.2.6
+PROD_VER=3.2.7
 PROD_HOME=`pwd`
 WAN_CONF_DIR=/etc/wanpipe
 META_CONF=$PROD_HOME/$PROD.rc      

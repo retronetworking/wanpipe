@@ -9,6 +9,7 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Jun 26   2008  2.13   Jingesh Patel	Fixed scritp for wancfg_smg and tdm_api 
 # May 22   2008  2.12	Jignesh Patel 	Added confirmation check /dev/zap* for hardhdlc
 # May 22   2008  2.12   Jignesh Patel 	Update zaptel module list 
 # Jan 02   2008	 2.11  	David Yat Sin  	Support for per span configuration in silent mode
@@ -32,7 +33,7 @@
 system('clear');
 print "\n#############################################i##########################";
 print "\n#    Sangoma Wanpipe:  Zaptel/SMG/TDMAPI/BOOT Configuration Script     #";
-print "\n#                             v2.12                                    #";
+print "\n#                             v2.13                                    #";
 print "\n#                     Sangoma Technologies Inc.                        #";
 print "\n#                        Copyright(c) 2008.                            #";
 print "\n########################################################################\n\n";
@@ -239,7 +240,9 @@ my $date=`date +%F`;
 chomp($date);
 my $debug_tarball="$wanpipe_conf_dir/debug-".$date.".tgz";
 
-set_zaptel_hwhdlc();
+if( $zaptel_installed= $TRUE){
+	set_zaptel_hwhdlc();
+}
 prepare_files();
 config_t1e1();
 config_bri();

@@ -1748,14 +1748,25 @@ static int sdla_pci_probe(sdlahw_t *hw)
 			bus = pci_dev->bus;
 			if (bus->self == NULL) break;
 			pci_bridge_dev = bus->self;
+
 			if (pci_bridge_dev->vendor == PLX_VENDOR_ID && 
-			    pci_bridge_dev->device == PLX_DEVICE_ID){
+	   		   (pci_bridge_dev->device == PLX_DEVICE_ID ||
+	    		    pci_bridge_dev->device == PLX2_DEVICE_ID)){
+
 				hwcard->pci_bridge_dev = pci_bridge_dev;
-				DEBUG_TEST("%s: PCI-Express card (bus:%d, slot:%d)\n",
+				DEBUG_TEST("%s: PCI-Express PLX card (bus:%d, slot:%d)\n",
 					wan_drvname,
 					pci_bridge_dev->bus->number, 
 					((pci_bridge_dev->devfn >> 3) & PCI_DEV_SLOT_MASK));    
+
+			}else if (pci_bridge_dev->vendor == TUNDRA_VENDOR_ID && 
+				  pci_bridge_dev->device == TUNDRA_DEVICE_ID){
+
+				hwcard->pci_bridge_dev = pci_bridge_dev;
+				DEBUG_TEST("%s: PCI-Express card (TUNDRA PCI Bridge, bus:%d, slot:%d)\n",
+					wan_drvname, hwcard->bus_no, hwcard->slot_no);
 			}
+
 			break;
 		}	
 		

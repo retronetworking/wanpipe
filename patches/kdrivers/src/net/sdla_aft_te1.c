@@ -5256,6 +5256,14 @@ aft_global_isr_exit:
 				card->u.aft.rx_errors_over_cnt++;
 				DEBUG_EVENT("%s: Excessive Rx Errors ... %i (errs/s=%i)!\n",
 					card->devname,card->u.aft.rx_errors_over_cnt,card->u.aft.rx_errors_hist);
+#if 0
+
+/* NC: This is very dangrous.  We have seen on some lines that it takes up to
+   9 rx_errors_over_cnt for the line to stabilize.  I will continue to print the
+   warning but will not disable the line. This way a customer would know that there
+   is something wrong with his system. Ericsson uses this feature in their systems
+   The driver stop on excess errors should be configurable. */
+
 				if (card->u.aft.rx_errors_over_cnt >= 2) {
 					DEBUG_EVENT("%s: Excessive Rx Errors ... stopping device!\n",card->devname);
 					card->u.aft.rx_errors_over_cnt=0;
@@ -5264,6 +5272,7 @@ aft_global_isr_exit:
 					aft_wdt_set(card,AFT_WDTCTRL_TIMEOUT);
 					card->u.aft.rx_errors_down_timeout = SYSTEM_TICKS;
 				}
+#endif
 			} else {
 				card->u.aft.rx_errors_over_cnt=0;
 				card->u.aft.rx_errors_down_timeout=0;

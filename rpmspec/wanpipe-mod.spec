@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.2.6
+%define version           3.2.7
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,20 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+* Thu Jul 16 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.7
+========================================================================
+
+- Removed the Excessive Error check that disables the port.
+  This feature was introduced in 3.2.6 release.
+  Some lines are extremely noisy on startup which can cause
+  excessive crc errors (5000 per sec).  In this case driver would 
+  take the port down for few sec before bringing it back up in order to
+  avoid irq overlaod.  This release will only print the
+  warning but will not take any up/down actions.
+
+- Added support for new PLX2 or TUNDRA PCIe chip.
+
+
 * Thu Jun 4 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.6
 ========================================================================
 
