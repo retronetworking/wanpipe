@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.8
+%define VERSION           7.0.9
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -258,6 +258,15 @@ fi
 ################################################################################
 
 %changelog
+
+* Mon Jan 7 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.9
+==================================================================
+
+- Support for Dahdi 2.8
+- Support for Centos 6.5
+- Support for kernels up to 3.12
+- Fixes A116 clocking for dahdi when link is down
+- Updates to A116 for possible NMI interrupt erros on some motherboards.
 
 * Wed Nov 14 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.8
 ==================================================================

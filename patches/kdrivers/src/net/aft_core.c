@@ -287,6 +287,9 @@ static int 		wp_aft_fifo_per_port_isr(sdla_t *card);
 static void 	wp_aft_wdt_per_port_isr(sdla_t *card, int wdt_intr);
 static void     wp_aft_serial_status_isr(sdla_t *card, u32 status);
 static void 	wp_aft_free_timer_status_isr(sdla_t *card, u32 free_run_intr_status);
+static void     aft_report_rbsbits(void* pcard, int channel, unsigned char status);
+static void     aft_poll_rbsbits(sdla_t *card);
+
 
 static void 	front_end_interrupt(sdla_t *card, unsigned long reg, int lock);
 static void  	enable_data_error_intr(sdla_t *card);
@@ -971,6 +974,13 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 			conf->fe_cfg.cfg.te_cfg.active_ch = -1;
 		}
 
+		/* Use FE Poll option by default for A116 and T116 boards.
+		   On some machines the use of front end interrupt results in NMI or
+		   PCI parity errors */ 
+		if (card->adptr_type == AFT_ADPTR_T116 || card->adptr_type == A116_ADPTR_16TE1) {
+			conf->fe_cfg.poll_mode = WANOPT_YES;
+		}
+ 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 		if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
 			sdla_ds_te1_iface_init(&card->fe, &card->wandev.fe_iface);
@@ -1050,6 +1060,19 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 		}else{
 			card->u.aft.num_of_time_slots=NUM_OF_E1_CHANNELS;
 		}
+
+		if (IS_E1_CARD(card) && WAN_TE1_SIG_MODE(&card->fe) == WAN_TE1_SIG_CCS){
+			if (card->u.aft.cfg.rbs) {
+				DEBUG_EVENT("%s: Warning: Cannot enable rbs on E1 CCS line. Please remove RBS=YES in %s.conf.  Ignoring RBS option\n",
+					card->devname,card->devname);
+				card->u.aft.cfg.rbs=0;
+			}
+		}
+
+		if (card->u.aft.cfg.rbs) {
+			card->wandev.te_report_rbsbits = aft_report_rbsbits;
+		}
+
 
 	}else{
 		DEBUG_EVENT("%s: Invalid Front-End media type!! (Not T1/E1/J1)\n",
@@ -1400,6 +1423,9 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	DEBUG_EVENT("%s:    Rx CRC Bytes   = %d\n",
 			card->devname,
 			card->u.aft.cfg.rx_crc_bytes);
+	DEBUG_EVENT("%s:    RBS Signalling       = %s\n",
+            card->devname,
+            card->u.aft.cfg.rbs?"On":"Off");
 
 	DEBUG_EVENT("%s:    Memory: Card=%d Wandev=%d Card Union=%d\n",
 			card->devname,sizeof(sdla_t),sizeof(wan_device_t),sizeof(card->u));
@@ -1448,7 +1474,8 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 		}
 		if (card->adptr_type == A116_ADPTR_16TE1) {
 			wan_set_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status);
-            wan_set_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status);
+			wan_set_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status);
+			wan_set_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status);
 		}
 		
 	} else {
@@ -6001,6 +6028,15 @@ int aft_bh_rx(private_area_t* chan, netskb_t *new_skb, u8 pkt_error, int len)
 
 	if (chan->common.usedby == API){
 
+
+		if (card->u.aft.cfg.rbs) {
+			if ((SYSTEM_TICKS - card->u.aft.rbs_timeout) > HZ/50) {
+				card->u.aft.rbs_timeout = SYSTEM_TICKS;
+				aft_core_taskq_trigger(card,AFT_FE_TDM_RBS);
+			}
+		}
+
+
 		if (chan->wp_api_op_mode) {
 			int err;
 			wp_api_hdr_t *rx_hdr=NULL;
@@ -8592,7 +8628,13 @@ static void handle_front_end_state(void *card_id,int lock)
 
 				aft_core_taskq_trigger(card,AFT_FE_LED);
 
-				
+				if (card->u.aft.cfg.rbs == 1){
+					card->u.aft.cfg.rbs++;
+					if (card->wandev.fe_iface.set_fe_sigctrl){
+						DEBUG_EVENT("%s: Enabling rbs for all channels !\n",card->devname);
+						card->wandev.fe_iface.set_fe_sigctrl(&card->fe, WAN_TE_SIG_INTR, ENABLE_ALL_CHANNELS, WAN_ENABLE);
+					}
+				}
 
 		}
 	}else{
@@ -11394,6 +11436,10 @@ static void aft_port_task (void * card_ptr, int arg)
 		}
 #endif
 
+		if (card->u.aft.cfg.rbs && !card->u.aft.global_tdm_irq) {
+			aft_poll_rbsbits(card);
+		}
+
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 	}
 
@@ -12790,6 +12836,134 @@ int wp_aft_w400_init (sdla_t* card, wandev_conf_t *conf)
 	card->u.aft.num_of_time_slots = MAX_GSM_TIMESLOTS;
 
 	return wan_aft_init(card,conf);
+}
+
+static int send_rbs_oob_msg (sdla_t *card, private_area_t *chan, int channel, unsigned char status)
+{
+#if defined(__LINUX__)
+    unsigned char *buf;
+    wp_api_hdr_t *api_rx_el;
+    struct sk_buff *skb;
+    int err=0, len=5;
+
+    if (chan->common.usedby != API){
+        return -ENODEV;
+    }
+
+    if (!chan->common.sk){
+        return -ENODEV;
+    }
+
+    skb=wan_skb_alloc(sizeof(wp_api_hdr_t)+len);
+    if (!skb){
+        return -ENOMEM;
+    }
+
+    api_rx_el=(wp_api_hdr_t *)wan_skb_put(skb,sizeof(wp_api_hdr_t));
+    memset(api_rx_el,0,sizeof(wp_api_hdr_t));
+
+    api_rx_el->wp_api_legacy_rbs_channel=channel;
+    api_rx_el->wp_api_legacy_rbs_status=status;
+
+    buf = wan_skb_put(skb,1);
+    if (!buf){
+        wan_skb_free(skb);
+        return -ENOMEM;
+    }
+
+
+#if 0
+This conversion is done in te1 sources.
+    if (status & BIT_SIGX_A) signal |= WAN_RBS_SIG_A;
+    if (status & BIT_SIGX_B) signal |= WAN_RBS_SIG_B;
+    if (status & BIT_SIGX_C) signal |= WAN_RBS_SIG_C;
+    if (status & BIT_SIGX_D) signal |= WAN_RBS_SIG_D;
+#endif
+
+    buf[0]=status;
+
+    skb->pkt_type = WAN_PACKET_ERR;
+    skb->protocol=htons(PVC_PROT);
+    skb->dev=chan->common.dev;
+
+    DEBUG_TEST("%s: Sending OOB message len=%i\n",
+            chan->if_name, wan_skb_len(skb));
+
+    if (wan_api_rx(chan,skb)!=0){
+        err=-ENODEV;
+        wan_skb_free(skb);
+    }
+    return err;
+
+#else
+    DEBUG_EVENT("%s: OOB messages not supported!\n",
+            chan->if_name);
+    return -EINVAL;
+#endif
+}
+
+static void aft_poll_rbsbits(sdla_t *card)
+{
+    int i;
+
+    for (i=0; i<card->u.aft.num_of_time_slots ;i++){
+
+        if (!wan_test_bit(i,&card->u.aft.time_slot_map)){
+            continue;
+        }
+
+        card->wandev.fe_iface.read_rbsbits(
+                    &card->fe,
+                    i+1,
+                    WAN_TE_RBS_UPDATE|WAN_TE_RBS_REPORT);
+    }
+}
+
+static void aft_report_rbsbits(void* pcard, int channel, unsigned char status)
+{
+    sdla_t *card=(sdla_t *)pcard;
+    int i;
+
+    if (!wan_test_bit(channel-1, &card->u.aft.time_slot_map)) {
+        return;
+    }
+
+    for (i=0; i<card->u.aft.num_of_time_slots;i++) {
+        private_area_t *chan;
+
+        if (!wan_test_bit(i,&card->u.aft.logic_ch_map)){
+            continue;
+        }
+
+        chan=(private_area_t*)card->u.aft.dev_to_ch_map[i];
+        if (!chan){
+            continue;
+        }
+
+        if (!wan_test_bit(0,&chan->up)){
+            continue;
+        }
+
+        if (!wan_test_bit(channel-1, &chan->time_slot_map)){
+            continue;
+        }
+
+        if (chan->rbsbits == status) {
+            continue;
+        }
+
+        chan->rbsbits = status;
+
+        DEBUG_TEST("%s: Report FirstTs=%i Ch=%i Status=0x%X TSMAP=0x%X\n",
+                card->devname,chan->first_time_slot, channel,status,card->u.aft.time_slot_map);
+
+
+        send_rbs_oob_msg (card, chan, channel, status);
+        break;
+    }
+
+
+    return;
 }
 
 /****** End ****************************************************************/

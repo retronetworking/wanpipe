@@ -669,6 +669,7 @@ typedef struct
 	unsigned char	global_poll_irq;
 	unsigned int	tdm_api_cfg;
 	unsigned int	tdm_api_dchan_cfg;
+	wan_ticks_t     rbs_timeout;
 
 } sdla_xilinx_t;
 

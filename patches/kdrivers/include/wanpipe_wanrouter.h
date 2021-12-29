@@ -457,7 +457,6 @@ extern int wanrouter_proc_add_interface(wan_device_t*,struct proc_dir_entry**,
 extern int wanrouter_proc_delete_interface(wan_device_t*, char*);
 
 extern void *sdla_get_hw_probe(void);
-extern int wanrouter_proc_usage_check(void);
 extern int wan_run_wanrouter(char* hwdevname, char *devname, char *action);
 
 extern int register_wanpipe_fw_protocol (struct wanpipe_fw_register_struct *wp_fw_reg);

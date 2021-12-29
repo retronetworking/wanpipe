@@ -5438,7 +5438,9 @@ static int woomera_cli(int fd, int argc, char *argv[])
 			  return 0;
 		}
 
-		if (!strcmp(argv[2], "debug")) {
+		if (argc == 2) {
+			ast_cli(fd, "No command given. Need one of: debug, verbose, coding, call_status, version, panic, rxgain, txgain, media_pass_through, udp_seq, bridge_disable, rbs_relay, threads, smgdebug, abort\n");
+		} else if (!strcmp(argv[2], "debug")) {
 			if (argc > 3) {
 				globals.debug = atoi(argv[3]);
 			}

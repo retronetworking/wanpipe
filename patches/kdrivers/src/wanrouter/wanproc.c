@@ -260,12 +260,12 @@ static struct proc_dir_entry *map_dir;
 
 static int config_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, config_get_info, WP_PDE(inode)->data);
+	return single_open(file, config_get_info, WP_PDE_DATA(inode));
 }
 
 static int status_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, status_get_info, WP_PDE(inode)->data);
+	return single_open(file, status_get_info, WP_PDE_DATA(inode));
 }
 
 static struct file_operations config_fops = {
@@ -286,7 +286,7 @@ static struct file_operations status_fops = {
 
 static int wandev_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, wandev_get_info, WP_PDE(inode)->data);
+	return single_open(file, wandev_get_info, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wandev_fops = {
@@ -300,7 +300,7 @@ static struct file_operations wandev_fops = {
 
 static int wp_hwprobe_open(struct inode *inode, struct file *file)
 {
- 	return single_open(file, probe_get_info, WP_PDE(inode)->data);
+ 	return single_open(file, probe_get_info, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wp_hwprobe_fops = {
@@ -313,7 +313,7 @@ static struct file_operations wp_hwprobe_fops = {
 
 static int wp_hwprobe_legacy_open(struct inode *inode, struct file *file)
 {
- 	return single_open(file, probe_get_info_legacy, WP_PDE(inode)->data);
+ 	return single_open(file, probe_get_info_legacy, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wp_hwprobe_legacy_fops = {
@@ -326,7 +326,7 @@ static struct file_operations wp_hwprobe_legacy_fops = {
 
 static int wp_hwprobe_verbose_open(struct inode *inode, struct file *file)
 {
- 	return single_open(file, probe_get_info_verbose, WP_PDE(inode)->data);
+ 	return single_open(file, probe_get_info_verbose, WP_PDE_DATA(inode));
 }
 
 
@@ -341,7 +341,7 @@ static struct file_operations wp_hwprobe_verbose_fops = {
 
 static int wp_hwprobe_dump_open(struct inode *inode, struct file *file)
 {
- 	return single_open(file, probe_get_info_dump, WP_PDE(inode)->data);
+ 	return single_open(file, probe_get_info_dump, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wp_hwprobe_dump_fops = {
@@ -354,7 +354,7 @@ static struct file_operations wp_hwprobe_dump_fops = {
 
 static int wp_map_open(struct inode *inode, struct file *file)
 {
- 	return single_open(file, map_get_info, WP_PDE(inode)->data);
+ 	return single_open(file, map_get_info, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wp_map_fops = {
@@ -367,7 +367,7 @@ static struct file_operations wp_map_fops = {
 
 static int wp_iface_open(struct inode *inode, struct file *file)
 {
- 	return single_open(file, interfaces_get_info, WP_PDE(inode)->data);
+ 	return single_open(file, interfaces_get_info, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wp_iface_fops = {
@@ -380,7 +380,7 @@ static struct file_operations wp_iface_fops = {
 
 static int wandev_mapdir_open(struct inode *inode, struct file *file)
 {
- 	return single_open(file, wandev_mapdir_get_info, WP_PDE(inode)->data);
+ 	return single_open(file, wandev_mapdir_get_info, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wandev_mapdir_fops = {
@@ -393,7 +393,7 @@ static struct file_operations wandev_mapdir_fops = {
 
 static int  wp_get_dev_config_open(struct inode *inode, struct file *file)
 {
- 	return single_open(file, get_dev_config_info, WP_PDE(inode)->data);
+ 	return single_open(file, get_dev_config_info, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wp_get_dev_config_fops = {
@@ -406,7 +406,7 @@ static struct file_operations wp_get_dev_config_fops = {
 
 static int wp_get_dev_status_open(struct inode *inode, struct file *file)
 {
- 	return single_open(file, get_dev_status_info, WP_PDE(inode)->data);
+ 	return single_open(file, get_dev_status_info, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wp_get_dev_status_fops = {
@@ -422,7 +422,7 @@ static struct file_operations wp_get_dev_status_fops = {
 static int  wp_prot_dev_config_open(struct inode *inode, struct file *file)
 {
 	return 0;
- 	//return single_open(file, get_dev_status_info, WP_PDE(inode)->data);
+ 	//return single_open(file, get_dev_status_info, WP_PDE_DATA(inode));
 }
 
 static struct file_operations wp_prot_dev_config_fops = {
@@ -1259,6 +1259,65 @@ wandev_get_info_end:
 
 #if defined(__LINUX__)
 
+#ifdef LINUX_2_6
+#define FPTR(st) (&st)
+#else
+#define FPTR(st) NULL
+#endif
+
+static inline struct proc_dir_entry *wp_proc_create(const char *name,
+		umode_t mode,
+		struct proc_dir_entry *parent,
+		struct file_operations *proc_fops)
+{
+	struct proc_dir_entry *p = NULL;
+#ifdef LINUX_3_0
+	p = proc_create(name, mode, parent, proc_fops);
+#elif defined(LINUX_2_6)
+	p = create_proc_entry(name, mode, parent);
+	if (!p) {
+		return NULL;
+	}
+	p->proc_fops = proc_fops;
+#elif defined(LINUX_2_4)
+	p = create_proc_entry(name, mode, parent);
+	if (!p) {
+		return NULL;
+	}
+	/* In 2.4 we always default to router_fops and router_inode */
+	if (!proc_fops) {
+		p->proc_fops = &router_fops;
+	}
+	p->proc_iops = &router_inode;
+#else
+	p = create_proc_entry(name, mode, parent);
+	if (!p) {
+		return NULL;
+	}
+	/* In Pre-2.4 we always default to router_inode */
+	p->ops = &router_inode;
+	p->nlink = 1;
+#endif
+	return p;
+}
+
+static inline struct proc_dir_entry *wp_proc_create_data(const char *name,
+		umode_t mode,
+		struct proc_dir_entry *parent,
+		struct file_operations *proc_fops, void *data)
+{
+	struct proc_dir_entry *p = NULL;
+#ifdef LINUX_3_0
+	p = proc_create_data(name, mode, parent, proc_fops, data);
+#else
+	p = wp_proc_create(name, mode, parent, proc_fops);
+	if (p) {
+		p->data = data;
+	}
+#endif
+	return p;
+}
+
 /*
  *	Initialize router proc interface.
  */
@@ -1270,131 +1329,59 @@ int wanrouter_proc_init (void)
 	if (!proc_router)
 		goto fail;
 	
-	p = create_proc_entry("config",S_IRUGO,proc_router);
+	p = wp_proc_create("config",S_IRUGO,proc_router,FPTR(config_fops));
 	if (!p)
 		goto fail_config;
-
-#if defined(LINUX_2_6)
-	p->proc_fops = &config_fops;
-#elif defined(LINUX_2_4)
-	p->proc_fops = &router_fops;
-	p->proc_iops = &router_inode;
-	p->get_info = config_get_info;
-#else
-	p->ops = &router_inode;
-	p->nlink = 1;
+#ifndef LINUX_2_6
 	p->get_info = config_get_info;
 #endif
 	
-	p = create_proc_entry("status",S_IRUGO,proc_router);
+	p = wp_proc_create("status",S_IRUGO,proc_router,FPTR(status_fops));
 	if (!p)
 		goto fail_stat;
-
-#if defined(LINUX_2_6)
-	p->proc_fops = &status_fops;
-#elif defined(LINUX_2_4)
-	p->proc_fops = &router_fops;
-	p->proc_iops = &router_inode;
-	p->get_info = status_get_info;
-#else
-	p->ops = &router_inode;
-	p->nlink = 1;
+#ifndef LINUX_2_6
 	p->get_info = status_get_info;
 #endif
 	
-	p = create_proc_entry("hwprobe",0,proc_router);
+	p = wp_proc_create("hwprobe",0,proc_router,FPTR(wp_hwprobe_fops));
 	if (!p)
 		goto fail_probe;
-
-#if defined(LINUX_2_6)
-	p->proc_fops = &wp_hwprobe_fops;
-#elif defined(LINUX_2_4)
-	p->proc_fops = &router_fops;
-	p->proc_iops = &router_inode;
-	p->get_info = probe_get_info;
-#else
-	p->ops = &router_inode;
-	p->nlink = 1;
+#ifndef LINUX_2_6
 	p->get_info = probe_get_info;
 #endif
 
-	p = create_proc_entry("hwprobe_legacy",0,proc_router);
+	p = wp_proc_create("hwprobe_legacy",0,proc_router,FPTR(wp_hwprobe_legacy_fops));
 	if (!p)
 		goto fail_probe_legacy;
-
-#if defined(LINUX_2_6)
-	p->proc_fops = &wp_hwprobe_legacy_fops;
-#elif defined(LINUX_2_4)
-	p->proc_fops = &router_fops;
-	p->proc_iops = &router_inode;
-	p->get_info = probe_get_info_legacy;
-#else
-	p->ops = &router_inode;
-	p->nlink = 1;
+#ifndef LINUX_2_6
 	p->get_info = probe_get_info_legacy;
 #endif
 
-	p = create_proc_entry("hwprobe_verbose",0,proc_router);
+	p = wp_proc_create("hwprobe_verbose",0,proc_router,FPTR(wp_hwprobe_verbose_fops));
 	if (!p)
 		goto fail_probe_verbose;
-
-#if defined(LINUX_2_6)
-	p->proc_fops = &wp_hwprobe_verbose_fops;
-#elif defined(LINUX_2_4)
-	p->proc_fops = &router_fops;
-	p->proc_iops = &router_inode;
-	p->get_info = probe_get_info_verbose;
-#else
-	p->ops = &router_inode;
-	p->nlink = 1;
+#ifndef LINUX_2_6
 	p->get_info = probe_get_info_verbose;
 #endif
 
-	p = create_proc_entry("hwprobe_dump",0,proc_router);
+	p = wp_proc_create("hwprobe_dump",0,proc_router,FPTR(wp_hwprobe_dump_fops));
 	if (!p)
 		goto fail_probe_dump;
-
-#if defined(LINUX_2_6)
-	p->proc_fops = &wp_hwprobe_dump_fops;
-#elif defined(LINUX_2_4)
-	p->proc_fops = &router_fops;
-	p->proc_iops = &router_inode;
-	p->get_info = probe_get_info_dump;
-#else
-	p->ops = &router_inode;
-	p->nlink = 1;
+#ifndef LINUX_2_6
 	p->get_info = probe_get_info_dump;
 #endif
 
-	p = create_proc_entry("map",0,proc_router);
+	p = wp_proc_create("map",0,proc_router,FPTR(wp_map_fops));
 	if (!p)
 		goto fail_map;
-
-#if defined(LINUX_2_6)
-	p->proc_fops = &wp_map_fops;
-#elif defined(LINUX_2_4)
-	p->proc_fops = &router_fops;
-	p->proc_iops = &router_inode;
-	p->get_info = map_get_info;
-#else
-	p->ops = &router_inode;
-	p->nlink = 1;
+#ifndef LINUX_2_6
 	p->get_info = map_get_info;
 #endif
 
-	p = create_proc_entry("interfaces",0,proc_router);
+	p = wp_proc_create("interfaces",0,proc_router,FPTR(wp_iface_fops));
 	if (!p)
 		goto fail_interfaces;
-
-#if defined(LINUX_2_6)
-	p->proc_fops = &wp_iface_fops;
-#elif defined(LINUX_2_4)
-	p->proc_fops = &router_fops;
-	p->proc_iops = &router_inode;
-	p->get_info = interfaces_get_info;
-#else
-	p->ops = &router_inode;
-	p->nlink = 1;
+#ifndef LINUX_2_6
 	p->get_info = interfaces_get_info;
 #endif
 
@@ -1435,14 +1422,6 @@ fail:
 	return -ENOMEM;
 }
 
-int wanrouter_proc_usage_check(void)
-{
-	if (proc_router){
-		return atomic_read(&proc_router->count);
-	}
-	return 0;
-}
-
 /*
  *	Clean up router proc interface.
  */
@@ -1475,45 +1454,31 @@ int wanrouter_proc_add (wan_device_t* wandev)
 		return -EINVAL;
 
 
-	wandev->dent = create_proc_entry(wandev->name, S_IRUGO, proc_router);
+	wandev->dent = wp_proc_create_data(wandev->name, S_IRUGO, proc_router, FPTR(wandev_fops), wandev);
 	if (!wandev->dent)
 		return -ENOMEM;
 
-#if defined(LINUX_2_6)
-	wandev->dent->proc_fops	= &wandev_fops;
-#elif defined(LINUX_2_4)
-	wandev->dent->proc_fops	= &wandev_fops;
-	wandev->dent->proc_iops	= &router_inode;
-	wandev->dent->get_info	= wandev_get_info;
-#else
-	wandev->dent->ops = &wandev_inode;
-	wandev->dent->nlink	= 1;
+#if !defined(LINUX_2_6)
 	wandev->dent->get_info	= wandev_get_info;
 #endif
-	wandev->dent->data	= wandev;
 
-	p=create_proc_entry(wandev->name, 0, map_dir);
+	p = wp_proc_create_data(wandev->name, 0, map_dir, FPTR(wandev_mapdir_fops), wandev);
 	if (!p){
 		remove_proc_entry(wandev->name, proc_router);
 		wandev->dent=NULL;
 		return -ENOMEM;
 	}
 
-#if defined(LINUX_2_6)
-	//FIXME: ADD THE FOPS HERE 
-	p->proc_fops	= &wandev_mapdir_fops;
-#elif defined(LINUX_2_4)
+#if !defined(LINUX_2_6)
+#if defined(LINUX_2_4)
 	p->proc_fops	= &wandev_fops;
 	p->proc_iops	= &router_inode;
 	p->get_info	= wandev_mapdir_get_info;
 #else
 	p->ops = &wandev_inode;
-	p->nlink	= 1;
 	p->get_info	= wandev_mapdir_get_info;
 #endif
-	p->data	= wandev;
-
-	
+#endif
 	return err;
 }
 
@@ -1578,43 +1543,20 @@ int wanrouter_proc_add_protocol(wan_device_t* wandev)
 			goto fail;
 	
 		/* Create /proc/net/wanrouter/<protocol>/config directory */
-		p = create_proc_entry("config",0,proc_protocol->protocol_entry);
+		p = wp_proc_create_data("config",0,proc_protocol->protocol_entry,FPTR(wp_get_dev_config_fops),((void *)(long)wandev->config_id));
 		if (!p)
 			goto fail_config;
-
-#if defined(LINUX_2_6)
-		p->proc_fops 	= &wp_get_dev_config_fops;
-
-#elif defined(LINUX_2_4)	
-		p->proc_fops 	= &router_fops;
-		p->proc_iops 	= &router_inode;
-		p->get_info 	= get_dev_config_info;
-#else
-
-		p->ops = &router_inode;
-		p->nlink = 1;
+#if !defined(LINUX_2_6)
 		p->get_info 	= get_dev_config_info;
 #endif
-		p->data 	= (void*)wandev->config_id;
 	
 		/* Create /proc/net/wanrouter/<protocol>/status directory */
-		p = create_proc_entry("status",0,proc_protocol->protocol_entry);
+		p = wp_proc_create_data("status",0,proc_protocol->protocol_entry,FPTR(wp_get_dev_status_fops),((void *)(long)wandev->config_id));
 		if (!p)
 			goto fail_stat;
-
-#if defined(LINUX_2_6)
-		p->proc_fops 	= &wp_get_dev_status_fops; 
-
-#elif defined(LINUX_2_4)
-		p->proc_fops 	= &router_fops;
-		p->proc_iops 	= &router_inode;
-		p->get_info 	= get_dev_status_info;
-#else
-		p->ops = &router_inode;
-		p->nlink = 1;
+#if !defined(LINUX_2_6)
 		p->get_info 	= get_dev_status_info;
 #endif
-		p->data 	= (void*)wandev->config_id;
 	}	
 	
 	/* Create /proc/net/wanrouter/<protocol>/<wanpipe#> directory */
@@ -1623,24 +1565,13 @@ int wanrouter_proc_add_protocol(wan_device_t* wandev)
 		goto fail_link;
 
 	/* Create /proc/net/wanrouter/<protocol>/<wanpipe#>config directory */
-	p = create_proc_entry("config",0,wandev->link);
+	p = wp_proc_create_data("config",0,wandev->link,NULL,wandev);
 	if (!p)
 		goto fail_link_config;
-
-#if defined(LINUX_2_6)
-	p->proc_fops 	= NULL; //&wp_prot_dev_config_fops;
-#elif defined(LINUX_2_4)
-	p->proc_fops 	= &router_fops;
-	p->proc_iops 	= &router_inode;
-	p->get_info 	= wandev->get_dev_config_info;
-	p->write_proc 	= wandev->set_dev_config;
-#else
-	p->ops = &router_inode;
-	p->nlink = 1;
+#if !defined(LINUX_2_6)
 	p->get_info 	= wandev->get_dev_config_info;
 	p->write_proc 	= wandev->set_dev_config;
 #endif
-	p->data 	= wandev;
 
 	proc_protocol->count ++;
 	return 0;

@@ -152,7 +152,11 @@ int wanpipe_bind_sk_to_parent(struct sock *sk, netdevice_t *dev, struct wan_sock
 #ifdef LINUX_2_6
 	{
 	struct hlist_node *node;
+#ifdef LINUX_3_0
+	sk_for_each(parent_sk, &wanpipe_parent_sklist) {
+#else
 	sk_for_each(parent_sk, node, &wanpipe_parent_sklist) {
+#endif
 		if (SK_PRIV((parent_sk))->dev == dev) {
 			break;
 		}

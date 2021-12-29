@@ -2416,7 +2416,7 @@ static void rx_intr (sdla_t* card)
 
 	len  = rxbuf.frame_length;
 
-#if 1
+#if 0
 //defined(LINUX_2_4) || defined(LINUX_2_1)
 	if (card->tty_opt){
 
@@ -2446,6 +2446,7 @@ static void rx_intr (sdla_t* card)
 
 	chdlc_priv_area = wan_netif_priv(dev);
 
+#if 0
 	if (chdlc_priv_area->common.usedby == ANNEXG){
 		
 		if (rxbuf.error_flag){	
@@ -2461,10 +2462,23 @@ static void rx_intr (sdla_t* card)
 		}	
 		len = rxbuf.frame_length - CRC_LENGTH;
 	}
-	
-	/* Allocate socket buffer */
-	skb = dev_alloc_skb(len+2);
+#endif
 
+	if (rxbuf.error_flag){
+		++card->wandev.stats.rx_dropped;
+		printk(KERN_INFO "Bad Rx Frame - error flag set\n");
+		goto rx_exit;
+	}
+
+	if (rxbuf.frame_length <= 2 || rxbuf.frame_length > 4103){
+		++card->wandev.stats.rx_dropped;
+		printk(KERN_INFO "Bad Rx Frame Len=%i\n",rxbuf.frame_length);
+		goto rx_exit;
+	}
+
+
+	/* Allocate socket buffer */
+	skb = wan_skb_alloc(len+2+512);
 	if (skb == NULL) {
 		printk(KERN_INFO "%s: no socket buffers available!\n",
 					card->devname);
@@ -2472,19 +2486,31 @@ static void rx_intr (sdla_t* card)
 		goto rx_exit;
 	}
 
-	/* Align IP on 16 byte */
-	skb_reserve(skb,2);
-
 	/* Copy data to the socket buffer */
 	if((addr + len) > card->u.c.rx_top_off + 1) {
 		unsigned tmp = card->u.c.rx_top_off - addr + 1;
-		buf = skb_put(skb, tmp);
+	
+		if (wan_skb_tailroom(skb) < tmp) {
+			printk(KERN_INFO "%s: Error: rx packet len (tmp)=%i > tailroom %i\n",
+					card->devname,tmp,skb_tailroom(skb)); 
+		    wan_skb_free(skb);
+			goto rx_exit;
+		}
+
+		buf = wan_skb_put(skb, tmp);
 		card->hw_iface.peek(card->hw, addr, buf, tmp);
 		addr = card->u.c.rx_base_off;
 		len -= tmp;
 	}
 		
-	buf = skb_put(skb, len);
+	if (wan_skb_tailroom(skb) < len) {
+		printk(KERN_INFO "%s: Error: rx packet len=%i > tailroom %i\n",
+				card->devname,len,skb_tailroom(skb)); 
+	    wan_skb_free(skb);
+		goto rx_exit;
+	}
+		
+	buf = wan_skb_put(skb, len);
 	card->hw_iface.peek(card->hw, addr, buf, len);
 
 	skb->protocol = htons(ETH_P_IP);
@@ -2511,7 +2537,7 @@ static void rx_intr (sdla_t* card)
 		api_rx_hdr->wan_hdr_chdlc_time_usec=tv.tv_usec;
 
 		skb->protocol = htons(WP_PVC_PROT);
-		wan_skb_reset_mac_header(skb);
+		//wan_skb_reset_mac_header(skb);
 		skb->dev      = dev;
 		skb->pkt_type = WAN_PACKET_DATA;
 
@@ -5010,8 +5036,13 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 			tty->flip.flag_buf_ptr++;
 		}
 #endif
+
+#if !defined(LINUX_3_0)
 		tty->low_latency=1;
 		tty_flip_buffer_push(tty);
+#else
+# warning "FIXME: Compilation error on 3.X kernels"
+#endif
 
 	}else{
 		if (len > TTY_CHDLC_MAX_MTU){
@@ -5216,7 +5247,11 @@ static int change_speed(sdla_t *card, struct tty_struct *tty,
 	unsigned cflag; 
 	int	dbits,sbits,parity,handshaking;
 
+#if !defined(LINUX_3_0)
 	cflag = tty->termios->c_cflag;
+#else
+# warning "FIXME: Compilation error on 3.X kernels"
+#endif
 
 	/* There is always one stop bit */
 	sbits=WANOPT_ONE;

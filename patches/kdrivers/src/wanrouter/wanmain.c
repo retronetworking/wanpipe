@@ -529,7 +529,6 @@ unsigned short wanrouter_type_trans (struct sk_buff *skb, netdevice_t *dev)
 WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wanrouter_ioctl, struct file *file, unsigned int cmd, unsigned long arg)
 {
 	WAN_IOCTL_RET_TYPE err = 0;
-	struct proc_dir_entry *dent;
 	wan_device_t *wandev;
 
 #ifdef HAVE_UNLOCKED_IOCTL
@@ -542,19 +541,17 @@ WAN_IOCTL_RET_TYPE WANDEF_IOCTL_FUNC(wanrouter_ioctl, struct file *file, unsigne
 		return -EINVAL;
 	}
 		
-	dent = WP_PDE(inode);
-	if ((dent == NULL) || (dent->data == NULL)){
+	wandev = WP_PDE_DATA(inode);
+	if (!wandev) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
-		DEBUG_EVENT("%s: Invalid dent\n",
+		DEBUG_EVENT("%s: Invalid inode data\n",
 				__FUNCTION__);
 #else
-		DEBUG_EVENT("%s: Invalid dent %p\n",
+		DEBUG_EVENT("%s: Invalid inode data %p\n",
 				__FUNCTION__,inode->u.generic_ip);
 #endif		
 		return -EINVAL;
 	}
-		
-	wandev = dent->data;
 	if (wandev->magic != ROUTER_MAGIC){
 		DEBUG_EVENT("%s: Invalid wandev Magic Number\n",
 				__FUNCTION__);

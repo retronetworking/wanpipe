@@ -208,6 +208,10 @@ typedef struct wp_api_hdr
 			u_int8_t    direction;
 		}bitstrm;
 		struct {
+			u_int8_t	channel;
+			u_int8_t    status;
+		}aft_legacy_rbs;
+		struct {
 			u_int8_t	repeat;
 			u_int8_t	len;
 			u_int8_t	data[8];
@@ -231,6 +235,9 @@ typedef struct wp_api_hdr
 #define wp_api_hdr_data_length 					data_length
 #define wp_api_hdr_time_stamp_sec				time_stamp_sec
 #define wp_api_hdr_time_stamp_use				time_stamp_usec
+
+#define wp_api_legacy_rbs_channel				aft_legacy_rbs.channel
+#define wp_api_legacy_rbs_status				aft_legacy_rbs.status
 
 #define wp_api_rx_hdr_crc						rx_h.crc
 #define wp_api_rx_hdr_error_map					rx_h.crc

@@ -504,6 +504,8 @@ typedef struct private_area
 	char	transaction_history[AFT_TRANSACTION_HISTORY][512];
 	int	th_idx;
 #endif
+
+	unsigned char rbsbits;
 	
 }private_area_t;
 

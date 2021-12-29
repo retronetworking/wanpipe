@@ -113,6 +113,8 @@ EXTRA_UTIL_FLAGS +=  $(PRODUCT_DEFINES)
 DAHDI_CFLAGS=
 
 
+
+
 #Check if zaptel exists
 ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
 	ZAPDIR_PRIV=$(ZAPDIR) 
@@ -159,6 +161,9 @@ EXTRA_CFLAGS += -I$(KDIR)/include/linux -I$(ZAPDIR)
 RM      = @rm -rf
 JUNK	= *~ *.bak DEADJOE
 
+#Check for PDE_DATA kernel feature
+KERN_PROC_PDE_FEATURE=$(shell grep PDE_DATA $(KDIR)/include/linux/proc_fs.h -c)
+EXTRA_CFLAGS+=-DKERN_PROC_PDE_FEATURE=$(KERN_PROC_PDE_FEATURE)
 
 # First pass, kernel Makefile reads module objects
 ifneq ($(KERNELRELEASE),)

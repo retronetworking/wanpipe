@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           7.0.8
+%define version           7.0.9
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -228,6 +228,15 @@ chmod 755 /usr/local/sbin/setup-sangoma
 
 
 %changelog
+
+* Mon Jan 7 2014 Nenad Corbic <ncorbic@sangoma.com> -  7.0.9
+==================================================================
+
+- Support for Dahdi 2.8
+- Support for Centos 6.5
+- Support for kernels up to 3.12
+- Fixes A116 clocking for dahdi when link is down
+- Updates to A116 for possible NMI interrupt erros on some motherboards.
 
 * Wed Nov 14 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.8
 ==================================================================

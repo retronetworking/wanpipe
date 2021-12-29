@@ -145,9 +145,20 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 #define IRQF_SHARED SA_SHIRQ
 #endif
 
+
 /*==========================================================================
    KERNEL 2.6.
  *==========================================================================*/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0)
+ #define LINUX_3_0
+ /* Not sure exactly when they removed write_proc_t, but in 3.11.8 is not there anymore */
+ #if defined(KERN_PROC_PDE_FEATURE) && KERN_PROC_PDE_FEATURE > 0
+   typedef int (write_proc_t)(char *, char **, off_t, int, int);
+ #endif
+ #ifndef pci_dev_b
+   #define pci_dev_b(n) list_entry(n, struct pci_dev, bus_list)
+ #endif
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 /* KERNEL 2.6.X */
@@ -234,9 +245,20 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 
  #define dev_init_buffers(a)
 
- #define WP_PDE(_a)		PDE(_a)
-
-     
+ #if defined(KERN_PROC_PDE_FEATURE) && KERN_PROC_PDE_FEATURE > 0
+ # define WP_PDE_DATA PDE_DATA
+ #else 
+ #include <linux/proc_fs.h>
+ static inline void*WP_PDE_DATA(const struct inode *inode)
+ {	
+	struct proc_dir_entry* pde=PDE(inode);
+	if (pde) {
+		return pde->data;
+	}	
+    
+	return NULL;
+ }
+ #endif
 
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,9)
  # define wp_rcu_read_lock(in_dev)     rcu_read_lock()
@@ -346,14 +368,19 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
  #define wan_test_and_set_bit(a,b)  test_and_set_bit((a),(b))
  #define wan_test_and_clear_bit(a,b)  test_and_clear_bit((a),(b))
 
- static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
+ static inline void *WP_PDE_DATA(const struct inode *inode)
  {
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,21)
- 	 return (struct proc_dir_entry *)inode->u.generic_ip;
+        struct proc_dir_entry *entry = (struct proc_dir_entry *)inode->u.generic_ip;
  #else
- 	 return (struct proc_dir_entry *)inode->i_private;
+        struct proc_dir_entry *entry = (struct proc_dir_entry *)inode->i_private;
  #endif
+        if (entry) {
+               return entry->data;
+        }
+        return NULL;
  }
+
 
  #define wp_rcu_read_lock(in_dev)     read_lock_bh(&in_dev->lock) 
  #define wp_rcu_read_unlock(in_dev)   read_unlock_bh(&in_dev->lock) 
@@ -524,14 +551,20 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
  #define wan_test_and_set_bit(a,b)  test_and_set_bit((a),(b))
  #define wan_test_and_clear_bit(a,b)  test_and_clear_bit((a),(b))
 
- static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
+ static inline void *WP_PDE_DATA(const struct inode *inode)
  {
  #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
-	 return (struct proc_dir_entry *)inode->u.generic_ip;
+	struct proc_dir_entry *entry = (struct proc_dir_entry *)inode->u.generic_ip;
  #else
-	 return (struct proc_dir_entry *)inode->i_private;
- #endif	
+ 	struct proc_dir_entry *entry = (struct proc_dir_entry *)inode->i_private;
+ #endif
+ 	if (entry) {
+ 		  return entry->data;
+ 	}
+ 	return NULL;
  }
+
+
 
 #else
 /* KERNEL 2.0.X */
@@ -543,10 +576,14 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
  static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
  {
  #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
-        return (struct proc_dir_entry *)inode->i_private;
+ 	struct proc_dir_entry *entry = (struct proc_dir_entry *)inode->i_private;
  #else
-        return (struct proc_dir_entry *)inode->u.generic_ip;
+ 	struct proc_dir_entry *entry = (struct proc_dir_entry *)inode->u.generic_ip;
  #endif	
+	if (entry) {
+		return entry->data;
+	}
+	return NULL;
  }
 
  #define test_and_set_bit set_bit

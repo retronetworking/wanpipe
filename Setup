@@ -149,6 +149,19 @@ check_inode_struct ()
 	fi	
 }
 
+check_kern_pde_feature ()
+{
+	if [ -e $SOURCEDIR/include/linux/proc_fs.h ];then
+		eval "grep PDE_DATA $SOURCEDIR/include/linux/proc_fs.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then 
+			PDE_FEATURE="-DKERN_PROC_PDE_FEATURE=1"
+		else
+			PDE_FEATURE="-DKERN_PROC_PDE_FEATURE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $PDE_FEATURE " 
+	fi	
+}
+
 
 
 # ----------------------------------------------------------------------------
@@ -3557,8 +3570,11 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		
 		check_inode_struct
 
+		check_kern_pde_feature
+		
+
 		if [ "$BRI_MODULE_TEST" = "YES" ]; then
-                       PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DBUILD_MOD_TESTER"
+			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DBUILD_MOD_TESTER"
 		fi
 		
 		if [ 1 -eq 1 ]; then
@@ -4120,10 +4136,10 @@ WANPIPE_OBJS=
 
 		LIP_LINKED_PROTOCOLS=
 
-                TMP_CFLAGS="-I/$WANPIPE_INCLUDE_DIR -I/ -I$SOURCEDIR/include  -I$SOURCEDIR/include/linux -I../include/common -I../include "
+		TMP_CFLAGS="-I/$WANPIPE_INCLUDE_DIR -I/ -I$SOURCEDIR/include  -I$SOURCEDIR/include/linux -I../include/common -I../include "
 		if [ "$REGPARM_OPT" = ".regparm" ]; then
-                	TMP_CFLAGS=$TMP_CFLAGS" -mregparm=3 "
-                fi
+			TMP_CFLAGS=$TMP_CFLAGS" -mregparm=3 "
+		fi
 
 		if [ $FR_PROT = "YES" ]; then
                 	 if [ -e $DRIVER_UPDATE_DIR/fr ]; then
@@ -7338,7 +7354,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=7.0.8
+PROD_VER=7.0.9
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
