@@ -277,7 +277,7 @@ typedef struct wan_device
 	unsigned ioport;		/* adapter I/O port base #1 */
 	char S514_cpu_no[1];		/* PCI CPU Number */
 	unsigned char S514_slot_no;	/* PCI Slot Number */
-
+	unsigned char S514_bus_no;	/* PCI Bus Number */
 	int irq;			/* interrupt request level */
 	int dma;			/* DMA request level */
 	unsigned int bps;		/* data transfer rate */
@@ -397,6 +397,7 @@ typedef struct wan_device
 	wan_ticks_t				ec_intmask;
 		
 	int						(*ec_enable)(void *pcard, int, int);
+	int						(*__ec_enable)(void *pcard, int, int);
 	int						(*ec_state) (void* card_id, wan_hwec_dev_state_t *ec_state);
 
 	unsigned char			(*write_ec)(void*, unsigned short, unsigned char);

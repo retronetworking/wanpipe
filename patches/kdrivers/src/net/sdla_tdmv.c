@@ -218,6 +218,7 @@ typedef struct wp_tdmv_pvt_area
 	unsigned int	tonemutemask;
 	
 	unsigned long	ec_fax_detect_timeout[31+1];
+	unsigned int	ec_off_on_fax;
 	
 } wp_tdmv_softc_t;
 
@@ -410,6 +411,7 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	sdla_t		*card = (sdla_t*)pcard;
 	wp_tdmv_softc_t	*wp = NULL;
 	wan_tdmv_t	*tmp = NULL;
+
 #ifdef DAHDI_ISSUES
 	int i;
 #endif
@@ -442,6 +444,35 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	memset(wp, 0x0, sizeof(wp_tdmv_softc_t));
 	card->wan_tdmv.sc	= wp;
 	wp->spanno		= tdmv_conf->span_no-1;
+	wp->span.manufacturer	= "Sangoma Technologies";
+	
+	switch(card->adptr_type){
+	case A101_ADPTR_1TE1:
+		strncpy(wp->span.devicetype, "A102" , sizeof(wp->span.devicetype));
+		break;
+	case A101_ADPTR_2TE1:
+		strncpy(wp->span.devicetype, "A102" , sizeof(wp->span.devicetype));
+		break;
+	case A200_ADPTR_ANALOG:
+		strncpy(wp->span.devicetype, "A200" , sizeof(wp->span.devicetype));
+		break;
+	case A400_ADPTR_ANALOG:
+		strncpy(wp->span.devicetype, "A400" , sizeof(wp->span.devicetype));
+		break;
+	case A104_ADPTR_4TE1:
+		strncpy(wp->span.devicetype, "A104" , sizeof(wp->span.devicetype));
+		break;
+	case A108_ADPTR_8TE1:
+		strncpy(wp->span.devicetype, "A108" , sizeof(wp->span.devicetype));
+		break;	
+	case AFT_ADPTR_B601:
+		strncpy(wp->span.devicetype, "B601" , sizeof(wp->span.devicetype));
+		break;
+	}
+
+	snprintf(wp->span.location, sizeof(wp->span.location) - 1, "SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+
+	wp->span.irq		= card->wandev.irq;
 	wp->num			= wp_card_no++;
 	wp->card		= card;
 	wp->devname		= card->devname;
@@ -903,7 +934,11 @@ static void wp_tdmv_report_alarms(void* pcard, uint32_t te_alarm)
 	if (wp->span.lineconfig & ZT_CONFIG_NOTOPEN) {
 		for (x=0,j=0;x < wp->span.channels;x++){
 			if ((wp->chans[x].flags & ZT_FLAG_OPEN) ||
+#if defined(DAHDI_ISSUES) && !defined(DAHDI_FLAG_NETDEV)
+				(wp->chans[x].flags & dahdi_have_netdev(wp))){
+#else
 			    (wp->chans[x].flags & ZT_FLAG_NETDEV)){
+#endif
 				j++;
 			}
 		}
@@ -2264,12 +2299,19 @@ static void wp_tdmv_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_stat
 				wp->devname, chan->chanpos);
 
 		/* The ec persist flag enables and disables
-	         * persistent echo control.  In persist mode
-                 * echo cancellation is enabled regardless of
+	     * persistent echo control.  In persist mode
+              * echo cancellation is enabled regardless of
                  * asterisk.  In persist mode off asterisk 
                  * controls hardware echo cancellation */
-		if (card->hwec_conf.persist_disable || IS_CHAN_HARDHDLC(chan)) {
-			card->wandev.ec_enable(card, 0, chan->chanpos);
+
+        if (wp->ec_off_on_fax) {
+			DEBUG_EVENT("%s: Re-enabling hwec after fax chan=%i \n",card->devname,chan->chanpos);
+            card->wandev.ec_enable(card, 1, chan->chanpos);
+            wp->ec_off_on_fax=0;
+		} else {
+	   		if (card->hwec_conf.persist_disable || IS_CHAN_HARDHDLC(chan) || wp->ec_off_on_fax) {
+				card->wandev.ec_enable(card, 0, chan->chanpos);
+			}
 		}
 	}
 	
@@ -2314,11 +2356,20 @@ static int wp_tdmv_hwec(struct zt_chan *chan, int enable)
                  * echo cancellation is enabled regardless of
                  * asterisk.  In persist mode off asterisk 
                  * controls hardware echo cancellation */
-		if (card->hwec_conf.persist_disable || IS_CHAN_HARDHDLC(chan)) {
-                	err = card->wandev.ec_enable(card, enable, chan->chanpos);
+
+        if (!enable &&  wp->ec_off_on_fax) {
+            DEBUG_EVENT("%s: Re-enabling hwec after fax chan=%i \n",card->devname,chan->chanpos);
+            card->wandev.ec_enable(card, 1, chan->chanpos);
+            wp->ec_off_on_fax=0;   
+			err=0;
 		} else {
-			err = 0;			
-	       	}
+			if (card->hwec_conf.persist_disable || IS_CHAN_HARDHDLC(chan)) {
+				err = card->wandev.ec_enable(card, enable, chan->chanpos);
+			} else {
+				err = 0;			
+			}
+		}
+
 	}
 
 	return err;
@@ -2998,6 +3049,18 @@ static void wp_tdmv_callback_tone (void* card_id, wan_event_t *event)
 				&wp->span.chans[event->channel-1],
 				(ZT_EVENT_DTMFDOWN | event->digit));
 #endif
+
+		if (wp->hwec == WANOPT_YES && card->wandev.ec_dev && card->wandev.ec_enable && card->tdmv_conf.ec_off_on_fax) {
+			/* Disable hwec on fax event if configuration option is enabled 
+			   Disable hwec only if persist disalbe is not enabled, since in that mode asterisk controls hwec.
+			   Disable hwec only once even though there might be many fax events */
+           	if (!card->hwec_conf.persist_disable && !wp->ec_off_on_fax) {
+				 DEBUG_EVENT("%s: Disabling hwec on fax event chan=%i\n",card->devname,event->channel);
+				 card->wandev.__ec_enable(card, 0, event->channel);  
+                 wp->ec_off_on_fax=1;
+			}
+		}
+
 	}else{
 		wp->toneactive &= ~(1 << (event->channel-1));
 #ifdef DAHDI_ISSUES
@@ -3009,6 +3072,8 @@ static void wp_tdmv_callback_tone (void* card_id, wan_event_t *event)
 				&wp->span.chans[event->channel-1],
 				(ZT_EVENT_DTMFUP | event->digit));
 #endif
+
+
 	}
 	return;
 }

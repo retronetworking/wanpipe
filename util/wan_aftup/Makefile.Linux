@@ -41,6 +41,8 @@ CFLAGS  = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -lstdc++
 CFLAGS += $(EXTRA_FLAGS)
 CFLAGS += -I/usr/include -I$(WANINCDIR) -I$(SYSINC)
 
+BINS=`ls *.BIN`
+
 
 ####### RULES ################################################################
 
@@ -58,7 +60,10 @@ install:
 	install -m755 update_aft_firm.sh $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/update_aft_firm.sh
 	install -m755 scripts/load.sh $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/scripts/load.sh
 	install -m755 scripts/unload.sh $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/scripts/unload.sh
-	cp -f *.BIN $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/    
+	@if [ ! -z $(BINS) ]; then \
+		echo "Installing fimware files in /etc/wanpipe/util/wan_aftup/"; \
+		cp -f *.BIN $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/; \
+	fi
 
 uninstall:
 	@echo "Uninstalling WAN_AFTUP in $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup"

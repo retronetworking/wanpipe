@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 104
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include/octrpc
+END
+oct6100_rpc_protocol.h
+K 25
+svn:wc:ra_dav:version-url
+V 127
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include/octrpc/oct6100_rpc_protocol.h
+END
+rpc_protocol.h
+K 25
+svn:wc:ra_dav:version-url
+V 119
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include/octrpc/rpc_protocol.h
+END

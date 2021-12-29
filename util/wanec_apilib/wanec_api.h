@@ -124,7 +124,7 @@ extern void _WANEC_API_CALL wanec_api_set_lib_verbosity(int verbosity_level);
 
 /* Forward compatible with 'trunk' version */
 #define wanec_api_hwec_t wanec_api_bypass_t
-#define wanec_api_hwec	wanec_api_bypass 
+#define wanec_api_hwec(devname,	verbose, bypass) wanec_api_bypass(devname, verbose, bypass)
 
 #define WAN_EC_API_CMD_DTMF_ENABLE  WAN_EC_API_CMD_TONE_ENABLE
 #define WAN_EC_API_CMD_DTMF_DISABLE WAN_EC_API_CMD_TONE_DISABLE

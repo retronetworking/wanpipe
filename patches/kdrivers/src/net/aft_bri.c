@@ -722,15 +722,11 @@ int aft_bri_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
 
-		aft_fe_intr_ctrl(card, 0);
-
 		err = -EINVAL;
 		if (card->wandev.fe_iface.config){
 			err=card->wandev.fe_iface.config(&card->fe);
 		}
 		
-		aft_fe_intr_ctrl(card, 1);
-
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 
 		if (err) {
@@ -757,17 +753,11 @@ int aft_bri_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 	card->hw_iface.hw_lock(card->hw,&smp_flags);
 
-	aft_fe_intr_ctrl(card, 0);
-
 	err = -EINVAL;
 	if (card->wandev.fe_iface.config){
 		err=card->wandev.fe_iface.config(&card->fe);
 	}
 		
-	if (err == 0) {
-		aft_fe_intr_ctrl(card, 1);
-	}
-
 	card->hw_iface.hw_unlock(card->hw,&smp_flags);
 
 	if (err){
@@ -887,11 +877,9 @@ int aft_bri_chip_unconfig(sdla_t *card)
 
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
-	__aft_fe_intr_ctrl(card,0);
 	if (card->wandev.fe_iface.unconfig){
 		card->wandev.fe_iface.unconfig(&card->fe);
 	}
-	__aft_fe_intr_ctrl(card,0 /* FIXME: should it be 1? */);
 	wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 	card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 
@@ -943,7 +931,7 @@ int aft_bri_chan_dev_config(sdla_t *card, void *chan_ptr)
 		wan_clear_bit(AFT_DMACHAIN_SS7_ENABLE_BIT,&reg);
 	}
 
-	if (chan->channelized_cfg && !chan->hdlc_eng){
+	if (CHAN_GLOBAL_IRQ_CFG(chan)){
 		aft_dmachain_enable_tdmv_and_mtu_size(&reg,chan->mru);
 	}
 	
@@ -1015,7 +1003,7 @@ int aft_bri_chan_dev_config(sdla_t *card, void *chan_ptr)
 	}
 
 
-	if (chan->channelized_cfg && !chan->hdlc_eng){
+	if (CHAN_GLOBAL_IRQ_CFG(chan)){
 	
 		BRI_FUNC();
 
@@ -1100,7 +1088,7 @@ int aft_bri_chan_dev_unconfig(sdla_t *card, void *chan_ptr)
 			}
 		}
 
-		if (chan->channelized_cfg && !chan->hdlc_eng){
+		if (CHAN_GLOBAL_IRQ_CFG(chan)){
 			BRI_FUNC();
 			card->hw_iface.bus_read_4(card->hw,
 					AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);

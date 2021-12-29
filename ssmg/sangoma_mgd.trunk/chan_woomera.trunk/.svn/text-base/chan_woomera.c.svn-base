@@ -15,6 +15,11 @@
  * the GNU General Public License
  * =============================================
  *
+ * v1.71 Konrad Hammel <konrad@sangoma.com>
+ * Jul 15 2010
+ * Added "cid_pres" option to woomera.conf to hard code
+ * the caller-id presentation value for all outgoing calls
+ * 
  * v1.70 David Yat Sin <dyatsin@sangoma.com>
  * May 11 2010
  * Added check for invalid hangup causes
@@ -939,6 +944,10 @@ struct woomera_profile {
 	int woomera_port;
 	char audio_ip[WOOMERA_STRLEN];
 	char context[WOOMERA_STRLEN];
+	struct {
+		int pres;
+		int val;
+	} cid_pres;
 	pthread_t thread;
 	unsigned int flags;
 	int thread_running;
@@ -3668,6 +3677,14 @@ static int config_woomera(void)
 								profile->tg_language[group_num] = strdup(profile->language);
 							}
 						}
+					} else if (!strcmp(v->name, "cid_pres")) {
+						/* check if the value is valid */
+						if ( (atoi(v->value) >= 0) && (atoi(v->value) <= 3)) {
+							profile->cid_pres.pres = 1;
+							profile->cid_pres.val = atoi(v->value);
+						} else {
+							ast_log(LOG_ERROR, "Invalid cid_pres value:%s - must be 0,1,2,or 3\n", v->value);
+						}
 					} else if (!strcmp(v->name, "language")) {
 						strncpy(profile->language, v->value, sizeof(profile->language) - 1);
 						
@@ -4281,6 +4298,14 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 		if (!profile) {
 			ast_log(LOG_ERROR, "Unable to find profile! Call Aborted!\n");
 			goto tech_call_failed;
+		}
+
+		/* if cid_pres.pres then the user wants to manually overwrite */
+		if (profile->cid_pres.pres) {
+			tech_pvt->cid_pres = profile->cid_pres.val;
+			ast_log(LOG_DEBUG, "CID presentation override : was %d, now %d\n",
+								self->cid.cid_pres,
+								tech_pvt->cid_pres);
 		}
  
 		if (!ast_test_flag(profile, PFLAG_OUTBOUND)) {

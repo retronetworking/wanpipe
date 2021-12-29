@@ -541,6 +541,7 @@ typedef struct tq_struct 	wan_taskq_t;
 typedef void*			virt_addr_t;
 typedef unsigned long		wp_phys_addr_t;
 typedef spinlock_t		wan_spinlock_t;
+typedef struct mutex		wan_mutexlock_t;
 typedef rwlock_t		wan_rwlock_t;
 typedef unsigned long		wan_smp_flag_t;
 typedef unsigned long 		wan_rwlock_flag_t;
@@ -670,6 +671,8 @@ typedef int		wan_rwlock_t;
 typedef int		wan_rwlock_flag_t;
 typedef int		pid_t;
 typedef void	(wan_pci_ifunc_t)(void*);
+
+typedef wan_spinlock_t wan_mutexlock_t;
 
 #endif
 

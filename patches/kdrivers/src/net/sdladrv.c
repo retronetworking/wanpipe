@@ -373,6 +373,7 @@ static int sdla_save_hw_probe (sdlahw_t* hw, int);
 
 static int sdla_hw_lock(void *phw, wan_smp_flag_t *flag);
 static int sdla_hw_unlock(void *phw, wan_smp_flag_t *flag);
+static int sdla_hw_trylock(void *phw, wan_smp_flag_t *flag);
 
 static int sdla_hw_ec_trylock(void *phw, wan_smp_flag_t *flag);
 static int sdla_hw_ec_lock(void *phw, wan_smp_flag_t *flag);
@@ -4222,8 +4223,7 @@ sdla_card_register(u8 hw_type, int bus_no, int slot_no, int ioport, char *bus_id
 		break;
 #endif
 	}
-	wan_spin_lock_init(&new_hwcard->pcard_lock,"wan_hwcard_lock");
-	wan_spin_lock_init(&new_hwcard->pcard_ec_lock,"wan_hwcard_ec_lock");
+	wan_mutex_lock_init(&new_hwcard->pcard_ec_lock,"wan_hwcard_ec_lock");
 
 	WAN_LIST_FOREACH(last_hwcard, &sdlahw_card_head, next){
 		if (!WAN_LIST_NEXT(last_hwcard, next)){
@@ -4662,6 +4662,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	hw_iface->get_hwcard	= sdla_get_hwcard;
 	hw_iface->get_hwprobe	= sdla_get_hwprobe;
 	hw_iface->hw_lock	= sdla_hw_lock;
+	hw_iface->hw_trylock	= sdla_hw_trylock;
 	hw_iface->hw_unlock	= sdla_hw_unlock;
 	hw_iface->hw_ec_trylock	= sdla_hw_ec_trylock;
 	hw_iface->hw_ec_lock	= sdla_hw_ec_lock;
@@ -4955,7 +4956,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	
 	hw->hwcpu->lines_info[hw->cfg_type].usage++;
 	if (hw->hwcpu->lines_info[hw->cfg_type].usage == 1) {
-		wan_spin_lock_init(&hw->hwcpu->lines_info[hw->cfg_type].pcard_lock, "wan_pcard_lock");
+		wan_mutex_lock_init(&hw->hwcpu->lines_info[hw->cfg_type].pcard_lock, "wan_pcard_lock");
 	}
 
 	/* ISDN-BRI logial used cnt */
@@ -9875,10 +9876,39 @@ static int sdla_hw_lock(void *phw, wan_smp_flag_t *flag)
 		}
 	}
 #endif
-	wan_spin_lock(&hw->hwcpu->lines_info[hw->cfg_type].pcard_lock,flag);
+			
+	wan_mutex_lock(&hw->hwcpu->lines_info[hw->cfg_type].pcard_lock,flag);
 
 	return 0;
 }
+
+
+static int sdla_hw_trylock(void *phw, wan_smp_flag_t *flag)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	sdlahw_cpu_t	*hwcpu;
+	sdlahw_card_t	*hwcard;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+	hwcpu = hw->hwcpu;
+	hwcard = hwcpu->hwcard;
+
+#ifdef __LINUX__
+	if (in_interrupt()) {
+	if (WAN_NET_RATELIMIT()) {
+		WARN_ON(1);
+		DEBUG_ERROR("%s:%d: Error hw_lock taken in interrupt!\n",__FUNCTION__,__LINE__);
+	}
+	}
+#endif
+
+	return wan_mutex_trylock(&hw->hwcpu->lines_info[hw->cfg_type].pcard_lock,flag);
+	
+}
+
 
 static int sdla_hw_unlock(void *phw, wan_smp_flag_t *flag)
 {
@@ -9892,10 +9922,11 @@ static int sdla_hw_unlock(void *phw, wan_smp_flag_t *flag)
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcpu = hw->hwcpu;
 	hwcard = hwcpu->hwcard;
-
-	wan_spin_unlock(&hw->hwcpu->lines_info[hw->cfg_type].pcard_lock,flag);
+	
+	wan_mutex_unlock(&hw->hwcpu->lines_info[hw->cfg_type].pcard_lock,flag);
 	return 0;
 }
+
 
 static int sdla_hw_ec_trylock(void *phw, wan_smp_flag_t *flag)
 {
@@ -9919,7 +9950,7 @@ static int sdla_hw_ec_trylock(void *phw, wan_smp_flag_t *flag)
 	}
 #endif
 
-	return wan_spin_trylock(&hwcard->pcard_ec_lock,flag);
+	return wan_mutex_trylock(&hwcard->pcard_ec_lock,flag);
 }
 
 static int sdla_hw_ec_lock(void *phw, wan_smp_flag_t *flag)
@@ -9944,7 +9975,7 @@ static int sdla_hw_ec_lock(void *phw, wan_smp_flag_t *flag)
 	}
 #endif
 
-	wan_spin_lock(&hwcard->pcard_ec_lock,flag);
+	wan_mutex_lock(&hwcard->pcard_ec_lock,flag);
 	return 0;
 }
 
@@ -9960,7 +9991,7 @@ static int sdla_hw_ec_unlock(void *phw, wan_smp_flag_t *flag)
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcpu = hw->hwcpu;
 	hwcard = hwcpu->hwcard;
-	wan_spin_unlock(&hwcard->pcard_ec_lock,flag);
+	wan_mutex_unlock(&hwcard->pcard_ec_lock,flag);
 	return 0;
 }
 

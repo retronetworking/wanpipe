@@ -815,6 +815,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		}else{
 			card->hw_iface.getcfg(card->hw, SDLA_CPU, &wandev->S514_cpu_no[0]);
 			card->hw_iface.getcfg(card->hw, SDLA_SLOT, &wandev->S514_slot_no);
+			card->hw_iface.getcfg(card->hw, SDLA_BUS, &wandev->S514_bus_no);
 		}
 #if 0
 		// ALEX_TODAY
@@ -1744,7 +1745,7 @@ STATIC WAN_IRQ_RETVAL sdla_isr (int irq, void* dev_id)
 #ifdef CONFIG_SMP
 		if (!spin_is_locked(&card->wandev.lock)) {
 			if (WAN_NET_RATELIMIT()) {
-         		DEBUG_ERROR("%s:%s Critical error: driver locking has been corrupted, isr lock left unlocked!\n",
+         		DEBUG_ERROR("%s:%d Critical error: driver locking has been corrupted, isr lock left unlocked!\n",
 					__FUNCTION__,__LINE__);
 			}
 		}

@@ -319,7 +319,8 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 		err=0;
 		break;
 		
-	case 1: 
+	case 1:
+		DEBUG_TEST("%s: %s() failed to tx busy\n",lip_dev->name,__FUNCTION__);
 		/* Packet failed to queue layer busy */
 		WAN_NETIF_STOP_QUEUE(dev);
 		err=1;
@@ -327,6 +328,7 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 
 	default:
 		/* Packet dropped due to error */
+		DEBUG_TEST	("%s: %s() failed to tx error\n",lip_dev->name,__FUNCTION__);
 		WAN_NETIF_START_QUEUE(dev);
 		WAN_NETIF_STATS_INC_TX_ERRORS(&lip_dev->common);	//lip_dev->ifstats.tx_errors++;
 		wan_netif_set_ticks(dev, SYSTEM_TICKS);

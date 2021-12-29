@@ -35,7 +35,7 @@ wanpipe-y                       += sdla_xilinx.o aft_a104.o
 wanpipe-y			+= aft_analog.o sdla_aft_te3.o wanpipe_utils.o sdla_remora_analog.o 
 wanpipe-y			+= wanpipe_abstr.o wanpipe_linux_iface.o 
 wanpipe-y			+= wanpipe_tdm_api.o sdla_remora.o 
-wanpipe-y			+= sdla_bri.o aft_bri.o sdla_serial.o
+wanpipe-y			+= sdla_bri.o aft_bri.o sdla_serial.o wanpipe_mtp1.o
 
 wanpipe-y                       += wanpipe_codec.o wanpipe_codec_law.o
 wanpipe-y                       += wanpipe_usb.o sdla_usb_remora.o 

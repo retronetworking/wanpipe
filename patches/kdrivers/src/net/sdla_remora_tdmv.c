@@ -578,14 +578,22 @@ static void wp_tdmv_remora_hwec_free(struct dahdi_chan *chan, struct dahdi_echoc
                  * echo cancellation is enabled regardless of
                  * asterisk.  In persist mode off asterisk 
                  * controls hardware echo cancellation */
-		if (card->hwec_conf.persist_disable) {
-			/* ec enable expects values starting from 1, zero is not
-               allowed, therefore we must use chan->chanpos because it
- 			   starts from 1 */
-			card->wandev.ec_enable(card, 0, chan->chanpos);
+
+        if (wr->ec_off_on_fax) {
+            DEBUG_EVENT("%s: Re-enabling hwec after fax chan=%i \n",card->devname,chan->chanpos);
+            card->wandev.ec_enable(card, 1, chan->chanpos);
+            wr->ec_off_on_fax=0;   
+		} else {
+
+			if (card->hwec_conf.persist_disable) {
+				/* ec enable expects values starting from 1, zero is not
+				   allowed, therefore we must use chan->chanpos because it
+				   starts from 1 */
+				card->wandev.ec_enable(card, 0, chan->chanpos);
+			}
+			DEBUG_TDMV("[TDMV] %s: Disable HW echo canceller on channel %d\n",
+					wr->devname, chan->chanpos);
 		}
-		DEBUG_TDMV("[TDMV] %s: Disable HW echo canceller on channel %d\n",
-				wr->devname, chan->chanpos);
 	}
 }
 
@@ -621,18 +629,27 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
                  * echo cancellation is enabled regardless of
                  * asterisk.  In persist mode off asterisk 
                  * controls hardware echo cancellation */		 
-		if (card->hwec_conf.persist_disable) {
-			/* ec enable expects values starting from 1, zero is not
-               allowed, therefore we must use chan->chanpos because it
- 			   starts from 1 */
-			err = card->wandev.ec_enable(card, enable, chan->chanpos);
+
+
+		if (!enable &&  wr->ec_off_on_fax) {
+            DEBUG_EVENT("%s: Re-enabling hwec after fax chan=%i \n",card->devname,chan->chanpos);
+            card->wandev.ec_enable(card, 1, chan->chanpos);
+            wr->ec_off_on_fax=0;   
+			err=0;        
 		} else {
-			err = 0;			
-		}           
-		DEBUG_TDMV("[TDMV_RM]: %s: %s HW echo canceller on channel %d\n",
-				wr->devname,
-				(enable) ? "Enable" : "Disable",
-				chan->chanpos);
+			if (card->hwec_conf.persist_disable) {
+				/* ec enable expects values starting from 1, zero is not
+				   allowed, therefore we must use chan->chanpos because it
+				   starts from 1 */
+				err = card->wandev.ec_enable(card, enable, chan->chanpos);
+			} else {
+				err = 0;			
+			}           
+			DEBUG_TDMV("[TDMV_RM]: %s: %s HW echo canceller on channel %d\n",
+					wr->devname,
+					(enable) ? "Enable" : "Disable",
+					chan->chanpos);
+		}
 	}
 	return err;
 }
@@ -953,6 +970,34 @@ static int wp_tdmv_remora_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	memset(wr, 0x0, sizeof(wp_tdmv_remora_t));
 	card->wan_tdmv.sc	= wr;
 	wr->spanno		= tdmv_conf->span_no-1;
+	wr->span.manufacturer   = "Sangoma Technologies";
+	switch(card->adptr_type){
+	case A200_ADPTR_ANALOG:
+		strncpy(wr->span.devicetype, "A200" , sizeof(wr->span.devicetype));
+		break;
+	case A400_ADPTR_ANALOG:
+		strncpy(wr->span.devicetype, "A400" , sizeof(wr->span.devicetype));
+		break;
+	case AFT_ADPTR_B800:
+		strncpy(wr->span.devicetype, "B800" , sizeof(wr->span.devicetype));	
+		break;
+	case AFT_ADPTR_A600:
+		strncpy(wr->span.devicetype, "B600" , sizeof(wr->span.devicetype));
+		break;
+	case AFT_ADPTR_B601:
+		strncpy(wr->span.devicetype, "B601" , sizeof(wr->span.devicetype));
+		break;
+	case AFT_ADPTR_FLEXBRI:
+		strncpy(wr->span.devicetype, "B700" , sizeof(wr->span.devicetype));
+		break;
+	case U100_ADPTR:
+		strncpy(wr->span.devicetype, "U100" , sizeof(wr->span.devicetype));
+		break;
+	}
+	
+	snprintf(wr->span.location, sizeof(wr->span.location) - 1, "SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
+
+	wr->span.irq            = card->wandev.irq;
 	wr->num			= wp_remora_no++;
 	wr->card		= card;
 	wr->devname		= card->devname;
@@ -1466,6 +1511,17 @@ static void wp_tdmv_remora_tone (void* card_id, wan_event_t *event)
 				&wr->span.chans[event->channel-1],
 				(ZT_EVENT_DTMFDOWN | event->digit));
 #endif
+        if (wr->hwec == WANOPT_YES && card->wandev.ec_dev && card->wandev.ec_enable && card->tdmv_conf.ec_off_on_fax) {
+			/* Disable hwec on fax event if configuration option is enabled 
+			   Disable hwec only if persist disalbe is not enabled, since in that mode asterisk controls hwec.
+			   Disable hwec only once even though there might be many fax events */
+           	if (!card->hwec_conf.persist_disable && !wr->ec_off_on_fax) {
+				 DEBUG_EVENT("%s: Disabling hwec on fax event chan=%i\n",card->devname,event->channel);
+				 card->wandev.ec_enable(card, 0, event->channel);  
+                 wr->ec_off_on_fax=1;
+			}
+		}      
+
 	}else{
 		wr->toneactive &= ~(1 << (event->channel-1));
 #ifdef DAHDI_ISSUES

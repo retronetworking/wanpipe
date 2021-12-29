@@ -19,7 +19,6 @@ __attribute__((section("__versions"))) = {
 	{ 0x89e24b9c, "struct_module" },
 	{ 0x3f234f3e, "wp_logger_input" },
 	{ 0x12da5bb2, "__kmalloc" },
-	{ 0x7e3f931f, "_spin_trylock" },
 	{ 0xec7bc0d, "__mod_timer" },
 	{ 0xd6ee688f, "vmalloc" },
 	{ 0xc12eb167, "wp_logger_level_hwec" },
@@ -27,20 +26,22 @@ __attribute__((section("__versions"))) = {
 	{ 0xf26c4b72, "class_device_destroy" },
 	{ 0xb5513e49, "class_device_create" },
 	{ 0xab978df6, "malloc_sizes" },
-	{ 0x1bcd461f, "_spin_lock" },
 	{ 0xeae3dfd6, "__const_udelay" },
+	{ 0xdf2126f8, "mutex_unlock" },
 	{ 0x2fd1d81c, "vfree" },
 	{ 0x1d26aa98, "sprintf" },
 	{ 0x7d11c268, "jiffies" },
+	{ 0xc6183807, "mutex_trylock" },
 	{ 0x5487ec8, "wp_logger_level_default" },
 	{ 0x77da8dee, "register_wanec_iface" },
 	{ 0x8d3894f2, "_ctype" },
+	{ 0x86cb9d9f, "__mutex_init" },
 	{ 0x5152e605, "memcmp" },
 	{ 0x2da418b5, "copy_to_user" },
+	{ 0xd9f7b1a3, "mutex_lock" },
 	{ 0x2e1de6c1, "class_create" },
 	{ 0x19070091, "kmem_cache_alloc" },
 	{ 0x4df932b, "unregister_wanec_iface" },
-	{ 0xdeeaedb, "wp_logger_repeating_message_filter" },
 	{ 0x4086729e, "register_chrdev" },
 	{ 0xd0b91f9b, "init_timer" },
 	{ 0xf6ebc03b, "net_ratelimit" },
@@ -58,4 +59,4 @@ __attribute__((section(".modinfo"))) =
 "depends=sdladrv,wanrouter";
 
 
-MODULE_INFO(srcversion, "04C049BED8541540DFC0B81");
+MODULE_INFO(srcversion, "178C923C965F231AAF945F5");

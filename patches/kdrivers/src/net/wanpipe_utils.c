@@ -994,7 +994,7 @@ int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char 
 
 	/* The tracing is done by wan_capture_trace_packet function */
 	if (!wan_test_bit(8,&trace_info->tracing_enabled)){
-		return -EBUSY;
+		return 0;
 	}
 
 	if ((flag = wan_tracing_enabled(trace_info)) >= 0){
@@ -1038,7 +1038,7 @@ int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *sk
 	
 	/* 8 is a spacial buffer trace */
 	if (wan_test_bit(8,&trace_info->tracing_enabled)){
-		return -EBUSY;
+		return 0;
 	}
 
 	if ((flag = wan_tracing_enabled(trace_info)) >= 0){

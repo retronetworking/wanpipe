@@ -602,7 +602,7 @@ void wpabs_debug_test(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_TEST
 	va_list args;
-	char buf[1024];
+	char buf[1020];
 	va_start(args, fmt);
 	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_TEST("%s", buf);
@@ -618,7 +618,7 @@ void wpabs_debug_cfg(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_CFG
 	va_list args;
-	char buf[1024];
+	char buf[1020];
 	va_start(args, fmt);
 	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_CFG("%s",buf);
@@ -633,7 +633,7 @@ void wpabs_debug_init(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_INIT_VAR
 	va_list args;
-	char buf[1024];
+	char buf[1020];
 	va_start(args, fmt);
 	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_INIT("%s",buf);
@@ -648,7 +648,7 @@ void wpabs_debug_tx(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_TX
 	va_list args;
-	char buf[1024];
+	char buf[1020];
 	va_start(args, fmt);
 	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_TX("%s",buf);
@@ -663,7 +663,7 @@ void wpabs_debug_rx(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_RX
 	va_list args;
-	char buf[1024];
+	char buf[1020];
 	va_start(args, fmt);
 	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_RX("%s",buf);
@@ -678,7 +678,7 @@ void wpabs_debug_isr(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_ISR
 	va_list args;
-	char buf[1024];
+	char buf[1020];
 	va_start(args, fmt);
 	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_ISR("%s",buf);
@@ -692,7 +692,7 @@ void wpabs_debug_timer(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_TIMER
 	va_list args;
-	char buf[1024];
+	char buf[1020];
 	va_start(args, fmt);
 	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_TIMER("%s",buf);

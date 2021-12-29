@@ -1017,8 +1017,6 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 	card->hw_iface.hw_lock(card->hw,&smp_flags);
 
-	aft_fe_intr_ctrl(card, 0);
-
 	if(card->adptr_type == AFT_ADPTR_56K){
 		
 		aft_56k_write_cpld(card, 0x00,0x00);//reset_on_LXT441PE(card);
@@ -1035,8 +1033,6 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 		
 	a104_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_ON);
 	a104_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_OFF);
-
-	aft_fe_intr_ctrl(card, 1);
 
 	card->hw_iface.hw_unlock(card->hw,&smp_flags);
 
@@ -1333,11 +1329,9 @@ int a104_chip_unconfig(sdla_t *card)
 		wan_smp_flag_t smp_flags1;
 
 		card->hw_iface.hw_lock(card->hw,&smp_flags1);
-		aft_fe_intr_ctrl(card,0);
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
-		aft_fe_intr_ctrl(card,1);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 
 	}else if (IS_56K_CARD(card)) {
@@ -1377,7 +1371,7 @@ void a104_chan_config_mux_enable_b601(sdla_t *card, private_area_t *chan)
 void a104_chan_dev_config_tdmv(sdla_t *card, private_area_t *chan)
 {
 	u32 reg;
-	if (chan->channelized_cfg && !chan->hdlc_eng){
+	if (CHAN_GLOBAL_IRQ_CFG(chan)){
 	
 		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
 		aft_lcfg_tdmv_cnt_inc(&reg);
@@ -1439,7 +1433,7 @@ int a104_chan_dev_config(sdla_t *card, void *chan_ptr)
 		wan_clear_bit(AFT_DMACHAIN_SS7_ENABLE_BIT,&reg);
 	}
 
-	if (chan->channelized_cfg && !chan->hdlc_eng){
+	if (CHAN_GLOBAL_IRQ_CFG(chan)){
 		aft_dmachain_enable_tdmv_and_mtu_size(&reg,chan->mru);
 	}
 	
@@ -1566,7 +1560,7 @@ int a104_chan_dev_unconfig(sdla_t *card, void *chan_ptr)
 			}
 		}
 
-		if (chan->channelized_cfg && !chan->hdlc_eng){
+		if (CHAN_GLOBAL_IRQ_CFG(chan)){
 			card->hw_iface.bus_read_4(card->hw,
 					AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
 			aft_lcfg_tdmv_cnt_dec(&reg);

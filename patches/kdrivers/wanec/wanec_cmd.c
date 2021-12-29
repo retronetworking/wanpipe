@@ -723,6 +723,7 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 	EchoChannelOpen.VqeConfig.fRinDcOffsetRemoval	= TRUE;
 	EchoChannelOpen.VqeConfig.fSinDcOffsetRemoval	= TRUE;
 
+
 	if (card->hwec_conf.acustic_echo) {
 		EchoChannelOpen.VqeConfig.fAcousticEcho		= TRUE;
     } else {
@@ -771,30 +772,41 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
 	}
 
-    if (card->hwec_conf.rx_auto_gain) {
-		EchoChannelOpen.VqeConfig.fSoutAutomaticLevelControl = TRUE;
-		EchoChannelOpen.VqeConfig.lSoutAutomaticLevelControlTargetDb = card->hwec_conf.rx_auto_gain;
+	if (card->hwec_conf.rx_gain) {
+    	EchoChannelOpen.VqeConfig.fSoutLevelControl = TRUE;
+        EchoChannelOpen.VqeConfig.lSoutLevelControlGainDb = card->hwec_conf.rx_gain; 
 	} else {
-		EchoChannelOpen.VqeConfig.fSoutAutomaticLevelControl = FALSE;
+
+		if (card->hwec_conf.rx_auto_gain) {
+			EchoChannelOpen.VqeConfig.fSoutAutomaticLevelControl = TRUE;
+			EchoChannelOpen.VqeConfig.lSoutAutomaticLevelControlTargetDb = card->hwec_conf.rx_auto_gain;
+		} else {
+			EchoChannelOpen.VqeConfig.fSoutAutomaticLevelControl = FALSE;
+		}
 	}
     
-	if (card->hwec_conf.tx_auto_gain) {
-		EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = TRUE;
-		EchoChannelOpen.VqeConfig.lRinAutomaticLevelControlTargetDb = card->hwec_conf.tx_auto_gain;
+	if (card->hwec_conf.tx_gain) { 
+    	EchoChannelOpen.VqeConfig.fRinLevelControl = TRUE;
+        EchoChannelOpen.VqeConfig.lRinLevelControlGainDb = card->hwec_conf.tx_gain;
 	} else {
-		EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = FALSE;
+		if (card->hwec_conf.tx_auto_gain) {
+			EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = TRUE;
+			EchoChannelOpen.VqeConfig.lRinAutomaticLevelControlTargetDb = card->hwec_conf.tx_auto_gain;
+		} else {
+			EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = FALSE;
+		}
 	}
 
 	EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay = ((UINT16)(1500 / 512) + 1) * 512 + 300; /*300;*/
 
-	DEBUG_EVENT("%s: Opening HW Echo: [Mode=%s NoiseRed=%s VQE=%i DtmfRmv=%s TxAGain=%i RxAGain=%i]\n",
+	DEBUG_EVENT("%s: Opening HW Echo: [Mode=%s NoiseRed=%s VQE=%i DtmfRmv=%s Acust=%s NLP=%s ]\n",
 			ec->name,
 			EchoChannelOpen.ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_NORMAL?"Normal":"Speech",
 			(EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction == TRUE)?"On":"Off",
 			EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay,
 			EchoChannelOpen.VqeConfig.fDtmfToneRemoval==TRUE?"On":"Off",
-			card->hwec_conf.tx_auto_gain,
-			card->hwec_conf.rx_auto_gain);
+			EchoChannelOpen.VqeConfig.fAcousticEcho==TRUE?"On":"Off",
+			EchoChannelOpen.VqeConfig.fEnableNlp== TRUE?"On":"Off");
 
 	EchoChannelOpen.VqeConfig.ulComfortNoiseMode	=
 				cOCT6100_COMFORT_NOISE_NORMAL;
@@ -1269,6 +1281,50 @@ static CHAR* wanec_BufferPlayoutType2Str(UINT32 f_ulBufferPlayoutType)
 	}
 }
 
+
+#if 0
+/* Implemented fax debouncing but
+   decieded not to use it. Code is here in case
+   we change our mind */
+static int wanec_fax_detect_debounce(wan_ec_dev_t *ec_dev, wan_event_t *event)
+{
+	sdla_t *card = (sdla_t*)ec_dev->card;
+
+	if (event->digit == 'f') {
+
+		if (card->tdmv_conf.hw_fax_detect == WANOPT_NO) {
+			
+		} else if (card->tdmv_conf.hw_fax_detect == WANOPT_YES) {
+			card->tdmv_conf.hw_fax_detect=4;  /* number of sec between events */
+		} 
+		if (!card->hwec_conf.hw_fax_detect_cnt) {
+			card->hwec_conf.hw_fax_detect_cnt=4; /* number of events PRESENT & STOP */ 
+		}
+
+		if (SYSTEM_TICKS - ec_dev->fax_detect_timeout >= card->tdmv_conf.hw_fax_detect*HZ) {
+			ec_dev->fax_detect_timeout=SYSTEM_TICKS;
+			ec_dev->fax_detect_cnt=1;
+			DEBUG_EVENT("%s: Ignore fax tone cnt=%i, waiting for another one [fax type=%s]\n",
+			  	ec_dev->devname,ec_dev->fax_detect_cnt,event->tone_type == WAN_EC_TONE_PRESENT?"PRESENT":"STOP");
+			return 1;
+		} else {
+			ec_dev->fax_detect_timeout=SYSTEM_TICKS;
+			ec_dev->fax_detect_cnt++;
+			if (ec_dev->fax_detect_cnt <= card->hwec_conf.hw_fax_detect_cnt) {
+				DEBUG_EVENT("%s: Ignore fax tone cnt=%i, waiting for another one [fax type=%s]\n",
+					ec_dev->devname,ec_dev->fax_detect_cnt,event->tone_type == WAN_EC_TONE_PRESENT?"PRESENT":"STOP");
+				return 1;
+			}
+		}
+	}
+
+	DEBUG_EVENT("%s: Pass on the tone [fax type=%s]\n",
+				ec_dev->devname,event->tone_type == WAN_EC_TONE_PRESENT?"PRESENT":"STOP");
+
+	return 0;
+}
+#endif
+
 /*
 **				wanec_ToneEvent()
 **
@@ -1280,16 +1336,18 @@ static CHAR* wanec_BufferPlayoutType2Str(UINT32 f_ulBufferPlayoutType)
 int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 {
 	tOCT6100_EVENT_GET_TONE	f_GetToneEvent;
-	tOCT6100_TONE_EVENT	ToneEvent[32];
-	UINT32			ulResult;
-	wan_ec_dev_t		*ec_dev;
-	sdla_t			*card;
-	UINT32			i;
-	int			ec_chan;
-	u8			fe_chan;
+	tOCT6100_TONE_EVENT		ToneEvent[32];
+	wan_event_t				event;
+	UINT32					ulResult;
+	wan_ec_dev_t			*ec_dev;
+	sdla_t					*card;
+	UINT32					i;
+	int						ec_chan;
+	u8						fe_chan;
 
 	PRINT2(verbose, "%s: Getting Tone events ...\n",
 					ec->name);
+	
 	Oct6100EventGetToneDef( &f_GetToneEvent );
 	f_GetToneEvent.fResetBufs = FALSE;
 	f_GetToneEvent.ulMaxToneEvent = WANEC_MAX_TONEEVENTS;
@@ -1332,8 +1390,7 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 
 		card = (sdla_t*)ec_dev->card;
 		if (card->wandev.event_callback.tone){
-			wan_event_t	event;
-			unsigned char	tone_port = WAN_EC_CHANNEL_PORT_ROUT;
+			u8 tone_port = WAN_EC_CHANNEL_PORT_ROUT;
 
 			event.type	= WAN_EVENT_EC_DTMF;
 			event.channel	= fe_chan;
@@ -1342,6 +1399,15 @@ int wanec_ToneEvent(wan_ec_t *ec, int verbose)
 						&tone_port);
 			event.tone_type = wanec_ConvertToneType(ToneEvent[i].ulEventType);
 			event.tone_port = tone_port;
+
+#if 0
+/* Implemented fax debouncing but
+   decieded not to use it. Code is here in case
+   we change our mind */
+           	if (wanec_fax_detect_debounce(ec_dev, &event)) {
+               	goto ignore_tone;
+		   	}
+#endif
 			card->wandev.event_callback.tone(card, &event);
 		}
 	}

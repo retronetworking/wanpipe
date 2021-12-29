@@ -9,6 +9,8 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Nov 09   2010  2.48   Yannick Lam     Fixed wancfg_fs bug(take out asterisk and smg_ctrl stuffs, fixed context, fixed config profile)
+# Oct 12   2010  2.47   Yannick Lam     Added d-channel in freetdm.conf for SMG/trillium stack(trillium=freetdm_conf ; socket mode=freetdm_conf_legacy)
 # Sep 09   2010  2.46   Yannick Lam     Support for SMG/trillium stack(trillium=freetdm_conf ; socket mode=freetdm_conf_legacy)
 # Aug 25   2010  2.45   Yannick Lam     B800 support
 # Aug 17   2010  2.44   Yannick Lam     wancfg_fs give you option to do openzap or freetdm(conf and xml files are generated)
@@ -208,6 +210,7 @@ my $ftdm_signalling='pri_cpe';
 my $def_sigmode='';
 my $def_switchtype='';
 my $def_zapata_context='';
+my $def_fs_context='';
 my $def_woomera_context='';
 my $def_zapata_group='';
 my $def_te_ref_clock='';
@@ -442,11 +445,14 @@ if ($os_type_list =~ m/FreeBSD/){
 	config_boot_linux();
 }
 
-config_ztcfg_start();
-config_smg_ctrl_start();
-if($os_type_list =~ m/Linux/){
-config_smg_ctrl_boot();
+if($is_trillium == $FALSE){
+	config_ztcfg_start();
+	config_smg_ctrl_start();
+	if($os_type_list =~ m/Linux/){
+		config_smg_ctrl_boot();
+	}
 }
+
 clean_files();
 print "Sangoma cards configuration complete, exiting...\n\n";
 
@@ -915,14 +921,15 @@ sub apply_changes{
 				}
 			}
 
-		}else {
+		}elsif ($is_trillium == $FALSE) {
 			print "\nAsterisk is not running...\n";
 		}
 			
 	} 
-
-	if(-f "/usr/sbin/smg_ctrl" ){
-		exec_command("/usr/sbin/smg_ctrl stop");
+	if ($is_trillium == $FALSE) {
+		if(-f "/usr/sbin/smg_ctrl" ){
+			exec_command("/usr/sbin/smg_ctrl stop");
+		}
 	}
 
 	print "\nStopping Wanpipe...\n";
@@ -940,8 +947,10 @@ sub apply_changes{
 	exec_command("rm -f $wanpipe_conf_dir/wanpipe*.conf");
 	
 	gen_wanrouter_rc();
-	if( $num_bri_devices != 0 | $num_digital_smg != 0) { 
-				gen_smg_rc();
+	if($is_trillium == $FALSE){
+		if( $num_bri_devices != 0 | $num_digital_smg != 0) { 
+					gen_smg_rc();
+		}
 	}
 	print "\nCopying new Wanpipe configuration files...\n";
 	copy_config_files();
@@ -980,9 +989,12 @@ sub apply_changes{
 			}
 		}
 	}
+	
 	if ($num_digital_smg !=0 || $num_bri_devices !=0){
-		print "\nCopying new smg.rc configuration files ($smg_rc_file_t)...\n";
-		exec_command("cp -f $smg_rc_file $smg_rc_file_t");
+		if ($is_trillium == $FALSE){
+			print "\nCopying new smg.rc configuration files ($smg_rc_file_t)...\n";
+			exec_command("cp -f $smg_rc_file $smg_rc_file_t");
+		}
 	}
 
 	if($config_openzap == $TRUE && $is_ftdm == $FALSE){
@@ -1138,6 +1150,36 @@ sub get_zapata_context{
 	}
 	$def_zapata_context=$context;
 	return $context;	
+}
+
+sub get_context{
+	my ($card_model,$card_port)=@_;
+	my $context='';
+	my @options = ("default", "public","Custom");
+
+	if ($silent==$FALSE){
+		printf ("Select dialplan context for AFT-A%s on port %s\n", get_card_name($card_model), $card_port);
+		my $res = &prompt_user_list(@options,$def_fs_context);
+		if($res eq "default"){
+			$context="default";
+		}elsif($res eq "public"){
+			$context="public";
+		}elsif($res eq "Custom"){
+			my $res_context=&prompt_user("Input the context for this port");
+			while(length($res_context)==0){
+				print "Invalid context, input a non-empty string\n";
+				$res_context=&prompt_user("Input the context for this port",$def_fs_context);
+			}
+			$context=$res_context;
+		}elsif($res eq $def_fs_context){
+			$context=$def_fs_context;
+		}else{
+			print "Internal error:invalid context\n";
+		}
+		
+	}
+	$def_fs_context=$context;
+	return $context;
 }
 
 
@@ -2408,7 +2450,9 @@ sub get_pri_switchtype {
 }
 
 sub get_boost_t1_switchtype {
-	$def_switchtype = "National";
+	if ($def_switchtype eq "EuroISDN/ETSI"){
+		$def_switchtype = "";
+	}
 	my @options = ( "National", "Nortel DMS100", "Lucent 5ESS", "Lucent 4ESS" );
 	my @options_val = ( "national", "dms100", "5ess", "4ess" );
 
@@ -2425,7 +2469,11 @@ sub get_boost_t1_switchtype {
 }
 
 sub get_boost_e1_switchtype {
-	$def_switchtype="EuroISDN/ETSI";
+	#$def_switchtype="EuroISDN/ETSI";
+	if ($def_switchtype eq "National" || $def_switchtype eq "Nortel DMS100" || $def_switchtype eq "Lucent 5ESS" || $def_switchtype eq "Lucent 4ESS" ){
+	#if ($def_switchtype ne "EuroISDN/ETSI" || $def_switchtype ne "euroisdn"){
+		$def_switchtype = "";
+	}
 	my @options = ( "EuroISDN/ETSI", "QSIG" );
 	my @options_val = ( "euroisdn", "qsig" );
 
@@ -3031,6 +3079,7 @@ ENDSS7CONFIG:
 						my $chan_set='s'.$openzapspan.'c1-s'.$openzapspan.'c23';
 						my $group_no='1';
 						my $cardname='';
+						my $context="";
 						#$def_sigmode='pri_cpe';
 						if($silent==$FALSE){
 							
@@ -3052,6 +3101,8 @@ ENDSS7CONFIG:
 							@options = ("PRI CPE", "PRI NET");
 		
 							$def_sigmode=&prompt_user_list(@options,$def_sigmode);
+							
+							$context=get_context();
 							$group_no=get_woomera_group();
 							#	$boostspan->print(); 
 						}
@@ -3062,6 +3113,7 @@ ENDSS7CONFIG:
 					$boostspan->trunk_type($span_type);
 					$boostspan->switch_type($switchtype);
 					$boostspan->chan_set($chan_set);
+					$boostspan->context($context);
 					$boostspan->sig_mode($def_sigmode);
 					$cardname =get_card_name($card->card_model);
 					$pri_conf .= "\n;AFT-$cardname on port $port";#slot:$card->pci_slot Bus:$card->pci_bus";
@@ -3959,7 +4011,7 @@ sub write_freetdm_conf{
 			{
 				$freetdm.="trunk_type => e1\n";
 			}
-			$freetdm.="group=grp";
+			$freetdm.="group=";
 			$freetdm.=$boostprispan->group_no();
 			$freetdm.="\n";
 			$freetdm.="b-channel => ";
@@ -3974,6 +4026,21 @@ sub write_freetdm_conf{
 				$freetdm.=":";
 				$freetdm.="17-31";
 			}
+			$freetdm.="\n";
+			if($boostprispan->span_type() eq 't1')
+			{
+				$freetdm.="d-channel => ";
+				$freetdm.=$boostprispan->span_no();
+				$freetdm.=":";
+				$freetdm.="24";
+			}
+			if($boostprispan->span_type() eq 'e1')
+			{
+				$freetdm.="d-channel => ";
+				$freetdm.=$boostprispan->span_no();
+				$freetdm.=":";
+				$freetdm.="16";
+                        }
 			$freetdm.="\n\n";
 		}
 		
@@ -3996,13 +4063,18 @@ sub write_freetdm_conf{
 			}
 			#$freetdm.='YDBG boostbrispan=trunk_type =>'.$boostbrispan->trunk_type();
 
-			$freetdm.="group=grp";
+			$freetdm.="group=";
 			$freetdm.=$boostbrispan->span_no();
 			$freetdm.="\n";
 			$freetdm.="b-channel => ";
 			$freetdm.=$boostbrispan->span_no();
 			$freetdm.=":";
 			$freetdm.=$boostbrispan->chan_no();
+			$freetdm.="\n";
+			$freetdm.="d-channel => ";
+			$freetdm.=$boostbrispan->span_no();
+			$freetdm.=":";
+			$freetdm.="3";
 			$freetdm.="\n\n";
 		}
 	}
@@ -4407,6 +4479,17 @@ sub write_freetdm_conf_xml{
 	my $freetdm_boostbri='';
 	my $freetdm_fxs='';
 	my $freetdm_fxo='';
+	my $ftdm_context='public';
+	my $num=-1;
+	my $count=0;
+	my $current_num=-1;
+	my $cfg_profile_ni='';
+	my $cfg_profile_dms='';
+	my $cfg_profile_euro='';
+	my $cfg_profile_5ess='';
+	my $cfg_profile_4ess='';
+	my $e1_profile_flag=0;
+	my $t1_profile_flag=0;
 	
 	$cfg_boost_header.="";
 	$cfg_boost_foot.="";
@@ -4433,66 +4516,141 @@ sub write_freetdm_conf_xml{
 		
 		foreach my $span (@boostprispan){
 				my $boostprispan=$span;
+				$cfg_profile='my_pri_te';
+				$t1_profile_flag=-1;
 				#print "YANNCIK IN WRITE_FREETDM_CONF_XML function\n";
+				$num = $num + 1;
+				$current_num = $num;
 
-				if ($boostprispan->sig_mode() eq "PRI CPE"){
+				if ($boostprispan[$num]->sig_mode() eq "PRI CPE"){
 					$ftdm_signalling='cpe';
+					$ftdm_context='public';
 					if($boostprispan->span_type() eq 't1')
 					{
+						$t1_profile_flag=0;
 						$cfg_profile='my_pri_te_';
+						#$cfg_profile='my_pri_te';
 					}
 					if($boostprispan->span_type() eq 'e1')
 					{
-						$cfg_profile='my_pri_te_e1_';
+						$e1_profile_flag=0;
+						$cfg_profile='my_pri_te_';
+						#$cfg_profile='my_pri_te_e1';
 					}
 				}
 
-				if ($boostprispan->sig_mode() eq "PRI NET"){
+				if ($boostprispan[$num]->sig_mode() eq "PRI NET"){
 					$ftdm_signalling = "net";
+					$ftdm_context='default';
 					if($boostprispan->span_type() eq 't1')
 					{
+						$t1_profile_flag=1;
 						$cfg_profile='my_pri_nt_';
+						#$cfg_profile='my_pri_nt';
 					}
 					if($boostprispan->span_type() eq 'e1')
 					{
-						$cfg_profile='my_pri_nt_e1_';
+						$e1_profile_flag=1;
+						$cfg_profile='my_pri_nt_';
+						#$cfg_profile='my_pri_nt_e1';
 					}
 				}
-
+					
                         	if($boostprispan->switch_type() eq 'national')
                         	{
-					$freetdm_boostpri_profile.="\n\t\t";
-                                	#$freetdm_boostpri_profile.='<profile name="$cfg_profile.$boostprispan->span_no()"'.'>'."\n\t\t\t";
-
-                                	$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
-					$freetdm_boostpri_profile.='<param name="switchtype" value="ni2" />'."\n\t\t\t";
+					for ($count = $current_num; $count > 0; $count--) {
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
+							##if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
+								#$cfg_profile=$cfg_profile_ni;
+								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+								goto skip;
+							##}
+						}
+					}
+	
+						$cfg_profile=$cfg_profile_ni=$cfg_profile.$boostprispan[$current_num]->span_no();
+						$freetdm_boostpri_profile.="\n\t\t";
+                                		#$freetdm_boostpri_profile.='<profile name="$cfg_profile.$boostprispan->span_no()"'.'>'."\n\t\t\t";
+						$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t";
+                                		#$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t";
+						$freetdm_boostpri_profile.='<param name="switchtype" value="ni2" />'."\n\t\t\t";
+					
 				}
 
                                 if($boostprispan->switch_type() eq 'dms100')
                                 {
-                                        $freetdm_boostpri_profile.="\n\t\t";
-                                        $freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t"; 
-                                        $freetdm_boostpri_profile.='<param name="switchtype" value="dsm100" />'."\n\t\t\t";
+					for ($count = $current_num; $count > 0; $count--) {
+						#if($boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() || ($t1_profile_flag > -1 || $e1_profile_flag > -1)){
+							#if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
+								#$cfg_profile=$cfg_profile_dms;
+								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+								goto skip;
+							#}
+						}
+					}
+
+					$cfg_profile=$cfg_profile_dms=$cfg_profile.$boostprispan[$current_num]->span_no();
+					$freetdm_boostpri_profile.="\n\t\t";			
+					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t"; 	
+					$freetdm_boostpri_profile.='<param name="switchtype" value="dms100" />'."\n\t\t\t";
                                 }
 
                                 if($boostprispan->switch_type() eq '5ess')
                                 {
+					for ($count = $current_num; $count > 0; $count--) {
+						#if($boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() || ($t1_profile_flag > -1 || $e1_profile_flag > -1)){
+							#if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
+								#$cfg_profile=$cfg_profile_5ess;
+								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+								goto skip;
+						}
+					}
+
+					$cfg_profile=$cfg_profile_5ess=$cfg_profile.$boostprispan[$current_num]->span_no();
                                         $freetdm_boostpri_profile.="\n\t\t";
-                                        $freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
+                                        #$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
+					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t"; 	
                                         $freetdm_boostpri_profile.='<param name="switchtype" value="5ess" />'."\n\t\t\t";
                                 }
 
 				if($boostprispan->switch_type() eq '4ess')
 				{
+					for ($count = $current_num; $count > 0; $count--) {
+						#if($boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() || ($t1_profile_flag > -1 || $e1_profile_flag > -1)){
+							#if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
+								#$cfg_profile=$cfg_profile_4ess;
+								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+								goto skip;
+						}
+					}
+
+					$cfg_profile=$cfg_profile_4ess=$cfg_profile.$boostprispan[$current_num]->span_no();
 					$freetdm_boostpri_profile.="\n\t\t";
-					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
+					#$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
+					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t"; 	
 					$freetdm_boostpri_profile.='<param name="switchtype" value="4ess" />'."\n\t\t\t";
 				}
 
 				if($boostprispan->switch_type() eq 'euroisdn')
-				{
+				{	
+					for ($count = $current_num; $count > 0; $count--) {
+						#if($boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() || ($t1_profile_flag > -1 || $e1_profile_flag > -1)){
+							#if($num > 0 && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode()){
+						if($num > 0 && $boostprispan[$current_num]->switch_type() eq $boostprispan[$count-1]->switch_type() && $boostprispan[$current_num]->sig_mode() eq $boostprispan[$count-1]->sig_mode() && (($t1_profile_flag > -1 || $e1_profile_flag > -1))){
+								#$cfg_profile=$cfg_profile_euro;
+								$cfg_profile=$cfg_profile.$boostprispan[$count-1]->span_no();
+								goto skip;
+							#}
+						}
+					}
+
+					$cfg_profile=$cfg_profile_euro=$cfg_profile.$boostprispan[$current_num]->span_no();
 					$freetdm_boostpri_profile.="\n\t\t";
-					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
+					#$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
+					$freetdm_boostpri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t"; 	
 					$freetdm_boostpri_profile.='<param name="switchtype" value="euroisdn" />'."\n\t\t\t";
 				}
 				
@@ -4508,11 +4666,20 @@ sub write_freetdm_conf_xml{
 				$freetdm_boostpri_profile.='"/>'."\n\t\t";
 				$freetdm_boostpri_profile.='</profile>'."\n\t\t";
 			
-					
+				#YDBGif($boostprispan[$num]->switch_type() eq $boostprispan[$num-1]->switch_type())
+				#{
+				#	$freetdm_boostpri.=$num;
+				#}
+				
+skip:					
 				$freetdm_boostpri.="\n\t\t";
-				$freetdm_boostpri.='<span name="wp'.$boostprispan->span_no().'"'.' cfgprofile="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
+				#$freetdm_boostpri.='<span name="wp'.$boostprispan->span_no().'"'.' cfgprofile="'.$cfg_profile.$boostprispan->span_no().'">'."\n\t\t\t";
+				$freetdm_boostpri.='<span name="wp'.$boostprispan->span_no().'"'.' cfgprofile="'.$cfg_profile.'">'."\n\t\t\t";
         	        	$freetdm_boostpri.='<param name="dialplan" value="XML"/>'."\n\t\t\t";
-	                	$freetdm_boostpri.='<param name="context" value="$${pstn_context}"/>'."\n\t\t";
+	                	$freetdm_boostpri.='<param name="context" value="';
+				#$freetdm_boostpri.=$ftdm_context;
+				$freetdm_boostpri.=$boostprispan->context;
+				$freetdm_boostpri.='"/>'."\n\t\t";
 				$freetdm_boostpri.='</span>'."\n\t\t";
 			#$freetdm_boostpri.=$boostprispan->span_no();
 			#$freetdm_boostpri.='" sigmod="sangoma_prid">'."\n\t";
@@ -4533,27 +4700,41 @@ sub write_freetdm_conf_xml{
 	
 
 	if(@boostbrispan){
+		$num=-1;
+		$current_num=0;
 		$cfg_bri_header.="<sangoma_bri_spans>";
 		$cfg_bri_foot.="</sangoma_bri_spans>";
 		foreach my $span (@boostbrispan){
                                 my $boostbrispan=$span;
+				$num = $num + 1; 
+				$current_num = $num;
 		#add boost bri conf
 		#if ($boostbrispan->span_type() eq "TE"){
 		#	$ftdm_signalling='cpe';
 		#	        printf("boostbrispan->span_type() \n");
-				if($boostbrispan->span_type() eq 'TE')
-				{
-					$ftdm_signalling='cpe';
-					$cfg_profile='my_bri_te_';
-				}
-				if($boostbrispan->span_type() eq 'NT')
-				{
-					$ftdm_signalling='net';
-					$cfg_profile='my_bri_nt_';
-				}
+			if($boostbrispan->span_type() eq 'TE')
+			{
+				$ftdm_signalling='cpe';
+				$cfg_profile='my_bri_te_';
+				$ftdm_context='public';
+			}
+			if($boostbrispan->span_type() eq 'NT')
+			{
+				$ftdm_signalling='net';
+				$cfg_profile='my_bri_nt_';
+				$ftdm_context='default';
+			}
 		
+			for ($count = $current_num; $count > 0; $count--) {
+				if($num > 0 && $boostbrispan[$current_num]->span_type() eq $boostbrispan[$count-1]->span_type()){
+					$cfg_profile=$cfg_profile.$boostbrispan[$count-1]->span_no();
+					goto skip_bri;
+				}
+			}
 
-			$freetdm_boostbri_profile.='<profile name="'.$cfg_profile.$boostbrispan->span_no().'">'."\n\t\t\t";
+			$cfg_profile=$cfg_profile.$boostbrispan[$current_num]->span_no();
+			#$freetdm_boostbri_profile.='<profile name="'.$cfg_profile.$boostbrispan->span_no().'">'."\n\t\t\t";
+			$freetdm_boostbri_profile.='<profile name="'.$cfg_profile.'">'."\n\t\t\t";
 			$freetdm_boostbri_profile.='<param name="switchtype" value="euroisdn" />'."\n\t\t\t";
 			$freetdm_boostbri_profile.='<param name="interface" value="';
 			$freetdm_boostbri_profile.=$ftdm_signalling;
@@ -4561,10 +4742,14 @@ sub write_freetdm_conf_xml{
 			$freetdm_boostbri_profile.='<param name="facility" value="no" />'."\n\t\t";
 			$freetdm_boostbri_profile.='</profile>'."\n\t\t";
 
+skip_bri:
 			$freetdm_boostbri.="\n\t\t";
-			$freetdm_boostbri.='<span name="wp'.$boostbrispan->span_no().'"'.' cfgprofile="'.$cfg_profile.$boostbrispan->span_no().'">'."\n\t\t\t";
+			$freetdm_boostbri.='<span name="wp'.$boostbrispan->span_no().'"'.' cfgprofile="'.$cfg_profile.'">'."\n\t\t\t";
 			$freetdm_boostbri.='<param name="dialplan" value="XML"/>'."\n\t\t\t";
-			$freetdm_boostbri.='<param name="context" value="$${pstn_context}"/>'."\n\t\t";
+			#$freetdm_boostbri.='<param name="context" value="$${pstn_context}"/>'."\n\t\t";
+			$freetdm_boostbri.='<param name="context" value="';
+			$freetdm_boostbri.=$ftdm_context;
+			$freetdm_boostbri.='"/>'."\n\t\t";
 			$freetdm_boostbri.='</span>'."\n\t\t";
 
 		}
@@ -4576,7 +4761,7 @@ sub write_freetdm_conf_xml{
 		$freetdm_fxs.='<span name="FXS">'."\n\t\t\t";
 		$freetdm_fxs.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t\t\t";
 		$freetdm_fxs.='<param name="dialplan" value="XML"/>'."\n\t\t\t";
-		$freetdm_fxs.='<param name="context" value="$${pstn_context}"/>'."\n\t\t\t";;
+		$freetdm_fxs.='<param name="context" value="default"/>'."\n\t\t\t";;
 		$freetdm_fxs.=' <!-- regex to stop dialing when it matches -->'."\n\t\t\t";
     		$freetdm_fxs.='<!--<param name="dial-regex" value="5555"/>-->'."\n\t\t\t";
     		$freetdm_fxs.='<!-- regex to stop dialing when it does not match -->'."\n\t\t\t";
@@ -4589,7 +4774,7 @@ sub write_freetdm_conf_xml{
 		$freetdm_fxo.='<span name="FXO">'."\n\t\t\t";
 		$freetdm_fxo.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t\t\t";
 		$freetdm_fxo.='<param name="dialplan" value="XML"/>'."\n\t\t\t";
-		$freetdm_fxo.='<param name="context" value="$${pstn_context}"/>'."\n\t\t\t";
+		$freetdm_fxo.='<param name="context" value="public"/>'."\n\t\t\t";
 		$freetdm_fxo.=' <!-- regex to stop dialing when it matches -->'."\n\t\t\t";
     	$freetdm_fxo.='<!--<param name="dial-regex" value="5555"/>-->'."\n\t\t\t";
     	$freetdm_fxo.='<!-- regex to stop dialing when it does not match -->'."\n\t\t\t";

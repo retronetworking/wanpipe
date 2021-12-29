@@ -397,6 +397,7 @@ int wplip_prot_tx(wplip_dev_t *lip_dev, wan_api_tx_hdr_t *api_tx_hdr, netskb_t *
 	WPLIP_PROT_FUNC_ASSERT(prot_iface,tx,-EFAULT);
 
 	if (wan_skb_queue_len(&lip_dev->tx_queue) >=  lip_dev->max_mtu_sz){
+		DEBUG_TEST("%s: %s() failed to tx busy qz=%i\n",lip_dev->name,__FUNCTION__,lip_dev->max_mtu_sz);
 		return 1;
 	}
 

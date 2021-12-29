@@ -74,3 +74,4 @@ clean:
 	make -C misc clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C wanctl clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C bwm-ng clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
+	make -C wan_fxotune clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 

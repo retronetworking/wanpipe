@@ -12,11 +12,8 @@
 # include "aft_core_user.h"		/* aft_op_stats_t */
 # include "wanpipe_tdm_api.h"	/* wanpipe_tdm_api_dev_t */
 # include "aft_core_bert.h"		/* wp_bert_t */
+# include "wanpipe_mtp1.h"
 
-#if defined(__WINDOWS__)
-# include "sdladrv_private.h"
-# include "wanpipe_cdev_iface.h" /* wanpipe_cdev_ops_t */
-#endif
 
 /*=================================================================
  * Defines
@@ -150,8 +147,17 @@ enum {
 
 
 enum {
-	WAN_AFT_DMA_CHAIN = 0,
+	/* DMA chain mode where interrupt is activated once per 
+	   chain 2 buffers before the end of the chain. */
+	WAN_AFT_DMA_CHAIN = 0,       	
+
+	/* DMA chain mode where interrupt is activated after each
+	   buffer in the chain. Used for underrun prevention
+	   in case the interrupt handler is slow or system busy.
+	   Used in transparent mode. This mode may introduce delay. */
 	WAN_AFT_DMA_CHAIN_IRQ_ALL,
+
+	/* DMA chain mode disabled. One DMA buffer per interrupt */
 	WAN_AFT_DMA_CHAIN_SINGLE
 };
 
@@ -284,7 +290,7 @@ typedef struct private_area
 #endif
 
 	u32					dma_status;
-	unsigned char		hdlc_eng;
+	unsigned char		hdlc_eng;		/*!< hardware hdlc engine enabled/disabled */
 	unsigned char		tx_chain_indx,tx_pending_chain_indx,tx_chain_data_sz,tx_chain_sz;
 	wan_dma_descr_t 	tx_dma_chain_table[MAX_AFT_DMA_CHAINS];
 
@@ -453,18 +459,20 @@ typedef struct private_area
 	dma_history_t 		dma_history[MAX_DMA_HIST_SIZE];
 #endif
 
-	u32		maintenance_mode_bitmap;
+	u32			maintenance_mode_bitmap;
 	wp_bert_t	wp_bert;
 	netskb_t	*tx_bert_skb;
-	u32 bert_data_length;
-
+	u32 		bert_data_length;
+	u8			sw_hdlc_mode;
+	void		*sw_hdlc_dev;
+	
 }private_area_t;
 
 
 void 	aft_free_logical_channel_num (sdla_t *card, int logic_ch);
 void 	aft_dma_max_logic_ch(sdla_t *card);
 
-#undef AFT_FE_INTR_DEBUG 
+#undef AFT_FE_INTR_DEBUG  
 
 #ifdef AFT_FE_INTR_DEBUG
 void 	___aft_fe_intr_ctrl(sdla_t *card, int status, char *func, int line);
@@ -519,6 +527,28 @@ static __inline int wan_chan_dev_stopped(private_area_t *chan)
 	return wan_test_bit(0,&chan->busy);
 }
 
+static __inline int aft_core_taskq_trigger(sdla_t *card, int cmd)
+{
+	if (wan_test_and_set_bit(cmd,&card->u.aft.port_task_cmd)) {
+		DEBUG_TEST("%s: %s() trigger failed cmd %i already pending !\n",
+					card->devname,__FUNCTION__);
+		return -EBUSY;
+	}
+	
+	if (wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+		return -1;
+	}
+	if (wan_test_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical)){
+		DEBUG_TEST("%s: %s() trigger failed due to busy  cmd %i!\n",
+					card->devname,__FUNCTION__,cmd);
+		return -EBUSY;
+	}
+	
+	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+
+	return 0;
+}
+
 int aft_background_timer_kill(sdla_t* card);
 int aft_background_timer_add(sdla_t* card, unsigned long delay);
 
@@ -532,6 +562,9 @@ void aft_background_timer_expire(unsigned long pcard);
 
 int aft_fe_loop_back_status(sdla_t *card);
 int aft_hdlc_repeat_mangle(sdla_t *card,private_area_t *chan, netskb_t *skb, wp_api_hdr_t *tx_hdr, netskb_t **rkb);
+int aft_bh_rx(private_area_t* chan, netskb_t *new_skb, u8 pkt_error, int len);
+
+#define CHAN_GLOBAL_IRQ_CFG(chan) (chan->channelized_cfg && !chan->hdlc_eng && !chan->sw_hdlc_mode)
 
 #endif /* WAN_KERNEL */
 

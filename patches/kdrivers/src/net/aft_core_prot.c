@@ -232,10 +232,7 @@ __inline void aft_rtp_tap_chan(sdla_t *card, u8 *data, u32 len,
 			wan_skb_reset_network_header(nskb);
 
 			wan_skb_queue_tail(&card->u.aft.rtp_tap_list,nskb);
-			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)){
-				wan_set_bit(AFT_RTP_TAP_Q,&card->u.aft.port_task_cmd);
-				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
-			}
+			aft_core_taskq_trigger(card,AFT_RTP_TAP_Q);
 
 			DEBUG_TEST("%s: RTP(%d) SKB Tx on dev %s \n",
 				card->devname,chan,nskb->dev->name);
@@ -612,7 +609,9 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 	}
 
 
-	if (conf->hdlc_streaming) {
+	/* hdlc_streaming indicates hw hdlc
+	   sw_hdlc_mode indicates sw hdlc */
+	if (conf->hdlc_streaming || chan->sw_hdlc_mode) {
 		wan_clear_bit(chan_no, &span->timeslot_map);
 	} else {
 		wan_set_bit(chan_no, &span->timeslot_map);
@@ -620,6 +619,9 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 
 	DEBUG_TEST("%s: Setting Timeslot Map chan =%i  map=0x%X\n",chan->if_name,chan_no,span->timeslot_map);
 
+
+	/* chan wp_tdm_api_dev is being initalized here: 
+	   DO NOT USE wp_tdm_api_dev ABOVE THIS LINE */
 	chan->wp_tdm_api_dev = &span->chans[chan_no];
 
 	/* Initilaize TDM API Parameters */
@@ -628,8 +630,10 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 	
 	strncpy(chan->wp_tdm_api_dev->name,chan->if_name,WAN_IFNAME_SZ);
 
-	if (conf->hdlc_streaming) {
+	if (conf->hdlc_streaming || chan->sw_hdlc_mode) {
 		chan->wp_tdm_api_dev->hdlc_framing=1;
+	} else {
+		chan->wp_tdm_api_dev->hdlc_framing=0;
 	}
 
 	aft_core_tdmapi_event_init(chan);
@@ -799,4 +803,95 @@ int aft_tdm_api_free(sdla_t *card, private_area_t *chan)
 	return 0;
 }
 
+
+
+
+int aft_sw_hdlc_rx_data (void *priv_ptr, u8 *rx_data, int rx_len, uint32_t err_code)
+{
+	private_area_t *chan = (private_area_t*)priv_ptr;
+	sdla_t *card=chan->card;
+	netskb_t *skb;
+	u8 *data;
+	int err=0;
+
+	//DEBUG_EVENT("%s: RX DATA Len=%i\n",chan->if_name,rx_len);
+	if (card->u.aft.cfg.rx_crc_bytes == 0) {
+		rx_len-=2;
+	}
+	
+
+	/* FIXME: This will not work on WINDOWS */
+	skb=wan_skb_alloc(rx_len+sizeof(wp_api_hdr_t));
+	if (!skb) {
+		WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common); /* ++chan->if_stats.rx_dropped; */
+		WP_AFT_CHAN_ERROR_STATS(chan->chan_stats,rx_dropped);
+		return -1;
+	}
+
+	data=wan_skb_put(skb,rx_len);
+	memcpy(data,rx_data,rx_len);
+	
+	err=aft_bh_rx(chan, skb, err_code, rx_len);
+	if (err) {
+		/* FIXME: This will not work on WINDOWS */
+		wan_skb_free(skb);
+	}
+
+	if (wp_mtp1_poll_check(chan->sw_hdlc_dev)) {
+		WAN_TASKLET_SCHEDULE((&chan->common.bh_task));
+	}
+	
+	return err;
+}
+
+int aft_sw_hdlc_rx_reject (void *priv_ptr, char *reason)
+{
+	/* Do nothing */
+#if 0
+	private_area_t *chan = (private_area_t*)priv_ptr;
+	WP_AFT_CHAN_ERROR_STATS(chan->chan_stats,rx_crc_errors);
+#endif
+	return 0;
+	
+}
+
+int aft_sw_hdlc_rx_suerm (void *priv_ptr)
+{
+	/* Pass up suerm event */
+#if 0
+	private_area_t *chan = (private_area_t*)priv_ptr;
+	WP_AFT_CHAN_ERROR_STATS(chan->chan_stats,rx_crc_errors);
+#endif
+	return 0;
+}
+
+int aft_sw_hdlc_wakup(void *priv_ptr)
+{
+	private_area_t *chan = (private_area_t*)priv_ptr;
+	wanpipe_wake_stack(chan);
+	return 0;
+}
+
+int aft_sw_hdlc_trace(void *priv_ptr, u8 *data, int len, int dir)
+{
+	private_area_t *chan = (private_area_t*)priv_ptr;
+	private_area_t *top_chan;
+	int err;
+	
+	top_chan=chan;
+	if (chan->channelized_cfg) {
+		top_chan=wan_netif_priv(chan->common.dev);
+	} 
+	
+	if (dir) {
+		err=wan_capture_trace_packet_buffer(chan->card, &top_chan->trace_info, data, len ,TRC_INCOMING_FRM);
+	} else {
+		err=wan_capture_trace_packet_buffer(chan->card, &top_chan->trace_info, data, len ,TRC_OUTGOING_FRM);
+	}
+	if (err) {
+		WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common);	
+	}
+
+	return err;
+}
 

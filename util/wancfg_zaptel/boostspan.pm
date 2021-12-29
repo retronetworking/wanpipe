@@ -20,6 +20,7 @@ sub new	{
 		_group_no => undef,
 		_chan_set => undef,
 		_sig_mode => undef,		
+		_context => undef,
 	};			
 	bless $self, $class;
     	return $self;
@@ -74,9 +75,15 @@ sub sig_mode {
 				                        return $self->{_sig_mode};
 }
 
+sub context {
+	            my ( $self, $context ) = @_;
+		                    $self->{_context} = $context if defined($context);
+				                        return $self->{_context};
+}
+
 sub print {
     my ($self) = @_;
-    printf (" span_name: %s\n span_type: %s\n span_no: %s\n chan_no:  %s \ntrunk type: %s \ngroup_no:  %s\n switchtype: %s\n chan_set: %s\n sig_mode:%s\n", $self->span_name, $self->span_type, $self->span_no, $self->chan_no, $self->trunk_type,$self->group_no,$self->switch_type,$self->chan_set,$self->sig_mode);
+    printf (" span_name: %s\n span_type: %s\n span_no: %s\n chan_no:  %s \ntrunk type: %s \ngroup_no:  %s\n switchtype: %s\n chan_set: %s\n sig_mode:%s\n context:%s\n", $self->span_name, $self->span_type, $self->span_no, $self->chan_no, $self->trunk_type,$self->group_no,$self->switch_type,$self->chan_set,$self->sig_mode,$self->context);
 
 }
 

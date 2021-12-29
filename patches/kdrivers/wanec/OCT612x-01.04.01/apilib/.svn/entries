@@ -1,0 +1,25 @@
+8
+
+dir
+8760
+http://192.168.1.168/svn/wanpipe/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/apilib
+http://192.168.1.168/svn/wanpipe
+
+
+
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+
+
+svn:special svn:externals svn:needs-lock
+
+largmath
+dir
+
+llman
+dir
+
+bt
+dir
+

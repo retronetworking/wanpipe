@@ -142,6 +142,7 @@ static int wanec_api_monitor(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static wan_ec_dev_t *wanec_search(char *devname);
 
 static int wanec_enable(void *pcard, int enable, int fe_chan);
+static int __wanec_enable(void *pcard, int enable, int fe_chan);
 
 static int wanec_poll(void *arg, void *pcard);
 
@@ -283,7 +284,7 @@ static int wanec_state(void *pcard, wan_hwec_dev_state_t *ecdev_state)
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
-
+	
 	if (ec->state == WAN_EC_STATE_CHIP_OPEN && ec_dev->state == WAN_EC_STATE_CHAN_READY) {
 		ec_dev->ecdev_state.ec_state=1;
 	} else {
@@ -301,6 +302,35 @@ static int wanec_state(void *pcard, wan_hwec_dev_state_t *ecdev_state)
 			ecdev_state->fax_calling_map);
 
 	return 0;
+}
+
+static int __wanec_enable(void *pcard, int enable, int fe_chan)
+{
+	sdla_t		*card = (sdla_t*)pcard;
+	wan_ec_t	*ec = NULL;
+	wan_ec_dev_t	*ec_dev = NULL;
+	int err;
+
+	ec_dev = card->wandev.ec_dev;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+
+	if (ec->state != WAN_EC_STATE_CHIP_OPEN){
+   		return -EINVAL; 		
+	}
+
+	if (ec_dev->state != WAN_EC_STATE_CHAN_READY) {
+		return -EINVAL;
+	}
+
+
+	WAN_ASSERT(ec_dev->ec == NULL);
+	err = wanec_bypass(ec_dev, fe_chan, enable, 0);
+
+	return err;
+
 }
 
 static int wanec_enable(void *pcard, int enable, int fe_chan)
@@ -325,11 +355,12 @@ static int wanec_enable(void *pcard, int enable, int fe_chan)
 		return -EINVAL;
 	}
 
+
 #if defined(WANEC_BYDEFAULT_NORMAL)
 	WAN_ASSERT(ec_dev->ec == NULL);
-	wan_spin_lock(&ec_dev->ec->lock,&flags);
-	err = wanec_bypass(ec_dev, fe_chan, enable, 0);
-	wan_spin_unlock(&ec_dev->ec->lock,&flags);
+	wan_mutex_lock(&ec_dev->ec->lock,&flags);
+	err=__wanec_enable(pcard, enable, fe_chan); 
+	wan_mutex_unlock(&ec_dev->ec->lock,&flags);
 
 	return err;
 #else
@@ -754,7 +785,7 @@ static int wanec_api_config(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 		}
 		ec->ImageSize = ec_api->u_config.imageSize;
 
-		/* Copyin custom configuration (if exists) */
+		/* Copying custom configuration (if exists) */
 		if (ec_api->custom_conf.param_no){
 			ec_api->u_config.custom_conf.params =
 					wan_malloc(ec_api->custom_conf.param_no * sizeof(wan_custom_param_t));
@@ -764,6 +795,12 @@ static int wanec_api_config(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 						ec_api->u_config.custom_conf.params,
 						ec_api->custom_conf.params,
 						ec_api->custom_conf.param_no * sizeof(wan_custom_param_t));
+				if (err){
+					DEBUG_ERROR(
+					"ERROR: Failed to copy Custom Parameters from user space [%s():%d]!\n",
+							__FUNCTION__,__LINE__);
+				}
+				
 				ec_api->u_config.custom_conf.param_no = ec_api->custom_conf.param_no;
 			}
 		}
@@ -1125,12 +1162,12 @@ static int wanec_api_modify_bypass(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 			continue;
 		}
 		if (ec_api->cmd == WAN_EC_API_CMD_BYPASS_ENABLE){
-			/* Change rx/tx traffic through Oct6100 */
+			/* Change rx/tx traffic through Oct6100. */
 			if (wanec_bypass(ec_dev, fe_chan, 1, ec_api->verbose)){
 				return WAN_EC_API_RC_FAILED;
 			}
 		}else{
-			/* Change rx/tx traffic through Oct6100 */
+			/* The rx/tx traffic will NOT go through Oct6100. */
 			if (wanec_bypass(ec_dev, fe_chan, 0, ec_api->verbose)){
 				return WAN_EC_API_RC_FAILED;
 			}
@@ -1530,7 +1567,7 @@ int wanec_ioctl(void *data)
 		goto wanec_ioctl_exit;
 	}
 
-	wan_spin_lock(&ec->lock,&flags);
+	wan_mutex_lock(&ec->lock,&flags);
 
 	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical)){
 		DEBUG_EVENT(
@@ -1621,7 +1658,7 @@ int wanec_ioctl(void *data)
 	wan_clear_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical);
 
 wanec_ioctl_done:
-	wan_spin_unlock(&ec->lock,&flags);
+	wan_mutex_unlock(&ec->lock,&flags);
 
 wanec_ioctl_exit:
 #if defined(__LINUX__)
@@ -1742,7 +1779,7 @@ wanec_register(void *pcard, u_int32_t fe_port_mask, int max_fe_chans, int max_ec
 		}
 		ec->state		= WAN_EC_STATE_RESET;
 		ec->max_ec_chans	= (u_int16_t)max_ec_chans;
-		wan_spin_lock_init(&ec->lock, "wan_ec_lock");
+		wan_mutex_lock_init(&ec->lock, "wan_ec_mutex");
 		sprintf(ec->name, "%s%d", WANEC_DEV_NAME, ec->chip_no);
 
 		/* Copy EC chip custom configuration */
@@ -1834,6 +1871,7 @@ wanec_register(void *pcard, u_int32_t fe_port_mask, int max_fe_chans, int max_ec
 
 	/* Initialize hwec_bypass pointer */
 	card->wandev.ec_enable	= wanec_enable;
+	card->wandev.__ec_enable= __wanec_enable;
 	card->wandev.ec_state   = wanec_state;
 	card->wandev.fe_ec_map	= 0;
 
@@ -1866,7 +1904,7 @@ static int wanec_unregister(void *arg, void *pcard)
 	WAN_DEBUG_FUNC_START;
 
 	ec = ec_dev->ec;
-	wan_spin_lock(&ec->lock,&flags);
+	wan_mutex_lock(&ec->lock,&flags);
 	DEBUG_EVENT("%s: Unregister interface from %s (usage %d)!\n",
 					card->devname,
 					ec->name,
@@ -1895,10 +1933,11 @@ static int wanec_unregister(void *arg, void *pcard)
 	}
 
 	card->wandev.ec_enable	= NULL;
+	card->wandev.__ec_enable	= NULL;
 
 	ec_dev->ec = NULL;
 	wan_free(ec_dev);
-	wan_spin_unlock(&ec->lock,&flags);
+	wan_mutex_unlock(&ec->lock,&flags);
 
 	/* FIXME: Remove character device */
 	if (!ec->usage){
@@ -1970,7 +2009,7 @@ static int wanec_poll(void *arg, void *pcard)
 
 	WAN_DEBUG_FUNC_START;
 
-	if (!wan_spin_trylock(&ec->lock,&flags)){
+	if (!wan_mutex_trylock(&ec->lock,&flags)){
 		return -EBUSY;
 	}
 
@@ -1978,7 +2017,7 @@ static int wanec_poll(void *arg, void *pcard)
 	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical) ||
 	    wan_test_bit(WAN_EC_BIT_CRIT_ERROR, &ec_dev->critical)){
 		ec_dev->poll_cmd = WAN_EC_POLL_NONE;
-		wan_spin_unlock(&ec->lock,&flags);
+		wan_mutex_unlock(&ec->lock,&flags);
 		return -EINVAL;
 	}
 	switch(ec_dev->poll_cmd){
@@ -2037,7 +2076,7 @@ static int wanec_poll(void *arg, void *pcard)
 	ec_dev->poll_cmd = WAN_EC_POLL_NONE;
 
 wanec_poll_done:
-	wan_spin_unlock(&ec->lock,&flags);
+	wan_mutex_unlock(&ec->lock,&flags);
 	WAN_DEBUG_FUNC_END;
 	return err;
 }
@@ -2055,9 +2094,9 @@ static int wanec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl
 	WAN_ASSERT(event_ctrl  == NULL);
 	ec = ec_dev->ec;
 
-	wan_spin_lock(&ec->lock,&flags);
+	wan_mutex_lock(&ec->lock,&flags);
 	if (wan_test_and_set_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical)){
-		wan_spin_unlock(&ec->lock,&flags);
+		wan_mutex_unlock(&ec->lock,&flags);
 		return -EBUSY;
 	}
 
@@ -2082,6 +2121,7 @@ static int wanec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl
 			enable = (event_ctrl->mode == WAN_EVENT_ENABLE) ? WAN_TRUE : WAN_FALSE;
 			err=wanec_channel_tone(ec_dev, event_ctrl->channel, enable, &tone, wanec_verbose);
 		}
+		break;
 
 	case WAN_EVENT_EC_H100_REPORT:
 		if (event_ctrl->mode == WAN_EVENT_DISABLE){
@@ -2098,7 +2138,7 @@ static int wanec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl
 		wan_free(event_ctrl);
 	}
 	wan_clear_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical);
-	wan_spin_unlock(&ec->lock,&flags);
+	wan_mutex_unlock(&ec->lock,&flags);
 	return err;
 }
 

@@ -71,5 +71,6 @@ typedef struct wp_tdmv_remora_ {
 	unsigned int	tonemutemask;
 
 	unsigned long	ec_fax_detect_timeout[MAX_REMORA_MODULES+1];
+	unsigned int	ec_off_on_fax;
 	
 } wp_tdmv_remora_t;

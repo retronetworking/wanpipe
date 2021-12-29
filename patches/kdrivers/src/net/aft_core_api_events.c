@@ -499,14 +499,15 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 	wan_smp_flag_t smp_flags;
 	int err=-EINVAL;
 	private_area_t	*top_chan;
-	netskb_t *rskb=NULL;
+	netskb_t *repeat_skb=NULL;
 
 	if (!chan_ptr || !chan->common.dev || !card){
 		WAN_ASSERT(1);
 		return -EINVAL;
 	}
 
-	if (wan_skb_len(skb) > chan->mtu) {
+	/* FIXME: For sw hdlc check len based on sw_hdlc mtu */
+	if (!chan->sw_hdlc_mode && wan_skb_len(skb) > chan->mtu) {
 		if (WAN_NET_RATELIMIT()) {
 			DEBUG_ERROR("%s: %s Error: skb len %i > mtu = %i  \n",
 				chan->if_name,__FUNCTION__,wan_skb_len(skb),chan->mtu);
@@ -573,40 +574,72 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 	}
 #endif
 
-	if (chan->hdlc_eng && chan->cfg.hdlc_repeat) {
-		err=aft_hdlc_repeat_mangle(card,chan,skb,hdr,&rskb);
+	if ((chan->hdlc_eng || chan->sw_hdlc_mode) && chan->cfg.hdlc_repeat) {
+		err=aft_hdlc_repeat_mangle(card,chan,skb,hdr,&repeat_skb);
 		if (err) {
 			return err;
 		}
 	}
-
+	
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 
-	if (wan_skb_queue_len(&chan->wp_tx_pending_list) >= chan->max_tx_bufs){
-		WAN_NETIF_STOP_QUEUE(chan->common.dev);
-		hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
-		hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
+	if (chan->sw_hdlc_mode) {
 
-		if (chan->dma_chain_opmode != WAN_AFT_DMA_CHAIN_SINGLE) {
-			hdr->tx_h.current_number_of_frames_in_tx_queue += chan->tx_chain_data_sz;
-			hdr->tx_h.max_tx_queue_length += MAX_AFT_DMA_CHAINS;
+		if (wp_mtp1_poll_check(chan->sw_hdlc_dev)) {
+			WAN_TASKLET_SCHEDULE((&chan->common.bh_task));
 		}
+		
+		err=wp_mtp1_tx_data(chan->sw_hdlc_dev, skb, hdr, repeat_skb);
+		if (err) {
+			WAN_NETIF_STOP_QUEUE(chan->common.dev);
 
-		hdr->tx_h.tx_idle_packets = chan->chan_stats.tx_idle_packets;
-		wan_chan_dev_stop(chan);
+			/* FIXME: Update the header queue len based on sw_hdlc queues */
+			hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
+			hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
+
+			if (chan->dma_chain_opmode != WAN_AFT_DMA_CHAIN_SINGLE) {
+				hdr->tx_h.current_number_of_frames_in_tx_queue += chan->tx_chain_data_sz;
+				hdr->tx_h.max_tx_queue_length += MAX_AFT_DMA_CHAINS;
+			}
+
+			hdr->tx_h.tx_idle_packets = chan->chan_stats.tx_idle_packets;
+			wan_chan_dev_stop(chan);
+			aft_dma_tx(card,chan);
+			
+			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+			return -EBUSY;
+		}
+		
+	} else {
+
+		
+		if (wan_skb_queue_len(&chan->wp_tx_pending_list) >= chan->max_tx_bufs){
+			WAN_NETIF_STOP_QUEUE(chan->common.dev);
+			hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
+			hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
+	
+			if (chan->dma_chain_opmode != WAN_AFT_DMA_CHAIN_SINGLE) {
+				hdr->tx_h.current_number_of_frames_in_tx_queue += chan->tx_chain_data_sz;
+				hdr->tx_h.max_tx_queue_length += MAX_AFT_DMA_CHAINS;
+			}
+	
+			hdr->tx_h.tx_idle_packets = chan->chan_stats.tx_idle_packets;
+			wan_chan_dev_stop(chan);
+			aft_dma_tx(card,chan);
+			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+			return -EBUSY;
+		}
+	
+		wan_skb_unlink(skb);
+		wan_skb_queue_tail(&chan->wp_tx_pending_list,skb);
+	
+		if (repeat_skb) {
+			wan_skb_queue_tail(&chan->wp_tx_hdlc_rpt_list,repeat_skb);
+		}
+	
 		aft_dma_tx(card,chan);
-		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
-		return -EBUSY;
+
 	}
-
-	wan_skb_unlink(skb);
-	wan_skb_queue_tail(&chan->wp_tx_pending_list,skb);
-
-	if (rskb) {
-		wan_skb_queue_tail(&chan->wp_tx_hdlc_rpt_list,rskb);
-	}
-
-	aft_dma_tx(card,chan); 
 
 	hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
 	hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
@@ -1017,6 +1050,18 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 
 		chan->chan_stats.current_number_of_frames_in_rx_queue = (u8)wan_skb_queue_len(&chan->wp_rx_complete_list);
 		wptdm_os_unlock_irq(&card->wandev.lock, &smp_flags);
+	
+		if (IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)) {
+
+			if (aft_bri_dchan_transmit(card, chan, NULL, 0)) {
+				/* Tx busy. It means there is a single frame in tx queue. */
+				chan->chan_stats.current_number_of_frames_in_tx_queue = 1;
+			} else {
+				chan->chan_stats.current_number_of_frames_in_tx_queue = 0;
+			}
+
+			chan->chan_stats.max_tx_queue_length = 1;
+		}
 		
 		memcpy(&api_cmd->stats,&chan->chan_stats,sizeof(wanpipe_chan_stats_t));
 		break;

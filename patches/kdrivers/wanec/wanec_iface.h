@@ -78,7 +78,7 @@ typedef struct wanec_config_
 	u_int16_t		max_channels;
 	int			memory_chip_size;
 	UINT32			debug_data_mode;
-	PUINT8			imageData;
+	UINT8 *WP_POINTER_64	imageData;
 	UINT32			imageSize;
 	int			imageLast;
 
@@ -138,7 +138,7 @@ typedef struct wanec_chan_monitor_
 typedef struct wanec_buffer_config_
 {
 	UINT8	buffer[WAN_MAX_TONE_LEN];
-	PUINT8	data;
+	UINT8 *WP_POINTER_64	data;
 	UINT32	size;
 	UINT32	pcmlaw;
 	UINT32	buffer_index;		/* value return by ec */
@@ -259,24 +259,24 @@ typedef struct wan_ec_dev_
 	char		*name;
 	char		devname[WAN_DRVNAME_SZ+1];
 	char		ecdev_name[WAN_DRVNAME_SZ+1];
-	int		ecdev_no;
+	int			ecdev_no;
 	sdla_t		*card;
 
 	u_int8_t	fe_media;
 	u_int32_t	fe_lineno;
-	int		fe_start_chan, fe_stop_chan;
-	int		fe_max_chans;
+	int			fe_start_chan, fe_stop_chan;
+	int			fe_max_chans;
 	u_int32_t	fe_channel_map;
 	u_int32_t	fe_ec_map;
 	u_int32_t	fe_tdmv_law;
 	u_int32_t	channel;
-	int		state;
+	int			state;
 
 	u_int32_t	critical;
 	wan_timer_t	timer;
 
 	u_int8_t	poll_cmd;
-	int		poll_channel;
+	int	   		poll_channel;
 
 	u_int32_t	events;			/* enable events map */
 
@@ -284,6 +284,13 @@ typedef struct wan_ec_dev_
 
 	struct wan_ec_	*ec;
 	WAN_LIST_ENTRY(wan_ec_dev_)	next;
+
+#if 0
+	/* Not using fax debouncing for now */
+   	wan_ticks_t	fax_detect_timeout;
+	u_int16_t	fax_detect_cnt;
+#endif
+
 } wan_ec_dev_t;
 
 typedef struct wan_ec_
@@ -301,7 +308,7 @@ typedef struct wan_ec_
 
 	int		ignore_H100;		/* Temporary for BRI card */
 
-	wan_spinlock_t	lock;
+	wan_mutexlock_t	lock;
 	u_int32_t	events;			/* enable events map */
 	int		tone_verbose;		/* verbose mode for tone events */
 	int		playout_verbose;	/* verbose mode for playout events */

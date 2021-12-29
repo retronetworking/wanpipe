@@ -385,15 +385,15 @@ void aft_tx_dma_skb_init(private_area_t *chan, netskb_t *skb)
 	if (chan->tx_bert_skb == skb) {
 		return;
 	}
-
+	
 	if (chan->common.usedby == XMTP2_API) {
 		/* Requeue the tx buffer because it came from rx_free_list */
 		aft_init_requeue_free_skb(chan, skb);
 
-	} else if (chan->channelized_cfg && !chan->hdlc_eng){
+	} else if (chan->channelized_cfg && !chan->hdlc_eng) {
 		/* Requeue the tx buffer because it came from rx_free_list */
 		aft_init_requeue_free_skb(chan, skb);
-	}else{
+	} else {
 		wan_aft_skb_defered_dealloc(chan,skb);
 	}
 }
@@ -1334,16 +1334,15 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			if (!wan_test_bit(0,&trace_info->tracing_enabled)){
 						
 				trace_info->trace_timeout = SYSTEM_TICKS;
+				trace_info->tracing_enabled = 0;
 					
 				wan_trace_purge(trace_info);
 					
 				if (wan_udp_pkt->wan_udp_data[0] == 0){
-					wan_clear_bit(1,&trace_info->tracing_enabled);
 					DEBUG_UDP("%s: AFT L3 trace enabled!\n",
 						card->devname);
 
 				}else if (wan_udp_pkt->wan_udp_data[0] == 1){
-					wan_clear_bit(2,&trace_info->tracing_enabled);
 					wan_set_bit(1,&trace_info->tracing_enabled);
 					DEBUG_UDP("%s: AFT L2 trace enabled!\n",
 							card->devname);
@@ -1357,12 +1356,30 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 						DEBUG_EVENT("%s XMTP2 Trace Tap Enabled (err=%i)!\n",chan->if_name,err);
 					}
 #endif
+
+
+					if (chan->channelized_cfg) {
+						private_area_t *dchan;
+						if (card->u.aft.tdmv_dchan && card->u.aft.tdmv_dchan<32) {
+							if(IS_BRI_CARD(card)) {
+								dchan=(private_area_t*)card->u.aft.dev_to_ch_map[BRI_DCHAN_LOGIC_CHAN];
+							}else{
+								dchan=(private_area_t*)card->u.aft.dev_to_ch_map[card->u.aft.tdmv_dchan-1];
+							}
+							if (dchan && dchan->sw_hdlc_dev) {
+								wan_set_bit(8,&trace_info->tracing_enabled);		
+							}
+						}
+					} else if (chan->sw_hdlc_dev) {
+						wan_set_bit(8,&trace_info->tracing_enabled);
+					}				
+					
 				}else{
-					wan_clear_bit(1,&trace_info->tracing_enabled);
 					wan_set_bit(2,&trace_info->tracing_enabled);
 					DEBUG_UDP("%s: AFT L1 trace enabled!\n",
 							card->devname);
 				}
+				
 				wan_set_bit (0,&trace_info->tracing_enabled);
 
 			}else{
@@ -1378,9 +1395,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			
 			if(wan_test_bit(0,&trace_info->tracing_enabled)) {
 					
-				wan_clear_bit(0,&trace_info->tracing_enabled);
-				wan_clear_bit(1,&trace_info->tracing_enabled);
-				wan_clear_bit(2,&trace_info->tracing_enabled);
+				trace_info->tracing_enabled=0;
 				
 #if defined(AFT_XMTP2_TAP)
 				if (chan->common.usedby == XMTP2_API &&

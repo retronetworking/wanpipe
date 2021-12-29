@@ -9,6 +9,25 @@ For more info visit: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
 
 
+* Fri Nov 22 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.18
+==================================================================
+
+- BRI Multi-Point fix idle 0xFF
+- BRI fix for XEN virtualization
+- Fixed front end interrupt issue 
+- wancfg_fs (fix the little bugs)
+- update to support the latest dahdi-linux
+- fix dahdi_scan, now reporting the right values instead of showing blank
+- new echo canceler image
+- fix for the echo canceler for A500 for freetdm mode. 
+  HWEC will turn on when there is a call on the bri line.
+- Added SW HDLC into the core. B
+- B601 is now supported on FreeTDM/FreeSWITCH and TMDAPI
+- Added wan_fxotune utility to utils directory
+  Used to tune fxo cards under TDM API or FreeSWITCH mode.
+
+
+
 * Fri Oct 08 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.17
 ===================================================================
 

@@ -642,3 +642,45 @@ echo 0 .ast14_check
 grep -c 1.6 /usr/include/asterisk/version.h  .ast16_check
 1.4 /usr/include/asterisk/version.h .ast14_check 
 grep -c 1.4 /usr/include/asterisk/version.h  .ast14_check
+AST_CONTROL_SRC /usr/include/asterisk/frame.h .ast_src_check 
+grep -c AST_CONTROL_SRC /usr/include/asterisk/frame.h  .ast_src_check
+opbx_cli_entry /usr/include/asterisk/cli.h .opbx_cli_entry_check 
+grep -c opbx_cli_entry /usr/include/asterisk/cli.h  .opbx_cli_entry_check
+cw_cli_entry /usr/include/asterisk/cli.h .cw_cli_entry_check 
+grep -c cw_cli_entry /usr/include/asterisk/cli.h  .cw_cli_entry_check
+1.6 /usr/include/asterisk/.version .ast16_check 
+echo 0 .ast16_check
+1.4 /usr/include/asterisk/.version .ast14_check 
+echo 0 .ast14_check
+1.6 /usr/include/asterisk/version.h .ast16_check 
+grep -c 1.6 /usr/include/asterisk/version.h  .ast16_check
+1.4 /usr/include/asterisk/version.h .ast14_check 
+grep -c 1.4 /usr/include/asterisk/version.h  .ast14_check
+AST_CONTROL_SRC /usr/include/asterisk/frame.h .ast_src_check 
+grep -c AST_CONTROL_SRC /usr/include/asterisk/frame.h  .ast_src_check
+opbx_cli_entry /usr/include/asterisk/cli.h .opbx_cli_entry_check 
+grep -c opbx_cli_entry /usr/include/asterisk/cli.h  .opbx_cli_entry_check
+cw_cli_entry /usr/include/asterisk/cli.h .cw_cli_entry_check 
+grep -c cw_cli_entry /usr/include/asterisk/cli.h  .cw_cli_entry_check
+1.6 /usr/include/asterisk/.version .ast16_check 
+echo 0 .ast16_check
+1.4 /usr/include/asterisk/.version .ast14_check 
+echo 0 .ast14_check
+1.6 /usr/include/asterisk/version.h .ast16_check 
+grep -c 1.6 /usr/include/asterisk/version.h  .ast16_check
+1.4 /usr/include/asterisk/version.h .ast14_check 
+grep -c 1.4 /usr/include/asterisk/version.h  .ast14_check
+AST_CONTROL_SRC /usr/include/asterisk/frame.h .ast_src_check 
+grep -c AST_CONTROL_SRC /usr/include/asterisk/frame.h  .ast_src_check
+opbx_cli_entry /usr/include/asterisk/cli.h .opbx_cli_entry_check 
+grep -c opbx_cli_entry /usr/include/asterisk/cli.h  .opbx_cli_entry_check
+cw_cli_entry /usr/include/asterisk/cli.h .cw_cli_entry_check 
+grep -c cw_cli_entry /usr/include/asterisk/cli.h  .cw_cli_entry_check
+1.6 /usr/include/asterisk/.version .ast16_check 
+echo 0 .ast16_check
+1.4 /usr/include/asterisk/.version .ast14_check 
+echo 0 .ast14_check
+1.6 /usr/include/asterisk/version.h .ast16_check 
+grep -c 1.6 /usr/include/asterisk/version.h  .ast16_check
+1.4 /usr/include/asterisk/version.h .ast14_check 
+grep -c 1.4 /usr/include/asterisk/version.h  .ast14_check

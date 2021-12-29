@@ -164,7 +164,10 @@ else
 
 #This will check for zaptel, kenrel source and build utilites and kernel modules
 #within local directory structure
-all: cleanup_local _checkzap _checksrc all_bin_kmod all_util 	
+
+all: freetdm
+
+all_wan: cleanup_local _checkzap _checksrc all_bin_kmod all_util 	
 
 all_src_dahdi: cleanup_local  _checkzap _checksrc all_kmod_dahdi all_util
 

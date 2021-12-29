@@ -326,7 +326,7 @@ static sangoma_status_t init_sangoma_event_object(sangoma_wait_obj_t *sng_wait_o
 	return SANG_STATUS_SUCCESS;
 }
 
-static sangoma_status_t sangoma_wait_obj_poll(sangoma_wait_obj_t *sangoma_wait_object, int flags_in, int *flags_out)
+static sangoma_status_t sangoma_wait_obj_poll(sangoma_wait_obj_t *sangoma_wait_object, int flags_in, uint32_t *flags_out)
 {
 	int err;
 	sangoma_wait_obj_t *sng_wait_obj = sangoma_wait_object;
@@ -381,7 +381,7 @@ static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
 									  IN uint32_t number_of_sangoma_wait_objects,
 									  OUT BOOL	*at_least_one_poll_set_flags_out)
 {
-	uint32_t i, j;
+	uint32_t i;
 
 	if(at_least_one_poll_set_flags_out){
 		*at_least_one_poll_set_flags_out = FALSE;
@@ -1010,7 +1010,6 @@ void _LIBSNG_CALL sangoma_reset_port_numbers()
 	int				i, iRegistryReturnCode, iPortCounter = 0;
 	SP_DEVINFO_DATA deid={sizeof(SP_DEVINFO_DATA)};
 	HDEVINFO		hdi = SetupDiGetClassDevs((struct _GUID *)&GUID_DEVCLASS_SANGOMA_ADAPTER, NULL,NULL, DIGCF_PRESENT);
-	DWORD			dwTemp;
 	HKEY			hKeyTmp = (struct HKEY__ *)INVALID_HANDLE_VALUE;
 
 	char    szCompInstanceId[MAX_COMP_INSTID];
@@ -1124,7 +1123,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_get_driver_version_from_registry(char *out
 		RegCloseKey(hKeyTmp);
 
 		/* it is enough to read the version only once, so break here */
-		break;
+		break; /* breaking here will generate "warning C4702: unreachable code" - it is ok */
 	}/* for() */
 
 	SetupDiDestroyDeviceInfoList(hdi);
@@ -1415,8 +1414,10 @@ sangoma_status_t _LIBSNG_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_
 	DWORD dwResult;
 	int at_least_one_poll_set_flags_out, err;
 	sangoma_wait_obj_t *sangoma_wait_object;
+#else
+	uint32_t j = 0;
 #endif
-	uint32_t i = 0, j = 0;
+	uint32_t i = 0;
 
 	memset(out_flags, 0x00, number_of_sangoma_wait_objects * sizeof(out_flags[0]));
 #if defined(__WINDOWS__)

@@ -116,7 +116,7 @@ enum {
 
 #define	WANOPT_SIM	2
 
-/* intercace options */
+/* interface options */
 #define	WANOPT_RS232	0
 #define	WANOPT_V35	1
 #define WANOPT_X21      3

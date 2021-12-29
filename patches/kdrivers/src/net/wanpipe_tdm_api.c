@@ -450,7 +450,7 @@ static int wp_tdmapi_reg_globals(void)
 
 		wan_set_bit(0,&tdm_api->init);
 
-		wan_spin_lock_init(&tdm_api->lock, "ctrldev_lock");
+		wan_mutex_lock_init(&tdm_api->lock, "ctrldev_lock");
 		wan_spin_lock_init(&tdm_api->irq_lock, "ctrldev_irq_lock");
 
 		cdev->dev_ptr=&tdmapi_ctrl;
@@ -539,7 +539,7 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 	int 				tdm_api_queue_init=0;
 	wanpipe_tdm_api_card_dev_t *tdm_card_dev=NULL;
 
-	wan_spin_lock_init(&tdm_api->lock, "wan_tdmapi_lock");
+	wan_mutex_lock_init(&tdm_api->lock, "wan_tdmapi_lock");
 	wan_spin_lock_init(&tdm_api->irq_lock, "wan_tdmapi_irq_lock");
 
 	if (wp_tdmapi_global_cnt == 0){
@@ -707,7 +707,8 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 		}
 
 		if (tdm_api->cfg.idle_flag == 0) {
-			if (tdm_api->cfg.hw_tdm_coding == WP_MULAW) {
+			/* BRI card must always idle 0xFF regardless of coding */
+			if (tdm_api->cfg.hw_tdm_coding == WP_MULAW || IS_BRI_CARD(card)) {
         		tdm_api->cfg.idle_flag=0xFF;
 			} else {
 				tdm_api->cfg.idle_flag=0xD5;	
@@ -837,6 +838,13 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 		}
 	}
 
+	if (IS_BRI_CARD(card)) {
+		if (fe->fe_status == FE_DISCONNECTED) {
+			tdm_api->cfg.fe_alarms = (1 | WAN_TE_BIT_ALARM_RED);
+		} else {
+			tdm_api->cfg.fe_alarms = 0;
+		}
+	}
 
 	return err;
 

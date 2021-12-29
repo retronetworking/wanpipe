@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 34
-/svn/libsangoma/!svn/ver/315/trunk
+/svn/libsangoma/!svn/ver/322/trunk
 END
 init-automake.sh
 K 25
@@ -73,7 +73,7 @@ libsangoma.c
 K 25
 svn:wc:ra_dav:version-url
 V 47
-/svn/libsangoma/!svn/ver/315/trunk/libsangoma.c
+/svn/libsangoma/!svn/ver/322/trunk/libsangoma.c
 END
 compile.bat
 K 25
@@ -229,7 +229,7 @@ libsangoma.def
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/libsangoma/!svn/ver/269/trunk/libsangoma.def
+/svn/libsangoma/!svn/ver/322/trunk/libsangoma.def
 END
 libsangoma-pvt.h
 K 25
@@ -253,5 +253,5 @@ libsangoma.vcproj
 K 25
 svn:wc:ra_dav:version-url
 V 52
-/svn/libsangoma/!svn/ver/314/trunk/libsangoma.vcproj
+/svn/libsangoma/!svn/ver/322/trunk/libsangoma.vcproj
 END

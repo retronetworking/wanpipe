@@ -3110,7 +3110,7 @@ static void sdla_bri_set_status(sdla_fe_t* fe, u8 mod_no, u8 port_no, u8 new_sta
 			FE_MEDIA_DECODE(fe), REPORT_MOD_NO(mod_no) + port_no);
 
 		if (card->wandev.te_report_alarms){
-			card->wandev.te_report_alarms(card, 1);
+			card->wandev.te_report_alarms(card, (1|WAN_TE_BIT_ALARM_RED));
 		}
 	}
 

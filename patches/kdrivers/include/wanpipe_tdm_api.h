@@ -124,7 +124,7 @@ typedef struct wanpipe_tdm_api_dev {
 	void 	*chan;/* pointer to private_area_t */
 	void 	*card;/* pointer to sdla_t */
 	char 	name[WAN_IFNAME_SZ];
-	wan_spinlock_t lock;
+	wan_mutexlock_t lock;
 	wan_spinlock_t irq_lock;
 
 	u32	used, open_cnt;
@@ -224,9 +224,9 @@ static __inline int wp_tdm_get_open_cnt( wanpipe_tdm_api_dev_t *tdm_api)
 {
 	wan_smp_flag_t flags;
 	int cnt;
-	wan_spin_lock(&tdm_api->lock,&flags);
+	wan_mutex_lock(&tdm_api->lock,&flags);
 	cnt=__wp_tdm_get_open_cnt(tdm_api);
-	wan_spin_unlock(&tdm_api->lock,&flags);
+	wan_mutex_unlock(&tdm_api->lock,&flags);
 	return cnt;
 }
 
@@ -234,10 +234,10 @@ static __inline int wp_tdm_inc_open_cnt( wanpipe_tdm_api_dev_t *tdm_api)
 {
 	wan_smp_flag_t flags;
 	int cnt;
-	wan_spin_lock(&tdm_api->lock,&flags);
+	wan_mutex_lock(&tdm_api->lock,&flags);
 	tdm_api->open_cnt++;
 	cnt = tdm_api->cfg.open_cnt = tdm_api->open_cnt;
-	wan_spin_unlock(&tdm_api->lock,&flags);
+	wan_mutex_unlock(&tdm_api->lock,&flags);
 	return cnt;
 }
 
@@ -245,10 +245,10 @@ static __inline int wp_tdm_dec_open_cnt( wanpipe_tdm_api_dev_t *tdm_api)
 {
 	wan_smp_flag_t flags;
 	int cnt;
-	wan_spin_lock(&tdm_api->lock,&flags);
+	wan_mutex_lock(&tdm_api->lock,&flags);
 	tdm_api->open_cnt--;
 	cnt = tdm_api->cfg.open_cnt = tdm_api->open_cnt;
-	wan_spin_unlock(&tdm_api->lock,&flags);
+	wan_mutex_unlock(&tdm_api->lock,&flags);
 	return cnt;
 }
 

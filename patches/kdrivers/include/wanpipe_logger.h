@@ -245,10 +245,10 @@ enum wp_logger_cmds
 
 
 #if defined(__KERNEL__)
-int wp_logger_create(void);
-void wp_logger_delete(void);
-void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...);
-int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...);
+extern int wp_logger_create(void);
+extern void wp_logger_delete(void);
+extern void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...);
+
 
 extern u_int32_t wp_logger_level_default;
 extern u_int32_t wp_logger_level_te1;
@@ -268,45 +268,36 @@ extern u_int32_t wp_logger_level_bri;
 
 #define WP_DEBUG(logger_type, logger_level, ...)	\
 {	\
-	if(!wp_logger_repeating_message_filter(logger_type, logger_level, ## __VA_ARGS__)){	\
+	char is_level_on = 0;	\
 	\
-		switch(logger_type)	\
-		{	\
-		case WAN_LOGGER_DEFAULT:	\
-			if(WAN_LOGGER_TEST_LEVEL_DEFAULT(logger_level)){	\
-				wp_logger_input(logger_type, logger_level, ## __VA_ARGS__);	\
-			}	\
-			break;	\
-		case WAN_LOGGER_TE1:	\
-			if(WAN_LOGGER_TEST_LEVEL_TE1(logger_level)){	\
-				wp_logger_input(logger_type, logger_level, ## __VA_ARGS__);	\
-			}	\
-			break;	\
-		case WAN_LOGGER_HWEC:	\
-			if(WAN_LOGGER_TEST_LEVEL_HWEC(logger_level)){	\
-				wp_logger_input(logger_type, logger_level, ## __VA_ARGS__);	\
-			}	\
-			break;	\
-		case WAN_LOGGER_TDMAPI:	\
-			if(WAN_LOGGER_TEST_LEVEL_TDMAPI(logger_level)){	\
-				wp_logger_input(logger_type, logger_level, ## __VA_ARGS__);	\
-			}	\
-			break;	\
-		case WAN_LOGGER_FE:	\
-			if(WAN_LOGGER_TEST_LEVEL_FE(logger_level)){	\
-				wp_logger_input(logger_type, logger_level, ## __VA_ARGS__);	\
-			}	\
-			break;	\
-		case WAN_LOGGER_BRI:	\
-			if(WAN_LOGGER_TEST_LEVEL_BRI(logger_level)){	\
-				wp_logger_input(logger_type, logger_level, ## __VA_ARGS__);	\
-			}	\
-			break;	\
-		}/* switch(type) */	\
+	switch(logger_type)	\
+	{	\
+	case WAN_LOGGER_DEFAULT:	\
+		is_level_on = WAN_LOGGER_TEST_LEVEL_DEFAULT(logger_level);	\
+		break;	\
+	case WAN_LOGGER_TE1:	\
+		is_level_on = WAN_LOGGER_TEST_LEVEL_TE1(logger_level);	\
+		break;	\
+	case WAN_LOGGER_HWEC:	\
+		is_level_on = WAN_LOGGER_TEST_LEVEL_HWEC(logger_level);	\
+		break;	\
+	case WAN_LOGGER_TDMAPI:	\
+		is_level_on = WAN_LOGGER_TEST_LEVEL_TDMAPI(logger_level);	\
+		break;	\
+	case WAN_LOGGER_FE:	\
+		is_level_on = WAN_LOGGER_TEST_LEVEL_FE(logger_level);	\
+		break;	\
+	case WAN_LOGGER_BRI:	\
+		is_level_on = WAN_LOGGER_TEST_LEVEL_BRI(logger_level);	\
+		break;	\
+	}/* switch(type) */	\
 	\
-	}/* if() */	\
+	if (is_level_on ) {	\
+		wp_logger_input(logger_type, logger_level, ## __VA_ARGS__);	\
+	}	\
 }
 
 #endif/* __KERNEL__ */
 
 #endif/* __WANPIPE_LOGGER_API_HDR__ */
+

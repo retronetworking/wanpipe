@@ -1,0 +1,97 @@
+8
+
+dir
+8760
+http://192.168.1.168/svn/wanpipe/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include
+http://192.168.1.168/svn/wanpipe
+
+
+
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+
+
+svn:special svn:externals svn:needs-lock
+
+apilib
+dir
+
+octosdependant.h
+file
+
+
+
+
+2010-11-14T05:14:37.000000Z
+e87c105fcbec8ec94ff2f9dcd29673af
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+
+oct6100api
+dir
+
+octrpc
+dir
+
+octdef.h
+file
+
+
+
+
+2010-11-14T05:10:31.000000Z
+83438f57ac0c37b2e77663f407bf5f85
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+
+octtypewin.h
+file
+
+
+
+
+2010-11-14T05:16:11.000000Z
+7e9d32ff4c2ebd1e3a1de2cee59b4efa
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+
+octtypevx.h
+file
+
+
+
+
+2010-11-14T05:10:31.000000Z
+28d585e4d808c65d67d61fa800adcaa6
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+
+octmac.h
+file
+
+
+
+
+2010-11-14T05:10:31.000000Z
+0e2b5cf0a77e47cde112c64a841a7de6
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+
+octtype.h
+file
+
+
+
+
+2010-11-14T05:15:38.000000Z
+a7c478caa45b0e8df7d70622e11a219e
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+

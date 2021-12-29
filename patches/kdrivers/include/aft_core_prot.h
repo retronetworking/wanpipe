@@ -53,5 +53,10 @@ void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
 int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf);
 int aft_tdm_api_free(sdla_t *card, private_area_t *chan);
 
+int aft_sw_hdlc_rx_data (void *priv_ptr, u8 *rx_data, int rx_len, uint32_t err_code);
+int aft_sw_hdlc_rx_suerm (void *priv_ptr);
+int aft_sw_hdlc_wakup (void *priv_ptr);
+int aft_sw_hdlc_trace(void *priv_ptr, u8 *data, int len, int dir);
+
 #endif
 

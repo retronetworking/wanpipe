@@ -1,0 +1,29 @@
+8
+
+dir
+8760
+http://192.168.1.168/svn/wanpipe/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/doc
+http://192.168.1.168/svn/wanpipe
+
+
+
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+
+
+svn:special svn:externals svn:needs-lock
+
+oct612Xas5000-040.pdf
+file
+
+
+
+
+2010-11-14T05:05:14.000000Z
+2cd802f8fd559301a999bb17f7a0c664
+2010-11-14T07:29:40.999941Z
+8760
+ncorbic
+has-props
+

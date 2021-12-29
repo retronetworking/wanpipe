@@ -369,6 +369,7 @@ typedef struct wan_xilinx_conf_if
 	unsigned char   rbs_cas_idle;		/* Initial RBS/CAS value */
 	unsigned char	hdlc_repeat;
 	unsigned int	mtu_idle;
+	unsigned char 	sw_hdlc;
 }wan_xilinx_conf_if_t;
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
@@ -621,28 +622,9 @@ typedef struct dsp_parms {
 }wan_dsp_if_conf_t;
 
 
-#if 0
 /*----------------------------------------------------------------------------
- * T1/E1 configuration structures.
+ * TDMV configuration structures.
  */
-typedef struct sdla_te_cfg {
-	unsigned char media;
-	unsigned char lcode;
-	unsigned char frame;
-	unsigned char lbo;
-	unsigned char te_clock;
-	unsigned long active_ch;
-	unsigned char high_impedance_mode;
-} sdla_te_cfg_t;
-
-/* Performamce monitor counters */
-typedef struct pmc_pmon {
-	unsigned long pmon1;
-	unsigned long pmon2;
-	unsigned long pmon3;
-	unsigned long pmon4;
-} pmc_pmon_t;
-#endif
 
 typedef struct wan_tdmv_conf_ {
 
@@ -652,6 +634,7 @@ typedef struct wan_tdmv_conf_ {
 	unsigned char  hw_fax_detect;	/* TDMV Enable/Disable HW FAX Calling */
 	unsigned char  hw_faxcalled;	/* TDMV Enable/Disable HW FAX Called */
 	unsigned char  sdla_tdmv_dummy_enable;
+	unsigned char  ec_off_on_fax;	/* Disable hwec on fax event */
 } wan_tdmv_conf_t;
 
 typedef struct wan_hwec_conf_
@@ -669,6 +652,7 @@ typedef struct wan_hwec_conf_
 	int 			tx_auto_gain;
 	int				rx_gain;
 	int				tx_gain;
+	unsigned char	hw_fax_detect_cnt;	
 } wan_hwec_conf_t;
 
 typedef struct wan_hwec_dev_state

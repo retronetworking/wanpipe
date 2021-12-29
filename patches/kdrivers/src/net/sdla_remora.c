@@ -2046,6 +2046,17 @@ static int wp_remora_event_exec(sdla_fe_t* fe, sdla_fe_timer_event_t	*fe_event)
 			WP_RM_POLL_DECODE(fe_event->type), fe_event->type,
 			WAN_EVENT_MODE_DECODE(fe_event->mode));
 
+	if (mod_no >= MAX_REMORA_MODULES) {
+		DEBUG_ERROR("%s: Error: %s(): Module number %d is greater than maximum of %d!\n",
+			fe->name, __FUNCTION__, mod_no+1, MAX_REMORA_MODULES);
+		return -EINVAL;
+	}
+
+	if (mod_no < 0) {
+		DEBUG_ERROR("%s: Error: %s(): Module number %d is invalid (was not initialized)!\n",
+			fe->name, __FUNCTION__, mod_no, MAX_REMORA_MODULES);
+		return -EINVAL;
+	}
 			
 	switch(fe_event->type){
 	case WP_RM_POLL_POWER:

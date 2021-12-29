@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 102
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/apilib/llman
+END
+octapi_llman_private.h
+K 25
+svn:wc:ra_dav:version-url
+V 125
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/apilib/llman/octapi_llman_private.h
+END
+octapi_llman.c
+K 25
+svn:wc:ra_dav:version-url
+V 117
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/apilib/llman/octapi_llman.c
+END

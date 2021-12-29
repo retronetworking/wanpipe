@@ -52,9 +52,9 @@ allocate_dma_buffer(
 	OUT PVOID			*virtual_addr,
 	OUT u32				*physical_addr
 	);
-
-# endif/* WAN_KERNEL */
-# include "sang_status_defines.h"
+# else
+#  include "wanpipe_api.h"
+# endif/* !WAN_KERNEL */
 #endif/* __WINDOWS__ */
 
 
@@ -2889,12 +2889,30 @@ static __inline void wan_spin_unlock(void *lock,  wan_smp_flag_t *flag)
  * MUTEX functions.
  */
 
+
+static __inline void wan_mutex_lock_init(void *lock, char *name)
+{
+#if defined(__LINUX__)
+	mutex_init(((wan_mutexlock_t*)lock));
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	/*(*(wan_smp_flag_t*)flag) = 0;*/
+#if defined(SPINLOCK_OLD)
+#else
+	mtx_init((struct mtx*)lock, name, MTX_NETWORK_LOCK, MTX_DEF);
+#endif
+#elif defined(__WINDOWS__)
+	spin_lock_init((wan_spinlock_t*)lock, name);	
+#else
+# warning "wan_spin_lock_init() function is not supported yet!"
+#endif
+}
+
 static __inline void wan_mutex_lock(void *mutex, wan_smp_flag_t *flag /* FIXME: 'flag' should be removed */)
 {
 #if defined(__WINDOWS__)
 	wp_mutex_lock(mutex);	
 #else
-	wan_spin_lock(mutex, flag);
+	mutex_lock(mutex);
 #endif	
 }
 
@@ -2903,7 +2921,7 @@ static __inline void wan_mutex_unlock(void *mutex, wan_smp_flag_t *flag /* FIXME
 #if defined(__WINDOWS__)
 	wp_mutex_unlock(mutex);	
 #else
-	wan_spin_unlock(mutex, flag);
+	mutex_unlock(mutex);
 #endif	
 }
 
@@ -2912,7 +2930,19 @@ static __inline int wan_mutex_trylock(void *mutex, wan_smp_flag_t *flag /* FIXME
 #if defined(__WINDOWS__)
 	return wp_mutex_trylock(mutex);	
 #else
-	return wan_spin_trylock(mutex, flag);
+	return mutex_trylock(mutex);
+#endif	
+}
+
+
+static __inline int wan_mutex_is_locked(void *lock)
+{
+#if defined(__LINUX__)
+	return mutex_is_locked(((wan_mutexlock_t*)lock));	
+#elif defined(__WINDOWS__)
+	return wp_mutex_is_locked(((wan_mutexlock_t*)lock));		
+#else
+# warning "wan_mutex_is_lock() function is not supported yet!"
 #endif	
 }
 

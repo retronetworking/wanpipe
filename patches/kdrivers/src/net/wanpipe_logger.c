@@ -49,18 +49,15 @@ if(0){	\
  *================================================================*/
 
 
-#define WAN_LOGGER_SET_DATA(logger_event, logger_type, evt_type, format)	\
+#define WAN_LOGGER_SET_DATA(logger_event, logger_type, evt_type, format, va_arg_list)	\
 {	\
-	va_list args;	\
 	\
 	memset(logger_event, 0x00, sizeof(*logger_event));	\
 	\
 	logger_event->logger_type = logger_type;	\
 	logger_event->event_type = evt_type;	\
 	\
-	va_start(args, format);	\
-	wp_vsnprintf(logger_event->data, sizeof(logger_event->data), format, args);	\
-	va_end(args);	\
+	wp_vsnprintf(logger_event->data, sizeof(logger_event->data), format, va_arg_list);	\
 	\
 	WAN_LOGGER_SET_TIME_STAMP(logger_event)	\
 }
@@ -116,6 +113,7 @@ u_int32_t wp_logger_level_bri = 0;
 static wp_logger_api_dev_t	logger_api_dev;
 static wanpipe_cdev_ops_t	wp_logger_api_fops;
 
+static void __wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...);
 
 /*=================================================================
  * Private Functions
@@ -380,8 +378,8 @@ static int wp_logger_handle_api_cmd(void *user_data)
 
 	err = tmp_usr_logger_api.result = SANG_STATUS_SUCCESS;
 
-	DEBUG_LOGGER("%s: Logger CMD: %i, sizeof(wp_logger_cmd_t)=%i\n",
-			logger_api_dev.name, tmp_usr_logger_api.cmd, sizeof(wp_logger_cmd_t));
+	DEBUG_LOGGER("%s: Logger CMD: %i, sizeof(wp_logger_cmd_t)=%d\n",
+			logger_api_dev.name, tmp_usr_logger_api.cmd, (unsigned int)sizeof(wp_logger_cmd_t));
 
 	switch (tmp_usr_logger_api.cmd) 
 	{
@@ -542,10 +540,8 @@ static int wp_logger_push_event(netskb_t *skb)
 	return 0;
 }
 
-int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...)
+static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, va_list va_arg_list)
 {
-    va_list	va_arg_list;
-	
 	/* Filter out repeating messages. */
 	static char previous_error_message[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
 	static char current_error_message[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
@@ -570,30 +566,24 @@ int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type
 
 	memset(current_error_message, 0x00, sizeof(current_error_message));
 
-	/* the paramter list must start at fmt, not at evt_type */
-    va_start (va_arg_list, fmt);
-	
 	wp_vsnprintf(current_error_message, sizeof(current_error_message) - 1,
 		(const char *)fmt, va_arg_list);
-		
-	va_end (va_arg_list);
-		
+
 	if(!memcmp(previous_error_message, current_error_message, sizeof(current_error_message))){
-		
 		/* Every WAN_MESSAGE_DISCARD_COUNT messages print the repeating message
 		 * and the counter how many times it was repeated. */
 
 		if(!(repeating_error_message_counter % WAN_MESSAGE_DISCARD_COUNT)){
-
+		
 			if (repeating_error_message_counter) {
 
 				/* print the repeating message */
-				wp_logger_input(logger_type, evt_type, current_error_message);
+				__wp_logger_input(logger_type, evt_type, "%s", current_error_message);
 
 				/* and say how many times it was repeated. */
 				wp_snprintf(tmp_message_buf, sizeof(tmp_message_buf),
 					"* Message repeated %d times.\n", repeating_error_message_counter);
-				wp_logger_input(logger_type, evt_type, tmp_message_buf);
+				__wp_logger_input(logger_type, evt_type, "%s", tmp_message_buf);
 			}
 		}
 
@@ -603,12 +593,13 @@ int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type
 		return 1;
 
 	}else{
-		
+
 		if(repeating_error_message_counter){
+
 			/* this message broke a sequence of repeating messages */
 			wp_snprintf(tmp_message_buf, sizeof(tmp_message_buf),
 				"* Message repeated %d times.\n", repeating_error_message_counter);
-			wp_logger_input(logger_type, evt_type, tmp_message_buf);
+			__wp_logger_input(logger_type, evt_type, "%s", tmp_message_buf);
 			repeating_error_message_counter = 0;
 		}
 
@@ -620,22 +611,12 @@ int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type
 	}
 }
 
-/*=================================================================
- * Public Functions
- *================================================================*/
-
-/* Windows note: sngbus.sys, sprotocol.sys and wanpipe.sys 
- * will NOT initialize/use Logger Device, but writing to wanpipelog.txt
- * file is still possible by calling this function.*/
-
-void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...)
+/* no Filtering will be applied to the message */
+static void wp_logger_vInput(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, va_list va_arg_list)
 {
-    va_list	va_arg_list;
-
-	/* Independently of Logger Device state, write the message into log file. */
-
-	/* the paramter list must start at fmt, not at evt_type */
-    va_start (va_arg_list, fmt);
+	/************************************************************************
+	  Independently of Logger Device state, write the message into log file. 
+	*************************************************************************/
 
  #ifdef __WINDOWS__
 	/* Write the message to wanpipelog.txt */
@@ -645,7 +626,9 @@ void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt
 	vprintk(fmt, va_arg_list);
  #endif
 
-    va_end (va_arg_list);
+	/************************************************************************
+	 Push the message into logger queue.
+	*************************************************************************/
 
 	if (WANPIPE_MAGIC == logger_api_dev.magic_no	&&
 		wan_test_bit(0, &logger_api_dev.used)		&&
@@ -665,7 +648,7 @@ void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt
 			
 			memset(p_wp_logger_event, 0, sizeof(wp_logger_event_t));
 			
-			WAN_LOGGER_SET_DATA(p_wp_logger_event, logger_type, evt_type, fmt);
+			WAN_LOGGER_SET_DATA(p_wp_logger_event, logger_type, evt_type, fmt, va_arg_list);
 			
 			wp_logger_push_event(skb);
 			
@@ -674,8 +657,49 @@ void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt
 	}
 }
 
-/* This function during module load - the 'logger_api_dev' structure
- * is initialized for first time. */
+static void __wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...)
+{
+    va_list	va_arg_list;
+
+	/* the paramter list must start at fmt, not at evt_type */
+    va_start (va_arg_list, fmt);
+
+	wp_logger_vInput(logger_type, evt_type, fmt, va_arg_list);
+
+    va_end (va_arg_list);
+}
+
+/*=================================================================
+ * Public Functions
+ *================================================================*/
+
+/* Windows note: sngbus.sys, sprotocol.sys and wanpipe.sys 
+ * will NOT initialize/use Logger Device, but writing to wanpipelog.txt
+ * file is still possible by calling this function.*/
+
+void wp_logger_input(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, ...)
+{
+	va_list	va_arg_list;
+
+	/* Linux 64bit: Note that va_arg_list is started/ended twice -
+	 * before each call to functions which take it as a parameter.
+	 */
+
+	/* the paramter list must start at fmt, not at evt_type */
+	va_start (va_arg_list, fmt);
+	if (wp_logger_repeating_message_filter(logger_type, evt_type, fmt, va_arg_list)) {
+		va_end (va_arg_list);
+		return;
+	}
+	va_end (va_arg_list);
+
+    	va_start (va_arg_list, fmt);
+	wp_logger_vInput(logger_type, evt_type, fmt, va_arg_list);
+	va_end (va_arg_list);
+}
+
+/* This function runs during module load - the 'logger_api_dev' structure
+ * is initialized for the first time. */
 int wp_logger_create(void)
 {
 	wanpipe_cdev_t *cdev;
@@ -779,6 +803,5 @@ EXPORT_SYMBOL(wp_logger_level_tdmapi);
 EXPORT_SYMBOL(wp_logger_level_fe);
 EXPORT_SYMBOL(wp_logger_level_bri);
 EXPORT_SYMBOL(wp_logger_input);
-EXPORT_SYMBOL(wp_logger_repeating_message_filter);
 #endif
 /****** End ****************************************************************/

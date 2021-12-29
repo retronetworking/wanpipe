@@ -1556,7 +1556,7 @@ static int sdla_ds_te1_post_init(void* pfe)
 
 	/* Give the system time to start the rest of the card before
        we start polling */
-	sdla_ds_te1_add_timer(fe, POLLING_TE1_TIMER*5);
+	sdla_ds_te1_add_timer(fe, POLLING_TE1_TIMER*2);
 	return 0;
 }
 
@@ -2938,7 +2938,10 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, u_int8_t type, u_int8_t mode, un
                 		WRITE_REG(REG_RLS3, 0xFF);
             		}
 
-			//WRITE_REG(REG_RIM4, BIT_RIM4_TIMER);
+#ifdef WAN_RIM4_TIMER
+#warning "WAN_RIM4_TIMER Enabled"
+			WRITE_REG(REG_RIM4, BIT_RIM4_TIMER);
+#endif
 			WRITE_REG(REG_RLS4, 0xFF);
 			
 			if (IS_T1_FEMEDIA(fe)){
@@ -3244,7 +3247,7 @@ static int sdla_ds_te1_fr_rx_intr(sdla_fe_t *fe, int silent)
 			if (!silent) DEBUG_ISR(
 			"%s: Performance monitor counters have been updated!\n",
 					fe->name);
-			sdla_ds_te1_pmon(fe, WAN_FE_PMON_READ);
+			//sdla_ds_te1_pmon(fe, WAN_FE_PMON_READ);
 		}
 		WRITE_REG(REG_RLS4, rls4);
 	}
@@ -3641,9 +3644,9 @@ static void sdla_ds_te1_timer(unsigned long pfe)
 	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
 			
 	/* Enable hardware interrupt for TE1 */
-	wan_spin_lock_irq(&fe->lockirq,&smp_flags);	
+	wan_spin_lock_irq(&fe->lockirq,&smp_flags);
 	empty = WAN_LIST_EMPTY(&fe->event);
-	wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
+	wan_spin_unlock_irq(&fe->lockirq,&smp_flags);
 
 	if (!empty || fe->swirq_map){
 		DEBUG_TEST("%s: TE1 timer!\n", fe->name);
@@ -3736,7 +3739,7 @@ sdla_ds_te1_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *event)
 	if (wan_test_and_set_bit(event->type,(void*)&fe->event_map)){
 		DEBUG_TE1("%s: WARNING: Event type %d is already pending!\n",
 							fe->name, event->type);
-		wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
+		wan_spin_unlock_irq(&fe->lockirq, &smp_flags);
 		wan_free(tevent);
 		return -EINVAL;
 	}
@@ -3753,7 +3756,7 @@ sdla_ds_te1_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *event)
 		if (tmp == NULL){
 			DEBUG_ERROR("%s: ERROR: Internal Error!!!\n", fe->name);
 			wan_clear_bit(event->type,(void*)&fe->event_map);
-			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
+			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);
 			return -EINVAL;
 		}
 		if (cnt > WAN_FE_MAX_QEVENT_LEN){
@@ -3762,7 +3765,7 @@ sdla_ds_te1_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *event)
 			DEBUG_ERROR("%s: ERROR: Dropping new event type %d!\n",
 							fe->name, event->type);
 			wan_clear_bit(event->type,(void*)&fe->event_map);
-			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
+			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);
 			wan_free(tevent);
 			return -EINVAL;
 		}
@@ -3770,7 +3773,7 @@ sdla_ds_te1_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *event)
 	}
 	DEBUG_TEST("%s: Add new DS Event=0x%X (%d sec)\n",
 			fe->name, event->type,event->delay);
-	wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
+	wan_spin_unlock_irq(&fe->lockirq, &smp_flags);
 	return 0;
 }
 
@@ -4182,7 +4185,7 @@ static int sdla_ds_te1_poll_events(sdla_fe_t* fe)
 	
 	wan_spin_lock_irq(&fe->lockirq,&smp_flags);
 	if (WAN_LIST_EMPTY(&fe->event)){
-		wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
+		wan_spin_unlock_irq(&fe->lockirq,&smp_flags);
 		DEBUG_EVENT("%s: WARNING: No FE events in a queue!\n",
 					fe->name);
 		sdla_ds_te1_add_timer(fe, POLLING_TE1_TIMER);
@@ -4250,16 +4253,18 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 	}
 
 	if (fe->te_param.tx_ais_alarm && fe->te_param.tx_ais_startup_timeout) {
-		if (SYSTEM_TICKS - fe->te_param.tx_ais_startup_timeout > HZ*10) {
+		if (SYSTEM_TICKS - fe->te_param.tx_ais_startup_timeout > HZ*1) {
 			if (!(fe->fe_alarm & WAN_TE_BIT_ALARM_LOS)) {
 				fe->te_param.tx_ais_startup_timeout=0;
 				sdla_ds_te1_clear_alarms(fe,WAN_TE_BIT_ALARM_AIS);
 			}
 		}
 	}
+
 		
 	wan_clear_bit(TE_TIMER_EVENT_PENDING,(void*)&fe->te_param.critical);
 	sdla_ds_te1_add_timer(fe, POLLING_TE1_TIMER);
+
 	return 0;
 }
 

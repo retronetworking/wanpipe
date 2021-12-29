@@ -537,8 +537,7 @@ typedef struct sdlahw_card {
 #define u_pci	u_hwif.pci
 #define u_usb	u_hwif.usb
 
-	wan_spinlock_t		pcard_lock;	/* lock per physical card for FE */
-	wan_spinlock_t		pcard_ec_lock;	/* lock per physical card for EC */
+	wan_mutexlock_t		pcard_ec_lock;	/* lock per physical card for EC */
 #if 0
 	/* moved to cpu, type */
 	wan_smp_flag_t		fe_rw_flag;	
@@ -562,7 +561,7 @@ typedef struct {
        u_int32_t	line_map;
 	
 	   wan_smp_flag_t		fe_rw_flag;	
-	   wan_spinlock_t		pcard_lock;	/* lock per physical card for FE */
+	   wan_mutexlock_t		pcard_lock;	/* lock per physical card for FE */
 } sdlahw_info_t;
 
 struct sdlahw_;
@@ -691,6 +690,7 @@ typedef struct sdlahw_iface
 	int		(*get_hwprobe)(void*, int comm_port, void**);
 	int 		(*hw_unlock)(void *phw, wan_smp_flag_t *flag);
 	int 		(*hw_lock)(void *phw, wan_smp_flag_t *flag);
+	int 		(*hw_trylock)(void *phw, wan_smp_flag_t *flag);
 	int 		(*hw_ec_unlock)(void *phw, wan_smp_flag_t *flag);
 	int 		(*hw_ec_lock)(void *phw, wan_smp_flag_t *flag);
 	int 		(*hw_ec_trylock)(void *phw, wan_smp_flag_t *flag);

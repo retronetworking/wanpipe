@@ -523,47 +523,63 @@ typedef struct wanpipe_chan_stats
 	unsigned int	tx_packets;		/* total packets transmitted	*/
 	unsigned int	rx_bytes;		/* total bytes received 	*/
 	unsigned int	tx_bytes;		/* total bytes transmitted	*/
-	unsigned int	rx_errors;		/* bad packets received		*/
-	unsigned int	tx_errors;		/* packet transmit problems	*/
-	unsigned int	rx_dropped;		/* no space in linux buffers	*/
-	unsigned int	tx_dropped;		/* no space available in linux	*/
-	unsigned int	multicast;		/* multicast packets received	*/
-	unsigned int	collisions;
+
+	unsigned int	rx_errors;		/* total counter of receiver errors. see 'detailed rx_errors' */
+	unsigned int	tx_errors;		/* total counter of transmitter errors. see 'detailed tx_errors' */
+
+	unsigned int	rx_dropped;		/* Counter of dropped received packets. 
+									 * Possible cause: internal driver error, check Driver Message Log. */
+	unsigned int	tx_dropped;		/* Counter of dropped transmit packets. 
+									 * Possible cause: internal driver error, check Driver Message Log. */
+	unsigned int	multicast;		/* Linux Network Interface: multicast packets received	*/
+	unsigned int	collisions;		/* Linux Network Interface: eth collisions counter */
 
 	/* detailed rx_errors: */
-	unsigned int	rx_length_errors;
-	unsigned int	rx_over_errors;		/* receiver ring buff overflow	*/
-	unsigned int	rx_crc_errors;		/* recved pkt with crc error	*/
-	unsigned int	rx_frame_errors;	/* recv'd frame alignment error */
-	unsigned int	rx_fifo_errors;		/* recv'r fifo overrun		*/
-	unsigned int	rx_missed_errors;	/* receiver missed packet	*/
+	unsigned int	rx_length_errors;	/* Received HDLC frame is longer than the MRU. 
+										 * Usualy means "no closing HDLC flag". */
+	unsigned int	rx_over_errors;		/* Receiver ring buff overflow at driver level (not at hardware) */
+	unsigned int	rx_crc_errors;		/* Received HDLC frame with CRC error.
+										 * Possible cause: bit errors on the line. */
+	unsigned int	rx_frame_errors;	/* Received HDLC frame alignment error */
+	unsigned int	rx_fifo_errors;		/* Receiver FIFO overrun at hardware level.
+										 * Possible cause: driver was too slow to re-program Rx DMA. */
+	unsigned int	rx_missed_errors;	/* deprecated */
 
 	/* detailed tx_errors */
-	unsigned int	tx_aborted_errors;
-	unsigned int	tx_carrier_errors;	/* trunsmitter underrun error counter */
+	unsigned int	tx_aborted_errors;	/* deprecated. The same as tx_fifo_errors. */
+	unsigned int	tx_carrier_errors;	/* counter of times transmitter was not in operational state */
 
-	unsigned int	tx_fifo_errors;
-	unsigned int	tx_heartbeat_errors;
-	unsigned int	tx_window_errors;
+	unsigned int	tx_fifo_errors;		/* Transmitter FIFO overrun at hardware level.
+										 * Possible cause: driver was too slow to re-program Tx DMA. */
+	unsigned int	tx_heartbeat_errors;/* deprecated */
+	unsigned int	tx_window_errors;	/* deprecated */
 
-	unsigned int	tx_idle_packets;
+	unsigned int	tx_idle_packets;	/* Counter of Idle Tx Data transmissions.
+										 * Occurs in Voice/BitStream mode.
+										 * Cause: User application supplies data too slowly. */
 
-	unsigned int 	errors;
+	unsigned int 	errors;		/* Total of ALL errors. */
 
+	/* current state of transmitter queue */
 	unsigned int	current_number_of_frames_in_tx_queue;
 	unsigned int	max_tx_queue_length;
 
+	/* current state of receiver queue */
 	unsigned int	current_number_of_frames_in_rx_queue;
 	unsigned int	max_rx_queue_length;
 
+	/* current state of Event queue */
 	unsigned int	max_event_queue_length;
 	unsigned int	current_number_of_events_in_event_queue;
-	unsigned int	rx_events;
-	unsigned int	rx_events_dropped;
 
-	unsigned int	rx_events_tone;
+	unsigned int	rx_events;			/* Total counter of all API Events. (On/Off Hook, DTMF, Ring...)*/
+	unsigned int	rx_events_dropped;	/* Counter of discarded events due to Rx Event queue being full. 
+										 * Possible cause: application too slow to "read" the events.*/
+	unsigned int	rx_events_tone;		/* Counter of Tone Events, such as DTMF. */
 
-	unsigned int	rx_hdlc_abort_counter; /* this is not an error */
+	/* HDLC-level  abort condition */
+	unsigned int	rx_hdlc_abort_counter; /* HDLC-level abort is considered an error by Sangoma HDLC engine.
+											* But, since it is a part of HDLC standard, an application may choose to ignore it. */
 	
 }wanpipe_chan_stats_t;
 

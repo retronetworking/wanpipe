@@ -1,0 +1,41 @@
+K 25
+svn:wc:ra_dav:version-url
+V 97
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include
+END
+octosdependant.h
+K 25
+svn:wc:ra_dav:version-url
+V 114
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include/octosdependant.h
+END
+octdef.h
+K 25
+svn:wc:ra_dav:version-url
+V 106
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include/octdef.h
+END
+octtypevx.h
+K 25
+svn:wc:ra_dav:version-url
+V 109
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include/octtypevx.h
+END
+octtypewin.h
+K 25
+svn:wc:ra_dav:version-url
+V 110
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include/octtypewin.h
+END
+octmac.h
+K 25
+svn:wc:ra_dav:version-url
+V 106
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include/octmac.h
+END
+octtype.h
+K 25
+svn:wc:ra_dav:version-url
+V 107
+/svn/wanpipe/!svn/ver/8760/wanpipe_common/branches/unified_release/wanec/OCT612x-01.04.01/include/octtype.h
+END

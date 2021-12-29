@@ -503,7 +503,7 @@ int aft_analog_global_chip_config(sdla_t *card)
 		if (!IS_A700_CARD(card)) {
 			wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 		}
-		if (IS_A200_CARD(card) || IS_A700_CARD(card)) {
+		if (IS_A200_CARD(card) || IS_A700_CARD(card) || IS_B800_CARD(card)) {
 			if (WAN_FE_NETWORK_SYNC(&card->fe)){	/*card->fe.fe_cfg.cfg.remora.network_sync*/
 				DEBUG_EVENT("%s: Analog Clock set to Network Sync!\n",
 						card->devname);
@@ -869,7 +869,7 @@ int aft_analog_chan_dev_config(sdla_t *card, void *chan_ptr)
 	/* Initially always disable rx synchronization */
 	wan_clear_bit(AFT_DMACHAIN_RX_SYNC_BIT,&reg);
 
-	if (chan->channelized_cfg && !chan->hdlc_eng){
+	if (CHAN_GLOBAL_IRQ_CFG(chan)){
 		aft_dmachain_enable_tdmv_and_mtu_size(&reg,chan->mru);
 	}
 
@@ -882,7 +882,7 @@ int aft_analog_chan_dev_config(sdla_t *card, void *chan_ptr)
 		err = aft_analog_ctrl_ram_config_a700(card, chan);
 	}
 
-	if (chan->channelized_cfg && !chan->hdlc_eng){
+	if (CHAN_GLOBAL_IRQ_CFG(chan)){
 
 		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
 		aft_lcfg_tdmv_cnt_inc(&reg);
@@ -939,7 +939,7 @@ int aft_analog_chan_dev_unconfig(sdla_t *card, void *chan_ptr)
 			}
 		}
 
-		if (chan->channelized_cfg && !chan->hdlc_eng){
+		if (CHAN_GLOBAL_IRQ_CFG(chan)){
 			card->hw_iface.bus_read_4(card->hw,
 					AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
 			aft_lcfg_tdmv_cnt_dec(&reg);

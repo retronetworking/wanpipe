@@ -1,15 +1,15 @@
 8
 
 dir
-315
+322
 https://www.sangomapbx.com/svn/libsangoma/trunk
 https://www.sangomapbx.com/svn/libsangoma
 
 
 
-2010-09-28T19:45:37.681925Z
-315
-dyatsin
+2010-11-11T19:01:32.713267Z
+322
+davidr
 has-props
 
 svn:special svn:externals svn:needs-lock
@@ -41,7 +41,7 @@ has-props
 
 configure
 file
-316
+
 
 
 
@@ -188,11 +188,11 @@ file
 
 
 
-2010-10-01T21:04:29.000000Z
-925b6728adb7f183639f050a367dae0f
-2010-09-28T19:45:37.681925Z
-315
-dyatsin
+2010-11-16T17:51:09.000000Z
+559385f94244193b33ee08804b1025ec
+2010-11-11T19:01:32.713267Z
+322
+davidr
 has-props
 
 cleanup.sh
@@ -399,7 +399,7 @@ root
 
 configure.in
 file
-316
+
 
 
 
@@ -501,10 +501,10 @@ file
 
 
 
-2010-03-23T16:14:34.000000Z
-39d2237e03532fcd8cdd7d7e1006fc07
-2010-03-15T20:12:36.300714Z
-269
+2010-11-16T17:51:09.000000Z
+3af0e52d20c13e18c41c19abb41138a3
+2010-11-11T19:01:32.713267Z
+322
 davidr
 
 libsangoma-pvt.h
@@ -554,9 +554,9 @@ file
 
 
 
-2010-10-01T21:04:29.000000Z
-8778a20cc0568f8a01f7015ece63279c
-2010-09-28T19:41:22.543877Z
-314
+2010-11-16T17:51:09.000000Z
+f4e0fca1a12c0420233dbf18b29034fc
+2010-11-11T19:01:32.713267Z
+322
 davidr
 
