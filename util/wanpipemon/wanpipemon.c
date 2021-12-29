@@ -184,10 +184,6 @@ struct fun_protocol function_lookup[] = {
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 
-	{ WANCONFIG_AFT_TE3,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
-		                         AFTget_main_menu, AFTget_cmd_menu, 
-					 NULL,NULL, 2 },
-
 	{ 0, "N/A", 0, 0, 0, 0,0 }, 
 };
 #else
@@ -219,6 +215,10 @@ struct fun_protocol function_lookup[] = {
 					 NULL,NULL, 2 },
 
 	{ WANCONFIG_AFT_TE1,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
+		                         AFTget_main_menu, AFTget_cmd_menu, 
+					 NULL,NULL, 2 },
+
+	{ WANCONFIG_AFT_56K,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 
@@ -844,6 +844,7 @@ static int init(int argc, char *argv[], char* command)
 		}else if (!strcmp(argv[i], "-d")){
 			TRACE_DLCI=dlci_number=16;
 			d_cnt=1;
+
 		}else if (!strcmp(argv[i],"-pv6")){
 			af = AF_INET6;	// IPV6
 
@@ -862,19 +863,29 @@ static int init(int argc, char *argv[], char* command)
 			}
 
 			if (strcmp(argv[i+1], "chdlc") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_CHDLC_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature,
+					UDP_CHDLC_SIGNATURE,
+					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_CHDLC;
 			}else if (strcmp(argv[i+1], "fr") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_FR_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature, 
+					UDP_FR_SIGNATURE,
+					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_FR;
 			}else if (strcmp(argv[i+1], "ppp") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_PPP_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature, 
+					UDP_PPP_SIGNATURE,
+					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_PPP;
 			}else if (strcmp(argv[i+1], "x25") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_X25_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature, 
+					UDP_X25_SIGNATURE,
+					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_X25;
 			}else if (strcmp(argv[i+1], "adsl") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature, 
+					GLOBAL_UDP_SIGNATURE,
+					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_ADSL;
 			}else{
 				usage();
@@ -903,7 +914,7 @@ static int init(int argc, char *argv[], char* command)
 				if (trace_prot_opt[x].prot_index == -1)
 					break;
 			
-				if (strstr(argv[i+1],trace_prot_opt[x].prot_name) != NULL){
+				if (strstr(argv[i+1],(char*)trace_prot_opt[x].prot_name) != NULL){
 					TRACE_PROTOCOL|=trace_prot_opt[x].prot_index;
 					pcap_prot=trace_prot_opt[x].pcap_prot;
 				}
@@ -965,7 +976,7 @@ static int init(int argc, char *argv[], char* command)
 				if (trace_x25_prot_opt[x].prot_index == -1)
 					break;
 				
-				if (strstr(argv[i+1],trace_x25_prot_opt[x].prot_name) != NULL){
+				if (strstr(argv[i+1],(char*)trace_x25_prot_opt[x].prot_name) != NULL){
 					TRACE_X25_OPT|=trace_x25_prot_opt[x].prot_index;
 				}
 			}
@@ -1085,7 +1096,7 @@ static void usage(void)
 
 
 #if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-static unsigned char usage_long_buf[]= "\n"
+static char usage_long_buf[]= "\n"
 "\n"
 "Wanpipemon Verison 1.0\n"
 "Copyright (C) 2002 - Sangoma Technologies\n"
@@ -1314,8 +1325,12 @@ int main(int argc, char* argv[])
 	char command[MAX_CMD_LENGTH+1];
 	int err = 0;
 
-	strcpy((char*)wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE);
-	sprintf(pcap_output_file_name,"wp_trace_pcap.bin");
+	strlcpy((char*)wan_udp.wan_udphdr_signature, 
+		GLOBAL_UDP_SIGNATURE,
+		strlen(wan_udp.wan_udphdr_signature)); 
+	snprintf(pcap_output_file_name,
+		strlen(pcap_output_file_name),
+		"wp_trace_pcap.bin");
 
 	signal(SIGHUP,sig_end);
 	signal(SIGINT,sig_end);

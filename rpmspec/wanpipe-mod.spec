@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.2.4
+%define version           3.2.5
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,18 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+* Thu Apr 2 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.5
+========================================================================
+
+- T3/E3 Update
+  Fixed T3 Loopback commands
+
+- Updated T3/E3 Driver
+  Performance improvement on T3/E3 drivers when handling
+  VOIP and Data traffic.
+
+- Update ifconfig MTU change from protocol interface
+ 
 
 * Thu Mar 6 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.4
 ======================================================================== 

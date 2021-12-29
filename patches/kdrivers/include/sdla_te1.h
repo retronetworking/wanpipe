@@ -198,10 +198,27 @@
 /* Line loopback activate/deactive modes */
 #define WAN_TE1_ACTIVATE_LB	0x01
 #define WAN_TE1_DEACTIVATE_LB	0x02
+
+#if 1
+#define WAN_TE1_LB_MODE_DECODE(mode)                                            \
+                ((mode) == WAN_TE1_LINELB_MODE) ? "Line Loopback" :             \
+                ((mode) == WAN_TE1_PAYLB_MODE) ? "Payload Loopback" :           \
+                ((mode) == WAN_TE1_DDLB_MODE) ? "Diagnostic Digital Loopback" : \
+                ((mode) == WAN_TE1_TX_LB_MODE) ? "TX Loopback" :                        \
+                ((mode) == WAN_TE1_LIU_ALB_MODE) ? "Analog LIU Loopback" :      \
+                ((mode) == WAN_TE1_LIU_LLB_MODE) ? "Local LIU Loopback" :               \
+                ((mode) == WAN_TE1_LIU_RLB_MODE) ? "Remote LIU Loopback" :      \
+                ((mode) == WAN_TE1_LIU_DLB_MODE) ? "Dual LIU Loopback" :                \
+                ((mode) == WAN_TE1_FR_FLB_MODE) ? "Framer Loopback" :           \
+                ((mode) == WAN_TE1_FR_RLB_MODE) ? "Remote Framer Loopback" :    \
+                ((mode) == WAN_TE1_FR_PLB_MODE) ? "Payload Framer Loopback" :   \
+                                                "Unknown Loopback"
+#else
 #define WAN_TE1_LB_MODE_DECODE(mode)				\
 		(mode == WAN_TE1_ACTIVATE_LB) ? "Activate" :	\
 		(mode == WAN_TE1_DEACTIVATE_LB) ? "Deactivate" :\
 						"Unknown"
+#endif
 
 /* T1/E1 front end Master clock source */
 #define WAN_TE1_REFCLK_OSC	0x00

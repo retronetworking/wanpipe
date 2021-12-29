@@ -556,6 +556,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TE_ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, active_ch), DTYPE_UINT },
   { "TE_RBS_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, te_rbs_ch), DTYPE_UINT },
   { "TE_HIGHIMPEDANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, high_impedance_mode), DTYPE_UCHAR },
+  { "TE_RX_SLEVEL",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, rx_slevel), DTYPE_INT },
   { "TE_REF_CLOCK",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, te_ref_clock), DTYPE_UCHAR },
   { "TE_SIG_MODE",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, sig_mode), DTYPE_UCHAR },
   /* T1/E1 Front-End parameters (old style) */

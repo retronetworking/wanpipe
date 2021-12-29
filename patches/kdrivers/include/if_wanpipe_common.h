@@ -46,6 +46,9 @@ typedef struct {
 	struct net_device_stats* (*get_stats) (netdevice_t*);
 	int	 (*ioctl) (netdevice_t*, struct ifreq*, int);
 	void	 (*tx_timeout) (netdevice_t*);
+#if defined (__LINUX__)
+	int 	(*change_mtu)(netdevice_t *dev, int new_mtu);
+#endif
 } wanpipe_common_iface_t;
 
 typedef struct {

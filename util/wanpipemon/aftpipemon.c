@@ -19,17 +19,19 @@
 #include <stdio.h>
 #include <stddef.h>	/* offsetof(), etc. */
 #include <ctype.h>
-#include <time.h>
-#include <sys/time.h>
-#include <sys/types.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
+#if defined(__FreeBSD__)
+# include <limits.h>
+#endif
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #include <netinet/in_systm.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -42,13 +44,13 @@
 # include <linux/if_ether.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe_abstr.h>
 # include <linux/wanpipe.h>
 # include <linux/sdla_xilinx.h>
+# include <linux/wanpipe_abstr.h>
+
 #else
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
-# include <wanpipe_abstr.h>
 # include <wanpipe.h>
 # include <sdla_xilinx.h>
 #endif
@@ -218,7 +220,7 @@ int AFTConfig(void)
 
 	is_508 = WAN_FALSE;
    
-	strcpy(codeversion, "?.??");
+	strlcpy(codeversion, "?.??",10);
    
 	wan_udp.wan_udphdr_command = READ_CODE_VERSION;
 	wan_udp.wan_udphdr_data_len = 0;
@@ -226,7 +228,7 @@ int AFTConfig(void)
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
+		strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data,10);
 	}
 	
 	return(WAN_TRUE);
@@ -439,7 +441,7 @@ int AFTDisableTrace(void)
 	return 0;
 }
 
-static int print_local_time (char *date_string)
+static int print_local_time (char *date_string, int max_len)
 {
 	
   	char tmp_time[50];
@@ -454,19 +456,19 @@ static int print_local_time (char *date_string)
 	time_tm=localtime(&time_val);
 
 	strftime(tmp_time,sizeof(tmp_time),"%b",time_tm);
-	sprintf(date_string, " %s ",tmp_time);
+	snprintf(date_string, max_len, " %s ",tmp_time);
 
 	strftime(tmp_time,sizeof(tmp_time),"%d",time_tm);
-	sprintf(date_string+strlen(date_string), "%s ",tmp_time);
+	snprintf(date_string+strlen(date_string), max_len-strlen(date_string), "%s ",tmp_time);
 
 	strftime(tmp_time,sizeof(tmp_time),"%H",time_tm);
-	sprintf(date_string+strlen(date_string), "%s:",tmp_time);
+	snprintf(date_string+strlen(date_string), max_len-strlen(date_string), "%s:",tmp_time);
 
 	strftime(tmp_time,sizeof(tmp_time),"%M",time_tm);
-	sprintf(date_string+strlen(date_string), "%s:",tmp_time);
+	snprintf(date_string+strlen(date_string), max_len-strlen(date_string), "%s:",tmp_time);
 
 	strftime(tmp_time,sizeof(tmp_time),"%S",time_tm);
-	sprintf(date_string+strlen(date_string), "%s",tmp_time);
+	snprintf(date_string+strlen(date_string), max_len-strlen(date_string), "%s",tmp_time);
 
 	return 0;
 }
@@ -485,7 +487,7 @@ static int loop_rx_data(int passnum)
 	to.tv_sec = 0;
 	to.tv_usec = 0;
 	
-	print_local_time(date_string);
+	print_local_time(date_string,100);
 		
 	printf("%s | Test %04i | ",
 		date_string, passnum);
@@ -586,6 +588,7 @@ static int loop_rx_data(int passnum)
 }
 
 
+		
 static int aft_digital_loop_test( void )
 {
 	int passnum=0;
@@ -844,41 +847,86 @@ static int aft_read_hwec_status()
 
 static int aft_remora_tones(int mod_no)
 {
-
+	int	cnt = 0;
+	char	ch;
 	/* Disable trace to ensure that the buffers are flushed */
 	wan_udp.wan_udphdr_command	= WAN_FE_TONES;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
-	wan_udp.wan_udphdr_data_len	= 1;
+	wan_udp.wan_udphdr_data_len	= 2;
 	wan_udp.wan_udphdr_data[0]	= mod_no;
+	wan_udp.wan_udphdr_data[1]	= 1;
 	DO_COMMAND(wan_udp);
 
 	if (wan_udp.wan_udphdr_return_code) { 
-		printf("Failed to play the AFT Remora tones!\n"); 
+		printf("Failed to start tone on Module %d!\n", mod_no); 
 		fflush(stdout);
 		return 0;
 	}
 
-	fflush(stdout);
+	printf("Press enter to stop the tone ...");fflush(stdout);ch=getchar();
+tone_stop_again:
+	/* Disable A200/A400 Ring event */
+	wan_udp.wan_udphdr_command	= WAN_FE_TONES;
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	wan_udp.wan_udphdr_data_len	= 2;
+	wan_udp.wan_udphdr_data[0]	= mod_no;
+	wan_udp.wan_udphdr_data[1]	= 0;
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code) {
+		if (cnt++ > 10){
+			sleep(1);
+			goto tone_stop_again;
+		} 
+		printf("Failed to stop tone on Module %d (timeout)!\n",
+					mod_no); 
+		fflush(stdout);
+		return 0;
+	}
 	return 0;
 }
 
 static int aft_remora_ring(int mod_no)
 {
+	int	cnt=0;
+	char	ch;
 
-	/* Disable trace to ensure that the buffers are flushed */
+	/* Enable A200/A400 Ring event */
 	wan_udp.wan_udphdr_command	= WAN_FE_RING;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
-	wan_udp.wan_udphdr_data_len	= 1;
+	wan_udp.wan_udphdr_data_len	= 2;
 	wan_udp.wan_udphdr_data[0]	= mod_no;
+	wan_udp.wan_udphdr_data[1]	= 1;
 	DO_COMMAND(wan_udp);
 
 	if (wan_udp.wan_udphdr_return_code) { 
-		printf("Failed to ring the module!\n"); 
+		printf("Failed to start ring for Module %d!\n", mod_no); 
 		fflush(stdout);
 		return 0;
 	}
-
 	fflush(stdout);
+
+	printf("Press enter to stop the ring ...");fflush(stdout);ch=getchar();
+ring_stop_again:
+	/* Disable A200/A400 Ring event */
+	wan_udp.wan_udphdr_command	= WAN_FE_RING;
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	wan_udp.wan_udphdr_data_len	= 2;
+	wan_udp.wan_udphdr_data[0]	= mod_no;
+	wan_udp.wan_udphdr_data[1]	= 0;
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code) { 
+		if (cnt++ > 10){
+			sleep(1);
+			goto ring_stop_again;
+		} 
+		printf("Failed to stop ring for Module %d (timeout)!\n", mod_no); 
+		fflush(stdout);
+		return 0;
+	}
+	fflush(stdout);
+
 	return 0;
 }
 
@@ -1008,14 +1056,22 @@ int AFTUsage(void)
 	printf("\tT1/E1 Configuration/Statistics\n");
 	printf("\t   T         a       Read T1/E1/56K alarms.\n"); 
 	printf("\t             lt      Diagnostic Digital Loopback testing (T1/E1 card only)\n"); 
-	printf("\t             allb    Active Line Loopback mode (T1/E1 card only)\n");  
-	printf("\t             dllb    Deactive Line Loopback mode (T1/E1 card only)\n");  
-	printf("\t             aplb    Active Payload Loopback mode (T1/E1 card only)\n");  
-	printf("\t             dplb    Deactive Payload Loopback mode (T1/E1 card only)\n");  
-	printf("\t             adlb    Active Diagnostic Digital Loopback mode (T1/E1 card only)\n");  
-	printf("\t             ddlb    Deactive Diagnostic Digital Loopback mode (T1/E1 card only)\n");  
-	printf("\t             salb    Send Loopback Activate Code (T1/E1 card only)\n");  
-	printf("\t             sdlb    Send Loopback Deactive Code (T1/E1 card only)\n");  
+	printf("\t             allb    Active Line/Remote Loopback mode (T1/E1/T3/E3 cards)\n");  
+	printf("\t             dllb    Deactive Line/Remote Loopback mode (T1/E1/T3/E3 cards)\n");  
+	printf("\t             aplb    Active Payload Loopback mode (T1/E1/T3/E3 cards)\n");  
+	printf("\t             dplb    Deactive Payload Loopback mode (T1/E1/T3/E3 cards)\n");  
+	printf("\t             adlb    Active Diagnostic Digital Loopback mode (T1/E1/T3/E3 cards)\n");  
+	printf("\t             ddlb    Deactive Diagnostic Digital Loopback mode (T1/E1/T3/E3 cards)\n");  
+	printf("\t             salb    Send Loopback Activate Code (T1/E1 PMC card only)\n");  
+	printf("\t             sdlb    Send Loopback Deactive Code (T1/E1 PMC card only)\n");  
+	printf("\t             alalb   Active LIU Analog Loopback mode (T1/E1 DM card only)\n");  
+	printf("\t             dlalb   Deactive LIU Analog Loopback mode (T1/E1 DM card only)\n");  
+	printf("\t             alllb   Active LIU Local Loopback mode (T1/E1 DM card only)\n");  
+	printf("\t             dlllb   Deactive LIU Local Loopback mode (T1/E1 DM card only)\n");  
+	printf("\t             alrlb   Active LIU Remote Loopback mode (T1/E1 DM card only)\n");  
+	printf("\t             dlrlb   Deactive LIU Remote Loopback mode (T1/E1 DM card only)\n");  
+	printf("\t             aldlb   Active LIU Dual Loopback mode (T1/E1 DM card only)\n");  
+	printf("\t             dldlb   Deactive LIU Dual Loopback mode (T1/E1 DM card only)\n");
 	printf("\t             txe     Enable TX (AFT card only)\n");  
 	printf("\t             txd     Disable TX (AFT card only)\n");  
 	printf("\tFlush Statistics\n");
@@ -1193,6 +1249,30 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_ACTIVATE_LB);
 			}else if (!strcmp(opt,"sdlb")){
 				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_DEACTIVATE_LB);
+			}else if (!strcmp(opt,"alalb")){
+				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_ACTIVATE_LB);
+			}else if (!strcmp(opt,"dlalb")){
+				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_DEACTIVATE_LB);
+			}else if (!strcmp(opt,"alllb")){
+				set_lb_modes(WAN_TE1_LIU_LLB_MODE, WAN_TE1_ACTIVATE_LB);
+			}else if (!strcmp(opt,"dlllb")){
+				set_lb_modes(WAN_TE1_LIU_LLB_MODE, WAN_TE1_DEACTIVATE_LB);
+			}else if (!strcmp(opt,"alrlb")){
+				set_lb_modes(WAN_TE1_LIU_RLB_MODE, WAN_TE1_ACTIVATE_LB);
+			}else if (!strcmp(opt,"dlrlb")){
+				set_lb_modes(WAN_TE1_LIU_RLB_MODE, WAN_TE1_DEACTIVATE_LB);
+			}else if (!strcmp(opt,"aldlb")){
+				set_lb_modes(WAN_TE1_LIU_DLB_MODE, WAN_TE1_ACTIVATE_LB);
+			}else if (!strcmp(opt,"dldlb")){
+				set_lb_modes(WAN_TE1_LIU_DLB_MODE, WAN_TE1_DEACTIVATE_LB);
+			}else if (!strcmp(opt,"aflb")){
+				set_lb_modes(WAN_TE1_FR_FLB_MODE, WAN_TE1_ACTIVATE_LB);
+			}else if (!strcmp(opt,"dflb")){
+				set_lb_modes(WAN_TE1_FR_FLB_MODE, WAN_TE1_DEACTIVATE_LB);
+			}else if (!strcmp(opt,"afplb")){
+				set_lb_modes(WAN_TE1_FR_PLB_MODE, WAN_TE1_ACTIVATE_LB);
+			}else if (!strcmp(opt,"dfplb")){
+				set_lb_modes(WAN_TE1_FR_PLB_MODE, WAN_TE1_DEACTIVATE_LB);
 			}else if (!strcmp(opt,"a")){
 				read_te1_56k_stat(0);
 			}else if (!strcmp(opt,"af")){
@@ -1261,7 +1341,7 @@ int AFTMain(char *command,int argc, char* argv[])
 				fe_debug.type = WAN_FE_DEBUG_RECONFIG;
 				set_fe_debug_mode(&fe_debug);
 			}else if (!strcmp(opt,"reg")){
-				int	value;
+				long	value;
 				fe_debug.type = WAN_FE_DEBUG_REG;
 				if (argc < 6){
 					printf("ERROR: Invalid command argument!\n");
@@ -1325,6 +1405,32 @@ int AFTMain(char *command,int argc, char* argv[])
 				aft_remora_ring(mod_no);
 			}else if (strcmp(opt,"regdump") == 0){	
 				aft_remora_regdump(mod_no);
+			}else if (!strcmp(opt,"reg")){
+				int	value;
+				fe_debug.type = WAN_FE_DEBUG_REG;
+				if (argc < 6){
+					printf("ERROR: Invalid command argument!\n");
+					break;				
+				}
+				value = strtol(argv[5],(char**)NULL, 16);
+				if (value == LONG_MIN || value == LONG_MAX){
+					printf("ERROR: Invalid argument 5: %s!\n",
+								argv[5]);
+					break;				
+				}
+				fe_debug.fe_debug_reg.reg  = value;
+				fe_debug.fe_debug_reg.read = 1;
+				if (argc > 6){
+					value = strtol(argv[6],(char**)NULL, 16);
+					if (value == LONG_MIN || value == LONG_MAX){
+						printf("ERROR: Invalid argument 6: %s!\n",
+									argv[6]);
+						break;
+					}
+					fe_debug.fe_debug_reg.read = 0;
+					fe_debug.fe_debug_reg.value = value;
+				}
+				set_fe_debug_mode(&fe_debug);
 			}else if (strcmp(opt,"stats") == 0){	
 				aft_remora_stats(mod_no);
 			}else{

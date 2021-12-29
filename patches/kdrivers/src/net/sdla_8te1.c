@@ -717,7 +717,8 @@ static int sdla_ds_te1_cfg_verify(void* pfe)
 		switch(WAN_TE1_LBO(fe)) {
 		case WAN_T1_LBO_0_DB: case WAN_T1_LBO_75_DB:
 		case WAN_T1_LBO_15_DB: case WAN_T1_LBO_225_DB:
-		case WAN_T1_0_133: case WAN_T1_133_266: case WAN_T1_110_220:
+		case WAN_T1_0_133: case WAN_T1_0_110:
+		case WAN_T1_133_266: case WAN_T1_110_220:
 		case WAN_T1_266_399: case WAN_T1_220_330:
 		case WAN_T1_399_533: case WAN_T1_330_440: case WAN_T1_440_550:
 		case WAN_T1_533_655: case WAN_T1_550_660:
@@ -1046,6 +1047,7 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		value = BIT_LTITSR_L2 | BIT_LTITSR_L1 | BIT_LTITSR_L0;
 		break;
 	case WAN_T1_0_133:
+	case WAN_T1_0_110:
 		value = 0x00;
 		break;
 	case WAN_T1_133_266:

@@ -650,6 +650,113 @@ static int sdla_te3_read_pmon(sdla_fe_t *fe, int action)
 	return 0;
 }
 
+
+
+/******************************************************************************
+*				sdla_te3_flush_pmon()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int sdla_te3_flush_pmon(sdla_fe_t *fe)
+{
+	sdla_te3_pmon_t	*pmon = (sdla_te3_pmon_t*)&fe->fe_stats.u.te3_pmon;
+
+	pmon->pmon_lcv		= 0;
+	pmon->pmon_framing	= 0; 
+	pmon->pmon_parity	= 0; 
+	pmon->pmon_febe		= 0; 
+	pmon->pmon_cpbit  	= 0; 
+	return 0;
+}
+
+/******************************************************************************
+*				sdla_te3_old_set_lb_modes()	
+*
+* Description:
+* Arguments:
+* Returns:
+******************************************************************************/
+static int 
+sdla_te3_old_set_lb_modes(sdla_fe_t *fe, unsigned char type, unsigned char mode)
+{
+
+	WAN_ASSERT(fe->write_cpld == NULL);
+	DEBUG_EVENT("%s: %s %s mode...\n",
+			fe->name,
+			WAN_TE3_LB_MODE_DECODE(mode),
+			WAN_TE3_LB_TYPE_DECODE(type));
+
+	if (mode == WAN_TE3_DEACTIVATE_LB){
+		fe->te3_param.cpld_status &= ~BIT_CPLD_STATUS_LLB;
+		fe->te3_param.cpld_status &= ~BIT_CPLD_STATUS_RLB;
+	}else{
+		switch(type){
+		case WAN_TE3_LIU_LB_ANALOG:
+			fe->te3_param.cpld_status |= BIT_CPLD_STATUS_LLB;
+			fe->te3_param.cpld_status &= ~BIT_CPLD_STATUS_RLB;
+			break;
+		case WAN_TE3_LIU_LB_REMOTE:
+			fe->te3_param.cpld_status &= ~BIT_CPLD_STATUS_LLB;
+			fe->te3_param.cpld_status |= BIT_CPLD_STATUS_RLB;
+			break;
+		case WAN_TE3_LIU_LB_DIGITAL:
+			fe->te3_param.cpld_status |= BIT_CPLD_STATUS_LLB;
+			fe->te3_param.cpld_status |= BIT_CPLD_STATUS_RLB;
+			break;
+		default :
+			DEBUG_EVENT("%s: (T3/E3) Unknown loopback mode!\n",
+					fe->name);
+			break;
+		}		
+	}
+	/* Write value to CPLD Status/Control register */
+	WRITE_CPLD(REG_CPLD_STATUS, fe->te3_param.cpld_status);
+	return 0;
+}
+ 
+static int 
+sdla_te3_set_lb_modes(sdla_fe_t *fe, unsigned char type, unsigned char mode) 
+{
+	unsigned char	data = 0x00;
+
+	DEBUG_EVENT("%s: %s %s mode...\n",
+			fe->name,
+			WAN_TE3_LB_MODE_DECODE(mode),
+			WAN_TE3_LB_TYPE_DECODE(type));
+
+	data = READ_REG(REG_LINE_INTERFACE_DRIVE);
+	if (mode == WAN_TE3_DEACTIVATE_LB){
+		data &= ~BIT_LINE_INTERFACE_DRIVE_LLOOP;
+		data &= ~BIT_LINE_INTERFACE_DRIVE_RLOOP;
+	}else{
+		switch(type){
+		case WAN_TE3_LIU_LB_NORMAL:
+			break;
+		case WAN_TE3_LIU_LB_ANALOG:
+			data |= BIT_LINE_INTERFACE_DRIVE_LLOOP;
+			data &= ~BIT_LINE_INTERFACE_DRIVE_RLOOP;
+			break;
+		case WAN_TE3_LIU_LB_REMOTE:
+			data &= ~BIT_LINE_INTERFACE_DRIVE_LLOOP;
+			data |= BIT_LINE_INTERFACE_DRIVE_RLOOP;
+			break;
+		case WAN_TE3_LIU_LB_DIGITAL:
+			data |= BIT_LINE_INTERFACE_DRIVE_LLOOP;
+			data |= BIT_LINE_INTERFACE_DRIVE_RLOOP;
+			break;
+		default :
+			DEBUG_EVENT("%s: (T3/E3) Unknown loopback mode!\n",
+					fe->name);
+			break;
+		}		
+	}
+	WRITE_REG(REG_LINE_INTERFACE_DRIVE, data);
+	return 0;
+}
+
+
 /******************************************************************************
  *				sdla_te3_udp()	
  *
@@ -660,9 +767,12 @@ static int sdla_te3_read_pmon(sdla_fe_t *fe, int action)
  */
 static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 {
+	sdla_t		*card = (sdla_t*)fe->card;
 	wan_cmd_t	*udp_cmd = (wan_cmd_t*)pudp_cmd;
+	int		err = -EINVAL;
 
 	switch(udp_cmd->wan_cmd_command){
+
 	case WAN_GET_MEDIA_TYPE:
 		data[0] = fe->fe_cfg.media;
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
@@ -671,19 +781,26 @@ static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 
 	case WAN_FE_SET_LB_MODE:
 		/* Activate/Deactivate Line Loopback modes */
-//		err = sdla_set_te1_lb_modes(card, data[0], data[1]); 
-//	    	udp_cmd->wan_cmd_return_code = 
-//				(!err) ? WAN_CMD_OK : WAN_UDP_FAILED_CMD;
-//	    	udp_cmd->wan_cmd_data_len = 0x00;
+		if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
+			err = sdla_te3_old_set_lb_modes(fe, data[0], data[1]); 
+		}else if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
+			err = sdla_te3_set_lb_modes(fe, data[0], data[1]); 
+		}
+	    	udp_cmd->wan_cmd_return_code = 
+				(!err) ? WAN_CMD_OK : WAN_UDP_FAILED_CMD;
+	    	udp_cmd->wan_cmd_data_len = 0x00;
 		break;
 
 	case WAN_FE_GET_STAT:
- 	        /* TE1_56K Read T1/E1/56K alarms */
-#if 0
-	  	*(unsigned long *)&data[0] = sdla_te3_alarm(fe, 0);
-#endif
-		/* TE1 Update T1/E1 perfomance counters */
+ 	        /* Read T3/E3 alarms */
     		sdla_te3_read_pmon(fe, 0);
+		if (udp_cmd->wan_cmd_fe_force){
+			/* force to read FE alarms */
+			DEBUG_EVENT("%s: Force to read Front-End alarms\n",
+						fe->name);
+			fe->fe_stats.alarms = 
+				sdla_te3_alarm(fe, 1);
+		}
 	        memcpy(&data[0], &fe->fe_stats, sizeof(sdla_fe_stats_t));
 	        udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_fe_stats_t); 
@@ -691,7 +808,7 @@ static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 
  	case WAN_FE_FLUSH_PMON:
 		/* TE1 Flush T1/E1 pmon counters */
-//		memset(&fe->fe_stats.u.te3_pmon, 0, sizeof(sdla_te3_pmon_t));
+		sdla_te3_flush_pmon(fe);
 	        udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 		break;
  
@@ -711,6 +828,7 @@ static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 	}
 	return 0;
 }
+
 
 static int sdla_te3_set_intr(sdla_fe_t *fe)
 {

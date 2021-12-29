@@ -426,12 +426,11 @@ static int wplip_if_unreg (netdevice_t *dev)
 			return err;
 		}
 	}
-
-	wplip_close_lipdev_prot(lip_dev);
 	
 	wan_set_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical);
 	wan_clear_bit(WAN_DEV_READY,&lip_dev->interface_down);
-	
+
+	wplip_close_lipdev_prot(lip_dev);
 
 	wan_spin_lock_irq(&lip_link->bh_lock,&flags);
 	lip_link->cur_tx=NULL;
@@ -468,6 +467,7 @@ static int wplip_bind_link(void *lip_id,netdevice_t *dev)
 	wplip_dev_list_t  *lip_dev_list_el;
 	wan_smp_flag_t	flags;
 	
+	
 	if (!lip_id){
 		return -ENODEV;
 	}
@@ -476,9 +476,11 @@ static int wplip_bind_link(void *lip_id,netdevice_t *dev)
 		return -ENODEV;
 	}
 	
+	
 	if (wan_test_bit(WPLIP_LINK_DOWN,&lip_link->tq_working)){
 		return -ENETDOWN;
 	}
+	
 
 	lip_dev_list_el=wan_malloc(sizeof(wplip_dev_list_t));
 	memset(lip_dev_list_el,0,sizeof(wplip_dev_list_t));
@@ -555,13 +557,19 @@ static int wplip_rx(void *wplip_id, void *skb)
 {
 	wplip_link_t *lip_link = (wplip_link_t*)wplip_id;
 
+
 	DEBUG_RX("%s: LIP LINK %s() pkt=%d %p\n",
 			lip_link->name,__FUNCTION__,
-			wan_skb_len(skb),
+			skb?wan_skb_len(skb):0,
 			skb);
 
 	if (wan_test_bit(WPLIP_LINK_DOWN,&lip_link->tq_working)){
 		return -ENODEV;
+	}
+	
+	if (skb == NULL) {
+		wplip_trigger_bh(lip_link);
+		return 0;
 	}
 
 #ifdef WPLIP_TTY_SUPPORT
@@ -575,7 +583,7 @@ static int wplip_rx(void *wplip_id, void *skb)
 		}
 	}
 #endif	
-	
+
 	if (wan_skb_queue_len(&lip_link->rx_queue) > MAX_RX_Q){
 		DEBUG_TEST("%s: Critical Rx Error: Rx buf overflow 0x%lX!\n",
 				lip_link->name,
@@ -583,6 +591,7 @@ static int wplip_rx(void *wplip_id, void *skb)
 		wplip_trigger_bh(lip_link);
 		return -ENOBUFS;
 	}
+	
 	
 	wan_skb_queue_tail(&lip_link->rx_queue,skb);	
 	wplip_trigger_bh(lip_link);
@@ -789,6 +798,10 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
 int wplip_link_prot_change_state(void *wplip_id,int state, unsigned char *data, int len)
 {
 	wplip_link_t *lip_link = (wplip_link_t *)wplip_id;
+ 	
+	if (wan_test_bit(WPLIP_LINK_DOWN,&lip_link->tq_working)) {
+		return 0;
+	}
 
 	if (lip_link->prot_state != state){
 		lip_link->prot_state=state;
@@ -813,6 +826,62 @@ int wplip_link_prot_change_state(void *wplip_id,int state, unsigned char *data, 
 	return 0;
 }
 
+
+int wplip_lipdev_prot_update_state_change(wplip_dev_t *lip_dev, unsigned char *data, int len)
+{
+	int state = lip_dev->common.state;
+	
+	if (lip_dev->common.usedby == API) {
+
+		if (data && len){
+			wplip_prot_oob(lip_dev,data,len);
+		}
+
+		if (state == WAN_CONNECTED){
+			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
+			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
+		}else{
+			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
+		}
+
+		wan_update_api_state(lip_dev);
+
+		wplip_trigger_bh(lip_dev->lip_link);
+
+	} else if (lip_dev->common.lip) { /*STACK*/
+		
+		if (state == WAN_CONNECTED){
+			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
+			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
+			wplip_connect(lip_dev->common.lip,0);
+		}else{
+			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
+			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
+#endif
+			wplip_disconnect(lip_dev->common.lip,0);
+		}
+		
+	} else {
+		if (state == WAN_CONNECTED){
+			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
+			WAN_NETIF_WAKE_QUEUE(lip_dev->common.dev);
+			wplip_trigger_bh(lip_dev->lip_link);
+		}else{
+			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
+			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
+#endif
+		}
+		wplip_trigger_if_task(lip_dev);
+	}
+
+	return 0;
+
+}
+
+
 int wplip_lipdev_prot_change_state(void *wplip_id,int state, 
 		                   unsigned char *data, int len)
 {
@@ -823,59 +892,12 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 
 	lip_dev->common.state = state;
 
-	if (lip_dev->common.usedby == API) {
-
-		if (data && len){
-			wplip_prot_oob(lip_dev,data,len);
-		}
-
-		if (state == WAN_CONNECTED){
-			lip_dev->common.state = state;     
-			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
-			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
-		}else{
-			lip_dev->common.state = state;
-			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
-			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
-		}
-
-		wan_update_api_state(lip_dev);
-
-		wplip_trigger_bh(lip_dev->lip_link);
-
-	}else if (lip_dev->common.lip) { /*STACK*/
-		
-		if (state == WAN_CONNECTED){
-			lip_dev->common.state = state;
-			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
-			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
-			wplip_connect(lip_dev->common.lip,0);
-		}else{
-			lip_dev->common.state = state;
-			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
-#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
-			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
-#endif
-			wplip_disconnect(lip_dev->common.lip,0);
-		}
-		
-	}else{
-		if (state == WAN_CONNECTED){
-			lip_dev->common.state = state;
-			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
-			WAN_NETIF_WAKE_QUEUE(lip_dev->common.dev);
-			wplip_trigger_bh(lip_dev->lip_link);
-		}else{
-			lip_dev->common.state = state;
-			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
-#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
-			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
-#endif
-		}
-		wplip_trigger_if_task(lip_dev);
+ 	if (wan_test_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical) ||
+            wan_test_bit(0,&lip_dev->if_down)) {
+		return 0;
 	}
-	
-	return 0;
+
+	return wplip_lipdev_prot_update_state_change(lip_dev,data,len);
 }
 
 

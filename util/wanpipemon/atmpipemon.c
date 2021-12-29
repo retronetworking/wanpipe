@@ -41,14 +41,13 @@
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
 # include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe_abstr.h>
+# include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe.h>
 # include <linux/sdla_atm.h>
 #else
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
-# include <wanpipe_abstr.h>
 # include <wanpipe.h>
 # include <sdla_atm.h>
 #endif
@@ -160,8 +159,8 @@ static void set_FT1_monitor_status( unsigned char);
 static void read_ft1_te1_56k_config( void );
 
 /* Other routines */
-static int get_cell_type(char* data, int len);
-void decode_user_data_cell(char* data, int len);
+static int get_cell_type(unsigned char* data, int len);
+void decode_user_data_cell(unsigned char* data, int len);
 
 static char *gui_main_menu[]={
 "atm_card_stats_menu","Card Status",
@@ -290,7 +289,7 @@ int ATMConfig(void)
 		is_508 = WAN_FALSE;
 	} 
    
-	strcpy(codeversion, "?.??");
+	strlcpy(codeversion, "?.??",10);
    
 	wan_udp.wan_udphdr_command = READ_CODE_VERSION;
 	wan_udp.wan_udphdr_data_len = 0;
@@ -298,7 +297,7 @@ int ATMConfig(void)
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
+		strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data,10);
 	}
 	
 	return(WAN_TRUE);
@@ -853,10 +852,10 @@ static void line_trace( int trace_mode, int trace_sub_type)
 						
 
 						printf("Cell Type: ");
-						switch(get_cell_type((char*)trace_pkt->data, trace_pkt->real_length))
+						switch(get_cell_type(trace_pkt->data, trace_pkt->real_length))
 						{
 						case ATM_USER_DATA_CELL:
-							decode_user_data_cell((char*)trace_pkt->data,
+							decode_user_data_cell(trace_pkt->data,
 										trace_pkt->real_length);
 							break;
 						default:
@@ -890,7 +889,7 @@ static void line_trace( int trace_mode, int trace_sub_type)
 }; /* line_trace */
 
 
-static int get_cell_type(char* data, int len)
+static int get_cell_type(unsigned char* data, int len)
 {
 	ATM_HEADER_STRUCT * atm_hdr_ptr = (ATM_HEADER_STRUCT * )data;
 	ATM_CELL_STRUCT * ATM_cell_ptr = (ATM_CELL_STRUCT * )data;
@@ -958,7 +957,7 @@ static int get_cell_type(char* data, int len)
 	return ATM_UNKNOWN_CELL;
 }
 
-void decode_user_data_cell(char* data, int len)
+void decode_user_data_cell(unsigned char* data, int len)
 {
 	int i;
 	unsigned char* puchar_tmp;

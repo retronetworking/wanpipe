@@ -21,10 +21,25 @@
 #ifndef __SDLA_TE3_H
 # define __SDLA_TE3_H
 
+
 #define WAN_TE3_LIU_LB_NORMAL	0x00
 #define WAN_TE3_LIU_LB_ANALOG	0x01
 #define WAN_TE3_LIU_LB_REMOTE	0x02
 #define WAN_TE3_LIU_LB_DIGITAL	0x03
+#define WAN_TE3_LB_TYPE_DECODE(type)					\
+		((type) == WAN_TE3_LIU_LB_ANALOG) ? "Analog" :		\
+		((type) == WAN_TE3_LIU_LB_REMOTE) ? "Remote" :		\
+		((type) == WAN_TE3_LIU_LB_DIGITAL) ? "Digital Local" :	\
+						"Unknown"
+
+/* Line loopback activate/deactive modes */
+#define WAN_TE3_ACTIVATE_LB	0x01
+#define WAN_TE3_DEACTIVATE_LB	0x02
+#define WAN_TE3_LB_MODE_DECODE(mode)				\
+		((mode) == WAN_TE3_ACTIVATE_LB) ? "Activate" :	\
+		((mode) == WAN_TE3_DEACTIVATE_LB) ? "Deactivate" :\
+						"Unknown"
+
 
 #define WAN_TE3_RDEVICE_NONE		0x00
 #define WAN_TE3_RDEVICE_ADTRAN		0x01
@@ -93,6 +108,8 @@ typedef struct {
 
 typedef struct {
 	int dummy;
+	u_int8_t	cpld_cntrl;
+	u_int8_t	cpld_status;
 } sdla_te3_param_t;
 
 int sdla_te3_iface_init(void *p_fe_iface);

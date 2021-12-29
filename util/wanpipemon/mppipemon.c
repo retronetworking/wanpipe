@@ -764,14 +764,14 @@ void slarp_stats (void)
 } /* slarp_stats */
 
 
-
+#define MAX_OUTSTR_LEN	2000
 void line_trace(int trace_mode) 
 {
 	unsigned char num_frames, num_chars;
 	unsigned short curr_pos = 0;
 	trace_pkt_t *trace_pkt;
 	unsigned int i, j;
-	unsigned char outstr[2000];
+	unsigned char outstr[MAX_OUTSTR_LEN];
 	int recv_buff = sizeof(udp_mgmt_pkt_t ) + MDATALEN + 100;
 	fd_set ready;
 	struct timeval to;

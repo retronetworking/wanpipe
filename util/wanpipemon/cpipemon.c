@@ -56,7 +56,6 @@
 #else
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
-# include <wanpipe_abstr.h>
 # include <wanpipe.h>
 # include <sdla_chdlc.h>
 #endif
@@ -288,7 +287,7 @@ int CHDLCConfig(void)
 		is_508 = WAN_FALSE;
 	} 
    
-	strcpy(codeversion, "?.??");
+	strlcpy(codeversion, "?.??", 10);
    
 	wan_udp.wan_udphdr_command = READ_CHDLC_CODE_VERSION;
 	wan_udp.wan_udphdr_data_len = 0;
@@ -296,7 +295,7 @@ int CHDLCConfig(void)
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
+		strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data,10);
 	}
 	
 	return(WAN_TRUE);
@@ -822,7 +821,7 @@ int CHDLCDisableTrace(void)
 	return 0;
 }
 
-static int print_local_time (char *date_string)
+static int print_local_time (char *date_string, int max_len)
 {
 	
   	char tmp_time[50];
@@ -837,19 +836,19 @@ static int print_local_time (char *date_string)
 	time_tm=localtime(&time_val);
 
 	strftime(tmp_time,sizeof(tmp_time),"%b",time_tm);
-	sprintf(date_string, " %s ",tmp_time);
+	snprintf(date_string, max_len - strlen(date_string)," %s ",tmp_time);
 
 	strftime(tmp_time,sizeof(tmp_time),"%d",time_tm);
-	sprintf(date_string+strlen(date_string), "%s ",tmp_time);
+	snprintf(date_string+strlen(date_string), max_len - strlen(date_string),"%s ",tmp_time);
 
 	strftime(tmp_time,sizeof(tmp_time),"%H",time_tm);
-	sprintf(date_string+strlen(date_string), "%s:",tmp_time);
+	snprintf(date_string+strlen(date_string), max_len - strlen(date_string),"%s:",tmp_time);
 
 	strftime(tmp_time,sizeof(tmp_time),"%M",time_tm);
-	sprintf(date_string+strlen(date_string), "%s:",tmp_time);
+	snprintf(date_string+strlen(date_string), max_len - strlen(date_string),"%s:",tmp_time);
 
 	strftime(tmp_time,sizeof(tmp_time),"%S",time_tm);
-	sprintf(date_string+strlen(date_string), "%s",tmp_time);
+	snprintf(date_string+strlen(date_string), max_len - strlen(date_string),"%s",tmp_time);
 
 	return 0;
 }
@@ -868,7 +867,7 @@ static int loop_rx_data(int passnum)
 	to.tv_sec = 0;
 	to.tv_usec = 0;
 	
-	print_local_time(date_string);
+	print_local_time(date_string, 100);
 		
 	printf("%s | Test %04i | ",
 		date_string, passnum);

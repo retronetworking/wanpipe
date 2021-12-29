@@ -298,6 +298,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev);
 
 #if defined(__LINUX__)
 static int 	if_send (netskb_t* skb, netdevice_t* dev);
+static int 	if_change_mtu(netdevice_t *dev, int new_mtu);
 #else
 static int	if_send(netdevice_t*, netskb_t*, struct sockaddr*,struct rtentry*);
 #endif 
@@ -1896,6 +1897,10 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 		goto new_if_error;
 	}
 
+	if ((chan->dma_mru/2) > aft_rx_copyback) {
+		aft_rx_copyback=chan->dma_mru/2;
+	}
+
     	if (conf->single_tx_buf || 
 	    ((card->adptr_type == A101_ADPTR_2TE1 || card->adptr_type == A101_ADPTR_1TE1) && 
 	     card->u.aft.firm_id == AFT_DS_FE_CORE_ID)){
@@ -2554,7 +2559,6 @@ static int if_init (netdevice_t* dev)
 	dev->watchdog_timeo	= 2*HZ;
 #else
 	if (chan->common.usedby == TDM_VOICE || 
-	    chan->common.usedby == TDM_VOICE_DCHAN ||
 	    chan->common.usedby == TDM_VOICE_API){
 		dev->tx_timeout		= NULL;
 	}else{
@@ -2564,6 +2568,7 @@ static int if_init (netdevice_t* dev)
 		
 #endif	
 	dev->do_ioctl		= if_do_ioctl;
+	dev->change_mtu		= if_change_mtu;
 
 	if (chan->common.usedby == BRIDGE ||
             chan->common.usedby == BRIDGE_NODE){
@@ -3191,6 +3196,38 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 	return &chan->if_stats;
 
 }
+
+
+
+#if defined(__LINUX__)
+static int if_change_mtu(netdevice_t *dev, int new_mtu)
+{
+	private_area_t* chan= (private_area_t*)wan_netif_priv(dev);
+
+	if (!chan || wan_test_bit(0,&chan->interface_down)) {
+		return -ENODEV;
+	}
+
+	if (!chan->hdlc_eng) {
+		return -EINVAL;
+	}
+
+	if (chan->common.usedby == API){
+		new_mtu+=sizeof(api_tx_hdr_t);
+	}else if (chan->common.usedby == STACK){
+		new_mtu+=32;
+	}
+
+	if (new_mtu > chan->dma_mru) {
+		return -EINVAL;
+	}
+
+	dev->mtu = new_mtu;
+	
+	return 0;
+}
+#endif
+
 
 /*========================================================================
  *

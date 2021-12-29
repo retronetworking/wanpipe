@@ -312,7 +312,7 @@ sub config_boot{
 		if (system($command) == 0){
 			$rc_dir=$rc_dir;
 		} else {
-			$command="find ".$etc_dir."rc.d/rc0.d >/dev/null 2>/dev/null";
+			$command="find ".$etc_dir."/rc.d/rc0.d >/dev/null 2>/dev/null";
 			if (system($command) == 0){
 				$rc_dir=$etc_dir."/rc.d";
 			} else {

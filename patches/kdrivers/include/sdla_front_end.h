@@ -404,10 +404,11 @@ typedef struct {
 	/* ^^^ */
 	union {
 #define te_param	fe_param.te
+#define te3_param	fe_param.te3
 #define rm_param	fe_param.remora
 		sdla_te_param_t		te;
 		sdla_56k_param_t	k56_param;
-		sdla_te3_param_t	te3_param;
+		sdla_te3_param_t	te3;
 		sdla_remora_param_t	remora;
 	} fe_param;
 #define fe_alarm	fe_stats.alarms

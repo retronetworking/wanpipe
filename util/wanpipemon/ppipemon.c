@@ -44,7 +44,6 @@
 #if defined(__LINUX__)
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe_abstr.h>
 # include <linux/wanpipe.h>
 # include <linux/sdla_ppp.h>
 #else
@@ -54,7 +53,6 @@
 # include <netinet/udp.h>      
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
-# include <wanpipe_abstr.h>
 # include <wanpipe.h>
 # include <sdla_ppp.h>
 #endif
@@ -162,7 +160,7 @@ int PPPConfig( void )
 		is_508 = WAN_FALSE;
 	} 
    
-	strcpy(codeversion, "?.??");
+	strlcpy(codeversion, "?.??",10);
    
 	wan_udp.wan_udphdr_command = PPP_READ_CODE_VERSION;
 	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -171,7 +169,7 @@ int PPPConfig( void )
 
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
+		strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data,10);
 	}
 
 	return(WAN_TRUE);

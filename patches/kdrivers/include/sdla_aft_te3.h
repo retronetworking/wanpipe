@@ -864,6 +864,8 @@ set_te3_tx_fract_baud_rate(unsigned int	  *reg,
 	*reg&=TE3_TX_FRACT_BAUD_RATE_MASK;
 	*reg|=(counter<<TE3_TX_FRACT_BAUD_RATE_SHIFT);	
 }
+
+
 #endif
 
 /* Tx Encasulated Frame Size 
@@ -1267,20 +1269,22 @@ typedef struct wp_rx_element
 
 #if defined(WAN_KERNEL)
 
+
+		
 static __inline unsigned short xilinx_valid_mtu(unsigned short mtu)
 {
 	if (mtu <= 128){
-		return 128;
-	}else if (mtu <= 256){
 		return 256;
-	}else if (mtu <= 512){
+	}else if (mtu <= 256){
 		return 512;
-	}else if (mtu <= 1024){
+	}else if (mtu <= 512){
 		return 1024;
-	}else if (mtu <= 2048){
+	}else if (mtu <= 1024){
 		return 2048;
-	}else if (mtu <= 4096){
+	}else if (mtu <= 2048){
 		return 4096;
+	}else if (mtu <= 4096){
+		return 8188;
 	}else if (mtu <= 8188){
 		return 8188;
 	}else{

@@ -13,7 +13,7 @@ void wplip_link_bh(void* data, int pending);
 static int wplip_bh_receive(wplip_link_t *lip_link)
 {
 	netskb_t *skb;
-	unsigned long timeout_cnt = 2000;
+	unsigned long timeout_cnt=SYSTEM_TICKS;
 	int err;
 
 	while((skb=wan_skb_dequeue(&lip_link->rx_queue)) != NULL){
@@ -23,7 +23,7 @@ static int wplip_bh_receive(wplip_link_t *lip_link)
 			wan_skb_free(skb);
 		}
 		
-		if (--timeout_cnt == 0){
+		if (SYSTEM_TICKS-timeout_cnt > 2){
 			DEBUG_EVENT("%s: Link RxBH Time squeeze\n",lip_link->name);
 			break;
 		}
@@ -37,7 +37,8 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 	netskb_t *skb;
 	wplip_dev_t *lip_dev=NULL;
 	int err=0;
-	unsigned int timeout_cnt=1000;
+	unsigned long timeout_cnt=SYSTEM_TICKS;
+	int tx_pkt_cnt=0;
 
 	if (wan_test_bit(WPLIP_BH_AWAITING_KICK,&lip_link->tq_working)){
 		if (wan_test_bit(WPLIP_KICK,&lip_link->tq_working)){
@@ -61,7 +62,7 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 			goto wplip_bh_link_transmit_exit;
 		}
 
-		if (--timeout_cnt == 0){
+		if (SYSTEM_TICKS-timeout_cnt > 1){
 			DEBUG_EVENT("%s: Link TxBH Time squeeze\n",lip_link->name);
 			goto wplip_bh_link_transmit_exit;
 		}
@@ -95,9 +96,11 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 	}
 	
 	for (;;){
-
-		if (--timeout_cnt == 0){
-			DEBUG_EVENT("%s: LipDev TxBH Time squeeze\n",lip_link->name);
+		
+		if (SYSTEM_TICKS-timeout_cnt > 3){
+			if (WAN_NET_RATELIMIT()) {
+			DEBUG_EVENT("%s: LipDev TxBH Time squeeze --- Sanity\n",lip_link->name);
+			}
 			goto wplip_bh_transmit_exit;
 		}
 
@@ -121,7 +124,8 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 
 		}
 
-		if (WAN_NETIF_QUEUE_STOPPED(lip_dev->common.dev)){
+		if (!wan_test_bit(0,&lip_dev->if_down) && 
+		    WAN_NETIF_QUEUE_STOPPED(lip_dev->common.dev)){
 			if (lip_dev->common.usedby == API){
 				WAN_NETIF_START_QUEUE(lip_dev->common.dev);
 #if defined(__LINUX__)
@@ -150,8 +154,25 @@ wplip_bh_transmit_skip:
 		}
 
 		if (lip_dev == lip_link->cur_tx){
+#if 0
+/* This logic can be used to speed up tx
+   however it uses MUCH more CPU  */
+			++tx_pkt_cnt;
+			if (tx_pkt_cnt > 2) {
+				break;
+			}
+
+			if (SYSTEM_TICKS-timeout_cnt > 2){
+				break;
+			}
+
+			if (!wan_test_bit(WPLIP_MORE_LINK_TX,&lip_link->tq_working)) {
+				break;
+			}
+#else
 			/* We went through the whole list */
 			break;
+#endif
 		}
 
 	}
@@ -223,13 +244,13 @@ void wplip_link_bh(void* data, int pending)
 
 	WAN_TASKLET_END((&lip_link->task));
 
-	wplip_retrigger_bh(lip_link);
-
 #if defined(__LINUX__)
 	wan_spin_unlock(&lip_link->bh_lock);
 #else
 	wan_spin_unlock_irq(NULL, &s);
 #endif
+	
+	wplip_retrigger_bh(lip_link);
 
 }
 

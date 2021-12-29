@@ -319,6 +319,7 @@ typedef struct wplip_dev{
 	pid_t				pid;
 
 	unsigned int			interface_down;
+	unsigned int			if_down;
 	wan_taskq_t 			if_task;
 	
 } wplip_dev_t;
@@ -484,6 +485,8 @@ extern int wplip_link_prot_change_state(void *wplip_id,
 extern int wplip_lipdev_prot_change_state(void *wplip_id,
 					  int state,
 					  unsigned char*,int);
+
+extern int wplip_lipdev_prot_update_state_change(wplip_dev_t *wplip_id,unsigned char*,int);
 
 
 extern unsigned int wplip_get_ipv4_addr (void *wplip_id, int type);

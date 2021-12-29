@@ -8,6 +8,12 @@
  * the GNU General Public License
  * 
  * =============================================
+ * v1.31 Nenad Corbic  <ncorbic@sangoma.com>
+ * Mar 14 2008
+ *	Moved in use error to verbose level 3
+ *      When using SMG agains 2 Asterisk Boxes
+ *      Not a functional update.
+ *
  * v1.30 Nenad Corbic  <ncorbic@sangoma.com>
  * Feb 08 2008
  *	The fix in v1.26 causes double stop.
@@ -158,7 +164,7 @@ static struct woomera_interface woomera_dead_dev;
 #endif
 
 
-#define SMG_VERSION	"v1.30"
+#define SMG_VERSION	"v1.31"
 
 /* enable early media */
 #if 1
@@ -193,7 +199,7 @@ hp_tdm_api_span_t *hptdmspan[WOOMERA_MAX_SPAN];
 
 const char WELCOME_TEXT[] =
 "================================================================================\n"
-"Sangoma Media Gateway Daemon v1.30 \n"
+"Sangoma Media Gateway Daemon v1.31 \n"
 "TDM Signal Media Gateway for Sangoma/Wanpipe Cards\n"
 "Copyright 2005, 2006, 2007 \n"
 "Nenad Corbic <ncorbic@sangoma.com>, Anthony Minessale II <anthmct@yahoo.com>\n"
@@ -2728,7 +2734,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 						WOOMERA_RECORD_SEPERATOR);
 
 			
-			log_printf(0, woomera->log, "WOOMERA Error channel in use %s %s\n",
+			log_printf(3, woomera->log, "WOOMERA Error channel in use %s %s\n",
 				wmsg->command,unique_id);
 			woomera_set_flag(woomera, WFLAG_HANGUP);
 			return;

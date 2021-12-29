@@ -305,8 +305,6 @@ dev_private_ioctl:
 	/*NOTREACHED*/
 }
 
-
-
 /*============================================================
  * wanpipe_make_new
  *
@@ -2017,6 +2015,9 @@ struct proto_ops wanpipe_ops = {
 	.getname 	=wanpipe_getname, 
 	.poll 		=wanpipe_poll,
 	.ioctl 		=wanpipe_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl 	=wanpipe_ioctl,
+#endif
 	.listen 	=wanpipe_listen, 
 	.shutdown 	=sock_no_shutdown,
 	.setsockopt 	=sock_no_setsockopt,

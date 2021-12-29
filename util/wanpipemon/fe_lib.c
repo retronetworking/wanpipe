@@ -82,17 +82,24 @@ extern wan_udp_hdr_t	wan_udp;
  * 			GUI MENU DEFINITION				      *
  *****************************************************************************/
 
-
 char *csudsu_menu[]={
 "","-- TE3/TE1/56K (S514-4-5-7-8/AFT) Stats --",
 ""," ",
-"Ta","Read TE3/TE1/56K alarms", 
-"Tallb","E Line Loopback",  
-"Tdllb","D Line Loopback",  
-"Taplb","E Payload Loopback",  
-"Tdplb","D Payload Loopback",  
-"Tadlb","E Diag Digital Loopback",  
-"Tddlb","D Diag Digital Loopback",  
+"Ta","Read TE3/TE1/56K alarms",
+"Tallb","E Line/Remote Loopback T1/E1/DS3/E3",
+"Tdllb","D Line/Remote Loopback T1/E1/DS3/E3",
+"Taplb","E Payload Loopback T1/E1/DS3/E3",
+"Tdplb","D Payload Loopback T1/E1/DS3/E3",
+"Tadlb","E Diag Digital Loopback T1/E1/DS3/E3",
+"Tddlb","D Diag Digital Loopback T1/E1/DS3/E3",
+"Talalb","E LIU Analog Loopback T1/E1-DM",
+"Tdlalb","D LIU Analog Loopback T1/E1-DM",
+"Talllb","E LIU Local Loopback T1/E1-DM",
+"Tdlllb","D LIU Local Loopback T1/E1-DM",
+"Talrlb","E LIU Remote Loopback T1/E1-DM",
+"Tdlrlb","D LIU Remote Loopback T1/E1-DM",
+"Taldlb","E LIU Dual Loopback T1/E1-DM",
+"Tdldlb","D LIU Dual Loopback T1/E1-DM",
 "Tsalb","Send Loopback Activate Code",  
 "Tsdlb","Send Loopback Deactive Code",  
 "Tread","Read CSU/DSU cfg",
@@ -830,7 +837,7 @@ static void hw_set_lb_modes(unsigned char type, unsigned char mode)
 			(mode == WAN_TE1_ACTIVATE_LB) ? "activate" : "deactivate");
 	}else{
 		printf("%s mode is %s!\n",
-			WAN_TE1_LB_TYPE_DECODE(type),
+			WAN_TE1_LB_MODE_DECODE(type),
 			(mode == WAN_TE1_ACTIVATE_LB) ? "activated" : "deactivated");
 	}
 	return;
@@ -881,8 +888,8 @@ void read_te1_56k_stat(int force)
 				WAN_TE_RED_ALARM(fe_stats->alarms), 
 				WAN_TE_AIS_ALARM(fe_stats->alarms));
 		if (adapter_type == WAN_MEDIA_T1){ 
-			printf("YEL:\t%s\t| OOF:\t%s\n", 
-					WAN_TE_YEL_ALARM(fe_stats->alarms), 
+			printf("RAI:\t%s\t| OOF:\t%s\n", 
+					WAN_TE_RAI_ALARM(fe_stats->alarms), 
 					WAN_TE_OOF_ALARM(fe_stats->alarms));
 		}else{
 			printf("OOF:\t%s\t| RAI:\t%s\n", 
@@ -890,15 +897,15 @@ void read_te1_56k_stat(int force)
 					WAN_TE_RAI_ALARM(fe_stats->alarms));
 		}
 
-		if (fe_stats->liu_alarms & WAN_TE_BIT_LIU_ALARM){
+		if (fe_stats->alarms & WAN_TE_BIT_LIU_ALARM){
 			printf("\n***** %s: %s Alarms (LIU) *****\n\n",
 				if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
 			printf("Short Circuit:\t%s\n", 
-					WAN_TE_LIU_ALARM_SC(fe_stats->liu_alarms));
+					WAN_TE_LIU_ALARM_SC(fe_stats->alarms));
 			printf("Open Circuit:\t%s\n", 
-					WAN_TE_LIU_ALARM_OC(fe_stats->liu_alarms));
+					WAN_TE_LIU_ALARM_OC(fe_stats->alarms));
 			printf("Loss of Signal:\t%s\n", 
-					WAN_TE_LIU_ALARM_LOS(fe_stats->liu_alarms));
+					WAN_TE_LIU_ALARM_LOS(fe_stats->alarms));
 		}
 
 	}else if  (adapter_type == WAN_MEDIA_DS3 || adapter_type == WAN_MEDIA_E3){
@@ -1284,6 +1291,60 @@ void set_fe_tx_mode(unsigned char mode)
 					"Enable" : "Disable");
 	}
   	
+	cleanup_hardware_level_connection();
+	return;
+}
+
+void aft_remora_debug_mode(sdla_fe_debug_t *fe_debug)
+{
+	int	err = 0;
+	unsigned char	*data = NULL;
+
+	if(make_hardware_level_connection()){
+		return;
+	}
+	wan_udp.wan_udphdr_command	= WAN_FE_SET_DEBUG_MODE;
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_debug_t);
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+
+	data = get_wan_udphdr_data_ptr(0);
+	memcpy(data, (unsigned char*)fe_debug, sizeof(sdla_fe_debug_t));
+	err = DO_COMMAND(wan_udp);
+	if (fe_debug->type == WAN_FE_DEBUG_REG && fe_debug->fe_debug_reg.read == 1){
+		if (err == 0 && wan_udp.wan_udphdr_return_code == 0){
+			int	cnt = 0;
+			printf("Please wait.");fflush(stdout);
+repeat_read_reg:
+			wan_udp.wan_udphdr_return_code	= 0xaa;
+			fe_debug->fe_debug_reg.read = 2;
+			memcpy(data, (unsigned char*)fe_debug, sizeof(sdla_fe_debug_t));
+			usleep(100000);
+			err = DO_COMMAND(wan_udp);
+			if (err || wan_udp.wan_udphdr_return_code != 0){
+				if (cnt < 5){
+					printf(".");fflush(stdout);
+					goto repeat_read_reg;
+				}
+			}
+			printf("\n\n");
+		}
+	}
+
+	if (err || wan_udp.wan_udphdr_return_code != 0){
+		printf("Failed to execute RM debug mode (%02X).\n",
+						fe_debug->type);		
+	}else{
+		fe_debug = (sdla_fe_debug_t*)get_wan_udphdr_data_ptr(0);
+		switch(fe_debug->type){
+		case WAN_FE_DEBUG_REG:
+			if (fe_debug->fe_debug_reg.read == 2){
+				printf("Read Front-End Reg:%04X=%02X\n",
+						fe_debug->fe_debug_reg.reg,
+						fe_debug->fe_debug_reg.value);
+			}
+			break;
+		}
+	}
 	cleanup_hardware_level_connection();
 	return;
 }

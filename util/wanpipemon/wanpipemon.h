@@ -107,6 +107,7 @@ extern char ** SS7get_cmd_menu(char *cmd_name,int *len);
 extern char ** BITSTRMget_main_menu(int *len);
 extern char ** BITSTRMget_cmd_menu(char *cmd_name,int *len);
 
+
 #endif
 extern char ** ADSLget_main_menu(int *len);
 extern char ** ATMget_main_menu(int *len);
@@ -363,7 +364,7 @@ static inline unsigned char set_wan_udphdr_data_byte(unsigned char off, unsigned
 #define ALL_X25 (DATA|PROT)
 
 typedef struct {
-	char prot_name[15];
+	unsigned char prot_name[15];
 	signed char prot_index;
 	unsigned int  pcap_prot;
 } trace_prot_t;

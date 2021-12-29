@@ -74,6 +74,8 @@ extern void set_debug_mode(unsigned char type, unsigned char mode);
 extern void set_fe_debug_mode(sdla_fe_debug_t *);
 extern void set_fe_tx_mode(unsigned char mode);
 
+extern void aft_remora_debug_mode(sdla_fe_debug_t *);
+
 #define WAN_TRUE  1 
 #define WAN_FALSE 0
 #endif	/* _SDLA_FT1_H */
