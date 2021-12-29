@@ -1300,23 +1300,33 @@ static inline void wp_tdmv_dtmfcheck_fakepolarity(wp_tdmv_remora_t *wr, int chan
 	int sample;
 	int dtmf=1;
 
-    	/* only look for sound on the line if dtmf flag is on, it is an fxo card and line is onhook */ 
+	if (!card->fe.fe_cfg.cfg.remora.fake_polarity_thres) {
+		card->fe.fe_cfg.cfg.remora.fake_polarity_thres=1600;
+	}
+	if (!card->fe.fe_cfg.cfg.remora.fake_polarity_cid_timer) {
+		card->fe.fe_cfg.cfg.remora.fake_polarity_cid_timer=400;
+	}
+	if (!card->fe.fe_cfg.cfg.remora.fake_polarity_cid_timeout) {
+		card->fe.fe_cfg.cfg.remora.fake_polarity_cid_timeout=4000;
+	}
+
+	/* only look for sound on the line if dtmf flag is on, it is an fxo card and line is onhook */ 
 	if (!dtmf || !(fe->rm_param.mod[channo].type == MOD_TYPE_FXO) || wr->mod[channo].fxo.offhook) {
         	return;
 	}
 
    	/* don't look for noise if we're already processing it, or there is a ringing tone */
 	if(!wr->mod[channo].fxo.readcid && !wr->mod[channo].fxo.wasringing  &&
-		fe->rm_param.intcount > wr->mod[channo].fxo.cidtimer + 400 ) {
+		fe->rm_param.intcount > wr->mod[channo].fxo.cidtimer + card->fe.fe_cfg.cfg.remora.fake_polarity_cid_timer) {
 		sample = ZT_XLAW((*rxbuf), (&(wr->chans[channo])));
-		if (sample > 16000 || sample < -16000) {
+		if (sample > card->fe.fe_cfg.cfg.remora.fake_polarity_thres || sample < -card->fe.fe_cfg.cfg.remora.fake_polarity_thres) {
 			wr->mod[channo].fxo.readcid = 1;
 			wr->mod[channo].fxo.ring_skip = 1;
 			wr->mod[channo].fxo.cidtimer = fe->rm_param.intcount;
 			DEBUG_TDMV("DTMF CLIP on %i\n",channo+1);
 			zt_qevent_lock(&wr->chans[channo], ZT_EVENT_POLARITY);
 		}
-	} else if(wr->mod[channo].fxo.readcid && fe->rm_param.intcount > wr->mod[channo].fxo.cidtimer + 4000) {
+	} else if(wr->mod[channo].fxo.readcid && fe->rm_param.intcount > wr->mod[channo].fxo.cidtimer + card->fe.fe_cfg.cfg.remora.fake_polarity_cid_timeout) {
         /* reset flags if it's been a while */
 		wr->mod[channo].fxo.cidtimer = fe->rm_param.intcount;
 		wr->mod[channo].fxo.readcid = 0;

@@ -16,6 +16,10 @@ sub new	{
 		_rm_network_sync => 'NO',
 		_analog_modules => undef,
 		_fe_line   => undef,
+		_rm_fake_polarity => 'NO',
+		_rm_fake_polarity_threshold => 1600,
+		_rm_fake_polarity_cidtimer => 400,
+		_rm_fake_polarity_cidtimeout => 4000,
 	};			
 	bless $self, $class;
     	return $self;
@@ -55,6 +59,30 @@ sub analog_modules {
 	            my ( $self, $analog_modules ) = @_;
 		                    $self->{_analog_modules} = $analog_modules if defined($analog_modules);
 				                        return $self->{_analog_modules};
+}
+
+sub rm_fake_polarity {
+	            my ( $self, $rm_fake_polarity ) = @_;
+		                    $self->{_rm_fake_polarity} = $rm_fake_polarity if defined($rm_fake_polarity);
+				                        return $self->{_rm_fake_polarity};
+}
+
+sub rm_fake_polarity_threshold {
+	            my ( $self, $rm_fake_polarity_threshold ) = @_;
+		                    $self->{_rm_fake_polarity_threshold} = $rm_fake_polarity_threshold if defined($rm_fake_polarity_threshold);
+				                        return $self->{_rm_fake_polarity_threshold};
+}
+
+sub rm_fake_polarity_cidtimer {
+	            my ( $self, $rm_fake_polarity_cidtimer ) = @_;
+		                    $self->{_rm_fake_polarity_cidtimer} = $rm_fake_polarity_cidtimer if defined($rm_fake_polarity_cidtimer);
+				                        return $self->{_rm_fake_polarity_cidtimer};
+}
+
+sub rm_fake_polarity_cidtimeout {
+	            my ( $self, $rm_fake_polarity_cidtimeout ) = @_;
+		                    $self->{_rm_fake_polarity_cidtimeout} = $rm_fake_polarity_cidtimeout if defined($rm_fake_polarity_cidtimeout);
+				                        return $self->{_rm_fake_polarity_cidtimeout};
 }
 							
 sub prompt_user{
@@ -162,15 +190,19 @@ sub gen_wanpipe_conf{
 	}
 
 	$wp_file =~ s/TDM_VOICE_OP_MODE/$tdm_voice_op_mode/g;
-        $wp_file =~ s/SLOTNUM/$pci_slot/g;
-        $wp_file =~ s/BUSNUM/$pci_bus/g;
-        $wp_file =~ s/TDM_LAW/$tdm_law/g;
+    $wp_file =~ s/SLOTNUM/$pci_slot/g;
+    $wp_file =~ s/BUSNUM/$pci_bus/g;
+    $wp_file =~ s/TDM_LAW/$tdm_law/g;
 	$wp_file =~ s/RMNETSYNC/$rm_network_sync/g;
-        $wp_file =~ s/TDM_OPERMODE/$tdm_opermode/g;
+    $wp_file =~ s/TDM_OPERMODE/$tdm_opermode/g;
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
-        $wp_file =~ s/HWECMODE/$hwec_mode/g;
+    $wp_file =~ s/HWECMODE/$hwec_mode/g;
 	$wp_file =~ s/HWDTMF/$hw_dtmf/g;
-        $wp_file =~ s/HWFAX/$hw_fax/g;
+    $wp_file =~ s/HWFAX/$hw_fax/g;
+    $wp_file =~ s/RMFAKEPOLARITY/$self->rm_fake_polarity/g;
+    $wp_file =~ s/RMFAKETHRESHOLD/$self->rm_fake_polarity_threshold/g;
+    $wp_file =~ s/RMFAKECIDTIMER/$self->rm_fake_polarity_cidtimer/g;
+    $wp_file =~ s/RMFAKECIDTIMEOUT/$self->rm_fake_polarity_cidtimeout/g;
 
 	print FH $wp_file;
 	close (FH);

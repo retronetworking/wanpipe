@@ -1607,24 +1607,25 @@ static int wp_remora_config(void *pfe)
 retry_cfg:
 		switch(fe->rm_param.mod[mod_no].type) {
 		case MOD_TYPE_FXS:
-			if (!(err = wp_init_proslic(fe, mod_no, 0, sane))){
-				DEBUG_EVENT(
-				"%s: Module %d: Installed -- Auto FXS!\n",
-					fe->name, mod_no+1);	
-				wan_set_bit(mod_no, &fe->rm_param.module_map);
-				fe->rm_param.mod[mod_no].u.fxs.oldrxhook = 0;	/* default (on-hook) */
+			err = wp_init_proslic(fe, mod_no, 0, sane);
+			DEBUG_EVENT(
+			"%s: Module %d: Installed -- Auto FXS!\n",
+				fe->name, mod_no+1);	
+			wan_set_bit(mod_no, &fe->rm_param.module_map);
+			fe->rm_param.mod[mod_no].u.fxs.oldrxhook = 0;	/* default (on-hook) */
+			if (err == 0) {
 				mod_cnt++;
 			}
 			break;
 
 		case MOD_TYPE_FXO:
 			err = wp_init_voicedaa(fe, mod_no, 0, sane);
-			if (!err){
-				DEBUG_EVENT(
-				"%s: Module %d: Installed -- Auto FXO (%s mode)!\n",
-					fe->name, mod_no+1,
-					fxo_modes[fe->fe_cfg.cfg.remora.opermode].name);
-				wan_set_bit(mod_no, &fe->rm_param.module_map);
+			DEBUG_EVENT(
+			"%s: Module %d: Installed -- Auto FXO (%s mode)!\n",
+				fe->name, mod_no+1,
+				fxo_modes[fe->fe_cfg.cfg.remora.opermode].name);
+			wan_set_bit(mod_no, &fe->rm_param.module_map);
+			if (err == 0) {
 				mod_cnt++;
 			}
 			break;
@@ -1683,12 +1684,13 @@ retry_cfg:
 		}
 	}
 
-	/* NC REMOVED IT TEMPORARILY */	
-	if (err_cnt && fe->fe_cfg.cfg.remora.relaxcfg != WANOPT_YES){
-		DEBUG_EVENT(
-		"%s: %d FXO/FXS module(s) are failed to initialize!\n",
+	if (err_cnt){
+		DEBUG_ERROR(
+		"Error: %s: %d FXO/FXS module failed to initialize!\n",
 					fe->name, err_cnt);
-		return -EINVAL;
+		if (fe->fe_cfg.cfg.remora.fail_on_mod_error) {
+			return -EINVAL;
+		}
 	}
 	
 	if (mod_cnt == 0){
@@ -1697,7 +1699,7 @@ retry_cfg:
 			"ERROR: %s: Configuration is failed for all FXO/FXS modules!\n",
 					fe->name);
 		}else{
-			DEBUG_ERROR("ERROR: %s: No FXO/FXS modules are found!\n",
+			DEBUG_ERROR("Error: %s: No FXO/FXS modules are found!\n",
 					fe->name);
 		}
 		return -EINVAL;

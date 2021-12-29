@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.16
+%define VERSION           7.0.17
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,6 +259,18 @@ fi
 ################################################################################
 
 %changelog
+
+* Fri Mar 17 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.17
+==================================================================
+- Driver will start by default even though analog FXS/FXO module failed to configure.
+  New config parameters: RM_FAIL_ON_MOD_ERROR=YES will revert this behaviour.
+- Fake polarity feature is now configurable
+  New config parameters with their default values if not set
+  RM_FAKE_POLARITY=NO  #Default is NO.
+  RM_FAKE_POLARITY_THRESHOLD=1600
+  RM_FAKE_POLARITY_CIDTIMER=400
+  RM_FAKE_POLARITY_CIDTIMEOUT=4000
+
 
 * Mon Feb 03 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.16
 ==================================================================

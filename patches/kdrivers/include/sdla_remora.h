@@ -161,8 +161,8 @@ typedef struct sdla_remora_cfg_ {
 	int 		ohthresh;
 	int		battdebounce;	
 
-	u_int8_t	relaxcfg;	/* do not failed during config if one of 
-					** the modules failed to configure */
+	u_int8_t	relaxcfg;	/* DEPRECATED: do not failed during config if one of 
+					          ** the modules failed to configure */
 
 	int		fxs_rxgain;
 	int		fxs_txgain;
@@ -175,11 +175,14 @@ typedef struct sdla_remora_cfg_ {
 
 	int		fxs_ringampl;
 	u_int8_t	rm_mode; 	/*Analog Operation mode: default or tapping */
-        u_int8_t        fake_polarity;  /*FAKE Polarity event generation : YES or NO*/
-        int             fake_polarity_thres; /*Threshold value(only for Analoge cards,units defined in L16 sample value)
-					       to decide generation of FAKE Polarity event*/
+	u_int8_t    fake_polarity;  /*FAKE Polarity event generation : YES or NO*/
+	u_int32_t   fake_polarity_thres; /*Threshold value(only for Analoge cards,units defined in L16 sample value)
+									       to decide generation of FAKE Polarity event*/
+	u_int32_t 	fake_polarity_cid_timer;
+	u_int32_t 	fake_polarity_cid_timeout;
 	u_int8_t	rm_lcm; /*Analog Loop Current Measure (LCM) : Yes Or NO */
 	int 		ringdebounce;
+	u_int8_t	fail_on_mod_error; /* Replaces relaxcfg. Default behaviour is to continue driver load */
 } sdla_remora_cfg_t;
 
 typedef struct {

@@ -260,6 +260,10 @@ my @silent_hwdtmfs;
 my @silent_first_chans;
 my @silent_last_chans;
 
+my $silent_fake_polarity="NO";
+my $silent_fake_polarity_thres=1600;
+my $silent_fake_polarity_cidtimer=400;
+my $silent_fake_polarity_cidtimeout=4000;
 
 my $silent_hwdtmf="YES";
 my $silent_femedia="T1";
@@ -1995,6 +1999,18 @@ sub read_args {
 			} else {	
 				push(@silent_hwdtmfs, $silent_hwdtmf);
 			}
+		}elsif ( $_ =~ /--fake_polarity=(\w+)/){
+			$silent_fake_polarity=$1;
+			if(!($silent_fake_polarity eq 'YES' || $silent_fake_polarity eq 'NO')){
+				printf("Invalid value for hw_dtmf, should be YES/NO\n");
+				exit(1);
+			}
+		}elsif ( $_ =~ /--fake_polarity_thres=(\w+)/){
+			$silent_fake_polarity_thres=$1;
+		}elsif ( $_ =~ /--fake_polarity_cidtimer=(\w+)/){
+			$silent_fake_polarity_cidtimer=$1;
+		}elsif ( $_ =~ /--fake_polarity_cidtimeout=(\w+)/){
+			$silent_fake_polarity_cidtimeout=$1;
 		}elsif ( $_ =~ /--fe_lcode=(\w+)/){
 			$silent_felcode=$1;
 			if(!($silent_felcode eq 'B8ZS' || $silent_felcode eq 'HDB3' || $silent_felcode eq 'AMI')){

@@ -317,8 +317,11 @@ static key_word_t common_conftab[] =	/* Common configuration parameters */
   { "RM_PULSEDIALING",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_pulsedialing), DTYPE_UCHAR },
   { "RM_RINGAMPL",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_ringampl), DTYPE_INT },
   { "RM_RELAXCFG",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, relaxcfg), DTYPE_UCHAR },
+  { "RM_FAIL_ON_MOD_ERROR",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fail_on_mod_error), DTYPE_UCHAR },
   { "RM_FAKE_POLARITY",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity), DTYPE_UCHAR },
-  { "RM_FAKE_POLARITY_THRESHOLD",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity_thres), DTYPE_INT },
+  { "RM_FAKE_POLARITY_THRESHOLD",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity_thres), DTYPE_UINT },
+  { "RM_FAKE_POLARITY_CIDTIMER",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity_cid_timer), DTYPE_UINT },
+  { "RM_FAKE_POLARITY_CIDTIMEOUT",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity_cid_timeout), DTYPE_UINT },
   
   /* TDMV parameters */
   { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UCHAR},

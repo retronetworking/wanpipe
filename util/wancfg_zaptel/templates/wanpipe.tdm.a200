@@ -55,6 +55,12 @@ HWEC_RX_AUTO_GAIN       = 0     # 0: disable   -40-0: default tx audio level to 
 HWEC_TX_GAIN            = 0     # 0: disable   -24-24: db values to be applied to tx signal
 HWEC_RX_GAIN            = 0     # 0: disable   -24-24: db values to be applied to tx signal
 
+
+RM_FAKE_POLARITY 		= RMFAKEPOLARITY
+RM_FAKE_POLARITY_THRESHOLD	= RMFAKETHRES
+RM_FAKE_POLARITY_CIDTIMER = RMFAKECIDTIMER
+RM_FAKE_POLARITY_CIDTIMEOUT = RMFAKECIDTIMEOUT
+
 [wIFNUMg1]
 ACTIVE_CH	= ALL
 MTU		= 8
