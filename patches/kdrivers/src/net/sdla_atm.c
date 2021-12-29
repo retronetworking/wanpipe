@@ -162,7 +162,11 @@ static int 	frmw_error (sdla_t *card, int err, wan_mbox_t *mb);
 static void 	enable_timer(void* card_id);
 static int 	disable_comm_shutdown (sdla_t *card);
 static int	init_interrupt_status_ptrs(sdla_t *card);
-static void 	if_tx_timeout (struct net_device *dev);
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void if_tx_timeout (netdevice_t *dev, unsigned int queue_len);
+#else
+static void if_tx_timeout (struct net_device *dev);
+#endif
 
 /* Miscellaneous Functions */
 static int 	set_frmw_config (sdla_t* card);
@@ -1295,7 +1299,11 @@ static void disable_comm (sdla_t *card)
  * 
  * Handle transmit timeout event from netif watchdog
  */
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void if_tx_timeout (netdevice_t *dev, unsigned int queue_len)
+#else
 static void if_tx_timeout (struct net_device *dev)
+#endif
 {
     	private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
@@ -1389,7 +1397,11 @@ static int if_send (netskb_t* skb, struct net_device* dev)
 			return 1;
 		}
 
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+		if_tx_timeout(dev, 0);
+#else
 		if_tx_timeout(dev);
+#endif
 	}
 #endif
 

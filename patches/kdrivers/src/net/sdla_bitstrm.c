@@ -282,7 +282,11 @@ static int bstrm_error (sdla_t *card, int err, wan_mbox_t *mb);
 
 
 static int bstrm_disable_comm_shutdown (sdla_t *card);
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void if_tx_timeout (netdevice_t *dev, unsigned int queue_len);
+#else
 static void if_tx_timeout (netdevice_t *dev);
+#endif
 
 
 /* Miscellaneous BSTRM Functions */
@@ -2073,7 +2077,11 @@ static void disable_comm (sdla_t *card)
 /*============================================================================
  * Handle transmit timeout event from netif watchdog
  */
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void if_tx_timeout (netdevice_t *dev, unsigned int queue_len)
+#else
 static void if_tx_timeout (netdevice_t *dev)
+#endif
 {
     	bitstrm_private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
@@ -2165,7 +2173,11 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		if((jiffies - bstrm_priv_area->tick_counter) < (5 * HZ)) {
 			return 1;
 		}
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+		if_tx_timeout(dev, 0);
+#else
 		if_tx_timeout(dev);
+#endif
 	}
 #endif
 

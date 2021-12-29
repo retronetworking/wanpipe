@@ -135,7 +135,12 @@ static int 	wp_usb_if_init   (netdevice_t* dev);
 static int 	wp_usb_if_open   (netdevice_t* dev);
 static int 	wp_usb_if_close  (netdevice_t* dev);
 static int 	wp_usb_if_do_ioctl(netdevice_t*, struct ifreq*, wan_ioctl_cmd_t);
-static void	wp_usb_if_tx_timeout (netdevice_t *dev);
+
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void wp_usb_if_tx_timeout (netdevice_t *dev, unsigned int queue_len);
+#else
+static void wp_usb_if_tx_timeout (netdevice_t *dev);
+#endif
 static int	wp_usb_process_udp(sdla_t*, netdevice_t*, wp_usb_softc_t*);
 
 #if defined(__LINUX__)
@@ -901,7 +906,11 @@ static struct net_device_stats* wp_usb_if_stats (netdevice_t* dev)
 }
 #endif
 
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void wp_usb_if_tx_timeout (netdevice_t *dev, unsigned int queue_len)
+#else
 static void wp_usb_if_tx_timeout (netdevice_t *dev)
+#endif
 {
 	WP_USB_FUNC_DEBUG();
 

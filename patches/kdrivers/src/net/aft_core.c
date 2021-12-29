@@ -272,7 +272,11 @@ static int	if_send(netdevice_t*, netskb_t*, struct sockaddr*,struct rtentry*);
 static void 	handle_front_end_state(void* card_id, int lock);
 static void 	enable_timer(void* card_id);
 static void 	enable_ec_timer(void* card_id);
-static void 	if_tx_timeout (netdevice_t *dev);
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void if_tx_timeout (netdevice_t *dev, unsigned int queue_len);
+#else
+static void if_tx_timeout (netdevice_t *dev);
+#endif
 
 /* Miscellaneous Functions */
 static void 	port_set_state (sdla_t *card, u8);
@@ -4313,7 +4317,11 @@ static int if_close (netdevice_t* dev)
  *
  * Handle transmit timeout event from netif watchdog
  */
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void if_tx_timeout (netdevice_t *dev, unsigned int queue_len)
+#else
 static void if_tx_timeout (netdevice_t *dev)
+#endif
 {
     private_area_t* chan = wan_netif_priv(dev);
     private_area_t* ch_ptr;
@@ -4460,7 +4468,11 @@ static int if_send(netdevice_t *dev, netskb_t *skb, struct sockaddr *dst,struct 
 			return 1;
 		}
 
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+		if_tx_timeout(dev, 0);
+#else
 		if_tx_timeout(dev);
+#endif
 	}
 #endif
 	err=0;

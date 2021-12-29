@@ -1136,7 +1136,11 @@ static int if_init (netdevice_t* dev)
 /*============================================================================
  * Handle transmit timeout event from netif watchdog
  */
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void if_tx_timeout (netdevice_t *dev, unsigned int queue_len)
+#else
 static void if_tx_timeout (netdevice_t *dev)
+#endif
 {
     	fr_private_area_t* chan = dev->priv;
 	sdla_t *card = chan->card;
@@ -1367,7 +1371,12 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		if((jiffies - chan->tick_counter) < (5 * HZ)) {
 			return 1;
 		}
+
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+		if_tx_timeout(dev, 0);
+#else
 		if_tx_timeout(dev);
+#endif
 	}
 #endif
 

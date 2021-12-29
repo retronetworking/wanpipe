@@ -1336,7 +1336,11 @@ static void disable_comm (sdla_t *card)
  *
  * Handle transmit timeout event from netif watchdog
  */
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void wanpipe_xilinx_tx_timeout (netdevice_t* dev, unsigned int queue_len)
+#else
 static void wanpipe_xilinx_tx_timeout (netdevice_t* dev)
+#endif
 {
     	private_area_t* chan = dev->priv;
 	sdla_t *card = (sdla_t*)chan->common.card;
@@ -1424,7 +1428,11 @@ static int wanpipe_xilinx_send (netskb_t* skb, netdevice_t* dev)
 			return 1;
 		}
 
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+		if_tx_timeout(dev, 0);
+#else
 		if_tx_timeout(dev);
+#endif
 	}
 #endif
 

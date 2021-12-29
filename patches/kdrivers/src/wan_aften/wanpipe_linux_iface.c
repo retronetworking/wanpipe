@@ -59,7 +59,12 @@ static int wan_iface_close(netdevice_t*);
 static int wan_iface_send(netskb_t*, netdevice_t*);
 static int wan_iface_ioctl(netdevice_t*, struct ifreq*, int);
 static struct net_device_stats* wan_iface_get_stats (netdevice_t*);
-static void wan_iface_tx_timeout (netdevice_t*);
+
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void wan_iface_tx_timeout (netdevice_t *dev, unsigned int queue_len);
+#else
+static void wan_iface_tx_timeout (netdevice_t *dev);
+#endif
 static int wan_iface_change_mtu (netdevice_t *dev, int new_mtu);
 
 #ifdef CONFIG_PRODUCT_WANPIPE_GENERIC
@@ -455,7 +460,11 @@ On shutdown, this is possible
 /*============================================================================
  * Handle transmit timeout event from netif watchdog
  */
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void wan_iface_tx_timeout (netdevice_t *dev, unsigned int queue_len)
+#else
 static void wan_iface_tx_timeout (netdevice_t *dev)
+#endif
 {
 	wanpipe_common_t	*common;
 

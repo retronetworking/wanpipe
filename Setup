@@ -234,6 +234,48 @@ check_kern_netdevice_feature ()
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_NDO_CHANGE_MTU_RH74 "
 	fi
 
+	if [ -e $SOURCEDIR/include/linux/netdevice.h ];then
+		eval "grep -A 1 \"dev_change_flags\" $SOURCEDIR/include/linux/netdevice.h | grep netlink_ext_ack >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			NET_DEVICE_DEV_CHG_FLAG_UPDATE="-DKERN_DEV_CHG_FLAG_UPDATE=1"
+		else
+			NET_DEVICE_DEV_CHG_FLAG_UPDATE="-DKERN_DEV_CHG_FLAG_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $NET_DEVICE_DEV_CHG_FLAG_UPDATE "
+	elif [ -e $DEBSRCDIR/include/linux/netdevice.h ];then
+		eval "grep -A 1 \"dev_change_flags\" $DEBSRCDIR/include/linux/netdevice.h | grep netlink_ext_ack >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			NET_DEVICE_DEV_CHG_FLAG_UPDATE="-DKERN_DEV_CHG_FLAG_UPDATE=1"
+		else
+			NET_DEVICE_DEV_CHG_FLAG_UPDATE="-DKERN_DEV_CHG_FLAG_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $NET_DEVICE_DEV_CHG_FLAG_UPDATE "
+	else
+		NET_DEVICE_DEV_CHG_FLAG_UPDATE="-DKERN_DEV_CHG_FLAG_UPDATE=0"
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $NET_DEVICE_DEV_CHG_FLAG_UPDATE "
+	fi
+
+
+	if [ -e $SOURCEDIR/include/linux/netdevice.h ];then
+		eval "grep -A 2 \"ndo_tx_timeout\" $SOURCEDIR/include/linux/netdevice.h | grep txqueue >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			NET_DEVICE_NDO_UPDATE="-DKERN_NDO_TIMEOUT_UPDATE=1"
+		else
+			NET_DEVICE_NDO_UPDATE="-DKERN_NDO_TIMEOUT_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $NET_DEVICE_NDO_UPDATE "
+	elif [ -e $DEBSRCDIR/include/linux/netdevice.h ];then
+		eval "grep -A 2 \"ndo_tx_timeout\" $DEBSRCDIR/include/linux/netdevice.h | grep txqueue >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			NET_DEVICE_NDO_UPDATE="-DKERN_NDO_TIMEOUT_UPDATE=1"
+		else
+			NET_DEVICE_NDO_UPDATE="-DKERN_NDO_TIMEOUT_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $NET_DEVICE_NDO_UPDATE "
+	else
+		NET_DEVICE_NDO_UPDATE="-DKERN_NDO_TIMEOUT_UPDATE=0"
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $NET_DEVICE_NDO_UPDATE "
+	fi
 }
 
 check_kern_memcpy_from_msg ()
@@ -7586,7 +7628,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=7.0.29
+PROD_VER=7.0.31
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

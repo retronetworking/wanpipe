@@ -1151,10 +1151,10 @@ static int delete_interface (wan_device_t *wandev, netdevice_t *dev, int force)
 		if (force) {
 			rtnl_lock();
 
-			#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
-				err=dev_change_flags(dev,(dev->flags&~(IFF_UP)));
-			#else
+			#if defined(KERN_DEV_CHG_FLAG_UPDATE) && KERN_DEV_CHG_FLAG_UPDATE > 0
 				err=dev_change_flags(dev,(dev->flags&~(IFF_UP)),NULL);
+			#else
+				err=dev_change_flags(dev,(dev->flags&~(IFF_UP)));
 			#endif
 
 			rtnl_unlock();

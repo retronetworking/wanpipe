@@ -251,6 +251,39 @@ KERN_SIG_UPDATE=0
 EXTRA_CFLAGS+=-DKERN_SIG_UPDATE=$(KERN_SIG_UPDATE)
 endif
 
+ifneq (,$(wildcard $(KDIR)/include/linux/net.h))
+KERN_CLASS_PROTO_OPS_UPDATE=$(shell grep -A 2 '*getname' $(KDIR)/include/linux/net.h | grep 'sockaddr_len' -c)
+EXTRA_CFLAGS+=-DKERN_CLASS_PROTO_OPS_UPDATE=$(KERN_CLASS_PROTO_OPS_UPDATE)
+else ifneq (,$(wildcard $(KSRC)/include/linux/net.h))
+KERN_CLASS_PROTO_OPS_UPDATE=$(shell grep -A 2 '*getname' $(KSRC)/include/linux/net.h | grep 'sockaddr_len' -c)
+EXTRA_CFLAGS+=-DKERN_CLASS_PROTO_OPS_UPDATE=$(KERN_CLASS_PROTO_OPS_UPDATE)
+else
+KERN_CLASS_PROTO_OPS_UPDATE=0
+EXTRA_CFLAGS+=-DKERN_CLASS_PROTO_OPS_UPDATE=$(KERN_CLASS_PROTO_OPS_UPDATE)
+endif
+
+ifneq (,$(wildcard $(KDIR)/include/linux/netdevice.h))
+KERN_DEV_CHG_FLAG_UPDATE=$(shell grep -A 1 'dev_change_flags' $(KDIR)/include/linux/netdevice.h | grep netlink_ext_ack -c)
+EXTRA_CFLAGS+=-DKERN_DEV_CHG_FLAG_UPDATE=$(KERN_DEV_CHG_FLAG_UPDATE)
+else ifneq (,$(wildcard $(KSRC)/include/linux/netdevice.h))
+KERN_DEV_CHG_FLAG_UPDATE=$(shell grep -A 1 'dev_change_flags' $(KSRC)/include/linux/netdevice.h | grep netlink_ext_ack -c)
+EXTRA_CFLAGS+=-DKERN_DEV_CHG_FLAG_UPDATE=$(KERN_DEV_CHG_FLAG_UPDATE)
+else
+KERN_DEV_CHG_FLAG_UPDATE=0
+EXTRA_CFLAGS+=-DKERN_DEV_CHG_FLAG_UPDATE=$(KERN_DEV_CHG_FLAG_UPDATE)
+endif
+
+ifneq (,$(wildcard $(KDIR)/include/linux/netdevice.h))
+KERN_NDO_TIMEOUT_UPDATE=$(shell grep -A 2 'ndo_tx_timeout' $(KDIR)/include/linux/netdevice.h | grep txqueue -c)
+EXTRA_CFLAGS+=-DKERN_NDO_TIMEOUT_UPDATE=$(KERN_NDO_TIMEOUT_UPDATE)
+else ifneq (,$(wildcard $(KSRC)/include/linux/netdevice.h))
+KERN_NDO_TIMEOUT_UPDATE=$(shell grep -A 2 'ndo_tx_timeout' $(KSRC)/include/linux/netdevice.h | grep txqueue -c)
+EXTRA_CFLAGS+=-DKERN_NDO_TIMEOUT_UPDATE=$(KERN_NDO_TIMEOUT_UPDATE)
+else
+KERN_NDO_TIMEOUT_UPDATE=0
+EXTRA_CFLAGS+=-DKERN_NDO_TIMEOUT_UPDATE=$(KERN_NDO_TIMEOUT_UPDATE)
+endif
+
 # First pass, kernel Makefile reads module objects
 ifneq ($(KERNELRELEASE),)
 obj-m := sdladrv.o wanrouter.o wanpipe.o wanpipe_syncppp.o wanec.o 

@@ -280,7 +280,11 @@ static int if_close(netdevice_t *dev);
 static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd);
 
 
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void if_tx_timeout (netdevice_t *dev, unsigned int queue_len);
+#else
 static void if_tx_timeout (netdevice_t *dev);
+#endif
 
 static struct net_device_stats *if_stats(netdevice_t *dev);
 static int if_send(struct sk_buff *skb, netdevice_t *dev);
@@ -1022,7 +1026,11 @@ static int if_close(netdevice_t *dev)
 /*============================================================================
  * Handle transmit timeout event from netif watchdog
  */
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void if_tx_timeout (netdevice_t *dev, unsigned int queue_len)
+#else
 static void if_tx_timeout (netdevice_t *dev)
+#endif
 {
     	ppp_private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
@@ -1096,7 +1104,11 @@ static int if_send (struct sk_buff *skb, netdevice_t *dev)
 			return 1;
 		}
 
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+		if_tx_timeout(dev, 0);
+#else
 		if_tx_timeout(dev);
+#endif
 	}	
 #endif
 	

@@ -743,7 +743,11 @@ static void disable_comm(sdla_t* card)
 * Description:
 * 	Handle transmit timeout event from netif watchdog
 *-F*************************************************************************/
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void adsl_tx_timeout (netdevice_t *dev unsigned int queue_len)
+#else
 static void adsl_tx_timeout (netdevice_t *dev)
+#endif
 {
 	adsl_private_area_t*	adsl = wan_netif_priv(dev);
 	sdla_t*			card = adsl->common.card;
@@ -846,7 +850,11 @@ int adsl_close(netdevice_t* ifp)
 * Description:
 * 	Handle transmit timeout event from netif watchdog
 *-F*************************************************************************/
+#if defined(KERN_NDO_TIMEOUT_UPDATE) && KERN_NDO_TIMEOUT_UPDATE > 0
+static void adsl_tx_timeout (netdevice_t *dev, unsigned int queue_len)
+#else
 static void adsl_tx_timeout (netdevice_t *dev)
+#endif
 {
 	adsl_private_area_t*	adsl = wan_netif_priv(dev);
 	sdla_t*			card = adsl->common.card;
