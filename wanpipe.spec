@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.2
+%define VERSION           7.0.3
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -258,6 +258,13 @@ fi
 ################################################################################
 
 %changelog
+
+* Wed May 22 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.3
+==================================================================
+
+- Fixed file structure of sample_data_tapping application
+- No driver changes from 7.0.2
+
 
 * Fri May 10 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.2
 ==================================================================

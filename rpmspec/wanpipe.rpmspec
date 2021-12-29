@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           7.0.2
+%define version           7.0.3
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -245,6 +245,13 @@ chmod 755 /usr/local/sbin/setup-sangoma
 
 
 %changelog
+
+* Wed May 22 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.3
+==================================================================
+
+- Fixed file structure of sample_data_tapping application
+- No driver changes from 7.0.2
+
 
 * Fri May 10 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.2
 ==================================================================
