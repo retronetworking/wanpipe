@@ -112,7 +112,6 @@ int menu_new_device_configuration::run(OUT int * selection_index)
   list_element_chan_def*  list_el_chan_def;
   sdla_fe_cfg_t*	  fe_cfg;
   
-
 again:
   rc = YES;
   exit_dialog = NO;
@@ -183,14 +182,18 @@ again:
       break;
 
     case A104_ADPTR_4TE1:
-    case A200_ADPTR_ANALOG:
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s (Line No: %d)\" ",
         get_card_type_string(linkconf->card_type, link_def->card_version), fe_cfg->line_no);
       break;
 
+    case A200_ADPTR_ANALOG:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s\" ",
+        get_card_type_string(linkconf->card_type, link_def->card_version));
+      break;
+
     case AFT_ADPTR_56K:
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s\" ",
-	get_card_type_string(linkconf->card_type, link_def->card_version));
+        get_card_type_string(linkconf->card_type, link_def->card_version));
       break;
 
     default:
@@ -782,7 +785,7 @@ int menu_new_device_configuration::check_aft_timeslot_groups_cfg()
   chan_def_t* chandef;
   text_box tb;
   char tmp_buff[MAX_PATH_LENGTH];
-  wan_xilinx_conf_t* wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
+  wan_tdmv_conf_t* tdmv_conf=&cfr->link_defs->linkconf->tdmv_conf;
   char local_is_there_a_voice_if = NO;
   
   Debug(DBG_MENU_NEW_DEVICE_CONFIG,
@@ -803,7 +806,7 @@ int menu_new_device_configuration::check_aft_timeslot_groups_cfg()
     chandef = &list_el_chan_def->data;
 
     Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("chandef->usedby: %d, tdmv_span_no: %d\n",
-      chandef->usedby, wan_xilinx_conf->tdmv_span_no));
+      chandef->usedby,tdmv_conf->span_no));
   
     //some special checks may be needed, depending how 'group' is actually used.
     switch(chandef->usedby)
@@ -811,7 +814,7 @@ int menu_new_device_configuration::check_aft_timeslot_groups_cfg()
     case TDM_VOICE:
       local_is_there_a_voice_if = YES;
       
-      if(wan_xilinx_conf->tdmv_span_no == 0){
+      if(tdmv_conf->span_no == 0){
 	//user must initialize the span_no!
         snprintf(tmp_buff, MAX_PATH_LENGTH, "Error: Span Number not set!\n\
 Must be a non-zero number.\n\

@@ -33,7 +33,7 @@ val=`./wan_plxup -i $ifdev  -r F`
 eval "echo $val | grep \"Reading 00 from\" > /dev/null 2> /dev/null"
 if [ $? -ne 0 ]; then
 	echo "Configuring $ifdev"
-	./wan_plxup -i $ifdev -w F 3
+	./wan_plxup -i $ifdev -w F B
 	cfg=1;
 fi
 usleep 50000

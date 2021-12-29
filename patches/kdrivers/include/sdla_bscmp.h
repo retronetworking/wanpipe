@@ -3,7 +3,9 @@
 #define _BSC_HEADER_
 
 
-#pragma pack(1)
+#ifndef	PACKED
+#define	PACKED __attribute__((packed))
+#endif	/* PACKED */
 
 
 /*========== MAILBOX COMMANDS AND RETURN CODES ==========*/
@@ -53,91 +55,89 @@
 */
 /* control block */
 typedef struct {
-	unsigned char 	opp_flag 		;
-	unsigned char 	command			;
-	unsigned short 	buffer_length		;
-	unsigned char 	return_code		;
-	unsigned char 	misc_tx_rx_bits		;
-	unsigned short 	heading_length		;
-	unsigned short 	notify			;
-	unsigned char 	station			;
-	unsigned char 	poll_address		;
-	unsigned char 	select_address		;
-	unsigned char 	device_address		;
-	unsigned char 	notify_extended		;
-	unsigned char 	reserved		;
-	unsigned char 	data[MDATALEN]		;
+	unsigned char 	opp_flag 		PACKED;
+	unsigned char 	command			PACKED;
+	unsigned short 	buffer_length		PACKED;
+	unsigned char 	return_code		PACKED;
+	unsigned char 	misc_tx_rx_bits		PACKED;
+	unsigned short 	heading_length		PACKED;
+	unsigned short 	notify			PACKED;
+	unsigned char 	station			PACKED;
+	unsigned char 	poll_address		PACKED;
+	unsigned char 	select_address		PACKED;
+	unsigned char 	device_address		PACKED;
+	unsigned char 	notify_extended		PACKED;
+	unsigned char 	reserved		PACKED;
+	unsigned char 	data[MDATALEN]		PACKED;
 } BSC_MAILBOX_STRUCT;
 
 
 
 typedef struct {
-	unsigned char 	line_speed_number	;
-	unsigned short 	max_data_frame_size	;
-	unsigned char 	secondary_station	;
-	unsigned char 	num_consec_PAD_eof	;
-	unsigned char 	num_add_lead_SYN	;
-	unsigned char 	conversational_mode	;
-	unsigned char 	pp_dial_up_operation	;
-	unsigned char 	switched_CTS_RTS	;
-	unsigned char 	EBCDIC_encoding		;
-	unsigned char 	auto_open		;
-	unsigned char 	misc_bits		;
-	unsigned char 	protocol_options1	;
-	unsigned char 	protocol_options2	;
-	unsigned short 	reserved_pp		;
-	unsigned char 	max_retransmissions	;
-	unsigned short 	fast_poll_retries	;
-	unsigned short 	TTD_retries		;
-	unsigned short 	restart_timer		;
-	unsigned short 	pp_slow_restart_timer	;
-	unsigned short 	TTD_timer		;
-	unsigned short 	pp_delay_between_EOT_ENQ ;
-	unsigned short 	response_timer		;
-	unsigned short 	rx_data_timer		;
-	unsigned short 	NAK_retrans_delay_timer ;
-	unsigned short 	wait_CTS_timer		;
-	unsigned char 	mp_max_consec_ETX	;
-	unsigned char 	mp_general_poll_address ;
-	unsigned short 	sec_poll_timeout	;
-	unsigned char 	pri_poll_skips_inactive ;
-	unsigned char 	sec_additional_stn_send_gpoll ;
-	unsigned char 	pri_select_retries 	;
-	unsigned char 	mp_multipoint_options	;
-	unsigned short 	reserved		;
+	unsigned char 	line_speed_number	PACKED;
+	unsigned short 	max_data_frame_size	PACKED;
+	unsigned char 	secondary_station	PACKED;
+	unsigned char 	num_consec_PAD_eof	PACKED;
+	unsigned char 	num_add_lead_SYN	PACKED;
+	unsigned char 	conversational_mode	PACKED;
+	unsigned char 	pp_dial_up_operation	PACKED;
+	unsigned char 	switched_CTS_RTS	PACKED;
+	unsigned char 	EBCDIC_encoding		PACKED;
+	unsigned char 	auto_open		PACKED;
+	unsigned char 	misc_bits		PACKED;
+	unsigned char 	protocol_options1	PACKED;
+	unsigned char 	protocol_options2	PACKED;
+	unsigned short 	reserved_pp		PACKED;
+	unsigned char 	max_retransmissions	PACKED;
+	unsigned short 	fast_poll_retries	PACKED;
+	unsigned short 	TTD_retries		PACKED;
+	unsigned short 	restart_timer		PACKED;
+	unsigned short 	pp_slow_restart_timer	PACKED;
+	unsigned short 	TTD_timer		PACKED;
+	unsigned short 	pp_delay_between_EOT_ENQ PACKED;
+	unsigned short 	response_timer		PACKED;
+	unsigned short 	rx_data_timer		PACKED;
+	unsigned short 	NAK_retrans_delay_timer PACKED;
+	unsigned short 	wait_CTS_timer		PACKED;
+	unsigned char 	mp_max_consec_ETX	PACKED;
+	unsigned char 	mp_general_poll_address PACKED;
+	unsigned short 	sec_poll_timeout	PACKED;
+	unsigned char 	pri_poll_skips_inactive PACKED;
+	unsigned char 	sec_additional_stn_send_gpoll PACKED;
+	unsigned char 	pri_select_retries 	PACKED;
+	unsigned char 	mp_multipoint_options	PACKED;
+	unsigned short 	reserved		PACKED;
 } BSC_CONFIG_STRUCT;
 
 
 typedef struct {
-	unsigned char max_tx_queue	;
-	unsigned char max_rx_queue	;
-	unsigned char station_flags	;
+	unsigned char max_tx_queue	PACKED;
+	unsigned char max_rx_queue	PACKED;
+	unsigned char station_flags	PACKED;
 }ADD_STATION_STRUCT;
 
 typedef struct {
-	unsigned char	station		;
-	unsigned short	time_stamp	;
-	unsigned char	reserved[13]	;
+	unsigned char	station		PACKED;
+	unsigned short	time_stamp	PACKED;
+	unsigned char	reserved[13]	PACKED;
 } api_rx_hdr_t;
 
 typedef struct {
-        api_rx_hdr_t	api_rx_hdr      ;
-        void *   	data    	;
+        api_rx_hdr_t	api_rx_hdr      PACKED;
+        void *   	data    	PACKED;
 } api_rx_element_t;
 
 typedef struct {
-	unsigned char 	station		;
-	unsigned char   misc_tx_rx_bits ;
-	unsigned char  	reserved[14]	;
+	unsigned char 	station		PACKED;
+	unsigned char   misc_tx_rx_bits PACKED;
+	unsigned char  	reserved[14]	PACKED;
 } api_tx_hdr_t;
 
 typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	;
-	void *		data		;
+	api_tx_hdr_t 	api_tx_hdr	PACKED;
+	void *		data		PACKED;
 } api_tx_element_t;
 
 #define SIOC_WANPIPE_EXEC_CMD	SIOC_WANPIPE_DEVPRIVATE
-
-#pragma pack()
 
 #endif

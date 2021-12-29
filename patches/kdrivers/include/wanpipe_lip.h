@@ -1,4 +1,4 @@
-/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.36 2006/07/25 19:44:50 sangoma Exp $ */
+/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.38 2007/02/21 18:46:09 sangoma Exp $ */
 
 #ifndef _WANPIPE_LIP_HEADER_
 #define _WANPIPE_LIP_HEADER_
@@ -19,7 +19,7 @@
 # include <wanpipe_lip_kernel.h>
 # include <wanpipe_fr_iface.h>
 # include <wanpipe_sppp_iface.h>
-# if defined(CONFIG_PRODUCT_WANPIPE_LAPB)
+# if defined(CONFIG_PRODUCT_WANPIPE_LAPB) || defined(CONFIG_PRODUCT_WANPIPE_LIP_LAPD)
 #  include <wanpipe_lapb_iface.h>
 # endif
 # if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
@@ -40,11 +40,11 @@
 # include <linux/wanpipe_fr_iface.h>
 # include <linux/wanpipe_lip_atm_iface.h>
 # include <linux/wanpipe_sppp_iface.h>
-# if defined(CONFIG_PRODUCT_WANPIPE_LAPB)
+# if defined(CONFIG_PRODUCT_WANPIPE_LAPB) || defined(CONFIG_PRODUCT_WANPIPE_LIP_LAPD)
 #  include <linux/wanpipe_lapb_iface.h>
 # endif 
-# if defined(CONFIG_PRODUCT_WANPIPE_LAPD)
-#  include <linux/wanpipe_lapd_iface.h>
+# if defined(CONFIG_PRODUCT_WANPIPE_LIP_KATM)
+#  include <linux/wanpipe_katm_iface.h>
 # endif 
 # if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
 #  include <linux/wanpipe_xdlc_iface.h>

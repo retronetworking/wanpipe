@@ -93,7 +93,8 @@ public:
 
     //FIXME: David to set active_ch to ALL for VOICE and 1 for API
     //       For now 99% is VOICE which should have ALL set
-    if(global_card_type == WANOPT_AFT  &&  global_card_version == A200_ADPTR_ANALOG){
+    if(global_card_type == WANOPT_AFT  &&  
+       (global_card_version == A200_ADPTR_ANALOG||global_card_version == A400_ADPTR_ANALOG)){
       snprintf(data.active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "ALL");
       data.chanconf->active_ch = ENABLE_ALL_CHANNELS;
     }else{

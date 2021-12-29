@@ -51,6 +51,7 @@
 #define WAN_FE_DEBUG_RBS	0x01
 #define WAN_FE_DEBUG_ALARM	0x02
 #define WAN_FE_DEBUG_VOLTAGE	0x03
+#define WAN_FE_DEBUG_RECONFIG	0x04
 #define WAN_FE_DEBUG_REG	0x05
 
 /* Front-End DEBUG sub-flags */
@@ -194,19 +195,29 @@ typedef struct {
 	unsigned int	liu_alarms;
 	unsigned int	bert_alarms;
 	union {
-		sdla_te_pmon_t	te_pmon;
+		sdla_te_stats_t	te1_stats;
+		//sdla_te_pmon_t	te_pmon;
 		sdla_te3_pmon_t	te3_pmon;
 	} u;
+#define te_pmon	u.te1_stats.pmon	
 } sdla_fe_stats_t;
 
 typedef struct {
 	unsigned char	type;
 	unsigned char	mode;
-	int		channel;
-	unsigned char	abcd;
-	int		read;
-	int		reg;
-	unsigned char	value;
+	union{
+		struct {
+			int		channel;
+			unsigned char	abcd;
+		} rbs;
+		struct {
+			int		read;
+			int		reg;
+			unsigned char	value;
+		} reg;
+	} fe_debug_un;
+#define fe_debug_rbs	fe_debug_un.rbs	
+#define fe_debug_reg	fe_debug_un.reg	
 } sdla_fe_debug_t;
 
 
@@ -361,6 +372,19 @@ enum {
    AFT_LED_TOGGLE
 };
 
+typedef struct sdla_fe_timer_event_ {
+	unsigned char	type;
+	u_int8_t	mode;
+	int		delay;
+	union{
+#define te_event	u_fe.te
+#define rm_event	u_fe.rm
+		sdla_te_event_t	te;
+		sdla_rm_event_t	rm;
+	} u_fe;
+	WAN_LIST_ENTRY(sdla_fe_timer_event_)	next;
+} sdla_fe_timer_event_t;
+
 typedef struct {
 	char		*name;
 	void		*card;
@@ -384,6 +408,11 @@ typedef struct {
 #define liu_alarm	fe_stats.liu_alarms
 #define bert_alarm	fe_stats.bert_alarms
 	sdla_fe_stats_t	fe_stats;
+	
+	wan_spinlock_t		lock;
+	wan_timer_t		timer;
+	WAN_LIST_HEAD(, sdla_fe_timer_event_)	event;
+	
 	int		(*write_cpld)(void*, unsigned short, unsigned char);
 	int		(*read_cpld)(void*, unsigned short, unsigned char);
 	int		(*write_fe_cpld)(void*, unsigned short, unsigned char);
@@ -429,8 +458,13 @@ typedef struct {
 	int		(*reset)(void *fe, int, int);
 	int		(*global_config)(void *fe);
 	int		(*global_unconfig)(void *fe);
+	int		(*chip_config)(void *fe);
 	int		(*config)(void *fe);
+	int		(*post_init)(void*);
+	/* Set extra T1/E1 configuration */
+	int		(*reconfig)(sdla_fe_t*);
 	int		(*unconfig)(void *fe);
+	int		(*pre_release)(void*);
 	int		(*if_config)(void *fe, u32, u8);
 	int		(*if_unconfig)(void *fe, u32, u8);
 	int		(*disable_irq)(void *fe);
@@ -478,8 +512,6 @@ typedef struct {
 	/* Enable TE1 poll timer (WINDOWS ONLY) */
 	void	(*enable_timer)(sdla_fe_t* fe, unsigned char cmd, unsigned int delay);
 #endif
-	/* Set extra T1/E1 configuration */
-	int		(*post_config)(sdla_fe_t*);
 	/* Available front-end map */
 	unsigned int	(*active_map)(sdla_fe_t *fe);
 	/* Transmit DTMF number */

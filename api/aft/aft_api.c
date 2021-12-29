@@ -414,8 +414,8 @@ void handle_socket(void)
 			
 				++Rx_count;
 
-				printf("RECEIVE:\n");
-				print_packet(&Rx_data[16],Rx_lgth);
+				//printf("RECEIVE:\n");
+				//print_packet(&Rx_data[16],Rx_lgth);
 
 
 				if (verbose){
@@ -443,8 +443,8 @@ bitstrm_skip_read:
 
 
 				if (Tx_count == 0){
-					printf("SEND: Len=%i\n",Tx_length);
-					print_packet(&Tx_data[16],Tx_length);
+					//printf("SEND: Len=%i\n",Tx_length);
+					//print_packet(&Tx_data[16],Tx_length);
 				}
 
 #if 1

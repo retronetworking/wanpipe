@@ -55,17 +55,19 @@
 #define BIT_DEV_CTRL_DDS_PRI	0x00
 #define BIT_DEV_CTRL_SCT_E_OUT	0x10
 #define BIT_DEV_CTRL_XTALI_INT	0x40
+
 #define BIT_INT_EN_STAT_ACTIVE	0x01
 #define BIT_INT_EN_STAT_RX_CODE	0x20
 #define BIT_INT_EN_STAT_IDEL	0x40
+
 #define BIT_EIA_CTRL_RTS_ACTIVE	0x01
 #define BIT_EIA_CTRL_DTR_ACTIVE 0x02
 #define	BIT_EIA_CTRL_DTE_ENABLE	0x04
 #define BIT_DEV_STAT_IL_44_dB	0x08
 #define BIT_DEV_STAT_RLOS	0x80
 
-#define BIT_RX_CTRL_DSU_LOOP    0x80
-#define BIT_RX_CTRL_CSU_LOOP    0x20
+#define BIT_RX_CTRL_DSU_LOOP	0x80
+#define BIT_RX_CTRL_CSU_LOOP	0x20
 
 #define BIT_RX_CODES_UNMTCH	0x01
 #define BIT_RX_CODES_UMC	0x02
@@ -101,7 +103,7 @@ typedef struct {
 } sdla_56k_param_t;
 
 extern int sdla_56k_default_cfg(void* arg1, void* p56k_cfg);
-extern int sdla_56k_iface_init(void* pfe, void *p_fe_iface);
+extern int sdla_56k_iface_init(void* pfe);
 
 #endif /* WAN_KERNEL */
 

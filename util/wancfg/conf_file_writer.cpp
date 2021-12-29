@@ -553,7 +553,7 @@ get_keyword_from_look_up_t_table(config_id_str, WANCONFIG_AFT_TE1),//for A104
 );
       break;
 
-     case AFT_ADPTR_56K:
+    case AFT_ADPTR_56K:
       snprintf(tmp_buff, MAX_PATH_LENGTH,
 "\n\
 [devices]\n\
@@ -563,8 +563,6 @@ get_keyword_from_look_up_t_table(config_id_str, WANCONFIG_AFT_56K),//for A056
 (cfr->link_defs->descr == NULL ? "Comment" : cfr->link_defs->descr)
 );
       break;
-
-
 
     case A200_ADPTR_ANALOG:
       snprintf(tmp_buff, MAX_PATH_LENGTH,
@@ -1549,28 +1547,18 @@ TE3_TXLBO	= NO		# NO (default) / YES
         fe_cfg->cfg.remora.opermode_name);
       te1_cfg_string += tmp_buff;
     }
-   
 
-/* DAVIDY: Uncomment this when RM_BATTTHRESH and RM_BATTDEBOUNCE become available in 2.3.4 drivers*/ 
-#if 0
     snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_BATTTHRESH	= %d\n",
         fe_cfg->cfg.remora.battthresh);
     te1_cfg_string += tmp_buff;
 
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_BATTDEBOUNCE = %d\n",
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_BATTDEBOUNCE= %d\n",
         fe_cfg->cfg.remora.battdebounce);
     te1_cfg_string += tmp_buff;
 
     break;
-#endif
-	
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_NETWORK_SYNC = %s\n",
-        fe_cfg->cfg.remora.network_sync == WANOPT_YES ? "YES" : "NO");
-    te1_cfg_string += tmp_buff;
 
-     break;
-
-  default:	
+  default:
     snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_TXTRISTATE	= %s\n", 
 	(fe_cfg->tx_tristate_mode == WANOPT_YES ? "YES" : "NO"));
     te1_cfg_string += tmp_buff;
@@ -1593,10 +1581,12 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
 {
   char			tmp_buff[MAX_PATH_LENGTH];
   wan_xilinx_conf_t 	*wan_xilinx_conf;
+  wan_tdmv_conf_t	*tdmv_conf;
 
   Debug(DBG_CONF_FILE_WRITER, ("form_wanpipe_card_miscellaneous_options_str()\n"));
 
   wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
+  tdmv_conf = &cfr->link_defs->linkconf->tdmv_conf;
   
   switch(cfr->link_defs->linkconf->card_type)
   {
@@ -1670,11 +1660,11 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
      is_there_a_voice_if == YES){
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_SPAN\t= %u\n",
-       wan_xilinx_conf->tdmv_span_no);
+       tdmv_conf->span_no);
     misc_opt_string += tmp_buff;
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_DCHAN\t= %u\n",
-       wan_xilinx_conf->tdmv_dchan);
+       tdmv_conf->dchan);
     misc_opt_string += tmp_buff;
   }
 
@@ -1683,7 +1673,7 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
     //if(is_there_a_voice_if == YES){
     //the analog card is AWAYS in some "SPAN" !!!
       snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_SPAN\t= %u\n",
-         wan_xilinx_conf->tdmv_span_no);
+         tdmv_conf->span_no);
       misc_opt_string += tmp_buff;
     //}
   }
@@ -2410,7 +2400,7 @@ int conf_file_writer::form_common_per_interface_str( string& wp_interface,
       wp_interface += get_keyword_from_key_word_t_table(chan_conftab,
                                                         offsetof(wanif_conf_t, network_number));
       wp_interface += "\t= ";
-      snprintf(tmp_buff, MAX_PATH_LENGTH, "0x%08lX\n", list_el_chan_def->data.chanconf->network_number);
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "0x%08X\n", list_el_chan_def->data.chanconf->network_number);
       wp_interface += tmp_buff;
     }
   }
@@ -2698,7 +2688,7 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
       wp_interface += "\t= ";
       snprintf(tmp_buff, MAX_PATH_LENGTH, "%s",
         get_keyword_from_look_up_t_table( yes_no_options_table,
-		     			  chandef->chanconf->tdmv_echo_off));
+		     			  chandef->chanconf->tdmv.tdmv_echo_off));
       wp_interface += tmp_buff;
       wp_interface += "\n";
     }
@@ -2707,7 +2697,7 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
     if(chandef->usedby == TDM_VOICE || chandef->usedby == TDM_API || chandef->usedby == API){
       snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC\t= %s\n",
 		get_keyword_from_look_up_t_table(yes_no_options_table,
-       					 chandef->chanconf->xoff_char));
+       					 chandef->chanconf->hwec.enable));	//chandef->chanconf->xoff_char));
       wp_interface += tmp_buff;
 /*
       if(chandef->hwec_flag == WANOPT_YES){

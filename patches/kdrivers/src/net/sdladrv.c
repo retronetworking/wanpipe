@@ -13,6 +13,8 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ============================================================================
+* Apr 04, 2007	Alex Feldman	Add support T3/E3 SHART cards
+* Mar 04, 2007	Alex Feldman	Add support ISDN/BRI cards
 * Dec 15. 2003  Nenad Corbic	Redesigned hw abstraction layer to 
 *               Alex Feldman	support both BSD and Linux as well
 *                               as to abstract the HW layer from 
@@ -22,7 +24,7 @@
 * 				Timeout using jiffies and nloops since
 * 				jiffies don't work when irq's are turned
 * 				off.
-* Apr 25, 2001  Nenad Corbic	Fixed the 2.0.X kernel bug in pci_init.
+* Apr 25, 2001  Nenad Corbic	Fixed the 2.0.X kernel bug in init.
 * Mar 20, 2001  Nenad Corbic	Added the auto_pci_cfg filed, to support
 *                               the PCISLOT #0. 
 * Apr 04, 2000  Nenad Corbic	Fixed the auto memory detection code.
@@ -100,8 +102,6 @@
 #define __SDLA_HW_LEVEL
 #define __SDLADRV__
 
-#define SDLADRV_NEW
-#define SDLADRV_A200_PROBE
 /*
 ****************************************************************************
 ****		For Debug purpose (only OpenBSD)			****
@@ -139,6 +139,12 @@
 # include <linux/sdladrv.h>	/* API definitions */
 #else
 # error "Unsupported Operating System!"
+#endif
+
+#if 1
+#define AFT_FUNC_DEBUG()
+#else
+#define AFT_FUNC_DEBUG()  DEBUG_EVENT("%s:%d\n",__FUNCTION__,__LINE__)
 #endif
 
 /***************************************************************************
@@ -249,7 +255,7 @@ static int sdla_clear_bit (void* phw, unsigned long addr, u8);
 static void sdla_peek_by_4 (sdlahw_t* hw, unsigned long offset, void* pbuf, unsigned int len);
 static void sdla_poke_by_4 (sdlahw_t* hw, unsigned long offset, void* pbuf, unsigned int len);
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-static int sdla_set_intrhand(void* phw, void (*isr_func)(void*), void* arg, int);
+static int sdla_set_intrhand(void* phw, wan_pci_ifunc_t*, void* arg, int);
 static int sdla_restore_intrhand(void* phw, int);
 #endif
 static int sdla_get_hwcard(void* phw, void** phwcard);
@@ -310,7 +316,7 @@ static int sdla_s514_hw_select (sdlahw_card_t* card, int cpu_no, int irq, void*)
 static int sdla_adsl_hw_select (sdlahw_card_t* card, int cpu_no, int irq, void*);
 static int sdla_aft_hw_select (sdlahw_card_t* card, int cpu_no, int irq, void*);
 static void sdla_save_hw_probe (sdlahw_t* hw, int port);
-static int sdla_save_a200_hw_probe_verbose(sdlahw_t* hw, int port);
+static int sdla_save_Remora_hw_probe_verbose(sdlahw_t* hw, int port);
 
 static int sdla_hw_lock(void *phw, wan_smp_flag_t *flag);
 static int sdla_hw_unlock(void *phw, wan_smp_flag_t *flag);
@@ -329,6 +335,18 @@ int sdla_hw_fe_clear_bit(void *phw,int value);
 
 static int sdla_hw_read_cpld(void *phw, u16 off, u8 *data);
 static int sdla_hw_write_cpld(void *phw, u16 off, u8 data);
+
+extern int	sdla_te1_write_fe(void* phw, ...);
+extern u_int8_t	sdla_te1_read_fe (void* phw, ...);
+
+extern int	sdla_shark_te1_write_fe(void *phw, ...);
+extern u_int8_t	sdla_shark_te1_read_fe (void *phw, ...);
+
+extern int	sdla_shark_rm_write_fe (void* phw, ...);
+extern u_int8_t	sdla_shark_rm_read_fe (void* phw, ...);
+
+extern int	sdla_shark_56k_write_fe(void *phw, ...);
+extern u_int8_t	sdla_shark_56k_read_fe (void *phw, ...);
 
 #if defined(__LINUX__)
 #if defined(WAN_DEBUG_MEM)
@@ -486,7 +504,7 @@ WAN_MODULE_DEFINE(
 		"GPL",
 		sdladrv_init, sdladrv_exit, NULL);
 WAN_MODULE_VERSION(sdladrv, SDLADRV_MAJOR_VER);
-# endif
+# endif 
 #endif
 
 
@@ -498,11 +516,11 @@ int sdladrv_init(void* arg)
 	int volatile i=0;
 
 	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta%s-%s %s %s\n",
-			wan_fullname, WANPIPE_SUB_VERSION, WANPIPE_VERSION, 
+		DEBUG_EVENT("%s Beta %s.%s %s %s\n",
+			wan_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION, 
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
 	}else{
-		DEBUG_EVENT("%s Stable %s-%s %s %s\n",
+		DEBUG_EVENT("%s Stable %s.%s %s %s\n",
 			wan_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION, 
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
 	}
@@ -686,7 +704,6 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 			break;
 		
 		case A300_ADPTR_U_1TE3:
-		case AFT_ADPTR_56K:
 			if (hw->hwcard->adptr_subtype == AFT_SUBTYPE_SHARK){
 				snprintf(tmp_hw_probe->hw_info, 
 					sizeof(tmp_hw_probe->hw_info),
@@ -755,13 +772,11 @@ static void sdla_get_adptr_name(sdlahw_t* hw)
 				SDLA_ADPTR_NAME(hw->hwcard->adptr_type),
 				AFT_SUBTYPE(hw->hwcard->adptr_subtype),
 				AFT_SECURITY(hw->hwcard->adptr_security));
-
 	return;
 }
 
-#if defined(SDLADRV_A200_PROBE)
-extern unsigned char    	sdla_shark_analog_read_fe (void* phw, ...);
-static int sdla_save_a200_hw_probe_verbose(sdlahw_t* hw, int port)
+
+static int sdla_save_Remora_hw_probe_verbose(sdlahw_t* hw, int port)
 {
 	u32		reg;
 	int		mod_no, off = 0;
@@ -775,7 +790,6 @@ static int sdla_save_a200_hw_probe_verbose(sdlahw_t* hw, int port)
 		return -EINVAL;
 	}
 
-	
 	/* A200 clear reset */
 	sdla_bus_read_4(hw, 0x40,&reg);
 	wan_set_bit(1,&reg);
@@ -798,7 +812,7 @@ static int sdla_save_a200_hw_probe_verbose(sdlahw_t* hw, int port)
 	
 	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no += 2){
 	
-		value = sdla_shark_analog_read_fe(hw, mod_no, MOD_TYPE_FXS, 0, 0);
+		value = sdla_shark_rm_read_fe(hw, mod_no, MOD_TYPE_FXS, 0, 0);
 		if ((value & 0x0F) == 0x05){
 			hw->hwcard->rm_mod_type[mod_no] = MOD_TYPE_FXS;		
 			hw->hwcard->rm_mod_type[mod_no+1] = MOD_TYPE_FXS;
@@ -814,7 +828,7 @@ static int sdla_save_a200_hw_probe_verbose(sdlahw_t* hw, int port)
 	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no += 2){
 	
 		if (hw->hwcard->rm_mod_type[mod_no] != MOD_TYPE_NONE) continue;
-		value = sdla_shark_analog_read_fe(hw, mod_no, MOD_TYPE_FXO, 1, 2);
+		value = sdla_shark_rm_read_fe(hw, mod_no, MOD_TYPE_FXO, 1, 2);
 		if (value == 0x03){
 			hw->hwcard->rm_mod_type[mod_no] = MOD_TYPE_FXO;		
 			hw->hwcard->rm_mod_type[mod_no+1] = MOD_TYPE_FXO;
@@ -849,7 +863,13 @@ static int sdla_save_a200_hw_probe_verbose(sdlahw_t* hw, int port)
 	sdla_memory_unmap(hw);
 	return 0;
 }
-#endif
+
+static int sdla_save_ISDN_hw_probe_verbose(sdlahw_t* hw, int port)
+{
+	
+	/* FIXME:  Add code for ISDN card for module detection */
+	return 0;
+}
 
 #define AFT_CHIP_CFG_REG		0x40
 #define AFT_CHIPCFG_SFR_IN_BIT		2
@@ -858,13 +878,14 @@ static int sdla_get_cpld_info(sdlahw_t* hw)
 {
 	unsigned int	reg, reg1;
 	unsigned short	cpld_off;
-        unsigned char	status = 0, tmp = 0, adptr_sec = 0;
+    unsigned char	status = 0, tmp = 0, adptr_sec = 0;
+
+	AFT_FUNC_DEBUG();
 
 	if (sdla_memory_map(hw, SDLA_CPU_A)){
 		return -EINVAL;
 	}
 
-#if defined(SDLADRV_NEW)
 	if (hw->hwcard->adptr_subtype == AFT_SUBTYPE_NORMAL){
 		switch(hw->hwcard->adptr_type){
 		case A101_ADPTR_1TE1:
@@ -996,141 +1017,24 @@ static int sdla_get_cpld_info(sdlahw_t* hw)
 				sdla_bus_write_4(hw, AFT_CHIP_CFG_REG, reg1);
 				
 				break;
-			}
-			break;
-		}
-	}
-#else
-	
-	switch(hw->hwcard->adptr_type){
-	case A101_ADPTR_1TE1:
-	case A101_ADPTR_2TE1:
-		cpld_off = AFT_SECURITY_CPLD_REG;
-		sdla_hw_read_cpld(hw, cpld_off, &tmp);
-		adptr_sec = AFT_GET_SECURITY(tmp);
-		switch(adptr_sec){
-		case AFT_SECURITY_1LINE_UNCH:
-		case AFT_SECURITY_2LINE_UNCH:
-			hw->hwcard->adptr_security = AFT_SECURITY_UNCHAN;
-			break;
-		case AFT_SECURITY_1LINE_CH:
-		case AFT_SECURITY_2LINE_CH:
-			hw->hwcard->adptr_security = AFT_SECURITY_CHAN;
-			break;
-		default:
-			DEBUG_EVENT(
-			"%s: AFT-A101-2 Critical error: Unknown Security ID (0x%02X)!\n",
-					wan_drvname, adptr_sec);
-			break;
-		}
-		break;
-
-	case A104_ADPTR_4TE1:
-		/* Enable memory access */	
-		sdla_bus_read_4(hw, AFT_CHIP_CFG_REG, &reg1);
-		reg = reg1;
-		wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT, &reg);
-		wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT, &reg);
-		sdla_bus_write_4(hw, AFT_CHIP_CFG_REG, reg);
-
-		if (hw->hwcard->adptr_subtype == AFT_SUBTYPE_SHARK){
-			cpld_off = AFT_SH_CPLD_BOARD_STATUS_REG;
-			sdla_hw_read_cpld(hw, cpld_off, &status);
-			hw->hwcard->hwec_chan_no = A104_ECCHAN(AFT_SH_SECURITY(status));
-		}else{
-
-			cpld_off = AFT_SECURITY_CPLD_REG;
-			sdla_hw_read_cpld(hw, cpld_off, &tmp);
-			adptr_sec = AFT_GET_SECURITY(tmp);
-			if (adptr_sec == AFT_SECURITY_1LINE_UNCH){
-				hw->hwcard->adptr_security = AFT_SECURITY_UNCHAN;
-			}else if (adptr_sec == AFT_SECURITY_1LINE_CH){
-				hw->hwcard->adptr_security = AFT_SECURITY_CHAN;
-			}else if (adptr_sec == 0x02){
-				/*FIXME: ALEX CHANGE HARDCODED VALUE FOR SHARK */
-				hw->hwcard->adptr_security = AFT_SECURITY_CHAN;
-			}else{
-				DEBUG_EVENT(
-				"%s: AFT-A104 Critical error: Unknown Security ID (%02X)!\n",
-						wan_drvname, adptr_sec);
-			}
-		}
-
-		/* Restore original value */	
-		sdla_bus_write_4(hw, AFT_CHIP_CFG_REG, reg1);
-		break;
-
-	case A108_ADPTR_8TE1:
-		/* Enable memory access */	
-		sdla_bus_read_4(hw, AFT_CHIP_CFG_REG, &reg1);
-		reg = reg1;
-		wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT, &reg);
-		wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT, &reg);
-		sdla_bus_write_4(hw, AFT_CHIP_CFG_REG, reg);
-
-		if (hw->hwcard->adptr_subtype == AFT_SUBTYPE_SHARK){
-			cpld_off = AFT_SH_CPLD_BOARD_STATUS_REG;
-			sdla_hw_read_cpld(hw, cpld_off, &status);
-			hw->hwcard->hwec_chan_no = A108_ECCHAN(AFT_SH_SECURITY(status));
-		}
-
-		/* Restore original value */	
-		sdla_bus_write_4(hw, AFT_CHIP_CFG_REG, reg1);
-		break;
-
-	case A300_ADPTR_U_1TE3:
-		/* By default, AFT-A300 is unchannelized! */
-		hw->hwcard->adptr_security = AFT_SECURITY_UNCHAN;
-		break;
-
-	case A200_ADPTR_ANALOG:
-	case A400_ADPTR_ANALOG:
-		/* Enable memory access */	
-		sdla_bus_read_4(hw, AFT_CHIP_CFG_REG, &reg1);
-		reg = reg1;
-		wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT, &reg);
-		wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT, &reg);
-		sdla_bus_write_4(hw, AFT_CHIP_CFG_REG, reg);
-
-		if (hw->hwcard->adptr_subtype == AFT_SUBTYPE_SHARK){
-			cpld_off = A200_SH_CPLD_BOARD_STATUS_REG;
-			sdla_hw_read_cpld(hw, cpld_off, &status);
-			hw->hwcard->hwec_chan_no = A200_ECCHAN(AFT_SH_SECURITY(status));
-	
-			if (hw->hwcard->hwec_chan_no){
-
-				/* Check EC access */
-				/* Clear octasic reset */
-				cpld_off = 0x00;
-				sdla_hw_write_cpld(hw, cpld_off, 0x01);
-
-				/* Set octasic reset */
-				cpld_off = 0x00;
-				sdla_hw_write_cpld(hw, cpld_off, 0x00);
-			}	
-		}
-
-		/* Restore original value */	
-		sdla_bus_write_4(hw, AFT_CHIP_CFG_REG, reg1);
-		break;
-
-	case AFT_ADPTR_56K:
-		AFT_FUNC_DEBUG();
-		/* Enable memory access */	
-		sdla_bus_read_4(hw, AFT_CHIP_CFG_REG, &reg1);
-		reg = reg1;
-		wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT, &reg);
-		wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT, &reg);
-		sdla_bus_write_4(hw, AFT_CHIP_CFG_REG, reg);
+			case AFT_ADPTR_56K:
+				AFT_FUNC_DEBUG();
+				/* Enable memory access */	
+				sdla_bus_read_4(hw, AFT_CHIP_CFG_REG, &reg1);
+				reg = reg1;
+				wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT, &reg);
+				wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT, &reg);
+				sdla_bus_write_4(hw, AFT_CHIP_CFG_REG, reg);
 		
-		cpld_off = AFT_SH_CPLD_BOARD_STATUS_REG;
-		sdla_hw_read_cpld(hw, cpld_off, &status);
-		hw->hwcard->hwec_chan_no = 0;
-					
-		break;
-
+				cpld_off = AFT_SH_CPLD_BOARD_STATUS_REG;
+				sdla_hw_read_cpld(hw, cpld_off, &status);
+				hw->hwcard->hwec_chan_no = 0;
+						
+				break;
+			}
+			break;
+		}
 	}
-#endif	
 	sdla_memory_unmap(hw);
 	return 0;
 }
@@ -1340,16 +1244,16 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 		sdla_get_adptr_name(hw);
 		sdla_save_hw_probe(hw, 0);
 		number_of_cards += 1;
-                if (hwcard->adptr_subtype == AFT_SUBTYPE_NORMAL){
+		if (hwcard->adptr_subtype == AFT_SUBTYPE_NORMAL){
 			hwcard->cfg_type = WANOPT_AFT;
 		}else if (hwcard->adptr_subtype == AFT_SUBTYPE_SHARK){
 			hwcard->cfg_type = WANOPT_AFT101;
 		}
-		
 		DEBUG_EVENT(
-		"%s: %s T1/E1 card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
+		"%s: %s%s T1/E1 card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
 			wan_drvname,
 			hwcard->adptr_name,
+			AFT_PCIEXPRESS_DECODE(hwcard),
 			AFT_CORE_ID_DECODE(hwcard->core_id),
 			hwcard->core_rev,
 			hwcard->bus_no, hwcard->slot_no, irq);
@@ -1377,9 +1281,10 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 #endif
 			if (cpu_no == SDLA_CPU_A){
 				DEBUG_EVENT(
-				"%s: %s T1/E1 card found (%s rev.%X), cpu(s) 2, bus #%d, slot #%d, irq #%d\n",
+				"%s: %s%s T1/E1 card found (%s rev.%X), cpu(s) 2, bus #%d, slot #%d, irq #%d\n",
 					wan_drvname,
 					hwcard->adptr_name, 
+					AFT_PCIEXPRESS_DECODE(hwcard),
 					AFT_CORE_ID_DECODE(hwcard->core_id),
 					hwcard->core_rev,
 					hwcard->bus_no, hwcard->slot_no, irq);
@@ -1393,9 +1298,10 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 			sdla_save_hw_probe(hw, 1);
 			number_of_cards += 1;
 			DEBUG_EVENT(
-			"%s: %s T1/E1 card found (%s rev.%X), cpu(s) 1, line(s) 2, bus #%d, slot #%d, irq #%d\n",
+			"%s: %s%s T1/E1 card found (%s rev.%X), cpu(s) 1, line(s) 2, bus #%d, slot #%d, irq #%d\n",
 				wan_drvname,
 				hwcard->adptr_name,
+				AFT_PCIEXPRESS_DECODE(hwcard),
 				AFT_CORE_ID_DECODE(hwcard->core_id),
 				hwcard->core_rev,
 				hwcard->bus_no, hwcard->slot_no, irq);
@@ -1419,9 +1325,10 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 		sdla_save_hw_probe(hw, 3);
 		number_of_cards ++;
 		DEBUG_EVENT(
-		"%s: %s T1/E1 card found (%s rev.%X), cpu(s) 1, line(s) 4, bus #%d, slot #%d, irq #%d\n",
+		"%s: %s%s T1/E1 card found (%s rev.%X), cpu(s) 1, line(s) 4, bus #%d, slot #%d, irq #%d\n",
 			wan_drvname,
 			hwcard->adptr_name,
+			AFT_PCIEXPRESS_DECODE(hwcard),
 			AFT_CORE_ID_DECODE(hwcard->core_id),
 			hwcard->core_rev,
 			hwcard->bus_no, hwcard->slot_no, irq);
@@ -1452,9 +1359,10 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 		sdla_save_hw_probe(hw, 7);
 		number_of_cards ++;
 		DEBUG_EVENT(
-		"%s: %s T1/E1 card found (%s rev.%X), cpu(s) 1, line(s) 8, bus #%d, slot #%d, irq #%d\n",
+		"%s: %s%s T1/E1 card found (%s rev.%X), cpu(s) 1, line(s) 8, bus #%d, slot #%d, irq #%d\n",
 			wan_drvname,
 			hwcard->adptr_name,
+			AFT_PCIEXPRESS_DECODE(hwcard),
 			AFT_CORE_ID_DECODE(hwcard->core_id),
 			hwcard->core_rev,
 			hwcard->bus_no, hwcard->slot_no, irq);
@@ -1472,9 +1380,10 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 		sdla_save_hw_probe(hw, 0);
 		number_of_cards += 1;
 		DEBUG_EVENT(
-		"%s: %s T3/E3 card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
+		"%s: %s%s T3/E3 card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
 			wan_drvname,
 			hwcard->adptr_name,
+			AFT_PCIEXPRESS_DECODE(hwcard),
 			AFT_CORE_ID_DECODE(hwcard->core_id),
 			hwcard->core_rev,
 			hwcard->bus_no, hwcard->slot_no, irq);
@@ -1491,21 +1400,44 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 		sdla_get_cpld_info(hw);
 		sdla_get_adptr_name(hw);
 		sdla_save_hw_probe(hw, 0);
-#if defined(SDLADRV_A200_PROBE)
 		/* Verify FXS/FXO modules */
-		sdla_save_a200_hw_probe_verbose(hw, 0);
-#endif				
+		sdla_save_Remora_hw_probe_verbose(hw, 0);
 		
 		number_of_cards += 1;
 		DEBUG_EVENT(
-		"%s: %s FXO/FXS card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
+		"%s: %s%s FXO/FXS card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
 			wan_drvname,
 			hwcard->adptr_name,
+			AFT_PCIEXPRESS_DECODE(hwcard),
 			AFT_CORE_ID_DECODE(hwcard->core_id),
 			hwcard->core_rev,
 			hwcard->bus_no, hwcard->slot_no, irq);
 		break;
+		
+	case AFT_ADPTR_ISDN:
+		hwcard->cfg_type = WANOPT_AFT_ISDN;
+		sdla_adapter_cnt.aft_isdn_adapters++;
 
+		if ((hw = sdla_hw_register(hwcard, cpu_no, irq, dev)) == NULL){
+			return -EINVAL;
+		}
+		sdla_get_cpld_info(hw);
+		sdla_get_adptr_name(hw);
+		sdla_save_hw_probe(hw, 0);
+		/* Verify FXS/FXO modules */
+		sdla_save_ISDN_hw_probe_verbose(hw, 0);
+		
+		number_of_cards += 1;
+		DEBUG_EVENT(
+		"%s: %s%s ISDN BRI card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
+			wan_drvname,
+			hwcard->adptr_name,
+			AFT_PCIEXPRESS_DECODE(hwcard),
+			AFT_CORE_ID_DECODE(hwcard->core_id),
+			hwcard->core_rev,
+			hwcard->bus_no, hwcard->slot_no, irq);
+		break;
+		
 	case AFT_ADPTR_56K:
 		hwcard->cfg_type = WANOPT_AFT_56K;
 		sdla_adapter_cnt.aft_56k_adapters++;
@@ -1527,8 +1459,6 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 			hwcard->core_rev,
 			hwcard->bus_no, hwcard->slot_no, irq);
 		break;
-
-
 		
 	default:
 #if 0
@@ -1584,6 +1514,7 @@ static int sdla_pci_probe(sdlahw_t *hw)
 	WAN_ASSERT(hw == NULL);
 	WAN_ASSERT(hw->hwcard == NULL);
 	tmp_hwcard = hw->hwcard;
+
 	while ((pci_dev = pci_get_device(V3_VENDOR_ID, V3_DEVICE_ID, pci_dev))
         	!= NULL) {
 		
@@ -1621,44 +1552,16 @@ static int sdla_pci_probe(sdlahw_t *hw)
 
 	/* Search for Pulsar PCI cards */
 	pci_dev = NULL;
+
 	while ((pci_dev = pci_get_device(PCI_VENDOR_ID_GSI, PCI_DEVICE_ID_GSI_ADSL, pci_dev))
         	!= NULL) {
         
 		tmp_hwcard->pci_dev = pci_dev;	
 		sdla_pci_read_config_word(hw, PCI_SUBSYS_ID_WORD, &pci_subsystem_id);
 
-#if 0
 		if ((pci_subsystem_id & 0xFF) != S518_ADPTR_1_CPU_ADSL){
 			continue;
 		}
-#else
-      		pci_subsystem_id = S518_ADPTR_1_CPU_ADSL;
-#endif
-		
-		hwcard = sdla_card_register(SDLA_PCI_CARD, 
-					 ((pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK),
-					 pci_dev->bus->number,
-					 0);
-		if (hwcard == NULL){
-			continue;
-		}
-		hwcard->adptr_type	= pci_subsystem_id & 0xFF;
-		hwcard->pci_dev		= pci_dev;
-		
-		number_pci_cards += 
-			sdla_adsl_hw_select(hwcard, SDLA_CPU_A, pci_dev->irq, NULL);
-
-        }
-
-	/* Search for Pulsar PCI cards */
-	pci_dev = NULL;
-	while ((pci_dev = pci_get_device(PCI_VENDOR_ID_GSI, PCI_DEVICE_ID_GSI_ADSL_V2, pci_dev))
-        	!= NULL) {
-        
-		tmp_hwcard->pci_dev = pci_dev;	
-		sdla_pci_read_config_word(hw, PCI_SUBSYS_ID_WORD, &pci_subsystem_id);
-
-		pci_subsystem_id=S518_ADPTR_1_CPU_ADSL;
 		
 		hwcard = sdla_card_register(SDLA_PCI_CARD, 
 					 ((pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK),
@@ -1757,7 +1660,12 @@ static int sdla_pci_probe(sdlahw_t *hw)
 			hwcard->adptr_type	= A400_ADPTR_ANALOG;
 			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
 			break;
-
+	
+		case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
+			hwcard->adptr_type	= AFT_ADPTR_ISDN;
+			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+			break;
+	
 		case AFT_56K_SHARK_SUBSYS_VENDOR:
 			hwcard->adptr_type	= AFT_ADPTR_56K;
 			hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
@@ -1771,15 +1679,15 @@ static int sdla_pci_probe(sdlahw_t *hw)
 					((pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK));
 			continue;
 		}
-
 		/* Detect PCI Express cards (only valid for production test) */
-		switch(PCI_subsys_vendor){
+		switch(PCI_subsys_vendor){	
 		case A200_REMORA_SHARK_SUBSYS_VENDOR:
-		case A400_REMORA_SHARK_SUBSYS_VENDOR:	
+		case A400_REMORA_SHARK_SUBSYS_VENDOR:
 		case AFT_1TE1_SHARK_SUBSYS_VENDOR:
 		case AFT_2TE1_SHARK_SUBSYS_VENDOR:
 		case AFT_4TE1_SHARK_SUBSYS_VENDOR:
 		case AFT_8TE1_SHARK_SUBSYS_VENDOR:
+		case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
 		case AFT_56K_SHARK_SUBSYS_VENDOR:
 			if (pci_dev->bus == NULL) break;
 			bus = pci_dev->bus;
@@ -2217,7 +2125,12 @@ unsigned int sdla_hw_probe(void)
 						  0);
 		}
 		if (hwcard == NULL){
-			continue;
+			/* This is only for cards that has more then
+			** one CPU. */
+			hwcard = sdla_card_search(SDLA_PCI_CARD,
+						sdladev_slot(dev),
+						sdladev_bus(dev),
+						0);
 		}
 		hwcard->adptr_type	= dev->adapter_type;
 		hwcard->adptr_subtype	= dev->adapter_subtype;
@@ -2615,7 +2528,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	hwcard = hw->hwcard;
 
 	hw_iface->setup		= sdla_setup;
-	hw_iface->down		= sdla_down;
+	hw_iface->hw_down		= sdla_down;
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	hw_iface->load		= sdla_load;
 #endif
@@ -2717,6 +2630,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	case WANOPT_AFT108:
 	case WANOPT_AFT300:
 	case WANOPT_AFT_ANALOG:
+	case WANOPT_AFT_ISDN:
 	case WANOPT_AFT_56K:
 		hwcard->type			= SDLA_AFT;
 		hw_iface->set_bit		= sdla_set_bit;
@@ -2735,13 +2649,42 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 		hw_iface->write_cpld		= sdla_hw_write_cpld;
 
 		switch(hw->hwcard->adptr_type){
-
+		case A101_ADPTR_1TE1:
+		case A101_ADPTR_2TE1:
+			if (hw->hwcard->adptr_subtype == AFT_SUBTYPE_NORMAL){
+				hw_iface->fe_read = sdla_te1_read_fe;
+				hw_iface->fe_write = sdla_te1_write_fe;
+			}else{
+				hw_iface->fe_read = sdla_shark_te1_read_fe;
+				hw_iface->fe_write = sdla_shark_te1_write_fe;
+			}
+			break;
+		case A104_ADPTR_4TE1:
+		case A108_ADPTR_8TE1:
+			hw_iface->fe_read = sdla_shark_te1_read_fe;
+			hw_iface->fe_write = sdla_shark_te1_write_fe;
+			break;
+		case AFT_ADPTR_56K:
+			hw_iface->fe_read = sdla_shark_56k_read_fe;
+			hw_iface->fe_write = sdla_shark_56k_write_fe;
+			break;
+		case A200_ADPTR_ANALOG:
+		case A400_ADPTR_ANALOG:
+			hw_iface->fe_read = sdla_shark_rm_read_fe;
+			hw_iface->fe_write = sdla_shark_rm_write_fe;
+		case AFT_ADPTR_ISDN:
+			DEBUG_EVENT("%s: Front-End interface functions are not defined!\n",
+						devname);
+			break;
+		}	
+		switch(hw->hwcard->adptr_type){
 		case A101_ADPTR_1TE1:
 		case A101_ADPTR_2TE1:
 		case A104_ADPTR_4TE1:
 		case A108_ADPTR_8TE1:
 		case A200_ADPTR_ANALOG:
 		case A400_ADPTR_ANALOG:
+		case AFT_ADPTR_ISDN:
 		case AFT_ADPTR_56K:
 			DEBUG_EVENT("%s: Found: %s card, CPU %c, PciSlot=%d, PciBus=%d, Port=%d\n",
 					devname, 
@@ -2881,6 +2824,7 @@ static int sdla_register_check (wandev_conf_t* conf, char* devname)
 		break;
 
 	case WANOPT_AFT:
+	case WANOPT_AFT101:
 	case WANOPT_AFT102:
 		if (conf->auto_pci_cfg && sdla_adapter_cnt.aft101_adapters > 1){
  			DEBUG_EVENT( "%s: HW Auto PCI failed: Multiple AFT-101/102 cards found! \n"
@@ -2931,6 +2875,7 @@ static int sdla_register_check (wandev_conf_t* conf, char* devname)
 		}
 		break;
 
+		
 	case WANOPT_AFT_56K:
 		if (conf->auto_pci_cfg && sdla_adapter_cnt.aft_56k_adapters > 1){
  			DEBUG_EVENT( "%s: HW Auto PCI failed: Multiple AFT-56K cards found! \n"
@@ -2940,7 +2885,6 @@ static int sdla_register_check (wandev_conf_t* conf, char* devname)
 			return -EINVAL;
 		}
 		break;
-
 
 	default:
 		DEBUG_EVENT("%s: Unsupported Sangoma Card (0x%X) requested by user!\n", 
@@ -5616,104 +5560,30 @@ static sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 			case WANOPT_AFT_ANALOG:
 			case WANOPT_AFT_56K:
 				if (conf->auto_pci_cfg){
-
-					if (hw->cpu_no == cpu_no &&
-					    conf->card_type == WANOPT_AFT &&
-					    hw->hwcard->cfg_type == WANOPT_AFT101) {
-						/* Remap the card type to standard
-						   A104 Shark style.  We are allowing
-						   and old config file for A101/2-SH */
-						conf->config_id = WANCONFIG_AFT_TE1;
-						conf->card_type = WANOPT_AFT104;
-						conf->fe_cfg.line_no=1;
-                                        	goto adapter_found;
-					}
-
-					/* Allow old A102 config for A102 SHARK */
-					if (hw->cpu_no == cpu_no &&
-					    conf->card_type == WANOPT_AFT &&
-					    hw->hwcard->cfg_type == WANOPT_AFT102) {
-						/* Remap the card type to standard
-						   A104 Shark style.  We are allowing
-						   and old config file for A101/2-SH */
-						conf->config_id = WANCONFIG_AFT_TE1;
-						conf->card_type = WANOPT_AFT104;
-						if (cpu_no == SDLA_CPU_A) {
-							conf->fe_cfg.line_no=1;
-						} else {
-							conf->fe_cfg.line_no=2;		
-						}
-                                        	goto adapter_found;
-					}
-
-					if (conf->card_type == WANOPT_S51X &&
-					    IS_56K_MEDIA(&conf->fe_cfg) && 
-					    hw->hwcard->cfg_type == WANOPT_AFT_56K) {
-						/* Remap the old 56K card type to standard
-						   AFT 56K Shark style.  We are allowing
-						   and old config file for 56K */
-						conf->card_type = WANOPT_AFT_56K;
-						conf->config_id = WANCONFIG_AFT_56K;
-						conf->fe_cfg.line_no=1;
-                                        	goto adapter_found;
-					  	      
-					} 
-
 					if (hw->cpu_no == cpu_no &&
 					    hw->hwcard->cfg_type == conf->card_type){
 						goto adapter_found;
 					}
 				}else{
-					/* Allow old A101 config for A101 SHARK */
-					if (conf->card_type == WANOPT_AFT &&
-					    hw->hwcard->slot_no == conf->PCI_slot_no && 
-				    	    hw->hwcard->bus_no == conf->pci_bus_no &&
-					    hw->hwcard->cfg_type == WANOPT_AFT101) {
-						/* Remap the card type to standard
-						   A104 Shark style.  We are allowing
-						   and old config file for A101/2-SH */
-						conf->config_id = WANCONFIG_AFT_TE1;
-						conf->card_type = WANOPT_AFT104;
-						conf->fe_cfg.line_no=1;
-                                        	goto adapter_found;
-					  	      
-					}              
 
-					/* Allow old A102 config for A102 SHARK */
-					if (conf->card_type == WANOPT_AFT &&
+					/* Allow old A102 config for A102 SHARK */    
+                                        if (conf->card_type == WANOPT_AFT &&
 					    hw->hwcard->slot_no == conf->PCI_slot_no && 
 				    	    hw->hwcard->bus_no == conf->pci_bus_no &&
 					    hw->hwcard->cfg_type == WANOPT_AFT102) {
 						/* Remap the card type to standard
 						   A104 Shark style.  We are allowing
-						   and old config file for A101/2-SH */
-						conf->config_id = WANCONFIG_AFT_TE1;
+						   and old config file for A102-SH */
 						conf->card_type = WANOPT_AFT104;
+						conf->config_id = WANCONFIG_AFT_TE1;
 						if (cpu_no == SDLA_CPU_A) {
 							conf->fe_cfg.line_no=1;
 						} else {
 							conf->fe_cfg.line_no=2;		
 						}
                                         	goto adapter_found;
-					}              
-
-
-					
-                                        if (conf->card_type == WANOPT_S51X &&
-					    IS_56K_MEDIA(&conf->fe_cfg) && 
-					    hw->hwcard->slot_no == conf->PCI_slot_no && 
-				    	    hw->hwcard->bus_no == conf->pci_bus_no &&
-					    hw->hwcard->cfg_type == WANOPT_AFT_56K) {
-						/* Remap the old 56K card type to standard
-						   AFT 56K Shark style.  We are allowing
-						   and old config file for 56K */
-						conf->card_type = WANOPT_AFT_56K;
-						conf->config_id = WANCONFIG_AFT_56K;
-						conf->fe_cfg.line_no=1;
-                                        	goto adapter_found;
 					  	      
-					} 
-					
+					}
 					
 					if ((hw->hwcard->slot_no == conf->PCI_slot_no) && 
 				    	    (hw->hwcard->bus_no == conf->pci_bus_no) &&
@@ -5744,7 +5614,7 @@ static sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 					
 					if ((hw->hwcard->slot_no == conf->PCI_slot_no) && 
 				    	    (hw->hwcard->bus_no == conf->pci_bus_no)){
-					    
+							    
 					        switch (hw->hwcard->cfg_type){ 
 						case WANOPT_AFT101:
 						case WANOPT_AFT102:
@@ -5776,7 +5646,6 @@ adapter_found:
 		case A200_ADPTR_ANALOG:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_56K:
-	
 			conf->comm_port = 0;
 			conf->fe_cfg.line_no = 0;
 			break;
@@ -5928,7 +5797,6 @@ adapter_found:
 		case WANOPT_AFT300:
 		case WANOPT_AFT_ANALOG:
 		case WANOPT_AFT_56K:
-
 			DEBUG_EVENT(
 			"%s: Error, %s card not found on bus #%d, slot #%d, cpu %c, line %d\n",
                 	        	devname, 
@@ -6109,7 +5977,7 @@ static int sdla_is_same_hwcard(void* phw1, void *phw2)
  */
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 static int
-sdla_set_intrhand(void* phw, void (*isr_func)(void*), void* arg, int line_no)
+sdla_set_intrhand(void* phw, wan_pci_ifunc_t *isr_func, void* arg, int line_no)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
     	sdladev_t*	adapter = NULL;
@@ -6653,11 +6521,10 @@ static int sdla_pci_bridge_read_config_dword(void* phw, int reg, u32* value)
 	WAN_ASSERT(hw == NULL);
 	SDLA_MAGIC(hw);
 	WAN_ASSERT(hw->hwcard == NULL);
-
-        if (hw->hwcard->pci_bridge_dev == NULL){
-		return 0;	
-	}   
-	
+	if (hw->hwcard->pci_bridge_dev == NULL){
+		*value = 0xFFFFFFFF;
+		return 0;
+	}
 	card = hw->hwcard;
 #if defined(__FreeBSD__)
 # if (__FreeBSD_version > 400000)
@@ -6682,11 +6549,9 @@ static int sdla_pci_bridge_write_config_dword(void* phw, int reg, u32 value)
 	WAN_ASSERT(hw == NULL);
 	SDLA_MAGIC(hw);
 	WAN_ASSERT(hw->hwcard == NULL);
-
-        if (hw->hwcard->pci_bridge_dev == NULL){
+	if (hw->hwcard->pci_bridge_dev == NULL){
 		return 0;	
-	}       
-	
+	}
 	card = hw->hwcard;
 #if defined(__FreeBSD__)
 # if (__FreeBSD_version > 400000)
@@ -6986,7 +6851,7 @@ static int sdla_hw_read_cpld(void *phw, u16 off, u8 *data)
 				sdla_bus_read_1(hw, AFT_MCPU_INTERFACE, data);
 				/* Restore the original address */
 				sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, org_off);
-				break;	
+				break;				
 			case AFT_ADPTR_56K:
 
 				off |= AFT56K_BIT_DEV_ADDR_CPLD; 
@@ -6994,7 +6859,6 @@ static int sdla_hw_read_cpld(void *phw, u16 off, u8 *data)
    				sdla_bus_write_2(hw, AFT56K_MCPU_INTERFACE_ADDR, off);
    				sdla_bus_read_1(hw, AFT56K_MCPU_INTERFACE, data);
 				break;
-			
 			default:
 				DEBUG_EVENT("%s: ERROR: Invalid read access to cpld!\n",
 						hw->devname);
@@ -7076,6 +6940,9 @@ static int sdla_hw_write_cpld(void *phw, u16 off, u8 data)
 	sdlahw_t*	hw = (sdlahw_t*)phw;
 	u16		org_off;
 
+	DEBUG_56K("%s: hw->hwcard->adptr_type: 0x%X\n",
+				hw->devname, hw->hwcard->adptr_type);
+
 #if 1
 	if (hw->hwcard->adptr_subtype == AFT_SUBTYPE_NORMAL){
 		switch(hw->hwcard->adptr_type){
@@ -7103,7 +6970,7 @@ static int sdla_hw_write_cpld(void *phw, u16 off, u8 data)
 			sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, org_off);
 			break;
 		default:
-			DEBUG_EVENT("%s: ERROR: Invalid write access to cpld!\n",
+			DEBUG_EVENT("%s: ERROR: (1)Invalid write access to cpld!\n",
 						hw->devname);
 			return -EINVAL;
 		}
@@ -7125,7 +6992,7 @@ static int sdla_hw_write_cpld(void *phw, u16 off, u8 data)
 				sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, org_off);
 				break;
 			default:
-				DEBUG_EVENT("%s: ERROR: Invalid write access to cpld!\n",
+				DEBUG_EVENT("%s: ERROR: (2)Invalid write access to cpld!\n",
 							hw->devname);
 				return -EINVAL;
 			}
@@ -7148,7 +7015,7 @@ static int sdla_hw_write_cpld(void *phw, u16 off, u8 data)
 				sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, org_off);
 				break;
 			default:
-				DEBUG_EVENT("%s: ERROR: Invalid write access to cpld!\n",
+				DEBUG_EVENT("%s: ERROR: (3)Invalid write access to cpld!\n",
 							hw->devname);
 				return -EINVAL;
 			}
@@ -7167,23 +7034,22 @@ static int sdla_hw_write_cpld(void *phw, u16 off, u8 data)
 				sdla_bus_write_1(hw, AFT_MCPU_INTERFACE, data);
 				/* Restore the original address */
 				sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, org_off);
-				break;				
+				break;		
 			case AFT_ADPTR_56K:
 				off |= AFT56K_BIT_DEV_ADDR_CPLD; 
 
 				sdla_bus_write_2(hw, AFT56K_MCPU_INTERFACE_ADDR, off);
    				sdla_bus_write_1(hw, AFT56K_MCPU_INTERFACE, data);
 				break;
-
 			default:
-				DEBUG_EVENT("%s: ERROR: Invalid write access to cpld!\n",
+				DEBUG_EVENT("%s: ERROR: (4)Invalid write access to cpld!\n",
 						hw->devname);
 				return -EINVAL;		
 			}
 			break;
 		}
 	}else{
-		DEBUG_EVENT("%s: ERROR: Invalid write access to cpld!\n",
+		DEBUG_EVENT("%s: ERROR: (5)Invalid write access to cpld!\n",
 						hw->devname);
 		return -EINVAL;	
 	}

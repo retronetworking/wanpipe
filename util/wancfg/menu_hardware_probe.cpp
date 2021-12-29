@@ -591,8 +591,8 @@ int menu_hardware_probe::parse_selected_card_line(char *selected_card_line,
   //
   //Analog card
   //
-  if( strstr(selected_card_line, "AFT-A200-SH") != NULL || 
-      strstr(selected_card_line, "AFT-A400-SH") != NULL){
+  if( strstr(selected_card_line, "AFT-A200-SH") != NULL ||
+      strstr(selected_card_line, "AFT-A400-SH") != NULL   ){
     rc = YES;
     *card_type = WANOPT_AFT;
     *card_version = A200_ADPTR_ANALOG;
@@ -608,18 +608,19 @@ int menu_hardware_probe::parse_selected_card_line(char *selected_card_line,
       global_hw_ec_max_num = atoi(hw_ec_max_num_ptr);
       Debug(DBG_MENU_HARDWARE_PROBE, ("global_hw_ec_max_num: %d\n", global_hw_ec_max_num));
     }
+
     goto done;
-    }	
+  }
+
   //
   //A056 (AFT) 56k DDS card
   //
- 
   if( strstr(selected_card_line, "AFT-A056-SH") != NULL){
     rc = YES;
     *card_type = WANOPT_AFT;
     *card_version = AFT_ADPTR_56K;
     goto done;
-   }
+  }
 
 done:
 
@@ -751,7 +752,7 @@ int get_cpu_from_str(char * str_buff, char* S514_CPU_no)
   return YES;
 }
 
-int menu_hardware_probe::get_port_from_str(char * str_buff, int* comm_port)
+int menu_hardware_probe::get_port_from_str(char * str_buff, unsigned int* comm_port)
 {
   char * tmp = str_buff;
   
@@ -801,7 +802,9 @@ int menu_hardware_probe::get_port_from_str(char * str_buff, int* comm_port)
     *comm_port = 1;
     Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): PORT : SEC\n"));
   }else{
-    *comm_port = 0;
+    Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): Invalid Port!!\n"));
+    ERR_DBG_OUT(("Failed to get 'comm_port' from line: %s!\n", str_buff));
+    return NO;
   }
   return YES;
 }

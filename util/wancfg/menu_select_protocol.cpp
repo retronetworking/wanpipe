@@ -156,13 +156,13 @@ int menu_select_protocol::form_protocol_list_valid_for_lip_layer(OUT string& men
     num_of_items++;
 
 #if defined(CONFIG_PRODUCT_WANPIPE_LIP_ATM)
-   if(link_defs->card_version != AFT_ADPTR_56K){
-    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_LIP_ATM);
-    menu_str += tmp_buff;
-    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_LIP_ATM));
-    menu_str += tmp_buff;
-    num_of_items++;
-   }
+	if(link_defs->card_version != AFT_ADPTR_56K){
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_LIP_ATM);
+      menu_str += tmp_buff;
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_LIP_ATM));
+      menu_str += tmp_buff;
+      num_of_items++;
+	}
 #endif
   }
 
@@ -250,8 +250,8 @@ int menu_select_protocol::form_protocol_list_valid_for_hardware(string& menu_str
       num_of_items += 2;
       break;
 
-    case A300_ADPTR_U_1TE3://WAN_MEDIA_DS3:
-    case AFT_ADPTR_56K:
+	case A300_ADPTR_U_1TE3://WAN_MEDIA_DS3:
+	case AFT_ADPTR_56K:
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_HDLC);
       menu_str += tmp_buff;
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_HDLC));

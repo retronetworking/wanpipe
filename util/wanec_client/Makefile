@@ -18,7 +18,7 @@ YACC	= yacc
 # Project File Paths.
 TMPDIR		= tmp
 OUTDIR		= mod/
-SYSINC		= -I/lib/modules/$(shell uname -r)/build/include 
+SYSINC		= /lib/modules/$(shell uname -r)/build/include 
 VPATH		= $(LOCINC):$(TMPDIR)
 ARCH    	= $(shell uname -m)
 DIR_EC_APILIB	= ../wanec_apilib

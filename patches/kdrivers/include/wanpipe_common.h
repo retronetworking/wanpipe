@@ -2,7 +2,7 @@
  * Copyright (c) 2002
  *	Alex Feldman <al.feldman@sangoma.com>.  All rights reserved.
  *
- *	$Id: wanpipe_common.h,v 1.167 2006/10/19 21:32:35 sangoma Exp $
+ *	$Id: wanpipe_common.h,v 1.175 2007/02/24 00:17:14 sangoma Exp $
  */
 
 /****************************************************************************
@@ -282,8 +282,16 @@ extern atomic_t wan_debug_mem;
 # define WAN_TASKQ_INIT(task, priority, func, arg)	\
 		(task)->tfunc = func; task->data = arg
 #elif defined(__LINUX__)
+/* Due to 2.6.20 kernel the wan_taskq_t is now a direct
+ * workqueue struct not an abstracted structure */
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 
 # define WAN_TASKQ_INIT(task, priority, func, arg)	\
-		INIT_WORK((&task->tqueue),func,arg)
+		INIT_WORK((task),func,arg) 
+# else
+# define WAN_TASKQ_INIT(task, priority, func, arg)	\
+		INIT_WORK((task),func)	
+# endif
+			
 #elif defined(__WINDOWS__)
 #else
 # error "Undefined WAN_TASKQ_INIT macro!"
@@ -301,7 +309,7 @@ extern atomic_t wan_debug_mem;
 #elif defined(__LINUX__)
 # define WAN_IS_TASKQ_SCHEDULE
 # define WAN_TASKQ_SCHEDULE(task)			\
-	wan_schedule_task(&task->tqueue)
+	wan_schedule_task(task)
 #elif defined(__WINDOWS__)
 #else
 # error "Undefined WAN_TASKQ_SCHEDULE macro!"
@@ -390,15 +398,36 @@ extern atomic_t wan_debug_mem;
 #endif
 
 #if defined(__LINUX__)
+# define WAN_BPF_DIR_IN		(1<<0)
+# define WAN_BPF_DIR_OUT		(1<<1)
 # define WAN_BPF_REPORT(dev,m)
 #elif defined(__FreeBSD__)
+# define WAN_BPF_DIR_IN		(1<<0)
+# define WAN_BPF_DIR_OUT		(1<<1)
 # if (__FreeBSD_version > 500000)
-#  define WAN_BPF_REPORT(dev,m)	bpf_mtap((dev)->if_bpf, (m))
+#  define WAN_BPF_REPORT(dev,m,d)	bpf_mtap((dev)->if_bpf, (m))
 # else
-#  define WAN_BPF_REPORT(dev,m)	bpf_mtap((dev), (m))
+#  define WAN_BPF_REPORT(dev,m,d)	bpf_mtap((dev), (m))
 # endif
-#elif defined(__OpenBSD__) || defined(__NetBSD__)
-#  define WAN_BPF_REPORT(dev,m)	bpf_mtap((dev)->if_bpf, (m));
+#elif defined(__OpenBSD__)
+# if (OpenBSD < 200611)
+#  define WAN_BPF_DIR_IN		(1<<0)
+#  define WAN_BPF_DIR_OUT		(1<<1)
+#  define WAN_BPF_REPORT(dev,m,d)	bpf_mtap((dev)->if_bpf, (m));
+# else
+#  define WAN_BPF_DIR_IN		BPF_DIRECTION_IN
+#  define WAN_BPF_DIR_OUT		BPF_DIRECTION_OUT
+#  define WAN_BPF_REPORT(dev,m,d)					\
+	if (dir == WAN_BPF_DIR_IN){					\
+		bpf_mtap((dev)->if_bpf, (m), BPF_DIRECTION_IN);		\
+	}else{								\
+		bpf_mtap((dev)->if_bpf, (m), BPF_DIRECTION_OUT);	\
+	}
+# endif
+#elif defined(__NetBSD__)
+#  define WAN_BPF_DIR_IN		(1<<0)
+#  define WAN_BPF_DIR_OUT		(1<<1)
+#  define WAN_BPF_REPORT(dev,m,d)	bpf_mtap((dev)->if_bpf, (m));
 #elif defined(__WINDOWS__)
 #else
 # error "Undefined WAN_BPF_REPORT macro!"
@@ -581,7 +610,6 @@ static __inline void* wan_malloc(int size)
 	return ptr;
 }
 
-
 static __inline void* wan_kmalloc(int size)
 {
 	void*	ptr = NULL;
@@ -604,8 +632,7 @@ static __inline void* wan_kmalloc(int size)
 		DEBUG_ADD_MEM(size);
 	}
 	return ptr;
-}
-
+}     
 
 /*
 ** wan_free - 
@@ -1183,7 +1210,6 @@ static __inline void* wan_skb_alloc(unsigned int len)
 #endif
 }
 
-
 static __inline void* wan_skb_kalloc(unsigned int len)
 {
 #if defined(__LINUX__)
@@ -1231,7 +1257,7 @@ static __inline void* wan_skb_kalloc(unsigned int len)
 #else
 # error "wan_skb_kalloc() function is not supported yet!"
 #endif
-}               
+}
 
 
 /*
@@ -1303,7 +1329,7 @@ static __inline void wan_skb_set_csum(void* skb, unsigned int csum)
 #elif defined(__OpenBSD__)
 	netskb_t*	m = (netskb_t*)skb;
 	if (m){
-# if defined(OpenBSD3_8) || defined(OpenBSD3_9)
+# if (OpenBSD >= 200511)
 		m->m_pkthdr.csum_flags = csum;
 # else
 		m->m_pkthdr.csum = csum;
@@ -1333,7 +1359,7 @@ static __inline unsigned int wan_skb_csum(void* skb)
 	return (m) ? m->m_pkthdr.csum_data : 0;
 #elif defined(__OpenBSD__)
 	netskb_t*	m = (netskb_t*)skb;
-# if defined(OpenBSD3_8) || defined(OpenBSD3_9)
+# if (OpenBSD >= 200511)
 	return (m) ? m->m_pkthdr.csum_flags : 0;
 # else
 	return (m) ? m->m_pkthdr.csum : 0;
@@ -2219,7 +2245,8 @@ static __inline int wan_netif_set_mtu(netdevice_t* dev, unsigned long mtu)
 }
 
 
-static __inline void wan_bpf_report(netdevice_t* dev, void* pkt, int flag)
+static __inline void
+wan_bpf_report(netdevice_t* dev, void* pkt, int flag, int dir)
 {
 
 #if defined(__LINUX__)
@@ -2236,9 +2263,9 @@ static __inline void wan_bpf_report(netdevice_t* dev, void* pkt, int flag)
 			m0.m_next = pkt;
 			m0.m_len = 4;
 			m0.m_data = (char*)&af;
-			WAN_BPF_REPORT(dev, &m0);
+			WAN_BPF_REPORT(dev, &m0, dir);
 		}else{
-			WAN_BPF_REPORT(dev, pkt);
+			WAN_BPF_REPORT(dev, pkt, dir);
 		}
 	}
 #else

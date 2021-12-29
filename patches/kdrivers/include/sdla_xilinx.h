@@ -1040,7 +1040,7 @@ typedef struct {
 
 typedef struct wp_rx_element
 {
-	unsigned long dma_addr;
+	unsigned int dma_addr;
 	unsigned int reg;
 	unsigned int align;
 	unsigned char pkt_error;

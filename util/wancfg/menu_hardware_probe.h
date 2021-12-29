@@ -48,7 +48,7 @@ class menu_hardware_probe : public menu_base  {
 		  			  link_def_t * link_def,
                                           char* selected_card_line);
 
-  int get_port_from_str(char * str_buff, int* comm_port);
+  int get_port_from_str(char * str_buff, unsigned int* comm_port);
   
   int get_line_number_from_str(char * str_buff, unsigned int* line_no);
 

@@ -9,15 +9,6 @@ ZAPTEL_C_PATCH="if ((chan->flags \& ZT_FLAG_HDLC) \&\& chan->span->ioctl != NULL
                         }\n\
                         chan->writen[chan->inwritebuf] = amnt;"
 
-# D channel patching for zaptel version 1.2.17.1/1.4.2.1 or above
-ZAPTEL_C_SEARCH_STR_NEW="chan->writen\[res\] = amnt;"
-ZAPTEL_C_PATCH_NEW="if ((chan->flags \& ZT_FLAG_HDLC) \&\& chan->span->ioctl != NULL){\n\
-                                if (chan->span->ioctl(chan, ZT_DCHAN_TX_V2, amnt)==0){\n\
-                                        return amnt;\n\
-                                }\n\
-                        }\n\
-                        chan->writen[res] = amnt;"
-
 #NOTE1: the 'sed' command does NOT work on more than one line, so the
 #closing '*/' will be pushed AFTER the inserted strings.
 
@@ -50,6 +41,7 @@ tdmv_apply_zaptel_dchan_patch ()
 
         # patch zaptel.h
         eval "search_and_replace zaptel.h zaptel.h \"$ZAPTEL_H_SEARCH_STR\" \"$ZAPTEL_H_PATCH\""
+
         if [ $? -ne 0 ]; then
                 echo "search_and_replace(zaptel.h) failed"
                 cd $lhome
@@ -58,14 +50,8 @@ tdmv_apply_zaptel_dchan_patch ()
                echo "search_and_replace(zaptel.h) succeeded"
         fi
 
-
-	# patch $ZAPTEL_C_FILE
-        eval "grep \"$ZAPTEL_C_SEARCH_STR\"  $ZAPTEL_C_FILE > /dev/null 2> /dev/null"
-	if [ $? -eq 0 ]; then
-		eval "search_and_replace $ZAPTEL_C_FILE $ZAPTEL_C_FILE \"$ZAPTEL_C_SEARCH_STR\" \"$ZAPTEL_C_PATCH\""
-	else
-		eval "search_and_replace $ZAPTEL_C_FILE $ZAPTEL_C_FILE \"$ZAPTEL_C_SEARCH_STR_NEW\" \"$ZAPTEL_C_PATCH_NEW\""
-	fi
+        # patch zaptel.c
+        eval "search_and_replace $ZAPTEL_C_FILE $ZAPTEL_C_FILE \"$ZAPTEL_C_SEARCH_STR\" \"$ZAPTEL_C_PATCH\""
 
         if [ $? -ne 0 ]; then
                 echo "search_and_replace($ZAPTEL_C_FILE) failed"
@@ -73,8 +59,9 @@ tdmv_apply_zaptel_dchan_patch ()
                 return 2
         else
                 echo "search_and_replace($ZAPTEL_C_FILE) succeeded"
+                cd $lhome
+                return 0
         fi
-        cd $lhome
 	return 0
 }
 
@@ -114,6 +101,5 @@ if [ "$ZAPTEL_DIR" == "" ]; then
 fi
 
 echo "Applying Sangoma DCHAN patch to $ZAPTEL_DIR"
-echo " "
 tdmv_apply_zaptel_dchan_patch
  

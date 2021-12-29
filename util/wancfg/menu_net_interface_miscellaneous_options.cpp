@@ -169,7 +169,7 @@ again:
       if(chanconf->network_number == 0x00){
         chanconf->network_number = 0xABCDEFAB;
       }
-      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"IPX Network Addr---> 0x%lX\" ",
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"IPX Network Addr---> 0x%X\" ",
         chanconf->network_number);
       menu_str += tmp_buff;
     }
@@ -331,7 +331,7 @@ chandef->name);
       /////////////////////////////////////////////////////////////
 show_ipx_addr_input_box:
       snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify you IPX Network Number");
-      snprintf(initial_text, MAX_PATH_LENGTH, "0x%lX", chanconf->network_number);
+      snprintf(initial_text, MAX_PATH_LENGTH, "0x%X", chanconf->network_number);
 
       inb.set_configuration(  lxdialog_path,
                               backtitle,
@@ -350,14 +350,14 @@ show_ipx_addr_input_box:
 
 
         conversion_count = sscanf(  inb.get_lxdialog_output_string(),
-                                    "%lx",
+                                    "%x",
                                     &chanconf->network_number);
 
         Debug(DBG_MENU_NET_INTERFACE_MISCELLANEOUS_OPTIONS,
           ("conversion_count: %d\n", conversion_count));
 
         Debug(DBG_MENU_NET_INTERFACE_MISCELLANEOUS_OPTIONS,
-          ("IPX addr in Hex: 0x%lX\n", chanconf->network_number));
+          ("IPX addr in Hex: 0x%X\n", chanconf->network_number));
 
         if(conversion_count != 1 || (strlen(inb.get_lxdialog_output_string()) != 8+2)){
 

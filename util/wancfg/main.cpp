@@ -1694,14 +1694,14 @@ char* get_date_and_time()
  *
  * Return ULONG value, that include 1 in position `i` if channels i is active.
  */
-unsigned long parse_active_channel(char* val, unsigned char media_type)
+unsigned int parse_active_channel(char* val, unsigned char media_type)
 {
 #define SINGLE_CHANNEL	0x2
 #define RANGE_CHANNEL	  0x1
 	int channel_flag = 0;
 	char* ptr = val;
 	int channel = 0, start_channel = 0;
-	unsigned long tmp = 0;
+	unsigned int tmp = 0;
 
   Debug(DBG_WANCFG_MAIN, ("parse_active_channel(): input: %s, media_type: %d\n", val, media_type));
 
@@ -1761,11 +1761,11 @@ int active_channels_str_invalid_characters_check(char* active_ch_str)
 /*============================================================================
  * TE1
  */
-unsigned long get_active_channels(int channel_flag, int start_channel,
+unsigned int get_active_channels(int channel_flag, int start_channel,
                                   int stop_channel,  unsigned char media_type)
 {
 	int i = 0;
-	unsigned long tmp = 0, mask = 0;
+	unsigned int tmp = 0, mask = 0;
 
 	if ((channel_flag & (SINGLE_CHANNEL | RANGE_CHANNEL)) == 0)
 		return tmp;
@@ -2116,7 +2116,7 @@ int main(int argc, char *argv[])
   Debug(DBG_WANCFG_MAIN, ("%s: main()\n", WANCFG_PROGRAM_NAME));
 
   if(argc == 2 && !strcmp(argv[1], "version")){
-    printf("\nwancfg version: 1.28\n");
+    printf("\nwancfg version: 1.30\n");
     return EXIT_SUCCESS;
   }
 

@@ -1,271 +1,165 @@
-8
-
-dir
-229
-svn://sangoma.freeswitch.org/sangoma_mgd/trunk
-svn://sangoma.freeswitch.org
-
-
-
-2007-07-20T19:21:42.003810Z
-229
-ncorbic
-
-
-svn:special svn:externals svn:needs-lock
-
-
-
-
-
-
-
-
-
-
-
-2028fedf-720c-0410-83b8-d54a3e729fb0
-
-sigboost.h
-file
-
-
-
-
-2007-07-17T15:23:01.000000Z
-f0d1e64dfdd9aca476aeafd3b570c083
-2007-07-17T15:22:17.602452Z
-227
-ncorbic
-
-install.sh
-file
-
-
-
-
-2007-06-14T04:18:01.000000Z
-eebdfdf347cb99e7d38591488df900d7
-2007-06-14T04:19:34.594824Z
-212
-ncorbic
-has-props
-
-switch_buffer.h
-file
-
-
-
-
-2007-06-21T22:16:27.000000Z
-f4832443a621cbb88e92535898d11b83
-2007-06-21T22:11:59.891196Z
-216
-ncorbic
-
-sangoma_mgd.conf.sample
-file
-
-
-
-
-2007-04-13T19:46:26.000000Z
-3332791842dafbc726d1b03b9f769db4
-2007-04-13T18:50:03.087811Z
-178
-ncorbic
-
-sound.raw
-file
-
-
-
-
-2006-10-19T20:34:08.000000Z
-da36acc78b83d5047481df0cca63d969
-2006-10-19T20:33:28.674794Z
-106
-ncorbic
-has-props
-
-chan_woomera.c
-file
-
-
-
-
-2007-07-17T15:23:01.000000Z
-84567dd982c2bdb74af41df805eb268b
-2007-07-17T15:19:15.442273Z
-226
-ncorbic
-
-callgettest.sh
-file
-
-
-
-
-2006-07-28T16:14:58.000000Z
-2403f191bdc1959c4cfd186b5030b9b1
-2006-10-10T23:06:24.245444Z
-98
-ncorbic
-has-props
-
-conf
-dir
-
-Changelog
-file
-
-
-
-
-2007-06-14T04:10:02.000000Z
-e882d77b92b36e5878240af27f94d36f
-2007-06-14T04:08:55.484670Z
-208
-ncorbic
-
-scripts
-dir
-
-re-sync.sh
-file
-
-
-
-
-2007-07-17T20:46:57.000000Z
-d284fd9aab77a95945af9695cb6fd4ee
-2007-07-20T19:21:42.003810Z
-229
-ncorbic
-has-props
-
-call_signal.c
-file
-
-
-
-
-2007-06-21T22:16:27.000000Z
-ce7833d67e4f74118a8fb4c7beecddf2
-2007-06-21T22:12:30.552870Z
-218
-ncorbic
-
-clog.sh
-file
-
-
-
-
-2006-08-17T15:46:03.000000Z
-a94061bf84e9f89de0842eb1249d0975
-2006-07-28T16:10:34.424709Z
-91
-ncorbic
-has-props
-
-woomera.conf
-file
-
-
-
-
-2006-12-01T20:19:02.000000Z
-aa9bfdfa7b10bb26911cf3b6ae9f604d
-2006-12-01T20:20:54.543939Z
-152
-ncorbic
-
-sangoma_mgd.c
-file
-
-
-
-
-2007-07-16T22:42:26.000000Z
-c166673b9c95cda1e0532604823bff15
-2007-07-13T17:00:55.307391Z
-225
-ncorbic
-
-call_signal.h
-file
-
-
-
-
-2007-06-14T04:10:02.000000Z
-1a8b734edbabbe1e04c0086460cf1565
-2007-06-14T04:08:55.484670Z
-208
-ncorbic
-
-sangoma_mgd.h
-file
-
-
-
-
-2007-06-21T22:16:27.000000Z
-ee7ac4b94dcda9781e242afcf8119488
-2007-06-21T22:12:18.622974Z
-217
-ncorbic
-
-g711.h
-file
-
-
-
-
-2006-11-14T00:18:16.000000Z
-0f725f95ced42af15dcaef21f3a1722b
-2006-11-15T20:02:00.435766Z
-143
-ncorbic
-
-lib
-dir
-
-smgss7_ctrl
-file
-
-
-
-
-2006-10-19T20:27:44.000000Z
-967b811ad3552a554094694654af68f4
-2006-10-19T20:31:08.983924Z
-104
-ncorbic
-has-props
-
-switch_buffer.c
-file
-
-
-
-
-2007-06-21T22:16:27.000000Z
-628f33fbdf3fb2d3c2861684146bbf5c
-2007-06-21T22:11:50.257308Z
-215
-ncorbic
-
-Makefile
-file
-
-
-
-
-2007-07-17T15:23:01.000000Z
-7c7960df26248041751d427e62d7ba25
-2007-07-17T15:22:31.637247Z
-228
-ncorbic
-
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="198"
+   name=""
+   committed-date="2007-05-10T16:17:18.259953Z"
+   url="svn://sangoma.freeswitch.org/sangoma_mgd/trunk"
+   last-author="ncorbic"
+   kind="dir"
+   uuid="2028fedf-720c-0410-83b8-d54a3e729fb0"
+   revision="201"/>
+<entry
+   committed-rev="193"
+   name="sigboost.h"
+   text-time="2007-05-17T23:49:30.000000Z"
+   committed-date="2007-05-02T22:55:06.099862Z"
+   checksum="3d2e4c760ba5aa8c6c65a44f1791f302"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+<entry
+   committed-rev="179"
+   name="install.sh"
+   text-time="2007-05-17T23:49:30.000000Z"
+   committed-date="2007-04-13T19:52:36.639643Z"
+   checksum="6a197cdac5f25c572e603771d888612f"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+<entry
+   committed-rev="106"
+   name="sound.raw"
+   text-time="2006-10-19T20:34:08.000000Z"
+   committed-date="2006-10-19T20:33:28.674794Z"
+   checksum="da36acc78b83d5047481df0cca63d969"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2006-10-19T20:34:08.000000Z"/>
+<entry
+   committed-rev="178"
+   name="sangoma_mgd.conf.sample"
+   text-time="2007-05-17T23:49:30.000000Z"
+   committed-date="2007-04-13T18:50:03.087811Z"
+   checksum="3332791842dafbc726d1b03b9f769db4"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+<entry
+   committed-rev="198"
+   name="chan_woomera.c"
+   text-time="2007-05-17T23:49:30.000000Z"
+   committed-date="2007-05-10T16:17:18.259953Z"
+   checksum="6c8f7ef7a7ea4c9d89a18eb47804d4cb"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+<entry
+   committed-rev="98"
+   name="callgettest.sh"
+   text-time="2006-07-28T16:14:58.000000Z"
+   committed-date="2006-10-10T23:06:24.245444Z"
+   checksum="2403f191bdc1959c4cfd186b5030b9b1"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2006-10-10T23:06:08.000000Z"/>
+<entry
+   name="conf"
+   kind="dir"/>
+<entry
+   name="scripts"
+   kind="dir"/>
+<entry
+   committed-rev="194"
+   name="Changelog"
+   text-time="2007-05-17T23:49:30.000000Z"
+   committed-date="2007-05-02T23:01:52.479742Z"
+   checksum="3d40e2f19bf73c2c65238374f026bd16"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+<entry
+   committed-rev="193"
+   name="call_signal.c"
+   text-time="2007-05-17T23:49:30.000000Z"
+   committed-date="2007-05-02T22:55:06.099862Z"
+   checksum="4904b13c46e305a2d305dcf99978f490"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+<entry
+   committed-rev="197"
+   name="re-sync.sh"
+   text-time="2007-05-17T23:49:30.000000Z"
+   committed-date="2007-05-09T13:29:00.345429Z"
+   checksum="add21bcb8c87b3136a0e31ab2b6d1af0"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+<entry
+   committed-rev="195"
+   name="sangoma_mgd.c"
+   text-time="2007-05-17T23:49:30.000000Z"
+   committed-date="2007-05-04T23:18:56.359541Z"
+   checksum="ed21ca574dd8c815764f428657cdae6d"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+<entry
+   committed-rev="152"
+   name="woomera.conf"
+   text-time="2006-12-01T20:19:02.000000Z"
+   committed-date="2006-12-01T20:20:54.543939Z"
+   checksum="aa9bfdfa7b10bb26911cf3b6ae9f604d"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2006-10-19T20:34:06.000000Z"/>
+<entry
+   committed-rev="91"
+   name="clog.sh"
+   text-time="2006-08-17T15:46:03.000000Z"
+   committed-date="2006-07-28T16:10:34.424709Z"
+   checksum="a94061bf84e9f89de0842eb1249d0975"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2006-07-28T16:10:18.000000Z"/>
+<entry
+   committed-rev="193"
+   name="call_signal.h"
+   text-time="2007-05-17T23:49:30.000000Z"
+   committed-date="2007-05-02T22:55:06.099862Z"
+   checksum="a641f97b4002c1ef4874aacbeed98861"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+<entry
+   committed-rev="143"
+   name="g711.h"
+   text-time="2006-11-14T00:18:16.000000Z"
+   committed-date="2006-11-15T20:02:00.435766Z"
+   checksum="0f725f95ced42af15dcaef21f3a1722b"
+   last-author="ncorbic"
+   kind="file"/>
+<entry
+   name="lib"
+   kind="dir"/>
+<entry
+   committed-rev="104"
+   name="smgss7_ctrl"
+   text-time="2006-10-19T20:27:44.000000Z"
+   committed-date="2006-10-19T20:31:08.983924Z"
+   checksum="967b811ad3552a554094694654af68f4"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2006-10-19T20:04:19.000000Z"/>
+<entry
+   committed-rev="171"
+   name="Makefile"
+   text-time="2006-12-01T20:32:31.000000Z"
+   committed-date="2007-03-23T21:32:51.180292Z"
+   checksum="a060a5b05ca179bd79d41bac1efa5b7c"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T23:49:30.000000Z"/>
+</wc-entries>

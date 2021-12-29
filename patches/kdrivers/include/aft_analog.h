@@ -19,15 +19,6 @@
 
 #ifdef WAN_KERNEL
 
-#if 0
-#define A200_SECURITY_16_ECCHAN	0x00
-#define A200_SECURITY_32_ECCHAN	0x01
-#define A200_SECURITY_0_ECCHAN	0x05
-#define A200_ECCHAN(val)				\
-	((val) == A200_SECURITY_16_ECCHAN) ? 16 :	\
-	((val) == A200_SECURITY_32_ECCHAN) ? 32 : 0
-#endif
-
 int aft_analog_global_chip_config(sdla_t *card);
 int aft_analog_global_chip_unconfig(sdla_t *card);
 int aft_analog_chip_config(sdla_t *card);
@@ -43,7 +34,7 @@ int aft_analog_write_fe (void* card, ...);
 unsigned char __aft_analog_read_fe (void* card, ...);
 unsigned char aft_analog_read_fe (void* card, ...);
 
-int aft_analog_write_cpld(sdla_t *card, unsigned short off,unsigned char data);
+int aft_analog_write_cpld(sdla_t *card, unsigned short off,u_int16_t data);
 unsigned char aft_analog_read_cpld(sdla_t *card, unsigned short cpld_off);
 
 void aft_analog_fifo_adjust(sdla_t *card,u32 level);

@@ -276,8 +276,8 @@ static int wan_aften_shutdown(sdla_t *card)
 	struct wan_aften_priv	*priv = wan_netif_priv(dev);
 	free_irq(priv->irq, card);
 #endif
-	if (card->hw_iface.down){
-		card->hw_iface.down(card->hw);
+	if (card->hw_iface.hw_down){
+		card->hw_iface.hw_down(card->hw);
 	}
 	sdla_unregister(&card->hw, card->devname);
 

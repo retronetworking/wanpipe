@@ -170,7 +170,7 @@ char ** AFTget_cmd_menu(char *cmd_name,int *len)
 	
 	while(gui_cmd_menu_lookup[i].cmd_menu_ptr != NULL){
 		if (strcmp(cmd_name,gui_cmd_menu_lookup[i].cmd_menu_name) == 0){
-			cmd_menu=gui_cmd_menu_lookup[i].cmd_menu_ptr;
+			cmd_menu=(char*)gui_cmd_menu_lookup[i].cmd_menu_ptr;
 			while (strcmp(cmd_menu[j],".") != 0){
 				j++;
 			}
@@ -648,12 +648,10 @@ static int aft_digital_loop_test( void )
 		loop_rx_data(++passnum);
 		usleep(500000);
 		fflush(stdout);
-	
-#if 0	
+		
 		if (passnum >= 10) {
 			break;
 		}		
-#endif
 	}
 
 loop_rx_exit:
@@ -1196,7 +1194,9 @@ int AFTMain(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt,"sdlb")){
 				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_DEACTIVATE_LB);
 			}else if (!strcmp(opt,"a")){
-				read_te1_56k_stat();
+				read_te1_56k_stat(0);
+			}else if (!strcmp(opt,"af")){
+				read_te1_56k_stat(1);
 			}else if (!strcmp(opt,"txe")){
 				set_fe_tx_mode(WAN_FE_TXMODE_ENABLE);
 			}else if (!strcmp(opt,"txd")){
@@ -1219,59 +1219,33 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_debug_mode(WAN_FE_DEBUG_RBS, WAN_FE_DEBUG_RBS_READ);
 			}else if (!strcmp(opt,"pr")){
 				set_debug_mode(WAN_FE_DEBUG_RBS, WAN_FE_DEBUG_RBS_PRINT);
-			}else if (!strcmp(opt,"reg")){
-				int	value;
-				if (argc < 6){
-					printf("ERROR: Invalid command argument!\n");
-					break;				
-				}
-				value = strtol(argv[5],(char**)NULL, 16);
-				if (value == LONG_MIN || value == LONG_MAX){
-					printf("ERROR: Invalid argument 5: %s!\n",
-							argv[5]);
-					break;				
-				}
-				fe_debug.reg  = value;
-				fe_debug.read = 1;
-				if (argc > 6){
-					value = strtol(argv[6],(char**)NULL, 16);
-					if (value == LONG_MIN || value == LONG_MAX){
-						printf("ERROR: Invalid argument 6: %s!\n",
-								argv[6]);
-						break;
-					}
-					fe_debug.read = 0;
-					fe_debug.value = value;
-				}
-				fe_debug.type = WAN_FE_DEBUG_REG;
-				set_fe_debug_mode(&fe_debug);
 			}else if (!strcmp(opt,"sr")){
 				int		i=0;
 				if (argc < 6){
 					printf("ERROR: Invalid command argument!\n");
 					break;				
 				}
-				fe_debug.abcd	= 0x00;
-				fe_debug.channel= atoi(argv[5]);
-				if (fe_debug.channel < 1 || fe_debug.channel > 31){
+				fe_debug.fe_debug_rbs.abcd	= 0x00;
+				fe_debug.fe_debug_rbs.channel= atoi(argv[5]);
+				if (fe_debug.fe_debug_rbs.channel < 1 || fe_debug.fe_debug_rbs.channel > 31){
 					printf("ERROR: T1/E1 channel number of out range (%d)!\n",
-								fe_debug.channel);
+								fe_debug.fe_debug_rbs.channel);
 					break;
 				}
 				if (argc > 6){
 					for(i = 0; i < strlen(argv[6]); i++){
 						switch(argv[6][i]){
 						case 'A': case 'a':
-							fe_debug.abcd |= WAN_RBS_SIG_A;
+							fe_debug.fe_debug_rbs.abcd |= WAN_RBS_SIG_A;
 							break;
 						case 'B': case 'b':
-							fe_debug.abcd |= WAN_RBS_SIG_B;
+							fe_debug.fe_debug_rbs.abcd |= WAN_RBS_SIG_B;
 							break;
 						case 'C': case 'c':
-							fe_debug.abcd |= WAN_RBS_SIG_C;
+							fe_debug.fe_debug_rbs.abcd |= WAN_RBS_SIG_C;
 							break;
 						case 'D': case 'd':
-							fe_debug.abcd |= WAN_RBS_SIG_D;
+							fe_debug.fe_debug_rbs.abcd |= WAN_RBS_SIG_D;
 							break;
 						}
 					}
@@ -1283,6 +1257,35 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_debug_mode(WAN_FE_DEBUG_ALARM, WAN_FE_DEBUG_ALARM_AIS_ENABLE);
 			}else if (!strcmp(opt,"dais")){
 				set_debug_mode(WAN_FE_DEBUG_ALARM, WAN_FE_DEBUG_ALARM_AIS_DISABLE);
+			}else if (!strcmp(opt,"cfg")){
+				fe_debug.type = WAN_FE_DEBUG_RECONFIG;
+				set_fe_debug_mode(&fe_debug);
+			}else if (!strcmp(opt,"reg")){
+				int	value;
+				fe_debug.type = WAN_FE_DEBUG_REG;
+				if (argc < 6){
+					printf("ERROR: Invalid command argument!\n");
+					break;				
+				}
+				value = strtol(argv[5],(char**)NULL, 16);
+				if (value == LONG_MIN || value == LONG_MAX){
+					printf("ERROR: Invalid argument 5: %s!\n",
+								argv[5]);
+					break;				
+				}
+				fe_debug.fe_debug_reg.reg  = value;
+				fe_debug.fe_debug_reg.read = 1;
+				if (argc > 6){
+					value = strtol(argv[6],(char**)NULL, 16);
+					if (value == LONG_MIN || value == LONG_MAX){
+						printf("ERROR: Invalid argument 6: %s!\n",
+									argv[6]);
+						break;
+					}
+					fe_debug.fe_debug_reg.read = 0;
+					fe_debug.fe_debug_reg.value = value;
+				}
+				set_fe_debug_mode(&fe_debug);
 			}else{
 				printf("ERROR: Invalid Status Command 'd', Type wanpipemon <cr> for help\n\n");
 			}

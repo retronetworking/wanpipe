@@ -1,4 +1,0 @@
-Added a udp resync timeout 
---This line, and those below, will be ignored--
-
-M    sangoma_mgd.c

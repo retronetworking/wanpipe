@@ -662,7 +662,7 @@ static int wanec_api_verbose(int verbose)
 		
 	ec_verbose = (verbose == 0) ? WAN_EC_VERBOSE_NONE :
 			  (verbose == 1) ? WAN_EC_VERBOSE_EXTRA1 :
-						WAN_EC_VERBOSE_EXTRA2;
+						(WAN_EC_VERBOSE_EXTRA1|WAN_EC_VERBOSE_EXTRA2);
 	return ec_verbose;
 }
 

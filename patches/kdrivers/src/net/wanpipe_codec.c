@@ -27,7 +27,10 @@
 # include <wanpipe.h>
 # include <wanpipe_codec.h>
 #elif (defined __WINDOWS__)
-# include <wanpipe\csu_dsu.h>
+# include <wanpipe_includes.h>
+# include <wanpipe_defines.h>
+# include <wanpipe.h>
+# include <wanpipe_codec.h>
 #else
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -39,12 +42,15 @@
 wanpipe_codec_ops_t *WANPIPE_CODEC_OPS[WP_TDM_HW_CODING_MAX][WP_TDM_CODEC_MAX];
 
 
- 
+#ifdef __LINUX__ 
 __init int wanpipe_codec_init(void)
+#else
+__init int wanpipe_codec_init(void)
+#endif
 {
-	wanpipe_codec_ops_t *wp_codec_ops;	
 
 #ifdef CONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW
+	wanpipe_codec_ops_t *wp_codec_ops;	
 
 	wanpipe_codec_law_init();
 
@@ -82,7 +88,11 @@ __init int wanpipe_codec_init(void)
 	return 0;
 }
 
+#ifdef __LINUX__
+__exit int wanpipe_codec_free(void)
+#else
 int wanpipe_codec_free(void)
+#endif
 {
 	int i,j;
 	for (i = 0; i < WP_TDM_HW_CODING_MAX; i++){
@@ -94,5 +104,6 @@ int wanpipe_codec_free(void)
 		}
 	}
 
+	DEBUG_EVENT("WANPIPE: TDM Codecs unloaded.\n");
 	return 0;
 }

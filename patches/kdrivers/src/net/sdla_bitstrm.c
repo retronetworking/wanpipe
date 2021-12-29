@@ -285,7 +285,7 @@ static int bstrm_set_FE_config (sdla_t *card);
 
 
 /* Interrupt handlers */
-static void wpbit_isr (sdla_t* card);
+static WAN_IRQ_RETVAL wpbit_isr (sdla_t* card);
 static void rx_intr (sdla_t* card);
 static void timer_intr(sdla_t *);
 
@@ -501,7 +501,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -3955,14 +3955,14 @@ static void encode_byte (bitstrm_private_area_t *chan, unsigned char *byte_ptr, 
 /*============================================================================
  * Cisco HDLC interrupt service routine.
  */
-static void wpbit_isr (sdla_t* card)
+static WAN_IRQ_RETVAL wpbit_isr (sdla_t* card)
 {
 	unsigned char	intr_type = 0x00;
 	GLOBAL_INFORMATION_STRUCT global_info;
 	int i;
 
 	if (!card->hw){
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
 	card->statistics.isr_entry++;
@@ -4051,7 +4051,7 @@ isr_done:
 
 	clear_bit(0,&card->in_isr);
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-	return;
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 }
 
 /*============================================================================

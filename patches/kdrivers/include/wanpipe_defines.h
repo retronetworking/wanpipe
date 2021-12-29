@@ -136,9 +136,13 @@
 *************************************************
 */
 #if defined(__LINUX__)
+typedef struct ethhdr		ethhdr_t;
 typedef	struct iphdr		iphdr_t;
 typedef	struct udphdr		udphdr_t;
 typedef	struct tcphdr		tcphdr_t;
+# define w_eth_dest	h_dest
+# define w_eth_src	h_source
+# define w_eth_proto	h_proto
 # define w_ip_v		version
 # define w_ip_hl	ihl
 # define w_ip_tos	tos
@@ -186,6 +190,22 @@ typedef	void*		iphdr_t;
 typedef	void*		udphdr_t;
 #else
 # error "Unknown OS system!"
+#endif
+
+#if defined(__FreeBSD__)
+typedef u_int8_t		u8;
+typedef u_int16_t		u16;
+typedef u_int32_t		u32;
+#elif defined(__OpenBSD__)
+typedef u_int8_t		u8;
+typedef u_int16_t		u16;
+typedef u_int32_t		u32;
+typedef u_int64_t		u64;
+#elif defined(__NetBSD__)
+typedef u_int8_t		u8;
+typedef u_int16_t		u16;
+typedef u_int32_t		u32;
+typedef u_int64_t		u64;
 #endif
 
 /************************************************
@@ -247,11 +267,14 @@ typedef struct {
 					unsigned char 	notify_extended;
 				} bsc;
 				struct {
-					unsigned char sdlc_address;
-					unsigned char PF_bit;
-					unsigned short poll_interval;
-					unsigned char general_mailbox_byte;
+					unsigned char	sdlc_address;
+					unsigned char	PF_bit;
+					unsigned short	poll_interval;
+					unsigned char	general_mailbox_byte;
 				} sdlc;
+				struct {
+					unsigned char	force;
+				} fe;
 			} wan_protocol;
 		} wan_p_cmd;
 		struct {
@@ -266,6 +289,7 @@ typedef struct {
 #define wan_cmd_data_len		wan_cmd_u.wan_p_cmd.data_len
 #define wan_cmd_return_code		wan_cmd_u.wan_p_cmd.return_code
 #define wan_cmd_hdlc_PF_bit		wan_cmd_u.wan_p_cmd.wan_protocol.hdlc.PF_bit
+#define wan_cmd_fe_force		wan_cmd_u.wan_p_cmd.wan_protocol.fe.force
 #define wan_cmd_fr_dlci			wan_cmd_u.wan_p_cmd.wan_protocol.fr.dlci
 #define wan_cmd_fr_attr			wan_cmd_u.wan_p_cmd.wan_protocol.fr.attr
 #define wan_cmd_fr_rxlost1		wan_cmd_u.wan_p_cmd.wan_protocol.fr.rxlost1
@@ -558,6 +582,7 @@ typedef struct wan_udp_hdr{
 #define wan_udphdr_command			wan_cmd.wan_cmd_command
 #define wan_udphdr_data_len			wan_cmd.wan_cmd_data_len
 #define wan_udphdr_return_code			wan_cmd.wan_cmd_return_code
+#define wan_udphdr_fe_force			wan_cmd.wan_cmd_fe_force
 #define wan_udphdr_hdlc_PF_bit			wan_cmd.wan_cmd_hdlc_PF_bit
 #define wan_udphdr_fr_dlci			wan_cmd.wan_cmd_fr_dlci
 #define wan_udphdr_fr_attr			wan_cmd.wan_cmd_fr_attr	
@@ -793,12 +818,21 @@ typedef struct wan_udp_hdr{
 #if defined(__LINUX__)
 typedef struct sk_buff		netskb_t;
 typedef struct sk_buff_head	wan_skb_queue_t;
-typedef struct ethhdr		ethhdr_t;
 typedef struct timer_list	wan_timer_info_t;
 typedef void 			(*wan_timer_func_t)(unsigned long);
 typedef unsigned long		wan_timer_arg_t;
 typedef void 			wan_tasklet_func_t(unsigned long);
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
 typedef void 			(*wan_taskq_func_t)(void *);
+# else
+typedef void 			(*wan_taskq_func_t)(struct work_struct *);
+#endif
+
+/* Due to 2.6.20 kernel, the wan_taskq_t must be declared
+ * here as a workqueue structre.  The tq_struct is declared
+ * as work queue in wanpipe_kernel.h */
+typedef struct tq_struct 	wan_taskq_t;
+
 typedef void*			virt_addr_t;
 typedef unsigned long		phys_addr_t;
 typedef spinlock_t		wan_spinlock_t;
@@ -815,11 +849,8 @@ typedef struct termios		termios_t;
 # endif
 typedef void*			wan_dma_tag_t;
 typedef wait_queue_head_t	wan_waitq_head_t;
+typedef void			(wan_pci_ifunc_t)(void*);
 #elif defined(__FreeBSD__)
-typedef u_int8_t		u8;
-typedef u_int16_t		u16;
-typedef u_int32_t		u32;
-typedef u_int64_t		u64;
 typedef struct ifnet		netdevice_t;
 typedef struct mbuf		netskb_t;
 # ifdef ALTQ
@@ -851,11 +882,8 @@ typedef d_thread_t		wan_dev_thread_t;
 # endif
 typedef bus_dma_tag_t		wan_dma_tag_t;
 typedef int			wan_waitq_head_t;
+typedef void			(wan_pci_ifunc_t)(void*);
 #elif defined(__OpenBSD__)
-typedef u_int8_t		u8;
-typedef u_int16_t		u16;
-typedef u_int32_t		u32;
-typedef u_int64_t		u64;
 typedef struct ifnet		netdevice_t;
 typedef struct mbuf		netskb_t;
 # ifdef ALTQ
@@ -881,11 +909,8 @@ typedef int			wan_spinlock_t;
 typedef int			wan_smp_flag_t;
 typedef int 			wan_rwlock_t;
 typedef int			wan_rwlock_flag_t;
+typedef int			(wan_pci_ifunc_t)(void*);
 #elif defined(__NetBSD__)
-typedef u_int8_t		u8;
-typedef u_int16_t		u16;
-typedef u_int32_t		u32;
-typedef u_int64_t		u64;
 typedef struct ifnet		netdevice_t;
 typedef struct mbuf		netskb_t;
 # ifdef ALTQ
@@ -911,6 +936,7 @@ typedef int			wan_spinlock_t;
 typedef int			wan_smp_flag_t;
 typedef int 			wan_rwlock_t;
 typedef int			wan_rwlock_flag_t;
+typedef void			(wan_pci_ifunc_t)(void*);
 #elif defined(__SOLARIS__)
 typedef mblk_t			netskb_t;
 
@@ -1010,7 +1036,7 @@ typedef struct _wan_tasklet
 #endif
 } wan_tasklet_t;
 
-
+#ifndef __LINUX__
 typedef struct _wan_taskq
 {
 	unsigned char		running;
@@ -1020,11 +1046,20 @@ typedef struct _wan_taskq
 	wan_taskq_func_t	tfunc;
 	void*			data;	
 #elif defined(__LINUX__)
+/* Due to 2.6.20 kernel, we cannot abstract the
+ * wan_taskq_t here, we must declare it as work queue */
+# error "Linux doesnt support wan_taskq_t here!"
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 
     	struct tq_struct 	tqueue;
+# else
+        struct work_struct 	tqueue;
+# endif
 #elif  defined(__SOLARIS__)
 #error "_wan_taskq: not defined in solaris"
 #endif
 } wan_taskq_t;
+#endif
+
 
 typedef struct wan_trace
 {
@@ -1080,8 +1115,11 @@ typedef struct wan_udp_pkt {
 	iphdr_t		ip_hdr;
 	udphdr_t	udp_hdr;
 	wan_udp_hdr_t	wan_udp_hdr;
+
+
 #define wan_ip				ip_hdr
 #define wan_ip_v			ip_hdr.w_ip_v
+#define wan_ip_hl			ip_hdr.w_ip_hl
 #define wan_ip_tos			ip_hdr.w_ip_tos
 #define wan_ip_len			ip_hdr.w_ip_len
 #define wan_ip_id			ip_hdr.w_ip_id
@@ -1147,6 +1185,51 @@ typedef struct wan_udp_pkt {
 #define wan_udp_aft_ismoredata		wan_udp_hdr.wan_udphdr_aft_ismoredata	
 #define wan_udp_data			wan_udp_hdr.wan_udphdr_data
 } wan_udp_pkt_t;
+
+
+#pragma pack(1)
+#if defined(WAN_BIG_ENDIAN)
+
+typedef struct {
+  uint8_t cc:4;	/* CSRC count             */
+  uint8_t x:1;		/* header extension flag  */
+  uint8_t p:1;		/* padding flag           */
+  uint8_t version:2;	/* protocol version       */
+  uint8_t pt:7;	/* payload type           */
+  uint8_t m:1;		/* marker bit             */
+  uint16_t seq;		/* sequence number        */
+  uint32_t ts;		/* timestamp              */
+  uint32_t ssrc;	/* synchronization source */
+} wan_rtp_hdr_t;
+
+#else /*  BIG_ENDIAN */
+
+typedef struct {
+  unsigned version:2;	/* protocol version       */
+  unsigned p:1;		/* padding flag           */
+  unsigned x:1;		/* header extension flag  */
+  unsigned cc:4;	/* CSRC count             */
+  unsigned m:1;		/* marker bit             */
+  unsigned pt:7;	/* payload type           */
+  uint16_t seq;		/* sequence number        */
+  uint32_t ts;		/* timestamp              */
+  uint32_t ssrc;	/* synchronization source */
+} wan_rtp_hdr_t;
+
+#endif
+
+typedef struct wan_rtp_pkt {
+	ethhdr_t	eth_hdr;
+	iphdr_t		ip_hdr;
+	udphdr_t	udp_hdr;       
+	wan_rtp_hdr_t	rtp_hdr;
+#define wan_eth_dest			eth_hdr.w_eth_dest	
+#define wan_eth_src 			eth_hdr.w_eth_src
+#define wan_eth_proto  			eth_hdr.w_eth_proto         
+} wan_rtp_pkt_t;
+
+#pragma pack(0)
+
 
 #endif /* KERNEL */ 
 

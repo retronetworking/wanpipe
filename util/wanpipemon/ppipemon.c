@@ -364,17 +364,40 @@ static void general_conf( void )
 
 static void authent( void ) 
 {
-	unsigned char tmp;
-   
-	wan_udp.wan_udphdr_command = PPP_READ_CONFIG;
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
+        s_auth_t *auth = (s_auth_t *)&wan_udp.wan_udphdr_data[0];
+
+        wan_udp.wan_udphdr_command = PPP_READ_AUTH;
+        wan_udp.wan_udphdr_return_code = 0xaa;
+        wan_udp.wan_udphdr_data_len = 0;
+        DO_COMMAND(wan_udp);
 
 	if( wan_udp.wan_udphdr_return_code == 0 ) {
-	
+			
 		BANNER("PPP AUTHENTICATION");
+		printf("Allow the use of PAP for inbound/outbound:  ");
+                if (auth->proto == PPP_PAP) {
+                        printf("Yes\n");
+                }
+                else {
+                        printf("No\n");
+                }
+                printf("Allow the use of CHAP for inbound/outbound: ");
+                if (auth->proto == PPP_CHAP) {
+                        printf("Yes\n");
+                }
+                else {
+                        printf("No\n");
+                }
 
+                printf("Current Authentication Status:");
+                if (auth->authenticated == 1) {
+                        printf(" Authenticated\n");
+                }
+                else {
+                        printf(" Not Authenticated\n");
+                }
+
+#if 0
 		if( is_508 == WAN_TRUE ) {
 			tmp = wan_udp.wan_udphdr_data[32];
 		} else {
@@ -402,7 +425,7 @@ static void authent( void )
 		} else {
 		     printf("Allow the use of CHAP for inbound/outbound: No\n");
 		} //if
-
+#endif
 	} else {
 		error();
 	} //if
@@ -1333,7 +1356,7 @@ int PPPMain(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt,"sdlb")){
 				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_DEACTIVATE_LB);
 			}else if (!strcmp(opt,"a")){
-				read_te1_56k_stat();
+				read_te1_56k_stat(0);
 			} else{
 				printf("ERROR: Invalid FT1 Command 'T', Type wanpipemon <cr> for help\n\n");
 			} 

@@ -1,398 +1,291 @@
-8
-
-dir
-229
-svn://sangoma.freeswitch.org/libsangoma/trunk
-svn://sangoma.freeswitch.org
-
-
-
-2007-06-19T00:41:32.721946Z
-213
-ncorbic
-
-
-svn:special svn:externals svn:needs-lock
-
-
-
-
-
-
-
-
-
-
-
-2028fedf-720c-0410-83b8-d54a3e729fb0
-
-configure
-file
-
-
-
-
-2007-05-17T22:58:57.000000Z
-cdcb22cae8ad2d0de88542d1adf5b13d
-2007-02-07T19:00:12.109961Z
-166
-ncorbic
-has-props
-
-Makefile.in
-file
-
-
-
-
-2007-07-24T22:46:01.000000Z
-1c05e844314274f082a74abf3f446239
-2007-05-29T18:03:36.038276Z
-206
-ncorbic
-
-AUTHORS
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2006-02-10T16:20:41.709688Z
-1
-anthm
-
-depcomp
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-e181e2c8720c60522c4c4c981108e367
-2006-02-10T16:20:41.709688Z
-1
-anthm
-has-props
-
-compile
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-a7ecc032b527a0d578545f19d3418073
-2006-02-10T16:20:41.709688Z
-1
-anthm
-has-props
-
-config.guess
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-9ae396244b8f138c76514a6b7531e696
-2006-02-10T16:20:41.709688Z
-1
-anthm
-has-props
-
-libsangoma.c
-file
-230
-
-
-
-2007-07-24T22:46:01.000000Z
-b2927c29e1ea8b95bb3f50a8f0d98e35
-2007-07-24T22:47:39.060265Z
-230
-ncorbic
-
-ltmain.sh
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-c8215e3aa0858d700783015614f53b79
-2006-02-10T16:20:41.709688Z
-1
-anthm
-
-config.sub
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-3d36962d51070d30b7554203b0d7c01c
-2006-02-10T16:20:41.709688Z
-1
-anthm
-has-props
-
-libsangoma.dsp
-file
-
-
-
-
-2007-05-17T22:12:40.000000Z
-f934aab66c529599725686f321d182e6
-2006-12-04T20:48:10.874618Z
-156
-anthm
-
-libsangoma.h
-file
-230
-
-
-
-2007-07-24T22:46:38.000000Z
-19c2545ffa4e1a11f2a1b5f4850a10bd
-2007-07-24T22:47:39.060265Z
-230
-ncorbic
-
-g711.h
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-0f725f95ced42af15dcaef21f3a1722b
-2006-11-06T23:11:15.401413Z
-119
-ncorbic
-
-INSTALL
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-40539bd3eff06e4b82f380103145415b
-2006-08-08T19:52:23.727343Z
-94
-ncorbic
-
-libsangoma.dsw
-file
-
-
-
-
-2007-05-17T22:12:47.000000Z
-f13496d2105bae2add104c36a1d656f6
-2006-12-04T20:48:10.874618Z
-156
-anthm
-
-COPYING
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2006-02-10T16:20:41.709688Z
-1
-anthm
-
-NEWS
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2006-02-10T16:20:41.709688Z
-1
-anthm
-
-sangoma_pri.c
-file
-
-
-
-
-2007-05-17T22:11:22.000000Z
-e2a6c68fadfefb2d2b16c52534e85675
-2006-12-04T20:47:20.283144Z
-155
-anthm
-
-libsangoma.so.conf
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-bcdcb23c5d5fb460cee2ce315ef7bd32
-2006-10-19T19:27:09.335085Z
-101
-ncorbic
-
-win_api_common.h
-file
-
-
-
-
-2007-05-17T22:13:04.000000Z
-b6be170d18fa90b79f7264cf8b0f7348
-2006-12-04T22:21:07.339224Z
-157
-mikej
-
-sangoma_pri.h
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-f24c6cf396aeaa6df2747f7f6b32969d
-2006-03-24T14:19:31.976520Z
-28
-anthm
-
-version
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-35f672d1fb01b542f667952c9dbb26fe
-2006-02-10T16:20:41.709688Z
-1
-anthm
-
-configure.in
-file
-
-
-
-
-2007-05-17T22:11:22.000000Z
-5b9888fc365c4ebffdbb55656c091a2f
-2007-02-07T19:00:12.109961Z
-166
-ncorbic
-
-ChangeLog
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2006-02-10T16:20:41.709688Z
-1
-anthm
-
-README
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-e8a0abce86211364eb60bbe6e07d4b05
-2006-02-14T19:06:52.853886Z
-6
-nenad
-
-config.h.in
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-5c51918deee8d041af37226bd4b4271e
-2006-02-10T16:20:41.709688Z
-1
-anthm
-
-missing
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-fd5dd60aa8cefab9462677280ea74a61
-2006-02-10T16:20:41.709688Z
-1
-anthm
-has-props
-
-Makefile.am
-file
-
-
-
-
-2007-07-24T22:46:01.000000Z
-061d814c4cf9a1066e4ff2501fa0a100
-2007-05-29T18:03:36.038276Z
-206
-ncorbic
-
-aclocal.m4
-file
-
-
-
-
-2007-05-17T22:58:53.000000Z
-dd02d76e53ac83f5112d68797e8f52e3
-2007-02-07T19:00:12.109961Z
-166
-ncorbic
-
-examples
-dir
-
-install-sh
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-92067666ddce97609bd0ec67d36460cd
-2006-02-10T16:20:41.709688Z
-1
-anthm
-has-props
-
-libsangoma.vcproj
-file
-
-
-
-
-2007-05-17T22:13:09.000000Z
-a09711e3b6aac93dd48d8e9b3014955f
-2006-12-04T22:24:41.715361Z
-158
-mikej
-
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="167"
+   name=""
+   committed-date="2007-02-08T00:43:20.661018Z"
+   url="svn://sangoma.freeswitch.org/libsangoma/trunk"
+   last-author="ncorbic"
+   kind="dir"
+   uuid="2028fedf-720c-0410-83b8-d54a3e729fb0"
+   revision="198"/>
+<entry
+   committed-rev="166"
+   name="configure"
+   text-time="2007-05-17T22:12:13.000000Z"
+   committed-date="2007-02-07T19:00:12.109961Z"
+   checksum="cdcb22cae8ad2d0de88542d1adf5b13d"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T22:11:17.000000Z"/>
+<entry
+   committed-rev="199"
+   name="Makefile.in"
+   text-time="2007-05-17T22:12:12.000000Z"
+   committed-date="2007-05-17T21:15:01.613603Z"
+   checksum="4a762c5012094547c2be4df686a23356"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T22:11:17.000000Z"
+   revision="199"/>
+<entry
+   committed-rev="1"
+   name="AUTHORS"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="d41d8cd98f00b204e9800998ecf8427e"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-02-13T15:57:48.000000Z"/>
+<entry
+   committed-rev="1"
+   name="depcomp"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="e181e2c8720c60522c4c4c981108e367"
+   last-author="anthm"
+   kind="file"
+   prop-time="2007-03-21T22:07:06.000000Z"/>
+<entry
+   committed-rev="1"
+   name="compile"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="a7ecc032b527a0d578545f19d3418073"
+   last-author="anthm"
+   kind="file"
+   prop-time="2007-03-21T22:07:06.000000Z"/>
+<entry
+   committed-rev="1"
+   name="config.guess"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="9ae396244b8f138c76514a6b7531e696"
+   last-author="anthm"
+   kind="file"
+   prop-time="2007-03-21T22:07:06.000000Z"/>
+<entry
+   committed-rev="201"
+   name="libsangoma.c"
+   text-time="2007-05-17T22:18:42.000000Z"
+   committed-date="2007-05-17T21:19:07.732396Z"
+   checksum="ba737500208af1da3b85e09bded0817d"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T22:11:17.000000Z"
+   revision="201"/>
+<entry
+   committed-rev="1"
+   name="ltmain.sh"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="c8215e3aa0858d700783015614f53b79"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-02-13T15:57:50.000000Z"/>
+<entry
+   committed-rev="1"
+   name="config.sub"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="3d36962d51070d30b7554203b0d7c01c"
+   last-author="anthm"
+   kind="file"
+   prop-time="2007-03-21T22:07:06.000000Z"/>
+<entry
+   committed-rev="156"
+   name="libsangoma.dsp"
+   text-time="2007-05-17T22:12:40.000000Z"
+   committed-date="2006-12-04T20:48:10.874618Z"
+   checksum="f934aab66c529599725686f321d182e6"
+   last-author="anthm"
+   kind="file"
+   prop-time="2007-05-17T22:12:39.000000Z"/>
+<entry
+   committed-rev="166"
+   name="libsangoma.h"
+   text-time="2007-05-17T22:11:22.000000Z"
+   committed-date="2007-02-07T19:00:12.109961Z"
+   checksum="a28f5ba57fefd87ff733f9f3ba745660"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T22:11:21.000000Z"/>
+<entry
+   committed-rev="119"
+   name="g711.h"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-11-06T23:11:15.401413Z"
+   checksum="0f725f95ced42af15dcaef21f3a1722b"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2006-11-07T00:15:14.000000Z"/>
+<entry
+   committed-rev="94"
+   name="INSTALL"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-08-08T19:52:23.727343Z"
+   checksum="40539bd3eff06e4b82f380103145415b"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2006-02-13T15:57:58.000000Z"/>
+<entry
+   committed-rev="156"
+   name="libsangoma.dsw"
+   text-time="2007-05-17T22:12:47.000000Z"
+   committed-date="2006-12-04T20:48:10.874618Z"
+   checksum="f13496d2105bae2add104c36a1d656f6"
+   last-author="anthm"
+   kind="file"
+   prop-time="2007-05-17T22:12:46.000000Z"/>
+<entry
+   committed-rev="1"
+   name="COPYING"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="d41d8cd98f00b204e9800998ecf8427e"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-02-13T15:57:58.000000Z"/>
+<entry
+   committed-rev="1"
+   name="NEWS"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="d41d8cd98f00b204e9800998ecf8427e"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-02-13T15:57:58.000000Z"/>
+<entry
+   committed-rev="155"
+   name="sangoma_pri.c"
+   text-time="2007-05-17T22:11:22.000000Z"
+   committed-date="2006-12-04T20:47:20.283144Z"
+   checksum="e2a6c68fadfefb2d2b16c52534e85675"
+   last-author="anthm"
+   kind="file"
+   prop-time="2007-05-17T22:11:21.000000Z"/>
+<entry
+   committed-rev="101"
+   name="libsangoma.so.conf"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-10-19T19:27:09.335085Z"
+   checksum="bcdcb23c5d5fb460cee2ce315ef7bd32"
+   last-author="ncorbic"
+   kind="file"/>
+<entry
+   name="include"
+   kind="dir"/>
+<entry
+   committed-rev="157"
+   name="win_api_common.h"
+   text-time="2007-05-17T22:13:04.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="b6be170d18fa90b79f7264cf8b0f7348"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:13:03.000000Z"/>
+<entry
+   committed-rev="28"
+   name="sangoma_pri.h"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-03-24T14:19:31.976520Z"
+   checksum="f24c6cf396aeaa6df2747f7f6b32969d"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-04-28T15:08:00.000000Z"/>
+<entry
+   committed-rev="1"
+   name="version"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="35f672d1fb01b542f667952c9dbb26fe"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-02-13T15:57:48.000000Z"/>
+<entry
+   committed-rev="166"
+   name="configure.in"
+   text-time="2007-05-17T22:11:22.000000Z"
+   committed-date="2007-02-07T19:00:12.109961Z"
+   checksum="5b9888fc365c4ebffdbb55656c091a2f"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T22:11:21.000000Z"/>
+<entry
+   committed-rev="1"
+   name="ChangeLog"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="d41d8cd98f00b204e9800998ecf8427e"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-02-13T15:57:48.000000Z"/>
+<entry
+   committed-rev="6"
+   name="README"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-14T19:06:52.853886Z"
+   checksum="e8a0abce86211364eb60bbe6e07d4b05"
+   last-author="nenad"
+   kind="file"
+   prop-time="2006-02-13T15:57:49.000000Z"/>
+<entry
+   committed-rev="1"
+   name="config.h.in"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="5c51918deee8d041af37226bd4b4271e"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-02-13T15:57:50.000000Z"/>
+<entry
+   committed-rev="1"
+   name="missing"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="fd5dd60aa8cefab9462677280ea74a61"
+   last-author="anthm"
+   kind="file"
+   prop-time="2007-03-21T22:07:06.000000Z"/>
+<entry
+   committed-rev="199"
+   name="Makefile.am"
+   text-time="2007-05-17T22:12:09.000000Z"
+   committed-date="2007-05-17T21:15:01.613603Z"
+   checksum="ae7586e69e82a8d0e19473391c14cc5d"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T22:11:21.000000Z"
+   revision="199"/>
+<entry
+   committed-rev="166"
+   name="aclocal.m4"
+   text-time="2007-05-17T22:11:31.000000Z"
+   committed-date="2007-02-07T19:00:12.109961Z"
+   checksum="dd02d76e53ac83f5112d68797e8f52e3"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2007-05-17T22:11:21.000000Z"/>
+<entry
+   name="examples"
+   kind="dir"/>
+<entry
+   committed-rev="1"
+   name="install-sh"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-02-10T16:20:41.709688Z"
+   checksum="92067666ddce97609bd0ec67d36460cd"
+   last-author="anthm"
+   kind="file"
+   prop-time="2007-03-21T22:07:06.000000Z"/>
+<entry
+   committed-rev="158"
+   name="libsangoma.vcproj"
+   text-time="2007-05-17T22:13:09.000000Z"
+   committed-date="2006-12-04T22:24:41.715361Z"
+   checksum="a09711e3b6aac93dd48d8e9b3014955f"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:13:09.000000Z"/>
+</wc-entries>

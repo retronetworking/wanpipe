@@ -11,6 +11,7 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ----------------------------------------------------------------------------
+* Mar 29, 2007  David Rokhvarg  Added support for AFT-56K card.
 * May 11, 2001  Alex Feldman    Added T1/E1 support (TE1).
 * Apr 16, 2001  David Rokhvarg  Added X25_SRC_ADDR and ACCEPT_CALLS_FROM to 'chan_conftab'
 * Nov 15, 2000  Nenad Corbic    Added true interface encoding type option
@@ -89,6 +90,10 @@
 # include <linux/wanpipe.h>
 #endif
 
+#define smemof(TYPE, MEMBER) offsetof(TYPE,MEMBER),(sizeof(((TYPE *)0)->MEMBER))
+
+
+
 /****** Defines *************************************************************/
 
 #ifndef	min
@@ -96,8 +101,6 @@
 #endif
 
 #define	is_digit(ch) (((ch)>=(unsigned)'0'&&(ch)<=(unsigned)'9')?1:0)
-
-#define smemof(TYPE, MEMBER) offsetof(TYPE,MEMBER),(sizeof(((TYPE *)0)->MEMBER))  					
 
 enum ErrCodes			/* Error codes */
 {
@@ -128,7 +131,7 @@ typedef struct key_word		/* Keyword table entry */
 {
 	char*	keyword;	/* -> keyword */
 	uint	offset;		/* offset of the related parameter */
-	int 	size;
+	int	size;		/* size of type */
 	int	dtype;		/* data type */
 } key_word_t;
 
@@ -168,6 +171,7 @@ typedef struct data_buf		/* General data buffer */
 #define ANNEXG_LIP_X25   11
 #define ANNEXG_LIP_ATM   12
 #define ANNEXG_LIP_LAPD  13
+#define ANNEXG_LIP_KATM  14
 
 #define WANCONFIG_SOCKET "/etc/wanpipe/wanconfig_socket"
 #define WANCONFIG_PID    "/var/run/wanconfig.pid"
@@ -275,8 +279,8 @@ int router_down (char *devname, int ignore_error);
 int router_ifdel (char *card_name, char *dev_name);
 int conf_file_down (void);
 
-unsigned long parse_active_channel(char* val);
-unsigned long get_active_channels(int channel_flag, int start_channel, int stop_channel);
+unsigned int parse_active_channel(char* val);
+unsigned int get_active_channels(int channel_flag, int start_channel, int stop_channel);
 void read_adsl_vci_vpi_list(wan_adsl_vcivpi_t* vcivpi_list, unsigned short* vcivpi_num);
 void update_adsl_vci_vpi_list(wan_adsl_vcivpi_t* vcivpi_list, unsigned short vcivpi_num);
 
@@ -492,6 +496,7 @@ union
 wan_conf_t	config;
 #endif
 
+
 static void SIZEOFASSERT (key_word_t* dtab, int type_size)
 {
  	if (dtab->size != type_size) { 
@@ -505,8 +510,7 @@ static void SIZEOFASSERT (key_word_t* dtab, int type_size)
 		fprintf(stderr,"Email to techdesk@sangoma.com\n");	
 		fprintf(stderr,"======================================\n\n");	
        	}         
-}
-
+}   
 
 /*
  * Configuration structure description tables.
@@ -516,7 +520,7 @@ static void SIZEOFASSERT (key_word_t* dtab, int type_size)
 key_word_t common_conftab[] =	/* Common configuration parameters */
 {
   { "IOPORT",     smemof(wandev_conf_t, ioport),     DTYPE_UINT },
-  { "MEMADDR",    smemof(wandev_conf_t, maddr),       DTYPE_UINT },
+  { "MEMADDR",    smemof(wandev_conf_t, maddr),       DTYPE_UINT  },
   { "MEMSIZE",    smemof(wandev_conf_t, msize),       DTYPE_UINT },
   { "IRQ",        smemof(wandev_conf_t, irq),         DTYPE_UINT },
   { "DMA",        smemof(wandev_conf_t, dma),         DTYPE_UINT },
@@ -547,28 +551,38 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   /* T1/E1 Front-End parameters */
   { "TE_LBO",           offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, lbo), DTYPE_UCHAR },
   { "TE_CLOCK",         offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, te_clock), DTYPE_UCHAR },
-  { "TE_ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, active_ch), DTYPE_ULONG },
-  { "TE_RBS_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, te_rbs_ch), DTYPE_ULONG },
+  { "TE_ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, active_ch), DTYPE_UINT },
+  { "TE_RBS_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, te_rbs_ch), DTYPE_UINT },
   { "TE_HIGHIMPEDANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, high_impedance_mode), DTYPE_UCHAR },
   { "TE_REF_CLOCK",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, te_ref_clock), DTYPE_UCHAR },
   { "TE_SIG_MODE",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, sig_mode), DTYPE_UCHAR },
   /* T1/E1 Front-End parameters (old style) */
   { "LBO",           offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, lbo), DTYPE_UCHAR },
-  { "ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, active_ch), DTYPE_ULONG },
+  { "ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, active_ch), DTYPE_UINT },
   { "HIGHIMPEDANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, high_impedance_mode), DTYPE_UCHAR },
   /* T3/E3 Front-End parameters */
-  { "TE3_FRACTIONAL",offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te3_cfg_t, fractional), DTYPE_INT },
+  { "TE3_FRACTIONAL",offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te3_cfg_t, fractional), DTYPE_UINT },
   { "TE3_RDEVICE",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te3_cfg_t, rdevice_type), DTYPE_UINT },
-  { "TE3_FCS",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te3_cfg_t, fcs), DTYPE_INT },
-  { "TE3_RXEQ",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, liu_cfg) + smemof(sdla_te3_liu_cfg_t, rx_equal), DTYPE_INT },
-  { "TE3_TAOS",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, liu_cfg) + smemof(sdla_te3_liu_cfg_t, taos), DTYPE_INT },
-  { "TE3_LBMODE",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, liu_cfg) + smemof(sdla_te3_liu_cfg_t, lb_mode), DTYPE_INT },
-  { "TE3_TXLBO",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, liu_cfg) + smemof(sdla_te3_liu_cfg_t, tx_lbo), DTYPE_INT },
-  { "TE3_CLOCK",         offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te3_cfg_t, clock), DTYPE_INT },
+  { "TE3_FCS",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te3_cfg_t, fcs), DTYPE_UINT },
+  { "TE3_RXEQ",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, liu_cfg) + smemof(sdla_te3_liu_cfg_t, rx_equal), DTYPE_UINT },
+  { "TE3_TAOS",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, liu_cfg) + smemof(sdla_te3_liu_cfg_t, taos), DTYPE_UINT },
+  { "TE3_LBMODE",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, liu_cfg) + smemof(sdla_te3_liu_cfg_t, lb_mode), DTYPE_UINT },
+  { "TE3_TXLBO",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, liu_cfg) + smemof(sdla_te3_liu_cfg_t, tx_lbo), DTYPE_UINT },
+  { "TE3_CLOCK",         offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te3_cfg_t, clock), DTYPE_UINT },
   { "TDMV_LAW",         offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, tdmv_law), DTYPE_UINT },
   { "TDMV_OPERMODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, opermode_name), DTYPE_STR },
-  { "RM_NETWORK_SYNC",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, network_sync), DTYPE_UINT },
-
+  { "RM_BATTTHRESH",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battthresh), DTYPE_UINT },
+  { "RM_BATTDEBOUNCE",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battdebounce), DTYPE_UINT },
+  { "RM_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, network_sync), DTYPE_UINT },
+  
+  /* TDMV parameters */
+  { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UINT},
+  { "TDMV_DCHAN",    offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, dchan),   DTYPE_UINT},
+  { "TDMV_HW_DTMF",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_dtmf), DTYPE_UCHAR},
+  
+  { "HWEC_CLKSRC",   offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_hwec_conf_t, clk_src), DTYPE_UINT},  
+  { "HWEC_PERSIST",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
+      
   { "BAUDRATE",   smemof(wandev_conf_t, bps),         DTYPE_UINT },
   { "MTU",        smemof(wandev_conf_t, mtu),         DTYPE_UINT },
   { "UDPPORT",    smemof(wandev_conf_t, udp_port),    DTYPE_UINT },
@@ -689,12 +703,10 @@ key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
 {
   { "MRU",     	     smemof(wan_xilinx_conf_t, mru),          DTYPE_USHORT },
   { "DMA_PER_CH",    smemof(wan_xilinx_conf_t, dma_per_ch),   DTYPE_USHORT },
-  { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UINT },
+  { "RBS",    	     smemof(wan_xilinx_conf_t, rbs),          DTYPE_UCHAR },
   { "DATA_MUX_MAP",  smemof(wan_xilinx_conf_t, data_mux_map), DTYPE_UINT },
-  { "TDMV_SPAN",     smemof(wan_xilinx_conf_t, tdmv_span_no), DTYPE_UINT},
-  { "TDMV_DCHAN",    smemof(wan_xilinx_conf_t, tdmv_dchan),   DTYPE_UINT},
-  { "HWEC_CLKSRC",   smemof(wan_xilinx_conf_t, ec_clk_src),   DTYPE_UINT},
-  { "TDMV_HWEC_PERSIST_DISABLE", smemof(wan_xilinx_conf_t, ec_persist_disable),    DTYPE_UINT},
+//  { "HWEC_CLKSRC",   smemof(wan_xilinx_conf_t, ec_clk_src),   DTYPE_UINT},
+//  { "TDMV_HWEC",     smemof(wan_xilinx_conf_t, tdmv_hwec),    DTYPE_UCHAR},
   { "RX_CRC_BYTES",  smemof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
   { NULL, 0, 0 }
 };
@@ -708,14 +720,14 @@ key_word_t bitstrm_conftab[] =	/* Bitstreaming specific configuration */
   { "MAX_LENGTH_TX_DATA_BLOCK", smemof(wan_bitstrm_conf_t,max_length_tx_data_block), DTYPE_UINT},
   { "RX_COMPLETE_LENGTH",       smemof(wan_bitstrm_conf_t,rx_complete_length), DTYPE_UINT},
   { "RX_COMPLETE_TIMER",        smemof(wan_bitstrm_conf_t,rx_complete_timer), DTYPE_UINT},	
-  { "RBS_CH_MAP",		smemof(wan_bitstrm_conf_t,rbs_map), DTYPE_ULONG},
+  { "RBS_CH_MAP",		smemof(wan_bitstrm_conf_t,rbs_map), DTYPE_UINT},
   { NULL, 0, 0 }
 };
 
 key_word_t sdlc_conftab[] =
 {
   { "STATION_CONFIG",	smemof(wan_sdlc_conf_t,station_configuration), DTYPE_UCHAR},
-  { "BAUD_RATE",	smemof(wan_sdlc_conf_t,baud_rate),  DTYPE_ULONG},
+  { "BAUD_RATE",	smemof(wan_sdlc_conf_t,baud_rate),  DTYPE_UINT},
   { "MAX_I_FIELD_LEN",	smemof(wan_sdlc_conf_t,max_I_field_length),  DTYPE_USHORT},
   { "GEN_OP_CFG_BITS",	smemof(wan_sdlc_conf_t,general_operational_config_bits),  DTYPE_USHORT},
 
@@ -779,14 +791,14 @@ key_word_t lapd_conftab[] =
 /*
 key_word_t atm_conftab[] =
 {
-  {"ATM_SYNC_MODE", offsetof(wanif_conf_t, u) + smemof(wan_atm_conf_t, atm_sync_mode), DTYPE_USHORT },
-  {"ATM_SYNC_DATA", offsetof(wanif_conf_t, u) + smemof(wan_atm_conf_t,atm_sync_data), DTYPE_USHORT },
-  {"ATM_SYNC_OFFSET", offsetof(wanif_conf_t, u) + smemof(wan_atm_conf_t,atm_sync_offset), DTYPE_USHORT },
-  {"ATM_HUNT_TIMER", offsetof(wanif_conf_t, u) + smemof(wan_atm_conf_t,atm_hunt_timer), DTYPE_USHORT },
-  {"ATM_CELL_CFG", offsetof(wanif_conf_t, u) + smemof(wan_atm_conf_t,atm_cell_cfg), DTYPE_UCHAR },
-  {"ATM_CELL_PT", offsetof(wanif_conf_t, u) + smemof(wan_atm_conf_t,atm_cell_pt), DTYPE_UCHAR },
-  {"ATM_CELL_CLP", offsetof(wanif_conf_t, u) + smemof(wan_atm_conf_t,atm_cell_clp), DTYPE_UCHAR },
-  {"ATM_CELL_PAYLOAD", offsetof(wanif_conf_t, u) + smemof(wan_atm_conf_t,atm_cell_payload), DTYPE_UCHAR },
+  {"ATM_SYNC_MODE", smemof(wanif_conf_t, u) + offsetof(wan_atm_conf_t, atm_sync_mode), DTYPE_USHORT },
+  {"ATM_SYNC_DATA", offsetof(wanif_conf_t, u) + offsetof(wan_atm_conf_t,atm_sync_data), DTYPE_USHORT },
+  {"ATM_SYNC_OFFSET", offsetof(wanif_conf_t, u) + offsetof(wan_atm_conf_t,atm_sync_offset), DTYPE_USHORT },
+  {"ATM_HUNT_TIMER", offsetof(wanif_conf_t, u) + offsetof(wan_atm_conf_t,atm_hunt_timer), DTYPE_USHORT },
+  {"ATM_CELL_CFG", offsetof(wanif_conf_t, u) + offsetof(wan_atm_conf_t,atm_cell_cfg), DTYPE_UCHAR },
+  {"ATM_CELL_PT", offsetof(wanif_conf_t, u) + offsetof(wan_atm_conf_t,atm_cell_pt), DTYPE_UCHAR },
+  {"ATM_CELL_CLP", offsetof(wanif_conf_t, u) + offsetof(wan_atm_conf_t,atm_cell_clp), DTYPE_UCHAR },
+  {"ATM_CELL_PAYLOAD", offsetof(wanif_conf_t, u) + offsetof(wan_atm_conf_t,atm_cell_payload), DTYPE_UCHAR },
   { NULL, 0, 0 }
 };
 */
@@ -846,8 +858,8 @@ key_word_t xilinx_if_conftab[] =
   { "SS7_ENABLE",  smemof(wan_xilinx_conf_if_t, ss7_enable),  DTYPE_UCHAR},
   { "SS7_MODE",  smemof(wan_xilinx_conf_if_t, ss7_mode),  DTYPE_UCHAR},
   { "SS7_LSSU_SZ",  smemof(wan_xilinx_conf_if_t, ss7_lssu_size),  DTYPE_UCHAR},
-  { "TDMV_HWEC",     smemof(wan_xilinx_conf_if_t, tdmv_hwec),    DTYPE_UCHAR},
-  { "DTMF_HW",     smemof(wan_xilinx_conf_if_t, dtmf_hw),    DTYPE_UCHAR},
+//  { "TDMV_HWEC_MAP", smemof(wan_xilinx_conf_if_t, tdmv_hwec_map),    DTYPE_STR},
+//  { "TDMV_HWEC",     smemof(wan_xilinx_conf_if_t, tdmv_hwec),    DTYPE_UCHAR},
   { "RBS_CAS_IDLE",  smemof(wan_xilinx_conf_if_t, rbs_cas_idle), DTYPE_UCHAR },
   { NULL, 0, 0 }
 };
@@ -924,7 +936,7 @@ key_word_t adsl_conftab[] =
 
 key_word_t bscstrm_conftab[]=
 {
-  {"BSCSTRM_ADAPTER_FR" , smemof(wan_bscstrm_conf_t,adapter_frequency),DTYPE_ULONG},
+  {"BSCSTRM_ADAPTER_FR" , smemof(wan_bscstrm_conf_t,adapter_frequency),DTYPE_UINT},
   {"BSCSTRM_MTU", 	smemof(wan_bscstrm_conf_t,max_data_length),DTYPE_USHORT},
   {"BSCSTRM_EBCDIC" ,  smemof(wan_bscstrm_conf_t,EBCDIC_encoding),DTYPE_USHORT},
   {"BSCSTRM_RB_BLOCK_TYPE", smemof(wan_bscstrm_conf_t,Rx_block_type),DTYPE_USHORT},
@@ -1018,9 +1030,12 @@ key_word_t lapb_annexg_conftab[] =
   { "T4", smemof(wan_lapb_if_conf_t, t4),    DTYPE_UINT },
   { "N2", smemof(wan_lapb_if_conf_t, n2),    DTYPE_UINT },
   { "LAPB_MODE", 	smemof(wan_lapb_if_conf_t, mode),    DTYPE_UINT },
+  { "LAP_MODE", 	smemof(wan_lapb_if_conf_t, mode),    DTYPE_UINT },
   { "MODE", 		smemof(wan_lapb_if_conf_t, mode),    DTYPE_UINT },
   { "LAPB_WINDOW", 	smemof(wan_lapb_if_conf_t, window),    DTYPE_UINT },
+  { "LAP_WINDOW", 	smemof(wan_lapb_if_conf_t, window),    DTYPE_UINT },
   { "WINDOW", 		smemof(wan_lapb_if_conf_t, window),    DTYPE_UINT },
+  { "LAP_STATION",     	smemof(wan_lapb_if_conf_t, station),    DTYPE_UINT },
 
   { "LABEL",		smemof(wan_lapb_if_conf_t,label), DTYPE_STR},
   { "VIRTUAL_ADDR",     smemof(wan_lapb_if_conf_t,virtual_addr), DTYPE_STR},
@@ -1028,7 +1043,7 @@ key_word_t lapb_annexg_conftab[] =
 
   { "MAX_PKT_SIZE", 	smemof(wan_lapb_if_conf_t,mtu), DTYPE_UINT},
 
-  { NULL, 0, 0 }
+  { NULL, 0, 0, 0 }
 };
 
 key_word_t x25_annexg_conftab[] =
@@ -1079,7 +1094,7 @@ key_word_t x25_annexg_conftab[] =
   { "VIRTUAL_ADDR",     smemof(wan_x25_if_conf_t,virtual_addr), DTYPE_STR},
   { "REAL_ADDR",        smemof(wan_x25_if_conf_t,real_addr),    DTYPE_STR},
   
-  { NULL, 0, 0 }
+  { NULL, 0, 0, 0 }
 };
 
 key_word_t dsp_annexg_conftab[] =
@@ -1093,7 +1108,7 @@ key_word_t dsp_annexg_conftab[] =
   { "DSP_AUTO_CALL_REQ",smemof(wan_dsp_if_conf_t, auto_call_req), 	DTYPE_UCHAR },
   { "DSP_AUTO_ACK",  	smemof(wan_dsp_if_conf_t, auto_ack), 		DTYPE_UCHAR },
   { "DSP_MTU",  	smemof(wan_dsp_if_conf_t, dsp_mtu), 		DTYPE_USHORT },
-  { NULL, 0, 0 }
+  { NULL, 0, 0, 0 }
 };
 
 key_word_t chan_conftab[] =	/* Channel configuration parameters */
@@ -1109,7 +1124,7 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
   { "BE", 	     	smemof(wanif_conf_t, be),		DTYPE_UINT },
   { "MULTICAST",     	smemof(wanif_conf_t, mc),		DTYPE_UCHAR},
   { "IPX",	     	smemof(wanif_conf_t, enable_IPX),	DTYPE_UCHAR},
-  { "NETWORK",       	smemof(wanif_conf_t, network_number),	DTYPE_ULONG}, 
+  { "NETWORK",       	smemof(wanif_conf_t, network_number),	DTYPE_UINT}, 
   { "PAP",     	     	smemof(wanif_conf_t, pap),		DTYPE_UCHAR},
   { "CHAP",          	smemof(wanif_conf_t, chap),		DTYPE_UCHAR},
   { "USERID",        	smemof(wanif_conf_t, userid),	 	DTYPE_STR},
@@ -1158,7 +1173,7 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
   { "XOFF_CHAR",               smemof(wanif_conf_t, xoff_char),    DTYPE_UINT },	   
   { "MPPP_PROT",	       smemof(wanif_conf_t, protocol),  DTYPE_UCHAR},
   { "PROTOCOL",	       	       smemof(wanif_conf_t, protocol),  DTYPE_UCHAR},
-  { "ACTIVE_CH",	       smemof(wanif_conf_t, active_ch),  DTYPE_ULONG},
+  { "ACTIVE_CH",	       smemof(wanif_conf_t, active_ch),  DTYPE_UINT},
   { "SW_DEV_NAME",	       smemof(wanif_conf_t, sw_dev_name),  DTYPE_STR},
 
   { "LIP_MTU",        	       smemof(wanif_conf_t, mtu),  DTYPE_UINT},
@@ -1166,12 +1181,15 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
   { "DLCI_TRACE_QUEUE", smemof(wanif_conf_t, max_trace_queue), DTYPE_UINT},
   { "MAX_TRACE_QUEUE", smemof(wanif_conf_t, max_trace_queue), DTYPE_UINT},
 
-  { "TDMV_ECHO_OFF",	smemof(wanif_conf_t, tdmv_echo_off), DTYPE_UCHAR},
-  { "TDMV_CODEC",	smemof(wanif_conf_t, tdmv_codec), DTYPE_UCHAR},
+  { "TDMV_ECHO_OFF", offsetof(wanif_conf_t, tdmv)+smemof(wan_tdmv_if_conf_t, tdmv_echo_off), DTYPE_UCHAR},
+  { "TDMV_CODEC",    offsetof(wanif_conf_t, tdmv)+smemof(wan_tdmv_if_conf_t, tdmv_codec),    DTYPE_UCHAR},
+  { "TDMV_HWEC",     offsetof(wanif_conf_t, hwec)+smemof(wan_hwec_if_conf_t, enable),    DTYPE_UCHAR},
+//  { "TDMV_ECHO_OFF",	smemof(wanif_conf_t, tdmv_echo_off), DTYPE_UCHAR},
+//  { "TDMV_CODEC",	smemof(wanif_conf_t, tdmv_codec), DTYPE_UCHAR},
 
   { "SINGLE_TX_BUF",    smemof(wanif_conf_t, single_tx_buf), DTYPE_UCHAR},
 
-  { NULL, 0, 0 }
+  { NULL, 0, 0, 0 }
 };
 
 look_up_t conf_def_tables[] =
@@ -1184,6 +1202,7 @@ look_up_t conf_def_tables[] =
 	{ WANCONFIG_ASYHDLC,	chdlc_conftab	},
 	{ WANCONFIG_MPPP,	chdlc_conftab	},
 	{ WANCONFIG_LIP_ATM,	atm_if_conftab	},
+	{ WANCONFIG_LIP_KATM,	atm_if_conftab	},
 	{ WANCONFIG_MFR,	fr_conftab	},
 	{ WANCONFIG_SS7,	ss7_conftab 	},
 	{ WANCONFIG_ADSL,	adsl_conftab 	},
@@ -1193,8 +1212,8 @@ look_up_t conf_def_tables[] =
 	{ WANCONFIG_AFT,        xilinx_conftab  },
 	{ WANCONFIG_AFT_TE1,    xilinx_conftab  },
 	{ WANCONFIG_AFT_ANALOG, xilinx_conftab  },
-	{ WANCONFIG_AFT_56K,    xilinx_conftab  },
 	{ WANCONFIG_AFT_TE3,    xilinx_conftab  },
+	{ WANCONFIG_AFT_56K,    xilinx_conftab  },
 	{ WANCONFIG_BITSTRM,    bitstrm_conftab },
 	{ WANCONFIG_SDLC,	sdlc_conftab 	},
 	{ 0,			NULL		}
@@ -1204,12 +1223,13 @@ look_up_t conf_if_def_tables[] =
 {
 	{ WANCONFIG_ATM,	atm_if_conftab	},
 	{ WANCONFIG_LIP_ATM,	atm_if_conftab	},
+	{ WANCONFIG_LIP_KATM,	atm_if_conftab	},
 	{ WANCONFIG_BITSTRM,    bitstrm_if_conftab },
 	{ WANCONFIG_AFT,	xilinx_if_conftab },
 	{ WANCONFIG_AFT_TE1,	xilinx_if_conftab },
 	{ WANCONFIG_AFT_TE3,    xilinx_if_conftab },
-        { WANCONFIG_AFT_56K,    xilinx_if_conftab },
 	{ WANCONFIG_AFT_ANALOG, xilinx_if_conftab },
+	{ WANCONFIG_AFT_56K,	xilinx_if_conftab },
 	{ WANCONFIG_ASYHDLC,	chdlc_conftab	},
 	{ 0,			NULL		}
 };
@@ -1221,7 +1241,7 @@ look_up_t conf_annexg_def_tables[] =
 	{ ANNEXG_LIP_XDLC,	xdlc_conftab	},
 	{ ANNEXG_LIP_TTY,	tty_conftab	},
 	{ ANNEXG_LIP_XMTP2,	xmtp2_conftab	},
-	{ ANNEXG_LIP_LAPD,	lapd_conftab	},
+	{ ANNEXG_LIP_LAPD,	lapb_annexg_conftab	},
 	{ ANNEXG_X25,		x25_annexg_conftab	},
 	{ ANNEXG_DSP,		dsp_annexg_conftab	},
 	{ ANNEXG_FR,		fr_conftab	},
@@ -1229,6 +1249,7 @@ look_up_t conf_annexg_def_tables[] =
 	{ ANNEXG_PPP,		sppp_conftab	},
 	{ ANNEXG_LIP_X25,	x25_annexg_conftab	},
 	{ ANNEXG_LIP_ATM,	atm_if_conftab	},
+	{ ANNEXG_LIP_KATM,	atm_if_conftab	},
 	{ 0,			NULL		}
 };
 
@@ -1244,6 +1265,7 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_MPPP,       "WAN_MULTPPP"   },
 	{ WANCONFIG_MPROT,      "WAN_MULTPROT"  },
 	{ WANCONFIG_LIP_ATM,    "WAN_LIP_ATM"   },
+	{ WANCONFIG_LIP_KATM,   "WAN_LIP_KATM"   },
 	{ WANCONFIG_BITSTRM, 	"WAN_BITSTRM"	},
 	{ WANCONFIG_EDUKIT, 	"WAN_EDU_KIT"	},
 	{ WANCONFIG_SS7,        "WAN_SS7"       },
@@ -1256,8 +1278,8 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_AFT,	"WAN_AFT"	},
 	{ WANCONFIG_AFT_TE1,	"WAN_AFT_TE1"	},
 	{ WANCONFIG_AFT_ANALOG,	"WAN_AFT_ANALOG" },
-	{ WANCONFIG_AFT_56K,    "WAN_AFT_56K"   },	
 	{ WANCONFIG_AFT_TE3,	"WAN_AFT_TE3"	},
+	{ WANCONFIG_AFT_56K,	"WAN_AFT_56K"	},
 	{ WANCONFIG_AFT,	"WAN_XILINX"	},
 	{ WANCONFIG_MFR,    	"WAN_MFR"   	},
 	{ WANCONFIG_DEBUG,    	"WAN_DEBUG"   	},
@@ -1382,7 +1404,7 @@ look_up_t	sym_table[] =
         { WAN_T1_399_533,  	"399-533FT"     },
         { WAN_T1_533_655,  	"533-655FT"     },
         { WAN_E1_120,  		"120OH"     	},
-        { WAN_E1_75,  		"75OOH"     	},
+        { WAN_E1_75,  		"75OH"     	},
         { WAN_NORMAL_CLK,   	"NORMAL"        },
         { WAN_MASTER_CLK,   	"MASTER"        },
 	{ WANOPT_FE_OSC_CLOCK, 	"OSC"     	},
@@ -1409,6 +1431,7 @@ look_up_t	sym_table[] =
 	{ WANCONFIG_TTY, 	"MP_TTY"	},
 	{ WANCONFIG_X25, 	"MP_X25"	},
 	{ WANCONFIG_LIP_ATM, 	"MP_ATM"	},
+	{ WANCONFIG_LIP_KATM, 	"MP_KATM"	},
 	{ WANCONFIG_XMTP2, 	"MP_XMTP2"	},
 	{ WANCONFIG_LAPD, 	"MP_LAPD"	},
 	{ WANOPT_NO,		"RAW"		},
@@ -1441,6 +1464,7 @@ look_up_t	sym_table[] =
 	{ RFC_MODE_ROUTED_IP_VC,	"IP_VC_OA"   },
 	{ RFC_MODE_PPP_LLC,		"PPP_LLC_OA" },
 	{ RFC_MODE_PPP_VC,		"PPP_VC_OA"  },
+	{ RFC_MODE_STACK_VC,		"STACK_VC_OA"  },
 	
 	/* Backward compatible */
 	{ RFC_MODE_BRIDGED_ETH_LLC,	"BLLC_OA" },
@@ -1528,10 +1552,10 @@ int main (int argc, char *argv[])
 	int c;
 
 	if (WANPIPE_VERSION_BETA){
-		sprintf(wan_version,"Beta%s-%s",
-				WANPIPE_SUB_VERSION, WANPIPE_VERSION);
+		sprintf(wan_version,"Beta %s.%s",
+				WANPIPE_VERSION, WANPIPE_SUB_VERSION);
 	}else{
-		sprintf(wan_version,"Stable %s-%s",
+		sprintf(wan_version,"Stable %s.%s",
 				WANPIPE_VERSION, WANPIPE_SUB_VERSION);
 	}
 
@@ -2354,8 +2378,14 @@ int build_chandef_list (FILE* file)
 				chandef->protocol = strdup("MP_CHDLC");
 
 			}else if (!strcmp(token[4],"lip_atm")){
+				printf("%s: CONIGURING FOR LIP ATM\n",chandef->name);
 				chandef->annexg = ANNEXG_LIP_ATM;	
 				chandef->protocol = strdup("MP_ATM");
+
+			}else if (!strcmp(token[4],"lip_katm")){
+				printf("%s: CONIGURING FOR LIP KATM\n",chandef->name);
+				chandef->annexg = ANNEXG_LIP_KATM;	
+				chandef->protocol = strdup("MP_KATM");
 
 			}else if (!strcmp(token[4],"lip_x25")){
 				chandef->annexg = ANNEXG_LIP_X25;	
@@ -2393,6 +2423,7 @@ int build_chandef_list (FILE* file)
 					  ( strcmp(chandef->usedby, "TDM_VOICE") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_VOICE_API") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "TDM_API") 	   != 0 ) &&
+					  ( strcmp(chandef->usedby, "TRUNK") 	   != 0 ) &&
 					  ( strcmp(chandef->usedby, "ANNEXG")      != 0 )))
 		{
 
@@ -2718,7 +2749,7 @@ int exec_link_cmd(int dev, link_def_t *def)
 
 		}
 
-		if (strcmp(wanpipe_version,wan_version)){
+		if (strstr(wanpipe_version, wan_version) == NULL){
 			fprintf(stderr, "\n\n\t%s: WAN device %s driver load failed !!\n", 
 							prognamed, def->name);
 			fprintf(stderr, "\n\t%s: Wanpipe version mismatch between utilites\n",
@@ -2939,7 +2970,7 @@ int exec_chan_cmd(int dev, chan_def_t *def)
 
 			if ((linkdef->config_id == WANCONFIG_AFT_TE1 || 
 			     linkdef->config_id == WANCONFIG_AFT_ANALOG) &&
-					def->chanconf->u.aft.tdmv_hwec){
+					def->chanconf->hwec.enable){
 
 				err = config_hwec(linkdef->name);
 				if (err){
@@ -3024,6 +3055,7 @@ int exec_chan_cmd(int dev, chan_def_t *def)
 	case ANNEXG_LIP_LAPD:
 	case ANNEXG_LIP_X25:
 	case ANNEXG_LIP_ATM:
+	case ANNEXG_LIP_KATM:
 		strncpy(def->chanconf->master, master_lip_dev, WAN_IFNAME_SZ);
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -3166,7 +3198,7 @@ int set_conf_param (char* key, char* val, key_word_t* dtab, void* conf)
  */
 int set_conf_param (char* key, char* val, key_word_t* dtab, void* conf)
 {
-	unsigned long tmp = 0;
+	unsigned int tmp = 0;
 
 	/* Search a keyword in configuration definition table */
 	for (; dtab->keyword && strcmp(dtab->keyword, key); ++dtab);
@@ -3191,9 +3223,10 @@ int set_conf_param (char* key, char* val, key_word_t* dtab, void* conf)
 	    strcmp(key, "TE_ACTIVE_CH") == 0 || strcmp(key, "ACTIVE_CH") == 0 || 
 	    strcmp(key, "TE_LBO") == 0 || strcmp(key, "LBO") == 0 ||
 	    strcmp(key, "FE_MEDIA") == 0 || strcmp(key, "MEDIA") == 0 || 
-	    strcmp(key, "RBS_CH_MAP") == 0 || strcmp(key, "TE_RBS_CH") == 0){
+	    strcmp(key, "RBS_CH_MAP") == 0 || strcmp(key, "TE_RBS_CH") == 0 ||
+	    strcmp(key, "TDMV_DCHAN") == 0){
 		look_up_t* sym;
-		unsigned long tmp_ch;
+		unsigned int tmp_ch;
 
 		strupcase(val);
 		for (sym = sym_table;
@@ -3201,36 +3234,44 @@ int set_conf_param (char* key, char* val, key_word_t* dtab, void* conf)
 		     ++sym)
 		;
 		if (sym->ptr == NULL) {
+			int ok_zero=0;
 
 			/* TE1 */
-			if (strcmp(key, "TE_ACTIVE_CH") && strcmp(key, "ACTIVE_CH") && strcmp(key, "RBS_CH_MAP") && strcmp(key, "TE_RBS_CH")) {	
+			if (strcmp(key, "TE_ACTIVE_CH") && strcmp(key, "ACTIVE_CH") && 
+			    strcmp(key, "RBS_CH_MAP") && strcmp(key, "TE_RBS_CH") &&
+			    strcmp(key, "TDMV_DCHAN")) {	
 				if (verbose) printf(" * invalid term %s ...\n", val);
 				return 1;
 			}
 
-			/* TE1 Convert active channel string to ULONG */
+			if (strcmp(key, "TDMV_DCHAN") == 0) {
+                         	ok_zero=1;
+			}
+
+			/* TE1 Convert active channel string to UINT */
 		 	tmp_ch = parse_active_channel(val);	
-			if (tmp_ch == 0){
+			if (tmp_ch == 0 && !ok_zero){
 				if (verbose) printf("Illegal active channel range! %s ...\n", val);
 				fprintf(stderr, "Illegal active channel range! min=1 max=31\n");
 				return -1;
 			}
-			tmp = (unsigned long)tmp_ch;
+			tmp = (unsigned int)tmp_ch;
 		}
 		else tmp = sym->val;
 	}
 	else tmp = strtoul(val, NULL, 0);
 
+	/* SANITY CHECK */
 	switch (dtab->dtype) {
 
 	case DTYPE_INT:
-		SIZEOFASSERT(dtab, sizeof(int)); 
+		SIZEOFASSERT(dtab, sizeof(int));
 		*(int*)((char*)conf + dtab->offset) = tmp;
 		break;
 
 	case DTYPE_UINT:
 		SIZEOFASSERT(dtab, sizeof(unsigned int));
-		*(uint*)((char*)conf + dtab->offset) = tmp;
+		*(unsigned int*)((char*)conf + dtab->offset) = tmp;
 		break;
 
 	case DTYPE_LONG:
@@ -4862,19 +4903,23 @@ void read_adsl_vci_vpi_list(wan_adsl_vcivpi_t* vcivpi_list, unsigned short* vciv
  *
  * Return ULONG value, that include 1 in position `i` if channels i is active.
  */
-unsigned long parse_active_channel(char* val)
+unsigned int parse_active_channel(char* val)
 {
 #define SINGLE_CHANNEL	0x2
 #define RANGE_CHANNEL	0x1
 	int channel_flag = 0;
 	char* ptr = val;
 	int channel = 0, start_channel = 0;
-	unsigned long tmp = 0;
+	unsigned int tmp = 0;
 
 	if (strcmp(val,"ALL") == 0)
 		return ENABLE_ALL_CHANNELS;
+	
+	if (strcmp(val,"0") == 0)
+		return 0;
 
 	while(*ptr != '\0') {
+       		printf("\nMAP DIGIT %c\n", *ptr);
 		if (isdigit(*ptr)) {
 			channel = strtoul(ptr, &ptr, 10);
 			channel_flag |= SINGLE_CHANNEL;
@@ -4892,16 +4937,24 @@ unsigned long parse_active_channel(char* val)
 	if (channel_flag){
 		tmp |= get_active_channels(channel_flag, start_channel, channel);
 	}
+
 	return tmp;
 }
 
 /*============================================================================
  * TE1
  */
-unsigned long get_active_channels(int channel_flag, int start_channel, int stop_channel)
+unsigned int get_active_channels(int channel_flag, int start_channel, int stop_channel)
 {
 	int i = 0;
-	unsigned long tmp = 0, mask = 0;
+	unsigned int tmp = 0, mask = 0;
+
+	/* If the channel map is set to 0 then
+	 * stop_channel will be zero. In this case just return
+	 * 0 */
+	if (stop_channel < 1) {
+        	return 0;
+	}
 
 	if ((channel_flag & (SINGLE_CHANNEL | RANGE_CHANNEL)) == 0)
 		return tmp;

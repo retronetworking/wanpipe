@@ -835,7 +835,7 @@ static void hw_set_lb_modes(unsigned char type, unsigned char mode)
 	return;
 }
 
-void read_te1_56k_stat(void)
+void read_te1_56k_stat(int force)
 {
 	sdla_fe_stats_t	*fe_stats;
 	//unsigned char* data = NULL;
@@ -854,6 +854,7 @@ void read_te1_56k_stat(void)
 	wan_udp.wan_udphdr_command = WAN_FE_GET_STAT;
 	wan_udp.wan_udphdr_data_len = 0;
     	wan_udp.wan_udphdr_return_code = 0xaa;
+    	wan_udp.wan_udphdr_fe_force = force;
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code != 0){
 		printf("Failed to read T1/E1/56K statistics.\n");
@@ -950,7 +951,7 @@ void read_te1_56k_stat(void)
 	}
 
 	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
-		sdla_te_pmon_t*	pmon = &fe_stats->u.te_pmon;
+		sdla_te_pmon_t*	pmon = &fe_stats->te_pmon;
 
 		printf("\n\n***** %s: %s Performance Monitoring Counters *****\n\n",
 				if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
@@ -1007,7 +1008,14 @@ void read_te1_56k_stat(void)
 		}
 	}
 	
-        cleanup_hardware_level_connection();
+	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
+		if (strlen(fe_stats->u.te1_stats.rxlevel)){
+			printf("\n\nRx Level\t: %s\n",
+					fe_stats->u.te1_stats.rxlevel);		
+		}
+	}
+	
+	cleanup_hardware_level_connection();
 	return;
 }
 
@@ -1195,13 +1203,15 @@ void set_fe_debug_mode(sdla_fe_debug_t *fe_debug)
 		printf("Failed to %s mode.\n",
 				WAN_FE_DEBUG_RBS_DECODE(fe_debug->mode));
 	}else{
+		fe_debug = (sdla_fe_debug_t*)get_wan_udphdr_data_ptr(0);
 		switch(fe_debug->type){
 		case WAN_FE_DEBUG_RBS:
 			if (fe_debug->mode == WAN_FE_DEBUG_RBS_READ){
 				printf("Read RBS status is suceeded!\n");
 			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_SET){
 				printf("Setting ABCD bits (%X) for channel %d is suceeded!\n",
-						fe_debug->abcd, fe_debug->channel);
+						fe_debug->fe_debug_rbs.abcd,
+						fe_debug->fe_debug_rbs.channel);
 			}else{
 				printf("%s debug mode!\n",
 					WAN_FE_DEBUG_RBS_DECODE(fe_debug->mode));
@@ -1210,6 +1220,13 @@ void set_fe_debug_mode(sdla_fe_debug_t *fe_debug)
 		case WAN_FE_DEBUG_ALARM:
 			printf("%s AIS alarm!\n",
 					WAN_FE_DEBUG_ALARM_DECODE(fe_debug->mode));
+			break;
+		case WAN_FE_DEBUG_REG:
+			if (fe_debug->fe_debug_reg.read){
+				printf("Read %02X value from register %X.\n",
+						fe_debug->fe_debug_reg.value,
+						fe_debug->fe_debug_reg.reg);
+			}		
 			break;
 		}
 	}

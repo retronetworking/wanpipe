@@ -1102,9 +1102,9 @@ unsigned char wpabs_get_last_trace_direction(void *trace_ptr)
 /*
 ** wpabs_bpf_report
 */
-int wpabs_bpf_report(void* dev, void* skb, int flag)
+int wpabs_bpf_report(void* dev, void* skb, int flag, int dir)
 {
-	wan_bpf_report((netdevice_t*)dev, (netskb_t*)skb, flag);
+	wan_bpf_report((netdevice_t*)dev, (netskb_t*)skb, flag, dir);
 	return 0;
 }
 

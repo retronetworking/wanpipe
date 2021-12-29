@@ -110,8 +110,7 @@ enum wanpipe_tdm_api_cmds {
 	SIOC_WP_TDM_CLEAR_RX_GAINS,
 	SIOC_WP_TDM_CLEAR_TX_GAINS,
 
-	SIOC_WP_TDM_ENABLE_HWEC,
-	SIOC_WP_TDM_DISABLE_HWEC,
+	SIOC_WP_TDM_GET_FE_ALARMS,
 	
 	SIOC_WP_TDM_NOTSUPP		/*  */
 
@@ -132,8 +131,8 @@ enum wanpipe_tdm_api_events {
 	WP_TDM_EVENT_TXSIG_OFFHOOK,
 	WP_TDM_EVENT_TXSIG_ONHOOK,
 	WP_TDM_EVENT_ONHOOKTRANSFER,
-	WP_TDM_EVENT_SETPOLARITY
-	
+	WP_TDM_EVENT_SETPOLARITY,
+	WP_TDM_EVENT_FE_ALARM
 };
 
 #define WPTDM_A_BIT 			WAN_RBS_SIG_A
@@ -154,8 +153,11 @@ typedef struct {
 			unsigned char	_event_type;
 			unsigned char	_rbs_rx_bits;
 			unsigned int	_time_stamp;
-			u_int16_t		channel;
+			u_int16_t	channel;
 			union {
+				struct {
+                                	u_int8_t	alarm;
+				}fe;
 				struct {
 					u_int8_t	rbs_bits;
 				}rbs;
@@ -191,6 +193,7 @@ typedef struct {
 #define wp_tdm_api_event_dtmf_port 	wp_rx_hdr_u.wp_event.u_event.dtmf.port
 #define wp_tdm_api_event_ohttimer 	wp_rx_hdr_u.wp_event.u_event.ohttimer
 #define wp_tdm_api_event_polarity 	wp_rx_hdr_u.wp_event.u_event.polarity
+#define wp_tdm_api_event_fe_alarm 	wp_rx_hdr_u.wp_event.u_event.fe.alarm
 } wp_tdm_api_rx_hdr_t;
 
 typedef struct {
@@ -269,6 +272,7 @@ typedef struct wanpipe_tdm_api_cmd{
 	unsigned int rbs_tx_bits;	/* Tx RBS Bits */
 	unsigned int hdlc;		/* HDLC based device */
 	unsigned int idle_flag;		/* IDLE flag to Tx */
+	unsigned int fe_alarms;		/* FE Alarms detected */
 	wp_tdm_chan_stats_t stats;	/* TDM Statistics */
 	wp_tdm_api_rx_hdr_t event;	/* TDM Event */
 	unsigned int data_len;
@@ -276,12 +280,12 @@ typedef struct wanpipe_tdm_api_cmd{
 }wanpipe_tdm_api_cmd_t;
 
 typedef struct wanpipe_tdm_api_event{
-
 	int (*wp_rbs_event)(sng_fd_t fd, unsigned char rbs_bits);
 	int (*wp_dtmf_event)(sng_fd_t fd, unsigned char dtmf, unsigned char type, unsigned char port);
 	int (*wp_rxhook_event)(sng_fd_t fd, unsigned char hook_state);
 	int (*wp_rxring_event)(sng_fd_t fd, unsigned char ring_state);
 	int (*wp_ringtrip_event)(sng_fd_t fd, unsigned char ring_state);
+	int (*wp_fe_alarm_event)(sng_fd_t fd, unsigned char fe_alarm_event);
 }wanpipe_tdm_api_event_t; 
 
 typedef struct wanpipe_tdm_api{

@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: wanpipe_utils.c,v 1.91 2006/08/30 15:16:56 sangoma Exp $
+ *	$Id: wanpipe_utils.c,v 1.93 2006/11/23 22:00:58 sangoma Exp $
  */
 
 /*
@@ -184,21 +184,6 @@ void wanpipe_set_baud (void* card_id, unsigned int baud)
 	card->wandev.bps=baud*1000;
 }
 
-void wanpipe_set_dev_carrier_state(sdla_t* card, int state)
-{
-	netdevice_t *dev;
-	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
-        if (dev && WAN_NETIF_UP(dev)) {
-		if (state == WAN_CONNECTED) {
-                 	WAN_NETIF_CARRIER_ON(dev);
-	       		WAN_NETIF_WAKE_QUEUE(dev);       		
-		} else {
-                	WAN_NETIF_CARRIER_OFF(dev);
-	       		WAN_NETIF_STOP_QUEUE(dev); 
-		}			
-	}
-}
-
 
 /* 
  * ============================================================================
@@ -223,10 +208,6 @@ void wanpipe_set_state (void* card_id, int state)
 			break;
 		}
 		card->wandev.state = state;
-
-		if (card->wandev.config_id == WANCONFIG_ADSL) {
-			wanpipe_set_dev_carrier_state(card,state);
-		}
 	}
 	card->state_tick = SYSTEM_TICKS;
 }
@@ -379,6 +360,87 @@ int wan_reply_udp(void* card_id, unsigned char *data, unsigned int mbox_len)
 
 	return len;
 } /* wan_reply_udp */
+
+
+
+/*
+ * ===========================================================================
+ * Reply to UDP Management system.
+ * Agruments:
+ *	mbox_len - includes data length and trace_info_t (chdlc and dsl).
+ * Return length of reply.
+ */
+int wan_ip_udp_setup(void* card_id, u32 ip, u32 udp_port, unsigned char *data, unsigned int mbox_len)
+{
+	wan_rtp_pkt_t*	rtp_pkt = (wan_rtp_pkt_t*)data;
+	unsigned short 	len, 
+			udp_length, 
+			temp, 
+			ip_length;
+	int 		even_bound = 0;
+
+
+	/* fill in UDP length */
+	udp_length =  sizeof(struct udphdr) + 
+		      sizeof(wan_rtp_hdr_t) + 
+		      mbox_len;
+
+
+	/* Set length of packet */
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+	len = sizeof(struct ip) + udp_length;
+#else
+	len = sizeof(struct iphdr) + udp_length;
+#endif
+
+	/* put it on an even boundary */
+	if (udp_length & 0x0001){ 
+		udp_length += 1;
+		data[sizeof(ethhdr_t)+sizeof(iphdr_t)+udp_length]=0;
+		len += 1;
+		even_bound = 1;
+	} 
+
+	temp = (udp_length<<8)|(udp_length>>8);
+	rtp_pkt->wan_udp_len = temp;
+
+	temp = rtp_pkt->wan_udp_sport;
+	rtp_pkt->wan_udp_sport = 0;
+	rtp_pkt->wan_udp_dport = udp_port;
+
+	/* calculate UDP checksum */
+	rtp_pkt->wan_udp_sum = 0;
+	rtp_pkt->wan_udp_sum = 0;
+	#if 0
+		wan_calc_checksum(&data[sizeof(ethhdr_t)+UDP_OFFSET],
+				  udp_length+UDP_OFFSET);
+	#endif
+	
+	/* fill in IP length */
+	ip_length = len;
+	temp = (ip_length<<8)|(ip_length>>8);
+	rtp_pkt->wan_ip_len = temp;
+
+	/* IP addresses */
+	rtp_pkt->wan_ip_src = 0;
+	rtp_pkt->wan_ip_dst = ip;
+	rtp_pkt->wan_ip_v  = 4;
+	rtp_pkt->wan_ip_hl = 5;
+	rtp_pkt->wan_ip_tos = 1;
+	rtp_pkt->wan_ip_ttl = 255;
+	rtp_pkt->wan_ip_p = IPPROTO_UDP;
+
+	memset(rtp_pkt->wan_eth_dest,0xFF,ETH_ALEN);
+	memset(rtp_pkt->wan_eth_src,0xFF,ETH_ALEN);
+	rtp_pkt->wan_eth_proto=0x0008;
+    
+	/* fill in IP checksum */
+	rtp_pkt->wan_ip_sum = 0;
+	rtp_pkt->wan_ip_sum = wan_calc_checksum(&data[sizeof(ethhdr_t)], sizeof(iphdr_t)); 
+
+	return len+sizeof(ethhdr_t);
+} /* wan_ip_udp_setup */
+
 
 /*
 *****************************************************************************
@@ -642,7 +704,7 @@ wanpipe_debugging_end:
 		WAN_DEBUG_STOP(card);
 	}
 	return;
-}
+} 
 
 /* ALEX_DEBUG */ 
 void wan_debug_trigger(int flag)

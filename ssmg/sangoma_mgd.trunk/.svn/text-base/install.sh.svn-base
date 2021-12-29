@@ -36,21 +36,22 @@ if [ -e  /etc/syslog.conf ]; then
 eval "grep "local2.*sangoma_mgd" /etc/syslog.conf" > /dev/null 2> /dev/null
 if [ $? -ne 0 ]; then
 	eval "grep "local2" /etc/syslog.conf " > /dev/null 2> /dev/null
-	if [ $? -eq 0 ]; then
-		echo
-		echo "Warning : local2 is already used in syslog.conf"
-		echo
+	if [ $? -ne 0 ]; then
+		echo -e "\nlocal2.*                /var/log/sangoma_mgd.log\n" > tmp.$$
+		eval "cat /etc/syslog.conf tmp.$$ > tmp1.$$"
+		\cp -f tmp1.$$ /etc/syslog.conf
+		eval "/etc/init.d/syslog restart"
+		
+	else
+		echo "Error: syslog.conf LOCAL1 is used !\n";		
+		exit 1;
 	fi
-	echo -e "\nlocal2.*                /var/log/sangoma_mgd.log\n" > tmp.$$
-	eval "cat /etc/syslog.conf tmp.$$ > tmp1.$$"
-	\cp -f tmp1.$$ /etc/syslog.conf
-	eval "/etc/init.d/syslog restart"
 fi
 
 else
-	echo "Warning: /etc/syslog.conf not found"
+	echo "Error: /etc/syslog.conf not found"
+	exit 1;
 fi
-
 if [ -f tmp1.$$ ]; then
 	rm -f  tmp1.$$
 fi
@@ -65,6 +66,7 @@ echo "Checking logrotate ..."
 eval "type logrotate" > /dev/null 2> /dev/null
 if [ $? -ne 0 ]; then
 	echo "Error: Logrotate not found !"
+	exit 1;
 fi
 
 if [ -e /etc/logrotate.d ] && [ -e /etc/logrotate.d/syslog ]; then
@@ -85,19 +87,11 @@ if [ -e /etc/logrotate.d ] && [ -e /etc/logrotate.d/syslog ]; then
 
 else
         echo "Error: Logrotate dir: /etc/logrotate.d not found !"
+        exit 1;
 fi
 echo "OK."
 echo
 
-
-echo "Checking for SCTP...."
-if [ ! -e  /usr/include/netinet/sctp.h ]; then
-	echo "Please install SCTP devel package: yum install lksctp-tools-devel"
-	echo 
-	exit 1
-fi 
-echo "OK."
-echo
 
 echo "Compiling Sangoma MGD ..."
 make clean
@@ -110,18 +104,7 @@ echo "Ok."
 
 
 echo "Compiling Woomera Channel ..."
-
-if [ ! -e /usr/src/asterisk ]; then
-	echo
-	echo "Error: /usr/src/asterisk directory does not exist!"
-	echo "       Please create symlink /usr/src/asterisk and"
-	echo "       point to existing asterisk source!"
-	echo "       Then re run ./install.sh "
-	echo
-	exit 1
-fi
-
-cp -f g711.h /usr/src/asterisk/
+cp -f g711.h /usr/src/asterisk
 perl /usr/src/asterisk/contrib/scripts/astxs -install chan_woomera.c
 if [ $? -ne 0 ]; then
 	exit 1;

@@ -189,7 +189,7 @@
 # include <sys/tty.h>
 # include <sys/ttycom.h>
 # include <i386/bus.h>
-# if !defined(OpenBSD3_9)
+# if (OpenBSD < 200605)
 #  include <machine/types.h>
 # endif
 # include <machine/param.h>

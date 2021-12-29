@@ -2,23 +2,6 @@ AFT A102dm Firmware Change Log
 =============================
 
 
-Release V31
------------
-Jul 10 2007
-
-Type:           Mandatory A102dm Firmware for echo cancel cards
-                Fixes a serious bug with Echo Canceler operation.
-                This bug caused a radom channel of echo canceler
-                to become corrupted.
-
-Changes:        Firmware bug fix for echo canceler
-                This bug can cause hard crashes.
-
-                Note: This bug only afected new Maxim AFT cards with HWEC.
-
-
-
-
 Release V28
 -------------
 Nov 1 2006

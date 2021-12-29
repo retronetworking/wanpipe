@@ -82,6 +82,7 @@ typedef struct key_word		/* Keyword table entry */
 {
 	char*	keyword;	/* -> keyword */
 	uint	offset;		/* offset of the related parameter */
+	uint	size;		/* offset of the related parameter */
 	int	dtype;		/* data type */
 } key_word_t;
 

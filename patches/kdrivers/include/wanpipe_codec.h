@@ -25,6 +25,8 @@
 
 #if (defined __FreeBSD__) | (defined __OpenBSD__)
 #include <wanpipe_codec_iface.h>
+#elif defined(__WINDOWS__)
+#include <wanpipe_codec_iface.h>
 #else
 #include <linux/wanpipe_codec_iface.h>
 #endif

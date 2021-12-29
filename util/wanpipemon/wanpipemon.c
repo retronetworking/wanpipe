@@ -180,10 +180,6 @@ struct fun_protocol function_lookup[] = {
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 	
-	{ WANCONFIG_AFT_56K,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
-		                         AFTget_main_menu, AFTget_cmd_menu, 
-					 NULL,NULL, 2 },
-
 	{ WANCONFIG_AFT_TE1,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
@@ -223,10 +219,6 @@ struct fun_protocol function_lookup[] = {
 					 NULL,NULL, 2 },
 
 	{ WANCONFIG_AFT_TE1,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
-		                         AFTget_main_menu, AFTget_cmd_menu, 
-					 NULL,NULL, 2 },
-
-	{ WANCONFIG_AFT_56K,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 

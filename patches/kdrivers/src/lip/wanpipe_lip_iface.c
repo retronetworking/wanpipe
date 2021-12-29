@@ -52,8 +52,12 @@ static int wplip_unreg(void *reg_ptr);
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static void wplip_if_task (void *arg, int dummy);
 #else
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
 static void wplip_if_task (void *arg);
-#endif
+# else
+static void wplip_if_task (struct work_struct *work);
+# endif
+#endif    
 
 extern int register_wanpipe_lip_protocol (wplip_reg_t *lip_reg);
 extern void unregister_wanpipe_lip_protocol (void);
@@ -238,6 +242,10 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 		usedby = BRIDGE;
 	}else if(strcmp(conf->usedby, "BRIDGE_NODE") == 0){
 		usedby = BRIDGE_NODE;
+#if defined(__OpenBSD__)
+	}else if(strcmp(conf->usedby, "TRUNK") == 0){
+		usedby = TRUNK;
+#endif		
 	}else{
 		DEBUG_EVENT( "%s: LIP device invalid 'usedby': %s\n",
 				dev_name, conf->usedby);
@@ -262,7 +270,6 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 	lip_dev->common.usedby 	= usedby;
 	lip_dev->common.state	= WAN_DISCONNECTED;
        	WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
-
 
 #if defined(__LINUX__)
 	if (conf->true_if_encoding){
@@ -295,6 +302,11 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 
 	case BRIDGE_NODE:
 		DEBUG_EVENT( "%s: Running in BRIDGE Node mode\n",
+				lip_dev->name);
+		break;
+
+	case TRUNK:
+		DEBUG_EVENT( "%s: Running in TRUNK mode\n",
 				lip_dev->name);
 		break;
 
@@ -346,16 +358,15 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 	}
 	lip_link->latency_qlen=lip_dev->common.dev->tx_queue_len;
 #endif
-
-	 
+	
 	if (lip_link->state == WAN_CONNECTED){
 		DEBUG_TEST("%s: LIP CREATE Link already on!\n",
 						lip_dev->name);
 		WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 	       	WAN_NETIF_WAKE_QUEUE(lip_dev->common.dev);
 	       	wplip_trigger_bh(lip_dev->lip_link);
-	}              
-	
+	}         
+
 	DEBUG_TEST("%s: LIP LIPDEV Created %p Magic 0x%lX\n",
 			lip_link->name,
 			lip_dev,
@@ -645,6 +656,7 @@ int wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb)
 #endif
 
 #if 0
+			#LAPB SHOULD PUSH BACK TO THE STACK
 			wan_skb_pull(skb,sizeof(wan_api_rx_hdr_t));
 #else
       			wan_skb_free(skb);
@@ -818,7 +830,7 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 		}
 
 		if (state == WAN_CONNECTED){
-			lip_dev->common.state = state;
+			lip_dev->common.state = state;     
 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
 			wan_update_api_state(lip_dev);
@@ -1217,7 +1229,9 @@ int wplip_set_ipv4_addr (void *wplip_id,
 	}
 	if (ifa && si){
 		int error;
+#if defined(__FreeBSD__)
 		struct in_ifaddr *ia;
+#endif
 
 #if defined(__NetBSD__) && (__NetBSD_Version__ >= 103080000)
 		struct sockaddr_in new_sin = *si;
@@ -1319,11 +1333,20 @@ static int wplip_change_dev_flags (netdevice_t *dev, unsigned flags)
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static void wplip_if_task (void *arg, int dummy)
 #else
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
 static void wplip_if_task (void *arg)
+# else
+static void wplip_if_task (struct work_struct *work)
+# endif
 #endif
 {
-#ifdef __LINUX__
+#if defined(__LINUX__)
+	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+        wplip_dev_t	*lip_dev=(wplip_dev_t *)container_of(work, wplip_dev_t, if_task);
+#else
 	wplip_dev_t	*lip_dev=(wplip_dev_t *)arg;
+#endif
 	wplip_link_t	*lip_link;
 	netdevice_t 	*dev;
 	
@@ -1438,11 +1461,11 @@ int wanpipe_lip_init(void *arg)
 	int err;
 	
 	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta%s-%s %s\n",
-			wplip_fullname, WANPIPE_SUB_VERSION, WANPIPE_VERSION, WANPIPE_COPYRIGHT_DATES);
+		DEBUG_EVENT("%s Beta %s.%s %s\n",
+			wplip_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,wplip_copyright);
 	}else{
-		DEBUG_EVENT("%s Stable %s-%s %s\n",
-			wplip_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION, WANPIPE_COPYRIGHT_DATES);
+		DEBUG_EVENT("%s Stable %s.%s %s\n",
+			wplip_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION, wplip_copyright);
 	}
 
 	err=wplip_init_prot();

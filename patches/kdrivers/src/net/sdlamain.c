@@ -314,7 +314,11 @@ static int ioctl_dump	(sdla_t* card, sdla_dump_t* u_dump);
 static int ioctl_exec	(sdla_t* card, sdla_exec_t* u_exec, int);
 
 /* Miscellaneous functions */
-STATIC irqreturn_t sdla_isr (int irq, void* dev_id, struct pt_regs *regs);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)  
+STATIC WAN_IRQ_RETVAL sdla_isr (int irq, void* dev_id, struct pt_regs *regs);
+#else
+STATIC WAN_IRQ_RETVAL sdla_isr (int irq, void* dev_id);
+#endif
 
 static void release_hw  (sdla_t *card);
 
@@ -375,12 +379,12 @@ int __init wanpipe_init(void)
 	ncards=0;
 
 	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta%s-%s %s %s\n",
-			fullname, WANPIPE_SUB_VERSION, WANPIPE_VERSION,
+		DEBUG_EVENT("%s Beta %s.%s %s %s\n",
+			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
 	}else{
-		DEBUG_EVENT("%s Stable %s-%s %s %s\n",
-			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
+		DEBUG_EVENT("%s Stable %s.%s %s %s\n",
+			fullname, WANPIPE_VERSION,WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
 	}
 	
@@ -539,14 +543,13 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 	sdla_t* card;
 	int err = 0;
 	int irq=0;
-	
-	
+
 	/* Sanity checks */
 	if ((wandev == NULL) || (wandev->private == NULL) || (conf == NULL)){
-		DEBUG_EVENT("%s: Failed Sdlamain Setup wandev %u, card %u, conf %u !\n",
+		DEBUG_EVENT("%s: Failed Sdlamain Setup wandev %p, card %p, conf %p !\n",
 		      wandev->name,
-		      (unsigned int)wandev,(unsigned int)wandev->private,
-		      (unsigned int)conf); 
+		      wandev,wandev->private,
+		      conf); 
 		return -EFAULT;
 	}
 
@@ -570,13 +573,10 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 	wandev->del_if_cnt = 0;
 	wandev->new_if_cnt = 0;
 	wandev->config_id  = conf->config_id;
+
 	switch(conf->config_id){
 	case WANCONFIG_AFT:
 		conf->card_type = WANOPT_AFT;
-		break;
-	case WANCONFIG_AFT_56K:
-		conf->card_type = WANOPT_AFT_56K;
-		conf->S514_CPU_no[0] = 'A';
 		break;
 	case WANCONFIG_AFT_TE1:
 		conf->card_type = WANOPT_AFT104;
@@ -590,9 +590,14 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		conf->card_type = WANOPT_AFT300;
 		conf->S514_CPU_no[0] = 'A';
 		break;
+	case WANCONFIG_AFT_56K:
+		conf->card_type = WANOPT_AFT_56K;
+		conf->S514_CPU_no[0] = 'A';
+		break;
 	}
 
 	wandev->card_type  = conf->card_type;
+	
 	card->hw = sdla_register(&card->hw_iface, conf, card->devname);
 	if (card->hw == NULL){
 		return -EINVAL;
@@ -602,7 +607,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
          * could have changed our config_id, in order to
          * support A102 config file for A102-SH */	 
 	wandev->card_type  = conf->card_type;
-	wandev->config_id  = conf->config_id;   
+	wandev->config_id  = conf->config_id;
 	
 	/* Check for resource conflicts and setup the
 	 * card for piggibacking if necessary */
@@ -680,7 +685,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		if (err){
 			DEBUG_EVENT("%s: Hardware setup Failed %i\n",
 					card->devname,err);
-			card->hw_iface.down(card->hw);
+			card->hw_iface.hw_down(card->hw);
 			sdla_unregister(&card->hw, card->devname);
 			return err;
 		}
@@ -689,7 +694,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 			if (wanpipe_debug){
 				DEBUG_EVENT("%s: More than 2 debugging cards!\n",
 						card->devname);
-				card->hw_iface.down(card->hw);
+				card->hw_iface.hw_down(card->hw);
 				sdla_unregister(&card->hw, card->devname);
 				return -EINVAL;
 			}
@@ -721,7 +726,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 
 				DEBUG_EVENT("%s: Can't reserve IRQ %d!\n", 
 						wandev->name, irq);
-				card->hw_iface.down(card->hw);
+				card->hw_iface.hw_down(card->hw);
 				sdla_unregister(&card->hw, card->devname);
 				return -EINVAL;
 			}
@@ -887,11 +892,11 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		break;
 
 	case WANCONFIG_AFT_TE1:
-		DEBUG_EVENT("%s: Starting AFT Quad Hardware Init.\n",
+		DEBUG_EVENT("%s: Starting AFT 2/4/8 Hardware Init.\n",
 					card->devname);
 		err = wp_aft_te1_init(card,conf);
 		break;
-	
+
 	case WANCONFIG_AFT_56K:
 		DEBUG_EVENT("%s: Starting AFT 56K Hardware Init.\n",
 					card->devname);
@@ -1442,8 +1447,8 @@ static void release_hw (sdla_t *card)
                                  * information of the master device 
 				 */
 				DEBUG_EVENT("%s: Piggyback shutting down\n",card->devname);
-				if (card->hw_iface.down){
-					card->hw_iface.down(card->next->hw);
+				if (card->hw_iface.hw_down){
+					card->hw_iface.hw_down(card->next->hw);
 				}
 				if (card->wandev.config_id != WANCONFIG_BSC && 
 				    card->wandev.config_id != WANCONFIG_POS){ 
@@ -1456,8 +1461,8 @@ static void release_hw (sdla_t *card)
 			}else{
 				/* Master device shutting down */
 				DEBUG_EVENT("%s: Master shutting down\n",card->devname);
-				if (card->hw_iface.down){
-					card->hw_iface.down(card->hw);
+				if (card->hw_iface.hw_down){
+					card->hw_iface.hw_down(card->hw);
 				}
 				if (card->wandev.config_id != WANCONFIG_BSC && 
 				    card->wandev.config_id != WANCONFIG_POS){ 
@@ -1476,8 +1481,8 @@ static void release_hw (sdla_t *card)
 	}else{
 		DEBUG_EVENT("%s: Master shutting down\n",card->devname);
 
-		if (card->hw_iface.down){
-			card->hw_iface.down(card->hw);
+		if (card->hw_iface.hw_down){
+			card->hw_iface.hw_down(card->hw);
 		}
 		if (card->wandev.config_id != WANCONFIG_BSC && 
 		    card->wandev.config_id != WANCONFIG_POS &&
@@ -1610,29 +1615,36 @@ static int ioctl_exec (sdla_t* card, sdla_exec_t* u_exec, int cmd)
  * o acknowledge SDLA hardware interrupt.
  * o call protocol-specific interrupt service routine, if any.
  */
-STATIC irqreturn_t sdla_isr (int irq, void* dev_id, struct pt_regs *regs)
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)  
+STATIC WAN_IRQ_RETVAL sdla_isr (int irq, void* dev_id, struct pt_regs *regs)
+#else
+STATIC WAN_IRQ_RETVAL sdla_isr (int irq, void* dev_id)
+#endif
 {
 #define	card	((sdla_t*)dev_id)
 	
 	if (card && card->type == SDLA_AFT){
-
+		WAN_IRQ_RETVAL_DECL(val); 
+		
 		spin_lock(&card->wandev.lock);
 		if (card->isr){
-			card->isr(card);
+			WAN_IRQ_CALL(card->isr, (card), val);
 		}
 		spin_unlock(&card->wandev.lock);
 	
-		WAN_IRQ_RETVAL(IRQ_HANDLED);
+		WAN_IRQ_RETURN(val);
 	}
 
 	if (card && card->type == SDLA_ADSL){
 		unsigned long flags;
+		WAN_IRQ_RETVAL_DECL(val); 
 		spin_lock_irqsave(&card->wandev.lock,flags);
 		if (card->isr){
-			card->isr(card);
+			WAN_IRQ_CALL(card->isr, (card), val);
 		}
 		spin_unlock_irqrestore(&card->wandev.lock,flags);
-		WAN_IRQ_RETVAL(IRQ_HANDLED);
+		WAN_IRQ_RETURN(val);
 	}
 
 	if(card->type == SDLA_S514) {	/* handle interrrupt on S514 */
@@ -1647,7 +1659,7 @@ STATIC irqreturn_t sdla_isr (int irq, void* dev_id, struct pt_regs *regs)
 
 		/* check if the interrupt is for this device */
 		if(!((unsigned char)int_status & (IRQ_CPU_A | IRQ_CPU_B))){
-			WAN_IRQ_RETVAL(IRQ_NONE);
+			WAN_IRQ_RETURN(IRQ_NONE);
 		}
 
 		/* if the IRQ is for both CPUs on the same adapter, */
@@ -1679,7 +1691,7 @@ STATIC irqreturn_t sdla_isr (int irq, void* dev_id, struct pt_regs *regs)
 		/* exit if the interrupt is for another CPU on the */
 		/* same IRQ */
 		if(!card_found_for_IRQ){
-			WAN_IRQ_RETVAL(IRQ_NONE);
+			WAN_IRQ_RETURN(IRQ_NONE);
 		}
 
 		if (!card || 
@@ -1690,7 +1702,7 @@ STATIC irqreturn_t sdla_isr (int irq, void* dev_id, struct pt_regs *regs)
 				if (card->hw_iface.intack){
 					card->hw_iface.intack(card->hw, int_status);
 				}
-				WAN_IRQ_RETVAL(IRQ_NONE);
+				WAN_IRQ_RETURN(IRQ_NONE);
 		}
 
 		if (card->in_isr) {
@@ -1699,7 +1711,7 @@ STATIC irqreturn_t sdla_isr (int irq, void* dev_id, struct pt_regs *regs)
 			if (card->hw_iface.intack){
 				card->hw_iface.intack(card->hw, int_status);
 			}
-			WAN_IRQ_RETVAL(IRQ_NONE);
+			WAN_IRQ_RETURN(IRQ_NONE);
 		}
 
 		spin_lock(&card->wandev.lock);
@@ -1725,16 +1737,18 @@ STATIC irqreturn_t sdla_isr (int irq, void* dev_id, struct pt_regs *regs)
 			spin_unlock(&card->next->wandev.lock);
 		}
 		spin_unlock(&card->wandev.lock);
+		
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 
 	}else{			/* handle interrupt on S508 adapter */
 
 		if (!card || ((card->wandev.state == WAN_UNCONFIGURED) && !card->configured))
-			WAN_IRQ_RETVAL(IRQ_NONE);
+			WAN_IRQ_RETURN(IRQ_NONE);
 
 		if (card->in_isr) {
 			DEBUG_EVENT("%s: interrupt re-entrancy on IRQ %d!\n",
 				card->devname, card->wandev.irq);
-			WAN_IRQ_RETVAL(IRQ_NONE);
+			WAN_IRQ_RETURN(IRQ_NONE);
 		}
 
 		spin_lock(&card->wandev.lock);
@@ -1752,10 +1766,12 @@ STATIC irqreturn_t sdla_isr (int irq, void* dev_id, struct pt_regs *regs)
 			spin_unlock(&card->next->wandev.lock);
 		}
 		spin_unlock(&card->wandev.lock);
+	
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 
 	}
 
-	WAN_IRQ_RETVAL(IRQ_HANDLED);
+	WAN_IRQ_RETURN(WAN_IRQ_NONE);
 
 #undef	card
 }
@@ -1804,13 +1820,9 @@ sdla_t * wanpipe_find_card_num (int num)
 }
 
 
-int wanpipe_queue_tq (struct tq_struct *bh_pointer)
+int wanpipe_queue_tq (wan_taskq_t *task)
 {
-#if defined(LINUX_2_6)
-	schedule_work(bh_pointer);
-#else
-	queue_task(bh_pointer,&tq_immediate);
-#endif
+	WAN_TASKQ_SCHEDULE(task);
 	return 0;
 }
 

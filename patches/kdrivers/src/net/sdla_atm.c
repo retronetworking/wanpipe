@@ -172,10 +172,14 @@ static int 	config_frmw (sdla_t *card);
 static void 	disable_comm (sdla_t *card);
 
 static void 	trigger_poll (struct net_device *);
-static void 	frmw_poll (void *);
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
+static void frmw_poll (void *arg);
+# else
+static void frmw_poll (struct work_struct *work);
+# endif
 
 /* Interrupt handlers */
-static void 	wpatm_isr (sdla_t* card);
+static WAN_IRQ_RETVAL 	wpatm_isr (sdla_t* card);
 static void 	rx_intr (sdla_t* card);
 static void     tx_intr (sdla_t* card);
 static void 	timer_intr(sdla_t *);
@@ -351,7 +355,7 @@ int wp_atm_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -895,7 +899,7 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 	 * up and down.
 	 */
 
-	WAN_TASKQ_INIT((&priv_area->poll_task),0,frmw_poll,dev);
+	WAN_TASKQ_INIT((&priv_area->poll_task),0,frmw_poll,priv_area);
 
 #if 0
 	/* Create interface file in proc fs.
@@ -2421,13 +2425,13 @@ static void wp_handle_rx_packets(netskb_t *skb)
  * Determin the interrupt received and handle it.
  *
  */
-static void wpatm_isr (sdla_t* card)
+static WAN_IRQ_RETVAL wpatm_isr (sdla_t* card)
 {
 	SHARED_MEMORY_INFO_STRUCT flags;
 	int i;
 
 	if (!card->hw){
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 	
 	wan_set_bit(0,&card->in_isr);
@@ -2497,7 +2501,7 @@ isr_done:
 
 	wan_clear_bit(0,&card->in_isr);
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-	return;
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 }
 
 
@@ -3690,14 +3694,24 @@ static int config_frmw (sdla_t *card)
  *      this task. 
  */
 
-static void frmw_poll (void *dev_ptr)
+
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
+static void frmw_poll (void *arg)
+# else
+static void frmw_poll (struct work_struct *work)
+# endif
 {
-	netdevice_t *dev=dev_ptr;
-	private_area_t *priv_area;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+	private_area_t* priv_area = (private_area_t*)container_of(work, private_area_t, poll_task);  
+#else
+	private_area_t* priv_area = (private_area_t*)arg;  
+#endif          
+	netdevice_t *dev;
 	sdla_t *card;
 	u8 check_gateway=0;	
 
-	if (!dev || (priv_area=dev->priv) == NULL){
+	if (!priv_area || (dev=priv_area->dev) == NULL){
 		return;
 	}
 
@@ -3777,6 +3791,7 @@ static void frmw_poll (void *dev_ptr)
  *      To execute tasks out of interrupt context.
  *
  */	
+
 static void trigger_poll (struct net_device *dev)
 {
 	private_area_t *priv_area;

@@ -40,6 +40,7 @@ public:
   int run(OUT int * selection_index);
 };
 
+
 class menu_hardware_analog_card_advanced_options : public menu_base  {
 
   char lxdialog_path[MAX_PATH_LENGTH];

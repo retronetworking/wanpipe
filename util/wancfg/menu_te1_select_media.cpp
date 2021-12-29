@@ -133,9 +133,9 @@ again:
           cfr->link_defs->linkconf->card_type != WANOPT_S50X &&
           cfr->link_defs->linkconf->card_type != WANOPT_S51X){
           
-	  wan_xilinx_conf_t* wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
+	  wan_tdmv_conf_t *tdmv_conf = &cfr->link_defs->linkconf->tdmv_conf;
           //wan_xilinx_conf->tdmv_dchan = 24;
-          wan_xilinx_conf->tdmv_dchan = 0;//user will have manually set/enable this option
+          tdmv_conf->dchan = 0;//user will have manually set/enable this option
         }	
       }
       exit_dialog = YES;
@@ -155,9 +155,9 @@ again:
           cfr->link_defs->linkconf->card_type != WANOPT_S50X &&
           cfr->link_defs->linkconf->card_type != WANOPT_S51X){
           
-	  wan_xilinx_conf_t* wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
+	  wan_tdmv_conf_t *tdmv_conf = &cfr->link_defs->linkconf->tdmv_conf;
           //wan_xilinx_conf->tdmv_dchan = 16;
-          wan_xilinx_conf->tdmv_dchan = 0;//user will have to manually set/enable this option
+          tdmv_conf->dchan = 0;//user will have to manually set/enable this option
         }
       }
       exit_dialog = YES;

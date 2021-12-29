@@ -128,7 +128,7 @@ static int bscstrm_configure (sdla_t* card, CONFIGURATION_STRUCT *cfg);
 static int bscstrm_read_config (sdla_t* card);
 static int bscstrm_enable_rx_isr (sdla_t* card);
 
-static void wp_bscstrm_isr (sdla_t *card);
+static WAN_IRQ_RETVAL wp_bscstrm_isr (sdla_t *card);
 static void port_set_state (sdla_t *card, int state);
 
 /****** Public Functions ****************************************************/
@@ -785,7 +785,7 @@ static int if_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
 
 
 
-static void wp_bscstrm_isr (sdla_t *card)
+static WAN_IRQ_RETVAL wp_bscstrm_isr (sdla_t *card)
 {
 	netdevice_t		*dev;
 	bscstrm_private_area_t	*bscstrm_priv_area;
@@ -797,11 +797,11 @@ static void wp_bscstrm_isr (sdla_t *card)
 
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
 	if (!dev){
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
 	if ((bscstrm_priv_area = dev->priv) == NULL){
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
 	card->hw_iface.peek(card->hw, card->rxmb_off, mbox, sizeof(wan_cmd_t));
@@ -876,7 +876,7 @@ event_exit:
 	}
 
 	clear_bit(0,&card->wandev.critical);
-	return;	
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);	
 }
 
 

@@ -18,7 +18,6 @@ if [ ! -e /usr/local/ss7box/$ss7boxd ]; then
 fi
 
 eval "ulimit -n 65000"
-eval "modprobe sctp > /dev/null 2> /dev/null"
 
 sangoma_mgd -term
 
@@ -32,7 +31,6 @@ fi
 cd /usr/local/ss7box
 ./$ss7boost --term
 sleep 1
-#eval "$NICE ./$ss7boost --hb" 
 eval "$NICE ./$ss7boost" 
 sleep 5
 
@@ -57,7 +55,6 @@ fi
 cd $home
 
 
-#exit 0;
 
 if [ 1 -eq 0 ]; then
 	ulimit -n 65536

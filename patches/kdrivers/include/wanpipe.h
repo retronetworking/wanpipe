@@ -53,7 +53,7 @@
 #include <linux/wanpipe_common.h>
 #include <linux/wanpipe_events.h>
 #include <linux/wanpipe_cfg.h>
-# include <linux/wanrouter.h>
+#include <linux/wanrouter.h>
 #else
 # error "No OS Specified"
 #endif
@@ -364,7 +364,7 @@ typedef	struct
 	u8 logging;		/* Option to log call messages */
 	u8 oob_on_modem;	/* Option to send modem status to the api */
 	u16 num_of_ch;		/* Number of channels configured by the user */
-	struct tq_struct x25_poll_task;
+	wan_taskq_t	x25_poll_task;
 	struct timer_list x25_timer;
 	/* Proc fs */
 	wan_x25_conf_t 	x25_adm_conf;
@@ -723,15 +723,23 @@ typedef struct
 
 	unsigned int 	tdmv_dchan_cfg_on_master;
 	unsigned int	tdmv_chan;	
+	unsigned int	tdmv_dchan;	
 	unsigned int	tdmv_dchan_active_ch;
 	void 		*tdmv_chan_ptr;
 
+	unsigned char	tdmv_hw_dtmf;
+	
 	unsigned char	led_ctrl;
 	unsigned int	tdm_intr_status;
 	void 		*bar_virt;
 	unsigned short	tdm_rx_dma_toggle;
 	unsigned short	tdm_tx_dma_toggle;
 	unsigned int	tdm_logic_ch_map;
+
+	void *rtp_dev;
+	int   rtp_len;
+	netskb_t *rx_rtp_skb;
+	netskb_t *tx_rtp_skb;
 	unsigned long	sec_chk_cnt;
 } sdla_xilinx_t;
 
@@ -778,7 +786,7 @@ typedef struct sdla
 	unsigned char	tx_data[MAX_PACKET_SIZE];	/* Tx buffer */
 	unsigned int	tx_len;    			/* Tx data len */
 #endif
-	void (*isr)(struct sdla* card);	/* interrupt service routine */
+	WAN_IRQ_RETVAL (*isr)(struct sdla* card);	/* interrupt service routine */
 	void (*poll)(struct sdla* card); /* polling routine */
 	int (*exec)(struct sdla* card, void* u_cmd, void* u_data);
 					/* Used by the listen() system call */		
@@ -804,7 +812,7 @@ typedef struct sdla
 	unsigned char *tty_buf;
 	struct sk_buff_head 	tty_rx_empty;
 	struct sk_buff_head 	tty_rx_full;
-	struct tq_struct 	tty_task_queue;
+	wan_taskq_t		tty_task_queue;
 #endif	
 	union
 	{
@@ -864,10 +872,13 @@ typedef struct sdla
 
 	unsigned long	intcount;
 	
+	wan_tdmv_conf_t		tdmv_conf;
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 	wan_tdmv_iface_t	tdmv_iface;
 	wan_tdmv_t		wan_tdmv;
 #endif
+
+	wan_hwec_conf_t		hwec_conf;
 	
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	struct sdla*	same_card;
@@ -947,7 +958,7 @@ int aft_global_hw_device_init(void);
 int wanpipe_globals_util_init(void); /* Initialize All Global Tables */
 
 #if defined(__LINUX__)
-extern int wanpipe_queue_tq (struct tq_struct *);
+extern int wanpipe_queue_tq (wan_taskq_t *);
 extern int wanpipe_mark_bh (void);
 extern int change_dev_flags (netdevice_t *, unsigned); 
 extern unsigned long get_ip_address (netdevice_t *dev, int option);
@@ -961,6 +972,9 @@ extern void wp_tasklet_per_cpu_init (void);
 //FIXME: Take it out
 //extern int wan_reply_udp( unsigned char *data, unsigned int mbox_len, int trace_opt);
 //extern int wan_udp_pkt_type(sdla_t* card,unsigned char *data);
+
+extern int wan_ip_udp_setup(void* card_id, u32 ip, u32 udp_port, 
+		            unsigned char *data, unsigned int mbox_len);
 
 extern int wanpipe_sdlc_unregister(netdevice_t *dev);
 extern int wanpipe_sdlc_register(netdevice_t *dev, void *wp_sdlc_reg);

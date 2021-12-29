@@ -21,14 +21,12 @@ ifeq "$(SYSINC)" ""
 SYSINC=/lib/modules/$(shell uname -r)/build/include
 endif
 
-LSYSINC=../../patches/kdrivers/include
-
 WAN_VIRTUAL=
 
 PRODS=wan_plxup
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -I$(LSYSINC) -D_DEBUG_=$(DEBUG)
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
 
 
 ####### RULES ################################################################

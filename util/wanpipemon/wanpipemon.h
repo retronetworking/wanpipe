@@ -19,7 +19,7 @@ extern void 	output_xml_val_asc (char *value_name, char * value);
 extern void 	output_error(char *value);
 
 extern void 	flush_te1_pmon(void);
-extern void 	read_te1_56k_stat(void);
+extern void 	read_te1_56k_stat(int);
 extern void	banner(char *, int);
 extern int DoCommand(wan_udp_hdr_t*);
 
@@ -478,6 +478,7 @@ extern char*	get_hardware_level_interface_name(char* interface_name);
 extern int 	make_hardware_level_connection(void);
 extern void	cleanup_hardware_level_connection(void);
 
+extern void	read_te1_56k_stat(int);
 extern void	flush_te1_pmon(void);
 
 extern void	hw_line_trace(int trace_mode);

@@ -239,34 +239,32 @@ typedef struct x25_channel
 
 /* FIXME Take this out */
 
-#pragma pack(1)
 #ifdef NEX_OLD_CALL_INFO
 typedef struct x25_call_info
 {
-	char dest[17];			;/* ASCIIZ destination address */
-	char src[17];			;/* ASCIIZ source address */
-	char nuser;			;/* number of user data bytes */
-	unsigned char user[127];	;/* user data */
-	char nfacil;			;/* number of facilities */
+	char dest[17];			PACKED;/* ASCIIZ destination address */
+	char src[17];			PACKED;/* ASCIIZ source address */
+	char nuser;			PACKED;/* number of user data bytes */
+	unsigned char user[127];	PACKED;/* user data */
+	char nfacil;			PACKED;/* number of facilities */
 	struct
 	{
-		unsigned char code;     ;
-		unsigned char parm;     ;
+		unsigned char code;     PACKED;
+		unsigned char parm;     PACKED;
 	} facil[64];			        /* facilities */
 } x25_call_info_t;
 #else
 typedef struct x25_call_info
 {
-	char dest[MAX_X25_ADDR_SIZE]		;/* ASCIIZ destination address */
-	char src[MAX_X25_ADDR_SIZE]		;/* ASCIIZ source address */
-	unsigned char nuser			;
-	unsigned char user[MAX_X25_DATA_SIZE]	;/* user data */
-	unsigned char nfacil			;
-	unsigned char facil[MAX_X25_FACL_SIZE]	;
-	unsigned short lcn             		;
+	char dest[MAX_X25_ADDR_SIZE]		PACKED;/* ASCIIZ destination address */
+	char src[MAX_X25_ADDR_SIZE]		PACKED;/* ASCIIZ source address */
+	unsigned char nuser			PACKED;
+	unsigned char user[MAX_X25_DATA_SIZE]	PACKED;/* user data */
+	unsigned char nfacil			PACKED;
+	unsigned char facil[MAX_X25_FACL_SIZE]	PACKED;
+	unsigned short lcn             		PACKED;
 } x25_call_info_t;
 #endif
-#pragma pack()
 
 
   
@@ -309,7 +307,7 @@ static void if_tx_timeout (netdevice_t *dev);
 /*=================================================  
  * 	Interrupt handlers 
  */
-static void wpx_isr	(sdla_t *);
+static WAN_IRQ_RETVAL wpx_isr	(sdla_t *);
 static void rx_intr	(sdla_t *);
 static void tx_intr	(sdla_t *);
 static void status_intr	(sdla_t *);
@@ -430,7 +428,7 @@ static TX25Stats	X25Stats;
 
 
 /*===================================================================
- * wpx_init:	X.25 Protocol Initialization routine.
+ * wp_adccp_init:  ADCCP Protocol Initialization routine.
  *
  * Purpose:	To initialize the protocol/firmware.
  * 
@@ -1545,7 +1543,7 @@ static int if_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
  * X.25 Interrupt Service Routine.
  */
 
-static void wpx_isr (sdla_t* card)
+static WAN_IRQ_RETVAL wpx_isr (sdla_t* card)
 {
 	TX25Status	status;
 	card->hw_iface.peek(card->hw, card->flags_off, &status, sizeof(status));
@@ -1555,7 +1553,7 @@ static void wpx_isr (sdla_t* card)
 		printk(KERN_INFO "%s: Critical in WPX_ISR\n",card->devname);
 		status.iflags = 0;
 		card->hw_iface.poke(card->hw, card->flags_off, &status, sizeof(status));
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 	
 	card->in_isr = 1;
@@ -1566,7 +1564,7 @@ static void wpx_isr (sdla_t* card)
 		card->in_isr=0;
 		status.iflags = 0;
 		card->hw_iface.poke(card->hw, card->flags_off, &status, sizeof(status));
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 	
 	if (test_bit(SEND_CRIT, (void*)&card->wandev.critical)){
@@ -1576,7 +1574,7 @@ static void wpx_isr (sdla_t* card)
 		card->in_isr = 0;
 		status.iflags = 0;
 		card->hw_iface.poke(card->hw, card->flags_off, &status, sizeof(status));
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
 
@@ -1616,6 +1614,7 @@ static void wpx_isr (sdla_t* card)
 	card->in_isr = 0;
 	status.iflags = 0;
 	card->hw_iface.poke(card->hw, card->flags_off, &status, sizeof(status));
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 }
 
 /*

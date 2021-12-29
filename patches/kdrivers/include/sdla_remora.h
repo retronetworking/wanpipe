@@ -124,6 +124,8 @@ typedef struct sdla_remora_cfg_ {
 	char	opermode_name[WAN_RM_OPERMODE_LEN];
 /*	int	tdmv_law;*/	/* WAN_TDMV_ALAW or WAN_TDMV_MULAW */
 	int	reversepolarity;
+	int	battthresh;
+	int	battdebounce;	
 	int	network_sync;
 } sdla_remora_cfg_t;
 
@@ -137,10 +139,11 @@ typedef struct {
 } wan_remora_fxo_regs_t;
 
 typedef struct {
-	int tip_volt;	/* TIP voltage (mV) (FXS) */
-	int ring_volt;	/* RING voltage (mV) (FXS) */
-	int bat_volt;	/* VBAT voltage (mV) (FXS) */
-	int volt;	/* Line voltage status (FXO) */
+	int		tip_volt;	/* TIP voltage (mV) (FXS) */
+	int		ring_volt;	/* RING voltage (mV) (FXS) */
+	int		bat_volt;	/* VBAT voltage (mV) (FXS) */
+	int		volt;		/* Line voltage status (FXO) */
+	//u_int8_t	hook;		/* On/Off hook state */
 } wan_remora_stats_t;
 
 typedef struct {
@@ -173,19 +176,37 @@ struct wan_rm_echo_coefs {
 #define NUM_CAL_REGS		12
 
 #if !defined(WAN_DEBUG_FE)
-# define WRITE_RM_FXS_REG(mod_no,chain,reg,val)				\
-	fe->write_fe_reg(fe->card,(int)mod_no,(int)MOD_TYPE_FXS,(int)chain,(int)reg,(int)val)
-# define READ_RM_FXS_REG(mod_no,chain,reg)				\
-	fe->read_fe_reg(fe->card, (int)mod_no,(int)MOD_TYPE_FXS,(int)chain,(int)reg)
-# define WRITE_RM_FXO_REG(mod_no,chain,reg,val)				\
-	fe->write_fe_reg(fe->card,(int)mod_no,(int)MOD_TYPE_FXO,(int)chain,(int)reg,(int)val)
-# define READ_RM_FXO_REG(mod_no,chain,reg)				\
-	fe->read_fe_reg(fe->card, (int)mod_no,(int)MOD_TYPE_FXO,(int)chain,(int)reg)
+# define WRITE_RM_FXS_REG(mod_no,chain,reg,val)			\
+	fe->write_fe_reg(	fe->card,		\
+				(int)mod_no,		\
+				(int)MOD_TYPE_FXS,	\
+				(int)chain,		\
+				(int)reg,		\
+				(int)val)
+# define READ_RM_FXS_REG(mod_no,chain,reg)			\
+	fe->read_fe_reg(	fe->card, 		\
+				(int)mod_no,		\
+				(int)MOD_TYPE_FXS,	\
+				(int)chain,		\
+				(int)reg)
+# define WRITE_RM_FXO_REG(mod_no,chain,reg,val)			\
+	fe->write_fe_reg(	fe->card,		\
+				(int)mod_no,		\
+				(int)MOD_TYPE_FXO,	\
+				(int)chain,		\
+				(int)reg,		\
+				(int)val)
+# define READ_RM_FXO_REG(mod_no,chain,reg)			\
+	fe->read_fe_reg(	fe->card,		\
+				(int)mod_no,		\
+				(int)MOD_TYPE_FXO,	\
+				(int)chain,		\
+				(int)reg)
 # define WRITE_RM_REG(mod_no,reg,val)					\
-	fe->write_fe_reg(	fe->card,				\
-				(int)mod_no,				\
-				fe->rm_param.mod[mod_no].type,		\
-				fe->rm_param.mod[mod_no].chain,		\
+	fe->write_fe_reg(	fe->card,			\
+				(int)mod_no,			\
+				fe->rm_param.mod[mod_no].type,	\
+				fe->rm_param.mod[mod_no].chain,	\
 				(int)reg, (int)val)
 # define READ_RM_REG(mod_no,reg)					\
 	fe->read_fe_reg(	fe->card,				\
@@ -282,12 +303,15 @@ typedef struct {
 	int		type;
 	int		chain;
 	unsigned long	events;
+
+#if 0
 #if defined(__WINDOWS__)
 	wan_event_ctrl_t	 current_control_event;
 	wan_event_ctrl_t	*current_control_event_ptr;
 #else
 	WAN_LIST_HEAD(, wan_event_ctrl_)	event_head;
 #endif
+#endif	
 	/* TDM Voice applications */
 	int		sig;
 	/* Special fxs/fxo settings */
@@ -298,21 +322,32 @@ typedef struct {
 
 } wp_remora_module_t;
 
+typedef struct {
+//	u_int16_t	type;
+	int		mod_no;		/* A200-Remora */	
+	unsigned char	ec_dtmf_port;	/* EC DTMF: SOUT or ROUT */
+	unsigned long	ts_map;
+	u_int8_t	tone;
+	int		ohttimer;	/* On-hook transfer */
+	int		polarity;	/* SETPOLARITY */		
+} sdla_rm_event_t;
+
 typedef struct sdla_remora_param {
 	int			not_used;
 
 	wp_remora_module_t	mod[MAX_REMORA_MODULES];
 
-	unsigned long		module_map;		/* Map of available module */
-	int			max_fe_channels;	/* Number of available modules */
+	u32		module_map;	/* Map of available module */
+	u16		max_fe_channels;/* Number of available modules */
 	
-	unsigned char		critical;
-	wan_timer_t		timer;
-	unsigned char		timer_cmd;
-	int			timer_mod_no;
+	u8		critical;
+//	wan_timer_t	timer;
+//	u8		timer_cmd;
+//	u16		timer_mod_no;
+//	u16		timer_delay;
 
-	u32			intcount;
-	unsigned long		last_watchdog;	
+	u32		intcount;
+	unsigned long	last_watchdog;	
 } sdla_remora_param_t;
 
 

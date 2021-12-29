@@ -4,8 +4,7 @@
  * Author(s):	Anthony Minessale II <anthmct@yahoo.com>
  *              Nenad Corbic <ncorbic@sangoma.com>
  *
- * Copyright:	(c) 05-07 Nenad Corbic
- *			  Anthony Minessale II
+ * Copyright:	(c) 2005 Anthony Minessale II
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -27,7 +26,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/sctp.h>
 #include <arpa/inet.h>
 #include <stdarg.h>
 #include <netdb.h>
@@ -58,14 +56,6 @@
 typedef  t_sigboost call_signal_event_t;
 typedef uint32_t call_signal_event_id_t;
 
-typedef struct smg_ip_cfg
-{
-	char local_ip[25];
-	int local_port;
-	char remote_ip[25];
-	int remote_port;
-}smg_ip_cfg_t;
-
 struct call_signal_connection {
 	int socket;
 	struct sockaddr_in local_addr;
@@ -76,11 +66,6 @@ struct call_signal_connection {
 	unsigned int flags;
 	pthread_mutex_t lock;
 	FILE *log;
-	unsigned int txseq;
-	unsigned int rxseq;
-	unsigned int txwindow;
-	unsigned int rxseq_reset;
-	smg_ip_cfg_t cfg;
 };
 
 typedef enum {
@@ -89,17 +74,9 @@ typedef enum {
 
 typedef struct call_signal_connection call_signal_connection_t;
 
-/* disable nagle's algorythm */
-static inline void sctp_no_nagle(int socket)
-{
-    int flag = 1;
-    setsockopt(socket, IPPROTO_SCTP, SCTP_NODELAY, (char *) &flag, sizeof(int));
-}
-
 int call_signal_connection_close(call_signal_connection_t *mcon);
 int call_signal_connection_open(call_signal_connection_t *mcon, char *local_ip, int local_port, char *ip, int port);
 call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon, int iteration);
-call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon, int iteration);
 int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_event_t *event);
 void call_signal_event_init(call_signal_event_t *event, call_signal_event_id_t event_id, int chan, int span);
 void call_signal_call_init(call_signal_event_t *event, char *calling, char *called, int setup_id);

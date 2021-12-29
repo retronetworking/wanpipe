@@ -342,34 +342,32 @@ typedef struct x25_channel
 
 /* FIXME Take this out */
 
-#pragma pack(1)
 #ifdef NEX_OLD_CALL_INFO
 typedef struct x25_call_info
 {
-	char dest[17];			;/* ASCIIZ destination address */
-	char src[17];			;/* ASCIIZ source address */
-	char nuser;			;/* number of user data bytes */
-	unsigned char user[127];	;/* user data */
-	char nfacil;			;/* number of facilities */
+	char dest[17];			PACKED;/* ASCIIZ destination address */
+	char src[17];			PACKED;/* ASCIIZ source address */
+	char nuser;			PACKED;/* number of user data bytes */
+	unsigned char user[127];	PACKED;/* user data */
+	char nfacil;			PACKED;/* number of facilities */
 	struct
 	{
-		unsigned char code;     ;
-		unsigned char parm;     ;
+		unsigned char code;     PACKED;
+		unsigned char parm;     PACKED;
 	} facil[64];			        /* facilities */
 } x25_call_info_t;
 #else
 typedef struct x25_call_info
 {
-	char dest[MAX_X25_ADDR_SIZE]		;/* ASCIIZ destination address */
-	char src[MAX_X25_ADDR_SIZE]		;/* ASCIIZ source address */
-	unsigned char nuser			;
-	unsigned char user[MAX_X25_DATA_SIZE]	;/* user data */
-	unsigned char nfacil			;
-	unsigned char facil[MAX_X25_FACL_SIZE]	;
-	unsigned short lcn             		;
+	char dest[MAX_X25_ADDR_SIZE]		PACKED;/* ASCIIZ destination address */
+	char src[MAX_X25_ADDR_SIZE]		PACKED;/* ASCIIZ source address */
+	unsigned char nuser			PACKED;
+	unsigned char user[MAX_X25_DATA_SIZE]	PACKED;/* user data */
+	unsigned char nfacil			PACKED;
+	unsigned char facil[MAX_X25_FACL_SIZE]	PACKED;
+	unsigned short lcn             		PACKED;
 } x25_call_info_t;
 #endif
-#pragma pack()
 
 
   
@@ -412,7 +410,7 @@ static void if_tx_timeout (netdevice_t *dev);
 /*=================================================  
  * 	Interrupt handlers 
  */
-static void wpx_isr	(sdla_t *);
+static WAN_IRQ_RETVAL wpx_isr	(sdla_t *);
 static void rx_intr	(sdla_t *);
 static void tx_intr	(sdla_t *);
 static void status_intr	(sdla_t *);
@@ -428,7 +426,11 @@ static netdevice_t * move_dev_to_next (sdla_t *, netdevice_t *);
 /*=================================================  
  *	Background polling routines 
  */
-static void wpx_poll (void*);
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+static void wpx_poll (void *card_ptr);
+#else
+static void wpx_poll (struct work_struct *work);
+#endif
 static void poll_disconnected (sdla_t* card);
 static void poll_connecting (sdla_t* card);
 static void poll_active (sdla_t* card);
@@ -986,7 +988,7 @@ int wpx_init (sdla_t* card, wandev_conf_t* conf)
 	init_global_statistics(card);	
 
 
-	INIT_WORK((&card->u.x.x25_poll_task),wpx_poll,card);
+	WAN_TASKQ_INIT((&card->u.x.x25_poll_task),0,wpx_poll,card);
 
 	init_timer(&card->u.x.x25_timer);
 	card->u.x.x25_timer.data = (unsigned long)card;
@@ -2218,19 +2220,19 @@ x25_ioctl_exit:
  * X.25 Interrupt Service Routine.
  */
 
-static void wpx_isr (sdla_t* card)
+static WAN_IRQ_RETVAL wpx_isr (sdla_t* card)
 {
 	u8	intr_type;
 
 	if (!card->hw){
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
 	/* Sanity check, should never happen */
 	if (test_bit(0,&card->in_isr)){
 		printk(KERN_INFO "%s: Critical in WPX_ISR\n",card->devname);
 		card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 	
 	card->in_isr = 1;
@@ -2239,7 +2241,7 @@ static void wpx_isr (sdla_t* card)
 	if (test_bit(PERI_CRIT,(void*)&card->wandev.critical)){
 		card->in_isr=0;
 		card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 	
 	if (test_bit(SEND_CRIT, (void*)&card->wandev.critical)){
@@ -2252,7 +2254,7 @@ static void wpx_isr (sdla_t* card)
 		
 		card->in_isr = 0;
 		card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
 	/* For all interrupts set the critical flag to CRITICAL_RX_INTR.
@@ -2292,6 +2294,7 @@ static void wpx_isr (sdla_t* card)
 
 	card->in_isr = 0;
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 }
 
 /*
@@ -3057,9 +3060,18 @@ static void spur_intr (sdla_t* card)
  *    	enabled. Beware!
  *====================================================================*/
 
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
 static void wpx_poll (void *card_ptr)
+#else
+static void wpx_poll (struct work_struct *work) 
+#endif
 {
-	sdla_t		*card=card_ptr;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+        sdla_t 		*card = (sdla_t *)container_of(work, sdla_t, u.x.x25_poll_task);
+#else
+	sdla_t 		*card = (sdla_t *)card_ptr;
+#endif    
 	netdevice_t	*dev;
 
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
@@ -3099,7 +3111,7 @@ wpx_poll_exit:
 
 static void trigger_x25_poll(sdla_t *card)
 {
-	wan_schedule_task(&card->u.x.x25_poll_task);
+	WAN_TASKQ_SCHEDULE((&card->u.x.x25_poll_task));
 }
 
 /*====================================================================

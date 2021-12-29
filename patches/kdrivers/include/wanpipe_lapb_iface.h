@@ -27,6 +27,9 @@ typedef struct wp_lapb_reg
 extern void *wp_register_lapb_prot(void *, char *, 
 		                   void *, 
 				   wplip_prot_reg_t *);
+extern void *wp_register_lapd_prot(void *, char *, 
+		                   void *, 
+				   wplip_prot_reg_t *);
 extern int wp_unregister_lapb_prot(void *);
 
 extern void *wp_register_lapb_chan_prot(void *callback_dev_ptr, 

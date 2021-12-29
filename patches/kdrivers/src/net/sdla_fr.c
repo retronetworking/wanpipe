@@ -253,7 +253,7 @@ typedef struct fr_channel
 	/* Polling task queue. Each interface
          * has its own task queue, which is used
          * to defer events from the interrupt */
-	struct tq_struct fr_poll_task;
+	wan_taskq_t fr_poll_task;
 	struct timer_list fr_arp_timer;
 
 	u32 ip_local;
@@ -319,17 +319,17 @@ typedef struct fr_channel
 #define TMR_INT_ENABLED_UPDATE_DLCI	0x40
 #define TMR_INT_ENABLED_TE		0x80
 
-#pragma pack(1)
+
 typedef struct dlci_status
 {
-	unsigned short dlci	;
-	unsigned char state	;
+	unsigned short dlci	PACKED;
+	unsigned char state	PACKED;
 } dlci_status_t;
 
 typedef struct dlci_IB_mapping
 {
-	unsigned short dlci		;
-	unsigned long  addr_value	;
+	unsigned short dlci		PACKED;
+	unsigned long  addr_value	PACKED;
 } dlci_IB_mapping_t;
 
 /* This structure is used for DLCI list Tx interrupt mode.  It is used to
@@ -337,11 +337,10 @@ typedef struct dlci_IB_mapping
  */
 typedef struct fr_dlci_interface 
 {
-	unsigned char gen_interrupt	;
-	unsigned short packet_length	;
-	unsigned char reserved		;
+	unsigned char gen_interrupt	PACKED;
+	unsigned short packet_length	PACKED;
+	unsigned char reserved		PACKED;
 } fr_dlci_interface_t; 
-#pragma pack()
 
 extern void disable_irq(unsigned int);
 extern void enable_irq(unsigned int);
@@ -369,7 +368,7 @@ static struct net_device_stats *if_stats(netdevice_t *dev);
 
 
 /* Interrupt handlers */
-static void fr_isr(sdla_t *card);
+static WAN_IRQ_RETVAL fr_isr(sdla_t *card);
 static void rx_intr(sdla_t *card);
 static void tx_intr(sdla_t *card);
 static void timer_intr(sdla_t *card);
@@ -425,7 +424,12 @@ static int check_tx_status(sdla_t *, netdevice_t *);
 static void fr_bh (unsigned long data);
 
 static void trigger_fr_poll (netdevice_t *);
-static void fr_poll (void *);
+
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+static void fr_poll (void *card_ptr);
+#else
+static void fr_poll (struct work_struct *work);
+#endif
 
 static void unconfig_fr_dev (sdla_t *card, netdevice_t *dev);
 
@@ -578,7 +582,7 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
         }else if (IS_56K_MEDIA(&conf->fe_cfg)) {
                 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -1249,7 +1253,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	}	
 
 	if (conf->network_number && chan->enable_IPX == WANOPT_YES){
-		printk(KERN_INFO "%s:%s: IPX Network Address 0x%lX!\n",
+		printk(KERN_INFO "%s:%s: IPX Network Address 0x%X!\n",
 				card->devname,chan->name,conf->network_number);
 		chan->network_number = conf->network_number;
 	}else{
@@ -1267,7 +1271,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
          * interface. 
          */
 
-	INIT_WORK((&chan->fr_poll_task),fr_poll,dev);
+	WAN_TASKQ_INIT((&chan->fr_poll_task),0,fr_poll,dev);
 
 	init_timer(&chan->fr_arp_timer);
 	chan->fr_arp_timer.data=(unsigned long)dev;
@@ -2395,7 +2399,7 @@ static struct net_device_stats *if_stats(netdevice_t *dev)
  *      function check the interrupt type and takes
  *      the appropriate action.
  */
-static void fr_isr (sdla_t* card)
+static WAN_IRQ_RETVAL fr_isr (sdla_t* card)
 {
 	int i,err;
 	u8		intr_type;
@@ -2403,7 +2407,7 @@ static void fr_isr (sdla_t* card)
 	wan_mbox_t*	mb = &card->wan_mbox;
 
 	if (!card->hw){
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
 	card->hw_iface.peek(card->hw, card->flags_off, &flags, sizeof(flags));
@@ -2491,7 +2495,8 @@ fr_isr_exit:
 	
 	clear_bit(0,&card->in_isr);
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-	return;
+
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 }
 
 
@@ -5695,7 +5700,8 @@ static void trigger_fr_poll (netdevice_t *dev)
 {
 	fr_channel_t* chan = dev->priv;
 	
-	wan_schedule_task(&chan->fr_poll_task);
+	
+	WAN_TASKQ_SCHEDULE((&chan->fr_poll_task));
 	return;
 }
 
@@ -5722,15 +5728,30 @@ static void trigger_fr_poll (netdevice_t *dev)
  *      the fr_poll routine.  
  */
 
-static void fr_poll (void *dev_ptr)
-{
-	netdevice_t *dev=dev_ptr;
-	fr_channel_t* chan;
-	sdla_t *card;
-	u8 check_gateway=0;
 
-	if (!dev || (chan = dev->priv) == NULL)
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+static void fr_poll (void *dev_ptr)
+#else
+static void fr_poll (struct work_struct *work)
+#endif
+{
+	sdla_t *card;
+	u8 check_gateway=0; 
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+	netdevice_t 	*dev;
+        fr_channel_t	*chan = container_of(work, fr_channel_t, fr_poll_task);
+	dev=chan->common.dev;
+	if (!dev) {
+         	return;
+	}
+#else
+	fr_channel_t* chan;
+	netdevice_t *dev=(netdevice_t*)dev_ptr;
+	if (!dev || (chan = dev->priv) == NULL) {
 		return;
+	}
+#endif      
 
 	card = chan->card;
 	

@@ -27,7 +27,17 @@
 # include <wanpipe.h>
 # include <wanpipe_codec.h>
 #elif (defined __WINDOWS__)
-# include <wanpipe\csu_dsu.h>
+# include <wanpipe_includes.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_common.h>
+# include <wanpipe.h>
+# include <wanpipe_codec.h>
+
+#define __init
+
+#define DBG_LAW	if(1)DbgPrint
+
 #else
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -225,7 +235,7 @@ static inline short int __init wp_alaw2linear (uint8_t alaw)
 
 static int wanpipe_codec_convert_law2s(u8 *data, 
 				       int len,
-			               u16 *buf, 
+		               u16 *buf, 
 				       u32 *power_ptr, 
 			               enum wan_codec_source_format src_codec,
 				       u8 *gain,
@@ -251,7 +261,12 @@ static int wanpipe_codec_convert_law2s(u8 *data,
                 	data[i]=gain[data[i]];		
 		}
 		if (usr) {
-			copy_to_user(&buf[i],&codec[ data[i] ],sizeof(u16));
+#if defined(__WINDOWS__)
+			DEBUG_EVENT("%s(): Error: copy_to_user() is NOT supported!!\n");
+#else
+			int err;
+			err=copy_to_user(&buf[i],&codec[ data[i] ],sizeof(u16));
+#endif
 		} else {	
 			buf[i]=codec[ data[i] ];
 		}	
@@ -288,8 +303,13 @@ static int wanpipe_codec_convert_s2law(u16 *data,
 
 	for (i=0;i<len;i++){
 		if (usr) {
-			copy_from_user(&kdata,&data[i],sizeof(u16));
+#if defined(__WINDOWS__)
+			DEBUG_EVENT("%s(): Error: copy_from_user() is NOT supported!!\n");
+#else
+			int err;
+			err=copy_from_user(&kdata,&data[i],sizeof(u16));
 			buf[i] = codec[kdata>>2];
+#endif
 		}else{
 			buf[i] = codec[data[i]>>2];
 		}	
@@ -330,7 +350,7 @@ int wanpipe_codec_convert_alaw_2_s(u8 *data,
 {
 	return wanpipe_codec_convert_law2s(data, 
 				           len,
-			                   buf, 
+		                   buf, 
 				           power_ptr, 
 			     		   WP_ALAW,
 					   gain,
@@ -345,7 +365,7 @@ int wanpipe_codec_convert_s_2_ulaw(u16 *data,
 				   u8 usr)
 {
 	return wanpipe_codec_convert_s2law(data, 
-			     		len, 
+		     		len, 
 					buf,
 			     		WP_MULAW,
 					gain,
@@ -366,15 +386,17 @@ int wanpipe_codec_convert_s_2_alaw(u16 *data,
 					   usr);
 }
 
-
-
+#ifdef __LINUX__
 __init int wanpipe_codec_law_init(void)
+#else
+int wanpipe_codec_law_init(void)
+#endif
 {
 	int i;
 
 	for(i = -32768; i < 32768; i += 4) {
-		__wp_lin2mu[((unsigned short)(short)i) >> 2] = __wp_lineartoulaw(i);
-		__wp_lin2a[((unsigned short)(short)i) >> 2] = __wp_lineartoalaw(i);
+		__wp_lin2mu[((unsigned short)(short)i) >> 2] = __wp_lineartoulaw((short)i);
+		__wp_lin2a[((unsigned short)(short)i) >> 2] = __wp_lineartoalaw((short)i);
 	}
 
 	for(i = 0;i < 256;i++) {
@@ -388,7 +410,7 @@ __init int wanpipe_codec_law_init(void)
 		y += etab[e];
 		if (mu & 0x80) y = -y;
 		__wp_mulaw[i] = y;
-		__wp_alaw[i] = wp_alaw2linear(i);
+		__wp_alaw[i] = wp_alaw2linear((uint8_t)i);
 	}
 
 	return 0;

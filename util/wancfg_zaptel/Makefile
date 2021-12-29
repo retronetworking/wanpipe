@@ -13,7 +13,7 @@ WAN_VIRTUAL=
 all:
 
 install:
-	@echo "Installing Wanconfig Zaptel/SMG utilites in $(WAN_VIRTUAL)/$(WZDIR)"
+	@echo "Installing Wanconfig Zaptel utilites in $(WAN_VIRTUAL)/$(WZDIR)"
 	$(shell ./install.sh $(WZDIR) $(WAN_VIRTUAL) )
 
 uninstall:

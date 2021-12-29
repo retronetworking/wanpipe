@@ -16,15 +16,9 @@ sub new	{
 		_fe_lcode  => 'B8ZS',
 		_fe_frame  => 'ESF',
 		_fe_clock  => 'NORMAL',
-		_te_ref_clock  => '0',
 		_signalling => 'PRI_CPE',
 		_pri_switchtype => 'national',
 		_hw_dchan  => '0',
-		_ss7_sigchan => undef,
-		_ss7_option => undef,
-		_ss7_tdmchan => undef,
-		_ss7_subinterface => undef,
-		_ss7_tdminterface => undef,
 	};			
 	bless $self, $class;
     	return $self;
@@ -39,12 +33,6 @@ sub fe_line {
 	    my ( $self, $fe_line ) = @_;
 	        $self->{_fe_line} = $fe_line if defined($fe_line);
 		    return $self->{_fe_line};
-}
-
-sub te_ref_clock {
-	    my ( $self, $te_ref_clock ) = @_;
-	        $self->{_te_ref_clock} = $te_ref_clock if defined($te_ref_clock);
-		    return $self->{_te_ref_clock};
 }
 sub signalling {
 	    my ( $self, $signalling ) = @_;
@@ -70,12 +58,6 @@ sub fe_frame {
 		    return $self->{_fe_frame};
 }
 
-sub hw_dchan {
-	    my ( $self, $hw_dchan ) = @_;
-	        $self->{_hw_dchan} = $hw_dchan if defined($hw_dchan);
-		    return $self->{_hw_dchan};
-}
-
 sub fe_clock {
 	   my ( $self, $fe_clock ) = @_;
 	        $self->{_fe_clock} = $fe_clock if defined($fe_clock);
@@ -92,36 +74,6 @@ sub current_dir {
            my ( $self, $current_dir ) = @_;
                 $self->{_current_dir} = $current_dir if defined($current_dir);
                  return $self->{_current_dir};
-}
-
-sub ss7_option {
-          my ( $self, $ss7_option ) = @_;
-                $self->{_ss7_option} = $ss7_option if defined($ss7_option);
-                 return $self->{_ss7_option};     
-}
-
-sub ss7_sigchan {
-          my ( $self, $ss7_sigchan ) = @_;
-                $self->{_ss7_sigchan} = $ss7_sigchan if defined($ss7_sigchan);		
-	        return $self->{_ss7_sigchan};     
-}
-
-sub ss7_tdmchan {
-          my ( $self, $ss7_tdmchan ) = @_;
-                $self->{_ss7_tdmchan} = $ss7_tdmchan if defined($ss7_tdmchan);		
-	        return $self->{_ss7_tdmchan};     
-}
-
-sub ss7_subinterface {
-          my ( $self, $ss7_subinterface ) = @_;
-                $self->{_ss7_subinterface} = $ss7_subinterface if defined($ss7_subinterface);		
-	        return $self->{_ss7_subinterface};     
-}
-
-sub ss7_tdminterface {
-	  my ( $self, $ss7_tdminterface ) = @_;
-                $self->{_ss7_tdminterface} = $ss7_tdminterface if defined($ss7_tdminterface);		
-	        return $self->{_ss7_tdminterface};   
 }
 
 sub prompt_user{
@@ -170,36 +122,6 @@ sub print {
 	printf (" fe_line: %s\n fe_media: %s\n fe_lcode: %s\n fe_frame: %s \n fe_clock:%s\n ", $self->fe_line, $self->fe_media, $self->fe_lcode, $self->fe_frame, $self->fe_clock);
 
 }
-
-sub gen_wanpipe_ss7_subinterfaces{
-        my ($self) = @_;
-	my $wanpipe_ss7_conf_file = $self->card->current_dir."/".$self->card->cfg_dir."/wanpipe".$self->card->span_no.".conf";
-	my $ss7_sigchan = $self->ss7_sigchan;
-	my $span_no = $self->card->span_no;
-	my $ss7_subinterface = $self->ss7_subinterface;
-	my $ss7_tdmchan = $self->ss7_tdmchan;
-	my $hwec_mode = $self->card->hwec_mode;
-	my $ss7_tdminterface = $self->ss7_tdminterface;
-	my $wanpipe_ss7_interfaces_template = $self->card->current_dir."/templates/ss7_a100/wanpipe.ss7.$ss7_subinterface";
-
-	open(FH, $wanpipe_ss7_interfaces_template) or die "Can't open $wanpipe_ss7_interfaces_template";
-	my $wp_file='';
-       	while (<FH>) {
-       		$wp_file .= $_;
-	}
-	close (FH);
-
-	open(FH, ">>$wanpipe_ss7_conf_file") or die "Cant open $wanpipe_ss7_conf_file";
-	$wp_file =~ s/DEVNUM/$span_no/g;
-	$wp_file =~ s/SS7SIGCHAN/$ss7_sigchan/g;
-	$wp_file =~ s/TDMVOICECHAN/$ss7_tdmchan/g;
-	$wp_file =~ s/HWECMODE/$hwec_mode/g;
-	$wp_file =~ s/VOICEINTERFACE/$ss7_tdminterface/g;
-
-	print FH $wp_file;
-	close (FH);
-}
-
 sub gen_wanpipe_conf{
 	my ($self) = @_;
 	my $wanpipe_conf_template = $self->card->current_dir."/templates/wanpipe.tdm.a100";
@@ -212,32 +134,17 @@ sub gen_wanpipe_conf{
 	my $fe_frame = $self->fe_frame;
 	my $fe_line = $self->fe_line;
 	my $fe_clock = $self->fe_clock;
-	my $te_ref_clock = $self->te_ref_clock;
-	my $te_sig_mode = '';
 	my $hwec_mode = $self->card->hwec_mode;
-	my $ss7_option = $self->ss7_option;
-	my $dchan = $self->hw_dchan;
+	my $dchan = 0;
 	my $fe_lbo;
-
-
-	if ($ss7_option == 1){
-	        $wanpipe_conf_template = $self->card->current_dir."/templates/ss7_a100/wanpipe.ss7.4";
-	} elsif ($ss7_option == 2){
-                $wanpipe_conf_template = $self->card->current_dir."/templates/ss7_a100/wanpipe.tdmvoiceapi.a100";
-	}
-
         if ($self->fe_media eq 'T1'){
 		if ($self->signalling eq 'PRI CPE' | $self->signalling eq 'PRI NET'){
-			  $te_sig_mode = '';	
 			  $dchan = 24;
-		} 
+		}
 		$fe_lbo='0DB';
 	}else{
-		if ($self->signalling eq 'PRI CPE' | $self->signalling eq 'PRI NET' | $self->signalling eq 'SS7 - Sangoma Signal Media Gateway' | $self->signalling eq 'No Signaling (Voice Only)'){
+		if ($self->signalling eq 'PRI CPE' | $self->signalling eq 'PRI NET'){
 			  $dchan = 16;
-		  	  $te_sig_mode = 'TE_SIG_MODE     = CCS';
-		}else {
-			  $te_sig_mode = 'TE_SIG_MODE     = CAS';		  
 		}
 		$fe_lbo='120OH';
 	}
@@ -248,7 +155,7 @@ sub gen_wanpipe_conf{
 	}
 	close (FH);
 
-	open(FH, ">>$wanpipe_conf_file") or die "Cant open $wanpipe_conf_file";
+	open(FH, ">$wanpipe_conf_file") or die "Cant open $wanpipe_conf_file";
         $wp_file =~ s/DEVNUM/$span_no/g;
         $wp_file =~ s/SLOTNUM/$pci_slot/g;
         $wp_file =~ s/BUSNUM/$pci_bus/g;
@@ -256,9 +163,7 @@ sub gen_wanpipe_conf{
         $wp_file =~ s/FELCODE/$fe_lcode/g;
         $wp_file =~ s/FEFRAME/$fe_frame/g;
         $wp_file =~ s/FELINE/$fe_line/g;
-	$wp_file =~ s/TESIGMODE/$te_sig_mode/g;
         $wp_file =~ s/FECLOCK/$fe_clock/g;
-	$wp_file =~ s/TEREFCLOCK/$te_ref_clock/g;
         $wp_file =~ s/FELBO/$fe_lbo/g;
         $wp_file =~ s/TDMVDCHAN/$dchan/g;
         $wp_file =~ s/HWECMODE/$hwec_mode/g;
@@ -268,8 +173,6 @@ sub gen_wanpipe_conf{
 
 # print "\n created $fname for A$card_model $devnum SLOT $slot BUS $bus HWEC $hwec_mode\n";
 }
-
-
 sub gen_zaptel_conf{
 	my ($self) = @_;
 	my $zap_lcode;

@@ -58,18 +58,16 @@ int a56k_write_fe (void *pcard, ...);
 unsigned char __a56k_read_fe (void *pcard, ...);
 unsigned char a56k_read_fe (void *pcard, ...);
 
-int aft_te1_write_cpld(sdla_t *card, unsigned short off,unsigned char data);
+int aft_te1_write_cpld(sdla_t *card, unsigned short off, u_int16_t data);
 unsigned char aft_te1_read_cpld(sdla_t *card, unsigned short cpld_off);
 
-int aft_56k_write_cpld(sdla_t *card, unsigned short off, unsigned char data);
+int aft_56k_write_cpld(sdla_t *card, unsigned short off, u_int16_t data);
 unsigned char aft_56k_read_cpld(sdla_t *card, unsigned short cpld_off);
 
-int a108m_write_cpld(sdla_t *card, unsigned short off,unsigned char data);
+int a108m_write_cpld(sdla_t *card, unsigned short off, u_int16_t data);
 unsigned char a108m_read_cpld(sdla_t *card, unsigned short cpld_off);
 
 void a104_fifo_adjust(sdla_t *card,u32 level);
-
-
 
 #endif
 

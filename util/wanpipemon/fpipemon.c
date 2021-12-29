@@ -1290,7 +1290,7 @@ int FRMain(char* command, int argc, char* argv[])
 			}else if (!strcmp(opt,"sdlb")){
 				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_DEACTIVATE_LB);
 			}else if (!strcmp(opt,"a")){
-				read_te1_56k_stat();
+				read_te1_56k_stat(0);
 			}else{
 				output_error("Invalid Status Command 'T', Type wanpipemon <cr> for help");
 				err=-1;

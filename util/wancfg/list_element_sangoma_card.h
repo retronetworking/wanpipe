@@ -140,6 +140,7 @@ public:
     switch(card_version)
     {
     case A200_ADPTR_ANALOG:
+    case A400_ADPTR_ANALOG:
       	printf("\tSpan: %d, Line: Analog, Law: %s.\n", 
 		spanno, (fe_cfg.tdmv_law == ZT_LAW_MULAW ? "MuLaw" : "ALaw"));
       	break;

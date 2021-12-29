@@ -149,7 +149,7 @@ typedef struct chdlc_private_area
 	/* Polling task queue. Each interface
          * has its own task queue, which is used
          * to defer events from the interrupt */
-	struct tq_struct poll_task;
+	wan_taskq_t poll_task;
 	struct timer_list poll_delay_timer;
 
 	u8 gateway;
@@ -236,12 +236,16 @@ static int config_chdlc (sdla_t *card, netdevice_t *dev);
 static void disable_comm (sdla_t *card);
 
 static void trigger_chdlc_poll (netdevice_t *);
-static void chdlc_poll (void *);
 static void chdlc_poll_delay (unsigned long dev_ptr);
 static int chdlc_calibrate_baud (sdla_t *card);
 static int chdlc_read_baud_calibration (sdla_t *card);
 
 
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+static void chdlc_poll (void *);
+#else
+static void chdlc_poll (struct work_struct *work);
+#endif  
 
 
 /* Miscellaneous asynchronous interface Functions */
@@ -249,7 +253,7 @@ static int set_asy_config (sdla_t* card);
 static int asy_comm_enable (sdla_t* card);
 
 /* Interrupt handlers */
-static void wpc_isr (sdla_t* card);
+static WAN_IRQ_RETVAL wpc_isr (sdla_t* card);
 static void rx_intr (sdla_t* card);
 static void timer_intr(sdla_t *);
 
@@ -466,7 +470,7 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -669,8 +673,16 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 	}
 
 	if ((card->tty_opt=conf->tty) == WANOPT_YES){
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+		printk (KERN_INFO "%s: Driver doesnt support tty for 2.6.15 kernels and above !\n",
+				card->devname);
+		return -EINVAL;
+#endif	
+		
 #if 1
 //defined(LINUX_2_4) || defined(LINUX_2_1)
+		{
 		int err;
 		card->tty_minor = conf->tty_minor;
 
@@ -682,6 +694,7 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 		err=wanpipe_tty_init(card);
 		if (err){
 			return err;
+		}
 		}
 #else
 		printk (KERN_INFO "%s: Driver doesn support tty for 2.6.X kernel!\n",
@@ -1068,7 +1081,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	/* prepare network device data space for registration */
 	/* Initialize the polling task routine */
 
-	INIT_WORK((&chdlc_priv_area->poll_task),chdlc_poll,dev);
+	WAN_TASKQ_INIT((&chdlc_priv_area->poll_task),0,chdlc_poll,dev);
 
 	/* Initialize the polling delay timer */
 	init_timer(&chdlc_priv_area->poll_delay_timer);
@@ -1906,9 +1919,6 @@ static int chdlc_comm_enable (sdla_t* card)
 	int err;
 	wan_mbox_t* mb = &card->wan_mbox;
 
-	DEBUG_EVENT("%s: Enabling comm!\n",card->devname);
-
-
 	mb->wan_data_len = 0;
 	mb->wan_command = ENABLE_CHDLC_COMMUNICATIONS;
 	err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
@@ -2227,7 +2237,7 @@ static void chdlc_bh (unsigned long data)
 /*============================================================================
  * Cisco HDLC interrupt service routine.
  */
-static void wpc_isr (sdla_t* card)
+static WAN_IRQ_RETVAL wpc_isr (sdla_t* card)
 {
 	netdevice_t* dev;
 	SHARED_MEMORY_INFO_STRUCT	flags;
@@ -2239,7 +2249,7 @@ static void wpc_isr (sdla_t* card)
 	 */
 
 	if (!card->hw){
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 	
 	card->hw_iface.peek(card->hw, card->flags_off,
@@ -2276,7 +2286,7 @@ static void wpc_isr (sdla_t* card)
 				card->devname);
 			card->in_isr = 0;
 			card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-			return;
+			WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 		}
 	}
 
@@ -2375,7 +2385,7 @@ isr_done:
 
 	card->in_isr = 0;
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-	return;
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 }
 
 /*============================================================================
@@ -2752,21 +2762,6 @@ static int chdlc_calibrate_baud (sdla_t *card)
 {
 	wan_mbox_t* mb = &card->wan_mbox;
 	int err;
-	int enable_again=0;
-	sdla_t *tmp_card=NULL;
-
-	if (card->wandev.connection == WANOPT_SWITCHED && 
-	    card->wandev.clocking == WANOPT_EXTERNAL &&
-	    card->next) {
-		tmp_card=card->next;
-		if (tmp_card->wandev.connection == WANOPT_SWITCHED && 
-		    tmp_card->wandev.clocking == WANOPT_EXTERNAL &&
-		    tmp_card->u.c.comm_enabled ) {
-			DEBUG_EVENT("%s: Next comm enabled -> disabling!\n",tmp_card->devname);
-			chdlc_comm_disable (tmp_card);
-			enable_again=1;
-		}
-	}
 	
 	mb->wan_data_len = 0;
 	mb->wan_command = START_BAUD_CALIBRATION;
@@ -2774,12 +2769,6 @@ static int chdlc_calibrate_baud (sdla_t *card)
 
 	if (err != COMMAND_OK) 
 		chdlc_error (card, err, mb);
-
-
-	if (enable_again && tmp_card) {
-		DEBUG_EVENT("%s: Next comm enabled -> re-enabling!\n",tmp_card->devname);
-		chdlc_comm_enable (tmp_card);
-	}
 
 	return err;
 }
@@ -4355,17 +4344,32 @@ static int config_chdlc (sdla_t *card, netdevice_t *dev)
  *      the chldc_poll routine.  
  */
 
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
 static void chdlc_poll (void *dev_ptr)
+#else
+static void chdlc_poll (struct work_struct *work)
+#endif       
 {
-	netdevice_t		*dev=dev_ptr;
-	chdlc_private_area_t	*chdlc_priv_area;
 	sdla_t			*card;
 	u8 			check_gateway=0;	
-	SHARED_MEMORY_INFO_STRUCT flags;
+	SHARED_MEMORY_INFO_STRUCT flags;  
+	
+# if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))
+	netdevice_t		*dev;
+	chdlc_private_area_t	*chdlc_priv_area = container_of(work, chdlc_private_area_t, poll_task);
+	dev = chdlc_priv_area->common.dev;
+
+	if (!dev) {
+		return;
+	}  
+#else
+	netdevice_t		*dev=dev_ptr;
+	chdlc_private_area_t	*chdlc_priv_area;
 	
 	if (!dev || (chdlc_priv_area = wan_netif_priv(dev)) == NULL){
 		return;
 	}
+#endif
 
 	card = chdlc_priv_area->card;
 	card->hw_iface.peek(card->hw, card->flags_off, &flags, sizeof(flags));
@@ -4528,7 +4532,7 @@ static void trigger_chdlc_poll (netdevice_t *dev)
 	if (test_bit(PERI_CRIT,&card->wandev.critical)){
 		return; 
 	}
-	wan_schedule_task(&chdlc_priv_area->poll_task);
+	WAN_TASKQ_SCHEDULE((&chdlc_priv_area->poll_task));
 	return;
 }
 
@@ -4604,9 +4608,19 @@ static int wanpipe_tty_trigger_poll(sdla_t *card)
 	return 0;
 }
 
+
+
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
 static void tty_poll_task (void* data)
+#else
+static void tty_poll_task (struct work_struct *work)	
+#endif
 {
-	sdla_t *card = (sdla_t*)data;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+        sdla_t *card = (sdla_t *)container_of(work, sdla_t, tty_task_queue);
+#else
+	sdla_t *card = (sdla_t *)data;
+#endif  
 	struct tty_struct *tty;
 	struct sk_buff *skb;
 	char fp=0;
@@ -4909,8 +4923,10 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 	if (card->u.c.async_mode){
 		
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+#if 0
 		unsigned char *buf;
-		struct sk_buff *skb;      
+		struct sk_buff *skb;
+#endif      
     		
 #if 1
 # warning "FIXME: Compilation error on 2.6.15 kernel"			
@@ -5701,7 +5717,7 @@ int wanpipe_tty_init(sdla_t *card)
 	state->icount.overrun = state->icount.brk = 0;
 	state->irq = card->wandev.irq; 
 
-	INIT_WORK(&card->tty_task_queue,tty_poll_task,card);
+	WAN_TASKQ_INIT((&card->tty_task_queue),0,tty_poll_task,card);
 	return 0;
 }
 

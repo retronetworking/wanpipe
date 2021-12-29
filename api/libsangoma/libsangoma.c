@@ -27,11 +27,6 @@
 #warning "Warning: TDM FE ALARM not supported by driver"
 #endif
 
-#ifndef WP_TDM_EVENT_TDM_API_EVENTS
-#warning "Warning: TDM EVENTS not supported by driver"
-#endif
-
-
 
 #if defined(WIN32)
 //extern int	verbose;
@@ -262,7 +257,7 @@ sng_fd_t sangoma_open_tdmapi_span(int span)
 	}//for()
 
 #else
-        char fname[FNAME_LEN];
+    unsigned char fname[FNAME_LEN];
 	int fd=0;
 	for (i=1;i<32;i++){
 		sprintf(fname,"/dev/wptdm_s%dc%d",span,i);
@@ -763,10 +758,7 @@ int sangoma_tdm_write_rbs(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char
 
 int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
 {
-
-#ifdef WP_TDM_EVENT_TDM_API_EVENTS
-
-	wp_tdm_api_event_t *rx_event;
+	wp_tdm_api_rx_hdr_t *rx_event;
 
 #if defined(WIN32)	
 	rx_event = &last_tdm_api_event_buffer;
@@ -785,15 +777,15 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 
 	switch (rx_event->wp_tdm_api_event_type){
 	
-	case WP_TDMAPI_EVENT_RBS:
+	case WP_TDM_EVENT_RBS:
 		printf("%d: GOT RBS EVENT %p\n",(int)fd,tdm_api->wp_tdm_event.wp_rbs_event);
 		if (tdm_api->wp_tdm_event.wp_rbs_event) {
-			tdm_api->wp_tdm_event.wp_rbs_event(fd,rx_event->wp_tdm_api_event_rbs_bits);
+			tdm_api->wp_tdm_event.wp_rbs_event(fd,rx_event->wp_tdm_api_event_rbs_rx_bits);
 		}
 		
 		break;
 		
-	case WP_TDMAPI_EVENT_DTMF:
+	case WP_TDM_EVENT_DTMF:
 		printf("%d: GOT DTMF EVENT\n",(int)fd);
 		if (tdm_api->wp_tdm_event.wp_dtmf_event) {
 			tdm_api->wp_tdm_event.wp_dtmf_event(fd,
@@ -803,32 +795,32 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 		}
 		break;
 		
-	case WP_TDMAPI_EVENT_RXHOOK:
+	case WP_TDM_EVENT_RXHOOK:
 		printf("%d: GOT RXHOOK EVENT\n",(int)fd);
 		if (tdm_api->wp_tdm_event.wp_rxhook_event) {
 			tdm_api->wp_tdm_event.wp_rxhook_event(fd,
-						rx_event->wp_tdm_api_event_hook_state);
+						rx_event->wp_tdm_api_event_rxhook_state);
 		}
 		break;
 
-	case WP_TDMAPI_EVENT_RING_DETECT:
+	case WP_TDM_EVENT_RING_DETECT:
 		printf("%d: GOT RXRING EVENT\n",(int)fd);
-		if (tdm_api->wp_tdm_event.wp_ring_detect_event) {
-			tdm_api->wp_tdm_event.wp_ring_detect_event(fd,
+		if (tdm_api->wp_tdm_event.wp_rxring_event) {
+			tdm_api->wp_tdm_event.wp_rxring_event(fd,
 						rx_event->wp_tdm_api_event_ring_state);
 		}
 		break;
 
-	case WP_TDMAPI_EVENT_RING_TRIP_DETECT:
+	case WP_TDM_EVENT_RING_TRIP:
 		printf("%d: GOT RING TRIP EVENT\n",(int)fd);
-		if (tdm_api->wp_tdm_event.wp_ring_trip_detect_event) {
-			tdm_api->wp_tdm_event.wp_ring_trip_detect_event(fd,
+		if (tdm_api->wp_tdm_event.wp_ringtrip_event) {
+			tdm_api->wp_tdm_event.wp_ringtrip_event(fd,
 						rx_event->wp_tdm_api_event_ring_state);
 		}
 		break;
 
 #ifdef WP_TDM_EVENT_FE_ALARM
-	case WP_TDMAPI_EVENT_FE_ALARM:
+	case WP_TDM_EVENT_FE_ALARM:
 		printf("%d: GOT FE ALARMS EVENT %i\n",(int)fd,
 				rx_event->wp_tdm_api_event_fe_alarm);
 		if (tdm_api->wp_tdm_event.wp_fe_alarm_event) {
@@ -843,21 +835,13 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 	}
 	
 	return 0;
-#else
-	return -EINVAL;
-#endif
 }        
-
-
-#ifdef WP_TDM_EVENT_TDM_API_EVENTS
 
 int sangoma_tdm_enable_dtmf_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 {
 	int err;
 	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_DTMF;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_ENABLE_DTMF_EVENTS;
 	err=sangoma_tdm_cmd_exec(fd,tdm_api);
 	if (err){
 		return err;
@@ -870,9 +854,7 @@ int sangoma_tdm_disable_dtmf_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 {
 	int err;
 
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_DTMF;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_DISABLE;
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_DISABLE_DTMF_EVENTS;
 	err=sangoma_tdm_cmd_exec(fd,tdm_api);
 	if (err){
 		return err;
@@ -885,9 +867,7 @@ int sangoma_tdm_enable_rm_dtmf_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 {
 	int err;
 	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RM_DTMF;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_ENABLE_RM_DTMF_EVENTS;
 	err=sangoma_tdm_cmd_exec(fd,tdm_api);
 	if (err){
 		return err;
@@ -900,9 +880,7 @@ int sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 {
 	int err;
 
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RM_DTMF;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_DISABLE;
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_DISABLE_RM_DTMF_EVENTS;
 	err=sangoma_tdm_cmd_exec(fd,tdm_api);
 	if (err){
 		return err;
@@ -915,9 +893,7 @@ int sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 {
 	int err;
 
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RXHOOK;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_ENABLE_RXHOOK_EVENTS;
 	err=sangoma_tdm_cmd_exec(fd,tdm_api);
 	if (err){
 		return err;
@@ -925,41 +901,12 @@ int sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 
 	return 0;
 }
-
-int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
-{
-	int err;
-
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_ENABLE_HWEC;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
-{
-	int err;
-
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_DISABLE_HWEC;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
 
 int sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
 {
 	int err;
 
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RXHOOK;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_DISABLE;
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_DISABLE_RXHOOK_EVENTS;
 	err=sangoma_tdm_cmd_exec(fd,tdm_api);
 	if (err){
 		return err;
@@ -967,195 +914,6 @@ int sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 
 	return 0;
 }
-
-int sangoma_tdm_enable_ring_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-	
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RING;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
-	
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return tdm_api->wp_tdm_cmd.rbs_poll;
-}
-
-
-int sangoma_tdm_disable_ring_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RING;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_DISABLE;
-	
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-int sangoma_tdm_enable_ring_detect_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-	
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RING_DETECT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return tdm_api->wp_tdm_cmd.rbs_poll;
-}
-
-
-int sangoma_tdm_disable_ring_detect_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RING_DETECT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_DISABLE;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-int sangoma_tdm_enable_ring_trip_detect_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-	
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RING_TRIP_DETECT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return tdm_api->wp_tdm_cmd.rbs_poll;
-}
-
-
-int sangoma_tdm_disable_ring_trip_detect_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_RING_DETECT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_DISABLE;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-int sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_TXSIG_KEWL;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-int sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_TXSIG_START;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-int sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_TXSIG_ONHOOK;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-int sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_TXSIG_OFFHOOK;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-
-int sangoma_tdm_enable_tone_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, int tone_id) {
-	
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_TONE;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_ENABLE;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_tone_type = tone_id;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return tdm_api->wp_tdm_cmd.rbs_poll;
-}
-
-int sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
-	
-	int err;
-	
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_EVENT;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_type = WP_TDMAPI_EVENT_TONE;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_mode = WP_TDMAPI_EVENT_DISABLE;
-	tdm_api->wp_tdm_cmd.event.wp_tdm_api_event_tone_type = 0x00;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return tdm_api->wp_tdm_cmd.rbs_poll;
-}
-#endif
 
 /*========================================================
  * GET Front End Alarms

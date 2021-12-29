@@ -8,6 +8,9 @@
 * Nov 1, 2006	Alex Feldman	Initial version.
 ***********************************************************************/
 
+/***********************************************************************
+**			I N C L U D E  F I L E S
+***********************************************************************/
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -46,13 +49,27 @@
 
 #include "wan_plxup.h"
 
+/***********************************************************************
+**			D E F I N E S / M A C R O S
+***********************************************************************/
 #define MAX_FILE_LINE_LEN	100
 
+/***********************************************************************
+**			G L O B A L  V A R I A B L E S
+***********************************************************************/
 static wan_cmd_api_t	api_cmd;
 
-extern unsigned char wan_plxup_read_ebyte(void*, unsigned char);
-extern void wan_plxup_write_ebyte(void*, unsigned char, unsigned char);
 
+/***********************************************************************
+**		F U N C T I O N  P R O T O T Y P E S
+***********************************************************************/	
+extern unsigned char wan_plxctrl_read_ebyte(void*, unsigned char);
+extern void wan_plxctrl_write_ebyte(void*, unsigned char, unsigned char);
+
+
+/***********************************************************************
+**		F U N C T I O N  D E F I N I T I O N S
+***********************************************************************/	
 static int MakeConnection(wan_plxup_t *info, char *ifname) 
 {
 #if defined(__LINUX__)
@@ -182,13 +199,13 @@ static int wan_plxup_read_cmd(wan_plxup_t *info)
 			printf("Uploading to file: %s\n", info->file);
 		}
 		for(off=0; off <= WAN_PLXUP_MAX_ESIZE; off++){
-			value = wan_plxup_read_ebyte(info, (unsigned char)off);
+			value = wan_plxctrl_read_ebyte(info, (unsigned char)off);
 			fprintf(f, "%04X:%02X\n", off, value);
 			printf("Reading %02X from %04X\n", value, off);
 		}
 		if (f) fclose(f);
 	}else{
-		value = wan_plxup_read_ebyte(info, (unsigned char)info->addr);
+		value = wan_plxctrl_read_ebyte(info, (unsigned char)info->addr);
 		printf("Reading %02X from %04X\n", value, info->addr);
 	}
 	return 0;
@@ -213,14 +230,14 @@ static int wan_plxup_write_cmd(wan_plxup_t *info)
 		
 			sscanf(buffer, "%X:%X", &offset, &value);
 			printf("Writting %02X to %04X\n", value, offset);
-			wan_plxup_write_ebyte(	info, 
+			wan_plxctrl_write_ebyte(info, 
 						(unsigned char)offset, 
 						(unsigned char)value);
 		}
 		if (f) fclose(f);
 	}else{
 		printf("Writting %02X to %04X\n", info->value, info->addr);
-		wan_plxup_write_ebyte(	info, 
+		wan_plxctrl_write_ebyte(info, 
 					(unsigned char)info->addr, 
 					(unsigned char)info->value);		
 	}

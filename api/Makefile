@@ -6,7 +6,7 @@
 
 SYSINC=$(shell if [ -f ../.sysinclude ]; then cat ../.sysinclude;  else echo ""; fi)
 ifeq "$(SYSINC)" "" 
-SYSINC=/usr/src/linux/include
+SYSINC=/lib/modules/$(shell uname -r)/build/include
 endif
 APIINC=/etc/wanpipe/api/include
 

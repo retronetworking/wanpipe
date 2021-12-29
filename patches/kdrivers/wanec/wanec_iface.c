@@ -258,7 +258,6 @@ static int wanec_enable(void *pcard, int enable, int fe_channel)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_ec_dev_t	*ec_dev = NULL;
-	int err;
 
 	ec_dev = 
 #if defined(__WINDOWS__)
@@ -266,15 +265,9 @@ static int wanec_enable(void *pcard, int enable, int fe_channel)
 #else
 		wanec_search(card->devname);
 #endif
-	WAN_ASSERT(ec_dev == NULL);
 
 #if defined(WANEC_BYDEFAULT_NORMAL)
-	WAN_ASSERT(ec_dev->ec == NULL);
-	wan_spin_lock(&ec_dev->ec->lock);
-	err=wanec_bypass(ec_dev, fe_channel, enable, 0);
-	wan_spin_unlock(&ec_dev->ec->lock);
-
-	return err;
+	return wanec_bypass(ec_dev, fe_channel, enable, 0);
 #else
 	return wanec_modify_channel(
 			ec_dev,
@@ -310,7 +303,7 @@ static int wanec_bypass(wan_ec_dev_t *ec_dev, int fe_channel, int enable, int ve
 	}
 	if (enable){
 		if (!wan_test_bit(fe_channel, &card->wandev.ec_map)){
-			if (ec->ec_active >= ec->max_channels){
+			if (ec->ec_channels_no >= ec->max_channels){
 				DEBUG_EVENT(
 				"%s: Exceeded maximum number of Echo Canceller channels (max=%d)!\n",
 					ec->name,
@@ -331,9 +324,9 @@ static int wanec_bypass(wan_ec_dev_t *ec_dev, int fe_channel, int enable, int ve
 	err = card->wandev.hwec_enable(card, enable, fe_channel);
 	if (!err){
 		if (enable){
-			ec->ec_active++;
+			ec->ec_channels_no++;
 		}else{
-			if (ec->ec_active) ec->ec_active--;
+			if (ec->ec_channels_no) ec->ec_channels_no--;
 		}
 	}else{
 		PRINT1(verbose, 
@@ -1235,7 +1228,7 @@ int wanec_ioctl(void *data, void *pcard)
 	}
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
-	wan_spin_lock(&ec->lock);
+//	wan_spin_lock(&ec->lock);
 
 	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical)){
 		PRINT1(ec_api->verbose,
@@ -1316,7 +1309,7 @@ int wanec_ioctl(void *data, void *pcard)
 	wan_clear_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical);
 
 wanec_ioctl_done:
-	wan_spin_unlock(&ec->lock);
+//	wan_spin_unlock(&ec->lock);
 #if defined(__LINUX__)
 	err = WAN_COPY_TO_USER(
 			data,
@@ -1375,8 +1368,6 @@ static void* wanec_register(void *pcard, int max_channels)
 	wan_ec_dev_t	*ec_dev = NULL, *ec_dev_new = NULL;
 
 	WAN_DEBUG_FUNC_START;
-
-
 #if defined(__WINDOWS__)	
 	ec = get_wan_ec_ptr(card);
 #else
@@ -1433,13 +1424,12 @@ static void* wanec_register(void *pcard, int max_channels)
 						__FUNCTION__,__LINE__);
 			return NULL;
 		}
-
 		memset(ec, 0, sizeof(wan_ec_t));
 		ec->chip_no		= ++wan_ec_no;
 		ec->state		= WAN_OCT6100_STATE_RESET;
-		ec->ec_active		= 0;
+		ec->ec_channels_no	= 0;
 		ec->max_channels	= max_channels;
-		wan_spin_lock_init(&ec->lock);
+		//wan_spin_lock_init(&ec->lock);
 		sprintf(ec->name, "%s%d", WANEC_DEV_NAME, ec->chip_no);
 		Oct6100InterruptServiceRoutineDef(&ec->f_InterruptFlag);
 
@@ -1512,7 +1502,7 @@ static int wanec_unregister(void *arg, void *pcard)
 	WAN_DEBUG_FUNC_START;
 
 	ec = ec_dev->ec;
-	wan_spin_lock(&ec->lock);
+//	wan_spin_lock(&ec->lock);
 	DEBUG_EVENT("%s: Unregister interface from %s (chip id %d, usage %d)!\n",
 					card->devname,
 					ec->name,
@@ -1572,7 +1562,7 @@ static int wanec_unregister(void *arg, void *pcard)
 		ec_dev->ec = NULL;
 		wan_free(ec_dev);
 	}
-	wan_spin_unlock(&ec->lock);
+//	wan_spin_unlock(&ec->lock);
 	WAN_DEBUG_FUNC_END;
 	return 0;
 }
@@ -1646,11 +1636,11 @@ static int wanec_poll(void *arg, void *pcard)
 	
 	WAN_DEBUG_FUNC_START;
 		
-	wan_spin_lock(&ec->lock);
+//	wan_spin_lock(&ec->lock);
 	wan_clear_bit(WAN_EC_BIT_TIMER_RUNNING,(void*)&ec_dev->critical);
 	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical)){
 		ec_dev->poll_cmd = WAN_EC_POLL_NONE;
-		wan_spin_unlock(&ec->lock);
+//		wan_spin_unlock(&ec->lock);
 		return -EINVAL;
 	}
 	switch(ec_dev->poll_cmd){
@@ -1693,7 +1683,7 @@ static int wanec_poll(void *arg, void *pcard)
 	ec_dev->poll_cmd = WAN_EC_POLL_NONE;
 	
 wanec_poll_done:	
-	wan_spin_unlock(&ec->lock);
+//	wan_spin_unlock(&ec->lock);
 	WAN_DEBUG_FUNC_END;	
 	return err;
 }

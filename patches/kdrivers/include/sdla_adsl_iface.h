@@ -81,7 +81,7 @@ EXTERN_WAN  int 	adsl_wan_init(void*);
 EXTERN_WAN  int		adsl_del_if(void*);
 EXTERN_WAN  void	adsl_timeout(void*);
 EXTERN_WAN  void	adsl_disable_comm(void*);
-EXTERN_WAN  void	adsl_isr(void*);
+EXTERN_WAN  int		adsl_isr(void*);
 EXTERN_WAN  void	adsl_udp_cmd(void*, unsigned char, unsigned char*, unsigned short*);
 EXTERN_WAN  void* 	adsl_get_trace_ptr(void *pAdapter_ptr);
 EXTERN_WAN  int 	adsl_wan_interface_type(void *);

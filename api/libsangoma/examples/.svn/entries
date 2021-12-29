@@ -1,89 +1,59 @@
-8
-
-dir
-229
-svn://sangoma.freeswitch.org/libsangoma/trunk/examples
-svn://sangoma.freeswitch.org
-
-
-
-2007-05-29T18:03:36.038276Z
-206
-ncorbic
-
-
-svn:special svn:externals svn:needs-lock
-
-
-
-
-
-
-
-
-
-
-
-2028fedf-720c-0410-83b8-d54a3e729fb0
-
-sound.raw
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-da36acc78b83d5047481df0cca63d969
-2006-03-23T23:03:41.659017Z
-26
-mikej
-has-props
-
-priserver.c
-file
-
-
-
-
-2007-04-18T19:53:48.000000Z
-9f83030c20158d91b7ec6bb7a9392dcb
-2006-03-23T23:54:12.054610Z
-27
-ncorbic
-
-librc
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-5c222b74d68b1c7df3f937a9d6321d40
-2006-03-23T23:03:41.659017Z
-26
-mikej
-
-Makefile
-file
-
-
-
-
-2007-07-24T22:46:01.000000Z
-b58ee42eeb2d5e921bdab940a9fda738
-2007-05-29T18:03:36.038276Z
-206
-ncorbic
-
-README
-file
-
-
-
-
-2007-03-21T22:07:06.000000Z
-40538792592cd766e4941d9b37dbaf56
-2006-03-23T23:03:41.659017Z
-26
-mikej
-
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="27"
+   name=""
+   committed-date="2006-03-23T23:54:12.054610Z"
+   url="svn://sangoma.freeswitch.org/libsangoma/trunk/examples"
+   last-author="ncorbic"
+   kind="dir"
+   uuid="2028fedf-720c-0410-83b8-d54a3e729fb0"
+   revision="198"/>
+<entry
+   committed-rev="26"
+   name="sound.raw"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-03-23T23:03:41.659017Z"
+   checksum="da36acc78b83d5047481df0cca63d969"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-03-21T22:07:06.000000Z"/>
+<entry
+   committed-rev="27"
+   name="priserver.c"
+   text-time="2007-04-18T19:53:48.000000Z"
+   committed-date="2006-03-23T23:54:12.054610Z"
+   checksum="9f83030c20158d91b7ec6bb7a9392dcb"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2006-04-28T15:08:01.000000Z"/>
+<entry
+   committed-rev="26"
+   name="librc"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-03-23T23:03:41.659017Z"
+   checksum="5c222b74d68b1c7df3f937a9d6321d40"
+   last-author="mikej"
+   kind="file"
+   prop-time="2006-04-28T15:08:01.000000Z"/>
+<entry
+   committed-rev="199"
+   name="Makefile"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2007-05-17T21:15:01.613603Z"
+   checksum="38ad501519c65cd3b60060dce1c9333e"
+   last-author="ncorbic"
+   kind="file"
+   prop-time="2006-04-28T15:08:01.000000Z"
+   revision="199"/>
+<entry
+   committed-rev="26"
+   name="README"
+   text-time="2007-03-21T22:07:06.000000Z"
+   committed-date="2006-03-23T23:03:41.659017Z"
+   checksum="40538792592cd766e4941d9b37dbaf56"
+   last-author="mikej"
+   kind="file"
+   prop-time="2006-04-28T15:08:01.000000Z"/>
+</wc-entries>

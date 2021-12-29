@@ -20,7 +20,11 @@ static void wplip_prot_timer(wan_timer_arg_t arg);
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static void wplip_port_task (void *arg, int);
 #else
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
 static void wplip_port_task (void *arg);
+# else
+static void wplip_port_task (struct work_struct *work);
+# endif       
 #endif
 
 
@@ -155,9 +159,16 @@ int wplip_reg_lipdev_prot(wplip_dev_t *lip_dev, wanif_conf_t *conf)
 	}
 #endif
 #ifdef CONFIG_PRODUCT_WANPIPE_LIP_ATM	
-	if (lip_dev->protocol == WANCONFIG_LIP_ATM){
-		lip_dev->max_mtu_sz=MAX_ATM_TX_BUF;
-		lip_dev->max_mtu_sz_orig=MAX_ATM_TX_BUF;
+	if (lip_dev->protocol == WANCONFIG_LIP_ATM ||
+	    lip_dev->protocol == WANCONFIG_LIP_KATM){
+		int mtu=conf->u.atm.mtu;
+		if (mtu) {
+			lip_dev->max_mtu_sz = mtu/53 * 5;
+			lip_dev->max_mtu_sz_orig=lip_dev->max_mtu_sz;
+		} else {
+			lip_dev->max_mtu_sz=MAX_ATM_TX_BUF;
+			lip_dev->max_mtu_sz_orig=MAX_ATM_TX_BUF;
+		}
 
 	}
 #endif                     	
@@ -301,8 +312,9 @@ int wplip_prot_oob(wplip_dev_t *lip_dev, unsigned char *data, int len)
 	
 	switch (lip_dev->protocol){
 		
-#ifdef CONFIG_PRODUCT_WANPIPE_LAPB
+#if defined(CONFIG_PRODUCT_WANPIPE_LIP_LAPB) || defined(CONFIG_PRODUCT_WANPIPE_LIP_LAPD) 
 	case WANCONFIG_LAPB:
+	case WANCONFIG_LAPD:
 		skb=wan_skb_alloc(sizeof(wan_api_rx_hdr_t));
 		if (!skb){
 			return -1;
@@ -525,10 +537,24 @@ int wplip_prot_udp_snmp_pkt(wplip_dev_t * lip_dev, int cmd, struct ifreq* ifr)
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static void wplip_port_task (void *arg, int dummy)
 #else
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
 static void wplip_port_task (void *arg)
+# else
+static void wplip_port_task (struct work_struct *work)
+# endif   
 #endif
 {
+
+#if defined(__LINUX__)	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+	wplip_link_t	*lip_link=(wplip_link_t *)container_of(work, wplip_link_t, prot_task);
+#else
 	wplip_link_t	*lip_link=(wplip_link_t *)arg;
+#endif
+#else
+	wplip_link_t	*lip_link=(wplip_link_t *)arg;
+#endif	
+	
 	wplip_prot_iface_t *prot_iface;	
 
 	if (wan_test_bit(WPLIP_LINK_DOWN,&lip_link->tq_working)){
@@ -614,6 +640,16 @@ static int wplip_prot_rx_up(void *lip_dev_ptr, void *skb, int type)
 	switch (type){
 
 	case WPLIP_RAW:
+
+                if ((lip_dev->protocol == WANCONFIG_LIP_ATM ||
+                     lip_dev->protocol == WANCONFIG_LIP_ATM) &&
+		     lip_dev->common.usedby != API) {
+			/* If ATM is not in API mode
+			   Dont pass RAW Cells up the stack */
+                	wan_skb_free(skb);   
+			break;	
+		}
+		
 		wplip_data_rx_up(lip_dev,skb);
 		break;
 		
@@ -621,12 +657,7 @@ static int wplip_prot_rx_up(void *lip_dev_ptr, void *skb, int type)
 		wan_skb_set_protocol(skb,ETH_P_IP);
 		wplip_data_rx_up(lip_dev,skb);
 		break;
-#ifdef CONFIG_PRODUCT_WANPIPE_LAPD
-	case WPLIP_LAPD:
-		wan_skb_set_protocol(skb,ETH_P_LAPD);
-		wplip_data_rx_up(lip_dev,skb);
-		break;
-#endif
+
 	case WPLIP_IPV6:
 		wan_skb_set_protocol(skb,ETH_P_IPV6);
 		wplip_data_rx_up(lip_dev,skb);
@@ -822,8 +853,8 @@ int wplip_init_prot(void)
 #endif
 
 	/* LAPB initialization */
-#ifdef CONFIG_PRODUCT_WANPIPE_LAPB
-	offset+=sprintf(&tmp[offset],"%s ","LAPB");
+#ifdef CONFIG_PRODUCT_WANPIPE_LIP_LAPB
+	offset+=sprintf(&tmp[offset],"%s ","LIP_LAPB");
 	prot_iface=wan_kmalloc(sizeof(wplip_prot_iface_t));
 	if (!prot_iface){
 		return -ENOMEM;
@@ -846,6 +877,33 @@ int wplip_init_prot(void)
 	prot_iface->bh				= wp_lapb_bh;
 	prot_iface->snmp			= NULL;
 #endif
+
+        /* LAPD initialization */
+#ifdef CONFIG_PRODUCT_WANPIPE_LIP_LAPD
+        offset+=sprintf(&tmp[offset],"%s ","LIP_LAPD");
+        prot_iface=wan_kmalloc(sizeof(wplip_prot_iface_t));
+        if (!prot_iface){
+	                return -ENOMEM;
+		        }
+        memset(prot_iface,0,sizeof(wplip_prot_iface_t));
+        wplip_prot_ops[WANCONFIG_LAPD]=prot_iface;
+
+        prot_iface->init                        = 1;
+        prot_iface->prot_link_register          = wp_register_lapd_prot;
+        prot_iface->prot_link_unregister        = wp_unregister_lapb_prot;
+        prot_iface->prot_chan_register          = wp_register_lapb_chan_prot;
+        prot_iface->prot_chan_unregister        = wp_unregister_lapb_chan_prot;
+        prot_iface->open_chan                   = wp_lapb_open;
+        prot_iface->close_chan                  = wp_lapb_close;
+        prot_iface->tx                          = wp_lapb_tx;
+        prot_iface->ioctl                       = NULL;
+        prot_iface->pipemon                     = NULL;
+        prot_iface->rx                          = wp_lapb_rx;
+        prot_iface->timer                       = wp_lapb_timer;
+        prot_iface->bh                          = wp_lapb_bh;
+        prot_iface->snmp                        = NULL;
+#endif
+	
 
 	/* XMTP2 initialization */
 #ifdef CONFIG_PRODUCT_WANPIPE_XMTP2
@@ -874,8 +932,8 @@ int wplip_init_prot(void)
 #endif
 
 	/* XMTP2 initialization */
-#ifdef CONFIG_PRODUCT_WANPIPE_LAPD
-	offset+=sprintf(&tmp[offset],"%s ","LAPD");
+#ifdef CONFIG_PRODUCT_WANPIPE_VISDN_LAPD
+	offset+=sprintf(&tmp[offset],"%s ","VISDN_LAPD");
 	prot_iface=wan_kmalloc(sizeof(wplip_prot_iface_t));
 	if (!prot_iface){
 		return -ENOMEM;
@@ -898,6 +956,32 @@ int wplip_init_prot(void)
 	prot_iface->bh				= NULL;
 	prot_iface->snmp			= NULL;
 #endif
+ 
+	/* KATM initialization */
+#ifdef CONFIG_PRODUCT_WANPIPE_LIP_KATM
+	offset+=sprintf(&tmp[offset],"%s ","LIP_KATM");
+	prot_iface=wan_kmalloc(sizeof(wplip_prot_iface_t));
+	if (!prot_iface){
+		return -ENOMEM;
+	}
+	memset(prot_iface,0,sizeof(wplip_prot_iface_t));
+	wplip_prot_ops[WANCONFIG_LIP_KATM]=prot_iface;
+	 
+	prot_iface->init			= 1;
+	prot_iface->prot_link_register 		= wp_register_katm_prot;
+	prot_iface->prot_link_unregister	= wp_unregister_katm_prot; 
+	prot_iface->prot_chan_register		= wp_register_katm_chan;	
+	prot_iface->prot_chan_unregister	= wp_unregister_katm_chan;
+	prot_iface->open_chan			= wp_katm_open;
+	prot_iface->close_chan			= wp_katm_close; 
+	prot_iface->tx				= wp_katm_tx;
+	prot_iface->ioctl			= NULL; 
+	prot_iface->pipemon			= NULL;
+	prot_iface->rx				= wp_katm_rx; 
+	prot_iface->timer			= wp_katm_timer;
+	prot_iface->bh				= NULL;
+	prot_iface->snmp			= NULL;
+#endif   
 
 	/* X25 initialization */
 #ifdef CONFIG_PRODUCT_WANPIPE_LIP_X25

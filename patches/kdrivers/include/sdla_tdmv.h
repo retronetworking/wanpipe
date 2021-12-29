@@ -76,9 +76,9 @@ typedef struct wan_tdmv_
 typedef struct wan_tdmv_iface_
 {
 	int	(*check_mtu)(void*, unsigned long, int *);
-	int	(*create)(void* pcard, wan_xilinx_conf_t *conf);
+	int	(*create)(void* pcard, wan_tdmv_conf_t*);
 	int	(*remove)(void* pcard);
-	int	(*reg)(void*, wanif_conf_t*, netdevice_t*);
+	int	(*reg)(void*, wan_tdmv_if_conf_t*, unsigned int, unsigned char,netdevice_t*);
 	int	(*unreg)(void* pcard, unsigned long ts_map);
 	int	(*software_init)(wan_tdmv_t*);
 	int 	(*state)(void*, int);

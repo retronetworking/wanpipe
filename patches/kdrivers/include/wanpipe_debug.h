@@ -375,14 +375,14 @@
 
 #if defined(WAN_DEBUG_FUNC)
 # undef WAN_DEBUG_FUNC_START
-# define WAN_DEBUG_FUNC_START	DEBUG_EVENT("[%s]: %s:%d: Start (%ld)\n",	\
-				__FILE__,__FUNCTION__,__LINE__, SYSTEM_TICKS);
+# define WAN_DEBUG_FUNC_START	DEBUG_EVENT("[%s]: %s:%d: Start (%ld)\n",\
+	       		__FILE__,__FUNCTION__,__LINE__, SYSTEM_TICKS);
 # undef WAN_DEBUG_FUNC_END
-# define WAN_DEBUG_FUNC_END	DEBUG_EVENT("[%s]: %s:%d: End (%ld)\n",		\
-				__FILE__,__FUNCTION__,__LINE__,SYSTEM_TICKS);
+# define WAN_DEBUG_FUNC_END	DEBUG_EVENT("[%s]: %s:%d: End (%ld)\n",	\
+	       		__FILE__,__FUNCTION__,__LINE__,SYSTEM_TICKS);
 # undef WAN_DEBUG_FUNC_LINE
-# define WAN_DEBUG_FUNC_LINE	DEBUG_EVENT("[%s]: %s:%d: (%ld)\n",		\
-				__FILE__,__FUNCTION__,__LINE__,SYSTEM_TICKS);
+# define WAN_DEBUG_FUNC_LINE	DEBUG_EVENT("[%s]: %s:%d: (%ld)\n",	\
+	       		__FILE__,__FUNCTION__,__LINE__,SYSTEM_TICKS);
 #endif
 
 #define WAN_ASSERT(val) if (val){					\
@@ -453,44 +453,69 @@
 #define WAN_DEBUG_CHDLC_KPLV_MSG	0x0B	
 #define WAN_DEBUG_CHDLC_UNKNWN_MSG	0x0C	
 
-
-#define WAN_DEBUG_INIT(card){					\
-	wan_tasklet_t* debug_task = &card->debug_task;		\
-	WAN_TASKLET_INIT(debug_task, 0, &wanpipe_debugging, card);\
-	wan_clear_bit(0, (unsigned long*)&card->debug_running);	\
-	wanpipe_debug_timer_init(card);				\
+/* WAN DEBUG timer */
+#define WAN_DEBUG_INIT(card){						\
+	wan_tasklet_t* debug_task = &card->debug_task;			\
+	WAN_TASKLET_INIT(debug_task, 0, &wanpipe_debugging, card);	\
+	wan_clear_bit(0, (unsigned long*)&card->debug_running);		\
+	wanpipe_debug_timer_init(card);					\
 	}
-#define WAN_DEBUG_END(card){					\
-	wan_del_timer(&card->debug_timer);			\
-	WAN_TASKLET_KILL(&card->debug_task);			\
+#define WAN_DEBUG_END(card){						\
+	wan_del_timer(&card->debug_timer);				\
+	WAN_TASKLET_KILL(&card->debug_task);				\
 	}
 #define WAN_DEBUG_STOP(card)	wan_clear_bit(0, &card->debug_running)
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__WINDOWS__)
-# define WAN_DEBUG_START(card)					\
-		if (!wan_test_bit(0, &card->debug_running)){	\
-			wan_set_bit(0, &card->debug_running);	\
+# define WAN_DEBUG_START(card)						\
+		if (!wan_test_bit(0, &card->debug_running)){		\
+			wan_set_bit(0, &card->debug_running);		\
 			wan_add_timer(&card->debug_timer, 5*HZ);	\
 		}
+#elif defined(__LINUX__)
+# define WAN_DEBUG_START(card)						\
+		if (!wan_test_and_set_bit(0, &card->debug_running)){	\
+			wan_add_timer(&card->debug_timer, 5*HZ);	\
+		}
+#else
+# error "Undefined WAN_DEBUG_START macro!"
+#endif
 
-# define WP_READ_LOCK(lock,flag)   {  DEBUG_TEST("%s:%d: RLock %u\n",__FILE__,__LINE__,(u32)lock);\
-	                             flag = splimp(); }
+#if defined(__OpenBSD__) && (OpenBSD >= 200611)
+# define WP_READ_LOCK(lock,flag)   {					\
+	DEBUG_TEST("%s:%d: RLock %u\n",__FILE__,__LINE__,(u32)lock);	\
+	flag = splnet(); }
 				     
-# define WP_READ_UNLOCK(lock,flag) {  DEBUG_TEST("%s:%d: RULock %u\n",__FILE__,__LINE__,(u32)lock);\
-					splx(flag);}
+# define WP_READ_UNLOCK(lock,flag) {					\
+	DEBUG_TEST("%s:%d: RULock %u\n",__FILE__,__LINE__,(u32)lock);	\
+	splx(flag);}
 
-# define WP_WRITE_LOCK(lock,flag) {  DEBUG_TEST("%s:%d: WLock %u\n",__FILE__,__LINE__,(u32)lock); \
-	                            flag = splimp(); }
+# define WP_WRITE_LOCK(lock,flag) {					\
+	DEBUG_TEST("%s:%d: WLock %u\n",__FILE__,__LINE__,(u32)lock); 	\
+	flag = splnet(); }
 
-# define WP_WRITE_UNLOCK(lock,flag) { DEBUG_TEST("%s:%d: WULock %u\n",__FILE__,__LINE__,(u32)lock); \
-	                             splx(flag); }
+# define WP_WRITE_UNLOCK(lock,flag) {					\
+	DEBUG_TEST("%s:%d: WULock %u\n",__FILE__,__LINE__,(u32)lock); 	\
+	splx(flag); }
+
+#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__WINDOWS__)
+# define WP_READ_LOCK(lock,flag)   {					\
+	DEBUG_TEST("%s:%d: RLock %u\n",__FILE__,__LINE__,(u32)lock);	\
+	flag = splimp(); }
+				     
+# define WP_READ_UNLOCK(lock,flag) {					\
+	DEBUG_TEST("%s:%d: RULock %u\n",__FILE__,__LINE__,(u32)lock);	\
+	splx(flag);}
+
+# define WP_WRITE_LOCK(lock,flag) {					\
+	DEBUG_TEST("%s:%d: WLock %u\n",__FILE__,__LINE__,(u32)lock); 	\
+	flag = splimp(); }
+
+# define WP_WRITE_UNLOCK(lock,flag) {					\
+	DEBUG_TEST("%s:%d: WULock %u\n",__FILE__,__LINE__,(u32)lock); 	\
+	splx(flag); }
 
 #elif defined(__LINUX__)
-
-# define WAN_DEBUG_START(card)					\
-		if (!wan_test_and_set_bit(0, &card->debug_running)){\
-			wan_add_timer(&card->debug_timer, 5*HZ);	\
-		}
 
 # define WAN_TIMEOUT(sec)  { unsigned long timeout; \
 	                     timeout=jiffies; \
@@ -498,7 +523,6 @@
 				     schedule(); \
 			     }\
 			   }
-
 
 # define WP_READ_LOCK(lock,flag)   {  DEBUG_TEST("%s:%d: RLock %u\n",__FILE__,__LINE__,(u32)lock);\
 	                             read_lock((lock)); flag=0; }

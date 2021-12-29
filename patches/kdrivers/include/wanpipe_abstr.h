@@ -188,7 +188,7 @@ extern void 		wpabs_trace_info_init(void *trace_ptr, int max_queue);
 extern void 		wpabs_set_last_trace_direction(void *trace_ptr, unsigned char direction);
 extern unsigned char 	wpabs_get_last_trace_direction(void *trace_ptr);
 
-extern int		wpabs_bpf_report(void *dev, void *skb, int);
+extern int		wpabs_bpf_report(void *dev, void *skb, int,int);
 
 #pragma pack(1)
 typedef struct {

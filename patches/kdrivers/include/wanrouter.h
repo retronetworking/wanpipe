@@ -386,7 +386,7 @@ typedef struct wan_device
 #endif
 	int (*wanpipe_ioctl) (netdevice_t*, struct ifreq*, int);
 #endif
-	unsigned char	macAddr[ETHER_ADDR_LEN];
+	unsigned char		macAddr[ETHER_ADDR_LEN];
 
 	sdla_fe_iface_t		fe_iface;
 	sdla_fe_notify_iface_t	fe_notify_iface;
@@ -395,6 +395,7 @@ typedef struct wan_device
 	unsigned long		ec_enable_map;
 	unsigned long		ec_map;
 	unsigned long		ec_intmask;
+		
 	int			(*ec_enable)(void *pcard, int, int);
 
 	unsigned char	(*write_ec)(void*, unsigned short, unsigned char);

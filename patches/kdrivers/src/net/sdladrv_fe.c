@@ -61,28 +61,21 @@
 #define XILINX_MCPU_INTERFACE           0x44
 #define XILINX_MCPU_INTERFACE_ADDR      0x46
 
-#undef NC_WARN_FIX
 /***************************************************************************
 ****               F U N C T I O N   P R O T O T Y P E S                ****
 ***************************************************************************/
-#ifdef NC_WARN_FIX
-static int		sdla_te1_write_fe(void* phw, ...);
-static unsigned char	sdla_te1_read_fe (void* phw, ...);
-static int	      __sdla_shark_te1_write_fe(void *phw, ...);
-static unsigned char  __sdla_shark_te1_read_fe (void *phw, ...);
-#endif
+int		sdla_te1_write_fe(void* phw, ...);
+u_int8_t	sdla_te1_read_fe (void* phw, ...);
 
-#ifdef NC_WARN_FIX
-static int		sdla_shark_te1_write_fe(void *phw, ...);
-static unsigned char	sdla_shark_te1_read_fe (void *phw, ...);
-#endif
+static int	__sdla_shark_te1_write_fe(void *phw, ...);
+int		sdla_shark_te1_write_fe(void *phw, ...);
+static u_int8_t	__sdla_shark_te1_read_fe (void *phw, ...);
+u_int8_t	sdla_shark_te1_read_fe (void *phw, ...);
 
-#ifdef NC_WARN_FIX
-static int 	      __sdla_shark_analog_write_fe (void* phw, ...);
-static int 		sdla_shark_analog_write_fe (void* phw, ...);
-#endif
-static unsigned char  __sdla_shark_analog_read_fe (void* phw, ...);
-unsigned char    	sdla_shark_analog_read_fe (void* phw, ...);
+static int	__sdla_shark_rm_write_fe (void* phw, ...);
+int		sdla_shark_rm_write_fe (void* phw, ...);
+static u_int8_t	__sdla_shark_rm_read_fe (void* phw, ...);
+u_int8_t	sdla_shark_rm_read_fe (void* phw, ...);
 
 static int	__sdla_shark_56k_write_fe(void *phw, ...);
 int		sdla_shark_56k_write_fe(void *phw, ...);
@@ -114,17 +107,17 @@ extern int sdla_hw_fe_set_bit(void *phw, int value);
 /***************************************************************************
 	Front End T1/E1 interface for Normal cards
 ***************************************************************************/
-#ifdef NC_WARN_FIX
-static int sdla_te1_write_fe(void* phw, ...)
+int sdla_te1_write_fe(void* phw, ...)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
 	va_list		args;
-	u16		qaccess, off;
+	u16		qaccess, off, line_no;
 	u8		value;
 //	u8	qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
 	       	 
 	va_start(args, phw);
 	qaccess	= (u16)va_arg(args, int);
+	line_no = (u16)va_arg(args, int);
 	off	= (u16)va_arg(args, int);
 	value	= (u8)va_arg(args, int);
 	va_end(args);
@@ -150,17 +143,18 @@ static int sdla_te1_write_fe(void* phw, ...)
 /*============================================================================
  * Read TE1/56K Front end registers
  */
-static unsigned char sdla_te1_read_fe (void* phw, ...)
+u_int8_t sdla_te1_read_fe (void* phw, ...)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
 	va_list		args;
-	u16		qaccess, off;
-	u8		tmp;
+	u_int16_t	qaccess, line_no, off;
+	u_int8_t	tmp;
 //	u8	qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
 
 	va_start(args, phw);
-	qaccess = (u16)va_arg(args, int);
-	off	= (u16)va_arg(args, int);
+	qaccess = (u_int16_t)va_arg(args, int);
+	line_no = (u_int16_t)va_arg(args, int);
+	off	= (u_int8_t)va_arg(args, int);
 	va_end(args);
 
         off &= ~BIT_DEV_ADDR_CLEAR;
@@ -172,29 +166,27 @@ static unsigned char sdla_te1_read_fe (void* phw, ...)
 	}
         return tmp;
 }
-#endif
-
 
 /***************************************************************************
 	Front End T1/E1 interface for Shark subtype cards
 ***************************************************************************/
-#ifdef NC_WARN_FIX
 static int __sdla_shark_te1_write_fe (void *phw, ...)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
 	va_list		args;
-	int 		org_off, qaccess, line_no, off, value;
+	u_int16_t 	org_off, qaccess, line_no, off;
+	u_int8_t	value;
 //	u8		qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
 
 	va_start(args, phw);
-	qaccess = (int)va_arg(args, int);
-	line_no = (int)va_arg(args, int);
-	off	= (int)va_arg(args, int);
-	value	= (int)va_arg(args, int);
+	qaccess = (u_int16_t)va_arg(args, int);
+	line_no = (u_int16_t)va_arg(args, int);
+	off	= (u_int16_t)va_arg(args, int);
+	value	= (u_int8_t)va_arg(args, int);
 	va_end(args);
 
 	if (hw->hwcard->core_id == AFT_PMC_FE_CORE_ID){
-       		off &= ~AFT4_BIT_DEV_ADDR_CLEAR;	
+       	off &= ~AFT4_BIT_DEV_ADDR_CLEAR;	
 	}else if (hw->hwcard->core_id == AFT_DS_FE_CORE_ID){
 		if (off & 0x800)  off |= 0x2000;
 		if (off & 0x1000) off |= 0x4000;
@@ -230,11 +222,12 @@ static int __sdla_shark_te1_write_fe (void *phw, ...)
         return 0;
 }
 
-static int sdla_shark_te1_write_fe (void *phw, ...)
+int sdla_shark_te1_write_fe (void *phw, ...)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
 	va_list		args;
-	int 		qaccess, line_no, off, value;
+	u_int16_t	qaccess, line_no, off;
+	u_int8_t	value;
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 		if (WAN_NET_RATELIMIT()){
@@ -247,10 +240,10 @@ static int sdla_shark_te1_write_fe (void *phw, ...)
 	}
 
 	va_start(args, phw);
-	qaccess = (int)va_arg(args, int);
-	line_no = (int)va_arg(args, int);
-	off	= (int)va_arg(args, int);
-	value	= (int)va_arg(args, int);
+	qaccess = (u_int16_t)va_arg(args, int);
+	line_no = (u_int16_t)va_arg(args, int);
+	off	= (u_int16_t)va_arg(args, int);
+	value	= (u_int8_t)va_arg(args, int);
 	va_end(args);
 
 	__sdla_shark_te1_write_fe(hw, qaccess, line_no, off, value);
@@ -258,23 +251,22 @@ static int sdla_shark_te1_write_fe (void *phw, ...)
 	sdla_hw_fe_clear_bit(hw,0);
         return 0;
 }
-#endif
 
 /*============================================================================
- * Read TE1/56K Front end registers
+ * Read TE1 Front end registers
  */
-#ifdef NC_WARN_FIX
-static unsigned char __sdla_shark_te1_read_fe (void *phw, ...)
+static u_int8_t __sdla_shark_te1_read_fe (void *phw, ...)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
 	va_list		args;
-	int     	org_off, qaccess, line_no, off, tmp;
+	u_int16_t     	org_off, qaccess, line_no, off;
+	u_int8_t	tmp;
 //	u8		qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
 
 	va_start(args, phw);
-	qaccess = (int)va_arg(args, int);
-	line_no = (int)va_arg(args, int);
-	off	= (int)va_arg(args, int);
+	qaccess = (u_int16_t)va_arg(args, int);
+	line_no = (u_int16_t)va_arg(args, int);
+	off	= (u_int8_t)va_arg(args, int);
 	va_end(args);
 
 	if (hw->hwcard->core_id == AFT_PMC_FE_CORE_ID){
@@ -290,9 +282,9 @@ static unsigned char __sdla_shark_te1_read_fe (void *phw, ...)
 	
 	sdla_bus_read_2(hw, AFT_MCPU_INTERFACE_ADDR, (u16*)&org_off);
 	
-        sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, (u16)off);
+    sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, (u16)off);
 
-       	sdla_bus_read_1(hw,AFT_MCPU_INTERFACE, (u8*)&tmp);
+   	sdla_bus_read_1(hw,AFT_MCPU_INTERFACE, (u8*)&tmp);
 	if (!qaccess){
 		WP_DELAY(5);
 	}
@@ -305,12 +297,12 @@ static unsigned char __sdla_shark_te1_read_fe (void *phw, ...)
         return tmp;
 }
 
-static unsigned char sdla_shark_te1_read_fe (void *phw, ...)
+u_int8_t sdla_shark_te1_read_fe (void *phw, ...)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
 	va_list		args;
-	int		qaccess, line_no, off;
-	unsigned char	tmp;
+	u_int16_t	qaccess, line_no, off;
+	u_int8_t	tmp;
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 		if (WAN_NET_RATELIMIT()){
@@ -321,9 +313,9 @@ static unsigned char sdla_shark_te1_read_fe (void *phw, ...)
 	}
 
 	va_start(args, phw);
-	qaccess = (int)va_arg(args, int);
-	line_no = (int)va_arg(args, int);
-	off	= (int)va_arg(args, int);
+	qaccess = (u_int16_t)va_arg(args, int);
+	line_no = (u_int16_t)va_arg(args, int);
+	off	= (u_int16_t)va_arg(args, int);
 	va_end(args);
 
 	tmp = __sdla_shark_te1_read_fe(hw, qaccess, line_no, off);
@@ -331,9 +323,6 @@ static unsigned char sdla_shark_te1_read_fe (void *phw, ...)
 	sdla_hw_fe_clear_bit(hw,0);
         return tmp;
 }
-#endif
-
-
 
 /***************************************************************************
 	56K Front End interface for Shark subtype cards
@@ -458,16 +447,13 @@ u_int8_t sdla_shark_56k_read_fe (void *phw, ...)
 }
 
 
-
-
 /***************************************************************************
 	Front End FXS/FXO interface for Shark subtype cards
 ***************************************************************************/
 /*============================================================================
  * Read TE1/56K Front end registers
  */
-#ifdef NC_WARN_FIX
-int __sdla_shark_analog_write_fe (void* phw, ...)
+static int __sdla_shark_rm_write_fe (void* phw, ...)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	va_list		args;
@@ -491,9 +477,9 @@ int __sdla_shark_analog_write_fe (void* phw, ...)
 		return -EINVAL;
 	}
 #endif
-	DEBUG_RM("%s:%d: Module %d: Write Remora Front-End code (reg %d, value %02X)!\n",
+	DEBUG_RM("%s:%d: Module %d: Write RM FE code (reg %d, value %02X)!\n",
 				__FUNCTION__,__LINE__,
-				mod_no, reg, (u8)value);
+				/*FIXME: hw->devname,*/mod_no, reg, (u8)value);
 	
 	/* bit 0-7: data byte */
 	data = value & 0xFF;
@@ -613,7 +599,7 @@ int __sdla_shark_analog_write_fe (void* phw, ...)
         return 0;
 }
 
-static int sdla_shark_analog_write_fe (void* phw, ...)
+int sdla_shark_rm_write_fe (void* phw, ...)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	va_list		args;
@@ -646,14 +632,13 @@ static int sdla_shark_analog_write_fe (void* phw, ...)
 		return -EINVAL;
 	}
 
-	__sdla_shark_analog_write_fe(hw, mod_no, type, chain, reg, value);
+	__sdla_shark_rm_write_fe(hw, mod_no, type, chain, reg, value);
 
 	sdla_hw_fe_clear_bit(hw,0);
         return 0;
 }
-#endif
 
-static unsigned char __sdla_shark_analog_read_fe (void* phw, ...)
+static u_int8_t __sdla_shark_rm_read_fe (void* phw, ...)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	va_list		args;
@@ -675,9 +660,9 @@ static unsigned char __sdla_shark_analog_read_fe (void* phw, ...)
 		return 0x00;
 	}
 #endif
-	DEBUG_RM("%s:%d: %s: Module %d: Read Remora Front-End code (reg %d)!\n",
+	DEBUG_RM("%s:%d: Module %d: Read RM FE code (reg %d)!\n",
 				__FUNCTION__,__LINE__,
-				hw->devname, mod_no, reg);
+				/*FIXME: hw->devname, */mod_no, reg);
 
 	/* bit 0-7: data byte */
 	data = 0x00;
@@ -796,7 +781,7 @@ static unsigned char __sdla_shark_analog_read_fe (void* phw, ...)
 	return (u8)(data & 0xFF);
 }
 
-unsigned char sdla_shark_analog_read_fe (void* phw, ...)
+u_int8_t sdla_shark_rm_read_fe (void* phw, ...)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	va_list		args;
@@ -828,8 +813,10 @@ unsigned char sdla_shark_analog_read_fe (void* phw, ...)
 #endif		
 		return 0x00;
 	}
-	data = __sdla_shark_analog_read_fe (hw, mod_no, type, chain, reg);
+	data = __sdla_shark_rm_read_fe (hw, mod_no, type, chain, reg);
 
 	sdla_hw_fe_clear_bit(hw,0);
 	return data;
 }
+
+

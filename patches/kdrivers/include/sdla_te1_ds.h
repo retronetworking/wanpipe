@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1_ds.h,v 1.8 2006/10/24 13:35:30 sangoma Exp $
+ *	$Id: sdla_te1_ds.h,v 1.9 2007/01/04 20:16:01 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -519,7 +519,6 @@
 
 #define REG_TCR2		0x182
 #define BIT_TCR2_TD4RM		0x04
-#define BIT_TCR2_E1_AEBE	0x80
 
 #define REG_TCR3		0x183
 #define BIT_TCR3_ODF		0x80
@@ -621,6 +620,14 @@
 #define BIT_LLSR_OCD		0x04
 #define BIT_LLSR_SCD		0x03
 #define BIT_LLSR_LOSD		0x01	
+
+#define REG_LRSL		0x1006
+#define REG_LRSL_SHIFT		4
+#define REG_LRSL_MASK		0x0F
+#define BIT_LRSL_RSL3		0x80
+#define BIT_LRSL_RSL2		0x40
+#define BIT_LRSL_RSL1		0x20
+#define BIT_LRSL_RSL0		0x10
 
 #define REG_LRISMR		0x1007
 #define BIT_LRISMR_RG703	0x80

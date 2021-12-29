@@ -77,7 +77,7 @@ void sig_handler(int signum)
 /*============================================================================
  * Strip leading and trailing spaces off the string str.
  */
-char* strstrip (char* str, char* s)
+char* str_strip (char* str, char* s)
 {
 	char* eos = str + strlen(str);		/* -> end of string */
 
@@ -104,7 +104,7 @@ int tokenize (char* str, char **tokens, char *arg1, char *arg2, char *arg3)
 
 	tokens[0] = strtok(str, arg1);
 	while (tokens[cnt] && (cnt < MAX_TOKENS - 1)) {
-		tokens[cnt] = strstrip(tokens[cnt], arg2);
+		tokens[cnt] = str_strip(tokens[cnt], arg2);
 		tokens[++cnt] = strtok(NULL, arg3);
 	}
 	return cnt;

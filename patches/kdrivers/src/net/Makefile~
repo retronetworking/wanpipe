@@ -1,0 +1,92 @@
+#
+# Makefile for the Linux network (wan) device drivers.
+#
+# 3 Aug 2000, Christoph Hellwig <hch@infradead.org>
+# Rewritten to use lists instead of if-statements.
+#
+
+
+WANPIPE_TDM_VOICE_DCHAN=YES
+WANPIPE_TDM_CODEC_SLINEAR_LAW=YES
+WANPIPE_ADSL=NO
+WANPIPE_ATM=NO
+WANPIPE_ASYHDLC=NO
+WANPIPE_TDM_VOICE_ECHO_MASTER=NO
+
+CONFIG_WANPIPE_X25=y
+CONFIG_WANPIPE_FR=y
+CONFIG_WANPIPE_CHDLC=y
+CONFIG_WANPIPE_PPP=y
+CONFIG_WANPIPE_MULTPPP=y 
+
+EXTRA_CFLAGS=$(EXTRA_FLAGS)
+PRODUCT_DEFINES = -DCONFIG_PRODUCT_WANPIPE_BASE -DCONFIG_PRODUCT_WANPIPE_FR -DCONFIG_PRODUCT_WANPIPE_CHDLC -DCONFIG_PRODUCT_WANPIPE_PPP -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_TE3 -DCONFIG_PRODUCT_WANPIPE_ANNEXG -DCONFIG_WANPIPE_HWEC 
+
+warnzap:
+	@echo "Warning no zaptel directory found $(ZAPDIR)" 
+	@if [ ! -e sdladrv_src.c ]; then 
+	@	ln -s sdladrv.c sdladrv_src.c 
+	@fi	
+
+ifneq (,$(wildcard $(ZAPDIR)))
+	WANPIPE_TDM_VOICE=NO 
+else
+	WANPIPE_TDM_VOICE=YES
+endif
+
+
+wanpipe-y			:= sdlamain.o sdla_ft1.o 
+wanpipe-y			+= common/sdla_te1.o common/sdla_te3.o common/sdla_56k.o common/sdla_8te1.o 
+wanpipe-y			+= common/wanpipe_tdm_api.o 
+wanpipe-y			+= common/sdla_xilinx.o common/sdla_aft_te1.o common/aft_hw/aft_a104.o
+wanpipe-y			+= common/aft_hw/aft_analog.o common/sdla_aft_te3.o common/wanpipe_utils.o
+wanpipe-y			+= common/wanpipe_abstr.o wanpipe_linux_iface.o 
+wanpipe-y			+= common/wanpipe_tdm_api.o common/sdla_remora.o 
+
+ifeq "${WANPIPE_ADSL}" "YES"
+PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_ADSL
+wanpipe-y			+= common/sdla_adsl.o adsl/wanpipe_adsl.o
+endif
+
+ifeq "${WANPIPE_ATM}" "YES"
+PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_ATM
+wanpipe-y			+= common/sdla_atm.o ../atm/wanpipe_atm.o
+endif
+
+ifeq "${WANPIPE_ASYHDLC}" "YES"
+PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_ASYHDLC
+wanpipe-y			+= sdla_asyhdlc.o 
+endif
+
+ifeq "${WANPIPE_TDM_VOICE}" "YES"
+PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE 
+EXTRA_CFLAGS 			+= -I/usr/src/zaptel 
+wanpipe-y			+= common/sdla_tdmv.o common/sdla_remora_tdmv.o 
+endif
+
+ifeq "${WANPIPE_TDM_CODEC_SLINEAR_LAW}" "YES"
+PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW
+wanpipe-y                       += common/wanpipe_codec.o common/wanpipe_codec_law.o
+endif
+
+ifeq "${WANPIPE_TDM_VOICE_ECHO_MASTER}" "YES"
+PRODUCT_DEFINES			+=-DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
+wanpipe-y                       += common/sdla_edac.o ../edac/wanpipe_edac.o
+endif
+
+EXTRA_CFLAGS			+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN 
+
+EXTRA_CFLAGS 			+= $(PRODUCT_DEFINES)
+
+wanpipe-$(CONFIG_WANPIPE_X25)	  += sdla_x25.o
+wanpipe-$(CONFIG_WANPIPE_FR)	  += sdla_fr.o
+wanpipe-$(CONFIG_WANPIPE_CHDLC)	  += sdla_chdlc.o
+wanpipe-$(CONFIG_WANPIPE_PPP)	  += sdla_ppp.o
+wanpipe-$(CONFIG_WANPIPE_MULTPPP) += wanpipe_multppp.o
+
+wanpipe-objs := $(wanpipe-y)
+
+sdladrv-objs := common/sdladrv_src.o common/sdladrv_fe.o
+
+obj-m += sdladrv.o wanpipe.o wanpipe_syncppp.o      
+

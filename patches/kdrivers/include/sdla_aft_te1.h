@@ -265,8 +265,6 @@ aft_chipcfg_a108_get_tdmv_intr_stats(u32 reg)
 	return reg;
 }
 
-
-
 /* 56k IRQ status bits */
 # define AFT_CHIPCFG_A56K_WDT_INTR_BIT		0
 # define AFT_CHIPCFG_A56K_DMA_INTR_BIT		24
@@ -294,6 +292,8 @@ aft_chipcfg_a56k_write_fe(u32 reg, u32 val)
 
 	return reg;
 }
+
+
 static __inline u32
 aft_chipcfg_get_ec_channels(u32 reg)
 {
@@ -317,7 +317,6 @@ aft_chipcfg_get_ec_channels(u32 reg)
 	
 	return 0;
 }
-
 
 
 static __inline u32
@@ -946,13 +945,6 @@ enum {
 #define WRITE_DEF_SECTOR_DSBL   0x01
 #define FRONT_END_TYPE_MASK     0x38
 
-/* Moved to sdlasfm.h 
-#define AFT_BIT_DEV_ADDR_CLEAR	0x600
-#define AFT_BIT_DEV_ADDR_CPLD	0x200
-
-#define AFT4_BIT_DEV_ADDR_CLEAR	0x800
-#define AFT4_BIT_DEV_ADDR_CPLD	0x800
-*/
 
 #define MEMORY_TYPE_SRAM        0x00
 #define MEMORY_TYPE_FLASH       0x01
@@ -1039,7 +1031,7 @@ aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
 }
 
 
-#define MAX_AFT_HW_DEV 14
+#define MAX_AFT_HW_DEV 20
 
 typedef struct aft_hw_dev{
 
@@ -1061,7 +1053,7 @@ typedef struct aft_hw_dev{
 	int (*aft_write_fe)(sdla_t *card, unsigned short off, unsigned char value);
 
 	unsigned char (*aft_read_cpld)(sdla_t *card, unsigned short cpld_off);
-	int (*aft_write_cpld)(sdla_t *card, unsigned short cpld_off, unsigned char cpld_data);
+	int (*aft_write_cpld)(sdla_t *card, unsigned short cpld_off, u_int16_t cpld_data);
 
 	void (*aft_fifo_adjust)(sdla_t *card, u32 level);
 
@@ -1378,6 +1370,7 @@ enum {
 #define AFT_TDMV_FRM_CLK_SYNC_VER 0x14
 #define AFT_TDMV_SHARK_FRM_CLK_SYNC_VER 0x17
 #define AFT_TDMV_SHARK_A108_FRM_CLK_SYNC_VER 0x25
+#define AFT_56K_MIN_FRMW_VER	0x00
 
 #define AFT_MIN_ANALOG_FRMW_VER 0x05
 
@@ -1544,6 +1537,9 @@ typedef struct private_area
 #endif
 	int	rx_api_crc_bytes;
 
+	netskb_t *rx_rtp_skb;
+	netskb_t *tx_rtp_skb;
+	u32	  tdm_call_status;
 	struct private_area *next;
 	
 }private_area_t;

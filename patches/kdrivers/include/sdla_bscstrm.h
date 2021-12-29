@@ -234,25 +234,25 @@ typedef struct {
 #define RX_EXCESSIVE_LGTH_ERR_APP_LVL  0x20   /* the received block was too long (application level) */
 
 typedef struct {
-	unsigned char	station		;
-	unsigned short	time_stamp	;
-	unsigned char	reserved[13]	;
+	unsigned char	station		PACKED;
+	unsigned short	time_stamp	PACKED;
+	unsigned char	reserved[13]	PACKED;
 } api_rx_hdr_t;
 
 typedef struct {
-        api_rx_hdr_t	api_rx_hdr      ;
-        unsigned char 	data[1]    	;
+        api_rx_hdr_t	api_rx_hdr      PACKED;
+        unsigned char 	data[1]    	PACKED;
 } api_rx_element_t;
 
 typedef struct {
-	unsigned char 	station		;
-	unsigned char   misc_tx_rx_bits ;
-	unsigned char  	reserved[14]	;
+	unsigned char 	station		PACKED;
+	unsigned char   misc_tx_rx_bits PACKED;
+	unsigned char  	reserved[14]	PACKED;
 } api_tx_hdr_t;
 
 typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	;
-	unsigned char	data[1]		;
+	api_tx_hdr_t 	api_tx_hdr	PACKED;
+	unsigned char	data[1]		PACKED;
 } api_tx_element_t;
 
 #pragma pack()

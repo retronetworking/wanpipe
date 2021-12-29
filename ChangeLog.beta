@@ -1,0 +1,35 @@
+------------------------------------------------------------------------------
+WANPIPE
+
+Linux Voice TDM/WAN Router Package
+------------------------------------------------------------------------------
+Author: Nenad Corbic <ncorbic@sangoma.com>
+Copyright (c) 1995-2007 Sangoma Technologies Inc.
+------------------------------------------------------------------------------
+
+
+* Fri May 17 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.0
+====================================================================  
+
+- Major new BETA wanpipe release 
+  Changed wanpipe versioning:
+	Release: A.B.C.D
+	A - Major Relase number
+	B - Indicates Stable or Beta
+	    Odd number is Beta
+	    Even number is Stable
+	C - Minor Release number
+	D - Optional pre-release and custom releases
+ 
+- Fixed RBS Support for all Maxim cards A101/2/4/8.
+
+- Support for 2.6.20 kernels.
+
+- Support for New: A101D A102D A104D Maxim cards
+     :
+- Support for New: AFT 56K DDS card
+
+- Redesigned TDM API Events
+
+- TDM API Analog Support
+

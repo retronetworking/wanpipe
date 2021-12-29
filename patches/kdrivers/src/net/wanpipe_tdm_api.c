@@ -5,7 +5,7 @@
 *
 * Authors: 	Nenad Corbic <ncorbic@sangoma.com>
 *
-* Copyright:	(c) 2003-2005 Sangoma Technologies Inc.
+* Copyright:	(c) 2003-2007 Sangoma Technologies Inc.
 *
 *		This program is free software; you can redistribute it and/or
 *		modify it under the terms of the GNU General Public License
@@ -48,6 +48,7 @@ queue_tdm_api_rx_dpc(
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe.h>
 # include <linux/if_wanpipe.h> 
+# include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe_tdm_api.h>
 #endif
 
@@ -60,7 +61,6 @@ queue_tdm_api_rx_dpc(
 #define WP_TDMAPI_MAJOR 241
 #define WP_TDMAPI_MINOR_OFFSET 0
 #define WP_TDMAPI_MAX_MINORS 1024
-
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0) || defined(__WINDOWS__)
 
@@ -128,6 +128,7 @@ static int wp_tdmapi_release(struct inode *inode, struct file *file);
 static int wp_tdmapi_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long data);
 
 static void wanpipe_tdm_api_rbs_poll(wanpipe_tdm_api_dev_t *tdm_api);
+static void wanpipe_tdm_api_fe_alarm_event(wanpipe_tdm_api_dev_t *tdm_api, int state);
 
 static void wp_tdmapi_rbsbits(void* card_id, int channel, unsigned char rbsbits);
 static void wp_tdmapi_alarms(void* card_id, unsigned long alarams);
@@ -226,10 +227,11 @@ static struct cdev wptdm_cdev = {
 	.owner	=	THIS_MODULE,
 };
 
+
 static int wp_tdmapi_reg_globals(void)
 {
 	int err=0;
-
+	
 	rx_gains=NULL;
 	tx_gains=NULL;
 	wan_spin_lock_init(&wp_tdmapi_hash_lock);
@@ -347,9 +349,9 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 	
 		if (tdm_api->cfg.idle_flag == 0) {
         		tdm_api->cfg.idle_flag=0xFF; 	
-		}
+		} 
 	}
-
+	
 	
 	tdm_api->critical=0;
 	wan_clear_bit(0,&tdm_api->used);
@@ -439,16 +441,15 @@ int wanpipe_tdm_api_update_state(wanpipe_tdm_api_dev_t *tdm_api, int state)
 		return -ENODEV;
 	}
 		
-	if (tdm_api->state != state) {
-		tdm_api->state = (u8)state;
+       	tdm_api->state = (u8)state;
+       	tdm_api->cfg.fe_alarms = (state == WAN_CONNECTED ? 0 : 1);
 
-		if (wan_test_bit(0,&tdm_api->used)) {
-			DEBUG_EVENT("%s: UPDATE STATE API\n",tdm_api->name);
+       	if (wan_test_bit(0,&tdm_api->used)) {
+       		wanpipe_tdm_api_fe_alarm_event(tdm_api,state);
 #if !defined(__WINDOWS__)		
-			wp_wakeup_tdmapi(tdm_api);
+       		wp_wakeup_tdmapi(tdm_api);
 #endif
-		}
-	}
+       	}
 	
 	return 0;
 }
@@ -478,6 +479,7 @@ static int wp_tdmapi_open(struct inode *inode, struct file *file)
 {
 	wanpipe_tdm_api_dev_t *tdm_api;
 	wan_smp_flag_t flags;
+
 	
 #if !defined(__WINDOWS__)
 	u32 tdm_span = WP_TDMAPI_GET_SPAN_FROM_MINOR(UNIT(file));
@@ -490,12 +492,12 @@ static int wp_tdmapi_open(struct inode *inode, struct file *file)
 	wan_spin_lock_irq(&wp_tdmapi_hash_lock,&flags);
 	tdm_api = wp_find_tdm_api_dev(wp_tdmapi_hash,
 #if !defined(__WINDOWS__)
-									UNIT(file),
+	       		UNIT(file),
 #else
-									(unsigned int)file,
+		      	(unsigned int)file,
 #endif
-									tdm_span,
-									tdm_chan);
+		       	tdm_span,
+		       	tdm_chan);
 
 	if (!tdm_api){
 		wan_spin_unlock_irq(&wp_tdmapi_hash_lock,&flags);
@@ -1020,6 +1022,7 @@ static unsigned int wp_tdmapi_poll(struct file *file, struct poll_table_struct *
 		/* Indicate an exception */
 		ret |= POLLPRI;
 	}
+
 	return ret; 
 }
 
@@ -1097,6 +1100,51 @@ static void wanpipe_tdm_api_rbs_poll(wanpipe_tdm_api_dev_t *tdm_api)
 #endif
 }
 
+static void wanpipe_tdm_api_fe_alarm_event(wanpipe_tdm_api_dev_t *tdm_api, int state)
+{
+	netskb_t       		*skb;
+	wp_tdm_api_rx_hdr_t	*rx_hdr = NULL;
+#if defined(__WINDOWS__)
+	wp_tdm_api_rx_hdr_t tdm_api_hdr;
+#endif
+
+	DEBUG_TEST("%s: TDM API State Event State=%i\n",
+			tdm_api->name, tdm_api->state);
+
+#if defined(__WINDOWS__)
+	rx_hdr = &tdm_api_hdr;
+#else
+	if (wan_skb_queue_len(&tdm_api->wp_event_list) > WP_TDM_MAX_EVENT_Q_LEN) {	
+		return;
+	}
+	skb=wan_skb_alloc(sizeof(wp_tdm_api_rx_hdr_t));
+	if (skb == NULL) { 
+		return;
+	}
+	rx_hdr=(wp_tdm_api_rx_hdr_t*)wan_skb_put(skb,sizeof(wp_tdm_api_rx_hdr_t));
+#endif/* #if !defined(__WINDOWS__) */
+				
+	memset(rx_hdr,0,sizeof(wp_tdm_api_rx_hdr_t));
+	if (state == WAN_CONNECTED) {
+		rx_hdr->wp_tdm_api_event_fe_alarm = 0;
+	} else {
+         	rx_hdr->wp_tdm_api_event_fe_alarm = 1;
+	}
+	rx_hdr->wp_tdm_api_event_type = WP_TDM_EVENT_FE_ALARM;
+
+#if 0
+	/* FIXME: NENAD TO ADD Timestamp  */
+	rx_hdr->event_time_stamp = gettimeofday();
+#endif					
+	rx_hdr->wp_tdm_api_event_channel = (u_int16_t)tdm_api->tdm_chan + 1;
+#if defined(__WINDOWS__)
+	aft_te1_insert_tdm_api_event_in_to_rx_queue(tdm_api, rx_hdr);
+	queue_tdm_api_rx_dpc(tdm_api);
+#else
+	wan_skb_queue_tail(&tdm_api->wp_event_list,skb);
+#endif
+}        
+
 #if !defined(__WINDOWS__) 
 static 
 #endif
@@ -1108,7 +1156,6 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 	wanpipe_codec_ops_t *wp_codec_ops;
 	netskb_t *skb;
 	wan_event_ctrl_t	event_ctrl;
-	sdla_t *card = (sdla_t*)tdm_api->card;  
 
 	utdmapi = (wanpipe_tdm_api_cmd_t*)ifr->ifr_data;
 	
@@ -1132,7 +1179,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 #endif
 	cmd=usr_tdm_api.cmd;
 
-	DEBUG_TEST("%s: TDM API CMD: %i\n",tdm_api->name,cmd);
+	DEBUG_TDMAPI("%s: TDM API CMD: %i\n",tdm_api->name,cmd);
 
 	wan_spin_lock(&tdm_api->lock);
 
@@ -1141,6 +1188,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		case SIOC_WP_TDM_GET_USR_MTU_MRU:
 		case SIOC_WP_TDM_GET_STATS:
 		case SIOC_WP_TDM_GET_FULL_CFG:
+		case SIOC_WP_TDM_READ_EVENT:
 			break;
 		default:
 			DEBUG_EVENT("%s: Invalid TDM API HDLC CMD %i\n", tdm_api->name,cmd);
@@ -1197,7 +1245,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 			goto tdm_api_exit;
 		}
 
-		if ((int)usr_tdm_api.tdm_codec < 0 || usr_tdm_api.tdm_codec >= WP_TDM_CODEC_MAX){
+		if (usr_tdm_api.tdm_codec >= WP_TDM_CODEC_MAX){
 			err = -EINVAL;
 			goto tdm_api_exit;
 		} 
@@ -1269,24 +1317,6 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		}		 
 		break;
 
-	case SIOC_WP_TDM_ENABLE_HWEC:
-		if (card->wandev.ec_enable) {
-			wan_smp_flag_t smp_flags1;
-			card->hw_iface.hw_lock(card->hw,&smp_flags1);   
-                	card->wandev.ec_enable(card, 1, tdm_api->tdm_chan-1);
-			card->hw_iface.hw_unlock(card->hw,&smp_flags1);   
-		}
-		break;
-
-	case SIOC_WP_TDM_DISABLE_HWEC:
-		if (card->wandev.ec_enable) {   
-			wan_smp_flag_t smp_flags1;
-			card->hw_iface.hw_lock(card->hw,&smp_flags1);   
-                	card->wandev.ec_enable(card, 0, tdm_api->tdm_chan-1);
-			card->hw_iface.hw_unlock(card->hw,&smp_flags1);   
-		}
-		break;	
-
 	case SIOC_WP_TDM_GET_EC_TAP:
 		usr_tdm_api.ec_tap = tdm_api->cfg.ec_tap;
 		break;
@@ -1323,7 +1353,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		event_ctrl.mode		= WAN_EVENT_ENABLE;
 		event_ctrl.ts_map	= tdm_api->active_ch;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
 		}
 		break;
 		
@@ -1336,7 +1366,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		event_ctrl.mode		= WAN_EVENT_DISABLE;
 		event_ctrl.ts_map	= tdm_api->active_ch;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
 		}
 		break;
 				
@@ -1347,9 +1377,9 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type		= WAN_EVENT_RM_DTMF;	
 		event_ctrl.mode		= WAN_EVENT_ENABLE;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
 		}
 		break;
 	case SIOC_WP_TDM_DISABLE_RM_DTMF_EVENTS:	
@@ -1359,9 +1389,9 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type		= WAN_EVENT_RM_DTMF;	
 		event_ctrl.mode		= WAN_EVENT_DISABLE;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
 		}
 		break;
 				
@@ -1372,9 +1402,13 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type		= WAN_EVENT_RM_LC;	
 		event_ctrl.mode		= WAN_EVENT_ENABLE;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
 		}
 		break;
 		
@@ -1384,10 +1418,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type		= WAN_EVENT_RM_LC;	
 		event_ctrl.mode		= WAN_EVENT_DISABLE;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	
 	case SIOC_WP_TDM_ENABLE_RING_DETECT_EVENTS:
@@ -1397,10 +1435,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type   	= WAN_EVENT_RM_RING_DETECT;
 		event_ctrl.mode		= WAN_EVENT_ENABLE;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	case SIOC_WP_TDM_DISABLE_RING_DETECT_EVENTS:
 		DEBUG_TDMAPI("%s: Disable Ring Detection Event on module %d!\n",
@@ -1409,10 +1451,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type   	= WAN_EVENT_RM_RING_DETECT;
 		event_ctrl.mode		= WAN_EVENT_DISABLE;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	
 	case SIOC_WP_TDM_ENABLE_RING_TRIP_DETECT_EVENTS:
@@ -1422,10 +1468,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type   	= WAN_EVENT_RM_RING_TRIP;
 		event_ctrl.mode		= WAN_EVENT_ENABLE;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	case SIOC_WP_TDM_DISABLE_RING_TRIP_DETECT_EVENTS:
 		DEBUG_TDMAPI("%s: Disable Ring Trip Detection Event on module %d!\n",
@@ -1434,10 +1484,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type   	= WAN_EVENT_RM_RING_TRIP;
 		event_ctrl.mode		= WAN_EVENT_DISABLE;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	
 	case SIOC_WP_TDM_TXSIG_KEWL:
@@ -1446,10 +1500,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 				tdm_api->tdm_chan);
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type   	= WAN_EVENT_RM_TXSIG_KEWL;	
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	
 	case SIOC_WP_TDM_EVENT_TXSIG_START:
@@ -1458,10 +1516,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 				tdm_api->tdm_chan);
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type		= WAN_EVENT_RM_TXSIG_START;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	case SIOC_WP_TDM_EVENT_TXSIG_OFFHOOK:
 		DEBUG_TDMAPI("%s: TX Signalling OFFHOOK for module %d!\n",
@@ -1469,10 +1531,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 				tdm_api->tdm_chan);
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type		= WAN_EVENT_RM_TXSIG_OFFHOOK;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	case SIOC_WP_TDM_EVENT_TXSIG_ONHOOK:
 		DEBUG_TDMAPI("%s: TX Signalling ONHOOK for module %d!\n",
@@ -1480,10 +1546,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 				tdm_api->tdm_chan);
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type   = WAN_EVENT_RM_TXSIG_ONHOOK;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	case SIOC_WP_TDM_EVENT_ONHOOKTRANSFER:
 		DEBUG_TDMAPI("%s: RM ONHOOKTRANSFER for module %d!\n",
@@ -1491,22 +1561,30 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 				tdm_api->tdm_chan);
 		memset(&event_ctrl, 0, sizeof(wan_event_ctrl_t));
 		event_ctrl.type   = WAN_EVENT_RM_ONHOOKTRANSFER;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		event_ctrl.ohttimer	= usr_tdm_api.event.wp_tdm_api_event_ohttimer;
 		if (tdm_api->event_ctrl){	
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 	case SIOC_WP_TDM_EVENT_SETPOLARITY:
 		DEBUG_EVENT("%s: RM SETPOLARITY for module %d!\n",
 				tdm_api->name, 
 				tdm_api->tdm_chan);
 		event_ctrl.type		= WAN_EVENT_RM_SETPOLARITY;
-		event_ctrl.mod_no	= tdm_api->tdm_chan;
+		event_ctrl.mod_no	= tdm_api->tdm_chan-1;
 		event_ctrl.polarity	= usr_tdm_api.event.wp_tdm_api_event_polarity;
 		if (tdm_api->event_ctrl){
-			tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
-		}
+			err = tdm_api->event_ctrl(tdm_api->chan, &event_ctrl);
+		} else {
+			DEBUG_EVENT("%s: Error: event_ctrl not supported!\n",
+				tdm_api->name); 
+			err = -EINVAL;
+		}       
 		break;
 		
 	case SIOC_WP_TDM_WRITE_RBS_BITS:
@@ -1579,6 +1657,10 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		
 		break;
 
+	case SIOC_WP_TDM_GET_FE_ALARMS:
+		usr_tdm_api.fe_alarms = (tdm_api->state == WAN_CONNECTED ? 0 : 1); 
+		break;
+
 	case SIOC_WP_TDM_SET_TX_GAINS:
 
 		if (usr_tdm_api.data_len && utdmapi->data) {
@@ -1598,8 +1680,9 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 			}
                 	
 #if defined(__WINDOWS__)
-#error "FIX API CMD"
-			memcpy(&_api, ifr, sizeof(wanpipe_tdm_api_cmd_t));
+//FIXME: implement
+//#error "FIX API CMD"
+//			memcpy(&_api, ifr, sizeof(wanpipe_tdm_api_cmd_t));
 #else
        			if (WAN_COPY_FROM_USER(tx_gains,
 					       utdmapi->data,
@@ -1866,7 +1949,9 @@ static wanpipe_tdm_api_dev_t *wp_tdmapi_search(sdla_t *card, int fe_chan)
 	for(i = 0; i < WP_TDMAPI_HASH_SZ; i++){
 		tdm_api = wp_tdmapi_hash[i];
 		
-		if (tdm_api->card != card) continue;
+		if (tdm_api == NULL || tdm_api->card != card){
+			continue;
+		}
 		if (wan_test_bit(fe_chan, &tdm_api->active_ch)){
 			return tdm_api;		 
 		}
@@ -1879,7 +1964,7 @@ static void wp_tdmapi_rbsbits(void* card_id, int channel, unsigned char rbsbits)
 {
 	sdla_t	*card = (sdla_t*)card_id;
 	
-	DEBUG_EVENT("ADBG> %s: Received RBS Event at TDM_API!\n",
+	DEBUG_EVENT("%s: Received RBS Event at TDM_API (not supported)!\n",
 					card->devname);
 	return;
 }
@@ -1888,7 +1973,7 @@ static void wp_tdmapi_alarms(void* card_id, unsigned long alarams)
 {
 	sdla_t	*card = (sdla_t*)card_id;
 	
-	DEBUG_EVENT("ADBG> %s: Received RBS Event at TDM_API!\n",
+	DEBUG_EVENT("%s: Received RBS Event at TDM_API (not supported)!\n",
 					card->devname);
 	return;
 }
@@ -1998,8 +2083,8 @@ static void wp_tdmapi_hook (void* card_id, wan_event_t *event)
 #endif
 
 	memset(rx_hdr,0,sizeof(wp_tdm_api_rx_hdr_t));
-	rx_hdr->wp_tdm_api_event_type			= WP_TDM_EVENT_RXHOOK;
-	rx_hdr->wp_tdm_api_event_channel		= (u_int16_t)event->channel;
+	rx_hdr->wp_tdm_api_event_type		= WP_TDM_EVENT_RXHOOK;
+	rx_hdr->wp_tdm_api_event_channel	= (u_int16_t)event->channel;
 	rx_hdr->wp_tdm_api_event_rxhook_state	= event->rxhook;
 
 #if 0

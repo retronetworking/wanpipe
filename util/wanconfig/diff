@@ -1,0 +1,139 @@
+--- wanconfig.c	2007-04-13 19:12:32.000000000 -0400
++++ /common/wantools/wanconfig/wanconfig.c	2007-04-18 14:57:19.000000000 -0400
+@@ -257,7 +257,7 @@
+ 
+ int show_status(void);
+ int show_config(void);
+-int show_hwprobe(void);
++int show_hwprobe(int);
+ int debugging(void);
+ int debug_read(void);
+ 
+@@ -298,6 +298,7 @@
+ void free_device_link(char *devname);
+ int device_syncup(char *devname);
+ void sig_func (int sigio);
++int start_chan (int dev, link_def_t *def);
+ int start_link (void);
+ int stop_link(void);
+ int exec_command(unsigned char *rx_data);
+@@ -470,6 +471,7 @@
+ 	DO_SHOW_STATUS,
+ 	DO_SHOW_CONFIG,
+ 	DO_SHOW_HWPROBE,
++	DO_SHOW_HWPROBE_VERBOSE,
+ 	DO_DEBUGGING,
+ 	DO_DEBUG_READ,
+ } action;				/* what to do */
+@@ -573,6 +575,8 @@
+   { "TDMV_OPERMODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, opermode_name), DTYPE_STR },
+   { "RM_BATTTHRESH",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battthresh), DTYPE_UINT },
+   { "RM_BATTDEBOUNCE",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battdebounce), DTYPE_UINT },
++  { "RM_EXTERNAL_SYNC",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, external_sync), DTYPE_UINT },
++  
+   
+   /* TDMV parameters */
+   { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UINT},
+@@ -586,7 +590,7 @@
+   { "MTU",        smemof(wandev_conf_t, mtu),         DTYPE_UINT },
+   { "UDPPORT",    smemof(wandev_conf_t, udp_port),    DTYPE_UINT },
+   { "TTL",	  smemof(wandev_conf_t, ttl),		DTYPE_UCHAR },
+-  { "INTERFACE",  smemof(wandev_conf_t, interface),   DTYPE_UCHAR },
++  { "INTERFACE",  smemof(wandev_conf_t, electrical_interface),   DTYPE_UCHAR },
+   { "CLOCKING",   smemof(wandev_conf_t, clocking),    DTYPE_UCHAR },
+   { "LINECODING", smemof(wandev_conf_t, line_coding), DTYPE_UCHAR },
+   { "CONNECTION", smemof(wandev_conf_t, connection),  DTYPE_UCHAR },
+@@ -1212,7 +1216,6 @@
+ 	{ WANCONFIG_AFT_TE1,    xilinx_conftab  },
+ 	{ WANCONFIG_AFT_ANALOG, xilinx_conftab  },
+ 	{ WANCONFIG_AFT_TE3,    xilinx_conftab  },
+-	{ WANCONFIG_AFT_56K,    xilinx_conftab  },
+ 	{ WANCONFIG_BITSTRM,    bitstrm_conftab },
+ 	{ WANCONFIG_SDLC,	sdlc_conftab 	},
+ 	{ 0,			NULL		}
+@@ -1228,7 +1231,6 @@
+ 	{ WANCONFIG_AFT_TE1,	xilinx_if_conftab },
+ 	{ WANCONFIG_AFT_TE3,    xilinx_if_conftab },
+ 	{ WANCONFIG_AFT_ANALOG, xilinx_if_conftab },
+-	{ WANCONFIG_AFT_56K,	xilinx_if_conftab },
+ 	{ WANCONFIG_ASYHDLC,	chdlc_conftab	},
+ 	{ 0,			NULL		}
+ };
+@@ -1278,7 +1280,6 @@
+ 	{ WANCONFIG_AFT_TE1,	"WAN_AFT_TE1"	},
+ 	{ WANCONFIG_AFT_ANALOG,	"WAN_AFT_ANALOG" },
+ 	{ WANCONFIG_AFT_TE3,	"WAN_AFT_TE3"	},
+-	{ WANCONFIG_AFT_56K,	"WAN_AFT_56K"	},
+ 	{ WANCONFIG_AFT,	"WAN_XILINX"	},
+ 	{ WANCONFIG_MFR,    	"WAN_MFR"   	},
+ 	{ WANCONFIG_DEBUG,    	"WAN_DEBUG"   	},
+@@ -1722,9 +1723,14 @@
+ 			}
+ 		
+ 			else if( strcmp( argv[optind], "hwprobe" ) == 0 ) {
+-				set_action(DO_SHOW_HWPROBE);
++				if ((optind + 1 < argc) && (strcmp( argv[optind+1], "verbose" ) == 0 )){
++					set_action(DO_SHOW_HWPROBE_VERBOSE);
++					optind++;
++				}else{
++					set_action(DO_SHOW_HWPROBE);
++				}
+ 			}
+-			
++		
+ 			else if( strcmp( argv[optind], "help" ) == 0 ) {
+ 				show_help();
+ 			}
+@@ -1799,7 +1805,8 @@
+ 		break;
+ 
+ 	case DO_SHOW_HWPROBE:
+-		return show_hwprobe();
++	case DO_SHOW_HWPROBE_VERBOSE:
++		return show_hwprobe(action);
+ 		break;
+ 
+ 	case DO_DEBUGGING:
+@@ -4663,7 +4670,7 @@
+ 	return err;
+ }
+ 
+-int show_hwprobe(void)
++int show_hwprobe(int action)
+ {
+ 	int 	err = 0;
+ 
+@@ -4680,7 +4687,8 @@
+ 	memset(&procfs, 0, sizeof(wan_procfs_t));
+ 	procfs.magic 	= ROUTER_MAGIC;
+ 	procfs.max_len 	= 2048;
+-	procfs.cmd	= WANPIPE_PROCFS_HWPROBE;
++	procfs.cmd	= (action == DO_SHOW_HWPROBE) ? 
++					WANPIPE_PROCFS_HWPROBE : WANPIPE_PROCFS_HWPROBE_VERBOSE ;
+ 	procfs.data	= malloc(2048);
+ 	if (procfs.data == NULL){
+ 		 show_error(ERR_SYSTEM);
+@@ -4971,6 +4979,7 @@
+ 
+ #if defined(WAN_HWEC)	
+ 
++
+ #define WAN_EC_PID	"/etc/wanpipe/wan_ec/wan_ec_pid"
+ #define WAN_EC_DIR      "/etc/wanpipe/wan_ec"
+ 
+@@ -4978,6 +4987,7 @@
+ {
+ 	int	status;
+ 	char	cmd[100];
++#if defined(__LINUX__)
+ 	DIR 	*dir;
+ 
+ 	dir = opendir(WAN_EC_DIR);
+@@ -4987,6 +4997,7 @@
+         }
+ 
+ 	closedir(dir);
++#endif
+ 
+ 	/*HW_EC*/
+ 	sprintf(cmd, "wan_ec_client %s config", devname);

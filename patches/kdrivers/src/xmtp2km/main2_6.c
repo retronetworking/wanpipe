@@ -186,7 +186,6 @@ int xmtp2km_ioctl(struct inode *inode, struct file *filp,
 			ret = xmtp2km_ioctl_pwr_on (cmd, arg);
 			break;
 		case XMTP2KM_IOCS_EMERGENCY:
-		case XMTP2KM_IOCS_EMERGENCY_CEASES:
 			//printk ("%s ptr %u size %u\n", __FUNCTION__, (unsigned int)((void __user *)arg), _IOC_SIZE(cmd));
 			ret = xmtp2km_ioctl_emergency (cmd, arg);
 			break;

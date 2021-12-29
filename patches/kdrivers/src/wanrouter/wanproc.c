@@ -700,7 +700,9 @@ static int interfaces_get_info(char* buf, char** start, off_t offs, int len, int
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			
-			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
+			if (!dev ||
+			    !(wan_netif_flags(dev)&IFF_UP) ||
+			    !wan_netif_priv(dev)){ 
 				continue;
 			}
 
@@ -758,7 +760,7 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
 	PROC_ADD_LINE(m,
-		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n",
+		"\nCard Cnt: S508=%-2d S514X=%-2d S518=%-2d A101-2=%-2d A104=%-2d A300=%-2d A200=%-2d A108=%-2d\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
@@ -766,10 +768,7 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 		hw_cnt->aft104_adapters,
 		hw_cnt->aft300_adapters,
 		hw_cnt->aft200_adapters,
-		hw_cnt->aft108_adapters,
-		hw_cnt->aft_56k_adapters
-		);
-
+		hw_cnt->aft108_adapters);
 #ifdef WAN_DEBUG_MEM
 	PROC_ADD_LINE(m,
 		
@@ -1467,8 +1466,8 @@ static ssize_t router_proc_read(struct file* file, char* buf, size_t count,
 
 	if (count <= 0)
 		return 0;
-
-#if defined(WANPIPE_USE_I_PRIVATE)
+	
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
 	dent = inode->i_private;
 #else
 	dent = inode->u.generic_ip;
@@ -1522,9 +1521,8 @@ static ssize_t router_proc_write (struct file *file, const char *buf, size_t cou
 
 	if (count <= 0)
 		return 0;
-
-
-#if defined(WANPIPE_USE_I_PRIVATE)
+		
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
         dent = inode->i_private;
 #else
         dent = inode->u.generic_ip;
@@ -1817,7 +1815,7 @@ static int device_write(
 
         if (err) return err;
 
-#if defined(WANPIPE_USE_I_PRIVATE)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
         dent = inode->i_private;
 #else
         dent = inode->u.generic_ip;

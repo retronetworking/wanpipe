@@ -142,7 +142,7 @@ static int update_comms_stats(sdla_t* card,
 static void port_set_state (sdla_t *card, int);
 
 /* Interrupt handlers */
-static void wp_sdlc_isr (sdla_t* card);
+static WAN_IRQ_RETVAL wp_sdlc_isr (sdla_t* card);
 static void rx_intr (sdla_t* card);
 static void tx_intr(sdla_t *card);
 static void timer_intr(sdla_t *);
@@ -1311,7 +1311,7 @@ static int sdlc_error (sdla_t *card, int err, wan_mbox_t *mb)
 /*============================================================================
  * Cisco HDLC interrupt service routine.
  */
-static void wp_sdlc_isr (sdla_t* card)
+static WAN_IRQ_RETVAL wp_sdlc_isr (sdla_t* card)
 {
 	netdevice_t* dev;
 	INTERRUPT_INFORMATION_STRUCT flags;
@@ -1383,6 +1383,7 @@ static void wp_sdlc_isr (sdla_t* card)
 isr_done:
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
 	card->in_isr = 0;
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 }
 
 static unsigned char station_list[500];

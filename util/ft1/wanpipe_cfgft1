@@ -1,149 +1,4 @@
 #!/bin/bash -p
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #====================================================================
 # CFGFT1
 #
@@ -1706,12 +1561,12 @@ write_config_file ()
 # Date: $date
 #
 # Note: This file was generated automatically
-#       by $WAN_BIN/$PROG_NAME program.
+#       by $WAN_BIN_DIR/$PROG_NAME program.
 #
 #       This file represents you latest CSU/DSU
 #       configuration.  To reconfigure your 
 #       CSU/DSU please run the
-#       $WAN_BIN/$PROG_NAME again.
+#       $WAN_BIN_DIR/$PROG_NAME again.
 #================================================
 # Sangoma Technologies Inc.
 #================================================
@@ -1733,11 +1588,11 @@ EOM
 
 OSYSTE=`uname -s`
 PROG_NAME=wanpipe_cfgft1
-WAN_BIN=/usr/sbin
+WAN_BIN_DIR=/usr/sbin
 ROUTER_PROC=/proc/net/wanrouter
 WAN_HOME=/etc/wanpipe
 FT1_CONF=$(pwd)/FT1_CONFIG
-WAN_FT1EXEC=$WAN_BIN/wanpipe_ft1exec
+WAN_FT1EXEC=$WAN_BIN_DIR/wanpipe_ft1exec
 WANROUTER=wanrouter
 RC=$(pwd)/return_code
 GET_RC="cat $RC"
@@ -1787,7 +1642,7 @@ backtitle="FT1 Configuration Utility"
 
 [ -f "$FT1_CONF" ] && rm -f $FT1_CONF 
 
-DIALOG=${DIALOG=$WAN_BIN/wanpipe_lxdialog}
+DIALOG=${DIALOG=$WAN_BIN_DIR/wanpipe_lxdialog}
 
 check_dialog
 

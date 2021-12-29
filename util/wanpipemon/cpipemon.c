@@ -1035,6 +1035,9 @@ static int aft_digital_loop_test( void )
 		usleep(500000);
 		fflush(stdout);
 		
+		if (passnum >= 10) {
+			break;
+		}		
 	}
 
 loop_rx_exit:
@@ -1841,7 +1844,7 @@ set_FT1_monitor_status(0x00);
 			}else if (!strcmp(opt,"sdlb")){
 				set_lb_modes(WAN_TE1_TX_LB_MODE, WAN_TE1_DEACTIVATE_LB);
 			}else if (!strcmp(opt,"a")){
-				read_te1_56k_stat();
+				read_te1_56k_stat(0);
 			} else{
 				printf("ERROR: Invalid FT1/T1/E1 Command 'T'\n");
 				printf("ERROR: Type %s <cr> for help\n\n", progname);

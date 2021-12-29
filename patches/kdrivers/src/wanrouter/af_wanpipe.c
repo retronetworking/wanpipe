@@ -2065,11 +2065,11 @@ int __init af_wanpipe_init(void)
 	struct wanpipe_api_register_struct wan_api_reg; 
 
 	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta%s-%s %s %s\n",
-			fullname, WANPIPE_SUB_VERSION, WANPIPE_VERSION,
+		DEBUG_EVENT("%s Beta %s.%s %s %s\n",
+			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES, WANPIPE_COMPANY);
 	}else{
-		DEBUG_EVENT("%s Stable %s-%s %s %s\n",
+		DEBUG_EVENT("%s Stable %s.%s %s %s\n",
 			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES, WANPIPE_COMPANY);
 	}

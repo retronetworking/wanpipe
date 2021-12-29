@@ -6,6 +6,14 @@
 
 #include <linux/version.h>
 
+# if defined (__BIG_ENDIAN_BITFIELD) 
+# define WAN_BIG_ENDIAN 1
+# undef  WAN_LITTLE_ENDIAN
+# else
+# undef  WAN_BIG_ENDIAN 
+# define WAN_LITTLE_ENDIAN 1
+# endif 
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,9) 
 # define MODULE_LICENSE(a)
 #endif
@@ -63,7 +71,13 @@
                                  }\
                             }
 
- #define WAN_IRQ_RETVAL(a) 	return a
+ #define WAN_IRQ_CALL(fn,args,ret)	ret = fn args
+ #define WAN_IRQ_RETURN(a) 		return a
+ #define WAN_IRQ_RETVAL			irqreturn_t
+ #define WAN_IRQ_RETVAL_DECL(ret)	irqreturn_t ret = WAN_IRQ_NONE
+ #define WAN_IRQ_RETVAL_SET(ret, val)	ret = val
+ #define WAN_IRQ_HANDLED 		IRQ_HANDLED
+ #define WAN_IRQ_NONE	 		IRQ_NONE
 
  #define mark_bh(a)
 
@@ -155,16 +169,18 @@
                                  }\
                             }
 
- #define WAN_IRQ_RETVAL(a)	return
- #ifndef IRQ_NONE
- # define IRQ_NONE	(0)
+ #define WAN_IRQ_CALL(fn,args,ret)	fn args
+ #define WAN_IRQ_RETURN(a)		return
+ #define WAN_IRQ_RETVAL			void
+ #define WAN_IRQ_RETVAL_DECL(ret)
+ #define WAN_IRQ_RETVAL_SET(ret, val)
+ #ifndef WAN_IRQ_NONE
+ # define WAN_IRQ_NONE	(0)
  #endif
 
- #ifndef IRQ_HANDLED
- # define IRQ_HANDLED	(1)
+ #ifndef WAN_IRQ_HANDLED
+ # define WAN_IRQ_HANDLED	(1)
  #endif
-
- #define irqreturn_t    void
 
  #define wan_clear_bit(a,b)  	    clear_bit((a),(b))
  #define wan_set_bit(a,b)    	    set_bit((a),(b))
@@ -174,11 +190,11 @@
 
  static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
  {
-#if defined(WANPIPE_USE_I_PRIVATE)
-        return (struct proc_dir_entry *)inode->i_private;
-#else
-        return (struct proc_dir_entry *)inode->u.generic_ip;
-#endif
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+ 	 return (struct proc_dir_entry *)inode->u.generic_ip;
+ #else
+ 	 return (struct proc_dir_entry *)inode->i_private;
+ #endif
  }
 
  #define wp_rcu_read_lock(in_dev)     read_lock_bh(&in_dev->lock) 
@@ -313,17 +329,20 @@
  #define ADMIN_CHECK()  {if (!capable(CAP_SYS_ADMIN)) return -EPERM;}
  #define NET_ADMIN_CHECK()  {if (!capable(CAP_NET_ADMIN)) return -EPERM;}
 
- #define WAN_IRQ_RETVAL(a)      return
- #ifndef IRQ_NONE
- # define IRQ_NONE      (0)
+ #define WAN_IRQ_CALL(fn,args,ret)	fn args
+ #define WAN_IRQ_RETURN(a)      	return
+ #define WAN_IRQ_RETVAL			void
+ #define WAN_IRQ_RETVAL_DECL(ret)
+ #define WAN_IRQ_RETVAL_SET(ret, val)
+ #ifndef WAN_IRQ_NONE
+ # define WAN_IRQ_NONE      (0)
  #endif
 
- #ifndef IRQ_HANDLED
- # define IRQ_HANDLED   (1)
+ #ifndef WAN_IRQ_HANDLED
+ # define WAN_IRQ_HANDLED   (1)
  #endif
 
  typedef unsigned long mm_segment_t;
- #define irqreturn_t    void
 
  #ifndef INIT_WORK
  # define INIT_WORK INIT_TQUEUE
@@ -337,11 +356,11 @@
 
  static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
  {
-#if defined(WANPIPE_USE_I_PRIVATE)
-        return (struct proc_dir_entry *)inode->i_private;
-#else
-        return (struct proc_dir_entry *)inode->u.generic_ip;
-#endif
+ #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
+	 return (struct proc_dir_entry *)inode->u.generic_ip;
+ #else
+	 return (struct proc_dir_entry *)inode->i_private;
+ #endif	
  }
 
 #else
@@ -353,11 +372,11 @@
 
  static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
  {
-#if defined(WANPIPE_USE_I_PRIVATE)
+ #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
         return (struct proc_dir_entry *)inode->i_private;
-#else
+ #else
         return (struct proc_dir_entry *)inode->u.generic_ip;
-#endif
+ #endif	
  }
 
  #define test_and_set_bit set_bit
@@ -413,17 +432,21 @@
 	return 0;
  }
 
- #define WAN_IRQ_RETVAL(a)      return
- #ifndef IRQ_NONE
- # define IRQ_NONE      (0)
+ #define WAN_IRQ_CALL(fn,args,ret)	fn args
+ #define WAN_IRQ_RETURN(a)      	return
+ #define WAN_IRQ_RETVAL			void
+ #define WAN_IRQ_RETVAL_DECL(ret)
+ #define WAN_IRQ_RETVAL_SET(ret, val)
+ 
+ #ifndef WAN_IRQ_NONE
+ # define WAN_IRQ_NONE      (0)
  #endif
-
- #ifndef IRQ_HANDLED
- # define IRQ_HANDLED   (1)
+ 
+ #ifndef WAN_IRQ_HANDLED
+ # define WAN_IRQ_HANDLED   (1)
  #endif
 
  typedef unsigned long mm_segment_t;
- #define irqreturn_t    void
 
 #endif
 

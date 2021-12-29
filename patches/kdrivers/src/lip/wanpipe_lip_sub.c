@@ -11,7 +11,7 @@ extern wan_iface_t wan_iface;
  * Funciton Prototypes
  */
 
-static netdevice_t *wplip_create_netif(char *dev_name, int iftype);
+static netdevice_t *wplip_create_netif(char *dev_name, int usedby);
 static int wplip_free_netif(netdevice_t *dev);
 static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int iftype);
 static void wplip_unregister_netif(netdevice_t *dev, wplip_dev_t *lip_dev);
@@ -259,9 +259,9 @@ int wplip_lipdev_latency_change(wplip_link_t *lip_link)
  *	x25_register 
  */
 
-wplip_dev_t *wplip_create_lipdev(char *dev_name, int iftype)
+wplip_dev_t *wplip_create_lipdev(char *dev_name, int usedby)
 {
-	wplip_dev_t *lip_dev;
+	wplip_dev_t	*lip_dev;
 
 	lip_dev=wan_kmalloc(sizeof(wplip_dev_t));
 	if (lip_dev == NULL){
@@ -272,8 +272,8 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int iftype)
 	
 	lip_dev->magic=WPLIP_MAGIC_DEV;
 	lip_dev->common.state = WAN_DISCONNECTED;
-	lip_dev->common.usedby = iftype;
-	strncpy(lip_dev->name,dev_name,MAX_PROC_NAME);
+	lip_dev->common.usedby = usedby;
+	strncpy(lip_dev->name,dev_name,MAX_PROC_NAME); 
 
 	/* FIXME: No Entry Intializer */	
 	/*WPLIP_INIT_LIST_HEAD(&lip_dev->list_entry);*/
@@ -282,19 +282,18 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int iftype)
 
 	wan_atomic_set(&lip_dev->refcnt,0);
 
-	lip_dev->common.dev=wplip_create_netif(dev_name, iftype);	
+	lip_dev->common.dev=wplip_create_netif(dev_name, usedby);
 	if (!lip_dev->common.dev){
 		wan_free(lip_dev);
 		return NULL;
 	}
 
-	if (wplip_register_netif(lip_dev->common.dev, lip_dev, iftype)){
+	if (wplip_register_netif(lip_dev->common.dev, lip_dev, usedby)){
 		wplip_free_netif(lip_dev->common.dev);	
 		lip_dev->common.dev=NULL;
 		wan_free(lip_dev);
 		return NULL;
 	}
-
 
 	
 	WAN_DEV_HOLD(lip_dev);
@@ -444,12 +443,17 @@ unsigned int dec_to_uint (unsigned char* str, int len)
  */
 
 
-static netdevice_t *wplip_create_netif(char *dev_name, int iftype)
+static netdevice_t *wplip_create_netif(char *dev_name, int usedby)
 {
-	netdevice_t *dev;
-	int err;
+	netdevice_t	*dev;
+	int		iftype = WAN_IFT_OTHER;
+	int		err;
 
-	dev = wan_netif_alloc(dev_name, WAN_IFT_OTHER, &err);
+#if defined(__OpenBSD__)
+	if (usedby == TRUNK) iftype = WAN_IFT_ETHER;
+#endif	
+	
+	dev = wan_netif_alloc(dev_name, iftype, &err);
 	if (dev == NULL){
 		return NULL;
 	}
@@ -480,7 +484,7 @@ static int wplip_free_netif(netdevice_t *dev)
 }
 
 
-static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int iftype)
+static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int usedby)
 {
 	int err = -EINVAL;
 
@@ -491,8 +495,9 @@ static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int ifty
 	 * both dev and lip_dev */
 	lip_dev->common.is_netdev = 1;
 
-	if (iftype == BRIDGE ||
-            iftype == BRIDGE_NODE){
+	if (usedby == BRIDGE ||
+            usedby == BRIDGE_NODE ||
+            usedby == TRUNK){
 		if (wan_iface.attach_eth){
 			err = wan_iface.attach_eth(dev, NULL, lip_dev->common.is_netdev);
 		}
@@ -505,8 +510,6 @@ static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int ifty
 	if (err){
 		wan_netif_set_priv(dev, NULL);
 	}
-
-
 	return err;
 }
 

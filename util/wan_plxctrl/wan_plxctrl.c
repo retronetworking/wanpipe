@@ -180,7 +180,7 @@ unsigned char read_eeprom_status(void *info)
 }
 
 
-void wan_plxup_write_ebyte(void *info, unsigned char addr, unsigned char data)
+void wan_plxctrl_write_ebyte(void *info, unsigned char addr, unsigned char data)
 {
 	int	i = 0, eeCtl = 0;
 	
@@ -284,7 +284,7 @@ void wan_plxup_write_ebyte(void *info, unsigned char addr, unsigned char data)
 }
 
 
-unsigned char wan_plxup_read_ebyte(void *info, unsigned char addr)
+unsigned char wan_plxctrl_read_ebyte(void *info, unsigned char addr)
 {
 	int	i = 0, eeCtl = 0;
 	unsigned char	data;
@@ -353,6 +353,8 @@ unsigned char wan_plxup_read_ebyte(void *info, unsigned char addr)
 	PEX_8111Read(info, EECTL, &eeCtl);
 	data = (eeCtl >> 8) & 0xFF;
 	EE_Off(info); /* turn off EEPROM */
+	
+	sleep(1);	/* wait until PLX EEPROM finish write command */
 	return data;
 }
 

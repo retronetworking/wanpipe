@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1.h,v 1.47 2006/10/17 16:07:42 sangoma Exp $
+ *	$Id: sdla_te1.h,v 1.57 2007/04/04 16:25:49 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -122,6 +122,10 @@
 #define WAN_TE_BIT_LIU_ALARM_OC		0x0002
 #define WAN_TE_BIT_LIU_ALARM_LOS	0x0004
 
+/* T1/E1 statistics bit mask */
+#define WAN_TE_STATS_BIT_ALARM		0x0001
+#define WAN_TE_STATS_BIT_RXLEVEL	0x0002
+
 /* For T1 only */
 #define WAN_T1_LBO_0_DB		0x01
 #define WAN_T1_LBO_75_DB	0x02
@@ -189,20 +193,12 @@
 #define WAN_TE1_REFCLK_LINE3	0x03
 #define WAN_TE1_REFCLK_LINE4	0x04
 
-/* E1 signalling insertion mode */
-#define WAN_TE1_SIG_NONE	0x00	/* default */
-#define WAN_TE1_SIG_CCS		0x01	/* E1 CCS - default */
-#define WAN_TE1_SIG_CAS		0x02	/* E1 CAS */
-#define TE1SIG_DECODE(fe_cfg)                                   \
-                ((FE_SIG_MODE(fe_cfg)) == WAN_TE1_SIG_CCS) ? "CCS" :    \
-                ((FE_SIG_MODE(fe_cfg)) == WAN_TE1_SIG_CAS) ? "CAS" :    \
-                                                "Unknown"
-
 /* Loopback commands (T1.107-1995 p.44) */
 #define LINELB_TE1_TIMER	40	/* 40ms */
 #define LINELB_CODE_CNT		10	/* no. of repetitions for lb_code */
 #define LINELB_CHANNEL_CNT	10	/* no. of repetitions for channel */
-#define RBOC_CODE_YEL           0x00
+
+#define RBOC_CODE_YEL		0x00
 #define LINELB_ACTIVATE_CODE	0x07
 #define LINELB_DEACTIVATE_CODE	0x1C
 #define LINELB_DS3LINE		0x1B
@@ -248,6 +244,7 @@
 #define LINELB_CODE_BIT		0x04
 #define LINELB_CHANNEL_BIT	0x05
 #define TE_CONFIGURED		0x06
+#define TE_TIMER_EVENT_PENDING 	0x07
 
 /* TE1 timer flags (polling) */
 #define TE_LINELB_TIMER		0x01
@@ -260,7 +257,9 @@
 #define TE_SET_LB_MODE		0x08
 #define TE_RBS_ENABLE		0x09
 #define TE_RBS_DISABLE		0x0A
-#define TE_POLL_CFG		0x0B
+#define TE_POLL_CONFIG		0x0B
+#define TE_POLL_READ		0x0C
+#define TE_POLL_WRITE		0x0D
 
 /* TE1 T1/E1 interrupt setting delay */
 #define INTR_TE1_TIMER		150	/* 50 ms */
@@ -275,12 +274,12 @@
 #define IS_E1_CARD(card)	IS_E1_FEMEDIA(&(card)->fe)
 #define IS_TE1_CARD(card)	IS_TE1_FEMEDIA(&(card)->fe)
 
-#define FE_LBO(fe_cfg)		(fe_cfg)->cfg.te_cfg.lbo	
-#define FE_CLK(fe_cfg)		(fe_cfg)->cfg.te_cfg.te_clock	
-#define FE_REFCLK(fe_cfg)	(fe_cfg)->cfg.te_cfg.te_ref_clock	
-#define HIMPEDANCE_MODE(fe_cfg)	(fe_cfg)->cfg.te_cfg.high_impedance_mode
-#define FE_ACTIVE_CH(fe_cfg)	(fe_cfg)->cfg.te_cfg.active_ch
-#define FE_SIG_MODE(fe_cfg)	(fe_cfg)->cfg.te_cfg.sig_mode
+#define FE_LBO(fe_cfg)			(fe_cfg)->cfg.te_cfg.lbo	
+#define FE_CLK(fe_cfg)			(fe_cfg)->cfg.te_cfg.te_clock	
+#define FE_REFCLK(fe_cfg)		(fe_cfg)->cfg.te_cfg.te_ref_clock	
+#define FE_HIMPEDANCE_MODE(fe_cfg)	(fe_cfg)->cfg.te_cfg.high_impedance_mode
+#define FE_ACTIVE_CH(fe_cfg)		(fe_cfg)->cfg.te_cfg.active_ch
+#define FE_SIG_MODE(fe_cfg)		(fe_cfg)->cfg.te_cfg.sig_mode
 
 #define GET_TE_CHANNEL_RANGE(fe)				\
 	(IS_T1_FEMEDIA(fe) ? NUM_OF_T1_CHANNELS :\
@@ -328,8 +327,14 @@
 	(FE_LBO(fe_cfg) == WAN_E1_75)		? "75OH"      :	\
 							"Unknown"
 
-#define WAN_TE1_SIG_DECODE(fe) TE1SIG_DECODE(&((fe)->fe_cfg))
-
+/* E1 signalling insertion mode */
+#define WAN_TE1_SIG_NONE	0x00	/* default */
+#define WAN_TE1_SIG_CCS		0x01	/* E1 CCS - default */
+#define WAN_TE1_SIG_CAS		0x02	/* E1 CAS */
+#define TE1SIG_DECODE(fe_cfg)					\
+		((FE_SIG_MODE(fe_cfg)) == WAN_TE1_SIG_CCS) ? "CCS" :	\
+		((FE_SIG_MODE(fe_cfg)) == WAN_TE1_SIG_CAS) ? "CAS" :	\
+						"Unknown"
 
 /* Front-End UDP command */
 #define WAN_FE_GET_STAT		(WAN_FE_UDP_CMD_START + 0)
@@ -351,33 +356,40 @@
  * T1/E1 configuration structures.
  */
 typedef struct sdla_te_cfg {
-	unsigned char	lbo;
-	unsigned char	te_clock;
-	unsigned long	active_ch;
-	unsigned long	te_rbs_ch;
-	unsigned char	high_impedance_mode;
-	unsigned char	te_ref_clock;
-	unsigned char	sig_mode;
+	u_int8_t	lbo;
+	u_int8_t	te_clock;
+	u_int32_t	active_ch;
+	u_int32_t	te_rbs_ch;
+	u_int8_t	high_impedance_mode;
+	u_int8_t	te_ref_clock;
+	u_int8_t	sig_mode;
 } sdla_te_cfg_t;
 
 /* Performamce monitor counters */
 typedef struct {
-	unsigned char	mask;
-	unsigned int	lcv_errors;	/* Line code violation (T1/E1) */
-	unsigned short	lcv_diff;
-	unsigned int	bee_errors;	/* Bit errors (T1) */
-	unsigned short	bee_diff;
-	unsigned int	oof_errors;	/* Frame out of sync (T1) */
-	unsigned short	oof_diff;
-	unsigned int	crc4_errors;	/* CRC4 errors (E1) */
-	unsigned short	crc4_diff;
-	unsigned int	fas_errors;	/* Frame Aligment Signal (E1)*/
-	unsigned short	fas_diff;
-	unsigned int	feb_errors;	/* Far End Block errors (E1) */
-	unsigned short	feb_diff;
-	unsigned int	fer_errors;	/* Framing bit errors (T1) */
-	unsigned short	fer_diff;
+	u_int16_t	mask;
+	u_int32_t	lcv_errors;	/* Line code violation (T1/E1) */
+	u_int16_t	lcv_diff;
+	u_int32_t	bee_errors;	/* Bit errors (T1) */
+	u_int16_t	bee_diff;
+	u_int32_t	oof_errors;	/* Frame out of sync (T1) */
+	u_int16_t	oof_diff;
+	u_int32_t	crc4_errors;	/* CRC4 errors (E1) */
+	u_int16_t	crc4_diff;
+	u_int32_t	fas_errors;	/* Frame Aligment Signal (E1)*/
+	u_int16_t	fas_diff;
+	u_int32_t	feb_errors;	/* Far End Block errors (E1) */
+	u_int16_t	feb_diff;
+	u_int32_t	fer_errors;	/* Framing bit errors (T1) */
+	u_int16_t	fer_diff;
 } sdla_te_pmon_t;
+
+#define WAN_TE_RXLEVEL_LEN	20
+typedef struct {
+	u_int16_t	mask;
+	sdla_te_pmon_t	pmon;
+	char		rxlevel[WAN_TE_RXLEVEL_LEN];
+} sdla_te_stats_t;
 
 /*
  ******************************************************************************
@@ -393,12 +405,14 @@ typedef struct {
 #define WAN_TE1_LBO(fe)		FE_LBO(&((fe)->fe_cfg))
 #define WAN_TE1_CLK(fe)		FE_CLK(&((fe)->fe_cfg))
 #define WAN_TE1_REFCLK(fe)	FE_REFCLK(&((fe)->fe_cfg))
-#define WAN_TE1_HI_MODE(fe)	HIMPEDANCE_MODE(&((fe)->fe_cfg))
+#define WAN_TE1_HI_MODE(fe)	FE_HIMPEDANCE_MODE(&((fe)->fe_cfg))
 #define WAN_TE1_ACTIVE_CH(fe)	FE_ACTIVE_CH(&((fe)->fe_cfg))
 #define WAN_TE1_SIG_MODE(fe)	FE_SIG_MODE(&((fe)->fe_cfg))
 
 #define TE_LBO_DECODE(fe)	LBO_DECODE(&((fe)->fe_cfg))
 #define TE_CLK_DECODE(fe)	TECLK_DECODE(&((fe)->fe_cfg))
+
+#define WAN_TE1_SIG_DECODE(fe)	TE1SIG_DECODE(&((fe)->fe_cfg))
 
 /* Read/Write to front-end register */
 #if 0
@@ -473,6 +487,15 @@ typedef struct {
 #pragma pack()
 
 typedef struct {
+	unsigned long	ch_map;
+	int 		rbs_channel;	/* tx rbs per channel */
+	unsigned char	rbs_abcd;	/* tx rbs pec channel */
+	unsigned char	lb_type;	/* loopback type */	
+	unsigned short	reg;		/* fe register */	
+	unsigned char	value;		/* fe register value */	
+} sdla_te_event_t;
+
+typedef struct {
 	unsigned char	lb_cmd;
 	unsigned long	lb_time;
 	
@@ -482,11 +505,12 @@ typedef struct {
 	unsigned char	lb_rx_code;
 	
 	unsigned char	critical;
-	wan_timer_t	timer;
-	unsigned char	timer_cmd;
-	unsigned long	timer_ch_map;
-	int 		timer_channel;	/* tx rbs per channel */
-	unsigned char	timer_abcd;	/* tx rbs pec channel */
+	
+	//unsigned char	timer_cmd;
+	//unsigned long	timer_ch_map;
+	//int 		timer_channel;	/* tx rbs per channel */
+	//int		timer_delay;
+	//unsigned char	timer_abcd;	/* tx rbs pec channel */
 		
 	unsigned char	SIGX_chg_30_25;
 	unsigned char	SIGX_chg_24_17;
@@ -520,6 +544,7 @@ typedef struct {
 	unsigned char	xlpg_scale;
 	
 	u_int16_t	status_cnt;
+	
 } sdla_te_param_t;
 
 

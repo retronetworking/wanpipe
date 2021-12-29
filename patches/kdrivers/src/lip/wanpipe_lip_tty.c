@@ -50,9 +50,18 @@ int wanpipe_tty_trigger_poll(wplip_link_t *lip_link)
 	return 0;
 }
 
-static void tty_poll_task (void* data)
+
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
+static void tty_poll_task (void *arg)
+# else
+static void tty_poll_task (struct work_struct *work)
+# endif
 {
-	wplip_link_t *lip_link = (wplip_link_t*)data;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+	wplip_link_t	*lip_link=(wplip_link_t *)container_of(work, wplip_link_t, tty_task_queue);
+#else
+	wplip_link_t	*lip_link=(wplip_link_t *)arg;
+#endif      
 	struct tty_struct *tty;
 	netskb_t *skb;
 	char fp=0;
@@ -331,7 +340,11 @@ static void wanpipe_tty_start(struct tty_struct *tty)
 }
 
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+static void wanpipe_tty_set_termios(struct tty_struct *tty, struct ktermios *old_termios)
+#else
 static void wanpipe_tty_set_termios(struct tty_struct *tty, struct termios *old_termios)
+#endif
 {
 	wplip_link_t *lip_link;
 

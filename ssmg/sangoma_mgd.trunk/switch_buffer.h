@@ -38,21 +38,6 @@
 #ifndef SMG_SWITCH_BUFFER_H
 #define SMG_SWITCH_BUFFER_H
 
-/*!
-  \brief Test for the existance of a flag on an arbitary object
-  \param obj the object to test
-  \param flag the or'd list of flags to test
-  \return true value if the object has the flags defined
-*/
-#define switch_test_flag(obj, flag) ((obj)->flags & flag)
-
-/*!
-  \brief Set a flag on an arbitrary object
-  \param obj the object to set the flags on
-  \param flag the or'd list of flags to set
-*/
-#define switch_set_flag(obj, flag) (obj)->flags |= (flag)
-
 
 
 /**
@@ -64,29 +49,17 @@
  * @{
  */
 
+typedef struct switch_buffer {
+	unsigned char *data;
+	int used;
+	int datalen;
+	unsigned int id;
+	pthread_mutex_t lock;
+}switch_buffer_t;
 
  
 #define switch_size_t int
-#define switch_status_t int
-#define SWITCH_DECLARE(_var_)  _var_
-#define SWITCH_STATUS_SUCCESS 0
-#define SWITCH_STATUS_MEMERR -1
-#define switch_byte_t unsigned char
-#define switch_size_t int
-#define switch_buffer_free switch_buffer_destroy
-
-typedef struct switch_buffer {
-	switch_byte_t *data;
-	switch_byte_t *head;
-	switch_size_t used;
-	switch_size_t actually_used;
-	switch_size_t datalen;
-	switch_size_t max_len;
-	switch_size_t blocksize;
-	uint32_t flags;
-	uint32_t id;
-	int32_t loops;
-}switch_buffer_t;
+#define SWITCH_DECLARE(_var_) static _var_
 
 //#define assert(_cond_) if ((_cond_)) { printf("%s:%s: Assertion!\n"); return -EINVAL; }
 
@@ -96,34 +69,31 @@ typedef struct switch_buffer {
  * \param max_len length required by the buffer
  * \return status
  */
-SWITCH_DECLARE(switch_status_t) switch_buffer_create(switch_buffer_t **buffer, switch_size_t max_len);
+int switch_buffer_create(switch_buffer_t **buffer, switch_size_t max_len);
 
-/*! \brief Allocate a new dynamic switch_buffer 
- * \param buffer returned pointer to the new buffer
- * \param blocksize length to realloc by as data is added
- * \param start_len ammount of memory to reserve initially
- * \param max_len length the buffer is allowed to grow to
+/*! \brief Deallocate a  switch_buffer 
+ * \param buffer buffer pointer to be deallocated
  * \return status
  */
-SWITCH_DECLARE(switch_status_t) switch_buffer_create_dynamic(switch_buffer_t **buffer, switch_size_t blocksize, switch_size_t start_len, switch_size_t max_len);
+int switch_buffer_free(switch_buffer_t *buffer);
 
 /*! \brief Get the length of a switch_buffer_t 
  * \param buffer any buffer of type switch_buffer_t
  * \return int size of the buffer.
  */
-SWITCH_DECLARE(switch_size_t) switch_buffer_len(switch_buffer_t *buffer);
+int switch_buffer_len(switch_buffer_t *buffer);
 
 /*! \brief Get the freespace of a switch_buffer_t 
  * \param buffer any buffer of type switch_buffer_t
  * \return int freespace in the buffer.
  */
-SWITCH_DECLARE(switch_size_t) switch_buffer_freespace(switch_buffer_t *buffer);
+int switch_buffer_freespace(switch_buffer_t *buffer);
 
 /*! \brief Get the in use amount of a switch_buffer_t 
  * \param buffer any buffer of type switch_buffer_t
  * \return int ammount of buffer curently in use
  */
-SWITCH_DECLARE(switch_size_t) switch_buffer_inuse(switch_buffer_t *buffer);
+int switch_buffer_inuse(switch_buffer_t *buffer);
 
 /*! \brief Read data from a switch_buffer_t up to the ammount of datalen if it is available.  Remove read data from buffer. 
  * \param buffer any buffer of type switch_buffer_t
@@ -131,22 +101,7 @@ SWITCH_DECLARE(switch_size_t) switch_buffer_inuse(switch_buffer_t *buffer);
  * \param datalen amount of data to be returned
  * \return int ammount of data actually read
  */
-SWITCH_DECLARE(switch_size_t) switch_buffer_read(switch_buffer_t *buffer, void *data, switch_size_t datalen);
-
-/*! \brief Read data endlessly from a switch_buffer_t 
- * \param buffer any buffer of type switch_buffer_t
- * \param data pointer to the read data to be returned
- * \param datalen amount of data to be returned
- * \return int ammount of data actually read
- * \note Once you have read all the data from the buffer it will loop around.
- */
-SWITCH_DECLARE(switch_size_t) switch_buffer_read_loop(switch_buffer_t *buffer, void *data, switch_size_t datalen);
-
-/*! \brief Assign a number of loops to read
- * \param buffer any buffer of type switch_buffer_t
- * \param loops the number of loops (-1 for infinite)
- */
-SWITCH_DECLARE(void) switch_buffer_set_loops(switch_buffer_t *buffer, int32_t loops);
+int switch_buffer_read(switch_buffer_t *buffer, void *data, switch_size_t datalen);
 
 /*! \brief Write data into a switch_buffer_t up to the length of datalen
  * \param buffer any buffer of type switch_buffer_t
@@ -154,38 +109,20 @@ SWITCH_DECLARE(void) switch_buffer_set_loops(switch_buffer_t *buffer, int32_t lo
  * \param datalen amount of data to be written
  * \return int amount of buffer used after the write, or 0 if no space available
  */
-SWITCH_DECLARE(switch_size_t) switch_buffer_write(switch_buffer_t *buffer, const void *data, switch_size_t datalen);
+int switch_buffer_write(switch_buffer_t *buffer, void *data, switch_size_t datalen);
 
 /*! \brief Remove data from the buffer
  * \param buffer any buffer of type switch_buffer_t
  * \param datalen amount of data to be removed
  * \return int size of buffer, or 0 if unable to toss that much data
  */
-SWITCH_DECLARE(switch_size_t) switch_buffer_toss(switch_buffer_t *buffer, switch_size_t datalen);
+int switch_buffer_toss(switch_buffer_t *buffer, switch_size_t datalen);
 
 /*! \brief Remove all data from the buffer
  * \param buffer any buffer of type switch_buffer_t
  */
-SWITCH_DECLARE(void) switch_buffer_zero(switch_buffer_t *buffer);
-
-/*! \brief Destroy the buffer
- * \param buffer buffer to destroy
- * \note only neccessary on dynamic buffers (noop on pooled ones)
- */
-SWITCH_DECLARE(void) switch_buffer_destroy(switch_buffer_t **buffer);
-
+int switch_buffer_zero(switch_buffer_t *buffer);
 /** @} */
 
 
 #endif
-/* For Emacs:
- * Local Variables:
- * mode:c
- * indent-tabs-mode:t
- * tab-width:4
- * c-basic-offset:4
- * End:
- * For VIM:
- * vim:set softtabstop=4 shiftwidth=4 tabstop=4 expandtab:
- */
-

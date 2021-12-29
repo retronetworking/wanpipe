@@ -16,14 +16,16 @@ PROTOCOL_DEFINES = -DCONFIG_PRODUCT_WANPIPE_LIP_ATM
 
 # Project file paths. Initilize to compile in develpment environment.
 # Changed when Setup script is running.
-SYSINC	= ../../patches/kdrivers/include
+SYSINC=/lib/modules/$(shell uname -r)/build/include
 WAN_VIRTUAL=
 ENABLE_ZAPTEL_PARSER=
 ZAPINC=/usr/src/zaptel
 
 # Tools options.
-CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(SYSINC) -I. \
-         -D__LINUX__ -DSTATIC_LIBS= $(GD_STATIC) $(OGR_STATIC) $(PROTOCOL_DEFINES)
+#CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(SYSINC) -I. \
+         -D__LINUX__ -DSTATIC_LIBS=$(GD_STATIC) $(OGR_STATIC) $(PROTOCOL_DEFINES)
+
+CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__ -I$(SYSINC) $(PROTOCOL_DEFINES)
 
 #uncomment this to compile from CVS, also may change to your zaptel installation directory
 #CFLAGS += -I/usr/src/zaptel
@@ -76,7 +78,6 @@ menu_aft_logical_channel_cfg.cpp\
 net_interface_file_reader.cpp\
 menu_advanced_pci_configuration.cpp\
 menu_hardware_cpu_number.cpp\
-menu_hardware_select_comms_port.cpp\
 menu_wan_channel_cfg.cpp\
 menu_frame_relay_basic_cfg.cpp\
 menu_frame_relay_signalling.cpp\
@@ -95,7 +96,6 @@ menu_ppp_ip_mode.cpp\
 menu_ppp_select_authentication_protocol.cpp\
 menu_net_interfaces_list.cpp\
 menu_net_interface_setup.cpp\
-net_interface_file_reader.cpp\
 menu_net_interface_ip_configuration.cpp\
 menu_net_interface_operation_mode.cpp\
 menu_net_interface_miscellaneous_options.cpp\
@@ -132,9 +132,8 @@ endif
 all:	wancfg
 	@echo "Ok."
 
-wancfg: $(FILES)
-
-	$(CC) $(CFLAGS) -o $@ $^ -lfl -lm
+wancfg: 
+	$(CC) $(FILES) $(CFLAGS) -o $@ $^ -lfl -lm
 
 clean:
 	rm -f wancfg

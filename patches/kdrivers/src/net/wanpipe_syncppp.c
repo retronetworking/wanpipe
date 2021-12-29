@@ -35,8 +35,8 @@
  * Version 2.0, Fri Aug 30 09:59:07 EDT 2002
  * Version 2.1, Wed Mar 26 10:03:00 EDT 2003
  * 
- * $Id: wanpipe_syncppp.c,v 1.25 2006/09/28 17:21:40 sangoma Exp $
- * $Id: wanpipe_syncppp.c,v 1.25 2006/09/28 17:21:40 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.29 2007/02/28 02:01:05 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.29 2007/02/28 02:01:05 sangoma Exp $
  */
 
 /*
@@ -319,7 +319,11 @@ void sppp_proc_cleanup (void);
 static unsigned int sppp_keepalive_interval;
 static unsigned int sppp_max_keepalive_count;
 
-static void sppp_bh (void *);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+static void sppp_bh (void *sppp);
+#else
+static void sppp_bh (struct work_struct *work);
+#endif
 
 extern unsigned long wan_get_ip_address (netdevice_t *dev, int option);
 extern unsigned long wan_set_ip_address (netdevice_t *dev, int option, unsigned long ip);
@@ -2272,7 +2276,12 @@ void wp_sppp_attach(struct ppp_device *pd)
 	sp->local_ip=0;
 	sp->remote_ip=0;
 
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
 	INIT_WORK((&sp->sppp_task),sppp_bh,sp);
+#else
+	INIT_WORK((&sp->sppp_task),sppp_bh);
+#endif
 	sp->task_working=0;
 
 	/* 
@@ -3113,11 +3122,11 @@ static int __init sync_ppp_init(void)
 		debug=PP_DEBUG;
 
 	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta%s-%s %s %s\n",
-			fullname, WANPIPE_SUB_VERSION, WANPIPE_VERSION,
+		DEBUG_EVENT("%s Beta %s.%s %s %s\n",
+			fullname, WANPIPE_VERSION,       WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
 	}else{
-		DEBUG_EVENT("%s Stable %s-%s %s %s\n",
+		DEBUG_EVENT("%s Stable %s.%s %s %s\n",
 			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
 	}
@@ -3177,12 +3186,13 @@ static ssize_t router_proc_read(struct file* file, char* buf, size_t count,
 
 	if (count <= 0)
 		return 0;
-
-#if defined(WANPIPE_USE_I_PRIVATE)
-	dent = inode->i_private;
-#else	
-	dent = inode->u.generic_ip;
+		
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+        dent = inode->i_private;
+#else
+        dent = inode->u.generic_ip;
 #endif
+
 	if ((dent == NULL) || (dent->get_info == NULL)){
 		printk(KERN_INFO "NO DENT\n");
 		return 0;
@@ -3261,11 +3271,12 @@ static ssize_t router_proc_write(struct file *file, const char *buf, size_t coun
 	if (count <= 0 || count > PROC_BUFSZ)
 		return -EIO;
 		
-#if defined(WANPIPE_USE_I_PRIVATE)
-	dent = inode->i_private;
-#else	
-	dent = inode->u.generic_ip;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+	        dent = inode->i_private;
+#else
+	        dent = inode->u.generic_ip;
 #endif
+
 	if ((dent == NULL) || (dent->get_info == NULL))
 		return -EIO;
 
@@ -3505,13 +3516,26 @@ static char *decode_ipcp_state(int state)
 #endif
 
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
 static void sppp_bh (void *sp_ptr)
+#else
+static void sppp_bh (struct work_struct *work)
+#endif 
 {
+	struct net_device *dev;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+        struct sppp *sp = container_of(work, struct sppp, sppp_task);
+	dev=sp->pp_if;
+	if (!dev || !sp->dynamic_ip) {
+		return;
+	}	
+#else     
 	struct sppp *sp=sp_ptr;
-	struct net_device *dev=sp->pp_if;
+	dev=sp->pp_if;
 
 	if (!sp->dynamic_ip || !sp->pp_if)
 		return;
+#endif
 
 	if (test_and_set_bit(0,&sp->task_working)){
 		DEBUG_EVENT("%s: Critical in sppp bh!\n",dev->name);

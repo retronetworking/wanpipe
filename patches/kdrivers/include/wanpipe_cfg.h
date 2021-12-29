@@ -74,9 +74,9 @@
 #define WANOPT_AFT108		8
 #define WANOPT_AFT_X		9
 #define WANOPT_AFT102		10
+#define WANOPT_AFT_ISDN		11
 #define WANOPT_AFT_56K		12
 #define WANOPT_AFT101		13
-
 
 /*
  * Configuration options defines.
@@ -224,7 +224,8 @@ enum {
 	TDM_VOICE,
 	TDM_VOICE_DCHAN,
 	TDM_VOICE_API,
-	TDM_API
+	TDM_API,
+	TRUNK
 };
 
 /* POS protocols */
@@ -312,6 +313,7 @@ enum {
 		 card_type == WANOPT_AFT108) ?     "A101/1D/A102/2D/4/4D/8" :	\
 		(card_type == WANOPT_AFT300) ?     "A300"  :	\
 		(card_type == WANOPT_AFT_ANALOG) ? "A200/400"  :	\
+		(card_type == WANOPT_AFT_ISDN) ?   "A500"  :	\
 		(card_type == WANOPT_AFT_56K) ?    "A056"  :	\
 					"Unknown"
 
@@ -467,7 +469,7 @@ typedef struct wan_bitstrm_conf{
 	unsigned int  rx_complete_length;
 	unsigned int  rx_complete_timer;
 	
-	unsigned long rbs_map;
+	unsigned int  rbs_map;
 
 }wan_bitstrm_conf_t;
 
@@ -545,21 +547,27 @@ typedef struct wan_lip_fr_dlci
 	unsigned char	name[20];
 	unsigned int	down;
 	unsigned char 	type;
-}wan_fr_dlci_t;
+} wan_fr_dlci_t;
 
 typedef struct wan_xilinx_conf
 {
-	unsigned short dma_per_ch; 	/* DMA buffers per logic channel */
-	unsigned short mru;		/* MRU of transparent channels */
-	unsigned int   rbs;		/* Robbit signalling support */
-	unsigned int   data_mux_map;	/* Data mux map */
-	unsigned int   tdmv_span_no;
-	unsigned int   tdmv_dchan;	/* hwHDLC: PRI SIG */
-	unsigned int   rx_crc_bytes;
-	unsigned int   ec_clk_src;	/* Octasic Clock Source Port */
-	unsigned int   ec_persist_disable;	/* HW EC Persist */
-}wan_xilinx_conf_t;
-
+	unsigned short	dma_per_ch; 	/* DMA buffers per logic channel */
+	unsigned short	mru;		/* MRU of transparent channels */
+	unsigned int	rbs;		/* Robbit signalling support */
+	unsigned int	data_mux_map;	/* Data mux map */
+	//unsigned int	tdmv_span_no;
+	//unsigned int	tdmv_dchan;	/* hwHDLC: PRI SIG */
+	//unsigned char	tdmv_hw_dtmf;	/* TDMV Enable/Disable HW DTMF */
+	unsigned int	rx_crc_bytes;
+//	unsigned int	ec_clk_src;	/* Octasic Clock Source Port */
+//	unsigned int	ec_persist_disable;	/* HW EC Persist */
+	
+	
+	unsigned int	rtp_ip;
+	unsigned short	rtp_port;
+	unsigned short	rtp_sample;
+	char		rtp_devname[WAN_IFNAME_SZ+1];
+} wan_xilinx_conf_t;
 
 typedef struct wan_xilinx_conf_if
 {
@@ -574,9 +582,10 @@ typedef struct wan_xilinx_conf_if
 	unsigned char 	ss7_mode;
 	unsigned char	ss7_lssu_size;
 	unsigned char	tdmv_master_if;
-	unsigned char   tdmv_hwec;	/* Enable/Disable HW EC */
+//	unsigned char   tdmv_hwec;	/* Enable/Disable HW EC */
 	unsigned char   rbs_cas_idle;	/* Initial RBS/CAS value */
-	unsigned char   dtmf_hw;	/* Enable/Disable HW DTMF */
+//	unsigned char   hwec_dtmf;	/* Enable/Disable HW DTMF */
+/*	unsigned char   tdmv_hwec_map[50];*/	/* Enable/Disable HW EC */
 }wan_xilinx_conf_if_t;
 
 
@@ -648,7 +657,7 @@ typedef struct wan_xdlc_conf {
 typedef struct wan_sdlc_conf {
 
 	unsigned char  station_configuration;		
-	unsigned long  baud_rate;	
+	unsigned int   baud_rate;	
 	unsigned short max_I_field_length;
 	unsigned short general_operational_config_bits;
 	unsigned short protocol_config_bits;
@@ -668,8 +677,8 @@ typedef struct wan_sdlc_conf {
 
 
 typedef struct wan_bscstrm_conf {
-   unsigned long baud_rate;                 /* the baud rate */
-   unsigned long adapter_frequency;         /* the adapter frequecy */
+   unsigned int baud_rate;                 /* the baud rate */
+   unsigned int adapter_frequency;         /* the adapter frequecy */
    unsigned short max_data_length;          /* the maximum length of a BSC data block */
    unsigned short EBCDIC_encoding;          /* EBCDIC/ASCII encoding */
    unsigned short Rx_block_type;            /* the type of BSC block to be received */
@@ -868,6 +877,21 @@ typedef struct pmc_pmon {
 } pmc_pmon_t;
 #endif
 
+typedef struct wan_tdmv_conf_ {
+	
+	unsigned int   span_no;
+	unsigned int   dchan;		/* hwHDLC: PRI SIG */
+	unsigned char  hw_dtmf;		/* TDMV Enable/Disable HW DTMF */
+
+} wan_tdmv_conf_t;
+
+typedef struct wan_hwec_conf_ 
+{
+	unsigned int	clk_src;	/* Octasic Clock Source Port */
+	unsigned int	persist_disable;/* HW EC Persist */
+
+} wan_hwec_conf_t;
+
 /*----------------------------------------------------------------------------
  * WAN device configuration. Passed to ROUTER_SETUP IOCTL.
  */
@@ -884,9 +908,9 @@ typedef struct wandev_conf
 	char S514_CPU_no[1];	/* S514 PCI adapter CPU number ('A' or 'B') */
         unsigned PCI_slot_no;	/* S514 PCI adapter slot number */
 	char auto_pci_cfg;	/* S515 PCI automatic slot detection */
-	int comm_port;		/* Communication Port (PRI=0, SEC=1) */ 
-	unsigned bps;		/* data transfer rate */
-	unsigned mtu;		/* maximum transmit unit size */
+	unsigned int comm_port;	/* Communication Port (PRI=0, SEC=1) */ 
+	unsigned int bps;	/* data transfer rate */
+	unsigned int mtu;	/* maximum transmit unit size */
         unsigned udp_port;      /* UDP port for management */
 	unsigned char ttl;	/* Time To Live for UDP security */
 	unsigned char ft1;	/* FT1 Configurator Option */
@@ -931,6 +955,9 @@ typedef struct wandev_conf
 
 	sdla_fe_cfg_t	fe_cfg;	/* Front end configurations */
 
+	wan_tdmv_conf_t	tdmv_conf;
+	wan_hwec_conf_t	hwec_conf;
+	
 	unsigned char line_idle; /* IDLE FLAG/ IDLE MARK */
 	unsigned char ignore_front_end_status;
 	unsigned int  max_trace_queue;
@@ -988,8 +1015,8 @@ typedef struct wandev_conf
 #define WANCONFIG_AFT_ANALOG	132	/* AFT Analog Driver */
 #define WANCONFIG_ZAP		133	/* Used in wanpipemon when working with Zaptel driver */
 #define WANCONFIG_LAPD    	134	/* LIP LAPD Q921 Protocol Support */
-#define WANCONFIG_AFT_56K       136     /* AFT 56K Support */
-
+#define WANCONFIG_LIP_KATM   135	/* Kernel ATM Stack Support */
+#define WANCONFIG_AFT_56K  	136	/* AFT 56K Support */
 
 /*FIXME: This should be taken out, I just
 //used it so I don't break the apps that are
@@ -1015,6 +1042,9 @@ typedef struct wandev_conf
 	(protocol ==  WANCONFIG_SDLC)	? "SDLC": \
 	(protocol ==  WANCONFIG_ATM)	? "ATM": \
 	(protocol ==  WANCONFIG_LIP_ATM)? "LIP_ATM": \
+	(protocol ==  WANCONFIG_LIP_KATM)? "LIP_KATM": \
+	(protocol ==  WANCONFIG_LAPB)? "LIP_LAPB": \
+	(protocol ==  WANCONFIG_LAPD)? "LIP_LAPD": \
 	(protocol ==  WANCONFIG_POS)	? "Point-of-Sale": \
 	(protocol ==  WANCONFIG_AFT)	? "AFT": \
 	(protocol ==  WANCONFIG_AFT_TE3) ? "AFT TE3": \
@@ -1026,6 +1056,19 @@ typedef struct wandev_conf
 	(protocol ==  WANCONFIG_ZAP)   	   ? "ZAP": \
 	(protocol ==  WANCONFIG_TTY)	   ? "TTY": "Unknown Protocol"
 
+
+typedef struct wan_tdmv_if_conf
+{
+	unsigned char	tdmv_echo_off;  /* TDMV echo disable */
+	unsigned char	tdmv_codec;     /* TDMV codec */
+	
+} wan_tdmv_if_conf_t;
+
+typedef struct wan_hwec_if_conf
+{
+	unsigned char	enable;	/* Enable/Disable HW EC */
+		
+} wan_hwec_if_conf_t;
 
 /*----------------------------------------------------------------------------
  * WAN interface (logical channel) configuration (for ROUTER_IFNEW IOCTL).
@@ -1049,7 +1092,7 @@ typedef struct wanif_conf
 	unsigned char 	enable_IPX;	/* Enable or Disable IPX */
 	unsigned char 	inarp;		/* Send Inverse ARP requests Y/N */
 	unsigned 	inarp_interval;	/* sec, between InARP requests */
-	unsigned long 	network_number;	/* Network Number for IPX */
+	unsigned int 	network_number;	/* Network Number for IPX */
 	char 		mc;			/* Multicast on or off */
 	char 		local_addr[WAN_ADDRESS_SZ+1];/* local media address, ASCIIZ */
         unsigned char 	port;             /* board port */
@@ -1114,7 +1157,7 @@ typedef struct wanif_conf
 	unsigned char accept_usr_data[WAN_ADDRESS_SZ+1];
 	
 	unsigned char inarp_rx;		/* Receive Inverse ARP requests Y/N */
-	unsigned long active_ch;
+	unsigned int  active_ch;
 	unsigned int  max_trace_queue;
 	unsigned char sw_dev_name[WAN_IFNAME_SZ+1];
 	unsigned char auto_cfg;
@@ -1124,8 +1167,10 @@ typedef struct wanif_conf
 	unsigned char station;
 	unsigned char label[WAN_IF_LABEL_SZ+1];
 
-	unsigned char tdmv_echo_off;  /* TDMV echo disable */
-	unsigned char tdmv_codec;     /* TDMV codec */
+	wan_tdmv_if_conf_t	tdmv;
+	wan_hwec_if_conf_t	hwec;
+	//unsigned char tdmv_echo_off;  /* TDMV echo disable */
+	//unsigned char tdmv_codec;     /* TDMV codec */
 
 	unsigned char single_tx_buf; 	/* Used in low latency applications */
 

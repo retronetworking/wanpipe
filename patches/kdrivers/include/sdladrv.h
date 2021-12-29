@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdladrv.h,v 1.62 2006/10/27 14:34:44 sangoma Exp $
+ *	$Id: sdladrv.h,v 1.69 2007/03/23 15:10:01 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -42,9 +42,9 @@
  * Dec 06, 1995	Gene Kozin	Initial version.
  *****************************************************************************
  */
+
 #ifndef	_SDLADRV_H
 #   define	_SDLADRV_H
-
 #ifdef __SDLADRV__
 # define EXTERN 
 #else
@@ -248,6 +248,7 @@ typedef struct sdlahw_card {
 	unsigned char		adptr_security;	/* Adapter security (AFT cards) */
 	u16			hwec_chan_no;	/* max hwec channels number */
 	int			rm_mod_type[MAX_REMORA_MODULES];
+	void			*port_ptr_isr_array[SDLA_MAX_PORTS];
 	WAN_LIST_ENTRY(sdlahw_card)	next;
 } sdlahw_card_t;
 
@@ -307,59 +308,61 @@ typedef struct sdlahw
 
 typedef struct sdlahw_iface
 {
-	int	(*setup)(void*,wandev_conf_t*);
-	int	(*load)(void*,void*, unsigned);
-	int	(*down)(void*);
-	int 	(*start)(sdlahw_t* hw, unsigned addr);
-	int	(*hw_halt)(void*);
-	int	(*intack)(void*, uint32_t);
-	int	(*read_int_stat)(void*, uint32_t*);
-	int	(*mapmem)(void*, unsigned long);
-	int	(*check_mismatch)(void*, unsigned char);
-	int 	(*getcfg)(void*, int, void*);
-	int	(*isa_read_1)(void* hw, unsigned int offset, u8*);
-	int	(*isa_write_1)(void* hw, unsigned int offset, u8);
-	int 	(*io_write_1)(void* hw, unsigned int offset, u8);
-	int	(*io_read_1)(void* hw, unsigned int offset, u8*);
-	int	(*bus_write_1)(void* hw, unsigned int offset, u8);
-	int	(*bus_write_2)(void* hw, unsigned int offset, u16);
-	int	(*bus_write_4)(void* hw, unsigned int offset, u32);
-	int	(*bus_read_1)(void* hw, unsigned int offset, u8*);
-	int	(*bus_read_2)(void* hw, unsigned int offset, u16*);
-	int	(*bus_read_4)(void* hw, unsigned int offset, u32*);
-	int 	(*pci_write_config_byte)(void* hw, int reg, u8 value);
-	int 	(*pci_write_config_word)(void* hw, int reg, u16 value);
-	int 	(*pci_write_config_dword)(void* hw, int reg, u32 value);
-	int	(*pci_read_config_byte)(void* hw, int reg, u8* value);
-	int	(*pci_read_config_word)(void* hw, int reg, u16* value);
-	int	(*pci_read_config_dword)(void* hw, int reg, u32* value);
-	int 	(*pci_bridge_write_config_dword)(void* hw, int reg, u32 value);
-	int	(*pci_bridge_read_config_dword)(void* hw, int reg, u32* value);
-	int	(*cmd)(void* phw, unsigned long offset, wan_mbox_t* mbox);
-	int	(*peek)(void*,unsigned long, void*,unsigned);
-	int 	(*poke)(void*,unsigned long, void*,unsigned);
-	int 	(*poke_byte)(void*,unsigned long, u8);
-	int 	(*set_bit)(void*,unsigned long, u8);
-	int 	(*clear_bit)(void*,unsigned long,u8);
-	int	(*set_intrhand)(void*, void (*isr_func)(void*), void*,int);
-	int	(*restore_intrhand)(void*,int);
-	int	(*is_te1)(void*);
-	int	(*is_56k)(void*);
-	int	(*get_hwcard)(void*, void**);
-	int	(*get_hwprobe)(void*, int comm_port, void**);
-	int 	(*hw_unlock)(void *phw, wan_smp_flag_t *flag);
-	int 	(*hw_lock)(void *phw, wan_smp_flag_t *flag);
-	int 	(*hw_ec_unlock)(void *phw, wan_smp_flag_t *flag);
-	int 	(*hw_ec_lock)(void *phw, wan_smp_flag_t *flag);
-	int 	(*hw_same)(void *phw1, void *phw2);
-	int 	(*fe_test_and_set_bit)(void *phw, int value);
-	int 	(*fe_test_bit)(void *phw,int value);
-	int 	(*fe_set_bit)(void *phw,int value);
-	int 	(*fe_clear_bit)(void *phw,int value);
+	int		(*setup)(void*,wandev_conf_t*);
+	int		(*load)(void*,void*, unsigned);
+	int		(*hw_down)(void*);
+	int 		(*start)(sdlahw_t* hw, unsigned addr);
+	int		(*hw_halt)(void*);
+	int		(*intack)(void*, uint32_t);
+	int		(*read_int_stat)(void*, uint32_t*);
+	int		(*mapmem)(void*, unsigned long);
+	int		(*check_mismatch)(void*, unsigned char);
+	int 		(*getcfg)(void*, int, void*);
+	int		(*isa_read_1)(void* hw, unsigned int offset, u8*);
+	int		(*isa_write_1)(void* hw, unsigned int offset, u8);
+	int 		(*io_write_1)(void* hw, unsigned int offset, u8);
+	int		(*io_read_1)(void* hw, unsigned int offset, u8*);
+	int		(*bus_write_1)(void* hw, unsigned int offset, u8);
+	int		(*bus_write_2)(void* hw, unsigned int offset, u16);
+	int		(*bus_write_4)(void* hw, unsigned int offset, u32);
+	int		(*bus_read_1)(void* hw, unsigned int offset, u8*);
+	int		(*bus_read_2)(void* hw, unsigned int offset, u16*);
+	int		(*bus_read_4)(void* hw, unsigned int offset, u32*);
+	int 		(*pci_write_config_byte)(void* hw, int reg, u8 value);
+	int 		(*pci_write_config_word)(void* hw, int reg, u16 value);
+	int 		(*pci_write_config_dword)(void* hw, int reg, u32 value);
+	int		(*pci_read_config_byte)(void* hw, int reg, u8* value);
+	int		(*pci_read_config_word)(void* hw, int reg, u16* value);
+	int		(*pci_read_config_dword)(void* hw, int reg, u32* value);
+	int 		(*pci_bridge_write_config_dword)(void* hw, int reg, u32 value);
+	int		(*pci_bridge_read_config_dword)(void* hw, int reg, u32* value);
+	int		(*cmd)(void* phw, unsigned long offset, wan_mbox_t* mbox);
+	int		(*peek)(void*,unsigned long, void*,unsigned);
+	int		(*poke)(void*,unsigned long, void*,unsigned);
+	int		(*poke_byte)(void*,unsigned long, u8);
+	int		(*set_bit)(void*,unsigned long, u8);
+	int		(*clear_bit)(void*,unsigned long,u8);
+	int		(*set_intrhand)(void*, void (*isr_func)(void*), void*,int);
+	int		(*restore_intrhand)(void*,int);
+	int		(*is_te1)(void*);
+	int		(*is_56k)(void*);
+	int		(*get_hwcard)(void*, void**);
+	int		(*get_hwprobe)(void*, int comm_port, void**);
+	int 		(*hw_unlock)(void *phw, wan_smp_flag_t *flag);
+	int 		(*hw_lock)(void *phw, wan_smp_flag_t *flag);
+	int 		(*hw_ec_unlock)(void *phw, wan_smp_flag_t *flag);
+	int 		(*hw_ec_lock)(void *phw, wan_smp_flag_t *flag);
+	int 		(*hw_same)(void *phw1, void *phw2);
+	int 		(*fe_test_and_set_bit)(void *phw, int value);
+	int 		(*fe_test_bit)(void *phw,int value);
+	int 		(*fe_set_bit)(void *phw,int value);
+	int 		(*fe_clear_bit)(void *phw,int value);
 	sdla_dma_addr_t (*pci_map_dma)(void *phw, void *buf, int len, int ctrl);
-	int    	(*pci_unmap_dma)(void *phw, sdla_dma_addr_t buf, int len, int ctrl);
-	int	(*read_cpld)(void *phw, u16, u8*);
-	int	(*write_cpld)(void *phw, u16, u8);
+	int    		(*pci_unmap_dma)(void *phw, sdla_dma_addr_t buf, int len, int ctrl);
+	int		(*read_cpld)(void *phw, u16, u8*);
+	int		(*write_cpld)(void *phw, u16, u8);
+	int		(*fe_write)(void*, ...);
+	u_int8_t	(*fe_read)(void*, ...);
 } sdlahw_iface_t;
 
 typedef struct sdla_hw_type_cnt
@@ -372,8 +375,9 @@ typedef struct sdla_hw_type_cnt
 	unsigned char aft300_adapters;
 	unsigned char aft200_adapters;
 	unsigned char aft108_adapters;
+	unsigned char aft_isdn_adapters;
 	unsigned char aft_56k_adapters;
-
+	
 	unsigned char aft_x_adapters;
 }sdla_hw_type_cnt_t;
 
@@ -647,6 +651,41 @@ static __inline int __sdla_bus_write_4(void* phw, unsigned int offset, u32 value
 #endif
 	return 0;
 }
+
+static __inline int __sdla_is_same_hwcard(void* phw1, void *phw2)
+{
+	if (((sdlahw_t*)phw1)->hwcard == ((sdlahw_t*)phw2)->hwcard){
+		return 1;
+	}
+	return 0;
+}    
+
+static __inline void **__sdla_get_ptr_isr_array(void *phw1)
+{
+ 	return &((sdlahw_t*)phw1)->hwcard->port_ptr_isr_array[0];
+}
+
+static __inline void __sdla_push_ptr_isr_array(void *phw1, void *card, int line)
+{
+	if (line >= SDLA_MAX_PORTS) {
+		return;
+	}	
+	
+ 	((sdlahw_t*)phw1)->hwcard->port_ptr_isr_array[line]=card;
+} 
+
+static __inline void __sdla_pull_ptr_isr_array(void *phw1, void *card, int line)
+{
+	if (line >= SDLA_MAX_PORTS) {
+        	return;
+	}	
+
+	((sdlahw_t*)phw1)->hwcard->port_ptr_isr_array[line]=NULL;
+
+	return;
+}  
+
+
 
 
 #undef EXTERN 

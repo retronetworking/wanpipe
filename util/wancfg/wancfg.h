@@ -61,6 +61,11 @@
 #include "cpp_string.h" //class for strings handling. had to do it because
                         //C++ 'string' is NOT istalled on all systems.
 
+#if defined(__LINUX__)
+//need by some compilers
+#include <iostream>
+#endif
+
 //C includes:
 #include <string.h>
 #include <stdlib.h>
@@ -151,6 +156,12 @@ typedef struct link_def		/* WAN Link definition */
 
 //#define Debug(dbg_flag, message) if(dbg_flag){printf message;}
 #define Debug(dbg_flag, message)
+
+#if DBG_FLAG
+#define FUNC_DBG()	printf("%s(), Line: %d\n", __FUNCTION__, __LINE__)
+#else
+#define FUNC_DBG()
+#endif
 
 #define MENUINSTR_EXIT "------------------------------------------ \
 Use arrows to navigate through the options. \
@@ -364,8 +375,8 @@ char* get_S514_card_version_string(char card_version);
 void tokenize_string(char* input_buff, char* delimeter_str, char* output_buff, int buff_length);
 char* replace_char_with_other_char_in_str(char* str, char old_char, char new_char);
 char* get_date_and_time();
-unsigned long parse_active_channel(char* val, unsigned char media_type);
-unsigned long get_active_channels(int channel_flag, int start_channel,
+unsigned int parse_active_channel(char* val, unsigned char media_type);
+unsigned int get_active_channels(int channel_flag, int start_channel,
                                   int stop_channel, unsigned char media_type);
 int check_channels(int channel_flag, unsigned int start_channel,
                    unsigned int stop_channel, unsigned char media_type);

@@ -187,7 +187,7 @@ int menu_net_interface_setup::run(OUT int * selection_index)
   chan_def_t* chandef;
 
   conf_file_reader* local_cfr = (conf_file_reader*)global_conf_file_reader_ptr;
-  wan_xilinx_conf_t* wan_xilinx_conf = &local_cfr->link_defs->linkconf->u.aft;
+  wan_tdmv_conf_t* tdmv_conf = &local_cfr->link_defs->linkconf->tdmv_conf;
   sdla_fe_cfg_t*  fe_cfg = &local_cfr->link_defs->linkconf->fe_cfg;
   link_def_t * link_defs = local_cfr->link_defs;
  
@@ -288,7 +288,7 @@ again:
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_SPAN_NUMBER);
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM Voice Span-----------------> %d\" ", 
-		    wan_xilinx_conf->tdmv_span_no);
+		    tdmv_conf->span_no);
     menu_str += tmp_buff;
 
     //if(link_defs->card_version != A200_ADPTR_ANALOG){
@@ -304,12 +304,12 @@ again:
         snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_D_CHANNEL);
         menu_str += tmp_buff;
    
-        if(wan_xilinx_conf->tdmv_dchan != 0){
+        if(tdmv_conf->dchan != 0){
           snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM PRI HW-HDLC Timeslot-------> %d\" ", 
-		    wan_xilinx_conf->tdmv_dchan);
+		    tdmv_conf->dchan);
         }else{
           snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM PRI HW-HDLC Timeslot-------> %d Not Used\" ", 
-		    wan_xilinx_conf->tdmv_dchan);
+		    tdmv_conf->dchan);
         }
         menu_str += tmp_buff;
       }
@@ -572,7 +572,7 @@ show_tdm_spanno_input_box:
                                 "Invalid TDMV Span Number. Min: 1");
           goto show_tdm_spanno_input_box;
         }else{
-          wan_xilinx_conf->tdmv_span_no = tdm_spanno;
+          tdmv_conf->span_no = tdm_spanno;
         }
         break;
 
@@ -590,7 +590,7 @@ show_tdm_spanno_input_box:
       //E1 - 1-31, 16 is default
       int tdm_dchan;
       snprintf(explanation_text, MAX_PATH_LENGTH, "PRI Timeslot (set to 0 to disable)");
-      snprintf(initial_text, MAX_PATH_LENGTH, "%d", wan_xilinx_conf->tdmv_dchan);
+      snprintf(initial_text, MAX_PATH_LENGTH, "%d", tdmv_conf->dchan);
 
 show_tdm_dchan_input_box:
       inb.set_configuration(  lxdialog_path,
@@ -631,7 +631,7 @@ show_tdm_dchan_input_box:
 	  break;
 
 	}
-	wan_xilinx_conf->tdmv_dchan = tdm_dchan;
+	tdmv_conf->dchan = tdm_dchan;
         break;
 
       case INPUT_BOX_BUTTON_HELP:
@@ -647,7 +647,7 @@ show_tdm_dchan_input_box:
 	
     case TDMV_ECHO_OPTIONS:
       snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s Echo Cancel option?",
-	(chandef->chanconf->tdmv_echo_off == WANOPT_NO ? "Enable" : "Disable"));
+	(chandef->chanconf->tdmv.tdmv_echo_off == WANOPT_NO ? "Enable" : "Disable"));
 
       if(yes_no_question(   selection_index,
                             lxdialog_path,
@@ -659,12 +659,12 @@ show_tdm_dchan_input_box:
       switch(*selection_index)
       {
       case YES_NO_TEXT_BOX_BUTTON_YES:
-        if(chandef->chanconf->tdmv_echo_off == WANOPT_NO){
+        if(chandef->chanconf->tdmv.tdmv_echo_off == WANOPT_NO){
           //was disabled - enable
-          chandef->chanconf->tdmv_echo_off = WANOPT_YES;
+          chandef->chanconf->tdmv.tdmv_echo_off = WANOPT_YES;
         }else{
           //was enabled - disable
-          chandef->chanconf->tdmv_echo_off = WANOPT_NO;
+          chandef->chanconf->tdmv.tdmv_echo_off = WANOPT_NO;
         }
         break;
       }
@@ -701,7 +701,7 @@ show_tdm_dchan_input_box:
 //old version - when HWEC MAP was in [device] section
     case TDMV_HWEC:
       snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s Hardware Echo Cancellation?",
-	(wan_xilinx_conf->tdmv_hwec == WANOPT_NO ? "Enable" : "Disable"));
+	(tdmv_conf->hwec == WANOPT_NO ? "Enable" : "Disable"));
 
       if(yes_no_question(   selection_index,
                             lxdialog_path,
@@ -713,12 +713,12 @@ show_tdm_dchan_input_box:
       switch(*selection_index)
       {
       case YES_NO_TEXT_BOX_BUTTON_YES:
-        if(wan_xilinx_conf->tdmv_hwec == WANOPT_NO){
+        if(tdmv_conf->hwec == WANOPT_NO){
           //was disabled - enable
-          wan_xilinx_conf->tdmv_hwec = WANOPT_YES;
+          tdmv_conf->hwec = WANOPT_YES;
         }else{
           //was enabled - disable
-          wan_xilinx_conf->tdmv_hwec = WANOPT_NO;
+          tdmv_conf->hwec = WANOPT_NO;
         }
         break;
       }
@@ -755,7 +755,7 @@ show_hwec_map_input_box:
 #endif
     case TDMV_HWEC:
       snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s Hardware Echo Cancellation?",
-	(chandef->chanconf->xoff_char == WANOPT_NO ? "Enable" : "Disable"));
+	(chandef->chanconf->hwec.enable == WANOPT_NO ? "Enable" : "Disable"));
 
       if(yes_no_question(   selection_index,
                             lxdialog_path,
@@ -767,15 +767,15 @@ show_hwec_map_input_box:
       switch(*selection_index)
       {
       case YES_NO_TEXT_BOX_BUTTON_YES:
-        if(chandef->chanconf->xoff_char == WANOPT_NO){
+        if(chandef->chanconf->hwec.enable == WANOPT_NO){
           //was disabled - enable
-          chandef->chanconf->xoff_char = WANOPT_YES;
+          chandef->chanconf->hwec.enable = WANOPT_YES;
 	  //suggest to user HWEC chan MAP to be the same as active chans for the group
           strncpy(chandef->active_hwec_channels_string, chandef->active_channels_string,
 		 MAX_LEN_OF_ACTIVE_CHANNELS_STRING);
         }else{
           //was enabled - disable
-          chandef->chanconf->xoff_char = WANOPT_NO;
+          chandef->chanconf->hwec.enable = WANOPT_NO;
         }
         break;
       }
@@ -903,10 +903,10 @@ void menu_net_interface_setup::add_hw_echo_cancel_items(string& menu_str,
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_HWEC);
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Echo Cancellation------> %s\" ",
-        (chandef->chanconf->xoff_char == WANOPT_YES ? "Yes" : "No"));
+        (chandef->chanconf->hwec.enable == WANOPT_YES ? "Yes" : "No"));
   menu_str += tmp_buff;
   /*     
-  if(chandef->chanconf->xoff_char == WANOPT_YES){
+  if(chandef->chanconf->hwec.enable == WANOPT_YES){
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_HWEC_MAP);
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Echo Cancellation Map--> %s\" ", 

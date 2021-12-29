@@ -1,8 +1,7 @@
 PWD=$(shell pwd)
 SYSINC=$(PWD)/../patches/kdrivers/include
-KDIR=/lib/modules/$(shell uname -r)/build
-
 WAN_VIRTUAL=$(PREFIX)
+WANINCDIR=/usr/include/wanpipe
 ARCH=$(shell uname -m)
 
 all:
@@ -10,7 +9,7 @@ all:
 	make -C lxdialog all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 	make -C sdladump all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wanconfig all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
-	make -C wanec_client all CC=$(CC)  SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
+	make -C wanec_client all CC=$(CC)  SYSINC=$(SYSINC) WANINCDIR=$(WANINCDIR) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wan_plxctrl all CC=$(CC)  SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wanpipemon all  CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS=$(PROTOCOL_DEFS) ENABLE_WANPIPEMON_ZAP=$(ENABLE_WANPIPEMON_ZAP) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)  
 	make -C wanpipemon_legacy all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS=$(PROTOCOL_DEFS) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)  

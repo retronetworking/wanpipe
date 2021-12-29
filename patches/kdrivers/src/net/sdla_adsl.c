@@ -169,13 +169,17 @@ static int 	adsl_init(netdevice_t* dev);
 # endif
 #endif
 
-static void 	wpa_isr (sdla_t*);
+static WAN_IRQ_RETVAL 	wpa_isr (sdla_t*);
 static void 	disable_comm(sdla_t* card);
 static int	process_udp_mgmt_pkt(sdla_t*, netdevice_t*, adsl_private_area_t*, int);
 static int 	new_if (wan_device_t*, netdevice_t*, wanif_conf_t*);
 static int 	del_if (wan_device_t*, netdevice_t*);
 static int 	process_udp_cmd(netdevice_t*,wan_udp_hdr_t*);
-void 		process_bh(void *);
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+static void 	process_bh (void *);
+#else
+static void 	process_bh (struct work_struct *work);
+#endif  
 int 		adsl_trace_queue_len(void *trace_ptr);
 
 
@@ -360,7 +364,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
     	ifp->if_snd.ifq_len    = 0;
 #elif defined(__LINUX__)
 
-	INIT_WORK((&adsl->common.wanpipe_task),process_bh,ifp);
+	WAN_TASKQ_INIT((&adsl->common.wanpipe_task),0,process_bh,ifp);
 	
 	ifp->priv	= adsl;
 	ifp->irq        = card->wandev.irq;
@@ -670,7 +674,6 @@ static int adsl_open(netdevice_t* ifp)
 	int     status = 0;
 #if defined (__LINUX__)
 	adsl_private_area_t* adsl = wan_netif_priv(ifp);
-	sdla_t *card=adsl->common.card;
 #endif
 
 #if defined (__LINUX__)
@@ -683,14 +686,7 @@ static int adsl_open(netdevice_t* ifp)
 	
 	/* Start Tx queuing */
 	WAN_NETDEVICE_START(ifp);
-
-	if (card->wandev.state == WAN_CONNECTED) {
-		WAN_NETIF_CARRIER_ON(ifp);
-		WAN_NETIF_START_QUEUE(ifp); 
-	} else {
-                WAN_NETIF_CARRIER_OFF(ifp);
-		WAN_NETIF_STOP_QUEUE(ifp); 
-	}
+	WAN_NETIF_START_QUEUE(ifp);
 
 	if (adsl->common.usedby == STACK){
 		/* Force the lip to connect state
@@ -745,14 +741,20 @@ int adsl_close(netdevice_t* ifp)
  *
  * Description:
  *-F*************************************************************************/
-static void wpa_isr (sdla_t* card)
+static WAN_IRQ_RETVAL wpa_isr (sdla_t* card)
 {
+	int ret;
 	if (!card->u.adsl.adapter){
 		DEBUG_CFG("wpa_isr: No adapter ptr!\n");
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_NONE);
 	}
 	/*WAN_ASSERT1(card->u.adsl.adapter == NULL);*/
-	adsl_isr((void*)card->u.adsl.adapter);
+	ret=adsl_isr((void*)card->u.adsl.adapter);
+	if (ret) {
+            	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);    
+	}
+         
+	WAN_IRQ_RETURN(WAN_IRQ_NONE);
 }
 
 /*+F*************************************************************************
@@ -832,9 +834,9 @@ adsl_lan_rx(
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 # if defined(__FreeBSD__) && (__FreeBSD_version < 500000)
-	wan_bpf_report(dev, rx_skb, 0);
+	wan_bpf_report(dev, rx_skb, 0, WAN_BPF_DIR_IN);
 # elif defined(__NetBSD__) || defined(__OpenBSD__)
-	wan_bpf_report(dev, rx_skb, 0);
+	wan_bpf_report(dev, rx_skb, 0, WAN_BPF_DIR_IN);
 # endif
 
 	card->wandev.stats.rx_packets ++;
@@ -859,7 +861,7 @@ adsl_lan_rx(
 	case RFC_MODE_ROUTED_IP_VC:	
 		wan_skb_clear_mark(rx_skb);
 #if (__FreeBSD_version >= 501000)
-		wan_bpf_report(dev, rx_skb, 0);
+		wan_bpf_report(dev, rx_skb, 0, WAN_BPF_DIR_IN);
 		netisr_queue(NETISR_IP, rx_skb);
 #else
 		wan_spin_lock_irq(NULL, &s);
@@ -988,8 +990,8 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 	case RFC_MODE_STACK_VC:
 
 		if (wan_skb_len(skb) <= 2){
-			DEBUG_EVENT("%s: Error: TxLan: PPP pkt len <= 2!\n",
-					wan_netif_name(dev));
+			DEBUG_EVENT("%s: Error: TxLan: PPP pkt len <= 2! (len=%i)\n",
+					wan_netif_name(dev),wan_skb_len(skb));
 			wan_skb_print(skb);	
 			wan_skb_free(skb);
 			WAN_NETIF_START_QUEUE(dev);
@@ -1127,7 +1129,7 @@ void adsl_sppp_tx (netdevice_t *ifp)
 		DEBUG_TX("%s: TxLan %d bytes...\n", 
 					wan_netif_name(ifp), 
 					wan_skb_len(tx_mbuf));
-		wan_bpf_report(ifp, tx_mbuf, 0);
+		wan_bpf_report(ifp, tx_mbuf, 0, WAN_BPF_DIR_OUT);
 		wan_skb_pull(tx_mbuf, 2);	
 		if (adsl_send(adsl->pAdapter, tx_mbuf, 0)){
 			DEBUG_TX("%s: TX failed to send %d bytes!\n", 
@@ -1212,7 +1214,7 @@ void adsl_tx (netdevice_t *ifp)
 			ifp->if_iqdrops++;
 		}
 			
-		wan_bpf_report(ifp, tx_mbuf, 0);
+		wan_bpf_report(ifp, tx_mbuf, 0, WAN_BPF_DIR_OUT);
 
 		if (tx_mbuf){
 			wan_skb_free(tx_mbuf);
@@ -1619,12 +1621,31 @@ adsl_ioctl_done:
 
 #if defined(__LINUX__)
 /* FIXME update for BSD */
-void process_bh(void* dev_ptr)
-{
-	netdevice_t *dev = dev_ptr;
-	adsl_private_area_t*	adsl = wan_netif_priv(dev);
-	sdla_t*			card = adsl->common.card;
 
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+static void process_bh (void *dev_ptr)
+#else
+static void process_bh (struct work_struct *work)
+#endif  
+{
+	netdevice_t		*dev;
+	adsl_private_area_t	*adsl;
+	sdla_t*			card;
+
+# if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))
+	adsl = container_of(work, adsl_private_area_t, common.wanpipe_task);
+	dev = adsl->common.dev;
+	if (!dev) {
+		return;
+	}  
+#else
+	dev=dev_ptr;
+	if (!dev || (adsl = wan_netif_priv(dev)) == NULL){
+		return;
+	}
+#endif
+	card = adsl->common.card;  
+             
 	process_udp_mgmt_pkt(card, dev, adsl,0);
 }
 #endif
@@ -1729,9 +1750,9 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 # endif
 
 # if defined(__FreeBSD__) && (__FreeBSD_version < 500000)
-			wan_bpf_report(dev, new_skb, 0);
+			wan_bpf_report(dev, new_skb, 0, WAN_BPF_DIR_IN);
 # elif defined(__NetBSD__) || defined(__OpenBSD__)
-			wan_bpf_report(dev, new_skb, 0);
+			wan_bpf_report(dev, new_skb, 0, WAN_BPF_DIR_IN);
 # endif
 # if defined(__NetBSD__) || defined(__FreeBSD__) && (__FreeBSD_version > 500000)
 			dev->if_input(dev, new_skb);

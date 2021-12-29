@@ -15,7 +15,7 @@ BuildRequires:  kernel-source kernel-syms module-init-tools udev
 URL:            http://www.sangoma.com
 Summary:        Sangoma Wanpipe Voice,TDM and Wan Drivers/Utilities
 Version:        2.3.4
-Release:        7
+Release:        9
 License:        GNU General Public License (GPL)
 Group:          Productivity/Telephony/Utilities
 PreReq:         %insserv_prereq %fillup_prereq udev

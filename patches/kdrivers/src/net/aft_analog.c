@@ -340,13 +340,13 @@ int aft_analog_global_chip_config(sdla_t *card)
 	wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
 	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
 
-	DEBUG_CFG("--- AFT Chip Reset. -- \n");
-	
-        if (card->fe.fe_cfg.cfg.remora.network_sync) {
-		DEBUG_EVENT("%s: Analog Clock set to Network Sync!\n",
+	if (card->fe.fe_cfg.cfg.remora.network_sync) {
+		DEBUG_EVENT("%s: Analog Clock set to External!\n",
 				card->devname);
 		wan_set_bit(AFT_CHIPCFG_ANALOG_CLOCK_SELECT_BIT,&reg);	
-	}     
+	}
+
+	DEBUG_CFG("--- AFT Chip Reset. -- \n");
 
 	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
 
@@ -368,18 +368,21 @@ int aft_analog_global_chip_config(sdla_t *card)
 
 	DEBUG_EVENT("%s: Global Front End Configuraton!\n",card->devname);
 	err = -EINVAL;
-	
 	if (card->wandev.fe_iface.config){
 		err = card->wandev.fe_iface.config(&card->fe);
 	}
-	
 	if (err){
 		DEBUG_EVENT("%s: Failed Front End configuration!\n",
 					card->devname);
 		return -EINVAL;
-	}else{
-		DEBUG_EVENT("%s: Remora config done!\n",card->devname);
 	}
+	/* Run rest of initialization not from lock */
+	if (card->wandev.fe_iface.post_init){
+		err=card->wandev.fe_iface.post_init(&card->fe);
+	}
+		
+	DEBUG_EVENT("%s: Remora config done!\n",card->devname);
+
 	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
 	wan_set_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
@@ -606,8 +609,7 @@ int aft_analog_chan_dev_config(sdla_t *card, void *chan_ptr)
 	}
 
 	/* FE chan config */
-	if (chan->common.usedby == TDM_VOICE_API && 
-	    card->wandev.fe_iface.if_config){
+	if (card->wandev.fe_iface.if_config){
 		card->wandev.fe_iface.if_config(
 					&card->fe,
 					chan->time_slot_map,
@@ -624,8 +626,7 @@ int aft_analog_chan_dev_unconfig(sdla_t *card, void *chan_ptr)
 	volatile int i;
 
 	/* FE chan unconfig */
-	if (chan->common.usedby == TDM_VOICE_API && 
-	    card->wandev.fe_iface.if_unconfig){
+	if (card->wandev.fe_iface.if_unconfig){
 		card->wandev.fe_iface.if_unconfig(
 					&card->fe,
 					chan->time_slot_map,
@@ -712,7 +713,8 @@ int __aft_analog_write_fe (void* pcard, ...)
 		return -EINVAL;
 	}
 #endif
-	DEBUG_FE("%s:%d: Module %d: Write Remora Front-End code (reg %d, value %02X)!\n",
+	DEBUG_FE(
+	"%s:%d: Module %d: Write RM FE code (%d:%02X)!\n",
 				__FUNCTION__,__LINE__,
 				mod_no, reg, (u8)value);
 	
@@ -832,7 +834,7 @@ int __aft_analog_write_fe (void* pcard, ...)
 	}
 
 	if (data & MOD_SPI_BUSY) {
-		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d)!\n",
+		DEBUG_EVENT("%s: Module %d: Internal Error: SPI busy (%s:%d)!\n",
 					card->devname, mod_no,
 					__FUNCTION__,__LINE__);
 		return -EINVAL;
@@ -908,9 +910,10 @@ unsigned char __aft_analog_read_fe (void* pcard, ...)
 		return 0x00;
 	}
 #endif
-	DEBUG_FE("%s:%d: %s: Module %d: Read Remora Front-End code (reg %d)!\n",
+	DEBUG_FE(
+	"%s:%d: Module %d: Read RM FE code (%d)!\n",
 				__FUNCTION__,__LINE__,
-				card->devname, mod_no, reg);
+				mod_no, reg);
 
 	/* bit 0-7: data byte */
 	data = 0x00;
@@ -1026,7 +1029,7 @@ unsigned char __aft_analog_read_fe (void* pcard, ...)
 	}
 
 	if (data & MOD_SPI_BUSY){
-		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d)!\n",
+		DEBUG_EVENT("%s: Module %d: Internal Error: SPI busy (%s:%d)!\n",
 					card->devname, mod_no,
 					__FUNCTION__,__LINE__);
 		return 0xFF;
@@ -1109,7 +1112,7 @@ unsigned char aft_analog_read_cpld(sdla_t *card, unsigned short cpld_off)
         return tmp;
 }
 
-int aft_analog_write_cpld(sdla_t *card, unsigned short off,unsigned char data)
+int aft_analog_write_cpld(sdla_t *card, unsigned short off,u_int16_t data)
 {
 	u16             org_off;
 
@@ -1140,7 +1143,7 @@ int aft_analog_write_cpld(sdla_t *card, unsigned short off,unsigned char data)
 
 	card->hw_iface.bus_write_1(card->hw,
                                 AFT_MCPU_INTERFACE,
-                                data);
+                                (u8)data);
         /*ALEX: Restore the original address */
         card->hw_iface.bus_write_2(card->hw,
                                 AFT_MCPU_INTERFACE_ADDR,
@@ -1193,8 +1196,6 @@ static int aft_analog_hwec_enable(void *pcard, int enable, int channel)
 
 	WAN_ASSERT(card == NULL);
 	if(!wan_test_bit(channel, &card->wandev.ec_enable_map)){
-		DEBUG_EVENT("%s: Error: Channel %i not in analog hwec map!\n",
-				card->devname,channel);
 		return -EINVAL;
 	}
 
@@ -1202,29 +1203,13 @@ static int aft_analog_hwec_enable(void *pcard, int enable, int channel)
 			card->hw,
 			AFT_REMORA_MUX_TS_EC_ENABLE,
 			&value);
-
 	if (enable){
-                if (!wan_test_and_set_bit(channel,&card->wandev.ec_map)) {
-                        value |= (1 << channel);
-                } else {
-                        DEBUG_EVENT("[HWEC]: %s: %s bypass mode overrun detected for channel %d!\n",
-                                card->devname,
-                                (enable) ? "Enable" : "Disable",
-                                channel);
-                        return 0;
-                }
-        } else {
-                if (wan_test_and_clear_bit(channel,&card->wandev.ec_map)) {
-                        value &= ~(1 << channel);
-                } else {
-                        DEBUG_EVENT("[HWEC]: %s: %s bypass mode overrun detected for channel %d!\n",
-                                card->devname,
-                                (enable) ? "Enable" : "Disable",
-                                channel);
-                        return 0;
-                }
-        }
-
+		wan_set_bit(channel,&card->wandev.ec_map);
+		value |= (1 << channel);
+	}else{
+		wan_clear_bit(channel,&card->wandev.ec_map);
+		value &= ~(1 << channel);
+	}
 	card->hw_iface.bus_write_4(
 			card->hw,
 			AFT_REMORA_MUX_TS_EC_ENABLE,

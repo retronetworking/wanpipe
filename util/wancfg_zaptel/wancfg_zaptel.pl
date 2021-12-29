@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # config-zaptel.pl 
-# Sangoma Zaptel/TDM API/SMG Configuration Script.
+# Sangoma Zaptel Configuration Script for Zaptel.
 #
 # Copyright     (c) 2006, Sangoma Technologies Inc.
 #
@@ -9,8 +9,6 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
-# Jul 20,  2007  David Yat Sin  silent option	
-# Jun 13,  2007  Yuan Shen      SS7 support
 # Jan 15,  2007  David Yat Sin  support for non-trixbox installations. Major 
 #				changes to script.
 # Jan 8,   2007  David Yat Sin  script renamed to config-zaptel.pl
@@ -23,12 +21,16 @@
 
 system('clear');
 print "\n###################################################################";
-print "\n#    Sangoma Wanpipe:  Zaptel/SMG/TDMAPI Configuration Script     #";
-print "\n#                           v2.5                                  #";
+print "\n#         Sangoma Wanpipe/Zaptel Configuration Script             #";
+print "\n#                           v2.2                                  #";
 print "\n#                  Sangoma Technologies Inc.                      #";
-print "\n#                     Copyright(c) 2007.                          #";
+print "\n#                     Copyright(c) 2006.                          #";
 print "\n###################################################################\n\n";
 
+print "\nNote: This script provides Zaptel configuration for Sangoma";
+print "\n      cards. Use the Wancfg Utility for more advanced options. \n\n";	
+
+use Switch;
 use strict;
 #use warnings;
 #use diagnostics;
@@ -40,6 +42,7 @@ use A20x;
 my $FALSE = 1;
 my $TRUE = 0;
 
+
 my $startup_string="";
 my $zaptel_conf="";
 my $zapata_conf="";
@@ -49,19 +52,6 @@ my $num_analog_devices=0;
 my $num_analog_devices_total=0;
 my $num_digital_devices=0;
 my $num_digital_devices_total=0;
-my $num_non_ss7_config=0;
-my $num_ss7_config=0;
-my $asked_autozapata=0;
-my $line_media='';
-my $max_chans=0;
-my $ss7_tdmvoicechans='';
-my $ss7_array_length=0;
-
-my $device_has_hwec=$FALSE;
-my $device_has_normal_clock=$FALSE;
-my @device_normal_clocks=("0");
-			
-my $is_tdm_api=$FALSE;
 
 my $def_femedia='';
 my $def_feframe='';
@@ -70,31 +60,15 @@ my $def_signalling='';
 my $def_switchtype='';
 my $def_zapata_context='';
 my $def_zapata_group='';
-my $def_te_ref_clock='';
-my $def_tdmv_dchan=0;
-
-my $silent_femedia="T1";
-my $silent_feframe="ESF";
-my $silent_feframe_e1="CRC4";
-my $silent_feclock="NORMAL";
-my $silent_signalling="PRI CPE";
-my $silent_switchtype="National";
-my $silent_zapata_context="from-pstn";
-my $silent_zapata_group="0";
 
 my $is_trixbox = $FALSE;
-my $silent = $FALSE;
-my $config_zaptel = $TRUE;
 my $config_zapata = $TRUE;
-my $is_smg = $FALSE;
 
 my $current_dir=`pwd`;
 chomp($current_dir);
 my $cfg_dir='tmp_cfg';
 my $debug_info_file="$current_dir/$cfg_dir/debug_info";
 my @hwprobe=`wanrouter hwprobe verbose`;
-my $zaptelprobe = `modprobe -l |grep zaptel`;
-
 read_args();
 my $zaptel_conf_template="$current_dir/templates/zaptel.conf";
 my $zaptel_conf_file="$current_dir/$cfg_dir/zaptel.conf";
@@ -112,26 +86,16 @@ if ($is_trixbox==$TRUE){
 	$zapata_conf_file="$current_dir/$cfg_dir/zapata-auto.conf";
 	$zapata_conf_file_t="/etc/asterisk/zapata-auto.conf";
 }
-
-if ($silent==$FALSE){
-	if ($is_trixbox==$FALSE && $is_smg==$FALSE && $is_tdm_api==$FALSE){
-        	print "Would you like to generate /etc/asterisk/zapata.conf\n";
-        	if (&prompt_user_list(("YES","NO","")) eq 'NO'){
-        	        $config_zapata = $FALSE;
-        	}
+if ($is_trixbox==$FALSE){
+	print "Would you like to generate /etc/asterisk/zapata.conf\n";
+	if (&prompt_user_list(("YES","NO","")) eq 'NO'){
+       		$config_zapata = $FALSE; 
 	}
 }
-
-if ($is_smg==$TRUE || $is_tdm_api==$TRUE){
-     $config_zapata = $FALSE;    
-}
-
 
 prepare_files();
 config_digital();
 config_analog();
-
-
 
 if($devnum==1){
 	system('clear');
@@ -142,70 +106,36 @@ if($devnum==1){
 	print("\n\nNo Sangoma voice compatible cards found/configured\n\n"); 
 	exit 0;
 }else{
-	if (!($is_smg==$TRUE  &&  ($zaptelprobe !~ /zaptel.ko/))){
-		if ($num_non_ss7_config != 0 && $config_zaptel==$TRUE){
-			write_zaptel_conf();
-		}
-		if ($config_zapata==$TRUE){
-			write_zapata_conf();
-		}
-		save_debug_info();
-		system('clear');
-		my $file_list = 1;
-		print "\n###################################################################";
-		print "\n#                             SUMMARY                             #";
-		print "\n###################################################################\n\n";
-
-		print("  $num_digital_devices_total T1/E1 port(s) detected, $num_digital_devices configured\n");
-		print("  $num_analog_devices_total analog card(s) detected, $num_analog_devices configured\n");
-	
-		print "\nConfigurator has created the following files:\n";
-		print "\t1. Wanpipe config files in /etc/wanpipe\n";
-		$file_list++;
-				
-		if ($num_non_ss7_config != 0){
-			print "\t$file_list. Zaptel config file /etc/zaptel.conf\n";
-			$file_list++;
-		}
-        	if ($config_zapata==$TRUE){
-			print "\t$file_list. Zapata config file $zapata_conf_file_t\n";
-		}
-	
-        	if (($num_non_ss7_config != 0) | ($config_zapata==$TRUE)){	
-			print "\n\nYour original configuration files will be saved to:\n";
-			$file_list=1;
-		}	
-		
-		if ($num_non_ss7_config != 0){
-			print "\t$file_list. $zaptel_conf_file_t.bak \n";
-			$file_list++;
-		}
-		if ($config_zapata==$TRUE){
-       			print "\t$file_list. $zapata_conf_file_t.bak \n\n";
-		}
-	
-		print "\nYour configuration has been saved in $debug_tarball.\n";
-		print "When requesting support, email this file to techdesk\@sangoma.com\n\n";
-		if($silent==$FALSE){
-			prompt_user("Press any key to continue");
-		}
-		apply_changes();
-	} else {
-		save_debug_info();
-		system('clear');
-		print "\n###################################################################";
-		print "\n#                             SUMMARY                             #";
-		print "\n###################################################################\n\n";
-		
-		print("  $num_digital_devices_total T1/E1 port(s) detected, $num_digital_devices configured\n");		
-		print "\nConfigurator has created the following files:\n";
-		print "\t1. Wanpipe config files in /etc/wanpipe\n";
-		
-		print "\nYour configuration has been saved in $debug_tarball.\n";
-		print "When requesting support, email this file to techdesk\@sangoma.com\n\n";
-		prompt_user("Press any key to continue");
-		apply_changes();
+	write_zaptel_conf();
+	if ($config_zapata==$TRUE){
+		write_zapata_conf();
 	}
+	save_debug_info();
+	system('clear');
+	print "\n###################################################################";
+	print "\n#                             SUMMARY                             #";
+	print "\n###################################################################\n\n";
+
+	print("  $num_digital_devices_total T1/E1 port(s) detected, $num_digital_devices configured\n");
+	print("  $num_analog_devices_total analog card(s) detected, $num_analog_devices configured\n");
+	
+	print "\nConfigurator has created the following files:\n";
+	print "\t1. Wanpipe config files in /etc/wanpipe\n";
+	print "\t2. Zaptel config file /etc/zaptel.conf\n";
+        if ($config_zapata==$TRUE){
+		print "\t3. Zapata config file $zapata_conf_file_t\n";
+	}
+	
+	print "\n\nYour original configuration files will be saved to:\n";
+	print "\t1. $zaptel_conf_file_t.bak \n";
+	if ($config_zapata==$TRUE){
+       		print "\t2. $zapata_conf_file_t.bak \n\n";
+	}
+	
+	print "\nYour configuration has been saved in $debug_tarball.\n";
+	print "When requesting support, email this file to techdesk\@sangoma.com\n\n";
+	prompt_user("Press any key to continue");
+	apply_changes();
 }
 
 
@@ -274,82 +204,19 @@ sub prompt_user_list{
 		}
 	}
 }
-
 sub read_args {
 	my $arg_num;
-	foreach $arg_num (0 .. $#ARGV) {
-		$_ = $ARGV[$arg_num];
-		if( /^--trixbox$/){
-			$is_trixbox=$TRUE;
-		}elsif ( /^--tdm_api/){
-			$is_tdm_api=$TRUE;
-		}elsif ( /^--smg$/){
-			$is_smg=$TRUE;
-		}elsif ( /^--silent$/){
-			$silent=$TRUE;
-		}elsif ( /^--no-zapata$/){
-			$config_zapata=$FALSE;
-		}elsif ( /^--no-zaptel$/){
-			$config_zaptel=$FALSE;
-		}elsif ( $_ =~ /--fe_media=(\w+)/){
-			$silent_femedia=$1;
-			if(!($silent_femedia eq 'T1' || $silent_femedia eq 'E1')){
-				printf("Invalid value for fe_media, should be T1/E1\n");
-				exit(1);
-			}			
-		}elsif ( $_ =~ /--fe_frame=(\w+)/){
-			$silent_feframe=$1;
-			if(!($silent_feframe eq 'ESF' || $silent_feframe eq 'D4' || $silent_feframe eq 'CRC4' || $silent_feframe eq 'NCRC4')){
-				printf("Invalid value for fe_frame, should be ESF/D4/CRC4/NCRC4\n");
-				exit(1);
-			}			
-		}elsif ( $_ =~ /--fe_clock=(\w+)/){
-			$silent_feclock=$1;
-			if(!($silent_feclock eq 'NORMAL' || $silent_feclock eq 'MASTER' )){
-				printf("Invalid value for fe_clock, should be NORMAL/MASTER\n");
-				exit(1);
-			}			
-		}elsif ( $_ =~ /--signalling=(\w+)/){
-			my $tmp_signalling=$1;
-			if ($tmp_signalling eq 'em'){
-				$silent_signalling="E & M";
-			}elsif ($tmp_signalling eq 'em_w'){
-				$silent_signalling="E & M Wink";
-			}elsif ($tmp_signalling eq 'pri_cpe'){
-				$silent_signalling="PRI CPE";
-			}elsif ($tmp_signalling eq 'pri_net'){
-				$silent_signalling="PRI NET";
-			}elsif ($tmp_signalling eq 'fxs_ls'){
-				$silent_signalling="FXS - Loop Start";
-			}elsif ($tmp_signalling eq 'fxs_gs'){
-				$silent_signalling="FXS - Ground Start";
-			}elsif ($tmp_signalling eq 'fxs_ks'){
-				$silent_signalling="FXS - Kewl Start";
-			}elsif ($tmp_signalling eq 'fxo_ls'){
-				$silent_signalling="FXO - Loop Start";
-			}elsif ($tmp_signalling eq 'fxo_gs'){
-				$silent_signalling="FXO - Ground Start";
-			}elsif ($tmp_signalling eq 'fxo_ks'){
-				$silent_signalling="FXO - Kewl Start";
-			}else{
-				printf("Invalid option for --signalling, options are\n");
-				printf("\t pri_cpe/pri_net/em/em_w\n");
-				printf("\t em/em_w\n");
-				printf("\t fxo_ls/fxo_gs/fxo_ks\n");
-				printf("\t fxs_ls/fxs_gs/fxs_ks\n");
-				exit(1);
+	foreach $arg_num (0..$#ARGV) {
+		my $arg = $ARGV[$arg_num];
+		switch ($arg) {
+			case( /^--trixbox/){
+				$is_trixbox=$TRUE;
 			}
-			
 		}
 	}
-	
 	if ($is_trixbox==$TRUE){
 		print "\nGenerating configuration files for Trixbox\n";
 	}
-	if ($is_smg==$TRUE){
-		print "\nGenerating configuration files for SS7\n";
-	}
-
 }
 
 sub get_pri_switchtype {
@@ -368,7 +235,7 @@ sub get_pri_switchtype {
 }
 
 sub unload_zap_modules{
-	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zttranscode","zaptel");
+	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zaptel");
 	foreach my $module (@modules_list) {
 		exec_command("modprobe -r $module");
 	}
@@ -402,127 +269,100 @@ sub write_zapata_conf{
 	close(FH);	
 }
 
-sub copy_config_files{
-	my @wanpipe_files = split / /, $startup_string; 	
-	exec_command("cp -f $current_dir/$cfg_dir/wanrouter.rc /etc/wanpipe");
-	foreach my $wanpipe_file (@wanpipe_files) {
-		exec_command("cp -f $current_dir/$cfg_dir/$wanpipe_file.conf /etc/wanpipe");
-	}
-}
-
 sub apply_changes{
-	my $asterisk_command='';
-	my $asterisk_restart=$FALSE;
-	my $res='';
- 
-	system('clear');
+#	if ($is_trixbox==$FALSE){
+#		print "\nThe following lines will be used in your $zaptel_conf_file_t\n";
+#		print "\n-----------------------------------------------------------------\n";
+#		print "\n$zaptel_conf";
+#		print "\n-----------------------------------------------------------------\n";
+#		prompt_user("Press any key to continue");
 	
-	if($silent==$TRUE){
-		$res="Stop now";
-	}elsif($is_tdm_api==$TRUE){
-		print "\n Wanpipe configuration complete: choose action\n";
-		$res=&prompt_user_list(	"Save cfg: Stop Wanpipe now",
-					"Do not save cfg: Exit",
-					"");
-	}else{
-		print "\nZaptel and Wanpipe configuration complete: choose action\n";
-		$res=&prompt_user_list("Save cfg: Restart Asterisk & Wanpipe now",
-					"Save cfg: Restart Asterisk & Wanpipe when convenient",
-					"Save cfg: Stop Asterisk & Wanpipe now", 
-					"Save cfg: Stop Asterisk & Wanpipe when convenient",
-					"Do not save cfg: Exit",
-					"");
-	}
-	if ($res =~ m/Exit/){
+#		if ($config_zapata==$TRUE){
+#	       		print "\nThe following lines will be used in your $zapata_conf_file_t\n";
+#			print "\n-----------------------------------------------------------------\n";
+#			print "\n$zapata_conf";
+#			print "\n-----------------------------------------------------------------\n";
+#			prompt_user("Press any key to continue");
+#		}
+#	}
+	my $asterisk_command='';
+	my $res='';
+	system('clear');
+	print "\nZaptel and Wanpipe configuration complete: choose action\n";
+	$res=&prompt_user_list("Save cfg: Restart Asterisk & Wanpipe now","Save cfg: Restart Asterisk & Wanpipe when convenient","Do not save cfg: Exit","");
+	if( $res =~ m/exit/){
 		print "No changes made to your configuration files\n";
 		exit 0;
-	}
-	if ($res =~ m/now/){
+	}elsif($res =~ m/Restart/){
 		$asterisk_command='stop now';	
-	} else {
+	}else{
 		$asterisk_command='stop when convenient';
 	}
 
-	if ($res =~ m/Restart/){
-		$asterisk_restart=$TRUE;
-	} else {
-		$asterisk_restart=$FALSE;
-	}
-	 
+#	print "Your original configuration files have been saved to:\n";
+#	print "\t1. $zaptel_conf_file_t.bak \n";
+#	if ($config_zapata==$TRUE){
+#       		print "\t2. $zapata_conf_file_t.bak \n\n";
+#	}
+
 	if ($is_trixbox==$TRUE){
 		exec_command("amportal stop");
 		unload_zap_modules();
-	} elsif ($is_tdm_api==$FALSE){
+	}else{
 		print "\nStopping Asterisk...\n";	
 		exec_command("asterisk -rx \"$asterisk_command\"");
 	} 
-
-	print "\nStopping Wanpipe...\n";
+	print "\n\nStopping Wanpipe...\n";
 	exec_command("wanrouter stop all");
-
-	if (!($is_smg==$TRUE  &&  ($zaptelprobe !~ /zaptel.ko/))){
-		if($is_tdm_api==$FALSE){
-	            	print "\nUnloading Zaptel modules...\n";
-			unload_zap_modules();
-		}
-	}
+	
+	print "\nUnloading Zaptel modules...\n";
+	unload_zap_modules();
 
 	print "\nRemoving old configuration files...\n";
- 
-        exec_command("rm -f /etc/wanpipe/wanpipe*.conf");
+	exec_command("rm -f /etc/wanpipe/wanpipe*.conf");
 	
        	gen_wanrouter_rc();
 
 	print "\nCopying new Wanpipe configuration files...\n";
-	copy_config_files();
-#	exec_command("cp -f $current_dir/$cfg_dir/* /etc/wanpipe");
-
-	if (!($is_smg==$TRUE  &&  ($zaptelprobe !~ /zaptel.ko/))){
-		if($config_zaptel==$TRUE){
-			if ($num_non_ss7_config!=0){
-				print "\nCopying new Zaptel configuration file ($zaptel_conf_file_t)...\n";
-   				exec_command("cp -f $zaptel_conf_file $zaptel_conf_file_t");
-			}
-		}
-	}  	
+	exec_command("cp -f $current_dir/$cfg_dir/* /etc/wanpipe");
+	
+	print "\nCopying new Zaptel configuration file ($zaptel_conf_file_t)...\n";
+	exec_command("cp -f $zaptel_conf_file $zaptel_conf_file_t");
 	
 	if ($config_zapata==$TRUE | $is_trixbox==$TRUE){
 		print "\nCopying new chan_zap configuration files ($zapata_conf_file_t)...\n";
 		exec_command("cp -f $zapata_conf_file $zapata_conf_file_t");
 	}
-	if( $asterisk_restart == $TRUE && $is_tdm_api==$FALSE){
-        	print "\nStarting Wanpipe...\n";
-		exec_command("wanrouter start");
+        print "\nStarting Wanpipe...\n";
+	exec_command("wanrouter start");
 
-		if ( ! -e "/etc/wanpipe/scripts/start" & $is_trixbox==$FALSE ){ 
-       			print "Loading Zaptel...\n";	
-			sleep 2;
-			exec_command("ztcfg -v");   
-			print ("\nWould you like to execute \'ztcfg\' each time wanrouter starts?\n");
-			if (&prompt_user_list("YES","NO","") eq 'YES'){
-				exec_command("cp -f /etc/wanpipe/samples/wanpipe_zaptel_start /etc/wanpipe/scripts/start");	
-			}	 
-		}
-		if ($is_trixbox==$TRUE){
-     			print "\nStarting Amportal...\n";
-			exec_command("amportal start");
-			sleep 2;
-		}elsif($config_zapata==$TRUE){
-     			print "\nStarting Asterisk...\n";
-			exec_command("asterisk");
-			sleep 2;
+	if ( ! -e "/etc/wanpipe/scripts/start" & $is_trixbox==$FALSE){ 
+       		print "Loading Zaptel...\n";	
+		sleep 2;
+		exec_command("ztcfg -v");   
+		print ("\nWould you like to execute \'ztcfg\' each time wanrouter starts?\n");
+		if (&prompt_user_list("YES","NO","") eq 'YES'){
+			exec_command("cp -f /etc/wanpipe/samples/wanpipe_zaptel_start /etc/wanpipe/scripts/start");	
+			
+		}	 
+	}
+	if ($is_trixbox==$TRUE){
+     		print "\nStarting Amportal...\n";
+		exec_command("amportal start");
+		sleep 2;
+	}elsif($config_zapata==$TRUE){
+     		print "\nStarting Asterisk...\n";
+		exec_command("asterisk");
+		sleep 2;
 		
-			print "\nListing Asterisk channels...\n\n";
-			exec_command("asterisk -rx \"zap show channels\"");
-			print "\nType \"asterisk -r\" to connect to Asterisk console\n\n";
-		}else{
-        		print "\nProceed to your Asterisk chan_zap configuration (/etc/asterisk/zapata.conf)\n\n";
-		}
+		print "\nListing Asterisk channels...\n\n";
+		exec_command("asterisk -rx \"zap show channels\"");
+		print "\nType \"asterisk -r\" to connect to Asterisk console\n\n";
+	}else{
+        	print "\nProceed to your Asterisk chan_zap configuration (/etc/asterisk/zapata.conf)\n\n";
 	}
 	exit 0;
 }
-
-
 
 sub gen_wanrouter_rc{
 	#update wanpipe startup sequence
@@ -577,7 +417,15 @@ sub save_debug_info{
         open (FH,">$debug_info_file") or die "Could not open $debug_info_file";
        	print FH $debug_info;
        	close (FH);	
+			
+	
+#	print "\n\nGenerating debug tarball $debug_tarball \n";
 	exec_command("tar cvfz $debug_tarball $cfg_dir/* >/dev/null 2>/dev/null");
+
+#	print "\nEmail $debug_tarball to techdesk\@sangoma.com";
+#	print "\nwhen requesting support.\n";	
+#	prompt_user("Press any key to continue");
+	
 }
 
 sub config_analog{
@@ -586,6 +434,7 @@ sub config_analog{
 	print "------------------------------------\n";
 	print "Configuring analog cards [A200/A400]\n";
 	print "------------------------------------\n";
+#	prompt_user("Press any key to continue");
 	my $skip_card=$FALSE;
 	$zaptel_conf.="\n";
 	$zapata_conf.="\n";
@@ -620,31 +469,17 @@ sub config_analog{
 			       		} 
 				}
 				if ($skip_card==$FALSE){
-               				$a20x = eval {new A20x(); } or die ($@);
-					$a20x->card($card);
-					$card->first_chan($current_zap_channel);
-       					$current_zap_channel+=24;
-					$num_non_ss7_config++;
-
-					if ( $device_has_hwec==$TRUE){
-						print "Will this A$1 to synchronize with an existing Sangoma T1/E1 card?\n";
-						print "\n WARNING: for hardware and firmware requirements, check:\n";
-						print "          http://wiki.sangoma.com/t1e1analogfaxing\n";
-						
-						if (&prompt_user_list(("YES","NO","")) eq 'NO'){
-							$a20x->rm_network_sync('NO');
-						} else {
-							$a20x->rm_network_sync('YES');
-						}
-					} 
-
 					print "A$1 configured on slot:$3 bus:$4 span:$devnum\n";
 					prompt_user("Press any key to continue");
 			 		$zaptel_conf.="#Sangoma A$1 [slot:$3 bus:$4 span:$devnum]\n";
 					$zapata_conf.=";Sangoma A$1 [slot:$3 bus:$4 span:$devnum]\n";
 					$startup_string.="wanpipe$devnum ";
 			
-	#				my $i;
+               				$a20x = eval {new A20x(); } or die ($@);
+					$a20x->card($card);
+					$card->first_chan($current_zap_channel);
+       					$current_zap_channel+=24;
+					my $i;
 					$a20x->gen_wanpipe_conf();
 					$devnum++;
 					$num_analog_devices++;
@@ -680,6 +515,7 @@ sub config_digital{
 	print "---------------------------------------------\n";
 	print "Configuring T1/E1 cards [A101/A102/A104/A108]\n";
 	print "---------------------------------------------\n";
+#	prompt_user("Press any key to continue");
 	
 	foreach my $dev (@hwprobe) {
 		if ( $dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/){
@@ -724,23 +560,25 @@ sub config_digital{
 				system('clear');
 				if (($6 eq '1' || $6 eq 'PRI') && $5 eq 'A'){
                                		print "A$1 detected on slot:$3 bus:$4\n";
-					$device_has_normal_clock=$FALSE;
-					@device_normal_clocks = ("0");
+			#		prompt_user("Press any key to continue");
+			#		$def_femedia='';
+		#			$def_feframe='';
+		#			$def_feclock='';
+	#				$def_signalling='';
+#					$def_switchtype='';
+#					$def_zapata_context='';
+#					$def_zapata_group='';
 				}
 				system('clear');
 				my $msg ="Configuring port ".$port." on A".$card->card_model." slot:".$card->pci_slot." bus:".$card->pci_bus.".\n";
 				print "\n-----------------------------------------------------------\n";
 				print "$msg";
 				print "-----------------------------------------------------------\n";
-				my $fe_media = '';
-				if ($silent==$TRUE){
-					$fe_media = $silent_femedia;
-				} else {
-					printf ("\nSelect media type for A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
-					my @options = ("T1", "E1", "Unused","Exit");
-					$fe_media = prompt_user_list( @options, $def_femedia);
-				}
-
+		#		prompt_user("Press any key to continue");
+					
+				printf ("\nSelect media type for A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+				my @options = ("T1", "E1", "Unused","Exit");
+				my $fe_media = prompt_user_list( @options, $def_femedia);
 				if ( $fe_media eq 'Exit'){
 					print "Exit without applying changes?\n";
 					if (&prompt_user_list(("YES","NO","YES")) eq 'YES'){
@@ -749,15 +587,12 @@ sub config_digital{
 					}
 				}elsif ( $fe_media eq 'Unused'){
 					$def_femedia=$fe_media;	
+			#		system('clear');
 					my $msg= "A$1 on slot:$3 bus:$4 port:$port not configured\n";
 					print "$msg";
 					prompt_user("Press any key to continue");
 				}else{
-					if ($card->hwec_mode eq 'YES' && $device_has_hwec==$FALSE){
-						$device_has_hwec=$TRUE;
-					} 
-			       		
-					$def_femedia=$fe_media; 
+			       		$def_femedia=$fe_media; 
 					$startup_string.="wanpipe$devnum ";
 					my $a10x;
 		       	
@@ -782,234 +617,46 @@ sub config_digital{
 					$a10x->fe_media($fe_media);
 					if ( $fe_media eq 'T1' ){
 		      				$current_zap_channel+=24;
-						$max_chans = 24;
-						$line_media = 'T1';
 					}else{
 						$a10x->fe_lcode('HDB3');
-						if ($silent==$FALSE){
-							printf ("Select framing type for %s on port %s\n", $card->card_model, $port);
-							my @options = ("CRC4","NCRC4");
-							$def_feframe=&prompt_user_list(@options,$def_feframe);
-						} else {
-							$def_feframe=$silent_feframe_e1;
-						}
+						printf ("Select framing type for %s on port %s\n", $card->card_model, $port);
+						@options = ("CRC4","NCRC4");
+						$def_feframe=&prompt_user_list(@options,$def_feframe);
 						$a10x->fe_frame($def_feframe);
 			      			$current_zap_channel+=31;
-						$max_chans = 31;
-						$line_media = 'E1';
 					}
-					if($silent==$FALSE){
-						my @options = ("NORMAL", "MASTER");
-						printf ("Select clock for A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
-						$def_feclock=&prompt_user_list(@options, $def_feclock);
-					} else {
-						$def_feclock=$silent_feclock;
-					}
+					my @options = ("NORMAL", "MASTER");
+					printf ("Select clock for A%s on port %s \n", $card->card_model, $port);
+					$def_feclock=&prompt_user_list(@options, $def_feclock);
 					$a10x->fe_clock($def_feclock);
-
-					if ( $def_feclock eq 'NORMAL') {
-						$device_has_normal_clock=$TRUE;
-						 push(@device_normal_clocks, $a10x->fe_line);
-					} elsif ( $def_feclock eq 'MASTER' && $device_has_normal_clock == $TRUE ){
-						printf("Clock synchronisation options for %s on port %s [slot:%s bus:%s span:$devnum] \n", 
-								$card->card_model, 
-								$port, 
-								$card->pci_slot, 
-								$card->pci_bus);
-						printf(" Free run: Use internal oscillator on card [default] \n");
-        					printf(" Port N: Sync with clock from port N \n\n");
-						
-						printf("Select clock source %s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
-						$def_te_ref_clock=&get_te_ref_clock(@device_normal_clocks);
-						$a10x->te_ref_clock($def_te_ref_clock);
-					}
 			
-		     	   		my @options="";	
-					if ($is_smg==$TRUE && ($zaptelprobe =~ /zaptel.ko/)){
-						@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start", "SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
-					} elsif ($is_smg==$TRUE && ($zaptelprobe !~ /zaptel.ko/)){
-                                         	@options = ("SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
-					} elsif ($is_tdm_api==$TRUE){
-						$def_signalling="TDM API";
-					} else {			
-		     	   			@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start");
-					}
-
-					if ($silent==$FALSE){
-						if( $is_tdm_api == $FALSE){
-							printf ("Select signalling type for %s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
-							$def_signalling=&prompt_user_list(@options,$def_signalling); 
-						}
-					} else {
-						$def_signalling=$silent_signalling;
-					}
+		     	   		@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start");
+					printf ("Select signalling type for %s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+				       	$def_signalling=&prompt_user_list(@options,$def_signalling); 
 					$a10x->signalling($def_signalling);
 
-					my $ss7_chan;
-					my $ss7_group_start;
-					my $ss7_group_end;
-					my @ss7_chan_array;
-					my @ss7_sorted;
-					if( $a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway' ){
-                                                $a10x->ss7_option(1); 
-
-						print("Choose an option below to configure SS7 signalling channels:\n"); 
-						if (&prompt_user_list("Configure consecutive signalling channels(e.g #1-#16)","Configure separate signalling channels(e.g #1,#10)","") eq 'Configure separate signalling channels(e.g #1,#10)'){
-					                goto SS7CHAN;
-  							while (1){
-								print("\nAny other SS7 signalling channel to configure?\n");
-					        		if (&prompt_user_list("YES","NO","") eq 'NO'){
-				                			goto ENDSS7CONFIG;
-							    	}else{
-SS7CHAN:		  					$ss7_chan = prompt_user_ss7_chans('Specify the time slot for SS7 signalling(24 for T1? 16 for E1?)');
-									push(@ss7_chan_array, $ss7_chan);
-									$ss7_array_length = @ss7_chan_array;
-									if ($ss7_array_length == $max_chans){
-										   goto ENDSS7CONFIG;
-									}
-								}
-       							}
-						}else{
-			                		goto SS7GROUP;
-							while(1){
-								print("\nAny other SS7 consecutive signalling channels to configure?\n");
-								if (&prompt_user_list("YES","NO","") eq 'NO'){
-                							goto ENDSS7CONFIG;
-					  			}else{
-SS7GROUP:								$ss7_group_start = prompt_user_ss7_chans('Consecutive signalling channels START FROM channel number');
-									$ss7_group_end = prompt_user_ss7_chans('Consecutive signalling channels END AT channel number');						        
-									if ($ss7_group_start > $ss7_group_end){
-										print("The starting channel number is bigger than the ending one!\n");
-										goto SS7GROUP;
-									}
-									my $i = 0;	
-									for ($i = $ss7_group_start; $i <= $ss7_group_end; $i++){
-                			                		      push(@ss7_chan_array, $i);
-									      my @remove_duplicate;
-									      @ss7_chan_array = grep(!$remove_duplicate[$_]++, @ss7_chan_array);
-									      $ss7_array_length = @ss7_chan_array;				      
-									      if ($ss7_array_length > $max_chans){			    										       		   		print("\nERROR : You defined more than $max_chans signalling channels in $line_media and please try to configure them again.\n\n");
-									           @ss7_chan_array = ();
-										   goto SS7GROUP;
-									      }
-						 			}
-								        if ($ss7_array_length == $max_chans){
-      									      goto ENDSS7CONFIG;	
-									}	
-								}
-							}
-						}
-
-ENDSS7CONFIG:           		       @ss7_sorted = sort { $a <=> $b } @ss7_chan_array;
- 		       			       print("\nYou configured the following SS7 signalling channels: @ss7_sorted\n");
-			                       my $ss7_voicechans = gen_ss7_voicechans(@ss7_sorted,$max_chans);
-					       $ss7_tdmvoicechans = $ss7_voicechans;					   
-					       #print("Voice channels are: $ss7_voicechans\n ");
-					       #if($ss7_voicechans eq ''){
-					       #	print("No voice channel is configured\n");
-					       #}
-					       
-					       if ($ss7_voicechans =~ m/(\d+)/){						    
-						     $a10x->ss7_tdminterface($1);   
-					       }
-
-		                               $a10x->ss7_tdmchan($ss7_voicechans);                                             
-					       $num_ss7_config++;
-					}elsif ( $a10x->signalling eq 'No Signaling (Voice Only)'){
-                                               $a10x->ss7_option(2);
-					       $num_ss7_config++;   
-					}elsif ($a10x->signalling eq 'TDM API'){
- 						$a10x->hw_dchan(&prompt_user_hw_dchan($card->card_model, $port, $a10x->fe_media));
-					}else{
-                                               $num_non_ss7_config++;
-					       if ($is_smg==$TRUE){
-							 if ($config_zapata==$TRUE || $asked_autozapata > 0){
-								goto Label0;
-							 }
-							 print "Would you like to generate /etc/asterisk/zapata.conf\n";
-   							 if (&prompt_user_list(("YES","NO","")) eq 'YES'){
-						                $config_zapata = $TRUE;
-        						 }
-							 $asked_autozapata++;
-					       }
-					}
-
-Label0:					if ( $a10x->signalling eq 'PRI CPE' | $a10x->signalling eq 'PRI NET' ){    
-						if ($silent==$FALSE && $config_zapata==$TRUE){
+					if ( $a10x->signalling eq 'PRI CPE' | $a10x->signalling eq 'PRI NET' ){
+						if ( $config_zapata==$TRUE){
 							printf ("Select switchtype for %s on port %s \n", $card->card_model, $port);
 							$a10x->pri_switchtype(get_pri_switchtype());
-						} else {
-								$a10x->pri_switchtype($silent_switchtype);
 						}
 					}
-					
-
-					if( $a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway' ){
-						$a10x->ss7_subinterface(1);
-						$a10x->gen_wanpipe_ss7_subinterfaces();
-						if ($ss7_tdmvoicechans ne ''){
-							$a10x->ss7_subinterface(2);
-							$a10x->gen_wanpipe_ss7_subinterfaces();
-						}
-						my $ss7_element;
-						foreach $ss7_element (@ss7_sorted){
-							$a10x->ss7_sigchan($ss7_element); 
-							$a10x->ss7_subinterface(3);
-							$a10x->gen_wanpipe_ss7_subinterfaces();
-						}					
-						$a10x->gen_wanpipe_conf();
-						if ($ss7_tdmvoicechans ne ''){
-							$a10x->ss7_subinterface(5);
-							$a10x->gen_wanpipe_ss7_subinterfaces();
-						}
-						foreach $ss7_element (@ss7_sorted){
-							$a10x->ss7_sigchan($ss7_element); 
-							$a10x->ss7_subinterface(6);
-							$a10x->gen_wanpipe_ss7_subinterfaces();
-						}						
-					}else{
-						$a10x->gen_wanpipe_conf();
-					}
-
-
-                                        if ($is_smg==$TRUE && $config_zapata==$FALSE){
-						if ($a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway'| $a10x->signalling eq 'No Signaling (Voice Only)'){
-						        goto Label1;
-						}
-						$zaptel_conf.=$a10x->gen_zaptel_conf();
-					}elsif ($is_smg==$TRUE && $config_zapata==$TRUE){
-						if ($a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway'| $a10x->signalling eq 'No Signaling (Voice Only)'){
-							goto Label1;
-						}else{
-							$zaptel_conf.=$a10x->gen_zaptel_conf();
-						        $a10x->card->zap_context(&get_zapata_context($a10x->card->card_model,$port));
-							$a10x->card->zap_group(&get_zapata_group($a10x->card->card_model,$port,$a10x->card->zap_context));
-							$zapata_conf.=$a10x->gen_zapata_conf();
-						}
-					}elsif ($is_trixbox==$TRUE | $config_zapata==$TRUE){
-						$zaptel_conf.=$a10x->gen_zaptel_conf();
-					        $a10x->card->zap_context(&get_zapata_context($a10x->card->card_model,$port));
+					$a10x->gen_wanpipe_conf();
+					$zaptel_conf.=$a10x->gen_zaptel_conf();
+					if ($is_trixbox==$TRUE | $config_zapata==$TRUE){
+						$a10x->card->zap_context(&get_zapata_context($a10x->card->card_model,$port));
 						$a10x->card->zap_group(&get_zapata_group($a10x->card->card_model,$port,$a10x->card->zap_context));
 						$zapata_conf.=$a10x->gen_zapata_conf();
-					}elsif ($is_tdm_api == $FALSE){
-						$zaptel_conf.=$a10x->gen_zaptel_conf();
 					}
-
-Label1:					$devnum++;
+					$devnum++;
 					$num_digital_devices++;
-					my $msg ="\n\nPort ".$port." on A".$card->card_model." configuration complete...\n";
+			#		system('clear');
+					my $msg ="Port ".$port." on A".$card->card_model." configuration complete...\n";
 					print "$msg";
-					if($silent==$FALSE){
-						prompt_user("Press any key to continue");
-					}
-
+					prompt_user("Press any key to continue");
 		      		}  	
-			} 
-
-	        #####################################	
-		#      for A101/2u, A101/2c         #
- 		#####################################
-
+			} 	
+		#for A101/2u, A101/2c
        		}elsif ( $dev =~ /A(\d+).*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+)/){
 	
 			die "SHOULD NOT BE HERE";
@@ -1028,6 +675,14 @@ Label1:					$devnum++;
 		       	if( $4 eq 'A' ){
                       		print "\n\nSangoma single/dual T1/E1 card detected on slot:$2 bus:$3\n";
 		      		print "Select configuration options:\n";
+		#		prompt_user("Press any key to continue");
+#				$def_femedia='';
+#				$def_feframe='';
+#				$def_feclock='';
+#				$def_signalling='';
+#				$def_switchtype='';
+#				$def_zapata_context='';
+#				$def_zapata_group='';
 		       		
 				$port=1;
 			}else{
@@ -1054,181 +709,36 @@ Label1:					$devnum++;
 				$a10u->fe_media($fe_media);
 				if ( $fe_media eq 'T1' ){
 		      			$current_zap_channel+=24;
-					$max_chans = 24;
-					$line_media = 'T1';
 				}else{
                        			$a10u->fe_lcode('HDB3');
 					printf ("Select framing type for %s on port %s\n", $card->card_model, $6);
 					my @options = ("CRC4","NCRC4");
 					$a10u->fe_frame(&prompt_user_list(@options,""));
 					$current_zap_channel+=31;
-					$max_chans = 31;
-					$line_media = 'E1';
 				}
                       		my @options = ("NORMAL", "MASTER");
 				printf ("Select clock type for %s on port %s\n", $card->card_model, $a10u->fe_line);
-				$a10u->fe_clock(&prompt_user_list(@options,""));			
-		     	   	
-				if ($is_smg==$TRUE && ($zaptelprobe =~ /zaptel.ko/)){
-					@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start", "SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
-				} elsif ($is_smg==$TRUE && ($zaptelprobe !~ /zaptel.ko/)){
-                                       	@options = ("SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
-				} else {			
-	     	   			@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start");
-				}
-
+				$a10u->fe_clock(&prompt_user_list(@options,""));
+		
+				@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start");
 				printf ("Select signalling type for %s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $a10u->fe_line, $card->pci_slot, $card->pci_bus);
-			
-				$a10u->signalling(&prompt_user_list(@options,""));
-
-				my $ss7_chan_a10u;
-				my $ss7_group_start_a10u;
-				my $ss7_group_end_a10u;
-				my @ss7_chan_array_a10u;	
-				my @ss7_sorted_a10u;
-				if( $a10u->signalling eq 'SS7 - Sangoma Signal Media Gateway' ){
-                                        $a10u->ss7_option(1); 
-
-					print("Choose an option below to configure SS7 signalling channels:\n"); 
-					if (&prompt_user_list("Configure consecutive signalling channels(e.g #1-#16)","Configure separate signalling channels(e.g #1,#10)","") eq 'Configure separate signalling channels(e.g #1,#10)'){
-				                goto SS7CHAN_A10U;
-  						while (1){
-							print("\nAny other SS7 signalling channel to configure?\n");
-				        		if (&prompt_user_list("YES","NO","") eq 'NO'){
-				               			goto ENDSS7CONFIG_A10U;
-						    	}else{
-SS7CHAN_A10U:		  					$ss7_chan_a10u = prompt_user_ss7_chans('Specify the time slot for SS7 signalling(24 for T1? 16 for E1?)');
-								push(@ss7_chan_array_a10u, $ss7_chan_a10u);
-								$ss7_array_length = @ss7_chan_array_a10u;
-								if ($ss7_array_length == $max_chans){
-									   goto ENDSS7CONFIG_A10U;
-								}
-							}
-       						}
-					}else{
-			               		goto SS7GROUP_A10U;
-						while(1){
-							print("\nAny other SS7 consecutive signalling channels to configure?\n");
-							if (&prompt_user_list("YES","NO","") eq 'NO'){
-                						goto ENDSS7CONFIG_A10U;
-				  			}else{
-SS7GROUP_A10U:							$ss7_group_start_a10u = prompt_user_ss7_chans('Consecutive signalling channels START FROM channel number');
-								$ss7_group_end_a10u = prompt_user_ss7_chans('Consecutive signalling channels END AT channel number');						        
-								if ($ss7_group_start_a10u > $ss7_group_end_a10u){
-									print("The starting channel number is bigger than the ending one!\n");
-									goto SS7GROUP_A10U;
-								}
-								my $i = 0;
-								for ($i = $ss7_group_start_a10u; $i <= $ss7_group_end_a10u; $i++){
-                		                		      push(@ss7_chan_array_a10u, $i);
-								      my @remove_duplicate_a10u;
-								      @ss7_chan_array_a10u = grep(!$remove_duplicate_a10u[$_]++, @ss7_chan_array_a10u);
-								      $ss7_array_length = @ss7_chan_array_a10u;				      
-								      if ($ss7_array_length > $max_chans){			    										       		   	print("\nERROR : You defined more than $max_chans signalling channels in $line_media and please try to configure them again.\n\n");
-									   @ss7_chan_array_a10u = ();
-									   goto SS7GROUP_A10U;
-								      }
-					    			}
-								if ($ss7_array_length == $max_chans){
-      									      goto ENDSS7CONFIG_A10U;	
-								}
-							}
-						}
-					}
-
-ENDSS7CONFIG_A10U:           	       @ss7_sorted_a10u = sort { $a <=> $b } @ss7_chan_array_a10u;
- 		       		       print("\nYou configure the following SS7 signalling channels: @ss7_sorted_a10u\n");
-			               my $ss7_voicechans_a10u = gen_ss7_voicechans(@ss7_sorted_a10u,$max_chans);
-				     
-				       $ss7_tdmvoicechans = $ss7_voicechans_a10u;				      
-					   
-				       #print("Voice channels are: $ss7_voicechans_a10u\n ");
-				       #if($ss7_voicechans_a10u eq ''){
-				       #		print("No voice channel is configured\n");
-				       #}
-				       if ($ss7_voicechans_a10u =~ m/(\d+)/){						    
-					     $a10u->ss7_tdminterface($1);   
-				       }
-
-	                               $a10u->ss7_tdmchan($ss7_voicechans_a10u);
-				       $num_ss7_config++;
-				}elsif ( $a10u->signalling eq 'No Signaling (Voice Only)'){
-                                       $a10u->ss7_option(2); 
-				       $num_ss7_config++;   
-				}else{
-                                       $num_non_ss7_config++;
-				       if ($is_smg==$TRUE){
-						 if ($config_zapata==$TRUE || $asked_autozapata > 0){
-							goto Label0_A10U;
-						 }
-						 print "Would you like to generate /etc/asterisk/zapata.conf\n";
-   						 if (&prompt_user_list(("YES","NO","")) eq 'YES'){
-					                $config_zapata = $TRUE;
-        					 }
-						 $asked_autozapata++;
-				       }
-				}
-
-Label0_A10U:			if ( $a10u->signalling eq 'PRI CPE' | $a10u->signalling eq 'PRI NET' ){    
-					if ($config_zapata==$TRUE){
+				
+				
+				if ( $a10u->signalling eq 'PRI CPE' | $a10u->signalling eq 'PRI NET' ){
+					if ( $config_zapata==$TRUE){
 						printf ("Select switchtype for %s on port %s \n", $card->card_model, $port);
-						$a10u->pri_switchtype(get_pri_switchtype());
+						$a10u->pri_switchtype(&get_pri_switchtype());
 					}
 				}
-
-				if( $a10u->signalling eq 'SS7 - Sangoma Signal Media Gateway' ){
-					$a10u->ss7_subinterface(1);
-					$a10u->gen_wanpipe_ss7_subinterfaces();
-					if ($ss7_tdmvoicechans ne ''){
-						$a10u->ss7_subinterface(2);
-						$a10u->gen_wanpipe_ss7_subinterfaces();
-					}
-					my $ss7_element_a10u;
-					foreach $ss7_element_a10u (@ss7_sorted_a10u){
-						$a10u->ss7_sigchan($ss7_element_a10u); 
-						$a10u->ss7_subinterface(3);
-						$a10u->gen_wanpipe_ss7_subinterfaces();
-					}					
-					$a10u->gen_wanpipe_conf();
-					if ($ss7_tdmvoicechans ne ''){
-						$a10u->ss7_subinterface(5);
-						$a10u->gen_wanpipe_ss7_subinterfaces();
-					}
-					foreach $ss7_element_a10u (@ss7_sorted_a10u){
-						$a10u->ss7_sigchan($ss7_element_a10u); 
-						$a10u->ss7_subinterface(6);
-						$a10u->gen_wanpipe_ss7_subinterfaces();
-					}						
-				}else{
-					$a10u->gen_wanpipe_conf();
-				}
-
-
-                                if ($is_smg==$TRUE && $config_zapata==$FALSE){
-					if ($a10u->signalling eq 'SS7 - Sangoma Signal Media Gateway'| $a10u->signalling eq 'No Signaling (Voice Only)'){
-					        goto Label1_A10U;
-					}
-					$zaptel_conf.=$a10u->gen_zaptel_conf();
-				}elsif ($is_smg==$TRUE && $config_zapata==$TRUE){
-					if ($a10u->signalling eq 'SS7 - Sangoma Signal Media Gateway'| $a10u->signalling eq 'No Signaling (Voice Only)'){
-						goto Label1_A10U;
-					}else{
-						$zaptel_conf.=$a10u->gen_zaptel_conf();
-					        $a10u->card->zap_context(&get_zapata_context($a10u->card->card_model,$port));
-						$a10u->card->zap_group(&get_zapata_group($a10u->card->card_model,$port,$a10u->card->zap_context));
-						$zapata_conf.=$a10u->gen_zapata_conf();
-					}
-				}elsif ($is_trixbox==$TRUE | $config_zapata==$TRUE){
-					$zaptel_conf.=$a10u->gen_zaptel_conf();
-				        $a10u->card->zap_context(&get_zapata_context($a10u->card->card_model,$port));
+				$a10u->signalling(&prompt_user_list(@options,""));
+				$a10u->gen_wanpipe_conf();
+				$zaptel_conf.=$a10u->gen_zaptel_conf();
+				if ($is_trixbox==$TRUE | $config_zapata==$TRUE){
+					$a10u->card->zap_context(&get_zapata_context($a10u->card->card_model,$port));
 					$a10u->card->zap_group(&get_zapata_group($a10u->card->card_model,$port,$a10u->card->zap_context));
 					$zapata_conf.=$a10u->gen_zapata_conf();
-				}else{
-					$zaptel_conf.=$a10u->gen_zaptel_conf();
 				}
-	
-
-Label1_A10U:			$devnum++;
+				$devnum++;
 				$num_digital_devices++;
 				print "Port $port configuration complete\n";
 				prompt_user("Press any key to continue");
@@ -1237,40 +747,11 @@ Label1_A10U:			$devnum++;
 	}
 	if($num_digital_devices_total!=0){
 		print("\nT1/E1 card configuration complete.\n");
-		if($silent==$FALSE){
-			prompt_user("Press any key to continue");
-		}
+		prompt_user("Press any key to continue");
 	}
 	close SCR;
 }
 
-
-sub get_te_ref_clock{
-	my @list_normal_clocks=@_;
-	my @f_list_normal_clocks;
-	my $f_port;
-	foreach my $port (@list_normal_clocks) {
-		if ($port eq '0'){
-			$f_port = "Free run";
-		} else {
-			$f_port = "Port ".$port;
-		}
-		push(@f_list_normal_clocks, $f_port);
-	}		
-
-	my $res = &prompt_user_list(@f_list_normal_clocks, "Free run");
-	my $i;
-	
-	for $i (0..$#f_list_normal_clocks){
-		if ( $res eq @f_list_normal_clocks[$i] ){
-			return @list_normal_clocks[$i];
-		}
-	}
-
-	print "Internal error: Invalid reference clock\n";
-	exit 1;
-
-}
 sub get_zapata_context{
 	my ($card_model,$card_port)=@_;
 	my $context='';
@@ -1279,33 +760,32 @@ sub get_zapata_context{
 	if($is_trixbox==$TRUE){
 		@options = ("PSTN", "INTERNAL");
 	}
-	if ($silent==$FALSE){
-		printf ("Select dialplan context for A%s on port %s\n", $card_model, $card_port);
-		my $res = &prompt_user_list(@options,$def_zapata_context);
-		if($res eq "PSTN"){
-			$context="from-zaptel";
-		}elsif($res eq "INTERNAL"| $res eq "from-internal"){
-			$context="from-internal";
-		}elsif($res eq "from-pstn"){
-			$context="from-pstn";
-		}elsif($res eq "Custom"){
-			my $res_context=&prompt_user("Input the context for this port");
-			while(length($res_context)==0){
-				print "Invalid context, input a non-empty string\n";
-				$res_context=&prompt_user("Input the context for this port",$def_zapata_context);
-			}	
-		
-			$context=$res_context;
-		}elsif($res eq $def_zapata_context){
-			$context=$def_zapata_context;
-		}else{
-			print "Internal error:invalid context,group\n";
-			exit 1;
+	printf ("Select dialplan context for A%s on port %s\n", $card_model, $card_port);
+	my $res = &prompt_user_list(@options,$def_zapata_context);
+	if($res eq "PSTN"){
+		$context="from-zaptel";
+	}elsif($res eq "INTERNAL"| $res eq "from-internal"){
+		$context="from-internal";
+	}elsif($res eq "from-pstn"){
+		$context="from-pstn";
+	}elsif($res eq "Custom"){
+		my $res_context=&prompt_user("Input the context for this port");
+		while(length($res_context)==0){
+			print "Invalid context, input a non-empty string\n";
+			$res_context=&prompt_user("Input the context for this port",$def_zapata_context);
 		}
+		$context=$res_context;
+	}elsif($res eq $def_zapata_context){
+		$context=$def_zapata_context;
 	}else{
-		$context=$silent_zapata_context;	
+		print "Internal error:invalid context,group\n";
+		exit 1;
 	}
 	$def_zapata_context=$context;
+#	if($is_trixbox==$FALSE){
+#		print "\n Use \"[$context]\" in your /etc/asterisk/extensions.conf to";
+#		print "\n configure your dialplan for incoming calls on this port.\n";
+#	}
 	return $context;	
 }
 sub get_zapata_group{
@@ -1336,140 +816,10 @@ sub get_zapata_group{
 			$def_zapata_group=$group;
 		}      
 	}
+#	if($is_trixbox==$FALSE){
+#		print "\n Use \"exten=>s,1,Dial(Zap/g$group/\${EXTEN})\" in your";
+#		print "\n /etc/asterisk/extensions.conf to dial out on this port.\n";
+#	}
        
        	return $group;
-}
-
-sub gen_ss7_voicechans{
-      my @ss7_array = @_;
-      my $T1CHANS = pop(@ss7_array);
-      my $count = @ss7_array;
-      my $output ='';
-      my $chan_in = 1;
-      my $chan_de = 0;
-      my $flag = 0;
-      my $i = 0;
-      my $j = 0;      
-
-      while($i < $count){
-	   $j = $i + 1;
-           if ($ss7_array[$i] > 2 && $i == 0){
-		$chan_de = $ss7_array[$i] - 1;
-		$output .= "1-$chan_de";
-		$flag = 1;
-	   }elsif ($ss7_array[$i] == 2 && $i == 0){
-		$output .= "1";
-		$flag = 1;
-	   }	   
-
-           if ($ss7_array[$j] == ($ss7_array[$i] + 1) && $j < $count){
-	       goto Incrementing;
-           }elsif ($ss7_array[$i] == $T1CHANS && $i == ($count-1)){
-               goto Incrementing;
-           }
-
-	   if ($i < ($count-1)){
-	   	   $chan_in = $ss7_array[$i]+1;
-	           if ($chan_in < ($ss7_array[$j]-1)){
-			$chan_de = $ss7_array[$j] - 1;
-			if ($flag != 0){
-	   			 $output .= ".$chan_in-$chan_de";
-			}else{
-				$output .= "$chan_in-$chan_de";
-				$flag = 1;
-			}	
-		   }
-		   else{
-			if ($flag != 0){
-				$output .= ".$chan_in";
-			}else{
-				$output .= "$chan_in";
-				$flag = 1;
-			}
-		   }
-   	   }else{
-                   $chan_in = $ss7_array[$i]+1;
-	           if ($chan_in < $T1CHANS){
-			$chan_de = $T1CHANS;
-			if ($flag != 0){
-	   			$output .= ".$chan_in-$chan_de";
-			}else{
-				$output .= "$chan_in-$chan_de";
-				$flag = 1;
-			}
-		   }else{
-			if ($flag != 0){
-				$output .= ".$T1CHANS";
-			}else{
-				$output .= "$T1CHANS";
-				$flag = 1;
-			}
-		   }
-	   }
-
-Incrementing:	   $i++;          
-      }
-      return $output;
-}
-
-
-sub  prompt_user_hw_dchan{
-	my ($card_model, $port, $port_femedia) = @_;
-	my $res_dchan='';
-	my $dchan;
-
-	printf("Hardware HDLC can be performed on the data channel.\n");
-prompt_hw_dchan:
-	my $res_dchan = &prompt_user("Select the data channel on A$card_model, port:$port, select 0 for unused.\n","0");
-        while(length($res_dchan)==0 |!($res_dchan =~/(\d+)/)){
-		print "Invalid channel, input an integer (0 for unused).\n";
-		$res_dchan=&prompt_user("Select the data channel","0");
-	}
-	if ( $res_dchan < 0){
-		printf("Error: channel cannot have negative value\n");
-		$res_dchan='';
-		goto prompt_hw_dchan;
-	}
-	if ( $port_femedia eq 'T1' && $res_dchan > 24){
-		printf("Error: only 24 channels available on T1\n");
-		$res_dchan='';
-		goto prompt_hw_dchan;
-	}elsif ($port_femedia eq 'E1' && $res_dchan > 31){
-		printf("Error: only 31 channels available on E1\n");
-		$res_dchan='';
-		goto prompt_hw_dchan;
-	}
-	if ($res_dchan == 0){
-		printf("HW HDLC channel not used\n");
-	}else{
-		printf("HW HDLC channel set to:%d\n", $res_dchan);
-	}
-	return $res_dchan;
-}
-
-
-sub prompt_user_ss7_chans{
-	my @ss7_string = @_;
-	my $def_ss7_group_chan = '';
-
-	my $ss7_group_chan=&prompt_user("$ss7_string[0]",$def_ss7_group_chan);
-
-CHECK1:	while (length($ss7_group_chan)==0 |!($ss7_group_chan =~ /^\d+$/)){
-	       print("ERROR: Invalid channel number, input an integer only.\n\n");
-	       $ss7_group_chan=&prompt_user("$ss7_string[0]",$def_ss7_group_chan);
-	}
-	if ($line_media eq 'T1'){
-	          while ($ss7_group_chan>24 || $ss7_group_chan<1){
-	       	        print("Invalid channel number, there are only 24 channels in T1.\n\n");
-		        $ss7_group_chan=&prompt_user("$ss7_string[0]",$def_ss7_group_chan);
-			goto CHECK1;
-	          }
-	}elsif ($line_media eq 'E1'){
-	          while ($ss7_group_chan>31 || $ss7_group_chan<1){
-	  	  	print("Invalid channel number, there are only 31 channels in E1.\n\n");
-			$ss7_group_chan=&prompt_user("$ss7_string[0]",$def_ss7_group_chan);
-			goto CHECK1;
-		  }
-	}
-	return $ss7_group_chan;
 }

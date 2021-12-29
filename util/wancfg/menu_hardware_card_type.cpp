@@ -282,15 +282,16 @@ again:
 	    fe_cfg->media = WAN_MEDIA_FXOFXS;
 	    fe_cfg->tdmv_law = WAN_TDMV_MULAW;
 	    snprintf(fe_cfg->cfg.remora.opermode_name, WAN_RM_OPERMODE_LEN, "%s", "FCC");
+		fe_cfg->cfg.remora.battthresh = 3;
+		fe_cfg->cfg.remora.battdebounce = 16;
 	    break;
-
 	  case AFT_ADPTR_56K:
 	    fe_cfg->media = WAN_MEDIA_56K;
-	    break;
+		break;
 	  }
 	  break;
 	  
-	 case WANOPT_ADSL:
+	case WANOPT_ADSL:
 	  set_default_adsl_configuration(adsl_cfg);
 	  break;
 	  
@@ -348,15 +349,17 @@ again:
 	    set_default_t3_configuration(fe_cfg);
 	    break;
 
-          case A200_ADPTR_ANALOG:
+      case A200_ADPTR_ANALOG:
 	    fe_cfg->media = WAN_MEDIA_FXOFXS;
 	    fe_cfg->tdmv_law = WAN_TDMV_MULAW;
 	    snprintf(fe_cfg->cfg.remora.opermode_name, WAN_RM_OPERMODE_LEN, "%s", "FCC");
+		fe_cfg->cfg.remora.battthresh = 3;
+		fe_cfg->cfg.remora.battdebounce = 16;
 	    break;
 
 	  case AFT_ADPTR_56K:
 	    fe_cfg->media = WAN_MEDIA_56K;
-            break;
+		break;
 	  }
 	  break;
 

@@ -241,7 +241,7 @@ typedef struct ppp_private_area
 	/* Polling task queue. Each interface
          * has its own task queue, which is used
          * to defer events from the interrupt */
-	struct tq_struct poll_task;
+	wan_taskq_t poll_task;
 	struct timer_list poll_delay_timer;
 
 	u8 gateway;
@@ -300,7 +300,7 @@ static int ppp_error(sdla_t *card, int err, wan_mbox_t *mb);
 static int set_adapter_config (sdla_t* card);
 
 
-static void wpp_isr(sdla_t *card);
+static WAN_IRQ_RETVAL wpp_isr(sdla_t *card);
 static void rx_intr(sdla_t *card);
 static void event_intr(sdla_t *card);
 static void timer_intr(sdla_t *card);
@@ -329,10 +329,14 @@ static int chk_bcast_mcast_addr(sdla_t* card, netdevice_t* dev,
 				struct sk_buff *skb);
 
 static int config_ppp (sdla_t *);
-static void ppp_poll(void *);
 static void trigger_ppp_poll(netdevice_t *);
 static void ppp_poll_delay (unsigned long dev_ptr);
 
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+static void ppp_poll (void *card_ptr);
+#else
+static void ppp_poll (struct work_struct *work);
+#endif  
 
 static unsigned long Read_connection_info;
 static unsigned short available_buffer_space;
@@ -450,7 +454,7 @@ int wpp_init(sdla_t *card, wandev_conf_t *conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -766,7 +770,7 @@ static int new_if(wan_device_t *wandev, netdevice_t *dev, wanif_conf_t *conf)
 	}
 
 	/* Initialize the polling task routine */
-	INIT_WORK((&ppp_priv_area->poll_task),ppp_poll,dev);
+	WAN_TASKQ_INIT((&ppp_priv_area->poll_task),0,ppp_poll,dev);
 
 	/* Initialize the polling delay timer */
 	init_timer(&ppp_priv_area->poll_delay_timer);
@@ -1988,14 +1992,14 @@ static int ppp_error(sdla_t *card, int err, wan_mbox_t *mb)
 /*============================================================================
  * PPP interrupt service routine.
  */
-static void wpp_isr (sdla_t *card)
+static WAN_IRQ_RETVAL wpp_isr (sdla_t *card)
 {
 	ppp_flags_t		flags;
 	netdevice_t		*dev;
 	int i;
 
 	if (!card->hw){
-		return;
+		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
 	set_bit(0,&card->in_isr);
@@ -2069,7 +2073,7 @@ static void wpp_isr (sdla_t *card)
 wpp_isr_done:
 	clear_bit(0,&card->in_isr);
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-	return;
+	WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 }
 
 /*============================================================================
@@ -3932,15 +3936,28 @@ static int config_ppp (sdla_t *card)
  *      trigger_ppp_poll() function is used to kick
  *      the ppp_poll routine.  
  */
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
 static void ppp_poll (void *dev_ptr)
+#else
+static void ppp_poll (struct work_struct *work)
+#endif
 {
-	netdevice_t *dev=dev_ptr;
-	ppp_private_area_t *ppp_priv_area; 	
 	sdla_t *card;
 	u8 check_gateway=0;
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+	netdevice_t *dev;
+        ppp_private_area_t *ppp_priv_area = container_of(work, ppp_private_area_t, poll_task);
+	dev=ppp_priv_area->common.dev;
+	if (!dev) {
+		return;
+	}	
+#else
+	netdevice_t *dev=dev_ptr;
+	ppp_private_area_t *ppp_priv_area; 	
 	if (!dev || (ppp_priv_area = dev->priv) == NULL)
 		return;
+#endif
 
 	card = ppp_priv_area->card;
 
@@ -4091,7 +4108,7 @@ static void trigger_ppp_poll (netdevice_t *dev)
 			return;
 		}
 
-		wan_schedule_task(&ppp_priv_area->poll_task);
+		WAN_TASKQ_SCHEDULE((&ppp_priv_area->poll_task));
 	}
 	return;
 }
