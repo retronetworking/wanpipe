@@ -73,7 +73,7 @@ typedef struct
         uint32_t        fseqno;
         uint32_t        bseqno;
         uint16_t        call_setup_id;
-        uint8_t         trunk_group;
+        uint32_t        trunk_group;
         uint32_t        span;
         uint32_t        chan;
         uint8_t         called_number_digits_count;

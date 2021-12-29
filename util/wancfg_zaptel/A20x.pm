@@ -12,6 +12,7 @@ sub new	{
 		_card      => undef,		
 		_tdm_opermode => 'FCC',
 		_tdm_law => 'MULAW',
+		_rm_network_sync => 'NO',
 		_analog_modules => undef,
 	};			
 	bless $self, $class;
@@ -34,6 +35,12 @@ sub tdm_law {
 	            my ( $self, $tdm_law ) = @_;
 		                    $self->{_tdm_law} = $tdm_law if defined($tdm_law);
 				                        return $self->{_tdm_law};
+}
+
+sub rm_network_sync {
+	            my ( $self, $rm_network_sync ) = @_;
+		                    $self->{_rm_network_sync} = $rm_network_sync if defined($rm_network_sync);
+				                        return $self->{_rm_network_sync};
 }
 
 sub analog_modules {
@@ -98,6 +105,7 @@ sub gen_wanpipe_conf{
 	my $pci_bus = $self->card->pci_bus;
 	my $tdm_law = $self->tdm_law;
 	my $tdm_opermode = $self->tdm_opermode;
+	my $rm_network_sync = $self->rm_network_sync;
 	my $hwec_mode = $self->card->hwec_mode;
 
 	open(FH, $wanpipe_conf_template) or die "Can open $wanpipe_conf_template";
@@ -111,6 +119,7 @@ sub gen_wanpipe_conf{
         $wp_file =~ s/SLOTNUM/$pci_slot/g;
         $wp_file =~ s/BUSNUM/$pci_bus/g;
         $wp_file =~ s/TDM_LAW/$tdm_law/g;
+	$wp_file =~ s/RMNETSYNC/$rm_network_sync/g;
         $wp_file =~ s/TDM_OPERMODE/$tdm_opermode/g;
         $wp_file =~ s/HWECMODE/$hwec_mode/g;
 	

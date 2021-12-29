@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.1.2
+%define version           3.1.3
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,17 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+* Mon Jun 30 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.3
+==================================================================== 
+
+- Update to Ocatsic Hardware Echo Canceler Library
+  Turned of the NOISE suppression because it can interfere
+  with faxes. If you faxes did not work properly on 3.1.2
+  release they will work fine with this one.
+
+- Cleaned up the Setup installation script.
+
+
 * Mon Jun 16 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.2
 ==================================================================== 
 

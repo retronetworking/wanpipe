@@ -1,7 +1,7 @@
 8
 
 dir
-223
+229
 svn://sangoma.freeswitch.org/sangoma_mgd/trunk/lib/libteletone
 svn://sangoma.freeswitch.org
 
@@ -63,18 +63,6 @@ file
 219
 ncorbic
 
-AUTHORS
-file
-
-
-
-
-2007-07-10T21:31:14.000000Z
-2a307cc617b923385f157cc693f908e9
-2007-06-21T22:15:47.596766Z
-219
-ncorbic
-
 config.log
 file
 
@@ -83,6 +71,18 @@ file
 
 2007-07-10T21:31:14.000000Z
 daf6b3e00b6a4ed504d5703b68055399
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+AUTHORS
+file
+
+
+
+
+2007-07-10T21:31:14.000000Z
+2a307cc617b923385f157cc693f908e9
 2007-06-21T22:15:47.596766Z
 219
 ncorbic
@@ -100,29 +100,8 @@ file
 ncorbic
 has-props
 
-depcomp
-file
-
-
-
-
-2007-07-10T21:31:14.000000Z
-7e26ecc61d5c27c50d334ebe19d5ef06
-2007-06-21T22:15:47.596766Z
-219
-ncorbic
-
-ChangeLog
-file
-
-
-
-
-2007-07-10T21:31:14.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2007-06-21T22:15:47.596766Z
-219
-ncorbic
+src
+dir
 
 config.status
 file
@@ -137,8 +116,29 @@ a4881f4f4629566acce1f250ae4c18f8
 ncorbic
 has-props
 
-src
-dir
+ChangeLog
+file
+
+
+
+
+2007-07-10T21:31:14.000000Z
+d41d8cd98f00b204e9800998ecf8427e
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+depcomp
+file
+
+
+
+
+2007-07-10T21:31:14.000000Z
+7e26ecc61d5c27c50d334ebe19d5ef06
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
 
 compile
 file
@@ -177,18 +177,6 @@ c2defdef8cd93c3d9e29628267699702
 219
 ncorbic
 
-README
-file
-
-
-
-
-2007-07-10T21:31:14.000000Z
-234c8df99750448a5b1c4709304a38e5
-2007-06-21T22:15:47.596766Z
-219
-ncorbic
-
 config.sub
 file
 
@@ -197,6 +185,18 @@ file
 
 2007-07-10T21:31:14.000000Z
 74587542264e2bb761ee931ddb7d69f1
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+README
+file
+
+
+
+
+2007-07-10T21:31:14.000000Z
+234c8df99750448a5b1c4709304a38e5
 2007-06-21T22:15:47.596766Z
 219
 ncorbic

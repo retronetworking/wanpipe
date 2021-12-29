@@ -1,309 +1,81 @@
---- /root/2.3.4/wanpipe/Setup	2007-07-18 16:12:10.000000000 -0400
-+++ Setup	2007-07-19 15:49:43.000000000 -0400
-@@ -1593,7 +1593,6 @@
- 	echo "WAN_LIB_DIR=/etc/wanpipe/lib" >> $META_CONF
- 	echo "WAN_ADSL_LIST=/etc/wanpipe/wan_adsl.list" >> $META_CONF
- 	echo "WAN_ANNEXG_LOAD=$ANNEXG_LOAD" >> $META_CONF
--	echo "WAN_SCTP_LOAD=$SCTP_LOAD" >> $META_CONF
- 	echo "WAN_LIP_LOAD=$LIP_LOAD" >> $META_CONF
- 	echo "WAN_DYN_WANCONFIG=NO" >> $META_CONF
- 	echo "WAN_SCRIPTS_DIR=/etc/wanpipe/scripts" >> $META_CONF
-@@ -1815,14 +1814,14 @@
- 	1) create WANPIPE configuration files.
- 		(/usr/sbin/wancfg)
- 	2) create configuration files for Zaptel and Asterisk
--		(/usr/sbin/wancfg_zaptel)
--	3) start,stop,restart individual/all devices and interfaces.
-+		(/usr/sbin/wancfg-zaptel)
-+	2) start,stop,restart individual/all devices and interfaces.
- 		(/usr/sbin/wanrouter)
--	4) debug line, protocol and driver problems.
-+	3) debug line, protocol and driver problems.
- 		(/usr/sbin/wanpipemon)
--	5) configure the optional onboard FT1 CSU/DSU (S508/S5143).
-+	4) configure the optional onboard FT1 CSU/DSU (S508/S5143).
- 		(/usr/sbin/cfgft1)
--	6) aid in WANPIPE API development
-+	5) aid in WANPIPE API development
- 		(/etc/wanpipe/api)
+--- /root/3.1.X/wanpipe/Setup	2007-07-26 12:40:15.000000000 -0400
++++ /root/2.3.4/wanpipe/Setup	2007-07-30 19:40:01.000000000 -0400
+@@ -1672,14 +1672,17 @@
+ 		[ -d $RC_DIR/init.d ] && install -D -m 755 $WANROUTER_STARTUP_SMPL $ROOT/$RC_DIR/init.d/$PROD
+ 	fi
  
- Refer to the WanpipeInstallation.(pdf/txt) for more information.
-@@ -3203,7 +3202,6 @@
- 		CONFIG_SMP=NO;
+-	pause
+     	if [ "$TDM_PROT" = "YES" ]; then
+ 		getyn "Would you like to auto-execute ztcfg after wanrouter start?" || return 0
+-			cp $PROD_HOME/samples/wanpipe_zaptel_start /etc/wanpipe/scripts/start
++			if [ ! -d $WAN_CONF_DIR/scripts ]; then
++				eval "\mkdir -p $WAN_CONF_DIR/scripts >/dev/null 2>/dev/null"
++			fi 
++			eval "\cp -f  $PROD_HOME/samples/wanpipe_zaptel_start $WAN_CONF_DIR/scripts/start >/dev/null 2>/dev/null"
+ 			if [ ! -f $WAN_CONF_DIR/scripts/start ]; then
+ 				echo "Error: Could not copy auto-ztcfg script"
+ 			fi
+ 	fi
++	pause
+ 	return 0
+ 
+ }
+@@ -2635,7 +2638,7 @@
+   protocols that you need.  This way one can reduce
+   the size of the WANPIPE kernel drivers.
+ 
+-Refer to the WapipeIntallation.(pdf/txt) documentation.
++Refer to the WanpipeIntallation.(pdf/txt) documentation.
+ ENDOFTEXT
+ 	fi
+ 
+@@ -2664,7 +2667,6 @@
+ 		fi
  	fi
  
 -
- 	#Find out our processor type. This is needed to properly
- 	#compile our modules.
- 	echo -n "Checking current processor type ..."
-@@ -3303,10 +3301,6 @@
- 			fi
- 		fi
+ 	ANNEXG_LOAD=NO
  
--		
--
--
--
- 		echo -n "Compiling General ${DISTR_NAME} Driver for 2.6.X Kernel ."
- 		
+ 	check_gcc	
+@@ -2785,14 +2787,15 @@
+ 	#Copy the WANPIPE device drivers  
+ 	#into a temporary directory
+ 
+-	\cp -f $DRIVER_UPDATE_DIR/src/net/* .
+-	\cp -f $DRIVER_UPDATE_DIR/src/wanrouter/* .	
++	eval "\cp -f $DRIVER_UPDATE_DIR/src/net/* . >/dev/null 2>/dev/null"
++	eval "\cp -f $DRIVER_UPDATE_DIR/src/wanrouter/* .>/dev/null 2>/dev/null"
+ 
+-	\cp -f $PROD_HOME/kbuild/Makefile .	
++
++	eval "\cp -f $PROD_HOME/kbuild/Makefile . >/dev/null 2>/dev/null"
+ 
+ 	for file in $DRIVERS_MOD_LIST
+ 	do
+-		\cp $DRIVER_UPDATE_DIR/src/net/$file .
++		eval "\cp $DRIVER_UPDATE_DIR/src/net/$file . >/dev/null 2>/dev/null" 
+ 	done
+ 
+ 	update_redhat_as 0
+@@ -3122,6 +3125,12 @@
+ 
  	
-@@ -3491,6 +3485,18 @@
- EVALCMD=eval
- WANPIPE_OBJS=
- 
-+
-+ 		 if [ 0 -eq 1 ]; then
-+                echo
-+                echo "ALLFLAGS"
-+                echo "--------------------------------------------------"
-+                echo "$CFLAGS"
-+                echo "--------------------------------------------------"
-+                echo
-+                echo
+ 	if test -z $NONINTERACTIVE; then
++		if [ -e $SOURCEDIR/include/config/kernel.release ]; then
++			KERNEL_VERSION=`cat $SOURCEDIR/include/config/kernel.release`
++			echo "Source kernel name:$KERNEL_VERSION"
 +		fi
-+                      
 +
- 	rm -f sdladrv_src.c
- 	ln -s sdladrv.c sdladrv_src.c
- 	build_kernel_module sdladrv "sdladrv_src sdladrv_fe"
-@@ -3757,10 +3763,8 @@
- 		\cp -f $DRIVER_UPDATE_DIR/src/lip/*.c  .
- 		\cp -f $DRIVER_UPDATE_DIR/src/lip/bin/*.o .
- 
--		if [ -e $DRIVER_UPDATE_DIR/src/lip/lip_katm ]; then 
--			\cp -f $DRIVER_UPDATE_DIR/src/lip/lip_katm/*.c .
--			\cp -f $DRIVER_UPDATE_DIR/src/lip/lip_katm/*.h .
--		fi
-+		\cp -f $DRIVER_UPDATE_DIR/src/lip/lip_katm/*.c .
-+		\cp -f $DRIVER_UPDATE_DIR/src/lip/lip_katm/*.h .
- 
- 		LIP_LINKED_PROTOCOLS=
- 
-@@ -3868,9 +3872,6 @@
- 		fi
- 
- 		if [ $XMTP2_PROT = "YES" ]; then
--
--			SCTP_LOAD=YES
--
- 			xmtp2_file=wanpipe_xmtp2.gcc$GCC_VER.$ARCH$REGPARM_OPT.o
- 			if [ ! -e $xmtp2_file ]; then
- 				echo "Warning: FR Binary $xmtp2_file not found!"
-@@ -4389,39 +4390,34 @@
-         eval "ldconfig"
- 
- 	cd $PROD_HOME/$SSMG_DIR
-+	cd sangoma_mgd.trunk
- 
--#	Let smg install script install SMG components
--#=======================================================
--
--#	cd sangoma_mgd.trunk
--#
--#       eval "make clean > /dev/null; make > /dev/null "
--#        if [ $? -ne 0 ]; then
--#	  	echo "FAILED"
--#		return 1
--#	fi
--#        eval "make install > /dev/null "
--#	
--#	echo "Installing Sangoma Media Gateway Daemon...DONE"
-+        eval "make clean > /dev/null; make > /dev/null "
-+        if [ $? -ne 0 ]; then
-+	  	echo "FAILED"
-+		return 1
-+	fi
-+        eval "make install > /dev/null "
- 	
--#      	eval "type asterisk > /dev/null 2> /dev/null"
--#	if [ $? -ne 0 ]; then
--#          	echo "Error: Asterisk not installed!"
--#		echo "Please install Asterisk first then retry SSMG installation!"
--#		return 1
--#	fi  	
-+	echo "Installing Sangoma Media Gateway Daemon...DONE"
-+	
-+       	eval "type asterisk > /dev/null 2> /dev/null"
-+	if [ $? -ne 0 ]; then
-+          	echo "Error: Asterisk not installed!"
-+		echo "Please install Asterisk first then retry SSMG installation!"
-+		return 1
-+	fi  	
-  	
--#	echo
--#	echo "Installing Chan Woomera into Asterisk..."
--#	echo
--#	install_chan_woomera
--#	if [ $? -ne 0 ]; then
--#         	echo "Error: Failed to install chan_woomera into Asterisk!"
--#		echo "Check that Asterisk is installed or Call Sangoma Tech Support"
--#		echo
--#		return 1
--#	fi	
--#=========================================================
-+	echo
-+	echo "Installing Chan Woomera into Asterisk..."
-+	echo
-+	install_chan_woomera
-+	if [ $? -ne 0 ]; then
-+          	echo "Error: Failed to install chan_woomera into Asterisk!"
-+		echo "Check that Asterisk is installed or Call Sangoma Tech Support"
-+		echo
-+		return 1
-+	fi	
- 
- 	cd $PROD_HOME/$SSMG_DIR
- 	cd sangoma_mgd.trunk 
-@@ -4872,6 +4868,62 @@
-         return 0;
- }
- 
-+function tdmv_apply_zaptel_dchan_patch ()
-+{
-+	lhome=`pwd`
-+
-+	cd $ZAPTEL_INSTALL_DIR
-+
-+	eval "grep \"DCHAN_TX\" $ZAPTEL_C_FILE > /dev/null 2> /dev/null"
-+	if [ $? -eq 0 ]; then
-+
-+		eval "grep \"ZT_DCHAN_TX_V2\" $ZAPTEL_C_FILE > /dev/null 2> /dev/null"
-+		if [ $? -eq 0 ]; then
-+			echo "   Zaptel DCHAN patch V.02 already installed"
-+			cd $lhome
-+			return 1
-+		else
-+			echo "   ERROR: Old Zaptel DCHAN patch detected in $ZAPTEL_INSTALL_DIR"
-+			echo
-+			echo "       Please install a fresh version of Zaptel source and"
-+			echo "       run ./Setup again."
-+			echo 
-+			cd $lhome
-+			exit 1
-+		fi
-+	fi
-+
-+	# patch zaptel.h
-+	eval "search_and_replace zaptel.h zaptel.h \"$ZAPTEL_H_SEARCH_STR\" \"$ZAPTEL_H_PATCH\""
-+
-+	if [ $? -ne 0 ]; then
-+		echo "search_and_replace(zaptel.h) failed"
-+		cd $lhome
-+		return 2
-+	#else
-+	#	echo "search_and_replace($ZAPTEL_C_FILE) succeeded"
-+	fi
-+
-+	# patch $ZAPTEL_C_FILE
-+        eval "grep \"$ZAPTEL_C_SEARCH_STR\"  $ZAPTEL_C_FILE > /dev/null 2> /dev/null"
-+	if [ $? -eq 0 ]; then
-+		eval "search_and_replace $ZAPTEL_C_FILE $ZAPTEL_C_FILE \"$ZAPTEL_C_SEARCH_STR\" \"$ZAPTEL_C_PATCH\""
-+	else
-+		eval "search_and_replace $ZAPTEL_C_FILE $ZAPTEL_C_FILE \"$ZAPTEL_C_SEARCH_STR_NEW\" \"$ZAPTEL_C_PATCH_NEW\""
-+	fi
-+
-+	if [ $? -ne 0 ]; then
-+		echo "search_and_replace($ZAPTEL_C_FILE) failed"
-+		cd $lhome
-+		return 2
-+	else
-+		#echo "search_and_replace($ZAPTEL_C_FILE) succeeded"
-+		cd $lhome
-+		zaptel_modified=1
-+		return 0
-+	fi
-+}
-+
- function tdmv_apply_zaptel_dchan_patch_old ()
- {
- 	local rc
-@@ -4981,6 +5033,20 @@
-                         zaptel_modified=1
-                 fi
-         fi
-+
-+	if [ -f Makefile.kernel26 ]; then
-+		eval "cat Makefile.kernel26 | sed 's/^obj-m.*+=.*wct4xx.*//g'>$TEMP 2>/dev/null "
-+		if [ $? -ne 0 ]; then
-+			 echo "   Failed to remove wct4xxp from Makefile.kernel26"
-+              		 exit 1
 +		
-+		else
-+			eval "\mv -f $TEMP Makefile.kernel26"
-+			echo "   wct4xxp module removed from Makefile.kernel26 successfully"
-+                        zaptel_modified=1			
-+		fi
-+	fi
-+
-         cd $lhome
-         return 0;
- }
-@@ -5695,15 +5761,13 @@
- 
- 				PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN"
- 				echo
--			#	tdmv_apply_zaptel_dchan_patch
--				eval "$PROD_HOME/patches/sangoma-zaptel-patch.sh $ZAPTEL_INSTALL_DIR"
--				result=$?
--				if [ $result -eq 0 ]; then
-+				tdmv_apply_zaptel_dchan_patch
-+				if [ $? -eq 0 ]; then
-                                         TDM_DCHAN="(DCHAN)"
-                                         echo "   Zaptel DCHAN Patch successful"
-                               #          getyn "Confirm Zaptel Patching: yes/no to continue!"
-                                         echo
--                                elif [ $result -eq 1 ]; then
-+                                elif [ $? -eq 1 ]; then
-                                         TDM_DCHAN="(DCHAN)"
-                                         echo
-                                 else
-@@ -6113,7 +6177,7 @@
+                 if [ $KERNEL_VERSION != $KERNEL_UNAME ]; then
+ 			echo 
+                         echo -e "WARNING: Module installation dir mismatch!"
+@@ -6127,7 +6136,7 @@
  PKG_NAME=wanpipe
  DISTR_NAME="WANPIPE"
  PROD=wanrouter
--PROD_VER=2.3.4-12.p1
-+PROD_VER=3.1.2
+-PROD_VER=3.1.2.4
++PROD_VER=2.3.4-13
  PROD_HOME=`pwd`
  META_CONF=$PROD_HOME/$PROD.rc
  WAN_INTR_DIR=$PROD_HOME/interfaces
-@@ -6192,7 +6256,6 @@
- SS7_USER_ID="0"
- 
- ANNEXG_LOAD=NO
--SCTP_LOAD=NO
- 
- ZAPTEL_INSTALL_DIR="/usr/src/zaptel"
- ZAPTEL_C_FILE="zaptel.c"
-@@ -6384,7 +6447,6 @@
- 		--no-gcc-debug*)
- 			DISABLE_GCC_DEBUG=1;
- 			;;
--			
- 		--usr-cc*)
- 			USR_CC=`echo $arg | cut -d'=' -f2`;
- 			eval "type $USR_CC";
-@@ -6415,15 +6477,9 @@
- 		--noautostart*)
- 			NO_AUTO_START=1
- 			;;
--		
--		--ignore-t1-yellow*)
--			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DWANPIPE_IGNORE_T1_YELLOW " 
--			;;
--
- 		--64bit_4G*)
- 			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DWANPIPE_64BIT_4G_DMA "
- 			;;
--
- 		--with-linux*)
- 			SOURCEDIR=`echo $arg | cut -d'=' -f2`;
- 			if [ "$SOURCEDIR" = "" ]; then
-@@ -6559,7 +6615,7 @@
- --zap-chunk*)
-                         ZAP_CHUNK=`echo $arg | cut -d'=' -f2`;
- 
--                        if [ $ZAP_CHUNK != "16" ] && [ $ZAP_CHUNK != "40" ] && [ $ZAP_CHUNK != "80" ];  then
-+                        if [ $ZAP_CHUNK != "8" ] && [ $ZAP_CHUNK != "16" ] && [ $ZAP_CHUNK != "40" ] && [ $ZAP_CHUNK != "80" ];  then
-                                 echo "Error: Invalid Zaptel Chunk size"
-                                 exit 1;
-                         else

@@ -18,6 +18,7 @@ if [ ! -e /usr/local/ss7box/$ss7boxd ]; then
 fi
 
 eval "ulimit -n 65000"
+eval "modprobe sctp > /dev/null 2> /dev/null"
 
 sangoma_mgd -term
 

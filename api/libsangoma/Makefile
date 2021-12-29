@@ -212,7 +212,8 @@ sharedstatedir = ${prefix}/com
 sysconfdir = ${prefix}/etc
 target_alias = 
 KINC = /lib/modules/$(shell uname -r)/build
-AM_CFLAGS = -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I$(KINC)/include -I. \
+WINC = ../../patches/kdrivers/include
+AM_CFLAGS = -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I$(WINC) -I$(KINC)/include -I. \
 	-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O2 -D_DEBUG_=2 -D_GNUC_ -I../lib -I$(KINC)/include
 
 LIB_SOURCES = libsangoma.c libsangoma.h $(am__append_1)

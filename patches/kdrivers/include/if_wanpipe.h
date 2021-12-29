@@ -220,10 +220,9 @@ enum {
 
 
 /* X25 specific */
-#define WAN_PACKET_DATA 	7
-#define WAN_PACKET_CMD 		8
-#define WAN_PACKET_ASYNC	9
-#define WAN_PACKET_ERR	       10
+#define WAN_PACKET_DATA 	0
+#define WAN_PACKET_CMD 		1
+#define WAN_PACKET_ERR	        2
 
 /* Packet socket options */
 

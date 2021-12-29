@@ -871,7 +871,7 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 		EchoChannelOpen.VqeConfig.fAcousticEcho		= TRUE;
 #endif
 
-		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
+		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
 		EchoChannelOpen.VqeConfig.ulComfortNoiseMode	= 
 					cOCT6100_COMFORT_NOISE_NORMAL;
 				/*	cOCT6100_COMFORT_NOISE_NORMAL

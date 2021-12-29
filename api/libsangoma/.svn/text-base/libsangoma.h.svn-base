@@ -26,7 +26,7 @@
 #include <windows.h>
 #include <winioctl.h>
 #include <conio.h>
-#include <stddef.h>				//for offsetof()
+iinclude <stddef.h>				//for offsetof()
 typedef unsigned __int16 u_int16_t;
 typedef unsigned __int32 u_int32_t;
 #include <wanpipe_defines.h>	//for 'wan_udp_hdr_t'
@@ -158,7 +158,32 @@ int sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 
+/* Enable/Disable Ring events on A200 (Analog) card */
+int sangoma_tdm_enable_ring_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+int sangoma_tdm_disable_ring_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+
+/* Enable/Disable Ring Detect events on A200 (Analog) card */
+int sangoma_tdm_enable_ring_detect_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+int sangoma_tdm_disable_ring_detect_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+
+/* Enable/Disable Ring Trip events on A200 (Analog) card */
+int sangoma_tdm_enable_ring_trip_detect_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+int sangoma_tdm_disable_ring_trip_detect_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+
+/* Enable/Disable tone events on A200 (Analog) card */
+int sangoma_tdm_enable_tone_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, int tone_id);
+int sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+
 int sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+
+int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api); 
+
+
+int sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+int sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+int sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+int sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 
 #ifndef LIBSANGOMA_GET_HWCODING
 #define LIBSANGOMA_GET_HWCODING 1
