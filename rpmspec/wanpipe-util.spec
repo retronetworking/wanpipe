@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.3.9
+%define version           3.3.10
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc

@@ -5,6 +5,12 @@ Author: David Yat Sin <david.yatsin@sangoma.com>
 Copyright (c) 2007-2008 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
+
+* Thur May 15 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.39b
+====================================================================
+- Fix for smg_brid causing segfaults on some systems on incoming OOB
+- alarms
+
 * Mon April 30 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.39
 ====================================================================
 - Fix for RDNIS not cleared

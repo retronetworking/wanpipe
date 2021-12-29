@@ -8,6 +8,14 @@ Author: Nenad Corbic <ncorbic@sangoma.com>
 Copyright (c) 1995-2008 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
+* Thu May 15 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.10
+======================================================================
+
+- BRI Update
+  On some machines it is possible to have sangoma_brid segfault 
+  due to gcc incompatibility.  This has now been fixed and tested.
+
+
 * Fri Apr 30 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.9
 ======================================================================
 
