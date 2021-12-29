@@ -1,10 +1,17 @@
 sangoma_mgd.c
 ======================================
+Jan 24 2007
+ * v1.27 Nenad Corbic  <ncorbic@sangoma.com>
+ *	Fixed a memory leak on incoming calls
+ *	Removed the use of server listener which 
+ *	was not used
+
 Jan 18 2007
  * v1.26 Nenad Corbic  <ncorbic@sangoma.com>
  *      Fixed hangup after invalid Answer or Ack Session
  *      Can cause double use of setup id - now fixed
  *
+
 Dec 31 2007
  * v1.25 Nenad Corbic  <ncorbic@sangoma.com>
  *	Removed UDP Resync it can cause skb_over errors.

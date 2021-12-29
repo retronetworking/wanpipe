@@ -4,7 +4,7 @@
  *
  * Woomera Channel Driver
  * 
- * Copyright (C) 05-07 Nenad Corbic 
+ * Copyright (C) 05-08 Nenad Corbic 
  * 		       Anthony Minessale II 
  *
  * Nenad Corbic <ncorbic@sangoma.com>
@@ -13,6 +13,21 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.24 Nenad Corbic <ncorbic@sangoma.com>
+ * Jan 23 2008
+ *	Removed LISTEN on every woomera channel. Listen
+ *      only on master. Fixed jitterbuffer support on AST1.4
+ *
+ * v1.23 Nenad Corbic <ncorbic@sangoma.com>
+ * Jan 22 2008
+ *	Implemented Music on Hold.
+ *
+ * v1.22 David Yat Sin <davidy@sangoma.com>
+ * Jan 11 2008
+ * 	rxgain and txgain configuration parameters 
+ *	are ignored if coding is not specified in 
+ *	woomera.conf	
+ *
  * v1.21 David Yat Sin <davidy@sangoma.com>
  * Dec 27 2007
  * 	Support for language  
@@ -133,8 +148,9 @@
 #include "asterisk/translate.h"
 #include "asterisk/causes.h"
 #include "asterisk/dsp.h"
+#include "asterisk/musiconhold.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.21 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.24 $")
 
 #else
 
@@ -156,7 +172,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.21 $")
 #include "callweaver/dsp.h"
 #include "callweaver.h"
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.21 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.24 $")
 
 // strings...
 
@@ -279,7 +295,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.21 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.21"
+#define WOOMERA_VERSION "v1.24"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -293,6 +309,15 @@ static const char tdesc[] = "Woomera Channel Driver";
 static char configfile[] = "woomera.conf";
 static char smgversion_init=0;
 static char smgversion[100] = "N/A";
+
+static char mohinterpret[MAX_MUSICCLASS] = "default";
+static char mohsuggest[MAX_MUSICCLASS] = "";
+
+#ifdef AST14
+ #ifndef AST_JB
+  #define AST_JB 1
+ #endif
+#endif
 
 #ifdef AST_JB
 #include "asterisk/abstract_jb.h"
@@ -486,6 +511,8 @@ struct private_object {
 	char dtmfbuf[WOOMERA_STRLEN];
 	char cid_name[WOOMERA_STRLEN];
 	char cid_num[WOOMERA_STRLEN];
+	char mohinterpret[MAX_MUSICCLASS];
+	char mohsuggest[MAX_MUSICCLASS];
 	char *cid_rdnis;
 	int  cid_pres;
 	char ds[WOOMERA_STRLEN];
@@ -1191,6 +1218,7 @@ retry_activate_again:
 				tech_pvt);
 		}
 	} else {
+
 		if (retry_activate_call <= 3) {
 			retry_activate_call++;
 			goto retry_activate_again;
@@ -1411,15 +1439,25 @@ static int tech_init(private_object *tech_pvt, woomera_profile *profile, int fla
 		tech_pvt->faxdetect=1;
 	}
 
+
 	if (profile->jb_enable) {
 #ifdef AST_JB
 		/* Assign default jb conf to the new zt_pvt */
 		memcpy(&tech_pvt->jbconf, &global_jbconf, sizeof(struct ast_jb_conf));
-		ast_jb_configure(chan, &tech_pvt->jbconf);
+		ast_jb_configure(self, &tech_pvt->jbconf);
+		
+		if (globals.debug > 1 && option_verbose > 10) {
+			ast_log(LOG_NOTICE, "%s: Cfg JitterBuffer (F=%i MS=%li Rs=%li Impl=%s)\n",
+					self->name,
+					tech_pvt->jbconf.flags,
+					tech_pvt->jbconf.max_size,
+					tech_pvt->jbconf.resync_threshold,
+					tech_pvt->jbconf.impl);
+		}
 #else
 		ast_log(LOG_ERROR, "Asterisk Jitter Buffer Not Compiled!\n");
 #endif
-	}
+	} 
 
 
 	/* Asterisk being asterisk and all allows approx 1 nanosecond 
@@ -2300,6 +2338,9 @@ static void *woomera_thread_run(void *obj)
 						if (globals.debug > 2) {
 						ast_log(LOG_NOTICE, "%s:%d Incoming Call \n",__FUNCTION__,__LINE__);
 						}
+
+#if 0
+/* We only want a single listener */
 						woomera_printf(profile, woomera_socket, "LISTEN%s", WOOMERA_RECORD_SEPARATOR);
 						if(woomera_message_parse(woomera_socket,
 												 &wmsg,
@@ -2309,7 +2350,8 @@ static void *woomera_thread_run(void *obj)
 												 ) < 0) {
 							ast_log(LOG_ERROR, "{%s} %s:%d HELP! Woomera is broken!\n", profile->name,__FUNCTION__,__LINE__);
 							woomera_close_socket(&woomera_socket);
-						} 
+						}
+#endif 
 					}
 					if (woomera_socket > -1) {
 						ast_log(LOG_NOTICE, "Woomera Thread Up {%s} %s/%d\n", profile->name, profile->woomera_host, profile->woomera_port);
@@ -2452,7 +2494,13 @@ static void woomera_config_gain(woomera_profile *profile, float gain_val, int rx
 	int k;
 	float linear_gain = pow(10.0, gain_val / 20.0);
 	unsigned char *gain;
+
+	if (profile->coding == AST_FORMAT_SLINEAR){
+		ast_log(LOG_WARNING, "Coding not specified, %s value ignored\n", (rx)? "rxgain":"txgain");
+		return;
+	}
 	
+		
 	if (gain_val == 0) {
 		goto woomera_config_gain_skip;
 	}
@@ -2548,32 +2596,32 @@ static int config_woomera(void)
 	int count = 0;
 
 	memset(&default_profile, 0, sizeof(default_profile));
+#ifdef AST_JB
+	memcpy(&global_jbconf, &default_jbconf, sizeof(struct ast_jb_conf));
+#endif
 	
 	default_profile.coding=0;
-	
+
 	if ((cfg = ast_config_load(configfile))) {
 		for (entry = ast_category_browse(cfg, NULL); entry != NULL; entry = ast_category_browse(cfg, entry)) {
-			if (!strcmp(entry, "settings")) {
+			if (strcmp(entry, "settings") == 0) {
+				
 				for (v = ast_variable_browse(cfg, entry); v ; v = v->next) {
+
 					if (!strcmp(v->name, "debug")) {
 						globals.debug = atoi(v->value);
 					} else if (!strcmp(v->name, "more_threads")) {
 						globals.more_threads = ast_true(v->value);
 					}
+#ifdef AST_JB
+					if (ast_jb_read_conf(&global_jbconf, v->name, v->value) == 0) {
+						ast_log(LOG_NOTICE, "Woomera AST JB Opt %s = %s \n",	
+								v->name,v->value);
+						continue;
+					}
+#endif
 				}
 
-#ifdef AST_JB
-				struct ast_variable *vjb;
-                                /* Copy the default jb config over global_jbconf */
-                                memcpy(&global_jbconf, &default_jbconf, sizeof(struct ast_jb_conf));
-                                /* Traverse all variables to handle jb conf */
-                                vjb = ast_variable_browse(cfg, "settings");;
-                                while(vjb)
-                                {
-                                        ast_jb_read_conf(&global_jbconf, vjb->name, vjb->value);
-                                        vjb = vjb->next;
-                                }
-#endif /* AST_JB */
 
 
 			} else {
@@ -2652,8 +2700,17 @@ static int config_woomera(void)
 						strncpy(profile->language, v->value, sizeof(profile->language) - 1);
 					} else if (!strcmp(v->name, "dtmf_enable")) {
 						profile->dtmf_enable = atoi(v->value);
+
 					} else if (!strcmp(v->name, "jb_enable")) {
+						profile->jb_enable = atoi(v->value);
+						ast_log(LOG_NOTICE, "Profile {%s} Jitter Buffer %s %p \n",
+							 entry,profile->jb_enable?"Enabled":"Disabled",profile);
+
+					} else if (!strcmp(v->name, "jbenable")) {
                                                 profile->jb_enable = atoi(v->value);
+						ast_log(LOG_NOTICE, "Profile {%s} Jitter Buffer %s %p\n",
+							 entry,profile->jb_enable?"Enabled":"Disabled",profile);
+
 					} else if (!strcmp(v->name, "progress_enable")) {
                                                 profile->progress_enable = atoi(v->value);
 						
@@ -2840,7 +2897,7 @@ static int connect_woomera(int *new_socket, woomera_profile *profile, int flags)
 			
 			if ((res = woomera_message_parse(*new_socket,
 							 &wmsg,
-						 	 -10000, //WOOMERA_HARD_TIMEOUT,
+						 	 WOOMERA_HARD_TIMEOUT,
 							 profile,
 							 NULL
 							 )) < 0) {
@@ -2983,6 +3040,9 @@ static struct ast_channel *woomera_new(const char *type, int format,
 		tech_pvt->frame.subclass = tech_pvt->coding;
 
 		tech_pvt->pri_cause=AST_CAUSE_NORMAL_CLEARING;
+	
+		ast_copy_string(tech_pvt->mohinterpret,mohinterpret,sizeof(tech_pvt->mohinterpret));
+		ast_copy_string(tech_pvt->mohsuggest,mohsuggest,sizeof(tech_pvt->mohsuggest));
 
 		ASTOBJ_CONTAINER_LINK(&private_object_list, tech_pvt);
 		
@@ -3635,16 +3695,13 @@ static int tech_indicate(struct ast_channel *self, int condition)
 	private_object *tech_pvt;
 	int res = -1;
 
-	if (globals.debug > 1) {
-		ast_verbose(WOOMERA_DEBUG_PREFIX "+++INDICATE %s %d\n",self->name, condition);
-	}
-
 	tech_pvt = self->tech_pvt;
 	if (!tech_pvt) {
 		return res;
 	}
 
 	switch(condition) {
+
         case AST_CONTROL_RINGING:
 		if (globals.debug > 3) {
 			ast_log(LOG_NOTICE, "TECH INDICATE: Ringing\n");
@@ -3692,6 +3749,11 @@ static int tech_indicate(struct ast_channel *self, int condition)
 		if (!ast_test_flag(tech_pvt,TFLAG_ACCEPTED)) {
 			ast_set_flag(tech_pvt, TFLAG_ACCEPT);
 		}
+#ifdef AST14
+		ast_mutex_lock(&self->lock);
+		ast_moh_start(self, data, tech_pvt->mohinterpret);
+		ast_mutex_unlock(&self->lock);
+#endif
 		break;
 	case AST_CONTROL_UNHOLD:
 		if (globals.debug > 3) {
@@ -3700,6 +3762,11 @@ static int tech_indicate(struct ast_channel *self, int condition)
 		if (!ast_test_flag(tech_pvt,TFLAG_ACCEPTED)) {
 			ast_set_flag(tech_pvt, TFLAG_ACCEPT);
 		}
+#ifdef AST14
+		ast_mutex_lock(&self->lock);
+		ast_moh_stop(self);
+		ast_mutex_unlock(&self->lock);
+#endif
 		break;
 	case AST_CONTROL_VIDUPDATE: 
 		if (globals.debug > 3) {

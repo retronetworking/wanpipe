@@ -33,6 +33,7 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
 #define wan_skb_reset_mac_header(skb)  skb_reset_mac_header(skb)
 #define wan_skb_reset_network_header(skb) skb_reset_network_header(skb)
+#define wan_skb_end_pointer(skb) skb_end_pointer(skb)
 #define wan_skb_tail_pointer(skb) skb_tail_pointer(skb)
 #define wan_skb_reset_tail_pointer(skb) skb_reset_tail_pointer(skb)
 #define wan_skb_set_tail_pointer(skb,offset) skb_set_tail_pointer(skb,offset)
@@ -40,6 +41,7 @@
 #define wan_skb_reset_mac_header(skb) ((skb)->mac.raw = (skb)->data)
 #define wan_skb_reset_network_header(skb) ((skb)->nh.raw  = (skb)->data)
 #define wan_skb_tail_pointer(skb) ((skb)->tail)
+#define wan_skb_end_pointer(skb) ((skb)->end)
 #define wan_skb_reset_tail_pointer(skb) ((skb)->tail = (skb)->data)
 #define wan_skb_set_tail_pointer(skb,offset) ((skb)->tail = ((skb)->data + offset))
 #endif

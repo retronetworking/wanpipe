@@ -1,6 +1,23 @@
 chan_woomera.c
 ======================================
 
+ Jan 23 2008
+ * v1.24 Nenad Corbic <ncorbic@sangoma.com>
+ *	Removed LISTEN on every woomera channel. Listen
+ *      only on master. Fixed jitterbuffer support on AST1.4
+ *
+
+ Jan 22 2008
+ * v1.23 Nenad Corbic <ncorbic@sangoma.com>
+ *	Implemented Music on Hold.
+ *
+
+ Jan 11 2008
+ * v1.22 David Yat Sin <davidy@sangoma.com>
+ * 	rxgain and txgain configuration parameters 
+ *	are ignored if coding is not specified in 
+ *	woomera.conf	
+
 Dec 27 2007
  * v1.21 David Yat Sin <davidy@sangoma.com>
  * 	 Support for language

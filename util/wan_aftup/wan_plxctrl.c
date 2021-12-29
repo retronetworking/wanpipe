@@ -77,11 +77,11 @@ extern int exec_bridge_write_cmd(void*, unsigned int, unsigned int, unsigned int
 void PEX_8111Read(void *info, int addr, int *data)
 {	
 	if (addr < 0x1000){
-		exec_bridge_read_cmd(info, addr, 4, data);
+		exec_bridge_read_cmd(info, addr, 4, (unsigned int*)data);
 	}else if (addr >= 0x1000 && addr <= 0x1FFF){
 			
 		exec_bridge_write_cmd(info, 0x84, 4, addr);
-		exec_bridge_read_cmd(info, 0x88, 4, data);
+		exec_bridge_read_cmd(info, 0x88, 4, (unsigned int*)data);
 	}	
 }
  

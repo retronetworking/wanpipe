@@ -539,13 +539,19 @@ prepare()
                 missing_packages=$missing_packages"libtermcap-devel "
         fi
 
-        echo -n "Checking for yacc..."
-        eval "type yacc 2> /dev/null > /dev/null"
+        echo -n "Checking for bison..."
+        eval "type bison 2> /dev/null > /dev/null"
         if [  $? -eq 0 ]; then
                 echo "OK"
         else
-                echo "Failed!"
-                missing_packages=$missing_packages"yacc "
+        	echo -n "Checking for yacc..."
+        	eval "type yacc 2> /dev/null > /dev/null"
+        	if [  $? -eq 0 ]; then
+               	 	echo "OK"
+        	else
+                	echo "Failed!"
+                	missing_packages=$missing_packages"bison "
+		fi
         fi
 
         echo
@@ -1274,7 +1280,7 @@ There are two configuration files associated with WANPIPE.
 	- defines interfaces, hardware and protocol information.
 	- this file can be created using the 'wancfg' GUI
 	  utility or manually based on sample files located
-	  in /etc/wanpipe/samples.
+	  in $WAN_CONF_DIR/samples.
 	  
 Please read the WanpipeInstallation.(pdf/txt) manual for further
 information.
@@ -1297,7 +1303,7 @@ function get_conf_dir ()
 	#banner
 	if test -z $NONINTERACTIVE; then
 		echo -e "\nPlease specify a desired location for ${DISTR_NAME} configuration files."
-		echo -e "\n\t(Press Enter for Default: /etc/wanpipe)\n"
+		echo -e "\n\t(Press Enter for Default: $WAN_CONF_DIR)\n"
 		echo -n "<specify path:>"
 		read response
 
@@ -1333,17 +1339,17 @@ function get_bin_dir ()
 	#banner
 	if test -z $NONINTERACTIVE; then
 		echo -e "\nPlease specify a location for WANPIPE binary, firmware files."
-		echo -e "\n\t(Press Enter for Default: /etc/wanpipe/firmware)\n"
+		echo -e "\n\t(Press Enter for Default: $WAN_CONF_DIR/firmware)\n"
 		echo -n "<specify path:>"
 		read response
 
 		if [ $response ]; then 
 			WAN_FIRMWARE_DIR=$response
 		else
-			WAN_FIRMWARE_DIR=/etc/wanpipe/firmware
+			WAN_FIRMWARE_DIR=$WAN_CONF_DIR/firmware
 		fi
 	else
-		WAN_FIRMWARE_DIR=/etc/wanpipe/firmware
+		WAN_FIRMWARE_DIR=$WAN_CONF_DIR/firmware
 	fi
 
 	if [ ! -d $WAN_FIRMWARE_DIR ]; then
@@ -1354,7 +1360,7 @@ function get_bin_dir ()
 		echo -e "\nERROR: Directory $WAN_FIRMWARE_DIR not found !\n"
 		getyn "Would you like to try again?"
 		if [ $? -ne 0 ]; then
-			WAN_FIRMWARE_DIR=/etc/wanpipe/firmware
+			WAN_FIRMWARE_DIR=$WAN_CONF_DIR/firmware
 		else 
 			get_bin_dir	
 		fi 
@@ -1367,7 +1373,7 @@ function get_intr_dir ()
 	local response=no
 	local response1
 
-	WAN_INTR_DIR=/etc/wanpipe/interfaces
+	WAN_INTR_DIR=$WAN_CONF_DIR/interfaces
 
 	if [ ! -d $WAN_INTR_DIR ]; then
 		\mkdir -p $WAN_INTR_DIR
@@ -1403,7 +1409,7 @@ function get_intr_dir ()
 			echo -n "<specify path:>"
 			read response1
 
-			WAN_INTR_DIR=/etc/wanpipe/interfaces
+			WAN_INTR_DIR=$WAN_CONF_DIR/interfaces
 
 			if [ $response1 ]; then 
 				WAN_INTR_DIR=$response1
@@ -1417,7 +1423,7 @@ function get_intr_dir ()
 			echo -e "\nERROR: Directory $WAN_INTR_DIR not found !\n"
 			getyn "Would you like to try again?"
 			if [ $? -ne 0 ]; then
-				WAN_INTR_DIR=/etc/wanpipe/interfaces
+				WAN_INTR_DIR=$WAN_CONF_DIR/interfaces
 			else 
 				get_intr_dir	
 			fi 
@@ -1439,7 +1445,7 @@ create_mataconf()
 	elif	[ -d /var/adm wanpipe1]; then
 		LOG_FILE=/var/adm/$PROD
 	else	
-		LOG_FILE=/etc/wanpipe/$PROD.log
+		LOG_FILE=$WAN_CONF_DIR/$PROD.log
 	fi
 
 	# Select directory for the lock file.
@@ -1450,20 +1456,20 @@ create_mataconf()
 		LOCK_FILE=/var/lock/$PROD
 		LOCK_DIR=/var/lock
 	else	
-		LOCK_FILE=/etc/wanpipe/$PROD.lck
-		LOCK_DIR=/etc/wanpipe
+		LOCK_FILE=$WAN_CONF_DIR/$PROD.lck
+		LOCK_DIR=$WAN_CONF_DIR
 	fi
 
 
-	if [ -f $ROOT/etc/wanpipe/wanrouter.rc ]; then
-		. /etc/wanpipe/wanrouter.rc
+	if [ -f $ROOT$WAN_CONF_DIR/wanrouter.rc ]; then
+		. $ROOT$WAN_CONF_DIR/wanrouter.rc
 	fi  
 
 	if [ "$WAN_DEVICES" = "" ]; then
 		WAN_DEVICES="wanpipe1"
 	else
 		echo
-		echo "Wanpipe META config file found in /etc/wanpipe directory"
+		echo "Wanpipe META config file found in $WAN_CONF_DIR directory"
 		echo
 		echo "Wanpipe startup sequence: $WAN_DEVICES"
 		echo
@@ -1521,7 +1527,7 @@ create_mataconf()
 # router.rc	WAN router meta-configuration file.
 #
 #		This file defines variables used by the router shell scripts
-#		and should be located in /etc/wanpipe directory.  These are:
+#		and should be located in $WAN_CONF_DIR directory.  These are:
 #
 #               ROUTER_BOOT	=       Boot flag (YES/NO).
 #               WAN_CONF_DIR	=       Where to put wanpipe config files.
@@ -1552,13 +1558,13 @@ ENDOFTEXT
 	echo "WAN_LOCK_DIR=$LOCK_DIR"	>> $META_CONF
 	echo "WAN_IP_FORWARD=$ENABLE_IP_FWD" >> $META_CONF
 	echo "NEW_IF_TYPE=$NEW_IF_TYPE" >> $META_CONF
-	echo "WAN_LIB_DIR=/etc/wanpipe/lib" >> $META_CONF
-	echo "WAN_ADSL_LIST=/etc/wanpipe/wan_adsl.list" >> $META_CONF
+	echo "WAN_LIB_DIR=$WAN_CONF_DIR/lib" >> $META_CONF
+	echo "WAN_ADSL_LIST=$WAN_CONF_DIR/wan_adsl.list" >> $META_CONF
 	echo "WAN_ANNEXG_LOAD=$ANNEXG_LOAD" >> $META_CONF
 	echo "WAN_SCTP_LOAD=$SCTP_LOAD" >> $META_CONF
 	echo "WAN_LIP_LOAD=$LIP_LOAD" >> $META_CONF
 	echo "WAN_DYN_WANCONFIG=NO" >> $META_CONF
-	echo "WAN_SCRIPTS_DIR=/etc/wanpipe/scripts" >> $META_CONF
+	echo "WAN_SCRIPTS_DIR=$WAN_CONF_DIR/scripts" >> $META_CONF
 	echo "WAN_FIRMWARE_DIR=$WAN_FIRMWARE_DIR" >> $META_CONF
 	echo "WAN_DEVICES_REV_STOP_ORDER=YES" >> $META_CONF
 	echo "WAN_DEVICES=\"$WAN_DEVICES\""	>> $META_CONF
@@ -1756,11 +1762,11 @@ remove()
 
 	#FIXME: Find a better way of doing this
 	if [ "$PKG_NAME" != "wanpipe-lite" ]; then
-		if  [ -d /etc/wanpipe ]; then
-          	rm -rf /etc/wanpipe
+		if  [ -d $WAN_CONF_DIR ]; then
+          	rm -rf $WAN_CONF_DIR
 		fi
 	else
-		IFCFG_LIST=`ls /etc/wanpipe/ifcfg-* 2>/dev/null`
+		IFCFG_LIST=`ls $WAN_CONF_DIR/ifcfg-* 2>/dev/null`
 		for ifcfg in $IFCFG_LIST; do
 			[ -f "$ifcfg" ] && rm -f $ifcfg
 		done
@@ -1845,7 +1851,7 @@ WANPIPE utilities are used to:
 	4) debug line, protocol and driver problems.
 		(/usr/sbin/wanpipemon)
 	5) aid in WANPIPE API development
-		(/etc/wanpipe/api)
+		($WAN_CONF_DIR/api)
 
 Refer to the WanpipeInstallation.(pdf/txt) for more information.
 
@@ -4468,12 +4474,17 @@ function install_all ()
 
 	echo "Installing  ${DISTR_NAME} Utilities in $ROOT/usr/sbin"
 
+	if [ ! -e $WAN_CONF_DIR ]; then
+		\mkdir -p $WAN_CONF_DIR
+		\mkdir -p $WAN_CONF_DIR/util
+	fi
+
 	cd $PROD_HOME/util
 	make install WAN_VIRTUAL=$ROOT > /dev/null 2> /dev/null
 
 	if [ "$PKG_NAME" = "wanpipe-lite" ]; then
 		cd $PROD_HOME
-		\cp -rf samples $ROOT/etc/wanpipe
+		\cp -rf samples $ROOT$WAN_CONF_DIR
 		install -D -m 755 $PROD_HOME/scripts/wanlite $ROOT/usr/sbin/wanlite
 		pause
 		return 0
@@ -4484,20 +4495,20 @@ function install_all ()
 	cd $PROD_HOME/util/misc
 	make install WAN_VIRTUAL=$ROOT > /dev/null 2> /dev/null
 
-	echo "Installing wanrouter.rc in $ROOT/etc/wanpipe"
+	echo "Installing wanrouter.rc in $ROOT$WAN_CONF_DIR"
 	cd $PROD_HOME
-	install -D -m 644 wanrouter.rc $ROOT/etc/wanpipe/wanrouter.rc
+	install -D -m 644 wanrouter.rc $ROOT$WAN_CONF_DIR/wanrouter.rc
 
-	echo "Installing wanpipe libraries in $ROOT/etc/wanpipe"
+	echo "Installing wanpipe libraries in $ROOT$WAN_CONF_DIR"
 	
-	\mkdir -p $ROOT/etc/wanpipe/lib/
-	\cp -f $PROD_HOME/util/wancfg_legacy/lib/* $ROOT/etc/wanpipe/lib/
+	\mkdir -p $ROOT$WAN_CONF_DIR/lib/
+	\cp -f $PROD_HOME/util/wancfg_legacy/lib/* $ROOT$WAN_CONF_DIR/lib/
 
-	echo "Installing firmware in $ROOT/etc/wanpipe/firmware"
-	\cp -rf firmware $ROOT/etc/wanpipe/
+	echo "Installing firmware in $ROOT$WAN_CONF_DIR/firmware"
+	\cp -rf firmware $ROOT$WAN_CONF_DIR/
 
-	if [ ! -f $ROOT/etc/wanpipe/interfaces ]; then
-		\mkdir -p $ROOT/etc/wanpipe/interfaces
+	if [ ! -f $ROOT$WAN_CONF_DIR/interfaces ]; then
+		\mkdir -p $ROOT$WAN_CONF_DIR/interfaces
 	fi
 
 	echo "Installing documentation in $ROOT/usr/share/doc/wanpipe"
@@ -4507,25 +4518,37 @@ function install_all ()
 	\cp -f doc/* $ROOT/usr/share/doc/wanpipe
 	\cp -f README* $ROOT/usr/share/doc/wanpipe
 
-	echo "Installing sample api code in $ROOT/etc/wanpipe/api"
-	\cp -rf api $ROOT/etc/wanpipe
-	\cp -rf samples $ROOT/etc/wanpipe
-	\cp -rf util/wanec_apilib /etc/wanpipe/api
+	echo "Installing sample api code in $ROOT$WAN_CONF_DIR/api"
+	\cp -rf api $ROOT$WAN_CONF_DIR
+	\cp -rf samples $ROOT$WAN_CONF_DIR
 
 
-	if [ ! -d $ROOT/etc/wanpipe/scripts ]; then
-		\mkdir -p $ROOT/etc/wanpipe/scripts 
+	echo "Installing AFT Firmware update utility in $ROOT$WAN_CONF_DIR/util"	
+	\cp -rf util/wanec_apilib/ $ROOT$WAN_CONF_DIR/util
+	\cp -rf util/wan_aftup/ $ROOT$WAN_CONF_DIR/util
+
+	cd firmware
+	if [ -e wan_aftup ]; then
+		\rm -f wan_aftup 2> /dev/null
+	fi
+	\ln -s ../util/wan_aftup wan_aftup
+
+	cd $PROD_HOME
+
+
+	if [ ! -d $ROOT$WAN_CONF_DIR/scripts ]; then
+		\mkdir -p $ROOT$WAN_CONF_DIR/scripts 
 	fi
 
-	echo "Installing driver headers in $ROOT/etc/wanpipe/api/include/linux"
-	if [ ! -d $ROOT/etc/wanpipe/api/include/linux ]; then
-		\mkdir -p $ROOT/etc/wanpipe/api/include/linux
+	echo "Installing driver headers in $ROOT$WAN_CONF_DIR/api/include/linux"
+	if [ ! -d $ROOT$WAN_CONF_DIR/api/include/linux ]; then
+		\mkdir -p $ROOT$WAN_CONF_DIR/api/include/linux
 	fi
 
 
 	cd $PROD_HOME
 	if [ -d wan_ec ]; then
-		cp -rf wan_ec $ROOT/etc/wanpipe
+		cp -rf wan_ec $ROOT$WAN_CONF_DIR
 		echo "Installing Hardware Echo Cancel Utilites"
 		cd util/wanec_client
 		make install WAN_VIRTUAL=$ROOT > /dev/null 2> /dev/null  
@@ -4540,11 +4563,11 @@ function install_all ()
 	cd $PROD_HOME
 
 
-	if [ ! -f $ROOT/etc/wanpipe/api/include/linux/ ]; then
-		\mkdir -p $ROOT/etc/wanpipe/api/include/linux/
+	if [ ! -f $ROOT$WAN_CONF_DIR/api/include/linux/ ]; then
+		\mkdir -p $ROOT$WAN_CONF_DIR/api/include/linux/
 	fi
 
-	\cp -f $DRIVER_UPDATE_DIR/include/*.* $ROOT/etc/wanpipe/api/include/linux/
+	\cp -f $DRIVER_UPDATE_DIR/include/*.* $ROOT$WAN_CONF_DIR/api/include/linux/
 	
 	pause
 	return 0
@@ -4568,7 +4591,7 @@ function uninstall_all ()
 	cd $PROD_HOME
 	rm -f $ROOT/usr/sbin/wp_pppconfig
 	rm -rf $ROOT/usr/doc/wanpipe
-	rm -rf $ROOT/etc/wanpipe
+	rm -rf $ROOT/$WAN_CONF_DIR
 
 	pause
 	return 0
@@ -5872,8 +5895,14 @@ ENDOFTEXT
 				if [ -f $ZAPTEL_INSTALL_DIR/zaptel-base.c ]; then
 					eval "grep hdlc_hard_xmit $ZAPTEL_INSTALL_DIR/zaptel-base.c > /dev/null 2> /dev/null"
 					if [ $? -eq 0 ] ; then
+						echo
 						echo "Native Zaptel HW HDLC Support Detected - No patch required"
-						echo "Zaptel source unmodified"
+						echo "Zaptel source unmodified, no zaptel re-compilation needed!"
+						echo 
+						pause
+
+						echo
+						echo
 	
 						TDM_DCHAN="(DCHAN)"
 						PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN  -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL "
@@ -6004,6 +6033,7 @@ ENDOFTEXT
 					fi	
 				fi
 				tdmv_check_zaptel_udev
+				echo
 			fi
 		fi
 		PROT_MATCH=YES
@@ -6162,29 +6192,6 @@ function detect_rpm_build_utility()
 	fi
 }
 
-function compile_aft_firmware_util()
-{
-        lhome=`pwd`
-        \cp -f $PROD_HOME/util/wan_aftup $PROD_HOME/rpmbuild/etc/wanpipe/firmware/ -r
-
-        cd $PROD_HOME/rpmbuild/etc/wanpipe/firmware/wan_aftup
-        echo "Compiling firmware update utilities..."
-        eval "make wan_aftup" >/dev/null 2>/dev/null
-        if [ ! $? -eq 0 ]; then
-                echo "failed"
-                exit
-        else
-                echo "done"
-        fi
-
-
-        \rm -f *.c
-        \rm -f *.o
-        \rm -f *.h
-        \rm -f Makefile
-        cd $lhome
-}
-
 function usage()
 {
 	if [ "$PKG_NAME" != "wanpipe-lite" ]; then
@@ -6321,10 +6328,10 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.2.2
+PROD_VER=3.2.3
 PROD_HOME=`pwd`
-WAN_CONF_DIR=/etc/wanpipe            
-META_CONF=$WAN_CONF_DIR/$PROD.rc      
+WAN_CONF_DIR=/etc/wanpipe
+META_CONF=$PROD_HOME/$PROD.rc      
 WAN_INTR_DIR=$PROD_HOME/interfaces
 PROD_CONF=$WAN_CONF_DIR/wanpipe1.conf
 PROD_PATCH=$PROD_HOME/patches
@@ -6956,7 +6963,6 @@ you know what you are doing :)
 		fi
 
 		if [ "$setup_cmd" = "buildrpm" ]; then
-                        compile_aft_firmware_util
 			detect_rpm_build_utility
 
  

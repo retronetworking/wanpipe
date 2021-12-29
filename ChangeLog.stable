@@ -7,6 +7,13 @@ Author: Nenad Corbic <ncorbic@sangoma.com>
 Copyright (c) 1995-2008 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
+* Thu Jan 24 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.2.1
+======================================================================== 
+
+- Fixed a compile bug that occured on some kernels due to inlining.
+- Updates Setup script
+
+
 * Thu Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.2
 ======================================================================== 
 

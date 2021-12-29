@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.2.2
+%define version           3.2.3
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -254,6 +254,13 @@ install_init;
 
 
 %changelog
+* Thu Jan 24 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.2.1
+======================================================================== 
+
+- Fixed a compile bug that occured on some kernels due to inlining.
+- Updates Setup script
+
+
 * Thu Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.2
 ======================================================================== 
 

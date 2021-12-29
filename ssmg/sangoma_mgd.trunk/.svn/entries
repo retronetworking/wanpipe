@@ -1,14 +1,14 @@
 8
 
 dir
-58
+59
 https://www.sangomapbx.com:/svn/sangoma_mgd/trunk
 https://www.sangomapbx.com:/svn/sangoma_mgd
 
 
 
-2008-01-18T23:17:38.335382Z
-58
+2008-01-24T23:37:43.572123Z
+59
 ncorbic
 
 
@@ -38,8 +38,29 @@ d2023784f5d89a5623927a366705e22a
 36
 ncorbic
 
-app
-dir
+switch_buffer.h
+file
+
+
+
+
+2007-09-21T20:55:42.000000Z
+f4832443a621cbb88e92535898d11b83
+2007-09-21T20:53:51.260136Z
+1
+root
+
+sangoma_mgd.conf.sample
+file
+
+
+
+
+2007-10-18T17:51:26.000000Z
+6f5866feb746caa979c0c4df03517326
+2007-10-16T22:33:32.246854Z
+25
+ncorbic
 
 sound.raw
 file
@@ -54,29 +75,8 @@ da36acc78b83d5047481df0cca63d969
 root
 has-props
 
-sangoma_mgd.conf.sample
-file
-
-
-
-
-2007-10-18T17:51:26.000000Z
-6f5866feb746caa979c0c4df03517326
-2007-10-16T22:33:32.246854Z
-25
-ncorbic
-
-switch_buffer.h
-file
-
-
-
-
-2007-09-21T20:55:42.000000Z
-f4832443a621cbb88e92535898d11b83
-2007-09-21T20:53:51.260136Z
-1
-root
+app
+dir
 
 callgettest.sh
 file
@@ -90,9 +90,6 @@ file
 1
 root
 has-props
-
-conf
-dir
 
 ss7box
 file
@@ -110,20 +107,11 @@ has-props
 
 svn:special
 
-scripts
+conf
 dir
 
-call_signal.c
-file
-
-
-
-
-2007-11-28T21:14:37.000000Z
-bcf6ba51a26281d7a0963c364f8610f1
-2007-11-28T21:12:42.416435Z
-42
-ncorbic
+scripts
+dir
 
 re-sync.sh
 file
@@ -138,16 +126,16 @@ file
 ncorbic
 has-props
 
-sangoma_mgd.c
+call_signal.c
 file
 
 
 
 
-2008-01-18T23:23:07.000000Z
-0dd2e3aad304bc37895c78f158afb0a3
-2008-01-18T23:01:23.237257Z
-57
+2007-11-28T21:14:37.000000Z
+bcf6ba51a26281d7a0963c364f8610f1
+2007-11-28T21:12:42.416435Z
+42
 ncorbic
 
 woomera.conf
@@ -161,6 +149,18 @@ file
 2007-09-21T20:53:51.260136Z
 1
 root
+
+sangoma_mgd.c
+file
+
+
+
+
+2008-01-25T21:10:41.000000Z
+1c26650ec682522d42585c0300d9cc51
+2008-01-24T23:37:43.572123Z
+59
+ncorbic
 
 call_signal.h
 file
@@ -188,14 +188,14 @@ ncorbic
 
 Changelog.sangoma_mgd
 file
+60
 
 
 
-
-2008-01-18T21:45:09.000000Z
-c7ac5bb8faff69307d9e2739737a50b1
-2008-01-18T20:46:37.372416Z
-55
+2008-01-25T21:12:18.000000Z
+bcf8a4b0b7ad944703d619cbf5087230
+2008-01-25T21:06:05.930927Z
+60
 ncorbic
 
 q931_cause.h

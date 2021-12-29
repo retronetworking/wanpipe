@@ -84,7 +84,7 @@ typedef struct adsl_private_area
 	unsigned char		remote_eth_addr[6];
 	unsigned long 		router_start_time;
 	unsigned long 		router_up_time;
-	unsigned int  		trace_timeout;
+	unsigned long  		trace_timeout;
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	struct ifmedia media;	/* media information */
 #endif
@@ -95,7 +95,7 @@ typedef struct adsl_trace_info
 {
 	unsigned long  		tracing_enabled;
 	wan_skb_queue_t		trace_queue;
-	unsigned int  		trace_timeout;
+	unsigned long  		trace_timeout;
 	unsigned int   		max_trace_queue;
 } adsl_trace_info_t;
 

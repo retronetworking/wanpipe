@@ -8,6 +8,12 @@
  * the GNU General Public License
  * 
  * =============================================
+ * v1.27 Nenad Corbic  <ncorbic@sangoma.com>
+ * Jan 24 2007
+ *	Fixed a memory leak on incoming calls
+ *	Removed the use of server listener which 
+ *	was not used
+ *
  * v1.26 Nenad Corbic  <ncorbic@sangoma.com>
  * Jan 18 2007
  *	Fixed hangup after invalid Answer or Ack Session 
@@ -135,7 +141,7 @@ static struct woomera_interface woomera_dead_dev;
 #endif
 
 
-#define SMG_VERSION	"v1.26"
+#define SMG_VERSION	"v1.27"
 
 /* enable early media */
 #if 1
@@ -170,7 +176,7 @@ hp_tdm_api_span_t *hptdmspan[WOOMERA_MAX_SPAN];
 
 const char WELCOME_TEXT[] =
 "================================================================================\n"
-"Sangoma Media Gateway Daemon v1.26 \n"
+"Sangoma Media Gateway Daemon v1.27 \n"
 "TDM Signal Media Gateway for Sangoma/Wanpipe Cards\n"
 "Copyright 2005, 2006, 2007 \n"
 "Nenad Corbic <ncorbic@sangoma.com>, Anthony Minessale II <anthmct@yahoo.com>\n"
@@ -2586,8 +2592,7 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 							woomera->session,
 					 		WOOMERA_RECORD_SEPERATOR);
 		} else {
-			char *event_string;
-
+		
 			woomera_set_flag(woomera, WFLAG_LISTENING);
 			add_listener(woomera);
 
@@ -2606,12 +2611,6 @@ static void interpret_command(struct woomera_interface *woomera, struct woomera_
 							WOOMERA_LINE_SEPERATOR, 
 							woomera->session,
 							WOOMERA_RECORD_SEPERATOR);
-			
-			if ((event_string = dequeue_event(&server.master_connection))) {
-				socket_printf(woomera->socket, "%s", event_string);
-				free(event_string);
-				event_string = NULL;
-			} 
 		}
 		return;
 
@@ -3383,9 +3382,7 @@ static void handle_call_start(call_signal_event_t *event)
 							 WOOMERA_RECORD_SEPERATOR
 						 );
 
-    	if (enqueue_event_on_listeners(&wevent)) {
-		enqueue_event(&server.master_connection, &wevent, EVENT_KEEP_DATA);
-   	} else {
+    	if (!enqueue_event_on_listeners(&wevent)) {
 		
 		pthread_mutex_lock(&server.process_lock);
 		server.process_table[event->span][event->chan].dev = NULL;
@@ -3891,7 +3888,7 @@ static void *woomera_thread_run(void *obj)
 
     woomera_message_init(&wmsg);
 	
-    //smg_get_current_priority(&policy,&priority);
+    smg_get_current_priority(&policy,&priority);
 
     log_printf(2, server.log, "WOOMERA session started (ptr=%p : loop=%i)(%i:%i) Index=%i\n", 
     			woomera,woomera->loop_tdm,policy,priority, woomera->index);

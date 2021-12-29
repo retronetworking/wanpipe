@@ -1,7 +1,7 @@
 8
 
 dir
-58
+59
 https://www.sangomapbx.com:/svn/sangoma_mgd/trunk/lib/libteletone
 https://www.sangomapbx.com:/svn/sangoma_mgd
 
@@ -88,8 +88,17 @@ file
 root
 has-props
 
-src
-dir
+ChangeLog
+file
+
+
+
+
+2007-09-21T20:55:42.000000Z
+d41d8cd98f00b204e9800998ecf8427e
+2007-09-21T20:53:51.260136Z
+1
+root
 
 depcomp
 file
@@ -103,17 +112,8 @@ file
 1
 root
 
-ChangeLog
-file
-
-
-
-
-2007-09-21T20:55:42.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2007-09-21T20:53:51.260136Z
-1
-root
+src
+dir
 
 compile
 file
@@ -152,14 +152,14 @@ c2defdef8cd93c3d9e29628267699702
 1
 root
 
-ltmain.sh
+README
 file
 
 
 
 
 2007-09-21T20:55:42.000000Z
-0f44520873ce706852086fc2ad45106f
+234c8df99750448a5b1c4709304a38e5
 2007-09-21T20:53:51.260136Z
 1
 root
@@ -176,14 +176,14 @@ file
 1
 root
 
-README
+ltmain.sh
 file
 
 
 
 
 2007-09-21T20:55:42.000000Z
-234c8df99750448a5b1c4709304a38e5
+0f44520873ce706852086fc2ad45106f
 2007-09-21T20:53:51.260136Z
 1
 root

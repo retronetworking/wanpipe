@@ -77,7 +77,7 @@
 ***********************************************************************/
 static int		sock;
 static wan_cmd_api_t	api_cmd;
-static unsigned char	ifname_def[20];
+static char		ifname_def[20];
 static struct ifreq	req;
 int			options = 0x00;
 static char		aft_firmware_force[MAXPATHLEN];
@@ -602,17 +602,17 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 
 		/* Read subsystem vendor ID */
 		exec_read_cmd(aft, 
-			PCI_DEVICE_ID_WORD, 2, &aft->chip_id);
-		exec_read_cmd(aft, 0x08, 1, &aft->revision_id);
+			PCI_DEVICE_ID_WORD, 2, (unsigned int*)&aft->chip_id);
+		exec_read_cmd(aft, 0x08, 1, (unsigned int*)&aft->revision_id);
 #if defined(__OpenBSD__)
 		exec_read_cmd(aft, 
 			PCI_SUBSYS_VENDOR_WORD, 4, &aft->board_id);
 		aft->board_id &= 0xFFFF;
 #else
 		exec_read_cmd(aft, 
-			PCI_SUBSYS_VENDOR_WORD, 2, &aft->board_id);
+			PCI_SUBSYS_VENDOR_WORD, 2, (unsigned int*)&aft->board_id);
 #endif
-		exec_read_cmd(aft, PCI_SUBSYS_ID_WORD, 2, &tmp);
+		exec_read_cmd(aft, PCI_SUBSYS_ID_WORD, 2, (unsigned int*)&tmp);
 		aft->core_rev = AFT_CORE_REV(tmp);
 		aft->core_id = AFT_CORE_ID(tmp);
 		
@@ -718,7 +718,7 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 			aft->cpld.chip_id = AFT_CHIP_X300;
 			/* Read revision ID */
 			exec_read_cmd(aft, 
-					0x08, 1, &aft->cpld.adptr_subtype);
+					0x08, 1, (unsigned int*)&aft->cpld.adptr_subtype);
 			if (aft->cpld.adptr_subtype == 0x01){
 				/* A101/A102 new cards */
 				strncpy(aft->prefix_fw, "A101N", 5);
@@ -848,7 +848,7 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 	char		sel_name[20], *tmp = NULL;
 	int		j, cnt = 0;
 	
-	tmp = strtok(api_cmd->data, "\n");
+	tmp = strtok((char*)api_cmd->data, "\n");
 	while (tmp){
 		/* Create new interface structure */
 		aft = malloc(sizeof(wan_aftup_t));
@@ -886,8 +886,8 @@ static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
 	while(aft){
 	
 		/* Use api_cmd structure to parse hwprobe info */
-		strncpy(api_cmd->data, aft->hwinfo, strlen(aft->hwinfo));
-		tmp = strtok(api_cmd->data, ":");
+		strncpy((char*)api_cmd->data, aft->hwinfo, strlen(aft->hwinfo));
+		tmp = strtok((char*)api_cmd->data, ":");
 		if (tmp == NULL){
 			printf("ERROR:%d: Internal error (hwinfo:%s)\n",
 						__LINE__, aft->hwinfo);
