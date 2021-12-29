@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.3.3
+%define version           3.3.4
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -51,6 +51,14 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 %changelog
 
+* Wed Mar 26 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.4
+====================================================================== 
+
+- BRI TE auto clocking feature - Bug fix
+   This feature failed on on some machines with multiple TE BRI modules.
+   This bug would cause modules to loose sync. Bug introduced in 3.3.3
+   release.
+
 * Tue Mar 25 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.3
 ====================================================================== 
 
@@ -67,7 +75,7 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
     provide zaptel reliable timing.  One has to configure
     TDMV_DUMMY=YES in [wanpipe1] section of wanpipe1.conf
 
-=  A200/A400 Remora Relax CFG
+-  A200/A400 Remora Relax CFG
     If one module fails during operation the wanpipe driver by default
     fails to load.  With this option wanpipe driver
     will allow the card to come up with a broken module so that

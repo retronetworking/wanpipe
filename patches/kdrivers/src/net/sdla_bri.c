@@ -948,11 +948,9 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 	WRITE_REG(R_PCM_MD1, bri_module->pcm_md1.reg);
 
 	/* After chip reset SYNC_O is set for OUTPUT by default, make sure
-	   SYNC_O is set for INPUT! Otherwise may cause clock conflict. */
-#if 0
-	/* NC not needed configured once per start */
+	   SYNC_O is set for INPUT! Otherwise may cause clock conflict. */	
 	__config_clock_routing(fe, mod_no, WANOPT_NO);
-#endif
+
 	DEBUG_HFC_INIT("\n%s: configuring B-channels FIFOs...\n", fe->name);
 	/* configure B channel fifos for ST<->PCM data flow */
 	for (port_no = 0; port_no < bri_module->num_ports; port_no++) {/* 2 ports */

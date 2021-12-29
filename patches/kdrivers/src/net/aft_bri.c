@@ -668,7 +668,8 @@ int aft_bri_hwec_config(sdla_t *card, wandev_conf_t *conf)
 		card->wandev.hwec_reset = aft_bri_hwec_reset;
 		card->wandev.hwec_enable = aft_bri_hwec_enable;
 
-		if (card->fe.fe_cfg.cfg.bri.clock_mode == WANOPT_FE_LINE_CLOCK) {
+		/* FIXME: For BRI cards always suppress H100 Errors until H100 is fixed */
+		{
 			wan_event_ctrl_t *event = wan_malloc(sizeof(wan_event_ctrl_t));
 			if (event) {
 				memset(event,0,sizeof(wan_event_ctrl_t));
