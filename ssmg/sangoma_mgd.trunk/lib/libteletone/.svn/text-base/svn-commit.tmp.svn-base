@@ -1,0 +1,8 @@
+New dtmf library
+--This line, and those below, will be ignored--
+
+M    src/libteletone_detect.c
+M    src/libteletone_generate.c
+M    src/libteletone_detect.h
+M    src/libteletone_generate.h
+M    src/libteletone.h

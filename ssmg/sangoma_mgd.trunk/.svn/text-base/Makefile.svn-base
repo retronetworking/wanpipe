@@ -15,7 +15,7 @@
 SMG_DTMF=YES
 
 CC = gcc
-INCLUDES = -I/lib/modules/$(shell uname -r)/build/include -I. -I/usr/local/include
+INCLUDES = -I/lib/modules/$(shell uname -r)/build/include -I. -I/usr/local/include -I../../patches/kdrivers/include
 CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 -march=i686
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
 LDFLAGS=-L. -L/usr/local/lib -lpthread -lsangoma -lm 
@@ -39,7 +39,7 @@ sangoma_mgd: sangoma_mgd.o call_signal.o switch_buffer.o sigboost.h
 	rm -fr core*
 	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -o sangoma_mgd sangoma_mgd.o switch_buffer.o call_signal.o $(LDFLAGS)
 
-sangoma_mgd.o: sangoma_mgd.c sigboost.h
+sangoma_mgd.o: sangoma_mgd.c sangoma_mgd.h sigboost.h
 	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -c -o sangoma_mgd.o sangoma_mgd.c
 
 clean:

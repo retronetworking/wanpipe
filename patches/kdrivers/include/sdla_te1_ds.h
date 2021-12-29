@@ -519,6 +519,7 @@
 
 #define REG_TCR2		0x182
 #define BIT_TCR2_TD4RM		0x04
+#define BIT_TCR2_E1_AEBE	0x80
 
 #define REG_TCR3		0x183
 #define BIT_TCR3_ODF		0x80

@@ -1,12 +1,31 @@
-<?xml version="1.0" encoding="utf-8"?>
-<wc-entries
-   xmlns="svn:">
-<entry
-   committed-rev="118"
-   name=""
-   committed-date="2006-11-06T21:37:44.054312Z"
-   url="svn://sangoma.freeswitch.org/sangoma_mgd/trunk/lib"
-   last-author="ncorbic"
-   kind="dir"
-   revision="201"/>
-</wc-entries>
+8
+
+dir
+223
+svn://sangoma.freeswitch.org/sangoma_mgd/trunk/lib
+svn://sangoma.freeswitch.org
+
+
+
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+2028fedf-720c-0410-83b8-d54a3e729fb0
+
+libteletone
+dir
+

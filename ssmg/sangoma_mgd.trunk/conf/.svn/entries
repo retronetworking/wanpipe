@@ -1,31 +1,52 @@
-<?xml version="1.0" encoding="utf-8"?>
-<wc-entries
-   xmlns="svn:">
-<entry
-   committed-rev="161"
-   name=""
-   committed-date="2006-12-11T23:03:16.581380Z"
-   url="svn://sangoma.freeswitch.org/sangoma_mgd/trunk/conf"
-   last-author="ncorbic"
-   kind="dir"
-   uuid="2028fedf-720c-0410-83b8-d54a3e729fb0"
-   revision="201"/>
-<entry
-   committed-rev="161"
-   name="woomera_ext.conf"
-   text-time="2006-12-11T22:58:51.000000Z"
-   committed-date="2006-12-11T23:03:16.581380Z"
-   checksum="0e3dd32364c7bd4e991bf6160debdd31"
-   last-author="ncorbic"
-   kind="file"
-   prop-time="2006-12-11T22:58:51.000000Z"/>
-<entry
-   committed-rev="80"
-   name="woomera_iax.conf"
-   text-time="2006-07-28T16:03:15.000000Z"
-   committed-date="2006-05-23T17:09:47.585376Z"
-   checksum="ce5b74a26fe35e1c890456ee913c2837"
-   last-author="ncorbic"
-   kind="file"
-   prop-time="2006-07-28T16:03:15.000000Z"/>
-</wc-entries>
+8
+
+dir
+223
+svn://sangoma.freeswitch.org/sangoma_mgd/trunk/conf
+svn://sangoma.freeswitch.org
+
+
+
+2006-12-11T23:03:16.581380Z
+161
+ncorbic
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+2028fedf-720c-0410-83b8-d54a3e729fb0
+
+woomera_ext.conf
+file
+
+
+
+
+2006-12-11T22:58:51.000000Z
+0e3dd32364c7bd4e991bf6160debdd31
+2006-12-11T23:03:16.581380Z
+161
+ncorbic
+
+woomera_iax.conf
+file
+
+
+
+
+2006-07-28T16:03:15.000000Z
+ce5b74a26fe35e1c890456ee913c2837
+2006-05-23T17:09:47.585376Z
+80
+ncorbic
+

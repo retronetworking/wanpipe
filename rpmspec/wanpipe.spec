@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.1.0.1
+%define version           3.1.1
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -252,6 +252,38 @@ install_init;
 
 
 %changelog
+* Fri Jun 06 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.1
+==================================================================== 
+
+- A101/2/4/8 (MAXIM) AFT Update IMPORTANT
+  A major bug fix for AFT Maxim E1 cards for E1 CRC4 Mode.
+  On some lines the E1/CRC4 mode causes line errors on 
+  the telco side which results in PRI not coming up.
+ 
+  Symptiom: E1 is up (no alarms) on local side but pri is 
+ 	    not coming up!  (Only in E1 CRC4 Mode)
+
+- A101/2/4/8 (MAXIM) Mandatory Firmware Update
+  An echo canceler bug has been fixed for all AFT
+  MAXIM Cards A101/2/4/8dm.  New firmware version is V31.
+  If you are running MAXIM cards with hwec wiht older
+  firmware version you must upgrade.
+
+- Updated SMG 
+  Fixed DTMF synchronization
+
+
+
+- Updated SMG 
+  Fixed DTMF synchronization
+
+
+* Fri Jun 06 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.0.1
+==================================================================== 
+
+- Minor release
+- Contains zaptel patch for zaptel 1.2.17 and above.
+- No driver changes 
 
 * Fri May 17 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.0
 ====================================================================  

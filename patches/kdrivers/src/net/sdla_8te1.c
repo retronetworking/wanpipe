@@ -743,6 +743,15 @@ static int sdla_ds_te1_chip_config(void* pfe)
 	}
 	
 	if (IS_E1_FEMEDIA(fe)){
+		switch(WAN_FE_FRAME(fe)){
+		case WAN_FR_CRC4:
+			value = READ_REG(REG_TCR2);
+			WRITE_REG(REG_TCR2, value | BIT_TCR2_E1_AEBE);
+			break;
+		}
+	}
+
+	if (IS_E1_FEMEDIA(fe)){
 		sdla_ds_e1_set_sig_mode(fe, 0);
 	}
 

@@ -4,7 +4,8 @@
  * Author(s):	Anthony Minessale II <anthmct@yahoo.com>
  *              Nenad Corbic <ncorbic@sangoma.com>
  *
- * Copyright:	(c) 2005 Anthony Minessale II
+ * Copyright:	(c) 2005 Nenad Corbic 
+ *		         Anthony Minessale II
  * 
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -18,10 +19,6 @@
 extern void __log_printf(int level, FILE *fp, char *file, const char *func, int line, char *fmt, ...);
 #define clog_printf(level, fp, fmt, ...) __log_printf(level, fp, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 
-
-extern unsigned int txseq;
-extern unsigned int rxseq_reset;
-extern unsigned int rxseq;
 
 struct call_signal_map {
 	uint32_t event_id;
@@ -43,7 +40,7 @@ static struct call_signal_map call_signal_table[] = {
 	{SIGBOOST_EVENT_REMOVE_CHECK_LOOP, "LOOP STOP"} 
 }; 
 
-
+#define USE_SCTP 1
 
 static int create_udp_socket(call_signal_connection_t *mcon, char *local_ip, int local_port, char *ip, int port)
 {
@@ -54,7 +51,17 @@ static int create_udp_socket(call_signal_connection_t *mcon, char *local_ip, int
 
 	memset(&mcon->remote_hp, 0, sizeof(mcon->remote_hp));
 	memset(&mcon->local_hp, 0, sizeof(mcon->local_hp));
-	if ((mcon->socket = socket(AF_INET, SOCK_DGRAM, 0))) {
+#ifdef USE_SCTP
+	mcon->socket = socket(AF_INET, SOCK_SEQPACKET, IPPROTO_SCTP);
+#else
+	mcon->socket = socket(AF_INET, SOCK_DGRAM, 0);
+#endif
+ 
+	clog_printf(3,mcon->log,"Creating L=%s:%d R=%s:%d\n",
+			local_ip,local_port,ip,port);
+
+	if (mcon->socket >= 0) {
+		int flag=1;
 		gethostbyname_r(ip, &mcon->remote_hp, buf, sizeof(buf), &result, &err);
 		gethostbyname_r(local_ip, &mcon->local_hp, local_buf, sizeof(local_buf), &local_result, &err);
 		if (result && local_result) {
@@ -66,9 +73,24 @@ static int create_udp_socket(call_signal_connection_t *mcon, char *local_ip, int
 			memcpy((char *) &mcon->local_addr.sin_addr.s_addr, mcon->local_hp.h_addr_list[0], mcon->local_hp.h_length);
 			mcon->local_addr.sin_port = htons(local_port);
 
-			if ((rc = bind(mcon->socket, (struct sockaddr *) &mcon->local_addr, sizeof(mcon->local_addr))) < 0) {
+#ifdef USE_SCTP
+			setsockopt(mcon->socket, IPPROTO_SCTP, SCTP_NODELAY, 
+				   (char *)&flag, sizeof(int));
+#endif
+
+			if ((rc = bind(mcon->socket, 
+				  (struct sockaddr *) &mcon->local_addr,
+				   sizeof(mcon->local_addr))) < 0) {
 				close(mcon->socket);
 				mcon->socket = -1;
+			} else {
+#ifdef USE_SCTP
+				rc=listen(mcon->socket,100);
+				if (rc) {
+					close(mcon->socket);
+	                                mcon->socket = -1;
+				}
+#endif
 			}
 		}
 	}
@@ -87,8 +109,6 @@ int call_signal_connection_close(call_signal_connection_t *mcon)
 
 int call_signal_connection_open(call_signal_connection_t *mcon, char *local_ip, int local_port, char *ip, int port)
 {
-	memset(mcon, 0, sizeof(*mcon));
-
 	create_udp_socket(mcon, local_ip, local_port, ip, port);
 	return mcon->socket;
 }
@@ -104,27 +124,30 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 	if (bytes == sizeof(mcon->event) || 
             bytes == (sizeof(mcon->event)-sizeof(uint32_t))) {
 
-		if (rxseq_reset) {
+		if (mcon->rxseq_reset) {
 			if (mcon->event.event_id == SIGBOOST_EVENT_SYSTEM_RESTART_ACK) {
-				rxseq++;
+				clog_printf(0,mcon->log,"Rx sync ok\n");
+				mcon->rxseq=mcon->event.fseqno;
 				return &mcon->event;
 			}
-
 			errno=EAGAIN;
 			clog_printf(0,mcon->log,"Waiting for rx sync...\n");
 			return NULL;
 		}
+		
+		mcon->rxseq++;
 
-		if (rxseq != mcon->event.seqno) {
+		if (mcon->rxseq != mcon->event.fseqno) {
 			clog_printf(0, mcon->log, 
 				"------------------------------------------\n");
 			clog_printf(0, mcon->log, 
 				"Critical Error: Invalid Sequence Number Expect=%i Rx=%i\n",
-				rxseq,mcon->event.seqno);
+				mcon->rxseq,mcon->event.fseqno);
 			clog_printf(0, mcon->log, 
 				"------------------------------------------\n");
 		}
-		rxseq++;
+ 
+		mcon->txwindow = mcon->txseq - mcon->event.bseqno;
 
 
 		return &mcon->event;
@@ -143,6 +166,33 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 	return NULL;
 }
 
+call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon, int iteration)
+{
+	unsigned int fromlen = sizeof(struct sockaddr_in);
+	int bytes = 0;
+
+	bytes = recvfrom(mcon->socket, &mcon->event, sizeof(mcon->event), MSG_DONTWAIT, 
+			(struct sockaddr *) &mcon->local_addr, &fromlen);
+
+	if (bytes == sizeof(mcon->event) || 
+            bytes == (sizeof(mcon->event)-sizeof(uint32_t))) {
+		return &mcon->event;
+	} else {
+		if (iteration == 0) {
+                	clog_printf(0, mcon->log,
+                        	"------------------------------------------\n");
+                	clog_printf(0, mcon->log,
+                        	"Critical Error: PQ Invalid Event lenght from boost rxlen=%i evsz=%i\n",
+					bytes, sizeof(mcon->event));
+                	clog_printf(0, mcon->log,
+                        	"------------------------------------------\n");
+		}
+	}
+
+	return NULL;
+}
+
+
 int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_event_t *event)
 {
 	int err;
@@ -151,7 +201,7 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 		return -EINVAL;
 	}
 
-	if (event->span < 0 || event->chan < 0 || event->span > 16 || event->chan > 30) {
+	if (event->span < 0 || event->chan < 0 || event->span > 16 || event->chan > 31) {
 		clog_printf(0, mcon->log, 
 			"------------------------------------------\n");
 		clog_printf(0, mcon->log, 
@@ -164,7 +214,8 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 	gettimeofday(&event->tv,NULL);
 	
 	pthread_mutex_lock(&mcon->lock);
-	event->seqno=txseq++;
+	event->fseqno=mcon->txseq++;
+	event->bseqno=mcon->rxseq;
 	err=sendto(mcon->socket, event, sizeof(call_signal_event_t), 0, 
 		   (struct sockaddr *) &mcon->remote_addr, sizeof(mcon->remote_addr));
 	pthread_mutex_unlock(&mcon->lock);
@@ -172,7 +223,6 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 	if (err != sizeof(call_signal_event_t)) {
 		err = -1;
 	}
-
 	
 #if 0
 	clog_printf(2, mcon->log, "TX EVENT\n");
@@ -189,7 +239,7 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 	clog_printf(2, mcon->log, "  tInterface: [w%dg%d]\n",event->span+1,event->chan+1);
 	clog_printf(2, mcon->log, "   tEvent ID: [%d]\n",event->event_id);
 	clog_printf(2, mcon->log, "   tSetup ID: [%d]\n",event->call_setup_id);
-	clog_printf(2, mcon->log, "        tSeq: [%d]\n",event->seqno);
+	clog_printf(2, mcon->log, "        tSeq: [%d]\n",event->fseqno);
 	clog_printf(2, mcon->log, "===================================\n");
 #endif
 
@@ -202,7 +252,7 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
                            event->chan+1,
                            event->release_cause,
                            event->call_setup_id,
-                           event->seqno,
+                           event->fseqno,
                            (event->called_number_digits_count ? (char *) event->called_number_digits : "N/A"),
                            (event->calling_number_digits_count ? (char *) event->calling_number_digits : "N/A")
                            );
@@ -237,7 +287,7 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
                            event->chan+1,
                            event->event_id,
                            event->call_setup_id,
-                           event->seqno
+                           event->fseqno
                            );
 #endif
 

@@ -1,34 +1,56 @@
-<?xml version="1.0" encoding="utf-8"?>
-<wc-entries
-   xmlns="svn:">
-<entry
-   committed-rev="186"
-   name=""
-   committed-date="2007-04-20T01:03:02.148351Z"
-   url="svn://sangoma.freeswitch.org/sangoma_mgd/trunk/scripts"
-   last-author="ncorbic"
-   kind="dir"
-   uuid="2028fedf-720c-0410-83b8-d54a3e729fb0"
-   revision="201"/>
-<entry
-   committed-rev="79"
-   name="astxs"
-   text-time="2006-07-28T16:03:15.000000Z"
-   committed-date="2006-05-23T15:38:53.790198Z"
-   checksum="e98e8f26dd275cc20245f47316812ad0"
-   last-author="ncorbic"
-   kind="file"
-   prop-time="2006-07-28T16:03:15.000000Z"/>
-<entry
-   name="callgen"
-   kind="dir"/>
-<entry
-   committed-rev="186"
-   name="set_debug.sh"
-   text-time="2007-05-17T23:49:30.000000Z"
-   committed-date="2007-04-20T01:03:02.148351Z"
-   checksum="fb580ba2a5e39574a4980ca545e01d27"
-   last-author="ncorbic"
-   kind="file"
-   prop-time="2007-05-17T23:49:30.000000Z"/>
-</wc-entries>
+8
+
+dir
+223
+svn://sangoma.freeswitch.org/sangoma_mgd/trunk/scripts
+svn://sangoma.freeswitch.org
+
+
+
+2007-04-20T01:03:02.148351Z
+186
+ncorbic
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+2028fedf-720c-0410-83b8-d54a3e729fb0
+
+astxs
+file
+
+
+
+
+2006-07-28T16:03:15.000000Z
+e98e8f26dd275cc20245f47316812ad0
+2006-05-23T15:38:53.790198Z
+79
+ncorbic
+
+callgen
+dir
+
+set_debug.sh
+file
+
+
+
+
+2007-05-17T23:49:30.000000Z
+fb580ba2a5e39574a4980ca545e01d27
+2007-04-20T01:03:02.148351Z
+186
+ncorbic
+has-props
+

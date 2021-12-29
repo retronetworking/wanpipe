@@ -1,58 +1,88 @@
-<?xml version="1.0" encoding="utf-8"?>
-<wc-entries
-   xmlns="svn:">
-<entry
-   committed-rev="713"
-   name=""
-   committed-date="2006-03-01T06:25:56.767005Z"
-   url="http://svn.freeswitch.org/svn/freeswitch/trunk/libs/libteletone/src"
-   last-author="mikej"
-   kind="dir"
-   uuid="d0543943-73ff-0310-b7d9-9358b9ac24b2"
-   revision="1687"/>
-<entry
-   committed-rev="634"
-   name="libteletone_detect.c"
-   text-time="2006-06-27T15:15:39.000000Z"
-   committed-date="2006-02-20T00:23:25.673121Z"
-   checksum="aaee497c2d97a1ed1f329853801c7f14"
-   last-author="mikej"
-   kind="file"
-   prop-time="2006-06-27T15:15:39.000000Z"/>
-<entry
-   committed-rev="652"
-   name="libteletone_generate.c"
-   text-time="2006-06-27T15:15:39.000000Z"
-   committed-date="2006-02-22T18:32:15.522553Z"
-   checksum="8f5390cf3f2cbfec99a38c57b46713a7"
-   last-author="anthm"
-   kind="file"
-   prop-time="2006-06-27T15:15:39.000000Z"/>
-<entry
-   committed-rev="713"
-   name="libteletone_detect.h"
-   text-time="2006-06-27T15:15:39.000000Z"
-   committed-date="2006-03-01T06:25:56.767005Z"
-   checksum="dc1a1af3b4f4bd01d0f2150708384412"
-   last-author="mikej"
-   kind="file"
-   prop-time="2006-06-27T15:15:39.000000Z"/>
-<entry
-   committed-rev="632"
-   name="libteletone_generate.h"
-   text-time="2006-06-27T15:15:39.000000Z"
-   committed-date="2006-02-19T21:24:29.187350Z"
-   checksum="4ff03bd9594526552f23501786c339ca"
-   last-author="mikej"
-   kind="file"
-   prop-time="2006-06-27T15:15:39.000000Z"/>
-<entry
-   committed-rev="632"
-   name="libteletone.h"
-   text-time="2006-06-27T15:15:39.000000Z"
-   committed-date="2006-02-19T21:24:29.187350Z"
-   checksum="867079d778f11ed88308bac28808b7de"
-   last-author="mikej"
-   kind="file"
-   prop-time="2006-06-27T15:15:39.000000Z"/>
-</wc-entries>
+8
+
+dir
+223
+svn://sangoma.freeswitch.org/sangoma_mgd/trunk/lib/libteletone/src
+svn://sangoma.freeswitch.org
+
+
+
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+2028fedf-720c-0410-83b8-d54a3e729fb0
+
+libteletone_detect.c
+file
+
+
+
+
+2007-07-10T21:31:13.000000Z
+d01d28a1232e2c040d77587c86728a78
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+libteletone_generate.c
+file
+
+
+
+
+2007-07-10T21:31:13.000000Z
+bfc7a66515e43ad78a29545c6031c6ea
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+libteletone_detect.h
+file
+
+
+
+
+2007-07-10T21:31:13.000000Z
+b282cf61fecc1945f17aae2deb3b0aa8
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+libteletone_generate.h
+file
+
+
+
+
+2007-07-10T21:31:13.000000Z
+a2780ff716b7232f5830f99c04b4f949
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+libteletone.h
+file
+
+
+
+
+2007-07-10T21:31:13.000000Z
+64ea78a421b845fc49e4a1b0dcb9872e
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+

@@ -1,3 +1,41 @@
+sangoma_mgd.c
+======================================
+Jun 13 2007
+
+v1.13 Nenad Corbic <ncorbic@sangoma.com>
+	Woomera OPAL Dialect
+	Added Congestion control
+	Added SCTP
+	Added priority ISUP queue
+	Fixed presentation
+
+v1.12 Nenad Corbic <ncorbic@sangoma.com>
+	Fixed CCR 
+	Removed socket shutdown on end call.
+	Let Media thread shutodwn sockets.
+
+v1.11 Nenad Corbic <ncorbic@sangoma.com>
+	Fixed Remote asterisk/woomera connection
+	Increased socket timeouts
+
+
+chan_woomera.c
+======================================
+Jun 13 2007
+
+v1.11 Nenad Corbic <ncorbic@sangoma.com>
+	Updated multiple profiles 
+	Updated Dialect for OPAL Woomera
+	Added call logging/debugging
+	Fixed presentation
+
+v1.10 Nenad Corbic <ncorbic@sangoma.com>
+	Bug fix in incoming hangup 
+
+v1.9 Nenad Corbic <ncorbic@sangoma.com>
+	Fixed remote asterisk/woomera
+	setup.
+
 
 sangoma_mgd.c
 ======================================

@@ -150,9 +150,6 @@
 #undef AFT_API_SUPPORT
 #endif
 
-#if defined(WANPIPE_64BIT_4G_DMA)
-#warning "Wanpipe compiled for 64bit 4G DMA"
-#endif
 
 /* Trigger on Number of transactions 
  * 1= 1x8 byte transactions
@@ -4156,6 +4153,7 @@ static int aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, in
 	for (i=0;i<num;i++){
 		if (chan->channelized_cfg && !chan->hdlc_eng){
 #if defined(WANPIPE_64BIT_4G_DMA)
+#warning "Wanpipe compiled for 64bit 4G DMA"
 			/* On 64bit Systems greater than 4GB we must
 			 * allocated our DMA buffers using GFP_DMA 
 			 * flag */

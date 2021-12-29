@@ -1,6 +1,17 @@
 AFT A400 Firmware Change Log
 =============================
 
+Release V10
+-----------
+Jun 10 2007
+
+Type            Mandatory for A400 cards
+                Update to echo canceler code.
+
+Changes:        Firmware bug fix.
+
+
+
 Release V09
 -----------
 Mar 16 2007
