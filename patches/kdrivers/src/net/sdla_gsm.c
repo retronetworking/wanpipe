@@ -362,9 +362,6 @@ static int wp_gsm_watchdog(void *card_ptr)
 	sdla_fe_t *fe = &card->fe;
 	sdla_gsm_param_t *gsm_data = &fe->fe_param.gsm;
 	private_area_t *chan = NULL;
-	netskb_t *skb = NULL;
-	unsigned char *skb_data_area = NULL;
-	char uart_rx_buffer[AFT_GSM_UART_RX_FIFO_SIZE];
 	int txlen = 0;
 	int avail = 0;
 	int kick_user = 0;
@@ -379,6 +376,9 @@ static int wp_gsm_watchdog(void *card_ptr)
 	wp_gsm_update_sim_status(card);
 
 	chan = card->u.aft.dev_to_ch_map[GSM_DCHAN_LOGIC_CHAN];
+	if (!chan || wan_test_bit(0,&chan->interface_down)) {
+		return 0;
+	}
 
 	/* tx until done and call wanpipe_wake_stack() when finished */
 	wan_spin_lock_irq(&fe->lockirq, &flags);
@@ -402,14 +402,12 @@ static int wp_gsm_watchdog(void *card_ptr)
 		}
 	}
 
-	/* service the rx fifo */
-	avail = wp_gsm_uart_rx_fifo(card, uart_rx_buffer, sizeof(uart_rx_buffer));
-	if (avail) {
-		skb = wan_skb_alloc(avail);
-		if (skb) {
-			skb_data_area = wan_skb_put(skb, avail);
-			memcpy(skb_data_area, uart_rx_buffer, avail);
-			wan_skb_queue_tail(&chan->wp_rx_bri_dchan_complete_list, skb);
+	if (!wan_test_bit(0,&chan->uart_rx_status)){
+		/* service the rx fifo */
+		avail = wp_gsm_uart_rx_fifo(card, chan->uart_rx_buffer, sizeof(chan->uart_rx_buffer));
+		if (avail) {
+			chan->uart_rx_sz=avail;
+			wan_set_bit(0,&chan->uart_rx_status);
 			WAN_TASKLET_SCHEDULE((&chan->common.bh_task));
 		}
 	}

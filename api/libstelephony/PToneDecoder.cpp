@@ -16,7 +16,7 @@ PhoneToneDecoder::PhoneToneDecoder(void)
 {
 	rate = 8000;
 	bufSize = 256;
-	printf("Init FSK demodulator rate:%d buffer:%d\n", rate, bufSize);
+	printf("Init FSK demodulator rate:%d buffer:%zu\n", rate, bufSize);
 
 	fskInit = fskEnable = dtmfInit = dtmfEnable = false;
 

@@ -13,6 +13,7 @@
 # include "wanpipe_tdm_api.h"	/* wanpipe_tdm_api_dev_t */
 # include "aft_core_bert.h"		/* wp_bert_t */
 # include "wanpipe_mtp1.h"
+# include "sdla_gsm.h"
 
 
 /*=================================================================
@@ -491,6 +492,10 @@ typedef struct private_area
 	u32 		bert_data_length;
 	u8			sw_hdlc_mode;
 	void		*sw_hdlc_dev;
+
+	unsigned int uart_rx_status;
+	char uart_rx_buffer[AFT_GSM_UART_RX_FIFO_SIZE];
+	unsigned int uart_rx_sz;
 
 
 #ifdef AFT_DMA_TRANSACTION

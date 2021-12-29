@@ -1103,12 +1103,7 @@ static void line_trace(int trace_mode)
 				hdlc_trace_iface.usec		= trace_iface.usec;
 				
 				curr_pos += sizeof(wan_trace_pkt_t);
-	
-				if (tdmv_chan) {
-					if (trace_pkt->channel != tdmv_chan) {
-						continue;
-					}
-				}
+
 				
 				if (trace_pkt->real_length >= WAN_MAX_DATA_SIZE){
 					printf("\t:the frame data is to big (%u)!",
@@ -1141,6 +1136,11 @@ static void line_trace(int trace_mode)
 					continue;
 				}      
 				
+				if (tdmv_chan) {
+					if (trace_pkt->channel != tdmv_chan) {
+						continue;
+					}
+				}
 				
 				/*
 				if (raw_data) {
@@ -1933,6 +1933,7 @@ static void aft_perf_stats( void )
 	printf("Rx ...............................%lu\n",aft_perf->bh.rx);
 	printf("Rx Stack .........................%lu\n",aft_perf->bh.rx_stack);
 	printf("Rx Bri Dchan .....................%lu\n",aft_perf->bh.rx_bri_dchan);
+	printf("Rx Gsm Dchan .....................%lu\n",aft_perf->bh.rx_gsm_dchan);
 	printf("Tx Post ..........................%lu\n",aft_perf->bh.tx_post);
 	printf("               Port Task\n");
 	printf("===========================================\n");

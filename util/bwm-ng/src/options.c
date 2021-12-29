@@ -169,6 +169,8 @@ char *token, *value;
   }
 
   buffer = (char*)malloc( sizeof(char) * 4096 );
+        
+  dynamic=1;
 
   while( fgets( buffer, 4096, fp ) ) {
     value = trim_whitespace( buffer );
@@ -264,6 +266,8 @@ void get_cmdln_options(int argc, char *argv[]) {
 #endif
 #ifdef LONG_OPTIONS
     int option_index = 0;
+	dynamic=1;
+	output_unit=BITS_OUT;
     static struct option long_options[] = {
         {"timeout", 1, 0, 't'},
 #ifdef PROC_NET_DEV
@@ -480,7 +484,7 @@ void get_cmdln_options(int argc, char *argv[]) {
 #endif    
 	 if ((output_unit==ERRORS_OUT && !net_input_method(input_method)) || 
 			 (output_unit==PACKETS_OUT && input_method==LIBSTATDISK_IN)) 
-		output_unit=BYTES_OUT;
+		output_unit=BITS_OUT;
     return;
 }
 

@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.6
+%define VERSION           7.0.8
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,14 +259,15 @@ fi
 
 %changelog
 
-* Wed Sep 25 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.6
+* Wed Nov 14 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.8
 ==================================================================
 
-- Updated wanpipemon to trace on multipel dchan in a single span
+- Updated wanpipemon to trace on multiple dchan in a single span
   eg: wanpipemon -i w1g1 -chan 1 -c trd
   If chan is not specificed then all dchans will be traced together.
 - Updated sample tapping application.
   Allow configuration for dchan and seven bit hdlc
+- Fixed GSM drivers for Windows
 
 * Mon Jul 15 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.5
 ==================================================================

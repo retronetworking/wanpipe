@@ -6483,6 +6483,33 @@ static void wp_bh (void *data, int pending)
 		}
 	}while(skb);
 
+	if (wan_test_bit(0,&chan->uart_rx_status)){
+		int uart_len=chan->uart_rx_sz;
+		if (uart_len && uart_len < sizeof(chan->uart_rx_buffer)) {
+			netskb_t *skb;
+			skb=wan_skb_alloc(uart_len+10);
+			if (skb) {
+				unsigned char *buf=wan_skb_put(skb,uart_len);
+				memcpy (buf,chan->uart_rx_buffer,uart_len);
+
+				if (top_chan) {
+					wan_capture_trace_packet(chan->card, 
+							 &top_chan->trace_info,
+                                skb,TRC_INCOMING_FRM);
+				}
+
+				AFT_PERF_STAT_INC(card,bh,rx_gsm_dchan);
+				err=aft_bh_rx(chan, skb, 0, wan_skb_len(skb));
+				if (err) {
+					wan_skb_free(skb);
+				}
+			}
+		} else {
+			WP_AFT_CHAN_ERROR_STATS(chan->chan_stats,rx_errors);
+		}
+		wan_clear_bit(0,&chan->uart_rx_status);
+	}
+
 	/* This case is only used for HDLC DMA Chain mode
   	   Not for transparent */
 	do {
@@ -12350,7 +12377,7 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 					err = card->wandev.fe_iface.watchdog(card);
 				}
 			} else {
-             			if (card->u.aft.tdmv_mtu == 8) { 
+				if (card->u.aft.tdmv_mtu == 8) { 
 					if (card->wandev.fe_iface.watchdog) {
 						err = card->wandev.fe_iface.watchdog(card);
 					}

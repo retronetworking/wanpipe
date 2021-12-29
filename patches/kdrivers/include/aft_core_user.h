@@ -353,6 +353,7 @@ typedef struct aft_driver_bh_stats {
 	unsigned long rx_stack;
 	unsigned long rx_bri_dchan;
 	unsigned long tx_post;
+	unsigned long rx_gsm_dchan;
 }aft_driver_bh_stats_t;
 
 typedef struct aft_driver_port_task_stats {

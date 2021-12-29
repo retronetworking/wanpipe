@@ -105,7 +105,7 @@ inline void init() {
 #if EXTENDED_STATS	
 	avg_length=0;
 #endif
-	output_unit=BYTES_OUT;
+	output_unit=BITS_OUT;
 	output_type=RATE_OUT;
 	show_all_if=0;
 #ifdef HAVE_CURSES	
