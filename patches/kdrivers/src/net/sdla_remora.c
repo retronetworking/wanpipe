@@ -1010,6 +1010,7 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 					READ_RM_REG(mod_no, 83)*375/1000,
 					__LINE__);
 
+#if 0
 	/* verify TIP/RING voltage */
 	if (!fast){
 		wait_just_a_bit(HZ, fast);
@@ -1032,7 +1033,7 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 			return -1;
 		}
 	}
-
+#endif
 	DEBUG_RM("%s: Module %d: Current Battery1 %dV, Battery2 %dV (%d)\n",
 					fe->name, mod_no,
 					READ_RM_REG(mod_no, 82)*375/1000,

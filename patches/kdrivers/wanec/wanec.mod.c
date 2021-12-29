@@ -24,6 +24,7 @@ __attribute__((section("__versions"))) = {
 	{ 0xf26c4b72, "class_device_destroy" },
 	{ 0xb5513e49, "class_device_create" },
 	{ 0xab978df6, "malloc_sizes" },
+	{ 0x1bcd461f, "_spin_lock" },
 	{ 0xeae3dfd6, "__const_udelay" },
 	{ 0x2fd1d81c, "vfree" },
 	{ 0x1d26aa98, "sprintf" },
@@ -50,4 +51,4 @@ __attribute__((section(".modinfo"))) =
 "depends=";
 
 
-MODULE_INFO(srcversion, "CDF912E271954B6A4BDA63B");
+MODULE_INFO(srcversion, "0676CCD0353D547AE63829B");

@@ -8,6 +8,9 @@
  * the GNU General Public License
  * 
  * =============================================
+ * v1.16 Nenad Corbic <ncorbic@sangoma.com>
+ *      Added hwec disable on loop ccr 
+ *
  * v1.15 Nenad Corbic <ncorbic@sangoma.com>
  *      Updated DTMF Locking 
  *	Added delay between digits
@@ -82,7 +85,7 @@ static char ps_progname[]="sangoma_mgd";
 #endif
 
 
-#define SMG_VERSION	"v1.15"
+#define SMG_VERSION	"v1.16"
 
 /* enable early media */
 #if 1
@@ -118,7 +121,7 @@ hp_tdm_api_span_t *hptdmspan[WOOMERA_MAX_SPAN];
 
 const char WELCOME_TEXT[] =
 "================================================================================\n"
-"Sangoma Media Gateway Daemon v1.15 \n"
+"Sangoma Media Gateway Daemon v1.16 \n"
 "TDM Signal Media Gateway for Sangoma/Wanpipe Cards\n"
 "Copyright 2005, 2006, 2007 \n"
 "Nenad Corbic <ncorbic@sangoma.com>, Anthony Minessale II <anthmct@yahoo.com>\n"
@@ -1106,6 +1109,9 @@ static void media_loop_run(struct media_session *ms)
 		}
 
 		sangoma_frame_len = sangoma_tdm_get_usr_mtu_mru(ms->sangoma_sock,&tdm_api);
+
+		sangoma_tdm_disable_hwec(ms->sangoma_sock,&tdm_api);
+		
 	}
 	
 	if (errs) {
@@ -1152,7 +1158,8 @@ static void media_loop_run(struct media_session *ms)
 					     circuit_frame, 
 					     sizeof(circuit_frame), 0);
 		if (res < 0) {
-			log_printf(0, server.log, "TDM Loop ReadMsg Error: %s\n", strerror(errno), woomera->interface);
+			log_printf(0, server.log, "TDM Loop ReadMsg Error: %s\n", 
+				strerror(errno), woomera->interface);
 			break;
 		}
 
@@ -1188,6 +1195,8 @@ static void media_loop_run(struct media_session *ms)
 	if (server.loop_trace && filed != NULL) {
 		fclose(filed);
 	}
+
+	sangoma_tdm_enable_hwec(ms->sangoma_sock,&tdm_api);
 
 	sleep(1);
 

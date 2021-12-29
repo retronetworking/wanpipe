@@ -131,10 +131,25 @@ aftup_flash_iface_t aftup_shark_flash_iface =
 /******************************************************************************
 *			  FUNCTION DEFINITION	
 ******************************************************************************/
+static unsigned short get_cpld_off(int adptr_type, unsigned short cpld_off)
+{
+
+	switch(adptr_type){
+	case A300_ADPTR_U_1TE3:
+		cpld_off &= ~AFT_BIT_DEV_ADDR_CLEAR; 
+		cpld_off |= AFT_BIT_DEV_ADDR_CPLD; 
+		break;
+	default:
+		cpld_off |= AFT4_BIT_DEV_ADDR_CPLD; 
+		break;
+	}
+	return cpld_off;
+
+}
 static unsigned int
 write_cpld(wan_aft_cpld_t *cpld, unsigned short cpld_off,unsigned short cpld_data)
 {
-	cpld_off |= AFT4_BIT_DEV_ADDR_CPLD; 
+	cpld_off = get_cpld_off(cpld->adptr_type, cpld_off);
 	exec_write_cmd(cpld->private, 0x46, 2, cpld_off);
 	exec_write_cmd(cpld->private, 0x44, 2, cpld_data);
 	return 0;
@@ -145,7 +160,7 @@ read_cpld(wan_aft_cpld_t *cpld, unsigned short cpld_off)
 {
 	unsigned int cpld_data;
 		
-	cpld_off |= AFT4_BIT_DEV_ADDR_CPLD; 
+	cpld_off = get_cpld_off(cpld->adptr_type, cpld_off);
 	exec_write_cmd(cpld->private, 0x46, 2, cpld_off);
 	if (exec_read_cmd(cpld->private, 0x44, 4, &cpld_data) == 0){
 		return cpld_data;

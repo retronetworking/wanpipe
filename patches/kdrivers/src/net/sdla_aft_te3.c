@@ -4183,6 +4183,7 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 	u32 reg,tmp;
 	volatile unsigned char cnt=0;
 	int err=0;
+	int i;
 
     	DEBUG_CFG("T3 Exar Chip Configuration. -- \n");
 
@@ -4317,20 +4318,14 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 		return -EINVAL;
 	}
 #endif
-	for (;;){
+	for (i=0;i<10;i++){
 		card->hw_iface.bus_read_4(card->hw,XILINX_CHIP_CFG_REG, &reg);
 
 		if (!wan_test_bit(HDLC_CORE_READY_FLAG_BIT,&reg)){
 			/* The HDLC Core is not ready! we have
 			 * an error. */
-			if (++cnt > 5){
-				err = -EINVAL;
-				break;
-			}else{
-				WP_DELAY(500);
-				/* FIXME: we cannot do this while in
-                                 * critical area */
-			}
+			err = -EINVAL;
+			WP_DELAY(500);
 		}else{
 			err=0;
 			break;

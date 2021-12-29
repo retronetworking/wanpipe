@@ -1,7 +1,7 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
 %define version           2.3.4
-%define release           11
+%define release           12
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
 %define USR_INCLUDE_DIR   /usr/include
@@ -50,6 +50,45 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+* Mon Jun 16 2007 Nenad Corbic <ncorbic@sangoma.com> - 2.3.4-12
+==================================================================== 
+
+- Update to Octasic Hardware Echo Canceler library
+  This is a very important update that affects all AFT cards
+  with octasic hardware echo canceler.  The new octasic update
+  fixes faxing/modem issues over octasic hwec.  The previous
+  release contained a bug that limited the faxing/modem speeds
+  to 26k.  The new update properly detects fax/modem and works
+  with full speed of 33k fax and 56k modem.
+
+- A200/A400 Updated
+  This update fixes the offhook startup failure.
+  On startup if fxs is offhook driver will start correctly
+
+- Wanpipe Startup order changed
+  The wanpipe startup scripts on bootup were previously
+  set too early "S03wanrouter".  This caused unpredictable
+  behaviour on some systems.  We have now moved wanrouter 
+  startup on boot up to "S11wanrouter", after networking
+  code.
+
+- Zaptel Adjustable Chunk Size Feature
+  Wanpipe drivers can work with 1,2,5 and 10ms 
+  chunk size.  Zaptel also supports this, however
+  the wct4xx driver breaks compilation when chunk
+  size is changed.  ./Setup can how change the
+  zaptel chunk size for you and update zaptel
+  Makefiles to remove wct4xx driver out.
+
+  Zaptel with 1ms generates 1000 interrupts per sec
+  Zaptel with 10ms generates 100 interrupts per sec.
+
+  As you can see its a drastic interrupt performance
+  increase.
+
+  NOTE: This breaks software echo cancelation, but
+        its not needed since we have hwec.
+
 
 * Thu Jun 14 2007 Nenad Corbic <ncorbic@sangoma.com> - 2.3.4-11
 =============================================================== 

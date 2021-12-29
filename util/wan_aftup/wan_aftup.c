@@ -125,7 +125,9 @@ aft_core_info_t aft_core_table[] = {
 	  "A200_0020_V", "A200_0020_V*.BIN", AFT_CORE_X200_SIZE },
 	{ A200_REMORA_SHARK_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
 	  "A200_0100_V", "A200_0100_V*.BIN", AFT_CORE_X1000_SIZE },
-	{ A300_UTE3_SUBSYS_VENDOR, AFT_CHIP_X300, AFT_HDLC_CORE_ID, 0x00, 0x00,
+	{ A300_UTE3_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x00, 0x00,
+	  "A301_0040_V", "A301_0040_V*.BIN", AFT_CORE_X400_SIZE },
+	{ A300_UTE3_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x00, 0x00,
 	  "A301_V", "A301_V*.BIN", AFT_CORE_SIZE },
 #if 0
 	{ AFT_TE1_ATM_CORE_ID,	
@@ -334,6 +336,10 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 	}else if (strncmp(type,"AFT-A400",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
 		aft->cpld.adptr_type = A400_ADPTR_ANALOG;
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+	}else if (strncmp(type,"AFT-A301",8) == 0){
+		//strcpy(aft->prefix_fw, "AFT_RM");
+		aft->cpld.adptr_type = A300_ADPTR_U_1TE3;
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 	}else{
 		return -EINVAL;
@@ -618,10 +624,17 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 		
 		for(i = 0; aft_core_table[i].board_id; i++){
 
+#if 0		
+			printf("DEBUG: %s: %04X:%04X:%04X (%04X:%04X:%04X)\n",
+					aft->if_name,
+					aft_core_table[i].board_id,
+					aft_core_table[i].chip_id,
+					aft_core_table[i].core_id,
+					aft->board_id, aft->chip_id, aft->core_id);
+#endif					
 			if (aft_core_table[i].board_id != aft->board_id){
 				continue;
 			}
-
 				
 			if ((aft_core_table[i].chip_id == aft->chip_id) &&
 			    (aft_core_table[i].core_id == aft->core_id)){
@@ -683,6 +696,9 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 			aft->cpld.iface	= &aftup_shark_flash_iface;
 			break;
 		case A400_REMORA_SHARK_SUBSYS_VENDOR:
+			aft->cpld.iface	= &aftup_shark_flash_iface;
+			break;
+		case A300_UTE3_SHARK_SUBSYS_VENDOR:
 			aft->cpld.iface	= &aftup_shark_flash_iface;
 			break;
 		default:
@@ -771,6 +787,8 @@ static int wan_aftup_verify_pciexpress(struct wan_aftup_head_t *head)
 			break;
 		case A200_REMORA_SHARK_SUBSYS_VENDOR:
 		case A400_REMORA_SHARK_SUBSYS_VENDOR:
+			break;
+		case A300_UTE3_SHARK_SUBSYS_VENDOR:
 			break;
 		default:
 			continue;

@@ -1,0 +1,145 @@
+Only in /root/3.1.X/wanpipe/util/wan_aftup/: A104d_0100_V23.BIN
+Only in /root/3.1.X/wanpipe/util/wan_aftup/: A104d_0100_V24.BIN
+Only in /root/3.1.X/wanpipe/util/wan_aftup/: A200_0040_V08.BIN
+Only in /root/3.1.X/wanpipe/util/wan_aftup/: A400_0040_V09.BIN
+diff -dur wan_aftup/Makefile /root/3.1.X/wanpipe/util/wan_aftup/Makefile
+--- wan_aftup/Makefile	2007-05-17 18:47:05.000000000 -0400
++++ /root/3.1.X/wanpipe/util/wan_aftup/Makefile	2007-02-09 12:49:20.000000000 -0500
+@@ -29,12 +29,11 @@
+ SYSINC=/lib/modules/$(shell uname -r)/build/include
+ endif
+ 
+-LSYSINC=../../patches/kdrivers/include
+ WAN_VIRTUAL=
+ 
+ 
+ # Tools options.
+-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -I$(LSYSINC) -D_DEBUG_=$(DEBUG)
++CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
+ 
+ 
+ ####### RULES ################################################################
+diff -dur wan_aftup/wan_aft_flash_shark.c /root/3.1.X/wanpipe/util/wan_aftup/wan_aft_flash_shark.c
+--- wan_aftup/wan_aft_flash_shark.c	2007-04-18 15:53:48.000000000 -0400
++++ /root/3.1.X/wanpipe/util/wan_aftup/wan_aft_flash_shark.c	2007-04-24 19:14:43.000000000 -0400
+@@ -131,10 +131,25 @@
+ /******************************************************************************
+ *			  FUNCTION DEFINITION	
+ ******************************************************************************/
++static unsigned short get_cpld_off(int adptr_type, unsigned short cpld_off)
++{
++
++	switch(adptr_type){
++	case A300_ADPTR_U_1TE3:
++		cpld_off &= ~AFT_BIT_DEV_ADDR_CLEAR; 
++		cpld_off |= AFT_BIT_DEV_ADDR_CPLD; 
++		break;
++	default:
++		cpld_off |= AFT4_BIT_DEV_ADDR_CPLD; 
++		break;
++	}
++	return cpld_off;
++
++}
+ static unsigned int
+ write_cpld(wan_aft_cpld_t *cpld, unsigned short cpld_off,unsigned short cpld_data)
+ {
+-	cpld_off |= AFT4_BIT_DEV_ADDR_CPLD; 
++	cpld_off = get_cpld_off(cpld->adptr_type, cpld_off);
+ 	exec_write_cmd(cpld->private, 0x46, 2, cpld_off);
+ 	exec_write_cmd(cpld->private, 0x44, 2, cpld_data);
+ 	return 0;
+@@ -145,7 +160,7 @@
+ {
+ 	unsigned int cpld_data;
+ 		
+-	cpld_off |= AFT4_BIT_DEV_ADDR_CPLD; 
++	cpld_off = get_cpld_off(cpld->adptr_type, cpld_off);
+ 	exec_write_cmd(cpld->private, 0x46, 2, cpld_off);
+ 	if (exec_read_cmd(cpld->private, 0x44, 4, &cpld_data) == 0){
+ 		return cpld_data;
+diff -dur wan_aftup/wan_aft_prg.c /root/3.1.X/wanpipe/util/wan_aftup/wan_aft_prg.c
+--- wan_aftup/wan_aft_prg.c	2007-04-30 15:06:47.000000000 -0400
++++ /root/3.1.X/wanpipe/util/wan_aftup/wan_aft_prg.c	2007-04-24 19:14:43.000000000 -0400
+@@ -594,9 +594,13 @@
+ 		break;
+ 	case A200_REMORA_SHARK_SUBSYS_VENDOR:
+ 	case A400_REMORA_SHARK_SUBSYS_VENDOR:
+-       		if (clear) data &= ~0x06;
+-       	       	else data |= 0x06;
+-       		break;
++		if (clear) data &= ~0x06;
++		else data |= 0x06;
++		break;
++	case A300_UTE3_SHARK_SUBSYS_VENDOR:
++		if (clear) data &= ~0x60;
++		else data |= 0x60;
++		break; 
+ 	default:
+ 		return -EINVAL;
+ 	}
+Only in wan_aftup/: wan_aftup
+diff -dur wan_aftup/wan_aftup.c /root/3.1.X/wanpipe/util/wan_aftup/wan_aftup.c
+--- wan_aftup/wan_aftup.c	2007-04-30 15:07:00.000000000 -0400
++++ /root/3.1.X/wanpipe/util/wan_aftup/wan_aftup.c	2007-04-24 19:14:43.000000000 -0400
+@@ -125,7 +125,9 @@
+ 	  "A200_0020_V", "A200_0020_V*.BIN", AFT_CORE_X200_SIZE },
+ 	{ A200_REMORA_SHARK_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
+ 	  "A200_0100_V", "A200_0100_V*.BIN", AFT_CORE_X1000_SIZE },
+-	{ A300_UTE3_SUBSYS_VENDOR, AFT_CHIP_X300, AFT_HDLC_CORE_ID, 0x00, 0x00,
++	{ A300_UTE3_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x00, 0x00,
++	  "A301_0040_V", "A301_0040_V*.BIN", AFT_CORE_X400_SIZE },
++	{ A300_UTE3_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x00, 0x00,
+ 	  "A301_V", "A301_V*.BIN", AFT_CORE_SIZE },
+ #if 0
+ 	{ AFT_TE1_ATM_CORE_ID,	
+@@ -335,6 +337,10 @@
+ 		//strcpy(aft->prefix_fw, "AFT_RM");
+ 		aft->cpld.adptr_type = A400_ADPTR_ANALOG;
+ 		aft->cpld.iface	= &aftup_shark_flash_iface;
++	}else if (strncmp(type,"AFT-A301",8) == 0){
++		//strcpy(aft->prefix_fw, "AFT_RM");
++		aft->cpld.adptr_type = A300_ADPTR_U_1TE3;
++		aft->cpld.iface	= &aftup_shark_flash_iface;
+ 	}else{
+ 		return -EINVAL;
+ 	}
+@@ -618,10 +624,17 @@
+ 		
+ 		for(i = 0; aft_core_table[i].board_id; i++){
+ 
++#if 0		
++			printf("DEBUG: %s: %04X:%04X:%04X (%04X:%04X:%04X)\n",
++					aft->if_name,
++					aft_core_table[i].board_id,
++					aft_core_table[i].chip_id,
++					aft_core_table[i].core_id,
++					aft->board_id, aft->chip_id, aft->core_id);
++#endif					
+ 			if (aft_core_table[i].board_id != aft->board_id){
+ 				continue;
+ 			}
+-
+ 				
+ 			if ((aft_core_table[i].chip_id == aft->chip_id) &&
+ 			    (aft_core_table[i].core_id == aft->core_id)){
+@@ -685,6 +698,9 @@
+ 		case A400_REMORA_SHARK_SUBSYS_VENDOR:
+ 			aft->cpld.iface	= &aftup_shark_flash_iface;
+ 			break;
++		case A300_UTE3_SHARK_SUBSYS_VENDOR:
++			aft->cpld.iface	= &aftup_shark_flash_iface;
++			break;
+ 		default:
+ 			printf("\n%s: These board are not supported (subvendor_id=%04X)!\n",
+ 						aft->if_name,
+@@ -772,6 +788,8 @@
+ 		case A200_REMORA_SHARK_SUBSYS_VENDOR:
+ 		case A400_REMORA_SHARK_SUBSYS_VENDOR:
+ 			break;
++		case A300_UTE3_SHARK_SUBSYS_VENDOR:
++			break;
+ 		default:
+ 			continue;
+ 		}
+Only in wan_aftup/: .wan_aftup.c.swp

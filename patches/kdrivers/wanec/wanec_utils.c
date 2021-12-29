@@ -108,9 +108,11 @@ key_word_t ChannelModifyParam[] =
 	{ "lSoutAutomaticLevelControlTargetDb",
 	  offsetof(tOCT6100_CHANNEL_MODIFY, VqeConfig)+offsetof(tOCT6100_CHANNEL_MODIFY_VQE,lSoutAutomaticLevelControlTargetDb),
 	  DTYPE_INT32 },
+#if 0
 	{ "ulAlcNoiseBleedOutTime",
 	  offsetof(tOCT6100_CHANNEL_MODIFY, VqeConfig)+offsetof(tOCT6100_CHANNEL_MODIFY_VQE,ulAlcNoiseBleedOutTime),
 	  DTYPE_UINT32 },
+#endif
 	{ "fRinHighLevelCompensation",
 	  offsetof(tOCT6100_CHANNEL_MODIFY, VqeConfig)+offsetof(tOCT6100_CHANNEL_MODIFY_VQE,fRinHighLevelCompensation),
 	  DTYPE_BOOL },

@@ -902,6 +902,33 @@ int sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 	return 0;
 }
 
+int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
+{
+	int err;
+
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_ENABLE_HWEC;
+	err=sangoma_tdm_cmd_exec(fd,tdm_api);
+	if (err){
+		return err;
+	}
+
+	return 0;
+}
+
+int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
+{
+	int err;
+
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_DISABLE_HWEC;
+	err=sangoma_tdm_cmd_exec(fd,tdm_api);
+	if (err){
+		return err;
+	}
+
+	return 0;
+}
+
+
 int sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
 {
 	int err;

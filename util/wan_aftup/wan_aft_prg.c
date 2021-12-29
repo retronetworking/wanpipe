@@ -594,9 +594,13 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 		break;
 	case A200_REMORA_SHARK_SUBSYS_VENDOR:
 	case A400_REMORA_SHARK_SUBSYS_VENDOR:
-       		if (clear) data &= ~0x06;
-       	       	else data |= 0x06;
-       		break;
+		if (clear) data &= ~0x06;
+		else data |= 0x06;
+		break;
+	case A300_UTE3_SHARK_SUBSYS_VENDOR:
+		if (clear) data &= ~0x60;
+		else data |= 0x60;
+		break; 
 	default:
 		return -EINVAL;
 	}

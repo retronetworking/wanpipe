@@ -6,12 +6,18 @@
  * Copyright (C) 05-07 Nenad Corbic 
  * 		       Anthony Minessale II 
  *
- * Anthony Minessale II <anthmct@yahoo.com>
  * Nenad Corbic <ncorbic@sangoma.com>
+ * Anthony Minessale II <anthmct@yahoo.com>
  *
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.13 Nenad Corbic <ncorbic@sangoma.com>
+ *	 Added CallWeaver Support
+ *	 |->(thanks to Andre Schwaller)
+ *	 Updated codec negotiation for 
+ *	 mutliple profiles.
+ *
  * v1.12 Nenad Corbic <ncorbic@sangoma.com>
  *	 Updated DTMF locking
  *
@@ -50,6 +56,10 @@
  *      from CLI.
  */
 
+#if defined(CALLWEAVER) && defined(HAVE_CONFIG_H)
+#include "confdefs.h"
+#endif
+
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -63,6 +73,8 @@
 #include <signal.h>
 #include <math.h>
 #include <netinet/tcp.h>
+
+#ifndef CALLWEAVER
 #include <asterisk/sched.h>
 #include <asterisk/astobj.h>
 #include <asterisk/lock.h>
@@ -78,6 +90,120 @@
 #include <asterisk/translate.h>
 #include <asterisk/causes.h>
 #include <asterisk/dsp.h>
+#include "asterisk.h"
+
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.12 $")
+
+#else
+
+#include <callweaver/sched.h>
+#include <callweaver/astobj.h>
+#include <callweaver/lock.h>
+#include <callweaver/manager.h>
+#include <callweaver/channel.h>
+#include <callweaver/pbx.h>
+#include <callweaver/cli.h>
+#include <callweaver/logger.h>
+#include <callweaver/frame.h>
+#include <callweaver/config.h>
+#include <callweaver/module.h>
+#include <callweaver/lock.h>
+#include <callweaver/translate.h>
+#include <callweaver/causes.h>
+#include <callweaver/dsp.h>
+#include "callweaver.h"
+
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.12 $")
+
+// strings...
+#define 	AST_FORMAT_SLINEAR 	OPBX_FORMAT_SLINEAR
+#define 	AST_FORMAT_ULAW		OPBX_FORMAT_ULAW
+#define 	AST_FORMAT_ALAW 	OPBX_FORMAT_ALAW
+#define 	ast_mutex_t 		opbx_mutex_t
+#define 	ast_frame 		opbx_frame
+#define 	ast_verbose 		opbx_verbose
+#define 	AST_FRIENDLY_OFFSET 	OPBX_FRIENDLY_OFFSET
+#define 	AST_MUTEX_DEFINE_STATIC 	OPBX_MUTEX_DEFINE_STATIC
+#define 	AST_CONTROL_PROGRESS 		OPBX_CONTROL_PROGRESS
+#define 	AST_CAUSE_REQUESTED_CHAN_UNAVAIL 	OPBX_CAUSE_REQUESTED_CHAN_UNAVAIL
+#define 	AST_CAUSE_NORMAL_CIRCUIT_CONGESTION 	OPBX_CAUSE_NORMAL_CIRCUIT_CONGESTION
+#define 	AST_CAUSE_USER_BUSY 		OPBX_CAUSE_USER_BUSY
+#define 	AST_CAUSE_NO_ANSWER 		OPBX_CAUSE_NO_ANSWER
+#define 	AST_CAUSE_NORMAL_CLEARING 	OPBX_CAUSE_NORMAL_CLEARING
+#define 	AST_SOFTHANGUP_EXPLICIT 	OPBX_SOFTHANGUP_EXPLICIT
+#define 	AST_SOFTHANGUP_DEV 		OPBX_SOFTHANGUP_DEV
+#define		AST_CAUSE_NORMAL_CLEARING 	OPBX_CAUSE_NORMAL_CLEARING
+#define 	AST_FRAME_DTMF 			OPBX_FRAME_DTMF
+#define 	AST_FRAME_CONTROL 		OPBX_FRAME_CONTROL
+#define 	AST_CONTROL_ANSWER 		OPBX_CONTROL_ANSWER
+#define 	AST_STATE_UP 			OPBX_STATE_UP
+#define 	AST_STATE_RINGING 		OPBX_STATE_RINGING
+#define 	AST_STATE_DOWN 			OPBX_STATE_DOWN
+#define 	AST_FLAGS_ALL 			OPBX_FLAGS_ALL
+#define 	AST_FRAME_VOICE 		OPBX_FRAME_VOICE
+#define 	ASTERISK_GPL_KEY 		0
+#define 	ast_channel_tech 		opbx_channel_tech
+#define 	ast_test_flag  			opbx_test_flag
+#define 	ast_queue_frame 		opbx_queue_frame
+#define 	ast_channel 			opbx_channel
+#define 	ast_exists_extension 		opbx_exists_extension
+#define 	ast_hostent 		opbx_hostent
+#define         ast_clear_flag          opbx_clear_flag
+#define         ast_log                 opbx_log
+#define         ast_set_flag            opbx_set_flag
+#define         ast_copy_string         opbx_copy_string
+#define         ast_set_flag            opbx_set_flag
+#define         ast_set2_flag           opbx_set2_flag
+#define         ast_setstate            opbx_setstate
+#define         ast_test_flag           opbx_test_flag
+#define         ast_softhangup          opbx_softhangup
+#define         ast_true                opbx_true
+#define         ast_false               opbx_false
+#define         ast_strlen_zero         opbx_strlen_zero
+#define         ast_exists_extension    opbx_exists_extension
+#define         ast_frame               opbx_frame
+#define         ast_jb_conf             opbx_jb_conf
+#define         ast_carefulwrite        opbx_carefulwrite
+#define         ast_channel_unregister  opbx_channel_unregister
+#define         ast_cli                 opbx_cli
+#define         ast_cli_register        opbx_cli_register
+#define         ast_cli_unregister      opbx_cli_unregister
+#define         ast_jb_read_conf        opbx_jb_read_conf
+#define         ast_mutex_destroy       opbx_mutex_destroy
+#define         ast_mutex_init          opbx_mutex_init
+#define         ast_mutex_lock          opbx_mutex_lock
+#define         ast_mutex_unlock        opbx_mutex_unlock
+#define         ast_mutex_t             opbx_mutex_t
+#define         ast_queue_control       opbx_queue_control
+#define         ast_queue_frame         opbx_queue_frame
+#define         ast_queue_hangup        opbx_queue_hangup
+#define         ast_set_callerid        opbx_set_callerid
+#define         ast_variable            opbx_variable
+#define         ast_pthread_create      opbx_pthread_create
+#define         ast_cli_entry           opbx_cli_entry
+#define         ast_channel_register    opbx_channel_register
+#define         ast_config_load         opbx_config_load
+#define         ast_config_destroy      opbx_config_destroy
+#define         ast_category_browse     opbx_category_browse
+#define         ast_variable_browse     opbx_variable_browse
+#define         ast_gethostbyname       opbx_gethostbyname
+#define         ast_channel_alloc       opbx_channel_alloc
+#define         ast_dsp_new                     opbx_dsp_new
+#define         ast_dsp                         opbx_dsp
+#define         ast_dsp_set_features            opbx_dsp_set_features
+#define         ast_dsp_digitmode               opbx_dsp_digitmode
+#define         ast_dsp_set_call_progress_zone  opbx_dsp_set_call_progress_zone
+#define         ast_dsp_set_busy_count          opbx_dsp_set_busy_count
+#define         ast_dsp_set_busy_pattern        opbx_dsp_set_busy_pattern
+#define         ast_dsp_process                 opbx_dsp_process
+#define         ast_strdupa             opbx_strdupa
+#define         ast_mutex_trylock       opbx_mutex_trylock
+#define         ast_cause2str           opbx_cause2str
+#define         ast_pbx_start           opbx_pbx_start
+#define         ast_hangup	 	opbx_hangup
+
+#endif
+
 #include <g711.h>
 #include <errno.h>
 
@@ -86,12 +212,12 @@
 #define MEDIA_ANSWER "ACCEPT"
 #define USE_ANSWER 1
 
-#include "asterisk.h"
+
 extern int option_verbose;
 
 #define WOOMERA_VERSION "v1.12"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.12 $")
+
 static int tech_count = 0;
 
 static const char desc[] = "Woomera Channel Driver";
@@ -1145,6 +1271,7 @@ tech_activate_failed:
 
 static int tech_init(private_object *tech_pvt, woomera_profile *profile, int flags) 
 {
+	struct ast_channel *self = tech_get_owner(tech_pvt);
 
 	gettimeofday(&tech_pvt->started, NULL);
 
@@ -1172,6 +1299,11 @@ static int tech_init(private_object *tech_pvt, woomera_profile *profile, int fla
 	}
 
 	ast_set_flag(tech_pvt, flags);
+
+	tech_pvt->coding = profile->coding;
+	self->nativeformats = tech_pvt->coding;
+	self->writeformat = self->rawwriteformat = self->readformat = tech_pvt->coding;
+	tech_pvt->frame.subclass = tech_pvt->coding;
 
 	if (profile->dtmf_enable) {
 			
@@ -2985,11 +3117,6 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 		ast_log(LOG_NOTICE, "TECH CALL: proto=%s addr=%s profile=%s Coding=%i\n",
 					proto,addr,profile_name,profile->coding);
 		}
-
-		tech_pvt->coding = profile->coding;
-		self->nativeformats = tech_pvt->coding;
-		self->writeformat = self->rawwriteformat = self->readformat = tech_pvt->coding;
-		tech_pvt->frame.subclass = tech_pvt->coding;
 
 		tech_pvt->timeout = timeout;
 		err=tech_init(tech_pvt, profile, TFLAG_OUTBOUND);

@@ -15,7 +15,7 @@
 SMG_DTMF=YES
 
 CC = gcc
-INCLUDES = -I/lib/modules/$(shell uname -r)/build/include -I. -I/usr/local/include -I../../patches/kdrivers/include
+INCLUDES = -I/lib/modules/$(shell uname -r)/build/include -I. -I/usr/local/include -I../../patches/kdrivers/include -I/usr/include/wanpipe
 CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 -march=i686
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
 LDFLAGS=-L. -L/usr/local/lib -lpthread -lsangoma -lm 

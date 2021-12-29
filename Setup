@@ -4981,6 +4981,20 @@ function tdmv_apply_zaptel_chunk_patch () {
                         zaptel_modified=1
                 fi
         fi
+
+	if [ -f Makefile.kernel26 ]; then
+		eval "cat Makefile.kernel26 | sed 's/^obj-m.*+=.*wct4xx.*//g'>$TEMP 2>/dev/null "
+		if [ $? -ne 0 ]; then
+			 echo "   Failed to remove wct4xxp from Makefile.kernel26"
+              		 exit 1
+		
+		else
+			eval "\mv -f $TEMP Makefile.kernel26"
+			echo "   wct4xxp module removed from Makefile.kernel26 successfully"
+                        zaptel_modified=1			
+		fi
+	fi
+
         cd $lhome
         return 0;
 }
@@ -6113,7 +6127,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=2.3.4-11
+PROD_VER=2.3.4-12
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -6123,7 +6137,7 @@ PROD_PATCH=$PROD_HOME/patches
 PROD_INIT=/usr/sbin/
 FILELIST=$PROD_HOME/Filelist
 SOURCEDIR=/lib/modules/$(uname -r)/build
-START_SCRIPT=S03$PROD
+START_SCRIPT=S11$PROD
 OLD_START=S05router
 STOP_SCRIPT=K10$PROD
 OLD_STOP=K10router
@@ -6556,10 +6570,10 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 		--gz-modules)
 			GZ_MODULES="YES";
 			;;
---zap-chunk*)
+		--zap-chunk*)
                         ZAP_CHUNK=`echo $arg | cut -d'=' -f2`;
 
-                        if [ $ZAP_CHUNK != "16" ] && [ $ZAP_CHUNK != "40" ] && [ $ZAP_CHUNK != "80" ];  then
+                         if [ $ZAP_CHUNK != "8" ] && [ $ZAP_CHUNK != "16" ] && [ $ZAP_CHUNK != "40" ] && [ $ZAP_CHUNK != "80" ];  then
                                 echo "Error: Invalid Zaptel Chunk size"
                                 exit 1;
                         else

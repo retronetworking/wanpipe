@@ -1,14 +1,14 @@
 8
 
 dir
-223
+228
 svn://sangoma.freeswitch.org/sangoma_mgd/trunk
 svn://sangoma.freeswitch.org
 
 
 
-2007-07-10T21:28:58.437367Z
-223
+2007-07-17T15:22:31.637247Z
+228
 ncorbic
 
 
@@ -26,6 +26,18 @@ svn:special svn:externals svn:needs-lock
 
 2028fedf-720c-0410-83b8-d54a3e729fb0
 
+sigboost.h
+file
+
+
+
+
+2007-07-17T15:23:01.000000Z
+f0d1e64dfdd9aca476aeafd3b570c083
+2007-07-17T15:22:17.602452Z
+227
+ncorbic
+
 install.sh
 file
 
@@ -39,16 +51,28 @@ eebdfdf347cb99e7d38591488df900d7
 ncorbic
 has-props
 
-sigboost.h
+switch_buffer.h
 file
 
 
 
 
-2007-06-14T04:10:02.000000Z
-f60c7e21ea28daf62933e5fa55fac387
-2007-06-14T04:08:55.484670Z
-208
+2007-06-21T22:16:27.000000Z
+f4832443a621cbb88e92535898d11b83
+2007-06-21T22:11:59.891196Z
+216
+ncorbic
+
+sangoma_mgd.conf.sample
+file
+
+
+
+
+2007-04-13T19:46:26.000000Z
+3332791842dafbc726d1b03b9f769db4
+2007-04-13T18:50:03.087811Z
+178
 ncorbic
 
 sound.raw
@@ -64,40 +88,16 @@ da36acc78b83d5047481df0cca63d969
 ncorbic
 has-props
 
-sangoma_mgd.conf.sample
-file
-
-
-
-
-2007-04-13T19:46:26.000000Z
-3332791842dafbc726d1b03b9f769db4
-2007-04-13T18:50:03.087811Z
-178
-ncorbic
-
-switch_buffer.h
-file
-
-
-
-
-2007-06-21T22:16:27.000000Z
-f4832443a621cbb88e92535898d11b83
-2007-06-21T22:11:59.891196Z
-216
-ncorbic
-
 chan_woomera.c
 file
 
 
 
 
-2007-07-10T21:29:42.000000Z
-3693a07162575b55f4c9fcd4126b21d8
-2007-07-10T21:28:58.437367Z
-223
+2007-07-17T15:23:01.000000Z
+84567dd982c2bdb74af41df805eb268b
+2007-07-17T15:19:15.442273Z
+226
 ncorbic
 
 callgettest.sh
@@ -116,9 +116,6 @@ has-props
 conf
 dir
 
-scripts
-dir
-
 Changelog
 file
 
@@ -131,17 +128,8 @@ e882d77b92b36e5878240af27f94d36f
 208
 ncorbic
 
-call_signal.c
-file
-
-
-
-
-2007-06-21T22:16:27.000000Z
-ce7833d67e4f74118a8fb4c7beecddf2
-2007-06-21T22:12:30.552870Z
-218
-ncorbic
+scripts
+dir
 
 re-sync.sh
 file
@@ -156,28 +144,16 @@ file
 ncorbic
 has-props
 
-sangoma_mgd.c
+call_signal.c
 file
 
 
 
 
-2007-07-10T21:29:46.000000Z
-c940a7db93c8066de876e98328747594
-2007-07-10T21:28:10.949071Z
-222
-ncorbic
-
-woomera.conf
-file
-
-
-
-
-2006-12-01T20:19:02.000000Z
-aa9bfdfa7b10bb26911cf3b6ae9f604d
-2006-12-01T20:20:54.543939Z
-152
+2007-06-21T22:16:27.000000Z
+ce7833d67e4f74118a8fb4c7beecddf2
+2007-06-21T22:12:30.552870Z
+218
 ncorbic
 
 clog.sh
@@ -192,6 +168,30 @@ a94061bf84e9f89de0842eb1249d0975
 91
 ncorbic
 has-props
+
+woomera.conf
+file
+
+
+
+
+2006-12-01T20:19:02.000000Z
+aa9bfdfa7b10bb26911cf3b6ae9f604d
+2006-12-01T20:20:54.543939Z
+152
+ncorbic
+
+sangoma_mgd.c
+file
+
+
+
+
+2007-07-16T22:42:26.000000Z
+c166673b9c95cda1e0532604823bff15
+2007-07-13T17:00:55.307391Z
+225
+ncorbic
 
 call_signal.h
 file
@@ -263,9 +263,9 @@ file
 
 
 
-2007-06-14T04:12:18.000000Z
-afc38981b543b562f5262e9b1b16836a
-2007-06-14T04:19:34.594824Z
-212
+2007-07-17T15:23:01.000000Z
+7c7960df26248041751d427e62d7ba25
+2007-07-17T15:22:31.637247Z
+228
 ncorbic
 
