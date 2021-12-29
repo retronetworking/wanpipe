@@ -211,9 +211,7 @@ void wplip_link_bh(void* data, int pending)
 #endif
 {
 	wplip_link_t *lip_link = (wplip_link_t *)data;
-#ifndef __LINUX__
 	wan_smp_flag_t	s;
-#endif
 	
 	DEBUG_TEST("%s: Link BH\n",__FUNCTION__);
 
@@ -222,11 +220,8 @@ void wplip_link_bh(void* data, int pending)
 		return;
 	}
 
-#ifdef __LINUX__
-	wan_spin_lock(&lip_link->bh_lock);
-#else
 	wan_spin_lock_irq(&lip_link->bh_lock, &s);
-#endif
+
 	wan_set_bit(WPLIP_BH_RUNNING,&lip_link->tq_working);
 	
 	wplip_bh_receive(lip_link);
@@ -237,11 +232,8 @@ void wplip_link_bh(void* data, int pending)
 
 	WAN_TASKLET_END((&lip_link->task));
 
-#ifdef __LINUX__
-	wan_spin_unlock(&lip_link->bh_lock);
-#else
 	wan_spin_unlock_irq(&lip_link->bh_lock, &s);
-#endif
+
 	wplip_retrigger_bh(lip_link);
 
 }

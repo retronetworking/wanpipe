@@ -52,6 +52,8 @@
 			  DEFINES AND MACROS
 ******************************************************************************/
 
+#define AFT_FUNC_DEBUG()
+
 #define WRITE_REG(reg,val) 						\
 	fe->write_fe_reg(						\
 		((sdla_t*)fe->card)->hw, 				\
@@ -65,11 +67,6 @@
 		0,							\
 		(int)(reg))
 
-#if 1
-#define AFT_FUNC_DEBUG()
-#else
-#define AFT_FUNC_DEBUG()  DEBUG_EVENT("%s:%d\n",__FUNCTION__,__LINE__)
-#endif
 
 /******************************************************************************
 			STRUCTURES AND TYPEDEFS
@@ -131,14 +128,19 @@ static unsigned char sdla_56k_get_fe_media(sdla_fe_t *fe)
 }
 
 /******************************************************************************
- *				sdla_56k_get_fe_status()	
- *
- * Description:
- * Arguments:	
- * Returns:
- ******************************************************************************
- */
-static int sdla_56k_get_fe_status(sdla_fe_t *fe, unsigned char *status)
+* sdla_56k_get_fe_status()	
+*
+* Description	: Get current FE line state - is it Connected or Disconnected
+*
+* Arguments	: fe - pointer to Front End structure.	
+*		  status - pointer to location where the FE line state will
+*			be stored. 
+*		  notused - ignored 
+*
+* Returns	: always zero.
+*******************************************************************************/
+
+static int sdla_56k_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notused)
 {
 	AFT_FUNC_DEBUG();
 	*status = fe->fe_status;
@@ -561,7 +563,7 @@ static int sdla_56k_udp(sdla_fe_t *fe, void* pudp_cmd, unsigned char* data)
 	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_fe_stats_t);
 		break;
 
-	case WAN_FE_SET_LB_MODE:
+	case WAN_FE_LB_MODE:
 		/* Activate/Deactivate Line Loopback modes */
 	    	err = sdla_56k_set_lbmode(fe, data[0], data[1]); 
 	    	udp_cmd->wan_cmd_return_code = 

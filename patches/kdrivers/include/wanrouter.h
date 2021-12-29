@@ -355,8 +355,8 @@ typedef struct wan_device
 	int (*get_config_info) 		(void*, struct seq_file* m, int *);
 	int (*get_status_info) 		(void*, struct seq_file* m, int *);
 	
-	get_info_t*	get_dev_config_info;
-	get_info_t*	get_if_info;
+	wan_get_info_t*	get_dev_config_info;
+	wan_get_info_t*	get_if_info;
 	write_proc_t*	set_dev_config;
 	write_proc_t*	set_if_info;
 #endif
@@ -377,6 +377,7 @@ typedef struct wan_device
 		void	(*hook) (void* card_id, wan_event_t*);	
 		void	(*ringtrip) (void* card_id, wan_event_t*);	
 		void	(*ringdetect) (void* card_id, wan_event_t*);	
+		void	(*linkstatus) (void* card_id, wan_event_t*);
 	} event_callback;
 	
 	unsigned char 		ignore_front_end_status;

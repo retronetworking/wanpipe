@@ -187,17 +187,45 @@ int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 
 /* get current Line Connection state - Connected/Disconnected */
-int sangoma_tdm_get_fe_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char *current_status);
-/* set current Line Connection state - Connected/Disconnected. valid only for ISDN BRI */
+#ifdef WP_TDM_FEATURE_LINK_STATUS
+# ifndef LIBSANGOMA_GET_LINKSTATUS
+# define LIBSANGOMA_GET_LINKSTATUS 1
+# endif
+int sangoma_tdm_get_link_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char *current_status);
+#endif
+
+/* set current Line Connection state - Connected/Disconnected */
+#ifndef LIBSANGOMA_GET_FESTATUS
+#define LIBSANGOMA_GET_FESTATUS 1
+#endif
 int sangoma_tdm_set_fe_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char new_status);
 
+#ifndef LIBSANGOMA_SET_FESTATUS
+#define LIBSANGOMA_SET_FESTATUS 1
+#endif
+/* get current Line Connection state - Connected/Disconnected */
+int sangoma_tdm_get_fe_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char *current_status);
 
+/* Get hw configuration Alaw Ulaw based on T1/E1 */
 #ifndef LIBSANGOMA_GET_HWCODING
 #define LIBSANGOMA_GET_HWCODING 1
 #endif
 int sangoma_tdm_get_hw_coding(int fd, wanpipe_tdm_api_t *tdm_api);
 
+/* Get hw dtmf support: enabled or disabled */
+#ifndef LIBSANGOMA_GET_HWDTMF
+#define LIBSANGOMA_GET_HWDTMF 1
+#endif
+int sangoma_tdm_get_hw_dtmf(int fd, wanpipe_tdm_api_t *tdm_api);
+
+
+#ifndef LIBSANGOMA_TDMAPI_CTRL
+#define LIBSANGOMA_TDMAPI_CTRL 1
+#endif
+int sangoma_open_tdmapi_ctrl(void);
+
 #endif 	/* WANPIPE_TDM_API */
+
 
 #endif
 

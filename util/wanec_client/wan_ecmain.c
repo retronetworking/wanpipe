@@ -70,7 +70,7 @@ int wanec_client_stats(int full);
 int wanec_client_bufferload(char *buffer);
 int wanec_client_bufferunload(unsigned long buffer_id);
 int wanec_client_playout(int start);
-int wanec_client_monitor(void);
+int wanec_client_monitor(int data_mode);
 
 /******************************************************************************
 ** 			FUNCTION DEFINITIONS
@@ -288,13 +288,14 @@ int wanec_client_playout(int start)
 	return err;
 }
 
-int wanec_client_monitor(void)
+int wanec_client_monitor(int data_mode)
 {
 	wanec_api_monitor_t	monitor;
 	int			err;
 
 	memset(&monitor, 0, sizeof(wanec_api_monitor_t));
 	monitor.fe_chan		= ec_client.fe_chan;
+	monitor.data_mode	= data_mode;
 	err = wanec_api_monitor(	
 				ec_client.devname,
 				ec_client.verbose,

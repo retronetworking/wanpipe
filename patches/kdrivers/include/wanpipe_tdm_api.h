@@ -59,7 +59,7 @@ enum{
 #ifdef WAN_KERNEL
 
 #if !defined(__WINDOWS__)
-#define WP_TDM_API_MAX_LEN 	1024
+#define WP_TDM_API_MAX_LEN 	8*200
 #endif
 
 #define WP_TDM_API_CHUNK_SZ 	8
@@ -298,6 +298,11 @@ static inline int wp_tdmapi_check_mtu(void* pcard, unsigned long timeslot_map, i
 	}
 	*mtu = chunksz * num_of_channels;
 	return 0;
+}
+
+static inline int wp_tdmapi_get_span(sdla_t *card)
+{
+	return card->tdmv_conf.span_no;
 }
 		
 #endif

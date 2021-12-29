@@ -4921,7 +4921,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, void *local_dev)
 
 		case WAN_GET_MEDIA_TYPE:
 		case WAN_FE_GET_STAT:
-		case WAN_FE_SET_LB_MODE:
+		case WAN_FE_LB_MODE:
  		case WAN_FE_FLUSH_PMON:
 		case WAN_FE_GET_CFG:
 
@@ -4946,7 +4946,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, void *local_dev)
 			mb->wan_data_len = wan_udp_pkt->wan_udp_data_len;
 			break;
 #if 0
-		case WAN_FE_SET_LB_MODE:
+		case WAN_FE_LB_MODE:
 		    /* Activate/Deactivate Line Loopback modes */
 		    if (IS_TE1_CARD(card)){
 			err = card->wandev.fe_iface.set_fe_lbmode(

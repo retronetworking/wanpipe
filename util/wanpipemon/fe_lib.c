@@ -815,7 +815,7 @@ void set_lb_modes(unsigned char type, unsigned char mode)
 
 static void hw_set_lb_modes(unsigned char type, unsigned char mode)
 {
-	wan_udp.wan_udphdr_command	= WAN_FE_SET_LB_MODE;
+	wan_udp.wan_udphdr_command	= WAN_FE_LB_MODE;
 	wan_udp.wan_udphdr_data_len	= 2;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 
@@ -840,6 +840,67 @@ static void hw_set_lb_modes(unsigned char type, unsigned char mode)
 			WAN_TE1_LB_MODE_DECODE(type),
 			(mode == WAN_TE1_ACTIVATE_LB) ? "activated" : "deactivated");
 	}
+	return;
+}
+
+void get_lb_modes()
+{
+	unsigned char	adapter_type = 0x00;
+
+	/* Read Adapter Type */
+	if (get_fe_type(&adapter_type)){
+		return;
+	}
+
+	if(make_hardware_level_connection()){
+		return;
+	}
+
+	wan_udp.wan_udphdr_command	= WAN_FE_LB_MODE;
+	wan_udp.wan_udphdr_data_len	= sizeof(unsigned int);
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	set_wan_udphdr_data_byte(0,WAN_TE1_LB_NONE);
+
+	DO_COMMAND(wan_udp);
+	if (wan_udp.wan_udphdr_return_code != 0){
+		printf("Failed to get loopback mode!\n");
+	}else{
+		unsigned int	mode = *(unsigned int*)get_wan_udphdr_data_ptr(0);
+
+		if (!mode){
+			printf("All loopback mode are disabled!");
+		}else{
+			printf("***** %s: %s Loopback status *****\n\n",
+				if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
+			if (mode & (1<<WAN_TE1_FR_FLB_MODE)){
+				printf("\tFramer Loopback:\tON\n");
+			}
+			if (mode & (1<<WAN_TE1_FR_PLB_MODE)){
+				printf("\tPayload Loopback:\tON\n");
+			}
+			
+			if (mode & (1<<WAN_TE1_LIU_ALB_MODE)){
+				printf("\tLIU Analog Loopback:\tON\n");
+			}
+			if (mode & (1<<WAN_TE1_LIU_LLB_MODE)){
+				printf("\tLIU Local Loopback:\tON\n");
+			}
+			if (mode & (1<<WAN_TE1_LIU_RLB_MODE)){
+				printf("\tLIU Remote Loopback:\tON\n");
+			}
+			if (mode & (1<<WAN_TE1_LINELB_MODE)){
+				printf("\tLine Loopback:\tON\n");
+			}
+			if (mode & (1<<WAN_TE1_PAYLB_MODE)){
+				printf("\tPayload Loopback:\tON\n");
+			}
+			if (mode & (1<<WAN_TE1_DDLB_MODE)){
+				printf("\tDiagnostic Digital Loopback:\tON\n");
+			}
+		}	
+	}
+	cleanup_hardware_level_connection();
+
 	return;
 }
 

@@ -3772,7 +3772,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 
 		case WAN_GET_MEDIA_TYPE:
 		case WAN_FE_GET_STAT:
-		case WAN_FE_SET_LB_MODE:
+		case WAN_FE_LB_MODE:
  		case WAN_FE_FLUSH_PMON:
 		case WAN_FE_GET_CFG:
 			if (IS_TE1_CARD(card)){
@@ -4876,7 +4876,7 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 			if (net_ratelimit()){
 				printk(KERN_INFO 
 				"%s: Received packet size too big: %i bytes, Max: %i!\n",
-					card->devname,len,TTY_FLIPBUF_SIZE);
+					card->devname,len,TTY_CHDLC_MAX_MTU);
 			}
 			return;
 		}
@@ -4887,11 +4887,11 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 		}      
 #endif		
 #else		
-		if ((tty->flip.count+len) >= TTY_FLIPBUF_SIZE){
+		if ((tty->flip.count+len) >= TTY_CHDLC_MAX_MTU){
 			if (net_ratelimit()){
 				printk(KERN_INFO 
 					"%s: Received packet size too big: %i bytes, Max: %i!\n",
-					card->devname,len,TTY_FLIPBUF_SIZE);
+					card->devname,len,TTY_CHDLC_MAX_MTU);
 			}
 			return;
 		}
@@ -4960,7 +4960,7 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 			if (net_ratelimit()){
 				printk(KERN_INFO 
 				"%s: Received packet size too big: %i bytes, Max: %i!\n",
-					card->devname,len,TTY_FLIPBUF_SIZE);
+					card->devname,len,TTY_CHDLC_MAX_MTU);
 			}
 			return;
 		}

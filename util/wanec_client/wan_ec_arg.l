@@ -137,6 +137,7 @@ static struct table_args_t {
 	{"mne",			token(MODE_NO_ECHO_TOKEN),		"Description" },
 	{"modify",		token(MODIFY_TOKEN),			"Description" },
 	{"monitor",		token(MONITOR_TOKEN),			"Description" },
+	{"monitor120",		token(MONITOR120_TOKEN),		"Description" },
 	{"mpd",			token(MODE_POWERDOWN_TOKEN),		"Description" },
 	{"msr",			token(MODE_SPEECH_RECOGNITION_TOKEN),	"Description" },
 	{"mute",		token(MUTE_TOKEN),			"Description" },

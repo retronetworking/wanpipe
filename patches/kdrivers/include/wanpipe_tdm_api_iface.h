@@ -1,11 +1,11 @@
 /*****************************************************************************
-* wanpipe_tdm_api.h 
+* wanpipe_tdm_api_iface.h 
 * 		
 * 		WANPIPE(tm) AFT TE1 Hardware Support
 *
 * Authors: 	Nenad Corbic <ncorbic@sangoma.com>
 *
-* Copyright (c) 2007, Sangoma Technologies
+* Copyright (c) 2007 - 08, Sangoma Technologies
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -50,6 +50,7 @@ typedef int sng_fd_t;
 #define WP_TDM_FEATURE_DTMF_EVENTS	1
 #define WP_TDM_FEATURE_FE_ALARM		1
 #define WP_TDM_FEATURE_EVENTS		1
+#define WP_TDM_FEATURE_LINK_STATUS	1
 
 enum wanpipe_tdm_api_cmds {
 
@@ -108,6 +109,8 @@ enum wanpipe_tdm_api_cmds {
 
 };
 
+#define SIOC_WP_TDM_GET_LINK_STATUS SIOC_WP_TDM_GET_FE_STATUS
+
 enum wanpipe_tdm_api_events {
 	WP_TDMAPI_EVENT_NONE,
 	WP_TDMAPI_EVENT_RBS,
@@ -125,7 +128,8 @@ enum wanpipe_tdm_api_events {
 	WP_TDMAPI_EVENT_TXSIG_ONHOOK,
 	WP_TDMAPI_EVENT_ONHOOKTRANSFER,
 	WP_TDMAPI_EVENT_SETPOLARITY,
-	WP_TDMAPI_EVENT_BRI_CHAN_LOOPBACK
+	WP_TDMAPI_EVENT_BRI_CHAN_LOOPBACK,
+	WP_TDMAPI_EVENT_LINK_STATUS
 };
 
 #define WP_TDMAPI_EVENT_FE_ALARM WP_TDMAPI_EVENT_ALARM
@@ -163,7 +167,13 @@ enum wanpipe_tdm_api_events {
 		((state) == WP_TDMAPI_EVENT_RING_TRIP_PRESENT) ? "Ring Present" :	\
 		((state) == WP_TDMAPI_EVENT_RING_TRIP_STOP) ? "Ring Stop" :	\
 						"(Unknown state)"
-
+/*Link Status */
+#define WP_TDMAPI_EVENT_LINK_STATUS_CONNECTED		0x01
+#define WP_TDMAPI_EVENT_LINK_STATUS_DISCONNECTED	0x02
+#define WP_TDMAPI_EVENT_LINK_STATUS_DECODE(status)					\
+		((status) == WP_TDMAPI_EVENT_LINK_STATUS_CONNECTED) ? "Connected" :		\
+		((status) == WP_TDMAPI_EVENT_LINK_STATUS_DISCONNECTED)  ? "Disconnected" :		\
+							"Unknown"
 #define	WP_TDMAPI_EVENT_TONE_DIAL	0x01
 #define	WP_TDMAPI_EVENT_TONE_BUSY	0x02
 #define	WP_TDMAPI_EVENT_TONE_RING	0x03
@@ -180,8 +190,9 @@ typedef struct {
 	u_int8_t	type;
 	u_int8_t	mode;
 	u_int32_t	time_stamp;
-	u_int16_t	channel;
+	u_int8_t	channel;
 	u_int32_t	chan_map;
+	u_int8_t	span;
 	union {
 		struct {
 			u_int8_t	alarm;
@@ -208,6 +219,9 @@ typedef struct {
 			u_int16_t	polarity;
 			u_int16_t	ohttimer;
 		} rm_common;
+		struct{
+			u_int16_t status;
+		} linkstatus;
 	} wp_tdm_api_event_u;
 #define wp_tdm_api_event_type 		type
 #define wp_tdm_api_event_mode 		mode
@@ -223,6 +237,7 @@ typedef struct {
 #define wp_tdm_api_event_dtmf_port 	wp_tdm_api_event_u.dtmf.port
 #define wp_tdm_api_event_ohttimer 	wp_tdm_api_event_u.rm_common.ohttimer
 #define wp_tdm_api_event_polarity 	wp_tdm_api_event_u.rm_common.polarity
+#define wp_tdm_api_event_link_status	wp_tdm_api_event_u.linkstatus.status
 } wp_tdm_api_event_t;
 
 typedef struct {
@@ -324,6 +339,7 @@ typedef struct wanpipe_tdm_api_event{
 	int (*wp_ring_detect_event)(sng_fd_t fd, unsigned char ring_state);
 	int (*wp_ring_trip_detect_event)(sng_fd_t fd, unsigned char ring_state);
 	int (*wp_fe_alarm_event)(sng_fd_t fd, unsigned char fe_alarm_event);
+	int (*wp_link_status_event)(sng_fd_t fd, unsigned char link_status_event);
 }wanpipe_tdm_api_event_t; 
 
 typedef struct wanpipe_tdm_api{

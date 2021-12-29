@@ -123,6 +123,13 @@
 
 #define WAN_RM_SIG_EM		(1 << 6)			/* Ear & Mouth (E&M) */
 
+#define MIN_OFFHOOK_THRESHOLD 5
+#define MAX_OFFHOOK_THRESHOLD 20
+
+/*Analog FXO Operation mode */
+
+#define	WAN_RM_DEFAULT		0x00
+#define WAN_RM_TAPPING		0x01
 
 /*******************************************************************************
 **			  TYPEDEF STRUCTURE
@@ -134,6 +141,7 @@ typedef struct sdla_remora_cfg_ {
 /*	int	tdmv_law;*/	/* WAN_TDMV_ALAW or WAN_TDMV_MULAW */
 	int		reversepolarity;
 	int		battthresh;
+	int 		ohthresh;
 	int		battdebounce;	
 
 	u_int8_t	relaxcfg;	/* do not failed during config if one of 
@@ -149,6 +157,7 @@ typedef struct sdla_remora_cfg_ {
 	int		fxo_txgain;
 
 	int		fxs_ringampl;
+	unsigned int	rm_mode; 	/*Analog Operation mode: default or tapping */
 } sdla_remora_cfg_t;
 
 typedef struct {
@@ -166,6 +175,7 @@ typedef struct {
 	int		bat_volt;	/* VBAT voltage (mV) (FXS) */
 	int		volt;		/* Line voltage status (FXO) */
 	/*u_int8_t	hook;	*/	/* On/Off hook state */
+	unsigned char	status;		/* Line connected/disconnecd */	
 } wan_remora_stats_t;
 
 typedef struct {
@@ -307,6 +317,10 @@ typedef struct {
 
 typedef struct {
 	int	ready;
+
+	u8	status;			/* line status (connected/disconnected) */
+	int	statusdebounce;		/* line status debounce */
+
 	int	ring_detect;	
 	
 	int	offhook;			/* Xswitch */
@@ -318,6 +332,10 @@ typedef struct {
 	int	lastpol;
 	int	polarity;
 	int	polaritydebounce;
+	
+	/* Variables required for tapper mode */
+	int	ohdebounce;
+	int	going_offhook;	/* current ohdebounce is for off-hk or on-hk */
 	
 	unsigned char	imask;		/* interrupt mask */
 } wp_remora_fxo_t;

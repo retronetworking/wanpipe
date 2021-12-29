@@ -1,12 +1,63 @@
 SMG BRI Daemon - BRI Protocol stack
 
 ------------------------------------------------------------------------------
-Author: David Yat Sin <david.yatsin@sangoma.com>
+Author: David Yat Sin <dyatsin@sangoma.com>
 Copyright (c) 2007-2008 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
+* Mon Jul 28 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.52-beta
+======================================================================
+- Fix for ACU_ALERT_RQ not sent on call_start_ack, introduced in 1.51
+- release
 
-* Thur May 15 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.39b
+* Mon Jul 28 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.51-beta
+======================================================================
+- Updated version
+
+* Fri Jul 25 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.50-beta
+======================================================================
+- ALERT msg send on CALL_START_ACK
+- dl_always_up enabled by default on NT mode
+
+* Wed Jul 23 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.49-beta
+======================================================================
+- Incoming OOB digits are queued if in TRANSPARENT_RCV mode
+
+* Mon Jul 21 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.48-beta
+======================================================================
+- Support for Timer T300 configuration
+- Support for ignore_oob_digits options
+
+* Wed Jul 17 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.47-beta
+======================================================================
+- Support for ACU_INFO_IN keypad pass-through to Asterisk
+
+* Wed Jul 17 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.46-beta
+======================================================================
+- Support for ACU_DIGIT_IN pass-through to Asterisk
+
+* Wed Jul 16 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.45
+=================================================================
+- Fix for issue when call is answered on CALL_START_ACK, changed to
+- call answer on CALL_ANSWERED.
+
+* Wed Jul 08 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.44
+=================================================================
+- v1.43-beta renamed as v1.44  stable
+
+* Wed Jul 04 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.43-beta
+======================================================================
+- Support for test start option 
+
+* Wed Jun 25 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.42-beta
+======================================================================
+- Support for logging to non-syslog
+
+* Thu Jun 16 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.40
+===================================================================
+- Fix for some of the release codes not being passed to sangoma_mgd
+
+* Thu May 15 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.39b
 ====================================================================
 - Fix for smg_brid causing segfaults on some systems on incoming OOB
 - alarms

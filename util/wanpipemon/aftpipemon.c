@@ -665,6 +665,43 @@ loop_rx_exit:
 	return 0;
 }
 
+extern int mtp2_msu_only;
+extern wanpipe_hdlc_engine_t *rx_hdlc_eng;  
+wp_trace_output_iface_t hdlc_trace_iface;
+
+static int trace_aft_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int len)
+{
+	char *frame = (char*)data;
+	hdlc_trace_iface.data=data;
+	hdlc_trace_iface.len=len;
+
+	hdlc_trace_iface.status		= trace_iface.status;
+	hdlc_trace_iface.timestamp 	= trace_iface.timestamp;
+	hdlc_trace_iface.sec		= trace_iface.sec;
+	hdlc_trace_iface.usec		= trace_iface.usec;
+
+	if (mtp2_msu_only) {
+		if (frame[2] < 3) {
+			return 1;
+		}
+	}			
+
+	if (pcap_output){
+		hdlc_trace_iface.type=WP_OUT_TRACE_PCAP;
+	} else {
+		hdlc_trace_iface.type=WP_OUT_TRACE_RAW;
+	}
+
+	hdlc_trace_iface.link_type=wan_protocol;
+
+	wp_trace_output(&hdlc_trace_iface);
+
+	fflush(stdout);
+
+	return 0;	
+}
+
+
 static void line_trace(int trace_mode) 
 {
 	unsigned int num_frames;
@@ -729,8 +766,9 @@ static void line_trace(int trace_mode)
 
 		     	for ( i = 0; i < num_frames; i++) {
 				trace_pkt= (wan_trace_pkt_t *)&wan_udp.wan_udphdr_data[curr_pos];
-
+	
 				/*  frame type */
+				trace_iface.status=0;
 				if (trace_pkt->status & 0x01) {
 					trace_iface.status |= WP_TRACE_OUTGOING;
 				}else{
@@ -748,6 +786,11 @@ static void line_trace(int trace_mode)
 				trace_iface.sec = trace_pkt->sec;
 				trace_iface.usec = trace_pkt->usec;
 				
+				hdlc_trace_iface.status		= trace_iface.status;
+				hdlc_trace_iface.timestamp 	= trace_iface.timestamp;
+				hdlc_trace_iface.sec		= trace_iface.sec;
+				hdlc_trace_iface.usec		= trace_iface.usec;
+
 				curr_pos += sizeof(wan_trace_pkt_t);
 		
 				if (trace_pkt->real_length >= WAN_MAX_DATA_SIZE){
@@ -770,11 +813,23 @@ static void line_trace(int trace_mode)
 				trace_iface.trace_all_data=trace_all_data;
 				trace_iface.data=(unsigned char*)&trace_pkt->data[0];
 
+				hdlc_trace_iface.trace_all_data = trace_iface.trace_all_data;
+				hdlc_trace_iface.data = trace_iface.data;
+				hdlc_trace_iface.len = trace_iface.len;
+
+
 				/*
 				if (raw_data) {
 					trace_iface.type=WP_OUT_TRACE_RAW;
 				}else
 				*/
+
+				if (trace_iface.type == WP_OUT_TRACE_HDLC && rx_hdlc_eng) {
+					rx_hdlc_eng->hdlc_data = trace_aft_hdlc_data;
+					wanpipe_hdlc_decode(rx_hdlc_eng,trace_iface.data,trace_iface.len);
+					continue;		
+				} 
+
 			       	if (pcap_output){
 					trace_iface.type=WP_OUT_TRACE_PCAP;
 				}
@@ -999,19 +1054,28 @@ static int aft_remora_stats(int mod_no)
 		return 0;
 	}
 	rm_udp = (wan_remora_udp_t *)&wan_udp.wan_udphdr_data[0];
-	printf("\t------- Voltage Status  (%s,port %d) -------\n\n",
+	if (rm_udp->type == MOD_TYPE_FXS){
+		printf("\t------- Voltage Status  (%s,port %d) -------\n\n",
 					WP_REMORA_DECODE_TYPE(rm_udp->type),
 					rm_udp->mod_no);
-	if (rm_udp->type == MOD_TYPE_FXS){
 		printf("TIP\t: -%7.4f Volts\n", (float)(rm_udp->u.stats.tip_volt*376)/1000);
 		printf("RING\t: -%7.4f Volts\n", (float)(rm_udp->u.stats.ring_volt*376)/1000);
 		printf("VBAT\t: -%7.4f Volts\n", (float)(rm_udp->u.stats.bat_volt*376)/1000);
 	}else if (rm_udp->type == MOD_TYPE_FXO){
 		unsigned char	volt = rm_udp->u.stats.volt;
+		printf("\t------- Voltage Status  (%s,port %d) -------\n\n",
+					WP_REMORA_DECODE_TYPE(rm_udp->type),
+					rm_udp->mod_no);
 		if (volt & 0x80){
 			volt = ~volt + 1;
 		}
 		printf("VOLTAGE\t: %d Volts\n", volt);
+		printf("\n");
+		printf("\t------- Line Status  (%s,port %d) -------\n\n",
+					WP_REMORA_DECODE_TYPE(rm_udp->type),
+					rm_udp->mod_no);
+		printf("Line\t: %s\n", FE_STATUS_DECODE(rm_udp->u.stats.status));
+		printf("\n");
 	}
 	fflush(stdout);
 	return 0;
@@ -1065,6 +1129,7 @@ int AFTUsage(void)
 	printf("\tT1/E1 Configuration/Statistics\n");
 	printf("\t   T         a       Read T1/E1/56K alarms.\n"); 
 	printf("\t             lt      Diagnostic Digital Loopback testing (T1/E1 card only)\n"); 
+	printf("\t             lb      Read Loopback status (T1/E1 cards)\n");  
 	printf("\t             allb    Active Line/Remote Loopback mode (T1/E1/T3/E3 cards)\n");  
 	printf("\t             dllb    Deactive Line/Remote Loopback mode (T1/E1/T3/E3 cards)\n");  
 	printf("\t             aplb    Active Payload Loopback mode (T1/E1/T3/E3 cards)\n");  
@@ -1242,6 +1307,8 @@ int AFTMain(char *command,int argc, char* argv[])
 				read_ft1_te1_56k_config();
 			}else if (!strcmp(opt,"lt")){
  				aft_digital_loop_test();
+			}else if (!strcmp(opt,"lb")){
+				get_lb_modes();
 			}else if (!strcmp(opt,"allb")){
 				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_ACTIVATE_LB);
 			}else if (!strcmp(opt,"dllb")){

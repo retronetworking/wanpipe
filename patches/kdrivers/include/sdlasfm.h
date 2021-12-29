@@ -245,7 +245,7 @@ typedef struct sfm			/* SDLA firmware file structire */
 #define A108_SECURITY_256_ECCHAN	0x04
 #define A108_SECURITY_0_ECCHAN		0x05
 
-#define A500_SECURITY_32_ECCHAN		0x00
+#define A500_SECURITY_16_ECCHAN		0x00
 #define A500_SECURITY_64_ECCHAN		0x01
 #define A500_SECURITY_0_ECCHAN		0x05
 
@@ -265,7 +265,7 @@ typedef struct sfm			/* SDLA firmware file structire */
 	((val) == A108_SECURITY_256_ECCHAN)	? 256 : 0
 
 #define A500_ECCHAN(val)				\
-	((val) == A500_SECURITY_32_ECCHAN)  	? 32 :	\
+	((val) == A500_SECURITY_16_ECCHAN)  	? 16 :	\
 	((val) == A500_SECURITY_64_ECCHAN)  	? 64 :	0
 
 #define AFT_RM_SECURITY_16_ECCHAN	0x00

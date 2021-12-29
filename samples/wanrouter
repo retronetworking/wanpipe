@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash -p
 # chkconfig: 2345 7 9
 # Description:	WANPIPE WAN Router Initialization Script.
 #
@@ -660,10 +660,11 @@ interf_config()
 			if [ "$API" = TTY ]; then
 				continue
 			fi
+
 			
 			#brings up (for example wp1_fr16 and wp1_fr16e)
 			#with IP addresses 0.0.0.0
-			if [ $API = "BRIDGE" ];then
+			if [ $API = "BRIDGE" ] || [ $API = "XMTP2_API" ];then
 
 				# Bring up BRIDGE interface
 				echo -n "$int_file "
@@ -2194,7 +2195,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=3.3.10
+		ROUTER_VERSION=3.3.11
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"

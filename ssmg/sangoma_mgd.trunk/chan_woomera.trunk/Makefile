@@ -26,22 +26,59 @@ $(shell echo $(PBXDIR) > .pbxdir)
 PBXMODDIR=/usr/lib/asterisk/modules
 PBXCFGDIR=/etc/asterisk
 PBXDEFINES=
+PBXFLAGS_EXTRA=
 
 #Check for Asterisk AST_CONTROL_SRC feature
-$(shell if [[ -f $(PBXDIR)/include/asterisk/frame.h ]]; then grep -c AST_CONTROL_SRC $(PBXDIR)/include/asterisk/frame.h > .ast_src_check; else echo 0 > .ast_src_check; fi;)
+DUMMY:=$(shell if [[ -f $(PBXDIR)/include/asterisk/frame.h ]]; then grep -c AST_CONTROL_SRC $(PBXDIR)/include/asterisk/frame.h > .ast_src_check; else echo 0 > .ast_src_check; fi;)
+
 ifeq (1,$(shell cat .ast_src_check))
-	PBXDEFINES=-DWOO_CONTROL_SRC_FEATURE
+	PBXDEFINES+=-DWOO_CONTROL_SRC_FEATURE
 endif
+
+
+#Check for Callweaver opbx_cli_entry
+DUMMY:=$(shell if [[ -f $(PBXDIR)/include/callweaver/cli.h ]]; then grep -c opbx_cli_entry $(PBXDIR)/include/callweaver/cli.h > .opbx_cli_entry_check; else echo 0 > .opbx_cli_entry_check; fi;)
+
+ifneq (0,$(shell cat .opbx_cli_entry_check))
+        PBXFLAGS_EXTRA+=-DCALLWEAVER_OPBX_CLI_ENTRY
+endif
+
+
+#Check for callweaver cw_cli_entry
+DUMMY:=$(shell if [[ -f $(PBXDIR)/include/callweaver/cli.h ]]; then grep -c cw_cli_entry $(PBXDIR)/include/callweaver/cli.h > .cw_cli_entry_check; else echo 0 > .cw_cli_entry_check; fi;)
+
+ifneq (0,$(shell cat .cw_cli_entry_check))
+        PBXFLAGS_EXTRA+=-DCALLWEAVER_CW_CLI_ENTRY
+endif
+
+
+#Check for callweaver MODULE_INFO
+DUMMY:=$(shell if [[ -f $(PBXDIR)/include/callweaver/module.h ]]; then grep -c MODULE_INFO $(PBXDIR)/include/callweaver/module.h > .cw_module_info_check; else echo 0 > .cw_module_info_check; fi;)
+
+ifneq (0,$(shell cat .cw_module_info_check))
+        PBXFLAGS_EXTRA+=-DCALLWEAVER_MODULE_INFO
+endif
+
+
+ifneq (,$(wildcard $(PBXDIR)/include/callweaver/cwobj.h))
+        PBXFLAGS_EXTRA+=-DCALLWEAVER_CWOBJ
+endif
+
 
 ifneq (,$(wildcard $(PBXDIR)/include/callweaver.h))
-	PBXFLAGS_EXTRA=-DCALLWEAVER 
+	PBXFLAGS_EXTRA+=-DCALLWEAVER -DHAVE_CONFIG_H
 	PBXMODDIR=/usr/local/lib/callweaver/modules
 	PBXCFGDIR=/usr/local/etc/callweaver
+
+else 
+ifneq (,$(wildcard $(PBXDIR)/configure))
+	PBXFLAGS_EXTRA+=-DAST14 
+endif	
 endif
 
-ifneq (,$(wildcard $(PBXDIR)/configure))
-	PBXFLAGS_EXTRA=-DAST14 -DAST_MODULE=\"chan_woomera\"
-endif	
+
+
+PBXFLAGS_EXTRA+= -DAST_MODULE=\"chan_woomera\"
 
 CC = gcc
 

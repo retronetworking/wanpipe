@@ -51,13 +51,15 @@
 #include <wanpipe_cfg.h>
 # include <wanrouter.h>
 #elif defined(__WINDOWS__)
-#include <wanpipe_defines.h>
-#include <wanpipe_debug.h>
-#include <wanpipe_common.h>
-#include <wanpipe_events.h>
-#include <wanpipe_cfg.h>
-#include <wanrouter.h>
-#include <wanpipe_structs.h>
+#if defined (__KERNEL__)
+# include <wanpipe_defines.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_common.h>
+# include <wanpipe_events.h>
+# include <wanpipe_cfg.h>
+# include <wanrouter.h>
+# include <wanpipe_structs.h>
+#endif
 #elif defined(__LINUX__) || defined (__KERNEL__)
 #include <linux/wanpipe_defines.h>
 #include <linux/wanpipe_debug.h>

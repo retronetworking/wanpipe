@@ -110,6 +110,15 @@ progress_enable=0
 ;txgain=0.0
 
 
+;Woomera UDP Sequencing
+;This option MUST be also supported
+;by SMG server. Should be used for debugging.
+;Options: 0 - Disable (default)
+;         1 - Enable
+;------------------------------
+;woomera_udp_seq=0
+
+
 ;These options are used to disable rx or tx paths.
 ;Should not be used.
 ;-------------------------------

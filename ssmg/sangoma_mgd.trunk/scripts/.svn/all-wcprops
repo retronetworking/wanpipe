@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts
+/svn/sangoma_mgd/!svn/ver/80/branches/bri/scripts
 END
 astxs
 K 25
@@ -24,6 +24,6 @@ END
 old_cleanup.sh
 K 25
 svn:wc:ra_dav:version-url
-V 64
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/scripts/old_cleanup.sh
+V 65
+/svn/sangoma_mgd/!svn/ver/111/branches/bri/scripts/old_cleanup.sh
 END

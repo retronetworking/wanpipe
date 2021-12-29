@@ -105,8 +105,8 @@ void text_box::show_error_message(IN char * lxdialog_path,
   FILE * err_msg_file;
   char dbg_tmp_buff[LEN_OF_DBG_BUFF];
   va_list ap;
-  char* err_msg_file_name = "./wancfg_err_msg_file_name";
-  char* remove_err_msg_file = "rm -rf wancfg_err_msg_file_name";
+  char* err_msg_file_name = "/tmp/wancfg_err_msg_file_name";
+  char* remove_err_msg_file = "rm -rf /tmp/wancfg_err_msg_file_name";
 
   va_start(ap, format);
   vsnprintf(dbg_tmp_buff, LEN_OF_DBG_BUFF, format, ap);
@@ -140,7 +140,7 @@ void text_box::show_help_message( IN char * lxdialog_path,
   char dbg_tmp_buff[LEN_OF_DBG_BUFF];
   va_list ap;
   char* help_msg_file_name = "/tmp/wancfg_help_msg_file_name";
-  char* remove_help_msg_file = "rm -rf wancfg_help_msg_file_name";
+  char* remove_help_msg_file = "rm -rf /tmp/wancfg_help_msg_file_name";
 
   va_start(ap, format);
   vsnprintf(dbg_tmp_buff, LEN_OF_DBG_BUFF, format, ap);

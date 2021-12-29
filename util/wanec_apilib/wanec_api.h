@@ -71,6 +71,7 @@ typedef struct {
 } wanec_api_playout_t;
 typedef struct {
 	int			fe_chan;
+	int			data_mode;
 } wanec_api_monitor_t;
 
 extern int wanec_api_init(void);

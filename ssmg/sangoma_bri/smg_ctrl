@@ -2,6 +2,19 @@
 cmd=$1;
 cnt=0;
 max_retry=5;
+use_syslog=1;
+args=' ';
+
+NICE="nice -n -5"
+BRI_NICE="nice -n -10"
+
+while [ ! -z "$2" ]; 
+do
+	args=$args"$2 "
+	shift
+done
+
+
 function stop_all()
 {
 
@@ -103,6 +116,26 @@ function stop_sangoma_mgd()
 
 }
 
+
+function start_test()
+{
+	echo " "
+	echo "Testing configuration files..."
+	if [ $use_syslog -eq 1 ]; then
+		eval "$BRI_NICE sangoma_brid -t"
+	else 
+		eval "$BRI_NICE sangoma_brid -t -log"
+	fi
+
+	if [ $? -eq 0 ]; then
+		echo "OK"
+	else 
+		echo "Failed"
+	fi
+	
+}
+
+
 function start_all()
 {
 
@@ -128,7 +161,11 @@ function start_all()
 	fi
 
 	echo -n "Starting sangoma_brid..."
-	eval "sangoma_brid >/dev/null 2>/dev/null &" 
+	if [ $use_syslog -eq 1 ]; then
+		eval "$BRI_NICE sangoma_brid  >/dev/null 2>/dev/null &" 
+	else 
+		eval "$BRI_NICE sangoma_brid -log >/dev/null 2>/dev/null &" 
+	fi
 	if [ $?	-eq 0 ]; then
 		echo "OK"
 	else 
@@ -136,7 +173,7 @@ function start_all()
 		echo "Failed to start sangoma_brid, check /var/log/sangoma_mgd.log for errors"
 		exit 1;
 	fi
-	sleep 2 
+	sleep 10
 	if [ ! $(pidof sangoma_brid) ]; then
 		echo "sangoma_brid failed to start"
 		echo "check /var/log/sangoma_mgd.log for errors"
@@ -144,7 +181,7 @@ function start_all()
 	fi
 
 	echo -n "Starting sangoma_mgd..."
-	eval "sangoma_mgd -bg >/dev/null 2>/dev/null" 
+	eval "$NICE sangoma_mgd -bg >/dev/null 2>/dev/null" 
 	if [ $? -eq 0 ]; then
 		echo "OK"
 	else 
@@ -161,22 +198,32 @@ function start_all()
 	fi
 
 	echo "Sangoma SMG running.."
-	echo "log file: /var/log/sangoma_mgd.log"
+	if [ $use_syslog -eq 1 ]; then
+		echo "log file: /var/log/sangoma_mgd.log"
+	else
+		echo "log file: /var/log/sangoma_mgd/sangoma_mgd.log"
+	fi
 	echo " "
 }
 
 function usage()
 {
 	echo " "
-	echo "Usage: smg_ctrl <options>"
-	echo "	options:"
+	echo "Usage: smg_ctrl <command> [options]"
+	echo "command:"
 	echo " "
 	echo "start	:start sangoma_brid and sangoma media gateway"
 	echo "stop 	:stop sangoma_brid and sangoma media gateway"
 	echo "restart	:restart sangoma_brid and sangoma media gateway"
+	echo "test	:test sangoma_brid configuration files without"
+	echo "		 applying changes"
+	echo " "
+	echo "options:"
+	echo "nosyslog  :does not use syslog to log data"
 	echo " "
 
 }
+
 function check_running ()
 {
 	if [ $(pidof sangoma_brid) ]; then
@@ -257,6 +304,22 @@ function show_spans()
 	fi
 }
 
+function parse_args()
+{
+	for arg in $args
+	do
+		case $arg in 
+			nosyslog)
+				use_syslog=0;
+				;;
+		esac
+
+	done	
+}
+
+parse_args
+
+
 if [ "$cmd" = "start" ]; then
 	check_running
 	start_all
@@ -275,6 +338,8 @@ elif [ "$cmd" = "show_spans" ]; then
 	show_spans
 elif [ "$cmd" = "show_calls" ]; then
 	show_calls
+elif [ "$cmd" = "test" ]; then
+	start_test
 else 
 	usage
 fi

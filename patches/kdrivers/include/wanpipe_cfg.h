@@ -24,6 +24,7 @@
 # include <sdla_bri.h>
 # include <sdla_remora.h>
 # include <sdla_bri.h>
+# include <sdla_serial.h>
 # include <sdla_front_end.h>
 # include <wanpipe_cfg_structs.h>
 #else
@@ -65,8 +66,26 @@ For example: a number of DLCIs. */
 #define AFT_TDM_API_SUPPORT
 /* compile ISDN BRI code */
 #define CONFIG_PRODUCT_WANPIPE_AFT_BRI
+/* compile AFT Serial code */
+#define CONFIG_PRODUCT_WANPIPE_AFT_SERIAL
 /********** end of compilation flags ************/
 
+/* Frame Relay definitions for sprotocol.dll 
+(the Protocol Configurator in Device Manager) */
+#define MIN_T391	5
+#define MAX_T391	30
+#define MIN_T392	5
+#define MAX_T392	30
+#define MIN_N391	1
+#define MAX_N391	255
+#define MIN_N392	1
+#define MAX_N392	10
+#define MIN_N393	1
+#define MAX_N393	10
+
+#define HIGHEST_VALID_DLCI	MAX_NUMBER_OF_PROTOCOL_INTERFACES
+#define LOWEST_VALID_DLCI	16
+/********** end of sprotocol.dll definitions ************/
 
 #else
 #define	WAN_IFNAME_SZ	15	/* max length of the interface name */
@@ -285,7 +304,8 @@ enum {
 #endif
 	TDM_API,
 	WP_NETGRAPH,
-	TRUNK
+	TRUNK,
+	XMTP2_API
 };
 
 
@@ -396,7 +416,9 @@ enum {
 #define CLK_DECODE(clocking)	(clocking) ? "INT" : "EXT"
 
 #define INT_DECODE(interface)					\
-		(interface == WANOPT_RS232) ? "RS232" : "V35"
+		(interface == WANOPT_RS232) ? "RS232" :	\
+		(interface == WANOPT_V35)	? "V35" :	\
+		"Invalid"
 
 #define SIGNALLING_DECODE(sig)					\
 		(sig == WANOPT_FR_ANSI) ? "ANSI" :	\
@@ -990,10 +1012,10 @@ typedef struct wan_tdmv_conf_ {
 
 typedef struct wan_hwec_conf_ 
 {
-	unsigned int	clk_src;	/* Octasic Clock Source Port */
-	unsigned int	persist_disable;/* HW EC Persist */
-	unsigned int	noise_reduction;/* Noise Reduction control */
-
+	unsigned int	clk_src;		/* Octasic Clock Source Port */
+	unsigned int	persist_disable;	/* HW EC Persist */
+	unsigned int	noise_reduction;	/* Noise Reduction control */
+	unsigned int	tone_disabler_delay;	/* delay in a fax mode */
 } wan_hwec_conf_t;
 
 #define MAX_PARAM_LEN	50

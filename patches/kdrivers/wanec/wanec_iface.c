@@ -347,6 +347,14 @@ wanec_bypass(wan_ec_dev_t *ec_dev, int fe_chan, int enable, int verbose)
 			return 0;
 		}
 	}
+
+	err=wan_ec_update_and_check(ec,enable);
+        if (err) {
+                DEBUG_EVENT("%s: Error: Maximum EC Channels Reached! MaxEC=%i\n",
+                                ec->name,ec->max_channels);
+                return err;
+        }
+
 	err = card->wandev.hwec_enable(card, enable, fe_chan);
 	if (!err){
 		if (enable){
@@ -355,6 +363,12 @@ wanec_bypass(wan_ec_dev_t *ec_dev, int fe_chan, int enable, int verbose)
 			wan_clear_bit(fe_chan, &card->wandev.fe_ec_map);
 		}
 	}else if (err < 0){
+
+		/* If ec hwec_enable function fails, undo the action of above
+		   wan_ec_update_and_check fucntion by passing in an inverted 
+		   enable variable */
+		wan_ec_update_and_check(ec,!enable);
+
 		DEBUG_EVENT("ERROR: %s: Failed to %s Bypass mode on fe_chan:%d!\n",
 				ec->name, 
 				(enable) ? "Enable" : "Disable",
@@ -1356,7 +1370,7 @@ int wanec_ioctl(void *data, void *pcard)
 	if (ec_api == NULL){
 		DEBUG_EVENT(
     		"wanec: Failed allocate memory (%d) [%s:%d]!\n",
-				sizeof(wan_ec_api_t),
+				(int)sizeof(wan_ec_api_t),
 				__FUNCTION__,__LINE__);
 		return -EINVAL;
 	}
@@ -1394,6 +1408,20 @@ int wanec_ioctl(void *data, void *pcard)
 	}
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
+
+	PRINT2(ec_api->verbose,
+	"%s: WPEC_LIP IOCTL: %s\n",
+			ec_api->devname, WAN_EC_API_CMD_DECODE(ec_api->cmd));
+	ec_api->err = WAN_EC_API_RC_OK;
+	if (ec_api->cmd == WAN_EC_API_CMD_GETINFO){
+		ec_api->u_info.max_channels	= ec->max_channels;
+		ec_api->state			= ec->state;
+		goto wanec_ioctl_exit;
+	}else if (ec_api->cmd == WAN_EC_API_CMD_CONFIG_POLL){
+		ec_api->state			= ec->state;
+		goto wanec_ioctl_exit;
+	}
+
 #if !defined(__WINDOWS__)
 	/* Windows: can not copy to/from user when locked */
 	wan_spin_lock(&ec->lock);
@@ -1412,24 +1440,6 @@ int wanec_ioctl(void *data, void *pcard)
 		ec_api->err = WAN_EC_API_RC_BUSY;
 		goto wanec_ioctl_done;	
 	}
-	PRINT2(ec_api->verbose,
-	"%s: WPEC_LIP IOCTL: %s\n",
-			ec_api->devname, WAN_EC_API_CMD_DECODE(ec_api->cmd));
-	ec_api->err = WAN_EC_API_RC_OK;
-/*
-	{
-		int i;
-		u8 *t = (u8*)ec_api;
-		for(i = 0; i < sizeof(wan_ec_api_t); i++){
-			DEBUG_HWEC("[%i]=%02X\n", i, t[i]);
-			if(i > 1000){
-				DEBUG_HWEC("...\n");				
-				break;
-			}
-		}
-
-	}
-*/
 	switch(ec_api->cmd){
 	case WAN_EC_API_CMD_GETINFO:
 		ec_api->u_info.max_channels	= ec->max_channels;

@@ -274,12 +274,16 @@ void OutputLogString(PUCHAR pvFormat, ...);
 #define DBG_BITSTRM	if(0)DbgPrint
 
 #define DBG_BRI_START	if(0)DbgPrint
+#define DBG_BRI_CLOCK	if(0)DbgPrint
+#define DBG_BRI_ISR	if(0)DbgPrint
+#define DBG_BRI_RESTART	if(0)DbgPrint
 
 #define	DBG_FE_LOCK	if(0)DbgPrint
-
 #define DBG_DRVSTOP	if(0)DbgPrint
-
 #define DBG_GET_REGISTRY if(0)DbgPrint
+#define	DBG_FE_LOCK	if(0)DbgPrint
+
+#define DEBUG_RX_FIFO	if(0)DbgPrint
 
 /* sprotocol.sys */
 #define DEBUG_LIP	if(0)DbgPrint
@@ -364,6 +368,8 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 # define WAN_DEBUG_FUNC_LINE
 # define DEBUG_BRI(format,msg...)
 # define DEBUG_BRI_INIT(format,msg...)
+
+#define AFT_FUNC_DEBUG() 
 
 # if (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__)
 

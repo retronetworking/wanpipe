@@ -191,7 +191,7 @@ static int32_t wp_serial_set_dtmf(sdla_fe_t*, int32_t, u8);
 static int wp_serial_intr_ctrl(sdla_fe_t *fe, int mod_no, u_int8_t, u_int8_t mode, unsigned int ts_map);
 static int32_t wp_serial_event_ctrl(sdla_fe_t*, wan_event_ctrl_t*);
 
-static int wp_serial_get_fe_status(sdla_fe_t *fe, unsigned char *status);
+static int wp_serial_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notused);
 static int wp_serial_set_fe_status(sdla_fe_t *fe, unsigned char status);
 
 #if 0
@@ -777,17 +777,18 @@ static int32_t wp_serial_udp(sdla_fe_t *fe, void* p_udp_cmd, u8* data)
 }
 
 /******************************************************************************
-*				wp_serial_get_fe_status()	
+*wp_serial_get_fe_status()	
 *
 * Description	: Get current FE line state - is it Connected or Disconnected
 *
 * Arguments	: fe - pointer to Front End structure.	
 *		  status - pointer to location where the FE line state will
-*			be stored.
+*			be stored. 
+*		  notused - ignored 
 *
 * Returns	: always zero.
 *******************************************************************************/
-static int wp_serial_get_fe_status(sdla_fe_t *fe, unsigned char *status)
+static int wp_serial_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notused)
 {
 	*status = fe->fe_status;
 	return 0;

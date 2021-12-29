@@ -1755,6 +1755,7 @@ typedef struct private_area
 	struct private_area *next;
 
 	int dchan_time_slot;
+	int xmtp2_api_index;
 
 	aft_dma_swring_t swring;
 

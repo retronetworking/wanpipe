@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1.h,v 1.72 2008/04/02 20:52:09 sangoma Exp $
+ *	$Id: sdla_te1.h,v 1.72 2008-04-02 20:52:09 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -172,6 +172,7 @@
 #define WAN_T1_SHORT_HAUL	0x02
 
 /* Line loopback modes */
+#define WAN_TE1_LB_NONE		0x00
 #define WAN_TE1_LINELB_MODE	0x01
 #define WAN_TE1_PAYLB_MODE	0x02
 #define WAN_TE1_DDLB_MODE	0x03
@@ -365,7 +366,7 @@
 
 /* Front-End UDP command */
 #define WAN_FE_GET_STAT		(WAN_FE_UDP_CMD_START + 0)
-#define WAN_FE_SET_LB_MODE	(WAN_FE_UDP_CMD_START + 1)
+#define WAN_FE_LB_MODE		(WAN_FE_UDP_CMD_START + 1)
 #define WAN_FE_FLUSH_PMON	(WAN_FE_UDP_CMD_START + 2)
 #define WAN_FE_GET_CFG		(WAN_FE_UDP_CMD_START + 3)
 #define WAN_FE_SET_DEBUG_MODE	(WAN_FE_UDP_CMD_START + 4)

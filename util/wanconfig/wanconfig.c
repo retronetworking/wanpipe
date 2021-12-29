@@ -588,8 +588,10 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TE3_CLOCK",         offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te3_cfg_t, clock), DTYPE_UINT },
   { "TDMV_LAW",         offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, tdmv_law), DTYPE_UINT },
   { "TDMV_OPERMODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, opermode_name), DTYPE_STR },
+  { "RM_OHTHRESH",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, ohthresh), DTYPE_UINT },
   { "RM_BATTTHRESH",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battthresh), DTYPE_UINT },
   { "RM_BATTDEBOUNCE",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battdebounce), DTYPE_UINT },
+  { "RM_MODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, rm_mode), DTYPE_UINT },
 
   { "RM_BRI_CLOCK_MASTER",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_bri_cfg_t, clock_mode), DTYPE_UCHAR },
   { "RM_BRI_CLOCK",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_bri_cfg_t, clock_mode), DTYPE_UCHAR },
@@ -622,7 +624,8 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
    /* Keep backward compatibility */
   { "TDMV_HWEC_PERSIST_DISABLE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
   { "HWEC_NOISE_REDUCTION",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, noise_reduction), DTYPE_UINT},  
-      
+  { "HWEC_TONEDISABLERDELAY",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, tone_disabler_delay), DTYPE_UINT},
+
   { "OCT_CHIP_CONF",	smemof(wandev_conf_t, oct_conf), DTYPE_OCT_FILENAME }, 
   { "OCT_ECHOOPERATIONMODE",	smemof(wandev_conf_t, oct_conf), DTYPE_OCT_CHAN_CONF},
 
@@ -1477,6 +1480,10 @@ look_up_t	sym_table[] =
 	{ WANOPT_NETWORK_SYNC_OUT,  "OUT" },
         { WAN_TE1_SIG_CAS,	"CAS"           },
         { WAN_TE1_SIG_CCS,	"CCS"		},
+	
+	/* A200/A400 configuration */
+	{ WAN_RM_DEFAULT,   	"RM_DEFAULT"        },
+        { WAN_RM_TAPPING,   	"RM_TAPPING"        },
 
 	/* T3/E3 configuration */
         { WAN_TE3_RDEVICE_ADTRAN,	"ADTRAN"        },
@@ -2512,6 +2519,7 @@ int build_chandef_list (FILE* file)
 					  ( strcmp(chandef->usedby, "SWITCH")      != 0 ) &&
 					  ( strcmp(chandef->usedby, "PPPoE")       != 0 ) &&
 					  ( strcmp(chandef->usedby, "STACK")       != 0 ) &&
+					  ( strcmp(chandef->usedby, "XMTP2_API")       != 0 ) &&
 					  ( strcmp(chandef->usedby, "NETGRAPH")       != 0 ) &&
 					  ( strcmp(chandef->usedby, "TTY")         != 0 ) &&
 					  ( strcmp(chandef->usedby, "BRIDGE_NODE") != 0 ) &&

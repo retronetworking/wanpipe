@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
-V 57
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone
+V 58
+/svn/sangoma_mgd/!svn/ver/100/branches/bri/lib/libteletone
 END
 mkinstalldirs
 K 25
@@ -33,17 +33,17 @@ svn:wc:ra_dav:version-url
 V 70
 /svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/configure.in
 END
-depcomp
-K 25
-svn:wc:ra_dav:version-url
-V 65
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/depcomp
-END
 ChangeLog
 K 25
 svn:wc:ra_dav:version-url
 V 67
 /svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/ChangeLog
+END
+depcomp
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/depcomp
 END
 compile
 K 25
@@ -63,11 +63,11 @@ svn:wc:ra_dav:version-url
 V 72
 /svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/svn-commit.tmp
 END
-README
+config.sub
 K 25
 svn:wc:ra_dav:version-url
-V 64
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/README
+V 68
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/config.sub
 END
 ltmain.sh
 K 25
@@ -75,17 +75,11 @@ svn:wc:ra_dav:version-url
 V 67
 /svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/ltmain.sh
 END
-config.sub
+README
 K 25
 svn:wc:ra_dav:version-url
-V 68
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/config.sub
-END
-libtool
-K 25
-svn:wc:ra_dav:version-url
-V 65
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/libtool
+V 64
+/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/README
 END
 INSTALL
 K 25

@@ -11,17 +11,20 @@ MSC_OPTIMIZATION=/Odi
 
 C_DEFINES=$(C_DEFINES) -D__WINDOWS__ -D__KERNEL__ -DVIRTUAL_IF_DRV
 
+#current value of OCTASIC_INCLUDE
+#D:\development\wanpipe_common\wanec\oct6100_api.PR48\
+
 INCLUDES=$(DDK_INC_PATH);\
 d:\development\wanpipe_windows\include;\
 d:\development\wanpipe_common\include;\
 d:\development\wanpipe_common\wanec;\
-d:\development\wanpipe_common\wanec\oct6100_api.PR43\include;\
-d:\development\wanpipe_common\wanec\oct6100_api.PR43\include\oct6100api;\
-d:\development\wanpipe_common\wanec\oct6100_api.PR43\octdeviceapi\oct6100api;\
-d:\development\wanpipe_common\wanec\oct6100_api.PR43\apilib\llman;\
-d:\development\wanpipe_common\wanec\oct6100_api.PR43\include\apilib;\
-d:\development\wanpipe_common\wanec\oct6100_api.PR43\include\octrpc;\
-d:\development\wanpipe_common\wanec\oct6100_api.PR43\apilib\bt
+$(OCTASIC_INCLUDE)\include;\
+$(OCTASIC_INCLUDE)\include\oct6100api;\
+$(OCTASIC_INCLUDE)\octdeviceapi\oct6100api;\
+$(OCTASIC_INCLUDE)\apilib\llman;\
+$(OCTASIC_INCLUDE)\include\apilib;\
+$(OCTASIC_INCLUDE)\include\octrpc;\
+$(OCTASIC_INCLUDE)\apilib\bt
 
 SOURCES= wanec_iface.c \
 wanec_cmd.c	\

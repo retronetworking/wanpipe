@@ -34,6 +34,10 @@
 #if defined(__LINUX__)
 # include <linux/if_wanpipe.h>
 # include <linux/wanpipe_sppp_iface.h>
+#elif defined(__WINDOWS__)
+#if defined(__KERNEL__)
+# include <wanpipe_sppp_iface.h>
+#endif
 #else
 # include <wanpipe_sppp_iface.h>
 #endif

@@ -9,10 +9,13 @@
 # include <linux/wanpipe_cfg.h>
 #elif defined(__WINDOWS__)
 # include <windows.h>
+# include <stdio.h>	//printf()
+# include <stdlib.h>	//free()
 # include <wanpipe_defines.h>
-# include <wanpipe_common.h>
+# include <sang_api.h>
 # include <wanpipe_cfg.h>
 # include <sang_status_defines.h>
+# define strlcpy	strncpy
 #else
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>

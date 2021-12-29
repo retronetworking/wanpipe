@@ -1,14 +1,5 @@
 #!/bin/sh
 home=`pwd`
-
-while [ ! -z "$1" ];
-do
-        ARGS=$ARGS"$1 "
-        shift
-done
-
 cd /etc/wanpipe/wancfg_zaptel
-./wancfg_zaptel.pl --trixbox $ARGS
+./wancfg_zaptel.pl --trixbox
 cd $home
-
-

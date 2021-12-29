@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1.c,v 1.287 2008/03/28 13:49:53 sangoma Exp $
+ *	$Id: sdla_te1.c,v 1.287 2008-03-28 13:49:53 sangoma Exp $
  */
 
 /*
@@ -2375,14 +2375,18 @@ static unsigned char sdla_te_get_fe_media(sdla_fe_t *fe)
 }
 
 /******************************************************************************
- *				sdla_te3_get_fe_status()	
- *
- * Description:
- * Arguments:	
- * Returns:
- ******************************************************************************
- */
-static int sdla_te_get_fe_status(sdla_fe_t *fe, unsigned char *status)
+*sdla_te_get_fe_status()	
+*
+* Description	: Get current FE line state - is it Connected or Disconnected
+*
+* Arguments	: fe - pointer to Front End structure.	
+*		  status - pointer to location where the FE line state will
+*			be stored. 
+*		  notused - ignored 
+*
+* Returns	: always zero.
+*******************************************************************************/
+static int sdla_te_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notused)
 {
 	*status = fe->fe_status;
 	return 0;
@@ -4187,7 +4191,8 @@ static int sdla_t1_cfg_verify(void* pfe)
 	switch(WAN_TE1_LBO(fe)) {
 	case WAN_T1_LBO_0_DB: case WAN_T1_LBO_75_DB:
 	case WAN_T1_LBO_15_DB: case WAN_T1_LBO_225_DB:
-	case WAN_T1_0_133: case WAN_T1_133_266: case WAN_T1_110_220:
+	case WAN_T1_0_133:   case WAN_T1_0_110: 
+	case WAN_T1_133_266: case WAN_T1_110_220:
 	case WAN_T1_266_399: case WAN_T1_220_330:
 	case WAN_T1_399_533: case WAN_T1_330_440: case WAN_T1_440_550:
 	case WAN_T1_533_655: case WAN_T1_550_660:
@@ -6348,6 +6353,34 @@ static int sdla_te_ddlb(sdla_fe_t* fe, unsigned char mode)
 	return 0;
 }
 
+/******************************************************************************
+ *			sdla_te_get_lbmode()	
+ *
+ * Description:
+ * Arguments:
+ * Returns:
+ *****************************************************************************/
+static u32 sdla_te_get_lbmode(sdla_fe_t *fe)
+{
+	u32	mode = 0x00;
+	u8	master = 0x00;
+
+	WAN_ASSERT(fe->write_fe_reg == NULL);
+	WAN_ASSERT(fe->read_fe_reg == NULL);
+
+	master = READ_REG(REG_MASTER_DIAG);
+	if (master & BIT_MASTER_DIAG_LINELB){
+		wan_set_bit(WAN_TE1_LINELB_MODE, &mode);
+	} 
+	if (master & BIT_MASTER_DIAG_PAYLB){
+		wan_set_bit(WAN_TE1_PAYLB_MODE, &mode);
+	} 
+	if (master & BIT_MASTER_DIAG_DDLB){
+		wan_set_bit(WAN_TE1_DDLB_MODE, &mode);
+	}
+	return mode;
+}
+
 /*
  ******************************************************************************
  *				sdla_te_timer()	
@@ -6730,12 +6763,19 @@ static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 		udp_cmd->wan_cmd_data_len = sizeof(unsigned char); 
 		break;
 
-	case WAN_FE_SET_LB_MODE:
+	case WAN_FE_LB_MODE:
 		/* Activate/Deactivate Line Loopback modes */
-	    	err = sdla_te_set_lbmode(fe, data[0], data[1]); 
-	    	udp_cmd->wan_cmd_return_code = 
+		if (data[0]){
+	    		err = sdla_te_set_lbmode(fe, data[0], data[1]); 
+	    		udp_cmd->wan_cmd_return_code = 
 				(!err) ? WAN_CMD_OK : WAN_UDP_FAILED_CMD;
-	    	udp_cmd->wan_cmd_data_len = 0x00;
+	    		udp_cmd->wan_cmd_data_len = 0x00;
+		}else{
+			u32	mode = sdla_te_get_lbmode(fe);
+		       	memcpy(&data[0], (u8*)&mode, sizeof(mode));
+	    		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+	    		udp_cmd->wan_cmd_data_len = sizeof(u32);
+		}
 		break;
 
 	case WAN_FE_GET_STAT:

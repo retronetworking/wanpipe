@@ -70,6 +70,11 @@
 #define MAXPENDING 500
 #define MGD_STACK_SIZE 1024 * 240
 
+#define SMG_SOCKET_EVENT_DATA	1
+#define SMG_SOCKET_EVENT_OOB	2
+#define SMG_SOCKET_EVENT_TIMEOUT 0
+#define SMG_SOCKET_EVENT_ERR	-1
+#define SMG_SOCKET_EVENT_NVAL	-2
 
 typedef enum {
     WFLAG_RUNNING 		= (1 << 0),
@@ -159,6 +164,7 @@ struct media_session {
     int skip_read_frames;
     int skip_write_frames;
     int hw_coding;
+    int hw_dtmf;
     int udp_sync_cnt;
     
 #ifdef WP_HPTDM_API
@@ -224,12 +230,15 @@ struct woomera_interface {
 	int q931_rel_cause_topbx;
 	int loop_tdm;
 	char session[SMG_SESSION_NAME_SZ];
+	int check_digits;	/* set to 1 when session comes up */
     	struct woomera_interface *next;
 };
 
 struct  woomera_session {
  	struct woomera_interface *dev;	
 	char session[SMG_SESSION_NAME_SZ];
+	char digits[MAX_DIALED_DIGITS+1];
+	int  digits_len;
 };
 
 #define CORE_TANK_LEN CORE_MAX_CHAN_PER_SPAN*CORE_MAX_SPANS
@@ -242,6 +251,7 @@ struct woomera_server {
 	pthread_mutex_t listen_lock;
 	pthread_mutex_t ht_lock;
 	pthread_mutex_t process_lock;
+	pthread_mutex_t digits_lock;
 	pthread_mutex_t media_udp_port_lock;
 	pthread_mutex_t thread_count_lock;
 	call_signal_connection_t mcon;
@@ -277,6 +287,7 @@ struct woomera_server {
     	int dtmf_intr_ch;
     	int dtmf_size;
 	int strip_cid_non_digits;
+	int udp_seq;
 } server;
 
 struct woomera_config {

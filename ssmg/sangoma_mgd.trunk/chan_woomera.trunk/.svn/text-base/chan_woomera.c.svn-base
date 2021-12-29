@@ -1,4 +1,3 @@
-
 /*
  * Asterisk -- A telephony toolkit for Linux.
  *
@@ -15,6 +14,26 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.34 Nenad Corbic <ncorbic@sangoma.com>
+ * Jul 23 2008
+ *	Added udp tagging and rx/tx sync options for
+ *	voice streams debugging. Not for production.
+ *
+ * v1.33 Nenad Corbic <ncorbic@sangoma.com>
+ * Jul 18 2008
+ *	Added UDP Sequencing to check for dropped frames
+ *	Should only be used for debugging.
+ *
+ * v1.32 David Yat Sin <davidy@sangoma.com>
+ * Jun 3 2008
+ *	Updated for callweaver v1.2.0
+ *	
+ * v1.31 Nenad Corbic <ncorbic@sangoma.com>
+ * v1.30 Nenad Corbic <ncorbic@sangoma.com>
+ * Jun 2 2008
+ *	Added AST_CTONROL_RING event on outgoing call.
+ *	Updated for CallWeaver 1.2 SVN
+ *
  * v1.29 David Yat Sin <davidy@sangoma.com>
  * Apr 30 2008
  *	Added AST_CONTROL_SRCUPDATE in tech_indicate
@@ -143,9 +162,6 @@
 #include "confdefs.h"
 #endif
 
-#if defined (cw_config) 
-#define CALLWEAVER_19
-#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -182,13 +198,17 @@
 #include "asterisk/dsp.h"
 #include "asterisk/musiconhold.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.29 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.34 $")
 
 #else
 
 #include "callweaver.h"
 #include "callweaver/sched.h"
+#ifdef CALLWEAVER_CWOBJ
+#include "callweaver/cwobj.h"
+#else
 #include "callweaver/astobj.h"
+#endif
 #include "callweaver/lock.h"
 #include "callweaver/manager.h"
 #include "callweaver/channel.h"
@@ -205,11 +225,33 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.29 $")
 #include "callweaver.h"
 #include "confdefs.h"
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.29 $")
 
-		/* CALLWEAVER v1.9 and later */
+
+#ifdef CALLWEAVER_CWOBJ
+#define ASTOBJ_COMPONENTS 		CWOBJ_COMPONENTS
+#define ASTOBJ_CONTAINER_INIT		CWOBJ_CONTAINER_INIT
+#define ASTOBJ_CONTAINER_COMPONENTS 	CWOBJ_CONTAINER_COMPONENTS
+#define ASTOBJ_CONTAINER_DESTROY 	CWOBJ_CONTAINER_DESTROY
+#define ASTOBJ_CONTAINER_DESTROYALL 	CWOBJ_CONTAINER_DESTROYALL
+#define ASTOBJ_UNLOCK			CWOBJ_UNLOCK
+#define ASTOBJ_RDLOCK			CWOBJ_RDLOCK
+#define ASTOBJ_CONTAINER_UNLINK 	CWOBJ_CONTAINER_UNLINK
+#define ASTOBJ_CONTAINER_TRAVERSE	CWOBJ_CONTAINER_TRAVERSE
+#define ASTOBJ_CONTAINER_WRLOCK		CWOBJ_CONTAINER_WRLOCK
+#define ASTOBJ_CONTAINER_UNLOCK		CWOBJ_CONTAINER_UNLOCK
+#define ASTOBJ_CONTAINER_FIND		CWOBJ_CONTAINER_FIND
+#define ASTOBJ_CONTAINER_LINK		CWOBJ_CONTAINER_LINK
+#endif
+
+
+#if defined (CW_CONTROL_RINGING) 
+#define CALLWEAVER_19 1
+#endif
+
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.34 $")
+
+/* CALLWEAVER v1.9 and later */
 #if defined (CALLWEAVER_19) 
-#define		
 #define		ast_config		cw_config
 #define 	AST_CONTROL_RINGING	CW_CONTROL_RINGING
 #define 	AST_CONTROL_BUSY	CW_CONTROL_BUSY
@@ -220,14 +262,21 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.29 $")
 #define 	AST_CONTROL_UNHOLD	CW_CONTROL_UNHOLD
 #define		AST_CONTROL_VIDUPDATE	CW_CONTROL_VIDUPDATE
 
-
+#ifndef LOG_NOTICE
 #define		LOG_NOTICE		CW_LOG_NOTICE
+#endif
 
+#ifndef LOG_DEBUG
 #define		LOG_DEBUG		CW_LOG_DEBUG
+#endif
 
+#ifndef LOG_ERROR
 #define		LOG_ERROR		CW_LOG_ERROR
+#endif
 
+#ifndef LOG_WARNING
 #define		LOG_WARNING		CW_LOG_WARNING
+#endif
 
 #define 	AST_FORMAT_SLINEAR 	CW_FORMAT_SLINEAR
 #define 	AST_FORMAT_ULAW		CW_FORMAT_ULAW
@@ -255,7 +304,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.29 $")
 #define 	AST_FLAGS_ALL 			CW_FLAGS_ALL
 #define 	AST_FRAME_VOICE 		CW_FRAME_VOICE
 #define 	ASTERISK_GPL_KEY 		0
-#define 	ast_channel_tech 		opbx_channel_tech
+#define 	ast_channel_tech 		cw_channel_tech
 #define 	ast_test_flag  			cw_test_flag
 #define 	ast_queue_frame 		cw_queue_frame
 #define		ast_frdup 			cw_frdup
@@ -328,21 +377,26 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.29 $")
 #define 	AST_CONTROL_UNHOLD	OPBX_CONTROL_UNHOLD
 #define		AST_CONTROL_VIDUPDATE	OPBX_CONTROL_VIDUPDATE
 
-#ifdef	OPBX_LOG_NOTICE
+#define 	AST_FORMAT_SLINEAR 	OPBX_FORMAT_SLINEAR
+#define 	AST_FORMAT_ULAW		OPBX_FORMAT_ULAW
+#define 	AST_FORMAT_ALAW 	OPBX_FORMAT_ALAW
+		
+#ifndef LOG_NOTICE
 #define		LOG_NOTICE		OPBX_LOG_NOTICE
 #endif
 
-#ifdef OPBX_LOG_DEBUG
+#ifndef LOG_DEBUG
 #define		LOG_DEBUG		OPBX_LOG_DEBUG
 #endif
 
-#ifdef OPBX_LOG_ERROR
+#ifndef LOG_ERROR
 #define		LOG_ERROR		OPBX_LOG_ERROR
 #endif
 
-#ifdef OPBX_LOG_WARNING
+#ifndef LOG_WARNING
 #define		LOG_WARNING		OPBX_LOG_WARNING
 #endif
+
 
 #define 	AST_FORMAT_SLINEAR 	OPBX_FORMAT_SLINEAR
 #define 	AST_FORMAT_ULAW		OPBX_FORMAT_ULAW
@@ -446,15 +500,14 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.29 $")
 #endif
 
 #define USE_ANSWER 1
-
+ 
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.29"
+#define WOOMERA_VERSION "v1.34"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
-
 
 static int tech_count = 0;
 
@@ -642,6 +695,11 @@ struct woomera_profile {
 	char* tg_context [WOOMERA_MAX_TRUNKGROUPS+1];
 	char language[WOOMERA_STRLEN];
 	char* tg_language [WOOMERA_MAX_TRUNKGROUPS+1];
+	int udp_seq;
+	int rx_sync_check_opt;
+	int tx_sync_check_opt;
+	int tx_sync_gen_opt;
+	
 };
 
 
@@ -684,9 +742,16 @@ struct private_object {
 	struct woomera_event_queue event_queue;
 	unsigned int coding;
 	int pri_cause;
+	int rx_udp_seq;
+	int tx_udp_seq;
 #ifdef AST_JB
         struct ast_jb_conf jbconf;
 #endif /* AST_JB */
+
+	int sync_r;
+	int sync_w;
+	unsigned char sync_data_w;
+	unsigned char sync_data_r;
 
 };
 
@@ -2881,6 +2946,12 @@ static int config_woomera(void)
 						if (strcmp(v->value, "ulaw") == 0) {
 							profile->coding=AST_FORMAT_ULAW;
 						}	
+					} else if (!strcmp(v->name, "woomera_udp_seq")) {
+						int udp_seq = atoi(v->value);
+						if (udp_seq > 0) {
+							profile->udp_seq=1;
+						}
+			
 					} else if (!strcmp(v->name, "rxgain") && profile->coding) {
                                                 if (sscanf(v->value, "%f", &gain) != 1) {
 							ast_log(LOG_NOTICE, "Invalid rxgain: %s\n", v->value);
@@ -3318,6 +3389,7 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 #ifndef AST14
 	self->type = WOOMERA_CHAN_NAME;	
 #endif
+	
  	self->hangupcause = AST_CAUSE_NORMAL_CIRCUIT_CONGESTION;
 
 	if (globals.panic) {
@@ -3681,11 +3753,10 @@ static struct ast_frame  *tech_read(struct ast_channel *self)
 	int res = 0;
 	struct ast_frame *f;
 
-
 	if (!tech_pvt || globals.panic || ast_test_flag(tech_pvt, TFLAG_ABORT)) {
 		return NULL;
 	}
-
+	
 tech_read_again:
 
 	res = waitfor_socket(tech_pvt->udp_socket, 1000);
@@ -3703,12 +3774,59 @@ tech_read_again:
 		return NULL;
 	}
 
+	/* Used for adding sequence numbers to udp packets.
+ 	   should only be used for debugging */
+	if (tech_pvt->profile->udp_seq){
+		char *rxdata=(char*)(tech_pvt->fdata + AST_FRIENDLY_OFFSET);
+		res-=4;
+
+		if (tech_pvt->rx_udp_seq == 0) { 
+			tech_pvt->rx_udp_seq = *((unsigned int*)(&rxdata[res]));
+			if (globals.debug > 2) {
+				ast_log(LOG_NOTICE, "%s: Starting Rx Sequence %i Len=%i!\n", self->name,tech_pvt->rx_udp_seq, res);
+			}
+		} else {
+			tech_pvt->rx_udp_seq++;
+			if (tech_pvt->rx_udp_seq != *((unsigned int*)(&rxdata[res]))) {
+				ast_log(LOG_NOTICE, "%s: Error: Missing Rx Sequence Expect %i Received %i!\n", 
+					self->name,tech_pvt->rx_udp_seq, *((unsigned int*)(&rxdata[res])));
+				tech_pvt->rx_udp_seq = *((unsigned int*)(&rxdata[res]));
+			}
+		}
+	}
+
+	/* Used for checking incoming udp stream. Should only be used for debugging. */
+	if (tech_pvt->profile->rx_sync_check_opt){
+		int i;
+		unsigned char *data = (unsigned char*)(tech_pvt->fdata + AST_FRIENDLY_OFFSET);
+		for (i=0;i<res;i++) {
+			if (tech_pvt->sync_r == 0) {
+				if (data[i] == 0x01) {
+					if (globals.debug > 2) {
+						ast_log(LOG_NOTICE, "%s: R Sync Acheived Offset=%i\n", self->name,i);
+					}
+					tech_pvt->sync_r=1;
+					tech_pvt->sync_data_r = data[i];
+				}
+			} else {
+				tech_pvt->sync_data_r++;
+				if (tech_pvt->sync_data_r != data[i]) {
+					ast_log(LOG_NOTICE, "%s: R Sync Lost: Expected %i  Got %i  Offset=%i\n", 
+							self->name,
+							tech_pvt->sync_data_r, data[i],i);
+					tech_pvt->sync_r=0;
+				}
+			}
+		}
+	}
+
+
 	tech_pvt->frame.frametype = AST_FRAME_VOICE;
         tech_pvt->frame.subclass = tech_pvt->coding;
         tech_pvt->frame.offset = AST_FRIENDLY_OFFSET;
         tech_pvt->frame.datalen = res;
         tech_pvt->frame.samples = res;
-        tech_pvt->frame.data = tech_pvt->fdata + AST_FRIENDLY_OFFSET;
+	tech_pvt->frame.data = tech_pvt->fdata + AST_FRIENDLY_OFFSET;
 
         f=&tech_pvt->frame;
 
@@ -3787,9 +3905,48 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 {
 	private_object *tech_pvt = self->tech_pvt;
 	int res = 0, i = 0;
-	
+	 
 	if (!tech_pvt || globals.panic || ast_test_flag(tech_pvt, TFLAG_ABORT)) {
 		return 0;
+	} 
+
+	/* Used for debugging only never in production */
+	if (tech_pvt->profile->tx_sync_check_opt){
+		unsigned char *data = frame->data;
+		for (i=0;i<frame->datalen;i++) {
+			if (tech_pvt->sync_w == 0) {
+				if (data[i] == 0x01 && data[i+1] == 0x02) {
+					ast_log(LOG_NOTICE, "%s: W Sync Acheived Offset=%i\n", self->name,i);
+					tech_pvt->sync_w=1;
+					tech_pvt->sync_data_w = data[i];
+				}
+			} else if (tech_pvt->sync_w == 1) {
+				tech_pvt->sync_data_w++;
+				if (tech_pvt->sync_data_w != data[i]) {
+					ast_log(LOG_NOTICE, "%s: W Sync Lost: Expected %i  Got %i  Offset=%i\n", 
+							self->name,
+							tech_pvt->sync_data_w, data[i],i);
+					tech_pvt->sync_w=0;
+					if (0){
+						int x;
+						ast_log(LOG_NOTICE, "%s: PRINTING FRAME Len=%i\n", 
+								self->name,frame->datalen);
+						for (x=0;x<frame->datalen;x++) {
+							ast_log(LOG_NOTICE, "%s: Off=%i Data %i\n", 
+								self->name,x,data[x]);
+						}
+					}
+				}
+			}
+		}
+
+	/* Used for debugging only never in production */
+	} else if (tech_pvt->profile->tx_sync_gen_opt){
+		unsigned char *data = frame->data;
+		int x;
+		for (x=0;x<frame->datalen;x++) {
+			data[x]=++tech_pvt->sync_data_w;
+		}
 	}
 
 	if(ast_test_flag(tech_pvt, TFLAG_MEDIA) && frame->datalen) {
@@ -3801,7 +3958,14 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 					data[i]=tech_pvt->profile->txgain[data[i]];
 				}
 			} 
-	
+
+			if (tech_pvt->profile->udp_seq){	
+				unsigned char *txdata=frame->data;
+				tech_pvt->tx_udp_seq++;
+				*((unsigned int*)&txdata[frame->datalen]) = tech_pvt->tx_udp_seq;
+				frame->datalen+=4;
+			}
+ 
 			i = sendto(tech_pvt->udp_socket, frame->data, frame->datalen, 0, 
 				   (struct sockaddr *) &tech_pvt->udpwrite, sizeof(tech_pvt->udpwrite));
 			if (i < 0) {
@@ -4193,15 +4357,19 @@ static int woomera_cli(int fd, int argc, char *argv[])
 }
 
 #ifdef CALLWEAVER
-#ifdef CALLWEAVER_1_2
+#ifdef CALLWEAVER_OPBX_CLI_ENTRY
 static struct opbx_cli_entry cli_woomera[] = {
 # else
-static struct opbx_clicmd cli_woomera[] = {
+#ifdef CALLWEAVER_CW_CLI_ENTRY
+static struct cw_cli_entry cli_woomera[] = {
+#else
+static struct cw_clicmd cli_woomera[] = {
+#endif
 #endif
 	{
 		.cmda = { "woomera", "default", "version", NULL },
 		.handler = woomera_cli,
-		.summary = "Woomera Verison",
+		.summary = "Woomera Version",
 		//.usage = pri_debug_help,
 		//.generator = complete_span_4,
 	},
@@ -4400,6 +4568,14 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
 				return 0;
 			}
 		} else { 
+
+#if 1
+			ast_queue_control(owner, AST_CONTROL_RINGING);
+			if (owner->_state != AST_STATE_UP) {
+                                ast_setstate(owner, AST_STATE_RINGING);
+                        }
+#endif
+
 			/* Do nothing for the outbound call
 			 * The PBX flag was already set! */
 			return 0;
@@ -4765,7 +4941,11 @@ int load_module(void)
 	*/
 	
 #ifdef CALLWEAVER
+#ifdef CALLWEAVER_19
+	cw_cli_register_multiple(cli_woomera, sizeof(cli_woomera) / sizeof(cli_woomera[0]));
+#else
 	opbx_cli_register_multiple(cli_woomera, arraysize(cli_woomera));
+#endif
 #else
 	ast_cli_register(&cli_woomera);
 #endif
@@ -4819,7 +4999,11 @@ int unload_module(void)
 	}
 	
 #ifdef CALLWEAVER
+#ifdef CALLWEAVER_19
+	cw_cli_unregister_multiple(cli_woomera, sizeof(cli_woomera) / sizeof(cli_woomera[0]));
+#else
 	opbx_cli_unregister_multiple(cli_woomera, sizeof(cli_woomera) / sizeof(cli_woomera[0]));
+#endif
 #else
 	ast_cli_unregister(&cli_woomera);
 #endif
@@ -4833,15 +5017,13 @@ int unload_module(void)
 
 #ifdef CALLWEAVER
 
-#ifdef CALLWEAVER_1_2
+#ifdef CALLWEAVER_MODULE_INFO
+MODULE_INFO(load_module, reload, unload_module, NULL, desc);
+#else
 char *description()
 {
         return (char *) desc;
 }
-	
-
-#else
-MODULE_INFO(load_module, reload, unload_module, NULL, desc);
 #endif
 
 #else 

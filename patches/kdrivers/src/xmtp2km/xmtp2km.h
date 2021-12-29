@@ -53,6 +53,8 @@
 #define XMTP2KM_IOCX_GETBSNT 	_IOWR(XMTP2KM_IOC_MAGIC,  11, uint8_t *)
 #define XMTP2KM_IOCS_STOPLINK 	_IOW (XMTP2KM_IOC_MAGIC,  12, uint8_t *)
 #define XMTP2KM_IOCG_GETOPM 	_IOR (XMTP2KM_IOC_MAGIC,  13, uint8_t *)
+#define XMTP2KM_IOCS_STOP_FAC 	_IOR (XMTP2KM_IOC_MAGIC,  14, uint8_t *)
+
 
 /*
  * The other entities only have "Tell" and "Query", because they're

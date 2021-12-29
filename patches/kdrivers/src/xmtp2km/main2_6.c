@@ -32,6 +32,8 @@
 #include <linux/fcntl.h>	/* O_ACCMODE */
 #include <linux/seq_file.h>
 #include <linux/cdev.h>
+#include <linux/net.h>
+#include <linux/delay.h>
 
 #include <asm/system.h>		/* cli(), *_flags */
 #include <asm/uaccess.h>	/* copy_*_user */
@@ -41,6 +43,9 @@
 #include "fwmsg.h"
 
 /* parameters which can be set at load time */
+
+#undef XMTP2KM_DEBUG_MEM 
+#undef XMTP2KM_SPIN 
 
 int xmtp2km_major =   XMTP2KM_MAJOR;
 int xmtp2km_minor =   0;
@@ -53,6 +58,7 @@ MODULE_AUTHOR("Michael Mueller/Xygnada Technology, Inc.");
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct xmtp2km_dev *xmtp2km_devices;	/* allocated in xmtp2km_init_module */
+spinlock_t xmtp2km_lock;
 /* extern global vars */
 extern int	module_use_count;
 
@@ -67,6 +73,7 @@ int xmtp2km_register (
 	int (*sangoma_drvr_cb)(void*, unsigned char*, int));
 /* prototypes for functions used by the xmtp2km kernel module ioctl function */
 int xmtp2km_ioctl_binit (void);
+int xmtp2km_ioctl_stop_fac (unsigned int cmd, unsigned long arg);
 int xmtp2km_ioctl_opsparms (unsigned int cmd, unsigned long arg);
 int xmtp2km_ioctl_pwr_on (unsigned int cmd, unsigned long arg);
 int xmtp2km_ioctl_emergency (unsigned int cmd, unsigned long arg);
@@ -82,7 +89,44 @@ int xmtp2km_ioctl_getopm (unsigned int cmd, unsigned long arg);
 void xmtp2km_init (void);
 void xmtp2km_shutdown (void);
 
+int xmtp2km_rate_limit(void)
+{
+	return net_ratelimit();
+}
 
+void xmtp2km_spin_lock_init(void)
+{
+	spin_lock_init(&xmtp2km_lock);	
+}
+
+void xmtp2km_spin_lock_irq(unsigned long *flag)
+{
+#ifdef XMTP2KM_SPIN
+...
+	spin_lock_irqsave(&xmtp2km_lock,*flag);	
+#endif
+}
+
+void xmtp2km_spin_unlock_irq(unsigned long *flag)
+{
+#ifdef XMTP2KM_SPIN
+	spin_unlock_irqrestore(&xmtp2km_lock,*flag);	
+#endif
+}
+
+void xmtp2km_spin_lock(void)
+{
+#ifdef XMTP2KM_SPIN
+	spin_lock(&xmtp2km_lock);	
+#endif
+}
+
+void xmtp2km_spin_unlock(void)
+{
+#ifdef XMTP2KM_SPIN
+	spin_unlock(&xmtp2km_lock);	
+#endif
+}
 
 void* xmtp2_memset(void *b, int c, int len)
 {
@@ -99,15 +143,39 @@ void xmtp2_printk(const char * fmt, ...)
 	va_end(args);
 }
 
-void * xmtp2km_kmalloc (const unsigned int bsize)
+#ifdef XMTP2_MEM_DEBUG
+extern int sdla_memdbg_push(void *mem, char *func_name, int line, int len);
+void * __xmtp2km_kmalloc (const unsigned int bsize, char *func, int line)
+#else
+void * __xmtp2km_kmalloc (const unsigned int bsize)
+#endif
 /***************************************************************************************/
 {
-	return kmalloc (bsize, GFP_ATOMIC);
+	void *ptr=kmalloc (bsize, GFP_ATOMIC);
+
+#ifdef XMTP2_MEM_DEBUG
+	if (ptr) {
+		sdla_memdbg_push(ptr,func,line,bsize);	
+	}
+#endif
+
+	return ptr;
 }
 
-void xmtp2km_kfree (void * p_buffer)
+
+#ifdef XMTP2_MEM_DEBUG
+extern int sdla_memdbg_pull(void *mem, char *func_name, int line);
+void __xmtp2km_kfree (void * p_buffer, char *func, int line)
+#else
+void __xmtp2km_kfree (void * p_buffer)
+#endif
 /***************************************************************************************/
 {
+#ifdef XMTP2_MEM_DEBUG
+	if (p_buffer) {
+		sdla_memdbg_pull(p_buffer,func,line);	
+	}
+#endif
 	kfree (p_buffer);
 }
 
@@ -126,6 +194,21 @@ int xmtp2km_access_ok   (int type, const void *p_addr, unsigned long n)
 			break;
 	}
 	return 0;
+}
+
+void xmtp2_mdelay(int s)
+{
+	/* wait for "milliseconds * 1/1000" of sec */	
+	unsigned long timeout=jiffies;
+
+	if (s > 2) {
+		s=2;
+	}
+	
+	while (jiffies-timeout < (HZ/10) * s){
+		udelay(100);
+		schedule();
+	}
 }
 
 unsigned long xmtp2km_copy_to_user   (void *p_to, const void *p_from, unsigned long n)
@@ -175,6 +258,9 @@ int xmtp2km_release(struct inode *inode, struct file *filp)
 /***************************************************************************************/
 {
 	if (module_use_count > 0) module_use_count--;
+
+	xmtp2km_ioctl_close();
+
 	return 0;
 }
 
@@ -210,8 +296,11 @@ int xmtp2km_ioctl(struct inode *inode, struct file *filp,
 		case XMTP2KM_IOCS_BINIT:
 			ret = xmtp2km_ioctl_binit ();
 			break;
+		case XMTP2KM_IOCS_STOP_FAC:
+			ret = xmtp2km_ioctl_stop_fac (cmd, arg);
+			break;
 		case XMTP2KM_IOCS_OPSPARMS:
-			 ret = xmtp2km_ioctl_opsparms (cmd, arg);
+			ret = xmtp2km_ioctl_opsparms (cmd, arg);
 			break;
 		case XMTP2KM_IOCS_PWR_ON:
 			//printk ("%s ptr %u size %u\n", __FUNCTION__, (unsigned int)((void __user *)arg), _IOC_SIZE(cmd));
@@ -317,7 +406,7 @@ int xmtp2km_init_module(void)
 	int result, i;
 	dev_t dev = 0;
 
-	printk ("MARK 0\n");
+	printk ("MARK 0: Nenad 1.0\n");
 	info_u (__FILE__, __FUNCTION__,
 "MARK", 0);
 /*
@@ -339,6 +428,8 @@ int xmtp2km_init_module(void)
 		printk(KERN_WARNING "xmtp2km: can't get major %d\n", xmtp2km_major);
 		return result;
 	}
+
+	xmtp2km_spin_lock_init();
 
         /* 
 	 * allocate the devices -- we can't have them static, as the number

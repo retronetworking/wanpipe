@@ -1,25 +1,19 @@
 K 25
 svn:wc:ra_dav:version-url
-V 32
-/svn/libsangoma/!svn/ver/1/trunk
+V 33
+/svn/libsangoma/!svn/ver/11/trunk
 END
 configure
 K 25
 svn:wc:ra_dav:version-url
-V 42
-/svn/libsangoma/!svn/ver/1/trunk/configure
+V 43
+/svn/libsangoma/!svn/ver/11/trunk/configure
 END
 Makefile.in
 K 25
 svn:wc:ra_dav:version-url
-V 44
-/svn/libsangoma/!svn/ver/1/trunk/Makefile.in
-END
-config.log
-K 25
-svn:wc:ra_dav:version-url
-V 43
-/svn/libsangoma/!svn/ver/1/trunk/config.log
+V 45
+/svn/libsangoma/!svn/ver/11/trunk/Makefile.in
 END
 AUTHORS
 K 25
@@ -66,8 +60,8 @@ END
 libsangoma.c
 K 25
 svn:wc:ra_dav:version-url
-V 45
-/svn/libsangoma/!svn/ver/1/trunk/libsangoma.c
+V 46
+/svn/libsangoma/!svn/ver/11/trunk/libsangoma.c
 END
 libsangoma.dsp
 K 25
@@ -78,8 +72,8 @@ END
 libsangoma.h
 K 25
 svn:wc:ra_dav:version-url
-V 45
-/svn/libsangoma/!svn/ver/1/trunk/libsangoma.h
+V 46
+/svn/libsangoma/!svn/ver/11/trunk/libsangoma.h
 END
 g711.h
 K 25
@@ -93,17 +87,17 @@ svn:wc:ra_dav:version-url
 V 40
 /svn/libsangoma/!svn/ver/1/trunk/INSTALL
 END
-libsangoma.dsw
-K 25
-svn:wc:ra_dav:version-url
-V 47
-/svn/libsangoma/!svn/ver/1/trunk/libsangoma.dsw
-END
 COPYING
 K 25
 svn:wc:ra_dav:version-url
 V 40
 /svn/libsangoma/!svn/ver/1/trunk/COPYING
+END
+libsangoma.dsw
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/libsangoma/!svn/ver/1/trunk/libsangoma.dsw
 END
 NEWS
 K 25
@@ -114,14 +108,8 @@ END
 Makefile
 K 25
 svn:wc:ra_dav:version-url
-V 41
-/svn/libsangoma/!svn/ver/1/trunk/Makefile
-END
-sangoma_pri.c
-K 25
-svn:wc:ra_dav:version-url
-V 46
-/svn/libsangoma/!svn/ver/1/trunk/sangoma_pri.c
+V 42
+/svn/libsangoma/!svn/ver/11/trunk/Makefile
 END
 libsangoma.so.conf
 K 25
@@ -129,23 +117,29 @@ svn:wc:ra_dav:version-url
 V 51
 /svn/libsangoma/!svn/ver/1/trunk/libsangoma.so.conf
 END
+sangoma_pri.c
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/libsangoma/!svn/ver/1/trunk/sangoma_pri.c
+END
 win_api_common.h
 K 25
 svn:wc:ra_dav:version-url
 V 49
 /svn/libsangoma/!svn/ver/1/trunk/win_api_common.h
 END
-sangoma_pri.h
-K 25
-svn:wc:ra_dav:version-url
-V 46
-/svn/libsangoma/!svn/ver/1/trunk/sangoma_pri.h
-END
 version
 K 25
 svn:wc:ra_dav:version-url
 V 40
 /svn/libsangoma/!svn/ver/1/trunk/version
+END
+sangoma_pri.h
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/libsangoma/!svn/ver/1/trunk/sangoma_pri.h
 END
 configure.in
 K 25
@@ -158,12 +152,6 @@ K 25
 svn:wc:ra_dav:version-url
 V 42
 /svn/libsangoma/!svn/ver/1/trunk/ChangeLog
-END
-config.status
-K 25
-svn:wc:ra_dav:version-url
-V 46
-/svn/libsangoma/!svn/ver/1/trunk/config.status
 END
 svn-commit.tmp
 K 25
@@ -182,12 +170,6 @@ K 25
 svn:wc:ra_dav:version-url
 V 44
 /svn/libsangoma/!svn/ver/1/trunk/config.h.in
-END
-libtool
-K 25
-svn:wc:ra_dav:version-url
-V 40
-/svn/libsangoma/!svn/ver/1/trunk/libtool
 END
 missing
 K 25

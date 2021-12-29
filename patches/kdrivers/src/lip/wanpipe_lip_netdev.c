@@ -65,6 +65,7 @@ int wplip_open_dev(netdevice_t *dev)
 	if (netif_running(dev))
 		return -EBUSY;
 # endif
+	wplip_change_mtu(dev,dev->mtu);
 #endif
 
 	wan_clear_bit(0,&lip_dev->if_down);
@@ -323,6 +324,8 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 }
 
 #if defined(__LINUX__)
+
+
 static void wplip_tx_timeout (netdevice_t *dev)
 {
 	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
@@ -585,6 +588,7 @@ int wplip_if_init(netdevice_t *dev)
 	lip_dev->common.iface.ioctl	= &wplip_ioctl;
 	lip_dev->common.iface.tx_timeout= &wplip_tx_timeout;
 	lip_dev->common.iface.get_stats	= &wplip_ifstats;
+	lip_dev->common.iface.change_mtu = &wplip_change_mtu;
 
 	return 0;
 #else

@@ -303,7 +303,7 @@ void wplip_tty_receive(wplip_link_t *lip_link, void *skb)
 		if (WAN_NET_RATELIMIT()){
 			DEBUG_EVENT( 
 			"%s: Received packet size too big: %d bytes, Max: %d!\n",
-				lip_link->name,wan_skb_len(skb),TTY_FLIPBUF_SIZE);
+				lip_link->name,wan_skb_len(skb),TTY_MAX_MTU);
 		}
 		wan_skb_free(skb);
 		return;
@@ -360,30 +360,34 @@ static void wanpipe_tty_set_termios(struct tty_struct *tty, struct termios *old_
 	return;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26))   
+static int wanpipe_tty_put_char(struct tty_struct *tty, unsigned char ch)
+#else
 static void wanpipe_tty_put_char(struct tty_struct *tty, unsigned char ch)
+#endif
 {
 	wplip_link_t *lip_link;
 	netskb_t *skb;
 	unsigned char *buf;
-	int err=0;
+	int err=-EINVAL;
 	unsigned long smp_flags;
 	
 	if (!tty){
-		return;
+		goto wanpipe_tty_put_char_exit;
 	}
 	
 	lip_link = (wplip_link_t *)tty->driver_data;
 	if (!lip_link){
-		return;
+		goto wanpipe_tty_put_char_exit;
 	}
 
 	if (lip_link->state != WAN_CONNECTED){
-		return;
+		goto wanpipe_tty_put_char_exit;
 	}
 
 	skb=wan_skb_alloc(5);	
 	if (!skb){
-		return;
+		goto wanpipe_tty_put_char_exit;
 	}
 	
 	buf=wan_skb_put(skb,1);
@@ -397,7 +401,13 @@ static void wanpipe_tty_put_char(struct tty_struct *tty, unsigned char ch)
 		wan_skb_free(skb);
 	}
 
+wanpipe_tty_put_char_exit:
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26))   
+	return err;
+#else
 	return;
+#endif
 }
 
 static void wanpipe_tty_flush_chars(struct tty_struct *tty)

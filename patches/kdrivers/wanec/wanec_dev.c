@@ -57,11 +57,15 @@
 
 #ifdef WP_ECDEV_UDEV
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
-#define WP_CLASS_DEV_CREATE(class, devt, device, name) \
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26)
+#define class_device_destroy device_destroy 
+#define WP_CLASS_DEV_CREATE(class, devt, device, priv_data, name) \
+        device_create_drvdata(class, device, devt, priv_data, name)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+#define WP_CLASS_DEV_CREATE(class, devt, device, priv_data, name) \
         class_device_create(class, NULL, devt, device, name)
 #else
-#define WP_CLASS_DEV_CREATE(class, devt, device, name) \
+#define WP_CLASS_DEV_CREATE(class, devt, device, priv_data, name) \
         class_device_create(class, devt, device, name)
 #endif
 
@@ -136,7 +140,7 @@ int wanec_create_dev(void)
 #ifdef WP_ECDEV_UDEV	
 	WP_CLASS_DEV_CREATE(	wanec_dev_class,
 				MKDEV(WP_ECDEV_MAJOR, 0),
-				NULL,
+				NULL,NULL,
 				WANEC_DEV_NAME);
 #endif
 	

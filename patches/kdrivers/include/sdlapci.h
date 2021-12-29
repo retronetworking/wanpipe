@@ -51,6 +51,9 @@
 #define PLX_DEVICE_ID  			0x8111	/* PLX device ID number */
 #define PLX2_DEVICE_ID  		0x8112	/* PLX device ID number rev 2 */
 
+#define TUNDRA_VENDOR_ID		0x10E3	/* TUNDRA vendor ID number */
+#define TUNDRA_DEVICE_ID		0x8111	/* TUNDRA device ID number */
+
 #define PLX_EEPROM_ENABLE		0x5A
 #define PLX_EEPROM_VENDOR_OFF		0xFC	/* 2 bytes for Card vendor id */
 

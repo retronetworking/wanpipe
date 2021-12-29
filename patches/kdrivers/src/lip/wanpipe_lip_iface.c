@@ -382,7 +382,9 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 		wan_clear_bit(DYN_OPT_ON,&lip_dev->interface_down);
 	}
 	lip_link->latency_qlen=lip_dev->common.dev->tx_queue_len;
+	
 #endif
+
 	
 	if (lip_link->state == WAN_CONNECTED){
 		DEBUG_TEST("%s: LIP CREATE Link already on!\n",
@@ -803,6 +805,59 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
 	return 0;
 #endif
 }
+
+
+int wplip_change_mtu(netdevice_t *dev, int new_mtu)
+{
+#if defined(__LINUX__)
+	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
+	wplip_link_t *lip_link = lip_dev->lip_link;
+	netdevice_t *hw_dev;
+	wplip_dev_list_t *lip_dev_list_el;
+	int err = 0;
+	
+	if (!lip_link->tx_dev_cnt){ 
+		DEBUG_EVENT("%s: %s: Tx Dev not available\n",
+				__FUNCTION__,lip_link->name);	
+		return -ENODEV;
+	}
+
+	/* FIXME:
+	 * For now, we can only transmit on a FIRST Tx device */
+	lip_dev_list_el=WAN_LIST_FIRST(&lip_link->list_head_tx_ifdev);
+	if (!lip_dev_list_el){
+		DEBUG_EVENT("%s: %s: Tx Dev List empty!\n",
+				__FUNCTION__,lip_link->name);	
+		return -ENODEV;
+	}
+	
+	if (lip_dev_list_el->magic != WPLIP_MAGIC_DEV_EL){
+		DEBUG_EVENT("%s: %s: Error: Invalid dev magic number!\n",
+				__FUNCTION__,lip_link->name);
+		return -EFAULT;
+	}
+
+	hw_dev=lip_dev_list_el->dev;
+	if (!hw_dev){
+		DEBUG_EVENT("%s: %s: Error: No dev!  dropping...\n",
+				__FUNCTION__,lip_link->name);
+		return -ENODEV;
+	}	
+
+	if (hw_dev->change_mtu) {
+		err = hw_dev->change_mtu(hw_dev,new_mtu);
+	} 
+		
+	if (err == 0) {
+		dev->mtu = new_mtu;
+	}
+
+	return err;
+#endif
+	return 0;
+}
+
+
 
 /*==============================================================
  * wplip_link_prot_change_state

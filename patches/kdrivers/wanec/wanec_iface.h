@@ -128,6 +128,7 @@ typedef struct wanec_chan_stats_
 typedef struct wanec_chan_monitor_ 
 {
 	int			fe_chan;
+	int			data_mode;
 	UINT32			remain_len;
 	UINT32			data_len;
 	UINT32			max_len;
@@ -337,6 +338,24 @@ typedef struct wanec_lip_reg
 
 }wanec_lip_reg_t;
 #endif
+
+static __inline int wan_ec_update_and_check(wan_ec_t *ec, int enable)
+{
+        if (!enable) {
+                if (ec->ec_active > 0){
+                        ec->ec_active--;
+                }
+                return 0;
+        }
+
+        if (ec->ec_active >= ec->max_channels) {
+                return -EINVAL;
+        }
+
+        ec->ec_active++;
+
+        return 0;
+}
 
 /* global interface functions */
 void *wan_ec_config (void *pcard, int max_channels);

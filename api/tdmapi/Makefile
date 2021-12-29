@@ -22,6 +22,7 @@ CFLAGS	+= -I/usr/include/wanpipe -I../../patches/kdrivers/include/
 #CFLAGS	= -I$(SYSINC)
 
 TARGETS = aft_tdm_voice_api
+TARGETS += aft_tdm_ctrl_api
 TARGETS += aft_tdm_voice_api_switch
 TARGETS += aft_tdm_hdlc_test
 TARGETS += aft_tdm_voice_api_rbs
@@ -42,6 +43,9 @@ install:
 
 
 aft_tdm_voice_api: aft_tdm_voice_api.c ../lib/lib_api.c 
+	$(CC) $(CFLAGS) -o $@ $^ -lsangoma -lm
+
+aft_tdm_ctrl_api: aft_tdm_ctrl_api.c ../lib/lib_api.c 
 	$(CC) $(CFLAGS) -o $@ $^ -lsangoma -lm
 
 aft_tdm_voice_api_switch: aft_tdm_voice_api_switch.c ../lib/lib_api.c 

@@ -27,6 +27,7 @@ PRODS=wan_plxup
 
 # Tools options.
 CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
+CFLAGS  += $(EXTRA_FLAGS)
 
 
 ####### RULES ################################################################

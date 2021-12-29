@@ -782,7 +782,7 @@ int get_fe_type(unsigned char* adapter_type)
 void set_lb_modes(unsigned char type, unsigned char mode)
 {
 	
-	wan_udp.wan_udphdr_command	= WAN_FE_SET_LB_MODE;
+	wan_udp.wan_udphdr_command	= WAN_FE_LB_MODE;
 	wan_udp.wan_udphdr_data_len	= 2;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 

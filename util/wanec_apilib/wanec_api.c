@@ -702,6 +702,9 @@ static int wanec_api_print_full_chan_stats(wan_ec_api_t *ec_api, int fe_chan)
 	printf("%10s:%2d: (VQE) Attenuation Level applied to the noise signal\t: %d dB\n",
 			ec_api->devname, fe_chan,
 			pChannelStatsVqe->lAnrSnrEnhancementDb);
+	printf("%10s:%2d: (VQE) Silence period before the re-activation of VQE features\t: %d ms\n",
+			ec_api->devname, fe_chan,
+			pChannelStatsVqe->ulToneDisablerVqeActivationDelay);
 
 	pChannelStatsCodec = &pChannelStats->CodecConfig;
 	printf("%10s:%2d: (CODEC) Encoder channel port\t\t\t: %s\n",
@@ -1026,10 +1029,14 @@ int wanec_api_monitor(	char			*devname,
 
 	memcpy(ec_api.devname, devname, strlen(devname));
 	ec_api.verbose	= wanec_api_verbose(verbose);
-	ec_api.cmd		= WAN_EC_API_CMD_MONITOR;
-	ec_api.fe_chan		= monitor->fe_chan;
-	ec_api.fe_chan_map	= (1 << monitor->fe_chan);
-	
+	ec_api.cmd			= WAN_EC_API_CMD_MONITOR;
+	ec_api.fe_chan			= monitor->fe_chan;
+	ec_api.fe_chan_map		= (1 << monitor->fe_chan);
+	ec_api.u_chan_monitor.data_mode = 
+		(monitor->data_mode == 120) ? 
+				cOCT6100_DEBUG_GET_DATA_MODE_120S :
+				cOCT6100_DEBUG_GET_DATA_MODE_16S;
+ 
 	err = wanec_api_lib_cmd(&ec_api);	//err = wanec_api_lib_monitor(&ec_api);
 	if (err) return err;
 	if (ec_api.err) return 0;

@@ -14,6 +14,8 @@
 #ifndef _SIGBOOST_H_
 #define _SIGBOOST_H_
 
+#define BRI_PROT 1
+
 #include <stdint.h>
 #include <sys/time.h>
 
@@ -33,7 +35,9 @@ enum	e_sigboost_event_id_values
 	SIGBOOST_EVENT_INSERT_CHECK_LOOP		= 0x8a, /*138*/
 	SIGBOOST_EVENT_REMOVE_CHECK_LOOP		= 0x8b, /*139*/
 	SIGBOOST_EVENT_AUTO_CALL_GAP_ABATE		= 0x8c, /*140*/
+	SIGBOOST_EVENT_DIGIT_IN				= 0x8d, /*141*/
 };
+
 enum	e_sigboost_release_cause_values
 {
 	SIGBOOST_RELEASE_CAUSE_UNDEFINED		= 0,

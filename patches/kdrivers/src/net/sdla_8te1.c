@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_8te1.c,v 1.121 2008/04/25 16:23:20 sangoma Exp $
+ *	$Id: sdla_8te1.c,v 1.121 2008-04-25 16:23:20 sangoma Exp $
  */
 
 /******************************************************************************
@@ -302,14 +302,18 @@ static unsigned char sdla_ds_te1_get_fe_media(sdla_fe_t *fe)
 }
 
 /******************************************************************************
- *				sdla_ds_te1_get_fe_status()	
- *
- * Description:
- * Arguments:	
- * Returns:
- ******************************************************************************
- */
-static int sdla_ds_te1_get_fe_status(sdla_fe_t *fe, unsigned char *status)
+* sdla_ds_te1_get_fe_status()	
+*
+* Description	: Get current FE line state - is it Connected or Disconnected
+*
+* Arguments	: fe - pointer to Front End structure.	
+*		  status - pointer to location where the FE line state will
+*			be stored. 
+*		  notused - ignored 
+*
+* Returns	: always zero.
+*******************************************************************************/
+static int sdla_ds_te1_get_fe_status(sdla_fe_t *fe, unsigned char *status,int notused)
 {
 	*status = fe->fe_status;
 	return 0;
@@ -2040,14 +2044,22 @@ static int sdla_ds_te1_set_alarms(sdla_fe_t* fe, u_int32_t alarms)
 {
 	u8	value;
 	
-	if (alarms & WAN_TE_BIT_YEL_ALARM){
-		if (IS_T1_FEMEDIA(fe) &&
-		    fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+	if (alarms & WAN_TE_BIT_YEL_ALARM &&
+	    fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+		if (IS_T1_FEMEDIA(fe)){
 			value = READ_REG(REG_TCR1);
 			if (!(value & BIT_TCR1_T1_TRAI)){
-				DEBUG_TE1("%s: Set YEL alarm!\n",
+				DEBUG_TE1("%s: Enable transmit RAI alarm\n",
 								fe->name);
 				WRITE_REG(REG_TCR1, value | BIT_TCR1_T1_TRAI);
+				fe->te_param.tx_yel_alarm = 1;
+			}
+		}else{
+			value = READ_REG(REG_E1TNAF);
+			if (!(value & BIT_E1TNAF_A)){
+				DEBUG_TE1("%s: Enable transmit RAI alarm\n",
+								fe->name);
+				WRITE_REG(REG_E1TNAF, value | BIT_E1TNAF_A);
 				fe->te_param.tx_yel_alarm = 1;
 			}
 		}
@@ -2066,15 +2078,24 @@ static int sdla_ds_te1_clear_alarms(sdla_fe_t* fe, u_int32_t alarms)
 {
 	u8	value;
 	
-	if (alarms & WAN_TE_BIT_YEL_ALARM){
-		if (IS_T1_FEMEDIA(fe) &&
-		    fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+	if (alarms & WAN_TE_BIT_YEL_ALARM &&
+	    fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+		if (IS_T1_FEMEDIA(fe)){
 			value = READ_REG(REG_TCR1);
 			if (value & BIT_TCR1_T1_TRAI){
-				DEBUG_TE1("%s: Clear YEL alarm!\n",
+				DEBUG_TE1("%s: Disable transmit RAI alarm\n",
 							fe->name);
 				WRITE_REG(REG_TCR1, value & ~BIT_TCR1_T1_TRAI);
 				fe->te_param.tx_yel_alarm = 0;
+			}
+		}else{
+			value = READ_REG(REG_E1TNAF);
+			if (value & BIT_E1TNAF_A){
+				DEBUG_TE1("%s: Disable transmit RAI alarm\n",
+							fe->name);
+				WRITE_REG(REG_E1TNAF, value & ~BIT_E1TNAF_A);
+				fe->te_param.tx_yel_alarm = 0;
+				
 			}
 		}
 	}
@@ -2746,9 +2767,20 @@ static int sdla_ds_te1_framer_rx_intr(sdla_fe_t *fe, int silent)
 						fe->name);
 			}
 			if (rls2 & BIT_RLS2_E1_RAF){
+				u8	rnaf = READ_REG(REG_E1RNAF);
+ 
 				if (!silent) DEBUG_EVENT(
 				"%s: Receive Align Frame Event!\n",
 						fe->name);
+				if (rnaf & BIT_E1RNAF_A){
+					fe->fe_alarm |= WAN_TE_BIT_RAI_ALARM;		
+					if (!silent) DEBUG_EVENT("%s: RAI alarm is ON\n",
+								fe->name);
+				}else{
+					fe->fe_alarm &= ~WAN_TE_BIT_RAI_ALARM;		
+					if (!silent) DEBUG_EVENT("%s: RAI alarm is OFF\n",
+								fe->name);
+				}
 			}
 		}
 		WRITE_REG(REG_RLS2, rls2);
@@ -3878,6 +3910,7 @@ sdla_ds_te1_set_lb(sdla_fe_t *fe, unsigned char mode, unsigned char action)
 		err = sdla_ds_te1_liu_llb(fe, action);
 		break;
 	case WAN_TE1_LIU_RLB_MODE:
+	case WAN_TE1_LINELB_MODE:
 		err = sdla_ds_te1_liu_rlb(fe, action);
 		break;
 	case WAN_TE1_LIU_DLB_MODE:
@@ -3894,7 +3927,6 @@ sdla_ds_te1_set_lb(sdla_fe_t *fe, unsigned char mode, unsigned char action)
 		err = sdla_ds_te1_fr_plb(fe, action);
 		break;
 	case WAN_TE1_FR_RLB_MODE:
-	case WAN_TE1_LINELB_MODE:
 	default:
 		DEBUG_EVENT("%s: Unsupport loopback mode (%s)!\n",
 				fe->name,
@@ -3909,6 +3941,32 @@ sdla_ds_te1_set_lb(sdla_fe_t *fe, unsigned char mode, unsigned char action)
 		}
 	}
 	return err;
+}
+
+/******************************************************************************
+ *				sdla_ds_te1_set_lb()	
+ *
+ * Description:
+ * Arguments:
+ * Returns:
+ *****************************************************************************/
+static u32 sdla_ds_te1_get_lb(sdla_fe_t *fe) 
+{
+	u32	mode = 0;
+	u8	lmcr, rcr3;
+
+	WAN_ASSERT(fe->write_fe_reg == NULL);
+	WAN_ASSERT(fe->read_fe_reg == NULL);
+
+	lmcr = READ_REG(REG_LMCR);
+	if (lmcr & BIT_LMCR_ALB) wan_set_bit(WAN_TE1_LIU_ALB_MODE, &mode);
+	if (lmcr & BIT_LMCR_LLB) wan_set_bit(WAN_TE1_LIU_LLB_MODE, &mode);
+ 	if (lmcr & BIT_LMCR_RLB) wan_set_bit(WAN_TE1_LIU_RLB_MODE, &mode);
+
+	rcr3 = READ_REG(REG_RCR3);
+	if (rcr3 & BIT_RCR3_FLB) wan_set_bit(WAN_TE1_FR_FLB_MODE, &mode); 
+	if (rcr3 & BIT_RCR3_PLB) wan_set_bit(WAN_TE1_FR_PLB_MODE, &mode);
+	return mode;
 }
 
 /*
@@ -3936,8 +3994,16 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 		udp_cmd->wan_cmd_data_len = sizeof(unsigned char); 
 		break;
 
-	case WAN_FE_SET_LB_MODE:
+	case WAN_FE_LB_MODE:
 		/* Activate/Deactivate Line Loopback modes */
+		if (!data[0]){
+			u32	mode = 0;
+			mode = sdla_ds_te1_get_lb(fe);
+		       	memcpy(&data[0], (u8*)&mode, sizeof(mode));
+		    	udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+    		    	udp_cmd->wan_cmd_data_len = sizeof(mode);
+			break;
+		}
 #if 1
 		event.type		= TE_SET_LB_MODE;	
 		event.te_event.lb_type	= data[0];		/* LB type */
@@ -4049,7 +4115,7 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 					}
 				}
 
-				event.type		= TE_RBS_READ;
+				event.type		= TE_SET_RBS;
 				event.delay		= POLLING_TE1_TIMER;
 				event.te_event.rbs_channel = fe_debug->fe_debug_rbs.channel;
 				event.te_event.rbs_abcd	= fe_debug->fe_debug_rbs.abcd;

@@ -33,6 +33,7 @@ CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__ -I$(
 #CFLAGS += -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(SYSINC) -I. \
          -DSTATIC_LIBS= $(GD_STATIC) $(OGR_STATIC) $(PROTOCOL_DEFINES)
 
+CFLAGS += $(EXTRA_FLAGS)
 CFLAGS += -lstdc++
 CFLAGS += -lncurses
 

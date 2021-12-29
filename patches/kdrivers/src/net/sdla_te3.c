@@ -90,7 +90,7 @@
 
 static int sdla_te3_config(void *p_fe);
 static int sdla_te3_unconfig(void *p_fe);
-static int sdla_te3_get_fe_status(sdla_fe_t *fe, unsigned char *status);
+static int sdla_te3_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notused);
 static int sdla_te3_polling(sdla_fe_t *fe);
 static int sdla_ds3_isr(sdla_fe_t *fe);
 static int sdla_e3_isr(sdla_fe_t *fe);
@@ -130,14 +130,18 @@ static unsigned char sdla_te3_get_fe_media(sdla_fe_t *fe)
 }
 
 /******************************************************************************
- *				sdla_te3_get_fe_status()	
- *
- * Description:
- * Arguments:	
- * Returns:
- ******************************************************************************
- */
-static int sdla_te3_get_fe_status(sdla_fe_t *fe, unsigned char *status)
+* sdla_te3_get_fe_status()	
+*
+* Description	: Get current FE line state - is it Connected or Disconnected
+*
+* Arguments	: fe - pointer to Front End structure.	
+*		  status - pointer to location where the FE line state will
+*			be stored. 
+*		  notused - ignored 
+*
+* Returns	: always zero.
+*******************************************************************************/
+static int sdla_te3_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notused)
 {
 	*status = fe->fe_status;
 	return 0;
@@ -789,7 +793,7 @@ static int sdla_te3_udp(sdla_fe_t *fe, void *pudp_cmd, unsigned char *data)
 		udp_cmd->wan_cmd_data_len = sizeof(unsigned char); 
 		break;
 
-	case WAN_FE_SET_LB_MODE:
+	case WAN_FE_LB_MODE:
 		/* Activate/Deactivate Line Loopback modes */
 		if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
 			err = sdla_te3_old_set_lb_modes(fe, data[0], data[1]); 

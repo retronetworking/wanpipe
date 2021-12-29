@@ -24,6 +24,8 @@ CPP = gcc -E
 CFLAGS = -Wall -Wstrict-prototypes -I$(SYSINC) -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) -DCURSES_LOC="<ncurses.h>"
 WAN_VIRTUAL=
 
+CFLAGS += $(EXTRA_FLAGS)
+
 ifeq "${ENABLE_GUI}" "NO"
 LX_OBJ =
 GUI_OBJ =

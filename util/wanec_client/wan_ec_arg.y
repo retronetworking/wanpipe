@@ -46,7 +46,7 @@ extern int wanec_client_stats(int full);
 extern int wanec_client_bufferload(void);
 extern int wanec_client_bufferunload(unsigned long buffer_id);
 extern int wanec_client_playout(int start);
-extern int wanec_client_monitor(void);
+extern int wanec_client_monitor(int);
 
 %}
 
@@ -80,6 +80,7 @@ extern int wanec_client_monitor(void);
 %token HELP_TOKEN
 %token HELP1_TOKEN
 %token MONITOR_TOKEN
+%token MONITOR120_TOKEN
 %token MODIFY_TOKEN
 %token BUFFER_LOAD_TOKEN
 %token BUFFER_UNLOAD_TOKEN
@@ -174,7 +175,9 @@ command		: CONFIG_TOKEN custom_param_list
 					port
 		  { ec_client.port = $<val>6; gl_err = wanec_client_playout(0); }
 		| MONITOR_TOKEN		stats_debug_args
-		  { gl_err = wanec_client_monitor(); }
+		  { gl_err = wanec_client_monitor(16); }
+		| MONITOR120_TOKEN	stats_debug_args
+		  { gl_err = wanec_client_monitor(120); }
 		;
 
 buffer_load_args	: 

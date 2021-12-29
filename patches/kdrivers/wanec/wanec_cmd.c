@@ -283,13 +283,13 @@ int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int re
 				return -EINVAL;
 			}
 		}else{
-			PRINT2(verbose,
+			DEBUG_EVENT(
 			"%s: Echo Canceller image description:\n%s\n",
 					ec->name, f_ChipImageInfo.szVersionNumber);
-			PRINT2(verbose,
+			DEBUG_EVENT(
 			"%s: Echo Canceller image build ID\t\t\t%08X\n",
 					ec->name, f_ChipImageInfo.ulBuildId);
-			PRINT2(verbose,
+			DEBUG_EVENT(
 			"%s: Echo Canceller maximum number of channels\t%d\n",
 					ec->name, f_ChipImageInfo.ulMaxChannels);	
 #if 0	
@@ -688,6 +688,15 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, int verbose)
 #if defined(ENABLE_ACOUSTICECHO)
 		EchoChannelOpen.VqeConfig.fAcousticEcho		= TRUE;
 #endif
+		if (card->hwec_conf.tone_disabler_delay) {
+			UINT32	delay = card->hwec_conf.tone_disabler_delay;
+			delay = ((delay / 512) + 1) * 512 + 300;
+	                EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay = delay;
+			PRINT1(verbose,
+			"%s: Enable special fax detection option on channel %d (%d)\n",
+				ec->name, channel,
+				EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay);
+		}
 
 		if (card->hwec_conf.noise_reduction) {
 			EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
@@ -1521,15 +1530,27 @@ int wanec_DebugGetData(wan_ec_dev_t *ec_dev, wanec_chan_monitor_t *chan_monitor,
 		
 	Oct6100DebugGetDataDef( &fDebugGetData );
 
-	PRINT2(verbose,
-	"%s: Retrieves debug data for ec channel %d...\n",
+	if (!chan_monitor->remain_len){
+		PRINT1(verbose,
+		"%s: Retrieves debug data for ec channel %d (%s)...\n",
 			ec->name,
-			ec->DebugChannel);
+			ec->DebugChannel,
+			(chan_monitor->data_mode == cOCT6100_DEBUG_GET_DATA_MODE_120S) ? "120s" :
+			(chan_monitor->data_mode == cOCT6100_DEBUG_GET_DATA_MODE_120S_LITE) ? "120s-lite" :
+			(chan_monitor->data_mode == cOCT6100_DEBUG_GET_DATA_MODE_16S) ? "16s" :
+			(chan_monitor->data_mode == cOCT6100_DEBUG_GET_DATA_MODE_16S_LITE) ? "16s-lite" :
+				"unknown");
+	}else{
+		PRINT2(verbose,
+		"%s: Retrieves remain debug data (%d bytes) for ec channel %d...\n",
+			ec->name,
+			chan_monitor->remain_len, ec->DebugChannel);
+	}
 
 	memset(&chan_monitor->data[0], 0,
 				sizeof(UINT8) * (MAX_MONITOR_DATA_LEN+1));
 	/* Set selected debug channel */
-	fDebugGetData.ulGetDataMode	= ec->ulDebugDataMode;
+	fDebugGetData.ulGetDataMode	= chan_monitor->data_mode;	//ec->ulDebugDataMode;
 	fDebugGetData.ulMaxBytes	= chan_monitor->max_len;
 	fDebugGetData.pbyData		= &chan_monitor->data[0];
 

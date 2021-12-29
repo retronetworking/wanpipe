@@ -263,6 +263,7 @@ static int sdla_pci_read_config_dword(void*, int, u32*);
 int sdla_pci_bridge_write_config_dword(void*, int, u_int32_t);
 static int sdla_pci_bridge_write_config_byte(void*, int, u_int8_t);
 int sdla_pci_bridge_read_config_dword(void*, int, u_int32_t*);
+static int sdla_pci_bridge_read_config_word(void*, int, u_int16_t*);
 static int sdla_pci_bridge_read_config_byte(void*, int, u_int8_t*);
 
 int sdla_cmd (void* phw, unsigned long offset, wan_mbox_t* mbox);
@@ -344,6 +345,7 @@ static int sdla_hw_info(sdlahw_t*);
 static 
 #endif
 int sdla_get_hw_info(sdlahw_t* hw);
+static int sdla_pcibridge_info(sdlahw_t* hw);
 
 static int sdla_hwdev_common_unregister(sdlahw_cpu_t*);
 static sdlahw_t* sdla_hwdev_common_register(sdlahw_cpu_t* hwcpu, int, int);
@@ -1188,7 +1190,13 @@ sdla_hwdev_te1_register(sdlahw_cpu_t* hwcpu, int max_line_no)
 				strcpy(id_str, "DS26521");
 			}else if (hwcpu->hwcard->cfg_type == WANOPT_AFT104){
 				if (hwcpu->hwcard->adptr_subtype == AFT_SUBTYPE_SHARK){
-					strcpy(id_str, "DS26524"); 
+					/* NC: A104 Shark can be PMC or DS the only way to check
+					       is using firmware id for now. */
+					if (hwcpu->hwcard->core_rev >= 0x28) {
+                                                strcpy(id_str, "DS26524");
+                                        }else{
+                                                strcpy(id_str, "PMC4354");
+                                        }
 				}else{
 					strcpy(id_str, "PMC4354");
 				}
@@ -1434,6 +1442,10 @@ sdla_hwdev_ISDN_register(sdlahw_cpu_t* hwcpu, int *ports_no)
 			str, strlen(str));
 	}
 
+        if (first_hw == NULL) {
+                DEBUG_EVENT("%s: Error: Failed to detect any A500 ISDN Modules!\n",hw->devname);
+        }
+
 	/* Reset SPI bus */
 	sdla_bus_write_4(hw,SPI_INTERFACE_REG,MOD_SPI_RESET);
 	WP_DELAY(1000);
@@ -1557,6 +1569,44 @@ static int sdla_scan_isdn_bri_modules(sdlahw_t* hw, int *rm_mod_type,  u_int8_t 
 	}/* for() */
 
 	return mod_counter;
+}
+
+static int sdla_pcibridge_info(sdlahw_t* hw)
+{
+	sdlahw_cpu_t	*hwcpu;
+	sdlahw_card_t	*hwcard;
+	u_int16_t	vendor_id;
+
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+	hwcpu = hw->hwcpu;
+	hwcard = hwcpu->hwcard;
+
+	sdla_pci_bridge_read_config_word(hw, PCI_VENDOR_ID_WORD, &vendor_id);
+	if (vendor_id == PLX_VENDOR_ID){
+		u_int16_t	val16;
+		u_int8_t	val8;
+
+		sdla_plxctrl_read8(hw, 0x00, &val8);
+		/* For now, all PLX with blank EEPROM is our new
+		** cards from production. */
+		if (val8 == PLX_EEPROM_ENABLE){
+
+			sdla_plxctrl_read8(hw, PLX_EEPROM_VENDOR_OFF, &val8);
+			val16 = val8 << 8;	
+			sdla_plxctrl_read8(hw, PLX_EEPROM_VENDOR_OFF+1, &val8);
+			val16 |= val8;	
+			if (val16 != SANGOMA_PCI_VENDOR){
+				hwcard->pci_bridge_dev = NULL;
+				hwcard->pci_bridge_bus = 0; 
+				hwcard->pci_bridge_slot = 0;
+			}
+		}
+	}else if (vendor_id == TUNDRA_VENDOR_ID){
+		/* Skip extra verification for TUNDRA PCI Express Bridge */
+	}
+	return 0;
 }
 
 #define AFT_CHIP_CFG_REG		0x40
@@ -1777,27 +1827,10 @@ int sdla_get_hw_info(sdlahw_t* hw)
 		}
 		/* Only for those cards that have PLX PCI Express chip as master */
 		if (hwcard->pci_bridge_dev){
-			u_int16_t	vendor_id;
-			u_int8_t	val;
-
-			sdla_plxctrl_read8(hw, 0x00, &val);
-			/* For now, all PLX with blank EEPROM is our new
-			** cards from production. */
-			if (val == PLX_EEPROM_ENABLE){
-
-				sdla_plxctrl_read8(hw, PLX_EEPROM_VENDOR_OFF, &val);
-				vendor_id = val << 8;	
-				sdla_plxctrl_read8(hw, PLX_EEPROM_VENDOR_OFF+1, &val);
-				vendor_id |= val;	
-				if (vendor_id != SANGOMA_PCI_VENDOR){
-					hwcard->pci_bridge_dev = NULL;
-					hwcard->pci_bridge_bus = 0; 
-					hwcard->pci_bridge_slot = 0;
-				}
-			}
+			sdla_pcibridge_info(hw);
 		}
 	}
-	if (hwcard->hwec_chan_no){
+	if (hwcard->hwec_chan_no && !hwcard->hwec_ind){
 		/* These card has Echo Cancellation module */
 #if defined(__WINDOWS__)
 		/* Special case for Windows driver:
@@ -2312,6 +2345,39 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 	return number_of_cards;
 }
 
+static int sdla_pcibridge_detect(sdlahw_card_t *hwcard)
+{
+#if defined(__LINUX__)
+	sdla_pci_dev_t	pcibridge_dev = NULL;
+	struct pci_bus*	bus = NULL;
+
+	WAN_ASSERT(hwcard->pci_dev == NULL);
+
+	if (hwcard->pci_dev->bus == NULL) return 0;
+	bus = hwcard->pci_dev->bus;
+	if (bus->self == NULL) return 0;
+	pcibridge_dev = bus->self;
+	
+	if (pcibridge_dev->vendor == PLX_VENDOR_ID && 
+	    (pcibridge_dev->device == PLX_DEVICE_ID ||
+	     pcibridge_dev->device == PLX2_DEVICE_ID)){
+		hwcard->pci_bridge_dev = pcibridge_dev;
+		hwcard->pci_bridge_bus = hwcard->bus_no; 
+		hwcard->pci_bridge_slot = hwcard->slot_no;
+		DEBUG_TEST("%s: PCI-Express card (PLX PCI Bridge, bus:%d, slot:%d)\n",
+			wan_drvname, hwcard->bus_no, hwcard->slot_no);
+	}else if (pcibridge_dev->vendor == TUNDRA_VENDOR_ID && 
+	          pcibridge_dev->device == TUNDRA_DEVICE_ID){
+		hwcard->pci_bridge_dev = pcibridge_dev;
+		hwcard->pci_bridge_bus = hwcard->bus_no; 
+		hwcard->pci_bridge_slot = hwcard->slot_no;
+		DEBUG_TEST("%s: PCI-Express card (TUNDRA PCI Bridge, bus:%d, slot:%d)\n",
+			wan_drvname, hwcard->bus_no, hwcard->slot_no);
+	}
+#endif
+	return 0;
+}
+
 /*
 *****************************************************************************
 **			sdla_pci_probe
@@ -2418,10 +2484,6 @@ sdla_pci_probe_aft(sdlahw_t *hw, int slot_no, int bus_no, int irq)
 	u16		pci_device_id;
 	u16		PCI_subsys_vendor;
 	u16		pci_subsystem_id;
-#if defined(__LINUX__)
-        struct pci_dev*	pci_bridge_dev = NULL;
-	struct pci_bus*	bus = NULL;
-#endif
 
 	WAN_ASSERT(hw == NULL);
 	WAN_ASSERT(hw->hwcpu == NULL);
@@ -2525,6 +2587,7 @@ sdla_pci_probe_aft(sdlahw_t *hw, int slot_no, int bus_no, int irq)
 		sdla_card_unregister(SDLA_PCI_CARD, slot_no, bus_no, 0); 
 		return 0;
 	}
+	hwcard->pci_dev	= tmp_hwcard->pci_dev;
 #if defined(__LINUX__)
 	/* Detect PCI Express cards (only valid for production test) */
 	switch(PCI_subsys_vendor){	
@@ -2540,19 +2603,7 @@ sdla_pci_probe_aft(sdlahw_t *hw, int slot_no, int bus_no, int irq)
 	case AFT_4SERIAL_V35X21_SUBSYS_VENDOR:
 	case AFT_2SERIAL_RS232_SUBSYS_VENDOR:
 	case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
-		if (tmp_hwcard->pci_dev->bus == NULL) break;
-		bus = tmp_hwcard->pci_dev->bus;
-		if (bus->self == NULL) break;
-		pci_bridge_dev = bus->self;
-		if (pci_bridge_dev->vendor == PLX_VENDOR_ID && 
-		    (pci_bridge_dev->device == PLX_DEVICE_ID ||
-		     pci_bridge_dev->device == PLX2_DEVICE_ID)){
-			hwcard->pci_bridge_dev = pci_bridge_dev;
-			hwcard->pci_bridge_bus = bus_no; 
-			hwcard->pci_bridge_slot = slot_no;
-			DEBUG_TEST("%s: PCI-Express card (bus:%d, slot:%d)\n",
-				wan_drvname, bus_no, slot_no);
-		}
+		sdla_pcibridge_detect(hwcard);
 		break;
 	}	
 #endif
@@ -2573,7 +2624,6 @@ sdla_pci_probe_aft(sdlahw_t *hw, int slot_no, int bus_no, int irq)
 			break;
 		}
 	}
-	hwcard->pci_dev	= tmp_hwcard->pci_dev;
 	return sdla_aft_hw_select(hwcard, SDLA_CPU_A, irq, NULL);
 }
 
@@ -7017,8 +7067,14 @@ static int sdla_cmp_adapter_auto(sdlahw_t	 *hw, wandev_conf_t* conf)
 	sdlahw_cpu_t	*hwcpu = NULL;
 	int		cpu_no = SDLA_CPU_A;
 
+	WAN_ASSERT(conf == NULL);
+	WAN_ASSERT(hw == NULL);
 	WAN_ASSERT(hw->hwcpu == NULL);
 	hwcpu = hw->hwcpu;
+
+	if (conf->S514_CPU_no[0] == 'B'){
+		cpu_no = SDLA_CPU_B;
+	}
 
 	switch(conf->card_type){
 	case WANOPT_S51X:
@@ -8392,6 +8448,41 @@ int sdla_pci_bridge_read_config_dword(void* phw, int reg, u_int32_t* value)
 	FUNC_NOT_IMPL
 #else
 # warning "sdla_pci_bridge_read_config_dword: Not supported yet!"
+#endif
+	return 0;
+}
+
+static int sdla_pci_bridge_read_config_word(void* phw, int reg, u_int16_t* value)
+{
+	sdlahw_t*	hw = (sdlahw_t*)phw;
+	sdlahw_card_t*	card;
+	sdlahw_cpu_t*	hwcpu;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	
+	if (!sdla_is_pciexpress(hw)){
+		*value = 0xFFFF;
+		return 0;	
+	}
+	WAN_ASSERT(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT(hwcpu->hwcard == NULL);
+	card = hwcpu->hwcard;
+#if defined(__FreeBSD__)
+# if (__FreeBSD_version > 400000)
+	*value = pci_read_config(card->pci_bridge_dev, reg, 2);
+# else
+	*value = ci_cfgread(card->pci_bridge_dev, reg, 2);
+# endif
+#elif defined(__NetBSD__) || defined(__OpenBSD__)
+	*value = pci_conf_read(card->pci_bridge_dev->pa_pc, card->pci_bridge_dev->pa_tag, reg);
+#elif defined(__LINUX__)
+	pci_read_config_word(card->pci_bridge_dev, reg, value);
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
+#else
+# warning "sdla_pci_bridge_read_config_word: Not supported yet!"
 #endif
 	return 0;
 }

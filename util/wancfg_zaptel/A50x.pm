@@ -92,8 +92,25 @@ sub prompt_user_list{
 	}
 }
 
+sub get_alpha_from_num {
+	my ($num) = @_;
+	my $alpha_str="";	
+	my $alpha_char="";
+	my $i;
+	my @chars = split(//, $num);
+	for $i (0..$#chars) {
+		if ( $i == 0 ) {
+			$alpha_char=chr(ord(@chars[$i])+48);	
+		} else {
+			$alpha_char=chr(ord(@chars[$i])+49);	
+		}
+		$alpha_str=$alpha_str."".$alpha_char;
+	}
+	return $alpha_str;
+}
+
 sub gen_wanpipe_conf{
-	my ($self) = @_;
+	my ($self, $is_freebsd) = @_;
 	my $wanpipe_conf_template = $self->card->current_dir."/templates/wanpipe.tdm_api.a500";
 	my $wanpipe_conf_file = $self->card->current_dir."/".$self->card->cfg_dir."/wanpipe".$self->card->device_no.".conf";
 
@@ -105,6 +122,7 @@ sub gen_wanpipe_conf{
 	my $fe_line = $self->fe_line;
 	my $hwec_mode = $self->card->hwec_mode;
 
+	my $device_alpha = &get_alpha_from_num($device_no);
 
 	open(FH, $wanpipe_conf_template) or die "Can't open $wanpipe_conf_template";
 	my $wp_file='';
@@ -115,6 +133,13 @@ sub gen_wanpipe_conf{
 
 	open(FH, ">>$wanpipe_conf_file") or die "Cant open $wanpipe_conf_file";
         $wp_file =~ s/DEVNUM/$device_no/g;
+
+	if ( $is_freebsd ) {
+	        $wp_file =~ s/IFNUM/$device_alpha/g;
+	} else {
+		$wp_file =~ s/IFNUM/$device_no/g;
+	}
+
         $wp_file =~ s/SLOTNUM/$pci_slot/g;
         $wp_file =~ s/BUSNUM/$pci_bus/g;
         $wp_file =~ s/FEMEDIA/$fe_media/g;

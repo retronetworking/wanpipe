@@ -60,6 +60,8 @@
 
 #define OHT_TIMER		6000	/* How long after RING to retain OHT */
 
+#define FXO_LINK_DEBOUNCE	200
+
 #define MAX_ALARMS		10
 
 /* Interrupt flag enable */
@@ -79,6 +81,7 @@
 #define IS_TDMV_RUNNING(wr)	wan_test_bit(WP_TDMV_RUNNING, &(wr)->flags)
 #define IS_TDMV_UP(wr)		wan_test_bit(WP_TDMV_UP, &(wr)->flags)
 #define IS_TDMV_UP_RUNNING(wr)	(IS_TDMV_UP(wr) && IS_TDMV_RUNNING(wr))
+
 
 /*******************************************************************************
 **			STRUCTURES AND TYPEDEFS
@@ -186,6 +189,17 @@ static void wp_tdmv_remora_dtmf (void* card_id, wan_event_t *event);
 
 extern int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane);
 extern int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane);
+
+
+#if 0
+#define WAN_SYNC_RX_TX_TEST 1
+#warning "WAN_SYNC_RX_TX_TEST: Test option Enabled" 
+static int wp_tdmv_remora_rx_chan_sync_test(sdla_t *card, wp_tdmv_remora_t *wr, int channo, 
+					    unsigned char *rxbuf,
+					    unsigned char *txbuf);
+#else
+#undef WAN_SYNC_RX_TX_TEST
+#endif
 
 /*******************************************************************************
 **			  FUNCTION DEFINITIONS
@@ -514,6 +528,14 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 	wr = chan->pvt;
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card = wr->card;
+	
+	fe_chan--;
+
+	if (enable) {
+		wan_set_bit(fe_chan,&card->wandev.rtp_tap_call_map);
+	} else {
+		wan_clear_bit(fe_chan,&card->wandev.rtp_tap_call_map);
+	}
 
 	if (card->wandev.ec_enable){
 		/* The ec persist flag enables and disables
@@ -710,6 +732,32 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 		}
 	}
 #endif	
+
+	if (abs(b) <= 1){
+		fe->rm_param.mod[mod_no].u.fxo.statusdebounce ++;
+		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce >= FXO_LINK_DEBOUNCE){
+			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_DISCONNECTED){
+				DEBUG_EVENT(
+				"%s: Module %d: FXO Line is disconnnected!\n",
+								wr->devname,
+								mod_no + 1);
+				fe->rm_param.mod[mod_no].u.fxo.status = FE_DISCONNECTED;
+			}
+			fe->rm_param.mod[mod_no].u.fxo.statusdebounce = FXO_LINK_DEBOUNCE;
+		}
+	}else{
+		fe->rm_param.mod[mod_no].u.fxo.statusdebounce--;
+		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce <= 0) {
+			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_CONNECTED){
+				DEBUG_EVENT(
+				"%s: Module %d: FXO Line is connected!\n",
+								wr->devname,
+								mod_no + 1);
+				fe->rm_param.mod[mod_no].u.fxo.status = FE_CONNECTED;
+			}
+			fe->rm_param.mod[mod_no].u.fxo.statusdebounce = 0;
+		}
+	}
 
 	if (abs(b) < wr->battthresh) {
 		wr->mod[mod_no].fxo.nobatttimer++;
@@ -954,6 +1002,28 @@ int wp_tdmv_remora_init(wan_tdmv_iface_t *iface)
 	return 0;
 }
 
+static int wp_remora_chanconfig(struct zt_chan *chan, int sigtype)
+{
+	wp_tdmv_remora_t	*wr = NULL;
+	sdla_t			*card = NULL;
+
+	WAN_ASSERT2(chan == NULL, -ENODEV);
+	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
+	wr = chan->pvt;
+	card = wr->card;
+
+	DEBUG_TDMV("%s: Configuring chan %d SigType %i..\n", wr->devname, chan->chanpos, sigtype);
+
+#ifdef ZT_POLICY_WHEN_FULL
+	if (WAN_FE_NETWORK_SYNC(&card->fe)) {
+		chan->txbufpolicy = ZT_POLICY_WHEN_FULL;
+		chan->txdisable = 1;
+	}
+#endif
+
+	return 0;		
+}
+
 static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 {
 	sdla_t			*card = NULL;
@@ -1027,6 +1097,7 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 			}
 			wr->chans[x].chanpos = x+1;
 			wr->chans[x].pvt = wr;
+
 			num++;
 		}else{
 
@@ -1049,10 +1120,14 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 	wr->span.flags		= ZT_FLAG_RBS;
 	wr->span.ioctl		= wp_remora_zap_ioctl;
 	wr->span.watchdog	= wp_remora_zap_watchdog;
+
+	wr->span.chanconfig 	= wp_remora_chanconfig;
+
 	/* Set this pointer only if card has hw echo canceller module */
 	if (wr->hwec == WANOPT_YES && card->wandev.ec_dev){
 		wr->span.echocan = wp_remora_zap_hwec;
 	}
+
 #if defined(__LINUX__)
 	init_waitqueue_head(&wr->span.maintq);
 #endif
@@ -1414,6 +1489,8 @@ static int wp_tdmv_remora_is_rbsbits(wan_tdmv_t *wan_tdmv)
 **
 **	OK
 */
+
+
 static int wp_tdmv_remora_rx_chan(wan_tdmv_t *wan_tdmv, int channo, 
 			unsigned char *rxbuf,
 			unsigned char *txbuf)
@@ -1438,6 +1515,7 @@ static int wp_tdmv_remora_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 #endif
 
 #if 0
+if (channo == 1){ 
 DEBUG_EVENT("Module %d: RX: %02X %02X %02X %02X %02X %02X %02X %02X\n",
 		channo,
 					rxbuf[0],
@@ -1449,13 +1527,36 @@ DEBUG_EVENT("Module %d: RX: %02X %02X %02X %02X %02X %02X %02X %02X\n",
 					rxbuf[6],
 					rxbuf[7]
 					);
+}
 #endif
+
+#ifdef ZT_POLICY_WHEN_FULL
+	/* This feature is used to change zaptel buffering that improves
+	   faxing between analog & SMG. Enable this feature ONLY when 
+	   network sync is ON */
+	if (WAN_FE_NETWORK_SYNC(&card->fe) && 
+	    wr->chans[channo].txbufpolicy != ZT_POLICY_WHEN_FULL) {
+		DEBUG_EVENT("%s: RX CHAN %i Setting FULL POLICY\n", 
+			card->devname,channo);
+		wr->chans[channo].txbufpolicy = ZT_POLICY_WHEN_FULL;
+	}
+#endif
+
+#ifdef WAN_SYNC_RX_TX_TEST
+	/* This feature should be used with HWDTMF enabled, otherwise
+  	 * analog will not be able to dial. This is a debugging feature
+	 * should NEVER be used in production only for testing */
+	wp_tdmv_remora_rx_chan_sync_test(card,wr,channo,rxbuf,txbuf);
+#endif
+ 
 	wr->chans[channo].readchunk = rxbuf;	
 	wr->chans[channo].writechunk = txbuf;	
+
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 	wp_tdmv_echo_check(wan_tdmv, &wr->chans[channo], channo);
 #endif		
+
 
 	if ((!card->wandev.ec_enable || card->wandev.ec_enable_map == 0) && 
 	     !wan_test_bit(channo, &wr->echo_off_map)) {
@@ -1505,6 +1606,7 @@ DEBUG_EVENT("Module %d: RX: %02X %02X %02X %02X %02X %02X %02X %02X\n",
 		} /*if(pwr_rxtx->current_state != ECHO_ABSENT) */
 #endif
 	} /* if (!wan_test_bit(channo, &wr->echo_off_map)) */
+
 
 	return 0;
 }
@@ -1733,3 +1835,82 @@ static void wp_tdmv_remora_dtmf (void* card_id, wan_event_t *event)
 	}
 	return;
 }
+
+
+#ifdef WAN_SYNC_RX_TX_TEST
+
+#warning "WAN_SYNC_RX_TX_TEST: Test option Enabled" 
+
+static unsigned char gstat_rx_chan[1024];
+static unsigned char gstat_tx_chan[1024];
+static unsigned char gstat_sync[1024];
+static unsigned char gstat_sync_stat[1024];
+
+static int wp_tdmv_remora_rx_chan_sync_test(sdla_t *card, wp_tdmv_remora_t *wr, int channo, 
+					    unsigned char *rxbuf,
+					    unsigned char *txbuf)
+
+{
+
+	/* This feature should be used with HWDTMF enabled, otherwise
+  	 * analog will not be able to dial. This is a debugging feature
+	 * should NEVER be used in production only for testing */
+	if (1 || wan_test_bit(channo,&card->wandev.rtp_tap_call_map)) {
+
+#if 0
+		if (*(unsigned int*)&wr->chans[channo].writechunk[0] == 0xD5D5D5D5 &&
+		    *(unsigned int*)&wr->chans[channo].writechunk[4] == 0xD5D5D5D5) {
+			DEBUG_EVENT("%s: Chan %i Rx Frame Slip!\n",		
+					card->devname,channo);
+		}
+#endif
+
+		int i;
+
+		/* Pass up a sequence */
+		for (i=0;i<8;i++) {
+			rxbuf[i]=++gstat_rx_chan[channo];
+		}
+
+
+		/* Check for incoming sequence */
+		if (gstat_sync_stat[channo] == 0) {
+			DEBUG_EVENT("%s: Starting to hunt for sync on %i  map=0x%lX\n",		
+					card->devname,channo, card->wandev.rtp_tap_call_map);
+			gstat_sync_stat[channo]++;
+		}
+		
+		for (i=0;i<8;i++) {
+
+			if (gstat_sync[channo] == 0) {
+
+				if (wr->chans[channo].writechunk[i] == 0x01) {
+					gstat_sync[channo] = 1;
+					gstat_tx_chan[channo]=wr->chans[channo].writechunk[i];
+					DEBUG_EVENT("%s: Chan=%i Sync got=%i offset=%i\n",
+						card->devname,channo,wr->chans[channo].writechunk[i],i);
+				}
+
+			} else {  
+
+				gstat_tx_chan[channo]++;
+				if (gstat_tx_chan[channo] !=  wr->chans[channo].writechunk[i]) {
+					int x;
+					DEBUG_EVENT("%s: Chan=%i Out of Sync expecting=%i got=%i offset=%i\n",
+							card->devname,channo,
+							gstat_tx_chan[channo],wr->chans[channo].writechunk[i],i);
+
+					gstat_tx_chan[channo] = wr->chans[channo].writechunk[i];
+					gstat_sync[channo] = 0;
+
+					for (x=0;x<8;x++){ 
+						DEBUG_EVENT("chan=%i off=%i data=%i\n",channo,x,wr->chans[channo].writechunk[x]);
+					}
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+#endif

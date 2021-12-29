@@ -603,6 +603,8 @@ static void wplip_prot_timer(wan_timer_arg_t arg)
 		prot_iface->timer(lip_link->prot,&period,0);
 	}
 
+	wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+
 	if (wan_skb_queue_len(&lip_link->tx_queue)){
 		wplip_trigger_bh(lip_link);
 	}
@@ -613,7 +615,6 @@ static void wplip_prot_timer(wan_timer_arg_t arg)
 
 	wan_add_timer(&lip_link->prot_timer,period);
 
-	wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
 }
 
 static int wplip_prot_rx_up(void *lip_dev_ptr, void *skb, int type)

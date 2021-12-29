@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1_ds.h,v 1.15 2008/02/06 19:32:19 sangoma Exp $
+ *	$Id: sdla_te1_ds.h,v 1.15 2008-02-06 19:32:19 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -134,6 +134,9 @@
 
 #define REG_E1EBCR1		0x56
 #define REG_E1EBCR2		0x57
+
+#define REG_E1RNAF		0x65
+#define BIT_E1RNAF_A		0x20
 
 #define REG_RMMR		0x80
 #define BIT_RMMR_FRM_EN		0x80
@@ -514,6 +517,7 @@
 #define REG_E1TAF		0x164
 
 #define REG_E1TNAF		0x165
+#define BIT_E1TNAF_A		0x20
 
 #define REG_E1TSa4		0x169
 #define REG_E1TSa5		0x16A

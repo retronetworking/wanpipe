@@ -1,0 +1,171 @@
+Index: chan_woomera.c
+===================================================================
+--- chan_woomera.c	(revision 66)
++++ chan_woomera.c	(working copy)
+@@ -14,6 +14,11 @@
+  * This program is free software, distributed under the terms of
+  * the GNU General Public License
+  * =============================================
++ * v1.34 Nenad Corbic <ncorbic@sangoma.com>
++ * Jul 23 2008
++ *	Added udp tagging and rx/tx sync options for
++ *	voice streams debugging. Not for production.
++ *
+  * v1.33 Nenad Corbic <ncorbic@sangoma.com>
+  * Jul 18 2008
+  *	Added UDP Sequencing to check for dropped frames
+@@ -193,7 +198,7 @@
+ #include "asterisk/dsp.h"
+ #include "asterisk/musiconhold.h"
+ 
+-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.33 $")
++ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.34 $")
+ 
+ #else
+ 
+@@ -243,7 +248,7 @@
+ #define CALLWEAVER_19 1
+ #endif
+ 
+-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.33 $")
++CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.34 $")
+ 
+ /* CALLWEAVER v1.9 and later */
+ #if defined (CALLWEAVER_19) 
+@@ -499,7 +504,7 @@
+ 
+ extern int option_verbose;
+ 
+-#define WOOMERA_VERSION "v1.33"
++#define WOOMERA_VERSION "v1.34"
+ #ifndef WOOMERA_CHAN_NAME
+ #define WOOMERA_CHAN_NAME "SS7"
+ #endif
+@@ -691,6 +696,10 @@
+ 	char language[WOOMERA_STRLEN];
+ 	char* tg_language [WOOMERA_MAX_TRUNKGROUPS+1];
+ 	int udp_seq;
++	int rx_sync_check_opt;
++	int tx_sync_check_opt;
++	int tx_sync_gen_opt;
++	
+ };
+ 
+ 
+@@ -739,6 +748,11 @@
+         struct ast_jb_conf jbconf;
+ #endif /* AST_JB */
+ 
++	int sync_r;
++	int sync_w;
++	unsigned char sync_data_w;
++	unsigned char sync_data_r;
++
+ };
+ 
+ typedef struct private_object private_object;
+@@ -3742,7 +3756,7 @@
+ 	if (!tech_pvt || globals.panic || ast_test_flag(tech_pvt, TFLAG_ABORT)) {
+ 		return NULL;
+ 	}
+-
++	
+ tech_read_again:
+ 
+ 	res = waitfor_socket(tech_pvt->udp_socket, 1000);
+@@ -3760,6 +3774,8 @@
+ 		return NULL;
+ 	}
+ 
++	/* Used for adding sequence numbers to udp packets.
++ 	   should only be used for debugging */
+ 	if (tech_pvt->profile->udp_seq){
+ 		char *rxdata=(char*)(tech_pvt->fdata + AST_FRIENDLY_OFFSET);
+ 		res-=4;
+@@ -3772,12 +3788,39 @@
+ 		} else {
+ 			tech_pvt->rx_udp_seq++;
+ 			if (tech_pvt->rx_udp_seq != *((unsigned int*)(&rxdata[res]))) {
+-				ast_log(LOG_NOTICE, "%s: Error: Missing Rx Sequence Expect %i Received %i!\n", self->name,tech_pvt->rx_udp_seq, *((unsigned int*)(&rxdata[res])));
++				ast_log(LOG_NOTICE, "%s: Error: Missing Rx Sequence Expect %i Received %i!\n", 
++					self->name,tech_pvt->rx_udp_seq, *((unsigned int*)(&rxdata[res])));
+ 				tech_pvt->rx_udp_seq = *((unsigned int*)(&rxdata[res]));
+ 			}
+ 		}
+ 	}
+ 
++	/* Used for checking incoming udp stream. Should only be used for debugging. */
++	if (tech_pvt->profile->rx_sync_check_opt){
++		int i;
++		unsigned char *data = (unsigned char*)(tech_pvt->fdata + AST_FRIENDLY_OFFSET);
++		for (i=0;i<res;i++) {
++			if (tech_pvt->sync_r == 0) {
++				if (data[i] == 0x01) {
++					if (globals.debug > 2) {
++						ast_log(LOG_NOTICE, "%s: R Sync Acheived Offset=%i\n", self->name,i);
++					}
++					tech_pvt->sync_r=1;
++					tech_pvt->sync_data_r = data[i];
++				}
++			} else {
++				tech_pvt->sync_data_r++;
++				if (tech_pvt->sync_data_r != data[i]) {
++					ast_log(LOG_NOTICE, "%s: R Sync Lost: Expected %i  Got %i  Offset=%i\n", 
++							self->name,
++							tech_pvt->sync_data_r, data[i],i);
++					tech_pvt->sync_r=0;
++				}
++			}
++		}
++	}
++
++
+ 	tech_pvt->frame.frametype = AST_FRAME_VOICE;
+         tech_pvt->frame.subclass = tech_pvt->coding;
+         tech_pvt->frame.offset = AST_FRIENDLY_OFFSET;
+@@ -3867,6 +3910,45 @@
+ 		return 0;
+ 	} 
+ 
++	/* Used for debugging only never in production */
++	if (tech_pvt->profile->tx_sync_check_opt){
++		unsigned char *data = frame->data;
++		for (i=0;i<frame->datalen;i++) {
++			if (tech_pvt->sync_w == 0) {
++				if (data[i] == 0x01 && data[i+1] == 0x02) {
++					ast_log(LOG_NOTICE, "%s: W Sync Acheived Offset=%i\n", self->name,i);
++					tech_pvt->sync_w=1;
++					tech_pvt->sync_data_w = data[i];
++				}
++			} else if (tech_pvt->sync_w == 1) {
++				tech_pvt->sync_data_w++;
++				if (tech_pvt->sync_data_w != data[i]) {
++					ast_log(LOG_NOTICE, "%s: W Sync Lost: Expected %i  Got %i  Offset=%i\n", 
++							self->name,
++							tech_pvt->sync_data_w, data[i],i);
++					tech_pvt->sync_w=0;
++					if (0){
++						int x;
++						ast_log(LOG_NOTICE, "%s: PRINTING FRAME Len=%i\n", 
++								self->name,frame->datalen);
++						for (x=0;x<frame->datalen;x++) {
++							ast_log(LOG_NOTICE, "%s: Off=%i Data %i\n", 
++								self->name,x,data[x]);
++						}
++					}
++				}
++			}
++		}
++
++	/* Used for debugging only never in production */
++	} else if (tech_pvt->profile->tx_sync_gen_opt){
++		unsigned char *data = frame->data;
++		int x;
++		for (x=0;x<frame->datalen;x++) {
++			data[x]=++tech_pvt->sync_data_w;
++		}
++	}
++
+ 	if(ast_test_flag(tech_pvt, TFLAG_MEDIA) && frame->datalen) {
+ 		if (frame->frametype == AST_FRAME_VOICE) {
+ 		

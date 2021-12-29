@@ -3229,7 +3229,7 @@ static void process_udp_mgmt_pkt(sdla_t *card, netdevice_t *dev,
 		
 		case WAN_GET_MEDIA_TYPE:
 		case WAN_FE_GET_STAT:
-		case WAN_FE_SET_LB_MODE:
+		case WAN_FE_LB_MODE:
  		case WAN_FE_FLUSH_PMON:
 		case WAN_FE_GET_CFG:
 

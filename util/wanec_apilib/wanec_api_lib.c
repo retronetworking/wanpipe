@@ -3,9 +3,9 @@
 **	Alex Feldman <al.feldman@sangoma.com>.  All rights reserved.
 **
 ** ============================================================================
-** Oct 13, 2005		Alex Feldman	Initial version.
-**
+** May 29, 2008		Alex Feldman 	Merge two monitor function in one call.
 ** Jul 26, 2006		David Rokhvarg	<davidr@sangoma.com>	Ported to Windows.
+** Oct 13, 2005		Alex Feldman	Initial version.
 ******************************************************************************/
 
 /******************************************************************************
@@ -160,7 +160,7 @@ typedef struct {
 
 wanec_image_list_t	wanec_image_list[] = 
 	{
-		{ 16,  1, { &wanec_image_32  } },
+		{ 16,  2, { &wanec_image_64, &wanec_image_32 } },
 		{ 32,  2, { &wanec_image_64, &wanec_image_32 } },
 		{ 64,  1, { &wanec_image_64  } },
 		{ 128, 2, { &wanec_image_256, &wanec_image_128 } },
@@ -729,92 +729,130 @@ buffer_load_done:
 	return err;
 }
 
-int wanec_api_lib_monitor(wan_ec_api_t *ec_api)
+#define WANEC_API_MONITOR_NEW
+static int wanec_api_lib_monitor_start(wan_ec_api_t *ec_api)
 {
-	int	dev, err=0;
-#if !defined(__WINDOWS__)
-	if (ec_api->fe_chan){
+	int dev, err;
+	
+	dev = wanec_api_lib_open(ec_api);
+	if (dev < 0){
+		return ENXIO;
+	}
+	printf("%s: Starting monitor on channel %d ...",
+					ec_api->devname,
+					ec_api->fe_chan);
+	err = wanec_api_lib_ioctl(dev, ec_api, 1);
+	if (err || ec_api->err){
+		wanec_api_lib_close(ec_api, dev);
+		return (err) ? -EINVAL : 0;
+	}
+#if defined(WANEC_API_MONITOR_NEW)
+ 	printf("\n");
+#else
+	printf("Done!\n");
+#endif
+	wanec_api_lib_close(ec_api, dev);
+	return 0;
+}
 
+static int wanec_api_lib_monitor_stop(wan_ec_api_t *ec_api)
+{
+	FILE	*output = NULL;
+	size_t	len;
+	int	dev, err = 0, cnt = 0;
+	char	filename[MAXPATHLEN];
+		
+	printf("%s: Reading Monitor Data ..",
+				ec_api->devname); fflush(stdout);
+	/* Set to zero for the first call only */
+	ec_api->u_chan_monitor.remain_len = 0;
+	do {
 		dev = wanec_api_lib_open(ec_api);
 		if (dev < 0){
 			return ENXIO;
 		}
-
-		printf("%s: Start monitorting the channel %d ...",
-				ec_api->devname,
-				ec_api->fe_chan);
-		err = wanec_api_lib_ioctl(dev, ec_api, 1);
+		ec_api->fe_chan = 0;
+		ec_api->u_chan_monitor.data_len = 0;
+		ec_api->u_chan_monitor.max_len = MAX_MONITOR_DATA_LEN;
+		err = wanec_api_lib_ioctl(dev, ec_api, 0);
 		if (err || ec_api->err){
-			wanec_api_lib_close(ec_api, dev);
-			return (err) ? -EINVAL : 0;
+			err = (err) ? -EINVAL : 0;
+			goto monitor_done;
 		}
-		printf("Done!\n");
-		wanec_api_lib_close(ec_api, dev);
-	}else{
-
-		FILE		*output = NULL;
-		size_t		len;
-		int		cnt = 0;
-		char		filename[MAXPATHLEN];
-		
-		printf("%s: Reading Monitor Data ..",
-					ec_api->devname);
-		do {
-			dev = wanec_api_lib_open(ec_api);
-			if (dev < 0){
-				return ENXIO;
-			}
-			ec_api->fe_chan = 0;
-			ec_api->u_chan_monitor.remain_len = 0;
-			ec_api->u_chan_monitor.remain_len = 0;
-			ec_api->u_chan_monitor.data_len = 0;
-			ec_api->u_chan_monitor.max_len = MAX_MONITOR_DATA_LEN;
-			err = wanec_api_lib_ioctl(dev, ec_api, 0);
-			if (err || ec_api->err){
-				err = (err) ? -EINVAL : 0;
-				goto monitor_done;
-			}
-			if (output == NULL){
-				struct timeval	tv;
-				struct tm	t;
-				/* Firsr data */
-				memset(filename, 0, MAXPATHLEN);
-				gettimeofday(&tv, NULL);
-				localtime_r((time_t*)&tv.tv_sec, &t);
-				snprintf(filename, MAXPATHLEN,
-				"%s_%s_chan%d_%d.%d.%d_%d.%d.%d.bin",
+		if (output == NULL){
+			struct timeval	tv;
+			struct tm	t;
+			/* Firsr data */
+			memset(filename, 0, MAXPATHLEN);
+			gettimeofday(&tv, NULL);
+			localtime_r((time_t*)&tv.tv_sec, &t);
+			snprintf(filename, MAXPATHLEN,
+			"%s_%s_chan%d_%d.%d.%d_%d.%d.%d.bin",
 					WAN_EC_NAME,
 					ec_api->devname, ec_api->fe_chan,
 					t.tm_mon,t.tm_mday,1900+t.tm_year,
 					t.tm_hour,t.tm_min,t.tm_sec);
-				output = fopen(filename, "wb");
-				if (output == NULL){
-					printf("Failed!\n");
-					printf("ERROR: %s: Failed to open binary file (%s)\n",
-							ec_api->devname, filename);
-					err = -EINVAL;
-					goto monitor_done;
-				}
-			}
-			len = fwrite(&ec_api->u_chan_monitor.data[0], sizeof(UINT8),
-					ec_api->u_chan_monitor.data_len, output);
-			if (len != ec_api->u_chan_monitor.data_len){
+			output = fopen(filename, "wb");
+			if (output == NULL){
 				printf("Failed!\n");
-				printf("ERROR: %s: Failed to write to binary file (%s)!\n",
-							ec_api->devname, filename);
+				printf("ERROR: %s: Failed to open binary file (%s)\n",
+						ec_api->devname, filename);
 				err = -EINVAL;
 				goto monitor_done;
 			}
-			if (++cnt % 100 == 0){
-				printf(".");
-			}
-			wanec_api_lib_close(ec_api, dev);
-		}while(ec_api->u_chan_monitor.remain_len);
-		if (output) fclose(output);
-		printf("Done!\n");
-		printf("Binary dump information is stored in %s file.\n", filename);
-	}
+		}
+		len = fwrite(&ec_api->u_chan_monitor.data[0], sizeof(UINT8),
+				ec_api->u_chan_monitor.data_len, output);
+		if (len != ec_api->u_chan_monitor.data_len){
+			printf("Failed!\n");
+			printf("ERROR: %s: Failed to write to binary file (%s)!\n",
+						ec_api->devname, filename);
+			err = -EINVAL;
+			goto monitor_done;
+		}
+		if (++cnt % 100 == 0){
+			printf(".");
+		}
+		wanec_api_lib_close(ec_api, dev);
+	}while(ec_api->u_chan_monitor.remain_len);
+	if (output) fclose(output);
+	printf("Done!\n");
+	printf("Binary dump information is stored in %s file.\n", filename);
+	
 monitor_done:
+	return err;
+}
+
+int wanec_api_lib_monitor(wan_ec_api_t *ec_api)
+{
+	int	err=0, data_mode, sec, scale = 1;
+
+	data_mode = (ec_api->u_chan_monitor.data_mode == cOCT6100_DEBUG_GET_DATA_MODE_120S) ? 120 : 16;
+
+#if !defined(__WINDOWS__)
+	if (ec_api->fe_chan){
+
+		err = wanec_api_lib_monitor_start(ec_api);
+# if defined(WANEC_API_MONITOR_NEW)
+		printf("\n");
+		printf("Note: You can start talk now in order to record the binary file!\n");
+		printf("      !!! Do not press any key during recording time (%d seconds) !!!\n\n",
+							data_mode);
+		sec = data_mode;
+		do {
+			sleep(scale);
+			sec -= scale;
+			printf("Left: %3d sec(s)\r", sec);fflush(stdout);
+		}while (sec);
+
+		err = wanec_api_lib_monitor_stop(ec_api);
+
+# else
+	}else{
+
+		err = wanec_api_lib_monitor_stop(ec_api);
+# endif
+	}
 #endif
 	return err;
 }

@@ -98,6 +98,8 @@
 #define WP_RM_POLL_EVENT_TIMER	10
 #define WP_RM_POLL_TONE_TIMER	5000
 #define WP_RM_POLL_RING_TIMER	10000
+#define FXO_LINK_DEBOUNCE	1800
+/* FXO_LINK_DEBOUNCE value changed from 200 to 1800 */
 enum {
 	WP_RM_POLL_TONE_DIAL	= 1,
 	WP_RM_POLL_TONE_BUSY,
@@ -229,6 +231,10 @@ enum {
 #define DEFAULT_BATT_DEBOUNCE   16     /* Battery debounce (64 ms) */
 #define POLARITY_DEBOUNCE       16     /* Polarity debounce (64 ms) */
 #define DEFAULT_BATT_THRESH     3      /* Anything under this is "no battery" */
+#define FXO_LINK_THRESH		1      /* fxo link threshold */
+
+
+#define DEFAULT_OH_THRESH     	10      /* Anything under this is "off-hook" */
 
 #define OHT_TIMER		6000	/* How long after RING to retain OHT */
 
@@ -390,8 +396,11 @@ static int acim2tiss[16] = { 0x0, 0x1, 0x4, 0x5, 0x7, 0x0, 0x0, 0x6, 0x0, 0x0, 0
 #if !defined(__WINDOWS__)
 extern WAN_LIST_HEAD(, wan_tdmv_) wan_tdmv_head;
 #endif
-static int battdebounce = 64; //DEFAULT_BATT_DEBOUNCE;
+static int battdebounce = 64; /* DEFAULT_BATT_DEBOUNCE; */
 static int battthresh = DEFAULT_BATT_THRESH;
+
+static int ohdebounce = 64;
+/* ohdebounce change from 128 to 64 */
 
 /*******************************************************************************
 **			  FUNCTION PROTOTYPES
@@ -415,6 +424,7 @@ static unsigned char wp_remora_fe_media(sdla_fe_t *fe);
 static int wp_remora_set_dtmf(sdla_fe_t*, int, unsigned char);
 static int wp_remora_intr_ctrl(sdla_fe_t*, int, u_int8_t, u_int8_t, unsigned int);
 static int wp_remora_event_ctrl(sdla_fe_t*, wan_event_ctrl_t*);
+static int wp_remora_get_link_status(sdla_fe_t *fe, unsigned char *status,int mod_no);
 
 static int wp_remora_add_timer(sdla_fe_t*, unsigned long);
 static int wp_remora_add_event(sdla_fe_t*, sdla_fe_timer_event_t*);
@@ -436,6 +446,7 @@ static int wp_remora_disabletone(sdla_fe_t*, int);
 #if defined(AFT_TDM_API_SUPPORT)
 static int wp_remora_watchdog(sdla_fe_t *fe);
 static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no);
+static void wp_remora_voicedaa_tapper_check_hook(sdla_fe_t *fe, int mod_no);
 #endif
 
 
@@ -709,7 +720,7 @@ static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
 	if (fast) return 0;
 
 	/* powerup */ 
-	//WRITE_RM_REG(mod_no, 93, 0x1F);
+	/*WRITE_RM_REG(mod_no, 93, 0x1F);*/
 	WRITE_RM_REG(mod_no, 14, 0x0);	/* DIFF DEMO 0x10 */
 
 	start_ticks = SYSTEM_TICKS;
@@ -1431,7 +1442,20 @@ int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane)
 					mod_no+1);
 		WRITE_RM_REG(mod_no, 38, 0x7);
 	}
+	
+	if (fe->fe_cfg.cfg.remora.rm_mode == WAN_RM_TAPPING) {
+		DEBUG_EVENT("%s: Module %d: FXO Tapping enabled.\n", fe->name, mod_no+1);
+	}
 
+	if (fe->fe_cfg.cfg.remora.rm_mode == WAN_RM_TAPPING) {
+		 if (!fe->fe_cfg.cfg.remora.ohthresh) {
+			 fe->fe_cfg.cfg.remora.ohthresh = DEFAULT_OH_THRESH;
+		 }
+		 DEBUG_EVENT("%s: Module:%d: Off-hook threshold: %dv\n", fe->name, mod_no+1, fe->fe_cfg.cfg.remora.ohthresh);
+	}
+	 
+	fe->rm_param.mod[mod_no].u.fxo.going_offhook = 0;
+	
 	return 0;
 }
 
@@ -1471,6 +1495,7 @@ int wp_remora_iface_init(void *p_fe, void *pfe_iface)
 #if defined(AFT_TDM_API_SUPPORT) || defined(AFT_API_SUPPORT)
 	fe_iface->watchdog	= &wp_remora_watchdog;
 #endif
+	fe_iface->get_fe_status = &wp_remora_get_link_status;
 
 	WAN_LIST_INIT(&fe->event);
 	wan_spin_lock_irq_init(&fe->lockirq, "wan_rm_lock");
@@ -2637,7 +2662,7 @@ static int wp_remora_regdump(sdla_fe_t* fe, unsigned char *data)
 	return sizeof(wan_remora_udp_t);
 }
 
-static int wp_remora_stats_voltage(sdla_fe_t* fe, unsigned char *data)
+static int wp_remora_stats(sdla_fe_t* fe, unsigned char *data)
 {
 	wan_remora_udp_t	*rm_udp = (wan_remora_udp_t*)data;
 	int			mod_no = 0;
@@ -2651,6 +2676,7 @@ static int wp_remora_stats_voltage(sdla_fe_t* fe, unsigned char *data)
 	} else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
 		rm_udp->type = MOD_TYPE_FXO;
 		rm_udp->u.stats.volt = READ_RM_REG(mod_no, 29);
+		rm_udp->u.stats.status = fe->rm_param.mod[mod_no].u.fxo.status; 
 	} else{
 		return 0;
 	}
@@ -2714,7 +2740,7 @@ static int wp_remora_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 		break;
 
 	case WAN_FE_STATS:
-		err = wp_remora_stats_voltage(fe, data);
+		err = wp_remora_stats(fe, data);
 		if (err){
 			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			udp_cmd->wan_cmd_data_len = (unsigned short)err; 
@@ -2774,7 +2800,7 @@ static int wp_remora_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 
 
 static int wp_init_proslic_recheck_sanity(sdla_fe_t *fe, int mod_no)
-{
+{	
 	int	res;
 		
 	res = READ_RM_REG(mod_no, 64);
@@ -2790,7 +2816,7 @@ static int wp_init_proslic_recheck_sanity(sdla_fe_t *fe, int mod_no)
 			event.rm_event.mod_no	= mod_no;
 			wp_remora_add_event(fe, &event);
 			return 1;
-			//wp_init_proslic(fe, mod_no, 1, 1);
+			/*wp_init_proslic(fe, mod_no, 1, 1);*/
 		} else {
 			if (fe->rm_param.mod[mod_no].u.fxs.palarms++ < MAX_ALARMS) {
 				DEBUG_EVENT(
@@ -2812,11 +2838,235 @@ static int wp_init_proslic_recheck_sanity(sdla_fe_t *fe, int mod_no)
 	return 0;
 }
 
+
+
 #if defined(AFT_TDM_API_SUPPORT) || defined(AFT_API_SUPPORT)
+
+static void wp_remora_voicedaa_tapper_check_hook(sdla_fe_t *fe, int mod_no)
+{
+	
+	sdla_t		*card = NULL;
+	wan_event_t	event;
+	
+	unsigned char res;
+
+	signed char b;
+	
+	int poopy = 0;
+	
+	WAN_ASSERT1(fe->card == NULL);
+	card	= (sdla_t*)fe->card;
+
+	/* Try to track issues that plague slot one FXO's */
+	b = READ_RM_REG(mod_no, 5);
+	if ((b & 0x2) || !(b & 0x8)) {
+		/* Not good -- don't look at anything else */
+		DEBUG_RM("%s: Module %d: Poopy (%02x)!\n",
+			 fe->name, mod_no + 1, b); 
+		poopy++;
+	}
+	
+	if (poopy)
+		return;
+	
+	if (!fe->rm_param.mod[mod_no].u.fxo.offhook) {
+		res = READ_RM_REG(mod_no, 5);	
+		if ((res & 0x60)) {
+			fe->rm_param.mod[mod_no].u.fxo.ringdebounce += (WP_RM_CHUNKSIZE * 4);
+			if (fe->rm_param.mod[mod_no].u.fxo.ringdebounce >= WP_RM_CHUNKSIZE * 128) {	
+	
+				if (!fe->rm_param.mod[mod_no].u.fxo.wasringing) {
+					fe->rm_param.mod[mod_no].u.fxo.wasringing = 1;
+					
+					DEBUG_RM("%s: Module %d: RING!\n",
+						fe->name,
+							mod_no + 1);
+					
+					event.type	= WAN_EVENT_RM_RING_DETECT;
+					event.channel	= mod_no+1;
+					event.ring_mode	= WAN_EVENT_RING_PRESENT;
+					if (card->wandev.event_callback.ringdetect){
+						card->wandev.event_callback.ringdetect(card, &event);
+					}	
+				}
+				
+				fe->rm_param.mod[mod_no].u.fxo.ringdebounce = WP_RM_CHUNKSIZE * 128;
+	
+			}
+		} else {
+	
+			fe->rm_param.mod[mod_no].u.fxo.ringdebounce -= WP_RM_CHUNKSIZE * 1;
+			if (fe->rm_param.mod[mod_no].u.fxo.ringdebounce <= 0) {
+				if (fe->rm_param.mod[mod_no].u.fxo.wasringing) {
+				
+					fe->rm_param.mod[mod_no].u.fxo.wasringing = 0;
+					
+					DEBUG_RM("%s: Module %d: NO RING!\n",
+						fe->name,
+							mod_no + 1);
+					
+					event.type	= WAN_EVENT_RM_RING_DETECT;
+					event.channel	= mod_no+1;
+					event.ring_mode	= WAN_EVENT_RING_STOP;
+					if (card->wandev.event_callback.ringdetect){
+						card->wandev.event_callback.ringdetect(card, &event);
+					}	
+					
+				}
+				fe->rm_param.mod[mod_no].u.fxo.ringdebounce = 0;
+			}
+		}
+	}						    
+	
+		
+	b = READ_RM_REG(mod_no, 29);
+	
+	if (abs(b) <= FXO_LINK_THRESH) {
+		
+		fe->rm_param.mod[mod_no].u.fxo.statusdebounce ++;
+		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce >= FXO_LINK_DEBOUNCE) {
+			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_DISCONNECTED) {
+				DEBUG_EVENT(
+				"%s: Module %d: FXO Line is disconnnected!\n",
+								fe->name,
+								mod_no + 1);
+				fe->rm_param.mod[mod_no].u.fxo.status = FE_DISCONNECTED;
+				
+				event.type	= WAN_EVENT_LINK_STATUS;
+				event.channel	= mod_no+1;
+				event.link_status= WAN_EVENT_LINK_STATUS_DISCONNECTED;
+	
+				if (card->wandev.event_callback.linkstatus) {
+					card->wandev.event_callback.linkstatus(card, &event);
+				}	
+			}		
+			
+			fe->rm_param.mod[mod_no].u.fxo.statusdebounce = FXO_LINK_DEBOUNCE;
+		}
+	} else {
+			
+		fe->rm_param.mod[mod_no].u.fxo.statusdebounce--;
+		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce <= 0) {
+			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_CONNECTED) {
+				DEBUG_EVENT("%s: Module %d: FXO Line is connected!\n",
+								fe->name,
+								mod_no + 1);
+				fe->rm_param.mod[mod_no].u.fxo.status = FE_CONNECTED;
+
+				event.type	= WAN_EVENT_LINK_STATUS;
+				event.channel	= mod_no+1;
+				event.link_status= WAN_EVENT_LINK_STATUS_CONNECTED;
+
+				if (card->wandev.event_callback.linkstatus) {					
+					card->wandev.event_callback.linkstatus(card, &event);				
+				}	
+
+			}
+			fe->rm_param.mod[mod_no].u.fxo.statusdebounce = 0;
+		}
+	}
+	
+
+
+	if (abs(b) < fe->fe_cfg.cfg.remora.ohthresh) {
+		if (!fe->rm_param.mod[mod_no].u.fxo.going_offhook) {
+			/* if we were debouncing towards on_hook, reset timer */
+			
+			fe->rm_param.mod[mod_no].u.fxo.going_offhook = 1;
+			fe->rm_param.mod[mod_no].u.fxo.ohdebounce = ohdebounce;	
+			
+		}
+		if (!fe->rm_param.mod[mod_no].u.fxo.offhook) {
+			fe->rm_param.mod[mod_no].u.fxo.ohdebounce--;
+			
+			if (!fe->rm_param.mod[mod_no].u.fxo.ohdebounce) {
+				DEBUG_RM("%s: Module %d: OFF-HOOK!\n",
+						fe->name,
+						mod_no + 1);
+
+				event.type	= WAN_EVENT_RM_LC;
+				event.channel	= mod_no+1;
+				event.rxhook	= WAN_EVENT_RXHOOK_OFF;
+				if (card->wandev.event_callback.hook) {
+					card->wandev.event_callback.hook(card, &event);
+				}	
+				
+				fe->rm_param.mod[mod_no].u.fxo.offhook = 1;
+				fe->rm_param.mod[mod_no].u.fxo.ohdebounce = ohdebounce;
+			}
+		} 
+	} else {
+		if (fe->rm_param.mod[mod_no].u.fxo.going_offhook) {
+			/* if we were debouncing towards off_hook, reset timer */
+			
+			fe->rm_param.mod[mod_no].u.fxo.going_offhook = 0;
+			fe->rm_param.mod[mod_no].u.fxo.ohdebounce = ohdebounce;	
+			
+		}
+
+		
+		if (fe->rm_param.mod[mod_no].u.fxo.offhook) {
+			fe->rm_param.mod[mod_no].u.fxo.ohdebounce--;
+
+			if (!fe->rm_param.mod[mod_no].u.fxo.ohdebounce) {
+			/*For the first On-hook event after line connected, pass connected event before ON-hook !*/
+
+				if (fe->rm_param.mod[mod_no].u.fxo.status != FE_CONNECTED) {
+					DEBUG_EVENT("%s: Module %d: FXO Line is connected!\n",
+									fe->name,
+									mod_no + 1);
+					fe->rm_param.mod[mod_no].u.fxo.status = FE_CONNECTED;
+	
+					event.type	= WAN_EVENT_LINK_STATUS;
+					event.channel	= mod_no+1;
+					event.link_status= WAN_EVENT_LINK_STATUS_CONNECTED;
+	
+					if (card->wandev.event_callback.linkstatus) {					
+						card->wandev.event_callback.linkstatus(card, &event);				
+					}	
+
+				}
+			
+
+				DEBUG_RM("%s: Module %d: ON-HOOK!\n",
+					    	fe->name,
+	 					mod_no + 1);
+
+				event.type	= WAN_EVENT_RM_LC;
+				event.channel	= mod_no+1;
+				event.rxhook	= WAN_EVENT_RXHOOK_ON;
+				if (card->wandev.event_callback.hook){
+					card->wandev.event_callback.hook(
+							card, &event);
+				}
+					    
+				
+				fe->rm_param.mod[mod_no].u.fxo.offhook = 0;
+				fe->rm_param.mod[mod_no].u.fxo.ohdebounce = ohdebounce;
+			}
+		} 
+
+	}
+
+	
+	/*
+	DEBUG_EVENT("%s: oh_debounce:%d ring_debounce:%d\n", 
+			    fe->name,
+	      		  fe->rm_param.mod[mod_no].u.fxo.tapper_ohdebounce,
+      				fe->rm_param.mod[mod_no].u.fxo.ringdebounce);
+	*/
+
+	return;
+}
+
+
+
+
+
 static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 {
-//#undef DEBUG_RM
-//#define DEBUG_RM DEBUG_EVENT
+/*#undef DEBUG_RM
+  #define DEBUG_RM DEBUG_EVENT*/
 
 	sdla_t		*card = NULL;
 	wan_event_t	event;
@@ -2887,12 +3137,62 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 					}	
 				}
 				fe->rm_param.mod[mod_no].u.fxo.ringdebounce = 0;
-			}
+			} 
 		}
 	}
 #endif
 
-	b = READ_RM_REG(mod_no, 29);
+	b = READ_RM_REG(mod_no, 29);	
+	if (abs(b) <= FXO_LINK_THRESH){
+		
+			fe->rm_param.mod[mod_no].u.fxo.statusdebounce ++;
+			if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce >= FXO_LINK_DEBOUNCE){
+				if (fe->rm_param.mod[mod_no].u.fxo.status != FE_DISCONNECTED){
+					DEBUG_EVENT(
+					"%s: Module %d: FXO Line is disconnnected!\n",
+									fe->name,
+									mod_no + 1);
+					fe->rm_param.mod[mod_no].u.fxo.status = FE_DISCONNECTED;
+						
+					event.type	= WAN_EVENT_LINK_STATUS;
+					event.channel	= mod_no+1;
+					event.link_status= WAN_EVENT_LINK_STATUS_DISCONNECTED;
+					if (card->wandev.event_callback.linkstatus){
+						
+						card->wandev.event_callback.linkstatus(card, &event);
+					
+					}	
+				}		
+				
+				fe->rm_param.mod[mod_no].u.fxo.statusdebounce = FXO_LINK_DEBOUNCE;
+			}
+	}else{
+				
+		fe->rm_param.mod[mod_no].u.fxo.statusdebounce--;
+		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce <= 0) {
+			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_CONNECTED){
+				DEBUG_EVENT(
+				"%s: Module %d: FXO Line is connected!\n",
+								fe->name,
+								mod_no + 1);
+				fe->rm_param.mod[mod_no].u.fxo.status = FE_CONNECTED;
+	
+				event.type	= WAN_EVENT_LINK_STATUS;
+				event.channel	= mod_no+1;
+				event.link_status= WAN_EVENT_LINK_STATUS_CONNECTED;
+
+				if (card->wandev.event_callback.linkstatus){
+					
+					card->wandev.event_callback.linkstatus(card, &event);
+				
+				}	
+	
+	
+			}
+			fe->rm_param.mod[mod_no].u.fxo.statusdebounce = 0;
+		}
+	}
+		
 	if (abs(b) < battthresh) {
 		fe->rm_param.mod[mod_no].u.fxo.nobatttimer++;
 #if 0
@@ -2939,7 +3239,6 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 			fe->rm_param.mod[mod_no].u.fxo.battdebounce = battdebounce;
 
 	} else if (abs(b) > battthresh) {
-
 		if (!fe->rm_param.mod[mod_no].u.fxo.battery &&
 		    !fe->rm_param.mod[mod_no].u.fxo.battdebounce) {
 			DEBUG_RM("%s: Module %d: BATTERY (%s)!\n",
@@ -3014,8 +3313,8 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 		}
 	}
 	return;
-//#undef DEBUG_RM
-//#define DEBUG_RM DEBUG_TEST
+/* #undef DEBUG_RM
+#define DEBUG_RM DEBUG_TEST */
 }
 #endif
 
@@ -3107,6 +3406,7 @@ static void wp_remora_proslic_check_hook(sdla_fe_t *fe, int mod_no)
 static int wp_remora_watchdog(sdla_fe_t *fe)
 {
 	int	mod_no;
+	
 
 
 	for (mod_no = 0; mod_no < fe->rm_param.max_fe_channels; mod_no++) {
@@ -3173,7 +3473,16 @@ static int wp_remora_watchdog(sdla_fe_t *fe)
 				wr->mod[x].fxo.echotune = 0;
 			}
 #endif			
-			wp_remora_voicedaa_check_hook(fe, mod_no);
+			/*FIXME This code is called more often than in zaptel mode. This is WRONG !!! 
+				Fix by calling this code one module per interrupt !	*/
+
+
+			if (fe->fe_cfg.cfg.remora.rm_mode == WAN_RM_TAPPING) {
+				wp_remora_voicedaa_tapper_check_hook(fe, mod_no);	
+			} else {
+				wp_remora_voicedaa_check_hook(fe, mod_no);	
+			}
+			
 		}
 	}
 	
@@ -3570,6 +3879,35 @@ static int wp_remora_intr(sdla_fe_t *fe)
 		}
 	}
 
+	return 0;
+}
+
+
+/******************************************************************************
+ *				wp_remora_get_link_status()	
+ *
+ * Description:
+ * Arguments:	
+ * Returns:
+ ******************************************************************************
+ */
+static int wp_remora_get_link_status(sdla_fe_t *fe, unsigned char *status,int mod_no)
+{
+	/*mod_no = chan -1 */
+	if (fe->rm_param.mod[mod_no-1].type == MOD_TYPE_FXO) {
+		*status = fe->rm_param.mod[mod_no -1].u.fxo.status;
+		
+	} else {
+		DEBUG_EVENT("%s: Module %d: Get Link Status is only valid for FXO module!\n", 
+					fe->name, mod_no);
+
+		/* Defaulting Status to Connected in order to force intialize status variable 
+		   incase user calls this function for an unsupported module type */
+
+		*status=FE_CONNECTED;
+		return -EINVAL;
+		
+	}
 	return 0;
 }
 

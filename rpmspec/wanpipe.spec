@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.3.10
+%define version           3.3.11
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -255,6 +255,78 @@ install_init;
 
 %changelog
 
+* Wed Jul 14 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.11
+=====================================================================
+
+- BRI to Analog Faxing Update
+  Improved faxing over SMG Gateway and Zaptel Analog.
+  This feature drasticly improves faxing peformance between
+  BRI and Analog cards over Asterisk.
+
+- BRI Update
+  Added overlap dailing support
+  Added support for BRI with 16 channel Echo Canceller.
+  Support for test start option, that only verifies configuration 
+  files without applying changes.
+  Support for non-syslog logging.
+
+- BRI Bug Fix
+  BRI was configured for answer on accept.  This caused a call to
+  be answered before the remote leg of the call became connected.
+ 
+- T1/E1 Loopback Update
+  wanpipemon was update to check loopback status as well as set
+  T1/E1 loopback commands.
+
+- Removed S508 ISA Support from drivers
+
+- Fixed the BRI chip security handler. Tested that all BRI 
+  ports get properly shut down. 
+
+- Updated for New PLX & Tundra PCIe Bridges chips
+- Update hwprobe verbose for PMC Shark
+
+- Updated for 2.6.25 kernel
+
+- Fixed 64bit compilation for Octasic EC Image
+
+- TDM API Bug Fix: 
+  Added a check for buffer overflow in write function.
+
+- New Octasic EC Image
+  Impoves faxing over Hardware Echo Canceller. 
+
+- BRI Bug fix on startup
+  The clock measuring function has limited and could fail on some machines.
+
+- AFT T1/E1 - Added missing LBO configuration option WAN_T1_0_110
+
+- Updated for 2.6.25 kernel
+
+- Updated wancfg for interface MTU/MRU
+  By default do not configure interface MTU/MRU if values have
+  not changed by default.  This way the global mtu can be used
+  to easily configure the MTU/MRU of all interfaces.
+
+- Updated wancfg_smg to configure XMTP2 API
+
+- Wireshark Tracing for MTP2
+  http://wiki.sangoma.com/wanpipe-wireshark-pcap-pri-bri-wan-t1-e1-tracing
+
+- T3/E3 Update
+  Driver level update to improve code.
+
+- MTP2 API Support
+  http://wiki.sangoma.com/wanpipe-aft-ss7-mtp2-api
+
+
+* Fri May 15 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.10
+======================================================================
+
+- BRI Update
+  Binary segfaulted on some systems due to gcc incompabilitly.
+  This is now fixed.
+
 * Fri Apr 30 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.9
 ======================================================================
 
@@ -432,7 +504,7 @@ install_init;
 -  BRI Zaptel Clock Source
     Since BRI does not interface to zaptel, it acts as ZT DUMMY to
     provide zaptel reliable timing.  One has to configure
-    TDMV_DUMMY=YES in [wanpipe1] section of wanpipe1.conf
+    TDMV_DUMMY_REF=YES in [wanpipe1] section of wanpipe1.conf
 
 -  A200/A400 Remora Relax CFG
     If one module fails during operation the wanpipe driver by default

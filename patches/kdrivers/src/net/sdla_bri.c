@@ -29,6 +29,7 @@
  *				indicate 'disconnect' right away, do it when 
  *				T4 expires.
  *
+ *
  ******************************************************************************
  */
 
@@ -218,6 +219,7 @@ static int32_t	wp_bri_post_init(void *pfe);
 static int32_t	wp_bri_if_config(void *pfe, u32 mod_map, u8);
 static int32_t	wp_bri_if_unconfig(void *pfe, u32 mod_map, u8);
 static int32_t	wp_bri_disable_irq(sdla_fe_t *fe, u32 mod_no, u8 port_no);
+static int	wp_bri_disable_fe_irq(void *fe);
 static void	bri_enable_interrupts(sdla_fe_t *fe, u32 mod_no, u8 port_no);
 static int32_t	wp_bri_intr(sdla_fe_t *); 
 static int32_t	wp_bri_check_intr(sdla_fe_t *); 
@@ -235,7 +237,7 @@ static int32_t	wp_bri_dchan_tx(sdla_fe_t *fe, void *src_data_buffer, u32 buffer_
 
 static void	*wp_bri_dchan_rx(sdla_fe_t *fe, u8 mod_no, u8 port_no);
 
-static int	wp_bri_get_fe_status(sdla_fe_t *fe, unsigned char *status);
+static int	wp_bri_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notused);
 static int	wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char status);
 
 static int	wp_bri_control(sdla_fe_t *fe, u32 command);
@@ -531,8 +533,8 @@ static int32_t __config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode)
 #if 0
 	/* PCM master mode test */
 	pcm_md0.bit.v_pcm_md = 0x1;	/* PCM bus mode.
-					’0’ = slave (pins C4IO and F0IO are inputs)
-					’1’ = master (pins C4IO and F0IO are outputs)
+					0 = slave (pins C4IO and F0IO are inputs)
+					1 = master (pins C4IO and F0IO are outputs)
 					If no external C4IO and F0IO signal is provided
 					this bit must be set for operation. */
 #endif
@@ -960,10 +962,15 @@ static int32_t check_f0cl_increment(sdla_fe_t *fe, u8 old_f0cl, u8 new_f0cl, int
 	}
 
 	/* should be between 70 and 90 over 10ms time */
-	if(*diff > 150 || *diff < 70){
-		DEBUG_EVENT("%s: PCM ERROR 125us pulse not counting!! f0cl diff: %d\n",
+	if(*diff == 0){
+		DEBUG_EVENT("%s: PCM ERROR: BRI Modlue NO CLOCK found! 125us pulse f0cl diff: %d\n",
 			fe->name, *diff);	
 		return 1;
+	}
+	
+	if(*diff > 150 || *diff < 70){
+		DEBUG_EVENT("%s: PCM Warning 125us pulse count f0cl diff: %d\n",
+			fe->name, *diff);	
 	}
 
 	DBG_MODULE_TESTER("f0cl diff: %d\n", *diff);
@@ -1463,7 +1470,9 @@ int32_t wp_bri_iface_init(void *pfe_iface)
 	fe_iface->get_fe_status		= &wp_bri_get_fe_status;
 
 	fe_iface->isr			= &wp_bri_intr;
-	/* fe_iface->disable_irq	= &wp_bri_disable_irq; */
+
+	fe_iface->disable_irq		= &wp_bri_disable_fe_irq; 
+
 	fe_iface->check_isr		= &wp_bri_check_intr;
 
 	fe_iface->polling		= &wp_bri_polling;
@@ -2386,6 +2395,26 @@ static void bri_enable_interrupts(sdla_fe_t *fe, u32 mod_no, u8 port_no)
 	WRITE_REG( R_IRQ_CTRL, r_irq_ctrl.reg);
 }
 
+
+/******************************************************************************
+** wp_bri_disable_fe_irq() - disable all interrupts by disabling M_GLOB_IRQ_EN
+**
+**	OK
+*/
+
+static int wp_bri_disable_fe_irq(void *pfe)
+{
+	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+	u32 mod_no, port_no;
+
+	mod_no = fe_line_no_to_physical_mod_no(fe);	
+	port_no = fe_line_no_to_port_no(fe);
+
+	wp_bri_disable_irq(fe,mod_no,port_no);
+
+	return 0;
+}
+
 /******************************************************************************
 ** wp_bri_disable_irq() - disable all interrupts by disabling M_GLOB_IRQ_EN
 **
@@ -2582,17 +2611,18 @@ static int32_t wp_bri_udp(sdla_fe_t *fe, void* p_udp_cmd, u8* data)
 }
 
 /******************************************************************************
-*				wp_bri_get_fe_status()	
+*wp_bri_get_fe_status()	
 *
 * Description	: Get current FE line state - is it Connected or Disconnected
 *
 * Arguments	: fe - pointer to Front End structure.	
 *		  status - pointer to location where the FE line state will
 *			be stored.
+*		  notused - ignored
 *
 * Returns	: always zero.
 *******************************************************************************/
-static int wp_bri_get_fe_status(sdla_fe_t *fe, unsigned char *status)
+static int wp_bri_get_fe_status(sdla_fe_t *fe, unsigned char *status, int notused)
 {
 	*status = fe->fe_status;
 	return 0;

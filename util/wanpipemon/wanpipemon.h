@@ -359,6 +359,7 @@ static inline unsigned char set_wan_udphdr_data_byte(unsigned char off, unsigned
 #define ETH   0x20
 #define IP    0x40
 #define LAPD  0x80
+#define MTP2  0x100
 #define ALL_PROT (FRAME|LAPB|X25|PPP|CHDLC);
 
 #define DATA 0x1
@@ -367,7 +368,7 @@ static inline unsigned char set_wan_udphdr_data_byte(unsigned char off, unsigned
 
 typedef struct {
 	unsigned char prot_name[15];
-	signed char prot_index;
+	signed int prot_index;
 	unsigned int  pcap_prot;
 } trace_prot_t;
 

@@ -1,20 +1,38 @@
 chan_woomera.c
 ======================================
+ Jun 3 2008
+ * v1.32 David Yat Sin <davidy@sangoma.com>
+ *      Updated for callweaver v1.2.0
+     
+ Jun 2 2008
+ * v1.31 Nenad Corbic <ncorbic@sangoma.com>
+ * v1.30 Nenad Corbic <ncorbic@sangoma.com>
+ *      Added AST_CTONROL_RING event on outgoing call.
+ *     Updated for CallWeaver 1.2 SVN
+	  
+ May 21 2008
+ * v1.30 David Yat Sin <davidy@sangoma.com>
+ *	Fix for compilation issues with Callweaver v1.2-rc5 
 
-April 29 2008
-* v1.28 David Yat Sin <davidy@sangoma.com>
-*	Fix for compilation issues with Callweaver v1.99
-*
+ Apr 30 2008
+ * v1.29 David Yat Sin <davidy@sangoma.com>
+ *	Added AST_CONTROL_SRCUPDATE in tech_indicate
+ 
 
-Feb 13 2008
-* v1.27 David Yat Sin <davidy@sangoma.com>
-*     Fixed issue channel type not defined when calling tech_call 
-*
+ Apr 29 2008
+ * v1.28 David Yat Sin <davidy@sangoma.com>
+ *	Fix for compilation issues with Callweaver v1.99
+ *
 
-Feb 13 2008
-* v1.26 Nenad Corbic <ncorbic@sangoma.com>
-*      Compilation Update for callweaver 1.2-rc5
-*
+ Feb 13 2008
+ * v1.27 David Yat Sin <davidy@sangoma.com>
+ *     Fixed issue channel type not defined when calling tech_call 
+ *
+
+ Feb 13 2008
+ * v1.26 Nenad Corbic <ncorbic@sangoma.com>
+ *      Compilation Update for callweaver 1.2-rc5
+ *
 
  Feb 06 2008
 * v1.25 Nenad Corbic <ncorbic@sangoma.com>

@@ -803,7 +803,7 @@ static struct sock *wanpipe_alloc_socket(struct sock *osk, void *net)
 	}
 
 	if (osk) {
-		net=osk->sk_net;
+		net=sock_net(osk);
 	}
 
 	sk = sk_alloc((struct net*)net, PF_WANPIPE, GFP_ATOMIC, &packet_proto);

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash -p
 #
 # Setup		WANPIPE WAN Router Installation/Removal Script.
 #
@@ -9,6 +9,8 @@
 #		as published by the Free Software Foundation; either version
 #		2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Jul 30, 2008  Jignesh Patel 	Added check for sctp utlity
+# May 30, 2008  Jignesh Patel   Fixed bootscript installation failure
 # Mar 12, 2008  Konrad Hammel   Updated for Zaptel-1.4.9 (kernel sub-dir)
 # Jan 24, 2008  Jignesh Patel   Zaptel Patch Update for 1.4.x 
 # Nov 13, 2007  Konrad Hammel   Minor Updates for aesthetics and usability
@@ -429,7 +431,7 @@ and configuration/debug utilities have been compiled and installed.
 	1) Proceed to configure the WANPIPE drivers:
 		Asterisk/Zaptel: /usr/sbin/wancfg_zaptel
 		TDM API        : /usr/sbin/wancfg_tdmapi
-		SMG SS7        : /usr/sbin/wancfg_smg
+		SMG SS7/BRI    : /usr/sbin/wancfg_smg
 		WAN Routing/API: /usr/sbin/wancfg
 	2) Use the /usr/sbin/wanrouter startup scrip to start and stop
 	   the router. (eg: wanrouter start)
@@ -3007,10 +3009,12 @@ if [ -z $NONINTERACTIVE ]; then
 		enable_protocols "AFT_TE1"
 
 	elif [ "$response"  -eq 6 ]; then
+		check_sctp_utility
                 enable_protocols "AFT_TE1"
                 SSMG_BRI=YES
 
 	elif [ "$response"  -eq 7 ]; then
+		check_sctp_utility
                 enable_protocols "AFT_TE1"
 		enable_protocols "TDM"
                 SSMG_BRI=YES
@@ -3452,19 +3456,36 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
                                   -e s/ppc.*/powerpc/ -e s/mips.*/mips/ )
 
 
-			#New way of checking REGPARM because its enabled
-			#by default on 2.6.20 kernel and up
+ 			#New way of checking REGPARM because its enabled
+                        #by default on 2.6.20 kernel and up
 			if [ $SUBARCH != "" ]; then
-				eval "grep \"CFLAGS.*=.*-pipe.*regparm\" $SOURCEDIR/arch/$SUBARCH/Makefile" > /dev/null 2> /dev/null
-				if [ $? -eq 0 ]; then
-					echo -e "Enabled.\n"
-		                        REGPARM_OPT=".regparm"
-				else
-					 echo -e "Disabled.\n"
-				fi
-			else
-				 echo -e "Disabled.\n"
-			fi
+                                if [ -f $SOURCEDIR/arch/$SUBARCH/Makefile ]; then
+                                        eval "grep \"CFLAGS.*=.*regparm\" $SOURCEDIR/arch/$SUBARCH/Makefile*" > /dev/null 2> /dev/null
+                                        res=$?
+                                elif [ -d $SOURCEDIR/arch/x86 ]; then
+                                        eval "grep \"CFLAGS.*=*regparm\" $SOURCEDIR/arch/x86/Makefile*" > /dev/null 2> /dev/null
+                                        res=$?
+                                else
+                                        echo
+                                        echo "Warning: Failed to determine regparm from Makefile defaulting to YES!"
+                                        echo
+                                        res=0
+                                fi
+                                if [ $res -eq 0 ]; then
+
+                                        echo -e "Enabled.\n"
+                                        REGPARM_OPT=".regparm"
+                                else
+                                        echo -e "Disabled.\n"
+                                fi
+                        else
+                                echo
+                                echo "Warning: Failed to determine ARCH: regparm defaulting to YES!"
+                                echo
+                                REGPARM_OPT=".regparm"
+                                echo -e "Enabled.\n"
+                        fi
+
 		fi
 
 		
@@ -5257,6 +5278,20 @@ function tdmv_apply_zaptel_chunk_patch () {
 		fi
 	fi
 
+        # for zaptel-1.2.26 or later
+        if [ -f Kbuild ]; then
+                eval "cat Kbuild | sed 's/^obj-m.*+=.*wct4xx.*//g'>$TEMP 2>/dev/null "
+                if [ $? -ne 0 ]; then
+                         echo "   Failed to remove wct4xxp from Kbuild"
+                         exit 1
+
+                else
+                        eval "\mv -f $TEMP Kbuild"
+                        echo "   wct4xxp module removed from Kbuild successfully"
+                        zaptel_modified=1
+                fi
+        fi
+
         cd $lhome
         return 0;
 }
@@ -5944,7 +5979,7 @@ ENDOFTEXT
 	if [ $? -eq 0 ]; then
 		if [ $XMTP2_PROT != YES ]; then
 		echo "Enabling the SS7 XMTP2 Protocol"
-		PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_XMTP2 "
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_XMTP2 -DAFT_XMTP2_API_SUPPORT "
 		fi
 		PROT_MATCH=YES	
 		XMTP2_PROT=YES
@@ -6465,6 +6500,25 @@ function compile_aft_firmware_util()
         cd $lhome
 }
 
+function check_sctp_utility ()
+{
+	clearscr
+	echo -n "Checking for SCTP Utilities...."
+	if [ ! -e  /usr/include/netinet/sctp.h ] && [ ! -e /usr/include/sctp.h ]; then
+		echo "Failed!"
+		echo "Missing lksctp-tools-devel" >> $CMP_LOG
+                echo "Error: lksctp-tools-devel package missing"
+		echo "Install lksctp-tools-devel package (e.g yum install lksctp-tools-devel)"
+		echo "  "
+		exit 1;
+		
+	else 
+		echo "OK."
+	fi
+
+}
+
+
 function usage()
 {
 	if [ "$PKG_NAME" != "wanpipe-lite" ]; then
@@ -6568,6 +6622,7 @@ or
 		      
 		      TDM    : Hardware TDM VOICE support to Asterisk PBX
 		      
+		      BRI    : Sangoma BRI + Media Gateway Support
 		      
 
 ENDOFTEXT
@@ -6601,7 +6656,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.3.10
+PROD_VER=3.3.11
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7441,14 +7496,15 @@ prepare	|| exit 1
 apply_patches || exit 1
 compile_drivers  || exit 1
 
-if [ $zaptel_auto_install != "YES" ]; then
-install_init || exit 1
-fi
-
 install_config || exit 1
 
 compile_src || exit 1
 install_all 
+
+if [ $zaptel_auto_install != "YES" ]; then
+install_init || exit 1
+fi
+
 install_ssmg
 install_ssmg_bri
 clean_up 

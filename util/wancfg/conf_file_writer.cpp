@@ -2784,17 +2784,21 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
       	list_el_chan_def->data.chanconf->u.aft.mru = LIP_ATM_MTU_MRU;
       }
 
+      if (list_el_chan_def->data.chanconf->u.aft.mtu != 1500) {
       wp_interface += "MTU";
       wp_interface += "\t\t= ";
       snprintf(tmp_buff, MAX_PATH_LENGTH, "%u", list_el_chan_def->data.chanconf->u.aft.mtu);
       wp_interface += tmp_buff;
       wp_interface += "\n";
+      }
 
+      if (list_el_chan_def->data.chanconf->u.aft.mru != 1500) {
       wp_interface += "MRU";
       wp_interface += "\t\t= ";
       snprintf(tmp_buff, MAX_PATH_LENGTH, "%u", list_el_chan_def->data.chanconf->u.aft.mru);
       wp_interface += tmp_buff;
       wp_interface += "\n";
+      }
 
       if(	cfr->link_defs->card_version != A200_ADPTR_ANALOG && 
 					cfr->link_defs->card_version != AFT_ADPTR_2SERIAL_V35X21){

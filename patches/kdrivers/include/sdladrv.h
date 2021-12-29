@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdladrv.h,v 1.96 2008/04/16 17:23:17 sangoma Exp $
+ *	$Id: sdladrv.h,v 1.97 2008-04-21 19:03:31 sangoma Exp $
  */
 
 /*****************************************************************************

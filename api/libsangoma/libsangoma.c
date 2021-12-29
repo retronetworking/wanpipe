@@ -34,6 +34,10 @@
 #warning "Warning: TDM EVENTS not supported by driver"
 #endif
 
+#ifndef WP_TDM_FEATURE_LINK_STATUS
+#warning "Warning: TDM LINK STATUS not supported by driver"
+#endif
+
 
 #if defined(WIN32)
 //extern int	verbose;
@@ -217,6 +221,20 @@ sng_fd_t sangoma_open_tdmapi_span_chan(int span, int chan)
 	return fd;  
 #endif
 }            
+
+
+sng_fd_t sangoma_open_tdmapi_ctrl(void)
+{
+	int fd=-1;
+
+#if defined(WIN32)
+#warning "sangoma_open_tdmapi_ctrl: Not support on Windows"
+#else
+        fd = open("/dev/wptdm_ctrl", O_RDWR);
+#endif
+
+        return fd;
+}
 
 sng_fd_t sangoma_create_socket_by_name(char *device, char *card) 
 {
@@ -510,6 +528,7 @@ int sangoma_get_full_cfg(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 		return err;
 	}
 
+#if 0
 	printf("TDM API CFG:\n");
 	printf("\thw_tdm_coding:\t%d\n",tdm_api->wp_tdm_cmd.hw_tdm_coding);
 	printf("\tusr_mtu_mru:\t%d\n",tdm_api->wp_tdm_cmd.hw_mtu_mru);
@@ -534,7 +553,8 @@ int sangoma_get_full_cfg(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 	printf("\trx ovr\t%d\ttx idl\t%d\n",
 				tdm_api->wp_tdm_cmd.stats.rx_fifo_errors,
 				tdm_api->wp_tdm_cmd.stats.tx_carrier_errors);
-#endif				
+#endif		
+#endif		
 	
 	return 0;
 }
@@ -588,7 +608,6 @@ int sangoma_tdm_get_codec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 
 	return tdm_api->wp_tdm_cmd.tdm_codec;	
 }
-
 
 /*========================================================
  * SET Rx/Tx Hardware Period in milliseconds.
@@ -647,6 +666,22 @@ int sangoma_tdm_get_hw_coding(int fd, wanpipe_tdm_api_t *tdm_api)
         return tdm_api->wp_tdm_cmd.hw_tdm_coding;
 }
 
+/*========================================================
+ * GET Current User Hardware DTMF Enabled/Disabled
+ *
+ * Will return true if HW DTMF is enabled on Octasic
+ */
+
+int sangoma_tdm_get_hw_dtmf(int fd, wanpipe_tdm_api_t *tdm_api)
+{
+	int err;
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_GET_HW_DTMF;
+	err=sangoma_tdm_cmd_exec(fd,tdm_api);
+	if (err){
+		return err;
+	}
+	return tdm_api->wp_tdm_cmd.hw_dtmf;
+}
 
 /*========================================================
  * GET Current User MTU/MRU values in bytes.
@@ -784,11 +819,11 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 
 	rx_event = &tdm_api->wp_tdm_cmd.event;
 #endif
+	
 
 	switch (rx_event->wp_tdm_api_event_type){
 	
 	case WP_TDMAPI_EVENT_RBS:
-		printf("%d: GOT RBS EVENT %p\n",(int)fd,tdm_api->wp_tdm_event.wp_rbs_event);
 		if (tdm_api->wp_tdm_event.wp_rbs_event) {
 			tdm_api->wp_tdm_event.wp_rbs_event(fd,rx_event->wp_tdm_api_event_rbs_bits);
 		}
@@ -797,7 +832,6 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 	
 #ifdef WP_TDM_FEATURE_DTMF_EVENTS	
 	case WP_TDMAPI_EVENT_DTMF:
-		printf("%d: GOT DTMF EVENT\n",(int)fd);
 		if (tdm_api->wp_tdm_event.wp_dtmf_event) {
 			tdm_api->wp_tdm_event.wp_dtmf_event(fd,
 						rx_event->wp_tdm_api_event_dtmf_digit,
@@ -808,7 +842,6 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 #endif
 		
 	case WP_TDMAPI_EVENT_RXHOOK:
-		printf("%d: GOT RXHOOK EVENT\n",(int)fd);
 		if (tdm_api->wp_tdm_event.wp_rxhook_event) {
 			tdm_api->wp_tdm_event.wp_rxhook_event(fd,
 						rx_event->wp_tdm_api_event_hook_state);
@@ -816,7 +849,6 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 		break;
 
 	case WP_TDMAPI_EVENT_RING_DETECT:
-		printf("%d: GOT RXRING EVENT\n",(int)fd);
 		if (tdm_api->wp_tdm_event.wp_ring_detect_event) {
 			tdm_api->wp_tdm_event.wp_ring_detect_event(fd,
 						rx_event->wp_tdm_api_event_ring_state);
@@ -824,7 +856,6 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 		break;
 
 	case WP_TDMAPI_EVENT_RING_TRIP_DETECT:
-		printf("%d: GOT RING TRIP EVENT\n",(int)fd);
 		if (tdm_api->wp_tdm_event.wp_ring_trip_detect_event) {
 			tdm_api->wp_tdm_event.wp_ring_trip_detect_event(fd,
 						rx_event->wp_tdm_api_event_ring_state);
@@ -833,15 +864,23 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 
 #ifdef WP_TDM_FEATURE_FE_ALARM
 	case WP_TDMAPI_EVENT_ALARM:
-		printf("%d: GOT FE ALARMS EVENT %i\n",(int)fd,
-                       rx_event->wp_tdm_api_event_alarm);
 		if (tdm_api->wp_tdm_event.wp_fe_alarm_event) {
 			tdm_api->wp_tdm_event.wp_fe_alarm_event(fd,
                               rx_event->wp_tdm_api_event_alarm);
 		}   
 		break; 
 #endif
+
+#ifdef WP_TDM_FEATURE_LINK_STATUS	
+	/* Link Status */	
+	case WP_TDMAPI_EVENT_LINK_STATUS:
+		if(tdm_api->wp_tdm_event.wp_link_status_event){
+			tdm_api->wp_tdm_event.wp_link_status_event(fd,
+						rx_event->wp_tdm_api_event_link_status);
+		}
 		
+		break;
+#endif	
 	default:
 		printf("%d: Unknown TDM event!", (int)fd);
 		break;
@@ -1193,6 +1232,19 @@ int sangoma_tdm_get_fe_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned 
 	return err;
 }
 
+/* get current Line Connection state - Connected/Disconnected */
+#ifdef WP_TDM_FEATURE_LINK_STATUS
+int sangoma_tdm_get_link_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char *current_status)
+{
+	int err;
+
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_GET_LINK_STATUS;
+	err = sangoma_tdm_cmd_exec(fd, tdm_api);
+	*current_status = tdm_api->wp_tdm_cmd.fe_status;
+
+	return err;
+}
+#endif
 
 /* set current Line Connection state - Connected/Disconnected. valid only for ISDN BRI */
 int sangoma_tdm_set_fe_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char new_status)

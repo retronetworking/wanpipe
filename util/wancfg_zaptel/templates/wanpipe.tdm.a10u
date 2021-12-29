@@ -18,7 +18,7 @@
 wanpipeDEVNUM = WAN_AFT, Comment
 
 [interfaces]
-wDEVNUMg1 = wanpipeDEVNUM, , TDM_VOICE, Comment
+wIFNUMg1 = wanpipeDEVNUM, , TDM_VOICE, Comment
 
 [wanpipeDEVNUM]
 CARD_TYPE 	= AFT
@@ -44,7 +44,7 @@ IGNORE_FRONT_END = NO
 TDMV_SPAN	= TDMVSPANNO
 TDMV_DCHAN	= TDMVDCHAN
 
-[wDEVNUMg1]
+[wIFNUMg1]
 ACTIVE_CH	= ALL
 TDMV_ECHO_OFF	= NO
 TDMV_HWEC	= NO

@@ -106,7 +106,7 @@ enum {
 
 #define MAX_AFT_DMA_CHAINS 	16
 #define MAX_TX_BUF		(MAX_AFT_DMA_CHAINS)+1
-#define MAX_RX_BUF		((MAX_AFT_DMA_CHAINS)*4)+1
+#define MAX_RX_BUF		((MAX_AFT_DMA_CHAINS)*8)+1
 #define MAX_RX_SCHAIN_BUF	(MAX_RX_BUF)*2
 
 
@@ -286,6 +286,7 @@ static int 	if_do_ioctl(netdevice_t*, struct ifreq*, wan_ioctl_cmd_t);
 #if defined(__LINUX__)
 static int 	if_send (netskb_t* skb, netdevice_t* dev);
 static struct net_device_stats* if_stats (netdevice_t* dev);
+static int 	if_change_mtu(netdevice_t *dev, int new_mtu);
 #else
 static int if_send(netdevice_t *dev, netskb_t *skb, struct sockaddr *dst,struct rtentry *rt);
 #endif
@@ -370,13 +371,6 @@ static void 	protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb);
 
 static int 	aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num);
 static int 	aft_init_requeue_free_skb(private_area_t *chan, netskb_t *skb);
-
-//static int 	write_framer(void *pcard,unsigned short framer_off,unsigned short framer_data);
-//static unsigned int 	read_framer(void *pcard,unsigned short framer_off);
-#if 0
-//FIXME to be taken out check with M.F.
-static void 	framer_reset(sdla_t *card);
-#endif
 
 static int 	xilinx_dma_te3_tx (sdla_t *card,private_area_t *chan,netskb_t *skb);
 static void 	aft_tx_dma_chain_handler(unsigned long data);
@@ -533,8 +527,6 @@ int wp_aft_te3_init (sdla_t* card, wandev_conf_t* conf)
 
 		card->fe.write_fe_reg	= card->hw_iface.fe_write;
 		card->fe.read_fe_reg	= card->hw_iface.fe_read;
-		//card->fe.write_framer	= write_framer;
-		//card->fe.read_framer	= read_framer;
 
 		card->wandev.fe_enable_timer = enable_timer;
 		card->wandev.te_link_state = handle_front_end_state;
@@ -765,6 +757,10 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 	chan->first_time_slot=-1;
 	chan->single_dma_chain=0;
+
+	if (conf->single_tx_buf) {
+		chan->single_dma_chain=1;
+	}
 
 #ifdef AFT_T3_SINGLE_DMA_CHAIN
 	chan->single_dma_chain=1;
@@ -1012,7 +1008,9 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	chan->common.iface.close = &if_close;
 	chan->common.iface.output = &if_send;
 	chan->common.iface.ioctl = &if_do_ioctl;
+	chan->common.iface.get_stats = &if_stats;
 	chan->common.iface.tx_timeout = &if_tx_timeout;
+
 	if (wan_iface.attach){
 		if (!ifunit(wan_netif_name(dev))){
 			wan_iface.attach(dev, NULL, chan->common.is_netdev);
@@ -1185,6 +1183,7 @@ static int if_init (netdevice_t* dev)
 	dev->watchdog_timeo	= 2*HZ;
 #endif
 	dev->do_ioctl		= if_do_ioctl;
+	dev->change_mtu		= if_change_mtu;
 
 	if (chan->common.usedby == BRIDGE ||
             chan->common.usedby == BRIDGE_NODE){
@@ -1670,12 +1669,13 @@ if_send_exit_crit:
  *
  * Return a pointer to struct net_device_stats.
  */
+static struct net_device_stats gstats;
 static struct net_device_stats* if_stats (netdevice_t* dev)
 {
 	private_area_t* chan;
 
 	if ((chan=wan_netif_priv(dev)) == NULL)
-		return NULL;
+		return &gstats;
 
 #if 0
 {
@@ -1715,6 +1715,36 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 	return &chan->if_stats;
 }
 #endif
+
+#ifdef __LINUX__
+static int if_change_mtu(netdevice_t *dev, int new_mtu)
+{
+	private_area_t* chan= (private_area_t*)wan_netif_priv(dev);
+
+	if (!chan){
+		return -ENODEV;
+	}
+
+	if (!chan->hdlc_eng) {
+		return -EINVAL;
+	}
+
+	if (chan->common.usedby == API){
+		new_mtu+=sizeof(api_tx_hdr_t);
+	}else if (chan->common.usedby == STACK){
+		new_mtu+=32;
+	}
+
+	if (new_mtu > chan->dma_mtu) {
+		return -EINVAL;
+	}
+
+	dev->mtu = new_mtu;
+	
+	return 0;
+}
+#endif
+
 
 /*========================================================================
  *
@@ -1894,7 +1924,7 @@ static int xilinx_init_rx_dev_fifo(sdla_t *card, private_area_t *chan, unsigned 
         card->hw_iface.bus_read_4(card->hw,AFT_TE3_CRNT_DMA_DESC_ADDR_REG,&reg);
       	cur_dma_ptr=get_current_rx_dma_ptr(reg);        
 	
-        dma_descr=(unsigned long)(cur_dma_ptr<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
+        dma_descr=(u32)(cur_dma_ptr<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
         reg=0;
         wan_set_bit(INIT_DMA_FIFO_CMD_BIT,&reg);
 
@@ -1943,7 +1973,7 @@ static int xilinx_init_tx_dev_fifo(sdla_t *card, private_area_t *chan, unsigned 
        	cur_dma_ptr=get_current_tx_dma_ptr(reg);   
 
         /* Clean TX DMA fifo */
-        dma_descr=(unsigned long)(cur_dma_ptr<<4) + XILINX_TxDMA_DESCRIPTOR_HI;
+        dma_descr=(u32)(cur_dma_ptr<<4) + XILINX_TxDMA_DESCRIPTOR_HI;
         reg=0;
         wan_set_bit(INIT_DMA_FIFO_CMD_BIT,&reg);
 
@@ -2178,6 +2208,58 @@ static void xilinx_dma_rx_complete (sdla_t *card, private_area_t *chan, int wtd)
 	aft_rx_dma_chain_handler(chan,wtd,0);
 }
 
+
+static int aft_check_pci_errors(sdla_t *card, private_area_t *chan, wp_rx_element_t *rx_el)
+{
+	int pci_err=0;
+	 if (rx_el->reg&RxDMA_HI_DMA_PCI_ERROR_MASK){
+
+                if (rx_el->reg & RxDMA_HI_DMA_PCI_ERROR_M_ABRT){
+			if (WAN_NET_RATELIMIT()) {
+                        DEBUG_EVENT("%s:%s: Rx Error: Abort from Master: pci fatal error!\n",
+                                   card->devname,chan->if_name);
+			}
+			pci_err=1;
+                }
+                if (rx_el->reg & RxDMA_HI_DMA_PCI_ERROR_T_ABRT){
+			if (WAN_NET_RATELIMIT()) {
+                        DEBUG_EVENT("%s:%s: Rx Error: Abort from Target: pci fatal error!\n",
+                                   card->devname,chan->if_name);
+			}
+			pci_err=1;
+                }
+                if (rx_el->reg & RxDMA_HI_DMA_PCI_ERROR_DS_TOUT){
+			if (WAN_NET_RATELIMIT()) {
+                        DEBUG_EVENT("%s:%s: Rx Error: No 'DeviceSelect' from target: pci fatal error!\n",
+                                    card->devname,chan->if_name);
+			}
+			pci_err=1;
+                }
+                if (rx_el->reg & RxDMA_HI_DMA_PCI_ERROR_RETRY_TOUT){
+			if (WAN_NET_RATELIMIT()) {
+                        DEBUG_EVENT("%s:%s: Rx Error: 'Retry' exceeds maximum (64k): pci fatal error!\n",
+                                    card->devname,chan->if_name);
+			}
+			pci_err=1;
+                }
+
+		if (!pci_err) {
+			if (WAN_NET_RATELIMIT()) {
+                	DEBUG_EVENT("%s: RXDMA Unknown PCI ERROR = 0x%x\n",chan->if_name,rx_el->reg);
+			}
+		}
+
+
+		return -1;
+        }
+
+
+
+	return 0;
+}
+
+
+
 /*===============================================
  * xilinx_rx_post_complete
  *
@@ -2211,39 +2293,21 @@ static void xilinx_rx_post_complete (sdla_t *card, private_area_t *chan,
 	
     	/* Checking Rx DMA Go bit. Has to be '0' */
 	if (wan_test_bit(RxDMA_HI_DMA_GO_READY_BIT,&rx_el->reg)){
-        	DEBUG_TEST("%s:%s: Error: RxDMA Intr: GO bit set on Rx intr\n",
+		if (WAN_NET_RATELIMIT()){
+        	DEBUG_EVENT("%s:%s: Error: RxDMA Intr: GO bit set on Rx intr\n",
 				card->devname,chan->if_name);
+		}
 		chan->if_stats.rx_errors++;
 		chan->errstats.Rx_dma_descr_err++;
 		goto rx_comp_error;
 	}
-    
-	/* Checking Rx DMA PCI error status. Has to be '0's */
-	if (rx_el->reg&RxDMA_HI_DMA_PCI_ERROR_MASK){
-
-		if (rx_el->reg & RxDMA_HI_DMA_PCI_ERROR_M_ABRT){
-                	DEBUG_EVENT("%s:%s: Rx Error: Abort from Master: pci fatal error!\n",
-                                   card->devname,chan->if_name);
-                }
-                if (rx_el->reg & RxDMA_HI_DMA_PCI_ERROR_T_ABRT){
-                        DEBUG_EVENT("%s:%s: Rx Error: Abort from Target: pci fatal error!\n",
-                                   card->devname,chan->if_name);
-                }
-                if (rx_el->reg & RxDMA_HI_DMA_PCI_ERROR_DS_TOUT){
-                        DEBUG_EVENT("%s:%s: Rx Error: No 'DeviceSelect' from target: pci fatal error!\n",
-                                    card->devname,chan->if_name);
-                }
-                if (rx_el->reg & RxDMA_HI_DMA_PCI_ERROR_RETRY_TOUT){
-                        DEBUG_EVENT("%s:%s: Rx Error: 'Retry' exceeds maximum (64k): pci fatal error!\n",
-                                    card->devname,chan->if_name);
-                }
-
-		DEBUG_EVENT("%s: RXDMA PCI ERROR = 0x%x\n",chan->if_name,rx_el->reg);
+   
+	if (aft_check_pci_errors(card,chan,rx_el) != 0) {
 		chan->errstats.Rx_pci_errors++;
 		chan->if_stats.rx_errors++;
 		goto rx_comp_error;
 	}
-
+ 
 	if (chan->hdlc_eng){
  
 		/* Checking Rx DMA Frame start bit. (information for api) */
@@ -2465,17 +2529,6 @@ static void wp_bh (void* data, int dummy)
 		chan->if_stats.rx_errors++;
 #endif
 
-		if (SYSTEM_TICKS-timeout > 3){
-			chan->if_stats.rx_errors++;
-#if 0
-			if (WAN_NET_RATELIMIT()){
-				DEBUG_EVENT("%s: BH Squeeze!\n",chan->if_name);
-			}
-#endif
-			wan_skb_queue_head(&chan->wp_rx_complete_list,skb);
-			break;
-		}
-		
 		if (chan->common.usedby == API && chan->common.sk == NULL){
 			DEBUG_TEST("%s: No sock bound to channel rx dropping!\n",
 				chan->if_name);
@@ -2564,13 +2617,10 @@ static void wp_bh (void* data, int dummy)
 		}
 
 		if (SYSTEM_TICKS-timeout > 3){
-			chan->if_stats.rx_errors++;
-#if 0
 			if (WAN_NET_RATELIMIT()){
-				DEBUG_EVENT("%s: BH Squeeze! %i\n",
-				chan->if_name,SYSTEM_TICKS-timeout);
+				DEBUG_EVENT("%s: BH Squeeze! %li\n", 
+						chan->if_name,SYSTEM_TICKS-timeout);
 			}
-#endif
 			break;
 		}
 	}
@@ -2835,6 +2885,8 @@ static WAN_IRQ_RETVAL wp_aft_te3_isr (sdla_t* card)
 
 			__aft_fe_intr_ctrl(card,0);
 #else
+#error "Front end not called from interrupt please resolve!"
+#error "LED and Wanpipe Status will not be properly updated!"
               		front_end_interrupt(card,reg);
 #endif
 		}
@@ -3388,8 +3440,8 @@ static void handle_front_end_state(void *card_id)
 	if (card->wandev.ignore_front_end_status == WANOPT_YES){
 		return;
 	}
-
-	WAN_FECALL(&card->wandev, get_fe_status, (&card->fe, &status));
+	
+	WAN_FECALL(&card->wandev, get_fe_status, (&card->fe, &status,0));
 	if (status == FE_CONNECTED){
 		if (card->wandev.state != WAN_CONNECTED){
 			enable_data_error_intr(card);
@@ -4190,7 +4242,7 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 
 	card->hw_iface.bus_write_4(card->hw,XILINX_CHIP_CFG_REG,reg);
 
-	WP_DELAY(10);
+	WP_DELAY(100);
 
 	/* Disable the chip/hdlc reset condition */
 	wan_clear_bit(CHIP_RESET_BIT,&reg);
@@ -4258,27 +4310,10 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 
 	card->hw_iface.bus_write_4(card->hw,XILINX_CHIP_CFG_REG,reg);
 
+	WP_DELAY(100);
+
 	xilinx_delay(1);
-#if 0
-	framer_reset(card);           /* was for A105 proto */
-#endif				      /* M.F. remove for A300 */
 
-#if 0
-	write_cpld(card,0x00, 0x00);  /* M.F. was 0x01 for A105 proto */
-                                      /* M.F.     0x00 for A300 */
-                                      /* set DS3 interface mode    */ 
-	write_cpld(card,0x01, 0x00);  /* clear TxAIS bit           */
-
-	// 3. Setup Framer
-        write_framer(card,0x00, 0x6F); /* DS3 - mode           (bit 6)*/
-                                  /* Internal LOS enable  (bit 5)*/
-                                  /* Interrupt enabl.reset(bit 3)*/
-                                  /* Frame format M13     (bit 2)*/
-                                  /* TimRef - Mode 3  (code '1X')*/
-        write_framer(card,0x01, 0xA2); /*   */
-#else
-
-//FIXME: Alex to put in Exar T3/E3 Configuration
 	DEBUG_EVENT("%s: Config %s Front End: Clock=%s Type=0x%X\n",
 			card->devname,
 			FE_MEDIA_DECODE(&card->fe),
@@ -4300,7 +4335,7 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 				__FUNCTION__,__LINE__);
 		return -EINVAL;
 	}
-#endif
+
 	for (;;){
 		card->hw_iface.bus_read_4(card->hw,XILINX_CHIP_CFG_REG, &reg);
 
@@ -4555,68 +4590,6 @@ static void xilinx_t3_exar_transparent_config(sdla_t *card,private_area_t *chan)
 }
 
 
-#if 0
-/* Alex
-** This functions are moved to sdladrv_fe.c */
-#define BIT_DEV_ADDR_CLEAR      0x600
-
-static int write_framer(void *pcard, unsigned short framer_off,unsigned short framer_data)
-{
-	sdla_t	*card = (sdla_t*)pcard;
-	
-        framer_off &= ~BIT_DEV_ADDR_CLEAR;
-
-	DEBUG_TEST("WRITE FRAMER OFFSET=0x%02X DATA=0x%02X\n",
-			framer_off,framer_data);
-
-	card->hw_iface.bus_write_2(card->hw,
-				   0x46,
-				   framer_off);
-
-	card->hw_iface.bus_write_2(card->hw,
-				   0x44,
-				   framer_data);	
-        return 0;
-}
-
-static unsigned int read_framer(void *pcard,unsigned short framer_off)
-{
-	sdla_t	*card = (sdla_t*)pcard;
-        unsigned int framer_data;
-
-        framer_off &= ~BIT_DEV_ADDR_CLEAR;
-	
-
-	card->hw_iface.bus_write_2(card->hw,
-				   0x46,
-				   framer_off);
-
-	card->hw_iface.bus_read_4(card->hw,
-				   0x44,
-				   &framer_data);
-	
-	DEBUG_TEST("READ FRAMER OFFSET=0x%02X DATA=0x%02X\n",
-			framer_off,framer_data);
-
-        return framer_data;
-}
-#endif
-
-#if 0
-static void framer_reset(sdla_t *card)
-{
-        int              i  = 0;
-        unsigned short   j  = 0;
-
-        j  = (unsigned short)read_cpld(card,0x00);
-        j  = j & 0x00FE;
-        write_cpld(card,0x00, j);
-                // delay
-                for(i=0;i<10;i++);
-        j = j | 0x0001;
-        write_cpld(card,0x00, j);
-}
-#endif
 
 /**SECTION*************************************************************
  *
@@ -4667,7 +4640,6 @@ static void aft_tx_dma_chain_handler(unsigned long data)
 		DEBUG_TEST("%s: TX DMA Handler Chain %i\n",chan->if_name,dma_chain->index);
 
 		if (dma_chain->skb){
-//NENAD
 #if 1
 			wan_skb_set_csum(dma_chain->skb, reg);
 			wan_skb_queue_tail(&chan->wp_tx_complete_list,dma_chain->skb);	
@@ -5075,7 +5047,7 @@ static int aft_dma_chain_rx(aft_dma_chain_t *dma_chain, private_area_t *chan, in
 
 	card->hw_iface.bus_write_4(card->hw,dma_descr,reg);
 
-	dma_descr=(unsigned long)(dma_ch_indx<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
+	dma_descr=(u32)(dma_ch_indx<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
 
     	reg =0;
 
@@ -5358,17 +5330,25 @@ static void aft_rx_dma_chain_handler(private_area_t *chan, int wtd, int reset)
     		dma_descr=(dma_chain->index<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
 		card->hw_iface.bus_read_4(card->hw,dma_descr, &rx_el->reg);
 
-		rx_el->pkt_error= dma_chain->pkt_error;
-		rx_el->dma_addr = dma_chain->dma_addr;
+		if (aft_check_pci_errors(card,chan,rx_el) != 0) {
+                	chan->errstats.Rx_pci_errors++;
+                	chan->if_stats.rx_errors++;
+			wan_skb_pull(dma_chain->skb, sizeof(wp_rx_element_t));
+			aft_init_requeue_free_skb(chan, dma_chain->skb);
+			dma_chain->skb=NULL;
+		} else {
+			rx_el->pkt_error= dma_chain->pkt_error;
+			rx_el->dma_addr = dma_chain->dma_addr;
 
-		wan_skb_queue_tail(&chan->wp_rx_complete_list,dma_chain->skb);
+			wan_skb_queue_tail(&chan->wp_rx_complete_list,dma_chain->skb);
 
-		DEBUG_RX("%s: RxInr Pending chain %i Rxlist=%i LO:0x%X HI:0x%X Data=0x%X Len=%i!\n",
-				chan->if_name,dma_chain->index,
-				wan_skb_queue_len(&chan->wp_rx_complete_list),
-				rx_el->align,rx_el->reg,
-				(*(unsigned char*)wan_skb_data(dma_chain->skb)),
-				wan_skb_len(dma_chain->skb));
+			DEBUG_RX("%s: RxInr Pending chain %i Rxlist=%i LO:0x%X HI:0x%X Data=0x%X Len=%i!\n",
+					chan->if_name,dma_chain->index,
+					wan_skb_queue_len(&chan->wp_rx_complete_list),
+					rx_el->align,rx_el->reg,
+					(*(unsigned char*)wan_skb_data(dma_chain->skb)),
+					wan_skb_len(dma_chain->skb));
+		}
 
 		dma_chain->skb=NULL;
 		dma_chain->dma_addr=0;
@@ -5402,18 +5382,18 @@ static void aft_rx_dma_chain_handler(private_area_t *chan, int wtd, int reset)
 		DEBUG_TEST("%s: Rx Queued list triggering\n",chan->if_name);
 		WAN_TASKLET_SCHEDULE((&chan->common.bh_task));
 		chan->rx_no_data_cnt=0;
-	}else{
-		if (!chan->single_dma_chain){
-			if ((chan->rx_no_data_cnt >= 0)  && (++chan->rx_no_data_cnt < 3)){
-				aft_enable_rx_watchdog(card,AFT_RX_TIMEOUT);
-			}else{
-				/* Enable Rx Interrupt on pending rx descriptor */
-				DEBUG_TEST("%s: Setting Max Rx Watchdog Timeout\n",
-						chan->if_name);
-				aft_enable_rx_watchdog(card,AFT_MAX_WTD_TIMEOUT);
-				chan->rx_no_data_cnt=-1;
-			}
-		} 
+	}
+	
+	if (!chan->single_dma_chain){
+		if ((chan->rx_no_data_cnt >= 0)  && (++chan->rx_no_data_cnt < 3)){
+			aft_enable_rx_watchdog(card,AFT_RX_TIMEOUT);
+		}else{
+			/* Enable Rx Interrupt on pending rx descriptor */
+			DEBUG_TEST("%s: Setting Max Rx Watchdog Timeout\n",
+					chan->if_name);
+			aft_enable_rx_watchdog(card,AFT_MAX_WTD_TIMEOUT);
+			chan->rx_no_data_cnt=-1;
+		}
 	}
 
 reset_skip_rx_setup:
@@ -5450,8 +5430,8 @@ static void aft_init_tx_rx_dma_descr(private_area_t *chan)
 
 	for (i=0;i<dma_cnt;i++){
 
-		tx_dma_descr=(unsigned int)(i<<4) + XILINX_TxDMA_DESCRIPTOR_HI;
-		rx_dma_descr=(unsigned int)(i<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
+		tx_dma_descr=(u32)(i<<4) + XILINX_TxDMA_DESCRIPTOR_HI;
+		rx_dma_descr=(u32)(i<<4) + XILINX_RxDMA_DESCRIPTOR_HI;
         	card->hw_iface.bus_write_4(card->hw,tx_dma_descr,reg);
 		card->hw_iface.bus_write_4(card->hw,rx_dma_descr,reg);
 

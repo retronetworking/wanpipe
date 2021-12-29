@@ -120,6 +120,8 @@ int pcap_isdn_network=0;
 FILE *pcap_output_file;
 char pcap_output_file_name[50];
 
+int mtp2_msu_only=1;
+
 wanpipe_hdlc_engine_t *rx_hdlc_eng; 
 
 trace_prot_t trace_prot_opt[]={ 
@@ -132,7 +134,8 @@ trace_prot_t trace_prot_opt[]={
 	{"IP", IP,12},
 	{"LAPD", LAPD, 177},
 	{"ISDN", LAPD, 177},
-	{"",-1},
+	{"MTP2", MTP2, 139},
+	{"",-1, 0},
 };
 
 trace_prot_t trace_x25_prot_opt[]={
@@ -143,7 +146,7 @@ trace_prot_t trace_x25_prot_opt[]={
 
 /* tracing global variables */
 unsigned int TRACE_DLCI=0;
-unsigned char TRACE_PROTOCOL=ALL_PROT;
+unsigned int TRACE_PROTOCOL=ALL_PROT;
 unsigned int TRACE_X25_LCN=0;
 unsigned char TRACE_X25_OPT=ALL_X25;
 char TRACE_EBCDIC=0;
@@ -758,7 +761,7 @@ static int init(int argc, char *argv[], char* command)
 #endif
 
 
-	for (i = 0; i < argc; i++){
+	for (i = 1; i < argc; i++){
 		if (!strcmp(argv[i],"-h")){
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 			EXEC_NAME_FUNC(usage,"hdlc",());
@@ -811,6 +814,7 @@ static int init(int argc, char *argv[], char* command)
 		}else if (!strcmp(argv[i],"-zap")){
 			zap_monitor=1;
 			wan_protocol = WANCONFIG_ZAP;
+
 		
 		}else if (!strcmp(argv[i],"-zapchan")){
 			if (i+1 > argc-1){
@@ -911,6 +915,15 @@ static int init(int argc, char *argv[], char* command)
 		
 		}else if (!strcmp(argv[i], "-systime")){
 			sys_timestamp=1;
+		
+		}else if (!strcmp(argv[i], "-mtp2-all")){
+			mtp2_msu_only=0;
+			printf("MTP2 Trace All\n"); 
+		}else if (!strcmp(argv[i], "-7bit-hdlc")){
+			if (rx_hdlc_eng) {
+				rx_hdlc_eng->seven_bit_hdlc = 1;	
+				printf("Enabling 7bit HDLC\n");
+			}
 
 		}else if (!strcmp(argv[i], "-prot")){
 			int x;
@@ -1001,7 +1014,7 @@ static int init(int argc, char *argv[], char* command)
 					       progname);
 				exit(1);
 			}
-		}
+		} 
 	}
 
 #ifdef WANPIPEMON_ZAP
@@ -1238,7 +1251,7 @@ static unsigned char trace_info[]="\n"
 "				# eg: -prot LAPB-X25\n"
 "				#Default: All frames\n"
 "\n"
-"		[FR|PPP|CHDLC|IP|ETH|LAPB|X25]\n"
+"		[ISDN|MTP2|FR|PPP|CHDLC|IP|ETH|LAPB|X25]\n"
 "				#Also used by -pcap option to\n"
 "				#specify what protocol we are\n"
 "				#capturing. By default protocol is\n"
@@ -1272,7 +1285,11 @@ static unsigned char trace_info[]="\n"
 "\n"
 "	-systime		#Display timestamp as system time\n"
 "	                        #instead of absolute number\n"
-"	\n"
+"\n"
+"	-mtp2-all		#Trace full MTP2 layer FISU/LSSU/MSU\n"
+"\n"
+"	-7bit-hdlc		#Decode hdlc stream as 7bit instead of 8bit\n"
+"\n"
 "	-full			#Display packet data in full.\n"
 "\n"
 "Examples:\n"
@@ -1297,7 +1314,15 @@ static unsigned char trace_info[]="\n"
 "\n"
 "  wanpipemon -i wan0 -pcap -c tr\n"
 "  wanpipemon -i wan0 -pcap -pcap_file myfile.bin -c tr\n"
-"  wanpipemon -i wan0 -pcap -prot FRAME -c tr\n\n";
+"  wanpipemon -i wan0 -pcap -prot FRAME -c tr\n"
+"\n"
+"#Trace ISDN/MTP2 data to a pcap type file\n"
+"  wanpipemon -i w1g1 -pcap -pcap_file isdn.pcap -prot ISDN -full -systime -c trd\n"
+"  wanpipemon -i w1g1 -pcap -pcap_file isdn.pcap -prot ISDN -pcap_isdn_network  -full -systime -c trd"
+"\n"
+"  wanpipemon -i w1g1 -pcap -pcap_file mtp2.pcap -prot MTP2 -full -systime -c trh"
+"\n"
+"\n";
 
 static void usage_trace_info(void)
 {

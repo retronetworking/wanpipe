@@ -6,7 +6,7 @@
 #define WANPIPE_COMPANY         "Sangoma Technologies Inc"
 
 /********** LINUX **********/
-#define WANPIPE_VERSION			"3.3.10"
+#define WANPIPE_VERSION			"3.3.11"
 #define WANPIPE_SUB_VERSION		"0"
 #define WANPIPE_VERSION_BETA		1
 #define WANPIPE_LITE_VERSION		"1.1.1"
@@ -39,8 +39,8 @@ typedef struct _DRIVER_VERSION {
 
 #define	WANPIPE_VERSION_MAJOR	6
 #define	WANPIPE_VERSION_MINOR	0
-#define	WANPIPE_VERSION_MINOR1	5
-#define	WANPIPE_VERSION_MINOR2	3
+#define	WANPIPE_VERSION_MINOR1	6
+#define	WANPIPE_VERSION_MINOR2	1
 
 static DRIVER_VERSION drv_version = {	WANPIPE_VERSION_MAJOR,
 					WANPIPE_VERSION_MINOR, 
@@ -53,9 +53,9 @@ static DRIVER_VERSION drv_version = {	WANPIPE_VERSION_MAJOR,
 #undef VER_PRODUCTNAME_STR
 #undef VER_COMPANYNAME_STR
 
-#define VER_PRODUCTVERSION	6,0,5,3
-#define VER_PRODUCTVERSION_STR	"6.0.5.3"
-#define __BUILDDATE__		April 15, 2008
+#define VER_PRODUCTVERSION	6,0,6,1
+#define VER_PRODUCTVERSION_STR	"6.0.6.1"
+#define __BUILDDATE__		May 21, 2008
 
 #define VER_COMPANYNAME_STR		"Sangoma Technologies Corporation"
 #define VER_LEGALCOPYRIGHT_YEARS	"1984-2008"

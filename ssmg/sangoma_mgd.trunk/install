@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # ----------------------------------------------------------------------------
 # Prompt user for input.
@@ -46,6 +46,8 @@ pbxdir=/usr/src/asterisk
 pbxd="asterisk"
 cfgdir="/etc/asterisk"
 mysyslog=" "
+smg_installed=0
+chan_woomera_installed=0
 
 
 
@@ -59,10 +61,10 @@ do
 		shift
                 pbxdir=$1
                 if [ "$pbxdir" = "" ]; then
-                        echo "Error: Invalid $pbxd dir: $pbxdir!";
+                        echo "Error: Invalid -pbxdir input argument: $pbxdir!";
                         exit 1
                 elif [ ! -d $pbxdir ]; then
-                        echo "Error: $pbxd dir does not exist: $pbxdir!";
+                        echo "Error: directory does not exist: $pbxdir!";
                         exit 1
                 fi
 
@@ -111,7 +113,6 @@ fi
 if [ $force = "force" ]; then
 	echo "Stopping SMG..."
 	eval "sangoma_mgd -term"
-        kill -TERM $(pidof asterisk);
 	echo "OK."
 	echo
 else 
@@ -128,23 +129,6 @@ else
 			exit 1
 		fi
 	fi
-	if [ -f /var/run/asterisk.pid ]; then
-		echo "Warning: asterisk is running"
-		getyn "Would you like to stop asterisk?"
-		if [ $? -ne 0 ]; then
-			exit 1
-		fi
-		eval "asterisk -rx \"stop now\" >/dev/null 2>/dev/null"
-		sleep 2
-		if [ -f /var/run/asterisk.pid ]; then
-       			kill -TERM $(pidof asterisk);
-			sleep 2
-			if [ -f /var/run/asterisk.pid ]; then
-				echo "Failed to stop asterisk"
-				exit 1
-			fi
-		fi
-	fi
 fi
 
 echo
@@ -156,8 +140,15 @@ elif [ -e /etc/rsyslog.conf ] ; then
         echo " found /etc/rsyslog.conf "
         mysyslog='rsyslog'
 else
-               echo " Warning : Syslog not found "
-               mysyslog=" "
+        echo " Warning : Syslog not found "
+	echo " This install script is optimized for RedHat/Centos/Fedora Distributions"
+	getyn "Would you like to proceed?"
+	if [ $? -ne 0 ]; then
+		exit 1
+	fi	
+
+        mysyslog=" "
+	
 fi
 
 
@@ -231,7 +222,11 @@ echo "OK."
 echo
 echo "Checking for SCTP Utilities...."
 if [ ! -e  /usr/include/netinet/sctp.h ] && [ ! -e /usr/include/sctp.h ]; then
+	echo
 	echo "Error: lksctp-tools-devel package missing"
+	echo "Please install sctp using a package manager"
+	echo "eg: yum install ksctp-tools-devel"
+	echo
 	exit 1
 fi 
 echo "OK."
@@ -255,7 +250,7 @@ echo
 
 echo "Compiling Sangoma MGD ..."
 eval "make clean 2> /dev/null > /dev/null"
-if [ $noss7 == 'true' ]; then
+if [ $noss7 = "true" ]; then
         eval "make NO_SS7=YES" 
 else
         eval "make" 
@@ -265,12 +260,25 @@ if [ $? -ne 0 ]; then
 	exit 1;
 fi
 
-if [ $noss7 == 'true' ]; then
-	make INSTALLPREFIX=$rootdir NO_SS7=YES install
+if [ $noss7 = "true" ]; then
+	#This case is currently used for bri
+	eval "make INSTALLPREFIX=$rootdir NO_SS7=YES install"
 else
-	make INSTALLPREFIX=$rootdir install
+	eval "make INSTALLPREFIX=$rootdir install"
 fi
-echo "Ok."
+
+if [ $? -ne 0 ]; then
+	echo
+	echo " SMG Installation Failed"
+	echo 
+	echo " Please contact Sangoma Support"
+	echo " http://wiki.sangoma.com"
+	echo
+	exit 1;
+else
+	echo "Ok."
+	smg_installed=1;
+fi
 
 if [ -d chan_woomera.trunk ]; then
 
@@ -281,41 +289,68 @@ if [ -d chan_woomera.trunk ]; then
 	if [ ! -e $pbxdir ]; then
 		echo
 		echo "Error: $pbxdir directory does not exist!"
-		echo "       Please create symlink /usr/src/asterisk and"
-		echo "       point to existing asterisk source!"
-		echo "       Then re run ./install.sh "
+		echo "       Please provide the path to Asterik or CallWeaver source."
+		echo "       Then re-run eg: ./install -pbxdir /usr/src/asterisk "
 		echo
-		exit 1
+	else
+		eval "make clean 2> /dev/null > /dev/null"
+		eval "make PBXDIR=$pbxdir"
+		if [ $? -ne 0 ]; then
+			exit 1;
+		fi
+		make INSTALLPREFIX=$rootdir install
+		if [ $? -ne 0 ]; then
+			echo
+			echo "Error: Failed to compile chan_woomera into PBX source!"
+			echo
+			exit 1;
+		fi
+		echo "Ok."
+		chan_woomera_installed=1;
 	fi
-
-	eval "make clean 2> /dev/null > /dev/null"
-	eval "make PBXDIR=$pbxdir"
-	if [ $? -ne 0 ]; then
-		exit 1;
-	fi
-
-	make INSTALLPREFIX=$rootdir install
-	echo "Ok."
 
 else
 	echo "Warning: chan_woomera directory does not exist!"
 	exit 1
 fi
 
+if [ $smg_installed -eq 1 ]; then
+	echo "---------------------------------"
+	echo
+	echo " SMG Install Done"
+	echo
+	echo "--> Config: /etc/sangoma_mgd.conf"
+	echo "--> Start:  sangoma_mgd -bg"
+	echo
+else
+	echo "---------------------------------"
+	echo
+	echo " SMG Installation Failed"
+	echo 
+	echo " Please contact Sangoma Support"
+	echo " http://wiki.sangoma.com"
+	echo
+fi
 
-echo "---------------------------------"
-echo
-echo " SMG Install Done"
-echo
-echo "--> Config: /etc/sangoma_mgd.conf"
-echo "--> Start:  sangoma_mgd -bg"
-echo
-echo " Chan Woomera Install Done"
-echo 
-echo "--> Config: $cfgdir/woomera.conf"
-echo "--> Start: start $pbxd (part of $pbxd)"
-echo
-echo "---------------------------------"
+if [ $chan_woomera_installed -eq 1 ]; then
+	echo
+	echo " Chan Woomera Install Done"
+	echo 
+	echo "--> Config: $cfgdir/woomera.conf"
+	echo "--> Start: start $pbxd (part of $pbxd)"
+	echo
+	echo "---------------------------------"
+else
+	echo
+	echo " Chan Woomera Installatin Failed"
+	echo 
+	echo " If you are running Asteirsk/CallWeaver on another system"
+	echo " ignore this message. Otherwise please contact"
+	echo " Sangoma Support."
+	echo " http://wiki.sangoma.com"
+	echo
+	echo "---------------------------------"
+fi
 
 exit 0
 

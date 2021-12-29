@@ -521,6 +521,7 @@ extern int wplip_unreg_lipdev_prot(wplip_dev_t *lip_dev);
 extern int wplip_open_lipdev_prot(wplip_dev_t *lip_dev);
 extern int wplip_close_lipdev_prot(wplip_dev_t *lip_dev);
 extern int wplip_prot_rx(wplip_link_t *lip_link, netskb_t *skb);
+extern int wplip_change_mtu(netdevice_t *dev, int new_mtu);
 
 #if 0
 extern void wplip_prot_rx_kick(wplip_dev_t *lip_dev);

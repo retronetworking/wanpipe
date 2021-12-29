@@ -55,14 +55,23 @@ dtmf_off_duration => 10
 
 #Enable/Disable Auto ISUP ACM 
 #response to an incoming ss7 call. 
-#0-Disable
-#1-Enable (Default)
-autoacm => 1
+#0-Disable (Default)
+#1-Enable
+autoacm => 0
 
 
 #Strip non digits from incoming
 #calls. Removes F from incoming cid
 #when overlap signalling is used.
-#0-Disable
+#0-Disable (Default)
 #1-Enable
 strip_cid_non_digits => 0
+
+
+#Eanble Woomera UDP sequencing
+#This must be enabled on chan_woomera
+#side as well in order to work.
+#0-Disable (Default)
+#1-Eanble
+woomear_udp_seq => 0
+

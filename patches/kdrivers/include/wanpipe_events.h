@@ -61,6 +61,13 @@
 		((ring) == WAN_EVENT_RING_TRIP_PRESENT) ? "RingTrip Present" :	\
 		((ring) == WAN_EVENT_RING_TRIP_STOP)	? "RingTrip Stop" :	\
 							"Unknown"
+/*Link Status */
+#define WAN_EVENT_LINK_STATUS_CONNECTED		0x01
+#define WAN_EVENT_LINK_STATUS_DISCONNECTED	0x02
+#define WAN_EVENT_LINK_STATUS_DECODE(status)					\
+		((status) == WAN_EVENT_LINK_STATUS_CONNECTED) ? "Connected" :		\
+		((status) == WAN_EVENT_LINK_STATUS_DISCONNECTED)  ? "Disconnected" :		\
+							"Unknown"
 
 #if defined(WAN_KERNEL)
 
@@ -92,6 +99,8 @@
 #define WAN_EVENT_EC_CHAN_MODIFY	0x0011
 #define WAN_EVENT_EC_H100_REPORT	0x0012
 #define WAN_EVENT_BRI_CHAN_LOOPBACK	0x0013
+#define WAN_EVENT_LINK_STATUS		0x0014
+	
 
 #define WAN_EVENT_TYPE_DECODE(type)					\
 		((type) == WAN_EVENT_EC_DTMF)		? "EC DTMF"  :	\
@@ -112,7 +121,8 @@
 		((type) == WAN_EVENT_RM_SET_ECHOTUNE)	? "RM Set echotune" :	\
 		((type) == WAN_EVENT_EC_CHAN_MODIFY)	? "EC Chan Modify" :	\
 		((type) == WAN_EVENT_BRI_CHAN_LOOPBACK)	? "BRI B-Chan Loopback" :	\
-						"(Unknown type)"
+		((type) == WAN_EVENT_LINK_STATUS)	? "Link Status" :	\
+							"(Unknown type)"
 
 /* tone type list */						
 #define	WAN_EVENT_TONE_DIAL		0x01
@@ -139,6 +149,7 @@ typedef struct wan_event_
 	unsigned char	rxhook;		/* LC: OFF-HOOK or ON-HOOK */
 
 	unsigned char	ring_mode;	/* RingDetect: Present/Stop */
+	unsigned char	link_status;    /* Link Status */
 		
 } wan_event_t;
 

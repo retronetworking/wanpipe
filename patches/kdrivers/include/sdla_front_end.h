@@ -255,6 +255,7 @@ typedef struct {
 						      "unknown"
 
 #define WAN_FE_STATUS_DECODE(fe)	FE_STATUS_DECODE((fe)->fe_status)
+#define LINK_STATUS_DECODE(fe_status) 	FE_STATUS_DECODE(fe_status)
 
 #ifdef WAN_KERNEL
 
@@ -530,7 +531,8 @@ typedef struct {
 	/* Print Front-End alarm (T1/E1/56K) */
 	int		(*print_fe_alarm)(sdla_fe_t*,unsigned int);
 	/* Get front end status: Connected/Disconnected  */
-	int		(*get_fe_status)(sdla_fe_t *fe, unsigned char*);
+	/* added mod_no to get status of individual fxo (mod_no only used for Analog/FXO cards) */
+	int		(*get_fe_status)(sdla_fe_t *fe, unsigned char*, int mod_no);
 	/* Set front end status: Connected/Disconnected only ISDN BRI */
 	int		(*set_fe_status)(sdla_fe_t *fe, unsigned char);
 	/* Get front end media type */
