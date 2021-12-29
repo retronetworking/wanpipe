@@ -522,7 +522,13 @@ static int wanpipe_mgmnt_start_port(wanpipe_wandev_t *wdev, wan_device_t *wandev
 		if (dev) {
 			dev_put(dev);
 			rtnl_lock();
-			err=dev_change_flags(dev,(dev->flags|IFF_UP));
+
+			#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
+				err=dev_change_flags(dev,(dev->flags|IFF_UP));
+			#else
+				err=dev_change_flags(dev,(dev->flags|IFF_UP),NULL);
+			#endif
+
 			rtnl_unlock();
 		} else {
 			err=-ENODEV;
@@ -582,7 +588,13 @@ static int wanpipe_mgmnt_start_port_if(wanpipe_wandev_t *wdev,  wan_device_t *wa
 			if (dev) {
 				dev_put(dev);
 				rtnl_lock();
-				err=dev_change_flags(dev,(dev->flags|IFF_UP));
+
+				#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
+					err=dev_change_flags(dev,(dev->flags|IFF_UP));
+				#else
+					err=dev_change_flags(dev,(dev->flags|IFF_UP),NULL);
+				#endif
+
 				rtnl_unlock();
 			} else {
 				err=-ENODEV;

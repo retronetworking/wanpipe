@@ -1150,7 +1150,13 @@ static int delete_interface (wan_device_t *wandev, netdevice_t *dev, int force)
 	if (netif_running(dev)){
 		if (force) {
 			rtnl_lock();
-			err=dev_change_flags(dev,(dev->flags&~(IFF_UP)));
+
+			#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
+				err=dev_change_flags(dev,(dev->flags&~(IFF_UP)));
+			#else
+				err=dev_change_flags(dev,(dev->flags&~(IFF_UP)),NULL);
+			#endif
+
 			rtnl_unlock();
 			if (err) {
 				return err;

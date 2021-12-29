@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.27
+%define VERSION           7.0.29
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,6 +259,11 @@ fi
 ################################################################################
 
 %changelog
+* Tue Nov 10 2020 Pushkar Singh <psingh@sangoma.com> - 7.0.28
+==================================================================
+- Support for Kernel version 4.18.0.193+
+- Wanpipe script support for Ubuntu 18.04+
+
 * Tue Dec 26 2019 Pushkar Singh <psingh@sangoma.com> - 7.0.27
 ==================================================================
 - Support for Kernel version 4.18.x+

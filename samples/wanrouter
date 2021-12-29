@@ -44,6 +44,16 @@
 # Dec 15, 1996	Gene Kozin	Initial version based on Sangoma's WANPIPE(tm)
 # ============================================================================
 
+### BEGIN INIT INFO
+# Provides:          wanrouter
+# Required-Start:    $syslog
+# Required-Stop:     $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Configure and start Wanpipe
+# Description:       Controls the Cards
+### END INIT INFO
+
 ####### FUNCTION DEFINITIONS #################################################
 
 
@@ -2231,7 +2241,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=7.0.27
+		ROUTER_VERSION=7.0.29
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"

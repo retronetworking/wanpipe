@@ -1986,7 +1986,11 @@ int change_dev_flags (netdevice_t *dev, unsigned flags)
 	int err;
 
 #ifdef LINUX_2_6
- 	err=dev_change_flags(dev,flags);
+	#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
+		err=dev_change_flags(dev,flags);
+	#else
+		err=dev_change_flags(dev,flags,NULL);
+	#endif
 #else
 	struct ifreq if_info;
 	mm_segment_t fs = get_fs();
