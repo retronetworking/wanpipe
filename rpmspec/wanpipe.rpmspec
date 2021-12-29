@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           7.0.25.1
+%define version           7.0.26
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -245,6 +245,11 @@ chmod 755 /usr/local/sbin/setup-sangoma
 
 
 %changelog
+* Tue Apr 02 2019 Pushkar Singh <psingh@sangoma.com> - 7.0.26
+==================================================================
+- Support for Kernel version 4.15+
+- Support for GLIBC version 2.27+
+
 * Wed Feb 23 2019 Nenad Corbic <ncorbic@sangoma.com> - 7.0.25
 ==================================================================
 - Fix the build for DATA

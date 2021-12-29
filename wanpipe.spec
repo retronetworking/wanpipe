@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.25.1
+%define VERSION           7.0.26
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,6 +259,11 @@ fi
 ################################################################################
 
 %changelog
+* Tue Apr 02 2019 Pushkar Singh <psingh@sangoma.com> - 7.0.26
+==================================================================
+- Support for Kernel version 4.15+
+- Support for GLIBC version 2.27+
+
 * Wed Feb 23 2019 Nenad Corbic <ncorbic@sangoma.com> - 7.0.25
 ==================================================================
 - Fix the build for DATA

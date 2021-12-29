@@ -211,7 +211,11 @@ static int wanpipe_ioctl(struct socket *sock, unsigned int cmd, unsigned long ar
 	switch(cmd) 
 	{
 		case SIOC_WANPIPE_CHECK_TX:
+#if defined(KERN_REFCNT_UPDATE) && KERN_REFCNT_UPDATE > 0
+			if (refcount_read(&sk->sk_wmem_alloc))
+#else
 			if (atomic_read(&sk->sk_wmem_alloc))
+#endif
 				return 1;
 
 			goto dev_private_ioctl;
@@ -564,8 +568,11 @@ static int wanpipe_listen(struct socket *sock, int backlog)
  *	For each incoming call, create a new socket and 
  *      return it to the user.	
  *=====================================================================*/
-
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static int wanpipe_accept(struct socket *sock, struct socket *newsock, int flags, bool kern)
+#else
 static int wanpipe_accept(struct socket *sock, struct socket *newsock, int flags)
+#endif
 {
 	struct sock *sk;
 	struct sock *newsk=NULL, *newsk_frmskb=NULL;
@@ -1086,11 +1093,19 @@ void wanpipe_kill_sock (struct sock *sk)
 	SK_PRIV_INIT(sk,NULL);
 	
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
+#if defined(KERN_REFCNT_UPDATE) && KERN_REFCNT_UPDATE > 0
+	if (refcount_read(&sk->sk_refcnt) != 1){
+		DEBUG_TEST("af_wanpipe: Error, wrong reference count: %i ! :Kill.\n",
+					refcount_read(&sk->sk_refcnt));
+		refcount_set(&sk->sk_refcnt,1);
+	}
+#else
 	if (atomic_read(&sk->sk_refcnt) != 1){
 		DEBUG_TEST("af_wanpipe: Error, wrong reference count: %i ! :Kill.\n",
 					atomic_read(&sk->sk_refcnt));
 		atomic_set(&sk->sk_refcnt,1);
 	}
+#endif
 	sock_put(sk);
 #else
 	sk_free(sk);
@@ -1277,11 +1292,19 @@ static int wanpipe_release(struct socket *sock, struct socket *peersock)
 	SK_PRIV_INIT(sk,NULL);
 	
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
+#if defined(KERN_REFCNT_UPDATE) && KERN_REFCNT_UPDATE > 0
+	if (refcount_read(&sk->sk_refcnt) != 1){
+		DEBUG_EVENT("af_wanpipe: Error, wrong reference count: %i !:release.\n",
+					refcount_read(&sk->sk_refcnt));
+		refcount_set(&sk->sk_refcnt,1);
+	}
+#else
 	if (atomic_read(&sk->sk_refcnt) != 1){
 		DEBUG_EVENT("af_wanpipe: Error, wrong reference count: %i !:release.\n",
 					atomic_read(&sk->sk_refcnt));
 		atomic_set(&sk->sk_refcnt,1);
 	}
+#endif
 	sock_put(sk);
 #else	
 	sk_free(sk);
@@ -1311,7 +1334,11 @@ static void check_write_queue(struct sock *sk)
 	if (sk->sk_state != WANSOCK_CONNECTED)
 		return;
 
+#if defined(KERN_REFCNT_UPDATE) && KERN_REFCNT_UPDATE > 0
+	if (!refcount_read(&sk->sk_wmem_alloc))
+#else
 	if (!atomic_read(&sk->sk_wmem_alloc))
+#endif
 		return;
 
 	printk(KERN_INFO "af_wanpipe: MAJOR ERROR, Data lost on sock release !!!\n");

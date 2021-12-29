@@ -292,6 +292,8 @@ static int sdla_ds_te1_sigctrl(sdla_fe_t *fe, int, unsigned long, int);
 static void sdla_ds_te1_timer(void* pfe);
 #elif defined(__WINDOWS__)
 static void sdla_ds_te1_timer(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3);
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void sdla_ds_te1_timer(struct timer_list *t);
 #else
 static void sdla_ds_te1_timer(unsigned long pfe);
 #endif
@@ -2361,62 +2363,103 @@ static u_int32_t sdla_ds_te1_read_frame_alarms(sdla_fe_t *fe)
 				fe->name, FE_MEDIA_DECODE(fe),
 				rrts1, alarm);
 
-	/* Framer alarms */
-	if (rrts1 & BIT_RRTS1_RRAI){
-		sdla_ds_te1_swirq_trigger(
-				fe,
-				WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
-				WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
-				WAN_T1_ALARM_THRESHOLD_RAI_ON);
-	}else{
-		sdla_ds_te1_swirq_trigger(
-				fe,
-				WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
-				WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
-				WAN_T1_ALARM_THRESHOLD_RAI_OFF);
+	if (fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) {
+		alarm &= ~WAN_TE_BIT_ALARM_RAI;
+
+		/* Framer alarms */
+		//if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
+		if (rrts1 & BIT_RRTS1_RRAI){
+			if (!(alarm & WAN_TE_BIT_ALARM_RAI)){
+				DEBUG_WARNING("%s:    RAI : ON\n",
+							fe->name);
+			}
+			if (fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+				alarm |= WAN_TE_BIT_ALARM_RAI;
+			}
+		}else{
+			if (alarm & WAN_TE_BIT_ALARM_RAI){
+				DEBUG_WARNING("%s:    RAI : OFF\n",
+							fe->name);
+			}
+			alarm &= ~WAN_TE_BIT_ALARM_RAI;
+		}
+		//}
+	} else {
+		/* Framer alarms */
+		if (rrts1 & BIT_RRTS1_RRAI){
+			sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+					WAN_T1_ALARM_THRESHOLD_RAI_ON);
+		}else{
+			sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+					WAN_T1_ALARM_THRESHOLD_RAI_OFF);
+		}
 	}
 
 	if (rrts1 & BIT_RRTS1_RAIS){
-		sdla_ds_te1_swirq_trigger(
-				fe,
-				WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
-				WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
-				WAN_T1_ALARM_THRESHOLD_AIS_ON);
+		if ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) ||
+		    ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) && (!IS_TE_ALARM_AIS(alarm)))) {
+			sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+					WAN_T1_ALARM_THRESHOLD_AIS_ON);
+		}
 	}else{
-		sdla_ds_te1_swirq_trigger(
-				fe,
-				WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
-				WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
-				WAN_T1_ALARM_THRESHOLD_AIS_OFF);
+		if ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) ||
+		    ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) && (IS_TE_ALARM_AIS(alarm)))) {
+			sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+					WAN_T1_ALARM_THRESHOLD_AIS_OFF);
+		}
 	}
 
 	if (rrts1 & BIT_RRTS1_RLOS){
-		sdla_ds_te1_swirq_trigger(
-				fe,
-				WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
-				WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
-				WAN_T1_ALARM_THRESHOLD_LOS_ON);
+		if ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) ||
+		    ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) && (!IS_TE_ALARM_LOS(alarm)))) {
+			sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+					WAN_T1_ALARM_THRESHOLD_LOS_ON);
+		}
 	}else{
-		sdla_ds_te1_swirq_trigger(
-				fe,
-				WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
-				WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
-				WAN_T1_ALARM_THRESHOLD_LOS_OFF);
+		if ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) ||
+		    ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) && (IS_TE_ALARM_LOS(alarm)))) {
+			sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+					WAN_T1_ALARM_THRESHOLD_LOS_OFF);
+		}
 	}
 
 	if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
 		if (rrts1 & BIT_RRTS1_RLOF){
-			sdla_ds_te1_swirq_trigger(
-				fe,
-				WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
-				WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
-				WAN_T1_ALARM_THRESHOLD_LOF_ON);
+		if ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) ||
+		    ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) && (!IS_TE_ALARM_LOF(alarm)))) {
+				sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+					WAN_T1_ALARM_THRESHOLD_LOF_ON);
+			}
 		}else{
-			sdla_ds_te1_swirq_trigger(
-				fe,
-				WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
-				WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
-				WAN_T1_ALARM_THRESHOLD_LOF_OFF);
+		if ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) ||
+		    ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) && (IS_TE_ALARM_LOF(alarm)))) {
+				sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+					WAN_T1_ALARM_THRESHOLD_LOF_OFF);
+			}
 		}
 	}
 	/* Aug 30, 2006
@@ -2543,23 +2586,25 @@ static u_int32_t  sdla_ds_te1_read_alarms(sdla_fe_t *fe, int action)
 static int
 sdla_ds_te1_update_alarms(sdla_fe_t *fe, u_int32_t alarms)
 {
-	if (!IS_TE_ALARM_RAI(fe->fe_alarm)){
-		if (IS_TE_ALARM_RAI(alarms)){
-			if (fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
-				DEBUG_EVENT("%s:    RAI : ON\n",
-						fe->name);
-				fe->fe_alarm |= WAN_TE_BIT_ALARM_RAI;
-			} else {
-				DEBUG_EVENT("%s:    RAI : ON (Skipped)\n",
-						fe->name);
+	if (fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) {
+		if (!IS_TE_ALARM_RAI(fe->fe_alarm)){
+			if (IS_TE_ALARM_RAI(alarms)){
+				if (fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+					DEBUG_EVENT("%s:    RAI : ON\n",
+							fe->name);
+					fe->fe_alarm |= WAN_TE_BIT_ALARM_RAI;
+				} else {
+					DEBUG_EVENT("%s:    RAI : ON (Skipped)\n",
+							fe->name);
+					fe->fe_alarm &= ~WAN_TE_BIT_ALARM_RAI;
+				}
+			}
+		}else{
+			if (!IS_TE_ALARM_RAI(alarms)){
+				DEBUG_EVENT("%s:    RAI : OFF\n",
+							fe->name);
 				fe->fe_alarm &= ~WAN_TE_BIT_ALARM_RAI;
 			}
-		}
-	}else{
-		if (!IS_TE_ALARM_RAI(alarms)){
-			DEBUG_EVENT("%s:    RAI : OFF\n",
-						fe->name);
-			fe->fe_alarm &= ~WAN_TE_BIT_ALARM_RAI;
 		}
 	}
 	
@@ -3455,17 +3500,29 @@ static int sdla_ds_te1_fr_rxintr_rls1(sdla_fe_t *fe, int silent)
 
 	if (rls1 & (BIT_RLS1_RRAIC|BIT_RLS1_RRAID)){
 		if (rrts1 & BIT_RRTS1_RRAI){
-			sdla_ds_te1_swirq_trigger(
+			if (fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) {
+				fe->fe_alarm |= WAN_TE_BIT_ALARM_RAI;
+				if (!silent) DEBUG_EVENT("%s: RAI alarm is ON\n",
+						fe->name);
+			} else {
+				sdla_ds_te1_swirq_trigger(
 					fe,
 					WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
 					WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
 					WAN_T1_ALARM_THRESHOLD_RAI_ON);
+			}
 		}else{
-			sdla_ds_te1_swirq_trigger(
+			if (fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) {
+				fe->fe_alarm &= ~WAN_TE_BIT_ALARM_RAI;
+				if (!silent) DEBUG_EVENT("%s: RAI alarm is OFF\n",
+						fe->name);
+			} else {
+				sdla_ds_te1_swirq_trigger(
 					fe,
 					WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
 					WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
 					WAN_T1_ALARM_THRESHOLD_RAI_OFF);
+			}
 		}
 	}
 
@@ -4053,11 +4110,17 @@ static int sdla_ds_te1_intr(sdla_fe_t *fe)
 static void sdla_ds_te1_timer(void* pfe)
 #elif defined(__WINDOWS__)
 static void sdla_ds_te1_timer(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void sdla_ds_te1_timer(struct timer_list *t)
 #else
 static void sdla_ds_te1_timer(unsigned long pfe)
 #endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	sdla_fe_t	*fe = from_timer(fe, t, timer.timer_info);
+#else
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+#endif
 	sdla_t 		*card = (sdla_t*)fe->card;
 	wan_device_t	*wandev = &card->wandev;
 	wan_smp_flag_t	smp_flags;
@@ -4340,8 +4403,10 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 
 	if (swirq->subtype == WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON){
 
-		if (fe->fe_status == FE_DISCONNECTED && type == WAN_TE1_SWIRQ_TYPE_ALARM_RAI) {
-			swirq->delay=0;
+		if (fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) {
+			if (fe->fe_status == FE_DISCONNECTED && type == WAN_TE1_SWIRQ_TYPE_ALARM_RAI) {
+				swirq->delay=0;
+			}
 		}
 
 		if (WAN_STIMEOUT(swirq->start, swirq->delay)){
@@ -4352,7 +4417,7 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 				alarms |= WAN_TE_BIT_ALARM_LOS;
 			}else if (type == WAN_TE1_SWIRQ_TYPE_ALARM_LOF){
 				alarms |= WAN_TE_BIT_ALARM_LOF;
-			}else if (type == WAN_TE1_SWIRQ_TYPE_ALARM_RAI){
+			}else if ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) && (type == WAN_TE1_SWIRQ_TYPE_ALARM_RAI)) {
 				alarms |= WAN_TE_BIT_ALARM_RAI;
 			}			
 			wan_clear_bit(1, (void*)&swirq->pending);
@@ -4377,7 +4442,7 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 				alarms &= ~WAN_TE_BIT_ALARM_LOS;
 			}else if (type == WAN_TE1_SWIRQ_TYPE_ALARM_LOF){
 				alarms &= ~WAN_TE_BIT_ALARM_LOF;
-			}else if (type == WAN_TE1_SWIRQ_TYPE_ALARM_RAI){
+			}else if ((fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) && (type == WAN_TE1_SWIRQ_TYPE_ALARM_RAI)) {
 				alarms &= ~WAN_TE_BIT_ALARM_RAI;
 			}			
 			wan_clear_bit(1, (void*)&swirq->pending);
@@ -4444,18 +4509,28 @@ static int sdla_ds_te1_swirq_trigger(sdla_fe_t* fe, int type, int subtype, int d
 		/* new swirq */
 		fe->swirq[type].subtype = (u8)subtype;
 		fe->swirq[type].start = SYSTEM_TICKS;
-		fe->swirq[type].delay = delay;
-		wan_set_bit(type, (void*)&fe->swirq_map);
+
+		if (fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) {
+			fe->swirq[type].delay = delay;
+			wan_set_bit(type, (void*)&fe->swirq_map);
+		}
 	}else{
 		/* already in a process */
 		if (fe->swirq[type].subtype != subtype){
 			fe->swirq[type].subtype = (u8)subtype;
 			fe->swirq[type].start = SYSTEM_TICKS;
-			fe->swirq[type].delay = delay;
-			wan_set_bit(type, (void*)&fe->swirq_map);
+
+			if (fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) {
+				fe->swirq[type].delay = delay;
+				wan_set_bit(type, (void*)&fe->swirq_map);
+			}
 		}
 	} 
 
+	if (fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_YES) {
+		fe->swirq[type].delay = delay;
+		wan_set_bit(type, (void*)&fe->swirq_map);
+	}
 	return 0;
 }
 
@@ -4488,10 +4563,11 @@ static int sdla_ds_te1_swirq(sdla_fe_t* fe)
 		sdla_ds_te1_swirq_alarm(fe, WAN_TE1_SWIRQ_TYPE_ALARM_LOF);
 	}
 
-	if (wan_test_bit(1, (void*)&fe->swirq[WAN_TE1_SWIRQ_TYPE_ALARM_RAI].pending)){
-		sdla_ds_te1_swirq_alarm(fe, WAN_TE1_SWIRQ_TYPE_ALARM_RAI);
+	if (fe->fe_cfg.cfg.te_cfg.ignore_debounce_alarm == WANOPT_NO) {
+		if (wan_test_bit(1, (void*)&fe->swirq[WAN_TE1_SWIRQ_TYPE_ALARM_RAI].pending)){
+			sdla_ds_te1_swirq_alarm(fe, WAN_TE1_SWIRQ_TYPE_ALARM_RAI);
+		}
 	}
-
 	return 0;
 }
 

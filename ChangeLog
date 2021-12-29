@@ -2,10 +2,15 @@
 WANPIPE TDM VOICE - IP/WAN Package
 
 ------------------------------------------------------------------------------
-Copyright (c) 1995-2017 Sangoma Technologies Inc.
+Copyright (c) 1995-2019 Sangoma Technologies Inc.
 
 For more info visit: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
+
+* Tue Apr 02 2019 Pushkar Singh <psingh@sangoma.com> - 7.0.26
+==================================================================
+- Support for Kernel version 4.15+
+- Support for GLIBC version 2.27+
 
 * Wed Feb 23 2019 Nenad Corbic <ncorbic@sangoma.com> - 7.0.25
 ==================================================================

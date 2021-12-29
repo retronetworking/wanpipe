@@ -237,7 +237,12 @@ static int config_chdlc (sdla_t *card, netdevice_t *dev);
 static void disable_comm (sdla_t *card);
 
 static void trigger_chdlc_poll (netdevice_t *);
+static void trigger_chdlc_poll_priv_area (chdlc_private_area_t *);
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void chdlc_poll_delay (struct timer_list *t);
+#else
 static void chdlc_poll_delay (unsigned long dev_ptr);
+#endif
 static int chdlc_calibrate_baud (sdla_t *card);
 static int chdlc_read_baud_calibration (sdla_t *card);
 
@@ -1111,9 +1116,13 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	WAN_TASKQ_INIT((&chdlc_priv_area->poll_task),0,chdlc_poll,dev);
 
 	/* Initialize the polling delay timer */
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	timer_setup(&chdlc_priv_area->poll_delay_timer, chdlc_poll_delay, 0);
+#else
 	init_timer(&chdlc_priv_area->poll_delay_timer);
 	chdlc_priv_area->poll_delay_timer.data = (unsigned long)dev;
 	chdlc_priv_area->poll_delay_timer.function = chdlc_poll_delay;
+#endif
 
 	/*
 	 * Create interface file in proc fs.
@@ -4530,18 +4539,9 @@ static void chdlc_poll (struct work_struct *work)
  *      a polling routine.
  *
  */	
-static void trigger_chdlc_poll (netdevice_t *dev)
+static void trigger_chdlc_poll_priv_area (chdlc_private_area_t *chdlc_priv_area)
 {
-	chdlc_private_area_t *chdlc_priv_area;
-	sdla_t *card;
-
-	if (!dev)
-		return;
-	
-	if ((chdlc_priv_area = wan_netif_priv(dev))==NULL)
-		return;
-
-	card = chdlc_priv_area->card;
+	sdla_t * card = chdlc_priv_area->card;
 	
 	if (test_and_set_bit(POLL_CRIT,&card->wandev.critical)){
 		return;
@@ -4553,13 +4553,32 @@ static void trigger_chdlc_poll (netdevice_t *dev)
 	return;
 }
 
+static void trigger_chdlc_poll (netdevice_t *dev)
+{
+	chdlc_private_area_t *chdlc_priv_area;
 
+	if (!dev)
+		return;
+	
+	if ((chdlc_priv_area = wan_netif_priv(dev))==NULL)
+		return;
+
+    trigger_chdlc_poll_priv_area(chdlc_priv_area);
+}
+
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void chdlc_poll_delay (struct timer_list *t)
+{
+    chdlc_private_area_t *chdlc_priv_area = from_timer(chdlc_priv_area, t, poll_delay_timer);
+	trigger_chdlc_poll_priv_area(chdlc_priv_area);
+}
+#else
 static void chdlc_poll_delay (unsigned long dev_ptr)
 {
 	netdevice_t *dev = (netdevice_t *)dev_ptr;
 	trigger_chdlc_poll(dev);
 }
-
+#endif
 
 static int set_adapter_config (sdla_t* card)
 {

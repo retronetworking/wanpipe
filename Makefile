@@ -209,10 +209,47 @@ ifneq (,$(wildcard $(KDIR)/include/linux/netdevice.h))
 KERN_NDO_CHANGE_MTU_RH74=$(shell grep "ndo_change_mtu_rh74" $(KDIR)/include/linux/netdevice.h -c)
 EXTRA_CFLAGS+=-DKERN_NDO_CHANGE_MTU_RH74=$(KERN_NDO_CHANGE_MTU_RH74)
 else
-KERN_NETIF_TRANS_UPDATE=$(shell grep "ndo_change_mtu_rh74" $(KSRC)/include/linux/netdevice.h -c)
+KERN_NDO_CHANGE_MTU_RH74=$(shell grep "ndo_change_mtu_rh74" $(KSRC)/include/linux/netdevice.h -c)
 EXTRA_CFLAGS+=-DKERN_NDO_CHANGE_MTU_RH74=$(KERN_NDO_CHANGE_MTU_RH74)
 endif
 
+ifneq (,$(wildcard $(KDIR)/include/linux/device.h))
+KERN_CLASS_DEV_GROUPS=$(shell awk 'BEGIN { s=0 } /\*\*dev_groups;/ { s=1; exit } END { print s }' $(KDIR)/include/linux/device.h)
+EXTRA_CFLAGS+=-DKERN_CLASS_DEV_GROUPS=$(KERN_CLASS_DEV_GROUPS)
+else
+KERN_CLASS_DEV_GROUPS=$(shell awk 'BEGIN { s=0 } /\*\*dev_groups;/ { s=1; exit } END { print s }' $(KSRC)/include/linux/device.h)
+EXTRA_CFLAGS+=-DKERN_CLASS_DEV_GROUPS=$(KERN_CLASS_DEV_GROUPS)
+endif
+
+ifneq (,$(wildcard $(KDIR)/include/linux/timer.h))
+KERN_TIMER_SETUP=$(shell grep 'define timer_setup' $(KDIR)/include/linux/timer.h -c)
+EXTRA_CFLAGS+=-DKERN_TIMER_SETUP=$(KERN_TIMER_SETUP)
+else
+KERN_TIMER_SETUP=$(shell grep 'define timer_setup' $(KSRC)/include/linux/timer.h -c)
+EXTRA_CFLAGS+=-DKERN_TIMER_SETUP=$(KERN_TIMER_SETUP)
+endif
+
+ifneq (,$(wildcard $(KDIR)/include/linux/refcount.h))
+KERN_REFCNT_UPDATE=$(shell grep 'refcount_read' $(KDIR)/include/linux/refcount.h -c)
+EXTRA_CFLAGS+=-DKERN_REFCNT_UPDATE=$(KERN_REFCNT_UPDATE)
+else ifneq (,$(wildcard $(KSRC)/include/linux/refcount.h))
+KERN_REFCNT_UPDATE=$(shell grep 'refcount_read' $(KSRC)/include/linux/refcount.h -c)
+EXTRA_CFLAGS+=-DKERN_REFCNT_UPDATE=$(KERN_REFCNT_UPDATE)
+else
+KERN_REFCNT_UPDATE=0
+EXTRA_CFLAGS+=-DKERN_REFCNT_UPDATE=$(KERN_REFCNT_UPDATE)
+endif
+
+ifneq (,$(wildcard $(KDIR)/include/linux/sched/signal.h))
+KERN_SIG_UPDATE=$(shell grep 'signal_pending' $(KDIR)/include/linux/sched/signal.h -c)
+EXTRA_CFLAGS+=-DKERN_SIG_UPDATE=$(KERN_SIG_UPDATE)
+else ifneq (,$(wildcard $(KSRC)/include/linux/sched/signal.h))
+KERN_SIG_UPDATE=$(shell grep 'signal_pending' $(KSRC)/include/linux/sched/signal.h -c)
+EXTRA_CFLAGS+=-DKERN_SIG_UPDATE=$(KERN_SIG_UPDATE)
+else
+KERN_SIG_UPDATE=0
+EXTRA_CFLAGS+=-DKERN_SIG_UPDATE=$(KERN_SIG_UPDATE)
+endif
 
 # First pass, kernel Makefile reads module objects
 ifneq ($(KERNELRELEASE),)

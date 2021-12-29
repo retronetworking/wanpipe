@@ -464,13 +464,18 @@ wanec_bypass(wan_ec_dev_t *ec_dev, int fe_chan, int enable, int verbose)
 static void wanec_timer(void* p_ec_dev)
 #elif defined(__WINDOWS__)
 static void wanec_timer(IN PKDPC Dpc, void* p_ec_dev, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void wanec_timer(struct timer_list *t)
 #else
 static void wanec_timer(unsigned long p_ec_dev)
 #endif
 {
-	wan_ec_dev_t	*ec_dev = (wan_ec_dev_t*)p_ec_dev;
 	sdla_t		*card = NULL;
-
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	wan_ec_dev_t	*ec_dev = from_timer(ec_dev, t, timer.timer_info);
+#else
+	wan_ec_dev_t	*ec_dev = (wan_ec_dev_t*)p_ec_dev;
+#endif
 	WAN_ASSERT1(ec_dev == NULL);
 	WAN_ASSERT1(ec_dev->card == NULL);
 	card = (sdla_t*)ec_dev->card;

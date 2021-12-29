@@ -332,7 +332,12 @@ static int chk_bcast_mcast_addr(sdla_t* card, netdevice_t* dev,
 
 static int config_ppp (sdla_t *);
 static void trigger_ppp_poll(netdevice_t *);
+
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void ppp_poll_delay (struct timer_list *t);
+#else
 static void ppp_poll_delay (unsigned long dev_ptr);
+#endif
 
 # if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
 static void ppp_poll (void *card_ptr);
@@ -772,9 +777,13 @@ static int new_if(wan_device_t *wandev, netdevice_t *dev, wanif_conf_t *conf)
 	WAN_TASKQ_INIT((&ppp_priv_area->poll_task),0,ppp_poll,dev);
 
 	/* Initialize the polling delay timer */
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	timer_setup(&ppp_priv_area->poll_delay_timer, ppp_poll_delay, 0);
+#else
 	init_timer(&ppp_priv_area->poll_delay_timer);
 	ppp_priv_area->poll_delay_timer.data = (unsigned long)dev;
 	ppp_priv_area->poll_delay_timer.function = ppp_poll_delay;
+#endif
 	
 	/*
 	 * Create interface file in proc fs.
@@ -4048,32 +4057,44 @@ static void ppp_poll (struct work_struct *work)
  *
  */	
 
+static void trigger_ppp_poll_priv_area (ppp_private_area_t *ppp_priv_area)
+{
+	sdla_t *card = ppp_priv_area->card;
+
+	if (test_bit(PERI_CRIT,&card->wandev.critical)){
+		return;
+	}
+	
+	if (test_and_set_bit(POLL_CRIT,&card->wandev.critical)){
+		return;
+	}
+
+	WAN_TASKQ_SCHEDULE((&ppp_priv_area->poll_task));
+}
+
 static void trigger_ppp_poll (netdevice_t *dev)
 {
 	ppp_private_area_t *ppp_priv_area;
 
 	if ((ppp_priv_area=wan_netif_priv(dev)) != NULL){
-		
-		sdla_t *card = ppp_priv_area->card;
-
-		if (test_bit(PERI_CRIT,&card->wandev.critical)){
-			return;
-		}
-		
-		if (test_and_set_bit(POLL_CRIT,&card->wandev.critical)){
-			return;
-		}
-
-		WAN_TASKQ_SCHEDULE((&ppp_priv_area->poll_task));
+		trigger_ppp_poll_priv_area(ppp_priv_area);
 	}
 	return;
 }
 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void ppp_poll_delay (struct timer_list *t)
+{
+	ppp_private_area_t *ppp_priv_area = from_timer(ppp_priv_area, t, poll_delay_timer);
+	trigger_ppp_poll_priv_area(ppp_priv_area);
+}
+#else
 static void ppp_poll_delay (unsigned long dev_ptr)
 {
 	netdevice_t *dev = (netdevice_t *)dev_ptr;
 	trigger_ppp_poll(dev);
 }
+#endif
 
 /*============================================================
  * detect_and_fix_tx_bug

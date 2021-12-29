@@ -228,7 +228,11 @@ static int 	set_dev_config(struct file*, const char*, unsigned long, void *);
 static int 	set_if_info(struct file*, const char*, unsigned long, void *);
 #endif
 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void 	atm_timer_poll(struct timer_list *t);
+#else
 static void 	atm_timer_poll(unsigned long data);
+#endif
 
 static netdevice_t* move_dev_to_next (sdla_t *card, netdevice_t *dev);
 
@@ -575,10 +579,20 @@ int wp_atm_init (sdla_t* card, wandev_conf_t* conf)
 	return 0;
 }
 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void atm_timer_poll(struct timer_list *t)
+#else
 static void atm_timer_poll(unsigned long data)
+#endif
 {
 	struct wan_dev_le	*devle;
+
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	sdla_t *card = from_timer(card, t, u.atm.atm_timer.timer_info);
+#else
 	sdla_t *card = (sdla_t *)data;
+#endif
+
 	netdevice_t *dev;
 	private_area_t *chan;
 	int err;

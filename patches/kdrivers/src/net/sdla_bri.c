@@ -264,6 +264,9 @@ static void l1_timer_expire_t4(void* pfe);
 #elif defined(__WINDOWS__)
 static void l1_timer_expire_t3(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3);
 static void l1_timer_expire_t4(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3);
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void l1_timer_expire_t3(struct timer_list *t);
+static void l1_timer_expire_t4(struct timer_list *t);
 #else
 static void l1_timer_expire_t3(unsigned long pfe);
 static void l1_timer_expire_t4(unsigned long pfe);
@@ -281,6 +284,8 @@ static void __l1_timer_expire_t3(sdla_fe_t *fe);
 static void l1_timer_expire_t1(void* pfe);
 #elif defined(__WINDOWS__)
 static void l1_timer_expire_t1(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3);
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void l1_timer_expire_t1(struct timer_list *t);
 #else
 static void l1_timer_expire_t1(unsigned long pfe);
 #endif
@@ -2292,11 +2297,17 @@ static void l1_timer_stop_t3(void *pport)
 static void l1_timer_expire_t3(void* pport)
 #elif defined(__WINDOWS__)
 static void l1_timer_expire_t3(IN PKDPC Dpc, void* pport, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void l1_timer_expire_t3(struct timer_list *t)
 #else
 static void l1_timer_expire_t3(unsigned long pport)
 #endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	bri_xhfc_port_t	*port_ptr = from_timer(port_ptr, t, t3_timer.timer_info);
+#else
 	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
+#endif
 	wp_bri_module_t	*bri_module = port_ptr->hw;
 	sdla_fe_t	*fe = (sdla_fe_t*)bri_module->fe;
 	sdla_t 		*card = (sdla_t*)fe->card;
@@ -2408,11 +2419,17 @@ static void l1_timer_stop_t4(void *pport)
 static void l1_timer_expire_t4(void* pport)
 #elif defined(__WINDOWS__)
 static void l1_timer_expire_t4(IN PKDPC Dpc, void* pport, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void l1_timer_expire_t4(struct timer_list *t)
 #else
 static void l1_timer_expire_t4(unsigned long pport)
 #endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	bri_xhfc_port_t	*port_ptr = from_timer(port_ptr, t, t4_timer.timer_info);
+#else
 	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
+#endif
 	wp_bri_module_t	*bri_module = port_ptr->hw;
 	sdla_fe_t	*fe = bri_module->fe;
 	u8		mod_no, port_no;
@@ -2442,11 +2459,17 @@ static void l1_timer_expire_t4(unsigned long pport)
 static void l1_timer_expire_t1(void* pport)
 #elif defined(__WINDOWS__)
 static void l1_timer_expire_t1(IN PKDPC Dpc, void* pport, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void l1_timer_expire_t1(struct timer_list *t)
 #else
 static void l1_timer_expire_t1(unsigned long pport)
 #endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+    bri_xhfc_port_t *port_ptr = from_timer(port_ptr, t, t1_timer.timer_info);
+#else
 	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
+#endif
 	wp_bri_module_t	*bri_module = port_ptr->hw;
 	sdla_fe_t	*fe = (sdla_fe_t*)bri_module->fe;
 	sdla_t 		*card = (sdla_t*)fe->card;

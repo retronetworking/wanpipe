@@ -1387,11 +1387,17 @@ static int sdla_te3_add_timer(sdla_fe_t* fe, unsigned long delay)
 static void sdla_te3_timer(void* pfe)
 #elif defined(__WINDOWS__)
 static void sdla_te3_timer(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void sdla_te3_timer(struct timer_list *t)
 #else
 static void sdla_te3_timer(unsigned long pfe)
 #endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	sdla_fe_t	*fe = from_timer(fe, t, timer.timer_info);
+#else
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+#endif
 	sdla_t 		*card = (sdla_t*)fe->card;
 	wan_device_t	*wandev = &card->wandev;
 

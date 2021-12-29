@@ -1159,7 +1159,7 @@ static void if_tx_timeout (netdevice_t *dev)
 				card->devname,wan_netif_name(dev));
 	WAN_NETIF_WAKE_QUEUE (dev);
 #if defined(__LINUX__)
-# if (LINUX_VERSION_CODE > KERNEL_VERSION(4,7,0))
+# if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
 	netif_trans_update(dev);
 # else
 	dev->trans_start = SYSTEM_TICKS;
@@ -1379,7 +1379,7 @@ static int if_send(netdevice_t *dev, netskb_t *skb, struct sockaddr *dst,struct 
 		++card->wandev.stats.tx_packets;
        		card->wandev.stats.tx_bytes += wan_skb_len(skb);
 #if defined(__LINUX__)
-# if (LINUX_VERSION_CODE > KERNEL_VERSION(4,7,0))
+# if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
 		netif_trans_update(dev);
 # else
 		dev->trans_start = SYSTEM_TICKS;

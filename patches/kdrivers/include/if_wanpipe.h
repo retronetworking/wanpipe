@@ -389,8 +389,16 @@ typedef struct wanpipe_datascope
 				wan_free(dev); \
 			}
 
+/* since in kernel release 4.15 and after atomic_inc take argument of type atomic_t
+ * and since sock struct sk_refcnt member is not atomic_t type we need to type cast the same
+ * here as we donot want to change the kernel sock struct */
+#if defined(KERN_REFCNT_UPDATE) && KERN_REFCNT_UPDATE > 0
+#define wp_sock_hold(sk) 	refcount_inc(&(sk)->sk_refcnt)
+#define wp_sock_put(sk)		refcount_dec_and_test(&(sk)->sk_refcnt)
+#else
 #define wp_sock_hold(sk) 	atomic_inc(&(sk)->sk_refcnt)
 #define wp_sock_put(sk)		atomic_dec_and_test(&(sk)->sk_refcnt)
+#endif
 
 
 struct wanpipe_api_register_struct 

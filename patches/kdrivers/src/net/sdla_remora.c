@@ -423,6 +423,8 @@ static int wp_remora_add_timer(sdla_fe_t*, unsigned long);
 static void wp_remora_timer(void*);
 #elif defined(__WINDOWS__)
 static void wp_remora_timer(IN PKDPC,void*,void*,void*);
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void wp_remora_timer(struct timer_list *t);
 #else
 static void wp_remora_timer(unsigned long);
 #endif
@@ -2000,11 +2002,17 @@ static int wp_remora_set_dtmf(sdla_fe_t *fe, int mod_no, unsigned char val)
 static void wp_remora_timer(void* pfe)
 #elif defined(__WINDOWS__)
 static void wp_remora_timer(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void wp_remora_timer(struct timer_list *t)
 #else
 static void wp_remora_timer(unsigned long pfe)
 #endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	sdla_fe_t	*fe = from_timer(fe, t, timer.timer_info);
+#else
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+#endif
 
 	DEBUG_TEST("%s: RM timer!\n", fe->name);
 	

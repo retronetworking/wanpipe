@@ -154,16 +154,26 @@ static struct cdev wp_cdev_dev = {
 /* Global WANDEV Structure */
 static wanpipe_cdev_device_t wandev;
 
+#if defined(KERN_CLASS_DEV_GROUPS) && KERN_CLASS_DEV_GROUPS > 0
+static struct attribute * wanpipe_device_attrs[] = {
+	NULL,
+};
 
+ATTRIBUTE_GROUPS(wanpipe_device);
+#else
 static struct device_attribute wanpipe_device_attrs[] = {
 	__ATTR_NULL,
 };
+#endif
 
 static struct bus_type wanpipe_device_bus = {
 	.name = "wanpipe_devices",
+#if defined(KERN_CLASS_DEV_GROUPS) && KERN_CLASS_DEV_GROUPS > 0
+	.dev_groups = wanpipe_device_groups,
+#else
 	.dev_attrs = wanpipe_device_attrs,
+#endif
 };
-
 
 /*=========================================================
  * PUBLIC FUNCTIONS

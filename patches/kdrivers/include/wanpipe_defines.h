@@ -527,7 +527,11 @@ typedef int			wan_ioctl_cmd_t;
 typedef struct sk_buff		netskb_t;
 typedef struct sk_buff_head	wan_skb_queue_t;
 typedef struct timer_list	wan_timer_info_t;
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+typedef void 			(*wan_timer_func_t)(struct timer_list *t);
+#else
 typedef void 			(*wan_timer_func_t)(unsigned long);
+#endif
 typedef unsigned long		wan_timer_arg_t;
 typedef void 			wan_tasklet_func_t(unsigned long);
 # if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))

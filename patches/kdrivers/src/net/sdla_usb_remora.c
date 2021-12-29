@@ -411,6 +411,8 @@ static int wp_usb_remora_add_event(sdla_fe_t*, sdla_fe_timer_event_t*);
 static void wp_usb_remora_timer(void*);
 #elif defined(__WINDOWS__)
 static void wp_usb_remora_timer(IN PKDPC,void*,void*,void*);
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void wp_usb_remora_timer(struct timer_list *t);
 #else
 static void wp_usb_remora_timer(unsigned long);
 #endif
@@ -1807,14 +1809,21 @@ static int wp_usb_remora_set_dtmf(sdla_fe_t *fe, int mod_no, unsigned char val)
  ******************************************************************************
  */
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-static void wp_usb_remora_timer(void* pfe)
+static void 
+wp_usb_remora_timer(void* pfe)
 #elif defined(__WINDOWS__)
 static void wp_usb_remora_timer(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void wp_usb_remora_timer(struct timer_list *t)
 #else
 static void wp_usb_remora_timer(unsigned long pfe)
 #endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	sdla_fe_t	*fe = from_timer(fe, t, timer.timer_info);
+#else
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+#endif
 	sdla_t 		*card = (sdla_t*)fe->card;
 	wan_device_t	*wandev = &card->wandev;
 	wan_smp_flag_t	smp_flags;

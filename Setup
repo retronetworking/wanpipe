@@ -247,7 +247,7 @@ check_kern_memcpy_from_msg ()
 		fi
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $MEMCPY_FROM_MSG_FEATURE "
 	elif [ -e $DEBSRCDIR/include/linux/skbuff.h ];then
-		eval "grep PDE_DATA $DEBSRCDIR/include/linux/skbuff.h >/dev/null 2>/dev/null"
+		eval "grep \"memcpy_from_msg\" $DEBSRCDIR/include/linux/skbuff.h >/dev/null 2>/dev/null"
 		if [ $? -eq 0 ]; then
 			MEMCPY_FROM_MSG_FEATURE="-DKERN_MEMCPY_FROM_MSG=1"
 		else
@@ -268,7 +268,7 @@ check_kern_memcpy_to_msg ()
 		fi
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $MEMCPY_TO_MSG_FEATURE "
 	elif [ -e $DEBSRCDIR/include/linux/skbuff.h ];then
-		eval "grep PDE_DATA $DEBSRCDIR/include/linux/skbuff.h >/dev/null 2>/dev/null"
+		eval "grep \"memcpy_to_msg\" $DEBSRCDIR/include/linux/skbuff.h >/dev/null 2>/dev/null"
 		if [ $? -eq 0 ]; then
 			MEMCPY_TO_MSG_FEATURE="-DKERN_MEMCPY_TO_MSG=1"
 		else
@@ -277,6 +277,91 @@ check_kern_memcpy_to_msg ()
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $MEMCPY_TO_MSG_FEATURE "
 	fi
 }
+
+check_kern_dev_group_struct ()
+{
+	if [ -e $SOURCEDIR/include/linux/device.h ];then
+		eval "awk 'BEGIN { s=0 } /\*\*dev_groups;/ { s=1; exit } END { print s }' $SOURCEDIR/include/linux/device.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=1"
+		else
+			DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $DEV_GRP_STRUCT "
+	elif [ -e $DEBSRCDIR/include/linux/device.h ];then
+		eval "awk 'BEGIN { s=0 } /\*\*dev_groups;/ { s=1; exit } END { print s }' $DEBSRCDIR/include/linux/device.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=1"
+		else
+			DEV_GRP_STRUCT="-DKERN_CLASS_DEV_GROUPS=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $DEV_GRP_STRUCT "
+	fi
+}
+
+check_kern_timer_struct ()
+{
+	if [ -e $SOURCEDIR/include/linux/timer.h ];then
+		eval "grep \"define timer_setup\" $SOURCEDIR/include/linux/timer.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			TIMER_STRUCT="-DKERN_TIMER_SETUP=1"
+		else
+			TIMER_STRUCT="-DKERN_TIMER_SETUP=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $TIMER_STRUCT "
+	elif [ -e $DEBSRCDIR/include/linux/timer.h ];then
+		eval "grep \"define timer_setup\" $DEBSRCDIR/include/linux/timer.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			TIMER_STRUCT="-DKERN_TIMER_SETUP=1"
+		else
+			TIMER_STRUCT="-DKERN_TIMER_SETUP=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $TIMER_STRUCT "
+	fi
+}
+
+check_kern_refcount_feature ()
+{
+	if [ -e $SOURCEDIR/include/linux/refcount.h ];then
+		eval "grep \"refcount_read\" $SOURCEDIR/include/linux/refcount.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			REFCOUNT_UPDATE="-DKERN_REFCNT_UPDATE=1"
+		else
+			REFCOUNT_UPDATE="-DKERN_REFCNT_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $REFCOUNT_UPDATE "
+	elif [ -e $DEBSRCDIR/include/linux/refcount.h ];then
+		eval "grep \"refcount_read\" $DEBSRCDIR/include/linux/refcount.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			REFCOUNT_UPDATE="-DKERN_REFCNT_UPDATE=1"
+		else
+			REFCOUNT_UPDATE="-DKERN_REFCNT_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $REFCOUNT_UPDATE "
+	fi
+}
+
+check_kern_signal_feature ()
+{
+	if [ -e $SOURCEDIR/include/linux/sched/signal.h ];then
+		eval "grep \"signal_pending\" $SOURCEDIR/include/linux/sched/signal.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			SIGNAL_UPDATE="-DKERN_SIG_UPDATE=1"
+		else
+			SIGNAL_UPDATE="-DKERN_SIG_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $SIGNAL_UPDATE "
+	elif [ -e $DEBSRCDIR/include/linux/sched/signal.h ];then
+		eval "grep \"signal_pending\" $DEBSRCDIR/include/linux/sched/signal.h >/dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then
+			SIGNAL_UPDATE="-DKERN_SIG_UPDATE=1"
+		else
+			SIGNAL_UPDATE="-DKERN_SIG_UPDATE=0"
+		fi
+		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $SIGNAL_UPDATE "
+	fi
+}
+
 # ----------------------------------------------------------------------------
 # Display error message.
 # ----------------------------------------------------------------------------
@@ -3692,6 +3777,14 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 		check_kern_memcpy_from_msg
 
 		check_kern_memcpy_to_msg
+
+		check_kern_dev_group_struct
+
+		check_kern_timer_struct
+
+		check_kern_refcount_feature
+
+		check_kern_signal_feature
 
 		if [ "$BRI_MODULE_TEST" = "YES" ]; then
 			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DBUILD_MOD_TESTER"
@@ -7470,7 +7563,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=7.0.25.1
+PROD_VER=7.0.26
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

@@ -22,6 +22,8 @@ static wplip_prot_reg_t wplip_prot_reg_ops;
 #if defined(__WINDOWS__)
 static void wplip_prot_timer(IN PKDPC Dpc, void *arg, void *arg2, void *arg3);
 extern void wplip_poll_carrier_status(wplip_link_t *lip_link);
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void wplip_prot_timer(struct timer_list *t);
 #else
 static void wplip_prot_timer(wan_timer_arg_t arg);
 #endif
@@ -587,11 +589,17 @@ static void wplip_port_task (struct work_struct *work)
 #if defined(__WINDOWS__)
 /* This timer runs all the time. The delay is 1 second. */
 static void wplip_prot_timer(IN PKDPC Dpc, void *arg, void *arg2, void *arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void wplip_prot_timer(struct timer_list *t)
 #else
 static void wplip_prot_timer(wan_timer_arg_t arg)
 #endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	wplip_link_t	*lip_link=from_timer(lip_link, t, prot_timer.timer_info);
+#else
 	wplip_link_t	*lip_link=(wplip_link_t *)arg;
+#endif
 	unsigned int	period=HZ;
 	wan_smp_flag_t	flags;
 	wplip_prot_iface_t *prot_iface;	

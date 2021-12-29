@@ -21,6 +21,7 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -282,6 +283,7 @@ static key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TE_REF_CLOCK",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, te_ref_clock), DTYPE_UCHAR },
   { "TE_SIG_MODE",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, sig_mode), DTYPE_UCHAR },
   { "TE_IGNORE_YEL", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, ignore_yel_alarm), DTYPE_UCHAR },
+  { "TE_IGNORE_DEBOUNCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, ignore_debounce_alarm), DTYPE_UCHAR },
   { "TE_AIS_MAINTENANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, ais_maintenance), DTYPE_UCHAR },
   { "TE_AIS_AUTO_ON_LOS", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, ais_auto_on_los), DTYPE_UCHAR },
   /* T1/E1 Front-End parameters (old style) */

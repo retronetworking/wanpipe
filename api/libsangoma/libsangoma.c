@@ -705,6 +705,11 @@ int registry_write_front_end_cfg(HKEY hPortRegistryKey, port_cfg_t *port_cfg)
 			break;
 		}
 
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "TE_IGNORE_DEBOUNCE",	te_cfg->ignore_debounce_alarm);
+		if(iReturnCode){
+			break;
+		}
+
 		iReturnCode = registry_set_integer_value(hPortRegistryKey, "ACTIVE_CH",		ENABLE_ALL_CHANNELS	/*must be hardcoded*/);
 		if(iReturnCode){
 			break;

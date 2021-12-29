@@ -449,8 +449,12 @@ int is_arp(void *buf);
 int send_inarp_request(sdla_t *card, netdevice_t *dev);
 
 static void trigger_fr_arp (netdevice_t *);
-static void fr_arp (unsigned long data);
 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void fr_arp (struct timer_list *t);
+#else
+static void fr_arp (unsigned long data);
+#endif
 
 /* Udp management functions */
 static int process_udp_mgmt_pkt(sdla_t *card, void *local_dev);
@@ -1282,9 +1286,13 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 	WAN_TASKQ_INIT((&chan->fr_poll_task),0,fr_poll,dev);
 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	timer_setup(&chan->fr_arp_timer, fr_arp, 0);
+#else
 	init_timer(&chan->fr_arp_timer);
 	chan->fr_arp_timer.data=(unsigned long)dev;
 	chan->fr_arp_timer.function = fr_arp;
+#endif
 
 	/* Tells us that if this interface is a
          * gateway or not */
@@ -5379,10 +5387,18 @@ static void trigger_fr_arp (netdevice_t *dev)
  *      to the remote end.
  */
 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void fr_arp (struct timer_list *t)
+#else
 static void fr_arp (unsigned long data)
+#endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	fr_channel_t *chan = from_timer(chan, t, fr_arp_timer);
+#else
 	netdevice_t *dev = (netdevice_t *)data;
 	fr_channel_t *chan = wan_netif_priv(dev);
+#endif
 	sdla_t *card = chan->card;
 
 	/* Send ARP packets for all devs' until

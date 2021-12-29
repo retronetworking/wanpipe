@@ -1050,9 +1050,13 @@ static __inline void
 wan_init_timer(wan_timer_t* wan_timer, wan_timer_func_t timer_func, wan_timer_arg_t arg)
 {
 #if defined(__LINUX__)
+# if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	timer_setup(&wan_timer->timer_info, timer_func, 0);
+# else
 	init_timer(&wan_timer->timer_info);
 	wan_timer->timer_info.function = timer_func;
 	wan_timer->timer_info.data = arg;
+# endif
 #elif defined(__FreeBSD__)
 	/* FIXME_ADSL_TIMER */
 	callout_handle_init(&wan_timer->timer_info);

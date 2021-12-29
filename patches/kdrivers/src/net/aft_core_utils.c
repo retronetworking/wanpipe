@@ -3434,6 +3434,8 @@ int aft_background_timer_add(sdla_t* card, unsigned long delay)
 void aft_background_timer_expire(void* pcard)
 #elif defined(__WINDOWS__)
 void aft_background_timer_expire(IN PKDPC Dpc, void* pcard, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+void aft_background_timer_expire(struct timer_list *t)
 #else
 void aft_background_timer_expire(unsigned long pcard)
 #endif

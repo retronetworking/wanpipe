@@ -430,7 +430,7 @@ static netdevice_t * move_dev_to_next (sdla_t *, netdevice_t *);
 /*=================================================  
  *	Background polling routines 
  */
-# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
 static void wpx_poll (void *card_ptr);
 #else
 static void wpx_poll (struct work_struct *work);
@@ -439,7 +439,11 @@ static void poll_disconnected (sdla_t* card);
 static void poll_connecting (sdla_t* card);
 static void poll_active (sdla_t* card);
 static void trigger_x25_poll(sdla_t *card);
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void x25_timer_routine(struct timer_list *t);
+#else
 static void x25_timer_routine(unsigned long data);
+#endif
 
 
 
@@ -994,9 +998,13 @@ int wpx_init (sdla_t* card, wandev_conf_t* conf)
 
 	WAN_TASKQ_INIT((&card->u.x.x25_poll_task),0,wpx_poll,card);
 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	timer_setup(&card->u.x.x25_timer, x25_timer_routine, 0);
+#else
 	init_timer(&card->u.x.x25_timer);
 	card->u.x.x25_timer.data = (unsigned long)card;
 	card->u.x.x25_timer.function = x25_timer_routine;
+#endif
 
 	skb_queue_head_init(&card->u.x.trace_queue);
 
@@ -2359,7 +2367,9 @@ static void rx_intr (sdla_t* card)
 		return;
 	}
 
+#if KERN_TIMER_SETUP == 0
 	dev->last_rx = jiffies;		/* timestamp */
+#endif
 
 	/* set rx_skb to NULL so we won't access it later when 
 	 * kernel already owns it */
@@ -3069,7 +3079,7 @@ static void spur_intr (sdla_t* card)
  *    	enabled. Beware!
  *====================================================================*/
 
-# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))  
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
 static void wpx_poll (void *card_ptr)
 #else
 static void wpx_poll (struct work_struct *work) 
@@ -4902,10 +4912,12 @@ static int chan_send (netdevice_t* dev, void* buff, unsigned data_len, unsigned 
 		case 0x00:	/* success */
 			chan->i_timeout_sofar = jiffies;
 
-#if defined(LINUX_2_4)||defined(LINUX_2_6)
+# if defined(KERN_NETIF_TRANS_UPDATE) && KERN_NETIF_TRANS_UPDATE > 0
+			netif_trans_update(dev);
+#elif defined(LINUX_2_4)||defined(LINUX_2_6)
 			dev->trans_start=jiffies;
 #endif
-			
+
 			if ((qdm & M_BIT) && !card->u.x.LAPB_hdlc){
 
 				chan->tx_offset += len;
@@ -6640,10 +6652,17 @@ static void S508_S514_unlock(sdla_t *card, unsigned long *smp_flags)
  *
  * 	FIXME Polling should be rethinked.
  *==============================================================*/
-
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void x25_timer_routine(struct timer_list *t)
+#else
 static void x25_timer_routine(unsigned long data)
+#endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	sdla_t *card = from_timer(card, t, u.x.x25_timer);
+#else
 	sdla_t *card = (sdla_t*)data;
+#endif
 
 	if (test_bit(PERI_CRIT,&card->wandev.critical)){
 		printk(KERN_INFO "%s: Stopping the X25 Poll Timer: Shutting down.\n",

@@ -69,6 +69,8 @@ static void wanpipe_debug_timer(void* arg);
 #elif defined(__WINDOWS__)
 static void wanpipe_debug_timer(IN PKDPC Dpc, void* arg, void* arg2, void* arg3);
 extern int set_netdev_state(sdla_t* card, netdevice_t* sdla_net_dev, int state);
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void wanpipe_debug_timer(struct timer_list *t);
 #else
 static void wanpipe_debug_timer(unsigned long arg);
 #endif
@@ -498,11 +500,17 @@ void wanpipe_debug_timer_init(void* card_id)
 static void wanpipe_debug_timer(void* arg)
 #elif defined(__WINDOWS__)
 static void wanpipe_debug_timer(IN PKDPC Dpc, void* arg, void* arg2, void* arg3)
+#elif defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void wanpipe_debug_timer(struct timer_list *t)
 #else
 static void wanpipe_debug_timer(unsigned long arg)
 #endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	sdla_t*		card = from_timer(card, t, debug_timer.timer_info);
+#else
 	sdla_t*		card = (sdla_t*)arg;
+#endif
 	wan_tasklet_t*	debug_task = NULL;
 	/*
 	** I should set running flag to zero in order to 

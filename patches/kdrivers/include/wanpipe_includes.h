@@ -269,6 +269,12 @@
 #  include <linux/inet.h>
 #  include <linux/netdevice.h>
 #  include <linux/list.h>
+#  if defined(KERN_SIG_UPDATE) && KERN_SIG_UPDATE > 0
+#   include <linux/sched/signal.h>
+#  endif
+#  if defined(KERN_REFCNT_UPDATE) && KERN_REFCNT_UPDATE > 0
+#   include <linux/refcount.h>
+#  endif
 #  include <asm/io.h>		/* phys_to_virt() */
 #  if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 #   include <asm/system.h>

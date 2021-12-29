@@ -240,7 +240,12 @@ static struct timer_list sppp_keepalive_timer;
 wan_spinlock_t  spppq_lock;
 wan_spinlock_t	authenticate_lock;
 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void sppp_keepalive (struct timer_list *t);
+#else
 static void sppp_keepalive (unsigned long dummy);
+#endif
+
 static void sppp_cp_send (struct sppp *sp, u16 proto, u8 type,
 	u8 ident, u16 len, void *data);
 static void sppp_cisco_send (struct sppp *sp, int type, long par1, long par2);
@@ -251,7 +256,11 @@ static void sppp_lcp_open (struct sppp *sp);
 static void sppp_ipcp_open (struct sppp *sp);
 static int sppp_lcp_conf_parse_options (struct sppp *sp, struct lcp_header *h,
 	int len, u32 *magic);
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void sppp_cp_timeout (struct timer_list *t);
+#else
 static void sppp_cp_timeout (unsigned long arg);
+#endif
 static char *sppp_lcp_type_name (u8 type);
 static char *sppp_ipcp_type_name (u8 type);
 static void sppp_print_bytes (u8 *p, u16 len);
@@ -363,10 +372,15 @@ static void sppp_set_timeout(struct sppp *p,int s)
 {
 	if (! (p->pp_flags & PP_TIMO)) 
 	{
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+		timer_setup(&p->pp_timer, sppp_cp_timeout, 0);
+		mod_timer(&p->pp_timer, jiffies+s*HZ);
+#else
 		init_timer(&p->pp_timer);
 		p->pp_timer.function=sppp_cp_timeout;
 		p->pp_timer.expires=jiffies+s*HZ;
 		p->pp_timer.data=(unsigned long)p;
+#endif
 		p->pp_flags |= PP_TIMO;
 		add_timer(&p->pp_timer);
 	}
@@ -397,10 +411,15 @@ static void auth_timeout(void * function, struct sppp *p, unsigned int seconds)
 	if (! (p->pp_auth_flags & PP_TIMO1)) 
 	{
 		printk(KERN_INFO "starting pp_auth_timer...\n");
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+		timer_setup(&p->pp_auth_timer, function, 0);
+		mod_timer(&p->pp_auth_timer, jiffies + seconds * HZ);
+#else
 		init_timer(&p->pp_auth_timer);
 		p->pp_auth_timer.function = function;
 		p->pp_auth_timer.expires  = jiffies + seconds * HZ;
 		p->pp_auth_timer.data = (unsigned long)p;
+#endif
 		p->pp_auth_flags |= PP_TIMO1;
 		add_timer(&p->pp_auth_timer);
 	}
@@ -1465,7 +1484,11 @@ static const struct header_ops sppp_header_ops = {
  * Send keepalive packets, every 10 seconds.
  */
 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void sppp_keepalive (struct timer_list *dummy)
+#else
 static void sppp_keepalive (unsigned long dummy)
+#endif
 {
 	struct sppp *sp;
 	//unsigned long flags;
@@ -2250,10 +2273,15 @@ void wp_sppp_attach(struct ppp_device *pd)
 	/* Initialize keepalive handler. */
 	if (! spppq)
 	{
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+		timer_setup(&sppp_keepalive_timer, sppp_keepalive, 0);
+		mod_timer(&sppp_keepalive_timer, jiffies+10*HZ);
+#else
 		init_timer(&sppp_keepalive_timer);
 		sppp_keepalive_timer.expires=jiffies+10*HZ;
 		sppp_keepalive_timer.function=sppp_keepalive;
 		add_timer(&sppp_keepalive_timer);
+#endif
 	}
 	/* Insert new entry into the keepalive list. */
 	sp->pp_next = spppq;
@@ -2995,10 +3023,17 @@ static void sppp_ipcp_open (struct sppp *sp)
 /*
  * Process PPP control protocol timeouts.
  */
- 
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+static void sppp_cp_timeout (struct timer_list *t)
+#else
 static void sppp_cp_timeout (unsigned long arg)
+#endif
 {
+#if defined(KERN_TIMER_SETUP) && KERN_TIMER_SETUP > 0
+	struct sppp *sp = from_timer(sp, t, pp_timer);
+#else
 	struct sppp *sp = (struct sppp*) arg;
+#endif
 	//unsigned long flags;
 
 	//wan_spin_lock_irq(&spppq_lock, &flags);
