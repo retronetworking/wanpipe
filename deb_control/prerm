@@ -1,0 +1,43 @@
+#!/bin/sh
+
+set -e
+
+echo "Uninstalling WANPIPE..."
+
+# ----------------------------------------------------------------------------
+# Remove initialization scripts.
+# ----------------------------------------------------------------------------
+remove_init()
+{
+        # Examine system bootstrap files.
+        if [ -d /etc/rc0.d ]
+        then RC_DIR=/etc
+        elif [ -d /etc/rc.d/rc0.d ]
+        then RC_DIR=/etc/rc.d
+        else return 0
+        fi
+
+	PROD=wanrouter
+	START_SCRIPT=S20wanrouter
+	STOP_SCRIPT=K10wanrouter
+	PROD_INIT=/usr/sbin/wanrouter
+
+	echo "Removing WANPIPE start-up scripts: $RC_DIR"
+        rm -f $RC_DIR/rc2.d/$START_SCRIPT
+	rm -f $RC_DIR/rc3.d/$START_SCRIPT
+        rm -f $RC_DIR/rc4.d/$START_SCRIPT
+        rm -f $RC_DIR/rc5.d/$START_SCRIPT
+
+        rm -f $RC_DIR/rc0.d/$STOP_SCRIPT
+        rm -f $RC_DIR/rc1.d/$STOP_SCRIPT
+        rm -f $RC_DIR/rc6.d/$STOP_SCRIPT
+
+        rm -f $RC_DIR/init.d/$PROD
+        return 0
+}
+
+#remove start-on-boot scripts
+remove_init;
+
+
+exit 0

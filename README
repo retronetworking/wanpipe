@@ -1,0 +1,685 @@
+------------------------------------------------------------------------------
+Linux WAN Router Utilities Package
+------------------------------------------------------------------------------
+Version 2.3.2-7
+Jan 5 2006
+Author: Nenad Corbic <ncorbic@sangoma.com>
+Copyright (c) 1995-2005 Sangoma Technologies Inc.
+------------------------------------------------------------------------------
+
+INTRODUCTION
+
+Wide Area Networks (WANs) are used to interconnect Local Area Networks (LANs)
+and/or stand-alone hosts over vast distances with data transfer rates
+significantly higher than those achievable with commonly used dial-up
+connections.
+
+Usually an external device called `WAN router' sitting on your local network
+or connected to your machine's serial port provides physical connection to
+WAN.  Although router's job may be as simple as taking your local network
+traffic, converting it to WAN format and piping it through the WAN link, these
+devices are notoriously expensive, with prices as much as 2 - 5 times higher
+then the price of a typical PC box.
+
+Alternatively, considering robustness and multitasking capabilities of Linux,
+an internal router can be built (most routers use some sort of stripped down
+Unix-like operating system anyway). With a number of relatively inexpensive WAN
+interface cards available on the market, a perfectly usable router can be
+built for less than half a price of an external router.  Yet a Linux box
+acting as a router can still be used for other purposes, such as fire-walling,
+running FTP, WWW or DNS server, etc.
+
+This kernel module introduces the notion of a WAN Link Driver (WLD) to Linux
+operating system and provides generic hardware-independent services for such
+drivers.  Why can existing Linux network device interface not be used for
+this purpose?  Well, it can.  However, there are a few key differences between
+a typical network interface (e.g. Ethernet) and a WAN link.
+
+Many WAN protocols, such as X.25 and frame relay, allow for multiple logical
+connections (known as `virtual circuits' in X.25 terminology) over a single
+physical link.  Each such virtual circuit may (and almost always does) lead
+to a different geographical location and, therefore, different network.  As a
+result, it is the virtual circuit, not the physical link, that represents a
+route and, therefore, a network interface in Linux terms.
+
+To further complicate things, virtual circuits are usually volatile in nature
+(excluding so called `permanent' virtual circuits or PVCs).  With almost no
+time required to set up and tear down a virtual circuit, it is highly desirable
+to implement on-demand connections in order to minimize network charges.  So
+unlike a typical network driver, the WAN driver must be able to handle multiple
+network interfaces and cope as multiple virtual circuits come into existence
+and go away dynamically.
+ 
+Last, but not least, WAN configuration is much more complex than that of say
+Ethernet and may well amount to several dozens of parameters.  Some of them
+are "link-wide"  while others are virtual circuit-specific.  The same holds
+true for WAN statistics which is by far more extensive and extremely useful
+when troubleshooting WAN connections.  Extending the ifconfig utility to suit
+these needs may be possible, but does not seem quite reasonable.  Therefore, a
+WAN configuration utility and corresponding application programmer's interface
+is needed for this purpose.
+
+Most of these problems are taken care of by this module.  Its goal is to
+provide a user with more-or-less standard look and feel for all WAN devices and
+assist a WAN device driver writer by providing common services, such as:
+
+ o User-level interface via /proc file system
+ o Centralized configuration
+ o Device management (setup, shutdown, etc.)
+ o Network interface management (dynamic creation/destruction)
+ o Protocol encapsulation/decapsulation
+
+To ba able to use the Linux WAN Router you will also need a WAN Tools package
+available from
+
+	ftp.sangoma.com/pub/linux/current_wanpipe/wanpipe-X.Y.Z.tgz
+
+where vX.Y.Z represent the wanpipe version number.
+
+For technical questions and/or comments please e-mail to ncorbic@sangoma.com.
+For general inquiries please contact Sangoma Technologies Inc. by
+
+	Hotline:	1-800-388-2475	(USA and Canada, toll free)
+	Phone:		(905) 474-1990  ext: 106
+	Fax:		(905) 474-9223
+	E-mail:		dm@sangoma.com	(David Mandelstam)
+			ncorbic@sangoma.com (Nenad Corbic)
+	WWW:		http://www.sangoma.com
+
+
+INSTALLATION
+
+Please read the README.install on how to 
+install the WANPIPE tools and drivers properly. 
+
+
+After installation read README.config on how
+to configure and start wanpipe device.
+
+For further information refer to the
+doc/ directory.
+
+ftp.sangoma.com/linux/current_wanpipe/doc
+
+
+COPYRIGHT AND LICENSING INFORMATION
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 675 Mass
+Ave, Cambridge, MA 02139, USA.
+
+
+
+ACKNOWLEDGEMENTS
+
+This product is based on the WANPIPE(tm) Multiprotocol WAN Router developed
+by Sangoma Technologies Inc. for Linux 2.0.x and 2.2.x.  Success of the WANPIPE
+together with the next major release of Linux kernel in summer 1996 commanded
+adequate changes to the WANPIPE code to take full advantage of new Linux
+features.
+
+Instead of continuing developing proprietary interface tied to Sangoma WAN
+cards, we decided to separate all hardware-independent code into a separate
+module and defined two levels of interfaces - one for user-level applications
+and another for kernel-level WAN drivers.  WANPIPE is now implemented as a
+WAN driver compliant with the WAN Link Driver interface.  Also a general
+purpose WAN configuration utility and a set of shell scripts was developed to 
+support WAN router at the user level.
+
+Many useful ideas concerning hardware-independent interface implementation
+were given by Mike McLagan <mike.mclagan@linux.org> and his implementation
+of the Frame Relay router and drivers for Sangoma cards (dlci/sdla).
+
+With the new implementation of the APIs being incorporated into the WANPIPE,
+a special thank goes to Alan Cox in providing insight into BSD sockets.
+
+Special thanks to all the WANPIPE users who performed field-testing, reported
+bugs and made valuable comments and suggestions that help us to improve this
+product.
+
+	o The 2.3.2 release contains:
+          
+	  Stable TDMV Wanpipe drivers for Asterisk.   
+          The TDMV drivers support both A102 and A104 cars.
+	  Please read wanpipe/doc/README.asterisk
+
+          Stable TE3 Drivers for AFT A301 TE3 Unchannelized Card. 
+          All WAN protocols are supported: Frame Relay, PPP, CHDLC..
+
+	  Stable LIP Network Layer:  Separates Wanpipe hardware from
+	  the Network Protocols: Frame Relay, CHDLC, 
+                                 PPP, LAPB API, XDLC  API
+
+	o The 2.3.1 contains major structural driver changes.
+	  The new Hardware Abstraction layer cleanly separates, the
+	  physical layer from the driver/protocol layers.
+
+	  Support for 2.6.X kernel.
+
+	o From 2.3.0 contains major structural driver changes 
+	  most notably the ADSL OS abstraction layer. ADLS drivers
+	  can now be compiled against any custom kernel.
+
+	o From 2.2.6 release forward the new S514-7 Dual T/E1, 
+ 	  S514-8 Single TE1 and S518 ADSL cards are supproted.
+
+	o From 2.2.4 release forward the new S514-4 T/E1 and S514-5 56K
+          cards are supported.
+   
+	o From 2.2.3 release forward ALL wanpipe modules
+          including API modules, can be recompiled from
+           ./Setup installation script! 
+           NO KERNEL RECOMPILATION is necessary.
+           
+	o From 2.2.3 release forward, wanpipe directory
+           architecture has been changed.  New home directory
+           for wanpipe is /etc/wanpipe. 
+   
+	o All old releases are in ../old_releases/wanpipe directory. 
+
+	o Custom RPMs can be build based on current kernel image
+	  by using the ./Setup buildrpm command.
+	  Read the README.rpmbuild.
+
+
+
+NEW IN STABLE 2.3.2-7 RELEASE
+==============================
+2.3.2-7
+Jan 05 2005
+
+	o Allow CHDLC API to run in Non-Root mode
+	o LIP over Async Mode
+	o Bug fix in XDLC transmit code
+	o New Setup Driver Build logic using 2.6 Kbuild make files
+
+
+2.3.2-6
+Sep 24 2005
+
+	o AFT A102 TDM Bug Fix
+          The AFT A102 card could experience unpredicted
+          behaviour on extermely noisy T1/E1 lines.
+          This issue has now been fixed.
+
+2.3.2-5
+Sep 12 2005
+
+	o AFT A101/2 Drivers E1 State Update
+          Bug fix on displaying initial E1 state.
+          The LED displayed green on inital E1
+          start.
+
+	o AFT A101/2 Drivers Update
+          The AFT A101/2 cards configured for LIP PPP
+          segfaulted in some instances during shutdown.
+
+
+	o AFT A301 T3 Driver Updated
+          Tighter timeout conditions as well as
+          bug fix in rx,tx error handling.
+
+	o New Wanpipe firmware update program.
+          Option to auto update firmware on all
+          AFT cards.
+	   ./wanpipe/util/wan_aftup/update_aft_firm.sh -auto
+
+
+2.3.2-4
+Jun 14 2005
+
+	o Wanpipe PPP protocol
+          Bug fix in ip negotiation code
+
+	o Updates to ./Setup installation script
+          Added fixes for new distributions
+          Wanpipe compilation will now work on
+          partial linux HEADER source.
+          Therefore, no full source is necessary.
+          
+	o Driver updates for new 2.6.12 kernel
+	  Internals of the SOCKET API code.
+          	af_wanpipe.c 
+
+2.3.2-3
+May 06 2005
+
+	o A102 TDMV Driver Update
+	  The A102 Driver will now provide clocking to
+	  zaptel even if the front end is disconnected.
+
+	o A104 TDMV Driver
+	  The A104 Driver failed to unload properly if
+	  one tried to stop it before Asterisk.
+	  This has now been fixed :)
+
+2.3.2-2
+Apr 28 2005
+
+	o Update to A102 Channelized Driver
+	  The bug affected the shutdown of last
+	  channelized interface.  The last channelized
+	  interface brought down all other interfaces
+	  except the first one.
+
+	o Update to Bitstreaming driver 
+	  Failed to compile on gcc 3.3.
+
+	o Updated Setup installation script.
+	  Setup will now catch common ZAPTEL 
+	  misconfigurations. 
+	
+2.3.2-1
+Apr 05 2005
+
+	Stable TDMV Wanpipe drivers for Asterisk.   
+        The TDMV drivers support both A102 and A104 cars.
+	Please read wanpipe/doc/README.asterisk
+
+        Stable TE3 Drivers for AFT A301 TE3 Unchannelized Card. 
+        All WAN protocols are supported: Frame Relay, PPP, CHDLC..
+
+	Stable LIP Network Layer:  Separates Wanpipe hardware from
+	the Network Protocols: Frame Relay, CHDLC, 
+                               PPP, LAPB API, XDLC  API
+
+
+	o 2.6 Kernel PCI Routing problem Fixed on S514 Cards
+	  The S514 Card failed to initialize routed
+	  irq.
+
+	o Minor bug fixes in statistic reporting
+	  AFT and ADSL drivers.
+
+	o New README.asterisk
+
+
+beta7-2.3.2
+Mar 16 2005
+
+	o AFT TDMV Update
+	  Added WINK support to TDMV driver.
+
+	o AFT TDMV Update
+          Fixed up latecny issues with RBS signalling
+	  For A104 and A101/2 cards.
+	
+	o AFT A104 and 101/2 drivers updates
+	  Added checks to prevent stopping wanpipe while
+	  Asterisk is running
+
+	o AFT A300 TE3 Update
+	  Fixed the link restart recovery.
+
+	o AFT A104 TE1 Configuration Update
+	  Update to the TE1 physical layer paramters
+
+	o AFT Firmware Update
+	  The firmware update utility was updated
+	  from the AFT300 TE3 card.
+
+	o AFT TE3 Driver Update
+	  Removed the chip security check
+
+
+beta6-2.3.2 
+Feb 25 2005
+
+	o AFT A104 Drivers: TDMV Update
+
+          The A104 cards did not default to bit
+	  swapping in TDMV voice mode.  This was
+	  a configuration option.  This update configures
+	  the board for automatic bitswapping in 
+	  hardware by default.
+	
+
+beta5-2.3.2
+Feb 21 2005
+
+
+	o AFT A104 Drivers
+	  Fixed the FIFO leveling so that single timeslot
+	  interfaces can operate properly
+	  (TDMV Voice Only)
+
+	o AFT Front End TE1 Update
+	  Synchronized fe timers and added checks
+	  to avoid adding an already pending timer.
+
+	o AFT A101/2 Driver update
+	  Fixed the 2 HDLC channel operation on
+	  unchannelized card.
+
+	  Add support for Master clocking from
+	  a adjacent line, instead of the oscillator.
+	  Used by TDM_VOICE switching applications.
+	  Need: AFT A101/2 Firmware version V24
+
+	  Fixed Synchronization issues with TDM VOICE
+	  Racing condition exists during driver startup.
+	  If the Front End comes up before interfaces
+	  come up, timeslot synchornization can go out
+	  of sync.
+
+	o New wan_aftup Utility
+	  Located wanpipe/util/wan_aftup
+
+	  Used to update AFT firmware.
+
+	  Please read the README file
+	  	wanpipe/util/wan_aftup/README
+
+
+	o LIP Update
+	  Updated Carrier loss recover on all LIP protocols.
+	  Frame Relay, PPP, CHDLC
+
+	o Updated LIP Frame Relay API 
+	  Support for 1 byte reception
+
+	o Updated Hardware Probe 
+	  Includes the distinction between Channalized and
+	  UnChannalized AFT cards.
+
+
+	o TDMV Echo Update
+	  Improved echo canceling performance
+
+	o Wancfg
+	  Updated the TDMV parameters
+
+	o Wanpipe TE3 Driver Update
+          Better front end recovery after
+	  a front end disconnect.
+
+	o Wanpipe LIP Frame Relay API update
+	  Wanpipe LIP debug messages removed
+
+	o Wanpipe hwprobe 
+	  Distinction between Channalized and Unchannalized cards
+
+	o AFT Security Check 
+	  Due to some bad pci busses, the chip security
+	  checking has been made more robust.
+
+	o TDMV Span Number Update
+
+
+
+beta4-2.3.2
+Feb 04 2005
+
+	o Voice TDM BUG FIX
+
+          Both A104 and A101/2 card had a bug where
+	  on T1/E1 re-connect an rx buffer would get
+	  deallocated by mistake. After enough re-connects
+	  all reallocated rx buffers would run out, 
+	  causing stop in commnunications.
+	
+	o LIP Frame Relay Update
+	  Added Frame Relay API capability
+	  Added Frame Relay Q933 Signalling
+	
+
+	o Voice TDM for European Standars BRI
+	
+	  If you compile zaptel with the BRI
+	  patch, you must manually edit the
+
+	  patches/kdrivers/src/net/sdla_tdmv.c file
+	  and uncomment the:
+	  	CONFIG_ZAPATA_BRI_DCHANS option.
+
+
+	o Lip Frame Relay API Support
+	  Update LIP API frame releay
+	  support
+
+	o General Driver Update
+	  Network interface behaviour on carrier 
+	  disconnect.
+	  This update changes the network interface
+	  state in case of carrier state change.
+	   
+	  TEQL will now work properly over AFT
+	  and LIP interfaces.
+
+	o TDM Voice
+	  Added on an extra option under the
+	  TDM network interface section:
+	  	TDMV_ECHO_OFF=[YES/NO]
+	 
+	  This option should be used to disable
+	  echo on particular span, since asterisk
+	  echo configuration is global to all spans.
+		
+	  This way echo cancellation can be performed
+	  only on a span that needs this service.
+
+	o Wanpipemon Update
+	  A more integrated wanpipemon that works with
+	  the different layers of LIP and AFT.
+
+beta3-2.3.2
+Jan 04 2005
+
+	o A104 Quad Port TE1 Hardware Support
+	  
+  	o X86_64 bit support for AMD Opteron and
+	  Intel Itanium.
+
+	o Lip layer TTY support for Multilink PPP
+	  Support up to 32 TTY links
+        
+	o Major Bug Fix in LIP Layer
+	  The bug could result in unexpected behaviour
+	  on some distributions.
+
+	o Updated /proc/net/wanrouter/interface
+	  statistics.
+
+	o PPP Multilink Support for AFT and ADSL cards.
+	  Refer to wanpipe/doc/README.multilink
+
+	o Support for Fedora Core 3 distribution.
+
+	o Fixed support for REGPARM kernels.
+	
+	o Updated Sangoma ASTERISK drivers.
+	  Voice TDM update for A104 drivers.
+
+	o wanpipemon update
+	  Works with LIP layer only. 
+
+	o wanpipemon_legacy
+	  Works with legacy drivers.
+
+	o wancfg update
+	  Configures all drivers AFT,S514,ADSL
+	  using LIP layer only.
+
+	o wancfg_legacy created
+	  Used to configure legacy protocols
+	  and API's.
+
+
+beta2-2.3.2
+Nov 8 2004
+
+	o AFT Update
+	  Cleaned up messages in case of PCI errors
+
+	o TDM Voice Update
+	  Added echo cancelation to the Asterisk
+	  support.
+	  
+
+beta1-2.3.2
+Oct 18 2004
+
+	o Support for 2.6.X kernels
+	  Fixed broken support for 2.6.9 kernel
+	
+	o New Hardware Abstracion Layer
+	  Cleanly separates the hardware
+	  layer from the data/protocol layers.
+
+	o New AFT Hardware Support
+          Sangomas new high-speed T1/E1
+	  adapters.
+
+	o New AFT T3 Support
+	  Sangomas new high-speed T3/E3
+	  adapters
+	
+	o New LIP Network Layer
+	  Separates Wanpipe hardware from
+	  the Network Protocols. 
+		Frame Relay Protocol
+		CHDLC Protocol
+		PPP   Protocol
+		LAPB  API
+		XDLC  API
+
+	o New wancfg configuration utilty
+		One can only configure:
+		Frame Relay
+		PPP, 
+		CHDLC,
+		HDLC (RAW) (TDM VOICE)
+	  
+	  Note:
+	  The old wancfg utility is called wancfg_adv.
+
+
+PRODUCT COMPONENTS AND RELATED FILES
+
+/etc/wanpipe/: (or user defined)
+	wanpipe1.conf	default router configuration file
+
+etc/wanpipe/samples:
+	interface	sample interface configuration file
+	wanpipe1.cpri 	CHDLC primary port
+     	wanpipe2.csec 	CHDLC secondary port
+     	wanpipe1.fr   	Frame Relay protocol
+     	wanpipe1.ppp  	PPP protocol ) 
+	wanpipe1.asy	CHDLC ASYNC protocol
+	wanpipe1.x25	X25 protocol
+	wanpipe1.stty	Sync TTY driver (Used by Kernel PPPD daemon)
+	wanpipe1.atty	Async TTY driver (Used by Kernel PPPD daemon)
+	wanrouter.rc	sample meta-configuration file
+
+/etc/wanpipe/firmware:
+	fr514.sfm	Frame relay firmware for Sangoma S508/S514 card
+	cdual514.sfm	Dual Port Cisco HDLC firmware for Sangoma S508/S514 card
+	ppp514.sfm      PPP Firmware for Sangoma S508 and S514 cards
+	x25_508.sfm	X25 Firmware for Sangoma S508 card.
+ 	bscmp514.sfm    Multi point bisync
+	edu_kit.sfm     Education driver  
+	bitstrm.sfm	Bit streaming firmware 
+	bscstrm514.sfm	Bisync streaming firware
+
+
+/lib/modules/X.Y.Z/misc:
+	wanrouter.o	router kernel loadable module
+	af_wanpipe.o	wanpipe api socket module
+
+/lib/modules/X.Y.Z/net:
+	sdladrv.o	Sangoma SDLA support module
+	wanpipe.o	Sangoma WANPIPE(tm) driver module
+	syncppp.o	Kernel Sync PPP module
+
+/proc/net/wanrouter
+	Config		reads current router configuration
+	Status		reads current router status
+	{name}		reads WAN driver statistics
+
+/usr/sbin:
+	wanrouter	wanrouter start-up script
+	wanconfig	wanrouter configuration utility
+	sdladump	WANPIPE adapter memory dump utility
+        wanpipemon      Debugging Monitor for all WANPIPE protocols
+	wpkbdmon        WANPIPE keyboard led monitor/debugger
+	wancfg		WANPIPE GUI configuration program.
+                        Creates wanpipe#.conf files. 
+	cfgft1		GUI CSU/DSU configuration program.
+
+
+wanpipe/ (temporary untar directory):
+	README		this file
+	COPYING		GNU General Public License
+	Setup		installation script
+	Filelist	distribution definition file
+	wanrouter.rc	meta-configuration file 
+			(used by the Setup and wanrouter script)
+
+/usr/share/doc/wanpipe:
+	WanpipeInstallation.pdf 	WAN Router User's Manual
+	WanpipeInstallation.txt
+	WanpipeConfiguration.pdf
+	WanpipeConfiguration.txt
+	WanpipeOperation.pdf
+	WanpipeOperation.txt
+	
+wanpipe/patches:
+	wanrouter-v2213.gz  	patch for Linux kernels 2.2.11 up to 2.2.13.
+	wanrouter-v2214.gz	patch for Linux kernel 2.2.14. 
+	wanrouter-v2215.gz	patch for Linux kernels 2.2.15 to 2.2.17.
+	wanrouter-v2218.gz	patch for Linux kernels 2.2.18 and up.
+	wanrouter-v240.gz	patch for Linux kernel 2.4.0.  
+	wanrouter-v242.gz	patch for Linux kernel 2.4.2.
+	wanrouter-v243.gz	patch for Linux kernel 2.4.3
+	wanrouter-v244.gz	patch for Linux kernel 2.4.4
+	wanrouter-v245.gz	patch for Linux kernel 2.4.5
+	wanrouter-v246.gz 	patch for Linux kernel 2.4.6 and up
+	wanrouter-v249.gz	patch for Linux kernel 2.4.9 and up
+	wanrouter-v2416.gz	patch for Linux kenrel 2.4.16 and up
+	wanrouter-v2034.gz	patch for Linux kernel 2.0.34
+	wanrouter-v2036.gz 	patch for Linux kernel 2.0.36 and up. 
+
+wanpipe/patches/kdrivers:
+	Sources of the latest WANPIPE device drivers.
+	These are used to UPGRADE the linux kernel to the newest
+	version if the kernel source has already been pathced with
+	WANPIPE drivers.
+
+/etc/wanpipe/api/x25:
+	*		x25 api sample programs.
+/etc/wanpipe/api/chdlc:
+	*		chdlc api sample programs.
+/etc/wanpipe/api/fr:
+	*		fr api sample programs.
+
+/usr/src/linux/include/linux:
+	wanrouter.h	router API definitions
+	wanpipe.h	WANPIPE API definitions
+	sdladrv.h	SDLA support module API definitions
+	sdlasfm.h	SDLA firmware module definitions
+	if_wanpipe.h	WANPIPE Socket definitions
+	if_wanpipe_common.h	WANPIPE Socket/Driver common definitions.
+	sdlapci.h	WANPIPE PCI definitions
+	
+
+/usr/src/linux/net/wanrouter:
+	*		wanrouter source code
+/usr/src/linux/drivers/net/wan:
+	sdla* and
+	wanpipe* 	wanpipe source code
+
+/var/log:
+	wanrouter	wanrouter start-up log (created by the Setup script)
+
+/var/lock:  (or /var/lock/subsys for RedHat)
+	wanrouter	wanrouter lock file (created by the Setup script)
+
+

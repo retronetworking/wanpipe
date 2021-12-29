@@ -1,0 +1,57 @@
+#================================================
+# WANPIPE1 Configuration File
+#================================================
+#
+# Date: Fri Nov  5 14:32:39 EST 2004
+#
+# Note: This file was generated automatically
+#       by /usr/sbin/wancfg_new program.
+#
+#       If you want to edit this file, it is
+#       recommended that you use wancfg program
+#       to do so.
+#================================================
+# Sangoma Technologies Inc.
+#================================================
+
+[devices]
+wanpipe1 = WAN_AFT, Comment
+
+[interfaces]
+w1g1 = wanpipe1,  , STACK, Comment
+w1g1tty = wanpipe1, 0, TTY, tty	  #Minor Number (eg: 0-8)
+
+[wanpipe1]
+CARD_TYPE 	= AFT
+S514CPU 	= A
+AUTO_PCISLOT 	= YES
+PCISLOT 	= 17
+PCIBUS  	= 0
+CommPort 	= PRI
+FE_MEDIA	= T1
+FE_LCODE	= B8ZS
+FE_FRAME	= ESF
+TE_CLOCK 	= NORMAL
+ACTIVE_CH	= ALL
+TE_HIGHIMPEDANCE	= NO
+LBO 		= 0DB
+Firmware	= /etc/wanpipe/firmware/cdual514.sfm
+INTERFACE	= V35
+CLOCKING	= EXTERNAL
+BaudRate 	= 0
+MTU 		= 1500
+UDPPORT 	= 9000
+TTL		= 255
+IGNORE_FRONT_END = NO
+
+ 
+[w1g1]
+ACTIVE_CH	= ALL
+PROTOCOL	= NONE
+HDLC_STREAMING	= YES
+IDLE_FLAG	= 0x7E
+MTU	= 1500
+MRU	= 1500
+MULTICAST	= NO
+TRUE_ENCODING_TYPE	= NO
+DYN_INTR_CFG	= NO

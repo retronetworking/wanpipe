@@ -1,0 +1,343 @@
+Only in /root/2.3.3/wanpipe/patches/kdrivers/src/wanrouter/: af_wanpipe_annexg_api.c
+diff -dur wanrouter/af_wanpipe.c /root/2.3.3/wanpipe/patches/kdrivers/src/wanrouter/af_wanpipe.c
+--- wanrouter/af_wanpipe.c	2005-05-16 19:23:50.000000000 -0400
++++ /root/2.3.3/wanpipe/patches/kdrivers/src/wanrouter/af_wanpipe.c	2005-06-14 12:58:17.737815992 -0400
+@@ -404,7 +404,7 @@
+ 		return -ENODEV;
+ 	}
+ 
+-	newsk->sk_zapped=1;
++	wansk_set_zapped(newsk);
+ 	newsk->sk_bound_dev_if = dev->ifindex;
+ 	dev_hold(dev);
+ 	SK_PRIV(newsk)->dev = dev;
+@@ -573,7 +573,7 @@
+ 		 * we go the pointer for skb */
+ 		__sock_put(newsk);
+ 				
+-		if (newsk->sk_zapped && SK_PRIV(newsk) && 
++		if (wansk_is_zapped(newsk) && SK_PRIV(newsk) && 
+ 		   (dev = (struct net_device *)SK_PRIV(newsk)->dev)){
+ 
+ 			if (dev && dev->do_ioctl){
+@@ -671,7 +671,7 @@
+ 		return -ENODEV;
+ 	}
+ 
+-	if (!sk->sk_zapped){
++	if (!wansk_is_zapped(sk)){
+ 		return -EINVAL;
+ 	}
+ 
+@@ -828,7 +828,7 @@
+ 
+ 	WAN_ASSERT_EINVAL(!SK_PRIV(sk));
+ 	
+-	if (!sk->sk_zapped)
++	if (!wansk_is_zapped(sk))
+ 		return -ENETDOWN;
+ 
+ 	if (sk->sk_state != WANSOCK_CONNECTED)
+@@ -954,7 +954,7 @@
+ 	WAN_ASSERT_VOID(!SK_PRIV(sk));
+ 	
+ 	sk->sk_state = WANSOCK_DISCONNECTED;
+-	sk->sk_zapped=0;
++	wansk_reset_zapped(sk);
+ 	sk->sk_bound_dev_if=0;
+ 	if (SK_PRIV(sk)->dev){
+ 		dev_put(SK_PRIV(sk)->dev);
+@@ -1079,7 +1079,7 @@
+ 
+ #ifdef CONFIG_PRODUCT_WANPIPE_SOCK_DATASCOPE
+ 	if (SK_PRIV(sk) && DATA_SC(sk) && DATA_SC(sk)->parent_sk != NULL){
+-		sk->sk_zapped=0;
++		wansk_reset_zapped(sk);
+ 		wanpipe_unbind_sk_from_parent(sk);
+ 	}
+ #endif
+@@ -1100,7 +1100,7 @@
+ 		
+ 	}else if ((SK_PRIV(sk)->num == htons(ETH_P_X25) ||
+ 		   SK_PRIV(sk)->num == htons(WP_X25_PROT) || 
+-		   SK_PRIV(sk)->num == htons(DSP_PROT)) && sk->sk_zapped){
++		   SK_PRIV(sk)->num == htons(DSP_PROT)) && wansk_is_zapped(sk)){
+ 
+ 		netdevice_t *dev = (struct net_device *)SK_PRIV(sk)->dev;
+ 		if (dev){
+@@ -1114,7 +1114,7 @@
+ 		}else{
+ 			DEBUG_EVENT("%s: No dev on svc release !\n",__FUNCTION__);
+ 		}
+-	}else if (sk->sk_zapped){
++	}else if (wansk_is_zapped(sk)){
+ 		netdevice_t *dev = (struct net_device *)SK_PRIV(sk)->dev;
+ 		if (dev){
+ 			if(dev->do_ioctl){
+@@ -1128,7 +1128,7 @@
+ 	}
+ 
+ 	sk->sk_state = WANSOCK_DISCONNECTED;
+-	sk->sk_zapped=0;
++	wansk_reset_zapped(sk);
+ 	sk->sk_bound_dev_if=0;
+ 	if (SK_PRIV(sk)->dev){
+ 		dev_put((struct net_device*)SK_PRIV(sk)->dev);
+@@ -1433,7 +1433,7 @@
+ 	}
+ 
+ 	if (!err){
+-		sk->sk_zapped=1;
++		wansk_set_zapped(sk);
+ 	}
+ 	
+ //	printk(KERN_INFO "11-11 Bind Socket Prot %i, X25=%i Zapped %i, Bind Dev %i Sock %u!\n",
+@@ -1468,7 +1468,7 @@
+ 	sock->ops = &wanpipe_ops;
+ 	sock_init_data(sock,sk);
+ 
+-	sk->sk_zapped=0;
++	wansk_reset_zapped(sk);
+ 	sk->sk_family = AF_WANPIPE;
+ 	SK_PRIV(sk)->num = protocol;
+ 	sk->sk_state = WANSOCK_UNCONFIGURED;
+@@ -1518,7 +1518,7 @@
+ 
+ 	WAN_ASSERT_EINVAL(!SK_PRIV(sk));
+ 
+-	if (!sk->sk_zapped)
++	if (!wansk_is_zapped(sk))
+ 		return -ENETDOWN;
+ 
+ 	/*
+@@ -1676,7 +1676,7 @@
+ 					sk->sk_state = WANSOCK_DISCONNECTED;
+ 				}
+ 				sk->sk_bound_dev_if = 0;
+-				sk->sk_zapped=0;
++				wansk_reset_zapped(sk);
+ 				
+ 				if (SK_PRIV(sk) && SK_PRIV(sk)->dev){
+ 					dev_put((struct net_device *)SK_PRIV(sk)->dev);
+@@ -1714,7 +1714,7 @@
+ 		return 0;
+ 	}
+ 
+-	if (!SK_PRIV(sk) || !sk->sk_zapped){
++	if (!SK_PRIV(sk) || !wansk_is_zapped(sk)){
+ 		mask |= POLLPRI;
+ 		return mask;
+ 	}
+@@ -1726,7 +1726,7 @@
+ 
+ 	/* exceptional events? */
+ 	if (!SK_PRIV(sk) || 
+-	    !sk->sk_zapped  || 
++	    !wansk_is_zapped(sk)  || 
+ 	    sk->sk_err      || 
+ 	    !skb_queue_empty(&sk->sk_error_queue)){
+ 		mask |= POLLPRI;
+@@ -1781,7 +1781,7 @@
+ 	if (sk == NULL || dev == NULL)
+ 		return -EINVAL;
+ 
+-	if (!sk->sk_zapped)
++	if (!wansk_is_zapped(sk))
+ 		return -EINVAL;
+ 
+ 	DEBUG_TEST("%s: API Connected!\n",__FUNCTION__);
+@@ -1796,7 +1796,7 @@
+ 	if (sk == NULL || dev == NULL)
+ 		return -EINVAL;
+ 
+-	if (!sk->sk_zapped)
++	if (!wansk_is_zapped(sk))
+ 		return -EINVAL;
+ 
+ 	DEBUG_TEST("%s: API Connecting!\n",__FUNCTION__);
+@@ -1822,7 +1822,7 @@
+ 	}
+ 	
+ 	
+-	if (!sk->sk_zapped){
++	if (!wansk_is_zapped(sk)){
+ 		return -EINVAL;
+ 	}
+ 	
+@@ -1850,7 +1850,7 @@
+ 	struct wan_sockaddr_ll *addr = (struct wan_sockaddr_ll*)uaddr;
+ 	netdevice_t *dev;
+ 
+-	if (!sk->sk_zapped){		/* Must bind first - autobinding does not work */
++	if (!wansk_is_zapped(sk)){		/* Must bind first - autobinding does not work */
+ 		return -EINVAL;
+ 	}
+ 	
+@@ -1914,7 +1914,7 @@
+ 
+ static int sk_buf_check (struct sock *sk, int len)
+ {
+-	if (!sk->sk_zapped)
++	if (!wansk_is_zapped(sk))
+ 		return -EINVAL;
+ 		
+ 	if (atomic_read(&sk->sk_rmem_alloc) + len >= (unsigned)sk->sk_rcvbuf)
+@@ -1925,7 +1925,7 @@
+ 
+ static int sk_poll_wake (struct sock *sk)
+ {
+-	if (!sk->sk_zapped)
++	if (!wansk_is_zapped(sk))
+ 		return -EINVAL;
+ 
+ 	sk->sk_data_ready(sk,0);
+diff -dur wanrouter/af_wanpipe_datascope.c /root/2.3.3/wanpipe/patches/kdrivers/src/wanrouter/af_wanpipe_datascope.c
+--- wanrouter/af_wanpipe_datascope.c	2005-05-16 19:23:50.000000000 -0400
++++ /root/2.3.3/wanpipe/patches/kdrivers/src/wanrouter/af_wanpipe_datascope.c	2005-06-14 12:58:18.223742120 -0400
+@@ -220,7 +220,7 @@
+ 			      wanpipe_sk_parent_rx_bh, (unsigned long)parent_sk);
+ 		skb_queue_head_init(&PPRIV(parent_sk)->rx_queue);
+ 		
+-		parent_sk->sk_zapped=0;
++		wansk_reset_zapped(parent_sk);
+ 		DATA_SC(parent_sk)->parent=1;
+ 
+ 		if (DATA_SC(sk)->active_ch){
+@@ -311,7 +311,7 @@
+ 		
+ 		parent_sk->sk_bound_dev_if = dev->ifindex; 
+ 		SK_PRIV(parent_sk)->dev = dev;
+-		parent_sk->sk_zapped=1;
++		wansk_set_zapped(parent_sk);
+ 
+ 	}else{
+ 		if (SK_PRIV(parent_sk)->num != SK_PRIV(sk)->num){
+@@ -378,7 +378,7 @@
+ 	SK_PRIV(sk)->dev=dev;
+ 	sk->sk_bound_dev_if = dev->ifindex;
+ 	sk->sk_state = parent_sk->sk_state;
+-	sk->sk_zapped=1;
++	wansk_set_zapped(sk);
+ 
+ 	return 0;
+ }
+@@ -447,7 +447,7 @@
+ 
+ 	}
+ 
+-	sk->sk_zapped=0;
++	wansk_reset_zapped(sk);
+ 	wan_free(DATA_SC(sk));
+ 	DATA_SC_INIT(sk,NULL);
+ 	
+diff -dur wanrouter/wanmain.c /root/2.3.3/wanpipe/patches/kdrivers/src/wanrouter/wanmain.c
+--- wanrouter/wanmain.c	2005-05-16 19:23:50.000000000 -0400
++++ /root/2.3.3/wanpipe/patches/kdrivers/src/wanrouter/wanmain.c	2005-06-07 13:02:21.000000000 -0400
+@@ -181,9 +181,7 @@
+  */
+ 
+ static wan_device_t *find_device (char *name);
+-static int delete_interface (wan_device_t *wandev, netdevice_t	*dev);
+-
+-
++static int delete_interface (wan_device_t *wandev, netdevice_t	*dev, int force);
+ 
+ /*
+  *	Global Data
+@@ -742,6 +740,7 @@
+ 	wandev_conf_t *conf = NULL;
+ 	wan_smp_flag_t smp_flags;
+ 	int err=0;
++	int force=0;
+ 		
+ 	if (wandev->state == WAN_UNCONFIGURED){
+ 		return 0;
+@@ -762,6 +761,9 @@
+ 			wan_free(conf);
+ 			return -EFAULT;
+ 		}
++	}else{
++		/* Module is being unloaded we have no choice here */
++		force=1;
+ 	}
+ 	
+ 	printk(KERN_INFO "\n");
+@@ -771,7 +773,7 @@
+ 	while(devle){
+ 
+ 		dev = WAN_DEVLE2DEV(devle);
+-		if ((err=delete_interface(wandev, dev)) != 0){
++		if ((err=delete_interface(wandev, dev, force)) != 0){
+ 			return err;
+ 		}
+ 
+@@ -840,7 +842,6 @@
+  *	o make sure there is no interface name conflict
+  *	o register network interface
+  */
+-
+ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
+ {
+ 	struct wan_dev_le	*devle;	
+@@ -889,13 +890,7 @@
+ 			err = -EINVAL;
+ 		}else if (dev_get_by_name(dev->name)){
+ 			err = -EEXIST;	/* name already exists */
+-		}else{
+-				
+-			#ifdef WANDEBUG		
+-			printk(KERN_INFO "%s: registering interface %s...\n",
+-				modname, dev->name);
+-			#endif				
+-		
++		}else if (dev->priv){
+ 			err = register_netdev(dev);
+ 			if (!err) {
+ 				wan_smp_flag_t smp_flags=0;
+@@ -912,6 +907,7 @@
+ 				return 0;
+ 			}
+ 		}
++
+ 		if (wandev->del_if)
+ 			wandev->del_if(wandev, dev);
+ 	}
+@@ -1000,7 +996,7 @@
+ 	}
+ 
+ 		
+-	err = delete_interface(wandev, dev);
++	err = delete_interface(wandev, dev,0);
+ 	if (err){
+ 		return(err);
+ 	}
+@@ -1068,18 +1064,17 @@
+  *	sure that opened interfaces are not removed!
+  */
+ 
+-static int delete_interface (wan_device_t *wandev, netdevice_t *dev)
++static int delete_interface (wan_device_t *wandev, netdevice_t *dev, int force)
+ {
+ 	int err;
+ 
+ 	if (dev == NULL){
+ 		return -ENODEV;	/* interface not found */
+ 	}
+-		
++
+ 	if (netif_running(dev)){
+ 		return -EBUSY;	/* interface in use */
+ 	}
+-
+ 	/* Unregister the lip interface attached
+ 	 * to this interace */
+ 	err=wan_device_unreg_lip(dev);
+@@ -1106,7 +1101,7 @@
+ 	}
+ 
+ 	unregister_netdev(dev);
+-
++	
+ 	DEBUG_SUB_MEM(sizeof(netdevice_t));
+ 
+ #ifdef LINUX_2_2

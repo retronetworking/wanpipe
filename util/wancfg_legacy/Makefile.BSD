@@ -1,0 +1,5 @@
+install:
+	install -D -m 755 wancfg_legacy $(WAN_VIRTUAL)/usr/sbin/wancfg_legacy
+
+clean:
+	rm -f $(WAN_VIRTUAL)/usr/sbin/wancfg_legacy

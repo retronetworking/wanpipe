@@ -1,0 +1,4 @@
+#!/bin/sh
+
+cp -f lib/*sh /etc/wanpipe/lib/
+cp -f wancfg_legacy /usr/sbin/wancfg_legacy
