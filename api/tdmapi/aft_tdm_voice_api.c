@@ -54,6 +54,69 @@ FILE *tx_fd=NULL,*rx_fd=NULL;
 wanpipe_tdm_api_t tdm_api; 
 
 
+
+
+static unsigned char get_next_expected_digit(unsigned char current_digit)
+{
+	switch(current_digit)
+	{
+	case '0':
+		return '1';
+	case '1':
+		return '2';
+	case '2':
+		return '3';
+	case '3':
+		return '4';
+	case '4':
+		return '5';
+	case '5':
+		return '6';
+	case '6':
+		return '7';
+	case '7':
+		return '8';
+	case '8':
+		return '9';
+	case '9':
+		return 'A';
+	case 'A':
+		return 'B';
+	case 'B':
+		return 'C';
+	case 'C':
+		return 'D';
+	case 'D':
+		return '#';
+	case '#':
+		return '*';
+	case '*':
+		return '0';
+	default:
+		return '?';
+	}
+}
+int decode_event(wanpipe_tdm_api_t *tdm_api) 
+{
+	wp_tdm_api_event_t *rx_event;  
+	
+	rx_event = &tdm_api->wp_tdm_cmd.event;
+
+	switch (rx_event->wp_tdm_api_event_type){
+
+    case WP_TDMAPI_EVENT_DTMF:
+
+		    printf("DTMF DIGIT Digit=%c  Type=%d  Port=%d \n", 
+				rx_event->wp_tdm_api_event_dtmf_digit, rx_event->wp_tdm_api_event_dtmf_type, rx_event->wp_tdm_api_event_dtmf_port);
+		break;                       
+
+	default:
+		printf("Unknown Event\n");
+		break;
+	}
+
+	return 0;
+}
 /***************************************************
 * HANDLE SOCKET 
 *
@@ -121,6 +184,8 @@ void handle_span_chan(void)
 	wp_tdm_api_tx_element_t * api_tx_el;
 	fd_set 	ready,write,oob;
 	int err,i;
+	FILE *file_fd=NULL;
+	struct timeval timeout;
 	
 #if 0
 	int rlen;
@@ -151,15 +216,26 @@ void handle_span_chan(void)
 
 	/* Create a Tx packet based on user info, or
 	 * by deafult incrementing number starting from 0 */
-	for (i=0;i<Tx_length;i++){
-		if (tx_data == -1){
-			api_tx_el->data[i] = (unsigned char)i;
-		}else{
+
+	if (files_used & TX_FILE_USED) {
+		file_fd = fopen(tx_file,"rb");
+		if (file_fd == NULL) {
+			printf("Failed to open file %s!\n",tx_file);
+			return;
+		}
+     	fread(api_tx_el->data,Tx_length,1,file_fd);
+
+	} else {
+		for (i=0;i<Tx_length;i++){
+			if (tx_data == -1){
+				api_tx_el->data[i] = (unsigned char)i;
+			}else{
 #if 0
-			api_tx_el->data[i] = (unsigned char)tx_data+(i%4);
+				api_tx_el->data[i] = (unsigned char)tx_data+(i%4);
 #else
-			api_tx_el->data[i] = (unsigned char)tx_data;
+				api_tx_el->data[i] = (unsigned char)tx_data;
 #endif
+			}
 		}
 	}
 
@@ -177,12 +253,20 @@ void handle_span_chan(void)
 		     FD_SET(dev_fd,&write);
 		}
 
+		timeout.tv_usec = 0;
+		timeout.tv_sec = 1;
+
 		/* Select will block, until:
 		 * 	1: OOB event, link level change
 		 * 	2: Rx data available
 		 * 	3: Interface able to Tx */
-		
-  		if(select(dev_fd + 1,&ready, &write, &oob, NULL)){
+		err = select(dev_fd + 1, &ready, &write, &oob, &timeout);
+
+		if (err == 0) {
+
+			printf("Error write timeout!\n");
+
+		} else if (err > 0) {
 
 			fflush(stdout);	
 		   	if (FD_ISSET(dev_fd,&oob)){
@@ -202,7 +286,7 @@ void handle_span_chan(void)
 					break;
 				}
 					
-				printf("GOT OOB EXCEPTION CMD Exiting\n");
+                decode_event(&tdm_api);
 			}
 		  
 			
@@ -357,6 +441,15 @@ bitstrm_skip_read:
 				}else{
 
 					++Tx_count;
+     	
+					if (file_fd) {
+						int ferr;
+						memset(api_tx_el->data,0xFF,Tx_length);
+						ferr=fread(api_tx_el->data,Tx_length,1,file_fd);
+						if (ferr == 0) {
+                         	rewind(file_fd);
+						}
+					}
 					
 					if (verbose){
 						printf("Packet sent: Sent %i : %i\n",

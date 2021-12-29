@@ -571,7 +571,7 @@ static int config_get_info(char* buf, char** start, off_t offs, int len, int dum
 	PROC_ADD_DECL(m);
 	PROC_ADD_INIT(m, buf, offs, len);
 
-	PROC_ADD_LINE(m, conf_hdr);
+	PROC_ADD_LINE(m, "%s", conf_hdr);
 
 	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
@@ -633,7 +633,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 	PROC_ADD_DECL(m);
 	PROC_ADD_INIT(m, buf, offs, len);
 
-	PROC_ADD_LINE(m,  stat_hdr);
+	PROC_ADD_LINE(m, "%s",  stat_hdr);
 
 	devle=NULL;
 
@@ -733,7 +733,7 @@ static int interfaces_get_info(char* buf, char** start, off_t offs, int len, int
 	PROC_ADD_DECL(m);
 	PROC_ADD_INIT(m, buf, offs, len);
 
-	PROC_ADD_LINE(m, interfaces_hdr);
+	PROC_ADD_LINE(m, "%s", interfaces_hdr);
 
 	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
@@ -1796,7 +1796,7 @@ static int map_get_info(char* buf, char** start, off_t offs, int len, int dummy)
 	PROC_ADD_DECL(m);
 	PROC_ADD_INIT(m, buf, offs, len);
 
-	PROC_ADD_LINE(m, map_hdr);
+	PROC_ADD_LINE(m, "%s", map_hdr);
 
 	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
@@ -1864,7 +1864,7 @@ static int get_dev_config_info(char* buf, char** start, off_t offs, int len,int 
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
 			}
-			m->count = wandev->get_config_info(dev->priv, 
+			m->count = wandev->get_config_info(wan_netif_priv(dev), 
 							   m, 
 							   M_STOP_CNT(m)); 
 		}
@@ -1917,7 +1917,7 @@ static int get_dev_status_info(char* buf, char** start, off_t offs, int len, int
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
 			}
-			m->count = wandev->get_status_info(dev->priv, m, M_STOP_CNT(m)); 
+			m->count = wandev->get_status_info(wan_netif_priv(dev), m, M_STOP_CNT(m)); 
 		}
 	       	wan_spin_unlock(&wandev->dev_head_lock);
 	}
@@ -1947,7 +1947,7 @@ static int wandev_mapdir_get_info(char* buf, char** start, off_t offs, int len, 
 
 	PROC_ADD_INIT(m, buf, offs, len);
 
-	PROC_ADD_LINE(m, map_hdr);
+	PROC_ADD_LINE(m, "%s", map_hdr);
 
 	if (!wandev->state){ 
 		goto wandev_mapdir_get_info_exit;

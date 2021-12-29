@@ -257,6 +257,7 @@ sub gen_wanpipe_ss7_subinterfaces{
 	}
 	
 	my $hw_dtmf = $self->card->hw_dtmf;
+	my $hw_fax = $self->card->hw_fax;
 	
 	open(FH, $wanpipe_ss7_interfaces_template) or die "Can't open $wanpipe_ss7_interfaces_template";
 	my $wp_file='';
@@ -278,6 +279,7 @@ sub gen_wanpipe_ss7_subinterfaces{
 	$wp_file =~ s/VOICEINTERFACE/$ss7_tdminterface/g;
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
 	$wp_file =~ s/HWDTMF/$hw_dtmf/g;
+        $wp_file =~ s/HWFAX/$hw_fax/g;
 	print FH $wp_file;
 	close (FH);
 }
@@ -299,6 +301,7 @@ sub gen_wanpipe_conf{
 	my $te_sig_mode = $self->te_sig_mode;
 	my $hwec_mode = $self->card->hwec_mode;
 	my $hw_dtmf = $self->card->hw_dtmf;
+        my $hw_fax = $self->card->hw_fax;
 	my $ss7_option = $self->ss7_option;
 	my $hp_option	= $self->hp_option;
 	my $dchan = $self->hw_dchan;
@@ -388,6 +391,8 @@ sub gen_wanpipe_conf{
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
         $wp_file =~ s/HWECMODE/$hwec_mode/g;
         $wp_file =~ s/HWDTMF/$hw_dtmf/g;
+        $wp_file =~ s/HWFAX/$hw_fax/g;
+	       
 	print FH $wp_file;
 	close (FH);
 # print "\n created $fname for A$card_model $devnum SLOT $slot BUS $bus HWEC $hwec_mode\n";
@@ -455,9 +460,7 @@ sub gen_zaptel_conf{
 					#$zp_file.="echocanceller=mg2".$first_ch."-".$last_ch."\n"; 
 					#dahdi software echo canellation conf
 					if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=" .$dahdi_echo.",".$first_ch."-".$last_ch."\n"; 
-						}
 
 					}
 
@@ -467,9 +470,7 @@ sub gen_zaptel_conf{
 	                	$zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
 
 				if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=".$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+22)."\n";  
-						}
 
 				}
 
@@ -488,9 +489,7 @@ sub gen_zaptel_conf{
 						my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
 		                		$zp_file.="bchan=".$first_ch."\n"; 
 						if($dahdi_conf eq 'YES') {
-							if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."\n";  
-						}
 
 						}
 
@@ -511,9 +510,7 @@ sub gen_zaptel_conf{
 					
 		                		$zp_file.="bchan=".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n"; 
 						if($dahdi_conf eq 'YES') {
-							if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n";  
-							}
 
 						}
 						
@@ -524,9 +521,7 @@ sub gen_zaptel_conf{
 						my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
 		                		$zp_file.="bchan=".$first_ch."-".$last_ch."\n"; 
 						if($dahdi_conf eq 'YES') {
-							if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."-".$last_ch."\n";  
-							}
 
 						}
 
@@ -537,9 +532,7 @@ sub gen_zaptel_conf{
                 		$zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n"; 
 
 				if($dahdi_conf eq 'YES') {
-					if($hwec_mode eq 'NO' ) {
 						$zp_file.="echocanceller=".$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n";   
-					}
 
 				}
 				
@@ -573,9 +566,7 @@ sub gen_zaptel_conf{
 					my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
 	        	        	$zp_file.=$zap_signal."=".$first_ch."\n"; 
 					if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 						$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."\n";   
-						}
 
 					}
 
@@ -585,9 +576,7 @@ sub gen_zaptel_conf{
 					my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
 	        	        	$zp_file.=$zap_signal."=".$first_ch."-".$last_ch."\n";
 					if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 						$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."-".$last_ch."\n";
-						}
 
 					}
 
@@ -596,9 +585,7 @@ sub gen_zaptel_conf{
 			} else {
                 		$zp_file.=$zap_signal."=".$self->card->first_chan."-".($self->card->first_chan+23)."\n"; 
 				if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 						$zp_file.="echocanceller=".$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+23)."\n";
-						}
 
 					}
 				
@@ -637,11 +624,7 @@ sub gen_zapata_conf{
 	$zp_file.="context=".$self->card->zap_context."\n";
        	$zp_file.="group=".$self->card->zap_group."\n";
 	if($dahdi_conf eq 'YES') {
-		if($hwec_mode eq 'NO' ) {
 			$zp_file.="echocancel=yes\n";
-		} else {
-			$zp_file.="echocancel=no\n";		
-		}
 
 	}
 

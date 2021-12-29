@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash -p
 
 if [ "$UID" != 0 ]; then
 	echo "System cleanup only allowed in super user mode!"

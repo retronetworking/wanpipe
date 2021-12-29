@@ -610,6 +610,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UINT},
   { "TDMV_DCHAN",    offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, dchan),   DTYPE_UINT},
   { "TDMV_HW_DTMF",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_dtmf), DTYPE_UCHAR},
+  { "TDMV_HW_FAX_DETECT",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_fax_detect), DTYPE_UCHAR},  
 
   { "TDMV_DUMMY_REF",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, sdla_tdmv_dummy_enable), DTYPE_UCHAR},
 

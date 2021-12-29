@@ -15,9 +15,19 @@ PWD=$(shell pwd)
 KBUILD_VERBOSE=0
 
 #Default zaptel directory to be overwritten by user
+
+ifdef DAHDI_DIR
+	ZAPDIR=$(DAHDI_DIR)
+endif
+
 ifndef ZAPDIR
 	ZAPDIR=/usr/src/dahdi
+ifneq (,$(wildcard ./.pbxdir))
+	ZAPDIR=$(shell cat .pbxdir)
+endif    	
 endif
+
+$(shell echo $(ZAPDIR) > .pbxdir)
 
 #Kernel version and location
 ifndef KVER
@@ -40,8 +50,9 @@ ifndef ASTDIR
     	ASTDIR=/usr/src/asterisk
 endif
 
-
-INSTALLPREFIX=
+ifndef INSTALLPREFIX
+	INSTALLPREFIX=
+endif
 
 #Local wanpipe includes
 WINCLUDE=patches/kdrivers/include
@@ -119,7 +130,10 @@ else
 #within local directory structure
 all:   _checkzap _checksrc all_bin_kmod all_util 	
 
-all_src:   _checkzap _checksrc all_kmod all_util
+all_src:   _checkzap _checksrc all_kmod all_util all_lib
+
+openzap: all_src all_lib
+
 
 #Build only kernel modules
 all_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
@@ -206,7 +220,7 @@ _checkzap:
 			ENABLE_WANPIPEMON_ZAP=YES; \
 			if [ -f $(ZAPDIR)/kernel/Module.symvers ]; then \
 				cp -f $(ZAPDIR)/kernel/Module.symvers $(WAN_DIR)/; \
-			elif [ -f -f $(ZAPDIR)/Module.symvers ]; then \
+			elif [ -f $(ZAPDIR)/Module.symvers ]; then \
 				cp -f $(ZAPDIR)/Module.symvers $(WAN_DIR)/; \
 			else \
 				echo "Error: Zaptel source not compiled, missing Module.symvers file"; \
@@ -222,7 +236,7 @@ _checkzap:
 	@sleep 2; 
 
 #Install all utilities etc and modules
-install: install_util install_etc install_kmod install_inc
+install: install_util install_etc install_kmod install_inc install_lib
 
 #Install kernel modules only
 install_kmod:
@@ -252,6 +266,14 @@ all_util:  install_inc
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(ARCH) 
 	$(MAKE) -C util all_wancfg EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I$(PWD)/api/libsangoma/include" CC=$(CC) \
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(ARCH)
+
+all_lib:
+		$(shell cd api/libsangoma; ./init-automake.sh > /dev/null;  ./configure --prefix=/usr > /dev/null;)
+		$(MAKE) -C api/libsangoma clean
+		$(MAKE) -C api/libsangoma all
+
+install_lib:
+		$(MAKE) -C api/libsangoma install
 
 #Clean utilities only
 clean_util:	
@@ -317,4 +339,7 @@ clean_smgbri:
 	$(MAKE) -C ssmg/libsangoma.trunk/ clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/ clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
+
+distclean: clean
+	rm -f .pbxdir 
 	

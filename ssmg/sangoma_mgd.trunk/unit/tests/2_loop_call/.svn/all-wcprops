@@ -1,0 +1,23 @@
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/sangoma_mgd/!svn/ver/133/trunk/unit/tests/2_loop_call
+END
+test.c
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/sangoma_mgd/!svn/ver/133/trunk/unit/tests/2_loop_call/test.c
+END
+restart.sh
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/sangoma_mgd/!svn/ver/133/trunk/unit/tests/2_loop_call/restart.sh
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/sangoma_mgd/!svn/ver/133/trunk/unit/tests/2_loop_call/Makefile
+END

@@ -180,6 +180,12 @@ function ss7_box_ctrl ()
 	
 		echo "Starting:  wanrouter start"
 		eval "wanrouter start >> $smgctrl_log 2>> $smgctrl_log"
+
+		for ((i=0;i<6;i++)) 
+		do
+			sleep 5;
+			echo "Waiting for ss7box to connect $i/6..."
+		done
         fi
 
         cd $homedir

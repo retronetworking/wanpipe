@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/sangoma_mgd/!svn/ver/133/trunk/unit/core
+END
+unit.h
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/sangoma_mgd/!svn/ver/133/trunk/unit/core/unit.h
+END
+sangoma_mgd_unit.c
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/sangoma_mgd/!svn/ver/133/trunk/unit/core/sangoma_mgd_unit.c
+END

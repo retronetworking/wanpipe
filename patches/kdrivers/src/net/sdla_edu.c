@@ -298,7 +298,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	 * can return an error */
 
 	dev->init = &if_init;
-	dev->priv = edu_private_area;
+	wan_netif_set_priv(dev, edu_private_area);
 	edu_private_area->net_dev = dev;//pointer back to network device
 
 	atomic_inc(&card->wandev.if_cnt);
@@ -310,8 +310,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 new_if_error:
 
 	kfree(edu_private_area);
-
-	dev->priv=NULL;
+	wan_netif_set_priv(dev, NULL);
 
 	return err;
 }
@@ -332,7 +331,7 @@ new_if_error:
  */
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
-	edu_private_area_t* 	edu_priv_area = dev->priv;
+	edu_private_area_t* 	edu_priv_area = wan_netif_priv(dev);
 	sdla_t*			card = edu_priv_area->card;
 	
 	DEBUG_CFG("%s: deleting: %s, %s\n", __FUNCTION__,
@@ -362,7 +361,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
  */
 static int if_init (netdevice_t* dev)
 {
-	edu_private_area_t* edu_private_area = dev->priv;
+	edu_private_area_t* edu_private_area = wan_netif_priv(dev);
 	sdla_t* card = edu_private_area->card;
 	//wan_device_t* wandev = &card->wandev;
 
@@ -420,7 +419,7 @@ static int if_init (netdevice_t* dev)
  */
 static int if_open (netdevice_t* dev)
 {
-	edu_private_area_t* edu_priv_area = dev->priv;
+	edu_private_area_t* edu_priv_area = wan_netif_priv(dev);
 	sdla_t* card = edu_priv_area->card;
 	struct timeval tv;
 	int err = 0;
@@ -472,7 +471,7 @@ static int if_open (netdevice_t* dev)
 
 static int if_close (netdevice_t* dev)
 {
-	edu_private_area_t* edu_priv_area = dev->priv;
+	edu_private_area_t* edu_priv_area = wan_netif_priv(dev);
 	sdla_t* card = edu_priv_area->card;
 
 	DEBUG_CFG("%s: closing %s, %s\n", __FUNCTION__,
@@ -522,7 +521,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 
 	DEBUG_CFG("%s: stats for: %s\n", __FUNCTION__, dev->name);
 	
-	if ((edu_priv_area=dev->priv) == NULL){
+	if ((edu_priv_area=wan_netif_priv(dev)) == NULL){
 		return NULL;
 	}
 
@@ -557,7 +556,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
  */
 static int if_send (struct sk_buff* skb, netdevice_t* dev)
 {
-	edu_private_area_t *edu_priv_area = dev->priv;
+	edu_private_area_t *edu_priv_area = wan_netif_priv(dev);
 	sdla_t *card = edu_priv_area->card;
 	int err = 0;
 	unsigned char misc_Tx_bits = 0;
@@ -679,7 +678,7 @@ static int edu_send (	sdla_t* card, edu_private_area_t *edu_priv_area,
  */
 static void if_tx_timeout (netdevice_t *dev)
 {
-    	edu_private_area_t* chan = dev->priv;
+    	edu_private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 
 	DEBUG_TX("%s: called for: %s: interface %s.\n", __FUNCTION__,

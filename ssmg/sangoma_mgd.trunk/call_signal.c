@@ -14,7 +14,8 @@
  * ============================================================================
  */
 
-#include <call_signal.h>
+#include "call_signal.h"
+#include "sangoma_mgd.h"
 
 extern void __log_printf(int level, FILE *fp, char *file, const char *func, int line, char *fmt, ...);
 #define clog_printf(level, fp, fmt, ...) __log_printf(level, fp, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
@@ -113,6 +114,40 @@ int call_signal_connection_open(call_signal_connection_t *mcon, char *local_ip, 
 	return mcon->socket;
 }
 
+
+static int smg_event_dbg=2;
+static void clog_print_event_call(call_signal_connection_t *mcon,call_signal_event_t *event, int priority, int dir)
+{
+	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?4:smg_event_dbg, mcon->log,
+                           "%s EVENT (%s): %s:(%X) [w%dg%d] CSid=%i Seq=%i Cn=[%s] Cd=[%s] Ci=[%s]\n",
+			   dir ? "TX":"RX",
+			   priority ? "P":"N",	
+                           call_signal_event_id_name(event->event_id),
+                           event->event_id,
+                           event->span+1,
+                           event->chan+1,
+                           event->call_setup_id,
+                           event->fseqno,
+			   strlen(event->calling_name)?event->calling_name:"N/A",
+                           (event->called_number_digits_count ? (char *) event->called_number_digits : "N/A"),
+                           (event->calling_number_digits_count ? (char *) event->calling_number_digits : "N/A"));
+}
+static void clog_print_event_short(call_signal_connection_t *mcon,short_signal_event_t *event, int priority, int dir)
+{
+	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?4:smg_event_dbg, mcon->log,
+                           "%s EVENT (%s): %s:(%X) [w%dg%d] Rc=%i CSid=%i Seq=%i \n",
+			   dir ? "TX":"RX",
+			   priority ? "P":"N",	
+                           call_signal_event_id_name(event->event_id),
+                           event->event_id,
+                           event->span+1,
+                           event->chan+1,
+                           event->release_cause,
+                           event->call_setup_id,
+                           event->fseqno);
+}
+
+
 call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon, int iteration)
 {
 	unsigned int fromlen = sizeof(struct sockaddr_in);
@@ -120,14 +155,37 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 	call_signal_event_t *event = &mcon->event;
 #endif
 	int bytes = 0;
+	int msg_ok=0;
 
 	bytes = recvfrom(mcon->socket, &mcon->event, sizeof(mcon->event), MSG_DONTWAIT, 
 			(struct sockaddr *) &mcon->local_addr, &fromlen);
 
-	if (bytes == sizeof(mcon->event) || 
-            bytes == (sizeof(mcon->event)-sizeof(uint32_t))) {
+	clog_printf(8,mcon->log,"RX EVENT len=%i sock=%i\n",bytes,mcon->socket);
 
-		if (mcon->rxseq_reset) {
+	/* Must check for < 0 cannot rely on bytes > MIN_SIZE_... compiler issue */
+	if (bytes < 0) {
+		msg_ok=0;
+
+	} else if ((bytes >= MIN_SIZE_CALLSTART_MSG) && boost_full_event(mcon->event.event_id)) {
+		msg_ok=1;
+		
+	} else if (bytes == sizeof(short_signal_event_t)) {
+		msg_ok=1;
+
+	} else {
+		msg_ok=0;
+	}
+
+	if (msg_ok){
+
+#if 0
+		if (mcon->event.event_id == SIGBOOST_EVENT_SYSTEM_RESTART) {
+			clog_printf(0,mcon->log,"Rx sync ok\n");
+			woomera_set_flag(&server.master_connection, WFLAG_SYSTEM_RESET);
+                        mcon->rxseq=mcon->event.fseqno;
+                        return &mcon->event;
+		}
+		if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_RESET)){
 			if (mcon->event.event_id == SIGBOOST_EVENT_SYSTEM_RESTART_ACK) {
 				clog_printf(0,mcon->log,"Rx sync ok\n");
 				mcon->rxseq=mcon->event.fseqno;
@@ -137,23 +195,44 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 			clog_printf(0,mcon->log,"Waiting for rx sync...\n");
 			return NULL;
 		}
-		
+#endif
 		mcon->txwindow = mcon->txseq - mcon->event.bseqno;
+
+#ifndef SANGOMA_UNIT_TESTER		
 		mcon->rxseq++;
+#endif
+	
+		clog_printf(6, mcon->log, "RX (N) CMD %i Exp_RX = %i Got_RX =%i",
+				mcon->event.event_id,mcon->rxseq,mcon->event.fseqno);
 
 		if (mcon->rxseq != mcon->event.fseqno) {
 			clog_printf(0, mcon->log, 
 				"------------------------------------------\n");
 			clog_printf(0, mcon->log, 
-				"Critical Error: Invalid Sequence Number Expect=%i Rx=%i\n",
-				mcon->rxseq,mcon->event.fseqno);
+				"Critical Error: Invalid Sequence Number Event=%i Rx(N) Expect=%i Rx=%i\n",
+				mcon->event.event_id,mcon->rxseq,mcon->event.fseqno);
 			clog_printf(0, mcon->log, 
 				"------------------------------------------\n");
 		}
 
+#ifdef SANGOMA_UNIT_TESTER
+		if (mcon->event.event_id == SIGBOOST_EVENT_SYSTEM_RESTART_ACK) {
+			mcon->rxseq=0;
+		} else {
+			mcon->rxseq++;
+		}
+#endif
+
+		if  (mcon->event.event_id == SIGBOOST_EVENT_CALL_START ||
+			 mcon->event.event_id == SIGBOOST_EVENT_DIGIT_IN) {
+			clog_print_event_call(mcon,&mcon->event, 0, 0);
+		} else {
+			clog_print_event_short(mcon,(short_signal_event_t*)&mcon->event, 0, 0);
+		}
+
 #if 0
 /* Debugging only not to be used in production because span/chan can be invalid */
-	   	if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > max_spans || mcon->event.chan > max_chans) {
+	   	if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > max_spans || mcon->event.chan > max_spans) {
                 	clog_printf(0, mcon->log,
                         	"------------------------------------------\n");
                 	clog_printf(0, mcon->log,
@@ -167,16 +246,13 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
         	}
 #endif
 
- 
-
-
 		return &mcon->event;
 	} else {
 		if (iteration == 0) {
                 	clog_printf(0, mcon->log,
                         	"------------------------------------------\n");
                 	clog_printf(0, mcon->log,
-                        	"Critical Error: Invalid Event lenght from boost rxlen=%i evsz=%i\n",
+                        	"Critical Error: Invalid Event length from boost rxlen=%i expected=%i\n",
 					bytes, sizeof(mcon->event));
                 	clog_printf(0, mcon->log,
                         	"------------------------------------------\n");
@@ -197,12 +273,25 @@ call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon
 	bytes = recvfrom(mcon->socket, &mcon->event, sizeof(mcon->event), MSG_DONTWAIT, 
 			(struct sockaddr *) &mcon->local_addr, &fromlen);
 
-	if (bytes == sizeof(mcon->event) || 
-            bytes == (sizeof(mcon->event)-sizeof(uint32_t))) {
+	if (bytes) {
+		if (mcon->event.version != SIGBOOST_VERSION) {
+			clog_printf(0, mcon->log,
+                        	"------------------------------------------\n");
+                	clog_printf(0, mcon->log,
+                        	"Critical Error: Invalid Boost Version number %i, Expecting %i\n",
+								mcon->event.version,SIGBOOST_VERSION);
+                	clog_printf(0, mcon->log,
+                        	"------------------------------------------\n");
+		}
+	}
+
+	if (bytes == sizeof(short_signal_event_t)) {
+
+		clog_print_event_short(mcon,(short_signal_event_t*)&mcon->event, 1, 0);
 
 #if 0
 	/* Debugging only not to be used in production because span/chan can be invalid */
-               if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > max_spans || mcon->event.chan > max_chans) {
+               if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > max_spans || mcon->event.chan > max_spans) {
                         clog_printf(0, mcon->log,
                                 "------------------------------------------\n");
                         clog_printf(0, mcon->log,
@@ -217,6 +306,7 @@ call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon
 #endif
 
 		return &mcon->event;
+
 	} else {
 		if (iteration == 0) {
                 	clog_printf(0, mcon->log,
@@ -233,14 +323,20 @@ call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon
 }
 
 
-int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_event_t *event)
+int call_signal_connection_writep(call_signal_connection_t *mcon, call_signal_event_t *event)
 {
 	int err;
+	int event_size=MIN_SIZE_CALLSTART_MSG+event->isup_in_rdnis_size;
+
 	if (!event) {
 		clog_printf(0, mcon->log, "Critical Error: No Event Device\n");
 		return -EINVAL;
 	}
 
+	if (!boost_full_event(event->event_id)) {
+		event_size=sizeof(short_signal_event_t);
+	}	
+#if 0
 	if (event->span < 0 || event->chan < 0 || event->span > max_spans || event->chan > max_chans) {
 		clog_printf(0, mcon->log, 
 			"------------------------------------------\n");
@@ -252,94 +348,106 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 
 		return -1;
 	}
+#endif
 
 	gettimeofday(&event->tv,NULL);
 	
 	pthread_mutex_lock(&mcon->lock);
-	event->fseqno=mcon->txseq++;
-	event->bseqno=mcon->rxseq;
-	err=sendto(mcon->socket, event, sizeof(call_signal_event_t), 0, 
+	event->version=SIGBOOST_VERSION;
+	err=sendto(mcon->socket, event, event_size, 0, 
 		   (struct sockaddr *) &mcon->remote_addr, sizeof(mcon->remote_addr));
 	pthread_mutex_unlock(&mcon->lock);
 
-	if (err != sizeof(call_signal_event_t)) {
+	if (err != event_size) {
 		err = -1;
+	} else {
+		err = 0;
+	}
+
+	if (boost_full_event(event->event_id)) {
+		clog_print_event_call(mcon,event, 1, 1);
+	} else {
+		clog_print_event_short(mcon,(short_signal_event_t*)event, 1, 1);
+	}
+	return err;
+}
+
+
+
+int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_event_t *event)
+{
+	int err;
+	int event_size=sizeof(call_signal_event_t);
+
+
+	if (!event) {
+		clog_printf(0, mcon->log, "Critical Error: No Event Device\n");
+		return -EINVAL;
+	}
+
+	/* span chan are unsigned no point of checking if < 0 */
+	if (event->span > max_spans || event->chan > max_chans) {
+		clog_printf(0, mcon->log, 
+			"------------------------------------------\n");
+		clog_printf(0, mcon->log, 
+			"Critical Error: TX Cmd=%s Invalid Span=%i Chan=%i\n",
+			call_signal_event_id_name(event->event_id), event->span,event->chan);
+		clog_printf(0, mcon->log, 
+			"------------------------------------------\n");
+
+		return -1;
+	}
+
+
+	if (!boost_full_event(event->event_id)) {
+		event_size=sizeof(short_signal_event_t);
+	}	
+
+	if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_RESET) && event->event_id != SIGBOOST_EVENT_SYSTEM_RESTART_ACK) { 
+		clog_printf(0, mcon->log, "Error: Boost connection in reset ignoring packet\n");
+		return 0;
+	}
+
+	gettimeofday(&event->tv,NULL);
+	
+	pthread_mutex_lock(&mcon->lock);
+
+	if (event->event_id == SIGBOOST_EVENT_SYSTEM_RESTART_ACK) {
+		mcon->txseq=0;
+		mcon->rxseq=0;
+		event->fseqno=0;
+	} else {
+#ifdef SANGOMA_UNIT_TESTER
+		event->fseqno=++mcon->txseq;
+#else
+		event->fseqno=mcon->txseq++;
+#endif
+	}
+
+	event->bseqno=mcon->rxseq;
+	event->version=SIGBOOST_VERSION;
+	err=sendto(mcon->socket, event, event_size, 0, 
+		   (struct sockaddr *) &mcon->remote_addr, sizeof(mcon->remote_addr));
+	pthread_mutex_unlock(&mcon->lock);
+
+	if (err != event_size) {
+		err = -1;
+	} else {
+		err = 0;
 	}
 	
-#if 0
-	clog_printf(2, mcon->log, "TX EVENT\n");
-	clog_printf(2, mcon->log, "===================================\n");
-	clog_printf(2, mcon->log, "       tType: %s (%0x HEX)\n",
-				call_signal_event_id_name(event->event_id),event->event_id);
-	clog_printf(2, mcon->log, "       tSpan: [%d]\n",event->span+1);
-	clog_printf(2, mcon->log, "       tChan: [%d]\n",event->chan+1);
-	clog_printf(2, mcon->log, "  tCalledNum: %s\n",
-			(event->called_number_digits_count ? (char *) event->called_number_digits : "N/A"));
-	clog_printf(2, mcon->log, " tCallingNum: %s\n",
-			(event->calling_number_digits_count ? (char *) event->calling_number_digits : "N/A"));
-	clog_printf(2, mcon->log, "      tCause: %d\n",event->release_cause);
-	clog_printf(2, mcon->log, "  tInterface: [w%dg%d]\n",event->span+1,event->chan+1);
-	clog_printf(2, mcon->log, "   tEvent ID: [%d]\n",event->event_id);
-	clog_printf(2, mcon->log, "   tSetup ID: [%d]\n",event->call_setup_id);
-	clog_printf(2, mcon->log, "        tSeq: [%d]\n",event->fseqno);
-	clog_printf(2, mcon->log, "===================================\n");
-#endif
-
-#if 1
- 	clog_printf(2, mcon->log,
-                           "TX EVENT: %s:(%X) [w%dg%d] Rc=%i CSid=%i Seq=%i Cd=[%s] Ci=[%s]\n",
-                           call_signal_event_id_name(event->event_id),
-                           event->event_id,
-                           event->span+1,
-                           event->chan+1,
-                           event->release_cause,
-                           event->call_setup_id,
-                           event->fseqno,
-                           (event->called_number_digits_count ? (char *) event->called_number_digits : "N/A"),
-                           (event->calling_number_digits_count ? (char *) event->calling_number_digits : "N/A")
-                           );
-#endif
-
-
-#if 0
-
-	clog_printf(2, mcon->log,
-                           "\nTX EVENT\n"
-                           "===================================\n"
-                           "           tType: %s (%0x HEX)\n"
-                           "           tSpan: [%d]\n"
-                           "           tChan: [%d]\n"
-                           "  tCalledNum: %s\n"
-                           " tCallingNum: %s\n"
-                           "      tCause: %d\n"
-                           "  tInterface: [w%dg%d]\n"
-                           "   tEvent ID: [%d]\n"
-                           "   tSetup ID: [%d]\n"
-                           "        tSeq: [%d]\n"
-                           "===================================\n"
-                           "\n",
-                           call_signal_event_id_name(event->event_id),
-                           event->event_id,
-                           event->span+1,
-                           event->chan+1,
-                           (event->called_number_digits_count ? (char *) event->called_number_digits : "N/A"),
-                           (event->calling_number_digits_count ? (char *) event->calling_number_digits : "N/A"),
-                           event->release_cause,
-                           event->span+1,
-                           event->chan+1,
-                           event->event_id,
-                           event->call_setup_id,
-                           event->fseqno
-                           );
-#endif
-
+	if (boost_full_event(event->event_id)) {
+		clog_print_event_call(mcon,event, 0, 1);
+	} else {
+		clog_print_event_short(mcon,(short_signal_event_t*)event, 0, 1);
+	}
 
 	return err;
 }
 
 void call_signal_call_init(call_signal_event_t *event, char *calling, char *called, int setup_id)
 {
-	memset(event, 0, sizeof(call_signal_event_t));
+	memset(event, 0, sizeof(*event));
 	event->event_id = SIGBOOST_EVENT_CALL_START;
 
 	if (calling) {
@@ -356,9 +464,9 @@ void call_signal_call_init(call_signal_event_t *event, char *calling, char *call
 	
 }
 
-void call_signal_event_init(call_signal_event_t *event, call_signal_event_id_t event_id, int chan, int span) 
+void call_signal_event_init(short_signal_event_t *event, call_signal_event_id_t event_id, int chan, int span) 
 {
-	memset(event, 0, sizeof(call_signal_event_t));
+	memset(event, 0, sizeof(*event));
 	event->event_id = event_id;
 	event->chan = chan;
 	event->span = span;

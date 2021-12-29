@@ -940,12 +940,12 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 			"%s: Failed to create /proc/net/router/fr/%s entry!\n",
 			card->devname, conf->name);
 		kfree(chan);	
-		dev->priv=NULL;
+		wan_netif_set_priv(dev, NULL);
 		return err;
 	}
 
 	dev->init = NULL;
-	dev->priv = chan;
+	wan_netif_set_priv(dev, chan);
 
 	chan->dlci_state=0;
 	chan->newstate=0;
@@ -978,7 +978,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
  */
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
-	fr_private_area_t *chan = dev->priv;
+	fr_private_area_t *chan = wan_netif_priv(dev);
 	sdla_t *card = wandev->priv;
 	fr_prot_t *fr_prot = FR_PROT_AREA(card);
 	unsigned long smp_flags;
@@ -1084,7 +1084,7 @@ static void disable_comm (sdla_t *card)
  */
 static int if_init (netdevice_t* dev)
 {
-	fr_private_area_t* chan = dev->priv;
+	fr_private_area_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	fr_prot_t *fr_prot=FR_PROT_AREA(card);
 	wan_device_t* wandev = &card->wandev;
@@ -1144,7 +1144,7 @@ static int if_init (netdevice_t* dev)
  */
 static void if_tx_timeout (netdevice_t *dev)
 {
-    	fr_private_area_t* chan = dev->priv;
+    	fr_private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	
 	/* If our device stays busy for at least 5 seconds then we will
@@ -1170,7 +1170,7 @@ static void if_tx_timeout (netdevice_t *dev)
  */
 static int if_open (netdevice_t* dev)
 {
-	fr_private_area_t* chan = dev->priv;
+	fr_private_area_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	fr_prot_t *fr_prot = FR_PROT_AREA(card);
 
@@ -1204,7 +1204,7 @@ static int if_open (netdevice_t* dev)
  */
 static int if_close (netdevice_t* dev)
 {
-	fr_private_area_t* chan = dev->priv;
+	fr_private_area_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	fr_prot_t *fr_prot = FR_PROT_AREA(card);
 
@@ -1239,7 +1239,7 @@ static int if_close (netdevice_t* dev)
 static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
 	unsigned long smp_flags;
-	fr_private_area_t* chan = dev->priv;
+	fr_private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card;
 	wan_udp_pkt_t *wan_udp_pkt;
 	
@@ -1340,7 +1340,7 @@ static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
  */
 static int if_send (struct sk_buff* skb, netdevice_t* dev)
 {
-	fr_private_area_t *chan = dev->priv;
+	fr_private_area_t *chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	//int udp_type = 0;
 	unsigned long smp_flags;
@@ -1559,7 +1559,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
          * dev->priv pointer. This function, gets
          * called after del_if(), thus check
          * if pointer has been deleted */
-	if ((chan=dev->priv) == NULL)
+	if ((chan=wan_netif_priv(dev)) == NULL)
 		return NULL;
 
 	return &chan->stats;
@@ -1761,7 +1761,7 @@ static int update_comms_stats(sdla_t* card)
 static int hdlc_send_hdr_data (sdla_t* card, netdevice_t *dev, void* data, unsigned len)
 {
 	CHDLC_DATA_TX_STATUS_EL_STRUCT txbuf;
-	fr_private_area_t *chan = dev->priv;
+	fr_private_area_t *chan = wan_netif_priv(dev);
 	
 	card->hw_iface.peek(card->hw, card->u.c.txbuf_off, &txbuf, sizeof(txbuf));
 	if (txbuf.opp_flag)
@@ -2246,7 +2246,7 @@ static void tx_intr (sdla_t *card)
 		
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 			{
-			fr_private_area_t *chan=dev->priv;
+			fr_private_area_t *chan=wan_netif_priv(dev);
 			if (chan && chan->common.usedby == ANNEXG && chan->annexg_dev){
 				if (IS_FUNC_CALL(lapb_protocol,lapb_mark_bh))
 					lapb_protocol.lapb_mark_bh(chan->annexg_dev);
@@ -2609,7 +2609,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, void *local_dev)
 			card->u.f.udp_pkt_lgth = 0;
 			return -ENODEV;
 		}
-		if ((chan = dev->priv) == NULL){
+		if ((chan = wan_netif_priv(dev)) == NULL){
 			card->u.f.udp_pkt_lgth = 0;
 			return -ENODEV;
 		}
@@ -2654,7 +2654,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, void *local_dev)
 #endif
 	}else{
 		dev = (netdevice_t *) local_dev;
-		if ((chan = dev->priv) == NULL){
+		if ((chan = wan_netif_priv(dev)) == NULL){
 			return -ENODEV;
 		}
 		dlci=chan->dlci;	
@@ -3422,11 +3422,11 @@ static void chan_set_state (netdevice_t *dev, int state)
 	fr_private_area_t *chan;
 	sdla_t *card;
 
-	if (!dev || !dev->priv){
+	if (!dev || !wan_netif_priv(dev)){
 		return;
 	}
 
-	chan=dev->priv;
+	chan=wan_netif_priv(dev);
 	card = chan->card;
 	
         if (chan->common.state != state){
@@ -3697,9 +3697,9 @@ static int fr_set_if_info(struct file *file,
 	fr_private_area_t* 	chan = NULL;
 	sdla_t*			card = NULL;
 
-	if (dev == NULL || dev->priv == NULL)
+	if (dev == NULL || wan_netif_priv(dev) == NULL)
 		return count;
-	chan = (fr_private_area_t*)dev->priv;
+	chan = (fr_private_area_t*)wan_netif_priv(dev);
 	if (chan->card == NULL)
 		return count;
 	card = chan->card;
@@ -3758,7 +3758,7 @@ static unsigned int dec_to_uint (unsigned char* str, int len)
 
 static int fr_hard_header(sdla_t *card, netdevice_t *dev, u16 type)
 {
-	fr_private_area_t *chan = dev->priv;
+	fr_private_area_t *chan = wan_netif_priv(dev);
 	
 	if (!chan)
 		return -ENODEV;
@@ -3983,7 +3983,7 @@ static void fr_lmi_send(sdla_t *card, int fullrep)
 			if (--dlci_cnt < 0)
 				break;
 		
-			chan=dev->priv;
+			chan=wan_netif_priv(dev);
 			if (!chan)
 				continue;
 	
@@ -4243,7 +4243,7 @@ static int fr_lmi_recv(sdla_t* card, struct sk_buff *skb)
 		
 		dev = find_channel(card,dlci);
 		if (dev){
-			chan=dev->priv;
+			chan=wan_netif_priv(dev);
 			if (!chan){
 				fr_prot->link_stats.rx_dropped++;
 				return 1;
@@ -4359,7 +4359,7 @@ static void fr_netif(sdla_t *card, struct sk_buff *skb)
 		goto fr_rx_error;
 	}
 
-	chan=(fr_private_area_t*)dev->priv;
+	chan=(fr_private_area_t*)wan_netif_priv(dev);
 	if (!chan){
 		printk(KERN_INFO "%s: PVC for received frame's DLCI %d is down\n",
 		       card->devname, dlci);
@@ -4754,9 +4754,9 @@ static int fr_snmp_data(sdla_t* card, netdevice_t *dev, void* data)
 	struct timeval	tv;
 	fr_prot_t	*fr_prot;
 	
-	if (dev == NULL || dev->priv == NULL)
+	if (dev == NULL || wan_netif_priv(dev) == NULL)
 		return -EFAULT;
-	chan = (fr_channel_t*)dev->priv;
+	chan = (fr_channel_t*)wan_netif_priv(dev);
 	fr_prot=FR_PROT_AREA(card);
 	/* Update device statistics */
 	if (card->wandev.update) {
@@ -4955,7 +4955,7 @@ static int fr_snmp_data(sdla_t* card, netdevice_t *dev, void* data)
 static int bind_annexg(netdevice_t *dev, netdevice_t *annexg_dev)
 {
 	unsigned long smp_flags=0;
-	fr_channel_t* chan = dev->priv;
+	fr_channel_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	if (!chan)
 		return -EINVAL;
@@ -5003,7 +5003,7 @@ static netdevice_t * un_bind_annexg(wan_device_t *wandev, netdevice_t *annexg_de
 static void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
 			       void *wp_stats_ptr)
 {
-	fr_channel_t* 	chan = dev->priv;
+	fr_channel_t* 	chan = wan_netif_priv(dev);
 	wp_stack_stats_t *wp_stats = (wp_stack_stats_t *)wp_stats_ptr;
 
 	if (chan->common.usedby == ANNEXG && chan->annexg_dev){
@@ -5023,7 +5023,7 @@ static void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
 static int 
 get_map(wan_device_t *wandev, netdevice_t *dev, struct seq_file* m, int *stop_cnt)
 {
-	fr_channel_t* 	chan = dev->priv;
+	fr_channel_t* 	chan = wan_netif_priv(dev);
 
 	if (!(dev->flags&IFF_UP)){
 		return m->count;

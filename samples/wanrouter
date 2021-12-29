@@ -2043,18 +2043,18 @@ wanrouter_script()
 	if [ "$ifname" != "" ]; then
 		#Interface name exists
 		if [ -f "$WAN_SCRIPTS_DIR/$dev-$ifname-$cmd" ]; then
-			eval "sh $WAN_SCRIPTS_DIR/$dev-$ifname-$cmd $dev $ifname"
+			eval "bash $WAN_SCRIPTS_DIR/$dev-$ifname-$cmd $dev $ifname"
 		fi
 		
 	elif [ "$dev" != "" ]; then
 		#Device name exists
 		if [ -f "$WAN_SCRIPTS_DIR/$dev-$cmd" ]; then
-			eval "sh $WAN_SCRIPTS_DIR/$dev-$cmd $dev"
+			eval "bash $WAN_SCRIPTS_DIR/$dev-$cmd $dev"
 		fi
 	else
 		#Global Cmd
 		if [ -f "$WAN_SCRIPTS_DIR/$cmd" ]; then
-			eval "sh $WAN_SCRIPTS_DIR/$cmd"
+			eval "bash $WAN_SCRIPTS_DIR/$cmd"
 		fi
 	fi
 }
@@ -2195,7 +2195,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=3.3.16
+		ROUTER_VERSION=3.4.1
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"

@@ -427,7 +427,8 @@ typedef struct wan_device
 	
 	unsigned long		ec_enable_map;
 	unsigned long		fe_ec_map;
-	wan_ticks_t		ec_intmask;
+	wan_ticks_t			ec_intmask;
+	unsigned long		ec_fax_detect_timeout;
 		
 	int			(*ec_enable)(void *pcard, int, int);
 

@@ -73,7 +73,8 @@ enum {
 	(state == WAN_EC_STATE_CHIP_READY)		? "Chip Ready" :	\
 					"Unknown"
 
-#define WAN_NUM_DTMF_TONES	17
+#define WAN_NUM_DTMF_TONES	16
+#define WAN_NUM_FAX_TONES	1
 #define WAN_NUM_PLAYOUT_TONES	16
 #define WAN_MAX_TONE_LEN	100
 

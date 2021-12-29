@@ -663,6 +663,7 @@ typedef struct wan_tdmv_conf_ {
 	unsigned int   span_no;
 	unsigned int   dchan;		/* hwHDLC: PRI SIG */
 	unsigned char  hw_dtmf;		/* TDMV Enable/Disable HW DTMF */
+	unsigned char  hw_fax_detect;   /* TDMV Enable/Disable HW FAX Detect, depends on DTMF */	
 	unsigned char  sdla_tdmv_dummy_enable;
 } wan_tdmv_conf_t;
 

@@ -93,6 +93,7 @@ extern void 		wpabs_del_timer(void*);
 extern void 		wpabs_add_timer(void*,unsigned long);
 
 extern void*		wpabs_malloc(int);
+extern void*		wpabs_kmalloc(int);
 extern void		wpabs_free(void*);
 
 

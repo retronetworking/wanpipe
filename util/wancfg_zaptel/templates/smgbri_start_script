@@ -21,4 +21,4 @@ fi
 
 sleep 1
 
-smg_ctrl start
+smg_ctrl start 

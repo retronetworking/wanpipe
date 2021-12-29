@@ -341,7 +341,8 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		//strcpy(aft->prefix_fw, "AFT_RM");
 		aft->cpld.adptr_type = AFT_ADPTR_4SERIAL_RS232;
 		aft->cpld.iface	= &aftup_shark_flash_iface;
-	}else if (strncmp(type,"AFT-A600",8) == 0){
+	}else if (strncmp(type,"AFT-A600",8) == 0 ||
+	          strncmp(type,"AFT-B600",8) == 0){
 		aft->cpld.adptr_type = AFT_ADPTR_A600;
 		aft->cpld.iface	= &aftup_a600_flash_iface;
 	}else{

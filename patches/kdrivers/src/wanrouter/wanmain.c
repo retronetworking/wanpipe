@@ -389,6 +389,8 @@ int register_wan_device(wan_device_t *wandev)
 
 int unregister_wan_device(char *name)
 {
+	int err;
+
 	wan_device_t *wandev;
 
 	if (name == NULL)
@@ -409,7 +411,8 @@ int unregister_wan_device(char *name)
 #endif
 
 	if (wandev->state != WAN_UNCONFIGURED) {
-		wan_device_shutdown(wandev, NULL);
+		err = wan_device_shutdown(wandev, NULL);
+		if (err) return err;
 	}
 	
 	wan_spin_lock(&wan_devlist_lock);
@@ -791,6 +794,7 @@ static int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf)
 
 		dev = WAN_DEVLE2DEV(devle);
 		if ((err=delete_interface(wandev, dev, force)) != 0){
+			printk(KERN_ERR "shutdown failed with error %d\n", err);
 			return err;
 		}
 
@@ -809,7 +813,9 @@ static int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf)
 		if (conf){
 			DEBUG_SUB_MEM(sizeof(wandev_conf_t));
 			wan_free(conf);
-		}	
+		}
+		printk(KERN_ERR "cannot shutdown: one or more interfaces are still open\n");
+
 		return -EBUSY;	/* there are opened interfaces  */
 	}	
 	
@@ -920,7 +926,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 		}else if ((tmp_dev=wan_dev_get_by_name(dev->name))){
 			dev_put(tmp_dev);
 			err = -EEXIST;	/* name already exists */
-		}else if (dev->priv){
+		}else if (wan_netif_priv(dev)){
 			err = register_netdev(dev);
 			if (!err) {
 				devle->dev = dev;
@@ -941,9 +947,9 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
 
 	/* This code has moved from del_if() function */
-	if (dev->priv){
-		wan_free(dev->priv);
-		dev->priv=NULL;
+	if (wan_netif_priv(dev)){
+		wan_free(wan_netif_priv(dev));
+		wan_netif_set_priv(dev, NULL);
 	}
 
 wan_device_new_if_exit:
@@ -1103,7 +1109,18 @@ static int delete_interface (wan_device_t *wandev, netdevice_t *dev, int force)
 	}
 
 	if (netif_running(dev)){
-		return -EBUSY;	/* interface in use */
+		if (force) {
+			printk(KERN_WARNING "netdevice still open, forcing close...\n");
+			rtnl_lock();
+			err = dev_close(dev);
+			rtnl_unlock();
+			if (err) {
+				printk(KERN_ERR "forced close device failed with error %d\n", err);
+				return err;
+			}
+		} else {
+			return -EBUSY;	/* interface in use */
+		}
 	}
 	/* Unregister the lip interface attached
 	 * to this interace */
@@ -1125,9 +1142,9 @@ static int delete_interface (wan_device_t *wandev, netdevice_t *dev, int force)
 	
 	/* Due to new interface linking method using dev->priv,
 	 * this code has moved from del_if() function.*/
-	if (dev->priv){
-		wan_free(dev->priv);
-		dev->priv=NULL;
+	if (wan_netif_priv(dev)){
+		wan_free(wan_netif_priv(dev));
+		wan_netif_set_priv(dev, NULL);
 	}
 
 	unregister_netdev(dev);

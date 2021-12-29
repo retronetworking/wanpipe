@@ -2,13 +2,23 @@
 # config-zaptel.pl 
 # Sangoma Dahdi/Zaptel/TDM API/SMG Configuration Script.
 #
-# Copyright     (c) 2008, Sangoma Technologies Inc.
+# Copyright     (c) 2009, Sangoma Technologies Inc.
 #
 #               This program is free software; you can redistribute it and/or
 #               modify it under the terms of the GNU General Public License
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Apr 28   2008  2.32					smg_ctrl boot script update
+# Apr 27   2009  2,31   Yannick Lam     Added support --silent --safe_mode for smg
+# Apr 20   2009  2.30   Yannick Lam     Added support for fax detect support and smg_ctrl safe_start 
+# Apr 13   2009  2.29   Yannick Lam     Update for start/script with --silent
+# Apr 07   2009  2.28   Jignesh Patel	Added freeswitch conf for analog and BRI
+# Mar 17   2009  2.27   Jignesh Patel   Added HWDTMF Option for BRI
+# Mar 10   2009  2.26   Yannick Lam     Added Config only Option 
+# Jan 09   2009	 2.25	Jignesh Patel 	Removed LAW option for FlexBRI-analog
+# Dec 11   2008  2.24   Konrad Hammmel  Added support for BUSID and multiple USBFXO
+# Nov 26   2008  2.23	Jignesh Patel   Added support for B600 and B700 
 # Oct 16   2008  2.22	Jignesh Patel	Added Support for A600 
 # Oct 07   2008  2.21   Jignesh Patel 	Dahdi Soft-EC conf support for Analog & A101/2 cards
 # Sep 30   2008  2.20	Jignesh Patel   Configuration Support for Dahdi
@@ -44,11 +54,11 @@
 
 system('clear');
 print "\n########################################################################";
-print "\n#    		           Sangoma Wanpipe                              #";
+print "\n#    		           Sangoma Wanpipe                             #";
 print "\n#        Dahdi/Zaptel/SMG/TDMAPI/BOOT Configuration Script             #";
-print "\n#                             v2.22                                    #";
+print "\n#                             v2.32                                    #";
 print "\n#                     Sangoma Technologies Inc.                        #";
-print "\n#                        Copyright(c) 2008.                            #";
+print "\n#                        Copyright(c) 2009.                            #";
 print "\n########################################################################\n\n";
 
 use strict;
@@ -59,6 +69,9 @@ use A10x;
 use A10u;
 use A20x;
 use A50x;
+use U10x;
+use analogspan;
+use boostspan;
 
 
 
@@ -74,6 +87,7 @@ my $module_load="";
 my $module_unload="";
 my $os_type_name="";
 my $dchan_str="dchan";
+my $have_update_rc_d = 0;
 
 my $os_type_list=`sysctl -a 2>/dev/null |grep ostype`;
 if ($os_type_list =~ m/Linux/){
@@ -97,10 +111,16 @@ if ($os_type_list =~ m/Linux/){
 	exit(1);
 }
 
+#check if os have update-rc.d
+if (system('which update-rc.d 1>>/dev/null 2>>/dev/null') == 0) {
+	$have_update_rc_d = 1;
+}
 
 my $no_boot=$FALSE;
+my $no_smgboot=$FALSE;
 my $boot_only=$FALSE;
 my $no_hwdtmf=$FALSE;
+my $usb_device_support=$FALSE;
 my $startup_string="";
 my $cfg_string="";
 my $first_cfg=1;
@@ -115,6 +135,8 @@ my $current_tdmapi_span=1;
 my $current_zap_channel=1;
 my $num_analog_devices=0;
 my $num_analog_devices_total=0;
+my $num_usb_devices_total=0;
+my $num_usb_devices=0;
 my $num_bri_devices=0;
 my $num_bri_devices_total=0;
 my $num_digital_devices=0;
@@ -128,6 +150,16 @@ my $ss7_array_length=0;
 
 my $ztcfg_path='';
 
+
+# FS conf array
+
+my @fxsspan;
+my @fxospan;
+my @boostbrispan;
+my $openzap_pos='';
+
+my $config_openzap = $FALSE;
+
 my $device_has_hwec=$FALSE;
 my $device_has_normal_clock=$FALSE;
 my @device_normal_clocks=("0");
@@ -136,9 +168,9 @@ my $bri_device_has_master_clock=$FALSE;
 			
 my $is_tdm_api=$FALSE;
 my $is_hp_tdm_api=$FALSE;
+my $is_fs=$FALSE;
 
 my $def_femedia='';
-my $def_feframe='';
 my $def_feclock='';
 my $def_bri_option='';
 my $def_bri_default_tei='';
@@ -156,6 +188,7 @@ my $def_feframe='';
 my $def_te_sig_mode='';
 
 my $def_hw_dtmf="YES";
+my $def_hw_fax="NO";
 my $def_tdm_law='';
 my $def_tdm_opermode="FCC";
 my $def_is_ss7_xmpt2_only='';
@@ -212,8 +245,12 @@ my $is_trixbox = $FALSE;
 my $silent = $FALSE;
 my $config_zaptel = $TRUE;
 my $config_zapata = $TRUE;
+my $config_woomera = $TRUE;
 my $is_smg = $FALSE;
+my $safe_mode = $FALSE;
 my $silent_zapata_conf_file = $FALSE;
+my $current_run_level=3;
+my $zaptel_start_level=9;
 
 my $tdm_api_span_num=0;
 my $zaptel_installed=$FALSE;
@@ -253,6 +290,7 @@ check_dahdi();
 check_zaptel();
 my $wanpipe_conf_dir="$etc_dir/wanpipe";
 my $asterisk_conf_dir="$etc_dir/asterisk";
+my $fs_conf_dir="/usr/local/freeswitch/conf";
 
 my $wanrouter_rc_template="$current_dir/templates/wanrouter.rc.template";
 
@@ -271,6 +309,10 @@ my $zaptel_cfg_script="zaptel_cfg_script";
 my $zap_cfg = "ztcfg";
 my $zap_com ="zap";
 
+my $openzap_conf_template="$current_dir/templates/openzap.conf";
+my $openzap_conf_file="$current_dir/$cfg_dir/openzap.conf";
+my $openzap_conf_file_t="$fs_conf_dir/openzap.conf";
+
 if ($dahdi_installed== $TRUE) {
 	$zapata_conf_file_t="$asterisk_conf_dir/chan_dahdi.conf";
 	$zaptel_conf_file_t="$etc_dir/dahdi/system.conf";
@@ -283,6 +325,11 @@ if ($dahdi_installed== $TRUE) {
 	$zap_cfg="dahdi_cfg";
 	$zap_com="dahdi";
 
+}
+if ($is_fs== $TRUE) {
+	$config_woomera=$FALSE;
+	$config_zapata = $FALSE; 
+	$config_openzap= $TRUE;
 }
 
 
@@ -307,7 +354,7 @@ if ($os_type_list =~ m/FreeBSD/ && $zaptel_dahdi_installed==$TRUE) {
 	update_zaptel_cfg_script();
 }
 
-if( $zaptel_installed==$TRUE && $os_type_list =~ m/Linux/ ) {
+if( $zaptel_installed==$TRUE && $os_type_list =~ m/Linux/ && $is_fs == $FALSE) {
 	set_zaptel_hwhdlc();
 }
 
@@ -316,6 +363,9 @@ prepare_files();
 config_t1e1();
 config_bri();
 config_analog();
+if($usb_device_support == $TRUE && $os_type_list =~ m/Linux/) {
+	config_usbfxo();
+}
 config_tdmv_dummy();
 summary();
 apply_changes();
@@ -325,6 +375,7 @@ if ($os_type_list =~ m/FreeBSD/){
 	config_boot_freebsd();
 } else {
 	config_boot_linux();
+	config_smg_ctrl_boot();	
 }
 
 config_ztcfg_start();
@@ -334,7 +385,6 @@ print "Sangoma cards configuration complete, exiting...\n\n";
 
 
 #######################################FUNCTIONS##################################################
-
 sub get_card_name{
 	my ($card_name) = @_;
 	if ( $card_name eq '600' || $card_name eq '700') {
@@ -344,6 +394,7 @@ sub get_card_name{
 	}
 	return $card_name;
 }
+
 
 sub set_zaptel_hwhdlc{
 	print "Checking for native zaptel hardhdlc support...";
@@ -403,18 +454,12 @@ sub config_boot_freebsd{
 
 }
 
-sub config_boot_linux{
-	if($no_boot==$TRUE){
-		return 1;
-	}
+sub config_boot_linux {
+	
 	my $script_name="wanrouter";
-	my $current_run_level=3;
-	my $zaptel_start_level=9;
 	my $zaptel_stop_level=92;
-	my $network_start_level=10;
 	my $wanrouter_start_level=8;
 	my $wanrouter_stop_level=91;
-	my $smg_ctrl_start_level=11;
 	my $command='';
 #	my $rc_dir=$etc_dir;			
 
@@ -430,17 +475,26 @@ sub config_boot_linux{
 
 	print "\nWanrouter boot scripts configuration...\n\n";
 	print "Removing existing $script_name boot scripts...";
-	$command="rm -f $rc_dir/rc?.d/*$script_name >/dev/null 2>/dev/null";
+
+	if ($have_update_rc_d) {#debian/ubuntu
+		$command = "update-rc.d -f $script_name remove >>/dev/null 2>>/dev/null";
+	} else {
+		$command="rm -f $rc_dir/rc?.d/*$script_name >/dev/null 2>/dev/null";
+	}
 	if(system($command) == 0){
 		print "OK\n";
 	} else {
 		print "Not installed\n";
 	}
+	if($no_boot==$TRUE){ #remove old script anyway.
+		return 1;
+	}
+
 	if($num_ss7_config!=0){
 		$script_name="smgss7_init_ctrl";
 	}
 
-	my $res='YES';
+	$res='YES';
 	if($silent==$FALSE){
 		print ("Would you like $script_name to start on system boot?\n");
 		$res= &prompt_user_list("YES","NO","");
@@ -461,7 +515,7 @@ sub config_boot_linux{
 				return 1;
 			}
 		}
-		print "Verifying $zaptel_string boot scripts...";
+		print "Verifying $zaptel_string boot scripts...\n";
 		if($zaptel_dahdi_installed==$TRUE){
 			print "Verifying $zaptel_string boot scripts...";
 			#find zaptel/dahdi start scripts
@@ -526,111 +580,91 @@ sub config_boot_linux{
 				return 1;
 			}
 		}
-		print "Enabling $script_name boot scripts ...(level:$wanrouter_start_level)\n";
-		my @run_levels= ("2","3","4","5");
-		foreach my $run_level (@run_levels) {
-			$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$wanrouter_start_script;
-			if(system($command) !=0){
-				print "Failed to install $script_name init script to $rc_dir/rc$run_level.d/$wanrouter_start_script\n";
-				print "$script_name start scripts not installed\n";
-				return 1;
-			}
-		}	
-				
-		print "Enabling $script_name shutdown scripts ...(level:$wanrouter_stop_level)\n";
-		@run_levels= ("0","1","6");
-		foreach my $run_level (@run_levels) {
-			$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$wanrouter_stop_script;
-			if(system($command) !=0){
-				print "Failed to install $script_name shutdown script to $rc_dir/rc$run_level.d/$wanrouter_stop_script\n";
-				print "$script_name stop scripts not installed\n";
-				return 1;
-			}
-		}	
-
-		if($num_bri_devices != 0){
-			#smg_ctrl must start after network
-			print "Verifying Network boot scripts...";
-			$command="find $rc_dir/rc".$current_run_level.".d/*network >/dev/null 2>/dev/null";
-			if (system($command) == 0){
-				$command="find $rc_dir/rc".$current_run_level.".d/*network";
-				$res=`$command`;
-				if ($res =~ /.*S(\d+)network/){
-					$network_start_level=$1;
-					print "Enabled (level:$network_start_level)\n";
-				} else {
-					print "\nfailed to parse network boot level, assuming $network_start_level";
+   		
+		if ($have_update_rc_d) {
+			print "Enabling $script_name init scripts ...(start:$wanrouter_start_level, stop:$wanrouter_stop_level)\n";
+			$command = "update-rc.d $script_name defaults $wanrouter_start_level $wanrouter_stop_level";
+			if (system($command .' >>/dev/null 2>>/dev/null') != 0) {
+				print "Command failed: $command\n";
+ 				return 1;
 				}
-			} else {
-				print "Not installed\n";
-				$network_start_level=0;
-			}
-			if ($network_start_level != 0 && $network_start_level > $zaptel_start_level){
-				$smg_ctrl_start_level=$network_start_level+1;	
-				print "Enabling smg_ctrl start scripts...(level:$smg_ctrl_start_level)\n";		
-				$command="install -D -m 755 /usr/sbin/smg_ctrl $rc_dir/init.d/smg_ctrl";
+		}else{
+			print "Enabling $script_name boot scripts ...(level:$wanrouter_start_level)\n";
+			my @run_levels= ("2","3","4","5");
+			foreach my $run_level (@run_levels) {
+				$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$wanrouter_start_script;
 				if(system($command) !=0){
-					print "Failed to install smg_ctrl start scripts to $rc_dir/init.d/smg_ctrl";
-					print "smg_ctrl start scripts not installed";
+					print "Failed to install $script_name init script to $rc_dir/rc$run_level.d/$wanrouter_start_script\n";
+					print "$script_name start scripts not installed\n";
 					return 1;
 				}
-				my $smg_ctrl_start_script='';
-				if($smg_ctrl_start_level < 10){
-					$smg_ctrl_start_script="S0".$smg_ctrl_start_level."smg_ctrl";
-				} else {
-					$smg_ctrl_start_script="S".$smg_ctrl_start_level."smg_ctrl";
+			}	
+					
+			print "Enabling $script_name shutdown scripts ...(level:$wanrouter_stop_level)\n";
+			@run_levels= ("0","1","6");
+			foreach my $run_level (@run_levels) {
+				$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$wanrouter_stop_script;
+				if(system($command) !=0){
+					print "Failed to install $script_name shutdown script to $rc_dir/rc$run_level.d/$wanrouter_stop_script\n";
+					print "$script_name stop scripts not installed\n";
+					return 1;
 				}
-				print "Enabling smg_ctrl boot scripts ...(level:$smg_ctrl_start_level)\n";
-				my @run_levels= ("2","3","4","5");
-				foreach my $run_level (@run_levels) {
-					$command="ln -sf $rc_dir/init.d/smg_ctrl ".$rc_dir."/rc".$run_level.".d/".$smg_ctrl_start_script;
-					if(system($command) !=0){
-						print "Failed to install smg_ctrl init script to $rc_dir/rc$run_level.d/$smg_ctrl_start_script\n";
-						print "smg_ctrl start scripts not installed\n";
-						return;
-					}
-				}	
 			}
-			
-		}
-
+		}	
 	}
 	return 0;	
 }
 
 
 sub config_ztcfg_start{
-	
-	if ($num_zaptel_config ==0 || $silent==$TRUE){
+	if($silent==$TRUE) {
+		printf("Removing old stop/start scripts....\n");
+		exec_command("rm -rf $wanpipe_conf_dir/scripts/start");
+		exec_command("rm -rf $wanpipe_conf_dir/scripts/stop");
+		if($num_zaptel_config != 0){
+			printf("Installing new $zaptel_string start script....\n");
+			exec_command("mkdir -p $wanpipe_conf_dir/scripts");
+			exec_command("cp -f $current_dir/templates/$zaptel_cfg_script $wanpipe_conf_dir/scripts/start");
+		}
 		return;
 	}
-	my $command="find /etc/rc?.d/*$zaptel_boot >/dev/null 2>/dev/null";
-	if (system($command) != 0){
+	if ($num_zaptel_config ==0){
+			exec_command("rm -rf $wanpipe_conf_dir/scripts/start");
+			exec_command("rm -rf $wanpipe_conf_dir/scripts/stop");
+			return;
+	}
 		#Zaptel/Dahdi init scripts not installed, prompt for wanpipe_zaptel_start_script
 		print ("\nWould you like to execute \'$zap_cfg\' each time wanrouter starts?\n");
 		if (&prompt_user_list("YES","NO","") eq 'YES'){
 			if ( ! -d "$wanpipe_conf_dir/scripts" ) {
 				exec_command("mkdir -p $wanpipe_conf_dir/scripts");
 			} 
-						
 			exec_command("cp -f $current_dir/templates/$zaptel_cfg_script $wanpipe_conf_dir/scripts/start");
-			
+		} elsif(-e "$wanpipe_conf_dir/scripts/start") {
+				print ("\nWould you like to remove old wanrouter start scripts ?\n");
+				if (&prompt_user_list("YES","NO","") eq 'YES'){
+					exec_command("rm -rf $wanpipe_conf_dir/scripts/start");
+				}
 		}
-	}
 }
 
 sub config_smg_ctrl_start{
-	if($num_bri_devices == 0){
+		
+		if($num_bri_devices == 0){
 		return;
 	}
 	my $res;
 	if($silent==$FALSE) {
-		print ("Would you like smg_ctrl to start/stop on wanrouter start?\n");
-		$res = &prompt_user_list("YES","NO","");
+		print ("Would you like smg_ctrl to start/stop on wanrouter start \nor would you like to run smg_ctrl in safe start?\n");
+		$res = &prompt_user_list("YES","NO","SAFE_START","");
 	} else {
+		if($safe_mode==$TRUE){
+	                $res = "SAFE_START";
+	} else{
 		$res = "YES";
+	      }
 	}
-	         if ($res eq "YES"){
+	         if ($res eq "YES" || $res eq "SAFE_START"){
                 #if zaptel start script is in $wanpipe_conf_dir/scripts/start, do not overwrite
                 my $command="find ".$wanpipe_conf_dir."/scripts/start >/dev/null 2>/dev/null";
                 if (system($command) == 0){
@@ -641,7 +675,7 @@ sub config_smg_ctrl_start{
                         }else{
                         my $command="cat ".$current_dir."/templates/smgbri_start_script_addon >>".$wanpipe_conf_dir."/scripts/start";
                                 if (system($command) == 0){
-                                        print("smgbri start scrtip installed scuessfully\n");
+                                        print("smgbri start script installed successfully\n");
                                 }
                         }
                 } elsif(system($command) != 0) {
@@ -653,13 +687,20 @@ sub config_smg_ctrl_start{
                 } else {
                                 print "failed to install smgbri start script\n";
                 }
-                my $command="cp -f ".$current_dir."/templates/smgbri_stop_script ".$wanpipe_conf_dir."/scripts/stop";
+                $command="cp -f ".$current_dir."/templates/smgbri_stop_script ".$wanpipe_conf_dir."/scripts/stop";
                 if (system($command) == 0){
                         print "smgbri stop script installed successfully\n";
                 } else {
                 print "failed to install smgbri start script\n";
                 }
+				if($res eq "SAFE_START") {
+					
+					update_start_smgbri_safe();
+					$safe_mode=$TRUE;#set it true anyway for boot safe_start
+
+				}
         }
+
 }
 	
 sub check_zaptel{
@@ -698,11 +739,58 @@ sub apply_changes{
 					"Save cfg: Restart Asterisk & Wanpipe when convenient",
 					"Save cfg: Stop Asterisk & Wanpipe now", 
 					"Save cfg: Stop Asterisk & Wanpipe when convenient",
+					"Save cfg: Save cfg only", 
 					"Do not save cfg: Exit",
 					"");
 	}
 
 	
+	if ($res =~ m/cfg only/){
+		
+
+		print "\nRemoving old configuration files...\n";
+
+        	exec_command("rm -f $wanpipe_conf_dir/wanpipe*.conf");
+
+        	gen_wanrouter_rc();
+
+        	print "\nCopying new Wanpipe configuration files...\n";
+        	copy_config_files();
+        	if($num_bri_devices != 0){
+                	print "\nCopying new sangoma_brid configuration files ($bri_conf_file_t)...\n";
+                	exec_command("cp -f $bri_conf_file $bri_conf_file_t");
+					if($config_woomera == $TRUE){		
+                		exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
+					}
+        	}
+        	if ($zaptel_dahdi_installed==$TRUE){
+                	if($config_zaptel==$TRUE){
+                        	if ($num_zaptel_config !=0){
+                                	print "\nCopying new $zaptel_string configuration file ($zaptel_conf_file_t)...\n";
+                                	exec_command("cp -f $zaptel_conf_file $zaptel_conf_file_t");
+                        	}
+                	}
+        	}
+
+        	if ($config_zapata==$TRUE || $is_trixbox==$TRUE){
+                	if ($num_zaptel_config !=0){
+                        	print "\nCopying new $zapata_string configuration files ($zapata_conf_file_t)...\n";
+                        	exec_command("cp -f $zapata_conf_file $zapata_conf_file_t");
+                	}
+        	}
+                print "Saving files only\n";
+
+		if ($os_type_list =~ m/FreeBSD/){
+        	config_boot_freebsd();
+		} else {
+        		config_boot_linux();
+				config_smg_ctrl_boot();
+			}
+
+                exit 0;
+	}
+
+
 	if ($res =~ m/Exit/){
 		print "No changes made to your configuration files\n";
 		exit 0;
@@ -748,10 +836,6 @@ sub apply_changes{
 				}
 			}
 
-
-
-
-
 		}else {
 			print "\nAsterisk is not running...\n";
 		}
@@ -783,7 +867,9 @@ sub apply_changes{
 	if($num_bri_devices != 0){
 		print "\nCopying new sangoma_brid configuration files ($bri_conf_file_t)...\n";
 		exec_command("cp -f $bri_conf_file $bri_conf_file_t");
-		exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
+		if($config_woomera == $TRUE){
+			exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
+		}
 	}
 	if ($zaptel_dahdi_installed==$TRUE){
 		if($config_zaptel==$TRUE){
@@ -799,6 +885,12 @@ sub apply_changes{
 			print "\nCopying new $zapata_string configuration files ($zapata_conf_file_t)...\n";
 			exec_command("cp -f $zapata_conf_file $zapata_conf_file_t");
 		}
+	}
+
+	if($config_openzap == $TRUE){
+		print "\nCopying new openzap configuration files ($openzap_conf_file_t)...\n";
+			exec_command("cp -f $openzap_conf_file $openzap_conf_file_t");
+
 	}
 
 	if( $asterisk_restart == $TRUE && $is_tdm_api==$FALSE && $is_hp_tdm_api==$FALSE ){
@@ -902,7 +994,7 @@ sub get_zapata_context{
 		@options = ("PSTN", "INTERNAL");
 	}
 	if ($silent==$FALSE){
-		printf ("Select dialplan context for AFT-%s on port %s\n", get_card_name($card_model), $card_port);
+		printf ("Select dialplan context for AFT-A%s on port %s\n", get_card_name($card_model), $card_port);
 		my $res = &prompt_user_list(@options,$def_zapata_context);
 		if($res eq "PSTN"){
 			$context="from-zaptel";
@@ -1005,7 +1097,7 @@ sub update_zapata_template{
 	#update comments for zapata.conf or chan_dahdi.conf
 	my $zapfile="";
 	if (!open (FH,"$zapata_conf_file")) {
-# 		printf("Unable to modify $zapata_conf_file\n");
+		printf("Unable to modify $zapata_conf_file\n");
 		
 	}
 	while (<FH>) {
@@ -1110,6 +1202,22 @@ sub update_zaptel_cfg_script(){
 	print FH $sscript;
 	close (FH);
 }
+sub update_start_smgbri_safe{
+
+	#update start script for safe start
+
+	my $sscript ="";
+	open (FH,"$wanpipe_conf_dir/scripts/start");
+	
+	while (<FH>) {
+		$sscript .= $_;
+	}
+	close (FH);
+	open (FH,">$wanpipe_conf_dir/scripts/start");
+	$sscript =~ s/.*smg_ctrl start.*/smg_ctrl safe_start/;
+	print FH $sscript;
+	close (FH);
+}
 
 sub clean_files{
 	exec_command("rm -rf $current_dir/$cfg_dir");
@@ -1139,7 +1247,7 @@ sub copy_config_files{
 }
 
 sub unload_zap_modules{
-	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zttranscode","wcusb", "wctdm24xxp","xpp_usb","xpp" ,"wcte12xp","opvxa1200", "dahdi_dummy" ,"dahdi_echocan_mg2", "dahdi", "zaptel");
+	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","wctc4xxp","wcb4xxp","tor2","zttranscode","wcusb", "wctdm24xxp","xpp_usb","xpp" ,"wcte12xp","opvxa1200", "dahdi_dummy" ,"dahdi_transcode","dahdi_echocan_mg2", "dahdi", "zaptel");
 	foreach my $module (@modules_list) {	
 		if ($modprobe_list =~ m/$module /){
 			exec_command("$module_unload $module");
@@ -1176,13 +1284,20 @@ sub summary{
 		}
 		if ($num_bri_devices != 0 ){
 			write_bri_conf();
-			write_woomera_conf();
+			if($config_woomera == $TRUE){		
+				write_woomera_conf();
+			}
 		}
 		if ($num_zaptel_config != 0 && $config_zapata==$TRUE){
 			write_zapata_conf();
 			update_zapata_template();
 			
 		}
+
+		if($is_fs == $TRUE) {
+			write_openzap_conf();
+		}
+
 		save_debug_info();
 		if ($silent==$FALSE) {system('clear')};
 		my $file_list = 1;
@@ -1193,13 +1308,19 @@ sub summary{
 		print("  $num_digital_devices_total T1/E1 port(s) detected, $num_digital_devices configured\n");
 		print("  $num_bri_devices_total ISDN BRI port(s) detected, $num_bri_devices configured\n");
 		print("  $num_analog_devices_total analog card(s) detected, $num_analog_devices configured\n");
+  	    print("  $num_usb_devices_total usb device(s) detected, $num_usb_devices configured\n");
 
+		
 		print "\nConfigurator will create the following files:\n";
 		print "\t1. Wanpipe config files in $wanpipe_conf_dir\n";
 		$file_list++;
 		
 		if ($num_bri_devices != 0){
 			print "\t$file_list. sangoma_brid config file $wanpipe_conf_dir/smg_bri\n";
+			$file_list++;
+		}
+		if($config_openzap == $TRUE){
+			print "\t$file_list. openzap config file $fs_conf_dir/openzap\n";
 			$file_list++;
 		}
 		
@@ -1332,11 +1453,18 @@ sub read_args {
 		}elsif ( /^--hp_tdm_api/){
 			$is_hp_tdm_api=$TRUE;
 		}elsif ( /^--no_boot$/){
-			$no_boot=$TRUE;		
+			$no_boot=$TRUE;	
+		}elsif ( /^--no_smgboot$/){
+			$no_smgboot=$TRUE;			
+		}elsif ( /^--conf_fs$/){
+			$is_fs=$TRUE;
+			$is_tdm_api=$TRUE;#fs use tdmapi mode	
 		}elsif ( /^--no_hwdtmf$/){
 			$no_hwdtmf=$TRUE;
 		}elsif ( /^--silent$/){
 			$silent=$TRUE;
+		}elsif (/^--safe_mode$/){
+			$safe_mode=$TRUE;
 		}elsif ( /^--no-zapata$/){
 			$config_zapata=$FALSE;
 		}elsif ( /^--no-zaptel$/){
@@ -1505,7 +1633,7 @@ sub read_args {
 	if ($is_smg==$TRUE){
 		print "\nGenerating configuration files for Sangoma Media Gateway\n";
 	}
-	if ($is_tdm_api==$TRUE | $is_hp_tdm_api==$TRUE){
+	if ($is_tdm_api==$TRUE | $is_hp_tdm_api==$TRUE | $is_fs == $TRUE){
 		$config_zapata = $FALSE;    
 	}
 
@@ -1650,7 +1778,7 @@ sub get_bri_conn_type{
 
 
 sub config_bri{
-	if($is_smg!=$TRUE && $is_trixbox==$FALSE){
+	if($is_smg!=$TRUE && $is_trixbox==$FALSE &&  $is_fs==$FALSE){
 		return;
 	}
 	my $a50x;
@@ -1659,15 +1787,16 @@ sub config_bri{
 	}
 	$first_cfg=0;
 	print "------------------------------------\n";
-	print "Configuring ISDN BRI cards [A500]\n";
+	print "Configuring ISDN BRI cards [A500/B700]\n";
 	print "------------------------------------\n";
 	my $skip_card=$FALSE;
 	$zaptel_conf.="\n";
 	$zapata_conf.="\n";
 	foreach my $dev (@hwprobe) {
-		if ( $dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*PORT=(\w+).*HWEC=(\w+).*/){
+		if ( $dev =~ /.*AFT-A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*PORT=(\d+).*HWEC=(\w+).*/ ||
+			 $dev =~ /.*AFT-B(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*PORT=(\d+).*HWEC=(\w+).*/){
 			$skip_card=$FALSE;
-			if ($1 eq '500'){
+			if ($1 eq '500' || ($1 eq '700' && $5 < '5')){
 				my $card = eval {new Card(); } or die ($@);
 
 				$card->current_dir($current_dir);
@@ -1687,7 +1816,7 @@ sub config_bri{
 					$card->hwec_mode('YES');
 				}
 
-				if ($card->card_model eq '500'){
+				if ($card->card_model eq '500' || $card->card_model eq '700'){
 					$num_bri_devices_total++;
 					if($5 eq '1'){
 						$bri_device_has_master_clock=$FALSE;
@@ -1734,6 +1863,17 @@ select_bri_option:
 						$num_bri_devices++;
 						$card->tdmv_span_no($current_tdmapi_span);
 						$current_tdmapi_span++;
+						if ($silent==$FALSE){
+							if ($card->hwec_mode eq "YES"){
+								$card->hw_dtmf(&prompt_hw_dtmf());
+								if ($card->hw_dtmf eq "YES"){
+									$card->hw_fax(&prompt_hw_fax());
+								}
+							} else {
+								$card->hw_dtmf("NO");
+								$card->hw_fax("NO");
+							}
+						}
 					}else{
 						printf ("%s on slot:%s bus:%s port:%s not configured\n", 												get_card_name($card->card_model), $3, $4, $5);
 						prompt_user("Press any key to continue");
@@ -1748,11 +1888,11 @@ select_bri_option:
 	 		my $group="";
 			my $bri_pos=$a50x->card->tdmv_span_no;
 			
-	 		printf("\nConfiguring port %d on AFT-%s [slot:%d bus:%d span:%d]\n", $a50x->fe_line(), get_card_name($a50x->card->card_model()), $a50x->card->pci_slot(), $a50x->card->pci_bus(), $current_tdmapi_span-1);
+			printf("\nConfiguring port %d on AFT-%s [slot:%d bus:%d span:%d]\n", $a50x->fe_line(), get_card_name($a50x->card->card_model()), $a50x->card->pci_slot(), $a50x->card->pci_bus(), $current_tdmapi_span-1);
 			my $conn_type=get_bri_conn_type($a50x->fe_line());
 			my $country=get_bri_country();
 			my $operator=get_bri_operator();
-			if($is_trixbox==$TRUE && $silent==$FALSE){
+			if( ($is_trixbox==$TRUE && $silent==$FALSE) || $is_fs == $TRUE){
 				if ( $dev =~ /(\d+):NT/ ){
 					$context="from-internal";
 					$group=1;
@@ -1788,27 +1928,48 @@ select_bri_option:
 
 			if ( $dev =~ /(\d+):NT/ ){	
 				$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_nt", $group, $country, $operator, $conn_type, '');
+				if($is_fs == $TRUE) {
+					my $boostspan = eval { new boostspan();} or die ($@);
+					my $openzapspan = $current_tdmapi_span-1;
+					$boostspan->span_type('NT');
+					$boostspan->span_no("$openzapspan");
+					$boostspan->chan_no('1-2');
+					$boostspan->trunk_type('bri');
+				#	$boostspan->print();
+					push(@boostbrispan,$boostspan);
+				}
 			} else {
 				my $current_bri_default_tei='127';
 				if ($def_bri_default_tei_opt==$TRUE){
 					$current_bri_default_tei=$def_bri_default_tei;
 				}
 				printf("\nConfiguring span:%s as TEI:%s\n", $bri_pos, $current_bri_default_tei);
-                                if($silent==$FALSE){
-                                        my @options = ("YES - Keep this setting", "NO  - Specify a different TEI");
-                                        my $res = &prompt_user_list(@options, "YES");
-                                        if ($res =~ m/NO/) {
-                                                $def_bri_default_tei_opt=$TRUE;
-                                                $current_bri_default_tei=get_bri_default_tei();	
-                                        }
-                                }
+  				if($silent==$FALSE){
+					my @options = ("YES - Keep this setting", "NO  - Specify a different TEI");
+					my $res = &prompt_user_list(@options, "YES");
+					if ($res =~ m/NO/) {
+						$def_bri_default_tei_opt=$TRUE;
+						$current_bri_default_tei=get_bri_default_tei();
+						}
+				}
 				if ($def_bri_default_tei_opt==$FALSE){
 					$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_te", $group, $country, $operator, $conn_type, '');
 				} else { 
 					$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_te", $group, $country, $operator, $conn_type, $current_bri_default_tei);
 				}
+				if($is_fs == $TRUE) {
+					my $boostspan = eval { new boostspan();} or die ($@);
+					my $openzapspan = $current_tdmapi_span-1;
+					$boostspan->span_type('TE');
+					$boostspan->span_no("$openzapspan");
+					$boostspan->chan_no('1-2');
+					$boostspan->trunk_type('bri');
+				#	$boostspan->print();
+					push(@boostbrispan,$boostspan);
+				}
+
 			}
-			if(!($context eq "WOOMERA_NO_CONFIG")){
+			if(!($context eq "WOOMERA_NO_CONFIG") && $config_woomera==$TRUE){
 				$woomera_conf.=$a50x->gen_woomera_conf($group, $context);
 			}
 
@@ -1862,7 +2023,7 @@ sub  prompt_user_hw_dchan{
 
 	printf("Hardware HDLC can be performed on the data channel.\n");
 prompt_hw_dchan:
-	my $res_dchan = &prompt_user("Select the data channel on A$card_model, port:$port, select 0 for unused.\n","0");
+	$res_dchan = &prompt_user("Select the data channel on A$card_model, port:$port, select 0 for unused.\n","0");
 	while(length($res_dchan)==0 |!($res_dchan =~/(\d+)/)){
 		print "Invalid channel, input an integer (0 for unused).\n";
 		$res_dchan=&prompt_user("Select the data channel","0");
@@ -1941,6 +2102,18 @@ sub prompt_hw_dtmf {
 	my @options = ("YES","NO");
 	$def_hw_dtmf = prompt_user_list(@options, $def_hw_dtmf);
 	return $def_hw_dtmf;
+}
+
+sub prompt_hw_fax {
+#HW DTMF not supported in the 3.2 drivers
+#       return "NO";
+        if( $no_hwdtmf == $TRUE){
+                return "NO";
+        }
+        print("Would you like to enable hardware fax detection?\n");
+        my @options = ("YES","NO");
+        $def_hw_fax = prompt_user_list(@options, $def_hw_fax);
+        return $def_hw_fax;
 }
 
 sub prompt_tdm_law {
@@ -2245,7 +2418,7 @@ sub config_t1e1{
 								
 							
 							printf("Select framing for port %s on %s\n", $port, $card->card_model);
-							my @options = ("ESF", "D4");
+							@options = ("ESF", "D4");
 							$def_feframe= &prompt_user_list(@options, $def_feframe);
 						}
 
@@ -2299,7 +2472,7 @@ sub config_t1e1{
 								
 							
 							printf("Select framing for port %s on %s\n", $port, $card->card_model);
-							my @options = ("CRC4", "NCRC4","UNFRAMED");
+							@options = ("CRC4", "NCRC4","UNFRAMED");
 							$def_feframe = &prompt_user_list(@options, $def_feframe);
 
 #							printf("Select signalling mode for port %s on %s\n", $port, $card->card_model);
@@ -2333,6 +2506,7 @@ sub config_t1e1{
 				if($silent==$FALSE){
 					my @options = ("NORMAL", "MASTER");
 					printf ("Select clock for AFT-%s on port %s [slot:%s bus:%s span:$devnum]\n", get_card_name($card->card_model), $port, $card->pci_slot, $card->pci_bus);
+
 					$def_feclock=&prompt_user_list(@options, $def_feclock);
 				} else {
 					if($#silent_feclocks >= 0){
@@ -2358,28 +2532,7 @@ sub config_t1e1{
 					$def_te_ref_clock=&get_te_ref_clock(@device_normal_clocks);
 					$a10x->te_ref_clock($def_te_ref_clock);
 				}
-
-
 								
-				if ($silent==$FALSE){
-					if ($card->hwec_mode eq "YES"){
-						$card->hw_dtmf(&prompt_hw_dtmf());
-					} else {
-						$card->hw_dtmf("NO");
-					}
-				} else {
-					if($#silent_hwdtmfs >= 0){
-						$silent_hwdtmf=pop(@silent_hwdtmfs);
-					}
-					if ($card->hwec_mode eq "YES" && $no_hwdtmf==$FALSE){
-						$card->hw_dtmf($silent_hwdtmf);
-					} else {
-						$card->hw_dtmf("NO");
-					}
-				} 
-
-
-				
 				my @options="";	
 				if ($is_smg==$TRUE && $zaptel_dahdi_installed==$TRUE){
 					@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start", "SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
@@ -2437,7 +2590,7 @@ sub config_t1e1{
 					$a10x->ss7_option(1); 
 					my @options="";	
 					print("Select an option below to configure SS7 signalling channels:\n");
-					my @options =("Configure SS7 XMPT2 Only", 
+					@options =("Configure SS7 XMPT2 Only", 
 						      "Configure SS7 XMPT2 + Voice");
 					$def_is_ss7_xmpt2_only = &prompt_user_list(@options, "$def_is_ss7_xmpt2_only");
 					
@@ -2447,7 +2600,7 @@ sub config_t1e1{
 						$is_ss7_xmpt2_only = $FALSE;
 					}
 					print("Choose an option below to configure SS7 signalling channels:\n");
-					my @options =("Configure individual signalling channels(e.g #1,#10)", 
+					@options =("Configure individual signalling channels(e.g #1,#10)", 
 						      "Configure consecutive signalling channels(e.g   #1-#16)");
 					my $res = &prompt_user_list(@options, "");
 					if ( $res eq 'Configure individual signalling channels(e.g #1,#10)'){
@@ -2604,6 +2757,36 @@ ENDSS7CONFIG:
 						$a10x->pri_switchtype($silent_pri_switchtype);
 					}
 				}
+
+				# prompt the user if they would like to enable HW DTMF...HW_DTMF needs to be disabled for SMG
+				if (!($a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway'| $a10x->signalling eq 'No Signaling (Voice Only)')){
+					if ($silent==$FALSE){
+						printf("\n");
+						if ($card->hwec_mode eq "YES"){
+							$card->hw_dtmf(&prompt_hw_dtmf());
+                                                        if ($card->hw_dtmf eq "YES"){
+								$card->hw_fax(&prompt_hw_fax());
+                                                        }
+						} else {
+							$card->hw_dtmf("NO");
+                                                        $card->hw_fax("NO");
+
+						}
+					} else {
+						if($#silent_hwdtmfs >= 0){
+							$silent_hwdtmf=pop(@silent_hwdtmfs);
+						}
+						if ($card->hwec_mode eq "YES" && $no_hwdtmf==$FALSE){
+							$card->hw_dtmf($silent_hwdtmf);
+						} else {
+							$card->hw_dtmf("NO");
+						}
+					}
+				}else{
+					$card->hw_dtmf("NO");
+					$card->hw_fax("NO");
+				} 
+
 				#wanpipe gen section		
 				if( $a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway' ){
 					$a10x->ss7_subinterface(1);
@@ -2731,17 +2914,17 @@ ENDSS7CONFIG:
 				}elsif ($is_tdm_api == $FALSE && $is_hp_tdm_api == $FALSE ){
 					$zaptel_conf.=$a10x->gen_zaptel_conf($dchan_str);
 				}
-					$devnum++;
-					$num_digital_devices++;
-					my $msg ="\nPort ".$port." on AFT-A".$card->card_model." configuration complete...\n";
-					print "$msg";
-					if($silent==$FALSE){
-						prompt_user("Press any key to continue");
-					}
 
-				}  	
-	
+				# done with this port time to move on to the next port
+				$devnum++;
+				$num_digital_devices++;
+				my $msg ="\nPort ".$port." on AFT-A".$card->card_model." configuration complete...\n";
+				print "$msg";
+				if($silent==$FALSE){
+					prompt_user("Press any key to continue");
+				}
 
+				}				
 			} 
 
 		}
@@ -2769,18 +2952,20 @@ sub config_analog{
 	}
 	$first_cfg=0;
 	print "------------------------------------\n";
-	print "Configuring analog cards [A200/A400/B600]\n";
+	print "Configuring analog cards [A200/A400/B600/B700]\n";
 	print "------------------------------------\n";
 
 	my $skip_card=$FALSE;
-	if($is_tdm_api == $FALSE && $is_hp_tdm_api == $FALSE) {
+	if($is_tdm_api == $FALSE && $is_hp_tdm_api == $FALSE && $is_fs == $FALSE) {
 		$zaptel_conf.="\n";
 		$zapata_conf.="\n";
 	}
 	foreach my $dev (@hwprobe) {
 		
-		
-	        if ( $dev =~ /(\d+).(\w+\w+).*SLOT=(\d+).*BUS=(\d+).*.*HWEC=(\d+)/){
+			        
+				
+		if ( ($dev =~ /(\d+).(\w+\w+).*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*HWEC=(\d+)/) ||
+			 ($dev =~ /(\d+).(\w+\w+).*SLOT=(\d+).*BUS=(\d+).*(\w+).*PORT=(\d+).*HWEC=(\d+)/)){
 
 			$skip_card=$FALSE;
 			my $card = eval {new Card(); } or die ($@);
@@ -2790,9 +2975,8 @@ sub config_analog{
 			$card->card_model($1);
 			$card->pci_slot($3);
 			$card->pci_bus($4);
-			#fe_cpu is not used for analog cards
-			#$card->fe_cpu($5);
-			my $hwec=$5;
+			$card->fe_cpu($5);
+			my $hwec=$7;
 			if($dahdi_installed == $TRUE) {
 					$card->dahdi_conf('YES');
 					$card->dahdi_echo($dahdi_echo)
@@ -2804,12 +2988,12 @@ sub config_analog{
 				$card->hwec_mode('YES');
 				
 			}
-			if ($card->card_model eq '200' | $card->card_model eq '400' | $card->card_model eq '600'){
+			if ($card->card_model eq '200' || $card->card_model eq '400' || $card->card_model eq '600' || ($card->card_model eq '700' && $6 == '5')){
 				$num_analog_devices_total++;
 				if($silent==$FALSE) {
 					system('clear');
 					print "\n-----------------------------------------------------------\n";
-					print "AFT-$1 detected on slot:$3 bus:$4\n";
+					print "A$1 detected on slot:$3 bus:$4\n";
 					print "-----------------------------------------------------------\n";
 				}
 				if($is_trixbox==$FALSE){
@@ -2842,10 +3026,18 @@ sub config_analog{
 					if ($silent==$FALSE){
 						if ($card->hwec_mode eq "YES"){
 							$card->hw_dtmf(&prompt_hw_dtmf());
+                                                        if ($card->hw_dtmf eq "YES"){
+								$card->hw_fax(&prompt_hw_fax());
+                                                        }
 						} else {
 							$card->hw_dtmf("NO");
+							$card->hw_fax("NO");
 						}
-						$a20x->tdm_law(&prompt_tdm_law());
+						if ($card->card_model eq '700'){
+							$a20x->tdm_law("ALAW");
+						} else {
+							$a20x->tdm_law(&prompt_tdm_law());
+						}
 						$a20x->tdm_opermode(&prompt_tdm_opemode());
 		
 					} else {
@@ -2902,32 +3094,54 @@ sub config_analog{
 					prompt_user("Press any key to continue");
 				}
 			}
-		}elsif ( $dev =~ /(\d+):FXS/ & $skip_card==$FALSE & $is_tdm_api==$FALSE){
-			my $zap_pos = $1+$current_zap_channel-25;
-			if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
-				if($#silent_zapata_contexts >= 0){
-					$silent_zapata_context=pop(@silent_zapata_contexts);
+		}elsif ( $dev =~ /(\d+):FXS/ & $skip_card==$FALSE){
+			if( $is_tdm_api==$FALSE) {
+				my $zap_pos = $1+$current_zap_channel-25;
+				if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
+					if($#silent_zapata_contexts >= 0){
+						$silent_zapata_context=pop(@silent_zapata_contexts);
+					}
+					$a20x->card->zap_context($silent_zapata_context);
+				} else {
+					$a20x->card->zap_context("from-internal");
 				}
-				$a20x->card->zap_context($silent_zapata_context);
-			} else {
-				$a20x->card->zap_context("from-internal");
+				$a20x->card->zap_group("1");
+				$zaptel_conf.=$a20x->gen_zaptel_conf($zap_pos,"fxo");
+				$zapata_conf.=$a20x->gen_zapata_conf($zap_pos,"fxo");
+			}elsif ($is_fs==$TRUE){#do fs conf
+					$openzap_pos=$1+10-10;#to remove leading zero
+					my $analogspan = eval { new analogspan();} or die ($@);
+					my $openzapspan = $current_tdmapi_span-1;
+					$analogspan->span_type('FXS');
+					$analogspan->span_no("$openzapspan");
+					$analogspan->chan_no("$openzap_pos");
+					push(@fxsspan,$analogspan);
+
 			}
-			$a20x->card->zap_group("1");
-			$zaptel_conf.=$a20x->gen_zaptel_conf($zap_pos,"fxo");
-			$zapata_conf.=$a20x->gen_zapata_conf($zap_pos,"fxo");
-		}elsif ( $dev =~ /(\d+):FXO/ & $skip_card==$FALSE & $is_tdm_api==$FALSE ){
-			my $zap_pos = $1+$current_zap_channel-25;
-			if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
-				if($#silent_zapata_contexts >= 0){
-					$silent_zapata_context=pop(@silent_zapata_contexts);
+		}elsif ( $dev =~ /(\d+):FXO/ & $skip_card==$FALSE ){
+			if( $is_tdm_api==$FALSE) {
+				my $zap_pos = $1+$current_zap_channel-25;
+				if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
+					if($#silent_zapata_contexts >= 0){
+						$silent_zapata_context=pop(@silent_zapata_contexts);
+					}
+					$a20x->card->zap_context($silent_zapata_context);
+				} else {
+					$a20x->card->zap_context("from-zaptel");
 				}
-				$a20x->card->zap_context($silent_zapata_context);
-			} else {
-				$a20x->card->zap_context("from-zaptel");
+				$a20x->card->zap_group("0");
+				$zaptel_conf.=$a20x->gen_zaptel_conf($zap_pos,"fxs");
+				$zapata_conf.=$a20x->gen_zapata_conf($zap_pos,"fxs");
+			}elsif ($is_fs==$TRUE){#do fs conf
+					$openzap_pos=$1+10-10;#to remove leading zero
+					my $openzapspan = $current_tdmapi_span-1;
+					my $analogspan = eval { new analogspan();} or die ($@);
+					$analogspan->span_type('FXO');
+					$analogspan->span_no("$openzapspan");
+					$analogspan->chan_no("$openzap_pos");
+					push(@fxospan,$analogspan);
+
 			}
-			$a20x->card->zap_group("0");
-			$zaptel_conf.=$a20x->gen_zaptel_conf($zap_pos,"fxs");
-			$zapata_conf.=$a20x->gen_zapata_conf($zap_pos,"fxs");
 		}
 	}
 	if($num_analog_devices_total!=0){
@@ -2937,11 +3151,12 @@ sub config_analog{
 		}
 	}
 
+
 }
 sub config_tdmv_dummy 
 {
 	my $command='';
-	if( $num_digital_devices == 0 && $num_analog_devices == 0 &&  $num_bri_devices !=0 && $zaptel_dahdi_installed==$TRUE && $os_type_list =~ m/Linux/  && $silent == $FALSE ){
+	if( $num_digital_devices == 0 && $num_analog_devices == 0 &&  $num_usb_devices == 0 && $num_bri_devices !=0 && $zaptel_dahdi_installed==$TRUE && $os_type_list =~ m/Linux/  && $silent == $FALSE ){
 		system('clear');
 		print("Would you like to configure A500 BRI card as timing source for $zaptel_string?\n");
 		print("(Visit http://wiki.sangoma.com/wanpipe-linux-asterisk-appendix#bri-tdmv for more information)\n");		
@@ -2961,9 +3176,301 @@ sub config_tdmv_dummy
 			}	
 		} 
 	}
-
-
-	
-	
 }
 
+sub config_usbfxo{
+
+	my $u10x;
+	if (!$first_cfg && $silent==$FALSE) {
+		system('clear');
+	}
+	$first_cfg=0;
+	print "------------------------------------\n";
+	print "Configuring USB devices [U100]\n";
+	print "------------------------------------\n";
+
+	my $skip_card=$FALSE;
+	if($is_tdm_api == $FALSE) {
+		$zaptel_conf.="\n";
+		$zapata_conf.="\n";
+	}
+	foreach my $dev (@hwprobe) {
+			if ( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d.*\s).* /){
+		
+			$skip_card=$FALSE;
+			my $card = eval {new Card(); } or die ($@);
+			$card->current_dir($current_dir);
+			$card->cfg_dir($cfg_dir);
+			$card->device_no($devnum);
+			$card->card_model($1);
+			$card->pci_bus($2);
+			
+			if ($card->card_model eq 'U100'){
+				$num_usb_devices_total++;
+				
+				if($silent==$FALSE) {
+					system('clear');
+					print "\n-----------------------------------------------------------\n";
+					print "USB $1 detected on  bus:$2\n";
+					print "-----------------------------------------------------------\n";
+				}
+				if($is_trixbox==$FALSE){
+					if ($silent==$FALSE){
+						print "\nWould you like to configure USB $1 on bus:$2\n";
+						if (&prompt_user_list(("YES","NO","")) eq 'NO'){
+							$skip_card=$TRUE;	
+						}
+					}
+				}
+				if ($skip_card==$FALSE){
+					
+					$u10x = eval {new U10x(); } or die ($@);
+					$u10x->card($card);
+					$card->first_chan($current_zap_channel);
+			
+									
+					if ($silent==$FALSE){
+						$u10x->tdm_law(&prompt_tdm_law());
+						$u10x->tdm_opermode(&prompt_tdm_opemode());
+		
+					} else {
+												
+						if($#silent_tdm_laws >= 0){
+							$silent_tdm_law=pop(@silent_tdm_laws);
+						}						
+						
+						$u10x->tdm_law($silent_tdm_law);
+						
+					} 
+			
+					$startup_string.="wanpipe$devnum ";
+					$cfg_string.="wanpipe$devnum ";
+					
+					if($silent==$FALSE){
+						prompt_user("Press any key to continue");
+					}
+					my $i;
+					if( $is_tdm_api == $FALSE) {
+						print "$1 configured on  bus:$2 span:$current_zap_span\n";
+						$zaptel_conf.="#Sangoma USB $1  [bus:$2 span:$current_zap_span] <wanpipe".$u10x->card->device_no.">\n";
+						$zapata_conf.=";Sangoma A$1 [slot:$3 bus:$4 span:$current_zap_span]  <wanpipe".$u10x->card->device_no.">\n";
+						$current_zap_channel+=2;	
+						$num_zaptel_config++;
+						$card->tdmv_span_no($current_zap_span);
+						$current_zap_span++;
+					}else{
+						print "A$1 configured on slot:$3 bus:$4 span:$current_tdmapi_span\n";
+						$u10x->is_tdm_api($TRUE);
+						$card->tdmv_span_no($current_tdmapi_span);
+						$current_tdmapi_span++;
+					}
+						$devnum++;
+						$num_usb_devices++;
+					if ($os_type_list =~ m/FreeBSD/){
+						$u10x->gen_wanpipe_conf(1);
+					} else {
+						$u10x->gen_wanpipe_conf(0);
+					}
+					for (my $mod = 0; $mod <= 1; $mod++){
+						my $zap_pos = $mod+$current_zap_channel-2;
+						if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
+							if($#silent_zapata_contexts >= 0){
+								$silent_zapata_context=pop(@silent_zapata_contexts);
+							}
+							$u10x->card->zap_context($silent_zapata_context);
+						} else {
+							$u10x->card->zap_context("from-zaptel");
+						}
+						$u10x->card->zap_group("0");
+						$zaptel_conf.=$u10x->gen_zaptel_conf($zap_pos,"fxs");
+						$zapata_conf.=$u10x->gen_zapata_conf($zap_pos,"fxs");
+					}
+					
+				}else{
+					print "$1 on  bus:$2 not configured\n";
+					prompt_user("Press any key to continue");
+				}
+			}
+		
+		}
+	}
+	if($num_usb_devices_total!=0){
+		print("\nUSB analog card configuration complete\n\n");
+		if( $silent==$FALSE){
+			prompt_user("Press any key to continue");
+		}
+	}
+
+}
+
+sub write_openzap_conf{
+
+	if($is_fs==$FALSE){
+		return;
+	}
+	my $openzap='';
+	$openzap.="\n";
+	if(@boostbrispan){
+		$openzap.="[span wanpipe boostbri]\n";
+		$openzap.="trunk_type => bri\n";
+		foreach my $span (@boostbrispan){
+			my $boostbrispan=$span;
+			$openzap.="b-channel => ";
+			$openzap.=$boostbrispan->span_no();
+			$openzap.=":";
+			$openzap.=$boostbrispan->chan_no();
+			$openzap.="\n";
+		}
+		
+	}
+	$openzap.="\n\n";
+
+	if(@fxsspan){
+		$openzap.="[span wanpipe FXS]\n";
+		$openzap.="name => OpenZAP\n";
+		foreach my $span (@fxsspan){
+			my $fxsspan=$span;
+			$openzap.="fxs-channel => ";
+			$openzap.=$fxsspan->span_no();
+			$openzap.=":";
+			$openzap.=$fxsspan->chan_no();
+			$openzap.="\n";
+		}
+	$openzap.="\n\n";
+	}
+	if(@fxospan){
+		$openzap.="[span wanpipe FX0]\n";
+		$openzap.="name => OpenZAP\n";
+		foreach my $span (@fxospan){
+			my $fxospan=$span;
+			$openzap.="fxo-channel => ";
+			$openzap.=$fxospan->span_no();
+			$openzap.=":";
+			$openzap.=$fxospan->chan_no();
+			$openzap.="\n";
+		}
+		
+	}
+	$openzap.="\n\n";
+		
+	#need to fix properly
+	my $openzap_file="";
+	open(FH, "$openzap_conf_template") or die "cannot open $woomera_conf_template";
+	while (<FH>) {
+		$openzap_file .= $_;
+	}
+	close (FH);
+	$openzap_file=$openzap_file.$openzap;	
+	open(FH, ">$openzap_conf_file") or die "cannot open $woomera_conf_file";
+		print FH $openzap_file;
+	close(FH);	
+	return ;
+}
+sub config_smg_ctrl_boot {
+	#smg_ctrl must start after network
+	my $network_start_level=10;
+	my $smg_ctrl_start_level=11;
+	my $res='YES';
+	my $script_name='smg_ctrl';
+	my $command='';
+
+	my @boot_scripts= ('smg_ctrl','smg_ctrl_safe');
+		foreach my $boot_scripts (@boot_scripts) {
+	
+		print"Remvoing old $boot_scripts boot";
+		if ($have_update_rc_d) {#debian/ubuntu
+			$command = "update-rc.d -f $boot_scripts remove >>/dev/null 2>>/dev/null";
+			if (system($command) == 0){
+				print".....OK\n";
+			}else{
+				printf".....Failed"
+			}
+		} else {
+			$command="rm -f $rc_dir/rc?.d/*$boot_scripts >/dev/null 2>/dev/null";
+			if (system($command) == 0){
+				print".....OK\n";
+			}else{
+				printf".....Failed"
+			}
+		}
+		
+	}
+	if($silent==$FALSE){
+		print ("Would you like $script_name to start on system boot?\n");
+		$res= &prompt_user_list("YES","NO","");
+		if($res=='NO'){
+			return;
+		}
+	}
+	if($safe_mode==$TRUE){
+			$script_name='smg_ctrl_safe';
+			exec_command("cp -f $current_dir/templates/smg_ctrl_safe $rc_dir/init.d/smg_ctrl_safe");
+		
+	}
+
+	if($num_bri_devices == 0 || $no_smgboot== $TRUE){
+		return;
+	}
+	print "Verifying Network boot scripts...";
+	$command="find $rc_dir/rc".$current_run_level.".d/*network >/dev/null 2>/dev/null";
+	if (system($command) == 0){
+		$command="find $rc_dir/rc".$current_run_level.".d/*network";
+		$res=`$command`;
+		if ($res =~ /.*S(\d+)network/){
+			$network_start_level=$1;
+			print "Enabled (level:$network_start_level)\n";
+		} else {
+			print "\nfailed to parse network boot level, assuming $network_start_level";
+		}
+	}elsif(system("find $rc_dir/rcS.d/*networking >>/dev/null 2>>/dev/null") == 0){#ubuntu debian fix
+			$command="find $rc_dir/rcS.d/*networking ";
+			$res=`$command`;
+			if ($res =~ /.*S(\d+)network/){
+				$network_start_level=$1;
+				print "Enabled (level:$network_start_level)\n";
+			} else {
+				print "\nfailed to parse network boot level, assuming $network_start_level";
+			}
+ 
+	}else {
+		print "Not installed\n";
+		$network_start_level=0;
+	}
+	if ($network_start_level != 0 && $network_start_level > $zaptel_start_level){
+		$smg_ctrl_start_level=$network_start_level+1;	
+		print "Enabling smg_ctrl start scripts...(level:$smg_ctrl_start_level)\n";
+		#install smg_ctrl in init.d for both safe and regular mode		
+		$command="install -D -m 755 /usr/sbin/smg_ctrl $rc_dir/init.d/smg_ctrl";
+		if(system($command) !=0){
+			print "Failed to install smg_ctrl start scripts to $rc_dir/init.d/smg_ctrl";
+			print "smg_ctrl start scripts not installed";
+			return 1;
+		}
+		my $smg_ctrl_start_script='';
+		if($smg_ctrl_start_level < 10){
+			$smg_ctrl_start_script="S0".$smg_ctrl_start_level."smg_ctrl";
+		} else {
+			$smg_ctrl_start_script="S".$smg_ctrl_start_level."$script_name";
+		}
+		print "Enabling $script_name boot scripts ...(level:$smg_ctrl_start_level)\n";
+
+		if ($have_update_rc_d) {
+					$command = "update-rc.d $script_name defaults $smg_ctrl_start_level 20";
+					if (system($command .' >>/dev/null 2>>/dev/null') !=0 ) {
+						print "Command failed: $command\n";
+ 						return;
+ 					}
+		}else {
+			my @run_levels= ("2","3","4","5");
+			foreach my $run_level (@run_levels) {
+				$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$smg_ctrl_start_script;
+				if(system($command) !=0){
+					print "Failed to install $script_name init script to $rc_dir/rc$run_level.d/$smg_ctrl_start_script\n";
+					print "$script_name start scripts not installed\n";
+					return;
+				}
+			}	
+		}
+	}
+	
+}

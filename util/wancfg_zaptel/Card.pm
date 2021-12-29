@@ -15,6 +15,7 @@ sub new {
 	_fe_cpu	   => 'A',
 	_hwec_mode => 'NO',
 	_hw_dtmf => 'NO',
+	_hw_fax => 'NO',
 	_first_chan => '0',
 	_zap_context => undef,
       	_zap_group => undef,
@@ -71,6 +72,12 @@ sub hw_dtmf {
     my ( $self, $hw_dtmf ) = @_;
     $self->{_hw_dtmf} = $hw_dtmf if defined($hw_dtmf);
     return $self->{_hw_dtmf};
+}
+
+sub hw_fax {
+    my ( $self, $hw_fax ) = @_;
+    $self->{_hw_fax} = $hw_fax if defined($hw_fax);
+    return $self->{_hw_fax};
 }
 
 sub signalling {

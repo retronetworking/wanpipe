@@ -388,19 +388,19 @@ static int 	aft_global_chip_disable(sdla_t *card);
 static int 	aft_chip_configure(sdla_t *card, wandev_conf_t* conf);
 static int 	aft_chip_unconfigure(sdla_t *card);
 static int 	aft_dev_configure(sdla_t *card, private_area_t *chan, wanif_conf_t* conf);
-static void 	aft_dev_unconfigure(sdla_t *card, private_area_t *chan);
+static void	aft_dev_unconfigure(sdla_t *card, private_area_t *chan);
 
 static int 	aft_dma_rx(sdla_t *card, private_area_t *chan);
-static void 	aft_dev_enable(sdla_t *card, private_area_t *chan);
-static void 	aft_dev_close(sdla_t *card, private_area_t *chan);
-static void 	aft_dev_open(sdla_t *card, private_area_t *gchan);
-static void 	aft_dma_tx_complete (sdla_t *card, private_area_t *chan,int wdt, int reset);
+static void	aft_dev_enable(sdla_t *card, private_area_t *chan);
+static void	aft_dev_close(sdla_t *card, private_area_t *chan);
+static void	aft_dev_open(sdla_t *card, private_area_t *gchan);
+static void	aft_dma_tx_complete (sdla_t *card, private_area_t *chan,int wdt, int reset);
 
 static int 	aft_dma_rx_complete(sdla_t *card, private_area_t *chan, int reset);
 static int 	aft_init_rx_dev_fifo(sdla_t *card, private_area_t *chan, unsigned char);
 static int 	aft_init_tx_dev_fifo(sdla_t *card, private_area_t *chan, unsigned char);
-static void 	aft_tx_post_complete (sdla_t *card, private_area_t *chan, netskb_t *skb);
-static void 	aft_rx_post_complete (sdla_t *card, private_area_t *chan,
+static void	aft_tx_post_complete (sdla_t *card, private_area_t *chan, netskb_t *skb);
+static void	aft_rx_post_complete (sdla_t *card, private_area_t *chan,
                                      netskb_t *skb,
                                      netskb_t **new_skb,
                                      unsigned char *pkt_error);
@@ -431,8 +431,8 @@ static void aft_port_task (void * card_ptr, int arg);
 
 #if defined(AFT_RTP_SUPPORT)
 static int 	aft_rtp_config(sdla_t *card);
-static void 	aft_rtp_unconfig(sdla_t *card); 
-static void 	aft_rtp_tap(void *card_ptr, u8 chan, u8* rx, u8* tx, u32 len);   
+static void	aft_rtp_unconfig(sdla_t *card); 
+static void	aft_rtp_tap(void *card_ptr, u8 chan, u8* rx, u8* tx, u32 len);   
 #endif
 
 static int 	aft_devel_ioctl(sdla_t *card,struct ifreq *ifr);
@@ -442,12 +442,12 @@ static int 	aft_read(sdla_t *card, wan_cmd_api_t *api_cmd);
 static int 	aft_fe_write(sdla_t *card, wan_cmd_api_t *api_cmd);
 static int 	aft_fe_read(sdla_t *card, wan_cmd_api_t *api_cmd);
 
-static void 	front_end_interrupt(sdla_t *card, unsigned long reg, int lock);
-static void  	enable_data_error_intr(sdla_t *card);
-static void  	disable_data_error_intr(sdla_t *card, unsigned char);
+static void	front_end_interrupt(sdla_t *card, unsigned long reg, int lock);
+static void	enable_data_error_intr(sdla_t *card);
+static void	disable_data_error_intr(sdla_t *card, unsigned char);
 
-static void 	aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan);
-static void     aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan);
+static void	aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan);
+static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan);
 
 static int 	set_chan_state(sdla_t* card, netdevice_t* dev, int state);
 
@@ -457,15 +457,15 @@ static int 	protocol_init (sdla_t*card,netdevice_t *dev,
 		               private_area_t *chan, wanif_conf_t* conf);
 static int 	protocol_stop (sdla_t *card, netdevice_t *dev);
 static int 	protocol_shutdown (sdla_t *card, netdevice_t *dev);
-static void 	protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb);
+static void	protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb);
 
 static int 	aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, int irq);
 static int 	aft_init_requeue_free_skb(private_area_t *chan, netskb_t *skb);
 
 
 static int 	aft_dma_tx (sdla_t *card,private_area_t *chan);
-static void 	aft_tx_dma_chain_handler(unsigned long data, int wdt, int reset);
-static void 	aft_tx_dma_voice_handler(unsigned long data, int wdt, int reset);
+static void	aft_tx_dma_chain_handler(unsigned long data, int wdt, int reset);
+static void	aft_tx_dma_voice_handler(unsigned long data, int wdt, int reset);
 static void 	aft_tx_dma_chain_init(private_area_t *chan, wan_dma_descr_t *);
 static void 	aft_rx_dma_chain_init(private_area_t *chan, wan_dma_descr_t *);
 static void 	aft_index_tx_rx_dma_chains(private_area_t *chan);
@@ -1184,6 +1184,12 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	memset(card->u.aft.dev_to_ch_map,0,sizeof(card->u.aft.dev_to_ch_map));
 	memcpy(&card->tdmv_conf,&conf->tdmv_conf,sizeof(wan_tdmv_conf_t));
 	memcpy(&card->hwec_conf,&conf->hwec_conf,sizeof(wan_hwec_conf_t));
+	
+
+	/* If user used WANOPT_YES to enable detect then set it to default 8 */
+	if (card->tdmv_conf.hw_fax_detect == 1) {
+    	card->tdmv_conf.hw_fax_detect=8;
+	}
 
 	card->u.aft.cfg.dma_per_ch = MAX_RX_BUF;
 	card->u.aft.tdmv_api_rx = NULL;
@@ -1358,16 +1364,16 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 
 	DEBUG_EVENT("%s: Configuring Device   :%s  FrmVr=%02X\n",
 			card->devname,card->devname,card->u.aft.firm_ver);
-	DEBUG_EVENT("%s:    Global MTU     = %d\n", 
+	DEBUG_EVENT("%s:    Global MTU           = %d\n", 
 			card->devname, 
 			card->wandev.mtu);
-	DEBUG_EVENT("%s:    Global MRU     = %d\n", 
+	DEBUG_EVENT("%s:    Global MRU           = %d\n", 
 			card->devname, 
 			card->u.aft.cfg.mru);
-	DEBUG_EVENT("%s:    Data Mux Map   = 0x%08X\n",
+	DEBUG_EVENT("%s:    Data Mux Map         = 0x%08X\n",
 			card->devname,
 			card->u.aft.cfg.data_mux_map);
-	DEBUG_EVENT("%s:    Rx CRC Bytes   = %i\n",
+	DEBUG_EVENT("%s:    Rx CRC Bytes         = %i\n",
 			card->devname,
 			card->u.aft.cfg.rx_crc_bytes);
 
@@ -1405,12 +1411,12 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	}
 
 
-	DEBUG_EVENT("%s:    Global TDM Int = %s\n",
+	DEBUG_EVENT("%s:    Global TDM Int       = %s\n",
 			card->devname,
 			wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status) ?
 			"Enabled" : "Disabled");
 
-	DEBUG_EVENT("%s:    Global TDM Ring= %s\n",
+	DEBUG_EVENT("%s:    Global TDM Ring      = %s\n",
 			card->devname,
 			wan_test_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status) ?
 			"Enabled" : "Disabled");
@@ -1420,10 +1426,12 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	}else{
 		card->u.aft.tdmv_hw_dtmf = WANOPT_NO;	
 	}
-	DEBUG_EVENT("%s:    TDM HW DTMF    = %s\n",
+	DEBUG_EVENT("%s:    TDMV HW DTMF/FAX     = %s/%s(%d)\n",
 			card->devname,
 			(card->u.aft.tdmv_hw_dtmf == WANOPT_YES) ?
-				"Enabled" : "Disabled");
+				"Enabled" : "Disabled",  
+				(card->u.aft.tdmv_hw_dtmf == WANOPT_YES && conf->tdmv_conf.hw_fax_detect)?"Enabled":"Disabled",
+				conf->tdmv_conf.hw_fax_detect);
 	
 	err=aft_tdmv_init(card,conf);
 	if (err){
@@ -1436,7 +1444,7 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 
 #if defined(AFT_RTP_SUPPORT)
         err=aft_rtp_config(card);
-	DEBUG_EVENT("%s:    RTP TAP        = %s\n",
+	DEBUG_EVENT("%s:    RTP TAP              = %s\n",
 			card->devname,
 			err == 0 ? "Enabled" : "Disabled");
 #endif 
@@ -1595,7 +1603,7 @@ aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 	chan->wp_tdm_api_dev.cfg.tx_disable = 0;
 	chan->wp_tdm_api_dev.tx_q_len = MAX_AFT_DMA_CHAINS;
  
-        if (IS_TE1_CARD(card)) {
+   if (IS_TE1_CARD(card)) {
 		if (IS_T1_CARD(card)){
 			chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_MULAW;	
 			chan->wp_tdm_api_dev.tdm_chan = chan->first_time_slot+1;
@@ -1615,7 +1623,7 @@ aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		if (card->fe.fe_cfg.tdmv_law == WAN_TDMV_MULAW){ 
 		       	chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_MULAW;	
 		} else {
-                        chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_ALAW;	
+                chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_ALAW;	
 		}
 		chan->wp_tdm_api_dev.tx_q_len = 0;
 
@@ -3508,7 +3516,6 @@ static void disable_comm (sdla_t *card)
 	aft_chip_unconfigure(card);
 #else
 
-	__aft_fe_intr_ctrl(card, 0);
 
 	/* Make sure that Task is disabled for this card */
 	wan_set_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical);
@@ -3551,6 +3558,8 @@ static void disable_comm (sdla_t *card)
 #if defined(AFT_RTP_SUPPORT)
 	aft_rtp_unconfig(card);
 #endif
+	
+	__aft_fe_intr_ctrl(card, 0);
 	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 	
 	aft_chip_unconfigure(card);
@@ -3568,24 +3577,28 @@ static void disable_comm (sdla_t *card)
 	
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);
 	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
+
 	aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_ON);
 	aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_ON);
+	
+	__sdla_pull_ptr_isr_array(card->hw,card,WAN_FE_LINENO(&card->fe));
+	
 	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 	card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 
-	__sdla_pull_ptr_isr_array(card->hw,card,WAN_FE_LINENO(&card->fe));
 	
 	if (used_cnt<=1){
 		DEBUG_EVENT("%s: Global Chip Shutdown Usage=%d\n",
 				card->devname,used_cnt);
 
+		aft_fe_intr_ctrl(card, 0);
 		wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 		aft_global_chip_disable(card);		
 		wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 	} else {
 		/* only re-enable front end interrupt if this
 		 * card is not last card */
-		__aft_fe_intr_ctrl(card, 1);
+		aft_fe_intr_ctrl(card, 1);
 	}
 
 	/* Initialize the AFT operation structure so on subsequent restart
@@ -5823,11 +5836,46 @@ static void wp_aft_fifo_per_port_isr(sdla_t *card)
 	return;
 }
 
+static int aft_is_first_card_in_list(sdla_t *card) 
+{
+    void **card_list;
+	u32 max_number_of_ports, i;
+	sdla_t	*tmp_card;
+
+
+	if (IS_BRI_CARD(card)) {
+		max_number_of_ports = MAX_BRI_LINES; /* 24 */
+	} else {
+		max_number_of_ports = 8; /* 24 */
+	}
+	
+	card_list=__sdla_get_ptr_isr_array(card->hw);
+
+	DEBUG_TEST("%s(): card_list ptr: 0x%p\n", __FUNCTION__, card_list);
+
+	for (i=0; i<max_number_of_ports; i++) {
+     	tmp_card=(sdla_t*)card_list[i];
+		if (tmp_card == NULL || wan_test_bit(CARD_DOWN,&tmp_card->wandev.critical)) {
+			continue;
+		}
+
+		/* check if first valid card in the list matches give card ptr */
+		if (tmp_card == card) {
+         	return 0;
+		}
+
+		return 1;
+	}
+
+	return 1;
+}
+
 static void front_end_interrupt(sdla_t *card, unsigned long reg, int lock)
 {
 	void **card_list;
 	u32 max_number_of_ports, i;
 	sdla_t	*tmp_card;
+   	wan_smp_flag_t smp_flags;
 
 
 	if (IS_BRI_CARD(card)) {
@@ -5856,7 +5904,6 @@ static void front_end_interrupt(sdla_t *card, unsigned long reg, int lock)
 		            tmp_card->wandev.fe_iface.isr(&tmp_card->fe)) {
 	
 				if (lock) {
-					wan_smp_flag_t smp_flags;
 					wan_spin_lock_irq(&tmp_card->wandev.lock,&smp_flags);
 					handle_front_end_state(tmp_card);
 					wan_spin_unlock_irq(&tmp_card->wandev.lock,&smp_flags);
@@ -5964,16 +6011,28 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 
 #if defined (__LINUX__) || defined(__FreeBSD__)
 			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
-				wan_set_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
-				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
-				__aft_fe_intr_ctrl(card,0);
+				/* Only execute front end interrupt on very first card
+				   In the list. This way we do not get into a race condition
+				   between port task on wanpipe1 versus trigger from wanpipe2.
+				   Since Front end interrupt is global interrupt per card */
+				if (aft_is_first_card_in_list(card) == 0) { 
+
+					DEBUG_TEST("%s: TRIGGERING FE INTERRUPT\n",card->devname);
+					wan_set_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
+					WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+					__aft_fe_intr_ctrl(card,0);
+
+					/* NC: Bug fix: We must update the reg value since it 
+				       was changed in fe_intr_ctrl */
+					__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &reg);
+				} 
 			}
 #else
+#error "OS does not support TASK !"
 			if (card->wandev.fe_iface.check_isr &&
 				card->wandev.fe_iface.check_isr(&card->fe)){
 				front_end_interrupt(card,reg,0);
 			}
-
 #endif
 
 		}/* if (wan_test_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg)) */
@@ -6113,6 +6172,9 @@ if (serial_reg) {
 #endif
 
 		if (ring_buf_enabled) {
+			 /* NC: Bug fix: We must update the reg. Its too dangerous to trust the reg
+			        value that was read at the top of the file. Register could have changed */
+			__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &reg);
 			if (card->adptr_type == A104_ADPTR_4TE1 &&
 				card->u.aft.firm_id == AFT_PMC_FE_CORE_ID) {
 				wan_set_bit(AFT_CHIPCFG_A104_TDM_ACK_BIT,&reg);
@@ -6171,6 +6233,9 @@ if (serial_reg) {
 		}
 
 		if (!ring_buf_enabled) {
+			 /* NC: Bug fix: We must update the reg. Its too dangerous to trust the reg
+			        value that was read at the top of the file. Register could have changed */
+			__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &reg);
 			if (card->adptr_type == A104_ADPTR_4TE1 &&
 				card->u.aft.firm_id == AFT_PMC_FE_CORE_ID) {
 				wan_set_bit(AFT_CHIPCFG_A104_TDM_ACK_BIT,&reg);  
@@ -8177,10 +8242,19 @@ static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 
 	/* Igore fifo errors in transpared mode. There is nothing
   	   that we can do to make it better.  The check below
-           will be covered by this statement, leaving it for
+       will be covered by this statement, leaving it for
 	   information sake */
 	if (chan->channelized_cfg && !chan->hdlc_eng){
 		return;
+	}
+
+	/* Stream re-synchronization is not necessary when 
+	   running on single time slot bitstreaming. Equivalent to channelized mode. */
+	if (!chan->hdlc_eng && chan->num_of_time_slots == 1) {
+		aft_free_rx_descriptors(chan);
+		aft_dma_rx(card,chan);
+		wanpipe_wake_stack(chan);
+     	return;
 	}
 
 #if 0
@@ -8203,32 +8277,26 @@ static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 	}
 #endif
 
-	if (chan->hdlc_eng) {
-		aft_channel_rxdma_ctrl(card, chan, 0);
-		aft_tslot_sync_ctrl(card,chan,0);
-		aft_free_rx_complete_list(chan);
-	}
+   	aft_channel_rxdma_ctrl(card, chan, 0);
+   	aft_tslot_sync_ctrl(card,chan,0);
+   	aft_free_rx_complete_list(chan);
 	
 	aft_free_rx_descriptors(chan);
 
-	if (chan->hdlc_eng) {
-		aft_init_rx_dev_fifo(card, chan, WP_NO_WAIT);
+   	aft_init_rx_dev_fifo(card, chan, WP_NO_WAIT);
 
-		aft_channel_rxdma_ctrl(card, chan, 1);
+   	aft_channel_rxdma_ctrl(card, chan, 1);
 
-		aft_init_rx_dev_fifo(card, chan, WP_WAIT);
+   	aft_init_rx_dev_fifo(card, chan, WP_WAIT);
 	
-		chan->dma_index=0;
-		memset(chan->dma_history,0,sizeof(chan->dma_history));
+   	chan->dma_index=0;
+   	memset(chan->dma_history,0,sizeof(chan->dma_history));
 
-		aft_reset_rx_chain_cnt(chan);
-	}
+   	aft_reset_rx_chain_cnt(chan);
 
-	aft_dma_rx(card,chan);
+    aft_dma_rx(card,chan);
 
-	if (chan->hdlc_eng) {
-		aft_tslot_sync_ctrl(card,chan,1);
-	}
+   	aft_tslot_sync_ctrl(card,chan,1);
 
 	wanpipe_wake_stack(chan);
 }
@@ -8241,6 +8309,15 @@ static void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 			return;
 	}
 
+	/* Stream re-synchronization is not necessary when 
+	   running on single time slot bitstreaming. Equivalent to channelized mode. */
+	if (!chan->hdlc_eng && chan->num_of_time_slots == 1) {
+		aft_dma_tx_complete(card,chan,0, 1);
+		aft_free_tx_descriptors(chan);
+		aft_dma_tx(card,chan);
+		wanpipe_wake_stack(chan);
+     	return;
+	}
 #if 0
 	if (WAN_NET_RATELIMIT()){
 		DEBUG_EVENT("%s:%s Tx Fifo Recovery!\n",
@@ -8250,24 +8327,19 @@ static void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 	/* Enable DMA controler, in order to start the
          * fifo cleaning */
 
-	if (chan->hdlc_eng) {
-		aft_channel_txdma_ctrl(card, chan, 0);
-	}
+   	aft_channel_txdma_ctrl(card, chan, 0);
 
 #if 0
 	aft_list_tx_descriptors(chan);
 #endif
 	aft_dma_tx_complete(card,chan,0, 1);
-
 	aft_free_tx_descriptors(chan);
 
-	if (chan->hdlc_eng) {
-		aft_init_tx_dev_fifo(card,chan,WP_NO_WAIT);
-		aft_channel_txdma_ctrl(card, chan, 1);
-		aft_init_tx_dev_fifo(card,chan,WP_WAIT);
-		aft_reset_tx_chain_cnt(chan);
-		wan_clear_bit(0,&chan->idle_start);
-	}	
+   	aft_init_tx_dev_fifo(card,chan,WP_NO_WAIT);
+   	aft_channel_txdma_ctrl(card, chan, 1);
+   	aft_init_tx_dev_fifo(card,chan,WP_WAIT);
+   	aft_reset_tx_chain_cnt(chan);
+   	wan_clear_bit(0,&chan->idle_start);
 
 	aft_dma_tx(card,chan);
 
@@ -10546,6 +10618,7 @@ static void aft_port_task (void * card_ptr, int arg)
 	sdla_t 		*card = (sdla_t *)card_ptr;
 #endif 
 	wan_smp_flag_t smp_flags;
+	wan_smp_flag_t smp_irq_flags;
 	
 	wan_set_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
 
@@ -10574,18 +10647,20 @@ static void aft_port_task (void * card_ptr, int arg)
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
 		aft_fe_intr_ctrl(card, 0);
 		front_end_interrupt(card,0,1);
+
+		wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 		wan_clear_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
-		aft_fe_intr_ctrl(card, 1);
+		__aft_fe_intr_ctrl(card, 1);
+		wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
+
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 
 	}
 
 	if (wan_test_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd)){
-		wan_smp_flag_t	smp_irq_flags;
 
 		DEBUG_TEST("%s: PORT TASK: FE POLL\n", card->devname);
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
-		aft_fe_intr_ctrl(card, 0);
 
 		if (card->wandev.fe_iface.polling){
 			card->wandev.fe_iface.polling(&card->fe);
@@ -10593,17 +10668,15 @@ static void aft_port_task (void * card_ptr, int arg)
 
 		wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 		handle_front_end_state(card);
+		wan_clear_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
 		wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
 
-		wan_clear_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
-		aft_fe_intr_ctrl(card, 1);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 	}
 
 	if (wan_test_bit(AFT_FE_LED,&card->u.aft.port_task_cmd)){
 		DEBUG_TEST("%s: PORT TASK: FE LED\n", card->devname);
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
-		aft_fe_intr_ctrl(card, 0);
 		if (card->wandev.state == WAN_CONNECTED){
 			aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_OFF);
 			aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_ON);
@@ -10611,8 +10684,11 @@ static void aft_port_task (void * card_ptr, int arg)
 			aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_ON);
 			aft_hwdev[card->wandev.card_type].aft_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_OFF);
 		}
+
+		wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 		wan_clear_bit(AFT_FE_LED,&card->u.aft.port_task_cmd);
-		aft_fe_intr_ctrl(card, 1);
+		wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
+
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 	}
 
@@ -10624,7 +10700,9 @@ static void aft_port_task (void * card_ptr, int arg)
 
 		WAN_TDMV_CALL(rbsbits_poll, (&card->wan_tdmv, card), err);
 
+		wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 		wan_clear_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
+		wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 	}
 #endif
@@ -10649,10 +10727,6 @@ static void aft_port_task (void * card_ptr, int arg)
 #endif
 
 	if (wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)){
-		wan_smp_flag_t smp_flags1;
-		wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
-		
-		
 
 		if (IS_BRI_CARD(card)) {
 
@@ -10661,10 +10735,10 @@ static void aft_port_task (void * card_ptr, int arg)
 
 			card->hw_iface.hw_lock(card->hw,&smp_flags);
 
-			wan_spin_lock_irq(&card->wandev.lock,&smp_flags1);
+			wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 			wan_clear_bit(0,&card->u.aft.comm_enabled);
 			enable_data_error_intr(card);
-			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags1);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
 
 			card->hw_iface.hw_unlock(card->hw,&smp_flags);
 
@@ -10675,7 +10749,7 @@ static void aft_port_task (void * card_ptr, int arg)
 
 			card->hw_iface.hw_lock(card->hw,&smp_flags);
 
-			wan_spin_lock_irq(&card->wandev.lock,&smp_flags1);
+			wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 			card->fe.fe_status = FE_DISCONNECTED;
 			handle_front_end_state(card);
 
@@ -10685,17 +10759,25 @@ static void aft_port_task (void * card_ptr, int arg)
 
 			card->fe.fe_status = FE_CONNECTED;
 			handle_front_end_state(card);
-			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags1);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
 
 			card->hw_iface.hw_unlock(card->hw,&smp_flags);
 		}
+		
+		wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
+		wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+		wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
 	}
 
 
 #if defined(AFT_RTP_SUPPORT)
 	if (wan_test_bit(AFT_RTP_TAP_Q,&card->u.aft.port_task_cmd)){
 		netskb_t *skb;
+
+		wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 		wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+		wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
+
 		while ((skb=wan_skb_dequeue(&card->u.aft.rtp_tap_list))) { 
 			dev_queue_xmit(skb);
 		}
@@ -10703,7 +10785,11 @@ static void aft_port_task (void * card_ptr, int arg)
 #endif
 
 	if (wan_test_bit(AFT_SERIAL_STATUS,&card->u.aft.port_task_cmd)){
+
+		wan_spin_lock_irq(&card->wandev.lock,&smp_irq_flags);
 		wan_clear_bit(AFT_SERIAL_STATUS,&card->u.aft.port_task_cmd);
+		wan_spin_unlock_irq(&card->wandev.lock,&smp_irq_flags);
+
 		send_serial_oob_msg(card);
 	}
 
@@ -10962,13 +11048,13 @@ static int aft_tdmv_init(sdla_t *card, wandev_conf_t *conf)
 	int valid_firmware_ver=AFT_TDMV_FRM_VER;
 
 	err=0;
-	DEBUG_EVENT("%s:    TDMV Span      = %d : %s\n",
+	DEBUG_EVENT("%s:    TDMV Span            = %d : %s\n",
 			card->devname,
 			card->tdmv_conf.span_no,
 			card->tdmv_conf.span_no?"Enabled":"Disabled");
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-        DEBUG_EVENT("%s:    TDMV Dummy     = %s\n", 
+        DEBUG_EVENT("%s:    TDMV Dummy       = %s\n", 
 			card->devname,
 			(conf->tdmv_conf.sdla_tdmv_dummy_enable == WANOPT_YES)? "Enabled":"Disabled");
 

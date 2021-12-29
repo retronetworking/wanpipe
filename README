@@ -3,7 +3,7 @@ For latest docs please visit Sangoma Wiki
 Sangoma Wiki: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
 
-Copyright (c) 1995-2008 Sangoma Technologies Inc.
+Copyright (c) 1995-2009 Sangoma Technologies Inc.
 
 
 Installation
@@ -13,8 +13,10 @@ Installation
 or
 	./Setup zaptel		#Install for Asterisk/CallWeaver/Zaptel
 or
-	./Setup bri		#Install SMG BRI card for Asterisk/CallWeaver
-
+	./Setup bri			#Install SMG BRI card for Asterisk/CallWeaver
+or
+	make all_src ZAPDIR=<absolute path of DAHDI or ZAPTEL>
+	make install
 
 Configuration
 -------------

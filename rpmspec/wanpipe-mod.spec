@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.3.16
+%define version           3.4.1
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -51,8 +51,51 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 %changelog
 
+* Fri Apr 30 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.4.1
+=======================================================================  
 
-* Mon Feb 24 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.16
+- Updated wancfg_zaptel configuration utility
+  Use wancfg_fs to configure analog/BRI card for FreeSwitch
+  Update for remove old start/stop script
+  Added configuration option for TDMV_HW_FAX_DETECT
+  Bug fixes in silent option
+
+- A500 BRI - Firmware Update V35
+  On some machines the A500 card caused PCI parity errors,
+  causing a system reboot or a crash. The firmware V35
+  fixes this problem.
+
+- BRI DCHAN Bug Fix
+  The DCHAN on some machines could become stuck due to a 
+  driver interrupt race condition, causing BRI to stop
+  reciving/tranmsitting calls. This bug has now been fixed.
+
+- Updated BRI stack and sangoma_mdg      
+
+- Added TDMV_HW_FAX_DETECT option
+  To enable hardware fax detection. Used in conjunction with
+  TDMV_HW_DTMF.  
+  TDMV_HW_FAX_DETECT=<option>
+   <option> = 0 or NO  - disabled
+            = 1-8 or YES - enabled
+		      The number represents fax tone timeout
+		      value in seconds on call start. The fax
+			  event will be valid for X about of seconds
+			  at the start of the call. Default=8 seconds.
+			  Option YES is equal to Default 8 seconds.
+- Adsl Bug Fix
+  Updated SNR reporting, fixes connecting issues on some lines.
+  Updated stability on multiple restarts on some machines.
+
+- Bug fix in chan_woomera on transfer
+- Major regression testing of BRI/SS7 chan_woomera and sangoma_mgd
+- Stable 500 Long Term Call load of Astersk+SMG/SS7
+- Build update for latest 2.6.28 kernel.
+- Build update for latest 2.6.29 kernel.
+- Build update for latest Suse 
+
+
+* Mon Mar 11 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.16
 =====================================================================
 
 - Fixed S514 2 Byte receive
@@ -62,8 +105,8 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
   Added control of DTR/RTS on startup using 
   DTR_CTRL and RTS_CTRL config variables.
 
-- AFT T1/E1 BIRT Feature
-  Ability to run Birt tests on T1/E1 cards using wanpipemon
+- AFT T1/E1 BERT Feature
+  Ability to run Bert tests on T1/E1 cards using wanpipemon
 
 - AFT HWEC
   Hardware DTMF detection now detects FAX tones as well,
@@ -89,7 +132,7 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
   Bug fix in adsl. Could cause period disconnects on
   some equipment. The SNR value was not being properly reported
   the the upstream.
- 
+
 
 * Tue Dec 08 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.15
 =====================================================================
@@ -522,173 +565,4 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 - Updated legacy protocols for new front end architecture
 
 - 
-
-
-* Fri Feb 01 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2.p8
-====================================================================== 
-
-- wancfg_zaptel now asks for the default_tei value for 
-- BRI cards in TE mode
-
-- Fix for HWEC not being enabled when non-consecutive modules are using 
-- in BRI cards
-
-* Fri Feb 01 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2.p4
-====================================================================== 
-
-- Fixed AFT memory leak
-  Memory leak introduced in 3.3 release
-- Fixed AFT 56K bug
-  Bug introduced in 3.3 releae
-
-
-* Fri Feb 01 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2.p3
-====================================================================== 
-
-- Fix bug in BRI protocol for fast local hangups.
-
-* Mon Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2.p1
-====================================================================== 
-
-- Bug fix in Hardware EC code for E1.
-  Bug introduced in 3.3 release.
-
-
-* Mon Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.1
-==================================================================== 
-
-
-* Mon Jan 16 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.22
-==================================================================== 
-
-- BRI protocol:Increased internal timer that could cause issue in systems with
-- more than 8 BRI spans
-
-* Mon Jan 15 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.21
-==================================================================== 
-
-- BRI protocol:Fix for smg_brid daemon crashing on race condition
-- BRI protocol:default_tei parameter is not ignored when using point to 
-- multipoint anymore
-
-* Mon Jan 14 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.20
-====================================================================  
-
-- BRI protocol: Additional prefix options. 
-- BRI protocol: Check is caller ID number is all digits on incoming calls
-- Sangoma MGD: Removed dynamic user period causing skb panics
-- chan_woomera: Fixed issue with rxgain and txgain values set to 0 if 
-- coding not set in woomera.conf
-- wancfg_zaptel: Support for fractional T1/E1 spans.
-- wancfg_zaptel: fix issue BRI always being configured as bri_net introduced in v3.3.0.19
-
-* Mon Jan 07 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.19
-====================================================================  
-
-- Support for national/international prefix in BRI stack
-
-* Mon Jan 07 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.18
-====================================================================  
-
-- Changed Makefile in wanpipe/api/fr causing compilation errors 
-
-
-* Thu Dec 20 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.17
-====================================================================  
-
-- Fix for smg_ctrl boot script starting before network services on some systems
-- Support for language parameter in chan_woomera
-
-* Thu Dec 20 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.16
-====================================================================  
-
-- Fix for Sangoma BRI Daemon crashing on incoming call if chan_woomera is not installed on that system
-
-* Tue Dec 18 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.15
-====================================================================  
-
-- Fix for caller ID value being corrupted sometimes
-- Support for call confirmation in chan_woomera
-
-* Tue Dec 18 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.14
-====================================================================  
-
-- Fix in smg_brid not releasing some b-channels properly
-- Fix in wancfg_smg not setting MTU to 80 when configuring cards for SS7
-
-* Fri Dec 14 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.13
-====================================================================  
-
-- Fix for Kernel panic on 64-bit systems when enabling hardware echo canceller
-
-
-* Thu Dec 5 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.11
-====================================================================  
-
-- Support for AFT Serial Cards
-- Updates for AFT PMC and MAXIM framers
-  PMC - lowered LOS sensitivity
-        Fixes fake up/down state changes on
-        started inactive lines.
-
-  MAXIM - lowered sensistivy
-          Fixes cable cross talk on 8 port cards.
-        - Enabled Unframed E1
-        - Enabled Tri-State Mode
-        - Fixed loopback commands
-
-- Fixed HWEC_PERSIST_DISABLE
-  This option was broken in previous release
-  This option lets Asterisk control HWEC
-  on each call start/stop.
-  By default all hwec channels are enabled on
-  device startup.
-
-- Updated SMG/SS7 
-- Updated loopback commands for AFT Maxim cards
-
-- Updated for AstLinux
-  The make file can now build all WAN and Voice Protocols
-  
-- Fixed add_timer warnings for ALL AFT cards
-  Caused when a port is left in unconnected state.
-
-- Updated legacy protocols for new front end architecture
-
-- Updated Setup script 
-
-
-
-* Thu Nov 8 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.4
-====================================================================  
-
-- Fixed A101/2 (Old) bug introduced in previous releaes
-
-* Mon Oct 31 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.4
-====================================================================  
-
-- Updated BRI caller name
-- Updaged Setup
-
-
-* Mon Oct 15 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.1
-====================================================================  
-
-- Major Updates
-- New BRI architecture/support
-  SMG with Netbricks BRI Stack
-- Support for Hardware DTMF
-
-
-* Thu Aug 22 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.p3
-======================================================================
-
-- Updated wancfg_zaptel to support HW DTMF
-
-
-* Thu Aug 21 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.p2
-======================================================================  
-
-- Major Updates
-- Hardware DTMF for Asterisk and TDM API
 - - END - 

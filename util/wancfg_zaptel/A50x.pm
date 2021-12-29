@@ -121,6 +121,8 @@ sub gen_wanpipe_conf{
 	my $fe_media = $self->fe_media;
 	my $fe_line = $self->fe_line;
 	my $hwec_mode = $self->card->hwec_mode;
+	my $hw_dtmf = $self->card->hw_dtmf;
+	my $hw_fax = $self->card->hw_fax;
 
 	my $device_alpha = &get_alpha_from_num($device_no);
 
@@ -144,8 +146,10 @@ sub gen_wanpipe_conf{
         $wp_file =~ s/BUSNUM/$pci_bus/g;
         $wp_file =~ s/FEMEDIA/$fe_media/g;
         $wp_file =~ s/FELINE/$fe_line/g;
-	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
+		$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
         $wp_file =~ s/HWECMODE/$hwec_mode/g;
+		$wp_file =~ s/HWDTMF/$hw_dtmf/g;
+		$wp_file =~ s/HWFAX/$hw_fax/g;
 	
 	print FH $wp_file;
 	close (FH);

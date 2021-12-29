@@ -1,137 +1,161 @@
 K 25
 svn:wc:ra_dav:version-url
-V 42
-/svn/sangoma_mgd/!svn/ver/104/branches/bri
+V 35
+/svn/sangoma_mgd/!svn/ver/172/trunk
 END
 sigboost.h
 K 25
 svn:wc:ra_dav:version-url
-V 52
-/svn/sangoma_mgd/!svn/ver/90/branches/bri/sigboost.h
-END
-sound.raw
-K 25
-svn:wc:ra_dav:version-url
-V 51
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/sound.raw
-END
-sangoma_mgd.conf.sample
-K 25
-svn:wc:ra_dav:version-url
-V 65
-/svn/sangoma_mgd/!svn/ver/94/branches/bri/sangoma_mgd.conf.sample
+V 46
+/svn/sangoma_mgd/!svn/ver/158/trunk/sigboost.h
 END
 switch_buffer.h
 K 25
 svn:wc:ra_dav:version-url
-V 57
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/switch_buffer.h
+V 49
+/svn/sangoma_mgd/!svn/ver/1/trunk/switch_buffer.h
+END
+sangoma_mgd.conf.sample
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/sangoma_mgd/!svn/ver/157/trunk/sangoma_mgd.conf.sample
+END
+sound.raw
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/sangoma_mgd/!svn/ver/1/trunk/sound.raw
+END
+safe_sangoma
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/sangoma_mgd/!svn/ver/170/trunk/safe_sangoma
 END
 callgettest.sh
 K 25
 svn:wc:ra_dav:version-url
-V 56
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/callgettest.sh
+V 48
+/svn/sangoma_mgd/!svn/ver/1/trunk/callgettest.sh
 END
 ss7box
 K 25
 svn:wc:ra_dav:version-url
-V 48
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/ss7box
+V 40
+/svn/sangoma_mgd/!svn/ver/1/trunk/ss7box
+END
+smg_capabilities.h
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/sangoma_mgd/!svn/ver/149/trunk/smg_capabilities.h
 END
 call_signal.c
 K 25
 svn:wc:ra_dav:version-url
-V 56
-/svn/sangoma_mgd/!svn/ver/100/branches/bri/call_signal.c
+V 49
+/svn/sangoma_mgd/!svn/ver/160/trunk/call_signal.c
 END
 re-sync.sh
 K 25
 svn:wc:ra_dav:version-url
-V 52
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/re-sync.sh
+V 45
+/svn/sangoma_mgd/!svn/ver/20/trunk/re-sync.sh
 END
-woomera.conf
+sangoma_mgd_logger.c
 K 25
 svn:wc:ra_dav:version-url
-V 54
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/woomera.conf
+V 56
+/svn/sangoma_mgd/!svn/ver/166/trunk/sangoma_mgd_logger.c
 END
 sangoma_mgd.c
 K 25
 svn:wc:ra_dav:version-url
-V 56
-/svn/sangoma_mgd/!svn/ver/104/branches/bri/sangoma_mgd.c
+V 49
+/svn/sangoma_mgd/!svn/ver/172/trunk/sangoma_mgd.c
+END
+woomera.conf
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/sangoma_mgd/!svn/ver/1/trunk/woomera.conf
 END
 call_signal.h
 K 25
 svn:wc:ra_dav:version-url
-V 55
-/svn/sangoma_mgd/!svn/ver/74/branches/bri/call_signal.h
+V 49
+/svn/sangoma_mgd/!svn/ver/105/trunk/call_signal.h
+END
+list.h
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/sangoma_mgd/!svn/ver/133/trunk/list.h
 END
 Changelog.sangoma_mgd
 K 25
 svn:wc:ra_dav:version-url
-V 63
-/svn/sangoma_mgd/!svn/ver/96/branches/bri/Changelog.sangoma_mgd
+V 57
+/svn/sangoma_mgd/!svn/ver/161/trunk/Changelog.sangoma_mgd
 END
 sangoma_mgd.h
 K 25
 svn:wc:ra_dav:version-url
-V 56
-/svn/sangoma_mgd/!svn/ver/103/branches/bri/sangoma_mgd.h
+V 49
+/svn/sangoma_mgd/!svn/ver/172/trunk/sangoma_mgd.h
 END
 q931_cause.h
 K 25
 svn:wc:ra_dav:version-url
-V 54
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/q931_cause.h
+V 46
+/svn/sangoma_mgd/!svn/ver/1/trunk/q931_cause.h
 END
 g711.h
 K 25
 svn:wc:ra_dav:version-url
-V 48
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/g711.h
+V 40
+/svn/sangoma_mgd/!svn/ver/1/trunk/g711.h
 END
 install
 K 25
 svn:wc:ra_dav:version-url
-V 50
-/svn/sangoma_mgd/!svn/ver/111/branches/bri/install
+V 43
+/svn/sangoma_mgd/!svn/ver/150/trunk/install
 END
 sangoma_mgd_memdbg.c
 K 25
 svn:wc:ra_dav:version-url
-V 62
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/sangoma_mgd_memdbg.c
+V 55
+/svn/sangoma_mgd/!svn/ver/62/trunk/sangoma_mgd_memdbg.c
 END
 smg_ctrl
 K 25
 svn:wc:ra_dav:version-url
-V 50
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/smg_ctrl
+V 44
+/svn/sangoma_mgd/!svn/ver/133/trunk/smg_ctrl
 END
 sangoma_mgd_common.h
 K 25
 svn:wc:ra_dav:version-url
-V 62
-/svn/sangoma_mgd/!svn/ver/75/branches/bri/sangoma_mgd_common.h
+V 56
+/svn/sangoma_mgd/!svn/ver/105/trunk/sangoma_mgd_common.h
 END
 switch_buffer.c
 K 25
 svn:wc:ra_dav:version-url
-V 57
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/switch_buffer.c
+V 50
+/svn/sangoma_mgd/!svn/ver/61/trunk/switch_buffer.c
 END
 Makefile
 K 25
 svn:wc:ra_dav:version-url
-V 51
-/svn/sangoma_mgd/!svn/ver/129/branches/bri/Makefile
+V 44
+/svn/sangoma_mgd/!svn/ver/168/trunk/Makefile
 END
 sangoma_mgd_memdbg.h
 K 25
 svn:wc:ra_dav:version-url
-V 62
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/sangoma_mgd_memdbg.h
+V 55
+/svn/sangoma_mgd/!svn/ver/62/trunk/sangoma_mgd_memdbg.h
 END

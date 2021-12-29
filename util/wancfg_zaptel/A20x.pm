@@ -135,6 +135,7 @@ sub gen_wanpipe_conf{
 	my $rm_network_sync = $self->rm_network_sync;
 	my $hwec_mode = $self->card->hwec_mode;
 	my $hw_dtmf = $self->card->hw_dtmf;
+	my $hw_fax = $self->card->hw_fax;
 	my $is_tdm_api = $self->is_tdm_api;
 	my $tdm_voice_op_mode = "TDM_VOICE";
 
@@ -168,6 +169,7 @@ sub gen_wanpipe_conf{
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
         $wp_file =~ s/HWECMODE/$hwec_mode/g;
 	$wp_file =~ s/HWDTMF/$hw_dtmf/g;
+        $wp_file =~ s/HWFAX/$hw_fax/g;
 
 	print FH $wp_file;
 	close (FH);
@@ -188,10 +190,7 @@ sub gen_zaptel_conf{
 	}
 	
 	if($dahdi_conf eq 'YES') {
-		if($hwec_mode eq 'NO' ) {
 			$zp_file.="echocanceller=" .$dahdi_echo.",".$channel."\n"; 
-		}
-
 	}
 
 	return $zp_file;	
@@ -207,12 +206,7 @@ sub gen_zapata_conf{
 	$zp_file.="group=".$self->card->zap_group."\n";
 
 	if($dahdi_conf eq 'YES') {
-		if($hwec_mode eq 'NO' ) {
 			$zp_file.="echocancel=yes\n";
-		} else {
-			$zp_file.="echocancel=no\n";		
-		}
-
 	}
 		
 	if ( $type eq 'fxo'){

@@ -394,7 +394,7 @@ Should be 'sizeof(wp_tdm_api_rx_hdr_t)'.\n");
 	msg.msg_iovlen=2;
 	msg.msg_iov=iov;
 
-	rx_len = read(fd,&msg,datalen+hdrlen);
+	rx_len = read(fd,&msg,sizeof(msg));
 
 	if (rx_len <= sizeof(wp_tdm_api_rx_hdr_t)){
 		return -EINVAL;
@@ -480,7 +480,7 @@ int sangoma_writemsg_tdm(sng_fd_t fd, void *hdrbuf, int hdrlen, void *databuf, u
 	msg.msg_iovlen=2;
 	msg.msg_iov=iov;
 
-	bsent = write(fd,&msg,datalen+hdrlen);
+	bsent = write(fd,&msg,sizeof(msg));
 	if (bsent > 0){
 		bsent-=sizeof(wp_tdm_api_tx_hdr_t);
 	}

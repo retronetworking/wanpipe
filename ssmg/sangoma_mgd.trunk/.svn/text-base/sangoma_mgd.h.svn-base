@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,11 +29,10 @@
 #include <signal.h>
 #include <pthread.h>
 #include <netinet/tcp.h>
-#include <libsangoma.h>
 #include <assert.h>
 #include <sys/mman.h>
 #include <syslog.h> 
-#include <g711.h>
+#include <libsangoma.h>
 
 #include "sangoma_mgd_common.h"
 #include "call_signal.h"
@@ -43,20 +43,33 @@
 #endif
 
 
-#include <libteletone.h>
-#include <switch_buffer.h>
+#include "call_signal.h"
+#include "g711.h"
+#include "sangoma_mgd_memdbg.h"
+#include "libteletone.h"
+#include "switch_buffer.h"
+#include "list.h"
 
+#define USE_LOG_THREAD 1
+#define USE_SYSLOG 1
+#define CODEC_LAW_DEFAULT 1
+
+#define WOOMERA_MAX_CHAN	31
 
 #define SMG_SESSION_NAME_SZ	100
 #define SMG_CHAN_NAME_SZ	20
 
 #define PIDFILE "/var/run/sangoma_mgd.pid"
+#define PIDFILE_UNIT "/var/run/sangoma_mgd_unit.pid"
+
+#define WOOMERA_MAX_MEDIA_PORTS 899
+
 #define CORE_EVENT_LEN 512
 #define WOOMERA_STRLEN 256
 #define WOOMERA_ARRAY_LEN 50
 #define WOOMERA_BODYLEN 2048
 #define WOOMERA_MIN_MEDIA_PORT 9000
-#define WOOMERA_MAX_MEDIA_PORT 9899
+#define WOOMERA_MAX_MEDIA_PORT (WOOMERA_MIN_MEDIA_PORT + WOOMERA_MAX_MEDIA_PORTS)
 #define WOOMERA_HARD_TIMEOUT 0
 #define WOOMERA_LINE_SEPERATOR "\r\n"
 #define WOOMERA_RECORD_SEPERATOR "\r\n\r\n"
@@ -70,11 +83,7 @@
 #define MAXPENDING 500
 #define MGD_STACK_SIZE 1024 * 240
 
-#define SMG_SOCKET_EVENT_DATA	1
-#define SMG_SOCKET_EVENT_OOB	2
 #define SMG_SOCKET_EVENT_TIMEOUT 0
-#define SMG_SOCKET_EVENT_ERR	-1
-#define SMG_SOCKET_EVENT_NVAL	-2
 
 typedef enum {
     WFLAG_RUNNING 		= (1 << 0),
@@ -90,13 +99,39 @@ typedef enum {
     WFLAG_MEDIA_TDM_RUNNING 	= (1 << 10),
     WFLAG_HANGUP_ACK 		= (1 << 11),
     WFLAG_HANGUP_NACK_ACK 	= (1 << 12),
-    WFLAG_WAIT_FOR_NACK_ACK 	= (1 << 13),
-    WFLAG_WAIT_FOR_STOPPED_ACK 	= (1 << 14),
-    WFLAG_RAW_MEDIA_STARTED 	= (1 << 15),
-    WFLAG_CALL_ACKED     	= (1 << 16),
-    WFLAG_WAIT_FOR_NACK_ACK_SENT = (1 << 17),
-    WFLAG_WAIT_FOR_STOPPED_ACK_SENT = (1 << 18),
+    WFLAG_WAIT_FOR_NACK_ACK 	= (1 << 13),		/* Wait flag used to test reception of an NACK  */
+    WFLAG_WAIT_FOR_STOPPED_ACK 	= (1 << 14),		/* Wait flag used to test reception of an ACK  */
+    WFLAG_RAW_MEDIA_STARTED 	= (1 << 15),		/* Media has started on this channel */
+    WFLAG_CALL_ACKED     	= (1 << 16),		/* Woomera side rx accept so CALL ACK was Sent */
+    WFLAG_WAIT_FOR_NACK_ACK_SENT = (1 << 17),		/* Call START NACK was sent out on this channel */
+    WFLAG_WAIT_FOR_STOPPED_ACK_SENT = (1 << 18),	/* Call STOP was sent out on this channel */
+    WFLAG_SYSTEM_RESET 		= (1 << 19),		/* Initial System Reset Condition no calls allowed */
+    WFLAG_WAIT_FOR_ACK_TIMEOUT 	= (1 << 20),		/* Timeout flag indicating that incoming ACK or NACK timedout */
 } WFLAGS;
+
+#define woomera_print_flags(woomera,level) \
+    log_printf(level,woomera->log,"%s: WFLAG_RUNNING                    = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_RUNNING));\
+	log_printf(level,woomera->log,"%s: WFLAG_LISTENING                  = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_LISTENING));\
+	log_printf(level,woomera->log,"%s: WFLAG_MASTER_DEV                 = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_MASTER_DEV));\
+	log_printf(level,woomera->log,"%s: WFLAG_EVENT                      = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_EVENT));\
+	log_printf(level,woomera->log,"%s: WFLAG_MALLOC                     = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_MALLOC));\
+	log_printf(level,woomera->log,"%s: WFLAG_MEDIA_RUNNING              = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_MEDIA_RUNNING));\
+	log_printf(level,woomera->log,"%s: WFLAG_MEDIA_END                  = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_MEDIA_END));\
+	log_printf(level,woomera->log,"%s: WFLAG_MONITOR_RUNNING            = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_MONITOR_RUNNING));\
+	log_printf(level,woomera->log,"%s: WFLAG_HANGUP                     = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_HANGUP));\
+	log_printf(level,woomera->log,"%s: WFLAG_ANSWER                     = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_ANSWER));\
+	log_printf(level,woomera->log,"%s: WFLAG_MEDIA_TDM_RUNNING          = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_MEDIA_TDM_RUNNING));\
+	log_printf(level,woomera->log,"%s: WFLAG_HANGUP_ACK                 = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_HANGUP_ACK));\
+	log_printf(level,woomera->log,"%s: WFLAG_HANGUP_NACK_ACK            = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_HANGUP_NACK_ACK));\
+	log_printf(level,woomera->log,"%s: WFLAG_WAIT_FOR_NACK_ACK          = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_WAIT_FOR_NACK_ACK));\
+	log_printf(level,woomera->log,"%s: WFLAG_WAIT_FOR_STOPPED_ACK       = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_WAIT_FOR_STOPPED_ACK));\
+	log_printf(level,woomera->log,"%s: WFLAG_RAW_MEDIA_STARTED          = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_RAW_MEDIA_STARTED));\
+	log_printf(level,woomera->log,"%s: WFLAG_CALL_ACKED                 = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_CALL_ACKED));\
+	log_printf(level,woomera->log,"%s: WFLAG_WAIT_FOR_NACK_ACK_SENT     = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_WAIT_FOR_NACK_ACK_SENT));\
+	log_printf(level,woomera->log,"%s: WFLAG_WAIT_FOR_STOPPED_ACK_SENT  = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_WAIT_FOR_STOPPED_ACK_SENT));\
+	log_printf(level,woomera->log,"%s: WFLAG_SYSTEM_RESET               = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_SYSTEM_RESET));\
+	log_printf(level,woomera->log,"%s: WFLAG_WAIT_FOR_ACK_TIMEOUT       = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_WAIT_FOR_ACK_TIMEOUT));\
+
 
 typedef enum {
     MFLAG_EXISTS = (1 << 0),
@@ -260,6 +295,8 @@ struct woomera_server {
 	char media_ip[WOOMERA_STRLEN];
 	int port;
 	int next_media_port;
+	int base_media_port;
+	int max_media_port;
 	int debug;
 	int panic;
 	int thread_count;
@@ -287,8 +324,10 @@ struct woomera_server {
     	int dtmf_intr_ch;
     	int dtmf_size;
 	int strip_cid_non_digits;
-	int udp_seq;
-} server;
+	int call_timeout;
+};
+
+extern struct woomera_server server;
 
 struct woomera_config {
     FILE *file;
@@ -362,15 +401,9 @@ static inline void smg_all_ckt_busy(void)
 	} else {
 		server.all_ckt_busy+=server.call_count*15;
 	}
-#if defined(BRI_PROT)
-	if (server.all_ckt_busy > 5000) {
-                server.all_ckt_busy = 5000;
+	if (server.all_ckt_busy > 10000) {
+                server.all_ckt_busy = 10000;
         }
-#endif
-	
-	if (server.all_ckt_busy > 60000) {
-		server.all_ckt_busy = 60000;
-	}	
 
 #if 0	
 	if (server.all_ckt_busy >= 5) {
@@ -435,11 +468,12 @@ static inline int get_pid_from_file(char *path)
 {
     FILE *tmp;
     int pid;
+    int err;
 
     if (!(tmp = safe_fopen(path, "r"))) {
 		return 0;
     } else {
-		fscanf(tmp, "%d", &pid);
+		err=fscanf(tmp, "%d", &pid);
 		fclose(tmp);
 		tmp = NULL;
     }
@@ -603,7 +637,35 @@ static inline void no_nagle(int socket)
 }
 
 
+static inline void remove_end_of_digits_char(unsigned char *s)
+{
+        unsigned char *p;
+        for (p = s; *p; p++) {
+                if (*p == 'F' || *p > 'f') {
+                        log_printf(2, server.log, "Removing a non-numeric character [%c]!\n", *p);
+                        *p = '\0';
+                        break;
+                }
+        }
+}
+
+static inline void validate_number(unsigned char *s)
+{
+        unsigned char *p;
+        for (p = s; *p; p++) {
+                if (*p < 48 || *p > 57) {
+                        log_printf(2, server.log, "Encountered a non-numeric character [%c]!\n", *p);
+                        *p = '\0';
+                        break;
+                }
+        }
+}
 
 
+
+
+
+extern int smg_log_init(void);
+extern void smg_log_cleanup(void);
 #endif
 

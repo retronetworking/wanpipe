@@ -1,6 +1,77 @@
 sangoma_mgd.c
 ======================================
 
+Mar 27 2009
+ * v1.46 Nenad Corbic <ncorbic@sangoma.com>
+ *      Major updates on socket handling. A bug was introducted
+ *      when cmm and trunk was merged. 
+ *      Added configuration print in the logs.
+ *
+ 
+Mar 19 2009
+ * v1.45 Nenad Corbic <ncorbic@sangoma.com>
+ *      Outbound call timeout defaulted to 300 seconds.
+ *      Timeout on answer instead of accept.
+ *
+
+Mar 19 2009
+ * v1.44 Nenad Corbic <ncorbic@sangoma.com>
+ *      Adjustable boost size. Added boost version check.
+ *
+ 
+Feb 25 2009
+ * v1.43 David Yat Sin <dyatsin@sangoma.com>
+ *      Merged CMM and Trunk
+ *
+ 
+Jan 26 2008
+ * v1.42 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Call Bearer Capability
+ *      BugFix: Hangup NACK was sent out with invalid cause 0
+ *
+ 
+Sep 11 2008
+ * v1.34 David Yat Sin <dyatsin@sangoma.com>
+ *	Support for huntgroups
+
+Jan 26 2008
+ * v1.42 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Call Bearer Capability
+ *      BugFix Hangup NACK was sent out with invalid cause 0
+ 
+Jan 12 2008
+ * v1.41 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Fixed the NACK with cause 0 bug.
+ *      Added cause 19 on call timeout.
+ *      Added configuration option call_timeout to timeout
+ *      outbound calls.
+ 
+Dec 10 2008
+ * v1.40 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Check for Rx call overrun.
+ *      In unlikely case sangoma_mgd goes out of
+ *      sync with boost.
+
+Sep 17 2008
+ * v1.39 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Updated for Unit Test
+ *      Bug fix in Loop Logic, possible race
+ *      between media and woomera thread on loop end.
+ *
+
+Sep 05 2008
+ * v1.38 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Added a Double use of setup id logic.
+ *      Currently double use call gets dropped.
+ *
+
+Sep 02 2008
+ * v1.37 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Bug fix in REMOVE LOOP logic continued
+ *      The woomera->sock in loop logic was set to 0.
+ *      Closing it failed the next call.
+ *
+
 Jul 18 2008
  * v1.33 Nenad Corbic <ncorbic@sangoma.com>
  *      Added UDP Sequencing to check for dropped frames
@@ -10,7 +81,19 @@ Jul 17 2008
  * v1.32 David Yat Sin  <davidy@sangoma.com>
  *      Support for d-channel incoming digit
  *      passthrough to Asterisk
- 
+
+Jun 03 2008
+ * v1.32cmm Nenad Corbic  <ncorbic@sangoma.com>
+ * 	Implemented new Restart ACK Policy
+ *	Split the Event packet into 2 types
+ *      	
+
+Apr 04 2008
+ * v1.31cmm Nenad Corbic  <ncorbic@sangoma.com>
+ *	New CMM Restart procedure for boost
+ *	Block TRUNK ID on ACK Timeout
+ *	
+
 Apr 29 2008
  * v1.31 David Yat Sin  <davidy@sangoma.com>
  *      Support for HW DTMF events.

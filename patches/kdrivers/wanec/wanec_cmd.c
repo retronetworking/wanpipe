@@ -77,9 +77,11 @@ UINT32 DetectedSoutToneNumbers[WAN_NUM_DTMF_TONES] =
 	SOUT_DTMF_C,
 	SOUT_DTMF_D,
 	SOUT_DTMF_STAR,
-	SOUT_DTMF_POUND,
-	SOUT_G168_1100GB_ON
+	SOUT_DTMF_POUND
 };
+
+
+
 UINT32 DetectedRoutToneNumbers[WAN_NUM_DTMF_TONES] = 
 {
 	ROUT_DTMF_0,
@@ -97,9 +99,20 @@ UINT32 DetectedRoutToneNumbers[WAN_NUM_DTMF_TONES] =
 	ROUT_DTMF_C,
 	ROUT_DTMF_D,
 	ROUT_DTMF_STAR,
-	ROUT_DTMF_POUND,
+	ROUT_DTMF_POUND
+};
+
+UINT32 DetectedSoutFaxTones[WAN_NUM_FAX_TONES] = 
+{
+	SOUT_G168_1100GB_ON
+};
+
+UINT32 DetectedRoutFaxTones[WAN_NUM_FAX_TONES] = 
+{
 	ROUT_G168_1100GB_ON
 };
+
+
 
 /*=============================================================
  * Function prototype
@@ -121,6 +134,7 @@ int wanec_ChannelMute(wan_ec_dev_t*, INT channel, wanec_chan_mute_t*, int);
 int wanec_ChannelUnMute(wan_ec_dev_t*, INT channel, wanec_chan_mute_t*, int);
 
 int wanec_TonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t*, int verbose);
+int wanec_FaxTonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int verbose);
 int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t*, int verbose);
 
 int wanec_DebugChannel(wan_ec_dev_t*, INT channel, int verbose);
@@ -974,7 +988,7 @@ int wanec_TonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int 
 {
 	tOCT6100_TONE_DETECTION_ENABLE	f_ToneDetectionEnable;
 	UINT32				ulResult;
-	int				i;
+	int					i;
 
 	PRINT2(verbose, "%s: Enable EC tone detection on chan %d port %X ...\n",
 					ec->name,
@@ -1045,6 +1059,81 @@ int wanec_TonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int 
 	return 0;
 }
 
+int wanec_FaxTonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int verbose)
+{
+	tOCT6100_TONE_DETECTION_ENABLE	f_ToneDetectionEnable;
+	UINT32				ulResult;
+	int					i;
+
+	PRINT2(verbose, "%s: Enable EC Fax tone detection on chan %d port %X ...\n",
+					ec->name,
+					ec_chan,
+					(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
+					
+	if (dtmf == NULL || dtmf->port_map & WAN_EC_CHANNEL_PORT_ROUT){
+		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
+	
+			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
+			f_ToneDetectionEnable.ulChannelHndl = 
+						ec->pEchoChannelHndl[ec_chan];
+			f_ToneDetectionEnable.ulToneNumber =
+						DetectedRoutFaxTones[i];
+			ulResult = Oct6100ToneDetectionEnable (
+						ec->pChipInstance,
+						&f_ToneDetectionEnable);
+			if ( ulResult == cOCT6100_ERR_OK ){
+				continue;
+			}else if (ulResult == cOCT6100_ERR_TONE_DETECTION_TONE_ACTIVATED){
+				PRINT2(verbose,
+				"%s: EC Tone detection is already enabled on channel %d for port ROUT!\n",
+					ec->name, ec_chan);
+				continue;	/* already activated */
+			}else{
+				DEBUG_EVENT(
+				"ERROR: %s: Failed to enable EC tone detection on ec chan %d!\n",
+					ec->name, ec_chan);
+				DEBUG_EVENT(
+				"ERROR: %s: (err=0x%X,i=%d)!\n",
+					ec->name,
+					(unsigned int)ulResult, i);
+				return -EINVAL;
+			}
+		}
+	}
+	if (dtmf == NULL || dtmf->port_map & WAN_EC_CHANNEL_PORT_SOUT){
+		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
+	
+			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
+			f_ToneDetectionEnable.ulChannelHndl = 
+						ec->pEchoChannelHndl[ec_chan];
+			f_ToneDetectionEnable.ulToneNumber =
+						DetectedSoutFaxTones[i];
+			ulResult = Oct6100ToneDetectionEnable (
+						ec->pChipInstance,
+						&f_ToneDetectionEnable);
+			if ( ulResult == cOCT6100_ERR_OK ){
+				continue;
+			}else if (ulResult == cOCT6100_ERR_TONE_DETECTION_TONE_ACTIVATED){
+				PRINT2(verbose,
+				"%s: EC Tone detection is already enabled on channel %d for port SOUT!\n",
+					ec->name, ec_chan);
+				continue;	/* already activated */
+			}else{
+				DEBUG_EVENT(
+				"ERROR: %s: Failed to enable EC Fax tone detection on channel %d!\n",
+					ec->name, ec_chan);
+				DEBUG_EVENT(
+				"ERROR: %s: (err=0x%X,i=%d)!\n",
+					ec->name,
+					(unsigned int)ulResult, i);
+				return -EINVAL;
+			}
+		}
+	}
+
+	return 0;
+}
+
 int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int verbose)
 {
 	tOCT6100_TONE_DETECTION_DISABLE	f_ToneDetectionDisable;
@@ -1081,6 +1170,32 @@ int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int
 				}
 			}
 		}
+
+		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
+		
+			Oct6100ToneDetectionDisableDef( &f_ToneDetectionDisable );
+			f_ToneDetectionDisable.ulChannelHndl = 
+						ec->pEchoChannelHndl[ec_chan];
+			if (ec_chan >= 0){
+				f_ToneDetectionDisable.ulToneNumber =
+						DetectedRoutFaxTones[i];
+			}else{
+				f_ToneDetectionDisable.fDisableAll = TRUE;
+			}
+			ulResult = Oct6100ToneDetectionDisable (
+							ec->pChipInstance,
+							&f_ToneDetectionDisable);
+			if ( ulResult != cOCT6100_ERR_OK ){
+				if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_NOT_ACTIVATED){
+					DEBUG_EVENT(
+					"ERROR: %s: Failed to disable EC Fax tone detection for channel %d (err=0x%X,i=%d)!\n", 
+							ec->name, ec_chan,
+							(unsigned int)ulResult, i);
+					return -EINVAL;
+				}
+			}
+		}
+
 	}
 	if (dtmf == NULL || dtmf->port_map & WAN_EC_CHANNEL_PORT_SOUT){	
 		
@@ -1108,6 +1223,32 @@ int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int
 				}
 			}
 		}
+
+		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
+		
+			Oct6100ToneDetectionDisableDef( &f_ToneDetectionDisable );
+			f_ToneDetectionDisable.ulChannelHndl = 
+						ec->pEchoChannelHndl[ec_chan];
+			if (ec_chan >= 0){
+				f_ToneDetectionDisable.ulToneNumber =
+							DetectedSoutFaxTones[i];
+			}else{
+				f_ToneDetectionDisable.fDisableAll = TRUE;
+			}
+			ulResult = Oct6100ToneDetectionDisable (
+							ec->pChipInstance,
+							&f_ToneDetectionDisable);
+			if ( ulResult != cOCT6100_ERR_OK ){
+				if (ulResult != cOCT6100_ERR_TONE_DETECTION_TONE_NOT_ACTIVATED){
+					DEBUG_EVENT(
+					"ERROR: %s: Failed to disable EC Fax tone detection for channel %d (err=0x%X,i=%d)!\n", 
+							ec->name, ec_chan,
+							(unsigned int)ulResult, i);
+					return -EINVAL;
+				}
+			}
+		}
+
 	}
 	return 0;
 }
@@ -1161,6 +1302,12 @@ static CHAR* wanec_ToneId2Str(UINT32 f_ulToneId)
 	case SOUT_G168_1100GB_ON: return "SOUT_G168_1100GB_ON";
 	case ROUT_G168_1100GB_ON: return "ROUT_G168_1100GB_ON";
 
+	case SOUT_G168_2100GB_ON: return "SOUT_G168_2100GB_ON";
+	case ROUT_G168_2100GB_ON: return "ROUT_G168_2100GB_ON";
+
+	case SOUT_G168_2100GB_WSPR: return "SOUT_G168_2100GB_WSPR";
+	case ROUT_G168_2100GB_WSPR: return "ROUT_G168_2100GB_WSPR";
+
 	default: return "INVALID TONE ID!";
 	}
 }
@@ -1203,8 +1350,17 @@ static unsigned char wanec_ConvertToneId(UINT32 f_ulToneId, unsigned char *ec_dt
 	case SOUT_DTMF_STAR:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '*';
 	case SOUT_DTMF_POUND:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return '#';
 
-	case SOUT_G168_1100GB_ON:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
-	case ROUT_G168_1100GB_ON:	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
+	case SOUT_G168_1100GB_ON:
+	case SOUT_G168_2100GB_ON:	
+	case SOUT_G168_2100GB_WSPR:
+		*ec_dtmf_port = WAN_EC_CHANNEL_PORT_SOUT; return 'f';
+	
+			
+	case ROUT_G168_1100GB_ON:	
+	case ROUT_G168_2100GB_ON:
+	case ROUT_G168_2100GB_WSPR:	
+	 	*ec_dtmf_port = WAN_EC_CHANNEL_PORT_ROUT; return 'f';
+
 	}
 	return 0x00000000;
 }

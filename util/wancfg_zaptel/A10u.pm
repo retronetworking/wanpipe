@@ -385,9 +385,7 @@ sub gen_zaptel_conf{
                                 my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
                                 $zp_file.="bchan=".$first_ch."-".$last_ch."\n"; 
 				if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=" .$dahdi_echo.",".$first_ch."-".$last_ch."\n";
-						}
 
 				}
 
@@ -395,9 +393,7 @@ sub gen_zaptel_conf{
                         } else {
                                 $zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
 				if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=" .$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
-						}
 
 				}
 		
@@ -419,9 +415,7 @@ sub gen_zaptel_conf{
 
                                         $zp_file.="bchan=".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n"; 
 					if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=" .$dahdi_echo.",".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n";  
-						}
 
 					}
 
@@ -442,9 +436,7 @@ sub gen_zaptel_conf{
                         } else {
                                 $zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n"; 
 				if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=" .$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n"; 
-						}
 
 				}
 	
@@ -539,12 +531,7 @@ sub gen_zapata_conf{
 	$zp_file.="context=".$self->card->zap_context."\n";
        	$zp_file.="group=".$self->card->zap_group."\n";
 	if($dahdi_conf eq 'YES') {
-		if($hwec_mode eq 'NO' ) {
 			$zp_file.="echocancel=yes\n";
-		} else {
-			$zp_file.="echocancel=no\n";		
-		}
-
 	}
 
        	

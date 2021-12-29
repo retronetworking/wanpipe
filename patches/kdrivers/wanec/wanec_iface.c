@@ -114,6 +114,7 @@ extern int wanec_ChannelMute(wan_ec_dev_t*, INT ec_chan, wanec_chan_mute_t*, int
 extern int wanec_ChannelUnMute(wan_ec_dev_t*, INT ec_chan, wanec_chan_mute_t*, int);
 
 extern int wanec_TonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t*, int verbose);
+extern int wanec_FaxTonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t*, int verbose);
 extern int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t*, int verbose);
 
 extern int wanec_DebugChannel(wan_ec_dev_t*, INT, int);
@@ -680,10 +681,15 @@ static int wanec_channel_dtmf(	wan_ec_dev_t		*ec_dev,
 {
 	wan_ec_t	*ec = NULL;
 	int		ec_chan, err;
+	sdla_t 		*card;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
+	WAN_ASSERT(ec_dev->card == NULL);
+	
 	ec = ec_dev->ec;
+	card = ec_dev->card;
+
 	if (ec->state != WAN_EC_STATE_CHIP_READY){
 		DEBUG_EVENT(
 		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
@@ -707,9 +713,13 @@ static int wanec_channel_dtmf(	wan_ec_dev_t		*ec_dev,
 	PRINT1(verbose, "%s: %s EC DTMF detection on fe_chan:%d ...\n",
 			ec_dev->devname, (cmd==WAN_TRUE) ? "Enable" : "Disable",
 			fe_chan);
+
 	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
 	if (cmd == WAN_TRUE){
 		err = wanec_TonesEnable(ec, ec_chan, dtmf, verbose);
+		if (err == 0 && card->tdmv_conf.hw_fax_detect) {
+			err = wanec_FaxTonesEnable(ec, ec_chan, dtmf, verbose);
+		}
 	}else{
 		err = wanec_TonesDisable(ec, ec_chan, dtmf, verbose);
 	}

@@ -439,7 +439,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 	WAN_TASKQ_INIT((&adsl->adsl_if_send_task), 0, adsl_if_send_task_func, ifp);
 #endif
 
-	ifp->priv	= adsl;
+	wan_netif_set_priv(ifp, adsl);
 	ifp->irq        = card->wandev.irq;
 	card->hw_iface.getcfg(card->hw, SDLA_MEMBASE, &ifp->mem_start);
 	card->hw_iface.getcfg(card->hw, SDLA_MEMEND, &ifp->mem_end);
@@ -1767,9 +1767,23 @@ static int adsl_ioctl(netdevice_t* ifp, struct ifreq *ifr, int command)
 # endif
 #endif
 	adsl_private_area_t*	adsl = wan_netif_priv(ifp);
-	sdla_t*			card = (sdla_t*)adsl->common.card;
 	wan_udp_pkt_t*		wan_udp_pkt = NULL;
+	sdla_t *card;
 	int 		      	error = 0; 
+
+	if (!wan_netif_up(ifp)) {
+		DEBUG_EVENT("%s: Error: ADSL Device is not up\n",
+				wan_netif_name(ifp));
+		return -ENETDOWN;
+	}
+
+	if (!adsl || !adsl->common.card ) {
+		DEBUG_EVENT("%s: Error: ADSL Device is not configured\n",
+				wan_netif_name(ifp));
+		return -EFAULT;
+	}
+
+	card = (sdla_t*)adsl->common.card;
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	wan_smp_flag_t	s;
@@ -2397,7 +2411,7 @@ static int process_udp_cmd(netdevice_t* ifp, wan_udp_hdr_t* udp_hdr)
 #if defined (__LINUX__)
 static int wanpipe_attach_sppp(sdla_t *card, netdevice_t *dev, wanif_conf_t *conf)
 {
-	adsl_private_area_t *adsl=dev->priv;
+	adsl_private_area_t *adsl=wan_netif_priv(dev);
 	struct ppp_device *pppdev=NULL;
 	struct sppp *sp=NULL;
 

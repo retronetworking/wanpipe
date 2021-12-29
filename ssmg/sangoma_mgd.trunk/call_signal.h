@@ -56,7 +56,8 @@
 					(dest)->flags |= ((src)->flags & (flagz)); \
 					} while (0)
 
-typedef  t_sigboost call_signal_event_t;
+typedef  t_sigboost_callstart call_signal_event_t;
+typedef  t_sigboost_short short_signal_event_t;
 typedef uint32_t call_signal_event_id_t;
 
 typedef struct smg_ip_cfg
@@ -80,7 +81,6 @@ struct call_signal_connection {
 	unsigned int txseq;
 	unsigned int rxseq;
 	unsigned int txwindow;
-	unsigned int rxseq_reset;
 	smg_ip_cfg_t cfg;
 };
 
@@ -102,7 +102,8 @@ int call_signal_connection_open(call_signal_connection_t *mcon, char *local_ip, 
 call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon, int iteration);
 call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon, int iteration);
 int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_event_t *event);
-void call_signal_event_init(call_signal_event_t *event, call_signal_event_id_t event_id, int chan, int span);
+int call_signal_connection_writep(call_signal_connection_t *mcon, call_signal_event_t *event);
+void call_signal_event_init(short_signal_event_t *event, call_signal_event_id_t event_id, int chan, int span);
 void call_signal_call_init(call_signal_event_t *event, char *calling, char *called, int setup_id);
 char *call_signal_event_id_name(uint32_t event_id);
 

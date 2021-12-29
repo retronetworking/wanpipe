@@ -371,7 +371,7 @@ static int update (wan_device_t* wandev)
 	if(dev == NULL)
 		return -ENODEV;
 
-	if((bscstrm_priv_area=dev->priv) == NULL)
+	if((bscstrm_priv_area=wan_netif_priv(dev)) == NULL)
 		return -ENODEV;
 
 
@@ -453,7 +453,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	card->rxmb_off = card->mbox_off + 0x1000;
 
 	dev->init = &if_init;
-	dev->priv = bscstrm_priv_area;
+	wan_netif_set_priv(dev, bscstrm_priv_area);
 
 	card->wandev.new_if_cnt++;
 	return 0;
@@ -461,7 +461,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
-	bscstrm_private_area_t*	chan = dev->priv;
+	bscstrm_private_area_t*	chan = wan_netif_priv(dev);
 	sdla_t*			card = chan->card;
 
 	WAN_TASKLET_KILL(&chan->common.bh_task);
@@ -482,7 +482,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
  */
 static int if_init (netdevice_t* dev)
 	{
-	bscstrm_private_area_t* bscstrm_priv_area = dev->priv;
+	bscstrm_private_area_t* bscstrm_priv_area = wan_netif_priv(dev);
 	sdla_t* card = bscstrm_priv_area->card;
 	wan_device_t* wandev = &card->wandev;
 
@@ -540,7 +540,7 @@ static int if_init (netdevice_t* dev)
  */
 static int if_open (netdevice_t* dev)
 {
-	bscstrm_private_area_t* bscstrm_priv_area = dev->priv;
+	bscstrm_private_area_t* bscstrm_priv_area = wan_netif_priv(dev);
 	sdla_t* card = bscstrm_priv_area->card;
 	struct timeval tv;
 	int err = 0;
@@ -586,7 +586,7 @@ static int if_open (netdevice_t* dev)
  */
 static int if_close (netdevice_t* dev)
 {
-	bscstrm_private_area_t* bscstrm_priv_area = dev->priv;
+	bscstrm_private_area_t* bscstrm_priv_area = wan_netif_priv(dev);
 	sdla_t* card = bscstrm_priv_area->card;
 		
 	stop_net_queue(dev);
@@ -612,7 +612,7 @@ static int if_close (netdevice_t* dev)
  */
 static int if_send (struct sk_buff* skb, netdevice_t* dev)
 {
-	bscstrm_private_area_t *chan = dev->priv;
+	bscstrm_private_area_t *chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	wan_mbox_t *mbox = &card->wan_mbox;
 	unsigned long smp_flags;
@@ -683,7 +683,7 @@ static int if_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
 		return -ENODEV;
 	}
 	
-	if (!(chan = dev->priv)){
+	if (!(chan = wan_netif_priv(dev))){
 		return -ENODEV;
 	}
 
@@ -798,7 +798,7 @@ static WAN_IRQ_RETVAL wp_bscstrm_isr (sdla_t *card)
 		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
-	if ((bscstrm_priv_area = dev->priv) == NULL){
+	if ((bscstrm_priv_area = wan_netif_priv(dev)) == NULL){
 		WAN_IRQ_RETURN(WAN_IRQ_HANDLED);
 	}
 
@@ -887,7 +887,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 	sdla_t *my_card;
 	bscstrm_private_area_t* bscstrm_priv_area;
 
-	if ((bscstrm_priv_area=dev->priv) == NULL)
+	if ((bscstrm_priv_area=wan_netif_priv(dev)) == NULL)
 		return NULL;
 
 	my_card = bscstrm_priv_area->card;

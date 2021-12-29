@@ -2404,9 +2404,8 @@ static int process_chdlc_exception(sdla_t *card)
 					card->devname);
 					
 			if (IS_56K_CARD(card)) {
-				port_set_state(card, WAN_CONNECTED);
-				if (card->fe.fe_status != FE_CONNECTED) {
-					card->wandev.state = WAN_DISCONNECTED;
+				if (card->fe.fe_status == FE_CONNECTED) {
+					port_set_state(card, WAN_CONNECTED);
 				}
 			} else {		
 				if (card->wandev.ignore_front_end_status == WANOPT_YES ||

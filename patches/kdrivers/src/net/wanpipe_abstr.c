@@ -419,6 +419,12 @@ void* wpabs_malloc(int size)
 	return wan_malloc(size);
 }
 
+void* wpabs_kmalloc(int size)
+{
+	return wan_kmalloc(size);
+}
+
+
 void wpabs_free(void* ptr)
 {
 	wan_free(ptr);
@@ -440,6 +446,7 @@ unsigned long* wpabs_bus2virt(unsigned long ptr)
 	return wan_bus2virt(ptr);
 }
 
+
 /*
 **
 */
@@ -449,7 +456,7 @@ unsigned char wpabs_bus_read_1(void* cardp, int offset)
 	unsigned char	data = 0x00;
 
 	WAN_ASSERT(card == NULL);
-	card->hw_iface.peek(card->hw, offset, (void*)&data, 1);
+	card->hw_iface.bus_read_1(card->hw, offset, &data);
 	return data;
 }
 
@@ -459,10 +466,10 @@ unsigned char wpabs_bus_read_1(void* cardp, int offset)
 unsigned long wpabs_bus_read_4(void* cardp, int offset)
 {
 	sdla_t*		card = (sdla_t*)cardp;
-	unsigned long	data = 0x00;
+	u32 data = 0x00;
 
 	WAN_ASSERT(card == NULL);
-	card->hw_iface.peek(card->hw, offset, (void*)&data, 4);
+	card->hw_iface.bus_read_4(card->hw, offset, &data);
 	return data;
 }
 
@@ -474,7 +481,7 @@ void wpabs_bus_write_1(void* cardp, int offset, unsigned char data)
 	sdla_t*	card = (sdla_t*)cardp;
 
 	WAN_ASSERT1(card == NULL);
-	card->hw_iface.poke_byte(card->hw, offset, data);
+	card->hw_iface.bus_write_1(card->hw, offset, data);
 }
 
 /*
@@ -485,7 +492,7 @@ void wpabs_bus_write_4(void* cardp, int offset, unsigned long data)
 	sdla_t*	card = (sdla_t*)cardp;
 
 	WAN_ASSERT1(card == NULL);
-	card->hw_iface.poke(card->hw, offset, (void*)&data, 4);
+	card->hw_iface.bus_write_4(card->hw, offset, data);
 }
 
 /*

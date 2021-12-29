@@ -217,16 +217,6 @@ static __inline void WP_MDELAY (u32 ms) {
 #  define WAN_NETIF_CARRIER_ON(dev)	
 #  define WAN_NETIF_CARRIER_OK(dev)	1	
 # else
-#if 0
-#  define WAN_NETIF_WAKE_QUEUE(dev)	do{ 				\
-					if (((wanpipe_common_t *)dev->priv)->usedby == TDM_VOICE){ \
-						DEBUG_EVENT("%s: TDM VOICE not waking but starting!!!!\n",dev->name); \
-						netif_start_queue(dev);			\
-					}else{						\
-						netif_wake_queue(dev);			\
-					}						\
-					}while(0)
-#endif
 #  define WAN_NETIF_WAKE_QUEUE(dev)	netif_wake_queue(dev);
 #  define WAN_NETIF_START_QUEUE(dev)	netif_start_queue(dev)
 #  define WAN_NETIF_STOP_QUEUE(dev)	netif_stop_queue(dev)
@@ -2473,7 +2463,11 @@ static __inline void* wan_netif_priv(netdevice_t* dev)
 {
 	WAN_ASSERT2(dev == NULL, NULL);
 #if defined(__LINUX__)
+#  if  (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
 	return dev->priv;
+#  else
+	return dev->ml_priv;
+#  endif
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	return dev->if_softc;
 #elif defined(__WINDOWS__)
@@ -2502,7 +2496,11 @@ static __inline void wan_netif_set_priv(netdevice_t* dev, void* priv)
 {
 	WAN_ASSERT1(dev == NULL);
 #if defined(__LINUX__)
+#  if  (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
 	dev->priv = priv;
+#  else
+	dev->ml_priv = priv;
+#  endif
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	dev->if_softc = priv;
 #elif defined(__WINDOWS__)

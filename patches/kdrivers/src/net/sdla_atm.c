@@ -676,7 +676,7 @@ static int update (wan_device_t* wandev)
 	if(dev == NULL)
 		return -ENODEV;
 
-	if((priv_area=dev->priv) == NULL)
+	if((priv_area=wan_netif_priv(dev)) == NULL)
 		return -ENODEV;
 
 
@@ -922,7 +922,7 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 	 * finished successfully.  DO NOT place any code below that
 	 * can return an error */
 	dev->init = &if_init;
-	dev->priv = priv_area;
+	wan_netif_set_priv(dev, priv_area);
 
 	/* Increment the number of network interfaces 
 	 * configured on this card.  
@@ -942,8 +942,7 @@ new_if_error:
 	}
 	
 	wan_free(priv_area);
-
-	dev->priv=NULL;
+	wan_netif_set_priv(dev, NULL);
 
 	return err;
 }
@@ -967,7 +966,7 @@ new_if_error:
  */
 static int del_if (wan_device_t* wandev, struct net_device* dev)
 {
-	private_area_t* 	priv_area = dev->priv;
+	private_area_t* 	priv_area = wan_netif_priv(dev);
 	sdla_t*			card = wandev->priv;
 	unsigned long		flags;
 
@@ -1029,7 +1028,7 @@ static int del_if (wan_device_t* wandev, struct net_device* dev)
  */
 static int if_init (struct net_device* dev)
 {
-	private_area_t* priv_area = dev->priv;
+	private_area_t* priv_area = wan_netif_priv(dev);
 	sdla_t* card = priv_area->card;
 	wan_device_t* wandev = &card->wandev;
 
@@ -1106,7 +1105,7 @@ static int if_init (struct net_device* dev)
  */
 static int if_open (struct net_device* dev)
 {
-	private_area_t* priv_area = dev->priv;
+	private_area_t* priv_area = wan_netif_priv(dev);
 	sdla_t* card = priv_area->card;
 	struct timeval tv;
 	int err = 0;
@@ -1167,7 +1166,7 @@ static int if_open (struct net_device* dev)
 
 static int if_close (struct net_device* dev)
 {
-	private_area_t* priv_area = dev->priv;
+	private_area_t* priv_area = wan_netif_priv(dev);
 	sdla_t* card = priv_area->card;
 
 	stop_net_queue(dev);
@@ -1272,7 +1271,7 @@ static void disable_comm (sdla_t *card)
  */
 static void if_tx_timeout (struct net_device *dev)
 {
-    	private_area_t* chan = dev->priv;
+    	private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	
 	/* If our device stays busy for at least 5 seconds then we will
@@ -1323,7 +1322,7 @@ static void if_tx_timeout (struct net_device *dev)
  */
 static int if_send (netskb_t* skb, struct net_device* dev)
 {
-	private_area_t *chan = dev->priv;
+	private_area_t *chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	unsigned long smp_flags;
 	int err=0;
@@ -1473,7 +1472,7 @@ static int chk_bcast_mcast_addr(sdla_t *card, struct net_device* dev,
 {
 	u32 src_ip_addr;
         u32 broadcast_ip_addr = 0;
-	private_area_t *priv_area=dev->priv;
+	private_area_t *priv_area=wan_netif_priv(dev);
         struct in_device *in_dev;
         /* read the IP source address from the outgoing packet */
         src_ip_addr = *(u32 *)(wan_skb_data(skb) + 12);
@@ -1522,7 +1521,7 @@ static struct net_device_stats* if_stats (struct net_device* dev)
 {
 	private_area_t* priv_area;
 
-	if ((priv_area=dev->priv) == NULL)
+	if ((priv_area=wan_netif_priv(dev)) == NULL)
 		return NULL;
 
 	return &priv_area->if_stats;
@@ -1552,7 +1551,7 @@ static struct net_device_stats* if_stats (struct net_device* dev)
  */
 static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
-	private_area_t* chan= (private_area_t*)dev->priv;
+	private_area_t* chan = wan_netif_priv(dev);
 	unsigned long smp_flags;
 	wan_udp_pkt_t *wan_udp_pkt;
 	sdla_t *card;
@@ -2472,7 +2471,7 @@ static void tx_intr (sdla_t* card)
 			goto tx_intr_dev_skip;
 		}
 		
-		chan = dev->priv;
+		chan = wan_netif_priv(dev);
 		if (WAN_NETIF_QUEUE_STOPPED(dev)){
 
 			if (dev_kicked){
@@ -2647,7 +2646,7 @@ void timer_intr(sdla_t *card)
 		goto timer_isr_exit;
 	}
 	
-        priv_area = dev->priv;
+        priv_area = wan_netif_priv(dev);
 
 	/* process a udp call if pending */
        	if(card->timer_int_enabled & TMR_INT_ENABLED_UDP) {
@@ -3740,7 +3739,7 @@ static void trigger_poll (struct net_device *dev)
 	if (!dev)
 		return;
 	
-	if ((priv_area = dev->priv)==NULL)
+	if ((priv_area = wan_netif_priv(dev))==NULL)
 		return;
 
 	card = priv_area->card;
@@ -3999,7 +3998,7 @@ static int get_if_info(char* buf, char** start, off_t offs, int len, int dummy)
 {
 	int 			cnt = 0;
 	struct net_device*	dev = (void*)start;
-	private_area_t* 	priv_area = dev->priv;
+	private_area_t* 	priv_area = wan_netif_priv(dev);
 	sdla_t*			card = priv_area->card;
 	int 			size = 0;
 	PROC_ADD_DECL(stop_cnt);
@@ -4038,13 +4037,10 @@ static int set_if_info(struct file *file,
 		       void *data)
 {
 	struct net_device*	dev = (void*)data;
-	private_area_t* 	priv_area = NULL;
+	private_area_t* 	priv_area;
 
-	if (dev == NULL || dev->priv == NULL)
+	if (dev == NULL || (priv_area = wan_netif_priv(dev)) == NULL)
 		return count;
-
-	priv_area = (private_area_t*)dev->priv;
-
 
 	DEBUG_EVENT( "%s: New interface config (%s)\n",
 			priv_area->if_name, buffer);

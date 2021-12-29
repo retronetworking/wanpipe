@@ -165,6 +165,8 @@ typedef struct wp_tdmv_remora_ {
 	unsigned int	dtmfmask;
 	unsigned int	dtmfmutemask;
 
+	unsigned long	ec_fax_detect_timeout[MAX_REMORA_MODULES+1];
+
 } wp_tdmv_remora_t;
 
 /*******************************************************************************
@@ -207,9 +209,15 @@ static int wp_tdmv_remora_rx_chan_sync_test(sdla_t *card, wp_tdmv_remora_t *wr, 
 #undef WAN_SYNC_RX_TX_TEST
 #endif
 
+
 /*******************************************************************************
 **			  FUNCTION DEFINITIONS
 *******************************************************************************/
+
+#define wp_fax_tone_timeout_set(wr,chan) do { DEBUG_TEST("%s:%d: s%dc%d fax timeout set\n", \
+											__FUNCTION__,__LINE__, \
+											wr->spanno+1,chan); \
+											wr->ec_fax_detect_timeout[chan]=SYSTEM_TICKS; } while(0);
 
 static int
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -377,6 +385,7 @@ static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig)
 	wp_tdmv_remora_t	*wr = chan->pvt;
 	sdla_t			*card = NULL;
 	sdla_fe_t		*fe = NULL;
+	int			fe_chan = chan->chanpos;
 
 	WAN_ASSERT(wr->card == NULL);
 	card	= wr->card;
@@ -385,8 +394,11 @@ static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig)
 	if (fe->rm_param.mod[chan->chanpos - 1].type == MOD_TYPE_FXO) {
 		/* XXX Enable hooksig for FXO XXX */
 		switch(txsig) {
-		case ZT_TXSIG_START:
 		case ZT_TXSIG_OFFHOOK:
+			wp_fax_tone_timeout_set(wr,fe_chan);
+
+			/* Drop down */
+		case ZT_TXSIG_START:
 			DEBUG_TDMV("%s: Module %d: goes off-hook (txsig %d)\n", 
 					wr->devname, chan->chanpos, txsig);
 			wr->mod[chan->chanpos - 1].fxo.offhook = 1;
@@ -430,6 +442,7 @@ static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig)
 			}
 			break;
 		case ZT_TXSIG_OFFHOOK:
+			wp_fax_tone_timeout_set(wr,fe_chan);
 			DEBUG_TDMV("%s: Module %d: goes off-hook (txsig %d).\n",
 					wr->devname, chan->chanpos, txsig);
 			switch(chan->sig) {
@@ -534,7 +547,6 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 	wr = chan->pvt;
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card = wr->card;
-	
 
 	if (enable) {
 		wan_set_bit(fe_chan,&card->wandev.rtp_tap_call_map);
@@ -715,6 +727,7 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 					wr->mod[mod_no].fxo.readcid = 0;
  					wr->mod[mod_no].fxo.cidtimer = wr->intcount;
 					zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
+					
 					DEBUG_TDMV("%s: Module %d: NO RING on span %d!\n",
 							wr->devname,
 							mod_no + 1,
@@ -1853,6 +1866,7 @@ static void wp_tdmv_remora_dtmf (void* card_id, wan_event_t *event)
 	sdla_t	*card = (sdla_t*)card_id;
         wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
         wp_tdmv_remora_t	*wr = NULL;
+	int fechan = event->channel;
 
         WAN_ASSERT1(wan_tdmv->sc == NULL);
         wr = wan_tdmv->sc;
@@ -1879,6 +1893,42 @@ static void wp_tdmv_remora_dtmf (void* card_id, wan_event_t *event)
 					card->devname,
 					event->channel);
 		return;
+	}
+
+	if (event->digit == 'f' && fechan >= 0) {
+
+		if (!card->tdmv_conf.hw_fax_detect) {
+			DEBUG_TDMV("%s: Received Fax Detect event while hw fax disabled !\n",card->devname);
+			return;
+		}
+
+		if (card->tdmv_conf.hw_fax_detect == WANOPT_YES) {
+         	card->tdmv_conf.hw_fax_detect=8;
+		}    
+
+		if (wr->ec_fax_detect_timeout[fechan] == 0) {
+			DEBUG_TDMV("%s: FAX DETECT TIMEOUT --- Not initialized!\n",card->devname);
+			return;
+
+		} else 	if (card->tdmv_conf.hw_fax_detect &&
+	    		   (SYSTEM_TICKS - wr->ec_fax_detect_timeout[fechan]) >= card->tdmv_conf.hw_fax_detect*HZ) {
+#ifdef WAN_DEBUG_TDMAPI 
+			if (WAN_NET_RATELIMIT()) {
+				DEBUG_EVENT("%s: Warning: Ignoring Fax detect during call (s%dc%d) - Call Time: %ld  Max: %d!\n",
+					card->devname,
+					wr->spanno+1,
+					event->channel,
+					(SYSTEM_TICKS - wr->ec_fax_detect_timeout[fechan])/HZ,
+					card->tdmv_conf.hw_fax_detect);
+			}
+#endif
+			return;
+		} else {
+			DEBUG_TDMV("%s: FAX DETECT OK --- Ticks=%lu Timeout=%lu Diff=%lu! s%dc%d\n",
+				card->devname,SYSTEM_TICKS,wr->ec_fax_detect_timeout[fechan],
+				(SYSTEM_TICKS - wr->ec_fax_detect_timeout[fechan])/HZ,
+				card->wan_tdmv.spanno,fechan);
+		}
 	}
 
 	if (event->dtmf_type == WAN_EC_TONE_PRESENT){

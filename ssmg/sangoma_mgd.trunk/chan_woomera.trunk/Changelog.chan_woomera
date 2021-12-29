@@ -1,5 +1,52 @@
 chan_woomera.c
 ======================================
+
+Apr 05 2009
+ * v1.48 Nenad Corbic <ncorbic@sangoma.com>
+ *      Updated locking on pbx_start
+ *      
+ 
+Apr 03 2009
+ * v1.47 Nenad Corbic <ncorbic@sangoma.com>
+ *      Added BLOCKER sanity check.
+ *
+ 
+Mar 29 2009
+ * v1.46 Nenad Corbic <ncorbic@sangoma.com>
+ *      Added hup_pending stat to call_status
+ *      Let tech_hangup destroy softhungup channel
+ *
+ 
+Mar 27 2009
+ * v1.45 Nenad Corbic <ncorbic@sangoma.com>
+ *      Major updates on channel locking.
+ *      This update fixes potential crashing issues
+ *      under heavy load. Stress tested in 500+ call 
+ *      environment. 
+ *
+ 
+Mar 55 2009
+ * v1.44 Nenad Corbic <ncorbic@sangoma.com>
+ *      Updated woomera channel locking using 
+ *      DEADLOCK_AVOIDANCE. Fixed RDNIS transmission issue.
+
+
+Mar 01 2009
+ * v1.43 David Yat Sin <dyatsin@sangoma.com>
+ *      Fix for crash on callweaver trunk due to opbxtransfercapability2str
+ *      not defined
+ *
+
+Feb 25 2009
+ * v1.42 David Yat Sin <dyatsin@sangoma.com>
+ *      Support for callweaver trunk
+ *
+ 
+Jan 26 2008
+ * v1.40 Nenad Corbic <ncorbic@sangoma.com>
+ *      Call Bearer Capability Feature
+ *
+
  Dec 19 2008
  * v1.39 David Yat Sin <dyatsin@sangoma.com>
  * 	Support for Asterisk 1.6

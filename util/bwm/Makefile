@@ -1,13 +1,12 @@
-all: 
-	$(shell cd bwm-ng; ./configure > /dev/null)
-	make -C bwm-ng
+all: bwm.c
+	$(CC) $(CFLAGS) -O2 -Wall bwm.c -o wpbwm
 
 clean:
-	make -C bwm-ng clean
+	rm -f wpbwm
 
 install:
 	@echo "Installing wpbwm in $(WAN_VIRTUAL)/usr/sbin"
-	install -D bwm-ng/src/bwm-ng	  $(WAN_VIRTUAL)/usr/sbin/wpbwm
+	install -D wpbwm	  $(WAN_VIRTUAL)/usr/sbin/wpbwm
 
 uninstall:
 	@echo "Un-installing wpbwm from $(WAN_VIRTUAL)/usr/sbin"

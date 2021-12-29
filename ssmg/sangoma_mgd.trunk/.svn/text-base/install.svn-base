@@ -40,7 +40,7 @@ getyn()
 home=`pwd`;
 
 force="false"
-noss7="true"
+noss7="invalid"
 rootdir=""
 pbxdir=/usr/src/asterisk
 pbxd="asterisk"
@@ -56,6 +56,10 @@ do
 	if [ $1 = '-force' ]; then
 		force="force"
 	elif [ $1 = '-noss7' ]; then
+		noss7="true"
+	elif [ $1 = '-ss7' ]; then
+		noss7="flase"
+	elif [ $1 = '-bri' ]; then
 		noss7="true"
 	elif [ $1 = '-pbxdir' ]; then
 		shift
@@ -97,6 +101,14 @@ else
 	echo "PBXD=asterisk" > /etc/wanpipe/pbxd
 	pbxd="asterisk"
 	cfgdir="/etc/asterisk"
+fi
+
+if [ $noss7 == 'invalid' ]; then
+	echo
+	echo "Usage Error: ./install [-bri|-ss7]"
+	echo "Please specify if smg is being installed for BRI or SS7"
+	echo
+	exit 1
 fi
 
 if [ $noss7 != 'true' ]; then
@@ -248,7 +260,27 @@ echo "OK."
 echo
 
 
+echo "Compiling LibTeletone MGD ..."
+echo
+sleep 1
+cd lib/libteletone
+eval "./configure > /dev/null"
+echo "..."
+eval "make clean > /dev/null"
+eval "make > /devnull" 
+if [ $? -ne 0 ]; then
+	exit 1;
+fi
+make install
+echo "Ok."
+
+cd $home
+
+echo
+echo
 echo "Compiling Sangoma MGD ..."
+echo
+sleep 1
 eval "make clean 2> /dev/null > /dev/null"
 if [ $noss7 = "true" ]; then
         eval "make NO_SS7=YES" 
@@ -292,6 +324,10 @@ if [ -d chan_woomera.trunk ]; then
 		echo "       Please provide the path to Asterik or CallWeaver source."
 		echo "       Then re-run eg: ./install -pbxdir /usr/src/asterisk "
 		echo
+		getyn "Would you like to continue installation?"
+		if [ $? -ne 0 ]; then
+			exit 1;
+		fi
 	else
 		eval "make clean 2> /dev/null > /dev/null"
 		eval "make PBXDIR=$pbxdir"

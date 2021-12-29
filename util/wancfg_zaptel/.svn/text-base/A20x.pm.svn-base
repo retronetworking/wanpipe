@@ -177,19 +177,43 @@ sub gen_wanpipe_conf{
 sub gen_zaptel_conf{
 	my ($self, $channel, $type) = @_;
 	my $zp_file='';
+	my $dahdi_conf = $self->card->dahdi_conf;
+	my $hwec_mode = $self->card->hwec_mode;
+	my $dahdi_echo = $self->card->dahdi_echo;
 	if ( $type eq 'fxo'){
 		#this is an FXS module
 		$zp_file.="fxoks=$channel\n";
 	}else{
 		$zp_file.="fxsks=$channel\n";
 	}
+	
+	if($dahdi_conf eq 'YES') {
+		if($hwec_mode eq 'NO' ) {
+			$zp_file.="echocanceller=" .$dahdi_echo.",".$channel."\n"; 
+		}
+
+	}
+
 	return $zp_file;	
 }
 sub gen_zapata_conf{
+	
 	my ($self, $channel, $type) = @_;
+	my $dahdi_conf = $self->card->dahdi_conf;
+	my $hwec_mode = $self->card->hwec_mode;
+	my $dahdi_echo = $self->card->dahdi_echo;
 	my $zp_file='';
 	$zp_file.="context=".$self->card->zap_context."\n";
 	$zp_file.="group=".$self->card->zap_group."\n";
+
+	if($dahdi_conf eq 'YES') {
+		if($hwec_mode eq 'NO' ) {
+			$zp_file.="echocancel=yes\n";
+		} else {
+			$zp_file.="echocancel=no\n";		
+		}
+
+	}
 		
 	if ( $type eq 'fxo'){
 		#this is an FXS module

@@ -794,7 +794,7 @@ static int new_if(wan_device_t *wandev, netdevice_t *dev, wanif_conf_t *conf)
 	}
 
 	dev->init = &if_init;
-	dev->priv = ppp_priv_area;
+	wan_netif_set_priv(dev, ppp_priv_area);
 	dev->mtu = wp_min(dev->mtu, card->wandev.mtu);
 	ppp_priv_area->ppp_state=WAN_DISCONNECTED;
 	
@@ -807,7 +807,7 @@ static int new_if(wan_device_t *wandev, netdevice_t *dev, wanif_conf_t *conf)
 new_if_error:
 
 	kfree(ppp_priv_area);
-	dev->priv=NULL;
+	wan_netif_set_priv(dev, NULL);
 
 	return err;
 }
@@ -829,7 +829,7 @@ new_if_error:
  */
 static int del_if(wan_device_t *wandev, netdevice_t *dev)
 {
-	ppp_private_area_t* 	ppp_priv_area = dev->priv;
+	ppp_private_area_t* 	ppp_priv_area = wan_netif_priv(dev);
 	
 	/* Delete interface name from proc fs. */
 	wanrouter_proc_delete_interface(wandev, ppp_priv_area->if_name);
@@ -883,7 +883,7 @@ static void disable_comm (sdla_t *card)
  */
 static int if_init(netdevice_t *dev)
 {
-	ppp_private_area_t *ppp_priv_area = dev->priv;
+	ppp_private_area_t *ppp_priv_area = wan_netif_priv(dev);
 	sdla_t *card = ppp_priv_area->card;
 	wan_device_t *wandev = &card->wandev;
 
@@ -949,7 +949,7 @@ static int if_init(netdevice_t *dev)
  */
 static int if_open (netdevice_t *dev)
 {
-	ppp_private_area_t *ppp_priv_area = dev->priv;
+	ppp_private_area_t *ppp_priv_area = wan_netif_priv(dev);
 	sdla_t *card = ppp_priv_area->card;
 	struct timeval tv;
 
@@ -987,7 +987,7 @@ static int if_open (netdevice_t *dev)
  */
 static int if_close(netdevice_t *dev)
 {
-	ppp_private_area_t *ppp_priv_area = dev->priv;
+	ppp_private_area_t *ppp_priv_area = wan_netif_priv(dev);
 	sdla_t *card = ppp_priv_area->card;
 
 	stop_net_queue(dev);
@@ -1005,7 +1005,7 @@ static int if_close(netdevice_t *dev)
  */
 static void if_tx_timeout (netdevice_t *dev)
 {
-    	ppp_private_area_t* chan = dev->priv;
+    	ppp_private_area_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 	
 	/* If our device stays busy for at least 5 seconds then we will
@@ -1043,7 +1043,7 @@ static void if_tx_timeout (netdevice_t *dev)
  */
 static int if_send (struct sk_buff *skb, netdevice_t *dev)
 {
-	ppp_private_area_t *ppp_priv_area = dev->priv;
+	ppp_private_area_t *ppp_priv_area = wan_netif_priv(dev);
 	sdla_t *card = ppp_priv_area->card;
 	unsigned char *sendpacket;
 	unsigned long smp_flags=0;
@@ -1197,7 +1197,7 @@ if_send_exit_crit:
 /* SNMP */ 
 static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 {
-	ppp_private_area_t* chan= (ppp_private_area_t*)dev->priv;
+	ppp_private_area_t* chan= wan_netif_priv(dev);
 	unsigned long smp_flags;
 	sdla_t *card;
 	wan_udp_pkt_t *wan_udp_pkt;
@@ -1482,7 +1482,7 @@ static void switch_net_numbers(unsigned char *sendpacket, unsigned long network_
 static struct net_device_stats *if_stats(netdevice_t *dev)
 {
 
-	ppp_private_area_t *ppp_priv_area = dev->priv;
+	ppp_private_area_t *ppp_priv_area = wan_netif_priv(dev);
 	sdla_t* card;
 	
 	if( ppp_priv_area == NULL )
@@ -2056,9 +2056,9 @@ static void rx_intr(sdla_t *card)
 		return;
 	}
       
-	if (dev && is_dev_running(dev) && dev->priv){
+	if (dev && is_dev_running(dev) && wan_netif_priv(dev)){
 		len  = rxbuf.length;
-		ppp_priv_area = dev->priv;
+		ppp_priv_area = wan_netif_priv(dev);
 
 		/* Allocate socket buffer */
 		skb = dev_alloc_skb(len+2);
@@ -2716,7 +2716,7 @@ static int retrigger_comm(sdla_t *card)
 static int config508(netdevice_t *dev, sdla_t *card)
 {
 	ppp508_conf_t cfg;
-	ppp_private_area_t *ppp_priv_area = dev->priv;
+	ppp_private_area_t *ppp_priv_area = wan_netif_priv(dev);
 
 	/* Prepare PPP configuration structure */
 	memset(&cfg, 0, sizeof(ppp508_conf_t));
@@ -3897,7 +3897,7 @@ static void ppp_poll (struct work_struct *work)
 #else
 	netdevice_t *dev=dev_ptr;
 	ppp_private_area_t *ppp_priv_area; 	
-	if (!dev || (ppp_priv_area = dev->priv) == NULL)
+	if (!dev || (ppp_priv_area = wan_netif_priv(dev)) == NULL)
 		return;
 #endif
 
@@ -4038,7 +4038,7 @@ static void trigger_ppp_poll (netdevice_t *dev)
 {
 	ppp_private_area_t *ppp_priv_area;
 
-	if ((ppp_priv_area=dev->priv) != NULL){ 	
+	if ((ppp_priv_area=wan_netif_priv(dev)) != NULL){ 	
 		
 		sdla_t *card = ppp_priv_area->card;
 
@@ -4257,9 +4257,9 @@ static int ppp_snmp_data(sdla_t* card, netdevice_t *dev, void* data)
 	ppp_private_area_t* 	ppp_priv_area = NULL;
 	wanpipe_snmp_t*		snmp;
 
-	if (dev == NULL || dev->priv == NULL)
+	if (dev == NULL || wan_netif_priv(dev) == NULL)
 		return -EFAULT;
-	ppp_priv_area = (ppp_private_area_t*)dev->priv;
+	ppp_priv_area = (ppp_private_area_t*)wan_netif_priv(dev);
 	if (card->wandev.update) {
 		int rslt = 0;
 		rslt = card->wandev.update(&card->wandev);
@@ -4359,9 +4359,9 @@ static int ppp_set_if_info(struct file *file,
 	netdevice_t*		dev = (void*)data;
 	ppp_private_area_t* 	ppp_priv_area = NULL;
 
-	if (dev == NULL || dev->priv == NULL)
+	if (dev == NULL || wan_netif_priv(dev) == NULL)
 		return count;
-	ppp_priv_area = (ppp_private_area_t*)dev->priv;
+	ppp_priv_area = (ppp_private_area_t*)wan_netif_priv(dev);
 
 	printk(KERN_INFO "%s: New interface config (%s)\n",
 			ppp_priv_area->if_name, buffer);

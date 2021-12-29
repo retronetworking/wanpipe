@@ -16,40 +16,34 @@ function stop_all()
 		eval "kill -TERM $(pidof $sigd) 2>/dev/null >/dev/null"
 		if [ $? -eq 0 ]; then
 			echo "OK"
-		else 
-			echo "FAILED"
-			echo -n "Sending KILL signal to $sigd..."
-			eval "kill -KILL $(pidof $sigd) 2>/dev/null >/dev/null"
-			if [ $? eq 0 ]; then
-				echo "OK\n"
-			else
-				echo "Failed"
-				echo "Failed to stop $sigd"
-				exit 1
-			fi
 		fi
 	else
 		echo "$sigd not running..."
 	fi
 		
 	eval "kill -KILL $(pidof $sigd) 2>/dev/null >/dev/null"
+	if [ $? -eq 0 ]; then
+		echo "OK (kill)\n"
+	fi
+	eval "rm -f /var/run/$sigd.*"
 
-#stop sangoma media gateway
+	#stop sangoma media gateway
 	if [ $(pidof sangoma_mgd) ]; then
 		echo -n "Sending TERM signal to sangoma_mgd..."
 		eval "sangoma_mgd -term 2>/dev/null >/dev/null"
 		if [ $? -eq 0 ]; then
 			echo "OK"
-		else 
-			echo "FAILED"
-			echo "Failed to stop sangoma_mgd"
-			exit 1
 		fi
 	else 
 		echo "sangoma_mgd not running..."
 	fi
 		
 	eval "kill -KILL $(pidof sangoma_mgd) 2>/dev/null >/dev/null"
+	if [ $? -eq 0 ]; then
+		echo "OK (kill)\n"
+	fi
+	eval "sangoma_mgd -wipe -term 2>/dev/null >/dev/null"
+	
 }
 
 function start_all()

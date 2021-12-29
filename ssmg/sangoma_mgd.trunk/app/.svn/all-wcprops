@@ -1,17 +1,17 @@
 K 25
 svn:wc:ra_dav:version-url
-V 45
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/app
+V 37
+/svn/sangoma_mgd/!svn/ver/1/trunk/app
 END
 app_changrab.so
 K 25
 svn:wc:ra_dav:version-url
-V 61
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/app/app_changrab.so
+V 53
+/svn/sangoma_mgd/!svn/ver/1/trunk/app/app_changrab.so
 END
 app_changrab.c
 K 25
 svn:wc:ra_dav:version-url
-V 60
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/app/app_changrab.c
+V 52
+/svn/sangoma_mgd/!svn/ver/1/trunk/app/app_changrab.c
 END

@@ -38,8 +38,10 @@ extern int	cause;
 extern int	card_cnt;
 extern int	i_cnt;
 
-extern char tx_file[WAN_IFNAME_SZ];
-extern char rx_file[WAN_IFNAME_SZ];
+#define WAN_FILE_NAME_SZ 1024
+
+extern char tx_file[WAN_FILE_NAME_SZ];
+extern char rx_file[WAN_FILE_NAME_SZ];
 
 #define TX_ADDR_STR_SZ  100
 

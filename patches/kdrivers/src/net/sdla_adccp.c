@@ -808,8 +808,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	/* Bug Fix: Seg Err on PVC startup
 	 * It must be here since bind_lcn_to_dev expects 
 	 * it bellow */
-	dev->priv = chan;
-	
+	wan_netif_set_priv(dev, chan); 
 	strcpy(chan->name, conf->name);
 	chan->card = card;
 	chan->dev = dev;
@@ -832,7 +831,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 	if (err){
 		kfree(chan);
-		dev->priv = NULL;
+		wan_netif_set_priv(dev, NULL);
 		return err;
 	}
 	
@@ -882,11 +881,11 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
 	sdla_t *card=wandev->priv;
-	x25_channel_t* chan = dev->priv;
+	x25_channel_t* chan = wan_netif_priv(dev);
 
 	set_chan_state(dev, WAN_DISCONNECTED);
 	WAN_TASKLET_KILL(&chan->common.bh_task);
-	wan_unreg_api(dev->priv, card->devname);
+	wan_unreg_api(chan, card->devname);
 	return 0;
 }
 
@@ -941,7 +940,7 @@ static void disable_comm(sdla_t* card)
  */
 static int if_init (netdevice_t* dev)
 {
-	x25_channel_t* chan = dev->priv;
+	x25_channel_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	wan_device_t* wandev = &card->wandev;
 
@@ -1017,7 +1016,7 @@ static int if_init (netdevice_t* dev)
 
 static int if_open (netdevice_t* dev)
 {
-	x25_channel_t* chan = dev->priv;
+	x25_channel_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	struct timeval tv;
 	unsigned long smp_flags;
@@ -1074,7 +1073,7 @@ static int if_open (netdevice_t* dev)
  */
 static int if_close (netdevice_t* dev)
 {
-	x25_channel_t* chan = dev->priv;
+	x25_channel_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	unsigned long smp_flags;
 	
@@ -1112,7 +1111,7 @@ static int if_close (netdevice_t* dev)
  */
 static void if_tx_timeout (netdevice_t *dev)
 {
-    	x25_channel_t* chan = dev->priv;
+    	x25_channel_t* chan = wan_netif_priv(dev);
 	sdla_t *card = chan->card;
 
 	/* If our device stays busy for at least 5 seconds then we will
@@ -1149,7 +1148,7 @@ static void if_tx_timeout (netdevice_t *dev)
 
 static int if_send (struct sk_buff* skb, netdevice_t* dev)
 {
-	x25_channel_t* chan = dev->priv;
+	x25_channel_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	TX25Status	status;
 	unsigned long smp_flags=0;
@@ -1271,7 +1270,7 @@ if_send_crit_exit:
  *==============================================================*/
 static struct net_device_stats *if_stats (netdevice_t* dev)
 {
-	x25_channel_t *chan = dev->priv;
+	x25_channel_t *chan = wan_netif_priv(dev);
 
 	if(chan == NULL)
 		return NULL;
@@ -1292,7 +1291,7 @@ static int if_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
 		return -ENODEV;
 	}
 	
-	if (!(chan = dev->priv)){
+	if (!(chan = wan_netif_priv(dev))){
 		return -ENODEV;
 	}
 
@@ -1654,7 +1653,7 @@ static void rx_intr (sdla_t* card)
 		return;
 	}
 
-	chan = dev->priv;
+	chan = wan_netif_priv(dev);
 	chan->i_timeout_sofar = jiffies;
 
 
@@ -1741,7 +1740,7 @@ static int wanpipe_pull_data_in_skb (sdla_t *card, netdevice_t *dev, struct sk_b
 	void*		bufptr;
 	wan_mbox_t	rxmb;
 	unsigned	len;
-	x25_channel_t*	chan = dev->priv;
+	x25_channel_t*	chan = wan_netif_priv(dev);
 	struct sk_buff*	new_skb = *skb;
 
 	card->hw_iface.peek(card->hw, card->rxmb_off, &rxmb, sizeof(rxmb));
@@ -1829,7 +1828,7 @@ static void tx_intr (sdla_t* card)
 	}
 #endif
 
-	chan = dev->priv;
+	chan = wan_netif_priv(dev);
 
 
 	/* Device was set to transmit, check if the TX
@@ -1885,7 +1884,7 @@ static void timer_intr (sdla_t *card)
 			card->u.x.timer_int_enabled &= ~TMR_INT_ENABLED_POLL_ACTIVE;
 			return;
 		}
-		chan = dev->priv;
+		chan = wan_netif_priv(dev);
 
 		printk(KERN_INFO 
 			"%s: Closing down Idle link %s on LCN %d\n",
@@ -2146,7 +2145,7 @@ static void poll_disconnected (sdla_t* card)
 	if (dev == NULL)
 		return;
 
-	if ((chan=dev->priv) == NULL)
+	if ((chan=wan_netif_priv(dev)) == NULL)
 		return;
 
 	if (card->open_cnt && (jiffies - card->state_tick) > HOLD_DOWN_TIME){
@@ -2886,7 +2885,7 @@ static int disconnect (sdla_t* card)
 
 static int chan_disc (netdevice_t* dev)
 {
-	x25_channel_t* chan = dev->priv;
+	x25_channel_t* chan = wan_netif_priv(dev);
 
 	if (chan->common.svc){ 
 		x25_clear_call(chan->card, chan->common.lcn, 0, 0);
@@ -2909,7 +2908,7 @@ static int chan_disc (netdevice_t* dev)
 
 static void set_chan_state (netdevice_t* dev, int state)
 {
-	x25_channel_t* chan = dev->priv;
+	x25_channel_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	
 	if (chan->common.state != state)
@@ -2999,7 +2998,7 @@ static void set_chan_state (netdevice_t* dev, int state)
 
 static int chan_send (netdevice_t* dev, void* buff, unsigned data_len, unsigned char tx_intr)
 {
-	x25_channel_t* chan = dev->priv;
+	x25_channel_t* chan = wan_netif_priv(dev);
 	sdla_t* card = chan->card;
 	unsigned len=0, qdm=0, res=0, orig_len = 0;
 	void *data;
@@ -3391,7 +3390,7 @@ static int tx_intr_cmd_exec (sdla_t* card)
 		return 0;
 	}	
 
-	chan = dev->priv;
+	chan = wan_netif_priv(dev);
 	if (!chan){
 		return 0;
 	}
@@ -3461,7 +3460,7 @@ static int execute_delayed_cmd (sdla_t* card, netdevice_t *dev, char bad_cmd)
 {
 	wan_mbox_t* mbox = &card->wan_mbox;
 	int err;
-	x25_channel_t *chan=dev->priv;
+	x25_channel_t *chan=wan_netif_priv(dev);
 
 	/* If channel is pvc, instead of place call
          * run x25_channel configuration. If running LAPB HDLC
@@ -3519,7 +3518,7 @@ static int send_oob_msg (sdla_t *card, netdevice_t *dev, wan_mbox_t *mbox)
 	unsigned char *buf;
 	int len = sizeof(x25api_hdr_t)+mbox->wan_data_len;
 	x25api_hdr_t *x25_api_hdr;
-	x25_channel_t *chan=dev->priv;
+	x25_channel_t *chan=wan_netif_priv(dev);
 	struct sk_buff *skb;
 	int err=0;
 	if (chan->common.usedby != API)
@@ -3641,7 +3640,7 @@ static void api_oob_event (sdla_t *card,wan_mbox_t *mbox)
 	if (!dev)
 		return;
 
-	chan=dev->priv;
+	chan=wan_netif_priv(dev);
 
 	if (chan->common.usedby == API){
 		send_oob_msg(card,dev,mbox);
@@ -3708,7 +3707,7 @@ static int process_udp_mgmt_pkt(sdla_t *card,netdevice_t *local_dev)
 		return 0;
 	}
 
-	chan = dev->priv;
+	chan = wan_netif_priv(dev);
 	lcn = chan->common.lcn;
 
 	switch(wan_udp_pkt->wan_udp_command) {
@@ -4141,13 +4140,13 @@ void disable_comm_shutdown(sdla_t *card)
 static void x25_clear_cmd_update(sdla_t* card, unsigned lcn, wan_mbox_t* mb)
 {
 	netdevice_t* 	dev = find_channel(card, lcn);
-	x25_channel_t*	chan = NULL;
+	x25_channel_t*	chan;
 	x25_call_info_t info;
 	struct timeval 	tv;
 
-	if (dev == NULL || dev->priv == NULL)
+	if (dev == NULL || (chan = wan_netif_priv(dev)) == NULL)
 		return;
-	chan=dev->priv;
+ 
 	do_gettimeofday(&tv);
 	chan->chan_clear_time = tv.tv_sec;
 	chan->chan_clear_cause = mb->wan_x25_cause;
@@ -4496,12 +4495,12 @@ static int x25_set_dev_config(struct file *file,
 
 static int x25_snmp_data(sdla_t* card, netdevice_t *dev, void* data)
 {
-	x25_channel_t* 	chan = NULL;
+	x25_channel_t* 	chan;
 	wanpipe_snmp_t*	snmp;
 	
-	if (dev == NULL || dev->priv == NULL)
+	if (dev == NULL || (chan = wan_netif_priv(dev)) == NULL)
 		return -EFAULT;
-	chan = (x25_channel_t*)dev->priv;
+
 	/* Update device statistics */
 	if (card->wandev.update) {
 		int rslt = 0;
@@ -5145,7 +5144,7 @@ static int x25_get_if_info(char* buf, char** start, off_t offs, int len, int dum
 {
 	int cnt = 0;
 	netdevice_t*	dev = (void*)start;
-	x25_channel_t* 	chan = (x25_channel_t*)dev->priv;
+	x25_channel_t* 	chan = wan_netif_priv(dev);
 	sdla_t*		card = chan->card;
 	int 		size = 0;
 	PROC_ADD_DECL(stop_cnt);
@@ -5735,12 +5734,12 @@ static int x25_set_if_info(struct file *file,
 			  void *data)
 {
 	netdevice_t*	dev = (void*)data;
-	x25_channel_t* 	chan = NULL;
+	x25_channel_t* 	chan;
 	sdla_t*		card = NULL;
 
-	if (dev == NULL || dev->priv == NULL)
+	if (dev == NULL || (chan = wan_netif_priv(dev)) == NULL)
 		return count;
-	chan = (x25_channel_t*)dev->priv;
+
 	if (chan->card == NULL)
 		return count;
 	card = chan->card;

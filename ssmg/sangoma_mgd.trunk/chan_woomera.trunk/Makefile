@@ -29,7 +29,7 @@ PBXDEFINES=
 PBXFLAGS_EXTRA=
 
 #Check for Asterisk AST_CONTROL_SRC feature
-DUMMY:=$(shell if [[ -f $(PBXDIR)/include/asterisk/frame.h ]]; then grep -c AST_CONTROL_SRC $(PBXDIR)/include/asterisk/frame.h > .ast_src_check; else echo 0 > .ast_src_check; fi;)
+DUMMY:=$(shell ./check_for.sh AST_CONTROL_SRC $(PBXDIR)/include/asterisk/frame.h .ast_src_check;)
 
 ifeq (1,$(shell cat .ast_src_check))
 	PBXDEFINES+=-DWOO_CONTROL_SRC_FEATURE
@@ -37,7 +37,7 @@ endif
 
 
 #Check for Callweaver opbx_cli_entry
-DUMMY:=$(shell if [[ -f $(PBXDIR)/include/callweaver/cli.h ]]; then grep -c opbx_cli_entry $(PBXDIR)/include/callweaver/cli.h > .opbx_cli_entry_check; else echo 0 > .opbx_cli_entry_check; fi;)
+DUMMY:=$(shell ./check_for.sh opbx_cli_entry $(PBXDIR)/include/callweaver/cli.h .opbx_cli_entry_check;)
 
 ifneq (0,$(shell cat .opbx_cli_entry_check))
         PBXFLAGS_EXTRA+=-DCALLWEAVER_OPBX_CLI_ENTRY
@@ -45,7 +45,7 @@ endif
 
 
 #Check for callweaver cw_cli_entry
-DUMMY:=$(shell if [[ -f $(PBXDIR)/include/callweaver/cli.h ]]; then grep -c cw_cli_entry $(PBXDIR)/include/callweaver/cli.h > .cw_cli_entry_check; else echo 0 > .cw_cli_entry_check; fi;)
+DUMMY:=$(shell ./check_for.sh cw_cli_entry $(PBXDIR)/include/callweaver/cli.h .cw_cli_entry_check;)
 
 ifneq (0,$(shell cat .cw_cli_entry_check))
         PBXFLAGS_EXTRA+=-DCALLWEAVER_CW_CLI_ENTRY
@@ -53,7 +53,7 @@ endif
 
 
 #Check for callweaver MODULE_INFO
-DUMMY:=$(shell if [[ -f $(PBXDIR)/include/callweaver/module.h ]]; then grep -c MODULE_INFO $(PBXDIR)/include/callweaver/module.h > .cw_module_info_check; else echo 0 > .cw_module_info_check; fi;)
+DUMMY:=$(shell ./check_for.sh MODULE_INFO $(PBXDIR)/include/callweaver/module.h .cw_module_info_check;)
 
 ifneq (0,$(shell cat .cw_module_info_check))
         PBXFLAGS_EXTRA+=-DCALLWEAVER_MODULE_INFO
@@ -73,12 +73,12 @@ ifneq (,$(wildcard $(PBXDIR)/include/callweaver.h))
 else 
 
 #Check for Asterisk 1.6
-DUMMY:=$(shell if [[ -f $(PBXDIR)/.version ]]; then grep -c ^1.6  $(PBXDIR)/.version > .ast16_check; else echo 0 > .ast16_check; fi;)
+DUMMY:=$(shell ./check_for.sh 1.6  $(PBXDIR)/.version .ast16_check;)
 ifneq (0,$(shell cat .ast16_check))
         PBXFLAGS_EXTRA+=-DAST16
 endif
 
-DUMMY:=$(shell if [[ -f $(PBXDIR)/.version ]]; then grep -c ^1.4  $(PBXDIR)/.version > .ast14_check; else echo 0 > .ast14_check; fi;)
+DUMMY:=$(shell ./check_for.sh 1.4  $(PBXDIR)/.version .ast14_check;)
 ifneq (0,$(shell cat .ast14_check))
         PBXFLAGS_EXTRA+=-DAST14
 endif

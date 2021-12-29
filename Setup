@@ -275,7 +275,11 @@ parse_version()
 # ----------------------------------------------------------------------------
 banner()
 {
-	clearscr
+	if test -z $NONINTERACTIVE; then
+		clearscr
+	else
+		echo
+	fi
 	echo -e "\t----------------------------------------------------------"
 	echo -e "\t          WANPIPE v$PROD_VER Installation Script"
 	echo -e "\t    Copyright (c) 1995-2009, Sangoma Technologies Inc."
@@ -1051,6 +1055,8 @@ get_kernel_ver ()
 {
 	local tmp_ifs=$IFS
 	local err=0
+
+
 	IFS="="
 
 	while read name value;
@@ -1104,13 +1110,81 @@ get_kernel_ver ()
 			ADSL_PROT=NO
 		fi
 	fi
+
 	#It is possible that we couldn't find the kernel version from the Makefile
-        #Possible on SUSE kernels.  
-        #Use the uname -r info obtained at the begining of the
-        #Setup sctipt.
-		
+	#Possible on SUSE kernels.
+	#Use the uname -r info obtained at the begining of the
+	#Setup sctipt.
 
 	IFS=$tmp_ifs
+
+	if [ "$DEFAULT_KERNEL_VERSION" = "YES" ]; then
+		KERNEL_VERSION=$KERNEL_UNAME
+		return;
+	fi
+
+
+	if test -z $NONINTERACTIVE; then
+
+		if [ $KERNEL_VERSION != $KERNEL_UNAME ]; then
+			echo 
+			echo -e "WARNING: Module installation dir mismatch!"
+			echo -e "         Linux source name  = $KERNEL_VERSION"
+			echo -e "         Current image name = $KERNEL_UNAME"
+			echo
+			echo -e "  If you are building wanpipe modules for the"
+			echo -e "  currently running image, use the $KERNEL_UNAME"	
+			echo -e "  directory (i.e. select 'y') "
+			echo
+		
+				
+			getyn "Install modules for current image: $KERNEL_UNAME ?"
+			if [ $? -eq 0 ]; then
+				KERNEL_VERSION=$KERNEL_UNAME;
+
+				is_distr_fedora2
+				if [ $? -eq 1 ]; then
+					echo
+					echo -e " Fedora2 Update: "
+					echo -e "  In order to compile for the current kernel"
+					echo -e "  The word 'custom' must be taken out of the"
+					echo -e "  $SOURCEDIR/Makefile"
+					echo -e "  Then in $SOURCEDIR/ run 'make prepare-all'"
+					echo 
+					getyn "Would you like us to do it for you ?"
+					if [ $? -eq 0 ]; then
+						update_kernel_custom_name	
+						update_fedora2 0
+						if [ $? -ne 0 ]; then
+							echo
+							echo "Auto configuration failed!"
+							echo "Proceed to make above changes manually!"
+							echo "Then restart the ./Setup process"
+							echo
+							pause
+							return 1
+						fi
+					else
+						echo
+						echo "Proceed to make above changes manually!"
+						echo "Then restart the ./Setup process"
+						echo
+						pause
+						return 1	
+					fi
+				fi
+			fi
+			echo
+			echo "Installing modules for kernel: $KERNEL_VERSION !"
+			echo
+		fi
+	else
+		if [ "$WITH_LINUX_OP" = "NO" ]; then
+			KERNEL_VERSION=$KERNEL_UNAME
+		fi
+	fi
+
+
 	return $err
 }
 
@@ -1145,19 +1219,23 @@ ENDOFTEXT
 	banner
 
 	if [ $WITH_LINUX_OP = NO ]; then
-		echo -e "\nPlease specify absolute path name of your linux directory"
+		echo -e "\nPlease specify absolute path name of your linux headers/source directory"
 		echo -e "\nPress Enter for Default: $SOURCEDIR\n"
 		echo -n "#>"
 		if test -z $NONINTERACTIVE; then
 			read response
 
-			[ $response ] && {
+			if test -z $response; then
+				DEFAULT_KERNEL_VERSION="YES"
+			else
 				SOURCEDIR=$response
-			}
+			fi
+		else
+			DEFAULT_KERNEL_VERSION="YES"
 		fi
 	fi
 
-        echo -e "Setting linux directory to $SOURCEDIR\n";
+	echo -e "Setting linux directory to $SOURCEDIR\n";
 	INCLUDE=$SOURCEDIR/include/linux;
 
 
@@ -1726,17 +1804,6 @@ ENDOFTEXT
                 echo "Failed to install boot scripts"
         fi
 
-        if [ "$TDM_PROT" = "YES" ]; then
-                getyn "Would you like to auto-execute ztcfg after wanrouter start?" || return 0
-                        if [ ! -d $ROOT$WAN_CONF_DIR/scripts ]; then
-                                eval "\mkdir -p $ROOT$WAN_CONF_DIR/scripts >/dev/null 2>/dev/null"
-                        fi
-                        eval "\cp -f  $PROD_HOME/samples/wanpipe_zaptel_start $ROOT$WAN_CONF_DIR/scripts/start > /dev/null 2> /dev/null"
-                        if [ ! -f $ROOT$WAN_CONF_DIR/scripts/start ]; then
-                                echo "Error: Could not copy auto-ztcfg script"
-                        fi
-        fi
-
         cd $PROD_HOME
 
 }
@@ -2039,7 +2106,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 	if [ $ENABLE_ECHO_DEBUG -eq 1 ]; then
 		MAKEINC=$MAKEINC" ENABLE_WANPIPEMON_ZAP=YES " 
 	fi
-	eval "make CC=$CC SYSINC=$SOURCEDIR/include WANINCDIR=$WANPIPE_INCLUDE_DIR $MAKEINC >> $CMP_LOG 2>> $CMP_LOG"
+	eval "make CC=$CC SYSINC=$WANPIPE_INCLUDE_DIR WANINCDIR=$WANPIPE_INCLUDE_DIR $MAKEINC >> $CMP_LOG 2>> $CMP_LOG"
 	#eval "make CC=$CC SYSINC=$DRIVER_INC_DIR WANINCDIR=$WANPIPE_INCLUDE_DIR $MAKEINC >> $CMP_LOG 2>> $CMP_LOG"
 
 	if [ $? -eq 0 ]
@@ -2113,6 +2180,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 	fi
 
 	cd libsangoma
+	eval "./init-automake.sh >> $CMP_LOG 2>> $CMP_LOG" 
 	eval "./configure --prefix=$ROOT/usr >> $CMP_LOG 2>> $CMP_LOG" 
 	eval "make clean >> $CMP_LOG 2>> $CMP_LOG" 
 	eval "make CC=$CC SYSINC=$SOURCEDIR/include >> $CMP_LOG 2>> $CMP_LOG" 
@@ -2479,8 +2547,13 @@ function build_kernel_module()
 			#echo "----------------------------"
 			#echo 
 
-			echo "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o" >> $CMP_BUILD 
-			$EVALCMD "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o"
+			rm -f $modname.ko
+			rm -f $modname.mod.o
+
+			make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KDIR=$SOURCEDIR \
+                     	EXTRA_CFLAGS="-D__LINUX__ $PROTOCOL_DEFINES $extra_flags " >> $CMP_LOG 2>> $CMP_LOG 
+		#	echo "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o" >> $CMP_BUILD 
+		#	$EVALCMD "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o"
 		fi
 	else	
 
@@ -3357,70 +3430,6 @@ ENDOFTEXT
 	#Disply all supported protocols that will be compiled
 	#into the driver.
 
-
-
-
-	if test -z $NONINTERACTIVE; then
-		if [ -e $SOURCEDIR/include/config/kernel.release ]; then
-			KERNEL_VERSION=`cat $SOURCEDIR/include/config/kernel.release`
-			echo "Source kernel name:$KERNEL_VERSION"
-		fi
-
-		
-                if [ $KERNEL_VERSION != $KERNEL_UNAME ]; then
-			echo 
-                        echo -e "WARNING: Module installation dir mismatch!"
-			echo -e "         Linux source name  = $KERNEL_VERSION"
-                        echo -e "         Current image name = $KERNEL_UNAME"
-                        echo
-                        echo -e "  If you are building wanpipe modules for the"
-			echo -e "  currently running image, use the $KERNEL_UNAME"	
-			echo -e "  directory (i.e. select 'y') "
-			echo
-		
-				
-			getyn "Install modules for current image: $KERNEL_UNAME ?"
-			if [ $? -eq 0 ]; then
-				KERNEL_VERSION=$KERNEL_UNAME;
-
-				is_distr_fedora2
-				if [ $? -eq 1 ]; then
-					echo
-					echo -e " Fedora2 Update: "
-					echo -e "  In order to compile for the current kernel"
-					echo -e "  The word 'custom' must be taken out of the"
-					echo -e "  $SOURCEDIR/Makefile"
-					echo -e "  Then in $SOURCEDIR/ run 'make prepare-all'"
-					echo 
-					getyn "Would you like us to do it for you ?"
-					if [ $? -eq 0 ]; then
-						update_kernel_custom_name	
-						update_fedora2 0
-						if [ $? -ne 0 ]; then
-							echo
-							echo "Auto configuration failed!"
-							echo "Proceed to make above changes manually!"
-							echo "Then restart the ./Setup process"
-							echo
-							pause
-							return 1
-						fi
-					else
-						echo
-						echo "Proceed to make above changes manually!"
-						echo "Then restart the ./Setup process"
-						echo
-						pause
-						return 1	
-					fi
-				fi
-			fi
-			echo
-			echo "Installing modules for kernel: $KERNEL_VERSION !"
-			echo
-                fi
-        fi
-
 	if [ $ANNEXG_PROT = "YES" ]; then
 		cp -f $DRIVER_UPDATE_DIR/include/annexg/*.h .
 	fi	
@@ -3545,16 +3554,31 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
                                   -e s/s390x/s390/ -e s/parisc64/parisc/ \
                                   -e s/ppc.*/powerpc/ -e s/mips.*/mips/ )
 
+			echo "SUBARCH = $SUBARCH"
 
  			#New way of checking REGPARM because its enabled
                         #by default on 2.6.20 kernel and up
 			if [ $SUBARCH != "" ]; then
                                 if [ -f $SOURCEDIR/arch/$SUBARCH/Makefile ]; then
-                                        eval "grep \"CFLAGS.*=.*regparm\" $SOURCEDIR/arch/$SUBARCH/Makefile*" > /dev/null 2> /dev/null
-                                        res=$?
+					if [ -f $SOURCEDIR/arch/$SUBARCH/Makefile ]; then 
+                                        	eval "grep \"CFLAGS.*=.*regparm\" $SOURCEDIR/arch/$SUBARCH/Makefile*" > /dev/null 2> /dev/null
+                                        	res=$?
+					else
+                                        	echo
+                                        	echo "Warning: Failed to determine regparm from Makefile defaulting to YES!"
+                                        	echo
+						res=0
+					fi
                                 elif [ -d $SOURCEDIR/arch/x86 ]; then
-                                        eval "grep \"CFLAGS.*=*regparm\" $SOURCEDIR/arch/x86/Makefile*" > /dev/null 2> /dev/null
-                                        res=$?
+					if [ -f $SOURCEDIR/arch/x86/Makefile ]; then 
+                                        	eval "grep \"CFLAGS.*=*regparm\" $SOURCEDIR/arch/x86/Makefile*" > /dev/null 2> /dev/null
+                                        	res=$?
+					else
+                                        	echo
+                                        	echo "Warning: Failed to determine regparm from Makefile defaulting to YES!"
+                                        	echo
+						res=0
+					fi
                                 else
                                         echo
                                         echo "Warning: Failed to determine regparm from Makefile defaulting to YES!"
@@ -3780,6 +3804,9 @@ WANPIPE_OBJS=
 		cp $MODSYM  $PROD_HOME/$MODSYM.sdladrv 
 	fi
 
+	if [ -e  $PROD_HOME/$MODSYM.lip ]; then
+		cat $PROD_HOME/$MODSYM.lip >> $MODSYM
+	fi
 	build_kernel_module wanrouter "wanmain wanproc waniface"  
 	if [ -e $MODSYM ]; then
 		cp $MODSYM  $PROD_HOME/$MODSYM.wanrouter
@@ -4218,6 +4245,9 @@ WANPIPE_OBJS=
 			XMTP2KM_OBJ="main2_6 fwmsg"
 
 			build_kernel_module xmtp2km "$XMTP2KM_OBJ" "-D__XMTP2__" "bin/$xmtp2km_file" 
+			if [ -e $MODSYM ]; then
+				cp $MODSYM  $PROD_HOME/$MODSYM.xmtp2 
+			fi
 
 			if [ -e xmtp2km.ko ]; then
 				\cp -f xmtp2km.ko ../mod
@@ -4237,7 +4267,13 @@ WANPIPE_OBJS=
                 	lip_src_mods=$lip_src_mods"  wanpipe_hdlc_iface wanpipe_hdlc_eng"
 		fi
 
+		if [ -e  $PROD_HOME/$MODSYM.xmtp2 ]; then
+			cat $PROD_HOME/$MODSYM.xmtp2 >> $MODSYM
+		fi
 		build_kernel_module wanpipe_lip "$lip_src_mods" "$LIP_DEFINES" "$LIP_BIN_OBJS" 
+		if [ -e $MODSYM ]; then
+			cp $MODSYM  $PROD_HOME/$MODSYM.lip 
+		fi
 
 
 		if [ $FR_PROT = "YES" ]; then
@@ -4296,6 +4332,12 @@ WANPIPE_OBJS=
 	fi
 	if [ -f $PROD_HOME/$MODSYM.syncppp ]; then
 		cat $PROD_HOME/$MODSYM.syncppp >> $MODSYM
+	fi
+	if [ -e  $PROD_HOME/$MODSYM.xmtp2 ]; then
+		cat $PROD_HOME/$MODSYM.xmtp2 >> $MODSYM
+	fi
+	if [ -e  $PROD_HOME/$MODSYM.lip ]; then
+		cat $PROD_HOME/$MODSYM.lip >> $MODSYM
 	fi
 
 	WANPIPE_OBJS=$WANPIPE_OBJS"sdlamain wanpipe_tdm_api wanpipe_codec wanpipe_codec_law " 
@@ -4702,9 +4744,9 @@ function install_ssmg_ss7()
 	echo "Installing SMG Daemon..."	
 	echo
 	if [ -z $ROOT ]; then
-		eval "./install -pbxdir $AST_SOURCE_DIR"
+		eval "./install -ss7 -pbxdir $AST_SOURCE_DIR"
 	else
-		eval "./install -rootdir $ROOT -pbxdir $AST_SOURCE_DIR"
+		eval "./install -ss7 -rootdir $ROOT -pbxdir $AST_SOURCE_DIR"
 	fi
 	if [ $? -ne 0 ]; then
 		echo "-------------------------------------"
@@ -7134,7 +7176,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.3.16
+PROD_VER=3.4.1
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7183,6 +7225,7 @@ dahdi_auto_install="NO"
 bri_auto_install="NO"
 setup_install_quick="NO"
 MODSYM=Module.symvers
+DEFAULT_KERNEL_VERSION="NO"
 
 
 echo > $CMP_LOG

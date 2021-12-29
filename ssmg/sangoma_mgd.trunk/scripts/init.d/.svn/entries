@@ -1,15 +1,15 @@
 8
 
 dir
-110
-https://www.sangomapbx.com/svn/sangoma_mgd/branches/bri/scripts/init.d
+172
+https://www.sangomapbx.com/svn/sangoma_mgd/trunk/scripts/init.d
 https://www.sangomapbx.com/svn/sangoma_mgd
 
 
 
-2008-05-27T08:51:04.971063Z
-80
-ncorbic
+2009-02-26T21:21:33.014700Z
+148
+davidy
 
 
 svn:special svn:externals svn:needs-lock
@@ -32,10 +32,10 @@ file
 
 
 
-2008-07-17T20:04:58.000000Z
-610a76c921da642638013570ad111e41
-2008-05-27T08:51:04.971063Z
-80
-ncorbic
+2009-04-09T17:33:36.000000Z
+710c4708169076746e6d586977b4cd2b
+2009-02-26T21:21:33.014700Z
+148
+davidy
 has-props
 

@@ -92,6 +92,12 @@
 # endif
 #endif
 
+#define wp_fax_tone_timeout_set(wr,chan) do { DEBUG_TEST("%s:%d: s%dc%d fax timeout set\n", \
+											__FUNCTION__,__LINE__, \
+											wp->spanno+1,chan); \
+											wp->ec_fax_detect_timeout[chan]=SYSTEM_TICKS; } while(0);
+
+
 #if defined(__FreeBSD__)
 extern short *__zt_mulaw;
 #endif
@@ -200,6 +206,8 @@ typedef struct wp_tdmv_pvt_area
 	unsigned int	dtmfactive;
 	unsigned int	dtmfmask;
 	unsigned int	dtmfmutemask;
+
+	unsigned long	ec_fax_detect_timeout[31+1];
 	
 } wp_tdmv_softc_t;
 
@@ -1975,6 +1983,7 @@ static int wp_tdmv_hwec(struct zt_chan *chan, int enable)
 	
 	if (enable) {
 		wan_set_bit(channel,&card->wandev.rtp_tap_call_map);
+		wp_fax_tone_timeout_set(wp,channel);
 	} else {
 		wan_clear_bit(channel,&card->wandev.rtp_tap_call_map);
 	}
@@ -2511,12 +2520,13 @@ static int wp_tdmv_init(void* pcard, wanif_conf_t *conf)
 */
 static void wp_tdmv_callback_dtmf (void* card_id, wan_event_t *event)
 {
-	sdla_t		*card = (sdla_t*)card_id;
-        wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
-        wp_tdmv_softc_t	*wp = NULL;
+	sdla_t			*card = (sdla_t*)card_id;
+	wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
+	wp_tdmv_softc_t	*wp = NULL;
+	int fechan = 	event->channel;
 
-        WAN_ASSERT1(wan_tdmv->sc == NULL);
-        wp = wan_tdmv->sc;
+	WAN_ASSERT1(wan_tdmv->sc == NULL);
+	wp = wan_tdmv->sc;
 	
 	if (event->type != WAN_EVENT_EC_DTMF){
 		DEBUG_EVENT("ERROR: %s: Invalid event type %X!\n",
@@ -2537,6 +2547,43 @@ static void wp_tdmv_callback_dtmf (void* card_id, wan_event_t *event)
 					card->devname,
 					event->channel);
 		return;
+	}
+
+	if (event->digit == 'f' && fechan >= 0) {
+
+		if (!card->tdmv_conf.hw_fax_detect) {
+			DEBUG_TDMV("%s: Received Fax Detect event while hw fax disabled !\n",card->devname);
+			return;
+		}
+
+		if (card->tdmv_conf.hw_fax_detect == WANOPT_YES) {
+         	card->tdmv_conf.hw_fax_detect=8;
+		}
+
+		if (wp->ec_fax_detect_timeout[fechan] == 0) {
+			DEBUG_TDMV("%s: FAX DETECT TIMEOUT --- Not initialized!\n",card->devname);
+			return;
+
+		} else 	if (card->tdmv_conf.hw_fax_detect &&
+	    		   (SYSTEM_TICKS - wp->ec_fax_detect_timeout[fechan]) >= card->tdmv_conf.hw_fax_detect*HZ) {
+#ifdef WAN_DEBUG_TDMAPI
+			if (WAN_NET_RATELIMIT()) {
+				DEBUG_EVENT("%s: Warning: Ignoring Fax detect during call (s%dc%d) - Call Time: %ld  Max: %d!\n",
+					card->devname,
+					wp->spanno+1,
+					event->channel,
+					(SYSTEM_TICKS - wp->ec_fax_detect_timeout[fechan])/HZ,
+					card->tdmv_conf.hw_fax_detect);
+			}
+#endif
+			return;
+		} else {
+
+			DEBUG_TDMV("%s: FAX DETECT OK --- Ticks=%lu Timeout=%lu Diff=%lu! s%dc%d\n",
+				card->devname,SYSTEM_TICKS,wp->ec_fax_detect_timeout[fechan],
+				(SYSTEM_TICKS - wp->ec_fax_detect_timeout[fechan])/HZ,
+				card->wan_tdmv.spanno,fechan);
+		}
 	}
 
 	if (event->dtmf_type == WAN_EC_TONE_PRESENT){

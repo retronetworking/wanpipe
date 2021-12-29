@@ -779,8 +779,9 @@ static ssize_t wp_tdmapi_read(struct file *file, char *usrbuf, size_t count, lof
 	if (err < 0) {
 		return err;
 	}
+
 #endif
-	return wp_tdmapi_read_msg(file, &msg_sys, count);
+	return wp_tdmapi_read_msg(file, &msg_sys, err);
 }
           
 
@@ -996,7 +997,7 @@ static ssize_t wp_tdmapi_write(struct file *file, const char *usrbuf, size_t cou
 		return err;
 	}
 #endif
-	return wp_tdmapi_write_msg(file, &msg_sys, count);
+	return wp_tdmapi_write_msg(file, &msg_sys, err);
 }
 
 
@@ -2130,11 +2131,17 @@ int wanpipe_tdm_api_rx_tx (wanpipe_tdm_api_dev_t *tdm_api, u8 *rx_data, u8 *tx_d
 int wanpipe_tdm_api_rx_hdlc (wanpipe_tdm_api_dev_t *tdm_api, netskb_t *skb)
 {
 #if !defined(__WINDOWS__)
+
+	if (!wan_test_bit(0,&tdm_api->used)) {
+	 	return -EBUSY;   
+	}
+
 	if (wan_skb_queue_len(&tdm_api->wp_rx_list) > WP_TDM_MAX_RX_Q_LEN) {
 		tdm_api->cfg.stats.rx_fifo_errors++;
+		wp_wakeup_tdmapi(tdm_api);
 		return -EBUSY;
 	}
-	
+
 	DEBUG_TDMAPI("%s: TDM API RX HDLC FRAME %i\n",tdm_api->name, wan_skb_len(skb));
 
 	wan_skb_queue_tail(&tdm_api->wp_rx_list,skb);
@@ -2184,7 +2191,9 @@ static wanpipe_tdm_api_dev_t *wp_tdmapi_search(sdla_t *card, int fe_chan)
 				return tdm_api;
 			}
 
-			tmp_fe_chan = (2*(tdm_api->tdm_span-1))+fe_chan;
+			/* active_ch is based on physical config, so we cannot use tdm_api->tdm_span here */
+			 tmp_fe_chan = 2*(WAN_FE_LINENO(&card->fe))+fe_chan;
+			//tmp_fe_chan = (2*(tdm_api->tdm_span-1))+fe_chan;
 		} 	
 
 		if (wan_test_bit(tmp_fe_chan, &tdm_api->active_ch)){

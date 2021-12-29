@@ -1,35 +1,35 @@
 K 25
 svn:wc:ra_dav:version-url
-V 61
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/src
+V 53
+/svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/src
 END
 libteletone_detect.c
 K 25
 svn:wc:ra_dav:version-url
-V 82
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/src/libteletone_detect.c
+V 74
+/svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/src/libteletone_detect.c
 END
 libteletone_generate.c
 K 25
 svn:wc:ra_dav:version-url
-V 84
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/src/libteletone_generate.c
+V 76
+/svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/src/libteletone_generate.c
 END
 libteletone_detect.h
 K 25
 svn:wc:ra_dav:version-url
-V 82
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/src/libteletone_detect.h
+V 74
+/svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/src/libteletone_detect.h
 END
 libteletone_generate.h
 K 25
 svn:wc:ra_dav:version-url
-V 84
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/src/libteletone_generate.h
+V 76
+/svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/src/libteletone_generate.h
 END
 libteletone.h
 K 25
 svn:wc:ra_dav:version-url
-V 75
-/svn/sangoma_mgd/!svn/ver/73/branches/bri/lib/libteletone/src/libteletone.h
+V 67
+/svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/src/libteletone.h
 END

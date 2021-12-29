@@ -774,7 +774,7 @@ static int update (wan_device_t* wandev)
         	private_area_t* chan;
 		DEBUG_EVENT("%s: Starting up Interfaces\n",card->devname);
 		for (dev=card->wandev.dev;dev;dev=wan_next_dev(dev)){
-			chan=dev->priv;
+			chan=wan_netif_priv(dev);
 			if (WAN_NETIF_QUEUE_STOPPED(dev)){
 				DEBUG_EVENT("%s: Waking up device! Q=%d\n",
 						wan_netif_name(dev),
@@ -1538,7 +1538,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	** configured on this card. */
 	wan_atomic_inc(&card->wandev.if_cnt);
 
-	chan->common.state = WAN_CONNECTING;
+	set_chan_state(card, dev, WAN_DISCONNECTED);
 
 	DEBUG_EVENT( "\n");
 

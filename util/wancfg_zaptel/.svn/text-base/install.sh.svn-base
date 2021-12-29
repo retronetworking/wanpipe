@@ -22,7 +22,7 @@ install -D -m 755 wancfg_dahdi $WAN_VIRTUAL/usr/sbin/wancfg_dahdi
 install -D -m 755 wancfg_smg $WAN_VIRTUAL/usr/sbin/wancfg_smg
 install -D -m 755 wancfg_tdmapi $WAN_VIRTUAL/usr/sbin/wancfg_tdmapi
 install -D -m 755 wancfg_hp_tdmapi $WAN_VIRTUAL/usr/sbin/wancfg_hp_tdmapi
-
+install -D -m 755 wancfg_fs $WAN_VIRTUAL/usr/sbin/wancfg_fs
 
 #cp -rf setup-sangoma $WAN_VIRTUAL/usr/local/sbin
 #chmod 755 $WAN_VIRTUAL/usr/local/sbin/setup-sangoma

@@ -35,12 +35,15 @@ INSTALLPREFIX=
 INCLUDES = -I ../../ssmg/libsangoma.trunk -I. -I ../../patches/kdrivers/include -I ../../patches/kdrivers/wanec/oct6100_api/include -I ../../patches/kdrivers/wanec -I/usr/local/include -I../../patches/kdrivers/include -I/usr/include/wanpipe -Ilib/libteletone/src
 
 CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 
-ifeq "${NO_SS7}" "YES"
-CFLAGS += -DBRI_PROT
-endif
 
 ifeq "${BRI}" "YES"
+CFLAGS += -DBRI_PROT -DSMG_CALLING_NAME
+NO_SS7:=YES
+else
+ifeq "${NO_SS7}" "YES"
+BRI:=YES
 CFLAGS += -DBRI_PROT
+endif
 endif
 
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
@@ -72,12 +75,15 @@ call_signal.o: call_signal.c call_signal.h
 sangoma_mgd_memdbg.o: sangoma_mgd_memdbg.c sangoma_mgd_memdbg.h 
 	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS)  -c -o sangoma_mgd_memdbg.o sangoma_mgd_memdbg.c
 
+sangoma_mgd_logger.o: sangoma_mgd_logger.c 
+	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS)  -c -o sangoma_mgd_logger.o sangoma_mgd_logger.c
+
 sangoma_mgd.o: sangoma_mgd.c sangoma_mgd.h sigboost.h
 	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -c -o sangoma_mgd.o sangoma_mgd.c 
 
-sangoma_mgd: sangoma_mgd.o sangoma_mgd_memdbg.o call_signal.o switch_buffer.o sigboost.h sangoma_mgd_memdbg.h
+sangoma_mgd: sangoma_mgd.o sangoma_mgd_memdbg.o  sangoma_mgd_logger.o call_signal.o switch_buffer.o sigboost.h sangoma_mgd_memdbg.h
 	rm -fr core*
-	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -o sangoma_mgd sangoma_mgd.o sangoma_mgd_memdbg.o switch_buffer.o  call_signal.o $(LDFLAGS)
+	$(CC) $(CCFLAGS) $(INCLUDES) $(CFLAGS) -o sangoma_mgd sangoma_mgd.o sangoma_mgd_memdbg.o  sangoma_mgd_logger.o switch_buffer.o  call_signal.o $(LDFLAGS)
 
 
 
@@ -96,7 +102,9 @@ install_smg: old_cleanup
 	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
 		install -D -m 755 sangoma_mgd.conf.sample $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
 	fi
-ifeq "${NO_SS7}" "YES"
+	
+	install -D -m 755 ./safe_sangoma $(INSTALLPREFIX)/usr/sbin/safe_sangoma
+ifeq "${BRI}" "YES"
 	@echo "BRI control scripts installed"
 	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
 		install -D -m 755 sangoma_mgd.conf.sample.bri $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
