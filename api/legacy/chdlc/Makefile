@@ -45,3 +45,5 @@ clean:
 	rm -f chdlc_api
 	rm -f chdlc_rts_cts
 	rm -f chdlc_integrity
+	rm -f chdlc_modem_cmd
+	rm -f chdlc_echo

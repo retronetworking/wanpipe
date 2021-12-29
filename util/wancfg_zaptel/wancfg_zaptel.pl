@@ -9,6 +9,7 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Jun 29   2010  2.42   Yannick Lam     Fixed issue with asterisk-1.6.2 and up for stop
 # May 14   2010  2.41   Yannick Lam     Added wancfg_ftdm (script for freetdm)
 # May 04   2010  2.40   Yannick Lam     Fix smg_pri.conf for wancfg_fs
 # Nov 26   2009  2.39   Jignesh Patel   Fix woomera.conf for sangoma_pri & openzap.conf for E1
@@ -779,6 +780,8 @@ sub apply_changes{
 	my $bri_command='';
 	my $asterisk_restart=$FALSE;
 	my $res='';
+	my $asterisk_version1='';
+	my $asterisk_version2='';
 
 	if($silent==$FALSE) {system('clear')};
 	
@@ -854,7 +857,13 @@ sub apply_changes{
 		exit 0;
 	}
 	if ($res =~ m/now/){
-		$asterisk_command='stop now';
+		$asterisk_version1 = `asterisk -V | cut -d' ' -f 2 | cut -d '.' -f 2`;
+		$asterisk_version2 = `asterisk -V | cut -d' ' -f 2 | cut -d '.' -f 3`;
+		if (($asterisk_version1 >= 6) && ($asterisk_version2 >= 2)){
+			$asterisk_command='core stop now';
+		}else{
+			$asterisk_command='stop now';
+		}
 	} else {
 		$asterisk_command='stop when convenient';
 	}

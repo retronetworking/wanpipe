@@ -22,3 +22,5 @@ clean:
 	make -C fr clean 
 	make -C bitstrm clean
 	make -C aft clean
+	make -C bisync clean
+

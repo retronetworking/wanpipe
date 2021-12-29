@@ -409,7 +409,7 @@ void handle_socket(void)
                                         	return;
 					}
 
-					switch (api_rx_el->api_rx_hdr.error_flag){
+					switch (api_rx_el->wp_api_el_operation_status){
 				
 					case 0:
 						/* Rx packet is good */

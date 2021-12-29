@@ -18,44 +18,37 @@ __attribute_used__
 __attribute__((section("__versions"))) = {
 	{ 0x89e24b9c, "struct_module" },
 	{ 0x3f234f3e, "wp_logger_input" },
-	{ 0x12da5bb2, "__kmalloc" },
-	{ 0x7e3f931f, "_spin_trylock" },
-	{ 0xec7bc0d, "__mod_timer" },
-	{ 0xd6ee688f, "vmalloc" },
-	{ 0xc12eb167, "wp_logger_level_hwec" },
-	{ 0x4827a016, "del_timer" },
-	{ 0xf26c4b72, "class_device_destroy" },
-	{ 0xb5513e49, "class_device_create" },
+	{ 0x59fb2682, "sdla_hw_probe" },
+	{ 0x79aa04a2, "get_random_bytes" },
 	{ 0xab978df6, "malloc_sizes" },
-	{ 0x1bcd461f, "_spin_lock" },
 	{ 0xeae3dfd6, "__const_udelay" },
-	{ 0x2fd1d81c, "vfree" },
+	{ 0xfb1d0a92, "alloc_netdev" },
 	{ 0x1d26aa98, "sprintf" },
 	{ 0x7d11c268, "jiffies" },
+	{ 0x3865603, "sdla_register" },
+	{ 0x4de93988, "sdla_get_hw_usb_adptr_cnt" },
+	{ 0x92cfbd9d, "netif_rx" },
+	{ 0xf19df36, "sdladrv_callback" },
 	{ 0x5487ec8, "wp_logger_level_default" },
-	{ 0x77da8dee, "register_wanec_iface" },
-	{ 0x8d3894f2, "_ctype" },
-	{ 0x5152e605, "memcmp" },
+	{ 0x15e074de, "free_netdev" },
 	{ 0x2da418b5, "copy_to_user" },
-	{ 0x2e1de6c1, "class_create" },
+	{ 0x604efc6a, "register_netdev" },
+	{ 0x1902adf, "netpoll_trap" },
+	{ 0x149a799f, "dev_kfree_skb_any" },
+	{ 0x22a2999f, "sdla_unregister" },
 	{ 0x19070091, "kmem_cache_alloc" },
-	{ 0x4df932b, "unregister_wanec_iface" },
+	{ 0xe656360e, "sdladrv_hw_mode" },
 	{ 0xdeeaedb, "wp_logger_repeating_message_filter" },
-	{ 0x4086729e, "register_chrdev" },
-	{ 0xd0b91f9b, "init_timer" },
-	{ 0xf6ebc03b, "net_ratelimit" },
-	{ 0x72270e35, "do_gettimeofday" },
+	{ 0xad97dcd, "ether_setup" },
 	{ 0x37a0cba, "kfree" },
-	{ 0x2e60bace, "memcpy" },
-	{ 0xc192d491, "unregister_chrdev" },
-	{ 0x4870cf59, "class_destroy" },
+	{ 0x828fe72a, "unregister_netdev" },
 	{ 0xf2a644fb, "copy_from_user" },
 };
 
 static const char __module_depends[]
 __attribute_used__
 __attribute__((section(".modinfo"))) =
-"depends=sdladrv,wanrouter";
+"depends=sdladrv";
 
 
-MODULE_INFO(srcversion, "04C049BED8541540DFC0B81");
+MODULE_INFO(srcversion, "AFED9395AF8C59311DAF513");

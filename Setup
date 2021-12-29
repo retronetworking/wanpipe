@@ -2,7 +2,7 @@
 #
 # Setup		WANPIPE WAN Router Installation/Removal Script.
 #
-# Copyright	(c) 1996-2009, Sangoma Technologies Inc.
+# Copyright	(c) 1996-2010, Sangoma Technologies Inc.
 #
 #		This program is free software; you can redistribute it and/or
 #		modify it under the terms of the GNU General Public License
@@ -290,7 +290,7 @@ banner()
 	fi
 	echo -e "\t----------------------------------------------------------"
 	echo -e "\t          WANPIPE v$PROD_VER Installation Script"
-	echo -e "\t    Copyright (c) 1995-2009, Sangoma Technologies Inc."
+	echo -e "\t    Copyright (c) 1995-2010, Sangoma Technologies Inc."
 	echo -e "\t----------------------------------------------------------"
 	echo ""
 	return 0
@@ -7454,7 +7454,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.12
+PROD_VER=3.5.14
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

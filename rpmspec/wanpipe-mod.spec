@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.5.12
+%define version           3.5.14
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,13 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+
+* Tue Jun 29 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.14
+===================================================================
+
+- Fixes stop script for Asterisk 1.6.2
+- Compile fix in legacy api sample code
+- Skipped .13 releaes went straight to 14 :)
 
 * Mon Jun 28 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.12
 ===================================================================
