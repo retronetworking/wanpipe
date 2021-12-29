@@ -1004,7 +1004,7 @@ int main (int argc, char* argv[])
 					slot->hdlc_eng->decoder.stats.frame_overflow,
 					slot->stats.errors,
 					slot->stats.rx_fifo_errors,
-					status?"failed":"status");
+					status?"failed":"passed");
 
 				if (slot->stats.errors) {
 					print_stats(slot);

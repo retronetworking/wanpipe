@@ -1550,12 +1550,6 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 
 	BRI_FUNC();
 	
-	if (!IS_TDMV_UP(wp)){
-		DEBUG_TDMV("%s: Asterisk is not running!\n",
-				wp->devname); 
-		return -EINVAL;
-	}
-
 	if (!IS_CHAN_HARDHDLC(ms)){
 		DEBUG_TDMV("%s: ERROR: %s not defined as D-CHAN! Or received HDLC data before 'ztcfg' was run.\n",
 				wp->devname, ms->name); 

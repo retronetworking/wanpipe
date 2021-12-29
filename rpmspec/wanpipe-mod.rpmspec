@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.5.22
+%define version           3.5.23
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,13 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+
+* Wed Sep 07 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.23
+==================================================================
+
+- Bug fixes in Setup
+- Bug fixes in compiling and configufing old deprecated SMG/BRI
+- Fixed rpmbuild using Setup
 
 * Wed Aug 24 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.22
 ==================================================================

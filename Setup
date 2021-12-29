@@ -171,7 +171,7 @@ pause()
 	fi
 
 	[ $# -ne 0 ] && echo -e $* >&2
-	echo -e "Press [Enter] to continue...\c" >&2
+	echo -e "Press [Enter] to continue...\c " >&2
 	read tmp
 	return 0
 }
@@ -1965,6 +1965,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 		MAKEINC=$MAKEINC" ENABLE_WANPIPEMON_ZAP=YES " 
 	fi
 
+	echo "make CC=$CC SYSINC=$DRIVER_INC_DIR WAN_VIRTUAL=$ROOT WANINCDIR=$WANPIPE_INCLUDE_DIR $MAKEINC" >> $CMP_LOG 2>> $CMP_LOG
 	eval "make CC=$CC SYSINC=$DRIVER_INC_DIR WAN_VIRTUAL=$ROOT WANINCDIR=$WANPIPE_INCLUDE_DIR $MAKEINC >> $CMP_LOG 2>> $CMP_LOG"
 
 	if [ $? -eq 0 ]
@@ -4920,6 +4921,8 @@ function install_all ()
 
 	cd $PROD_HOME/util
 	make install WAN_VIRTUAL=$ROOT > /dev/null 2> /dev/null
+	make install_wancfg WAN_VIRTUAL=$ROOT > /dev/null 2> /dev/null
+
 
 	if [ "$PKG_NAME" = "wanpipe-lite" ]; then
 		cd $PROD_HOME
@@ -4962,8 +4965,10 @@ function install_all ()
 	\cp -rf samples $ROOT/etc/wanpipe
 
 	echo "Installing AFT Firmware update utility in $ROOT$WAN_CONF_DIR/util"	
-	\cp -rf util/wanec_apilib/ $ROOT$WAN_CONF_DIR/util
-	\cp -rf util/wan_aftup/ $ROOT$WAN_CONF_DIR/util
+	if [ ! -d $ROOT$WAN_CONF_DIR/util ]; then
+		\mkdir -p $ROOT$WAN_CONF_DIR/util
+	fi
+	\cp -rf util/wan_aftup $ROOT$WAN_CONF_DIR/util/
 
 	cd firmware
 	if [ -e wan_aftup ]; then
@@ -7068,9 +7073,10 @@ function detect_rpm_build_utility()
 function compile_aft_firmware_util()
 {
         lhome=`pwd`
-        \cp -rf $PROD_HOME/util/wan_aftup $PROD_HOME/rpmbuild/etc/wanpipe/firmware/ 
 
-        cd $PROD_HOME/rpmbuild/etc/wanpipe/firmware/wan_aftup
+		\cp -rf $PROD_HOME/util/wan_aftup  $PROD_HOME/rpmbuild/etc/wanpipe/util/
+
+        cd $PROD_HOME/rpmbuild/etc/wanpipe/util/wan_aftup
         echo "Compiling firmware update utilities..."
         eval "make wan_aftup" >/dev/null 2>/dev/null
         if [ ! $? -eq 0 ]; then
@@ -7271,7 +7277,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.22
+PROD_VER=3.5.23
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

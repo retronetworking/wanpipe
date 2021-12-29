@@ -10,15 +10,15 @@
 #define WANPIPE_COMPANY         "Sangoma Technologies Inc"
 
 /********** LINUX **********/
-#define WANPIPE_VERSION			"3.5.22"
+#define WANPIPE_VERSION			"3.5.23"
 #define WANPIPE_SUB_VERSION				"0"
 #define WANPIPE_LITE_VERSION			"1.1.1"
 
 #if defined(__LINUX__)
 #define WANPIPE_VERSION_MAJOR			3
 #define WANPIPE_VERSION_MINOR			5
-#define WANPIPE_VERSION_MINOR1			20
-#define WANPIPE_VERSION_MINOR2			29
+#define WANPIPE_VERSION_MINOR1			22
+#define WANPIPE_VERSION_MINOR2			1
 #endif
 
 /********** FreeBSD **********/

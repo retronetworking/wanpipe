@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.22
+%define VERSION           3.5.23
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -254,6 +254,13 @@ fi
 ################################################################################
 
 %changelog
+
+* Wed Sep 07 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.23
+==================================================================
+
+- Bug fixes in Setup
+- Bug fixes in compiling and configufing old deprecated SMG/BRI
+- Fixed rpmbuild using Setup
 
 * Wed Aug 24 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.22
 ==================================================================

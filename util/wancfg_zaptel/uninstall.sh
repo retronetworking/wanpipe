@@ -8,6 +8,6 @@ if [ -z $WZDIR ]; then
 	exit 1
 fi
 
-if [ -e $WAN_VIRTUAL/$WZDIR ]; then 
-	rm -rf $WAN_VIRTUAL/$WZDIR
+if [ -d $WAN_VIRTUAL/$WZDIR ]; then 
+	rm -f $WAN_VIRTUAL/$WZDIR/*
 fi 

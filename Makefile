@@ -386,6 +386,7 @@ clean_util:
 .PHONY: install_util
 install_util:
 	$(MAKE) -C util install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)  
+	$(MAKE) -C util install_wancfg SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)  
 
 .PHONY: install_smgbri
 install_smgbri:

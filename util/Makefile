@@ -1,6 +1,8 @@
 PWD=$(shell pwd)
 
-WAN_VIRTUAL=$(PREFIX)
+ifndef WAN_VIRTUAL
+	WAN_VIRTUAL=$(PREFIX)
+endif
 
 ifndef WANINCDIR
 	WANINCDIR=$(WAN_VIRTUAL)/usr/include/wanpipe
@@ -30,6 +32,9 @@ all_wancfg:
 	make -C wancfg all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 2> /dev/null
 
 install:
+	@if [ ! -e $(WAN_VIRTUAL)/etc/wanpipe ]; then \
+		mkdir -p $(WAN_VIRTUAL)/etc/wanpipe; \
+	fi
 	make -C wancfg_legacy install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C lxdialog install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanconfig install WAN_VIRTUAL=$(WAN_VIRTUAL)
@@ -37,11 +42,13 @@ install:
 	make -C wan_plxctrl install WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C wanpipemon install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wanpipemon_legacy install WAN_VIRTUAL=$(WAN_VIRTUAL)
-	make -C wancfg install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_aftup install WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C bwm install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wancfg_zaptel install WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C libsangoma install DESTDIR=$(WAN_VIRTUAL)
+
+install_wancfg:
+	make -C wancfg install WAN_VIRTUAL=$(WAN_VIRTUAL)
 
 uninstall:
 	make -C ft1 uninstall WAN_VIRTUAL=$(WAN_VIRTUAL)
