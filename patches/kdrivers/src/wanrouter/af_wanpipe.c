@@ -1787,6 +1787,18 @@ static int wanpipe_getname(struct socket *sock, struct sockaddr *uaddr,
 	return 0;
 }
 
+#if (KERN_SOCK_NO_OPT == 0)
+static int sock_no_setsockopt(struct socket *sock, int level, int optname, sockptr_t optval, unsigned int optlen)
+{
+	return -EOPNOTSUPP;
+}
+
+static int sock_no_getsockopt(struct socket *sock, int level, int optname, char __user *optval, int __user *optlen)
+{
+	return -EOPNOTSUPP;
+}
+#endif
+
 /*============================================================
  *  wanpipe_notifier
  *	

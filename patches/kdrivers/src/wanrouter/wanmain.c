@@ -1236,7 +1236,9 @@ unsigned long wan_set_ip_address (netdevice_t *dev, int option, unsigned long ip
 	struct sockaddr_in *if_data;
 	struct ifreq if_info;	
 	int err=0;
+#ifndef LINUX_5_10
 	mm_segment_t fs;
+#endif
 	
 	 /* Setup a structure for adding/removing routes */
         memset(&if_info, 0, sizeof(if_info));
@@ -1250,10 +1252,15 @@ unsigned long wan_set_ip_address (netdevice_t *dev, int option, unsigned long ip
 		if_data->sin_addr.s_addr = ip;
 		if_data->sin_family = AF_INET;
 
+#ifndef LINUX_5_10
 		fs = get_fs();                  /* Save file system  */
-       		set_fs(get_ds());    
+       		set_fs(get_ds());
+#endif
 		err = wp_devinet_ioctl(SIOCSIFADDR, &if_info);
+
+#ifndef LINUX_5_10
 		set_fs(fs);
+#endif
 		break;
 	
 	case WAN_POINTOPOINT_IP:
@@ -1262,10 +1269,15 @@ unsigned long wan_set_ip_address (netdevice_t *dev, int option, unsigned long ip
 		if_data->sin_addr.s_addr = ip;
 		if_data->sin_family = AF_INET;
 
+#ifndef LINUX_5_10
 		fs = get_fs();                  /* Save file system  */
-       		set_fs(get_ds());  
+       		set_fs(get_ds());
+#endif
 		err = wp_devinet_ioctl(SIOCSIFDSTADDR, &if_info);
+
+#ifndef LINUX_5_10
 		set_fs(fs);
+#endif
 		break;	
 
 	case WAN_NETMASK_IP:
@@ -1354,7 +1366,9 @@ static inline void set_sockaddr(struct sockaddr_in *sin, u32 addr, u16 port)
 
 void wan_add_gateway(netdevice_t *dev)
 {
+#ifndef LINUX_5_10
 	mm_segment_t oldfs;
+#endif
 	struct rtentry route;
 	int res;
 #if 0
@@ -1378,10 +1392,15 @@ void wan_add_gateway(netdevice_t *dev)
 	set_sockaddr((struct sockaddr_in *) &route.rt_genmask, 0, 0);
 	route.rt_flags = 0;  
 
+#ifndef LINUX_5_10
 	oldfs = get_fs();
 	set_fs(get_ds());
+#endif
 	res = wp_ip_rt_ioctl(SIOCADDRT,&route);
+
+#ifndef LINUX_5_10
 	set_fs(oldfs);
+#endif
 
 	if (res == 0){
 		DEBUG_EVENT("%s: IP default route added for: %s\n",

@@ -210,6 +210,25 @@ check_kern_sock_for_feature ()
 		fi
 		PROTOCOL_DEFINES="$PROTOCOL_DEFINES $KERN_SK_FOR_NODE_FEATURE " 
 	fi	
+
+        if [ -e $SOURCEDIR/include/net/sock.h ];then
+                eval "grep \"sock_no_setsockopt\" $SOURCEDIR/include/net/sock.h >/dev/null 2>/dev/null"
+                if [ $? -eq 0 ]; then
+                        SOCK_NO_OPT="-DSOCK_NO_OPT=1"
+                else
+                        SOCK_NO_OPT="-DSOCK_NO_OPT=0"
+                fi
+                PROTOCOL_DEFINES="$PROTOCOL_DEFINES $SOCK_NO_OPT "
+
+        elif [ -e $DEBSRCDIR/include/net/sock.h ];then
+                eval "grep \"sock_no_setsockopt\" $DEBSRCDIR/include/net/sock.h >/dev/null 2>/dev/null"
+                if [ $? -eq 0 ]; then
+                        SOCK_NO_OPT="-DSOCK_NO_OPT=1"
+                else
+                        SOCK_NO_OPT="-DSOCK_NO_OPT=0"
+                fi
+                PROTOCOL_DEFINES="$PROTOCOL_DEFINES $SOCK_NO_OPT "
+        fi
 }
 
 check_kern_netdevice_feature ()
@@ -7742,7 +7761,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=7.0.32
+PROD_VER=7.0.33
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

@@ -2051,7 +2051,9 @@ wp_get_ip_exit:
 
 void add_gateway(sdla_t *card, netdevice_t *dev)
 {
+#ifndef LINUX_5_10
 	mm_segment_t oldfs;
+#endif
 	struct rtentry route;
 	int res;
 
@@ -2071,10 +2073,15 @@ void add_gateway(sdla_t *card, netdevice_t *dev)
 	route.rt_flags = 0;  
 	route.rt_dev = dev->name;
 
+#ifndef LINUX_5_10
 	oldfs = get_fs();
 	set_fs(get_ds());
+#endif
 	res = wp_ip_rt_ioctl(SIOCADDRT,&route);
+
+#ifndef LINUX_5_10
 	set_fs(oldfs);
+#endif
 
 	if (res == 0){
 		DEBUG_EVENT("%s: Gateway added for %s\n",

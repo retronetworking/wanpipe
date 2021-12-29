@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.32
+%define VERSION           7.0.33
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -266,6 +266,7 @@ fi
 - Include proper support 32/64 bit timer data type
 - User of KBUILD_MODPOST_WARN to properly support EXPORT_DEPENDENCIES
 - Wanpipe script support for Ubuntu LTS 20.04
+- Makefile: 'M=' is preferred to 'SUBDIRS=' for external modules in order to build with latest 5.x kernels
 
 * Tue Feb 02 2021 Pushkar Singh <psingh@sangoma.com> - 7.0.31
 ==================================================================

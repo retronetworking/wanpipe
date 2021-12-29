@@ -88,6 +88,17 @@
 #endif
 
 /////////////2.6.36/////////////////////////////
+/* enable UNLOCKED_IOCTL for all kernel version > 5.9.0 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0))
+#define HAVE_UNLOCKED_IOCTL 1
+#endif
+
+/* if kernel version is >= 5.10 then we must not use get/ser fs and KERNEL_DS
+ * as it is undefined */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define LINUX_5_10
+#endif
+
 #ifdef HAVE_UNLOCKED_IOCTL
 #define WAN_IOCTL       unlocked_ioctl
 #define WAN_IOCTL_RET_TYPE	long
@@ -778,6 +789,9 @@ static inline int open_dev_check(netdevice_t *dev)
 	#define LINUX_2_4
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+	#define LINUX_5_10
+#endif
 
 
 #endif

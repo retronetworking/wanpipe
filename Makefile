@@ -193,9 +193,15 @@ endif
 ifneq (,$(wildcard $(KDIR)/include/net/sock.h))
 KERN_SK_FOR_NODE_FEATURE=$(shell grep "sk_for_each.*node" $(KDIR)/include/net/sock.h -c)
 EXTRA_CFLAGS+=-DKERN_SK_FOR_NODE_FEATURE=$(KERN_SK_FOR_NODE_FEATURE)
+
+SOCK_NO_OPT=$(shell grep "sock_no_setsockopt" $(KDIR)/include/net/sock.h -c)
+EXTRA_CFLAGS+=-DSOCK_NO_OPT=$(SOCK_NO_OPT)
 else
 KERN_SK_FOR_NODE_FEATURE=$(shell grep "sk_for_each.*node" $(KSRC)/include/net/sock.h -c)
 EXTRA_CFLAGS+=-DKERN_SK_FOR_NODE_FEATURE=$(KERN_SK_FOR_NODE_FEATURE)
+
+SOCK_NO_OPT=$(shell grep "sock_no_setsockopt" $(KSRC)/include/net/sock.h -c)
+EXTRA_CFLAGS+=-DSOCK_NO_OPT=$(SOCK_NO_OPT)
 endif
 
 ifneq (,$(wildcard $(KDIR)/include/linux/netdevice.h))
