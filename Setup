@@ -2218,7 +2218,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 	if [ $? -eq 0 ]; then
 		echo -e "Done.\n"
 	else
-		echo -e "Failed. \n"
+		echo -e "Failed. -- Note this library is not mandatory its safe to continue install \n"
 		pause
 	fi
 	eval "make install >> $CMP_LOG 2>> $CMP_LOG"
@@ -2554,9 +2554,15 @@ function build_kernel_module()
 			#echo "----------------------------"
 			#echo 
 
-			echo "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o" >> $CMP_BUILD 
-			$EVALCMD "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o"
+			rm -f $modname.ko
+			rm -f $modname.mod.o
+
+			make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KDIR=$SOURCEDIR \
+                     	EXTRA_CFLAGS="-D__LINUX__ $PROTOCOL_DEFINES $extra_flags " >> $CMP_LOG 2>> $CMP_LOG 
+		#	echo "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o" >> $CMP_BUILD 
+		#	$EVALCMD "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o"
 		fi
+
 	else	
 
 		for file in $modfiles
@@ -4258,6 +4264,9 @@ WANPIPE_OBJS=
 			XMTP2KM_OBJ="main2_6 fwmsg"
 
 			build_kernel_module xmtp2km "$XMTP2KM_OBJ" "-D__XMTP2__" "bin/$xmtp2km_file" 
+			if [ -e $MODSYM ]; then
+				cp $MODSYM  $PROD_HOME/$MODSYM.xmtp2 
+			fi  
 
 			if [ -e xmtp2km.ko ]; then
 				\cp -f xmtp2km.ko ../mod
@@ -4277,8 +4286,14 @@ WANPIPE_OBJS=
                 	lip_src_mods=$lip_src_mods"  wanpipe_hdlc_iface wanpipe_hdlc_eng"
 		fi
 
-		build_kernel_module wanpipe_lip "$lip_src_mods" "$LIP_DEFINES" "$LIP_BIN_OBJS" 
+		if [ -e  $PROD_HOME/$MODSYM.xmtp2 ]; then
+			cat $PROD_HOME/$MODSYM.xmtp2 >> $MODSYM
+		fi  
 
+		build_kernel_module wanpipe_lip "$lip_src_mods" "$LIP_DEFINES" "$LIP_BIN_OBJS" 
+        if [ -e $MODSYM ]; then
+			cp $MODSYM  $PROD_HOME/$MODSYM.lip 
+		fi 
 
 		if [ $FR_PROT = "YES" ]; then
 		echo "FR compiled for GCC Ver=$GCC_VER Arch=$ARCH File:$fr_file"
@@ -4337,6 +4352,12 @@ WANPIPE_OBJS=
 	fi
 	if [ -f $PROD_HOME/$MODSYM.syncppp ]; then
 		cat $PROD_HOME/$MODSYM.syncppp >> $MODSYM
+	fi
+	if [ -e  $PROD_HOME/$MODSYM.xmtp2 ]; then
+		cat $PROD_HOME/$MODSYM.xmtp2 >> $MODSYM
+	fi
+	if [ -e  $PROD_HOME/$MODSYM.lip ]; then
+		cat $PROD_HOME/$MODSYM.lip >> $MODSYM
 	fi
 
 	WANPIPE_OBJS=$WANPIPE_OBJS"sdlamain wanpipe_tdm_api wanpipe_codec wanpipe_codec_law " 
@@ -6472,6 +6493,7 @@ ENDOFTEXT
 		fi
 		PROT_MATCH=YES	
 		XMTP2_PROT=YES
+		LIP_PROT=YES
 		SSMG=YES
 	fi
 
@@ -7178,7 +7200,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.2
+PROD_VER=3.5.3
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

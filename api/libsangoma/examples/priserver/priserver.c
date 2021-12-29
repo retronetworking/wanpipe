@@ -19,7 +19,7 @@
 
 typedef struct {
 	int pid;
-	q931_call call;
+	q931_call *call;
 	void *pri;
 }call_info_t;
 
@@ -37,10 +37,12 @@ static void launch_channel(struct sangoma_pri *spri, int channo)
 	int fd = 0, file = 0, inlen = 0, outlen = 0;
 	unsigned char inframe[MAX_BYTES], outframe[MAX_BYTES];
 	sangoma_api_hdr_t hdrframe;
-	fd_set readfds;
+	sangoma_status_t status;
+	sangoma_wait_obj_t *sng_wait;
 	int mtu_mru=BYTES;
 	wanpipe_tdm_api_t tdm_api;
 	int err;
+	uint32_t flagsout;
 
 	pid = fork();
 
@@ -59,7 +61,7 @@ static void launch_channel(struct sangoma_pri *spri, int channo)
 		err=sangoma_tdm_set_codec(fd, &tdm_api, WP_SLINEAR);
 		if (err < 0){
 			printf("Critical Error: Failed to set driver codec!\n");
-			close (fd);
+			sangoma_close(&fd);
 			exit(-1);
 		}
 
@@ -73,18 +75,25 @@ static void launch_channel(struct sangoma_pri *spri, int channo)
 		file = open("sound.raw", O_RDONLY);
 		if (file < 0){
 			printf("Critical Error: Failed to open sound file!\n");
-			close (fd);
+			sangoma_close(&fd);
 			exit(-1);
 		}
-
+		status = sangoma_wait_obj_create(&sng_wait, fd, SANGOMA_DEVICE_WAIT_OBJ);
+		if (status != SANG_STATUS_SUCCESS) {
+			printf("Critial Error: Failed to create sangoma waitable object\n");
+			sangoma_close(&fd);
+			exit(-1); 
+		}
+		printf("Playing sound.raw\n");
 		for(;;) {
-			FD_ZERO(&readfds);
-			FD_SET(fd, &readfds);
 
-			if (!select(fd + 1, &readfds, NULL, NULL, NULL)) {
+			status = sangoma_waitfor(sng_wait, POLLIN, &flagsout, SANGOMA_WAIT_INFINITE);
+			if (status != SANG_STATUS_SUCCESS) {
+				perror("sangoma_waitfor");
+				printf("Error waiting on sangoma device for input, ret = %d\n", status);
 				break;
 			}
-
+			
 			if((outlen = read(file, outframe, mtu_mru)) != mtu_mru) {
 				break;
 			}
@@ -100,7 +109,7 @@ static void launch_channel(struct sangoma_pri *spri, int channo)
 		sangoma_get_full_cfg(fd, &tdm_api);
 		close(file);
 		close(fd);
-
+		sangoma_wait_obj_delete(&sng_wait);
 		printf("Call Handler: Process Finished\n");
 		exit(0);
 	}
@@ -134,8 +143,9 @@ static int on_ring(struct sangoma_pri *spri, sangoma_pri_event_t event_type, pri
 {
 	printf("-- Ring on channel %d (from %s to %s), answering...\n", event->ring.channel, event->ring.callingnum, event->ring.callednum);
 	pri_answer(spri->pri, event->ring.call, event->ring.channel, 1);
-	memcpy(&pidmap[event->ring.channel-1].call, event->ring.call, sizeof(q931_call));
-	pidmap[event->ring.channel-1].pri=spri->pri;
+	pidmap[event->ring.channel-1].call = event->ring.call;
+	//memcpy(&pidmap[event->ring.channel-1].call, event->ring.call, sizeof(q931_call));
+	pidmap[event->ring.channel-1].pri = spri->pri;
 	launch_channel(spri, event->ring.channel);
 	return 0;
 }
@@ -167,7 +177,7 @@ static void chan_ended(int sig)
 		if (pid == pidmap[x].pid) {
 			pidmap[x].pid = 0;
 			if (pidmap[x].pri){
-				int err=pri_hangup(pidmap[x].pri, &pidmap[x].call, -1);
+				int err=pri_hangup(pidmap[x].pri, pidmap[x].call, -1);
 				printf("Hanging up on PID %i Err=%i\n",pid,err);
 			}
 

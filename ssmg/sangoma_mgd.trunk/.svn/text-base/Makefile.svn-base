@@ -104,6 +104,7 @@ install_smg: old_cleanup
 	fi
 	
 	install -D -m 755 ./safe_sangoma $(INSTALLPREFIX)/usr/sbin/safe_sangoma
+	install -D -m 755 ./__smg_ctrl_common $(INSTALLPREFIX)/usr/sbin/__smg_ctrl_common
 ifeq "${BRI}" "YES"
 	@echo "BRI control scripts installed"
 	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \

@@ -139,6 +139,12 @@ enum {
 };
 
 
+enum {
+	WAN_AFT_DMA_CHAIN = 0,
+	WAN_AFT_DMA_CHAIN_IRQ_ALL,
+	WAN_AFT_DMA_CHAIN_SINGLE
+};
+
 /*=================================================================
  * Private structures
  *================================================================*/
@@ -282,7 +288,7 @@ typedef struct private_area
 	bus_dma_tag_t		dma_tx_mtag;
 #endif
 
-	unsigned char 		single_dma_chain;
+	unsigned char 		dma_chain_opmode;
 
 	wp_tdm_chan_stats_t	chan_stats;
 
@@ -418,8 +424,26 @@ typedef struct private_area
 
 void 	aft_free_logical_channel_num (sdla_t *card, int logic_ch);
 void 	aft_dma_max_logic_ch(sdla_t *card);
+
+#undef AFT_FE_INTR_DEBUG 
+
+#ifdef AFT_FE_INTR_DEBUG
+void 	___aft_fe_intr_ctrl(sdla_t *card, int status, char *func, int line);
+static __inline int ___aft_fe_intr_ctrl_locked(sdla_t *card, int status, char* func, int line)
+{
+	wan_smp_flag_t smp_flags; 
+	wan_spin_lock_irq(&card->wandev.lock,&smp_flags); 
+	___aft_fe_intr_ctrl(card,status,func,line);
+	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags); 
+	return 0;
+}
+#define __aft_fe_intr_ctrl(card, status) ___aft_fe_intr_ctrl(card, status, (char*)__FUNCTION__,__LINE__)
+#define aft_fe_intr_ctrl(card, status) ___aft_fe_intr_ctrl_locked(card, status,(char*)__FUNCTION__,__LINE__)
+#else
 void 	aft_fe_intr_ctrl(sdla_t *card, int status);
 void 	__aft_fe_intr_ctrl(sdla_t *card, int status);
+#endif
+
 void 	aft_wdt_set(sdla_t *card, unsigned char val);
 void 	aft_wdt_reset(sdla_t *card);
 void 	wanpipe_wake_stack(private_area_t* chan);
@@ -428,7 +452,7 @@ int 	aft_event_ctrl(void *chan_ptr, wan_event_ctrl_t *p_event);
 int 	aft_core_tdmapi_event_init(private_area_t *chan);
 int 	wan_aft_api_ioctl(sdla_t *card, private_area_t *chan, char *user_data);
 int 	aft_dma_tx (sdla_t *card,private_area_t *chan);
-
+int 	aft_tdm_chan_ring_rsyinc(sdla_t * card, private_area_t *chan );
 
 
 static __inline void wan_aft_skb_defered_dealloc(private_area_t *chan, netskb_t *skb)

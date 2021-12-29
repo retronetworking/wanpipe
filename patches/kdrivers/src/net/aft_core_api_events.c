@@ -52,19 +52,23 @@ static int aft_read_rbs_bits(void *chan_ptr, u32 fe_chan, u8 *rbs_bits)
 {
 	private_area_t *chan = (private_area_t *)chan_ptr;
 	wan_smp_flag_t flags;
+	int err=-EINVAL;
 
 	if (!chan_ptr){
-		return -EINVAL;
+		return err;
 	}
 
 	chan->card->hw_iface.hw_lock(chan->card->hw,&flags);
-	*rbs_bits = chan->card->wandev.fe_iface.read_rbsbits(
-						&chan->card->fe,
-						fe_chan,
-						WAN_TE_RBS_UPDATE);
+	if (chan->card->wandev.fe_iface.read_rbsbits) {
+   	 	*rbs_bits = chan->card->wandev.fe_iface.read_rbsbits(
+							&chan->card->fe,
+					   	 	fe_chan,
+					   	 	WAN_TE_RBS_UPDATE);
+		err=0;
+	}  
 	chan->card->hw_iface.hw_unlock(chan->card->hw,&flags);
 
-	return 0;
+	return err;
 
 }
 
@@ -72,16 +76,18 @@ static int aft_write_rbs_bits(void *chan_ptr, u32 fe_chan, u8 rbs_bits)
 {
 	private_area_t *chan = (private_area_t *)chan_ptr;
 	wan_smp_flag_t flags;
-	int err;
+	int err=-EINVAL;
 
 	if (!chan_ptr){
-		return -EINVAL;
+		return err;
 	}
 
 	chan->card->hw_iface.hw_lock(chan->card->hw,&flags);
-	err = chan->card->wandev.fe_iface.set_rbsbits(&chan->card->fe,
-						fe_chan,
-						rbs_bits);
+	if (chan->card->wandev.fe_iface.set_rbsbits) {
+		err = chan->card->wandev.fe_iface.set_rbsbits(&chan->card->fe,
+							fe_chan,
+							rbs_bits);
+	}
 	chan->card->hw_iface.hw_unlock(chan->card->hw,&flags);
 
 	return err;
@@ -865,8 +871,21 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 		chan->chan_stats.max_tx_queue_length = (u8)chan->max_tx_bufs;
 		chan->chan_stats.max_rx_queue_length = (u8)chan->dma_per_ch;
 
+		if (chan->dma_chain_opmode == WAN_AFT_DMA_CHAIN_SINGLE){
+            /* do not count the queue len */
+		} else {
+			chan->chan_stats.max_tx_queue_length += MAX_AFT_DMA_CHAINS;
+		}
+
 		wptdm_os_lock_irq(&card->wandev.lock, &smp_flags);
 		chan->chan_stats.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
+
+		if (chan->dma_chain_opmode == WAN_AFT_DMA_CHAIN_SINGLE){
+            /* do not count the queue len */
+		} else {
+			chan->chan_stats.current_number_of_frames_in_tx_queue += aft_tx_dma_chain_chain_len(chan);
+		}
+
 		chan->chan_stats.current_number_of_frames_in_rx_queue = (u8)wan_skb_queue_len(&chan->wp_rx_complete_list);
 		wptdm_os_unlock_irq(&card->wandev.lock, &smp_flags);
 		
@@ -875,6 +894,7 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 
 	case WP_API_CMD_RESET_STATS:
 		memset(&chan->chan_stats,0,sizeof(wanpipe_chan_stats_t));
+		memset(&chan->common.if_stats,0,sizeof(struct net_device_stats));
 		break;
 
 	case WP_API_CMD_DRIVER_VERSION:
@@ -900,6 +920,18 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 	
 	case WP_API_CMD_GEN_FIFO_ERR:
 		card->wp_debug_gen_fifo_err=1;
+        break;
+
+	case WP_API_CMD_START_CHAN_SEQ_DEBUG:
+		DEBUG_EVENT("%s: Span %i channel sequence deugging enabled !\n",
+				card->devname, card->tdmv_conf.span_no);
+		card->wp_debug_gen_fifo_err=1;
+        break;
+
+	case WP_API_CMD_STOP_CHAN_SEQ_DEBUG:
+		DEBUG_EVENT("%s: Span %i channel sequence deugging disabled !\n",
+				card->devname, card->tdmv_conf.span_no);
+		card->wp_debug_gen_fifo_err=0;
         break;
 
 	case WP_API_CMD_SET_IDLE_FLAG:

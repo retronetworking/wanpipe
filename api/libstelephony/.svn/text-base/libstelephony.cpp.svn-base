@@ -12,11 +12,20 @@
 //		Software DTMF detection
 ////////////////////////////////////////////////////////////////////////////////////
 
-#if defined(__WINDOWS__)
-#include "stdafx.h"
+#include "stelephony.h"
+
+#ifdef __cplusplus
+extern "C" {	/* for C++ users */
 #endif
 
-#include "stelephony.h"
+size_t stelephony_buffer_inuse(void *pbuffer);
+size_t stelephony_buffer_read(void *pbuffer, void *data, size_t datalen);
+size_t stelephony_buffer_read_ulaw(void *pbuffer, unsigned char *data, int* dlen, int max);
+size_t stelephony_buffer_read_alaw(void *buffer, unsigned char *data, int* dlen, int max);
+
+#ifdef __cplusplus
+}
+#endif
 
 #define DBG_MAIN if(0)printf
 
@@ -124,7 +133,6 @@ stelephony_status_t STELAPI_CALL StelStreamInput(void *stelObjPtr, void *data, i
 	return STEL_STATUS_SUCCESS; 
 }
 
-#if (__LINUX__)
 stelephony_status_t STELAPI_CALL StelGenerateFSKCallerID(void *stelObjPtr, stelephony_caller_id_t* cid_info)
 {
 	CStelephony* stelObj = (CStelephony*)stelObjPtr;
@@ -138,9 +146,7 @@ stelephony_status_t STELAPI_CALL StelGenerateFSKCallerID(void *stelObjPtr, stele
 	stelObj->LeaveStelCriticalSection();
 	return STEL_STATUS_SUCCESS; 
 }
-#endif
 
-#if (__LINUX__)
 stelephony_status_t STELAPI_CALL StelGenerateSwDTMF(void *stelObjPtr, char dtmf_char)
 {
 	CStelephony* stelObj = (CStelephony*)stelObjPtr;
@@ -154,7 +160,6 @@ stelephony_status_t STELAPI_CALL StelGenerateSwDTMF(void *stelObjPtr, char dtmf_
 	stelObj->LeaveStelCriticalSection();
 	return STEL_STATUS_SUCCESS; 
 }
-#endif
 
 stelephony_status_t STELAPI_CALL StelEventControl(void *stelObjPtr, stelephony_event_t Event, stelephony_control_code_t ControlCode, void *optionalData)
 {
@@ -175,10 +180,8 @@ stelephony_status_t STELAPI_CALL StelEventControl(void *stelObjPtr, stelephony_e
 	case STEL_EVENT_FSK_CALLER_ID:
 	case STEL_EVENT_DTMF:
 	case STEL_EVENT_Q931:
-#if (__LINUX__)
 	case STEL_FEATURE_FSK_CALLER_ID:
 	case STEL_FEATURE_SW_DTMF:
-#endif
 		stelObj->EnterStelCriticalSection();
 		rc = stelObj->EventControl(Event, ControlCode, optionalData);
 		stelObj->LeaveStelCriticalSection();
@@ -188,3 +191,70 @@ stelephony_status_t STELAPI_CALL StelEventControl(void *stelObjPtr, stelephony_e
 		return STEL_STATUS_INVALID_EVENT_ERROR;
 	}
 }
+
+//////////////////////////////////////////////////////////
+
+size_t STELAPI_CALL StelBufferInuse(void *stelObjPtr, void *pbuffer)
+{
+	size_t sizeTmp;
+	CStelephony* stelObj = (CStelephony*)stelObjPtr;
+
+	stelObj->EnterStelCriticalSection();
+	sizeTmp = stelephony_buffer_inuse(pbuffer);
+	stelObj->LeaveStelCriticalSection();
+	return sizeTmp;
+}
+
+size_t STELAPI_CALL StelBufferRead(void *stelObjPtr, void *pbuffer, void *data, size_t datalen)
+{
+	size_t sizeTmp;
+	CStelephony* stelObj = (CStelephony*)stelObjPtr;
+
+	stelObj->EnterStelCriticalSection();
+	sizeTmp = stelephony_buffer_read(pbuffer, data, datalen);
+	stelObj->LeaveStelCriticalSection();
+	return sizeTmp;
+}
+
+size_t STELAPI_CALL StelBufferReadUlaw(void *stelObjPtr, void *pbuffer, unsigned char *data, int* dlen, int max)
+{
+	size_t sizeTmp;
+	CStelephony* stelObj = (CStelephony*)stelObjPtr;
+
+	stelObj->EnterStelCriticalSection();
+	sizeTmp = stelephony_buffer_read_ulaw(pbuffer, data, dlen, max);
+	stelObj->LeaveStelCriticalSection();
+	return sizeTmp;
+}
+
+size_t STELAPI_CALL StelBufferReadAlaw(void *stelObjPtr, void *buffer, unsigned char *data, int* dlen, int max)
+{
+	size_t sizeTmp;
+	CStelephony* stelObj = (CStelephony*)stelObjPtr;
+
+	stelObj->EnterStelCriticalSection();
+	sizeTmp = stelephony_buffer_read_alaw(buffer, data, dlen, max);
+	stelObj->LeaveStelCriticalSection();
+	return sizeTmp;
+}
+
+//////////////////////////////////////////////////////////
+// Private global functions - Start
+
+/*!
+	\fn		void *stel_malloc(int size)
+	\brief	allocate memory AND zero it
+	\param	size	size of memory in bytes to allocate
+	\return	pointer to allocated memory or NULL if allocation failed
+*/
+void *stel_malloc(int size)
+{
+	void *pMem = malloc(size);
+	if(pMem){
+		memset(pMem, 0x00, size);
+	}
+	return pMem;
+}
+
+// Private global functions - End
+//////////////////////////////////////////////////////////

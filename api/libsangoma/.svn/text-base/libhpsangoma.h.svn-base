@@ -82,6 +82,7 @@
  * PUBLIC DEFINITIONS
  */
 
+typedef void (*sangoma_hptdm_log_func_t)(int level, FILE *fp, const char *file, const char *func, int line, const char *fmt, ...);
 
 /*!
   \struct sangoma_hptdm_span_reg_t
@@ -92,7 +93,7 @@ typedef struct sangoma_hptdm_span_reg
 	/*! pointer to user object used with callback functions */
 	void *p;
 	/*! callback function to implement library logging */
-	void (*log)(int level, FILE *fp, char *file, const char *func, int line, char *fmt, ...);
+	sangoma_hptdm_log_func_t log;
 	/*! callback function to span global events for all channels in a span */
 	int (*rx_event)(void *p, hp_tdmapi_rx_event_t *data);
 }sangoma_hptdm_span_reg_t;
@@ -206,6 +207,9 @@ typedef struct sangoma_hptdm_span
 
 	/*! span socket file descriptor used to rx/tx data to and from hw interface */
 	int sock;
+
+	/*! waitable object for the socket */
+	sangoma_wait_obj_t *waitobj;
 
 	/*! chunk size for each channel inside the span */
 	int chunk_sz;

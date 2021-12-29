@@ -3137,15 +3137,9 @@ static int __init sync_ppp_init(void)
 	if(debug)
 		debug=PP_DEBUG;
 
-	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta %s.%s %s %s\n",
-			fullname, WANPIPE_VERSION,       WANPIPE_SUB_VERSION,
-			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-	}else{
-		DEBUG_EVENT("%s Stable %s.%s %s %s\n",
+		DEBUG_EVENT("%s %s.%s %s %s\n",
 			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-	}
 
 #if 0
 	dev_add_pack(&sppp_packet_type);

@@ -61,6 +61,7 @@ int sangoma_hptdm_span_open(sangoma_hptdm_span_t *span)
 {
 	int sock=-1;
 	int err;
+	int status;
 
 	sock =  sangoma_open_api_span(span->span_no);
    	if( sock < 0 ) {
@@ -70,7 +71,15 @@ int sangoma_hptdm_span_open(sangoma_hptdm_span_t *span)
 
 	span->sock=sock;
 
-	err= sangoma_get_cfg(span);
+	span->waitobj = NULL;
+	status = sangoma_wait_obj_create(&span->waitobj, span->sock, SANGOMA_DEVICE_WAIT_OBJ);
+	if (status != SANG_STATUS_SUCCESS) {
+		fprintf(stderr, "Error creating sangoma waitable object\n");
+		err = -1;
+		goto sangoma_hptdm_span_open_error;
+	}
+
+	err = sangoma_get_cfg(span);
 	if (err) {
 		goto sangoma_hptdm_span_open_error;
 	}
@@ -84,7 +93,10 @@ sangoma_hptdm_span_open_error:
 
 	if (span->sock >= 0) {
 		sangoma_close(&span->sock);
-		span->sock=-1;
+	}
+
+	if (span->waitobj) {
+		sangoma_wait_obj_delete(&span->waitobj);
 	}
 
 	return err;
@@ -173,7 +185,6 @@ int sangoma_hp_tdm_handle_read_event(sangoma_hptdm_span_t *span)
 {
 	int err=0;
 
-#warning "NENEAD ---- FIX HEANDLE"
 #if 0
 	hp_tdmapi_rx_event_t *rx_event = (hp_tdmapi_rx_event_t*)&span->rx_data[0];
 

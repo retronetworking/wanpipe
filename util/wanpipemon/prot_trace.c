@@ -1,3 +1,11 @@
+/* prot_trace.c */
+#if defined(__WINDOWS__)
+# include <conio.h>				/* for _kbhit */
+# include "wanpipe_includes.h"
+# include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t' */
+# include "wanpipe_time.h"		/* for 'struct timeval' */
+# include "wanpipe_common.h"	/* for 'strcasecmp' */
+#else
 #include <stdio.h>
 #include <ctype.h>
 #include <time.h>
@@ -22,6 +30,8 @@
 # include <netinet/ip.h>
 # include <netinet/tcp.h>
 #endif
+#endif
+
 #include "wanpipe_api.h"
 #include "fe_lib.h"
 #include "wanpipemon.h"
@@ -147,6 +157,9 @@ void trace_banner (wp_trace_output_iface_t *trace_iface, int *trace_started)
 			time_t time_val=trace_iface->sec;
 			struct tm *time_tm;
 
+#if defined(__WINDOWS__)
+			time( &time_val );
+#endif
 			/* Parse time and date */
 			time_tm = localtime(&time_val);
    
@@ -589,7 +602,14 @@ static char *clear_diag(unsigned char code)
     return buffer;
 }
 
-
+#ifdef __WINDOWS__
+static int decode_chdlc(wp_trace_output_iface_t *trace_iface,
+		        int *trace_started)
+{
+	printf("%s() not implemented\n", __FUNCTION__);
+	return 1;
+}
+#else
 static int decode_chdlc(wp_trace_output_iface_t *trace_iface,
 		        int *trace_started)
 {
@@ -674,6 +694,7 @@ static int decode_chdlc(wp_trace_output_iface_t *trace_iface,
 
 	return inf_frame;
 }
+#endif
 
 static void decode_chdlc_ip_transaction(cisco_slarp_t *cisco_slarp)
 {
@@ -687,6 +708,13 @@ static void decode_chdlc_ip_transaction(cisco_slarp_t *cisco_slarp)
 #define IP_V4		4
 #define IP_V4_IHLEN  	5
 
+#ifdef __WINDOWS__
+static int decode_data_ipv4(unsigned char* data, unsigned short data_len)
+{
+	printf("%s() not implemented\n", __FUNCTION__);
+	return 1;
+}
+#else
 static int decode_data_ipv4(unsigned char* data, unsigned short data_len)
 {
 	iphdr_t *ip_hdr = (iphdr_t*)data;
@@ -821,6 +849,7 @@ static int decode_data_ipv4(unsigned char* data, unsigned short data_len)
   	}
 	return 0;
 }
+#endif
 
 //define here most used protocols
 #define ECHO		7
@@ -961,6 +990,14 @@ INCOMING     : Len=31   TimeStamp= 5211
 #define LMI_LINK_VERIFICATION_LEN 	Q933_LINK_VERIFICATION_LEN
 #define LMI_OFFSET			8
 
+#ifdef __WINDOWS__
+static int decode_fr(wp_trace_output_iface_t *trace_iface,
+		 int *trace_started,int dlci)
+{
+	printf("%s() not implemented\n", __FUNCTION__);
+	return 1;
+}
+#else
 static int decode_fr(wp_trace_output_iface_t *trace_iface,
 		 int *trace_started,int dlci)
 {
@@ -1147,6 +1184,7 @@ static int decode_fr(wp_trace_output_iface_t *trace_iface,
 
 	return inf_frame;
 }
+#endif
 
 static int decode_lapb(wp_trace_output_iface_t *trace_iface,
 		       int *trace_started)

@@ -11,7 +11,7 @@ USE_LIBCMT=1
 DLLDEF=libsangoma.def
 
 ############################################################################################
-C_DEFINES=$(C_DEFINES) /D__WINDOWS__
+C_DEFINES=$(C_DEFINES) /D__WINDOWS__ /D__COMPILING_LIBSANGOMA__
 ############################################################################################
 
 INCLUDES=$(SDK_INC_PATH);\

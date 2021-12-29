@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 43
-/svn/libsangoma/!svn/ver/155/trunk/sample_c
+/svn/libsangoma/!svn/ver/194/trunk/sample_c
 END
 lib_api.c
 K 25
@@ -19,7 +19,7 @@ sample.c
 K 25
 svn:wc:ra_dav:version-url
 V 52
-/svn/libsangoma/!svn/ver/135/trunk/sample_c/sample.c
+/svn/libsangoma/!svn/ver/194/trunk/sample_c/sample.c
 END
 sources
 K 25

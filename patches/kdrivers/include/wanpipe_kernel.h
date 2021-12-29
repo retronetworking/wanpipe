@@ -111,9 +111,9 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 
  #define pci_present() 	1
 
- static inline void wan_schedule_task(struct tq_struct *tq)
+ static inline int wan_schedule_task(struct tq_struct *tq)
  {
-	schedule_work(tq);
+	return schedule_work(tq);
  }
 
 
@@ -225,9 +225,9 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 
  #define __dev_get(a)		dev_get(a)
 
- static inline void wan_schedule_task(struct tq_struct *tq)
+ static inline int wan_schedule_task(struct tq_struct *tq)
  {
-	schedule_task(tq);
+	return schedule_task(tq);
  }
 
  static inline int wan_task_cancel(struct tq_struct *tq)
@@ -399,9 +399,10 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 	tasklet->data = (void *)data;
  }
 
- static inline void wan_schedule_task(struct tq_struct *tq)
+ static inline int wan_schedule_task(struct tq_struct *tq)
  {
 	queue_task(tq, &tq_scheduler);
+	return 0;
  }
  static inline int wan_task_cancel(struct tq_struct *tq)
  {

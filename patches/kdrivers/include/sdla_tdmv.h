@@ -90,7 +90,7 @@ typedef struct wan_tdmv_iface_
 	int	(*init)(void*, wanif_conf_t*);
 	int	(*free)(wan_tdmv_t*);
 	int	(*polling)(void*);
-	int	(*buf_rotate)(void *pcard,u32,unsigned long);
+	int	(*buf_rotate)(void *pcard,u32,unsigned long,int);
 	int	(*ec_span)(void *pcard);
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)

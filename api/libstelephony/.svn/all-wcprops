@@ -1,37 +1,25 @@
 K 25
 svn:wc:ra_dav:version-url
 V 33
-/svn/stelephony/!svn/ver/29/trunk
-END
-StdAfx.h
-K 25
-svn:wc:ra_dav:version-url
-V 41
-/svn/stelephony/!svn/ver/1/trunk/StdAfx.h
+/svn/stelephony/!svn/ver/49/trunk
 END
 stelephony.h
 K 25
 svn:wc:ra_dav:version-url
 V 46
-/svn/stelephony/!svn/ver/13/trunk/stelephony.h
+/svn/stelephony/!svn/ver/43/trunk/stelephony.h
 END
 init-automake.sh
 K 25
 svn:wc:ra_dav:version-url
 V 50
-/svn/stelephony/!svn/ver/27/trunk/init-automake.sh
-END
-ToneDecoder.h
-K 25
-svn:wc:ra_dav:version-url
-V 46
-/svn/stelephony/!svn/ver/1/trunk/ToneDecoder.h
+/svn/stelephony/!svn/ver/46/trunk/init-automake.sh
 END
 sources
 K 25
 svn:wc:ra_dav:version-url
 V 41
-/svn/stelephony/!svn/ver/29/trunk/sources
+/svn/stelephony/!svn/ver/43/trunk/sources
 END
 AUTHORS
 K 25
@@ -54,20 +42,14 @@ END
 Q931EventsDecoder.cpp
 K 25
 svn:wc:ra_dav:version-url
-V 54
-/svn/stelephony/!svn/ver/6/trunk/Q931EventsDecoder.cpp
+V 55
+/svn/stelephony/!svn/ver/43/trunk/Q931EventsDecoder.cpp
 END
 Sink.h
 K 25
 svn:wc:ra_dav:version-url
 V 40
-/svn/stelephony/!svn/ver/18/trunk/Sink.h
-END
-config.guess
-K 25
-svn:wc:ra_dav:version-url
-V 46
-/svn/stelephony/!svn/ver/13/trunk/config.guess
+/svn/stelephony/!svn/ver/43/trunk/Sink.h
 END
 compile.bat
 K 25
@@ -78,44 +60,32 @@ END
 stelephony.rc
 K 25
 svn:wc:ra_dav:version-url
-V 46
-/svn/stelephony/!svn/ver/1/trunk/stelephony.rc
-END
-ltmain.sh
-K 25
-svn:wc:ra_dav:version-url
-V 43
-/svn/stelephony/!svn/ver/13/trunk/ltmain.sh
-END
-config.sub
-K 25
-svn:wc:ra_dav:version-url
-V 44
-/svn/stelephony/!svn/ver/13/trunk/config.sub
+V 47
+/svn/stelephony/!svn/ver/43/trunk/stelephony.rc
 END
 stelephony.suo
 K 25
 svn:wc:ra_dav:version-url
 V 48
-/svn/stelephony/!svn/ver/29/trunk/stelephony.suo
+/svn/stelephony/!svn/ver/43/trunk/stelephony.suo
 END
 cleanup.sh
 K 25
 svn:wc:ra_dav:version-url
 V 44
-/svn/stelephony/!svn/ver/26/trunk/cleanup.sh
+/svn/stelephony/!svn/ver/47/trunk/cleanup.sh
 END
 PToneDecoder.h
 K 25
 svn:wc:ra_dav:version-url
 V 48
-/svn/stelephony/!svn/ver/15/trunk/PToneDecoder.h
+/svn/stelephony/!svn/ver/43/trunk/PToneDecoder.h
 END
 PToneEncoder.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 50
-/svn/stelephony/!svn/ver/22/trunk/PToneEncoder.cpp
+/svn/stelephony/!svn/ver/44/trunk/PToneEncoder.cpp
 END
 INSTALL
 K 25
@@ -127,13 +97,7 @@ libstelephony.h
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/stelephony/!svn/ver/21/trunk/libstelephony.h
-END
-build.sh
-K 25
-svn:wc:ra_dav:version-url
-V 42
-/svn/stelephony/!svn/ver/28/trunk/build.sh
+/svn/stelephony/!svn/ver/43/trunk/libstelephony.h
 END
 COPYING
 K 25
@@ -141,29 +105,23 @@ svn:wc:ra_dav:version-url
 V 41
 /svn/stelephony/!svn/ver/13/trunk/COPYING
 END
-StdAfx.cpp
+build.sh
 K 25
 svn:wc:ra_dav:version-url
-V 43
-/svn/stelephony/!svn/ver/1/trunk/StdAfx.cpp
+V 42
+/svn/stelephony/!svn/ver/28/trunk/build.sh
 END
 StelephonyApi.h
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/stelephony/!svn/ver/18/trunk/StelephonyApi.h
+/svn/stelephony/!svn/ver/43/trunk/StelephonyApi.h
 END
 stelephony.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 48
-/svn/stelephony/!svn/ver/23/trunk/stelephony.cpp
-END
-stelephony.aps
-K 25
-svn:wc:ra_dav:version-url
-V 47
-/svn/stelephony/!svn/ver/1/trunk/stelephony.aps
+/svn/stelephony/!svn/ver/43/trunk/stelephony.cpp
 END
 NEWS
 K 25
@@ -171,29 +129,17 @@ svn:wc:ra_dav:version-url
 V 38
 /svn/stelephony/!svn/ver/13/trunk/NEWS
 END
+stelephony.aps
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/stelephony/!svn/ver/43/trunk/stelephony.aps
+END
 resource.h
 K 25
 svn:wc:ra_dav:version-url
 V 43
 /svn/stelephony/!svn/ver/1/trunk/resource.h
-END
-ToneDecoder_i.c
-K 25
-svn:wc:ra_dav:version-url
-V 48
-/svn/stelephony/!svn/ver/1/trunk/ToneDecoder_i.c
-END
-stelephony.sln
-K 25
-svn:wc:ra_dav:version-url
-V 47
-/svn/stelephony/!svn/ver/1/trunk/stelephony.sln
-END
-Sink.cpp
-K 25
-svn:wc:ra_dav:version-url
-V 41
-/svn/stelephony/!svn/ver/1/trunk/Sink.cpp
 END
 version
 K 25
@@ -201,17 +147,23 @@ svn:wc:ra_dav:version-url
 V 41
 /svn/stelephony/!svn/ver/13/trunk/version
 END
+stelephony.sln
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/stelephony/!svn/ver/1/trunk/stelephony.sln
+END
 configure.in
 K 25
 svn:wc:ra_dav:version-url
 V 46
-/svn/stelephony/!svn/ver/24/trunk/configure.in
+/svn/stelephony/!svn/ver/48/trunk/configure.in
 END
 stelephony.def
 K 25
 svn:wc:ra_dav:version-url
-V 47
-/svn/stelephony/!svn/ver/1/trunk/stelephony.def
+V 48
+/svn/stelephony/!svn/ver/43/trunk/stelephony.def
 END
 ChangeLog
 K 25
@@ -223,19 +175,19 @@ libstelephony_linux_compat.h
 K 25
 svn:wc:ra_dav:version-url
 V 62
-/svn/stelephony/!svn/ver/18/trunk/libstelephony_linux_compat.h
+/svn/stelephony/!svn/ver/43/trunk/libstelephony_linux_compat.h
 END
 stelephony.vcproj
 K 25
 svn:wc:ra_dav:version-url
 V 51
-/svn/stelephony/!svn/ver/19/trunk/stelephony.vcproj
+/svn/stelephony/!svn/ver/43/trunk/stelephony.vcproj
 END
 PToneDecoder.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 50
-/svn/stelephony/!svn/ver/11/trunk/PToneDecoder.cpp
+/svn/stelephony/!svn/ver/43/trunk/PToneDecoder.cpp
 END
 README
 K 25
@@ -247,19 +199,19 @@ Q931EventsDecoder.h
 K 25
 svn:wc:ra_dav:version-url
 V 53
-/svn/stelephony/!svn/ver/19/trunk/Q931EventsDecoder.h
+/svn/stelephony/!svn/ver/43/trunk/Q931EventsDecoder.h
 END
 config.h.in
 K 25
 svn:wc:ra_dav:version-url
 V 45
-/svn/stelephony/!svn/ver/13/trunk/config.h.in
+/svn/stelephony/!svn/ver/49/trunk/config.h.in
 END
 libstelephony.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 51
-/svn/stelephony/!svn/ver/13/trunk/libstelephony.cpp
+/svn/stelephony/!svn/ver/43/trunk/libstelephony.cpp
 END
 Makefile.Windows
 K 25
@@ -273,29 +225,23 @@ svn:wc:ra_dav:version-url
 V 70
 /svn/stelephony/!svn/ver/1/trunk/stelephony.vcproj.DAVIDRNEW.User.user
 END
-Makefile.am
-K 25
-svn:wc:ra_dav:version-url
-V 45
-/svn/stelephony/!svn/ver/23/trunk/Makefile.am
-END
-libstelephony_la-libstelephony.loT
-K 25
-svn:wc:ra_dav:version-url
-V 68
-/svn/stelephony/!svn/ver/13/trunk/libstelephony_la-libstelephony.loT
-END
 missing
 K 25
 svn:wc:ra_dav:version-url
 V 41
 /svn/stelephony/!svn/ver/13/trunk/missing
 END
+Makefile.am
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/stelephony/!svn/ver/47/trunk/Makefile.am
+END
 PToneEncoder.h
 K 25
 svn:wc:ra_dav:version-url
 V 48
-/svn/stelephony/!svn/ver/22/trunk/PToneEncoder.h
+/svn/stelephony/!svn/ver/43/trunk/PToneEncoder.h
 END
 ReadMe.txt
 K 25

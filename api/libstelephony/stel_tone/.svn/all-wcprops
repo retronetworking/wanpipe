@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 43
-/svn/stelephony/!svn/ver/18/trunk/stel_tone
+/svn/stelephony/!svn/ver/43/trunk/stel_tone
 END
 libteletone_detect.c
 K 25
@@ -9,23 +9,23 @@ svn:wc:ra_dav:version-url
 V 63
 /svn/stelephony/!svn/ver/6/trunk/stel_tone/libteletone_detect.c
 END
-uart.h
-K 25
-svn:wc:ra_dav:version-url
-V 49
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/uart.h
-END
 libteletone_generate.c
 K 25
 svn:wc:ra_dav:version-url
 V 65
 /svn/stelephony/!svn/ver/6/trunk/stel_tone/libteletone_generate.c
 END
-libteletone_detect.h
+uart.h
 K 25
 svn:wc:ra_dav:version-url
-V 63
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/libteletone_detect.h
+V 49
+/svn/stelephony/!svn/ver/6/trunk/stel_tone/uart.h
+END
+sources
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/stelephony/!svn/ver/43/trunk/stel_tone/sources
 END
 fsk.c
 K 25
@@ -33,17 +33,29 @@ svn:wc:ra_dav:version-url
 V 48
 /svn/stelephony/!svn/ver/6/trunk/stel_tone/fsk.c
 END
+libteletone_detect.h
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/stelephony/!svn/ver/6/trunk/stel_tone/libteletone_detect.h
+END
 g711.h
 K 25
 svn:wc:ra_dav:version-url
 V 49
 /svn/stelephony/!svn/ver/6/trunk/stel_tone/g711.h
 END
+Makefile.Windows
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/stelephony/!svn/ver/43/trunk/stel_tone/Makefile.Windows
+END
 libteletone_generate.h
 K 25
 svn:wc:ra_dav:version-url
 V 66
-/svn/stelephony/!svn/ver/15/trunk/stel_tone/libteletone_generate.h
+/svn/stelephony/!svn/ver/43/trunk/stel_tone/libteletone_generate.h
 END
 fsk.h
 K 25
@@ -51,27 +63,27 @@ svn:wc:ra_dav:version-url
 V 48
 /svn/stelephony/!svn/ver/6/trunk/stel_tone/fsk.h
 END
-uart.c
-K 25
-svn:wc:ra_dav:version-url
-V 49
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/uart.c
-END
 libteletone.h
 K 25
 svn:wc:ra_dav:version-url
 V 57
 /svn/stelephony/!svn/ver/12/trunk/stel_tone/libteletone.h
 END
+uart.c
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/stelephony/!svn/ver/6/trunk/stel_tone/uart.c
+END
 libstelephony_tone.h
 K 25
 svn:wc:ra_dav:version-url
 V 64
-/svn/stelephony/!svn/ver/18/trunk/stel_tone/libstelephony_tone.h
+/svn/stelephony/!svn/ver/43/trunk/stel_tone/libstelephony_tone.h
 END
 stel_tone.c
 K 25
 svn:wc:ra_dav:version-url
 V 55
-/svn/stelephony/!svn/ver/18/trunk/stel_tone/stel_tone.c
+/svn/stelephony/!svn/ver/43/trunk/stel_tone/stel_tone.c
 END

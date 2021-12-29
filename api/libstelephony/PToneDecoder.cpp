@@ -1,11 +1,14 @@
 #if defined (__LINUX__)
-#include <stdlib.h>
-#include <string.h>
-#include <memory.h>
+# include <stdlib.h>
+# include <string.h>
+# include <memory.h>
+#elif defined(__WINDOWS__)
 #endif
+
 #include "PToneDecoder.h"
 
-#define NOT_IMPL printf("FUNCTION_NOT_IMPLEMENTED (%s:%d)\n",__FUNCTION__,__LINE__);
+#define DBG_FSK		if(0)printf
+#define DBG_DTMF	if(0)printf  
 
 #define MX_CID_LEN 15
 
@@ -15,31 +18,29 @@ PhoneToneDecoder::PhoneToneDecoder(void)
 	bufSize = 256;
 	printf("Init FSK demodulator rate:%d buffer:%d\n", rate, bufSize);
 
-	fskData = (fsk_data_state_t*) malloc(sizeof(fsk_data_state_t));
+	fskData = (fsk_data_state_t*) stel_malloc(sizeof(fsk_data_state_t));
 	if (fskData == NULL) {
-		printf("Error: Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
 		return;
 	}
 
-	fbuf = (unsigned char*)malloc(bufSize);
+	fbuf = (unsigned char*)stel_malloc(bufSize);
 	if (fbuf == NULL) {
-		printf("Error: Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
 		return;
 	}
 
-	dtmfData = (teletone_dtmf_detect_state_t*) malloc(sizeof(teletone_dtmf_detect_state_t));
+	dtmfData = (teletone_dtmf_detect_state_t*) stel_malloc(sizeof(teletone_dtmf_detect_state_t));
 	if (dtmfData == NULL) {
-		printf("Error: Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
 		return;
 	}
-
-	InitializeCriticalSection(&m_CriticalSection);
-	
 }
 
 PhoneToneDecoder::~PhoneToneDecoder(void)
 {
-	DBG_FSK("%s(): this ptr: 0x%p\n", __FUNCTION__, this);
+	STEL_FUNC_START();
+
 	if (fskData) {
 		DBG_FSK("Freeing fskData\n");
 		free(fskData);
@@ -52,31 +53,30 @@ PhoneToneDecoder::~PhoneToneDecoder(void)
 		DBG_DTMF("Freeing dtmfData\n");
 		free(dtmfData);
 	}
+	STEL_FUNC_END();
 }
 
-int PhoneToneDecoder::DemodInit()
+int PhoneToneDecoder::Init()
 {	
-	EnterCriticalSection(&m_CriticalSection);
 	if (fskData) {
 		memset(fskData, 0, sizeof(fsk_data_state_t));
 	} else {
-		printf("Error: Tone Decoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Tone Decoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
 		return -1;
 	}
 	if (fbuf) {
 		memset(fbuf, 0, bufSize);
 	} else {
-		printf("Error: Tone Decoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Tone Decoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
 		return -1;
 	}
 
 	if (dtmfData) {
 		memset(dtmfData, 0, sizeof(teletone_dtmf_detect_state_t));
 	} else {
-		printf("Error: Dtmf Decoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Dtmf Decoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
 	}
 
-	LeaveCriticalSection(&m_CriticalSection);
 	return 0; 
 }
 
@@ -122,7 +122,7 @@ int PhoneToneDecoder::WaveStreamInputExFSK(int16_t* slinData, int dataLength, in
 		if (sink_callback_functions.OnCallerID) {
 			sink_callback_functions.OnCallerID(this->callback_obj, CallerName, CallerNumber, "Private", DateTime);	
 		} else {
-			printf("No FSK callback function\n");
+			STEL_ERR("No FSK callback function\n");
 		}
 	}
 	return 0;
@@ -160,7 +160,8 @@ int PhoneToneDecoder::WaveStreamInputEx(char* data, int dataLength, int *retValu
 	int i;
 
 	//DBG_FSK("RX data len:%d\n", dataLength);
-	
+	//STEL_FUNC_START();
+
 	if (fskEnable == false && dtmfEnable == false) {
 		return 0;
 	}
@@ -168,9 +169,9 @@ int PhoneToneDecoder::WaveStreamInputEx(char* data, int dataLength, int *retValu
 	if (variant.intVal == WFI_CCITT_uLaw_8kHzMono || 
 		variant.intVal == WFI_CCITT_ALaw_8kHzMono) {
 
-		slinData = (int16_t*) malloc(dataLength*2);
+		slinData = (int16_t*) stel_malloc(dataLength*2);
 		if (slinData == NULL) {
-			printf("Failed to alloc mem (%s:%d)\n", __FUNCTION__,__LINE__);
+			STEL_ERR("Failed to alloc mem (%s:%d)\n", __FUNCTION__,__LINE__);
 			return -1;
 		}
 		memset(slinData, 0, sizeof(slinData));
@@ -202,6 +203,7 @@ int PhoneToneDecoder::WaveStreamInputEx(char* data, int dataLength, int *retValu
 
 		free(slinData);
 	}
+	//STEL_FUNC_END();
 	return 0;
 }
 
@@ -233,10 +235,8 @@ void PhoneToneDecoder::SetCallbackFunctionsAndObject(sink_callback_functions_t* 
 
 void PhoneToneDecoder::WaveStreamStart(void)
 {	
-	EnterCriticalSection(&m_CriticalSection);
-
 	if (fsk_demod_init(fskData, rate, fbuf, bufSize)) {
-		printf("Error: Failed to initialize FSK demodulator\n");
+		STEL_ERR("Failed to initialize FSK demodulator\n");
 	} else {
 		fskInit = true;
 	}
@@ -244,20 +244,17 @@ void PhoneToneDecoder::WaveStreamStart(void)
 	teletone_dtmf_detect_init(dtmfData, rate);
 
 	dtmfInit = true;	
-	LeaveCriticalSection(&m_CriticalSection);
 	return;
 }
 
 void PhoneToneDecoder::WaveStreamEnd(void)
 {
-	EnterCriticalSection(&m_CriticalSection);
 	if (fskInit == true) {
 		fsk_demod_destroy(fskData);	
 	}
 	fskInit = false;
 
 	dtmfInit = false;
-	LeaveCriticalSection(&m_CriticalSection);
 	return;
 }
 void PhoneToneDecoder::put_WaveFormatID(variant_t _var)
@@ -272,25 +269,12 @@ void PhoneToneDecoder::put_WaveFormatID(variant_t _var)
 void PhoneToneDecoder::put_MonitorDTMF(int val)
 {
 	DBG_DTMF("DTMF enabled\n");
-	EnterCriticalSection(&m_CriticalSection);
 	dtmfEnable = true;
-	LeaveCriticalSection(&m_CriticalSection);
 	return;
 }	
 void PhoneToneDecoder::put_MonitorCallerID(int val)
 {	
-
 	DBG_FSK("FSK enabled\n");
-	EnterCriticalSection(&m_CriticalSection);
 	fskEnable = true;
-	LeaveCriticalSection(&m_CriticalSection);
-	return;
-}
-void PhoneToneDecoder::put_Multithreaded(int val)
-{
-	/* 
-		Leave empty. Function needed for 
-		compatibility with ToneDecoder Library 
-	*/
 	return;
 }

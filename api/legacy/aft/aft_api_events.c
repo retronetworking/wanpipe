@@ -368,10 +368,10 @@ static int event_ctrl(u_int8_t mode, int argc, char* argv[])
 *
 *   o Read a socket 
 *   o Cast data received to api_rx_element_t data type 
-*   o The received packet contains 16 bytes header 
+*   o The received packet contains sizeof(wp_api_hdr_t) bytes header 
 *
 *	------------------------------------------
-*      |  16 bytes      |        X bytes        ...
+*      |  sizeof(wp_api_hdr_t) bytes      |        X bytes        ...
 *	------------------------------------------
 * 	   Header              Data
 *
@@ -424,7 +424,7 @@ void handle_socket(int argc, char* argv[])
 	}
 
 	/* Cast the Tx data packet with the tx element
-	 * structure.  We must insert a 16 byte
+	 * structure.  We must insert a sizeof(wp_api_hdr_t) byte
 	 * driver header, which driver will remove 
 	 * before passing packet out the physical port */
 	api_tx_el = (api_tx_element_t*)&Tx_data[0];
@@ -526,7 +526,7 @@ void handle_socket(int argc, char* argv[])
 				 * 	   buffer. Confirm len > 0
 				 *
 				 * 	2: Cast Rx_data to the api_rx_element.
-				 * 	   Thus, removing a 16 byte header
+				 * 	   Thus, removing a sizeof(wp_api_hdr_t) byte header
 				 * 	   attached by the driver.
 				 *
 				 * 	3. Check error_flag:
@@ -554,7 +554,7 @@ void handle_socket(int argc, char* argv[])
 					if (api_rx_el->api_rx_hdr.error_flag){
 						printf("Data: ");
                                                 for(i=0;i<Rx_lgth; i ++) {
-                                                        printf("0x%02X ", Rx_data[i+16]);
+                                                        printf("0x%02X ", Rx_data[i+sizeof(wp_api_hdr_t)]);
                                                 }
                                                 printf("\n");
 					}

@@ -17,6 +17,14 @@
 /******************************************************************************
  * 			INCLUDE FILES					      *
  *****************************************************************************/
+#if defined(__WINDOWS__)
+# include <conio.h>				/* for _kbhit */
+# include <stdio.h>				/* unlink() */
+# include "wanpipe_includes.h"
+# include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t' */
+# include "wanpipe_time.h"		/* for 'struct timeval' */
+# include "wanpipe_common.h"		/* for 'strcasecmp' */
+#else
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
@@ -44,7 +52,7 @@
 # include <netinet/ip.h>
 # include <netinet/udp.h>  
 #endif
-
+#endif
 
 #include "wanpipe_api.h"
 #include "fe_lib.h"
@@ -72,8 +80,8 @@ char*	progname = "wanpipemon";
 
 wan_femedia_t	femedia;
 wan_udp_hdr_t	wan_udp;
-int		sock = 0;
-int 		wan_protocol = 0;
+
+int 	wan_protocol = 0;
 int		get_config_flag = 0;
 int		protocol_cb_size = sizeof(wan_mgmt_t)+sizeof(wan_cmd_t)+1;
 
@@ -84,9 +92,15 @@ int		gui_interface=0;
 extern int trace_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int len);
 extern int get_femedia_type(wan_femedia_t *fe_media);
 
+#ifdef __WINDOWS__
+sng_fd_t	sock = 0;
+#else
+int		sock = 0;
 static sa_family_t		af = AF_INET;
 static struct sockaddr_in	soin;
- char ipaddress[16];
+#endif
+
+char ipaddress[16];
 int  udp_port = 9000;
 
 short dlci_number=16;
@@ -162,7 +176,13 @@ FT1_LED_STATUS FT1_LED;
 /******************************************************************************
  * 			FUNCTION PROTOTYPES				      *
  *****************************************************************************/
+#ifdef __WINDOWS__
+BOOL sig_end(DWORD dwCtrlType);
+#define close CloseConnection
+#else
 void sig_end(int signal);
+#endif
+
 int		main(int, char**);
 static int 	init(int, char**,char*);
 static void 	usage(void);
@@ -197,6 +217,7 @@ struct fun_protocol function_lookup[] = {
 };
 #else
 struct fun_protocol function_lookup[] = {
+#ifndef __WINDOWS__
 	{ WANCONFIG_FR,		"fr",    FRConfig, FRUsage, FRMain, FRDisableTrace, 
 		                         FRget_main_menu, FRget_cmd_menu, 
 					 FR_read_FT1_status, FR_set_FT1_mode, 0 }, 
@@ -217,7 +238,8 @@ struct fun_protocol function_lookup[] = {
 					 
 	{ WANCONFIG_ATM,	"atm",   ATMConfig, ATMUsage, ATMMain, ATMDisableTrace, 
 		                         ATMget_main_menu, ATMget_cmd_menu, 
-					 ATM_read_FT1_status, ATM_set_FT1_mode, 2 }, 
+					 ATM_read_FT1_status, ATM_set_FT1_mode, 2 },
+#endif /* !__WINDOWS__*/
 					 
 	{ WANCONFIG_AFT,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
@@ -258,6 +280,7 @@ struct fun_protocol function_lookup[] = {
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 
+#ifndef __WINDOWS__
 
 	{ WANCONFIG_ADSL,	"adsl",  ADSLConfig, ADSLUsage, ADSLMain, ADSLDisableTrace, 
 		                         ADSLget_main_menu, ADSLget_cmd_menu, 
@@ -279,6 +302,9 @@ struct fun_protocol function_lookup[] = {
 #endif
 	{ WANCONFIG_BSC, 	"bsc",  NULL, NULL, NULL, NULL,NULL,NULL,0 }, 
 	{ WANCONFIG_HDLC, 	"hdlc", NULL, NULL, NULL, NULL,NULL,NULL,0 }, 
+
+#endif /* !__WINDOWS__*/
+	
 	{ 0, "N/A", 0, 0, 0, 0,0 }, 
 };
 #endif
@@ -286,6 +312,50 @@ struct fun_protocol function_lookup[] = {
 /******************************************************************************
  * 			FUNCTION DEFINITION				      *
  *****************************************************************************/
+#ifdef __WINDOWS__
+int MakeConnection( void )
+{
+	char device_name[MAX_PATH];
+
+	WIN_DBG("%s()\n", __FUNCTION__);
+	WIN_DBG("if_name: %s\n", if_name);
+	
+	_snprintf(device_name, MAX_PATH, "\\\\.\\%s", if_name); 
+
+	WIN_DBG("device_name: %s\n", device_name);
+
+	sock = CreateFile(	device_name, 
+						GENERIC_READ | GENERIC_WRITE, 
+						FILE_SHARE_READ | FILE_SHARE_WRITE,
+						(LPSECURITY_ATTRIBUTES)NULL, 
+						OPEN_EXISTING,
+						FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH,
+						(HANDLE)NULL
+						);
+
+    if (sock == INVALID_HANDLE_VALUE){
+		printf("Error: CreateFile() failed for %s!!\n", if_name);
+		sock = 0;
+		return WAN_FALSE;
+	}
+
+	if (!GetWANConfig()){
+		printf("Error: Unable to obtain network interface information.\n");
+		printf("Make sure the IP and UDP port are correct.\n");
+		close(sock);
+		return WAN_FALSE;
+	}   
+
+	return WAN_TRUE;
+}
+
+void CloseConnection(sng_fd_t fd)
+{
+	CloseHandle(fd);
+	sock = 0;
+}
+
+#else
 int MakeConnection( void )
 {
 #ifdef WANPIPEMON_ZAP
@@ -350,16 +420,17 @@ int MakeConnection( void )
 
 	return WAN_TRUE;
 } /* MakeConnection */
+#endif
 
 static int GetWANConfig( void )
 {
 	int cnt = 0, err = 0;
-
+	
 	if (wan_protocol != 0){
-
-		/* If the user specified protocol, do not try to
-	 	* autodetect it.  Old drivers do not have protocol
-	 	* detect option. */
+		
+	/* If the user specified protocol, do not try to
+	* autodetect it.  Old drivers do not have protocol
+		* detect option. */
 		goto skip_protocol_detect;
 	}
 	
@@ -375,23 +446,27 @@ static int GetWANConfig( void )
 		if (wan_udp.wan_udphdr_return_code == 0xCC ) 
 			return WAN_FALSE;
 	}
-
+	
 	if (cnt >= 4){
 		return WAN_FALSE;
 	}
-
+	
 	wan_protocol = wan_udp.wan_udphdr_data[0];
+
+#ifdef __WINDOWS__
+	printf("wan_protocol: %s (%d)\n", SDLA_DECODE_PROTOCOL(wan_protocol), wan_protocol);
+#endif
 
 skip_protocol_detect:
 	if(get_config_flag == 1){
 #if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 		printf("Network interface running %s protocol...\n",
-				DECODE_PROT(wan_protocol));
+			DECODE_PROT(wan_protocol));
 #endif
-
-	  	EXEC_PROT_FUNC(config,wan_protocol,err,());
+		
+		EXEC_PROT_FUNC(config,wan_protocol,err,());
 	}else{
-	  	err = WAN_TRUE;
+		err = WAN_TRUE;
 	}
 	return err;
 } 
@@ -426,132 +501,172 @@ extern char* GetMasterDevName( void )
 	return (char*)wan_udp.wan_udphdr_data;
 }
 
+#ifdef __WINDOWS__
+wanpipe_hdlc_engine_t *wanpipe_reg_hdlc_engine (void)
+{
+	WIN_DBG("%s() not implemented\n", __FUNCTION__);
+	return NULL;
+}
+
+void wanpipe_unreg_hdlc_engine(wanpipe_hdlc_engine_t *hdlc_eng)
+{
+	WIN_DBG("%s() not implemented\n", __FUNCTION__);
+}
+
 char* get_hardware_level_interface_name(char* interface_name)
 {
-  char* tmp_master_dev_name = NULL;
-  static char master_dev_name[WAN_IFNAME_SZ+1];
-  char found_hardware_level = 0;
-
-  //initialize 'master name' with current name, so in case
-  //of failure to get the 'maser name' current name will be used.
-  strncpy(master_dev_name, interface_name, WAN_IFNAME_SZ);
-  master_dev_name[WAN_IFNAME_SZ]='\0'; 	
-
-  //save the original values.
-  strncpy(original_global_if_name, if_name, WAN_IFNAME_SZ);
-  original_global_if_name[WAN_IFNAME_SZ]='\0'; 	
-  original_global_wan_protocol = wan_protocol;
-  
-  while(found_hardware_level == 0){
-      
-    tmp_master_dev_name = NULL;
-    wan_protocol = 0;
-    //get_config_flag = 0;
-  
-    if(interface_name != if_name){
-      //on the first iteration 'interface_name' is the same pointer as the global 'if_name'.
-      //after the first iteration, use 'tmp_master_dev_name'.
-      strncpy(if_name, interface_name, WAN_IFNAME_SZ);
-      if_name[WAN_IFNAME_SZ]='\0'; 	
-    }
-
-    if(MakeConnection() == WAN_FALSE){ 
-      close(sock);
-      return NULL;
-    }
-    
-    //get_config_flag = 1;
-
-    tmp_master_dev_name = GetMasterDevName();
-    //if 'tmp_master_dev_name' was NOT changed, we reached
-    //the the hardware level.
-    if(strlen(tmp_master_dev_name) == 0){
-	//printf("Reached Hardware Level!\n");
-        found_hardware_level = 1;
-        if(wan_protocol == WANCONFIG_CHDLC){
-		//on S514 LIP layer runs above CHDLC firmware.
-		global_card_type = WANOPT_S51X;
-	}else{
-		global_card_type = WANOPT_AFT;
-	}
-    }else{
-	strncpy(if_name, tmp_master_dev_name, WAN_IFNAME_SZ+1);
-	strncpy(master_dev_name, tmp_master_dev_name, WAN_IFNAME_SZ+1);
-    }
-    
-    close(sock);
-
-  }//while()
-
-  //restore the original values.
-  strncpy(if_name, original_global_if_name, WAN_IFNAME_SZ+1);
-  wan_protocol = original_global_wan_protocol;
-
-  //and restore the original connection to the driver
-  if(MakeConnection() == WAN_FALSE){ 
-    close(sock);
-    return NULL;
-  }
-
-  return master_dev_name;
+	return interface_name;
 }
+#else
+char* get_hardware_level_interface_name(char* interface_name)
+{
+	char* tmp_master_dev_name = NULL;
+	static char master_dev_name[WAN_IFNAME_SZ+1];
+	char found_hardware_level = 0;
+	
+	//initialize 'master name' with current name, so in case
+	//of failure to get the 'maser name' current name will be used.
+	strncpy(master_dev_name, interface_name, WAN_IFNAME_SZ);
+	master_dev_name[WAN_IFNAME_SZ]='\0'; 	
+	
+	//save the original values.
+	strncpy(original_global_if_name, if_name, WAN_IFNAME_SZ);
+	original_global_if_name[WAN_IFNAME_SZ]='\0'; 	
+	original_global_wan_protocol = wan_protocol;
+	
+	while(found_hardware_level == 0){
+		
+		tmp_master_dev_name = NULL;
+		wan_protocol = 0;
+		//get_config_flag = 0;
+		
+		if(interface_name != if_name){
+			//on the first iteration 'interface_name' is the same pointer as the global 'if_name'.
+			//after the first iteration, use 'tmp_master_dev_name'.
+			strncpy(if_name, interface_name, WAN_IFNAME_SZ);
+			if_name[WAN_IFNAME_SZ]='\0'; 	
+		}
+		
+		if(MakeConnection() == WAN_FALSE){ 
+			close(sock);
+			return NULL;
+		}
+		
+		//get_config_flag = 1;
+		
+		tmp_master_dev_name = GetMasterDevName();
+		//if 'tmp_master_dev_name' was NOT changed, we reached
+		//the the hardware level.
+		if(strlen(tmp_master_dev_name) == 0){
+			//printf("Reached Hardware Level!\n");
+			found_hardware_level = 1;
+			if(wan_protocol == WANCONFIG_CHDLC){
+				//on S514 LIP layer runs above CHDLC firmware.
+				global_card_type = WANOPT_S51X;
+			}else{
+				global_card_type = WANOPT_AFT;
+			}
+		}else{
+			strncpy(if_name, tmp_master_dev_name, WAN_IFNAME_SZ+1);
+			strncpy(master_dev_name, tmp_master_dev_name, WAN_IFNAME_SZ+1);
+		}
+		
+		close(sock);
+		
+	}//while()
+	
+	//restore the original values.
+	strncpy(if_name, original_global_if_name, WAN_IFNAME_SZ+1);
+	wan_protocol = original_global_wan_protocol;
+	
+	//and restore the original connection to the driver
+	if(MakeConnection() == WAN_FALSE){ 
+		close(sock);
+		return NULL;
+	}
+	
+	return master_dev_name;
+}
+#endif
 
+#ifdef __WINDOWS__
 int make_hardware_level_connection()
 {
-  char* tmp = NULL;
-
-  if(connected_to_hw_level){
-    return 0;	  
-  }
-  
-  get_config_flag = 0;
-
-  //save the original values.
-  strncpy(original_global_if_name, if_name, WAN_IFNAME_SZ+1);
-  original_global_wan_protocol = wan_protocol;
-
-  tmp = get_hardware_level_interface_name(if_name);
-  if(tmp == NULL){
-    printf("Failed to get Hardware Level Interface name!!\n");
-    return 1;
-  }
- 
-  strncpy(if_name, tmp, WAN_IFNAME_SZ+1);
-  wan_protocol = 0;
-  
-  //connect to the hardware level
-  if (MakeConnection() == WAN_FALSE){ 
-    close(sock);
-    return 2;	
-  }
-
-  connected_to_hw_level = 1;
-
-  return 0;
+	if (MakeConnection() == WAN_FALSE){ 
+		if(sock){
+			CloseConnection(sock);
+		}
+		return 1;	
+	}
+	return 0;
 }
+#else
+int make_hardware_level_connection()
+{
+	char* tmp = NULL;
+	
+	if(connected_to_hw_level){
+		return 0;	  
+	}
+	
+	get_config_flag = 0;
+	
+	//save the original values.
+	strncpy(original_global_if_name, if_name, WAN_IFNAME_SZ+1);
+	original_global_wan_protocol = wan_protocol;
+	
+	tmp = get_hardware_level_interface_name(if_name);
+	if(tmp == NULL){
+		printf("Failed to get Hardware Level Interface name!!\n");
+		return 1;
+	}
+	
+	strncpy(if_name, tmp, WAN_IFNAME_SZ+1);
+	wan_protocol = 0;
+	
+	//connect to the hardware level
+	if (MakeConnection() == WAN_FALSE){ 
+		close(sock);
+		return 2;	
+	}
+	
+	connected_to_hw_level = 1;
+	
+	return 0;
+}
+#endif
 
+#ifdef __WINDOWS__
 void cleanup_hardware_level_connection()
 {
-  if(!connected_to_hw_level){
-    return;
-  }
-  
-  //close what was opened by make_hardware_level_connection()
-  close(sock);
-
-  //restore the original values.
-  strncpy(if_name, original_global_if_name, WAN_IFNAME_SZ+1);
-  wan_protocol = original_global_wan_protocol;
-
-  connected_to_hw_level = 0;
-  
-  //and restore the original connection to the driver
-  if(MakeConnection() == WAN_FALSE){ 
-    close(sock);
-    return;
-  }
-  get_config_flag = 1;
+	WIN_DBG("%s()\n", __FUNCTION__);
+	WIN_DBG("if_name: %s\n", if_name);
+	//do nothing
 }
+#else
+void cleanup_hardware_level_connection()
+{
+	if(!connected_to_hw_level){
+		return;
+	}
+	
+	//close what was opened by make_hardware_level_connection()
+	close(sock);
+	
+	//restore the original values.
+	strncpy(if_name, original_global_if_name, WAN_IFNAME_SZ+1);
+	wan_protocol = original_global_wan_protocol;
+	
+	connected_to_hw_level = 0;
+	
+	//and restore the original connection to the driver
+	if(MakeConnection() == WAN_FALSE){ 
+		close(sock);
+		return;
+	}
+	get_config_flag = 1;
+}
+#endif
 
 void hw_line_trace(int trace_mode)
 {
@@ -694,6 +809,66 @@ void hw_link_status()
 	cleanup_hardware_level_connection();
 }
 
+#ifdef __WINDOWS__
+static void DecodeLastError(LPSTR lpszFunction) 
+{ 
+	LPVOID lpMsgBuf;
+	DWORD dwLastErr = GetLastError();
+	FormatMessage( 
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+		FORMAT_MESSAGE_FROM_SYSTEM | 
+		FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL,
+		dwLastErr,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+		(LPTSTR) &lpMsgBuf,
+		0,
+		NULL 
+	);
+	// Display the string.
+	printf("Last Error: %s (GetLastError() returned: %d)\n", lpMsgBuf, dwLastErr);
+	// Free the buffer.
+	LocalFree( lpMsgBuf );
+} 
+
+static int handle_device_ioctl_result(int bResult)
+{
+	if(bResult == 0){
+		/* check message log */
+		printf("%s(): Line: %d: Error!!\n", __FUNCTION__, __LINE__);
+		DecodeLastError(__FUNCTION__);
+		return 1;
+	}else{
+		return 0;
+	}
+}
+
+int DoCommand(wan_udp_hdr_t* wan_udp)
+{
+	DWORD ln, bIoResult;
+    unsigned char id = 0;
+
+	wan_udp->wan_udphdr_request_reply = 0x01;
+	wan_udp->wan_udphdr_id = id;
+   	wan_udp->wan_udphdr_return_code = WAN_UDP_TIMEOUT_CMD;
+
+	bIoResult = DeviceIoControl(
+			sock,
+			IoctlManagementCommand,
+			(LPVOID)wan_udp,
+			sizeof(wan_udp_hdr_t),
+			(LPVOID)wan_udp,
+			sizeof(wan_udp_hdr_t),
+			(LPDWORD)(&ln),
+			(LPOVERLAPPED)NULL
+			);
+
+	return handle_device_ioctl_result(bIoResult);
+}
+
+#define inet_aton(a,b)	0
+
+#else
 int DoCommand(wan_udp_hdr_t* wan_udp)
 {
         static unsigned char id = 0;
@@ -759,6 +934,7 @@ int DoCommand(wan_udp_hdr_t* wan_udp)
         return err;
 
 } /* DoCommand */
+#endif
 
 static int init(int argc, char *argv[], char* command)
 {
@@ -771,10 +947,14 @@ static int init(int argc, char *argv[], char* command)
 
 	for (i = 1; i < argc; i++){
 		if (!strcmp(argv[i],"-h")){
+#ifdef __WINDOWS__
+			EXEC_NAME_FUNC(usage,"aft",());
+#else
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 			EXEC_NAME_FUNC(usage,"hdlc",());
 #else
 			usage_long();
+#endif
 #endif
 			return WAN_FALSE;
 
@@ -872,10 +1052,10 @@ static int init(int argc, char *argv[], char* command)
 		}else if (!strcmp(argv[i], "-d")){
 			TRACE_DLCI=dlci_number=16;
 			d_cnt=1;
-
+#ifndef __WINDOWS__
 		}else if (!strcmp(argv[i],"-pv6")){
 			af = AF_INET6;	// IPV6
-
+#endif
 		}else if (!strcmp(argv[i],"-p")){
 
 			if (i+1 > argc-1){
@@ -1088,7 +1268,6 @@ void banner (char *title,int dlci_number){
 
 }
 
-
 #if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 static unsigned char usage_info[]="\n"
 "Wanpipemon Verison 1.0\n"
@@ -1137,10 +1316,13 @@ static unsigned char usage_info[]="\n"
 "	wanutil -traceinfo\n";
 #endif
 
-
 static void usage(void)
 {
+#ifdef __WINDOWS__
+	EXEC_NAME_FUNC(usage,"aft",());
+#else
 	printf("%s\n", usage_info);
+#endif
 }
 
 
@@ -1359,6 +1541,37 @@ static void sig_handler(int sigint)
 }
 #endif
 
+#ifdef __WINDOWS__
+BOOL sig_end(DWORD dwCtrlType)
+{
+	if (pcap_output_file){
+		fclose(pcap_output_file);
+		pcap_output_file=NULL;
+	}
+    if (trace_bin_out) {
+		fclose(trace_bin_out);
+		trace_bin_out=NULL;
+    }
+    if (trace_bin_in) {
+		fclose(trace_bin_in);
+		trace_bin_in=NULL;
+    }
+	
+	if (sock) {
+		CloseConnection(sock);
+		sock=0;
+	}
+	
+	if (rx_hdlc_eng) {
+        wanpipe_unreg_hdlc_engine(rx_hdlc_eng);  
+		rx_hdlc_eng=NULL;
+	}
+	
+	//printf("\n\nSignal: Terminating wanpipemon\n");
+	
+	exit(0);
+}
+#else
 void sig_end(int signal)
 {
 	if (pcap_output_file){
@@ -1388,53 +1601,63 @@ void sig_end(int signal)
 
 	exit(0);
 }
+#endif
 
 int main(int argc, char* argv[])
 {
 	char command[MAX_CMD_LENGTH+1];
 	int err = 0;
-
+	
 	strlcpy((char*)wan_udp.wan_udphdr_signature, 
 		GLOBAL_UDP_SIGNATURE,
 		strlen(wan_udp.wan_udphdr_signature)); 
 	snprintf(pcap_output_file_name,
 		strlen(pcap_output_file_name),
 		"wp_trace_pcap.bin");
-
+	
+#ifdef __WINDOWS__
+	if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)sig_end, TRUE)) {
+		printf("ERROR : Unable to register terminate handler ( %d ).\nProcess terminated.\n", 
+			GetLastError());
+		err=-EINVAL;
+		goto main_exit;
+	}
+#else
 	signal(SIGHUP,sig_end);
 	signal(SIGINT,sig_end);
 	signal(SIGTERM,sig_end);
-
+#endif
+	
 	rx_hdlc_eng = wanpipe_reg_hdlc_engine();
 	if (rx_hdlc_eng) {
-         	rx_hdlc_eng->hdlc_data = trace_hdlc_data;
+		rx_hdlc_eng->hdlc_data = trace_hdlc_data;
 	}
 	
-  	printf("\n");
+	printf("\n");
    	if (argc >= 2){
-    
+		
 		if (init(argc, argv, command) == WAN_FALSE){
 			err=-EINVAL;
 			goto main_exit;
 		}
-
+		
 		if (pcap_output){
-
+			
 			if (pcap_prot){
 				printf("Using custom pcap_prot=%d\n",pcap_prot);
 			}
 			
-			unlink(pcap_output_file_name);
+			unlink(pcap_output_file_name);/* delete the file */
 			pcap_output_file=fopen(pcap_output_file_name,"wb");
 			if (!pcap_output_file){
 				printf("wanpipemon: Failed to open %s binary file!\n",
-						pcap_output_file_name);
+					pcap_output_file_name);
 				err=-EINVAL;
 				goto main_exit;
 			}
 		}
 		if (trace_binary){
-
+			
 			printf("Using binary trace\n");
 			
 			unlink("trace_bin.out");
@@ -1442,19 +1665,19 @@ int main(int argc, char* argv[])
 			trace_bin_in=fopen("trace_bin.in","wb");
 			if (!trace_bin_in){
 				printf("wanpipemon: Failed to open %s binary file!\n",
-						"trace_bin.in");
+					"trace_bin.in");
 				err=-EINVAL;
 				goto main_exit;
 			}
 			trace_bin_out=fopen("trace_bin.out","wb");
 			if (!trace_bin_out){
 				printf("wanpipemon: Failed to open %s binary file!\n",
-						"trace_bin.out");
+					"trace_bin.out");
 				err=-EINVAL;
 				goto main_exit;
 			}
 		}
-
+		
 #ifdef WANPIPEMON_GUI
 		if (gui_interface && ip_addr==-1){
 			if (wan_main_gui() == WAN_FALSE){
@@ -1464,20 +1687,20 @@ int main(int argc, char* argv[])
 		}
 gui_loop:		
 #endif
-
+		
 		if (MakeConnection() == WAN_FALSE){ 
 			close(sock);
-		       	err=-ENODEV;
-		       	goto main_exit;
+			err=-ENODEV;
+			goto main_exit;
 		}
-
+		
 		/* Read fe media info for current interface */		
 		if (zap_monitor == 0 && dahdi_monitor == 0){
 			get_femedia_type(&femedia);
 		}
-	
+		
 		//get_hardware_level_interface_name(if_name);
-			
+		
 #ifdef WANPIPEMON_GUI
 		if (gui_interface && wan_protocol != 0){
 			if (wan_main_gui() == WAN_FALSE){
@@ -1488,33 +1711,33 @@ gui_loop:
 		}
 #endif
 		EXEC_PROT_FUNC(main,wan_protocol,err,(command,argc,argv));
-     		close(sock);
-
+		close(sock);
+		
 		if (pcap_output_file){
 			fclose(pcap_output_file);
 			pcap_output_file=NULL;
 		}
-    if (trace_bin_out) {
-      fclose(trace_bin_out);
-      trace_bin_out=NULL;
-    }
-    if (trace_bin_in) {
-      fclose(trace_bin_in);
-      trace_bin_in=NULL;
-    }
+		if (trace_bin_out) {
+			fclose(trace_bin_out);
+			trace_bin_out=NULL;
+		}
+		if (trace_bin_in) {
+			fclose(trace_bin_in);
+			trace_bin_in=NULL;
+		}
    	}else{
-    		usage();
+		usage();
    	}
-  
+	
 	printf("\n");
-
+	
 main_exit:
-
+	
 	if (rx_hdlc_eng) {
-         	wanpipe_unreg_hdlc_engine(rx_hdlc_eng);  
+		wanpipe_unreg_hdlc_engine(rx_hdlc_eng);  
 		rx_hdlc_eng=NULL;
 	}
-
+	
    	return err;
 }
 

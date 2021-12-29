@@ -239,19 +239,11 @@ int __init wanrouter_init (void)
 {
 	int err;
 
-	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta %s.%s %s %s\n",
+   	DEBUG_EVENT("%s %s.%s %s %s\n",
 			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-		sprintf(wan_version,"Beta %s.%s",
+   	sprintf(wan_version,"%s.%s",
 				WANPIPE_VERSION, WANPIPE_SUB_VERSION);
-	}else{
-		DEBUG_EVENT("%s Stable %s.%s %s %s\n",
-			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
-			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-		sprintf(wan_version,"Stable %s.%s",
-				WANPIPE_VERSION, WANPIPE_SUB_VERSION);
-	}
 
 	WAN_LIST_INIT(&wan_devlist);
         wan_spin_lock_init(&wan_devlist_lock,"wan_devlist_lock");

@@ -14,6 +14,10 @@
 PWD=$(shell pwd)
 KBUILD_VERBOSE=0
 
+EXTRA_CFLAGS=
+EXTRA_FLAGS=
+
+#Default zaptel directory to be overwritten by user
 
 ifdef DAHDI_DIR
 	ZAPDIR=$(DAHDI_DIR)
@@ -26,7 +30,7 @@ ifneq (,$(wildcard ./.pbxdir))
 endif    	
 endif
 
-$(shell echo $(ZAPDIR) > .pbxdir)         
+$(shell echo $(ZAPDIR) > .pbxdir)
 
 #Kernel version and location
 ifndef KVER
@@ -49,8 +53,16 @@ ifndef ASTDIR
     	ASTDIR=/usr/src/asterisk
 endif
 
+ifndef INSTALLPREFIX
+	INSTALLPREFIX=
+endif
 
-INSTALLPREFIX=
+ifndef 64BIT_4G
+    64BIT_4G="Disabled"
+else
+	EXTRA_CFLAGS+= -DWANPIPE_64BIT_4G_DMA
+endif
+
 
 #Local wanpipe includes
 WINCLUDE=patches/kdrivers/include
@@ -63,7 +75,7 @@ WANEC_DIR=$(PWD)/$(KMODDIR)/wanec
 MODTYPE=ko
 
 #Setup include path and extra cflags
-EXTRA_CFLAGS := -I$(PWD)/$(WINCLUDE) -I$(PWD)/$(WINCLUDE)/annexg -I$(PWD)/patches/kdrivers/wanec -D__LINUX__
+EXTRA_CFLAGS += -I$(PWD)/$(WINCLUDE) -I$(PWD)/$(WINCLUDE)/annexg -I$(PWD)/patches/kdrivers/wanec -D__LINUX__
 EXTRA_CFLAGS += -I$(WANEC_DIR) -I$(WANEC_DIR)/oct6100_api -I$(WANEC_DIR)/oct6100_api/include
 
 #Setup utility extra flags and include path
@@ -72,6 +84,8 @@ EXTRA_UTIL_FLAGS += -I$(PWD)/patches/kdrivers/wanec -I$(PWD)/patches/kdrivers/wa
 
 ENABLE_WANPIPEMON_ZAP=NO
 ZAPHDLC_PRIV=/etc/wanpipe/.zaphdlc
+
+EXTRA_CFLAGS += $(EXTRA_FLAGS)
 
 
 #Check if zaptel exists
@@ -95,7 +109,9 @@ else
 			ZAPDIR_PRIV=$(ZAPDIR) 
 			ENABLE_WANPIPEMON_ZAP=YES
 			EXTRA_CFLAGS+= -DSTANDALONE_ZAPATA -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL -DDAHDI_ISSUES -DBUILDING_TONEZONE -I$(ZAPDIR)/include -I$(ZAPDIR)/include/dahdi -I$(ZAPDIR)/drivers/dahdi
-			ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
+			ifneq (,$(wildcard $(ZAPDIR)/drivers/dahdi/Makefile))
+				ZAP_OPTS= --zaptel-path=$(ZAPDIR)/drivers/dahdi/
+			endif
 			ZAP_PROT=TDM
 			PROTS=DEF-TDM
 		else
@@ -107,6 +123,7 @@ else
 		endif
 	endif
 endif  
+
 
 EXTRA_CFLAGS += -I$(KDIR)/include/linux -I$(ZAPDIR) 
 
@@ -123,9 +140,24 @@ else
 
 #This will check for zaptel, kenrel source and build utilites and kernel modules
 #within local directory structure
-all:   _checkzap _checksrc all_bin_kmod all_util 	
+all: cleanup_local _checkzap _checksrc all_bin_kmod all_util 	
 
-all_src:   _checkzap _checksrc all_kmod all_util all_lib
+all_src: cleanup_local  _checkzap _checksrc all_kmod all_util
+
+dahdi: all_src
+
+zaptel: all_src
+
+openzap: all_src all_lib
+	@touch .all_lib
+
+tdmapi: all_src all_lib
+	@touch .all_lib
+
+cleanup_local:
+	@rm -f .all* 2> /dev/null;
+
+
 
 #Build only kernel modules
 all_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
@@ -141,7 +173,7 @@ all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 
 
 #Clean utilites and kernel modules
-clean:  clean_util _cleanoldwanpipe
+clean: cleanup_local  clean_util _cleanoldwanpipe
 	$(MAKE) -C $(KDIR) SUBDIRS=$(WAN_DIR) clean
 	@find patches/kdrivers -name '.*.cmd' | xargs rm -f
 	@find . -name 'Module.symver*' | xargs rm -f
@@ -184,35 +216,43 @@ _checkzap:
 	@echo " +--------- Wanpipe Build Info --------------+"  
 	@echo 
 	@if [ ! -e $(ZAPDIR)/zaptel.h ] && [ ! -e $(ZAPDIR)/kernel/zaptel.h ] && [ ! -e $(ZAPDIR)/include/dahdi/kernel.h ] ; then \
-		echo " Compiling Wanpipe without ZAPTEL/DAHDI Support!"; \
-		echo "      Zaptel/Dahdi Dir: $(ZAPDIR)"; \
+		echo " ZAPTEL/DAHDI Support: Disabled"; \
+		echo " 64BIT_4G            : $(64BIT_4G)"; \
 		ZAPDIR_PRIV=; \
 		ENABLE_WANPIPEMON_ZAP=NO; \
 	else \
 		if [ -e $(ZAPDIR)/include/dahdi/kernel.h ]; then \
-			echo "   Compiling Wanpipe with DAHDI Support!"; \
-			echo "      Dahdi Dir: $(ZAPDIR)"; \
+		    echo " ZAPTEL/DAHDI Support: DAHDI Enabled"; \
+			echo " DAHDI Dir           : $(ZAPDIR)"; \
+		    echo " 64BIT_4G            : $(64BIT_4G)"; \
 			echo; \
 			ZAPDIR_PRIV=$(ZAPDIR); \
 			ENABLE_WANPIPEMON_ZAP=YES; \
-			cp -f $(ZAPDIR)/drivers/dahdi/Module.symvers $(WAN_DIR)/; \
+			if [ -f $(ZAPDIR)/drivers/dahdi/Module.symvers ]; then \
+			  	cp -f $(ZAPDIR)/drivers/dahdi/Module.symvers $(WAN_DIR)/; \
+			elif [ -f $(ZAPDIR)/src/dahdi-headers/drivers/dahdi/Module.symvers ]; then \
+			  	cp -f $(ZAPDIR)/src/dahdi-headers/drivers/dahdi/Module.symvers $(WAN_DIR)/; \
+			else \
+				echo "Error: Dahdi source not compiled, missing Module.symvers file"; \
+				echo "	     Please recompile Dahdi directory first"; \
+			fi; \
 		else \
-			echo "   Compiling Wanpipe with ZAPTEL Support!"; \
-			echo "      Zaptel Dir: $(ZAPDIR)"; \
+		    echo " ZAPTEL/DAHDI Support: ZAPTEL Enabled"; \
+			echo " ZAPTEL Dir          : $(ZAPDIR)"; \
+		    echo " 64BIT_4G            : $(64BIT_4G)"; \
 			echo; \
 			eval "$(PWD)/patches/sangoma-zaptel-patch.sh $(ZAPDIR)"; \
 			ZAPDIR_PRIV=$(ZAPDIR); \
 			ENABLE_WANPIPEMON_ZAP=YES; \
 			if [ -f $(ZAPDIR)/kernel/Module.symvers ]; then \
 				cp -f $(ZAPDIR)/kernel/Module.symvers $(WAN_DIR)/; \
-			elif [ -f -f $(ZAPDIR)/Module.symvers ]; then \
+			elif [ -f $(ZAPDIR)/Module.symvers ]; then \
 				cp -f $(ZAPDIR)/Module.symvers $(WAN_DIR)/; \
 			else \
 				echo "Error: Zaptel source not compiled, missing Module.symvers file"; \
 				echo "       Please recompile zaptel directory first"; \
 			fi; \
 			echo ; \
-			echo "Please recompile and reinstall ZAPTEL after installation"; \
 		fi \
 	fi
 	@echo 
@@ -221,7 +261,11 @@ _checkzap:
 	@sleep 2; 
 
 #Install all utilities etc and modules
-install: install_util install_etc install_kmod install_inc install_lib
+install: install_util install_etc install_kmod install_inc 
+	@if [ -e .all_lib ] ; then \
+		$(MAKE) -C api/libsangoma install; \
+    fi
+
 
 #Install kernel modules only
 install_kmod:
@@ -252,6 +296,18 @@ all_util:  install_inc
 	$(MAKE) -C util all_wancfg EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I$(PWD)/api/libsangoma/include" CC=$(CC) \
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(ARCH)
 
+all_lib:
+		$(shell cd api/libsangoma; ./init-automake.sh > /dev/null;  ./configure --prefix=$(INSTALLPREFIX)/usr > /dev/null;)
+		$(MAKE) -C api/libsangoma clean
+		$(MAKE) -C api/libsangoma all
+		$(shell cd api/libstelephony; ./init-automake.sh > /dev/null;  ./configure --prefix=$(INSTALLPREFIX)/usr > /dev/null;)
+		$(MAKE) -C api/libstelephony clean
+		$(MAKE) -C api/libstelephony all
+
+install_lib:
+		$(MAKE) -C api/libsangoma install
+		$(MAKE) -C api/libstelephony install
+
 #Clean utilities only
 clean_util:	
 	$(MAKE) -C util clean SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)
@@ -260,22 +316,10 @@ clean_util:
 install_util:
 	$(MAKE) -C util install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)  
 
-all_lib:
-		$(shell cd api/libsangoma; ./init-automake.sh > /dev/null;  ./configure --prefix=/usr > /dev/null;)
-		$(MAKE) -C api/libsangoma clean
-		$(MAKE) -C api/libsangoma all
-		$(shell cd api/libstelephony; ./init-automake.sh > /dev/null;  ./configure --prefix=/usr > /dev/null;)
-		$(MAKE) -C api/libstelephony clean
-		$(MAKE) -C api/libstelephony all
-
-install_lib:
-		$(MAKE) -C api/libsangoma install   
-		$(MAKE) -C api/libstelephony install   
-
 install_smgbri:
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)
 	install -D -m 755 ssmg/sangoma_bri/smg_ctrl $(INSTALLPREFIX)/usr/sbin/smg_ctrl
-	install -D -m 755 ssmg/sangoma_bri/sangoma_brid $(INSTALLPREFIX)/usr/sbin/sangoma_brid
+	install -D -m 755 ssmg/sangoma_bri/sangoma_brid.$(ARCH) $(INSTALLPREFIX)/usr/sbin/sangoma_brid
 	$(MAKE) -C ssmg/libsangoma.trunk/ install DESTDIR=$(INSTALLPREFIX)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone install DESTDIR=$(INSTALLPREFIX)
 
@@ -330,4 +374,5 @@ clean_smgbri:
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/ clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
 
 distclean: clean
-	rm -f .pbxdir
+	rm -f .pbxdir 
+	

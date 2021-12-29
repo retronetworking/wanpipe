@@ -5,7 +5,7 @@
 *
 * Authors: 	Nenad Corbic <ncorbic@sangoma.com>
 *
-* Copyright:	(c) 2003-2005 Sangoma Technologies Inc.
+* Copyright:	(c) 2003-2009 Sangoma Technologies Inc.
 *
 *		This program is free software; you can redistribute it and/or
 *		modify it under the terms of the GNU General Public License
@@ -34,10 +34,8 @@
 
 #if defined(__WINDOWS__)
 
-//#define POLLWRNORM	POLLOUT
 #define POLLWRNORM	0
-#define POLLRDNORM	POLLIN
-//#define POLLRDNORM	0
+#define POLLRDNORM	0
 
 #endif/* __WINDOWS__ */
 
@@ -134,49 +132,54 @@ static wanpipe_cdev_ops_t wp_tdmapi_fops;
 static void wp_tdmapi_init_buffs(wanpipe_tdm_api_dev_t *tdm_api, int option)
 {
 
-#define wptdm_queue_lock_irq(card,flags)    wan_spin_lock_irq(card,flags)
-#define wptdm_queue_unlock_irq(card,flags)  wan_spin_unlock_irq(card,flags)
+#define wptdm_queue_lock_irq(card,flags)    if (lock) wan_spin_lock_irq(card,flags)
+#define wptdm_queue_unlock_irq(card,flags)  if (lock) wan_spin_unlock_irq(card,flags)
 
 	netskb_t *skb;
 	int hdr_sz=sizeof(wp_api_hdr_t);
 	sdla_t *card; 
 	wan_smp_flag_t flags;
+	int lock=1;
+
+/* FIXME: Cause random crashes */
+	return;
 
 	card = (sdla_t*)tdm_api->card;
-	flags=0;
+	if (!card) {
+     	lock=0;
+	}
+	flags=0; 
+
+	wptdm_queue_lock_irq(&card->wandev.lock,&flags);
 
 	if (option == WP_API_FLUSH_ALL || option == WP_API_FLUSH_RX) {
 
 		if (WPTDM_SPAN_OP_MODE(tdm_api) || tdm_api->hdlc_framing) {
 			do {
-				wptdm_queue_lock_irq(&card->wandev.lock,&flags);
-				skb=wan_skb_dequeue(&tdm_api->wp_rx_list);
-				wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
+				skb=wan_skb_dequeue(&tdm_api->wp_rx_list);		
 				if (skb) {
-					wan_skb_free(skb);
-					continue;
-				}
-			} while(skb);
-			do {
-				wptdm_queue_lock_irq(&card->wandev.lock,&flags);
-				skb=wan_skb_dequeue(&tdm_api->wp_rx_free_list);
-				wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
-				if (skb) {
-					wan_skb_free(skb);
+					wan_skb_queue_tail(&tdm_api->wp_dealloc_list,skb);
 					continue;
 				}
 			} while(skb);
 
-			wan_spin_lock_irq(&card->wandev.lock,&flags);
+			do {
+				skb=wan_skb_dequeue(&tdm_api->wp_rx_free_list);
+				if (skb) {
+					wan_skb_queue_tail(&tdm_api->wp_dealloc_list,skb);
+					continue;
+				}
+			} while(skb);
+
+			
 			skb=tdm_api->rx_skb;
 			tdm_api->rx_skb=NULL;
-			wan_spin_unlock_irq(&card->wandev.lock,&flags);
 			if (skb) {
-				wan_skb_free(skb);
+				wan_skb_queue_tail(&tdm_api->wp_dealloc_list,skb);
 			}
 
 		} else {
-			wptdm_queue_lock_irq(&card->wandev.lock,&flags);
+			 
 			while((skb=wan_skb_dequeue(&tdm_api->wp_rx_list))) {
 				wan_skb_init(skb,hdr_sz);
 				wan_skb_trim(skb,0);
@@ -190,51 +193,56 @@ static void wp_tdmapi_init_buffs(wanpipe_tdm_api_dev_t *tdm_api, int option)
 				wan_skb_queue_tail(&tdm_api->wp_rx_free_list,skb);
 			}
 			
-			wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
 		}
 	}
 
 	if (option == WP_API_FLUSH_ALL || option == WP_API_FLUSH_TX) {
 
 		do {
-			wptdm_queue_lock_irq(&card->wandev.lock,&flags);
 			skb=wan_skb_dequeue(&tdm_api->wp_tx_free_list);
-			wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
 			if (skb) {
-				wan_skb_free(skb);
-				continue;
-			}
-		} while(skb);
-		do {
-			wptdm_queue_lock_irq(&card->wandev.lock,&flags);
-			skb=wan_skb_dequeue(&tdm_api->wp_tx_list);
-			wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
-			if (skb) {
-				wan_skb_free(skb);
+				wan_skb_queue_tail(&tdm_api->wp_dealloc_list,skb);
 				continue;
 			}
 		} while(skb);
 
-		wan_spin_lock_irq(&card->wandev.lock,&flags);
+		do {
+			skb=wan_skb_dequeue(&tdm_api->wp_tx_list);
+			if (skb) {
+				wan_skb_queue_tail(&tdm_api->wp_dealloc_list,skb);
+				continue;
+			}
+		} while(skb);
+
 		skb=tdm_api->tx_skb;
 		tdm_api->tx_skb=NULL;
-		wan_spin_unlock_irq(&card->wandev.lock,&flags);
 		if (skb){
-			wan_skb_free(skb);
+			wan_skb_queue_tail(&tdm_api->wp_dealloc_list,skb);
 		}
 
 	}
 
 	if (option == WP_API_FLUSH_ALL || option == WP_API_FLUSH_EVENT) {
-
-		wptdm_queue_lock_irq(&card->wandev.lock,&flags);
 		while((skb=wan_skb_dequeue(&tdm_api->wp_event_list))) {
 			wan_skb_init(skb,hdr_sz);
 			wan_skb_trim(skb,0);
 			wan_skb_queue_tail(&tdm_api->wp_event_free_list,skb);
 		}
-		wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
 	}
+
+	wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
+
+
+	do {
+		wptdm_queue_lock_irq(&card->wandev.lock,&flags);
+		skb=wan_skb_dequeue(&tdm_api->wp_dealloc_list);
+		wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
+		if (skb) {
+			wan_skb_free(skb);
+			continue;
+		}
+	} while(skb);
+	
 
 #undef wptdm_queue_lock_irq
 #undef wptdm_queue_unlock_irq
@@ -249,6 +257,7 @@ static void wp_tdmapi_free_buffs(wanpipe_tdm_api_dev_t *tdm_api)
 	wan_skb_queue_purge(&tdm_api->wp_tx_list);
 	wan_skb_queue_purge(&tdm_api->wp_event_list);
 	wan_skb_queue_purge(&tdm_api->wp_event_free_list);
+	wan_skb_queue_purge(&tdm_api->wp_dealloc_list);
 
 	if (tdm_api->rx_skb){
 		wan_skb_free(tdm_api->rx_skb);
@@ -359,7 +368,6 @@ static int wp_tdmapi_reg_globals(void)
 
 #if !defined(__WINDOWS__)
 	{
-
 		tdm_api=&tdmapi_ctrl;
 		memset(tdm_api,0,sizeof(wanpipe_tdm_api_dev_t));
 
@@ -369,6 +377,7 @@ static int wp_tdmapi_reg_globals(void)
 		wan_skb_queue_init(&tdm_api->wp_tx_list);
 		wan_skb_queue_init(&tdm_api->wp_event_list);
 		wan_skb_queue_init(&tdm_api->wp_event_free_list);
+		wan_skb_queue_init(&tdm_api->wp_dealloc_list);
 
 		err=wp_tdmapi_alloc_q(tdm_api, &tdm_api->wp_event_free_list, WP_TDM_API_EVENT_MAX_LEN, WP_TDM_MAX_CTRL_EVENT_Q_LEN);
 		if (err) {
@@ -517,6 +526,7 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 
 	wan_skb_queue_init(&tdm_api->wp_event_list);
 	wan_skb_queue_init(&tdm_api->wp_event_free_list);
+	wan_skb_queue_init(&tdm_api->wp_dealloc_list);
 
 	tdm_api_queue_init=1;
 
@@ -874,14 +884,18 @@ int wanpipe_tdm_api_rbsbits_poll(sdla_t * card)
 
 		for(x = 0; x < tdm_card_dev->max_timeslots; x++){
 			if (wan_test_bit(x, &tdm_card_dev->sig_timeslot_map)){
-				card->wandev.fe_iface.read_rbsbits(
-					&card->fe,
-					x,
-					WAN_TE_RBS_UPDATE|WAN_TE_RBS_REPORT);
+				if (card->wandev.fe_iface.read_rbsbits) {
+					card->wandev.fe_iface.read_rbsbits(
+						&card->fe,
+						x,
+						WAN_TE_RBS_UPDATE|WAN_TE_RBS_REPORT);
+				} else {
+					DEBUG_EVENT("%s: Internal Error [%s:%d]!\n", card->devname,	__FUNCTION__,__LINE__);
+				}
 			}
 		}
 
-	}else{
+	} else {
 
 		if (card->wandev.fe_iface.check_rbsbits == NULL){
                 	DEBUG_EVENT("%s: Internal Error [%s:%d]!\n",
@@ -889,6 +903,7 @@ int wanpipe_tdm_api_rbsbits_poll(sdla_t * card)
 					__FUNCTION__,__LINE__); 
 			return -EINVAL;
 		}
+
 		card->wandev.fe_iface.check_rbsbits(
 				&card->fe, 
 				1, tdm_card_dev->sig_timeslot_map, 1);
@@ -919,6 +934,11 @@ static int wp_tdmapi_open(void *obj)
 	}
 
 	if (wan_test_bit(WP_TDM_DOWN,&tdm_api->critical)) {
+		return -ENODEV;
+	}
+
+	if (tdm_api != &tdmapi_ctrl && !tdm_api->card) {
+     	DEBUG_EVENT("%s: Error: Wanpipe API Device does not have a card pointer! Internal error!\n",tdm_api->name);
 		return -ENODEV;
 	}
 
@@ -1333,6 +1353,16 @@ static unsigned int wp_tdmapi_poll(void *obj)
 		return -ENODEV;
 	}
 
+
+	if (tdm_api == &tdmapi_ctrl) {
+    	if (wan_skb_queue_len(&tdm_api->wp_event_list)) {
+			/* Indicate an exception */
+			ret |= POLLPRI;
+		}         
+     	return ret;	
+	}
+
+
 	card = tdm_api->card;
 	if (!card) {
 		return -ENODEV;
@@ -1401,14 +1431,19 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 	wanpipe_codec_ops_t *wp_codec_ops;
 	netskb_t *skb;
 	sdla_fe_t			*fe = NULL;
-	sdla_t *card = (sdla_t*)tdm_api->card;
-	wanpipe_tdm_api_card_dev_t *tdm_card_dev=card->tdm_api_dev;
-
+	sdla_t *card=NULL;
+	wanpipe_tdm_api_card_dev_t *tdm_card_dev=NULL;
 	wan_smp_flag_t flags,irq_flags;	
 
 	flags=0;
 	irq_flags=0;
-	fe = &card->fe;
+
+	/* This is a klooge because global ctrl device does not have card pointer */
+    card = (sdla_t*)tdm_api->card;  
+	if (card) {
+		tdm_card_dev=card->tdm_api_dev;
+		fe = &card->fe;
+	}
 
 	utdmapi = (wanpipe_api_cmd_t*)udata;
 
@@ -1722,9 +1757,8 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 			err=-EINVAL;
 		} else {
 
-			tdm_card_dev->rbs_poll_timeout =  (HZ * usr_tdm_api.rbs_poll) / 1000;
-			tdm_api->cfg.rbs_poll = usr_tdm_api.rbs_poll;
-			err=0;
+			err=-EOPNOTSUPP;
+			usr_tdm_api.result=SANG_STATUS_OPTION_NOT_SUPPORTED;
 
 			if (tdm_card_dev->rbs_enable_cnt == 0) {
 				if (card && card->wandev.fe_iface.set_fe_sigctrl){
@@ -1736,15 +1770,21 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 								ENABLE_ALL_CHANNELS,
 								WAN_ENABLE);
 						card->hw_iface.hw_unlock(card->hw,&smp_flags1);
-				}else{
-					usr_tdm_api.result=SANG_STATUS_OPTION_NOT_SUPPORTED;
-					err=-EOPNOTSUPP;
 				}
+
+				if (err == 0) {
+					tdm_card_dev->rbs_enable_cnt++;
+					tdm_card_dev->rbs_poll_timeout =  (HZ * usr_tdm_api.rbs_poll) / 1000;
+					tdm_api->cfg.rbs_poll = usr_tdm_api.rbs_poll;
+					usr_tdm_api.result=SANG_STATUS_SUCCESS;
+					err=0;
+				}
+
+			} else {
+				usr_tdm_api.result=SANG_STATUS_SUCCESS;
+				err=0;
 			}
 
-			if (err == 0) {
-				tdm_card_dev->rbs_enable_cnt++;
-			}
 		}
 		break;
 
@@ -2546,32 +2586,6 @@ int wanpipe_tdm_api_rx_tx (wanpipe_tdm_api_dev_t *tdm_api, u8 *rx_data, u8 *tx_d
 	}
 
 	if (!wan_test_bit(0,&tdm_api->used)) {
-		/* no application is using this channel */
-		netskb_t *skb;
-		int hdr_sz = sizeof(wp_api_hdr_t);
-		while((skb=wan_skb_dequeue(&tdm_api->wp_rx_list))) {
-			wan_skb_init(skb,hdr_sz);
-			wan_skb_trim(skb,0);
-			wan_skb_queue_tail(&tdm_api->wp_rx_free_list,skb);
-		}
-		while((skb=wan_skb_dequeue(&tdm_api->wp_tx_list))) {
-			wan_skb_init(skb,hdr_sz);
-			wan_skb_trim(skb,0);
-			wan_skb_queue_tail(&tdm_api->wp_tx_free_list,skb);
-		}
-		if ((skb=tdm_api->rx_skb)) {
-			tdm_api->rx_skb=NULL;	
-			wan_skb_init(skb,hdr_sz);
-			wan_skb_trim(skb,0);
-			wan_skb_queue_tail(&tdm_api->wp_rx_free_list,skb);
-		}
-		if ((skb=tdm_api->tx_skb)) {
-			tdm_api->tx_skb=NULL;	
-			wan_skb_init(skb,hdr_sz);
-			wan_skb_trim(skb,0);
-			wan_skb_queue_tail(&tdm_api->wp_tx_free_list,skb);
-		}
-
 		/* Always use 'cfg.idle_flag' because it may be it was set by WP_API_CMD_SET_IDLE_FLAG */
 		memset(tx_data,tdm_api->cfg.idle_flag,len);
 		return 0;
@@ -2982,12 +2996,18 @@ static void wp_tdmapi_hook (void* card_id, wan_event_t *event)
 
 
 
-static void __wp_tdmapi_linkstatus (void* card_id, wan_event_t *event)
+static void __wp_tdmapi_linkstatus (void* card_id, wan_event_t *event, int lock)
 {
+#define wptdm_queue_lock_irq(card,flags)    if (lock) wptdm_os_lock_irq(card,flags)
+#define wptdm_queue_unlock_irq(card,flags)  if (lock) wptdm_os_unlock_irq(card,flags)
+
 	netskb_t		*skb;
 	wanpipe_tdm_api_dev_t	*tdm_api = NULL;
 	sdla_t			*card = (sdla_t*)card_id;
 	wp_api_event_t	*p_tdmapi_event = NULL;
+	wan_smp_flag_t 	flags;
+
+	flags=0;
 
 	DEBUG_TDMAPI("%s: Received Link Status Event at TDM_API (%d:%s)!\n",
 			card->devname,
@@ -3003,10 +3023,12 @@ static void __wp_tdmapi_linkstatus (void* card_id, wan_event_t *event)
 		return;
 	}
 
+   	wptdm_queue_lock_irq(&card->wandev.lock,&flags);
 	tdm_api->state = event->link_status;
 
 	skb=wan_skb_dequeue(&tdm_api->wp_event_free_list);
 	if (skb == NULL) {
+   		wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
 		WP_AFT_CHAN_ERROR_STATS(tdm_api->cfg.stats,rx_events_dropped);
 		return;
 	}
@@ -3032,22 +3054,31 @@ static void __wp_tdmapi_linkstatus (void* card_id, wan_event_t *event)
 		break;
 	}
 
-	wan_skb_push_to_ctrl_event(skb);
 
 	if (!wan_test_bit(0,&tdm_api->used)) {
 		wan_skb_init(skb,sizeof(wp_api_hdr_t));
 		wan_skb_trim(skb,0);
 		wan_skb_queue_tail(&tdm_api->wp_event_free_list,skb);
+   		
+		wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
+	
+		wan_skb_push_to_ctrl_event(skb);
 		return;
 	}
+
+	wanpipe_tdm_api_handle_event(tdm_api,skb);
+
+	wptdm_queue_unlock_irq(&card->wandev.lock,&flags);
 
 #if 0
 	rx_hdr->event_time_stamp = gettimeofday();
 #endif
 
-	wanpipe_tdm_api_handle_event(tdm_api,skb);
+   	wan_skb_push_to_ctrl_event(skb);
 
 	return;
+#undef wptdm_queue_lock_irq
+#undef wptdm_queue_unlock_irq
 }
 
 static void wp_tdmapi_linkstatus (void* card_id, wan_event_t *event)
@@ -3056,13 +3087,13 @@ static void wp_tdmapi_linkstatus (void* card_id, wan_event_t *event)
 	sdla_t *card = (sdla_t*)card_id;
 	
 	if (card->wandev.config_id == WANCONFIG_AFT_ANALOG) {
-		__wp_tdmapi_linkstatus(card_id, event);
+		__wp_tdmapi_linkstatus(card_id, event, 0);
 		return;
 	}
 
 	for (i=0; i<NUM_OF_E1_CHANNELS; i++) {
 		event->channel=i;
-		__wp_tdmapi_linkstatus(card_id, event);
+		__wp_tdmapi_linkstatus(card_id, event, 1);
 	}
 
 	return;	

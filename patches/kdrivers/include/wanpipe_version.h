@@ -6,20 +6,19 @@
 #define __WANPIPE_VERSION__
 
 
-#define WANPIPE_COPYRIGHT_DATES "(c) 1994-2008"
+#define WANPIPE_COPYRIGHT_DATES "(c) 1994-2009"
 #define WANPIPE_COMPANY         "Sangoma Technologies Inc"
 
 /********** LINUX **********/
-#define WANPIPE_VERSION			"3.5.2"
+#define WANPIPE_VERSION			"3.5.3"
 #define WANPIPE_SUB_VERSION				"0"
-#define WANPIPE_VERSION_BETA			1
 #define WANPIPE_LITE_VERSION			"1.1.1"
 
 #if defined(__LINUX__)
 #define	WANPIPE_VERSION_MAJOR			3
 #define	WANPIPE_VERSION_MINOR			5
-#define	WANPIPE_VERSION_MINOR1			2
-#define	WANPIPE_VERSION_MINOR2			0
+#define	WANPIPE_VERSION_MINOR1			0
+#define	WANPIPE_VERSION_MINOR2			1
 #endif
 
 /********** FreeBSD **********/
@@ -41,31 +40,31 @@
 
 #if defined(__WINDOWS__)
 
-#define	WANPIPE_VERSION_MAJOR	6
-#define	WANPIPE_VERSION_MINOR	0
-#define	WANPIPE_VERSION_MINOR1	9
-#define	WANPIPE_VERSION_MINOR2	5
+# define	WANPIPE_VERSION_MAJOR	6
+# define	WANPIPE_VERSION_MINOR	0
+# define	WANPIPE_VERSION_MINOR1	9
+# define	WANPIPE_VERSION_MINOR2	16
 
-#undef VER_PRODUCTVERSION
-#undef VER_PRODUCTVERSION_STR
-#undef VER_PRODUCTNAME_STR
-#undef VER_COMPANYNAME_STR
+# undef VER_PRODUCTVERSION
+# undef VER_PRODUCTVERSION_STR
+# undef VER_PRODUCTNAME_STR
+# undef VER_COMPANYNAME_STR
 
-#define VER_PRODUCTVERSION		6,0,9,5
-#define VER_PRODUCTVERSION_STR	"6.0.9.5"
-#define __BUILDDATE__			April 7, 2009
+# define VER_PRODUCTVERSION			6,0,9,16
+# define VER_PRODUCTVERSION_STR		"6.0.9.16"
+# define __BUILDDATE__				June 4, 2009
 
-#define VER_COMPANYNAME_STR			"Sangoma Technologies Corporation"
-#define VER_LEGALCOPYRIGHT_YEARS	"1984-2009"
-#define VER_LEGALCOPYRIGHT_STR		"Copyright (c) Sangoma Technologies Corporation"
-#define VER_PRODUCTNAME_STR			"Sangoma WANPIPE (TM)"
+# define VER_COMPANYNAME_STR		"Sangoma Technologies Corporation"
+# define VER_LEGALCOPYRIGHT_YEARS	"1984-2009"
+# define VER_LEGALCOPYRIGHT_STR		"Copyright (c) Sangoma Technologies Corporation"
+# define VER_PRODUCTNAME_STR		"Sangoma WANPIPE (TM)"
 
 # undef WANPIPE_VERSION
 # undef WANPIPE_VERSION_BETA
 # undef WANPIPE_SUB_VERSION
 
 # define WANPIPE_VERSION_Windows		"6.0.9"
-# define WANPIPE_SUB_VERSION_Windows	"5"
+# define WANPIPE_SUB_VERSION_Windows	"16"
 # define WANPIPE_VERSION_BETA_Windows	0
 
 # define WANPIPE_VERSION		WANPIPE_VERSION_Windows

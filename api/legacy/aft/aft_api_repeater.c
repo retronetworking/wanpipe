@@ -176,10 +176,10 @@ int sangoma_sendmsg_socket(int sock, void *hdrbuf, int hdrlen, void *databuf, in
 *
 *   o Read a socket 
 *   o Cast data received to api_rx_element_t data type 
-*   o The received packet contains 16 bytes header 
+*   o The received packet contains sizeof(wp_api_hdr_t) bytes header 
 *
 *	------------------------------------------
-*      |  16 bytes      |        X bytes        ...
+*      |  sizeof(wp_api_hdr_t) bytes      |        X bytes        ...
 *	------------------------------------------
 * 	   Header              Data
 *
@@ -232,7 +232,7 @@ void handle_socket(void)
 	}
 
 	/* Cast the Tx data packet with the tx element
-	 * structure.  We must insert a 16 byte
+	 * structure.  We must insert a sizeof(wp_api_hdr_t) byte
 	 * driver header, which driver will remove 
 	 * before passing packet out the physical port */
 	api_tx_el = (api_tx_element_t*)&Tx_data[0];
@@ -330,7 +330,7 @@ void handle_socket(void)
 				 * 	   buffer. Confirm len > 0
 				 *
 				 * 	2: Cast Rx_data to the api_rx_element.
-				 * 	   Thus, removing a 16 byte header
+				 * 	   Thus, removing a sizeof(wp_api_hdr_t) byte header
 				 * 	   attached by the driver.
 				 *
 				 * 	3. Check error_flag:
@@ -341,8 +341,8 @@ void handle_socket(void)
 
 #if 1
 				err = sangoma_readmsg_socket(sock,
-                                                             Rx_data,16, 
-							     &Rx_data[16], MAX_RX_DATA-16, 
+                                                             Rx_data,sizeof(wp_api_hdr_t), 
+							     &Rx_data[sizeof(wp_api_hdr_t)], MAX_RX_DATA-sizeof(wp_api_hdr_t), 
 							     0);
 #else
 				err = sangoma_read_socket(sock, Rx_data, MAX_RX_DATA, 0);
@@ -371,7 +371,7 @@ void handle_socket(void)
 				if (api_rx_el->api_rx_hdr.error_flag){
 					printf("Data: ");
 					for(i=0;i<Rx_lgth; i ++) {
-						printf("0x%02X ", Rx_data[i+16]);
+						printf("0x%02X ", Rx_data[i+sizeof(wp_api_hdr_t)]);
 					}
 					printf("\n");
 				}
@@ -417,7 +417,7 @@ void handle_socket(void)
 				++Rx_count;
 
 				//printf("RECEIVE:\n");
-				//print_packet(&Rx_data[16],Rx_lgth);
+				//print_packet(&Rx_data[sizeof(wp_api_hdr_t)],Rx_lgth);
 
 				if (Rx_lgth > 8) {
 					verbose=3;
@@ -453,13 +453,13 @@ bitstrm_skip_read:
 
 				if (Tx_count == 0){
 					//printf("SEND: Len=%i\n",Tx_length);
-					//print_packet(&Tx_data[16],Tx_length);
+					//print_packet(&Tx_data[sizeof(wp_api_hdr_t)],Tx_length);
 				}
 
 #if 1
 				err = sangoma_sendmsg_socket(sock,
-						       Tx_data,16, 
-						       &Tx_data[16], Tx_length, 
+						       Tx_data,sizeof(wp_api_hdr_t), 
+						       &Tx_data[sizeof(wp_api_hdr_t)], Tx_length, 
 						       0);
 #else	
 				err = sangoma_send_socket(sock,Tx_data, 

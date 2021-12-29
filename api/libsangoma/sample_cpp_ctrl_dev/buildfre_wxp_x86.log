@@ -1,0 +1,133 @@
+BUILD: Computing Include file dependencies:
+BUILD: Examining d:\development_trunk\libsangoma\sample_cpp directory for files to compile.
+skipping post pass 0 command
+Compiling and Linking d:\development_trunk\libsangoma\sample_cpp *************
+'nmake.exe /nologo BUILDMSG=Stop. -i BUILD_PASS=PASS2 LINKONLY=1 NOPASS0=1 MAKEDIR_RELATIVE_TO_BASEDIR='
+d:\development_trunk\libsangoma\sample_cpp: TARGETPATH is obj
+BUILDMSG: _NT_TARGET_VERSION SET TO WINXP
+ cl.exe @d:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386\cl.rsp
+Microsoft (R) 32-bit C/C++ Optimizing Compiler Version 14.00.50727.278 for 80x86
+Copyright (C) Microsoft Corporation.  All rights reserved.
+cl /Fo"d:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386/"
+ /FC
+ /Ii386
+ /I.
+ /IJ:\WinDDK\6001.18001\inc\ddk
+ /ID:\development_trunk\wanpipe_common\include
+ /ID:\development_trunk\wanpipe_common\include\aft_core
+ /ID:\development_trunk\wanpipe_windows\include
+ /ID:\development_trunk\libsangoma
+ /ID:\development_trunk\stelephony
+ /ID:\development_trunk\stelephony\stel_tone
+ /Id:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386
+ /IJ:\WinDDK\6001.18001\inc\api
+ /IJ:\WinDDK\6001.18001\inc\api
+ /IJ:\WinDDK\6001.18001\inc\crt
+ /D_X86_=1
+ /Di386=1
+ /DSTD_CALL
+ /DCONDITION_HANDLING=1
+ /DNT_INST=0
+ /DWIN32=100
+ /D_NT1X_=100
+ /DWINNT=1
+ /D_WIN32_WINNT=0x0501
+ /DWINVER=0x0501
+ /D_WIN32_IE=0x0603
+ /DWIN32_LEAN_AND_MEAN=1
+ /DDEVL=1
+ /D__BUILDMACHINE__=WinDDK
+ /DFPO=0
+ /D_DEBUG
+ /D_SYSCRT_DEBUG
+ /D_DLL=1
+ /D_MT=1
+ /Od
+ /DWIN32
+ /D_CONSOLE
+ /D__WINDOWS__
+ /DNTDDI_VERSION=0x05010200
+ /c
+ /Zc:wchar_t-
+ /Zl
+ /Zp8
+ /Gy
+ /Gm-
+ /W3
+ /WX
+ /Gz
+ /hotpatch
+ /EHs-c-
+ /GR-
+ /GF
+ /GS
+ /Zi
+ /Oxs
+cl : Command line warning D9025 : overriding '/Od' with '/Ox'
+warnings in directory d:\development_trunk\libsangoma\sample_cpp
+d:\development_trunk\libsangoma\sample_cpp\cl : warning D9025 : overriding '/Od' with '/Ox'
+ /Oy-
+ /Zi
+ /Fdd:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386\
+ /DKMDF_MAJOR_VERSION=01
+ /DKMDF_MINOR_VERSION=007
+ /FIJ:\WinDDK\6001.18001\inc\api\warning.h
+ .\sample.cpp .\sangoma_cthread.cpp .\sangoma_interface.cpp .\sangoma_port.cpp .\sangoma_port_configurator.cpp 
+sample.cpp
+sangoma_cthread.cpp
+sangoma_interface.cpp
+sangoma_port.cpp
+sangoma_port_configurator.cpp
+Generating Code...
+ link.exe /out:d:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386\sample_cpp.exe /machine:ix86 @d:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386\lnk.rsp
+Microsoft (R) Incremental Linker Version 8.00.50727.278
+Copyright (C) Microsoft Corporation.  All rights reserved.
+/MERGE:_PAGE=PAGE 
+/MERGE:_TEXT=.text 
+/SECTION:INIT,d 
+/OPT:REF 
+/OPT:ICF 
+/IGNORE:4198,4010,4037,4039,4065,4070,4078,4087,4089,4221 
+/INCREMENTAL:NO 
+/release 
+/NODEFAULTLIB 
+/WX 
+/debug 
+/debugtype:cv,fixup,pdata 
+/version:6.0 
+/osversion:6.0 
+/functionpadmin:5 
+/safeseh 
+/opt:nowin98 
+/nxcompat 
+/merge:.rdata=.text 
+/pdbcompress 
+/STACK:0x40000,0x2000 
+/tsaware 
+/dynamicbase 
+/subsystem:console,5.01 
+/base:0x400000 
+/entry:mainCRTStartup 
+d:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386\sample.obj 
+d:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386\sangoma_cthread.obj 
+d:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386\sangoma_interface.obj 
+d:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386\sangoma_port.obj 
+d:\development_trunk\libsangoma\sample_cpp\objfre_wxp_x86\i386\sangoma_port_configurator.obj 
+j:\winddk\6001.18001\lib\wxp\i386\advapi32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\kernel32.lib 
+J:\WinDDK\6001.18001\lib\crt\i386\msvcrtd.lib 
+j:\winddk\6001.18001\lib\wxp\i386\kernel32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\user32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\gdi32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\winspool.lib 
+j:\winddk\6001.18001\lib\wxp\i386\comdlg32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\advapi32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\shell32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\ole32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\oleaut32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\uuid.lib 
+j:\winddk\6001.18001\lib\wxp\i386\comctl32.lib 
+j:\winddk\6001.18001\lib\wxp\i386\Setupapi.lib 
+D:\development_trunk\wanpipe_windows\lib\libsangoma.lib 
+D:\development_trunk\wanpipe_windows\lib\stelephony.lib 
+j:\winddk\6001.18001\lib\wxp\i386\sehupd.lib 

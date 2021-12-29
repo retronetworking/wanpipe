@@ -145,7 +145,9 @@ typedef struct wanpipe_tdm_api_dev {
 
 	wan_skb_queue_t 	wp_event_list;
 	wan_skb_queue_t 	wp_event_free_list;
-	
+
+	wan_skb_queue_t 	wp_dealloc_list;
+
 	wp_api_hdr_t	*rx_hdr;
 	wp_api_hdr_t	tx_hdr;
 	
@@ -280,6 +282,9 @@ static inline int wp_tdmapi_alloc_q(wanpipe_tdm_api_dev_t *tdm_api, wan_skb_queu
 {
 	netskb_t *skb;
 	int i;
+#if defined(__WINDOWS__) && defined(DBG_QUEUE_IRQ_LOCKING)
+	KIRQL  OldIrql;
+#endif
 
 	if (!size || size > WP_TDM_API_MAX_LEN) {
 		return -1;
@@ -296,7 +301,17 @@ static inline int wp_tdmapi_alloc_q(wanpipe_tdm_api_dev_t *tdm_api, wan_skb_queu
 		}
 		wan_skb_init(skb,sizeof(wp_api_hdr_t));
 		wan_skb_trim(skb,0);
+
+#if defined(__WINDOWS__) && defined(DBG_QUEUE_IRQ_LOCKING)
+		/* this is an emulation of irq lock priority */
+		KeRaiseIrql(DISPATCH_LEVEL + 1, &OldIrql);//fixme: remove it!!
+#endif
+		
 		wan_skb_queue_tail(queue,skb);
+
+#if defined(__WINDOWS__) && defined(DBG_QUEUE_IRQ_LOCKING)
+		KeLowerIrql(OldIrql);//fixme: remove it!!
+#endif
 	}
 
 	return 0;

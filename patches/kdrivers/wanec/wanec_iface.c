@@ -1385,11 +1385,11 @@ int wanec_ioctl(void *sc, void *data)
 #elif defined(__LINUX__)
 int wanec_ioctl(unsigned int cmd, void *data)
 #elif defined(__WINDOWS__)
-int wanec_ioctl(void *data, void *pcard)
+int wanec_ioctl(void *data)
 #endif
 {
 	wan_ec_api_t	*ec_api = NULL;
-	wan_ec_t	*ec = NULL;
+	wan_ec_t		*ec = NULL;
 	wan_ec_dev_t	*ec_dev = NULL;
 	int		err = 0;
 	wan_smp_flag_t flags;
@@ -1415,17 +1415,6 @@ int wanec_ioctl(void *data, void *pcard)
 				__FUNCTION__,__LINE__);
 		wan_free(ec_api);
 		return -EINVAL;
-	}
-#elif defined(__WINDOWS__)
-	{
-	sdla_t *card = (sdla_t*)pcard;
-
-	ec_api = (wan_ec_api_t*)data;
-	/*	In user mode the 'ec_api->devname' is set to interface name.
-		For example "wanpipe2_if0". But wanec code needs 'card name',
-		not 'interface name' when the wanec_search() is called.
-		Change 'ec_api->devname' to be the 'card name': */
-	snprintf(ec_api->devname, WAN_DRVNAME_SZ, "%s", card->devname);
 	}
 #else
 	ec_api = (wan_ec_api_t*)data;
@@ -1461,11 +1450,8 @@ int wanec_ioctl(void *data, void *pcard)
 		goto wanec_ioctl_exit;
 	}
 
-
-#if !defined(__WINDOWS__)
-	/* Windows: can not copy to/from user when locked */
 	wan_spin_lock(&ec->lock,&flags);
-#endif
+
 	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical)){
 		DEBUG_EVENT(
 		"%s: Echo Canceller device is down!\n",
@@ -1555,10 +1541,7 @@ int wanec_ioctl(void *data, void *pcard)
 	wan_clear_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical);
 
 wanec_ioctl_done:
-#if !defined(__WINDOWS__)
-	/* Windows: can not copy to/from user when locked */
 	wan_spin_unlock(&ec->lock,&flags);
-#endif
 
 wanec_ioctl_exit:
 #if defined(__LINUX__)
@@ -1739,9 +1722,7 @@ wanec_register(void *pcard, u_int32_t fe_port_mask, int max_fe_chans, int max_ec
 	** but ec_dev created per module. In this case, we have always
 	** 2 channels (1 and 2). Create fe_channel_map manually */
 
-	if (fe_port_mask && 
-	    (ec_dev_new->fe_media != WAN_MEDIA_BRI ||
-	     ec_dev_new->card->adptr_type == AFT_ADPTR_FLEXBRI)){
+	if (fe_port_mask && ec_dev_new->fe_media != WAN_MEDIA_BRI){
 		ec_dev_new->fe_channel_map	= fe_port_mask;
 	}else{
 		int	fe_chan = 0;
@@ -2029,19 +2010,11 @@ int wanec_init(void *arg)
 	}
 #endif
 
-	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta %s.%s %s\n",
+		DEBUG_EVENT("%s %s.%s %s\n",
 				wpec_fullname,
 				WANPIPE_VERSION,
 				WANPIPE_SUB_VERSION,
 				wpec_copyright);
-	}else{
-		DEBUG_EVENT("%s Stable %s.%s %s\n",
-				wpec_fullname,
-				WANPIPE_VERSION,
-				WANPIPE_SUB_VERSION,
-				wpec_copyright);
-	}
 
 	/* Initialize WAN EC lip interface */
 	wanec_iface.reg		= wanec_register;

@@ -16,7 +16,7 @@ library_include_HEADERS = libstelephony.h
 
 lib_LTLIBRARIES         = libstelephony.la
 libstelephony_la_CXXFLAGS    = $(AM_CXXFLAGS)
-libstelephony_la_LDFLAGS   = -version-info 1:0:0
+libstelephony_la_LDFLAGS   = -version-info @LIBSTELEPHONY_LT_CURRENT@:@LIBSTELEPHONY_LT_REVISION@:@LIBSTELEPHONY_LT_AGE@
 libstelephony_la_SOURCES   = $(LIB_SOUCES)
 
 lib_LIBRARIES           = libstelephony.a

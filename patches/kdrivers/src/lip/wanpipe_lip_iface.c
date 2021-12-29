@@ -1730,13 +1730,8 @@ int wanpipe_lip_init(void *arg)
 	wanpipe_lip_memdbg_init();
 #endif
 
-	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta %s.%s %s\n",
-			wplip_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,wplip_copyright);
-	}else{
-		DEBUG_EVENT("%s Stable %s.%s %s\n",
+   	DEBUG_EVENT("%s %s.%s %s\n",
 			wplip_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION, wplip_copyright);
-	}
 
 	err=wplip_init_prot();
 	if (err){

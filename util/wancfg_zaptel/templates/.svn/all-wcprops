@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 94
-/svn/wanpipe/!svn/ver/7663/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/templates
+/svn/wanpipe/!svn/ver/7738/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/templates
 END
 wanpipe.tdm_api.a100
 K 25
@@ -15,17 +15,17 @@ svn:wc:ra_dav:version-url
 V 111
 /svn/wanpipe/!svn/ver/7323/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/templates/zaptel.conf_test
 END
-zaptel.conf
-K 25
-svn:wc:ra_dav:version-url
-V 106
-/svn/wanpipe/!svn/ver/7323/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/templates/zaptel.conf
-END
 wanpipe.tdm_api.a500
 K 25
 svn:wc:ra_dav:version-url
 V 115
 /svn/wanpipe/!svn/ver/7608/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/templates/wanpipe.tdm_api.a500
+END
+zaptel.conf
+K 25
+svn:wc:ra_dav:version-url
+V 106
+/svn/wanpipe/!svn/ver/7323/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/templates/zaptel.conf
 END
 smgbri_start_script
 K 25
@@ -103,7 +103,7 @@ wanpipe.tdm.u100
 K 25
 svn:wc:ra_dav:version-url
 V 111
-/svn/wanpipe/!svn/ver/7323/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/templates/wanpipe.tdm.u100
+/svn/wanpipe/!svn/ver/7738/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/templates/wanpipe.tdm.u100
 END
 zapata-auto.conf
 K 25

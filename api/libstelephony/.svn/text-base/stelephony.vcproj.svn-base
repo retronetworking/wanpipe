@@ -212,51 +212,16 @@
 				>
 			</File>
 			<File
+				RelativePath=".\PToneDecoder.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\PToneEncoder.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Q931EventsDecoder.cpp"
 				>
-			</File>
-			<File
-				RelativePath="Sink.cpp"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="StdAfx.cpp"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-						UsePrecompiledHeader="1"
-						PrecompiledHeaderThrough="stdafx.h"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-						UsePrecompiledHeader="1"
-					/>
-				</FileConfiguration>
 			</File>
 			<File
 				RelativePath="stelephony.cpp"
@@ -282,33 +247,25 @@
 				RelativePath=".\stelephony.rc"
 				>
 			</File>
-			<File
-				RelativePath="ToneDecoder_i.c"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl"
 			>
 			<File
+				RelativePath=".\libstelephony.h"
+				>
+			</File>
+			<File
 				RelativePath=".\libstelephony_linux_compat.h"
+				>
+			</File>
+			<File
+				RelativePath=".\PToneDecoder.h"
+				>
+			</File>
+			<File
+				RelativePath=".\PToneEncoder.h"
 				>
 			</File>
 			<File
@@ -316,15 +273,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\resource.h"
-				>
-			</File>
-			<File
 				RelativePath="Sink.h"
-				>
-			</File>
-			<File
-				RelativePath="StdAfx.h"
 				>
 			</File>
 			<File
@@ -332,7 +281,7 @@
 				>
 			</File>
 			<File
-				RelativePath="ToneDecoder.h"
+				RelativePath=".\StelephonyApi.h"
 				>
 			</File>
 		</Filter>

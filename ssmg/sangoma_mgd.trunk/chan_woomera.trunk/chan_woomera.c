@@ -14,6 +14,14 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.52 Konrad Hammel <konrad@sangoma.com>
+ * Jun 25 2009
+ * 	Bug fix for tg_context in multiple profiles
+ *
+ * v1.51 Nenad Corbic <ncorbic@sangoma.com>
+ * Jun 06 2009
+ * 	Updated for Asterisk 1.6.1
+ *
  * v1.50 Nenad Corbic <ncorbic@sangoma.com>
  * Apr 24 2009
  * 	Bug fix on write socket. Check that write woomera socket failed.
@@ -279,7 +287,7 @@
 #include "asterisk/musiconhold.h"
 #include "asterisk/transcap.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.52 $")
 
 #else
 
@@ -330,7 +338,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
 #define CALLWEAVER_19 1
 #endif
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.52 $")
 
 #if defined(DSP_FEATURE_FAX_CNG_DETECT)
 #undef		DSP_FEATURE_FAX_DETECT
@@ -637,7 +645,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.50"
+#define WOOMERA_VERSION "v1.52"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -676,6 +684,15 @@ struct ast_frame ast_null_frame;
   #define AST_JB 1
  #endif
 #endif
+
+#if !defined(DSP_FEATURE_DTMF_DETECT) && defined(DSP_FEATURE_DIGIT_DETECT) 
+#define DSP_FEATURE_DTMF_DETECT DSP_FEATURE_DIGIT_DETECT
+#define ast_dsp_digitmode ast_dsp_set_digitmode
+#define woo_ast_data_ptr data.ptr
+#else
+#define woo_ast_data_ptr data
+#endif
+
 
 #if defined (AST_JB)
 #include "asterisk/abstract_jb.h"
@@ -3215,7 +3232,9 @@ static void destroy_woomera_profile(woomera_profile *profile)
 
 static woomera_profile *clone_woomera_profile(woomera_profile *new_profile, woomera_profile *default_profile) 
 {
-	return memcpy(new_profile, default_profile, sizeof(woomera_profile));
+	memcpy(new_profile, default_profile, sizeof(woomera_profile));
+        memset(new_profile->tg_context, 0,sizeof(new_profile->tg_context));
+        return new_profile;
 }
 
 static woomera_profile *create_woomera_profile(woomera_profile *default_profile) 
@@ -4249,13 +4268,13 @@ tech_read_again:
 	tech_pvt->frame.offset = AST_FRIENDLY_OFFSET;
 	tech_pvt->frame.datalen = res;
 	tech_pvt->frame.samples = res;
-	tech_pvt->frame.data = tech_pvt->fdata + AST_FRIENDLY_OFFSET;
+	tech_pvt->frame.woo_ast_data_ptr = tech_pvt->fdata + AST_FRIENDLY_OFFSET;
 
 	f=&tech_pvt->frame;
 
 	if (tech_pvt->profile->rxgain_val) {
 		int i;
-		unsigned char *data=tech_pvt->frame.data;
+		unsigned char *data=tech_pvt->frame.woo_ast_data_ptr;
 		for (i=0;i<tech_pvt->frame.datalen;i++) {
 			data[i]=tech_pvt->profile->rxgain[data[i]];
 		}
@@ -4337,7 +4356,7 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 
 	/* Used for debugging only never in production */
 	if (tech_pvt->profile->tx_sync_check_opt){
-		unsigned char *data = frame->data;
+		unsigned char *data = frame->woo_ast_data_ptr;
 		for (i=0;i<frame->datalen;i++) {
 			if (tech_pvt->sync_w == 0) {
 				if (data[i] == 0x01 && data[i+1] == 0x02) {
@@ -4367,7 +4386,7 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 
 	/* Used for debugging only never in production */
 	} else if (tech_pvt->profile->tx_sync_gen_opt){
-		unsigned char *data = frame->data;
+		unsigned char *data = frame->woo_ast_data_ptr;
 		int x;
 		for (x=0;x<frame->datalen;x++) {
 			data[x]=++tech_pvt->sync_data_w;
@@ -4378,20 +4397,20 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 		if (frame->frametype == AST_FRAME_VOICE) {
 		
 			if (tech_pvt->profile->txgain_val) {
-				unsigned char *data=frame->data;
+				unsigned char *data=frame->woo_ast_data_ptr;
 				for (i=0;i<frame->datalen;i++) {
 					data[i]=tech_pvt->profile->txgain[data[i]];
 				}
 			} 
 
 			if (tech_pvt->profile->udp_seq){	
-				unsigned char *txdata=frame->data;
+				unsigned char *txdata=frame->woo_ast_data_ptr;
 				tech_pvt->tx_udp_seq++;
 				*((unsigned int*)&txdata[frame->datalen]) = tech_pvt->tx_udp_seq;
 				frame->datalen+=4;
 			}
  
-			i = sendto(tech_pvt->udp_socket, frame->data, frame->datalen, 0, 
+			i = sendto(tech_pvt->udp_socket, frame->woo_ast_data_ptr, frame->datalen, 0, 
 				   (struct sockaddr *) &tech_pvt->udpwrite, sizeof(tech_pvt->udpwrite));
 			if (i < 0) {
 				return -1;
@@ -4961,8 +4980,10 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
 				ast_verbose(WOOMERA_DEBUG_PREFIX "HW DTMF supported %s\n", tech_pvt->callid);
 			}
 			
-			tech_pvt->dsp_features &= ~DSP_FEATURE_DTMF_DETECT;
-			ast_dsp_set_features(tech_pvt->dsp, tech_pvt->dsp_features);
+			if(tech_pvt->dsp) {	
+				tech_pvt->dsp_features &= ~DSP_FEATURE_DTMF_DETECT;
+				ast_dsp_set_features(tech_pvt->dsp, tech_pvt->dsp_features);	
+			}
 		} else {
 			if (option_verbose > 2) {
 				ast_verbose(WOOMERA_DEBUG_PREFIX "HW DTMF not supported %s\n", tech_pvt->callid);
@@ -5465,7 +5486,7 @@ int load_module(void)
 	ast_null_frame.subclass = 0;
 	ast_null_frame.delivery = ast_tv(0,0);
 	ast_null_frame.src = "zt_exception";
-	ast_null_frame.data = NULL;
+	ast_null_frame.woo_ast_data_ptr = NULL;
 #endif
 
 	return 0;

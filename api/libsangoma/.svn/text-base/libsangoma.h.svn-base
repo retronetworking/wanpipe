@@ -6,7 +6,7 @@
  * Author(s):	Nenad Corbic <ncorbic@sangoma.com>
  *              David Rokhvarg <davidr@sangoma.com>
  *              Michael Jerris <mike@jerris.com>
- * 				Anthony Minessale II <anthmct@yahoo.com>
+ *		Anthony Minessale II <anthmct@yahoo.com>
  *
  * Copyright:	(c) 2005-2008 Nenad Corbic <ncorbic@sangoma.com>
  *
@@ -46,11 +46,14 @@ extern "C" {	/* for C++ users */
 
 #include <stdio.h>
 
+
 /*!
   \def WANPIPE_TDM_API
   \brief Used by compiler and driver to enable TDM API
 */
 #define WANPIPE_TDM_API 1
+
+/*TODO: LIBSANGOMA_VERSION_CODE should be generated out of LIBSANGOMA_LT_CURRENT and friends in configure.in */
 
 /*!
   \def LIBSANGOMA_VERSION
@@ -62,15 +65,22 @@ extern "C" {	/* for C++ users */
   \def LIBSANGOMA_VERSION_CODE
   \brief LibSangoma Current Version Number to be checked against the LIBSANGOMA_VERSION Macro 
 */
-#define LIBSANGOMA_VERSION_CODE LIBSANGOMA_VERSION(2,0,1)
+#define LIBSANGOMA_VERSION_CODE LIBSANGOMA_VERSION(3,0,0)
 
 /*!
   \def LIBSANGOMA_VERSION_STR
   \brief LibSangoma Version in string format
 */
-#define LIBSANGOMA_VERSION_STR "2.0.1"
+#define LIBSANGOMA_VERSION_STR "3.0.0"
 
-#ifdef WIN32
+#ifdef __COMPILING_LIBSANGOMA__
+ struct sangoma_wait_obj;
+ #define sangoma_wait_obj_t struct sangoma_wait_obj
+#else
+ typedef void sangoma_wait_obj_t;
+#endif
+
+#if defined(WIN32) || defined(WIN64)
 #ifndef __WINDOWS__
 #define __WINDOWS__
 #endif
@@ -80,16 +90,18 @@ extern "C" {	/* for C++ users */
 #include <stddef.h>	
 #include <stdlib.h>	
 
-#define _MYDEBUG
-#define PROGRAM_NAME "LIBSANGOMA: "
-#include <DebugOut.h>
-
 /*!
   \def _SAPI_CALL
   \brief libsangoma.dll functions exported as __cdecl calling convention
 */
 #define _SAPI_CALL	__cdecl
+
+/*!
+  \def SANGOMA_INFINITE_API_POLL_WAIT (deprecated, use SANGOMA_WAIT_INFINITE instead)
+  \brief Infinite poll timeout value 
+*/
 #define SANGOMA_INFINITE_API_POLL_WAIT INFINITE
+#define SANGOMA_WAIT_INFINITE INFINITE
 
 /*!
   \def sangoma_msleep(x)
@@ -120,7 +132,7 @@ extern "C" {	/* for C++ users */
 #include <poll.h>
 #include <signal.h>
 #include <pthread.h>
-
+#include <stdint.h>
 
 /*!
   \def _SAPI_CALL
@@ -135,10 +147,11 @@ extern "C" {	/* for C++ users */
 #define INVALID_HANDLE_VALUE -1
 
 /*!
-  \def SANGOMA_INFINITE_API_POLL_WAIT
+  \def SANGOMA_INFINITE_API_POLL_WAIT (deprecated, use SANGOMA_WAIT_INFINITE instead)
   \brief Infinite poll timeout value -1, Ported from Windows
 */
 #define SANGOMA_INFINITE_API_POLL_WAIT -1
+#define SANGOMA_WAIT_INFINITE -1
 
 /*!
   \def __cdecl
@@ -240,6 +253,18 @@ typedef char * LPCTSTR;
 #endif
 
 /*!
+ * As of now this typedef maps exactly to SANG_STATUS_T, however that
+ * is a kernel type, ugly, ugly, uglyyyyy, we should have strictly
+ * minimum set of shared data structures between kernel and user
+ * many return codes specified in SANG_STATUS_T are kernel specific
+ * like FAILED_TO_LOCK_USER_MEMORY or INVALID_IRQL, the libsangoma
+ * user does not need that much information, and even if ever needs
+ * it we should provide simpler defaults
+ * \brief return status from sangoma APIs
+ */
+typedef int32_t sangoma_status_t;
+
+/*!
   \def FNAME_LEN
   \brief string length of a file name
   \def FUNC_DBG(x)
@@ -258,65 +283,28 @@ typedef char * LPCTSTR;
 typedef wp_api_hdr_t sangoma_api_hdr_t;
 
 /*!
-  \struct sangoma_wait_obj
-  \brief Sangoma wait object structure. Used to setup a poll on a specific device
-
-  This structure is used by sangoma_socket_waitfor_many() function.
-  This structure is initialized by sangoma_init_wait_obj() function.
-
-  \typedef sangoma_wait_obj_t
-  \brief Sangoma wait object structure. Used to setup a poll on a specific device
-*/
-typedef struct sangoma_wait_obj
-{
-
-   /***************************************//**
-	* Private Variables
-	*******************************************/
-
-	/*! file descriptor of a device */
-	sng_fd_t		fd;
-    /*! poll flags use to configure system for polling on read/write/event */
-	uint32_t		flags_in;
-
-#if defined(WIN32)
-	 /*! WINDOWS: api structure used by windows IoctlSetSharedEvent call */
-	REGISTER_EVENT SharedEvent;
-	 /*! WINDOWS: api structure used by windows IoctlApiPoll call */
-	API_POLL_STRUCT	api_poll;
-#else
-	/*! LINUX: To be used by a pipe to asynchronously break a poll() */
-	sng_fd_t signal_write_fd;
-	sng_fd_t signal_read_fd;
-#endif
-
-	 /*! type of the object to wait on. can be one of two: UNKNOWN_WAIT_OBJ and SANGOMA_WAIT_OBJ */
-	uint32_t		object_type;
-
-   /***************************************//**
-	* Public Status Variables
-	*******************************************/
-
-	/*! poll flags returned to user indicating what event occoured read/write/event */
-	uint32_t		flags_out;
-	/*! span number used for debugging, when printing span associated with event */
-	uint32_t		span;
-	/*! chan number used for debugging, when printing chan associated with event */
-	uint32_t		chan;
-
-}sangoma_wait_obj_t;
-
-/*!
-  \enum _sangoma_object_type
+  \enum _sangoma_wait_obj_type_t
   \brief Wait object type definition
-  \typedef sangoma_object_type_t
+  \typedef sangoma_wait_obj_type_t
   \brief Wait object type definition
 */
-typedef enum _sangoma_object_type
+typedef enum _sangoma_wait_obj_type
 {
-	UNKNOWN_WAIT_OBJ,
-	SANGOMA_WAIT_OBJ	
-}sangoma_object_type_t;
+	/*! \brief deprecated, use SANGOMA_GENERIC_WAIT_OBJ */
+	UNKNOWN_WAIT_OBJ = 0, 
+	/*! \brief Generic object that can be signaled but is not associated to any sangoma device */
+	SANGOMA_GENERIC_WAIT_OBJ = 0, 
+	/*!  \brief Sangoma object associated to some device which cannot be signaled (cannot call sangoma_wait_obj_signal on it) */
+	SANGOMA_DEVICE_WAIT_OBJ, 
+	/*!  \brief Sangoma object that is associated to a device AND can be signaled */
+	SANGOMA_DEVICE_WAIT_OBJ_SIG, 
+} sangoma_wait_obj_type_t;
+
+#define DECODE_SANGOMA_WAIT_OBJECT_TYPE(type)\
+	type == SANGOMA_GENERIC_WAIT_OBJ	? "SANGOMA_GENERIC_WAIT_OBJ"	:\
+	type == SANGOMA_DEVICE_WAIT_OBJ		? "SANGOMA_DEVICE_WAIT_OBJ"		:\
+	type == SANGOMA_DEVICE_WAIT_OBJ_SIG ? "SANGOMA_DEVICE_WAIT_OBJ_SIG"	:\
+	"Invalid Wait Object type!"
 
 /************************************************************//**
  * Device OPEN / CLOSE Functions
@@ -465,58 +453,84 @@ int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen,
  ***************************************************************/ 
 
 /*!
-  \fn int _SAPI_CALL sangoma_socket_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int timeout, int flags_in, unsigned int *flags_out)
-  \brief Wait for a single file descriptor - poll()
+  \fn sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int32_t inflags, int32_t *outflags, int32_t timeout)
+  \brief Wait for a single waitable object
   \param sangoma_wait_obj pointer to array of file descriptors to wait for
   \param timeout timeout in miliseconds in case of no event
-  \param flags_in events to wait for (read/write/event)
-  \param flags_out events that occured (read/write/event)
-  \return negative: error,  0: timeout, positive: event occured check in *flags_out
+  \return SANG_STATUS_APIPOLL_TIMEOUT: timeout, SANG_STATUS_SUCCESS: event occured use sangoma_wait_obj_get_out_flags to check or error status
 */
-int _SAPI_CALL sangoma_socket_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int timeout, int flags_in, unsigned int *flags_out);
+sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, uint32_t inflags, uint32_t *outflags, int32_t timeout);
 
 /*!
-  \fn int sangoma_socket_waitfor_many(sangoma_wait_obj_t sangoma_wait_objects[], int number_of_sangoma_wait_objects, uint32_t system_wait_timeout)
-  \brief Wait for multiple file descriptors  - poll()
-  \param sangoma_wait_objects pointer to array of file descriptors to wait for
-  \param number_of_sangoma_wait_objects size of the array of file descriptors
+  \fn sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wait_objects[], int32_t in_flags[], int32_t out_flags[] uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout);
+  \brief Wait for multiple sangoma waitable objects 
+  \param sangoma_wait_objects pointer to array of wait objects previously created with sangoma_wait_obj_create
+  \param in_flags array of flags corresponding to the flags the user is interested on for each waitable object
+  \param out_flags array of flags corresponding to the flags that are ready in the waitable objects 
+  \param number_of_sangoma_wait_objects size of the array of waitable objects and flags
   \param system_wait_timeout timeout in miliseconds in case of no event
-  \return negative: error, 0: timeout, positive: event occured check in sangoma_wait_objects
+  \return negative: SANG_STATUS_APIPOLL_TIMEOUT: timeout, SANG_STATUS_SUCCESS: event occured check in sangoma_wait_objects, any other return code is some error
 */
-int _SAPI_CALL sangoma_socket_waitfor_many(sangoma_wait_obj_t sangoma_wait_objects[],
-										   int number_of_sangoma_wait_objects,
-										   int32_t system_wait_timeout);
+sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wait_objects[], uint32_t in_flags[], uint32_t out_flags[],
+		uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout);
 
 /*!
-  \fn void sangoma_init_wait_obj(sangoma_wait_obj_t *sng_wait_obj, sng_fd_t fd, int span, int chan, int timeout, int flags_in, int object_type)
-  \brief Initialize a wait object that will be used in sangoma_socket_waitfor_many() function  
-  \param sng_wait_obj pointer a single device object 
+  Users should be careful when using this function. You should just call this function once per sangoma device. If you attempt to use this function
+  twice on the same device (even if different sng_fd_t are used) you will end up with a waitable object that no longer gets notified about events
+  This is a fair limitation though, since there is no point on creating more than one waitable object per sangoma device. Even if you have one thread
+  for signaling, one for reading and one for writing, the 3 threads can use the same sangoma waitable object. However you can delete the waitable
+  object and create a new one if you need it.
+  \fn sangoma_status_t sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma_wait_object, sng_fd_t fd, sangoma_wait_obj_type_t object_type)
+  \brief Create a wait object that will be used with sangoma_waitfor_many() API
+  \param sangoma_wait_object pointer a single device object 
   \param fd device file descriptor
-  \param span span number starting from 1 to 255
-  \param chan chan number starting from 1 to 32
-  \param flags_in events to wait for (read/write/event)
-  \param object_type type of the wait object. currently can be one of two: SANGOMA_WAIT_OBJ and UNKNOWN_WAIT_OBJ
-  \return 0: success, non-zero: error
+  \param object_type type of the wait object. see sangoma_wait_obj_type_t for types
+  \see sangoma_wait_obj_type_t
+  \return SANG_STATUS_SUCCESS: success, or error status
 */
-int _SAPI_CALL sangoma_init_wait_obj(sangoma_wait_obj_t *sng_wait_obj, sng_fd_t fd, int span, int chan, int flags_in, int object_type);
-
+sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma_wait_object, sng_fd_t fd, sangoma_wait_obj_type_t object_type);
 
 /*!
-  \fn void sangoma_release_wait_obj(sangoma_wait_obj_t *sng_wait_obj)
-  \brief De-allocate all resources in a wait object
-  \param sng_wait_obj pointer a single device object 
-  \return void
+  \fn sangoma_status_t sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma_wait_object)
+  \brief De-allocate all resources inside a wait object which were allocated by sangoma_wait_obj_init().
+  \param sangoma_wait_object pointer to a pointer to a single device object
+  \return SANG_STATUS_SUCCESS on success or some sangoma status error
 */
-void _SAPI_CALL sangoma_release_wait_obj(sangoma_wait_obj_t *sng_wait_obj);
+sangoma_status_t _SAPI_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma_wait_object);
 
 /*!
-  \fn void sangoma_signal_wait_obj(sangoma_wait_obj_t *sng_wait_obj)
-  \brief Set wait object to a signalled state
-  \param sng_wait_obj pointer a single device object 
+  \fn void sangoma_wait_obj_signal(sangoma_wait_obj_t *sangoma_wait_object)
+  \brief Set wait object to a signaled state
+  \param sangoma_wait_object pointer a single device object that can be signaled
+  \return sangoma_status_t
+*/
+sangoma_status_t _SAPI_CALL sangoma_wait_obj_signal(sangoma_wait_obj_t *sangoma_wait_object);
+
+/*!
+  \fn sng_fd_t sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sangoma_wait_object)
+  \brief Get fd device file descriptor which was the 'fd' parameter for sangoma_wait_obj_create(), not useful for generic objects
+  \param sangoma_wait_object pointer a single device object 
+  \return sng_fd_t - device file descriptor
+*/
+sng_fd_t _SAPI_CALL sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sangoma_wait_object);
+
+/*!
+  \fn void sangoma_wait_obj_set_context(sangoma_wait_obj_t *sangoma_wait_object)
+  \brief Store the given context into provided sangoma wait object.
+  \brief This function is useful to associate a context with a sangoma wait object.
+  \param sangoma_wait_object pointer a single device object 
+  \param context void pointer to user context
   \return void
 */
-int _SAPI_CALL sangoma_signal_wait_obj(sangoma_wait_obj_t *sng_wait_obj);
+void _SAPI_CALL sangoma_wait_obj_set_context(sangoma_wait_obj_t *sangoma_wait_object, void *context);
 
+/*!
+  \fn void *sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_object)
+  \brief Retrieve the user context (if any) that was set via sangoma_wait_obj_set_context.
+  \param sangoma_wait_object pointer a single device object 
+  \return void*
+*/
+void* _SAPI_CALL sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_object);
 
 
 /************************************************************//**

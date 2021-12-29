@@ -44,6 +44,7 @@
 #define SANGOMA_PCI_4_SHARK_DEVICE	0x0100	/* A104D */
 #define SANGOMA_PCI_A200_SHARK_DEVICE	0x0040	/* A200 (D) */
 #define SANGOMA_PCI_A056_SHARK_DEVICE	0x0020	/* A056 */
+#define SANGOMA_PCI_B600_SHARK_DEVICE	0x0025	/* B600 */
 #endif
 
 /* Definition for identifying and finding PLX PCI bridge adapters */

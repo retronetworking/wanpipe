@@ -1,3 +1,4 @@
 #!/bin/sh
 
-svn status | grep "\?" | cut -d" " -f7 | xargs rm -rf     
+svn status | xargs rm -rf     
+rm -rf sample_c/regression

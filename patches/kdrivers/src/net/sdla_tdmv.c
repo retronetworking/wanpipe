@@ -255,7 +255,7 @@ static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm);
 /* Rx/Tx functions */
 static int wp_tdmv_rx_tx(void* pcard, netskb_t* skb);
 static int wp_tdmv_rx_tx_span(void *pcard);
-static int wp_tdmv_span_buf_rotate(void *pcard, u32, unsigned long);
+static int wp_tdmv_span_buf_rotate(void *pcard, u32, unsigned long, int);
 static int wp_tdmv_ec_span(void *pcard);
 static int wp_tdmv_rx_chan(wan_tdmv_t*, int, unsigned char*, unsigned char*); 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(ZT_DCHAN_TX)
@@ -2400,7 +2400,7 @@ static int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 }
 
 
-static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask)
+static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask, int circ_buf_len)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
@@ -2413,15 +2413,29 @@ static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask)
 	WAN_ASSERT(wan_tdmv->sc == NULL);
 	wp = wan_tdmv->sc; 
 
-	rx_offset = buf_sz * card->u.aft.tdm_rx_dma_toggle;
-	tx_offset = buf_sz * card->u.aft.tdm_tx_dma_toggle;
+
 
 	for (x = 0; x < 32; x ++) {
+
+
+
 		if (wan_test_bit(x,&wp->timeslot_map)) {
 
 			if (card->u.aft.tdmv_dchan &&
 			   (card->u.aft.tdmv_dchan-1) == x) {
 				continue;
+			}
+
+			rx_offset = buf_sz * card->u.aft.tdm_rx_dma_toggle[x];
+			tx_offset = buf_sz * card->u.aft.tdm_tx_dma_toggle[x];	
+
+			card->u.aft.tdm_rx_dma_toggle[x]++;
+			if (card->u.aft.tdm_rx_dma_toggle[x] >= circ_buf_len) {
+				card->u.aft.tdm_rx_dma_toggle[x]=0;
+			}
+			card->u.aft.tdm_tx_dma_toggle[x]++;
+			if (card->u.aft.tdm_tx_dma_toggle[x] >= circ_buf_len) {
+				card->u.aft.tdm_tx_dma_toggle[x]=0;
 			}
 
 			wan_spin_lock(&wp->chans[x].lock,&flag);

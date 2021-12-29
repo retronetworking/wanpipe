@@ -677,6 +677,9 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		chan->wp_tdm_api_dev.cfg.hw_mtu_mru = 8;
 		chan->wp_tdm_api_dev.cfg.usr_period = chan->tdm_api_period;
 		chan->wp_tdm_api_dev.cfg.usr_mtu_mru = chan->tdm_api_chunk;
+		if (chan->wp_tdm_api_dev.cfg.usr_mtu_mru < 160) {
+         	chan->wp_tdm_api_dev.cfg.usr_mtu_mru=160;
+		}
 	} else {
 		chan->wp_tdm_api_dev.operation_mode	= WP_TDM_OPMODE_SPAN;
 		chan->wp_tdm_api_dev.cfg.hw_mtu_mru = chan->tdm_api_chunk;

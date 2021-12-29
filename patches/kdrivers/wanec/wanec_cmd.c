@@ -680,7 +680,7 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 						"MULAW":"ALAW");
 
 	DEBUG_EVENT("%s: Opening HW Echo Canceller (NoiseRed=%s)\n",
-			ec->name,card->hwec_conf.noise_reduction?"On":"Off");
+			ec->name,card->hwec_conf.noise_reduction_disable?"Off":"On");
 
 
 	Oct6100ChannelOpenDef( &EchoChannelOpen );
@@ -732,10 +732,10 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 			EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay);
 	}
 
-	if (card->hwec_conf.noise_reduction) {
-		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
-	} else {
+	if (card->hwec_conf.noise_reduction_disable) {
 		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
+	} else {
+		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
 	}
 
 	EchoChannelOpen.VqeConfig.ulComfortNoiseMode	=

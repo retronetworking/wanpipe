@@ -44,6 +44,16 @@ __init int wanpipe_codec_init(void)
 
 	wanpipe_codec_law_init();
 
+	{
+		int i, j;
+		for (i = 0; i < WP_TDM_HW_CODING_MAX; i++){
+			for (j = 0; j < WP_TDM_CODEC_MAX; j++){
+				WANPIPE_CODEC_OPS[i][j]=NULL;
+			}
+		}
+	}
+
+
 	wp_codec_ops = wan_malloc(sizeof(wanpipe_codec_ops_t));
 	if (!wp_codec_ops){
 		return -ENOMEM;
@@ -57,7 +67,6 @@ __init int wanpipe_codec_init(void)
 
 	WANPIPE_CODEC_OPS[WP_MULAW][WP_SLINEAR] = wp_codec_ops;
 
-
 	wp_codec_ops = wan_malloc(sizeof(wanpipe_codec_ops_t));
 	if (!wp_codec_ops){
 		return -ENOMEM;
@@ -70,7 +79,6 @@ __init int wanpipe_codec_init(void)
 	wp_codec_ops->decode = wanpipe_codec_convert_s_2_alaw;
 
 	WANPIPE_CODEC_OPS[WP_ALAW][WP_SLINEAR] = wp_codec_ops;
-
 #endif
 
 	DEBUG_EVENT("WANPIPE: TDM Codecs Initialized\n");

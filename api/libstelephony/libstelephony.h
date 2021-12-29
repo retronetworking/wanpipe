@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////////
-//StelephonyApi.h - declarations of function, structures and variables
+// libstelephony.h - declarations of function, structures and variables
 //				exported by the Stelephony.dll. 
 //
 // Author	:	David Rokhvarg	<davidr@sangoma.com>
@@ -22,6 +22,9 @@
 //
 //	v 1,0,0,6	January		12	2009	David Rokhvarg
 //		All exported function declared as __cdecl.
+//
+//	v 1,0,0,7	June		9	2009	David Rokhvarg
+//		FSK CID and DTMF generation on Windows.
 ////////////////////////////////////////////////////////////////////////////////////
 
 #ifndef __LIBSTELEPHONY_H_
@@ -30,11 +33,11 @@
 #pragma once
 
 #if defined (__WINDOWS__)
-#define STELAPI_CALL	__cdecl
-
+# define STELAPI_CALL	__cdecl
+# include <Windows.h>
 #elif defined (__LINUX__)
 
-#define STELAPI_CALL
+# define STELAPI_CALL
 
 /* Include headers */
 # include <stddef.h>
@@ -112,6 +115,7 @@ typedef enum _stelephony_option{
 #endif
 
 
+
 typedef struct {
 	int				len_callRef;						//Length of call reference field
 	char			callRef[6];							//call reference value, hex
@@ -122,7 +126,7 @@ typedef struct {
 	int				calling_num_digits_count;			//Number of digits in the calling number
 	char			calling_num_digits[32];				//Null terminated string containing the calling number
 	int				cause_code;							//the release cause code
-	ST_SYSTEMTIME		tv;									//time value that message was received by Q931 decoder
+	ST_SYSTEMTIME	tv;									//time value that message was received by Q931 decoder
 	int				calling_num_screening_ind;
 	int				calling_num_presentation;
 	int				rdnis_digits_count;					//Number of RDNIS digits found
@@ -141,7 +145,7 @@ typedef struct {
 
 
 #ifdef WIN32
-#define ST_STR LPCTSTR 
+#define ST_STR char *
 #else
 #define ST_STR char * 
 #endif
@@ -164,12 +168,10 @@ stelephony_status_t STELAPI_CALL StelEventControl(void *stelObjPtr, stelephony_e
 stelephony_status_t STELAPI_CALL StelGenerateFSKCallerID(void *stelObj, stelephony_caller_id_t* cid_info);
 stelephony_status_t STELAPI_CALL StelGenerateSwDTMF(void *stelObjPtr, char dtmf_char);
 
-#if defined(__LINUX__)
-size_t STELAPI_CALL stelephony_buffer_inuse(void *buffer);
-size_t STELAPI_CALL stelephony_buffer_read_ulaw(void *buffer, unsigned char *data, int* dlen, int max);
-size_t STELAPI_CALL stelephony_buffer_read_alaw(void *buffer, unsigned char *data, int* dlen, int max);
-size_t STELAPI_CALL stelephony_buffer_read(void *buffer, void *data, size_t datalen);
-#endif
+size_t STELAPI_CALL StelBufferInuse(void *stelObjPtr, void *buffer);
+size_t STELAPI_CALL StelBufferReadUlaw(void *stelObjPtr, void *buffer, unsigned char *data, int* dlen, int max);
+size_t STELAPI_CALL StelBufferReadAlaw(void *stelObjPtr, void *buffer, unsigned char *data, int* dlen, int max);
+size_t STELAPI_CALL StelBufferRead(void *stelObjPtr, void *buffer, void *data, size_t datalen);
 
 #ifdef __cplusplus
 }

@@ -12,6 +12,11 @@
 #define u16	unsigned short
 #define s16	signed short
 
+#ifdef __WINDOWS__
+# define STELAPI_CALL	__cdecl
+#else
+# define STELAPI_CALL
+#endif
 
 #ifdef __cplusplus
 extern "C" {	/* for C++ users */

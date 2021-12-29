@@ -69,7 +69,7 @@ int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len)
 	strncpy(sdla_mem_el->cmd_func,func_name,sizeof(sdla_mem_el->cmd_func)-1);
 	
 #if defined(__WINDOWS__)
-	wan_spin_lock(&wan_debug_mem_lock,&flags);
+	wp_spin_lock(&wan_debug_mem_lock,&flags);
 #else
 	wan_spin_lock_irq(&wan_debug_mem_lock,&flags);
 #endif
@@ -77,7 +77,7 @@ int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len)
 	WAN_LIST_INSERT_HEAD(&sdla_memdbg_head, sdla_mem_el, next);
 	
 #if defined(__WINDOWS__)
-	wan_spin_unlock(&wan_debug_mem_lock,&flags);
+	wp_spin_unlock(&wan_debug_mem_lock,&flags);
 #else
 	wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
 #endif
@@ -97,7 +97,7 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 	int err=-1;
 
 #if defined(__WINDOWS__)
-	wan_spin_lock(&wan_debug_mem_lock,&flags);
+	wp_spin_lock(&wan_debug_mem_lock,&flags);
 #else
 	wan_spin_lock_irq(&wan_debug_mem_lock,&flags);
 #endif
@@ -114,7 +114,7 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 		wan_debug_mem-=sdla_mem_el->len;
 
 #if defined(__WINDOWS__)
-		wan_spin_unlock(&wan_debug_mem_lock,&flags);
+		wp_spin_unlock(&wan_debug_mem_lock,&flags);
 #else
 		wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
 #endif
@@ -131,7 +131,7 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 		err=0;
 	} else {
 #if defined(__WINDOWS__)
-		wan_spin_unlock(&wan_debug_mem_lock,&flags);
+		wp_spin_unlock(&wan_debug_mem_lock,&flags);
 #else
 		wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
 #endif

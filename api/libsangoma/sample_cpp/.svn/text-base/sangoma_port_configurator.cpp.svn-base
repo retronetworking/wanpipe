@@ -397,11 +397,13 @@ int sangoma_port_configurator::set_t1_tdm_span_voice_api_configration(port_cfg_t
 	sprintf(wanif_cfg->name,"w%dg1",span);
 
     if (hardware_info->max_hw_ec_chans) {
-        tdmv_cfg->hw_dtmf=1;
+		/* wan_hwec_conf_t - HWEC configuration for Port */
+		wandev_conf->tdmv_conf.hw_dtmf = 1;
+		/* wan_hwec_if_conf_t - HWEC configuration for Interface */
 		wanif_cfg->hwec.enable = 1;
 	}
 
-    tdmv_cfg->span_no = span;
+    tdmv_cfg->span_no = (unsigned char)span;
 
 	/* DCHAN Configuration */
     switch(FE_MEDIA(sdla_fe_cfg))
@@ -461,11 +463,13 @@ int sangoma_port_configurator::set_e1_tdm_span_voice_api_configration(port_cfg_t
 	sprintf(wanif_cfg->name,"w%dg1",span);
 
     if (hardware_info->max_hw_ec_chans) {
-        tdmv_cfg->hw_dtmf=1;
+		/* wan_hwec_conf_t - HWEC configuration for Port */
+		wandev_conf->tdmv_conf.hw_dtmf = 1;
+		/* wan_hwec_if_conf_t - HWEC configuration for Interface */
 		wanif_cfg->hwec.enable = 1;
 	}
 
-    tdmv_cfg->span_no = span;
+    tdmv_cfg->span_no = (unsigned char)span;
 
 	/* DCHAN Configuration */
     switch(FE_MEDIA(sdla_fe_cfg))

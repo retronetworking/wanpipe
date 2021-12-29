@@ -103,17 +103,10 @@
 #define WAN_RM_OPERMODE_LEN	20
 
 /* Front-End UDP command */
-#if defined(__WINDOWS__)
-#define WAN_FE_TONES		13
-#define WAN_FE_RING		(WAN_FE_TONES + 1)
-#define WAN_FE_REGDUMP		(WAN_FE_TONES + 2)
-#define WAN_FE_STATS		(WAN_FE_TONES + 3)
-#else
 #define WAN_FE_TONES		(WAN_FE_UDP_CMD_START + 0)
-#define WAN_FE_RING		(WAN_FE_UDP_CMD_START + 1)
+#define WAN_FE_RING			(WAN_FE_UDP_CMD_START + 1)
 #define WAN_FE_REGDUMP		(WAN_FE_UDP_CMD_START + 2)
 #define WAN_FE_STATS		(WAN_FE_UDP_CMD_START + 3)
-#endif
 
 #define WAN_RM_SET_ECHOTUNE	_IOW (ZT_CODE, 63, struct wan_rm_echo_coefs)
 

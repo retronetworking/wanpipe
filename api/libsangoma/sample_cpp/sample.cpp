@@ -72,13 +72,11 @@ typedef struct{
 //1. FSK Caller ID detection for Analog FXO.
 //2. Software DTMF detection.
 //3. Q931 decoding
-static void FSKCallerIDEvent(void *callback_context, LPCTSTR Name, LPCTSTR CallerNumber, LPCTSTR CalledNumber, LPCTSTR DateTime);
+static void FSKCallerIDEvent(void *callback_context, char * Name, char * CallerNumber, char * CalledNumber, char * DateTime);
 static void DTMFEvent(void *callback_context, long Key);
 static void Q931Event(void *callback_context, stelephony_q931_event *pQ931Event);
-#if defined (__LINUX__)
 static void FSKCallerIDTransmit (void *callback_context, void* buffer);
-static void SwDTMFBuffer (void *callback_context, void* buffer);
-#endif
+static void SwDtmfTransmit (void *callback_context, void* buffer);
 #endif
 
 //critical section for synchronizing access to 'stdout' between the threads
@@ -98,8 +96,10 @@ void *TdmApiEventThreadFunc(void *lpdwParam);
  *****************************************************************/
 
 #define DBG_MAIN	if(1)printf
-#define ERR_MAIN	if(1)printf
+#define ERR_MAIN	printf("%s():line:%d:Error:", __FUNCTION__, __LINE__);printf
 #define INFO_MAIN	if(1)printf
+
+#define MAIN_FUNC() if(1)printf("%s():line:%d\n", __FUNCTION__, __LINE__)
 
 static int set_port_configuration();
 
@@ -163,23 +163,20 @@ void stop(sangoma_interface	*sang_if)
 }
 
 /*!
-  \fn void PrintRxData(wp_api_element_t* pRx)
+  \fn void PrintRxData(wp_api_hdr_t *hdr, void *data)
   \brief Debug function used to print Rx Data
   \param pRx API data element strcutre containt header + data 
   \return void
 */
-void PrintRxData(wp_api_element_t* pRx)
+void PrintRxData(wp_api_hdr_t *hdr, void *pdata)
 {
-	wp_api_hdr_t*	pri;
 	USHORT			datlen;
 	PUCHAR			data;
 	static unsigned int	rx_counter = 0;
 
-	pri = &pRx->hdr;
-
 	//NOTE: if running in BitStream mode, there will be TOO MUCH to print 
-	datlen = pri->data_length;
-	data =  pRx->data;
+	datlen = hdr->data_length;
+	data = (unsigned char*)pdata;
 
 	rx_counter++;
 	if(program_settings.silent){
@@ -213,7 +210,7 @@ void PrintRxData(wp_api_element_t* pRx)
   \param rx_data API data element strcutre containt header + data
   \return 0 - ok  non-zero - Error
 */
-static int got_rx_data(void *sang_if_ptr, void *rx_data)
+static int got_rx_data(void *sang_if_ptr, void *rxhdr, void *rx_data)
 {
 	sangoma_interface *sang_if = (sangoma_interface*)sang_if_ptr;
 
@@ -237,11 +234,11 @@ static int got_rx_data(void *sang_if_ptr, void *rx_data)
 	//Fore example, transimit back everything what was received:
 
 	if(program_settings.Rx_to_Tx_loopback == 1){
-		sang_if->transmit((wp_api_element_t*)rx_data);
+		sang_if->transmit((wp_api_hdr_t*)rxhdr, rx_data);
 	}
 
 	EnterCriticalSection(&PrintCriticalSection);
-	PrintRxData((wp_api_element_t*)rx_data);
+	PrintRxData((wp_api_hdr_t*)rxhdr, rx_data);
 	LeaveCriticalSection(&PrintCriticalSection);
 	return 0;
 }
@@ -389,8 +386,8 @@ int tx_file(sangoma_interface *sang_if)
 {
 	FILE			*pFile;
 	unsigned int	tx_counter=0, bytes_read_from_file, total_bytes_read_from_file=0;
-	wp_api_element_t	local_tx_data;
-	int err=0;
+	wp_api_hdr_t	hdr;
+	unsigned char	local_tx_data[MAX_NO_DATA_BYTES_IN_FRAME];
 
 	pFile = fopen( program_settings.szTxFileName, "rb" );
 	if( pFile == NULL){
@@ -401,21 +398,13 @@ int tx_file(sangoma_interface *sang_if)
 	do
 	{
 		//read tx data from the file. if 'bytes_read_from_file != txlength', end of file is reached
-		bytes_read_from_file = fread( local_tx_data.data, 1, program_settings.txlength /* MTU size */, pFile );
+		bytes_read_from_file = fread( local_tx_data, 1, program_settings.txlength /* MTU size */, pFile );
 		total_bytes_read_from_file += bytes_read_from_file;
 
-		local_tx_data.hdr.data_length = program_settings.txlength;//ALWAYS transmit MTU size over the BitStream/Voice interface
-		local_tx_data.hdr.operation_status = SANG_STATUS_TX_TIMEOUT;
+		hdr.data_length = program_settings.txlength;//ALWAYS transmit MTU size over the BitStream/Voice interface
+		hdr.operation_status = SANG_STATUS_TX_TIMEOUT;
 		
-retry_tx:
-		err=sang_if->transmit(&local_tx_data);
-		if (err == SANG_STATUS_DEVICE_BUSY) {
-			INFO_MAIN("Tx busy retry\n");
-			usleep(100);	
-			goto retry_tx;
-		}
-
-		if(err != SANG_STATUS_SUCCESS){
+		if(SANG_STATUS_SUCCESS != sang_if->transmit(&hdr, local_tx_data)){
 			//error
 			break;
 		}
@@ -426,10 +415,10 @@ retry_tx:
 
 	}while(bytes_read_from_file == program_settings.txlength);
 
-	INFO_MAIN("Finished transmitting file \"%s\" (tx_counter: %u, total_bytes_read_from_file: %d)\n",
-		program_settings.szTxFileName, tx_counter, total_bytes_read_from_file);
-	fclose( pFile );
+	INFO_MAIN("%s: Finished transmitting file \"%s\" (tx_counter: %u, total_bytes_read_from_file: %d)\n",
+		sang_if->device_name, program_settings.szTxFileName, tx_counter, total_bytes_read_from_file);
 
+	fclose( pFile );
 	return 0;
 }
 
@@ -509,8 +498,9 @@ static int parse_command_line_args(int argc, char* argv[])
 "\t-decode_fsk_cid\t\tDecode FSK Caller ID on an Analog line. For Voice data only.\n"
 "\t-encode_fsk_cid\t\tEncode FSK Caller ID on an Analog line. For Voice data only.\n"
 "\t-encode_sw_dtmf\t\tEncode SW DTMF on an line. For Voice data only.\n"
-"\t-sw_dtmf			Enable Sangoma Software DTMF decoder. For Voice data only.\n"
+"\t-sw_dtmf		Enable Sangoma Software DTMF decoder. For Voice data only.\n"
 "\t-decode_q931		Enable Sangoma Q931 decoder. For HDLC (Dchannel) data only.\n"
+"\t-alaw\t\t	Use Alaw codec instead of default MuLaw codec for Voice data.\n"
 #endif
 "\n"
 "Example: sample -c 1 -i 1\n";
@@ -586,7 +576,6 @@ static int parse_command_line_args(int argc, char* argv[])
 			INFO_MAIN("enabling Q931 decoder...\n");
 			program_settings.decode_q931 = 1;
 			callback_functions.Q931Event = Q931Event;
-#if defined (__LINUX__)
 		}else if(_stricmp(argv[i], "-encode_fsk_cid") == 0){
 			INFO_MAIN("enabling FSK Caller ID encoder...\n");
 			program_settings.encode_fsk_cid = 1;
@@ -594,8 +583,7 @@ static int parse_command_line_args(int argc, char* argv[])
 		}else if(_stricmp(argv[i], "-encode_sw_dtmf") == 0){
 			INFO_MAIN("enabling Software DTMF encoder...\n");
 			program_settings.encode_sw_dtmf = 1;
-			callback_functions.SwDTMFBuffer = SwDTMFBuffer;
-#endif
+			callback_functions.SwDtmfTransmit = SwDtmfTransmit;
 		}else if(_stricmp(argv[i], "-alaw") == 0){
 			INFO_MAIN("enabling ALaw codec...\n");
 			program_settings.voice_codec_alaw = 1;
@@ -637,11 +625,12 @@ int __cdecl main(int argc, char* argv[])
 {
 	int		rc, user_selection,err;
 	sangoma_interface	*sang_if = NULL;
-	wp_api_element_t		local_tx_data;
+	wp_api_hdr_t		hdr;
+	unsigned char		local_tx_data[MAX_NO_DATA_BYTES_IN_FRAME];
 	UCHAR				tx_test_byte = 0;
 
 	////////////////////////////////////////////////////////////////////////////
-	memset(&callback_functions, 0x00, sizeof(callback_functions_t));
+	memset(&callback_functions, 0x00, sizeof(callback_functions));
 	callback_functions.got_rx_data = got_rx_data;
 	callback_functions.got_TdmApiEvent = got_TdmApiEvent;
 
@@ -683,8 +672,6 @@ int __cdecl main(int argc, char* argv[])
 		return rc;
 	}
 
-
-#if 1
 	do{
 		EnterCriticalSection(&PrintCriticalSection);
 		INFO_MAIN("Press 'q' to quit the program.\n");
@@ -740,9 +727,6 @@ int __cdecl main(int argc, char* argv[])
 		if (program_settings.encode_fsk_cid) {
 			INFO_MAIN("Press 'z' to send software FSK Caller ID\n");
 		}
-		if (program_settings.decode_fsk_cid) {
-			INFO_MAIN("Press 'y' to reset software FSK Caller ID\n");
-		}
 
 		LeaveCriticalSection(&PrintCriticalSection);
 
@@ -756,11 +740,11 @@ int __cdecl main(int argc, char* argv[])
 				if(program_settings.szTxFileName[0]){
 					tx_file(sang_if);
 				}else{
-					local_tx_data.hdr.data_length = program_settings.txlength;
-					local_tx_data.hdr.operation_status = SANG_STATUS_TX_TIMEOUT;
+					hdr.data_length = program_settings.txlength;
+					hdr.operation_status = SANG_STATUS_TX_TIMEOUT;
 					//set the actual data for transmission
-					memset(local_tx_data.data, tx_test_byte, program_settings.txlength);
-					sang_if->transmit(&local_tx_data);
+					memset(local_tx_data, tx_test_byte, program_settings.txlength);
+					sang_if->transmit(&hdr, local_tx_data);
 					tx_test_byte++;
 				}
 			}
@@ -841,53 +825,68 @@ int __cdecl main(int argc, char* argv[])
 				break;
 			}
 			break;
-
-
 		case 'g'://read RBS bits
+			switch(sang_if->get_adapter_type())
 			{
-				rbs_management_t rbs_management_struct = {0,0};
+			case WAN_MEDIA_T1:
+			case WAN_MEDIA_E1:
+				{
+					rbs_management_t rbs_management_struct = {0,0};
 
-				sang_if->enable_rbs_monitoring();
+					sang_if->enable_rbs_monitoring();
 
-				INFO_MAIN("Type Channel number and press <Enter>:\n");
-				rbs_management_struct.channel = get_user_decimal_number();//channels (Time Slots). Valid values: 1 to 24.
-				if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 24){
-					INFO_MAIN("Invalid RBS Channel number!\n");
-					break;
+					INFO_MAIN("Type Channel number and press <Enter>:\n");
+					rbs_management_struct.channel = get_user_decimal_number();//channels (Time Slots). Valid values: 1 to 24.
+					if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 24){
+						INFO_MAIN("Invalid RBS Channel number!\n");
+						break;
+					}
+					sang_if->get_rbs(&rbs_management_struct);
 				}
-				sang_if->get_rbs(&rbs_management_struct);
-			}
+				break;
+			default:
+				INFO_MAIN("Command invalid for card type\n");
+				break;
+			}//switch()
 			break;
 		case 'r'://set RBS bits
+			switch(sang_if->get_adapter_type())
 			{
-				static rbs_management_t rbs_management_struct = {0,0};
+			case WAN_MEDIA_T1:
+			case WAN_MEDIA_E1:
+				{
+					static rbs_management_t rbs_management_struct = {0,0};
 
-				sang_if->enable_rbs_monitoring();
+					sang_if->enable_rbs_monitoring();
 
-				INFO_MAIN("Type Channel number and press <Enter>:\n");
-				rbs_management_struct.channel = get_user_decimal_number();//channels (Time Slots). Valid values: 1 to 24.
-				if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 24){
-					INFO_MAIN("Invalid RBS Channel number!\n");
-					break;
-				}
-				/*	bitmap - set as needed: WAN_RBS_SIG_A |	WAN_RBS_SIG_B | WAN_RBS_SIG_C | WAN_RBS_SIG_D;
+					INFO_MAIN("Type Channel number and press <Enter>:\n");
+					rbs_management_struct.channel = get_user_decimal_number();//channels (Time Slots). Valid values: 1 to 24.
+					if(rbs_management_struct.channel < 1 || rbs_management_struct.channel > 24){
+						INFO_MAIN("Invalid RBS Channel number!\n");
+						break;
+					}
+					/*	bitmap - set as needed: WAN_RBS_SIG_A |	WAN_RBS_SIG_B | WAN_RBS_SIG_C | WAN_RBS_SIG_D;
 
 					In this example make bits A and B to change each time,
 					so it's easy to see the change on the receiving side.
-				*/
-				if(rbs_management_struct.ABCD_bits == WAN_RBS_SIG_A){
-					rbs_management_struct.ABCD_bits = WAN_RBS_SIG_B;
-				}else{
-					rbs_management_struct.ABCD_bits = WAN_RBS_SIG_A;
+					*/
+					if(rbs_management_struct.ABCD_bits == WAN_RBS_SIG_A){
+						rbs_management_struct.ABCD_bits = WAN_RBS_SIG_B;
+					}else{
+						rbs_management_struct.ABCD_bits = WAN_RBS_SIG_A;
+					}
+					sang_if->set_rbs(&rbs_management_struct);
 				}
-				sang_if->set_rbs(&rbs_management_struct);
-			}
+			default:
+				INFO_MAIN("Command invalid for card type\n");
+				break;
+			}//switch()
 			break;
 		case 'i':
 			{
-			INFO_MAIN("Type Idle Flag (HEX, for example: FE) and press <Enter>:\n");
-			unsigned char new_idle_flag = (unsigned char)get_user_hex_number();
-			sang_if->set_tx_idle_flag(new_idle_flag);
+				INFO_MAIN("Type Idle Flag (HEX, for example: FE) and press <Enter>:\n");
+				unsigned char new_idle_flag = (unsigned char)get_user_hex_number();
+				sang_if->set_tx_idle_flag(new_idle_flag);
 			}
 			break;
 		case 'c':
@@ -1085,9 +1084,9 @@ user_retry_ring_e_d:
 			}
 			break;
 #if USE_STELEPHONY_API
-#if defined (__LINUX__)
 		case 'x':
 			{	
+				INFO_MAIN("Press a key. Valid values are 0-9, A-C\n");
 				int user_char = _getch();
  				switch(tolower(user_char)) {
 					case '1': case '2': case '3':
@@ -1099,7 +1098,7 @@ user_retry_ring_e_d:
 						sang_if->sendSwDTMF((char)user_char);
 						break;
 					default:
-						INFO_MAIN("Invalid DTMF Char! Valid values are: Valid values are 0-9, A-C\n");
+						INFO_MAIN("Invalid DTMF Char! Valid values are: 0-9, A-C\n");
 					break;
 				}
 			}
@@ -1110,16 +1109,6 @@ user_retry_ring_e_d:
 				sang_if->sendCallerID("Sangoma Rocks", "9054741990");
 			}
 			break;
-		case 'y':
-			{
-				if (program_settings.decode_fsk_cid) {
-					INFO_MAIN("Resetting FSK Caller ID\n");
-					sang_if->resetFSKCID();
-				}
-				
-			}
-			break;
-#endif
 #endif
 		case '1':/* read FE register */
 			{
@@ -1154,7 +1143,7 @@ user_retry_ring_e_d:
 				value = get_user_hex_number();
 
 				fe_debug.fe_debug_reg.read = 0;
-				fe_debug.fe_debug_reg.value = value;
+				fe_debug.fe_debug_reg.value = (unsigned char)value;
 
 				sang_if->set_fe_debug_mode(&fe_debug);
 			}
@@ -1164,7 +1153,7 @@ user_retry_ring_e_d:
 			INFO_MAIN("Invalid command.\n");
 		}		
 	}while(user_selection != 'q');
-#endif
+
 	stop(sang_if);
 	cleanup(sang_if);
 
@@ -1297,17 +1286,29 @@ try_again:
 
 #if USE_STELEPHONY_API
 static void FSKCallerIDEvent(void *callback_context,
-							 LPCTSTR Name, LPCTSTR CallerNumber,
-							 LPCTSTR CalledNumber, LPCTSTR DateTime)
+							 char * Name, char * CallerNumber,
+							 char * CalledNumber, char * DateTime)
 {
 	//The "sangoma_interface" object was registered as the callback context in StelSetup() call.
 	sangoma_interface	*sang_if = (sangoma_interface*)callback_context;
 
 	INFO_MAIN("\n%s: %s() - Start\n", sang_if->device_name, __FUNCTION__);
 
-#if defined (__LINUX__)
 	if(Name){
 		INFO_MAIN("Name: %s\n", Name);
+#if 1
+		printf("caller name in SINGLE byte hex:\n");
+		for(unsigned int ind = 0; ind < strlen(Name); ind++){
+			printf("Name[%02d]: 0x%02X\n", ind, Name[ind]);
+		}
+		printf("\n");
+
+		printf("caller name in DOUBLE byte (unicode) hex:\n");
+		for(unsigned int ind = 0; ind < strlen(Name); ind += 2){
+			printf("Name[%02d]: 0x%04X\n", ind, *(unsigned short*)&Name[ind]);
+		}
+		printf("\n");
+#endif
 	}
 	if(CallerNumber){
 		INFO_MAIN("CallerNumber: %s\n", CallerNumber);
@@ -1318,20 +1319,10 @@ static void FSKCallerIDEvent(void *callback_context,
 	if(DateTime){
 		INFO_MAIN("DateTime: %s\n", DateTime);
 	}
-#else
-	if(Name){
-		INFO_MAIN("Name: %S\n", Name);
-	}
-	if(CallerNumber){
-		INFO_MAIN("CallerNumber: %S\n", (wchar_t*)CallerNumber);
-	}
-	if(CalledNumber){
-		INFO_MAIN("CalledNumber: %S\n", CalledNumber);
-	}
-	if(DateTime){
-		INFO_MAIN("DateTime: %S\n", DateTime);
-	}
-#endif
+
+	INFO_MAIN("Resetting FSK Caller ID\n");
+	sang_if->resetFSKCID();//prepare for next FSK CID detection
+
 	INFO_MAIN("%s() - End\n\n", __FUNCTION__);
 }
 
@@ -1396,6 +1387,29 @@ static void Q931Event(void *callback_context, stelephony_q931_event *pQ931Event)
 	//INFO_MAIN("%s() - End\n\n", __FUNCTION__);
 }
 
+/*	A buffer containing DTMF digit was initialized. In this callback transmit the buffer
+	by starting the SwDtmfTxThread */
+static void SwDtmfTransmit (void *callback_context, void *DtmfBuffer)
+{	
+	sangoma_interface	*sang_if = (sangoma_interface*)callback_context;
+	DBG_MAIN("%s(): %s:\n", __FUNCTION__, sang_if->device_name);
+
+	/*	DTMF buffer can be very big (long DTMF is not uncommon), we don't want to
+		block the calling thread, so start a new thread to transmit SW-DTMF. */
+	sang_if->CreateSwDtmfTxThread(DtmfBuffer);
+}
+
+/* A buffer containing FSK CID was initialized. In this callback transmit the buffer. */
+static void FSKCallerIDTransmit (void *callback_context, void *FskCidBuffer)
+{
+	sangoma_interface	*sang_if = (sangoma_interface*)callback_context;
+	DBG_MAIN("%s(): %s:\n", __FUNCTION__, sang_if->device_name);
+
+	/*	FSK CID buffer can be big (~8000 bytes), we don't want to block the calling thread,
+		so start a new thread to transmit FSK CID. */
+	sang_if->CreateSwDtmfTxThread(FskCidBuffer);
+}
+
 #if 0
 #warning "REMOVE LATER"
 int slin2ulaw(void* data, size_t max, size_t *datalen)
@@ -1419,72 +1433,53 @@ int slin2ulaw(void* data, size_t max, size_t *datalen)
 
 	return 0;
 }
-
 #endif
 
-#if defined (__LINUX__)
-static void SwDTMFBuffer (void *callback_context, void* buffer)
-{	
-	sangoma_interface	*sang_if;
-	sang_if = (sangoma_interface*)callback_context;
+#endif /* USE_STELEPHONY_API */
 
-	sang_if->setDTMFBuffer(buffer);
-}
+#if 0
+LONG Win32FaultHandler(struct _EXCEPTION_POINTERS *  ExInfo)
 
-static void FSKCallerIDTransmit (void *callback_context, void* buffer)
-{
-	int end = 0;
-	int cnt = 0;
-	int datalen;
-	
-	sangoma_interface	*sang_if;
-	sang_if = (sangoma_interface*)callback_context;
+{   
+	char  *FaultTx = "";
+    switch(ExInfo->ExceptionRecord->ExceptionCode)
+    {
+	case EXCEPTION_ACCESS_VIOLATION: 
+		FaultTx = "ACCESS VIOLATION";
+		break;
+	case EXCEPTION_DATATYPE_MISALIGNMENT: 
+		FaultTx = "DATATYPE MISALIGNMENT";
+		break;
+	case EXCEPTION_FLT_DIVIDE_BY_ZERO: 
+		FaultTx = "FLT DIVIDE BY ZERO";
+		break;
+	default: FaultTx = "(unknown)";           
+		break;
+    }
 
-	datalen = program_settings.txlength*2;
+    FILE *sgLogFile = fopen("Win32Fault.log", "w");
+    int    wsFault    = ExInfo->ExceptionRecord->ExceptionCode;
+    PVOID  CodeAddress = ExInfo->ExceptionRecord->ExceptionAddress;
 
-	while(!end) {
-		if (stelephony_buffer_inuse(buffer) && buffer) {
-			wp_api_element_t	local_tx_data;
-			int dlen = datalen;
-			unsigned char buf[1024];
-			size_t br, max = sizeof(buf);
-
-#if 1
-			/* Data can be read as slinear, or ulaw, alaw */
-			br = stelephony_buffer_read_ulaw(buffer, buf, &dlen, max);
-			if (br < (size_t) dlen) {
-				memset(buf+br, 0, dlen - br);
-			}
-#else
-			dlen*=2;
-
-			len = dlen;
-			
-			br = stelephony_buffer_read(buffer, buf, len);
-			if (br < dlen) {
-				memset(buf+br, 0, dlen - br);
-			}
-
-			slin2ulaw(buf, max, (size_t*) &dlen);
-#endif
-			local_tx_data.hdr.data_length = dlen; 
-			local_tx_data.hdr.operation_status = SANG_STATUS_TX_TIMEOUT;
-
-			memcpy (local_tx_data.data, buf, dlen);
-
-			if(sang_if->transmit(&local_tx_data) != SANG_STATUS_SUCCESS){
-				printf("Failed to TX dlen:%d\n", dlen);
-			} else {
-				//printf("TX OK (cnt:%d)\n", cnt);
-				cnt++;
-				usleep(20000);
-			}
-
-		} else {
-			printf("Buffer Transmit complete... (transmitted:%d)\n", cnt);
-			end = 1;
-		}
+    sgLogFile = fopen("Win32Fault.log", "w");
+	if(sgLogFile != NULL)
+	{
+		fprintf(sgLogFile, "****************************************************\n");
+		fprintf(sgLogFile, "*** A Program Fault occurred:\n");
+		fprintf(sgLogFile, "*** Error code %08X: %s\n", wsFault, FaultTx);
+		fprintf(sgLogFile, "****************************************************\n");
+		fprintf(sgLogFile, "***   Address: %08X\n", (int)CodeAdress);
+		fprintf(sgLogFile, "***     Flags: %08X\n", 
+			ExInfo->ExceptionRecord->ExceptionFlags);
+		LogStackFrames(CodeAddress, (char *)ExInfo->ContextRecord->Ebp);
+		fclose(sgLogFile);
 	}
+	/*if(want to continue)
+	{
+		ExInfo->ContextRecord->Eip++;
+		return EXCEPTION_CONTINUE_EXECUTION;
+	}
+	*/ 
+	return EXCEPTION_EXECUTE_HANDLER;
 }
-#endif
 #endif

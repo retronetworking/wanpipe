@@ -7,20 +7,21 @@
 
 #if defined(__WINDOWS__)
 
-#include "wanpipe_cfg.h"	/* for WANCONFIG_USB_ANALOG */
-
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-
 #include <string.h>
 #include <ctype.h>
-
 #include <time.h>
 
+#include "wanpipe_cfg.h"	/* for WANCONFIG_USB_ANALOG */
+#include "libsangoma.h"
 
 #define inline __inline
+
+#define WIN_DBG if(0)printf
+#define WIN_DBG_FUNC() if(1)printf("%s(): line: %d\n", __FUNCTION__, __LINE__)
 
 #else
 #include <stddef.h>
@@ -42,10 +43,9 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
-#include <wanpipe_hdlc.h>
 #endif
 
-
+#include <wanpipe_hdlc.h>
 
 #ifdef WANPIPEMON_ZAP
 extern int MakeZapConnection(void);
@@ -66,6 +66,10 @@ extern int DoCommand(wan_udp_hdr_t*);
 
 extern int	MakeConnection(void);
 
+#ifdef __WINDOWS__
+extern void CloseConnection(sng_fd_t fd);
+#endif
+
 extern char *global_command;
 extern int global_argc;
 extern char** global_argv;
@@ -82,7 +86,12 @@ extern void FR_read_FT1_status(void);
 extern void PPP_read_FT1_status(void);
 extern void ATM_read_FT1_status(void);
 
+#ifdef __WINDOWS__
+extern sng_fd_t sock;
+#else
 extern int sock;
+#endif
+
 extern char i_name[];
 extern FT1_LED_STATUS FT1_LED;
 extern int raw_data;

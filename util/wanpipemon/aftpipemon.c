@@ -16,32 +16,41 @@
 /******************************************************************************
  * 			INCLUDE FILES					      *
  *****************************************************************************/
-#include <stdio.h>
-#include <stddef.h>	/* offsetof(), etc. */
-#include <ctype.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdlib.h>
-#include <time.h>
+
+#if defined(__WINDOWS__)
+# include <conio.h>				/* for _kbhit */
+# include "wanpipe_includes.h"
+# include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t' */
+# include "wanpipe_time.h"		/* for 'struct timeval' */
+# include "wanpipe_common.h"		/* for 'strcasecmp' */
+#else
+# include <stdio.h>
+# include <stddef.h>	/* offsetof(), etc. */
+# include <ctype.h>
+# include <unistd.h>
+# include <string.h>
+# include <stdlib.h>
+# include <time.h>
 #if defined(__FreeBSD__)
 # include <limits.h>
 #endif
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <netinet/in_systm.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/udp.h>
+# include <sys/time.h>
+# include <sys/types.h>
+# include <sys/socket.h>
+# include <sys/ioctl.h>
+# include <arpa/inet.h>
+# include <net/if.h>
+# include <netinet/in_systm.h>
+# include <netinet/in.h>
+# include <netinet/ip.h>
+# include <netinet/udp.h>
 #if defined(__LINUX__)
 # include <linux/version.h>
 # include <linux/types.h>
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
+#endif
 #endif
 
 #include "wanpipe_api.h"
@@ -290,10 +299,106 @@ static void modem( void )
 #endif
 }; /* modem */
 
+#ifdef __WINDOWS__
+int get_if_operational_stats()
+{
+	/*! API command structure used to execute API commands. 
+	This command structure is used with libsangoma library */
+	wanpipe_api_t wp_api;
+	net_device_stats_t *stats;
+	int err;
+	unsigned char firm_ver, cpld_ver;
+
+	err=sangoma_get_stats(sock, &wp_api, NULL);
+	if (err) {
+		return 1;
+	}
+
+	stats = &wp_api.wp_cmd.stats;
+
+	printf( "******* OPERATIONAL_STATS *******\n");
+
+	printf("\trx_packets\t: %u\n",			stats->rx_packets);
+	printf("\ttx_packets\t: %u\n",			stats->tx_packets);
+	printf("\trx_bytes\t: %u\n",			stats->rx_bytes);
+	printf("\ttx_bytes\t: %u\n",			stats->tx_bytes);
+	printf("\trx_errors\t: %u\n",			stats->rx_errors);
+	printf("\ttx_errors\t: %u\n",			stats->tx_errors);
+	printf("\trx_dropped\t: %u\n",			stats->rx_dropped);
+	printf("\ttx_dropped\t: %u\n",			stats->tx_dropped);
+	printf("\tmulticast\t: %u\n",			stats->multicast);
+	printf("\tcollisions\t: %u\n",			stats->collisions);
+
+	printf("\trx_length_errors: %u\n",		stats->rx_length_errors);
+	printf("\trx_over_errors\t: %u\n",		stats->rx_over_errors);
+	printf("\trx_crc_errors\t: %u\n",		stats->rx_crc_errors);
+	printf("\trx_frame_errors\t: %u\n",	stats->rx_frame_errors);
+	printf("\trx_fifo_errors\t: %u\n",		stats->rx_fifo_errors);
+	printf("\trx_missed_errors: %u\n",		stats->rx_missed_errors);
+
+	printf("\ttx_aborted_errors: %u\n",	stats->tx_aborted_errors);
+	printf("\tTx Idle Data\t: %u\n",		stats->tx_carrier_errors);
+
+	printf("\ttx_fifo_errors\t: %u\n",		stats->tx_fifo_errors);
+	printf("\ttx_heartbeat_errors: %u\n",	stats->tx_heartbeat_errors);
+	printf("\ttx_window_errors: %u\n",		stats->tx_window_errors);
+
+	printf("\n\ttx_packets_in_q: %u\n",	stats->current_number_of_frames_in_tx_queue);
+	printf("\ttx_queue_size: %u\n",		stats->max_tx_queue_length);
+
+	printf("\n\trx_packets_in_q: %u\n",	stats->current_number_of_frames_in_rx_queue);
+	printf("\trx_queue_size: %u\n",		stats->max_rx_queue_length);
+
+	printf("\n\trx_events_in_q: %u\n",	stats->current_number_of_events_in_event_queue);
+	printf("\trx_event_queue_size: %u\n",		stats->max_event_queue_length);
+	printf("\trx_events: %u\n",	stats->rx_events);
+	printf("\trx_events_dropped: %u\n",		stats->rx_events_dropped);
+
+	printf("\tHWEC tone (DTMF) events counter: %u\n",		stats->rx_events_tone);
+	printf( "*********************************\n");
+
+	err=sangoma_get_driver_version(sock,&wp_api, NULL);
+	if (err) {
+		return 1;
+	}
+	printf("\tDriver Version: %u.%u.%u.%u\n",
+				wp_api.wp_cmd.version.major,
+				wp_api.wp_cmd.version.minor,
+				wp_api.wp_cmd.version.minor1,
+				wp_api.wp_cmd.version.minor2);
+
+	err=sangoma_get_firmware_version(sock,&wp_api, &firm_ver);
+	if (err) {
+		return 1;
+	}
+	printf("\tFirmware Version: %X\n",
+				firm_ver);
+
+	err=sangoma_get_cpld_version(sock,&wp_api, &cpld_ver);
+	if (err) {
+		return 1;
+	}
+	printf("\tCPLD Version: %X\n",
+				cpld_ver);
+	return 0;
+}
+
+int flush_if_operational_stats()
+{
+	/*! API command structure used to execute API commands. 
+	This command structure is used with libsangoma library */
+	wanpipe_api_t wp_api;
+
+    return sangoma_flush_stats(sock, &wp_api);
+}
+#endif
 
 static void comm_err_stats (void)
 {
-#if 1
+#ifdef __WINDOWS__
+	/* use libsangoma api to get statistics */
+	get_if_operational_stats();
+#else
 	aft_comm_err_stats_t* comm_err_stats;
 	wan_udp.wan_udphdr_command= READ_COMMS_ERROR_STATS; 
 	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -337,12 +442,16 @@ static void comm_err_stats (void)
 #endif
 	}
 #endif
+
 }; /* comm_err_stats */
 
 
 static void flush_comm_err_stats( void ) 
 {
-#if 1
+#ifdef __WINDOWS__
+	/* use libsangoma api to get statistics */
+	flush_if_operational_stats();
+#else
 	wan_udp.wan_udphdr_command=FLUSH_COMMS_ERROR_STATS;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
@@ -446,6 +555,16 @@ static void flush_operational_stats( void )
 #endif
 }; /* flush_operational_stats */
 
+static void wp_span_debugging( unsigned char toggle ) 
+{
+	wan_udp.wan_udphdr_command= WANPIPEMON_CHAN_SEQ_DEBUGGING;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0] = toggle;
+	DO_COMMAND(wan_udp);
+}; /* flush_operational_stats */
+
+
 
 int AFTDisableTrace(void)
 {
@@ -488,6 +607,13 @@ static int print_local_time (char *date_string, int max_len)
 	return 0;
 }
 
+#ifdef __WINDOWS__
+static int loop_rx_data(int passnum)
+{
+	printf("%s() not implemented!\n", __FUNCTION__);
+	return 1;
+}
+#else
 static int loop_rx_data(int passnum)
 {
 	unsigned int num_frames;
@@ -601,7 +727,7 @@ static int loop_rx_data(int passnum)
 	}
 	return 0;
 }
-
+#endif
 
 		
 static int aft_digital_loop_test( void )
@@ -718,6 +844,14 @@ static int trace_aft_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int 
 	return 0;	
 }
 
+#ifdef __WINDOWS__
+int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng, 
+			 	unsigned char *buf, int len)
+{
+	printf("%s() not implemented!\n", __FUNCTION__);
+	return 1;
+}
+#endif
 
 static void line_trace(int trace_mode) 
 {
@@ -728,22 +862,24 @@ static void line_trace(int trace_mode)
 	int recv_buff = sizeof(wan_udp_hdr_t)+ 100;
 	fd_set ready;
 	struct timeval to;
-   
+
+#ifndef __WINDOWS__	
 	setsockopt( sock, SOL_SOCKET, SO_RCVBUF, &recv_buff, sizeof(int) );
+#endif
 
 	/* Disable trace to ensure that the buffers are flushed */
 	wan_udp.wan_udphdr_command= DISABLE_TRACING;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
 	DO_COMMAND(wan_udp);
-
+	
 	wan_udp.wan_udphdr_command= ENABLE_TRACING;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 1;
 	wan_udp.wan_udphdr_data[0]=trace_mode;
-
+	
 	DO_COMMAND(wan_udp);
-
+	
 	if (wan_udp.wan_udphdr_return_code == 0) { 
 		printf("Starting trace...(Press ENTER to exit)\n");
 		fflush(stdout);
@@ -761,29 +897,44 @@ static void line_trace(int trace_mode)
 		fflush(stdout);
 		return;
 	}
-
+	
 	to.tv_sec = 0;
 	to.tv_usec = 0;
 	for(;;) {
+		
+#ifdef __WINDOWS__
+		if(to.tv_usec){
+			usleep(to.tv_usec);
+		}
+		if(_kbhit()){
+			if(_getch() == 0x0D){
+				/* Enter key was pressed */
+				break;
+			}else{
+				printf("Invalid key... (Press ENTER to exit)\n");
+				fflush(stdout);
+			}
+		}
+#else
 		FD_ZERO(&ready);
 		FD_SET(0,&ready);
-	
+
 		if(select(1,&ready, NULL, NULL, &to)) {
 			break;
 		} /* if */
-
+#endif
 		wan_udp.wan_udphdr_command = GET_TRACE_INFO;
 		wan_udp.wan_udphdr_return_code = 0xaa;
 		wan_udp.wan_udphdr_data_len = 0;
 		DO_COMMAND(wan_udp);
-		
-		if (wan_udp.wan_udphdr_return_code == 0 && wan_udp.wan_udphdr_data_len) { 
-		     
-			num_frames = wan_udp.wan_udphdr_aft_num_frames;
 
-		   	for ( i = 0; i < num_frames; i++) {
+		if (wan_udp.wan_udphdr_return_code == 0 && wan_udp.wan_udphdr_data_len) { 
+			
+			num_frames = wan_udp.wan_udphdr_aft_num_frames;
+			
+			for ( i = 0; i < num_frames; i++) {
 				trace_pkt= (wan_trace_pkt_t *)&wan_udp.wan_udphdr_data[curr_pos];
-	
+				
 				/*  frame type */
 				trace_iface.status=0;
 				if (trace_pkt->status & 0x01) {
@@ -796,15 +947,15 @@ static void line_trace(int trace_mode)
 					} else if (trace_pkt->status & 0x40) {
 						trace_iface.status |= WP_TRACE_OVERRUN;
 					}
-		   		}
-
+				}
+				
 #if 0
-        if (trace_pkt->real_length != 4800){
-          printf("Trace Len = %i Num frames =%i  Current=%i status=0x%X\n",trace_pkt->real_length,num_frames,i, trace_pkt->status);
-          continue;
-        }
+				if (trace_pkt->real_length != 4800){
+					printf("Trace Len = %i Num frames =%i  Current=%i status=0x%X\n",trace_pkt->real_length,num_frames,i, trace_pkt->status);
+					continue;
+				}
 #endif
-
+				
 				trace_iface.len = trace_pkt->real_length;
 				trace_iface.timestamp=trace_pkt->time_stamp;
 				trace_iface.sec = trace_pkt->sec;
@@ -814,68 +965,68 @@ static void line_trace(int trace_mode)
 				hdlc_trace_iface.timestamp 	= trace_iface.timestamp;
 				hdlc_trace_iface.sec		= trace_iface.sec;
 				hdlc_trace_iface.usec		= trace_iface.usec;
-
+				
 				curr_pos += sizeof(wan_trace_pkt_t);
-		
+				
 				if (trace_pkt->real_length >= WAN_MAX_DATA_SIZE){
 					printf("\t:the frame data is to big (%u)!",
-									trace_pkt->real_length);
+						trace_pkt->real_length);
 					fflush(stdout);
 					continue;
-
+					
 				}else if (trace_pkt->data_avail == 0) {
-
+					
 					printf("\t: the frame data is not available" );
 					fflush(stdout);
 					continue;
 				} 
-
+				
 				
 				/* update curr_pos again */
 				curr_pos += trace_pkt->real_length;
-			
+				
 				trace_iface.trace_all_data=trace_all_data;
 				trace_iface.data=(unsigned char*)&trace_pkt->data[0];
-
+				
 				hdlc_trace_iface.trace_all_data = trace_iface.trace_all_data;
 				hdlc_trace_iface.data = trace_iface.data;
 				hdlc_trace_iface.len = trace_iface.len;
-
-
+				
+				
 				/*
 				if (raw_data) {
-					trace_iface.type=WP_OUT_TRACE_RAW;
+				trace_iface.type=WP_OUT_TRACE_RAW;
 				}else
 				*/
-
+				
 				if (trace_iface.type == WP_OUT_TRACE_HDLC && rx_hdlc_eng) {
 					rx_hdlc_eng->hdlc_data = trace_aft_hdlc_data;
 					wanpipe_hdlc_decode(rx_hdlc_eng,trace_iface.data,trace_iface.len);
 					continue;		
 				} 
-
-			  if (pcap_output){
+				
+				if (pcap_output){
 					trace_iface.type=WP_OUT_TRACE_PCAP;
 				}
-			  if (trace_binary){
+				if (trace_binary){
 					trace_iface.type=WP_OUT_TRACE_BIN;
 				}
 				/*
 				else{
-					trace_iface.type=WP_OUT_TRACE_INTERP;
+				trace_iface.type=WP_OUT_TRACE_INTERP;
 				}
 				*/
-
+				
 				trace_iface.link_type=wan_protocol;
-
+				
 				wp_trace_output(&trace_iface);
-
+				
 				fflush(stdout);
-	
-		   	} //for
+				
+			} //for
 		} //if
 		curr_pos = 0;
-
+		
 		if (!wan_udp.wan_udphdr_chdlc_ismoredata){
 			to.tv_sec = 0;
 			to.tv_usec = WAN_TRACE_DELAY;
@@ -896,13 +1047,13 @@ static int aft_read_hwec_status()
 {
 	u_int32_t	hwec_status;
 	int		channel, found = 0;
-
+	
 	/* Disable trace to ensure that the buffers are flushed */
 	wan_udp.wan_udphdr_command	= AFT_HWEC_STATUS;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 	wan_udp.wan_udphdr_data_len	= 0;
 	DO_COMMAND(wan_udp);
-
+	
 	if (wan_udp.wan_udphdr_return_code) { 
 		printf("Failed to get HW Echo Canceller status!\n"); 
 		fflush(stdout);
@@ -912,14 +1063,14 @@ static int aft_read_hwec_status()
 	for(channel = 0; channel < 32; channel++){
 		if (hwec_status & (1 << channel)){
 			printf(
-			"Sangoma HW Echo Canceller is enabled for channel %d\n",
-						channel);
+				"Sangoma HW Echo Canceller is enabled for channel %d\n",
+				channel);
 			found = 1;
 		}	
 	} 
 	if (!found){
 		printf(
-		"Sangoma HW Echo Canceller is disabled for all channels!\n");
+			"Sangoma HW Echo Canceller is disabled for all channels!\n");
 	}
 	fflush(stdout);
 	return 0;
@@ -1143,12 +1294,18 @@ int AFTUsage(void)
 	printf("wanpipemon: Wanpipe AFT Hardware Level Debugging Utility\n\n");
 	printf("Usage:\n");
 	printf("-----\n\n");
+#ifdef __WINDOWS__
+	printf("wanpipemon -i <interface name> -c <command>\n\n");
+	printf("\tOption -i: \n");
+	printf("\t\tWanpipe interface name (ex: wanpipe1_if1)\n");   
+#else
 	printf("wanpipemon -i <ip-address or interface name> -u <port> -c <command>\n\n");
 	printf("\tOption -i: \n");
 	printf("\t\tWanpipe remote IP address must be supplied\n");
 	printf("\t\t<or> Wanpipe network interface name (ex: wp1_chdlc)\n");   
 	printf("\tOption -u: (Optional, default: 9000)\n");
 	printf("\t\tWanpipe UDPPORT specified in /etc/wanpipe#.conf\n");
+#endif
 	printf("\tOption -full: (Optional, trace option)\n");
 	printf("\t\tDisplay raw packets in full: default trace pkt len=25bytes\n");
 	printf("\tOption -c: \n");
@@ -1168,8 +1325,12 @@ int AFTUsage(void)
 	printf("\t   s         c       Communication Error Statistics\n");
 	printf("\t             o       Operational Statistics\n");
 	printf("\tTrace Data \n");
+#ifdef __WINDOWS__
+	printf("\t   t         r       Trace data frames. Do not attempt interpret the data.\n");
+#else
 	printf("\t   t         i       Trace and Interpret ALL frames\n");
 	printf("\t             r       Trace ALL frames, in RAW format\n");
+#endif
 	printf("\tT1/E1 Configuration/Statistics\n");
 	printf("\t   T         a       Read T1/E1/56K alarms.\n"); 
 	printf("\t             lt      Diagnostic Digital Loopback testing (T1/E1 card only)\n"); 
@@ -1222,8 +1383,15 @@ int AFTUsage(void)
 	printf("\t   d         sr      Set TX RBS status\n");
 	printf("\tExamples:\n");
 	printf("\t--------\n\n");
+#ifdef __WINDOWS__
+	printf("\tex: wanpipemon -i wanpipe1_if1 -c Ta :View T1/E1 Alarams \n");
+	printf("\tex: wanpipemon -i wanpipe1_if1 -c sc :View Communications/Error statistics\n");
+	printf("\tex: wanpipemon -i wanpipe1_if1 -c fc :Flush (Reset) Communications/Error statistics\n");
+	printf("\tex: wanpipemon -i wanpipe1_if1 -c tr :Trace frames (Tx and Rx).\n\n");
+#else
 	printf("\tex: wanpipemon -i w1g1 -u 9000 -c xm :View Modem Status \n");
 	printf("\tex: wanpipemon -i 201.1.1.2 -u 9000 -c ti  :Trace and Interpret ALL frames\n\n");
+#endif
 	return 0;
 
 }
@@ -1562,6 +1730,10 @@ int AFTMain(char *command,int argc, char* argv[])
 					fe_debug.fe_debug_reg.value = value;
 				}
 				set_fe_debug_mode(&fe_debug);
+			}else if (!strcmp(opt,"e_span_seq")){
+				wp_span_debugging(1);
+			}else if (!strcmp(opt,"d_span_seq")){
+				wp_span_debugging(0);
 			}else{
 				printf("ERROR: Invalid Status Command 'd', Type wanpipemon <cr> for help\n\n");
 			}

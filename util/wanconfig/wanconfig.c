@@ -626,7 +626,8 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "HWEC_PERSIST",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
    /* Keep backward compatibility */
   { "TDMV_HWEC_PERSIST_DISABLE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
-  { "HWEC_NOISE_REDUCTION",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, noise_reduction), DTYPE_UINT},  
+  { "HWEC_NOISE_REDUCTION",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, noise_reduction), DTYPE_UCHAR},  
+  { "HWEC_NOISE_REDUCTION_DISABLE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, noise_reduction_disable), DTYPE_UCHAR},  
   { "HWEC_TONEDISABLERDELAY",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, tone_disabler_delay), DTYPE_UINT},
 
   { "OCT_CHIP_CONF",	smemof(wandev_conf_t, oct_conf), DTYPE_OCT_FILENAME }, 
@@ -902,6 +903,7 @@ key_word_t xilinx_if_conftab[] =
   { "SEVEN_BIT_HDLC", smemof(wan_xilinx_conf_if_t, seven_bit_hdlc), DTYPE_CHAR },
   { "MRU",     	smemof(wan_xilinx_conf_if_t, mru),  DTYPE_UINT },
   { "MTU",     	smemof(wan_xilinx_conf_if_t, mtu),  DTYPE_UINT },
+  { "IDLE_MTU",     	smemof(wan_xilinx_conf_if_t, mtu_idle),  DTYPE_UINT },
   { "IDLE_FLAG",     smemof(wan_xilinx_conf_if_t, idle_flag),  DTYPE_UCHAR},
   { "DATA_MUX",    smemof(wan_xilinx_conf_if_t, data_mux),  DTYPE_UCHAR}, 
   { "SS7_ENABLE",  smemof(wan_xilinx_conf_if_t, ss7_enable),  DTYPE_UCHAR},
@@ -1644,13 +1646,8 @@ int main (int argc, char *argv[])
 	int err = 0;	/* return code */
 	int c;
 
-	if (WANPIPE_VERSION_BETA){
-		snprintf(wan_version, 100, "Beta %s.%s",
+  	snprintf(wan_version, 100, "%s.%s",
 				WANPIPE_VERSION, WANPIPE_SUB_VERSION);
-	}else{
-		snprintf(wan_version, 100, "Stable %s.%s",
-				WANPIPE_VERSION, WANPIPE_SUB_VERSION);
-	}
 
 
 	/* Process command line switches */
@@ -1717,15 +1714,9 @@ int main (int argc, char *argv[])
 			
 		case 'V':
 
-			if (WANPIPE_VERSION_BETA){
-				printf("wanconfig: Beta%s-%s %s %s\n",
-					WANPIPE_SUB_VERSION, WANPIPE_VERSION,
-					WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-			}else{
-				printf("wanconfig: Stable %s-%s %s %s\n",
+				printf("wanconfig: %s-%s %s %s\n",
 					WANPIPE_VERSION, WANPIPE_SUB_VERSION,
 					WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-			}
 
 			printf("\n");
 

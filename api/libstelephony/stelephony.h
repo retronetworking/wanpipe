@@ -3,14 +3,13 @@
 ////////////////////////////////////////////////////////////////////////////////////
 
 #include <stdio.h>
-#if defined(__WINDOWS__)
-#include <atlbase.h>	//for IConnectionPoint
-#include <objbase.h>
-#endif
 
-#include <StelephonyApi.h>
+#include <libstelephony.h>
 #include "Q931EventsDecoder.h" 
 #include "Sink.h"
+
+#include "PToneDecoder.h"
+#include "PToneEncoder.h"
 
 /*!
   \def STELEPHONY_VERSION
@@ -20,40 +19,18 @@
   \def STELEPHONY_VERSION_TO_CODE
   \brief stelephony Version Macro used to convert version numbers to hex code
 */
-#define STELEPHONY_VERSION "2.0.0"
+#define STELEPHONY_VERSION "2.0.1"
 #define STELEPHONY_VERSION_TO_CODE(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 #define STELEPHONY_VERSION_CODE  STELEPHONY_VERSION_TO_CODE(2,0,0) 
-
-
-#if defined(__WINDOWS__)
-#if !defined(__FUNCTION__)
-const char *__FUNCTION__ = "Function";
-#endif
-#endif
-
-#define STEL_FUNC()			if(0)printf("%s(): Line: %d\n", __FUNCTION__, __LINE__)
-#define STEL_FUNC_START()	if(0)printf("%s(): Start\n", __FUNCTION__)
-#define STEL_FUNC_END()		if(0)printf("%s(): End\n", __FUNCTION__)
-
-#if defined (__LINUX__)
-#include "PToneDecoder.h"
-#include "PToneEncoder.h"
-#endif
 
 // This class will provide telepony services for a SINGLE thread
 class CStelephony 
 {
 	CRITICAL_SECTION	m_CriticalSection;
 
-#if defined(__WINDOWS__)
-	IConnectionPoint	*pCP;		//these are declared as a member
-	CSink				*pSink;
-	DWORD		        dwAdvise;
-	CComPtr<IPhoneToneDecoder> pToneDecoder;
-#else
-	PhoneToneDecoder 	*pToneDecoder;
-	PhoneToneEncoder 	*pToneEncoder;
-#endif
+	PhoneToneDecoder 	ToneDecoderObj;
+	PhoneToneEncoder 	ToneEncoderObj;
+
 	Q931EventsDecoder	Q931EventsDecoderObj;
 
 	stelephony_status_t InitDecoderLib();

@@ -12,7 +12,6 @@
  *		2 of the License, or (at your option) any later version.
  * ============================================================================
  */
-
 #include <libsangoma.h>
 #include <sangoma_pri.h>
 #ifndef HAVE_GETTIMEOFDAY
@@ -23,39 +22,39 @@
 static __inline int gettimeofday(struct timeval *tp, void *nothing)
 {
 #ifdef WITHOUT_MM_LIB
-  SYSTEMTIME st;
-  time_t tt;
-  struct tm tmtm;
-  /* mktime converts local to UTC */
-  GetLocalTime (&st);
-  tmtm.tm_sec = st.wSecond;
-  tmtm.tm_min = st.wMinute;
-  tmtm.tm_hour = st.wHour;
-  tmtm.tm_mday = st.wDay;
-  tmtm.tm_mon = st.wMonth - 1;
-  tmtm.tm_year = st.wYear - 1900;  tmtm.tm_isdst = -1;
-  tt = mktime (&tmtm);
-  tp->tv_sec = tt;
-  tp->tv_usec = st.wMilliseconds * 1000;
+	SYSTEMTIME st;
+	time_t tt;
+	struct tm tmtm;
+	/* mktime converts local to UTC */
+	GetLocalTime (&st);
+	tmtm.tm_sec = st.wSecond;
+	tmtm.tm_min = st.wMinute;
+	tmtm.tm_hour = st.wHour;
+	tmtm.tm_mday = st.wDay;
+	tmtm.tm_mon = st.wMonth - 1;
+	tmtm.tm_year = st.wYear - 1900;  tmtm.tm_isdst = -1;
+	tt = mktime (&tmtm);
+	tp->tv_sec = tt;
+	tp->tv_usec = st.wMilliseconds * 1000;
 #else
-  /**
-   ** The earlier time calculations using GetLocalTime
-   ** had a time resolution of 10ms.The timeGetTime, part
-   ** of multimedia apis offer a better time resolution
-   ** of 1ms.Need to link against winmm.lib for this
-   **/
-  unsigned long Ticks = 0;
-  unsigned long Sec =0;
-  unsigned long Usec = 0;
-  Ticks = timeGetTime();
+	/**
+	** The earlier time calculations using GetLocalTime
+	** had a time resolution of 10ms.The timeGetTime, part
+	** of multimedia apis offer a better time resolution
+	** of 1ms.Need to link against winmm.lib for this
+	**/
+	unsigned long Ticks = 0;
+	unsigned long Sec =0;
+	unsigned long Usec = 0;
+	Ticks = timeGetTime();
 
-  Sec = Ticks/1000;
-  Usec = (Ticks - (Sec*1000))*1000;
-  tp->tv_sec = Sec;
-  tp->tv_usec = Usec;
+	Sec = Ticks/1000;
+	Usec = (Ticks - (Sec*1000))*1000;
+	tp->tv_sec = Sec;
+	tp->tv_usec = Usec;
 #endif /* WITHOUT_MM_LIB */
-  (void)nothing;
-  return 0;
+	(void)nothing;
+	return 0;
 }
 #endif /* WIN32 */
 #endif /* HAVE_GETTIMEOFDAY */
@@ -83,7 +82,7 @@ static struct sangoma_pri_event_list SANGOMA_PRI_EVENT_LIST[] = {
 };
 
 
-char *sangoma_pri_event_str(sangoma_pri_event_t event_id)
+const char *sangoma_pri_event_str(sangoma_pri_event_t event_id)
 { 
 	return SANGOMA_PRI_EVENT_LIST[event_id].name;
 }
@@ -97,7 +96,7 @@ static int __pri_sangoma_read(struct pri *pri, void *buf, int buflen)
 	 *       A104   receives data + 2byte CRC + 1 byte flag 
 	 *       A101/2 receives data only */ 
 	
-	int res = sangoma_readmsg_socket((sng_fd_t)(pri->fd), 
+	int res = sangoma_readmsg_socket((sng_fd_t)pri_fd(pri), 
 					 tmpbuf, sizeof(wp_tdm_api_rx_hdr_t), 
 					 buf, buflen, 
 					 0);
@@ -137,7 +136,7 @@ static int __pri_sangoma_write(struct pri *pri, void *buf, int buflen)
 	/* FIXME: This might cause problems with other libraries
 	 * We must remove 2 bytes from buflen because
 	 * libpri sends 2 fake CRC bytes */
-	res=sangoma_sendmsg_socket((sng_fd_t)(pri->fd),
+	res=sangoma_sendmsg_socket((sng_fd_t)pri_fd(pri),
 				   tmpbuf, sizeof(wp_tdm_api_rx_hdr_t),
 				   buf, (unsigned short)buflen-2,
 				   0);	
@@ -155,10 +154,16 @@ int sangoma_init_pri(struct sangoma_pri *spri, int span, int dchan, int swtype, 
 
 	memset(spri, 0, sizeof(struct sangoma_pri));
 
-	if((dfd = sangoma_open_tdmapi_span_chan(span, dchan)) < 0) {
+	if((dfd = sangoma_open_api_span_chan(span, dchan)) < 0) {
 		fprintf(stderr, "Unable to open DCHAN %d for span %d (%s)\n", dchan, span, strerror(errno));
+
 	} else {
-		  if ((spri->pri = pri_new_cb((int)dfd, node, swtype, __pri_sangoma_read, __pri_sangoma_write, NULL))){
+		sangoma_status_t status = sangoma_wait_obj_create(&spri->dchan_wait, dfd, SANGOMA_DEVICE_WAIT_OBJ);
+		if (status != SANG_STATUS_SUCCESS) {
+			fprintf(stderr, "Unable to create sangoma waitable object\n");
+			return -1;
+		}
+		if ((spri->pri = pri_new_cb((int)dfd, node, swtype, __pri_sangoma_read, __pri_sangoma_write, NULL))){
 			spri->span = span;
 			pri_set_debug(spri->pri, debug);
 			ret = 0;
@@ -172,30 +177,15 @@ int sangoma_init_pri(struct sangoma_pri *spri, int span, int dchan, int swtype, 
 
 int sangoma_one_loop(struct sangoma_pri *spri)
 {
-	fd_set rfds, efds;
+	sangoma_status_t status;
 	struct timeval now = {0,0}, *next;
+	uint32_t outflags = 0;
 	pri_event *event;
-    int sel;
+	long waitms = 0;
 	
 	if (spri->on_loop) {
 		spri->on_loop(spri);
 	}
-
-	FD_ZERO(&rfds);
-	FD_ZERO(&efds);
-
-#ifdef _MSC_VER
-//Windows macro for FD_SET includes a warning C4127: conditional expression is constant
-#pragma warning(push)
-#pragma warning(disable:4127)
-#endif
-
-	FD_SET(spri->pri->fd, &rfds);
-	FD_SET(spri->pri->fd, &efds);
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 	if ((next = pri_schedule_next(spri->pri))) {
 		gettimeofday(&now, NULL);
@@ -210,14 +200,16 @@ int sangoma_one_loop(struct sangoma_pri *spri)
 			now.tv_usec = 0;
 		}
 	}
-
-	sel = select(spri->pri->fd + 1, &rfds, NULL, &efds, next ? &now : NULL);
+	waitms = next ? (now.tv_sec * 1000) + (now.tv_usec / 1000) : SANGOMA_WAIT_INFINITE;
+	status = sangoma_waitfor(spri->dchan_wait, POLLIN, &outflags, waitms);
 	event = NULL;
 
-	if (!sel) {
+	if (status == SANG_STATUS_APIPOLL_TIMEOUT) {
 		event = pri_schedule_run(spri->pri);
-	} else if (sel > 0) {
+	} else if (status == SANG_STATUS_SUCCESS) {
 		event = pri_check_event(spri->pri);
+	} else {
+		return -1;
 	}
 
 	if (event) {
@@ -230,7 +222,7 @@ int sangoma_one_loop(struct sangoma_pri *spri)
 		}
 	}
 
-	return sel;
+	return 0;
 }
 
 int sangoma_run_pri(struct sangoma_pri *spri)
@@ -238,21 +230,14 @@ int sangoma_run_pri(struct sangoma_pri *spri)
 	int ret = 0;
 
 	for (;;){
-		ret=sangoma_one_loop(spri);
+		ret = sangoma_one_loop(spri);
 		if (ret < 0){
-
-#ifndef WIN32 //This needs to be adressed fror WIN32 still
-			if (errno == EINTR){
-				/* Igonore an interrupted system call */
-				continue;
-			}
-#endif	
-			printf("Error = %i\n",ret);
-			perror("Sangoma Run Pri: ");
+			/* the printer error may not be accurate if sangoma_waitfor does anything that clears up errno */
+			perror("Sangoma Run Pri");
 			break;		
 		}
 	}
-
+	sangoma_wait_obj_delete(&spri->dchan_wait);
 	return ret;
 
 }

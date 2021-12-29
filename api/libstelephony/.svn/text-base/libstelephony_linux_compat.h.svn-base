@@ -1,5 +1,13 @@
+/* libstelephony_linux_compat.h */
 #ifndef  __LINUX_COMPAT_H__
 #define __LINUX_COMPAT_H__
+
+#ifdef __WINDOWS__
+# include <windows.h>
+# include <stdlib.h>
+# include <string.h>
+# include <memory.h>
+#else
 
 #include <sys/time.h>
 #include <pthread.h>
@@ -47,6 +55,7 @@ static __inline int GetLocalTime(SYSTEMTIME *tv)
 #define EnterCriticalSection(arg) 	pthread_mutex_lock(arg)
 #define LeaveCriticalSection(arg) 	pthread_mutex_unlock(arg)
 #define InitializeCriticalSection(arg) pthread_mutex_init(arg, NULL);
+#endif /* __WINDOWS__ */
 
 typedef struct _variant
 {

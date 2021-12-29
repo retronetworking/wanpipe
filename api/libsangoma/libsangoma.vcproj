@@ -208,6 +208,10 @@
 			Filter="h;hpp;hxx;hm;inl"
 			>
 			<File
+				RelativePath=".\libsangoma-pvt.h"
+				>
+			</File>
+			<File
 				RelativePath=".\libsangoma.h"
 				>
 			</File>

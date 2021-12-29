@@ -32,43 +32,7 @@
  *******************************************************************************
  */
 
-
-#include "libsangoma.h"
-
-/*!
-  \def DFT_CARD
-  \brief Default card name. Deprecated not used
- */
-#define DFT_CARD "wanpipe1"
-
-
-#ifndef WP_API_FEATURE_FE_ALARM
-#warning "Warning: SANGOMA API FE ALARM not supported by driver"
-#endif
-
-#ifndef WP_API_FEATURE_DTMF_EVENTS
-#warning "Warning: SANGOMA API DTMF not supported by driver"
-#endif
-
-#ifndef WP_API_FEATURE_EVENTS
-#warning "Warning: SANGOMA API EVENTS not supported by driver"
-#endif
-
-#ifndef WP_API_FEATURE_LINK_STATUS
-#warning "Warning: SANGOMA API LINK STATUS not supported by driver"
-#endif
-
-#ifndef WP_API_FEATURE_POL_REV
-#warning "Warning: SANGOMA API Polarity Reversal not supported by driver"
-#endif
-
-
-/*!
-  \def DEV_NAME_LEN
-  \brief String length of device name
- */
-#define DEV_NAME_LEN	100
-
+#include "libsangoma-pvt.h"
 
 static void libsng_dbg(const char * fmt, ...)
 {
@@ -76,7 +40,7 @@ static void libsng_dbg(const char * fmt, ...)
 	char buf[1024];
 	va_start(args, fmt);
 	_vsnprintf(buf, sizeof(buf), fmt, args);
-#if defined(WIN32)
+#if defined(__WINDOWS__)
 	OutputDebugString(buf);
 #else
 	printf(buf);
@@ -89,12 +53,11 @@ static void libsng_dbg(const char * fmt, ...)
  *************************************************************************/
 
 #define	DBG_POLL	if(0)libsng_dbg
-#define	DBG_POLL1	if(0)libsng_dbg
 #define	DBG_EVNT	if(0)libsng_dbg
-#define	DBG_ERR		if(0)libsng_dbg
+#define	DBG_ERR		if(0)libsng_dbg("Error: %s() line: %d : ", __FUNCTION__, __LINE__);if(0)libsng_dbg
 #define	DBG_INIT	if(0)libsng_dbg
 
-#if defined(WIN32)
+#if defined(__WINDOWS__)
 
 /*
   \fn static void DecodeLastError(LPSTR lpszFunction)
@@ -224,8 +187,7 @@ static int tdmv_api_ioctl(HANDLE fd, wanpipe_tdm_api_cmd_t *api_cmd)
   \param pRx receive data structure
 
   Private Windows Function
-  In Legacy API mode this fuction will Block if there is no data.
-  In API mode no function is allowed to Block
+  This function will NOT block because using IoctlReadCommandNonBlocking.
  */
 static USHORT DoReadCommand(HANDLE drv, RX_DATA_STRUCT * pRx)
 {
@@ -233,7 +195,7 @@ static USHORT DoReadCommand(HANDLE drv, RX_DATA_STRUCT * pRx)
 
 	bIoResult = DeviceIoControl(
 			drv,
-			IoctlReadCommand,
+			IoctlReadCommandNonBlocking,
 			(LPVOID)NULL,//NO input buffer!
 			0,
 			(LPVOID)pRx,
@@ -275,7 +237,7 @@ static UCHAR DoWriteCommand(HANDLE drv,
 }
 
 /*
-  \fn static USHORT DoApiPollCommand(HANDLE drv, API_POLL_STRUCT *api_poll_ptr)
+  \fn static USHORT sangoma_poll_fd(HANDLE drv, API_POLL_STRUCT *api_poll_ptr)
   \brief Non Blocking API Poll function used to find out if Rx Data, Events or
 			Free Tx buffer available
   \param drv device file descriptor
@@ -284,12 +246,12 @@ static UCHAR DoWriteCommand(HANDLE drv,
 
   Private Windows Function
  */
-static USHORT DoApiPollCommand(HANDLE drv, API_POLL_STRUCT *api_poll_ptr)
+static USHORT sangoma_poll_fd(sng_fd_t fd, API_POLL_STRUCT *api_poll_ptr)
 {
 	DWORD ln, bIoResult;
 
 	bIoResult = DeviceIoControl(
-			drv,
+			fd,
 			IoctlApiPoll,
 			(LPVOID)NULL,
 			0L,
@@ -299,25 +261,6 @@ static USHORT DoApiPollCommand(HANDLE drv, API_POLL_STRUCT *api_poll_ptr)
 			(LPOVERLAPPED)NULL);
 
 	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
-}
-
-static int _SAPI_CALL sangoma_socket_poll(sangoma_wait_obj_t *sng_wait_obj)
-{
-	API_POLL_STRUCT	*api_poll = &sng_wait_obj->api_poll;
-#if 0
-	DBG_POLL("%s(): span: %d, chan: %d\n", __FUNCTION__, sng_wait_obj->span, sng_wait_obj->chan);
-#endif
-	memset(api_poll, 0x00, sizeof(API_POLL_STRUCT));
-
-	api_poll->user_flags_bitmap = sng_wait_obj->flags_in;
-
-	/* This call will return immediatly! 
-	 * Caller of this function must implement the actual wait. */
-	if(DoApiPollCommand(sng_wait_obj->fd, api_poll)){
-		//failed
-		return -1;
-	}
-	return 0;
 }
 
 static USHORT DoSetSharedEventCommand(HANDLE drv, PREGISTER_EVENT event)
@@ -337,7 +280,148 @@ static USHORT DoSetSharedEventCommand(HANDLE drv, PREGISTER_EVENT event)
 	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
 }
 
-#endif	/* WIN32 */
+static int init_sangoma_event_object(sangoma_wait_obj_t *sng_wait_obj, int flags_in)
+{
+	int event_index = -1;
+	
+	if(flags_in & POLLIN){
+		event_index = LIBSNG_EVENT_INDEX_POLLIN;
+	}
+
+	if(flags_in & POLLOUT){
+		event_index = LIBSNG_EVENT_INDEX_POLLOUT;
+	}
+
+	if(flags_in & POLLPRI){
+		event_index = LIBSNG_EVENT_INDEX_POLLPRI;
+	}
+
+	if(event_index == -1){
+		/* invalid 'flags_in', this should be an assert */
+		return SANG_STATUS_GENERAL_ERROR;
+	}
+
+	sng_wait_obj->sng_event_objects[event_index].hEvent = CreateEvent( NULL, FALSE, FALSE, NULL);
+	if(!sng_wait_obj->sng_event_objects[event_index].hEvent){
+		//error
+		return SANG_STATUS_GENERAL_ERROR;
+	}
+
+	sng_wait_obj->sng_event_objects[event_index].user_flags_bitmap = flags_in;
+	if(DoSetSharedEventCommand(sng_wait_obj->fd, &sng_wait_obj->sng_event_objects[event_index])){
+		//error
+		return SANG_STATUS_GENERAL_ERROR;
+	}
+
+	return sng_wait_obj->sng_event_objects[event_index].operation_status;
+}
+
+static void sangoma_reset_wait_obj(sangoma_wait_obj_t *sng_wait_obj, int flags_in)
+{
+	if(flags_in & POLLIN){
+		if(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLIN].hEvent){
+			ResetEvent(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLIN].hEvent);
+		}
+	}
+
+	if(flags_in & POLLOUT){
+		if(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLOUT].hEvent){
+			ResetEvent(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLOUT].hEvent);
+		}
+	}
+
+	if(flags_in & POLLPRI){
+		if(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLPRI].hEvent){
+			ResetEvent(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLPRI].hEvent);
+		}
+	}
+}
+
+static sangoma_status_t _SAPI_CALL sangoma_wait_obj_poll(sangoma_wait_obj_t *sangoma_wait_object, int flags_in, int *flags_out)
+{
+	int err;
+	sangoma_wait_obj_t *sng_wait_obj = sangoma_wait_object;
+	 /*! api structure used by windows IoctlApiPoll call */
+	API_POLL_STRUCT	api_poll;
+
+	*flags_out = 0;
+
+	memset(&api_poll, 0x00, sizeof(API_POLL_STRUCT));
+	api_poll.user_flags_bitmap = flags_in;
+
+	/* This call is non-blocking - it will return immediatly. */
+	if(sangoma_poll_fd(sng_wait_obj->fd, &api_poll)){
+		/* error - ioctl failed */
+		return SANG_STATUS_IO_ERROR;
+	}
+
+	if(api_poll.operation_status == SANG_STATUS_SUCCESS){
+		*flags_out = api_poll.poll_events_bitmap;
+		err = 0;
+	}else{
+		/* error - command failed */
+		err = api_poll.operation_status;
+	}
+
+	if(*flags_out == 0){
+		DBG_POLL("======%s(): *flags_out: 0x%X, flags_in: 0x%X\n", __FUNCTION__, *flags_out, flags_in);
+	}
+	return err;
+}
+
+static int check_number_of_wait_objects(uint32_t number_of_objects, const char *caller_function, int lineno)
+{
+	if(number_of_objects >= MAXIMUM_WAIT_OBJECTS){
+		DBG_ERR("Caller: %s(): Line: %d: 'number_of_objects': %d is greater than the Maximum of: %d\n", 
+			caller_function, lineno, number_of_objects, MAXIMUM_WAIT_OBJECTS);
+		return 1;
+	}
+	return 0;
+}
+
+static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
+									  IN uint32_t in_flags[], OUT uint32_t out_flags[],
+									  IN uint32_t number_of_sangoma_wait_objects,
+									  IN BOOL	reset_events_if_out_flags_set,
+									  OUT BOOL	*at_least_one_poll_set_flags_out)
+{
+	uint32_t i, j;
+
+	if(at_least_one_poll_set_flags_out){
+		*at_least_one_poll_set_flags_out = FALSE;
+	}
+
+	for(i = 0; i < number_of_sangoma_wait_objects; i++) {
+
+		sangoma_wait_obj_t *sangoma_wait_object = sng_wait_objects[i];
+		if (!SANGOMA_OBJ_HAS_DEVICE(sangoma_wait_object)) {
+			continue;
+		}
+
+		for(j = 0; j < LIBSNG_NUMBER_OF_EVENT_OBJECTS; j++){
+
+			if(!sangoma_wait_object->sng_event_objects[j].hEvent) {
+				continue;
+			}
+
+			if(sangoma_wait_obj_poll(sangoma_wait_object, in_flags[i], &out_flags[i])){
+				return SANG_STATUS_GENERAL_ERROR;
+			}
+
+			if(	out_flags[i] & in_flags[i] ){
+				if(TRUE == reset_events_if_out_flags_set){
+					sangoma_reset_wait_obj(sangoma_wait_object, out_flags[i]);/* since we are NOT going to wait on this event, reset it 'manually' */
+				}
+				if(at_least_one_poll_set_flags_out){
+					*at_least_one_poll_set_flags_out = TRUE;
+				}
+			}
+		}
+	}
+
+	return SANG_STATUS_SUCCESS;
+}
+#endif	/* __WINDOWS__ */
 
 
 /*********************************************************************//**
@@ -350,229 +434,312 @@ static USHORT DoSetSharedEventCommand(HANDLE drv, PREGISTER_EVENT event)
  * Device POLL Functions
  ***************************************************************/ 
 
-
 /*!
-  \fn void sangoma_init_wait_obj(sangoma_wait_obj_t *sng_wait_obj, sng_fd_t fd, int span, int chan, int timeout, int flags_in, int object_type)
-  \brief Initialize a wait object that will be used in sangoma_socket_waitfor_many() function  
-  \param sng_wait_obj pointer a single device object 
+  \fn sangoma_status_t sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma_wait_object, sng_fd_t fd, sangoma_wait_obj_type_t object_type)
+  \brief Create a wait object that will be used with sangoma_waitfor_many() API
+  \param sangoma_wait_object pointer a single device object 
   \param fd device file descriptor
-  \param span span number starting from 1 to 255
-  \param chan chan number starting from 1 to 32
-  \param flags_in events to wait for (read/write/event)
-  \param object_type defines whether file descriptor is a sangoma device or other sytem file descriptor.
-  \return 0: success, non-zero: error
+  \param object_type type of the wait object. see sangoma_wait_obj_type_t for types
+  \see sangoma_wait_obj_type_t
+  \return SANG_STATUS_SUCCESS: success, or error status
 */
-int _SAPI_CALL sangoma_init_wait_obj(sangoma_wait_obj_t *sng_wait_obj, sng_fd_t fd, int span, int chan, int flags_in, int object_type)
+sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma_wait_object, sng_fd_t fd, sangoma_wait_obj_type_t object_type)
 {
 	int err = 0;
-	memset(sng_wait_obj, 0, sizeof(*sng_wait_obj));
-	sng_wait_obj->fd		= fd;
-	sng_wait_obj->flags_in	= flags_in;
-	sng_wait_obj->span		= span;
-	sng_wait_obj->chan		= chan;
-	sng_wait_obj->object_type = object_type;
+	sangoma_wait_obj_t *sng_wait_obj;
 
-#if defined(WIN32)
-	DBG_INIT("%s(): fd:0x%X, span:%d, chan:%d, flags_in:0x%X, object_type:%s", 
-		__FUNCTION__, fd, span, chan, flags_in, (object_type==SANGOMA_WAIT_OBJ?"SANGOMA_WAIT_OBJ":"UNKNOWN_WAIT_OBJ"));
-
-	sng_wait_obj->SharedEvent.hEvent = CreateEvent( NULL, FALSE, FALSE, NULL);
-	if(NULL == sng_wait_obj->SharedEvent.hEvent){
-		return 1;
+	if (!sangoma_wait_object) { 
+		return SANG_STATUS_INVALID_DEVICE;
+	}
+	*sangoma_wait_object = NULL;
+	sng_wait_obj = malloc(sizeof(**sangoma_wait_object));
+	if (!sng_wait_obj) {
+		return SANG_STATUS_FAILED_ALLOCATE_MEMORY;
 	}
 
-	if(SANGOMA_WAIT_OBJ == object_type){
-		err = DoSetSharedEventCommand(fd, &sng_wait_obj->SharedEvent);
+	memset(sng_wait_obj, 0x00, sizeof(*sng_wait_obj));
+	/* it is a first initialization of the object */
+	sng_wait_obj->init_flag = LIBSNG_MAGIC_NO;
+
+	sng_wait_obj->fd			= fd;
+	sng_wait_obj->object_type	= object_type;
+
+#if defined(__WINDOWS__)
+	DBG_INIT("%s(): sng_wait_obj ptr: 0x%p\n", __FUNCTION__, sng_wait_obj);
+	DBG_INIT("%s(): fd: 0x%X, object_type: %s\n", __FUNCTION__, fd, DECODE_SANGOMA_WAIT_OBJECT_TYPE(object_type));
+	DBG_INIT("%s(): sizeof(**sangoma_wait_object): %d\n", __FUNCTION__, sizeof(**sangoma_wait_object));
+
+	if (SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
+		sng_wait_obj->generic_event_object.hEvent = CreateEvent( NULL, FALSE, FALSE, NULL);
+		if(!sng_wait_obj->generic_event_object.hEvent){
+			return SANG_STATUS_GENERAL_ERROR;
+		}
+	}
+
+	if(SANGOMA_GENERIC_WAIT_OBJ == object_type){
+		/* everything is done for the generic wait object */
+		*sangoma_wait_object = sng_wait_obj;
+		return SANG_STATUS_SUCCESS;
+	}
+
+	err = init_sangoma_event_object(sng_wait_obj, POLLIN /* must be a SINGLE bit because there is a signaling object for each bit */);
+	if(SANG_STATUS_SUCCESS != err){
+		return err;
+	}
+
+	err = init_sangoma_event_object(sng_wait_obj, POLLOUT /* must be a SINGLE bit because there is a signaling object for each bit */);
+	if(SANG_STATUS_SUCCESS != err){
+		return err;
+	}
+
+	err = init_sangoma_event_object(sng_wait_obj, POLLPRI /* must be a SINGLE bit because there is a signaling object for each bit */);
+	if(SANG_STATUS_SUCCESS != err) {
+		return err;
 	}
 		
 	DBG_INIT("%s(): returning: %d", __FUNCTION__, err);
 #else
 	int filedes[2];
-	sng_wait_obj->signal_read_fd = INVALID_HANDLE_VALUE;
-	sng_wait_obj->signal_write_fd = INVALID_HANDLE_VALUE;
-	/* if we want cross-process event notification we can use a named pipe with mkfifo() */
-	if (pipe(filedes)) {
-		return -1;
+	if (SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
+		sng_wait_obj->signal_read_fd = INVALID_HANDLE_VALUE;
+		sng_wait_obj->signal_write_fd = INVALID_HANDLE_VALUE;
+		/* if we want cross-process event notification we can use a named pipe with mkfifo() */
+		if (pipe(filedes)) {
+			return -1;
+		}
+		sng_wait_obj->signal_read_fd = filedes[0];
+		sng_wait_obj->signal_write_fd = filedes[1];
 	}
-	sng_wait_obj->signal_read_fd = filedes[0];
-	sng_wait_obj->signal_write_fd = filedes[1];
 #endif
+	*sangoma_wait_object = sng_wait_obj;
 	return err;
 }
 
 /*!
-  \fn void sangoma_release_wait_obj(sangoma_wait_obj_t *sng_wait_obj)
+  \fn sangoma_status_t sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma_wait_object)
   \brief De-allocate all resources in a wait object
-  \param sng_wait_obj pointer a single device object 
-  \return void
+  \param sangoma_wait_object pointer to a pointer to a single device object
+  \return SANG_STATUS_SUCCESS on success or some sangoma status error
 */
-void _SAPI_CALL sangoma_release_wait_obj(sangoma_wait_obj_t *sng_wait_obj)
+sangoma_status_t _SAPI_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma_wait_object)
 {
-	if(sng_wait_obj->fd != INVALID_HANDLE_VALUE){
-    /* sangoma_close takes care of setting the fd value itself to invalid */
-		sangoma_close(&sng_wait_obj->fd);
-#ifndef WIN32
-    sangoma_close(&sng_wait_obj->signal_read_fd);
-    sangoma_close(&sng_wait_obj->signal_write_fd);
+	sangoma_wait_obj_t *sng_wait_obj = *sangoma_wait_object;
+#if defined(__WINDOWS__)
+	int index = 0;
 #endif
+
+	if(sng_wait_obj->init_flag != LIBSNG_MAGIC_NO){
+		/* error. object was not initialized by sangoma_wait_obj_init() */
+		return SANG_STATUS_INVALID_DEVICE;
 	}
+
+#if defined(__WINDOWS__)
+	if (SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
+		sangoma_close(&sng_wait_obj->generic_event_object.hEvent);
+	}
+	if (SANGOMA_OBJ_HAS_DEVICE(sng_wait_obj)) {
+		for(index = 0; index < LIBSNG_NUMBER_OF_EVENT_OBJECTS; index++){
+			sangoma_close(&sng_wait_obj->sng_event_objects[index].hEvent);
+		}
+	}
+#else
+	if (SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
+		sangoma_close(&sng_wait_obj->signal_read_fd);
+		sangoma_close(&sng_wait_obj->signal_write_fd);
+	}
+#endif
+	sng_wait_obj->init_flag = 0;
 	sng_wait_obj->object_type = UNKNOWN_WAIT_OBJ;
+	*sangoma_wait_object = NULL;
+	return SANG_STATUS_SUCCESS;
 }
 
 /*!
-  \fn void sangoma_signal_wait_obj(sangoma_wait_obj_t *sng_wait_obj)
-  \brief Set wait object to a signalled state
-  \param sng_wait_obj pointer a single device object 
+  \fn void sangoma_wait_obj_signal(void *sangoma_wait_object)
+  \brief Set wait object to a signaled state
+  \param sangoma_wait_object pointer a single device object 
   \return 0 on success, non-zero on error
 */
-int _SAPI_CALL sangoma_signal_wait_obj(sangoma_wait_obj_t *sng_wait_obj)
+int _SAPI_CALL sangoma_wait_obj_signal(sangoma_wait_obj_t *sng_wait_obj)
 {
-#if defined(WIN32)
-	if(sng_wait_obj->SharedEvent.hEvent){
-		if (!SetEvent(sng_wait_obj->SharedEvent.hEvent)) {
-			return -1;
+	if (!SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
+		/* even when Windows objects are always signalable for the sake of providing
+		 * a consistent interface to the user we downgrade the capabilities of Windows
+		 * objects unless the sangoma wait object is explicitly initialized as signalable
+		 * */
+		return SANG_STATUS_INVALID_DEVICE;
+	}
+#if defined(__WINDOWS__)
+	if(sng_wait_obj->generic_event_object.hEvent){
+		if (!SetEvent(sng_wait_obj->generic_event_object.hEvent)) {
+			return SANG_STATUS_GENERAL_ERROR;
 		}
-		return 0;
 	}
 #else
-	if (sng_wait_obj->signal_write_fd) {
-		return write(sng_wait_obj->signal_write_fd, "s", 1);
+	/* at this point we know is a signalable object and has a signal_write_fd */
+	if (write(sng_wait_obj->signal_write_fd, "s", 1) < 1) {
+		return SANG_STATUS_GENERAL_ERROR;
 	}
 #endif
-  /* error, this object cannot be signaled */
-  return -1;
+	return SANG_STATUS_SUCCESS;
 }
 
 /*!
-  \fn int sangoma_socket_waitfor_many(sangoma_wait_obj_t sangoma_wait_objects[], int number_of_sangoma_wait_objects, uint32_t system_wait_timeout)
-  \brief Wait for multiple file descriptors  - poll()
-  \param sangoma_wait_objects pointer to array of file descriptors to wait for
-  \param number_of_sangoma_wait_objects size of the array of file descriptors
-  \param system_wait_timeout timeout in miliseconds in case of no event
-  \return negative: error, 0: timeout, positive: event occured check in sangoma_wait_objects
+  \fn sng_fd_t sangoma_wait_obj_get_fd(void *sangoma_wait_object)
+  \brief Retrieve fd device file descriptor which was the 'fd' parameter for sangoma_wait_obj_init()
+  \param sangoma_wait_object pointer a single device object 
+  \return fd - device file descriptor
 */
-int _SAPI_CALL sangoma_socket_waitfor_many(sangoma_wait_obj_t sangoma_wait_objects[], int number_of_sangoma_wait_objects, int32_t system_wait_timeout)
+sng_fd_t _SAPI_CALL sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sng_wait_obj)
 {
-	int	i;
-#if defined(WIN32)
+	return sng_wait_obj->fd;
+}
+
+/*!
+  \fn void sangoma_wait_obj_set_context(sangoma_wait_obj_t *sangoma_wait_object)
+  \brief Store the given context into provided sangoma wait object.
+  \brief This function is useful to associate a context with a sangoma wait object.
+  \param sangoma_wait_object pointer a single device object 
+  \param context void pointer to user context
+  \return void
+*/
+void _SAPI_CALL sangoma_wait_obj_set_context(sangoma_wait_obj_t *sng_wait_obj, void *context)
+{
+	sng_wait_obj->context = context;
+}
+
+/*!
+  \fn void *sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_object)
+  \brief Retrieve the user context (if any) that was set via sangoma_wait_obj_set_context.
+  \param sangoma_wait_object pointer a single device object 
+  \return void*
+*/
+void* _SAPI_CALL sangoma_wait_obj_get_context(sangoma_wait_obj_t *sng_wait_obj)
+{
+	return sng_wait_obj->context;
+}
+
+/*!
+  \fn sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wait_objects[], int32_t in_flags[], int32_t out_flags[] uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout);
+  \brief Wait for multiple sangoma waitable objects 
+  \param sangoma_wait_objects pointer to array of wait objects previously created with sangoma_wait_obj_create
+  \param in_flags array of flags corresponding to the flags the user is interested on for each waitable object
+  \param out_flags array of flags corresponding to the flags that are ready in the waitable objects 
+  \param number_of_sangoma_wait_objects size of the array of waitable objects and flags
+  \param system_wait_timeout timeout in miliseconds in case of no event
+  \return negative: SANG_STATUS_APIPOLL_TIMEOUT: timeout, SANG_STATUS_SUCCESS: event occured check in sangoma_wait_objects, any other return code is some error
+*/
+sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_objects[], uint32_t in_flags[], uint32_t out_flags[],
+		uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout)
+{
+#if defined(__WINDOWS__)
 	HANDLE hEvents[MAXIMUM_WAIT_OBJECTS];
-	int rc, at_least_one_poll_set_flags_out = 0;
+	int at_least_one_poll_set_flags_out, number_of_internal_signaling_objects, err;
+#endif
+	uint32_t i = 0, j = 0;
 
-	if(number_of_sangoma_wait_objects > MAXIMUM_WAIT_OBJECTS){
-		DBG_EVNT("Error: %s(): 'number_of_sangoma_wait_objects': %d is greater than the Maximum of: %d\n", __FUNCTION__,
-			number_of_sangoma_wait_objects, MAXIMUM_WAIT_OBJECTS);
-		return -1;
-	}
-
-	if(number_of_sangoma_wait_objects < 1){
-		DBG_EVNT("Error: %s(): 'number_of_sangoma_wait_objects': %d is less than the Minimum of: 1!\n", __FUNCTION__,
-			number_of_sangoma_wait_objects);
-		return -2;
-	}
-
-	DBG_POLL1("%s(): line: %d: number_of_sangoma_wait_objects: %d\n", __FUNCTION__, __LINE__, number_of_sangoma_wait_objects);
-
+	memset(out_flags, 0x00, number_of_sangoma_wait_objects * sizeof(out_flags[0]));
+#if defined(__WINDOWS__)
+	/* This loop will calculate 'number_of_internal_signaling_objects' and will initialize 'hEvents'
+	 * based on 'number_of_sangoma_wait_objects' and 'in_flags'.  */
+	number_of_internal_signaling_objects = 0;
 	for(i = 0; i < number_of_sangoma_wait_objects; i++){
-		hEvents[i] = sangoma_wait_objects[i].SharedEvent.hEvent;
-		sangoma_wait_objects[i].flags_out = 0;
-	}
+		sangoma_wait_obj_t *sangoma_wait_object = sng_wait_objects[i];
 
-	/*	Note this loop is especially important for POLLOUT!	*/
-	for(i = 0; i < number_of_sangoma_wait_objects; i++){
-
-		if(sangoma_wait_objects[i].object_type == SANGOMA_WAIT_OBJ){
-
-			if(sangoma_socket_poll(&sangoma_wait_objects[i])){
-				return -3;
+		/* if SANGOMA_OBJ_IS_SIGNALABLE add the generic_event_object.hEvent to the hEvents */
+		if(sangoma_wait_object->generic_event_object.hEvent){
+			if(check_number_of_wait_objects(number_of_internal_signaling_objects, __FUNCTION__, __LINE__)){
+				return SANG_STATUS_NO_FREE_BUFFERS;
 			}
-
-			if(sangoma_wait_objects[i].api_poll.operation_status != SANG_STATUS_SUCCESS){
-
-				DBG_EVNT("Error: %s(): Invalid Operation Status: %s(%d)\n", __FUNCTION__,
-					SDLA_DECODE_SANG_STATUS(sangoma_wait_objects[i].api_poll.operation_status), 
-					sangoma_wait_objects[i].api_poll.operation_status);
-				return -4;
-			}
-
-			if(sangoma_wait_objects[i].api_poll.poll_events_bitmap){
-				sangoma_wait_objects[i].flags_out = sangoma_wait_objects[i].api_poll.poll_events_bitmap;
-				at_least_one_poll_set_flags_out = 1;
-			}
+			hEvents[number_of_internal_signaling_objects] = sangoma_wait_object->generic_event_object.hEvent;
+			number_of_internal_signaling_objects++;
 		}
+
+		for(j = 0; j < LIBSNG_NUMBER_OF_EVENT_OBJECTS; j++){
+			if(sangoma_wait_object->sng_event_objects[j].hEvent){
+				if(	((j == LIBSNG_EVENT_INDEX_POLLIN)	&& (in_flags[i] & POLLIN))	||
+					((j == LIBSNG_EVENT_INDEX_POLLOUT)	&& (in_flags[i] & POLLOUT))	||
+					((j == LIBSNG_EVENT_INDEX_POLLPRI)	&& (in_flags[i] & POLLPRI))	){
+
+					if(check_number_of_wait_objects(number_of_internal_signaling_objects, __FUNCTION__, __LINE__)){
+						return SANG_STATUS_NO_FREE_BUFFERS;
+					}
+					hEvents[number_of_internal_signaling_objects] = sangoma_wait_object->sng_event_objects[j].hEvent;
+					number_of_internal_signaling_objects++;
+				}
+			}/* if () */
+		}/* for() */
+	}/* for() */
+
+	if(number_of_internal_signaling_objects < 1){
+		DBG_ERR("'number_of_internal_signaling_objects': %d is less than the Minimum of: 1!\n",
+			number_of_internal_signaling_objects);
+		/* error - most likely the user did not initialize sng_wait_objects[] */
+		return SANG_STATUS_INVALID_PARAMETER;
 	}
 
-	if(at_least_one_poll_set_flags_out){
-		DBG_POLL1("%s(): line: %d: at_least_one_poll_set_flags_out is set\n", __FUNCTION__, __LINE__);
-		return 1;
+	at_least_one_poll_set_flags_out = FALSE;
+
+	/* It is important to get 'out flags' BEFORE the WaitForMultipleObjects()
+	 * because it allows to keep API driver's transmit queue full. */
+	err = get_out_flags(sng_wait_objects, in_flags, out_flags, number_of_sangoma_wait_objects, TRUE, &at_least_one_poll_set_flags_out);
+	if(SANG_ERROR(err)){
+		return err;
 	}
 
-	DBG_POLL1("%s(): line: %d: going into WaitForMultipleObjects()\n", __FUNCTION__, __LINE__);
-
-	/* wait untill at least one of the events is signalled OR a 'system_wait_timeout' occured */
-	if(WAIT_TIMEOUT == WaitForMultipleObjects(number_of_sangoma_wait_objects, &hEvents[0], FALSE, system_wait_timeout)){
-		DBG_POLL1("%s(): line: %d: WaitForMultipleObjects() timedout\n", __FUNCTION__, __LINE__);
-		return 0;
+	if(TRUE == at_least_one_poll_set_flags_out){
+		return SANG_STATUS_SUCCESS;
 	}
 
-	DBG_POLL1("%s(): line: %d: returned from WaitForMultipleObjects()\n", __FUNCTION__, __LINE__);
-
-	/* WaitForMultipleObjects() could be waken by a Sangoma or by a non-Sangoma wait object */
-	for(i = 0; i < number_of_sangoma_wait_objects; i++){
-
-		if(sangoma_wait_objects[i].object_type == SANGOMA_WAIT_OBJ){
-
-			if(sangoma_socket_poll(&sangoma_wait_objects[i])){
-				return -5;
-			}
-
-			if(sangoma_wait_objects[i].api_poll.operation_status != SANG_STATUS_SUCCESS){
-
-				DBG_EVNT("Error: %s(): Invalid Operation Status: %s(%d)\n", __FUNCTION__,
-					SDLA_DECODE_SANG_STATUS(sangoma_wait_objects[i].api_poll.operation_status), 
-					sangoma_wait_objects[i].api_poll.operation_status);
-				return -6;
-			}
-
-			if(sangoma_wait_objects[i].api_poll.poll_events_bitmap){
-				sangoma_wait_objects[i].flags_out = sangoma_wait_objects[i].api_poll.poll_events_bitmap;
-			}
-		}
+	/* wait untill at least one of the events is signaled OR a 'system_wait_timeout' occured */
+	if (WAIT_TIMEOUT == WaitForMultipleObjects(number_of_internal_signaling_objects, &hEvents[0], FALSE, system_wait_timeout)){
+		return SANG_STATUS_APIPOLL_TIMEOUT;
 	}
 
-	return 2;
+	/* WaitForMultipleObjects() was waken by a Sangoma or by a non-Sangoma wait object. */
+	err = get_out_flags(sng_wait_objects, in_flags, out_flags, number_of_sangoma_wait_objects, TRUE, NULL);
+	if(SANG_ERROR(err)){
+		return err;
+	}
+
+	return SANG_STATUS_SUCCESS;
 #else
-	/* I dont like that much the current state of things, the user of libsangoma is expected to build the
-	array of sangoma wait objects and then we create the poll array, ideally we should provide a 
-	helper API (sangoma_add_waitable(waitable, array)) and then sangoma_socket_waitfor_many just receives
-	this array (which of course should already have a built in poll array ready to go) */
-	/* in order to implement sangoma_signal_wait_obj we need an additional fd for each sangoma obj */ 
-	struct pollfd pfds[number_of_sangoma_wait_objects*2];
-  char dummy_buf[1];
-	int signal_count = 0;
+	struct pollfd pfds[number_of_sangoma_wait_objects*2]; /* we need twice as many polls because of the sangoma signalable objects */
+	char dummy_buf[1];
 	int res;
+	j = 0;
 
 	memset(pfds, 0, sizeof(pfds));
 
 	for(i = 0; i < number_of_sangoma_wait_objects; i++){
-		pfds[i].fd = sangoma_wait_objects[i].fd;
-		pfds[i].events = sangoma_wait_objects[i].flags_in;
-		if (sangoma_wait_objects[i].signal_read_fd != INVALID_HANDLE_VALUE) {
-			pfds[number_of_sangoma_wait_objects+signal_count].fd = sangoma_wait_objects[i].signal_read_fd;
-			pfds[number_of_sangoma_wait_objects+signal_count].events = POLLIN;
-			signal_count++;
+
+		if (SANGOMA_OBJ_HAS_DEVICE(sng_wait_objects[i])) {
+			pfds[i].fd = sng_wait_objects[i]->fd;
+			pfds[i].events = in_flags[i];
+		}
+
+		if (SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_objects[i])) {
+			pfds[number_of_sangoma_wait_objects+j].fd = sng_wait_objects[i]->signal_read_fd;
+			pfds[number_of_sangoma_wait_objects+j].events = POLLIN;
+			j++;
 		}
 	}
 
 	poll_try_again:
 
-	res = poll(pfds, (number_of_sangoma_wait_objects + signal_count), system_wait_timeout);
+	res = poll(pfds, (number_of_sangoma_wait_objects + j), system_wait_timeout);
 	if (res > 0) {
 		for(i = 0; i < number_of_sangoma_wait_objects; i++){
-			sangoma_wait_objects[i].flags_out = pfds[i].revents;
-			/* should we do something extra for signalled objects? */
+			out_flags[i] = pfds[i].revents;
 		}
-		for(i = 0; i < signal_count; i++){
-			/* should we do something extra for signalled objects? */
+		for(i = 0; i < j; i++){
+			/* TODO: we must do something extra for signalled objects like setting a flag.
+			 * current user of the SANGOMA_OBJ_IS_SIGNALABLE feature is Netborder and they dont
+			 * need to know which object was signaled. If we want to know which object was signaled
+			 * we need a new libsangoma API sangoma_wait_obj_is_signaled() where in Windows we can
+			 * use WaitForSingleObject to test the signaled state and in Linux we can set a flag in
+			 * sng_wait_obj
+			 * */
 			if (pfds[number_of_sangoma_wait_objects+i].revents & POLLIN) {
 				/* read and discard the signal byte */
 				read(pfds[number_of_sangoma_wait_objects+i].fd, &dummy_buf, 1);
@@ -582,36 +749,27 @@ int _SAPI_CALL sangoma_socket_waitfor_many(sangoma_wait_obj_t sangoma_wait_objec
 		/* TODO: decrement system_wait_timeout */
 		goto poll_try_again;
 	}
-
-	return res;
+	if (res < 0) {
+		return SANG_STATUS_GENERAL_ERROR;
+	}
+	if (res == 0) {
+		return SANG_STATUS_APIPOLL_TIMEOUT;
+	}
+	return SANG_STATUS_SUCCESS;
 #endif
 }
 
 
 /*!
-  \fn int sangoma_socket_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int timeout, int flags_in, unsigned int *flags_out)
-  \brief Wait for a single file descriptor - poll()
+  \fn sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int32_t inflags, int32_t *outflags, int32_t timeout)
+  \brief Wait for a single waitable object
   \param sangoma_wait_obj pointer to array of file descriptors to wait for
   \param timeout timeout in miliseconds in case of no event
-  \param flags_in events to wait for (read/write/event)
-  \param flags_out events that occured (read/write/event)
-  \return negative: error,  0: timeout, positive: event occured check in *flags_out
+  \return SANG_STATUS_APIPOLL_TIMEOUT: timeout, SANG_STATUS_SUCCESS: event occured use sangoma_wait_obj_get_out_flags to check or error status
 */
-int _SAPI_CALL sangoma_socket_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int timeout, int flags_in, unsigned int *flags_out)
+sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, uint32_t inflags, uint32_t *outflags, int32_t timeout)
 {
-	int err;
-
-	sangoma_wait_obj->flags_in = flags_in;
-
-	err = sangoma_socket_waitfor_many(sangoma_wait_obj, 1, timeout);
-
-	if(err < 0 || err == 0){
-		return err;
-	}
-
-	*flags_out = sangoma_wait_obj->flags_out;
-
-	return 1;
+	return sangoma_waitfor_many(&sangoma_wait_obj, &inflags, outflags, 1, timeout);
 }
 
 
@@ -622,7 +780,7 @@ int _SAPI_CALL sangoma_socket_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int 
 
 int _SAPI_CALL sangoma_span_chan_toif(int span, int chan, char *interface_name)
 {
-#if defined(WIN32)
+#if defined(__WINDOWS__)
 /* FIXME: Not implemented */
 	return -1;
 #else
@@ -664,7 +822,7 @@ int _SAPI_CALL sangoma_interface_toi(char *interface_name, int *span, int *chan)
 
 int _SAPI_CALL sangoma_interface_wait_up(int span, int chan, int sectimeout)
 {
-#ifdef WIN32
+#if defined(__WINDOWS__)
   /* Windows does not need to wait for interfaces to come up */
   return 0;
 #else
@@ -677,7 +835,7 @@ int _SAPI_CALL sangoma_interface_wait_up(int span, int chan, int sectimeout)
   if (sectimeout >= 0 && gettimeofday(&endtime, NULL)) {
     return -1;
   }
-	snprintf(interface_name, sizeof(interface_name), "/dev/wanpipe%d_if%d", span, chan);
+  snprintf(interface_name, sizeof(interface_name), "/dev/" WP_INTERFACE_NAME_FORM, span, chan);
   endtime.tv_sec += sectimeout;
   do {
     counter = 0;
@@ -685,9 +843,8 @@ int _SAPI_CALL sangoma_interface_wait_up(int span, int chan, int sectimeout)
       poll(0, 0, 100); // test in 100ms increments
       counter++;
     }
-    if (!rc) break;
+    if (!rc || errno != ENOENT) break;
     if (gettimeofday(&curtime, NULL)) {
-      fprintf(stderr, "two!\n");
       return -1;
     }
   } while (sectimeout < 0 || timercmp(&endtime, &curtime,>));
@@ -736,7 +893,6 @@ sng_fd_t _SAPI_CALL sangoma_open_api_span_chan(int span, int chan)
 
 #if defined(__WINDOWS__)
 	if(fd == INVALID_HANDLE_VALUE){
-		//DBG_EVNT("Span: %d, chan: %d: is not running, consider 'busy'\n", span, chan);
 		return fd;
 	}
 #else
@@ -770,7 +926,7 @@ sng_fd_t _SAPI_CALL __sangoma_open_api_span_chan(int span, int chan)
 	/* Form the Interface Name from span and chan number (i.e. wanpipe1_if1). */
 	_snprintf(tmp_fname, DEV_NAME_LEN, WP_INTERFACE_NAME_FORM, span, chan);
 
-#if defined(WIN32)
+#if defined(__WINDOWS__)
 	_snprintf(fname , FNAME_LEN, "\\\\.\\%s", tmp_fname);
 	return CreateFile(	fname, 
 						GENERIC_READ | GENERIC_WRITE, 
@@ -781,7 +937,6 @@ sng_fd_t _SAPI_CALL __sangoma_open_api_span_chan(int span, int chan)
 						(HANDLE)NULL
 						);
 #else
-	//sprintf(fname,"/dev/wanpipe%d_if%d",span,chan);
 	sprintf(fname,"/dev/%s", tmp_fname);
 
 	return open(fname, O_RDWR);
@@ -790,16 +945,27 @@ sng_fd_t _SAPI_CALL __sangoma_open_api_span_chan(int span, int chan)
 
 sng_fd_t _SAPI_CALL sangoma_open_api_ctrl(void)
 {
-#if defined(WIN32)
-	sng_fd_t fd = INVALID_HANDLE_VALUE;
-#pragma message("sangoma_open_api_ctrl: Not support on Windows")
+   	char fname[FNAME_LEN], tmp_fname[FNAME_LEN];
+
+	/* Form the Ctrl Device Name. */
+	_snprintf(tmp_fname, DEV_NAME_LEN, WP_CTRL_DEV_NAME);
+
+#if defined(__WINDOWS__)
+	_snprintf(fname , FNAME_LEN, "\\\\.\\%s", tmp_fname);
+
+	return CreateFile(	fname, 
+						GENERIC_READ | GENERIC_WRITE, 
+						FILE_SHARE_READ | FILE_SHARE_WRITE,
+						(LPSECURITY_ATTRIBUTES)NULL, 
+						OPEN_EXISTING,
+						FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH,
+						(HANDLE)NULL
+						);
 #else
-	sng_fd_t fd=-1;
+	sprintf(fname,"/dev/%s", tmp_fname);
 
-	fd = open("/dev/wanpipe_ctrl", O_RDWR);
+	return open(fname, O_RDWR);
 #endif
-
-    return fd;
 }
 
 
@@ -834,7 +1000,7 @@ sng_fd_t _SAPI_CALL sangoma_open_api_span(int span)
 
 		fd = sangoma_open_api_span_chan(span, i);
 
-#if defined(WIN32)
+#if defined(__WINDOWS__)
 		if(fd != INVALID_HANDLE_VALUE){
 #else
 		if (fd >= 0) {
@@ -858,7 +1024,7 @@ sng_fd_t _SAPI_CALL sangoma_open_api_span(int span)
 */
 void _SAPI_CALL sangoma_close(sng_fd_t *fd)
 {
-#if defined(WIN32)
+#if defined(__WINDOWS__)
 	if(	*fd != INVALID_HANDLE_VALUE){
 		CloseHandle(*fd);
 		*fd = INVALID_HANDLE_VALUE;
@@ -881,19 +1047,19 @@ int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *data
 {
 	int rx_len=0;
 
-#if defined(WIN32)
+#if defined(__WINDOWS__)
 	wp_api_hdr_t	*rx_hdr = (wp_api_hdr_t*)hdrbuf;
 	wp_api_element_t wp_api_element;
 
 	if(hdrlen != sizeof(wp_api_hdr_t)){
 		//error
-		DBG_EVNT("Error: %s(): invalid size of user's 'header buffer'. Should be 'sizeof(wp_api_hdr_t)'.\n", __FUNCTION__);
+		DBG_ERR("hdrlen (%i) != sizeof(wp_api_hdr_t) (%i)\n", hdrlen, sizeof(wp_api_hdr_t));
 		return -1;
 	}
 
 	if(DoReadCommand(fd, &wp_api_element)){
 		//error
-		DBG_EVNT("Error: %s(): DoReadCommand() failed! Check messages log.\n", __FUNCTION__);
+		DBG_ERR("DoReadCommand() failed! Check messages log.\n");
 		return -4;
 	}
 
@@ -910,8 +1076,8 @@ int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *data
 		}
 		break;
 	default:
-		/* note that SANG_STATUS_DEVICE_BUSY is NOT an error! */
-		if(0)DBG_EVNT("Error: %s(): Operation Status: %s(%d)\n", __FUNCTION__, 
+		/* note that SANG_STATUS_NO_DATA_AVAILABLE is NOT an error! */
+		if(0)DBG_ERR("Operation Status: %s(%d)\n",
 			SDLA_DECODE_SANG_STATUS(rx_hdr->operation_status), rx_hdr->operation_status);
 		return -5;
 	}
@@ -932,7 +1098,7 @@ int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *data
 	msg.msg_iovlen=2;
 	msg.msg_iov=iov;
 
-	rx_len = read(fd,&msg,datalen+hdrlen);
+	rx_len = read(fd,&msg,sizeof(msg));
 
 	if (rx_len <= sizeof(wp_api_hdr_t)){
 		return -EINVAL;
@@ -949,17 +1115,16 @@ int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *dat
 	wp_api_hdr_t *wp_api_hdr = hdrbuf;
 
 	if (hdrlen != sizeof(wp_api_hdr_t)) {
-		DBG_ERR("Error: sangoma_writemsg() failed! hdrlen (%i) != sizeof(wp_api_hdr_t) (%i)\n",
-						hdrlen,sizeof(wp_api_hdr_t));
-		wp_api_hdr->operation_status = SANG_STATUS_TX_HDR_TOO_SHORT;
+		/* error. Possible cause is a mismatch between versions of API header files. */
+		DBG_ERR("hdrlen (%i) != sizeof(wp_api_hdr_t) (%i)\n", hdrlen, sizeof(wp_api_hdr_t));
 		return -1;
 	}
 
-#if defined(WIN32)
+#if defined(__WINDOWS__)
 	//queue data for transmission
 	if(DoWriteCommand(fd, databuf, datalen, hdrbuf, hdrlen)){
 		//error
-		DBG_EVNT("Error: DoWriteCommand() failed!! Check messages log.\n");
+		DBG_ERR("DoWriteCommand() failed!! Check messages log.\n");
 		return -1;
 	}
 
@@ -971,14 +1136,13 @@ int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *dat
 		bsent = datalen;
 		break;
 	default:
-		DBG_EVNT("Error: %s(): Operation Status: %s(%d)\n", __FUNCTION__, 
+		DBG_ERR("Operation Status: %s(%d)\n",
 			SDLA_DECODE_SANG_STATUS(wp_api_hdr->operation_status), wp_api_hdr->operation_status);
 		break;
 	}//switch()
 #else
 	struct msghdr msg;
 	struct iovec iov[2];
-	wp_api_hdr_t	*tx_el=hdrbuf;
 
 	memset(&msg,0,sizeof(struct msghdr));
 
@@ -994,18 +1158,18 @@ int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *dat
 	bsent = write(fd,&msg,datalen+hdrlen);
 
 	if (bsent == (datalen+hdrlen)){
-		tx_el->wp_api_hdr_operation_status=SANG_STATUS_SUCCESS;
+		wp_api_hdr->wp_api_hdr_operation_status=SANG_STATUS_SUCCESS;
 		bsent-=sizeof(wp_api_hdr_t);
 	} else if (errno == EBUSY){
-		tx_el->wp_api_hdr_operation_status=SANG_STATUS_DEVICE_BUSY;
+		wp_api_hdr->wp_api_hdr_operation_status=SANG_STATUS_DEVICE_BUSY;
 	} else {
-		tx_el->wp_api_hdr_operation_status=SANG_STATUS_IO_ERROR;
+		wp_api_hdr->wp_api_hdr_operation_status=SANG_STATUS_IO_ERROR;
 	}
-	tx_el->wp_api_hdr_data_length=bsent;
+	wp_api_hdr->wp_api_hdr_data_length=bsent;
 
 	//FIXME - THIS SHOULD BE DONE IN KERNEL
-        tx_el->wp_api_tx_hdr_max_queue_length=16;
-        tx_el->wp_api_tx_hdr_number_of_frames_in_queue=0;
+        wp_api_hdr->wp_api_tx_hdr_max_queue_length=16;
+        wp_api_hdr->wp_api_tx_hdr_number_of_frames_in_queue=0;
 
 #endif
 	return bsent;
@@ -1029,7 +1193,7 @@ int _SAPI_CALL sangoma_cmd_exec(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
 
-#if defined(WIN32)
+#if defined(__WINDOWS__)
 	err = tdmv_api_ioctl(fd, &tdm_api->wp_cmd);
 #else
 	err = ioctl(fd,WANPIPE_IOCTL_API_CMD,&tdm_api->wp_cmd);
@@ -2056,11 +2220,16 @@ static int sangoma_port_cfg_ioctl(sng_fd_t fd, port_cfg_t *port_cfg)
 #endif
 }
 
+/* open wanpipe configuration device */
 sng_fd_t _SAPI_CALL sangoma_open_driver_ctrl(int port_no)
 {
-#if defined(WIN32)
-   	char fname[FNAME_LEN];
-	_snprintf(fname , FNAME_LEN, "\\\\.\\wanpipe%d", port_no);
+	char fname[FNAME_LEN], tmp_fname[FNAME_LEN];
+
+#if defined(__WINDOWS__)
+	/* Form the Config Device Name (i.e. wanpipe1, wanpipe2,...). */
+	_snprintf(tmp_fname, DEV_NAME_LEN, WP_PORT_NAME_FORM, port_no);
+	_snprintf(fname, FNAME_LEN, "\\\\.\\%s", tmp_fname);
+
 	return CreateFile(	fname, 
 						GENERIC_READ | GENERIC_WRITE, 
 						FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -2070,7 +2239,12 @@ sng_fd_t _SAPI_CALL sangoma_open_driver_ctrl(int port_no)
 						(HANDLE)NULL
 						);
 #else
-	return open("/dev/wanpipe", O_RDWR);
+	/* Form the Config Device Name. ("/dev/wanpipe") */
+	_snprintf(tmp_fname, DEV_NAME_LEN, WP_CONFIG_DEV_NAME);
+
+	sprintf(fname,"/dev/%s", tmp_fname);
+
+	return open(fname, O_RDWR);
 #endif
 }
 
@@ -2129,8 +2303,13 @@ int _SAPI_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *p
 		return err;
 	}
 
-	if (port_mgmnt->operation_status != SANG_STATUS_SUCCESS ) {
-		err=port_mgmnt->operation_status;
+	if (port_mgmnt->operation_status != SANG_STATUS_SUCCESS){
+
+		if(port_mgmnt->operation_status == SANG_STATUS_CAN_NOT_STOP_DEVICE_WHEN_ALREADY_STOPPED) {
+			err = 0;
+		}else{
+			err = port_mgmnt->operation_status;
+		}
 	}
 
 	return err;

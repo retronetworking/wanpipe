@@ -35,53 +35,58 @@
 #include "libsangoma.h"
 #include "lib_api.h"		
 
-u_int32_t		poll_events_bitmap = 0;
+static u_int32_t	poll_events_bitmap = 0;
 
 /*!
   \def TEST_NUMBER_OF_OBJECTS
   \brief Number of wait objects to define in object array.
 
   Objects are used to wait on file descripotrs.
-  Usually there is a one wait object per file descriptor.
+  Usually there is one wait object per file descriptor.
 
-  In this example there is one a single file descriptor
+  In this example there is a single file descriptor and a
+  single wait object.
 */
-#define TEST_NUMBER_OF_OBJECTS 32
+#define TEST_NUMBER_OF_OBJECTS 1
 
-sangoma_wait_obj_t sangoma_wait_objects[TEST_NUMBER_OF_OBJECTS];
-wp_api_element_t Rx_data[TEST_NUMBER_OF_OBJECTS];
-wp_api_element_t Tx_data[TEST_NUMBER_OF_OBJECTS];
+static void *sangoma_wait_objects[TEST_NUMBER_OF_OBJECTS];
 
-/* IOCTL management structures and variables */
-/* Warning: non-thread safe globals. Ok for an example but not in production. */
-wan_udp_hdr_t	wan_udp;
-wanpipe_api_t	tdm_api; 
+/* This example application has only a single execution thread - it is safe
+ * to use a global buffer for received data and for data to be transmitted. */
+static unsigned char rxdata[MAX_NO_DATA_BYTES_IN_FRAME];
+static unsigned char txdata[MAX_NO_DATA_BYTES_IN_FRAME];
 
+typedef struct sangoma_chan {
+	int spanno;
+	int channo;
+} sangoma_chan_t;
+sangoma_chan_t sangoma_channels[TEST_NUMBER_OF_OBJECTS];
+
+/* Warning: non-thread safe globals. Ok for this single-thread example but not in production. */
 unsigned char rx_rbs_bits = WAN_RBS_SIG_A;
-
 FILE	*pRxFile;
+int		application_termination_flag = 0;
 
 /*****************************************************************
  * Prototypes
  *****************************************************************/
 
 int __cdecl main(int argc, char* argv[]);
-int open_sangoma_devices(int *open_device_counter);
+int open_sangoma_device(void);
 void handle_span_chan(int open_device_counter);
 int handle_tdm_event(uint32_t dev_index);
-int handle_data(uint32_t	dev_index);
-int read_data(uint32_t dev_index);
-int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_data);
+int handle_data(uint32_t dev_index, int flags_out);
+int read_data(uint32_t dev_index, wp_api_hdr_t *rx_hdr, void *rx_buffer, int rx_buffer_length);
+int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer);
 int dtmf_event(sng_fd_t fd,unsigned char digit,unsigned char type,unsigned char port);
 int rbs_event(sng_fd_t fd,unsigned char rbs_bits);
 int rxhook_event(sng_fd_t fd,unsigned char hook_state);
 int rxring_event(sng_fd_t fd,unsigned char ring_state);
 int ringtrip_event (sng_fd_t fd, unsigned char ring_state);
-void print_rx_data(unsigned char *data, int	datalen);
 int write_data_to_file(unsigned char *data,	unsigned int data_length);
-void cleanup(int interface_no);
+void cleanup(void);
 
-#ifdef WIN32
+#ifdef __WINDOWS__
 BOOL TerminateHandler(DWORD dwCtrlType);
 #else
 void TerminateHandler(int);
@@ -98,7 +103,8 @@ void TerminateHandler(int);
   \param datalen size of data buffer
   \return void
 */
-void print_rx_data(unsigned char *data, int	datalen)
+void print_rxdata(unsigned char *data, int	datalen); /* dont remove prototype, gcc complains */
+void print_rxdata(unsigned char *data, int	datalen)
 {
 	int i;
 
@@ -125,35 +131,38 @@ void print_rx_data(unsigned char *data, int	datalen)
   \fn int read_data(uint32_t dev_index)
   \brief Read data buffer from a device
   \param dev_index device index number associated with device file descriptor
+  \param rx_hdr pointer to api header
+  \param rx_buffer pointer to a buffer where recived data will be stored
+  \param rx_buffer_length maximum length of rx_buffer
   \return 0 - Ok otherwise Error
- 
 */
-int read_data(uint32_t dev_index)
+int read_data(uint32_t dev_index, wp_api_hdr_t *rx_hdr, void *rx_buffer, int rx_buffer_length)
 {
-	wp_api_element_t	*rx_el	= &Rx_data[dev_index];
-	wp_api_hdr_t		*rx_hdr = &rx_el->hdr;
-	sng_fd_t			dev_fd	= sangoma_wait_objects[dev_index].fd;
-	int					Rx_lgth = 0;
-	static int			Rx_count= 0;
+	sng_fd_t	dev_fd	 = sangoma_wait_obj_get_fd(sangoma_wait_objects[dev_index]);
+	sangoma_chan_t *chan = sangoma_wait_obj_get_context(sangoma_wait_objects[dev_index]);		
+	int			Rx_lgth = 0;
+	static int	Rx_count= 0;
+	wanpipe_api_t tdm_api; 
 
+	memset(&tdm_api, 0x00, sizeof(tdm_api));
 	memset(rx_hdr, 0, sizeof(wp_api_hdr_t));
 
 	/* read the message */
 	Rx_lgth = sangoma_readmsg(
 					dev_fd,
-					rx_hdr,						/* header buffer */
-					sizeof(wp_api_hdr_t),		/* header size */
-					rx_el->data,				/* data buffer */
-					MAX_NO_DATA_BYTES_IN_FRAME,	/* data BUFFER size */
+					rx_hdr,					/* header buffer */
+					sizeof(wp_api_hdr_t),	/* header size */
+					rx_buffer,				/* data buffer */
+					rx_buffer_length,		/* data BUFFER size */
 					0);   
 	if(Rx_lgth <= 0) {
 		printf("Span: %d, Chan: %d: Error receiving data!\n", 
-			sangoma_wait_objects[dev_index].span, sangoma_wait_objects[dev_index].chan);
+			chan->spanno, chan->channo);
 		return 1;
 	}
 
 	if (verbose){
-		print_rx_data(rx_el->data, Rx_lgth);
+		print_rxdata(rx_buffer, Rx_lgth);
 	}
 			
 	/* use Rx_counter as "write" events trigger: */
@@ -169,12 +178,14 @@ int read_data(uint32_t dev_index)
 			rx_rbs_bits = WAN_RBS_SIG_A;
 		}
 		printf("Writing RBS bits (0x%X)...\n", rx_rbs_bits);
-		sangoma_tdm_write_rbs(dev_fd, &tdm_api, sangoma_wait_objects[dev_index].chan, rx_rbs_bits);
+		sangoma_tdm_write_rbs(dev_fd, &tdm_api, 
+					chan->channo,
+					rx_rbs_bits);
 	}
 
 	/* if user needs Rx data to be written into a file: */
 	if(files_used & RX_FILE_USED){
-		write_data_to_file(rx_el->data, Rx_lgth);
+		write_data_to_file(rx_buffer, Rx_lgth);
 	}
 
 	return 0;
@@ -188,9 +199,10 @@ int read_data(uint32_t dev_index)
   \param tx_data pointer to a data buffer 
   \return 0 - Ok otherwise Error
 */
-int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_data)
+int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer)
 {
-	sng_fd_t	dev_fd	= sangoma_wait_objects[dev_index].fd;
+	sng_fd_t	dev_fd	= sangoma_wait_obj_get_fd(sangoma_wait_objects[dev_index]);
+	sangoma_chan_t *chan = sangoma_wait_obj_get_context(sangoma_wait_objects[dev_index]);
 	int			err;
 	static int	Tx_count = 0;
 
@@ -199,13 +211,14 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_data)
 				dev_fd,
 				tx_hdr,					/* header buffer */
 				sizeof(wp_api_hdr_t),	/* header size */
-				tx_data,				/* data buffer */
+				tx_buffer,				/* data buffer */
 				tx_hdr->data_length,	/* DATA size */
 				0);
 
 	if (err <= 0){
 		printf("Span: %d, Chan: %d: Failed to send!\n", 
-			sangoma_wait_objects[dev_index].span, sangoma_wait_objects[dev_index].chan);
+			chan->spanno, 
+			chan->channo);
 		return -1;
 	}
 	
@@ -232,66 +245,60 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_data)
 }
 
 /*!
-  \fn int handle_data(uint32_t	dev_index)
+  \fn int handle_data(uint32_t	dev_index, int flags_out)
   \brief Read data buffer from the device and transmit it back down.
   \param dev_index device index number associated with device file descriptor
   \return 0 - Ok  otherwise Error
 
-   Read data buffer from a device. After a successful read, transmit
-   the same data down the device.  This function will have an ECHO effect.
-   Everything received will be transmitted down.
+   Read data buffer from a device.
 */
-int handle_data(uint32_t	dev_index)
+int handle_data(uint32_t dev_index, int flags_out)
 {
-	wp_api_element_t	*rx_el			= &Rx_data[dev_index];
-	wp_api_element_t	*tx_el			= &Tx_data[dev_index];
-	uint32_t			api_poll_status = sangoma_wait_objects[dev_index].flags_out;
+	wp_api_hdr_t	rxhdr;
 
-	memset(rx_el, 0, sizeof(wp_api_element_t));
+	memset(&rxhdr, 0, sizeof(rxhdr));
 
 #if 0
 	printf("%s(): span: %d, chan: %d\n", __FUNCTION__,
 		sangoma_wait_objects[dev_index].span, sangoma_wait_objects[dev_index].chan);
 #endif
 
-	if(api_poll_status & POLLIN){
-
-		if(read_data(dev_index) == 0){
-
+	if(flags_out & POLLIN){
+		if(read_data(dev_index, &rxhdr, rxdata, MAX_NO_DATA_BYTES_IN_FRAME) == 0){
 			if(rx2tx){
 				/* Send back received data (create a "software loopback"), just a test. */
-				write_data(dev_index, &rx_el->hdr, rx_el->data);
+				return write_data(dev_index, &rxhdr, rxdata);
 			}
 		}
 	}
 
-	if((api_poll_status & POLLOUT) && write_enable){
+	if( (flags_out & POLLOUT) && write_enable ){
 	
-		wp_api_hdr_t *api_tx_hdr = &tx_el->hdr;
-		uint16_t Tx_length = 128;/* 128 is just an example */
+		wp_api_hdr_t txhdr;
 		static unsigned char tx_test_byte = 0;
 
-		api_tx_hdr->data_length = Tx_length; 
-		memset(tx_el->data, tx_test_byte, Tx_length);
-					
-		if(write_data(dev_index, api_tx_hdr, tx_el->data) == 0){
+		memset(&txhdr, 0, sizeof(txhdr));
+		txhdr.data_length = (unsigned short)tx_size;/* use '-txsize' command line option to change 'tx_size' */
 
+		/* set data which will be transmitted */
+		memset(txdata, tx_test_byte, txhdr.data_length);
+					
+		if(write_data(dev_index, &txhdr, txdata) == 0){
 			tx_test_byte++;
 		}
-
-	}/* if() */
+	}
 	return 0;
 }
 
 /*!
-  \fn int decode_api_event (wp_api_event_t *wp_tdm_api_event, sangoma_wait_obj_t *sangoma_wait_obj)
+  \fn int decode_api_event (wp_api_event_t *wp_tdm_api_event)
   \brief Handle API Event
   \param wp_tdm_api_event
-  \param sangoma_wait_obj
 */
-static void decode_api_event(wp_api_event_t *wp_tdm_api_event, sangoma_wait_obj_t *sangoma_wait_obj)
+static void decode_api_event(wp_api_event_t *wp_tdm_api_event)
 { 
-	printf("decode_api_event(): span: %d, chan: %d\n", wp_tdm_api_event->span, wp_tdm_api_event->channel);
+	printf("%s(): span: %d, chan: %d\n", __FUNCTION__,
+		wp_tdm_api_event->span, wp_tdm_api_event->channel);
 
 	switch(wp_tdm_api_event->wp_api_event_type)
 	{
@@ -367,19 +374,20 @@ static void decode_api_event(wp_api_event_t *wp_tdm_api_event, sangoma_wait_obj_
 */
 int handle_tdm_event(uint32_t dev_index)
 {
-	sng_fd_t	dev_fd = sangoma_wait_objects[dev_index].fd;
+	wanpipe_api_t	tdm_api; 
+	sng_fd_t		dev_fd = sangoma_wait_obj_get_fd(sangoma_wait_objects[dev_index]);
+
 #if 0
-	printf("sangoma_wait_objects[%d].flags_out:", dev_index);
-	print_poll_event_bitmap(sangoma_wait_objects[dev_index].flags_out);
-	printf("\n");
+	printf("%s(): dev_index: %d, dev_fd: 0x%p\n", __FUNCTION__, dev_index, dev_fd);
 #endif
+
+	memset(&tdm_api, 0x00, sizeof(tdm_api));
 
 	if(sangoma_read_event(dev_fd, &tdm_api)){
 		return 1;
 	}
 
-	decode_api_event(&tdm_api.wp_cmd.event, &sangoma_wait_objects[dev_index]);
-
+	decode_api_event(&tdm_api.wp_cmd.event);
 	return 0;
 }
 
@@ -397,48 +405,58 @@ int handle_tdm_event(uint32_t dev_index)
 void handle_span_chan(int open_device_counter)
 {
 	int	iResult, i;
+	u_int32_t input_flags[TEST_NUMBER_OF_OBJECTS];
+	u_int32_t output_flags[TEST_NUMBER_OF_OBJECTS];
 
-	printf("\n\nSpan/Chan Handler: RxEnable=%s, TxEnable=%s, TxCnt=%i, TxLen=%i\n",
-		(read_enable? "Yes":"No"), (write_enable?"Yes":"No"),tx_cnt,tx_size);	
+	printf("\n\nSpan/Chan Handler: RxEnable=%s, TxEnable=%s, TxCnt=%i, TxLen=%i, rx2tx=%s\n",
+		(read_enable? "Yes":"No"), (write_enable?"Yes":"No"),tx_cnt,tx_size, (rx2tx?"Yes":"No"));	
+
+	for (i = 0; i < open_device_counter; i++) {
+		input_flags[i] = poll_events_bitmap;
+	}
 
 	/* Main Rx/Tx/Event loop */
-	for(;;) 
+	while(!application_termination_flag) 
 	{	
-		iResult = sangoma_socket_waitfor_many(sangoma_wait_objects, 
-							open_device_counter /* number of wait objects */,
-							2000/* 2 sec wait */);
-			
-		if(iResult < 0){
-			/* error */
-			printf("Error: iResult: %d\n", iResult);
-			break;
-		}
-
-		if(iResult == 0){
-			/* timeout */
+		iResult = sangoma_waitfor_many(sangoma_wait_objects, 
+					       input_flags,
+					       output_flags,
+				           open_device_counter /* number of wait objects */,
+					       2000 /* wait timeout, in milliseconds */);
+		switch(iResult)
+		{
+		case SANG_STATUS_APIPOLL_TIMEOUT:
+			/* timeout (not an error) */
 			printf("Timeout\n");
 			continue;
+
+		case SANG_STATUS_SUCCESS:
+			for(i = 0; i < open_device_counter; i++){
+
+				/* a wait object was signaled */
+				if(output_flags[i] & POLLPRI){
+					/* got tdm api event */
+					if(handle_tdm_event(i)){
+						printf("Error in handle_tdm_event()!\n");
+					}
+				}
+					
+				if(output_flags[i] & (POLLIN | POLLOUT)){
+					/* rx data OR a free tx buffer available */
+					if(handle_data(i, output_flags[i])){
+						printf("Error in handle_data()!\n");
+					}
+				}
+			}/* for() */
+			break;
+
+		default:
+			/* error */
+			printf("Error: iResult: %s (%d)\n", SDLA_DECODE_SANG_STATUS(iResult), iResult);
+			return;
 		}
 
-		for(i = 0; i < open_device_counter; i++){
-
-			if(sangoma_wait_objects[i].flags_out & POLLPRI){
-				/* got tdm api event */
-				if(handle_tdm_event(i)){
-					printf("Error in handle_tdm_event()!\n");
-				}
-			}
-				
-			if(sangoma_wait_objects[i].flags_out & POLLIN){
-				/* got data */
-				if(handle_data(i)){
-					printf("Error in handle_data()!\n");
-				}
-			}
-
-		}/* for() */
-
-	}/* for() */
+	}/* while() */
 }
 
 /*!
@@ -458,7 +476,7 @@ int write_data_to_file(unsigned char *data, unsigned int data_length)
 	return fwrite(data, 1, data_length, pRxFile);
 }
 
-#ifdef WIN32
+#ifdef __WINDOWS__
 /*
  * TerminateHandler() - this handler is called by the system whenever user tries to terminate
  *						the process with Ctrl+C, Ctrl+Break or closes the console window.
@@ -466,15 +484,10 @@ int write_data_to_file(unsigned char *data, unsigned int data_length)
  */
 BOOL TerminateHandler(DWORD dwCtrlType)
 {
-	int i;
-
 	printf("\nProcess terminated by user request.\n");
-
+	application_termination_flag = 1;
 	/* do the cleanup before exiting: */
-	for(i = 0; i < TEST_NUMBER_OF_OBJECTS; i++){
-		cleanup(i);
-	}
-
+	cleanup();
 	/* return FALSE so the system will call the dafult handler which will terminate the process. */
 	return FALSE;
 }
@@ -486,58 +499,74 @@ BOOL TerminateHandler(DWORD dwCtrlType)
 */
 void TerminateHandler (int sig)
 {
-	int i;
-
 	printf("\nProcess terminated by user request.\n");
-
+	application_termination_flag = 1;
 	/* do the cleanup before exiting: */
-	for(i = 0; i < TEST_NUMBER_OF_OBJECTS; i++){
-		cleanup(i);
-	}
-
+	cleanup();
 	return;
 }
 
 #endif
 
 /*!
-  \fn void cleanup(int dev_no)
+  \fn void cleanup()
   \brief Protperly shutdown single device
   \param dev_no device index number
   \return void
 
 */
-void cleanup(int dev_no)
+void cleanup()
 {
-	printf("cleanup()...\n");
+	int dev_no;
+	sng_fd_t fd;
+	sangoma_chan_t *chan;
+	sangoma_wait_obj_t *sng_wait_object;
+	wanpipe_api_t tdm_api; 
 
-	if(dtmf_enable_octasic == 1){
-		/* Disable dtmf detection on Octasic chip */
-		sangoma_tdm_disable_dtmf_events(sangoma_wait_objects[dev_no].fd, &tdm_api);
+	/* do the cleanup before exiting: */
+	for(dev_no = 0; dev_no < TEST_NUMBER_OF_OBJECTS; dev_no++){
+
+		sng_wait_object = sangoma_wait_objects[dev_no];
+		if(!sng_wait_object){
+			continue;
+		}
+		chan = sangoma_wait_obj_get_context(sng_wait_object);
+		printf("%s(): span: %d, chan: %d ...\n", __FUNCTION__, 
+			chan->channo,
+			chan->spanno);
+
+		fd = sangoma_wait_obj_get_fd(sng_wait_object);
+		memset(&tdm_api, 0x00, sizeof(tdm_api));
+
+		if(dtmf_enable_octasic == 1){
+			/* Disable dtmf detection on Octasic chip */
+			sangoma_tdm_disable_dtmf_events(fd, &tdm_api);
+		}
+
+		if(dtmf_enable_remora == 1){
+			/* Disable dtmf detection on Sangoma's Remora SLIC chip */
+			sangoma_tdm_disable_rm_dtmf_events(fd, &tdm_api);
+		}
+
+		if(remora_hook == 1){
+			sangoma_tdm_disable_rxhook_events(fd, &tdm_api);
+		}
+
+		if(rbs_events == 1){
+			sangoma_tdm_disable_rbs_events(fd, &tdm_api);
+		}
+
+		sangoma_wait_obj_delete(&sng_wait_object);
+
+		sangoma_close(&fd);
+
 	}
-
-	if(dtmf_enable_remora == 1){
-		/* Disable dtmf detection on Sangoma's Remora SLIC chip */
-		sangoma_tdm_disable_rm_dtmf_events(sangoma_wait_objects[dev_no].fd, &tdm_api);
-	}
-
-	if(remora_hook == 1){
-		sangoma_tdm_disable_rxhook_events(sangoma_wait_objects[dev_no].fd, &tdm_api);
-	}
-
-	if(rbs_events == 1){
-    	sangoma_tdm_disable_rbs_events(sangoma_wait_objects[dev_no].fd, &tdm_api);
-	}
-
-	/* call sangoma_close() for EACH open Device Handle */
-	sangoma_close(&sangoma_wait_objects[dev_no].fd);
 }
 
 
 /*!
-  \fn int open_sangoma_devices(int *open_device_counter)
-  \brief Open a single span chan device and return number of devices opened
-  \param open_device_counter returns the number of devices opened
+  \fn int open_sangoma_device()
+  \brief Open a single span chan device
   \return 0 ok otherise error.
 
   This function will open a single span chan.
@@ -549,12 +578,12 @@ void cleanup(int dev_no)
   For each device, configure the chunk size for tx/rx
                    enable events such as DTMF/RBS ...etc
 */
-int open_sangoma_devices(int *open_device_counter)
+int open_sangoma_device()
 {
-	int i, span, chan, err = -1, open_dev_cnt = 0;
+	int span, chan, err = 0, open_dev_cnt = 0;
+	sangoma_status_t status;
 	sng_fd_t	dev_fd = INVALID_HANDLE_VALUE;
-
-	*open_device_counter = 0;
+	wanpipe_api_t tdm_api;
 
 	span = wanpipe_port_no;
 	chan = wanpipe_if_no;
@@ -568,117 +597,92 @@ int open_sangoma_devices(int *open_device_counter)
 		printf("Successfuly opened span %d, chan %d\n", span , chan);
 	}
 
-	if(sangoma_init_wait_obj(&sangoma_wait_objects[open_dev_cnt], dev_fd, span, chan, poll_events_bitmap, SANGOMA_WAIT_OBJ)){
-		printf("Error: Failed to initialize 'sangoma_wait_object' for span %d, chan %d\n", span, chan);
+	memset(&tdm_api, 0x00, sizeof(tdm_api));
+
+	status = sangoma_wait_obj_create(&sangoma_wait_objects[open_dev_cnt], dev_fd, SANGOMA_DEVICE_WAIT_OBJ);
+	if(status != SANG_STATUS_SUCCESS){
+		printf("Error: Failed to create 'sangoma_wait_object'!\n");
 		return 1;
 	}
-	open_dev_cnt++;
+	sangoma_channels[open_dev_cnt].channo = chan;
+	sangoma_channels[open_dev_cnt].spanno = span;
+	sangoma_wait_obj_set_context(sangoma_wait_objects[open_dev_cnt], &sangoma_channels[open_dev_cnt]);
+	/* open_dev_cnt++; */
 
-	*open_device_counter = open_dev_cnt;
-	if(0 == open_dev_cnt){
+	if((err = sangoma_get_full_cfg(dev_fd, &tdm_api))){
 		return 1;
 	}
 
-	for(i = 0; i < open_dev_cnt; i++){
+	if(set_codec_slinear){
+		printf("Setting SLINEAR codec\n");
+		if((err=sangoma_tdm_set_codec(dev_fd, &tdm_api, WP_SLINEAR))){
+			return 1;
+		}
+	}
 
-		printf("HANDLING SPAN %i CHAN %i\n", sangoma_wait_objects[i].span, sangoma_wait_objects[i].chan);
+	if(set_codec_none){
+		printf("Disabling codec\n");
+		if((err=sangoma_tdm_set_codec(dev_fd, &tdm_api, WP_NONE))){
+			return 1;
+		}
+	}
 
-		dev_fd = sangoma_wait_objects[i].fd;
+	if(usr_period){
+		printf("Setting user period: %d\n", usr_period);
+		if((err=sangoma_tdm_set_usr_period(dev_fd, &tdm_api, usr_period))){
+			return 1;
+		}
+	}
 
+	if(set_codec_slinear || usr_period || set_codec_none){
+		/* display new configuration AFTER it was changed */
 		if((err=sangoma_get_full_cfg(dev_fd, &tdm_api))){
-			break;
+			return 1;
 		}
-
-		if(set_codec_slinear){
-			printf("Setting SLINEAR codec\n");
-			if((err=sangoma_tdm_set_codec(dev_fd, &tdm_api, WP_SLINEAR))){
-				break;
-			}
-		}
-
-		if(set_codec_none){
-			printf("Disabling codec\n");
-			if((err=sangoma_tdm_set_codec(dev_fd, &tdm_api, WP_NONE))){
-				break;
-			}
-		}
-
-		if(usr_period){
-			printf("Setting user period: %d\n", usr_period);
-			if((err=sangoma_tdm_set_usr_period(dev_fd, &tdm_api, usr_period))){
-				break;
-			}
-		}
-
-		if(set_codec_slinear || usr_period || set_codec_none){
-			/* display new configuration AFTER it was changed */
-			if((err=sangoma_get_full_cfg(dev_fd, &tdm_api))){
-				break;
-			}
-		}
-
-		if(dtmf_enable_octasic == 1){
-			poll_events_bitmap |= POLLPRI;
-			/* enable dtmf detection on Octasic chip */
-			if((err=sangoma_tdm_enable_dtmf_events(dev_fd, &tdm_api))){
-				break;
-			}
-		}
-
-		if(dtmf_enable_remora == 1){
-			poll_events_bitmap |= POLLPRI;
-			/* enable dtmf detection on Sangoma's Remora SLIC chip (A200 ONLY) */
-			if((err=sangoma_tdm_enable_rm_dtmf_events(dev_fd, &tdm_api))){
-				break;
-			}
-		}
-
-		if(remora_hook == 1){
-			poll_events_bitmap |= POLLPRI;
-			if((err=sangoma_tdm_enable_rxhook_events(dev_fd, &tdm_api))){
-				break;
-			}
-		}
-
-		if(rbs_events == 1){
-			poll_events_bitmap |= POLLPRI;
-    		if((err=sangoma_tdm_enable_rbs_events(dev_fd, &tdm_api, 20))){
-				break;
-			}
-		}
-
-		printf("Device Config RxQ=%i TxQ=%i \n",
-				sangoma_get_rx_queue_sz(dev_fd,&tdm_api),
-				sangoma_get_rx_queue_sz(dev_fd,&tdm_api));
-
-		sangoma_set_rx_queue_sz(dev_fd,&tdm_api,20);
-		sangoma_set_tx_queue_sz(dev_fd,&tdm_api,30);
-
-		printf("Device Config RxQ=%i TxQ=%i \n",
-				sangoma_get_rx_queue_sz(dev_fd,&tdm_api),
-				sangoma_get_tx_queue_sz(dev_fd,&tdm_api));
 	}
- 
-	printf("Enabling Poll Events:\n");
-#ifdef WIN32
-	print_poll_event_bitmap(poll_events_bitmap);
-#endif
+
+	if(dtmf_enable_octasic == 1){
+		poll_events_bitmap |= POLLPRI;
+		/* enable dtmf detection on Octasic chip */
+		if((err=sangoma_tdm_enable_dtmf_events(dev_fd, &tdm_api))){
+			return 1;
+		}
+	}
+
+	if(dtmf_enable_remora == 1){
+		poll_events_bitmap |= POLLPRI;
+		/* enable dtmf detection on Sangoma's Remora SLIC chip (A200 ONLY) */
+		if((err=sangoma_tdm_enable_rm_dtmf_events(dev_fd, &tdm_api))){
+			return 1;
+		}
+	}
+
+	if(remora_hook == 1){
+		poll_events_bitmap |= POLLPRI;
+		if((err=sangoma_tdm_enable_rxhook_events(dev_fd, &tdm_api))){
+			return 1;
+		}
+	}
+
+	if(rbs_events == 1){
+		poll_events_bitmap |= POLLPRI;
+		if((err=sangoma_tdm_enable_rbs_events(dev_fd, &tdm_api, 20))){
+			return 1;
+		}
+	}
+
+	printf("Device Config RxQ=%i TxQ=%i \n",
+		sangoma_get_rx_queue_sz(dev_fd,&tdm_api),
+		sangoma_get_rx_queue_sz(dev_fd,&tdm_api));
+
+	sangoma_set_rx_queue_sz(dev_fd,&tdm_api,20);
+	sangoma_set_tx_queue_sz(dev_fd,&tdm_api,30);
+
+	printf("Device Config RxQ=%i TxQ=%i \n",
+		sangoma_get_rx_queue_sz(dev_fd,&tdm_api),
+		sangoma_get_tx_queue_sz(dev_fd,&tdm_api));
+
 	return err;
-}
-
-/*!
-  \fn void close_sangoma_devices(void)
-  \brief Close all opened devices 
-*/
-void close_sangoma_devices(void)
-{
-	int i;
-
-	for(i = 0; i < TEST_NUMBER_OF_OBJECTS; i++){
-		if(sangoma_wait_objects[i].fd != INVALID_HANDLE_VALUE){
-			cleanup(i);
-		}
-	}
 }
 
 /*!
@@ -689,7 +693,7 @@ void close_sangoma_devices(void)
 */
 int __cdecl main(int argc, char* argv[])
 {
-	int proceed, i, open_device_counter;
+	int proceed, i;
 
 	proceed=init_args(argc,argv);
 	if (proceed != WAN_TRUE){
@@ -708,14 +712,20 @@ int __cdecl main(int argc, char* argv[])
 	signal(SIGHUP,TerminateHandler);
 	signal(SIGTERM,TerminateHandler);
 #endif
-
+	
 	for(i = 0; i < TEST_NUMBER_OF_OBJECTS; i++){
-		sangoma_wait_objects[i].fd = INVALID_HANDLE_VALUE;
+		sangoma_wait_objects[i] = NULL;
 	}
 
 	poll_events_bitmap = 0;
 	if(read_enable	== 1){
 		poll_events_bitmap |= POLLIN;
+	}
+
+	if(write_enable == 1 && rx2tx == 1){
+		/* These two options are mutually exclusive because 'rx2tx' option
+		 * indicates "use Reciever as the timing source for Transmitter". */
+		write_enable = 0;
 	}
 	
 	if(write_enable == 1){
@@ -724,13 +734,15 @@ int __cdecl main(int argc, char* argv[])
 
 	/* Front End connect/disconnect, and other events, such as DTMF... */
 	poll_events_bitmap |= (POLLHUP | POLLPRI);
-
+#if defined(__WINDOWS__)
+	printf("Enabling Poll Events:\n");
+	print_poll_event_bitmap(poll_events_bitmap);
+#endif
 	printf("Connecting to Port/Span: %d, Interface/Chan: %d\n",
 		wanpipe_port_no, wanpipe_if_no);
 
-	memset(&tdm_api,0,sizeof(tdm_api));
 
-	if(open_sangoma_devices(&open_device_counter)){
+	if(open_sangoma_device()){
 		return -1;
 	}
 
@@ -746,10 +758,10 @@ int __cdecl main(int argc, char* argv[])
 		}
 	}
 
-	handle_span_chan(open_device_counter);
+	handle_span_chan(1 /* handle a single device */);
 
 	/* returned from main loop, do the cleanup before exiting: */
-	close_sangoma_devices();
+	cleanup();
 
 	printf("\nSample application exiting.(press any key)\n");
 	_getch();

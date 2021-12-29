@@ -1,14 +1,14 @@
 8
 
 dir
-7678
+7758
 http://192.168.1.168/svn/wanpipe/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel/templates
 http://192.168.1.168/svn/wanpipe
 
 
 
-2009-05-05T20:53:36.734134Z
-7663
+2009-05-26T20:49:14.353940Z
+7738
 jpatel
 
 
@@ -50,6 +50,18 @@ file
 5379
 sangoma
 
+zaptel.conf
+file
+
+
+
+
+2009-04-01T18:10:26.000000Z
+51d35979a9250a27e10f3dad5b207fa3
+2008-09-30T19:07:33.875390Z
+6551
+jpatel
+
 wanpipe.tdm_api.a500
 file
 
@@ -62,18 +74,6 @@ f7e6b821815d114aaf28d8a4c7fb629a
 7608
 jpatel
 has-props
-
-zaptel.conf
-file
-
-
-
-
-2009-04-01T18:10:26.000000Z
-51d35979a9250a27e10f3dad5b207fa3
-2008-09-30T19:07:33.875390Z
-6551
-jpatel
 
 smgbri_start_script
 file
@@ -138,9 +138,6 @@ bc6718840acb69b478124712d300fd79
 7062
 konrad
 
-ss7_a100
-dir
-
 woomera.conf
 file
 
@@ -152,6 +149,9 @@ file
 2007-12-18T22:48:00.000000Z
 5191
 sangoma
+
+ss7_a100
+dir
 
 openzap.conf
 file
@@ -165,9 +165,6 @@ d41d8cd98f00b204e9800998ecf8427e
 7535
 jpatel
 
-ss7_a10u
-dir
-
 zaptel_cfg_script
 file
 
@@ -179,6 +176,9 @@ file
 2007-11-21T22:45:01.000000Z
 5065
 sangoma
+
+ss7_a10u
+dir
 
 wanrouter.rc.template
 file
@@ -247,11 +247,11 @@ file
 
 
 
-2009-04-01T18:10:26.000000Z
-fcc310b16615a3a43ece4ff176b7b3d7
-2008-12-12T00:07:24.918963Z
-7062
-konrad
+2009-05-28T20:51:27.000000Z
+99dc005f3139633186017ab873dd1b01
+2009-05-26T20:49:14.353940Z
+7738
+jpatel
 
 zaptel_cfg_script.FreeBSD
 file

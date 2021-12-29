@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 45
-/svn/libsangoma/!svn/ver/156/trunk/sample_cpp
+/svn/libsangoma/!svn/ver/195/trunk/sample_cpp
 END
 sangoma_port.h
 K 25
@@ -25,13 +25,13 @@ sangoma_interface.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 67
-/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sangoma_interface.cpp
+/svn/libsangoma/!svn/ver/194/trunk/sample_cpp/sangoma_interface.cpp
 END
 sample.suo
 K 25
 svn:wc:ra_dav:version-url
 V 56
-/svn/libsangoma/!svn/ver/156/trunk/sample_cpp/sample.suo
+/svn/libsangoma/!svn/ver/194/trunk/sample_cpp/sample.suo
 END
 sample_linux_compat.h
 K 25
@@ -43,13 +43,13 @@ sangoma_interface.h
 K 25
 svn:wc:ra_dav:version-url
 V 65
-/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sangoma_interface.h
+/svn/libsangoma/!svn/ver/194/trunk/sample_cpp/sangoma_interface.h
 END
 sangoma_port_configurator.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 75
-/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sangoma_port_configurator.cpp
+/svn/libsangoma/!svn/ver/195/trunk/sample_cpp/sangoma_port_configurator.cpp
 END
 compile.bat
 K 25
@@ -79,7 +79,7 @@ sample.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 56
-/svn/libsangoma/!svn/ver/149/trunk/sample_cpp/sample.cpp
+/svn/libsangoma/!svn/ver/184/trunk/sample_cpp/sample.cpp
 END
 sangoma_cthread.h
 K 25
@@ -97,7 +97,7 @@ sample.h
 K 25
 svn:wc:ra_dav:version-url
 V 54
-/svn/libsangoma/!svn/ver/127/trunk/sample_cpp/sample.h
+/svn/libsangoma/!svn/ver/194/trunk/sample_cpp/sample.h
 END
 sangoma_port.cpp
 K 25

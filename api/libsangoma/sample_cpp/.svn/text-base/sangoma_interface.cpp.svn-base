@@ -9,11 +9,14 @@
 
 #define DBG_IFACE	if(1)printf
 #define INFO_IFACE	if(1)printf
-#define ERR_IFACE	if(1)printf
+#define ERR_IFACE	printf("Error: %s(): line:%d :", __FUNCTION__, __LINE__);printf
+#define WARN_IFACE	printf("Warning: %s(): line:%d :", __FUNCTION__, __LINE__);printf
 
 #define IFACE_FUNC() if(1)printf("%s():line:%d\n", __FUNCTION__, __LINE__)
 
-#define DO_COMMAND(wan_udp)	DoManagementCommand(sangoma_wait_obj.fd, &wan_udp);
+#define DO_COMMAND(wan_udp)	DoManagementCommand(sangoma_dev, &wan_udp);
+
+#define NUMBER_OF_WAIT_OBJECTS 1
 
 extern wp_program_settings_t	program_settings;
 
@@ -37,6 +40,7 @@ sangoma_interface::sangoma_interface(int wanpipe_number, int interface_number)
 	is_rbs_monitoring_enabled = 0;
 
 	memset(&wp_api, 0, sizeof(wp_api));
+	sng_wait_obj = NULL;
 
 	//////////////////////////////////////////////////////////////////
 	//receive stuff
@@ -58,10 +62,15 @@ sangoma_interface::sangoma_interface(int wanpipe_number, int interface_number)
 	adapter_type = 0;
 
 #if USE_STELEPHONY_API
-	stelObj = NULL;
+	stelObj = DtmfBuffer = FskCidBuffer = NULL;
+	memset(&scf, 0x00, sizeof(scf));
+	InitializeCriticalSection(&StelTxCriticalSection);
 #endif
 	generate_bit_rev_table();
-
+#if DBG_TIMING
+	memset(&wan_debug_rx_timing, 0x00, sizeof(wan_debug_t));
+	debug_set_timing_info(&wan_debug_rx_timing, 20, 0);
+#endif
 }
 
 sangoma_interface::~sangoma_interface()
@@ -78,14 +87,14 @@ int sangoma_interface::init(callback_functions_t *callback_functions_ptr)
 
 	////////////////////////////////////////////////////////////////////////////
 	//open handle for reading and writing data, for events reception and other commands
-	sng_fd_t tmp_dev_fd = open_api_device();
-    if (tmp_dev_fd == INVALID_HANDLE_VALUE){
+	sangoma_dev = open_api_device();
+    if (sangoma_dev == INVALID_HANDLE_VALUE){
 		ERR_IFACE( "Unable to open %s for Rx/Tx!\n", device_name);
 		return 1;
 	}
 
-	if(sangoma_init_wait_obj(&sangoma_wait_obj, tmp_dev_fd, WanpipeNumber, InterfaceNumber, POLLIN | POLLPRI, SANGOMA_WAIT_OBJ)){
-		ERR_IFACE("Failed to initialize 'sangoma_wait_object' for %s\n", device_name);
+	if(SANG_ERROR(sangoma_wait_obj_create(&sng_wait_obj, sangoma_dev, SANGOMA_DEVICE_WAIT_OBJ_SIG))){
+		ERR_IFACE("Failed to create 'sangoma_wait_object' for %s\n", device_name);
 		return 1;
 	}
 
@@ -122,10 +131,8 @@ int sangoma_interface::init(callback_functions_t *callback_functions_ptr)
 	scf.FSKCallerIDEvent	= callback_functions.FSKCallerIDEvent;
 	scf.DTMFEvent			= callback_functions.DTMFEvent;
 	scf.Q931Event			= callback_functions.Q931Event;
-#if defined(__LINUX__)
 	scf.FSKCallerIDTransmit	= callback_functions.FSKCallerIDTransmit;
-	scf.SwDTMFBuffer		= callback_functions.SwDTMFBuffer;
-#endif
+	scf.SwDTMFBuffer		= callback_functions.SwDtmfTransmit;
 
 	StelSetup(&stelObj, this, &scf);
 	DBG_IFACE("%s(): stelObj: 0x%p\n", __FUNCTION__, stelObj);
@@ -140,14 +147,12 @@ int sangoma_interface::init(callback_functions_t *callback_functions_ptr)
 		if(scf.Q931Event){
 			StelEventControl(stelObj, STEL_EVENT_Q931, STEL_CTRL_CODE_ENABLE, NULL);
 		}
-#if defined(__LINUX__)
 		if(scf.FSKCallerIDTransmit){
 			StelEventControl(stelObj, STEL_FEATURE_FSK_CALLER_ID, STEL_CTRL_CODE_ENABLE, &codec);
 		}
 		if(scf.SwDTMFBuffer){
 			StelEventControl(stelObj, STEL_FEATURE_SW_DTMF, STEL_CTRL_CODE_ENABLE, &codec);
 		}
-#endif
 
     }else{
 		/* Possible reasons:
@@ -158,13 +163,6 @@ int sangoma_interface::init(callback_functions_t *callback_functions_ptr)
 		return 1;
 	}
 #endif//USE_STELEPHONY_API
-	if (program_settings.encode_sw_dtmf) {
-		/* Start a thread to transmit SW-DTMF */
-		if(this->CreateThread(2) == false){
-			ERR_IFACE( "Failed to create Tx thread!!\n");
-			return 1;
-		}
-	}
 
 	IFACE_FUNC();
 	return 0;
@@ -536,7 +534,7 @@ int sangoma_interface::get_operational_stats(wanpipe_chan_stats_t *stats)
 	int err;
 	unsigned char firm_ver, cpld_ver;
 
-	err=sangoma_get_stats(sangoma_wait_obj.fd,&wp_api, NULL);
+	err=sangoma_get_stats(sangoma_dev,&wp_api, NULL);
 	if (err) {
 		return 1;
 	}
@@ -584,7 +582,7 @@ int sangoma_interface::get_operational_stats(wanpipe_chan_stats_t *stats)
 	INFO_IFACE("\tHWEC tone (DTMF) events counter: %u\n",		stats->rx_events_tone);
 	INFO_IFACE( "*********************************\n");
 
-	err=sangoma_get_driver_version(sangoma_wait_obj.fd,&wp_api, NULL);
+	err=sangoma_get_driver_version(sangoma_dev,&wp_api, NULL);
 	if (err) {
 		return 1;
 	}
@@ -594,31 +592,34 @@ int sangoma_interface::get_operational_stats(wanpipe_chan_stats_t *stats)
 				wp_api.wp_cmd.version.minor1,
 				wp_api.wp_cmd.version.minor2);
 
-	err=sangoma_get_firmware_version(sangoma_wait_obj.fd,&wp_api, &firm_ver);
+	err=sangoma_get_firmware_version(sangoma_dev,&wp_api, &firm_ver);
 	if (err) {
 		return 1;
 	}
 	INFO_IFACE("\tFirmware Version: %X\n",
 				firm_ver);
 
-	err=sangoma_get_cpld_version(sangoma_wait_obj.fd,&wp_api, &cpld_ver);
+	err=sangoma_get_cpld_version(sangoma_dev,&wp_api, &cpld_ver);
 	if (err) {
 		return 1;
 	}
 	INFO_IFACE("\tCPLD Version: %X\n",
 				cpld_ver);
-	
+
+#if DBG_TIMING
+	debug_print_dbg_struct(&this->wan_debug_rx_timing, "sangoma_interface::read_data");
+#endif
 	return 0;
 }
 
 int sangoma_interface::flush_operational_stats()
 {
-    return sangoma_flush_stats(sangoma_wait_obj.fd,&wp_api);
+    return sangoma_flush_stats(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::flush_tx_buffers()
 {
-	return sangoma_flush_bufs(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_flush_bufs(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::enable_rbs_monitoring()
@@ -657,7 +658,7 @@ char sangoma_interface::get_rbs(rbs_management_t *rbs_management_ptr)
 
 	int err;
 
-	err=sangoma_tdm_read_rbs(sangoma_wait_obj.fd, &wp_api, rbs_management_ptr->channel,&rbs_management_ptr->ABCD_bits);
+	err=sangoma_tdm_read_rbs(sangoma_dev, &wp_api, rbs_management_ptr->channel,&rbs_management_ptr->ABCD_bits);
 	if (err) {
 		ERR_IFACE( "Error: command WANPIPEMON_GET_RBS_BITS failed!\n");
 		return 1;
@@ -679,9 +680,9 @@ char sangoma_interface::get_rbs(rbs_management_t *rbs_management_ptr)
 //set RBS to be transmitted
 char sangoma_interface::set_rbs(rbs_management_t *rbs_management_ptr)
 {
-	int err=sangoma_tdm_write_rbs(sangoma_wait_obj.fd,&wp_api, rbs_management_ptr->channel, rbs_management_ptr->ABCD_bits);
+	int err=sangoma_tdm_write_rbs(sangoma_dev,&wp_api, rbs_management_ptr->channel, rbs_management_ptr->ABCD_bits);
 	if (err) {
-		return err;
+		return 1;
 	}
 
 	INFO_IFACE( "**** WANPIPEMON_SET_RBS_BITS OK ****\n");
@@ -782,7 +783,7 @@ void sangoma_interface::get_api_driver_version (PDRIVER_VERSION version)
 
 	int err;
 
-	err=sangoma_get_driver_version(sangoma_wait_obj.fd,&wp_api, version);
+	err=sangoma_get_driver_version(sangoma_dev,&wp_api, version);
 	if(err){
 		ERR_IFACE("Error: command READ_CODE_VERSION failed!\n");
 		return;
@@ -815,7 +816,7 @@ void sangoma_interface::get_card_customer_id(u_int8_t *customer_id)
 
 int sangoma_interface::get_open_handles_counter()
 {
-	return sangoma_get_open_cnt(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_get_open_cnt(sangoma_dev,&wp_api);
 }
 
 
@@ -825,8 +826,13 @@ int sangoma_interface::get_open_handles_counter()
 void sangoma_interface::cleanup()
 {
 	INFO_IFACE("sangoma_interface::cleanup()\n");
+
+	if(sng_wait_obj){
+		sangoma_wait_obj_delete(&sng_wait_obj);
+	}
+
 #ifdef WIN32
-	if(sangoma_wait_obj.fd != INVALID_HANDLE_VALUE){
+	if(sangoma_dev != INVALID_HANDLE_VALUE){
 		if(is_rbs_monitoring_enabled == 1){
 			/* disable RBS monitoring one time per card */
 			is_rbs_monitoring_enabled = 0;
@@ -837,10 +843,10 @@ void sangoma_interface::cleanup()
 	}
 #endif
 
-	if(sangoma_wait_obj.fd != INVALID_HANDLE_VALUE){
+	if(sangoma_dev != INVALID_HANDLE_VALUE){
 		INFO_IFACE( "Closing Rx/Tx fd.\n");
-		sangoma_close(&sangoma_wait_obj.fd);
-		sangoma_wait_obj.fd = INVALID_HANDLE_VALUE;
+		sangoma_close(&sangoma_dev);
+		sangoma_dev = INVALID_HANDLE_VALUE;
 	}
 
 #if USE_STELEPHONY_API
@@ -849,55 +855,6 @@ void sangoma_interface::cleanup()
 		stelObj = NULL;
 	}
 #endif
-}
-
-int sangoma_interface::DoWriteCommand(sng_fd_t fd, wp_api_element_t * pTx)
-{
-	int err = sangoma_writemsg(fd, &pTx->hdr, sizeof(pTx->hdr), pTx->data, pTx->hdr.data_length, 0);
-	if(err < 0 && errno != EBUSY){
-		//error!
-		return 1;
-	}
-	return 0;
-}
-
-int sangoma_interface::DoReadCommand(sng_fd_t fd, wp_api_element_t * pRx)
-{
-	int err = sangoma_readmsg(fd, &pRx->hdr, sizeof(pRx->hdr), pRx->data, MAX_NO_DATA_BYTES_IN_FRAME, 0);
-
-	if(err <= 0){
-		//error!
-		return 1;
-	}
-	return 0;
-}
-
-// set data in Idle Transmit buffer (BitStream only).
-UCHAR sangoma_interface::DoSetIdleTxBufferCommand(sng_fd_t drv, wp_api_element_t * pTx)
-{
-#if defined(__WINDOWS__)
-	DWORD ln, bIoResult;
-
-	bIoResult = DeviceIoControl(
-			drv,
-			IoctlSetIdleTxBuffer,
-			(LPVOID)pTx,
-			(ULONG)sizeof(wp_api_element_t),
-			(LPVOID)pTx,
-			sizeof(wp_api_element_t),
-			(LPDWORD)(&ln),
-			(LPOVERLAPPED)NULL
-			);
-
-	HANDLE_DEVICE_IOCTL_RESULT(bIoResult);
-#else
-	int err;
-	err = ioctl(drv,WANPIPE_IOCTL_SET_IDLE_TX_BUFFER, pTx);
-	if (err < 0) {
-		return 1;
-	}
-#endif
-	return 0;
 }
 
 int sangoma_interface::DoManagementCommand(sng_fd_t fd, wan_udp_hdr_t* wan_udp)
@@ -912,7 +869,7 @@ int sangoma_interface::tdmv_api_ioctl(wanpipe_api_cmd_t *api_cmd)
 
 	memcpy(&tmp.wp_cmd, api_cmd, sizeof(wanpipe_api_cmd_t));
 
-	err = sangoma_cmd_exec(sangoma_wait_obj.fd, &tmp);
+	err = sangoma_cmd_exec(sangoma_dev, &tmp);
 
 	memcpy(api_cmd, &tmp.wp_cmd, sizeof(wanpipe_api_cmd_t));
 
@@ -921,12 +878,12 @@ int sangoma_interface::tdmv_api_ioctl(wanpipe_api_cmd_t *api_cmd)
 
 int sangoma_interface::tdm_enable_ring_detect_events()
 {
-	return sangoma_tdm_enable_ring_detect_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_enable_ring_detect_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_disable_ring_detect_events()
 {
-	return sangoma_tdm_disable_ring_detect_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_ring_detect_events(sangoma_dev,&wp_api);
 }
 
        /* To enable flash event set rxflashtime to 1250.
@@ -938,7 +895,7 @@ int sangoma_interface::tdm_control_flash_events(int rxflashtime)
 	
 	int err;
 	
-	err=sangoma_set_rm_rxflashtime(sangoma_wait_obj.fd,&wp_api, rxflashtime);
+	err=sangoma_set_rm_rxflashtime(sangoma_dev,&wp_api, rxflashtime);
 	if (err) {
 			return 1;
 	}
@@ -947,85 +904,85 @@ int sangoma_interface::tdm_control_flash_events(int rxflashtime)
 
 int sangoma_interface::tdm_enable_ring_trip_detect_events()
 {
-	return sangoma_tdm_enable_ring_trip_detect_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_enable_ring_trip_detect_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_disable_ring_trip_detect_events()
 {
-	return sangoma_tdm_disable_ring_trip_detect_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_ring_trip_detect_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_enable_rm_dtmf_events()
 {
 	DBG_IFACE("%s()\n", __FUNCTION__);
 
-	return sangoma_tdm_enable_rm_dtmf_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_enable_rm_dtmf_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_disable_rm_dtmf_events()
 {
-	return sangoma_tdm_disable_rm_dtmf_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_rm_dtmf_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_enable_dtmf_events(uint8_t channel)
 {
-	return sangoma_tdm_enable_dtmf_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_enable_dtmf_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_disable_dtmf_events(uint8_t channel)
 {
-	return sangoma_tdm_disable_dtmf_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_dtmf_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_enable_rxhook_events()
 {
 	DBG_IFACE("%s()\n", __FUNCTION__);
-	return sangoma_tdm_enable_rxhook_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_enable_rxhook_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_disable_rxhook_events()
 {
-	return sangoma_tdm_disable_rxhook_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_rxhook_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_enable_ring_events()
 {
-	return sangoma_tdm_enable_ring_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_enable_ring_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_disable_ring_events()
 {
-	return sangoma_tdm_disable_ring_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_ring_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_txsig_onhook()
 {
-	return sangoma_tdm_txsig_onhook(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_txsig_onhook(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_txsig_offhook()
 {
-	return sangoma_tdm_txsig_offhook(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_txsig_offhook(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_enable_tone_events(uint16_t tone_id)
 {
-	return sangoma_tdm_enable_tone_events(sangoma_wait_obj.fd,&wp_api, tone_id);
+	return sangoma_tdm_enable_tone_events(sangoma_dev,&wp_api, tone_id);
 }
 
 int sangoma_interface::tdm_disable_tone_events()
 {
-	return sangoma_tdm_disable_tone_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_tone_events(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::tdm_enable_bri_bchan_loopback(u_int8_t channel)
 {
-	return sangoma_enable_bri_bchan_loopback(sangoma_wait_obj.fd,&wp_api, channel);
+	return sangoma_enable_bri_bchan_loopback(sangoma_dev,&wp_api, channel);
 }
 
 int sangoma_interface::tdm_disable_bri_bchan_loopback(u_int8_t channel)
 {
-	return sangoma_disable_bri_bchan_loopback(sangoma_wait_obj.fd,&wp_api, channel);
+	return sangoma_disable_bri_bchan_loopback(sangoma_dev,&wp_api, channel);
 }
 
 /* 1. Enable 'writing' of RBS bits on card.
@@ -1035,37 +992,37 @@ int sangoma_interface::tdm_disable_bri_bchan_loopback(u_int8_t channel)
       Valid values are between 20 and 100 (including). */
 int sangoma_interface::tdm_enable_rbs_events(int polls_per_second)
 {
-	return sangoma_tdm_enable_rbs_events(sangoma_wait_obj.fd,&wp_api,polls_per_second);
+	return sangoma_tdm_enable_rbs_events(sangoma_dev,&wp_api,polls_per_second);
 }
 
 /* Stop monitoring change in state of RBS bits */
 int sangoma_interface::tdm_disable_rbs_events()
 {
-	return sangoma_tdm_disable_rbs_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_rbs_events(sangoma_dev,&wp_api);
 }
 
 /* Activate ISDN BRI line. */
 int sangoma_interface::tdm_front_end_activate()
 {
-	return sangoma_set_fe_status(sangoma_wait_obj.fd,&wp_api,WAN_FE_CONNECTED);
+	return sangoma_set_fe_status(sangoma_dev,&wp_api,WAN_FE_CONNECTED);
 }
 
 /* De-activate ISDN BRI line. */
 int sangoma_interface::tdm_front_end_deactivate()
 {
-	return sangoma_set_fe_status(sangoma_wait_obj.fd,&wp_api,WAN_FE_DISCONNECTED);
+	return sangoma_set_fe_status(sangoma_dev,&wp_api,WAN_FE_DISCONNECTED);
 }
 
 /* get current state of the line - is it Connected or Disconnected */
 int sangoma_interface::tdm_get_front_end_status(unsigned char *status)
 {
-	return sangoma_get_fe_status(sangoma_wait_obj.fd,&wp_api,status);
+	return sangoma_get_fe_status(sangoma_dev,&wp_api,status);
 }
 
 /* Milliseconds interval between receive of Voice Data */
 int sangoma_interface::tdm_set_user_period(unsigned int usr_period)
 {
-	return sangoma_tdm_set_usr_period(sangoma_wait_obj.fd,&wp_api,usr_period);
+	return sangoma_tdm_set_usr_period(sangoma_dev,&wp_api,usr_period);
 }
 
 int sangoma_interface::stop()
@@ -1076,6 +1033,11 @@ int sangoma_interface::stop()
 	INFO_IFACE( "Stopping.");
 
 	terminate_tx_rx_threads = 1;
+
+	if(sng_wait_obj){
+		sangoma_wait_obj_signal(sng_wait_obj);
+	}
+
 	while(terminate_tx_rx_threads == 1 && wait_counter++ < 5){
 		INFO_IFACE( ".");
 		Sleep(500);
@@ -1139,35 +1101,37 @@ unsigned long sangoma_interface::threadFunction (struct ThreadParam& thParam)
 		case 1:
 			RxThreadFunc();
 			return 0;//ok
-#if defined(__LINUX__)
 		case 2:
 			TxThreadFunc();
-			return 0;
-#endif
+			return 0;//ok
 	}
 	return 1;//invalid thread function was requested
 }
 
-#if defined(__LINUX__)
-// Transmit Thread
-void sangoma_interface::TxThreadFunc()
+#if USE_STELEPHONY_API
+void sangoma_interface::TxStelEncoderBuffer(void *pStelEncoderBuffer)
 {
 	int datalen;
-	int cnt = 0;
-	INFO_IFACE("\n%s: %s() - start\n", device_name, __FUNCTION__);
+	int cnt = 0, end = 0;
 
-	while(terminate_tx_rx_threads == 0){
+	/*	Note that when Tone transmission is in progress, no other voice
+		data should be transmitted to avoid "splitting" the tone in the middle. */
+	EnterCriticalSection(&StelTxCriticalSection);
+
+	while(terminate_tx_rx_threads == 0 && end == 0){
+	
 		datalen = program_settings.txlength*2;
 
-		if (dtmfBuffer && stelephony_buffer_inuse(dtmfBuffer)) {
-			wp_api_element_t	local_tx_data;
-			int dlen = datalen;
-			unsigned char buf[1024];
-			size_t br, max = sizeof(buf);
+		if (pStelEncoderBuffer && StelBufferInuse(stelObj, pStelEncoderBuffer)) {
+			wp_api_hdr_t	hdr;
+			unsigned char	local_tx_data[MAX_NO_DATA_BYTES_IN_FRAME];
+			int				dlen = datalen;
+			unsigned char	buf[1024];
+			size_t			br, max = sizeof(buf);
 
 #if 1
 			/* Data can be read as slinear, or ulaw, alaw */
-			br = stelephony_buffer_read_ulaw(dtmfBuffer, buf, &dlen, max);
+			br = StelBufferReadUlaw(stelObj, pStelEncoderBuffer, buf, &dlen, max);
 			if (br < (size_t) dlen) {
 				memset(buf+br, 0, dlen - br);
 			}
@@ -1176,167 +1140,34 @@ void sangoma_interface::TxThreadFunc()
 
 			len = dlen;
 			
-			br = stelephony_buffer_read(dtmfBuffer, buf, len);
+			br = stelephony_buffer_read(pStelEncoderBuffer, buf, len);
 			if (br < dlen) {
 				memset(buf+br, 0, dlen - br);
 			}
 
 			slin2ulaw(buf, max, (size_t*) &dlen);
 #endif
-			local_tx_data.hdr.data_length = dlen; 
-			local_tx_data.hdr.operation_status = SANG_STATUS_TX_TIMEOUT;
+			hdr.data_length = (unsigned short)dlen; 
+			hdr.operation_status = SANG_STATUS_TX_TIMEOUT;
 
-			memcpy (local_tx_data.data, buf, dlen);
+			memcpy (local_tx_data, buf, dlen);
 
-			if(transmit(&local_tx_data) != SANG_STATUS_SUCCESS){
+			DBG_IFACE("%s: Transmitting Stelephony buffer %d, data length: %d.\n", device_name, cnt, dlen);
+
+			if(transmit(&hdr, local_tx_data) != SANG_STATUS_SUCCESS){
 				printf("Failed to TX dlen:%d\n", dlen);
 			} else {
 				//printf("TX OK (cnt:%d)\n", cnt);
 				cnt++;
-				usleep(20000);
 			}
-		} 
-	}
-}
-#endif
-
-// Read Thread
-void sangoma_interface::RxThreadFunc()
-{
-	int iResult;
-
-	INFO_IFACE("\n%s: %s() - start\n", device_name, __FUNCTION__);
-#if defined(__WINDOWS__)
-	INFO_IFACE("ThreadID: %d - Start\n", ::GetCurrentThreadId());
-#endif
-
-	while(terminate_tx_rx_threads == 0){
-
-		sangoma_wait_obj.flags_in = (POLLPRI | POLLIN); //only interested in Events and Rx data
-
-		iResult = sangoma_socket_waitfor_many(&sangoma_wait_obj, 1 /* number of objects */, 2000 /* 2 sec timeout */);
-
-		if(iResult < 0){
-			//error
-			ERR_IFACE("iResult: %d\n", iResult);
-			break;
+		}else{
+			end = 1;
 		}
-
-		if(iResult == 0){
-			//timeout. try again.
-			//DBG_IFACE("Timeout\n");
-			continue;
-		}
-
-		if(sangoma_wait_obj.flags_out & POLLPRI){
-			/* event */
-			if(read_event()){
-				ERR_IFACE("Error in read_event()!\n");
-			}
-		}
-
-		if(sangoma_wait_obj.flags_out & POLLIN){
-			/* data */
-			if(read_data()){
-				ERR_IFACE("Error in read_data()!\n");
-			}
-		}
-
 	}//while()
 
-	terminate_tx_rx_threads = 2;
-
-	INFO_IFACE("\n%s: %s() - end\n", device_name, __FUNCTION__);
-#if defined(__WINDOWS__)
-	INFO_IFACE("ThreadID: %d - End\n", ::GetCurrentThreadId());
-#endif
+	LeaveCriticalSection(&StelTxCriticalSection);
 }
 
-///////////////////////////////////////////////////////////////////////
-
-int sangoma_interface::read_event()
-{
-	int err;
-	wp_api_event_t *rx_event = &wp_api.wp_cmd.event;
-
-#if 0
-	print_poll_event_bitmap(sangoma_wait_obj.flags_out);
-	printf("\n");
-#endif
-
-	memset(&wp_api, 0, sizeof(wp_api));
-
-	err = sangoma_read_event(sangoma_wait_obj.fd, &wp_api);
-
-	if(err){
-		return err;
-	}
-
-	callback_functions.got_TdmApiEvent(this, rx_event);
-
-	return 0;
-}
-
-///////////////////////////////////////////////////////////////////////
-
-int sangoma_interface::read_data()
-{
-	int rc = 0;
-	wp_api_hdr_t		*pri;
-
-	if(receive(&rx_data) ){
-		//error
-		ERR_IFACE( "receive() failed!! Check messages log.\n");
-		return 1;
-	}
-
-	//use our special buffer at rxdata to hold received data
-	pri = &rx_data.hdr;
-
-	switch(pri->operation_status)
-	{
-	case SANG_STATUS_RX_DATA_AVAILABLE:
-#if USE_STELEPHONY_API
-		if(stelObj){
-			if(scf.FSKCallerIDEvent	|| scf.DTMFEvent || scf.Q931Event){
-				//if at lease one event is enabled, Rx data is the input for decoder.
-				wp_api_element_t* pRx = &rx_data;
-				StelStreamInput(stelObj, pRx->data, pRx->hdr.data_length);
-			}
-		}
-#endif
-#if 0
-		//Some useful information about API's internal receive queue
-		//is available after each successful IoctlReadCommand:
-		DBG_IFACE("max_rx_queue_length: %d current_number_of_frames_in_rx_queue: %d\n",
-			rx_data.hdr.wp_api_rx_hdr_max_queue_length,
-			rx_data.hdr.wp_api_rx_hdr_number_of_frames_in_queue);
-#endif
-		//INFO_IFACE("Rx Length = %i\n",rx_data.hdr.wp_api_hdr_data_length);
-
-		callback_functions.got_rx_data(this, &rx_data);
-		break;
-
-	default:
-		ERR_IFACE("%s: Rx Error: Operation Status: %s(%d)\n", device_name,
-			SDLA_DECODE_SANG_STATUS(pri->operation_status), pri->operation_status);
-		rc = 1;
-		break;
-	}//switch()
-	return rc;
-}
-
-///////////////////////////////////////////////////////////////////////
-
-int sangoma_interface::receive(wp_api_element_t *pRx)
-{
-	return DoReadCommand(sangoma_wait_obj.fd, pRx);
-}
-
-///////////////////////////////////////////////////////////////////////
-
-#if USE_STELEPHONY_API
-#if defined (__LINUX__)
 int sangoma_interface::sendSwDTMF(char dtmf_char)
 {
 	int rc = 1;
@@ -1351,34 +1182,19 @@ int sangoma_interface::sendSwDTMF(char dtmf_char)
 	return rc;
 }
 
-
-int sangoma_interface::setDTMFBuffer(void* pBuffer)
-{
-	if (dtmfBuffer) {
-		printf("Error: DTMF Buffer already exists\n");
-		return -1;
-	}
-	
-	dtmfBuffer = pBuffer;
-	return 0;
-}
-
 int sangoma_interface::resetFSKCID(void)
 {
 	stelephony_option_t codec = (program_settings.voice_codec_alaw == 1 ? STEL_OPTION_ALAW : STEL_OPTION_MULAW);
 
-	/* On linux, this is required on each new call */
-
-	/* It is recommended to enable the SW Caller ID after the first ring , 
-		and then disable it when the second ring is received to save cpu resources */
-
+	/* This is required on each new call */
+	/* It is recommended to enable the SW Caller ID after the FIRST ring , 
+		and then disable it when the SECOND ring is received to save cpu resources */
 	StelEventControl(stelObj, STEL_EVENT_FSK_CALLER_ID, STEL_CTRL_CODE_DISABLE, &codec);
 	StelEventControl(stelObj, STEL_EVENT_FSK_CALLER_ID, STEL_CTRL_CODE_ENABLE, &codec);
-
 	return 0;
 }
 
-int sangoma_interface::sendCallerID(LPCTSTR name, LPCTSTR number)
+int sangoma_interface::sendCallerID(char * name, char * number)
 {
 	int rc = 1;
 
@@ -1396,102 +1212,312 @@ int sangoma_interface::sendCallerID(LPCTSTR name, LPCTSTR number)
 	strncpy(my_caller_id.calling_name, name, sizeof(my_caller_id.calling_name)-2);
 	strncpy(my_caller_id.calling_number, number, sizeof(my_caller_id.calling_name)-2);
 
-	
 	my_caller_id.calling_name[sizeof(my_caller_id.calling_name)-1] = '\0';
 	my_caller_id.calling_number[sizeof(my_caller_id.calling_number)-1] = '\0';
 	
 	rc = StelGenerateFSKCallerID(stelObj, &my_caller_id);
 	return rc;
 }
-#endif//#if defined (__LINUX__)
-#endif//#if USE_STELEPHONY_API
 
-int sangoma_interface::transmit(wp_api_element_t *pTx)
+int	sangoma_interface::CreateSwDtmfTxThread(void *buffer)
 {
-	int err;
+	IFACE_FUNC();
+	DtmfBuffer = buffer;
+    return this->CreateThread(2);
+}
 
-	do{
-		err = DoWriteCommand(sangoma_wait_obj.fd, pTx);
-		if(err){
-			//error
-			printf("DoWriteCommand() failed!! Check messages log. %s\n",strerror(errno));
-			return err;
+int	sangoma_interface::CreateFskCidTxThread(void *buffer)
+{
+	IFACE_FUNC();
+	FskCidBuffer = buffer;
+    return this->CreateThread(2);
+}
+#endif //#if USE_STELEPHONY_API
+
+// Transmit Thread
+void sangoma_interface::TxThreadFunc()
+{
+	INFO_IFACE("\n%s: %s() - start\n", device_name, __FUNCTION__);
+
+#if USE_STELEPHONY_API
+	/* Transmit DTMF buffer, if initialized.*/
+	TxStelEncoderBuffer(DtmfBuffer);
+
+	/* Transmit FSK CID buffer, if initialized.*/
+	TxStelEncoderBuffer(FskCidBuffer);
+#endif
+
+	INFO_IFACE("\n%s: %s() - end\n", device_name, __FUNCTION__);
+}
+
+// Read Thread
+void sangoma_interface::RxThreadFunc()
+{
+	int iResult;
+	u_int32_t input_flags[NUMBER_OF_WAIT_OBJECTS], output_flags[NUMBER_OF_WAIT_OBJECTS];
+
+	input_flags[0] = (POLLIN | POLLPRI);
+
+	INFO_IFACE("\n%s: %s() - start\n", device_name, __FUNCTION__);
+#if defined(__WINDOWS__)
+	INFO_IFACE("ThreadID: %d - Start\n", ::GetCurrentThreadId());
+#endif
+
+	while(terminate_tx_rx_threads == 0){
+
+		iResult = sangoma_waitfor_many(&sng_wait_obj,
+					       input_flags,
+					       output_flags,
+				           NUMBER_OF_WAIT_OBJECTS,
+						   2000 /* wait timeout, in milliseconds */
+						   );
+
+		if(terminate_tx_rx_threads){
+			break;
 		}
 
-		//check that frame was transmitted
-		switch(pTx->hdr.operation_status)
+		switch(iResult)
 		{
-		case SANG_STATUS_SUCCESS:
-			err = 0;
-			//printf("Frame queued for transmission.\n");
-#if 0
-			//Some useful information about API's internal transmit queue
-			//is available after each successful transmission:
-			printf("max_tx_queue_length: %d current_number_of_frames_in_tx_queue: %d\n",
-				pTx->hdr.tx_h.max_tx_queue_length,
-				pTx->hdr.tx_h.current_number_of_frames_in_tx_queue);
-#endif
-			return SANG_STATUS_SUCCESS;
+		case SANG_STATUS_APIPOLL_TIMEOUT:
+			//timeout. try again.
+			DBG_IFACE("Timeout\n");
+			continue;
 
-		case SANG_STATUS_DEVICE_BUSY:
-			err = 0;
+		case SANG_STATUS_SUCCESS:
+			/* a wait object was signaled */
+			if(output_flags[0] & POLLIN){
+				/* data */
+				if(read_data()){
+					ERR_IFACE("Error in read_data()!\n");
+				}
+			}
+
+			if(output_flags[0] & POLLPRI){
+				/* event */
+				if(read_event()){
+					ERR_IFACE("Error in read_event()!\n");
+				}
+			}
+
+			if(!output_flags[0] || (output_flags[0] & (~input_flags[0])) ){
+				WARN_IFACE("\nUnexpected output_flags[0]: 0x%X\n\n", output_flags[0]);
+			}
 			break;
 
 		default:
-			err = 1;
-			DBG_IFACE("Error: Return code: %s(%d) on transmission!\n",
-				SDLA_DECODE_SANG_STATUS(pTx->hdr.operation_status),
-				pTx->hdr.operation_status);
-			break;
-		}//switch()
+			/* error */
+			ERR_IFACE("iResult: %s (%d)\n", SDLA_DECODE_SANG_STATUS(iResult), iResult);
+			return;
+		}//switch(iResult)
+	}//while()
 
-	}while(err == 0);
+	terminate_tx_rx_threads = 2;
 
-	return pTx->hdr.operation_status;
+	INFO_IFACE("\n%s: %s() - end\n", device_name, __FUNCTION__);
+#if defined(__WINDOWS__)
+	INFO_IFACE("ThreadID: %d - End\n", ::GetCurrentThreadId());
+#endif
+}
+
+///////////////////////////////////////////////////////////////////////
+
+int sangoma_interface::read_event()
+{
+	int err;
+	wp_api_event_t *rx_event = &wp_api.wp_cmd.event;
+
+	memset(&wp_api, 0, sizeof(wp_api));
+
+	err = sangoma_read_event(sangoma_dev, &wp_api);
+
+	if(err){
+		return err;
+	}
+
+	callback_functions.got_TdmApiEvent(this, rx_event);
+
+	return 0;
+}
+
+///////////////////////////////////////////////////////////////////////
+
+int sangoma_interface::read_data()
+{
+	int rc = 0;
+
+	if(receive(&rxhdr, rx_data) ){
+		//error
+		ERR_IFACE( "receive() failed!! Check messages log.\n");
+		return 1;
+	}
+
+	switch(rxhdr.operation_status)
+	{
+	case SANG_STATUS_RX_DATA_AVAILABLE:
+#if USE_STELEPHONY_API
+		if(stelObj){
+			if(scf.FSKCallerIDEvent	|| scf.DTMFEvent || scf.Q931Event){
+				//if at lease one event is enabled, Rx data is the input for decoder.
+				StelStreamInput(stelObj, rx_data, rxhdr.data_length);
+			}
+		}
+#endif
+#if 0
+		//Some useful information about API's internal receive queue
+		//is available after each successful IoctlReadCommand:
+		DBG_IFACE("max_rx_queue_length: %d current_number_of_frames_in_rx_queue: %d\n",
+			rx_data.hdr.wp_api_rx_hdr_max_queue_length,
+			rx_data.hdr.wp_api_rx_hdr_number_of_frames_in_queue);
+#endif
+		//INFO_IFACE("Rx Length = %i\n",rx_data.hdr.wp_api_hdr_data_length);
+
+		callback_functions.got_rx_data(this, &rxhdr, rx_data);
+
+#if DBG_TIMING
+		debug_update_timediff(&wan_debug_rx_timing, __FUNCTION__);
+#endif
+		break;
+
+	default:
+		ERR_IFACE("%s: Rx Error: Operation Status: %s(%d)\n", device_name,
+			SDLA_DECODE_SANG_STATUS(rxhdr.operation_status), rxhdr.operation_status);
+		rc = 1;
+		break;
+	}//switch()
+	return rc;
+}
+
+///////////////////////////////////////////////////////////////////////
+
+int sangoma_interface::receive(wp_api_hdr_t *hdr, void *data)
+{
+	int err = sangoma_readmsg(sangoma_dev, hdr, sizeof(wp_api_hdr_t), data, MAX_NO_DATA_BYTES_IN_FRAME, 0);
+
+	if(err <= 0){
+		//error!
+		return 1;
+	}
+	return 0;
+}
+
+///////////////////////////////////////////////////////////////////////
+
+int sangoma_interface::write_data(wp_api_hdr_t *hdr, void *tx_buffer)
+{
+	if(sangoma_writemsg(sangoma_dev, hdr, sizeof(*hdr), tx_buffer, hdr->data_length, 0) < 0){
+		//error
+		ERR_IFACE("sangoma_writemsg() failed!\n");
+		return SANG_STATUS_IO_ERROR;
+	}
+
+	switch(hdr->operation_status)
+	{
+	case SANG_STATUS_SUCCESS:
+		//DBG_IFACE("Frame queued for transmission.\n");
+#if 0
+		//Some useful information about API's internal transmit queue
+		//is available after each successful transmission:
+		DBG_IFACE("max_tx_queue_length: %d current_number_of_frames_in_tx_queue: %d\n",
+			hdr->tx_h.max_tx_queue_length,
+			hdr->tx_h.current_number_of_frames_in_tx_queue);
+#endif
+		break;
+	default:
+		ERR_IFACE("Return code: %s (%d) on transmission!\n",
+			SDLA_DECODE_SANG_STATUS(hdr->operation_status), hdr->operation_status);
+		break;
+	}//switch()
+
+	return hdr->operation_status;
+}
+
+///////////////////////////////////////////////////////////////////////
+
+int sangoma_interface::transmit(wp_api_hdr_t *hdr, void *data)
+{
+	int iResult;
+	u_int32_t input_flags[NUMBER_OF_WAIT_OBJECTS], output_flags[NUMBER_OF_WAIT_OBJECTS];
+
+	input_flags[0] = (POLLOUT);
+
+	iResult = sangoma_waitfor_many(&sng_wait_obj,
+					       input_flags,
+					       output_flags,
+				           NUMBER_OF_WAIT_OBJECTS,
+					       2000 /* wait timeout, in milliseconds */);
+
+	switch(iResult)
+	{
+	case SANG_STATUS_APIPOLL_TIMEOUT:
+		//Timeout. It is possible line is disconnected.
+		DBG_IFACE("%s: Tx Timeout!\n", device_name);
+		return SANG_STATUS_TX_TIMEOUT;
+
+	case SANG_STATUS_SUCCESS:
+		/* a wait object was signaled */
+		if(output_flags[0] & POLLOUT){
+			/* POLLOUT bit is set - there is at least one free Tx buffer. */
+			iResult = write_data(hdr, data);
+			if(SANG_ERROR(iResult)){
+				ERR_IFACE("Error in write_data()!\n");
+			}
+		}
+
+		if(!output_flags[0] || (output_flags[0] & (~input_flags[0])) ){
+			WARN_IFACE("\nUnexpected output_flags[0]: 0x%X\n\n", output_flags[0]);
+		}
+		break;
+
+	default:
+		/* error */
+		ERR_IFACE("iResult: %s (%d)\n", SDLA_DECODE_SANG_STATUS(iResult), iResult);
+	}//switch(iResult)
+
+	return iResult;
 }
 
 ///////////////////////////////////////////////////////////////////////
 int sangoma_interface::start_ring_tone()
 {
 	DBG_IFACE( "%s:start_ring_tone()\n", device_name);
-	return sangoma_tdm_enable_tone_events(sangoma_wait_obj.fd,&wp_api, WP_API_EVENT_TONE_RING);
+	return sangoma_tdm_enable_tone_events(sangoma_dev,&wp_api, WP_API_EVENT_TONE_RING);
 }
 ///////////////////////////////////////////////////////////////////////
 int sangoma_interface::start_congestion_tone()
 {
 	DBG_IFACE( "%s:start_congestion_tone()\n", device_name);
-	return sangoma_tdm_enable_tone_events(sangoma_wait_obj.fd,&wp_api,WP_API_EVENT_TONE_CONGESTION);
+	return sangoma_tdm_enable_tone_events(sangoma_dev,&wp_api,WP_API_EVENT_TONE_CONGESTION);
 }
 ///////////////////////////////////////////////////////////////////////
 int sangoma_interface::start_busy_tone()
 {
 	DBG_IFACE( "%s:start_busy_tone()\n", device_name);
-	return sangoma_tdm_enable_tone_events(sangoma_wait_obj.fd,&wp_api,WP_API_EVENT_TONE_BUSY);
+	return sangoma_tdm_enable_tone_events(sangoma_dev,&wp_api,WP_API_EVENT_TONE_BUSY);
 }
 
 ///////////////////////////////////////////////////////////////////////
 int sangoma_interface::start_dial_tone()
 {
 	DBG_IFACE( "%s:start_dial_tone()\n", device_name);
-	return sangoma_tdm_enable_tone_events(sangoma_wait_obj.fd,&wp_api,WP_API_EVENT_TONE_DIAL);
+	return sangoma_tdm_enable_tone_events(sangoma_dev,&wp_api,WP_API_EVENT_TONE_DIAL);
 }
 ///////////////////////////////////////////////////////////////////////
 int sangoma_interface::stop_all_tones()
 {
 	DBG_IFACE( "%s:stop_all_tones()\n", device_name);
-	return sangoma_tdm_disable_tone_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_tone_events(sangoma_dev,&wp_api);
 }
 
 ///////////////////////////////////////////////////////////////////////
 int sangoma_interface::start_ringing_phone()
 {
 	DBG_IFACE( "%s:start_ringing_phone()\n", device_name);
-	return sangoma_tdm_enable_ring_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_enable_ring_events(sangoma_dev,&wp_api);
 }
 int sangoma_interface::stop_ringing_phone()
 {
 	DBG_IFACE( "%s:stop_ringing_phone()\n", device_name);
-	return sangoma_tdm_disable_ring_events(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_disable_ring_events(sangoma_dev,&wp_api);
 }
 ///////////////////////////////////////////////////////////////////////
 int sangoma_interface::fxo_go_off_hook()
@@ -1502,7 +1528,7 @@ int sangoma_interface::fxo_go_off_hook()
 		ERR_IFACE( "%s: The 'Go Off Hook' command valid only for FXO!\n", device_name);
 		return 1;
 	}
-	return sangoma_tdm_txsig_offhook(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_txsig_offhook(sangoma_dev,&wp_api);
 }
 
 int sangoma_interface::fxo_go_on_hook()
@@ -1513,7 +1539,7 @@ int sangoma_interface::fxo_go_on_hook()
 		ERR_IFACE( "%s: The 'Go On Hook' command valid only for FXO!\n", device_name);
 		return 1;
 	}
-	return sangoma_tdm_txsig_onhook(sangoma_wait_obj.fd,&wp_api);
+	return sangoma_tdm_txsig_onhook(sangoma_dev,&wp_api);
 }
 
 //set a Telephony interface to it's default state
@@ -1618,3 +1644,4 @@ repeat_read_reg:
 	}
 	return;
 }
+

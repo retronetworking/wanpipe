@@ -252,7 +252,7 @@ static int aft_free_fifo_baddr_and_size (sdla_t *card, private_area_t *chan)
 }
 
 
-static int aft_request_logical_channel_num (sdla_t *card, private_area_t *chan)
+static int aft_request_logical_channel_num (sdla_t *card, private_area_t *chan, int force_lch)
 {
 	signed char logic_ch=-1;
 	int err;
@@ -311,34 +311,45 @@ static int aft_request_logical_channel_num (sdla_t *card, private_area_t *chan)
 		return -1;
 	}
 
-	for (i=0;i<card->u.aft.num_of_time_slots;i++){
-		
-		if (card->u.aft.security_id == 0){
-			/* Unchannelized card must config
-			 * its hdlc logic ch on FIRST logic
-			 * ch number */
-			 
-			if (chan->channelized_cfg) {
-				if (card->tdmv_conf.dchan){
-					/* In this case we KNOW that there is
-					 * only a single hdlc channel */ 
-					if (i==0 && !chan->hdlc_eng){
-						continue;
+	if (force_lch) {
+		if (!wan_test_and_set_bit(chan->first_time_slot,&card->u.aft.logic_ch_map)){
+		   	logic_ch=(char)chan->first_time_slot;
+		} else {
+            DEBUG_EVENT("%s: Error, request logical ch=%d map busy (map 0x%08lX)\n",
+				card->devname,chan->first_time_slot,card->u.aft.logic_ch_map);
+	  	    return -1;       
+	    }   
+	} else {
+
+		for (i=0;i<card->u.aft.num_of_time_slots;i++){
+			
+			if (card->u.aft.security_id == 0){
+				/* Unchannelized card must config
+				 * its hdlc logic ch on FIRST logic
+				 * ch number */
+				 
+				if (chan->channelized_cfg) {
+					if (card->tdmv_conf.dchan){
+						/* In this case we KNOW that there is
+						 * only a single hdlc channel */ 
+						if (i==0 && !chan->hdlc_eng){
+							continue;
+						}
 					}
-				}
-			}else{
-				if (i==0 || i==1){
-					if (!chan->hdlc_eng && 
-					    if_cnt < (card->u.aft.num_of_time_slots-if_offset)){ 
-						continue;
+				}else{
+					if (i==0 || i==1){
+						if (!chan->hdlc_eng && 
+							if_cnt < (card->u.aft.num_of_time_slots-if_offset)){ 
+							continue;
+						}
 					}
 				}
 			}
-		}
-		
-		if (!wan_test_and_set_bit(i,&card->u.aft.logic_ch_map)){
-			logic_ch=(char)i;
-			break;
+			
+			if (!wan_test_and_set_bit(i,&card->u.aft.logic_ch_map)){
+				logic_ch=(char)i;
+				break;
+			}
 		}
 	}
 
@@ -1109,13 +1120,18 @@ int a104_chan_dev_config(sdla_t *card, void *chan_ptr)
 	int chan_num=-EBUSY;
 	private_area_t *chan = (private_area_t*)chan_ptr;
 	u32 ctrl_ram_reg,dma_ram_reg;
+	int force_lch=0;
 
 	AFT_FUNC_DEBUG();
 #if INIT_FE_ONLY
 
 #else
 
-	chan_num=aft_request_logical_channel_num(card, chan);
+	if (card->u.aft.global_tdm_irq) {
+		force_lch=1;
+	}
+
+	chan_num=aft_request_logical_channel_num(card, chan, force_lch);
 	if (chan_num < 0){
 		return -EBUSY;
 	}
@@ -1148,8 +1164,10 @@ int a104_chan_dev_config(sdla_t *card, void *chan_ptr)
 	
 	card->hw_iface.bus_write_4(card->hw, dma_ram_reg, reg);
 
-	reg=0;	
+	DEBUG_TEST("%s: CHAN = %i DMA RAM 0x%X  Reg=0x%08X  MRU=%i\n",
+			card->devname, chan->logic_ch_num, dma_ram_reg, reg, chan->mru);
 
+	reg=0;	
 
 	for (i=0;i<card->u.aft.num_of_time_slots;i++){
 

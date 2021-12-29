@@ -36,8 +36,7 @@
   PRIVATE STRUCTURES
  *************************************************************/
 
-void (*lib_log)(int level, FILE *fp, char *file, const char *func, int line, char *fmt, ...)=NULL;
-
+sangoma_hptdm_log_func_t lib_log = NULL;
 
 /*!
   \fn int sangoma_hp_tdm_chan_push(struct sangoma_hptdm_chan *chan, char *data, int len)
@@ -267,6 +266,7 @@ static int sangoma_hp_tdm_event_get_cfg(sangoma_hptdm_span_t *span, wan_if_cfg_t
 static int sangoma_hp_tdm_run_span(sangoma_hptdm_span_t *span)
 {
 	int err=0;
+	sangoma_status_t sangstatus;
 	unsigned int flags;
 
 	if (!span->init) {
@@ -277,7 +277,7 @@ static int sangoma_hp_tdm_run_span(sangoma_hptdm_span_t *span)
 	lib_printf(15, NULL, "Starting RUN SPAN %i Sock=%i\n",span->span_no+1, span->sock);
 
 	if (span->sock < 0) {
-		err=sangoma_hptdm_span_open(span);
+		err = sangoma_hptdm_span_open(span);
 		if (err) {
 			usleep(500000);
 			err=-2;
@@ -285,9 +285,9 @@ static int sangoma_hp_tdm_run_span(sangoma_hptdm_span_t *span)
 		}
 	}
 
-	err=sangoma_socket_waitfor(span->sock,0,(POLLIN|POLLPRI), &flags);
+	sangstatus = sangoma_waitfor(span->waitobj, (POLLIN|POLLPRI), &flags, 0);
 
-	if (err > 0) {
+	if (sangstatus == SANG_STATUS_SUCCESS) {
 
 		if (flags & POLLPRI){
 			err=sangoma_hp_tdm_handle_oob_event(span);
@@ -316,11 +316,12 @@ static int sangoma_hp_tdm_run_span(sangoma_hptdm_span_t *span)
 			}
 		}
 
-	} else if (err==0) {
+	} else if (sangstatus == SANG_STATUS_APIPOLL_TIMEOUT) {
 		/* Timeout continue */
 		return 0;
 
 	} else {
+		err = -1;
 		/* Error */
 		if (errno == EAGAIN) {
 			goto sangoma_hp_tdm_run_span_exit;
@@ -377,7 +378,7 @@ sangoma_hptdm_span_t * __sangoma_hptdm_api_span_init(int span_no, sangoma_hptdm_
 	if (cfg) {
 		memcpy(&span->span_reg,cfg,sizeof(sangoma_hptdm_span_reg_t));
 		if (!lib_log) {
-			lib_log=cfg->log;
+			lib_log = cfg->log;
 		}
 	}
 

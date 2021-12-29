@@ -43,9 +43,17 @@ allocate_dma_buffer(
 	OUT PVOID			*virtual_addr,
 	OUT u32				*physical_addr
 	);
-# endif
+# endif/* WAN_KERNEL */
 # include <sang_status_defines.h>
-#endif
+
+# define strlcpy		strncpy
+# define strncasecmp	_strnicmp
+# define strcasecmp		_stricmp
+# define snprintf		_snprintf
+# define vsnprintf		_vsnprintf
+# define unlink			_unlink
+
+#endif/* __WINDOWS__ */
 
 /****************************************************************************
 **			D E F I N E S				
@@ -497,13 +505,7 @@ typedef char *va_list;
 /* String library definitions */
 #if defined(__LINUX__)
 # define strncasecmp	strnicmp
-# define _snprintf 	snprintf
-#elif defined(__WINDOWS__)
-# define strlcpy		strncpy
-# define strncasecmp	_strnicmp
-# define strcasecmp		_stricmp
-# define snprintf		_snprintf
-# define vsnprintf		_vsnprintf
+# define _snprintf		snprintf
 #endif
 
 /****************************************************************************
@@ -615,7 +617,11 @@ static __inline void* wan_malloc(int size)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	ptr = malloc(size, M_DEVBUF, M_NOWAIT); 
 #elif defined(__WINDOWS__)
-	ptr = kmalloc(size, 0);
+# ifdef WAN_DEBUG_MEM
+	ptr = kmalloc(size, '1lmk'/* memory pool tag */, func_name, const int line);
+# else
+	ptr = kmalloc(size, '1lmk'/* memory pool tag */);
+# endif
 #else
 # error "wan_malloc() function is not supported yet!"
 #endif
@@ -643,7 +649,11 @@ static __inline void* wan_kmalloc(int size)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	ptr = malloc(size, M_DEVBUF, M_NOWAIT); 
 #elif defined(__WINDOWS__)
-	ptr = kmalloc(size, 0);
+# ifdef WAN_DEBUG_MEM
+	ptr = kmalloc(size, '2lmk'/* memory pool tag */, func_name, const int line);
+# else
+	ptr = kmalloc(size, '2lmk'/* memory pool tag */);
+# endif
 #else
 # error "wan_malloc() function is not supported yet!"
 #endif
@@ -721,7 +731,11 @@ static __inline void* wan_vmalloc(int size)
 #elif defined(__SOLARIS__)
 	ptr = kmalloc(size);
 #elif defined(__WINDOWS__)
-	ptr = kmalloc(size, 0);
+# ifdef WAN_DEBUG_MEM
+	ptr = kmalloc(size, '3lmk'/* memory pool tag */, func_name, const int line);
+# else
+	ptr = kmalloc(size, '3lmk'/* memory pool tag */);
+# endif
 #else
 # error "wan_vmalloc() function is not supported yet!"
 #endif
@@ -2911,6 +2925,12 @@ static __inline void wan_write_bus_4(void *phw, void *virt, int offset, unsigned
 		KeReleaseSpinLock(pSpinLock, old_IRQL);	\
 	}											\
 }
+
+#define WAN_IFQ_INIT(ifq, max_pkt)			wan_skb_queue_init((ifq))
+#define WAN_IFQ_DESTROY(ifq)
+#define WAN_IFQ_PURGE(ifq)					wan_skb_queue_purge((ifq))
+#define WAN_IFQ_DMA_PURGE(ifq)				wan_skb_queue_purge(ifq)
+#define WAN_IFQ_ENQUEUE(ifq, skb, arg, err)	wan_skb_queue_tail((ifq), (skb))
 
 #endif
 

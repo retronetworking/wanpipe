@@ -1,11 +1,12 @@
 #if defined (__LINUX__)
-#include <stdlib.h>
-#include <string.h>
-#include <memory.h>
+# include <stdlib.h>
+# include <string.h>
+# include <memory.h>
 #endif
 #include "PToneEncoder.h"
 
-#define NOT_IMPL printf("FUNCTION_NOT_IMPLEMENTED (%s:%d)\n",__FUNCTION__,__LINE__);
+#define DBG_FSK			if(0)printf
+#define DBG_DTMF		if(0)printf("%s():line:%d: ", __FUNCTION__, __LINE__);if(0)printf
 
 #define MX_CID_LEN 15
 
@@ -17,40 +18,41 @@ PhoneToneEncoder::PhoneToneEncoder(void)
 	bufSize = 256;
 	rate = 8000;
 	
-	fskData = (fsk_data_state_t*) malloc(sizeof(fsk_data_state_t));
+	fskData = (fsk_data_state_t*) stel_malloc(sizeof(fsk_data_state_t));
 	if (fskData == NULL) {
-		printf("Error: Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
 		return;
 	}
 
-	fbuf = (unsigned char*) malloc(bufSize);
+	fbuf = (unsigned char*) stel_malloc(bufSize);
 	if (fbuf == NULL) {
-		printf("Error: Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
 		return;
 	}
 
-	fskTrans = (fsk_modulator_t*) malloc(sizeof(fsk_modulator_t));
+	fskTrans = (fsk_modulator_t*) stel_malloc(sizeof(fsk_modulator_t));
 	if (fskTrans == NULL) {
-		printf("Error: Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
 		return;
 	}
 
-	userData = (helper_t*) malloc(sizeof(helper_t));
+	userData = (helper_t*) stel_malloc(sizeof(helper_t));
 	if (userData == NULL) {
-		printf("Error: Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
 		return;
 	}
 
-	dtmfSession = (teletone_generation_session_t*) malloc(sizeof(teletone_generation_session_t));
+	dtmfSession = (teletone_generation_session_t*) stel_malloc(sizeof(teletone_generation_session_t));
 	if (dtmfSession == NULL) {
-		printf("Error: Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
 		return;
 	}
-	InitializeCriticalSection(&m_CriticalSection);	
 }
 
 PhoneToneEncoder::~PhoneToneEncoder(void)
 {
+	STEL_FUNC_START();
+
 	if (fskData) {
 		DBG_FSK("Freeing fskData\n");
 		free(fskData);
@@ -74,21 +76,21 @@ PhoneToneEncoder::~PhoneToneEncoder(void)
 		DBG_DTMF("Freeing dtmfSession\n");
 		free(dtmfSession);
 	}
+	STEL_FUNC_END();
 }
 
-int PhoneToneEncoder::EncoderInit(void) 
+int PhoneToneEncoder::Init(void) 
 {
-	EnterCriticalSection(&m_CriticalSection);
 	if (fskData) {
 		memset(fskData, 0, sizeof(fsk_data_state_t));
 	} else {
-		printf("Error: Tone Encoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Tone Encoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
 		return -1;
 	}
 	if (fbuf) {
 		memset(fbuf, 0, bufSize);
 	} else {
-		printf("Error: Tone Encoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
+		STEL_ERR("Tone Encoder was not initialized (%s:%d)\n", __FUNCTION__,__LINE__);
 		return -1;
 	}
 
@@ -98,18 +100,16 @@ int PhoneToneEncoder::EncoderInit(void)
 	if (dtmfSession) {
 		memset(dtmfSession, 0, sizeof(teletone_generation_session_t));
 	}
-	LeaveCriticalSection(&m_CriticalSection);
 	return 0;
 }
 
 void PhoneToneEncoder::WaveStreamStart(void)
 {
-	
 	int dtmf_size;
-	EnterCriticalSection(&m_CriticalSection);
+
 	dtmfInit = true;
 	if (teletone_init_session(dtmfSession, 0, NULL, NULL)) {
-		printf("Failed to initialize SW DTMF Tone session\n");
+		STEL_ERR("Failed to initialize SW DTMF Tone session\n");
 		return;
 	}
 
@@ -120,48 +120,49 @@ void PhoneToneEncoder::WaveStreamStart(void)
 	dtmf_size=(SMG_DTMF_ON+SMG_DTMF_OFF)*10*2;
 
 	buffer_create_dynamic(&(userData->dtmf_buffer), 1024, dtmf_size, 0);
-
-	if (sink_callback_functions.OnSwDTMFTransmit) {
-		sink_callback_functions.OnSwDTMFTransmit(this->callback_obj, userData->dtmf_buffer);	
-	} else {
-		printf("No OnSwDTMFTransmit callback function\n");
-	}
-	LeaveCriticalSection(&m_CriticalSection);
 }
 
 void PhoneToneEncoder::WaveStreamEnd(void)
 {
-	EnterCriticalSection(&m_CriticalSection);
 	dtmfInit = false;
 	if (userData->dtmf_buffer) {
 		buffer_zero(userData->dtmf_buffer);
 	}
-	LeaveCriticalSection(&m_CriticalSection);
 	return;
 }
 
 int PhoneToneEncoder::BufferGetSwDTMF(char dtmf_char, int *retValue)
 {
 	int wrote;
-	int err;
+	int buffer_size;
 
 	if (dtmfInit == false && dtmfEnable == false) {
-		printf("DTMF Encoder not ready\n");
+		STEL_ERR("%s(): DTMF Encoder not ready\n", __FUNCTION__);
 		return -1;
 	}
 
 	DBG_DTMF("Generating DTMF %c\n", dtmf_char);
 
 	if (dtmf_char >= (int) (sizeof(dtmfSession->TONES)/sizeof(dtmfSession->TONES[0]))) {
-		printf("Unable to generate DTMF for %c\n", dtmf_char);
+		STEL_ERR("Unable to generate DTMF for %c\n", dtmf_char);
 		return -1;
 	}
 
 	wrote = teletone_mux_tones(dtmfSession, &dtmfSession->TONES[(int) dtmf_char]);
 	if (wrote) {
-		err = buffer_write(userData->dtmf_buffer, (char*) dtmfSession->buffer, wrote); 
+		buffer_size = buffer_write(userData->dtmf_buffer, (char*) dtmfSession->buffer, wrote); 
+		if(buffer_size){
+			//call DTMF generation callback so user will transmit it.
+			if (sink_callback_functions.OnSwDtmfTransmit) {
+				sink_callback_functions.OnSwDtmfTransmit(this->callback_obj, userData->dtmf_buffer);
+			} else {
+				STEL_ERR("No SwDtmfEconderCallback() function\n");
+			}
+		}else{
+			STEL_ERR("buffer_write() returned %d!\n", buffer_size);
+		}
 	} else {
-		printf("Failed to generate tones\n");
+		STEL_ERR("Failed to generate tones\n");
 		return -1;
 	}
 	
@@ -176,23 +177,31 @@ int PhoneToneEncoder::BufferGetFSKCallerID(stelephony_caller_id_t *cid_info, int
 	int dateStrLen;
 
 	if (fskInit == false && fskEnable == false) {
-		printf("FSK Encoder not ready\n");
+		STEL_ERR("FSK Encoder not ready\n");
 		return -1;
 	}
-
-	
 	
 	nameStrLen = strlen(cid_info->calling_name);
 	numberStrLen = strlen(cid_info->calling_number);
 
 	if (cid_info->auto_datetime) {
+#if defined(__WINDOWS__)
+		struct tm *tm;
+		__time64_t now;
+
+		_time64( &now );
+		tm = _localtime64( &now );
+		dateStrLen = strftime(cid_info->datetime, sizeof(cid_info->datetime), "%m%d%H%M", tm);
+#else
 		struct tm tm;
         time_t now;
 	
 		time(&now);
-        localtime_r(&now, &tm);
 
+        localtime_r(&now, &tm);
 		dateStrLen = strftime(cid_info->datetime, sizeof(cid_info->datetime), "%m%d%H%M", &tm);
+#endif
+
 	} else {
 		dateStrLen = strlen(cid_info->datetime);
 	}
@@ -222,8 +231,10 @@ int PhoneToneEncoder::BufferGetFSKCallerID(stelephony_caller_id_t *cid_info, int
 	if (sink_callback_functions.OnFSKCallerIDTransmit) {
 		sink_callback_functions.OnFSKCallerIDTransmit(this->callback_obj, userData->fsk_buffer);	
 	} else {
-		printf("No OnFSKCallerIDTransmit callback function\n");
+		STEL_ERR("No OnFSKCallerIDTransmit callback function\n");
 	}
+
+	fsk_data_init(fskData, fbuf, bufSize);
 	return 0;
 }
 
@@ -261,14 +272,11 @@ void PhoneToneEncoder::put_WaveFormatID(variant_t _var)
 void PhoneToneEncoder::put_FeatureFSKCallerID(int val)
 {
 	DBG_FSK("FSK enabled\n");
-	EnterCriticalSection(&m_CriticalSection);
 	fskEnable = true;
-	LeaveCriticalSection(&m_CriticalSection);
 }
 
 void PhoneToneEncoder::put_FeatureSwDTMF(int val)
 {
-	EnterCriticalSection(&m_CriticalSection);
 	if (val == false) {
 		DBG_DTMF("DTMF disabled\n");
 		dtmfEnable = false;
@@ -276,17 +284,5 @@ void PhoneToneEncoder::put_FeatureSwDTMF(int val)
 		DBG_DTMF("DTMF enabled\n");
 		dtmfEnable = true;
 	}
-	LeaveCriticalSection(&m_CriticalSection);
-
-
-}
-
-void PhoneToneEncoder::put_Multithreaded(int val)
-{
-	/* 
-		Leave empty. Function needed for 
-		compatibility with ToneDecoder Library 
-	*/
-	return;
 }
 

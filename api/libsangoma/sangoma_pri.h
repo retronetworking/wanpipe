@@ -1,5 +1,5 @@
 /*****************************************************************************
- * libsangoma.c	AFT T1/E1: HDLC API Code Library
+ * sangoma_pri.h	libpri Sangoma integration
  *
  * Author(s):	Anthony Minessale II <anthmct@yahoo.com>
  *              Nenad Corbic <ncorbic@sangoma.com>
@@ -16,7 +16,11 @@
 #ifndef _SANGOMA_PRI_H
 #define _SANGOMA_PRI_H
 #include <libpri.h>
-#include <pri_internal.h>
+#ifdef __COMPILING_LIBSANGOMA__
+#include <libsangoma-pvt.h>
+#else
+#include <libsangoma.h>
+#endif
 
 
 #define SANGOMA_MAX_CHAN_PER_SPAN 32
@@ -75,6 +79,7 @@ struct sangoma_pri {
 	struct pri *pri;
 	int span;
 	int dchan;
+	sangoma_wait_obj_t *dchan_wait;
 	unsigned int flags;
 	void *private_info;
 	event_handler eventmap[MAX_EVENT+1];
@@ -84,14 +89,14 @@ struct sangoma_pri {
 struct sangoma_pri_event_list {
 	int event_id;
 	int pri_event;
-	char *name;
+	const char *name;
 };
 
 
 
 #define SANGOMA_MAP_PRI_EVENT(spri, event, func) spri.eventmap[event] = func;
 
-char *sangoma_pri_event_str(sangoma_pri_event_t event_id);
+const char *sangoma_pri_event_str(sangoma_pri_event_t event_id);
 int sangoma_one_loop(struct sangoma_pri *spri);
 int sangoma_init_pri(struct sangoma_pri *spri, int span, int dchan, int swtype, int node, int debug);
 int sangoma_run_pri(struct sangoma_pri *spri);

@@ -53,8 +53,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,6
- PRODUCTVERSION 1,0,0,6
+ FILEVERSION 1,0,0,7
+ PRODUCTVERSION 1,0,0,7
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -71,13 +71,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Sangoma Technologies Inc."
             VALUE "FileDescription", "stelephony.dll"
-            VALUE "FileVersion", "1, 0, 0, 6"
+            VALUE "FileVersion", "1, 0, 0, 7"
             VALUE "InternalName", "stelephony.dll"
             VALUE "LegalCopyright", "Copyright (C) 2008"
             VALUE "OriginalFilename", "stelephony.dll"
             VALUE "ProductName", "Stelephony - Dynamic Link Library"
-            VALUE "ProductVersion", "1, 0, 0, 6"
-            VALUE "SpecialBuild", "January 12, 2009"
+            VALUE "ProductVersion", "1, 0, 0, 7"
+            VALUE "SpecialBuild", "June 9, 2009. Added FSK CID and DTMF generation."
         END
     END
     BLOCK "VarFileInfo"

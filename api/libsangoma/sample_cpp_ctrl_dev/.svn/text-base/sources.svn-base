@@ -1,0 +1,47 @@
+TARGETNAME=sample_cpp
+TARGETTYPE=PROGRAM
+UMTYPE=console
+UMENTRY=main
+UMBASE=0x400000
+TARGETPATH=obj
+USE_LIBCMT=1
+
+#MSC_WARNING_LEVEL=$(SANG_WARNING_LEVEL)
+MSC_WARNING_LEVEL=-W3
+
+############################################################################################
+C_DEFINES=$(C_DEFINES) /D__WINDOWS__ /DUSE_SANGOMA_ERRNO
+############################################################################################
+
+INCLUDES=$(DDK_INC_PATH);\
+$(SANG_WP_DEVEL)\wanpipe_common\include;\
+$(SANG_WP_DEVEL)\wanpipe_common\include\aft_core;\
+$(SANG_WP_DEVEL)\wanpipe_windows\include;\
+$(SANG_WP_DEVEL)\libsangoma;\
+$(SANG_WP_DEVEL)\stelephony;\
+$(SANG_WP_DEVEL)\stelephony\stel_tone
+
+
+TARGETLIBS=$(SDK_LIB_PATH)\kernel32.lib \
+$(SDK_LIB_PATH)\user32.lib \
+$(SDK_LIB_PATH)\gdi32.lib \
+$(SDK_LIB_PATH)\winspool.lib \
+$(SDK_LIB_PATH)\comdlg32.lib \
+$(SDK_LIB_PATH)\advapi32.lib \
+$(SDK_LIB_PATH)\shell32.lib \
+$(SDK_LIB_PATH)\ole32.lib \
+$(SDK_LIB_PATH)\oleaut32.lib \
+$(SDK_LIB_PATH)\uuid.lib \
+$(SDK_LIB_PATH)\comctl32.lib \
+$(SDK_LIB_PATH)\Setupapi.lib \
+$(SANG_WP_DEVEL)\libsangoma\$(OBJ_DIR)\libsangoma.lib \
+$(SANG_WP_DEVEL)\stelephony\$(OBJ_DIR)\stelephony.lib
+
+
+SOURCES=sample.cpp \
+sangoma_cthread.cpp \
+sangoma_interface.cpp \
+sangoma_port.cpp \
+sangoma_port_configurator.cpp \
+sangoma_api_ctrl_dev.cpp
+

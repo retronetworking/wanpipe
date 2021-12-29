@@ -1826,9 +1826,9 @@ static int32_t wp_bri_config(void *pfe)
 		break;
 
 	default:
-		DEBUG_EVENT("%s(): %s: Warning: Module %d (AFT Line: %d): Not Installed.\n",
+		DEBUG_EVENT("%s(): %s: Error: Module %d (AFT Line: %d): Not Installed!!\n",
 			__FUNCTION__, fe->name, REPORT_MOD_NO(mod_no), aft_line_no);
-		break;
+		return 1;
 	}
 	
 	/**************************************************************************/

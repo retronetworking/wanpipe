@@ -407,33 +407,6 @@ typedef struct pipe_mgmt_stat{
 #define POLLHUP		POLLPRI
 #define POLLERR		POLLPRI
 
-#if defined(__KERNEL__)
-#define PRINT_BITMAP	DEBUG_TDMAPI
-#else
-#define PRINT_BITMAP	printf
-#endif
-
-static void print_poll_event_bitmap(u_int32_t bitmap)
-{
-	char known_event = 0;
-
-	if(bitmap & POLL_EVENT_RX_DATA){
-		known_event = 1;
-		PRINT_BITMAP("POLL_EVENT_RX_DATA\n");
-	}
-	if(bitmap & POLL_EVENT_TX_READY){
-		known_event = 1;
-		PRINT_BITMAP("POLL_EVENT_TX_READY\n");
-	}
-	if(bitmap & POLL_EVENT_OOB){
-		known_event = 1;
-		PRINT_BITMAP("POLL_EVENT_OOB\n");
-	}
-	if(known_event == 0){
-		PRINT_BITMAP("Unknown event!\n");
-	}
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////
 // Command to Set data in Idle Transmit buffer of the driver:
 // Input : ptr to TX_DATA_STRUCT structure
@@ -465,8 +438,10 @@ static void print_poll_event_bitmap(u_int32_t bitmap)
 //
 typedef struct _REGISTER_EVENT
 {
-	unsigned char	operation_status;	// operation completion status
-	HANDLE			hEvent;
+	u_int8_t	operation_status;	// operation completion status
+	u_int32_t	user_flags_bitmap;	// bitmap of events API user is interested to 
+									// receive when hEvent is signalled
+	HANDLE		hEvent;
 } REGISTER_EVENT , *PREGISTER_EVENT ;
 
 #define SIZEOF_REGISTER_EVENT  sizeof(REGISTER_EVENT)
@@ -490,8 +465,64 @@ typedef struct _REGISTER_EVENT
 #define WRITE_CMD_TIMEOUT	WP_CMD_TIMEOUT
 #define READ_CMD_TIMEOUT	WP_CMD_TIMEOUT
 
-#endif /* __WINDOWS__ */
 
+#if defined(__KERNEL__)
+ #define PRINT_BITMAP	DEBUG_TDMAPI
+#else
+ #define PRINT_BITMAP	printf
+#endif
+
+static __inline void print_poll_event_bitmap(u_int32_t bitmap)
+{
+	char known_event = 0;
+
+	if(bitmap & POLLIN){
+		known_event = 1;
+		PRINT_BITMAP("POLLIN\n");
+	}
+	if(bitmap & POLLOUT){
+		known_event = 1;
+		PRINT_BITMAP("POLLOUT\n");
+	}
+	if(bitmap & POLLPRI){
+		known_event = 1;
+		PRINT_BITMAP("POLLPRI\n");
+	}
+	if(known_event == 0){
+		PRINT_BITMAP("Unknown event!\n");
+	}
+}
+
+
+
+#if defined(__KERNEL__)
+ #define PRINT_BITMAP	DEBUG_TDMAPI
+#else
+ #define PRINT_BITMAP	printf
+#endif
+
+static void print_poll_event_bitmap(u_int32_t bitmap)
+{
+	char known_event = 0;
+
+	if(bitmap & POLLIN){
+		known_event = 1;
+		PRINT_BITMAP("POLLIN\n");
+	}
+	if(bitmap & POLLOUT){
+		known_event = 1;
+		PRINT_BITMAP("POLLOUT\n");
+	}
+	if(bitmap & POLLPRI){
+		known_event = 1;
+		PRINT_BITMAP("POLLPRI\n");
+	}
+	if(known_event == 0){
+		PRINT_BITMAP("Unknown event!\n");
+	}
+}
+
+#endif /* __WINDOWS__ */
 
 /*
 #define MEM_TEST_BUFFER_LEN	100

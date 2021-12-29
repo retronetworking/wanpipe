@@ -24,7 +24,7 @@
  */
 #define lib_printf(level, fp, fmt, ...) if (lib_log) lib_log(level, fp, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 
-extern void (*lib_log)(int level, FILE *fp, char *file, const char *func, int line, char *fmt, ...);
+extern sangoma_hptdm_log_func_t lib_log;
 
 
 /*---------------------------------------------------------

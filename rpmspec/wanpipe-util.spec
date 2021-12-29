@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.5.2
+%define version           3.5.3
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -328,13 +328,54 @@ enable_smg_log;
 
 %changelog
 
-* Fri May 08 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.5.2
+* Tue Jun 25 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.3
 ===================================================================
 
-- B700 PCIe cards were being desplayed as PCI cards in hwprobe
+- New Makefile build system
+  Note this does not replace Setup. Makefile build system can be
+  used by power users.
+  Asterisk
+     make dahdi DAHDI_DIR=<abs path to dahdi>
+	 make install
+     make zaptel ZAPDIR=<abs path to zaptel>
+	 make install
+
+  FreeSwitch
+     make openzap
+	 make install
+
+  TDM API 
+     make all_src
+	 make install
+
+- Updated libsangoma API
+  Redesigned wait object for Linux/Windows integration.
+
+- Turned on HWEC Noise Reduction by default
+  To disable noise reduction specify
+  HWEC_NOISE_REDUCTION_DISABLE=YES in [wanpipe1] section of wanpipe
+  config file.
+
+- Regression tested for FreeSwitch+OpenZAP
+
+- Updated dma buffers in ZAPTEL and TDM API mode.
+- Bug fixes for Mixed Data + Voice Mode
+
+- Bug fix on TDM API mode. 
+  Flush buffers could interfere with tx/rx data.
+
+- Added BRI DCHAN monitor in case task is not scheduled by the
+  system.  Sanity check.
+- Fixed libsangoma stack overflow check that failed on some kernels.
+
+
+* Fri May 08 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.2
+===================================================================
+
+- B700 PCIe cards were being displayed as PCI cards in hwprobe
 - Bug fix in wancfg_zaptel 
 
-* Thu May 07 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.5.1
+* Thu May 07 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.1
 ===================================================================
 
 - New Hardware Support

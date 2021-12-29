@@ -1161,6 +1161,7 @@ enum {
 };
 
 
+
 /*==========================================
  * Board CPLD Interface Section
  *
@@ -1298,6 +1299,25 @@ aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
 	}
 
 	return num_of_slots;
+}
+
+static __inline int 
+aft_tx_dma_chain_chain_len(private_area_t *chan) 
+{
+	int pending_indx=chan->tx_pending_chain_indx;
+	int chain_diff=0;
+
+	if (chan->tx_chain_indx == pending_indx){
+        return chain_diff;
+	}            
+
+	if (chan->tx_chain_indx > pending_indx){
+		chain_diff = chan->tx_chain_indx - pending_indx;
+	}else{
+		chain_diff = MAX_AFT_DMA_CHAINS-(pending_indx - chan->tx_chain_indx);
+	}
+		
+	return chain_diff;
 }
 
 #define MAX_AFT_HW_DEV 20

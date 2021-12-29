@@ -147,14 +147,14 @@
 #endif
 
 #if defined(__WINDOWS__)
-#define DBG_SDLADRV_HW_IFACE  if(0)DEBUG_EVENT
-void print_sdlahw_head_list(const char *caller_name);
-void print_sdlahw_port(sdlahw_port_t *sdlahw_port_ptr);
+ #define DBG_SDLADRV_HW_IFACE	if(0)DEBUG_EVENT
+ static void print_sdlahw_head_list(const char *caller_name);
+ static void print_sdlahw_port(sdlahw_port_t *sdlahw_port_ptr);
+ #define SDLADRV_FUNC()			if(0)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
 #else
-#define DBG_SDLADRV_HW_IFACE(m,...) 
+ #define DBG_SDLADRV_HW_IFACE(m,...) 
+ #define SDLADRV_FUNC()
 #endif
-
-
 
 
 /***************************************************************************
@@ -668,15 +668,9 @@ int sdladrv_init(void* arg)
 	sdla_memdbg_init();
 #endif
 
-	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta %s.%s %s %s\n",
+  	DEBUG_EVENT("%s  %s.%s %s %s\n",
 			wan_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION, 
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-	}else{
-		DEBUG_EVENT("%s Stable %s.%s %s %s\n",
-			wan_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION, 
-			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-	}
 
 #if defined(__LINUX__)
 	EXEC_TIMEOUT=HZ*EXEC_HZ_DIVISOR;
@@ -3666,7 +3660,7 @@ int sdla_plxctrl_read8(void *phw, short a, unsigned char *p)
 	return 0;
 }
 
-void print_sdlahw_port(sdlahw_port_t *sdlahw_port_ptr)
+static void print_sdlahw_port(sdlahw_port_t *sdlahw_port_ptr)
 {
 	DBG_SDLADRV_HW_IFACE("used: %d, port devname: %s\n",
 		sdlahw_port_ptr->used, (sdlahw_port_ptr->devname ? sdlahw_port_ptr->devname: "port devname not init"));
@@ -3676,7 +3670,7 @@ void print_sdlahw_port(sdlahw_port_t *sdlahw_port_ptr)
 	}
 }
 
-void print_sdlahw_head_list(const char *caller_name)
+static void print_sdlahw_head_list(const char *caller_name)
 {
 	sdlahw_t*	tmp_hw;
 	int hwcounter = 0, port_index;
@@ -5299,9 +5293,9 @@ static int sdla_bootcfg (sdlahw_t* hw, sfm_info_t* sfminfo)
 	}else{
 		/* No easy way to avoid compile warning */
 #ifdef __WINDOWS__
-		offset = sfminfo->dataoffs - (unsigned short)hwcard->u_isa.vector;
+		offset = sfminfo->dataoffs - (unsigned short)hwcpu->vector;
 #else
-		offset = sfminfo->dataoffs - (unsigned int)hwcard->u_isa.vector;
+		offset = sfminfo->dataoffs - (unsigned int)hwcpu->vector;
 #endif
 	}
 
@@ -5700,7 +5694,7 @@ static int sdla_down (void* phw)
 		}
 
 		if (hwcpu->status & SDLA_IO_MAPPED){
-			sdla_bus_space_unmap(hw, hwcard->u_isa.vector, 16);
+			sdla_bus_space_unmap(hw, hwcpu->vector, 16);
 			hwcpu->status &= ~SDLA_IO_MAPPED;
 		}
 
@@ -6169,7 +6163,7 @@ static int sdla_peek (void* phw, unsigned long addr, void* pbuf, unsigned len)
 
 	case SDLA_S508:
 		{
-		ulong_ptr_t oldvec = (ulong_ptr_t)hwcard->u_isa.vector;
+		ulong_ptr_t oldvec = (ulong_ptr_t)hwcpu->vector;
 		ulong_ptr_t curvec;      /* current DPM window vector */
 		unsigned int winsize = hwcpu->dpmsize;
 		unsigned int curpos, curlen;   /* current offset and block size */
@@ -6274,7 +6268,7 @@ static int sdla_poke (void* phw, unsigned long addr, void* pbuf, unsigned len)
 
 	case SDLA_S508:
 		{
-		ulong_ptr_t oldvec = (ulong_ptr_t)hwcard->u_isa.vector;
+		ulong_ptr_t oldvec = (ulong_ptr_t)hwcpu->vector;
 		unsigned long curvec;        /* current DPM window vector */
 		unsigned winsize = hwcpu->dpmsize;
 		unsigned curpos, curlen;     /* current offset and block size */
@@ -6619,7 +6613,7 @@ static int sdla_mapmem (void* phw, ulong_ptr_t addr)
  	default:
 		return -EINVAL;
 	}
-	hwcard->u_isa.vector = (sdla_mem_handle_t)(addr & 0xFFFFE000L);
+	hwcpu->vector = (sdla_mem_handle_t)(addr & 0xFFFFE000L);
 	return 0;
 }
 
@@ -7391,8 +7385,8 @@ static int sdla_detect_s514 (sdlahw_t* hw)
 	}
 
 	/* map the physical control register memory to virtual memory */
-	sdla_bus_space_map(hw, S514_CTRL_REG_BYTE, 16, &hwcard->u_isa.vector);
-	if (!hwcard->u_isa.vector){ 
+	sdla_bus_space_map(hw, S514_CTRL_REG_BYTE, 16, &hwcpu->vector);
+	if (!hwcpu->vector){ 
 		sdla_bus_space_unmap(hw, hwcpu->dpmbase, MAX_SIZEOF_S514_MEMORY);
 		DEBUG_EVENT("%s: PCI virtual memory allocation failed\n", 
 					hw->devname);
@@ -7404,7 +7398,7 @@ static int sdla_detect_s514 (sdlahw_t* hw)
 
 		
 #if defined(__NetBSD__) || defined(__OpenBSD__)
-	hwcard->u_isa.ioh = hwcard->u_isa.vector;
+	hwcard->u_isa.ioh = hwcpu->vector;
 #endif
 	hwcpu->status |= SDLA_IO_MAPPED;
 
@@ -7769,8 +7763,14 @@ static int sdla_detect_aft(sdlahw_t* hw)
 	DEBUG_EVENT( "%s: IRQ %d allocated to the AFT PCI card\n",
 				hw->devname, hwcpu->irq);
 
+#if defined(__WINDOWS__)
+	/* Latency important only for PCI. PCI Express ignores it. */
+	/* Set PCI Latency of 128 (0x80) */
+	sdla_pci_write_config_word(hw, XILINX_PCI_LATENCY_REG + 1/* 0xC + 1 */, 128);
+#else
 	/* Set PCI Latency of 0xFF*/
-	sdla_pci_write_config_dword(hw, XILINX_PCI_LATENCY_REG, XILINX_PCI_LATENCY);
+	sdla_pci_write_config_word(hw, XILINX_PCI_LATENCY_REG, XILINX_PCI_LATENCY);
+#endif
 	return 0;
 }
 
@@ -7898,6 +7898,15 @@ sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 			}
 			continue;
 		}
+
+#if defined(__WINDOWS__)
+		/*	On Windows there is no 'conf' file where 'hwprobe' stored 'card_type',
+			so the 'conf->card_type' is NOT known for B700. It is initiliazied
+			to WANOPT_AFT_ISDN by default, but it also can be WANOPT_AFT_ANALOG.
+			The 'hw->cfg_type' contains real 'card_type' as it was detected by
+			module scanning code. */
+		conf->card_type = hw->cfg_type;
+#endif
 
 		DBG_SDLADRV_HW_IFACE("%s(): hw->cfg_type: 0x%X (%s), hwcpu->hwcard->cfg_type: 0x%X (%s)\n", 
 			__FUNCTION__, 
@@ -8917,13 +8926,13 @@ static int sdla_io_read_1(void* phw, unsigned int offset, u8* value)
 
 	if (!(hwcpu->status & SDLA_IO_MAPPED)) return 0;
 #if defined(__FreeBSD__)
-	*value = readb ((u8*)hwcard->u_isa.vector + offset);
+	*value = readb ((u8*)hwcpu->vector + offset);
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	*value = bus_space_read_1(hwcpu->hwcard->memt, hwcard->u_isa.vector, offset);
+	*value = bus_space_read_1(hwcpu->hwcard->memt, hwcpu->vector, offset);
 #elif defined(__LINUX__)
-	*value = wp_readb((hwcard->u_isa.vector + offset));
+	*value = wp_readb((hwcpu->vector + offset));
 #elif defined(__WINDOWS__)
-	*value = READ_REGISTER_UCHAR((PUCHAR)((PUCHAR)hwcard->u_isa.vector + offset));
+	*value = READ_REGISTER_UCHAR((PUCHAR)((PUCHAR)hwcpu->vector + offset));
 #else
 # warning "sdla_io_read_1: Not supported yet!"
 #endif
@@ -8944,13 +8953,13 @@ static int sdla_io_write_1(void* phw, unsigned int offset, u8 value)
 
 	if (!(hwcpu->status & SDLA_IO_MAPPED)) return 0;
 #if defined(__FreeBSD__)
-	writeb ((u8*)hwcard->u_isa.vector+offset, value);
+	writeb ((u8*)hwcpu->vector+offset, value);
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	bus_space_write_1(hwcpu->hwcard->memt, hwcard->u_isa.vector, offset, value);
+	bus_space_write_1(hwcpu->hwcard->memt, hwcpu->vector, offset, value);
 #elif defined(__LINUX__)
-	wp_writeb(value, hwcard->u_isa.vector + offset);
+	wp_writeb(value, hwcpu->vector + offset);
 #elif defined(__WINDOWS__)
-	WRITE_REGISTER_UCHAR((PUCHAR)((PUCHAR)hwcard->u_isa.vector + offset), value);
+	WRITE_REGISTER_UCHAR((PUCHAR)((PUCHAR)hwcpu->vector + offset), value);
 #else
 # warning "sdla_io_write_1: Not supported yet!"
 #endif

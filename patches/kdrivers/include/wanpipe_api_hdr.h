@@ -547,6 +547,9 @@ typedef enum SANG_STATUS
 (abs(status) == SANG_STATUS_NO_FREE_BUFFERS) ? "SANG_STATUS_NO_FREE_BUFFERS":\
 "Status Unknown"
 
+#define SANG_SUCCESS(status)	(status == SANG_STATUS_SUCCESS)
+#define SANG_ERROR(status)		(!SANG_SUCCESS(status))
+
 #if defined(__WINDOWS__)
 #if defined(WAN_KERNEL) || defined(USE_SANGOMA_ERRNO)
 /*

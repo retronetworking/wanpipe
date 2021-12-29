@@ -401,9 +401,10 @@ static inline void smg_all_ckt_busy(void)
 	} else {
 		server.all_ckt_busy+=server.call_count*15;
 	}
+
 	if (server.all_ckt_busy > 10000) {
-                server.all_ckt_busy = 10000;
-        }
+		server.all_ckt_busy = 10000;
+	}
 
 #if 0	
 	if (server.all_ckt_busy >= 5) {

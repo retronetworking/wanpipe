@@ -135,6 +135,10 @@ enum WANPIPE_IOCTL_PIPEMON_CMDS {
 	WANPIPEMON_GET_IBA_DATA,				/*!< Get IBA Data - Deprecated not used */
 	WANPIPEMON_TDM_API,						/*!< Windows Legacy- TDM API commands */
 
+
+	/* Do not add any non-debugging commands below */
+	WANPIPEMON_CHAN_SEQ_DEBUGGING,			/*!< Debugging only - enable/disalbe span level sequence debugging */
+
 	WANPIPEMON_PROTOCOL_PRIVATE				/*!< Private Wanpipemon commands used by lower layers */
 };
 
@@ -199,7 +203,9 @@ enum wanpipe_api_cmds
 	WP_API_CMD_SET_IDLE_FLAG,		/*!< Set Idle Flag (char) for a BitStream (Voice) channel */
 
 	/* Add only debugging commands here */
-    WP_API_CMD_GEN_FIFO_ERR=500
+    WP_API_CMD_GEN_FIFO_ERR=500,
+	WP_API_CMD_START_CHAN_SEQ_DEBUG,
+	WP_API_CMD_STOP_CHAN_SEQ_DEBUG
 };
 
 /*!
@@ -208,7 +214,10 @@ enum wanpipe_api_cmds
  */
 enum wanpipe_cdev_ctrl_cmds
 {
-	WP_CDEV_CMD_TIMEDIFF_MONITORING_OPTION=1
+	WP_CDEV_CMD_SET_DPC_TIMEDIFF_MONITORING_OPTION=1,		/* DPC() monitoring */
+	WP_CDEV_CMD_SET_TX_INTERRUPT_TIMEDIFF_MONITORING_OPTION,/* TX ISR() monitoring */
+	WP_CDEV_CMD_SET_RX_INTERRUPT_TIMEDIFF_MONITORING_OPTION,/* RX ISR() monitoring */
+	WP_CDEV_CMD_PRINT_INTERRUPT_TIMEDIFF_MONITORING_INFO	/* print ISR() monitoring info to Wanpipelog */
 };
 
 /*!
@@ -399,8 +408,9 @@ enum wanpipe_api_events
 */
 #define WP_PORT_NAME_FORM		"wanpipe%d"
 #define WP_INTERFACE_NAME_FORM	"wanpipe%d_if%d"
-
-
+#define WP_CTRL_DEV_NAME		"wanpipe_ctrl"
+#define WP_CONFIG_DEV_NAME		"wanpipe"
+#define WP_TIMER_DEV_NAME_FORM	"wanpipe_timer%d"
 
 #pragma pack(1)
 

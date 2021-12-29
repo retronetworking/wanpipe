@@ -1,9 +1,9 @@
-#if defined (__WINDOWS__)
-#include "stdafx.h"
 
-#define NULL_CHAR NULL
+#if defined (__WINDOWS__)
+# include <windows.h>
+# define NULL_CHAR NULL
 #elif defined (__LINUX__)
-#define NULL_CHAR 0
+# define NULL_CHAR 0
 #endif
 
 #include "Q931EventsDecoder.h"

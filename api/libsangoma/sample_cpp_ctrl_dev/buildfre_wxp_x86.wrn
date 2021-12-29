@@ -1,0 +1,2 @@
+warnings in directory d:\development_trunk\libsangoma\sample_cpp
+d:\development_trunk\libsangoma\sample_cpp\cl : warning D9025 : overriding '/Od' with '/Ox'

@@ -356,7 +356,6 @@ typedef struct sdla_hw_probe
 typedef struct sdlahw_isa_ 
 {
 	unsigned int		ioport;
-	sdla_mem_handle_t	vector;		/* local offset of the DPM window */
 	unsigned 		io_range;	/* I/O port range */
 	unsigned char 		regs[SDLA_MAXIORANGE];	/* was written to registers */
 	unsigned 		pclk;		/* CPU clock rate, kHz */
@@ -577,6 +576,7 @@ typedef struct sdlahw_cpu
 	sdla_base_addr_t 	mem_base_addr;
 	unsigned 			dpmsize;	/* dual-port memory size */
 	unsigned long 		memory;		/* memory size */
+	sdla_mem_handle_t	vector;		/* local offset of the DPM window */
 
 # if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	void				*sdla_dev;              /* used only for FreeBSD/OpenBSD */

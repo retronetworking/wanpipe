@@ -55,6 +55,7 @@
 #pragma message ("Warning: WAN_NO_INTR Defined!!")
 #endif
 
+
 #if defined(__WINDOWS__)
  /********** compilation flags ************/
  /* compile protocols in the LIP layer */
@@ -72,6 +73,12 @@
  /* compile AFT A200 Analog code */
  #define CONFIG_PRODUCT_WANPIPE_AFT_RM
  #define CONFIG_WANPIPE_PRODUCT_AFT_RM
+
+ /* compile AFT B600 Analog - 4 FXO / 1 FXS code */
+ #define CONFIG_PRODUCT_WANPIPE_AFT_A600
+
+ /* compile AFT B700 4 BRI and 2 Analog - FXO or FXS code */
+ #define CONFIG_PRODUCT_WANPIPE_AFT_A700
 
  /* compile HWEC code */
  #define CONFIG_WANPIPE_HWEC

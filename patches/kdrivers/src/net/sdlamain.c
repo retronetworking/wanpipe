@@ -399,15 +399,9 @@ int __init wanpipe_init(void)
 	ncards=0;
 
 
-	if (WANPIPE_VERSION_BETA){
-		DEBUG_EVENT("%s Beta %s.%s %s %s\n",
+  	DEBUG_EVENT("%s %s.%s %s %s\n",
 			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
 			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-	}else{
-		DEBUG_EVENT("%s Stable %s.%s %s %s\n",
-			fullname, WANPIPE_VERSION,WANPIPE_SUB_VERSION,
-			WANPIPE_COPYRIGHT_DATES,WANPIPE_COMPANY);
-	}
 	
 	/* Probe for wanpipe cards and return the number found */
 	DEBUG_EVENT("wanpipe: Probing for WANPIPE hardware.\n");

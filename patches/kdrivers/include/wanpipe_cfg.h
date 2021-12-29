@@ -306,6 +306,7 @@ typedef struct wan_xilinx_conf_if
 	unsigned char	tdmv_master_if;
 	unsigned char   rbs_cas_idle;		/* Initial RBS/CAS value */
 	unsigned char	hdlc_repeat;
+	unsigned int	mtu_idle;
 }wan_xilinx_conf_if_t;
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
@@ -595,7 +596,8 @@ typedef struct wan_hwec_conf_
 {
 	unsigned int	clk_src;		/* Octasic Clock Source Port */
 	unsigned int	persist_disable;	/* HW EC Persist */
-	unsigned int	noise_reduction;	/* Noise Reduction control */
+	unsigned char	noise_reduction;			/* Noise Reduction control */
+	unsigned char	noise_reduction_disable;	/* Noise Reduction control - because now its on by default */
 	unsigned int	tone_disabler_delay;	/* delay in a fax mode */
 } wan_hwec_conf_t;
 

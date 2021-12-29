@@ -400,7 +400,7 @@ int aft_analog_global_chip_config(sdla_t *card)
 	int used_cnt;
 
 	if (IS_A700_CARD(card)) {
-			wan_set_bit(0,&card->fe_ignore_intr);
+	   	wan_set_bit(0,&card->fe_ignore_intr);
 	}
 	
 	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);

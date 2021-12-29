@@ -1,14 +1,14 @@
 8
 
 dir
-7678
+7758
 http://192.168.1.168/svn/wanpipe/wanpipe_common/branches/jpatel_new/wantools/wancfg_zaptel
 http://192.168.1.168/svn/wanpipe
 
 
 
-2009-05-06T17:18:16.245239Z
-7669
+2009-05-26T21:01:36.953379Z
+7741
 jpatel
 
 
@@ -64,18 +64,6 @@ file
 sangoma
 has-props
 
-boostspan.pm
-file
-
-
-
-
-2009-04-07T21:16:44.000000Z
-8948e0709dd4dd21a73477daed531949
-2009-04-08T15:24:10.094544Z
-7535
-jpatel
-
 setup-sangoma
 file
 
@@ -89,29 +77,16 @@ c631bf29819aed1b49bcd46369e06b59
 sangoma
 has-props
 
-wancfg_zaptel
+boostspan.pm
 file
 
 
 
 
-2009-04-01T18:10:26.000000Z
-0c2f52a3b64e425d9b18b3d1a29586e8
-2008-01-08T21:32:19.000000Z
-5238
-sangoma
-has-props
-
-Card.pm
-file
-
-
-
-
-2009-04-22T18:05:35.000000Z
-dc1c67323bcd74e1c0a64c7b33af5c5f
-2009-04-22T20:02:39.663576Z
-7608
+2009-04-07T21:16:44.000000Z
+8948e0709dd4dd21a73477daed531949
+2009-04-08T15:24:10.094544Z
+7535
 jpatel
 
 A10x.pm
@@ -125,6 +100,31 @@ file
 2009-04-27T23:10:02.151043Z
 7635
 jpatel
+
+Card.pm
+file
+
+
+
+
+2009-04-22T18:05:35.000000Z
+dc1c67323bcd74e1c0a64c7b33af5c5f
+2009-04-22T20:02:39.663576Z
+7608
+jpatel
+
+wancfg_zaptel
+file
+
+
+
+
+2009-04-01T18:10:26.000000Z
+0c2f52a3b64e425d9b18b3d1a29586e8
+2008-01-08T21:32:19.000000Z
+5238
+sangoma
+has-props
 
 A20x.pm
 file
@@ -189,9 +189,6 @@ b0dd0ff9bb1ecad55b1306f13bd2580f
 jpatel
 has-props
 
-templates
-dir
-
 wancfg_dahdi
 file
 
@@ -205,16 +202,19 @@ file
 jpatel
 has-props
 
+templates
+dir
+
 wancfg_zaptel.pl
 file
-7682
 
 
 
-2009-05-08T16:08:01.000000Z
-741d97bced1a1b7305edbaa51903bee9
-2009-05-08T17:56:28.376256Z
-7682
+
+2009-05-28T20:51:27.000000Z
+2a1c0265936d35029bd2d81e245d7a0b
+2009-05-26T21:01:36.953379Z
+7741
 jpatel
 has-props
 
@@ -249,11 +249,11 @@ file
 
 
 
-2009-04-01T18:10:26.000000Z
-841456ba797584bff805c8c0e114faf7
-2008-11-12T00:18:46.872847Z
-6792
-davidy
+2009-05-28T20:51:27.000000Z
+06195b88228df71c8f7d21d946314ce1
+2009-05-26T20:49:14.353940Z
+7738
+jpatel
 
 wancfg_smg
 file

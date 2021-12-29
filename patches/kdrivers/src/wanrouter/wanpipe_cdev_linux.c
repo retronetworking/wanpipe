@@ -664,7 +664,7 @@ static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_
 		return -ENODEV;
 	}
 
-	if (count <= sizeof(struct msghdr)) {
+	if (count < sizeof(struct msghdr)) {
 		DEBUG_EVENT("%s:%d Error: Invalid read buffer size %i\n",__FUNCTION__,__LINE__,count);
 		return -EINVAL;
 	}
@@ -683,6 +683,9 @@ static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_
 	if (err < 0) {
 		return err;
 	}
+
+	/* Update the count with length obtained from verify */
+	count = err;
 
 	if (cdev->ops.read) {
 		err=cdev->ops.read(cdev->dev_ptr, &skb, &hdr, count);

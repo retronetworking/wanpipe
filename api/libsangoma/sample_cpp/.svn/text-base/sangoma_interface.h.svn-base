@@ -77,12 +77,8 @@
  *  It is always the case for Analog cards, but not for the Digital cards, where
  *  API may provide input from a SINGLE or from MULTIPLE timeslots.
  */
-#if defined(_WIN64)
-/* temporary not available on 64bit */
-# define USE_STELEPHONY_API 0
-#else
-# define USE_STELEPHONY_API 1
-#endif
+#define USE_STELEPHONY_API 1 /* set to zero if don't need to compile 
+								libstelephony.dll function calls */
 
 #include "wanpipe_api.h"
 #include "sangoma_cthread.h"
@@ -90,9 +86,9 @@
 
 #include <libsangoma.h>
 
-# if USE_STELEPHONY_API
-#  include <libstelephony.h>
-# endif
+#if USE_STELEPHONY_API
+# include <libstelephony.h>
+#endif
 
 /*!
   \class sangoma_interface
@@ -100,9 +96,11 @@
 */
 class sangoma_interface : public sangoma_cthread
 {
-	
+	/*! Sangoma IO device descriptor */
+	sng_fd_t	sangoma_dev;
+
 	/*! wait object device for an IO device */
-	sangoma_wait_obj_t	sangoma_wait_obj;
+	void *sng_wait_obj;
 
 	//////////////////////////////////////////////////////////////////
 	//receive stuff
@@ -154,21 +152,15 @@ class sangoma_interface : public sangoma_cthread
 	
 	/*! Rx Thread function */
 	void RxThreadFunc();
-#if defined(__LINUX__)
 	/*! Tx Thread function */
 	void TxThreadFunc();
-#endif
 
 	/*! Rx data call back function handler */
 	int read_data();
 	/*! Rx event call back function handler */
 	int read_event();
 
-	/*! Debug function to print rx data */
-	void PrintRxData(wp_api_element_t *pRx);
-
-	/*! Debug function to print rx event */
-	void PrintTdmApiEvent(wp_api_element_t *pRx);
+	int write_data(wp_api_hdr_t *hdr, void *tx_buffer);
 
 	/*! Shutdown function to cleanup the class */
 	void cleanup();
@@ -188,15 +180,6 @@ class sangoma_interface : public sangoma_cthread
 	/*! deprecated: Execute API command IOCTL - one should use libsangoma directly */
 	int wanpipe_api_ioctl(wan_cmd_api_t *api_cmd);
 
-	/*! deprecated: Read data from device */ 
-	int		DoReadCommand(sng_fd_t drv, wp_api_element_t * pRx);
-
-	/*! deprecated: Write data to device */
-	int		DoWriteCommand(sng_fd_t drv, wp_api_element_t * pTx);
-
-	/*! deprecated: Set Tx Idle buffer */
-	UCHAR	DoSetIdleTxBufferCommand(sng_fd_t drv, wp_api_element_t *pTx);
-
 	/*! Bert test pattern */
 	unsigned char wp_brt[256];
 
@@ -210,17 +193,25 @@ class sangoma_interface : public sangoma_cthread
 	/*! Stelephony provides Analog CallierID and DTMF encoding/decoding */
 	stelephony_callback_functions_t scf;
 	void *stelObj;
-	void *dtmfBuffer;
+	void *DtmfBuffer;
+	void *FskCidBuffer;
+	void TxStelEncoderBuffer(void *pStelEncoderBuffer);
+	CRITICAL_SECTION	StelTxCriticalSection;
 #endif
 
 	//////////////////////////////////////////////////////////////////
 	//data
-	char					terminate_tx_rx_threads;
+	char				terminate_tx_rx_threads;
 
-	/*! Maximum Rx Data buffer to copy rx data into */
-	wp_api_element_t			rx_data;
-	/*! Maximum Tx Data buffer to copy tx data into */
-	wp_api_element_t			tx_data;
+	/*! API header for rx data */
+	wp_api_hdr_t		rxhdr;
+	/*! Data buffer to copy rx data into */
+	unsigned char		rx_data[MAX_NO_DATA_BYTES_IN_FRAME];
+
+	/*! API header for tx data */
+	wp_api_hdr_t		txhdr;
+	/*! Data buffer to copy tx data into */
+	unsigned char		tx_data[MAX_NO_DATA_BYTES_IN_FRAME];
 
 	/*! Callback functions used to call the application on IO events */
 	callback_functions_t	callback_functions;
@@ -233,6 +224,10 @@ class sangoma_interface : public sangoma_cthread
 
 	/*! Wanpipe Interface number based on a channel in a SPAN */
 	int InterfaceNumber;
+
+#if DBG_TIMING
+	wan_debug_t		wan_debug_rx_timing;
+#endif
 
 protected:
 	virtual unsigned long threadFunction(struct ThreadParam& thParam);
@@ -251,6 +246,12 @@ public:
 	int run();
 	int stop();
 
+	/*! Write data to device */
+	int transmit(wp_api_hdr_t *hdr, void *data);
+
+	/*! Read data from device */ 
+	int receive (wp_api_hdr_t *hdr, void *data);
+
 	void bit_swap_a_buffer(unsigned char *data, int len);
 
 	void get_te1_56k_stat(void);
@@ -259,6 +260,9 @@ public:
 
 	int get_operational_stats(wanpipe_chan_stats_t *stats);
 	int flush_operational_stats (void);
+
+	int	CreateSwDtmfTxThread(void *buffer);
+	int	CreateFskCidTxThread(void *buffer);
 
 	int enable_rbs_monitoring();
 	char get_rbs(rbs_management_t *rbs_management_ptr);
@@ -283,16 +287,10 @@ public:
 
 	void get_card_customer_id(u_int8_t *customer_id);
 
-	int transmit(wp_api_element_t *pTx);
-	int receive (wp_api_element_t *pRx);
-
 #if USE_STELEPHONY_API
-#if defined (__LINUX__)
 	int resetFSKCID(void);
-	int sendCallerID(LPCTSTR name, LPCTSTR number);
+	int sendCallerID(char *name, char *number);
 	int sendSwDTMF(char dtmf_char);
-	int setDTMFBuffer(void* pBuffer);
-#endif
 #endif
 
 	//////////////////////////////////////////////////////////////////

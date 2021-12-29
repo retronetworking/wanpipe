@@ -47,23 +47,16 @@
 # include <winioctl.h>
 # include <stdio.h>
 # include <conio.h>
-# include <stddef.h>		//for offsetof()
+# include <stddef.h>			/* for offsetof() */
 # include <stdlib.h>
 # include <wanpipe_ctypes.h>
-# include <wanpipe_time.h>			//for time_t
+# include <wanpipe_time.h>		/* for time_t and sleep() */
 # include <wanpipe_api.h>
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
 
-/* UNIX sleep is in seconds, translate into milliseconds */
-#define sleep(x)	Sleep(x*1000)
 #define FUNC_DEBUG	if(0)printf("%s: line: %d\n", __FILE__, __LINE__);
 #define DBGPRINT	if(0)printf
-
-//////////////////////////////////////////////////////////////////
-//IOCTL management structures and variables.
-//Note: this program is NOT multithreded, so it's ok to use global buffer.
-wan_udp_hdr_t	wan_udp;
 
 #else
 # include <wanpipe_defines.h>
@@ -81,29 +74,31 @@ wan_udp_hdr_t	wan_udp;
 #define OCT6116_128S_IMAGE_NAME	"OCT6116-128S.ima"
 #define OCT6116_256S_IMAGE_NAME	"OCT6116-256S.ima"
 
-#if !defined(__WINDOWS__)
-
 #define WAN_EC_NAME	"wan_ec"
+
 #if defined(__LINUX__)
 # define WAN_EC_DIR	"/etc/wanpipe/" WAN_EC_NAME
+#elif defined(__WINDOWS__)
+ /* HWEC files are in "C:\WINDOWS\sang_ec_files" */
+# define SANG_EC_FILES_SUBDIR	"sang_ec_files"
 #else
 # define WAN_EC_DIR	"/usr/local/etc/wanpipe/" WAN_EC_NAME
 #endif
-#define WAN_EC_BUFFERS	WAN_EC_DIR "/buffers"
 
-#define OCT6116_32S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_32S_IMAGE_NAME
-#define OCT6116_64S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_64S_IMAGE_NAME
-#define OCT6116_128S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_128S_IMAGE_NAME
-#define OCT6116_256S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_256S_IMAGE_NAME
+#if !defined(__WINDOWS__)
 
-#ifndef MAX_PATH
-#define MAX_PATH MAXPATHLEN
-#endif
+# define WAN_EC_BUFFERS	WAN_EC_DIR "/buffers"
+
+# define OCT6116_32S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_32S_IMAGE_NAME
+# define OCT6116_64S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_64S_IMAGE_NAME
+# define OCT6116_128S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_128S_IMAGE_NAME
+# define OCT6116_256S_IMAGE_PATH	WAN_EC_DIR "/" OCT6116_256S_IMAGE_NAME
+
+# ifndef MAX_PATH
+#  define MAX_PATH MAXPATHLEN
+# endif
 
 #else
-
-/* HWEC files are in "C:\WINDOWS\sang_ec_files" */
-#define WAN_EC_NAME	"sang_ec_files"
 
 char WAN_EC_DIR[MAX_PATH];
 char WAN_EC_BUFFERS[MAX_PATH];
@@ -339,9 +334,8 @@ HANDLE wanec_api_lib_open(wan_ec_api_t *ec_api)
 	HANDLE	hGeneralCommands = INVALID_HANDLE_VALUE;
 	char device_name[200];
 
-	////////////////////////////////////////////////////////////////////////////
-	//Open device for general commands
-	printf("Opening Device: %s\n", ec_api->devname);
+	/* Open device for general commands */
+	/*printf("Opening Device: %s\n", ec_api->devname);*/
 	_snprintf(device_name , 200, "\\\\.\\%s", ec_api->devname);
 
 	hGeneralCommands = CreateFile(
@@ -372,22 +366,19 @@ int wanec_api_lib_close(wan_ec_api_t *ec_api, HANDLE f_Handle)
 
 int wanec_api_lib_ioctl(HANDLE dev, wan_ec_api_t *ec_api, int verbose)
 {
-	int err;
 	DWORD ln;
-    unsigned char id = 0;
+	wan_udp_hdr_t	wan_udp;
 
-	wan_udp.wan_udphdr_request_reply = 0x01;
-	wan_udp.wan_udphdr_id = id;
-   	wan_udp.wan_udphdr_return_code = WAN_UDP_TIMEOUT_CMD;
+	memset(&wan_udp, 0x00, sizeof(wan_udp));
 
-	wan_udp.wan_udphdr_command	= WAN_EC_IOCTL;
-	wan_udp.wan_udphdr_data_len	= sizeof(wan_ec_api_t);
+   	wan_udp.wan_udphdr_return_code	= WAN_UDP_TIMEOUT_CMD;
+	wan_udp.wan_udphdr_command		= WAN_EC_IOCTL;
+	wan_udp.wan_udphdr_data_len		= sizeof(wan_ec_api_t);
 
 	ec_api->err = WAN_EC_API_RC_OK;
 
-	memcpy(	wan_udp.wan_udphdr_data, 
-			(void*)ec_api,
-			sizeof(wan_ec_api_t));
+	/* copy data from user's buffer to driver's buffer */
+	memcpy(	wan_udp.wan_udphdr_data, (void*)ec_api,	sizeof(wan_ec_api_t));
 
 	if(DeviceIoControl(
 			dev,
@@ -399,36 +390,34 @@ int wanec_api_lib_ioctl(HANDLE dev, wan_ec_api_t *ec_api, int verbose)
 			(LPDWORD)(&ln),
 			(LPOVERLAPPED)NULL
 			) == FALSE){
-		err = 1;
-		printf("DeviceIoControl() failed!!\n");
-	}else{
-		err = 0;
-
-		//copy data from driver to caller's buffer
-		memcpy(	(void*)ec_api,
-				wan_udp.wan_udphdr_data, 
-				sizeof(wan_ec_api_t));
-
-		if (ec_api->err){
-			switch(ec_api->err){
-			case WAN_EC_API_RC_INVALID_STATE:
-				printf("Failed (Invalid State:%s)!\n",
-						WAN_EC_STATE_DECODE(ec_api->state));
-				break;
-			case WAN_EC_API_RC_FAILED:
-			case WAN_EC_API_RC_INVALID_CMD:
-			case WAN_EC_API_RC_INVALID_DEV:
-			case WAN_EC_API_RC_BUSY:
-			default:
-				printf("Failed (%s)!\n",
-						WAN_EC_API_RC_DECODE(ec_api->err));
-				break;
-			}
-			return -EINVAL;
-		}
+		printf("%s(): IoctlManagementCommand failed!!\n", __FUNCTION__);
+		return 1;
 	}
 
-	return err;
+	/* copy data from driver's buffer to caller's buffer */
+	memcpy(	ec_api, wan_udp.wan_udphdr_data, sizeof(wan_ec_api_t));
+
+	if (ec_api->err){
+		switch(ec_api->err){
+		case WAN_EC_API_RC_INVALID_STATE:
+			printf("Failed (Invalid State:%s)!\n",
+				WAN_EC_STATE_DECODE(ec_api->state));
+			break;
+		case WAN_EC_API_RC_FAILED:
+		case WAN_EC_API_RC_INVALID_CMD:
+		case WAN_EC_API_RC_INVALID_DEV:
+		case WAN_EC_API_RC_BUSY:
+		case WAN_EC_API_RC_INVALID_CHANNELS:
+		case WAN_EC_API_RC_INVALID_PORT:
+		default:
+			printf("Failed (%s)!\n",
+				WAN_EC_API_RC_DECODE(ec_api->err));
+			break;
+		}
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 #endif
@@ -537,10 +526,9 @@ int wanec_api_lib_chip_load(int dev, wan_ec_api_t *ec_api, u_int16_t max_channel
 	int				err, image_no = 0;
 
 #if defined(__WINDOWS__)
-	//////////////////////////////////////////////////////////////////////////////////////////
-	//initialize globals
+	/* initialize globals */
 	GetSystemWindowsDirectory(windows_dir, MAX_PATH);
-	_snprintf(WAN_EC_DIR, MAX_PATH, "%s\\%s", windows_dir, WAN_EC_NAME);
+	_snprintf(WAN_EC_DIR, MAX_PATH, "%s\\%s", windows_dir, SANG_EC_FILES_SUBDIR);
 
 	_snprintf(OCT6116_32S_IMAGE_PATH,	MAX_PATH, "%s\\%s", WAN_EC_DIR, OCT6116_32S_IMAGE_NAME);
 	_snprintf(OCT6116_64S_IMAGE_PATH,	MAX_PATH, "%s\\%s", WAN_EC_DIR, OCT6116_64S_IMAGE_NAME);
@@ -713,7 +701,7 @@ int wanec_api_lib_bufferload(wan_ec_api_t *ec_api)
 	sprintf(buffer_path, "%s/%s.pcm", WAN_EC_BUFFERS, ec_api->u_buffer_config.buffer);
 #else
 	GetSystemWindowsDirectory(windows_dir, MAX_PATH);
-	_snprintf(WAN_EC_BUFFERS, MAX_PATH, "%s\\%s", windows_dir, WAN_EC_NAME);
+	_snprintf(WAN_EC_BUFFERS, MAX_PATH, "%s\\%s", windows_dir, SANG_EC_FILES_SUBDIR);
 	sprintf(buffer_path, "%s\\%s.pcm", WAN_EC_BUFFERS, ec_api->u_buffer_config.buffer);
 #endif
 	err = wanec_api_lib_loadImageFile(	ec_api,
@@ -851,11 +839,10 @@ int wanec_api_lib_monitor(wan_ec_api_t *ec_api)
 
 	data_mode = (ec_api->u_chan_monitor.data_mode == cOCT6100_DEBUG_GET_DATA_MODE_120S) ? 120 : 16;
 
-#if !defined(__WINDOWS__)
 	if (ec_api->fe_chan){
 
 		err = wanec_api_lib_monitor_start(ec_api);
-# if defined(WANEC_API_MONITOR_NEW)
+#if defined(WANEC_API_MONITOR_NEW)
 		printf("\n");
 		printf("Note: You can start talk now in order to record the binary file!\n");
 		printf("      !!! Do not press any key during recording time (%d seconds) !!!\n\n",
@@ -869,13 +856,13 @@ int wanec_api_lib_monitor(wan_ec_api_t *ec_api)
 
 		err = wanec_api_lib_monitor_stop(ec_api);
 
-# else
+#else
 	}else{
 
 		err = wanec_api_lib_monitor_stop(ec_api);
-# endif
-	}
 #endif
+	}
+
 	return err;
 }
 

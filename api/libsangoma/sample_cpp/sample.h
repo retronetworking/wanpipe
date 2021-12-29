@@ -35,20 +35,20 @@ extern unsigned int verbosity_level;
 
 typedef struct{
 	//Recieved data
-	int		(*got_rx_data)(void *sang_if_ptr, void *rx_data);
+	int		(*got_rx_data)(void *sang_if_ptr, void *rxhdr, void *rx_data);
 	//TDM events
 	void	(*got_TdmApiEvent)(void *sang_if_ptr, void *event_data);
 #if USE_STELEPHONY_API
-	//FSK Caller ID
-	void	(*FSKCallerIDEvent)(void *sang_if_ptr, LPCTSTR Name, LPCTSTR CallerNumber, LPCTSTR CalledNumber, LPCTSTR DateTime);
+	//FSK Caller ID detected
+	void	(*FSKCallerIDEvent)(void *sang_if_ptr, char * Name, char * CallerNumber, char * CalledNumber, char * DateTime);
 	//DTMF detected in SOFTWARE
 	void	(*DTMFEvent)(void *sang_if_ptr, long Key);
-	//Q931 events
+	//Q931 decoder events
 	void	(*Q931Event)(void *callback_context, stelephony_q931_event *pQ931Event);
-	//FSK Caller ID buffer ready events
+	//FSK Caller ID buffer ready for transmission events
 	void	(*FSKCallerIDTransmit)(void *callback_context, void* buffer);
-	//FSK DTMF buffer ready events
-	void	(*SwDTMFBuffer)(void *callback_context, void* buffer);
+	//DTMF buffer ready for transmission events
+	void	(*SwDtmfTransmit)(void *callback_context, void* buffer);
 #endif
 }callback_functions_t;
 
@@ -74,5 +74,175 @@ static void DecodeLastError(LPSTR lpszFunction)
 	LocalFree( lpMsgBuf );
 #endif
 } 
+
+#define DBG_TIMING 0
+
+#if DBG_TIMING
+
+#define DEBUG_HI_RES_PERF if(0)printf
+
+typedef struct _wan_debug{
+
+	LARGE_INTEGER	LastHiResolutionCounter;
+	int				high_resolution_timediff_value;
+	unsigned int	allowed_deviation_of_timediff_value;
+	unsigned int	timediff_deviation_counter;
+	int				highest_timediff;
+	int				lowest_timediff;
+	int				latest_timediff;
+	char			*debug_name;//optional
+}wan_debug_t;
+
+
+/*	Print contents of wan_debug_t structure:
+	1. TimeDiff info
+	2. More info will be added in future
+*/
+static
+void
+debug_print_dbg_struct(
+	wan_debug_t	*wan_debug_ptr,
+	const char *caller_name
+	)
+{
+	printf("timediff_deviation_counter: %d\n\tTimeDiff (ms) between '%s()':\n\tHighest:%d  Lowest:%d  Expected: %d  Latest: %d\n", 
+		wan_debug_ptr->timediff_deviation_counter,
+		caller_name,
+		wan_debug_ptr->highest_timediff,
+		wan_debug_ptr->lowest_timediff,
+		wan_debug_ptr->high_resolution_timediff_value,
+		wan_debug_ptr->latest_timediff);
+}
+
+/* Call this function to mesure TimeDiff between some function call. */
+static
+void
+debug_update_timediff(
+	wan_debug_t	*wan_debug_ptr,
+	const char *caller_name
+	)
+{
+	LARGE_INTEGER	CurrentHiResolutionCounter;
+	LARGE_INTEGER	PerformanceFrequency;
+	unsigned int	number_of_HiResCounterTicks_BETWEEN_function_calls;
+	int				timediff_between_function_calls;
+
+	if(!wan_debug_ptr->high_resolution_timediff_value){
+		//TimeDiff debugging is disabled.
+		return;
+	}
+
+	QueryPerformanceFrequency(&PerformanceFrequency);
+	QueryPerformanceCounter(&CurrentHiResolutionCounter);
+
+	if(	wan_debug_ptr->LastHiResolutionCounter.QuadPart == 0 ){
+		//It is the 1st time this function is running after TimeDiff debugging was enabled.
+		//Initialize wan_debug_ptr->LastHiResolutionCounter!
+		QueryPerformanceCounter(&wan_debug_ptr->LastHiResolutionCounter);
+		return;
+	}
+
+#if 0
+	DEBUG_HI_RES_PERF("Frequency: %I64u\n", PerformanceFrequency);
+	DEBUG_HI_RES_PERF("hi res cnt difference: %I64u\n", 
+		CurrentHiResolutionCounter.QuadPart - wan_debug_ptr->LastHiResolutionCounter.QuadPart);
+#endif
+	////////////////////////////////////////////////////////////////
+	//Frequency: 1600000000
+	//hi res cnt difference: 32038864
+	//1600000000 / 32038864 = 49.939348661051153374227001306913
+	////////////////////////////////////////////////////////////////
+	if((CurrentHiResolutionCounter.QuadPart - wan_debug_ptr->LastHiResolutionCounter.QuadPart)){//check for division by zero
+		number_of_HiResCounterTicks_BETWEEN_function_calls = (unsigned int)
+			(PerformanceFrequency.QuadPart / (CurrentHiResolutionCounter.QuadPart - wan_debug_ptr->LastHiResolutionCounter.QuadPart));
+	}
+	//note that floating point calculations are not allowed in kernel!
+	if(number_of_HiResCounterTicks_BETWEEN_function_calls){//check for division by zero
+		timediff_between_function_calls = 1000 / number_of_HiResCounterTicks_BETWEEN_function_calls;
+	}
+#if 0
+	if(number_of_HiResCounterTicks_BETWEEN_function_calls < 49 || number_of_HiResCounterTicks_BETWEEN_function_calls > 51){
+		printf("Warning: Invalid Number of SetEvent() calls per second %d!\n", number_of_HiResCounterTicks_BETWEEN_function_calls);
+	}
+#endif
+	//if(timediff_between_function_calls < 19 || timediff_between_function_calls > 21){
+	if(	timediff_between_function_calls < 
+		(int)(wan_debug_ptr->high_resolution_timediff_value - wan_debug_ptr->allowed_deviation_of_timediff_value) ||
+		timediff_between_function_calls >
+		(int)(wan_debug_ptr->high_resolution_timediff_value + wan_debug_ptr->allowed_deviation_of_timediff_value)){
+
+			wan_debug_ptr->timediff_deviation_counter++;
+
+			//			DEBUG_HI_RES_PERF("diff: %d, hi: %d, low: %d\n", timediff_between_function_calls, 
+			//				wan_debug_ptr->highest_timediff, wan_debug_ptr->lowest_timediff);
+
+			if(timediff_between_function_calls > 0){//because the FIRST timediff is always negative!
+
+				int current_time_diff_delta = 
+					timediff_between_function_calls - wan_debug_ptr->high_resolution_timediff_value;
+
+				//negative (example: 10 - 20 = -10)
+				int lowest_time_diff_delta = 
+					wan_debug_ptr->lowest_timediff - wan_debug_ptr->high_resolution_timediff_value;
+
+				//positive (example: 30 - 20 = +10)
+				int highest_time_diff_delta = 
+					wan_debug_ptr->highest_timediff - wan_debug_ptr->high_resolution_timediff_value;
+
+				DEBUG_HI_RES_PERF("curr delta: %d, hi delta: %d, low delta: %d\n",
+					current_time_diff_delta, highest_time_diff_delta, lowest_time_diff_delta);
+
+				if(current_time_diff_delta < 0){
+					//TimeDiff is BELLOW expected
+					if(	current_time_diff_delta < lowest_time_diff_delta ||
+						wan_debug_ptr->lowest_timediff == 0){
+							wan_debug_ptr->lowest_timediff = timediff_between_function_calls;
+					}
+				}
+
+				if(current_time_diff_delta > 0){
+					//TimeDiff is ABOVE expected
+					if(current_time_diff_delta > highest_time_diff_delta ||
+						wan_debug_ptr->highest_timediff == 0){
+							wan_debug_ptr->highest_timediff = timediff_between_function_calls;
+					}
+				}
+			}//if(timediff_between_function_calls > 0)
+
+			if(!(wan_debug_ptr->timediff_deviation_counter % 1000)){
+				debug_print_dbg_struct(wan_debug_ptr, caller_name);
+			}
+	}//if(	timediff_between_function_calls ...)
+
+	wan_debug_ptr->latest_timediff = timediff_between_function_calls;
+
+	//prepare for the NEXT call by storing CURRENT counter
+	QueryPerformanceCounter(&wan_debug_ptr->LastHiResolutionCounter);
+}
+
+/* Set (initialize) the TimeDiff part of wan_debug_t structure. */
+static
+void
+debug_set_timing_info(
+	wan_debug_t	*wan_debug_ptr,
+	int usr_period,
+	int allowed_deviation_of_timediff_value
+	)
+{
+	wan_debug_ptr->high_resolution_timediff_value = usr_period;//in milliseconds. 0 - disable TimeDiff debugging.
+
+	if(wan_debug_ptr->high_resolution_timediff_value == 0){
+		wan_debug_ptr->LastHiResolutionCounter.QuadPart = 0;
+	}
+
+	wan_debug_ptr->highest_timediff = wan_debug_ptr->lowest_timediff = 0;
+
+	wan_debug_ptr->allowed_deviation_of_timediff_value = allowed_deviation_of_timediff_value;//milliseconds. 
+																							//for example: if 2 and high_resolution_timediff_value is 20,
+																							//will result 18 < 20 < 22
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+#endif//DBG_TIMING
 
 #endif//_SAMPLE_H

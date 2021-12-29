@@ -43,14 +43,11 @@ EXPORTS
 	sangoma_tdm_txsig_start
 	sangoma_tdm_txsig_kewl
 	sangoma_get_hw_coding
-	sangoma_socket_waitfor
-	sangoma_socket_waitfor_many
-	sangoma_init_wait_obj
+	sangoma_waitfor
+	sangoma_waitfor_many
 	sangoma_cmd_exec
 	sangoma_mgmt_cmd
 	__sangoma_open_api_span_chan
-	sangoma_signal_wait_obj
-	sangoma_release_wait_obj
 	sangoma_get_tx_queue_sz
 	sangoma_get_rx_queue_sz
 	sangoma_get_driver_version
@@ -76,3 +73,12 @@ EXPORTS
 	sangoma_get_fe_status
 	sangoma_tdm_get_hw_dtmf
 	sangoma_tdm_get_fe_alarms
+	sangoma_wait_obj_create
+	sangoma_wait_obj_delete
+	sangoma_wait_obj_signal	
+	sangoma_wait_obj_get_fd
+	sangoma_wait_obj_set_context
+	sangoma_wait_obj_get_context
+
+
+	

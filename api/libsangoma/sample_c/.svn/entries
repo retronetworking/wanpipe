@@ -1,15 +1,15 @@
 8
 
 dir
-156
+205
 https://www.sangomapbx.com/svn/libsangoma/trunk/sample_c
 https://www.sangomapbx.com/svn/libsangoma
 
 
 
-2009-05-04T14:23:31.206565Z
-155
-ncorbic
+2009-06-23T21:07:59.480026Z
+194
+davidr
 
 
 svn:special svn:externals svn:needs-lock
@@ -59,11 +59,11 @@ file
 
 
 
-2009-04-01T22:43:03.000000Z
-bb2e032082cbd6a973ef2af01cad829c
-2009-04-01T21:38:17.305658Z
-135
-ncorbic
+2009-06-23T20:48:15.000000Z
+ac2fe0c0a868d754e3450cb5fb2827a7
+2009-06-23T21:07:59.480026Z
+194
+davidr
 
 sources
 file

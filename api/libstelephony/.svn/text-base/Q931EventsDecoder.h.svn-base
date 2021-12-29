@@ -1,10 +1,8 @@
 
 #pragma once
 
-#include "libstelephony.h"
-#if defined(__LINUX__)
+#include <libstelephony.h>
 #include "libstelephony_linux_compat.h"
-#endif
 
 #include <stdio.h>
 #define DBG_Q931	if(0)printf
