@@ -1,0 +1,7 @@
+#!/bin/sh
+home=`pwd`
+cd /usr/local/sbin/wancfg_zaptel
+./wancfg_zaptel.pl --smg
+cd $home
+~
+

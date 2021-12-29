@@ -65,7 +65,6 @@ echo "Checking logrotate ..."
 eval "type logrotate" > /dev/null 2> /dev/null
 if [ $? -ne 0 ]; then
 	echo "Error: Logrotate not found !"
-	exit 1;
 fi
 
 if [ -e /etc/logrotate.d ] && [ -e /etc/logrotate.d/syslog ]; then
@@ -86,11 +85,19 @@ if [ -e /etc/logrotate.d ] && [ -e /etc/logrotate.d/syslog ]; then
 
 else
         echo "Error: Logrotate dir: /etc/logrotate.d not found !"
-        exit 1;
 fi
 echo "OK."
 echo
 
+
+echo "Checking for SCTP...."
+if [ ! -e  /usr/include/netinet/sctp.h ]; then
+	echo "Please install SCTP devel package: yum install lksctp-tools-devel"
+	echo 
+	exit 1
+fi 
+echo "OK."
+echo
 
 echo "Compiling Sangoma MGD ..."
 make clean
@@ -103,7 +110,18 @@ echo "Ok."
 
 
 echo "Compiling Woomera Channel ..."
-cp -f g711.h /usr/src/asterisk
+
+if [ ! -e /usr/src/asterisk ]; then
+	echo
+	echo "Error: /usr/src/asterisk directory does not exist!"
+	echo "       Please create symlink /usr/src/asterisk and"
+	echo "       point to existing asterisk source!"
+	echo "       Then re run ./install.sh "
+	echo
+	exit 1
+fi
+
+cp -f g711.h /usr/src/asterisk/
 perl /usr/src/asterisk/contrib/scripts/astxs -install chan_woomera.c
 if [ $? -ne 0 ]; then
 	exit 1;

@@ -49,8 +49,49 @@
  * public domain for the benefit of all mankind - even the slimy
  * ones who might try to proprietize my work and use it to my
  * detriment.
+ *
+ *
+ * Exception:
+ * The author hereby grants the use of this source code under the 
+ * following license if and only if the source code is distributed
+ * as part of the openzap library.  Any use or distribution of this
+ * source code outside the scope of the openzap library will nullify the
+ * following license and reinact the MPL 1.1 as stated above.
+ *
+ * Copyright (c) 2007, Anthony Minessale II
+ * All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 
+ * * Redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer.
+ * 
+ * * Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ * 
+ * * Neither the name of the original author; nor the names of any contributors
+ * may be used to endorse or promote products derived from this software
+ * without specific prior written permission.
+ * 
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER
+ * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include <math.h>
+
+#include <libteletone_detect.h>
+
 #ifndef _MSC_VER
 #include <stdint.h>
 #endif
@@ -58,7 +99,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <fcntl.h>
-#include <libteletone_detect.h>
+
 
 static teletone_detection_descriptor_t dtmf_detect_row[GRID_FACTOR];
 static teletone_detection_descriptor_t dtmf_detect_col[GRID_FACTOR];
@@ -168,8 +209,8 @@ void teletone_multi_tone_init(teletone_multi_tone_t *mt, teletone_tone_map_t *ma
 }
 
 int teletone_multi_tone_detect (teletone_multi_tone_t *mt,
-					   int16_t sample_buffer[],
-					   int samples)
+								int16_t sample_buffer[],
+								int samples)
 {
 	int sample, limit, j, x = 0;
 	teletone_process_t v1, famp;
@@ -217,7 +258,7 @@ int teletone_multi_tone_detect (teletone_multi_tone_t *mt,
 			gtest += teletone_goertzel_result (&mt->gs2[x]) < eng_all[x] ? 1 : 0;
 		}
 
-		if (gtest >= 2 && eng_sum > 42.0 * mt->energy) {
+		if ((gtest >= 2 || gtest == mt->tone_count) && eng_sum > 42.0 * mt->energy) {
 			if(mt->negatives) {
 				mt->negatives--;
 			}
@@ -255,8 +296,8 @@ int teletone_multi_tone_detect (teletone_multi_tone_t *mt,
 
 
 int teletone_dtmf_detect (teletone_dtmf_detect_state_t *dtmf_detect_state,
-                 int16_t sample_buffer[],
-                 int samples)
+						  int16_t sample_buffer[],
+						  int samples)
 {
     teletone_process_t row_energy[GRID_FACTOR];
     teletone_process_t col_energy[GRID_FACTOR];
@@ -386,8 +427,8 @@ int teletone_dtmf_detect (teletone_dtmf_detect_state_t *dtmf_detect_state,
 
 
 int teletone_dtmf_get (teletone_dtmf_detect_state_t *dtmf_detect_state,
-              char *buf,
-              int max)
+					   char *buf,
+					   int max)
 {
     if (max > dtmf_detect_state->current_digits) {
         max = dtmf_detect_state->current_digits;
@@ -401,3 +442,13 @@ int teletone_dtmf_get (teletone_dtmf_detect_state_t *dtmf_detect_state,
     return  max;
 }
 
+/* For Emacs:
+ * Local Variables:
+ * mode:c
+ * indent-tabs-mode:t
+ * tab-width:4
+ * c-basic-offset:4
+ * End:
+ * For VIM:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 expandtab:
+ */

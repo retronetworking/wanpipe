@@ -446,6 +446,7 @@ echo "Error: Your securelevel does not allow to load kernel modules!"
 	if [ $OSYSTEM = "Linux" ]; then
 		wansock_config LOAD
 		annexg_config LOAD
+		sctp_config LOAD
 	fi
 
 	if ! lip_config LOAD
@@ -1286,6 +1287,30 @@ wansock_config ()
 	return 0
 }
 
+sctp_config ()
+{
+	local opt=$1
+
+	if [ $OSYSTEM != "Linux" ]; then
+		return 0
+	fi
+
+	if [ "$WAN_SCTP_LOAD" != "YES" ]; then
+		return 0
+	fi
+
+	if [ $DEPMOD != YES ]; then
+		return 0
+	fi
+
+	if [ $opt = LOAD ]; then
+		eval "modprobe sctp" 2> /dev/null >/dev/null	
+	fi
+
+	return 0
+}
+
+
 annexg_config ()
 {
 	local opt=$1
@@ -1904,7 +1929,7 @@ WANPIPE_IS_RUNNING=/var/run/wanpipe_is_running
 RUGGEDCOM=No
 
 if [ $OSYSTEM = "Linux" ]; then
-	ROUTER_VERSION=2.3.4-10
+	ROUTER_VERSION=2.3.4-11
 	IFCONFIG_LIST=ifconfig
 	MODULE_STAT=lsmod
 	WAN_DRIVERS="wanpipe"

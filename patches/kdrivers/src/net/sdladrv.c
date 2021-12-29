@@ -1621,20 +1621,44 @@ static int sdla_pci_probe(sdlahw_t *hw)
 
 	/* Search for Pulsar PCI cards */
 	pci_dev = NULL;
-
 	while ((pci_dev = pci_get_device(PCI_VENDOR_ID_GSI, PCI_DEVICE_ID_GSI_ADSL, pci_dev))
         	!= NULL) {
         
 		tmp_hwcard->pci_dev = pci_dev;	
 		sdla_pci_read_config_word(hw, PCI_SUBSYS_ID_WORD, &pci_subsystem_id);
 
-#if 1
+#if 0
 		if ((pci_subsystem_id & 0xFF) != S518_ADPTR_1_CPU_ADSL){
 			continue;
 		}
 #else
       		pci_subsystem_id = S518_ADPTR_1_CPU_ADSL;
 #endif
+		
+		hwcard = sdla_card_register(SDLA_PCI_CARD, 
+					 ((pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK),
+					 pci_dev->bus->number,
+					 0);
+		if (hwcard == NULL){
+			continue;
+		}
+		hwcard->adptr_type	= pci_subsystem_id & 0xFF;
+		hwcard->pci_dev		= pci_dev;
+		
+		number_pci_cards += 
+			sdla_adsl_hw_select(hwcard, SDLA_CPU_A, pci_dev->irq, NULL);
+
+        }
+
+	/* Search for Pulsar PCI cards */
+	pci_dev = NULL;
+	while ((pci_dev = pci_get_device(PCI_VENDOR_ID_GSI, PCI_DEVICE_ID_GSI_ADSL_V2, pci_dev))
+        	!= NULL) {
+        
+		tmp_hwcard->pci_dev = pci_dev;	
+		sdla_pci_read_config_word(hw, PCI_SUBSYS_ID_WORD, &pci_subsystem_id);
+
+		pci_subsystem_id=S518_ADPTR_1_CPU_ADSL;
 		
 		hwcard = sdla_card_register(SDLA_PCI_CARD, 
 					 ((pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK),

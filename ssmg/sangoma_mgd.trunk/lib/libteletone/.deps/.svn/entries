@@ -1,0 +1,52 @@
+8
+
+dir
+223
+svn://sangoma.freeswitch.org/sangoma_mgd/trunk/lib/libteletone/.deps
+svn://sangoma.freeswitch.org
+
+
+
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+2028fedf-720c-0410-83b8-d54a3e729fb0
+
+libteletone_la-libteletone_detect.Plo
+file
+
+
+
+
+2007-07-10T21:30:07.000000Z
+fc88672102538198c5fcc7b0a0cfc4b9
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+
+libteletone_la-libteletone_generate.Plo
+file
+
+
+
+
+2007-07-10T21:30:07.000000Z
+c763fc59d24f080c3a707e2f0454808c
+2007-06-21T22:15:47.596766Z
+219
+ncorbic
+

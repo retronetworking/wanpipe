@@ -1593,6 +1593,7 @@ ENDOFTEXT
 	echo "WAN_LIB_DIR=/etc/wanpipe/lib" >> $META_CONF
 	echo "WAN_ADSL_LIST=/etc/wanpipe/wan_adsl.list" >> $META_CONF
 	echo "WAN_ANNEXG_LOAD=$ANNEXG_LOAD" >> $META_CONF
+	echo "WAN_SCTP_LOAD=$SCTP_LOAD" >> $META_CONF
 	echo "WAN_LIP_LOAD=$LIP_LOAD" >> $META_CONF
 	echo "WAN_DYN_WANCONFIG=NO" >> $META_CONF
 	echo "WAN_SCRIPTS_DIR=/etc/wanpipe/scripts" >> $META_CONF
@@ -1814,14 +1815,14 @@ WANPIPE utilities are used to:
 	1) create WANPIPE configuration files.
 		(/usr/sbin/wancfg)
 	2) create configuration files for Zaptel and Asterisk
-		(/usr/sbin/wancfg-zaptel)
-	2) start,stop,restart individual/all devices and interfaces.
+		(/usr/sbin/wancfg_zaptel)
+	3) start,stop,restart individual/all devices and interfaces.
 		(/usr/sbin/wanrouter)
-	3) debug line, protocol and driver problems.
+	4) debug line, protocol and driver problems.
 		(/usr/sbin/wanpipemon)
-	4) configure the optional onboard FT1 CSU/DSU (S508/S5143).
+	5) configure the optional onboard FT1 CSU/DSU (S508/S5143).
 		(/usr/sbin/cfgft1)
-	5) aid in WANPIPE API development
+	6) aid in WANPIPE API development
 		(/etc/wanpipe/api)
 
 Refer to the WanpipeInstallation.(pdf/txt) for more information.
@@ -3756,6 +3757,11 @@ WANPIPE_OBJS=
 		\cp -f $DRIVER_UPDATE_DIR/src/lip/*.c  .
 		\cp -f $DRIVER_UPDATE_DIR/src/lip/bin/*.o .
 
+		if [ -e $DRIVER_UPDATE_DIR/src/lip/lip_katm ]; then 
+			\cp -f $DRIVER_UPDATE_DIR/src/lip/lip_katm/*.c .
+			\cp -f $DRIVER_UPDATE_DIR/src/lip/lip_katm/*.h .
+		fi
+
 		LIP_LINKED_PROTOCOLS=
 
                 TMP_CFLAGS="-I/$WANPIPE_INCLUDE_DIR -I/ -I$SOURCEDIR/include  -I$SOURCEDIR/include/linux -I../include/common -I../include "
@@ -3862,6 +3868,9 @@ WANPIPE_OBJS=
 		fi
 
 		if [ $XMTP2_PROT = "YES" ]; then
+
+			SCTP_LOAD=YES
+
 			xmtp2_file=wanpipe_xmtp2.gcc$GCC_VER.$ARCH$REGPARM_OPT.o
 			if [ ! -e $xmtp2_file ]; then
 				echo "Warning: FR Binary $xmtp2_file not found!"
@@ -4380,34 +4389,39 @@ function install_ssmg ()
         eval "ldconfig"
 
 	cd $PROD_HOME/$SSMG_DIR
-	cd sangoma_mgd.trunk
 
-        eval "make clean > /dev/null; make > /dev/null "
-        if [ $? -ne 0 ]; then
-	  	echo "FAILED"
-		return 1
-	fi
-        eval "make install > /dev/null "
+#	Let smg install script install SMG components
+#=======================================================
+
+#	cd sangoma_mgd.trunk
+#
+#       eval "make clean > /dev/null; make > /dev/null "
+#        if [ $? -ne 0 ]; then
+#	  	echo "FAILED"
+#		return 1
+#	fi
+#        eval "make install > /dev/null "
+#	
+#	echo "Installing Sangoma Media Gateway Daemon...DONE"
 	
-	echo "Installing Sangoma Media Gateway Daemon...DONE"
-	
-       	eval "type asterisk > /dev/null 2> /dev/null"
-	if [ $? -ne 0 ]; then
-          	echo "Error: Asterisk not installed!"
-		echo "Please install Asterisk first then retry SSMG installation!"
-		return 1
-	fi  	
+#      	eval "type asterisk > /dev/null 2> /dev/null"
+#	if [ $? -ne 0 ]; then
+#          	echo "Error: Asterisk not installed!"
+#		echo "Please install Asterisk first then retry SSMG installation!"
+#		return 1
+#	fi  	
  	
-	echo
-	echo "Installing Chan Woomera into Asterisk..."
-	echo
-	install_chan_woomera
-	if [ $? -ne 0 ]; then
-          	echo "Error: Failed to install chan_woomera into Asterisk!"
-		echo "Check that Asterisk is installed or Call Sangoma Tech Support"
-		echo
-		return 1
-	fi	
+#	echo
+#	echo "Installing Chan Woomera into Asterisk..."
+#	echo
+#	install_chan_woomera
+#	if [ $? -ne 0 ]; then
+#         	echo "Error: Failed to install chan_woomera into Asterisk!"
+#		echo "Check that Asterisk is installed or Call Sangoma Tech Support"
+#		echo
+#		return 1
+#	fi	
+#=========================================================
 
 	cd $PROD_HOME/$SSMG_DIR
 	cd sangoma_mgd.trunk 
@@ -6099,7 +6113,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=2.3.4-10
+PROD_VER=2.3.4-11
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -6178,6 +6192,7 @@ PROTOCOL_DEFINES="-DCONFIG_PRODUCT_WANPIPE_BASE "
 SS7_USER_ID="0"
 
 ANNEXG_LOAD=NO
+SCTP_LOAD=NO
 
 ZAPTEL_INSTALL_DIR="/usr/src/zaptel"
 ZAPTEL_C_FILE="zaptel.c"

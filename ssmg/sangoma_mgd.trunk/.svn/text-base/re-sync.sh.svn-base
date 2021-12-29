@@ -31,6 +31,7 @@ fi
 cd /usr/local/ss7box
 ./$ss7boost --term
 sleep 1
+#eval "$NICE ./$ss7boost --hb" 
 eval "$NICE ./$ss7boost" 
 sleep 5
 
@@ -55,6 +56,7 @@ fi
 cd $home
 
 
+#exit 0;
 
 if [ 1 -eq 0 ]; then
 	ulimit -n 65536

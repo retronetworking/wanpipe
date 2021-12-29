@@ -769,6 +769,15 @@ static int sdla_ds_te1_config(void* pfe)
 	}
 	
 	if (IS_E1_FEMEDIA(fe)){
+		switch(WAN_FE_FRAME(fe)){
+		case WAN_FR_CRC4:
+			value = READ_REG(REG_TCR2);
+			WRITE_REG(REG_TCR2, value | BIT_TCR2_E1_AEBE);
+			break;
+		}
+	}
+
+	if (IS_E1_FEMEDIA(fe)){
 		if (WAN_TE1_SIG_MODE(fe) == WAN_TE1_SIG_CAS){
 
 			/* CAS signalling mode */

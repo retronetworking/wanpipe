@@ -151,6 +151,7 @@
 #define GSI_PCI_MEMORY_SIZE         (8 * (4 * 2 * 1024))
 #define PCI_VENDOR_ID_GSI           0x14BC
 #define PCI_DEVICE_ID_GSI_PULSAR    0xD002
+#define PCI_DEVICE_ID_GSI_ADSL_V2   0xD001
 #define PCI_DEVICE_ID_GSI_ADSL      PCI_DEVICE_ID_GSI_PULSAR
 
 
