@@ -1149,7 +1149,7 @@ int build_linkdef_list (FILE* file)
 		config_id = name2val(token[1], config_id_str);
 		if (!config_id) {
 			if (verbose) printf(
-				" * Media ID %s is invalid!\n", token[1]);
+			        " * Media ID %s is invalid!\n", token[1]);
 			err = ERR_CONFIG;
 			show_error(err);
 			break;
@@ -1439,7 +1439,7 @@ int configure_link (link_def_t* def, char init)
 			return ERR_CONFIG;
 		}
 		if (err){ 
-			fprintf(stderr,"\n\tError parsing %s configuration file\n",conf_file);
+			fprintf(stderr,"\n\tError parsing %s configuration file. Token (%s = %s)\n", conf_file, token[0], token[1]);
 			if(weanie_flag) fprintf(stderr,"\tPlease check %s for errors\n", verbose_log);
 			fprintf(stderr, "\n");
 			return err;

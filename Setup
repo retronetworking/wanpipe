@@ -2,7 +2,7 @@
 #
 # Setup		WANPIPE WAN Router Installation/Removal Script.
 #
-# Copyright	(c) 1996-2011, Sangoma Technologies Inc.
+# Copyright	(c) 1996-2012, Sangoma Technologies Inc.
 #
 #		This program is free software; you can redistribute it and/or
 #		modify it under the terms of the GNU General Public License
@@ -291,7 +291,7 @@ banner()
 
 	echo -e "\t----------------------------------------------------------"
 	echo -e "\t          WANPIPE v$PROD_VER Installation Script"
-	echo -e "\t    Copyright (c) 1995-2011, Sangoma Technologies Inc."
+	echo -e "\t    Copyright (c) 1995-2012, Sangoma Technologies Inc."
 	echo -e "\t----------------------------------------------------------"
 	echo ""
 
@@ -914,7 +914,7 @@ get_kernel_ver ()
 
 	KERNEL_VERSION=$KVER"."$KPATCH"."$KLVL$KEVER
 
-	if [ "$KVER" -eq "3" ] && [ "$KPATCH" -eq "0" ]; then
+	if [ "$KVER" -eq "3" ]; then
 		KERN_VER=30;
 		LINUXDRIVERS_NET="drivers/net/wan"
 	elif [ "$KVER" -eq "2" ] && [ "$KPATCH" -eq "6" ]; then
@@ -3331,8 +3331,8 @@ ENDOFTEXT
 
 		eval "grep \"define *CONFIG_MODVERSIONS\" $SOURCEDIR/include/linux/autoconf.h > /dev/null"
 		if [ $? -eq 0 ]; then
-			if [ $KERN_VER -ne 26 ] || [ $KERN_VER -ne 30 ]; then
-			MODVER=" -DMODVERSIONS -include $SOURCEDIR/include/linux/modversions.h "
+			if [ $KERN_VER -ne 26 ] && [ $KERN_VER -ne 30 ]; then
+				MODVER=" -DMODVERSIONS -include $SOURCEDIR/include/linux/modversions.h "
 			fi
 			MOD_ENABLED=y
 		else	
@@ -3994,12 +3994,13 @@ WANPIPE_OBJS=
 	if [ "$TDM_PROT" = "YES" ]; then
 		\cp $DRIVER_UPDATE_DIR/src/net/sdla_tdmv.c .
 		\cp $DRIVER_UPDATE_DIR/src/net/sdla_remora_tdmv.c .
+		\cp $DRIVER_UPDATE_DIR/src/net/sdla_gsm_tdmv.c .
 		\cp $DRIVER_UPDATE_DIR/src/net/sdla_bri_tdmv.c .
 		\cp $DRIVER_UPDATE_DIR/src/net/sdla_tdmv_dummy.c .
 		if [ -e $DRIVER_UPDATE_DIR/src/net/sdla_usb_remora_tdmv.c ]; then
 			\cp $DRIVER_UPDATE_DIR/src/net/sdla_usb_remora_tdmv.c .
 		fi
-		WANPIPE_OBJS=$WANPIPE_OBJS"sdla_tdmv sdla_remora_tdmv sdla_bri_tdmv sdla_tdmv_dummy "
+		WANPIPE_OBJS=$WANPIPE_OBJS"sdla_tdmv sdla_gsm_tdmv sdla_remora_tdmv sdla_bri_tdmv sdla_tdmv_dummy "
 		WANPIPE_EXTRA_CFLAGS=$WANPIPE_EXTRA_CFLAGS"-I$ZAPTEL_SOURCE_DIR "
 		if [ -f $ZAPTEL_SOURCE_DIR/dahdi/kernel.h ]; then
 			# this is required for some dependencies of kernel.h (dahdi_config.h, ecdis.h etc)
@@ -4049,7 +4050,8 @@ WANPIPE_OBJS=
 
 	WANPIPE_OBJS=$WANPIPE_OBJS"sdla_56k sdla_te1 sdla_8te1 sdla_te3 sdla_ft1 wanpipe_utils wanpipe_abstr wanpipe_linux_iface wanpipe_mtp1 "
 
-	
+	# GSM always built
+	WANPIPE_OBJS=$WANPIPE_OBJS"sdla_gsm aft_gsm "
 	
 	if [ $? -eq 0 ]; then
 		echo -e "Done.\n"
@@ -7330,7 +7332,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.25
+PROD_VER=3.5.26
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

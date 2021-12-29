@@ -15,6 +15,7 @@
 # include "sdla_remora.h"
 # include "sdla_bri.h"
 # include "sdla_serial.h"
+# include "sdla_gsm.h"
 
 /*
 *************************************************************************
@@ -33,6 +34,7 @@
 #define WAN_MEDIA_FXOFXS	0x08
 #define WAN_MEDIA_BRI		0x09
 #define WAN_MEDIA_SERIAL	0x0A
+#define WAN_MEDIA_GSM           0x0B
 
 /*The line code */
 #define WAN_LCODE_NONE          0x00
@@ -156,6 +158,7 @@
 #define IS_E3_MEDIA(fe_cfg)		(FE_MEDIA(fe_cfg) == WAN_MEDIA_E3)
 #define IS_FXOFXS_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_FXOFXS)
 #define IS_BRI_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_BRI)
+#define IS_GSM_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_GSM)
 #define IS_SERIAL_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_SERIAL)
 
 #define IS_TXTRISTATE(fe_cfg)	(FE_TXTRISTATE(fe_cfg) == WANOPT_YES)
@@ -293,9 +296,11 @@ typedef struct
 
 /* Front-End status */
 #define FE_STATUS_DECODE(fe_status)							\
-		(fe_status == FE_UNITIALIZED)	? "unitialized"	:	\
+		(fe_status == FE_UNITIALIZED)	? "uninitialized"	:	\
 		(fe_status == FE_DISCONNECTED)  ? "disconnected":	\
 		(fe_status == FE_CONNECTED)     ? "connected"	:	\
+		(fe_status == FE_CONNECTING)    ? "connecting"	:	\
+		(fe_status == FE_DISCONNECTING) ? "disconnecting" :	\
 						      "unknown"
 
 #define WAN_FE_STATUS_DECODE(fe)	FE_STATUS_DECODE((fe)->fe_status)
@@ -315,6 +320,7 @@ typedef struct
 #define IS_56K_FEMEDIA(fe)	IS_56K_MEDIA(&((fe)->fe_cfg))
 #define IS_J1_FEMEDIA(fe)	IS_J1_MEDIA(&((fe)->fe_cfg))
 #define IS_FXOFXS_FEMEDIA(fe)	IS_FXOFXS_MEDIA(&((fe)->fe_cfg))
+#define IS_GSM_FEMEDIA(fe)	IS_GSM_MEDIA(&((fe)->fe_cfg))
 #define IS_FE_TXTRISTATE(fe)	IS_TXTRISTATE(&((fe)->fe_cfg))
 #define IS_FR_FEUNFRAMED(fe)	IS_FR_UNFRAMED(&((fe)->fe_cfg))
 #define IS_BRI_FEMEDIA(fe)	IS_BRI_MEDIA(&((fe)->fe_cfg))
@@ -341,6 +347,7 @@ typedef struct
 #define WAN_FE_MAX_CHANNELS(fe)					\
 	(IS_TE1_FEMEDIA(fe))	? GET_TE_CHANNEL_RANGE(fe) :	\
 	(IS_FXOFXS_FEMEDIA(fe))	? MAX_FXOFXS_CHANNELS :		\
+	(IS_GSM_FEMEDIA(fe))	? MAX_GSM_CHANNELS :		\
 	(IS_BRI_FEMEDIA(fe))	? MAX_BRI_CHANNELS : 0
 
 #if 0
@@ -500,6 +507,7 @@ typedef struct {
 		sdla_te3_param_t	te3;
 		sdla_remora_param_t	remora;
 		sdla_bri_param_t	bri;
+		sdla_gsm_param_t	gsm;
 	} fe_param;
 #define fe_alarm		fe_stats.alarms
 	sdla_fe_stats_t		fe_stats;

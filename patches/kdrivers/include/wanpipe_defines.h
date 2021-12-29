@@ -892,9 +892,14 @@ typedef struct wan_rtp_pkt {
 
 #pragma pack()
 
+#if (!defined __WINDOWS__)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0)
+#define LINUX_HAS_NET_DEVICE_OPS
+#endif
+#endif
 
-#if defined(HAVE_NET_DEVICE_OPS) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0)
-
+//#if defined(HAVE_NET_DEVICE_OPS) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0)
+#if defined(HAVE_NET_DEVICE_OPS) || defined(LINUX_HAS_NET_DEVICE_OPS)
 #define WAN_DECLARE_NETDEV_OPS(_ops_name) static struct net_device_ops _ops_name = {0};
 
 #define WAN_NETDEV_OPS_BIND(dev,_ops_name)  dev->netdev_ops = &_ops_name

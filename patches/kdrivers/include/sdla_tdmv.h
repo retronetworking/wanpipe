@@ -107,6 +107,7 @@ WP_EXTERN int wp_tdmv_bri_init(wan_tdmv_iface_t *iface);
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 WP_EXTERN int wp_usb_tdmv_remora_init(wan_tdmv_iface_t *iface);
 #endif
+WP_EXTERN int wp_tdmv_gsm_init(wan_tdmv_iface_t *iface);
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 WP_EXTERN int wp_tdmv_echo_check(wan_tdmv_t *wan_tdmv, void *current_ztchan, int channo);

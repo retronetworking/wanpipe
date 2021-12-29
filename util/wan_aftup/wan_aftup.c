@@ -191,8 +191,12 @@ aft_core_info_t aft_core_table[] = {
 	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ AFT_A600_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
 	  "B600_0025_V", "B600_0025_V*.BIN", AFT_CORE_X250_SIZE },
+	{ AFT_B610_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
+	  "B610_0025_V", "B610_0025_V*.BIN", AFT_CORE_X250_SIZE },
 	{ AFT_B601_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
 	  "B601_0025_V", "B601_0025_V*.BIN", AFT_CORE_X250_SIZE },
+	{ AFT_W400_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
+	  "W400_0025_V", "W400_0025_V*.BIN", AFT_CORE_X250_SIZE },
 #if 0
 	{ AFT_TE1_ATM_CORE_ID,	
 	  NULL, NULL, 0x00,
@@ -433,6 +437,7 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 		break;
 	case AFT_ADPTR_A600:
+	case AFT_ADPTR_W400:
 		aft->cpld.iface	= &aftup_a600_flash_iface;
 		break;
 	case U100_ADPTR:
@@ -506,6 +511,9 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		aft->cpld.iface	= &aftup_a600_flash_iface;
 	}else if (strncmp(type,"AFT-B601",8) == 0) {
 		aft->cpld.adptr_type = AFT_ADPTR_B601;
+		aft->cpld.iface	= &aftup_a600_flash_iface;
+	}else if (strncmp(type,"AFT-W400",8) == 0) {
+		aft->cpld.adptr_type = AFT_ADPTR_W400;
 		aft->cpld.iface	= &aftup_a600_flash_iface;
 	}else if (strncmp(type,"U100",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
@@ -682,10 +690,10 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 		if(aft->flash_rev < 3) {
 			if (aft->flash_new > 2) {
 				/* B600's and B601's with firmware revision less 2 or lower are physically different from 
-         *  the new cards (missing resistor), so it is not possible to update from firmware 2 to 3
-         *  on these cards */
+				*  the new cards (missing resistor), so it is not possible to update from firmware 2 to 3
+				*  on these cards */
 
-        printf("%s: Error: Firmware update not possible on this A600 (max:2)\n", aft->if_name);
+				printf("%s: Error: Firmware update not possible on this A600 (max:2)\n", aft->if_name);
 				return -EINVAL;
 			}
 		}
@@ -694,9 +702,9 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 	if (err){
 		return -EINVAL;
 	}
-	printf("%s: Current Sangoma Flash: Revision=%X ID=0x%04X\n",
+	printf("%s: Current Sangoma Flash: Revision=%02X ID=0x%04X\n",
 					aft->if_name,
-					aft->flash_rev,
+					aft->flash_rev & 0xFF,
 					flash_id);
 	
 	err = update_flash(
@@ -988,6 +996,7 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 		break;
 	case AFT_A600_SUBSYS_VENDOR:
 	case AFT_B601_SUBSYS_VENDOR:
+	case AFT_W400_SUBSYS_VENDOR:
 		aft->cpld.iface	= &aftup_a600_flash_iface;
 		break;
 	default:
@@ -1036,6 +1045,7 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 		break;
 	case AFT_A600_SUBSYS_VENDOR:
 	case AFT_B601_SUBSYS_VENDOR:
+	case AFT_W400_SUBSYS_VENDOR:
 		aft->cpld.chip_id = AFT_CHIP_X250;
 		aft->cpld.flash = &aft_a600_flash;
 		break;
@@ -1111,6 +1121,7 @@ static int wan_pcie_ctrl(struct wan_aftup_head_t *head)
 		case AFT_B800_SUBSYS_VENDOR:
 		case AFT_A600_SUBSYS_VENDOR:
 		case AFT_B601_SUBSYS_VENDOR:
+		case AFT_W400_SUBSYS_VENDOR:
 			break;
 		case A300_UTE3_SHARK_SUBSYS_VENDOR:
 			break;

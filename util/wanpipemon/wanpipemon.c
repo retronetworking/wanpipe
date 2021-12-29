@@ -133,7 +133,7 @@ int pcap_output=0;
 int pcap_prot=0;
 int pcap_isdn_network=0;
 FILE *pcap_output_file;
-char pcap_output_file_name[50];
+char pcap_output_file_name[1024];
 
 FILE *trace_bin_out;
 FILE *trace_bin_in;
@@ -270,6 +270,9 @@ struct fun_protocol function_lookup[] = {
 					 NULL,NULL, 2 },
 
 	{ WANCONFIG_AFT_ANALOG,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
+		                         AFTget_main_menu, AFTget_cmd_menu, 
+					 NULL,NULL, 2 },
+	{ WANCONFIG_AFT_GSM,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
@@ -1167,8 +1170,7 @@ static int init(int argc, char *argv[], char* command)
 				exit(1);
 			}
 
-			strncpy(pcap_output_file_name, argv[i+1], WAN_IFNAME_SZ);
-			
+			snprintf(pcap_output_file_name, argv[i+1], sizeof(pcap_output_file_name));
 		}else if (!strcmp(argv[i], "-x25opt")){
 			int x;
 			if (i+1 > argc-1){

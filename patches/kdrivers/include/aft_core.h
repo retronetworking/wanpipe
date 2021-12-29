@@ -41,6 +41,7 @@
 #include "aft_a104.h"
 #include "aft_analog.h"
 #include "aft_bri.h"
+#include "aft_gsm.h"
 
 
 #if defined(__WINDOWS__)

@@ -650,6 +650,7 @@ look_up_t conf_if_def_tables[] =
 	{ WANCONFIG_BITSTRM,    bitstrm_if_conftab },
 	{ WANCONFIG_AFT,	xilinx_if_conftab },
 	{ WANCONFIG_AFT_TE3,    xilinx_if_conftab },
+	{ WANCONFIG_AFT_GSM,    xilinx_if_conftab },
 	{ 0,			NULL		}
 };
 
@@ -693,6 +694,7 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_MLINK_PPP, 	(void*)"WAN_MLINK_PPP"  },
 	{ WANCONFIG_TTY,	(void*)"WAN_TTY"	}, //????
 	{ WANCONFIG_AFT_ANALOG,	(void*)"WAN_AFT_ANALOG" },
+	{ WANCONFIG_AFT_GSM,	(void*)"WAN_AFT_GSM"    },
 	{ WANCONFIG_AFT_ISDN_BRI,	(void*)"WAN_AFT_ISDN_BRI" },
 	{ WANCONFIG_AFT_SERIAL, (void*)"WAN_AFT_SERIAL" },
 	{ 0,			NULL,			}
@@ -780,6 +782,7 @@ look_up_t	sym_table[] =
   { WAN_MEDIA_STS1,     (void*)"STS-1"         },
   { WAN_MEDIA_E3,       (void*)"E3"            },
   { WAN_MEDIA_FXOFXS,   (void*)"FXO/FXS"       },
+  { WAN_MEDIA_GSM,   (void*)"GSM"           },
   { WAN_MEDIA_BRI,		(void*)"BRI"           },
 
   { WAN_LCODE_AMI, 	(void*)"AMI"           },

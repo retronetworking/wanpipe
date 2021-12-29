@@ -21,7 +21,7 @@ wanpipe-y			:= sdlamain.o
 
 ifneq (,$(ZAPDIR))
 PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE 
-wanpipe-y			+= sdla_tdmv.o sdla_remora_tdmv.o sdla_bri_tdmv.o sdla_tdmv_dummy.o  sdla_usb_remora_tdmv.o
+wanpipe-y			+= sdla_tdmv.o sdla_remora_tdmv.o sdla_bri_tdmv.o sdla_gsm_tdmv.o sdla_tdmv_dummy.o  sdla_usb_remora_tdmv.o
 
 ifneq (,$(wildcard $(ZAPHDLC)))
 PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL
@@ -32,10 +32,10 @@ wanpipe-y			+= sdla_ft1.o sdla_te1.o sdla_te3.o sdla_56k.o sdla_8te1.o
 wanpipe-y			+= wanpipe_tdm_api.o 
 wanpipe-y                       += aft_core.o aft_core_api_events.o aft_core_prot.o aft_core_utils.o
 wanpipe-y                       += sdla_xilinx.o aft_a104.o
-wanpipe-y			+= aft_analog.o sdla_aft_te3.o wanpipe_utils.o sdla_remora_analog.o 
+wanpipe-y			+= aft_gsm.o aft_analog.o sdla_aft_te3.o wanpipe_utils.o sdla_remora_analog.o 
 wanpipe-y			+= wanpipe_abstr.o wanpipe_linux_iface.o 
 wanpipe-y			+= wanpipe_tdm_api.o sdla_remora.o 
-wanpipe-y			+= sdla_bri.o aft_bri.o sdla_serial.o wanpipe_mtp1.o
+wanpipe-y			+= sdla_gsm.o sdla_bri.o aft_bri.o sdla_serial.o wanpipe_mtp1.o
 
 wanpipe-y                       += wanpipe_codec.o wanpipe_codec_law.o
 wanpipe-y                       += wanpipe_usb.o sdla_usb_remora.o 

@@ -175,7 +175,9 @@ typedef struct sdla_remora_cfg_ {
 
 	int		fxs_ringampl;
 	u_int8_t	rm_mode; 	/*Analog Operation mode: default or tapping */
-	u_int8_t	fake_polarity;
+        u_int8_t        fake_polarity;  /*FAKE Polarity event generation : YES or NO*/
+        int             fake_polarity_thres; /*Threshold value(only for Analoge cards,units defined in L16 sample value)
+					       to decide generation of FAKE Polarity event*/
 	u_int8_t	rm_lcm; /*Analog Loop Current Measure (LCM) : Yes Or NO */
 } sdla_remora_cfg_t;
 
@@ -359,15 +361,14 @@ typedef struct {
 	
 	unsigned char	imask;		/* interrupt mask */
 
+	int   				readcid;
+        unsigned int 			cidtimer;
+
 	/*Additional for Zaptel mode*/
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 	int				echotune;	/* echo tune */
 	struct wan_rm_echo_coefs	echoregs;	/* echo tune */
-	int   				readcid;
-        unsigned int 			cidtimer;
-
 #endif
-
 } wp_remora_fxo_t;
 
 typedef struct {

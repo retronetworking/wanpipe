@@ -88,6 +88,7 @@ use Card;
 use A10x;
 use A10u;
 use A20x;
+use W40x;
 use A50x;
 use U10x;
 use analogspan;
@@ -155,8 +156,9 @@ my $woomera_conf="";
 my $devnum=1;
 my $current_zap_span=1;
 my $current_tdmapi_span=1;
-#my $current_bri_span=1;
 my $current_zap_channel=1;
+my $num_gsm_devices=0;
+my $num_gsm_devices_total=0;
 my $num_analog_devices=0;
 my $num_analog_devices_total=0;
 my $num_usb_devices_total=0;
@@ -208,6 +210,7 @@ my $bri_trunk_type='';
 my $def_femedia='';
 my $def_feclock='';
 my $def_hw_port_map='DEFAULT';
+my $def_gsm_option='';
 my $def_bri_option='';
 my $def_bri_default_tei='';
 my $def_bri_default_tei_opt=$FALSE;
@@ -465,7 +468,10 @@ if( $zaptel_installed==$TRUE && $os_type_list =~ m/Linux/ && $is_fs == $FALSE) {
 prepare_files();
 config_t1e1();
 config_bri();
+config_gsm();
 config_analog();
+
+
 if($usb_device_support == $TRUE && $os_type_list =~ m/Linux/) {
 	config_usbfxo();
 }
@@ -500,15 +506,12 @@ print "Sangoma cards configuration complete, exiting...\n\n";
 #######################################FUNCTIONS##################################################
 sub get_card_name{
 	my ($card_name) = @_;
-	if ( $card_name eq '600' || $card_name eq '601' || $card_name eq '610' || $card_name eq '700') {
+	if ( $card_name eq '400') {
+		$card_name = "W".$card_name;
+	} elsif ( $card_name eq '600' || $card_name eq '601' || $card_name eq '610' || $card_name eq '700') {
 		$card_name = "B".$card_name;
 	} else {
-		#if ( $is_trillium == $TRUE ){
-		#	$card_name = $card_name;
-		#}
-		#else {
-			$card_name = "A".$card_name;
-		#}
+		$card_name = "A".$card_name;
 	}
 	return $card_name;
 }
@@ -854,9 +857,9 @@ sub check_dahdi_ver
     my $ver_major;
     my $ver_minor;
     my $str_tmp; 
-    my $strDahdi="DAHDI Tools Version";
+    my $strDahdi="DAHDI Version";
 
-    $str_tmp = `dahdi_cfg -v 2>&1 | grep \"$strDahdi\" `;
+    $str_tmp = `dahdi_cfg -vt 2>&1 | grep \"$strDahdi\" `;
     if ($str_tmp =~ m/(\d).(\d)/) {
         $ver_major = $1;  
         $ver_minor = $2;
@@ -864,13 +867,16 @@ sub check_dahdi_ver
     }
 
     $dahdi_echo='mg2';
-    if ($ver_major > $dahdi_ver_major) {
-        $dahdi_echo='HWEC';
-    } elsif ($ver_major == $dahdi_ver_major) {
-        if ($ver_minor > $dahdi_ver_minor) {
-            $dahdi_echo='HWEC';
-        }
-    }
+
+#	NC: This is not necessary as there was a bug in a driver
+#   NC: that did not allow dahdi to autodetec hwec.
+#    if ($ver_major > $dahdi_ver_major) {
+#        $dahdi_echo='HWEC';
+#    } elsif ($ver_major == $dahdi_ver_major) {
+#        if ($ver_minor > $dahdi_ver_minor) {
+#            $dahdi_echo='HWEC';
+#        }
+#    }
 }
 
 
@@ -962,9 +968,12 @@ sub apply_changes{
 	if ($res =~ m/now/){
 		$asterisk_version1 = `asterisk -V | cut -d' ' -f 2 | cut -d '.' -f 2`;
 		$asterisk_version2 = `asterisk -V | cut -d' ' -f 2 | cut -d '.' -f 3`;
-		if (($asterisk_version1 >= 6) && ($asterisk_version2 >= 2)){
+		
+		if ($asterisk_version1 =~ m/UNKNOWN/) {
 			$asterisk_command='core stop now';
-		}else{
+		} elsif (($asterisk_version1 >= 6) && ($asterisk_version2 >= 2)) {
+			$asterisk_command='core stop now';
+		} else {
 			$asterisk_command='stop now';
 		}
 	} else {
@@ -983,25 +992,15 @@ sub apply_changes{
 		if (`(pidof asterisk)` != 0 ){
 			print "\nStopping Asterisk...\n";
 			exec_command("asterisk -rx \"$asterisk_command\"");
-			sleep 2;
+			sleep 5;
 			while (`(pidof asterisk)` != 0 ){
 				if ($asterisk_command eq "stop now"){
-					print "Failed to stop asterisk using command: \'$asterisk_command\' \n";
-					my @options=("Force Stop - Send KILL signal to asterisk", "Wait - Wait for asterisk to stop", "Exit - Do not apply changes");
-					my $res=&prompt_user_list(@options,"");
-	
-					if ( $res =~ m/Force Stop/){
-						execute_command("kill -KILL \$(pidof asterisk)");
-					} elsif ( $res =~ m/Exit/ ){
-						exit(1);
-					} else {
-						print "Waiting for asterisk to stop...\n";
-						sleep 5;
-						exec_command("asterisk -rx \"$asterisk_command\"");
-					}
+					print "Failed to stop asterisk using command: \'$asterisk_command\' Forcing Asterisk Down \n";
+					execute_command("killall -9 safe_asterisk");
+					execute_command("killall -9 asterisk");
 				} else { 
 					#stop when convenient option was selected
-					print "Waiting for asterisk to stop...\n";
+					print "Waiting for asterisk to stop when convenient...\n";
 					sleep 3;
 				}
 			}
@@ -1145,7 +1144,7 @@ sub apply_changes{
 			sleep 2;
 		}elsif($config_zapata==$TRUE){
 			print "\nStarting Asterisk...\n";
-			exec_command("asterisk");
+			exec_command("safe_asterisk");
 			sleep 2;
 	
 				
@@ -1631,6 +1630,7 @@ sub summary{
 		print("  $num_digital_devices_total T1/E1 port(s) detected, $num_digital_devices configured\n");
 		print("  $num_bri_devices_total ISDN BRI port(s) detected, $num_bri_devices configured\n");
 		print("  $num_analog_devices_total analog card(s) detected, $num_analog_devices configured\n");
+		print("  $num_gsm_devices_total GSM card(s) detected, $num_gsm_devices configured\n");
   	    print("  $num_usb_devices_total usb device(s) detected, $num_usb_devices configured\n");
 
 		
@@ -2177,9 +2177,6 @@ sub get_bri_conn_type{
 	exit 1;
 }
 
-
-
-
 sub config_bri{
 	my $a50x;
 	if (!$first_cfg && $silent==$FALSE) {
@@ -2297,7 +2294,7 @@ select_bri_option:
 							}
 						}
 					}else{
-						printf ("%s on slot:%s bus:%s port:%s not configured\n", 												get_card_name($card->card_model), $3, $4, $5);
+						printf ("%s on slot:%s bus:%s port:%s not configured\n", get_card_name($card->card_model), $3, $4, $5);
 						prompt_user("Press any key to continue");
 					}
 
@@ -2365,8 +2362,6 @@ select_bri_option:
 			} else {
 				$a50x->gen_wanpipe_conf(0);
 			}
-
-		#	$a50x->gen_wanpipe_conf();
 
 			if ( $dev =~ /(\d+):NT/ ){	
 				$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_nt", $group, $country, $operator, $conn_type, '');
@@ -2445,6 +2440,112 @@ select_bri_option:
 	}
 }
 
+sub config_gsm {
+	my $w40x;
+
+	$first_cfg=0;
+	print "------------------------------------\n";
+	print "Configuring GSM cards [W400]\n";
+	print "------------------------------------\n";
+	my $skip_card=$FALSE;
+	$zaptel_conf.="\n";
+	$zapata_conf.="\n";
+	
+	foreach my $dev (@hwprobe) {
+		if ($dev =~ /.*AFT-W400(.*):.*SLOT=(\d+).*BUS=(\d+).*PORT=(\d+).*/) {
+			$skip_card=$FALSE;
+
+			my $card = eval {new Card(); } or die ($@);
+
+			$card->first_chan($current_zap_channel);
+			$card->current_dir($current_dir);
+			$card->cfg_dir($cfg_dir);
+			$card->device_no($devnum);
+			$card->card_model("400");
+			$card->pci_slot($2);
+			$card->pci_bus($3);			
+
+			if($dahdi_installed == $TRUE) {
+				$card->dahdi_conf('YES');
+				$card->dahdi_echo('NO')
+			}
+
+			$num_gsm_devices_total++;
+
+			if ($silent == $FALSE) {
+				system('clear');
+				print "\n-----------------------------------------------------------\n";
+				printf("AFT-%s detected on slot:%d bus:%d port:%d\n", get_card_name($card->card_model), $card->pci_slot, $card->pci_bus, $4);
+				print "-----------------------------------------------------------\n";
+			}
+
+			if ($is_trixbox == $FALSE) {
+				if($silent==$FALSE){
+						printf ("\nWould you like to configure AFT-%s port %s on slot:%d bus:%d\n",
+										get_card_name($card->card_model), $4, $card->pci_slot, $card->pci_bus);
+						my @options=("YES", "NO", "Exit");
+						$def_gsm_option=&prompt_user_list(@options,$def_gsm_option);
+				} else {
+						$def_gsm_option="YES";
+				}
+			}
+			
+			if($def_gsm_option eq 'YES') {
+				$w40x = eval {new W40x(); } or die ($@);
+				$w40x->card($card);
+
+				$w40x->fe_line($4);
+
+				if ($#silent_tdm_laws >= 0) {
+					$silent_tdm_law = pop(@silent_tdm_laws);
+					$w40x->tdm_law($silent_tdm_law);
+				} else {
+					$w40x->tdm_law(&prompt_tdm_law());
+				}
+			
+				$startup_string.="wanpipe$devnum ";
+				$cfg_string.="wanpipe$devnum ";
+					
+				if($silent==$FALSE){
+					prompt_user("Press any key to continue");
+				}
+			
+				if( $is_tdm_api == $FALSE) {
+					printf ("AFT-%s configured on slot:%d bus:%d span:%s\n", get_card_name($card->card_model), $card->pci_slot, $card->pci_bus, $current_zap_span);
+
+					$current_zap_channel+=2;
+					$num_zaptel_config++;
+					$card->tdmv_span_no($current_zap_span);
+					$current_zap_span++;
+					
+					$zaptel_conf.=$w40x->gen_zaptel_conf($dchan_str);
+					$w40x->card->zap_context(&get_zapata_context($w40x->card->card_model, $w40x->fe_line));
+					$w40x->card->zap_group(&get_zapata_group($w40x->card->card_model, $w40x->fe_line, $w40x->card->zap_context));
+					$zapata_conf.=$w40x->gen_zapata_conf();
+				} else {
+					printf ("AFT-%s configured on slot:%s bus:%s span:$current_tdmapi_span\n", get_card_name($card->card_model), $card->pci_slot, $card->pci_bus);
+					$w40x->is_tdm_api($TRUE);
+					$card->tdmv_span_no($current_tdmapi_span);
+					$current_tdmapi_span++;
+				}
+				$w40x->gen_wanpipe_conf();
+				$devnum++;
+				$num_gsm_devices++;
+			} else {
+				printf ("AFT-%s on slot:%s bus:%s not configured\n", get_card_name($card->card_model), $card->pci_slot, $card->pci_bus);
+				prompt_user("Press any key to continue");
+			}
+		} # if ($dev =~ /.*AFT-W400(.*):.*SLOT=(\d+).*BUS=(\d+).*PORT=(\d+).*HWEC=(\w+)
+	}
+	if($num_gsm_devices_total!=0){
+		print("\nGSM cards configuration complete.\n");
+	} else {
+		print("\nNo Sangoma GSM cards detected\n\n");
+	}
+	if ($silent==$FALSE) {
+		prompt_user("Press any key to continue");
+	}
+}
 
 #------------------------------T1/E1 FUNCTIONS------------------------------------#
 
@@ -3584,14 +3685,19 @@ ENDSS7CONFIG:
 
 		}
 	}
+	
 	if($num_digital_devices_total!=0){
 		print("\nT1/E1 card configuration complete.\n");
 		if($silent==$FALSE){
 			prompt_user("Press any key to continue");
 		}
 		$first_cfg=0;
+	} else {
+		print("\nNo Sangoma ISDN T1/E1 cards detected\n\n");
+		if($silent==$FALSE){
+			prompt_user("Press any key to continue");
+		}
 	}
-#	close SCR;
 }
 
 
@@ -4321,7 +4427,7 @@ sub config_smg_ctrl_boot {
 	my @boot_scripts= ('smg_ctrl','smg_ctrl_safe');
 		foreach my $boot_scripts (@boot_scripts) {
 	
-		print"Remvoing old $boot_scripts boot";
+		print"Removing old $boot_scripts boot";
 		if ($have_update_rc_d) {#debian/ubuntu
 			$command = "update-rc.d -f $boot_scripts remove >>/dev/null 2>>/dev/null";
 			if (system($command) == 0){

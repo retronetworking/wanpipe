@@ -107,13 +107,13 @@ static __inline int __wp_dahdi_free_device(struct zt_span *span)
 }
 
 #define wp_dahdi_register_device(wp) __wp_dahdi_register_device(&wp->span)
-static __inline int __wp_dahdi_register_device(struct dahdi_span *span)
+static __inline int __wp_dahdi_register_device(struct zt_span *span)
 {
     return zt_register(span, 0);
 }
 
 #define wp_dahdi_unregister_device(wp) __wp_dahdi_unregister_device(&wp->span)
-static __inline void __wp_dahdi_unregister_device(struct dahdi_span *span)
+static __inline void __wp_dahdi_unregister_device(struct zt_span *span)
 {
     zt_unregister(span);
 }

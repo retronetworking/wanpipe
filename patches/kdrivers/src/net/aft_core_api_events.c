@@ -44,6 +44,7 @@ static int aft_write_rbs_bits(void *chan_ptr, u32 ch, u8 rbs_bits);
 static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hdr);
 static int aft_write_hdlc_check(void *chan_ptr, int lock, int buffers);
 static int aft_write_hdlc_timeout(void *chan_ptr, int lock);
+static int aft_fake_dchan_transmit(sdla_t *card, void *chan_ptr, void *src_data_buffer, unsigned int buffer_len);
 
 /*--------------------------------------------------------
  * PRIVATE EVENT FUNCTIONS
@@ -423,6 +424,23 @@ static void wan_aft_api_ringdetect (void* card_id, wan_event_t *event)
 	return;
 }
  
+static int aft_fake_dchan_transmit(sdla_t *card, void *chan_ptr, void *src_data_buffer, unsigned int buffer_len)
+{
+	int		err = 0;
+	/* XXX isdn_bri_dchan_tx should be renamed to dchan_tx as it works for other protocols as well (ie GSM) XXX*/
+	if (card->wandev.fe_iface.isdn_bri_dchan_tx){
+		err = card->wandev.fe_iface.isdn_bri_dchan_tx(
+					&card->fe,
+					src_data_buffer, 
+					buffer_len);
+	}else{
+		DEBUG_WARNING("%s():%s: Warning: uninitialized isdn_bri_dchan_tx() pointer.\n",
+			__FUNCTION__, card->devname);
+	}
+
+	return err;
+}
+
 static int aft_write_hdlc_check(void *chan_ptr, int lock, int buffers)
 {
 	private_area_t *chan = (private_area_t *)chan_ptr;
@@ -436,9 +454,9 @@ static int aft_write_hdlc_check(void *chan_ptr, int lock, int buffers)
 		return 1;
 	}
 
-	if (IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)){
+	if (AFT_HAS_FAKE_DCHAN(card) && (chan->dchan_time_slot >= 0)){
 		
-		rc=aft_bri_dchan_transmit(card, chan,
+		rc=aft_fake_dchan_transmit(card, chan,
 						NULL,
 						0);
 
@@ -481,7 +499,7 @@ static int aft_write_hdlc_timeout(void *chan_ptr, int lock)
 	sdla_t *card=chan->card;
 	wan_smp_flag_t smp_flags=0;
 	
-	if (IS_BRI_CARD(card)) {
+	if (AFT_HAS_FAKE_DCHAN(card)) {
 		return 0;
 	}
 
@@ -537,27 +555,20 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 	}
 
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
-	if(IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)){
-		/* BRI D-chan data NOT transmitted using DMA. */
-#if 0
-		err=aft_bri_dchan_transmit(card, chan, NULL, 0);
-		if(err){
-			/* still busy transmitting */
-			return -EBUSY;
-		}
-#endif
+	if(AFT_HAS_FAKE_DCHAN(card) && (chan->dchan_time_slot >= 0)){
+		/* D-chan data NOT transmitted using DMA. */
 		/* NOTE: BRI dchan tx has to be done inside IRQ lock.
 			It allows to synchronize access to SPI on the card. */
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
-		err=aft_bri_dchan_transmit(card, chan,
-						wan_skb_data(skb),
-						wan_skb_len(skb));
+
+		err=aft_fake_dchan_transmit(card, chan, wan_skb_data(skb), wan_skb_len(skb));
+
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 		
 		hdr->tx_h.max_tx_queue_length = 1;
 		hdr->tx_h.current_number_of_frames_in_tx_queue = 1;
 
-		/* BRI D-channel will return 0 after accepting a frame for transmission or -EBUSY. 
+		/* D-channel will return 0 after accepting a frame for transmission or -EBUSY. 
 		 * That means 0 is a success return code - successful tx but now queue is full. */
 		if (err == 0) {
 
@@ -1084,7 +1095,7 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 		chan->chan_stats.current_number_of_frames_in_rx_queue = (u8)wan_skb_queue_len(&chan->wp_rx_complete_list);
 		wptdm_os_unlock_irq(&card->wandev.lock, &smp_flags);
 	
-		if (IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)) {
+		if (AFT_HAS_FAKE_DCHAN(card) && (chan->dchan_time_slot >= 0)) {
 
 			if (aft_bri_dchan_transmit(card, chan, NULL, 0)) {
 				/* Tx busy. It means there is a single frame in tx queue. */

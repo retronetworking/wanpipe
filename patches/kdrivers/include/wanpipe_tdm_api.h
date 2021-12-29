@@ -204,7 +204,6 @@ typedef struct wanpipe_tdm_api_dev {
 	u32				buffer_multiplier;
 	u32				timeslots;
 	u8				loop_reenable_hwec;
-
 }wanpipe_tdm_api_dev_t;
 
 

@@ -224,6 +224,12 @@
 #define MODULE2	2
 #define MODULE3	4
 
+#define AFT_CHIP_CFG_REG		0x40
+#define AFT_CHIPCFG_SFR_IN_BIT		2
+#define AFT_CHIPCFG_SFR_EX_BIT		1
+#define AFT_CHIPCFG_B600_EC_CHIP_PRESENT_BIT 20
+#define AFT_CHIPCFG_B600_EC_RESET_BIT	25
+
 #if 0
 static unsigned char wan_index_map[24][32][32];
 static unsigned char wan_index_cnt=0;
@@ -434,6 +440,11 @@ extern int	sdla_a600_write_fe (void* phw, ...);
 extern u_int8_t	__sdla_a600_read_fe (void* phw, ...);
 extern u_int8_t	sdla_a600_read_fe (void* phw, ...);
 extern void sdla_a600_reset_fe (void* fe);
+
+extern int	sdla_w400_write_fe (void* phw, ...);
+extern u_int8_t	__sdla_w400_read_fe (void* phw, ...);
+extern u_int8_t	sdla_w400_read_fe (void* phw, ...);
+extern void sdla_w400_reset_fe (void* fe);
 
 extern int	sdla_b800_write_fe (void* phw, ...);
 extern u_int8_t	__sdla_b800_read_fe (void* phw, ...);
@@ -909,6 +920,11 @@ static __inline void SDLA_PROBE_SPRINT(char *str,...)
 #define SDLA_HWPROBE_USB_FORMAT_DUMP				\
 	"|ID=%s|BUSID=%s|V=%02X"
 
+#define SDLA_HWPROBE_W400_SH_FORMAT			\
+	"%-10s : SLOT=%d : BUS=%d : IRQ=%d : PORT=%d : V=%02X"
+#define SDLA_HWPROBE_W400_SH_FORMAT_DUMP			\
+	"|ID=%s|SLOT=%d|BUS=%d|IRQ=%d|PORT=%d|V=%02X"
+
 static int
 sdla_save_hw_probe (sdlahw_t* hw, int port)
 {
@@ -1093,6 +1109,17 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					SDLA_GET_CPU(hwcpu->cpu_no), 
 					port ? "SEC" : "PRI");						
 			}
+			break;
+		case AFT_ADPTR_W400:
+			SDLA_PROBE_SPRINT(hwprobe->hw_info,
+					sizeof(hwprobe->hw_info),
+					SDLA_HWPROBE_W400_SH_FORMAT, 
+					hwcpu->hwcard->adptr_name,
+					hwcpu->hwcard->u_pci.slot_no, 
+					hwcpu->hwcard->u_pci.bus_no, 
+					hwcpu->irq, 
+					hw->line_no+1,			/* Physical line number */
+					hwcpu->hwcard->core_rev);
 			break;
 		case AFT_ADPTR_ISDN:
 		case AFT_ADPTR_B500:
@@ -1388,7 +1415,158 @@ sdla_hwdev_serial_register(sdlahw_cpu_t* hwcpu, int max_line_no)
 	return first_hw;
 }
 
+/* ideally this function should be used as well in sdla_get_hw_info() which resets 
+ * the fpga for different type of hardware, but the sequence seems to be the same */
+static void sdla_reset_fpga(sdlahw_t *hw)
+{
+	u32 reg = 0;
+	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT, &reg);
+	wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT, &reg);
+	sdla_bus_write_4(hw, SDLA_REG_OFF(hw->hwcpu->hwcard, AFT_CHIP_CFG_REG), reg); 
 
+	WP_DELAY(10);
+
+	wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT, &reg);
+	wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT, &reg);
+	sdla_bus_write_4(hw, SDLA_REG_OFF(hw->hwcpu->hwcard, AFT_CHIP_CFG_REG), reg); 
+
+	WP_DELAY(10);
+}
+
+#include "sdla_gsm_inline.h"
+static sdlahw_t *sdla_hwdev_w400_register(sdlahw_cpu_t *hwcpu, int *lines_number)
+{
+	sdlahw_t *hw = NULL;
+	sdlahw_t *mod_hw[MAX_GSM_MODULES];
+	sdlahw_port_t *curr_port = NULL;
+	int mod_no = 0;
+	int line_no = 0;
+	int mod_map = 0;
+	int ret_map = 0;
+	u32 line_map = 0;
+
+	if ((hw = sdla_hw_register(hwcpu, 0)) == NULL){
+		return NULL;
+	}
+
+	if (sdla_memory_map(hw)){
+		sdla_hw_unregister(hw);
+		return NULL;
+	}
+
+	/* In order to check for module presence we must reset the fpga */
+	sdla_reset_fpga(hw);
+
+	/* check for present modules */
+#ifndef WAN_GSM_SLOW_HWPROBE
+	/* Fast hwprobe uses gsm registry configuration to determine if the module is present,
+	 * our hw guys do not seem very sure this is reliable as they are checking some pin
+	 * in the gsm module and are unsure of whether that is always low/high when booting
+	 * or something. I remember seeing once that wanrouter hwprobe did not return
+	 * the modules I had present. However at that point I was messing up with the driver and
+	 * probably I left the module turned-on on port stop or something and on reboot things
+	 * did not work, so I think this is reliable as long as the driver properly turns off
+	 * the GSM module on shutdown, in case that was not the case, we try to turn them off now if needed */
+	ret_map = wp_gsm_toggle_power(hw, AFT_GSM_ALL_MODULES_MASK, WAN_FALSE);
+	if (ret_map) {
+		DEBUG_ERROR("%s: Error: Some GSM modules were not turned off before hwprobe (mod_map=%X)\n", hw->devname, ret_map);
+	}
+	for (mod_no = 1; mod_no <= MAX_GSM_MODULES; mod_no++) {
+		u32 reg = 0;
+		/* Check if there is a module present in this line */
+		reg = 0;
+		sdla_bus_read_4(hw, AFT_GSM_MOD_REG(mod_no, AFT_GSM_CONFIG_REG), &reg);
+		if (wan_test_bit(AFT_GSM_MOD_PRESENT_BIT, &reg)) {
+			DEBUG_EVENT("%s: GSM module found at line %d\n", hw->devname, mod_no);
+			wan_set_bit(AFT_GSM_MOD_BIT(mod_no), &mod_map);
+		} else {
+			DEBUG_EVENT("%s: GSM module not found at line %d ...\n", hw->devname, mod_no);
+		}
+	}
+#else /* SLOW hardware probe */
+
+	/* Try to power on the modules to determine which ones are present ... 
+	 * aft_gsm_toggle_power returns a mask of modules that failed to be turned on
+	 * but we want the inverse of that (the modules that succeeded), therefore we invert
+	 * the mask and then make sure only take the bits corresponding to the modules (AFT_GSM_ALL_MODULES_MASK) */
+	ret_map = wp_gsm_toggle_power(hw, AFT_GSM_ALL_MODULES_MASK, WAN_TRUE);
+	if (ret_map) {
+		for (mod_no = 1; mod_no <= MAX_GSM_MODULES; mod_no++) {
+			if (!wan_test_bit(AFT_GSM_MOD_BIT(mod_no), &ret_map)) {
+				DEBUG_EVENT("%s: GSM module found at line %d\n", hw->devname, mod_no);
+			} else {
+				DEBUG_EVENT("%s: GSM module not found at line %d ...\n", hw->devname, mod_no);
+			}
+		}
+	}
+	mod_map = ((~ret_map) & AFT_GSM_ALL_MODULES_MASK);
+	/* what if we don't turn them off to speed up things? */
+	ret_map = wp_gsm_toggle_power(hw, AFT_GSM_ALL_MODULES_MASK, WAN_FALSE);
+	if (ret_map) {
+		for (mod_no = 1; mod_no <= MAX_GSM_MODULES; mod_no++) {
+			if (!wan_test_bit(AFT_GSM_MOD_BIT(mod_no), &ret_map)) {
+				continue;
+			}
+			DEBUG_ERROR("%s: Failed to turn off GSM module %d\n", hw->devname);
+		}
+	}
+#endif
+
+	sdla_hwdev_common_unregister(hwcpu);
+	hw = NULL;
+
+	for (line_no = 0; line_no < MAX_GSM_MODULES; line_no++) {
+		mod_no = line_no + 1;
+		/* if the module is not present */
+		if (!wan_test_bit(AFT_GSM_MOD_BIT(mod_no), &mod_map)) {
+			continue;
+		}
+
+		if ((hw = sdla_hw_register(hwcpu, line_no)) == NULL){
+			goto error;
+		}
+
+		/* Populate some basic hw information */
+		if (sdla_get_hw_info(hw)) {
+			goto error;
+		}
+
+		/* Create the HW probe string information */
+		if (sdla_save_hw_probe(hw, 0)){
+			goto error;
+		}
+
+		mod_hw[line_no] = hw;
+
+		/* add some GSM specific information to the hw probe string */
+		curr_port = &hw->hwport[hw->max_port_no - 1];
+
+		/* Initialize the line */
+		hw->adptr_type	  = AFT_ADPTR_W400;
+		/* 1 bchan per module */
+		hw->chans_map	  = 0x01; 
+		hw->max_chans_num = 1;
+		(*lines_number)++;
+		hwcpu->lines_info[AFT_ADPTR_W400].total_line_no++;
+		line_map |= (1 << (mod_no));
+	}
+
+	hwcpu->lines_info[AFT_ADPTR_W400].line_map = line_map;
+
+	if (hw) {
+		sdla_memory_unmap(hw);
+	}
+
+	return hw;
+
+error:
+	DEBUG_ERROR("%s: Failed to register Wireless GSM modules\n", hw->devname);
+	if (hw) {
+		sdla_memory_unmap(hw);
+	}
+	sdla_hwdev_common_unregister(hwcpu);
+	return NULL;
+}
 
 static sdlahw_t* 
 sdla_hwdev_a600_register(sdlahw_cpu_t* hwcpu, int *line_num)
@@ -2112,12 +2290,6 @@ static int sdla_pcibridge_info(sdlahw_t* hw)
 	return 0;
 }
 
-#define AFT_CHIP_CFG_REG		0x40
-#define AFT_CHIPCFG_SFR_IN_BIT		2
-#define AFT_CHIPCFG_SFR_EX_BIT		1
-#define AFT_CHIPCFG_B600_EC_CHIP_PRESENT_BIT 20
-#define AFT_CHIPCFG_B600_EC_RESET_BIT	25
-
 #if !defined(__WINDOWS__)
 static 
 #endif
@@ -2135,7 +2307,6 @@ int sdla_get_hw_info(sdlahw_t* hw)
 	hwcpu = hw->hwcpu;
 	hwcard = hwcpu->hwcard;
 
-	/* Only AFT cards have CPLD that include all hw info */
 	if (hwcard->type != SDLA_AFT){
 		goto get_hw_info_done;
 	}
@@ -2330,6 +2501,19 @@ int sdla_get_hw_info(sdlahw_t* hw)
 					sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg);
 				}
 	
+				/* Restore original value */	
+				sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg1);
+				break;
+			case AFT_ADPTR_W400:
+				/* Enable memory access */	
+				sdla_bus_read_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), &reg1);
+				reg = reg1;
+				wan_clear_bit(AFT_CHIPCFG_SFR_IN_BIT, &reg);
+				wan_clear_bit(AFT_CHIPCFG_SFR_EX_BIT, &reg);
+				sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg);
+
+				WP_DELAY(1);
+
 				/* Restore original value */	
 				sdla_bus_write_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), reg1);
 				break;
@@ -2979,6 +3163,25 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 					hwcard->core_rev,
 					hwcard->u_pci.bus_no, hwcard->u_pci.slot_no, irq);
 		break;
+	case AFT_ADPTR_W400:
+		hwcard->cfg_type = WANOPT_AFT_GSM;
+		sdla_adapter_cnt.aft_w400_adapters++;
+		if ((hwcpu = sdla_hwcpu_register(hwcard, cpu_no, irq, dev)) == NULL){
+			return 0;
+		}
+
+		if ((hw = sdla_hwdev_w400_register(hwcpu, &number_of_cards)) == NULL){
+			sdla_hwcpu_unregister(hwcpu);
+			return 0;
+		}
+		number_of_cards++;
+		DEBUG_EVENT("%s: %s %s Wireless GSM card found (Firmware rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
+					wan_drvname,
+					hwcard->adptr_name,
+					AFT_PCITYPE_DECODE(hwcard),
+					hwcard->core_rev,
+					hwcard->u_pci.bus_no, hwcard->u_pci.slot_no, irq);
+		break;
 	case AFT_ADPTR_B610:
 		hwcard->cfg_type = WANOPT_AFT_ANALOG;
 		sdla_adapter_cnt.aft_b610_adapters++;
@@ -3335,6 +3538,10 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
 		break;
 #endif
+	case AFT_W400_SUBSYS_VENDOR:
+		hwcard->adptr_type = AFT_ADPTR_W400;
+		hwcard->adptr_subtype = AFT_SUBTYPE_SHARK;
+		break;
 	default:
 		DEBUG_EVENT(
 		"%s: Unsupported SubVendor ID:%04X (bus=%d, slot=%d)\n",
@@ -3366,6 +3573,7 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 	case AFT_B800_SUBSYS_VENDOR:
 #endif
 	case A700_SHARK_SUBSYS_VENDOR:	
+	case AFT_W400_SUBSYS_VENDOR:
 		sdla_pcibridge_detect(hwcard);
 		break;
 	}	
@@ -3594,7 +3802,7 @@ static int sdla_pci_probe(sdlahw_t *hw)
 	pci_dev=NULL;
 	while((pci_dev = pci_get_device(SANGOMA_PCI_VENDOR, PCI_ANY_ID, pci_dev)) != NULL){
 		
-		tmp_hwcard->u_pci.pci_dev = pci_dev;	
+		tmp_hwcard->u_pci.pci_dev = pci_dev;
 		number_pci_cards += sdla_pci_probe_aft(
 					hw,
 					pci_dev->bus->number,
@@ -3838,7 +4046,6 @@ EXPORT_SYMBOL(sdla_hw_probe);
 #if defined(__LINUX__)
 unsigned int sdla_hw_probe(void)
 {
-
 	sdlahw_card_t 	*tmp_hwcard;
 	sdlahw_cpu_t 	*tmp_hwcpu;
 	sdlahw_t 	*tmp_hw;
@@ -4765,7 +4972,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	if (sdla_register_check(conf, devname)){
 		return NULL;
 	}
-		
+
 	hw = sdla_find_adapter(conf, devname);
 
 	if (hw == NULL || hw->used >= hw->max_port_no){
@@ -4889,6 +5096,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 	case WANOPT_AFT_ISDN:
 	case WANOPT_AFT_56K:
 	case WANOPT_AFT_SERIAL:
+	case WANOPT_AFT_GSM:
 		hwcard->type			= SDLA_AFT;
 		hw_iface->set_bit		= sdla_set_bit;
 		hw_iface->clear_bit		= sdla_clear_bit;
@@ -5003,6 +5211,12 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 			hw_iface->fe_write = sdla_a600_write_fe;
 			hw_iface->reset_fe = sdla_a600_reset_fe;
 			break;
+		case AFT_ADPTR_W400:
+			hw_iface->fe_read = sdla_w400_read_fe;
+			hw_iface->__fe_read = __sdla_w400_read_fe;
+			hw_iface->fe_write = sdla_w400_write_fe;
+			hw_iface->reset_fe = sdla_w400_reset_fe;
+			break;
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
 			if(hw->cfg_type == WANOPT_AFT_ANALOG) {
@@ -5043,6 +5257,7 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B800)
 		case AFT_ADPTR_B800:
 #endif
+		case AFT_ADPTR_W400:
 			DEBUG_EVENT("%s: Found: %s card, CPU %c, PciBus=%d, PciSlot=%d, Port=%d\n",
 					devname, 
 					SDLA_DECODE_CARDTYPE(hwcard->cfg_type),
@@ -5405,6 +5620,15 @@ static int sdla_register_check (wandev_conf_t* conf, char* devname)
 		}
 		break;
 #endif
+	case WANOPT_AFT_GSM:
+		if (conf->auto_hw_detect && sdla_adapter_cnt.aft_w400_adapters > 1){
+			DEBUG_EVENT( "%s: HW Auto PCI failed: Multiple AFT-W400 cards found! \n"
+					"%s:    Disable the Autodetect feature and supply\n"
+					"%s:    the PCI Slot and Bus numbers for each card.\n",
+     					devname,devname,devname);
+			return -EINVAL;
+		}
+		break;
 
 	default:
 		DEBUG_EVENT("%s: Unsupported Sangoma Card (0x%X) requested by user!\n", 
@@ -6236,6 +6460,7 @@ static int sdla_down (void* phw)
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B800)
 		case AFT_ADPTR_B800:
 #endif
+		case AFT_ADPTR_W400:
 			if (hwcpu->used > 1){
 				break;
 			}
@@ -8038,6 +8263,7 @@ static int sdla_memory_map(sdlahw_t* hw)
 		case AFT_ADPTR_ISDN:
 		case AFT_ADPTR_B500:
 		case AFT_ADPTR_A600:
+		case AFT_ADPTR_W400:
 		case AFT_ADPTR_B610:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
@@ -8390,8 +8616,7 @@ sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 	}
 
 	DBG_SDLADRV_HW_IFACE("%s(): devname: %s, conf->card_type: 0x%X (%s), conf->fe_cfg.line_no: %d\n",
-		__FUNCTION__, devname, conf->card_type, CARD_WANOPT_DECODE(conf->card_type),
-		conf->fe_cfg.line_no);
+		__FUNCTION__, devname, conf->card_type, CARD_WANOPT_DECODE(conf->card_type), conf->fe_cfg.line_no);
 
 	WAN_LIST_FOREACH(hw, &sdlahw_head, next){
 	
@@ -8570,6 +8795,16 @@ sdlahw_t* sdla_find_adapter(wandev_conf_t* conf, char* devname)
 				}
 				break;
 #endif
+			case WANOPT_AFT_GSM:
+				if ((hwcpu->hwcard->u_pci.slot_no == conf->PCI_slot_no) && 
+			    	    (hwcpu->hwcard->u_pci.bus_no == conf->pci_bus_no) &&
+				    (hw->cfg_type == conf->card_type) &&
+				    (hw->line_no == conf->fe_cfg.line_no-1)){
+					DEBUG_EVENT("%s: Found adapter for GSM card configuration (slot=%d, bus=%d, line=%d)\n", 
+							devname, conf->PCI_slot_no, conf->pci_bus_no);
+					goto adapter_found;
+				}
+				break; 
 
 			default:
 				DEBUG_EVENT("%s: Unknown card type (%x) requested by user!\n",
@@ -8606,6 +8841,16 @@ adapter_found:
 			}
 			break;
 #endif
+
+		case AFT_ADPTR_W400:
+			if (conf->fe_cfg.line_no < 1 || conf->fe_cfg.line_no > MAX_GSM_MODULES){
+				DEBUG_ERROR("%s: Error, Invalid GSM module selected %d (Min=1 Max=%d)\n",
+						devname, conf->fe_cfg.line_no, MAX_GSM_MODULES);
+				return NULL;
+			}
+			conf->fe_cfg.line_no--;
+			conf->comm_port = 0;
+			break;
 
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
 		case AFT_ADPTR_ISDN:
@@ -8810,14 +9055,14 @@ adapter_found:
 #if defined(WAN_ISA_SUPPORT)
 		case WANOPT_S50X:
 	                DEBUG_EVENT(
-			"%s: Error, Sangoma ISA card not found on ioport #%x, %s\n",
-                	        devname, conf->ioport, COMPORT_DECODE(conf->comm_port));
+			"%s:%s:%d Error, Sangoma ISA card not found on ioport #%x, %s\n",
+                	        devname, __FILE__, __LINE__, conf->ioport, COMPORT_DECODE(conf->comm_port));
 			break;
 #endif
 		case WANOPT_S51X:
 		         DEBUG_EVENT(
-			"%s: Error, %s card not found on bus #%d, slot #%d, cpu %c, %s\n",
-                	        	devname, 
+			"%s:%s:%d: Error, %s card not found on bus #%d, slot #%d, cpu %c, %s\n",
+                	        	devname, __FILE__, __LINE__,
 					SDLA_DECODE_CARDTYPE(conf->card_type),
 					conf->pci_bus_no, 
 					conf->PCI_slot_no, 
@@ -8826,8 +9071,8 @@ adapter_found:
 			break;
 		case WANOPT_ADSL:
 			DEBUG_EVENT(
-			"%s: Error, %s card not found on bus #%d, slot #%d\n",
-                	        	devname, 
+			"%s:%s:%d: Error, %s card not found on bus #%d, slot #%d\n",
+                	        	devname, __FILE__, __LINE__,
 					SDLA_DECODE_CARDTYPE(conf->card_type),
 					conf->pci_bus_no, 
 					conf->PCI_slot_no); 
@@ -8843,8 +9088,8 @@ adapter_found:
 		case WANOPT_AFT_56K:
 		case WANOPT_AFT_SERIAL:
 			DEBUG_EVENT(
-			"%s: Error, %s card not found on bus #%d, slot #%d, cpu %c, line %d\n",
-                	        	devname, 
+			"%s:%s:%d: Error, %s card not found on bus #%d, slot #%d, cpu %c, line %d\n",
+                	        	devname, __FILE__, __LINE__,
 					SDLA_DECODE_CARDTYPE(conf->card_type),
 					conf->pci_bus_no, 
 					conf->PCI_slot_no,
@@ -8854,8 +9099,8 @@ adapter_found:
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 		case WANOPT_USB_ANALOG:
 			DEBUG_EVENT(
-			"%s: Error, %s card not found on busid #%s\n",
-                	        	devname, 
+			"%s:%s:%d: Error, %s card not found on busid #%s\n",
+                	        	devname, __FILE__, __LINE__,
 					SDLA_DECODE_CARDTYPE(conf->card_type),
 					conf->usb_busid);
 #if 0
@@ -8870,8 +9115,8 @@ adapter_found:
 
 		default:
 			DEBUG_EVENT(
-			"%s: Error, %s card not found!\n",
-					devname,
+			"%s:%s:%d: Error, %s card not found!\n",
+					devname, __FILE__, __LINE__,
 					SDLA_DECODE_CARDTYPE(conf->card_type));
 			break;
         	}

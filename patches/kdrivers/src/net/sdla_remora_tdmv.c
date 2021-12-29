@@ -37,10 +37,13 @@
 # include "wanpipe_dahdi_abstr.h" /* Map of Zaptel -> DAHDI definitions */
 #endif
 
+#if 0
 #ifdef DEBUG_TEST
 #undef DEBUG_TEST
 #define DEBUG_TEST DEBUG_EVENT
 #endif
+#endif
+
 /*******************************************************************************
 **			  DEFINES AND MACROS
 *******************************************************************************/
@@ -125,6 +128,10 @@ static void wp_tdmv_remora_hwec_free(struct dahdi_chan *chan,
 									 struct dahdi_echocan_state *ec);
 #endif
 
+#ifdef DAHDI_25
+static const char *wp_tdmv_remora_hwec_name(const struct zt_chan *chan);
+#endif
+
 #if 0
 #define WAN_SYNC_RX_TX_TEST 1
 #warning "WAN_SYNC_RX_TX_TEST: Test option Enabled" 
@@ -151,6 +158,9 @@ static const struct dahdi_span_ops wp_tdm_span_ops = {
 	.dacs = ,
 #endif
 	.echocan_create = wp_tdmv_remora_hwec_create,
+#ifdef DAHDI_25
+	.echocan_name = wp_tdmv_remora_hwec_name,
+#endif
 };
  
 #endif
@@ -170,6 +180,7 @@ static const struct dahdi_echocan_features wp_tdmv_remora_ec_features = {
 
 static const struct dahdi_echocan_ops wp_tdmv_remora_ec_ops = {
 #ifndef DAHDI_25
+	/* This option is used on dahdi 2.4 or lower */
 	.name = "WANPIPE_HWEC",
 #endif
 	.echocan_free = wp_tdmv_remora_hwec_free,
@@ -501,7 +512,25 @@ static int wp_remora_zap_watchdog(struct zt_span *span, int event)
 	return 0;
 }
 
+#ifdef DAHDI_25
+/* This funciton is used for dahdi 2.5 or higher */
+static const char *wp_tdmv_remora_hwec_name(const struct zt_chan *chan)
+{
+	wp_tdmv_remora_t *wr = NULL;
+	sdla_t *card = NULL;
+	
+	WAN_ASSERT2(chan == NULL, NULL);
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_remora_t);
+	WAN_ASSERT2(wr == NULL, NULL);
+	WAN_ASSERT2(wr->card == NULL, NULL);
+	card = wr->card;
 
+	if (card->wandev.ec_enable && wr->hwec == WANOPT_YES){
+		return "WANPIPE_HWEC";
+	}
+    return NULL;
+}
+#endif
 
 #ifdef DAHDI_22
 
@@ -538,7 +567,7 @@ static int wp_tdmv_remora_hwec_create(struct dahdi_chan *chan,
 	wan_set_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
 	wp_fax_tone_timeout_set(wr,(chan->chanpos-1));
 	
-	if (card->wandev.ec_enable){
+	if (card->wandev.ec_enable && wr->hwec == WANOPT_YES){
 		/* The ec persist flag enables and disables
 		* persistent echo control.  In persist mode
 		* echo cancellation is enabled regardless of
@@ -558,6 +587,7 @@ static int wp_tdmv_remora_hwec_create(struct dahdi_chan *chan,
 				   (err==0) ? "Enable" : "Disable",
 				   chan->chanpos);
 	}
+
 	return err;
 }
 
@@ -584,7 +614,7 @@ static void wp_tdmv_remora_hwec_free(struct dahdi_chan *chan, struct dahdi_echoc
 
 	wan_clear_bit(chan->chanpos-1, &card->wandev.rtp_tap_call_map);
 
-	if (card->wandev.ec_enable) {
+	if (card->wandev.ec_enable && wr->hwec == WANOPT_YES) {
 		/* The ec persist flag enables and disables
 	         * persistent echo control.  In persist mode
                  * echo cancellation is enabled regardless of
@@ -635,7 +665,7 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 		wan_clear_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
 	}
 
-	if (card->wandev.ec_enable){
+	if (card->wandev.ec_enable && wr->hwec == WANOPT_YES){
 		/* The ec persist flag enables and disables
 	         * persistent echo control.  In persist mode
                  * echo cancellation is enabled regardless of
@@ -1443,11 +1473,12 @@ static int wp_tdmv_remora_rx_tx_span(void *pcard)
 static int wp_tdmv_remora_ec_span(void *pcard)
 {
 	sdla_t          *card = (sdla_t*)pcard;
-        wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
-        wp_tdmv_remora_t	*wr = NULL;
+	wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
+	wp_tdmv_remora_t	*wr = NULL;
 
-        WAN_ASSERT(wan_tdmv->sc == NULL);
-        wr = wan_tdmv->sc;
+	WAN_ASSERT(wan_tdmv->sc == NULL);
+	wr = wan_tdmv->sc;
+
 
 	zt_ec_span(&wr->span);
 

@@ -1461,11 +1461,13 @@ static int wp_usb_tdmv_remora_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
        return -ENOMEM;
     }
 
+
+#ifdef DAHDI_ISSUES
+
     WP_DAHDI_SET_STR_INFO(wr,manufacturer,"Sangoma Technologies");
     WP_DAHDI_SET_STR_INFO(wr,devicetype, "U100");
     WP_DAHDI_SET_STR_INFO(wr,location,"SLOT=%d, BUS=%d", card->wandev.S514_slot_no, card->wandev.S514_bus_no);
 
-#ifdef DAHDI_ISSUES
 	for (i = 0; i < sizeof(wr->chans)/sizeof(wr->chans[0]); i++) {
 		wr->chans_ptrs[i] = &wr->chans[i];
 	}

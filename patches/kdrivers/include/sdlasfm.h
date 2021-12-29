@@ -149,8 +149,8 @@ enum {
 	AFT_ADPTR_B800,			/* AFT-B800 board */
 	AFT_ADPTR_FLEXBRI,		/* AFT-A700 FlexBRI board */
 	AFT_ADPTR_B500,			/* AFT B500 BRI board */
+	AFT_ADPTR_W400,                 /* AFT-W400 (GSM) */
 	AFT_ADPTR_B610,			/* AFT-B610 Single FXS board */
-
 	AFT_ADPTR_LAST			/* NOTE: Keep it as a last line */
 };
 #define MAX_ADPTRS	AFT_ADPTR_LAST
@@ -310,7 +310,8 @@ enum {
 		(adapter_type == AFT_ADPTR_B601)           ? "AFT-B601" : \
 		(adapter_type == AFT_ADPTR_B610)           ? "AFT-B610" : \
 		(adapter_type == AFT_ADPTR_B800)           ? "AFT-B800" : \
-		(adapter_type == AFT_ADPTR_FLEXBRI)  ? "AFT-B700" : \
+		(adapter_type == AFT_ADPTR_FLEXBRI)        ? "AFT-B700" : \
+		(adapter_type == AFT_ADPTR_W400)           ? "AFT-W400" : \
 							     "UNKNOWN"
 			
 #define AFT_GET_SECURITY(security)					\

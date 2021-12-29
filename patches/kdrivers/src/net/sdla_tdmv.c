@@ -283,6 +283,10 @@ static void wp_tdmv_hwec_free(struct dahdi_chan *chan,
 static int wp_tdmv_hwec(struct zt_chan *chan, int enable);
 #endif
 
+#ifdef DAHDI_25
+static const char *wp_tdmv_hwec_name(const struct zt_chan *chan);
+#endif
+
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
 static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan);
@@ -345,6 +349,10 @@ static const struct dahdi_span_ops wp_tdm_span_ops = {
 	.dacs = ,
 #endif
 	.echocan_create = wp_tdmv_hwec_create,
+#ifdef DAHDI_25
+	.echocan_name = wp_tdmv_hwec_name,
+#endif
+
 };
        
 #endif   
@@ -426,9 +434,9 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	sdla_t		*card = (sdla_t*)pcard;
 	wp_tdmv_softc_t	*wp = NULL;
 	wan_tdmv_t	*tmp = NULL;
-	int err=0;
 
 #ifdef DAHDI_ISSUES
+	int err=0;
 	int i;
 #endif
 
@@ -2264,6 +2272,26 @@ wp_tdmv_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 	return err;
 }
 
+#ifdef DAHDI_25
+/* This funciton is used for dahdi 2.5 or higher */
+static const char *wp_tdmv_hwec_name(const struct zt_chan *chan)
+{
+	wp_tdmv_softc_t *wr = NULL;
+	sdla_t *card = NULL;
+	
+	WAN_ASSERT2(chan == NULL, NULL);
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_softc_t);
+	WAN_ASSERT2(wr == NULL, NULL);
+	WAN_ASSERT2(wr->card == NULL, NULL);
+	card = wr->card;
+ 
+	if (card->wandev.ec_enable && wr->hwec == WANOPT_YES){
+		return "WANPIPE_HWEC";
+	}
+    return NULL;
+}
+#endif
+
 
 #ifdef DAHDI_22
 /******************************************************************************
@@ -2303,7 +2331,7 @@ static int wp_tdmv_hwec_create(struct dahdi_chan *chan,
 	wp_fax_tone_timeout_set(wp, chan->chanpos-1);
 
 	
-	if (card->wandev.ec_enable){
+	if (card->wandev.ec_enable && wp->hwec == WANOPT_YES){
 		DEBUG_TDMV("[TDMV] %s: %s HW echo canceller on channel %d\n",
 				   wp->devname,
 				   "Enable",
@@ -2348,7 +2376,7 @@ static void wp_tdmv_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_stat
 
 	wan_clear_bit(chan->chanpos-1, &card->wandev.rtp_tap_call_map);
 
-	if (card->wandev.ec_enable) {
+	if (card->wandev.ec_enable && wp->hwec == WANOPT_YES) {
 		DEBUG_TDMV("[TDMV] %s: Disable HW echo canceller on channel %d\n",
 				wp->devname, chan->chanpos);
 
@@ -2398,7 +2426,7 @@ static int wp_tdmv_hwec(struct zt_chan *chan, int enable)
 		wan_clear_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
 	}
 
-	if (card->wandev.ec_enable){
+	if (card->wandev.ec_enable && wp->hwec == WANOPT_YES){
 		DEBUG_TDMV("[TDMV] %s: %s HW echo canceller on channel %d\n",
 				wp->devname,
 				(enable) ? "Enable" : "Disable",

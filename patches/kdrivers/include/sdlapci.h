@@ -90,6 +90,8 @@
 #define AFT_B601_SUBSYS_VENDOR			0xA601	/* AFT-B600 Series board */
 #define AFT_B610_SUBSYS_VENDOR			0xA610	/* AFT-B610 single FXS Series board */
 
+#define AFT_W400_SUBSYS_VENDOR                  0xF400  /* AFT-W400 (GSM card) */
+
 #define AFT_B800_SUBSYS_VENDOR			0xB800	/* AFT-B800 2/4 FXO or 2/4 FXS board */
 
 #define AFT_2SERIAL_V35X21_SUBSYS_VENDOR	0xA031	/* AFT-A142 2 Port V.35/X.21 board */

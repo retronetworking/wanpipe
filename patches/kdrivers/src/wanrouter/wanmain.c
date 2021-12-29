@@ -708,6 +708,7 @@ int wan_device_setup (wan_device_t *wandev, wandev_conf_t *u_conf, int user)
 
 	if (conf->card_type == WANOPT_ADSL ||
  	    conf->card_type == WANOPT_AFT  || 
+ 	    conf->card_type == WANOPT_AFT_GSM  || 
  	    conf->card_type == WANOPT_AFT104  || 
  	    conf->card_type == WANOPT_AFT300  || 
 	    conf->config_id == WANCONFIG_DEBUG){

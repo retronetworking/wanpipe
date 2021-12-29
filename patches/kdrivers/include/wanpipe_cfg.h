@@ -157,6 +157,7 @@ enum {
 		 card_type == WANOPT_AFT108) ?     "A101/1D/A102/2D/4/4D/8" :	\
 		(card_type == WANOPT_AFT300) ?     "A300"  :	\
 		(card_type == WANOPT_AFT_ANALOG) ? "A200/A400/B600/B700/B800"  :	\
+		(card_type == WANOPT_AFT_GSM) ?    "W400"  :	\
 		(card_type == WANOPT_AFT_ISDN) ?   "A500/B700/B500"  :	\
 		(card_type == WANOPT_AFT_56K) ?    "A056"  :	\
 		(card_type == WANOPT_AFT_SERIAL) ? "A14x"  :	\
@@ -819,6 +820,7 @@ typedef struct wandev_conf
 #define WANCONFIG_AFT_SERIAL	138	/* AFT Serial V32/RS232 Driver */
 #define WANCONFIG_LIP_HDLC	139	/* LIP HDLC protocol */
 #define WANCONFIG_USB_ANALOG	140	/* Wanpipe USB Driver */
+#define WANCONFIG_AFT_GSM       141     /* Wanpipe GSM Driver */
 
 /*FIXME: This should be taken out, I just
 //used it so I don't break the apps that are
@@ -1087,6 +1089,7 @@ typedef struct {
 	(cardtype == WANOPT_AFT104) ? "WANOPT_AFT104": 		\
 	(cardtype == WANOPT_AFT108) ? "WANOPT_AFT108": 		\
 	(cardtype == WANOPT_AFT_ANALOG) ? "WANOPT_AFT_ANALOG": 		\
+	(cardtype == WANOPT_AFT_GSM) ? "WANOPT_AFT_GSM": 		\
 	(cardtype == WANOPT_AFT_56K) ? "WANOPT_AFT_56K": 		\
 	(cardtype == WANOPT_AFT300) ? "WANOPT_AFT300":	\
 	(cardtype == WANOPT_AFT600) ? "WANOPT_AFT600":  \

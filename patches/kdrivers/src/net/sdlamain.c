@@ -726,6 +726,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		case WANOPT_AFT_ANALOG:
 		case WANOPT_AFT_56K:
 		case WANOPT_AFT_SERIAL:
+		case WANOPT_AFT_GSM:
 
 			err=0;
 			if ((err=check_aft_conflicts(card,conf,&irq)) != 0){
@@ -1035,6 +1036,10 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		err = wp_usb_init(card,conf);
 		break;
 #endif
+	case WANCONFIG_AFT_GSM:
+		DEBUG_EVENT("%s: Starting GSM Hardware Init.\n", card->devname);
+		err = wp_aft_w400_init(card, conf);
+		break;
 	default:
 		DEBUG_EVENT("%s: Error, Protocol is not supported %u!\n",
 			wandev->name, conf->config_id);

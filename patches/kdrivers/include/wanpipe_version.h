@@ -10,14 +10,14 @@
 #define WANPIPE_COMPANY         "Sangoma Technologies Inc"
 
 /********** LINUX **********/
-#define WANPIPE_VERSION			"3.5.25"
+#define WANPIPE_VERSION			"3.5.26"
 #define WANPIPE_SUB_VERSION				"0"
 #define WANPIPE_LITE_VERSION			"1.1.1"
 
 #if defined(__LINUX__)
 #define WANPIPE_VERSION_MAJOR			3
 #define WANPIPE_VERSION_MINOR			5
-#define WANPIPE_VERSION_MINOR1			25
+#define WANPIPE_VERSION_MINOR1			26
 #define WANPIPE_VERSION_MINOR2			0
 #endif
 
@@ -48,8 +48,8 @@
 #  define	WANPIPE_VERSION_MINOR1	42	/* frozen feature number */
 #  define	WANPIPE_VERSION_MINOR2	5	/* patch number for WANPIPE_VERSION_MINOR1 */
 # else
-#  define	WANPIPE_VERSION_MINOR1	44	/* frozen feature number */
-#  define	WANPIPE_VERSION_MINOR2	5	/* patch number for WANPIPE_VERSION_MINOR1 */
+#  define	WANPIPE_VERSION_MINOR1	45	/* frozen feature number */
+#  define	WANPIPE_VERSION_MINOR2	1	/* patch number for WANPIPE_VERSION_MINOR1 */
 # endif
 
 # undef	VER_PRODUCTVERSION
@@ -61,14 +61,14 @@
 #  define VER_PRODUCTVERSION		6,0,42,5
 #  define VER_PRODUCTVERSION_STR	"6.0.42.5"
 # else
-#  define VER_PRODUCTVERSION		6,0,44,5
-#  define VER_PRODUCTVERSION_STR	"6.0.44.5"
+#  define VER_PRODUCTVERSION		6,0,45,1
+#  define VER_PRODUCTVERSION_STR	"6.0.45.1"
 # endif
 
-# define __BUILDDATE__				Jan 11, 2012
+# define __BUILDDATE__				Apr 19, 2012
 
 # define VER_COMPANYNAME_STR		"Sangoma Technologies Corporation"
-# define VER_LEGALCOPYRIGHT_YEARS	"1984-2011"
+# define VER_LEGALCOPYRIGHT_YEARS	"1984-2012"
 # define VER_LEGALCOPYRIGHT_STR		"Copyright (c) Sangoma Technologies Corp."
 # define VER_PRODUCTNAME_STR		"Sangoma WANPIPE (TM)"
 
@@ -80,8 +80,8 @@
 #  define WANPIPE_VERSION_Windows		"6.0.42"
 #  define WANPIPE_SUB_VERSION_Windows	"5"
 # else
-#  define WANPIPE_VERSION_Windows		"6.0.44"
-#  define WANPIPE_SUB_VERSION_Windows	"5"
+#  define WANPIPE_VERSION_Windows		"6.0.45"
+#  define WANPIPE_SUB_VERSION_Windows	"1"
 # endif
 
 # define WANPIPE_VERSION_BETA_Windows	0

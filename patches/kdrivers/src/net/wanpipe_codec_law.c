@@ -400,3 +400,36 @@ int wanpipe_codec_law_init(void)
 
 	return 0;
 }
+
+/*! \brief Decode an u-law sample to a linear value.
+    \param ulaw The u-law sample to decode.
+    \return The linear value.
+*/
+int wanpipe_codec_get_ulaw_to_linear(u8 ulaw)
+{
+    int t;
+
+    /* Complement to obtain normal u-law value. */
+    ulaw = ~ulaw;
+    /*
+     * Extract and bias the quantization bits. Then
+     * shift up by the segment number and subtract out the bias.
+     */
+    t = (((ulaw & 0x0F) << 3) + G711_ULAW_BIAS) << (((int) ulaw & 0x70) >> 4);
+    return  (int16_t) ((ulaw & 0x80)  ?  (G711_ULAW_BIAS - t)  :  (t - G711_ULAW_BIAS));
+}
+
+int wanpipe_codec_get_alaw_to_linear(u8 alaw)
+{
+    int i;
+    int seg;
+
+    alaw ^= G711_ALAW_AMI_MASK;
+    i = ((alaw & 0x0F) << 4);
+    seg = (((int) alaw & 0x70) >> 4);
+    if (seg)
+        i = (i + 0x108) << (seg - 1);
+    else
+        i += 8;
+    return (int) ((alaw & 0x80)  ?  i  :  -i);
+}

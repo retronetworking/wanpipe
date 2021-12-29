@@ -230,17 +230,18 @@ typedef struct aft_config
 	unsigned int aft_dma_control_reg; 
 }aft_config_t;
 
-
 static __inline u32 AFT_PORT_REG(sdla_t *card, u32 reg)
 {
-        if (card->adptr_type == AFT_ADPTR_A600 || 
-        	card->adptr_type == AFT_ADPTR_B610 || 
-			card->adptr_type == AFT_ADPTR_B601) {
-        //A600 CASE
+        if (AFT_NEEDS_DEFAULT_REG_OFFSET(card->adptr_type)) {
+		char comm_port = card->wandev.comm_port;
+		if (card->adptr_type == AFT_ADPTR_W400) {
+			/* Force GSM comm port to 0, as we fake ports in the driver */
+			comm_port = 0;
+		}
                 if (reg < 0x100) {
                         return (reg+0x1000);
                 } else {
-                        return (reg+0x2000)+(0x8000*card->wandev.comm_port);
+                        return (reg+0x2000)+(0x8000*comm_port);
                 }
         } else {
                 if (reg < 0x100) {
@@ -639,6 +640,10 @@ void aft_list_tx_descriptors(private_area_t *chan);
 #endif
 
 #define CHAN_GLOBAL_IRQ_CFG(chan) (chan->channelized_cfg && !chan->hdlc_eng && !chan->sw_hdlc_mode)
+
+#define AFT_HAS_FAKE_PORTS(card) (IS_BRI_CARD(card) || IS_GSM_CARD(card))
+#define AFT_HAS_FAKE_DCHAN(card) (IS_BRI_CARD(card) || IS_GSM_CARD(card))
+#define AFT_MAX_PORTS(card) IS_BRI_CARD(card) ? MAX_BRI_LINES : IS_GSM_CARD(card) ? MAX_GSM_MODULES : 8
 
 #endif /* WAN_KERNEL */
 

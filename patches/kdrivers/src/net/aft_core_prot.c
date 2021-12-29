@@ -605,6 +605,13 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		} else {
 			chan_no = (u8)(chan->first_time_slot % 2)+1;
 		}
+	} else if (IS_GSM_CARD(card)) {
+		if (chan->dchan_time_slot >= 0) {
+			chan_no = MAX_GSM_CHANNELS; /* d-chan is the last one */
+		} else {
+			/* funky math to calculate the chan number based on port number, -1 to remove the dchan from the tdm slot count */
+			chan_no=(u8) (chan->first_time_slot + 1) - ((MAX_GSM_CHANNELS-1) * card->wandev.comm_port);
+		}
 	} else {
 		chan_no=(u8)chan->first_time_slot+1;
 	}
@@ -678,7 +685,11 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		} else {
                 chan->wp_tdm_api_dev->cfg.hw_tdm_coding=WP_ALAW;
 		}
-
+	} else if (IS_GSM_CARD(card)) {
+		DEBUG_EVENT("WANPIPE: IS_GSM_CARD\n");
+		/* multiple ports share the same active_ch map, use the port number to decide the proper tdm slot */
+		wan_set_bit((chan->wp_tdm_api_dev->tdm_chan + (card->wandev.comm_port * MAX_GSM_CHANNELS)),&chan->wp_tdm_api_dev->active_ch);
+				chan->wp_tdm_api_dev->cfg.hw_tdm_coding=WP_LIN16;
 	} else {
 		if (card->fe.fe_cfg.tdmv_law == WAN_TDMV_MULAW){
 		    	chan->wp_tdm_api_dev->cfg.hw_tdm_coding=WP_MULAW;
@@ -733,6 +744,15 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		/* Overwite the chan number based on group number */	
 		chan->wp_tdm_api_dev->tdm_chan = (u8)chan->if_cnt;
 	}
+
+	switch(chan->wp_tdm_api_dev->cfg.hw_tdm_coding)	{
+		case WP_LIN16:
+			chan->wp_tdm_api_dev->cfg.hw_mtu_mru = 16;
+			break;
+		default:
+				chan->wp_tdm_api_dev->cfg.hw_mtu_mru = 8;
+			break;
+	};
 
 	if (chan->usedby_cfg == MTP1_API) {
 		chan->wp_tdm_api_dev->operation_mode = 	WP_TDM_OPMODE_MTP1;

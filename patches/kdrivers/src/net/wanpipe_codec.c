@@ -105,3 +105,28 @@ int wanpipe_codec_free(void)
 	DEBUG_EVENT("WANPIPE: TDM Codecs unloaded.\n");
 	return 0;
 }
+
+int wanpipe_codec_convert_to_linear(u8 pcm_value,u8 codecType)
+{
+	int ret = 0;
+	switch(codecType)
+	{
+		case WP_ALAW:
+			{
+				ret = wanpipe_codec_get_alaw_to_linear(pcm_value);
+				break;
+			}
+		case WP_MULAW:
+			{
+				ret = wanpipe_codec_get_ulaw_to_linear(pcm_value);
+				break;
+			}
+		default:
+			{
+				DEBUG_ERROR("%s(): Invalid CodecType[%d]\n",__FUNCTION__,codecType);
+				break;
+			}
+	}
+
+	return ret;
+}

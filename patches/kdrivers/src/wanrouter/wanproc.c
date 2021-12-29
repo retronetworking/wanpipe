@@ -91,6 +91,7 @@
 				       (prot == WANCONFIG_AFT) ? ((cap)?"AFT TE1":"aft te1") : \
 				       (prot == WANCONFIG_AFT_SERIAL) ? ((cap)?"A-SERIAL":"aft serial") : \
 				       (prot == WANCONFIG_AFT_ANALOG) ? ((cap)?"A-ANALOG":"aft analog") : \
+				       (prot == WANCONFIG_AFT_GSM) ? ((cap)?"AFT GSM":"aft gsm") : \
 				       (prot == WANCONFIG_AFT_ISDN_BRI) ? ((cap)?"AFT ISDN":"aft isdn") : \
 				       (prot == WANCONFIG_AFT_56K) ? ((cap)?"AFT 56K":"aft 56k") : \
 				       (prot == WANCONFIG_AFT_TE1) ? ((cap)?"AFT TE1":"aft te1") : \
@@ -770,6 +771,7 @@ static int interfaces_get_info(char* buf, char** start, off_t offs, int len, int
 	PROC_ADD_RET(m);
 }
 
+#define SANGOMA_COUNT_MESSAGE "\nSangoma Card Count: "	
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(LINUX_2_4)
 STATIC int probe_get_info(char* buf, char** start, off_t offs, int len)
 #else
@@ -820,8 +822,7 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	}
 
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
-	
-	PROC_ADD_LINE(m, "\nCard Cnt: ");
+	PROC_ADD_LINE(m, SANGOMA_COUNT_MESSAGE);
 	if (hw_cnt->s508_adapters){
 		PROC_ADD_LINE(m, "S508=%d ", hw_cnt->s508_adapters);
 	}
@@ -875,6 +876,9 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	}
         if (hw_cnt->aft_b800_adapters){
                 PROC_ADD_LINE(m, "B800=%d ", hw_cnt->aft_b800_adapters);
+        }
+        if (hw_cnt->aft_w400_adapters){
+                PROC_ADD_LINE(m, "W400=%d ", hw_cnt->aft_w400_adapters);
         }
 	PROC_ADD_LINE(m, "\n");
 
@@ -993,7 +997,7 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 	
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
-	PROC_ADD_LINE(m, "\nCard Cnt: ");
+	PROC_ADD_LINE(m, SANGOMA_COUNT_MESSAGE);
 	if (hw_cnt->s508_adapters){
 		PROC_ADD_LINE(m, "S508=%d ", hw_cnt->s508_adapters);
 	}
@@ -1041,6 +1045,9 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 	}
         if (hw_cnt->aft_b800_adapters){
                 PROC_ADD_LINE(m, "B800=%d ", hw_cnt->aft_b800_adapters);
+        }
+        if (hw_cnt->aft_w400_adapters){
+                PROC_ADD_LINE(m, "W400=%d ", hw_cnt->aft_w400_adapters);
         }
 	PROC_ADD_LINE(m, "\n");
 

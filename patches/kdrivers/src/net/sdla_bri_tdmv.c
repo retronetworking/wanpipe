@@ -189,6 +189,10 @@ static int	wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, caddr_t data
 static int	wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data);
 #endif
 
+#ifdef DAHDI_25
+static const char *wp_tdmv_bri_hwec_name(const struct zt_chan *chan);
+#endif
+
 
 #if defined(DAHDI_24) || defined(DAHDI_25)
 
@@ -206,6 +210,9 @@ static const struct dahdi_span_ops wp_tdm_span_ops = {
 	.dacs = ,
 #endif
 	.echocan_create = wp_tdmv_bri_hwec_create,
+#ifdef DAHDI_25
+	.echocan_name = wp_tdmv_bri_hwec_name,
+#endif
 };
  
 #endif
@@ -247,8 +254,9 @@ wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
     wan_event_ctrl_t        	*event_ctrl = NULL;
 	int	err = -ENOTTY, x;
 
-	WAN_ASSERT(chan == NULL || chan->pvt == NULL);
-	wp = wr = chan->pvt;	
+	WAN_ASSERT(chan == NULL);
+	wp = wr = WP_PRIV_FROM_CHAN(chan, wp_tdmv_bri_t);	
+	WAN_ASSERT(chan == NULL || wp == NULL);
     WAN_ASSERT(wr->card == NULL);
     card    = wr->card;
 
@@ -306,12 +314,9 @@ wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 
 		DEBUG_TDMV_BRI("chan: 0x%p\n", chan);
 
-		if(chan){
-			DEBUG_TDMV_BRI("chan->pvt: 0x%p\n", chan->pvt);
-		}
-
-		WAN_ASSERT(chan == NULL || chan->pvt == NULL);
-		wp = chan->pvt;	
+		WAN_ASSERT(chan == NULL);
+		wp = WP_PRIV_FROM_CHAN(chan, wp_tdmv_bri_t);	
+		WAN_ASSERT( wp == NULL);
 
 		if (wp->dchan_dev && wp->dchan_dev->hard_start_xmit){
 			wp_tdmv_tx_dchan(chan, (int)data);
@@ -347,8 +352,8 @@ static int wp_bri_zap_open(struct zt_chan *chan)
 	BRI_FUNC();
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wr = chan->pvt;
+	wr = WP_PRIV_FROM_CHAN(chan, wp_tdmv_bri_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
     	card = wr->card;
 	wr->usecount++;
@@ -371,8 +376,8 @@ static int wp_bri_zap_close(struct zt_chan *chan)
 	BRI_FUNC();
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wr	= chan->pvt;
+	wr	= WP_PRIV_FROM_CHAN(chan, wp_tdmv_bri_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card	= wr->card;
 	wanpipe_close(card);
@@ -394,6 +399,26 @@ static int wp_bri_zap_watchdog(struct zt_span *span, int event)
 	return 0;
 }
 
+#ifdef DAHDI_25
+/* This funciton is used for dahdi 2.5 or higher */
+static const char *wp_tdmv_bri_hwec_name(const struct zt_chan *chan)
+{
+	wp_tdmv_bri_t *wr = NULL;
+	sdla_t *card = NULL;
+	
+	WAN_ASSERT2(chan == NULL, NULL);
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_bri_t);
+	WAN_ASSERT2(wr == NULL, NULL);
+	WAN_ASSERT2(wr->card == NULL, NULL);
+	card = wr->card;
+ 
+	if (card->wandev.ec_enable && wr->hwec == WANOPT_YES){
+		return "WANPIPE_HWEC";
+	}
+    return NULL;
+}
+#endif
+
 
 #ifdef DAHDI_22
 /******************************************************************************
@@ -413,8 +438,8 @@ static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan,
 	BRI_FUNC();	
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wr = chan->pvt;
+	wr = WP_PRIV_FROM_CHAN(chan, wp_tdmv_bri_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card	= wr->card;
 
@@ -435,8 +460,8 @@ static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan,
 	wan_set_bit((chan->chanpos - 1), &card->wandev.rtp_tap_call_map);
 	wp_fax_tone_timeout_set(wr, chan->chanpos-1);
 	
-	if (card->wandev.ec_enable){
-		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
+	if (card->wandev.ec_enable && wr->hwec == WANOPT_YES){
+		DEBUG_TDMV("[TDMV_BRI]: %s: %s(): channel %d\n",
 					wr->devname, __FUNCTION__, chan->chanpos);
 
 		if(chan->chanpos == 1 || chan->chanpos == 2){
@@ -446,9 +471,6 @@ static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan,
 						wr->devname, __FUNCTION__, chan->chanpos);
 			err = 0;
 		}
-	}else{
-		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): card->wandev.ec_enable == NULL!!!!!!\n",
-					wr->devname, __FUNCTION__);
 	}
 	return err;
 }
@@ -467,8 +489,8 @@ static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_
 	memset(ec, 0, sizeof(*ec));
 
 	if(chan == NULL) return;
-	if(chan->pvt == NULL) return;
-	wr = chan->pvt;
+	wr = WP_PRIV_FROM_CHAN(chan, wp_tdmv_bri_t);
+	if(wr == NULL) return;
 	if(wr->card == NULL) return;
 	card = wr->card;
 
@@ -478,7 +500,7 @@ static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_
 		return;
     }
 
-	if (card->wandev.ec_enable) {
+	if (card->wandev.ec_enable && wr->hwec == WANOPT_YES) {
 		DEBUG_TDMV("[TDMV_BRI]: %s: %s(): channel %d\n",
 			wr->devname, __FUNCTION__, chan->chanpos);
 
@@ -512,8 +534,8 @@ static int wp_bri_zap_hwec(struct zt_chan *chan, int enable)
 	BRI_FUNC();	
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wr = chan->pvt;
+	wr = WP_PRIV_FROM_CHAN(chan, wp_tdmv_bri_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card	= wr->card;
 	fe	= &card->fe;
@@ -525,7 +547,7 @@ static int wp_bri_zap_hwec(struct zt_chan *chan, int enable)
 		wan_clear_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
 	}
 
-	if (card->wandev.ec_enable){
+	if (card->wandev.ec_enable && wr->hwec == WANOPT_YES){
 		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
 			wr->devname, __FUNCTION__, chan->chanpos);
 
@@ -536,10 +558,8 @@ static int wp_bri_zap_hwec(struct zt_chan *chan, int enable)
 				wr->devname, __FUNCTION__, chan->chanpos);
 			err = 0;
 		}
-	}else{
-		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): card->wandev.ec_enable == NULL!!!!!!\n",
-			wr->devname, __FUNCTION__);
 	}
+
 	return err;
 }
 
@@ -1523,8 +1543,8 @@ static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len)
 	int		err = 0;
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wp	= chan->pvt;
+	wp	= WP_PRIV_FROM_CHAN(chan, wp_tdmv_bri_t);
+	WAN_ASSERT2(wp == NULL, -ENODEV);
 	WAN_ASSERT(wp->dchan_dev == NULL);
 
 	if (len <= 2){
@@ -1712,8 +1732,8 @@ static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan)
 	sdla_t		*card = NULL;
 
 	WAN_ASSERT_VOID(chan == NULL);
-	WAN_ASSERT_VOID(chan->pvt == NULL);
-	wp      = chan->pvt;
+	wp      = WP_PRIV_FROM_CHAN(chan, wp_tdmv_bri_t);
+	WAN_ASSERT_VOID(wp == NULL);
 	WAN_ASSERT_VOID(wp->dchan_dev == NULL);
 	WAN_ASSERT_VOID(wp->card == NULL);
 	card = wp->card;

@@ -15,6 +15,7 @@ sub new	{
 		_tdm_law => 'MULAW',
 		_rm_network_sync => 'NO',
 		_analog_modules => undef,
+		_fe_line   => undef,
 	};			
 	bless $self, $class;
     	return $self;

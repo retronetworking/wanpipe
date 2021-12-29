@@ -552,6 +552,7 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 	switch(cpld->core_info->board_id) {
 		case AFT_A600_SUBSYS_VENDOR:
 		case AFT_B601_SUBSYS_VENDOR:
+		case AFT_W400_SUBSYS_VENDOR:
 			iface_reg_off = 0x1040;	
 			break;
 		default:
@@ -644,6 +645,7 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 		break;
 	case AFT_A600_SUBSYS_VENDOR:
 	case AFT_B601_SUBSYS_VENDOR:
+	case AFT_W400_SUBSYS_VENDOR:
 		if (clear) data &= ~0x06;
 	       	else data |= 0x06;
 		break;

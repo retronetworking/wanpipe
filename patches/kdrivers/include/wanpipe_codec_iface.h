@@ -28,12 +28,14 @@
 
 enum wan_codec_source_format{
 	WP_MULAW,
-	WP_ALAW
+	WP_ALAW,
+	WP_LIN16
 };
 
 #define WP_CODEC_FORMAT_DECODE(codec)	\
 codec == WP_MULAW	? "WP_MULAW" :	\
-codec == WP_ALAW	? "WP_ALAW" :	\
+codec == WP_ALAW	? "WP_ALAW"  :	\
+codec == WP_LIN16	? "WP_LIN16" :	\
 "Invalid Codec"
 
 #if 0
@@ -91,6 +93,8 @@ extern int wanpipe_codec_init(void);
 extern int wanpipe_codec_free(void);
 
 extern wanpipe_codec_ops_t *WANPIPE_CODEC_OPS[WP_TDM_HW_CODING_MAX][WP_TDM_CODEC_MAX];
+
+extern int wanpipe_codec_convert_to_linear(u8 pcm_value,u8 codecType);
 
 #endif
 

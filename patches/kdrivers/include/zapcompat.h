@@ -13,12 +13,15 @@
  * Sep 06,  2008 Moises Silva   Initial Version
  * Nov 20,  2008 Alex Feldman   Added ZT_XLAW
  * Sep 22,  2009 Moises Silva   Added dahdi_alarm_channel stuff
+ * Nov 11,  2011 Moises Silva   Added HDLC functions
  ******************************************************************************
  */
 
 // Simple compat header to compile with Zaptel or DAHDI
 #ifndef __ZAPCOMPAT_H
 # define __ZAPCOMPAT_H
+
+#define WP_DAHDI_MAX_STR_SZ 100
 
 // for DAHDI we need to map values and functions from ZT_XX to DAHDI_XX
 #if defined (DAHDI_ISSUES)
@@ -29,21 +32,20 @@
 # include <dahdi/user.h> // this will bring dahdi user stuff
 #endif
 
-#define WP_DAHDI_MAX_STR_SZ 100
 
 #if defined(DAHDI_26)
 #define DAHDI_25
 #define DAHDI_24
 #define DAHDI_23
 #define DAHDI_22
-#elif defined(DAHDI_25)
+#elif defined(DAHDI_MAINT_ALARM_SIM)
 #define DAHDI_24
 #define DAHDI_23
 #define DAHDI_22
-#elif defined(DAHDI_24)
+#elif defined(DAHDI_AUDIO_NOTIFY)
 #define DAHDI_23
 #define DAHDI_22
-#elif defined(DAHDI_23)
+#elif defined(DAHDI_ECHOCANCEL_FAX_MODE)
 #define DAHDI_22
 #endif
 
@@ -109,6 +111,8 @@
 #define ZT_LAW_ALAW DAHDI_LAW_ALAW
 #define ZT_LAW_MULAW DAHDI_LAW_MULAW
 #define ZT_XLAW	DAHDI_XLAW
+#define ZT_MULAW DAHDI_MULAW
+#define ZT_LIN2X DAHDI_LIN2X
 
 #define ZT_MAINT_REMOTELOOP DAHDI_MAINT_REMOTELOOP
 #define ZT_MAINT_NONE DAHDI_MAINT_NONE
@@ -138,7 +142,7 @@
 #define ZT_SIG_SF DAHDI_SIG_SF
 #define ZT_SIG_MTP2 DAHDI_SIG_MTP2
 
-#define ZT_LIN2X DAHDI_LIN2X
+#define ZT_POLICY_WHEN_FULL DAHDI_POLICY_WHEN_FULL 
 
 // data types
 #define __zt_mulaw __dahdi_mulaw
@@ -160,6 +164,9 @@
 #define zt_hooksig dahdi_hooksig
 #define zt_ec_span dahdi_ec_span
 #define zt_qevent_lock dahdi_qevent_lock
+#define zt_hdlc_putbuf dahdi_hdlc_putbuf
+#define zt_hdlc_finish dahdi_hdlc_finish
+#define zt_hdlc_abort dahdi_hdlc_abort
 
 #if defined (DAHDI_26)
 #define WP_DAHDI_SET_STR_INFO(dev,name,...) sprintf((char*)(dev)->ddev->name, ## __VA_ARGS__);

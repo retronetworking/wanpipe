@@ -1325,6 +1325,132 @@ ring_stop_again:
 	return 0;
 }
 
+static int aft_gsm_pcm_loopback_toggle(void)
+{
+	wan_udp.wan_udphdr_command	= WAN_GSM_PCM_LOOPBACK;
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	wan_udp.wan_udphdr_data_len	= 0;
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != WAN_CMD_OK) { 
+		printf("Failed to toggle PCM loopback!\n"); 
+		fflush(stdout);
+		return 0;
+	}
+	printf("Done toggling PCM loopback!\n");
+	fflush(stdout);
+	return 0;
+}
+
+static int aft_gsm_update_sim_status(void)
+{
+	wan_udp.wan_udphdr_command	= WAN_GSM_UPDATE_SIM_STATUS;
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	wan_udp.wan_udphdr_data_len	= 0;
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != WAN_CMD_OK) { 
+		printf("Failed to update GSM SIM status!\n"); 
+		fflush(stdout);
+		return 0;
+	}
+	printf("Done updating GSM status!\n");
+	fflush(stdout);
+	return 0;
+}
+
+static int aft_gsm_regdump(void)
+{
+	wan_udp.wan_udphdr_command	= WAN_GSM_REGDUMP;
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	wan_udp.wan_udphdr_data_len	= 0;
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != WAN_CMD_OK) { 
+		printf("Failed to get GSM register dump!\n"); 
+		fflush(stdout);
+		return 0;
+	}
+	printf("Done dumping GSM registers!\n");
+	fflush(stdout);
+	return 0;
+}
+
+static int aft_gsm_uart_debug(int enable)
+{
+	wan_gsm_udp_t *gsm_udp = NULL;
+	wan_udp.wan_udphdr_command = WAN_GSM_UART_DEBUG;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	gsm_udp = (wan_gsm_udp_t *)get_wan_udphdr_data_ptr(0);
+	gsm_udp->u.uart_debug = enable ? WAN_TRUE : WAN_FALSE;
+	wan_udp.wan_udphdr_data_len = sizeof(wan_gsm_udp_t);
+
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != WAN_CMD_OK) { 
+		printf("Failed to %s UART debugging!\n", enable ? "enable" : "disable"); 
+		fflush(stdout);
+		return 0;
+	}
+	printf("GSM UART debugging is now %s!\n", enable ? "enabled" : "disabled");
+	fflush(stdout);
+	return 0;
+}
+
+static int aft_gsm_audio_debug()
+{
+	wan_udp.wan_udphdr_command = WAN_GSM_AUDIO_DEBUG;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != WAN_CMD_OK) { 
+		printf("Failed to toggle audio debugging!\n");
+		fflush(stdout);
+		return 0;
+	}
+	printf("GSM audio debugging was toggled!\n");
+	fflush(stdout);
+	return 0;
+}
+
+static int aft_gsm_pll_reset()
+{
+	wan_udp.wan_udphdr_command = WAN_GSM_PLL_RESET;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != WAN_CMD_OK) { 
+		printf("Failed to reset PLL!\n");
+		fflush(stdout);
+		return 0;
+	}
+	printf("GSM PLL reset done!\n");
+	fflush(stdout);
+	return 0;
+}
+
+static int aft_gsm_power_toggle()
+{
+	wan_udp.wan_udphdr_command = WAN_GSM_POWER_TOGGLE;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != WAN_CMD_OK) { 
+		printf("Failed to toggle power!\n");
+		fflush(stdout);
+		return 0;
+	}
+	printf("GSM power toggle done!\n");
+	fflush(stdout);
+	return 0;
+}
+
 static int aft_remora_regdump(int mod_no)
 {
 	wan_remora_udp_t	*rm_udp;
@@ -1557,6 +1683,15 @@ int AFTUsage(void)
 	printf("\t   a         regdump Dumps FXS/FXO registers.\n");
 	printf("\t                     ( -m <mod_no> - Module number)\n");
 	printf("\t   a         stats   Voltage status ( -m <mod_no> - Module number)\n");
+	printf("\tAFT GSM\n");
+	printf("\t   g         regdump Dumps GSM registers to the kernel ring buffer\n");
+	printf("\t   g         ude GSM UART debug enable (any UART transmission is logged to the kernel ring buffer)\n");
+	printf("\t   g         udd GSM UART debug disable\n");
+	printf("\t   g         pr PLL reset (force UART reset)\n");
+	printf("\t   g         pt Power toggle (force turn on/off GSM module)\n");
+	printf("\t   g         adt Toggle (enable/disable) audio debugging (play demo-congrats at the kernel level ignoring audio from user space)\n");
+	printf("\t   g         uss Update GSM SIM status\n");
+	printf("\t   g         plt Toggle the PCM audio loopback\n");
 	printf("\tAFT Debugging\n");
 	printf("\t   d         err     Enable RX RBS debugging\n");
 	printf("\t   d         drr     Disable RX RBS debugging\n");
@@ -1652,15 +1787,24 @@ static void aft_perf_stats_disable(void)
 
 static void aft_perf_stats( void )
 {
-	aft_driver_performance_stats_t *aft_perf;
-	
+	aft_driver_performance_stats_t *aft_perf = NULL;
+
 	wan_udp.wan_udphdr_command= WANPIPEMON_READ_PERFORMANCE_STATS;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
 	wan_udp.wan_udphdr_data[0] = 0;
 	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != WAN_CMD_OK) {
+		fprintf(stderr, "Unable to retrieve AFT performance stats!\n");
+		return;
+	}
 	
-	aft_perf = (aft_driver_performance_stats_t*)&wan_udp.wan_udphdr_data[0];
+	aft_perf = (aft_driver_performance_stats_t *)&wan_udp.wan_udphdr_data[0];
+	if (!aft_perf) {
+		fprintf(stderr, "invalid AFT performance stats retrieved (len = %d)!\n", wan_udp.wan_udphdr_data_len);
+		return;
+	}
 	
 	BANNER("WANPIPE PERFORMANCE STATS");
 
@@ -2165,6 +2309,28 @@ int AFTMain(char *command,int argc, char* argv[])
 				aft_read_hwec_status();
 			}else{
 				printf("ERROR: Invalid Status Command 'e', Type wanpipemon <cr> for help\n\n");
+			}
+			break;
+
+		case 'g':
+			if (!strcmp(opt,"regdump")){ /* Register dump */
+				aft_gsm_regdump();
+			} else if (!strcmp(opt, "ude")) { /* UART debug enable */
+				aft_gsm_uart_debug(1);
+			} else if (!strcmp(opt, "udd")) { /* UART debug disable */
+				aft_gsm_uart_debug(0);
+			} else if (!strcmp(opt, "adt")) { /* Audio Debug Toggle */
+				aft_gsm_audio_debug();
+			} else if (!strcmp(opt, "pr")) { /* PLL Reset */
+				aft_gsm_pll_reset();
+			} else if (!strcmp(opt, "pt")) { /* Power Toggle */
+				aft_gsm_power_toggle();
+			} else if (!strcmp(opt, "uss")) { /* Update SIM Status */
+				aft_gsm_update_sim_status();
+			} else if (!strcmp(opt, "plt")) { /* PCM Loopback Toggle */
+				aft_gsm_pcm_loopback_toggle();
+			} else {
+				printf("ERROR: Invalid GSM option '%s', Type wanpipemon <cr> for help\n\n", opt);
 			}
 			break;
 

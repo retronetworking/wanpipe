@@ -235,6 +235,11 @@ struct sdlahw_dev;
 #define IS_HWCARD_PCIE(hwcard)		((hwcard)->hw_type == SDLA_PCI_EXP_CARD)
 #define IS_HWCARD_USB(hwcard)		((hwcard)->hw_type == SDLA_USB_CARD)
 
+#define AFT_NEEDS_DEFAULT_REG_OFFSET(adptr_type) \
+	((adptr_type == AFT_ADPTR_A600) || \
+	(adptr_type == AFT_ADPTR_B610) || \
+	(adptr_type == AFT_ADPTR_B601) || \
+	(adptr_type == AFT_ADPTR_W400))
 
 #if defined(__FreeBSD__)
 # if defined(__i386__)
@@ -767,6 +772,7 @@ typedef struct sdla_hw_type_cnt
 	
 	unsigned char aft_x_adapters;
 	unsigned char usb_adapters;
+	unsigned char aft_w400_adapters;
 }sdla_hw_type_cnt_t;
 
 typedef struct sdladrv_callback_ {
@@ -1257,10 +1263,8 @@ static __inline u32 SDLA_REG_OFF(sdlahw_card_t	*hwcard, u32 reg)
 		DEBUG_EVENT("sdladrv: Critical error: hw or hw->cpu is NULL\n");
 		return reg;
 	}
-	
-	if (hwcard->adptr_type == AFT_ADPTR_A600 ||
-		hwcard->adptr_type == AFT_ADPTR_B610 ||
-		hwcard->adptr_type == AFT_ADPTR_B601) {
+
+	if (AFT_NEEDS_DEFAULT_REG_OFFSET(hwcard->adptr_type)) {
 		if (reg < 0x100) {
 			return (reg+0x1000);
 		} else {

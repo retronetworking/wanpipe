@@ -318,6 +318,7 @@ static key_word_t common_conftab[] =	/* Common configuration parameters */
   { "RM_RINGAMPL",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_ringampl), DTYPE_INT },
   { "RM_RELAXCFG",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, relaxcfg), DTYPE_UCHAR },
   { "RM_FAKE_POLARITY",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity), DTYPE_UCHAR },
+  { "RM_FAKE_POLARITY_THRESHOLD",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fake_polarity_thres), DTYPE_INT },
   
   /* TDMV parameters */
   { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UCHAR},
@@ -1015,9 +1016,10 @@ static look_up_t conf_if_def_tables[] =
 	{ WANCONFIG_AFT_TE1,	xilinx_if_conftab },
 	{ WANCONFIG_AFT_TE3,    xilinx_if_conftab },
 	{ WANCONFIG_AFT_ANALOG, xilinx_if_conftab },
+	{ WANCONFIG_AFT_GSM,    xilinx_if_conftab },
 	{ WANCONFIG_AFT_ISDN_BRI, xilinx_if_conftab },
 	{ WANCONFIG_AFT_SERIAL, xilinx_if_conftab },
-	 { WANCONFIG_AFT_56K,   xilinx_if_conftab },
+	{ WANCONFIG_AFT_56K,   xilinx_if_conftab },
 	{ WANCONFIG_ASYHDLC,	chdlc_conftab	},
 	{ 0,			NULL		}
 };
@@ -1077,6 +1079,7 @@ static look_up_t	config_id_str[] =
 	{ WANCONFIG_ADCCP,    	"WAN_ADCCP"   	},
 	{ WANCONFIG_MLINK_PPP, 	"WAN_MLINK_PPP" },
 	{ WANCONFIG_USB_ANALOG,	"WAN_USB_ANALOG"	},
+	{ WANCONFIG_AFT_GSM,	"WAN_AFT_GSM" },
 	{ 0,			NULL,		}
 };
 
@@ -1169,6 +1172,7 @@ static look_up_t	sym_table[] =
 	{ WAN_MEDIA_STS1,    "STS-1"         },
 	{ WAN_MEDIA_E3,      "E3"            },
 	{ WAN_MEDIA_FXOFXS,  "FXO/FXS"       },
+	{ WAN_MEDIA_GSM,     "GSM"           },
 	{ WAN_MEDIA_BRI,  "BRI"       },
         { WAN_LCODE_AMI, 	"AMI"           },
         { WAN_LCODE_B8ZS,       "B8ZS"          },
@@ -1262,6 +1266,7 @@ static look_up_t	sym_table[] =
 	{ WANOPT_ADSL,		"S518"		},
 	{ WANOPT_AFT,           "AFT"           },
 	{ WANOPT_AFT,           "USB"           },
+	{ WANOPT_AFT_GSM,       "AFT_GSM"       },
 
 	/*-------------ADSL options--------------*/
 	{ RFC_MODE_BRIDGED_ETH_LLC,	"ETH_LLC_OA" },

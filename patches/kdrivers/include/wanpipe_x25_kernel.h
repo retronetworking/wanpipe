@@ -191,7 +191,7 @@ enum {
 
 
 
-#define	X25_MAX_DATA	1024	/* max length of X.25 data buffer */
+#define	X25_MAX_DATA	4096	/* max length of X.25 data buffer */
 #pragma pack(1)
 
 typedef struct {

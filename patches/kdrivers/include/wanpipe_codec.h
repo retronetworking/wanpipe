@@ -27,6 +27,11 @@
 
 #ifdef CONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW
 
+/*! The A-law alternate mark inversion mask */
+#define G711_ALAW_AMI_MASK      0x55
+/*! Bias for u-law encoding from linear. */
+#define G711_ULAW_BIAS      0x84
+
 extern int wanpipe_codec_law_init(void);
 
 extern int wanpipe_codec_convert_s_2_alaw(u16 *data,
@@ -57,7 +62,11 @@ extern int wanpipe_codec_convert_ulaw_2_s(u8 *data,
 
 extern int wanpipe_codec_get_mtu_law_2_s(u32 mtu);
 extern int wanpipe_codec_get_mtu_s_2_law(u32 mtu);
-#endif
+
+extern int wanpipe_codec_get_alaw_to_linear(u8 alaw);
+extern int wanpipe_codec_get_ulaw_to_linear(u8 ulaw);
+
+#endif /*CONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW*/
 
 
-#endif
+#endif /*__WANPIPE_CODEC_H_*/

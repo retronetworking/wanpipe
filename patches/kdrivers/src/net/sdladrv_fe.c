@@ -2539,5 +2539,31 @@ u_int8_t sdla_b601_te1_read_fe (void *phw, ...)
 
 #endif
 
+void sdla_w400_reset_fe (void *fe)  
+{
+	sdla_t *card = NULL;
+	card = (sdla_t*)((sdla_fe_t*)fe)->card;
+	DEBUG_ERROR ("%s I should not be called! (%s:%d)\n", ((sdla_fe_t*)fe)->name, __FUNCTION__, __LINE__);
+}
 
+int sdla_w400_write_fe (void *phw, ...)
+{
+	sdlahw_t *hw = (sdlahw_t*)phw;
+	DEBUG_ERROR ("%s I should not be called! (%s:%d)\n", hw->devname, __FUNCTION__, __LINE__);
+	return 0xFF;
+}
+
+u_int8_t __sdla_w400_read_fe (void *phw, ...)
+{
+	sdlahw_t *hw = (sdlahw_t*)phw;
+	DEBUG_ERROR ("%s I should not be called! (%s:%d)\n", hw->devname, __FUNCTION__, __LINE__);
+	return 0xFF;
+}
+
+u_int8_t sdla_w400_read_fe (void *phw, ...)
+{
+	sdlahw_t *hw = (sdlahw_t*)phw;
+	DEBUG_ERROR ("%s I should not be called! (%s:%d)\n", hw->devname, __FUNCTION__, __LINE__);
+	return 0xFF;
+}
 

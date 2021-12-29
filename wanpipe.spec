@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.25
+%define VERSION           3.5.26
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,13 +259,48 @@ fi
 
 %changelog
 
+* Tue Apr 24 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.26
+==================================================================
+
+- Wanpipe W400 GSM support: Asterisk/Dahdi & FreeSWITCH/FreeTDM
+- Wanpipe B610 FXS support
+- Fixed Dahdi 2.5 and higher hwec autodetection 
+  For dahdi 2.5 and higher the HWEC option was needed in 
+  dahdi/system.conf to enable onboard hwec. 
+  This fix allows default mg2 software echo to be specified
+  in dahdi/system.conf, and dahdi will autodetect the sangoma onboard hwec.
+- Fixed sangoma hwec boards to use dahdi software ec if hwec is turned off.
+  Wanpipe driver did not allow sangoma hwec enabled boards to use dahdi 
+  software ec even if hwec was turned off in wanpipe1.conf
+  This has now been fixed. 
+  If TDMV_HWEC=NO is set in wanpipe1.conf dahdi will now use software ec.
+- Fixed BRI dchan reliability 
+- Fixed BRI for 64bit 
+  The fix for audio issue in 3.5.25 caused the issue on 64bit.
+- Dahdi build bug fixes for Trixbox
+- Zaptel build bug fixes from 3.5.25
+- Build fixes for 3.1.X kernel.
+- Fake polarity feature used for Euro Caller ID
+- E1 NCRC CAS Framer Configuration for Latin America
+  Previous NCRC Framer config did not work in all cases.
+  Affects protocols such as MFC-R2 or CAS
+- Analog boards with network sync option set to yes: 
+  Default to fax mode buffering.
+  Use "when full" dahdi buffer policy. 
+  Improves faxing from PRI to Analog with sync cable.
+- Fixed wancfg_dahdi to:
+  start asterisk using safe_asterisk
+  to properly detect dahdi version
+
+
+
 * Tue Feb 21 2012 Nenad Corbic <ncorbic@sangoma.com> -  3.5.25
 ==================================================================
 
 - Dahdi 2.6 support
 - Linux 3.2.6 support
-- Support for B610 Single FXS card
-- Support for B500 4 port BRI card
+- Support for B610 Single FXS board
+- Support for B500 4 port BRI board
 - Reduced memory foot print of the driver
   by removing some unused statistics structures
 - New HWEC firmare v1.7.4 fixes delayed fax issus 
@@ -302,7 +337,7 @@ fi
 * Wed Aug 24 2011 Nenad Corbic <ncorbic@sangoma.com> -  3.5.22
 ==================================================================
 
-- Bug introducted in .21 release for analog card.
+- Bug introducted in .21 release for analog board.
   Changed the way wanpipe enumerates analog channels
   breaks backward compatibility. Reverted to original.
 
@@ -413,7 +448,7 @@ fi
 - Added SW HDLC into the core. B
 - B601 is now supported on FreeTDM/FreeSWITCH and TMDAPI
 - Added wan_fxotune utility to utils directory
-  Used to tune fxo cards under TDM API or FreeSWITCH mode.
+  Used to tune fxo boards under TDM API or FreeSWITCH mode.
 
 
 
@@ -432,7 +467,7 @@ fi
   dma overruns.
 - Bug fix in tdmapi where excessive memory was allocated on pre-allocation buffers.
 - Bug fix tdmapi defaults to 20ms chunk size instead of 10ms
-- Bug fix broken support for A101/2 legacy EOL cards. 
+- Bug fix broken support for A101/2 legacy EOL boards. 
 - New XEN Support 
   TDM Voice will now work properly on xen virtualized machines
 - Fix for 64bit 8gig issues
@@ -465,11 +500,11 @@ fi
 ===================================================================
 
 - Fixed Dahdi 2.3 Support
-- Fixed FreeSwitch Openzap HardHDLC option for AFT cards
-- Fixed wanpipemon support for non aft cards.
+- Fixed FreeSwitch Openzap HardHDLC option for AFT boards
+- Fixed wanpipemon support for non aft boards.
 - Merged USB FXO code from 3.6 release
 - USB FXO bug fix for 2.6.32 kernels
-- Support for B800 Analog card
+- Support for B800 Analog board
 - Fixed alarm reporting in DAHDI/ZAPTEL
 
 - Added Extra EC DSP Configuration Options
@@ -562,7 +597,7 @@ fi
 
 - Fixed Tx Tristate 
 
-- Updated yellow alarm handling for Dallas maxim cards
+- Updated yellow alarm handling for Dallas maxim boards
   (A101/2/4/8)
 
 - Autodetect USB support so that driver will compile
@@ -576,7 +611,7 @@ fi
 
 - Update to T1 Yellow Alarm handling.
   In some cases Yellow alarm did not turn off poperly causing
-  line to stay down an card startup.
+  line to stay down an board startup.
 - Update configuration utility
   wancfg_fs updated for sangoma_prid configuration. Added wancfg_openzap
   for OpenZap Configuration 
@@ -592,10 +627,10 @@ fi
 - Updated for 2.6.30 kernel
 
 - New firmawre feature for A101/2/5/8: Free Run Timer Interrupt 
-  The AFT T1/E1 cards will now provide perfect timing to zatpel/dahdi
+  The AFT T1/E1 boards will now provide perfect timing to zatpel/dahdi
   even when the ports are not connected. The free run interrupt
   will be enabled when all zaptel/dahdi ports are down, or on
-  inital card start. To test this feature just start a wanpipe 
+  inital board start. To test this feature just start a wanpipe 
   port with zaptel/dahdi and run zttest. 
   A108 firmare V38 
   A104/2/1/ firmware V36
@@ -633,7 +668,7 @@ fi
 
 - TDM API
   Updated the Global TDM Device
-  This device can be used to read events an all cards configured in
+  This device can be used to read events an all boards configured in
   TDM API mode.
 
 - Libsangoma verion 3.1.0
@@ -704,7 +739,7 @@ fi
 * Fri May 08 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.2
 ===================================================================
 
-- B700 PCIe cards were being displayed as PCI cards in hwprobe
+- B700 PCIe boards were being displayed as PCI boards in hwprobe
 - Bug fix in wancfg_zaptel 
 
 * Thu May 07 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.1
@@ -728,7 +763,7 @@ fi
 - Unified driver for Linux & Windows
 - Updated BRI Stack and Support
 - New BRI A500 & B700 firmware that fixes PCI parity errors.
-  On some systems A500 & B700 cards can generate parity errors.
+  On some systems A500 & B700 boards can generate parity errors.
 
 - FreeSwitch Tested
 - Update for 2.6.26 kernel

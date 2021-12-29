@@ -1114,6 +1114,15 @@ static int wp_bert_allocate_tx_bert_skb(private_area_t* chan)
 }
 
 
+static int safe_copy_to_udp(void *udp, void *src, size_t len)
+{
+	if (len > WAN_MAX_DATA_SIZE) {
+		DEBUG_ERROR("Can't copy UDP data of len %zd  (max = %d)\n", len, WAN_MAX_DATA_SIZE);
+		return -1;
+	}
+	memcpy(udp, src, len);
+	return 0;
+}
 
 /*=============================================================================
  * process_udp_mgmt_pkt
@@ -1132,11 +1141,15 @@ static int wp_bert_allocate_tx_bert_skb(private_area_t* chan)
 
 int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, int local_dev )
 {
+	/* MAINTENANCE WARNING: 
+	 * Do not use memcpy to copy udp data to the user buffer, use safe_copy_to_udp() instead, and check the return value,
+	 * the udp user data is limited, we can't just blindly copy our internal data structures in there, size must be checked! */
 	unsigned short buffer_length;
 	wan_udp_pkt_t *wan_udp_pkt;
 	wan_trace_t *trace_info=NULL;
 	wan_if_cfg_t *if_cfg;
 	wan_smp_flag_t smp_flags;
+	int rc = 0;
 
 	smp_flags=0;
 
@@ -1167,18 +1180,18 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
  			if_cfg = (wan_if_cfg_t*)&wan_udp_pkt->wan_udp_data[0];
                         
 			memset(if_cfg,0,sizeof(wan_if_cfg_t));
-            if_cfg->usedby = chan->usedby_cfg;			
-            if_cfg->media=card->wandev.fe_iface.get_fe_media(&card->fe);
+			if_cfg->usedby = chan->usedby_cfg;			
+			if_cfg->media=card->wandev.fe_iface.get_fe_media(&card->fe);
 
 			if_cfg->active_ch=chan->time_slot_map;
 			if_cfg->cfg_active_ch=chan->cfg_active_ch;
 
 			/* EC API always expects first channel to start from 1
-		       however in driver, we use first channel 0. Since E1
+		           however in driver, we use first channel 0. Since E1
 			   is already shifted and 0 channel is not used, we dont
 			   have to shif for E1 */
 			if(IS_E1_CARD(card)) {
-          	 	if_cfg->ec_active_ch=chan->time_slot_map;
+          	 		if_cfg->ec_active_ch=chan->time_slot_map;
 			} else {
 				if (IS_BRI_CARD(card)) {
 					/* BRI always has 2 timeslots (1 & 2) thus 0x06  */
@@ -1189,21 +1202,21 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 				}
 			}
 
-            if_cfg->chunk_sz=chan->mru/chan->num_of_time_slots;
-            if_cfg->interface_number=chan->logic_ch_num;
+            		if_cfg->chunk_sz=chan->mru/chan->num_of_time_slots;
+            		if_cfg->interface_number=chan->logic_ch_num;
 
-            if (chan->hdlc_eng) {
-                    if_cfg->hw_coding=WAN_TDMV_HDLC;
+			if (chan->hdlc_eng) {
+				if_cfg->hw_coding=WAN_TDMV_HDLC;
 			} else {
-                    if_cfg->hw_coding=(u8)card->fe.fe_cfg.tdmv_law;
-                    if (IS_T1_CARD(card)){
-                            if_cfg->hw_coding=WAN_TDMV_MULAW;
-                    } else if (IS_E1_CARD(card)) {
-                            if_cfg->hw_coding=WAN_TDMV_ALAW;
-                    }
-            }
+				if_cfg->hw_coding=(u8)card->fe.fe_cfg.tdmv_law;
+				if (IS_T1_CARD(card)){
+					if_cfg->hw_coding=WAN_TDMV_MULAW;
+				} else if (IS_E1_CARD(card)) {
+					if_cfg->hw_coding=WAN_TDMV_ALAW;
+				}
+			}
 
-            memcpy(&if_cfg->fe_cfg, &card->fe.fe_cfg, sizeof(sdla_fe_cfg_t));
+			memcpy(&if_cfg->fe_cfg, &card->fe.fe_cfg, sizeof(sdla_fe_cfg_t));
 
 			/* line_mode: MODE_OPTION_HDLC/MODE_OPTION_BITSTRM/ISDN_BRI_DCHAN */
 			if (IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)){
@@ -1246,9 +1259,9 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			}
 
 
-            wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
-            wan_udp_pkt->wan_udp_data_len=sizeof(wan_if_cfg_t);
-            break;
+            		wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+            		wan_udp_pkt->wan_udp_data_len=sizeof(wan_if_cfg_t);
+			break;
 
 		case WANPIPEMON_READ_CODE_VERSION:
 #if defined(__WINDOWS__)
@@ -1313,7 +1326,11 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			break;
 		
 		case WANPIPEMON_READ_PERFORMANCE_STATS:
-			memcpy(wan_udp_pkt->wan_udp_data,&card->aft_perf_stats,sizeof(card->aft_perf_stats));
+			//memcpy(wan_udp_pkt->wan_udp_data,&card->aft_perf_stats,sizeof(card->aft_perf_stats));
+			rc = safe_copy_to_udp(wan_udp_pkt->wan_udp_data, &card->aft_perf_stats, sizeof(card->aft_perf_stats));
+			if (rc) {
+				return -ENOMEM;
+			}
 			wan_udp_pkt->wan_udp_data_len=sizeof(card->aft_perf_stats);
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			break;
@@ -1325,7 +1342,11 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			break;
 
 		case WANPIPEMON_READ_OPERATIONAL_STATS:
-			memcpy(wan_udp_pkt->wan_udp_data,&chan->chan_stats,sizeof(wp_tdm_chan_stats_t));
+			//memcpy(wan_udp_pkt->wan_udp_data,&chan->chan_stats,sizeof(wp_tdm_chan_stats_t));
+			rc = safe_copy_to_udp(wan_udp_pkt->wan_udp_data, &chan->chan_stats, sizeof(wp_tdm_chan_stats_t));
+			if (rc) {
+				return -ENOMEM;
+			}
 			wan_udp_pkt->wan_udp_data_len=sizeof(wp_tdm_chan_stats_t);
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			break;
@@ -1341,8 +1362,12 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			break;
 
 		case WANPIPEMON_READ_COMMS_ERROR_STATS:
-			wan_udp_pkt->wan_udp_return_code = 0;
-			memcpy(wan_udp_pkt->wan_udp_data,&chan->errstats,sizeof(aft_comm_err_stats_t));
+			//memcpy(wan_udp_pkt->wan_udp_data,&chan->errstats,sizeof(aft_comm_err_stats_t));
+			rc = safe_copy_to_udp(wan_udp_pkt->wan_udp_data,&chan->errstats,sizeof(aft_comm_err_stats_t));
+			if (rc) {
+				return -ENOMEM;
+			}
+			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			wan_udp_pkt->wan_udp_data_len=sizeof(aft_comm_err_stats_t);
 			memset(&card->wandev.stats,0,sizeof(card->wandev.stats));
 			break;

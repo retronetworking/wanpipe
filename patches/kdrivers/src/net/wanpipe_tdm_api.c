@@ -79,6 +79,8 @@
 #undef  DEBUG_API_WRITE
 #undef  DEBUG_API_POLL
 
+#define WP_TDM_DEF_FAKE_POLARITY_THRESHOLD 16000
+
 #ifdef __WINDOWS__
 # define wptdm_os_lock_irq(card,flags)   wan_spin_lock_irq(card,flags)
 # define wptdm_os_unlock_irq(card,flags) wan_spin_unlock_irq(card,flags)
@@ -116,6 +118,8 @@ static void wp_tdmapi_ringtrip(void* card_id, wan_event_t*);
 static void wp_tdmapi_ringdetect (void* card_id, wan_event_t *event);
 static void wp_tdmapi_linkstatus(void* card_id, wan_event_t*);
 static void wp_tdmapi_polarityreverse(void* card_id, wan_event_t*);
+static __inline int wp_tdmapi_check_fakepolarity(u8 *buf, int len, wanpipe_tdm_api_dev_t* tdm_api);
+static void wp_tdmapi_report_fakepolarityreverse(void* card_id,u_int8_t channel);
 
 
 static int store_tdm_api_pointer_in_card(sdla_t *card, wanpipe_tdm_api_dev_t *tdm_api);
@@ -3295,10 +3299,16 @@ static int wanpipe_tdm_api_channelized_rx (wanpipe_tdm_api_dev_t *tdm_api, u8 *r
 	int err=-EINVAL;
 	int skblen;
 	int hdrsize = sizeof(wp_api_hdr_t);
+	sdla_t  *card = (sdla_t*)tdm_api->card;
 
 	if (wan_test_bit(0,&tdm_api->cfg.rx_disable)) {
 		err=0;
 		goto wanpipe_tdm_api_rx_error;
+	}
+
+	if (card && (WANCONFIG_AFT_ANALOG == card->wandev.config_id)) {
+		/*Only for Analog card - check and report fake polarity event(If applicable)*/
+		wp_tdmapi_check_fakepolarity(rx_data,len,tdm_api);
 	}
 
 	if (wan_skb_queue_len(&tdm_api->wp_rx_list) >= (int)tdm_api->cfg.rx_queue_sz) {
@@ -3381,6 +3391,87 @@ wanpipe_tdm_api_rx_error:
 	tdm_api->rx_skb=NULL;
 
 	return err;
+}
+
+static __inline int wp_tdmapi_check_fakepolarity(u8 *buf, int len, wanpipe_tdm_api_dev_t* tdm_api)
+{
+	sdla_fe_t        *fe    	= NULL;
+	wp_remora_fxo_t  *fxo   	= NULL;
+	int              channo 	= 0;
+	sdla_t          *card   	= NULL;
+	int             upper_thres_val = 0;
+	int             lower_thres_val = 0;
+	int 		i		= 0;
+	int 		linear_sample	= 0;
+	int             fake_polarity_thres = 0;
+
+	if(!buf || !tdm_api || !len || !tdm_api->card) {
+		return 0 ;
+	}
+
+	card 	= (sdla_t*)tdm_api->card;
+	fe 	= &card->fe;
+	channo 	= tdm_api->tdm_chan;
+	fxo 	= &fe->rm_param.mod[channo].u.fxo;
+
+	if (WANOPT_NO == card->fe.fe_cfg.cfg.remora.fake_polarity) {
+		/*RM_FAKE_POLARITY disabled */
+		return 0;
+	}
+
+	/* only look for sound on the line if its an fxo card and state is onhook*/
+	if (MOD_TYPE_FXO != fe->rm_param.mod[channo].type) {
+			return 0;
+	}
+
+	if (fxo->offhook) {
+		fxo->cidtimer = fe->rm_param.intcount;
+		return 0;
+	}
+
+	/* If no possible CID has been reported yet, scan the signal looking for samples bigger than the user-specified threshold */
+	if (!fxo->readcid && !fxo->wasringing && fe->rm_param.intcount > fxo->cidtimer + 400) {
+
+		fake_polarity_thres = card->fe.fe_cfg.cfg.remora.fake_polarity_thres;
+
+		if(0 == fake_polarity_thres) {
+			/*threshold value not configured...but RM_FAKE_POLARITY enable , 
+			 * hence considering default threshold value*/
+			fake_polarity_thres = WP_TDM_DEF_FAKE_POLARITY_THRESHOLD;
+		}
+		upper_thres_val = fake_polarity_thres;
+		lower_thres_val = -1 * fake_polarity_thres;
+
+		for (i=0;i<len;i++) {
+			linear_sample = wanpipe_codec_convert_to_linear(buf[i],tdm_api->cfg.hw_tdm_coding);
+
+			if (linear_sample > upper_thres_val || linear_sample < lower_thres_val) {
+				DEBUG_EVENT("%s: Possible CID signal detected, faking polarity reverse event on module %d\n", card->devname, channo);
+				wp_tdmapi_report_fakepolarityreverse(card,channo);
+				fxo->readcid = 1;
+				fxo->cidtimer = fe->rm_param.intcount;
+				return 1;
+			}
+		}
+	} else if (fxo->readcid && fe->rm_param.intcount > fxo->cidtimer + 2000) {
+		fxo->cidtimer = fe->rm_param.intcount;
+		fxo->readcid = 0;
+	}
+
+	return 0;
+}
+
+static void wp_tdmapi_report_fakepolarityreverse(void* card_id,u_int8_t channel)
+{
+	wan_event_t event;
+
+	memset(&event,0,sizeof(event));
+	event.channel 		= channel;
+	event.type      	= WAN_EVENT_RM_POLARITY_REVERSE;
+	event.polarity_reverse 	= WAN_EVENT_POLARITY_REV_POSITIVE_NEGATIVE;
+
+	wp_tdmapi_polarityreverse(card_id, &event);
+	return;
 }
 
 #undef AFT_TDM_ROTATE_DEBUG
