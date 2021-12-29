@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.4.3
+%define version           3.4.4
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,13 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+
+* Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.4
+=====================================================================
+
+- Latest smg update in 3.4.3 broke BRI support
+- This is now fixed.
+
 
 * Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.3
 =====================================================================

@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.4.3
+%define version           3.4.4
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -327,6 +327,13 @@ enable_smg_log;
 
 
 %changelog
+
+* Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.4
+=====================================================================
+
+- Latest smg update in 3.4.3 broke BRI support
+- This is now fixed.
+
 
 * Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.3
 =====================================================================
