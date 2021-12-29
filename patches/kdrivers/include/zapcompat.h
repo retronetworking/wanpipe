@@ -33,7 +33,13 @@
 #endif
 
 
-#if defined(DAHDI_26)
+#if defined(DAHDI_27)
+#define DAHDI_26
+#define DAHDI_25
+#define DAHDI_24
+#define DAHDI_23
+#define DAHDI_22
+#elif defined(DAHDI_26)
 #define DAHDI_25
 #define DAHDI_24
 #define DAHDI_23

@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.3
+%define VERSION           7.0.4
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -258,6 +258,12 @@ fi
 ################################################################################
 
 %changelog
+
+* Mon Jul 15 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.4
+==================================================================
+
+- Updated for Dahdi 2.7
+- Fixed full dahdi startup on wanpipe dahdi mode.
 
 * Wed May 22 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.3
 ==================================================================

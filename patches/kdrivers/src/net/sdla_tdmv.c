@@ -1287,14 +1287,14 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 		card->fe.fe_cfg.tdmv_law = WAN_TDMV_ALAW;
 		wp->span.linecompat = ZT_CONFIG_HDB3 | ZT_CONFIG_CCS | ZT_CONFIG_CRC4;
 #ifdef DAHDI_ISSUES
-		wp->span.spantype="E1";
+		wp->span.spantype=SPANTYPE_DIGITAL_E1;
 #endif
 	}else{
 		wp->span.deflaw = ZT_LAW_MULAW;
 		card->fe.fe_cfg.tdmv_law = WAN_TDMV_MULAW;
 		wp->span.linecompat = ZT_CONFIG_AMI | ZT_CONFIG_B8ZS | ZT_CONFIG_D4 | ZT_CONFIG_ESF;
 #ifdef DAHDI_ISSUES
-		wp->span.spantype="T1";
+		wp->span.spantype=SPANTYPE_DIGITAL_T1;
 #endif
 	}
 	
@@ -2701,14 +2701,14 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 		until there's a buffer available */
 		ms->inreadbuf = -1;
 		/* Enable the receiver in case they've got POLICY_WHEN_FULL */
-		ms->rxdisable = 0;
+		wp_dahdi_chan_set_rxdisable(ms,0);
 	}
 	if (ms->outreadbuf < 0) { /* start out buffer if not already */
 		ms->outreadbuf = oldbuf;
 	}
 	/* FIXME wan_spin_unlock_irq(&wp->tx_rx_lock, &smp_flags); */
 	wan_spin_unlock_irq(&chan->lock, &smp_flags);
-	if (!ms->rxdisable) { /* if receiver enabled */
+	if (!wp_dahdi_chan_rxdisable(ms)) { /* if receiver enabled */
 		DEBUG_TDMV("%s: HDLC block is ready!\n",
 					wp->devname);
 		/* Notify a blocked reader that there is data available

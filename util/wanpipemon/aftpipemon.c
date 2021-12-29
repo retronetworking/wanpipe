@@ -973,6 +973,7 @@ int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng,
 
 static int previous_trace_len=0;
 static int previous_trace_data[5000];  
+extern int no_exit;
 
 static void line_trace(int trace_mode) 
 {
@@ -1001,8 +1002,12 @@ static void line_trace(int trace_mode)
 	
 	DO_COMMAND(wan_udp);
 	
-	if (wan_udp.wan_udphdr_return_code == 0) { 
-		printf("Starting trace...(Press ENTER to exit)\n");
+	if (wan_udp.wan_udphdr_return_code == 0) {
+		if (no_exit) {
+			printf("Starting trace...(Press CTRL + C to exit)\n");
+		} else {
+			printf("Starting trace...(Press ENTER to exit)\n");
+		}
 		fflush(stdout);
 	} else if(wan_udp.wan_udphdr_return_code == 0xCD ) {
 		printf("Cannot Enable Line Tracing from Underneath.\n");
@@ -1010,7 +1015,11 @@ static void line_trace(int trace_mode)
 		return;
 	}else if (wan_udp.wan_udphdr_return_code == 0x01 ) {
 		printf("Starting trace...(although it's already enabled!)\n");
-		printf("Press ENTER to exit.\n");
+		if (no_exit) {
+			printf("Press CTRL + C to exit\n");
+		} else {
+			printf("Press ENTER to exit\n");
+		}
 		fflush(stdout);
 	}else{
 		printf("Failed to Enable Line Tracing. Return code: 0x%02X\n", 
@@ -1024,6 +1033,7 @@ static void line_trace(int trace_mode)
 	for(;;) {
 		
 #ifdef __WINDOWS__
+	if (!no_exit) {
 		if(to.tv_usec){
 			wp_usleep(to.tv_usec);
 		}
@@ -1036,13 +1046,16 @@ static void line_trace(int trace_mode)
 				fflush(stdout);
 			}
 		}
+	}
 #else
+	if (!no_exit) {
 		FD_ZERO(&ready);
 		FD_SET(0,&ready);
 
 		if(select(1,&ready, NULL, NULL, &to)) {
 			break;
 		} /* if */
+	}
 #endif
 		wan_udp.wan_udphdr_command = GET_TRACE_INFO;
 		wan_udp.wan_udphdr_return_code = 0xaa;

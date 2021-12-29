@@ -8,6 +8,12 @@ Copyright (c) 1995-2013 Sangoma Technologies Inc.
 For more info visit: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
 
+* Mon Jul 15 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.4
+==================================================================
+
+- Updated for Dahdi 2.7
+- Fixed full dahdi startup on wanpipe dahdi mode.
+
 * Wed May 22 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.3
 ==================================================================
 

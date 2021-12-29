@@ -33,6 +33,21 @@
 #include "wanpipe_cdev_iface.h"
 
 
+#ifdef DAHDI_27
+
+# define wp_dahdi_chan_set_rxdisable(chan,val) 
+# define wp_dahdi_chan_rxdisable(chan) 0
+
+#else
+
+# define wp_dahdi_chan_set_rxdisable(chan,val) chan->rxdisable=val
+# define wp_dahdi_chan_rxdisable(chan) chan->rxdisable 
+# define SPANTYPE_DIGITAL_E1 "E1"
+# define SPANTYPE_DIGITAL_T1 "T1"
+
+#endif
+
+
 #ifdef DAHDI_26
 
 #define wp_dahdi_create_device(card, wp) __wp_dahdi_create_device(card,&wp->ddev,&wp->dev)

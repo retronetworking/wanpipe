@@ -127,6 +127,7 @@ int global_card_type = WANOPT_AFT;
 int connected_to_hw_level = 0;
 
 int sys_timestamp=0;
+int no_exit=0;
 int annexg_trace =0;
 
 int pcap_output=0;
@@ -1085,7 +1086,8 @@ static int init(int argc, char *argv[], char* command)
 		
 		}else if (!strcmp(argv[i], "-systime")){
 			sys_timestamp=1;
-		
+		}else if (!strcmp(argv[i], "-noexit")){
+			no_exit=1;
 		}else if (!strcmp(argv[i], "-mtp2-msu")){
 			mtp2_msu_only=1;
 			printf("MTP2 Trace MSU Only\n"); 

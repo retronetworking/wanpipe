@@ -1649,14 +1649,14 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 		until there's a buffer available */
 		ms->inreadbuf = -1;
 		/* Enable the receiver in case they've got POLICY_WHEN_FULL */
-		ms->rxdisable = 0;
+		wp_dahdi_chan_set_rxdisable(ms,0);
 	}
 	if (ms->outreadbuf < 0) { /* start out buffer if not already */
 		ms->outreadbuf = oldbuf;
 	}
 	/* FIXME wan_spin_unlock_irq(&wp->tx_rx_lock, &smp_flags); */
 	wan_spin_unlock_irq(&chan->lock, &smp_flags);
-	if (!ms->rxdisable) { /* if receiver enabled */
+	if (!wp_dahdi_chan_rxdisable(ms)) { /* if receiver enabled */
 		DEBUG_TDMV("%s: HDLC block is ready!\n",
 					wp->devname);
 		/* Notify a blocked reader that there is data available

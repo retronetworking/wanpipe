@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           7.0.3
+%define version           7.0.4
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -58,6 +58,12 @@ fi
 
 
 %changelog
+
+* Mon Jul 15 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.4
+==================================================================
+
+- Updated for Dahdi 2.7
+- Fixed full dahdi startup on wanpipe dahdi mode.
 
 * Wed May 22 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.3
 ==================================================================
