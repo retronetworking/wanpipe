@@ -1768,6 +1768,11 @@ static int sdla_ds_te1_config(void* pfe)
 		return 0;
 	}
 
+
+	/* Force FE POll mode. Stop using front end interrupts as they
+       are known to cause parity errors on modern systems. */
+	fe->fe_cfg.poll_mode=WANOPT_YES;
+
 	/* Revision/Chip ID (Reg. 0x0D) */
 	if (sdla_ds_te1_device_id(fe)) return -EINVAL;
 	switch(fe->fe_chip_id){

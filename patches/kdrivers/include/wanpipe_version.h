@@ -6,18 +6,18 @@
 #define __WANPIPE_VERSION__
 
 
-#define WANPIPE_COPYRIGHT_DATES "(c) 1994-2013"
+#define WANPIPE_COPYRIGHT_DATES "(c) 1994-2016"
 #define WANPIPE_COMPANY         "Sangoma Technologies Inc"
 
 /********** LINUX **********/
-#define WANPIPE_VERSION			"7.0.19"
+#define WANPIPE_VERSION			"7.0.20"
 #define WANPIPE_SUB_VERSION				"0"
 #define WANPIPE_LITE_VERSION			"1.1.1"
 
 #if defined(__LINUX__)
 #define WANPIPE_VERSION_MAJOR			7
 #define WANPIPE_VERSION_MINOR			0
-#define WANPIPE_VERSION_MINOR1			19
+#define WANPIPE_VERSION_MINOR1			20
 #define WANPIPE_VERSION_MINOR2			0
 #endif
 

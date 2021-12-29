@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.19
+%define VERSION           7.0.20
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -260,7 +260,12 @@ fi
 
 %changelog
 
-* May 9 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.19
+* Mon May 19 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.20
+==================================================================
+- Compilation fix in non-dahdi mode
+- Default to fe poll mode.
+
+* Mon May 9 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.19
 ==================================================================
 - Add RM_RING_DEBOUNCE config option
 - Fix for Centos 5 build
@@ -271,7 +276,7 @@ fi
 - RM_FAKE_POLARITY_THRESHOLD should be 16000 
 
 
-* Mar 17 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.18
+* Mon Mar 17 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.18
 ==================================================================
 - Driver will start by default even though analog FXS/FXO module failed to configure.
   New config parameters: RM_FAIL_ON_MOD_ERROR=YES will revert this behaviour.
