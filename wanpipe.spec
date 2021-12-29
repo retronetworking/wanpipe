@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.26
+%define VERSION           7.0.27
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,6 +259,14 @@ fi
 ################################################################################
 
 %changelog
+* Tue Dec 26 2019 Pushkar Singh <psingh@sangoma.com> - 7.0.27
+==================================================================
+- Support for Kernel version 4.18.x+
+- Disable global poll_mode depending upon user choise using TE_IGNORE_POLL_MODE parameter
+- Support perl environment for perl version 5.26
+- Adding backward compatibilty for older kernels both debian as well as redhat
+- Fix detection of loopback codes on T1 ESF
+
 * Tue Apr 02 2019 Pushkar Singh <psingh@sangoma.com> - 7.0.26
 ==================================================================
 - Support for Kernel version 4.15+

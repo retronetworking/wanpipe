@@ -2454,12 +2454,15 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 					tdm_api->cfg.rbs_poll = usr_tdm_api.rbs_poll;
 					usr_tdm_api.result=SANG_STATUS_SUCCESS;
 					err=0;
+					DEBUG_EVENT("%s: Poll Timeout = %u, RBS POLL = %u and RBS enable Count = %d\n", tdm_api->name, tdm_card_dev->rbs_poll_timeout, tdm_api->cfg.rbs_poll, tdm_card_dev->rbs_enable_cnt);
+
 				}
 
 			} else {
 				tdm_card_dev->rbs_enable_cnt++;
 				usr_tdm_api.result=SANG_STATUS_SUCCESS;
 				err=0;
+				DEBUG_EVENT("%s: Poll Timeout = %u, RBS POLL = %u and RBS enable Count = %d\n", tdm_api->name, tdm_card_dev->rbs_poll_timeout, tdm_api->cfg.rbs_poll, tdm_card_dev->rbs_enable_cnt);
 			}
 
 		}

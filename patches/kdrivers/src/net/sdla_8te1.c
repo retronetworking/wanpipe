@@ -1772,8 +1772,10 @@ static int sdla_ds_te1_config(void* pfe)
 
 
 	/* Force FE POll mode. Stop using front end interrupts as they
-       are known to cause parity errors on modern systems. */
-	fe->fe_cfg.poll_mode=WANOPT_YES;
+ 	 * are known to cause parity errors on modern systems.
+ 	 * Also , only eable FE_POLL mode by default if ignore_poll_mode is not set */
+	if (fe->fe_cfg.cfg.te_cfg.ignore_poll_mode == WANOPT_NO)
+		fe->fe_cfg.poll_mode=WANOPT_YES;
 
 	/* Revision/Chip ID (Reg. 0x0D) */
 	if (sdla_ds_te1_device_id(fe)) return -EINVAL;
@@ -1892,6 +1894,10 @@ static int sdla_ds_te1_config(void* pfe)
 		}
 	}
 	
+	if (fe->fe_cfg.poll_mode == WANOPT_YES){
+        /* Enable only basic framer interrupts */
+	    sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_BASIC, WAN_FE_INTR_ENABLE, 0x00);
+    }
 			
 #if 0
 /* FIXME: Enable all interrupt only when link is connected (event global) */
@@ -2058,7 +2064,12 @@ static int sdla_ds_te1_disable_irq(void* pfe)
 			fe, 0, 
 			(WAN_TE_INTR_GLOBAL|WAN_TE_INTR_BASIC|WAN_TE_INTR_PMON), 
 			WAN_FE_INTR_MASK, 0x00);
-	}
+	} else {
+        /* Disable only basic framer interrupts */
+		sdla_ds_te1_intr_ctrl(
+			fe, 0, WAN_TE_INTR_BASIC, WAN_FE_INTR_MASK, 0x00
+        );
+    }
 	return 0;
 }
 
@@ -3356,7 +3367,7 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, u_int8_t type, u_int8_t mode, un
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-	WAN_ASSERT(fe->fe_cfg.poll_mode == WANOPT_YES);
+	//WAN_ASSERT(fe->fe_cfg.poll_mode == WANOPT_YES);
 
 	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->te_param.critical)){
 		return 0;
@@ -4013,22 +4024,10 @@ static int sdla_ds_te1_check_intr(sdla_fe_t *fe)
 	return 0;
 }
 
-static int sdla_ds_te1_intr(sdla_fe_t *fe) 
+static int sdla_ds_te1_intr_handler(sdla_fe_t *fe, int silent)
 {
-	u_int8_t	framer_istatus, liu_istatus, bert_istatus; 
-	u_int8_t	device_id;
-	int		silent = 0;
-	
-	WAN_ASSERT(fe->write_fe_reg == NULL);
-	WAN_ASSERT(fe->read_fe_reg == NULL);
+	u_int8_t	framer_istatus, liu_istatus, bert_istatus;
 
-	device_id = WAN_TE1_DEVICE_ID;
-	if (device_id == DEVICE_ID_BAD){
-		DEBUG_EVENT(
-		"%s: ERROR: Failed to verify Device id (silent mode)!\n",
-				fe->name);
-		silent = 1;
-	}
 	framer_istatus = READ_REG(REG_GFISR);
 	liu_istatus = READ_REG(REG_GLISR);
 	bert_istatus = READ_REG(REG_GBISR);
@@ -4052,6 +4051,25 @@ static int sdla_ds_te1_intr(sdla_fe_t *fe)
 		//WRITE_REG(REG_GBISR, (1<<WAN_FE_LINENO(fe)));
 		WRITE_REG(REG_GBISR, (1<<WAN_DS_REGBITMAP(fe)));
 	}
+}
+
+static int sdla_ds_te1_intr(sdla_fe_t *fe)
+{
+	u_int8_t	device_id;
+	int		silent = 0;
+
+	WAN_ASSERT(fe->write_fe_reg == NULL);
+	WAN_ASSERT(fe->read_fe_reg == NULL);
+
+	device_id = WAN_TE1_DEVICE_ID;
+	if (device_id == DEVICE_ID_BAD){
+		DEBUG_EVENT(
+		"%s: ERROR: Failed to verify Device id (silent mode)!\n",
+				fe->name);
+		silent = 1;
+	}
+
+    sdla_ds_te1_intr_handler(fe, silent);
 
 	DEBUG_TE1("%s: FE Interrupt Alarms=0x%X\n",
 			fe->name,fe->fe_alarm);
@@ -4568,6 +4586,9 @@ static int sdla_ds_te1_swirq(sdla_fe_t* fe)
 			sdla_ds_te1_swirq_alarm(fe, WAN_TE1_SWIRQ_TYPE_ALARM_RAI);
 		}
 	}
+
+	sdla_ds_te1_intr_handler(fe, 0);
+
 	return 0;
 }
 

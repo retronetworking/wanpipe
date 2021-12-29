@@ -1754,9 +1754,13 @@ out:
  *      information. Not very useful for Sangoma's purposes.
  *===========================================================*/
 
-
+#if defined (KERN_CLASS_PROTO_OPS_UPDATE) && KERN_CLASS_PROTO_OPS_UPDATE > 0
 static int wanpipe_getname(struct socket *sock, struct sockaddr *uaddr,
 			  int *uaddr_len, int peer)
+#else
+static int wanpipe_getname(struct socket *sock, struct sockaddr *uaddr,
+			   int peer)
+#endif
 {
 	netdevice_t *dev;
 	struct sock *sk = sock->sk;
@@ -1776,7 +1780,9 @@ static int wanpipe_getname(struct socket *sock, struct sockaddr *uaddr,
 		sll->sll_hatype = 0;	/* Bad: we have no ARPHRD_UNSPEC */
 		sll->sll_halen = 0;
 	}
+#if defined (KERN_CLASS_PROTO_OPS_UPDATE) && KERN_CLASS_PROTO_OPS_UPDATE > 0
 	*uaddr_len = sizeof(*sll);
+#endif
 	
 	return 0;
 }

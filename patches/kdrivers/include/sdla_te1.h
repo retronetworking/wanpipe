@@ -463,6 +463,7 @@ typedef struct sdla_te_cfg {
 	u_int8_t	ais_maintenance;
 	u_int8_t	ais_auto_on_los;
 	u_int8_t	ignore_debounce_alarm;
+	u_int8_t	ignore_poll_mode;
 } sdla_te_cfg_t;
 
 /* Performamce monitor counters */

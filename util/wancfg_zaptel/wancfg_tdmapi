@@ -1,5 +1,9 @@
 #!/bin/sh
 home=`pwd`
+#include the current directory where the script is present
+#as a part of perl environment i.e. in @INC because Perl 5.26 and greater
+#doesnot include current directory due to security reason
+export PERL_USE_UNSAFE_INC=1
 cd $home
 
 read_meta_conf ()

@@ -710,6 +710,11 @@ int registry_write_front_end_cfg(HKEY hPortRegistryKey, port_cfg_t *port_cfg)
 			break;
 		}
 
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "TE_IGNORE_POLL_MODE",	te_cfg->ignore_poll_mode);
+		if(iReturnCode){
+			break;
+		}
+
 		iReturnCode = registry_set_integer_value(hPortRegistryKey, "ACTIVE_CH",		ENABLE_ALL_CHANNELS	/*must be hardcoded*/);
 		if(iReturnCode){
 			break;
