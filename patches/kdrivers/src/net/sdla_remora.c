@@ -2959,16 +2959,16 @@ static int wp_remora_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 	memset(&event, 0, sizeof(sdla_fe_timer_event_t));
 	switch(udp_cmd->wan_cmd_command){
 	case WAN_GET_MEDIA_TYPE:
-	
-                fe_media = (wan_femedia_t*)data;
-                memset(fe_media, 0, sizeof(wan_femedia_t));
-                fe_media->media         = fe->fe_cfg.media;
-                fe_media->sub_media     = fe->fe_cfg.sub_media;
-                fe_media->chip_id       = 0x00;
-                fe_media->max_ports     = 1;
-                udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-                udp_cmd->wan_cmd_data_len = sizeof(wan_femedia_t);
-                break;
+		
+					fe_media = (wan_femedia_t*)data;
+					memset(fe_media, 0, sizeof(wan_femedia_t));
+					fe_media->media         = fe->fe_cfg.media;
+					fe_media->sub_media     = fe->fe_cfg.sub_media;
+					fe_media->chip_id       = 0x00;
+					fe_media->max_ports     = 1;
+					udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+					udp_cmd->wan_cmd_data_len = sizeof(wan_femedia_t);
+					break;
 
 	case WAN_FE_TONES:
 		event.type	= WP_RM_POLL_TONE;
@@ -3020,26 +3020,20 @@ static int wp_remora_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 		fe_debug = (sdla_fe_debug_t*)data;
 		switch(fe_debug->type){
 		case WAN_FE_DEBUG_REG:
-			if (fe->rm_param.reg_dbg_busy){
-				if (fe_debug->fe_debug_reg.read == 2 && fe->rm_param.reg_dbg_ready){
-					/* Poll the register value */
-					fe_debug->fe_debug_reg.value = fe->rm_param.reg_dbg_value;
-					udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-					fe->rm_param.reg_dbg_busy = 0;
-				}
-				break;
-			}
 			event.type		= (fe_debug->fe_debug_reg.read) ? 
 							WP_RM_POLL_READ : WP_RM_POLL_WRITE;
 			event.rm_event.mod_no	= fe_debug->mod_no;
 			event.rm_event.reg	= (u_int16_t)fe_debug->fe_debug_reg.reg;
 			event.rm_event.value	= fe_debug->fe_debug_reg.value;
 			event.delay		= WP_RM_POLL_TIMER;
-			if (fe_debug->fe_debug_reg.read){
-				fe->rm_param.reg_dbg_busy = 1;
-				fe->rm_param.reg_dbg_ready = 0;
-			}
+
 			wp_remora_event_exec(fe, &event);
+			
+			if (fe_debug->fe_debug_reg.read) {
+				fe_debug->fe_debug_reg.value = fe->rm_param.reg_dbg_value;
+			}
+			
+			fe->rm_param.reg_dbg_busy = 0;
 			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			break;
 

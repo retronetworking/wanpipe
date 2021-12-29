@@ -9,6 +9,9 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Aug 25   2010  2.45   Yannick Lam     B800 support
+# Aug 17   2010  2.44   Yannick Lam     wancfg_fs give you option to do openzap or freetdm(conf and xml files are generated)
+# Jul 19   2010  2.43   Yannick Lam     Fixed bug in wancfg_ftdm
 # Jun 29   2010  2.42   Yannick Lam     Fixed issue with asterisk-1.6.2 and up for stop
 # May 14   2010  2.41   Yannick Lam     Added wancfg_ftdm (script for freetdm)
 # May 04   2010  2.40   Yannick Lam     Fix smg_pri.conf for wancfg_fs
@@ -363,6 +366,9 @@ if ($is_ftdm== $TRUE) {
 	$config_zapata = $FALSE; 
 	$config_freetdm= $TRUE;
 	$config_freetdm_xml=$TRUE;
+	$config_openzap= $FALSE;
+	$config_openzap_xml=$FALSE;
+	$def_sigmode='pri_cpe';
 }	
 	
 
@@ -976,8 +982,8 @@ sub apply_changes{
 
 	}	
 	#if($config_openzap_xml == $TRUE && $is_openzap == $FALSE){
-	if($config_openzap_xml == $TRUE && $is_openzap == $TRUE){
-		print "\nCopying new openzap configuration files ($openzap_conf_xml_file_t)...\n";
+	if($config_openzap_xml == $TRUE && $is_openzap == $FALSE){
+		print "\nCopying new openzap-xml configuration files ($openzap_conf_xml_file_t)...\n";
 		exec_command("cp -f $openzap_conf_xml_file $openzap_conf_xml_file_t");
 	}
 
@@ -1256,14 +1262,25 @@ sub prepare_files{
 				$config_zapata = $FALSE;
 			}
 		}elsif($is_fs==$TRUE && $is_openzap== $FALSE){
-			print"Would you like to change FreeSwitch Configuration Directory?\nDefault: $fs_conf_dir\n";
+			print"Would you like to change FreeSWITCH Configuration Directory?\nDefault: $fs_conf_dir\n";
 			if (&prompt_user_list(("NO","YES","NO")) eq 'YES'){
 
-				$fs_conf_dir=&prompt_user("Enter FreeSwitch Conf Directory \n");
+				my $autoload_configs;
+				$fs_conf_dir=&prompt_user("Enter FreeSWITCH Conf Directory \n");
 				while(! -d $fs_conf_dir){
-					print "Invalid FreeSwitch Configuration Directory, Please Enter FreeSwitch Configuration Directory\n";
-					$fs_conf_dir=&prompt_user("Input the FreeSwitch Conf Dir",$fs_conf_dir);
+					#print "Invalid FreeSwitch Configuration Directory, Please Enter FreeSwitch Configuration Directory\n";
+					#$fs_conf_dir = "mkdir ".$fs_conf_dir;
+					$autoload_configs = $fs_conf_dir."/autoload_configs";
+					system(mkdir $fs_conf_dir);
+					system(mkdir $autoload_configs);
+					#$fs_conf_dir=&prompt_user("Input the FreeSwitch Conf Dir",$fs_conf_dir);
 				}
+
+				$autoload_configs = $fs_conf_dir."/autoload_configs";
+				while(! -d $autoload_configs){
+					system(mkdir $autoload_configs);
+				}
+
 				$openzap_conf_file_t="$fs_conf_dir/openzap.conf";
 				$openzap_conf_xml_file_t="$fs_conf_dir/autoload_configs/openzap.conf.xml";
 				$freetdm_conf_file_t="$fs_conf_dir/freetdm.conf";
@@ -1629,17 +1646,19 @@ sub read_args {
 			$no_boot=$TRUE;	
 		}elsif ( /^--no_smgboot$/){
 			$no_smgboot=$TRUE;			
-		}elsif ( /^--conf_fs$/){
+		}elsif ( /^--conf_fs$/){	#openzap.conf, openzap.conf.xml, wanpipe conf
 			$is_fs=$TRUE;
 			$is_tdm_api=$TRUE;#fs use tdmapi mode	
-		}elsif ( /^--conf_openzap$/){
-			$is_openzap=$TRUE;
+		}elsif ( /^--conf_openzap$/){	#openzap.conf, wanpipe conf
+			$is_openzap=$TRUE;	#is_openzap means do not configure openzap.conf.xml 
 			$is_fs=$TRUE;
 			$is_tdm_api=$TRUE;#fs use tdmapi mode
-		}elsif ( /^--ftdm_api$/){
+			$config_openzap_xml=$FALSE;
+		}elsif ( /^--ftdm_api$/){	#freetdm.conf, freetdm.conf.xml, wanpipe conf
+			$is_fs=$TRUE;
 			$is_ftdm=$TRUE;
-			$is_fs=$TRUE;
 			$is_tdm_api=$TRUE;#fs use tdmapi mode
+			$is_openzap=$FALSE
 		}elsif ( /^--no_hwdtmf$/){
 			$no_hwdtmf=$TRUE;
 		}elsif ( /^--silent$/){
@@ -1844,10 +1863,10 @@ sub get_woomera_group{
 	}
 
 	my $group;
-	my $res_group=&prompt_user("\nInput the group for this port\n",$def_woomera_group);
+	my $res_group=&prompt_user("\nInput the dialing group for this port\n",$def_woomera_group);
 	while(length($res_group)==0 |!($res_group =~/(\d+)/)| $res_group eq '0'){
 		print "Invalid group, input an integer greater than 0\n";
-		$res_group=&prompt_user("Input the group for this port",$def_woomera_group);
+		$res_group=&prompt_user("Input the dialing group for this port",$def_woomera_group);
 	}
 	$group=$res_group;
 	$def_woomera_group=$group;
@@ -2961,7 +2980,7 @@ ENDSS7CONFIG:
 					$startup_string.="wanpipe$devnum ";
 					$current_tdmapi_span++;
 					
-					if($is_fs == $TRUE){
+					if($is_fs == $TRUE || $is_ftdm == $TRUE ){
 						#smg_pri.conf and openzap.conf
 						my $boostspan = eval { new boostspan();} or die ($@);
 						my $openzapspan = $current_tdmapi_span-1;
@@ -3316,7 +3335,7 @@ sub config_analog{
 	}
 	$first_cfg=0;
 	print "------------------------------------\n";
-	print "Configuring analog cards [A200/A400/B600/B700]\n";
+	print "Configuring analog cards [A200/A400/B600/B700/B800]\n";
 	print "------------------------------------\n";
 
 	my $skip_card=$FALSE;
@@ -3352,7 +3371,7 @@ sub config_analog{
 				$card->hwec_mode('YES');
 				
 			}
-			if ($card->card_model eq '200' || $card->card_model eq '400' || $card->card_model eq '600' || ($card->card_model eq '700' && $6 == '5') || ($card->card_model eq '601' && $6 == '1') ){
+			if ($card->card_model eq '200' || $card->card_model eq '400' || $card->card_model eq '600' || $card->card_model eq '800' || ($card->card_model eq '700' && $6 == '5') || ($card->card_model eq '601' && $6 == '1') ){
 				$num_analog_devices_total++;
 				if($silent==$FALSE) {
 					system('clear');
@@ -3528,7 +3547,7 @@ sub config_tdmv_dummy
 		
 		if(&prompt_user_list("YES", "NO" ,"") =~ m/YES/){
 #			 
-		$command=("sed -i -e 's/TDMV_DUMMY.*/\TDMV_DUMMY_REF = YES/' $current_dir/$cfg_dir/wanpipe1.conf");
+		$command=("sed -i -e 's/RM_BRI_CLOCK_MASTER.*/\RM_BRI_CLOCK_MASTER  = YES/' $current_dir/$cfg_dir/wanpipe1.conf");
 		
 			if ( system($command) == 0){
 				printf("TDMV $zaptel_string Timer Enabled\n");
@@ -3774,18 +3793,19 @@ sub write_freetdm_conf{
 	my $freetdm='';
 	$freetdm.="\n";
 	
+	$freetdm.="[span wanpipe boostpri]\n";
 	if(@boostprispan){
 		foreach my $span (@boostprispan){
 			my $boostprispan=$span;
-			$freetdm.="[span wanpipe wp";
-			$freetdm.=$boostprispan->span_no();
-			$freetdm.="]\n";
-			$freetdm.="number =>";
-			$freetdm.=$boostprispan->span_no()."\n";
-			$freetdm.="trunk_type =>";
-		    	$freetdm.=$boostprispan->span_type()."\n";
-			$freetdm.="group=>grp";
-			$freetdm.=$boostprispan->group_no()."\n";
+			#$freetdm.="[span wanpipe boostpri]\n";
+			if($boostprispan->span_type() eq 't1')
+			{
+				$freetdm.="trunk_type => t1\n";
+			}
+			if($boostprispan->span_type() eq 'e1')
+			{
+				$freetdm.="trunk_type => e1\n";
+			}
 			$freetdm.="b-channel => ";
 			$freetdm.=$boostprispan->span_no();
 			$freetdm.=":";
@@ -3804,32 +3824,34 @@ sub write_freetdm_conf{
 	}
 	$freetdm.="\n\n";
 
-#	if(@boostbrispan){
-#		$openzap.="[span wanpipe smg_brid]\n";
-#		$openzap.="name => smg_brid\n";
-#		$openzap.="trunk_type => bri\n";
-#		foreach my $span (@boostbrispan){
-#			my $boostbrispan=$span;
-#			$openzap.="b-channel => ";
-#			$openzap.=$boostbrispan->span_no();
-#			$openzap.=":";
-#			$openzap.=$boostbrispan->chan_no();
-#			$openzap.="\n";
-#		}
+	if(@boostbrispan){
+		$freetdm.="[span wanpipe smg_brid]\n";
+		$freetdm.="name => smg_brid\n";
+		#$freetdm.="trunk_type => bri\n";
+		foreach my $span (@boostbrispan){
+			my $boostbrispan=$span;
+			$freetdm.="b-channel => ";
+			$freetdm.=$boostbrispan->span_no();
+			$freetdm.=":";
+			$freetdm.=$boostbrispan->chan_no();
+			$freetdm.="\n";
+		}
 		
-#	}
-#	$openzap.="\n\n";
+	}
+	$freetdm.="\n\n";
 
 	if(@fxsspan){
 		$freetdm.="[span wanpipe FXS]\n";
 		$freetdm.="name => freetdm\n";
 		foreach my $span (@fxsspan){
 			my $fxsspan=$span;
+			$freetdm.="trunk_type => fxs\n";
+			$freetdm.="group => grp1\n";
 			$freetdm.="fxs-channel => ";
 			$freetdm.=$fxsspan->span_no();
 			$freetdm.=":";
 			$freetdm.=$fxsspan->chan_no();
-			$freetdm.="\n";
+			$freetdm.="\n\n";
 		}
 	$freetdm.="\n\n";
 	}
@@ -3838,11 +3860,13 @@ sub write_freetdm_conf{
 		$freetdm.="name => freetdm\n";
 		foreach my $span (@fxospan){
 			my $fxospan=$span;
+			$freetdm.="trunk_type => fxo\n";
+			$freetdm.="group => grp2\n";
 			$freetdm.="fxo-channel => ";
 			$freetdm.=$fxospan->span_no();
 			$freetdm.=":";
 			$freetdm.=$fxospan->chan_no();
-			$freetdm.="\n";
+			$freetdm.="\n\n";
 		}
 		
 	}
@@ -4017,7 +4041,7 @@ sub write_openzap_conf_xml{
 
 	if(@boostprispan){
 		#add boost pri conf
-		$openzap_boostpri.='<span id="smg_prid">'."\n\t";
+		$openzap_boostpri.='<span name="smg_prid">'."\n\t";
 		$openzap_boostpri.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
 		$openzap_boostpri.='<param name="dialplan" value="XML"/>'."\n\t";
 		$openzap_boostpri.='<param name="context" value="default"/>'."\n\t";;
@@ -4030,7 +4054,7 @@ sub write_openzap_conf_xml{
 	}
 	if(@boostbrispan){
 		#add boost bri conf
-		$openzap_boostbri.='<span id="smg_brid">'."\n\t";
+		$openzap_boostbri.='<span name="smg_brid">'."\n\t";
 		$openzap_boostbri.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
 		$openzap_boostbri.='<param name="dialplan" value="XML"/>'."\n\t";
 		$openzap_boostbri.='<param name="context" value="default"/>'."\n\t";;
@@ -4042,7 +4066,7 @@ sub write_openzap_conf_xml{
 	}
 	
 	if(@fxsspan){
-		$openzap_fxs.='<span id="FXS">'."\n\t";
+		$openzap_fxs.='<span name="FXS">'."\n\t";
 		$openzap_fxs.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
 		$openzap_fxs.='<param name="dialplan" value="XML"/>'."\n\t";
 		$openzap_fxs.='<param name="context" value="default"/>'."\n\t";;
@@ -4053,7 +4077,7 @@ sub write_openzap_conf_xml{
 		$openzap_fxs.='</span>'."\n";
 	}
 	if(@fxospan){
-		$openzap_fxo.='<span id="FXO">'."\n\t";
+		$openzap_fxo.='<span name="FXO">'."\n\t";
 		$openzap_fxo.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
 		$openzap_fxo.='<param name="dialplan" value="XML"/>'."\n\t";
 		$openzap_fxo.='<param name="context" value="default"/>'."\n\t";;
@@ -4092,43 +4116,45 @@ sub write_freetdm_conf_xml{
 	if(@boostprispan){
 		#add boost pri conf
 		#$freetdm_boostpri.='<span id="smg_prid">'."\n\t";
-		foreach my $span (@boostprispan){
-			my $boostprispan=$span;
+		#foreach my $span (@boostprispan){
+		#	my $boostprispan=$span;
 			#print "YANNCIK IN WRITE_FREETDM_CONF_XML function\n";
-			$freetdm_boostpri.='<span wanpipe "wp';
-			$freetdm_boostpri.=$boostprispan->span_no();
-			$freetdm_boostpri.='" sigmod="sangoma_prid">'."\n\t";
-			$freetdm_boostpri.='<param name="signalling" value="';
-			if ($boostprispan->sig_mode() eq "PRI CPE"){
-				$ftdm_signalling='pri_cpe';
-			}
-			if ($boostprispan->sig_mode() eq "PRI NET"){
-				$ftdm_signalling = "pri_net";
-			}
-			$freetdm_boostpri.=$ftdm_signalling;#$boostprispan->sig_mode();
-			$freetdm_boostpri.='"/>'."\n\t";
-			$freetdm_boostpri.='<param name="switchtype" value="';
-			$freetdm_boostpri.=$boostprispan->switch_type();;
-			$freetdm_boostpri.='"/>'."\n\t";
+			$freetdm_boostpri.='<span name="boostpri">'."\n\t\t";
+        	        $freetdm_boostpri.='<param name="dialplan" value="XML"/>'."\n\t\t";
+	                $freetdm_boostpri.='<param name="context" value="default"/>'."\n\t";;
+			#$freetdm_boostpri.=$boostprispan->span_no();
+			#$freetdm_boostpri.='" sigmod="sangoma_prid">'."\n\t";
+			#$freetdm_boostpri.='<param name="signalling" value="';
+			#if ($boostprispan->sig_mode() eq "PRI CPE"){
+			#	$ftdm_signalling='pri_cpe';
+			#}
+			#if ($boostprispan->sig_mode() eq "PRI NET"){
+			#	$ftdm_signalling = "pri_net";
+			#}
+			#$freetdm_boostpri.=$ftdm_signalling;#$boostprispan->sig_mode();
+			#$freetdm_boostpri.='"/>'."\n\t";
+			#$freetdm_boostpri.='<param name="switchtype" value="';
+			#$freetdm_boostpri.=$boostprispan->switch_type();;
+			#$freetdm_boostpri.='"/>'."\n\t";
 			$freetdm_boostpri.='</span>'."\n\t";
-		}
 	}
+	
 
-#	if(@boostbrispan){
+	if(@boostbrispan){
 		#add boost bri conf
-		#$openzap_boostbri.='<span id="smg_brid">'."\n\t";
-		#$openzap_boostbri.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
-		#$openzap_boostbri.='<param name="dialplan" value="XML"/>'."\n\t";
-		#$openzap_boostbri.='<param name="context" value="default"/>'."\n\t";;
-		#$openzap_boostbri.=' <!-- regex to stop dialing when it matches -->'."\n\t";
-    	#$openzap_boostbri.='<!--<param name="dial-regex" value="5555"/>-->'."\n\t";
-    	#$openzap_boostbri.='<!-- regex to stop dialing when it does not match -->'."\n\t";
-     	#$openzap_boostbri.='<!--<param name="fail-dial-regex" value="^5"/>-->'."\n";
-		#$openzap_boostbri.='</span>'."\n";
-	#}
+		$freetdm_boostbri.='<span name="smg_brid">'."\n\t";
+		$freetdm_boostbri.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
+		$freetdm_boostbri.='<param name="dialplan" value="XML"/>'."\n\t";
+		$freetdm_boostbri.='<param name="context" value="default"/>'."\n\t";;
+		$freetdm_boostbri.=' <!-- regex to stop dialing when it matches -->'."\n\t";
+    	$freetdm_boostbri.='<!--<param name="dial-regex" value="5555"/>-->'."\n\t";
+    	$freetdm_boostbri.='<!-- regex to stop dialing when it does not match -->'."\n\t";
+     	$freetdm_boostbri.='<!--<param name="fail-dial-regex" value="^5"/>-->'."\n";
+		$freetdm_boostbri.='</span>'."\n";
+	}
 	
 	if(@fxsspan){
-		$freetdm_fxs.='<span id="FXS">'."\n\t";
+		$freetdm_fxs.='<span name="FXS">'."\n\t";
 		$freetdm_fxs.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
 		$freetdm_fxs.='<param name="dialplan" value="XML"/>'."\n\t";
 		$freetdm_fxs.='<param name="context" value="default"/>'."\n\t";;
@@ -4139,7 +4165,7 @@ sub write_freetdm_conf_xml{
 		$freetdm_fxs.='</span>'."\n";
 	}
 	if(@fxospan){
-		$freetdm_fxo.='<span id="FXO">'."\n\t";
+		$freetdm_fxo.='<span name="FXO">'."\n\t";
 		$freetdm_fxo.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
 		$freetdm_fxo.='<param name="dialplan" value="XML"/>'."\n\t";
 		$freetdm_fxo.='<param name="context" value="default"/>'."\n\t";;
@@ -4159,7 +4185,7 @@ sub write_freetdm_conf_xml{
 
 	#$freetdm_xml_file=$freetdm_file.$freetdm;	
 	$freetdm_xml_file=~ s/<!--BOOSTPRI-->/$freetdm_boostpri/g;
-	#$openzap_xml_file=~ s/<!--BOOSTBRI-->/$freetdm_boostbri/g;
+	$freetdm_xml_file=~ s/<!--BOOSTBRI-->/$freetdm_boostbri/g;
 	$freetdm_xml_file=~ s/<!--SANGOMA_FXS-->/$freetdm_fxs/g;
 	$freetdm_xml_file=~ s/<!--SANGOMA_FXO-->/$freetdm_fxo/g;
 	open(FH, ">$freetdm_conf_xml_file") or die "cannot open $freetdm_conf_xml_file";

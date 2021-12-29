@@ -851,6 +851,9 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	if (hw_cnt->aft_b601_adapters){
 		PROC_ADD_LINE(m, "B601=%d ", hw_cnt->aft_b601_adapters);
 	}
+        if (hw_cnt->aft_b800_adapters){
+                PROC_ADD_LINE(m, "B800=%d ", hw_cnt->aft_b800_adapters);
+        }
 	PROC_ADD_LINE(m, "\n");
 
 	PROC_ADD_RET(m);
@@ -994,6 +997,9 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 	if (hw_cnt->aft_b601_adapters){
 		PROC_ADD_LINE(m, "B601=%d ", hw_cnt->aft_b601_adapters);
 	}
+        if (hw_cnt->aft_b800_adapters){
+                PROC_ADD_LINE(m, "B800=%d ", hw_cnt->aft_b800_adapters);
+        }
 	PROC_ADD_LINE(m, "\n");
 
 	PROC_ADD_RET(m);

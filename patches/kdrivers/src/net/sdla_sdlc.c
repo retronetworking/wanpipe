@@ -16,7 +16,7 @@
 #include <linux/wanpipe_includes.h>
 #include <linux/wanpipe_defines.h>
 #include <linux/wanpipe.h>	/* WANPIPE common user API definitions */
-#include <linux/wanrouter.h>	/* WAN router definitions */
+#include <linux/wanpipe_wanrouter.h>	/* WAN router definitions */
 #include <linux/sdlapci.h>
 #include <linux/wanproc.h>	
 #include <linux/if_wanpipe_common.h>    /* Socket Driver common area */

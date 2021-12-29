@@ -1,1 +1,0 @@
-cmd_/root/development/3.5/wanpipe-3.5.12/patches/kdrivers/src/net/sdladrv.ko := ld -m elf_i386 -m elf_i386 -r -o /root/development/3.5/wanpipe-3.5.12/patches/kdrivers/src/net/sdladrv.ko /root/development/3.5/wanpipe-3.5.12/patches/kdrivers/src/net/sdladrv.o /root/development/3.5/wanpipe-3.5.12/patches/kdrivers/src/net/sdladrv.mod.o

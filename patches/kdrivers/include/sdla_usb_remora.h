@@ -17,9 +17,9 @@
 # define __SDLA_USB_REMORA_H
 
 #ifdef __SDLA_REMORA_SRC
-# define EXTERN
+# define WP_EXTERN
 #else
-# define EXTERN extern
+# define WP_EXTERN extern
 #endif
 
 /*******************************************************************************
@@ -110,5 +110,5 @@
 *******************************************************************************/
 extern int	wp_usb_remora_iface_init(void*, void*);
 
-#undef EXTERN
+#undef WP_EXTERN
 #endif	/* __SDLA_USB_REMORA_H */

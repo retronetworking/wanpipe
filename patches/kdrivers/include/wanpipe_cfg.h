@@ -50,6 +50,12 @@ For example: a number of DLCIs. */
 #define LOWEST_VALID_DLCI	16
 /********** end of sprotocol.dll definitions ************/
 
+
+/* string definitions shared with the Driver via Registry */
+#define WP_REGSTR_USER_SPECIFIED_WANPIPE_NUMBER "UserWanpipeNumber"
+
+
+
 #pragma warning( disable : 4200 )	/* zero-sized array in struct */
 #endif/* __WINDOWS__ */
 
@@ -564,12 +570,12 @@ typedef struct x25_parms_struct {
 	unsigned short CCITT_facilities_supported;
 	unsigned short non_X25_facilities_supported;
 	unsigned short CCITT_compatibility;
-	unsigned short T10_T20;
-	unsigned short T11_T21;
-	unsigned short T12_T22;
-	unsigned short T13_T23;
-	unsigned short T16_T26;
-	unsigned short T28;
+	unsigned int T10_T20;
+	unsigned int T11_T21;
+	unsigned int T12_T22;
+	unsigned int T13_T23;
+	unsigned int T16_T26;
+	unsigned int T28;
 	unsigned short R10_R20;
 	unsigned short R12_R22;
 	unsigned short R13_R23;

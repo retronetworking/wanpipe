@@ -855,7 +855,6 @@ int sangoma_interface::get_interface_configuration(if_cfg_t *wanif_conf_ptr)
 
 void sangoma_interface::get_api_driver_version (PDRIVER_VERSION version)
 {
-
 	int err;
 
 	SANGOMA_INIT_TDM_API_CMD(wp_api);
@@ -864,30 +863,18 @@ void sangoma_interface::get_api_driver_version (PDRIVER_VERSION version)
 		ERR_IFACE("Error: command READ_CODE_VERSION failed!\n");
 		return;
 	}
-
-	INFO_IFACE("\nAPI version\t: %d,%d,%d,%d\n",
-		version->major, version->minor, version->minor1, version->minor2);
-	INFO_IFACE("\n");
-
-	INFO_IFACE("Command READ_CODE_VERSION was successful.\n");
 }
 
 void sangoma_interface::get_card_customer_id(u_int8_t *customer_id)
 {
-	wan_udp.wan_udphdr_command = WANPIPEMON_AFT_CUSTOMER_ID;
-	wan_udp.wan_udphdr_data_len = 0;
+	int err;
 
-	DO_COMMAND(wan_udp);
-	if(wan_udp.wan_udphdr_return_code){
-		ERR_IFACE("Error: command SIOC_AFT_CUSTOMER_ID failed!\n");
+	err = sangoma_get_aft_customer_id(sangoma_dev, customer_id);
+	if (err) {
+		ERR_IFACE("Error: sangoma_get_aft_customer_id() failed! err: %s (%d)\n",
+			SDLA_DECODE_SANG_STATUS(err), err);
 		return;
 	}
-
-	*customer_id = get_wan_udphdr_data_byte(0);
-
-	INFO_IFACE("\nCard Customer ID\t: 0x%02X\n", *customer_id);
-
-	INFO_IFACE("Command SIOC_AFT_CUSTOMER_ID was successful.\n");
 }
 
 int sangoma_interface::get_open_handles_counter()

@@ -88,8 +88,6 @@
 #define MAX_TDM_API_CHANNELS 32
 
 static int wp_tdmapi_global_cnt=0;
-static u8 *rx_gains=NULL;
-static u8 *tx_gains=NULL;
 static wanpipe_tdm_api_dev_t tdmapi_ctrl;
 
 /*==============================================================
@@ -299,9 +297,17 @@ static void wp_tdmapi_free_buffs(wanpipe_tdm_api_dev_t *tdm_api)
 		tdm_api->tx_skb=NULL;
 	}
 
-	tdm_api->rx_gain=NULL;
-	tdm_api->tx_gain=NULL;
+	if (tdm_api->rx_gain) {
+		uint8_t *rx_gains=tdm_api->rx_gain;
+		tdm_api->rx_gain=NULL;
+		wan_free(rx_gains);
+	}
 
+	if (tdm_api->tx_gain){
+		uint8_t *tx_gains=tdm_api->tx_gain;
+		tdm_api->tx_gain=NULL;
+		wan_free(tx_gains);
+	}
 }	
 
 
@@ -353,9 +359,6 @@ static inline void wp_wakeup_tx_tdmapi(wanpipe_tdm_api_dev_t *tdm_api)
 static int wp_tdmapi_reg_globals(void)
 {
 	int err=0;
-
-	rx_gains=NULL;
-	tx_gains=NULL;
 
 		/* Header Sanity Check */
 	if ((sizeof(wp_api_hdr_t)!=WAN_MAX_HDR_SZ) ||
@@ -511,15 +514,6 @@ static int wp_tdmapi_unreg_globals(void)
 	DEBUG_TDMAPI("%s(): Unregistering Clrl Devices!\n",__FUNCTION__);
 
 	wp_ctrl_dev_delete();
-
-	if (tx_gains) {
-		wan_free(tx_gains);
-		tx_gains=NULL;
-	}
-	if (rx_gains) {
-		wan_free(rx_gains);
-		rx_gains=NULL;
-	}
 
 	WAN_DEBUG_FUNC_END;
 
@@ -1111,8 +1105,6 @@ static int wp_tdmapi_open(void *obj)
 
 		wp_tdmapi_init_buffs(tdm_api, WP_API_FLUSH_ALL);
 	
-		tdm_api->rx_gain=NULL;
-		tdm_api->tx_gain=NULL;
 		tdm_api->cfg.loop=0;
 	}
 
@@ -1128,6 +1120,23 @@ static int wp_tdmapi_open(void *obj)
 #ifdef DEBUG_API_READ
 static int gread_cnt=0;
 #endif
+
+static __inline int wp_tdmapi_set_gain(netskb_t *skb, char *gain)
+{
+ 	if (skb && gain && wan_skb_len(skb) > sizeof(wp_api_hdr_t)) {
+		int i;
+		int len = wan_skb_len(skb)- sizeof(wp_api_hdr_t);
+		u8 *buf=(u8*)wan_skb_data(skb);
+		buf=&buf[sizeof(wp_api_hdr_t)];
+		for (i=0;i<len;i++) {
+			buf[i]=gain[buf[i]];
+		}
+	} else {
+     	return -1;
+	}
+
+	return 0;
+}
 
 static int wp_tdmapi_read_msg(void *obj , netskb_t **skb_ptr, wp_api_hdr_t *hdr, int count)
 {
@@ -1227,6 +1236,7 @@ static int wp_tdmapi_read_msg(void *obj , netskb_t **skb_ptr, wp_api_hdr_t *hdr,
 			u_buf = &u_buf[sizeof(wp_api_hdr_t)];
 
 			buf=wan_skb_put(nskb,single_len);
+
 			memcpy(buf,u_buf,single_len);
 
 			wan_skb_queue_tail(&tdm_api->wp_dealloc_list,skb);
@@ -1248,6 +1258,10 @@ static int wp_tdmapi_read_msg(void *obj , netskb_t **skb_ptr, wp_api_hdr_t *hdr,
 	if (!skb){
 		hdr->wp_api_hdr_operation_status = SANG_STATUS_NO_DATA_AVAILABLE;
 		return -ENOBUFS;
+	}
+		
+	if (tdm_api->rx_gain) {
+		wp_tdmapi_set_gain(skb,tdm_api->rx_gain);
 	}
 
 #ifdef DEBUG_API_READ
@@ -1320,9 +1334,6 @@ static int wp_tdmapi_read_msg(void *obj , netskb_t **skb_ptr, wp_api_hdr_t *hdr,
 				wan_skb_len(skb), skb);
 
 	return 0;
-
-#undef wptdm_queue_lock_irq
-#undef wptdm_queue_unlock_irq
 }
 
 
@@ -1530,6 +1541,10 @@ static int wp_tdmapi_write_msg(void *obj, netskb_t *skb, wp_api_hdr_t *hdr)
 	hdr->wp_api_hdr_data_length = wan_skb_len(skb)-sizeof(wp_api_hdr_t);
 
 	if (WPTDM_SPAN_OP_MODE(tdm_api) || tdm_api->hdlc_framing) {
+
+		if (tdm_api->tx_gain && !tdm_api->hdlc_framing) {
+			wp_tdmapi_set_gain(skb,tdm_api->tx_gain);
+		}
 		
 		wan_skb_pull(skb,sizeof(wp_api_hdr_t));
 
@@ -1571,6 +1586,10 @@ static int wp_tdmapi_write_msg(void *obj, netskb_t *skb, wp_api_hdr_t *hdr)
 #endif
 	
 		card = tdm_api->card;
+
+		if (tdm_api->tx_gain) {
+			wp_tdmapi_set_gain(skb,tdm_api->tx_gain);
+		}
 
 		wptdm_os_lock_irq(&card->wandev.lock,&irq_flags);
 		wan_skb_queue_tail(&tdm_api->wp_tx_list, skb);
@@ -1884,6 +1903,11 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 			tdm_api->name,cmd,sizeof(wanpipe_api_cmd_t),sizeof(wp_api_hdr_t), sizeof(wp_api_event_t));
 
 	wan_mutex_lock(&tdm_api->lock,&flags);
+
+
+	/* Set the span/channel so that user knows which channel its using */
+    usr_tdm_api.chan=channel;
+	usr_tdm_api.span=wp_tdmapi_get_span(card);
 
 	/* Commands for HDLC Device */
 
@@ -2436,13 +2460,16 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 	case WP_API_CMD_SET_RX_GAINS:
 
 		if (usr_tdm_api.data_len && utdmapi->data) {
-
+			uint8_t *rx_gains;
+			
 			if (usr_tdm_api.data_len != 256) {
 				usr_tdm_api.result=SANG_STATUS_INVALID_PARAMETER;
 				err=-EINVAL;
 				break;
 			}
-			
+
+			rx_gains = tdm_api->rx_gain;
+					
 			wan_mutex_unlock(&tdm_api->lock, &flags); 	
 
 			if (!rx_gains) {
@@ -2463,7 +2490,7 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 			}
 
 			wan_mutex_lock(&tdm_api->lock,&flags);
-
+			
 			tdm_api->rx_gain = rx_gains;
 
 		} else {
@@ -2480,12 +2507,16 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 	case WP_API_CMD_SET_TX_GAINS:
 
 		if (usr_tdm_api.data_len && utdmapi->data) {
+			uint8_t *tx_gains;
+			
 			if (usr_tdm_api.data_len != 256) {
 				usr_tdm_api.result=SANG_STATUS_INVALID_PARAMETER;
 				err=-EINVAL;
 				break;
 			}
 
+			tx_gains = tdm_api->tx_gain;
+			
 			wan_mutex_unlock(&tdm_api->lock, &flags);
 
 			if (!tx_gains) {
@@ -2505,7 +2536,7 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 				goto tdm_api_unlocked_exit;
 			}
 			wan_mutex_lock(&tdm_api->lock,&flags);
-
+			
 			tdm_api->tx_gain = tx_gains;
 
 		} else {
@@ -2518,11 +2549,21 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 
 
 	case WP_API_CMD_CLEAR_RX_GAINS:
-		tdm_api->rx_gain = NULL;
+		if (tdm_api->rx_gain) {
+			int i;
+			for (i=0;i<256;i++) {
+				tdm_api->rx_gain[i]=i;
+			}
+		}
 		break;
 
 	case WP_API_CMD_CLEAR_TX_GAINS:
-		tdm_api->tx_gain = NULL;
+		if (tdm_api->tx_gain) {
+			int i;
+			for (i=0;i<256;i++) {
+				tdm_api->tx_gain[i]=i;
+			}
+		}
 		break;
 
 	case WP_API_CMD_FLUSH_BUFFERS:
@@ -2690,6 +2731,7 @@ tdm_api_exit:
 tdm_api_unlocked_exit:
 
 	usr_tdm_api.result = err;
+
 
 #if defined(__WINDOWS__)
 	/* udata is a pointer to wanpipe_api_cmd_t */
@@ -3016,8 +3058,7 @@ wanpipe_tdm_api_event_ioctl(wanpipe_tdm_api_dev_t *tdm_api, wanpipe_api_cmd_t *t
 		event_ctrl.rm_gain	= tdm_event->wp_api_event_gain_value;
 		event_ctrl.mod_no	= channel;
 		break;
-
-
+		
 	default:
 		DEBUG_EVENT("%s: Unknown TDM API Event Type %02X!\n",
 				tdm_api->name,

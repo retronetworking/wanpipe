@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 45
-/svn/libsangoma/!svn/ver/291/trunk/sample_cpp
+/svn/libsangoma/!svn/ver/294/trunk/sample_cpp
 END
 sangoma_port.h
 K 25
@@ -9,23 +9,23 @@ svn:wc:ra_dav:version-url
 V 60
 /svn/libsangoma/!svn/ver/278/trunk/sample_cpp/sangoma_port.h
 END
-sources
-K 25
-svn:wc:ra_dav:version-url
-V 53
-/svn/libsangoma/!svn/ver/291/trunk/sample_cpp/sources
-END
 sample.vcproj
 K 25
 svn:wc:ra_dav:version-url
 V 59
 /svn/libsangoma/!svn/ver/248/trunk/sample_cpp/sample.vcproj
 END
+sources
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/libsangoma/!svn/ver/291/trunk/sample_cpp/sources
+END
 sangoma_interface.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 67
-/svn/libsangoma/!svn/ver/288/trunk/sample_cpp/sangoma_interface.cpp
+/svn/libsangoma/!svn/ver/294/trunk/sample_cpp/sangoma_interface.cpp
 END
 sample_linux_compat.h
 K 25

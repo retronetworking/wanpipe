@@ -1,13 +1,13 @@
 K 25
 svn:wc:ra_dav:version-url
 V 43
-/svn/libsangoma/!svn/ver/292/trunk/sample_c
+/svn/libsangoma/!svn/ver/299/trunk/sample_c
 END
 lib_api.c
 K 25
 svn:wc:ra_dav:version-url
 V 53
-/svn/libsangoma/!svn/ver/289/trunk/sample_c/lib_api.c
+/svn/libsangoma/!svn/ver/299/trunk/sample_c/lib_api.c
 END
 sample-doxygen.config
 K 25
@@ -19,7 +19,7 @@ sample.c
 K 25
 svn:wc:ra_dav:version-url
 V 52
-/svn/libsangoma/!svn/ver/292/trunk/sample_c/sample.c
+/svn/libsangoma/!svn/ver/299/trunk/sample_c/sample.c
 END
 sources
 K 25
@@ -31,7 +31,7 @@ lib_api.h
 K 25
 svn:wc:ra_dav:version-url
 V 53
-/svn/libsangoma/!svn/ver/289/trunk/sample_c/lib_api.h
+/svn/libsangoma/!svn/ver/299/trunk/sample_c/lib_api.h
 END
 Makefile.Linux
 K 25

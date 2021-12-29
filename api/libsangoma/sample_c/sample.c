@@ -521,6 +521,39 @@ int handle_tdm_event(uint32_t dev_index)
 	return 0;
 }
 
+
+int handle_fe_rw (void)
+{
+	sng_fd_t	dev_fd	 = sangoma_wait_obj_get_fd(sangoma_wait_objects[0]);
+	uint8_t 	data=0;
+	int err;
+
+	if (fe_read_cmd) { 
+		err=sangoma_fe_reg_read(dev_fd,fe_read_reg,&data);
+		if (err) {
+			fprintf(stderr,"Error, sangoma_fe_reg_read failed %i\n",err);
+			return err;
+		}
+
+		printf("FE READ Reg=0x%04X Data=%02X\n", fe_read_reg,data);
+	}
+
+	if (fe_write_cmd) {
+
+		printf("FE WRITE Reg=0x%04X Data=%02X\n", fe_write_reg,fe_write_data);
+		
+		err=sangoma_fe_reg_write(dev_fd,fe_write_reg,fe_write_data);
+		if (err) {
+			fprintf(stderr,"Error, sangoma_fe_reg_write failed %i\n",err);
+			return err;
+		}
+		
+	}
+	
+	return 0;
+}
+
+
 /*!
   \fn void handle_span_chan(int open_device_counter)
   \brief Write data buffer into a file
@@ -772,6 +805,20 @@ int open_sangoma_device()
 		}
 	}
 
+	if (rx_gain_cmd) {
+		printf("Setting rx gain : %f\n", rx_gain);
+		if (sangoma_set_rx_gain(dev_fd,&tdm_api,rx_gain)) {
+			return 1;
+		}	
+	}
+
+	if (tx_gain_cmd) {
+		printf("Setting tx gain : %f\n", rx_gain);
+		if (sangoma_set_tx_gain(dev_fd,&tdm_api,tx_gain)) {
+			return 1;
+		}
+	}
+
 	if(set_codec_slinear || usr_period || set_codec_none){
 		/* display new configuration AFTER it was changed */
 		if((err=sangoma_get_full_cfg(dev_fd, &tdm_api))){
@@ -908,8 +955,14 @@ int __cdecl main(int argc, char* argv[])
 		}
 	}
 
+	if (fe_read_cmd || fe_write_cmd) {
+		handle_fe_rw();
+		goto done;
+	}
+	
 	handle_span_chan(1 /* handle a single device */);
 
+done:
 	/* returned from main loop, do the cleanup before exiting: */
 	cleanup();
 

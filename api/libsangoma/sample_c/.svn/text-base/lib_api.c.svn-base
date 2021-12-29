@@ -30,6 +30,17 @@ int		tx_delay=0;
 int		tx_data=-1;
 int		buffer_multiplier=0;
 
+int		 fe_read_cmd=0;
+uint32_t fe_read_reg=0;
+int		 fe_write_cmd=0;
+uint32_t fe_write_reg=0;
+uint32_t fe_write_data=0;
+
+float 	rx_gain=0;
+float 	tx_gain=0;
+int 	rx_gain_cmd=0;
+int 	tx_gain_cmd=0;
+
 unsigned char tx_file[WAN_IFNAME_SZ];
 unsigned char rx_file[WAN_IFNAME_SZ];
 
@@ -363,8 +374,36 @@ int init_args(int argc, char *argv[])
 			rbs_events = 1;
 		}else if(!strcmp(argv[i],"-rx2tx")){
 			rx2tx = 1;
+		}else if(!strcmp(argv[i],"-fe_reg_read")) {
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid 'flush_period' value!\n");
+			}else{
+				fe_read_cmd=1;
+				sscanf(argv[i+1],"%x",(uint32_t*)&fe_read_reg);
+			}
+		}else if(!strcmp(argv[i],"-fe_reg_write")) {
+			if (i+2 > argc-1){
+				printf("ERROR: Invalid 'flush_period' value!\n");
+			}else{
+				fe_write_cmd=1;
+				sscanf(argv[i+1],"%x",(uint32_t*)&fe_write_reg);
+				sscanf(argv[i+2],"%x",(uint32_t*)&fe_write_data);
+			}
+		}else if (!strcmp(argv[i],"-rx_gain")) {
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid 'rx_gain' value!\n");
+			}else{
+				rx_gain_cmd=1;
+				sscanf(argv[i+1],"%f",&rx_gain);
+			}
+		}else if (!strcmp(argv[i],"-tx_gain")) {
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid 'tx_gain' value!\n");
+			}else{
+				tx_gain_cmd=1;
+				sscanf(argv[i+1],"%f",&tx_gain);
+			}
 		}
-		
 	}
 
 	if (!wanpipe_port_no || !wanpipe_if_no){

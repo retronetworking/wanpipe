@@ -83,7 +83,6 @@
 #include "wanpipe_syncppp.h"
 #endif
 
-
 #if defined(__WINDOWS__)
 #include "sdladrv_private.h"	/* prototypes of global functions */
 extern
@@ -1559,18 +1558,21 @@ static void adsl_multicast(netdevice_t* dev)
 # if defined(__FreeBSD__)
 		struct ifmultiaddr*	mclist = NULL;
 # else
-		struct dev_mc_list*	mclist = NULL;
+		int x = 0;
+#ifdef CONFIG_RPS
+		struct netdev_hw_addr*	mclist = NULL;
+		netdev_for_each_mc_addr(mclist, dev) {
+		x++;
+#else
+		struct dev_mc_list* mclist = NULL;
+		for (mclist = LIST_FIRST_MCLIST(dev);mclist != NULL;x++, mclist = LIST_NEXT_MCLIST(mclist)){
+#endif
 # endif
-		int     x = 0;
-
 		mcaddrs = wan_malloc(mcount * 6);
-		for (mclist = LIST_FIRST_MCLIST(dev); 
-			mclist != NULL; 
-			x++, mclist = LIST_NEXT_MCLIST(mclist)){
 # if defined(__FreeBSD__)
 				memcpy(&(mcaddrs[x * 6]), (void*)mclist->ifma_addr, 6);
 # else
-				memcpy(&(mcaddrs[x * 6]), mclist->dmi_addr, 6);
+				memcpy(&(mcaddrs[x * 6]), WAN_MC_LIST_ADDR(mclist), 6);
 # endif
 		}
 #endif
@@ -1586,7 +1588,7 @@ static void adsl_multicast(netdevice_t* dev)
 }
 
 
-/*+F*************************************************************************
+/****************************************************************************
 * Function:
 *   GpLanStats
 *

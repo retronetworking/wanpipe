@@ -1,5 +1,6 @@
 #!/bin/sh
 
+
 if [ ! -e patches ]; then
   	echo "Error: This script must be run from wanpipe/ directory!"
 	exit 1
@@ -23,16 +24,21 @@ W_H_FILES=`find $LWH_DIR -name "*.h" | xargs`
 for file_raw in $W_H_FILES
 do
     file=${file_raw##*\/} 
+
+	if [ $file = "wanrouter.h" ]; then
+      	continue;
+	fi
+
     if [ -e $KWH_DIR/$file ]; then
       	rm -f $KWH_DIR/$file
     fi
 
     if [ $superuser = "YES" ]; then
 	    if [ -e $KWH_INC_DIR/$file ]; then
-		rm -f $KWH_INC_DIR/$file
+			rm -f $KWH_INC_DIR/$file
 	    fi
 	    if [ -e $WH_INC_DIR/$file ]; then
-		rm -f $WH_INC_DIR/$file
+			rm -f $WH_INC_DIR/$file
 	    fi
     fi
 done
@@ -43,3 +49,4 @@ if [ $superuser = "YES" ]; then
 		\mkdir -p $WH_INC_DIR
 	fi
 fi
+

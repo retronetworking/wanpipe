@@ -5688,6 +5688,7 @@ static void wp_bh_rx(private_area_t* chan, netskb_t *new_skb, u8 pkt_error, int 
 			rx_hdr->rx_h.crc=pkt_error;
 			rx_hdr->rx_h.current_number_of_frames_in_rx_queue = wan_skb_queue_len(&chan->wp_rx_complete_list);
 			rx_hdr->rx_h.max_rx_queue_length = chan->dma_per_ch;
+			rx_hdr->rx_h.errors = WP_AFT_RX_ERROR_SUM(chan->chan_stats);
 
 			err=wanpipe_tdm_api_span_rx(chan->wp_tdm_api_dev,new_skb);
 			if (err){

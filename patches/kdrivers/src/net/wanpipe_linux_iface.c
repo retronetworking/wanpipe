@@ -18,7 +18,7 @@
 
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
-# include <linux/wanrouter.h>	/* WAN router definitions */
+# include <linux/wanpipe_wanrouter.h>	/* WAN router definitions */
 # include <linux/sdladrv.h>
 # include <linux/wanpipe.h>	/* WANPIPE common user API definitions */
 # include <linux/sdlapci.h>

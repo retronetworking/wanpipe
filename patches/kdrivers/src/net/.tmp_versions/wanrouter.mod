@@ -1,2 +1,0 @@
-/root/development/3.5/wanpipe-3.5.12/patches/kdrivers/src/net/wanrouter.ko
-/root/development/3.5/wanpipe-3.5.12/patches/kdrivers/src/net/../wanrouter/wanmain.o /root/development/3.5/wanpipe-3.5.12/patches/kdrivers/src/net/../wanrouter/wanproc.o /root/development/3.5/wanpipe-3.5.12/patches/kdrivers/src/net/../wanrouter/waniface.o /root/development/3.5/wanpipe-3.5.12/patches/kdrivers/src/net/../wanrouter/wandev.o

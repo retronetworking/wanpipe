@@ -305,7 +305,7 @@ static char* sdla_ds_te1_get_fe_media_string(void)
 }
 
 /******************************************************************************
- *				sdla_ds_te1_get_fe_status()	
+ *				sdla_ds_te1_get_fe_media()	
  *
  * Description:
  * Arguments:	
@@ -5676,6 +5676,8 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 #endif
 			
 		case WAN_FE_DEBUG_REG:
+
+#if 0
 			if (fe->te_param.reg_dbg_busy){
 				if (fe_debug->fe_debug_reg.read == 2 && fe->te_param.reg_dbg_ready){
 					/* Poll the register value */
@@ -5685,16 +5687,29 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 				}
 				break;
 			}
+#endif
+
 			event.type		= (fe_debug->fe_debug_reg.read) ? 
 							TE_POLL_READ : TE_POLL_WRITE;
 			event.te_event.reg	= (u_int16_t)fe_debug->fe_debug_reg.reg;
 			event.te_event.value	= fe_debug->fe_debug_reg.value;
 			event.delay		= POLLING_TE1_TIMER;
+#if 0
 			if (fe_debug->fe_debug_reg.read){
 				fe->te_param.reg_dbg_busy = 1;
 				fe->te_param.reg_dbg_ready = 0;
 			}
+#endif
 			err=sdla_ds_te1_exec_event(fe, &event, &pending);
+
+			if (err == 0 ) {
+				if (fe_debug->fe_debug_reg.read) {
+					fe_debug->fe_debug_reg.value = fe->te_param.reg_dbg_value;
+				}
+				udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+				fe->te_param.reg_dbg_busy = 0;
+			}
+			
 			udp_cmd->wan_cmd_return_code = err;
 			break;
 		

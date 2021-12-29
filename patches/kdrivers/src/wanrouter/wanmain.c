@@ -51,7 +51,7 @@
 #include "wanpipe_debug.h"
 #include "wanpipe_common.h"
 #include "wanpipe_iface.h"
-#include "wanrouter.h"	/* WAN router API definitions */
+#include "wanpipe_wanrouter.h"	/* WAN router API definitions */
 #include "wanpipe.h"	/* WAN router API definitions */
 #include "if_wanpipe.h"
 

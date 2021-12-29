@@ -18,7 +18,7 @@
 #include "wanpipe_debug.h"
 #include "wanpipe_common.h"
 #include "wanpipe_iface.h"
-#include "wanrouter.h"	
+#include "wanpipe_wanrouter.h"	
 #include "wanpipe.h"
 #include "wanpipe_api.h"
 #include "wanpipe_cdev_iface.h"

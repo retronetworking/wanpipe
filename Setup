@@ -837,6 +837,7 @@ update_wanpipe_drivers ()
 {
 	local res=;
 
+
 	echo
 	echo -n "Upgrading ${DISTR_NAME} kernel documentation ..."
 	cd $PROD_HOME
@@ -855,7 +856,7 @@ update_wanpipe_drivers ()
 	echo -e "Done.\n"
 	
 	echo
-	echo -n "Upgrading ${DISTR_NAME} kernel headers ..."
+	echo -n "Installing ${DISTR_NAME} include headers ..."
 
 	if [ ! -d $SOURCEDIR/include/linux ]; then
 		echo
@@ -865,167 +866,9 @@ update_wanpipe_drivers ()
 		return 1
 	fi
 
+	eval "./patches/clean_old_wanpipe.sh $DRIVER_INC_DIR $SOURCEDIR/include/linux"
+
 	wan_update_headers;  
-
-	cd $DRIVER_UPDATE_DIR/include/
-
-
-	echo -n "Upgrading ${DISTR_NAME} kernel drivers ..."
-		
-	if [ -d $SOURCEDIR/$LINUXDRIVERS_WAN ]; then
-		cd $DRIVER_UPDATE_DIR/src/wanrouter
-	
-		echo $PROD_VER > $SOURCEDIR/net/wanrouter/patchlevel
-	
-		eval "cp -f *.c $SOURCEDIR/$LINUXDRIVERS_WAN 2> /dev/null"
-		if [ $? -ne 0 ]; then
-			echo -e "Failed!\n"
-			return 1
-		fi
-	fi
-
-	if [ -d $SOURCEDIR/$LINUXDRIVERS_NET ]; then
-		cd $DRIVER_UPDATE_DIR/src/net
-
-		eval "cp -f *.c $SOURCEDIR/$LINUXDRIVERS_NET 2> /dev/null"
-		if [ $? -eq 0 ]; then
-			echo -e "Done.\n"
-		else
-			echo -e "Failed!\n"
-			return 1
-		fi
-	else
-		echo -e "Done.\n"
-	fi
-
-	#The latest release 2.2.3 and above contain two extra files
-	#sdla_te1.c sdla_56k.c.  The kernel make files must be updated
-	#when we perform the module updates.  
-
-	cd $SOURCEDIR
-	
-	if [ $KPATCH -eq 2 ]; then 
-
-		res=`grep sdla_56k.o drivers/net/Makefile` 
-		if [ "$res" = "" ]; then
-			echo "Updating $SOURCEDIR/drivers/net/Makefile"
-			\cp -f $PROD_HOME/patches/$MAKE_PATCH_22X .
-			patch -p1 < $MAKE_PATCH_22X > /dev/null 2> /dev/null
-			\rm -f $MAKE_PATCH_22X
-		fi
-
-		res=`grep wanpipe_utils.o drivers/net/Makefile`
-		if [ "$res" = "" ]; then
-			echo "Updating $SOURCEDIR/drivers/net/Makefile"
-			\cp -f $PROD_HOME/patches/$MAKE_UTILS_PATCH_22X .	
-			patch -p1 < $MAKE_UTILS_PATCH_22X > /dev/null 2> /dev/null
-			rm -f $MAKE_UTILS_PATCH_22X
-		fi
-
-	
-	elif [ $KPATCH -eq 4 ]; then
-
-		ORIGMAKE="drivers/net/wan/Makefile"
-		NEWMAKE="drivers/net/wan/Makefile.nex"
-
-		cp $ORIGMAKE $ORIGMAKE.orig
-
-		res=`grep sdla_56k.o drivers/net/wan/Makefile` 
-		if [ "$res" = "" ]; then
-
-			echo "Updating T1/E1 in $SOURCEDIR/drivers/net/wan/Makefile"
-
-			cat $ORIGMAKE | awk '{ gsub("sdla_ft1.o", "sdla_ft1.o sdla_56k.o sdla_te1.o ") ; print }' > $NEWMAKE
-			mv $NEWMAKE $ORIGMAKE
-		fi
-
-		res=`grep wanpipe_utils.o drivers/net/wan/Makefile` 
-		if [ "$res" = "" ]; then
-
-			echo "Updating Utils in $SOURCEDIR/drivers/net/wan/Makefile"
-
-			cat $ORIGMAKE | awk '{ gsub("sdla_ft1.o", "sdla_ft1.o wanpipe_utils.o ") ; print }' > $NEWMAKE
-			mv $NEWMAKE $ORIGMAKE
-		fi
-
-
-		res=`grep wanpipe_abstr.o drivers/net/wan/Makefile` 
-		if [ "$res" = "" ]; then
-
-			echo "Updating Abstr in $SOURCEDIR/drivers/net/wan/Makefile"
-
-			cat $ORIGMAKE | awk '{ gsub("sdla_ft1.o", "sdla_ft1.o wanpipe_abstr.o ") ; print }' > $NEWMAKE
-			mv $NEWMAKE $ORIGMAKE
-		fi
-
-
-		res=`grep wanpipe_syncppp.o drivers/net/wan/Makefile` 
-		if [ "$res" = "" ]; then
-
-			echo "Updating Syncppp in $SOURCEDIR/drivers/net/wan/Makefile"
-
-			cat $ORIGMAKE | awk '{ gsub("export-objs.*=\t", "export-objs =\twanpipe_syncppp.o ") ; print }' > $NEWMAKE
-			mv $NEWMAKE $ORIGMAKE
-
-		fi
-
-		res=`grep wanpipe_multppp.o drivers/net/wan/Makefile` 
-		if [ $? -ne 0 ]; then
-
-			echo "Updating MultPPP in $SOURCEDIR/drivers/net/wan/Makefile"
-		
-			cat $ORIGMAKE | awk '{ gsub("sdla_ppp.o", "sdla_ppp.o\nwanpipe-$(CONFIG_WANPIPE_MULTPPP) += wanpipe_multppp.o"); print }' > $NEWMAKE
-			mv $NEWMAKE $ORIGMAKE
-		fi
-
-		
-		res=`grep sdla_mp_fr.o drivers/net/wan/Makefile` 
-		if [ "$res" = "" ]; then
-
-			echo "Updating MultFR in $SOURCEDIR/drivers/net/wan/Makefile"
-			
-			cat $ORIGMAKE | awk '{ gsub("wanpipe_multppp.o", "wanpipe_multppp.o\nwanpipe-$(CONFIG_WANPIPE_MULTFR) += sdla_mp_fr.o"); print }' > $NEWMAKE
-
-			mv $NEWMAKE $ORIGMAKE
-
-		fi
-
-		rm -f $NEWMAKE
-
-
-		ORIGMAKE=net/wanrouter/Makefile
-		NEWMAKE=net/wanrouter/Makefile.nex
-
-		cp $ORIGMAKE $ORIGMAKE.orig
-
-		res=`grep af_wanpipe net/wanrouter/Makefile`
-		if [ "$res" = "" ]; then
-
-			cat $ORIGMAKE | awk '{ gsub("obj-m.*:=", "obj-m :=  af_wanpipe.o"); print }' > $NEWMAKE
-	
-			mv $NEWMAKE $ORIGMAKE
-
-			echo "Updating af_wanpipe in $SOURCEDIR/net/wanrouter/Makefile"
-
-		fi
-
-		res=`grep waniface.o net/wanrouter/Makefile`
-		if [ "$res" = "" ]; then
-
-			cat $ORIGMAKE | awk '{ gsub("obj-y.*:=", "obj-y :=  waniface.o"); print }' > $NEWMAKE
-			mv $NEWMAKE $ORIGMAKE
-
-			cat $ORIGMAKE | awk '{ gsub("export-objs.*:=", "export-objs :=  waniface.o"); print }' > $NEWMAKE
-			mv $NEWMAKE $ORIGMAKE
-
-			echo "Updating Waniface in $SOURCEDIR/net/wanrouter/Makefile"
-
-		fi
-
-
-		rm -f $NEWMAKE
-		
-	fi
 
 	cd $PROD_HOME	
 	return 0
@@ -2114,7 +1957,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 		echo -e "\n\t\t!!! ${DISTR_NAME} Tools Compilation Failed !!!"
 		echo -e "\tPossible solution:"
 		echo -e "\t\t Wanpipe header files were not installed properly"
-		echo -e "\t\t in $SOURCEDIR/include directory"
+		echo -e "\t\t in $WANPIPE_INCLUDE_DIR directory"
 		echo -e "\tPlease contact Sangoma Tech. at 905 474-1990\n"
 		pause
 		return 1
@@ -2315,6 +2158,7 @@ clean_up ()
 	
 	[ -f "/etc/router.rc" ] && rm -f /etc/router.rc
 
+	eval "./patches/restore_wanrouter.sh"
 }
 
 get_distrib()
@@ -2472,11 +2316,11 @@ function wan_get_kernel_flags()
 
 	tmp1=$tmp;
 
-	tmp=${tmp1//-Iinclude\//-I$SOURCEDIR\/include/}
+	tmp=${tmp1//-Iinclude\//-I$WANPIPE_INCLUDE_DIR -I$SOURCEDIR\/include/}
 
-        CFLAGS_EXTRA=$tmp
+    CFLAGS_EXTRA=$tmp
 
-        if [ $DISABLE_GCC_DEBUG -gt 0 ]; then	
+    if [ $DISABLE_GCC_DEBUG -gt 0 ]; then	
 		tmp=${CFLAGS_EXTRA//-g/}
         	CFLAGS_EXTRA=$tmp
 	fi
@@ -3278,45 +3122,26 @@ function wan_update_headers ()
 
 	eval "\cp -f *.h $WANPIPE_INCLUDE_DIR/ 2> /dev/null"   
 		
-
 	cd $DRIVER_UPDATE_DIR/wanec
 	if [ $REL = "3.7" ]; then
 	   eval "\cp -rf oct61xx/oct6100_api/include/* $WANPIPE_INCLUDE_DIR/ 2> /dev/null"	
-	   eval "\cp -rf *.h $SOURCEDIR/include/linux 2> /dev/null"   
 	   eval "\cp -rf *.h $WANPIPE_INCLUDE_DIR/ 2> /dev/null"   
 	else
  	   eval "\cp -rf oct6100_api/include/ $WANPIPE_INCLUDE_DIR/oct6100_api 2> /dev/null"	
- 	   eval "\cp -rf wanec_iface.h $SOURCEDIR/include/linux 2> /dev/null"   
 	   eval "\cp -rf *.h $WANPIPE_INCLUDE_DIR/ 2> /dev/null"   
 	fi
-
-
-	cd $DRIVER_UPDATE_DIR/include/
 	
-	if [ $superuser = "YES" ] && [ -e /usr/include/linux ]; then
-		eval "\cp -f *.h /usr/include/linux/ 2> /dev/null"
-	fi
+	if [ -e $DRIVER_UPDATE_DIR/include/annexg ]; then
+		cd $DRIVER_UPDATE_DIR/include/annexg
+    	eval "\cp -f *.h $WANPIPE_INCLUDE_DIR/ 2> /dev/null"   
+	fi                                
 
-	eval "\cp -f *.h $SOURCEDIR/include/linux/ 2> /dev/null"
 	if [ $? -eq 0 ]; then
 		echo -e "Done.\n"
 	else
 		echo -e "Failed!\n"
 		return 1
 	fi
-
-	
-	if [ -e $DRIVER_UPDATE_DIR/include/annexg ]; then
-
-		cd $DRIVER_UPDATE_DIR/include/annexg
-
-		if [ -e /usr/include/linux ]; then
-			eval "\cp -f *.h /usr/include/linux/ 2> /dev/null"
-		fi
-
-    	eval "\cp -f *.h $WANPIPE_INCLUDE_DIR/ 2> /dev/null"   
-		eval "\cp -f *.h $SOURCEDIR/include/linux/ 2> /dev/null"
-	fi                                
 
 	WAN_HEADERS_UPDATED=YES
 
@@ -3462,23 +3287,23 @@ ENDOFTEXT
 
 
 
-	if [ ! -d $SOURCEDIR/include/asm ] || [ ! -f $SOURCEDIR/include/linux/autoconf.h ]; then
-		echo -e "\n"
-		echo "ERROR: The $SOURCEDIR contains a fresh, unconfigured kernel!"
-		echo ""
-		echo "       If you already have a working kernel image, a"
-		echo "       simple kernel configuration can solve this problem"
-		echo "	     In linux source dirctory run: "
-		echo 
-		echo "		make dep modules"
-		echo
-		echo "       Then retry the Setup script !!"
-		echo ""
-		echo "       If you are still expriencing problems please contact"
-		echo "       Sangoma Tech Support"
-		pause
-		return 1
-	fi
+#	if [ ! -d $SOURCEDIR/include/asm ] || [ ! -f $SOURCEDIR/include/linux/autoconf.h ]; then
+#		echo -e "\n"
+#		echo "ERROR: The $SOURCEDIR contains a fresh, unconfigured kernel!"
+#		echo ""
+#		echo "       If you already have a working kernel image, a"
+#		echo "       simple kernel configuration can solve this problem"
+#		echo "	     In linux source dirctory run: "
+#		echo 
+#		echo "		make dep modules"
+#		echo
+#		echo "       Then retry the Setup script !!"
+#		echo ""
+#		echo "       If you are still expriencing problems please contact"
+#		echo "       Sangoma Tech Support"
+#		pause
+#		return 1
+#	fi
 
 #	if [ $KERN_VER -ne 26 ] && [ ! -f $SOURCEDIR/include/linux/modversions.h ]; then
 #		echo -e "\n"
@@ -3643,7 +3468,7 @@ ENDOFTEXT
 	#Setup the COMPILATOIN FLAGS depending on the kernel type
 	if [ $KERN_VER -eq 26 ]; then
 		if [ "$USE_CFLAGS" = "" ]; then
-CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dlinux -D__KERNEL__ -I$SOURCEDIR/include  -DMODULE $CFLAGS"
+CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dlinux -D__KERNEL__ -I$WANPIPE_INCLUDE_DIR -I$SOURCEDIR/include  -DMODULE $CFLAGS"
 			wan_get_kernel_flags
 			CFLAGS="$CFLAGS $CFLAGS_EXTRA"
 		fi
@@ -3737,14 +3562,14 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 			case $ARCH in
 
 			x86_64*) 
-				CFLAGS="$CC -D__LINUX__ -Dlinux -D__KERNEL__ -I$SOURCEDIR/include -Wall -Wstrict-prototypes -Wno-trigraphs -O2 -fno-strict-aliasing -fno-common  -Wno-unused -fomit-frame-pointer -mno-red-zone -mcmodel=kernel -pipe -fno-reorder-blocks -finline-limit=2000 -fno-strength-reduce -fno-asynchronous-unwind-tables   -nostdinc -iwithprefix include -DMODULE -DEXPORT_SYMTAB"
+				CFLAGS="$CC -D__LINUX__ -Dlinux -D__KERNEL__ -I$WANPIPE_INCLUDE_DIR -I$SOURCEDIR/include -Wall -Wstrict-prototypes -Wno-trigraphs -O2 -fno-strict-aliasing -fno-common  -Wno-unused -fomit-frame-pointer -mno-red-zone -mcmodel=kernel -pipe -fno-reorder-blocks -finline-limit=2000 -fno-strength-reduce -fno-asynchronous-unwind-tables   -nostdinc -iwithprefix include -DMODULE -DEXPORT_SYMTAB"
 				 ;;
 
 			*)
 				if [ $KLVL -lt 32 ]; then  
-			       		CFLAGS="$CC -D__LINUX__ -Dlinux -D__KERNEL__ -I$SOURCEDIR/include -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer -fno-strict-aliasing -pipe -march=$ARCH -DMODULE -DEXPORT_SYMTAB"
+			       		CFLAGS="$CC -D__LINUX__ -Dlinux -D__KERNEL__ -I$WANPIPE_INCLUDE_DIR -I$SOURCEDIR/include -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer -fno-strict-aliasing -pipe -march=$ARCH -DMODULE -DEXPORT_SYMTAB"
                                 else
-                                	CFLAGS="$CC -D__LINUX__ -Dlinux -D__KERNEL__ -I$SOURCEDIR/include -Wall -Wstrict-prototypes -Wno-trigraphs -O2 -fno-strict-aliasing -fno-common -fomit-frame-pointer -pipe -mpreferred-stack-boundary=2 -march=$ARCH -fno-unit-at-a-time -DMODULE  -nostdinc -iwithprefix include -DMODULE -DEXPORT_SYMTAB"
+                                	CFLAGS="$CC -D__LINUX__ -Dlinux -D__KERNEL__ -I$WANPIPE_INCLUDE_DIR -I$SOURCEDIR/include -Wall -Wstrict-prototypes -Wno-trigraphs -O2 -fno-strict-aliasing -fno-common -fomit-frame-pointer -pipe -mpreferred-stack-boundary=2 -march=$ARCH -fno-unit-at-a-time -DMODULE  -nostdinc -iwithprefix include -DMODULE -DEXPORT_SYMTAB"
 				fi
 				
 				#Old gcc do not have this option, thus we must check for it.
@@ -7454,7 +7279,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.14
+PROD_VER=3.5.15
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

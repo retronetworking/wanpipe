@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.5.14
+%define version           3.5.15
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -254,6 +254,19 @@ install_init;
 
 
 %changelog
+
+* Fri Aug 27 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.14
+===================================================================
+
+- Fixed B600 and B601 warning messages introduced in 3.5.14
+- New Firmware for A108&A104 V43
+  Fixes PCI parity errors on new dell,ibm boxes
+- Libsangoma added rw fe reg, and rx/tx gains
+- Build script does not polute the linux source any more.
+- Bug fix in B800 detect code
+- Fixed wanfcg_fs for freeswitch 
+- 
+
 
 * Tue Jun 29 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.14
 ===================================================================

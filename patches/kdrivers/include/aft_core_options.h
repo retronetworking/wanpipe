@@ -92,6 +92,10 @@
 /* compile AFT Serial code */
 # define CONFIG_PRODUCT_WANPIPE_AFT_SERIAL
 
+/* compile AFT Analog (2/4 FXO or 2/4 FXS) code */
+# define CONFIG_PRODUCT_WANPIPE_AFT_B800
+
+
 # define WAN_IS_TASKQ_SCHEDULE 1
 
 /* compile TDM Voice API in wanpipe_tdm_api.c */

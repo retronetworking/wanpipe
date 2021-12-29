@@ -36,7 +36,6 @@
 #include <linux/wanpipe_includes.h>
 #include <linux/wanpipe_defines.h>
 #include <linux/wanpipe.h>
-#include <linux/wanrouter.h>
 #include <linux/if_wanpipe_kernel.h>
 
 #include <linux/if_wanpipe.h>
@@ -322,6 +321,8 @@ dev_private_ioctl:
 struct sock *wanpipe_make_new(struct sock *osk)
 {
 	struct sock *sk;
+	wait_queue_head_t *tmp1;
+	wait_queue_head_t *tmp2;
 
 	if (osk->sk_type != SOCK_RAW)
 		return NULL;
@@ -338,7 +339,9 @@ struct sock *wanpipe_make_new(struct sock *osk)
 	sk->sk_sndbuf      = osk->sk_sndbuf;
 	sk->sk_debug       = osk->sk_debug;
 	sk->sk_state       = WANSOCK_CONNECTING;
-	sk->sk_sleep       = osk->sk_sleep;
+	tmp1 = WAN_SK_SLEEP(sk);
+	tmp2 = WAN_SK_SLEEP(osk);
+	tmp1 = tmp2;
 
 	return sk;
 }
@@ -564,7 +567,7 @@ static int wanpipe_accept(struct socket *sock, struct socket *newsock, int flags
 	if (SK_PRIV(sk)->num != htons(ETH_P_X25) && SK_PRIV(sk)->num != htons(WP_X25_PROT) && SK_PRIV(sk)->num != htons(DSP_PROT))
 		return -EPROTOTYPE;
 
-	add_wait_queue(sk->sk_sleep,&wait);
+	add_wait_queue(WAN_SK_SLEEP(sk),&wait);
 	current->state = TASK_INTERRUPTIBLE;
 	for (;;){
 		skb = skb_dequeue(&sk->sk_receive_queue);
@@ -585,7 +588,7 @@ static int wanpipe_accept(struct socket *sock, struct socket *newsock, int flags
 		schedule();
 	}
 	current->state = TASK_RUNNING;
-	remove_wait_queue(sk->sk_sleep,&wait);
+	remove_wait_queue(WAN_SK_SLEEP(sk),&wait);
 
 	if (err != 0)
 		return err;
@@ -657,8 +660,11 @@ accept_newsk_ok:
 	newsk->sk_pair = NULL;
 #endif
 	newsk->sk_socket = newsock;
+#ifdef CONFIG_RPS
+	WAN_SK_SLEEP(newsk);
+#else
 	newsk->sk_sleep = &newsock->wait;
-
+#endif
 	/* Now attach up the new socket */
 	sk->sk_ack_backlog--;
 	newsock->sk = newsk;
@@ -1791,7 +1797,7 @@ static unsigned int wanpipe_poll(struct file * file, struct socket *sock, poll_t
 	DEBUG_TX("%s: Sock State %p = %d\n",
 			__FUNCTION__,sk,sk->sk_state);
 
-	poll_wait(file, sk->sk_sleep, wait);
+	poll_wait(file, WAN_SK_SLEEP(sk), wait);
 
 	/* exceptional events? */
 	if (!SK_PRIV(sk) || 

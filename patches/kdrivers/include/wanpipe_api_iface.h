@@ -89,6 +89,8 @@ typedef int sng_fd_t;
 #if defined(__WINDOWS__)
  #define WP_API_FEATURE_LIBSNG_HWEC	1
 #endif
+#define WP_API_FEATURE_DRIVER_GAIN  1
+#define WP_API_FEATURE_FE_RW        1
 
 /*!
   \enum WANPIPE_IOCTL_CODE
@@ -329,7 +331,7 @@ enum wanpipe_api_events
 	WP_API_EVENT_POLARITY_REVERSE,	/*!<  */
 	WP_API_EVENT_FAX_DETECT,		/*!< Enable Disable HW Fax Detection */
 	WP_API_EVENT_SET_RM_TX_GAIN,		/*!< Set Tx Gain for FXO/FXS */
-	WP_API_EVENT_SET_RM_RX_GAIN		/*!< Set Rx Gain for FXO/FXS */
+	WP_API_EVENT_SET_RM_RX_GAIN,		/*!< Set Rx Gain for FXO/FXS */
 };
 
 

@@ -37,7 +37,7 @@ CFLAGS += -DWAN_HWEC
 all: wanconfig
 	@echo "Ok."
 
-wanconfig:	$(SRCS) 
+wanconfig:	$(SRCS) wanconfig.h
 	$(CC) $(CFLAGS) -o $@ $^
 
 install:

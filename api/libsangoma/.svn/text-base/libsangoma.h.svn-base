@@ -377,6 +377,17 @@ typedef enum _sangoma_wait_obj_flags {
   SANG_WAIT_OBJ_IS_SIGNALED = 0x400 /* matches GNU extension POLLMSG */
 } sangoma_wait_obj_flags_t;
 
+/*
+ * Note for data format of Input/Output and Bit-order in libsangoma API.
+ * The bit-order depends on Span/Channel configuration.
+ *
+ * TDM_CHAN_VOICE_API - expected input is ulaw/alaw, output is ulaw/alaw,
+ * TDM_SPAN_VOICE_API - expected input is ulaw/alaw, output is ulaw/alaw
+ *
+ * DATA_API - data can be in any format, not bitswapped by AFT hardware
+ * API - data can be in any format, not bitswapped by AFT hardware
+*/
+
 /************************************************************//**
  * Device OPEN / CLOSE Functions
  ***************************************************************/
@@ -1257,14 +1268,48 @@ int _LIBSNG_CALL sangoma_get_firmware_version(sng_fd_t fd, wanpipe_api_t *tdm_ap
 
 /*!
   \fn int sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver)
-  \brief Get Hardare/CPLD Version
+  \brief Get AFT CPLD Version
   \param fd device file descriptor
   \param tdm_api tdm api command structure
-  \param ver hardware/cpld version number
+  \param ver AFT CPLD version number
   \return non-zero = error, 0 = ok
 */
 int _LIBSNG_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver);
 
+/*!
+  \fn int _LIBSNG_CALL sangoma_get_aft_customer_id(sng_fd_t fd, unsigned char *out_customer_id)
+  \brief Get Customer-specific ID from AFT hardware, the default value is 0xFF, any change
+			requires special arrangement with Sangoma Technologies.
+  \param fd device file descriptor
+  \param out_customer_id AFT Customer ID
+  \return non-zero = error, 0 = ok
+*/
+
+int _LIBSNG_CALL sangoma_get_aft_customer_id(sng_fd_t fd, unsigned char *out_customer_id);
+
+#ifdef  WP_API_FEATURE_FE_RW
+/*!
+  \fn int sangoma_fe_reg_write(sng_fd_t fd, uint32_t offset, uint8_t data)
+  \brief Write to a front end register
+  \param fd device file descriptor
+  \param offset offset of front end register
+  \param data value to write
+  \return non-zero = error, 0 = ok
+ */
+
+
+int _LIBSNG_CALL sangoma_fe_reg_write(sng_fd_t fd, uint32_t offset, uint8_t data);
+
+/*!
+  \fn int sangoma_fe_reg_read(sng_fd_t fd, uint32_t offset, uint8_t *data)
+  \brief Read front end register
+  \param fd device file descriptor
+  \param offset offset of front end register
+  \param data value of the read register
+  \return non-zero = error, 0 = ok
+ */
+int _LIBSNG_CALL sangoma_fe_reg_read(sng_fd_t fd, uint32_t offset, uint8_t *data);
+#endif
 
 /*!
   \fn int sangoma_get_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, wanpipe_chan_stats_t *stats)
@@ -1273,7 +1318,7 @@ int _LIBSNG_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, u
   \param tdm_api tdm api command structure
   \param stats stats structure will be filled with device stats. (Optional, can be left NULL)
   \return non-zero = error, 0 = ok
-*/
+ */
 int _LIBSNG_CALL sangoma_get_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, wanpipe_chan_stats_t *stats);
 
 /*!
@@ -1451,6 +1496,47 @@ sangoma_status_t _LIBSNG_CALL sangoma_logger_get_logger_level(sng_fd_t fd, wp_lo
 sangoma_status_t _LIBSNG_CALL sangoma_logger_set_logger_level(sng_fd_t fd, wp_logger_cmd_t *logger_cmd);
 
 #endif /* WP LOGGER FEATURE */
+
+
+#ifdef WP_API_FEATURE_DRIVER_GAIN
+/*!
+  \fn int sangoma_set_tx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, floag gain_val)
+  \brief set driver tx gain for this tdm device
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \param value txgain (0.0 - 10.0) db
+  \return non-zero = error, 0 = ok
+*/ 
+int _LIBSNG_CALL sangoma_set_tx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, float gain_val);
+
+/*!
+  \fn int sangoma_set_rx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, floag gain_val)
+  \brief set driver rx gain for this tdm device
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \param value txgain (0.0 - 10.0) db
+  \return non-zero = error, 0 = ok
+*/
+int _LIBSNG_CALL sangoma_set_rx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, float gain_val);
+
+/*!
+  \fn int sangoma_clear_tx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Clear tx gain from device, set it to 0.0
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero = error, 0 = ok
+ */
+int _LIBSNG_CALL sangoma_clear_tx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+/*!
+  \fn int sangoma_clear_rx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Clear rx gain from device, set it to 0.0
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero = error, 0 = ok
+ */
+int _LIBSNG_CALL sangoma_clear_rx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api);
+#endif
 
 #ifndef LIBSANGOMA_LIGHT
 
@@ -1695,6 +1781,8 @@ int _LIBSNG_CALL sangoma_tdm_set_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api
 int _LIBSNG_CALL sangoma_tdm_get_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 
+
+
 #ifdef WP_API_FEATURE_LIBSNG_HWEC
 
 /*!
@@ -1827,10 +1915,10 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_enable(char *device_name,  unsigned i
 
   \brief Force AFT FPGA to bypass the echo canceller.  
          This command effectively disables echo cancellation since
-		 data will not flowing through the ec chip. 
+		 data will not be flowing through the ec chip. 
          Data will not be modified by the echo canceller.
          This command is recommened for fast disabling of Echo Cancelation.
-		 Note: sangoma_tdm_disable_hwec() function can be use to achive
+		 Note: sangoma_tdm_disable_hwec() function can be used to achive
 				the same functionality based on file descriptor versus
 				channel map.
 

@@ -37,7 +37,7 @@
 #include "wanpipe_debug.h"
 #include "wanpipe_common.h"
 #include "wanpipe_abstr.h"
-#include "wanrouter.h"
+#include "wanpipe_wanrouter.h"
 #include "wanpipe.h"
 #include "wanpipe_snmp.h"
 #include "sdla_chdlc.h"		/* CHDLC firmware API definitions */

@@ -2617,7 +2617,7 @@ static __inline unsigned int wan_netif_flags(netdevice_t* dev)
 static __inline int wan_netif_mcount(netdevice_t* dev)
 {
 #if defined(__LINUX__)
-	return dev->mc_count;
+	return netdev_mc_count(dev);
 #elif defined(__FreeBSD__)
 	return dev->if_amcount;
 #elif defined(__OpenBSD__) || defined(__NetBSD__)

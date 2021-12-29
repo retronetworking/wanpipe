@@ -689,6 +689,12 @@ static int registry_write_front_end_cfg(HKEY hPortRegistryKey, port_cfg_t *port_
 		return iReturnCode;
 	}
 
+	iReturnCode = registry_set_integer_value(hPortRegistryKey, "HWEC_CLKSRC", wandev_conf->hwec_conf.clk_src /* is this port the HWEC clock source - WANOPT_NO/WANOPT_YES */);
+	if(iReturnCode){
+		return iReturnCode;
+	}
+
+
 	/* set Media specific values. */
 	switch(sdla_fe_cfg->media)
 	{
@@ -1073,10 +1079,10 @@ void _LIBSNG_CALL sangoma_reset_port_numbers()
 				2. for each Card, search Ports (Bus/Slot must match)
 				3. based on number of installed Ports, set SerialNumbersRange of the Card
 				
-				This way the "UserWanpipeNumber" can be set to zero and Span numbers will be
-				seqencial automatically.
+				This way the WP_REGSTR_USER_SPECIFIED_WANPIPE_NUMBER can be set to zero and Span numbers will be
+				sequencial automatically.
 		*/
-		iRegistryReturnCode = registry_set_integer_value(hKeyTmp, "UserWanpipeNumber", iPortCounter);
+		iRegistryReturnCode = registry_set_integer_value(hKeyTmp, WP_REGSTR_USER_SPECIFIED_WANPIPE_NUMBER, iPortCounter);
 		if(iRegistryReturnCode){
 			continue;
 		}
@@ -1212,6 +1218,32 @@ sangoma_status_t _LIBSNG_CALL sangoma_set_driver_mode_of_all_hw_devices(int driv
  * Common Linux & Windows Code
  *************************************************************************/
 
+/*************************************************/
+/* private functions for accessing wan_udp_hdr_t */
+/*************************************************/
+/* return POINTER to DATA at offset 'off' */
+static unsigned char* sangoma_get_wan_udphdr_data_ptr(wan_udp_hdr_t *wan_udp_ptr, unsigned char off)
+{
+	unsigned char *p_data = &wan_udp_ptr->wan_udphdr_data[0];
+	p_data += off;
+	return p_data;
+}
+
+/* set a single byte of DATA at offset 'off' */
+static unsigned char sangoma_set_wan_udphdr_data_byte(wan_udp_hdr_t *wan_udp_ptr, unsigned char off, unsigned char data)
+{
+	unsigned char *p_data = &wan_udp_ptr->wan_udphdr_data[0];
+	p_data[off] = data;
+	return 0;
+}
+
+/* return a single byte of DATA at offset 'off' */
+static unsigned char sangoma_get_wan_udphdr_data_byte(wan_udp_hdr_t *wan_udp_ptr, unsigned char off)
+{
+	unsigned char *p_data = &wan_udp_ptr->wan_udphdr_data[0];
+	return p_data[off];
+}
+/*************************************************/
 
 
 /************************************************************//**
@@ -1826,6 +1858,8 @@ int _LIBSNG_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *da
 		return -1;
 	}
 
+	wp_api_element.hdr.operation_status = SANG_STATUS_IO_ERROR;
+
 	if(DoReadCommand(fd, &wp_api_element)){
 		/*error*/
 		DBG_ERR("DoReadCommand() failed! Check messages log.\n");
@@ -1877,7 +1911,7 @@ int _LIBSNG_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *da
 		return -EINVAL;
 	}
 
-	rx_len-=sizeof(wp_api_hdr_t);
+	rx_len -= sizeof(wp_api_hdr_t);
 #endif
     return rx_len;
 }                    
@@ -2754,7 +2788,7 @@ int _LIBSNG_CALL sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm
 
 int _LIBSNG_CALL sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	/* intentionally NOT initializing chan - caller must do it */
 	SANGOMA_INIT_TDM_API_CMD_RESULT(*tdm_api);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_ENABLE_HWEC;
 	return sangoma_cmd_exec(fd,tdm_api);
@@ -2762,7 +2796,7 @@ int _LIBSNG_CALL sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
 
 int _LIBSNG_CALL sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	/* intentionally NOT initializing chan - caller must do it */
 	SANGOMA_INIT_TDM_API_CMD_RESULT(*tdm_api);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_DISABLE_HWEC;
 	return sangoma_cmd_exec(fd,tdm_api);
@@ -2977,6 +3011,116 @@ int _LIBSNG_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, u
 	return err;
 }
 
+int _LIBSNG_CALL sangoma_get_aft_customer_id(sng_fd_t fd, unsigned char *out_customer_id)
+{
+	wan_udp_hdr_t wan_udp;
+
+	memset(&wan_udp, 0x00, sizeof(wan_udp));
+
+	wan_udp.wan_udphdr_command = WANPIPEMON_AFT_CUSTOMER_ID;
+	wan_udp.wan_udphdr_return_code = SANG_STATUS_UNSUPPORTED_FUNCTION;
+	wan_udp.wan_udphdr_data_len = 0;
+
+	if (sangoma_mgmt_cmd(fd, &wan_udp)) {
+		return SANG_STATUS_IO_ERROR;
+	}
+
+	if (wan_udp.wan_udphdr_return_code) {
+		return SANG_STATUS_UNSUPPORTED_FUNCTION;
+	}
+
+	*out_customer_id = sangoma_get_wan_udphdr_data_byte(&wan_udp, 0);
+
+	return 0;
+}
+
+#ifdef  WP_API_FEATURE_FE_RW
+int _LIBSNG_CALL sangoma_fe_reg_write(sng_fd_t fd, uint32_t offset, uint8_t data)
+{
+	int chan=0;
+	wan_udp_hdr_t wan_udp;
+	sdla_fe_debug_t *fe_debug; 
+	memset(&wan_udp, 0x00, sizeof(wan_udp));
+	
+	{
+		int err;
+		wanpipe_api_t tdm_api;
+		memset(&tdm_api,0,sizeof(tdm_api));
+		err=sangoma_get_full_cfg(fd, &tdm_api);
+		if (err) {
+			return err;
+		}
+		chan=tdm_api.wp_cmd.chan;
+		if (chan) 
+			chan--;
+	}
+
+	wan_udp.wan_udphdr_command	= WAN_FE_SET_DEBUG_MODE;
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_debug_t);
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	fe_debug = (sdla_fe_debug_t*)wan_udp.wan_udphdr_data;
+
+	fe_debug->type = WAN_FE_DEBUG_REG;
+	fe_debug->mod_no = chan;
+	fe_debug->fe_debug_reg.reg  = offset;
+	fe_debug->fe_debug_reg.value  = data;
+	fe_debug->fe_debug_reg.read = 0;
+	
+	if (sangoma_mgmt_cmd(fd, &wan_udp)) {
+		return SANG_STATUS_IO_ERROR;
+	}
+
+	if (wan_udp.wan_udphdr_return_code) {
+		return SANG_STATUS_UNSUPPORTED_FUNCTION;
+	}
+
+	return 0;
+}
+
+int _LIBSNG_CALL sangoma_fe_reg_read(sng_fd_t fd, uint32_t offset, uint8_t *data)
+{
+	int chan=0;
+	wan_udp_hdr_t wan_udp;
+	sdla_fe_debug_t *fe_debug;
+	memset(&wan_udp, 0x00, sizeof(wan_udp));
+
+	{
+		int err;
+		wanpipe_api_t tdm_api;
+		memset(&tdm_api,0,sizeof(tdm_api));
+		err=sangoma_get_full_cfg(fd, &tdm_api);
+		if (err) {
+			return err;
+		}
+		chan=tdm_api.wp_cmd.chan;
+		if (chan) 
+			chan--;
+	}
+
+	wan_udp.wan_udphdr_command	= WAN_FE_SET_DEBUG_MODE;
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_debug_t);
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	fe_debug = (sdla_fe_debug_t*)wan_udp.wan_udphdr_data;
+
+	fe_debug->type = WAN_FE_DEBUG_REG;
+	fe_debug->mod_no = chan;
+	fe_debug->fe_debug_reg.reg  = offset;
+	fe_debug->fe_debug_reg.read = 1;
+	
+	if (sangoma_mgmt_cmd(fd, &wan_udp)) {
+		return SANG_STATUS_IO_ERROR;
+	}
+
+	if (wan_udp.wan_udphdr_return_code) {
+		return SANG_STATUS_UNSUPPORTED_FUNCTION;
+	}
+
+	*data = fe_debug->fe_debug_reg.value;
+	
+	return 0;
+}
+#endif
+
 int _LIBSNG_CALL sangoma_get_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, wanpipe_chan_stats_t *stats)
 {
 	int err;
@@ -3172,6 +3316,7 @@ sng_fd_t _LIBSNG_CALL sangoma_open_driver_ctrl(int port_no)
 #endif
 	return sangoma_open_dev_by_name(tmp_fname);
 }
+
 
 int _LIBSNG_CALL sangoma_mgmt_cmd(sng_fd_t fd, wan_udp_hdr_t* wan_udp)
 {

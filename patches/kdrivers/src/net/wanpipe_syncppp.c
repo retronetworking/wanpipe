@@ -69,7 +69,7 @@
 #include <linux/wanpipe_debug.h>
 #include <linux/wanpipe_common.h>
 #include <linux/wanpipe_kernel.h>
-#include <linux/wanrouter.h>
+#include <linux/wanpipe_wanrouter.h>
 #include <linux/wanpipe_syncppp.h>
 #include <linux/wanpipe_cfg.h>
 #include <linux/wanproc.h>

@@ -11,7 +11,7 @@ AM_CFLAGS += -Wall -Wwrite-strings -Wunused-variable -Wstrict-prototypes -Wmissi
 
 #ACLOCAL_AMFLAGS = -I m4 
 
-LIB_SOURCES		= libsangoma.c  libsangoma.h libhpsangoma.c libhpsangoma.h libhpsangoma_priv.c libhpsangoma_priv.h
+LIB_SOURCES		= libsangoma.c libsangoma_utils.c libsangoma_hwec.c libsangoma.h libhpsangoma.c libhpsangoma.h libhpsangoma_priv.c libhpsangoma_priv.h
 
 if LIBPRI
 LIB_SOURCES		+= sangoma_pri.c sangoma_pri.h

@@ -67,6 +67,23 @@
 #define WAN_DEV_NAME(device) device->dev.bus_id
 #endif
 
+/////////////2.6.35//////////////////////////////
+#ifndef netdev_mc_count
+#	define netdev_mc_count(dev) dev->mc_count
+#endif
+
+#ifdef CONFIG_RPS
+#	define WAN_MC_LIST_ADDR(mclist) mclist->addr
+#	define WAN_SK_SLEEP(sk) sk_sleep(sk)
+#else
+#       define WAN_MC_LIST_ADDR(mclist) mclist->dmi_addr
+#       define WAN_SK_SLEEP(sk) sk->sk_sleep
+#endif
+
+////////////////////////////////////////////////
+
+
+
 //////////////////////
 #ifdef HAVE_NET_DEVICE_OPS
 #define WAN_DECLARE_NETDEV_OPS(_ops_name) static struct net_device_ops _ops_name = {0};
@@ -148,22 +165,6 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 #ifndef IRQF_SHARED
 #define IRQF_SHARED SA_SHIRQ
 #endif
-
-static inline int wp_linux_strncasecmp(const char *s1, const char *s2, size_t n)
-{
-  if (n == 0)
-    return 0;
-
-  while (n-- != 0 && tolower(*s1) == tolower(*s2))
-    {
-      if (n == 0 || *s1 == '\0' || *s2 == '\0')
-	break;
-      s1++;
-      s2++;
-    }
-
-  return tolower(*(unsigned char *) s1) - tolower(*(unsigned char *) s2);
-}
 
 /*==========================================================================
    KERNEL 2.6.
@@ -759,6 +760,22 @@ typedef struct wan_msghdr {
     uint32_t reserved;
 #endif
 }wan_msghdr_t;          
+
+static inline int wp_linux_strncasecmp(const char *s1, const char *s2, size_t n)
+{
+  if (n == 0)
+    return 0;
+
+  while (n-- != 0 && tolower(*s1) == tolower(*s2))
+    {
+      if (n == 0 || *s1 == '\0' || *s2 == '\0')
+	break;
+      s1++;
+      s2++;
+    }
+
+  return tolower(*(unsigned char *) s1) - tolower(*(unsigned char *) s2);
+}
 
 #pragma pack()
 

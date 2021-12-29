@@ -38,7 +38,6 @@
 # include <linux/if_ether.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe_cfg.h>
-# include <linux/wanrouter.h>
 # include <linux/wanpipe.h>
 # include <linux/sdla_fr.h>
 #else

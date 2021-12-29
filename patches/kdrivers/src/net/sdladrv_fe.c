@@ -146,6 +146,15 @@ extern int sdla_hw_fe_set_bit(void *phw, int value);
 }
 
 
+#define SDLA_HW_T1E1_FE_ACCESS_BLOCK_A600 { u32 breg; sdla_bus_read_4(hw, 0x1040, &breg); \
+								  if (breg == (u32)-1) { \
+									if (WAN_NET_RATELIMIT()) { \
+										DEBUG_ERROR("%s:%d: wanpipe PCI Error: Illegal Register read: 0x1040 = 0xFFFFFFFF\n", \
+											__FUNCTION__,__LINE__);  \
+									} \
+								 } \
+}
+
 /***************************************************************************
 ****                      G L O B A L  D A T A                          ****
 ***************************************************************************/
@@ -2410,17 +2419,17 @@ static int __sdla_b601_te1_write_fe(void *phw, ...)
         data_hi |= 0x4000;
     }
 
-	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK_A600;
 
     data_hi |= (off & 0x7FF);
     sdla_bus_write_2(hw, A600_MAXIM_INTERFACE_REG_ADD_HI, data_hi);
 	
-	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK_A600;
     
 	data_lo = (value & 0xFF);
     sdla_bus_write_2(hw, A600_MAXIM_INTERFACE_REG_ADD_LO, data_lo);
 	
-	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK_A600;
 
     return 0;
 }
@@ -2486,17 +2495,17 @@ u_int8_t __sdla_b601_te1_read_fe (void *phw, ...)
         data_hi |= 0x4000;
     }
 
-	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK_A600;
     
 	data_hi |= (off & 0x7FF);
     sdla_bus_write_2(hw, A600_MAXIM_INTERFACE_REG_ADD_HI, data_hi);
 	
-	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK_A600;
     
 	data_read = 0x00;
     sdla_bus_read_4(hw, A600_MAXIM_INTERFACE_REG_ADD_LO, &data_read);
 	
-	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK_A600;
 
     return (data_read & 0xFF);
 }

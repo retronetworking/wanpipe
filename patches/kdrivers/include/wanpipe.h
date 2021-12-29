@@ -49,7 +49,7 @@
 #include "wanpipe_common.h"
 #include "wanpipe_events.h"
 #include "wanpipe_cfg.h"
-#include "wanrouter.h"
+#include "wanpipe_wanrouter.h"
 
 
 #if defined(__WINDOWS__) && defined (__KERNEL__)

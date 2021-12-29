@@ -179,6 +179,9 @@ openzap: all_src all_lib
 freetdm: all_src all_lib
 	@touch .all_lib .openzap
 
+fs: all_src all_lib
+	@touch .all_lib .openzap
+
 g3ti: all_src all_lib
 	@touch .all_lib .openzap
 
@@ -306,7 +309,9 @@ _checkzap:
 #Install all utilities etc and modules
 install: install_util install_etc install_kmod install_inc 
 	@if [ -e .all_lib ] ; then \
-		$(MAKE) -C api/libsangoma install; \
+		$(MAKE) -C api/libsangoma install DESTDIR=$(INSTALLPREFIX); \
+		$(MAKE) -C api/libstelephony install DESTDIR=$(INSTALLPREFIX); \
+		ldconfig; \
     fi
 
 

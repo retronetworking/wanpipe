@@ -11,7 +11,7 @@
 # include "wanpipe_defines.h"
 # include "wanpipe_common.h"
 # include "wanpipe_cfg.h"
-# include "wanrouter.h"
+# include "wanpipe_wanrouter.h"
 # include "wanpipe_api_iface.h"
 # include "sdlasfm.h"
 # include "sdla_front_end.h"

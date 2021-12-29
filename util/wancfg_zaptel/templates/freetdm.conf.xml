@@ -1,4 +1,4 @@
-<configuration name="openzap.conf" description="Freetdm Configuration">
+<configuration name="freetdm.conf" description="Freetdm Configuration">
   <settings>
     <param name="debug" value="0"/>
     <!--<param name="hold-music" value="$${moh_uri}"/>-->

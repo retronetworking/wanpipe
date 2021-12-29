@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 34
-/svn/libsangoma/!svn/ver/293/trunk
+/svn/libsangoma/!svn/ver/308/trunk
 END
 init-automake.sh
 K 25
@@ -19,13 +19,13 @@ Makefile.in
 K 25
 svn:wc:ra_dav:version-url
 V 46
-/svn/libsangoma/!svn/ver/222/trunk/Makefile.in
+/svn/libsangoma/!svn/ver/298/trunk/Makefile.in
 END
 sources
 K 25
 svn:wc:ra_dav:version-url
 V 42
-/svn/libsangoma/!svn/ver/286/trunk/sources
+/svn/libsangoma/!svn/ver/306/trunk/sources
 END
 AUTHORS
 K 25
@@ -67,7 +67,7 @@ libsangoma.c
 K 25
 svn:wc:ra_dav:version-url
 V 47
-/svn/libsangoma/!svn/ver/293/trunk/libsangoma.c
+/svn/libsangoma/!svn/ver/308/trunk/libsangoma.c
 END
 compile.bat
 K 25
@@ -85,7 +85,7 @@ libsangoma.h
 K 25
 svn:wc:ra_dav:version-url
 V 47
-/svn/libsangoma/!svn/ver/293/trunk/libsangoma.h
+/svn/libsangoma/!svn/ver/299/trunk/libsangoma.h
 END
 libsangoma_hwec.c
 K 25
@@ -211,7 +211,7 @@ Makefile.am
 K 25
 svn:wc:ra_dav:version-url
 V 46
-/svn/libsangoma/!svn/ver/197/trunk/Makefile.am
+/svn/libsangoma/!svn/ver/298/trunk/Makefile.am
 END
 missing
 K 25
@@ -230,6 +230,12 @@ K 25
 svn:wc:ra_dav:version-url
 V 51
 /svn/libsangoma/!svn/ver/276/trunk/libsangoma-pvt.h
+END
+libsangoma_utils.c
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/libsangoma/!svn/ver/307/trunk/libsangoma_utils.c
 END
 install-sh
 K 25

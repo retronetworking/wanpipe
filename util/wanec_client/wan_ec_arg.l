@@ -87,7 +87,12 @@ blank			[ \t]
 "-v"				{ ec_client.verbose = 1; }
 "-vv"				{ ec_client.verbose = 2; }
 "--h"				{ help(0); exit(0); }
+"?"					{ help(0); exit(0); }
+"/?"				{ help(0); exit(0); }
+"help"				{ help(0); exit(0); }
 "--h1"				{ help(1); help1(1); exit(0); }
+"--help"			{ help(1); help1(1); exit(0); }
+"-help"				{ help(1); help1(1); exit(0); }
 
 {digit}{digit}*{integer_suffix}?	{ /* decimal */ 
 				s_lookup(token(DEC_CONSTANT));
