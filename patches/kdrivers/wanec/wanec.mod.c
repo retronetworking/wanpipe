@@ -18,6 +18,7 @@ __attribute_used__
 __attribute__((section("__versions"))) = {
 	{ 0x89e24b9c, "struct_module" },
 	{ 0x12da5bb2, "__kmalloc" },
+	{ 0x7e3f931f, "_spin_trylock" },
 	{ 0xec7bc0d, "__mod_timer" },
 	{ 0xd6ee688f, "vmalloc" },
 	{ 0x4827a016, "del_timer" },
@@ -25,6 +26,7 @@ __attribute__((section("__versions"))) = {
 	{ 0xb5513e49, "class_device_create" },
 	{ 0xab978df6, "malloc_sizes" },
 	{ 0x1bcd461f, "_spin_lock" },
+	{ 0x4e830a3e, "strnicmp" },
 	{ 0xeae3dfd6, "__const_udelay" },
 	{ 0x2fd1d81c, "vfree" },
 	{ 0x1d26aa98, "sprintf" },
@@ -51,4 +53,4 @@ __attribute__((section(".modinfo"))) =
 "depends=";
 
 
-MODULE_INFO(srcversion, "4B81F8CBCF0FE7DE2D1F612");
+MODULE_INFO(srcversion, "A6BF1CF61774AE275ECC9A5");

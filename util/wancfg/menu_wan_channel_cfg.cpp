@@ -193,6 +193,7 @@ again:
   case WANCONFIG_TTY:
   case WANCONFIG_HDLC:
   case PROTOCOL_TDM_VOICE:
+  case PROTOCOL_TDM_VOICE_API:
   case WANCONFIG_AFT:
     //do nothing - there is nothing to configure.
     break;
@@ -220,6 +221,7 @@ again:
     //case WANCONFIG_EDUKIT:
     //case WANCONFIG_HDLC:
     //case PROTOCOL_TDM_VOICE:
+    //case PROTOCOL_TDM_VOICE_API:
       //no interface setup needed
       //break;
 	  
@@ -394,6 +396,7 @@ select_new_protocol:
 	  case WANCONFIG_LAPB:
 	  case WANCONFIG_HDLC:	    //exception
 	  case PROTOCOL_TDM_VOICE:  //exception
+	  case PROTOCOL_TDM_VOICE_API:  //exception
 	    linkconf->config_id = WANCONFIG_AFT;
 	    break;
 
@@ -692,8 +695,20 @@ int menu_wan_channel_cfg::handle_protocol_change(
     chanconf->mc = WANOPT_NO;
     chanconf->true_if_encoding = WANOPT_NO;
     chanconf->if_down = WANOPT_NO;
-    
     break; 
+
+  case PROTOCOL_TDM_VOICE_API:
+    //no LIP layer	
+    chandef->usedby = TDM_VOICE_API;
+    chanconf->hdlc_streaming = WANOPT_YES;
+    
+    chanconf->config_id = PROTOCOL_TDM_VOICE_API;//WANCONFIG_HDLC;
+
+    chanconf->mtu = 1500;
+    chanconf->mc = WANOPT_NO;
+    chanconf->true_if_encoding = WANOPT_NO;
+    chanconf->if_down = WANOPT_NO;
+    break;
 
   case WANCONFIG_MPPP:
 

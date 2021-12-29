@@ -95,7 +95,7 @@ int do_dump	(int argc, char* argv[]);
 int do_debug(int argc, char *argv[]);
 void show_dump	(char* buf, unsigned long len, unsigned long addr);
 void show_error	(int err);
-int hexdump	(char* str, char* data, int length, int limit);
+int hexdump	(char* str, int, char* data, int length, int limit);
 
 extern	int close (int);
 
@@ -232,7 +232,8 @@ int do_dump (int argc, char *argv[])
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	struct ifreq	req;
 #else
-	char filename[sizeof(wandev_dir) + WAN_DRVNAME_SZ + 2];
+	int	max_flen = sizeof(wandev_dir) + WAN_DRVNAME_SZ;
+	char	filename[max_flen + 2];
 #endif
 	sdla_dump_t dump;
 
@@ -274,9 +275,9 @@ int do_dump (int argc, char *argv[])
 	err = ioctl(dev, SIOC_WANPIPE_DUMP, &req);
 #else
 # if defined(__LINUX__)
-	sprintf(filename, "%s/%s", wandev_dir, argv[0]);
+	snprintf(filename, max_flen, "%s/%s", wandev_dir, argv[0]);
 # else
-	sprintf(filename, "%s", WANDEV_NAME);
+	snprintf(filename, max_flen, "%s", WANDEV_NAME);
 # endif
 	if ((dev = open(filename, O_RDONLY)) < 0){
 		err = ERR_SYSTEM;
@@ -286,7 +287,7 @@ int do_dump (int argc, char *argv[])
 # if defined(__LINUX__)
 	err = ioctl(dev, WANPIPE_DUMP, &dump);
 # else
-  	strcpy(config.devname, argv[0]);	
+  	strlcpy(config.devname, argv[0], WAN_DRVNAME_SZ);
  	config.arg = &dump;
 	err = ioctl(dev, WANPIPE_DUMP, &config);
 # endif
@@ -313,6 +314,7 @@ void show_dump (char* buf, unsigned long len, unsigned long addr)
 	char str[80];
 	int cnt;
 
+	memset(str, 0, 80);
 	if (len > 16)
 	{
 		/* see if ajustment is needed and adjust to 16-byte
@@ -322,7 +324,7 @@ void show_dump (char* buf, unsigned long len, unsigned long addr)
 		if (cnt)
 		{
 			printf("%05lX: ", addr);
-			hexdump(str, buf, cnt, 16);
+			hexdump(str, 80, buf, cnt, 16);
 			puts(str);
 		}
 	}
@@ -330,8 +332,9 @@ void show_dump (char* buf, unsigned long len, unsigned long addr)
 
 	while (cnt < len)
 	{
+		memset(str, 0, 80);
 		printf("%05lX: ", addr + cnt);
-		cnt += hexdump(str, &buf[cnt], min(16, len - cnt), 16);
+		cnt += hexdump(str, 80, &buf[cnt], min(16, len - cnt), 16);
 		puts(str);
 	}
 }
@@ -343,26 +346,27 @@ void show_dump (char* buf, unsigned long len, unsigned long addr)
  * Return number of bytes dumped.
  * NOTE: string buffer must be at least (limit * 4 + 2) bytes long.
  */
-int hexdump (char* str, char* data, int length, int limit)
+int hexdump (char* str, int max_len, char* data, int length, int limit)
 {
-	int i, n;
+	int i, n, off = 0;
 
 	n = min(limit, length);
 	if (n)
 	{
-		for (i = 0; i < n; ++i)
-			str += sprintf(str, "%02X ", data[i])
-		;
-		for (i = 0; i < limit - n; ++i)
-			str += sprintf(str, "   ")
-		;
-		str += sprintf(str, " ");
-		for (i = 0; i < n; ++i) str += sprintf(
-			str, "%c", (isprint(data[i])) ? data[i] : '.')
-		;
-		for (i = 0; i < limit - n; ++i)
-			str += sprintf(str, " ")
-		;
+		for (i = 0; i < n; ++i){
+			off += snprintf(&str[off], max_len-off, "%02X ", data[i]);
+		}
+		for (i = 0; i < limit - n; ++i){
+			off += snprintf(&str[off], max_len-off, "   ");
+		}
+		off += snprintf(&str[off], max_len-off, " ");
+		for (i = 0; i < n; ++i){
+			off += snprintf(&str[off], max_len-off, 
+				"%c", (isprint(data[i])) ? data[i] : '.');
+		}
+		for (i = 0; i < limit - n; ++i){
+			off += snprintf(&str[off], max_len-off, " ");
+		}
 	}
 	*str = '\0';
 	return n;
@@ -377,10 +381,11 @@ int do_debug(int argc, char *argv[])
     	int				dev;
 	wan_kernel_msg_t		wan_debug;
 	wanpipe_kernel_msg_hdr_t*	dbg_msg;
-	char				buf[200], tmp_time[50];
-	int 				offset = 0, len = 0, is_more = 1;
 	struct tm*			time_tm;
-	char				filename[sizeof(wandev_dir) + WAN_DRVNAME_SZ + 2];
+	char				buf[200], tmp_time[50];
+	int 				offset = 0, len = 0, is_more = 1,
+					max_flen = sizeof(wandev_dir) + WAN_DRVNAME_SZ;
+	char				filename[max_flen + 2];
 
 	if (!argc || (strlen(argv[0]) > WAN_DRVNAME_SZ))
 	{
@@ -389,9 +394,9 @@ int do_debug(int argc, char *argv[])
 	}
 
 #if defined(__LINUX__)
-	sprintf(filename, "%s/%s", wandev_dir, argv[0]);
+	snprintf(filename, max_flen, "%s/%s", wandev_dir, argv[0]);
 #else
-	sprintf(filename, "%s", WANDEV_NAME);
+	snprintf(filename, max_flen, "%s", WANDEV_NAME);
 #endif
 	
         dev = open(filename, O_RDONLY); 
@@ -416,7 +421,7 @@ int do_debug(int argc, char *argv[])
 		}
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-	  	strcpy(config.devname, argv[0]);	
+	  	strlcpy(config.devname, argv[0], WAN_DRVNAME_SZ);
     		config.arg = &wan_debug;
 		if (ioctl(dev, ROUTER_DEBUG_READ, &config) < 0){ 
 #else

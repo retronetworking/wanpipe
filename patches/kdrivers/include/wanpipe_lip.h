@@ -1,4 +1,4 @@
-/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.38 2007/02/21 18:46:09 sangoma Exp $ */
+/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.43 2008/01/09 17:45:29 sangoma Exp $ */
 
 #ifndef _WANPIPE_LIP_HEADER_
 #define _WANPIPE_LIP_HEADER_
@@ -25,6 +25,30 @@
 # if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
 #  include <wanpipe_xdlc_iface.h>
 # endif
+#elif defined(__WINDOWS__)
+# include <wanpipe_includes.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_common.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe_snmp.h>
+# include <wanpipe.h>
+# include <wanpipe_cfg.h>
+# include <if_wanpipe_common.h>
+# include <wanpipe_iface.h>
+# include <wanpipe_lip_kernel.h>
+# include <wanpipe_fr_iface.h>
+# include <wanpipe_sppp_iface.h>
+# if defined(CONFIG_PRODUCT_WANPIPE_LAPB) || defined(CONFIG_PRODUCT_WANPIPE_LIP_LAPD)
+#  include <wanpipe_lapb_iface.h>
+# endif
+# if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
+#  include <wanpipe_xdlc_iface.h>
+# endif
+/* Prototypes for interface between LIP and 'sprotocol' code in virt_adap_enum.c: */
+int sdla_tx_down(void* dev, void *tx_skb);
+int sdla_data_rx_up(void* sdla_net_dev, void *rx_skb);
+
 #else
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -155,7 +179,11 @@ enum {
  */
 #define MAX_LCN 255
 #define MAX_DECODE_BUF_SZ 1000
+#if defined(__WINDOWS__)
+#define MAX_PROC_NAME WAN_IFNAME_SZ
+#else
 #define MAX_PROC_NAME 10
+#endif
 
 #ifndef MAX_PROC_EVENTS
 #define MAX_PROC_EVENTS 20
@@ -166,7 +194,7 @@ enum {
 /*#define MAX_TX_BUF 10*/
 #define MAX_TX_BUF 10
 #define MAX_ATM_TX_BUF 35
-#define MAX_RX_Q 128
+#define MAX_RX_Q 32
 
 #define WPLIP_MAGIC_LINK  	0xDAFE1234
 #define WPLIP_MAGIC_DEV   	0xDAFE4321
@@ -199,7 +227,7 @@ typedef struct wplip_link
 	 *
 	 * Packet direction UP
 	 * */
-	WAN_LIST_HEAD(,wplip_dev)	list_head_ifdev;
+	WAN_LIST_HEAD(NAME_PLACEHOLDER,wplip_dev)	list_head_ifdev;
 	unsigned int			dev_cnt;
 	wan_rwlock_t			dev_list_lock; 
 
@@ -212,7 +240,7 @@ typedef struct wplip_link
 	 * Eg. Load balancing over multiple
 	 *     links */
 
-	WAN_LIST_HEAD(,wplip_dev_list)	list_head_tx_ifdev;
+	WAN_LIST_HEAD(NAME_PLACEHOLDER,wplip_dev_list)	list_head_tx_ifdev;
 	unsigned int			tx_dev_cnt;
 	wan_rwlock_t			tx_dev_list_lock;
 
@@ -221,7 +249,11 @@ typedef struct wplip_link
 	unsigned char			carrier_state;
 	unsigned char			prot_state;
 
+#if defined(__WINDOWS__)
+	void	*prot_obj; /* this is the pointer to protocol object */
+#else
 	void				*prot;
+#endif
 	wan_timer_t			prot_timer;
 
 	unsigned char			protocol;
@@ -247,6 +279,9 @@ typedef struct wplip_link
 	wan_skb_queue_t			tx_queue;
 	wan_skb_queue_t			rx_queue;
 	wan_tasklet_t			task;
+#if defined(__FreeBSD__) && defined(WPLIP_TQ_THREAD)
+	struct taskqueue		*tq;
+#endif
 
 	struct wplip_dev		*cur_tx;
 
@@ -268,6 +303,10 @@ typedef struct wplip_link
 
 	wan_taskq_t 			prot_task;
 	u32				latency_qlen;
+
+#if defined(__WINDOWS__)
+	void	*sdla_card;	/* for wplip_link_callback_tx_down() */
+#endif
 
 } wplip_link_t;
 
@@ -298,8 +337,9 @@ typedef struct wplip_dev{
 #if defined(__LINUX__)
 	struct proc_dir_entry		*dent;
 #endif
+#if defined(__WINDOWS__)
 	struct net_device_stats		ifstats;
-
+#endif
 	unsigned char			used;
 	unsigned char			protocol;
 
@@ -320,8 +360,9 @@ typedef struct wplip_dev{
 
 	unsigned int			interface_down;
 	unsigned int			if_down;
-	wan_taskq_t 			if_task;
 	
+	wan_taskq_t 			if_task;
+
 } wplip_dev_t;
 
 typedef struct wplip_dev_list
@@ -363,7 +404,11 @@ typedef struct wplip_prot_iface
 		       unsigned int *len);
 
 	int (*rx)     (void *prot_ptr, void *rx_pkt);
+#if defined(__WINDOWS__)
+	int (*timer)  (void *prot_ptr, unsigned int *period);
+#else
 	int (*timer)  (void *prot_ptr, unsigned int *period, unsigned int);
+#endif
 	int (*bh)     (void *);
 	int (*snmp)   (void *, void *);
 	int (*task)   (void *prot_ptr);
@@ -416,6 +461,12 @@ extern int 		wplip_callback_tx_down(void *lip_dev, void *skb);
 extern int 		wplip_link_callback_tx_down(void *lip_link, void *skb);
 extern int		wplip_callback_kick_prot_task(void *lip_link);
 extern int 		wplip_set_hw_idle_frame (void *liplink_ptr, unsigned char *data, int len);
+
+#if defined(__WINDOWS__)
+extern wplip_reg_t	wplip_protocol;
+extern int wanpipe_lip_init(void);
+extern int wanpipe_lip_exit(void);
+#endif
 
 /* wanpipe_lip_sub.c */
 extern wplip_link_t*	wplip_create_link(char *devname);
@@ -486,6 +537,7 @@ extern int wplip_lipdev_prot_change_state(void *wplip_id,
 					  int state,
 					  unsigned char*,int);
 
+
 extern int wplip_lipdev_prot_update_state_change(wplip_dev_t *wplip_id,unsigned char*,int);
 
 
@@ -523,7 +575,11 @@ static __inline int wplip_trigger_bh(wplip_link_t *lip_link)
 	}
 
 	if (wan_skb_queue_len(&lip_link->rx_queue)){
+#if defined(__LINUX__) || !defined(WPLIP_TQ_THREAD)
 		WAN_TASKLET_SCHEDULE((&lip_link->task));	
+#else
+		WAN_TASKQUEUE_SCHEDULE(lip_link->tq,&lip_link->task);
+#endif
 		return 0;
 	}
 	
@@ -540,14 +596,22 @@ static __inline int wplip_trigger_bh(wplip_link_t *lip_link)
 #if 0
 	gdbg_flag=0;
 #endif
+#if defined(__LINUX__) || !defined(WPLIP_TQ_THREAD)
 	WAN_TASKLET_SCHEDULE((&lip_link->task));	
+#else
+	WAN_TASKQUEUE_SCHEDULE(lip_link->tq,&lip_link->task);
+#endif
 	return 0;
 }
 
 static __inline int wplip_kick_trigger_bh(wplip_link_t *lip_link)
 {	
 	wan_clear_bit(WPLIP_BH_AWAITING_KICK,&lip_link->tq_working);
+#if defined(__LINUX__) || !defined(WPLIP_TQ_THREAD)
 	WAN_TASKLET_SCHEDULE((&lip_link->task));	
+#else
+	WAN_TASKQUEUE_SCHEDULE(lip_link->tq,&lip_link->task);
+#endif
 	return 0;
 }
 
@@ -603,6 +667,22 @@ static __inline int wplip_decode_protocol(wplip_dev_t *lip_dev, void *ptr)
 		return WPLIP_IPX;
 	}
 
+	return WPLIP_IP;
+#elif defined(__WINDOWS__) 
+	struct sk_buff *skb=(struct sk_buff*)ptr;
+
+	DEBUG_LIP("wplip_decode_protocol()\n");
+	
+	switch (wpabs_htons(skb->protocol)){
+
+	case ETH_P_IP:
+		return WPLIP_IP;
+	case ETH_P_IPV6:
+		return WPLIP_IPV6;
+	case ETH_P_IPX:
+		return WPLIP_IPX;
+	}
+
 	return WPLIP_IP;	
 #else
 # error ("wplip_decode_protocol: Unknown Protocol!\n");
@@ -626,12 +706,145 @@ static __inline void wp_lip_config_bridge_mode(wplip_dev_t *lip_dev)
 }
 #endif
 
+#if defined(__WINDOWS__)
+#define PACKET_TYPE_DECODE(type)			\
+	((type == WPLIP_RAW)	? "WPLIP_RAW" :		\
+	(type == WPLIP_IP)	? "WPLIP_IP" :		\
+        (type == WPLIP_IPV6)	? "WPLIP_IPV6" : 	\
+	(type == WPLIP_IPX)	? "WPLIP_IPX": 		\
+	(type == WPLIP_FR_ARP)	? "WPLIP_FR_ARP": "Unknown Packet type")
 
+//convert integer definition of a protocol to string
+static char * get_protocol_string(int protocol)
+{
+#define MAX_PROT_NAME_LENGTH	256
+#define snprintf _snprintf
+	static char protocol_name[MAX_PROT_NAME_LENGTH];
+
+	switch(protocol)
+	{
+	case WANCONFIG_X25:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "X25");
+		break;
+
+	case WANCONFIG_FR:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Frame Relay");
+		break;
+
+	case WANCONFIG_PPP:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "PPP");
+		break;
+
+	case WANCONFIG_CHDLC:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "CHDLC");
+		break;
+
+	case WANCONFIG_BSC:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "BiSync Streaming");
+		break;
+
+	case WANCONFIG_HDLC:
+		//used with CHDLC firmware
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "HDLC Streaming");
+		break;
+
+	case WANCONFIG_MPPP://and WANCONFIG_MPROT too
+		//snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Multi Port PPP");
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "PPP");
+		break;
+
+	case WANCONFIG_LAPB:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "LAPB");
+		break;
+
+	case WANCONFIG_BITSTRM:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Bit Stream");
+		break;
+
+	case WANCONFIG_EDUKIT:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "WAN EduKit");
+		break;
+
+	case WANCONFIG_SS7:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "SS7");
+		break;
+
+	case WANCONFIG_BSCSTRM:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Bisync Streaming Nasdaq");
+		break;
+
+	case WANCONFIG_MFR:
+		//snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Multi-Port Frame Relay");
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Frame Relay");
+		break;
+
+	case WANCONFIG_ADSL:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "LLC Ethernet (ADSL)");
+		break;
+
+	case WANCONFIG_SDLC:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "SDLC");
+		break;
+
+	case WANCONFIG_ATM:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "ATM");
+		break;
+
+	case WANCONFIG_POS:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Point-of-Sale");
+		break;
+
+	case WANCONFIG_AFT:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "AFT");
+		break;
+
+	case WANCONFIG_AFT_TE3:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "AFT");
+		break;
+
+	case WANCONFIG_DEBUG:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Real Time Debugging");
+		break;
+
+	case WANCONFIG_ADCCP:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Special HDLC LAPB");
+		break;
+
+	case WANCONFIG_MLINK_PPP:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Multi-Link PPP");
+		break;
+
+	case WANCONFIG_GENERIC:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "WANPIPE Generic driver");
+		break;
+
+	case WANCONFIG_MPCHDLC:
+		//snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Multi-Port CHDLC");
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "CHDLC");
+		break;
+
+	case WANCONFIG_TTY:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "TTY");
+		break;
+/*
+	case PROTOCOL_TDM_VOICE:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "TDM Voice");
+	 break;
+*/
+	default:
+		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Invalid Protocol");
+		break;
+	}
+
+	return (char*)protocol_name;
+}
+
+#endif
 
 /*__KERNEL__*/
 #endif  
 
-/*_WANPIPE_X25_HEADER_*/
+/*_WANPIPE_LIP_HEADER_*/
 #endif
 
 

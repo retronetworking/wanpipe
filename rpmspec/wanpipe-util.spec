@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.2.7.1
+%define version           3.3.2
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -179,8 +179,89 @@ ENDOFTEXT
 install_init()
 {
         ln -s /usr/sbin/wanrouter /etc/init.d/wanrouter
-        chkconfig wanrouter on
+        chkconfig --add wanrouter
+	chkconfig wanrouter on
 }
+
+# ----------------------------------------------------------------------------
+# Enable MGD and BRI  log for A500-BRI
+# ----------------------------------------------------------------------------
+enable_smg_log()
+{
+if [ -e  /etc/syslog.conf ]; then
+        eval "grep "local2.*sangoma_mgd" /etc/syslog.conf" > /dev/null 2> /dev/null
+        if [ $? -ne 0 ]; then
+                eval "grep "local2" /etc/syslog.conf " > /dev/null 2> /dev/null
+                if [ $? -eq 0 ]; then
+                        echo
+                        echo "Warning : local2 is already used in syslog.conf"
+                        echo
+                fi
+                echo -e "\n# Sangoma Media Gateway log" > tmp.$$
+                echo -e "local2.*                /var/log/sangoma_mgd.log\n" >> tmp.$$
+                eval "cat /etc/syslog.conf tmp.$$ > tmp1.$$"
+                \cp -f tmp1.$$ /etc/syslog.conf
+                eval "/etc/init.d/syslog restart" > /dev/null 2>/dev/null
+        fi
+        eval "grep "local3.*sangoma_bri" /etc/syslog.conf" > /dev/null 2> /dev/null
+        if [ $? -ne 0 ]; then
+                eval "grep "local3" /etc/syslog.conf " > /dev/null 2> /dev/null
+                if [ $? -eq 0 ]; then
+                        echo
+                        echo "Warning : local3 is already used in syslog.conf"
+                        echo
+                fi
+                echo -e "\n# Sangoma BRI Daemon (smg_bri)  log" > tmp.$$
+                echo -e "local3.*                /var/log/sangoma_bri.log\n" >> tmp.$$
+                eval "cat /etc/syslog.conf tmp.$$ > tmp1.$$"
+                \cp -f tmp1.$$ /etc/syslog.conf
+                eval "/etc/init.d/syslog restart" > /dev/null 2> /dev/null
+        fi
+else
+        echo "Warning: /etc/syslog.conf not found"
+fi
+
+if [ -f tmp1.$$ ]; then
+        rm -f  tmp1.$$
+fi
+if [ -f tmp.$$ ]; then
+        rm -f  tmp.$$
+fi
+
+echo "Ok"
+echo
+
+echo "Checking logrotate ..."
+eval "type logrotate" > /dev/null 2> /dev/null
+if [ $? -ne 0 ]; then
+        echo "Error: Logrotate not found !"
+fi
+
+if [ -e /etc/logrotate.d ] && [ -e /etc/logrotate.d/syslog ]; then
+
+        eval "grep sangoma_mgd /etc/logrotate.d/syslog" > /dev/null 2> /dev/null
+        if [ $? -ne 0 ]; then
+                eval "sed -e 's/messages/messages \/var\/log\/sangoma_mgd.log/' /etc/logrotate.d/syslog >tmp2.$$ 2>/dev/null"
+                eval "cp -f tmp2.$$ /etc/logrotate.d/syslog"
+                eval "logrotate -f /etc/logrotate.d/syslog"
+                if [ $? -ne 0 ]; then
+                        echo "Error: logrotate restart failed!";
+                        exit 1;
+                fi
+                echo "Logrotate is being changed and restarted!"
+        else
+                echo "Logrotate is configured!"
+        fi
+
+else
+        echo "Error: Logrotate dir: /etc/logrotate.d not found !"
+fi
+echo "OK."
+echo
+
+}
+
+
 
 install_init_old()
 {
@@ -234,7 +315,7 @@ EOM
 install_init;
 #create wanrouter.rc in /etc/wanpipe
 #create_metaconf;
-
+enable_smg_log;
 
 
 %files
@@ -246,150 +327,140 @@ install_init;
 
 
 %changelog
-* Thu Jul 16 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.7
-========================================================================
 
-- Removed the Excessive Error check that disables the port.
-  This feature was introduced in 3.2.6 release.
-  Some lines are extremely noisy on startup which can cause
-  excessive crc errors (5000 per sec).  In this case driver would 
-  take the port down for few sec before bringing it back up in order to
-  avoid irq overlaod.  This release will only print the
-  warning but will not take any up/down actions.
+* Wed Feb 12 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2
+====================================================================== 
 
-- Added support for new PLX2 or TUNDRA PCIe chip.
+- Support for A500 hardware support with NetBricks BRI Stack
+- Major A500 driver updates and fixes
+- Serial A142/A144 hardware support
+- AFT A056 56K hardware support 
 
+- Support for HW DTMF
 
-* Thu Jun 4 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.6
-========================================================================
+- Updates for AFT PMC and MAXIM framers
+  PMC - lowered LOS sensitivity
+        Fixes fake up/down state changes on
+        started inactive lines.
 
-- Updated hwprobe to add A056 card
+  MAXIM - lowered sensistivy
+          Fixes cable cross talk on 8 port cards.
+        - Enabled Unframed E1
+        - Enabled Tri-State Mode
+        - Fixed loopback commands
 
-- Updated for 2.6.25 kernel
+- Updated loopback commands for AFT Maxim cards
 
-- wanpipemon PRI/BRI wireshark tracing
-  http://wiki.sangoma.com/wanpipe-wireshark-pcap-pri-bri-wan-t1-e1-tracing
-
-- LIP Layer Update
-  Optimized packet handling in bh  
-
-- Fixed WAN Protocol for 2.6.24 kernels and higher
-
-- AFT TE1 Code
-  Defaulted Maxim T1 Rx Level to 36DB
-  Defaulted Maxim E1 Rx Level to 42DB
-  This will improve T1/E1 connectivity on noisy or low power lines.
-
-- Wanpipemon PRI/BRI PCAP Tracing for Wireshark
-  Using wanpipemon dchan trace one can now capture
-  pcap files that can be opened by Wireshark.
-  http://wiki.sangoma.com/wanpipe-wireshark-pcap-pri-bri-wan-t1-e1-tracing
-
-
-- Add pci parity check to wanrouter 
-  wanrouter parity  	-> displays current system pci parity
-  wanrouter parity off 	-> disables system pci parity
-  wanrouter parity on	-> enables system pci parity
+- Updated for AstLinux
+  The make file can now build all WAN and Voice Protocols
   
-  /etc/wanpipe/wanrouter.rc  
-	WAN_PCI_PARITY=OFF -> on wanrouter start disable pci parity
-			   -> event logged in /var/log/wanrouter
+- Updated legacy protocols for new front end architecture
 
-  On some servers pci parity can cause NMI interrupts that
-  can lead to reboots.  Parity can be caused by unsuported
-  or buggy pci/bridge chipsets.  The above commands can be used
-  to combat pci parity reboots.
-
-  Another option is to disable PCI parity in BIOS :)
+- 
 
 
+* Fri Feb 01 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2.p8
+====================================================================== 
 
-* Thu Apr 4 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.5.1
-========================================================================
+- wancfg_zaptel now asks for the default_tei value for 
+- BRI cards in TE mode
 
-- RTP TAP Bug fix
-  The driver was sending out invalid rtp tap header
-  http://wiki.sangoma.com/wanpipe-voice-rtp-tap
+- Fix for HWEC not being enabled when non-consecutive modules are using 
+- in BRI cards
 
+* Fri Feb 01 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2.p4
+====================================================================== 
 
-* Thu Apr 2 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.5
-========================================================================
-
-- T3/E3 Update
-  Fixed T3 Loopback commands
-
-- Updated T3/E3 Driver
-  Performance improvement on T3/E3 drivers when handling
-  VOIP and Data traffic.
-
-- Update ifconfig MTU change from protocol interface
- 
-
-* Thu Mar 6 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.4
-======================================================================== 
-
-- Updated for 2.6.24 kernels
-  TDM Voice (Zaptel) tested with 2.6.24 kernel.
-  Known issues: WAN protocols are broken for 2.6.24 kernels.
-                Its a compilation issue that will be fixed ASAP.
-
-- TDM API bug fix
-  Check for max frame size on audio stream
-
-- Updated for Zaptel 1.4.9
-
-- AFT IRQ Throttling feature
-  This feature is use to protect the server from 
-  terrible lines.  In some cases a bad hdlc line can
-  cause thousands of interrupts per sec. Rx errors are now
-  throttled so that system does not get compromized.
-
-- AFT RTP TAP Feature
-  RTP TAP Feature allows user to tap voice channels during
-  Asterisk-Zaptel/TMD API operation at the driver/kernel level.  
-  Each voice stream is encapsulated in UDP/RTP header and transmitted over
-  neghbouring ethernet address directly from kenrel space.
-  Tapping 4E1s worth of voice channels adds estra 2% system load :)
-  http://wiki.sangoma.com/wanpipe-voice-rtp-tap
-
-- AFT Software Ring Buffers on A200/A400 Analog Cards
-  This feature improves analog preformance under Asterisk/TDM API 
-  mode. In particualr it improves faxing reliability and 
-  minimizes frame slippage due to system load or bad incoming
-  clock from the line.  
-  Note: All AFT T1/E1 cards have this feature in hardare :)
+- Fixed AFT memory leak
+  Memory leak introduced in 3.3 release
+- Fixed AFT 56K bug
+  Bug introduced in 3.3 releae
 
 
-* Thu Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.3
-======================================================================== 
+* Fri Feb 01 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2.p3
+====================================================================== 
 
-- No changes from 3.2.2
-  Version updated for versioning sake.
+- Fix bug in BRI protocol for fast local hangups.
 
-* Thu Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.2
-======================================================================== 
+* Mon Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.2.p1
+====================================================================== 
 
-- AFT Maxim Front end update
-  Implemented graceful recovery on short circuit.
+- Bug fix in Hardware EC code for E1.
+  Bug introduced in 3.3 release.
 
-- AFT Driver update
-  Added a check for TDM IRQ timeout.
-  On some machines its possible for TDM IRQ to timeout.
 
-- SMG updated
-  Fixed wancfg_smg  
-  MTU not properly set on ports 2 and up
-  Voice only ports were not being added to startup sequence
-  Updated for callweaver
+* Mon Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.1
+==================================================================== 
 
-- Added Zaptel 1.4 HW HDLC Support
-  No Sangoma zaptel patch needed with Zaptel 1.4
 
-- Added HWEC Noise flag in wanpipe config file
+* Mon Jan 16 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.22
+==================================================================== 
 
-- Updated SMG
-- Updated E1 Unframed on Maxim Cards
+- BRI protocol:Increased internal timer that could cause issue in systems with
+- more than 8 BRI spans
 
+* Mon Jan 15 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.21
+==================================================================== 
+
+- BRI protocol:Fix for smg_brid daemon crashing on race condition
+- BRI protocol:default_tei parameter is not ignored when using point to 
+- multipoint anymore
+
+* Mon Jan 14 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.20
+====================================================================  
+
+- BRI protocol: Additional prefix options. 
+- BRI protocol: Check is caller ID number is all digits on incoming calls
+- Sangoma MGD: Removed dynamic user period causing skb panics
+- chan_woomera: Fixed issue with rxgain and txgain values set to 0 if 
+- coding not set in woomera.conf
+- wancfg_zaptel: Support for fractional T1/E1 spans.
+- wancfg_zaptel: fix issue BRI always being configured as bri_net introduced in v3.3.0.19
+
+* Mon Jan 07 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.19
+====================================================================  
+
+- Support for national/international prefix in BRI stack
+
+* Mon Jan 07 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.18
+====================================================================  
+
+- Changed Makefile in wanpipe/api/fr causing compilation errors 
+
+
+* Thu Dec 20 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.17
+====================================================================  
+
+- Fix for smg_ctrl boot script starting before network services on some systems
+- Support for language parameter in chan_woomera
+
+* Thu Dec 20 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.16
+====================================================================  
+
+- Fix for Sangoma BRI Daemon crashing on incoming call if chan_woomera is not installed on that system
+
+* Tue Dec 18 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.15
+====================================================================  
+
+- Fix for caller ID value being corrupted sometimes
+- Support for call confirmation in chan_woomera
+
+* Tue Dec 18 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.14
+====================================================================  
+
+- Fix in smg_brid not releasing some b-channels properly
+- Fix in wancfg_smg not setting MTU to 80 when configuring cards for SS7
+
+* Fri Dec 14 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.13
+====================================================================  
+
+- Fix for Kernel panic on 64-bit systems when enabling hardware echo canceller
+
+
+* Thu Dec 5 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.11
+====================================================================  
+
+- Support for AFT Serial Cards
 - Updates for AFT PMC and MAXIM framers
   PMC - lowered LOS sensitivity
         Fixes fake up/down state changes on
@@ -422,216 +493,37 @@ install_init;
 - Updated Setup script 
 
 
-* Wed Oct 6 2007 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.1
-===================================================================== 
 
-- Setup Zap Chunk Size Patch updated for Zaptel 1.4 
-  Patch allows running zaptel in 8,16,40,80 chunk size.
-  However wct drivers must be removed from compilation :)
-  Patch is now fixed for Zaptel 1.4
-
-- Update to All AFT drivers for 64bit 2.6.22 kernel.
-  Updated affects: AFT A101/2/4/8/200/400 (all cards)
-  The major 2.6.20+ updates extend to 64bit as well.
-  Previous drivers segfaulted under 2.6.22 64bit 
-  kernels. This does not affect you if you are running
-  kennels lower than 2.6.22.
-
-- Updated legacy drivers for 2.6.22 kernel
-
-
-
-* Wed Oct 3 2007 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.0
-===================================================================== 
-
-- The Beta 3.1.X releases has now been declared as STABLE 3.2.X 
-
-- Fixed AMI/D4 on MAXIM (A101/2/4/8D) cards
-- Fixed A200/A400 tip/ring no dial tone issues.
-- Fixed 2.6.22 support and above
-- Fixed RPM Build post install issue
-- Updated Setup install script
-  Option to build for zaptel: ./Setup zaptel
-- Working E&M/RBS/CAS Channel Bank support for MAXIM (A101/2/4/8) cards.
-- Fixed wanpipe crashing on system shutdown on some machines.
-  Caused by RedHat /var/lock/subsys mandatory lock file.
-- New Firmware for all MAXIM Cards (A101/2/4/8D)
-  Firmware V33: Fixes EC Chip Security errors that can cause
-  PRI to go down on some computers. Firmware is backward compatible
-  to any previous release.
-- Faxes/Modems working through hardware echo canceler.
-  Tested at 56K from one port to another.
-  New octasic update.
-- Analog Network SYNC Feature for Fax Support
-  Analog cards can be synced to T1/E1 clock
-  from adjacent A101/2/4/8 cards for flawless faxing
-  from FXO/FXS to T1/E1.
-
-- Known Issues: 
-  T1/E1 High Impedance Tap for MAXIM (A101/2/4/8D) cards.
-  It works on original PMC A101/2/4 cards
-
-For more info: http://wiki.sangoma.com
-
-
-* Mon Oct 1 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4.6
-==================================================================== 
-
-- Fixed Makefile for 2.6.22.9 kernel.
-- Fixed all gcc4 warnings.
-
-
-* Tue Sep 26 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4.5
-==================================================================== 
-
-- Updated Setup install script
-- A200/A400 Analog driver update
-  Fixed noise issue introduced in 3.1.4.3 release
-- Updated SMG for Asterisk 1.4 & Callweaver
-
-
-* Tue Sep 18 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4.3
-==================================================================== 
-
-- A200/A400 Analog driver update
-  Fixed a problem where analog port starts up without 
-  dialtone.
-
-* Tue Sep 14 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4.2
-==================================================================== 
-
-- Update for 2.6.22 kernel.
-- wanrouter startup script update for redhat distros.
-  Fixes the issue on system shutdown, where wanpipe
-  module sometimes do not unload due to /var/lock/subsys/
-  lockfile check. This issue is only related or RedHat style distros.
-
-
-* Tue Aug 15 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4
-==================================================================== 
-
-- Added A101-SH old config support.
-  So onld A101u or A101c config file can be used with new A101-SH cards.
-
-- Updated KATM support in the LIP Layer.
-  Used to connect Kernel ATM Layer to Wanpipe ATM AAL5 layer
-  over all AFT cards.
-
-- Added a sanity checker for enabling HWEC.
-  Used to prevent duble hwec enable.
-
-- Added wancfg_tdmapi configurator
-
-- Updated SMG
-	
-
-* Mon Jun 30 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.3
-==================================================================== 
-
-- Update to Ocatsic Hardware Echo Canceler Library
-  Turned of the NOISE suppression because it can interfere
-  with faxes. If you faxes did not work properly on 3.1.2
-  release they will work fine with this one.
-
-- Cleaned up the Setup installation script.
-
-
-* Mon Jun 16 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.2
-==================================================================== 
-
-- Update to Octasic Hardware Echo Canceler library
-  This is a very important update that affects all AFT cards
-  with octasic hardware echo canceler.  The new octasic update
-  fixes faxing/modem issues over octasic hwec.  The previous
-  release contained a bug that limited the faxing/modem speeds
-  to 26k.  The new update properly detects fax/modem and works
-  with full speed of 33k fax and 56k modem.
-
-- A200/A400 Updated
-  This update fixes the offhook startup failure.
-  On startup if fxs is offhook driver will start correctly
-
-- Wanpipe Startup order changed
-  The wanpipe startup scripts on bootup were previously
-  set too early "S03wanrouter".  This caused unpredictable
-  behaviour on some systems.  We have now moved wanrouter 
-  startup on boot up to "S11wanrouter", after networking
-  code.
-
-- Zaptel Adjustable Chunk Size Feature
-  Wanpipe drivers can work with 1,2,5 and 10ms 
-  chunk size.  Zaptel also supports this, however
-  the wct4xx driver breaks compilation when chunk
-  size is changed.  ./Setup can how change the
-  zaptel chunk size for you and update zaptel
-  Makefiles to remove wct4xx driver out.
-
-  Zaptel with 1ms generates 1000 interrupts per sec
-  Zaptel with 10ms generates 100 interrupts per sec.
-
-  As you can see its a drastic interrupt performance
-  increase.
-
-  NOTE: This breaks software echo cancelation, but
-        its not needed since we have hwec.
-
-
-* Fri Jun 06 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.1
-==================================================================== 
-
-- A101/2/4/8 (MAXIM) AFT Update IMPORTANT
-  A major bug fix for AFT Maxim E1 cards for E1 CRC4 Mode.
-  On some lines the E1/CRC4 mode causes line errors on 
-  the telco side which results in PRI not coming up.
- 
-  Symptiom: E1 is up (no alarms) on local side but pri is 
- 	    not coming up!  (Only in E1 CRC4 Mode)
-
-- A101/2/4/8 (MAXIM) Mandatory Firmware Update
-  An echo canceler bug has been fixed for all AFT
-  MAXIM Cards A101/2/4/8dm.  New firmware version is V31.
-  If you are running MAXIM cards with hwec wiht older
-  firmware version you must upgrade.
-
-- Updated SMG 
-  Fixed DTMF synchronization
-
-
-
-- Updated SMG 
-  Fixed DTMF synchronization
-
-
-* Fri Jun 06 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.0.1
-==================================================================== 
-
-- Minor release
-- Contains zaptel patch for zaptel 1.2.17 and above.
-- No driver changes 
-
-* Fri May 17 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.0
+* Thu Nov 8 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.4
 ====================================================================  
 
-- Major new BETA wanpipe release 
-  Changed wanpipe versioning:
-	Release: A.B.C.D
-	A - Major Relase number
-	B - Indicates Stable or Beta
-	    Odd number is Beta
-	    Even number is Stable
-	C - Minor Release number
-	D - Optional pre-release and custom releases
- 
-- Fixed RBS Support for all Maxim cards A101/2/4/8.
+- Fixed A101/2 (Old) bug introduced in previous releaes
 
-- Support for 2.6.20 kernels.
+* Mon Oct 31 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.4
+====================================================================  
 
-- Support for New: A101D A102D A104D Maxim cards
-     :
-- Support for New: AFT 56K DDS card
+- Updated BRI caller name
+- Updaged Setup
 
-- Redesigned TDM API Events
 
-- TDM API Analog Support
+* Mon Oct 15 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.1
+====================================================================  
 
+- Major Updates
+- New BRI architecture/support
+  SMG with Netbricks BRI Stack
+- Support for Hardware DTMF
+
+
+* Thu Aug 22 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.p3
+======================================================================
+
+- Updated wancfg_zaptel to support HW DTMF
+
+
+* Thu Aug 21 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.0.p2
+======================================================================  
+
+- Major Updates
+- Hardware DTMF for Asterisk and TDM API
 - - END - 

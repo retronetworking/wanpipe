@@ -201,7 +201,7 @@ print_autowrap (WINDOW * win, const char *prompt, int width, int y, int x)
     int i, prompt_len, room, wlen;
     char tempstr[MAX_LEN + 1], *word, *sp, *sp2;
 
-    strcpy (tempstr, prompt);
+    strlcpy (tempstr, prompt, MAX_LEN);
 
     prompt_len = strlen(tempstr);
 	

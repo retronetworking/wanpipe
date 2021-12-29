@@ -1,15 +1,15 @@
 8
 
 dir
-237
-svn://sangoma.freeswitch.org/libsangoma/trunk/examples
-svn://sangoma.freeswitch.org
+1
+https://www.sangomapbx.com/svn/libsangoma/trunk/examples
+https://www.sangomapbx.com/svn/libsangoma
 
 
 
-2007-05-29T18:03:36.038276Z
-206
-ncorbic
+2008-02-28T18:51:53.196120Z
+1
+root
 
 
 svn:special svn:externals svn:needs-lock
@@ -24,7 +24,7 @@ svn:special svn:externals svn:needs-lock
 
 
 
-2028fedf-720c-0410-83b8-d54a3e729fb0
+8fe45b59-3c47-0410-bdf9-e5d932a076a6
 
 sound.raw
 file
@@ -32,11 +32,11 @@ file
 
 
 
-2007-05-17T23:49:20.000000Z
+2008-02-28T19:04:34.000000Z
 da36acc78b83d5047481df0cca63d969
-2006-03-23T23:03:41.659017Z
-26
-mikej
+2008-02-28T18:51:53.196120Z
+1
+root
 has-props
 
 priserver.c
@@ -45,11 +45,11 @@ file
 
 
 
-2007-05-17T23:49:20.000000Z
+2008-02-28T19:04:34.000000Z
 9f83030c20158d91b7ec6bb7a9392dcb
-2006-03-23T23:54:12.054610Z
-27
-ncorbic
+2008-02-28T18:51:53.196120Z
+1
+root
 
 librc
 file
@@ -57,11 +57,11 @@ file
 
 
 
-2007-05-17T23:49:20.000000Z
+2008-02-28T19:04:34.000000Z
 5c222b74d68b1c7df3f937a9d6321d40
-2006-03-23T23:03:41.659017Z
-26
-mikej
+2008-02-28T18:51:53.196120Z
+1
+root
 
 Makefile
 file
@@ -69,11 +69,11 @@ file
 
 
 
-2007-07-24T22:45:02.000000Z
+2008-02-28T19:04:34.000000Z
 b58ee42eeb2d5e921bdab940a9fda738
-2007-05-29T18:03:36.038276Z
-206
-ncorbic
+2008-02-28T18:51:53.196120Z
+1
+root
 
 README
 file
@@ -81,9 +81,9 @@ file
 
 
 
-2007-05-17T23:49:20.000000Z
+2008-02-28T19:04:34.000000Z
 40538792592cd766e4941d9b37dbaf56
-2006-03-23T23:03:41.659017Z
-26
-mikej
+2008-02-28T18:51:53.196120Z
+1
+root
 

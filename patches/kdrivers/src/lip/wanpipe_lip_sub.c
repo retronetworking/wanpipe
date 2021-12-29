@@ -60,7 +60,7 @@ wplip_link_t *wplip_create_link(char *devname)
 	wan_skb_queue_init(&lip_link->tx_queue);
 	wan_skb_queue_init(&lip_link->rx_queue);
 
-	wan_spin_lock_init(&lip_link->bh_lock);
+	wan_spin_lock_irq_init(&lip_link->bh_lock, "wan_lip_bh_lock");
 
 	wan_atomic_set(&lip_link->refcnt,0);
 

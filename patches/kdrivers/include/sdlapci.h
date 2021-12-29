@@ -25,15 +25,25 @@
 #define PCI_DEV_SLOT_MASK		0x1F	/* mask for slot numbering */
 #define PCI_IRQ_NOT_ALLOCATED		0xFF	/* interrupt line for no IRQ */
 
-/* Definition for identifying and finding XILINX PCI adapters */
+/* Vendor id lisr for Sangoma cards */
 #define SANGOMA_PCI_VENDOR		0x1923	/* Old value -> 0x11B0 */
 #define SANGOMA_PCI_VENDOR_OLD		0x10EE	/* Old value -> 0x11B0 */
+
+/* Device id list for Sangoma cards */
 #define SANGOMA_PCI_DEVICE		0x0300	/* Old value -> 0x0200 */
 #define SANGOMA_PCI_4_DEVICE		0x0400	/* */
+#define SANGOMA_S2E_300_PCI_DEVICE	0x0030	/* Xilinx-300  SPARTAN-2e */
+#define SANGOMA_S3_400_PCI_DEVICE	0x0040	/* Xilinx-400  SPARTAN-3  */
+#define SANGOMA_S3_1000_PCI_DEVICE	0x0100	/* Xilinx-1000 SPARTAN-3  */
+#define SANGOMA_S3E_250_PCI_DEVICE	0x0025	/* Xilinx-250  SPARTAN-3e */
+#define SANGOMA_S3E_500_PCI_DEVICE	0x0050	/* Xilinx-500  SPARTAN-3e */
+#define SANGOMA_S3E_1200_PCI_DEVICE	0x0120	/* Xilinx-1200 SPARTAN-3e */
+#define SANGOMA_GP_ADSL_PCI_DEVICE	0x0001	/* Globe-Span ADSL */
 
 #if defined(__WINDOWS__)
 #define SANGOMA_PCI_4_SHARK_DEVICE	0x0100	/* A104D */
 #define SANGOMA_PCI_A200_SHARK_DEVICE	0x0040	/* A200 (D) */
+#define SANGOMA_PCI_A056_SHARK_DEVICE	0x0020	/* A056 */
 #endif
 
 /* Definition for identifying and finding PLX PCI bridge adapters */
@@ -41,12 +51,8 @@
 #define PLX_DEVICE_ID  			0x8111	/* PLX device ID number */
 #define PLX2_DEVICE_ID  		0x8112	/* PLX device ID number rev 2 */
 
-#define TUNDRA_VENDOR_ID		0x10E3	/* TUNDRA vendor ID number */
-#define TUNDRA_DEVICE_ID		0x8111	/* TUNDRA device ID number */
-
 #define PLX_EEPROM_ENABLE		0x5A
 #define PLX_EEPROM_VENDOR_OFF		0xFC	/* 2 bytes for Card vendor id */
-
 
 #define A101_1TE1_SUBSYS_VENDOR			0xA010	/* A101 with T1/E1 1 line  */
 #define A101_2TE1_SUBSYS_VENDOR			0xA011	/* A101 with T1/E1 2 lines */
@@ -65,6 +71,11 @@
 
 #define AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR	0xA500	/* AFT-ISDN BRI SHARK board */
 #define AFT_56K_SHARK_SUBSYS_VENDOR		0xA056	/* AFT-56K SHARK board */
+
+#define AFT_2SERIAL_V35X21_SUBSYS_VENDOR	0xA031	/* AFT-A142 2 Port V.35/X.21 board */
+#define AFT_4SERIAL_V35X21_SUBSYS_VENDOR	0xA032	/* AFT-A144 4 Port V.35/X.21 board */
+#define AFT_2SERIAL_RS232_SUBSYS_VENDOR		0xA033	/* AFT-A142 2 Port RS232 board */
+#define AFT_4SERIAL_RS232_SUBSYS_VENDOR		0xA034	/* AFT-A144 4 Port RS232 board */
 
 #define AFT_CORE_ID_MASK	0x00FF
 #define AFT_CORE_REV_MASK	0xFF00
@@ -160,7 +171,7 @@
 #define PCI_VENDOR_ID_GSI           0x14BC
 #define PCI_DEVICE_ID_GSI_PULSAR    0xD002
 #define PCI_DEVICE_ID_GSI_ADSL      PCI_DEVICE_ID_GSI_PULSAR
-#define PCI_DEVICE_ID_GSI_ADSL_OTHER 0xD001
+#define PCI_DEVICE_ID_GSI_ADSL_V2   0xD001
 
 
 #endif	/* _SDLAPCI_H */

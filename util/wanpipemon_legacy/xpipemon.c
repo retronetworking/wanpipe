@@ -458,7 +458,7 @@ void line_trace(int trace_mode)
 {
   	fd_set ready;
    	struct timeval to;
-        char *trace_data;
+        unsigned char *trace_data;
         trace_data_t *trace_info;
 	wp_trace_output_iface_t trace_iface;
    
@@ -526,7 +526,7 @@ void line_trace(int trace_mode)
 		DO_COMMAND(wan_udp);
 
 		trace_info = (trace_data_t *)&wan_udp.wan_udphdr_data[0];
-		trace_data = (char *)&trace_info->data;
+		trace_data = trace_info->data;
 
 	    	if (wan_udp.wan_udphdr_return_code == 0 && 
 	            wan_udp.wan_udphdr_data_len) { 

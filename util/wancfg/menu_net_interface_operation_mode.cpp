@@ -162,7 +162,7 @@ again:
   if(show(selection_index) == NO){
     rc = NO;
     goto cleanup;
-  }
+	  }
   //////////////////////////////////////////////////////////////////////////////////////
 
   Debug(DBG_MENU_NET_INTERFACE_OPERATION_MODE,
@@ -232,6 +232,16 @@ again:
       exit_dialog = YES;
       break;
 
+    case 12:
+      chandef->usedby = WP_NETGRAPH;
+      exit_dialog = YES;
+      break;
+
+    case 13:
+      chandef->usedby = TDM_VOICE_API;
+      exit_dialog = YES;
+      break;
+
     default:
       ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
         get_lxdialog_output_string()));
@@ -255,6 +265,8 @@ again:
     case 9:
     case 10:
     case 11:
+    case 12:
+    case 13:
       tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, net_if_operational_mode_help_str);
       break;
 
@@ -294,11 +306,20 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
   
   Debug(DBG_MENU_NET_INTERFACE_OPERATION_MODE, ("protocol: %d\n", protocol));
  
+  number_of_items_in_menu = 0;
+
   switch(protocol)
   {
   case PROTOCOL_TDM_VOICE:
     operation_modes_str = QUOTED_8;
     operation_modes_str += OP_MODE_VoIP;
+    
+    number_of_items_in_menu = 1;
+    break;
+
+  case PROTOCOL_TDM_VOICE_API:
+    operation_modes_str = QUOTED_13;
+    operation_modes_str += OP_MODE_TDMV_API;
     
     number_of_items_in_menu = 1;
     break;
@@ -317,37 +338,58 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
   case WANCONFIG_MFR:
     operation_modes_str = QUOTED_1;
     operation_modes_str += OP_MODE_WANPIPE;
+    number_of_items_in_menu++;
 
     operation_modes_str += QUOTED_2;
     operation_modes_str += OP_MODE_API;
+    number_of_items_in_menu++;
 
+#if defined(__LINUX__)
     operation_modes_str += QUOTED_3;
     operation_modes_str += OP_MODE_BRIDGE;
+    number_of_items_in_menu++;
 
     operation_modes_str += QUOTED_4;
     operation_modes_str += OP_MODE_BRIDGE_NODE;
-
+    number_of_items_in_menu++;
+#endif
     operation_modes_str += QUOTED_6;
     operation_modes_str += OP_MODE_STACK;
+    number_of_items_in_menu++;
 
-    number_of_items_in_menu = 5;
+#if defined(__FreeBSD__)
+    operation_modes_str += QUOTED_12;
+    operation_modes_str += OP_MODE_NETGRAPH;
+    number_of_items_in_menu ++;
+#endif
+
     break;
 
   //case WANCONFIG_PPP:
   case WANCONFIG_MPPP://and WANCONFIG_MPROT too
     operation_modes_str = QUOTED_1;
     operation_modes_str += OP_MODE_WANPIPE;
+    number_of_items_in_menu++;
 
+#if defined(__LINUX__)
     operation_modes_str += QUOTED_3;
     operation_modes_str += OP_MODE_BRIDGE;
+    number_of_items_in_menu++;
 
     operation_modes_str += QUOTED_4;
     operation_modes_str += OP_MODE_BRIDGE_NODE;
-
+    number_of_items_in_menu++;
+#endif
     operation_modes_str += QUOTED_6;
     operation_modes_str += OP_MODE_STACK;
-    
-    number_of_items_in_menu = 4;
+    number_of_items_in_menu++;
+
+#if defined(__FreeBSD__)
+    operation_modes_str += QUOTED_12;
+    operation_modes_str += OP_MODE_NETGRAPH;
+    number_of_items_in_menu ++;
+#endif
+
     break;
 
   case WANCONFIG_HDLC:
@@ -356,18 +398,24 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
 
     operation_modes_str = QUOTED_1;
     operation_modes_str += OP_MODE_WANPIPE;
+    number_of_items_in_menu ++;
 
     operation_modes_str += QUOTED_2;
     operation_modes_str += OP_MODE_API;
-      
-    number_of_items_in_menu = 2;
+    number_of_items_in_menu ++;
   
     if(linkconf->card_type == WANOPT_AFT || linkconf->card_type == WANOPT_AFT104){
       operation_modes_str += QUOTED_11;
       operation_modes_str += OP_MODE_TDM_API;
-      number_of_items_in_menu = 3;
+      number_of_items_in_menu ++;
     }
     
+#if defined(__FreeBSD__)
+    operation_modes_str += QUOTED_12;
+    operation_modes_str += OP_MODE_NETGRAPH;
+    number_of_items_in_menu ++;
+#endif
+
     //treaded as a protocol
     //operation_modes_str += QUOTED_8;
     //operation_modes_str += OP_MODE_VoIP;
@@ -383,20 +431,30 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
 
     operation_modes_str = QUOTED_1;
     operation_modes_str += OP_MODE_WANPIPE;
+    number_of_items_in_menu ++;
 
     operation_modes_str += QUOTED_2;
     operation_modes_str += OP_MODE_API;
+    number_of_items_in_menu ++;
 
+#if defined(__LINUX__)
     operation_modes_str += QUOTED_3;
     operation_modes_str += OP_MODE_BRIDGE;
+    number_of_items_in_menu ++;
 
     operation_modes_str += QUOTED_4;
     operation_modes_str += OP_MODE_BRIDGE_NODE;
-
+    number_of_items_in_menu ++;
+#endif
     operation_modes_str += QUOTED_6;
     operation_modes_str += OP_MODE_STACK;
+    number_of_items_in_menu ++;
 
-    number_of_items_in_menu = 5;
+#if defined(__FreeBSD__)
+    operation_modes_str += QUOTED_12;
+    operation_modes_str += OP_MODE_NETGRAPH;
+    number_of_items_in_menu ++;
+#endif
     break;
 
   case WANCONFIG_LIP_ATM:
@@ -540,15 +598,19 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
 
   case WANCONFIG_AFT:
     //"AFT Mode"
-    if(link_defs->card_version != A200_ADPTR_ANALOG){
+    if(link_defs->card_version != A200_ADPTR_ANALOG ){
+
       operation_modes_str = QUOTED_1;
       operation_modes_str += OP_MODE_WANPIPE;
+      number_of_items_in_menu ++;
 
       operation_modes_str += QUOTED_2;
       operation_modes_str += OP_MODE_API;
+      number_of_items_in_menu ++;
 
       operation_modes_str += QUOTED_11;
       operation_modes_str += OP_MODE_TDM_API;
+      number_of_items_in_menu ++;
 
       //operation_modes_str += QUOTED_8;
       //operation_modes_str += OP_MODE_VoIP;
@@ -559,7 +621,12 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
 //    operation_modes_str += QUOTED_6;
 //    operation_modes_str += OP_MODE_STACK;
 
-      number_of_items_in_menu = 3;
+#if defined(__FreeBSD__)
+      operation_modes_str += QUOTED_12;
+      operation_modes_str += OP_MODE_NETGRAPH;
+      number_of_items_in_menu ++;
+#endif
+
     }else{
       operation_modes_str += QUOTED_2;
       operation_modes_str += OP_MODE_API;

@@ -28,12 +28,16 @@ extern wan_iface_t wan_iface;
 
 static int wan_aften_init(void*);
 static int wan_aften_exit(void*);
+#if 0
+static int wan_aften_shutdown(void*);
+static int wan_aften_ready_unload(void*);
+#endif
 static int wan_aften_setup(sdla_t *card, netdevice_t *dev);
-static int wan_aften_shutdown(sdla_t *card);
+static int wan_aften_release(sdla_t *card);
 static int wan_aften_update_ports(void);
-static int wan_aften_open(netdevice_t *dev);
-static int wan_aften_close(netdevice_t *dev);
-static int wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd);
+static int wan_aften_open(netdevice_t*);
+static int wan_aften_close(netdevice_t*);
+static int wan_aften_ioctl (netdevice_t*, struct ifreq*, wan_ioctl_cmd_t);
 
 #if defined(__OpenBSD__)
 struct cdevsw wan_aften_devsw = {
@@ -43,7 +47,7 @@ WAN_MODULE_DEFINE(
 	"Alex Feldman <al.feldman@sangoma.com>",
 	"WAN AFT Enable", 
 	"GPL",
-	wan_aften_init, wan_aften_exit,
+	wan_aften_init, wan_aften_exit,/* wan_aften_shutdown, wan_aften_ready_unload,*/
 	&wan_aften_devsw);
 #else
 WAN_MODULE_DEFINE(
@@ -51,7 +55,7 @@ WAN_MODULE_DEFINE(
 	"Alex Feldman <al.feldman@sangoma.com>",
 	"WAN AFT Enable", 
 	"GPL",
-	wan_aften_init, wan_aften_exit,
+	wan_aften_init, wan_aften_exit,/*wan_aften_shutdown, wan_aften_ready_unload,*/
 	NULL);
 #endif
 WAN_MODULE_DEPEND(wan_aften, sdladrv, 1, SDLADRV_MAJOR_VER, SDLADRV_MAJOR_VER);
@@ -137,7 +141,7 @@ static int wan_aften_init(void *arg)
 		wandev 			= &card->wandev;
 		wandev->magic   	= ROUTER_MAGIC;
 		wandev->name    	= card->devname;
-		wandev->private 	= card;
+		wandev->priv 	= card;
 		devle->dev		= dev;
 
 		/* Set device pointer */
@@ -198,8 +202,8 @@ static int wan_aften_exit(void *arg)
 			WAN_LIST_REMOVE(devle, dev_link);
 			wan_free(devle);
 		}
-		DEBUG_EVENT("%s: Shutdown device\n", card->devname);
-		wan_aften_shutdown(card);
+		DEBUG_EVENT("%s: Release device\n", card->devname);
+		wan_aften_release(card);
 		card_list = card->list;
 		wan_free(card);
 		card = card_list;
@@ -212,12 +216,22 @@ static int wan_aften_exit(void *arg)
 	DEBUG_EVENT("\n");
 	DEBUG_EVENT("%s Unloaded.\n", wan_fullname);
 
-#if defined(WAN_DEBUG_MEM)
-	DEBUG_EVENT("%s: Total Mem %d\n",
-			wan_drvname, wan_atomic_read(&wan_debug_mem));
-#endif	
 	return err;
 }
+
+#if 0
+int wan_aften_shutdown(void *arg)
+{
+	DEBUG_EVENT("Shutting down WAN_AFTEN module ...\n");
+	return 0;
+}
+
+int wan_aften_ready_unload(void *arg)
+{
+	DEBUG_EVENT("Is WAN_AFTEN module ready to unload...\n");
+	return 0;
+}
+#endif
 
 static int wan_aften_setup(sdla_t *card, netdevice_t *dev)
 {
@@ -250,11 +264,38 @@ static int wan_aften_setup(sdla_t *card, netdevice_t *dev)
 	WAN_HWCALL(pci_read_config_dword, 
 			(card->hw, PCI_MEM_BASE0_DWORD, &priv->base_addr1));
 
-	DEBUG_TEST("%s: BaseClass %X BaseAddr 0x%X IRQ %d\n", 
+	DEBUG_EVENT("%s: BaseClass %X BaseAddr %X:%X IRQ %d\n", 
 			wan_netif_name(dev),
 			priv->base_class,
 			priv->base_addr0,
+			priv->base_addr1,
 			priv->irq);
+
+	/* Save pci bridge config (if needed) */
+	WAN_HWCALL(getcfg, (card->hw, SDLA_PCIEXPRESS, &priv->pci_express_bridge));
+	if (priv->pci_express_bridge){
+		int	off = 0;
+				
+		WAN_HWCALL(pci_bridge_read_config_dword, 
+			(card->hw, 0x04, &priv->pci_bridge_base_class));
+		WAN_HWCALL(pci_bridge_read_config_dword, 
+			(card->hw, PCI_IO_BASE_DWORD, &priv->pci_bridge_base_addr0));
+		WAN_HWCALL(pci_bridge_read_config_dword, 
+			(card->hw, PCI_MEM_BASE0_DWORD, &priv->pci_bridge_base_addr1));
+		WAN_HWCALL(pci_bridge_read_config_byte, 
+			(card->hw, PCI_INT_LINE_BYTE, &priv->pci_bridge_irq));
+		for(off=0;off<=15;off++){
+			WAN_HWCALL(pci_bridge_read_config_dword, 
+				(card->hw, off*4, &priv->pci_bridge_cfg[off]));
+		}		
+		DEBUG_EVENT("%s: PCI_ExpressBridge: BaseClass %X BaseAddr %X:%X IRQ %d\n", 
+				wan_netif_name(dev),
+				priv->pci_bridge_base_class,
+				priv->pci_bridge_base_addr0,
+				priv->pci_bridge_base_addr1,
+				priv->pci_bridge_irq);
+	}
+	
 #if defined(ENABLED_IRQ)
 	if(request_irq(irq, wan_aften_isr, SA_SHIRQ, card->devname, card)){
 		DEBUG_EVENT("%s: Can't reserve IRQ %d!\n", 
@@ -270,7 +311,7 @@ wan_aften_setup_error:
 
 }
 
-static int wan_aften_shutdown(sdla_t *card)
+static int wan_aften_release(sdla_t *card)
 {
 #if defined(ENABLED_IRQ)
 	struct wan_aften_priv	*priv = wan_netif_priv(dev);
@@ -503,6 +544,21 @@ static int wan_aften_set_pci_bios(sdla_t *card)
 			       	priv->base_addr1,
 				priv->irq);
 
+	if (priv->pci_express_bridge){
+		int off = 0;
+		WAN_HWCALL(pci_bridge_write_config_dword, 
+			(card->hw, 0x04, priv->pci_bridge_base_class));
+		WAN_HWCALL(pci_bridge_write_config_dword, 
+			(card->hw, PCI_IO_BASE_DWORD, priv->pci_bridge_base_addr0));
+		WAN_HWCALL(pci_bridge_write_config_dword, 
+			(card->hw, PCI_MEM_BASE0_DWORD, priv->pci_bridge_base_addr1));
+		WAN_HWCALL(pci_bridge_write_config_byte, 
+			(card->hw, PCI_INT_LINE_BYTE, priv->pci_bridge_irq));
+		for(off=0;off<=15;off++){
+			WAN_HWCALL(pci_bridge_write_config_dword, 
+				(card->hw, off*4, priv->pci_bridge_cfg[off]));
+		}		
+	}				
 	WP_DELAY(200);
 	card->hw_iface.pci_write_config_dword(
 			card->hw, 0x04, priv->base_class);
@@ -692,7 +748,8 @@ static int wan_aften_close(netdevice_t *dev)
 	return 0;
 }
 
-static int wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
+static int
+wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 {
 	sdla_t			*card;
 	struct wan_aften_priv	*priv= wan_netif_priv(dev);

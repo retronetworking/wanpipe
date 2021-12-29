@@ -117,7 +117,7 @@ static int wp_ecdev_reg_globals(void)
 {
 	int err;
 	
-	wan_spin_lock_init(&wp_ecdev_hash_lock);
+	wan_spin_lock_init(&wp_ecdev_hash_lock, "wan_ecdev_lock");
 	memset(wp_ecdev_hash,0,sizeof(wp_ecdev_hash));
 	
 	DEBUG_EVENT("%s: Registering Wanpipe ECDEV Device!\n",__FUNCTION__);

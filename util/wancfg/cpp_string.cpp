@@ -55,7 +55,7 @@ void cpp_string::operator= (char* param)
   char tmp[MAX_STR];
 
   snprintf(tmp, MAX_STR, param);
-  strcpy(cstr, tmp);
+  strlcpy(cstr, tmp, MAX_STR);
 
   Debug(DBG_CPP_STR, ("end of 'operator=' cstr: %s\n", cstr));
 }

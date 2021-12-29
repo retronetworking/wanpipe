@@ -78,7 +78,7 @@ int menu_hardware_card_type::run(OUT int * selection_index)
   unsigned int option_selected;
   char exit_dialog;
   int number_of_items;
-  int old_card_type;
+  unsigned int old_card_type;
 
   //help text box
   text_box tb;
@@ -278,16 +278,27 @@ again:
 	    set_default_t3_configuration(fe_cfg);
 	    break;
 
-          case A200_ADPTR_ANALOG:
+      case A200_ADPTR_ANALOG:
 	    fe_cfg->media = WAN_MEDIA_FXOFXS;
 	    fe_cfg->tdmv_law = WAN_TDMV_MULAW;
 	    snprintf(fe_cfg->cfg.remora.opermode_name, WAN_RM_OPERMODE_LEN, "%s", "FCC");
 		fe_cfg->cfg.remora.battthresh = 3;
 		fe_cfg->cfg.remora.battdebounce = 16;
 	    break;
+
 	  case AFT_ADPTR_56K:
 	    fe_cfg->media = WAN_MEDIA_56K;
-		break;
+	    break;
+
+	  case AFT_ADPTR_ISDN:
+	    fe_cfg->media = WAN_MEDIA_BRI;
+	    fe_cfg->line_no = 1;//for manual card type selection assume line 1
+	    fe_cfg->tdmv_law = WAN_TDMV_ALAW;
+	    break;
+
+	  case AFT_ADPTR_2SERIAL_V35X21:
+	    fe_cfg->media = WAN_MEDIA_SERIAL;
+			break;
 	  }
 	  break;
 	  
@@ -353,13 +364,22 @@ again:
 	    fe_cfg->media = WAN_MEDIA_FXOFXS;
 	    fe_cfg->tdmv_law = WAN_TDMV_MULAW;
 	    snprintf(fe_cfg->cfg.remora.opermode_name, WAN_RM_OPERMODE_LEN, "%s", "FCC");
-		fe_cfg->cfg.remora.battthresh = 3;
-		fe_cfg->cfg.remora.battdebounce = 16;
+	    fe_cfg->cfg.remora.battthresh = 3;
+	    fe_cfg->cfg.remora.battdebounce = 16;
 	    break;
 
 	  case AFT_ADPTR_56K:
 	    fe_cfg->media = WAN_MEDIA_56K;
-		break;
+	    break;
+
+	  case AFT_ADPTR_ISDN:
+	    fe_cfg->media = WAN_MEDIA_BRI;
+	    fe_cfg->tdmv_law = WAN_TDMV_ALAW;
+	    break;
+
+	  case AFT_ADPTR_2SERIAL_V35X21:
+	    fe_cfg->media = WAN_MEDIA_SERIAL;
+			break;
 	  }
 	  break;
 

@@ -116,7 +116,6 @@ int annexg_trace =0;
 
 int pcap_output=0;
 int pcap_prot=0;
-int pcap_isdn_network=0;
 FILE *pcap_output_file;
 char pcap_output_file_name[50];
 
@@ -130,8 +129,6 @@ trace_prot_t trace_prot_opt[]={
 	{"CHDLC", CHDLC,104},
 	{"ETH", ETH, 1},
 	{"IP", IP,12},
-	{"LAPD", LAPD, 177},
-	{"ISDN", LAPD, 177},
 	{"",-1},
 };
 
@@ -222,6 +219,14 @@ struct fun_protocol function_lookup[] = {
 					 NULL,NULL, 2 },
 
 	{ WANCONFIG_AFT_56K,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
+		                         AFTget_main_menu, AFTget_cmd_menu, 
+					 NULL,NULL, 2 },
+
+	{ WANCONFIG_AFT_ISDN_BRI,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
+		                         AFTget_main_menu, AFTget_cmd_menu, 
+					 NULL,NULL, 2 },
+
+	{ WANCONFIG_AFT_SERIAL,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 
@@ -957,10 +962,6 @@ static int init(int argc, char *argv[], char* command)
 		}else if (!strcmp(argv[i], "-pcap")){
 
 			pcap_output=1;
-
-		}else if (!strcmp(argv[i], "-pcap_isdn_network")) {
-
-			pcap_isdn_network=1;
 		
 		}else if (!strcmp(argv[i], "-pcap_file")){	
 			

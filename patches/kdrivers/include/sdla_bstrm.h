@@ -13,12 +13,10 @@
 * Sep 24, 1998  Jaspreet Singh  o Initial Version.
 *****************************************************************************/
 
-
-#ifndef __SDLA_BSTRM__
-#define __SDLA_BSTRM__
+#ifndef __SDLA_BSTRM_H__
+#define __SDLA_BSTRM_H__
 
 #pragma       pack(1)
-
 
 /* 	Status flag for determining whether to perform a check on socket receive
  * 	queue.
@@ -84,20 +82,20 @@ for the mailbox header area, we are left with a mailbox data size of 4064 bytes.
 
 /* the mailbox structure */
 typedef struct {
-	unsigned char opp_flag		 ;	/* the opp flag */
-	unsigned char command		 ;	/* the user command */
-	unsigned short buffer_length 	 ;	/* the data length */
-	unsigned char return_code	 ;	/* the return code */
-	unsigned char misc_Tx_Rx_bits	 ;	/* miscellaneous transmit and receive bits */
-	unsigned char Rx_error_bits	 ;	/* an indication of a block received with an error */
-	unsigned short Rx_time_stamp	 ;	/* a millisecond receive time stamp */
-	unsigned char reserved[7]	 ;	/* reserved for later use */
-	char data[SIZEOF_MB_DATA_BFR]	 ;	/* the data area */
+	unsigned char opp_flag		;	/* the opp flag */
+	unsigned char command		;	/* the user command */
+	unsigned short buffer_length 	;	/* the data length */
+	unsigned char return_code	;	/* the return code */
+	unsigned char misc_Tx_Rx_bits	;	/* miscellaneous transmit and receive bits */
+	unsigned char Rx_error_bits	;	/* an indication of a block received with an error */
+	unsigned short Rx_time_stamp	;	/* a millisecond receive time stamp */
+	unsigned char reserved[7]	;	/* reserved for later use */
+	char data[SIZEOF_MB_DATA_BFR]	;	/* the data area */
 } MAILBOX_STRUCT;
 
 typedef struct {
-	pid_t  pid_num		 ;
-	MAILBOX_STRUCT 	cmdarea	 ; 
+	pid_t  pid_num		;
+	MAILBOX_STRUCT 	cmdarea	; 
 } CMDBLOCK_STRUCT;
 
 /* definitions for setting the configuration */
@@ -134,18 +132,18 @@ typedef struct {
 
 /* the configuration structure */
 typedef struct {
-	unsigned long baud_rate			 ;                 /* the baud rate */
-	unsigned long adapter_frequency		 ;         /* the adapter frequecy */
-	unsigned short max_data_length		 ;          /* the maximum length of a BSC data block */
-	unsigned short EBCDIC_encoding 		 ;          /* EBCDIC/ASCII encoding */
-	unsigned short Rx_block_type 		 ;            /* the type of BSC block to be received */
-	unsigned short no_consec_PADs_EOB 	 ;       /* the number of consecutive PADs indicating the end of the block */
-	unsigned short no_add_lead_Tx_SYN_chars  ; /* the number of additional leading transmit SYN characters */
-	unsigned short no_bits_per_char 	 ;         /* the number of bits per character */
-	unsigned short parity 			 ;                   /* parity */
-	unsigned short misc_config_options 	 ;      /* miscellaneous configuration options */
-	unsigned short statistics_options 	 ;       /* statistic options */
-	unsigned short modem_config_options 	 ;     /* modem configuration options */
+	unsigned long baud_rate			;                 /* the baud rate */
+	unsigned long adapter_frequency		;         /* the adapter frequecy */
+	unsigned short max_data_length		;          /* the maximum length of a BSC data block */
+	unsigned short EBCDIC_encoding 		;          /* EBCDIC/ASCII encoding */
+	unsigned short Rx_block_type 		;            /* the type of BSC block to be received */
+	unsigned short no_consec_PADs_EOB 	;       /* the number of consecutive PADs indicating the end of the block */
+	unsigned short no_add_lead_Tx_SYN_chars ; /* the number of additional leading transmit SYN characters */
+	unsigned short no_bits_per_char 	;         /* the number of bits per character */
+	unsigned short parity 			;                   /* parity */
+	unsigned short misc_config_options 	;      /* miscellaneous configuration options */
+	unsigned short statistics_options 	;       /* statistic options */
+	unsigned short modem_config_options 	;     /* modem configuration options */
 } CONFIGURATION_STRUCT;
 
 
@@ -173,13 +171,13 @@ typedef struct {
 /* definitions for reading the operational statistics */
 /* the operational statistics structure */
 typedef struct {
-   unsigned long no_blocks_Rx	 ;         /* the number of data blocks received and made available for the application */
-   unsigned long no_bytes_Rx	 ;          /* the number of bytes received and made available for the application */
-   unsigned long no_blocks_Tx	 ;         /* the number of data blocks transmitted */
-   unsigned long no_bytes_Tx	 ;          /* the number of bytes transmitted */
+   unsigned long no_blocks_Rx	;         /* the number of data blocks received and made available for the application */
+   unsigned long no_bytes_Rx	;          /* the number of bytes received and made available for the application */
+   unsigned long no_blocks_Tx	;         /* the number of data blocks transmitted */
+   unsigned long no_bytes_Tx	;          /* the number of bytes transmitted */
 } OPERATIONAL_STATS_STRUCT;
 
-#pragma  pack()
+
 
 /* definitions for interrupt usage */
 /* 'interrupt_triggers' bit mapping set by a SET_INTERRUPT_TRIGGERS command */
@@ -211,3 +209,7 @@ typedef struct {
 #define RX_OVERRUN_ERROR               0x02   /* a receive overrun error occurred */
 #define RX_EXCESSIVE_LGTH_ERR_INT_LVL  0x10   /* the received block was too long (interrupt level) */
 #define RX_EXCESSIVE_LGTH_ERR_APP_LVL  0x20   /* the received block was too long (application level) */
+
+#pragma       pack()
+
+#endif

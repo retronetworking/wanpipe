@@ -138,7 +138,7 @@ FT1_LED_STATUS FT1_LED;
  *****************************************************************************/
 void sig_end(int signal);
 int		main(int, char**);
-static int 	init(int, char**,char*);
+static int 	init(int, char**,char*, int len);
 static void 	usage(void);
 #if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 static void 	usage_trace_info(void);
@@ -403,7 +403,7 @@ int DoCommand(wan_udp_hdr_t* wan_udp)
 
 } /* DoCommand */
 
-static int init(int argc, char *argv[], char* command)
+static int init(int argc, char *argv[], char* command, int cmd_len)
 {
 	int i = 0, i_cnt = 0, u_cnt = 0, c_cnt = 0, d_cnt = 0;
 	struct in_addr *ip_str = NULL;
@@ -435,7 +435,7 @@ static int init(int argc, char *argv[], char* command)
 				return WAN_FALSE;
 			}
 
-			strcpy(ipaddress,argv[i+1]);
+			strlcpy(ipaddress,argv[i+1], 16);
 			if (inet_aton(ipaddress,ip_str) != 0 ){
 				ip_addr = WAN_TRUE;
 			}else{
@@ -486,7 +486,7 @@ static int init(int argc, char *argv[], char* command)
 				return WAN_FALSE;
 			}
 
-			strcpy(command,argv[i+1]);
+			strlcpy(command,argv[i+1],cmd_len);
 			c_cnt=1;
 		}else if (!strcmp(argv[i], "-d")){
 
@@ -523,19 +523,19 @@ static int init(int argc, char *argv[], char* command)
 			}
 
 			if (strcmp(argv[i+1], "chdlc") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_CHDLC_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature, UDP_CHDLC_SIGNATURE, 8);
 				wan_protocol=WANCONFIG_CHDLC;
 			}else if (strcmp(argv[i+1], "fr") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_FR_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature, UDP_FR_SIGNATURE,8);
 				wan_protocol=WANCONFIG_FR;
 			}else if (strcmp(argv[i+1], "ppp") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_PPP_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature, UDP_PPP_SIGNATURE,8);
 				wan_protocol=WANCONFIG_PPP;
 			}else if (strcmp(argv[i+1], "x25") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, UDP_X25_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature, UDP_X25_SIGNATURE,8);
 				wan_protocol=WANCONFIG_X25;
 			}else if (strcmp(argv[i+1], "adsl") == 0){
-				strcpy((char*)wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE);
+				strlcpy((char*)wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE,8);
 				wan_protocol=WANCONFIG_ADSL;
 			}else{
 				usage();
@@ -564,7 +564,7 @@ static int init(int argc, char *argv[], char* command)
 				if (trace_prot_opt[x].prot_index == -1)
 					break;
 			
-				if (strstr(argv[i+1],trace_prot_opt[x].prot_name) != NULL){
+				if (strstr(argv[i+1],(char*)trace_prot_opt[x].prot_name) != NULL){
 					TRACE_PROTOCOL|=trace_prot_opt[x].prot_index;
 					pcap_prot=trace_prot_opt[x].pcap_prot;
 				}
@@ -626,7 +626,7 @@ static int init(int argc, char *argv[], char* command)
 				if (trace_x25_prot_opt[x].prot_index == -1)
 					break;
 				
-				if (strstr(argv[i+1],trace_x25_prot_opt[x].prot_name) != NULL){
+				if (strstr(argv[i+1],(char*)trace_x25_prot_opt[x].prot_name) != NULL){
 					TRACE_X25_OPT|=trace_x25_prot_opt[x].prot_index;
 				}
 			}
@@ -962,8 +962,8 @@ int main(int argc, char* argv[])
 {
 	char command[6];
 
-	strcpy((char*)wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE);
-	sprintf(pcap_output_file_name,"wp_trace_pcap.bin");
+	strlcpy((char*)wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE, 8);
+	snprintf(pcap_output_file_name,50,"wp_trace_pcap.bin");
 
 	signal(SIGHUP,sig_end);
 	signal(SIGINT,sig_end);
@@ -973,7 +973,7 @@ int main(int argc, char* argv[])
    	if (argc >= 2){
 		int err=0;
     
-		if (init(argc, argv, command) == WAN_FALSE){
+		if (init(argc, argv, command, 6) == WAN_FALSE){
 			return -EINVAL;		
 		}
 

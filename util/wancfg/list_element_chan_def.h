@@ -52,7 +52,7 @@ public:
     Debug(DBG_LIST_ELEMENT_CHAN_DEF, ("list_element_chan_def::list_element_chan_def()\n"));
 
     memset(&data, 0x00, sizeof(data));
-    strcpy(data.name, CHAN_NOT_CONFIGURED);
+    strlcpy(data.name, CHAN_NOT_CONFIGURED, WAN_IFNAME_SZ);
 
     list_element_type = CHAN_DEF_LIST_ELEMENT;
 
@@ -93,10 +93,17 @@ public:
 
     //FIXME: David to set active_ch to ALL for VOICE and 1 for API
     //       For now 99% is VOICE which should have ALL set
-    if(global_card_type == WANOPT_AFT  &&  
-       (global_card_version == A200_ADPTR_ANALOG||global_card_version == A400_ADPTR_ANALOG)){
-      snprintf(data.active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "ALL");
-      data.chanconf->active_ch = ENABLE_ALL_CHANNELS;
+    if(	global_card_type == WANOPT_AFT){
+			if(	global_card_version == A200_ADPTR_ANALOG ||
+					global_card_version == A400_ADPTR_ANALOG ||
+					global_card_version == AFT_ADPTR_ISDN){
+
+				snprintf(data.active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "ALL");
+				data.chanconf->active_ch = ENABLE_ALL_CHANNELS;
+			}else{
+				snprintf(data.active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "1");
+				data.chanconf->active_ch = 1;
+			}
     }else{
       snprintf(data.active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "ALL");
       data.chanconf->active_ch = ENABLE_ALL_CHANNELS;

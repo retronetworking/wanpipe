@@ -207,11 +207,12 @@ int menu_select_protocol::form_protocol_list_valid_for_hardware(string& menu_str
     break;
     
   case WANOPT_S51X:
-#if defined(__LINUX__) && !BSD_DEBG
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_HDLC);
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_HDLC));
     menu_str += tmp_buff;
+    num_of_items += 1;
+#if defined(__LINUX__) && !BSD_DEBG
     switch(comm_port)
     {
     case WANOPT_PRI:
@@ -219,9 +220,9 @@ int menu_select_protocol::form_protocol_list_valid_for_hardware(string& menu_str
       menu_str += tmp_buff;
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_EDUKIT));
       menu_str += tmp_buff;
+      num_of_items += 1;
       break;
     }
-    num_of_items += 2;
 #endif
     break;
     
@@ -236,27 +237,38 @@ int menu_select_protocol::form_protocol_list_valid_for_hardware(string& menu_str
     case A101_ADPTR_1TE1://WAN_MEDIA_T1:
     case A104_ADPTR_4TE1:
     case A200_ADPTR_ANALOG:
-      //the 'TDM_VOICE' should be displayed as protocol, not 'operational mode'
+    case AFT_ADPTR_ISDN:
+      //the 'TDM_VOICE' and 'TDM_VOICE_API' should be displayed as protocol, not 'operational mode'
+#if defined(__LINUX__) || defined(__FreeBSD__)      
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", PROTOCOL_TDM_VOICE);
       menu_str += tmp_buff;
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(PROTOCOL_TDM_VOICE));
       menu_str += tmp_buff;
+      num_of_items ++;
+
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", PROTOCOL_TDM_VOICE_API);
+      menu_str += tmp_buff;
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(PROTOCOL_TDM_VOICE_API));
+      menu_str += tmp_buff;
+      num_of_items ++;
+#endif
 
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_HDLC);
       menu_str += tmp_buff;
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_HDLC));
       menu_str += tmp_buff;
+      num_of_items ++;
            
-      num_of_items += 2;
       break;
 
 	case A300_ADPTR_U_1TE3://WAN_MEDIA_DS3:
 	case AFT_ADPTR_56K:
+	case AFT_ADPTR_2SERIAL_V35X21://AFT Serial card
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_HDLC);
       menu_str += tmp_buff;
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_HDLC));
       menu_str += tmp_buff;
-      
+      	
       num_of_items += 1;
       break;
     }

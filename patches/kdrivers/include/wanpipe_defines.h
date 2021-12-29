@@ -1,16 +1,17 @@
-
-/*
- ************************************************************************
- * wanpipe_defines.h							*
- *		WANPIPE(tm) 	Global definition for Sangoma 		*
- *				Mailbox/API/UDP	structures.		*
- *									*
- * Author:	Alex Feldman <al.feldman@sangoma.com>			*
- *======================================================================*
- *	May 10 2002		Alex Feldman	Initial version		*
- *									*
- ************************************************************************
- */
+/*************************************************************************
+* wanpipe_defines.h							 *
+*		WANPIPE(tm) 	Global definition for Sangoma 		 *
+*				Mailbox/API/UDP	structures.		 *
+*									 *
+* Author:	Alex Feldman <al.feldman@sangoma.com>			 *
+*========================================================================*
+* May 10, 2002	Alex Feldman	Initial version				 *
+*									 * 
+* Nov 27,  2007 David Rokhvarg	Implemented functions/definitions for    *
+*                              Sangoma MS Windows Driver and API.        *
+*									 *
+*									 *
+*************************************************************************/
 
 #ifndef __WANPIPE_DEFINES_H
 # define __WANPIPE_DEFINES_H
@@ -27,11 +28,21 @@
 #if defined(__LINUX__)
 # include <linux/wanpipe_version.h>
 # include <linux/wanpipe_kernel.h>
+# include <linux/wanpipe_abstr_types.h>
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <wanpipe_version.h>
 # if defined(WAN_KERNEL)
 #  include <wanpipe_kernel.h>
 # endif
+# include <wanpipe_abstr_types.h>
+#elif defined(__WINDOWS__)
+# include <wanpipe_version.h>
+# include <wanpipe_ctypes.h> /* Basic data types */
+# include <wanpipe_debug.h>
+# if defined(WAN_KERNEL)
+# include <wanpipe_kernel.h>
+# endif
+# include <wanpipe_abstr_types.h>
 #endif
 
 /************************************************
@@ -117,12 +128,6 @@
 # define WANPIPE_SUB_VERSION	WANPIPE_SUB_VERSION_NetBSD
 # define WANPIPE_LITE_VERSION	WANPIPE_LITE_VERSION_NetBSD
 #elif defined(__WINDOWS__)
-# undef WANPIPE_VERSION
-# undef WANPIPE_VERSION_BETA
-# undef WANPIPE_SUB_VERSION
-# define WANPIPE_VERSION	WANPIPE_VERSION_Windows
-# define WANPIPE_VERSION_BETA	WANPIPE_VERSION_BETA_Windows
-# define WANPIPE_SUB_VERSION	WANPIPE_SUB_VERSION_Windows
 #endif
 
 #define WANROUTER_MAJOR_VER	2
@@ -186,8 +191,41 @@ typedef	struct tcphdr		tcphdr_t;
 # define w_tcp_seq	th_seq
 # define w_tcp_ack_seq	th_ack
 #elif defined(__WINDOWS__)
-typedef	void*		iphdr_t;
-typedef	void*		udphdr_t;
+/* Intel X86 */
+#define __LITTLE_ENDIAN_BITFIELD
+
+struct iphdr {
+#if defined(__LITTLE_ENDIAN_BITFIELD)
+	__u8    ihl:4,
+		version:4;
+#elif defined (__BIG_ENDIAN_BITFIELD)
+	__u8    version:4,
+		ihl:4;
+#else
+# error  "unknown byteorder!"
+#endif
+	__u8    tos;
+	__u16   tot_len;
+	__u16   id;
+	__u16   frag_off;
+	__u8    ttl;
+	__u8    protocol;
+	__u16   check;
+	__u32   saddr;
+	__u32   daddr;
+	/*The options start here. */
+};
+
+struct udphdr {
+	__u16   source;
+	__u16   dest;
+	__u16   len;
+	__u16   check;
+};
+
+typedef	struct	iphdr	iphdr_t;
+typedef	struct	udphdr	udphdr_t;
+
 #else
 # error "Unknown OS system!"
 #endif
@@ -212,9 +250,13 @@ typedef u_int64_t		u64;
 **	GLOBAL SANGOMA MACROS
 ************************************************/
 #if defined(__LINUX__)
-# define strlcpy(d,s,l)	strcpy(d,s)
+# if !defined(strlcpy)
+#  define strlcpy(d,s,l)	strcpy((d),(s))
+# endif
 #elif defined(__FreeBSD__)
-# define strlcpy(d,s,l)	strcpy(d,s)
+# if !defined(strlcpy)
+#  define strlcpy(d,s,l)	strcpy((d),(s))
+# endif
 #endif
 
 /************************************************
@@ -484,7 +526,11 @@ typedef struct {
 
 typedef struct {
         wan_api_rx_hdr_t	api_rx_hdr;
+#if defined(__WINDOWS__)/* zero-sized array does not comply to ANSI 'C' standard! */
+        unsigned char  		data[1];
+#else
         unsigned char  		data[0];
+#endif
 #define wan_rxapi_xdlc_state		api_rx_hdr.wan_hdr_xdlc_state
 #define wan_rxapi_xdlc_address		api_rx_hdr.wan_hdr_xdlc_address
 #define wan_rxapi_xdlc_exception	api_rx_hdr.wan_hdr_xdlc_exception
@@ -508,11 +554,16 @@ typedef struct {
 
 typedef struct {
 	wan_api_tx_hdr_t 	api_tx_hdr;
+#if defined(__WINDOWS__)/* zero-sized array does not comply to ANSI 'C' standard! */
+	unsigned char		data[1];
+#else
 	unsigned char		data[0];
+#endif
 }wan_api_tx_element_t;
 
 #pragma pack()
 
+#if !defined(__WINDOWS__)
 enum {
 	SIOC_WAN_READ_REG = 0x01,
 	SIOC_WAN_WRITE_REG,
@@ -532,6 +583,7 @@ enum {
 	SIOC_WAN_WRITE_PCIBRIDGE_REG,
 	SIOC_WAN_ALL_WRITE_PCIBRIDGE_REG
 };
+#endif
 
 typedef struct wan_cmd_api_
 {
@@ -625,7 +677,11 @@ typedef struct wan_udp_hdr{
 #define wan_udphdr_aft_num_frames		wan_udphdr_u.aft.trace_info.num_frames
 #define wan_udphdr_aft_ismoredata		wan_udphdr_u.aft.trace_info.ismoredata
 #define wan_udphdr_aft_data			wan_udphdr_u.aft.data	
-#define wan_udphdr_data				wan_udphdr_u.data
+#if defined(__WINDOWS__)
+# define wan_udphdr_data			wan_udphdr_aft_data
+#else
+# define wan_udphdr_data			wan_udphdr_u.data
+#endif
 } wan_udp_hdr_t;
 
 
@@ -659,7 +715,6 @@ typedef struct wan_udp_hdr{
 # define WP_DELAY		DELAY
 # define WP_SCHEDULE(arg,name)	tsleep(&(arg),PPAUSE,(name),(arg))
 # define SYSTEM_TICKS		ticks
-typedef int			wan_ticks_t;
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
 # define ETH_P_IP		AF_INET
@@ -669,6 +724,8 @@ typedef int			wan_ticks_t;
 # define WAN_IFT_ETHER		IFT_ETHER
 # define WAN_IFT_PPP		IFT_PPP
 # define WAN_MFLAG_PRV		M_PROTO1
+# define WAN_MFLAG_IPX		M_PROTO2
+typedef u_long			wan_ioctl_cmd_t;
 #elif defined(__OpenBSD__)
 /******************* O P E N B S D ******************************/
 # define WAN_MOD_LOAD		LKM_E_LOAD
@@ -676,7 +733,6 @@ typedef int			wan_ticks_t;
 # define WP_DELAY		DELAY
 # define WP_SCHEDULE(arg,name)	tsleep(&(arg),PPAUSE,(name),(arg))
 # define SYSTEM_TICKS		ticks
-typedef int			wan_ticks_t;
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
 # define ETH_P_IP		AF_INET
@@ -686,25 +742,26 @@ typedef int			wan_ticks_t;
 # define WAN_IFT_ETHER		IFT_ETHER
 # define WAN_IFT_PPP		IFT_PPP
 # define WAN_MFLAG_PRV		M_PROTO1
+# define WAN_MFLAG_IPX		M_PROTO2
+typedef u_long			wan_ioctl_cmd_t;
 #elif defined(__NetBSD__)
 /******************* N E T B S D ******************************/
 # define WAN_MOD_LOAD		LKM_E_LOAD
 # define WAN_MOD_UNLOAD		LKM_E_UNLOAD
 # define WP_DELAY		DELAY
 # define SYSTEM_TICKS		tick
-typedef int			wan_ticks_t;
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
 # define WAN_IFT_OTHER		IFT_OTHER
 # define WAN_IFT_ETHER		IFT_ETHER
 # define WAN_IFT_PPP		IFT_PPP
+typedef u_long			wan_ioctl_cmd_t;
 #elif defined(__LINUX__)
 /*********************** L I N U X ******************************/
 # define ETHER_ADDR_LEN		ETH_ALEN
 # define WP_DELAY(usecs)	udelay(usecs)
 # define atomic_set_int(name, val)	atomic_set(name, val)
 # define SYSTEM_TICKS		jiffies
-typedef unsigned long		wan_ticks_t;
 # define WP_SCHEDULE(arg,name)	schedule()
 # define wan_atomic_read	atomic_read
 # define wan_atomic_set		atomic_set
@@ -713,10 +770,27 @@ typedef unsigned long		wan_ticks_t;
 # define WAN_IFT_OTHER		0x00
 # define WAN_IFT_ETHER		0x00
 # define WAN_IFT_PPP		0x00
+typedef int			wan_ioctl_cmd_t;
 #elif defined(__WINDOWS__)
 /******************* W I N D O W S ******************************/
-# define EINVAL		22
-# define IFNAMESIZ	16
+# define ETHER_ADDR_LEN		6
+# define WP_DELAY(usecs)	KeStallExecutionProcessor(usecs);/* usecs is in MicroSeconds */
+# define SYSTEM_TICKS		get_systemticks()
+# define jiffies		SYSTEM_TICKS
+# define wan_atomic_read	atomic_read
+# define wan_atomic_set		atomic_set
+# define wan_atomic_inc		atomic_inc
+# define wan_atomic_dec		atomic_dec
+# define RW_LOCK_UNLOCKED	0
+typedef int			wan_ioctl_cmd_t;
+
+#define ONE_MILLISECOND_INTERVAL    1000
+/* this macro allowed only at IRQL = PASSIVE_LEVEL*/
+#define WP_MILLISECONDS_DELAY(ms_delay){			\
+	LARGE_INTEGER Interval;				\
+	Interval.QuadPart = Int32x32To64(ONE_MILLISECOND_INTERVAL*ms_delay, -10);\
+        KeDelayExecutionThread(KernelMode, FALSE, &Interval);	\
+}
 #endif
 
 #if defined(__FreeBSD__)
@@ -729,9 +803,9 @@ typedef unsigned long		wan_ticks_t;
 	int load_##name (module_t mod, int cmd, void *arg){	\
 		switch(cmd){					\
 		case WAN_MOD_LOAD: return mod_init((devsw));	\
-		case WAN_MOD_UNLOAD: 				\
-		case WAN_MOD_SHUTDOWN: return mod_exit((devsw));\
-		case WAN_MOD_QUIESCE: return 0;			\
+		case WAN_MOD_UNLOAD: return mod_exit((devsw));	\
+		case WAN_MOD_SHUTDOWN: return 0;\
+		case WAN_MOD_QUIESCE: return 0;	\
 		}						\
 		return -EINVAL;					\
 	}							\
@@ -815,8 +889,11 @@ typedef unsigned long		wan_ticks_t;
 **	T Y P E D E F
 ******************************************************************
 */
+
+#if !defined(__WINDOWS__)
 #if !defined(offsetof)
 # define offsetof(type, member)	((size_t)(&((type*)0)->member))
+#endif
 #endif
 
 #if defined(__LINUX__)
@@ -838,9 +915,7 @@ typedef void 			(*wan_taskq_func_t)(struct work_struct *);
 typedef struct tq_struct 	wan_taskq_t;
 
 typedef void*			virt_addr_t;
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
 typedef unsigned long		phys_addr_t;
-#endif
 typedef spinlock_t		wan_spinlock_t;
 typedef rwlock_t		wan_rwlock_t;
 typedef unsigned long		wan_smp_flag_t;
@@ -877,7 +952,11 @@ typedef dev_t			ttydriver_t;
 typedef struct tty		ttystruct_t;
 typedef struct termios		termios_t;
 typedef int 			(get_info_t)(char *, char **, off_t, int, int);
+#if defined(SPINLOCK_OLD)
 typedef int			wan_spinlock_t;
+#else
+typedef struct mtx		wan_spinlock_t;
+#endif
 typedef int 			wan_rwlock_t;
 typedef int			wan_smp_flag_t;
 typedef int			wan_rwlock_flag_t;
@@ -946,22 +1025,39 @@ typedef void			(wan_pci_ifunc_t)(void*);
 #elif defined(__SOLARIS__)
 typedef mblk_t			netskb_t;
 
-
 #elif defined(__WINDOWS__)
-typedef UCHAR	u8;
-typedef UINT	u16;
-typedef USHORT	u32;
-typedef ULONG	u64;
-typedef char*	caddr_t;
-# if defined(NDIS_MINIPORT_DRIVER)
-typedef NDIS_MINIPORT_TIMER	wan_timer_info_t;
-# else
-typedef KTIMER			wan_timer_info_t;
-# endif
 
-typedef void	netdevice_t;
-typedef void*	wan_skb_queue_t;
-typedef void (*wan_timer_func_t)(void*);
+/*********************************************************************/
+
+/*********************************************************************/
+
+typedef struct sk_buff		netskb_t;
+typedef struct sk_buff_head	wan_skb_queue_t;
+
+typedef struct 
+{
+    u8 DestAddr[6];
+    u8 SrcAddr[6];
+    u16 EtherType;
+} ethhdr_t;
+
+typedef void*			wan_timer_arg_t;
+typedef PKDEFERRED_ROUTINE	wan_tasklet_func_t;
+typedef PKDEFERRED_ROUTINE	wan_taskq_func_t;
+
+typedef struct _wan_timer_info_t{
+	KTIMER			Timer;
+	KDPC			TimerDpcObject;
+	LARGE_INTEGER		TimerDueTime;
+}wan_timer_info_t;
+
+typedef void (*wan_timer_func_t)(IN PKDPC Dpc, void* context, void * arg2, void * arg3);
+
+typedef struct { ULONG counter; } atomic_t;
+
+typedef int 			wan_rwlock_t;
+typedef int			wan_rwlock_flag_t;
+typedef int			pid_t;
 #endif
 
 /*
@@ -1001,9 +1097,9 @@ typedef struct _wan_rwlock
 
 /*
 ** FIXME: Redefined from sdla_adsl.c
-** DMA structure
+** DMA structure for ADSL ONLY!!!!!!! 
 */
-typedef struct _wan_dma_descr
+typedef struct _wan_dma_descr_org
 {
 	unsigned long*		vAddr;
         unsigned long		pAddr;
@@ -1022,7 +1118,7 @@ typedef struct _wan_dma_descr
 	int			rsegs;
 #else	/* other OS */
 #endif
-} wan_dma_descr_t;/*, *PDMA_DESCRIPTION;*/
+} wan_dma_descr_org_t;/*, *PDMA_DESCRIPTION;*/
 
 /*
 ** TASK structure
@@ -1037,6 +1133,8 @@ typedef struct _wan_tasklet
 	void*			data;	
 #elif defined(__LINUX__)
 	struct tasklet_struct 	task_id;
+#elif  defined(__WINDOWS__)
+	KDPC 	tqueue;
 #elif  defined(__SOLARIS__)
 #error "wan_tasklet: not defined in solaris"
 #endif
@@ -1060,6 +1158,8 @@ typedef struct _wan_taskq
 # else
         struct work_struct 	tqueue;
 # endif
+#elif  defined(__WINDOWS__)
+	KDPC 	tqueue;
 #elif  defined(__SOLARIS__)
 #error "_wan_taskq: not defined in solaris"
 #endif
@@ -1071,7 +1171,7 @@ typedef struct wan_trace
 {
 	u_int32_t  		tracing_enabled;
 	wan_skb_queue_t		trace_queue;
-	unsigned long  		trace_timeout;/* WARNING: has to be 'unsigned long' !!!*/
+	wan_ticks_t		trace_timeout;/* WARNING: has to be 'unsigned long' !!!*/
 	unsigned int   		max_trace_queue;
 	unsigned char		last_trace_direction;
 	u_int32_t		missed_idle_rx_counter;
@@ -1093,12 +1193,12 @@ typedef struct _wan_timer
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	wan_timer_func_t	timer_func;
 #elif defined(__WINDOWS__)
-	KDPC			TimerDpcObject;
+	wan_timer_func_t	timer_func;
 #endif
 	void*			timer_arg;
 } wan_timer_t;
 
-#if !defined(LINUX_2_6)
+#if !defined(LINUX_2_6) && !defined(__WINDOWS__)
 /* Define this structure for BSDs and not Linux-2.6 */
 struct seq_file {
 	char*		buf;	/* pointer to buffer	(buf)*/
@@ -1193,8 +1293,6 @@ typedef struct wan_udp_pkt {
 } wan_udp_pkt_t;
 
 
-
-
 #pragma pack(1)
 #if defined(WAN_BIG_ENDIAN) || (1)
 
@@ -1243,6 +1341,7 @@ typedef struct wan_rtp_pkt {
 } wan_rtp_pkt_t;
 
 #pragma pack()
+
 
 #endif /* KERNEL */ 
 

@@ -13,6 +13,16 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.27 David Yat Sin <davidy@sangoma.com>
+ * Feb 13 2008
+ *	Fix for ast_channel type not defined on 
+ * 	outgoing calls, causing PHP agi scripts
+ *	to fail
+ *
+ * v1.26 Nenad Corbic <ncorbic@sangoma.com>
+ * Feb 13 2008
+ *	Compilation Update for callweaver 1.2-rc5
+ *
  * v1.25 Nenad Corbic <ncorbic@sangoma.com>
  * Feb 06 2008
  *	Bug fix in woomera message declaration
@@ -155,7 +165,7 @@
 #include "asterisk/dsp.h"
 #include "asterisk/musiconhold.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.25 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.27 $")
 
 #else
 
@@ -176,8 +186,9 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.25 $")
 #include "callweaver/causes.h"
 #include "callweaver/dsp.h"
 #include "callweaver.h"
+#include "confdefs.h"
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.25 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.27 $")
 
 // strings...
 
@@ -191,10 +202,21 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.25 $")
 #define 	AST_CONTROL_UNHOLD	OPBX_CONTROL_UNHOLD
 #define		AST_CONTROL_VIDUPDATE	OPBX_CONTROL_VIDUPDATE
 
+#ifdef	OPBX_LOG_NOTICE
 #define		LOG_NOTICE		OPBX_LOG_NOTICE
+#endif
+
+#ifdef OPBX_LOG_DEBUG
 #define		LOG_DEBUG		OPBX_LOG_DEBUG
+#endif
+
+#ifdef OPBX_LOG_ERROR
 #define		LOG_ERROR		OPBX_LOG_ERROR
+#endif
+
+#ifdef OPBX_LOG_WARNING
 #define		LOG_WARNING		OPBX_LOG_WARNING
+#endif
 
 #define 	AST_FORMAT_SLINEAR 	OPBX_FORMAT_SLINEAR
 #define 	AST_FORMAT_ULAW		OPBX_FORMAT_ULAW
@@ -300,7 +322,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.25 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.25"
+#define WOOMERA_VERSION "v1.27"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -3165,6 +3187,9 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 	char *p;
 	char *c;
 
+#ifndef AST14
+	self->type = WOOMERA_CHAN_NAME;	
+#endif
  	self->hangupcause = AST_CAUSE_NORMAL_CIRCUIT_CONGESTION;
 
 	if (globals.panic) {
@@ -3178,7 +3203,7 @@ static int tech_call(struct ast_channel *self, char *dest, int timeout)
 			dest);
 	}
 
-	
+
 	
 	if (self->cid.cid_name) {
 		strncpy(tech_pvt->cid_name, self->cid.cid_name, sizeof(tech_pvt->cid_name)-1);
@@ -4035,7 +4060,11 @@ static int woomera_cli(int fd, int argc, char *argv[])
 }
 
 #ifdef CALLWEAVER
+#ifdef CALLWEAVER_1_2
+static struct opbx_cli_entry cli_woomera[] = {
+# else
 static struct opbx_clicmd cli_woomera[] = {
+#endif
 	{
 		.cmda = { "woomera", "default", "version", NULL },
 		.handler = woomera_cli,
@@ -4044,6 +4073,7 @@ static struct opbx_clicmd cli_woomera[] = {
 		//.generator = complete_span_4,
 	},
 };
+
 #else
 static struct ast_cli_entry  cli_woomera = { { "woomera", NULL }, woomera_cli, "Woomera", "Woomera" };
 #endif
@@ -4652,7 +4682,16 @@ int unload_module(void)
 
 #ifdef CALLWEAVER
 
+#ifdef CALLWEAVER_1_2
+char *description()
+{
+        return (char *) desc;
+}
+	
+
+#else
 MODULE_INFO(load_module, reload, unload_module, NULL, desc);
+#endif
 
 #else 
 

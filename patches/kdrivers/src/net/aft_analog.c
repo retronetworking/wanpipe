@@ -26,19 +26,13 @@
 # include <sdla_remora.h>
 #elif defined(__WINDOWS__)
 # include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
 # include <wanpipe.h>
-# include <wanpipe_abstr.h>
 # include <if_wanpipe_common.h>    /* Socket Driver common area */
 # include <sdlapci.h>
-//# include <linux/sdla_ec.h>
 # include <sdla_aft_te1.h>
 # include <wanpipe_iface.h>
 # include <wanpipe_tdm_api.h>
 # include <sdla_remora.h>
-
-//#define DEBUG_FE	DbgPrint
-#define DEBUG_FE
 
 #else
 # include <linux/wanpipe_includes.h>
@@ -56,13 +50,14 @@
 # include <linux/sdla_remora.h>
 #endif
 
+
 /*==============================================
  * PRIVATE FUNCITONS
  *
  */
 #if defined(CONFIG_WANPIPE_HWEC)
 static int aft_analog_hwec_reset(void *pcard, int reset);
-static int aft_analog_hwec_enable(void *pcard, int enable, int channel);
+static int aft_analog_hwec_enable(void *pcard, int enable, int fe_chan);
 #endif
 
 static int aft_map_fifo_baddr_and_size(sdla_t *card, unsigned char fifo_size, unsigned char *addr);
@@ -341,7 +336,7 @@ int aft_analog_global_chip_config(sdla_t *card)
 	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
 
 	if (card->fe.fe_cfg.cfg.remora.network_sync) {
-		DEBUG_EVENT("%s: Analog Clock set to External!\n",
+		DEBUG_EVENT("%s: Analog Clock set to Network Sync!\n",
 				card->devname);
 		wan_set_bit(AFT_CHIPCFG_ANALOG_CLOCK_SELECT_BIT,&reg);	
 	}
@@ -349,6 +344,7 @@ int aft_analog_global_chip_config(sdla_t *card)
 	DEBUG_CFG("--- AFT Chip Reset. -- \n");
 
 	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+
 
 	WP_DELAY(10);
 
@@ -383,10 +379,9 @@ int aft_analog_global_chip_config(sdla_t *card)
 		
 	DEBUG_EVENT("%s: Remora config done!\n",card->devname);
 
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
-	wan_set_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
-
+	/* Enable global front end interrupt */
+	__aft_fe_intr_ctrl(card, 1);
+	
 	return 0;
 }
 
@@ -411,7 +406,7 @@ int aft_analog_global_chip_unconfig(sdla_t *card)
 	return 0;
 }
 
-int aft_analog_chip_config(sdla_t *card)
+int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 {
 	u32 reg=0;
 	int err=0;
@@ -452,10 +447,12 @@ int aft_analog_chip_config(sdla_t *card)
 
 	/* Enable Octasic Chip */
 	if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
-		u16		max_ec_chans;
-		u32 	cfg_reg;
+		u16	max_ec_chans, max_ports_no;
+		u32 	cfg_reg, fe_port_map;
 
 		card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
+		card->hw_iface.getcfg(card->hw, SDLA_PORTS_NO, &max_ports_no);
+		card->hw_iface.getcfg(card->hw, SDLA_PORT_MAP, &fe_port_map);
 
         	card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg); 
 		if (max_ec_chans > aft_chipcfg_get_a200_ec_channels(cfg_reg)){
@@ -473,7 +470,12 @@ int aft_analog_chip_config(sdla_t *card)
 
 		if (max_ec_chans){
 #if defined(CONFIG_WANPIPE_HWEC)
-			card->wandev.ec_dev = wanpipe_ec_register(card, max_ec_chans);
+			card->wandev.ec_dev = wanpipe_ec_register(
+							card,
+							fe_port_map,
+							max_ports_no,
+							max_ec_chans,
+							(void*)&conf->oct_conf);
 			card->wandev.hwec_reset = aft_analog_hwec_reset;
 			card->wandev.hwec_enable = aft_analog_hwec_enable;
 #else
@@ -681,404 +683,6 @@ int a200_check_ec_security(sdla_t *card)
 	}
 	return 0;
 }     
-       
-/*============================================================================
- * Read TE1/56K Front end registers
- */
-int __aft_analog_write_fe (void* pcard, ...)
-{
-	va_list		args;
-	sdla_t		*card = (sdla_t*)pcard;
-	int		mod_no, type, chain;
-	int		reg, value;
-	u32		data = 0;
-	unsigned char	cs = 0x00, ctrl_byte = 0x00;
-	int		i;
-
-	WAN_ASSERT(card == NULL);
-	WAN_ASSERT(card->hw_iface.bus_write_4 == NULL);
-	WAN_ASSERT(card->hw_iface.bus_read_4 == NULL);
-
-	va_start(args, pcard);
-	mod_no	= va_arg(args, int);
-	type	= va_arg(args, int);
-	chain	= va_arg(args, int);
-	reg	= va_arg(args, int);
-	value	= va_arg(args, int);
-	va_end(args);
-#if 0
-	if (!wan_test_bit(mod_no, card->fe.fe_param.remora.module_map)){
-		DEBUG_EVENT("%s: %s:%d: Internal Error: Module %d\n",
-			card->devname, __FUNCTION__,__LINE__,mod_no);
-		return -EINVAL;
-	}
-#endif
-	DEBUG_FE(
-	"%s:%d: Module %d: Write RM FE code (%d:%02X)!\n",
-				__FUNCTION__,__LINE__,
-				mod_no, reg, (u8)value);
-	
-	/* bit 0-7: data byte */
-	data = value & 0xFF;
-	if (type == MOD_TYPE_FXO){
-
-		/* bit 8-15: register number */
-		data |= (reg & 0xFF) << 8;
-
-		/* bit 16-23: chip select byte
-		** bit 16
-		**
-		**
-		**			*/
-		cs = 0x20;
-		cs |= MOD_SPI_CS_FXO_WRITE;
-		if (mod_no % 2 == 0){
-			/* Select second chip in a chain */
-			cs |= MOD_SPI_CS_FXO_CHIP_1;
-		}
-		data |= (cs & 0xFF) << 16;
-
-		/* bit 24-31: ctrl byte
-		** bit 24
-		**
-		**
-		**			*/
-		ctrl_byte = mod_no / 2;
-#if !defined(SPI2STEP)
-		if (card->u.aft.firm_ver > 3){
-			ctrl_byte |= MOD_SPI_CTRL_START;
-		}else{
-			ctrl_byte |= MOD_SPI_CTRL_V3_START;
-		}
-#endif
-		ctrl_byte |= MOD_SPI_CTRL_CHAIN;	/* always chain */
-		data |= ctrl_byte << 24;
-
-	}else if (type == MOD_TYPE_FXS){
-
-		/* bit 8-15: register byte */
-		reg = reg & 0x7F;
-		reg |= MOD_SPI_ADDR_FXS_WRITE; 
-		data |= (reg & 0xFF) << 8;
-		
-		/* bit 16-23: chip select byte
-		** bit 16
-		**
-		**
-		**			*/
-		if (mod_no % 2){
-			/* Select first chip in a chain */
-			cs = MOD_SPI_CS_FXS_CHIP_0;
-		}else{
-			/* Select second chip in a chain */
-			cs = MOD_SPI_CS_FXS_CHIP_1;
-		}
-		data |= cs << 16;
-
-		/* bit 24-31: ctrl byte
-		** bit 24
-		**
-		**
-		**			*/
-		ctrl_byte = mod_no / 2;
-#if !defined(SPI2STEP)
-		if (card->u.aft.firm_ver > 3){
-			ctrl_byte |= MOD_SPI_CTRL_START;
-		}else{
-			ctrl_byte |= MOD_SPI_CTRL_V3_START;
-		}
-#endif
-		ctrl_byte |= MOD_SPI_CTRL_FXS;
-		if (chain){
-			ctrl_byte |= MOD_SPI_CTRL_CHAIN;
-		}
-		data |= ctrl_byte << 24;
-
-	}else{
-		DEBUG_EVENT("%s: Module %d: Unsupported module type %d!\n",
-				card->devname, mod_no, type);
-		return -EINVAL;
-	}
-
-	card->hw_iface.bus_write_4(	card->hw,
-					SPI_INTERFACE_REG,
-					data);	
-#if defined(SPI2STEP)
-	WP_DELAY(1);
-	if (card->u.aft.firm_ver > 3){
-		data |= MOD_SPI_START;
-	}else{
-		data |= MOD_SPI_V3_START;
-	}
-	card->hw_iface.bus_write_4(	card->hw,
-					SPI_INTERFACE_REG,
-					data);	
-#endif
-#if 0
-	DEBUG_EVENT("%s: %s: Module %d - Execute SPI command %08X\n",
-					card->fe.name,
-					__FUNCTION__,
-					mod_no,
-					data);
-#endif
-
-	for (i=0;i<10;i++){	
-		WP_DELAY(10);
-		card->hw_iface.bus_read_4(	card->hw,
-						SPI_INTERFACE_REG,
-						&data);
-
-		if (data & MOD_SPI_BUSY){
-			continue;
-		}
-	}
-
-	if (data & MOD_SPI_BUSY) {
-		DEBUG_EVENT("%s: Module %d: Internal Error: SPI busy (%s:%d)!\n",
-					card->devname, mod_no,
-					__FUNCTION__,__LINE__);
-		return -EINVAL;
-	}
-        return 0;
-}
-int aft_analog_write_fe (void* pcard, ...)
-{
-	va_list		args;
-	sdla_t		*card = (sdla_t*)pcard;
-	int		mod_no, type, chain, reg, value;
-#if defined(WAN_DEBUG_FE)
-	char		*fname;	
-	int		fline;
-#endif
-
-	WAN_ASSERT(card == NULL);
-	WAN_ASSERT(card->hw_iface.bus_write_4 == NULL);
-	WAN_ASSERT(card->hw_iface.bus_read_4 == NULL);
-
-	va_start(args, pcard);
-	mod_no	= va_arg(args, int);
-	type	= va_arg(args, int);
-	chain	= va_arg(args, int);
-	reg	= va_arg(args, int);
-	value	= va_arg(args, int);
-#if defined(WAN_DEBUG_FE)
-	fname	= va_arg(args, char*);
-	fline	= va_arg(args, int);
-#endif
-	va_end(args);
-
-	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-#if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
-			card->devname, __FUNCTION__,__LINE__, fname, fline);
-#else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
-			card->devname, __FUNCTION__,__LINE__);
-#endif			
-		return -EINVAL;
-	}
-
-	__aft_analog_write_fe(card, mod_no, type, chain, reg, value);
-
-	card->hw_iface.fe_clear_bit(card->hw,0);
-        return 0;
-}
-
-unsigned char __aft_analog_read_fe (void* pcard, ...)
-{
-	va_list		args;
-	sdla_t		*card = (sdla_t*)pcard;
-	int		mod_no, type, chain, reg;
-	u32		data = 0;
-	unsigned char	cs = 0x00, ctrl_byte = 0x00;
-	int		i;
-
-	WAN_ASSERT(card == NULL);
-	WAN_ASSERT(card->hw_iface.bus_write_4 == NULL);
-	WAN_ASSERT(card->hw_iface.bus_read_4 == NULL);
-
-	va_start(args, pcard);
-	mod_no	= va_arg(args, int);
-	type	= va_arg(args, int);
-	chain	= va_arg(args, int);
-	reg	= va_arg(args, int);
-	va_end(args);
-#if 0
-	if (!wan_test_bit(mod_no, card->fe.fe_param.remora.module_map)){
-		DEBUG_EVENT("%s: %s:%d: Internal Error: Module %d\n",
-			card->devname, __FUNCTION__,__LINE__,mod_no);
-		return 0x00;
-	}
-#endif
-	DEBUG_FE(
-	"%s:%d: Module %d: Read RM FE code (%d)!\n",
-				__FUNCTION__,__LINE__,
-				mod_no, reg);
-
-	/* bit 0-7: data byte */
-	data = 0x00;
-	if (type == MOD_TYPE_FXO){
-
-		/* bit 8-15: register byte */
-		data |= (reg & 0xFF) << 8;
-
-		/* bit 16-23: chip select byte
-		** bit 16
-		**
-		**
-		**			*/
-		cs = 0x20;
-		cs |= MOD_SPI_CS_FXO_READ;
-		if (mod_no % 2 == 0){
-			/* Select second chip in a chain */
-			cs |= MOD_SPI_CS_FXO_CHIP_1;
-		}
-		data |= (cs & 0xFF) << 16;
-
-		/* bit 24-31: ctrl byte
-		** bit 24
-		**
-		**
-		**			*/
-		ctrl_byte = mod_no / 2;
-#if !defined(SPI2STEP)
-		if (card->u.aft.firm_ver > 3){
-			ctrl_byte |= MOD_SPI_CTRL_START;
-		}else{
-			ctrl_byte |= MOD_SPI_CTRL_V3_START;
-		}
-#endif
-		ctrl_byte |= MOD_SPI_CTRL_CHAIN;	/* always chain */
-		data |= ctrl_byte << 24;
-
-	}else if (type == MOD_TYPE_FXS){
-
-		/* bit 8-15: register byte */
-		reg = reg & 0x7F;
-		reg |= MOD_SPI_ADDR_FXS_READ; 
-		data |= (reg & 0xFF) << 8;
-		
-		/* bit 16-23: chip select byte
-		** bit 16
-		**
-		**
-		**			*/
-		if (mod_no % 2){
-			/* Select first chip in a chain */
-			cs = MOD_SPI_CS_FXS_CHIP_0;
-		}else{
-			/* Select second chip in a chain */
-			cs = MOD_SPI_CS_FXS_CHIP_1;
-		}
-		data |= cs << 16;
-
-		/* bit 24-31: ctrl byte
-		** bit 24
-		**
-		**
-		**			*/
-		ctrl_byte = mod_no / 2;
-#if !defined(SPI2STEP)
-		if (card->u.aft.firm_ver > 3){
-			ctrl_byte |= MOD_SPI_CTRL_START;
-		}else{
-			ctrl_byte |= MOD_SPI_CTRL_V3_START;
-		}
-#endif
-		ctrl_byte |= MOD_SPI_CTRL_FXS;
-		if (chain){
-			ctrl_byte |= MOD_SPI_CTRL_CHAIN;
-		}
-		data |= ctrl_byte << 24;
-
-	}else{
-		DEBUG_EVENT("%s: Module %d: Unsupported module type %d!\n",
-				card->devname, mod_no, type);
-		return -EINVAL;
-	}
-
-	card->hw_iface.bus_write_4(	card->hw,
-					SPI_INTERFACE_REG,
-					data);	
-#if defined(SPI2STEP)
-	WP_DELAY(1);
-	if (card->u.aft.firm_ver > 3){
-		data |= MOD_SPI_START;
-	}else{
-		data |= MOD_SPI_V3_START;
-	}
-	card->hw_iface.bus_write_4(	card->hw,
-					SPI_INTERFACE_REG,
-					data);	
-#endif
-#if 0
-	DEBUG_EVENT("%s: %s: Module %d - Execute SPI command %08X\n",
-					card->fe.name,
-					__FUNCTION__,
-					mod_no,
-					data);
-#endif
-	for (i=0;i<10;i++){
-		WP_DELAY(10);
-		card->hw_iface.bus_read_4(	card->hw,
-						SPI_INTERFACE_REG,
-						&data);
-		if (data & MOD_SPI_BUSY) {
-			continue;
-		}
-	}
-
-	if (data & MOD_SPI_BUSY){
-		DEBUG_EVENT("%s: Module %d: Internal Error: SPI busy (%s:%d)!\n",
-					card->devname, mod_no,
-					__FUNCTION__,__LINE__);
-		return 0xFF;
-	}
-
-	return (u8)(data & 0xFF);
-}
-
-unsigned char aft_analog_read_fe (void* pcard, ...)
-{
-	va_list		args;
-	sdla_t		*card = (sdla_t*)pcard;
-	int		mod_no, type, chain, reg;
-	unsigned char	data = 0;
-#if defined(WAN_DEBUG_FE)
-	char		*fname;
-	int		fline;
-#endif
-
-	WAN_ASSERT(card == NULL);
-	WAN_ASSERT(card->hw_iface.bus_write_4 == NULL);
-	WAN_ASSERT(card->hw_iface.bus_read_4 == NULL);
-
-	va_start(args, pcard);
-	mod_no	= va_arg(args, int);
-	type	= va_arg(args, int);
-	chain	= va_arg(args, int);
-	reg	= va_arg(args, int);
-#if defined(WAN_DEBUG_FE)
-	fname	= va_arg(args, char*);
-	fline	= va_arg(args, int);
-#endif
-	va_end(args);
-
-	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-#if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
-			card->devname, __FUNCTION__,__LINE__,fname,fline);
-#else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
-			card->devname, __FUNCTION__,__LINE__);
-#endif		
-		return 0x00;
-	}
-	data = __aft_analog_read_fe (card, mod_no, type, chain, reg);
-
-	card->hw_iface.fe_clear_bit(card->hw,0);
-	return data;
-}
 
 unsigned char aft_analog_read_cpld(sdla_t *card, unsigned short cpld_off)
 {
@@ -1112,9 +716,10 @@ unsigned char aft_analog_read_cpld(sdla_t *card, unsigned short cpld_off)
         return tmp;
 }
 
-int aft_analog_write_cpld(sdla_t *card, unsigned short off,u_int16_t data)
+int aft_analog_write_cpld(sdla_t *card, unsigned short off, u_int16_t data_in)
 {
 	u16             org_off;
+	u8		data=(u8)data_in;
 
 	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
 		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
@@ -1196,51 +801,31 @@ static int aft_analog_hwec_reset(void *pcard, int reset)
 **		< 0 - failed
 ******************************************************************************/
 #define	AFT_REMORA_MUX_TS_EC_ENABLE	0x210
-static int aft_analog_hwec_enable(void *pcard, int enable, int channel)
+static int aft_analog_hwec_enable(void *pcard, int enable, int fe_chan)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	unsigned int	value = 0x00;
+	int		hw_chan = fe_chan-1;
 
 	WAN_ASSERT(card == NULL);
-	if(!wan_test_bit(channel, &card->wandev.ec_enable_map)){
-		return 1;
-	}
 
 	card->hw_iface.bus_read_4(
 			card->hw,
 			AFT_REMORA_MUX_TS_EC_ENABLE,
 			&value);
 	if (enable){
-                if (!wan_test_and_set_bit(channel,&card->wandev.ec_map)) {
-                        value |= (1 << channel);
-                } else {
-                        DEBUG_EVENT("[HWEC]: %s: %s bypass mode overrun detected for channel %d!\n",
-                                card->devname,
-                                (enable) ? "Enable" : "Disable",
-                                channel);
-                        return 0;
-                }
+		value |= (1 << hw_chan);
         } else {
-                if (wan_test_and_clear_bit(channel,&card->wandev.ec_map)) {
-                        value &= ~(1 << channel);
-                } else {
-                        DEBUG_EVENT("[HWEC]: %s: %s bypass mode overrun detected for channel %d!\n",
-                                card->devname,
-                                (enable) ? "Enable" : "Disable",
-                                channel);
-                        return 0;
-                }
+		value &= ~(1 << fe_chan);
         }
+	DEBUG_HWEC("[HWEC]: %s: %s bypass mode for fe_chan:%d (value=%X)...!\n",
+			card->devname,
+			(enable) ? "Enable" : "Disable",
+			fe_chan, value);
 	card->hw_iface.bus_write_4(
 			card->hw,
 			AFT_REMORA_MUX_TS_EC_ENABLE,
 			value);
-	DEBUG_HWEC("[HWEC]: %s: %s bypass mode for channel %d (value=%X)!\n",
-			card->devname,
-			(enable) ? "Enable" : "Disable",
-			channel,
-			value);
-
 	return 0;
 }
 #endif

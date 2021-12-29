@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <linux/wanpipe.h>
 #include <linux/sdla_fr.h>
+#include <linux/types.h>
 #include <linux/if_packet.h>
 #include <linux/if_wanpipe.h>
 #include <linux/if_ether.h>

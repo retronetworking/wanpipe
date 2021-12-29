@@ -204,7 +204,7 @@ int wpft1_init (sdla_t* card, wandev_conf_t* conf)
 	card->u.c.update_call_count = 0;
 	
 	card->wandev.ttl = 0x7F;
-	card->wandev.interface = 0; 
+	card->wandev.electrical_interface = 0; 
 
 	card->wandev.clocking = 0;
 

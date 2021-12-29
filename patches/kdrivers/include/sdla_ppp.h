@@ -26,9 +26,10 @@
  *	--------	--------
  *	GNU C		Linux		
  */
-#pragma pack(1)
 
 #include <linux/wanpipe_sppp_iface.h>
+
+#pragma pack(1)
 
 /* Adapter memory layout and important constants */
 #define	PPP508_MB_VECT	0xE000	/* mailbox window vector */
@@ -46,27 +47,27 @@
  * PPP Command Block.
  */
 typedef struct ppp_cmd{
-	unsigned char  command	 ;	/* command code */
-	unsigned short length	 ;	/* length of data buffer */
-	unsigned char  result	 ;	/* return code */
-	unsigned char  rsrv[11]	 ;	/* reserved for future use */
+	unsigned char  command	;	/* command code */
+	unsigned short length	;	/* length of data buffer */
+	unsigned char  result	;	/* return code */
+	unsigned char  rsrv[11]	;	/* reserved for future use */
 } ppp_cmd_t;
 
 typedef struct {
-	unsigned char	status		 ;
-	unsigned char	data_avail	 ;
-	unsigned short	real_length	 ;
-	unsigned short	time_stamp	 ;
-	unsigned char	data[1]		 ;
+	unsigned char	status		;
+	unsigned char	data_avail	;
+	unsigned short	real_length	;
+	unsigned short	time_stamp	;
+	unsigned char	data[1]		;
 } trace_pkt_t;
 
 
 typedef struct {
-	unsigned char 	opp_flag	 ;
-	unsigned char	trace_type	 ;
-	unsigned short 	trace_length	 ;
-	unsigned short 	trace_data_ptr	 ;
-	unsigned short  trace_time_stamp  ;
+	unsigned char 	opp_flag	;
+	unsigned char	trace_type	;
+	unsigned short 	trace_length	;
+	unsigned short 	trace_data_ptr	;
+	unsigned short  trace_time_stamp ;
 } trace_element_t;
 
 
@@ -82,9 +83,9 @@ typedef struct {
  */
 typedef struct ppp_mbox
 {
-	unsigned char flag	 ;	/* 00h: command execution flag */
-	ppp_cmd_t     cmd	 ; /* 01h: command block */
-	unsigned char data[1]	 ;	/* 10h: variable length data buffer */
+	unsigned char flag	;	/* 00h: command execution flag */
+	ppp_cmd_t     cmd	; /* 01h: command block */
+	unsigned char data[1]	;	/* 10h: variable length data buffer */
 } ppp_mbox_t;
 #endif
 /*----------------------------------------------------------------------------
@@ -94,17 +95,17 @@ typedef struct ppp_mbox
  */
 typedef struct	ppp_flags
 {
-	unsigned char iflag		 ;	/* 00: interrupt flag */
-	unsigned char imask		 ;	/* 01: interrupt mask */
-	unsigned char resrv		 ;
-	unsigned char mstatus		 ;	/* 03: modem status */
-	unsigned char lcp_state		 ; /* 04: LCP state */
-	unsigned char ppp_phase		 ;	/* 05: PPP phase */
-	unsigned char ip_state		 ; /* 06: IPCP state */
-	unsigned char ipx_state		 ; /* 07: IPXCP state */
-	unsigned char pap_state		 ; /* 08: PAP state */
-	unsigned char chap_state	 ; /* 09: CHAP state */
-	unsigned short disc_cause	 ;	/* 0A: disconnection cause */
+	unsigned char iflag		;	/* 00: interrupt flag */
+	unsigned char imask		;	/* 01: interrupt mask */
+	unsigned char resrv		;
+	unsigned char mstatus		;	/* 03: modem status */
+	unsigned char lcp_state		; /* 04: LCP state */
+	unsigned char ppp_phase		;	/* 05: PPP phase */
+	unsigned char ip_state		; /* 06: IPCP state */
+	unsigned char ipx_state		; /* 07: IPXCP state */
+	unsigned char pap_state		; /* 08: PAP state */
+	unsigned char chap_state	; /* 09: CHAP state */
+	unsigned short disc_cause	;	/* 0A: disconnection cause */
 } ppp_flags_t;
 
 /* 'iflag' defines */
@@ -163,16 +164,16 @@ typedef struct	ppp_flags
  */
 typedef struct	ppp508_buf_info
 {
-	unsigned short txb_num	 ;	/* 00: number of transmit buffers */
-	unsigned int  txb_ptr	 ;	/* 02: pointer to the buffer ctl. */
-	unsigned int  txb_nxt   ;
-	unsigned char  rsrv1[22]  ;
-	unsigned short rxb_num	 ;	/* 20: number of receive buffers */
-	unsigned int  rxb_ptr	 ;	/* 22: pointer to the buffer ctl. */
-	unsigned int  rxb1_ptr	 ;	/* 26: pointer to the first buf.ctl. */
-	unsigned int  rxb_base	 ;	/* 2A: pointer to the buffer base */
-	unsigned char  rsrv2[2]	 ;
-	unsigned int  rxb_end	 ;	/* 30: pointer to the buffer end */
+	unsigned short txb_num	;	/* 00: number of transmit buffers */
+	unsigned int  txb_ptr	;	/* 02: pointer to the buffer ctl. */
+	unsigned int  txb_nxt  ;
+	unsigned char  rsrv1[22] ;
+	unsigned short rxb_num	;	/* 20: number of receive buffers */
+	unsigned int  rxb_ptr	;	/* 22: pointer to the buffer ctl. */
+	unsigned int  rxb1_ptr	;	/* 26: pointer to the first buf.ctl. */
+	unsigned int  rxb_base	;	/* 2A: pointer to the buffer base */
+	unsigned char  rsrv2[2]	;
+	unsigned int  rxb_end	;	/* 30: pointer to the buffer end */
 } ppp508_buf_info_t;
 
 /*----------------------------------------------------------------------------
@@ -180,17 +181,17 @@ typedef struct	ppp508_buf_info
  */
 typedef struct	ppp_buf_ctl
 {
-	unsigned char  flag		 ;	/* 00: 'buffer ready' flag */
-	unsigned short length		 ;	/* 01: length of data */
-	unsigned char  reserved1[1]	 ;	/* 03: */
-	unsigned char  proto		 ;	/* 04: protocol */
-	unsigned short timestamp	 ;	/* 05: time stamp (Rx only) */
-	unsigned char  reserved2[5]	 ;	/* 07: */
+	unsigned char  flag		;	/* 00: 'buffer ready' flag */
+	unsigned short length		;	/* 01: length of data */
+	unsigned char  reserved1[1]	;	/* 03: */
+	unsigned char  proto		;	/* 04: protocol */
+	unsigned short timestamp	;	/* 05: time stamp (Rx only) */
+	unsigned char  reserved2[5]	;	/* 07: */
 	union
 	{
 		unsigned short o_p[2];	/* 1C: buffer offset & page (S502) */
 		unsigned int  ptr;	/* 1C: buffer pointer (S508) */
-	} buf				 ;
+	} buf				;
 } ppp_buf_ctl_t;
 
 /*----------------------------------------------------------------------------
@@ -198,31 +199,31 @@ typedef struct	ppp_buf_ctl
  */
 typedef struct	ppp508_conf
 {
-	unsigned int  line_speed	 ;	/* 00: baud rate, bps */
-	unsigned short txbuf_percent	 ;	/* 04: % of Tx buffer */
-	unsigned short conf_flags	 ;	/* 06: configuration bits */
-	unsigned short mtu_local	 ;	/* 08: local MTU */
-	unsigned short mtu_remote	 ;	/* 0A: remote MTU */
-	unsigned short restart_tmr	 ;	/* 0C: restart timer */
-	unsigned short auth_rsrt_tmr	 ;	/* 0E: authentication timer */
-	unsigned short auth_wait_tmr	 ;	/* 10: authentication timer */
-	unsigned short mdm_fail_tmr	 ;	/* 12: modem failure timer */
-	unsigned short dtr_drop_tmr	 ;	/* 14: DTR drop timer */
-	unsigned short connect_tmout	 ;	/* 16: connection timeout */
-	unsigned short conf_retry	 ;	/* 18: max. retry */
-	unsigned short term_retry	 ;	/* 1A: max. retry */
-	unsigned short fail_retry	 ;	/* 1C: max. retry */
-	unsigned short auth_retry	 ;	/* 1E: max. retry */
-	unsigned char  auth_options	 ;	/* 20: authentication opt. */
-	unsigned char  ip_options	 ;	/* 21: IP options */
-	unsigned int  ip_local		 ;	/* 22: local IP address */
-	unsigned int  ip_remote	 ;	/* 26: remote IP address */
-	unsigned char  ipx_options	 ;	/* 2A: IPX options */
-	unsigned char  ipx_netno[4]	 ;	/* 2B: IPX net number */
-	unsigned char  ipx_local[6]	 ;	/* 2F: local IPX node number*/
-	unsigned char  ipx_remote[6]	 ;	/* 35: remote IPX node num.*/
-	unsigned char  ipx_router[48]	 ;	/* 3B: IPX router name*/
-	unsigned int  alt_cpu_clock	 ;	/* 6B:  */
+	unsigned int  line_speed	;	/* 00: baud rate, bps */
+	unsigned short txbuf_percent	;	/* 04: % of Tx buffer */
+	unsigned short conf_flags	;	/* 06: configuration bits */
+	unsigned short mtu_local	;	/* 08: local MTU */
+	unsigned short mtu_remote	;	/* 0A: remote MTU */
+	unsigned short restart_tmr	;	/* 0C: restart timer */
+	unsigned short auth_rsrt_tmr	;	/* 0E: authentication timer */
+	unsigned short auth_wait_tmr	;	/* 10: authentication timer */
+	unsigned short mdm_fail_tmr	;	/* 12: modem failure timer */
+	unsigned short dtr_drop_tmr	;	/* 14: DTR drop timer */
+	unsigned short connect_tmout	;	/* 16: connection timeout */
+	unsigned short conf_retry	;	/* 18: max. retry */
+	unsigned short term_retry	;	/* 1A: max. retry */
+	unsigned short fail_retry	;	/* 1C: max. retry */
+	unsigned short auth_retry	;	/* 1E: max. retry */
+	unsigned char  auth_options	;	/* 20: authentication opt. */
+	unsigned char  ip_options	;	/* 21: IP options */
+	unsigned int  ip_local		;	/* 22: local IP address */
+	unsigned int  ip_remote	;	/* 26: remote IP address */
+	unsigned char  ipx_options	;	/* 2A: IPX options */
+	unsigned char  ipx_netno[4]	;	/* 2B: IPX net number */
+	unsigned char  ipx_local[6]	;	/* 2F: local IPX node number*/
+	unsigned char  ipx_remote[6]	;	/* 35: remote IPX node num.*/
+	unsigned char  ipx_router[48]	;	/* 3B: IPX router name*/
+	unsigned int  alt_cpu_clock	;	/* 6B:  */
 } ppp508_conf_t;
 
 /*----------------------------------------------------------------------------
@@ -231,17 +232,17 @@ typedef struct	ppp508_conf
  */
 typedef struct	ppp508_connect_info
 {
-	unsigned short 	mru		 ;	/* 00-01 Remote Max Rec' Unit */
-	unsigned char  	ip_options 	 ; /* 02: Negotiated ip options  */
-	unsigned int  	ip_local	 ;	/* 03-06: local IP address    */
-	unsigned int  	ip_remote	 ;	/* 07-0A: remote IP address   */
-	unsigned char	ipx_options	 ; /* 0B: Negotiated ipx options */
-	unsigned char  	ipx_netno[4]	 ;	/* 0C-0F: IPX net number      */
-	unsigned char  	ipx_local[6]	 ;	/* 10-1F: local IPX node #    */
-	unsigned char  	ipx_remote[6]	 ;	/* 16-1B: remote IPX node #   */
-	unsigned char  	ipx_router[48]	 ;	/* 1C-4B: IPX router name     */
-	unsigned char	auth_status	 ; /* 4C: Authentication Status  */
-	unsigned char 	inbd_auth_peerID[1]  ; /* 4D: variable length inbound authenticated peer ID */
+	unsigned short 	mru		;	/* 00-01 Remote Max Rec' Unit */
+	unsigned char  	ip_options 	; /* 02: Negotiated ip options  */
+	unsigned int  	ip_local	;	/* 03-06: local IP address    */
+	unsigned int  	ip_remote	;	/* 07-0A: remote IP address   */
+	unsigned char	ipx_options	; /* 0B: Negotiated ipx options */
+	unsigned char  	ipx_netno[4]	;	/* 0C-0F: IPX net number      */
+	unsigned char  	ipx_local[6]	;	/* 10-1F: local IPX node #    */
+	unsigned char  	ipx_remote[6]	;	/* 16-1B: remote IPX node #   */
+	unsigned char  	ipx_router[48]	;	/* 1C-4B: IPX router name     */
+	unsigned char	auth_status	; /* 4C: Authentication Status  */
+	unsigned char 	inbd_auth_peerID[1] ; /* 4D: variable length inbound authenticated peer ID */
 } ppp508_connect_info_t;
 
 /* 'line_speed' field */
@@ -286,10 +287,10 @@ typedef struct	ppp508_connect_info
  */
 typedef struct	ppp508_get_conf
 {
-	unsigned int  bps	 ;	/* 00: baud rate, bps */
-	ppp508_conf_t  conf	 ;	/* 04: requested config. */
-	unsigned short txb_num	 ;	/* 6F: number of Tx buffers */
-	unsigned short rxb_num	 ;	/* 71: number of Rx buffers */
+	unsigned int  bps	;	/* 00: baud rate, bps */
+	ppp508_conf_t  conf	;	/* 04: requested config. */
+	unsigned short txb_num	;	/* 6F: number of Tx buffers */
+	unsigned short rxb_num	;	/* 71: number of Rx buffers */
 } ppp508_get_conf_t;
 
 /*----------------------------------------------------------------------------
@@ -297,13 +298,13 @@ typedef struct	ppp508_get_conf
  */
 typedef struct ppp508_stats
 {
-	unsigned short reserved1	 ;	/* 00: */
-	unsigned short rx_bad_len	 ;	/* 02: */
-	unsigned short reserved2	 ;	/* 04: */
-	unsigned int  tx_frames	 ;	/* 06: */
-	unsigned int  tx_bytes	 ;	/* 0A: */
-	unsigned int  rx_frames	 ;	/* 0E: */
-	unsigned int  rx_bytes	 ;	/* 12: */
+	unsigned short reserved1	;	/* 00: */
+	unsigned short rx_bad_len	;	/* 02: */
+	unsigned short reserved2	;	/* 04: */
+	unsigned int  tx_frames	;	/* 06: */
+	unsigned int  tx_bytes	;	/* 0A: */
+	unsigned int  rx_frames	;	/* 0E: */
+	unsigned int  rx_bytes	;	/* 12: */
 } ppp508_stats_t;
 
 /*----------------------------------------------------------------------------
@@ -311,25 +312,25 @@ typedef struct ppp508_stats
  */
 typedef struct	ppp_err_stats
 {
-	unsigned char	 rx_overrun	 ;	/* 00: Rx overrun errors */
-	unsigned char	 rx_bad_crc	 ;	/* 01: Rx CRC errors */
-	unsigned char	 rx_abort	 ;	/* 02: Rx aborted frames */
-	unsigned char	 rx_lost	 ;	/* 03: Rx frames lost */
-	unsigned char	 tx_abort	 ;	/* 04: Tx aborted frames */
-	unsigned char	 tx_underrun	 ;	/* 05: Tx underrun errors */
-	unsigned char	 tx_missed_intr	 ;	/* 06: Tx underruns missed */
-	unsigned char	 reserved	 ;	/* 07: Tx underruns missed */
-	unsigned char	 dcd_trans	 ;	/* 08: DCD transitions */
-	unsigned char	 cts_trans	 ;	/* 09: CTS transitions */
+	unsigned char	 rx_overrun	;	/* 00: Rx overrun errors */
+	unsigned char	 rx_bad_crc	;	/* 01: Rx CRC errors */
+	unsigned char	 rx_abort	;	/* 02: Rx aborted frames */
+	unsigned char	 rx_lost	;	/* 03: Rx frames lost */
+	unsigned char	 tx_abort	;	/* 04: Tx aborted frames */
+	unsigned char	 tx_underrun	;	/* 05: Tx underrun errors */
+	unsigned char	 tx_missed_intr	;	/* 06: Tx underruns missed */
+	unsigned char	 reserved	;	/* 07: Tx underruns missed */
+	unsigned char	 dcd_trans	;	/* 08: DCD transitions */
+	unsigned char	 cts_trans	;	/* 09: CTS transitions */
 } ppp_err_stats_t;
 
 /* Data structure for SET_TRIGGER_INTR command
  */
 
 typedef struct ppp_intr_info{
-	unsigned char  i_enable		 ; /* 0 Interrupt enable bits */
-	unsigned char  irq               ; /* 1 Irq number */
-	unsigned short timer_len         ; /* 2 Timer delay */
+	unsigned char  i_enable		; /* 0 Interrupt enable bits */
+	unsigned char  irq              ; /* 1 Irq number */
+	unsigned short timer_len        ; /* 2 Timer delay */
 } ppp_intr_info_t;
 
 
@@ -364,7 +365,6 @@ typedef struct ppp_intr_info{
 #define UDPDRV_SIGNATURE     "DRVSTATS"
 #define UDPMGMT_UDP_PROTOCOL 0x11
 
-
-#pragma	pack()
+#pragma pack()
 
 #endif	/* _SDLA_PPP_H */

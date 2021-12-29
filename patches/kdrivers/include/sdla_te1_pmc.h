@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1_pmc.h,v 1.3 2006/10/03 16:45:59 sangoma Exp $
+ *	$Id: sdla_te1_pmc.h,v 1.4 2007/04/25 21:23:03 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -225,11 +225,13 @@
 #define BIT_SIGX_CHANCFG_RDEBE		0x01
 
 #define REG_T1_XBAS_CFG			0x54
-#define BIT_T1_XBAS_ZCS0		0x01
-#define BIT_T1_XBAS_ZCS1		0x02
 #define BIT_T1_XBAS_JPN			0x40
 #define BIT_T1_XBAS_B8ZS		0x20
 #define BIT_T1_XBAS_ESF			0x10
+#define BIT_T1_XBAS_FMS1		0x08
+#define BIT_T1_XBAS_FMS0		0x04
+#define BIT_T1_XBAS_ZCS1		0x02
+#define BIT_T1_XBAS_ZCS0		0x01
 
 #define REG_T1_XBAS_ALARM_TX		0x55
 #define BIT_T1_XBAS_ALARM_TX_XYEL	0x02

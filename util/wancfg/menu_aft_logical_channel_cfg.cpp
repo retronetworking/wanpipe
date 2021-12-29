@@ -184,7 +184,8 @@ again:
                           lxdialog_path,
 			  (char*)(link_defs->card_version != A200_ADPTR_ANALOG ?
                           "AFT DS0 CHANNEL CONFIGURATION" :
-			  "AFT ANALOG CHANNEL CONFIGURATION"),
+							(link_defs->card_version == A200_ADPTR_ANALOG ? 
+								"AFT ANALOG CHANNEL CONFIGURATION": "ISDN BRI CHANNEL CONFIGURATION")),
                           WANCFG_PROGRAM_NAME,
                           tmp_buff,
                           MENU_HEIGTH, MENU_WIDTH,

@@ -63,9 +63,11 @@ static wan_cmd_api_t	api_cmd;
 /***********************************************************************
 **		F U N C T I O N  P R O T O T Y P E S
 ***********************************************************************/	
-extern unsigned char wan_plxctrl_read_ebyte(void*, unsigned char);
-extern void wan_plxctrl_write_ebyte(void*, unsigned char, unsigned char);
+extern int wan_plxctrl_read8(void*, unsigned char, unsigned char*);
+extern int wan_plxctrl_write8(void*, unsigned char, unsigned char);
 
+int exec_read_cmd(void*, unsigned int, unsigned int, unsigned int*);
+int exec_write_cmd(void*, unsigned int, unsigned int, unsigned int);
 
 /***********************************************************************
 **		F U N C T I O N  D E F I N I T I O N S
@@ -189,7 +191,8 @@ int exec_write_cmd(void *arg, unsigned int off, unsigned int len, unsigned int d
 static int wan_plxup_read_cmd(wan_plxup_t *info)
 {
 	FILE		*f;
-	unsigned int	off, value;
+	unsigned char	off, value;
+	int		err = 0;
 
 	if (info->file){	
 		f = fopen(info->file, "w");//open the .HEX file for reading
@@ -199,16 +202,26 @@ static int wan_plxup_read_cmd(wan_plxup_t *info)
 			printf("Uploading to file: %s\n", info->file);
 		}
 		for(off=0; off <= WAN_PLXUP_MAX_ESIZE; off++){
-			value = wan_plxctrl_read_ebyte(info, (unsigned char)off);
-			fprintf(f, "%04X:%02X\n", off, value);
-			printf("Reading %02X from %04X\n", value, off);
+			printf("Reading from %02X  = ", off);
+			err = wan_plxctrl_read8(info, off, &value);
+			if (err){
+				printf("Failed (err=%d)\n", err);
+				break;
+			}
+			fprintf(f, "%02X:%02X\n", off, value);
+			printf("%02X\n", value);
 		}
 		if (f) fclose(f);
 	}else{
-		value = wan_plxctrl_read_ebyte(info, (unsigned char)info->addr);
-		printf("Reading %02X from %04X\n", value, info->addr);
+		printf("Reading from %02X  = ", (unsigned char)info->addr);
+		err = wan_plxctrl_read8(info, (unsigned char)info->addr, &value);
+		if (!err){
+			printf("%02X\n", value);
+		}else{
+			printf("Failed (err=%d)\n", err);
+		}
 	}
-	return 0;
+	return err;
 }
 
 
@@ -217,6 +230,7 @@ static int wan_plxup_write_cmd(wan_plxup_t *info)
 {
 	FILE		*f;
 	unsigned int	offset, value;
+	int		err;
 	
 	if (info->file){
 		f = fopen(info->file, "r");//open the .HEX file for reading
@@ -226,22 +240,36 @@ static int wan_plxup_write_cmd(wan_plxup_t *info)
 		}else{
 			printf("Uploading file: %s\n", info->file);
 		}
-		while(fgets((char*)buffer, 99 , f) != NULL){
+		while(fgets(buffer, 99 , f) != NULL){
 		
 			sscanf(buffer, "%X:%X", &offset, &value);
-			printf("Writting %02X to %04X\n", value, offset);
-			wan_plxctrl_write_ebyte(info, 
-						(unsigned char)offset, 
-						(unsigned char)value);
+			printf("Writting %02X to %02X ...", 
+					(unsigned char)value, 
+					(unsigned char)offset);
+			err = wan_plxctrl_write8(info, 
+					(unsigned char)offset, 
+					(unsigned char)value);
+			if (err){
+				printf("Failed (err=%d)\n", err);
+				break;
+			}
+			printf("OK\n");			
 		}
 		if (f) fclose(f);
 	}else{
-		printf("Writting %02X to %04X\n", info->value, info->addr);
-		wan_plxctrl_write_ebyte(info, 
+		printf("Writting %02X to %02X ...", 
+					(unsigned char)info->value, 
+					(unsigned char)info->addr);
+		err = wan_plxctrl_write8(info, 
 					(unsigned char)info->addr, 
-					(unsigned char)info->value);		
+					(unsigned char)info->value);
+		if (err){
+			printf("Failed (err=%d)\n", err);
+		}else{
+			printf("OK!\n");
+		}		
 	}
-	return 0;
+	return err;
 }
 
 static int wan_plxup_cmd(int cmd, wan_plxup_t *info)

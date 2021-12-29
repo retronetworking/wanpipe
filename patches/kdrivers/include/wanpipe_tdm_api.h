@@ -25,283 +25,43 @@
 # include <net/wanpipe_defines.h>
 # include <net/wanpipe.h>
 # include <net/wanpipe_codec_iface.h>
+# include <net/wanpipe_tdm_api_iface.h>
 #elif defined(__WINDOWS__)
 # if defined(__KERNEL__)
 #  include <wanpipe_includes.h>
 #  include <wanpipe_defines.h>
+#  include <wanpipe_tdm_api_iface.h>
 #  include <wanpipe.h>
+
+enum{
+	TDMAPI_BUFFER_NO_CODEC=1,
+	TDMAPI_BUFFER_HDLC_DATA,
+	TDMAPI_BUFFER_ERROR,
+	TDMAPI_BUFFER_READY,
+	TDMAPI_BUFFER_ACCEPTED
+};
+
+#define inline __inline
 # endif
 # include <wanpipe_codec_iface.h>
+
 #else
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe.h>
 # include <linux/if_wanpipe.h>
 # include <linux/wanpipe_codec_iface.h>
+# include <linux/wanpipe_tdm_api_iface.h>
 #endif
-
-
-#if defined(__WINDOWS__)
-typedef HANDLE sng_fd_t;
-#else
-typedef int sng_fd_t;
-#endif
-
-enum wanpipe_tdm_api_cmds {
-
-	SIOC_WP_TDM_GET_USR_MTU_MRU,	/* 0x00 */
-
-	SIOC_WP_TDM_SET_USR_PERIOD,	/* 0x01 */
-	SIOC_WP_TDM_GET_USR_PERIOD,	/* 0x02 */
-	
-	SIOC_WP_TDM_SET_HW_MTU_MRU,	/* 0x03 */
-	SIOC_WP_TDM_GET_HW_MTU_MRU,	/* 0x04 */
-
-	SIOC_WP_TDM_SET_CODEC,		/* 0x05 */
-	SIOC_WP_TDM_GET_CODEC,		/* 0x06 */
-
-	SIOC_WP_TDM_SET_POWER_LEVEL,	/* 0x07 */
-	SIOC_WP_TDM_GET_POWER_LEVEL,	/* 0x08 */
-
-	SIOC_WP_TDM_TOGGLE_RX,		/* 0x09 */
-	SIOC_WP_TDM_TOGGLE_TX,		/* 0x0A */
-
-	SIOC_WP_TDM_GET_HW_CODING,	/* 0x0B */
-	SIOC_WP_TDM_SET_HW_CODING,	/* 0x0C */
-
-	SIOC_WP_TDM_GET_FULL_CFG,	/* 0x0D */
-
-	SIOC_WP_TDM_SET_EC_TAP,		/* 0x0E */
-	SIOC_WP_TDM_GET_EC_TAP,		/* 0x0F */
-	
-	SIOC_WP_TDM_ENABLE_RBS_EVENTS,	/* 0x10 */
-	SIOC_WP_TDM_DISABLE_RBS_EVENTS,	/* 0x11 */
-	SIOC_WP_TDM_WRITE_RBS_BITS,	/* 0x12 */
-	
-	SIOC_WP_TDM_GET_STATS,		/* 0x13 */
-	SIOC_WP_TDM_FLUSH_BUFFERS,	/* 0x14 */
-	
-	SIOC_WP_TDM_READ_EVENT,		/* 0x15 */
-	
-	SIOC_WP_TDM_ENABLE_DTMF_EVENTS,	/* 0x16 */
-	SIOC_WP_TDM_DISABLE_DTMF_EVENTS,	/* 0x17 */
-	
-	SIOC_WP_TDM_ENABLE_RM_DTMF_EVENTS,	/* 0x18 */
-	SIOC_WP_TDM_DISABLE_RM_DTMF_EVENTS,	/* 0x19 */
-	
-	SIOC_WP_TDM_ENABLE_RXHOOK_EVENTS,	/* 0x1A */
-	SIOC_WP_TDM_DISABLE_RXHOOK_EVENTS,	/* 0x1B */
-	
-	SIOC_WP_TDM_ENABLE_RING_DETECT_EVENTS,
-	SIOC_WP_TDM_DISABLE_RING_DETECT_EVENTS,
-	
-	SIOC_WP_TDM_ENABLE_RING_TRIP_DETECT_EVENTS,
-	SIOC_WP_TDM_DISABLE_RING_TRIP_DETECT_EVENTS,
-	
-	SIOC_WP_TDM_TXSIG_KEWL,
-	SIOC_WP_TDM_EVENT_TXSIG_START,
-	SIOC_WP_TDM_EVENT_TXSIG_OFFHOOK,
-	SIOC_WP_TDM_EVENT_TXSIG_ONHOOK,
-	SIOC_WP_TDM_EVENT_ONHOOKTRANSFER,
-	SIOC_WP_TDM_EVENT_SETPOLARITY,
-
-	SIOC_WP_TDM_SET_RX_GAINS,
-	SIOC_WP_TDM_SET_TX_GAINS,
-	SIOC_WP_TDM_CLEAR_RX_GAINS,
-	SIOC_WP_TDM_CLEAR_TX_GAINS,
-
-	SIOC_WP_TDM_GET_FE_ALARMS,
-	SIOC_WP_TDM_ENABLE_HWEC,
-	SIOC_WP_TDM_DISABLE_HWEC,
-	
-	SIOC_WP_TDM_NOTSUPP		/*  */
-
-
-};
-
-enum wanpipe_tdm_api_events {
-	WP_TDM_EVENT_RBS,
-	WP_TDM_EVENT_DTMF,	
-	WP_TDM_EVENT_NONE,
-	WP_TDM_EVENT_RXHOOK,
-	WP_TDM_EVENT_RING,
-	WP_TDM_EVENT_TONE,
-	WP_TDM_EVENT_RING_DETECT,
-	WP_TDM_EVENT_RING_TRIP,
-	WP_TDM_EVENT_TXSIG_KEWL,
-	WP_TDM_EVENT_TXSIG_START,
-	WP_TDM_EVENT_TXSIG_OFFHOOK,
-	WP_TDM_EVENT_TXSIG_ONHOOK,
-	WP_TDM_EVENT_ONHOOKTRANSFER,
-	WP_TDM_EVENT_SETPOLARITY,
-	WP_TDM_EVENT_FE_ALARM
-};
-
-#define WPTDM_A_BIT 			WAN_RBS_SIG_A
-#define WPTDM_B_BIT 			WAN_RBS_SIG_B
-#define WPTDM_C_BIT 			WAN_RBS_SIG_C
-#define WPTDM_D_BIT 			WAN_RBS_SIG_D
- 
-#define WP_TDMAPI_EVENT_RXHOOK_OFF	0x01
-#define WP_TDMAPI_EVENT_RXHOOK_ON	0x02
-
-#define WP_TDMAPI_EVENT_RING_PRESENT	0x01
-#define WP_TDMAPI_EVENT_RING_STOP	0x02
-
-
-typedef struct {
-	union {
-		struct {
-			unsigned char	_event_type;
-			unsigned char	_rbs_rx_bits;
-			unsigned int	_time_stamp;
-			u_int16_t	channel;
-			union {
-				struct {
-                                	u_int8_t	alarm;
-				}fe;
-				struct {
-					u_int8_t	rbs_bits;
-				}rbs;
-				struct {
-					u_int8_t	state;
-				}rxhook;
-				struct {
-					u_int8_t	state;
-				}ring;
-				struct {
-					u_int8_t	digit;	/* DTMF: digit  */
-					u_int8_t	port;	/* DTMF: SOUT/ROUT */
-					u_int8_t	type;	/* DTMF: PRESET/STOP */
-				}dtmf;
-				u_int16_t	polarity;
-				u_int16_t	ohttimer;
-			} u_event;
-		}wp_event;
-		struct {
-			unsigned char	_rbs_rx_bits;
-			unsigned int	_time_stamp;
-		} wp_rx;
-		unsigned char	reserved[16];
-	}wp_rx_hdr_u;
-#define wp_tdm_api_event_type		wp_rx_hdr_u.wp_event._event_type
-#define wp_tdm_api_event_rbs_rx_bits 	wp_rx_hdr_u.wp_event._rbs_rx_bits
-#define wp_tdm_api_event_time_stamp 	wp_rx_hdr_u.wp_event._time_stamp
-#define wp_tdm_api_event_channel 	wp_rx_hdr_u.wp_event.channel
-#define wp_tdm_api_event_rxhook_state 	wp_rx_hdr_u.wp_event.u_event.rxhook.state
-#define wp_tdm_api_event_ring_state 	wp_rx_hdr_u.wp_event.u_event.ring.state
-#define wp_tdm_api_event_dtmf_digit 	wp_rx_hdr_u.wp_event.u_event.dtmf.digit
-#define wp_tdm_api_event_dtmf_type 	wp_rx_hdr_u.wp_event.u_event.dtmf.type
-#define wp_tdm_api_event_dtmf_port 	wp_rx_hdr_u.wp_event.u_event.dtmf.port
-#define wp_tdm_api_event_ohttimer 	wp_rx_hdr_u.wp_event.u_event.ohttimer
-#define wp_tdm_api_event_polarity 	wp_rx_hdr_u.wp_event.u_event.polarity
-#define wp_tdm_api_event_fe_alarm 	wp_rx_hdr_u.wp_event.u_event.fe.alarm
-} wp_tdm_api_rx_hdr_t;
-
-typedef struct {
-        wp_tdm_api_rx_hdr_t	hdr;
-        unsigned char  		data[1];
-} wp_tdm_api_rx_element_t;
-
-typedef struct {
-	union {
-		struct {
-			unsigned char	_rbs_rx_bits;
-			unsigned int	_time_stamp;
-		}wp_tx;
-		unsigned char	reserved[16];
-	}wp_tx_hdr_u;
-#define wp_api_time_stamp 	wp_tx_hdr_u.wp_tx._time_stamp
-} wp_tdm_api_tx_hdr_t;
-
-typedef struct {
-        wp_tdm_api_tx_hdr_t	hdr;
-        unsigned char  		data[1];
-} wp_tdm_api_tx_element_t;
-
-
-
-typedef struct wp_tdm_chan_stats
-{
-	unsigned int	rx_packets;		/* total packets received	*/
-	unsigned int	tx_packets;		/* total packets transmitted	*/
-	unsigned int	rx_bytes;		/* total bytes received 	*/
-	unsigned int	tx_bytes;		/* total bytes transmitted	*/
-	unsigned int	rx_errors;		/* bad packets received		*/
-	unsigned int	tx_errors;		/* packet transmit problems	*/
-	unsigned int	rx_dropped;		/* no space in linux buffers	*/
-	unsigned int	tx_dropped;		/* no space available in linux	*/
-	unsigned int	multicast;		/* multicast packets received	*/
-#if !defined(__WINDOWS__)
-	unsigned int	collisions;
-#endif
-	/* detailed rx_errors: */
-	unsigned int	rx_length_errors;
-	unsigned int	rx_over_errors;		/* receiver ring buff overflow	*/
-	unsigned int	rx_crc_errors;		/* recved pkt with crc error	*/
-	unsigned int	rx_frame_errors;	/* recv'd frame alignment error */
-#if !defined(__WINDOWS__)
-	unsigned int	rx_fifo_errors;		/* recv'r fifo overrun		*/
-#endif
-	unsigned int	rx_missed_errors;	/* receiver missed packet	*/
-
-	/* detailed tx_errors */
-#if !defined(__WINDOWS__)
-	unsigned int	tx_aborted_errors;
-	unsigned int	tx_carrier_errors;
-#endif
-	unsigned int	tx_fifo_errors;
-	unsigned int	tx_heartbeat_errors;
-	unsigned int	tx_window_errors;
-	
-}wp_tdm_chan_stats_t;          
-
-
- 
-typedef struct wanpipe_tdm_api_cmd{
-	unsigned int cmd;
-	unsigned int hw_tdm_coding;	/* Set/Get HW TDM coding: uLaw muLaw */
-	unsigned int hw_mtu_mru;	/* Set/Get HW TDM MTU/MRU */
-	unsigned int usr_period;	/* Set/Get User Period in ms */
-	unsigned int tdm_codec;		/* Set/Get TDM Codec: SLinear */
-	unsigned int power_level;	/* Set/Get Power level treshold */
-	unsigned int rx_disable;	/* Enable/Disable Rx */
-	unsigned int tx_disable;	/* Enable/Disable Tx */		
-	unsigned int usr_mtu_mru;	/* Set/Get User TDM MTU/MRU */
-	unsigned int ec_tap;		/* Echo Cancellation Tap */
-	unsigned int rbs_poll;		/* Enable/Disable RBS Polling */
-	unsigned int rbs_rx_bits;	/* Rx RBS Bits */
-	unsigned int rbs_tx_bits;	/* Tx RBS Bits */
-	unsigned int hdlc;		/* HDLC based device */
-	unsigned int idle_flag;		/* IDLE flag to Tx */
-	unsigned int fe_alarms;		/* FE Alarms detected */
-	wp_tdm_chan_stats_t stats;	/* TDM Statistics */
-	wp_tdm_api_rx_hdr_t event;	/* TDM Event */
-	unsigned int data_len;
-        void *data;	
-}wanpipe_tdm_api_cmd_t;
-
-typedef struct wanpipe_tdm_api_event{
-	int (*wp_rbs_event)(sng_fd_t fd, unsigned char rbs_bits);
-	int (*wp_dtmf_event)(sng_fd_t fd, unsigned char dtmf, unsigned char type, unsigned char port);
-	int (*wp_rxhook_event)(sng_fd_t fd, unsigned char hook_state);
-	int (*wp_rxring_event)(sng_fd_t fd, unsigned char ring_state);
-	int (*wp_ringtrip_event)(sng_fd_t fd, unsigned char ring_state);
-	int (*wp_fe_alarm_event)(sng_fd_t fd, unsigned char fe_alarm_event);
-}wanpipe_tdm_api_event_t; 
-
-typedef struct wanpipe_tdm_api{
-	wanpipe_tdm_api_cmd_t	wp_tdm_cmd;
-	wanpipe_tdm_api_event_t wp_tdm_event;
-}wanpipe_tdm_api_t;
-
 
 
 
 #ifdef WAN_KERNEL
 
-/* Maximum API Len = 200ms = 1600 */
-#define WP_TDM_API_MAX_LEN 	8*200 
+#if !defined(__WINDOWS__)
+#define WP_TDM_API_MAX_LEN 	1024
+#endif
+
 #define WP_TDM_API_CHUNK_SZ 	8
 
 enum {
@@ -384,7 +144,7 @@ typedef struct wanpipe_tdm_api_dev {
 	wait_queue_head_t 	poll_wait;
 #endif
 	
-	u32 	rbs_poll_cnt;
+	wan_ticks_t	 	rbs_poll_cnt;
 	u32			busy;
 	u32			tx_q_len;
 	u32 			critical;
@@ -419,6 +179,9 @@ typedef struct wanpipe_tdm_api_dev {
 #if defined(__WINDOWS__)
 	u32 original_active_ch;
 #endif
+
+	uint8_t		dtmfsupport;
+	
 }wanpipe_tdm_api_dev_t;
 
 static __inline int is_tdm_api(void *chan, wanpipe_tdm_api_dev_t *tdm_api)
@@ -536,7 +299,6 @@ static inline int wp_tdmapi_check_mtu(void* pcard, unsigned long timeslot_map, i
 	*mtu = chunksz * num_of_channels;
 	return 0;
 }
-             
 		
 #endif
 

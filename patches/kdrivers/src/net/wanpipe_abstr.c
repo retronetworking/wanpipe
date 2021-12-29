@@ -32,6 +32,9 @@
 # include <wanpipe_events.h>
 # include <wanpipe.h>
 # include <wanpipe_abstr.h>
+#elif defined(__WINDOWS__)
+# include <wanpipe_includes.h>
+# include <wanpipe.h>
 #elif defined(__KERNEL__)
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -140,7 +143,11 @@ void wpabs_skb_free(void* skb)
 /*
 ** wpabs_skb_copyback() - 
 */
+#if defined(__WINDOWS__) || defined(__FreeBSD__)
+void wpabs_skb_copyback(void* skb, int off, int len, caddr_t cp)
+#else
 void wpabs_skb_copyback(void* skb, int off, int len, unsigned long cp)
+#endif
 {
 	wan_skb_copyback(skb, off, len, (caddr_t)cp);	
 }
@@ -304,7 +311,7 @@ void *wpabs_netif_alloc(unsigned char *dev_name,int ifType, int *err)
 
 void wpabs_netif_free(void *dev)
 {
-	return wan_netif_free(dev);
+	wan_netif_free(dev);
 }
 
 
@@ -318,7 +325,7 @@ unsigned char* wpabs_netif_name(void *dev)
 */
 int wpabs_netif_queue_stopped(void* dev)
 {
-	return WAN_NETIF_QUEUE_STOPPED((netdevice_t*)dev);
+	return WAN_NETIF_QUEUE_STOPPED(((netdevice_t*)dev));
 }
 
 /*
@@ -358,7 +365,12 @@ void wpabs_add_timer(void* timer_info, unsigned long delay)
 /*
 ** wpabs_init_timer
 */
-void wpabs_init_timer(void* timer_info, void* timer_func, unsigned long data)
+void wpabs_init_timer(void* timer_info, void* timer_func,
+#if defined(__WINDOWS__)
+					 wan_timer_arg_t data)
+#else
+					 unsigned long data)
+#endif
 {
 	wan_timer_t*	timer = (wan_timer_t*)timer_info;
 	
@@ -385,12 +397,20 @@ void wpabs_del_timer(void* timer_info)
 
 unsigned long* wpabs_dma_get_vaddr(void* pcard, void* dma_descr)
 {
+#if defined(__WINDOWS__)
+	return ((wan_dma_descr_t*)dma_descr)->vAddr;
+#else
 	return wan_dma_get_vaddr(pcard,dma_descr);
+#endif
 }
 
 unsigned long wpabs_dma_get_paddr(void* pcard, void* dma_descr)
 {
+#if defined(__WINDOWS__)
+	return ((wan_dma_descr_t*)dma_descr)->physicalAddr.u.LowPart;
+#else
 	return wan_dma_get_paddr(pcard,dma_descr);
+#endif
 }
 
 void* wpabs_malloc(int size)
@@ -481,7 +501,7 @@ void* wpabs_spinlock_alloc(void)
 }
 void wpabs_spinlock_free(void* lock)
 {
-	return wan_free(lock);
+	wan_free(lock);
 }
 
 /*
@@ -508,12 +528,12 @@ void wpabs_spin_unlock_irqrestore(void* lock,unsigned long *flags)
 /*
 **
 */
-void wpabs_spin_lock_init(void* lock)
+void wpabs_spin_lock_init(void* lock, char *name)
 {
 	wan_spinlock_t*	SpinLock = (wan_spinlock_t*)lock;
 
 	WAN_ASSERT1(SpinLock == NULL);
-	wan_spin_lock_init(SpinLock);
+	wan_spin_lock_irq_init(SpinLock, name);
 
 }
 
@@ -570,7 +590,6 @@ void wpabs_write_rw_unlock_irq(void* lock,unsigned long *flags)
 /*
 **
 */
-
 void wpabs_debug_event(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_EVENT
@@ -710,6 +729,8 @@ int wpabs_test_and_set_bit(int bit, void *ptr)
 	}
 	wan_set_bit(bit,ptr);
 	return 0;
+#elif defined(__WINDOWS__)
+	return test_and_set_bit(bit,ptr);
 #else
 # error "Error: wpabs_test_and_set_bit() not implemented!"
 #endif
@@ -733,11 +754,11 @@ int wpabs_clear_bit(int bit, void *ptr)
 	return 0;
 }
 
-unsigned long wpabs_get_systemticks(void)
+wan_ticks_t wpabs_get_systemticks(void)
 {
 	return SYSTEM_TICKS;
 }
-
+	
 unsigned long wpabs_get_hz(void)
 {
 	return HZ;
@@ -935,6 +956,9 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
 		addr = (struct sockaddr_in *)ifa->ifa_addr;
 		return htonl(addr->sin_addr.s_addr);
+#elif defined(__WINDOWS__)
+		FUNC_NOT_IMPL
+		return 0;
 #else
 		return ifaddr->ifa_local;
 #endif
@@ -948,6 +972,9 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 		return addr->sin_addr.s_addr;
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
 		return 0;
+#elif defined(__WINDOWS__)
+		FUNC_NOT_IMPL
+		return 0;
 #else
 		return ifaddr->ifa_address;
 #endif
@@ -956,6 +983,9 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 	case WAN_NETMASK_IP:
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 		return 0;
+#elif defined(__WINDOWS__)
+		FUNC_NOT_IMPL
+		return 0;
 #else
 		return ifaddr->ifa_mask;
 #endif
@@ -963,6 +993,9 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 
 	case WAN_BROADCAST_IP:
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+		return 0;
+#elif defined(__WINDOWS__)
+		FUNC_NOT_IMPL
 		return 0;
 #else
 		return ifaddr->ifa_broadcast;
@@ -1061,6 +1094,8 @@ int wpabs_net_ratelimit(void)
 	** For these OS always print all messages.
 	*/
 	return 1;
+#elif defined(__WINDOWS__)
+	return 1;
 #else
 # error "wpabs_netrate_limit not supported"
 #endif
@@ -1074,6 +1109,8 @@ void wpabs_get_random_bytes(void *ptr, int len)
 	read_random(ptr,len);
 #elif defined(__OpenBSD__)
 	get_random_bytes(ptr,len);
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
 #else
 # error "wpabs_get_random_bytes not supported"
 #endif

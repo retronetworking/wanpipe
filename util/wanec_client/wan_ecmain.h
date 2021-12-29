@@ -12,6 +12,7 @@
 # include <wanpipe_defines.h>
 # include <wanpipe_common.h>
 # include <wanpipe_cfg.h>
+# include <sang_status_defines.h>
 #else
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
@@ -32,19 +33,25 @@ enum {
 };
 
 typedef struct {
-	char	devname[WAN_DRVNAME_SZ+1];
+	char		devname[WAN_DRVNAME_SZ+1];
 //	unsigned char	if_name[WAN_IFNAME_SZ+1];
 	int		verbose;
 	
-	int		channel;
-	unsigned long	channel_map;
+	int		fe_chan;
+	unsigned long	fe_chan_map;
 //	char		channels[MAX_EC_CLIENT_CHANNELS_LEN];
 
-	int		param_no;
-	struct {
-		char	key[MAX_EC_CLIENT_PARAM_LEN];
-		char	value[MAX_EC_CLIENT_VALUE_LEN];
-	} param[10];	
+	char	filename[MAX_FILENAME_LEN];
+	unsigned char	pcmlaw;
+
+	unsigned int	buffer_id;
+	unsigned int	duration;
+	unsigned int	repeat_cnt;
+
+	unsigned char	port;
+	unsigned char	port_map;
+
+	wan_custom_conf_t	conf;
 } wanec_client_t;
 
 #endif /* __WAN_ECMAIN_H__ */

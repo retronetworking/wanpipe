@@ -168,6 +168,26 @@ again:
 
   //////////////////////////////////////////////////////////////////////////
   //
+  // A500 - ISDN BRI Card
+  //
+  //////////////////////////////////////////////////////////////////////////
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_ADPTR_ISDN);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", "A500 - ISDN BRI");
+  menu_str += tmp_buff;
+
+  //////////////////////////////////////////////////////////////////////////
+  //
+  // A14X - AFT Serial Card
+  //
+  //////////////////////////////////////////////////////////////////////////
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_ADPTR_2SERIAL_V35X21);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", "A14X - Serial");
+  menu_str += tmp_buff;
+
+  //////////////////////////////////////////////////////////////////////////
+  //
   // A300 Card
   //
   //////////////////////////////////////////////////////////////////////////
@@ -275,6 +295,20 @@ again:
       global_card_type = WANOPT_AFT;
       global_card_version = A200_ADPTR_ANALOG;
       break;
+
+    case AFT_ADPTR_ISDN:
+      linkconf->card_type = WANOPT_AFT;
+      link_def->card_version = AFT_ADPTR_ISDN;
+      global_card_type = WANOPT_AFT;
+      global_card_version = AFT_ADPTR_ISDN;
+      break;
+		
+		case AFT_ADPTR_2SERIAL_V35X21:
+      linkconf->card_type = WANOPT_AFT;
+      link_def->card_version = AFT_ADPTR_2SERIAL_V35X21;
+      global_card_type = WANOPT_AFT;
+      global_card_version = AFT_ADPTR_2SERIAL_V35X21;
+			break;
 
     case A300_ADPTR_U_1TE3:
       linkconf->card_type = WANOPT_AFT;

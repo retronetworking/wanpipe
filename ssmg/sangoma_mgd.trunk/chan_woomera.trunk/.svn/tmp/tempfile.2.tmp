@@ -19,6 +19,8 @@ ifneq (,$(wildcard ./.pbxdir))
 endif
 endif
 
+CHAN_NAME=WOOMERA
+
 $(shell echo $(PBXDIR) > .pbxdir)	
 
 PBXMODDIR=/usr/lib/asterisk/modules
@@ -43,11 +45,11 @@ CC = gcc
 
 INCLUDES= -I/usr/include -I./
 
-CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 -march=i686
+CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 -march=i686 
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
 LDFLAGS=-L lib/libteletone/.libs -L. -L/usr/local/lib -L ../../ssmg/libsangoma.trunk/.libs -lpthread -lsangoma -lm
 
-PBXFLAGS= $(INCLUDES) -I$(PBXDIR) -I$(PBXDIR)/include -pipe  -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -g3 -Iinclude -I../include -D_REENTRANT -D_GNU_SOURCE  -O6 -march=i686 -fomit-frame-pointer  -fPIC
+PBXFLAGS= $(INCLUDES) -I$(PBXDIR) -I$(PBXDIR)/include -pipe  -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -g3 -Iinclude -I../include -D_REENTRANT  -DWOOMERA_CHAN_NAME=\"$(CHAN_NAME)\" -D_GNU_SOURCE  -O6 -march=i686 -fomit-frame-pointer  -fPIC
 
 
 all: chan_woomera.so 
@@ -65,7 +67,13 @@ distclean: clean
 	@echo OK
 
 install: all  
+	@if [ ! -d $(INSTALLPREFIX)$(PBXMODDIR) ]; then \
+		mkdir -p $(INSTALLPREFIX)$(PBXMODDIR); \
+	fi; 
 	install -D -m 755 chan_woomera.so $(INSTALLPREFIX)$(PBXMODDIR)/chan_woomera.so
+	@if [ ! -d $(INSTALLPREFIX)$(PBXCFGDIR) ]; then \
+		mkdir -p $(INSTALLPREFIX)$(PBXCFGDIR); \
+	fi; 
 	@if [ -f woomera.conf ] && [ ! -e $(INSTALLPREFIX)$(PBXCFGDIR)/woomera.conf ]; then \
 		install -D -m 755 woomera.conf $(INSTALLPREFIX)$(PBXCFGDIR)/woomera.conf; \
 	fi

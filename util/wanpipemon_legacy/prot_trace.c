@@ -19,7 +19,6 @@
 # include <linux/if_ether.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe_abstr.h>
 # include <linux/wanpipe.h>
 #else
 # include <netinet/in_systm.h>
@@ -27,7 +26,6 @@
 # include <netinet/tcp.h>
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
-# include <wanpipe_abstr.h>
 # include <wanpipe.h>
 # include <sdla_chdlc.h>
 #endif
@@ -112,7 +110,7 @@ void trace_banner (wp_trace_output_iface_t *trace_iface, int *trace_started)
 		
 		date_string[0] = '\0';
 
-		sprintf(date_string, "%5d", timestamp);
+		snprintf(date_string, 100, "%5d", timestamp);
 		
 		if (trace_iface->sec){
 			char tmp_time[50];
@@ -123,21 +121,21 @@ void trace_banner (wp_trace_output_iface_t *trace_iface, int *trace_started)
 			time_tm = localtime(&time_val);
    
 			strftime(tmp_time,sizeof(tmp_time),"  %b",time_tm);
-			sprintf(date_string+strlen(date_string), " %s ",tmp_time);
+			snprintf(date_string+strlen(date_string), 100-strlen(date_string)," %s ",tmp_time);
 
 			strftime(tmp_time,sizeof(tmp_time),"%d",time_tm);
-			sprintf(date_string+strlen(date_string), "%s ",tmp_time);
+			snprintf(date_string+strlen(date_string), 100-strlen(date_string),"%s ",tmp_time);
 
 			strftime(tmp_time,sizeof(tmp_time),"%H",time_tm);
-			sprintf(date_string+strlen(date_string), "%s:",tmp_time);
+			snprintf(date_string+strlen(date_string), 100-strlen(date_string),"%s:",tmp_time);
 
 			strftime(tmp_time,sizeof(tmp_time),"%M",time_tm);
-			sprintf(date_string+strlen(date_string), "%s:",tmp_time);
+			snprintf(date_string+strlen(date_string), 100-strlen(date_string),"%s:",tmp_time);
 
 			strftime(tmp_time,sizeof(tmp_time),"%S",time_tm);
-			sprintf(date_string+strlen(date_string), "%s",tmp_time);
+			snprintf(date_string+strlen(date_string), 100-strlen(date_string),"%s",tmp_time);
 
-			sprintf(date_string+strlen(date_string), " %-6lu [1/100s]",trace_iface->usec );
+			snprintf(date_string+strlen(date_string), 100-strlen(date_string)," %-6lu [1/100s]",(unsigned long)trace_iface->usec );
 		}
 		
 		printf("\n%s\tLen=%d\tTimeStamp=%s\n",
@@ -329,7 +327,7 @@ static char *clear_code(unsigned char code)
     if (code == 0x39)
 	return "Destination Absent";
 
-    sprintf(buffer, "Unknown %02X", code);
+    snprintf(buffer, 25, "Unknown %02X", code);
 
     return buffer;
 }
@@ -556,7 +554,7 @@ static char *clear_diag(unsigned char code)
     if (code == 250)
 	return "Reset - user resynchronization";
 
-    sprintf(buffer, "Unknown %d", code);
+    snprintf(buffer, 25, "Unknown %d", code);
 
     return buffer;
 }
@@ -760,12 +758,6 @@ static int decode_data_ipv4(unsigned char* data, unsigned short data_len)
 	case IPPROTO_RAW:      /* 255  */
 		printf("Raw IP packets");
 		break;
-
-#if 0	
-	case IPPROTO_MAX:
-		printf("IPPROTO_MAX");
-		break;
-#endif
 	
 	default:
 		printf("Unknown (%d)\n", ip_hdr->w_ip_p);
@@ -1528,7 +1520,7 @@ static void print_pcap_record_header(wp_trace_output_iface_t *trace_iface)
 	fwrite(&ph, sizeof(ph), 1, trace_iface->output_file);
 }
 
-static void get_ppp_magic_number(unsigned char* data, int len, char* outstr, char offset_flag)
+static void get_ppp_magic_number(unsigned char* data, int len, char* outstr, int max_len, char offset_flag)
 {
 	if(offset_flag == 0){
 
@@ -1536,7 +1528,7 @@ static void get_ppp_magic_number(unsigned char* data, int len, char* outstr, cha
 			printf("%s invalid buffer length. Line: %d\n", __FUNCTION__, __LINE__);
 			return;
 		}
-		sprintf(outstr, "\tMagic# %02X%02X%02X%02X",
+		snprintf(outstr, max_len, "\tMagic# %02X%02X%02X%02X",
 			(unsigned char)data[8], (unsigned char)data[9],
 		       	(unsigned char)data[10], (unsigned char)data[11]);
 	}else{
@@ -1545,12 +1537,13 @@ static void get_ppp_magic_number(unsigned char* data, int len, char* outstr, cha
 			printf("%s invalid buffer length. Line: %d\n", __FUNCTION__, __LINE__);
 			return;
 		}
-		sprintf(outstr, "\tMagic# %02X%02X%02X%02X", 
+		snprintf(outstr, max_len, "\tMagic# %02X%02X%02X%02X", 
 			(unsigned char)data[8+2], (unsigned char)data[8+3],
 		       	(unsigned char)data[8+4], (unsigned char)data[8+5]);
 	}
 }
 
+#define MAX_OUTSTR_LEN	1024
 static int decode_ppp(wp_trace_output_iface_t *trace_iface,
 		        int *trace_started)
 {
@@ -1558,10 +1551,10 @@ static int decode_ppp(wp_trace_output_iface_t *trace_iface,
 	int len = trace_iface->len;
 	int inf_frame=0;
 	unsigned short tmp_ushort;
-	char outstr[1024];
+	char outstr[MAX_OUTSTR_LEN];
 	
 	trace_banner(trace_iface,trace_started);
-	memset(outstr, 0x00, 1024);
+	memset(outstr, 0x00, MAX_OUTSTR_LEN);
 	
 	//print the data (including PPP header)
 	print_data_in_hex(data, len);
@@ -1587,58 +1580,58 @@ static int decode_ppp(wp_trace_output_iface_t *trace_iface,
 
 		//pre-decodeing
 		if (tmp_ushort == 0x2180){
-			sprintf(outstr+strlen(outstr), "IPCP-v4 packet - ");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"IPCP-v4 packet - ");
 		}
 
 		if (tmp_ushort == 0x5780){
-			sprintf(outstr+strlen(outstr), "IPCP-v6 packet - ");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"IPCP-v6 packet - ");
 		}
 
 		if (tmp_ushort == 0x2B80){
-			sprintf(outstr+strlen(outstr), "IPXCP packet - ");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"IPXCP packet - ");
 		}
 
 		if (tmp_ushort == 0x21C0){
-			sprintf(outstr+strlen(outstr), "LCP packet\tID 0x%02X - ", data[5]);
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"LCP packet\tID 0x%02X - ", data[5]);
 		}
 
 		//common decoding
 		switch(data[4]) {
 		case 1: 
-			sprintf(outstr+strlen(outstr), "Configure Request");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Configure Request");
 			break;
 		case 2: 
-			sprintf(outstr+strlen(outstr), "Configure Ack\t");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Configure Ack\t");
 			break;
 		case 3: 
-			sprintf(outstr+strlen(outstr), "Configure Nack\t");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Configure Nack\t");
 			break;
 		case 4: 
-			sprintf(outstr+strlen(outstr), "Configure Reject");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Configure Reject");
 			break;
 		case 5: 
-			sprintf(outstr+strlen(outstr), "Terminate Request");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Terminate Request");
 			break;
 		case 6: 
-			sprintf(outstr+strlen(outstr), "Terminate Ack\t");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Terminate Ack\t");
 			break;
 		case 7: 
-			sprintf(outstr+strlen(outstr), "Code Reject\t");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Code Reject\t");
 			break;
 		case 8: 
-			sprintf(outstr+strlen(outstr), "Protocol Reject");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Protocol Reject");
 			break;
 		case 9: 
-			sprintf(outstr+strlen(outstr), "Echo Request\t");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Echo Request\t");
 			break;
 		case 10: 
-			sprintf(outstr+strlen(outstr), "Echo Reply\t");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Echo Reply\t");
 			break;
 		case 11: 
-			sprintf(outstr+strlen(outstr), "Discard Request");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Discard Request");
 			break;
 		default:
-			sprintf(outstr+strlen(outstr), "Unknown type");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Unknown type");
 			break;
 		}
 
@@ -1647,16 +1640,24 @@ static int decode_ppp(wp_trace_output_iface_t *trace_iface,
 			//LCP
 			switch(data[4]) {
 			case 1: 
-				get_ppp_magic_number(data, len, outstr+strlen(outstr), 1);
+				get_ppp_magic_number(
+					data, len, 
+					outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),1);
 				break;
 			case 2: 
-				get_ppp_magic_number(data, len, outstr+strlen(outstr), 1);
+				get_ppp_magic_number(
+					data, len, 
+					outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),1);
 				break;
 			case 3: 
-				get_ppp_magic_number(data, len, outstr+strlen(outstr), 1);
+				get_ppp_magic_number(
+					data, len, 
+					outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),1);
 				break;
 			case 4: 
-				get_ppp_magic_number(data, len, outstr+strlen(outstr), 1);
+				get_ppp_magic_number(
+					data, len, 
+					outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),1);
 				break;
 			case 5: 
 			case 6: 
@@ -1665,13 +1666,19 @@ static int decode_ppp(wp_trace_output_iface_t *trace_iface,
 				;//do nothing
 				break;
 			case 9: 
-				get_ppp_magic_number(data, len, outstr+strlen(outstr), 0);
+				get_ppp_magic_number(
+					data, len, 
+					outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),0);
 				break;
 			case 10: 
-				get_ppp_magic_number(data, len, outstr+strlen(outstr), 0);
+				get_ppp_magic_number(
+					data, len, 
+					outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),0);
 				break;
 			case 11: 
-				get_ppp_magic_number(data, len, outstr+strlen(outstr), 0);
+				get_ppp_magic_number(
+					data, len, 
+					outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),0);
 				break;
 			default:
 				break;
@@ -1680,47 +1687,47 @@ static int decode_ppp(wp_trace_output_iface_t *trace_iface,
 		break;
 
 	case 0x23C0: // PAP
-		sprintf(outstr+strlen(outstr), "PAP packet - ");
+		snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"PAP packet - ");
 		switch(data[4]) {
 		case 1: 
-			sprintf(outstr+strlen(outstr), "Authenticate Request");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Authenticate Request");
 			break;
 		case 2: 
-			sprintf(outstr+strlen(outstr), "Authenticate Ack");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Authenticate Ack");
 			break;
 		case 3: 
-			sprintf(outstr+strlen(outstr), "Authenticate Nack");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Authenticate Nack");
 			break;
 		default:
-			sprintf(outstr+strlen(outstr), "Unknown type");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Unknown type");
 			break;
 		}
 		break;
 	case 0x25C0: // LQR
-		sprintf(outstr+strlen(outstr), "Link Quality Report");
+		snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Link Quality Report");
 		break;
 	case 0x23C2: // CHAP
-		sprintf(outstr+strlen(outstr), "CHAP packet - ");
+		snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"CHAP packet - ");
 		switch(data[4]) {
 		case 1: 
-			sprintf(outstr+strlen(outstr), "Challenge");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Challenge");
 			break;
 		case 2: 
-			sprintf(outstr+strlen(outstr), "Responce");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Responce");
 			break;
 		case 3: 
-			sprintf(outstr+strlen(outstr), "Success");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Success");
 			break;
 		case 4: 
-			sprintf(outstr+strlen(outstr), "Failure");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Failure");
 			break;
 		default:
-			sprintf(outstr+strlen(outstr), "Unknown type");
+			snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Unknown type");
 			break;
 		}
 		break;
 	default:	// unknown
-		sprintf(outstr+strlen(outstr), "Unknown type");
+		snprintf(outstr+strlen(outstr), MAX_OUTSTR_LEN-strlen(outstr),"Unknown type");
 		break;
 	}
 

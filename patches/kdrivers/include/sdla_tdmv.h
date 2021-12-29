@@ -104,6 +104,7 @@ typedef struct wan_tdmv_iface_
 ******************************************************************************/
 EXTERN int wp_tdmv_te1_init(wan_tdmv_iface_t *iface);
 EXTERN int wp_tdmv_remora_init(wan_tdmv_iface_t *iface);
+EXTERN int wp_tdmv_bri_init(wan_tdmv_iface_t *iface);
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 EXTERN int wp_tdmv_echo_check(wan_tdmv_t *wan_tdmv, void *current_ztchan, int channo);

@@ -19,29 +19,6 @@ ifndef ZAPDIR
 	ZAPDIR=/usr/src/zaptel
 endif
 
-#Check if zaptel exists
-ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
-	ZAPDIR_PRIV=$(ZAPDIR) 
-	ENABLE_WANPIPEMON_ZAP=YES
-	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
-	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
-	ZAP_PROT=TDM
-else
-	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
-		ZAPDIR=/usr/src/zaptel/kernel
-		ZAPDIR_PRIV=$(ZAPDIR) 
-		ENABLE_WANPIPEMON_ZAP=YES
-		EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
-		ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
-		ZAP_PROT=TDM
-	else
-		ZAP_OPTS=
-		ZAP_PROT=
-		ZAPDIR_PRIV=
-		ENABLE_WANPIPEMON_ZAP=NO
-	endif
-endif  
-
 #Kernel version and location
 ifndef KVER
 	KVER=$(shell uname -r)
@@ -59,6 +36,10 @@ endif
 ifndef ARCH
 	ARCH=$(shell uname -m)
 endif
+ifndef ASTDIR
+    	ASTDIR=/usr/src/asterisk
+endif
+
 
 INSTALLPREFIX=
 
@@ -84,32 +65,23 @@ EXTRA_UTIL_FLAGS += -I$(PWD)/patches/kdrivers/wanec -I$(PWD)/patches/kdrivers/wa
 ENABLE_WANPIPEMON_ZAP=NO
 ZAPHDLC_PRIV=/etc/wanpipe/.zaphdlc
 
-RM      = @rm -rf
-JUNK	= *~ *.bak DEADJOE
 
 #Check if zaptel exists
-#ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
-#	ZAPDIR_PRIV=$(ZAPDIR) 
-#	ENABLE_WANPIPEMON_ZAP=YES
-#	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
-#	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
-#	ZAP_PROT=TDM
-#else
-#	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
-#		ZAPDIR=/usr/src/zaptel/kernel
-#		ZAPDIR_PRIV=$(ZAPDIR) 
-#		ENABLE_WANPIPEMON_ZAP=YES
-#		EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
-#		ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
-#		ZAP_PROT=TDM
-#	else
-#		ZAP_OPTS=
-#		ZAP_PROT=
-#		ZAPDIR_PRIV=
-#		ENABLE_WANPIPEMON_ZAP=NO
-#	endif
-#endif  
+ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
+	ZAPDIR_PRIV=$(ZAPDIR) 
+	ENABLE_WANPIPEMON_ZAP=YES
+	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
+	ZAP_PROT=TDM
+else
+	ZAP_OPTS=
+	ZAP_PROT=
+	ZAPDIR_PRIV=
+	ENABLE_WANPIPEMON_ZAP=NO
+endif  
 
+RM      = @rm -rf
+JUNK	= *~ *.bak DEADJOE
 
 
 # First pass, kernel Makefile reads module objects
@@ -121,17 +93,13 @@ else
 
 #This will check for zaptel, kenrel source and build utilites and kernel modules
 #within local directory structure
+all:   _checkzap _checksrc all_bin_kmod all_util 	
 
-#Build with all binaries
-all:   _checkzap _checksrc all_bin_kmod all_util
-
-#Build only source (NO WAN protocols)
 all_src:   _checkzap _checksrc all_kmod all_util
 
-	
 #Build only kernel modules
 all_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
-	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) ZAPHDLC=$(ZAPHDLC_PRIV) HOMEDIR=$(PWD) modules 
+	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) ZAPHDLC=$(ZAPHDLC_PRIV) HOMEDIR=$(PWD) modules  
 
 all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 	@if [ -e  $(PWD)/ast_build_dir ]; then \
@@ -183,7 +151,7 @@ _check_kver:
 _checkzap:
 	@echo
 	@echo " +--------- Wanpipe Build Info --------------+"  
-	@echo
+	@echo 
 	@if [ ! -e $(ZAPDIR)/zaptel.h ]; then \
 		echo " Compiling Wanpipe without ZAPTEL Support!"; \
 		ZAPDIR_PRIV=; \
@@ -215,12 +183,12 @@ install_kmod:
 	install -m 644 -D $(WAN_DIR)/sdladrv.${MODTYPE} 	$(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/sdladrv.${MODTYPE}
 	install -m 644 -D $(WAN_DIR)/wanpipe.${MODTYPE} 	$(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/wanpipe.${MODTYPE}            
 	@rm -f $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/wanpipe_syncppp.${MODTYPE}
-	@if [ -e  $(WAN_DIR)/wanpipe_syncppp.${MODTYPE} ]; then \
+	@if [ -f  $(WAN_DIR)/wanpipe_syncppp.${MODTYPE} ]; then \
 		echo "install -m 644 -D $(WAN_DIR)/wanpipe_syncppp.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/wanpipe_syncppp.${MODTYPE}"; \
 		install -m 644 -D $(WAN_DIR)/wanpipe_syncppp.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/wanpipe_syncppp.${MODTYPE}; \
 	fi
 	@rm -f $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}; 
-	@if [ -e  $(WAN_DIR)/wanpipe_lip.${MODTYPE} ]; then \
+	@if [ -f  $(WAN_DIR)/wanpipe_lip.${MODTYPE} ]; then \
 		echo "install -m 644 -D $(WAN_DIR)/wanpipe_lip.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}"; \
 		install -m 644 -D $(WAN_DIR)/wanpipe_lip.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}; \
 	fi
@@ -242,6 +210,14 @@ clean_util:
 #Install utilities only
 install_util:
 	$(MAKE) -C util install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)  
+
+install_smgbri:
+	$(MAKE) -C ssmg/sangoma_mgd.trunk/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)
+	install -D -m 755 ssmg/sangoma_bri/smg_ctrl $(INSTALLPREFIX)/usr/sbin/smg_ctrl
+	install -D -m 755 ssmg/sangoma_bri/sangoma_brid $(INSTALLPREFIX)/usr/sbin/sangoma_brid
+	$(MAKE) -C ssmg/libsangoma.trunk/ install DESTDIR=$(INSTALLPREFIX)
+	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone install DESTDIR=$(INSTALLPREFIX)
+
 
 #Install etc files
 install_etc:
@@ -277,3 +253,17 @@ install_inc:
 	@\cp -f $(PWD)/patches/kdrivers/include/*.h $(INSTALLPREFIX)/usr/include/wanpipe/
 	@\cp -rf $(PWD)/patches/kdrivers/wanec/oct6100_api/include/ $(INSTALLPREFIX)/usr/include/wanpipe/oct6100_api	
 	@\cp -rf $(PWD)/patches/kdrivers/wanec/*.h $(INSTALLPREFIX)/usr/include/wanpipe/
+
+smgbri: 
+	@cd ssmg/libsangoma.trunk; ./configure --prefix=/usr ; cd ../..;
+	$(MAKE) -C ssmg/libsangoma.trunk/ CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
+	@cd ssmg/sangoma_mgd.trunk/lib/libteletone; ./configure --prefix=/usr ; cd ../../..;
+	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
+	$(MAKE) -C ssmg/sangoma_mgd.trunk/ CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR) ASTDIR=$(ASTDIR)
+
+
+clean_smgbri:
+	$(MAKE) -C ssmg/libsangoma.trunk/ clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
+	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
+	$(MAKE) -C ssmg/sangoma_mgd.trunk/ clean CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
+	

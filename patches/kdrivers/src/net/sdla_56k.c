@@ -37,30 +37,53 @@
 # include <wanpipe_includes.h>
 # include <wanpipe.h>
 # include <wanproc.h>
-# include <aft_a104.h>/* for aft_56k_write_cpld() declaration  */
 #elif defined(__WINDOWS__)
 # include <wanpipe_includes.h>
 # include <wanpipe.h>	/* WANPIPE common user API definitions */
-# include <aft_a104.h>/* for aft_56k_write_cpld() declaration  */
 #else
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe_debug.h>
 # include <linux/wanproc.h>
 # include <linux/wanpipe.h>	/* WANPIPE common user API definitions */
-# include <linux/aft_a104.h>/* for aft_56k_write_cpld() declaration  */
 #endif
 
 /******************************************************************************
 			  DEFINES AND MACROS
 ******************************************************************************/
-#define WRITE_REG(reg,val) fe->write_fe_reg(fe->card, 0, (int)(reg),(int)(val))
-#define READ_REG(reg)	   fe->read_fe_reg(fe->card, 0, (int)(reg))
+#if defined(__WINDOWS__)
+#define WRITE_REG(reg,val) 						\
+	fe->write_fe_reg(						\
+		((sdla_t*)fe->card)->hw, 				\
+		0, 							\
+		(int)(reg),(int)(val))
+#define READ_REG(reg)	   						\
+	fe->read_fe_reg(						\
+		((sdla_t*)fe->card)->hw, 				\
+		0,							\
+		(int)(reg))
+
+#else
+
+#define WRITE_REG(reg,val) 						\
+	fe->write_fe_reg(						\
+		((sdla_t*)fe->card)->hw, 				\
+		(int)(((sdla_t*)fe->card)->wandev.state==WAN_CONNECTED),\
+		0, 							\
+		(int)(reg),(int)(val))
+#define READ_REG(reg)	   						\
+	fe->read_fe_reg(						\
+		((sdla_t*)fe->card)->hw, 				\
+		(int)(((sdla_t*)fe->card)->wandev.state==WAN_CONNECTED),\
+		0,							\
+		(int)(reg))
 
 #if 1
 #define AFT_FUNC_DEBUG()
 #else
 #define AFT_FUNC_DEBUG()  DEBUG_EVENT("%s:%d\n",__FUNCTION__,__LINE__)
+#endif
+
 #endif
 
 /******************************************************************************
@@ -80,7 +103,7 @@ static int sdla_56k_global_config(void* pfe);
 static int sdla_56k_global_unconfig(void* pfe);
 
 static int sdla_56k_config(void* pfe);
-static unsigned int sdla_56k_alarm(sdla_fe_t *fe, int manual_read);
+static u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read);
 static int sdla_56k_udp(sdla_fe_t*, void*, unsigned char*);
 static void display_Rx_code_condition(sdla_fe_t* fe);
 static int sdla_56k_print_alarm(sdla_fe_t* fe, unsigned int);
@@ -89,11 +112,6 @@ static int sdla_56k_update_alarm_info(sdla_fe_t *fe, struct seq_file* m, int* st
 static int sdla_56k_unconfig(void* pfe);
 static int sdla_56k_intr(sdla_fe_t *fe);
 static int sdla_56k_check_intr(sdla_fe_t *fe);
-
-/* enable 56k chip reset state */
-static unsigned int reset_on_LXT441PE(sdla_t *card);
-/* disable 56k chip reset state */
-static unsigned int reset_off_LXT441PE(sdla_t *card);
 
 /******************************************************************************
 			  FUNCTION DEFINITIONS
@@ -143,7 +161,7 @@ static int sdla_56k_get_fe_status(sdla_fe_t *fe, unsigned char *status)
 	return 0;
 }
 
-unsigned int sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
+u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 {
 
 	unsigned short status = 0x00;
@@ -242,8 +260,9 @@ int sdla_56k_default_cfg(void* pcard, void* p56k_cfg)
 }
 
 
-int sdla_56k_iface_init(void* pfe_iface)
+int sdla_56k_iface_init(void *p_fe, void* pfe_iface)
 {
+	sdla_fe_t	*fe = (sdla_fe_t*)p_fe;
 	sdla_fe_iface_t	*fe_iface = (sdla_fe_iface_t*)pfe_iface;
 
 	AFT_FUNC_DEBUG();
@@ -251,8 +270,8 @@ int sdla_56k_iface_init(void* pfe_iface)
 	fe_iface->global_config		= &sdla_56k_global_config;
 	fe_iface->global_unconfig	= &sdla_56k_global_unconfig;
 
-	fe_iface->config			= &sdla_56k_config;
-	fe_iface->unconfig			= &sdla_56k_unconfig;
+	fe_iface->config		= &sdla_56k_config;
+	fe_iface->unconfig		= &sdla_56k_unconfig;
 
 	fe_iface->get_fe_status		= &sdla_56k_get_fe_status;
 	fe_iface->get_fe_media		= &sdla_56k_get_fe_media;
@@ -262,9 +281,12 @@ int sdla_56k_iface_init(void* pfe_iface)
 	fe_iface->update_alarm_info	= &sdla_56k_update_alarm_info;
 	fe_iface->process_udp		= &sdla_56k_udp;
 
-	fe_iface->isr				= &sdla_56k_intr;
-	fe_iface->check_isr			= &sdla_56k_check_intr;
+	fe_iface->isr			= &sdla_56k_intr;
+	fe_iface->check_isr		= &sdla_56k_check_intr;
 
+	/* The 56k CSU/DSU front end status has not been initialized  */
+	fe->fe_status = FE_UNITIALIZED;
+	
 	return 0;
 }
 
@@ -297,14 +319,18 @@ static int sdla_56k_check_intr(sdla_fe_t *fe)
 
 static int sdla_56k_global_config(void* pfe)
 {
-	DEBUG_56K("%s: %s Global Front End configuration\n", 
+	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+
+	DEBUG_EVENT("%s: %s Global Front End configuration\n", 
 			fe->name, FE_MEDIA_DECODE(fe));
 	return 0;
 }
 
 static int sdla_56k_global_unconfig(void* pfe)
 {
-	DEBUG_56K("%s: %s Global unconfiguration!\n",
+	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+
+	DEBUG_EVENT("%s: %s Global unconfiguration!\n",
 				fe->name,
 				FE_MEDIA_DECODE(fe));
 	return 0;
@@ -315,14 +341,11 @@ static int sdla_56k_config(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
 	sdla_t		*card = (sdla_t *)fe->card;
-	u16			adapter_type;
 
 	AFT_FUNC_DEBUG();
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-
-	card->hw_iface.getcfg(card->hw, SDLA_ADAPTERTYPE, &adapter_type);
 
 	/* The 56k CSU/DSU front end status has not been initialized  */
 	fe->fe_status = FE_UNITIALIZED;
@@ -333,11 +356,6 @@ static int sdla_56k_config(void* pfe)
 	/* Zero the RRC register changes */ 
 	fe->fe_param.k56_param.delta_RRC_reg_56k = 0;
 	
-	if(adapter_type == AFT_ADPTR_56K){
-		reset_on_LXT441PE(card);
-		reset_off_LXT441PE(card);
-	}
-
 	if(WRITE_REG(REG_INT_EN_STAT, (BIT_INT_EN_STAT_IDEL | 
 		BIT_INT_EN_STAT_RX_CODE | BIT_INT_EN_STAT_ACTIVE))) {
 		return 1;
@@ -384,41 +402,19 @@ static int sdla_56k_config(void* pfe)
 		return 1; 
 	}
 
+	fe->fe_status = FE_CONNECTED;
 	return 0;
 }
 
 static int sdla_56k_unconfig(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
-	sdla_t		*card = (sdla_t *)fe->card;
-	u16			adapter_type;
 
 	AFT_FUNC_DEBUG();
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-
-	card->hw_iface.getcfg(card->hw, SDLA_ADAPTERTYPE, &adapter_type);
-
-	if(adapter_type == AFT_ADPTR_56K){
-		reset_on_LXT441PE(card);
-	}
-	return 0;
-}
-
-static unsigned int reset_on_LXT441PE(sdla_t *card)
-{	
-	AFT_FUNC_DEBUG();
-	aft_56k_write_cpld(card, 0x00,0x00);
-	WP_DELAY(1000);
-	return 0;
-}
-
-static unsigned int reset_off_LXT441PE(sdla_t *card)
-{	
-	AFT_FUNC_DEBUG();
-	aft_56k_write_cpld(card, 0x00, 0x03);
-	WP_DELAY(1000);
+	fe->fe_status = FE_UNITIALIZED;
 	return 0;
 }
 
@@ -517,8 +513,14 @@ sdla_56k_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 	//unsigned char loop=BIT_RX_CTRL_DSU_LOOP|BIT_RX_CTRL_CSU_LOOP;
 	//unsigned char loop=BIT_RX_CTRL_DSU_LOOP;
 	//unsigned char loop=BIT_RX_CTRL_CSU_LOOP;
-	unsigned char loop=0x40;
-	
+	unsigned char loop=0x00;
+
+	if(type==WAN_TE1_PAYLB_MODE){
+                loop=BIT_RX_CTRL_DSU_LOOP;
+        }else{
+                loop=BIT_RX_CTRL_CSU_LOOP;
+        }
+
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 	
@@ -601,9 +603,9 @@ static int sdla_56k_udp(sdla_fe_t *fe, void* pudp_cmd, unsigned char* data)
 ** Arguments:
 ** Returns:
 */
-static int sdla_56k_print_alarm(sdla_fe_t* fe, unsigned int status)
+static int sdla_56k_print_alarm(sdla_fe_t* fe, u_int32_t status)
 {
-	unsigned int	alarms = (unsigned int)status;
+	u_int32_t alarms = status;
 
 	AFT_FUNC_DEBUG();
 

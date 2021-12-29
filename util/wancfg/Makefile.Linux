@@ -11,7 +11,7 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 #these protocols defined only for Linux, not for BSD:
-PROTOCOL_DEFINES = -DCONFIG_PRODUCT_WANPIPE_LIP_ATM
+PROTOCOL_DEFINES = -DCONFIG_PRODUCT_WANPIPE_LIP_ATM -DCONFIG_PRODUCT_WANPIPE_AFT_BRI
 #PROTOCOL_DEFINES += -DZAPTEL_PARSER
 
 # Project file paths. Initilize to compile in develpment environment.

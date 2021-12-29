@@ -21,7 +21,6 @@
 #ifndef __SDLA_TE3_H
 # define __SDLA_TE3_H
 
-
 #define WAN_TE3_LIU_LB_NORMAL	0x00
 #define WAN_TE3_LIU_LB_ANALOG	0x01
 #define WAN_TE3_LIU_LB_REMOTE	0x02
@@ -39,7 +38,6 @@
 		((mode) == WAN_TE3_ACTIVATE_LB) ? "Activate" :	\
 		((mode) == WAN_TE3_DEACTIVATE_LB) ? "Deactivate" :\
 						"Unknown"
-
 
 #define WAN_TE3_RDEVICE_NONE		0x00
 #define WAN_TE3_RDEVICE_ADTRAN		0x01

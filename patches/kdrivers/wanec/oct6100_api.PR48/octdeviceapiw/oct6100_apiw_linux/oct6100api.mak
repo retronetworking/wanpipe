@@ -1,6 +1,6 @@
 #=============================================================================
 #
-#    File: oct6100api.mak    ($Revision: 1.1 $)
+#    File: oct6100api.mak    ($Revision: 1.2 $)
 #
 #    Description:  Makefile for building the OCT6100 API library.
 #
@@ -47,7 +47,7 @@ INC = 	-I../../include \
 	-I../../include/oct6100api \
 	-I../../include/apilib \
 	-I../../octdeviceapi/oct6100api \
-	-I/usr/include/ -I../../../
+	-I/usr/include/wanpipe -I../../../
 
 CCFLAGS		= -m32 -DDEVICE_IOCTL -DWAN_EC_USER -D__LINUX__ -L/usr/local/lib \
 		-fPIC -ansi -Wall -Wpointer-arith -Winline -fno-builtin \

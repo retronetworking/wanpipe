@@ -1,13 +1,18 @@
 /*****************************************************************************
-* wanpipe_abstr.c WANPIPE(tm) Kernel Abstraction Layer.
+* wanpipe_abstr.h WANPIPE(tm) Kernel Abstraction Layer.
 *
 * Authors: 	Nenad Corbic <ncorbic@sangoma.com>
-*		Alex Feldman <al.feldman@sangoma.com
+*		Alex Feldman <al.feldman@sangoma.com>
+*		David Rokhvarg <davidr@sangoma.com>
 *
 * Copyright:	(c) 2003 Sangoma Technologies Inc.
 *
 * ============================================================================
 * Jan 20, 2003  Nenad Corbic	Initial version
+*
+* Nov 27,  2007 David Rokhvarg	Implemented functions/definitions for
+*                               Sangoma MS Windows Driver and API.
+*
 * ============================================================================
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -19,12 +24,25 @@
 #ifndef _WANPIPE_ABSTR_H
 #define _WANPIPE_ABSTR_H
 
+#if defined(__LINUX__)
+# include <linux/wanpipe_abstr_types.h>
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+# include <wanpipe_abstr_types.h>
+#elif defined(__WINDOWS__)
+# include <wanpipe_abstr_types.h>
+#endif
+
 extern unsigned char* 	wpabs_skb_data(void* skb);
 extern unsigned char* 	wpabs_skb_tail(void* skb);
 extern int 		wpabs_skb_len(void* skb);
 extern void*		wpabs_skb_alloc(unsigned int len);
 extern void		wpabs_skb_free(void* skb);
-extern void 		wpabs_skb_copyback(void* skb, int off, int len, unsigned long cp);
+#if defined(__WINDOWS__) || defined(__FreeBSD__)
+extern void 		wpabs_skb_copyback(void*, int, int, caddr_t); 
+#else
+extern void 		wpabs_skb_copyback(void*, int, int, unsigned long); 
+#endif
+
 extern void 		wpabs_skb_copyback_user(void* skb, int off, int len, unsigned long cp);
 extern unsigned char* 	wpabs_skb_pull(void* skb, int len);
 extern unsigned char* 	wpabs_skb_put(void* skb, int len);
@@ -64,7 +82,13 @@ extern int		wpabs_netif_dev_up(void*);
 extern void 		wpabs_netif_wake_queue(void* dev);
 
 extern void*		wpabs_timer_alloc(void);
-extern void 		wpabs_init_timer(void*, void*, unsigned long);
+extern void 		wpabs_init_timer(void*, void*, 
+#if defined(__WINDOWS__)
+					 wan_timer_arg_t);
+#else
+					 unsigned long);
+#endif
+
 extern void 		wpabs_del_timer(void*);
 extern void 		wpabs_add_timer(void*,unsigned long);
 
@@ -86,14 +110,13 @@ extern void* 		wpabs_spinlock_alloc(void);
 extern void 		wpabs_spinlock_free(void*);
 extern void 		wpabs_spin_lock_irqsave(void*,unsigned long*);
 extern void 		wpabs_spin_unlock_irqrestore(void*,unsigned long*);
-extern void 		wpabs_spin_lock_init(void*);
+extern void 		wpabs_spin_lock_init(void*, char*);
 
 extern void 		wpabs_rwlock_init (void*);
 extern void 		wpabs_read_rw_lock(void*);
 extern void 		wpabs_read_rw_unlock(void*);
 extern void 		wpabs_write_rw_lock_irq(void*,unsigned long*);
 extern void		wpabs_write_rw_unlock_irq(void*,unsigned long*);
-
 
 extern void 		wpabs_debug_event(const char * fmt, ...);
 extern void 		wpabs_debug_init(const char * fmt, ...);
@@ -109,7 +132,7 @@ extern int 		wpabs_test_bit(int bit, void *ptr);
 extern int		wpabs_test_and_set_bit(int bit, void *ptr);
 extern int 		wpabs_clear_bit(int bit, void *ptr);
 
-extern unsigned long 	wpabs_get_systemticks(void);
+extern wan_ticks_t 	wpabs_get_systemticks(void);
 extern unsigned long 	wpabs_get_hz(void);
 extern unsigned short 	wpabs_htons(unsigned short data);
 extern unsigned short	wpabs_ntohs(unsigned short);
@@ -176,9 +199,6 @@ extern int 		wpabs_dma_free(void*, void*);
 extern unsigned long*	wpabs_dma_get_vaddr(void*, void*);
 extern unsigned long	wpabs_dma_get_paddr(void*, void*);
 
-#define TRC_INCOMING_FRM              0x00
-#define TRC_OUTGOING_FRM              0x01
-
 extern int		wpabs_trace_queue_len(void *trace_ptr);
 extern int		wpabs_tracing_enabled(void*);
 extern int		wpabs_trace_enqueue(void*, void*);
@@ -189,17 +209,5 @@ extern void 		wpabs_set_last_trace_direction(void *trace_ptr, unsigned char dire
 extern unsigned char 	wpabs_get_last_trace_direction(void *trace_ptr);
 
 extern int		wpabs_bpf_report(void *dev, void *skb, int,int);
-
-#pragma pack(1)
-typedef struct {
-	unsigned char	status;
-	unsigned char	data_avail;
-	unsigned short	real_length;
-	unsigned short	time_stamp;
-	unsigned long	sec;
-	unsigned long   usec;
-	unsigned char	data[0];
-} wan_trace_pkt_t;
-#pragma pack()
 
 #endif

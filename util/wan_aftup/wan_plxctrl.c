@@ -67,6 +67,10 @@ void write_eeprom_data8(void *info, short address, unsigned char data);
 extern int exec_bridge_read_cmd(void*, unsigned int, unsigned int, unsigned int*);
 extern int exec_bridge_write_cmd(void*, unsigned int, unsigned int, unsigned int);
 
+void wan_plxctrl_write_ebyte(void *info, unsigned char, unsigned char);
+unsigned char wan_plxctrl_read_ebyte(void *info, unsigned char, int);
+void erase_eeprom_data(void *info);
+
 /***********************************************
 ****************FUNCTION PROTOTYPES*************
 ************************************************/

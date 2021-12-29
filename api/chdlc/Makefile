@@ -11,8 +11,8 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 # Project file paths.
-SYSINC	= /usr/src/linux/include
-APIINC  = /usr/src/linux/include
+SYSINC	= /usr/include/wanpipe
+APIINC  = /usr/include/wanpipe
 
 # Tools options.
 CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I$(SYSINC) -I$(APIINC)
@@ -22,6 +22,7 @@ CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I$(SYSINC)
 all:	chdlc_api \
 	chdlc_rts_cts \
 	chdlc_integrity \
+	chdlc_modem_cmd \
 	chdlc_echo
 	@echo "Ok."
 
@@ -36,6 +37,9 @@ chdlc_rts_cts:	chdlc_rts_cts.c
 	$(CC) $(CFLAGS) -o $@ $<
 
 chdlc_integrity:	chdlc_integrity.c ../lib/lib_api.c
+	$(CC) $(CFLAGS) -o $@ $^
+
+chdlc_modem_cmd:	chdlc_modem_cmd.c ../lib/lib_api.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:

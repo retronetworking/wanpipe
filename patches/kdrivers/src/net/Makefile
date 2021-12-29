@@ -17,23 +17,21 @@ CONFIG_WANPIPE_MULTPPP=n
 
 EXTRA_CFLAGS=$(EXTRA_FLAGS)
 
-PRODUCT_DEFINES= -DCONFIG_PRODUCT_WANPIPE_BASE -DCONFIG_PRODUCT_WANPIPE_AFT 
+PRODUCT_DEFINES= -DCONFIG_PRODUCT_WANPIPE_BASE -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE 
 PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_TE3 
-PRODUCT_DEFINES+= -DCONFIG_WANPIPE_HWEC  -DCONFIG_PRODUCT_WANPIPE_SOCK_DATASCOPE 
+PRODUCT_DEFINES+= -DCONFIG_WANPIPE_HWEC  -DCONFIG_PRODUCT_WANPIPE_SOCK_DATASCOPE -DCONFIG_PRODUCT_WANPIPE_AFT_BRI -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL 
 PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW
-PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_MULTPROT 
 
 wanpipe-y			:= sdlamain.o 
 
 ifneq (,$(ZAPDIR))
 PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE 
-wanpipe-y			+= sdla_tdmv.o sdla_remora_tdmv.o 
+wanpipe-y			+= sdla_tdmv.o sdla_remora_tdmv.o sdla_bri_tdmv.o 
 
 ifneq (,$(wildcard $(ZAPHDLC)))
 PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL
 endif
 endif       
-
 
 wanpipe-y			+= sdla_ft1.o sdla_te1.o sdla_te3.o sdla_56k.o sdla_8te1.o 
 wanpipe-y			+= wanpipe_tdm_api.o 
@@ -41,9 +39,9 @@ wanpipe-y			+= sdla_xilinx.o sdla_aft_te1.o aft_a104.o
 wanpipe-y			+= aft_analog.o sdla_aft_te3.o wanpipe_utils.o
 wanpipe-y			+= wanpipe_abstr.o wanpipe_linux_iface.o 
 wanpipe-y			+= wanpipe_tdm_api.o sdla_remora.o 
+wanpipe-y			+= sdla_bri.o aft_bri.o sdla_serial.o
 
 wanpipe-y                       += wanpipe_codec.o wanpipe_codec_law.o
-wanpipe-y                       += wanpipe_multppp.o
 
 EXTRA_CFLAGS 			+= $(PRODUCT_DEFINES)
 
@@ -76,7 +74,7 @@ wanec-y += $(OCTAPIDIR)/oct6100_user.o
 
 wanec-objs	:= $(wanec-y)     	
 
-sdladrv-objs := sdladrv_src.o sdladrv_fe.o
+sdladrv-objs := sdladrv_src.o sdladrv_fe.o sdladrv_utils.o
 
 wanrouter-objs := ../wanrouter/wanmain.o ../wanrouter/wanproc.o ../wanrouter/waniface.o 
 

@@ -343,9 +343,7 @@ typedef struct x25_channel
 /* FIXME Take this out */
 
 #pragma pack(1)
-
 #ifdef NEX_OLD_CALL_INFO
-
 typedef struct x25_call_info
 {
 	char dest[17];			;/* ASCIIZ destination address */
@@ -371,8 +369,9 @@ typedef struct x25_call_info
 	unsigned short lcn             		;
 } x25_call_info_t;
 #endif
-
 #pragma pack()
+
+
   
 /*===============================================
  *	Private Function Prototypes
@@ -731,7 +730,7 @@ int wpx_init (sdla_t* card, wandev_conf_t* conf)
 		u.cfg.station = 0;		/* DCE mode */
 	}
 
-        if (conf->interface != WANOPT_RS232 ){
+        if (conf->electrical_interface != WANOPT_RS232 ){
 	        u.cfg.hdlcOptions |= 0x80;      /* V35 mode */
 	} 
 
@@ -927,7 +926,7 @@ int wpx_init (sdla_t* card, wandev_conf_t* conf)
 
 	/* Initialize protocol-specific fields of adapter data space */
 	card->wandev.bps	= conf->bps;
-	card->wandev.interface	= conf->interface;
+	card->wandev.electrical_interface	= conf->electrical_interface;
 	card->wandev.clocking	= conf->clocking;
 	card->wandev.station	= conf->u.x25.station;
 	card->isr		= &wpx_isr;
@@ -1049,7 +1048,7 @@ static int update (wan_device_t* wandev)
 	int err=0;
 	
 	/* sanity checks */
-	if ((wandev == NULL) || (wandev->private == NULL))
+	if ((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 
 	if (wandev->state == WAN_UNCONFIGURED)
@@ -1062,7 +1061,7 @@ static int update (wan_device_t* wandev)
 	if (dev == NULL)
 		return -ENODEV;
 	
-	card = wandev->private;
+	card = wandev->priv;
 	
 	spin_lock_irqsave(&card->wandev.lock, smp_flags);
 
@@ -1108,7 +1107,7 @@ static int update (wan_device_t* wandev)
  */
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	x25_channel_t* chan;
 	int err = 0;
 
@@ -1265,7 +1264,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
 	unsigned long smp_flags;
-	sdla_t *card=wandev->private;
+	sdla_t *card=wandev->priv;
 	x25_channel_t* chan = dev->priv;
 
 	/* Delete interface name from proc fs. */
@@ -1339,7 +1338,8 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
-
+	dev->hard_header	= NULL;
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 	dev->do_ioctl		= &x25_ioctl;
@@ -6797,7 +6797,7 @@ static int x25_set_dev_config(struct file *file,
 	if (wandev == NULL)
 		return count;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	printk(KERN_INFO "%s: New device config (%s)\n",
 			wandev->name, buffer);

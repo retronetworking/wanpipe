@@ -1,21 +1,5 @@
 AFT A104dm Firmware Change Log
 =============================
-Release V33
------------
-Sep 27 2007
-
-Type:		Recommended A104dm Firmware for echo cancel cards
-		Fixes issue with hardware echo canceller chip 
-		security. 
-		Supports DTMF detection without hardware echo
-		cancellation operation.
-
-Changes:	Firmware bug fix for echo canceller
-		This bug can shut down the driver.
-
-		Note: This bug only afected new Maxim AFT cards with HWEC.
-		      DTMF detection only applies AFT cards with.
-
 
 Release V31
 -----------

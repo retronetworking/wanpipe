@@ -72,6 +72,8 @@
 #define WAN_AFTUP_FORCE_FIRM	0x02
 #define WAN_AFTUP_PCIEXPRESS	0x04
 
+#define DYDBG printf("DYDBG:(%s,%d)\n",__FUNCTION__,__LINE__);
+
 /***********************************************************************
 **			G L O B A L  V A R I A B L E S
 ***********************************************************************/
@@ -127,8 +129,21 @@ aft_core_info_t aft_core_table[] = {
 	  "A200_0100_V", "A200_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ A300_UTE3_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x00, 0x00,
 	  "A301_0040_V", "A301_0040_V*.BIN", AFT_CORE_X400_SIZE },
+	{ A300_UTE3_SUBSYS_VENDOR, AFT_CHIP_OLD_X300, AFT_HDLC_CORE_ID, 0x00, 0x00,
+	  "A301_V", "A301_V*.BIN", AFT_CORE_SIZE },
 	{ A300_UTE3_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x00, 0x00,
 	  "A301_V", "A301_V*.BIN", AFT_CORE_SIZE },
+	{ AFT_56K_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
+	  "A056_0040_V", "A056_0040_V*.BIN", AFT_CORE_X400_SIZE },
+	{ AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
+	  "A500_0040_V", "A500_0040_V*.BIN", AFT_CORE_X400_SIZE },
+#if 1
+	{ AFT_2SERIAL_RS232_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
+	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
+
+	{ AFT_4SERIAL_RS232_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
+	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
+#endif
 #if 0
 	{ AFT_TE1_ATM_CORE_ID,	
 	  NULL, NULL, 0x00,
@@ -157,8 +172,7 @@ struct wan_aftup_plxctrl_data_ {
 		{ 0x09, 0x00 },
 		{ 0x0A, 0x0C },
 		{ 0x0B, 0x10 },
-		{ 0x0C, 0x10 },
-		{ 0x0D, 0x80 },
+		{ 0x0C, 0x10 },		{ 0x0D, 0x80 },
 		{ 0x0E, 0xFE },
 		{ 0x0F, 0x0B },
 		{ 0x10, 0x10 },
@@ -340,6 +354,22 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 	}else if (strncmp(type,"AFT-A301",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
 		aft->cpld.adptr_type = A300_ADPTR_U_1TE3;
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+	}else if (strncmp(type,"AFT-A056",8) == 0){
+		//strcpy(aft->prefix_fw, "AFT_RM");
+		aft->cpld.adptr_type = AFT_ADPTR_56K;
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+	}else if (strncmp(type,"AFT-A500",8) == 0){
+		//strcpy(aft->prefix_fw, "AFT_RM");
+		aft->cpld.adptr_type = AFT_ADPTR_ISDN;
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+	}else if (strncmp(type,"AFT-A142",8) == 0){
+		//strcpy(aft->prefix_fw, "AFT_RM");
+		aft->cpld.adptr_type = AFT_ADPTR_2SERIAL_RS232;
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+	}else if (strncmp(type,"AFT-A144",8) == 0){
+		//strcpy(aft->prefix_fw, "AFT_RM");
+		aft->cpld.adptr_type = AFT_ADPTR_4SERIAL_RS232;
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 	}else{
 		return -EINVAL;
@@ -581,7 +611,7 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 static int wan_aftup_program(struct wan_aftup_head_t *head)
 {
 	wan_aftup_t	*aft = NULL;
-	int		tmp = 0x00;
+	unsigned int	tmp = 0x00;
 	int		err, i;
 
 	WAN_LIST_FOREACH(aft, head, next){
@@ -606,13 +636,13 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 		exec_read_cmd(aft, 0x08, 1, (unsigned int*)&aft->revision_id);
 #if defined(__OpenBSD__)
 		exec_read_cmd(aft, 
-			PCI_SUBSYS_VENDOR_WORD, 4, &aft->board_id);
+			PCI_SUBSYS_VENDOR_WORD, 4, (unsigned int*)&aft->board_id);
 		aft->board_id &= 0xFFFF;
 #else
 		exec_read_cmd(aft, 
 			PCI_SUBSYS_VENDOR_WORD, 2, (unsigned int*)&aft->board_id);
 #endif
-		exec_read_cmd(aft, PCI_SUBSYS_ID_WORD, 2, (unsigned int*)&tmp);
+		exec_read_cmd(aft, PCI_SUBSYS_ID_WORD, 2, &tmp);
 		aft->core_rev = AFT_CORE_REV(tmp);
 		aft->core_id = AFT_CORE_ID(tmp);
 		
@@ -699,6 +729,16 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 			aft->cpld.iface	= &aftup_shark_flash_iface;
 			break;
 		case A300_UTE3_SHARK_SUBSYS_VENDOR:
+			aft->cpld.iface	= &aftup_shark_flash_iface;
+			break;
+		case AFT_56K_SHARK_SUBSYS_VENDOR:
+			aft->cpld.iface	= &aftup_shark_flash_iface;
+			break;
+		case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
+			aft->cpld.iface	= &aftup_shark_flash_iface;
+			break;
+		case AFT_2SERIAL_RS232_SUBSYS_VENDOR:
+		case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
 			aft->cpld.iface	= &aftup_shark_flash_iface;
 			break;
 		default:

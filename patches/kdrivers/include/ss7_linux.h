@@ -24,11 +24,10 @@ Descripiton:
 #ifndef _SS7_LINUX_H
 #define _SS7_LINUX_H
 
+#pragma pack(1)
 
 #include <linux/sdla_ss7.h>
 #include <linux/if_wanpipe.h>
-
-#pragma pack(1)
 
 enum {
 	SIOCC_PC_RESERVED = (SIOC_WANPIPE_DEVPRIVATE),
@@ -45,63 +44,34 @@ enum {
 
 
 typedef struct {
-	unsigned char	status		 ;
-	unsigned char	data_avail	 ;
-	unsigned short	real_length	 ;
-	unsigned short	time_stamp	 ;
-	unsigned char	data[1]		 ;
+	unsigned char	status		;
+	unsigned char	data_avail	;
+	unsigned short	real_length	;
+	unsigned short	time_stamp	;
+	unsigned char	data[1]		;
 } trace_pkt_t;
 
 typedef struct {
-	unsigned char	SIO	 ;
-	unsigned short	time_stamp	 ;
-	unsigned char	reserved[13]	 ;
+	unsigned char	SIO	;
+	unsigned short	time_stamp	;
+	unsigned char	reserved[13]	;
 } api_rx_hdr_t;
 
 typedef struct {
-        api_rx_hdr_t	api_rx_hdr       ;
-        void *   	data    	 ;
+        api_rx_hdr_t	api_rx_hdr      ;
+        void *   	data    	;
 } api_rx_element_t;
 
 typedef struct {
-	unsigned char 	SIO		 ;
-	unsigned char  	reserved[15]	 ;
+	unsigned char 	SIO		;
+	unsigned char  	reserved[15]	;
 } api_tx_hdr_t;
 
 typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	 ;
-	void *		data		 ;
+	api_tx_hdr_t 	api_tx_hdr	;
+	void *		data		;
 } api_tx_element_t;
 
-
-/* The embedded control block for UDP mgmt 
-   This is essentially a mailbox structure, without the large data field */
-#if 0
-typedef struct {
-        unsigned char  opp_flag  ;                  /* the opp flag */
-        unsigned char  command  ;                   /* the user command */
-        unsigned short buffer_length  ;             /* the data length */
-        unsigned char  return_code  ;               /* the return code */
-	unsigned char  MB_reserved[NUMBER_MB_RESERVED_BYTES]  ;	/* reserved for later */
-} cblock_t;
-
-
-typedef struct {
-	unsigned char		num_frames	 ;
-	unsigned char		ismoredata	 ;
-} trace_info_t;
-
-typedef struct {
-	ip_pkt_t 		ip_pkt		 ;
-	udp_pkt_t		udp_pkt		 ;
-	wp_mgmt_t		wp_mgmt		 ;
-	cblock_t                cblock           ;
-	trace_info_t       	trace_info       ;
-	unsigned char           data[SIZEOF_MB_DATA_BFR]       ;
-} ss7_udp_pkt_t;
-#endif
-
-#pragma pack()
 
 /* modem status changes */
 #define DCD_HIGH	0x08
@@ -128,6 +98,8 @@ typedef struct {
 #define UDPMGMT_UDP_PROTOCOL 0x11
 #define UDPMGMT_SIGNATURE    "CTPIPEAB"   /* "STPIPEAB" */
 
+
+#pragma pack()
 
 #endif
 

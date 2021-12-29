@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: wanpipe_utils.c,v 1.93 2006/11/23 22:00:58 sangoma Exp $
+ *	$Id: wanpipe_utils.c,v 1.101 2008/02/04 18:02:20 sangoma Exp $
  */
 
 /*
@@ -48,6 +48,7 @@
 # if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 #  include <wanpipe_snmp.h>
 # endif
+# include <wanpipe_defines.h>
 # include <wanpipe_abstr.h>
 # include <wanpipe.h>	/* WANPIPE common user API definitions */
 #elif (defined __WINDOWS__)
@@ -86,7 +87,7 @@ static void wanpipe_debug_timer(unsigned long arg);
 
 extern sdla_t*	wanpipe_debug;
 int wan_get_dbg_msg(wan_device_t* wandev, void* u_dbg_msg);
-
+void wanpipe_set_dev_carrier_state(sdla_t* card, int state);
 
 unsigned char wp_brt[256];
 
@@ -184,6 +185,21 @@ void wanpipe_set_baud (void* card_id, unsigned int baud)
 	card->wandev.bps=baud*1000;
 }
 
+void wanpipe_set_dev_carrier_state(sdla_t* card, int state)
+{
+	netdevice_t *dev;
+	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
+        if (dev && WAN_NETIF_UP(dev)) {
+		if (state == WAN_CONNECTED) {
+                 	WAN_NETIF_CARRIER_ON(dev);
+	       		WAN_NETIF_WAKE_QUEUE(dev);       		
+		} else {
+                	WAN_NETIF_CARRIER_OFF(dev);
+	       		WAN_NETIF_STOP_QUEUE(dev); 
+		}			
+	}
+}
+           
 
 /* 
  * ============================================================================
@@ -208,6 +224,10 @@ void wanpipe_set_state (void* card_id, int state)
 			break;
 		}
 		card->wandev.state = state;
+
+		if (card->wandev.config_id == WANCONFIG_ADSL) {
+			wanpipe_set_dev_carrier_state(card,state);
+		}   
 	}
 	card->state_tick = SYSTEM_TICKS;
 }
@@ -360,7 +380,6 @@ int wan_reply_udp(void* card_id, unsigned char *data, unsigned int mbox_len)
 
 	return len;
 } /* wan_reply_udp */
-
 
 
 
@@ -533,10 +552,10 @@ void wanpipe_debugging (unsigned long data)
 		/* Sangoma T1/E1/56K cards */
 		/* Check Tv attributes */
 		if (card->wandev.fe_iface.read_alarm){ 
-			card->wandev.fe_iface.read_alarm(&card->fe, 0);
+			card->wandev.fe_iface.read_alarm(&card->fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
 		}
 		if (card->wandev.fe_iface.read_alarm && 
-		    (status = card->wandev.fe_iface.read_alarm(&card->fe, 0))){
+		    (status = card->wandev.fe_iface.read_alarm(&card->fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE))){
 			DEBUG_DBG("%s: WAN_DBG: T1/E1/56K is not in Service, print Alarms!\n",
 						card->devname);
 			/* Not in service, Alarms */
@@ -1273,9 +1292,9 @@ void wpabs_set_baud (void* card_id, unsigned int baud)
 void* wpabs_dma_alloc(void* pcard, unsigned long max_length)
 {
 	sdla_t*			card = (sdla_t*)pcard;
-	wan_dma_descr_t*	dma_descr = NULL;
+	wan_dma_descr_org_t	*dma_descr = NULL;
 
-	dma_descr = wan_malloc(sizeof(wan_dma_descr_t));
+	dma_descr = wan_malloc(sizeof(wan_dma_descr_org_t));
 	if (dma_descr == NULL){
 		return NULL;
 	}
@@ -1283,7 +1302,7 @@ void* wpabs_dma_alloc(void* pcard, unsigned long max_length)
 #if defined(__NetBSD__) || defined(__OpenBSD__)
 	card->hw_iface.getcfg(card->hw, SDLA_DMATAG, &dma_descr->dmat);
 #endif
-	if (wan_dma_alloc(card->hw, dma_descr)){
+	if (wan_dma_alloc_org(card->hw, dma_descr)){
 		wan_free(dma_descr);
 		return NULL;
 	}
@@ -1294,7 +1313,7 @@ int wpabs_dma_free(void* pcard, void* dma_descr)
 {
 	int err=0;
 	sdla_t*	card = (sdla_t*)pcard;
-	err=wan_dma_free(card->hw, (wan_dma_descr_t*)dma_descr);
+	err=wan_dma_free_org(card->hw, (wan_dma_descr_org_t*)dma_descr);
 	wan_free(dma_descr);
 	return err;
 }
@@ -1338,7 +1357,13 @@ int init_atm_idle_buffer(unsigned char *buff, int buff_len, char *if_name, char 
 int atm_add_data_to_skb(void* skb, void *data, int data_len, char *if_name)
 {
 	unsigned char 	*skb_data_ptr;
-		
+
+	if (data_len != ATM_CELL_SIZE) {
+                DEBUG_EVENT("%s: %s(): Error, invalid datalen=%i\n",
+                        if_name, __FUNCTION__, data_len);
+                return 1;
+        }
+
 	DEBUG_ATM("%s(): data_len=%d, skb tail room=%d\n", 
 			__FUNCTION__, data_len, wan_skb_tailroom(skb));
 
@@ -1388,10 +1413,14 @@ int atm_pad_idle_cells_in_tx_skb(void *skb, void *tx_idle_skb, char *if_name)
 	return 0;
 }
 
+
+
+
 void *atm_tx_skb_dequeue(void* wp_tx_pending_list, void *tx_idle_skb, char *if_name)
 {
 	void	*tx_skb, *single_cell_skb;
 	int	max_num_of_cells_fit_in_tx_buffer, i;
+	int  	err;
 
 	if(wan_skb_queue_len(wp_tx_pending_list) == 0){
 		return NULL;
@@ -1418,16 +1447,25 @@ void *atm_tx_skb_dequeue(void* wp_tx_pending_list, void *tx_idle_skb, char *if_n
 			break;
 		}
 
-		atm_add_data_to_skb(	tx_skb,
+		err=atm_add_data_to_skb(tx_skb,
 					wan_skb_data(single_cell_skb),
 					wan_skb_len (single_cell_skb),
 					if_name);
 
 		wan_skb_free(single_cell_skb);
+		if (err) {
+			wan_skb_free(tx_skb);
+                        return NULL;
+		}
 	}
 
-	/* try to add idle cells, if no space it won't do anything */
-	atm_pad_idle_cells_in_tx_skb(tx_skb, tx_idle_skb, if_name);
+ 	/* try to add idle cells, if no space it won't do anything */
+        err=atm_pad_idle_cells_in_tx_skb(tx_skb, tx_idle_skb, if_name);
+        if (err) {
+                wan_skb_free(tx_skb);
+                return NULL;
+        }
+
 
 	return tx_skb;
 }

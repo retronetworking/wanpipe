@@ -2,10 +2,8 @@
 
 cmd=$1;
 
-if [ ! -e wan_aftup ]; then
-	eval "make clean > /dev/null"
-	eval "make > /dev/null"
-fi
+eval "make clean > /dev/null"
+eval "make > /dev/null"
 
 if [ -e /proc/net/wanrouter ]; then
 

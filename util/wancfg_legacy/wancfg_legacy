@@ -1299,12 +1299,12 @@ EOM
 		exit 1
 	fi
 
-	if [ ! -f "$PROD_HOME/wanrouter.rc" ]; then
+	if [ ! -f "${META_CONF}" ]; then
 		cat << EOM
 
 	BAD CONFIGURATION - FILE MISSING
 
-	$PROD_HOME/wanrouter.rc file could not 
+	${META_CONF} file could not 
 be found. Please make sure that the wanpipe
 pacakge has been correctly installed before
 proceeding to configure a Sangoma device.
@@ -1409,19 +1409,31 @@ fi
 
 }
 
+function read_meta_conf ()
+{
+	if [ $OSYSTEM = "Linux" ]; then
+		PROD_HOME=/etc/wanpipe
+	elif [ $OSYSTEM = "FreeBSD" -o $OSYSTEM = "OpenBSD" ]; then
+		PROD_HOME=/usr/local/etc/wanpipe
+		wanrouter_rc_file=""
+		if [ -r /etc/rc.conf ]; then
+			. /etc/rc.conf
+		fi
+		if [ -n "$wanrouter_rc_file" ]; then
+			PROD_HOME=${wanrouter_rc_file%/*}
+		fi
+	fi
+	META_CONF=$PROD_HOME/wanrouter.rc
+	return 0
+}
 
 #============================================================
 # VARIABLE DEFINITION 
 #============================================================
 
 WAN_CONF=wanpipe
-PROD_HOME=/etc/wanpipe
-TEMP=$PROD_HOME/wacfg_temp.$$
-MYCMD=$PROD_HOME/Mycmd
-DEVOPT=$PROD_HOME/dev_options.$$
-MENU_TMP=$PROD_HOME/menu.tmp.$$
-RC=$PROD_HOME/return_code
-GET_RC="cat $RC"
+OSYSTEM=`uname -s`
+RELEASE=`uname -r`
 EXIT=0
 BACK=1
 LINUX_DISTR=unknown
@@ -1442,11 +1454,19 @@ Press <ESC> to go back, <Help> for help."
 
 backtitle="WANPIPE Configuration Utility"
 
+read_meta_conf
+
+TEMP=$PROD_HOME/wacfg_temp.$$
+MYCMD=$PROD_HOME/Mycmd
+DEVOPT=$PROD_HOME/dev_options.$$
+MENU_TMP=$PROD_HOME/menu.tmp.$$
+RC=$PROD_HOME/return_code
+GET_RC="cat $RC"
 
 check_setup 1
 
 #Load the library files
-source $PROD_HOME/wanrouter.rc
+source ${META_CONF}
 
 check_setup 2
 

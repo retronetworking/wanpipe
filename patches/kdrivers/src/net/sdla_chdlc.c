@@ -452,7 +452,7 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_te_iface_init(&card->wandev.fe_iface);
+		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -460,7 +460,7 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 
 		card->wandev.fe_enable_timer = chdlc_enable_timer;
 		card->wandev.te_link_state = chdlc_handle_front_end_state;
-		conf->interface = 
+		conf->electrical_interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
 
 		if (card->u.c.comm_port == WANOPT_PRI){
@@ -470,7 +470,7 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -538,9 +538,9 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 	card->u.c.update_call_count = 0;
 	
 	card->wandev.ttl = conf->ttl;
-	card->wandev.interface = conf->interface; 
+	card->wandev.electrical_interface = conf->electrical_interface; 
 
-	if ((card->u.c.comm_port == WANOPT_SEC && conf->interface == WANOPT_V35)&&
+	if ((card->u.c.comm_port == WANOPT_SEC && conf->electrical_interface == WANOPT_V35)&&
 	    card->type != SDLA_S514){
 		printk(KERN_INFO "%s: ERROR - V35 Interface not supported on S508 %s port \n",
 			card->devname, PORT(card->u.c.comm_port));
@@ -749,7 +749,7 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
  */
 static int update (wan_device_t* wandev)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	netdevice_t	*dev;
         chdlc_private_area_t* chdlc_priv_area;
 	unsigned long smp_flags;
@@ -759,7 +759,7 @@ static int update (wan_device_t* wandev)
 #endif
 
 	/* sanity checks */
-	if((wandev == NULL) || (wandev->private == NULL))
+	if((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	
 	if(wandev->state == WAN_UNCONFIGURED)
@@ -856,7 +856,7 @@ static int update (wan_device_t* wandev)
  */
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	chdlc_private_area_t* chdlc_priv_area;
 	int err = 0;
 
@@ -1189,6 +1189,8 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
+	dev->hard_header	= NULL; 
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
@@ -1393,7 +1395,6 @@ static void disable_comm (sdla_t *card)
 		if (card->wandev.fe_iface.pre_release){
 			card->wandev.fe_iface.pre_release(&card->fe);
 		}
-
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -1907,7 +1908,6 @@ static int chdlc_disable_comm_shutdown (sdla_t *card)
 		if (card->wandev.fe_iface.pre_release){
 			card->wandev.fe_iface.pre_release(&card->fe);
 		}
-
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -2536,7 +2536,7 @@ static void rx_intr (sdla_t* card)
 		api_rx_hdr->usec=tv.tv_usec;		
 
                 skb->protocol = htons(WP_PVC_PROT);
-     		wan_skb_reset_mac_header(skb);
+		wan_skb_reset_mac_header(skb);
 		skb->dev      = dev;
                	skb->pkt_type = WAN_PACKET_DATA;
 
@@ -2553,7 +2553,7 @@ static void rx_intr (sdla_t* card)
 		if (chdlc_priv_area->annexg_dev){
 			skb->protocol = htons(ETH_P_X25);
 			skb->dev = chdlc_priv_area->annexg_dev;
-                	wan_skb_reset_mac_header(skb);
+			wan_skb_reset_mac_header(skb);
 
 			if (wan_api_enqueue_skb(chdlc_priv_area,skb) < 0){
 				wan_skb_free(skb);
@@ -2597,7 +2597,7 @@ static void rx_intr (sdla_t* card)
 
 		skb->protocol = htons(ETH_P_IP);
                 skb->dev = dev;
-                wan_skb_reset_mac_header(skb);
+		wan_skb_reset_mac_header(skb);
                 netif_rx(skb);
 	}
 
@@ -2683,7 +2683,7 @@ static int set_chdlc_config(sdla_t* card)
 		cfg.baud_rate = card->wandev.bps;
 	}
 		
-	cfg.line_config_options = (card->wandev.interface == WANOPT_RS232) ?
+	cfg.line_config_options = (card->wandev.electrical_interface == WANOPT_RS232) ?
 		INTERFACE_LEVEL_RS232 : INTERFACE_LEVEL_V35;
 
 	
@@ -2768,21 +2768,6 @@ static int chdlc_calibrate_baud (sdla_t *card)
 {
 	wan_mbox_t* mb = &card->wan_mbox;
 	int err;
-	int enable_again=0;
-	sdla_t *tmp_card=NULL;
-
-	if (card->wandev.connection == WANOPT_SWITCHED && 
-	    card->wandev.clocking == WANOPT_EXTERNAL &&
-	    card->next) {
-		tmp_card=card->next;
-		if (tmp_card->wandev.connection == WANOPT_SWITCHED && 
-		    tmp_card->wandev.clocking == WANOPT_EXTERNAL &&
-		    tmp_card->u.c.comm_enabled ) {
-			DEBUG_EVENT("%s: Next comm enabled -> disabling!\n",tmp_card->devname);
-			chdlc_comm_disable (tmp_card);
-			enable_again=1;
-		}
-	}
 	
 	mb->wan_data_len = 0;
 	mb->wan_command = START_BAUD_CALIBRATION;
@@ -2791,15 +2776,8 @@ static int chdlc_calibrate_baud (sdla_t *card)
 	if (err != COMMAND_OK) 
 		chdlc_error (card, err, mb);
 
-
-	if (enable_again && tmp_card) {
-		DEBUG_EVENT("%s: Next comm enabled -> re-enabling!\n",tmp_card->devname);
-		chdlc_comm_enable (tmp_card);
-	}
-
 	return err;
 }
-
 
 static int chdlc_read_baud_calibration (sdla_t *card)
 {
@@ -2867,7 +2845,7 @@ static int set_asy_config(sdla_t* card)
 	if(card->wandev.clocking)
 		cfg.baud_rate = card->wandev.bps;
 
-	cfg.line_config_options = (card->wandev.interface == WANOPT_RS232) ?
+	cfg.line_config_options = (card->wandev.electrical_interface == WANOPT_RS232) ?
 		INTERFACE_LEVEL_RS232 : INTERFACE_LEVEL_V35;
 
 	cfg.modem_config_options	= 0;
@@ -3964,7 +3942,7 @@ dflt_1:
             		/* Decapsulate pkt and pass it up the protocol stack */
 	    		new_skb->protocol = htons(ETH_P_IP);
             		new_skb->dev = dev;
-	    		wan_skb_reset_mac_header(new_skb);
+			wan_skb_reset_mac_header(new_skb);
 
 			netif_rx(new_skb);
 		} else {
@@ -4264,7 +4242,6 @@ static int config_chdlc (sdla_t *card, netdevice_t *dev)
 		if (card->wandev.fe_iface.post_init){
 			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
-		
 	}
 
 	 
@@ -4970,7 +4947,7 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 			if (net_ratelimit()){
 				printk(KERN_INFO 
 				"%s: Received packet size too big: %i bytes, Max: %i!\n",
-					card->devname,len,TTY_CHDLC_MAX_MTU);
+					card->devname,len,TTY_FLIPBUF_SIZE);
 			}
 			return;
 		}
@@ -4981,11 +4958,11 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 		}      
 #endif		
 #else		
-		if ((tty->flip.count+len) >= TTY_CHDLC_MAX_MTU){
+		if ((tty->flip.count+len) >= TTY_FLIPBUF_SIZE){
 			if (net_ratelimit()){
 				printk(KERN_INFO 
 					"%s: Received packet size too big: %i bytes, Max: %i!\n",
-					card->devname,len,TTY_CHDLC_MAX_MTU);
+					card->devname,len,TTY_FLIPBUF_SIZE);
 			}
 			return;
 		}
@@ -5054,7 +5031,7 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 			if (net_ratelimit()){
 				printk(KERN_INFO 
 				"%s: Received packet size too big: %i bytes, Max: %i!\n",
-					card->devname,len,TTY_CHDLC_MAX_MTU);
+					card->devname,len,TTY_FLIPBUF_SIZE);
 			}
 			return;
 		}
@@ -5149,6 +5126,9 @@ static int config_tty (sdla_t *card)
 					(IS_T1_CARD(card))?"T1":"E1");
 			return -EINVAL;
 		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
+		}
 	}
 
 	 
@@ -5164,6 +5144,9 @@ static int config_tty (sdla_t *card)
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EINVAL;
+		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
 	}
 
@@ -5828,7 +5811,7 @@ static int chdlc_set_dev_config(struct file *file,
 	if (wandev == NULL)
 		return cnt;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	printk(KERN_INFO "%s: New device config (%s)\n",
 			wandev->name, buffer);

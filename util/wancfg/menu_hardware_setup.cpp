@@ -171,7 +171,10 @@ enum HW_SETUP_OPTIONS {
   ADVANCED_PCI_CFG,
   TDMV_LAW_SELECT,
   TDMV_OPERMODE,
-  AFT_ANALOG_ADVANCED
+  AFT_ANALOG_ADVANCED,
+	AFT_SERIAL_CONNECTION_TYPE,
+	AFT_SERIAL_LINE_CODING,
+	AFT_SERIAL_LINE_IDLE
 };
 
 menu_hardware_setup::menu_hardware_setup(   IN char * lxdialog_path,
@@ -404,8 +407,31 @@ again:
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_TE3_ADVANCED);
       menu_str += tmp_buff;
       menu_str += " \"Advanced Physical Medium Configuration\" ";
-
       break;
+    case AFT_ADPTR_ISDN://WAN_MEDIA_BRI:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", EMPTY_LINE);
+      menu_str += tmp_buff;
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \" \" ");
+      menu_str += tmp_buff;
+      number_of_items++;
+
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_TE1_ADVANCED);
+      menu_str += tmp_buff;
+      menu_str += " \"Advanced Physical Medium Configuration\" ";
+      break;
+		case AFT_ADPTR_2SERIAL_V35X21:
+      form_AFT_Serial_options_menu(menu_str, number_of_items);
+
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", EMPTY_LINE);
+      menu_str += tmp_buff;
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \" \" ");
+      menu_str += tmp_buff;
+      number_of_items++;
+
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", S514_SERIAL_ADVANCED);
+      menu_str += tmp_buff;
+      menu_str += " \"Advanced Physical Medium Configuration\" ";
+			break;
     }
 
     form_pci_card_locations_options_menu(menu_str, number_of_items);
@@ -779,21 +805,21 @@ display_hardware_selection_label:
 
     case ADSL_ENCAPSULATION_MODE:
       {
-	int old_encapsulation = adsl_cfg->EncapMode;
+				int old_encapsulation = adsl_cfg->EncapMode;
 	
-	menu_adsl_encapsulation adsl_encapsulation(lxdialog_path, adsl_cfg);
-	if(adsl_encapsulation.run(selection_index) == NO){
+				menu_adsl_encapsulation adsl_encapsulation(lxdialog_path, adsl_cfg);
+				if(adsl_encapsulation.run(selection_index) == NO){
           rc = NO;
           exit_dialog = YES;
         }
 
-	if(old_encapsulation != adsl_cfg->EncapMode){
-	  //change the 'sub_config_id' accordingly
+				if(old_encapsulation != adsl_cfg->EncapMode){
+					//change the 'sub_config_id' accordingly
           switch(adsl_cfg->EncapMode)
           {
           case RFC_MODE_BRIDGED_ETH_LLC:
           case RFC_MODE_BRIDGED_ETH_VC:
-	    link_def->sub_config_id = PROTOCOL_ETHERNET;
+						link_def->sub_config_id = PROTOCOL_ETHERNET;
             break;
     
           case RFC_MODE_ROUTED_IP_LLC:
@@ -807,37 +833,37 @@ display_hardware_selection_label:
             link_def->sub_config_id = WANCONFIG_MPPP;
             break;
           }//switch(adsl_cfg->EncapMode)
-	}
+				}
       }
       break;
       
     case ADSL_ATM_AUTOCFG:
       snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s ADSL autoconfiguration?",
-	(adsl_cfg->atm_autocfg == WANOPT_NO ? "Enable" : "Disable"));
+				(adsl_cfg->atm_autocfg == WANOPT_NO ? "Enable" : "Disable"));
 
       if(yes_no_question( selection_index,
                           lxdialog_path,
                           NO_PROTOCOL_NEEDED,
                           tmp_buff) == NO){
-	//error displaying dialog
-	rc = NO;
-	goto cleanup;
+				//error displaying dialog
+				rc = NO;
+				goto cleanup;
       }
 
       switch(*selection_index)
       {
       case YES_NO_TEXT_BOX_BUTTON_YES:
-	if(adsl_cfg->atm_autocfg == WANOPT_NO){
-	  //disabled, user wants to enable
-	  adsl_cfg->atm_autocfg = WANOPT_YES;
-	}else{
-	  adsl_cfg->atm_autocfg = WANOPT_NO;
-	}
+				if(adsl_cfg->atm_autocfg == WANOPT_NO){
+					//disabled, user wants to enable
+				  adsl_cfg->atm_autocfg = WANOPT_YES;
+				}else{
+				  adsl_cfg->atm_autocfg = WANOPT_NO;
+				}
         break;
 
       case YES_NO_TEXT_BOX_BUTTON_NO:
-	//don't do anything
-	break;
+				//don't do anything
+				break;
       }
       break;
 
@@ -862,7 +888,7 @@ show_vci_input_box:
         break;
 
       case INPUT_BOX_BUTTON_HELP:
-	tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, option_not_implemented_yet_help_str);
+				tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, option_not_implemented_yet_help_str);
         goto show_vci_input_box;
       }//switch(*selection_index)
       break;
@@ -952,6 +978,38 @@ show_vpi_input_box:
         }
       }
       break;
+		case AFT_SERIAL_CONNECTION_TYPE:
+      {
+        menu_hardware_serial_connection_type hardware_serial_connection_type(
+                                                                     lxdialog_path, cfr);
+        if(hardware_serial_connection_type.run(selection_index) == NO){
+          rc = NO;
+          exit_dialog = YES;
+        }
+      }
+			break;
+
+		case AFT_SERIAL_LINE_CODING:
+      {
+        menu_hardware_serial_line_coding hardware_serial_line_coding(
+                                                                     lxdialog_path, cfr);
+        if(hardware_serial_line_coding.run(selection_index) == NO){
+          rc = NO;
+          exit_dialog = YES;
+        }
+      }
+			break;
+
+		case AFT_SERIAL_LINE_IDLE:
+      {
+        menu_hardware_serial_line_idle hardware_serial_line_idle(
+                                                                     lxdialog_path, cfr);
+        if(hardware_serial_line_idle.run(selection_index) == NO){
+          rc = NO;
+          exit_dialog = YES;
+        }
+      }
+			break;
 
     default:
       ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
@@ -1043,10 +1101,53 @@ void menu_hardware_setup::form_s514_serial_options_menu(string& str, int& number
 
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Physical Medium-> %s\" ",
   //snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Interface------> %s\" ",
-    (linkconf->interface == WANOPT_V35 ? "V.35" : "RS232"));
+    (linkconf->electrical_interface == WANOPT_V35 ? "V.35" : "RS232"));
   str += tmp_buff;
 
   number_of_items++;
+}
+
+void menu_hardware_setup::form_AFT_Serial_options_menu(string& str, int& number_of_items)
+{
+  char tmp_buff[MAX_PATH_LENGTH];
+  link_def_t * link_def;
+  wandev_conf_t *linkconf;
+
+  Debug(DBG_MENU_HARDWARE_SETUP, ("menu_net_interface_setup::%s()\n", __FUNCTION__));
+
+  link_def = cfr->link_defs;
+  linkconf = cfr->link_defs->linkconf;
+
+	//////////////////////////////////////////////////////////////////////////////////////////
+	//Serial connection type
+	//Permanent - CTS/RTS are always up
+	//Switched  - CTS/RTS are only brought up tx
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_SERIAL_CONNECTION_TYPE);
+  str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Connection Type-> %s\" ",
+    (linkconf->connection == WANOPT_PERMANENT ? "Permanent" : (linkconf->connection == WANOPT_SWITCHED?"Switched":"Unknown!")));
+  str += tmp_buff;
+  number_of_items++;
+	//////////////////////////////////////////////////////////////////////////////////////////
+	//Serial LineCoding: NRZ or NRZI
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_SERIAL_LINE_CODING);
+  str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Line Coding-----> %s\" ",
+    (linkconf->line_coding == WANOPT_NRZ ? "NRZ" : (linkconf->line_coding == WANOPT_NRZI ? "NRZI":"Unknown!")));
+  str += tmp_buff;
+  number_of_items++;
+	//////////////////////////////////////////////////////////////////////////////////////////
+	//Serial LineIdle:
+	//Flag - use flags to idle on the line	
+	//Mark - use mark to idle on the line
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_SERIAL_LINE_IDLE);
+  str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Line Idle-------> %s\" ",
+    (linkconf->line_idle == WANOPT_IDLE_FLAG ? "Flag" : (linkconf->line_idle == WANOPT_IDLE_MARK ? "Mark":"Unknown!")));
+  str += tmp_buff;
+  number_of_items++;
+	//////////////////////////////////////////////////////////////////////////////////////////
+
 }
 
 void menu_hardware_setup::form_s514_TE1_options_menu(string& str, int& number_of_items)
@@ -1113,3 +1214,477 @@ void menu_hardware_setup::form_pci_card_locations_options_menu(string& str, int&
   number_of_items++;
 }
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+enum SERIAL_CONNECTION_TYPE{
+	PERMANENT,
+	SWITCHED
+};
+
+#define DBG_MENU_HARDWARE_SERIAL_CONNECTION_TYPE 1
+
+menu_hardware_serial_connection_type::
+  menu_hardware_serial_connection_type(IN char * lxdialog_path,
+                                       IN conf_file_reader* ptr_cfr)
+{
+  Debug(DBG_MENU_HARDWARE_SERIAL_CONNECTION_TYPE,
+    ("menu_hardware_serial_connection_type::%s()\n", __FUNCTION__));
+
+  snprintf(this->lxdialog_path, MAX_PATH_LENGTH, "%s", lxdialog_path);
+  this->cfr = ptr_cfr;
+}
+
+menu_hardware_serial_connection_type::~menu_hardware_serial_connection_type()
+{
+  Debug(DBG_MENU_HARDWARE_SERIAL_CONNECTION_TYPE,
+    ("menu_hardware_serial_connection_type::%s()\n", __FUNCTION__));
+}
+
+int menu_hardware_serial_connection_type::run(OUT int * selection_index)
+{
+  string menu_str;
+  int rc;
+  char tmp_buff[MAX_PATH_LENGTH];
+  char exit_dialog;
+  int number_of_items;
+
+  //help text box
+  text_box tb;
+
+  link_def_t * link_def;
+  wandev_conf_t *linkconf;
+
+  Debug(DBG_MENU_HARDWARE_SERIAL_CONNECTION_TYPE,
+    ("menu_hardware_serial_connection_type::%s()\n", __FUNCTION__));
+
+again:
+  number_of_items = 2;
+
+  link_def = cfr->link_defs;
+  linkconf = cfr->link_defs->linkconf;
+
+  Debug(DBG_MENU_HARDWARE_SERIAL_CONNECTION_TYPE, ("cfr->link_defs->name: %s\n", link_def->name));
+
+  rc = YES;
+  exit_dialog = NO;
+  menu_str = " ";
+
+  Debug(DBG_MENU_HARDWARE_SERIAL_CONNECTION_TYPE, ("linkconf->card_type: DEC:%d, HEX: 0x%X\n",
+    linkconf->card_type, linkconf->card_type));
+
+  /////////////////////////////////////////////////
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANOPT_PERMANENT);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Permanent\" ");
+  menu_str += tmp_buff;
+
+  /////////////////////////////////////////////////
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANOPT_SWITCHED);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Switched\" ");
+  menu_str += tmp_buff;
+
+  //////////////////////////////////////////////////////////////////////////////////////
+  //create the explanation text for the menu
+  snprintf(tmp_buff, MAX_PATH_LENGTH,
+"\n------------------------------------------\
+\nSelect Serial Connection type for Wan Device: %s", link_def->name);
+
+  if(set_configuration(   YES,//indicates to call V2 of the function
+                          MENU_BOX_BACK,//MENU_BOX_SELECT,
+                          lxdialog_path,
+                          "SELECT CONNECTION TYPE",
+                          WANCFG_PROGRAM_NAME,
+                          tmp_buff,
+                          MENU_HEIGTH, MENU_WIDTH,
+                          number_of_items,
+                          (char*)menu_str.c_str()
+                          ) == NO){
+    rc = NO;
+    goto cleanup;
+  }
+
+  if(show(selection_index) == NO){
+    rc = NO;
+    goto cleanup;
+  }
+  //////////////////////////////////////////////////////////////////////////////////////
+
+  exit_dialog = NO;
+  switch(*selection_index)
+  {
+  case MENU_BOX_BUTTON_SELECT:
+    Debug(DBG_MENU_HARDWARE_SERIAL_CONNECTION_TYPE,
+      ("hardware_setup: option selected for editing: %s\n", get_lxdialog_output_string()));
+
+    Debug(DBG_MENU_HARDWARE_SERIAL_CONNECTION_TYPE,
+      ("serial select clock: atoi(get_lxdialog_output_string(): %d\n",
+      atoi(get_lxdialog_output_string())));
+
+    switch(atoi(get_lxdialog_output_string()))
+    {
+    case WANOPT_PERMANENT:
+      linkconf->connection = WANOPT_PERMANENT;
+      exit_dialog = YES;
+      break;
+
+    case WANOPT_SWITCHED:
+      linkconf->connection = WANOPT_SWITCHED;
+      exit_dialog = YES;
+      break;
+
+    default:
+      ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
+        get_lxdialog_output_string()));
+      rc = NO;
+      exit_dialog = YES;
+    }
+    break;
+
+  case MENU_BOX_BUTTON_HELP:
+
+    switch(atoi(get_lxdialog_output_string()))
+    {
+    case WANOPT_PERMANENT:
+    case WANOPT_SWITCHED:
+      tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+        "Please select Serial Connection type.");
+      break;
+
+    default:
+      ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
+        get_lxdialog_output_string()));
+      rc = NO;
+      exit_dialog = YES;
+    }
+    break;
+
+  case MENU_BOX_BUTTON_EXIT:
+    exit_dialog = YES;
+    break;
+  }//switch(*selection_index)
+
+  if(exit_dialog == NO){
+    goto again;
+  }
+
+cleanup:
+  return rc;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+enum SERIAL_LINE_CODING{
+	NRZ,
+	NRZI
+};
+
+#define DBG_MENU_HARDWARE_SERIAL_LINE_CODING 1
+
+menu_hardware_serial_line_coding::
+  menu_hardware_serial_line_coding(IN char * lxdialog_path,
+                                   IN conf_file_reader* ptr_cfr)
+{
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_CODING,
+    ("menu_hardware_serial_line_coding::%s()\n", __FUNCTION__));
+
+  snprintf(this->lxdialog_path, MAX_PATH_LENGTH, "%s", lxdialog_path);
+  this->cfr = ptr_cfr;
+}
+
+menu_hardware_serial_line_coding::~menu_hardware_serial_line_coding()
+{
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_CODING,
+    ("menu_hardware_serial_line_coding::%s()\n", __FUNCTION__));
+}
+
+int menu_hardware_serial_line_coding::run(OUT int * selection_index)
+{
+  string menu_str;
+  int rc;
+  char tmp_buff[MAX_PATH_LENGTH];
+  char exit_dialog;
+  int number_of_items;
+
+  //help text box
+  text_box tb;
+
+  link_def_t * link_def;
+  wandev_conf_t *linkconf;
+
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_CODING,
+    ("menu_hardware_serial_line_coding::%s()\n", __FUNCTION__));
+
+again:
+  number_of_items = 2;
+
+  link_def = cfr->link_defs;
+  linkconf = cfr->link_defs->linkconf;
+
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_CODING, ("cfr->link_defs->name: %s\n", link_def->name));
+
+  rc = YES;
+  exit_dialog = NO;
+  menu_str = " ";
+
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_CODING, ("linkconf->card_type: DEC:%d, HEX: 0x%X\n",
+    linkconf->card_type, linkconf->card_type));
+
+  /////////////////////////////////////////////////
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANOPT_NRZ);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"NRZ\" ");
+  menu_str += tmp_buff;
+
+  /////////////////////////////////////////////////
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANOPT_NRZI);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"NRZI\" ");
+  menu_str += tmp_buff;
+
+  //////////////////////////////////////////////////////////////////////////////////////
+  //create the explanation text for the menu
+  snprintf(tmp_buff, MAX_PATH_LENGTH,
+"\n------------------------------------------\
+\nSelect Serial Line Coding type for Wan Device: %s", link_def->name);
+
+  if(set_configuration(   YES,//indicates to call V2 of the function
+                          MENU_BOX_BACK,//MENU_BOX_SELECT,
+                          lxdialog_path,
+                          "SELECT LINE CODING",
+                          WANCFG_PROGRAM_NAME,
+                          tmp_buff,
+                          MENU_HEIGTH, MENU_WIDTH,
+                          number_of_items,
+                          (char*)menu_str.c_str()
+                          ) == NO){
+    rc = NO;
+    goto cleanup;
+  }
+
+  if(show(selection_index) == NO){
+    rc = NO;
+    goto cleanup;
+  }
+  //////////////////////////////////////////////////////////////////////////////////////
+
+  exit_dialog = NO;
+  switch(*selection_index)
+  {
+  case MENU_BOX_BUTTON_SELECT:
+    Debug(DBG_MENU_HARDWARE_SERIAL_LINE_CODING,
+      ("hardware_setup: option selected for editing: %s\n", get_lxdialog_output_string()));
+
+    Debug(DBG_MENU_HARDWARE_SERIAL_LINE_CODING,
+      ("serial select clock: atoi(get_lxdialog_output_string(): %d\n",
+      atoi(get_lxdialog_output_string())));
+
+    switch(atoi(get_lxdialog_output_string()))
+    {
+    case WANOPT_NRZ:
+      linkconf->line_coding = WANOPT_NRZ;
+      exit_dialog = YES;
+      break;
+
+    case WANOPT_NRZI:
+      linkconf->line_coding = WANOPT_NRZI;
+      exit_dialog = YES;
+      break;
+
+    default:
+      ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
+        get_lxdialog_output_string()));
+      rc = NO;
+      exit_dialog = YES;
+    }
+    break;
+
+  case MENU_BOX_BUTTON_HELP:
+
+    switch(atoi(get_lxdialog_output_string()))
+    {
+    case WANOPT_NRZ:
+    case WANOPT_NRZI:
+      tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+        "Please select Serial Line coding.");
+      break;
+
+    default:
+      ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
+        get_lxdialog_output_string()));
+      rc = NO;
+      exit_dialog = YES;
+    }
+    break;
+
+  case MENU_BOX_BUTTON_EXIT:
+    exit_dialog = YES;
+    break;
+  }//switch(*selection_index)
+
+  if(exit_dialog == NO){
+    goto again;
+  }
+
+cleanup:
+  return rc;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+enum SERIAL_LINE_IDLE{
+	FLAG,
+	MARK
+};
+
+#define DBG_MENU_HARDWARE_SERIAL_LINE_IDLE 1
+
+menu_hardware_serial_line_idle::
+  menu_hardware_serial_line_idle(IN char * lxdialog_path,
+                                   IN conf_file_reader* ptr_cfr)
+{
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_IDLE,
+    ("menu_hardware_serial_line_idle::%s()\n", __FUNCTION__));
+
+  snprintf(this->lxdialog_path, MAX_PATH_LENGTH, "%s", lxdialog_path);
+  this->cfr = ptr_cfr;
+}
+
+menu_hardware_serial_line_idle::~menu_hardware_serial_line_idle()
+{
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_IDLE,
+    ("menu_hardware_serial_line_idle::%s()\n", __FUNCTION__));
+}
+
+int menu_hardware_serial_line_idle::run(OUT int * selection_index)
+{
+  string menu_str;
+  int rc;
+  char tmp_buff[MAX_PATH_LENGTH];
+  char exit_dialog;
+  int number_of_items;
+
+  //help text box
+  text_box tb;
+
+  link_def_t * link_def;
+  wandev_conf_t *linkconf;
+
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_IDLE,
+    ("menu_hardware_serial_line_idle::%s()\n", __FUNCTION__));
+
+again:
+  number_of_items = 2;
+
+  link_def = cfr->link_defs;
+  linkconf = cfr->link_defs->linkconf;
+
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_IDLE, ("cfr->link_defs->name: %s\n", link_def->name));
+
+  rc = YES;
+  exit_dialog = NO;
+  menu_str = " ";
+
+  Debug(DBG_MENU_HARDWARE_SERIAL_LINE_IDLE, ("linkconf->card_type: DEC:%d, HEX: 0x%X\n",
+    linkconf->card_type, linkconf->card_type));
+
+  /////////////////////////////////////////////////
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANOPT_IDLE_FLAG);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Flag\" ");
+  menu_str += tmp_buff;
+
+  /////////////////////////////////////////////////
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANOPT_IDLE_MARK);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Mark\" ");
+  menu_str += tmp_buff;
+
+  //////////////////////////////////////////////////////////////////////////////////////
+  //create the explanation text for the menu
+  snprintf(tmp_buff, MAX_PATH_LENGTH,
+"\n------------------------------------------\
+\nSelect Serial Line Idle for Wan Device: %s", link_def->name);
+
+  if(set_configuration(   YES,//indicates to call V2 of the function
+                          MENU_BOX_BACK,//MENU_BOX_SELECT,
+                          lxdialog_path,
+                          "SELECT LINE IDLE",
+                          WANCFG_PROGRAM_NAME,
+                          tmp_buff,
+                          MENU_HEIGTH, MENU_WIDTH,
+                          number_of_items,
+                          (char*)menu_str.c_str()
+                          ) == NO){
+    rc = NO;
+    goto cleanup;
+  }
+
+  if(show(selection_index) == NO){
+    rc = NO;
+    goto cleanup;
+  }
+  //////////////////////////////////////////////////////////////////////////////////////
+
+  exit_dialog = NO;
+  switch(*selection_index)
+  {
+  case MENU_BOX_BUTTON_SELECT:
+    Debug(DBG_MENU_HARDWARE_SERIAL_LINE_IDLE,
+      ("hardware_setup: option selected for editing: %s\n", get_lxdialog_output_string()));
+
+    Debug(DBG_MENU_HARDWARE_SERIAL_LINE_IDLE,
+      ("serial select clock: atoi(get_lxdialog_output_string(): %d\n",
+      atoi(get_lxdialog_output_string())));
+
+    switch(atoi(get_lxdialog_output_string()))
+    {
+    case WANOPT_IDLE_FLAG:
+      linkconf->line_idle = WANOPT_IDLE_FLAG;
+      exit_dialog = YES;
+      break;
+
+    case WANOPT_IDLE_MARK:
+      linkconf->line_idle = WANOPT_IDLE_MARK;
+      exit_dialog = YES;
+      break;
+
+    default:
+      ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
+        get_lxdialog_output_string()));
+      rc = NO;
+      exit_dialog = YES;
+    }
+    break;
+
+  case MENU_BOX_BUTTON_HELP:
+
+    switch(atoi(get_lxdialog_output_string()))
+    {
+    case WANOPT_IDLE_FLAG:
+    case WANOPT_IDLE_MARK:
+      tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+        "Please select Serial Line Idle.");
+      break;
+
+    default:
+      ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
+        get_lxdialog_output_string()));
+      rc = NO;
+      exit_dialog = YES;
+    }
+    break;
+
+  case MENU_BOX_BUTTON_EXIT:
+    exit_dialog = YES;
+    break;
+  }//switch(*selection_index)
+
+  if(exit_dialog == NO){
+    goto again;
+  }
+
+cleanup:
+  return rc;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -29,8 +29,6 @@
 # if defined(WAN_OCT6100_DAEMON)
 #  include <sdla_ec.h>
 # endif
-#elif (defined __WINDOWS__)
-# include <wanpipe\csu_dsu.h>
 #else
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -338,6 +336,9 @@ static int wan_ec_action(void *pcard, int enable, int channel)
 				ec->ec_channels_no--;
 			}
 		}
+	}else{
+		DEBUG_HWEC("[HWEC]: %s: %s(): card->wandev.hwec_enable == NULL!\n",
+			card->devname, __FUNCTION__);
 	}
 	return err;
 }

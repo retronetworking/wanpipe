@@ -2,7 +2,7 @@
  * Copyright (c) 2002
  *	Alex Feldman <al.feldman@sangoma.com>.  All rights reserved.
  *
- *	$Id: sdla_adsl.h,v 1.8 2006/07/25 19:44:50 sangoma Exp $
+ *	$Id: sdla_adsl.h,v 1.9 2008/01/09 17:45:29 sangoma Exp $
  */
 
 /*************************************************************************
@@ -23,6 +23,8 @@
 
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
+# include <sdla_adsl_iface.h>
+#elif defined(__WINDOWS__)
 # include <sdla_adsl_iface.h>
 #elif defined(__LINUX__) || defined(__KERNEL__)
 # include <linux/sdla_adsl_iface.h>
@@ -65,10 +67,12 @@ typedef struct adsl_cfg {
 	unsigned char	adsl_selected_standard;
 } adsl_cfg_t;
 
+#if !defined(__WINDOWS__)
 #undef  wan_udphdr_data
 #define wan_udphdr_data	wan_udphdr_adsl_data
 #undef	wan_udp_data
 #define wan_udp_data	wan_udp_hdr.wan_udphdr_adsl_data
+#endif
 
 #ifdef WAN_KERNEL
 
@@ -87,6 +91,13 @@ typedef struct adsl_private_area
 	unsigned long  		trace_timeout;
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	struct ifmedia media;	/* media information */
+#endif
+#if defined(__WINDOWS__)
+	void			*sdla_net_dev;
+	void			*card;
+	struct net_device_stats	if_stats;
+	wan_tasklet_t		adsl_if_send_task;    /* Immediate BH handler task */
+	wan_trace_t		trace_info;
 #endif
 } adsl_private_area_t;
 

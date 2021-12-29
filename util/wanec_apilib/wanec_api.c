@@ -41,18 +41,20 @@
 #if defined(__LINUX__)
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe_cfg.h>
-# include <wanec_iface.h>
+# include <wanec_iface_api.h>
 #elif defined(__WINDOWS__)
 # include <windows.h>
+# include <wanpipe_ctypes.h>
 # include <sang_status_defines.h>
+# include <stdio.h>
+# include <sang_api.h>
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
-# include "wan_ecmain.h"
-# include <wanec_iface.h>
+# include <wanec_iface_api.h>
 #else
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
-# include <wanec_iface.h>
+# include <wanec_iface_api.h>
 #endif
 
 #include "wanec_api.h"
@@ -68,13 +70,13 @@
 /******************************************************************************
 **			   GLOBAL VARIABLES
 ******************************************************************************/
-wan_ec_api_t	ec_api;
+wan_ec_api_t		ec_api;
 
 /******************************************************************************
 ** 			FUNCTION PROTOTYPES
 ******************************************************************************/
 extern int wanec_api_lib_config(wan_ec_api_t *ec_api, int verbose);
-extern int wanec_api_lib_toneload(wan_ec_api_t *ec_api);
+extern int wanec_api_lib_bufferload(wan_ec_api_t *ec_api);
 extern int wanec_api_lib_monitor(wan_ec_api_t *ec_api);
 extern int wanec_api_lib_cmd(wan_ec_api_t *ec_api);
 
@@ -268,15 +270,16 @@ static int wanec_api_print_full_chip_stats(wan_ec_api_t *ec_api)
 }
 
 
-static int wanec_api_print_chan_stats(wan_ec_api_t *ec_api, int channel)
+static int wanec_api_print_chan_stats(wan_ec_api_t *ec_api, int fe_chan)
 {
 	tPOCT6100_CHANNEL_STATS		pChannelStats;
+	tPOCT6100_CHANNEL_STATS_TDM	pChannelStatsTdm;
 	tPOCT6100_CHANNEL_STATS_VQE	pChannelStatsVqe;
 
 	pChannelStats = (tPOCT6100_CHANNEL_STATS)&ec_api->u_chan_stats.f_ChannelStats;
 	printf("%10s:%2d: Echo Channel Operation Mode\t\t\t: %s\n",
 					ec_api->devname,
-					channel,
+					fe_chan,
 		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_NORMAL)?
 								"NORMAL":
 		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_HT_FREEZE)?
@@ -291,10 +294,10 @@ static int wanec_api_print_chan_stats(wan_ec_api_t *ec_api, int channel)
 								"SPEECH RECOGNITION":
 								"Unknown");
 	printf("%10s:%2d: Enable Tone Disabler\t\t\t\t: %s\n",
-		ec_api->devname, channel,
+		ec_api->devname, fe_chan,
 		(pChannelStats->fEnableToneDisabler==TRUE) ? "TRUE" : "FALSE");
 	printf("%10s:%2d: Mute Ports\t\t\t\t\t: %s\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_RIN) ?
 							"RIN" :
 		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_ROUT) ?
@@ -306,85 +309,126 @@ static int wanec_api_print_chan_stats(wan_ec_api_t *ec_api, int channel)
 		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_NONE) ?
 							"NONE" : "Unknown");
 	printf("%10s:%2d: Enable Extended Tone Detection\t\t\t: %s\n",
-		ec_api->devname, channel,
+		ec_api->devname, fe_chan,
 		(pChannelStats->fEnableExtToneDetection==TRUE) ? "TRUE" : "FALSE");
 
 	if (pChannelStats->ulToneDisablerStatus == cOCT6100_INVALID_STAT){
 		printf("%10s:%2d: Tone Disabler Status\t\t\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Tone Disabler Status\t\t\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStats->ulToneDisablerStatus==cOCT6100_TONE_DISABLER_EC_DISABLED)?
 								"Disabled":"Enabled"); 
 	}
 	printf("%10s:%2d: Voice activity is detected on SIN port\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStats->fSinVoiceDetected==TRUE)? "TRUE":
 			(pChannelStats->fSinVoiceDetected==FALSE)? "FALSE": "Unknown");
 	printf("%10s:%2d: Echo canceller has detected and converged\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStats->fEchoCancellerConverged==TRUE)? "TRUE":
 			(pChannelStats->fEchoCancellerConverged==FALSE)? "FALSE": "Unknown");
 	if (pChannelStats->lRinLevel == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Average power of signal level on RIN\t\t: Invalid\n",
-				ec_api->devname, channel);
+				ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Average power of signal level on RIN\t\t: %d dBm0\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStats->lRinLevel);
 	}
 	if (pChannelStats->lSinLevel == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Average power of signal level on SIN\t\t: Invalid\n",
-				ec_api->devname, channel);
+				ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Average power of signal level on SIN\t\t: %d dBm0\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStats->lSinLevel);
 	}
 	if (pChannelStats->lRinAppliedGain == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Current gain applied to signal level on RIN\t: Invalid\n",
-				ec_api->devname, channel);
+				ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Current gain applied to signal level on RIN\t: %d dB\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStats->lRinAppliedGain);
 	}
 	if (pChannelStats->lSoutAppliedGain == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Current gain applied to signal level on SOUT\t: Invalid\n",
-				ec_api->devname, channel);
+				ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Current gain applied to signal level on SOUT\t: %d dB\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStats->lSoutAppliedGain);
 	}
 	if (pChannelStats->lComfortNoiseLevel == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Average power of the comfort noise injected\t: Invalid\n",
-				ec_api->devname, channel);
+				ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Average power of the comfort noise injected\t: %d dBm0\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStats->lComfortNoiseLevel);
 	}
 
+	pChannelStatsTdm = &pChannelStats->TdmConfig;
+	printf("%10s:%2d: (TDM) PCM Law type on SIN\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsTdm->ulSinPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	printf("%10s:%2d: (TDM) TDM timeslot on SIN port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulSinTimeslot);
+	printf("%10s:%2d: (TDM) TDM stream on SIN port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulSinStream);
+	printf("%10s:%2d: (TDM) PCM Law type on RIN\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsTdm->ulRinPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	printf("%10s:%2d: (TDM) TDM timeslot on RIN port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulRinTimeslot);
+	printf("%10s:%2d: (TDM) TDM stream on RIN port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulRinStream);
+	printf("%10s:%2d: (TDM) PCM Law type on SOUT\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsTdm->ulSoutPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	printf("%10s:%2d: (TDM) TDM timeslot on SOUT port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulSoutTimeslot);
+	printf("%10s:%2d: (TDM) TDM stream on SOUT port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulSoutStream);
+	printf("%10s:%2d: (TDM) PCM Law type on ROUT\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsTdm->ulRoutPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	printf("%10s:%2d: (TDM) TDM timeslot on ROUT port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulRoutTimeslot);
+	printf("%10s:%2d: (TDM) TDM stream on ROUT port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulRoutStream);
+
 	pChannelStatsVqe = &pChannelStats->VqeConfig;
 	printf("%10s:%2d: (VQE) NLP status\t\t\t\t\t: %s\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fEnableNlp == TRUE) ? "TRUE" : "FALSE");
 	printf("%10s:%2d: (VQE) Enable Tail Displacement\t\t\t: %s\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fEnableTailDisplacement == TRUE) ? "TRUE" : "FALSE");
-	printf("%10s:%2d: (VQE) Echo Cancellation offset windowd (ms)\t: %d\n",
-				ec_api->devname, channel,
+	printf("%10s:%2d: (VQE) Offset of the Echo Cancellation window (ms)\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsVqe->ulTailDisplacement);
+	printf("%10s:%2d: (VQE) Echo Cancellation offset window (ms)\t: %d\n",
+				ec_api->devname, fe_chan,
 				pChannelStatsVqe->ulTailDisplacement);
 	printf("%10s:%2d: (VQE) Comfort noise mode\t\t\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_NORMAL) ? "NORMAL" :
 			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_FAST_LATCH) ? "FAST LATCH" :
 			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_EXTENDED) ? "EXTENDED" :
 			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_OFF) ? "OFF" : "UNKNOWN");
 	printf("%10s:%2d: (VQE) Acoustic Echo\t\t\t\t: %s\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fAcousticEcho == TRUE) ? "TRUE" : "FALSE");
 
 	printf("\n");
@@ -392,16 +436,17 @@ static int wanec_api_print_chan_stats(wan_ec_api_t *ec_api, int channel)
 	return 0;
 }
 
-static int wanec_api_print_full_chan_stats(wan_ec_api_t *ec_api, int channel)
+static int wanec_api_print_full_chan_stats(wan_ec_api_t *ec_api, int fe_chan)
 {
 	tPOCT6100_CHANNEL_STATS		pChannelStats;
+	tPOCT6100_CHANNEL_STATS_TDM	pChannelStatsTdm;
 	tPOCT6100_CHANNEL_STATS_VQE	pChannelStatsVqe;
 	tPOCT6100_CHANNEL_STATS_CODEC	pChannelStatsCodec;
 
 	pChannelStats = (tPOCT6100_CHANNEL_STATS)&ec_api->u_chan_stats.f_ChannelStats;
 	printf("%10s:%2d: Echo Channel Operation Mode\t\t\t: %s\n",
 					ec_api->devname,
-					channel,
+					fe_chan,
 		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_NORMAL)?
 								"NORMAL":
 		(pChannelStats->ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_HT_FREEZE)?
@@ -416,10 +461,10 @@ static int wanec_api_print_full_chan_stats(wan_ec_api_t *ec_api, int channel)
 								"SPEECH RECOGNITION":
 								"Unknown");
 	printf("%10s:%2d: Enable Tone Disabler\t\t\t\t\t: %s\n",
-		ec_api->devname, channel,
+		ec_api->devname, fe_chan,
 		(pChannelStats->fEnableToneDisabler==TRUE) ? "TRUE" : "FALSE");
 	printf("%10s:%2d: Mute Ports\t\t\t\t\t: %s\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_RIN) ?
 							"RIN" :
 		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_ROUT) ?
@@ -431,193 +476,240 @@ static int wanec_api_print_full_chan_stats(wan_ec_api_t *ec_api, int channel)
 		(pChannelStats->ulMutePortsMask==cOCT6100_CHANNEL_MUTE_PORT_NONE) ?
 							"NONE" : "Unknown");
 	printf("%10s:%2d: Enable Extended Tone Detection\t\t\t\t: %s\n",
-		ec_api->devname, channel,
+		ec_api->devname, fe_chan,
 		(pChannelStats->fEnableExtToneDetection==TRUE) ? "TRUE" : "FALSE");
 	if (pChannelStats->lCurrentERL == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Current Echo Return Loss\t\t\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Current Echo Return Loss\t\t\t\t: %d dB\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->lCurrentERL);
 	}
 	if (pChannelStats->lCurrentERLE == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Current Echo Return Loss Enhancement\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Current Echo Return Loss Enhancement\t\t: %d dB\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->lCurrentERLE);
 	}
 	if (pChannelStats->lMaxERL == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Maximum value of the ERL\t\t\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Maximum value of the ERL\t\t\t\t: %d dB\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->lMaxERL);
 	}
 	if (pChannelStats->lMaxERLE == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Maximum value of the ERLE\t\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Maximum value of the ERLE\t\t\t: %d dB\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->lMaxERLE);
 	}
 	if (pChannelStats->ulNumEchoPathChanges == cOCT6100_INVALID_STAT){
 		printf("%10s:%2d: Number of Echo Path changes\t\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Number of Echo Path changes\t\t\t: %d\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->ulNumEchoPathChanges);
 	}
 	if (pChannelStats->ulCurrentEchoDelay == cOCT6100_INVALID_STAT){
 		printf("%10s:%2d: Current Echo Delay\t\t\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Current Echo Delay\t\t\t\t: %d\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->ulCurrentEchoDelay);
 	}
 	if (pChannelStats->ulMaxEchoDelay == cOCT6100_INVALID_STAT){
 		printf("%10s:%2d: Maximum Echo Delay\t\t\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Maximum Echo Delay\t\t\t\t: %d\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->ulMaxEchoDelay);
 	}
 	if (pChannelStats->ulToneDisablerStatus == cOCT6100_INVALID_STAT){
 		printf("%10s:%2d: Tone Disabler Status\t\t\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Tone Disabler Status\t\t\t\t: %s\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 			(pChannelStats->ulToneDisablerStatus==cOCT6100_TONE_DISABLER_EC_DISABLED)?
 								"Disabled":"Enabled"); 
 	}
 	printf("%10s:%2d: Voice activity is detected on SIN port\t\t: %s\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 		(pChannelStats->fSinVoiceDetected==TRUE)? "TRUE":
 		(pChannelStats->fSinVoiceDetected==FALSE)? "FALSE": "Unknown");
 	printf("%10s:%2d: Echo canceller has detected and converged\t: %s\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 		(pChannelStats->fEchoCancellerConverged==TRUE)? "TRUE":
 		(pChannelStats->fEchoCancellerConverged==FALSE)? "FALSE": "Unknown");
 	if (pChannelStats->lRinLevel == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Average power of signal level on RIN\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Average power of signal level on RIN\t\t: %d dBm0\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->lRinLevel);
 	}
 	if (pChannelStats->lSinLevel == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Average power of signal level on SIN\t\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Average power of signal level on SIN\t\t: %d dBm0\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->lSinLevel);
 	}
 	if (pChannelStats->lRinAppliedGain == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Current gain applied to signal level on RIN\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Current gain applied to signal level on RIN\t: %d dB\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->lRinAppliedGain);
 	}
 	if (pChannelStats->lSoutAppliedGain == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Current gain applied to signal level on SOUT\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Current gain applied to signal level on SOUT\t: %d dB\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->lSoutAppliedGain);
 	}
 	if (pChannelStats->lComfortNoiseLevel == cOCT6100_INVALID_SIGNED_STAT){
 		printf("%10s:%2d: Average power of the comfort noise injected\t: Invalid\n",
-					ec_api->devname, channel);
+					ec_api->devname, fe_chan);
 	}else{
 		printf("%10s:%2d: Average power of the comfort noise injected\t: %d dBm0\n",
-					ec_api->devname, channel,
+					ec_api->devname, fe_chan,
 					pChannelStats->lComfortNoiseLevel);
 	}
 
+	pChannelStatsTdm = &pChannelStats->TdmConfig;
+	printf("%10s:%2d: (TDM) PCM Law type on SIN\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsTdm->ulSinPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	printf("%10s:%2d: (TDM) TDM timeslot on SIN port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulSinTimeslot);
+	printf("%10s:%2d: (TDM) TDM stream on SIN port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulSinStream);
+	printf("%10s:%2d: (TDM) PCM Law type on RIN\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsTdm->ulRinPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	printf("%10s:%2d: (TDM) TDM timeslot on RIN port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulRinTimeslot);
+	printf("%10s:%2d: (TDM) TDM stream on RIN port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulRinStream);
+	printf("%10s:%2d: (TDM) PCM Law type on SOUT\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsTdm->ulSoutPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	printf("%10s:%2d: (TDM) TDM timeslot on SOUT port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulSoutTimeslot);
+	printf("%10s:%2d: (TDM) TDM stream on SOUT port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulSoutStream);
+	printf("%10s:%2d: (TDM) PCM Law type on ROUT\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsTdm->ulRoutPcmLaw == cOCT6100_PCM_U_LAW) ? "ULAW" : "ALAW");
+	printf("%10s:%2d: (TDM) TDM timeslot on ROUT port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulRoutTimeslot);
+	printf("%10s:%2d: (TDM) TDM stream on ROUT port\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsTdm->ulRoutStream);
+
 	pChannelStatsVqe = &pChannelStats->VqeConfig;
 	printf("%10s:%2d: (VQE) NLP status\t\t\t\t\t: %s\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fEnableNlp == TRUE) ? "TRUE" : "FALSE");
 	printf("%10s:%2d: (VQE) Enable Tail Displacement\t\t\t: %s\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fEnableTailDisplacement == TRUE) ? "TRUE" : "FALSE");
+	printf("%10s:%2d: (VQE) Offset of the Echo Cancellation window (ms)\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsVqe->ulTailDisplacement);
 	printf("%10s:%2d: (VQE) Maximum tail length\t\t\t: %d ms\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStatsVqe->ulTailLength);
 	printf("%10s:%2d: (VQE) Rin Level control mode\t\t\t: %s\n",
-				ec_api->devname, channel,
-				(pChannelStatsVqe->fRinLevelControl == TRUE) ? "Enable" : "BYPASSED");
+				ec_api->devname, fe_chan,
+				(pChannelStatsVqe->fRinLevelControl == TRUE) ? "Enable" : "TRUE");
 	printf("%10s:%2d: (VQE) Rin Control Signal gain\t\t\t: %d dB\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStatsVqe->lRinLevelControlGainDb);
 	printf("%10s:%2d: (VQE) Sout Level control mode\t\t\t: %s\n",
-				ec_api->devname, channel,
-				(pChannelStatsVqe->fSoutLevelControl == TRUE) ? "Enable" : "BYPASSED");
+				ec_api->devname, fe_chan,
+				(pChannelStatsVqe->fSoutLevelControl == TRUE) ? "Enable" : "TRUE");
 	printf("%10s:%2d: (VQE) Sout Control Signal gain\t\t\t: %d dB\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStatsVqe->lSoutLevelControlGainDb);
 	printf("%10s:%2d: (VQE) RIN Automatic Level Control\t\t: %s\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fRinAutomaticLevelControl == TRUE) ? "TRUE" : "FALSE");
 	printf("%10s:%2d: (VQE) RIN Target Level Control\t\t\t: %d dBm0\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStatsVqe->lRinAutomaticLevelControlTargetDb);
 	printf("%10s:%2d: (VQE) SOUT Automatic Level Control\t\t: %s\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fSoutAutomaticLevelControl == TRUE) ? "TRUE" : "FALSE");
 	printf("%10s:%2d: (VQE) SOUT Target Level Control\t\t\t: %d dBm0\n",
-				ec_api->devname, channel,
+				ec_api->devname, fe_chan,
 				pChannelStatsVqe->lSoutAutomaticLevelControlTargetDb);
 	printf("%10s:%2d: (VQE) Comfort noise mode\t\t\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_NORMAL) ? "NORMAL" :
 			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_FAST_LATCH) ? "FAST LATCH" :
 			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_EXTENDED) ? "EXTENDED" :
 			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_OFF) ? "OFF" : "UNKNOWN");
+	printf("%10s:%2d: (VQE) Remove any DTMF tone detection on SIN port\t: %s\n",
+			ec_api->devname, fe_chan,
+			(pChannelStatsVqe->fDtmfToneRemoval == TRUE) ? "TRUE" : "FALSE");
 	printf("%10s:%2d: (VQE) Acoustic Echo\t\t\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStatsVqe->fAcousticEcho == TRUE) ? "TRUE" : "FALSE");
 
 	printf("%10s:%2d: (VQE) Non Linearity Behavior A\t\t\t: %d\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			pChannelStatsVqe->ulNonLinearityBehaviorA);
 	printf("%10s:%2d: (VQE) Non Linearity Behavior B\t\t\t: %d\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			pChannelStatsVqe->ulNonLinearityBehaviorB);
 	printf("%10s:%2d: (VQE) Double Talk algorithm\t\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStatsVqe->ulDoubleTalkBehavior==cOCT6100_DOUBLE_TALK_BEH_NORMAL)?"NORMAL":
 									"LESS AGGRESSIVE");
 	printf("%10s:%2d: (VQE) Default ERL (not converged)\t\t: %d dB\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			pChannelStatsVqe->lDefaultErlDb);
 	printf("%10s:%2d: (VQE) Acoustic Echo Cancellation default ERL\t: %d dB\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			pChannelStatsVqe->lAecDefaultErlDb);
 	printf("%10s:%2d: (VQE) Maximum Acoustic Echo tail length\t\t: %d ms\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			pChannelStatsVqe->ulAecTailLength);
+	printf("%10s:%2d: (VQE) Attenuation Level applied to the noise signal\t: %d dB\n",
+			ec_api->devname, fe_chan,
+			pChannelStatsVqe->lAnrSnrEnhancementDb);
 
 	pChannelStatsCodec = &pChannelStats->CodecConfig;
 	printf("%10s:%2d: (CODEC) Encoder channel port\t\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStatsCodec->ulEncoderPort == cOCT6100_CHANNEL_PORT_ROUT) ? "ROUT":
 			(pChannelStatsCodec->ulEncoderPort == cOCT6100_CHANNEL_PORT_SOUT) ? "SOUT":"NO ENCODING");
 	printf("%10s:%2d: (CODEC) Encoder rate\t\t\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G711_64KBPS) ? "G.711 64 kBps":
 			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G726_40KBPS) ? "G.726 40 kBps":
 			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G726_32KBPS) ? "G.726 32 kBps":
@@ -634,11 +726,11 @@ static int wanec_api_print_full_chan_stats(wan_ec_api_t *ec_api, int channel)
 			(pChannelStatsCodec->ulEncodingRate == cOCT6100_G727_16KBPS_2_0) ? "G.727 16 kBps (2:0)":
 											"UNKNOWN");
 	printf("%10s:%2d: (CODEC) Decoder channel port\t\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStatsCodec->ulDecoderPort == cOCT6100_CHANNEL_PORT_RIN) ? "RIN":
 			(pChannelStatsCodec->ulDecoderPort == cOCT6100_CHANNEL_PORT_SIN) ? "SIN":"NO DECODING");
 	printf("%10s:%2d: (CODEC) Decoder rate\t\t\t\t: %s\n",
-			ec_api->devname, channel,
+			ec_api->devname, fe_chan,
 			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G711_64KBPS) ? "G.711 64 kBps":
 			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G726_40KBPS) ? "G.726 40 kBps":
 			(pChannelStatsCodec->ulDecodingRate == cOCT6100_G726_32KBPS) ? "G.726 32 kBps":
@@ -673,128 +765,166 @@ int wanec_api_init(void)
 	return 0;
 }
 
-int wanec_api_config(	char*		devname,
-			int		verbose)
+int wanec_api_config(	char			*devname,
+			int			verbose,
+			wanec_api_config_t	*conf)
 {
-	
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd	= WAN_EC_CMD_CONFIG;
 	ec_api.verbose	= wanec_api_verbose(verbose);
-	return wanec_api_lib_config(&ec_api, 1);
+	ec_api.cmd	= WAN_EC_API_CMD_CONFIG;
+	if (conf->conf.param_no){
+		memcpy(	&ec_api.custom_conf,
+			&conf->conf,
+			sizeof(wan_custom_conf_t));
+	}
+	return wanec_api_lib_cmd(&ec_api);	//return wanec_api_lib_config(&ec_api, 1);
 }
 
-int wanec_api_release(	char*		devname,
-			int		verbose)
+int wanec_api_release(	char			*devname,
+			int			verbose,
+			wanec_api_release_t	*release)
 {
-		
+
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd	= WAN_EC_CMD_RELEASE;
 	ec_api.verbose	= wanec_api_verbose(verbose);
+	ec_api.cmd	= WAN_EC_API_CMD_RELEASE;
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_enable(	char*		devname,
-			unsigned long	channel_map,
-			int		verbose)
+int wanec_api_mode(	char			*devname,
+			int			verbose,
+			wanec_api_mode_t	*mode)
 {
 		
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd		= WAN_EC_CMD_ENABLE;
 	ec_api.verbose		= wanec_api_verbose(verbose);
-	ec_api.channel_map	= channel_map;
+	ec_api.cmd		= (mode->enable) ? 
+					WAN_EC_API_CMD_ENABLE :
+					WAN_EC_API_CMD_DISABLE;
+	ec_api.fe_chan_map	= mode->fe_chan_map;
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_disable(	char*		devname,
-			unsigned long	channel_map,
-			int		verbose)
+int wanec_api_bypass(	char			*devname,
+			int			verbose,
+			wanec_api_bypass_t	*bypass)
 {
 		
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd		= WAN_EC_CMD_DISABLE;
-	ec_api.verbose		= wanec_api_verbose(verbose);
-	ec_api.channel_map	= channel_map;
-	return wanec_api_lib_cmd(&ec_api);
-}
-
-int wanec_api_bypass(	char*		devname,
-			int		enable,
-			unsigned long	channel_map,
-			int		verbose)
-{
-		
-	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd		= (enable) ?
-					WAN_EC_CMD_BYPASS_ENABLE : 
-					WAN_EC_CMD_BYPASS_DISABLE;
 	ec_api.verbose	= wanec_api_verbose(verbose);
-	ec_api.channel_map	= channel_map;
+	ec_api.cmd		= (bypass->enable) ?
+					WAN_EC_API_CMD_BYPASS_ENABLE : 
+					WAN_EC_API_CMD_BYPASS_DISABLE;
+	ec_api.fe_chan_map	= bypass->fe_chan_map;
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_mode(	char*		devname,
-			int		mode,
-			unsigned long	channel_map,
-			int		verbose)
+int wanec_api_opmode(	char			*devname,
+			int			verbose,
+			wanec_api_opmode_t	*opmode)
 {
 		
 	memcpy(ec_api.devname, devname, strlen(devname));
-	switch(mode){
-	case 0:
-		ec_api.cmd = WAN_EC_CMD_MODE_POWERDOWN;
+	ec_api.verbose		= wanec_api_verbose(verbose);
+	ec_api.cmd		= WAN_EC_API_CMD_OPMODE;
+	ec_api.fe_chan_map	= opmode->fe_chan_map;
+	switch(opmode->mode){
+	case WANEC_API_OPMODE_NORMAL:
+		ec_api.u_chan_opmode.opmode = cOCT6100_ECHO_OP_MODE_NORMAL;
 		break;
-	case 1:
-		ec_api.cmd = WAN_EC_CMD_MODE_NORMAL;
+	case WANEC_API_OPMODE_HT_FREEZE:
+		ec_api.u_chan_opmode.opmode = cOCT6100_ECHO_OP_MODE_HT_FREEZE;
 		break;
-	case 2:
-		ec_api.cmd = WAN_EC_CMD_MODIFY_CHANNEL;
+	case WANEC_API_OPMODE_HT_RESET:
+		ec_api.u_chan_opmode.opmode = cOCT6100_ECHO_OP_MODE_HT_RESET;
+		break;
+	case WANEC_API_OPMODE_POWER_DOWN:
+		ec_api.u_chan_opmode.opmode = cOCT6100_ECHO_OP_MODE_POWER_DOWN;
+		break;
+	case WANEC_API_OPMODE_NO_ECHO:
+		ec_api.u_chan_opmode.opmode = cOCT6100_ECHO_OP_MODE_NO_ECHO;
+		break;
+	case WANEC_API_OPMODE_SPEECH_RECOGNITION:
+		ec_api.u_chan_opmode.opmode = cOCT6100_ECHO_OP_MODE_SPEECH_RECOGNITION;
 		break;
 	default:
 		return -EINVAL;
 	}
-	ec_api.verbose	= wanec_api_verbose(verbose);
-	ec_api.channel_map	= channel_map;
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_dtmf(	char*		devname,
-			int		enable,
-			unsigned long	channel_map,
-			unsigned char	port,
-			unsigned char	type,
-			int		verbose)
+int wanec_api_modify(	char			*devname,
+			int			verbose,
+			wanec_api_modify_t	*modify)
 {
 		
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd		= (enable) ?
-					WAN_EC_CMD_DTMF_ENABLE : 
-					WAN_EC_CMD_DTMF_DISABLE;
-	ec_api.verbose		= wanec_api_verbose(verbose);
-	ec_api.channel_map	= channel_map;
-	ec_api.u_dtmf_config.port = port;	//WAN_EC_CHANNEL_PORT_SOUT;
-	ec_api.u_dtmf_config.type = type;	//WAN_EC_TONE_PRESENT;
+	ec_api.verbose	= wanec_api_verbose(verbose);
+	ec_api.cmd = WAN_EC_API_CMD_MODIFY_CHANNEL;
+	ec_api.fe_chan_map	= modify->fe_chan_map;
+	if (modify->conf.param_no){
+		memcpy(	&ec_api.custom_conf,
+			&modify->conf,
+			sizeof(wan_custom_conf_t));
+	}
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int wanec_api_stats(	char*		devname,
-			int		full,
-			int		channel,
-			int		reset,
-			int		verbose)
+int wanec_api_mute(	char			*devname,
+			int			verbose,
+			wanec_api_mute_t	*mute)
+{
+		
+	memcpy(ec_api.devname, devname, strlen(devname));
+	ec_api.verbose	= wanec_api_verbose(verbose);
+	switch(mute->mode){
+	case 1:
+		ec_api.cmd = WAN_EC_API_CMD_CHANNEL_MUTE;
+		break;
+	case 2:
+		ec_api.cmd = WAN_EC_API_CMD_CHANNEL_UNMUTE;
+		break;
+	default:
+		return -EINVAL;
+	}
+	ec_api.fe_chan_map		= mute->fe_chan_map;
+	ec_api.u_chan_mute.port_map	= mute->port_map;
+	return wanec_api_lib_cmd(&ec_api);
+}
+
+int wanec_api_dtmf(	char			*devname,
+			int			verbose,
+			wanec_api_dtmf_t	*dtmf)
+{
+		
+	memcpy(ec_api.devname, devname, strlen(devname));
+	ec_api.verbose			= wanec_api_verbose(verbose);
+	ec_api.cmd			= (dtmf->enable) ?
+						WAN_EC_API_CMD_DTMF_ENABLE : 
+						WAN_EC_API_CMD_DTMF_DISABLE;
+	ec_api.fe_chan_map		= dtmf->fe_chan_map;
+	ec_api.u_dtmf_config.port_map	= dtmf->port_map;
+	ec_api.u_dtmf_config.type	= dtmf->type_map;
+	return wanec_api_lib_cmd(&ec_api);
+}
+
+int wanec_api_stats(	char			*devname,
+			int			verbose,
+			wanec_api_stats_t	*stats)
 {
 	int	err;
 	
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd			= (full) ?
-						WAN_EC_CMD_STATS_FULL : 
-						WAN_EC_CMD_STATS;
-	ec_api.verbose			= wanec_api_verbose(verbose);
-	if (channel){
-		ec_api.channel_map		= (1 << channel);
-		ec_api.u_chan_stats.reset 	= reset;
+	ec_api.verbose	= wanec_api_verbose(verbose);
+	ec_api.cmd	= (stats->full) ?
+				WAN_EC_API_CMD_STATS_FULL : 
+				WAN_EC_API_CMD_STATS;
+	if (stats->fe_chan){
+		ec_api.fe_chan_map		= (1 << stats->fe_chan);
+		ec_api.u_chan_stats.reset 	= stats->reset;
 	}else{
-		ec_api.channel_map		= 0;
-		ec_api.u_chip_stats.reset 	= reset;
+		ec_api.fe_chan_map		= 0;
+		ec_api.u_chip_stats.reset 	= stats->reset;
 #if 0
 		if (full){
 			ec_api.u_chip_stats.f_ChipImageInfo =
@@ -808,103 +938,101 @@ int wanec_api_stats(	char*		devname,
 	if (err) return err;
 	if (ec_api.err) return 0;
 
-	if (channel){
-		if (ec_api.cmd == WAN_EC_CMD_STATS){
-			err = wanec_api_print_chan_stats(&ec_api, channel);
+	if (!stats->silent){
+		if (stats->fe_chan){
+			if (ec_api.cmd == WAN_EC_API_CMD_STATS){
+				err = wanec_api_print_chan_stats(
+						&ec_api, stats->fe_chan);
+			}else{
+				err = wanec_api_print_full_chan_stats(
+						&ec_api, stats->fe_chan);
+			}
 		}else{
-			err = wanec_api_print_full_chan_stats(&ec_api, channel);
-		}
-	}else{
-		if (ec_api.cmd == WAN_EC_CMD_STATS){
-			err = wanec_api_print_chip_stats(&ec_api);
-		}else{
-			err = wanec_api_print_full_chip_stats(&ec_api);
+			if (ec_api.cmd == WAN_EC_API_CMD_STATS){
+				err = wanec_api_print_chip_stats(&ec_api);
+			}else{
+				err = wanec_api_print_full_chip_stats(&ec_api);
+			}
 		}
 	}
 	return err;
 
 }
 
-int wanec_api_tone_load(char*	devname,
-			char*	tone,
-			int	verbose)
+int wanec_api_buffer_load(char			*devname,
+			int			verbose,
+			wanec_api_bufferload_t	*bufferload)
 {
 	int	err;
 
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd	= WAN_EC_CMD_TONE_LOAD;
 	ec_api.verbose	= wanec_api_verbose(verbose);
-	memcpy(ec_api.u_tone_config.tone, tone, strlen(tone));	
-	
-	err = wanec_api_lib_toneload(&ec_api);
+	ec_api.cmd	= WAN_EC_API_CMD_BUFFER_LOAD;
+	memcpy(ec_api.u_buffer_config.buffer, bufferload->buffer, strlen(bufferload->buffer));
+	ec_api.u_buffer_config.pcmlaw = (UINT32)bufferload->pcmlaw;	
+	err = wanec_api_lib_bufferload(&ec_api);
 	if (err) return err;
-	if (ec_api.err) return 0;
+	if (ec_api.err) return -EINVAL;
+	bufferload->buffer_id = ec_api.u_buffer_config.buffer_index;
 	return 0;
 }
 
-int wanec_api_tone_unload(	char*		devname,
-				unsigned int	tone_id,
-				int		verbose)
+int wanec_api_buffer_unload(	char				*devname,
+				int				verbose,
+				wanec_api_bufferunload_t	*bufferunload)
 {
 	int	err;
 
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd				= WAN_EC_CMD_TONE_LOAD;
 	ec_api.verbose	= wanec_api_verbose(verbose);
-	ec_api.u_tone_config.buffer_index	= (UINT32)tone_id;
+	ec_api.cmd = WAN_EC_API_CMD_BUFFER_UNLOAD;
+	ec_api.u_buffer_config.buffer_index	= (UINT32)bufferunload->buffer_id;
 	err = wanec_api_lib_cmd(&ec_api);
 	if (err) return err;
 	if (ec_api.err) return 0;
 	return 0;
 }
 
-int wanec_api_playout(	char*		devname,
-			int		start,
-			int		channel,
-			unsigned int	tone_id,
-			int		verbose)
+int wanec_api_playout(	char			*devname,
+			int			verbose,
+			wanec_api_playout_t	*playout)
 {
 	int	err;
 
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd	= (start) ? 
-				WAN_EC_CMD_PLAYOUT_START :
-				WAN_EC_CMD_PLAYOUT_STOP;
 	ec_api.verbose	= wanec_api_verbose(verbose);
-	ec_api.channel		= channel;
-	ec_api.channel_map	= (1 << channel);
-	ec_api.u_playout.index	= (UINT32)tone_id;
-	ec_api.u_playout.duration	= 5000;
+	ec_api.cmd	= (playout->start) ? 
+				WAN_EC_API_CMD_PLAYOUT_START :
+				WAN_EC_API_CMD_PLAYOUT_STOP;
+	ec_api.fe_chan			= playout->fe_chan;
+	ec_api.fe_chan_map		= (1 << playout->fe_chan);
+	ec_api.u_playout.index		= (UINT32)playout->buffer_id;
+	ec_api.u_playout.port		= playout->port;
+	ec_api.u_playout.repeat_cnt	= playout->repeat_cnt;
+	ec_api.u_playout.duration	= playout->duration;
+	ec_api.u_playout.notifyonstop	= playout->notifyonstop;
+	ec_api.u_playout.user_event_id	= playout->user_event_id;
 	err = wanec_api_lib_cmd(&ec_api);
 	if (err) return err;
 	if (ec_api.err) return 0;
 	return 0;
 }
 
-int wanec_api_monitor(	char*	devname,
-			int	channel,
-			int	verbose)
+int wanec_api_monitor(	char			*devname,
+			int			verbose,
+			wanec_api_monitor_t	*monitor)
 {
 	int	err;
 
 	memcpy(ec_api.devname, devname, strlen(devname));
-	ec_api.cmd			= WAN_EC_CMD_MONITOR;
 	ec_api.verbose	= wanec_api_verbose(verbose);
-	ec_api.channel			= channel;
-	ec_api.channel_map		= (1 << channel);
+	ec_api.cmd		= WAN_EC_API_CMD_MONITOR;
+	ec_api.fe_chan		= monitor->fe_chan;
+	ec_api.fe_chan_map	= (1 << monitor->fe_chan);
 	
-	err = wanec_api_lib_monitor(&ec_api);
+	err = wanec_api_lib_cmd(&ec_api);	//err = wanec_api_lib_monitor(&ec_api);
 	if (err) return err;
 	if (ec_api.err) return 0;
 	return 0;
 }
 
-int wanec_api_param(char *key, char *value)
-{
-	strlcpy(ec_api.param[ec_api.param_no].key,
-					key, MAX_PARAM_LEN); 
-	strlcpy(ec_api.param[ec_api.param_no].value,
-					value, MAX_VALUE_LEN); 
-	ec_api.param_no++;
-	return 0;
-}

@@ -1,5 +1,5 @@
 /*****************************************************************************
-* if_wanipe_common.h   Sangoma Driver/Socket common area definitions.
+* if_wanpipe_common.h   Sangoma Driver/Socket common area definitions.
 *
 * Author:       Nenad Corbic <ncorbic@sangoma.com>
 *
@@ -29,6 +29,10 @@
 # include <linux/wanpipe_common.h>
 # include <linux/wanpipe_kernel.h>
 # include <linux/if_wanpipe.h>
+#elif defined(__WINDOWS__)
+# include <wanpipe_debug.h>
+# include <wanpipe_common.h>
+# include <wanpipe_kernel.h>
 #endif
 
 
@@ -42,13 +46,10 @@ typedef struct {
 	int	 (*output) (netdevice_t*,netskb_t*,struct sockaddr*, struct rtentry*);
 #else
 	int	 (*send) (netskb_t* skb, netdevice_t*);
-#endif
 	struct net_device_stats* (*get_stats) (netdevice_t*);
-	int	 (*ioctl) (netdevice_t*, struct ifreq*, int);
-	void	 (*tx_timeout) (netdevice_t*);
-#if defined (__LINUX__)
-	int 	(*change_mtu)(netdevice_t *dev, int new_mtu);
 #endif
+	int	 (*ioctl) (netdevice_t*, struct ifreq*, wan_ioctl_cmd_t);
+	void	 (*tx_timeout) (netdevice_t*);
 } wanpipe_common_iface_t;
 
 typedef struct {
@@ -58,20 +59,41 @@ typedef struct {
 /*	netdevice_t	*next;	*/	/* netdevice_t 	*slave; */
 	void		*card;
 	netdevice_t	*dev;
+	struct mtx	ifmtx;
 	unsigned char	state;
 	unsigned char	usedby;
 	wan_tasklet_t	bh_task;
 	wan_timer_t	dev_timer;
 	struct socket	*sk;	/* Wanpipe Sock bind's here  (Not used)*/ 
 	unsigned int	protocol;
-	unsigned short lcn;
+	unsigned short  lcn;
 	void 		*lip;
 	unsigned int    lip_prot;
+	int		is_spppdev;	/* special mode for ADSL PPP_VC/PPP_LLC */
+# if defined(NETGRAPH)
+	char		ng_nodename [NG_NODELEN+1];
+	int		ng_running;
+	node_p		ng_node;
+	hook_p		ng_upper_hook;
+	hook_p		ng_lower_hook;
+	hook_p		ng_debug_hook;
+	int		ng_lowerhooks;
+	int		ng_upperhooks;
+	int		ng_datahooks;
+	struct ifqueue	lo_queue;
+	struct ifqueue	hi_queue;
+	short		ng_timeout;
+	struct callout	ng_timeout_handle;
+	u_long		ng_out_deficit;	/* output since last input */
+	u_char          ng_promisc;        /* promiscuous mode enabled */
+	u_char          ng_autoSrcAddr;    /* always overwrite source address */
+# endif
 #elif defined(__LINUX__)
 	/* !!! IMPORTANT !!! <- Do not move this parameter (GENERIC-PPP) */
 	void*		*prot_ptr;
 	netdevice_t 	*next;		/*slave;*/
 	void		*card;	
+	struct net_device_stats	if_stats;
 	
 	atomic_t receive_block;
 	atomic_t command;
@@ -98,6 +120,26 @@ typedef struct {
 	unsigned int	protocol;
 
 	void 		*lip;
+	unsigned int    lip_prot;
+#elif defined(__WINDOWS__)
+
+	void		*prot_ptr;
+	netdevice_t*	dev;
+	unsigned char	state;
+	unsigned char	usedby;
+
+	void		*card;	
+
+	void* sk;
+
+	void 		*lip;
+
+	//A104 additions
+	unsigned int	protocol;
+	wan_tasklet_t	bh_task;
+
+	//ADSL additions
+	wan_tasklet_t	wanpipe_task;    /* Immediate BH handler task */
 	unsigned int    lip_prot;
 #endif
 	int			is_netdev;

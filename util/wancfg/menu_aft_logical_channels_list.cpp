@@ -264,6 +264,8 @@ int menu_aft_logical_channels_list::create_logical_channels_list_str(string& men
 
   if(link_defs->card_version == A200_ADPTR_ANALOG){
       max_valid_number_of_logical_channels = MAX_FXOFXS_CHANNELS;
+  }else if(link_defs->card_version == AFT_ADPTR_ISDN){
+      max_valid_number_of_logical_channels = MAX_BRI_TIMESLOTS;
   }else{
     if(fe_cfg->media == WAN_MEDIA_T1){
 
@@ -320,6 +322,8 @@ int menu_aft_logical_channels_list::
   
   if(link_defs->card_version == A200_ADPTR_ANALOG){
       max_valid_number_of_logical_channels = MAX_FXOFXS_CHANNELS;
+  }else if(link_defs->card_version == AFT_ADPTR_ISDN){
+      max_valid_number_of_logical_channels = MAX_BRI_TIMESLOTS;
   }else{
     if(fe_cfg->media == WAN_MEDIA_T1){
 

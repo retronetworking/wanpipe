@@ -28,13 +28,11 @@
 # include <wanpipe_codec.h>
 #elif (defined __WINDOWS__)
 # include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
 # include <wanpipe.h>
 # include <wanpipe_codec.h>
 
 #define __init
+#define inline __inline
 
 #define DBG_LAW	if(1)DbgPrint
 

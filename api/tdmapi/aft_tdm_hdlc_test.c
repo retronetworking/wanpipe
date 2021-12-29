@@ -48,12 +48,12 @@
 #define TRUE	1
 
 /* Enable/Disable tx of random frames */
-#define RAND_FRAME 1
+#define RAND_FRAME 0
 
 #define MAX_NUM_OF_TIMESLOTS  31*16
 
 #define LGTH_CRC_BYTES	2
-#define MAX_TX_DATA     5000 //MAX_NUM_OF_TIMESLOTS*10	/* Size of tx data */
+#define MAX_TX_DATA     1000 //MAX_NUM_OF_TIMESLOTS*10	/* Size of tx data */
 #define MAX_TX_FRAMES 	1000000     /* Number of frames to transmit */  
 
 #define WRITE 1
@@ -126,7 +126,6 @@ int MakeConnection(timeslot_t *slot, char *router_name )
 
 	int span,chan;
 	sangoma_span_chan_fromif(slot->if_name,&span,&chan);
-	printf("Socket bound %s to Span=%i Chan=%i\n\n",slot->if_name,span,chan);
 	
 	if (span > 0 && chan > 0) {
 		wanpipe_tdm_api_t tdm_api;
@@ -432,7 +431,7 @@ void process_con_tx(timeslot_t *slot)
 	 */
 
 	memset(&Tx_data[0],0,MAX_TX_DATA + sizeof(wp_tdm_api_tx_hdr_t));
-	slot->data=1;
+	slot->data=0;
 	for (i=0;i<Tx_hdlc_len;i++){
 		if (slot->data){
 			Tx_data[i+sizeof(wp_tdm_api_tx_hdr_t)] = slot->data;
@@ -480,7 +479,7 @@ void process_con_tx(timeslot_t *slot)
 			printf("TX DATA ORIG: Len=%i\n",Tx_hdlc_len);
 	      		print_packet(&Tx_data[sizeof(wp_tdm_api_tx_hdr_t)],Tx_hdlc_len);
 #endif		
-			wanpipe_hdlc_encode(hdlc_eng,&Tx_data[16],Tx_hdlc_len,&Tx_hdlc_data[16],(int*)&Tx_encoded_hdlc_len,&next_idle);
+			wanpipe_hdlc_encode(hdlc_eng,&Tx_data[16],Tx_hdlc_len,&Tx_hdlc_data[16],&Tx_encoded_hdlc_len,&next_idle);
 			if (Tx_encoded_hdlc_len < (max_tx_len*2)){
 				int j;
 				for (j=0;j<((max_tx_len*2) - Tx_encoded_hdlc_len);j++){

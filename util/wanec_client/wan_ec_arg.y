@@ -3,7 +3,9 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/ioctl.h>
@@ -12,26 +14,46 @@
 #include <wanpipe_events.h>
 #include "wanec_api.h"
 
-extern wanec_client_t	*gl_ec_client;
-extern int		action;
-extern char		yytext[];
-extern char		**targv;
-extern unsigned 	offset;
-static int		start_channel = 0, range = 0;
-extern int		gl_err;
+extern wanec_client_t		ec_client;
+extern wan_custom_conf_t	*custom_conf;
+extern int			action;
+extern char			yytext[];
+extern char			**targv;
+extern unsigned 		offset;
+static int			start_channel = 0, range = 0;
+extern int			gl_err;
 
 extern int yylex(void);
+extern int help(int);
 
-unsigned long convert_str(char* str, int type);
+long convert_str(char* str, int type);
 static int is_channel(unsigned long);
 void yyerror(char* msg);
+
+static int wanec_client_param_name(char *key);
+static int wanec_client_param_sValue(char*);
+static int wanec_client_param_dValue(unsigned int);
+
+extern int wanec_client_config(void);
+extern int wanec_client_release(void);
+extern int wanec_client_mode(int enable);
+extern int wanec_client_bypass(int enable);
+extern int wanec_client_opmode(int mode);
+extern int wanec_client_modify(void);
+extern int wanec_client_mute(int mode);
+extern int wanec_client_dtmf(int enable);
+extern int wanec_client_stats(int full);
+extern int wanec_client_bufferload(void);
+extern int wanec_client_bufferunload(unsigned long buffer_id);
+extern int wanec_client_playout(int start);
+extern int wanec_client_monitor(void);
 
 %}
 
 %union {
 #define YYSTYPE YYSTYPE
-	char*		str;
-	unsigned long	val;
+	char*	str;
+	long	val;
 }
 
 
@@ -45,7 +67,11 @@ void yyerror(char* msg);
 %token BYPASS_ENABLE_TOKEN
 %token BYPASS_DISABLE_TOKEN
 %token MODE_NORMAL_TOKEN
+%token MODE_HT_FREEZE_TOKEN
+%token MODE_HT_RESET_TOKEN
 %token MODE_POWERDOWN_TOKEN
+%token MODE_NO_ECHO_TOKEN
+%token MODE_SPEECH_RECOGNITION_TOKEN
 %token DTMF_ENABLE_TOKEN
 %token DTMF_DISABLE_TOKEN
 %token STATS_TOKEN
@@ -55,12 +81,23 @@ void yyerror(char* msg);
 %token HELP1_TOKEN
 %token MONITOR_TOKEN
 %token MODIFY_TOKEN
-%token TONE_LOAD_TOKEN
-%token TONE_UNLOAD_TOKEN
+%token BUFFER_LOAD_TOKEN
+%token BUFFER_UNLOAD_TOKEN
 %token PLAYOUT_START_TOKEN
 %token PLAYOUT_STOP_TOKEN
+%token PCM_ULAW_TOKEN
+%token PCM_ALAW_TOKEN
 %token DURATION_TOKEN
+%token REPEAT_TOKEN
 %token TEST_TOKEN
+%token CUSTOM_PARAM_TOKEN
+%token MUTE_TOKEN
+%token UNMUTE_TOKEN
+%token RIN_PORT_TOKEN
+%token ROUT_PORT_TOKEN
+%token SIN_PORT_TOKEN
+%token SOUT_PORT_TOKEN
+%token ALL_PORT_TOKEN
 
 %token CHAR_STRING
 %token DEC_CONSTANT
@@ -72,135 +109,111 @@ void yyerror(char* msg);
 start_args	: TEST_TOKEN
 		  { action = WAN_EC_ACT_TEST; }
 		| CHAR_STRING
-		  { memcpy(gl_ec_client->devname, $<str>1, strlen($<str>1));
+		  { memcpy(ec_client.devname, $<str>1, strlen($<str>1));
 		    wanec_api_init(); }
 				command
 		;
 
-command		: CONFIG_TOKEN
-		  { gl_err = wanec_api_config(	gl_ec_client->devname,
-						gl_ec_client->verbose); }
+command		: CONFIG_TOKEN custom_param_list
+		  { gl_err = wanec_client_config(); }
 		| RELEASE_TOKEN
-		  { wanec_api_release(	gl_ec_client->devname,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_release(); }
 		| KILL_TOKEN
-		  { wanec_api_release(	gl_ec_client->devname,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_release(); }
 		| ENABLE_TOKEN		channel_map
-		  { wanec_api_enable(	gl_ec_client->devname,
-					gl_ec_client->channel_map,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_mode(1); }
 		| DISABLE_TOKEN		channel_map
-		  { wanec_api_disable(	gl_ec_client->devname,
-					gl_ec_client->channel_map,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_mode(0); }
 		| BYPASS_ENABLE_TOKEN	channel_map
-		  { wanec_api_bypass(	gl_ec_client->devname,
-					1,
-					gl_ec_client->channel_map,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_bypass(1); }
 		| BYPASS_DISABLE_TOKEN	channel_map
-		  { wanec_api_bypass(	gl_ec_client->devname,
-					0,
-					gl_ec_client->channel_map,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_bypass(0); }
 		| MODE_NORMAL_TOKEN	channel_map
-		  { wanec_api_mode(	gl_ec_client->devname,
-					1,
-					gl_ec_client->channel_map,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_opmode(WANEC_API_OPMODE_NORMAL); }
+		| MODE_HT_FREEZE_TOKEN	channel_map
+		  { gl_err = wanec_client_opmode(WANEC_API_OPMODE_HT_FREEZE); }
+		| MODE_HT_RESET_TOKEN	channel_map
+		  { gl_err = wanec_client_opmode(WANEC_API_OPMODE_HT_RESET); }
 		| MODE_POWERDOWN_TOKEN	channel_map
-		  { wanec_api_mode(	gl_ec_client->devname,
-					0,
-					gl_ec_client->channel_map,
-					gl_ec_client->verbose); }
-		| DTMF_ENABLE_TOKEN	channel_map
-		  { wanec_api_dtmf(	gl_ec_client->devname,
-					1,
-					gl_ec_client->channel_map,
-					WAN_EC_CHANNEL_PORT_SOUT,
-					WAN_EC_TONE_PRESENT,
-					gl_ec_client->verbose); }
-		| DTMF_DISABLE_TOKEN	channel_map
-		  { wanec_api_dtmf(	gl_ec_client->devname,
-					0,
-					gl_ec_client->channel_map,
-					WAN_EC_CHANNEL_PORT_SOUT,
-					WAN_EC_TONE_PRESENT,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_opmode(WANEC_API_OPMODE_POWER_DOWN); }
+		| MODE_NO_ECHO_TOKEN	channel_map
+		  { gl_err = wanec_client_opmode(WANEC_API_OPMODE_NO_ECHO); }
+		| MODE_SPEECH_RECOGNITION_TOKEN	channel_map
+		  { gl_err = wanec_client_opmode(WANEC_API_OPMODE_SPEECH_RECOGNITION); }
+		| MODIFY_TOKEN		channel_map custom_param_list
+		  { gl_err = wanec_client_modify(); }
+		| MUTE_TOKEN		channel_map port_list
+		  { gl_err = wanec_client_mute(1); }
+		| UNMUTE_TOKEN		channel_map port_list
+		  { gl_err = wanec_client_mute(2); }
+		| DTMF_ENABLE_TOKEN	channel_map port_list
+		  { gl_err = wanec_client_dtmf(1); }
+		| DTMF_DISABLE_TOKEN	channel_map port_list
+		  { gl_err = wanec_client_dtmf(0); }
 		| STATS_TOKEN		stats_debug_args
-		  { wanec_api_stats(	gl_ec_client->devname,
-					0,
-					gl_ec_client->channel,
-					0,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_stats(0); }
 		| STATS_FULL_TOKEN	stats_debug_args
-		  { wanec_api_stats(	gl_ec_client->devname,
-					1,
-					gl_ec_client->channel,
-					0,
-					gl_ec_client->verbose); }
-		| TONE_LOAD_TOKEN	CHAR_STRING
-		  {  wanec_api_tone_load(	gl_ec_client->devname,
-						$<str>2,
-						gl_ec_client->verbose); }
-		| TONE_UNLOAD_TOKEN	DEC_CONSTANT
-		  { wanec_api_tone_unload(	gl_ec_client->devname,
-						$<val>2,
-						gl_ec_client->verbose); }
+		  { gl_err = wanec_client_stats(1); }
+		| BUFFER_LOAD_TOKEN	CHAR_STRING 
+		  { strcpy(ec_client.filename,$<str>2); }
+			buffer_load_args
+		  { gl_err = wanec_client_bufferload(); }
+		| BUFFER_UNLOAD_TOKEN	DEC_CONSTANT
+		  { gl_err = wanec_client_bufferunload($<val>2); }
 		| PLAYOUT_START_TOKEN	DEC_CONSTANT
-		  { gl_ec_client->channel = $<val>2; }
+		  { ec_client.fe_chan = $<val>2; }
 					DEC_CONSTANT
-		  { wanec_api_playout(	gl_ec_client->devname,
-					1,
-					gl_ec_client->channel,
-					$<val>4,
-					gl_ec_client->verbose); }	
-						playout_args
+		  { ec_client.buffer_id = $<val>4; 
+		    ec_client.repeat_cnt = 1; }
+						playout_start_args
+		  { gl_err = wanec_client_playout(1); }
 		| PLAYOUT_STOP_TOKEN	DEC_CONSTANT
-		  { gl_ec_client->channel = $<val>2; }
+		  { ec_client.fe_chan = $<val>2; }
 					DEC_CONSTANT
-		  { wanec_api_playout(	gl_ec_client->devname,
-					0,
-					gl_ec_client->channel,
-					$<val>4,
-					gl_ec_client->verbose); }	
+		  { ec_client.buffer_id = $<val>4; }
+					port
+		  { ec_client.port = $<val>6; gl_err = wanec_client_playout(0); }
 		| MONITOR_TOKEN		stats_debug_args
-		  { wanec_api_monitor(	gl_ec_client->devname,
-					gl_ec_client->channel,
-					gl_ec_client->verbose); }
-		| MODIFY_TOKEN		channel_map
-		  { wanec_api_mode(	gl_ec_client->devname,
-					2,
-					gl_ec_client->channel_map,
-					gl_ec_client->verbose); }
+		  { gl_err = wanec_client_monitor(); }
 		;
 
-playout_args	: /* empty */
-		| playout_args playout_arg
-		;
+buffer_load_args	: 
+			| PCM_ULAW_TOKEN
+			  { ec_client.pcmlaw = WAN_EC_PCM_U_LAW; }
+			| PCM_ALAW_TOKEN
+			  { ec_client.pcmlaw = WAN_EC_PCM_A_LAW; }
+			;
+
+playout_start_args	: /* empty */
+			| playout_start_args playout_start_arg
+			;
 		
-playout_arg	: DURATION_TOKEN DEC_CONSTANT
-		;
+playout_start_arg	: DURATION_TOKEN DEC_CONSTANT
+			  { ec_client.duration = $<val>2; }
+			| REPEAT_TOKEN DEC_CONSTANT
+			  { ec_client.repeat_cnt = $<val>2; }
+			| port
+			  { ec_client.port = $<val>1; }
+			;
 		
 channel_map	: ALL_TOKEN
-		  { gl_ec_client->channel_map = 0xFFFFFFFF; }
+		  { ec_client.fe_chan_map = 0xFFFFFFFF; }
 		| channel_list
 		;
 
 channel_list	: /* empty */
-		  { gl_ec_client->channel_map = 0xFFFFFFFF; } 
+		  { ec_client.fe_chan_map = 0xFFFFFFFF; } 
 		| DEC_CONSTANT
 		  { is_channel($<val>1);
 		    if (range){
 			int	i=0;
 			for(i=start_channel;i<=$<val>1;i++){
-				gl_ec_client->channel_map |= (1<<i);
+				ec_client.fe_chan_map |= (1<<i);
 			}
 			start_channel=0;
 		        range = 0;
 		    }else{
-		  	gl_ec_client->channel_map |= (1 << $<val>1);
+		  	ec_client.fe_chan_map |= (1 << $<val>1);
 		    }
 		  }
 		| DEC_CONSTANT '-'
@@ -212,29 +225,75 @@ channel_list	: /* empty */
 		    if (range){
 			int	i=0;
 			for(i=start_channel;i<=$<val>1;i++){
-				gl_ec_client->channel_map |= (1<<i);
+				ec_client.fe_chan_map |= (1<<i);
 			}
 			start_channel=0;
 		        range = 0;
 		    }else{
-		  	gl_ec_client->channel_map |= (1 << $<val>1);
+		  	ec_client.fe_chan_map |= (1 << $<val>1);
 		    }
 		  }
 					channel_list
 		;
 		
 stats_debug_args:
-		  { gl_ec_client->channel = 0; gl_ec_client->channel_map = 0x00000000; }
+		  { ec_client.fe_chan = 0; ec_client.fe_chan_map = 0x00000000; }
 		| DEC_CONSTANT
 		  { is_channel($<val>1);
-		    gl_ec_client->channel = $<val>1; gl_ec_client->channel_map = (1<<$<val>1); }
+		    ec_client.fe_chan = $<val>1; ec_client.fe_chan_map = (1<<$<val>1); }
 		;
 
+port_list	: ALL_PORT_TOKEN
+		  { ec_client.port_map = 
+			WAN_EC_CHANNEL_PORT_SIN|WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_RIN|WAN_EC_CHANNEL_PORT_ROUT; }
+		| ports
+		;
+
+ports		: port
+		  { ec_client.port_map |= $<val>1; }
+		| port
+		  { ec_client.port_map |= $<val>1; }
+			ports
+		;
+		
+port		: SIN_PORT_TOKEN
+		  { $<val>$ = WAN_EC_CHANNEL_PORT_SIN; }
+		| SOUT_PORT_TOKEN
+		  { $<val>$ = WAN_EC_CHANNEL_PORT_SOUT; }
+		| RIN_PORT_TOKEN
+		  { $<val>$ = WAN_EC_CHANNEL_PORT_RIN; }
+		| ROUT_PORT_TOKEN
+		  { $<val>$ = WAN_EC_CHANNEL_PORT_ROUT; }
+		;
+			
+custom_param_list : 
+		| CUSTOM_PARAM_TOKEN CHAR_STRING '=' 
+		  { wanec_client_param_name($<str>2); }
+			custom_param_value custom_param_list
+		  ;
+
+custom_param_value : CHAR_STRING 
+		     { wanec_client_param_sValue($<str>1); }
+                   | DEC_CONSTANT
+		     { wanec_client_param_dValue($<val>1); }
+		   ;
 %%
 
-unsigned long convert_str(char* str, int type)
+#if 0
+custom_param_list:
+		| custom_param custom_param_list
+		;
+
+custom_param	: CUSTOM_PARAM_TOKEN CHAR_STRING '='
+		  { wanec_client_param_name($<str>2); }
+			CHAR_STRING
+		  { wanec_client_param_value($<str>5); }
+		;
+#endif
+
+long convert_str(char* str, int type)
 {
-	unsigned long value = 0;
+	long value = 0;
 	switch(type){
 	case DEC_CONSTANT:
 		sscanf(str, "%lu", &value);
@@ -258,7 +317,50 @@ static int is_channel(unsigned long channel)
 
 void yyerror(char* msg)
 {
-	printf("> %s (argv=%s,offset=%d)\n", msg, *targv, offset);
+	if (!ec_client.verbose){
+		printf("> %s\n", msg);
+		help (0);
+	}else{ 
+		printf("> %s (argv=%s,offset=%d)\n", msg, *targv, offset);
+	}
 	exit(1);
 }
 
+
+static int wanec_client_param_name(char *key)
+{
+	if (ec_client.conf.param_no == 0){
+		ec_client.conf.params = malloc(sizeof(wan_custom_param_t));
+		if (ec_client.conf.params == NULL){
+			printf("ERROR: Failed to allocate structure for custom configuration!\n");
+			return -EINVAL;
+		}
+		memset(ec_client.conf.params, 0, sizeof(wan_custom_param_t));
+	}
+	strlcpy(ec_client.conf.params[ec_client.conf.param_no].name, 
+					key, MAX_PARAM_LEN); 
+	return 0;
+}
+
+static int wanec_client_param_sValue(char *sValue)
+{
+	if (ec_client.conf.params == NULL){
+		printf("ERROR: Custom configuration structure is not allocated!\n");
+		return -EINVAL;
+	} 
+	strlcpy(ec_client.conf.params[ec_client.conf.param_no].sValue,
+					sValue, MAX_VALUE_LEN); 
+	ec_client.conf.param_no++;
+	return 0;
+}
+
+static int wanec_client_param_dValue(unsigned int dValue)
+{
+	if (ec_client.conf.params == NULL){
+		printf("ERROR: Custom configuration structure is not allocated!\n");
+		return -EINVAL;
+	} 
+	ec_client.conf.params[ec_client.conf.param_no].dValue = dValue;
+	ec_client.conf.param_no++;
+	return 0;
+}

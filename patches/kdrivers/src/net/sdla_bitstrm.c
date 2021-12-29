@@ -32,6 +32,11 @@
 #include <linux/wanproc.h>
 #include <linux/wanpipe_syncppp.h>
 
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
+# include "wanpipe_lapb_kernel.h"
+#endif
+
+
 
 /****** Defines & Macros ****************************************************/
 
@@ -219,6 +224,10 @@ typedef struct bitstrm_private_area
 	unsigned char	rbs_on;
 	unsigned char	rbs_chan;
 	unsigned char 	rbs_sig;
+	
+	netdevice_t *annexg_dev;
+	unsigned char label[WAN_IF_LABEL_SZ+1];
+
 
 	//FIXME: add driver stats as per frame relay!
 } bitstrm_private_area_t;
@@ -283,6 +292,14 @@ static void disable_comm (sdla_t *card);
 static int bstrm_comm_disable (sdla_t *card);
 static int bstrm_set_FE_config (sdla_t *card);
 
+
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
+static int bind_annexg(netdevice_t *dev, netdevice_t *annexg_dev);
+static netdevice_t * un_bind_annexg(wan_device_t *wandev, netdevice_t* annexg_dev_name);
+static int get_map(wan_device_t*, netdevice_t*, struct seq_file* m, int*);
+static void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
+			       void *wp_stats);
+#endif
 
 /* Interrupt handlers */
 static WAN_IRQ_RETVAL wpbit_isr (sdla_t* card);
@@ -475,7 +492,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_te_iface_init(&card->wandev.fe_iface);
+		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -484,7 +501,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 		card->wandev.fe_enable_timer = bstrm_enable_timer;
 		card->wandev.te_link_state = bstrm_handle_front_end_state;
 
-		conf->interface = 
+		conf->electrical_interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
 
 		if (card->u.b.comm_port == WANOPT_PRI){
@@ -501,7 +518,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -555,6 +572,15 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
  	card->wandev.new_if		= &new_if;
 	card->wandev.del_if		= &del_if;
 	card->wandev.udp_port   	= conf->udp_port;
+	
+	
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
+	card->wandev.bind_annexg	= &bind_annexg;
+	card->wandev.un_bind_annexg	= &un_bind_annexg;
+	card->wandev.get_map		= &get_map;
+	card->wandev.get_active_inactive= &get_active_inactive;
+#endif	
+	
 	card->wandev.new_if_cnt = 0;
 
 	// Proc fs functions
@@ -577,7 +603,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 	card->u.b.update_call_count = 0;
 	
 	card->wandev.ttl = conf->ttl;
-	card->wandev.interface = conf->interface; 
+	card->wandev.electrical_interface = conf->electrical_interface; 
 
 	card->wandev.clocking = conf->clocking;
 
@@ -877,13 +903,13 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 
 static int update (wan_device_t* wandev)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
  	netdevice_t* dev;
         bitstrm_private_area_t* bstrm_priv_area;
 	//unsigned long smp_flags;
 	
 	/* sanity checks */
-	if((wandev == NULL) || (wandev->private == NULL))
+	if((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	
 	if(wandev->state == WAN_UNCONFIGURED)
@@ -1011,7 +1037,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
 	int i;
 	struct sk_buff *skb;
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	bitstrm_private_area_t* bstrm_priv_area;
 	unsigned long smp_flags;
 	int err=0;
@@ -1199,6 +1225,17 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		bstrm_priv_area->protocol=0;
 		DEBUG_EVENT( "%s: Running in STACK mode !\n",
 			wandev->name);
+			
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG	
+	}else if (strcmp(conf->usedby, "ANNEXG") == 0) {
+		printk(KERN_INFO "%s:%s: Interface running in ANNEXG mode!\n",
+			wandev->name,bstrm_priv_area->if_name);
+		bstrm_priv_area->common.usedby=ANNEXG;	
+			
+		if (strlen(conf->label)){
+			strncpy(bstrm_priv_area->label,conf->label,WAN_IF_LABEL_SZ);
+		}
+#endif
 		
 	} else if( strcmp(conf->usedby, "SWITCH") == 0) {
 		bstrm_priv_area->common.usedby=SWITCH;
@@ -1398,7 +1435,8 @@ new_if_error:
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
 	bitstrm_private_area_t* bstrm_priv_area = dev->priv;
-	sdla_t *card = wandev->private;
+	bitstrm_private_area_t* chan = dev->priv;
+	sdla_t *card = wandev->priv;
 	int i;
 	unsigned long smp_flags;
 
@@ -1406,6 +1444,34 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 		return 0;
 	}
 
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG	
+	if (chan->common.usedby == ANNEXG && chan->annexg_dev){
+		netdevice_t *tmp_dev;
+		int err;
+
+		printk(KERN_INFO "%s: Unregistering Lapb Protocol\n",wandev->name);
+
+		if (!IS_FUNC_CALL(lapb_protocol,lapb_unregister)){
+			wan_spin_lock_irq(&wandev->lock, &smp_flags);
+			chan->annexg_dev = NULL;
+			wan_spin_unlock_irq(&wandev->lock, &smp_flags);
+			return 0;
+		}
+	
+		wan_spin_lock_irq(&wandev->lock, &smp_flags);
+		tmp_dev=chan->annexg_dev;
+		chan->annexg_dev=NULL;
+		wan_spin_unlock_irq(&wandev->lock, &smp_flags);
+
+		if ((err=lapb_protocol.lapb_unregister(tmp_dev))){
+			wan_spin_lock_irq(&wandev->lock, &smp_flags);
+			chan->annexg_dev=tmp_dev;
+			wan_spin_unlock_irq(&wandev->lock, &smp_flags);
+			return err;
+		}
+	}
+#endif
+	
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 	
 	if (test_bit(0,&card->in_isr)){
@@ -1638,14 +1704,14 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 
 					DEBUG_DBG("INTERFACE_LEVEL_V35\n");
 					
-					card->wandev.interface = WANOPT_V35;
+					card->wandev.electrical_interface = WANOPT_V35;
 					card->u.b.cfg.rx_complete_length = 720;
 					card->u.b.cfg.max_length_tx_data_block = 720;
 					card->u.b.time_slots = NO_ACTIVE_RX_TIME_SLOTS_T1;
 				}else{
 					DEBUG_DBG("INTERFACE_LEVEL_RS232\n");
 					
-					card->wandev.interface = WANOPT_RS232;
+					card->wandev.electrical_interface = WANOPT_RS232;
 					//Must be less than original 720, because
 					//default .conf file is for T1.
 					//It is max len which can be pushed into 
@@ -1654,11 +1720,9 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 					card->u.b.cfg.max_length_tx_data_block = 682;//divisible by 31
 					card->u.b.time_slots = NO_ACTIVE_RX_TIME_SLOTS_E1;
 				}
-
 				if (card->wandev.fe_iface.pre_release){
 					card->wandev.fe_iface.pre_release(&card->fe);
 				}
-
 				if (card->wandev.fe_iface.unconfig){
 					card->wandev.fe_iface.unconfig(&card->fe);
 				}
@@ -1989,10 +2053,10 @@ static void disable_comm (sdla_t *card)
 
 
 	/* TE1 - Unconfiging */
+	if (card->wandev.fe_iface.pre_release){
+		card->wandev.fe_iface.pre_release(&card->fe);
+	}
 	if (IS_TE1_CARD(card)) {
-		if (card->wandev.fe_iface.pre_release){
-			card->wandev.fe_iface.pre_release(&card->fe);
-		}
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -2025,7 +2089,14 @@ static void if_tx_timeout (netdevice_t *dev)
 	}else if (chan->common.usedby == STACK){
 		wanpipe_lip_kick(chan,0);
 	}
-
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
+	if (chan->common.usedby == ANNEXG && 
+			  chan->annexg_dev){
+		if (IS_FUNC_CALL(lapb_protocol,lapb_mark_bh)){
+			lapb_protocol.lapb_mark_bh(chan->annexg_dev);
+		}
+	}
+#endif
 }
 
 
@@ -2730,6 +2801,13 @@ static void bstrm_tx_bh (unsigned long data)
 				}else if (chan->common.usedby == STACK){
 					start_net_queue(chan->common.dev);	
 					wanpipe_lip_kick(chan,0);
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
+				}else if (chan->common.usedby == ANNEXG && 
+			  		chan->annexg_dev){
+					if (IS_FUNC_CALL(lapb_protocol,lapb_mark_bh)){
+						lapb_protocol.lapb_mark_bh(chan->annexg_dev);
+					}	
+#endif		
 				}else if (chan->common.usedby == SWITCH){
 					start_net_queue(chan->common.dev);
 				}else{
@@ -3246,7 +3324,9 @@ switch_hdlc_send:
 						goto tx_up_skb_recover;
 					}
 
-				}else{
+//ANNEXG RECEIVE
+					 
+				} else{
 					
 					buf = skb_push(new_skb,sizeof(api_rx_hdr_t));
 					memset(buf, 0, sizeof(api_rx_hdr_t));
@@ -3623,6 +3703,8 @@ static void calc_tx_crc(bitstrm_private_area_t *chan,unsigned char byte)
 static void tx_up_decode_pkt(bitstrm_private_area_t *chan)
 {
 	unsigned char *buf;
+	sdla_t *card = chan->card;
+	
 	struct sk_buff *skb = dev_alloc_skb(chan->rx_decode_len+sizeof(api_rx_hdr_t));
 	if (!skb){
 		DEBUG_EVENT( "%s: HDLC Tx up: failed to allocate memory!\n",
@@ -3634,17 +3716,62 @@ static void tx_up_decode_pkt(bitstrm_private_area_t *chan)
 
 	if (chan->common.usedby==STACK){
 				
+		buf = skb_put(skb,chan->rx_decode_len-2);
+		memcpy(buf, 
+		       chan->rx_decode_buf, 
+		       chan->rx_decode_len-2);
+	
 		if (wanpipe_lip_rx(chan,skb) != 0){
 			dev_kfree_skb_any(skb);
 			chan->card->wandev.stats.rx_dropped++;
 			chan->ifstats.rx_dropped++;
 		}else{
 			chan->card->wandev.stats.rx_packets++;
-			chan->card->wandev.stats.rx_bytes += chan->rx_decode_len;
+			chan->card->wandev.stats.rx_bytes += chan->rx_decode_len-2;
 			chan->ifstats.rx_packets++;
-			chan->ifstats.rx_bytes+=chan->rx_decode_len;
+			chan->ifstats.rx_bytes+=chan->rx_decode_len-2;
 		}
 	
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG		
+	} else if (chan->common.usedby == ANNEXG) {
+
+		if (!chan->annexg_dev) {
+			dev_kfree_skb_any(skb);
+			++card->wandev.stats.rx_dropped;	
+			chan->ifstats.rx_dropped++;
+			return;
+		} 
+
+		if ((chan->rx_decode_len) <= 2) {
+			DEBUG_EVENT("%s: Bad Rx Frame Length %i\n",
+					card->devname,chan->rx_decode_len);
+			dev_kfree_skb_any(skb);
+			++card->wandev.stats.rx_dropped;
+			chan->ifstats.rx_dropped++;
+			return;
+		}
+
+		buf = skb_put(skb,chan->rx_decode_len-2);
+		memcpy(buf, 
+		       chan->rx_decode_buf, 
+		       chan->rx_decode_len-2);
+	
+		skb->protocol = htons(ETH_P_X25);
+		skb->dev = chan->annexg_dev;
+		wan_skb_reset_mac_header(skb);
+	
+		if (IS_FUNC_CALL(lapb_protocol,lapb_rx)) {
+			lapb_protocol.lapb_rx(chan->annexg_dev,skb);
+			card->wandev.stats.rx_packets++;
+			card->wandev.stats.rx_bytes += chan->rx_decode_len-2;
+			chan->ifstats.rx_packets++;
+			chan->ifstats.rx_bytes+=chan->rx_decode_len-2;
+		} else {
+			dev_kfree_skb_any(skb);
+			++card->wandev.stats.rx_dropped;
+		}
+		
+#endif
 	}else if (chan->common.usedby==API || chan->common.usedby==SWITCH){
 
 		buf = skb_put(skb,sizeof(api_rx_hdr_t));
@@ -4236,7 +4363,7 @@ static int set_bstrm_config(sdla_t* card)
 		cfg.baud_rate = card->wandev.bps;
 	}
 	
-	cfg.line_config_options = (card->wandev.interface == WANOPT_RS232) ?
+	cfg.line_config_options = (card->wandev.electrical_interface == WANOPT_RS232) ?
 		INTERFACE_LEVEL_RS232 : INTERFACE_LEVEL_V35;
 
 	cfg.modem_config_options	= 0;
@@ -4592,7 +4719,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
             		/* Decapsulate pkt and pass it up the protocol stack */
 	    		new_skb->protocol = htons(ETH_P_IP);
             		new_skb->dev = dev;
-	    		wan_skb_reset_mac_header(new_skb);
+			wan_skb_reset_mac_header(new_skb);
 	
 			netif_rx(new_skb);
 		} else {
@@ -4944,6 +5071,21 @@ static void port_set_state (sdla_t *card, int state)
 				}else{
 					wanpipe_lip_disconnect(bstrm_priv_area,0);
 				}
+				
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
+			} else if (bstrm_priv_area->common.usedby == ANNEXG && 
+			    	   bstrm_priv_area->annexg_dev){
+				if (state == WAN_CONNECTED){ 
+					if (IS_FUNC_CALL(lapb_protocol,lapb_link_up)){
+						lapb_protocol.lapb_link_up(bstrm_priv_area->annexg_dev);
+					}
+				} else {
+					if (IS_FUNC_CALL(lapb_protocol,lapb_link_down)){
+						lapb_protocol.lapb_link_down(bstrm_priv_area->annexg_dev);
+					}
+				}
+			
+#endif
 			}else if (bstrm_priv_area->common.usedby == API){
 				wan_wakeup_api(bstrm_priv_area);
 				wan_update_api_state(bstrm_priv_area);
@@ -5060,6 +5202,7 @@ static int config_bstrm (sdla_t *card)
 		if (card->wandev.fe_iface.post_init){
 			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
+
 	}
 
 	
@@ -5153,10 +5296,10 @@ static int bstrm_get_config_info(void* priv, struct seq_file* m, int* stop_cnt)
 	wan_device_t*	wandev = (wan_device_t*)priv;
 	sdla_t*		card = NULL;
 
-	if (wandev == NULL || wandev->private == NULL)
+	if (wandev == NULL || wandev->priv == NULL)
 		return 0;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 	if (!card->comm_enabled){
 		DEBUG_EVENT( "DEBUG: Enable communication for Bit Streaming protocol\n");
 		bstrm_comm_enable (card);
@@ -5290,7 +5433,7 @@ static int bstrm_bind_dev_switch (sdla_t *card, bitstrm_private_area_t*chan, cha
 		return 0;
 	}
 	
-	sw_dev = wan_dev_get_by_name(sw_dev_name);
+	sw_dev = dev_get_by_name(sw_dev_name);
 	if (!sw_dev){
 		DEBUG_EVENT( "%s: Device %s waiting for switch device %s\n",
 				card->devname, chan->if_name,sw_dev_name);
@@ -5498,6 +5641,8 @@ static int protocol_shutdown (sdla_t *card, netdevice_t *dev)
 		wp_sppp_detach(dev);
 		
 		dev->do_ioctl = NULL;
+		dev->hard_header = NULL;
+		dev->rebuild_header = NULL;
 
 		if (chan->common.prot_ptr){
 			kfree(chan->common.prot_ptr);
@@ -5734,4 +5879,101 @@ static int send_rbs_oob_msg (sdla_t *card, bitstrm_private_area_t *chan)
 
 	return err;
 }
+
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
+static int bind_annexg(netdevice_t *dev, netdevice_t *annexg_dev)
+{
+	unsigned long smp_flags=0;
+	bitstrm_private_area_t* chan = dev->priv;
+	sdla_t *card = chan->card;
+	if (!chan)
+		return -EINVAL;
+
+	if (chan->common.usedby != ANNEXG)
+		return -EPROTONOSUPPORT;
+	
+	if (chan->annexg_dev)
+		return -EBUSY;
+
+	spin_lock_irqsave(&card->wandev.lock,smp_flags);
+	chan->annexg_dev = annexg_dev;
+	spin_unlock_irqrestore(&card->wandev.lock,smp_flags);
+	return 0;
+}
+
+
+static netdevice_t * un_bind_annexg(wan_device_t *wandev, netdevice_t *annexg_dev)
+{
+	struct wan_dev_le	*devle;
+	netdevice_t *dev;
+	unsigned long smp_flags=0;
+	sdla_t *card = wandev->priv;
+
+	WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
+		bitstrm_private_area_t* chan;
+		
+		dev = WAN_DEVLE2DEV(devle);
+		if (dev == NULL || (chan = wan_netif_priv(dev)) == NULL)
+			continue;
+
+		if (!chan->annexg_dev || chan->common.usedby != ANNEXG)
+			continue;
+
+		if (chan->annexg_dev == annexg_dev){
+			spin_lock_irqsave(&card->wandev.lock,smp_flags);
+			chan->annexg_dev = NULL;
+			spin_unlock_irqrestore(&card->wandev.lock,smp_flags);
+			return dev;
+		}
+	}
+	return NULL;
+}
+
+
+static void get_active_inactive(wan_device_t *wandev, netdevice_t *dev,
+			       void *wp_stats_ptr)
+{
+	bitstrm_private_area_t* 	chan = dev->priv;
+	wp_stack_stats_t *wp_stats = (wp_stack_stats_t *)wp_stats_ptr;
+
+	if (chan->common.usedby == ANNEXG && chan->annexg_dev){
+		if (IS_FUNC_CALL(lapb_protocol,lapb_get_active_inactive)){
+			lapb_protocol.lapb_get_active_inactive(chan->annexg_dev,wp_stats);
+		}
+	}
+	
+	if (chan->common.state == WAN_CONNECTED){
+		wp_stats->fr_active++;
+	}else{
+		wp_stats->fr_inactive++;
+	}	
+}
+
+static int 
+get_map(wan_device_t *wandev, netdevice_t *dev, struct seq_file* m, int* stop_cnt)
+{
+	bitstrm_private_area_t*	chan = dev->priv;
+
+	if (!(dev->flags&IFF_UP)){
+		return m->count;
+	}
+
+	if (chan->common.usedby == ANNEXG && chan->annexg_dev){
+		if (IS_FUNC_CALL(lapb_protocol,lapb_get_map)){
+			return lapb_protocol.lapb_get_map(chan->annexg_dev,
+							 m);
+		}
+	}
+
+	PROC_ADD_LINE(m,
+		"%15s:%s:%c:%s:%c\n",
+		chan->label, 
+		wandev->name,(wandev->state == WAN_CONNECTED) ? '*' : ' ',
+		dev->name,(chan->common.state == WAN_CONNECTED) ? '*' : ' ');
+
+	return m->count;
+}
+
+#endif
+
 

@@ -35,6 +35,7 @@
 #include "oct6100_version.h"
 
 #include "wanec_iface.h"
+#include "wanec_iface_api.h"
 
 #if !defined(__WINDOWS__)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)

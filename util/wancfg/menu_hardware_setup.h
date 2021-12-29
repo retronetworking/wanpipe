@@ -34,6 +34,7 @@ class menu_hardware_setup : public menu_base  {
   void form_s514_serial_options_menu(string& str, int& number_of_items);
   void form_s514_TE1_options_menu(string& str, int& number_of_items);
   void form_TE3_options_menu(string& str, int& number_of_items);
+	void form_AFT_Serial_options_menu(string& str, int& number_of_items);
 
 public:
 	
@@ -44,4 +45,48 @@ public:
   int run(OUT int * selection_index);
 };
 
+
+class menu_hardware_serial_connection_type : public menu_base  {
+
+  char lxdialog_path[MAX_PATH_LENGTH];
+  conf_file_reader* cfr;
+
+public: 
+	menu_hardware_serial_connection_type( IN char * lxdialog_path,
+                                        IN conf_file_reader* ptr_cfr);
+
+	~menu_hardware_serial_connection_type();
+
+  int run(OUT int * selection_index);
+};
+
+class menu_hardware_serial_line_coding : public menu_base  {
+
+  char lxdialog_path[MAX_PATH_LENGTH];
+  conf_file_reader* cfr;
+
+public: 
+	menu_hardware_serial_line_coding( IN char * lxdialog_path,
+                                    IN conf_file_reader* ptr_cfr);
+
+	~menu_hardware_serial_line_coding();
+
+  int run(OUT int * selection_index);
+};
+
+class menu_hardware_serial_line_idle : public menu_base  {
+
+  char lxdialog_path[MAX_PATH_LENGTH];
+  conf_file_reader* cfr;
+
+public: 
+	menu_hardware_serial_line_idle( IN char * lxdialog_path,
+                                  IN conf_file_reader* ptr_cfr);
+
+	~menu_hardware_serial_line_idle();
+
+  int run(OUT int * selection_index);
+};
+
 #endif
+

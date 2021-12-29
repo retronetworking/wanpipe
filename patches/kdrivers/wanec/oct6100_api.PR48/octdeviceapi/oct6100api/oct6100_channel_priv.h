@@ -526,4 +526,13 @@ INT32 Oct6100ApiOctFloatToDbEnergyHalf(
 UINT16 Oct6100ApiDbAmpHalfToOctFloat(
 				IN	INT32 x );
 
+UINT32 Oct6100ApiReserveBiDirChanEntry(
+				IN	tPOCT6100_INSTANCE_API		f_pApiInstance,
+				OUT	PUINT16				f_pusBiDirChanIndex );
+
+UINT32 Oct6100ApiReleaseBiDirChanEntry(
+				IN	tPOCT6100_INSTANCE_API		f_pApiInstance,
+				IN	UINT32				f_ulBiDirChanIndex );
+
+
 #endif /* __OCT6100_CHANNEL_PRIV_H__ */

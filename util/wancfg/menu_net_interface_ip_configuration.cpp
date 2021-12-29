@@ -413,10 +413,11 @@ as a default route?");
 
 	//if p-to-p is know use it for gateway, if not put '0.0.0.0'
 	if(interface_file_reader.if_config.point_to_point_ipaddr[0] != '\0'){
-		strcpy(interface_file_reader.if_config.gateway,
-		      interface_file_reader.if_config.point_to_point_ipaddr);
+		strlcpy(interface_file_reader.if_config.gateway,
+		      interface_file_reader.if_config.point_to_point_ipaddr,
+		      IF_CONFIG_BUF_LEN);
 	}else{
-		strcpy(interface_file_reader.if_config.gateway, "0.0.0.0");
+		strlcpy(interface_file_reader.if_config.gateway, "0.0.0.0",IF_CONFIG_BUF_LEN);
 	}
 		
         break;

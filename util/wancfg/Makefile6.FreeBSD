@@ -1,6 +1,6 @@
 # 05 Jun 93
 #
-# $Id: Makefile6.FreeBSD,v 1.1 2006/09/13 14:38:40 sangoma Exp $
+# $Id: Makefile6.FreeBSD,v 1.2 2007/04/12 20:43:51 sangoma Exp $
 #
 
 # Uncomment this to output debug messages
@@ -11,9 +11,9 @@ DEBUG=2
 
 .OBJDIR 	= /usr/obj${.CURDIR}
 BINDIR  	= /usr/local/sbin
-PROG    	= wancfg_bsd
+PROG    	= wancfg
 LDADD		= -ll -ly -lm -lstdc++
-CFLAGS		+= -Wall -O2 -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -I/usr/include/wanpipe
+CFLAGS		+= -Wall -O2 -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -I/common/include -I/wanpipe/code/include
 SRCS		= cpp_string.cpp\
 conf_file_reader.cpp\
 text_box_yes_no.cpp\

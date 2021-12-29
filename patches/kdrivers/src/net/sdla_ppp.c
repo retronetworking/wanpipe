@@ -439,7 +439,7 @@ int wpp_init(sdla_t *card, wandev_conf_t *conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_te_iface_init(&card->wandev.fe_iface);
+		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -447,14 +447,14 @@ int wpp_init(sdla_t *card, wandev_conf_t *conf)
 	
 		card->wandev.fe_enable_timer = ppp_enable_timer;
 		card->wandev.te_link_state = ppp_handle_front_end_state;
-		conf->interface = 
+		conf->electrical_interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
 		conf->clocking = WANOPT_EXTERNAL;
 
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -496,7 +496,7 @@ int wpp_init(sdla_t *card, wandev_conf_t *conf)
 		wp_min(conf->mtu, PPP_MAX_MTU) : PPP_DFLT_MTU;
 
 	card->wandev.bps	= conf->bps;
-	card->wandev.interface	= conf->interface;
+	card->wandev.electrical_interface	= conf->electrical_interface;
 	card->wandev.clocking	= conf->clocking;
 	card->isr		= &wpp_isr;
 	card->poll		= NULL; 
@@ -570,13 +570,13 @@ int wpp_init(sdla_t *card, wandev_conf_t *conf)
  */
 static int update(wan_device_t *wandev)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	netdevice_t	*dev;
         volatile ppp_private_area_t *ppp_priv_area;
 	unsigned long smp_flags;
 
 	/* sanity checks */
-	if ((wandev == NULL) || (wandev->private == NULL))
+	if ((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	
 	if (wandev->state == WAN_UNCONFIGURED)
@@ -655,7 +655,7 @@ static int update(wan_device_t *wandev)
  */
 static int new_if(wan_device_t *wandev, netdevice_t *dev, wanif_conf_t *conf)
 {
-	sdla_t *card = wandev->private;
+	sdla_t *card = wandev->priv;
 	ppp_private_area_t *ppp_priv_area;
 	int err = 0;
 
@@ -868,7 +868,6 @@ static void disable_comm (sdla_t *card)
 		if (card->wandev.fe_iface.pre_release){
 			card->wandev.fe_iface.pre_release(&card->fe);
 		}
-
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -894,6 +893,8 @@ static int if_init(netdevice_t *dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
+	dev->hard_header	= NULL;
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
@@ -2792,7 +2793,7 @@ static int config508(netdevice_t *dev, sdla_t *card)
 	if (card->wandev.clocking)
 		cfg.line_speed = card->wandev.bps;
 
-	if (card->wandev.interface == WANOPT_RS232)
+	if (card->wandev.electrical_interface == WANOPT_RS232)
 		cfg.conf_flags |= INTERFACE_LEVEL_RS232;
 
 
@@ -3405,7 +3406,7 @@ udp_dflt_cmd:
 			   stack */
 	    		new_skb->protocol = ppp_priv_area->protocol;
             		new_skb->dev = dev;
-	    		wan_skb_reset_mac_header(new_skb);
+			wan_skb_reset_mac_header(new_skb);
 
 			netif_rx(new_skb);
 		
@@ -3819,6 +3820,7 @@ static int config_ppp (sdla_t *card)
 					(IS_T1_CARD(card))?"T1":"E1");
 			return 0;
 		}
+		/* Run rest of initialization not from lock */
 		if (card->wandev.fe_iface.post_init){
 			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
@@ -3836,6 +3838,7 @@ static int config_ppp (sdla_t *card)
 				card->devname);
 			return 0;
 		}
+		/* Run rest of initialization not from lock */
 		if (card->wandev.fe_iface.post_init){
 			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
@@ -4236,7 +4239,7 @@ static int ppp_set_dev_config(struct file *file,
 	if (wandev == NULL)
 		return cnt;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	printk(KERN_INFO "%s: New device config (%s)\n",
 			wandev->name, buffer);

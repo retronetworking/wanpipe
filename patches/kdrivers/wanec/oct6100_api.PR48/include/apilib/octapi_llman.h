@@ -134,6 +134,7 @@ UINT32 OctApiLlm2ListLength( PVOID l, UINT32 list_handle, PUINT32 number_of_item
 UINT32 OctApiLlm2ListInsertItem(void * l, UINT32 list_handle, UINT32 item_key, void ** item_data_pnt, void ** prev_item_data_pnt, void ** prev_prev_item_data_pnt, PUINT32 insert_status_pnt );
 UINT32 OctApiLlm2ListRemoveItem(void * l, UINT32 list_handle, UINT32 item_key, PUINT32 prev_item_key_pnt, PUINT32 prev_prev_item_key_pnt, PUINT32 remove_status_pnt );
 UINT32 OctApiLlm2ListItemData( PVOID l, UINT32 list_handle, UINT32 item_key, PVOID* item_data_pnt, PUINT32 item_number );
+UINT32 OctApiLlm2ListDelete(void * l,UINT32 list_handle);
 
 #ifdef __cplusplus
 }

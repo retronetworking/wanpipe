@@ -129,10 +129,10 @@ class conf_file_reader {
   
   int parse_conf_file(char* fname);
   
-  int read_conf_record (FILE* file, char* key);
+  int read_conf_record (FILE* file, char* key, int max_len);
   char* read_conf_section (FILE* file, char* section);
  
-  int set_conf_param (char* key, char* val, key_word_t* dtab, void* conf, link_def_t* lnk_def,
+  int set_conf_param (char* key, char* val, key_word_t* dtab, void* conf, int size, link_def_t* lnk_def,
 		      chan_def_t* chan_def);
       	
   int read_devices_section(FILE* file);

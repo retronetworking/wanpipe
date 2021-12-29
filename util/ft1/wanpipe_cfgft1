@@ -1,4 +1,4 @@
-#!/bin/bash -p
+#!/bin/bash
 #====================================================================
 # CFGFT1
 #
@@ -1582,26 +1582,43 @@ EOM
 }
 
 
+function read_meta_conf ()
+{
+	if [ $OSYSTEM = "Linux" ]; then
+		WAN_HOME=/etc/wanpipe
+	elif [ $OSYSTEM = "FreeBSD" -o $OSYSTEM = "OpenBSD" ]; then
+		WAN_HOME=/usr/local/etc/wanpipe
+		wanrouter_rc_file=""
+		if [ -r /etc/rc.conf ]; then
+			. /etc/rc.conf
+		fi
+		if [ -n "$wanrouter_rc_file" ]; then
+			WAN_HOME=${wanrouter_rc_file%/*}
+		fi
+	fi
+	META_CONF=$WAN_HOME/wanrouter.rc
+	source $META_CONF
+
+	WAN_FT1EXEC=$WAN_BIN_DIR/wanpipe_ft1exec
+	TEMP="$WAN_HOME/temp.$$"
+	return 0
+}
+
+
 #============================================================
 # INITIALIZE GLOBAL VARIABLES 
 #============================================================
 
-OSYSTE=`uname -s`
+OSYSTEM=`uname -s`
 PROG_NAME=wanpipe_cfgft1
-WAN_BIN_DIR=/usr/sbin
+
 ROUTER_PROC=/proc/net/wanrouter
-WAN_HOME=/etc/wanpipe
 FT1_CONF=$(pwd)/FT1_CONFIG
-WAN_FT1EXEC=$WAN_BIN_DIR/wanpipe_ft1exec
 WANROUTER=wanrouter
 RC=$(pwd)/return_code
 GET_RC="cat $RC"
-TEMP="$WAN_HOME/temp.$$"
 WAN_DEVICE=$1
-META_CONF=$WAN_HOME/wanrouter.rc
 WAN_LOAD=NO
-
-source $META_CONF
 
 FRM=([0]="ESF"  [1]="D4")
 ENC=([0]="B8ZS" [1]="AMI")
@@ -1622,7 +1639,7 @@ CHANNEL=1
 BAUD=1536
 CLOCK=0
 
-OSYSTEM=`uname -s`
+read_meta_conf
 
 if [ $OSYSTEM = "Linux" ]; then
 	MODULE_STAT=lsmod

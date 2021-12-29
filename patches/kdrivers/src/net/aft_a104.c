@@ -26,17 +26,16 @@
 # include <sdlapci.h>
 # include <sdla_aft_te1.h>
 # include <wanpipe_iface.h>
+# include <sdla_serial.h>
 #elif defined(__WINDOWS__)
-# include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
-# include <wanpipe.h>
 
-# include <wanpipe_abstr.h>
+# include <wanpipe_includes.h>
+# include <wanpipe.h>
 # include <if_wanpipe_common.h>    /* Socket Driver common area */
 # include <sdlapci.h>
 # include <sdla_aft_te1.h>
-
-# include <wanec_iface.h>
+# include <wanpipe_iface.h>
+# include <sdla_serial.h>
 
 extern
 void 
@@ -46,6 +45,7 @@ sdla_te_timer(
 	void*,
 	void*
 	);
+
 #else
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -55,18 +55,23 @@ sdla_te_timer(
 # include <linux/if_wanpipe_common.h>    /* Socket Driver common area */
 # include <linux/if_wanpipe.h>
 # include <linux/sdlapci.h>
+# include <sdla_serial.h>
 //# include <linux/sdla_ec.h>
 # include <linux/sdla_aft_te1.h>
 # include <linux/wanpipe_iface.h>
 # include <linux/wanpipe_tdm_api.h>
+# include <linux/sdla_serial.h>
+
 #endif
 
 #define INIT_FE_ONLY 0
 
+#if !defined(__WINDOWS__)
 #if 1
 #define AFT_FUNC_DEBUG()
 #else
 #define AFT_FUNC_DEBUG()  DEBUG_EVENT("%s:%d\n",__FUNCTION__,__LINE__)
+#endif
 #endif
 
 /*==============================================
@@ -75,7 +80,7 @@ sdla_te_timer(
  */
 #if defined(CONFIG_WANPIPE_HWEC)
 static int aft_hwec_reset(void *pcard, int reset);
-static int aft_hwec_enable(void *pcard, int enable, int channel);
+static int aft_hwec_enable(void *pcard, int enable, int fe_chan);
 #endif
 
 int __a104_write_fe (void *pcard, ...);
@@ -98,7 +103,11 @@ static int request_fifo_baddr_and_size(sdla_t *card, private_area_t *chan)
 	/* Calculate the optimal fifo size based
          * on the number of time slots requested */
 
-	if (IS_T1_CARD(card)){	
+	if (IS_SERIAL_CARD(card)) {
+
+		req_fifo_size=32;
+
+	} else if (IS_T1_CARD(card)){	
 
 		if (chan->num_of_time_slots == NUM_OF_T1_CHANNELS){
 			req_fifo_size=32;
@@ -448,6 +457,10 @@ int a104_led_ctrl(sdla_t *card, int color, int led_pos, int on)
 	AFT_FUNC_DEBUG();
 #if INIT_FE_ONLY
 #else
+	if (IS_SERIAL_CARD(card)) {
+		return 0;
+	}	
+
 	if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
 
 		/* INSERT LED CODE */
@@ -528,7 +541,8 @@ int a104_global_chip_config(sdla_t *card)
 		wan_set_bit(AFT_CHIPCFG_TE1_CFG_BIT,&reg);
 	}else if (IS_56K_CARD(card)){
 		wan_set_bit(AFT_CHIPCFG_56K_CFG_BIT,&reg);
-		
+	}else if (IS_SERIAL_CARD(card)) {
+		/* No bit to set nere */
 	}else{
 		DEBUG_EVENT("%s: Error: Xilinx doesn't support non T1/E1 interface!\n",
 				card->devname);
@@ -536,6 +550,7 @@ int a104_global_chip_config(sdla_t *card)
 	}
 	
 	/* Enable FRONT END Interrupt */
+
 	wan_set_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 
 	DEBUG_CFG("--- Chip enable/config. -- \n");
@@ -551,6 +566,10 @@ int a104_global_chip_config(sdla_t *card)
 		wan_spin_unlock_irq(&card->wandev.lock,&flags);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 		
+	}else if (IS_SERIAL_CARD(card)) {
+
+		/* There is no CPLD reset for Serial card */
+
 	}else if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
 
 		wan_smp_flag_t smp_flags,flags;
@@ -566,7 +585,7 @@ int a104_global_chip_config(sdla_t *card)
 		wan_spin_unlock_irq(&card->wandev.lock,&flags);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 	}
-     	
+		
 	err=aft_test_hdlc(card);
 	if (err != 0){
 		DEBUG_EVENT("%s: Error: HDLC Core Not Ready (0x%X)!\n",
@@ -598,7 +617,6 @@ int a104_global_chip_config(sdla_t *card)
 			card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg); 
 		}
 	}
-
 #endif/*INIT_FE_ONLY*/
 	return 0;
 }
@@ -682,6 +700,7 @@ static int aft_ds_set_clock_ref(sdla_t *card, u32 *reg, u32 master_port)
 	return 0;
 }
 
+
 static void aft_set_hwec_clock_src(sdla_t *card)
 {
 	wan_smp_flag_t smp_flags, flags;
@@ -708,26 +727,23 @@ static void aft_set_hwec_clock_src(sdla_t *card)
 	}
 }
 
-int a104_chip_config(sdla_t *card)
+
+int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 {
 	u32 reg=0, ctrl_ram_reg=0;
 	int i,err=0, max_channels;
 
 	wan_smp_flag_t smp_flags, flags;
 	AFT_FUNC_DEBUG();
-#if INIT_FE_ONLY
-	err = -EINVAL;
-
-	if (card->wandev.fe_iface.config){
-		err=card->wandev.fe_iface.config(&card->fe);
-	}
-#else
+	
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
 	if (!wan_test_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg)){
+	
 		DEBUG_EVENT("%s: Error: Physical Port %d is busy!\n",
 				card->devname, card->wandev.comm_port+1);
 		return -EBUSY;
 	}
+
 	
 	/* On A108 Cards the T1/E1 will be configured per PORT  
 	 * not per CARD */
@@ -754,6 +770,15 @@ int a104_chip_config(sdla_t *card)
 
 	aft_fe_intr_ctrl(card, 0);
 
+	if(card->adptr_type == AFT_ADPTR_56K){
+		
+		aft_56k_write_cpld(card, 0x00,0x00);//reset_on_LXT441PE(card);
+		WP_DELAY(1000);
+
+		aft_56k_write_cpld(card, 0x00, 0x03);//reset_off_LXT441PE(card);
+		WP_DELAY(1000);
+	}
+
 	err = -EINVAL;
 	if (card->wandev.fe_iface.config){
 		err=card->wandev.fe_iface.config(&card->fe);
@@ -771,7 +796,7 @@ int a104_chip_config(sdla_t *card)
                                 	card->devname,
                                 	(IS_T1_CARD(card))?"T1":"E1");
 		return -EINVAL;
-       	}
+   	}
 	/* Run rest of initialization not from lock */
 	if (card->wandev.fe_iface.post_init){
 		err=card->wandev.fe_iface.post_init(&card->fe);
@@ -903,6 +928,7 @@ int a104_chip_config(sdla_t *card)
                                         card->devname,reg);
 	}
 
+
 	card->wandev.ec_dev = NULL;
 	card->wandev.hwec_reset = NULL;
 	card->wandev.hwec_enable = NULL;
@@ -913,7 +939,6 @@ int a104_chip_config(sdla_t *card)
 		u32		cfg_reg;
 
 		card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
-
 
 		card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg); 
 		if (max_ec_chans > aft_chipcfg_get_ec_channels(cfg_reg)){
@@ -930,12 +955,22 @@ int a104_chip_config(sdla_t *card)
 #if defined(CONFIG_WANPIPE_HWEC)
 			card->wandev.hwec_reset = aft_hwec_reset;
 			card->wandev.hwec_enable = aft_hwec_enable;
-			card->wandev.ec_dev = wanpipe_ec_register(card, max_ec_chans);
+			card->wandev.ec_dev = wanpipe_ec_register(
+						card,
+						0,
+						WAN_FE_MAX_CHANNELS(&card->fe),
+						max_ec_chans,
+						(void*)&conf->oct_conf);
 			if (!card->wandev.ec_dev) {
-                         	return -EINVAL;
+				DEBUG_EVENT(
+				"%s: Failed to register device in HW Echo Canceller module!\n",
+							card->devname);
+				return -EINVAL;
 			}
 
+
 			aft_set_hwec_clock_src(card);
+
 #else
 			
 			DEBUG_EVENT("%s: Wanpipe HW Echo Canceller module is not compiled!\n",
@@ -1007,7 +1042,7 @@ int a104_chip_config(sdla_t *card)
 
 	aft_wdt_reset(card);
 	aft_wdt_set(card,AFT_WDTCTRL_TIMEOUT);
-#endif
+
 	AFT_FUNC_DEBUG();
 
 	return 0;
@@ -1064,6 +1099,10 @@ int a104_chip_unconfig(sdla_t *card)
                 __aft_fe_intr_ctrl(card,0);
 		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags1);
+	}else if (IS_56K_CARD(card)) {
+		//reset_on_LXT441PE(card);
+		aft_56k_write_cpld(card, 0x00,0x00);
+		WP_DELAY(1000);
 	}
 
 	wan_set_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg);
@@ -1286,289 +1325,6 @@ int a104_check_ec_security(sdla_t *card)
 
 
 /*============================================================================
- * Read TE1/56K Front end registers
- */
-int __a104_write_fe (void *pcard, ...)
-{
-	va_list	args;
-	sdla_t	*card = (sdla_t*)pcard;
-	int 	port_no, org_off, off, value;
-	u8	qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
-
-	va_start(args, pcard);
-	port_no	= va_arg(args, int);
-	off	= va_arg(args, int);
-	value	= va_arg(args, int);
-	va_end(args);
-
-	if (card->u.aft.firm_id == AFT_PMC_FE_CORE_ID){
-		off &= ~AFT4_BIT_DEV_ADDR_CLEAR;	
-	}else if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID){
-		if (off & 0x800)  off |= 0x2000;
-		if (off & 0x1000) off |= 0x4000;
-		off &= ~AFT8_BIT_DEV_ADDR_CLEAR;	
-		if ((card->adptr_type == A101_ADPTR_2TE1 || card->adptr_type == A101_ADPTR_1TE1) && 
-		    port_no == 1){
-			off |= AFT8_BIT_DEV_MAXIM_ADDR_CPLD;
-		}
-	}
-
-	card->hw_iface.bus_read_2(card->hw,
-                                AFT_MCPU_INTERFACE_ADDR,
-                                (u16*)&org_off);
-	
-       	card->hw_iface.bus_write_2(card->hw,AFT_MCPU_INTERFACE_ADDR, (u16)off);
-
-
-	/* AF: Sep 10, 2003
-	 * IMPORTANT
-	 * This delays are required to avoid bridge optimization 
-	 * (combining two writes together)
-	 */
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-
-	card->hw_iface.bus_write_1(card->hw,AFT_MCPU_INTERFACE, (u8)value);
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-	
-	card->hw_iface.bus_write_2(	card->hw,
-                                AFT_MCPU_INTERFACE_ADDR,
-                                (u16)org_off);	
-
-	
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-
-        return 0;
-}
-
-int a104_write_fe (void *pcard, ...)
-{
-	va_list	args;
-	sdla_t	*card = (sdla_t*)pcard;
-	int 	port_no, off, value;
-
-	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-		if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT(
-			"%s: %s:%d: Critical Error: Re-entry in FE!\n",
-					card->devname,
-					__FUNCTION__,__LINE__);
-		}
-		return -EINVAL;
-	}
-
-	va_start(args, pcard);
-	port_no	= va_arg(args, int);
-	off	= va_arg(args, int);
-	value	= va_arg(args, int);
-	va_end(args);
-
-	__a104_write_fe(card, port_no, off, value);
-
-	card->hw_iface.fe_clear_bit(card->hw,0);
-
-  	return 0;
-}
-
-
-/*============================================================================
- * Read TE1 Front end registers
- */
-unsigned char __a104_read_fe (void *pcard, ...)
-{
-	va_list	args;
-	sdla_t	*card = (sdla_t*)pcard;
-	int     port_no, org_off, off, tmp;
-	u8	qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
-
-	va_start(args, pcard);
-	port_no	= (int)va_arg(args, int);
-	off	= (int)va_arg(args, int);
-	va_end(args);
-
-	if (card->u.aft.firm_id == AFT_PMC_FE_CORE_ID){
-       		off &= ~AFT4_BIT_DEV_ADDR_CLEAR;	
-	}else if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID){
-		if (off & 0x0800) off |= 0x2000;
-		if (off & 0x1000) off |= 0x4000;
-		off &= ~AFT8_BIT_DEV_ADDR_CLEAR;	
-		if ((card->adptr_type == A101_ADPTR_2TE1 || card->adptr_type == A101_ADPTR_1TE1) &&
-		    port_no == 1){
-			off |= AFT8_BIT_DEV_MAXIM_ADDR_CPLD;
-		}
-	}
-
-	card->hw_iface.bus_read_2(card->hw,
-                                AFT_MCPU_INTERFACE_ADDR,
-                                (u16*)&org_off);
-	
-	card->hw_iface.bus_write_2(card->hw, AFT_MCPU_INTERFACE_ADDR, (u16)off);
-
-   	card->hw_iface.bus_read_1(card->hw,AFT_MCPU_INTERFACE, (u8*)&tmp);
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-	
-	card->hw_iface.bus_write_2(card->hw,
-                                AFT_MCPU_INTERFACE_ADDR,
-                                (u16)org_off);	
-
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-
-        return (u8)tmp;
-}
-
-unsigned char a104_read_fe (void *pcard, ...)
-{
-	va_list		args;
-	sdla_t		*card = (sdla_t*)pcard;
-	int		port_no, off;
-	unsigned char	tmp;
-
-
-	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-		if (WAN_NET_RATELIMIT()){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
-			card->devname, __FUNCTION__,__LINE__);
-		}
-		return 0x00;
-	}
-
-	va_start(args, pcard);
-	port_no	= (int)va_arg(args, int);
-	off	= (int)va_arg(args, int);
-	va_end(args);
-
-
-	tmp = __a104_read_fe(card, port_no, off);
-
-	card->hw_iface.fe_clear_bit(card->hw,0);
-   	return tmp;
-}
-
-/*============================================================================
- * Read/Write 56k Front End registers. Different from TE1!!
- */
-unsigned char __a56k_read_fe (void *pcard, ...)
-{
-	va_list	args;
-	sdla_t	*card = (sdla_t*)pcard;
-	int     port_no, off, tmp;
-	u8		qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
-
-	va_start(args, pcard);
-	port_no	= (int)va_arg(args, int);
-	off	= (int)va_arg(args, int);
-	va_end(args);
-
-	off &= ~AFT8_BIT_DEV_ADDR_CLEAR;	
-
-   	card->hw_iface.bus_write_2(card->hw, AFT56K_MCPU_INTERFACE_ADDR, (u16)off);
-
-   	card->hw_iface.bus_read_4(card->hw, AFT56K_MCPU_INTERFACE, &tmp);
-
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-#if 0
-	DEBUG_56K("%s(): port_no: 0x%X, off: 0x%X, cpld_data: 0x%X\n", 
-		__FUNCTION__, port_no, off, tmp);
-#endif
-    return (u8)tmp;
-}
-
-unsigned char a56k_read_fe (void *pcard, ...)
-{
-	va_list			args;
-	sdla_t			*card = (sdla_t*)pcard;
-	unsigned int	port_no, off;
-	unsigned int	cpld_data=0;
-
-	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-		if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
-				card->devname, __FUNCTION__,__LINE__);
-		}
-		return 0x00;
-	}
-
-	va_start(args, pcard);
-	port_no	= (int)va_arg(args, int);
-	off	= (int)va_arg(args, int);
-	va_end(args);
-
-	cpld_data = __a56k_read_fe(card, port_no, off);
-
-	card->hw_iface.fe_clear_bit(card->hw,0);
-
-   	return (unsigned char)cpld_data;
-}
-
-int __a56k_write_fe (void *pcard, ...)
-{
-	va_list	args;
-	sdla_t	*card = (sdla_t*)pcard;
-	int 	port_no, off, value;
-	u8	qaccess = card->wandev.state == WAN_CONNECTED ? 1 : 0;
-
-	va_start(args, pcard);
-	port_no	= va_arg(args, int);
-	off	= va_arg(args, int);
-	value	= va_arg(args, int);
-	va_end(args);
-
-	off &= ~AFT8_BIT_DEV_ADDR_CLEAR;	
-
-   	card->hw_iface.bus_write_2(card->hw, AFT56K_MCPU_INTERFACE_ADDR, (u16)off);
-
-   	card->hw_iface.bus_write_2(card->hw, AFT56K_MCPU_INTERFACE, (u16)value);
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-#if 0
-	DEBUG_56K("%s(): port_no: 0x%X, off: 0x%X, value: 0x%X\n", 
-		__FUNCTION__, port_no, off, value);
-#endif
-    return 0;
-}
-
-int a56k_write_fe (void *pcard, ...)
-{
-	va_list	args;
-	sdla_t	*card = (sdla_t*)pcard;
-	int 	port_no, off, value;
-
-	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-		if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT(
-			"%s: %s:%d: Critical Error: Re-entry in FE!\n",
-					card->devname,
-					__FUNCTION__,__LINE__);
-		}
-		return -EINVAL;
-	}
-
-	va_start(args, pcard);
-	port_no	= va_arg(args, int);
-	off	= va_arg(args, int);
-	value	= va_arg(args, int);
-	va_end(args);
-
-	__a56k_write_fe(card, port_no, off, value);
-
-	card->hw_iface.fe_clear_bit(card->hw,0);
-
-  	return 0;
-}
-
-/*============================================================================
  * Read/Write 56k CPLD. Different from TE1!!
  */
 
@@ -1708,7 +1464,7 @@ int a108m_write_cpld(sdla_t *card, unsigned short off,u_int16_t data)
 
 	card->hw_iface.bus_write_1(card->hw,
                                 AFT_MCPU_INTERFACE,
-                                data);
+                                (u8)data);
         /*ALEX: Restore the original address */
         card->hw_iface.bus_write_2(card->hw,
                                 AFT_MCPU_INTERFACE_ADDR,
@@ -1755,11 +1511,10 @@ static int aft_hwec_reset(void *pcard, int reset)
 					card->devname);
 
 		if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
-			if(card->adptr_type == A108_ADPTR_8TE1){
-                                aft_te1_write_cpld(card,0x00,0x0F);
-                        } else {
-                                aft_te1_write_cpld(card,0x00,0x07);
-                        }
+			/* Changed for all Dallas chips
+			   changed from 0x07 to 0x0F to support
+			   external clocking */
+			aft_te1_write_cpld(card,0x00,0x0F);
 		}else{
 
 			if (IS_T1_CARD(card)){
@@ -1804,51 +1559,35 @@ static int aft_hwec_reset(void *pcard, int reset)
 **		1   - channel out of channel map
 **		< 0 - failed
 ******************************************************************************/
-static int aft_hwec_enable(void *pcard, int enable, int channel)
+static int aft_hwec_enable(void *pcard, int enable, int fe_chan)
 {
 	sdla_t		*card = (sdla_t*)pcard;
+	int		hw_chan = fe_chan;
 	unsigned int	value;
 
 	WAN_ASSERT(card == NULL);
-	if(!wan_test_bit(channel, &card->wandev.ec_enable_map)){
-		return 1;
+
+	if (IS_T1_CARD(card)){
+		hw_chan = fe_chan-1;
 	}
-	DEBUG_TEST("[HWEC]: %s: %s bypass mode for channel %d!\n",
-			card->devname,
-			(enable) ? "Enable" : "Disable",
-			channel);
 
 	card->hw_iface.bus_read_4(
 			card->hw,
-			AFT_PORT_REG(card,0x1000) + channel * 4,
+			AFT_PORT_REG(card,0x1000) + hw_chan * 4,
 			&value);
-	if (enable){
-                if (!wan_test_and_set_bit(channel,&card->wandev.ec_map)) {
-                        value |= 0x20;
-                } else {
-                        DEBUG_EVENT("[HWEC]: %s: %s bypass mode overrun detected for channel %d!\n",
-                                card->devname,
-                                (enable) ? "Enable" : "Disable",
-                                channel);
-                        return 0;
-                }
+   	if (enable){
+		value |= 0x20;
         } else {
-                if (wan_test_and_clear_bit(channel,&card->wandev.ec_map)) {
-                        value &= ~0x20;
-                } else {
-                        DEBUG_EVENT("[HWEC]: %s: %s bypass mode overrun detected for channel %d!\n",
-                                card->devname,
-                                (enable) ? "Enable" : "Disable",
-                                channel);
-                        return 0;
-                }
+		value &= ~0x20;
         }
-
+	DEBUG_HWEC("[HWEC]: %s: %s bypass mode for fe_chan:%d (value=%X)...!\n",
+			card->devname,
+			(enable) ? "Enable" : "Disable",
+			fe_chan, value);
 	card->hw_iface.bus_write_4(
 			card->hw,
-			AFT_PORT_REG(card,0x1000) + channel * 4,
+			AFT_PORT_REG(card,0x1000) + hw_chan * 4,
 			value);
-
 	return 0;
 }
 #endif

@@ -1,7 +1,4 @@
 #!/bin/sh
-# chkconfig: 2345 15 15
-# description: Starts and stop SS7/Wanpipe devices
-
 
 WAN_LOCK=/var/lock/wanrouter_lock
 
@@ -34,7 +31,6 @@ arg2=$2
 NICE="nice -n -15 "
 RENICE="renice -15 -p "
 
-ulimit -n 65536
 
 function usage
 {

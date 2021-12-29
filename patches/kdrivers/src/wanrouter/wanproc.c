@@ -114,10 +114,6 @@ typedef struct wan_proc_entry
 #endif
 /****** Function Prototypes *************************************************/
 
-#ifdef WAN_DEBUG_MEM
-extern atomic_t wan_debug_mem;
-#endif
-
 extern wan_spinlock_t 		wan_devlist_lock;
 extern struct wan_devlist_	wan_devlist;
 
@@ -531,7 +527,7 @@ static int config_get_info(char* buf, char** start, off_t offs, int len, int dum
 	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		/*for (wandev = router_devlist; wandev; wandev = wandev->next){*/
-		sdla_t*	card = (sdla_t*)wandev->private;
+		sdla_t*	card = (sdla_t*)wandev->priv;
 		u16 arg = 0;
 
 		if (!wandev->state) continue;
@@ -700,9 +696,7 @@ static int interfaces_get_info(char* buf, char** start, off_t offs, int len, int
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			
-			if (!dev ||
-			    !(wan_netif_flags(dev)&IFF_UP) ||
-			    !wan_netif_priv(dev)){ 
+			if (!dev || !WAN_NETIF_UP(dev) || !wan_netif_priv(dev)){ 
 				continue;
 			}
 
@@ -760,7 +754,7 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
 	PROC_ADD_LINE(m,
-		"\nCard Cnt: S508=%-2d S514X=%-2d S518=%-2d A101-2=%-2d A104=%-2d A300=%-2d A200=%-2d A108=%-2d A056=%-2d\n",
+		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
@@ -769,13 +763,10 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 		hw_cnt->aft300_adapters,
 		hw_cnt->aft200_adapters,
 		hw_cnt->aft108_adapters,
-		hw_cnt->aft_56k_adapters);
-		
-#ifdef WAN_DEBUG_MEM
-	PROC_ADD_LINE(m,
-		
-		"Total Memory = %d\n", atomic_read(&wan_debug_mem));
-#endif
+		hw_cnt->aft_56k_adapters,
+		hw_cnt->aft_isdn_adapters,
+		hw_cnt->aft_serial_adapters
+		);
 
 	PROC_ADD_RET(m);
 }
@@ -783,13 +774,13 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(LINUX_2_4)
 STATIC int probe_get_info_verbose(char* buf, char** start, off_t offs, int len)
 #else
-#if defined(LINUX_2_6)
+# if defined(LINUX_2_6)
 static int probe_get_info_verbose(struct seq_file *m, void *v)
-#elif defined(LINUX_2_4)
+# elif defined(LINUX_2_4)
 static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len)
-#else
+# else
 static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, int dummy)
-#endif
+# endif
 #endif
 {
 	int i=0;
@@ -818,7 +809,7 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
 	PROC_ADD_LINE(m,
-		"\nCard Cnt: S508=%-2d S514X=%-2d S518=%-2d A101-2=%-2d A104=%-2d A300=%-2d A200=%-2d A108=%-2d\n",
+		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
@@ -826,12 +817,11 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 		hw_cnt->aft104_adapters,
 		hw_cnt->aft300_adapters,
 		hw_cnt->aft200_adapters,
-		hw_cnt->aft108_adapters);
-#ifdef WAN_DEBUG_MEM
-	PROC_ADD_LINE(m,
-		
-		"Total Memory = %d\n", atomic_read(&wan_debug_mem));
-#endif
+		hw_cnt->aft108_adapters,
+		hw_cnt->aft_56k_adapters,
+		hw_cnt->aft_isdn_adapters,
+		hw_cnt->aft_serial_adapters
+		);
 
 	PROC_ADD_RET(m);
 }
@@ -942,7 +932,7 @@ static int wandev_get_info(char* buf, char** start, off_t offs, int len, int dum
 	/* Update Front-End information (alarms, performance monitor counters */
 	if (wandev->get_info){
 		m->count = wandev->get_info(
-				wandev->private, 
+				wandev->priv, 
 				m, 
 				M_STOP_CNT(m)); 
 	}
@@ -962,7 +952,7 @@ wandev_get_info_end:
 int wanrouter_proc_init (void)
 {
 	struct proc_dir_entry *p;
-	proc_router = proc_mkdir(ROUTER_NAME, wan_init_net(proc_net));
+	proc_router = proc_mkdir(ROUTER_NAME, proc_net);
 	if (!proc_router)
 		goto fail;
 	
@@ -1092,7 +1082,7 @@ fail_probe_verbose:
 fail_stat:
 	remove_proc_entry("config", proc_router);
 fail_config:
-	remove_proc_entry(ROUTER_NAME, wan_init_net(proc_net));
+	remove_proc_entry(ROUTER_NAME, proc_net);
 fail:
 	return -ENOMEM;
 }
@@ -1117,7 +1107,7 @@ void wanrouter_proc_cleanup (void)
 	remove_proc_entry("map", proc_router);
 	remove_proc_entry("interfaces", proc_router);
 	remove_proc_entry("dev_map",proc_router);
-	remove_proc_entry(ROUTER_NAME,wan_init_net(proc_net));
+	remove_proc_entry(ROUTER_NAME,proc_net);
 }
 
 /*
@@ -1129,7 +1119,7 @@ int wanrouter_proc_add (wan_device_t* wandev)
 	int err=0;
 	struct proc_dir_entry *p;	
 
-	spin_lock_init(&wandev->get_map_lock);
+	wan_spin_lock_init(&wandev->get_map_lock, "wan_proc_lock");
 	
 	if (wandev->magic != ROUTER_MAGIC)
 		return -EINVAL;

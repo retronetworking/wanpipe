@@ -96,6 +96,7 @@ BSD interface names rules:
 # include <linux/sdla_remora.h>
 #else
 # include <time.h>
+# include <sys/types.h>
 # include <sdla_fr.h>
 # include <wanpipe_cfg.h>
 # include <sdla_te1.h>
@@ -107,6 +108,16 @@ BSD interface names rules:
 #define MAX_PATH_LENGTH 4096
 #define NO  1
 #define YES 2
+
+#if defined(__LINUX__)
+# if !defined(strlcpy)
+#  define strlcpy(d,s,l) strcpy((d),(s))
+# endif
+#elif defined(__FreeBSD__)
+# if !defined(strlcpy)
+#  define strlcpy(d,s,l) strcpy((d),(s))
+# endif
+#endif
 
 //end of settings for the 'adapter_type'
 //////////////////////////////////////////////////////////////////////////
@@ -154,12 +165,11 @@ typedef struct link_def		/* WAN Link definition */
 //#define DBG_FLAG 1
 #define DBG_FLAG 0
 
-//#define Debug(dbg_flag, message) if(dbg_flag){printf message;}
-#define Debug(dbg_flag, message)
-
 #if DBG_FLAG
-#define FUNC_DBG()	printf("%s(), Line: %d\n", __FUNCTION__, __LINE__)
+#define Debug(dbg_flag, message)	if(dbg_flag){printf message;}
+#define FUNC_DBG()			printf("%s(), Line: %d\n", __FUNCTION__, __LINE__)
 #else
+#define Debug(dbg_flag, message)
 #define FUNC_DBG()
 #endif
 
@@ -190,7 +200,9 @@ Press <ESC> to go back, <Help> for help."
 #define IN  //value passed to a function
 #define OUT //function sets value on return
 
-#define LXDIALOG_OUTPUT_FILE_NAME "lxdialog_output"
+//The '/tmp' directory is ALWAYS writable, this important when running off CD-ROM
+//because the current directory on CD is NOT writable.
+#define LXDIALOG_OUTPUT_FILE_NAME "/tmp/lxdialog_output"
 
 //SELECTION can be a button number or a selected menu number.
 #define SELECTION_0  0
@@ -216,6 +228,8 @@ Press <ESC> to go back, <Help> for help."
 #define OP_MODE_PPPoE       	" \"PPPoE\" "       //9
 #define OP_MODE_TTY		" \"TTY\" "         //10
 #define OP_MODE_TDM_API  	" \"TDM_API\" "     //11
+#define OP_MODE_NETGRAPH  	" \"NETGRAPH\" "    //12
+#define OP_MODE_TDMV_API       	" \"TDM_VOICE_API\" "   //13
 
 #define PPPoE TTY+10  //a valid Operation Mode for ADSL card.
 		      //(but not defined in wanpipe_cfg.h !)	
@@ -231,6 +245,8 @@ Press <ESC> to go back, <Help> for help."
 #define QUOTED_9     " \"9\" "
 #define QUOTED_10    " \"10\" "
 #define QUOTED_11    " \"11\" "
+#define QUOTED_12    " \"12\" "
+#define QUOTED_13    " \"13\" "
 
 ////////////////////////////////////////////////////
 //Frame Relay definitions
@@ -289,13 +305,14 @@ typedef struct _if_config{
 char * get_protocol_string(int protocol);
 #define NO_PROTOCOL_NEEDED  WANCONFIG_X25-1
 #define PROTOCOL_NOT_SET  0
-//the TDM_VOICE is actually an Operation Mode (like API...)
+//the TDM_VOICE and TDM_VOICE_API is actually an Operation Mode (like API...)
 //but there is a need to display and configure it as a Protocol.
 //no such 'config_id' in wanpipe_cfg.h', so have to define my own
 enum NOT_REAL_PROTOCOLS{
   PROTOCOL_TDM_VOICE = 60,
   PROTOCOL_IP,
-  PROTOCOL_ETHERNET
+  PROTOCOL_ETHERNET,
+  PROTOCOL_TDM_VOICE_API
 };
 
 #define ADSL_IP_STR 	  "ADSL (IP)"

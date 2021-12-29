@@ -56,4 +56,18 @@ public:
   int run(OUT int * selection_index);
 };
 
+#if 1
+class menu_rx_slevel : public menu_base  {
+
+  char lxdialog_path[MAX_PATH_LENGTH];
+  conf_file_reader* cfr;
+
+public: 
+	menu_rx_slevel(IN char * lxdialog_path, IN conf_file_reader* ptr_cfr);
+	~menu_rx_slevel();
+
+  int run(OUT int * selection_index);
+
+};
+#endif
 #endif

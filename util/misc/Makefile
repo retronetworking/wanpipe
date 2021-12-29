@@ -15,7 +15,7 @@ SYSINC=/lib/modules/$(shell uname -r)/build/include
 WAN_VIRTUAL=
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -I$(SYSINC) $(HOSTCFLAGS)
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -I$(SYSINC) $(HOSTCFLAGS) -DCONFIG_PRODUCT_WANPIPE_AFT_BRI
 
 
 ####### RULES ################################################################

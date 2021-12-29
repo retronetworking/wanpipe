@@ -28,14 +28,12 @@ ifeq "$(SYSINC)" ""
 # Project file paths.
 SYSINC=/lib/modules/$(shell uname -r)/build/include
 endif
-SRCINC=../../patches/kdrivers/include
-WANINC=/usr/include/wanpipe
 
 WAN_VIRTUAL=
 
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -I$(SRCINC) -I$(WANINC) -D_DEBUG_=$(DEBUG)
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
 
 
 ####### RULES ################################################################

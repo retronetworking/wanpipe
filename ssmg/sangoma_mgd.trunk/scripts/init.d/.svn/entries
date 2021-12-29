@@ -1,9 +1,9 @@
 8
 
 dir
-65
-https://www.sangomapbx.com:/svn/sangoma_mgd/trunk/scripts/init.d
-https://www.sangomapbx.com:/svn/sangoma_mgd
+66
+https://www.sangomapbx.com/svn/sangoma_mgd/trunk/scripts/init.d
+https://www.sangomapbx.com/svn/sangoma_mgd
 
 
 
@@ -28,14 +28,14 @@ svn:special svn:externals svn:needs-lock
 
 smgss7_init_ctrl
 file
-81
 
 
 
-2008-05-27T08:39:34.000000Z
-610a76c921da642638013570ad111e41
-2008-05-27T08:52:13.454204Z
-81
+
+2008-01-14T15:37:07.000000Z
+d66448101bb8d62f7c3723618b2619f8
+2007-12-20T00:48:05.657582Z
+50
 ncorbic
 has-props
 

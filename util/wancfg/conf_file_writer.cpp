@@ -66,10 +66,11 @@ look_up_t	physical_medium_options_table[] =
 	{ WAN_MEDIA_T1,      	(void*)"T1"     },
 	{ WAN_MEDIA_E1,      	(void*)"E1"     },
 	{ WAN_MEDIA_56K,     	(void*)"56K"    },
-	{ WAN_MEDIA_DS3,	(void*)"DS3"	},
-	{ WAN_MEDIA_E3,	  	(void*)"E3"  	},  
-  	{ WAN_MEDIA_FXOFXS,   	(void*)"FXO/FXS"},
-	{ 0,	                NULL	        }
+	{ WAN_MEDIA_DS3,			(void*)"DS3"		},
+	{ WAN_MEDIA_E3,	  		(void*)"E3"  		},  
+  { WAN_MEDIA_FXOFXS,   (void*)"FXO/FXS"},
+	{ WAN_MEDIA_BRI,      (void*)"BRI"    },
+	{ 0,	                NULL						}
 };
 
 look_up_t	te1_line_code_options_table[] =
@@ -575,6 +576,28 @@ get_keyword_from_look_up_t_table(config_id_str, WANCONFIG_AFT_ANALOG),//for AFT 
 );
       break;
 
+    case AFT_ADPTR_ISDN:
+      snprintf(tmp_buff, MAX_PATH_LENGTH,
+"\n\
+[devices]\n\
+%s = %s, %s\n",
+cfr->link_defs->name,
+get_keyword_from_look_up_t_table(config_id_str, WANCONFIG_AFT_ISDN_BRI),//for AFT BRI card
+(cfr->link_defs->descr == NULL ? "Comment" : cfr->link_defs->descr)
+);
+      break;
+
+    case AFT_ADPTR_2SERIAL_V35X21:
+      snprintf(tmp_buff, MAX_PATH_LENGTH,
+"\n\
+[devices]\n\
+%s = %s, %s\n",
+cfr->link_defs->name,
+get_keyword_from_look_up_t_table(config_id_str, WANCONFIG_AFT_SERIAL),//for AFT Serial card
+(cfr->link_defs->descr == NULL ? "Comment" : cfr->link_defs->descr)
+);
+      break;
+
     default:
       ERR_DBG_OUT(("Unsupported 'card_version' (%d) passed for saving to file!!\n",
 	card_version));
@@ -783,6 +806,7 @@ int conf_file_writer::form_interface_str(string& interfaces_section_str,
   case WANCONFIG_HDLC:
   case WANCONFIG_EDUKIT:
   case PROTOCOL_TDM_VOICE:
+  case PROTOCOL_TDM_VOICE_API:
   case WANCONFIG_AFT: //if TTY, config_id is set to 'WANCONFIG_AFT'
 		      //because 'PROTOCOL' is expected (by the driver) to be set to 'NONE'
     //wp1edu = wanpipe1, , WANPIPE, Comment
@@ -1344,11 +1368,12 @@ LBO 		= 0DB
 //write stuff needed for cards with an integrated dsu/csu
 int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string, sdla_fe_cfg_t*  fe_cfg)
 {
-  char tmp_buff[MAX_PATH_LENGTH];
+  char	tmp_buff[MAX_PATH_LENGTH];
   sdla_te_cfg_t*  te_cfg = &fe_cfg->cfg.te_cfg;
   sdla_te3_cfg_t* te3_cfg= &fe_cfg->cfg.te3_cfg;
     
-  Debug(DBG_CONF_FILE_WRITER, ("form_fe_card_cfg_str()\n"));
+  Debug(DBG_CONF_FILE_WRITER, ("%s()\n", __FUNCTION__));
+  Debug(DBG_CONF_FILE_WRITER, ("fe_cfg->media: 0x%x\n", fe_cfg->media));
 
   switch(fe_cfg->media)
   {
@@ -1358,11 +1383,15 @@ int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string, sdla_fe_cfg_t
   case WAN_MEDIA_E3:
   case WAN_MEDIA_56K:
   case WAN_MEDIA_FXOFXS:
+  case WAN_MEDIA_BRI:
     snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_MEDIA	= %s\n",
       get_keyword_from_look_up_t_table( physical_medium_options_table,
         fe_cfg->media));
     te1_cfg_string = tmp_buff;
     break; 
+	case WAN_MEDIA_SERIAL:
+		;//do nothing
+		break;
   }
   
   ///////////////////////////////////////////////////////////////////////////////// 
@@ -1382,6 +1411,9 @@ int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string, sdla_fe_cfg_t
       fe_cfg->frame));
     te1_cfg_string += tmp_buff;
     break; 
+	case WAN_MEDIA_SERIAL:
+		;//do nothing
+		break;
   }
   
   ///////////////////////////////////////////////////////////////////////////////// 
@@ -1419,7 +1451,16 @@ int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string, sdla_fe_cfg_t
       (te_cfg->high_impedance_mode == WANOPT_YES ? "YES" : "NO"));
     te1_cfg_string += tmp_buff;
 
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "TE_RX_SLEVEL	= %i\n", te_cfg->rx_slevel);
+    te1_cfg_string += tmp_buff;
+
     break; 
+
+  case WAN_MEDIA_BRI:
+	case WAN_MEDIA_SERIAL:
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_LINE		= %d\n", fe_cfg->line_no);
+    te1_cfg_string += tmp_buff;
+    break;
   }
 
   ///////////////////////////////////////////////////////////////////////////////// 
@@ -1552,11 +1593,30 @@ TE3_TXLBO	= NO		# NO (default) / YES
         fe_cfg->cfg.remora.battthresh);
     te1_cfg_string += tmp_buff;
 
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_BATTDEBOUNCE= %d\n",
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_BATTDEBOUNCE = %d\n",
         fe_cfg->cfg.remora.battdebounce);
     te1_cfg_string += tmp_buff;
 
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_NETWORK_SYNC = %s\n",
+     fe_cfg->cfg.remora.network_sync == WANOPT_YES ? "YES" : "NO");
+    te1_cfg_string += tmp_buff;
+
     break;
+
+  case WAN_MEDIA_BRI:
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_LAW	= %s\n",
+      get_keyword_from_look_up_t_table( tdmv_law_options_table,
+        fe_cfg->tdmv_law));
+    te1_cfg_string += tmp_buff;
+
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_BRI_CLOCK_MASTER	= %s\n",
+	    (fe_cfg->cfg.bri.clock_mode == WANOPT_YES ? "YES":"NO"));
+    te1_cfg_string += tmp_buff;
+    break;
+
+	case WAN_MEDIA_SERIAL:
+		;//do nothing
+		break;
 
   default:
     snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_TXTRISTATE	= %s\n", 
@@ -1582,11 +1642,13 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
   char			tmp_buff[MAX_PATH_LENGTH];
   wan_xilinx_conf_t 	*wan_xilinx_conf;
   wan_tdmv_conf_t	*tdmv_conf;
+  wandev_conf_t *linkconf;
 
   Debug(DBG_CONF_FILE_WRITER, ("form_wanpipe_card_miscellaneous_options_str()\n"));
 
   wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
   tdmv_conf = &cfr->link_defs->linkconf->tdmv_conf;
+  linkconf = cfr->link_defs->linkconf;
   
   switch(cfr->link_defs->linkconf->card_type)
   {
@@ -1618,17 +1680,21 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
      cfr->link_defs->linkconf->card_type != WANOPT_AFT){
 
     misc_opt_string += form_keyword_and_value_str(  common_conftab,
-                                                    offsetof(wandev_conf_t, interface),
+                                                    offsetof(wandev_conf_t, electrical_interface),
 	                                            serial_interface_type_options_table,
-	                                            cfr->link_defs->linkconf->interface);
+	                                            cfr->link_defs->linkconf->electrical_interface);
 
     misc_opt_string += form_keyword_and_value_str(  common_conftab,
                                                     offsetof(wandev_conf_t, clocking),
                                                     serial_clock_type_options_table,
 	                                            cfr->link_defs->linkconf->clocking);
 
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "BaudRate 	= %d\n",
-        cfr->link_defs->linkconf->bps);
+		if(cfr->link_defs->linkconf->clocking == WANOPT_INTERNAL &&
+				cfr->link_defs->linkconf->bps == 0){
+			//zero baud rate not allowed with internal clock, set to default.
+			cfr->link_defs->linkconf->bps = 9600;
+		}
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "BaudRate 	= %d\n", cfr->link_defs->linkconf->bps);
     misc_opt_string += tmp_buff;
   }
   
@@ -1657,6 +1723,7 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
      cfr->link_defs->linkconf->card_type != WANOPT_S50X &&
      cfr->link_defs->linkconf->card_type != WANOPT_S51X &&
      cfr->link_defs->card_version        != A200_ADPTR_ANALOG &&
+     cfr->link_defs->card_version        != AFT_ADPTR_ISDN &&
      is_there_a_voice_if == YES){
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_SPAN\t= %u\n",
@@ -1678,10 +1745,22 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
     //}
   }
 
+
   if(cfr->link_defs->linkconf->card_type == WANOPT_AFT &&
-     (	cfr->link_defs->card_version == A104_ADPTR_4TE1 || 
-	cfr->link_defs->card_version == A101_ADPTR_1TE1 ||
-      	cfr->link_defs->card_version == A200_ADPTR_ANALOG)){
+     cfr->link_defs->card_version == AFT_ADPTR_ISDN){
+    if(is_there_a_voice_if == YES){
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_SPAN\t= %u\n",
+         tdmv_conf->span_no);
+      misc_opt_string += tmp_buff;
+    }
+  }
+
+  if(cfr->link_defs->linkconf->card_type == WANOPT_AFT &&
+     (cfr->link_defs->card_version == A104_ADPTR_4TE1 || 
+	    cfr->link_defs->card_version == A101_ADPTR_1TE1 ||
+      cfr->link_defs->card_version == A200_ADPTR_ANALOG ||
+			cfr->link_defs->card_version == AFT_ADPTR_ISDN	||
+			cfr->link_defs->card_version == AFT_ADPTR_2SERIAL_V35X21)){
 /*
     //moved to per-interface section
     snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC\t= %s\n",
@@ -1698,6 +1777,46 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
     }
 */
   }
+
+	if(cfr->link_defs->card_version != AFT_ADPTR_2SERIAL_V35X21){
+		if(cfr->link_defs->linkconf->card_type == WANOPT_AFT){
+				snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HW_DTMF\t= %s\n",
+					get_keyword_from_look_up_t_table(yes_no_options_table,
+				      			tdmv_conf->hw_dtmf));
+				misc_opt_string += tmp_buff;
+		}
+	}
+
+	if(cfr->link_defs->card_version == AFT_ADPTR_2SERIAL_V35X21){
+
+		misc_opt_string += form_keyword_and_value_str(  common_conftab,
+                                                    offsetof(wandev_conf_t, connection),
+                                                    connection_type_options_table,
+                                                    cfr->link_defs->linkconf->connection);
+
+		misc_opt_string += form_keyword_and_value_str(  common_conftab,
+                                                    offsetof(wandev_conf_t, line_coding),
+                                                    data_encoding_options_table,
+                                                    cfr->link_defs->linkconf->line_coding);
+
+		misc_opt_string += form_keyword_and_value_str(  common_conftab,
+                                                    offsetof(wandev_conf_t, line_idle),
+                                                    line_idle_options_table,
+                                                    cfr->link_defs->linkconf->line_idle);
+
+		misc_opt_string += form_keyword_and_value_str(  common_conftab,
+                                                    offsetof(wandev_conf_t, clocking),
+                                                    serial_clock_type_options_table,
+																										cfr->link_defs->linkconf->clocking);
+
+		if(	cfr->link_defs->linkconf->clocking == WANOPT_INTERNAL &&
+				cfr->link_defs->linkconf->bps == 0){
+				//zero baud rate not allowed with internal clock, set to default.
+				cfr->link_defs->linkconf->bps = 9600;
+		}
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "BaudRate 	= %d\n", cfr->link_defs->linkconf->bps);
+    misc_opt_string += tmp_buff;
+	}
 
   return YES;
 }
@@ -2161,7 +2280,7 @@ int conf_file_writer::form_per_interface_str( string& wp_interface,
     interface_type = config_id;
   //}
 
-  if(interface_type == PROTOCOL_TDM_VOICE){
+  if(interface_type == PROTOCOL_TDM_VOICE || interface_type == PROTOCOL_TDM_VOICE_API){
     interface_type = WANCONFIG_HDLC;
   }
   
@@ -2625,7 +2744,8 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
   
   if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL &&
      chandef->usedby != TDM_VOICE &&
-     chandef->usedby != TDM_API){
+     chandef->usedby != TDM_API   &&
+     chandef->usedby != TDM_VOICE_API){
 	  
     wp_interface += form_keyword_and_value_str( chan_conftab,
                                               offsetof(wanif_conf_t, hdlc_streaming),
@@ -2633,7 +2753,7 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
                                               list_el_chan_def->data.chanconf->hdlc_streaming);
   }
 
-  //AFT onlu options:
+  //AFT only options:
   if(cfr->link_defs->linkconf->card_type != WANOPT_S51X &&
      cfr->link_defs->linkconf->card_type != WANOPT_S50X &&
      cfr->link_defs->linkconf->card_type != WANOPT_ADSL ){
@@ -2644,7 +2764,7 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
     wp_interface += list_el_chan_def->data.active_channels_string;
     wp_interface += "\n";
 
-    if(chandef->usedby != TDM_VOICE && chandef->usedby != TDM_API){
+    if(chandef->usedby != TDM_VOICE && chandef->usedby != TDM_API && chandef->usedby != TDM_VOICE_API){
 	
       if(list_el_chan_def->data.chanconf->hdlc_streaming == WANOPT_NO){    
         wp_interface += "IDLE_FLAG",
@@ -2671,7 +2791,8 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
       wp_interface += tmp_buff;
       wp_interface += "\n";
 
-      if(cfr->link_defs->card_version != A200_ADPTR_ANALOG){
+      if(	cfr->link_defs->card_version != A200_ADPTR_ANALOG && 
+					cfr->link_defs->card_version != AFT_ADPTR_2SERIAL_V35X21){
         wp_interface += "DATA_MUX";
         wp_interface += "\t= ";
         snprintf(tmp_buff, MAX_PATH_LENGTH, "%s",
@@ -2682,7 +2803,7 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
       }
     }
     
-    if(chandef->usedby == TDM_VOICE){
+    if(chandef->usedby == TDM_VOICE || chandef->usedby == TDM_VOICE_API){
  
       wp_interface += "TDMV_ECHO_OFF";
       wp_interface += "\t= ";
@@ -2693,21 +2814,24 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
       wp_interface += "\n";
     }
 
-    //YATE is running in API mode, and may need HWEC, make it possible.
-    if(chandef->usedby == TDM_VOICE || chandef->usedby == TDM_API || chandef->usedby == API){
-      snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC\t= %s\n",
-		get_keyword_from_look_up_t_table(yes_no_options_table,
-       					 chandef->chanconf->hwec.enable));	//chandef->chanconf->xoff_char));
-      wp_interface += tmp_buff;
+		if(cfr->link_defs->card_version != AFT_ADPTR_2SERIAL_V35X21){
+			//YATE is running in API mode, and may need HWEC, make it possible.
+			if(	chandef->usedby == TDM_VOICE	|| chandef->usedby == TDM_API ||
+					chandef->usedby == API				|| chandef->usedby == TDM_VOICE_API){
+
+				snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC\t= %s\n",
+					get_keyword_from_look_up_t_table(yes_no_options_table,
+       						 chandef->chanconf->hwec.enable));	//chandef->chanconf->xoff_char));
+				wp_interface += tmp_buff;
 /*
-      if(chandef->hwec_flag == WANOPT_YES){
-        snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC_MAP\t= %s\n",
-		chandef->active_hwec_channels_string);
-        wp_interface += tmp_buff;
-      }
+				if(chandef->hwec_flag == WANOPT_YES){
+					snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC_MAP\t= %s\n",
+						chandef->active_hwec_channels_string);
+					wp_interface += tmp_buff;
+				}
 */
+			}
     }
-    
   }else{
     /*
     //HDLC streamin runs on CHDLC firmware

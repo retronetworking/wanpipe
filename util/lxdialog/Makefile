@@ -3,7 +3,7 @@ CPP = gcc -E
 #Will be overwritten by ./Setup
 SYSINC=/lib/modules/$(shell uname -r)/build/include
 
-CFLAGS = -Wall -Wstrict-prototypes -I$(SYSINC) -O2 -fomit-frame-pointer -DLOCALE 
+CFLAGS = -D__LINUX__ -Wall -Wstrict-prototypes -I$(SYSINC) -O2 -fomit-frame-pointer -DLOCALE 
 LDFLAGS = -s -L .
 LDLIBS = -lncurses
 WAN_VIRTUAL=

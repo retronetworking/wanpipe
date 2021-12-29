@@ -180,7 +180,7 @@ int wpedu_init (sdla_t* card, wandev_conf_t* conf)
 	}else{
 		card->wandev.mtu = conf->mtu;
 	}
-	card->wandev.interface = 0; 
+	card->wandev.electrical_interface = 0; 
 	card->wandev.clocking = 0;
 
 	port_num = card->u.c.comm_port;
@@ -230,7 +230,7 @@ int wpedu_init (sdla_t* card, wandev_conf_t* conf)
  */
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	edu_private_area_t* edu_private_area;
 	int err = 0;
 
@@ -372,6 +372,8 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
+	dev->hard_header	= NULL; 
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
@@ -809,8 +811,8 @@ static void DoIoctl(sdla_t *card)
 		//The flag is set to one before an application will load the card.
 		//No application will be able to reload the card until the flag is reset by
 		//SDLA_CMD_DEREGISTER.
-		if(card->wandev.interface == 0)
-		{	card->wandev.interface = 1;
+		if(card->wandev.electrical_interface == 0)
+		{	card->wandev.electrical_interface = 1;
 			ioctl_cmd->return_code = 0;			
 		}else
 		{	//indicate failure to the caller
@@ -821,7 +823,7 @@ static void DoIoctl(sdla_t *card)
 	case SDLA_CMD_DEREGISTER:
 		DEBUG_IOCTL("SDLA_CMD_DEREGISTER\n");
 
-		card->wandev.interface = 0;
+		card->wandev.electrical_interface = 0;
 		ioctl_cmd->return_code = 0;
 		break;
 

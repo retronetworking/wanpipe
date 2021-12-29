@@ -34,10 +34,10 @@
 #include <linux/sdla_xilinx.h>
 #include "lib_api.h"
 
-#define MAX_TX_DATA     5000	/* Size of tx data */  
+#define MAX_TX_DATA     1024*10	/* Size of tx data */  
 #define MAX_FRAMES 	5000     /* Number of frames to transmit */  
 
-#define MAX_RX_DATA	5000
+#define MAX_RX_DATA	1024*10
 
 unsigned short Rx_lgth;
 
@@ -90,8 +90,8 @@ int MakeConnection(void)
   
 	printf("\nConnecting to card %s, interface %s prot %x\n", card_name, if_name,htons(PVC_PROT));
 	
-	strcpy( (char*)sa.sll_device, if_name);
-	strcpy( (char*)sa.sll_card, card_name);
+	strcpy( sa.sll_device, if_name);
+	strcpy( sa.sll_card, card_name);
 	sa.sll_protocol = htons(PVC_PROT);
 	sa.sll_family=AF_WANPIPE;
 	
@@ -543,7 +543,7 @@ int main(int argc, char* argv[])
 
 	proceed=init_args(argc,argv);
 	if (proceed != WAN_TRUE){
-		usage((unsigned char*)argv[0]);
+		usage(argv[0]);
 		return -1;
 	}
 

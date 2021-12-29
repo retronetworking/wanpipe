@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1_ds.h,v 1.9 2007/01/04 20:16:01 sangoma Exp $
+ *	$Id: sdla_te1_ds.h,v 1.15 2008/02/06 19:32:19 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -68,6 +68,7 @@
 #define DEVICE_ID_DS26524	0x0C
 #define DEVICE_ID_DS26522	0x0D
 #define DEVICE_ID_DS26521	0x0E
+#define DEVICE_ID_BAD		0x00
 #define DEVICE_ID_SHIFT		3
 #define DEVICE_ID_MASK		0x1F
 #define DEVICE_ID_DS(dev_id)	((dev_id) >> DEVICE_ID_SHIFT) & DEVICE_ID_MASK
@@ -93,6 +94,13 @@
 /* RX Framer Register Definitions */
 #define REG_RSIGC		0x13
 #define BIT_RSIGC_CASMS		0x10
+
+#define REG_T1RCR2		0x14
+#define BIT_T1RCR2_RSLC96	0x10
+#define BIT_T1RCR2_OOF2		0x08
+#define BIT_T1RCR2_OOF1		0x04
+#define BIT_T1RCR2_RAIIE	0x02
+#define BIT_T1RCR2_RD4RM	0x01
 
 #define REG_RS1			0x40
 #define BIT_RS_A		0x08
@@ -348,6 +356,8 @@
 #define BIT_RIM5_RNES		0x01
 
 #define REG_RIM7		0xA6
+#define BIT_RIM7_RSLC96		0x08
+#define BIT_RIM7_RFDLF		0x04
 
 #define REG_RSCSE1		0xA8
 #define BITS_RSCSE1_ALL		0xFF
@@ -536,10 +546,10 @@
 #define BIT_TCR1_E1_TCRC4	0x01
 
 #define REG_TCR2		0x182
-#define BIT_TCR2_T1_TD4RM	0x04
-#define BIT_TCR2_T1_TSLC96	0x40
 #define BIT_TCR2_T1_TFDLS	0x80
-#define BIT_TCR2_E1_AEBE	0x80
+#define BIT_TCR2_T1_TSLC96	0x40
+#define BIT_TCR2_T1_TD4RM	0x04
+#define BIT_TCR2_E1_AEBE	0x80		/* EBIT */
 
 #define REG_TCR3		0x183
 #define BIT_TCR3_ODF		0x80

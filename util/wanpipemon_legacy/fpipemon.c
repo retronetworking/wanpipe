@@ -274,7 +274,7 @@ int FRConfig( void )
 	if (x >= 4) return(WAN_FALSE);
    	station_config = wan_udp.wan_udphdr_data[0];
    
-   	strcpy(codeversion, "?.??");
+   	strlcpy(codeversion, "?.??", 10);
    
    	wan_udp.wan_udphdr_command = FR_READ_CODE_VERSION;
       	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -283,7 +283,7 @@ int FRConfig( void )
 
    	if (wan_udp.wan_udphdr_return_code == 0) {
       		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-      		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
+      		strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data, 10);
    	}
 
    	return(WAN_TRUE);
@@ -890,12 +890,12 @@ static void list_all_dlcis(void)
 			for (i=1;i<wan_udp.wan_udphdr_data_len;){
 				output_xml_val_data("DLCI",*((unsigned short*)&wan_udp.wan_udphdr_data[i]));
 				if (wan_udp.wan_udphdr_data[i+2] & 0x40){
-					cnt_val=sprintf(str_val,"Included, ");
+					cnt_val=snprintf(str_val,50,"Included, ");
 				}else{
-					cnt_val=sprintf(str_val,"Excluded, ");
+					cnt_val=snprintf(str_val,50,"Excluded, ");
 				}		
 			
-				cnt_val= sprintf((str_val+cnt_val),"%s",
+				cnt_val= snprintf((str_val+cnt_val),50-cnt_val,"%s",
 					(wan_udp.wan_udphdr_data[i+2] & 0x01) ? "Deleted" :
 					(wan_udp.wan_udphdr_data[i+2] & 0x02) ? "Active" :
 					(wan_udp.wan_udphdr_data[i+2] & 0x04) ? "Waiting" :
@@ -1008,7 +1008,7 @@ static void read_dlci_stat( void )
 
 	if (xml_output){
 		char tmp[100];
-		sprintf(tmp,"Statistics for dlci %i",dlci_number);
+		snprintf(tmp,100,"Statistics for dlci %i",dlci_number);
 		output_start_xml_router();
 		output_start_xml_header(tmp);
 	

@@ -159,6 +159,11 @@ typedef struct sfm			/* SDLA firmware file structire */
 #define AFT_ADPTR_56K_MASK		0x2000	/* AFT 56K board mask */
 #define AFT_ADPTR_56K			0x2001	/* AFT 56K board */
 
+#define AFT_ADPTR_SERIAL_MASK		0x4000	/* AFT Serial base board mask */
+#define AFT_ADPTR_2SERIAL_V35X21	0x4001	/* AFT-A142 2 Port V.35/X.21 board */
+#define AFT_ADPTR_4SERIAL_V35X21	0x4002	/* AFT-A144 4 Port V.35/X.21 board */
+#define AFT_ADPTR_2SERIAL_RS232		0x4003	/* AFT-A142 2 Port RS232 board */
+#define AFT_ADPTR_4SERIAL_RS232		0x4004	/* AFT-A144 4 Port RS232 board */
 
 #define OPERATE_T1E1_AS_SERIAL		0x8000  /* For bitstreaming only 
 						 * Allow the applicatoin to 
@@ -180,7 +185,7 @@ typedef struct sfm			/* SDLA firmware file structire */
 
 /* CPLD interface */
 #define AFT_MCPU_INTERFACE_ADDR		0x46
-#define AFT_MCPU_INTERFACE			0x44
+#define AFT_MCPU_INTERFACE		0x44
 
 #define AFT56K_MCPU_INTERFACE_ADDR	0x46
 #define AFT56K_MCPU_INTERFACE		0x44
@@ -201,6 +206,11 @@ typedef struct sfm			/* SDLA firmware file structire */
 #define AFT8_BIT_DEV_ADDR_CLEAR		0x1800 /* QUAD */
 #define AFT8_BIT_DEV_ADDR_CPLD		0x800
 #define AFT8_BIT_DEV_MAXIM_ADDR_CPLD	0x1000
+
+/* Aft Serial CPLD definitions */
+#define AFT_SERIAL_BIT_DEV_ADDR_CLEAR		0x1800 /* QUAD */
+#define AFT_SERIAL_BIT_DEV_ADDR_CPLD		0x800
+#define AFT_SERIAL_BIT_DEV_MAXIM_ADDR_CPLD	0x1000
 
 #define AFT3_BIT_DEV_ADDR_EXAR_CLEAR  	0x600
 #define AFT3_BIT_DEV_ADDR_EXAR_CPLD  	0x400
@@ -234,6 +244,10 @@ typedef struct sfm			/* SDLA firmware file structire */
 #define A108_SECURITY_256_ECCHAN	0x04
 #define A108_SECURITY_0_ECCHAN		0x05
 
+#define A500_SECURITY_32_ECCHAN		0x00
+#define A500_SECURITY_64_ECCHAN		0x01
+#define A500_SECURITY_0_ECCHAN		0x05
+
 #define A104_ECCHAN(val)				\
 	((val) == A104_SECURITY_32_ECCHAN)  	? 32 :	\
 	((val) == A104_SECURITY_64_ECCHAN)  	? 64 :	\
@@ -249,13 +263,16 @@ typedef struct sfm			/* SDLA firmware file structire */
 	((val) == A108_SECURITY_128_ECCHAN)	? 128 :	\
 	((val) == A108_SECURITY_256_ECCHAN)	? 256 : 0
 
+#define A500_ECCHAN(val)				\
+	((val) == A500_SECURITY_32_ECCHAN)  	? 32 :	\
+	((val) == A500_SECURITY_64_ECCHAN)  	? 64 :	0
+
 #define AFT_RM_SECURITY_16_ECCHAN	0x00
 #define AFT_RM_SECURITY_32_ECCHAN	0x01
 #define AFT_RM_SECURITY_0_ECCHAN	0x05
 #define AFT_RM_ECCHAN(val)				\
 	((val) == AFT_RM_SECURITY_16_ECCHAN) ? 16 :	\
 	((val) == AFT_RM_SECURITY_32_ECCHAN) ? 32 : 0
-
 
 
 #define SDLA_ADPTR_NAME(adapter_type)			\
@@ -275,24 +292,12 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(adapter_type == A400_ADPTR_ANALOG) 	   ? "AFT-A400" : \
 		(adapter_type == AFT_ADPTR_ISDN) 	   ? "AFT-A500" : \
 		(adapter_type == AFT_ADPTR_56K) 	   ? "AFT-A056" : \
+		(adapter_type == AFT_ADPTR_2SERIAL_V35X21) ? "AFT-A142" : \
+		(adapter_type == AFT_ADPTR_4SERIAL_V35X21) ? "AFT-A144" : \
+		(adapter_type == AFT_ADPTR_2SERIAL_RS232)  ? "AFT-A142" : \
+		(adapter_type == AFT_ADPTR_4SERIAL_RS232)  ? "AFT-A144" : \
 							     "UNKNOWN"
-							     
-#if 0
-#define SDLA_ADPTR_DECODE(adapter_type)			\
-		(adapter_type == S5141_ADPTR_1_CPU_SERIAL) ? "S514-1-PCI" : \
-		(adapter_type == S5142_ADPTR_2_CPU_SERIAL) ? "S514-2-PCI" : \
-		(adapter_type == S5143_ADPTR_1_CPU_FT1)    ? "S514-3-PCI" : \
-		(adapter_type == S5144_ADPTR_1_CPU_T1E1)   ? "S514-4-PCI" : \
-		(adapter_type == S5145_ADPTR_1_CPU_56K)    ? "S514-5-PCI" : \
-		(adapter_type == S5147_ADPTR_2_CPU_T1E1)   ? "S514-7-PCI" : \
-		(adapter_type == S518_ADPTR_1_CPU_ADSL)    ? "S518-PCI  " : \
-		(adapter_type == A101_ADPTR_1TE1) 	   ? "AFT-A101  " : \
-		(adapter_type == A101_ADPTR_2TE1)	   ? "AFT-A102  " : \
-		(adapter_type == A104_ADPTR_4TE1)	   ? "AFT-A104  " : \
-		(adapter_type == A300_ADPTR_U_1TE3) 	   ? "AFT-A301  " : \
-							     "UNKNOWN   "
-#endif
-
+			
 #define AFT_GET_SECURITY(security)					\
 		((security >> AFT_SECURITY_CPLD_SHIFT) & AFT_SECURITY_CPLD_MASK)
 
@@ -313,11 +318,24 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(adptr_subtype == AFT_SUBTYPE_SHARK)	? "SHARK" : ""
 
 #define AFT_PCITYPE_DECODE(hwcard)				\
-		((hwcard)->pci_bridge_dev) ? "PCIe" : "PCI"
+		((hwcard)->pci_bridge_dev) ? " PCIe" : " PCI"
 
-#define AFT_PCIEXPRESS_DECODE AFT_PCITYPE_DECODE
+#if defined(__WINDOWS__)
+#define DECODE_CARD_SUBTYPE(card_sub_type)						\
+		(card_sub_type == A101_1TE1_SUBSYS_VENDOR)	? "A101" :		\
+		(card_sub_type == AFT_1TE1_SHARK_SUBSYS_VENDOR)	? "A101D" :		\
+		(card_sub_type == A101_2TE1_SUBSYS_VENDOR)	? "A102" :		\
+		(card_sub_type == AFT_2TE1_SHARK_SUBSYS_VENDOR)	? "A102D" :		\
+		(card_sub_type == A104_4TE1_SUBSYS_VENDOR)	? "A104" :		\
+		(card_sub_type == AFT_4TE1_SHARK_SUBSYS_VENDOR)	? "A104D" :		\
+		(card_sub_type == AFT_8TE1_SHARK_SUBSYS_VENDOR)	? "A108D"  :	\
+		(card_sub_type == A200_REMORA_SHARK_SUBSYS_VENDOR)? "A200"  : "Unknown"
 
-
+#define SDLA_CARD_TYPE_DECODE(cardtype)				\
+		((cardtype == SDLA_S514) ? "S514" :			\
+		(cardtype == SDLA_ADSL) ? "S518-ADSL" :	\
+		(cardtype == SDLA_AFT) ? "AFT" : "Invalid card")
+#endif/* __WINDOWS__ */
 
 #endif	/* _SDLASFM_H */
 

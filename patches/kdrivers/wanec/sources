@@ -9,22 +9,19 @@ MSC_WARNING_LEVEL=-W3 -WX
 #make sure no optimization done, even in "Free" build:
 MSC_OPTIMIZATION=/Odi
 
-C_DEFINES=$(C_DEFINES) -D__WINDOWS__ -D__KERNEL__ -DBUSENUM_DRV
-C_DEFINES=$(C_DEFINES) -DSANG_DBG
+C_DEFINES=$(C_DEFINES) -D__WINDOWS__ -D__KERNEL__ -DVIRTUAL_IF_DRV
 
-#build can not expand Env Vars names longer than 8 chars, so use
-#absolute paths
 INCLUDES=$(DDK_INC_PATH);\
-D:\cvshome\development\wanpipe_windows\include\pnp;\
-D:\cvshome\development\wanpipe_windows\include\api;\
-D:\cvshome\development\wanpipe_windows\include\octasic\include;\
-D:\cvshome\development\wanpipe_windows\include\octasic\include\oct6100api;\
-D:\cvshome\development\wanpipe_windows\include\octasic\octdeviceapi\oct6100api;\
-D:\cvshome\development\wanpipe_windows\include\octasic\apilib\llman;\
-D:\cvshome\development\wanpipe_windows\include\octasic\include\apilib;\
-D:\cvshome\development\wanpipe_windows\include\octasic\include\octrpc;\
-D:\cvshome\development\wanpipe_windows\include\octasic\apilib\bt;\
-D:\cvshome\development\wanpipe_windows\include\debug
+d:\development\wanpipe_windows\include;\
+d:\development\wanpipe_common\include;\
+d:\development\wanpipe_common\wanec;\
+d:\development\wanpipe_common\wanec\oct6100_api.PR43\include;\
+d:\development\wanpipe_common\wanec\oct6100_api.PR43\include\oct6100api;\
+d:\development\wanpipe_common\wanec\oct6100_api.PR43\octdeviceapi\oct6100api;\
+d:\development\wanpipe_common\wanec\oct6100_api.PR43\apilib\llman;\
+d:\development\wanpipe_common\wanec\oct6100_api.PR43\include\apilib;\
+d:\development\wanpipe_common\wanec\oct6100_api.PR43\include\octrpc;\
+d:\development\wanpipe_common\wanec\oct6100_api.PR43\apilib\bt
 
 SOURCES= wanec_iface.c \
 wanec_cmd.c	\

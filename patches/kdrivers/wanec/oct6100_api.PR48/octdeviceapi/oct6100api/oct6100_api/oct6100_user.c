@@ -23,7 +23,6 @@ $Octasic_Revision: 25 $
 
 /*****************************  INCLUDE FILES  *******************************/
 
-
 /* System specific includes */
 #if defined(WAN_EC_USER)
 # include <unistd.h>
@@ -73,13 +72,10 @@ $Octasic_Revision: 25 $
 #  include <wanpipe.h>
 #  include <wanpipe_cfg.h>
 # endif
-
-#include "oct6100api/oct6100_apiud.h"
-#include "oct6100api/oct6100_errors.h"
-
-#include "oct6100api/oct6100_api.h"
-#include "oct6100_version.h"
-
+# include "oct6100api/oct6100_apiud.h"
+# include "oct6100api/oct6100_errors.h"
+# include "oct6100api/oct6100_api.h"
+# include "oct6100_version.h"
 # include "wanec_iface.h"
 #endif
 
@@ -116,11 +112,11 @@ UINT32 Oct6100UserGetTime(
 
 #if !defined(__WINDOWS__)
 	/* Retrieve clock tick */
-#if defined(WAN_KERNEL)
+# if defined(WAN_KERNEL)
 	wan_getcurrenttime( &TimeVal.tv_sec, &TimeVal.tv_usec );
-#else
+# else
 	gettimeofday( &TimeVal, NULL );
-#endif
+# endif
 	/* ulClockTicks = ( TimeVal.tv_sec * 1000000 ) + ( TimeVal.tv_usec ); */
 	/* Create a value im ms (as clock does) */
 	ulClockTicks = ( TimeVal.tv_sec * 1000 ) + ( TimeVal.tv_usec /1000 );
@@ -211,6 +207,9 @@ union semun {
 };
 #endif
 
+#if defined(WAN_KERNEL)
+
+#else
 typedef struct _SEM_FILE_INF_
 {
 	UINT32		ulMainProcessId;
@@ -224,6 +223,7 @@ typedef struct _SEM_INF_
 	CHAR		szFileName[PATH_MAX];
 
 } tSEM_INF, *tPSEM_INF;
+#endif
 
 /*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*\
 
@@ -392,6 +392,25 @@ UINT32 Oct6100UserCreateSerializeObject(
 	return ulRc;
 #else
 
+	wan_spinlock_t				*pLockInf;
+	tPOCTPCIDRV_USER_PROCESS_CONTEXT	pContext;
+
+	pContext = (tPOCTPCIDRV_USER_PROCESS_CONTEXT)f_pCreate->pProcessContext;
+
+	if ( ( f_pCreate == NULL ) || ( f_pCreate->pszSerialObjName == NULL )  )
+		return cOCT6100_CREATE_SERIAL_FAILED_0;
+
+	/* Alloc a sem inf structure */
+	pLockInf = (wan_spinlock_t*)wan_malloc( sizeof(wan_spinlock_t) );
+
+	/* Check if malloc failed!!! */
+	if ( pLockInf == NULL )
+		return cOCT6100_CREATE_SERIAL_FAILED_0; /* No memory. */
+
+	wan_spin_lock_init(pLockInf, "wan_ecapi_lock");
+	/* Keep pointer to semaphore information. */
+	f_pCreate->ulSerialObjHndl = (PVOID)pLockInf;	
+
 	return cOCT6100_ERR_OK;
 #endif
 }
@@ -485,6 +504,18 @@ UINT32 Oct6100UserDestroySerializeObject(
 	return ulRc;
 #else
 
+	wan_spinlock_t		*pLockInf;
+
+	if ( ( f_pDestroy == NULL ) || ( f_pDestroy->ulSerialObjHndl == 0x0 ) )
+		return cOCT6100_DESTROY_SERIAL_FAILED_0;
+
+	pLockInf = (wan_spinlock_t*)(f_pDestroy->ulSerialObjHndl);
+
+	if (wan_spin_is_locked(pLockInf)){
+		return cOCT6100_DESTROY_SERIAL_FAILED_0;
+	}
+
+	wan_free( pLockInf );
 	return cOCT6100_ERR_OK;
 #endif
 }
@@ -575,8 +606,24 @@ UINT32 Oct6100UserSeizeSerializeObject(
 	}
 	return( ulRc );
 #else
-	return cOCT6100_ERR_OK;
+	wan_spinlock_t		*pLockInf;
 
+	if( f_pSeize == NULL )
+		return cOCT6100_SEIZE_SERIAL_FAILED_0;
+
+	if ( f_pSeize->ulSerialObjHndl == 0 )
+		return cOCT6100_SEIZE_SERIAL_FAILED_0;
+
+	pLockInf = (wan_spinlock_t*)f_pSeize->ulSerialObjHndl;
+
+	/* Check mutex handle */
+	if ( pLockInf ){
+		if (wan_spin_trylock(pLockInf)){
+			return cOCT6100_ERR_OK;
+		}
+		return cOCT6100_SEIZE_SERIAL_FAILED_1;
+	}
+	return cOCT6100_ERR_OK;
 #endif
 
 }
@@ -629,7 +676,21 @@ UINT32 Oct6100UserReleaseSerializeObject(
 
 	return( ulRc );
 #else
+	wan_spinlock_t		*pLockInf;
 
+	if( f_pRelease == NULL )
+		return cOCT6100_RELEASE_SERIAL_FAILED_0;
+
+	if ( f_pRelease->ulSerialObjHndl == 0 )
+		return cOCT6100_RELEASE_SERIAL_FAILED_0;
+
+	pLockInf = (wan_spinlock_t*)f_pRelease->ulSerialObjHndl;
+
+	/* Check mutex handle */
+	if ( pLockInf ){
+		wan_spin_unlock(pLockInf);
+		return cOCT6100_ERR_OK;
+	}
 	return cOCT6100_ERR_OK;
 #endif
 

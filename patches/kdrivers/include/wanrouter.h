@@ -5,6 +5,7 @@
 *
 * Author: 	Nenad Corbic <ncorbic@sangoma.com>
 * 		Alex Feldman <al.feldman@sangoma.com>
+*		David Rokhvarg <davidr@sangoma.com>
 *		Gideon Hack 	
 * Additions:    Arnaldo Melo
 *
@@ -15,6 +16,9 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ============================================================================
+* Nov 27,  2007 David Rokhvarg	Implemented functions/definitions for
+*                               Sangoma MS Windows Driver and API.
+*
 * May 25, 2001  Alex Feldman	Added T1/E1 support  (TE1).
 * Jul 21, 2000  Nenad Corbic	Added WAN_FT1_READY State
 * Feb 24, 2000  Nenad Corbic    Added support for socket based x25api
@@ -120,6 +124,10 @@ enum router_ioctls
 
 #endif
 
+#if defined(__WINDOWS__)
+#undef __LINUX__
+#endif
+
 /* identifiers for displaying proc file data for dual port adapters */
 #define PROC_DATA_PORT_0 0x8000	/* the data is for port 0 */
 #define PROC_DATA_PORT_1 0x8001	/* the data is for port 1 */
@@ -133,9 +141,10 @@ enum router_ioctls
 #define	NLPID_ISIS	0x83	/* ISO/IEC ISIS */
 #define	NLPID_Q933	0x08	/* CCITT Q.933 */
 
-
+#if !defined(__WINDOWS__)
 #ifndef WAN_DRVNAME_SZ  
 #define WAN_DRVNAME_SZ  15
+#endif
 #endif
 /****** Data Types **********************************************************/
 
@@ -179,6 +188,9 @@ enum fe_status {
 	FE_DISCONNECTED,
 	FE_CONNECTED
 };
+#define WAN_FE_UNITIALIZED	FE_UNITIALIZED
+#define	WAN_FE_DISCONNECTED	FE_DISCONNECTED
+#define	WAN_FE_CONNECTED	FE_CONNECTED
 
 /* 'modem_status' masks */
 #define	WAN_MODEM_CTS	0x0001	/* CTS line active */
@@ -211,6 +223,11 @@ typedef struct wan_conf
 #  include <sdla_tdmv.h>
 # endif
 
+#elif defined(__WINDOWS__)
+# include <wanpipe_debug.h>	
+# include <wanpipe_common.h>	
+# include <wanpipe_events.h>	
+# include <wanpipe_cfg.h>
 #else
 //# include <linux/version.h>
 # include <linux/wanpipe_includes.h>
@@ -244,11 +261,6 @@ typedef struct wan_conf
 
 /****** Kernel Interface ****************************************************/
 
-
-/*----------------------------------------------------------------------------
- * WAN device data space.
- */
-
 typedef struct wan_rtp_chan
 {
 	netskb_t *rx_skb;
@@ -258,7 +270,9 @@ typedef struct wan_rtp_chan
 }wan_rtp_chan_t;
 
 
-
+/*----------------------------------------------------------------------------
+ * WAN device data space.
+ */
 struct wan_dev_le {
 	WAN_LIST_ENTRY(wan_dev_le)	dev_link;
 	netdevice_t			*dev;
@@ -266,12 +280,11 @@ struct wan_dev_le {
 #define WAN_DEVLE2DEV(devle)	(devle && devle->dev) ? devle->dev : NULL
 WAN_LIST_HEAD(wan_dev_lhead, wan_dev_le);
 
-
 typedef struct wan_device
 {
 	unsigned magic;			/* magic number */
 	char* name;			/* -> WAN device name (ASCIIZ) */
-	void* private;			/* -> driver private data */
+	void* priv;			/* -> driver private data */
 	unsigned config_id;		/* Configuration ID */
 					/****** hardware configuration ******/
 	unsigned ioport;		/* adapter I/O port base #1 */
@@ -289,7 +302,7 @@ typedef struct wan_device
 	unsigned int udp_port;          /* UDP port for management */
         unsigned char ttl;		/* Time To Live for UDP security */
 	unsigned int enable_tx_int; 	/* Transmit Interrupt enabled or not */
-	char interface;			/* RS-232/V.35, etc. */
+	char electrical_interface;			/* RS-232/V.35, etc. */
 	char clocking;			/* external/internal */
 	char line_coding;		/* NRZ/NRZI/FM0/FM1, etc. */
 	char station;			/* DTE/DCE, primary/secondary, etc. */
@@ -364,9 +377,15 @@ typedef struct wan_device
 		void	(*ringtrip) (void* card_id, wan_event_t*);	
 		void	(*ringdetect) (void* card_id, wan_event_t*);	
 	} event_callback;
+	
 	unsigned char 		ignore_front_end_status;
 	unsigned char		line_idle;
+#if defined(__WINDOWS__)
+	u32		card_type;
+	sdla_fe_cfg_t	fe_cfg;
+#else
 	unsigned char		card_type;
+#endif
 	atomic_t		if_cnt;
 	atomic_t		if_up_cnt;
 	wan_sdlc_conf_t		sdlc_cfg;
@@ -403,9 +422,10 @@ typedef struct wan_device
 	sdla_fe_notify_iface_t	fe_notify_iface;
 
 	void			*ec_dev;
+	
 	unsigned long		ec_enable_map;
-	unsigned long		ec_map;
-	unsigned long		ec_intmask;
+	unsigned long		fe_ec_map;
+	wan_ticks_t		ec_intmask;
 		
 	int			(*ec_enable)(void *pcard, int, int);
 
@@ -413,9 +433,7 @@ typedef struct wan_device
 	unsigned char	(*read_ec)(void*, unsigned short);
 	int		(*hwec_reset)(void* card_id, int);
 	int		(*hwec_enable)(void* card_id, int, int);
-
-	void 		(*critical_event) (void *, int);
-
+	
 	unsigned long		rtp_tap_call_map;
 	unsigned long		rtp_tap_call_status;
 	wan_rtp_chan_t		rtp_chan[32];
@@ -474,10 +492,11 @@ extern void wan_skb_destructor (struct sk_buff *skb);
 
 extern unsigned long wan_get_ip_address (netdevice_t *dev, int option);
 
-void *wanpipe_ec_register(void*, int);
+void *wanpipe_ec_register(void*, u_int32_t, int,int, void*);
 int wanpipe_ec_unregister(void*,void*);
-int wanpipe_ec_isr(void*,void*);
+int wanpipe_ec_isr(void*);
 int wanpipe_ec_poll(void*,void*);
+int wanpipe_ec_ready(void*);
 int wanpipe_ec_event_ctrl(void*,void*,wan_event_ctrl_t*);
 
 #endif	/* __KERNEL__ */

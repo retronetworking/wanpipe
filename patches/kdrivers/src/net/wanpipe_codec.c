@@ -26,7 +26,7 @@
 # include <wanpipe_common.h>
 # include <wanpipe.h>
 # include <wanpipe_codec.h>
-#elif (defined __WINDOWS__)
+#elif defined(__WINDOWS__)
 # include <wanpipe_includes.h>
 # include <wanpipe_defines.h>
 # include <wanpipe.h>
@@ -44,6 +44,8 @@ wanpipe_codec_ops_t *WANPIPE_CODEC_OPS[WP_TDM_HW_CODING_MAX][WP_TDM_CODEC_MAX];
 
 #ifdef __LINUX__ 
 __init int wanpipe_codec_init(void)
+#elif defined(__WINDOWS__)
+int wanpipe_codec_init(void)
 #else
 __init int wanpipe_codec_init(void)
 #endif

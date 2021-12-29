@@ -14,7 +14,7 @@
 * ============================================================================
 * Jul 13, 2004  David Rokhvarg	Added Idle cell trace.
 * Sep 12, 2003  Nenad Corbic	Fixed the TE1 clock selection, the
-* 			        conf->interfaces must be hardcoded, before
+* 			        conf->electrical_interfaces must be hardcoded, before
 * 			        writting the value to the card structure.
 * Jan 07, 2002	Nenad Corbic	Initial version.
 *****************************************************************************/
@@ -337,7 +337,7 @@ int wp_atm_init (sdla_t* card, wandev_conf_t* conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_te_iface_init(&card->wandev.fe_iface);
+		sdla_te_iface_init(&card->fe,&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -345,7 +345,7 @@ int wp_atm_init (sdla_t* card, wandev_conf_t* conf)
 
 		card->wandev.fe_enable_timer = enable_timer;
 		card->wandev.te_link_state = handle_front_end_state;
-		conf->interface = 
+		conf->electrical_interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
 
 		if (card->wandev.comm_port == WANOPT_PRI){
@@ -355,7 +355,7 @@ int wp_atm_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->fe,&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -384,7 +384,7 @@ int wp_atm_init (sdla_t* card, wandev_conf_t* conf)
 	card->wandev.clocking 			= conf->clocking;
 	card->wandev.ignore_front_end_status 	= conf->ignore_front_end_status;
 	card->wandev.ttl 			= conf->ttl;
-	card->wandev.interface 			= conf->interface; 
+	card->wandev.electrical_interface 			= conf->electrical_interface; 
 	card->wandev.comm_port 			= conf->comm_port;
 	card->wandev.udp_port   		= conf->udp_port;
 	card->wandev.new_if_cnt 		= 0;
@@ -656,13 +656,13 @@ atm_timer_poll_exit:
  */
 static int update (wan_device_t* wandev)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
  	struct net_device* dev;
         volatile private_area_t* priv_area;
 	unsigned long timeout;
 
 	/* sanity checks */
-	if((wandev == NULL) || (wandev->private == NULL))
+	if((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	
 	if(wandev->state == WAN_UNCONFIGURED)
@@ -751,7 +751,7 @@ static int update (wan_device_t* wandev)
  */
 static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	private_area_t* priv_area;
 	int err = 0;
 
@@ -971,7 +971,7 @@ new_if_error:
 static int del_if (wan_device_t* wandev, struct net_device* dev)
 {
 	private_area_t* 	priv_area = dev->priv;
-	sdla_t*			card = wandev->private;
+	sdla_t*			card = wandev->priv;
 	unsigned long		flags;
 
 	wan_atomic_dec(&card->wandev.if_cnt);
@@ -1039,6 +1039,8 @@ static int if_init (struct net_device* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
+	dev->hard_header	= NULL; 
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
@@ -1328,7 +1330,7 @@ static int if_send (netskb_t* skb, struct net_device* dev)
 {
 	private_area_t *chan = dev->priv;
 	sdla_t *card = chan->card;
-	unsigned long smp_flags=0;
+	unsigned long smp_flags;
 	int err=0;
 
 	/* Mark interface as busy. The kernel will not
@@ -2065,7 +2067,7 @@ static int set_frmw_config(sdla_t* card)
 		cfg.baud_rate = card->wandev.bps;
 	}
 		
-	cfg.line_config_options = (card->wandev.interface == WANOPT_RS232) ?
+	cfg.line_config_options = (card->wandev.electrical_interface == WANOPT_RS232) ?
 		INTERFACE_LEVEL_RS232 : INTERFACE_LEVEL_V35;
 
 	/* Automatic DTR/RTS and notify modem status changes */
@@ -3989,7 +3991,7 @@ static int get_dev_config_info(char* buf, char** start, off_t offs, int len, int
 		return cnt;
 
 	PROC_ADD_INIT(offs, stop_cnt);
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	PROC_ADD_LINE(cnt, 
 		(buf, &cnt, len, offs, &stop_cnt, &size, PROC_DEV_SEPARATE));
@@ -4037,7 +4039,7 @@ static int set_dev_config(struct file *file,
 	if (wandev == NULL)
 		return cnt;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	DEBUG_EVENT( "%s: New device config (%s)\n",
 			wandev->name, buffer);

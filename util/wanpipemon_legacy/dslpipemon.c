@@ -40,7 +40,6 @@
 # include <linux/if_ether.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe_cfg.h>
-# include <linux/wanpipe_abstr.h>
 # include <linux/wanpipe.h>
 # include <linux/sdla_adsl.h>
 #else
@@ -50,7 +49,6 @@
 # include <netinet/udp.h>
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
-# include <wanpipe_abstr.h>
 # include <wanpipe.h>
 # include <sdla_adsl.h>
 #endif
@@ -134,7 +132,7 @@ int ADSLConfig( void )
 
 	if (x >= 4) return(FALSE);
 
-	strcpy(codeversion, "?.??");
+	strlcpy(codeversion, "?.??", 10);
   
 	wan_udp.wan_udphdr_command	= ADSL_READ_DRIVER_VERSION;
 	wan_udp.wan_udphdr_data_len 	= 0;
@@ -142,7 +140,7 @@ int ADSLConfig( void )
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0){
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strcpy(codeversion, (char*)wan_udp.wan_udphdr_data);
+		strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data, 10);
 	}
 	protocol_cb_size=sizeof(wan_mgmt_t) + sizeof(wan_cmd_t) + sizeof(wan_trace_info_t) + 1;
 	return TRUE;
@@ -465,30 +463,33 @@ static void line_trace(unsigned char trace_opt)
 				
 				/*  frame type */
 				if (trace_pkt->status & 0x01) {
-					sprintf(outstr,"\nOUTGOING\t");
+					snprintf(outstr,MAX_TRACE_BUF,"\nOUTGOING\t");
 				} else {
 					if (trace_pkt->status & 0x10) { 
-						sprintf(outstr,"\nINCOMING - Aborted\t");
+						snprintf(outstr,MAX_TRACE_BUF,"\nINCOMING - Aborted\t");
 					} else if (trace_pkt->status & 0x20) {
-						sprintf(outstr,"\nINCOMING - CRC Error\t");
+						snprintf(outstr,MAX_TRACE_BUF,"\nINCOMING - CRC Error\t");
 					} else if (trace_pkt->status & 0x40) {
-						sprintf(outstr,"\nINCOMING - Overrun Error\t");
+						snprintf(outstr,MAX_TRACE_BUF,"\nINCOMING - Overrun Error\t");
 					} else {
-						sprintf(outstr,"\nINCOMING\t");
+						snprintf(outstr,MAX_TRACE_BUF,"\nINCOMING\t");
 					}
 				}
 
 				/* real length and time stamp */
-				sprintf(outstr+strlen(outstr), "Len=%-5u\tTimestamp=%-5u\t", 
+				snprintf(outstr+strlen(outstr), MAX_TRACE_BUF-strlen(outstr),
+					"Len=%-5u\tTimestamp=%-5u\t", 
 				     trace_pkt->real_length, trace_pkt->time_stamp);
 
 				/* first update curr_pos */
 				curr_pos += sizeof(wan_trace_pkt_t);
 				if (trace_pkt->real_length >= WAN_MAX_DATA_SIZE){
-					sprintf( outstr+strlen(outstr), "\t:the frame data is to big (%u)!",
+					snprintf( outstr+strlen(outstr), MAX_TRACE_BUF-strlen(outstr),
+						"\t:the frame data is to big (%u)!",
 										trace_pkt->real_length);
 				}else if (trace_pkt->data_avail == 0) {
-					sprintf( outstr+strlen(outstr), "\t:the frame data is not available" );
+					snprintf( outstr+strlen(outstr), MAX_TRACE_BUF-strlen(outstr),
+						"\t:the frame data is not available" );
 				}else{
 					/* update curr_pos again */
 					curr_pos += trace_pkt->real_length;
@@ -508,18 +509,18 @@ static void line_trace(unsigned char trace_opt)
 					}
 
 					count = 0;
-					sprintf(outstr+strlen(outstr),"\n\t\t");
+					snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),"\n\t\t");
 				        for( j=0; j<num_chars; j++ ) {
 						count ++;
 
 						if (trace_opt != 2){
 							if (count == 15){
-								sprintf(outstr+strlen(outstr),"\n\t\t");
+								snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),"\n\t\t");
 							}else if (count == 35){
-								sprintf(outstr+strlen(outstr),"\n\t\t");
+								snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),"\n\t\t");
 								count=40;
 							}else if (count>40 && !(count%20)){
-								sprintf(outstr+strlen(outstr),"\n\t\t");
+								snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),"\n\t\t");
 							}
 						}else{
 							if (count == 5){
@@ -532,31 +533,33 @@ static void line_trace(unsigned char trace_opt)
 								trace_pkt->data[j-0]);
 								*/
 							
-								sprintf(outstr+strlen(outstr),"\tVpi=%d",
+								snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),
+								"\tVpi=%d",
 								trace_pkt->data[j-4]<<4 |
 								(trace_pkt->data[j-3]&0xF0)>>4);
 
-								sprintf(outstr+strlen(outstr),"\tVci=%d",
+								snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),"\tVci=%d",
 								(trace_pkt->data[j-3]&0x0F)<<12 |
 								(trace_pkt->data[j-2]<<4)|
 								(trace_pkt->data[j-1]&0xF0)>>4);
 						
 								
-								sprintf(outstr+strlen(outstr),"\n\t\t");
+								snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),"\n\t\t");
 								count=20;
 								
 							}else if (count>20 && !(count%20)){
-								sprintf(outstr+strlen(outstr),"\n\t\t");
+								snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),"\n\t\t");
 							}
 						}
 						
-						sprintf(outstr+strlen(outstr), 
+						snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),
 							"%02X ", 
 							(unsigned char)trace_pkt->data[j]);
 				        }
 
 					if (num_chars < trace_pkt->real_length){
-						sprintf(outstr+strlen(outstr),".. ");
+						snprintf(outstr+strlen(outstr),MAX_TRACE_BUF-strlen(outstr),
+							".. ");
 		          		}
 
 					outstr[strlen(outstr)-1] = '\0';

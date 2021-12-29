@@ -150,12 +150,17 @@ again:
   case WAN_MEDIA_56K:
   case WAN_MEDIA_DS3:
   case WAN_MEDIA_E3:
+	case WAN_MEDIA_SERIAL:
     //for now only un-channelized TE3 supported
     max_valid_number_of_logical_channels = 1;
     break;
 
   case WAN_MEDIA_FXOFXS:
     max_valid_number_of_logical_channels = MAX_FXOFXS_CHANNELS;
+    break;
+
+  case WAN_MEDIA_BRI:
+    max_valid_number_of_logical_channels = MAX_BRI_TIMESLOTS;
     break;
 
   default:
@@ -194,6 +199,11 @@ again:
     case AFT_ADPTR_56K:
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s\" ",
         get_card_type_string(linkconf->card_type, link_def->card_version));
+      break;
+
+    case AFT_ADPTR_ISDN:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s (Line No: %d)\" ",
+        get_card_type_string(linkconf->card_type, link_def->card_version), fe_cfg->line_no);
       break;
 
     default:
@@ -683,7 +693,7 @@ should be 'wagappp0' or 'waga?#' where '?' is alphabetical and '#' is numerical.
 	if(obj_list->get_size() > 1){
 	  
           Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("-- 3\n"));
-	  
+
 	  //General case - more than one logical channel.
 	  //Usually AFT groups of channels because protocols are in the LIP layer.
 	  
@@ -703,7 +713,7 @@ should be 'wagappp0' or 'waga?#' where '?' is alphabetical and '#' is numerical.
 	}else{
 		
           Debug(DBG_MENU_NEW_DEVICE_CONFIG, ("-- 4\n"));
-	  
+
 	  //Special case - exactly one logical channel.
           if(chandef->chanconf->config_id == WANCONFIG_AFT ||
              chandef->chanconf->config_id == WANCONFIG_AFT_TE3){
@@ -712,6 +722,7 @@ should be 'wagappp0' or 'waga?#' where '?' is alphabetical and '#' is numerical.
 	      "Protocol-------->",
 	      "HDLC Streaming");
 	  }else{
+
 	    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s %s\" ",
 	      "Protocol-------->",
 	      get_protocol_string(chandef->chanconf->config_id));
@@ -749,6 +760,8 @@ should be 'wagappp0' or 'waga?#' where '?' is alphabetical and '#' is numerical.
 	      
 	//new configuration - NO protocol yet
 	if(obj_list->get_size() > 1){
+          FUNC_DBG();
+
 	  //general case - more than one	
 	  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s %s: %s\" ",
 	    TIME_SLOT_GROUP_STR,
@@ -812,6 +825,7 @@ int menu_new_device_configuration::check_aft_timeslot_groups_cfg()
     switch(chandef->usedby)
     {
     case TDM_VOICE:
+    case TDM_VOICE_API:
       local_is_there_a_voice_if = YES;
       
       if(tdmv_conf->span_no == 0){

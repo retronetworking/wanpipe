@@ -40,7 +40,7 @@ class menu_hardware_probe : public menu_base  {
 #endif
 
   int parse_selected_card_line(char *selected_card_line,
-                               char *card_type,
+                               unsigned int *card_type,
                                unsigned int *card_version,
                                unsigned int *card_sub_version);
 

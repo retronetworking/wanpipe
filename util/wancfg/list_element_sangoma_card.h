@@ -109,6 +109,7 @@ public:
 	return 1;
     }
     dchan = new_dchan;
+    return 0;
   }
 
   int set_key(int new_key)
@@ -144,6 +145,11 @@ public:
       	printf("\tSpan: %d, Line: Analog, Law: %s.\n", 
 		spanno, (fe_cfg.tdmv_law == ZT_LAW_MULAW ? "MuLaw" : "ALaw"));
       	break;
+
+	case AFT_ADPTR_ISDN:
+      	printf("\tSpan: %d, Line: ISDN BRI, Law: %s.\n", 
+		spanno, (fe_cfg.tdmv_law == ZT_LAW_MULAW ? "MuLaw" : "ALaw"));
+		break;
 
     case A101_ADPTR_1TE1:
     case A104_ADPTR_4TE1:

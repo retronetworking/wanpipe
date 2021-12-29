@@ -50,6 +50,7 @@ typedef unsigned __int32 u_int32_t;
 
 typedef HANDLE sng_fd_t;
 #else
+/* L I N U X */
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -76,6 +77,7 @@ typedef HANDLE sng_fd_t;
 #ifdef WANPIPE_TDM_API
 # include <linux/wanpipe_tdm_api.h>
 #endif
+               
 #endif
 
 #define FNAME_LEN	50
@@ -176,14 +178,19 @@ int sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 
 int sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 
-int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
-int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api); 
-
-
 int sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
 int sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+
+int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api);
+
+/* get current Line Connection state - Connected/Disconnected */
+int sangoma_tdm_get_fe_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char *current_status);
+/* set current Line Connection state - Connected/Disconnected. valid only for ISDN BRI */
+int sangoma_tdm_set_fe_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char new_status);
+
 
 #ifndef LIBSANGOMA_GET_HWCODING
 #define LIBSANGOMA_GET_HWCODING 1
@@ -193,3 +200,4 @@ int sangoma_tdm_get_hw_coding(int fd, wanpipe_tdm_api_t *tdm_api);
 #endif 	/* WANPIPE_TDM_API */
 
 #endif
+

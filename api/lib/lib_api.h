@@ -38,14 +38,14 @@ extern int	cause;
 extern int	card_cnt;
 extern int	i_cnt;
 
-extern  char tx_file[WAN_IFNAME_SZ];
-extern  char rx_file[WAN_IFNAME_SZ];
+extern char tx_file[WAN_IFNAME_SZ];
+extern char rx_file[WAN_IFNAME_SZ];
 
 #define TX_ADDR_STR_SZ  100
 
-extern  char daddr[TX_ADDR_STR_SZ];
-extern  char saddr[TX_ADDR_STR_SZ];
-extern  char udata[TX_ADDR_STR_SZ];
+extern char daddr[TX_ADDR_STR_SZ];
+extern char saddr[TX_ADDR_STR_SZ];
+extern char udata[TX_ADDR_STR_SZ];
 
 
 #define	TX_FILE_USED	1
@@ -55,11 +55,11 @@ extern  char udata[TX_ADDR_STR_SZ];
 
 extern int init_args(int argc, char *argv[]);
 
-extern void usage(unsigned char *api_name);
+extern void usage(char *api_name);
 extern void u_delay(int usec);
 
 extern char card_name[WAN_IFNAME_SZ];
 extern char if_name[WAN_IFNAME_SZ];
 
-extern  char sw_if_name[WAN_IFNAME_SZ];
-extern  char sw_card_name[WAN_IFNAME_SZ];
+extern char sw_if_name[WAN_IFNAME_SZ];
+extern char sw_card_name[WAN_IFNAME_SZ];

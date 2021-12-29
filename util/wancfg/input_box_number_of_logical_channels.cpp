@@ -59,6 +59,10 @@ int input_box_number_of_logical_channels::show( IN char * lxdialog_path,
     max_valid_number_of_channels = MAX_FXOFXS_CHANNELS;
   }
 
+  if(link_defs->card_version == AFT_ADPTR_ISDN){
+    max_valid_number_of_channels = MAX_BRI_TIMESLOTS;
+  }
+
   snprintf(backtitle, MAX_PATH_LENGTH, "WANPIPE Configuration Utility ");
 //  snprintf(&backtitle[strlen(backtitle)], MAX_PATH_LENGTH,
 //          "%s Setup", get_protocol_string(protocol));
@@ -98,6 +102,12 @@ again:
 
         tb.show_error_message(lxdialog_path, WANCONFIG_AFT,
 "Invalid number of Channels. Minimum: 1, Max: %d.", MAX_FXOFXS_CHANNELS);
+        goto again;
+
+      }else if(link_defs->card_version == AFT_ADPTR_ISDN){
+
+        tb.show_error_message(lxdialog_path, WANCONFIG_AFT,
+"Invalid number of Channels. Minimum: 1, Max: %d.", MAX_BRI_TIMESLOTS);
         goto again;
 
       }else{

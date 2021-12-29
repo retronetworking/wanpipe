@@ -161,9 +161,9 @@ static int wan_if_ip_menu(void)
 		return -1;
 	}
 
-	sprintf(current, "lo");
-	sprintf(title,"Operation Mode Seleciton");
-	sprintf(prompt,"Local System: device resides on the server, if name needed.  Remote System: device resides on the network, thus ip address needed");
+	snprintf(current, 100, "lo");
+	snprintf(title,100,"Operation Mode Seleciton");
+	snprintf(prompt,100,"Local System: device resides on the server, if name needed.  Remote System: device resides on the network, thus ip address needed");
 
 	memset(data,0,100);
 
@@ -216,8 +216,8 @@ static int wan_ip_menu(void)
 		return -1;
 	}
 
-	sprintf(title,"IP Address Setup");
-	sprintf(prompt,"Specify a remote IP address");
+	snprintf(title,100,"IP Address Setup");
+	snprintf(prompt,100,"Specify a remote IP address");
 
 	if (!(pid=fork())){
 		
@@ -241,7 +241,7 @@ static int wan_ip_menu(void)
 	
 	if (stat==SELECT_OK){
 		struct in_addr *ip_str = NULL;
-		strcpy(ipaddress,data);
+		strlcpy(ipaddress,data, 16);
 		if (inet_aton(ipaddress,ip_str) != 0 ){
 			ip_addr = WAN_TRUE;
 		}else{
@@ -251,8 +251,8 @@ static int wan_ip_menu(void)
 		return -1;
 	}
 
-	sprintf(title,"UPD Port Setup");
-	sprintf(prompt,"Specify remote UPD port");
+	snprintf(title,100,"UPD Port Setup");
+	snprintf(prompt,100,"Specify remote UPD port");
 
 	if (!(pid=fork())){
 		
@@ -374,9 +374,9 @@ static int wan_iface_menu(void)
 		return -1;
 	}
 
-	sprintf(current, "lo");
-	sprintf(title,"Interface Selection");
-	sprintf(prompt,"Please select a WANPIPE interface using UP and DOWN keys");
+	snprintf(current,100,"lo");
+	snprintf(title,100,"Interface Selection");
+	snprintf(prompt,100,"Please select a WANPIPE interface using UP and DOWN keys");
 
 	
 	memset(data,0,100);
@@ -418,7 +418,7 @@ static int wan_iface_menu(void)
 	close(pipefds[1]);
 
 	if (stat == SELECT_OK){
-		strcpy(if_name,data);
+		strlcpy(if_name,data, WAN_IFNAME_SZ);
 		ip_addr=WAN_FALSE;
 		return 0;
 	}
@@ -443,9 +443,9 @@ static void wan_main_menu(void)
 		return;
 	}
 	
-	sprintf(current, "A");
-	sprintf(title,"Command Main Menu");
-	sprintf(prompt,"Select one of the command sections");
+	snprintf(current,100,"A");
+	snprintf(title,100,"Command Main Menu");
+	snprintf(prompt,100,"Select one of the command sections");
 
 	for (;;){
 		memset(data,0,100);

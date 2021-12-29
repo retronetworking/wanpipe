@@ -254,7 +254,7 @@ int __init wanrouter_init (void)
 	}
 
 	WAN_LIST_INIT(&wan_devlist);
-        wan_spin_lock_init(&wan_devlist_lock);
+        wan_spin_lock_init(&wan_devlist_lock,"wan_devlist_lock");
 
 	err = wanrouter_proc_init();
 	
@@ -360,7 +360,7 @@ int register_wan_device(wan_device_t *wandev)
 	 
 	wandev->ndev = 0;
 	WAN_LIST_INIT(&wandev->dev_head);
-	wan_spin_lock_init(&wandev->dev_head_lock);
+	wan_spin_lock_init(&wandev->dev_head_lock, "wan_dev_head_lock");
 
 	wan_spin_lock(&wan_devlist_lock);
 	WAN_LIST_INSERT_HEAD(&wan_devlist, wandev, next);
@@ -885,7 +885,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
        
 
-	if ((dev=wan_dev_get_by_name(conf->name))){
+	if ((dev=dev_get_by_name(conf->name))){
 		dev_put(dev);
 		dev=NULL;
 	       	err = -EEXIST;	/* name already exists */
@@ -917,7 +917,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 
 		if (dev->name == NULL){
 			err = -EINVAL;
-		}else if ((tmp_dev=wan_dev_get_by_name(dev->name))){
+		}else if ((tmp_dev=dev_get_by_name(dev->name))){
 			dev_put(tmp_dev);
 			err = -EEXIST;	/* name already exists */
 		}else if (dev->priv){
@@ -990,8 +990,8 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
         }
 
 	if (devle == NULL || dev == NULL){
-		if ((dev = wan_dev_get_by_name(name)) == NULL){
-			printk(KERN_INFO "%s: wan_dev_get_by_name failed\n", name);
+		if ((dev = dev_get_by_name(name)) == NULL){
+			printk(KERN_INFO "%s: dev_get_by_name failed\n", name);
 			return err;
 		}
 
@@ -1522,7 +1522,7 @@ static int wan_device_new_if_lapb (wan_device_t *wandev, wanif_conf_t *u_conf)
 		goto wan_device_new_if_lapb_exit;
 	}
 	
-	if ((tmp_dev=wan_dev_get_by_name(conf->name)) != NULL){
+	if ((tmp_dev=dev_get_by_name(conf->name)) != NULL){
 		printk(KERN_INFO "%s: Device already exists!\n",
 				conf->name);
 		dev_put(tmp_dev);
@@ -1662,7 +1662,7 @@ static int wan_device_new_if_x25 (wan_device_t *wandev, wanif_conf_t *u_conf)
 		goto wan_device_new_if_x25_exit;
 	}
 
-	if ((tmp_dev=wan_dev_get_by_name(conf->name)) != NULL){
+	if ((tmp_dev=dev_get_by_name(conf->name)) != NULL){
 		printk(KERN_INFO "%s: Device already exists!\n",
 				conf->name);
 		dev_put(tmp_dev);
@@ -1686,7 +1686,7 @@ static int wan_device_new_if_x25 (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
 		
 	//Find a master device for our x25 lcn
-	if ((dev = wan_dev_get_by_name(conf->master)) == NULL){
+	if ((dev = dev_get_by_name(conf->master)) == NULL){
 		printk(KERN_INFO "%s: Master device %s used by X25 SVC %s no found!\n",
 				wandev->name,conf->master,conf->name);
 		goto wan_device_new_if_x25_exit;
@@ -1773,7 +1773,7 @@ static int wan_device_new_if_dsp (wan_device_t *wandev, wanif_conf_t *u_conf)
 		goto wan_device_new_if_dsp_exit;
 	}
 
-	if ((tmp_dev=wan_dev_get_by_name(conf->name)) != NULL){
+	if ((tmp_dev=dev_get_by_name(conf->name)) != NULL){
 		printk(KERN_INFO "%s: Device already exists!\n",
 				conf->name);
 		dev_put(tmp_dev);
@@ -1792,7 +1792,7 @@ static int wan_device_new_if_dsp (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
 	
 	//Find a master device for our x25 lcn
-	if ((dev = wan_dev_get_by_name(conf->master)) == NULL){
+	if ((dev = dev_get_by_name(conf->master)) == NULL){
 		printk(KERN_INFO "%s: Master device %s, no found for %s\n",
 				wandev->name, conf->master,conf->name);
 		goto wan_device_new_if_dsp_exit;
@@ -1918,7 +1918,7 @@ static int wan_device_new_if_lip (wan_device_t *wandev, wanif_conf_t *u_conf)
 		goto wan_device_new_if_lip_exit;
 	}
 
-	if ((tmp_dev=wan_dev_get_by_name(conf->name)) != NULL){
+	if ((tmp_dev=dev_get_by_name(conf->name)) != NULL){
 		printk(KERN_INFO "%s: Device already exists!\n",
 				conf->name);
 		dev_put(tmp_dev);
@@ -1936,7 +1936,7 @@ static int wan_device_new_if_lip (wan_device_t *wandev, wanif_conf_t *u_conf)
 	}
 		
 	//Find a master device lip device
-	if ((dev = wan_dev_get_by_name(conf->master)) == NULL){
+	if ((dev = dev_get_by_name(conf->master)) == NULL){
 		printk(KERN_INFO "%s: Master device %s used by LIP %s no found!\n",
 				wandev->name,conf->master,conf->name);
 		goto wan_device_new_if_lip_exit;
@@ -2033,12 +2033,12 @@ void unregister_wanec_iface (void)
 	return;
 }
 
-void *wanpipe_ec_register(void *pcard, int max_channels)
+void *wanpipe_ec_register(void *pcard, u_int32_t fe_port_mask, int max_line_no, int max_channels, void *conf)
 {
 	if (!IS_PROTOCOL_FUNC(wanec_iface)) return NULL;
 
 	if (wanec_iface.reg){
-		return wanec_iface.reg(pcard, max_channels);
+		return wanec_iface.reg(pcard, fe_port_mask, max_line_no, max_channels, conf);
 	}
 	return NULL;
 }
@@ -2060,11 +2060,11 @@ int wanpipe_ec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl)
 	return 0;
 }
 
-int wanpipe_ec_isr(void *arg, void *pcard)
+int wanpipe_ec_isr(void *arg)
 {
 	if (!IS_PROTOCOL_FUNC(wanec_iface)) return 0;
 	if (wanec_iface.isr){
-		return wanec_iface.isr(arg, pcard);
+		return wanec_iface.isr(arg);
 	}
 	return 0;
 }
@@ -2120,14 +2120,12 @@ int wan_run_wanrouter(char * hwdevname, char *devname, char *action)
 				__FUNCTION__);
 		return -EINVAL;
 	}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24) 
+	
 	if (!current->fs->root) {
 		/* statically linked USB is initted rather early */
 		DEBUG_EVENT ("%s: Error: no FS yet",__FUNCTION__);
 		return -ENODEV;
 	}
-#endif
 	
 	if (!(envp = (char **) kmalloc (20 * sizeof (char *), GFP_KERNEL))) {
 		DEBUG_EVENT ("%s: Error: no memory!",__FUNCTION__);

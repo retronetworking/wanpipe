@@ -20,8 +20,6 @@ sub new	{
 		_signalling => 'PRI_CPE',
 		_pri_switchtype => 'national',
 		_hw_dchan  => '0',
-		_frac_chanfirst => '0',
-		_frac_chanlast => '0',
 		_ss7_sigchan => undef,
 		_ss7_option => undef,
 		_ss7_tdmchan => undef,
@@ -41,17 +39,6 @@ sub fe_line {
 	    my ( $self, $fe_line ) = @_;
 	        $self->{_fe_line} = $fe_line if defined($fe_line);
 		    return $self->{_fe_line};
-}
-sub frac_chan_first {
-            my ( $self, $frac_chan_first ) = @_;
-                $self->{_frac_chan_first} = $frac_chan_first if defined($frac_chan_first);
-                    return $self->{_frac_chan_first};
-}
-
-sub frac_chan_last {
-            my ( $self, $frac_chan_last ) = @_;
-                $self->{_frac_chan_last} = $frac_chan_last if defined($frac_chan_last);
-                    return $self->{_frac_chan_last};
 }
 sub te_ref_clock {
 	    my ( $self, $te_ref_clock ) = @_;
@@ -324,93 +311,50 @@ sub gen_zaptel_conf{
 	}
 
  	my $zp_file='';
-	        $zp_file.="\n\#Sangoma A".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
-        $zp_file.="span=".$self->card->tdmv_span_no.",0,0,".$zap_frame.",".$zap_lcode.$zap_crc4."\n";
 
-        if ( $self->signalling eq 'PRI NET' | $self->signalling eq 'PRI CPE' ){
-                if ( $self->fe_media eq 'T1' ){
-                        if($self->frac_chan_first() != 0){
-                                my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                if($self->frac_chan_last == 24){
-                                        $self->frac_chan_last(23);
-                                }
-                                my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                $zp_file.="bchan=".$first_ch."-".$last_ch."\n"; 
-                                $zp_file.=$dchan_str."=".($self->card->first_chan+23)."\n";
-                        } else {
-                                $zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
-                                $zp_file.=$dchan_str."=".($self->card->first_chan+23)."\n";
-                        }
-                } else {
-                        if($self->frac_chan_first() != 0){
-                                if($self->frac_chan_last() == 16){
-                                        $self->frac_chan_last(15);
-                                }
-                                if($self->frac_chan_first() == 16){
-                                        $self->frac_chan_first(17);
-                                }
-                                if($self->frac_chan_last() > 15){
-                                        my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                        my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                        my $mid_ch1=$self->card->first_chan + 14;
-                                        my $mid_ch2=$self->card->first_chan + 16;
-
-                                        $zp_file.="bchan=".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n"; 
-                                        $zp_file.=$dchan_str."=".($self->card->first_chan+15)."\n";
-
-                                } else {
-                                        my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                        my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                        $zp_file.="bchan=".$first_ch."-".$last_ch."\n"; 
-                                        $zp_file.=$dchan_str."=".($self->card->first_chan+15)."\n";
-                                }
-                        } else {
-                                $zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n"; 
-                                $zp_file.=$dchan_str."=".($self->card->first_chan+15)."\n";
-                        }
-                }  
-        } else {
-                my $zap_signal;
-                if ( $self->signalling eq 'E & M' | $self->signalling eq 'E & M Wink' ){
-                        $zap_signal='e&m';
-                } elsif ( $self->signalling eq 'FXS - Loop Start' ){
-                        $zap_signal='fxsls';
-                } elsif ( $self->signalling eq 'FXS - Ground Start' ){
-                        $zap_signal='fxsgs';
-                } elsif ( $self->signalling eq 'FXS - Kewl Start' ){
-                        $zap_signal='fxsks';
-                } elsif ( $self->signalling eq 'FX0 - Loop Start' ){
-                        $zap_signal='fxols';
-                } elsif ( $self->signalling eq 'FX0 - Ground Start' ){
-                        $zap_signal='fxogs';
-                } elsif ( $self->signalling eq 'FX0 - Kewl Start' ){
-                        $zap_signal='fxoks';
-                } else {
-                        printf("Error: invalid signalling %s\n", $self->card->signalling);
-                }
-
-                if ( $self->fe_media eq 'T1' ){
-                        if($self->frac_chan_first() != 0){
-                                my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                $zp_file.=$zap_signal."=".$first_ch."-".$last_ch."\n"; 
-                        } else {
-                                $zp_file.=$zap_signal."=".$self->card->first_chan."-".($self->card->first_chan+23)."\n"; 
-                        }
-                } else {
-                        if($self->frac_chan_first() != 0){
-                                my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                $zp_file.=$zap_signal."=".$first_ch."-".$last_ch."\n"; 
-                        } else {
-                                $zp_file.=$zap_signal."=".$self->card->first_chan."-".($self->card->first_chan+30)."\n"; 
-                        }
-                }
-        }
-        return $zp_file;
-
+	$zp_file.="\n\#Sangoma A".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
+	
+	
+       # $zp_file.="\n\#Sangoma A".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span: ".$self->card->span_no."]\n";
+	$zp_file.="span=".$self->card->tdmv_span_no.",0,0,".$zap_frame.",".$zap_lcode.$zap_crc4."\n";	
+	
+	if ( $self->signalling eq 'PRI NET' | $self->signalling eq 'PRI CPE' ){
+        	if ( $self->fe_media eq 'T1' ){
+                	$zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
+			$zp_file.=$dchan_str."=".($self->card->first_chan+23)."\n";
+		} else {
+                	$zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n";
+			$zp_file.=$dchan_str."=".($self->card->first_chan+15)."\n";
+		}  
+	} else {
+		my $zap_signal;
+        	if ( $self->signalling eq 'E & M' | $self->signalling eq 'E & M Wink' ){
+			$zap_signal='e&m';
+		} elsif ( $self->signalling eq 'FXS - Loop Start' ){
+			$zap_signal='fxsls';
+		} elsif ( $self->signalling eq 'FXS - Ground Start' ){
+			$zap_signal='fxsgs';
+		} elsif ( $self->signalling eq 'FXS - Kewl Start' ){
+			$zap_signal='fxsks';
+		} elsif ( $self->signalling eq 'FX0 - Loop Start' ){
+			$zap_signal='fxols';
+		} elsif ( $self->signalling eq 'FX0 - Ground Start' ){
+			$zap_signal='fxogs';
+		} elsif ( $self->signalling eq 'FX0 - Kewl Start' ){
+			$zap_signal='fxoks';
+		} else {
+                 	printf("Error: invalid signalling %s\n", $self->card->signalling);
+		}
+		
+        	if ( $self->fe_media eq 'T1' ){
+                	$zp_file.=$zap_signal."=".$self->card->first_chan."-".($self->card->first_chan+23)."\n"; 
+		} else {
+                	$zp_file.=$zap_signal."=".$self->card->first_chan."-".($self->card->first_chan+30)."\n"; 
+		}
+	}
+	return $zp_file;	
+	
 }
-
 
 sub gen_zapata_conf{
 	my ($self) = @_;
@@ -453,62 +397,21 @@ sub gen_zapata_conf{
 	}
 		
        	if ( $self->signalling eq 'PRI NET' | $self->signalling eq 'PRI CPE' ){
-		if ( $self->fe_media eq 'T1' ){
-                        if($self->frac_chan_first() != 0){
-                                my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                if($self->frac_chan_last == 24){
-                                        $self->frac_chan_last(23);
-                                }
-                                my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                $zp_file.="channel =>".$first_ch."-".$last_ch."\n"; 
-                        } else {
-                                $zp_file.="channel =>".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
-                        }
-                }else{
-                        if($self->frac_chan_first() != 0){
-                                if($self->frac_chan_last() == 16){
-                                        $self->frac_chan_last(15);
-                                }
-                                if($self->frac_chan_first() == 16){
-                                        $self->frac_chan_first(17);
-                                }
-                                if($self->frac_chan_last() > 15){
-                                        my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                        my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                        my $mid_ch1=$self->card->first_chan + 14;
-                                        my $mid_ch2=$self->card->first_chan + 16;
-
-                                        $zp_file.="channel =>".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n"; 
-                                } else {
-                                        my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                        my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                        $zp_file.="channel =>".$first_ch."-".$last_ch."\n"; 
-                                }
-                        } else {
-                                $zp_file.="channel =>".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n"; 
-                        }
-                }
-        } else {
-                if ( $self->fe_media eq 'T1' ){
-                        if($self->frac_chan_first() != 0){
-                                my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                $zp_file.="channel =>".$first_ch."-".$last_ch."\n"; 
-                        } else {
-                                $zp_file.="channel => ".$self->card->first_chan."-".($self->card->first_chan+23)."\n"; 
-                        }
-                } else {
-                        if($self->frac_chan_first() != 0){
-                                my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
-                                my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
-                                $zp_file.="channel =>".$first_ch."-".$last_ch."\n"; 
-                        } else {
-                                $zp_file.="channel => ".$self->card->first_chan."-".($self->card->first_chan+30)."\n"; 
-                        }
-                }
-        }
-        return $zp_file;
-
+              	if ( $self->fe_media eq 'T1' ){
+               		$zp_file.="channel => ".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
+		}else{
+               		$zp_file.="channel => ".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n"; 
+		}
+	} else {
+              	if ( $self->fe_media eq 'T1' ){
+               		$zp_file.="channel => ".$self->card->first_chan."-".($self->card->first_chan+23)."\n"; 
+		}else{
+               		$zp_file.="channel => ".$self->card->first_chan."-".($self->card->first_chan+30)."\n"; 
+		}
+	
+	}
+	return $zp_file;	
+	
 }
-		
+
 1;

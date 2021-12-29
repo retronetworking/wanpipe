@@ -125,6 +125,17 @@ char* te1_options_help_str =
 "	from wanpipe1, will loose its clock thus\n"
 "	resulting in unpredictable operation.\n";
 
+char* bri_options_help_str =
+"BRI Master Clock Port:\n"
+"YES -	this port is MASTER clock for all OTHER\n"
+"	ports on this A500 card\n"
+"NO -	this port is in NORMAL clock mode\n"
+"\n"			 
+"IMPORTANT:\n"
+"	If MASTER port is in disconnected state or\n"
+"	stopped, all ports on the A500 card will\n"
+"	run on internal card's clock.\n";
+
 
 enum TE1_ADVANCED_OPTIONS{
 	TE1_MEDIA=1,
@@ -137,8 +148,73 @@ enum TE1_ADVANCED_OPTIONS{
 	AFT_FE_TXTRISTATE,
 	TE_REF_CLOCK,
 	E1_SIG_MODE,
-	TE_HIGHIMPEDANCE
+	TE_HIGHIMPEDANCE,
+	BRI_CLOCK_MASTER,
+	TE_RX_SLEVEL
 };
+
+
+////////////////////////////////////////////////////////////////////////////////////
+/*
+TE_RX_SLEVEL:  Receiver Sensitivity (Max Cable Loss Allowed) (dB)
+The user will have the following option to choose:
+1. Hi-Imedance mode:
+30 dB
+22.5 dB
+17.5 dB
+12 dB
+
+Depending on selection, write the following values into configuration files:
+300
+225
+175
+120
+
+2. Normal mode:
+12 dB
+18 dB
+30 dB
+36 dB (for T1) 
+43 dB (for E1)
+
+Depending on selection, write the following values into configuration files:
+120
+180
+300
+360
+430
+*/
+typedef struct _te_rx_slevel
+{
+	const char* name;
+	unsigned int value;
+}te_rx_slevel_t;
+
+const te_rx_slevel_t high_impedance_rx_slevel[] = {
+	{"30 dB",	300},
+	{"22.5 dB",	225},
+	{"17.5 dB",	175},
+	{"12 dB",	120},
+	{NULL,		0}
+};
+
+const te_rx_slevel_t t1_normal_mode_rx_slevel[] = {
+	{"12 dB",	120},
+	{"18 dB",	180},
+	{"30 dB",	300},
+	{"36 dB",	360},
+	{NULL,		0}
+};
+
+const te_rx_slevel_t e1_normal_mode_rx_slevel[] = {
+	{"12 dB",	120},
+	{"18 dB",	180},
+	{"30 dB",	300},
+	{"43 dB",	430},
+	{NULL,		0}
+};
+////////////////////////////////////////////////////////////////////////////////////
+
 
 #define DBG_MENU_HARDWARE_TE1_CARD_ADVANCED_OPTIONS 1
 
@@ -166,7 +242,7 @@ int menu_hardware_te1_card_advanced_options::run(OUT int * selection_index)
   char tmp_buff[MAX_PATH_LENGTH];
   unsigned int option_selected;
   char exit_dialog;
-  int number_of_items;
+  int number_of_items, n, rx_slevel_ind;
 
   //help text box
   text_box tb;
@@ -174,6 +250,7 @@ int menu_hardware_te1_card_advanced_options::run(OUT int * selection_index)
   link_def_t * link_def;
   wandev_conf_t *linkconf;
   sdla_te_cfg_t*  te_cfg;
+	const te_rx_slevel_t *te_rx_slevel_ptr;
 
   input_box_active_channels act_channels_ip;
 
@@ -198,110 +275,158 @@ again:
   Debug(DBG_MENU_HARDWARE_TE1_CARD_ADVANCED_OPTIONS,
 	("cfr->link_defs->name: %s\n", link_def->name));
 
+	if(te_cfg->high_impedance_mode){
+		te_rx_slevel_ptr = &high_impedance_rx_slevel[0];
+	}else{
+		if(	linkconf->fe_cfg.media == WAN_MEDIA_T1){
+			te_rx_slevel_ptr = &t1_normal_mode_rx_slevel[0];
+		}else{
+			te_rx_slevel_ptr = &e1_normal_mode_rx_slevel[0];
+		}
+	}
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	//find index of line in menue using current rx_slevel
+	n=0;rx_slevel_ind=0;
+	while(te_rx_slevel_ptr[n].name != NULL){
+		if(te_rx_slevel_ptr[n].value == (unsigned int)te_cfg->rx_slevel){
+			rx_slevel_ind = n; 
+			break;
+		}
+		n++;
+	}
+
+	/////////////////////////////////////////////////////////////////////////////////////
   if(linkconf->fe_cfg.media == WAN_MEDIA_T1){
-	number_of_items = 7;
+		number_of_items = 7;
   }else if(linkconf->fe_cfg.media == WAN_MEDIA_E1){
-	number_of_items = 7;
+		number_of_items = 7;
+  }else if(linkconf->fe_cfg.media == WAN_MEDIA_BRI){
+		number_of_items = 1;
   }else{
-	ERR_DBG_OUT(("Unknown Media Type!! te_cfg.media: 0x%X\n", linkconf->fe_cfg.media));
-	return NO;
+		ERR_DBG_OUT(("Unknown Media Type!! te_cfg.media: 0x%X\n", linkconf->fe_cfg.media));
+		return NO;
   }
 
   menu_str = "";
 
-  //////////////////////////////////////////////////////////////////////////////////////
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_MEDIA);
-  menu_str += tmp_buff;
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Physical Medium--> %s\" ",
-			MEDIA_DECODE(&linkconf->fe_cfg));
-  menu_str += tmp_buff;
-
-  //////////////////////////////////////////////////////////////////////////////////////
-
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_LCODE);
-  menu_str += tmp_buff;
-
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Line decoding----> %s\" ", 
-			LCODE_DECODE(&linkconf->fe_cfg));
-  menu_str += tmp_buff;
-
-  //////////////////////////////////////////////////////////////////////////////////////
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_FRAME);
-  menu_str += tmp_buff;
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Framing----------> %s\" ", 
-		  FRAME_DECODE(&linkconf->fe_cfg));
-  menu_str += tmp_buff;
-
-  //////////////////////////////////////////////////////////////////////////////////////
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_CLOCK);
-  menu_str += tmp_buff;
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TE clock mode----> %s\" ",
-			TECLK_DECODE(&linkconf->fe_cfg));
+  if(linkconf->fe_cfg.media == WAN_MEDIA_BRI){
+		//////////////////////////////////////////////////////////////////////////////////////
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", BRI_CLOCK_MASTER);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"BRI Master Clock Port--> %s\" ",
+				(linkconf->fe_cfg.cfg.bri.clock_mode == WANOPT_YES ? "Yes":"No"));
 #if 0
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TE clock mode----> %s\" ",
-	(linkconf->fe_cfg.cfg.te_cfg.te_clock == WANOPT_NORMAL_CLK ? "Normal" : "Master"));
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TE clock mode----> %s\" ",
+			(linkconf->fe_cfg.cfg.te_cfg.te_clock == WANOPT_NORMAL_CLK ? "Normal" : "Master"));
 #endif
-  menu_str += tmp_buff;
-  //////////////////////////////////////////////////////////////////////////////////////
+		menu_str += tmp_buff;
+
+  }else{
+		//////////////////////////////////////////////////////////////////////////////////////
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_MEDIA);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Physical Medium--> %s\" ",
+					MEDIA_DECODE(&linkconf->fe_cfg));
+		menu_str += tmp_buff;
+
+		//////////////////////////////////////////////////////////////////////////////////////
+
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_LCODE);
+		menu_str += tmp_buff;
+
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Line decoding----> %s\" ", 
+					LCODE_DECODE(&linkconf->fe_cfg));
+		menu_str += tmp_buff;
+
+		//////////////////////////////////////////////////////////////////////////////////////
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_FRAME);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Framing----------> %s\" ", 
+					FRAME_DECODE(&linkconf->fe_cfg));
+		menu_str += tmp_buff;
+
+		//////////////////////////////////////////////////////////////////////////////////////
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_CLOCK);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TE clock mode----> %s\" ",
+					TECLK_DECODE(&linkconf->fe_cfg));
+#if 0
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TE clock mode----> %s\" ",
+			(linkconf->fe_cfg.cfg.te_cfg.te_clock == WANOPT_NORMAL_CLK ? "Normal" : "Master"));
+#endif
+		menu_str += tmp_buff;
+		//////////////////////////////////////////////////////////////////////////////////////
+  }
 
   //on AFT it must be 'ALL' because channelization is done on per-group-of-channels basis.
   //on S514-cards it is configurable here
   if(linkconf->card_type == WANOPT_S51X){
 	
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_ACTIVE_CH);
-	menu_str += tmp_buff;
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Act. channels----> %s\" ",
-	  link_def->active_channels_string);
-	menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE1_ACTIVE_CH);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Act. channels----> %s\" ",
+			link_def->active_channels_string);
+		menu_str += tmp_buff;
   }
 
   //////////////////////////////////////////////////////////////////////////////////////
   if(linkconf->fe_cfg.media == WAN_MEDIA_T1){
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", T1_LBO);
-	menu_str += tmp_buff;
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"LBO--------------> %s\" ", 
-			LBO_DECODE(&linkconf->fe_cfg));
-	menu_str += tmp_buff;
-  }else{
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", E1_LBO);
-	menu_str += tmp_buff;
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"LBO--------------> %s\" ", 
-			LBO_DECODE(&linkconf->fe_cfg));
-	menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", T1_LBO);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"LBO--------------> %s\" ", 
+				LBO_DECODE(&linkconf->fe_cfg));
+		menu_str += tmp_buff;
+		}else if(linkconf->fe_cfg.media == WAN_MEDIA_E1){
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", E1_LBO);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"LBO--------------> %s\" ", 
+				LBO_DECODE(&linkconf->fe_cfg));
+		menu_str += tmp_buff;
 
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", E1_SIG_MODE);
-	menu_str += tmp_buff;
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Signalling Mode--> %s\" ", 
-		(FE_SIG_MODE(&linkconf->fe_cfg) == WAN_TE1_SIG_CCS ? "CCS":"CAS"));
-	menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", E1_SIG_MODE);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Signalling Mode--> %s\" ", 
+			(FE_SIG_MODE(&linkconf->fe_cfg) == WAN_TE1_SIG_CCS ? "CCS":"CAS"));
+		menu_str += tmp_buff;
   }
 
   //////////////////////////////////////////////////////////////////////////////////////
-  if(linkconf->card_type == WANOPT_AFT	  ||
-	 linkconf->card_type == WANOPT_AFT104  ){
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_FE_TXTRISTATE);
-	menu_str += tmp_buff;
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Disable Transmitter---> %s\" ",
-	  (linkconf->fe_cfg.tx_tristate_mode == WANOPT_YES ? "YES" : "NO"));
-	menu_str += tmp_buff;
+  if(linkconf->fe_cfg.media != WAN_MEDIA_BRI &&
+	  (linkconf->card_type == WANOPT_AFT || linkconf->card_type == WANOPT_AFT104)){
 
-	snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE_REF_CLOCK);
-	menu_str += tmp_buff;
-	if(te_cfg->te_ref_clock == 0){
-	  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Reference Clock Port--> %s\" ",  "Not Used");
-	}else{
-	  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Reference Clock Port--> %d\" ", 
-		te_cfg->te_ref_clock);
-	}
-	menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_FE_TXTRISTATE);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Disable Transmitter---> %s\" ",
+			(linkconf->fe_cfg.tx_tristate_mode == WANOPT_YES ? "YES" : "NO"));
+		menu_str += tmp_buff;
+
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE_REF_CLOCK);
+		menu_str += tmp_buff;
+		if(te_cfg->te_ref_clock == 0){
+		  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Reference Clock Port--> %s\" ",  "Not Used");
+		}else{
+			snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Reference Clock Port--> %d\" ", 
+			te_cfg->te_ref_clock);
+		}
+		menu_str += tmp_buff;
   }
 
-  //////////////////////////////////////////////////////////////////////////////////////
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE_HIGHIMPEDANCE);
-  menu_str += tmp_buff;
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"High Impedance----------> %s\" ", 
-	  (te_cfg->high_impedance_mode == WANOPT_YES ? "YES" : "NO"));
-  menu_str += tmp_buff;
+  if(linkconf->fe_cfg.media != WAN_MEDIA_BRI){
+		//////////////////////////////////////////////////////////////////////////////////////
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE_HIGHIMPEDANCE);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"High Impedance----------> %s\" ", 
+				(te_cfg->high_impedance_mode == WANOPT_YES ? "YES" : "NO"));
+		menu_str += tmp_buff;
+
+		//////////////////////////////////////////////////////////////////////////////////////
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TE_RX_SLEVEL);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Rx Sensetivity Level----> %s\" ", 
+				te_rx_slevel_ptr[rx_slevel_ind].name);
+		menu_str += tmp_buff;
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////
   //create the explanation text for the menu
@@ -432,6 +557,46 @@ again:
 		break;
 	  }
 	  break;
+#if 1
+	case TE_RX_SLEVEL:
+	  {
+		menu_rx_slevel rx_slevel(lxdialog_path, cfr);
+		if(rx_slevel.run(selection_index) == NO){
+		  rc = NO;
+		  exit_dialog = YES;
+		}
+	  }
+	  break;
+#endif
+	case BRI_CLOCK_MASTER:
+		if(linkconf->fe_cfg.cfg.bri.clock_mode == WANOPT_YES){
+			//It is currently Master, ask if user wants to change Normal mode
+			snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to use this line in Normal clock mode?");
+		}else{
+			//It is currently in Normal mode, ask if user wants to change Master mode
+			snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to use this line in Normal clock mode?");
+		}
+
+	  if(yes_no_question(	selection_index,
+							lxdialog_path,
+							NO_PROTOCOL_NEEDED,
+							tmp_buff) == NO){
+			return NO;
+	  }
+
+	  switch(*selection_index)
+	  {
+	  case YES_NO_TEXT_BOX_BUTTON_YES:
+			if(linkconf->fe_cfg.cfg.bri.clock_mode == WANOPT_NO){
+				//was Normal - change to Master
+				linkconf->fe_cfg.cfg.bri.clock_mode = WANOPT_YES;
+			}else{
+				//was Master - change to Normal
+				linkconf->fe_cfg.cfg.bri.clock_mode = WANOPT_NO;
+			}
+			break;
+	  }
+		break;
 
 	case TE_REF_CLOCK:
 	  {
@@ -542,7 +707,11 @@ If this option is used, TE1 Clock MUST be set to Master!");
 	break;
 
   case MENU_BOX_BUTTON_HELP:
-	tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, te1_options_help_str);
+	if(linkconf->fe_cfg.media == WAN_MEDIA_BRI){
+	  tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, bri_options_help_str);
+	}else{
+	  tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, te1_options_help_str);
+	}
 	break;
 
   case MENU_BOX_BUTTON_EXIT:
@@ -566,7 +735,8 @@ cleanup:
 
 enum {
 	RM_BATTTHRESH=1,
-	RM_BATTDEBOUNCE
+	RM_BATTDEBOUNCE,
+	RM_NETWORK_SYNC
 };
 
 menu_hardware_analog_card_advanced_options::
@@ -639,6 +809,13 @@ again:
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Battery Debounce---> %d\" ", 
     	remora_cfg->battdebounce);
+  menu_str += tmp_buff;
+  number_of_items++;
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", RM_NETWORK_SYNC);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"External Network Sync--> %s\" ",
+	(remora_cfg->network_sync == WANOPT_YES ? "Yes" : "No"));
   menu_str += tmp_buff;
   number_of_items++;
 
@@ -749,6 +926,33 @@ show_RM_BATTDEBOUNCE_input_box:
 		}//switch(*selection_index)
 		break;
 
+	case RM_NETWORK_SYNC:
+		snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s External Network Sync?",
+		(remora_cfg->network_sync == WANOPT_NO ? "Enable" : "Disable"));
+
+		if(yes_no_question( selection_index,
+				lxdialog_path,
+				NO_PROTOCOL_NEEDED,
+				tmp_buff) == NO){
+			return NO;
+		}
+		
+		switch(*selection_index)
+		{
+		case YES_NO_TEXT_BOX_BUTTON_YES:
+			if(remora_cfg->network_sync == WANOPT_NO){
+				//was disabled - enable
+				remora_cfg->network_sync = WANOPT_YES;
+			}else{
+				//was enabled - disable
+				remora_cfg->network_sync = WANOPT_NO;
+			}
+			break;
+		}
+		break;
+
+
+
 	default:
 	  ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
 		get_lxdialog_output_string()));
@@ -758,7 +962,11 @@ show_RM_BATTDEBOUNCE_input_box:
 	break;
 
   case MENU_BOX_BUTTON_HELP:
-	tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, te1_options_help_str);
+	if(linkconf->fe_cfg.media == WAN_MEDIA_BRI){
+	  tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, bri_options_help_str);
+	}else{
+	  tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, te1_options_help_str);
+	}
 	break;
 
   case MENU_BOX_BUTTON_EXIT:
@@ -773,3 +981,146 @@ show_RM_BATTDEBOUNCE_input_box:
 cleanup:
   return rc;
 }
+
+#if 1
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//RX SLEVEL
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define DBG_MENU_RX_SLEVEL 1
+
+menu_rx_slevel::menu_rx_slevel(IN char * lxdialog_path, IN conf_file_reader* ptr_cfr)
+{
+  Debug(DBG_MENU_RX_SLEVEL, ("menu_rx_slevel::%s()\n", __FUNCTION__));
+  snprintf(this->lxdialog_path, MAX_PATH_LENGTH, "%s", lxdialog_path);
+  this->cfr = ptr_cfr;
+}
+
+menu_rx_slevel::~menu_rx_slevel()
+{
+  Debug(DBG_MENU_RX_SLEVEL, ("menu_rx_slevel::~%s()\n", __FUNCTION__));
+}
+
+int menu_rx_slevel::run(OUT int * selection_index)
+{
+  string menu_str;
+  int rc;
+  char tmp_buff[MAX_PATH_LENGTH];
+  char exit_dialog;
+  int number_of_items, n;
+  unsigned char media;
+
+  //help text box
+  text_box tb;
+
+  link_def_t * link_def;
+  wandev_conf_t *linkconf;
+	const te_rx_slevel_t *te_rx_slevel_ptr;
+
+  Debug(DBG_MENU_RX_SLEVEL, ("menu_rx_slevel::%s()\n", __FUNCTION__));
+
+again:
+
+  link_def = cfr->link_defs;
+  linkconf = cfr->link_defs->linkconf;
+
+  Debug(DBG_MENU_RX_SLEVEL, ("cfr->link_defs->name: %s\n", link_def->name));
+
+  rc = YES;
+  exit_dialog = NO;
+  media = linkconf->fe_cfg.media;
+
+	if(linkconf->fe_cfg.cfg.te_cfg.high_impedance_mode){
+		te_rx_slevel_ptr = &high_impedance_rx_slevel[0];
+	}else{
+		if(	media == WAN_MEDIA_T1){
+			te_rx_slevel_ptr = &t1_normal_mode_rx_slevel[0];
+		}else{
+			te_rx_slevel_ptr = &e1_normal_mode_rx_slevel[0];
+		}
+	}
+
+
+  Debug(DBG_MENU_RX_SLEVEL, ("linkconf->card_type: DEC:%d, HEX: 0x%X\n",
+    linkconf->card_type, linkconf->card_type));
+
+  number_of_items = 0;
+  menu_str = " ";
+/*
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WAN_E1_75);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"75 OH\" ");
+  menu_str += tmp_buff;
+*/
+	//add the lines to the menue
+	n=0;
+	while(te_rx_slevel_ptr[n].name != NULL){
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", te_rx_slevel_ptr[n].value);
+		menu_str += (char*)tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", te_rx_slevel_ptr[n].name);
+		menu_str += tmp_buff;
+		number_of_items++;
+		n++;
+	}
+
+  //////////////////////////////////////////////////////////////////////////////////////
+  //create the explanation text for the menu
+  snprintf(tmp_buff, MAX_PATH_LENGTH,
+"\n------------------------------------------\
+\nSelect Receiver Sensitivity for Wan Device: %s", link_def->name);
+
+  if(set_configuration(   YES,//indicates to call V2 of the function
+                          MENU_BOX_BACK,//MENU_BOX_SELECT,
+                          lxdialog_path,
+                          "SELECT RX SENSETIVITY LEVEL",
+                          WANCFG_PROGRAM_NAME,
+                          tmp_buff,
+                          MENU_HEIGTH, MENU_WIDTH,
+                          number_of_items,
+                          (char*)menu_str.c_str()
+                          ) == NO){
+    rc = NO;
+    goto cleanup;
+  }
+
+  if(show(selection_index) == NO){
+    rc = NO;
+    goto cleanup;
+  }
+  //////////////////////////////////////////////////////////////////////////////////////
+
+  exit_dialog = NO;
+  switch(*selection_index)
+  {
+  case MENU_BOX_BUTTON_SELECT:
+    Debug(DBG_MENU_RX_SLEVEL,
+      ("hardware_setup: option selected for editing: %s\n", get_lxdialog_output_string()));
+
+    linkconf->fe_cfg.cfg.te_cfg.rx_slevel = atoi(get_lxdialog_output_string());
+    exit_dialog = YES;
+    break;
+
+  case MENU_BOX_BUTTON_HELP:
+
+    switch(atoi(get_lxdialog_output_string()))
+    {
+    default:
+      tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+        option_not_implemented_yet_help_str);
+      break;
+    }
+    break;
+
+  case MENU_BOX_BUTTON_EXIT:
+    exit_dialog = YES;
+    break;
+  }//switch(*selection_index)
+
+
+  if(exit_dialog == NO){
+    goto again;
+  }
+
+cleanup:
+  return rc;
+}
+#endif

@@ -184,10 +184,24 @@
  #define wp_xilinx_init(card,conf) (-EPROTONOSUPPORT)
 #endif
 
+#ifndef CONFIG_PRODUCT_WANPIPE_AFT_BRI
+ #define wp_aft_bri_init(card,conf) (-EPROTONOSUPPORT)
+#endif
+
+#ifndef CONFIG_PRODUCT_WANPIPE_AFT_SERIAL
+ #define wp_aft_serial_init(card,conf) (-EPROTONOSUPPORT)
+#endif
+
 #ifndef CONFIG_PRODUCT_WANPIPE_AFT_TE1
  #define wp_aft_te1_init(card,conf) (-EPROTONOSUPPORT)
+#endif
+
+#ifndef CONFIG_PRODUCT_WANPIPE_AFT_RM
  #define wp_aft_analog_init(card,conf) (-EPROTONOSUPPORT)
- #define aft_global_hw_device_init() 
+#endif
+
+#ifndef CONFIG_PRODUCT_WANPIPE_AFT_56K
+ #define wp_aft_56k_init(card,conf) (-EPROTONOSUPPORT)
 #endif
 
 #ifndef CONFIG_PRODUCT_WANPIPE_AFT_TE3
@@ -378,6 +392,7 @@ int __init wanpipe_init(void)
 
 	ncards=0;
 
+
 	if (WANPIPE_VERSION_BETA){
 		DEBUG_EVENT("%s Beta %s.%s %s %s\n",
 			fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION,
@@ -403,12 +418,12 @@ int __init wanpipe_init(void)
 	wanpipe_debug=NULL;
 	
 	for (i=0;i<ncards;i++){
-		tmpcard=kmalloc(sizeof(sdla_t),GFP_KERNEL);
+		tmpcard=wan_kmalloc(sizeof(sdla_t));
 		if (!tmpcard){
 			sdla_t *tmp;
 			for (tmpcard=card_list;tmpcard;){
 				tmp=tmpcard->list;
-				kfree(tmpcard);
+				wan_free(tmpcard);
 				tmpcard=tmp;
 			}
 			card_list=NULL;
@@ -429,7 +444,7 @@ int __init wanpipe_init(void)
 		sprintf(card->devname, "%s%d", drvname, ++cnt);
 		wandev->magic    = ROUTER_MAGIC;
 		wandev->name     = card->devname;
-		wandev->private  = card;
+		wandev->priv  = card;
 		wandev->enable_tx_int = 0;
 		wandev->setup    = &setup;
 		wandev->shutdown = &shutdown;
@@ -449,7 +464,7 @@ int __init wanpipe_init(void)
 		for (tmpcard=card_list;tmpcard;){
 			unregister_wan_device(tmpcard->devname);
 			tmp=tmpcard->list;
-			kfree(tmpcard);
+			wan_free(tmpcard);
 			tmpcard=tmp;
 		}
 		card_list=NULL;
@@ -474,11 +489,14 @@ int __init wanpipe_init(void)
 
 	wanpipe_globals_util_init();
 
+#if defined(CONFIG_PRODUCT_WANPIPE_AFT_CORE)
 	aft_global_hw_device_init();
+#endif
 
 #if 0
 	wp_tasklet_per_cpu_init();
 #endif
+
 	
 	return err;
 }
@@ -492,6 +510,7 @@ void __exit wanpipe_exit(void)
 {
 	sdla_t *tmpcard, *tmp;
 
+
 	wanpipe_unregister_fw_from_api();
 
 	if (!card_list)
@@ -500,7 +519,7 @@ void __exit wanpipe_exit(void)
 	for (tmpcard=card_list;tmpcard;){
 		unregister_wan_device(tmpcard->devname);
 		tmp=tmpcard->list;
-		kfree(tmpcard);
+		wan_free(tmpcard);
 		tmpcard=tmp;
 	}
 
@@ -511,9 +530,6 @@ void __exit wanpipe_exit(void)
 	DEBUG_EVENT("\n");
 	DEBUG_EVENT("wanpipe: WANPIPE Modules Unloaded.\n");
 
-#if defined(WAN_DEBUG_MEM)
-	DEBUG_EVENT("wanpipe: Total Mem %d\n",atomic_read(&wan_debug_mem));
-#endif	
 }
 
 module_init(wanpipe_init);
@@ -544,18 +560,19 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 	int err = 0;
 	int irq=0;
 
+
 	/* Sanity checks */
-	if ((wandev == NULL) || (wandev->private == NULL) || (conf == NULL)){
+	if ((wandev == NULL) || (wandev->priv == NULL) || (conf == NULL)){
 		DEBUG_EVENT("%s: Failed Sdlamain Setup wandev %p, card %p, conf %p !\n",
 		      wandev->name,
-		      wandev,wandev->private,
+		      wandev,wandev->priv,
 		      conf); 
 		return -EFAULT;
 	}
 
 	DEBUG_EVENT("%s: Starting WAN Setup\n", wandev->name);
 
-	card = wandev->private;
+	card = wandev->priv;
 	if (wandev->state != WAN_UNCONFIGURED){
 		DEBUG_EVENT("%s: Device already configured\n",
 			wandev->name);
@@ -590,14 +607,23 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		conf->card_type = WANOPT_AFT300;
 		conf->S514_CPU_no[0] = 'A';
 		break;
+	case WANCONFIG_AFT_ISDN_BRI:
+		conf->card_type = WANOPT_AFT_ISDN;
+		conf->S514_CPU_no[0] = 'A';
+		break;	
 	case WANCONFIG_AFT_56K:
 		conf->card_type = WANOPT_AFT_56K;
+		conf->S514_CPU_no[0] = 'A';
+		break;
+	case WANCONFIG_AFT_SERIAL:
+		conf->card_type = WANOPT_AFT_SERIAL;
 		conf->S514_CPU_no[0] = 'A';
 		break;
 	}
 
 	wandev->card_type  = conf->card_type;
 	
+
 	card->hw = sdla_register(&card->hw_iface, conf, card->devname);
 	if (card->hw == NULL){
 		return -EINVAL;
@@ -654,8 +680,11 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		case WANOPT_AFT:
 		case WANOPT_AFT104:
 		case WANOPT_AFT300:
+		case WANOPT_AFT_ISDN:	
 		case WANOPT_AFT_ANALOG:
 		case WANOPT_AFT_56K:
+		case WANOPT_AFT_SERIAL:
+
 			err=0;
 			if ((err=check_aft_conflicts(card,conf,&irq)) != 0){
 				sdla_unregister(&card->hw, card->devname);
@@ -664,7 +693,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 			break;
 
 		default:
-			DEBUG_EVENT("%s: ERROR, invalid card type 0x%0X!\n",
+			DEBUG_EVENT("%s: (1) ERROR, invalid card type 0x%0X!\n",
 					card->devname,conf->card_type);
 			sdla_unregister(&card->hw, card->devname);
 			return -EINVAL;
@@ -907,6 +936,18 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		DEBUG_EVENT("%s: Starting AFT Analog Hardware Init.\n",
 					card->devname);
 		err = wp_aft_analog_init(card,conf);
+		break;
+
+	case WANCONFIG_AFT_ISDN_BRI:
+		DEBUG_EVENT("%s: Starting AFT ISDN BRI Hardware Init.\n",
+					card->devname);
+		err = wp_aft_bri_init(card,conf);
+		break;
+
+	case WANCONFIG_AFT_SERIAL:
+		DEBUG_EVENT("%s: Starting AFT Serial (V32/RS232) Hardware Init.\n",
+					card->devname);
+		err = wp_aft_serial_init(card,conf);
 		break;
 
 	case WANCONFIG_AFT_TE3:
@@ -1354,7 +1395,7 @@ static int shutdown (wan_device_t* wandev, wandev_conf_t* conf)
 	int err=0;
 
 	/* sanity checks */
-	if ((wandev == NULL) || (wandev->private == NULL)){
+	if ((wandev == NULL) || (wandev->priv == NULL)){
 		return -EFAULT;
 	}
 		
@@ -1362,7 +1403,7 @@ static int shutdown (wan_device_t* wandev, wandev_conf_t* conf)
 		return 0;
 	}
 
-	card = wandev->private;
+	card = wandev->priv;
 
 	if (card->tty_opt){
 		if (card->tty_open){
@@ -1509,13 +1550,13 @@ static int ioctl (wan_device_t* wandev, unsigned cmd, unsigned long arg)
 	int err;
 
 	/* sanity checks */
-	if ((wandev == NULL) || (wandev->private == NULL))
+	if ((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	//ALEX-HWABSTR
 //	if (wandev->state == WAN_UNCONFIGURED)
 //		return -ENODEV;
 
-	card = wandev->private;
+	card = wandev->priv;
 
 	if (test_bit(SEND_CRIT, (void*)&wandev->critical)) {
 		return -EAGAIN;
@@ -1523,11 +1564,11 @@ static int ioctl (wan_device_t* wandev, unsigned cmd, unsigned long arg)
 	
 	switch (cmd) {
 	case WANPIPE_DUMP:
-		err = ioctl_dump(wandev->private, (void*)arg);
+		err = ioctl_dump(wandev->priv, (void*)arg);
 		break;
 
 	case WANPIPE_EXEC:
-		err = ioctl_exec(wandev->private, (void*)arg, cmd);
+		err = ioctl_exec(wandev->priv, (void*)arg, cmd);
 		break;
 	default:
 		err = -EINVAL;
@@ -1565,7 +1606,7 @@ static int ioctl_dump (sdla_t* card, sdla_dump_t* u_dump)
 		return -EINVAL;
 	}
 	
-	data = kmalloc(dump.length, GFP_KERNEL);
+	data = wan_kmalloc(dump.length);
 	if (data == NULL){
 		return -ENOMEM;
 	}
@@ -1575,7 +1616,7 @@ static int ioctl_dump (sdla_t* card, sdla_dump_t* u_dump)
 	if(copy_to_user((void *)dump.ptr, data, dump.length)){
 		err = -EFAULT;
 	}
-	kfree(data);
+	wan_free(data);
 	return err;
 }
 
@@ -1935,7 +1976,7 @@ void add_gateway(sdla_t *card, netdevice_t *dev)
 
 static int debugging (wan_device_t* wandev)
 {
-	sdla_t*			card = (sdla_t*)wandev->private;
+	sdla_t*			card = (sdla_t*)wandev->priv;
 
 	if (wandev->state == WAN_UNCONFIGURED){
 		return 0;

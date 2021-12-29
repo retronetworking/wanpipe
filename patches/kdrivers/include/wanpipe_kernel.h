@@ -28,23 +28,25 @@
 #else
 # define wp_ip_rt_ioctl(_cmd_,_rptr_) ip_rt_ioctl(_cmd_,_rptr_)   
 # define wp_devinet_ioctl(_cmd_,_rptr_)  devinet_ioctl(_cmd_,_rptr_)
-#endif    
+#endif
+
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
-#define wan_skb_reset_mac_header(skb)  skb_reset_mac_header(skb)
-#define wan_skb_reset_network_header(skb) skb_reset_network_header(skb)
-#define wan_skb_end_pointer(skb) skb_end_pointer(skb)
-#define wan_skb_tail_pointer(skb) skb_tail_pointer(skb)
-#define wan_skb_reset_tail_pointer(skb) skb_reset_tail_pointer(skb)
-#define wan_skb_set_tail_pointer(skb,offset) skb_set_tail_pointer(skb,offset)
+#define __wan_skb_reset_mac_header(skb)  skb_reset_mac_header(skb)
+#define __wan_skb_reset_network_header(skb) skb_reset_network_header(skb)
+#define __wan_skb_reset_tail_pointer(skb) skb_reset_tail_pointer(skb)
+#define __wan_skb_tail_pointer(skb) skb_tail_pointer(skb)
+#define __wan_skb_set_tail_pointer(skb,offset) skb_set_tail_pointer(skb,offset)
+#define __wan_skb_end_pointer(skb) skb_end_pointer(skb)
 #else
-#define wan_skb_reset_mac_header(skb) ((skb)->mac.raw = (skb)->data)
-#define wan_skb_reset_network_header(skb) ((skb)->nh.raw  = (skb)->data)
-#define wan_skb_tail_pointer(skb) ((skb)->tail)
-#define wan_skb_end_pointer(skb) ((skb)->end)
-#define wan_skb_reset_tail_pointer(skb) ((skb)->tail = (skb)->data)
-#define wan_skb_set_tail_pointer(skb,offset) ((skb)->tail = ((skb)->data + offset))
+#define __wan_skb_reset_mac_header(skb) (skb->mac.raw = skb->data)
+#define __wan_skb_reset_network_header(skb) (skb->nh.raw  = skb->data)
+#define __wan_skb_reset_tail_pointer(skb) (skb->tail = skb->data)
+#define __wan_skb_end_pointer(skb) ((skb)->end)
+#define __wan_skb_tail_pointer(skb) ((netskb_t*)skb)->tail
+#define __wan_skb_set_tail_pointer(skb,offset) ((skb)->tail = ((skb)->data + offset))
 #endif
+
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24) || defined(LINUX_FEAT_2624)
 # ifndef LINUX_FEAT_2624
@@ -64,6 +66,10 @@
 #define IRQF_SHARED SA_SHIRQ
 #endif
 
+
+/*==========================================================================
+   KERNEL 2.6.
+ *==========================================================================*/
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 /* KERNEL 2.6.X */
@@ -91,19 +97,17 @@
  {
 	schedule_work(tq);
  }
- 
+
  #define ADMIN_CHECK()  {if (!capable(CAP_SYS_ADMIN)) {\
-			     if (WAN_NET_RATELIMIT()) { \
-	                         DEBUG_EVENT("%s:%d: wanpipe: ADMIN_CHECK: Failed !\n",__FUNCTION__,__LINE__);\
-			     } \
+                             DEBUG_EVENT("wanpipe: ADMIN_CHECK: Failed Cap=0x%X Fsuid=0x%X Euid=0x%X\n", \
+				 current->cap_effective,current->fsuid,current->euid);\
 	                     return -EPERM; \
  		             }\
                         }
 
  #define NET_ADMIN_CHECK()  {if (!capable(CAP_NET_ADMIN)){\
-				  if (WAN_NET_RATELIMIT()) { \
-	                          DEBUG_EVENT("%s:%d: wanpipe: NET_ADMIN_CHECK: Failed !\n",__FUNCTION__,__LINE__);\
-				  } \
+	                          DEBUG_EVENT("wanpipe: NET_ADMIN_CHECK: Failed Cap=0x%X Fsuid=0x%X Euid=0x%X\n", \
+					 current->cap_effective,current->fsuid,current->euid);\
 	                          return -EPERM; \
                                  }\
                             }
@@ -159,6 +163,12 @@
  #define ntohs  __constant_ntohs
  #endif
 
+
+
+
+/*==========================================================================
+   KERNEL 2.4.X
+ *==========================================================================*/
 
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,3,0)
 /* --------------------------------------------------
@@ -245,6 +255,12 @@
  #define wp_writel(data,ptr)	       writel(data,(ptr))
  #define wp_memset_io(ptr,data,len)   memset_io((ptr),data,len)
 
+
+
+
+/*==========================================================================
+   KERNEL 2.2.X
+ *==========================================================================*/
 
 
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,1,0)
@@ -496,7 +512,60 @@ static inline int open_dev_check(netdevice_t *dev)
 #endif
 }
 
-#else
+#define WAN_IFQ_INIT(ifq, max_pkt)		skb_queue_head_init((ifq))
+#define WAN_IFQ_DESTROY(ifq)
+#define WAN_IFQ_PURGE(ifq)			wan_skb_queue_purge((ifq))
+#define WAN_IFQ_DMA_PURGE(ifq)							\
+	{ netskb_t *skb;							\
+		while ((skb=wan_skb_dequeue((ifq))) != NULL) {			\
+	        	if (skb_shinfo(skb)->frag_list || skb_shinfo(skb)->nr_frags) {	\
+		        	DEBUG_EVENT("WARNING [%s:%d]: SKB Corruption!\n",	\
+			                   __FUNCTION__,__LINE__);			\
+	        		continue;						\
+			}							\
+			wan_skb_free(skb); \
+		}								\
+	}
+
+#define WAN_IFQ_ENQUEUE(ifq, skb, arg, err)	skb_queue_tail((ifq), (skb))
+#define WAN_IFQ_LEN(ifq)			skb_queue_len((ifq))
+
+# define WAN_TASKLET_INIT(task, priority, func, arg)	\
+	(task)->running = 0;				\
+	tasklet_init(&(task)->task_id,func,(unsigned long)arg) 
+
+# define WAN_TASKLET_SCHEDULE(task)					\
+	wan_set_bit(0, &(task)->running);				\
+	tasklet_schedule(&(task)->task_id);			
+#if 0
+# define WAN_WP_TASKLET_SCHEDULE_PER_CPU(task,cpu)			\
+	wan_set_bit(0, &(task)->running);				\
+	wp_tasklet_hi_schedule_per_cpu(&(task)->task_id,cpu);		
+#endif
+
+# define WAN_TASKLET_RUNNING(task)					\
+		wan_test_bit(0, &(task)->running)
+
+# define WAN_TASKLET_END(task)	wan_clear_bit(0, &(task)->running)
+
+# define WAN_TASKLET_KILL(task)	tasklet_kill(&(task)->task_id)
+
+/* Due to 2.6.20 kernel the wan_taskq_t is now a direct
+ * workqueue struct not an abstracted structure */
+# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 
+#  define WAN_TASKQ_INIT(task, priority, func, arg)	\
+		INIT_WORK((task),func,arg) 
+# else
+#  define WAN_TASKQ_INIT(task, priority, func, arg)	\
+		INIT_WORK((task),func)	
+# endif
+# define WAN_IS_TASKQ_SCHEDULE
+# define WAN_TASKQ_SCHEDULE(task)			\
+	wan_schedule_task(task)
+			
+
+
+#else /* __KERNEL__ */
 
 #include <linux/version.h>
 
@@ -514,4 +583,7 @@ static inline int open_dev_check(netdevice_t *dev)
 
 
 #endif
+
 #endif
+
+

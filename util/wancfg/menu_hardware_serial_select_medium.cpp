@@ -119,12 +119,12 @@ again:
     switch(atoi(get_lxdialog_output_string()))
     {
     case WANOPT_RS232:
-      linkconf->interface = WANOPT_RS232;
+      linkconf->electrical_interface = WANOPT_RS232;
       exit_dialog = YES;
       break;
 
     case WANOPT_V35:
-      linkconf->interface = WANOPT_V35;
+      linkconf->electrical_interface = WANOPT_V35;
       exit_dialog = YES;
       break;
 

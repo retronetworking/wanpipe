@@ -37,6 +37,8 @@
 
 #define IS_FXOFXS_CARD(card)		IS_FXOFXS_FEMEDIA(&(card)->fe)
 
+#define WAN_RM_START_CHANNEL		1
+
 #define MAX_REMORA_MODULES		24
 #define MAX_FXOFXS_CHANNELS		MAX_REMORA_MODULES
 
@@ -88,14 +90,21 @@
 #define WAN_RM_OPERMODE_LEN	20
 
 /* Front-End UDP command */
+#if defined(__WINDOWS__)
+#define WAN_FE_TONES		13
+#define WAN_FE_RING		(WAN_FE_TONES + 1)
+#define WAN_FE_REGDUMP		(WAN_FE_TONES + 2)
+#define WAN_FE_STATS		(WAN_FE_TONES + 3)
+#else
 #define WAN_FE_TONES		(WAN_FE_UDP_CMD_START + 0)
 #define WAN_FE_RING		(WAN_FE_UDP_CMD_START + 1)
 #define WAN_FE_REGDUMP		(WAN_FE_UDP_CMD_START + 2)
 #define WAN_FE_STATS		(WAN_FE_UDP_CMD_START + 3)
+#endif
 
 #define WAN_RM_SET_ECHOTUNE	_IOW (ZT_CODE, 63, struct wan_rm_echo_coefs)
 
-/* FE interrupt types */
+/* RM interrupt types */
 #define WAN_RM_INTR_NONE	0x00
 #define WAN_RM_INTR_GLOBAL	0x01
 
@@ -119,22 +128,28 @@
 **			  TYPEDEF STRUCTURE
 *******************************************************************************/
 typedef struct sdla_remora_cfg_ {
-	int	not_used;
-	int	opermode;
-	char	opermode_name[WAN_RM_OPERMODE_LEN];
+
+	int		opermode;
+	char		opermode_name[WAN_RM_OPERMODE_LEN];
 /*	int	tdmv_law;*/	/* WAN_TDMV_ALAW or WAN_TDMV_MULAW */
-	int	reversepolarity;
-	int	battthresh;
-	int	battdebounce;	
-	int	network_sync;
+	int		reversepolarity;
+	int		battthresh;
+	int		battdebounce;	
+	int		network_sync;
+
+	u_int8_t	relaxcfg;	/* do not failed during config if one of 
+					** the modules failed to configure */
 
 	int		fxs_rxgain;
 	int		fxs_txgain;
 	u_int8_t	fxs_fastringer;
 	u_int8_t	fxs_lowpower;
+	u_int8_t	fxs_pulsedialing;
 
 	int		fxo_rxgain;
 	int		fxo_txgain;
+
+	int		fxs_ringampl;
 } sdla_remora_cfg_t;
 
 typedef struct {
@@ -151,7 +166,7 @@ typedef struct {
 	int		ring_volt;	/* RING voltage (mV) (FXS) */
 	int		bat_volt;	/* VBAT voltage (mV) (FXS) */
 	int		volt;		/* Line voltage status (FXO) */
-	//u_int8_t	hook;		/* On/Off hook state */
+	/*u_int8_t	hook;	*/	/* On/Off hook state */
 } wan_remora_stats_t;
 
 typedef struct {
@@ -185,70 +200,90 @@ struct wan_rm_echo_coefs {
 
 #if !defined(WAN_DEBUG_FE)
 # define WRITE_RM_FXS_REG(mod_no,chain,reg,val)			\
-	fe->write_fe_reg(	fe->card,		\
+	fe->write_fe_reg(	((sdla_t*)fe->card)->hw,	\
 				(int)mod_no,		\
 				(int)MOD_TYPE_FXS,	\
 				(int)chain,		\
 				(int)reg,		\
 				(int)val)
 # define READ_RM_FXS_REG(mod_no,chain,reg)			\
-	fe->read_fe_reg(	fe->card, 		\
+	fe->read_fe_reg(	((sdla_t*)fe->card)->hw,	\
 				(int)mod_no,		\
 				(int)MOD_TYPE_FXS,	\
 				(int)chain,		\
 				(int)reg)
 # define WRITE_RM_FXO_REG(mod_no,chain,reg,val)			\
-	fe->write_fe_reg(	fe->card,		\
+	fe->write_fe_reg(	((sdla_t*)fe->card)->hw,		\
 				(int)mod_no,		\
 				(int)MOD_TYPE_FXO,	\
 				(int)chain,		\
 				(int)reg,		\
 				(int)val)
 # define READ_RM_FXO_REG(mod_no,chain,reg)			\
-	fe->read_fe_reg(	fe->card,		\
+	fe->read_fe_reg(	((sdla_t*)fe->card)->hw,		\
 				(int)mod_no,		\
 				(int)MOD_TYPE_FXO,	\
 				(int)chain,		\
 				(int)reg)
 # define WRITE_RM_REG(mod_no,reg,val)					\
-	fe->write_fe_reg(	fe->card,			\
+	fe->write_fe_reg(	((sdla_t*)fe->card)->hw,		\
 				(int)mod_no,			\
-				fe->rm_param.mod[mod_no].type,	\
-				fe->rm_param.mod[mod_no].chain,	\
+				(int)fe->rm_param.mod[mod_no].type,	\
+				(int)fe->rm_param.mod[mod_no].chain,	\
 				(int)reg, (int)val)
 # define READ_RM_REG(mod_no,reg)					\
-	fe->read_fe_reg(	fe->card,				\
+	fe->read_fe_reg(	((sdla_t*)fe->card)->hw,				\
 				(int)mod_no,				\
-				fe->rm_param.mod[mod_no].type,		\
-				fe->rm_param.mod[mod_no].chain,		\
+				(int)fe->rm_param.mod[mod_no].type,		\
+				(int)fe->rm_param.mod[mod_no].chain,		\
 				(int)reg)
 #else
-# define WRITE_RM_FXS_REG(mod_no,chain,reg,val)				\
-	fe->write_fe_reg(fe->card,(int)mod_no,(int)MOD_TYPE_FXS,(int)chain,(int)reg,(int)val,__FILE__,(int)__LINE__)
+# define WRITE_RM_FXS_REG(mod_no,chain,reg,val)		\
+	fe->write_fe_reg(	((sdla_t*)fe->card)->hw,		\
+				(int)mod_no,		\
+				(int)MOD_TYPE_FXS,	\
+				(int)chain,		\
+				(int)reg, (int)val,	\
+				__FILE__,(int)__LINE__)
 # define READ_RM_FXS_REG(mod_no,chain,reg)				\
-	fe->read_fe_reg(fe->card, (int)mod_no,(int)MOD_TYPE_FXS,(int)chain,(int)reg,__FILE__,__LINE__)
+	fe->read_fe_reg(	((sdla_t*)fe->card)->hw, 		\
+				(int)mod_no,		\
+				(int)MOD_TYPE_FXS,	\
+				(int)chain,		\
+				(int)reg,		\
+				__FILE__,__LINE__)
 # define WRITE_RM_FXO_REG(mod_no,chain,reg,val)				\
-	fe->write_fe_reg(fe->card,(int)mod_no,(int)MOD_TYPE_FXO,(int)chain,(int)reg,(int)val,__FILE__,(int)__LINE__)
+	fe->write_fe_reg(	((sdla_t*)fe->card)->hw,		\
+				(int)mod_no,		\
+				(int)MOD_TYPE_FXO,	\
+				(int)chain,		\
+				(int)reg,(int)val,	\
+				__FILE__,(int)__LINE__)
 # define READ_RM_FXO_REG(mod_no,chain,reg)				\
-	fe->read_fe_reg(fe->card, (int)mod_no,(int)MOD_TYPE_FXO,(int)chain,(int)reg,__FILE__,(int)__LINE__)
+	fe->read_fe_reg(	((sdla_t*)fe->card)->hw, 		\
+				(int)mod_no,		\
+				(int)MOD_TYPE_FXO,	\
+				(int)chain,		\
+				(int)reg,		\
+				__FILE__,(int)__LINE__)
 # define WRITE_RM_REG(mod_no,reg,val)					\
-	fe->write_fe_reg(	fe->card,				\
+	fe->write_fe_reg(	((sdla_t*)fe->card)->hw,				\
 				(int)mod_no,				\
-				fe->rm_param.mod[mod_no].type,		\
-				fe->rm_param.mod[mod_no].chain,		\
+				(int)fe->rm_param.mod[mod_no].type,		\
+				(int)fe->rm_param.mod[mod_no].chain,		\
 				(int)reg, (int)val,__FILE__,(int)__LINE__)
 # define READ_RM_REG(mod_no,reg)					\
-	fe->read_fe_reg(	fe->card,				\
+	fe->read_fe_reg(	((sdla_t*)fe->card)->hw,				\
 				(int)mod_no,				\
-				fe->rm_param.mod[mod_no].type,		\
-				fe->rm_param.mod[mod_no].chain,		\
+				(int)fe->rm_param.mod[mod_no].type,		\
+				(int)fe->rm_param.mod[mod_no].chain,		\
 				(int)reg,__FILE__,(int)__LINE__)
 #endif
 #define __READ_RM_REG(mod_no,reg)					\
-	fe->__read_fe_reg(	fe->card,				\
+	fe->__read_fe_reg(	((sdla_t*)fe->card)->hw,				\
 				(int)mod_no,				\
-				fe->rm_param.mod[mod_no].type,		\
-				fe->rm_param.mod[mod_no].chain,		\
+				(int)fe->rm_param.mod[mod_no].type,		\
+				(int)fe->rm_param.mod[mod_no].chain,		\
 				(int)reg)
 
 
@@ -332,12 +367,14 @@ typedef struct {
 
 typedef struct {
 //	u_int16_t	type;
-	int		mod_no;		/* A200-Remora */	
+	unsigned int	mod_no;		/* A200-Remora */	
 	unsigned char	ec_dtmf_port;	/* EC DTMF: SOUT or ROUT */
 	unsigned long	ts_map;
 	u_int8_t	tone;
 	int		ohttimer;	/* On-hook transfer */
 	int		polarity;	/* SETPOLARITY */		
+	unsigned short	reg;		/* fe register */	
+	unsigned char	value;		/* fe register value */	
 } sdla_rm_event_t;
 
 typedef struct sdla_remora_param {
@@ -355,7 +392,12 @@ typedef struct sdla_remora_param {
 //	u16		timer_delay;
 
 	u32		intcount;
-	unsigned long	last_watchdog;	
+	wan_ticks_t	last_watchdog;	
+
+	int		reg_dbg_busy;	
+	int		reg_dbg_ready;	
+	unsigned char	reg_dbg_value;
+
 } sdla_remora_param_t;
 
 
@@ -364,7 +406,7 @@ typedef struct sdla_remora_param {
 /*******************************************************************************
 **			  FUNCTION PROTOTYPES
 *******************************************************************************/
-extern int	wp_remora_iface_init(void*);
+extern int	wp_remora_iface_init(void*, void*);
 
 #undef EXTERN
 #endif	/* __SDLA_REMORA_H */

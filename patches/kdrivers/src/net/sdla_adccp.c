@@ -238,6 +238,8 @@ typedef struct x25_channel
 } x25_channel_t;
 
 /* FIXME Take this out */
+
+
 #pragma pack(1)
 #ifdef NEX_OLD_CALL_INFO
 typedef struct x25_call_info
@@ -320,11 +322,7 @@ static void timer_intr  (sdla_t *);
 /*=================================================  
  *	Background polling routines 
  */
-# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
-static void wpx_poll (void * card_ptr);
-# else
-static void wpx_poll (struct work_struct *work);
-#endif
+static void wpx_poll (void*);
 #if 0
 static void poll_disconnected (sdla_t* card);
 #endif
@@ -530,7 +528,7 @@ int wp_adccp_init (sdla_t* card, wandev_conf_t* conf)
 		u.cfg.station = 0;		/* DCE mode */
 	}
 
-        if (conf->interface != WANOPT_RS232 ){
+        if (conf->electrical_interface != WANOPT_RS232 ){
 	        u.cfg.hdlcOptions |= 0x80;      /* V35 mode */
 	} 
 
@@ -596,7 +594,7 @@ int wp_adccp_init (sdla_t* card, wandev_conf_t* conf)
 	
 	/* Initialize protocol-specific fields of adapter data space */
 	card->wandev.bps	= conf->bps;
-	card->wandev.interface	= conf->interface;
+	card->wandev.electrical_interface	= conf->electrical_interface;
 	card->wandev.clocking	= conf->clocking;
 	card->wandev.station	= conf->u.x25.station;
 	card->isr		= &wpx_isr;
@@ -661,6 +659,7 @@ int wp_adccp_init (sdla_t* card, wandev_conf_t* conf)
 
 	WAN_TASKQ_INIT((&card->u.x.x25_poll_task),0,wpx_poll,card);
 
+
 	init_timer(&card->u.x.x25_timer);
 	card->u.x.x25_timer.data = (unsigned long)card;
 	card->u.x.x25_timer.function = x25_timer_routine;
@@ -713,7 +712,7 @@ static int update (wan_device_t* wandev)
 	unsigned long smp_flags;
 	
 	/* sanity checks */
-	if ((wandev == NULL) || (wandev->private == NULL))
+	if ((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 
 	if (wandev->state == WAN_UNCONFIGURED)
@@ -726,7 +725,7 @@ static int update (wan_device_t* wandev)
 	if (!dev)
 		return -ENODEV;
 	
-	card = wandev->private;
+	card = wandev->priv;
 
 	DEBUG_EVENT("%s: UPDATE\n",card->devname);
 	
@@ -775,7 +774,7 @@ static int update (wan_device_t* wandev)
  */
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	x25_channel_t* chan;
 	int err = 0;
 
@@ -882,7 +881,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
-	sdla_t *card=wandev->private;
+	sdla_t *card=wandev->priv;
 	x25_channel_t* chan = dev->priv;
 
 	set_chan_state(dev, WAN_DISCONNECTED);
@@ -949,6 +948,8 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
+	dev->hard_header	= NULL;
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 	dev->do_ioctl		= &if_ioctl;
@@ -2064,18 +2065,10 @@ static void spur_intr (sdla_t* card)
  *    	enabled. Beware!
  *====================================================================*/
 
-# if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
-static void wpx_poll (void * card_ptr)
-# else
-static void wpx_poll (struct work_struct *work)
-#endif
+static void wpx_poll (void *card_ptr)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))
-        sdla_t          *card = (sdla_t *)container_of(work, sdla_t, u.aft.port_task);
-#else
-        sdla_t          *card = (sdla_t *)card_ptr;
-#endif
 	netdevice_t	*dev;
+	sdla_t *card=card_ptr;
 	++card->statistics.poll_processed;
 	
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
@@ -4239,11 +4232,11 @@ static int x25_get_dev_config_info(char* buf, char** start, off_t offs, int len,
 	int 		size = 0;
 	PROC_ADD_DECL(stop_cnt);
 
-	if (wandev == NULL || wandev->private == NULL)
+	if (wandev == NULL || wandev->priv == NULL)
 		return cnt;
 
 	PROC_ADD_INIT(offs, stop_cnt);
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 	x25_conf = &card->u.x.x25_conf;
 
 	PROC_ADD_LINE(cnt, 
@@ -4337,7 +4330,7 @@ static int x25_set_dev_config(struct file *file,
 	if (wandev == NULL)
 		return cnt;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	printk(KERN_INFO "%s: New device config (%s)\n",
 			wandev->name, buffer);

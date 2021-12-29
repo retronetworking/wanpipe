@@ -9,9 +9,6 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
-# Jun 26   2008  2.13   Jingesh Patel	Fixed scritp for wancfg_smg and tdm_api 
-# May 22   2008  2.12	Jignesh Patel 	Added confirmation check /dev/zap* for hardhdlc
-# May 22   2008  2.12   Jignesh Patel 	Update zaptel module list 
 # Jan 02   2008	 2.11  	David Yat Sin  	Support for per span configuration in silent mode
 # Jan 02   2008	 2.10  	David Yat Sin  	Added option for BRI master clock
 # Dec 15   2007	 2.9  	David Yat Sin  	Support for Zaptel hardware hdlc for Zaptel 1.4
@@ -31,9 +28,9 @@
 # ============================================================================
 
 system('clear');
-print "\n#############################################i##########################";
+print "\n########################################################################";
 print "\n#    Sangoma Wanpipe:  Zaptel/SMG/TDMAPI/BOOT Configuration Script     #";
-print "\n#                             v2.13                                    #";
+print "\n#                             v2.11                                    #";
 print "\n#                     Sangoma Technologies Inc.                        #";
 print "\n#                        Copyright(c) 2008.                            #";
 print "\n########################################################################\n\n";
@@ -83,9 +80,7 @@ if ($os_type_list =~ m/Linux/){
 
 my $no_boot=$FALSE;
 my $boot_only=$FALSE;
-#HW DTMF NOT SUPPORTED in 3.2 drivers
-#my $no_hwdtmf=$FALSE;
-my $no_hwdtmf=$TRUE;
+my $no_hwdtmf=$FALSE;
 my $startup_string="";
 my $cfg_string="";
 my $first_cfg=1;
@@ -125,6 +120,8 @@ my $def_femedia='';
 my $def_feframe='';
 my $def_feclock='';
 my $def_bri_option='';
+my $def_bri_default_tei='';
+my $def_bri_default_tei_opt=$FALSE;
 my $def_signalling='';
 my $def_switchtype='';
 my $def_zapata_context='';
@@ -171,6 +168,10 @@ my $silent_feclock="NORMAL";
 my $silent_signalling="PRI CPE";
 my $silent_pri_switchtype="national";
 my $silent_zapata_context="from-pstn";
+my $silent_zapata_context_opt = $FALSE;
+my $silent_zapata_group_opt = $FALSE;
+my $silent_zapata_context_fxo="from-pstn";
+my $silent_zapata_context_fxs="from-internal";
 my $silent_woomera_context="from-pstn";
 my $silent_zapata_group="0";
 my $silent_te_sig_mode='CCS';
@@ -199,8 +200,9 @@ my $modprobe_list=`$module_list`;
 read_args();
 check_zaptel();
 if($boot_only==$TRUE){
-	exit( &config_boot());
+        exit( &config_boot());
 }
+
 my $current_dir=`pwd`;
 chomp($current_dir);
 my $cfg_dir='tmp_cfg';
@@ -240,9 +242,7 @@ my $date=`date +%F`;
 chomp($date);
 my $debug_tarball="$wanpipe_conf_dir/debug-".$date.".tgz";
 
-if( $zaptel_installed == $TRUE){
-	set_zaptel_hwhdlc();
-}
+set_zaptel_hwhdlc();
 prepare_files();
 config_t1e1();
 config_bri();
@@ -260,31 +260,11 @@ print "Sangoma cards configuration complete, exiting...\n\n";
 
 
 sub set_zaptel_hwhdlc{
-	print "Checking for native zaptel hardhdlc support...";
-        my $cnt = 0;
-        while ($cnt++ < 30) {
-             if ((system("ls /dev/zap* > /dev/null 2>  /dev/null")) == 0) {
-	                   goto wait_done;
-                } else {
-                        print "." ;
-                        sleep(1);
-                }
-        }
-	print "Error";
-	print "\n\n No /dev/zap* Found on the system \n";
-	printf "     Contact Sangoma Support\n";
-	print " Send e-mail to techdesk\@sangoma\.com \n\n";
-	exit 1;
-wait_done:
-
 	if ((system("ztcfg -t -c $current_dir/templates/zaptel.conf_test > /dev/null 2>/dev/null")==0)){
 		$dchan_str="hardhdlc";
-		 print "Yes \n\n";
-
-        } else {
-                print "No \n\n";
 	}
 }
+
 sub config_boot{
 	if($no_boot==$TRUE){
 		return 1;
@@ -329,7 +309,7 @@ sub config_boot{
 	if($silent==$FALSE){
 		print ("Would you like $script_name to start on system boot?\n");
 		$res= &prompt_user_list("YES","NO","");
-	} 
+	}
 	
 	if ( $res eq 'YES'){
 		#examine system bootstrap files
@@ -337,7 +317,7 @@ sub config_boot{
 		if (system($command) == 0){
 			$rc_dir=$rc_dir;
 		} else {
-			$command="find ".$etc_dir."/rc.d/rc0.d >/dev/null 2>/dev/null";
+			$command="find ".$etc_dir."rc.d/rc0.d >/dev/null 2>/dev/null";
 			if (system($command) == 0){
 				$rc_dir=$etc_dir."/rc.d";
 			} else {
@@ -408,7 +388,8 @@ sub config_boot{
 			if(system($command) !=0){
 				print "Failed to install $script_name script to $rc_dir/init.d/$script_name\n";
 				print "$script_name boot scripts not installed\n";
-				return 1;			}
+				return 1;
+			}
 		}
 		print "Enabling $script_name boot scripts ...(level:$wanrouter_start_level)\n";
 		my @run_levels= ("2","3","4","5");
@@ -471,7 +452,7 @@ sub config_boot{
 					if(system($command) !=0){
 						print "Failed to install smg_ctrl init script to $rc_dir/rc$run_level.d/$smg_ctrl_start_script\n";
 						print "smg_ctrl start scripts not installed\n";
-						return 1;
+						return;
 					}
 				}	
 			}
@@ -508,31 +489,38 @@ sub config_smg_ctrl_start{
 	} else {
 		$res = "YES";
 	}
-	
-	if ($res = "YES"){	
-		#if zaptel start script is in $wanpipe_conf_dir/scripts/start, do not overwrite
-		my $command="find ".$wanpipe_conf_dir."/scripts/start >/dev/null 2>/dev/null";
-		if (system($command) == 0){
-			$command="cat ".$current_dir."/templates/smgbri_start_script_addon >>".$wanpipe_conf_dir."/scripts/start";
-		} else {
-			$command="cp -f ".$current_dir."/templates/smgbri_start_script ".$wanpipe_conf_dir."/scripts/start";
-		}
-		
-		if (system($command) == 0){
-			print "smgbri start script installed successfully\n";
-		} else {
-			print "failed to install smgbri start script\n";
-		}
+	         if ($res eq "YES"){
+                #if zaptel start script is in $wanpipe_conf_dir/scripts/start, do not overwrite
+                my $command="find ".$wanpipe_conf_dir."/scripts/start >/dev/null 2>/dev/null";
+                if (system($command) == 0){
 
-		$command="cp -f ".$current_dir."/templates/smgbri_stop_script ".$wanpipe_conf_dir."/scripts/stop";
-		if (system($command) == 0){
-			print "smgbri stop script installed successfully\n";
-		} else {
-		print "failed to install smgbri start script\n";
-		}
-	}
+                        my $command="cat ".$wanpipe_conf_dir."/scripts/start | grep smg_ctrl >/dev/null 2>/dev/null";
+                        if (system($command) == 0){
+                        print("smgbri start script already installed!\n");
+                        }else{
+                        my $command="cat ".$current_dir."/templates/smgbri_start_script_addon >>".$wanpipe_conf_dir."/scripts/start";
+                                if (system($command) == 0){
+                                        print("smgbri start scrtip installed scuessfully\n");
+                                }
+                        }
+                } elsif(system($command) != 0) {
+
+                        $command="cp -f ".$current_dir."/templates/smgbri_start_script ".$wanpipe_conf_dir."/scripts/start";
+                                if (system($command) == 0){
+                                        print("smgbri start scrtip installed scuessfully\n");
+                                }
+                } else {
+                                print "failed to install smgbri start script\n";
+                }
+                my $command="cp -f ".$current_dir."/templates/smgbri_stop_script ".$wanpipe_conf_dir."/scripts/stop";
+                if (system($command) == 0){
+                        print "smgbri stop script installed successfully\n";
+                } else {
+                print "failed to install smgbri start script\n";
+                }
+        }
 }
-
+	
 sub check_zaptel{
 	if ($modprobe_list =~ /zaptel.ko/){
 		$zaptel_installed=$TRUE;
@@ -922,8 +910,7 @@ sub copy_config_files{
 }
 
 sub unload_zap_modules{
-	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zttranscode","wcusb", "wctdm24xxp","xpp_usb","xpp" ,"wcte12xp","opvxa1200", "zaptel");
-
+	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zttranscode","wcusb", "wctdm24xxp","xpp_usb","xpp" ,"wcte12xp", "zaptel");
 	foreach my $module (@modules_list) {	
 		if ($modprobe_list =~ m/$module/){
 			exec_command("$module_unload $module");
@@ -975,7 +962,7 @@ sub summary{
 		print("  $num_bri_devices_total ISDN BRI port(s) detected, $num_bri_devices configured\n");
 		print("  $num_analog_devices_total analog card(s) detected, $num_analog_devices configured\n");
 		
-		print "\nConfigurator will create the following files:\n";
+		print "\nConfigurator has created the following files:\n";
 		print "\t1. Wanpipe config files in $wanpipe_conf_dir\n";
 		$file_list++;
 		
@@ -1008,21 +995,12 @@ sub summary{
 		print "\nYour configuration has been saved in $debug_tarball.\n";
 		print "When requesting support, email this file to techdesk\@sangoma.com\n\n";
 		if($silent==$FALSE){
-			confirm_conf();
+			prompt_user("Press any key to continue");
 		}
 	}
 }
 
-sub confirm_conf(){
-	print "Configuration Complete! Please select following:\n";
-	if(&prompt_user_list("YES - Continue", "NO - Exit" ,"") =~ m/YES/){
-		return $?;
-	} else {
-		print "No changes made to your configuration files\n";
-		print "exiting.....\n";	
-		exit $?;
-	}
-}
+
 sub exec_command{
 	my @command = @_;
 	if (system(@command) != 0 ){
@@ -1101,8 +1079,9 @@ sub read_args {
 		$_ = $ARGV[$arg_num];
 		if( /^--trixbox$/){
 			$is_trixbox=$TRUE;
-		}elsif( /^--install_boot_script/){
-			$boot_only=$TRUE;	
+		}elsif ( /^--install_boot_script/){
+                        $boot_only=$TRUE;
+
 		}elsif ( /^--tdm_api/){
 			$is_tdm_api=$TRUE;
 		}elsif ( /^--smg$/){
@@ -1118,9 +1097,11 @@ sub read_args {
 		}elsif ( /^--no-zaptel$/){
 			$config_zaptel=$FALSE;
 		}elsif ( $_ =~ /--zapata_context=(\w+)/){
+			$silent_zapata_context_opt=$TRUE;
 			$silent_zapata_context=substr($_,length("--zapata_context="));
 			push(@silent_zapata_contexts, $silent_zapata_context);
 		}elsif ( $_ =~ /--zapata_group=(\d+)/){
+			$silent_zapata_group_opt=$TRUE;
 			$silent_zapata_group=$1;
 			push(@silent_zapata_groups, $silent_zapata_group);
 		}elsif ( $_ =~ /--woomera_context=(\w+)/){
@@ -1308,6 +1289,34 @@ sub get_woomera_group{
 }
 
 
+
+sub get_bri_default_tei{
+#	if($silent==$TRUE){
+#		if($#silent_woomera_groups >= 0){
+#			$silent_woomera_group=pop(@silent_woomera_groups);
+#		}
+#		return $silent_woomera_group;
+#	}
+
+	my $res_default_tei;
+get_bri_default_tei:
+	$res_default_tei=&prompt_user("\nInput the TEI for this port \n",$def_bri_default_tei);
+	while(length($res_default_tei)==0 |!($res_default_tei =~/(\d+)/)){
+		print "Invalid TEI value, must be an integer\n";
+		$res_default_tei=&prompt_user("Input the TEI for this port ",$def_bri_default_tei);
+	}
+	$res_default_tei =~ /(\d+)/;	
+	if(  $1 < 0 | $1 > 127)	{
+			print "Invalid TEI value, must be between 0 and 127\n";
+			goto get_bri_default_tei;
+	}
+	
+	$def_bri_default_tei=$res_default_tei;
+	return $def_bri_default_tei;
+}
+
+
+
 sub get_bri_operator {
 #warning returning ETSI
 	$def_bri_operator = "etsi";
@@ -1486,7 +1495,13 @@ select_bri_option:
 		}elsif (($dev =~ /(\d+):NT/ | 
 	 		$dev =~ /(\d+):TE/ )& 
 	 		$skip_card==$FALSE ){
-	 		
+			if($bri_device_has_master_clock==$FALSE & $dev =~ /(\d+):TE/){
+				print "\nWould you like to use this port as a sync source?\n";
+				if (&prompt_user_list(("YES","NO","YES")) eq 'YES'){
+					$bri_device_has_master_clock=$TRUE;
+					$a50x->bri_clock_master("LINE");
+				}
+			}
 	 		
 	 		my $context="";
 	 		my $group="";
@@ -1524,9 +1539,24 @@ select_bri_option:
 			}
 			$a50x->gen_wanpipe_conf();
 			if ( $dev =~ /(\d+):NT/ ){	
-				$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_nt", $group, $country, $operator, $conn_type);
+				$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_nt", $group, $country, $operator, $conn_type, '');
 			} else {
-				$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_te", $group, $country, $operator, $conn_type);
+				my $current_bri_default_tei='127';
+				if ($def_bri_default_tei_opt==$TRUE){
+					$current_bri_default_tei=$def_bri_default_tei;
+				}
+				printf("\nConfiguring span:%s as TEI:%s\n", $bri_pos, $current_bri_default_tei);
+				my @options = ("YES - Keep this setting", "NO  - Specify a different TEI");
+				my $res = &prompt_user_list(@options, "YES");
+				if ($res =~ m/NO/) {
+					$def_bri_default_tei_opt=$TRUE;
+					$current_bri_default_tei=get_bri_default_tei();	
+	                        }
+				if ($def_bri_default_tei_opt==$FALSE){
+					$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_te", $group, $country, $operator, $conn_type, '');
+				} else { 
+					$bri_conf.=$a50x->gen_bri_conf($bri_pos,"bri_te", $group, $country, $operator, $conn_type, $current_bri_default_tei);
+				}
 			}
 			if(!($context eq "WOOMERA_NO_CONFIG")){
 				$woomera_conf.=$a50x->gen_woomera_conf($group, $context);
@@ -1543,9 +1573,6 @@ select_bri_option:
 		prompt_user("Press any key to continue");
 	}
 }
-
-
-
 
 
 #------------------------------T1/E1 FUNCTIONS------------------------------------#
@@ -2481,7 +2508,7 @@ sub config_analog{
 			}
 		}elsif ( $dev =~ /(\d+):FXS/ & $skip_card==$FALSE){
 			my $zap_pos = $1+$current_zap_channel-25;
-			if($silent==$TRUE){
+			if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
 				if($#silent_zapata_contexts >= 0){
 					$silent_zapata_context=pop(@silent_zapata_contexts);
 				}
@@ -2494,7 +2521,7 @@ sub config_analog{
 			$zapata_conf.=$a20x->gen_zapata_conf($zap_pos,"fxo");
 		}elsif ( $dev =~ /(\d+):FXO/ & $skip_card==$FALSE){
 			my $zap_pos = $1+$current_zap_channel-25;
-			if($silent==$TRUE){
+			if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
 				if($#silent_zapata_contexts >= 0){
 					$silent_zapata_context=pop(@silent_zapata_contexts);
 				}

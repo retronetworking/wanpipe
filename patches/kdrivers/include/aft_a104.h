@@ -39,7 +39,7 @@
 
 int a104_global_chip_config(sdla_t *card);
 int a104_global_chip_unconfig(sdla_t *card);
-int a104_chip_config(sdla_t *card);
+int a104_chip_config(sdla_t *card, wandev_conf_t*);
 int a104_chip_unconfig(sdla_t *card);
 int a104_chan_dev_config(sdla_t *card, void *chan);
 int a104_chan_dev_unconfig(sdla_t *card, void *chan);

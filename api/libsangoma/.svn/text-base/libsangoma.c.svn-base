@@ -22,16 +22,17 @@
 #include "libsangoma.h"
 #define DFT_CARD "wanpipe1"
 
-
-#ifndef WP_TDM_EVENT_FE_ALARM
+#ifndef WP_TDM_FEATURE_FE_ALARM
 #warning "Warning: TDM FE ALARM not supported by driver"
 #endif
 
-
-#ifndef WP_TDMAPI_EVENT_DTMF
-#warning "Warning: TDM EVENTS not supported by driver"
+#ifndef WP_TDM_FEATURE_DTMF_EVENTS
+#warning "Warning: TDM DTMF not supported by driver"
 #endif
 
+#ifndef WP_TDM_FEATURE_EVENTS
+#warning "Warning: TDM EVENTS not supported by driver"
+#endif
 
 
 #if defined(WIN32)
@@ -520,7 +521,7 @@ int sangoma_get_full_cfg(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 	printf("\tusr_mtu_mru:\t%d\n",tdm_api->wp_tdm_cmd.usr_mtu_mru);
 	printf("\tidle flag:\t0x%02X\n",tdm_api->wp_tdm_cmd.idle_flag);
 
-#ifdef WP_TDM_EVENT_FE_ALARM
+#ifdef WP_TDM_FEATURE_FE_ALARM
 	printf("\tfe alarms:\t0x%02X\n",tdm_api->wp_tdm_cmd.fe_alarms);
 #endif
 	
@@ -765,7 +766,7 @@ int sangoma_tdm_write_rbs(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char
 int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
 {
 
-#ifdef WP_TDM_EVENT_TDM_API_EVENTS
+#ifdef WP_TDM_FEATURE_EVENTS
 
 	wp_tdm_api_event_t *rx_event;
 
@@ -793,7 +794,8 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 		}
 		
 		break;
-		
+	
+#ifdef WP_TDM_FEATURE_DTMF_EVENTS	
 	case WP_TDMAPI_EVENT_DTMF:
 		printf("%d: GOT DTMF EVENT\n",(int)fd);
 		if (tdm_api->wp_tdm_event.wp_dtmf_event) {
@@ -803,6 +805,7 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 						rx_event->wp_tdm_api_event_dtmf_port);
 		}
 		break;
+#endif
 		
 	case WP_TDMAPI_EVENT_RXHOOK:
 		printf("%d: GOT RXHOOK EVENT\n",(int)fd);
@@ -828,13 +831,13 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 		}
 		break;
 
-#ifdef WP_TDM_EVENT_FE_ALARM
-	case WP_TDMAPI_EVENT_FE_ALARM:
+#ifdef WP_TDM_FEATURE_FE_ALARM
+	case WP_TDMAPI_EVENT_ALARM:
 		printf("%d: GOT FE ALARMS EVENT %i\n",(int)fd,
-				rx_event->wp_tdm_api_event_fe_alarm);
+                       rx_event->wp_tdm_api_event_alarm);
 		if (tdm_api->wp_tdm_event.wp_fe_alarm_event) {
 			tdm_api->wp_tdm_event.wp_fe_alarm_event(fd,
-						rx_event->wp_tdm_api_event_fe_alarm);
+                              rx_event->wp_tdm_api_event_alarm);
 		}    
 #endif
 		
@@ -845,13 +848,12 @@ int sangoma_tdm_read_event(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 	
 	return 0;
 #else
-	return -EINVAL;
+	printf("Error: Read Event not supported!\n");
+	return -1;
 #endif
 }        
 
-
-#ifdef WP_TDMAPI_EVENT_DTMF
-
+#ifdef WP_TDM_FEATURE_DTMF_EVENTS
 int sangoma_tdm_enable_dtmf_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 {
 	int err;
@@ -911,6 +913,7 @@ int sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 
 	return 0;
 }
+#endif
 
 int sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
 {
@@ -926,33 +929,6 @@ int sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 
 	return 0;
 }
-
-int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
-{
-	int err;
-
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_ENABLE_HWEC;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
-{
-	int err;
-
-	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_DISABLE_HWEC;
-	err=sangoma_tdm_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
 
 int sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
 {
@@ -1156,13 +1132,39 @@ int sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
 
 	return tdm_api->wp_tdm_cmd.rbs_poll;
 }
-#endif
+
+int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
+{
+        int err;
+
+        tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_ENABLE_HWEC;
+        err=sangoma_tdm_cmd_exec(fd,tdm_api);
+        if (err){
+                return err;
+        }
+
+        return 0;
+}
+
+int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
+{
+        int err;
+
+        tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_DISABLE_HWEC;
+        err=sangoma_tdm_cmd_exec(fd,tdm_api);
+        if (err){
+                return err;
+        }
+
+        return 0;
+}
+
 
 /*========================================================
  * GET Front End Alarms
  * 
  */                  
-#ifdef WP_TDM_EVENT_FE_ALARM
+#ifdef WP_TDM_FEATURE_FE_ALARM
 int sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 {
 	int err;
@@ -1177,5 +1179,27 @@ int sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 	return tdm_api->wp_tdm_cmd.fe_alarms;
 }         
 #endif
+
+/* get current Line Connection state - Connected/Disconnected */
+int sangoma_tdm_get_fe_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char *current_status)
+{
+	int err;
+
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_GET_FE_STATUS;
+	err = sangoma_tdm_cmd_exec(fd, tdm_api);
+	*current_status = tdm_api->wp_tdm_cmd.fe_status;
+
+	return err;
+}
+
+
+/* set current Line Connection state - Connected/Disconnected. valid only for ISDN BRI */
+int sangoma_tdm_set_fe_status(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api, unsigned char new_status)
+{
+	tdm_api->wp_tdm_cmd.cmd = SIOC_WP_TDM_SET_FE_STATUS;
+	tdm_api->wp_tdm_cmd.fe_status = new_status;
+
+	return sangoma_tdm_cmd_exec(fd, tdm_api);
+}
 
 #endif /* WANPIPE_TDM_API */

@@ -25,10 +25,19 @@
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <aft_a104.h>
 # include <aft_analog.h>
+#elif defined(__WINDOWS__)
+# include <wanpipe_tdm_api.h>
+# include <aft_a104.h>
+# include <aft_analog.h>
+# include <aft_bri.h>
+# define COMPILE_COMMON_PRIVATE_AREA
+# include <sdladrv_private.h>
+# define AFT_MAX_CHIP_SECURITY_CNT 100
 #else
 # include <linux/wanpipe_tdm_api.h>
 # include <linux/aft_a104.h>
 # include <linux/aft_analog.h>
+# include <linux/aft_bri.h>
 #endif
 
 #define AFT_PORT0_OFFSET		0x00000
@@ -79,6 +88,7 @@
 # define AFT_CHIPCFG_TE1_CFG_BIT	0
 # define AFT_CHIPCFG_56K_CFG_BIT	0
 # define AFT_CHIPCFG_ANALOG_CLOCK_SELECT_BIT 0
+# define AFT_CHIPCFG_A500_NET_SYNC_CLOCK_SELECT_BIT 0
 # define AFT_CHIPCFG_SFR_EX_BIT		1
 # define AFT_CHIPCFG_SFR_IN_BIT		2
 # define AFT_CHIPCFG_FE_INTR_CFG_BIT	3
@@ -101,11 +111,25 @@
 # define AFT_CHIPCFG_ANALOG_INTR_MASK	0x0F		/* Analog */
 # define AFT_CHIPCFG_ANALOG_INTR_SHIFT	9
 
+# define AFT_CHIPCFG_A500_INTR_MASK	0x0F		/* A500 BRI - interrupt pending from upto 4 remoras.
+								bit 9 - remora 1
+								bit 10- remora 2
+								bit 11- remora 3
+								bit 12- remora 4
+							 */
+# define AFT_CHIPCFG_A500_INTR_SHIFT	9
+# define A500_LINE_SYNC_MASTER_BIT	31
+
+
 # define AFT_CHIPCFG_A108_EC_CLOCK_SRC_MASK	0x07	/* A108 */
 # define AFT_CHIPCFG_A108_EC_CLOCK_SRC_SHIFT	9	
 
 # define AFT_CHIPCFG_A104D_EC_SECURITY_BIT 12
 # define AFT_CHIPCFG_A108_EC_INTR_ENABLE_BIT 12		/* A108 */
+
+
+# define AFT_CHIPCFG_A500_EC_INTR_ENABLE_BIT 14		/* A500 - BRI not used for now */
+
 
 # define AFT_CHIPCFG_EC_INTR_STAT_BIT	13
 
@@ -122,6 +146,7 @@
 
 # define AFT_CHIPCFG_A200_EC_SECURITY_BIT 15		/* Analog */
 # define AFT_CHIPCFG_A108_EC_SECURITY_BIT 15		/* A108 */
+# define AFT_CHIPCFG_A500_EC_SECURITY_BIT 15		/* A500/BRI */
 
 # define AFT_CHIPCFG_P3_TDMV_INTR_BIT	16	
 # define AFT_CHIPCFG_A108_A104_TDM_FIFO_SYNC_BIT	16 	/* A108 Global Fifo Sync Bit */
@@ -225,11 +250,15 @@ aft_chipcfg_get_tdmv_intr_stats(u32 reg)
 # define AFT_CHIPCFG_A108_TDMV_INTR_MASK	0xFF
 # define AFT_CHIPCFG_A108_TDMV_INTR_SHIFT	8
 
+
 # define AFT_CHIPCFG_A108_FIFO_INTR_MASK	0xFF
 # define AFT_CHIPCFG_A108_FIFO_INTR_SHIFT	16
 
 # define AFT_CHIPCFG_A108_DMA_INTR_MASK		0xFF
 # define AFT_CHIPCFG_A108_DMA_INTR_SHIFT	24
+
+
+
 
 /* A108 Interrupt Status Functions */
 
@@ -264,6 +293,46 @@ aft_chipcfg_a108_get_tdmv_intr_stats(u32 reg)
 	reg&=AFT_CHIPCFG_A108_TDMV_INTR_MASK;
 	return reg;
 }
+
+
+/* AFT Serial specific bits */
+
+# define AFT_CHIPCFG_SERIAL_WDT_INTR_MASK	0xF
+# define AFT_CHIPCFG_SERIAL_WDT_INTR_SHIFT	0
+
+# define AFT_CHIPCFG_SERIAL_STATUS_INTR_MASK	0xFFF
+# define AFT_CHIPCFG_SERIAL_STATUS_INTR_SHIFT	4
+
+# define AFT_CHIPCFG_SERIAL_CTS_STATUS_INTR_BIT 0
+# define AFT_CHIPCFG_SERIAL_DCD_STATUS_INTR_BIT 1
+# define AFT_CHIPCFG_SERIAL_RTS_STATUS_INTR_BIT 2
+
+/* Serial specific functions */
+
+static __inline u32
+aft_chipcfg_serial_get_status_intr_stats(u32 reg, int port)
+{
+	reg=reg>>AFT_CHIPCFG_SERIAL_STATUS_INTR_SHIFT;
+	reg&=AFT_CHIPCFG_SERIAL_STATUS_INTR_MASK;
+	
+	if (port) {
+		port--;
+	}
+	reg=(reg>>(3*port))&0x07;
+
+	return reg;
+}
+
+
+static __inline u32
+aft_chipcfg_serial_get_wdt_intr_stats(u32 reg)
+{
+	reg=reg>>AFT_CHIPCFG_SERIAL_WDT_INTR_SHIFT;
+	reg&=AFT_CHIPCFG_SERIAL_WDT_INTR_MASK;
+	return reg;
+}
+
+
 
 /* 56k IRQ status bits */
 # define AFT_CHIPCFG_A56K_WDT_INTR_BIT		0
@@ -382,10 +451,20 @@ aft_fifo_mark_gset(u32 *reg, u8 mark)
 }
 
 
+
 /*======================================================
- * PER PORT 
  * 
- * AFT INTERRUPT Configuration Registers
+ * AFT AFT_CHIP_STAT_REG 
+ *
+ *=====================================================*/
+
+
+
+
+
+/*======================================================
+ * 
+ * AFT_LINE_CFG_REG 
  *
  *=====================================================*/
 
@@ -403,6 +482,7 @@ aft_fifo_mark_gset(u32 *reg, u8 mark)
 
 #define AFT_RX_FIFO_INTR_PENDING_REG	0x118
 
+#define AFT_SERIAL_LINE_CFG_REG		0x210
 
 # define AFT_LCFG_FE_IFACE_RESET_BIT	0
 # define AFT_LCFG_TX_FE_SYNC_STAT_BIT	1
@@ -436,8 +516,6 @@ aft_fifo_mark_gset(u32 *reg, u8 mark)
 
 # define AFT_LCFG_RED_LED_BIT		31
 # define AFT_LCFG_A108_FE_TE1_MODE_BIT	30	/* A108 */
-
-
 
 
 static __inline void
@@ -540,6 +618,16 @@ aft_dmactrl_set_max_logic_ch(u32 *reg, int max_logic_ch)
 	max_logic_ch&=AFT_DMACTRL_MAX_LOGIC_CH_MASK;
 	*reg|=(max_logic_ch<<AFT_DMACTRL_MAX_LOGIC_CH_SHIFT);
 }
+
+static __inline u32 
+aft_dmactrl_get_max_logic_ch(u32 reg)
+{
+	u32 max_logic_ch;
+	reg&=(AFT_DMACTRL_MAX_LOGIC_CH_MASK<<AFT_DMACTRL_MAX_LOGIC_CH_SHIFT);
+	max_logic_ch = reg >> AFT_DMACTRL_MAX_LOGIC_CH_SHIFT;
+	return max_logic_ch;
+}
+
 
 /*======================================================
  * PER PORT 
@@ -714,6 +802,53 @@ aft_dmachain_enable_tdmv_and_mtu_size(u32 *reg, int size)
 	*reg|=(size<<AFT_DMACHAIN_TDMV_SIZE_SHIFT);
 
 	wan_set_bit(AFT_DMACHAIN_TDMV_ENABLE_BIT,reg);
+}
+
+
+
+/*======================================================
+ * PER PORT 
+ * 
+ * AFT DMA Descr RAM Registers
+ * AFT_SERIAL_LINE_CFG_REG
+ *=====================================================*/
+
+#define AFT_SERIAL_LCFG_RTS_BIT  	0
+#define AFT_SERIAL_LCFG_DTR_BIT  	1
+#define AFT_SERIAL_LCFG_CTS_BIT  	2
+#define AFT_SERIAL_LCFG_DCD_BIT  	3
+#define AFT_SERIAL_LCFG_POLARITY_BIT 	4
+#define AFT_SERIAL_LCFG_SWMODE_BIT	5
+
+#define AFT_SERIAL_LCFG_BAUD_SHIFT	8
+#define AFT_SERIAL_LCFG_BAUD_MASK	0xFFFF
+
+#define AFT_SERIAL_LCFG_CLK_SRC_BIT	24
+#define AFT_SERIAL_LCFG_CTS_INTR_EN_BIT	25
+#define AFT_SERIAL_LCFG_DCD_INTR_EN_BIT 26
+#define AFT_SERIAL_LCFG_IDLE_DET_BIT	27
+
+#define AFT_SERIAL_LCFG_LCODING_MASK	0x07
+#define AFT_SERIAL_LCFG_LCODING_SHIFT	28
+
+#define AFT_SERIAL_LCFG_IFACE_TYPE_BIT	31
+
+static __inline void
+aft_serial_set_baud_rate(u32 *reg, u32 rate)
+{
+	u32 div= (14745600/(2*rate));
+	u32 remain= (14745600%(2*rate));
+	if (!remain || (remain/2 > rate)) {
+		div=div-1;	
+	}
+	*reg&=~(AFT_SERIAL_LCFG_BAUD_MASK<<AFT_SERIAL_LCFG_BAUD_SHIFT);
+	*reg|= ((div)&AFT_SERIAL_LCFG_BAUD_MASK)<<AFT_SERIAL_LCFG_BAUD_SHIFT;
+}
+static __inline void
+aft_serial_set_lcoding(u32 *reg, u32 coding)
+{
+	*reg&=~(AFT_SERIAL_LCFG_LCODING_MASK<<AFT_SERIAL_LCFG_LCODING_SHIFT);
+	*reg|= (coding&AFT_SERIAL_LCFG_LCODING_MASK)<<AFT_SERIAL_LCFG_LCODING_SHIFT;
 }
 
 
@@ -940,6 +1075,9 @@ enum {
 
 #define CUSTOMER_CPLD_ID_REG	0x0A
 
+#define BRI_CPLD0_ECHO_RESET_BIT		0
+#define BRI_CPLD0_NETWORK_SYNC_OUT_BIT		2
+
 /* -------------------------------------- */
 
 #define WRITE_DEF_SECTOR_DSBL   0x01
@@ -961,23 +1099,38 @@ enum {
 						
 static __inline unsigned short aft_valid_mtu(unsigned short mtu)
 {
+	unsigned short	new_mtu;
+
 	if (mtu <= 128){
-		return 256;
+		new_mtu = 256;
+
 	}else if (mtu <= 256){
-		return 512;
+		new_mtu = 512;
+
 	}else if (mtu <= 512){
-		return 1024;
+		new_mtu = 1024;
+
 	}else if (mtu <= 1024){
-		return 2048;
+		new_mtu = 2048;
+
 	}else if (mtu <= 2048){
-		return 4096;
+		new_mtu = 4096;
+
 	}else if (mtu <= 4096){
-		return 8188;
+		new_mtu = 8188;
+
 	}else if (mtu <= 8188){
-		return 8188;
+		new_mtu = 8188;
 	}else{
 		return 0;
 	}	
+
+#if defined(__FreeBSD__)
+	if (new_mtu > MCLBYTES - 16){
+		new_mtu = MCLBYTES-16;
+	}
+#endif
+	return new_mtu;
 }
 
 static __inline unsigned short aft_dma_buf_bits(unsigned short dma_bufs)
@@ -1020,7 +1173,7 @@ static __inline int
 aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
 {	
 	int num_of_slots=0;
-	int i;
+	u32 i;
 	for (i=0;i<total_slots;i++){
 		if (wan_test_bit(i,&chan_slots)){
 			num_of_slots++;
@@ -1040,7 +1193,7 @@ typedef struct aft_hw_dev{
 	int (*aft_global_chip_config)(sdla_t *card);
 	int (*aft_global_chip_unconfig)(sdla_t *card);
 
-	int (*aft_chip_config)(sdla_t *card);
+	int (*aft_chip_config)(sdla_t *card, wandev_conf_t *);
 	int (*aft_chip_unconfig)(sdla_t *card);
 
 	int (*aft_chan_config)(sdla_t *card, void *chan);
@@ -1095,10 +1248,10 @@ extern aft_hw_dev_t aft_hwdev[MAX_AFT_HW_DEV];
  * 
  *================================================================*/
 						
-
+#if !defined(__WINDOWS__)/* use 'wan_udphdr_aft_data'! */
 #undef  wan_udphdr_data
 #define wan_udphdr_data	wan_udphdr_u.aft.data
-
+#endif
 						
 #define MAX_TRACE_BUFFER	(MAX_LGTH_UDP_MGNT_PKT - 	\
 				 sizeof(iphdr_t) - 		\
@@ -1111,7 +1264,8 @@ enum {
 	TX_DMA_BUF_INIT =0,		
 	TX_DMA_BUF_USED
 };
- 
+
+#if !defined(__WINDOWS__)  
 enum {
 	ROUTER_UP_TIME = 0x50,
 	ENABLE_TRACING,	
@@ -1129,7 +1283,8 @@ enum {
 	AFT_HWEC_STATUS,
 	DIGITAL_LOOPTEST
 };
-
+#endif
+	
 #define UDPMGMT_SIGNATURE		"AFTPIPEA"
 
 
@@ -1149,7 +1304,11 @@ typedef struct wp_rx_element
 	unsigned int dma_addr;
 	unsigned int reg;
 	unsigned int align;
-	unsigned char  pkt_error;
+	unsigned short  len;
+	unsigned short  pkt_error;
+#if defined(__WINDOWS__)
+	api_header_t rx_info;
+#endif
 }wp_rx_element_t;
 
 
@@ -1322,6 +1481,12 @@ typedef struct {
 } api_tx_ss7_hdr_t;
 
 typedef struct {
+	unsigned char	repeat;
+	unsigned char	len;
+	unsigned char	data[8];
+} api_tx_hdlc_rpt_hdr_t;
+
+typedef struct {
 	u_int8_t	type;
 	u_int8_t	mode; 
 	u_int8_t	tone;
@@ -1334,15 +1499,20 @@ typedef struct {
 typedef struct {
 	union {
 		api_tx_ss7_hdr_t 	ss7;
+		api_tx_hdlc_rpt_hdr_t 	hdlc_rpt;
 		api_tdm_event_hdr_t	event;
 		unsigned char		reserved[16];
-	}u;
-#define wp_api_tx_hdr_event_type	u.event.type
-#define wp_api_tx_hdr_event_mode 	u.event.mode
-#define wp_api_tx_hdr_event_tone 	u.event.tone
-#define wp_api_tx_hdr_event_channel 	u.event.channel
-#define wp_api_tx_hdr_event_ohttimer 	u.event.ohttimer
-#define wp_api_tx_hdr_event_polarity 	u.event.polarity
+	}hdr_u;
+#define wp_api_tx_hdr_event_type	hdr_u.event.type
+#define wp_api_tx_hdr_event_mode 	hdr_u.event.mode
+#define wp_api_tx_hdr_event_tone 	hdr_u.event.tone
+#define wp_api_tx_hdr_event_channel 	hdr_u.event.channel
+#define wp_api_tx_hdr_event_ohttimer 	hdr_u.event.ohttimer
+#define wp_api_tx_hdr_event_polarity 	hdr_u.event.polarity
+
+#define wp_api_tx_hdr_hdlc_rpt_len	hdr_u.hdlc_rpt.len
+#define wp_api_tx_hdr_hdlc_rpt_data	hdr_u.hdlc_rpt.data
+
 } api_tx_hdr_t;
 
 typedef struct {
@@ -1371,12 +1541,13 @@ enum {
 #define AFT_TDMV_SHARK_FRM_CLK_SYNC_VER 0x17
 #define AFT_TDMV_SHARK_A108_FRM_CLK_SYNC_VER 0x25
 #define AFT_56K_MIN_FRMW_VER	0x00
+#define AFT_SERIAL_MIN_FRMW_VER 0x04
 
 #define AFT_MIN_ANALOG_FRMW_VER 0x05
 
+#define A500_MAX_EC_CHANS 64
 
-
-
+#if 0
 typedef struct aft_dma_chain
 {
 	unsigned long	init;
@@ -1394,7 +1565,13 @@ typedef struct aft_dma_chain
 	void*		dma_virt;
 	u32		dma_offset;
 	u32		dma_toggle;
+#if defined(__FreeBSD__)
+	bus_dma_tag_t	dma_tag;
+	bus_dmamap_t	dmamap;
+	int		dma_ready;
+#endif
 }aft_dma_chain_t;
+#endif
 
 typedef struct dma_history{
 	u8	end;
@@ -1426,15 +1603,25 @@ typedef struct aft_dma_swring {
 }aft_dma_swring_t;
 
 
+
 typedef struct private_area
 {
-	wanpipe_common_t 	common;
-	sdla_t			*card;
+#if defined(__WINDOWS__)
+	/*NOTHING SHOULD BE ADDED ABOVE THIS!*/
+	common_private_area_t;
+	wp_rx_element_t	wp_rx_element;
+#endif
 
+	wanpipe_common_t 	common;
+#if !defined(__WINDOWS__)
+	sdla_t			*card;
+	char 			if_name[WAN_IFNAME_SZ+1];
+#endif
 	wan_xilinx_conf_if_t 	cfg;
 
 	wan_skb_queue_t 	wp_tx_pending_list;
 	wan_skb_queue_t 	wp_tx_complete_list;
+	wan_skb_queue_t		wp_tx_hdlc_rpt_list;
 	netskb_t 		*tx_dma_skb;
 	u8			tx_dma_cnt;
 
@@ -1442,21 +1629,21 @@ typedef struct private_area
 	wan_skb_queue_t 	wp_rx_complete_list;
 
 	wan_skb_queue_t 	wp_rx_stack_complete_list;
-	wan_skb_queue_t 	wp_rx_zap_complete_list;
+	wan_skb_queue_t 	wp_rx_bri_dchan_complete_list;
 
-	unsigned long 		time_slot_map;
+	u32	 		time_slot_map;
 	unsigned char 		num_of_time_slots;
-	long          		logic_ch_num;
+	int          		logic_ch_num;
 
 	unsigned char		hdlc_eng;
-	unsigned long		dma_status;
+	u32			dma_status;
 	unsigned char		protocol;
 
-	struct net_device_stats	if_stats;
+//	struct net_device_stats	if_stats;
 
 	int 		tracing_enabled;	/* For enabling Tracing */
 	unsigned long 	router_start_time;
-	unsigned long   trace_timeout;
+	wan_ticks_t   trace_timeout;
 
 	unsigned long 	tick_counter;		/* For 5s timeout counter */
 	unsigned long 	router_up_time;
@@ -1481,8 +1668,6 @@ typedef struct private_area
 	unsigned char 	udp_pkt_data[sizeof(wan_udp_pkt_t)+10];
 	atomic_t 	udp_pkt_len;
 
-	char 		if_name[WAN_IFNAME_SZ+1];
-
 	u8		idle_flag;
 	u16		max_idle_size;
 	u8		idle_start;
@@ -1494,6 +1679,7 @@ typedef struct private_area
 	int		last_time_slot;
 	
 	netskb_t	*tx_idle_skb;
+	netskb_t	*tx_hdlc_rpt_skb;
 	unsigned char	rx_dma;
 	unsigned char   pci_retry;
 	
@@ -1510,15 +1696,20 @@ typedef struct private_area
 	wan_trace_t	trace_info;
 
 	/* TE1 Specific Dma Chains */
+#if defined(__WINDOWS__)
+	aft_dma_chain_t tx_dma_chain_table;
+	aft_dma_chain_t rx_dma_chain_table;
+#else
 	unsigned char	tx_chain_indx,tx_pending_chain_indx;
-	aft_dma_chain_t tx_dma_chain_table[MAX_AFT_DMA_CHAINS];
+	wan_dma_descr_t/*aft_dma_chain_t*/ tx_dma_chain_table[MAX_AFT_DMA_CHAINS];
 
 	unsigned char	rx_chain_indx,rx_pending_chain_indx;
-	aft_dma_chain_t rx_dma_chain_table[MAX_AFT_DMA_CHAINS];
+	wan_dma_descr_t/*aft_dma_chain_t*/ rx_dma_chain_table[MAX_AFT_DMA_CHAINS];
+#endif
 	int		rx_no_data_cnt;
 
-	unsigned long	dma_chain_status;
-	unsigned long 	up;
+	u32		dma_chain_status;
+	u32 		up;
 	int		tx_attempts;
 	
 	aft_op_stats_t  	opstats;
@@ -1555,116 +1746,18 @@ typedef struct private_area
 #endif
 	int	rx_api_crc_bytes;
 
-	netskb_t *rx_rtp_skb;
-	netskb_t *tx_rtp_skb;
-	u32	  tdm_call_status;
+#if defined(__FreeBSD__)
+//	int		dma_ready;
+	bus_dma_tag_t	dma_rx_mtag;
+	bus_dma_tag_t	dma_tx_mtag;
+#endif
 	struct private_area *next;
+
+	int dchan_time_slot;
 
 	aft_dma_swring_t swring;
 
 }private_area_t;
-
-
-static __inline int aft_decode_dma_status(sdla_t *card, private_area_t *chan, u32 reg)
-{
-	u32 dma_status=aft_rxdma_hi_get_dma_status(reg);
-	u32 data_error=0;
-
-	if (dma_status){
-
-		if (wan_test_bit(AFT_RXDMA_HIDMASTATUS_PCI_M_ABRT,&dma_status)){
-			if (WAN_NET_RATELIMIT()){
-                	DEBUG_EVENT("%s:%s: Rx Error: Abort from Master: pci fatal error 0x%X!\n",
-                                   card->devname,chan->if_name,reg);
-			}
-                }
-		if (wan_test_bit(AFT_RXDMA_HIDMASTATUS_PCI_T_ABRT,&dma_status)){
-                        if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("%s:%s: Rx Error: Abort from Target: pci fatal error 0x%X!\n",
-                                   card->devname,chan->if_name,reg);
-			}
-                }
-		if (wan_test_bit(AFT_RXDMA_HIDMASTATUS_PCI_DS_TOUT,&dma_status)){
-                        if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("%s:%s: Rx Error: No 'DeviceSelect' from target: pci fatal error 0x%X!\n",
-                                    card->devname,chan->if_name,reg);
-			}
-                }
-		if (wan_test_bit(AFT_RXDMA_HIDMASTATUS_PCI_RETRY,&dma_status)){
-                        if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("%s:%s: Rx Error: 'Retry' exceeds maximum (64k): pci fatal error 0x%X!\n",
-                                    card->devname,chan->if_name,reg);
-			}
-                }
-
-		chan->errstats.Rx_pci_errors++;
-		chan->if_stats.rx_errors++;
-		card->wandev.stats.rx_errors++;
-		return 1;
-	}
-
-	if (chan->hdlc_eng){
- 
-		/* Checking Rx DMA Frame start bit. (information for api) */
-		if (!wan_test_bit(AFT_RXDMA_HI_START_BIT,&reg)){
-			DEBUG_TEST("%s:%s RxDMA Intr: Start flag missing: MTU Mismatch! Reg=0x%X\n",
-					card->devname,chan->if_name,reg);
-			chan->if_stats.rx_frame_errors++;
-			chan->opstats.Rx_Data_discard_long_count++;
-			chan->errstats.Rx_hdlc_corrupiton++;
-			card->wandev.stats.rx_errors++;
-			return 1;
-		}
-    
-		/* Checking Rx DMA Frame end bit. (information for api) */
-		if (!wan_test_bit(AFT_RXDMA_HI_EOF_BIT,&reg)){
-			DEBUG_TEST("%s:%s: RxDMA Intr: End flag missing: MTU Mismatch! Reg=0x%X\n",
-					card->devname,chan->if_name,reg);
-			chan->if_stats.rx_frame_errors++;
-			chan->opstats.Rx_Data_discard_long_count++;
-			chan->errstats.Rx_hdlc_corrupiton++;
-			card->wandev.stats.rx_errors++;
-			return 1;
-		
-       	 	} else {  /* Check CRC error flag only if this is the end of Frame */
-        	
-			if (wan_test_bit(AFT_RXDMA_HI_FCS_ERR_BIT,&reg)){
-                   		DEBUG_TEST("%s:%s: RxDMA Intr: CRC Error! Reg=0x%X Len=%d\n",
-                                		card->devname,chan->if_name,reg,
-						(reg&AFT_RXDMA_HI_DMA_LENGTH_MASK)>>2);
-				chan->if_stats.rx_frame_errors++;
-				chan->errstats.Rx_crc_err_count++;
-				card->wandev.stats.rx_crc_errors++;
-                   		data_error = 1;
-               		}
-
-			/* Check if this frame is an abort, if it is
-                 	 * drop it and continue receiving */
-			if (wan_test_bit(AFT_RXDMA_HI_FRM_ABORT_BIT,&reg)){
-				DEBUG_TEST("%s:%s: RxDMA Intr: Abort! Reg=0x%X\n",
-						card->devname,chan->if_name,reg);
-				chan->if_stats.rx_frame_errors++;
-				chan->errstats.Rx_hdlc_corrupiton++;
-				card->wandev.stats.rx_frame_errors++;
-				data_error = 1;
-			}
-		
-#if 0	
-			if (chan->common.usedby != API && data_error){
-				return 1;
-			}
-#else
-			if (data_error) {
-				return 1;
-			}
-#endif	
-
-		}
-	}
-
-	return 0;
-}
-
 
 
 void 	aft_free_logical_channel_num (sdla_t *card, int logic_ch);
@@ -1673,7 +1766,7 @@ void 	aft_fe_intr_ctrl(sdla_t *card, int status);
 void 	__aft_fe_intr_ctrl(sdla_t *card, int status);
 void 	aft_wdt_set(sdla_t *card, unsigned char val);
 void 	aft_wdt_reset(sdla_t *card);
-
+void 	wanpipe_wake_stack(private_area_t* chan);
 
 
 #endif

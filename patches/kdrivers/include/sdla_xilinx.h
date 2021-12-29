@@ -926,8 +926,10 @@ typedef struct {
 } api_tx_element_t;
 #pragma pack()
 
+#if !defined(__WINDOWS__)/* use 'wan_udphdr_aft_data'! */
 #undef  wan_udphdr_data
 #define wan_udphdr_data	wan_udphdr_u.aft.data
+#endif
 
 /*==========================================
  * Board CPLD Interface Section
@@ -1005,7 +1007,8 @@ enum {
 	TX_DMA_BUF_INIT =0,		
 	TX_DMA_BUF_USED
 };
- 
+
+#if !defined(__WINDOWS__) 
 enum {
 	ROUTER_UP_TIME = 0x50,
 	ENABLE_TRACING,	
@@ -1023,6 +1026,7 @@ enum {
 	AFT_HWEC_STATUS,
 	DIGITAL_LOOPTEST
 };
+#endif
 
 #define UDPMGMT_SIGNATURE		"AFTPIPEA"
 
@@ -1044,6 +1048,9 @@ typedef struct wp_rx_element
 	unsigned int reg;
 	unsigned int align;
 	unsigned char pkt_error;
+#if defined(__WINDOWS__)
+	api_header_t rx_info;
+#endif
 }wp_rx_element_t;
 
 
@@ -1102,23 +1109,30 @@ static __inline void set_channel_timeslot_sync(u32 *reg,unsigned int timeslot)
 
 static __inline unsigned short xilinx_valid_mtu(unsigned short mtu)
 {
+	unsigned short new_mtu = 0;
 	if (mtu <= 128){
-		return 128;
+		new_mtu = 128;
 	}else if (mtu <= 256){
-		return 256;
+		new_mtu = 256;
 	}else if (mtu <= 512){
-		return 512;
+		new_mtu = 512;
 	}else if (mtu <= 1024){
-		return 1024;
+		new_mtu = 1024;
 	}else if (mtu <= 2048){
-		return 2048;
+		new_mtu = 2048;
 	}else if (mtu <= 4096){
-		return 4096;
+		new_mtu = 4096;
 	}else if (mtu <= 8188){
-		return 8188;
+		new_mtu = 8188;
 	}else{
 		return 0;
 	}	
+#if defined(__FreeBSD__)
+	if (new_mtu > MCLBYTES - 16){
+		new_mtu = MCLBYTES-16;
+	}
+#endif
+	return new_mtu;
 }
 
 static __inline unsigned short xilinx_dma_buf_bits(unsigned short dma_bufs)

@@ -18,8 +18,6 @@
 #define MAX_FR_CHANNELS 1023
 #define HIGHEST_VALID_DLCI  MAX_FR_CHANNELS-1
 
-#pragma pack(1)
-
 typedef struct {
 	unsigned ea1  : 1;
 	unsigned cr   : 1;
@@ -30,9 +28,7 @@ typedef struct {
 	unsigned becn : 1;
 	unsigned fecn : 1;
 	unsigned dlcil: 4;
-}fr_hdr;
-
-#pragma pack()
+}__attribute__ ((packed)) fr_hdr;
 
 
 #define	FR_HEADER_LEN	8
@@ -57,6 +53,14 @@ typedef struct {
 #define	FR_LINK_INOPER	0x00		/* for global status (DLCI == 0) */
 #define	FR_LINK_OPER	0x01
 
+#if 0
+#define FR_DLCI_INOPER  0x00
+#define	FR_DLCI_DELETED	0x01		/* for circuit status (DLCI != 0) */
+#define	FR_DLCI_ACTIVE	0x02
+#define	FR_DLCI_WAITING	0x04
+#define	FR_DLCI_NEW	0x08
+#define	FR_DLCI_REPORT	0x40
+#endif
 
 #define PVC_STATE_NEW       0x01
 #define PVC_STATE_ACTIVE    0x02

@@ -103,7 +103,7 @@ typedef struct {
 } sdla_56k_param_t;
 
 extern int sdla_56k_default_cfg(void* arg1, void* p56k_cfg);
-extern int sdla_56k_iface_init(void* pfe);
+extern int sdla_56k_iface_init(void* pfe, void *p_fe_iface);
 
 #endif /* WAN_KERNEL */
 

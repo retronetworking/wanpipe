@@ -87,7 +87,9 @@ void OctApiBt0UpdateLinkDepth( OCTAPI_BT0 * bb, OCTAPI_BT0_LINK * link );
 void OctApiBt0Rebalance( OCTAPI_BT0 * bb, OCTAPI_BT0_LINK * root_link );
 void OctApiBt0ExternalHeavy( OCTAPI_BT0 * bb, OCTAPI_BT0_LINK * root_link );
 UINT32 OctApiBt0RemoveNode2( OCTAPI_BT0 * bb, OCTAPI_BT0_LINK * link, UINT32 * lkey, OCTAPI_BT0_LINK * link_to_removed_node, UINT32 state, OCTAPI_BT0_LINK * volatile_grandparent_link );
+UINT32 OctApiBt0RemoveNode3(OCTAPI_BT0 * bb,OCTAPI_BT0_LINK * link, UINT32 * lkey, OCTAPI_BT0_LINK * link_to_removed_node, UINT32 state, OCTAPI_BT0_LINK * volatile_grandparent_link, UINT32 *p_prev_node_number );
 
+UINT32 OctApiBt0QueryNode2(OCTAPI_BT0 * bb,OCTAPI_BT0_LINK * link,UINT32 * lkey,UINT32 * node_number);
 
 
 #endif /*__OCTAPI_BT0_PRIVATE_H__*/

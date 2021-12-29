@@ -1,0 +1,34 @@
+# ============================================================================
+# Makefile	WAN Echo Canceler Chip configurator.  Make Script.
+#
+# Copyright	(c) 1995-1997 Sangoma Technologies Inc.  All Rights Reserved.
+# ----------------------------------------------------------------------------
+# Augc 25, 2005		Alex Feldman	Initial version.
+# ============================================================================
+.PATH:  /usr/include/net ../wanec_apilib
+
+####### DEFINES ##############################################################
+YACC	= yacc
+LEX	= lex
+
+# Build Options.
+PROG    	= wan_ec_client
+BINDIR  	= /usr/local/sbin
+SRCS		= wan_ecmain.c y.tab.c wan_ec_argl.c wanec_api.c wanec_api_lib.c
+CFLAGS		+= -Wall -Wmissing-prototypes -O2
+CFLAGS		+= -I. -I/wanpipe/code/include -I/common/include -I../wanec_apilib -I/common/wanec -I/common/wanec/oct6100_api/include
+
+CLEANFILES	+= y.tab.c wan_ec_argl.c
+.OBJDIR 	= /usr/obj${.CURDIR}
+NO_MAN 		=
+
+####### RULES ################################################################
+
+
+y.tab.c:
+	$(YACC) -d wan_ec_arg.y
+
+wan_ec_argl.c:
+	$(LEX)	-owan_ec_argl.c wan_ec_arg.l
+
+.include <bsd.prog.mk>

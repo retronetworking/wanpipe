@@ -1,0 +1,199 @@
+#!/bin/sh
+cmd=$1;
+cnt=0;
+max_retry=5;
+function stop_all()
+{
+
+	echo " "
+	echo "Stopping running processes..."
+
+	stop_sangoma_brid
+	stop_sangoma_mgd
+}
+
+
+
+function stop_sangoma_brid()
+{
+	#stop sangoma_brid
+	eval "pidof sangoma_brid >/dev/null 2>/dev/null"
+	if [ $? -eq 0 ]; then
+		echo -n "Sending TERM signal to sangoma_brid..."
+		eval "kill -TERM $(pidof sangoma_brid) 2>/dev/null >/dev/null"
+		if [ $? -eq 0 ]; then
+			echo "OK"
+		else
+			echo "FAILED"
+			break;
+		fi
+	fi
+	for ((i=0;i<$max_retry;i++))
+	do
+		eval "pidof sangoma_brid >/dev/null 2>/dev/null"
+		if [ $? -ne 0 ]; then
+			echo "sangoma_brid is stopped"
+			return;
+		else
+			echo "waiting for sangoma_brid to finish($i/$max_retry)...."
+			sleep 1
+		fi
+	done
+	eval "pidof sangoma_brid >/dev/null 2>/dev/null"
+	if [ $? -eq 0 ]; then
+		echo -n "Sending KILL signal to sangoma_brid..."
+		eval "kill -KILL $(pidof sangoma_brid) 2>/dev/null >/dev/null"
+		if [ $? -eq 0 ]; then
+			echo "OK"
+		else	
+			echo "FAILED"
+			break;
+		fi
+	fi
+	for ((i=0;i<$max_retry;i++))
+	do
+		eval "pidof sangoma_brid >/dev/null 2>/dev/null"
+		if [ $? -ne 0 ]; then
+			echo "sangoma_brid is stopped"
+			break;
+		else
+			echo "waiting for sangoma_brid to finish($i/$max_retry)...."
+			sleep 1
+		fi
+	done
+}
+
+function stop_sangoma_mgd()
+{
+	#stop sangoma media gateway
+	eval "pidof sangoma_mgd >/dev/null 2>/dev/null"
+	if [ $? -eq 0 ]; then
+		echo -n "Sending TERM signal to sangoma_mgd..."
+		eval "sangoma_mgd -term 2>/dev/null >/dev/null"
+		if [ $? -eq 0 ]; then
+			echo "OK"
+			return;
+		else 
+			echo "FAILED"
+			echo "Failed to stop sangoma_mgd"
+			exit 1
+		fi
+	else 
+		echo "sangoma_mgd not running..."
+		return;
+	fi
+
+	
+	#stop sangoma media gateway
+	eval "pidof sangoma_mgd >/dev/null 2>/dev/null"
+	if [ $? -eq 0 ]; then
+		echo -n "Sending TERM signal to sangoma_mgd..."
+		eval "kill -KILL $(pidof sangoma_mgd) 2>/dev/null >/dev/null"
+		if [ $? -eq 0 ]; then
+			echo "OK"
+		else 
+			echo "FAILED"
+			echo "Failed to stop sangoma_mgd"
+			exit 1
+		fi
+	else 
+		echo "sangoma_mgd not running..."
+	fi
+
+
+}
+
+function start_all()
+{
+
+	echo " " 
+	echo "Starting processes..."
+	echo -n "Loading SCTP..."
+	eval "modprobe sctp  >>/var/log/sangoma_mgd.log 2>>/var/log/sangoma_mgd.log"
+	if [ $?	-eq 0 ]; then
+		echo "OK"
+	else 
+		echo "Failed"
+		echo "Failed to load SCTP module, check /var/log/sangoma_mgd.log"
+		exit 1;
+	fi
+	sleep 1
+
+	eval "ls /dev/wptdm* >>/dev/null 2>>/dev/null"
+	
+	if [ $? -ne 0 ]; then
+		echo "No Sangoma TDM API interfaces running"
+		echo "Did you start wanrouter? "
+		exit 1;
+	fi
+
+	echo -n "Starting sangoma_brid..."
+	eval "sangoma_brid >/dev/null 2>/dev/null &" 
+	if [ $?	-eq 0 ]; then
+		echo "OK"
+	else 
+		echo "Failed"
+		echo "Failed to start sangoma_brid, check /var/log/sangoma_mgd.log for errors"
+		exit 1;
+	fi
+	sleep 2 
+	if [ ! $(pidof sangoma_brid) ]; then
+		echo "sangoma_brid failed to start"
+		echo "check /var/log/sangoma_mgd.log for errors"
+		exit 1;
+	fi
+
+	echo -n "Starting sangoma_mgd..."
+	eval "sangoma_mgd -bg >/dev/null 2>/dev/null" 
+	if [ $? -eq 0 ]; then
+		echo "OK"
+	else 
+		echo "Failed"
+		echo "Failed to start sangoma_mgd, check /var/log/sangoma_mgd.log for errors"
+		exit 1;
+	fi
+
+	sleep 2	
+	if [ ! $(pidof sangoma_mgd) ]; then
+		echo "sangoma_mgd failed to start"
+		echo "check /var/log/sangoma_mgd.log for errors"
+		exit 1;
+	fi
+
+	echo "Sangoma SMG running.."
+	echo "log file: /var/log/sangoma_mgd.log"
+	echo " "
+}
+
+if [ "$cmd" = "start" ]; then
+	if [ $(pidof sangoma_brid) ]; then
+		echo "sangoma_brid is currently running"
+		echo "exiting..."
+		exit 0
+	fi
+
+	if [ $(pidof sangoma_mgd) ]; then
+		echo "sangoma_mgd is currently running"
+		echo "exiting..."
+		exit 0
+	fi
+
+	start_all
+elif [ "$cmd" = "stop" ]; then
+
+	stop_all
+elif [ "$cmd" = "restart" ]; then
+	stop_all
+	start_all
+else 
+	echo " "
+	echo "Usage: smg_ctrl <options>"
+	echo "	options:"
+	echo " "
+	echo "start	:start sangoma_brid and sangoma media gateway"
+	echo "stop 	:stop sangoma_brid and sangoma media gateway"
+	echo "restart	:restart sangoma_brid and sangoma media gateway"
+	echo " "
+fi
+
+

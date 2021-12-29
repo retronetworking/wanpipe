@@ -54,7 +54,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "MEMSIZE",    smemof(wandev_conf_t, msize),       DTYPE_UINT },
   { "IRQ",        smemof(wandev_conf_t, irq),         DTYPE_UINT },
   { "DMA",        smemof(wandev_conf_t, dma),         DTYPE_UINT },
-  { "CARD_TYPE",  smemof(wandev_conf_t, card_type),	DTYPE_UCHAR },
+  { "CARD_TYPE",  smemof(wandev_conf_t, card_type),	DTYPE_UINT },
   { "S514CPU",    smemof(wandev_conf_t, S514_CPU_no), DTYPE_STR },
   { "PCISLOT",    smemof(wandev_conf_t, PCI_slot_no), DTYPE_UINT },
   { "PCIBUS", 	  smemof(wandev_conf_t, pci_bus_no),	DTYPE_UINT },
@@ -79,6 +79,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TE_ACTIVE_CH",offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, active_ch),
 	 DTYPE_UINT },
   { "TE_HIGHIMPEDANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, high_impedance_mode), DTYPE_UCHAR },
+  { "TE_RX_SLEVEL", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, rx_slevel), DTYPE_INT },
 
   { "TE_REF_CLOCK",offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, te_ref_clock),
 	 DTYPE_UCHAR },
@@ -107,6 +108,9 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TDMV_OPERMODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, opermode_name), DTYPE_STR },
   { "RM_BATTTHRESH",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battthresh), DTYPE_UINT },
   { "RM_BATTDEBOUNCE",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battdebounce), DTYPE_UINT },
+  { "RM_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, network_sync), DTYPE_UINT },
+
+  { "RM_BRI_CLOCK_MASTER",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_bri_cfg_t, clock_mode), DTYPE_UCHAR },
 
     /* TDMV parameters */
   { "TDMV_SPAN",     offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, span_no), DTYPE_UINT},
@@ -118,7 +122,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "MTU",        smemof(wandev_conf_t, mtu),         DTYPE_UINT },
   { "UDPPORT",    smemof(wandev_conf_t, udp_port),    DTYPE_UINT },
   { "TTL",	  smemof(wandev_conf_t, ttl),		DTYPE_UCHAR },
-  { "INTERFACE",  smemof(wandev_conf_t, interface),   DTYPE_UCHAR },
+  { "INTERFACE",  smemof(wandev_conf_t, electrical_interface),   DTYPE_UCHAR },
   { "CLOCKING",   smemof(wandev_conf_t, clocking),    DTYPE_UCHAR },
   { "LINECODING", smemof(wandev_conf_t, line_coding), DTYPE_UCHAR },
   { "CONNECTION", smemof(wandev_conf_t, connection),  DTYPE_UCHAR },
@@ -685,6 +689,8 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_MLINK_PPP, 	(void*)"WAN_MLINK_PPP"  },
 	{ WANCONFIG_TTY,	(void*)"WAN_TTY"	}, //????
 	{ WANCONFIG_AFT_ANALOG,	(void*)"WAN_AFT_ANALOG" },
+	{ WANCONFIG_AFT_ISDN_BRI,	(void*)"WAN_AFT_ISDN_BRI" },
+	{ WANCONFIG_AFT_SERIAL, (void*)"WAN_AFT_SERIAL" },
 	{ 0,			NULL,			}
 };
 
@@ -763,14 +769,15 @@ look_up_t	sym_table[] =
 	/* TE1 T1/E1 defines */
   /*------TE Cofngiuration --------------*/
 
-  { WAN_MEDIA_56K,   (void*)"56K"           },
-  { WAN_MEDIA_T1,    (void*)"T1"            },
-  { WAN_MEDIA_E1,    (void*)"E1"            },
-  { WAN_MEDIA_DS3,	(void*)"DS3"           },
+  { WAN_MEDIA_56K,		(void*)"56K"           },
+  { WAN_MEDIA_T1,		(void*)"T1"            },
+  { WAN_MEDIA_E1,		(void*)"E1"            },
+  { WAN_MEDIA_DS3,		(void*)"DS3"           },
   { WAN_MEDIA_STS1,     (void*)"STS-1"         },
   { WAN_MEDIA_E3,       (void*)"E3"            },
   { WAN_MEDIA_FXOFXS,   (void*)"FXO/FXS"       },
-  
+  { WAN_MEDIA_BRI,		(void*)"BRI"           },
+
   { WAN_LCODE_AMI, 	(void*)"AMI"           },
   { WAN_LCODE_B8ZS,     (void*)"B8ZS"          },
   { WAN_LCODE_HDB3,     (void*)"HDB3"          },
@@ -1026,7 +1033,7 @@ int conf_file_reader::init()
   linkconf->comm_port = WANOPT_PRI;
   linkconf->auto_pci_cfg = WANOPT_YES;
   //serial config
-  linkconf->interface = WANOPT_V35;
+  linkconf->electrical_interface = WANOPT_V35;
 
   //front end config
   fe_cfg = &linkconf->fe_cfg;
@@ -1078,27 +1085,36 @@ int conf_file_reader::read_conf_file()
   if (err){
     return err;
   }
-///////////////////////////////////////////////////////
-  #if DBG_FLAG
+
+  /////////////////////////////////////////////////////////////////////////////////////////////
   sdla_fe_cfg_t*  fe_cfg = &link_defs->linkconf->fe_cfg;
   //sdla_te_cfg_t*  te_cfg = &fe_cfg->cfg.te_cfg;
+#if DBG_FLAG
   sdla_te3_cfg_t* te3_cfg= &fe_cfg->cfg.te3_cfg; 
-  #endif
- 
-  Debug(DBG_CONF_FILE_READER, ("%s(): fe_cfg->media: %d\n",__FUNCTION__,
-	fe_cfg->media));
+#endif
+
+  switch(link_defs->card_version)
+	{
+  case AFT_ADPTR_2SERIAL_V35X21:	/* AFT (shark) Serial card */
+		fe_cfg->media = WAN_MEDIA_SERIAL;
+		break;
+	}
+
+  ///////////////////////////////////////////////////////////////////////////////////////////// 
+  Debug(DBG_CONF_FILE_READER, ("%s(): fe_cfg->media: 0x%x\n",__FUNCTION__,
+		fe_cfg->media));
 
   Debug(DBG_CONF_FILE_READER, ("%s(): fe_cfg->line_no: %d\n",__FUNCTION__,
-	fe_cfg->line_no));
+		fe_cfg->line_no));
 
   Debug(DBG_CONF_FILE_READER, ("%s(): te3_cfg->fcs: %d\n",__FUNCTION__,
-	te3_cfg->fcs));
+		te3_cfg->fcs));
 
   Debug(DBG_CONF_FILE_READER, ("%s(): te3_cfg->liu_cfg.rx_equal: %d\n",__FUNCTION__,
-	te3_cfg->liu_cfg.rx_equal));
+		te3_cfg->liu_cfg.rx_equal));
 
   Debug(DBG_CONF_FILE_READER, ("%s(): te3_cfg->liu_cfg.taos: %d\n",__FUNCTION__,
- 	te3_cfg->liu_cfg.taos));
+ 		te3_cfg->liu_cfg.taos));
 
   /////////////////////////////////////////////////////////////////////////////////////////////
   //if S514X card, get the version (S514-1/2/3...7)
@@ -1139,7 +1155,7 @@ int conf_file_reader::read_conf_file()
       break;
     }//switch(adsl_cfg->EncapMode)
   }//if()
-  
+
   /////////////////////////////////////////////////////////////////////////////////////////////
   int current_line_number = 0;
   err = read_interfaces_section(
@@ -1236,7 +1252,18 @@ int conf_file_reader::read_devices_section(FILE* file)
     link_defs->linkconf->config_id = WANCONFIG_AFT;//WANCONFIG_AFT_56K;
     link_defs->card_version = AFT_ADPTR_56K;
     break;
+
+  case WANCONFIG_AFT_ISDN_BRI:	/* AFT (shark) ISDN BRI card */
+    link_defs->linkconf->config_id = WANCONFIG_AFT;
+    link_defs->card_version = AFT_ADPTR_ISDN;
+    break;
+
+  case WANCONFIG_AFT_SERIAL:	/* AFT (shark) Serial card */
+    link_defs->linkconf->config_id = WANCONFIG_AFT;
+    link_defs->card_version = AFT_ADPTR_2SERIAL_V35X21;//this will indicate "Serial" card, number of ports is not important.
+    break;
   }
+
 
   Debug(DBG_CONF_FILE_READER, ("Updated link_defs->linkconf->config_id: %d\n",
 			 link_defs->linkconf->config_id)); 
@@ -1308,11 +1335,13 @@ int conf_file_reader::read_wanpipe_section(FILE* file)
      */
     strupcase(token[0]);
     //common		  key	    value
-    err = set_conf_param(token[0], token[1], common_conftab, link_defs->linkconf, link_defs, NULL);
+    err = set_conf_param(token[0], token[1], 
+    		common_conftab, link_defs->linkconf, sizeof(wandev_conf_t),link_defs, NULL);
 
     // 'config_id' specific
     if ((err < 0) && (conf_table != NULL)){
-      err = set_conf_param(token[0], token[1], conf_table, &link_defs->linkconf->u, link_defs, NULL);
+      err = set_conf_param(token[0], token[1], 
+      		conf_table, &link_defs->linkconf->u, sizeof(link_defs->linkconf->u), link_defs, NULL);
     }
 
     if(err < 0) {
@@ -1342,14 +1371,14 @@ char* conf_file_reader::read_conf_section (FILE* file, char* section)
 {
   char key[MAX_CFGLINE];		/* key buffer */
   char* buf = NULL;
-  int found = 0, offs = 0, len;
+  int found = 0, offs = 0, len, buf_len = 0;
   int dbg_len = 0;
 
   Debug(DBG_CONF_FILE_READER, ("conf_file_reader::read_conf_section ():%s\n", section));
 	
   rewind(file);
 
-  while ((len = read_conf_record(file, key)) > 0) {
+  while ((len = read_conf_record(file, key, MAX_CFGLINE)) > 0) {
     char* tmp;
 
     dbg_len += len;
@@ -1361,14 +1390,16 @@ char* conf_file_reader::read_conf_section (FILE* file, char* section)
       }
 
       if (buf){
+      	buf_len = offs+len+1;
         tmp = (char*)realloc(buf, offs + len + 1);
       }else{
         tmp = (char*)malloc(len + 1);
+      	buf_len = len+1;
       }
 
       if (tmp) {
 	buf = tmp;
-	strcpy(&buf[offs], key);
+	strlcpy(&buf[offs], key, buf_len-offs);
 	offs += len;
 	buf[offs] = '\0';
       }else{
@@ -1422,7 +1453,7 @@ char* conf_file_reader::read_conf_section (FILE* file, char* section)
  * Return string length (incl. terminating zero) or 0 if end of file has been
  * reached.
  */
-int conf_file_reader::read_conf_record (FILE* file, char* key)
+int conf_file_reader::read_conf_record (FILE* file, char* key, int max_len)
 {
   char buf[MAX_CFGLINE];		/* line buffer */
 
@@ -1445,7 +1476,7 @@ int conf_file_reader::read_conf_record (FILE* file, char* key)
 
       //Debug(DBG_CONF_FILE_READER, ("read_conf_record():str: %s\n", str));
 
-      strcpy(key, str);
+      strlcpy(key, str, max_len);
       return len + 1;
     }
   }
@@ -1652,7 +1683,7 @@ int conf_file_reader::read_interfaces_section(
 
     if(toknum == 6){
       if(strcmp(token[4],"tty") == 0){
-	strcpy(chandef->addr, token[2]);
+	strlcpy(chandef->addr, token[2], MAX_ADDR_STR_LEN);
       }
     }
     //print 'addr' after all the updates    
@@ -1676,8 +1707,10 @@ int conf_file_reader::read_interfaces_section(
     case BRIDGE_NODE:
     //case ANNEXG:
     case TDM_VOICE:
+    case TDM_VOICE_API:
     case TTY:
     case PPPoE:
+    case WP_NETGRAPH:
       //do nothing special
       break;
 
@@ -1812,8 +1845,8 @@ int conf_file_reader::read_interfaces_section(
  *		1 - error
  *		-1 - not found
  */
-int conf_file_reader::set_conf_param (char* key, char* val, key_word_t* dtab, void* conf, link_def_t* lnks_def,
-				      chan_def_t* chan_def)
+int conf_file_reader::set_conf_param (char* key, char* val, key_word_t* dtab, 
+			void* conf, int size, link_def_t* lnks_def, chan_def_t* chan_def)
 {
   unsigned int tmp = 0;
 
@@ -1846,7 +1879,7 @@ int conf_file_reader::set_conf_param (char* key, char* val, key_word_t* dtab, vo
   }
 
   if (dtab->dtype == DTYPE_STR) {
-    strcpy((char*)conf + dtab->offset, val);
+    strlcpy((char*)conf + dtab->offset, val, size-dtab->offset);
     return 0;
   }
 
@@ -2037,8 +2070,12 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
 	chandef->chanconf->config_id));
 
     if(chandef->usedby == TDM_VOICE){
-    	Debug(DBG_CONF_FILE_READER, ("VOICE channel!!\n"));
+    	Debug(DBG_CONF_FILE_READER, ("TDM_VOICE channel!!\n"));
 	chandef->chanconf->config_id = PROTOCOL_TDM_VOICE;
+    }
+    if(chandef->usedby == TDM_VOICE_API){
+    	Debug(DBG_CONF_FILE_READER, ("TDM_VOICE_API channel!!\n"));
+	chandef->chanconf->config_id = PROTOCOL_TDM_VOICE_API;
     }
 
     Debug(DBG_CONF_FILE_READER, ("Final 'chandef->chanconf->config_id': %d.\n",
@@ -2195,15 +2232,15 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
       // Look up a keyword first in common, then media-specific
       // configuration definition tables.
       strupcase(token[0]);
-      if (set_conf_param(token[0], token[1], chan_conftab, chandef->chanconf, NULL, chandef)) {
+      if (set_conf_param(token[0], token[1], chan_conftab, chandef->chanconf, sizeof(wanif_conf_t), NULL, chandef)) {
 
         if (!conf_table ||
-	    set_conf_param(token[0], token[1], conf_table, &chandef->chanconf->u, NULL, chandef)) {
+	    set_conf_param(token[0], token[1], conf_table, &chandef->chanconf->u, sizeof(chandef->chanconf->u), NULL, chandef)) {
 
           if(id == WANCONFIG_ADSL && link_defs->sub_config_id == WANCONFIG_MPPP){
             //on ADSL there can be PPP without the LIP layer!!
-	    if(set_conf_param(token[0], token[1], sppp_conftab, &chandef->chanconf->u.ppp,
-			  NULL, chandef)) {
+	    if(set_conf_param(token[0], token[1], 
+	    	sppp_conftab, &chandef->chanconf->u.ppp,sizeof(wan_sppp_if_conf_t),NULL, chandef)) {
 	      ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
 	      return ERR_CONFIG;
 	    }//if()
@@ -2231,8 +2268,12 @@ Nov 21, 2006 - not done anymore - all configuration is in profile
 	chandef->chanconf->config_id));
 
     if(chandef->usedby == TDM_VOICE){
-    	Debug(DBG_CONF_FILE_READER, ("VOICE channel!!\n"));
+    	Debug(DBG_CONF_FILE_READER, ("2. TDM_VOICE channel!!\n"));
 	chandef->chanconf->config_id = PROTOCOL_TDM_VOICE;
+    }
+    if(chandef->usedby == TDM_VOICE_API){
+    	Debug(DBG_CONF_FILE_READER, ("2. TDM_VOICE_API channel!!\n"));
+	chandef->chanconf->config_id = PROTOCOL_TDM_VOICE_API;
     }
 
     Debug(DBG_CONF_FILE_READER, ("Final 'chandef->chanconf->config_id': %d.\n",
@@ -2242,7 +2283,7 @@ Nov 21, 2006 - not done anymore - all configuration is in profile
       
   }//if(chandef->conf)
   else
-  {  Debug(DBG_CONF_FILE_READER, ("chandef->conf == NULL!!\n"));	  
+  {  Debug(DBG_CONF_FILE_READER, ("chandef->conf == NULL!!\n"));
   }	
 
   //if there is anything in [profile] section, get it
@@ -2273,8 +2314,8 @@ Nov 21, 2006 - not done anymore - all configuration is in profile
       case WANCONFIG_MFR:
         Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_MFR\n"));	
 
-	if(set_conf_param(token[0], token[1], fr_conftab, &chandef->chanconf->u.fr,
-			  NULL, chandef)) {
+	if(set_conf_param(token[0], token[1], 
+		fr_conftab, &chandef->chanconf->u.fr, sizeof(wan_fr_conf_t),NULL, chandef)) {
 	  ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
 	  return ERR_CONFIG;
 	}//if()
@@ -2296,8 +2337,8 @@ Nov 21, 2006 - not done anymore - all configuration is in profile
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
 
-	if(set_conf_param(token[0], token[1], sppp_conftab, &chandef->chanconf->u.ppp,
-			  NULL, chandef)) {
+	if(set_conf_param(token[0], token[1], 
+		sppp_conftab, &chandef->chanconf->u.ppp,sizeof(wan_sppp_if_conf_t),NULL, chandef)) {
 	  ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
 	  return ERR_CONFIG;
 	}//if()
@@ -2313,8 +2354,8 @@ Nov 21, 2006 - not done anymore - all configuration is in profile
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
 
-        if(set_conf_param(token[0], token[1], sppp_conftab, &chandef->chanconf->u.ppp,
-			  NULL, chandef)) {
+        if(set_conf_param(token[0], token[1], 
+		sppp_conftab, &chandef->chanconf->u.ppp,sizeof(wan_sppp_if_conf_t), NULL, chandef)) {
 	  ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
 	  return ERR_CONFIG;
 	}//if()
@@ -2326,8 +2367,8 @@ Nov 21, 2006 - not done anymore - all configuration is in profile
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
 
-	if(set_conf_param(token[0], token[1], lapb_annexg_conftab, &chandef->chanconf->u.lapb,
-			  NULL, chandef)) {
+	if(set_conf_param(token[0], token[1], 
+		lapb_annexg_conftab, &chandef->chanconf->u.lapb,sizeof(wan_lapb_if_conf_t), NULL, chandef)) {
 	  ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
 	  return ERR_CONFIG;
 	}//if()

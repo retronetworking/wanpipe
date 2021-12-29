@@ -1,0 +1,390 @@
+Only in /root/3.3/wanpipe/patches/kdrivers/src/lip/: bin
+Only in /common/lip: CVS
+Only in /common/lip: hupdate
+Only in /common/lip: include
+Only in /common/lip: include_old
+Only in /root/3.3/wanpipe/patches/kdrivers/src/lip/: lip_katm
+diff -dur /root/3.3/wanpipe/patches/kdrivers/src/lip/Makefile /common/lip/Makefile
+--- /root/3.3/wanpipe/patches/kdrivers/src/lip/Makefile	2008-01-24 12:23:03.000000000 -0500
++++ /common/lip/Makefile	2007-05-17 20:09:10.000000000 -0400
+@@ -5,9 +5,11 @@
+ # Rewritten to use lists instead of if-statements.
+ #
+ 
++PWD=$(shell pwd)
+ FRDIR=../fr
+ SPPPDIR=../sppp
+ ATMDIR=../atm
++LAPDIR=../lapb
+ LIP_KATMDIR=../lip_katm
+ LIP_ATMDIR=../lip_atm
+ COMMON=../wanpipe
+@@ -18,16 +20,18 @@
+ CONFIG_WANPIPE_ATM=n 
+ CONFIG_WANPIPE_LIP_KATM=y 
+ CONFIG_WANPIPE_LIP_ATM=y 
++CONFIG_WANPIPE_LIP_LAPB=n 
++CONFIG_WANPIPE_TTY=y
+ 
+ EXTRA_CFLAGS=$(EXTRA_FLAGS)
+-EXTRA_CFLAGS+=-DWANLIP_DRIVER -DWPLIP_TTY_SUPPORT 
++EXTRA_CFLAGS+=-DWANLIP_DRIVER  
+ 
+ wanpipe_lip-y	:= wanpipe_lip_iface.o wanpipe_lip_sub.o 
+ wanpipe_lip-y 	+= wanpipe_lip_netdev.o wanpipe_lip_prot.o 
+ wanpipe_lip-y 	+= wanpipe_lip_bh.o wanpipe_lip_ipx.o 
+ wanpipe_lip-y 	+= $(COMMON)/wanpipe_abstr.o $(ROUTER)/wanpipe_linux_iface.o  
+ 
+-ifeq "${CONFIG_WANPIPE_FR}" "y"
++ifeq "${CONFIG_WANPIPE_TTY}" "y"
+ PRODUCT_DEFINES			+= -DWPLIP_TTY_SUPPORT 
+ wanpipe_lip-y			+= wanpipe_lip_tty.o
+ endif 
+@@ -64,6 +68,18 @@
+ EXTRA_CFLAGS 			+= -I$(ATMDIR) -I$(ATMDIR)/include
+ endif
+ 
++ifeq "${CONFIG_WANPIPE_LIP_LAPB}" "y"
++PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_LIP_LAPD
++PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_LIP_LAPB
++wanpipe_lip-y                   += $(LAPDIR)/wanpipe_lapb_iface.o
++wanpipe_lip-y                   += $(LAPDIR)/wanpipe_lapb_in.o
++wanpipe_lip-y                   += $(LAPDIR)/wanpipe_lapb_out.o
++wanpipe_lip-y                   += $(LAPDIR)/wanpipe_lapb_sub.o
++wanpipe_lip-y                   += $(LAPDIR)/wanpipe_lapb_timer.o
++EXTRA_CFLAGS 			+= -I$(PWD)/$(LAPDIR) -I$(PWD)/$(LAPDIR)/include
++endif
++
++
+ EXTRA_CFLAGS 			+= $(PRODUCT_DEFINES) 
+ 
+ 
+Only in /common/lip: Makefile5.FreeBSD
+Only in /common/lip: Makefile6.FreeBSD
+Only in /common/lip: Makefile.Kbuild.Linux
+Only in /common/lip: Makefile.Kbuild.Linux~
+Only in /common/lip: Makefile.Linux
+Only in /common/lip: .#Makefile.Linux.1.12
+Only in /common/lip: .#Makefile.Linux.1.2
+Only in /common/lip: .#Makefile.Linux.1.20
+Only in /common/lip: mod
+Only in /common/lip: modinfo
+Only in /common/lip: Module.symvers
+Only in /common/lip: test-fr.sh
+Only in /common/lip: test.sh
+Only in /common/lip/tmp: CVS
+Only in /common/lip: .tmp_versions
+diff -dur /root/3.3/wanpipe/patches/kdrivers/src/lip/wanpipe_lip_bh.c /common/lip/wanpipe_lip_bh.c
+--- /root/3.3/wanpipe/patches/kdrivers/src/lip/wanpipe_lip_bh.c	2008-01-24 12:23:03.000000000 -0500
++++ /common/lip/wanpipe_lip_bh.c	2008-02-05 18:27:27.000000000 -0500
+@@ -121,7 +121,7 @@
+ 
+ 		}
+ 
+-		if (WAN_NETIF_QUEUE_STOPPED(lip_dev->common.dev)){
++		if (WAN_NETIF_UP(lip_dev->common.dev) && WAN_NETIF_QUEUE_STOPPED(lip_dev->common.dev)){
+ 			if (lip_dev->common.usedby == API){
+ 				DEBUG_TEST("%s: Api waking stack!\n",lip_dev->name);
+ 				WAN_NETIF_START_QUEUE(lip_dev->common.dev);
+Only in /common/lip: .#wanpipe_lip_bh.c.1.13
+Only in /common/lip: .#wanpipe_lip_bh.c.1.17
+Only in /common/lip: .#wanpipe_lip_bh.c.1.4
+Only in /common/lip: .#wanpipe_lip_bh.c.1.8
+Only in /common/lip: wanpipe_lip_bh.o
+Only in /common/lip: .wanpipe_lip_bh.o.cmd
+diff -dur /root/3.3/wanpipe/patches/kdrivers/src/lip/wanpipe_lip_iface.c /common/lip/wanpipe_lip_iface.c
+--- /root/3.3/wanpipe/patches/kdrivers/src/lip/wanpipe_lip_iface.c	2008-01-24 12:23:03.000000000 -0500
++++ /common/lip/wanpipe_lip_iface.c	2008-03-12 17:30:19.000000000 -0400
+@@ -452,12 +452,11 @@
+ 		}
+ 	}
+ 
+-	wplip_close_lipdev_prot(lip_dev);
+-	
+ 	wan_set_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical);
+ 	wan_clear_bit(WAN_DEV_READY,&lip_dev->interface_down);
+-	
+ 
++	wplip_close_lipdev_prot(lip_dev);
++	
+ 	wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+ 	lip_link->cur_tx=NULL;
+ 	wan_skb_queue_purge(&lip_dev->tx_queue);
+@@ -840,15 +839,11 @@
+ 	return 0;
+ }
+ 
+-int wplip_lipdev_prot_change_state(void *wplip_id,int state, 
+-		                   unsigned char *data, int len)
+-{
+-	wplip_dev_t *lip_dev = (wplip_dev_t *)wplip_id;
+ 
+-	DEBUG_EVENT("%s: Lip Dev Prot State %s!\n",
+-		lip_dev->name, STATE_DECODE(state));
+ 
+-	lip_dev->common.state = state;
++int wplip_lipdev_prot_update_state_change(wplip_dev_t *lip_dev, unsigned char *data, int len)
++{
++	int state = lip_dev->common.state;
+ 
+ 	if (lip_dev->common.usedby == API) {
+ 
+@@ -857,27 +852,24 @@
+ 		}
+ 
+ 		if (state == WAN_CONNECTED){
+-			lip_dev->common.state = state;     
+ 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
+ 			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
+-			wan_update_api_state(lip_dev);
+ 		}else{
+-			lip_dev->common.state = state;
+ 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+ 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
+ 		}
++			
++		wan_update_api_state(lip_dev);
+ 
+ 		wplip_trigger_bh(lip_dev->lip_link);
+ 
+ 	}else if (lip_dev->common.lip) { /*STACK*/
+ 		
+ 		if (state == WAN_CONNECTED){
+-			lip_dev->common.state = state;
+ 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
+ 			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
+ 			wplip_connect(lip_dev->common.lip,0);
+ 		}else{
+-			lip_dev->common.state = state;
+ 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+ #if defined(WANPIPE_IFNET_QUEUE_POLICY_INIT_OFF)
+ 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
+@@ -887,12 +879,10 @@
+ 		
+ 	}else{
+ 		if (state == WAN_CONNECTED){
+-			lip_dev->common.state = state;
+ 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
+ 			WAN_NETIF_WAKE_QUEUE(lip_dev->common.dev);
+ 			wplip_trigger_bh(lip_dev->lip_link);
+ 		}else{
+-			lip_dev->common.state = state;
+ 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+ #if defined(WANPIPE_IFNET_QUEUE_POLICY_INIT_OFF)
+ 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
+@@ -911,6 +901,27 @@
+ }
+ 
+ 
++
++
++int wplip_lipdev_prot_change_state(void *wplip_id,int state, 
++		                   unsigned char *data, int len)
++{
++	wplip_dev_t *lip_dev = (wplip_dev_t *)wplip_id;
++
++	DEBUG_EVENT("%s: Lip Dev Prot State %s!\n",
++		lip_dev->name, STATE_DECODE(state));
++
++	lip_dev->common.state = state;
++
++ 	if (wan_test_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical) ||
++            wan_test_bit(0,&lip_dev->if_down)) {
++		return 0;
++	}
++
++	return wplip_lipdev_prot_update_state_change(lip_dev,data,len);
++}
++
++
+ /*==============================================================
+  * wplip_connect
+  *
+Only in /common/lip: wanpipe_lip_iface.c~
+Only in /common/lip: .#wanpipe_lip_iface.c.1.2
+Only in /common/lip: .#wanpipe_lip_iface.c.1.20
+Only in /common/lip: .#wanpipe_lip_iface.c.1.33
+Only in /common/lip: .#wanpipe_lip_iface.c.1.34
+Only in /common/lip: .#wanpipe_lip_iface.c.1.37
+Only in /common/lip: .#wanpipe_lip_iface.c.1.39
+Only in /common/lip: .#wanpipe_lip_iface.c.1.6
+Only in /common/lip: wanpipe_lip_iface.o
+Only in /common/lip: .wanpipe_lip_iface.o.cmd
+Only in /common/lip: wanpipe_lip_ipx.o
+Only in /common/lip: .wanpipe_lip_ipx.o.cmd
+Only in /common/lip: wanpipe_lip.ko
+Only in /common/lip: .wanpipe_lip.ko.cmd
+diff -dur /root/3.3/wanpipe/patches/kdrivers/src/lip/wanpipe_lip.mod.c /common/lip/wanpipe_lip.mod.c
+--- /root/3.3/wanpipe/patches/kdrivers/src/lip/wanpipe_lip.mod.c	2008-01-24 12:23:03.000000000 -0500
++++ /common/lip/wanpipe_lip.mod.c	2008-03-10 14:07:39.000000000 -0400
+@@ -4,25 +4,93 @@
+ 
+ MODULE_INFO(vermagic, VERMAGIC_STRING);
+ 
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,6) || defined(WANPIPE_MOD_266_FORCE_UPDATE)
+-#undef unix
+ struct module __this_module
+ __attribute__((section(".gnu.linkonce.this_module"))) = {
+- .name = __stringify(KBUILD_MODNAME),
++ .name = KBUILD_MODNAME,
+  .init = init_module,
+ #ifdef CONFIG_MODULE_UNLOAD
+  .exit = cleanup_module,
+ #endif
+ };
+-#endif
+ 
+ static const struct modversion_info ____versions[]
++__attribute_used__
+ __attribute__((section("__versions"))) = {
+-
++	{ 0x89e24b9c, "struct_module" },
++	{ 0x52c0a61d, "_write_unlock_irqrestore" },
++	{ 0xa5a6ef53, "skb_queue_head" },
++	{ 0x12da5bb2, "__kmalloc" },
++	{ 0xec7bc0d, "__mod_timer" },
++	{ 0xc6405fec, "skb_append" },
++	{ 0x4827a016, "del_timer" },
++	{ 0x3d7c39ea, "_read_lock" },
++	{ 0xe1b7029c, "print_tainted" },
++	{ 0x79aa04a2, "get_random_bytes" },
++	{ 0xab978df6, "malloc_sizes" },
++	{ 0x3adc4c7c, "remove_wait_queue" },
++	{ 0x3093180f, "_write_lock_irqsave" },
++	{ 0x772274b1, "netif_carrier_on" },
++	{ 0xc4f02fe7, "skb_clone" },
++	{ 0x14990642, "skb_copy" },
++	{ 0x1bcd461f, "_spin_lock" },
++	{ 0xf6a5a6c8, "schedule_work" },
++	{ 0x669e2d2f, "seq_printf" },
++	{ 0x87b6fae2, "netif_carrier_off" },
++	{ 0xfb1d0a92, "alloc_netdev" },
++	{ 0x3026fe48, "tty_register_driver" },
++	{ 0x87cddf59, "_spin_lock_irqsave" },
++	{ 0x1d26aa98, "sprintf" },
++	{ 0x5ddb19f0, "in_dev_finish_destroy" },
++	{ 0x7d11c268, "jiffies" },
++	{ 0x58502b7a, "tty_set_operations" },
++	{ 0x92cfbd9d, "netif_rx" },
++	{ 0xffd5a395, "default_wake_function" },
++	{ 0x1b7d4074, "printk" },
++	{ 0x5152e605, "memcmp" },
++	{ 0x15e074de, "free_netdev" },
++	{ 0xed5c73bf, "__tasklet_schedule" },
++	{ 0x2da418b5, "copy_to_user" },
++	{ 0x604efc6a, "register_netdev" },
++	{ 0xa20fdde, "_spin_unlock_irqrestore" },
++	{ 0xa5808bbf, "tasklet_init" },
++	{ 0x1902adf, "netpoll_trap" },
++	{ 0xb13e533f, "atm_dev_register" },
++	{ 0x149a799f, "dev_kfree_skb_any" },
++	{ 0x79ad224b, "tasklet_kill" },
++	{ 0x1c53db6e, "skb_over_panic" },
++	{ 0xb356ebea, "skb_queue_tail" },
++	{ 0x19070091, "kmem_cache_alloc" },
++	{ 0x89ac5254, "tty_std_termios" },
++	{ 0x9aebf873, "__alloc_skb" },
++	{ 0x4292364c, "schedule" },
++	{ 0x89d282ea, "kfree_skb" },
++	{ 0x6b2dc060, "dump_stack" },
++	{ 0xb08e0988, "skb_under_panic" },
++	{ 0xb00b9d99, "eth_type_trans" },
++	{ 0xad97dcd, "ether_setup" },
++	{ 0x95ec5a88, "tty_unregister_driver" },
++	{ 0x19cacd0, "init_waitqueue_head" },
++	{ 0xd0b91f9b, "init_timer" },
++	{ 0x6989a769, "vsnprintf" },
++	{ 0x20f26d60, "tty_hangup" },
++	{ 0x59968f3c, "__wake_up" },
++	{ 0xf6ebc03b, "net_ratelimit" },
++	{ 0xf66fb709, "atm_dev_deregister" },
++	{ 0xa3d44f8c, "add_wait_queue" },
++	{ 0x37a0cba, "kfree" },
++	{ 0x2e60bace, "memcpy" },
++	{ 0x2e2ed056, "skb_dequeue" },
++	{ 0x828fe72a, "unregister_netdev" },
++	{ 0x25da070, "snprintf" },
++	{ 0x45e37139, "__netif_schedule" },
++	{ 0xf2a644fb, "copy_from_user" },
++	{ 0x9e7d6bd0, "__udelay" },
+ };
+ 
+ static const char __module_depends[]
+ __attribute_used__
+ __attribute__((section(".modinfo"))) =
+-"depends=wanrouter";
++"depends=atm";
+ 
++
++MODULE_INFO(srcversion, "332567BBD00B67D83582BEF");
+Only in /common/lip: wanpipe_lip.mod.o
+Only in /common/lip: .wanpipe_lip.mod.o.cmd
+diff -dur /root/3.3/wanpipe/patches/kdrivers/src/lip/wanpipe_lip_netdev.c /common/lip/wanpipe_lip_netdev.c
+--- /root/3.3/wanpipe/patches/kdrivers/src/lip/wanpipe_lip_netdev.c	2008-01-24 12:23:03.000000000 -0500
++++ /common/lip/wanpipe_lip_netdev.c	2008-03-12 17:29:15.000000000 -0400
+@@ -55,6 +55,10 @@
+ 	if (!lip_dev || !lip_dev->lip_link){
+ 		return -ENODEV;
+ 	}
++
++	if (wan_test_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical)) {
++		return -ENODEV;
++	}
+ 	
+ #if defined(__LINUX__)
+ # if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,18)
+@@ -63,6 +67,7 @@
+ # endif
+ #endif
+ 
++	wan_clear_bit(0,&lip_dev->if_down);
+ 
+ #if 0
+ 	/* Done in if register now, do it interface up down
+@@ -85,6 +90,10 @@
+ 	WAN_NETIF_WAKE_QUEUE(dev);
+ #endif
+ 
++	/* Its possible for state update to be skipped if interface was down */
++        wplip_lipdev_prot_update_state_change(lip_dev,NULL,0);
++
++
+ 	if (!wan_test_bit(WAN_DEV_READY,&lip_dev->interface_down)) {
+ 		wan_set_bit(WAN_DEV_READY,&lip_dev->interface_down);
+ 		wplip_trigger_if_task(lip_dev);
+@@ -125,6 +134,8 @@
+ 	}
+ #endif
+ 
++	wan_set_bit(0,&lip_dev->if_down);
++
+ #if 0
+ 	/* Done in if register now, do it interface up down
+ 	 * feature on 2.4 kernels */
+Only in /common/lip: .#wanpipe_lip_netdev.c.1.12
+Only in /common/lip: .#wanpipe_lip_netdev.c.1.15
+Only in /common/lip: .#wanpipe_lip_netdev.c.1.17
+Only in /common/lip: .#wanpipe_lip_netdev.c.1.24
+Only in /common/lip: .#wanpipe_lip_netdev.c.1.25
+Only in /common/lip: .#wanpipe_lip_netdev.c.1.29
+Only in /common/lip: .#wanpipe_lip_netdev.c.1.4
+Only in /common/lip: wanpipe_lip_netdev.o
+Only in /common/lip: .wanpipe_lip_netdev.o.cmd
+Only in /common/lip: wanpipe_lip.o
+Only in /common/lip: .wanpipe_lip.o.cmd
+Only in /common/lip: wanpipe_lip_prot.c~
+Only in /common/lip: .#wanpipe_lip_prot.c.1.21
+Only in /common/lip: .#wanpipe_lip_prot.c.1.25
+Only in /common/lip: .#wanpipe_lip_prot.c.1.35
+Only in /common/lip: .#wanpipe_lip_prot.c.1.37
+Only in /common/lip: .#wanpipe_lip_prot.c.1.46
+Only in /common/lip: .#wanpipe_lip_prot.c.1.5
+Only in /common/lip: wanpipe_lip_prot.o
+Only in /common/lip: .wanpipe_lip_prot.o.cmd
+Only in /common/lip: .#wanpipe_lip_sub.c.1.15
+Only in /common/lip: .#wanpipe_lip_sub.c.1.2
+Only in /common/lip: wanpipe_lip_sub.o
+Only in /common/lip: .wanpipe_lip_sub.o.cmd
+Only in /common/lip: wanpipe_lip_tty.o
+Only in /common/lip: .wanpipe_lip_tty.o.cmd
+Only in /common/lip: xupdate

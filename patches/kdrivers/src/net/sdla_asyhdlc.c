@@ -229,7 +229,7 @@ static int set_asy_config (sdla_t* card);
 static int asy_comm_enable (sdla_t* card);
 
 /* Interrupt handlers */
-static WAN_IRQ_RETVAL wpc_isr (sdla_t* card);
+static void wpc_isr (sdla_t* card);
 static void rx_intr (sdla_t* card);
 static void timer_intr(sdla_t *);
 
@@ -387,7 +387,7 @@ int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf)
 
 		card->wandev.fe_enable_timer = chdlc_enable_timer;
 		card->wandev.te_link_state = chdlc_handle_front_end_state;
-		conf->interface = 
+		conf->electrical_interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
 
 		if (card->u.c.comm_port == WANOPT_PRI){
@@ -460,9 +460,9 @@ int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf)
 	card->u.c.update_call_count = 0;
 	
 	card->wandev.ttl = conf->ttl;
-	card->wandev.interface = conf->interface; 
+	card->wandev.electrical_interface = conf->electrical_interface; 
 
-	if ((card->u.c.comm_port == WANOPT_SEC && conf->interface == WANOPT_V35)&&
+	if ((card->u.c.comm_port == WANOPT_SEC && conf->electrical_interface == WANOPT_V35)&&
 	    card->type != SDLA_S514){
 		printk(KERN_INFO "%s: ERROR - V35 Interface not supported on S508 %s port \n",
 			card->devname, PORT(card->u.c.comm_port));
@@ -609,7 +609,7 @@ int wp_asyhdlc_init (sdla_t* card, wandev_conf_t* conf)
  */
 static int update (wan_device_t* wandev)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	netdevice_t	*dev;
         chdlc_private_area_t* chdlc_priv_area;
 	unsigned long smp_flags;
@@ -619,7 +619,7 @@ static int update (wan_device_t* wandev)
 #endif
 
 	/* sanity checks */
-	if((wandev == NULL) || (wandev->private == NULL))
+	if((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	
 	if(wandev->state == WAN_UNCONFIGURED)
@@ -716,7 +716,7 @@ static int update (wan_device_t* wandev)
  */
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	chdlc_private_area_t* chdlc_priv_area;
 	int err = 0;
 
@@ -919,6 +919,8 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
+	dev->hard_header	= NULL; 
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
@@ -1110,6 +1112,9 @@ static void disable_comm (sdla_t *card)
 
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
+		if (card->wandev.fe_iface.pre_release){
+			card->wandev.fe_iface.pre_release(&card->fe);
+		}
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -1567,6 +1572,9 @@ static int chdlc_disable_comm_shutdown (sdla_t *card)
 
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
+		if (card->wandev.fe_iface.pre_release){
+			card->wandev.fe_iface.pre_release(&card->fe);
+		}
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -1650,7 +1658,7 @@ static int update_comms_stats(sdla_t* card,
 	if (IS_TE1_CARD(card)) {	
 		card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 		/* TE1 Update T1/E1 perfomance counters */
-		card->wandev.fe_iface.read_pmon(&card->fe, 0); 
+		card->wandev.fe_iface.read_pmon(&card->fe); 
 	}else if (IS_56K_CARD(card)) {
 		/* 56K Update CSU/DSU alarms */
 		card->wandev.fe_iface.read_alarm(&card->fe, 1); 
@@ -1737,7 +1745,7 @@ static unsigned char read_front_end_reg (void* card1, ...)
 /*============================================================================
  * Write to TE1/56K Front end registers  
  */
-static int write_front_end_reg (void* card1, ...)
+static unsigned char write_front_end_reg (void* card1, ...)
 {
 	va_list		args;
 	sdla_t		*card = (sdla_t*)card1;
@@ -1856,22 +1864,19 @@ static void chdlc_bh (unsigned long data)
 /*============================================================================
  * Cisco HDLC interrupt service routine.
  */
-static WAN_IRQ_RETVAL wpc_isr (sdla_t* card)
+static void wpc_isr (sdla_t* card)
 {
 	netdevice_t* dev;
 	SHARED_MEMORY_INFO_STRUCT	flags;
 	int i;
-	WAN_IRQ_RETVAL_DECL(irq_ret);
 
-
-	WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 	/* Check for which port the interrupt has been generated
 	 * Since Secondary Port is piggybacking on the Primary
          * the check must be done here. 
 	 */
 
 	if (!card->hw){
-		WAN_IRQ_RETURN(irq_ret);
+		return;
 	}
 	
 	card->hw_iface.peek(card->hw, card->flags_off,
@@ -1887,7 +1892,6 @@ static WAN_IRQ_RETVAL wpc_isr (sdla_t* card)
 	if (!card->tty_opt && !dev && 
 	    flags.interrupt_info_struct.interrupt_type != 
 	    	COMMAND_COMPLETE_APP_INT_PEND){
-		WAN_IRQ_RETURN(irq_ret);
 		goto isr_done;
 	}
 	
@@ -1898,7 +1902,6 @@ static WAN_IRQ_RETVAL wpc_isr (sdla_t* card)
 	if(test_bit(PERI_CRIT, (void*)&card->wandev.critical)) {
 		printk(KERN_INFO "%s: Chdlc ISR:  Critical with PERI_CRIT!\n",
 				card->devname);
-		WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 		goto isr_done;
 	}
 
@@ -1910,8 +1913,7 @@ static WAN_IRQ_RETVAL wpc_isr (sdla_t* card)
 				card->devname);
 			card->in_isr = 0;
 			card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-			WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
-			WAN_IRQ_RETURN(irq_ret);
+			return;
 		}
 	}
 
@@ -1993,9 +1995,7 @@ isr_done:
 
 	card->in_isr = 0;
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
-
-	WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
-        WAN_IRQ_RETURN(irq_ret);
+	return;
 }
 
 /*============================================================================
@@ -2257,7 +2257,7 @@ static int set_asy_config(sdla_t* card)
 	if(card->wandev.clocking)
 		cfg.baud_rate = card->wandev.bps;
 
-	cfg.line_config_options = (card->wandev.interface == WANOPT_RS232) ?
+	cfg.line_config_options = (card->wandev.electrical_interface == WANOPT_RS232) ?
 		INTERFACE_LEVEL_RS232 : INTERFACE_LEVEL_V35;
 
 	cfg.modem_config_options	= 0;
@@ -3000,6 +3000,9 @@ static int config_chdlc (sdla_t *card, netdevice_t *dev)
 					(IS_T1_CARD(card))?"T1":"E1");
 			return -EINVAL;
 		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
+		}
 	}
 
 	 
@@ -3015,6 +3018,9 @@ static int config_chdlc (sdla_t *card, netdevice_t *dev)
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EINVAL;
+		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
 	}
 
@@ -3176,7 +3182,7 @@ static int chdlc_set_dev_config(struct file *file,
 	if (wandev == NULL)
 		return cnt;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	printk(KERN_INFO "%s: New device config (%s)\n",
 			wandev->name, buffer);

@@ -128,8 +128,12 @@ $Octasic_Revision: 16 $
 
 /*****************************  TYPES  ***************************************/
 
-/*Change this type if your platform uses 64bits semaphores/locks */ 
-typedef UINT32 tOCT6100_USER_SERIAL_OBJECT;
+/*Change this type if your platform uses 64bits semaphores/locks */
+/* Dec 14 2007 ALEX
+** The type is changed to PVOID in order to support 64-bit platform. The
+** value is allocated in CreateObject function and freed in DestroyObject.
+******************************************************************************/ 
+typedef PVOID tOCT6100_USER_SERIAL_OBJECT;	/* UINT32 */
 
 typedef struct _OCT6100_GET_TIME_
 {

@@ -21,7 +21,7 @@
 
 int aft_analog_global_chip_config(sdla_t *card);
 int aft_analog_global_chip_unconfig(sdla_t *card);
-int aft_analog_chip_config(sdla_t *card);
+int aft_analog_chip_config(sdla_t *card, wandev_conf_t *);
 int aft_analog_chip_unconfig(sdla_t *card);
 int aft_analog_chan_dev_config(sdla_t *card, void *chan);
 int aft_analog_chan_dev_unconfig(sdla_t *card, void *chan);

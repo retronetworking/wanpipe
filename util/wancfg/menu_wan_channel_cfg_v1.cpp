@@ -274,11 +274,12 @@ display_this_dialog:
 	Debug(DBG_MENU_WAN_CHANNEL_CFG_V1, ("old_protocol: %d, new_protocol: %d\n",
 		  old_protocol, new_protocol));
 
+// ADBG
+exit(0);
 	if(new_protocol == 0){
 	  //no protocol was selected, just redisplay
   	  goto again;
 	}
-	
 	if(old_protocol == new_protocol){
 	  //no change, just redisplay
 	  goto again;

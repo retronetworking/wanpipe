@@ -219,7 +219,7 @@ enum {
 #define WAN_PACKET_FASTROUTE	6		/* Fastrouted frame	*/
 
 
-/* X25 specific */
+/* AF Socket specific */
 #define WAN_PACKET_DATA 	0
 #define WAN_PACKET_CMD 		1
 #define WAN_PACKET_ERR	        2

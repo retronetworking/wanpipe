@@ -46,8 +46,6 @@
 # include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe.h>
 # include <linux/sdla_xilinx.h>
-# include <linux/wanpipe_abstr.h>
-
 #else
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
@@ -1406,13 +1404,13 @@ int AFTMain(char *command,int argc, char* argv[])
 			}else if (strcmp(opt,"regdump") == 0){	
 				aft_remora_regdump(mod_no);
 			}else if (!strcmp(opt,"reg")){
-				int	value;
+				long	value;
 				fe_debug.type = WAN_FE_DEBUG_REG;
 				if (argc < 6){
 					printf("ERROR: Invalid command argument!\n");
 					break;				
 				}
-				value = strtol(argv[5],(char**)NULL, 16);
+				value = strtol(argv[5],(char**)NULL, 10);
 				if (value == LONG_MIN || value == LONG_MAX){
 					printf("ERROR: Invalid argument 5: %s!\n",
 								argv[5]);
@@ -1420,7 +1418,7 @@ int AFTMain(char *command,int argc, char* argv[])
 				}
 				fe_debug.fe_debug_reg.reg  = value;
 				fe_debug.fe_debug_reg.read = 1;
-				if (argc > 6){
+				if (strcmp(argv[6], "-m") && argc > 6){
 					value = strtol(argv[6],(char**)NULL, 16);
 					if (value == LONG_MIN || value == LONG_MAX){
 						printf("ERROR: Invalid argument 6: %s!\n",
@@ -1430,7 +1428,8 @@ int AFTMain(char *command,int argc, char* argv[])
 					fe_debug.fe_debug_reg.read = 0;
 					fe_debug.fe_debug_reg.value = value;
 				}
-				set_fe_debug_mode(&fe_debug);
+				fe_debug.mod_no = mod_no;
+				aft_remora_debug_mode(&fe_debug);
 			}else if (strcmp(opt,"stats") == 0){	
 				aft_remora_stats(mod_no);
 			}else{

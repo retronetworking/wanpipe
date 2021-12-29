@@ -13,9 +13,9 @@ sub new	{
 		_card      => undef,		
  		_fe_line   => undef,
 		_fe_media  => 'BRI',
-		_bri_clock_master => 'NO',
+		_bri_clock_master => 'OSC',
 		_bri_switchtype => 'etsi',
-		_bri_country => 'europe'
+		_bri_country => 'europe',
 	};			
 	bless $self, $class;
     	return $self;
@@ -137,7 +137,7 @@ sub gen_wanpipe_conf{
 
 
 sub gen_bri_conf{
-	my ($self, $span, $type, $group, $country, $operator, $conn_type) = @_;
+	my ($self, $span, $type, $group, $country, $operator, $conn_type, $default_tei) = @_;
 	my $bri_file='';
 	
 	$bri_file.="\n";
@@ -147,12 +147,16 @@ sub gen_bri_conf{
 	$bri_file.="connection_type=$conn_type\n";
 	
 
-	if ( $type eq 'bri_nt'){
+	if ( $type eq 'bri_nt') {
 		$bri_file.="signalling=bri_nt\n";
-	}else{
+	} else {
 		$bri_file.="signalling=bri_te\n";
 	}
 
+	if ( ! $default_tei eq ''){
+		$bri_file.="default_tei=$default_tei\n";
+		
+	}
 	$bri_file.="spans=$span\n";
 
 	return $bri_file;	

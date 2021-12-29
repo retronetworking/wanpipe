@@ -32,6 +32,8 @@
 #define ADSL_ACTUAL_CONFIGURATION	0x15
 #define ADSL_ACTUAL_INTERLEAVE_STATUS	0x16
 #define ADSL_ATM_CELL_COUNTER		0x17
+#define ADSL_EEPROM_WRITE		0x18
+#define ADSL_EEPROM_READ		0x19
 
 
 typedef struct adsl_failures

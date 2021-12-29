@@ -1,9 +1,9 @@
 /***************************************************************************
                           main.cpp  -  description
                              -------------------
-    begin                : Wed Feb 25 16:17:53 EST 2004
-    copyright            : (C) 2004 by David Rokhvarg
-    email                : davidr@sangoma.com
+    begin									: Wed Feb 25 16:17:53 EST 2004
+    author								: David Rokhvarg
+    email									: davidr@sangoma.com
  ***************************************************************************/
 
 /***************************************************************************
@@ -50,11 +50,16 @@ int zaptel_to_wanpipe();
 char lxdialog_path[MAX_PATH_LENGTH];// usually /usr/sbin/wanpipe_lxdialog
 char wan_bin_dir[MAX_PATH_LENGTH];
 
+#if defined(__LINUX__)
 const char * wanpipe_cfg_dir = "/etc/wanpipe/";
+char * interfaces_cfg_dir = "/etc/wanpipe/interfaces/";
+#else
+const char * wanpipe_cfg_dir = "/usr/local/etc/wanpipe/";
+char * interfaces_cfg_dir = "/usr/local/etc/wanpipe/interfaces/";
+#endif
 char * start_stop_scripts_dir = "scripts";
 
-char * interfaces_cfg_dir = "/etc/wanpipe/interfaces/";
-char * date_and_time_file_name = "date_and_time_file.tmp";
+char * date_and_time_file_name = "/tmp/date_and_time_file.tmp";
 
 int global_card_type = 0;
 int global_card_version = 0;
@@ -68,8 +73,11 @@ int global_card_version = 0;
 int global_hw_ec_max_num = 1;
 
 char zaptel_conf_path[MAX_PATH_LENGTH];// usually /etc/
+#if defined(__LINUX__)
+char *zaptel_default_conf_path = "/usr/local/etc/";
+#else
 char *zaptel_default_conf_path = "/etc/";
-
+#endif
 ////////////////////////////////////////////////////////////
 //help messages
 //indicates error.
@@ -98,12 +106,15 @@ char* fr_cir_help_str =
 //globals from wanconfig.c
 char prognamed[20] =	"wancfg";//"wanconfig";
 char progname_sp[] = 	"         ";
+#if defined(__LINUX__)
 char def_conf_file[] =	"/etc/wanpipe/wanpipe1.conf";	/* default name */
 char def_adsl_file[] =	"/etc/wanpipe/wan_adsl.list";	/* default name */
 char tmp_adsl_file[] =	"/etc/wanpipe/wan_adsl.tmp";	/* default name */
-#if defined(__LINUX__)
 char router_dir[] =	"/proc/net/wanrouter";	/* location of WAN devices */
 #else
+char def_conf_file[] =	"/usr/local/etc/wanpipe/wanpipe1.conf";	/* default name */
+char def_adsl_file[] =	"/usr/local/etc/wanpipe/wan_adsl.list";	/* default name */
+char tmp_adsl_file[] =	"/usr/local/etc/wanpipe/wan_adsl.tmp";	/* default name */
 char router_dir[] =	"/var/lock/wanrouter";	/* location of WAN devices */
 #endif
 
@@ -120,6 +131,7 @@ char is_there_a_lip_atm_if=NO;
 
 int active_channels_str_invalid_characters_check(char* active_ch_str);
 int read_wanrouter_rc_file();
+int check_directory();
 int main_loop();
 void cleanup();
 
@@ -267,6 +279,10 @@ char * get_protocol_string(int protocol)
   case PROTOCOL_TDM_VOICE:
    snprintf((char*)protocol_name, MAX_PATH_LENGTH, "TDM Voice");
    break;
+
+  case PROTOCOL_TDM_VOICE_API:
+   snprintf((char*)protocol_name, MAX_PATH_LENGTH, "TDM Voice API");
+   break;
    
   case WANCONFIG_LAPB:
     snprintf((char*)protocol_name, MAX_PATH_LENGTH, "HDLC LAPB");
@@ -275,7 +291,7 @@ char * get_protocol_string(int protocol)
   case WANCONFIG_LIP_ATM:
     snprintf((char*)protocol_name, MAX_PATH_LENGTH, "ATM (LIP)");
     break;
-    
+       
   default:
     ERR_DBG_OUT(("Invalid protocol: %d\n", protocol));
     snprintf((char*)protocol_name, MAX_PATH_LENGTH, INVALID_PROTOCOL);
@@ -510,7 +526,7 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	  snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%sfr",
 	    name_of_parent_layer);
 #elif (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__) || BSD_DEBG
-	  snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%sfr0",
+	  snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%sf0",
 	    //underlying layer name ends with digit - change it
 	    replace_numeric_with_char(name_of_parent_layer));
 #endif
@@ -535,7 +551,7 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%sppp",
 	    name_of_parent_layer);
 #elif (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__) || BSD_DEBG
-	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%sppp0",
+	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%sp0",
 	    //underlying layer name ends with digit - change it
 	    replace_numeric_with_char(name_of_parent_layer));
 #endif
@@ -559,7 +575,7 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%schdl",
 	    name_of_parent_layer);
 #elif (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__) || BSD_DEBG
-	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%schdlc0",
+	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%sc0",
 	    //underlying layer name ends with digit - change it
 	    replace_numeric_with_char(name_of_parent_layer));
 #endif
@@ -722,19 +738,25 @@ char * get_card_type_string(int card_type, int card_version)
     {
     case A101_ADPTR_1TE1://WAN_MEDIA_T1:
     	snprintf(card_type_name, MAX_PATH_LENGTH, "A101/2");
-	break;
+		break;
     case A104_ADPTR_4TE1://including A101-SH and A102-SH
         snprintf(card_type_name, MAX_PATH_LENGTH, "A101/2/4/8");
-	break;
+		break;
     case A300_ADPTR_U_1TE3://WAN_MEDIA_DS3:
     	snprintf(card_type_name, MAX_PATH_LENGTH, "A301-T3/E3");
-	break;
+		break;
     case A200_ADPTR_ANALOG:
     	snprintf(card_type_name, MAX_PATH_LENGTH, "A200/A400-Analog");
-	break;
+		break;
     case AFT_ADPTR_56K:
     	snprintf(card_type_name, MAX_PATH_LENGTH, "A056-56k DDS");
-	break;
+		break;
+	case AFT_ADPTR_ISDN:
+    	snprintf(card_type_name, MAX_PATH_LENGTH, "A500-ISDN BRI");
+		break;
+	case AFT_ADPTR_2SERIAL_V35X21:
+    	snprintf(card_type_name, MAX_PATH_LENGTH, "A14X-Serial");
+		break;
     default:
         ERR_DBG_OUT(("Invalid AFT card version: 0x%x!\n", card_version));
     }
@@ -1412,7 +1434,7 @@ char* remove_spaces_in_int_string(char* input)
   //remove spaces and zero terminate.
   snprintf(output, LEN_OF_DBG_BUFF, "%d", atoi(input));
   //copy back to caller's buffer
-  strcpy(input, output);
+  strlcpy(input, output, MAX_PATH_LENGTH);
 
   return input;
 }
@@ -1553,6 +1575,10 @@ int get_used_by_integer_value(char* used_by_str)
     return TTY;
   }else if(strcmp(used_by_str, "PPPoE") == 0){
     return PPPoE;
+  }else if(strcmp(used_by_str, "NETGRAPH") == 0){
+    return WP_NETGRAPH;
+  }else if(strcmp(used_by_str, "TDM_VOICE_API") == 0){
+    return TDM_VOICE_API;
   }else{
     return -1;
   }
@@ -1594,6 +1620,12 @@ char* get_used_by_string(int used_by)
   
   case TTY:
     return "TTY";
+    
+  case WP_NETGRAPH:
+    return "NETGRAPH";
+
+  case TDM_VOICE_API:
+    return "TDM_VOICE_API";
     
   default:
     return "Unknown Operation Mode";
@@ -1974,6 +2006,7 @@ void set_default_t1_configuration(sdla_fe_cfg_t* fe_cfg)
   te1_cfg->te_clock = WAN_NORMAL_CLK;
   te1_cfg->active_ch = ENABLE_ALL_CHANNELS;
   te1_cfg->high_impedance_mode = WANOPT_NO;
+	te1_cfg->rx_slevel = 120;
 }
 /*
 EncapMode	= ETH_LLC_OA
@@ -2071,6 +2104,20 @@ char* replace_numeric_with_char(char* str)
 	return new_str;
 }
 
+// Verify and create directories
+int check_directory()
+{
+  char command_line[MAX_PATH_LENGTH];
+
+  // Verify/Create etc/wanpipe/interfaces directory 
+  snprintf(command_line, MAX_PATH_LENGTH, "mkdir -p %s", interfaces_cfg_dir);
+  Debug(DBG_WANCFG_MAIN, ("check_directory(): command line: %s\n",
+    command_line));
+  system(command_line);
+
+  return 0;
+}
+
 //Read location of "lxdialog" and other configrable path settings.
 int read_wanrouter_rc_file()
 {
@@ -2116,7 +2163,7 @@ int main(int argc, char *argv[])
   Debug(DBG_WANCFG_MAIN, ("%s: main()\n", WANCFG_PROGRAM_NAME));
 
   if(argc == 2 && !strcmp(argv[1], "version")){
-    printf("\nwancfg version: 1.30\n");
+    printf("\nwancfg version: 1.34\n");
     return EXIT_SUCCESS;
   }
 
@@ -2137,7 +2184,9 @@ int main(int argc, char *argv[])
     err_printf("Failed to read 'WAN_BIN_DIR' in 'wanrouter.rc'! Using default: '%s'.",
 	wan_bin_dir);
   }
-  
+ 
+  check_directory();
+
   if(is_console_size_valid() == NO){
     rc = EXIT_FAILURE;
     goto cleanup;

@@ -66,7 +66,11 @@ extern int wp_fr_close_chan(void *chan_ptr);
 extern int wp_fr_ioctl     (void *chan_ptr, int cmd, void *arg);
 
 extern int wp_fr_rx     (void * prot_ptr, void *rx_pkt);
+#if defined(__WINDOWS__)
+extern int wp_fr_timer  (void *prot_ptr, unsigned int *period);
+#else
 extern int wp_fr_timer  (void *prot_ptr, unsigned int *period, unsigned int carrier_reliable);
+#endif
 extern int wp_fr_tx 	(void * chan_ptr, void *skb, int type);
 extern int wp_fr_pipemon(void *chan, int cmd, int dlci, unsigned char* data, unsigned int *len);
 extern int wp_fr_snmp(void* chan_ptr, void* data);

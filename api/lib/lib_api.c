@@ -407,7 +407,7 @@ int init_args(int argc, char *argv[])
 	return WAN_TRUE;
 }
 
-static unsigned char api_usage[]="\n"
+static char api_usage[]="\n"
 "\n"
 "<options>:\n"
 "	-i  <ifname>     #interface name\n"
@@ -466,7 +466,7 @@ static unsigned char api_usage[]="\n"
 "	-diagn		<digit>  #disconnect diagnostic (dflt=0)\n"
 "\n";
 
-void usage(unsigned char *api_name)
+void usage(char *api_name)
 {
 printf ("\n\nAPI %s USAGE:\n\n%s <options> <extra options>\n\n%s\n",
 		api_name,api_name,api_usage);

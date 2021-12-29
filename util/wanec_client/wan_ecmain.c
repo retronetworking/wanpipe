@@ -13,7 +13,6 @@
 ******************************************************************************/
 
 #if !defined(__WINDOWS__)
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -36,20 +35,11 @@
 # include <linux/types.h>
 # include <linux/if_packet.h>
 #endif
-
-#else
-
-#include "windows_config.h"
-
-wanpipe_t wanpipes[MAX_NUM_OF_WANPIPES];
-
-char WAN_EC_DIR[MAX_PATH];
-char WAN_EC_BUFFERS[MAX_PATH];
-char windows_dir[MAX_PATH];
-
-#endif//__WINDOWS__
+#endif
 
 #include "wan_ecmain.h"
+#include <wanpipe_events.h>
+#include "wanec_api.h"
 
 /******************************************************************************
 **			  DEFINES AND MACROS
@@ -62,11 +52,25 @@ char windows_dir[MAX_PATH];
 /******************************************************************************
 **			   GLOBAL VARIABLES
 ******************************************************************************/
+wanec_client_t	ec_client;
 
 /******************************************************************************
 ** 			FUNCTION PROTOTYPES
 ******************************************************************************/
-extern int wan_ec_args_parse_and_run( wanec_client_t*, int, char** );
+int wan_ec_args_parse_and_run(int argc, char* argv[]);
+int wanec_client_config(void);
+int wanec_client_release(void);
+int wanec_client_mode(int enable);
+int wanec_client_bypass(int enable);
+int wanec_client_opmode(int mode);
+int wanec_client_modify(void);
+int wanec_client_mute(int mode);
+int wanec_client_dtmf(int enable);
+int wanec_client_stats(int full);
+int wanec_client_bufferload(char *buffer);
+int wanec_client_bufferunload(unsigned long buffer_id);
+int wanec_client_playout(int start);
+int wanec_client_monitor(void);
 
 /******************************************************************************
 ** 			FUNCTION DEFINITIONS
@@ -74,31 +78,226 @@ extern int wan_ec_args_parse_and_run( wanec_client_t*, int, char** );
 
 int main(int argc, char *argv[])
 {
-	wanec_client_t	ec_client;
-
-#if defined(__WINDOWS__)
-	unsigned char	win_parse = 0;
-	////////////////////////////////////////////////////////////////////////////
-	//Get and parse command line arguments.
-	////////////////////////////////////////////////////////////////////////////
-	if(argc == 3 && !strcmp(argv[1], "-f")){
-		//If "-f <file name> is provided, parse the file.
-		win_parse = 1;
-	}
-	if(argc == 2 && !strcmp(argv[1], "-v")){
-		//If "-v", print out version.
-		win_parse = 1;
-	}
-
-	if(win_parse == 1){
-		return parse_cmd_line_args(argc, argv);
-	}
-#endif
+	int	err;
 
 	memset(&ec_client, 0, sizeof(wanec_client_t));
-	if (wan_ec_args_parse_and_run(&ec_client, argc, argv)){
-		return -EINVAL;
+	err = wan_ec_args_parse_and_run(argc, argv);
+	if (!err){
+		printf("\n\n");
 	}
-	printf("\n\n");
-	return 0;
+	if (ec_client.conf.param_no){
+		free(ec_client.conf.params);
+		ec_client.conf.params = NULL;
+	}
+	return err;
+}
+
+int wanec_client_config(void)
+{
+	wanec_api_config_t	conf;
+	int 			err;
+
+	memset(&conf, 0, sizeof(wanec_api_config_t));
+	if (ec_client.conf.param_no){
+		memcpy(&conf.conf, &ec_client.conf, sizeof(wan_custom_conf_t));
+	}
+	err = wanec_api_config(
+			ec_client.devname,
+			ec_client.verbose,
+			&conf);
+	return err;
+}
+
+int wanec_client_release(void)
+{
+	wanec_api_release_t	release;
+	int			err;
+
+	memset(&release, 0, sizeof(wanec_api_release_t));
+	err = wanec_api_release(
+			ec_client.devname,
+			ec_client.verbose,
+			&release);
+	return err;
+}
+
+int wanec_client_mode(int enable)
+{
+	wanec_api_mode_t	mode;
+	int			err;
+
+	memset(&mode, 0, sizeof(wanec_api_mode_t));
+	mode.enable	= enable;
+	mode.fe_chan_map= ec_client.fe_chan_map;
+	err = wanec_api_mode(
+			ec_client.devname,
+			ec_client.verbose,
+			&mode);
+	return err;
+}
+
+int wanec_client_bypass(int enable)
+{
+	wanec_api_bypass_t	bypass;
+	int			err;
+
+	memset(&bypass, 0, sizeof(wanec_api_bypass_t));
+	bypass.enable		= enable;
+	bypass.fe_chan_map	= ec_client.fe_chan_map;
+	err = wanec_api_bypass(
+			ec_client.devname,
+			ec_client.verbose,
+			&bypass);
+	return err;
+}
+
+int wanec_client_opmode(int mode)
+{
+	wanec_api_opmode_t	opmode;
+	int			err;
+
+	memset(&opmode, 0, sizeof(wanec_api_opmode_t));
+	opmode.mode		= mode;
+	opmode.fe_chan_map	= ec_client.fe_chan_map;
+	err = wanec_api_opmode(
+			ec_client.devname,
+			ec_client.verbose,
+			&opmode);
+	return err;
+}
+
+
+int wanec_client_modify()
+{
+	wanec_api_modify_t	modify;
+	int			err;
+
+	memset(&modify, 0, sizeof(wanec_api_modify_t));
+	modify.fe_chan_map	= ec_client.fe_chan_map;
+	if (ec_client.conf.param_no){
+		memcpy(&modify.conf, &ec_client.conf, sizeof(wan_custom_conf_t));
+	}
+	err = wanec_api_modify(
+			ec_client.devname,
+			ec_client.verbose,
+			&modify);
+	return err;	
+}
+
+int wanec_client_mute(int mode)
+{
+	wanec_api_mute_t	mute;
+	int			err;
+
+	memset(&mute, 0, sizeof(wanec_api_mute_t));
+	mute.mode		= mode;
+	mute.fe_chan_map	= ec_client.fe_chan_map;
+	mute.port_map		= ec_client.port_map;
+	err = wanec_api_mute(
+			ec_client.devname,
+			ec_client.verbose,
+			&mute);
+	return err;
+	
+}
+
+int wanec_client_dtmf(int enable)
+{
+	wanec_api_dtmf_t	dtmf;
+	int			err;
+
+	memset(&dtmf, 0, sizeof(wanec_api_dtmf_t));
+	dtmf.enable		= enable;
+	dtmf.fe_chan_map	= ec_client.fe_chan_map;
+	dtmf.port_map		= ec_client.port_map;
+	dtmf.type_map		= WAN_EC_TONE_PRESENT;
+	err = wanec_api_dtmf(
+			ec_client.devname,
+			ec_client.verbose,
+			&dtmf);
+	return err;
+}
+
+int wanec_client_stats(int full)
+{
+	wanec_api_stats_t	stats;
+	int			err;
+
+	memset(&stats, 0, sizeof(wanec_api_stats_t));
+	stats.full	= full;
+	stats.fe_chan	= ec_client.fe_chan;
+	stats.reset	= 0;	//reset
+	err = wanec_api_stats(
+			ec_client.devname,
+			ec_client.verbose,
+			&stats);
+	return err;
+}
+
+int wanec_client_bufferload(char *buf)
+{
+	wanec_api_bufferload_t	bufferload;
+	int			err;
+
+	printf("%s(): buf: %s\n", __FUNCTION__, buf);
+
+	memset(&bufferload, 0, sizeof(wanec_api_bufferload_t));
+	bufferload.buffer	= buf;
+	err = wanec_api_buffer_load(	
+				ec_client.devname,
+				ec_client.verbose,
+				&bufferload);
+	if (!err){
+		printf("Buffer index is %d!\n", bufferload.buffer_id);
+	}
+	return err;
+}
+
+int wanec_client_bufferunload(unsigned long buffer_id)
+{
+	wanec_api_bufferunload_t	bufferunload;
+	int				err;
+
+	memset(&bufferunload, 0, sizeof(wanec_api_bufferunload_t));
+	bufferunload.buffer_id	= (unsigned int)buffer_id;
+	err = wanec_api_buffer_unload(	
+				ec_client.devname,
+				ec_client.verbose,
+				&bufferunload);
+	return err;
+}
+
+int wanec_client_playout(int start)
+{
+	wanec_api_playout_t	playout;
+	int			err;
+
+	memset(&playout, 0, sizeof(wanec_api_playout_t));
+	playout.start		= start;
+	playout.fe_chan		= ec_client.fe_chan;
+	playout.buffer_id	= ec_client.buffer_id;
+	playout.port		= ec_client.port;
+	playout.notifyonstop	= 1;
+	playout.user_event_id	= 0xA5;		/* dummy value */
+	playout.repeat_cnt	= ec_client.repeat_cnt;
+	playout.duration	= (ec_client.duration) ? ec_client.duration : 5000;	// default 5s
+	err = wanec_api_playout(	
+				ec_client.devname,
+				ec_client.verbose,
+				&playout);
+	return err;
+}
+
+int wanec_client_monitor(void)
+{
+	wanec_api_monitor_t	monitor;
+	int			err;
+
+	memset(&monitor, 0, sizeof(wanec_api_monitor_t));
+	monitor.fe_chan		= ec_client.fe_chan;
+	err = wanec_api_monitor(	
+				ec_client.devname,
+				ec_client.verbose,
+				&monitor);
+	return err;
 }

@@ -1,5 +1,16 @@
 chan_woomera.c
 ======================================
+
+Feb 13 2008
+* v1.27 David Yat Sin <davidy@sangoma.com>
+*     Fixed issue channel type not defined when calling tech_call 
+*
+
+Feb 13 2008
+* v1.26 Nenad Corbic <ncorbic@sangoma.com>
+*      Compilation Update for callweaver 1.2-rc5
+*
+
  Feb 06 2008
 * v1.25 Nenad Corbic <ncorbic@sangoma.com>
  *      Bug fix in woomera message declaration

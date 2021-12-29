@@ -1,4 +1,4 @@
-/* $Header: /usr/local/cvsroot/wanpipe_linux/code/include/sdla_bscstrm.h,v 1.3 2004/09/28 21:47:30 sangoma Exp $ */
+/* $Header: /usr/local/cvsroot/wanpipe_linux/code/include/sdla_bscstrm.h,v 1.4 2007/05/24 17:45:25 sangoma Exp $ */
 
 
 /*
@@ -12,6 +12,9 @@
 
 /*
  *   $Log: sdla_bscstrm.h,v $
+ *   Revision 1.4  2007/05/24 17:45:25  sangoma
+ *   Removed PACKED from include files
+ *
  *   Revision 1.3  2004/09/28 21:47:30  sangoma
  *   *** empty log message ***
  *
@@ -234,25 +237,25 @@ typedef struct {
 #define RX_EXCESSIVE_LGTH_ERR_APP_LVL  0x20   /* the received block was too long (application level) */
 
 typedef struct {
-	unsigned char	station		 ;
-	unsigned short	time_stamp	 ;
-	unsigned char	reserved[13]	 ;
+	unsigned char	station		;
+	unsigned short	time_stamp	;
+	unsigned char	reserved[13]	;
 } api_rx_hdr_t;
 
 typedef struct {
-        api_rx_hdr_t	api_rx_hdr       ;
-        unsigned char 	data[1]    	 ;
+        api_rx_hdr_t	api_rx_hdr      ;
+        unsigned char 	data[1]    	;
 } api_rx_element_t;
 
 typedef struct {
-	unsigned char 	station		 ;
-	unsigned char   misc_tx_rx_bits  ;
-	unsigned char  	reserved[14]	 ;
+	unsigned char 	station		;
+	unsigned char   misc_tx_rx_bits ;
+	unsigned char  	reserved[14]	;
 } api_tx_hdr_t;
 
 typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	 ;
-	unsigned char	data[1]		 ;
+	api_tx_hdr_t 	api_tx_hdr	;
+	unsigned char	data[1]		;
 } api_tx_element_t;
 
 #pragma pack()

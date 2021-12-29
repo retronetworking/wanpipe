@@ -190,7 +190,7 @@ int wp_pos_init (sdla_t* card, wandev_conf_t* conf)
 	card->wandev.clocking 			= conf->clocking;
 	card->wandev.ignore_front_end_status 	= conf->ignore_front_end_status;
 	card->wandev.ttl 			= conf->ttl;
-	card->wandev.interface 			= conf->interface; 
+	card->wandev.electrical_interface 			= conf->electrical_interface; 
 	card->wandev.comm_port 			= conf->comm_port;
 	card->wandev.udp_port   		= conf->udp_port;
 	card->wandev.new_if_cnt 		= 0;
@@ -273,14 +273,14 @@ int wp_pos_init (sdla_t* card, wandev_conf_t* conf)
  */
 static int update (wan_device_t* wandev)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
  	struct net_device* dev;
         volatile private_area_t* priv_area;
 
 	DEBUG_EVENT("%s: %d\n",__FUNCTION__, __LINE__);
 		
 	/* sanity checks */
-	if((wandev == NULL) || (wandev->private == NULL))
+	if((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	
 	if(wandev->state == WAN_UNCONFIGURED)
@@ -343,7 +343,7 @@ static int update (wan_device_t* wandev)
  */
 static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	private_area_t* priv_area;
 
 	DEBUG_EVENT("%s: %d\n",__FUNCTION__, __LINE__);
@@ -486,6 +486,8 @@ static int if_init (struct net_device* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
+	dev->hard_header	= NULL; 
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 	dev->do_ioctl		= if_do_ioctl;

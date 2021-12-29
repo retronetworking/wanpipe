@@ -21,18 +21,21 @@
 # include <linux/wanpipe_tdm_api.h>
 #endif
 
+#if defined(WAN_KERNEL)
 typedef struct wanec_iface_ 
 {
 	unsigned long init;
 	
-	void*      (*reg) (void*, int);
+	void*      (*reg) (void*, u_int32_t, int, int, void*);
 	int      (*unreg) (void*, void*);
 	
 	int      (*ioctl) (void);
-	int        (*isr) (void*, void*);
+	int        (*isr) (void*);
 	int       (*poll) (void*, void*);
 	int (*event_ctrl) (void*, void*, wan_event_ctrl_t*);
 
 } wanec_iface_t;
+
+#endif	/* WAN_KERNEL */
 
 #endif /* __WANPIPE_EC_KERNEL_H */

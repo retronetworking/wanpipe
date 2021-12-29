@@ -26,6 +26,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__LINUX__)
+# if !defined(strlcpy)
+#  define strlcpy(a,b,c)	strcpy((a),(b))
+# endif
+#endif
+
 #include CURSES_LOC
 
 /*

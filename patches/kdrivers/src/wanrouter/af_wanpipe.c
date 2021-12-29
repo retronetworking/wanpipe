@@ -142,7 +142,7 @@ static atomic_t af_skb_alloc;
 atomic_t wanpipe_socks_nr;
 extern struct proto_ops wanpipe_ops;
 
-static struct sock *wanpipe_alloc_socket(struct sock *, void *net);
+static struct sock *wanpipe_alloc_socket(void);
 static void check_write_queue(struct sock *);
 
 
@@ -305,6 +305,8 @@ dev_private_ioctl:
 	/*NOTREACHED*/
 }
 
+
+
 /*============================================================
  * wanpipe_make_new
  *
@@ -325,7 +327,7 @@ struct sock *wanpipe_make_new(struct sock *osk)
 	if (osk->sk_type != SOCK_RAW)
 		return NULL;
 
-	if ((sk = wanpipe_alloc_socket(osk,NULL)) == NULL)
+	if ((sk = wanpipe_alloc_socket()) == NULL)
 		return NULL;
 
 	sk->sk_family      = osk->sk_family;
@@ -711,10 +713,8 @@ static int wanpipe_api_sock_rcv(struct sk_buff *skb, netdevice_t *dev,  struct s
 	sll->sll_ifindex = dev->ifindex;
 	sll->sll_halen = 0;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,23) 
 	if (dev->hard_header_parse)
 		sll->sll_halen = dev->hard_header_parse(skb, sll->sll_addr);
-#endif
 
 	/* 
 	 * WAN_PACKET_DATA : Data which should be passed up the receive queue.
@@ -770,7 +770,8 @@ static int wanpipe_api_sock_rcv(struct sk_buff *skb, netdevice_t *dev,  struct s
 			}
 			break;
 		default:
-			printk(KERN_INFO "af_wanpipe: BH Illegal Packet Type Dropping\n");
+			printk(KERN_INFO "af_wanpipe: BH Illegal Packet Type Dropping %i\n",skb->pkt_type);
+			WARN_ON(1);
 			KFREE_SKB(skb); 
 			break;
 	}
@@ -788,39 +789,22 @@ static int wanpipe_api_sock_rcv(struct sk_buff *skb, netdevice_t *dev,  struct s
  *       	
  *===========================================================*/
 
-static struct sock *wanpipe_alloc_socket(struct sock *osk, void *net)
+static struct sock *wanpipe_alloc_socket(void)
 {
 	struct sock *sk;
 	struct wanpipe_opt *wan_opt;
 
 #ifdef LINUX_2_6
-
-# if defined(LINUX_FEAT_2624)	
-	if (!osk && !net) {
-		DEBUG_EVENT("%s:%d ASSERT osk net pointer = NULL! \n",
-			__FUNCTION__,__LINE__);
-		return NULL;
-	}
-
-	if (osk) {
-		net=osk->sk_net;
-	}
-
-	sk = sk_alloc((struct net*)net, PF_WANPIPE, GFP_ATOMIC, &packet_proto);
-
-# elif defined(AF_WANPIPE_2612_UPDATE)
-	sk = sk_alloc(PF_WANPIPE, GFP_ATOMIC, &packet_proto,1);
-# else
-	sk = sk_alloc(PF_WANPIPE, GFP_ATOMIC, 1,NULL);
-# endif
+#ifdef AF_WANPIPE_2612_UPDATE
+	if ((sk = sk_alloc(PF_WANPIPE, GFP_ATOMIC, &packet_proto,1)) == NULL)
 
 #else
-	sk = sk_alloc(PF_WANPIPE, GFP_ATOMIC, 1);
+	if ((sk = sk_alloc(PF_WANPIPE, GFP_ATOMIC, 1,NULL)) == NULL)
 #endif
-
-	if (sk == NULL) {
+#else
+	if ((sk = sk_alloc(PF_WANPIPE, GFP_ATOMIC, 1)) == NULL)
+#endif
 		return NULL;
-	}
 
 	if ((wan_opt = kmalloc(sizeof(struct wanpipe_opt), GFP_ATOMIC)) == NULL) {
 		sk_free(sk);
@@ -949,7 +933,6 @@ static int wanpipe_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		goto out_free;
 	}
 
-#ifndef LINUX_FEAT_2624
 	if (dev->hard_header) {
 		int res;
 		err = -EINVAL;
@@ -958,7 +941,6 @@ static int wanpipe_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 			goto out_free;
 		}
 	}
-#endif
 
 	skb->protocol = proto;
 	skb->priority = sk->sk_priority;
@@ -1328,7 +1310,7 @@ static int wanpipe_bind(struct socket *sock, struct sockaddr *uaddr, int addr_le
 		 * we are finshed with the device we should run
 		 * dev_put() to release it */
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-		dev = wan_dev_get_by_name(name);
+		dev = dev_get_by_name(name);
 #else
 		dev = dev_get(name);
 #endif
@@ -1369,7 +1351,7 @@ wanpipe_svc_connect_skip:
 			err=-EINVAL;
 		}else{
 			sk->sk_state = WANSOCK_DISCONNECTED;
-			SK_PRIV(sk)->dev=wan_dev_get_by_index(sk->sk_bound_dev_if);
+			SK_PRIV(sk)->dev=dev_get_by_index(sk->sk_bound_dev_if);
 			if (SK_PRIV(sk)->dev){
 				err=0;
 			}else{
@@ -1395,7 +1377,7 @@ wanpipe_svc_connect_skip:
 		 * dev_put() to release it */
 
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-		dev = wan_dev_get_by_name(name);
+		dev = dev_get_by_name(name);
 #else
 		dev = dev_get(name);
 #endif
@@ -1439,7 +1421,7 @@ wanpipe_svc_listen_skip:
 		name[14]=0;
 	
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-		dev = wan_dev_get_by_name(name);
+		dev = dev_get_by_name(name);
 #else
 		dev = dev_get(name);
 #endif
@@ -1509,26 +1491,17 @@ wanpipe_svc_listen_skip:
  *      Crates AF_WANPIPE socket.
  *===========================================================*/
 
-#ifdef LINUX_FEAT_2624 
-int wanpipe_create(struct net *net, struct socket *sock, int protocol)
-#else
 int wanpipe_create(struct socket *sock, int protocol)
-#endif
 {
 	struct sock *sk;
 	unsigned long flags;
-
-#ifndef LINUX_FEAT_2624 
-	/* Used to fake the net structure for lower kernels */
-	void *net = NULL;
-#endif
-
+	
 	if (sock->type != SOCK_RAW)
 		return -ESOCKTNOSUPPORT;
 
 	sock->state = SS_UNCONNECTED;
 	
-	if ((sk = wanpipe_alloc_socket(NULL, net)) == NULL){
+	if ((sk = wanpipe_alloc_socket()) == NULL){
 		return -ENOMEM;
 	}
 

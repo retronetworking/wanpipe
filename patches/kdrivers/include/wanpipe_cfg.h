@@ -1,19 +1,31 @@
 #ifndef _WANPIPE_CFG_H_
 #define _WANPIPE_CFG_H_
 
-
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <sdla_56k.h>
 # include <sdla_te1.h>
 # include <sdla_te3.h>
 # include <sdla_remora.h>
+# include <sdla_bri.h>
+# include <sdla_serial.h>
 # include <sdla_front_end.h>
 #elif defined(__LINUX__)
 # include <linux/sdla_56k.h>
 # include <linux/sdla_te1.h>
 # include <linux/sdla_te3.h>
 # include <linux/sdla_remora.h>
+# include <linux/sdla_bri.h>
+# include <linux/sdla_serial.h>
 # include <linux/sdla_front_end.h>
+#elif defined(__WINDOWS__)
+# include <sdla_56k.h>
+# include <sdla_te1.h>
+# include <sdla_te3.h>
+# include <sdla_bri.h>
+# include <sdla_remora.h>
+# include <sdla_bri.h>
+# include <sdla_front_end.h>
+# include <wanpipe_cfg_structs.h>
 #else
 # error "No OS Defined!"
 #endif
@@ -23,12 +35,46 @@
 #define LAN_INTERFACE	1
 
 /* Miscellaneous */
+#if defined(__WINDOWS__)
+#define	WAN_IFNAME_SZ	IFNAMSIZ/* max length of the interface name */
+#define	WAN_DRVNAME_SZ	IFNAMSIZ/* max length of the link driver name */
+#define	WAN_ADDRESS_SZ	31	/* max length of the WAN media address */
+
+#define WAN_AUTHNAMELEN 64
+/*
+This is the maximum number of interfaces that any protocol may have.
+For example: a number of DLCIs.
+*/
+#define MAX_NUMBER_OF_PROTOCOL_INTERFACES	(1007+16)
+
+/********** compilation flags ************/
+/* compile protocols in the LIP layer */
+#define CONFIG_PRODUCT_WANPIPE_FR
+#define CONFIG_PRODUCT_WANPIPE_CHDLC
+#define CONFIG_PRODUCT_WANPIPE_PPP
+#define CONFIG_PRODUCT_WANPIPE_LAPB
+
+/* compile AFT T1/E1 code */
+#define CONFIG_PRODUCT_WANPIPE_AFT
+/* compile AFT A200 Analog code */
+#define CONFIG_PRODUCT_WANPIPE_AFT_RM
+/* compile HWEC code */
+#define CONFIG_WANPIPE_HWEC
+/* compile ADSL code */
+#define CONFIG_PRODUCT_WANPIPE_ADSL
+/* compile TDM API code */
+#define AFT_TDM_API_SUPPORT
+/********** end of compilation flags ************/
+
+
+#else
 #define	WAN_IFNAME_SZ	15	/* max length of the interface name */
 #define	WAN_DRVNAME_SZ	15	/* max length of the link driver name */
 #define	WAN_ADDRESS_SZ	31	/* max length of the WAN media address */
 #define USED_BY_FIELD	30	/* max length of the used by field */
 
 #define WAN_AUTHNAMELEN 64
+#endif
 
 /* Defines for UDP PACKET TYPE */
 #define UDP_PTPIPE_TYPE 	0x01
@@ -77,6 +123,7 @@
 #define WANOPT_AFT_ISDN		11
 #define WANOPT_AFT_56K		12
 #define WANOPT_AFT101		13
+#define WANOPT_AFT_SERIAL	14
 
 /*
  * Configuration options defines.
@@ -86,6 +133,8 @@
 #define	WANOPT_ON	1
 #define	WANOPT_NO	0
 #define	WANOPT_YES	1
+
+#define	WANOPT_SIM	2
 
 /* intercace options */
 #define	WANOPT_RS232	0
@@ -204,6 +253,10 @@
 #define WANOPT_FE_OSC_CLOCK 	0x00
 #define WANOPT_FE_LINE_CLOCK 	0x01
 
+#define WANOPT_NETWORK_SYNC_OUT	0x00
+#define WANOPT_NETWORK_SYNC_IN	0x01
+
+
 
 enum wan_codec_format{
 	WP_NONE,
@@ -224,9 +277,16 @@ enum {
 	TDM_VOICE,
 	TDM_VOICE_DCHAN,
 	TDM_VOICE_API,
+#if defined(__WINDOWS__)
+	/* has to be here to keep backward compatibility! */
+	LIB_SANGOMA_API,
+	TDM_VOICE_API_V2,
+#endif
 	TDM_API,
+	WP_NETGRAPH,
 	TRUNK
 };
+
 
 /* POS protocols */
 enum {
@@ -315,6 +375,7 @@ enum {
 		(card_type == WANOPT_AFT_ANALOG) ? "A200/400"  :	\
 		(card_type == WANOPT_AFT_ISDN) ?   "A500"  :	\
 		(card_type == WANOPT_AFT_56K) ?    "A056"  :	\
+		(card_type == WANOPT_AFT_SERIAL) ? "A14x"  :	\
 					"Unknown"
 
 #define COMPORT_DECODE(port)	(port == WANOPT_PRI) ? "PRI" : "SEC"
@@ -353,6 +414,8 @@ enum {
 
 #define FR_STATION_DECODE(station)				\
 		(station == WANOPT_CPE) ? "CPE" : "Node"
+
+#define DEFAULT_TE_RX_SLEVEL 120
 
 typedef char devname_t[WAN_DRVNAME_SZ+1];
 
@@ -415,6 +478,12 @@ typedef struct wan_adsl_conf
 	unsigned short	  mtu;
 
 	unsigned char	  atm_watchdog;
+	/*	Number of cells received on each interrupt. Recommended values: 5 - 40. 
+		Higher values for higher line speeds.
+		
+	*/
+	unsigned short    RxCellCount;
+
 }wan_adsl_conf_t;
 
 
@@ -521,6 +590,12 @@ typedef struct wan_x25_conf
 /*----------------------------------------------------------------------------
  * Frame relay specific link-level configuration.
  */
+#if defined(__WINDOWS__)
+# define DLCI_LIST_LEN MAX_NUMBER_OF_PROTOCOL_INTERFACES
+#else
+# define DLCI_LIST_LEN 100
+#endif
+
 typedef struct wan_fr_conf
 {
 	unsigned int signalling;	/* local in-channel signalling type */
@@ -530,11 +605,14 @@ typedef struct wan_fr_conf
 	unsigned int n392;		/* error threshold counter */
 	unsigned int n393;		/* monitored events counter */
 	unsigned int dlci_num;		/* number of DLCs (access node) */
-	unsigned int dlci[100];     	/* List of all DLCIs */
+	unsigned int dlci[DLCI_LIST_LEN];/* List of all DLCIs */
 	unsigned char issue_fs_on_startup;
 	unsigned char station;  	/* Node or CPE */
 	unsigned int eek_cfg;		/* EEK Request Reply Mode */
 	unsigned int eek_timer;		/* EEK Request Reply Timer */
+#if defined(__WINDOWS__)
+	unsigned char auto_dlci;	/* 1 - yes, 0 - no */
+#endif
 } wan_fr_conf_t;
 
 /* used by wanpipemon to get DLCI status */
@@ -549,7 +627,6 @@ typedef struct wan_lip_fr_dlci
 	unsigned char 	type;
 } wan_fr_dlci_t;
 
-
 typedef struct wan_rtp_conf
 {
    	unsigned int	rtp_ip;
@@ -561,31 +638,20 @@ typedef struct wan_rtp_conf
 	unsigned char	rtp_local_mac[WAN_IFNAME_SZ+1]; 
 }wan_rtp_conf_t;
 
-
 typedef struct wan_xilinx_conf
 {
 	unsigned short	dma_per_ch; 	/* DMA buffers per logic channel */
 	unsigned short	mru;		/* MRU of transparent channels */
 	unsigned int	rbs;		/* Robbit signalling support */
 	unsigned int	data_mux_map;	/* Data mux map */
-	//unsigned int	tdmv_span_no;
-	//unsigned int	tdmv_dchan;	/* hwHDLC: PRI SIG */
-	//unsigned char	tdmv_hw_dtmf;	/* TDMV Enable/Disable HW DTMF */
 	unsigned int	rx_crc_bytes;
-//	unsigned int	ec_clk_src;	/* Octasic Clock Source Port */
-//	unsigned int	ec_persist_disable;	/* HW EC Persist */
-	
-	
-#if 0
-	unsigned int	rtp_ip;
-	unsigned short	rtp_port;
-	unsigned short	rtp_sample;
-	char		rtp_devname[WAN_IFNAME_SZ+1];
+#if defined(__WINDOWS__)
+	unsigned short num_of_ch;	/* Number of logical channels */
+	unsigned int   tdmv_span_no;
+	unsigned char  tdmv_hwec;
+	unsigned int   fe_ref_clock;
+	unsigned int   tdmv_dchan;
 #endif
-	unsigned int	err_throttle_period;
-	unsigned int	err_throttle_timeout;
-	
-	
 } wan_xilinx_conf_t;
 
 typedef struct wan_xilinx_conf_if
@@ -601,10 +667,14 @@ typedef struct wan_xilinx_conf_if
 	unsigned char 	ss7_mode;
 	unsigned char	ss7_lssu_size;
 	unsigned char	tdmv_master_if;
-//	unsigned char   tdmv_hwec;	/* Enable/Disable HW EC */
-	unsigned char   rbs_cas_idle;	/* Initial RBS/CAS value */
-//	unsigned char   hwec_dtmf;	/* Enable/Disable HW DTMF */
+/*	unsigned char   tdmv_hwec;	*/	/* Enable/Disable HW EC */
+	unsigned char   rbs_cas_idle;		/* Initial RBS/CAS value */
+/*	unsigned char   hwec_dtmf;	*/	/* Enable/Disable HW DTMF */
 /*	unsigned char   tdmv_hwec_map[50];*/	/* Enable/Disable HW EC */
+	unsigned char	hdlc_repeat;
+#if defined(__WINDOWS__)
+	unsigned char  tdmv_hwec;
+#endif
 }wan_xilinx_conf_if_t;
 
 
@@ -796,7 +866,11 @@ typedef struct sppp_parms_struct {
 	unsigned char ppp_prot;
 
 	/* CHDLC */
+#if defined(__WINDOWS__)
+	unsigned int sppp_max_keepalive_count;
+#else
 	unsigned int keepalive_err_margin;
+#endif
 }wan_sppp_if_conf_t;
 
 
@@ -912,6 +986,22 @@ typedef struct wan_hwec_conf_
 
 } wan_hwec_conf_t;
 
+#define MAX_PARAM_LEN	50
+#define MAX_VALUE_LEN	50
+typedef struct wan_custom_param_
+{
+	char		name[MAX_PARAM_LEN+1];
+	char		sValue[MAX_VALUE_LEN+1];
+	unsigned int	dValue;
+} wan_custom_param_t;
+
+typedef struct wan_custom_conf_
+{
+	unsigned int		param_no;
+	wan_custom_param_t	*params;
+} wan_custom_conf_t;
+
+
 /*----------------------------------------------------------------------------
  * WAN device configuration. Passed to ROUTER_SETUP IOCTL.
  */
@@ -934,7 +1024,7 @@ typedef struct wandev_conf
         unsigned udp_port;      /* UDP port for management */
 	unsigned char ttl;	/* Time To Live for UDP security */
 	unsigned char ft1;	/* FT1 Configurator Option */
-        char interface;		/* RS-232/V.35, etc. */
+        char electrical_interface;		/* RS-232/V.35, etc. */
 	char clocking;		/* external/internal */
 	char line_coding;	/* NRZ/NRZI/FM0/FM1, etc. */
 	char connection;	/* permanent/switched/on-demand */
@@ -951,9 +1041,11 @@ typedef struct wandev_conf
 				/****** arbitrary data ***************/
 	unsigned data_size;	/* data buffer size */
 	void* data;		/* data buffer, e.g. firmware */
-
+#if defined(__WINDOWS__)
+	struct{
+#else
 	union{			/****** protocol-specific ************/
-	
+#endif	
 		wan_x25_conf_t 		x25;	/* X.25 configuration */
 		wan_ppp_conf_t 		ppp;	/* PPP configuration */
 		wan_fr_conf_t 		fr;	/* frame relay configuration */
@@ -969,22 +1061,20 @@ typedef struct wandev_conf
 	} u;
 
 	/* No new variables are allowed above */
-	
-	char card_type;		/* Supported Sangoma Card type */
-	unsigned pci_bus_no;	/* S514 PCI bus number */
+	unsigned int card_type;	/* Supported Sangoma Card type */
+	unsigned int pci_bus_no;	/* S514 PCI bus number */
 
 	sdla_fe_cfg_t	fe_cfg;	/* Front end configurations */
 
-	wan_tdmv_conf_t	tdmv_conf;
-	wan_hwec_conf_t	hwec_conf;
-	wan_rtp_conf_t  rtp_conf;
-
+	wan_tdmv_conf_t		tdmv_conf;
+	wan_hwec_conf_t		hwec_conf;
+	wan_rtp_conf_t  	rtp_conf;
+	wan_custom_conf_t	oct_conf;
 	
 	unsigned char line_idle; /* IDLE FLAG/ IDLE MARK */
 	unsigned char ignore_front_end_status;
 	unsigned int  max_trace_queue;
 	unsigned int  max_rx_queue;
-
 
 #if 0
 	/* Bitstreaming options */
@@ -998,7 +1088,10 @@ typedef struct wandev_conf
 	unsigned int  max_trace_queue;
 	unsigned int  max_rx_queue;
 #endif
-	
+
+#if defined(__WINDOWS__)
+	u16 card_sub_type; /* "S" 5141/5142/5143 or "A" 101/102/104/108/200/056 */
+#endif/* __WINDOWS__ */
 } wandev_conf_t;
 
 /* 'config_id' definitions */
@@ -1030,15 +1123,17 @@ typedef struct wandev_conf
 #define WANCONFIG_LAPB		125	/* LIP LAPB Protocol Support */
 #define WANCONFIG_XDLC		126	/* LIP XDLC Protocol Support */
 #define WANCONFIG_TTY		127	/* LIP TTY Support */
-#define WANCONFIG_AFT_TE1    	128	/* AFT Quad Hardware Support */
+#define WANCONFIG_AFT_TE1    	128	/* AFT A1/2/4/8 Hardware Support */
 #define WANCONFIG_XMTP2    	129	/* LIP XMTP2 Protocol Support */
 #define WANCONFIG_ASYHDLC	130	/* S514 ASY HDLC API Support */
 #define WANCONFIG_LIP_ATM	131	/* ATM in LIP layer */
 #define WANCONFIG_AFT_ANALOG	132	/* AFT Analog Driver */
 #define WANCONFIG_ZAP		133	/* Used in wanpipemon when working with Zaptel driver */
 #define WANCONFIG_LAPD    	134	/* LIP LAPD Q921 Protocol Support */
-#define WANCONFIG_LIP_KATM   135	/* Kernel ATM Stack Support */
+#define WANCONFIG_LIP_KATM	135	/* Kernel ATM Stack Support */
 #define WANCONFIG_AFT_56K  	136	/* AFT 56K Support */
+#define WANCONFIG_AFT_ISDN_BRI	137	/* AFT ISDN BRI Driver */
+#define WANCONFIG_AFT_SERIAL	138	/* AFT Serial V32/RS232 Driver */
 
 /*FIXME: This should be taken out, I just
 //used it so I don't break the apps that are
@@ -1076,7 +1171,12 @@ typedef struct wandev_conf
 	(protocol ==  WANCONFIG_GENERIC)   ? "WANPIPE Generic driver": \
 	(protocol ==  WANCONFIG_MPCHDLC)   ? "CHDLC": \
 	(protocol ==  WANCONFIG_ZAP)   	   ? "ZAP": \
-	(protocol ==  WANCONFIG_TTY)	   ? "TTY": "Unknown Protocol"
+	(protocol ==  WANCONFIG_AFT_56K)   ? "AFT 56K": \
+	(protocol ==  WANCONFIG_AFT_ISDN_BRI) ? "ISDN BRI": \
+	(protocol ==  WANCONFIG_AFT_SERIAL) ? "Serial V35/RS232": \
+	(protocol ==  WANCONFIG_AFT_ANALOG) ? "Analog FXO/FXS": \
+	(protocol ==  WANCONFIG_AFT_TE1)    ? "AFT A1/2/4/8" : \
+	(protocol ==  WANCONFIG_TTY)	    ? "TTY" : "Unknown Protocol"
 
 
 typedef struct wan_tdmv_if_conf
@@ -1140,7 +1240,12 @@ typedef struct wanif_conf
 	unsigned 	keepalive_err_margin;	/* keepalive_error_tolerance */
 	unsigned 	slarp_timer;		/* SLARP request timer */
 	unsigned char 	ttl;			/* Time To Live for UDP security */
+#if defined(__WINDOWS__)
+	/* 'interface' is reserved for C++ compiler!! */
+	char 		electrical_interface;		/* RS-232/V.35, etc. */
+#else
 	char 		interface;		/* RS-232/V.35, etc. */
+#endif
 	char 		clocking;		/* external/internal */
 	unsigned 	bps;			/* data transfer rate */
 	unsigned 	mtu;			/* maximum transmit unit size */
@@ -1191,13 +1296,19 @@ typedef struct wanif_conf
 
 	wan_tdmv_if_conf_t	tdmv;
 	wan_hwec_if_conf_t	hwec;
-	//unsigned char tdmv_echo_off;  /* TDMV echo disable */
-	//unsigned char tdmv_codec;     /* TDMV codec */
+	wan_custom_conf_t	ec_conf;
 
+	/*unsigned char tdmv_echo_off;	*/	/* TDMV echo disable */
+	/*unsigned char tdmv_codec;	*/	/* TDMV codec */
 	unsigned char single_tx_buf; 	/* Used in low latency applications */
 
 	unsigned char lip_prot;
+#if defined(__WINDOWS__)
+	DEVICE_CONFIGURATION device_cfg;
+	struct {
+#else
 	union {
+#endif
 		wan_atm_conf_if_t 	atm;  /* per interface configuration */
 		wan_x25_if_conf_t 	x25;
 		wan_lapb_if_conf_t 	lapb;
@@ -1207,7 +1318,11 @@ typedef struct wanif_conf
 		wan_xilinx_conf_if_t 	aft;
 		wan_xdlc_conf_t 	xdlc;
 		wan_sppp_if_conf_t	ppp;
+#if defined(__WINDOWS__)
+		wan_sppp_if_conf_t	chdlc;
+#else
 		wan_chdlc_conf_t	chdlc;
+#endif
 	}u;
 
 } wanif_conf_t;
@@ -1296,5 +1411,98 @@ enum {
 	WPLIP_ETH,
 	WPLIP_LAPD
 };
+
+#define TRC_INCOMING_FRM              0x00
+#define TRC_OUTGOING_FRM              0x01
+#pragma pack(1)
+typedef struct {
+	unsigned char	status;
+	unsigned char	data_avail;
+	unsigned short	real_length;
+	unsigned short	time_stamp;
+	unsigned long	sec;
+	unsigned long   usec;
+	unsigned char	data[0];
+} wan_trace_pkt_t;
+#pragma pack()
+
+#if defined(__WINDOWS__)
+
+#define ACU_MTU 2048
+#define MODE_OPTION_HDLC		"HDLC"
+#define MODE_OPTION_BITSTRM		"BitStream"
+
+#define SDLA_DECODE_USEDBY_FIELD(usedby)			\
+	(usedby == WANPIPE)		? "WANPIPE"	:	\
+	(usedby == API)			? "API"		:	\
+	(usedby == BRIDGE)		? "BRIDGE"	:	\
+	(usedby == BRIDGE_NODE)		? "BRIDGE_NODE" :	\
+	(usedby == SWITCH)		? "SWITCH"	:	\
+	(usedby == STACK)		? "STACK"	:	\
+	(usedby == TDM_VOICE_API)	? "TDM VOICE API" :	\
+	(usedby == TDM_VOICE_DCHAN)	? "TDM VOICE DCHAN" :	\
+	(usedby == LIB_SANGOMA_API)	? "LIB SANGOMA API" :	\
+	(usedby == TDM_VOICE_API_V2)	? "TDM VOICE API V2" :	\
+	(usedby == ANNEXG)		? "ANNEXG" :	"Unknown"
+
+#define CARD_WANOPT_DECODE(cardtype)				\
+	((cardtype == WANOPT_S50X) ? "WANOPT_S50X" :	\
+	(cardtype == WANOPT_S51X) ? "WANOPT_S51X" :	\
+	(cardtype == WANOPT_ADSL) ? "WANOPT_ADSL" : 	\
+	(cardtype == WANOPT_AFT)  ? "WANOPT_AFT": 	\
+	(cardtype == WANOPT_AFT102) ? "WANOPT_AFT102": 		\
+	(cardtype == WANOPT_AFT104) ? "WANOPT_AFT104": 		\
+	(cardtype == WANOPT_AFT108) ? "WANOPT_AFT108": 		\
+	(cardtype == WANOPT_AFT_ANALOG) ? "WANOPT_AFT_ANALOG": 		\
+	(cardtype == WANOPT_AFT_56K) ? "WANOPT_AFT_56K": 		\
+	(cardtype == WANOPT_AFT300) ? "WANOPT_AFT300": "Invalid card")
+
+#if 1
+
+typedef struct _buffer_settings{
+	/* Number of received blocks of data before Receive event is indicated to API caller. */
+	u16 buffer_multiplier_factor;
+
+	/* Number of buffers for receiving or transmitting data on an API interface. */
+	/* EACH buffer will contain 'buffer_multiplier_factor' blocks of data before
+	   Receive event is indicated to API caller.
+	*/
+	u16 number_of_buffers_per_api_interface;
+}buffer_settings_t;
+
+#define MIN_BUFFER_MULTIPLIER_FACTOR 1
+#define MAX_BUFFER_MULTIPLIER_FACTOR 7
+
+#define MIN_NUMBER_OF_BUFFERS_PER_API_INTERFACE	50
+#define MAX_NUMBER_OF_BUFFERS_PER_API_INTERFACE	100
+
+/* structure used with IoctlDriverConfigurationCommand*/
+typedef struct {
+	unsigned char command_code;
+	unsigned int return_code;
+	/* Port configuration */
+	wandev_conf_t wandev_conf;
+
+	/*
+	Per-Interface configuration.
+	For AFT card maximum NUM_OF_E1_CHANNELS (31) logic channels.
+	Configuration of each logic channel ('active_ch', HDLC or Transparent...)
+	*/
+	wanif_conf_t if_cfg[NUM_OF_E1_CHANNELS];
+
+	buffer_settings_t buffer_settings;
+}driver_cfg_t;
+#endif
+
+#define DRV_MODE_NORMAL	0
+#define DRV_MODE_AFTUP	1
+
+/* cpecial id - when driver installed, it is "not configured".
+user has to select the protocol.*/
+#define WANCONFIG_NONE			10
+/* special id - for AFT firmware update */
+#define WANCONFIG_AFT_FIRMWARE_UPDATE	11
+
+#endif/* __WINDOWS__) */
 
 #endif

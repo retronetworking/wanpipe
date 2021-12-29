@@ -19,6 +19,7 @@
 #undef WAN_DEBUG_KERNEL
 #undef WAN_DEBUG_MOD
 #undef WAN_DEBUG_CFG
+#undef WAN_DEBUG_REG
 #undef WAN_DEBUG_INIT_VAR
 #undef WAN_DEBUG_IOCTL
 #undef WAN_DEBUG_CMD
@@ -39,24 +40,35 @@
 #undef WAN_DEBUG_SNMP
 #undef WAN_DEBUG_TE3
 #undef WAN_DEBUG_RM
+#undef WAN_DEBUG_BRI
 #undef WAN_DEBUG_HWEC
 #undef WAN_DEBUG_TDMAPI
 #undef WAN_DEBUG_FE
-
+#undef WAN_DEBUG_NG
 #undef WAN_DEBUG_MEM
+#undef WAN_DEBUG_BRI
+#undef WAN_DEBUG_BRI_INIT
+#undef WAN_DEBUG_FUNC
 
 #if defined (__WINDOWS__)
 
-# define DEBUG_NONE	if (0)	DbgPrint
-# define PRINT		OutputLogString
+void OutputLogString(PUCHAR pvFormat, ...);
+
+# define DEBUG_NONE
+#if 1
+# define PRINT	OutputLogString
+#else
+# define PRINT	if(1)DbgPrint
+#endif
+
 # define DEBUG_PRINT	DbgPrint
-# define DEBUG_LIMIT	DbgPrint
 # define _DEBUG_PRINT	DbgPrint
 
 # define DEBUG_KERNEL	DEBUG_NONE
 # define DEBUG_EVENT	DEBUG_NONE
 # define DEBUG_MOD	DEBUG_NONE
 # define DEBUG_CFG	DEBUG_NONE
+# define DEBUG_REG	DEBUG_NONE
 # define DEBUG_INIT	DEBUG_NONE
 # define DEBUG_IOCTL	DEBUG_NONE
 # define DEBUG_CMD	DEBUG_NONE
@@ -71,6 +83,7 @@
 # define DEBUG_TE1	DEBUG_NONE
 # define DEBUG_TE3	DEBUG_NONE
 # define DEBUG_56K	DEBUG_NONE
+# define DEBUG_BRI	DEBUG_NONE
 # define DEBUG_PROCFS	DEBUG_NONE
 # define DEBUG_TDMV	DEBUG_NONE
 # define DEBUG_TEST	DEBUG_NONE
@@ -81,9 +94,11 @@
 # define DEBUG_HWEC	DEBUG_NONE
 # define DEBUG_TDMAPI	DEBUG_NONE
 # define DEBUG_FE	DEBUG_NONE
+# define DEBUG_NG	DEBUG_NONE
 # define WAN_DEBUG_FUNC_START	DEBUG_NONE
 # define WAN_DEBUG_FUNC_END	DEBUG_NONE
 # define WAN_DEBUG_FUNC_LINE	DEBUG_NONE
+# define DEBUG_BRI	DEBUG_NONE
 
 # ifdef WAN_DEBUG_KERNEL
 #  undef  DEBUG_KERNEL
@@ -100,6 +115,10 @@
 # ifdef WAN_DEBUG_CFG
 #  undef  DEBUG_CFG
 #  define DEBUG_CFG	DEBUG_PRINT
+# endif 
+# ifdef WAN_DEBUG_REG
+#  undef  DEBUG_REG
+#  define DEBUG_REG	DEBUG_PRINT
 # endif 
 # ifdef WAN_DEBUG_INIT_VAR
 #  undef  DEBUG_INIT
@@ -155,6 +174,10 @@
 #  undef  DEBUG_56K
 #  define DEBUG_56K	DEBUG_PRINT
 # endif 
+# ifdef WAN_DEBUG_BRI
+#  undef  DEBUG_BRI
+#  define DEBUG_BRI	DEBUG_PRINT
+# endif 
 # ifdef WAN_DEBUG_PROCFS
 #  undef  DEBUG_PROCFS
 #  define DEBUG_PROCFS	DEBUG_PRINT
@@ -195,18 +218,107 @@
 #  undef  DEBUG_TDMAPI
 #  define DEBUG_TDMAPI	DEBUG_PRINT
 # endif 
-# ifdef WAN_DEBUG_FE
-#  undef  DEBUG_FE
-#  define DEBUG_FE	DEBUG_PRINT
+# ifdef WAN_DEBUG_NG
+#  undef  DEBUG_NG
+#  define DEBUG_NG	DEBUG_PRINT
 # endif 
+# ifdef WAN_DEBUG_BRI
+#  undef  DEBUG_BRI
+#  define DEBUG_BRI	DEBUG_PRINT
+# endif 
+# ifdef WAN_DEBUG_BRI_INIT
+#  undef  DEBUG_BRI_INIT
+#  define DEBUG_BRI_INIT	DEBUG_PRINT
+# endif 
+
+# define DEBUG_ADD_MEM
+# define DEBUG_SUB_MEM
+
+# define splimp() 0
+# define splx(l)
+
+#define	ERR_DBG_OUT	if(1)DbgPrint
+#define DBG_NOT_IMPL	if(0)DbgPrint
+#define FUNC_NOT_IMPL	if(0)DbgPrint("%s()-Not Implemented\n", __FUNCTION__);
+#define DBG_DSL_NOT_IMPLD if(0)DbgPrint("%s()-Not Implemented\n", __FUNCTION__);
+
+/* debugging of wanpipe_kernel.h */
+#define DBG_KRN		if(0)DbgPrint
+#define DBG_8TE1	if(0)DbgPrint
+#define DG_TDMCODEC	if(0)DbgPrint
+#define DBG_G3		if(0)DbgPrint
+
+#define DBG_FAST_TX	if(0)DbgPrint
+#define DBG_ACUAPI	if(0)DbgPrint
+#define DEBUG_IDLE_TX	if(0)DbgPrint
+#define DEBUG_SHARED_EVENT if(0)DbgPrint
+#define DBG_ADSL_TX	if(0)DbgPrint
+#define DEBUG_NEW_TX	if(0)DbgPrint
+#define DBG_IRQLOCK	if(0)DbgPrint
+#define DBG_ADSL_FAST_TX if(0)DbgPrint
+#define DBG_S514_INIT	if(0)DbgPrint
+#define DBG_SET_CFG	if(0)DbgPrint
+#define DBG_ADSL_INIT	if(0)DbgPrint
+#define DBG_HIGH_IMPED	if(0)DbgPrint
+#define DBG_LIP_OOB	if(0)DbgPrint
+#define DEBUG_AFT	if(0)DbgPrint
+#define DBG_TE1_INTERRUPT if(0)DbgPrint
+#define DBG_BSTRM	if(0)DbgPrint
+#define DEBUG_FIRMWARE_UPDATE if(0)DbgPrint
+#define DBG_ADSL_RX	if(0)DbgPrint
+#define DBG_8TE1_START	if(0)DbgPrint
+#define DBG_BITSTRM	if(0)DbgPrint
+
+#define	DBG_FE_LOCK	if(0)DbgPrint
+
+/* sprotocol.sys */
+#define DEBUG_LIP	if(0)DbgPrint
+#define DBG_LIP_SKB	if(0)DbgPrint
+/* wanpipe.sys */
+#define DEBUG_REQUEST	if(0)DbgPrint
+#define DEBUG_IF_TX	if(0)DbgPrint
+#define DEBUG_COMMON	if(0)DbgPrint
+#define DEBUG_IF_RX	if(0)DbgPrint
+#define DEBUG_NET_IF	if(0)DbgPrint
+
+/* These are defined in "sources" file of each driver */
+#if defined( VIRTUAL_IF_DRV )
+	#define DRIVER_NAME "SDLADRV"
+#elif defined( BUSENUM_DRV )
+	#define DRIVER_NAME "SangBus"
+#elif defined( NDIS_MINIPORT_DRIVER )
+	#define DRIVER_NAME "WANPIPE"
+#elif defined( SPROTOCOL )
+	#define DRIVER_NAME "SPROTOCOL"
+#endif
+
+#define DBG_BUFFER_LEN	512
+
+static void my_func_dbg(char *drv_name, char *func, char *file, int line)
+{
+	DbgPrint("%s:%s(): File: %s, Line: %d.\n", drv_name, func, file, line);
+}
+
+#define AFT_FUNC_DEBUG() if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define TDM_FUNC_DBG()	 if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define EC_FUNC_DEBUG()	 if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define DBG_SET_CFG_FUNC() if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define DBG_ACUAPI_FUNC() if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define FUNC_DEBUG()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define TDM_FUNC_DBG()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define SKB_FUNC()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define PROT_FUNC_DEBUG()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
 
 
 #else	/* !__WINDOWS__*/
+
+/* L I N U X */
 
 # define DEBUG_KERNEL(format,msg...)
 # define DEBUG_EVENT(format,msg...)
 # define DEBUG_MOD(format,msg...)
 # define DEBUG_CFG(format,msg...)
+# define DEBUG_REG(format,msg...)
 # define DEBUG_INIT(format,msg...)
 # define DEBUG_IOCTL(format,msg...)
 # define DEBUG_CMD(format,msg...)
@@ -221,6 +333,7 @@
 # define DEBUG_TE1(format,msg...)
 # define DEBUG_TE3(format,msg...)
 # define DEBUG_56K(format,msg...)
+# define DEBUG_BRI(format,msg...)
 # define DEBUG_PROCFS(format,msg...)
 # define DEBUG_TDMV(format,msg...)
 # define DEBUG_TEST(format,msg...)
@@ -233,21 +346,21 @@
 # define DEBUG_HWEC(format,msg...)
 # define DEBUG_TDMAPI(format,msg...)
 # define DEBUG_FE(format,msg...)
+# define DEBUG_NG(format,msg...)
 # define WAN_DEBUG_FUNC_START
 # define WAN_DEBUG_FUNC_END
 # define WAN_DEBUG_FUNC_LINE
+# define DEBUG_BRI(format,msg...)
+# define DEBUG_BRI_INIT(format,msg...)
 
 # if (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__)
 
 #  define DEBUG_PRINT(format,msg...)	log(LOG_INFO, format, ##msg)
-#  define DEBUG_LIMIT(format,msg...)	log(LOG_INFO, format, ##msg)
 #  define _DEBUG_PRINT(format,msg...)   log(LOG_INFO, format, ##msg)
 
 # else	/* !__FreeBSD__ && !__OpenBSD__ */
 
 #  define DEBUG_PRINT(format,msg...)	printk(KERN_INFO format, ##msg)
-#  define DEBUG_LIMIT(format,msg...)    printk(KERN_INFO format, ##msg)
-//#  define DEBUG_LIMIT(format,msg...)    if (WAN_NET_RATELIMIT()) printk(KERN_INFO format, ##msg)
 #  define _DEBUG_PRINT(format,msg...)   printk(format,##msg)
 
 # endif	/* __FreeBSD__ || __OpenBSD__ */
@@ -269,6 +382,10 @@
 # ifdef WAN_DEBUG_CFG
 #  undef  DEBUG_CFG
 #  define DEBUG_CFG(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif 
+# ifdef WAN_DEBUG_REG
+#  undef  DEBUG_REG
+#  define DEBUG_REG(format,msg...)		DEBUG_PRINT(format,##msg)
 # endif 
 # ifdef WAN_DEBUG_INIT_VAR
 #  undef  DEBUG_INIT
@@ -324,6 +441,10 @@
 #  undef  DEBUG_56K
 #  define DEBUG_56K(format,msg...)		DEBUG_PRINT(format,##msg)
 # endif 
+# ifdef WAN_DEBUG_BRI
+#  undef  DEBUG_BRI
+#  define DEBUG_BRI(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif 
 # ifdef WAN_DEBUG_PROCFS
 #  undef  DEBUG_PROCFS
 #  define DEBUG_PROCFS(format,msg...)		DEBUG_PRINT(format,##msg)
@@ -340,19 +461,24 @@
 #  undef  DEBUG_DBG
 #  define DEBUG_DBG(format,msg...) 		DEBUG_PRINT(format,##msg)
 # endif
+
+#if 0
 # ifdef WAN_DEBUG_MEM
+/* This is not used any more */
 #  undef  DEBUG_ADD_MEM
-#  define DEBUG_ADD_MEM(a)  /*DEBUG_EVENT("%s:%d MEM ADDING %d\n",__FUNCTION__,__LINE__,a);*/(atomic_add(a,&wan_debug_mem))
+#  define DEBUG_ADD_MEM(a)
 #  undef  DEBUG_SUB_MEM
-#  define DEBUG_SUB_MEM(a)  /*DEBUG_EVENT("%s:%d MEM SUBSTR %d\n",__FUNCTION__,__LINE__,a);*/(atomic_sub(a,&wan_debug_mem))
+#  define DEBUG_SUB_MEM(a)
 #endif
+#endif
+
 # ifdef WAN_DEBUG_DMA
 #  undef  DEBUG_DMA
 #  define DEBUG_DMA(format,msg...) 		DEBUG_PRINT(format,##msg)
 # endif
 # ifdef WAN_DEBUG_SNMP
 #  undef  DEBUG_SNMP
-#  define DEBUG_SNMP(format,msg...) 		DEBUG_PRINT(format,##msg)
+#  define DEBUG_SNMP(format,msg...) 	DEBUG_PRINT(format,##msg)
 # endif
 # ifdef WAN_DEBUG_RM
 #  undef  DEBUG_RM
@@ -364,13 +490,24 @@
 # endif 
 # ifdef WAN_DEBUG_TDMAPI
 #  undef  DEBUG_TDMAPI
-#  define DEBUG_TDMAPI(format,msg...)		DEBUG_PRINT(format,##msg)
+#  define DEBUG_TDMAPI(format,msg...)	DEBUG_PRINT(format,##msg)
 # endif 
 # ifdef WAN_DEBUG_FE
 #  undef  DEBUG_FE
 #  define DEBUG_FE(format,msg...)		DEBUG_PRINT(format,##msg)
 # endif 
-
+# ifdef WAN_DEBUG_BRI
+#  undef  DEBUG_BRI
+#  define DEBUG_BRI(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif 
+# ifdef WAN_DEBUG_BRI_INIT
+#  undef  DEBUG_BRI_INIT
+#  define DEBUG_BRI_INIT(format,msg...)	DEBUG_PRINT(format,##msg)
+# endif 
+# ifdef WAN_DEBUG_NG
+#  undef  DEBUG_NG
+#  define DEBUG_NG(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif 
 
 #endif	/* __WINDOWS__ */
 
@@ -379,14 +516,18 @@
 
 #if defined(WAN_DEBUG_FUNC)
 # undef WAN_DEBUG_FUNC_START
-# define WAN_DEBUG_FUNC_START	DEBUG_EVENT("[%s]: %s:%d: Start (%ld)\n",\
-	       		__FILE__,__FUNCTION__,__LINE__, SYSTEM_TICKS);
+# define WAN_DEBUG_FUNC_START	DEBUG_EVENT("[%s]: %s:%d: Start (%d)\n",\
+	       		__FILE__,__FUNCTION__,__LINE__, (unsigned int)SYSTEM_TICKS);
 # undef WAN_DEBUG_FUNC_END
-# define WAN_DEBUG_FUNC_END	DEBUG_EVENT("[%s]: %s:%d: End (%ld)\n",	\
-	       		__FILE__,__FUNCTION__,__LINE__,SYSTEM_TICKS);
+# define WAN_DEBUG_FUNC_END	DEBUG_EVENT("[%s]: %s:%d: End (%d)\n",	\
+	       		__FILE__,__FUNCTION__,__LINE__,(unsigned int)SYSTEM_TICKS);
 # undef WAN_DEBUG_FUNC_LINE
-# define WAN_DEBUG_FUNC_LINE	DEBUG_EVENT("[%s]: %s:%d: (%ld)\n",	\
-	       		__FILE__,__FUNCTION__,__LINE__,SYSTEM_TICKS);
+# define WAN_DEBUG_FUNC_LINE	DEBUG_EVENT("[%s]: %s:%d: (%d)\n",	\
+	       		__FILE__,__FUNCTION__,__LINE__,(unsigned int)SYSTEM_TICKS);
+
+#define BRI_FUNC()	if(1)DEBUG_EVENT("%s(): line:%d\n", __FUNCTION__, __LINE__)
+#else
+#define BRI_FUNC()
 #endif
 
 #define WAN_ASSERT(val) if (val){					\
@@ -425,6 +566,29 @@
 	}
 
 
+#if defined(__FreeBSD__)
+# ifndef WAN_SKBDEBUG
+#  define WAN_SKBDEBUG 0
+# endif
+# define WAN_SKBCRITASSERT(mm) if (WAN_SKBDEBUG){			\
+	if ((mm) == NULL){							\
+		panic("%s:%d: MBUF is NULL!\n", 				\
+					__FUNCTION__,__LINE__);		\
+	}									\
+	if (((mm)->m_flags & (M_PKTHDR|M_EXT)) != (M_PKTHDR|M_EXT)){	\
+		panic("%s:%d: Invalid MBUF m_flags=%X (m=%p)\n",	\
+					__FUNCTION__,__LINE__,		\
+					(mm)->m_flags,(mm));			\
+	}									\
+	if ((unsigned long)(mm)->m_data < 0x100){				\
+		panic("%s:%d: Invalid MBUF m_data=%p (m=%p)\n",		\
+					__FUNCTION__,__LINE__,		\
+					(mm)->m_data,(mm));			\
+	}									\
+}
+#else
+# define WAN_SKBCRITASSERT(mm)
+#endif
 
 #define WAN_MEM_INIT(id)	unsigned long mem_in_used_##id = 0x0l
 #define WAN_MEM_INC(id,size)	mem_in_used_##id += size

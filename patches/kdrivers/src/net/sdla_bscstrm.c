@@ -262,7 +262,7 @@ int wp_bscstrm_init (sdla_t* card, wandev_conf_t* conf)
 	card->wandev.new_if_cnt = 0;
 
 	card->wandev.ttl = conf->ttl;
-	card->wandev.interface = conf->interface; 
+	card->wandev.electrical_interface = conf->electrical_interface; 
 
 	card->wandev.clocking = conf->clocking;
 	card->wandev.mtu = 1000;
@@ -292,7 +292,7 @@ int wp_bscstrm_init (sdla_t* card, wandev_conf_t* conf)
 	printk(KERN_INFO "%s: Bisync Streaming Config: \n",card->devname);
 	printk(KERN_INFO "%s:     Comm Port         = %s\n",
 			card->devname,card->wandev.comm_port==0?"PRI":"SEC");
-	printk(KERN_INFO "%s:     Baud Rate         = %u\n",
+	printk(KERN_INFO "%s:     Baud Rate         = %lu\n",
 			card->devname,card->wandev.bscstrm_cfg.baud_rate);
 	printk(KERN_INFO "%s:     Adapter Frequency = %lu\n",
 			card->devname,card->wandev.bscstrm_cfg.adapter_frequency);
@@ -353,12 +353,12 @@ int wp_bscstrm_init (sdla_t* card, wandev_conf_t* conf)
  */
 static int update (wan_device_t* wandev)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
  	netdevice_t* dev;
         volatile bscstrm_private_area_t* bscstrm_priv_area;
 
 	/* sanity checks */
-	if((wandev == NULL) || (wandev->private == NULL))
+	if((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	
 	if(wandev->state == WAN_UNCONFIGURED)
@@ -398,7 +398,7 @@ static void bscstrm_bh (unsigned long data)
  */
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	bscstrm_private_area_t* bscstrm_priv_area;
 
 
@@ -489,6 +489,8 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
+	dev->hard_header	= NULL;
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 	dev->do_ioctl		= &if_ioctl;

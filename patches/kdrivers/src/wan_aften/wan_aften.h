@@ -36,6 +36,17 @@ struct wan_aften_priv {
 	unsigned int		irq;
 	unsigned int		slot;
 	unsigned int		bus;
+	
+	u_int8_t		pci_express_bridge;
+	
+	unsigned int		pci_bridge_base_class;
+	unsigned int		pci_bridge_base_addr0;
+	unsigned int		pci_bridge_base_addr1;
+	u_int8_t 		pci_bridge_irq;
+	unsigned int		pci_bridge_slot;
+	unsigned int		pci_bridge_bus;
+	u_int32_t		pci_bridge_cfg[16];
+	
 };
 
 #endif

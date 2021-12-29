@@ -30,8 +30,6 @@
 # include <zaptel.h>
 # include <wanpipe_edac_iface.h>
 
-#elif (defined __WINDOWS__)
-# include <wanpipe\csu_dsu.h>
 #else
 
 #if 0

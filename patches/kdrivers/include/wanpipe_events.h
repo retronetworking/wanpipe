@@ -24,11 +24,23 @@
 		(type == WAN_EC_TONE_STOP)	? "Stop" 	:	\
 							"Unknown"
 
+/* pcm law type (alaw or ulaw) */
+#define WAN_EC_PCM_U_LAW		0x01
+#define WAN_EC_PCM_A_LAW		0x02
+#define WAN_EC_DECODE_PCM_LAW(pcmlaw)				\
+		((pcmlaw) == WAN_EC_PCM_U_LAW)	? "ULAW" :	\
+		((pcmlaw) == WAN_EC_PCM_A_LAW)	? "ALAW"  : "Unknown"
+
 /* channel port (sout, rout, sin, rin) */
-#define WAN_EC_CHANNEL_PORT_SOUT	0x01
-#define WAN_EC_CHANNEL_PORT_SIN		0x02
-#define WAN_EC_CHANNEL_PORT_ROUT	0x03
-#define WAN_EC_CHANNEL_PORT_RIN		0x04
+#define WAN_EC_CHANNEL_PORT_SOUT		0x01
+#define WAN_EC_CHANNEL_PORT_SIN			0x02
+#define WAN_EC_CHANNEL_PORT_ROUT		0x04
+#define WAN_EC_CHANNEL_PORT_RIN			0x08
+#define WAN_EC_DECODE_CHANNEL_PORT(port)				\
+		((port) == WAN_EC_CHANNEL_PORT_SOUT)	? "SOUT" :	\
+		((port) == WAN_EC_CHANNEL_PORT_SIN)	? "SIN"  :	\
+		((port) == WAN_EC_CHANNEL_PORT_ROUT)	? "ROUT" :	\
+		((port) == WAN_EC_CHANNEL_PORT_RIN)	? "RIN"  : "Unknown"
 
 #define WAN_EVENT_RXHOOK_OFF		0x01
 #define WAN_EVENT_RXHOOK_ON		0x02
@@ -77,9 +89,11 @@
 #define WAN_EVENT_RM_ONHOOKTRANSFER	0x000E
 #define WAN_EVENT_RM_SETPOLARITY	0x000F
 #define WAN_EVENT_RM_SET_ECHOTUNE	0x0010
+#define WAN_EVENT_EC_CHAN_MODIFY	0x0011
+#define WAN_EVENT_EC_H100_REPORT	0x0012
 
 #define WAN_EVENT_TYPE_DECODE(type)					\
-		((type) == WAN_EVENT_EC_DTMF)		? "EC DTMF"  :		\
+		((type) == WAN_EVENT_EC_DTMF)		? "EC DTMF"  :	\
 		((type) == WAN_EVENT_RM_POWER)		? "RM Power Alarm" :	\
 		((type) == WAN_EVENT_RM_LC)		? "RM Loop Closure" :	\
 		((type) == WAN_EVENT_RM_RING_TRIP)	? "RM Ring Trip" :	\
@@ -95,6 +109,7 @@
 		((type) == WAN_EVENT_RM_ONHOOKTRANSFER)	? "RM On-hook transfer" :	\
 		((type) == WAN_EVENT_RM_SETPOLARITY)	? "RM Set polarity" :	\
 		((type) == WAN_EVENT_RM_SET_ECHOTUNE)	? "RM Set echotune" :	\
+		((type) == WAN_EVENT_EC_CHAN_MODIFY)	? "EC Chan Modify" :	\
 						"(Unknown type)"
 
 /* tone type list */						
@@ -130,7 +145,8 @@ typedef struct wan_event_ctrl_
 {
 	u_int16_t	type;
 	u_int8_t	mode;
-	int		mod_no;		/* A200-Remora */	
+	int		mod_no;		/* A200-Remora */
+	int		channel;
 	unsigned char	ec_dtmf_port;	/* EC DTMF: SOUT or ROUT */
 	unsigned long	ts_map;
 	u_int8_t	tone;

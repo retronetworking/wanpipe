@@ -11,10 +11,12 @@ OS_TYPE	= _LINUX_
 DEBUG	= 2
 
 # Project file paths.
-SYSINC=/lib/modules/$(shell uname -r)/build/include
+SYSINC=../../patches/kdrivers/include
+
+#/lib/modules/$(shell uname -r)/build/include
 
 # Tools options.
-CFLAGS  = -D__LINUX__ -Wall -O2 -D_GNUC_ -I$(SYSINC) -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -I../../patches/kdrivers/include 
+CFLAGS  = -D__LINUX__ -Wall -O2 -D_GNUC_ -I$(SYSINC) -D$(OS_TYPE) -D_DEBUG_=$(DEBUG)  
 LIBS = -lncurses
 
 ####### RULES ################################################################

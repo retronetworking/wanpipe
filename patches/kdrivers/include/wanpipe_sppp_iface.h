@@ -38,9 +38,17 @@ extern int wp_sppp_close(void *sppp_ptr);
 extern int wp_sppp_rx(void *sppp_ptr, void *skb);
 extern int wp_sppp_bh(void *sppp_ptr);
 extern int wp_sppp_tx(void *sppp_ptr, void *skb, int type);
+
+#if defined(__WINDOWS__)
+extern void *wp_register_sppp_prot(void *, char *, void *, wplip_prot_reg_t *);
+extern int wp_sppp_timer(void *sppp_ptr, unsigned int *period);
+#else
 extern int wp_sppp_timer(void *sppp_ptr, unsigned int *period, unsigned int carrier_reliable);
+#endif
 extern int wp_sppp_pipemon(void *sppp, int cmd, int addr, unsigned char* data, unsigned int *len);
 extern int wp_sppp_task(void *sppp_ptr);
+
+
 
 #endif
 
@@ -253,7 +261,11 @@ typedef struct	ppp_conn_info
 	unsigned char  ipx_remote[6]	;	/* 16:  */
 	unsigned char  ipx_router[48]	;	/* 1C:  */
 	unsigned char  auth_status	;	/* 4C:  */
+#if defined(__WINDOWS__)/* zero-sized array does not comply to ANSI 'C' standard! */
+	unsigned char  peer_id[1]	;	/* 4D:  */
+#else
 	unsigned char  peer_id[0]	;	/* 4D:  */
+#endif
 } ppp_conn_info_t;
 
 

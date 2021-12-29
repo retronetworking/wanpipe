@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdladrv.h,v 1.69 2007/03/23 15:10:01 sangoma Exp $
+ *	$Id: sdladrv.h,v 1.93 2008/03/06 14:02:42 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -38,7 +38,11 @@
  * Author:	Alex Feldman 	<al.feldman@sangoma.com>
  *
  * ============================================================================
+ * Nov 27,  2007 David Rokhvarg	Implemented functions/definitions for
+ *                              Sangoma MS Windows Driver and API.
+ *
  * Dec 06, 1999 Alex Feldman    Updated to FreeBSD 3.2
+ *
  * Dec 06, 1995	Gene Kozin	Initial version.
  *****************************************************************************
  */
@@ -51,6 +55,10 @@
 # define EXTERN extern
 #endif
 
+#if defined(__LINUX__)
+# define WAN_ISA_SUPPORT
+#endif
+
 /*
 ******************************************************************
 **			I N C L U D E S				**	
@@ -60,13 +68,19 @@
 # include <linux/version.h>
 # include <linux/wanpipe_kernel.h>
 #elif defined(__FreeBSD__)
-# ifdef __SDLADRV__
-#  include <i386/isa/sdla_dev.h>
+# if defined(__SDLADRV__)
+#  if defined(SDLA_AUTO_PROBE)
+#   include <sdla_bsd.h>
+#  else
+#   include <i386/isa/sdla_dev.h>
+#  endif
 # endif
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
 # ifdef __SDLADRV__
 #  include <dev/ic/sdla_dev.h>
 # endif
+#elif defined(__WINDOWS__)
+# include <wanpipe_kernel.h>
 #endif
 
 /*
@@ -74,13 +88,6 @@
 **			D E F I N E S				**	
 ******************************************************************
 */
-#if defined(__LINUX__)
-#ifdef CONFIG_ISA
-# define WAN_ISA_SUPPORT
-#else
-# undef WAN_ISA_SUPPORT
-#endif
-#endif
 
 #define	SDLADRV_MAGIC	0x414C4453L	/* signature: 'SDLA' reversed */
 
@@ -90,33 +97,39 @@
 #define	SDLA_WINDOWSIZE	0x2000	/* default dual-port memory window size */
 
 /* */
-#define SDLA_MEMBASE		0x01
-#define SDLA_MEMEND		0x02
-#define SDLA_MEMSIZE		0x03
-#define SDLA_IRQ		0x04
-#define SDLA_ADAPTERTYPE	0x05
-#define SDLA_CPU		0x06
-#define SDLA_SLOT		0x07
-#define SDLA_IOPORT		0x08
-#define SDLA_IORANGE		0x09
-#define SDLA_CARDTYPE		0x0A
-#define SDLA_DMATAG		0x0B
-#define SDLA_MEMORY		0x0C
-#define SDLA_PCIEXTRAVER	0x0D
-#define SDLA_HWTYPE		0x0E
-#define SDLA_BUS		0x0F
-#define SDLA_BASEADDR		0x10
-#define SDLA_COREREV		0x11
-#define SDLA_USEDCNT		0x12
-#define SDLA_ADAPTERSUBTYPE	0x13
-#define SDLA_HWEC_NO		0x14
-#define SDLA_COREID		0x15
-
+#define SDLA_MEMBASE			0x01
+#define SDLA_MEMEND			0x02
+#define SDLA_MEMSIZE			0x03
+#define SDLA_IRQ			0x04
+#define SDLA_ADAPTERTYPE		0x05
+#define SDLA_CPU			0x06
+#define SDLA_SLOT			0x07
+#define SDLA_IOPORT			0x08
+#define SDLA_IORANGE			0x09
+#define SDLA_CARDTYPE			0x0A
+#define SDLA_DMATAG			0x0B
+#define SDLA_MEMORY			0x0C
+#define SDLA_PCIEXTRAVER		0x0D
+#define SDLA_HWTYPE			0x0E
+#define SDLA_BUS			0x0F
+#define SDLA_BASEADDR			0x10
+#define SDLA_COREREV			0x11
+#define SDLA_HWCPU_USEDCNT		0x12
+#define SDLA_ADAPTERSUBTYPE		0x13
+#define SDLA_HWEC_NO			0x14
+#define SDLA_COREID			0x15
+#define SDLA_PCIEXPRESS			0x16
+#define SDLA_PORTS_NO			0x17
+#define SDLA_HWPORTUSED			0x18
+#define SDLA_HWPORTREG			0x19
+#define SDLA_PORT_MAP			0x1A
+#define SDLA_RECOVERY_CLOCK_FLAG	0x1B
+#define SDLA_HWPORTREGMAP		0x1C
 
 #define SDLA_MAX_CPUS		2
 
-	/* Serial card - 2, A104 - 4, A108 - 8, A200 - 1 */
-#define SDLA_MAX_PORTS		8
+/* Serial card - 2, A104 - 4, A108 - 8, A200/A400 - 1, A500-24  */
+#define SDLA_MAX_PORTS		24
 
 /* Status values */
 #define SDLA_MEM_RESERVED	0x0001
@@ -131,7 +144,9 @@
 # define PCI_DMA_TODEVICE	2
 #endif
 
-#define SDLA_MAGIC(hw)	WAN_ASSERT(hw->magic != SDLADRV_MAGIC)
+#define SDLA_MAGIC(hw)		WAN_ASSERT((hw)->magic != SDLADRV_MAGIC)
+#define SDLA_MAGIC_RC(hw,rc)	WAN_ASSERT_RC((hw)->magic != SDLADRV_MAGIC, (rc))
+#define SDLA_MAGIC_VOID(hw)	WAN_ASSERT_VOID((hw)->magic != SDLADRV_MAGIC)
 
 /*
 ******************************************************************
@@ -145,8 +160,8 @@ typedef	bus_addr_t 		sdla_base_addr_t;
 typedef bus_addr_t		sdla_dma_addr_t;
 typedef	pcici_t			sdla_pci_dev_t;
 # else
-typedef	uint32_t 		sdla_base_addr_t;
-typedef uint32_t		sdla_dma_addr_t;
+typedef	bus_addr_t		sdla_base_addr_t;
+typedef bus_addr_t		sdla_dma_addr_t;
 typedef	struct device*		sdla_pci_dev_t;
 # endif
 #elif defined(__OpenBSD__)
@@ -168,6 +183,13 @@ typedef void *		        sdla_mem_handle_t;
 typedef	unsigned long 		sdla_base_addr_t;
 typedef dma_addr_t		sdla_dma_addr_t;
 typedef struct pci_dev*		sdla_pci_dev_t;
+#elif defined(__WINDOWS__)
+typedef void *		        sdla_mem_handle_t;
+typedef	unsigned long 		sdla_base_addr_t;
+/* Dma addresses are 32-bits wide!!! */
+typedef u32			dma_addr_t;
+typedef dma_addr_t		sdla_dma_addr_t;
+typedef struct pci_dev*		sdla_pci_dev_t;
 #else
 # warning "Undefined types sdla_mem_handle_t/sdla_base_addr_t!"
 #endif
@@ -178,7 +200,11 @@ typedef struct pci_dev*		sdla_pci_dev_t;
 ******************************************************************
 */
 #if defined(__FreeBSD__)
-# define virt_to_phys(x) kvtop((caddr_t)x)
+# if defined(__i386__)
+#  define virt_to_phys(x) kvtop((caddr_t)x)
+# else
+#  define virt_to_phys(x) (sdla_dma_addr_t)(x)
+# endif
 # define phys_to_virt(x) (sdla_mem_handle_t)x
 #elif defined(__OpenBSD__)
 # define virt_to_phys(x) kvtop((caddr_t)x)
@@ -186,7 +212,9 @@ typedef struct pci_dev*		sdla_pci_dev_t;
 #elif defined(__NetBSD__)
 # define virt_to_phys(x) kvtop((caddr_t)x)
 # define phys_to_virt(x) (bus_space_handle_t)x
-#elif defined(__LINUX__)
+#elif defined(__LINUX__) 
+#elif defined(__WINDOWS__)
+# define phys_to_virt(x) NULL
 #else
 # warning "Undefined virt_to_phys/phys_to_virt macros!"
 #endif
@@ -207,19 +235,92 @@ typedef struct pci_dev*		sdla_pci_dev_t;
 **			S T R U C T U R E S			**	
 ******************************************************************
 */
-typedef struct sdla_hw_probe {
+/* DMA structure */
+#define SDLA_DMA_FLAG_READY	0
+#define SDLA_DMA_FLAG_INIT	1
+#define SDLA_DMA_FLAG_ALLOC	2
+
+#if defined(__FreeBSD__)
+# define SDLA_DMA_POSTREAD	BUS_DMASYNC_POSTREAD
+# define SDLA_DMA_PREREAD	BUS_DMASYNC_PREREAD
+# define SDLA_DMA_POSTWRITE	BUS_DMASYNC_POSTWRITE
+# define SDLA_DMA_PREWRITE	BUS_DMASYNC_PREWRITE
+#elif defined(__LINUX__)
+# define SDLA_DMA_POSTREAD	PCI_DMA_FROMDEVICE 
+# define SDLA_DMA_PREREAD	PCI_DMA_FROMDEVICE
+# define SDLA_DMA_POSTWRITE	PCI_DMA_TODEVICE
+# define SDLA_DMA_PREWRITE	PCI_DMA_TODEVICE
+#else
+# define SDLA_DMA_POSTREAD	1
+# define SDLA_DMA_PREREAD	2
+# define SDLA_DMA_POSTWRITE	3
+# define SDLA_DMA_PREWRITE	4
+#endif
+typedef struct wan_dma_descr_
+{
+	unsigned long		init;
+	unsigned long		flag;
+	u32			alignment;
+	u32			max_len;
+
+	sdla_dma_addr_t		dma_addr;	/* physical address */
+	u32			dma_len;	/* total dma data len */
+	u32			dma_map_len;	/* actual dma mapped len (address range) */
+	netskb_t 		*skb;
+	u32			index;
+
+	u32			dma_descr;
+	u32			len_align;
+	u32			reg;
+
+	u8			pkt_error;
+	void*			dma_virt;
+	u32			dma_offset;
+	u32			dma_toggle;
+#if defined(__FreeBSD__)
+	bus_dma_tag_t		dmat;
+	bus_dmamap_t		dmam;
+#elif defined(__OpenBSD__)
+	bus_dma_tag_t		dmat;
+	bus_dma_segment_t	dmaseg;
+	int			rsegs;
+#elif defined(__NetBSD__)
+	bus_dma_tag_t		dmat;
+	bus_dma_segment_t	dmaseg;
+	int			rsegs;
+#elif defined(__WINDOWS__)
+	void*			vAddr;
+	PHYSICAL_ADDRESS	physicalAddr;
+#endif
+} wan_dma_descr_t;
+
+
+typedef struct sdla_hw_probe
+{
+	int				internal_used;
 	int 				used;
 	unsigned char			hw_info[100];
 	unsigned char			hw_info_verbose[500];
 	WAN_LIST_ENTRY(sdla_hw_probe)	next;
 } sdla_hw_probe_t;
 
+/*-------------------------------------------------------------
+ *
+ */
+#if 0
+typedef struct sdlahw_port
+{
+	int			used;
+	char			*devname;
+	sdla_hw_probe_t		*hwprobe;
+} sdlahw_port_t;
+#endif
 
 /*
  * This structure keeps common parameters per physical card.
  */
 typedef struct sdlahw_card {
-	int 			used;
+	int 			internal_used;
 	unsigned int		hw_type;	/* ISA/PCI */
 	unsigned int		type;		/* S50x/S514/ADSL/SDLA_AFT */
 	unsigned char		cfg_type;	/* Config card type WANOPT_XXX */
@@ -232,6 +333,7 @@ typedef struct sdlahw_card {
 	unsigned int		slot_no;
 	unsigned int		bus_no;
 	unsigned int		ioport;
+	unsigned int		recovery_clock_flag; /* 1 - already used, 0 - not used */
 #if defined(__LINUX__)
 	sdla_pci_dev_t		pci_dev;	/* PCI config header info */
 #else
@@ -242,35 +344,32 @@ typedef struct sdlahw_card {
 	sdla_pci_dev_t		pci_dev;	/* PCI config header info */
 #endif
 	sdla_pci_dev_t		pci_bridge_dev;	/* PCI Bridge config header info */
+	unsigned int		pci_bridge_slot;/* PCI Bridge slot number */
+	unsigned int		pci_bridge_bus;	/* PCI Bridge bus number */
 	wan_spinlock_t		pcard_lock;	/* lock per physical card for FE */
 	wan_spinlock_t		pcard_ec_lock;	/* lock per physical card for EC */
 	wan_smp_flag_t		fe_rw_flag;
 	unsigned char		adptr_security;	/* Adapter security (AFT cards) */
 	u16			hwec_chan_no;	/* max hwec channels number */
-	int			rm_mod_type[MAX_REMORA_MODULES];
-	void			*port_ptr_isr_array[SDLA_MAX_PORTS];
+	int			hwec_ind;	/* hwec index */
 	WAN_LIST_ENTRY(sdlahw_card)	next;
+
+#if defined(__WINDOWS__)
+	int	rm_mod_type[MAX_REMORA_MODULES];
+#endif
+
 } sdlahw_card_t;
 
-
-/*-------------------------------------------------------------
- *
- */
-typedef struct sdlahw_port
-{
-	int used;
-	char			*devname;
-	sdla_hw_probe_t		*hwprobe;
-} sdlahw_port_t;
 
 /*----------------------------------------------------------------------------
  * Adapter hardware configuration. Pointer to this structure is passed to all
  * APIs.
  */
-typedef struct sdlahw
+struct sdlahw_port;
+typedef struct sdlahw_cpu
 {
+	int			internal_used;
 	int			used;
-	char			*devname;
 	u16			status;
 	unsigned 		fwid;		/* firmware ID */
 #if defined(__NetBSD__) || defined(__OpenBSD__)
@@ -282,14 +381,13 @@ typedef struct sdlahw
 	void*			irqh[SDLA_MAX_PORTS];
 #endif
 	unsigned int		cpu_no;		/* PCI CPU Number */
-	unsigned int		line_no;	/* PCI CPU Number */
 	char 			auto_pci_cfg;	/* Auto PCI configuration */
 	sdla_mem_handle_t	dpmbase;	/* dual-port memory base */
 	sdla_base_addr_t 	mem_base_addr;
 	unsigned 		dpmsize;	/* dual-port memory size */
 	unsigned 		pclk;		/* CPU clock rate, kHz */
 	unsigned long 		memory;		/* memory size */
-	sdla_mem_handle_t	vector;	/* local offset of the DPM window */
+	sdla_mem_handle_t	vector;		/* local offset of the DPM window */
 	unsigned 		io_range;	/* I/O port range */
 	unsigned char 		regs[SDLA_MAXIORANGE];	/* was written to registers */
 
@@ -298,12 +396,37 @@ typedef struct sdlahw
 
 	/* */
 	unsigned		magic;
-	void*			dev;	/* used only for FreeBSD/OpenBSD */
+# if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	void			*sdla_dev;		/* used only for FreeBSD/OpenBSD */
+# endif
 	u16			configured;
-	int			max_ports;
-	sdlahw_port_t		hwport[SDLA_MAX_PORTS];
-	sdlahw_card_t*		hwcard;
-	WAN_LIST_ENTRY(sdlahw)	next;
+
+	int			max_ports;	/* number of ports */
+	u_int32_t		port_map;	/* installed modules for A200/A400/ISDN */
+	int			reg_port[SDLA_MAX_PORTS];
+	u_int32_t		reg_port_map;	/* configured port */
+	struct sdlahw_port	*hwport[SDLA_MAX_PORTS];
+		
+	void			*port_ptr_isr_array[SDLA_MAX_PORTS];
+
+	sdlahw_card_t		*hwcard;
+	WAN_LIST_ENTRY(sdlahw_cpu)	next;
+} sdlahw_cpu_t;
+
+typedef struct sdlahw_port
+{
+	int			internal_used;
+	int			used;
+	char			*devname;
+	unsigned		magic;
+	unsigned int		port_no;	/* Port number per CPU */
+	sdla_hw_probe_t		*hwprobe;
+	sdlahw_cpu_t*		hwcpu;
+
+	WAN_LIST_ENTRY(sdlahw_port)	next;
+#if defined(__WINDOWS__)
+	void *p_sdla;
+#endif
 } sdlahw_t;
 
 typedef struct sdlahw_iface
@@ -318,6 +441,7 @@ typedef struct sdlahw_iface
 	int		(*mapmem)(void*, unsigned long);
 	int		(*check_mismatch)(void*, unsigned char);
 	int 		(*getcfg)(void*, int, void*);
+	int 		(*setcfg)(void*, int, void*);
 	int		(*isa_read_1)(void* hw, unsigned int offset, u8*);
 	int		(*isa_write_1)(void* hw, unsigned int offset, u8);
 	int 		(*io_write_1)(void* hw, unsigned int offset, u8);
@@ -335,7 +459,9 @@ typedef struct sdlahw_iface
 	int		(*pci_read_config_word)(void* hw, int reg, u16* value);
 	int		(*pci_read_config_dword)(void* hw, int reg, u32* value);
 	int 		(*pci_bridge_write_config_dword)(void* hw, int reg, u32 value);
+	int 		(*pci_bridge_write_config_byte)(void* hw, int reg, u_int8_t value);
 	int		(*pci_bridge_read_config_dword)(void* hw, int reg, u32* value);
+	int		(*pci_bridge_read_config_byte)(void* hw, int reg, u_int8_t* value);
 	int		(*cmd)(void* phw, unsigned long offset, wan_mbox_t* mbox);
 	int		(*peek)(void*,unsigned long, void*,unsigned);
 	int		(*poke)(void*,unsigned long, void*,unsigned);
@@ -352,7 +478,9 @@ typedef struct sdlahw_iface
 	int 		(*hw_lock)(void *phw, wan_smp_flag_t *flag);
 	int 		(*hw_ec_unlock)(void *phw, wan_smp_flag_t *flag);
 	int 		(*hw_ec_lock)(void *phw, wan_smp_flag_t *flag);
+	int 		(*hw_ec_trylock)(void *phw, wan_smp_flag_t *flag);
 	int 		(*hw_same)(void *phw1, void *phw2);
+	int 		(*hwcpu_same)(void *phw1, void *phw2);
 	int 		(*fe_test_and_set_bit)(void *phw, int value);
 	int 		(*fe_test_bit)(void *phw,int value);
 	int 		(*fe_set_bit)(void *phw,int value);
@@ -363,6 +491,25 @@ typedef struct sdlahw_iface
 	int		(*write_cpld)(void *phw, u16, u8);
 	int		(*fe_write)(void*, ...);
 	u_int8_t	(*fe_read)(void*, ...);
+	u_int8_t	(*__fe_read)(void*, ...);
+	wan_dma_descr_t* (*busdma_descr_alloc)(void *phw, int);
+	void		(*busdma_descr_free)(void *phw, wan_dma_descr_t*);
+	int		(*busdma_tag_create)(void *phw, wan_dma_descr_t*, u32, u32, int);
+	int		(*busdma_tag_destroy)(void *phw, wan_dma_descr_t*, int);
+	int		(*busdma_create)(void *phw, wan_dma_descr_t*);
+	int		(*busdma_destroy)(void *phw, wan_dma_descr_t*);
+	int		(*busdma_alloc)(void *phw, wan_dma_descr_t*);
+	void		(*busdma_free)(void *phw, wan_dma_descr_t*);
+	int		(*busdma_load)(void *phw, wan_dma_descr_t*, u32);
+	void		(*busdma_unload)(void *phw, wan_dma_descr_t*);
+	void		(*busdma_map)(void *phw, wan_dma_descr_t*, void *buf, int len, int map_len, int dir);
+	void		(*busdma_unmap)(void *phw, wan_dma_descr_t*, int dir);
+	void		(*busdma_sync)(void *phw, wan_dma_descr_t*, int ndescr, int single, int dir);
+	char*		(*hwec_name)(void *phw);
+	int		(*get_hwec_index)(void *phw);
+#if defined(__WINDOWS__)
+	sdlahw_t *hw;
+#endif
 } sdlahw_iface_t;
 
 typedef struct sdla_hw_type_cnt
@@ -377,9 +524,11 @@ typedef struct sdla_hw_type_cnt
 	unsigned char aft108_adapters;
 	unsigned char aft_isdn_adapters;
 	unsigned char aft_56k_adapters;
+	unsigned char aft_serial_adapters;
 	
 	unsigned char aft_x_adapters;
 }sdla_hw_type_cnt_t;
+
 
 /****** Function Prototypes *************************************************/
 
@@ -394,21 +543,26 @@ EXTERN int sdla_unregister	(void**, char*);
 
 static __inline unsigned int sdla_get_pci_bus(sdlahw_t* hw)
 {
-	sdlahw_card_t*	card;
+	sdlahw_card_t	*hwcard;
+	sdlahw_cpu_t	*hwcpu;
 
 	WAN_ASSERT(hw == NULL);
-	WAN_ASSERT(hw->hwcard == NULL);
-	card = hw->hwcard;
+	WAN_ASSERT(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT(hwcpu->hwcard == NULL);
+	hwcard = hwcpu->hwcard;
 #if defined(__FreeBSD__)
 # if (__FreeBSD_version > 400000)
-	return pci_get_bus(card->pci_dev);
+	return pci_get_bus(hwcard->pci_dev);
 # else
-	return card->pci_dev->bus;
+	return hwcard->pci_dev->bus;
 # endif
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	return card->pci_dev->pa_bus;
+	return hwcard->pci_dev->pa_bus;
 #elif defined(__LINUX__)
-	return ((struct pci_bus*)card->pci_dev->bus)->number;
+	return ((struct pci_bus*)hwcard->pci_dev->bus)->number;
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
 #else
 # warning "sdla_get_pci_bus: Not supported yet!"
 #endif
@@ -417,21 +571,26 @@ static __inline unsigned int sdla_get_pci_bus(sdlahw_t* hw)
 
 static __inline unsigned int sdla_get_pci_slot(sdlahw_t* hw)
 {
-	sdlahw_card_t*	card;
+	sdlahw_card_t	*hwcard;
+	sdlahw_cpu_t	*hwcpu;
 
 	WAN_ASSERT(hw == NULL);
-	WAN_ASSERT(hw->hwcard == NULL);
-	card = hw->hwcard;
+	WAN_ASSERT(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT(hwcpu->hwcard == NULL);
+	hwcard = hwcpu->hwcard;
 #if defined(__FreeBSD__)
 # if (__FreeBSD_version > 400000)
-	return pci_get_slot(card->pci_dev);
+	return pci_get_slot(hwcard->pci_dev);
 # else
-	return card->pci_dev->slot;
+	return hwcard->pci_dev->slot;
 # endif
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	return card->pci_dev->pa_device;
+	return hwcard->pci_dev->pa_device;
 #elif defined(__LINUX__)
-	return ((card->pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK);
+	return ((hwcard->pci_dev->devfn >> 3) & PCI_DEV_SLOT_MASK);
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
 #else
 # warning "sdla_get_pci_slot: Not supported yet!"
 #endif
@@ -441,17 +600,32 @@ static __inline unsigned int sdla_get_pci_slot(sdlahw_t* hw)
 static __inline int 
 sdla_bus_space_map(sdlahw_t* hw, int reg, int size, sdla_mem_handle_t* handle)
 {
-	int	err = 0;
+	sdlahw_cpu_t	*hwcpu;
+	int		err = 0;
+	
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT(hwcpu->hwcard == NULL);
 #if defined(__FreeBSD__)
-	*handle = (sdla_mem_handle_t)pmap_mapdev(hw->mem_base_addr + reg, size);
+	*handle = (sdla_mem_handle_t)pmap_mapdev(hwcpu->mem_base_addr + reg, size);
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	err = bus_space_map(hw->hwcard->memt, 
-			    hw->mem_base_addr+reg, 
+	err = bus_space_map(hwcpu->hwcard->memt, 
+			    hwcpu->mem_base_addr+reg, 
 			    size, 
 			    0, 
 			    handle);
 #elif defined(__LINUX__)
-	*handle = (sdla_mem_handle_t)ioremap(hw->mem_base_addr+reg, size);
+	*handle = (sdla_mem_handle_t)ioremap(hwcpu->mem_base_addr+reg, size);
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
+	/*
+	*handle = (sdla_mem_handle_t)MmMapIoSpace(
+		((PHYSICAL_ADDRESS)(hwcpu->mem_base_addr+reg)), (ULONG)size, MmNonCached);
+	if(*handle == NULL){
+		err = 1;
+	}
+	*/
 #else
 # warning "sdla_bus_space_map: Not supported yet!"
 #endif
@@ -462,6 +636,12 @@ sdla_bus_space_map(sdlahw_t* hw, int reg, int size, sdla_mem_handle_t* handle)
 static __inline void 
 sdla_bus_space_unmap(sdlahw_t* hw, sdla_mem_handle_t offset, int size)
 {
+	sdlahw_cpu_t	*hwcpu;
+
+	WAN_ASSERT_VOID(hw == NULL);
+	WAN_ASSERT_VOID(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT_VOID(hwcpu->hwcard == NULL);
 #if defined(__FreeBSD__)
 	int i = 0;
 	for (i = 0; i < size; i += PAGE_SIZE){
@@ -469,9 +649,12 @@ sdla_bus_space_unmap(sdlahw_t* hw, sdla_mem_handle_t offset, int size)
 	}
 	kmem_free(kernel_map, (vm_offset_t)offset, size);
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	bus_space_unmap(hw->hwcard->memt, offset, size);
+	bus_space_unmap(hwcpu->hwcard->memt, offset, size);
 #elif defined(__LINUX__)
 	iounmap((void*)offset);
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
+	/*MmUnmapIoSpace((void*)offset, size);*/
 #else
 # warning "sdla_bus_space_unmap: Not supported yet!"
 #endif
@@ -482,12 +665,20 @@ sdla_bus_space_unmap(sdlahw_t* hw, sdla_mem_handle_t offset, int size)
 static __inline void 
 sdla_bus_set_region_1(sdlahw_t* hw, unsigned int offset, unsigned char val, unsigned int cnt)
 {
+	sdlahw_cpu_t	*hwcpu;
+
+	WAN_ASSERT_VOID(hw == NULL);
+	WAN_ASSERT_VOID(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT_VOID(hwcpu->hwcard == NULL);
 #if defined(__FreeBSD__)
 	return;
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	bus_space_set_region_1(hw->hwcard->memt, hw->dpmbase, offset, val, cnt);
+	bus_space_set_region_1(hwcpu->hwcard->memt, hw->dpmbase, offset, val, cnt);
 #elif defined(__LINUX__)
-	wp_memset_io(hw->dpmbase + offset, val, cnt);
+	wp_memset_io(hwcpu->dpmbase + offset, val, cnt);
+#elif defined(__WINDOWS__)
+	wp_memset_io(((u8*)hwcpu->dpmbase) + offset, val, cnt);
 #else
 # warning "sdla_bus_set_region_1: Not supported yet!"
 #endif
@@ -506,6 +697,9 @@ sdla_request_mem_region(sdlahw_t* hw, sdla_base_addr_t base_addr, unsigned int l
 	}
 	*pres = resource; 
 	return 0;
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
+	return 0;
 #else
 # warning "sdla_request_mem_region: Not supported yet!"
 	return 0;
@@ -519,6 +713,8 @@ sdla_release_mem_region(sdlahw_t* hw, sdla_base_addr_t base_addr, unsigned int l
 	return;
 #elif defined(__LINUX__)
 	release_mem_region(base_addr, len);
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
 #else
 # warning "sdla_release_mem_region: Not supported yet!"
 #endif
@@ -528,14 +724,22 @@ static __inline int
 sdla_pci_enable_device(sdlahw_t* hw)
 {
 	sdlahw_card_t*	card;
+	sdlahw_cpu_t	*hwcpu;
 
 	WAN_ASSERT(hw == NULL);
-	WAN_ASSERT(hw->hwcard == NULL);
-	card = hw->hwcard;
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+	WAN_ASSERT(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT(hwcpu->hwcard == NULL);
+	card = hwcpu->hwcard;
+#if defined(__FreeBSD__)
+	return pci_enable_io(card->pci_dev, SYS_RES_MEMORY);
+#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	return 0;
 #elif defined(__LINUX__)
 	return pci_enable_device(card->pci_dev);
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
+	return 0;
 #else
 # warning "sdla_release_mem_region: Not supported yet!"
 	return -EINVAL;
@@ -546,14 +750,22 @@ static __inline int
 sdla_pci_disable_device(sdlahw_t* hw)
 {
 	sdlahw_card_t*	card;
+	sdlahw_cpu_t	*hwcpu;
 
 	WAN_ASSERT(hw == NULL);
-	WAN_ASSERT(hw->hwcard == NULL);
-	card = hw->hwcard;
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+	WAN_ASSERT(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT(hwcpu->hwcard == NULL);
+	card = hwcpu->hwcard;
+#if defined(__FreeBSD__)
+	return pci_disable_io(card->pci_dev, SYS_RES_MEMORY);
+#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	return 0;
 #elif defined(__LINUX__)
 	pci_disable_device(card->pci_dev);
+	return 0;
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
 	return 0;
 #else
 # warning "sdla_release_mem_region: Not supported yet!"
@@ -567,14 +779,21 @@ static __inline void
 sdla_pci_set_master(sdlahw_t* hw)
 {
 	sdlahw_card_t*	card;
+	sdlahw_cpu_t	*hwcpu;
 
 	WAN_ASSERT1(hw == NULL);
-	WAN_ASSERT1(hw->hwcard == NULL);
-	card = hw->hwcard;
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+	WAN_ASSERT1(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT1(hwcpu->hwcard == NULL);
+	card = hwcpu->hwcard;
+#if defined(__FreeBSD__)
+	pci_enable_busmaster(card->pci_dev);
+#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	return;
 #elif defined(__LINUX__)
 	pci_set_master(card->pci_dev);
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
 #else
 # warning "sdla_pci_set_master: Not supported yet!"
 #endif
@@ -585,10 +804,13 @@ static __inline void
 sdla_get_pci_base_resource_addr(sdlahw_t* hw, int pci_offset, sdla_base_addr_t *base_addr)
 {
 	sdlahw_card_t*	card;
+	sdlahw_cpu_t	*hwcpu;
 
 	WAN_ASSERT1(hw == NULL);
-	WAN_ASSERT1(hw->hwcard == NULL);
-	card = hw->hwcard;
+	WAN_ASSERT1(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT1(hwcpu->hwcard == NULL);
+	card = hwcpu->hwcard;
 
 #if defined(__FreeBSD__)
 # if (__FreeBSD_version > 400000)
@@ -599,12 +821,13 @@ sdla_get_pci_base_resource_addr(sdlahw_t* hw, int pci_offset, sdla_base_addr_t *
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
 	*base_addr = (sdla_base_addr_t)pci_conf_read(card->pci_dev->pa_pc, card->pci_dev->pa_tag, pci_offset);
 #elif defined(__LINUX__)
-
 	if (pci_offset == PCI_IO_BASE_DWORD){
 		*base_addr = (sdla_base_addr_t)pci_resource_start(card->pci_dev,0);
 	}else{
 		*base_addr = (sdla_base_addr_t)pci_resource_start(card->pci_dev,1);
 	}
+#elif defined(__WINDOWS__)
+	FUNC_NOT_IMPL
 #else
 # warning "sdla_get_pci_base_resource_addr: Not supported yet!"
 #endif
@@ -616,27 +839,35 @@ sdla_get_pci_base_resource_addr(sdlahw_t* hw, int pci_offset, sdla_base_addr_t *
 static __inline int __sdla_bus_read_4(void* phw, unsigned int offset, u32* value)
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
-	int retry=5;
-	WAN_ASSERT2(hw == NULL, 0);	
-	WAN_ASSERT2(hw->dpmbase == 0, 0);	
-	SDLA_MAGIC(hw);
+	sdlahw_cpu_t	*hwcpu;
+	unsigned int	retry=3;
 
+	WAN_ASSERT2(hw == NULL, 0);
+	WAN_ASSERT2(hw->hwcpu == NULL, 0);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT2(hwcpu->hwcard == NULL, 0);
+	WAN_ASSERT2(hwcpu->dpmbase == 0, 0);	
+	SDLA_MAGIC(hwcpu);
+
+	if (!(hwcpu->status & SDLA_MEM_MAPPED)) return 0;
 
 	do {
 
 #if defined(__FreeBSD__)
-	*value = readl(((u8*)hw->dpmbase + offset));
+	*value = readl(((u8*)hw->hwcpu->dpmbase + offset));
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	*value = bus_space_read_4(hw->hwcard->memt, hwcpu->dpmbase, offset); 
+	*value = bus_space_read_4(hw->hwcard->memt, hwcpu->hwcpu->dpmbase, offset); 
 #elif defined(__LINUX__)
-	*value = wp_readl((unsigned char*)hw->dpmbase + offset);
+	*value = wp_readl((unsigned char*)hw->hwcpu->dpmbase + offset);
+#elif defined(__WINDOWS__)
+	*value = READ_REGISTER_ULONG((PULONG)((PUCHAR)hw->hwcpu->dpmbase + offset));
 #else
 	*value = 0;
 # warning "sdla_bus_read_4: Not supported yet!"
 #endif
 		if (offset == 0x40 && *value == (u32)-1) {
 			if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("%s:%d: Error: Illegal Register read: 0x%04X = 0x%08X\n",
+			DEBUG_EVENT("%s:%d: wanpipe PCI Error: Illegal Register read: 0x%04X = 0x%08X\n",
 				__FUNCTION__,__LINE__,offset,*value);
 			}
 		} else {
@@ -652,16 +883,22 @@ static __inline int __sdla_bus_read_4(void* phw, unsigned int offset, u32* value
 static __inline int __sdla_bus_write_4(void* phw, unsigned int offset, u32 value) 
 {
 	sdlahw_t*	hw = (sdlahw_t*)phw;
+	sdlahw_cpu_t	*hwcpu;
 
-	WAN_ASSERT(hw == NULL);	
-	SDLA_MAGIC(hw);
-	if (!(hw->status & SDLA_MEM_MAPPED)) return 0;
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT(hwcpu->hwcard == NULL);	
+	SDLA_MAGIC(hwcpu);
+	if (!(hwcpu->status & SDLA_MEM_MAPPED)) return 0;
 #if defined(__FreeBSD__)
-	writel(((u8*)hw->dpmbase + offset), value);
+	writel(((u8*)hwcpu->dpmbase + offset), value);
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
-	bus_space_write_4(hw->hwcard->memt, hw->dpmbase, offset, value);
+	bus_space_write_4(hwcpu->hwcard->memt, hwcpu->dpmbase, offset, value);
 #elif defined(__LINUX__)
-	wp_writel(value,(u8*)hw->dpmbase + offset);
+	wp_writel(value,(u8*)hwcpu->dpmbase + offset);
+#elif defined(__WINDOWS__)
+	WRITE_REGISTER_ULONG((PULONG)((PUCHAR)hwcpu->dpmbase + offset), value);
 #else
 # warning "sdla_bus_write_4: Not supported yet!"
 #endif
@@ -670,38 +907,60 @@ static __inline int __sdla_bus_write_4(void* phw, unsigned int offset, u32 value
 
 static __inline int __sdla_is_same_hwcard(void* phw1, void *phw2)
 {
-	if (((sdlahw_t*)phw1)->hwcard == ((sdlahw_t*)phw2)->hwcard){
+	sdlahw_cpu_t	*hwcpu1, *hwcpu2;
+
+	WAN_ASSERT_RC(phw1 == NULL, 0);
+	WAN_ASSERT_RC(phw2 == NULL, 0);
+	WAN_ASSERT_RC(((sdlahw_t*)phw1)->hwcpu == NULL, 0);
+	WAN_ASSERT_RC(((sdlahw_t*)phw2)->hwcpu == NULL, 0);
+	hwcpu1 = ((sdlahw_t*)phw1)->hwcpu;
+	hwcpu2 = ((sdlahw_t*)phw2)->hwcpu;
+	if (hwcpu1->hwcard == hwcpu2->hwcard){
 		return 1;
 	}
 	return 0;
 }    
 
-static __inline void **__sdla_get_ptr_isr_array(void *phw1)
+static __inline void **__sdla_get_ptr_isr_array(void *phw)
 {
- 	return &((sdlahw_t*)phw1)->hwcard->port_ptr_isr_array[0];
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	sdlahw_cpu_t	*hwcpu;
+
+	WAN_ASSERT_RC(hw == NULL, 0);
+	WAN_ASSERT_RC(hw->hwcpu == NULL, 0);
+	hwcpu = hw->hwcpu;
+ 	return &hwcpu->port_ptr_isr_array[0];
 }
 
-static __inline void __sdla_push_ptr_isr_array(void *phw1, void *card, int line)
+static __inline void __sdla_push_ptr_isr_array(void *phw, void *card, int line)
 {
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	sdlahw_cpu_t	*hwcpu;
+
+	WAN_ASSERT_VOID(hw == NULL);
+	WAN_ASSERT_VOID(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
 	if (line >= SDLA_MAX_PORTS) {
 		return;
-	}	
-	
- 	((sdlahw_t*)phw1)->hwcard->port_ptr_isr_array[line]=card;
+	}
+ 	hwcpu->port_ptr_isr_array[line]=card;
 } 
 
-static __inline void __sdla_pull_ptr_isr_array(void *phw1, void *card, int line)
+static __inline void __sdla_pull_ptr_isr_array(void *phw, void *card, int line)
 {
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	sdlahw_cpu_t	*hwcpu;
+
+	WAN_ASSERT_VOID(hw == NULL);
+	WAN_ASSERT_VOID(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
 	if (line >= SDLA_MAX_PORTS) {
         	return;
 	}	
 
-	((sdlahw_t*)phw1)->hwcard->port_ptr_isr_array[line]=NULL;
-
+	hwcpu->port_ptr_isr_array[line]=NULL;
 	return;
 }  
-
-
 
 
 #undef EXTERN 

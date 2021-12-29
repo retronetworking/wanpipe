@@ -16,13 +16,19 @@ SYSINC	= /usr/src/linux/include
 # Tools options.
 CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(SYSINC) -I$(APIINC)
 
+TARGETS = fr_api 
+#TARGETS += fr_api_fast
+
+
 ####### RULES ################################################################
 
-all:	fr_api 
+all:    $(TARGETS)
 	@echo "Ok."
 
 fr_api:      	fr_api.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+#fr_api_fast:      	fr_api_fast.c
+#	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f fr_api
+	rm -f $(TARGETS)

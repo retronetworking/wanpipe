@@ -125,7 +125,7 @@ int MakeRawConnection( void )
    	
 	soin.sll_family = AF_PACKET;
 	soin.sll_protocol = htons(ETH_P_IP);
-	strcpy (ifr.ifr_name,i_name);
+	strlcpy (ifr.ifr_name,i_name,WAN_IFNAME_SZ);
    	if (ioctl(sock,SIOCGIFINDEX,&ifr) <0){
 		perror("Ioctl: ");
 		return (WAN_FALSE);
@@ -178,7 +178,7 @@ unsigned char DoCommand(void* pkt, int data_len)
 			udp_pkt.wp_mgmt.id=id;
 
 			ifr.ifr_data = (void*)&udp_pkt;
-			strcpy (ifr.ifr_name,i_name);
+			strlcpy (ifr.ifr_name,i_name,WAN_IFNAME_SZ);
 			ioctl(sock,SIOC_WANPIPE_PIPEMON,&ifr);
 			
 			if (err < 0){

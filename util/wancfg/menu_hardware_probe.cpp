@@ -305,7 +305,7 @@ int menu_hardware_probe::hardware_probe()
   FILE * hwprobe_file_tmp;
   char str_buff[MAX_PATH_LENGTH];
   char shell_command_line[MAX_PATH_LENGTH];
-  char* tmp_hwprobe_file_full_path = "tmp_hwprobe_file";
+  char* tmp_hwprobe_file_full_path = "/tmp/tmp_hwprobe_file";
   int probed_cards_count=0;
   string local_menu_str;
 
@@ -414,7 +414,7 @@ int menu_hardware_probe::hardware_probe()
 }
 
 int menu_hardware_probe::parse_selected_card_line(char *selected_card_line,
-                                                  char *card_type,
+                                                  unsigned int *card_type,
                                                   unsigned int *card_version,
                                                   unsigned int *card_sub_version)
 {
@@ -622,6 +622,44 @@ int menu_hardware_probe::parse_selected_card_line(char *selected_card_line,
     goto done;
   }
 
+
+  //
+  //ISDN BRI card
+  //
+  if( strstr(selected_card_line, "AFT-A500-SH") != NULL ||
+      strstr(selected_card_line, "AFT-A500-SH") != NULL   ){
+    rc = YES;
+    *card_type = WANOPT_AFT;
+    *card_version = AFT_ADPTR_ISDN;
+    global_card_type = WANOPT_AFT;
+    global_card_version = AFT_ADPTR_ISDN;
+
+    char *hw_ec_max_num_ptr = strstr(selected_card_line, "HWEC=");
+    if(hw_ec_max_num_ptr != NULL){
+      Debug(DBG_MENU_HARDWARE_PROBE, ("hw_ec_max_num_ptr: %s\n", hw_ec_max_num_ptr));
+      hw_ec_max_num_ptr += strlen("HWEC=");
+      //valid values are: 0, 32, 128.
+      //0 (zero) means there is no HWEC on the card.
+      global_hw_ec_max_num = atoi(hw_ec_max_num_ptr);
+      Debug(DBG_MENU_HARDWARE_PROBE, ("global_hw_ec_max_num: %d\n", global_hw_ec_max_num));
+    }
+
+    goto done;
+  }
+
+  //
+  //A14X (AFT) Serial card
+  //
+  if( strstr(selected_card_line, "AFT-A142-SH") != NULL ||
+			strstr(selected_card_line, "AFT-A144-SH") != NULL){
+    rc = YES;
+    *card_type = WANOPT_AFT;
+    *card_version = AFT_ADPTR_2SERIAL_V35X21;
+    global_card_type = WANOPT_AFT;
+		global_card_version = AFT_ADPTR_2SERIAL_V35X21;
+    goto done;
+  }
+
 done:
 
   if(global_hw_ec_max_num == 1){
@@ -668,7 +706,8 @@ int menu_hardware_probe::get_card_location_from_hwprobe_line( wandev_conf_t* lin
     }
 
     //ADSL card always have only one CPU. But check anyway
-    if(get_cpu_from_str(selected_card_line, linkconf->S514_CPU_no) == NO){
+    if(get_cpu_from_str(selected_card_line, linkconf->S514_CPU_no) == NO &&
+	    linkconf->card_type == WANOPT_S51X){
       ERR_DBG_OUT(("Failed to get 'S514_CPU_no' from line: %s!\n",
         selected_card_line));
       return NO;
@@ -684,12 +723,14 @@ int menu_hardware_probe::get_card_location_from_hwprobe_line( wandev_conf_t* lin
     return NO;
   }
 
-  if(link_def->card_version != A104_ADPTR_4TE1){
-  	//get the port
-  	return get_port_from_str(selected_card_line, &linkconf->comm_port);
+  if(	(link_def->card_version != A104_ADPTR_4TE1) && 
+			(link_def->card_version != AFT_ADPTR_ISDN)	&&
+			(link_def->card_version != AFT_ADPTR_2SERIAL_V35X21)){
+  		//get the port
+  		return get_port_from_str(selected_card_line, &linkconf->comm_port);
   }else{
-	//get line_no
-	return get_line_number_from_str(selected_card_line, &fe_cfg->line_no);
+			//get line_no
+			return get_line_number_from_str(selected_card_line, &fe_cfg->line_no);
   }
 }
 
@@ -857,7 +898,7 @@ int menu_hardware_probe::verify_hwprobe_command_is_successfull()
   char* expected_str = "Wanpipe Hardware Probe Info";
   FILE * hwprobe_file_tmp;
   char str_buff[MAX_PATH_LENGTH];
-  char* tmp_hwprobe_file_full_path = "tmp_hwprobe_file";
+  char* tmp_hwprobe_file_full_path = "/tmp/tmp_hwprobe_file";
   char rc = NO;
 
   hwprobe_file_tmp = fopen(tmp_hwprobe_file_full_path, "r+");
@@ -891,18 +932,17 @@ int menu_hardware_probe::verify_hwprobe_command_is_successfull()
 int menu_hardware_probe::add_card_to_list(IN char *hw_probe_output_line)
 {
   int rc = YES, key;
-  char card_type;
+  unsigned int card_type;
   int card_version = 0, card_sub_version = 0;
   unsigned int line_no, PCI_slot_no, pci_bus_no;
   char S514_CPU_no[10];
 
   list_element_sangoma_card *sangoma_card, *last_in_list_card;
 
-  replace_new_line_with_zero_term(hw_probe_output_line);
 
   if(parse_selected_card_line(
-                  hw_probe_output_line,
-                  (char*)&card_type,
+                  replace_new_line_with_zero_term(hw_probe_output_line),
+                  (unsigned int*)&card_type,
                   (unsigned int*)&card_version,
                   (unsigned int*)&card_sub_version) == NO){
     ERR_DBG_OUT(("Failed to get Card Type from from Hardware Proble output line!! line: %s\n",

@@ -245,11 +245,11 @@ static int 	del_if(wan_device_t *wandev, netdevice_t *dev);
 static int 	if_init   (netdevice_t* dev);
 static int 	wanpipe_xilinx_open   (netdevice_t* dev);
 static int 	wanpipe_xilinx_close  (netdevice_t* dev);
-static int 	wanpipe_xilinx_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd);
-static struct net_device_stats* wanpipe_xilinx_ifstats (netdevice_t* dev);
+static int 	wanpipe_xilinx_ioctl(netdevice_t*, struct ifreq*, wan_ioctl_cmd_t);
 
 #if defined(__LINUX__)
 static int 	wanpipe_xilinx_send (netskb_t* skb, netdevice_t* dev);
+static struct net_device_stats* wanpipe_xilinx_ifstats (netdevice_t* dev);
 #else
 static int	wan_aft_output(netdevice_t*, netskb_t*, struct sockaddr*, 
 				struct rtentry*);
@@ -394,7 +394,6 @@ static int 	aft_tdmv_free(sdla_t *card);
 static int	aft_tdmv_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf);
 static int 	aft_tdmv_if_free(sdla_t *card, private_area_t *chan);
 static void 	aft_critical_shutdown (sdla_t *card);
-static int 	digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt);
 
 #ifdef AFT_TDM_API_SUPPORT
 static int aft_read_rbs_bits(void *chan_ptr, u32 ch, u8 *rbs_bits);
@@ -404,6 +403,8 @@ static int aft_tdm_api_rx_tx_channelized(sdla_t *card, private_area_t *chan, net
 static int aft_tdm_api_update_state_channelized(sdla_t *card, private_area_t *chan, int state);
 static int aft_tdm_api_free_channelized(sdla_t *card, private_area_t *chan);
 #endif
+
+static void wanpipe_wake_stack(private_area_t* chan);
 
 static void xilinx_delay(int sec)
 {
@@ -484,16 +485,12 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 		return -EINVAL;
 	}
 
-#if defined(WAN_DEBUG_MEM)
-        DEBUG_EVENT("%s: Total Mem %d\n",
-			__FUNCTION__,wan_atomic_read(&wan_debug_mem));
-#endif
 
 	/* Obtain hardware configuration parameters */
 	card->wandev.clocking 			= conf->clocking;
 	card->wandev.ignore_front_end_status 	= conf->ignore_front_end_status;
 	card->wandev.ttl 			= conf->ttl;
-	card->wandev.interface 			= conf->interface;
+	card->wandev.electrical_interface      	= conf->electrical_interface;
 	card->wandev.comm_port 			= conf->comm_port;
 	card->wandev.udp_port   		= conf->udp_port;
 	card->wandev.new_if_cnt 		= 0;
@@ -534,11 +531,11 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 		}
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_te_iface_init(&card->wandev.fe_iface);
+		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
-		card->fe.write_fe_reg	= write_front_end_reg;
-		card->fe.read_fe_reg	= read_front_end_reg;
+		card->fe.write_fe_reg	= card->hw_iface.fe_write;	//write_front_end_reg;
+		card->fe.read_fe_reg	= card->hw_iface.fe_read;	//read_front_end_reg;
 		
 		card->wandev.te_report_rbsbits = aft_report_rbsbits;
 		card->wandev.fe_enable_timer = enable_timer;
@@ -550,7 +547,7 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
 			card->fe.fe_cfg.cfg.te_cfg.te_ref_clock = WAN_TE1_REFCLK_OSC;
 		}
 			
-		conf->interface =
+		conf->electrical_interface =
 			IS_T1_CARD(card) ? WANOPT_V35 : WANOPT_RS232;
 
 		if (card->wandev.comm_port == WANOPT_PRI){
@@ -739,13 +736,13 @@ int wp_xilinx_init (sdla_t* card, wandev_conf_t* conf)
  */
 static int update (wan_device_t* wandev)
 {
-	sdla_t			*card = wandev->private;
+	sdla_t			*card = wandev->priv;
  	netdevice_t		*dev;
         volatile private_area_t	*chan;
 	wan_smp_flag_t		smp_flags;
 
 	/* sanity checks */
-	if((wandev == NULL) || (wandev->private == NULL))
+	if((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 
 	if(wandev->state == WAN_UNCONFIGURED)
@@ -815,7 +812,7 @@ static int aft_tdm_api_init(sdla_t *card, private_area_t *chan, int logic_ch, wa
 	/* Initilaize TDM API Parameters */
 	wp_tdm_api_dev->chan = chan;
 	wp_tdm_api_dev->card = card;
-	wan_spin_lock_init(&wp_tdm_api_dev->lock);
+	wan_spin_lock_init(&wp_tdm_api_dev->lock, "wan_tdmapi_lock");
 	strncpy(wp_tdm_api_dev->name,chan->if_name,WAN_IFNAME_SZ);
 
 	if (conf->hdlc_streaming) {
@@ -931,6 +928,23 @@ static int aft_tdm_api_free_channelized(sdla_t *card, private_area_t *chan)
 
 #endif
 
+
+
+static void wanpipe_wake_stack(private_area_t* chan)
+{
+       WAN_NETIF_WAKE_QUEUE(chan->common.dev);
+#if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
+        if (chan->common.usedby == API){
+# if defined(__LINUX__)
+                 wan_wakeup_api(chan);
+# endif
+        }else if (chan->common.usedby == STACK){
+                 wanpipe_lip_kick(chan,0);
+        }
+#endif
+}
+
+
 /*============================================================================
  * new_if - Create new logical channel.
  *
@@ -967,7 +981,7 @@ static int aft_tdm_api_free_channelized(sdla_t *card, private_area_t *chan)
  */
 static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf, int channelized)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	private_area_t* chan;
 	int err = 0;
 
@@ -1481,7 +1495,6 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
         chan->common.iface.close     = &wanpipe_xilinx_close;
         chan->common.iface.output    = &wan_aft_output;
         chan->common.iface.ioctl     = &wanpipe_xilinx_ioctl;
-        chan->common.iface.get_stats = &wanpipe_xilinx_ifstats;
         chan->common.iface.tx_timeout= &wanpipe_xilinx_tx_timeout;
 	if (wan_iface.attach){
 		wan_iface.attach(dev, NULL, chan->common.is_netdev);
@@ -1512,7 +1525,7 @@ new_if_error:
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
 	int err=-EINVAL;
-	sdla_t *card=wandev->private;
+	sdla_t *card=wandev->priv;
 	
 	wan_netif_set_priv(dev, NULL);
 
@@ -1871,6 +1884,8 @@ static int if_init (netdevice_t* dev)
 			}
 
 			dev->hard_header_len	= 0;
+			dev->hard_header	= NULL; 
+			dev->rebuild_header	= NULL;
 
 			/* Enable Mulitcasting if user selected */
 			if (chan->mc == WANOPT_YES){
@@ -2017,11 +2032,7 @@ static int wanpipe_xilinx_open (netdevice_t* dev)
                 set_chan_state(card, dev, WAN_CONNECTED);
 		WAN_NETIF_WAKE_QUEUE(dev);
 		WAN_NETIF_CARRIER_ON(dev);
-		if (chan->common.usedby == API){
-			wan_wakeup_api(chan);
-		}else if (chan->common.usedby == STACK){
-			wanpipe_lip_kick(chan,0);
-		}   
+		wanpipe_wake_stack(chan);
         }
                   
 	wan_spin_unlock_irq(&card->wandev.lock,&flags);
@@ -2188,15 +2199,8 @@ static void wanpipe_xilinx_tx_timeout (netdevice_t* dev)
 
 	xilinx_tx_fifo_under_recover(card,chan);
 
-	WAN_NETIF_WAKE_QUEUE(dev);	/*netif_wake_queue (dev);*/
+	wanpipe_wake_stack(chan);
 
-	if (chan->common.usedby == API){
-# if defined(__LINUX__)
-		wan_wakeup_api(chan);
-# endif
-	}else if (chan->common.usedby == STACK){
-		wanpipe_lip_kick(chan,0);
-	}           
 }
 
 
@@ -2334,8 +2338,13 @@ static int wanpipe_xilinx_send (netskb_t* skb, netdevice_t* dev)
 			goto xilinx_tx_dma;     
 
 		} else if (wan_skb_queue_len(&chan->wp_tx_pending_list) > chan->max_tx_bufs){
-                	WAN_NETIF_STOP_QUEUE(dev);	/*stop_net_queue(dev);*/
-			xilinx_dma_tx(card,chan);
+			wan_smp_flag_t smp_flags;
+			wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
+			WAN_NETIF_STOP_QUEUE(dev);      /*stop_net_queue(dev);*/
+			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+			if (chan->hdlc_eng) {
+				xilinx_dma_tx(card,chan);
+			}
 			return 1;
 		}else{
 xilinx_tx_dma:
@@ -2364,7 +2373,9 @@ xilinx_tx_dma:
 			}	
 
 			wan_skb_queue_tail(&chan->wp_tx_pending_list,skb);
-			xilinx_dma_tx(card,chan);
+ 			if (chan->hdlc_eng) {
+				xilinx_dma_tx(card,chan);
+			}
 			wan_netif_set_ticks(dev, SYSTEM_TICKS);
 		}
 	}
@@ -2394,6 +2405,7 @@ if_send_exit_crit:
 }
 
 
+#if defined(__LINUX__)
 /*============================================================================
  * if_stats
  *
@@ -2416,9 +2428,7 @@ static struct net_device_stats* wanpipe_xilinx_ifstats (netdevice_t* dev)
 
 	return &chan->if_stats;
 }
-
-
-
+#endif
 
 /*========================================================================
  *
@@ -2440,7 +2450,7 @@ static struct net_device_stats* wanpipe_xilinx_ifstats (netdevice_t* dev)
  *
  */
 static int 
-wanpipe_xilinx_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
+wanpipe_xilinx_ioctl(netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 {
 	private_area_t* chan;
 	sdla_t *card;
@@ -3942,16 +3952,7 @@ tx_post_ok:
 tx_post_exit:
 
 	if (WAN_NETIF_QUEUE_STOPPED(chan->common.dev)){
-		WAN_NETIF_WAKE_QUEUE(chan->common.dev);
-#if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-		if (chan->common.usedby == API){
-# if defined(__LINUX__)
-			wan_wakeup_api(chan);
-# endif
-		}else if (chan->common.usedby == STACK){
-			wanpipe_lip_kick(chan,0);
-		}
-#endif
+		wanpipe_wake_stack(chan);
 	}
 	
 #ifdef AFT_TDM_API_SUPPORT 
@@ -4439,10 +4440,13 @@ static void enable_timer (void* card_id)
 	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
 #else	
 	wan_smp_flag_t	smp_flags;
-	int		err = 0;
+	int		delay = 0;
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
-	err = card->wandev.fe_iface.polling(&card->fe);
+	delay = card->wandev.fe_iface.polling(&card->fe);
 	wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+	if (delay){
+		card->wandev.fe_iface.add_timer(&card->fe, delay);
+	}
 #endif
 
 	DEBUG_TEST("%s: %s Sdla Polling End!\n",
@@ -4545,7 +4549,9 @@ static void wp_bh(void *data, int pending)
 				continue;
 			}
 			new_skb->protocol = htons(PVC_PROT);
+			
 			wan_skb_reset_mac_header(new_skb);
+
 			new_skb->dev      = chan->common.dev;
 			new_skb->pkt_type = WAN_PACKET_DATA;	
 
@@ -4671,7 +4677,7 @@ static void wp_bh(void *data, int pending)
 		chan->if_stats.rx_bytes+=len;
 	}
 
-	while((skb=wan_skb_dequeue(&chan->wp_tx_complete_list)) != NULL){
+	while(chan->hdlc_eng && (skb=wan_skb_dequeue(&chan->wp_tx_complete_list)) != NULL){
 		xilinx_tx_post_complete (chan->common.card,chan,skb);
 		wan_skb_free(skb);
 	}
@@ -5146,9 +5152,10 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			break;
 
 		case DIGITAL_LOOPTEST:
-			wan_udp_pkt->wan_udp_return_code = 
-				digital_loop_test(card,wan_udp_pkt);
+			wan_udp_pkt->wan_udp_return_code = 0;
+			DEBUG_EVENT("Ready to send some data!!!\n");
 			break;
+
 
 		case AFT_MODEM_STATUS:
 			wan_udp_pkt->wan_udp_return_code = 0;
@@ -6115,7 +6122,7 @@ static int update_comms_stats(sdla_t* card)
          if (IS_TE1_CARD(card)) {
 		wan_smp_flag_t smp_flags;
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
-         	card->wandev.fe_iface.read_alarm(&card->fe, 0); 
+         	card->wandev.fe_iface.read_alarm(&card->fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE); 
                 /* TE1 Update T1/E1 perfomance counters */
 		card->wandev.fe_iface.read_pmon(&card->fe, 0);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
@@ -6193,20 +6200,18 @@ static void xilinx_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 	if (chan->tx_dma_skb){
 		wan_skb_queue_head(&chan->wp_tx_pending_list, chan->tx_dma_skb);		
 		chan->tx_dma_skb=NULL;
+                if (chan->lip_atm) {
+			netskb_t *tmpskb = chan->tx_dma_skb;
+			chan->tx_dma_skb=NULL;
+			wan_skb_free(tmpskb);
+                } else {
+			wan_skb_queue_head(&chan->wp_tx_pending_list, chan->tx_dma_skb);
+			chan->tx_dma_skb=NULL;
+                }
 	}	
 
-	/* Wake up the stack, because tx dma interrupt
-         * failed */
-#if defined(__LINUX__)
-	if (WAN_NETIF_QUEUE_STOPPED(chan->common.dev)){
-                WAN_NETIF_WAKE_QUEUE(chan->common.dev);
-                if (chan->common.usedby == API){
-#ifndef CONFIG_PRODUCT_WANPIPE_GENERIC
-                        wan_wakeup_api(chan);
-#endif
-                }
-        }
-#endif
+	/* Wake up the stack, because tx dma interrupt failed */
+	wanpipe_wake_stack(chan);
 
 	if (!chan->hdlc_eng){
 		if (wan_test_bit(0,&chan->idle_start)){
@@ -6227,9 +6232,9 @@ static void xilinx_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 
 static int xilinx_write_ctrl_hdlc(sdla_t *card, u32 timeslot, u8 reg_off, u32 data)
 {
-	u32 reg;
-	u32 ts_orig=timeslot;
-	unsigned long timeout=SYSTEM_TICKS;
+	u32		reg;
+	u32		ts_orig=timeslot;
+	wan_ticks_t	timeout=SYSTEM_TICKS;
 
 	if (timeslot == 0){
 		timeslot=card->u.aft.num_of_time_slots-2;
@@ -6311,7 +6316,6 @@ static int set_chan_state(sdla_t* card, netdevice_t* dev, int state)
 	       wan_update_api_state(chan);
 	}
 #endif
-
 	if (chan->common.usedby == STACK){
 		if (state == WAN_CONNECTED){
 			wanpipe_lip_connect(chan,0);
@@ -6664,7 +6668,7 @@ void protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb)
 	if (chan->common.protocol == WANCONFIG_GENERIC){
 		skb->protocol = htons(ETH_P_HDLC);
 		skb->dev = chan->common.dev;
-		wan_skb_reset_mac_header(skb);
+ 	        wan_skb_reset_mac_header(skb);
 		netif_rx(skb);
 		return 0;
 	}
@@ -6673,7 +6677,7 @@ void protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb)
 #if defined(__LINUX__)
 	skb->protocol = htons(ETH_P_IP);
 	skb->dev = chan->common.dev;
-	wan_skb_reset_mac_header(skb);
+ 	wan_skb_reset_mac_header(skb);
 	netif_rx(skb);
 #else
 	if (wan_iface.input){
@@ -6783,6 +6787,7 @@ This conversion is done in te1 sources.
 	skb->pkt_type = WAN_PACKET_ERR;
 	skb->protocol=htons(PVC_PROT);
 	skb->dev=chan->common.dev;
+	
 	DEBUG_TEST("%s: Sending OOB message len=%i\n",
 			chan->if_name, wan_skb_len(skb));
 
@@ -7047,11 +7052,15 @@ static void aft_port_task (struct work_struct *work)
 static void aft_port_task (void * card_ptr, int arg)
 #endif
 {
-#if defined(__LINUX__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
+#if defined(__LINUX__)
+# if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
         sdla_t 		*card = (sdla_t *)container_of(work, sdla_t, u.aft.port_task);
+# else
+	sdla_t 		*card = (sdla_t *)card_ptr;
+# endif
 #else
 	sdla_t 		*card = (sdla_t *)card_ptr;
-#endif
+#endif 
 	wan_smp_flag_t	smp_flags;
 
 	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
@@ -7076,10 +7085,12 @@ static void aft_port_task (void * card_ptr, int arg)
 		aft_fe_intr_ctrl(card, 0);
 		if (card->wandev.fe_iface.polling){
 			wan_smp_flag_t	smp_flags;
-			int		err = 0; 
+			int		delay = 0; 
 
-			err = card->wandev.fe_iface.polling(&card->fe);
-
+			delay = card->wandev.fe_iface.polling(&card->fe);
+			if (delay){
+				card->wandev.fe_iface.add_timer(&card->fe, delay);
+			}
 			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 			handle_front_end_state(card);
 			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
@@ -7574,76 +7585,6 @@ static void aft_critical_shutdown (sdla_t *card)
 	aft_red_led_ctrl(card, AFT_LED_ON);	
 	card->wandev.fe_iface.led_ctrl(&card->fe, AFT_LED_OFF);
 }
-
-
-
-static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
-{
-	netskb_t* skb;
-	netdevice_t* dev;
-	char* buf;
-	private_area_t *chan;
-
-	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
-	if (dev == NULL) {
-		return 1;
-	}
-	chan = wan_netif_priv(dev);
-	if (chan == NULL) {
-		return 1;
-	}
-	
-	if (chan->common.state != WAN_CONNECTED) {
-		DEBUG_EVENT("%s: Loop test failed: dev not connected!\n",
-		                        card->devname);
-		return 2;
-	}
-	 
-	skb = wan_skb_alloc(wan_udp_pkt->wan_udp_data_len+100);
-	if (skb == NULL) {
-		return 3;
-	}
-
-	switch (chan->common.usedby) {
-
-	case API:
-		wan_skb_push(skb, sizeof(api_rx_hdr_t));
-		break;
-
-	case STACK:
-	case WANPIPE:
-		break;
-
-	case TDM_VOICE:
-	case TDM_VOICE_API:
-	case TDM_VOICE_DCHAN:
-		if (card->u.aft.tdmv_dchan) {
-			break;
-		} else {
-			DEBUG_EVENT("%s: Loop test failed: no dchan in TDMV mode!\n",
-		                        card->devname);
-		}
-		/* Fall into the default case */
-
-	default:
-		DEBUG_EVENT("%s: Loop test failed: invalid operation mode!\n",
-			card->devname);
-		wan_skb_free(skb);
-		return 4;
-	}
-
-	buf = wan_skb_put(skb, wan_udp_pkt->wan_udp_data_len);
-	memcpy(buf, wan_udp_pkt->wan_udp_data, wan_udp_pkt->wan_udp_data_len);
-
-
-	skb->next = skb->prev = NULL;
-        skb->dev = dev;
-        skb->protocol = htons(ETH_P_IP);
-	wan_skb_reset_mac_header(skb);
-        dev_queue_xmit(skb);
-
-	return 0;
-}       
 
 
 

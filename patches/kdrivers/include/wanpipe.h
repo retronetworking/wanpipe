@@ -13,6 +13,9 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ============================================================================
+* Nov 27,  2007 David Rokhvarg	Implemented functions/definitions for
+*                               Sangoma MS Windows Driver and API.
+*
 * Nov 3,  2000  Nenad Corbic    Added config_id to sdla_t structure.
 *                               Used to determine the protocol running.
 * Jul 13, 2000  Nenad Corbic	Added SyncPPP Support
@@ -47,6 +50,14 @@
 #include <wanpipe_events.h>
 #include <wanpipe_cfg.h>
 # include <wanrouter.h>
+#elif defined(__WINDOWS__)
+#include <wanpipe_defines.h>
+#include <wanpipe_debug.h>
+#include <wanpipe_common.h>
+#include <wanpipe_events.h>
+#include <wanpipe_cfg.h>
+#include <wanrouter.h>
+#include <wanpipe_structs.h>
 #elif defined(__LINUX__) || defined (__KERNEL__)
 #include <linux/wanpipe_defines.h>
 #include <linux/wanpipe_debug.h>
@@ -89,6 +100,7 @@
 #endif
 
 /* Defines */
+
 #define	WANPIPE_MAGIC	0x414C4453L	/* signature: 'SDLA' reversed */
 
 /* IOCTL numbers (up to 16) */
@@ -307,10 +319,21 @@ typedef struct {
 # include <linux/tty.h>
 # include <linux/tty_driver.h>
 # include <linux/tty_flip.h>
+#elif defined(__WINDOWS__)
+# include <wanpipe_debug.h>
+# include <wanpipe_kernel.h>
+# include <sdlasfm.h>	/* SDLA firmware module definitions */
+# include <sdladrv.h>	/* SDLA support module API definitions */
+# include <wanpipe_common.h>
 #endif
 
 #define MAX_E1_CHANNELS 32
+
+#if defined(__WINDOWS__)
+#define MAX_FR_CHANNELS	MAX_NUMBER_OF_PROTOCOL_INTERFACES /*1023*/
+#else
 #define MAX_FR_CHANNELS (1007+1)
+#endif
 
 #define WAN_ENABLE	0x01
 #define WAN_DISABLE	0x02
@@ -366,7 +389,7 @@ typedef	struct
 	wan_x25_conf_t 	x25_conf;
 	atomic_t tx_interrupt_cmd;
 	struct sk_buff_head trace_queue;
-	unsigned long trace_timeout;
+	wan_ticks_t trace_timeout;
 	unsigned short trace_lost_cnt;
 
 	unsigned long  card_ready;
@@ -694,19 +717,20 @@ typedef struct
 	unsigned char 	state_change_exit_isr;
 	unsigned long 	active_ch_map;
 	unsigned long 	fifo_addr_map;
+	unsigned long 	fifo_addr_map_l2;
 	wan_timer_t 	led_timer;
 	unsigned char 	tdmv_sync;
 	unsigned int	chip_cfg_status;	
 	wan_taskq_t 	port_task;
 	unsigned int 	port_task_cmd;
 	unsigned long	wdt_rx_cnt;
-	unsigned long	wdt_tx_cnt;
+	wan_ticks_t	wdt_tx_cnt;
 	unsigned int	security_id;
 	unsigned int	security_cnt;
 	unsigned char	firm_ver;
 	unsigned char	firm_id;
 	unsigned int	chip_security_cnt;
-	unsigned long	rx_timeout,gtimeout;
+	wan_ticks_t	rx_timeout,gtimeout;
 	unsigned int	comm_enabled;
 	unsigned int	lcfg_reg;
 	unsigned int    tdmv_master_if_up;
@@ -731,14 +755,10 @@ typedef struct
 	unsigned short	tdm_tx_dma_toggle;
 	unsigned int	tdm_logic_ch_map;
 
-	unsigned long	sec_chk_cnt;
-
+	wan_ticks_t	sec_chk_cnt;
 	wan_skb_queue_t	rtp_tap_list;
-	unsigned int	rx_errors_hist;
-	unsigned int 	rx_errors_over_cnt;
-	unsigned long	rx_errors_timeout;
-	unsigned long	rx_errors_down_timeout;
-	
+	unsigned int	serial_status;
+
 } sdla_xilinx_t;
 
 
@@ -759,20 +779,26 @@ typedef struct
 	unsigned long	status;
 } sdla_debug_t;
 
+
 /* Adapter Data Space.
  * This structure is needed because we handle multiple cards, otherwise
  * static data would do it.
  */
 typedef struct sdla
 {
+#if defined(__WINDOWS__)
+	u8	device_type; /* must be first member of sdla_t structure! */
+	struct	_win_sdla_data;
+#endif/* __WINDOWS__ */
+
 	char devname[WAN_DRVNAME_SZ+1];	/* card name */
 	void*	hw;			/* hardware configuration */
 	wan_device_t wandev;		/* WAN device data space */
 	
-	unsigned open_cnt;		/* number of open interfaces */
-	unsigned long state_tick;	/* link state timestamp */
-	unsigned intr_mode;		/* Type of Interrupt Mode */
-	unsigned long in_isr;		/* interrupt-in-service flag */
+	unsigned	open_cnt;		/* number of open interfaces */
+	wan_ticks_t	state_tick;	/* link state timestamp */
+	unsigned	intr_mode;		/* Type of Interrupt Mode */
+	unsigned long	in_isr;		/* interrupt-in-service flag */
 	char buff_int_mode_unbusy;	/* flag for carrying out dev_tint */  
 	char dlci_int_mode_unbusy;	/* flag for carrying out dev_tint */
 	unsigned long configured;	/* flag for previous configurations */
@@ -821,8 +847,13 @@ typedef struct sdla
 	struct sk_buff_head 	tty_rx_empty;
 	struct sk_buff_head 	tty_rx_full;
 	wan_taskq_t		tty_task_queue;
-#endif	
+#endif
+	
+#if defined(__WINDOWS__)
+	struct
+#else
 	union
+#endif
 	{
 #if defined(__LINUX__)
 		sdla_x25_t	x;
@@ -862,8 +893,8 @@ typedef struct sdla
 	unsigned long  	update_comms_stats;
 	
 	sdla_fe_t	fe;		/* front end structures */
-	u8		fe_no_intr;	/* do not enable global fe intr */
-		
+	u8		fe_no_intr;	/* set to 0x01 if not FE interrupt should enabled */		
+	
 	unsigned int	rCount;
 
 	/* Wanpipe Socket Interface */
@@ -899,9 +930,11 @@ typedef struct sdla
 # if defined(NETGRAPH)
 	int	running;	/* something is attached so we are running */
 	/* ---netgraph bits --- */
-	int		datahooks;	/* number of data hooks attached */
+	int		upperhooks;	/* number of upper hooks attached */
+	int		lowerhooks;	/* number of lower hooks attached */
 	node_p		node;		/* netgraph node */
-	hook_p		hook;		/* data hook */
+	hook_p		upper;		/* upper layer */
+	hook_p		lower;		/* lower layer */
 	hook_p		debug_hook;
 # if defined(ALTQ)
 	struct ifaltq	xmitq_hipri;	/* hi-priority transmit queue */
@@ -921,6 +954,8 @@ typedef struct sdla
 	u_long		inrate, outrate;	/* highest rate seen */
 	u_long		inlast;		/* last input N secs ago */
 	u_long		out_deficit;	/* output since last input */
+	u_char		promisc;	/* promiscuous mode enabled */
+	u_char		autoSrcAddr;	/* always overwrite source address */
 	void (*wan_down)(struct sdla*);
 	int (*wan_up)(struct sdla*);
 	void (*wan_start)(struct sdla*);
@@ -931,9 +966,11 @@ typedef struct sdla
 	u_long		opackets, ipackets;
 #endif /* __FreeBSD__ */
 
-	/* This value is used for detecting TDM Voice
-         * rsync timeout, it should be long */
-	unsigned long	rsync_timeout;
+
+ 	/* This value is used for detecting TDM Voice
+	* rsync timeout, it should be long */
+	wan_ticks_t   rsync_timeout;
+
 } sdla_t;
 
 /****** Public Functions ****************************************************/
@@ -963,6 +1000,8 @@ int wp_xilinx_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Suppor
 int wp_aft_te1_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_aft_56k_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_aft_analog_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
+int wp_aft_bri_init(sdla_t* card, wandev_conf_t* conf);	/* BRI Hardware Support */
+int wp_aft_serial_init(sdla_t* card, wandev_conf_t* conf);	/* Serial Hardware Support */
 int wp_adccp_init(sdla_t* card, wandev_conf_t* conf);	
 int wp_xilinx_if_init(sdla_t* card, netdevice_t* dev);
 int wp_aft_te3_init(sdla_t* card, wandev_conf_t* conf); /* AFT TE3 Hardware Support */
@@ -1022,8 +1061,14 @@ void *atm_tx_skb_dequeue(void* wp_tx_pending_list, void *tx_idle_skb, char *if_n
 
 
 #if defined(__FreeBSD__) && defined(NETGRAPH)
-int wan_ng_init(sdla_t*);
-int wan_ng_remove(sdla_t*);
+int wan_ng_init_old(sdla_t*);
+int wan_ng_remove_old(sdla_t*);
+#endif
+
+#if defined(__WINDOWS__)
+extern int connect_to_interrupt_line(sdla_t *card);
+extern void disconnect_from_interrupt_line(sdla_t *card);
+int wp_aft_firmware_up_init(sdla_t* card, wandev_conf_t* conf);	/* AFT Firmware Update support */
 #endif
 
 #endif	/* __KERNEL__ */

@@ -140,7 +140,6 @@ int wplip_reg_lipdev_prot(wplip_dev_t *lip_dev, wanif_conf_t *conf)
 		return -EINVAL;
 	}
 	
-
 	WPLIP_PROT_EXIST(lip_dev->protocol,-ENODEV);
 	
 	prot_iface=wplip_prot_ops[lip_dev->protocol];

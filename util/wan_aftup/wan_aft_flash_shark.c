@@ -139,6 +139,10 @@ static unsigned short get_cpld_off(int adptr_type, unsigned short cpld_off)
 		cpld_off &= ~AFT_BIT_DEV_ADDR_CLEAR; 
 		cpld_off |= AFT_BIT_DEV_ADDR_CPLD; 
 		break;
+	case AFT_ADPTR_56K:
+		cpld_off &= ~AFT8_BIT_DEV_ADDR_CLEAR; 
+		cpld_off |= AFT8_BIT_DEV_ADDR_CPLD; 
+		break;
 	default:
 		cpld_off |= AFT4_BIT_DEV_ADDR_CPLD; 
 		break;

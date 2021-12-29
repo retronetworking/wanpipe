@@ -139,7 +139,7 @@ void text_box::show_help_message( IN char * lxdialog_path,
   FILE * help_msg_file;
   char dbg_tmp_buff[LEN_OF_DBG_BUFF];
   va_list ap;
-  char* help_msg_file_name = "./wancfg_help_msg_file_name";
+  char* help_msg_file_name = "/tmp/wancfg_help_msg_file_name";
   char* remove_help_msg_file = "rm -rf wancfg_help_msg_file_name";
 
   va_start(ap, format);

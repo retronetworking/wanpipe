@@ -29,10 +29,6 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 
 char* get_master_dev_name(wplip_link_t 	*lip_link);
 
-#ifdef __LINUX__
-static int wplip_change_mtu(netdevice_t *dev, int new_mtu);
-#endif
-
 /*==============================================================
  * wplip_open_dev
  *
@@ -59,22 +55,17 @@ int wplip_open_dev(netdevice_t *dev)
 	if (!lip_dev || !lip_dev->lip_link){
 		return -ENODEV;
 	}
-			
+
 	if (wan_test_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical)) {
 		return -ENODEV;
 	}
 	
 #if defined(__LINUX__)
-
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,18)
 	if (netif_running(dev))
 		return -EBUSY;
 # endif
-
-	/* Updated the lower level MTU based on the interface MTU */	
-	wplip_change_mtu(lip_dev->common.dev, dev->mtu);
 #endif
-
 
 	wan_clear_bit(0,&lip_dev->if_down);
 
@@ -87,7 +78,7 @@ int wplip_open_dev(netdevice_t *dev)
 	}
 #endif
 
-#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
+#if defined(WANPIPE_IFNET_QUEUE_POLICY_INIT_OFF)
 	if (lip_dev->lip_link->state == WAN_CONNECTED){
 		WAN_NETIF_CARRIER_ON(dev);		
 		WAN_NETIF_WAKE_QUEUE(dev);
@@ -100,7 +91,8 @@ int wplip_open_dev(netdevice_t *dev)
 #endif
 
 	/* Its possible for state update to be skipped if interface was down */
-	wplip_lipdev_prot_update_state_change(lip_dev,NULL,0);
+        wplip_lipdev_prot_update_state_change(lip_dev,NULL,0);
+
 
 	if (!wan_test_bit(WAN_DEV_READY,&lip_dev->interface_down)) {
 		wan_set_bit(WAN_DEV_READY,&lip_dev->interface_down);
@@ -135,14 +127,14 @@ int wplip_stop_dev(netdevice_t *dev)
 		return 0;
 	}
 
-	wan_set_bit(0,&lip_dev->if_down);
-
 #ifdef WPLIP_TTY_SUPPORT
 	if (lip_dev->lip_link->tty_opt && lip_dev->lip_link->tty_open){
 		tty_hangup(lip_dev->lip_link->tty);
 		return -EBUSY;
 	}
 #endif
+
+	wan_set_bit(0,&lip_dev->if_down);
 
 #if 0
 	/* Done in if register now, do it interface up down
@@ -154,7 +146,7 @@ int wplip_stop_dev(netdevice_t *dev)
 }
 
 
-
+#if defined(__LINUX__)
 /*==============================================================
  * wplip_ifstats
  *
@@ -176,12 +168,12 @@ struct net_device_stats* wplip_ifstats (netdevice_t *dev)
 		wan_netif_name(dev),__FUNCTION__);
 
 	if (lip_dev){
-		return &lip_dev->ifstats;
+		return &lip_dev->common.if_stats;
 	}
 
 	return &gstats;
 }
-
+#endif
 
 
 /*==============================================================
@@ -224,7 +216,6 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 		return 1;
 	}
 
-
 #if 1
 	if (lip_dev->common.state != WAN_CONNECTED){
 #else
@@ -232,18 +223,18 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 	    lip_dev->common.state != WAN_CONNECTED){
 #endif
 
-#if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)		
+#if defined(WANPIPE_IFNET_QUEUE_POLICY_INIT_OFF)		
 		/* This causes a buffer starvations on some 
                  * applications like OSPF, since packets are
                  * trapped in the Interface TX queue */
 
 		WAN_NETIF_STOP_QUEUE(dev);
 		wan_netif_set_ticks(dev, SYSTEM_TICKS);
-		++lip_dev->ifstats.tx_carrier_errors;
+		WAN_NETIF_STATS_INC_TX_CARRIER_ERRORS(&lip_dev->common);	//++lip_dev->ifstats.tx_carrier_errors;
 		return 1;
 #else
 		wan_skb_free(skb);
-		lip_dev->ifstats.tx_carrier_errors++;
+		WAN_NETIF_STATS_INC_TX_CARRIER_ERRORS(&lip_dev->common);	//lip_dev->ifstats.tx_carrier_errors++;
 		WAN_NETIF_START_QUEUE(dev);
 		wan_netif_set_ticks(dev, SYSTEM_TICKS);
 		return 0;
@@ -264,7 +255,7 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 	if (lip_dev->common.usedby == API){
 		if (wan_skb_len(skb) <= sizeof(wan_api_tx_hdr_t)){
 			wan_skb_free(skb);
-			lip_dev->ifstats.tx_errors++;
+			WAN_NETIF_STATS_INC_TX_ERRORS(&lip_dev->common);	//lip_dev->ifstats.tx_errors++;
 			WAN_NETIF_START_QUEUE(dev);
 			wan_netif_set_ticks(dev, SYSTEM_TICKS);
 			return 0;
@@ -300,7 +291,7 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 	default:
 		/* Packet dropped due to error */
 		WAN_NETIF_START_QUEUE(dev);
-		lip_dev->ifstats.tx_errors++;
+		WAN_NETIF_STATS_INC_TX_ERRORS(&lip_dev->common);	//lip_dev->ifstats.tx_errors++;
 		wan_netif_set_ticks(dev, SYSTEM_TICKS);
 		wan_skb_free(skb);
 		err=0;
@@ -332,55 +323,6 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 }
 
 #if defined(__LINUX__)
-
-static int wplip_change_mtu(netdevice_t *dev, int new_mtu)
-{
-	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
-	wplip_link_t *lip_link = lip_dev->lip_link;
-	netdevice_t *hw_dev;
-	wplip_dev_list_t *lip_dev_list_el;
-	int err = 0;
-	
-	if (!lip_link->tx_dev_cnt){ 
-		DEBUG_EVENT("%s: %s: Tx Dev not available\n",
-				__FUNCTION__,lip_link->name);	
-		return -ENODEV;
-	}
-
-	/* FIXME:
-	 * For now, we can only transmit on a FIRST Tx device */
-	lip_dev_list_el=WAN_LIST_FIRST(&lip_link->list_head_tx_ifdev);
-	if (!lip_dev_list_el){
-		DEBUG_EVENT("%s: %s: Tx Dev List empty!\n",
-				__FUNCTION__,lip_link->name);	
-		return -ENODEV;
-	}
-	
-	if (lip_dev_list_el->magic != WPLIP_MAGIC_DEV_EL){
-		DEBUG_EVENT("%s: %s: Error: Invalid dev magic number!\n",
-				__FUNCTION__,lip_link->name);
-		return -EFAULT;
-	}
-
-	hw_dev=lip_dev_list_el->dev;
-	if (!hw_dev){
-		DEBUG_EVENT("%s: %s: Error: No dev!  dropping...\n",
-				__FUNCTION__,lip_link->name);
-		return -ENODEV;
-	}	
-
-	if (hw_dev->change_mtu) {
-		err = hw_dev->change_mtu(hw_dev,new_mtu);
-	} 
-		
-	if (err == 0) {
-		dev->mtu = new_mtu;
-	}
-
-	return err;
-}
-
-
 static void wplip_tx_timeout (netdevice_t *dev)
 {
 	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
@@ -408,7 +350,8 @@ static void wplip_tx_timeout (netdevice_t *dev)
 }
 #endif
 
-static int wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
+static int
+wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 {
 
 	wplip_dev_t	*lip_dev= wplip_get_lipdev(dev);
@@ -437,15 +380,6 @@ static int wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
 			if (ifr == NULL){
 				err= -EINVAL;
 				break;
-			}
-	
-			if (!WAN_NETIF_UP(dev)){
-				return -ENETDOWN;
-			}
-
-			if (wan_test_bit(WPLIP_DEV_UNREGISTER,&lip_dev->critical) ||
-			    wan_test_bit(0,&lip_dev->if_down)) {
-				return -ENETDOWN;
 			}
 
 			wan_spin_lock_irq(&lip_link->bh_lock,&flags);
@@ -651,8 +585,6 @@ int wplip_if_init(netdevice_t *dev)
 	lip_dev->common.iface.ioctl	= &wplip_ioctl;
 	lip_dev->common.iface.tx_timeout= &wplip_tx_timeout;
 	lip_dev->common.iface.get_stats	= &wplip_ifstats;
-	lip_dev->common.iface.get_stats	= &wplip_ifstats;
-	lip_dev->common.iface.change_mtu = &wplip_change_mtu;
 
 	return 0;
 #else

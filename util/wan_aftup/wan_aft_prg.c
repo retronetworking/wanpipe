@@ -601,7 +601,21 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 		if (clear) data &= ~0x60;
 		else data |= 0x60;
 		break; 
+	case AFT_56K_SHARK_SUBSYS_VENDOR:
+		if (clear) data &= ~0x04;
+	       	else data |= 0x04;
+		break;
+	case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
+		if (clear) data &= ~0x06;
+	       	else data |= 0x06;
+		break;
+	case AFT_2SERIAL_RS232_SUBSYS_VENDOR:
+	case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
+		if (clear) data &= ~0x06;
+	       	else data |= 0x06;
+		break;
 	default:
+		printf("Unsupported card type (board_id=%X)!\n", cpld->core_info->board_id);		
 		return -EINVAL;
 	}
 

@@ -1,12 +1,17 @@
-/*************************************************************
+/********************************************************************
  * wanec_iface.c   WANPIPE Echo Canceller Layer (WANEC)
  *
  *
  *  
- * ===========================================================
+ * ==================================================================
  *
- * May 10 2006	Alex Feldman	Initial Versionr
- */
+ * May	10	2006	Alex Feldman	
+ *			Initial Version
+ *
+ * January 9	2008	David Rokhvarg
+ *			Added support for Sangoma MS Windows Driver
+ *
+ ********************************************************************/
 
 /*=============================================================
  * Includes
@@ -33,12 +38,10 @@
 # include <wanpipe.h>
 # include <wanpipe_tdm_api.h>
 # include <wanpipe_ec_kernel.h>
-
-# define DEBUG_HWEC_V1	DbgPrint
-//#define DEBUG_HWEC_V1
+/*# define DEBUG*/
 #endif
 
-#include "wanec_iface.h"
+#include "wanec_iface_api.h"
 
 /*=============================================================
  * Definitions
@@ -48,16 +51,16 @@
 #define WAN_OCT6100_READ_LIMIT		0x10000
 
 #if 0
-# define DEBUG
+# define WANEC_DEBUG
 #endif
 
 /*=============================================================
  * Global Parameters
  */
-#if defined(DEBUG)
-static int	global_verbose = WAN_EC_VERBOSE_EXTRA1;
+#if defined(WANEC_DEBUG)
+static int	wanec_verbose = WAN_EC_VERBOSE_EXTRA2;
 #else
-static int	global_verbose = WAN_EC_VERBOSE_NONE;
+static int	wanec_verbose = WAN_EC_VERBOSE_NONE;
 #endif
 
 WAN_LIST_HEAD(wan_ec_head_, wan_ec_) wan_ec_head = 
@@ -68,14 +71,11 @@ wanec_iface_t	wanec_iface =
 	0,
 	NULL,
 	NULL,
-	
 	NULL,
 	NULL,
 	NULL,
 	NULL
 };
-
-static int	wan_ec_no = 0;
 
 static unsigned char wpec_fullname[]="WANPIPE(tm) WANEC Layer";
 static unsigned char wpec_copyright[]="(c) 1995-2006 Sangoma Technologies Inc.";
@@ -98,44 +98,56 @@ void unregister_wanec_iface (void);
 
 extern int wanec_fe2ec_channel(wan_ec_dev_t*, int);
 
-extern int wanec_ChipOpenPrep(wan_ec_dev_t*, wan_ec_api_t*);
+extern int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *config, int);
 extern int wanec_ChipOpen(wan_ec_dev_t*, int verbose);
-extern int wanec_ChipOpen_OLD(wan_ec_dev_t*, wan_ec_api_t*);
 extern int wanec_ChipClose(wan_ec_dev_t*, int verbose);
-extern int wanec_ChipStats(wan_ec_dev_t*, wan_ec_api_t*, int);
+extern int wanec_ChipStats(wan_ec_dev_t *ec_dev, wanec_chip_stats_t *chip_stats, int reset, int verbose);
 
-extern int wanec_ChannelOpen(wan_ec_dev_t*, wan_ec_api_t *ec_api);
-extern int wanec_ChannelClose(wan_ec_dev_t*, wan_ec_api_t *ec_api, int);
-extern int wanec_ChannelModify(wan_ec_dev_t*, INT, UINT32, wan_ec_api_t*, int verbose);
-extern int wanec_ChannelStats(wan_ec_dev_t*, INT channel, wan_ec_api_t *ec_api, int reset);
+extern int wanec_ChannelOpen(wan_ec_dev_t*, int);
+extern int wanec_ChannelClose(wan_ec_dev_t*, int);
+extern int wanec_ChannelModifyOpmode(wan_ec_dev_t*, INT, UINT32, int verbose);
+extern int wanec_ChannelModifyCustom(wan_ec_dev_t*, INT, wanec_chan_custom_t*, int verbose);
+extern int wanec_ChannelStats(wan_ec_dev_t*, INT ec_chan, wanec_chan_stats_t *chan_stats, int reset);
 
-extern int wanec_TonesEnable(wan_ec_t *ec, int channel, unsigned char, int verbose);
-extern int wanec_TonesDisable(wan_ec_t *ec, int channel, unsigned char, int verbose);
+extern int wanec_ChannelMute(wan_ec_dev_t*, INT ec_chan, wanec_chan_mute_t*, int);
+extern int wanec_ChannelUnMute(wan_ec_dev_t*, INT ec_chan, wanec_chan_mute_t*, int);
 
-extern int wanec_DebugChannel(wan_ec_t *ec, INT channel, int verbose);
-extern int wanec_DebugGetData(wan_ec_t *ec, wan_ec_api_t *ec_api);
+extern int wanec_TonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t*, int verbose);
+extern int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t*, int verbose);
 
-extern int wanec_BufferLoad(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
-extern int wanec_BufferUnload(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
-extern int wanec_BufferPlayoutAdd(wan_ec_t *ec, int channel, wan_ec_api_t *ec_api);
-extern int wanec_BufferPlayoutStart(wan_ec_t *ec, int channel, wan_ec_api_t *ec_api);
-extern int wanec_BufferPlayoutStop(wan_ec_t *ec, int channel, wan_ec_api_t *ec_api);
+extern int wanec_DebugChannel(wan_ec_dev_t*, INT, int);
+extern int wanec_DebugGetData(wan_ec_dev_t*, wanec_chan_monitor_t*, int);
+
+extern int wanec_BufferLoad(wan_ec_dev_t *ec_dev, wanec_buffer_config_t *buffer_config, int verbose);
+extern int wanec_BufferUnload(wan_ec_dev_t *ec_dev, wanec_buffer_config_t *buffer_config, int verbose);
+extern int wanec_BufferPlayoutAdd(wan_ec_t *ec, int ec_chan, wanec_playout_t *playout, int verbose);
+extern int wanec_BufferPlayoutStart(wan_ec_t *ec, int ec_chan, wanec_playout_t *playout, int verbose);
+extern int wanec_BufferPlayoutStop(wan_ec_t *ec, int ec_chan, wanec_playout_t *playout, int verbose);
 
 extern int wanec_EventTone(wan_ec_t *ec, int verbose);
 extern int wanec_ISR(wan_ec_t *ec, int verbose);
 
-static int wanec_config(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
-static int wanec_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose);
-static int wanec_channel_open(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
-static int wanec_modify_channel(wan_ec_dev_t *ec_dev, int fe_chan, u32 cmd, int verbose);
-static int wanec_modify(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
-static int wanec_modify_mode(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
-static int wanec_modify_bypass(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
-static int wanec_bypass(wan_ec_dev_t *ec_dev, int fe_channel, int enable, int verbose);
+static int wanec_channel_opmode_modify(wan_ec_dev_t *ec_dev, int fe_chan, UINT32 opmode, int verbose);
+static int wanec_channel_dtmf(wan_ec_dev_t*, int, int, wanec_dtmf_config_t*, int);
+
+static int wanec_bypass(wan_ec_dev_t *ec_dev, int fe_chan, int enable, int verbose);
+
+static int wanec_api_config(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose);
+static int wanec_api_channel_open(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_modify(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_chan_opmode(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_chan_custom(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_modify_bypass(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_dtmf(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_stats(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_buffer(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_playout(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
+static int wanec_api_monitor(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 
 static wan_ec_dev_t *wanec_search(char *devname);
 
-static int wanec_enable(void *pcard, int enable, int channel);
+static int wanec_enable(void *pcard, int enable, int fe_chan);
 static int wanec_poll(void *arg, void *pcard);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -149,7 +161,10 @@ int wan_ec_read_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 *data);
 
 int wanec_init(void*);
 int wanec_exit(void*);
-
+#if defined(__FreeBSD__)
+int wanec_shutdown(void*);
+int wanec_ready_unload(void*);
+#endif
 
 /*****************************************************************************/
 
@@ -245,16 +260,16 @@ static int wanec_reset(wan_ec_dev_t *ec_dev, int reset)
 		err = card->wandev.hwec_reset(card, reset);
 		if (!err){
 			if (reset){
-				ec->state = WAN_OCT6100_STATE_RESET;
+				ec->state = WAN_EC_STATE_RESET;
 			}else{
-				ec->state = WAN_OCT6100_STATE_READY;
+				ec->state = WAN_EC_STATE_READY;
 			}
 		}
 	}
 	return err;
 }
 
-static int wanec_enable(void *pcard, int enable, int fe_channel)
+static int wanec_enable(void *pcard, int enable, int fe_chan)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_ec_dev_t	*ec_dev = NULL;
@@ -271,24 +286,25 @@ static int wanec_enable(void *pcard, int enable, int fe_channel)
 #if defined(WANEC_BYDEFAULT_NORMAL)
 	WAN_ASSERT(ec_dev->ec == NULL);
 	wan_spin_lock(&ec_dev->ec->lock);
-	err=wanec_bypass(ec_dev, fe_channel, enable, 0);
+	err = wanec_bypass(ec_dev, fe_chan, enable, 0);
 	wan_spin_unlock(&ec_dev->ec->lock);
 
 	return err;
 #else
-	return wanec_modify_channel(
+	return wanec_channel_opmode_modify(
 			ec_dev,
-			fe_channel,
-			(enable) ? WAN_EC_CMD_ENABLE : WAN_EC_CMD_DISABLE, 
+			fe_chan,
+			(enable) ? cOCT6100_ECHO_OP_MODE_NORMAL : cOCT6100_ECHO_OP_MODE_POWER_DOWN, 
 			0);
 #endif
 }
 
-static int wanec_bypass(wan_ec_dev_t *ec_dev, int fe_channel, int enable, int verbose)
+static int 
+wanec_bypass(wan_ec_dev_t *ec_dev, int fe_chan, int enable, int verbose)
 {
 	wan_ec_t	*ec = NULL;
 	sdla_t		*card = NULL;
-	int		err = -ENODEV;
+	int		ec_chan = 0, err = -ENODEV;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
@@ -297,52 +313,56 @@ static int wanec_bypass(wan_ec_dev_t *ec_dev, int fe_channel, int enable, int ve
 	card = ec_dev->card;
 
 	PRINT1(verbose,
-	"%s: %s bypass mode for channel %d (%lX)!\n",
+	"%s: %s bypass mode for fe_chan:%d (ec map:%lX, fe map:%X)!\n",
 				card->devname,
 				(enable) ? "Enable" : "Disable",
-				fe_channel,
-				card->wandev.ec_map);
+				fe_chan,
+				card->wandev.fe_ec_map, ec_dev->fe_channel_map);
 
 	if (card->wandev.hwec_enable == NULL){
-		DEBUG_EVENT("%s: Undefined HW EC callback function!\n",
+		DEBUG_EVENT( "%s: Undefined HW EC Bypass callback function!\n",
 					ec->name);
 		return -ENODEV;
 	}
+	if (!wan_test_bit(fe_chan, &ec_dev->fe_channel_map)){
+		PRINT1(verbose, "%s: FE channel %d is not available (fe_chan_map=%X)!\n",
+					ec->name, fe_chan, ec_dev->fe_channel_map);
+		return 0;
+	}
+	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
 	if (enable){
-		if (!wan_test_bit(fe_channel, &card->wandev.ec_map)){
-			if (ec->ec_active >= ec->max_channels){
-				DEBUG_EVENT(
-				"%s: Exceeded maximum number of Echo Canceller channels (max=%d)!\n",
-					ec->name,
-					ec->max_channels);
-				return -ENODEV;
-			}	
-		}else{
+		if (wan_test_bit(fe_chan, &card->wandev.fe_ec_map)){
 			/* Already enabled */
+                        PRINT2(verbose,
+			"%s: Enable bypass mode overrun detected for ec_chan %d!\n",
+                                card->devname, ec_chan);
 			return 0;
 		}
 	}else{
-		if (!wan_test_bit(fe_channel, &card->wandev.ec_map)){
+		if (!wan_test_bit(fe_chan, &card->wandev.fe_ec_map)){
 			/* Already disabled */
+                        PRINT2(verbose,
+			"%s: Disble bypass mode overrun detected for ec_channel %d!\n",
+                                card->devname, ec_chan);
 			return 0;
 		}
-	
 	}
-	err = card->wandev.hwec_enable(card, enable, fe_channel);
+	err = card->wandev.hwec_enable(card, enable, fe_chan);
 	if (!err){
 		if (enable){
-			ec->ec_active++;
+			wan_set_bit(fe_chan, &card->wandev.fe_ec_map);
 		}else{
-			if (ec->ec_active) ec->ec_active--;
+			wan_clear_bit(fe_chan, &card->wandev.fe_ec_map);
 		}
+	}else if (err < 0){
+		DEBUG_EVENT("ERROR: %s: Failed to %s Bypass mode on fe_chan:%d!\n",
+				ec->name, 
+				(enable) ? "Enable" : "Disable",
+				fe_chan);
+		return err;
 	}else{
-		if (err < 0){
-			PRINT1(verbose, 
-			"%s: HWEC option is not enable for the channel %d (%lX)!\n",
-					ec->name, fe_channel, card->wandev.ec_enable_map);
-			return err;
-		}
-		return 0;
+		/* no action made */
+		err = 0;
 	}
 	return err;
 }
@@ -394,27 +414,6 @@ static void wanec_enable_timer(wan_ec_dev_t* ec_dev, u_int8_t cmd, u_int32_t del
 	WAN_ASSERT1(ec_dev->card == NULL);
 	card = (sdla_t*)ec_dev->card;
 
-#if defined (__WINDOWS__)
-	if(KeGetCurrentIrql() > DISPATCH_LEVEL){
-		/*	May get here on AFT card because front end interrupt
-			is handled inside ISR not in DPC as on S514.
-			The KeSetTimer() function is illegal inside ISR,
-			so queue 'front_end_dpc_obj' DPC and this routine
-			will be called again from xilinx_front_end_dpc().
-		*/
-		card->xilinx_fe_dpc.te_timer_delay = delay;
-		ec_dev->poll_cmd = (u_int8_t)cmd;
-
-		if(KeInsertQueueDpc(&card->front_end_dpc_obj, NULL,
-			(PVOID)ENABLE_HWEC_TIMER) == FALSE){
-
-			DEBUG_HWEC("Failed to queue 'front_end_dpc_obj'!\n");
-		}else{
-			DEBUG_HWEC("Successfully queued 'front_end_dpc_obj'.\n");
-		}
-		return;
-	}/* if() */
-#endif
 	if (wan_test_bit(WAN_EC_BIT_TIMER_KILL,(void*)&ec_dev->critical)){
 		wan_clear_bit(WAN_EC_BIT_TIMER_RUNNING, (void*)&ec_dev->critical);
 		return;
@@ -453,7 +452,157 @@ wan_ec_dev_t *wanec_search(char *devname)
 	return NULL;
 }
 
-static int wanec_config(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+
+static int wanec_channel_opmode_modify(wan_ec_dev_t *ec_dev, int fe_chan, UINT32 opmode, int verbose)
+{
+	wan_ec_t	*ec = NULL;
+	u_int32_t	ec_chan = 0; 
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	WAN_ASSERT(ec_dev->card == NULL);
+	ec = ec_dev->ec;
+
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
+				ec_dev->devname,
+				ec->name,
+				WAN_EC_STATE_DECODE(ec->state));
+		return -EINVAL;
+	}
+
+	switch(opmode){
+	case cOCT6100_ECHO_OP_MODE_NORMAL:
+	case cOCT6100_ECHO_OP_MODE_HT_FREEZE:
+	case cOCT6100_ECHO_OP_MODE_HT_RESET:
+	case cOCT6100_ECHO_OP_MODE_NO_ECHO:
+	case cOCT6100_ECHO_OP_MODE_POWER_DOWN:
+	case cOCT6100_ECHO_OP_MODE_SPEECH_RECOGNITION:
+		break;
+	default:
+		DEBUG_EVENT(
+		"%s: Invalid Echo Channel Operation Mode (opmode=%X)\n",
+				ec_dev->devname, opmode);
+		return -EINVAL;
+	}
+
+	/* Enable Echo cancelation on Oct6100 */
+	PRINT1(verbose,
+	"%s: Modify Echo Channel OpMode %s on fe_chan:%d ...\n",
+			ec_dev->devname,
+			(opmode == cOCT6100_ECHO_OP_MODE_NORMAL) ? "Normal" :
+			(opmode == cOCT6100_ECHO_OP_MODE_POWER_DOWN) ? "Power Down" : 
+			(opmode == cOCT6100_ECHO_OP_MODE_HT_FREEZE) ? "HT Freeze" : 
+			(opmode == cOCT6100_ECHO_OP_MODE_HT_RESET) ? "HT Reset" : 
+			(opmode == cOCT6100_ECHO_OP_MODE_NO_ECHO) ? "NO Echo" : 
+			(opmode == cOCT6100_ECHO_OP_MODE_SPEECH_RECOGNITION) ? "Speech Recognition" : "Unknown", 
+			fe_chan);
+	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
+	return wanec_ChannelModifyOpmode(ec_dev, ec_chan, opmode, verbose);
+}
+
+static int wanec_channel_dtmf(	wan_ec_dev_t		*ec_dev, 
+				int			fe_chan, 
+				int			cmd, 
+				wanec_dtmf_config_t	*dtmf, 
+				int			verbose)
+{
+	wan_ec_t	*ec = NULL;
+	int		ec_chan, err;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
+				ec_dev->devname,
+				ec->name,
+				WAN_EC_STATE_DECODE(ec->state));
+		return -EINVAL;
+	}
+
+	if (dtmf){
+		if ((dtmf->port_map & (WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT)) != dtmf->port_map){ 
+ 
+			DEBUG_EVENT(
+			"ERROR: %s: Invalid Echo Canceller port value (%X)!\n",
+					ec_dev->devname, 
+					dtmf->port_map);
+			return -EINVAL;
+		}
+	}
+	/* Enable/Disable Normal mode on Oct6100 */
+	PRINT1(verbose, "%s: %s EC DTMF detection on fe_chan:%d ...\n",
+			ec_dev->devname, (cmd==WAN_TRUE) ? "Enable" : "Disable",
+			fe_chan);
+	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
+	if (cmd == WAN_TRUE){
+		err = wanec_TonesEnable(ec, ec_chan, dtmf, verbose);
+	}else{
+		err = wanec_TonesDisable(ec, ec_chan, dtmf, verbose);
+	}
+	if (err == WAN_EC_API_RC_OK){
+		if (cmd == WAN_TRUE){
+			wan_set_bit(WAN_EC_BIT_EVENT_DTMF, &ec_dev->events);
+			ec->tone_verbose = verbose;
+		}else{
+			/* FIXME: Once the DTMF event was enabled, do not 
+			** disable it otherwise dtmf events for other 
+			** channels will be delayed 
+			** wan_clear_bit(WAN_EC_BIT_EVENT_DTMF, &ec_dev->events);
+			** ec->tone_verbose = 0;	*/
+		}
+	}
+	return err;
+}
+
+
+static int wanec_channel_mute(	wan_ec_dev_t		*ec_dev, 
+				int			fe_chan,
+				int			cmd, 
+				wanec_chan_mute_t 	*mute, 
+				int 			verbose)
+{
+	wan_ec_t	*ec = NULL;
+	int		ec_chan, err;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
+				ec_dev->devname,
+				ec->name,
+				WAN_EC_STATE_DECODE(ec->state));
+		return -EINVAL;
+	}
+
+	/* Enable/Disable Normal mode on Oct6100 */
+	PRINT1(verbose,
+	"%s: %s EC channel on fe_chan:%d ...\n",
+			ec_dev->devname,
+			(cmd == WAN_TRUE) ? "Mute" : "Un-mute",
+			fe_chan);
+
+	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
+	if (cmd == WAN_TRUE){
+		err = wanec_ChannelMute(ec_dev, ec_chan, mute, verbose);
+	}else{
+		err = wanec_ChannelUnMute(ec_dev, ec_chan, mute, verbose);
+	}
+	return err;
+}
+
+
+/******************************************************************************
+**		WANPIPE EC API INTERFACE FUNCTION
+******************************************************************************/
+
+static int wanec_api_config(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
 	int		err;
@@ -462,126 +611,170 @@ static int wanec_config(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
 	switch(ec->state){
-	case WAN_OCT6100_STATE_RESET:
-	case WAN_OCT6100_STATE_READY:
+	case WAN_EC_STATE_RESET:
+	case WAN_EC_STATE_READY:
 		break;
-	case WAN_OCT6100_STATE_CHIP_OPEN:
-	case WAN_OCT6100_STATE_CHIP_OPEN_PENDING:
-	case WAN_OCT6100_STATE_CHIP_READY:
+	case WAN_EC_STATE_CHIP_OPEN:
+	case WAN_EC_STATE_CHIP_OPEN_PENDING:
+	case WAN_EC_STATE_CHIP_READY:
 		DEBUG_HWEC(
 		"%s: Echo Canceller %s chip is %s!\n",
 				ec_api->devname, ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		break;
 	default:
 		DEBUG_EVENT(
 		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_api->devname, ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		ec_api->err	= WAN_EC_API_RC_INVALID_STATE;
 		return 0;
 	}
 
-	if (ec->state == WAN_OCT6100_STATE_RESET){
+	if (ec->state == WAN_EC_STATE_RESET){
 		err = wanec_reset(ec_dev, 0);
 		if (err) return err;
 	}
 
-	if (ec->state == WAN_OCT6100_STATE_READY){
+	if (ec->state == WAN_EC_STATE_READY){
 
-		if (wanec_ChipOpenPrep(ec_dev, ec_api)){
+		ec->pImageData = wan_vmalloc(ec_api->u_config.imageSize * sizeof(UINT8));
+		if (ec->pImageData == NULL){
+			DEBUG_EVENT(
+			"ERROR: Failed to allocate memory for EC image %ld bytes [%s:%d]!\n",
+					(unsigned long)ec_api->u_config.imageSize*sizeof(UINT8),
+					__FUNCTION__,__LINE__);
+			err = wanec_reset(ec_dev, 0);
+			return -EINVAL;	
+		}
+		err = WAN_COPY_FROM_USER(
+					ec->pImageData,
+					ec_api->u_config.imageData,
+					ec_api->u_config.imageSize * sizeof(UINT8));
+		if (err){
+			DEBUG_EVENT(
+			"ERROR: Failed to copy EC image from user space [%s:%d]!\n",
+					__FUNCTION__,__LINE__);
+			wan_vfree(ec->pImageData);
+			err = wanec_reset(ec_dev, 0);
+			return -EINVAL;
+		}
+		ec->ImageSize = ec_api->u_config.imageSize;
+
+		/* Copyin custom configuration (if exists) */
+		if (ec_api->custom_conf.param_no){
+			ec_api->u_config.custom_conf.params = 
+					wan_malloc(ec_api->custom_conf.param_no * sizeof(wan_custom_param_t));
+			if (ec_api->u_config.custom_conf.params){
+				int	err = 0;
+				err = WAN_COPY_FROM_USER(
+						ec_api->u_config.custom_conf.params,
+						ec_api->custom_conf.params,
+						ec_api->custom_conf.param_no * sizeof(wan_custom_param_t));
+				ec_api->u_config.custom_conf.param_no = ec_api->custom_conf.param_no;
+			}
+		}
+
+		if (wanec_ChipOpenPrep(ec_dev, ec_api->devname, &ec_api->u_config, ec_api->verbose)){
+			wan_vfree(ec->pImageData);
+			if (ec_api->u_config.custom_conf.params){
+				wan_free(ec_api->u_config.custom_conf.params);
+			}
 			wanec_reset(ec_dev, 1);
 			return -EINVAL;
 		}
+		if (ec_api->u_config.custom_conf.params){
+			wan_free(ec_api->u_config.custom_conf.params);
+		}
 		ec->imageLast	= ec_api->u_config.imageLast;
-		ec->state	= WAN_OCT6100_STATE_CHIP_OPEN_PENDING;
+		ec->state	= WAN_EC_STATE_CHIP_OPEN_PENDING;
 		wanec_enable_timer(ec_dev, WAN_EC_POLL_CHIPOPENPENDING, 10);
 	}
 	ec_dev->state = ec->state;
 	return 0;
 }
 
-static int wanec_channel_open(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+static int wanec_api_channel_open(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
-	wan_ec_t		*ec = NULL;
-	unsigned int	ec_chan, fe_chan;
+	wan_ec_t	*ec = NULL;
+	int		ec_chan, fe_chan;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
 	switch(ec->state){
-	case WAN_OCT6100_STATE_CHIP_OPEN:
+	case WAN_EC_STATE_CHIP_OPEN:
 		break;
-	case WAN_OCT6100_STATE_CHIP_READY:
-		DEBUG_HWEC(
+	case WAN_EC_STATE_CHIP_READY:
+		PRINT1(ec_api->verbose,
 		"%s: Echo Canceller %s chip is %s!\n",
 				ec_api->devname, ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		break;
 	default:
-		PRINT1(ec_api->verbose,
+		DEBUG_EVENT(
 		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_api->devname, ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		ec_api->err	= WAN_EC_API_RC_INVALID_STATE;
 		return 0;
 	}
 
-	if (ec->state == WAN_OCT6100_STATE_CHIP_OPEN){
+	if (ec->state == WAN_EC_STATE_CHIP_OPEN){
 
 		/* Open all channels */	
-		if (wanec_ChannelOpen(ec_dev, ec_api)){
+		if (wanec_ChannelOpen(ec_dev, ec_api->verbose)){
 			wanec_ChipClose(ec_dev, ec_api->verbose);
 			wanec_reset(ec_dev, 1);
 			return -EINVAL;
 		}
-		ec->state = WAN_OCT6100_STATE_CHIP_READY;
+		ec->state = WAN_EC_STATE_CHIP_READY;
 	}
 	ec_dev->state = ec->state;
 
 	/* EC_DEV_MAP */
-	for(fe_chan=0; fe_chan < ec_dev->fe_max_channels; fe_chan++){
+	for(fe_chan = ec_dev->fe_start_chan; fe_chan <= ec_dev->fe_stop_chan; fe_chan++){
 		ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
 		ec->pEcDevMap[ec_chan] = ec_dev;
 	}
 	return 0;
 }
 
-int wanec_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
+int wanec_api_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
 {
 	wan_ec_t	*ec = NULL;
 	wan_ec_dev_t	*ec_dev_tmp = NULL;
-	unsigned int		fe_chan, ec_chan, err = 0;
+	int		fe_chan, ec_chan, err = 0;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
 	
 	switch(ec->state){
-	case WAN_OCT6100_STATE_READY:
-	case WAN_OCT6100_STATE_CHIP_OPEN:
-	case WAN_OCT6100_STATE_CHIP_OPEN_PENDING:
-	case WAN_OCT6100_STATE_CHIP_READY:
+	case WAN_EC_STATE_READY:
+	case WAN_EC_STATE_CHIP_OPEN:
+	case WAN_EC_STATE_CHIP_OPEN_PENDING:
+	case WAN_EC_STATE_CHIP_READY:
 		break;
-	case WAN_OCT6100_STATE_RESET:
+	case WAN_EC_STATE_RESET:
 		return 0;
 	default:
 		PRINT1(verbose,
 		"%s: WARNING: Echo Canceller %s API state (%s)\n",
 				ec_dev->devname,
 				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		return 0;
 	}
 
 #if defined(__WINDOWS__)
 	//for TDMV API there is only only one device created.
 	//So 'release' request should simply go ahead.
-	FUNC_DEBUG();
+		EC_FUNC_DEBUG();
 #else
 	WAN_LIST_FOREACH(ec_dev_tmp, &ec->ec_dev_head, next){
 		if (ec_dev_tmp != ec_dev){
-			if (ec_dev_tmp->state == WAN_OCT6100_STATE_CHIP_READY){
+			if (ec_dev_tmp->state == WAN_EC_STATE_CHIP_READY){
 				/* This EC device is still connected */
 				ec->f_Context.ec_dev	= ec_dev_tmp;
 				strlcpy(ec->f_Context.devname, ec_dev_tmp->devname, WAN_DRVNAME_SZ);
@@ -592,13 +785,13 @@ int wanec_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
 
 #endif
 
-	for(fe_chan = 0; fe_chan < ec_dev->fe_max_channels; fe_chan++){
+	for(fe_chan = ec_dev->fe_start_chan; fe_chan <= ec_dev->fe_stop_chan; fe_chan++){
 		ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
 		if (ec->pEcDevMap){
 			ec->pEcDevMap[ec_chan] = NULL;
 		}
 	}
-	ec_dev->state = WAN_OCT6100_STATE_RESET;
+	ec_dev->state = WAN_EC_STATE_RESET;
 	if (ec_dev_tmp){
 		/* EC device is still in used */
 		return 0;
@@ -606,23 +799,23 @@ int wanec_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
 
 	/* EC device is not in used anymore.
 	** Close all channels and chip */
-	if (ec->state == WAN_OCT6100_STATE_CHIP_READY){
-		if (wanec_ChannelClose(ec_dev, ec_api, verbose)){
+	if (ec->state == WAN_EC_STATE_CHIP_READY){
+		if (wanec_ChannelClose(ec_dev, verbose)){
 			return EINVAL;
 		}
-		ec->state = WAN_OCT6100_STATE_CHIP_OPEN;
+		ec->state = WAN_EC_STATE_CHIP_OPEN;
 	}
-	if (ec->state == WAN_OCT6100_STATE_CHIP_OPEN){
+	if (ec->state == WAN_EC_STATE_CHIP_OPEN){
 		if (wanec_ChipClose(ec_dev, verbose)){
 			return EINVAL;
 		}
-		ec->state = WAN_OCT6100_STATE_READY;
+		ec->state = WAN_EC_STATE_READY;
 	}
 
-	if (ec->state == WAN_OCT6100_STATE_CHIP_OPEN_PENDING){
-		ec->state = WAN_OCT6100_STATE_READY;
+	if (ec->state == WAN_EC_STATE_CHIP_OPEN_PENDING){
+		ec->state = WAN_EC_STATE_READY;
 	}
-	if (ec->state == WAN_OCT6100_STATE_READY){
+	if (ec->state == WAN_EC_STATE_READY){
 		err = wanec_reset(ec_dev, 1);
 		if (err){
 			return EINVAL;
@@ -631,77 +824,12 @@ int wanec_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
 	return 0;
 }
 
-static int wanec_modify_channel(wan_ec_dev_t *ec_dev, int fe_chan, u32 cmd, int verbose)
+
+static int wanec_api_modify(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
-	sdla_t		*card = NULL;
-	u_int32_t	ec_chan = 0; 
-	int		err;
-
-	WAN_ASSERT(ec_dev == NULL);
-	WAN_ASSERT(ec_dev->ec == NULL);
-	WAN_ASSERT(ec_dev->card == NULL);
-	ec = ec_dev->ec;
-	card = ec_dev->card;
-
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		PRINT1(verbose,
-		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
-				ec_dev->devname,
-				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
-		return WAN_EC_API_RC_INVALID_STATE;
-	}
-
-	/* Enable Echo cancelation on Oct6100 */
-	PRINT1(verbose,
-	"%s: %s Echo Canceller on channel %d ...\n",
-			ec_dev->devname,
-			(cmd == WAN_EC_CMD_ENABLE) ? "Enable" : "Disable",
-			fe_chan);
-	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
-	if (cmd == WAN_EC_CMD_ENABLE){
-		err = wanec_ChannelModify(
-					ec_dev,
-					ec_chan,
-					cOCT6100_ECHO_OP_MODE_NORMAL,
-					NULL,
-					verbose);
-		if (err){
-			return WAN_EC_API_RC_FAILED;
-		}	
-			
-		/* Change rx/tx traffic through Oct6100 */
-		if (wanec_bypass(ec_dev, fe_chan, 1, verbose)){
-			return WAN_EC_API_RC_FAILED;
-		}
-	}else{
-		/* Change rx/tx traffic through Oct6100 */
-		if (wanec_bypass(ec_dev, fe_chan, 0, verbose)){
-			return WAN_EC_API_RC_FAILED;
-		}
-			
-		err = wanec_ChannelModify(
-					ec_dev,
-					ec_chan,
-					cOCT6100_ECHO_OP_MODE_POWER_DOWN,
-					NULL,
-					verbose);
-		if (err){
-			return WAN_EC_API_RC_FAILED;
-		}
-	}
-
-	return 0;
-}
-
-
-static int wanec_modify(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
-{
-	wan_ec_t	*ec = NULL;
-	sdla_t		*card = NULL;
 	u_int32_t	cmd = ec_api->cmd;
-	u_int32_t	fe_chan = 0; 
+	int		fe_chan = 0; 
 #if 0
 	u_int32_t	ec_chan = 0; 
 #endif
@@ -709,153 +837,88 @@ static int wanec_modify(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
-	WAN_ASSERT(ec_dev->card == NULL);
 	ec = ec_dev->ec;
-	card = ec_dev->card;
 
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		PRINT1(ec_api->verbose,
-		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_dev->devname,
 				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
 
-	if (ec_api->channel_map == 0xFFFFFFFF){
+	if (ec_api->fe_chan_map == 0xFFFFFFFF){
 		/* All channels selected */
-		ec_api->channel_map = 0l;
-		for (fe_chan = 0; fe_chan < ec_dev->fe_max_channels; fe_chan++){
-			ec_api->channel_map |= (1 << fe_chan);
-		}
-	}else{
-		if (ec_dev->fe_media == WAN_MEDIA_T1 ||
-		    ec_dev->fe_media == WAN_MEDIA_FXOFXS){
-			ec_api->channel_map = ec_api->channel_map >> 1;
-		}
+		ec_api->fe_chan_map = ec_dev->fe_channel_map;
 	}
 
 	/* Enable Echo cancelation on Oct6100 */
 	PRINT1(ec_api->verbose,
-	"%s: %s Echo Canceller on channel(s) map=0x%08lX ...\n",
+	"%s: %s Echo Canceller on channel(s) chan_map=0x%08lX ...\n",
 			ec_dev->devname,
-			(cmd == WAN_EC_CMD_ENABLE) ? "Enable" : "Disable",
-			ec_api->channel_map);
+			(cmd == WAN_EC_API_CMD_ENABLE) ? "Enable" : "Disable",
+			ec_api->fe_chan_map);
 	/*for(chan = fe_first; chan <= fe_last; chan++){*/
-	for(fe_chan=0; fe_chan < ec_dev->fe_max_channels; fe_chan++){
-		if (!(ec_api->channel_map & (1 << fe_chan))){
+	for(fe_chan = ec_dev->fe_start_chan; fe_chan <= ec_dev->fe_stop_chan; fe_chan++){
+		if (!(ec_api->fe_chan_map & (1 << fe_chan))){
 			continue;
 		}
 		if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0) continue;
-#if 1
-		err = wanec_modify_channel(ec_dev, fe_chan, cmd, ec_api->verbose);
-#else
-		ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
-		if (cmd == WAN_EC_CMD_ENABLE){
-			err = wanec_ChannelModify(
-						ec_dev,
-						ec_chan,
-						cOCT6100_ECHO_OP_MODE_NORMAL,
-						ec_api);
-			if (err){
-				return WAN_EC_API_RC_FAILED;
-			}	
-
-			/* Change rx/tx traffic through Oct6100 */
-			if (wanec_bypass(ec_dev, fe_chan, 1, ec_api->verbose)){
-				return WAN_EC_API_RC_FAILED;
-			}
+		if (cmd == WAN_EC_API_CMD_ENABLE){
+			err = wanec_channel_opmode_modify(
+					ec_dev, fe_chan,
+					cOCT6100_ECHO_OP_MODE_NORMAL,
+					ec_api->verbose);
+			if (err) return WAN_EC_API_RC_FAILED;
+			err = wanec_bypass(ec_dev, fe_chan, 1, ec_api->verbose);
 		}else{
-			/* Change rx/tx traffic through Oct6100 */
-			if (wanec_bypass(ec_dev, fe_chan, 0, ec_api->verbose)){
-				return WAN_EC_API_RC_FAILED;
-			}
-
-			err = wanec_ChannelModify(
-						ec_dev,
-						ec_chan,
-						cOCT6100_ECHO_OP_MODE_POWER_DOWN,
-						ec_api);
-			if (err){
-				return WAN_EC_API_RC_FAILED;
-			}
+			wanec_bypass(ec_dev, fe_chan, 0, ec_api->verbose);
+			err = wanec_channel_opmode_modify(
+					ec_dev, fe_chan,
+					cOCT6100_ECHO_OP_MODE_POWER_DOWN,
+					ec_api->verbose);
 		}
-#endif
+		if (err){
+			return WAN_EC_API_RC_FAILED;
+		}
 	}
 
 	return 0;
 }
 
-static int wanec_modify_mode(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+static int wanec_api_chan_opmode(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
-	u_int32_t	cmd = ec_api->cmd;
-	u_int32_t	chan, ec_channel;
-	int		err;
+	int		fe_chan, err;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		PRINT1(ec_api->verbose,
-		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_dev->devname,
 				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
 
-	if (ec_api->channel_map == 0xFFFFFFFF){
+	if (ec_api->fe_chan_map == 0xFFFFFFFF){
 		/* All channels selected */
-		ec_api->channel_map = 0l;
-		for (chan = 0; chan < ec_dev->fe_max_channels; chan++){
-			ec_api->channel_map |= (1 << chan);
-		}
-	}else{
-		if (ec_dev->fe_media == WAN_MEDIA_T1 ||
-		    ec_dev->fe_media == WAN_MEDIA_FXOFXS){
-			ec_api->channel_map = ec_api->channel_map >> 1;
-		}
+		ec_api->fe_chan_map = ec_dev->fe_channel_map;
 	}
 	/* Enable/Disable Normal mode on Oct6100 */
 	PRINT1(ec_api->verbose,
-	"%s: %s Echo Canceller mode on channel(s) map=0x%08lX ...\n",
-			ec_dev->devname,
-			(cmd == WAN_EC_CMD_MODE_NORMAL) ? "Enable" :
-			(cmd == WAN_EC_CMD_MODE_POWERDOWN) ? "Disable" : "Modify",
-			ec_api->channel_map);
-	for(chan=0; chan < ec_dev->fe_max_channels; chan++){
-		if (!(ec_api->channel_map & (1 << chan))){
+	"%s: Modify Echo Canceller opmode on channel(s) chan_map=0x%08lX ...\n",
+			ec_dev->devname, ec_api->fe_chan_map);
+	for(fe_chan = ec_dev->fe_start_chan; fe_chan <= ec_dev->fe_stop_chan; fe_chan++){
+		if (!(ec_api->fe_chan_map & (1 << fe_chan))){
 			continue;
 		}
-		if (ec_dev->fe_media == WAN_MEDIA_E1 && chan == 0) continue;
-		ec_channel = wanec_fe2ec_channel(ec_dev, chan);
-		switch(cmd){
-		case WAN_EC_CMD_MODE_NORMAL:
-			err = wanec_ChannelModify(
-						ec_dev,
-						ec_channel,
-						cOCT6100_ECHO_OP_MODE_NORMAL,
-						ec_api,
-						ec_api->verbose);
-			break;
-		case WAN_EC_CMD_MODE_POWERDOWN:
-			err = wanec_ChannelModify(
-						ec_dev,
-						ec_channel,
-						cOCT6100_ECHO_OP_MODE_POWER_DOWN,
-						ec_api,
-						ec_api->verbose);
-			break;
-		default:
-			err = wanec_ChannelModify(
-						ec_dev,
-						ec_channel,
-						cOCT6100_KEEP_PREVIOUS_SETTING,
-						ec_api,
-						ec_api->verbose);
-			break;
-		}
+		if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0) continue;
+		err = wanec_channel_opmode_modify(
+				ec_dev, fe_chan, ec_api->u_chan_opmode.opmode, ec_api->verbose);
 		if (err){
 			return WAN_EC_API_RC_FAILED;
 		}	
@@ -863,50 +926,104 @@ static int wanec_modify_mode(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 	return 0;
 }
 
-static int wanec_modify_bypass(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+static int wanec_api_chan_custom(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
-	wan_ec_t	*ec = NULL;
-	sdla_t		*card = NULL;
-	unsigned int		chan, fe_chan = 0;
+	wan_ec_t		*ec = NULL;
+	wanec_chan_custom_t	*chan_custom;
+	int			fe_chan, ec_chan, err;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
-	WAN_ASSERT(ec_dev->card == NULL);
 	ec = ec_dev->ec;
-	card = ec_dev->card;
-
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		PRINT1(ec_api->verbose,
-		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_dev->devname,
 				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
-	if (ec_api->channel_map == 0xFFFFFFFF){
+
+	if (ec_api->fe_chan_map == 0xFFFFFFFF){
 		/* All channels selected */
-		ec_api->channel_map = 0l;
-		for (chan = 0; chan < ec_dev->fe_max_channels; chan++){
-			ec_api->channel_map |= (1 << chan);
-		}
+		ec_api->fe_chan_map = ec_dev->fe_channel_map;
+	}
+	/* Enable/Disable Normal mode on Oct6100 */
+	PRINT1(ec_api->verbose,
+	"%s: Modify EC Channel config (parms:%d) on channel(s) chan_map=0x%08lX ...\n",
+			ec_dev->devname, ec_api->custom_conf.param_no, 
+			ec_api->fe_chan_map);
+	if (ec_api->custom_conf.param_no == 0){
+		/* nothing to do */
+		return 0;
+	}
+	chan_custom = &ec_api->u_chan_custom;
+	chan_custom->custom_conf.params = 
+			wan_malloc(ec_api->custom_conf.param_no * sizeof(wan_custom_param_t));
+	if (chan_custom->custom_conf.params){
+		int	err = 0;
+		err = WAN_COPY_FROM_USER(
+				chan_custom->custom_conf.params,
+				ec_api->custom_conf.params,
+				ec_api->custom_conf.param_no * sizeof(wan_custom_param_t));
+		chan_custom->custom_conf.param_no = ec_api->custom_conf.param_no;
 	}else{
-		if (ec_dev->fe_media == WAN_MEDIA_T1 ||
-		    ec_dev->fe_media == WAN_MEDIA_FXOFXS){
-			ec_api->channel_map = ec_api->channel_map >> 1;
+		DEBUG_EVENT(
+		"%s: WARNING: Skipping custom OCT6100 configuration (allocation failed)!\n",
+					ec_dev->devname);
+		return WAN_EC_API_RC_FAILED;
+	}
+
+	for(fe_chan = ec_dev->fe_start_chan; fe_chan <= ec_dev->fe_stop_chan; fe_chan++){
+		if (!(ec_api->fe_chan_map & (1 << fe_chan))){
+			continue;
 		}
+		if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0) continue;
+		ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
+		err = wanec_ChannelModifyCustom(ec_dev, ec_chan, chan_custom, ec_api->verbose);
+		if (err){
+			wan_free(chan_custom->custom_conf.params);
+			chan_custom->custom_conf.params = NULL;
+			return WAN_EC_API_RC_FAILED;
+		}	
+	}
+	wan_free(chan_custom->custom_conf.params);
+	chan_custom->custom_conf.params = NULL;
+	return 0;
+}
+
+static int wanec_api_modify_bypass(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+{
+	wan_ec_t	*ec = NULL;
+	unsigned int	fe_chan = 0;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
+				ec_dev->devname,
+				ec->name,
+				WAN_EC_STATE_DECODE(ec->state));
+		return WAN_EC_API_RC_INVALID_STATE;
+	}
+	if (ec_api->fe_chan_map == 0xFFFFFFFF){
+		/* All channels selected */
+		ec_api->fe_chan_map = ec_dev->fe_channel_map;
 	}
 	/* Enable/Disable bypass mode on Oct6100 */
 	PRINT1(ec_api->verbose,
-	"%s: %s Bypass mode on channel(s) map=0x%08lX ...\n",
+	"%s: %s Bypass mode on channel(s) chan_map=0x%08lX ...\n",
 			ec_dev->devname,
-			(ec_api->cmd == WAN_EC_CMD_BYPASS_ENABLE) ? "Enable" : "Disable",
-			ec_api->channel_map);	
-	for(chan = 0; chan < ec_dev->fe_max_channels; chan++){
-		if (!(ec_api->channel_map & (1 << chan))){
+			(ec_api->cmd == WAN_EC_API_CMD_BYPASS_ENABLE) ? "Enable" : "Disable",
+			ec_api->fe_chan_map);	
+	for(fe_chan = ec_dev->fe_start_chan; fe_chan <= (unsigned int)ec_dev->fe_stop_chan; fe_chan++){
+		if (!(ec_api->fe_chan_map & (1 << fe_chan))){
 			continue;
 		}
-		fe_chan = chan;
-		if (ec_api->cmd == WAN_EC_CMD_BYPASS_ENABLE){
+		if (ec_api->cmd == WAN_EC_API_CMD_BYPASS_ENABLE){
 			/* Change rx/tx traffic through Oct6100 */
 			if (wanec_bypass(ec_dev, fe_chan, 1, ec_api->verbose)){
 				return WAN_EC_API_RC_FAILED;
@@ -922,82 +1039,42 @@ static int wanec_modify_bypass(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 }
 
 
-static int wanec_modify_dtmf(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+static int wanec_api_channel_mute(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
-	sdla_t		*card = NULL;
-	unsigned int		fe_chan, ec_channel;
+	int		fe_chan;
 	int		err = WAN_EC_API_RC_OK;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
-	WAN_ASSERT(ec_dev->card == NULL);
 	ec = ec_dev->ec;
-	card = ec_dev->card;
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		PRINT1(ec_api->verbose,
-		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_dev->devname,
 				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
-
-	if (ec_api->channel_map == 0xFFFFFFFF){
+	if (ec_api->fe_chan_map == 0xFFFFFFFF){
 		/* All channels selected */
-		ec_api->channel_map = 0l;
-		for (fe_chan = 0; fe_chan < ec_dev->fe_max_channels; fe_chan++){
-			ec_api->channel_map |= (1 << fe_chan);
-		}
-	}else{
-		if (ec_dev->fe_media == WAN_MEDIA_T1 ||
-		    ec_dev->fe_media == WAN_MEDIA_FXOFXS){
-			ec_api->channel_map = ec_api->channel_map >> 1;
-		}
+		ec_api->fe_chan_map = ec_dev->fe_channel_map;
 	}
 	
-	if (!ec_api->channel_map){
+	if (!ec_api->fe_chan_map){
 		return WAN_EC_API_RC_NOACTION;
 	}
-	/* Enable/Disable Normal mode on Oct6100 */
-	PRINT1(ec_api->verbose,
-	"%s: %s Echo Canceller DTMF on channel(s) map=0x%08lX ...\n",
-			ec_dev->devname,
-			(ec_api->cmd == WAN_EC_CMD_DTMF_ENABLE) ? "Enable" :
-			(ec_api->cmd == WAN_EC_CMD_DTMF_DISABLE) ? "Disable" :
-								"Unknown",
-			ec_api->channel_map);
-	for(fe_chan=0; fe_chan < ec_dev->fe_max_channels; fe_chan++){
-		if (!(ec_api->channel_map & (1 << fe_chan))){
+	for(fe_chan = ec_dev->fe_start_chan; fe_chan <= ec_dev->fe_stop_chan; fe_chan++){
+		if (!(ec_api->fe_chan_map & (1 << fe_chan))){
 			continue;
 		}
 		if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0) continue;
-		ec_channel = wanec_fe2ec_channel(ec_dev, fe_chan);
-		switch(ec_api->cmd){
-		case WAN_EC_CMD_DTMF_ENABLE:
-			if (wanec_bypass(ec_dev, fe_chan, 1, ec_api->verbose)){
-				return WAN_EC_API_RC_FAILED;
-			}
-			err = wanec_TonesEnable(	
-					ec,
-					ec_channel,
-					ec_api->u_dtmf_config.port,
+		err = wanec_channel_mute(
+					ec_dev, 
+					fe_chan,
+					(ec_api->cmd == WAN_EC_API_CMD_CHANNEL_MUTE) ? WAN_TRUE: WAN_FALSE,
+					&ec_api->u_chan_mute,
 					ec_api->verbose);
-			break;
-		case WAN_EC_CMD_DTMF_DISABLE:
-			err = wanec_TonesDisable(
-					ec,
-					ec_channel,
-					ec_api->u_dtmf_config.port,
-					ec_api->verbose);
-			if (wanec_bypass(ec_dev, fe_chan, 0, ec_api->verbose)){
-				return WAN_EC_API_RC_FAILED;
-			}
-			break;
-		default:
-			err = WAN_EC_API_RC_INVALID_CMD;
-			break;
-		}
 		if (err){
 			return WAN_EC_API_RC_FAILED;
 		}	
@@ -1005,101 +1082,161 @@ static int wanec_modify_dtmf(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 	return err;
 }
 
-static int wanec_stats(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+static int wanec_api_dtmf(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
-	unsigned int		fe_chan, ec_channel, err = 0;
+	int		fe_chan, err = WAN_EC_API_RC_OK;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		PRINT1(ec_api->verbose,
-		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_dev->devname,
 				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
 
-	if (ec_dev->fe_media == WAN_MEDIA_T1 || ec_dev->fe_media == WAN_MEDIA_FXOFXS){
-		ec_api->channel_map = ec_api->channel_map >> 1; 
+	if (ec_api->fe_chan_map == 0xFFFFFFFF){
+		/* All channels selected */
+		ec_api->fe_chan_map = ec_dev->fe_channel_map;
 	}
+	
+	if (!ec_api->fe_chan_map){
+		return WAN_EC_API_RC_NOACTION;
+	}
+	/* Enable/Disable Normal mode on Oct6100 */
 	PRINT1(ec_api->verbose,
-	"%s: Read Echo Canceller stats on channel(s) map=0x%08lX reset %d...\n",
+	"%s: %s Echo Canceller DTMF on channel(s) chan_map=0x%08lX ...\n",
 			ec_dev->devname,
-			ec_api->channel_map,
-			(ec_api->channel_map) ? 
+			(ec_api->cmd == WAN_EC_API_CMD_DTMF_ENABLE) ? "Enable" :
+			(ec_api->cmd == WAN_EC_API_CMD_DTMF_DISABLE) ? "Disable" :
+								"Unknown",
+			ec_api->fe_chan_map);
+	for(fe_chan = ec_dev->fe_start_chan; fe_chan <= ec_dev->fe_stop_chan; fe_chan++){
+		if (!(ec_api->fe_chan_map & (1 << fe_chan))){
+			continue;
+		}
+		if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0) continue;
+		err = wanec_channel_dtmf(
+				ec_dev, 
+				fe_chan,
+				(ec_api->cmd == WAN_EC_API_CMD_DTMF_ENABLE) ? WAN_TRUE : WAN_FALSE,
+				&ec_api->u_dtmf_config,
+				ec_api->verbose);
+		if (err){
+			return WAN_EC_API_RC_FAILED;
+		}
+	}
+	return err;
+}
+
+static int wanec_api_stats(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+{
+	wan_ec_t	*ec = NULL;
+	int		fe_chan, ec_chan, err = 0;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
+				ec_dev->devname,
+				ec->name,
+				WAN_EC_STATE_DECODE(ec->state));
+		return WAN_EC_API_RC_INVALID_STATE;
+	}
+
+	PRINT1(ec_api->verbose,
+	"%s: Read EC stats on channel(s) chan_map=0x%08lX reset:%d...\n",
+			ec_dev->devname,
+			ec_api->fe_chan_map,
+			(ec_api->fe_chan_map) ? 
 				ec_api->u_chan_stats.reset:ec_api->u_chip_stats.reset);
 	if (wanec_ISR(ec, ec_api->verbose)){
 		return WAN_EC_API_RC_FAILED;
 	}
-	if (ec_api->channel_map){
-		for(fe_chan=0; fe_chan < ec_dev->fe_max_channels; fe_chan++){
-			if (!(ec_api->channel_map & (1 << fe_chan))){
+	if (ec_api->fe_chan_map){
+		int	ready = 0;
+		for(fe_chan = ec_dev->fe_start_chan; fe_chan <= ec_dev->fe_stop_chan; fe_chan++){
+			if (!(ec_api->fe_chan_map & (1 << fe_chan))){
+				continue;
+			}
+			if (!wan_test_bit(fe_chan, &ec_dev->fe_channel_map)){
 				continue;
 			}
 			if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0){
 				continue;
 			}
-			ec_channel = wanec_fe2ec_channel(ec_dev, fe_chan);
+			ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
 			err = wanec_ChannelStats(
 						ec_dev,
-						ec_channel,
-						ec_api,
-						ec_api->u_chan_stats.reset);
+						ec_chan,
+						&ec_api->u_chan_stats,
+						ec_api->verbose);
 			if (err){
 				return WAN_EC_API_RC_FAILED;
 			}
+			ready = 1;
+			break;
+		}
+		if (!ready){
+			return WAN_EC_API_RC_INVALID_CHANNELS;
 		}
 	}else{
-		wanec_ChipStats(ec_dev, ec_api, ec_api->u_chip_stats.reset);	
+		wanec_ChipStats(ec_dev, &ec_api->u_chip_stats, ec_api->u_chip_stats.reset, ec_api->verbose);	
 	}
 			
 	return 0;
 }
 
-static int wanec_monitor(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+static int wanec_api_monitor(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
-	unsigned int		channel = ec_api->channel,
-			ec_channel;
+	int		fe_chan = ec_api->fe_chan,
+			ec_chan = 0;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		PRINT1(ec_api->	verbose,
-		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_dev->devname,
 				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
 
 	/* Sanity check from channel selection */
-	if (((ec_dev->fe_media == WAN_MEDIA_T1) && (channel > ec_dev->fe_max_channels)) || 
-	    ((ec_dev->fe_media == WAN_MEDIA_E1) && (channel >= ec_dev->fe_max_channels))){ 
+	if (fe_chan > ec_dev->fe_stop_chan){
 		DEBUG_EVENT(
-		"ERROR: %s: Channel number %d out of range!\n",
-				ec_dev->devname,
-				channel);
+		"ERROR: %s: Front-End channel number %d is out of range!\n",
+				ec_dev->devname, fe_chan);
 		return WAN_EC_API_RC_INVALID_CHANNELS;
 	}
 
-	if (channel){
-		if (ec_dev->fe_media == WAN_MEDIA_T1 || ec_dev->fe_media == WAN_MEDIA_FXOFXS) channel--; 
-		ec_channel = wanec_fe2ec_channel(ec_dev, channel);
-		if (wanec_DebugChannel(ec, ec_channel, ec_api->verbose)){
+	if (fe_chan){
+		if (!(ec_dev->fe_channel_map & (1 << fe_chan))){
+			return WAN_EC_API_RC_INVALID_CHANNELS;
+		}
+		ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
+		if (wanec_DebugChannel(ec_dev, ec_chan, ec_api->verbose)){
 			return WAN_EC_API_RC_FAILED;
 		}
 	}else{
-		wanec_DebugGetData(ec, ec_api);
+		if (wanec_DebugGetData(ec_dev, &ec_api->u_chan_monitor, ec_api->verbose)){
+			return WAN_EC_API_RC_FAILED;
+		}
+		ec_api->fe_chan = ec_api->u_chan_monitor.fe_chan;
 	}
 	return 0;
 }
 
-static int wanec_tone(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+static int wanec_api_buffer(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
 	int		err;
@@ -1107,18 +1244,18 @@ static int wanec_tone(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		PRINT1(ec_api->verbose,
-		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_dev->devname,
 				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
-	if (ec_api->cmd == WAN_EC_CMD_TONE_LOAD){
-		err = wanec_BufferLoad(ec_dev,  ec_api);
+	if (ec_api->cmd == WAN_EC_API_CMD_BUFFER_LOAD){
+		err = wanec_BufferLoad(ec_dev,  &ec_api->u_buffer_config, ec_api->verbose);
 	}else{
-		err = wanec_BufferUnload(ec_dev, ec_api);
+		err = wanec_BufferUnload(ec_dev, &ec_api->u_buffer_config, ec_api->verbose);
 	}
 	if (err){
 		return WAN_EC_API_RC_FAILED;
@@ -1126,51 +1263,70 @@ static int wanec_tone(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 	return 0;
 }
 
-static int wanec_playout(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
+static int wanec_api_playout(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 {
 	wan_ec_t	*ec = NULL;
-	int		ec_channel;
+	int		fe_chan = ec_api->fe_chan,
+			ec_chan = 0;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		PRINT1(ec_api->verbose,
-		"WARNING: %s: Invalid Echo Canceller %s API state (%s)\n",
+	if (ec->state != WAN_EC_STATE_CHIP_READY){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
 				ec_dev->devname,
 				ec->name,
-				WAN_OCT6100_STATE_DECODE(ec->state));
+				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
 
-	if (ec_dev->fe_media == WAN_MEDIA_E1 && ec_api->channel == 0){
+	if (ec_dev->fe_media == WAN_MEDIA_E1 && ec_api->fe_chan == 0){
 		return WAN_EC_API_RC_NOACTION;
 	}
-	if (((ec_dev->fe_media == WAN_MEDIA_T1) && ((unsigned int)ec_api->channel > ec_dev->fe_max_channels)) || 
-	    ((ec_dev->fe_media == WAN_MEDIA_E1) && ((unsigned int)ec_api->channel >= ec_dev->fe_max_channels))){ 
+	if (fe_chan > ec_dev->fe_stop_chan){ 
 		DEBUG_EVENT(
-		"ERROR: %s: Channel number %d out of range!\n",
-				ec_dev->devname,
-				ec_api->channel);
+		"ERROR: %s: Front-End channel number %d is out of range!\n",
+				ec_dev->devname, fe_chan);
 		return WAN_EC_API_RC_INVALID_CHANNELS;
 	}
+	if (ec_api->u_playout.port != WAN_EC_CHANNEL_PORT_SOUT && 
+	    ec_api->u_playout.port != WAN_EC_CHANNEL_PORT_ROUT){
+		DEBUG_EVENT(
+		"ERROR: %s: Invalid Echo Canceller port value (%s)!\n",
+				ec_dev->devname, 
+				WAN_EC_DECODE_CHANNEL_PORT(ec_api->u_playout.port));
+		return WAN_EC_API_RC_INVALID_PORT;
+	}
+	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
 
-	if (ec_dev->fe_media == WAN_MEDIA_T1 || ec_dev->fe_media == WAN_MEDIA_FXOFXS)
-		ec_api->channel--; 
-	ec_channel = wanec_fe2ec_channel(ec_dev, ec_api->channel);
-
+	PRINT1(ec_api->verbose,
+	"%s: Buffer Playout %s on fe_chan:%d ...\n",
+				ec_dev->devname, 
+				(ec_api->cmd == WAN_EC_API_CMD_PLAYOUT_START) ? 
+							"Start" : "Stop",
+				fe_chan);
 	switch(ec_api->cmd){	
-	case WAN_EC_CMD_PLAYOUT_START:
-		if (wanec_BufferPlayoutAdd(ec, ec_channel, ec_api)){
+	case WAN_EC_API_CMD_PLAYOUT_START:
+		if (wanec_BufferPlayoutAdd(ec, ec_chan, &ec_api->u_playout, ec_api->verbose)){
 			return WAN_EC_API_RC_FAILED;
 		}
-		if (wanec_BufferPlayoutStart(ec, ec_channel, ec_api)){
-			wanec_BufferPlayoutStop(ec, ec_channel, ec_api);
+		if (wanec_BufferPlayoutStart(ec, ec_chan, &ec_api->u_playout, ec_api->verbose)){
+			wanec_BufferPlayoutStop(ec, ec_chan, &ec_api->u_playout, ec_api->verbose);
 			return WAN_EC_API_RC_FAILED;
+		}
+		ec->playout_verbose = ec_api->verbose;
+		if (ec_api->u_playout.notifyonstop){
+			wan_set_bit(WAN_EC_BIT_EVENT_PLAYOUT, &ec_dev->events);
 		}
 		break;
-	case WAN_EC_CMD_PLAYOUT_STOP:
-		wanec_BufferPlayoutStop(ec, ec_channel, ec_api);
+	case WAN_EC_API_CMD_PLAYOUT_STOP:
+		wanec_BufferPlayoutStop(ec, ec_chan, &ec_api->u_playout, ec_api->verbose);
+		/* FIXME: Once the Playout event was enabled, do not 
+		** disable it otherwise playout events for other 
+		** channels will be delayed 
+		**ec->playout_verbose = 0;
+		**wan_clear_bit(WAN_EC_BIT_EVENT_PLAYOUT, &ec_dev->events);*/
 		break;
 	}
 		
@@ -1230,7 +1386,7 @@ int wanec_ioctl(void *data, void *pcard)
 		wanec_search(ec_api->devname);
 #endif
 	if (ec_dev == NULL){
-		PRINT1(ec_api->verbose,
+		DEBUG_EVENT(
 		"%s: Failed to find device [%s:%d]!\n",
 				ec_api->devname, __FUNCTION__,__LINE__);
 		ec_api->err = WAN_EC_API_RC_INVALID_DEV;
@@ -1238,17 +1394,19 @@ int wanec_ioctl(void *data, void *pcard)
 	}
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
+#if !defined(__WINDOWS__)
+	/* Windows: can not copy to/from user when locked */
 	wan_spin_lock(&ec->lock);
-
+#endif
 	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical)){
-		PRINT1(ec_api->verbose,
+		DEBUG_EVENT(
 		"%s: Echo Canceller device is down!\n",
 				ec_api->devname);
 		ec_api->err = WAN_EC_API_RC_INVALID_DEV;
 		goto wanec_ioctl_done;	
 	}
 	if (wan_test_and_set_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical)){
-		PRINT1(ec_api->verbose,
+		DEBUG_EVENT(
 		"%s: Echo Canceller is busy!\n",
 				ec_api->devname);
 		ec_api->err = WAN_EC_API_RC_BUSY;
@@ -1256,61 +1414,83 @@ int wanec_ioctl(void *data, void *pcard)
 	}
 	PRINT2(ec_api->verbose,
 	"%s: WPEC_LIP IOCTL: %s\n",
-			ec_api->devname, WAN_EC_CMD_DECODE(ec_api->cmd));
+			ec_api->devname, WAN_EC_API_CMD_DECODE(ec_api->cmd));
 	ec_api->err = WAN_EC_API_RC_OK;
+/*
+	{
+		int i;
+		u8 *t = (u8*)ec_api;
+		for(i = 0; i < sizeof(wan_ec_api_t); i++){
+			DEBUG_HWEC("[%i]=%02X\n", i, t[i]);
+			if(i > 1000){
+				DEBUG_HWEC("...\n");				
+				break;
+			}
+		}
+
+	}
+*/
 	switch(ec_api->cmd){
-	case WAN_EC_CMD_GETINFO:
+	case WAN_EC_API_CMD_GETINFO:
 		ec_api->u_info.max_channels	= ec->max_channels;
 		ec_api->state			= ec->state;
 		break;
-	case WAN_EC_CMD_CONFIG:
-		err = wanec_config(ec_dev, ec_api);
+	case WAN_EC_API_CMD_CONFIG:
+		err = wanec_api_config(ec_dev, ec_api);
 		break;
-	case WAN_EC_CMD_RELEASE:
-		err = wanec_release(ec_dev, ec_api, ec_api->verbose);
+	case WAN_EC_API_CMD_CONFIG_POLL:
+		ec_api->state			= ec->state;
 		break;
-	case WAN_EC_CMD_CHANNEL_OPEN:
-		err = wanec_channel_open(ec_dev, ec_api);
+	case WAN_EC_API_CMD_RELEASE:
+		err = wanec_api_release(ec_dev, ec_api, ec_api->verbose);
 		break;
-	case WAN_EC_CMD_ENABLE:
-	case WAN_EC_CMD_DISABLE:
-		err = wanec_modify(ec_dev, ec_api);
+	case WAN_EC_API_CMD_CHANNEL_OPEN:
+		err = wanec_api_channel_open(ec_dev, ec_api);
 		break;
-	case WAN_EC_CMD_BYPASS_ENABLE:
-	case WAN_EC_CMD_BYPASS_DISABLE:
-		err = wanec_modify_bypass(ec_dev, ec_api);
+	case WAN_EC_API_CMD_ENABLE:
+	case WAN_EC_API_CMD_DISABLE:
+		err = wanec_api_modify(ec_dev, ec_api);
 		break;
-	case WAN_EC_CMD_MODE_NORMAL:
-	case WAN_EC_CMD_MODE_POWERDOWN:
-	case WAN_EC_CMD_MODIFY_CHANNEL:
-		err = wanec_modify_mode(ec_dev, ec_api);
+	case WAN_EC_API_CMD_BYPASS_ENABLE:
+	case WAN_EC_API_CMD_BYPASS_DISABLE:
+		err = wanec_api_modify_bypass(ec_dev, ec_api);
 		break;
-	case WAN_EC_CMD_DTMF_ENABLE:
-	case WAN_EC_CMD_DTMF_DISABLE:
-		ec_api->err = wanec_modify_dtmf(ec_dev, ec_api);
+	case WAN_EC_API_CMD_OPMODE:
+		err = wanec_api_chan_opmode(ec_dev, ec_api);
 		break;
-	case WAN_EC_CMD_STATS:
-	case WAN_EC_CMD_STATS_FULL:
-		err = wanec_stats(ec_dev, ec_api);
+	case WAN_EC_API_CMD_CHANNEL_MUTE:
+	case WAN_EC_API_CMD_CHANNEL_UNMUTE:
+		err = wanec_api_channel_mute(ec_dev, ec_api);
 		break;
-	case WAN_EC_CMD_TONE_LOAD:
-	case WAN_EC_CMD_TONE_UNLOAD:
-		err = wanec_tone(ec_dev, ec_api);
+	case WAN_EC_API_CMD_MODIFY_CHANNEL:
+		err = wanec_api_chan_custom(ec_dev, ec_api);
 		break;
-	case WAN_EC_CMD_PLAYOUT_START:
-	case WAN_EC_CMD_PLAYOUT_STOP:
-		err = wanec_playout(ec_dev, ec_api);
+	case WAN_EC_API_CMD_DTMF_ENABLE:
+	case WAN_EC_API_CMD_DTMF_DISABLE:
+		ec_api->err = wanec_api_dtmf(ec_dev, ec_api);
 		break;
-	case WAN_EC_CMD_MONITOR:
-		err = wanec_monitor(ec_dev, ec_api);
+	case WAN_EC_API_CMD_STATS:
+	case WAN_EC_API_CMD_STATS_FULL:
+		err = wanec_api_stats(ec_dev, ec_api);
 		break;
-	case WAN_EC_CMD_RELEASE_ALL:
+	case WAN_EC_API_CMD_BUFFER_LOAD:
+	case WAN_EC_API_CMD_BUFFER_UNLOAD:
+		err = wanec_api_buffer(ec_dev, ec_api);
+		break;
+	case WAN_EC_API_CMD_PLAYOUT_START:
+	case WAN_EC_API_CMD_PLAYOUT_STOP:
+		err = wanec_api_playout(ec_dev, ec_api);
+		break;
+	case WAN_EC_API_CMD_MONITOR:
+		err = wanec_api_monitor(ec_dev, ec_api);
+		break;
+	case WAN_EC_API_CMD_RELEASE_ALL:
 		break;
 	}
 	if (err){
 		PRINT2(ec_api->verbose,
 		"%s: %s return error (Command: %s)\n",
-			ec_api->devname, __FUNCTION__, WAN_EC_CMD_DECODE(ec_api->cmd));
+			ec_api->devname, __FUNCTION__, WAN_EC_API_CMD_DECODE(ec_api->cmd));
 		ec_api->err = err;
 	}
 	if (ec_api->err == WAN_EC_API_RC_INVALID_STATE){
@@ -1319,7 +1499,11 @@ int wanec_ioctl(void *data, void *pcard)
 	wan_clear_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical);
 
 wanec_ioctl_done:
+#if !defined(__WINDOWS__)
+	/* Windows: can not copy to/from user when locked */
 	wan_spin_unlock(&ec->lock);
+#endif
+
 wanec_ioctl_exit:
 #if defined(__LINUX__)
 	err = WAN_COPY_TO_USER(
@@ -1338,7 +1522,7 @@ wanec_ioctl_exit:
 	PRINT2(ec_api->verbose,
 	"%s: WPEC_LIP IOCTL: %s returns %d\n",
 			ec_api->devname,
-			WAN_EC_CMD_DECODE(ec_api->cmd),
+			WAN_EC_API_CMD_DECODE(ec_api->cmd),
 			ec_api->err);
 			
 #if defined(__LINUX__)
@@ -1372,15 +1556,15 @@ static int wan_ec_devnum(char *ptr)
 	return num;
 }
 
-static void* wanec_register(void *pcard, int max_channels)
+static void* 
+wanec_register(void *pcard, u_int32_t fe_port_mask, int max_line_no, int max_channels, void *pconf)
 {
-	sdla_t		*card = (sdla_t*)pcard;
-	wan_ec_t	*ec = NULL;
-	wan_ec_dev_t	*ec_dev = NULL, *ec_dev_new = NULL;
+	sdla_t			*card = (sdla_t*)pcard;
+	wan_custom_conf_t	*conf = (wan_custom_conf_t*)pconf;
+	wan_ec_t		*ec = NULL;
+	wan_ec_dev_t		*ec_dev = NULL, *ec_dev_new = NULL;
 
 	WAN_DEBUG_FUNC_START;
-
-
 #if defined(__WINDOWS__)	
 	ec = get_wan_ec_ptr(card);
 #else
@@ -1388,14 +1572,9 @@ static void* wanec_register(void *pcard, int max_channels)
 		WAN_LIST_FOREACH(ec_dev, &ec->ec_dev_head, next){
 			if (ec_dev->card == NULL || ec_dev->card == card){
 				DEBUG_EVENT("%s: Internal Error (%s:%d)\n",
-						card->devname,
-						__FUNCTION__,__LINE__);
+					card->devname, __FUNCTION__,__LINE__);
 				return NULL;
 			}
-		}
-	}
-	WAN_LIST_FOREACH(ec, &wan_ec_head, next){
-		WAN_LIST_FOREACH(ec_dev, &ec->ec_dev_head, next){
 			if (card->hw_iface.hw_same(ec_dev->card->hw, card->hw)){
 				/* Current OCT6100 chip is already in use */
 				break;
@@ -1429,6 +1608,7 @@ static void* wanec_register(void *pcard, int max_channels)
 #else
 	if (ec_dev == NULL){
 #endif
+
 		/* First device for current Oct6100 chip */
 		ec = wan_malloc(sizeof(wan_ec_t));
 		if (ec == NULL){
@@ -1437,20 +1617,45 @@ static void* wanec_register(void *pcard, int max_channels)
 						__FUNCTION__,__LINE__);
 			return NULL;
 		}
-
 		memset(ec, 0, sizeof(wan_ec_t));
-		ec->chip_no		= ++wan_ec_no;
-		ec->state		= WAN_OCT6100_STATE_RESET;
-		ec->ec_active		= 0;
-		ec->max_channels	= max_channels;
-		wan_spin_lock_init(&ec->lock);
+
+		ec->chip_no	= card->hw_iface.get_hwec_index(card->hw);
+		if (ec->chip_no < 0){
+			DEBUG_EVENT("%s: ERROR: Failed to get EC chip number!\n",
+						card->devname);
+			wan_free(ec);
+			return NULL;
+		}
+		ec->state		= WAN_EC_STATE_RESET;
+		ec->max_channels	= (u_int16_t)max_channels;
+		wan_spin_lock_init(&ec->lock, "wan_ec_lock");
 		sprintf(ec->name, "%s%d", WANEC_DEV_NAME, ec->chip_no);
+
+		/* Copy EC chip custom configuration */
+		if (conf->param_no){
+			/* Copy custom oct parameter from user space */
+			ec->custom_conf.params = wan_malloc(conf->param_no * sizeof(wan_custom_param_t));
+			if (ec->custom_conf.params){
+				int	err = 0;
+				err = WAN_COPY_FROM_USER(
+							ec->custom_conf.params,
+							conf->params,
+							conf->param_no * sizeof(wan_custom_param_t));
+				ec->custom_conf.param_no = conf->param_no; 
+			}else{
+				DEBUG_EVENT(
+				"%s: WARNING: Skipping custom OCT6100 configuration (allocation failed)!\n",
+							card->devname);
+			}
+		}
+
 		Oct6100InterruptServiceRoutineDef(&ec->f_InterruptFlag);
 
 #if defined(__WINDOWS__)
 		set_wan_ec_ptr(card, ec);
 #else
 		WAN_LIST_INIT(&ec->ec_dev_head);
+		WAN_LIST_INIT(&ec->ec_confbridge_head);
 		WAN_LIST_INSERT_HEAD(&wan_ec_head, ec, next);
 #endif
 	}else{
@@ -1459,14 +1664,28 @@ static void* wanec_register(void *pcard, int max_channels)
 #endif
 	}
 	ec->usage++;
-	ec_dev_new->ecdev_no = wan_ec_devnum(card->devname);
+	ec_dev_new->ecdev_no		= wan_ec_devnum(card->devname);
 	ec_dev_new->ec			= ec;
 	ec_dev_new->name		= ec->name;
 	ec_dev_new->card		= card;
 	
 	ec_dev_new->fe_media		= WAN_FE_MEDIA(&card->fe);
 	ec_dev_new->fe_lineno		= WAN_FE_LINENO(&card->fe);
-	ec_dev_new->fe_max_channels	= WAN_FE_MAX_CHANNELS(&card->fe);
+	ec_dev_new->fe_start_chan	= WAN_FE_START_CHANNEL(&card->fe);	
+	ec_dev_new->fe_max_chans	= WAN_FE_MAX_CHANNELS(&card->fe);	//max_line_no;	//
+	ec_dev_new->fe_stop_chan	= ec_dev_new->fe_start_chan + ec_dev_new->fe_max_chans - 1;
+	/* Feb 14, 2008
+	** Ignore fe_port_mask for BRI cards. fe_port_mask is for full card, 
+	** but ec_dev created per module. In this case, we have always 
+	** 2 channels (1 and 2). Create fe_channel_map manually */
+	if (fe_port_mask && ec_dev_new->fe_media != WAN_MEDIA_BRI){
+		ec_dev_new->fe_channel_map	= fe_port_mask;
+	}else{
+		int	fe_chan = 0;
+		for(fe_chan = ec_dev_new->fe_start_chan; fe_chan <= ec_dev_new->fe_stop_chan; fe_chan++){
+			ec_dev_new->fe_channel_map |= (1 << fe_chan);
+		}
+	}
 	if (!WAN_FE_TDMV_LAW(&card->fe)){
 		if (WAN_FE_MEDIA(&card->fe) == WAN_MEDIA_T1){
 			WAN_FE_TDMV_LAW(&card->fe) = WAN_TDMV_MULAW;
@@ -1478,11 +1697,11 @@ static void* wanec_register(void *pcard, int max_channels)
 		}
 	}
 	ec_dev_new->fe_tdmv_law		= WAN_FE_TDMV_LAW(&card->fe);
-	ec_dev_new->state		= WAN_OCT6100_STATE_RESET;
+	ec_dev_new->state		= WAN_EC_STATE_RESET;
 		
 	/* Initialize hwec_bypass pointer */
 	card->wandev.ec_enable	= wanec_enable;
-	card->wandev.ec_map	= 0;
+	card->wandev.fe_ec_map	= 0;
 
 	memcpy(ec_dev_new->devname, card->devname, sizeof(card->devname));
 	sprintf(ec_dev_new->ecdev_name, "wp%dec", ec_dev_new->ecdev_no);
@@ -1517,10 +1736,9 @@ static int wanec_unregister(void *arg, void *pcard)
 
 	ec = ec_dev->ec;
 	wan_spin_lock(&ec->lock);
-	DEBUG_EVENT("%s: Unregister interface from %s (chip id %d, usage %d)!\n",
+	DEBUG_EVENT("%s: Unregister interface from %s (usage %d)!\n",
 					card->devname,
 					ec->name,
-					ec->chip_no,
 					ec->usage);
 	
 	wan_set_bit(WAN_EC_BIT_TIMER_KILL,(void*)&ec_dev->critical);
@@ -1528,11 +1746,11 @@ static int wanec_unregister(void *arg, void *pcard)
 	wan_set_bit(WAN_EC_BIT_CRIT,(void*)&ec_dev->critical);
 	wan_del_timer(&ec_dev->timer);				
 	
-	if (ec_dev->state != WAN_OCT6100_STATE_RESET){
-		PRINT1(global_verbose,
-		"%s: Forcing EC device release\n",
+	if (ec_dev->state != WAN_EC_STATE_RESET){
+		DEBUG_EVENT(
+		"%s: Releasing EC device (force)!\n",
 					card->devname);
-		wanec_release(ec_dev, NULL, global_verbose);
+		wanec_api_release(ec_dev, NULL, wanec_verbose);
 	}
 	ec_dev->card = NULL;
 	ec->usage--;
@@ -1552,10 +1770,12 @@ static int wanec_unregister(void *arg, void *pcard)
 	card->ec_dev_ptr = NULL;
 #endif
 
+	ec_dev->ec = NULL;
+	wan_free(ec_dev);
+	wan_spin_unlock(&ec->lock);
+
 	/* FIXME: Remove character device */
 	if (!ec->usage){
-		ec_dev->ec = NULL;
-		wan_free(ec_dev);
 #if !defined(__WINDOWS__)
 		if (WAN_LIST_FIRST(&wan_ec_head) == ec){
 			WAN_LIST_FIRST(&wan_ec_head) =
@@ -1566,77 +1786,56 @@ static int wanec_unregister(void *arg, void *pcard)
 		}
 #endif
 		
+		/* Free all custom configuration parameters */ 
+		if (ec->custom_conf.params){
+			wan_free(ec->custom_conf.params);
+		}
+
 		wan_free(ec);
 
 #if defined(__WINDOWS__)
 		set_wan_ec_ptr(card, NULL);
 #endif
 
-	}else{
-		ec_dev->ec = NULL;
-		wan_free(ec_dev);
 	}
-	wan_spin_unlock(&ec->lock);
 	WAN_DEBUG_FUNC_END;
 	return 0;
 }
 
-#if 0
-static int wanec_isr(void *arg, void *pcard)
+#define WAN_EC_IRQ_TIMEOUT		(HZ*60)
+#define WAN_EC_DTMF_IRQ_TIMEOUT		(HZ/32)
+#define WAN_EC_PLAYOUT_IRQ_TIMEOUT	(HZ/32)
+static int wanec_isr(void *arg)
 {
-	wan_ec_t	*ec = NULL;
 	wan_ec_dev_t	*ec_dev = (wan_ec_dev_t*)arg;
-
-	WAN_ASSERT2(ec_dev == NULL, 0);
-	WAN_ASSERT2(ec_dev->ec == NULL, 0);
-	ec = ec_dev->ec;
-
-#if !defined(__WINDOWS__)
-	if (WAN_LIST_FIRST(&ec->ec_dev_head) != ec_dev){
-		return 0;
-	}
-#endif
-
-	if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
-		return 0;
-	}
-	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical)){
-		return 0;
-	}
-	if (wan_test_bit(WAN_EC_BIT_CRIT_ERROR, &ec_dev->critical)){
-		return 0;
-	}	
-	if (wan_test_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical)){
-		return 0;
-	}
-	if (ec_dev->poll_cmd != WAN_EC_POLL_NONE){
-		/* I'm still busy, return now */
-		return 0;
-	}
-
-	ec->intcount++;
 	
-	/* Execute interrupt routine */
-	if (wanec_ISR(ec, global_verbose)){
-		wan_set_bit(WAN_EC_BIT_CRIT_ERROR, &ec->critical);
-		wan_set_bit(WAN_EC_BIT_CRIT,(void*)&ec_dev->critical);
+	if (ec_dev == NULL || ec_dev->ec == NULL) return 0;
+	if (ec_dev->ec->state != WAN_EC_STATE_CHIP_READY){
 		return 0;
 	}
-	
-	PRINT1(global_verbose, 
-	"%s: HW EC ISR-POLL (%d:%d)\n",
-		ec_dev->devname, ec->intcount,
-		(ec->f_InterruptFlag.fToneEventsPending == TRUE)?1:0);
+	if (wan_test_bit(WAN_EC_BIT_EVENT_DTMF, &ec_dev->events)){
+		/* DTMF event is enabled */
+		if ((SYSTEM_TICKS - ec_dev->lastint_ticks) > WAN_EC_DTMF_IRQ_TIMEOUT){
+			ec_dev->lastint_ticks = SYSTEM_TICKS;
+			return 1; 
+		}
+		return 0;
+	}
+	if (wan_test_bit(WAN_EC_BIT_EVENT_PLAYOUT, &ec_dev->events)){
+		/* Playout event is enabled */
+		if ((SYSTEM_TICKS - ec_dev->lastint_ticks) > WAN_EC_PLAYOUT_IRQ_TIMEOUT){
+			ec_dev->lastint_ticks = SYSTEM_TICKS;
+			return 1; 
+		}
+		return 0;
+	}
 
-	if (ec->f_InterruptFlag.fToneEventsPending == TRUE &&
-	    wan_test_bit(WAN_EC_BIT_EVENT_DTMF, &ec_dev->events)){
-		ec_dev->poll_cmd = WAN_EC_POLL_INTR;
-		/* Schedule poll */
-		return 1;
+	if ((SYSTEM_TICKS - ec_dev->lastint_ticks) > WAN_EC_IRQ_TIMEOUT){
+		ec_dev->lastint_ticks = SYSTEM_TICKS;
+		return 1; 
 	}
 	return 0;
 }
-#endif 
 
 static int wanec_poll(void *arg, void *pcard)
 {
@@ -1649,10 +1848,18 @@ static int wanec_poll(void *arg, void *pcard)
 	ec = ec_dev->ec;
 	
 	WAN_DEBUG_FUNC_START;
-		
+
+#if defined(__WINDOWS__)
 	wan_spin_lock(&ec->lock);
+#else
+	if (!wan_spin_trylock(&ec->lock)){	
+		return -EBUSY;
+	}
+#endif
+
 	wan_clear_bit(WAN_EC_BIT_TIMER_RUNNING,(void*)&ec_dev->critical);
-	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical)){
+	if (wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical) || 
+	    wan_test_bit(WAN_EC_BIT_CRIT_ERROR, &ec_dev->critical)){
 		ec_dev->poll_cmd = WAN_EC_POLL_NONE;
 		wan_spin_unlock(&ec->lock);
 		return -EINVAL;
@@ -1660,33 +1867,49 @@ static int wanec_poll(void *arg, void *pcard)
 	switch(ec_dev->poll_cmd){
 	case WAN_EC_POLL_CHIPOPENPENDING:
 		/* Chip open */
+		if (ec->state != WAN_EC_STATE_CHIP_OPEN_PENDING){
+			DEBUG_EVENT(
+			"%s: Invalid EC state at ChipOpenPending poll command (%02X)\n",
+						ec->name, ec->state);
+			ec->state = WAN_EC_STATE_READY;
+			ec_dev->state = ec->state;
+			ec_dev->poll_cmd = WAN_EC_POLL_NONE;
+			err = -EINVAL;
+			goto wanec_poll_done;
+		}
 		if (wanec_ChipOpen(ec_dev, WAN_EC_VERBOSE_NONE)){
+			ec->f_OpenChip.pbyImageFile = NULL;
+			if (ec->pImageData) wan_vfree(ec->pImageData);
+			ec->pImageData = NULL;
 			/* Chip state is Ready state */
-			ec->state = WAN_OCT6100_STATE_READY;
+			ec->state = WAN_EC_STATE_READY;
 			ec_dev->state = ec->state;
 			ec_dev->poll_cmd = WAN_EC_POLL_NONE;
 			err = -EINVAL;
 			goto wanec_poll_done;
 		}	
-		ec->state = WAN_OCT6100_STATE_CHIP_OPEN;
+		ec->state = WAN_EC_STATE_CHIP_OPEN;
 		ec_dev->state = ec->state;
+
+		ec->f_OpenChip.pbyImageFile = NULL;
+		if (ec->pImageData) wan_vfree(ec->pImageData);
+		ec->pImageData = NULL;
 		break;
 	
 	case WAN_EC_POLL_INTR:
 	default:	/* by default, can be only schedule from interrupt */
-		if (ec->state != WAN_OCT6100_STATE_CHIP_READY){
+		if (ec->state != WAN_EC_STATE_CHIP_READY){
 			break;
 		}
 
-		if ((wan_test_bit(WAN_EC_BIT_CRIT_DOWN, &ec_dev->critical)) || 
-		    (wan_test_bit(WAN_EC_BIT_CRIT_ERROR, &ec_dev->critical)) ||
-		    (wan_test_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical))) {
+		if (wan_test_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical)) {
 			err = -EINVAL;
 			break;
 		}
 		
 		/* Execute interrupt routine */
-		if (wanec_ISR(ec, global_verbose)){
+		err = wanec_ISR(ec, wanec_verbose);
+		if (err < 0){
 			wan_set_bit(WAN_EC_BIT_CRIT_ERROR, &ec->critical);
 			wan_set_bit(WAN_EC_BIT_CRIT,(void*)&ec_dev->critical);
 			err = -EINVAL;
@@ -1713,19 +1936,25 @@ static int wanec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl
 	WAN_ASSERT(event_ctrl  == NULL);
 	ec = ec_dev->ec;
 	
+	wan_spin_lock(&ec->lock);
 	if (wan_test_and_set_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical)){
+		wan_spin_unlock(&ec->lock);
 		return -EBUSY;
 	}
 
 	switch(event_ctrl->type){
 	case WAN_EVENT_EC_DTMF:
-		DEBUG_EVENT("%s: %s DTMF events\n",
-				ec_dev->devname,
-				WAN_EVENT_MODE_DECODE(event_ctrl->mode));
 		if (event_ctrl->mode == WAN_EVENT_ENABLE){
-			wan_set_bit(WAN_EC_BIT_EVENT_DTMF, &ec_dev->events);
+			wanec_channel_dtmf(ec_dev, event_ctrl->channel, WAN_TRUE, NULL, WAN_EC_VERBOSE_EXTRA2/*wanec_verbose*/);
 		}else{
-			wan_clear_bit(WAN_EC_BIT_EVENT_DTMF, &ec_dev->events);
+			wanec_channel_dtmf(ec_dev, event_ctrl->channel, WAN_FALSE, NULL, wanec_verbose);
+		}
+		break;
+	case WAN_EVENT_EC_H100_REPORT:
+		if (event_ctrl->mode == WAN_EVENT_DISABLE){
+			ec->ignore_H100 = 1;
+		}else{
+			ec->ignore_H100 = 0;
 		}
 		break;
 	default:
@@ -1738,6 +1967,7 @@ static int wanec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl
 #endif
 	}
 	wan_clear_bit(WAN_EC_BIT_CRIT_CMD, &ec->critical);
+	wan_spin_unlock(&ec->lock);
 	return err;
 }
 
@@ -1768,31 +1998,48 @@ int wanec_init(void *arg)
 	wanec_iface.reg		= wanec_register;
 	wanec_iface.unreg	= wanec_unregister;
 	wanec_iface.ioctl	= NULL;
-	wanec_iface.isr		= NULL;			// wanec_isr;
+	wanec_iface.isr		= wanec_isr;
 	wanec_iface.poll	= wanec_poll;
 	wanec_iface.event_ctrl	= wanec_event_ctrl;
 	
+#if defined(CONFIG_WANPIPE_HWEC)
 	register_wanec_iface (&wanec_iface);
-
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
+# if defined(__FreeBSD__) || defined(__OpenBSD__)
 	wp_cdev_reg(NULL, WANEC_DEV_NAME, wanec_ioctl);
-#elif defined(__LINUX__) || defined(__WINDOWS__)
+# elif defined(__LINUX__) || defined(__WINDOWS__)
 	wanec_create_dev();
+# endif
 #endif
 	return 0;
 }
 
 int wanec_exit (void *arg)
 {
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
+#if defined(CONFIG_WANPIPE_HWEC)
+# if defined(__FreeBSD__) || defined(__OpenBSD__)
 	wp_cdev_unreg(WANEC_DEV_NAME);
-#elif defined(__LINUX__) || defined(__WINDOWS__)
+# elif defined(__LINUX__) || defined(__WINDOWS__)
 	wanec_remove_dev();
-#endif
+# endif
 	unregister_wanec_iface();
+#endif
 	DEBUG_EVENT("WANEC Layer: Unloaded\n");
 	return 0;
 }
+
+#if 0
+int wanec_shutdown(void *arg)
+{
+	DEBUG_EVENT("Shutting down WANEC module ...\n");
+	return 0;
+}
+
+int wanec_ready_unload(void *arg)
+{
+	DEBUG_EVENT("Is WANEC module ready to unload...\n");
+	return 0;
+}
+#endif
 
 #if !defined(__WINDOWS__)
 WAN_MODULE_DEFINE(
@@ -1800,7 +2047,8 @@ WAN_MODULE_DEFINE(
 		"Alex Feldman <al.feldman@sangoma.com>",
 		"Wanpipe Echo Canceller Layer - Sangoma Tech. Copyright 2006", 
 		"GPL",
-		wanec_init, wanec_exit, NULL);
+		wanec_init, wanec_exit, /*wanec_shutdown, wanec_ready_unload,*/
+		NULL);
 
 WAN_MODULE_DEPEND(wanec, wanrouter, 1,
 			WANROUTER_MAJOR_VER, WANROUTER_MAJOR_VER);

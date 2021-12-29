@@ -46,7 +46,10 @@ extern int wp_lapb_close(void *lapb_ptr);
 extern int wp_lapb_rx(void *lapb_ptr, void *skb);
 extern int wp_lapb_bh(void *lapb_ptr);
 extern int wp_lapb_tx(void *lapb_ptr, void *skb, int type);
+#if defined(__WINDOWS__)
+extern int wp_lapb_timer(void *lapb_ptr, unsigned int *period);
+#else
 extern int wp_lapb_timer(void *lapb_ptr, unsigned int *period, unsigned int);
-
+#endif
 
 #endif

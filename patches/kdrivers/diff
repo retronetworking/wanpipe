@@ -1,0 +1,451 @@
+Only in /common/wanec/buffers: CVS
+Only in /common/wanec/buffers: DTMF_0_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_1_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_2_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_3_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_4_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_5_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_6_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_7_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_8_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_9_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_A_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_B_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_C_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_D_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_POUND_ulaw.pcm
+Only in /common/wanec/buffers: DTMF_STAR_ulaw.pcm
+Only in /common/wanec/buffers: female_voice1_a_law.pcm
+Only in /common/wanec/buffers: female_voice1_u_law.pcm
+Only in /common/wanec/buffers: male_voice1_a_law.pcm
+Only in /common/wanec/buffers: male_voice1_u_law.pcm
+Only in /common/wanec/buffers: male_voice2_a_law.pcm
+Only in /common/wanec/buffers: male_voice2_u_law.pcm
+Only in /common/wanec/buffers: oct_phone_number_a_law.pcm
+Only in /common/wanec/buffers: oct_phone_number_u_law.pcm
+Only in /common/wanec/buffers: Rin_a_law.pcm
+Only in /common/wanec/buffers: Rin_u_law.pcm
+Only in /common/wanec/buffers: Sin_a_law.pcm
+Only in /common/wanec/buffers: Sin_u_law.pcm
+Only in /common/wanec/buffers: voice_long_a_law.pcm
+Only in /common/wanec/buffers: voice_long_u_law.pcm
+Only in /common/wanec: CVS
+Only in /common/wanec: diff
+Only in /common/wanec/image: CVS
+Only in /common/wanec/image: OCT6116-128S.ima
+Only in /common/wanec/image: OCT6116-256S.ima
+Only in /common/wanec/image: OCT6116-32S.ima
+Only in /common/wanec/image: OCT6116-64S.ima
+Only in /common/wanec/image: OCT6116FW-01.05.01
+Only in /common/wanec/image: OCT6116FW-01.05.17
+Only in /common/wanec/image: OCT6126FW-01.03.04
+Only in /common/wanec/image: OCT6126FW-01.05.00
+Only in /common/wanec/image: OCT6126FW-01.05.01
+Only in /common/wanec/lib: CVS
+diff -dur --exclude='*.svn' --exclude='libsangoma*' --exclude='sangoma_mgd*' wanec/Makefile /common/wanec/Makefile
+--- wanec/Makefile	2008-03-03 16:12:40.000000000 -0500
++++ /common/wanec/Makefile	2007-12-04 15:44:37.000000000 -0500
+@@ -1,57 +1,37 @@
+-# Makefile for hello world kernel 2.6 module.              -*-makefile-*-
+ #
+-# Copyright (C) 2004 Joachim Nilsson <joachim.nilsson@member.fsf.org>
++# Makefile for the Linux network (wan) device drivers.
+ #
+-# Licensed under the GNU General Public License, v2.0 or later,
+-# at your option.  See the file COPYING for details, or the web
+-# page http://www.gnu.org/copyleft/gpl.html
++# 3 Aug 2000, Christoph Hellwig <hch@infradead.org>
++# Rewritten to use lists instead of if-statements.
+ #
+ 
+-OBJS = 
+-MODULE_NAME = 
+-EXTRA_CFLAGS = 
+-KDIR =	
+-$(MODULE_NAME)-objs = $(OBJS)
+-
+-RM      = @rm -rf
+-JUNK	= *~ *.bak DEADJOE
+-
+-PWD	:= $(shell pwd)
+-SUBDIRS=$(PWD)
+-
+-# First pass, kernel Makefile reads module objects
+-ifneq ($(KERNELRELEASE),)
+-obj-m	:= $(MODULE_NAME).o
+-
+-
+-# Second pass, the actual build.
+-else
+-KVER    ?= $(shell uname -r)
+-PWD	:= $(shell pwd)
+-KBUILD_VERBOSE=
++EXTRA_CFLAGS=-Werror $(EXTRA_FLAGS)
++EXTRA_CFLAGS+=-DENABLE_TONE_PLAY -DCONFIG_WANPIPE_HWEC -I/usr/include/wanpipe
++HOME=/common/wanec
+ 	
+-all:
+-	$(MAKE) -C $(KDIR) SUBDIRS=$(SUBDIRS) CC=$(CC) KBUILD_VERBOSE=$(KBUILD_VERBOSE) modules
+-
+-clean:
+-	$(shell find  $(SUBDIRS) -name '*.*o'  | xargs rm)
+-	$(shell find $(SUBDIRS) -name '.*.o.cmd' | xargs rm)
+-	$(shell rm -f build.sh)
+-	$(MAKE) -C $(KDIR) SUBDIRS=$(SUBDIRS) clean
+-
+-distclean: clean
+-	$(RM) $(JUNK) $(OBJS)
++BTDIR=oct6100_api/apilib/bt
++LARGMATHDIR=oct6100_api/apilib/largmath
++LLMANDIR=oct6100_api/apilib/llman
++OCTAPIDIR=oct6100_api/octdeviceapi/oct6100api/oct6100_api
++OCTAPIMIDIR=oct6100_api/octdeviceapi/oct6100api/oct6100_apimi
+ 
+-help:
+-	$(MAKE) -C $(KDIR) SUBDIRS=$(SUBDIRS) help
++EXTRA_CFLAGS += -I. -I$(HOME)/oct6100_api -I$(HOME)/oct6100_api/include -I$(HOME)/oct6100_api/include/oct6100api -I$(HOME)/oct6100_api/include  -I$(HOME)/oct6100_api/include/apilib -I$(HOME)/oct6100_api/include/apilib -I$(HOME)/oct6100_api/include/octrpc -I$(HOME)/oct6100_api/include/oct6100api -I$(HOME)/oct6100_api/octdeviceapi/oct6100api -DENABLE_TONE_PLAY
+ 
++wanec-y := wanec_iface.o wanec_cmd.o wanec_utils.o wanec_dev.o 
++wanec-y += $(BTDIR)/octapi_bt0.o $(LARGMATHDIR)/octapi_largmath.o 
++wanec-y += $(LLMANDIR)/octapi_llman.o $(OCTAPIMIDIR)/oct6100_mask_interrupts.o 
++wanec-y += $(OCTAPIDIR)/oct6100_adpcm_chan.o $(OCTAPIDIR)/oct6100_channel.o 
++wanec-y += $(OCTAPIDIR)/oct6100_chip_open.o $(OCTAPIDIR)/oct6100_chip_stats.o 
++wanec-y += $(OCTAPIDIR)/oct6100_conf_bridge.o $(OCTAPIDIR)/oct6100_debug.o 
++wanec-y += $(OCTAPIDIR)/oct6100_events.o $(OCTAPIDIR)/oct6100_interrupts.o 
++wanec-y += $(OCTAPIDIR)/oct6100_memory.o $(OCTAPIDIR)/oct6100_miscellaneous.o 
++wanec-y += $(OCTAPIDIR)/oct6100_mixer.o $(OCTAPIDIR)/oct6100_phasing_tsst.o 
++wanec-y += $(OCTAPIDIR)/oct6100_playout_buf.o $(OCTAPIDIR)/oct6100_remote_debug.o 
++wanec-y += $(OCTAPIDIR)/oct6100_tlv.o $(OCTAPIDIR)/oct6100_tone_detection.o 
++wanec-y += $(OCTAPIDIR)/oct6100_tsi_cnct.o $(OCTAPIDIR)/oct6100_tsst.o 
++wanec-y += $(OCTAPIDIR)/oct6100_user.o 
+ 
+-# Indents the kernel source the way linux/Documentation/CodingStyle.txt
+-# wants it to be.
+-indent:
+-	indent -kr -i8 $($(MODULE_NAME)-objs:.o=.c)
++wanec-objs	:= $(OBJS)
+ 
+-install:
+-	$(MAKE) -C $(KDIR) M=$(SUBDIRS) modules_install
++obj-m += wanec.o    
+ 
+-endif
+diff -dur --exclude='*.svn' --exclude='libsangoma*' --exclude='sangoma_mgd*' wanec/Makefile.Kbuild.Linux /common/wanec/Makefile.Kbuild.Linux
+--- wanec/Makefile.Kbuild.Linux	2008-03-03 16:12:40.000000000 -0500
++++ /common/wanec/Makefile.Kbuild.Linux	2007-12-04 15:44:37.000000000 -0500
+@@ -1,57 +1,37 @@
+-# Makefile for hello world kernel 2.6 module.              -*-makefile-*-
+ #
+-# Copyright (C) 2004 Joachim Nilsson <joachim.nilsson@member.fsf.org>
++# Makefile for the Linux network (wan) device drivers.
+ #
+-# Licensed under the GNU General Public License, v2.0 or later,
+-# at your option.  See the file COPYING for details, or the web
+-# page http://www.gnu.org/copyleft/gpl.html
++# 3 Aug 2000, Christoph Hellwig <hch@infradead.org>
++# Rewritten to use lists instead of if-statements.
+ #
+ 
+-OBJS = 
+-MODULE_NAME = 
+-EXTRA_CFLAGS = 
+-KDIR =	
+-$(MODULE_NAME)-objs = $(OBJS)
+-
+-RM      = @rm -rf
+-JUNK	= *~ *.bak DEADJOE
+-
+-PWD	:= $(shell pwd)
+-SUBDIRS=$(PWD)
+-
+-# First pass, kernel Makefile reads module objects
+-ifneq ($(KERNELRELEASE),)
+-obj-m	:= $(MODULE_NAME).o
+-
+-
+-# Second pass, the actual build.
+-else
+-KVER    ?= $(shell uname -r)
+-PWD	:= $(shell pwd)
+-KBUILD_VERBOSE=
++EXTRA_CFLAGS=-Werror $(EXTRA_FLAGS)
++EXTRA_CFLAGS+=-DENABLE_TONE_PLAY -DCONFIG_WANPIPE_HWEC -I/usr/include/wanpipe
++HOME=/common/wanec
+ 	
+-all:
+-	$(MAKE) -C $(KDIR) SUBDIRS=$(SUBDIRS) CC=$(CC) KBUILD_VERBOSE=$(KBUILD_VERBOSE) modules
+-
+-clean:
+-	$(shell find  $(SUBDIRS) -name '*.*o'  | xargs rm)
+-	$(shell find $(SUBDIRS) -name '.*.o.cmd' | xargs rm)
+-	$(shell rm -f build.sh)
+-	$(MAKE) -C $(KDIR) SUBDIRS=$(SUBDIRS) clean
+-
+-distclean: clean
+-	$(RM) $(JUNK) $(OBJS)
++BTDIR=oct6100_api/apilib/bt
++LARGMATHDIR=oct6100_api/apilib/largmath
++LLMANDIR=oct6100_api/apilib/llman
++OCTAPIDIR=oct6100_api/octdeviceapi/oct6100api/oct6100_api
++OCTAPIMIDIR=oct6100_api/octdeviceapi/oct6100api/oct6100_apimi
+ 
+-help:
+-	$(MAKE) -C $(KDIR) SUBDIRS=$(SUBDIRS) help
++EXTRA_CFLAGS += -I. -I$(HOME)/oct6100_api -I$(HOME)/oct6100_api/include -I$(HOME)/oct6100_api/include/oct6100api -I$(HOME)/oct6100_api/include  -I$(HOME)/oct6100_api/include/apilib -I$(HOME)/oct6100_api/include/apilib -I$(HOME)/oct6100_api/include/octrpc -I$(HOME)/oct6100_api/include/oct6100api -I$(HOME)/oct6100_api/octdeviceapi/oct6100api -DENABLE_TONE_PLAY
+ 
++wanec-y := wanec_iface.o wanec_cmd.o wanec_utils.o wanec_dev.o 
++wanec-y += $(BTDIR)/octapi_bt0.o $(LARGMATHDIR)/octapi_largmath.o 
++wanec-y += $(LLMANDIR)/octapi_llman.o $(OCTAPIMIDIR)/oct6100_mask_interrupts.o 
++wanec-y += $(OCTAPIDIR)/oct6100_adpcm_chan.o $(OCTAPIDIR)/oct6100_channel.o 
++wanec-y += $(OCTAPIDIR)/oct6100_chip_open.o $(OCTAPIDIR)/oct6100_chip_stats.o 
++wanec-y += $(OCTAPIDIR)/oct6100_conf_bridge.o $(OCTAPIDIR)/oct6100_debug.o 
++wanec-y += $(OCTAPIDIR)/oct6100_events.o $(OCTAPIDIR)/oct6100_interrupts.o 
++wanec-y += $(OCTAPIDIR)/oct6100_memory.o $(OCTAPIDIR)/oct6100_miscellaneous.o 
++wanec-y += $(OCTAPIDIR)/oct6100_mixer.o $(OCTAPIDIR)/oct6100_phasing_tsst.o 
++wanec-y += $(OCTAPIDIR)/oct6100_playout_buf.o $(OCTAPIDIR)/oct6100_remote_debug.o 
++wanec-y += $(OCTAPIDIR)/oct6100_tlv.o $(OCTAPIDIR)/oct6100_tone_detection.o 
++wanec-y += $(OCTAPIDIR)/oct6100_tsi_cnct.o $(OCTAPIDIR)/oct6100_tsst.o 
++wanec-y += $(OCTAPIDIR)/oct6100_user.o 
+ 
+-# Indents the kernel source the way linux/Documentation/CodingStyle.txt
+-# wants it to be.
+-indent:
+-	indent -kr -i8 $($(MODULE_NAME)-objs:.o=.c)
++wanec-objs	:= $(OBJS)
+ 
+-install:
+-	$(MAKE) -C $(KDIR) M=$(SUBDIRS) modules_install
++obj-m += wanec.o    
+ 
+-endif
+Only in /common/wanec/mod: CVS
+Only in /common/wanec/modinfo: CVS
+Only in /common/wanec/oct6100_api/apilib/bt: CVS
+Only in /common/wanec/oct6100_api/apilib/bt: octapi_bt0.o
+Only in /common/wanec/oct6100_api/apilib/bt: .octapi_bt0.o.cmd
+Only in /common/wanec/oct6100_api/apilib: CVS
+Only in /common/wanec/oct6100_api/apilib/largmath: CVS
+Only in /common/wanec/oct6100_api/apilib/largmath: octapi_largmath.o
+Only in /common/wanec/oct6100_api/apilib/largmath: .octapi_largmath.o.cmd
+Only in /common/wanec/oct6100_api/apilib/llman: CVS
+Only in /common/wanec/oct6100_api/apilib/llman: octapi_llman.o
+Only in /common/wanec/oct6100_api/apilib/llman: .octapi_llman.o.cmd
+Only in /common/wanec/oct6100_api: CVS
+Only in /common/wanec/oct6100_api/include/apilib: CVS
+Only in /common/wanec/oct6100_api/include: CVS
+Only in /common/wanec/oct6100_api/include/oct6100api: CVS
+Only in /common/wanec/oct6100_api/include/octrpc: CVS
+Only in /common/wanec/oct6100_api/octdeviceapi: CVS
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api: CVS
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: CVS
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_adpcm_chan.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_adpcm_chan.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_channel.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_channel.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_chip_open.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_chip_open.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_chip_stats.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_chip_stats.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_conf_bridge.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_conf_bridge.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_debug.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_debug.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_events.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_events.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_interrupts.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_interrupts.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_memory.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_memory.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_miscellaneous.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_miscellaneous.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_mixer.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_mixer.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_phasing_tsst.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_phasing_tsst.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_playout_buf.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_playout_buf.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_remote_debug.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_remote_debug.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_tlv.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_tlv.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_tone_detection.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_tone_detection.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_tsi_cnct.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_tsi_cnct.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_tsst.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_tsst.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: oct6100_user.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api: .oct6100_user.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_apimi: CVS
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_apimi: oct6100_mask_interrupts.o
+Only in /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_apimi: .oct6100_mask_interrupts.o.cmd
+Only in /common/wanec/oct6100_api/octdeviceapiw: CVS
+Only in /common/wanec/oct6100_api/octdeviceapiw/oct6100_apiw_freebsd: CVS
+Only in /common/wanec/oct6100_api/octdeviceapiw/oct6100_apiw_linux: CVS
+Only in /common/wanec: oct6100_api.PR39
+Only in /common/wanec: oct6100_api.PR41
+Only in /common/wanec: oct6100_api.PR43
+Only in /common/wanec: oct6100_api.PR47
+Only in /common/wanec/oct6100_api.PR48/apilib/bt: CVS
+Only in /common/wanec/oct6100_api.PR48/apilib/bt: octapi_bt0.o
+Only in /common/wanec/oct6100_api.PR48/apilib/bt: .octapi_bt0.o.cmd
+Only in /common/wanec/oct6100_api.PR48/apilib: CVS
+Only in /common/wanec/oct6100_api.PR48/apilib/largmath: CVS
+Only in /common/wanec/oct6100_api.PR48/apilib/largmath: octapi_largmath.o
+Only in /common/wanec/oct6100_api.PR48/apilib/largmath: .octapi_largmath.o.cmd
+Only in /common/wanec/oct6100_api.PR48/apilib/llman: CVS
+Only in /common/wanec/oct6100_api.PR48/apilib/llman: octapi_llman.o
+Only in /common/wanec/oct6100_api.PR48/apilib/llman: .octapi_llman.o.cmd
+Only in /common/wanec/oct6100_api.PR48: CVS
+Only in /common/wanec/oct6100_api.PR48/include/apilib: CVS
+Only in /common/wanec/oct6100_api.PR48/include: CVS
+Only in /common/wanec/oct6100_api.PR48/include/oct6100api: CVS
+Only in /common/wanec/oct6100_api.PR48/include/octrpc: CVS
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi: CVS
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api: CVS
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: CVS
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_adpcm_chan.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_adpcm_chan.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_channel.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_channel.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_chip_open.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_chip_open.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_chip_stats.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_chip_stats.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_conf_bridge.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_conf_bridge.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_debug.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_debug.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_events.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_events.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_interrupts.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_interrupts.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_memory.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_memory.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_miscellaneous.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_miscellaneous.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_mixer.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_mixer.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_phasing_tsst.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_phasing_tsst.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_playout_buf.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_playout_buf.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_remote_debug.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_remote_debug.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_tlv.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_tlv.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_tone_detection.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_tone_detection.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_tsi_cnct.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_tsi_cnct.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_tsst.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_tsst.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: oct6100_user.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_api: .oct6100_user.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_apimi: CVS
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_apimi: oct6100_mask_interrupts.o
+Only in /common/wanec/oct6100_api.PR48/octdeviceapi/oct6100api/oct6100_apimi: .oct6100_mask_interrupts.o.cmd
+Only in /common/wanec/oct6100_api.PR48/octdeviceapiw: CVS
+Only in /common/wanec/oct6100_api.PR48/octdeviceapiw/oct6100_apiw_freebsd: CVS
+Only in /common/wanec/oct6100_api.PR48/octdeviceapiw/oct6100_apiw_linux: CVS
+Only in /common/wanec/tmp: CVS
+diff -dur --exclude='*.svn' --exclude='libsangoma*' --exclude='sangoma_mgd*' wanec/.tmp_versions/wanec.mod /common/wanec/.tmp_versions/wanec.mod
+--- wanec/.tmp_versions/wanec.mod	2008-03-03 16:12:55.000000000 -0500
++++ /common/wanec/.tmp_versions/wanec.mod	2008-03-05 18:40:45.000000000 -0500
+@@ -1,2 +1,2 @@
+-/root/3.3/wanpipe/patches/kdrivers/wanec/wanec.ko
+-/root/3.3/wanpipe/patches/kdrivers/wanec/wanec_iface.o /root/3.3/wanpipe/patches/kdrivers/wanec/wanec_cmd.o /root/3.3/wanpipe/patches/kdrivers/wanec/wanec_utils.o /root/3.3/wanpipe/patches/kdrivers/wanec/wanec_dev.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/apilib/bt/octapi_bt0.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/apilib/largmath/octapi_largmath.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/apilib/llman/octapi_llman.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_apimi/oct6100_mask_interrupts.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_adpcm_chan.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_channel.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_chip_open.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_chip_stats.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_conf_bridge.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_debug.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_events.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_interrupts.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_memory.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_miscellaneous.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_mixer.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_phasing_tsst.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_playout_buf.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_remote_debug.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_tlv.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_tone_detection.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_tsi_cnct.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_tsst.o /root/3.3/wanpipe/patches/kdrivers/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_user.o
++/common/wanec/wanec.ko
++/common/wanec/wanec_iface.o /common/wanec/wanec_cmd.o /common/wanec/wanec_utils.o /common/wanec/wanec_dev.o /common/wanec/oct6100_api/apilib/bt/octapi_bt0.o /common/wanec/oct6100_api/apilib/largmath/octapi_largmath.o /common/wanec/oct6100_api/apilib/llman/octapi_llman.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_apimi/oct6100_mask_interrupts.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_adpcm_chan.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_channel.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_chip_open.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_chip_stats.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_conf_bridge.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_debug.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_events.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_interrupts.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_memory.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_miscellaneous.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_mixer.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_phasing_tsst.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_playout_buf.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_remote_debug.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_tlv.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_tone_detection.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_tsi_cnct.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_tsst.o /common/wanec/oct6100_api/octdeviceapi/oct6100api/oct6100_api/oct6100_user.o
+diff -dur --exclude='*.svn' --exclude='libsangoma*' --exclude='sangoma_mgd*' wanec/wanec_cmd.c /common/wanec/wanec_cmd.c
+--- wanec/wanec_cmd.c	2008-02-04 16:39:27.000000000 -0500
++++ /common/wanec/wanec_cmd.c	2008-03-05 18:11:47.000000000 -0500
+@@ -1408,7 +1408,7 @@
+ 		"%s: Error Pll Jitter\n",
+ 				ec->name);
+ 	}
+-	if (ec->f_InterruptFlag.fErrorH100OutOfSync == TRUE){
++	if (ec->f_InterruptFlag.fErrorH100OutOfSync == TRUE && !ec->ignore_H100){
+ 		DEBUG_EVENT(
+ 		"%s: The H100 slave has lost its framing on the bus!\n",
+ 				ec->name);
+Only in /common/wanec: wanec_cmd.o
+Only in /common/wanec: .wanec_cmd.o.cmd
+Only in /common/wanec: wanec_dev.o
+Only in /common/wanec: .wanec_dev.o.cmd
+diff -dur --exclude='*.svn' --exclude='libsangoma*' --exclude='sangoma_mgd*' wanec/wanec_iface.c /common/wanec/wanec_iface.c
+--- wanec/wanec_iface.c	2008-02-22 11:21:05.000000000 -0500
++++ /common/wanec/wanec_iface.c	2008-03-05 18:11:47.000000000 -0500
+@@ -1674,16 +1674,18 @@
+ 	ec_dev_new->fe_start_chan	= WAN_FE_START_CHANNEL(&card->fe);	
+ 	ec_dev_new->fe_max_chans	= WAN_FE_MAX_CHANNELS(&card->fe);	//max_line_no;	//
+ 	ec_dev_new->fe_stop_chan	= ec_dev_new->fe_start_chan + ec_dev_new->fe_max_chans - 1;
+-
++	/* Feb 14, 2008
++	** Ignore fe_port_mask for BRI cards. fe_port_mask is for full card, 
++	** but ec_dev created per module. In this case, we have always 
++	** 2 channels (1 and 2). Create fe_channel_map manually */
+ 	if (fe_port_mask && ec_dev_new->fe_media != WAN_MEDIA_BRI){
+-                ec_dev_new->fe_channel_map      = fe_port_mask;
+-        }else{
+-                int     fe_chan = 0;
+-                for(fe_chan = ec_dev_new->fe_start_chan; fe_chan <= ec_dev_new->fe_stop_chan; fe_chan++){
+-                        ec_dev_new->fe_channel_map |= (1 << fe_chan);
+-                }
+-        }
+-
++		ec_dev_new->fe_channel_map	= fe_port_mask;
++	}else{
++		int	fe_chan = 0;
++		for(fe_chan = ec_dev_new->fe_start_chan; fe_chan <= ec_dev_new->fe_stop_chan; fe_chan++){
++			ec_dev_new->fe_channel_map |= (1 << fe_chan);
++		}
++	}
+ 	if (!WAN_FE_TDMV_LAW(&card->fe)){
+ 		if (WAN_FE_MEDIA(&card->fe) == WAN_MEDIA_T1){
+ 			WAN_FE_TDMV_LAW(&card->fe) = WAN_TDMV_MULAW;
+@@ -1948,6 +1950,13 @@
+ 			wanec_channel_dtmf(ec_dev, event_ctrl->channel, WAN_FALSE, NULL, wanec_verbose);
+ 		}
+ 		break;
++	case WAN_EVENT_EC_H100_REPORT:
++		if (event_ctrl->mode == WAN_EVENT_DISABLE){
++			ec->ignore_H100 = 1;
++		}else{
++			ec->ignore_H100 = 0;
++		}
++		break;
+ 	default:
+ 		err = -EINVAL;
+ 		break;		
+diff -dur --exclude='*.svn' --exclude='libsangoma*' --exclude='sangoma_mgd*' wanec/wanec_iface.h /common/wanec/wanec_iface.h
+--- wanec/wanec_iface.h	2008-02-04 16:37:59.000000000 -0500
++++ /common/wanec/wanec_iface.h	2008-03-05 18:11:47.000000000 -0500
+@@ -293,6 +293,8 @@
+ 	u_int32_t	intcount;
+ 	u_int32_t	critical;
+ 
++	int		ignore_H100;		/* Temporary for BRI card */
++
+ 	wan_spinlock_t	lock;
+ 	u_int32_t	events;			/* enable events map */
+ 	int		tone_verbose;		/* verbose mode for tone events */
+Only in /common/wanec: wanec_iface.o
+Only in /common/wanec: .wanec_iface.o.cmd
+Only in /common/wanec: wanec.ko
+Only in /common/wanec: .wanec.ko.cmd
+diff -dur --exclude='*.svn' --exclude='libsangoma*' --exclude='sangoma_mgd*' wanec/wanec.mod.c /common/wanec/wanec.mod.c
+--- wanec/wanec.mod.c	2008-02-22 15:56:59.000000000 -0500
++++ /common/wanec/wanec.mod.c	2008-03-05 18:24:45.000000000 -0500
+@@ -55,4 +55,4 @@
+ "depends=";
+ 
+ 
+-MODULE_INFO(srcversion, "7BF6911A99A9CA69B41E9F4");
++MODULE_INFO(srcversion, "A6BF1CF61774AE275ECC9A5");
+Only in /common/wanec: wanec.mod.o
+Only in /common/wanec: .wanec.mod.o.cmd
+Only in /common/wanec: wanec.o
+Only in /common/wanec: .wanec.o.cmd
+Only in /common/wanec: wanec_utils.o
+Only in /common/wanec: .wanec_utils.o.cmd

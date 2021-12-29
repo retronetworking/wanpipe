@@ -16,7 +16,7 @@
  ******************************************************************************
  */
 
-/*******************************************************************************
+/******************************************************************************
 **			   INCLUDE FILES
 *******************************************************************************/
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -31,9 +31,9 @@
 # include <wanpipe_events.h>
 #elif (defined __WINDOWS__)
 # include <wanpipe_includes.h>
-# include <wanpipe_defines.h>
 # include <wanpipe.h>
 # include <sdla_remora.h>
+# include <wanpipe_events.h>
 #else
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -45,15 +45,30 @@
 # include <linux/wanpipe_events.h>
 #endif
 
+#if !defined(__WINDOWS__)
+#if 1
+#define AFT_FUNC_DEBUG()
+#else
+#define AFT_FUNC_DEBUG()  DEBUG_EVENT("%s:%d\n",__FUNCTION__,__LINE__)
+#endif
+#endif
 
 /*******************************************************************************
 **			  DEFINES AND MACROS
 *******************************************************************************/
 
+#undef WAN_REMORA_AUTO_CALIBRATE
+
 #if 1
 # define AFT_TDM_API_SUPPORT
 #else
 # undef AFT_TDM_API_SUPPORT
+#endif
+
+#if 1
+# define AFT_API_SUPPORT
+#else
+# undef AFT_API_SUPPORT
 #endif
 
 #if 0
@@ -62,7 +77,7 @@
 # undef	AFT_RM_INTR_SUPPORT
 #endif
 
-#define AUDIO_RINGCHECK
+#undef AUDIO_RINGCHECK
 
 #if 1
 /* Current A200 designs (without interrupts) */
@@ -79,7 +94,7 @@
 #define WP_RM_CONFIGURED 		0x03
 #define WP_RM_TIMER_EVENT_PENDING	0x04
 
-#define WP_RM_POLL_TIMER	1000
+#define WP_RM_POLL_TIMER	100
 #define WP_RM_POLL_EVENT_TIMER	10
 #define WP_RM_POLL_TONE_TIMER	5000
 #define WP_RM_POLL_RING_TIMER	10000
@@ -89,8 +104,6 @@ enum {
 	WP_RM_POLL_TONE_RING,
 	WP_RM_POLL_TONE_CONGESTION,
 	WP_RM_POLL_TONE_DONE,
-	//WP_RM_POLL_RING,
-	//WP_RM_POLL_RING_STOP,
 	WP_RM_POLL_TDMV,
 	WP_RM_POLL_EVENT,
 	WP_RM_POLL_INIT,
@@ -106,8 +119,41 @@ enum {
 	WP_RM_POLL_TXSIG_ONHOOK,
 	WP_RM_POLL_ONHOOKTRANSFER,
 	WP_RM_POLL_SETPOLARITY,
-	WP_RM_POLL_RING_DETECT
+	WP_RM_POLL_RING_DETECT,
+	WP_RM_POLL_READ,
+	WP_RM_POLL_WRITE,
+	WP_RM_POLL_RXSIG_OFFHOOK,
+	WP_RM_POLL_RXSIG_ONHOOK
 };
+
+#define WP_RM_POLL_DECODE(type)							\
+	((type) == WP_RM_POLL_TONE_DIAL) ? "Tone (dial)":			\
+	((type) == WP_RM_POLL_TONE_BUSY) ? "Tone (busy)":			\
+	((type) == WP_RM_POLL_TONE_RING) ? "Tone (ring)":			\
+	((type) == WP_RM_POLL_TONE_CONGESTION) ? "Tone (congestion)":		\
+	((type) == WP_RM_POLL_TONE_DONE) ? "Tone (done)":			\
+	((type) == WP_RM_POLL_TDMV) ? "TDMV":					\
+	((type) == WP_RM_POLL_EVENT) ? "RM-Event":				\
+	((type) == WP_RM_POLL_INIT) ? "Init":					\
+	((type) == WP_RM_POLL_POWER) ? "Power":					\
+	((type) == WP_RM_POLL_LC) ? "Loop closure":				\
+	((type) == WP_RM_POLL_RING_TRIP) ? "Ring Trip":				\
+	((type) == WP_RM_POLL_DTMF) ? "DTMF":					\
+	((type) == WP_RM_POLL_RING) ? "Ring":					\
+	((type) == WP_RM_POLL_TONE) ? "Tone":					\
+	((type) == WP_RM_POLL_TXSIG_KEWL) ? "TX Sig KEWL":			\
+	((type) == WP_RM_POLL_TXSIG_START) ? "TX Sig Start":			\
+	((type) == WP_RM_POLL_TXSIG_OFFHOOK) ? "TX Sig Off-hook":		\
+	((type) == WP_RM_POLL_TXSIG_ONHOOK) ? "TX Sig On-hook":			\
+	((type) == WP_RM_POLL_ONHOOKTRANSFER) ? "On-hook transfer":		\
+	((type) == WP_RM_POLL_SETPOLARITY) ? "Set polarity":			\
+	((type) == WP_RM_POLL_RING_DETECT) ? "Ring Detect":			\
+	((type) == WP_RM_POLL_READ) ? "FE Read":				\
+	((type) == WP_RM_POLL_WRITE) ? "FE Write":"Unknown RM poll event"	\
+	((type) == WP_RM_POLL_RXSIG_OFFHOOK) ? "RX Sig Off-hook":		\
+	((type) == WP_RM_POLL_RXSIG_ONHOOK) ? "RX Sig On-hook":			\
+						"Unknown RM poll event"
+
 
 /* tone_struct DialTone
 ** OSC1= 350 Hz OSC2= 440 Hz .0975 Volts -18 dBm */
@@ -332,7 +378,6 @@ static struct fxo_mode {
 	{ "USA", 0, 0, 0, 0, 0, 0x3, 0, 0, },
 	{ "YEMEN", 0, 0, 0, 0, 0, 0x3, 0, 0, },
 };
-
 static int acim2tiss[16] = { 0x0, 0x1, 0x4, 0x5, 0x7, 0x0, 0x0, 0x6, 0x0, 0x0, 0x0, 0x2, 0x0, 0x3 };
 
 /*******************************************************************************
@@ -345,7 +390,7 @@ static int acim2tiss[16] = { 0x0, 0x1, 0x4, 0x5, 0x7, 0x0, 0x0, 0x6, 0x0, 0x0, 0
 #if !defined(__WINDOWS__)
 extern WAN_LIST_HEAD(, wan_tdmv_) wan_tdmv_head;
 #endif
-static int battdebounce = DEFAULT_BATT_DEBOUNCE;
+static int battdebounce = 64; //DEFAULT_BATT_DEBOUNCE;
 static int battthresh = DEFAULT_BATT_THRESH;
 
 /*******************************************************************************
@@ -357,6 +402,7 @@ int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane);
 static int wp_remora_config(void *pfe);
 static int wp_remora_unconfig(void *pfe);
 static int wp_remora_post_init(void *pfe);
+static int wp_remora_pre_release(void* pfe);
 static int wp_remora_if_config(void *pfe, u32 mod_map, u8);
 static int wp_remora_if_unconfig(void *pfe, u32 mod_map, u8);
 static int wp_remora_disable_irq(void *pfe); 
@@ -364,7 +410,7 @@ static int wp_remora_intr(sdla_fe_t *);
 static int wp_remora_check_intr(sdla_fe_t *); 
 static int wp_remora_polling(sdla_fe_t*);
 static int wp_remora_udp(sdla_fe_t*, void*, unsigned char*);
-static unsigned int wp_remora_active_map(sdla_fe_t* fe);
+static unsigned int wp_remora_active_map(sdla_fe_t* fe, unsigned char);
 static unsigned char wp_remora_fe_media(sdla_fe_t *fe);
 static int wp_remora_set_dtmf(sdla_fe_t*, int, unsigned char);
 static int wp_remora_intr_ctrl(sdla_fe_t*, int, u_int8_t, u_int8_t, unsigned int);
@@ -403,7 +449,7 @@ static void wait_just_a_bit(int foo, int fast)
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
 	WP_SCHEDULE(foo, "A200");
 #else
-	unsigned long	start_ticks;
+	wan_ticks_t	start_ticks;
 	start_ticks = SYSTEM_TICKS + foo;
 	while(SYSTEM_TICKS < start_ticks){
 		WP_DELAY(100);
@@ -427,6 +473,17 @@ static void wp_remora_reset_spi(sdla_fe_t *fe)
 					SPI_INTERFACE_REG,
 					0x00000000);
 	WP_DELAY(1000);
+	
+#if 0
+{
+	unsigned int	value;
+	
+	/* Enable Slow speed SPI */	
+	card->hw_iface.bus_read_4(card->hw, 0x40, &data);
+	data |= 0x00000020;
+	card->hw_iface.bus_write_4(card->hw, 0x40, data);
+}	
+#endif
 	return;
 }
 
@@ -434,7 +491,8 @@ static void wp_remora_reset_spi(sdla_fe_t *fe)
 static int
 wp_proslic_setreg_indirect(sdla_fe_t *fe, int mod_no, unsigned char address, unsigned short data)
 {
-
+	DEBUG_REG("%s: Indirect Register %d = %X\n",
+				fe->name, address, data);
 	WRITE_RM_REG(mod_no, IDA_LO,(unsigned char)(data & 0xFF));
 	WRITE_RM_REG(mod_no, IDA_HI,(unsigned char)((data & 0xFF00)>>8));
 	WRITE_RM_REG(mod_no, IAA,address);
@@ -458,10 +516,12 @@ static int wp_proslic_init_indirect_regs(sdla_fe_t *fe, int mod_no)
 {
 	unsigned char i;
 
+	DEBUG_CFG("%s: Initializing Indirect Registers...\n", fe->name);
 	for (i=0; i<sizeof(indirect_regs) / sizeof(indirect_regs[0]); i++){
 		if(wp_proslic_setreg_indirect(fe, mod_no, indirect_regs[i].address,indirect_regs[i].initial))
 			return -1;
 	}
+	DEBUG_CFG("%s: Initializing Indirect Registers...Done!\n", fe->name);
 
 	return 0;
 }
@@ -472,6 +532,7 @@ static int wp_proslic_verify_indirect_regs(sdla_fe_t *fe, int mod_no)
 	unsigned short i, initial;
 	int j;
 
+	DEBUG_CFG("%s: Verifing Indirect Registers...\n", fe->name);
 	for (i=0; i<sizeof(indirect_regs) / sizeof(indirect_regs[0]); i++){ 
 		
 		j = wp_proslic_getreg_indirect(
@@ -480,7 +541,7 @@ static int wp_proslic_verify_indirect_regs(sdla_fe_t *fe, int mod_no)
 				(unsigned char) indirect_regs[i].address);
 		if (j < 0){
 			DEBUG_EVENT("%s: Module %d: Failed to read indirect register %d\n",
-						fe->name, mod_no,
+						fe->name, mod_no+1,
 						i);
 			return -1;
 		}
@@ -489,7 +550,7 @@ static int wp_proslic_verify_indirect_regs(sdla_fe_t *fe, int mod_no)
 		if ( j != initial && indirect_regs[i].altaddr != 255){
 			DEBUG_EVENT(
 			"%s: Module %d: Internal Error: iReg=%s (%X) Value=%X (%X)\n",
-						fe->name, mod_no,
+						fe->name, mod_no+1,
 						indirect_regs[i].name,
 						indirect_regs[i].address,
 						j, initial);
@@ -500,50 +561,49 @@ static int wp_proslic_verify_indirect_regs(sdla_fe_t *fe, int mod_no)
 	if (!passed) {
 		DEBUG_EVENT(
 		"%s: Module %d: Init Indirect Registers UNSUCCESSFULLY.\n",
-						fe->name, mod_no);
+						fe->name, mod_no+1);
 		return -1;
 	}
+	DEBUG_CFG("%s: Verifing Indirect Registers...Done!\n", fe->name);
 	return 0;
 }
 
-
+/******************************************************************************
+** wp_remora_chain_enable() - 
+**
+**	OK
+*/
 static int wp_remora_chain_enable(sdla_fe_t *fe)
 {
 	int		mod_no;
 	unsigned char	byte;
 
-	for(mod_no = 0;mod_no < MAX_REMORA_MODULES; mod_no += 2){
+	for(mod_no = 0;mod_no < MAX_REMORA_MODULES; mod_no ++){
 		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_NONE){
 			byte = READ_RM_FXS_REG(mod_no, 0, 0);
 			byte &= 0x0F;
 			if (byte == 0x05){
-				DEBUG_RM("%s: Module %d/%d FXS\n",
-					fe->name, mod_no,mod_no+1);
+				DEBUG_RM("%s: Module %d FXS\n",
+					fe->name, mod_no+1);
 				fe->rm_param.mod[mod_no].type	=
-						MOD_TYPE_FXS;
-				fe->rm_param.mod[mod_no+1].type	=
 						MOD_TYPE_FXS;
 			}else if (byte == 0x00){
-				DEBUG_RM("%s: Module %d/%d TEST\n",
-					fe->name, mod_no,mod_no+1);
+				DEBUG_RM("%s: Module %d TEST\n",
+					fe->name, mod_no+1);
 				fe->rm_param.mod[mod_no].type	=
 						MOD_TYPE_TEST;
-				fe->rm_param.mod[mod_no+1].type	=
-						MOD_TYPE_TEST;			
 			}
 		}
 	}
 	/* Reset SPI interface */
 	wp_remora_reset_spi(fe);
-	for(mod_no = 0;mod_no < MAX_REMORA_MODULES; mod_no += 2){
+	for(mod_no = 0;mod_no < MAX_REMORA_MODULES; mod_no ++){
 		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_NONE){
 			byte = READ_RM_FXO_REG(mod_no,1,2);
 			if (byte == 0x03){
-				DEBUG_RM("%s: Module %d/%d FXO\n",
-						fe->name, mod_no,mod_no+1);
+				DEBUG_RM("%s: Module %d FXO\n",
+						fe->name, mod_no+1);
 				fe->rm_param.mod[mod_no].type	=
-							MOD_TYPE_FXO;
-				fe->rm_param.mod[mod_no+1].type	=
 							MOD_TYPE_FXO;
 			}
 		}
@@ -553,14 +613,14 @@ static int wp_remora_chain_enable(sdla_fe_t *fe)
 	wp_remora_reset_spi(fe);
 
 	/* Now enable chain mode for only FXS modules (FXO by default chain) */
-	for(mod_no = 0;mod_no < MAX_REMORA_MODULES; mod_no += 2){
-		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS){
+	for(mod_no = 0;mod_no < MAX_REMORA_MODULES; mod_no ++){
+		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS && mod_no % 2 == 0){
 			WRITE_RM_FXS_REG(mod_no,0,0,0xC0);
 			byte = READ_RM_FXS_REG(mod_no, 1, 0);
 			if ((byte & 0x80) != 0x80){
 				DEBUG_RM(
 				"%s: Module %d: Failed to enable chain (%02X)!\n", 
-						fe->name, mod_no, byte);
+						fe->name, mod_no+1, byte);
 				return -EINVAL;
 			}
 		}else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
@@ -568,24 +628,17 @@ static int wp_remora_chain_enable(sdla_fe_t *fe)
 			if (byte != 0x03){
 				/* Should never happened */
 				fe->rm_param.mod[mod_no].type	= MOD_TYPE_NONE;
-				fe->rm_param.mod[mod_no+1].type	= MOD_TYPE_NONE;
 				continue;
 			}
 		}else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_TEST){
 			/* Test module or nothing */
 			continue;
-		}else{
-			DEBUG_RM(
-			"%s: Module %d: Failed to detect FXO/FXS module!\n", 
-						fe->name, mod_no);
-			continue;
 		}
 		DEBUG_RM(
-		"%s: Module %d/%d %s (chain)\n",
-			fe->name, mod_no,mod_no+1,
+		"%s: Module %d %s (chain)\n",
+			fe->name, mod_no+1,
 			WP_REMORA_DECODE_TYPE(fe->rm_param.mod[mod_no].type));	
 		fe->rm_param.mod[mod_no].chain	= MOD_CHAIN_ENABLED;
-		fe->rm_param.mod[mod_no+1].chain= MOD_CHAIN_ENABLED;
 	}
 	return 0;
 }
@@ -598,7 +651,7 @@ static int wp_init_proslic_insane(sdla_fe_t *fe, int mod_no)
 	if ((value & 0x30) >> 4){
 		DEBUG_RM("%s: Proslic on module %d is not a Si3210 (%02X)!\n",
 					fe->name,
-					mod_no,
+					mod_no+1,
 					value);
 		return -1;
 	}
@@ -618,7 +671,7 @@ static int wp_init_proslic_insane(sdla_fe_t *fe, int mod_no)
 	if (value != 0x2) {
 		DEBUG_EVENT(
 		"%s: Proslic on module %d insane (1) %d should be 2!\n",
-					fe->name, mod_no, value);
+					fe->name, mod_no+1, value);
 		return -1;
 	}
 
@@ -626,7 +679,7 @@ static int wp_init_proslic_insane(sdla_fe_t *fe, int mod_no)
 	if (value != 0x0) {
 		DEBUG_EVENT(
 		"%s: Proslic on modyle %d insane (2) %d should be 0!\n",
-					fe->name, mod_no, value);
+					fe->name, mod_no+1, value);
 		return -1;
 	} 
 
@@ -634,7 +687,7 @@ static int wp_init_proslic_insane(sdla_fe_t *fe, int mod_no)
 	if (value != 0x33) {
 		DEBUG_EVENT(
 		"%s: Proslic on module %d insane (3) %02X should be 0x33\n",
-					fe->name, mod_no, value);
+					fe->name, mod_no+1, value);
 		return -1;
 	}
 	WRITE_RM_REG(mod_no, 30, 0);
@@ -644,10 +697,11 @@ static int wp_init_proslic_insane(sdla_fe_t *fe, int mod_no)
 static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
 {
 	wp_remora_fxs_t	*fxs;
-	unsigned long	start_ticks;
+	wan_ticks_t	start_ticks;
 	int		loopcurrent = 20, lim;
 	unsigned char	vbat;
 	
+	DEBUG_CFG("%s: PowerUp SLIC initialization...\n", fe->name);
 	fxs = &fe->rm_param.mod[mod_no].u.fxs;
 	/* set the period of the DC-DC converter to 1/64 kHz  START OUT SLOW*/
 	WRITE_RM_REG(mod_no, 92, 0xf5);
@@ -673,7 +727,7 @@ static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
 			"%s: Module %d: Failed to powerup within %d ms (%dV : %dV)!\n",
 					fe->name,
 					mod_no+1,
-					(int)(((SYSTEM_TICKS - start_ticks) * 1000 / HZ)),
+					(u_int32_t)(((SYSTEM_TICKS - start_ticks) * 1000 / HZ)),
 					(vbat * 375)/1000, (0xc0 * 375)/1000);
 			DEBUG_EVENT(
 			"%s: Module %d: Did you remember to plug in the power cable?\n",
@@ -718,14 +772,16 @@ static int wp_powerup_proslic(sdla_fe_t *fe, int mod_no, int fast)
 		}
 		wait_just_a_bit(HZ/10, fast);
 	}
+	DEBUG_CFG("%s: PowerUp SLIC initialization...Done!\n", fe->name);
 	return 0;
 }
 
 static int wp_proslic_powerleak_test(sdla_fe_t *fe, int mod_no, int fast)
 {
-	unsigned long	start_ticks;
+	wan_ticks_t	start_ticks;
 	unsigned char	vbat;
 
+	DEBUG_CFG("%s: PowerLeak ProSLIC testing...\n", fe->name);
 	/* powerleak */ 
 	WRITE_RM_REG(mod_no, 64, 0);
 	WRITE_RM_REG(mod_no, 14, 0x10);
@@ -739,7 +795,7 @@ static int wp_proslic_powerleak_test(sdla_fe_t *fe, int mod_no, int fast)
 					fe->name, mod_no+1,
 					376 * vbat / 1000,
 					vbat,
-					(int)((SYSTEM_TICKS - start_ticks) * 1000 / HZ));
+					(u_int32_t)((SYSTEM_TICKS - start_ticks) * 1000 / HZ));
 		return -1;
 	}
 	DEBUG_RM("%s: Module %d: Post-leakage voltage: %d volts\n",
@@ -747,13 +803,16 @@ static int wp_proslic_powerleak_test(sdla_fe_t *fe, int mod_no, int fast)
 					mod_no+1,
 					376 * vbat / 1000);
 
+	DEBUG_CFG("%s: PowerLeak ProSLIC testing...Done!\n", fe->name);
 	return 0;
 }
 
+#if defined(WAN_REMORA_AUTO_CALIBRATE)
 static int wp_proslic_calibrate(sdla_fe_t *fe, int mod_no, int fast)
 {
-	volatile unsigned long	start_ticks;
+	volatile wan_ticks_t	start_ticks;
 
+	DEBUG_CFG("%s: ProSLIC calibration...\n", fe->name);
 	/* perform all calibration */
 	WRITE_RM_REG(mod_no, 97, 0x1f);
 	/* start */
@@ -769,14 +828,16 @@ static int wp_proslic_calibrate(sdla_fe_t *fe, int mod_no, int fast)
 		}
 		wait_just_a_bit(HZ/10, fast);
 	}
+	DEBUG_CFG("%s: ProSLIC calibration...Done!\n", fe->name);
 	return 0;
 }
-
+#else
 static int wp_proslic_manual_calibrate(sdla_fe_t *fe, int mod_no, int fast)
 {
-	volatile unsigned long	start_ticks;
+	volatile wan_ticks_t	start_ticks;
 	int			i=0;
 
+	DEBUG_CFG("%s: ProSLIC manual calibration...\n", fe->name);
 	WRITE_RM_REG(mod_no, 21, 0x00);
 	WRITE_RM_REG(mod_no, 22, 0x00);
 	WRITE_RM_REG(mod_no, 23, 0x00);
@@ -799,12 +860,12 @@ static int wp_proslic_manual_calibrate(sdla_fe_t *fe, int mod_no, int fast)
 	}
 
 	wait_just_a_bit(HZ/10, fast);
-	wp_proslic_setreg_indirect(fe, mod_no, 88, 0x0);
-	wp_proslic_setreg_indirect(fe, mod_no, 89, 0x0);
-	wp_proslic_setreg_indirect(fe, mod_no, 90, 0x0);
-	wp_proslic_setreg_indirect(fe, mod_no, 91, 0x0);
-	wp_proslic_setreg_indirect(fe, mod_no, 92, 0x0);
-	wp_proslic_setreg_indirect(fe, mod_no, 93, 0x0);
+	wp_proslic_setreg_indirect(fe, mod_no, 88, 0x00);
+	wp_proslic_setreg_indirect(fe, mod_no, 89, 0x00);
+	wp_proslic_setreg_indirect(fe, mod_no, 90, 0x00);
+	wp_proslic_setreg_indirect(fe, mod_no, 91, 0x00);
+	wp_proslic_setreg_indirect(fe, mod_no, 92, 0x00);
+	wp_proslic_setreg_indirect(fe, mod_no, 93, 0x00);
 
 	/* Step 16 */
 	/* Insert manual calibration for sangoma Si3210 */
@@ -843,8 +904,10 @@ static int wp_proslic_manual_calibrate(sdla_fe_t *fe, int mod_no, int fast)
 	while(READ_RM_REG(mod_no, 96) != 0){
 		if ((SYSTEM_TICKS - start_ticks) > 400){
 			DEBUG_EVENT(
-			"%s: Module %d: Timeout on SLIC calibration (%ld:%ld!\n",
-				fe->name, mod_no+1,start_ticks,SYSTEM_TICKS);
+			"%s: Module %d: Timeout on SLIC calibration (%ld:%ld)!\n",
+				fe->name, mod_no+1,
+				(unsigned long)start_ticks,
+				(unsigned long)SYSTEM_TICKS);
 			return -1;
 		}
 		wait_just_a_bit(HZ/10, fast);
@@ -852,9 +915,10 @@ static int wp_proslic_manual_calibrate(sdla_fe_t *fe, int mod_no, int fast)
 	DEBUG_RM("%s: Module %d: Calibration is done\n",
 				fe->name, mod_no+1);
 	/*READ_RM_REG(mod_no, 96);*/
-
+	DEBUG_CFG("%s: ProSLIC manual calibration...Done!\n", fe->name);
 	return 0;
 }
+#endif
 
 /* static */
 int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
@@ -870,6 +934,7 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 		fe->rm_param.mod[mod_no].u.fxs.idletxhookstate = 1;
 	}
 
+	DEBUG_CFG("%s: Start ProSLIC configuration...\n", fe->name);
 	/* Step 8 */
 	if (!sane && wp_init_proslic_insane(fe, mod_no)){
 		return -2;
@@ -936,13 +1001,15 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 		/* Step 13 */
 		WRITE_RM_REG(mod_no, 64, 0);
 
-		//if (wp_proslic_calibrate(fe, mod_no, fast)){
-		//	return -1;
-		//}
+#if defined(WAN_REMORA_AUTO_CALIBRATE)
+		if (wp_proslic_calibrate(fe, mod_no, fast)){
+			return -1;
+		}
+#else
 		if (wp_proslic_manual_calibrate(fe, mod_no, fast)){
 			return -1;
 		}
-
+#endif
 		/* Perform DC-DC calibration */
 		WRITE_RM_REG(mod_no,  93, 0x99);
 		wait_just_a_bit(10, fast);
@@ -1003,17 +1070,17 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 	WRITE_RM_REG(mod_no, 73, 0x04);
 
 	if (!strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "AUSTRALIA")) {
-		value = acim2tiss[fxo_modes[fe->fe_cfg.cfg.remora.opermode].acim];
+		value = (unsigned char)acim2tiss[fxo_modes[fe->fe_cfg.cfg.remora.opermode].acim];
 		WRITE_RM_REG(mod_no, 10, 0x8 | value);
 		if (fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_osc){
 			wp_proslic_setreg_indirect(
 				fe, mod_no, 20,
-				fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_osc);
+				(unsigned char)fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_osc);
 		}
 		if (fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_x){
 			wp_proslic_setreg_indirect(
 				fe, mod_no, 21,
-				fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_x);
+				(unsigned char)fxo_modes[fe->fe_cfg.cfg.remora.opermode].ring_x);
 		}
 	}
 
@@ -1046,12 +1113,44 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 		}
 	}else{
 		if (!strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "AUSTRALIA")) {
-			WRITE_RM_REG(mod_no, 74, 0x3f);
-			if (wp_proslic_setreg_indirect(fe, mod_no, 21, 0x1d1)){
-				return -1;
-			} 
-			DEBUG_EVENT("%s: Module %d: Boosting ringer (89V peak)\n",
+			if (fe->fe_cfg.cfg.remora.fxs_ringampl){
+				u16	ringx=0x00;
+				u8	vbath = 0x00;
+				switch(fe->fe_cfg.cfg.remora.fxs_ringampl){
+				case 47: ringx = 0x163; vbath = 0x31; break;
+				case 45: ringx = 0x154; vbath = 0x2f; break;
+				case 40: ringx = 0x12e; vbath = 0x2b; break;
+				case 35: ringx = 0x108; vbath = 0x26; break;
+				case 30: ringx = 0xe2; vbath = 0x21; break;
+				case 25: ringx = 0xbc; vbath = 0x1d; break;
+				case 20: ringx = 0x97; vbath = 0x1b; break;
+				case 15: ringx = 0x71; vbath = 0x13; break;
+				case 10: ringx = 0x4b; vbath = 0x0e; break;
+				}
+				if (ringx && vbath){
+					DEBUG_EVENT(
+					"%s: Module %d: Ringing Amplitude %d (RNGX:%04X VBATH:%02X)\n",
+							fe->name,mod_no+1, fe->fe_cfg.cfg.remora.fxs_ringampl, ringx, vbath);
+					WRITE_RM_REG(mod_no, 74, vbath);
+					if (wp_proslic_setreg_indirect(fe, mod_no, 21, ringx)){
+						DEBUG_EVENT(
+						"%s: Module %d: Failed to set RingX value!\n", 
+							fe->name, mod_no+1); 
+					}
+					 
+				}else{
+					DEBUG_EVENT(
+					"%s: Module %d: Invalid Ringing Amplitude value %d\n",
+							fe->name, mod_no+1, fe->fe_cfg.cfg.remora.fxs_ringampl); 
+				}
+			}else{
+				WRITE_RM_REG(mod_no, 74, 0x3f);
+				if (wp_proslic_setreg_indirect(fe, mod_no, 21, 0x1d1)){
+					return -1;
+				} 
+				DEBUG_EVENT("%s: Module %d: Boosting ringer (89V peak)\n",
 						fe->name, mod_no+1);
+			}
 		} else if (fe->fe_cfg.cfg.remora.fxs_lowpower == WANOPT_YES){
 			if (wp_proslic_setreg_indirect(fe, mod_no, 21, 0x108)){
 				return -1;
@@ -1162,6 +1261,7 @@ int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane)
 					fe->name, mod_no+1,
 					READ_RM_REG(mod_no, 82)*375/1000,
 					READ_RM_REG(mod_no, 83)*375/1000);
+	DEBUG_CFG("%s: Start ProSLIC configuration...Done!\n", fe->name);
 	return 0;
 }
 
@@ -1175,7 +1275,7 @@ static int wp_voicedaa_insane(sdla_fe_t *fe, int mod_no)
 	byte = READ_RM_REG(mod_no, 11);
 	DEBUG_TEST("%s: Module %d: VoiceDAA System: %02x\n",
 				fe->name,
-				mod_no,
+				mod_no+1,
 				byte & 0xf);
 	return 0;
 }
@@ -1183,8 +1283,8 @@ static int wp_voicedaa_insane(sdla_fe_t *fe, int mod_no)
 
 int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane)
 {
-	unsigned char reg16=0, reg26=0, reg30=0, reg31=0;
-	unsigned long	start_ticks;
+	unsigned char	reg16=0, reg26=0, reg30=0, reg31=0;
+	wan_ticks_t	start_ticks;
 
 	if (!sane && wp_voicedaa_insane(fe, mod_no)){
 		return -2;
@@ -1254,12 +1354,12 @@ int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane)
 			DEBUG_EVENT(
 			"%s: Module %d: VoiceDAA did not bring up ISO link properly!\n",
 						fe->name,
-						mod_no);
+						mod_no+1);
 			return -1;
 		}
 		DEBUG_TEST("%s: Module %d: ISO-Cap is now up, line side: %02x rev %02x\n", 
 				fe->name,
-				mod_no,
+				mod_no+1,
 				READ_RM_REG(mod_no, 11) >> 4,
 				(READ_RM_REG(mod_no, 13) >> 2) & 0xf);
 	} else {
@@ -1273,6 +1373,7 @@ int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane)
 	WRITE_RM_REG(mod_no, 2, 0x87/*0x84*/);
 	fe->rm_param.mod[mod_no].u.fxo.imask = 0xFF;
 #else
+	WRITE_RM_REG(mod_no, 2, 0x04 | 0x03);	/* Ring detect mode (begin/end) */
 	fe->rm_param.mod[mod_no].u.fxo.imask = 0x00;
 #endif		
 
@@ -1325,7 +1426,7 @@ int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane)
 	if (!strcmp(fxo_modes[fe->fe_cfg.cfg.remora.opermode].name, "NEWZEALAND")) {
 		DEBUG_EVENT("%s: Module %d: Adjusting gain\n",
 					fe->name,
-					mod_no);
+					mod_no+1);
 		WRITE_RM_REG(mod_no, 38, 0x7);
 	}
 
@@ -1338,29 +1439,39 @@ int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane)
 **
 **	OK
 */
-int wp_remora_iface_init(void *pfe_iface)
+int wp_remora_iface_init(void *p_fe, void *pfe_iface)
 {
+	sdla_fe_t	*fe = (sdla_fe_t*)p_fe;
 	sdla_fe_iface_t	*fe_iface = (sdla_fe_iface_t*)pfe_iface;
 
 	fe_iface->config	= &wp_remora_config;
 	fe_iface->unconfig	= &wp_remora_unconfig;
+	
 	fe_iface->post_init	= &wp_remora_post_init;
+	
 	fe_iface->if_config	= &wp_remora_if_config;
 	fe_iface->if_unconfig	= &wp_remora_if_unconfig;
+	fe_iface->pre_release	= &wp_remora_pre_release;
 	fe_iface->active_map	= &wp_remora_active_map;
+
 	fe_iface->isr		= &wp_remora_intr;
 	fe_iface->disable_irq	= &wp_remora_disable_irq;
 	fe_iface->check_isr	= &wp_remora_check_intr;
+
 	fe_iface->polling	= &wp_remora_polling;
 	fe_iface->process_udp	= &wp_remora_udp;
 	fe_iface->get_fe_media	= &wp_remora_fe_media;
+
 	fe_iface->set_dtmf	= &wp_remora_set_dtmf;
 	fe_iface->intr_ctrl	= &wp_remora_intr_ctrl;
+
 	fe_iface->event_ctrl	= &wp_remora_event_ctrl;
-#if defined(AFT_TDM_API_SUPPORT)
+#if defined(AFT_TDM_API_SUPPORT) || defined(AFT_API_SUPPORT)
 	fe_iface->watchdog	= &wp_remora_watchdog;
 #endif
 
+	WAN_LIST_INIT(&fe->event);
+	wan_spin_lock_irq_init(&fe->lockirq, "wan_rm_lock");
 	return 0;
 }
 
@@ -1419,10 +1530,6 @@ static int wp_remora_config(void *pfe)
 	fe->rm_param.module_map 	= 0;
 	fe->rm_param.intcount		= 0;
 	fe->rm_param.last_watchdog 	= SYSTEM_TICKS;
-	/*Event lock */
-	WAN_LIST_INIT(&fe->event);
-	wan_spin_lock_init(&fe->lock);
-
 	if (wp_remora_opermode(fe)){
 		return -EINVAL;
 	}
@@ -1447,19 +1554,10 @@ retry_cfg:
 			if (!(err = wp_init_proslic(fe, mod_no, 0, sane))){
 				DEBUG_EVENT(
 				"%s: Module %d: Installed -- Auto FXS!\n",
-					fe->name,
-					mod_no);	
+					fe->name, mod_no+1);	
 				wan_set_bit(mod_no, &fe->rm_param.module_map);
 				fe->rm_param.mod[mod_no].u.fxs.oldrxhook = 1;	/* default (off-hook) */
 				mod_cnt++;
-#if 0
-			}else{
-				DEBUG_EVENT(
-				"%s: Module %d: FXS failed!\n",
-						fe->name,
-						mod_no);
-				err_cnt++;
-#endif 
 			}
 			break;
 
@@ -1468,56 +1566,48 @@ retry_cfg:
 			if (!err){
 				DEBUG_EVENT(
 				"%s: Module %d: Installed -- Auto FXO (%s mode)!\n",
-					fe->name,
-					mod_no,
+					fe->name, mod_no+1,
 					fxo_modes[fe->fe_cfg.cfg.remora.opermode].name);
 				wan_set_bit(mod_no, &fe->rm_param.module_map);
 				mod_cnt++;
-#if 0
-			}else{
-				DEBUG_EVENT(
-				"%s: Module %d: FXO failed!\n",
-						fe->name,
-						mod_no);
-				err_cnt++;
-#endif
 			}
 			break;
 
 		case MOD_TYPE_TEST:
 			DEBUG_EVENT(
 			"%s: Module %d: Installed -- FXS/FXO tester!\n",
-					fe->name,
-					mod_no);
+					fe->name, mod_no+1);
 			wan_set_bit(mod_no, &fe->rm_param.module_map);
+			((sdla_t*)fe->card)->fe_no_intr = 0x1;
 			mod_cnt++;
 			break;
 		default:
 			DEBUG_TDMV("%s: Module %d: Not Installed!\n",
-						fe->name,
-						mod_no);	
+						fe->name, mod_no+1);	
 			break;
 		}
 		if (err/* && !sane*/){
-			sane = 1;
-			if (retry++ < 10) goto retry_cfg;
+			if (!sane/*retry++ < 10*/){
+				sane = 1;
+				DEBUG_EVENT("%s: Module %d: Retry configuration...\n",
+					fe->name, mod_no+1);
+				goto retry_cfg;
+			}
 			DEBUG_EVENT("%s: Module %d: %s failed!\n",
-				fe->name,
-				mod_no,
+				fe->name, mod_no+1,
 				WP_REMORA_DECODE_TYPE(fe->rm_param.mod[mod_no].type));
 			err_cnt++;
-		}else{
-#if defined(__WINDOWS__)
-			//FIXME: should be fixed for linux too?
-			//if not reset to zero, initialization will fail even
-			//if "retry_cfg" was SUCCESSFUL!!
-			err_cnt = 0;
-#endif
 		}
 	}
 
-	if (err_cnt){
-		DEBUG_EVENT("%s: %d FXO/FXS module(s) are failed to initialize!\n",
+#if 0
+	/* NC REMOVED IT TEMPORARILY */	
+	if (err_cnt && fe->fe_cfg.cfg.remora.relaxcfg != WANOPT_YES){
+#else
+	if (err_cnt) {
+#endif
+		DEBUG_EVENT(
+		"%s: %d FXO/FXS module(s) are failed to initialize!\n",
 					fe->name, err_cnt);
 		return -EINVAL;
 	}
@@ -1527,9 +1617,15 @@ retry_cfg:
 #endif
 
 	if (mod_cnt == 0){
-		DEBUG_EVENT("%s: No FXO/FXS modules are found!\n",
+		if (err_cnt){
+			DEBUG_EVENT(
+			"ERROR: %s: Configuration is failed for all FXO/FXS modules!\n",
 					fe->name);
-	//	return -EINVAL;
+		}else{
+			DEBUG_EVENT("ERROR: %s: No FXO/FXS modules are found!\n",
+					fe->name);
+		}
+		return -EINVAL;
 	}
 	/* Initialize and start T1/E1 timer */
 	wan_set_bit(WP_RM_TIMER_KILL,(void*)&fe->rm_param.critical);
@@ -1574,8 +1670,6 @@ retry_cfg:
 static int wp_remora_unconfig(void *pfe)
 {
 	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
-	sdla_fe_timer_event_t	*fe_event;
-	wan_smp_flag_t		smp_flags;
 	int			mod_no;
 
 	DEBUG_EVENT("%s: Unconfiguring FXS/FXO Front End...\n",
@@ -1586,6 +1680,32 @@ static int wp_remora_unconfig(void *pfe)
 					
 	/* Clear and Kill TE timer poll command */
 	wan_clear_bit(WP_RM_CONFIGURED,(void*)&fe->rm_param.critical);
+	
+	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
+		if (wan_test_bit(mod_no, &fe->rm_param.module_map)) {
+			wan_clear_bit(mod_no, &fe->rm_param.module_map);
+		}
+	}
+	return 0;
+}
+
+/*
+ ******************************************************************************
+ *			sdla_te_pre_release()	
+ *
+ * Description: T1/E1 pre release routines (not locked).
+ * Arguments:
+ * Returns:
+ ******************************************************************************
+ */
+static int wp_remora_pre_release(void* pfe)
+{
+	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
+	sdla_fe_timer_event_t	*fe_event = NULL;
+	wan_smp_flag_t		smp_flags;
+	int			empty = 0;
+	
+	/* Kill TE timer poll command */
 	wan_set_bit(WP_RM_TIMER_KILL,(void*)&fe->rm_param.critical);
 
 	if (wan_test_bit(WP_RM_TIMER_RUNNING,(void*)&fe->rm_param.critical)){
@@ -1593,19 +1713,20 @@ static int wp_remora_unconfig(void *pfe)
 	}
 
 	wan_clear_bit(WP_RM_TIMER_RUNNING,(void*)&fe->rm_param.critical);
-	wan_spin_lock_irq(&fe->lock,&smp_flags);
-	while(!WAN_LIST_EMPTY(&fe->event)){
-		fe_event = WAN_LIST_FIRST(&fe->event);
-		WAN_LIST_REMOVE(fe_event, next);
-		if (fe_event) wan_free(fe_event);
-	}
-	wan_spin_unlock_irq(&fe->lock,&smp_flags);
-	
-	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
-		if (wan_test_bit(mod_no, &fe->rm_param.module_map)) {
-			wan_clear_bit(mod_no, &fe->rm_param.module_map);
+	do{
+		wan_spin_lock_irq(&fe->lockirq,&smp_flags);
+		if (!WAN_LIST_EMPTY(&fe->event)){
+			fe_event = WAN_LIST_FIRST(&fe->event);
+			WAN_LIST_REMOVE(fe_event, next);
+		}else{
+			empty = 1;
 		}
-	}
+		wan_spin_unlock_irq(&fe->lockirq,&smp_flags);
+		/* Free should be called not from spin_lock_irq (windows) !!!! */
+		if (fe_event) wan_free(fe_event);
+		fe_event = NULL;
+	}while(!empty);
+	
 	return 0;
 }
 
@@ -1718,7 +1839,7 @@ static int wp_remora_disable_irq(void *pfe)
 	return 0;
 }
 
-static unsigned int wp_remora_active_map(sdla_fe_t* fe)
+static unsigned int wp_remora_active_map(sdla_fe_t* fe, unsigned char not_used)
 {
 	return fe->rm_param.module_map;
 }
@@ -1749,12 +1870,12 @@ static int wp_remora_set_dtmf(sdla_fe_t *fe, int mod_no, unsigned char val)
 
 	if (mod_no > MAX_REMORA_MODULES){
 		DEBUG_EVENT("%s: Module %d: Module number out of range!\n",
-					fe->name, mod_no);
+					fe->name, mod_no+1);
 		return -EINVAL;
 	}	
 	if (!wan_test_bit(mod_no-1, &fe->rm_param.module_map)){
 		DEBUG_EVENT("%s: Module %d: Not configures yet!\n",
-					fe->name, mod_no);
+					fe->name, mod_no+1);
 		return -EINVAL;
 	}
 	
@@ -1784,7 +1905,7 @@ static void wp_remora_timer(unsigned long pfe)
 	wan_smp_flag_t	smp_flags;
 	int		empty = 1;
 
-	DEBUG_RM("%s: RM timer!\n", fe->name);
+	DEBUG_TEST("%s: RM timer!\n", fe->name);
 	
 	if (wan_test_bit(WP_RM_TIMER_KILL,(void*)&fe->rm_param.critical)){
 		wan_clear_bit(WP_RM_TIMER_RUNNING,(void*)&fe->rm_param.critical);
@@ -1799,9 +1920,9 @@ static void wp_remora_timer(unsigned long pfe)
 	wan_clear_bit(WP_RM_TIMER_RUNNING,(void*)&fe->rm_param.critical);
 
 	/* Enable hardware interrupt for TE1 */
-	wan_spin_lock_irq(&fe->lock,&smp_flags);	
+	wan_spin_lock_irq(&fe->lockirq,&smp_flags);	
 	empty = WAN_LIST_EMPTY(&fe->event);
-	wan_spin_unlock_irq(&fe->lock,&smp_flags);	
+	wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
 
 	if (!empty){
 		if (wan_test_and_set_bit(WP_RM_TIMER_EVENT_PENDING,(void*)&fe->rm_param.critical)){
@@ -1814,7 +1935,7 @@ static void wp_remora_timer(unsigned long pfe)
 			wp_remora_polling(fe);
 		}
 	}else{
-		sdla_rm_add_timer(fe, 1000);
+		sdla_rm_add_timer(fe, WP_RM_POLL_TIMER);
 	}
 	return;
 }
@@ -1832,7 +1953,7 @@ static int sdla_rm_add_timer(sdla_fe_t* fe, unsigned long delay)
 {
 	int	err;
 	
-	DEBUG_RM("%s: Add new RM timer!\n", fe->name);
+	DEBUG_TEST("%s: Add new RM timer!\n", fe->name);
 	err = wan_add_timer(&fe->timer, delay * HZ / 1000);
 	if (err){
 		/* Failed to add timer */
@@ -1843,19 +1964,26 @@ static int sdla_rm_add_timer(sdla_fe_t* fe, unsigned long delay)
 }
 
 
+/******************************************************************************
+**				wp_remora_polling()	
+**
+** Description:
+** Arguments:
+** Returns:
+******************************************************************************/
 static int wp_remora_polling(sdla_fe_t* fe)
 {
-#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-	int			err = 0;
-#endif
 	sdla_t			*card = (sdla_t*)fe->card;
+	int			err = 0;
+
 	sdla_fe_timer_event_t	*fe_event;
+	wan_event_t		event;
 	wan_smp_flag_t		smp_flags;
 	int			pending = 0, mod_no = 0;
 	u8			imask;
 
-	WAN_ASSERT(fe->write_fe_reg == NULL);
-	WAN_ASSERT(fe->read_fe_reg == NULL);
+	WAN_ASSERT_RC(fe->write_fe_reg == NULL,0);
+	WAN_ASSERT_RC(fe->read_fe_reg == NULL, 0);
 
 #if 0	
 	DEBUG_EVENT("%s: %s:%d: ---------------START ----------------------\n",
@@ -1864,28 +1992,33 @@ static int wp_remora_polling(sdla_fe_t* fe)
 	DEBUG_EVENT("%s: %s:%d: ---------------STOP ----------------------\n",
 				fe->name, __FUNCTION__,__LINE__);
 #endif
-
-	wan_spin_lock_irq(&fe->lock,&smp_flags);			
+	wan_spin_lock_irq(&fe->lockirq,&smp_flags);			
 	if (WAN_LIST_EMPTY(&fe->event)){
 		wan_clear_bit(WP_RM_TIMER_EVENT_PENDING,(void*)&fe->rm_param.critical);
-		wan_spin_unlock_irq(&fe->lock,&smp_flags);	
+		wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
 		DEBUG_EVENT("%s: WARNING: No FE events in a queue!\n",
 					fe->name);
-		sdla_rm_add_timer(fe, HZ);
-		return 0;
+//		sdla_rm_add_timer(fe, HZ);
+//		return 0;
+		return HZ;
 	}
 	fe_event = WAN_LIST_FIRST(&fe->event);
 	WAN_LIST_REMOVE(fe_event, next);
-	wan_spin_unlock_irq(&fe->lock,&smp_flags);
+	wan_spin_unlock_irq(&fe->lockirq,&smp_flags);
 
-
+#if defined(__WINDOWS__)
+	/* FIXME: Try to make common code for all OS */
+	/* poll is NOT locked outside! */
 	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
+#endif
 	
 	mod_no = fe_event->rm_event.mod_no;
-	DEBUG_RM("%s: Module %d: RM Polling State=%s Cmd=0x%X!\n", 
-			fe->name, mod_no,
+	DEBUG_RM("[RM] %s: Module %d: RM Polling State=%s Cmd=%s(%X) Mode=%s!\n", 
+			fe->name, mod_no+1,
 			fe->fe_status==FE_CONNECTED?"Con":"Disconn",
-			fe_event->type);
+			WP_RM_POLL_DECODE(fe_event->type), fe_event->type,
+			WAN_EVENT_MODE_DECODE(fe_event->mode));
+
 			
 	switch(fe_event->type){
 	case WP_RM_POLL_POWER:
@@ -1953,10 +2086,10 @@ static int wp_remora_polling(sdla_fe_t* fe)
 		break;
 	case WP_RM_POLL_TONE:
 		if (fe_event->mode == WAN_EVENT_ENABLE){
-			DEBUG_EVENT("%s: Module %d: %s %s events (%d)!\n",
-					fe->name, mod_no,
+			DEBUG_RM("%s: Module %d: %s %s events (%d)!\n",
+					fe->name, mod_no+1,
 					WAN_EVENT_MODE_DECODE(fe_event->mode),
-					WAN_EVENT_TYPE_DECODE(fe_event->type),
+					WP_RM_POLL_DECODE(fe_event->type),
 					fe_event->rm_event.tone);
 			switch(fe_event->rm_event.tone){
 			case WAN_EVENT_TONE_DIAL:
@@ -1987,7 +2120,7 @@ static int wp_remora_polling(sdla_fe_t* fe)
 	case WP_RM_POLL_TXSIG_START:
 		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS){
 			DEBUG_RM("%s: Module %d: txsig START.\n",
-					fe->name, mod_no);
+					fe->name, mod_no+1);
 			fe->rm_param.mod[mod_no].u.fxs.lasttxhook = 4;
 			WRITE_RM_REG(mod_no, 64,
 				fe->rm_param.mod[mod_no].u.fxs.lasttxhook);
@@ -2068,10 +2201,13 @@ static int wp_remora_polling(sdla_fe_t* fe)
 		/* Can't change polarity while ringing or when open */
 		if ((fe->rm_param.mod[mod_no].u.fxs.lasttxhook == 0x04) ||
 		    (fe->rm_param.mod[mod_no].u.fxs.lasttxhook == 0x00)){
-#if defined(__WINDOWS__)
+#if 0 /*defined(__WINDOWS__)*/
 			//done with the event, reset the pointer.
 			fe->rm_param.mod[mod_no].current_control_event_ptr = NULL;
+
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 			card->event_control_running = 0;
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
 #endif
 			break;
 		}
@@ -2086,24 +2222,26 @@ static int wp_remora_polling(sdla_fe_t* fe)
 		break;
 
 	case WP_RM_POLL_RING_DETECT:
-		imask = READ_RM_REG(mod_no, 3);
-		if (fe_event->mode == WAN_EVENT_ENABLE){
-			imask |= 0x80;
-			wan_set_bit(WAN_RM_EVENT_RING_DETECT,
-				&fe->rm_param.mod[mod_no].events);
-		}else{
-			imask &= ~0x80;
-			wan_clear_bit(WAN_RM_EVENT_RING_DETECT,
-				&fe->rm_param.mod[mod_no].events);
+		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
+			imask = READ_RM_REG(mod_no, 3);
+			if (fe_event->mode == WAN_EVENT_ENABLE){
+				imask |= 0x80;
+				wan_set_bit(WAN_RM_EVENT_RING_DETECT,
+					&fe->rm_param.mod[mod_no].events);
+			}else{
+				imask &= ~0x80;
+				wan_clear_bit(WAN_RM_EVENT_RING_DETECT,
+					&fe->rm_param.mod[mod_no].events);
+			}
+			WRITE_RM_REG(mod_no, 3, imask);
 		}
-		WRITE_RM_REG(mod_no, 3, imask);
 		break;
 			
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 	case WP_RM_POLL_TDMV:
 #if defined(__WINDOWS__)
 		//FIXME: implement
-		TDM_FUNC_DBG
+		TDM_FUNC_DBG();
 #else
 		WAN_TDMV_CALL(polling, (card), err);
 #endif
@@ -2112,15 +2250,51 @@ static int wp_remora_polling(sdla_fe_t* fe)
 	case WP_RM_POLL_INIT:
 		wp_init_proslic(fe, fe_event->rm_event.mod_no, 1, 1);
 		break;
+	case WP_RM_POLL_READ:
+		fe->rm_param.reg_dbg_value = READ_RM_REG(mod_no,fe_event->rm_event.reg);
+		fe->rm_param.reg_dbg_ready = 1;		
+		DEBUG_RM("%s: Module %d: Reading %s register: Reg[%d]=%02X\n",
+			fe->name, mod_no+1,
+			WP_REMORA_DECODE_TYPE(fe->rm_param.mod[mod_no].type),
+			fe_event->rm_event.reg,
+			fe->rm_param.reg_dbg_value);
+		break;
+	case WP_RM_POLL_WRITE:
+		DEBUG_RM("%s: Module %d: Writting %s register: Reg[%d]=%02X\n",
+			fe->name, mod_no+1, 
+			WP_REMORA_DECODE_TYPE(fe->rm_param.mod[mod_no].type),
+			fe_event->rm_event.reg,
+			fe_event->rm_event.value);
+		WRITE_RM_REG(mod_no, fe_event->rm_event.reg, fe_event->rm_event.value);
+		break;
+	case WP_RM_POLL_RXSIG_ONHOOK:
+		event.type	= WAN_EVENT_RM_LC;
+		event.channel	= mod_no+1;
+		event.rxhook	= WAN_EVENT_RXHOOK_ON;
+		if (card->wandev.event_callback.hook){
+			card->wandev.event_callback.hook(card, &event);
+		}
+		break;
+	case WP_RM_POLL_RXSIG_OFFHOOK:
+		event.type	= WAN_EVENT_RM_LC;
+		event.channel	= mod_no+1;
+		event.rxhook	= WAN_EVENT_RXHOOK_OFF;
+		if (card->wandev.event_callback.hook){
+			card->wandev.event_callback.hook(card, &event);
+		}
+		break;
 	default:
 		DEBUG_EVENT("ERROR: %s: Invalid poll event type %X!\n", 
 				fe->name, fe_event->type);
 		break;
 	}
 
-	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);			
-
 #if defined(__WINDOWS__)
+	/* poll is NOT locked outside! */
+	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
+#endif
+
+#if 0/*defined(__WINDOWS__)*/
 	//done with the event, reset the pointer.
 	fe->rm_param.mod[mod_no].current_control_event_ptr = NULL;
 
@@ -2139,11 +2313,13 @@ static int wp_remora_polling(sdla_fe_t* fe)
 	/* Add fe timer */
 	fe_event = WAN_LIST_FIRST(&fe->event);
 	if (fe_event){
-		sdla_rm_add_timer(fe, fe_event->delay);	
+//		sdla_rm_add_timer(fe, fe_event->delay);	
+		return fe_event->delay;
 	}else{
-		sdla_rm_add_timer(fe, HZ);	
+//		sdla_rm_add_timer(fe, WP_RM_POLL_TIMER);	
 	}
-	return 0;
+//	return 0;
+	return WP_RM_POLL_TIMER;
 }
 
 /*
@@ -2185,26 +2361,92 @@ sdla_rm_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *fe_event)
 	DEBUG_EVENT("%s: %s:%d: ---------------STOP ----------------------\n",
 				fe->name, __FUNCTION__,__LINE__);
 #endif	
-	wan_spin_lock_irq(&fe->lock,&smp_flags);	
+	wan_spin_lock_irq(&fe->lockirq,&smp_flags);	
 	if (WAN_LIST_EMPTY(&fe->event)){
 		WAN_LIST_INSERT_HEAD(&fe->event, event, next);
 	}else{
+#if defined(__WINDOWS__)
+		/* only one event allowed at a time */
+		DEBUG_RM("%s: returning EBUSY\n",
+			fe->name);
+		wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
+		return EBUSY;
+#else
 		sdla_fe_timer_event_t	*tmp;
 		WAN_LIST_FOREACH(tmp, &fe->event, next){
 			if (!WAN_LIST_NEXT(tmp, next)) break;
 		}
 		if (tmp == NULL){
 			DEBUG_EVENT("%s: Internal Error!!!\n", fe->name);
-			wan_spin_unlock_irq(&fe->lock, &smp_flags);	
+			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
 			return -EINVAL;
 		}
 		WAN_LIST_INSERT_AFTER(tmp, event, next);
+#endif
 	}
-	wan_spin_unlock_irq(&fe->lock, &smp_flags);	
+	wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
 	return 0;
 }
 
+/******************************************************************************
+*				wp_remora_event_verification()	
+*
+* Description: 
+* Arguments: mod_no -  Module number (1,2,3,... MAX_REMORA_MODULES)
+* Returns:
+******************************************************************************/
+static int
+wp_remora_event_verification(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
+{
+	int	mod_no = ectrl->mod_no-1;
 
+	/* Event verification */
+	if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS){
+		switch(ectrl->type){
+		case WAN_EVENT_RM_POWER:
+		case WAN_EVENT_RM_LC:
+		case WAN_EVENT_RM_DTMF:
+		case WAN_EVENT_RM_RING_TRIP:
+		case WAN_EVENT_RM_RING:
+		case WAN_EVENT_RM_TONE:
+		case WAN_EVENT_RM_TXSIG_KEWL:
+		case WAN_EVENT_RM_TXSIG_START:
+		case WAN_EVENT_RM_TXSIG_OFFHOOK:
+		case WAN_EVENT_RM_TXSIG_ONHOOK:
+		case WAN_EVENT_RM_ONHOOKTRANSFER:
+		case WAN_EVENT_RM_SETPOLARITY:
+			break;
+		default:
+			DEBUG_EVENT(
+			"%s: Module %d: Remora RING Event is only valid for FXS module (%X)\n",
+					fe->name,mod_no+1,
+					ectrl->type);
+			return -EINVAL;
+		}
+	}else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
+		switch(ectrl->type){
+		case WAN_EVENT_RM_RING_DETECT:
+		case WAN_EVENT_RM_TXSIG_START:
+		case WAN_EVENT_RM_TXSIG_OFFHOOK:
+		case WAN_EVENT_RM_TXSIG_ONHOOK:
+			break;
+		default:
+			DEBUG_EVENT(
+			"%s: Module %d: Remora RING Event is only valid for FXO module(%X)\n",
+					fe->name,mod_no+1,
+					ectrl->type);
+			return -EINVAL;
+		}
+	}else{
+		DEBUG_EVENT(
+		"%s: Module %d: Unknown Module type %X\n",
+				fe->name,mod_no+1,
+				fe->rm_param.mod[mod_no].type);
+		return -EINVAL;	
+	}
+
+	return 0;
+}
 /******************************************************************************
 *				wp_remora_event_ctrl()	
 *
@@ -2216,14 +2458,13 @@ static int
 wp_remora_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 {
 	sdla_fe_timer_event_t	fe_event;
-	int			mod_no, err = 0;
+	int			mod_no = ectrl->mod_no-1, err = 0;
 
 	WAN_ASSERT(ectrl == NULL);
-	mod_no = ectrl->mod_no;
-
-	if (mod_no >= MAX_REMORA_MODULES){
+	
+	if (mod_no+1 > MAX_REMORA_MODULES){
 		DEBUG_EVENT("%s: Module %d: Module number is out of range!\n",
-					fe->name, mod_no);
+					fe->name, mod_no+1);
 		return -EINVAL;
 	}
 	if (!wan_test_bit(mod_no, &fe->rm_param.module_map)) {
@@ -2232,12 +2473,18 @@ wp_remora_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 		return -EINVAL;
 	}
 
-	DEBUG_RM("%s: Module %d: Scheduling %s event type!\n",
-				fe->name, mod_no,
-				WAN_EVENT_TYPE_DECODE(ectrl->type));
+	if (wp_remora_event_verification(fe, ectrl)){
+		return -EINVAL;
+	}
+		
+	DEBUG_RM("%s: Module %d: Scheduling %s event (%s:%X)!\n",
+				fe->name, mod_no+1,
+				WAN_EVENT_TYPE_DECODE(ectrl->type),
+				WAN_EVENT_MODE_DECODE(ectrl->mode), ectrl->mode);
 
 	fe_event.mode		= ectrl->mode;
-	fe_event.rm_event.mod_no= ectrl->mod_no;	
+	fe_event.rm_event.mod_no= mod_no;
+	fe_event.delay		= WP_RM_POLL_TIMER;
 	switch(ectrl->type){
 	case WAN_EVENT_RM_POWER:
 		fe_event.type		= WP_RM_POLL_POWER;
@@ -2245,14 +2492,17 @@ wp_remora_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 	case WAN_EVENT_RM_LC:
 		fe_event.type		= WP_RM_POLL_LC;
 		break;				
-	case WAN_EVENT_RM_RING_TRIP:
-		fe_event.type		= WP_RM_POLL_RING_TRIP;
-		break;
 	case WAN_EVENT_RM_DTMF:
 		fe_event.type		= WP_RM_POLL_DTMF;
 		break;	
+	case WAN_EVENT_RM_RING_TRIP:
+		fe_event.type		= WP_RM_POLL_RING_TRIP;
+		break;
 	case WAN_EVENT_RM_RING:
 		fe_event.type		= WP_RM_POLL_RING;
+		break;
+	case WAN_EVENT_RM_RING_DETECT:
+		fe_event.type		= WP_RM_POLL_RING_DETECT;
 		break;
 	case WAN_EVENT_RM_TONE:
 		fe_event.type		= WP_RM_POLL_TONE;
@@ -2277,16 +2527,7 @@ wp_remora_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 	case WAN_EVENT_RM_SETPOLARITY:
 		fe_event.type		= WP_RM_POLL_SETPOLARITY;
 		break;		
-	case WAN_EVENT_RM_RING_DETECT:
-		fe_event.type		= WP_RM_POLL_RING_DETECT;
-		break;
-	default:
-		DEBUG_EVENT("%s: Module %d: Invalid wan event type %X\n",
-				fe->name,mod_no,
-				ectrl->type);
-		return -EINVAL;
-	}		
-
+	}
 	err = sdla_rm_add_event(fe, &fe_event);	
 	return err;	
 }
@@ -2294,8 +2535,8 @@ wp_remora_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 static int wp_remora_dialtone(sdla_fe_t *fe, int mod_no)
 {
 
-	DEBUG_EVENT("%s: Module %d: Enable Dial tone\n",
-				fe->name, mod_no);
+	DEBUG_RM("%s: Module %d: Enable Dial tone\n",
+				fe->name, mod_no+1);
 	wp_proslic_setreg_indirect(fe, mod_no, 13,DIALTONE_IR13);
 	wp_proslic_setreg_indirect(fe, mod_no, 14,DIALTONE_IR14);
 	wp_proslic_setreg_indirect(fe, mod_no, 16,DIALTONE_IR16);
@@ -2318,8 +2559,8 @@ static int wp_remora_dialtone(sdla_fe_t *fe, int mod_no)
 static int wp_remora_busytone(sdla_fe_t *fe, int mod_no)
 {
 
-	DEBUG_EVENT("%s: Module %d: Enable Busy tone\n",
-				fe->name, mod_no);
+	DEBUG_RM("%s: Module %d: Enable Busy tone\n",
+				fe->name, mod_no+1);
 	wp_proslic_setreg_indirect(fe, mod_no, 13,BUSYTONE_IR13);
 	wp_proslic_setreg_indirect(fe, mod_no, 14,BUSYTONE_IR14);
 	wp_proslic_setreg_indirect(fe, mod_no, 16,BUSYTONE_IR16);
@@ -2342,8 +2583,8 @@ static int wp_remora_busytone(sdla_fe_t *fe, int mod_no)
 static int wp_remora_ringtone(sdla_fe_t *fe, int mod_no)
 {
 
-	DEBUG_EVENT("%s: Module %d: Enable Ring tone\n",
-				fe->name, mod_no);
+	DEBUG_RM("%s: Module %d: Enable Ring tone\n",
+				fe->name, mod_no+1);
 	wp_proslic_setreg_indirect(fe, mod_no, 13,RINGBACKTONE_IR13);
 	wp_proslic_setreg_indirect(fe, mod_no, 14,RINGBACKTONE_IR14);
 	wp_proslic_setreg_indirect(fe, mod_no, 16,RINGBACKTONE_IR16);
@@ -2366,8 +2607,8 @@ static int wp_remora_ringtone(sdla_fe_t *fe, int mod_no)
 static int wp_remora_congestiontone(sdla_fe_t *fe, int mod_no)
 {
 
-	DEBUG_EVENT("%s: Module %d: Enable Congestion tone\n",
-				fe->name, mod_no);
+	DEBUG_RM("%s: Module %d: Enable Congestion tone\n",
+				fe->name, mod_no+1);
 	wp_proslic_setreg_indirect(fe, mod_no, 13,CONGESTIONTONE_IR13);
 	wp_proslic_setreg_indirect(fe, mod_no, 14,CONGESTIONTONE_IR14);
 	wp_proslic_setreg_indirect(fe, mod_no, 16,CONGESTIONTONE_IR16);
@@ -2469,27 +2710,42 @@ static int wp_remora_stats_voltage(sdla_fe_t* fe, unsigned char *data)
  */
 static int wp_remora_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 {
-	wan_cmd_t	*udp_cmd = (wan_cmd_t*)p_udp_cmd;
-	sdla_fe_debug_t	*fe_debug;	
-	int		err = -EINVAL;
+	wan_cmd_t		*udp_cmd = (wan_cmd_t*)p_udp_cmd;
+	sdla_fe_debug_t		*fe_debug;	
+	sdla_fe_timer_event_t	event;
+	int			err = -EINVAL;
 
+	memset(&event, 0, sizeof(sdla_fe_timer_event_t));
 	switch(udp_cmd->wan_cmd_command){
-#if 0
-/* FIXME: Update wanpipemon to use API ioctl call */
 	case WAN_FE_TONES:
-		fe->rm_param.timer_mod_no = data[0]; 
-		wp_remora_enable_timer(fe, WP_RM_POLL_TONE_DIAL, WP_RM_POLL_TIMER);
+		event.type	= WP_RM_POLL_TONE;
+		event.rm_event.mod_no	= data[0];
+		if (data[1]){
+			event.mode	= WAN_EVENT_ENABLE;
+		}else{
+			event.mode	= WAN_EVENT_DISABLE;
+		}
+		event.rm_event.tone	= WAN_EVENT_TONE_DIAL;
+		event.delay		= WP_RM_POLL_TIMER;
+		sdla_rm_add_event(fe, &event);
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-		udp_cmd->wan_cmd_data_len = 0; 
 		break;
 
 	case WAN_FE_RING:
-		fe->rm_param.timer_mod_no = data[0]; 
-		wp_remora_enable_timer(fe, WP_RM_POLL_RING, WP_RM_POLL_TIMER);
+		event.type	= WP_RM_POLL_RING;
+		event.mode	= WAN_EVENT_ENABLE;
+
+		event.rm_event.mod_no	= data[0];
+		if (data[1]){
+			event.mode	= WAN_EVENT_ENABLE;
+		}else{
+			event.mode	= WAN_EVENT_DISABLE;
+		}
+		event.delay		= WP_RM_POLL_TIMER;
+		sdla_rm_add_event(fe, &event);
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-		udp_cmd->wan_cmd_data_len = 0; 
 		break;
-#endif
+
 	case WAN_FE_REGDUMP:
 		err = wp_remora_regdump(fe, data);
 		if (err){
@@ -2500,33 +2756,6 @@ static int wp_remora_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 
 	case WAN_FE_STATS:
 		err = wp_remora_stats_voltage(fe, data);
-#if 0		
-		/* verify TIP/RING voltage */
-		if (!fast){
-			WRITE_RM_REG(mod_no, 8, 0x2);
-			wait_just_a_bit(HZ, fast);
-			start_ticks = SYSTEM_TICKS;
-			while(READ_RM_REG(mod_no, 81) < 0x75){
-				if ((SYSTEM_TICKS - start_ticks) > HZ*10){
-					break;	
-				}
-				wait_just_a_bit(HZ, fast);
-			}
-			wait_just_a_bit(HZ, fast);
-			if (READ_RM_REG(mod_no, 81) < 0x75){
-				if (sane){
-					DEBUG_EVENT(
-					"%s: Module %d: TIP/RING is too low on FXS %d!\n",
-							fe->name,
-							mod_no,
-							READ_RM_REG(mod_no, 81) * 375 / 1000);
-				}
-				WRITE_RM_REG(mod_no, 8, 0x0);
-				return -1;
-			}
-			WRITE_RM_REG(mod_no, 8, 0x0);
-		}
-#endif		
 		if (err){
 			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			udp_cmd->wan_cmd_data_len = (unsigned short)err; 
@@ -2535,13 +2764,45 @@ static int wp_remora_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 		
 	case WAN_FE_SET_DEBUG_MODE:
 		fe_debug = (sdla_fe_debug_t*)&data[0];
-#if 0
 		switch(fe_debug->type){
-		case WAN_FE_DEBUG_VOLTAGE:
-			/* FIXME: Add code */
+		case WAN_FE_DEBUG_REG:
+			if (fe->rm_param.reg_dbg_busy){
+				if (fe_debug->fe_debug_reg.read == 2 && fe->rm_param.reg_dbg_ready){
+					/* Poll the register value */
+					fe_debug->fe_debug_reg.value = fe->rm_param.reg_dbg_value;
+					udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+					fe->rm_param.reg_dbg_busy = 0;
+				}
+				break;
+			}
+			event.type		= (fe_debug->fe_debug_reg.read) ? 
+							WP_RM_POLL_READ : WP_RM_POLL_WRITE;
+			event.rm_event.mod_no	= fe_debug->mod_no;
+			event.rm_event.reg	= (u_int16_t)fe_debug->fe_debug_reg.reg;
+			event.rm_event.value	= fe_debug->fe_debug_reg.value;
+			event.delay		= WP_RM_POLL_TIMER;
+			if (fe_debug->fe_debug_reg.read){
+				fe->rm_param.reg_dbg_busy = 1;
+				fe->rm_param.reg_dbg_ready = 0;
+			}
+			sdla_rm_add_event(fe, &event);
+			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+			break;
+
+		case WAN_FE_DEBUG_HOOK:
+			event.type		= (fe_debug->fe_debug_hook.offhook) ? 
+							WP_RM_POLL_RXSIG_OFFHOOK:
+							WP_RM_POLL_RXSIG_ONHOOK;
+			event.rm_event.mod_no	= fe_debug->mod_no;
+			sdla_rm_add_event(fe, &event);
+			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+			break;
+			
+		default:	
+			udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
+		    	udp_cmd->wan_cmd_data_len = 0;
 			break;
 		}
-#endif
 		break;
 		
 	default:
@@ -2564,7 +2825,7 @@ static int wp_init_proslic_recheck_sanity(sdla_fe_t *fe, int mod_no)
 			sdla_fe_timer_event_t	event;
 			DEBUG_EVENT(
 			"%s: Module %d: Ouch, part reset, quickly restoring reality\n",
-					fe->name, mod_no);
+					fe->name, mod_no+1);
 			event.type		= WP_RM_POLL_INIT;
 			event.delay		= WP_RM_POLL_TIMER;
 			event.rm_event.mod_no	= mod_no;
@@ -2592,9 +2853,12 @@ static int wp_init_proslic_recheck_sanity(sdla_fe_t *fe, int mod_no)
 	return 0;
 }
 
-#if defined(AFT_TDM_API_SUPPORT)
+#if defined(AFT_TDM_API_SUPPORT) || defined(AFT_API_SUPPORT)
 static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 {
+//#undef DEBUG_RM
+//#define DEBUG_RM DEBUG_EVENT
+
 	sdla_t		*card = NULL;
 	wan_event_t	event;
 #ifndef AUDIO_RINGCHECK
@@ -2626,11 +2890,12 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 	}
 	if (poopy)
 		return;
+
 #ifndef AUDIO_RINGCHECK
 	if (!fe->rm_param.mod[mod_no].u.fxo.offhook) {
 		res = READ_RM_REG(mod_no, 5);
 		if ((res & 0x60) && fe->rm_param.mod[mod_no].u.fxo.battery) {
-			fe->rm_param.mod[mod_no].u.fxo.ringdebounce += (WP_RM_CHUNKSIZE * 16);
+			fe->rm_param.mod[mod_no].u.fxo.ringdebounce += (WP_RM_CHUNKSIZE * 4);
 			if (fe->rm_param.mod[mod_no].u.fxo.ringdebounce >= WP_RM_CHUNKSIZE * 64) {
 				if (!fe->rm_param.mod[mod_no].u.fxo.wasringing) {
 					fe->rm_param.mod[mod_no].u.fxo.wasringing = 1;
@@ -2648,7 +2913,7 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 				fe->rm_param.mod[mod_no].u.fxo.ringdebounce = WP_RM_CHUNKSIZE * 64;
 			}
 		} else {
-			fe->rm_param.mod[mod_no].u.fxo.ringdebounce -= WP_RM_CHUNKSIZE * 4;
+			fe->rm_param.mod[mod_no].u.fxo.ringdebounce -= WP_RM_CHUNKSIZE * 2;
 			if (fe->rm_param.mod[mod_no].u.fxo.ringdebounce <= 0) {
 				if (fe->rm_param.mod[mod_no].u.fxo.wasringing) {
 					fe->rm_param.mod[mod_no].u.fxo.wasringing = 0;
@@ -2700,6 +2965,9 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 #endif
 			}
 #else
+			DEBUG_RM("%s: Module %d: On-Hook status!\n",
+							fe->name,
+							mod_no + 1);
 			event.type	= WAN_EVENT_RM_LC;
 			event.channel	= mod_no+1;
 			event.rxhook	= WAN_EVENT_RXHOOK_ON;
@@ -2710,7 +2978,9 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 			fe->rm_param.mod[mod_no].u.fxo.battdebounce = battdebounce;
 		} else if (!fe->rm_param.mod[mod_no].u.fxo.battery)
 			fe->rm_param.mod[mod_no].u.fxo.battdebounce = battdebounce;
+
 	} else if (abs(b) > battthresh) {
+
 		if (!fe->rm_param.mod[mod_no].u.fxo.battery &&
 		    !fe->rm_param.mod[mod_no].u.fxo.battdebounce) {
 			DEBUG_RM("%s: Module %d: BATTERY (%s)!\n",
@@ -2771,12 +3041,11 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 			if (fe->rm_param.mod[mod_no].u.fxo.lastpol !=
 					fe->rm_param.mod[mod_no].u.fxo.polarity) {
 				DEBUG_RM(
-				"%s: Module %d: %lu Polarity reversed (%d -> %d)\n",
-						fe->name,
-						mod_no + 1,
-						SYSTEM_TICKS, 
+				"%s: Module %d: Polarity reversed (%d -> %d) (%ul)\n",
+						fe->name, mod_no + 1,
 						fe->rm_param.mod[mod_no].u.fxo.polarity, 
-						fe->rm_param.mod[mod_no].u.fxo.lastpol);
+						fe->rm_param.mod[mod_no].u.fxo.lastpol,
+						(unsigned int)SYSTEM_TICKS);
 				if (fe->rm_param.mod[mod_no].u.fxo.polarity){
 					/* FIXME: Add revers polarity event */
 				}
@@ -2786,6 +3055,8 @@ static void wp_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 		}
 	}
 	return;
+//#undef DEBUG_RM
+//#define DEBUG_RM DEBUG_TEST
 }
 #endif
 
@@ -2866,7 +3137,7 @@ static void wp_remora_proslic_check_hook(sdla_fe_t *fe, int mod_no)
 #endif
 #endif
 
-#if defined(AFT_TDM_API_SUPPORT)
+#if defined(AFT_TDM_API_SUPPORT) || defined(AFT_API_SUPPORT)
 /******************************************************************************
 *			wp_remora_watchdog()	
 *
@@ -2877,11 +3148,7 @@ static void wp_remora_proslic_check_hook(sdla_fe_t *fe, int mod_no)
 static int wp_remora_watchdog(sdla_fe_t *fe)
 {
 	int	mod_no;
-	
-	if (SYSTEM_TICKS - fe->rm_param.last_watchdog  < WP_RM_WATCHDOG_TIMEOUT) {
-		return 0;
-	}
-	fe->rm_param.last_watchdog = SYSTEM_TICKS;
+
 
 	for (mod_no = 0; mod_no < fe->rm_param.max_fe_channels; mod_no++) {
 		if (!wan_test_bit(mod_no, &fe->rm_param.module_map)) {
@@ -2950,9 +3217,14 @@ static int wp_remora_watchdog(sdla_fe_t *fe)
 			wp_remora_voicedaa_check_hook(fe, mod_no);
 		}
 	}
+	
 #if defined(AFT_RM_VIRTUAL_INTR_SUPPORT)
-	if (wp_remora_check_intr(fe)){
-		wp_remora_intr(fe);
+	if (SYSTEM_TICKS - fe->rm_param.last_watchdog  > WP_RM_WATCHDOG_TIMEOUT) {
+		fe->rm_param.last_watchdog = SYSTEM_TICKS;
+
+		if (wp_remora_check_intr(fe)){
+			wp_remora_intr(fe);
+		}
 	}
 #endif
 
@@ -2975,17 +3247,18 @@ wp_remora_intr_ctrl(sdla_fe_t *fe, int mod_no, u_int8_t type, u_int8_t mode, uns
 	if (mod_no >= MAX_REMORA_MODULES){
 		DEBUG_EVENT(
 		"%s: Module %d: Module number is out of range!\n",
-					fe->name, mod_no);
+					fe->name, mod_no+1);
 		return -EINVAL;
 	}
 	if (!wan_test_bit(mod_no, &fe->rm_param.module_map)) {
 		DEBUG_EVENT("%s: Module %d: Unconfigured module!\n",
-					fe->name, mod_no);
+					fe->name, mod_no+1);
 		return -EINVAL;
 	}
 	if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS){
 
-		if (type & WAN_RM_INTR_GLOBAL){
+		switch(type){
+		case WAN_RM_INTR_GLOBAL:
 			if (mode == WAN_FE_INTR_ENABLE){
 				WRITE_RM_REG(mod_no, 21, fe->rm_param.mod[mod_no].u.fxs.imask1);
 				WRITE_RM_REG(mod_no, 22, fe->rm_param.mod[mod_no].u.fxs.imask2);
@@ -2995,16 +3268,30 @@ wp_remora_intr_ctrl(sdla_fe_t *fe, int mod_no, u_int8_t type, u_int8_t mode, uns
 				WRITE_RM_REG(mod_no, 22, 0x00);
 				WRITE_RM_REG(mod_no, 23, 0x00);
 			}
+			break;
+		default:
+			DEBUG_EVENT(
+			"%s: Module %d: Unsupported FXS interrupt type (%X)!\n",
+					fe->name, mod_no+1, type);
+			err = -EINVAL;
+			break;
 		}
 
 	}else if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
-
-		if (type & WAN_RM_INTR_GLOBAL){
+		switch(type){
+		case WAN_RM_INTR_GLOBAL:
 			if (mode == WAN_FE_INTR_ENABLE){
 				WRITE_RM_REG(mod_no, 3, fe->rm_param.mod[mod_no].u.fxo.imask);
 			}else{
 				WRITE_RM_REG(mod_no, 3, 0x00);
 			}
+			break;
+		default:
+			DEBUG_EVENT(
+			"%s: Module %d: Unsupported FXO interrupt type (%X)!\n",
+					fe->name, mod_no+1, type);
+			err = -EINVAL;
+			break;
 		}
 	}
 	return err;
@@ -3025,7 +3312,7 @@ static int wp_remora_check_intr_fxs(sdla_fe_t *fe, int mod_no)
 		int	err = 0;
 		DEBUG_EVENT(
 		"%s: Module %d: Oops, part reset, quickly restoring reality\n",
-				fe->name, mod_no);
+				fe->name, mod_no+1);
 #if 0
 		wp_init_proslic(fe, mod_no, 1, 1);
 #else
@@ -3050,7 +3337,6 @@ static int wp_remora_check_intr_fxo(sdla_fe_t *fe, int mod_no)
 	u_int8_t	status;
 	
 	status = READ_RM_REG(mod_no, 4);
-	
 	return (status) ? 1 : 0;
 }
 
@@ -3059,8 +3345,6 @@ static int wp_remora_check_intr(sdla_fe_t *fe)
 	int	mod_no = 0, pending = 0;
 
 	fe->rm_param.intcount++;
-	//mod_no = fe->rm_param.intcount % MAX_REMORA_MODULES;
-	
 	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
 		if (wan_test_bit(mod_no, &fe->rm_param.module_map)) {
 			if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS){
@@ -3137,8 +3421,6 @@ static int wp_remora_intr_fxs(sdla_fe_t *fe, int mod_no)
 	WAN_ASSERT(fe->card == NULL);
 	card		= fe->card;
 
-	DEBUG_TDMAPI("mod_no: %d\n", mod_no);
-
 	stat1 = READ_RM_REG(mod_no, 18);
 	if (stat1){
 		/* Ack interrupts for now */
@@ -3152,7 +3434,7 @@ static int wp_remora_intr_fxs(sdla_fe_t *fe, int mod_no)
 		if (stat2 & 0x02){
 			DEBUG_RM(
 			"%s: Module %d: LCIP interrupt pending!\n",
-				fe->name, mod_no);
+				fe->name, mod_no+1);
 #if 0
 			if (card->wandev.fe_notify_iface.hook_state){
 				card->wandev.fe_notify_iface.hook_state(
@@ -3164,13 +3446,13 @@ static int wp_remora_intr_fxs(sdla_fe_t *fe, int mod_no)
 			if (status & 0x01){
 				DEBUG_RM(
 				"RM: %s: Module %d: Off-hook status!\n",
-						fe->name, mod_no);
+						fe->name, mod_no+1);
 				fe->rm_param.mod[mod_no].u.fxs.oldrxhook = 1;
 				event.rxhook	= WAN_EVENT_RXHOOK_OFF;
 			}else/* if (fe->rm_param.mod[mod_no].u.fxs.oldrxhook)*/{
 				DEBUG_RM(
 				"RM: %s: Module %d: On-hook status!\n",
-						fe->name, mod_no);
+						fe->name, mod_no+1);
 				fe->rm_param.mod[mod_no].u.fxs.oldrxhook = 0;
 				event.rxhook	= WAN_EVENT_RXHOOK_ON;
 			}
@@ -3183,7 +3465,7 @@ static int wp_remora_intr_fxs(sdla_fe_t *fe, int mod_no)
 		if (stat2 & 0x01){
 			DEBUG_RM(
 			"%s: Module %d: Ring TRIP interrupt pending!\n",
-				fe->name, mod_no);
+				fe->name, mod_no+1);
 #if 0
 			if (card->wandev.fe_notify_iface.hook_state){
 				card->wandev.fe_notify_iface.hook_state(
@@ -3201,27 +3483,51 @@ static int wp_remora_intr_fxs(sdla_fe_t *fe, int mod_no)
 			if (status & 0x02){
 				DEBUG_RM(
 				"%s: Module %d: Ring Trip detect occured!\n",
-						fe->name, mod_no);
-				event.rxhook	= WAN_EVENT_RING_TRIP_PRESENT;
+						fe->name, mod_no+1);
+				event.ring_mode	= WAN_EVENT_RING_TRIP_PRESENT;
 			}else{
 				DEBUG_RM(
 				"%s: Module %d: Ring Trip detect not occured!\n",
-						fe->name, mod_no);
-				event.rxhook	= WAN_EVENT_RING_TRIP_STOP;
+						fe->name, mod_no+1);
+				event.ring_mode	= WAN_EVENT_RING_TRIP_STOP;
 			}
 			if (card->wandev.event_callback.ringtrip){
 				card->wandev.event_callback.ringtrip(card, &event);
 			}
 		}
+		if (stat2 & 0x80) {
+			DEBUG_EVENT("%s: Module %d: Power Alarm Q6!\n",
+					fe->name, mod_no+1);
+		}
+		if (stat2 & 0x40) {
+			DEBUG_EVENT("%s: Module %d: Power Alarm Q5!\n",
+					fe->name, mod_no+1);
+		}
+		if (stat2 & 0x20) {
+			DEBUG_EVENT("%s: Module %d: Power Alarm Q4!\n",
+					fe->name, mod_no+1);
+		}
+		if (stat2 & 0x10) {
+			DEBUG_EVENT("%s: Module %d: Power Alarm Q3!\n",
+					fe->name, mod_no+1);
+		}
+		if (stat2 & 0x08) {
+			DEBUG_EVENT("%s: Module %d: Power Alarm Q2!\n",
+					fe->name, mod_no+1);
+		}
+		if (stat2 & 0x04) {
+			DEBUG_EVENT("%s: Module %d: Power Alarm Q1!\n",
+					fe->name, mod_no+1);
+		}
 		DEBUG_RM(
 		"%s: Module %d: Reg[64]=%02X Reg[68]=%02X\n",
-			fe->name, mod_no,
+			fe->name, mod_no+1,
 			READ_RM_REG(mod_no,64),
 			status);
 		WRITE_RM_REG(mod_no, 19, stat2);
 	}else{
 #if defined(__WINDOWS__)
-		TDM_FUNC_DBG
+		TDM_FUNC_DBG();
 #endif
 	}
 
@@ -3257,27 +3563,33 @@ static int wp_remora_intr_fxo(sdla_fe_t *fe, int mod_no)
 					fe->name, mod_no+1);
 				fe->rm_param.mod[mod_no].u.fxo.ring_detect = 0;			
 				event.ring_mode	= WAN_EVENT_RING_STOP;
-			}else{
+			} else {
 				DEBUG_RM(
 				"%s: Module %d: Beginning of ring burst\n",
 					fe->name, mod_no+1);
 				fe->rm_param.mod[mod_no].u.fxo.ring_detect = 1;
 				event.ring_mode	= WAN_EVENT_RING_PRESENT;
 			}
-		}else{
+		} else {
 			DEBUG_RM(
 			"%s: Module %d: Beginning of ring burst\n",
 				fe->name, mod_no+1);
 			fe->rm_param.mod[mod_no].u.fxo.ring_detect = 1;
 			event.ring_mode	= WAN_EVENT_RING_PRESENT;
 		}
+#ifdef AUDIO_RINGCHECK
+/* If audio ringcheck is enabled, we use this code
+ * if disabled we use the check_hook code. 
+ * Right now we use the check_hook code because
+ * this code does not have debounce */
 		if (card->wandev.event_callback.ringdetect){
 			card->wandev.event_callback.ringdetect(card, &event);
-		}	
-	}else if (status){
-		DEBUG_RM(
-		"%s: Module %d: Receive interrupt %02X!\n",
-			fe->name, mod_no+1, status);
+		}
+#endif	
+	}
+	if (status & 0x01){
+		DEBUG_RM("%s: Module %d: Polarity reversed!\n", 
+					fe->name, mod_no+1);
 	}
 	WRITE_RM_REG(mod_no, 4, 0x00);
 

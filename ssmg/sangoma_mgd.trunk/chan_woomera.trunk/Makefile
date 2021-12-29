@@ -26,10 +26,14 @@ $(shell echo $(PBXDIR) > .pbxdir)
 PBXMODDIR=/usr/lib/asterisk/modules
 PBXCFGDIR=/etc/asterisk
 
+
 ifneq (,$(wildcard $(PBXDIR)/include/callweaver.h))
 	PBXFLAGS_EXTRA=-DCALLWEAVER -DHAVE_CONFIG_H
 	PBXMODDIR=/usr/local/lib/callweaver/modules
 	PBXCFGDIR=/usr/local/etc/callweaver
+
+#Enable this for callweaver 1.2-rc5
+#	PBXFLAGS_EXTRA += -DCALLWEAVER_1_2
 endif
 
 ifneq (,$(wildcard $(PBXDIR)/include/asterisk.h))
@@ -48,6 +52,7 @@ INCLUDES= -I/usr/include -I./
 CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
 LDFLAGS=-L lib/libteletone/.libs -L. -L/usr/local/lib -L ../../ssmg/libsangoma.trunk/.libs -lpthread -lsangoma -lm
+
 
 PBXFLAGS= $(INCLUDES) -I$(PBXDIR) -I$(PBXDIR)/include -pipe  -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -g3 -Iinclude -I../include -D_REENTRANT  -DWOOMERA_CHAN_NAME=\"$(CHAN_NAME)\" -D_GNU_SOURCE  -O6 -fomit-frame-pointer  -fPIC
 

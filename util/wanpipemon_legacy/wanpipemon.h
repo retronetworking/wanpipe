@@ -341,7 +341,7 @@ static inline unsigned char set_wan_udphdr_data_byte(unsigned char off, unsigned
 #define ALL_X25 (DATA|PROT)
 
 typedef struct {
-	char prot_name[15];
+	unsigned char prot_name[15];
 	signed char prot_index;
 	unsigned int  pcap_prot;
 } trace_prot_t;

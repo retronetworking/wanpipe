@@ -434,7 +434,7 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 
 #ifdef TE1_56_CARD_SUPPORT
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_te_iface_init(&card->wandev.fe_iface);
+		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -442,7 +442,7 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 
 		card->wandev.fe_enable_timer = hdlc_enable_timer;
 		card->wandev.te_link_state = fr_handle_front_end_state;
-		conf->interface = 
+		conf->electrical_interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
 
 		if (card->u.c.comm_port == WANOPT_PRI){
@@ -456,7 +456,7 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 
 #ifdef TE1_56_CARD_SUPPORT
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->fe,&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -541,11 +541,11 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 	card->u.c.update_call_count = 0;
 	
 	card->wandev.ttl = conf->ttl;
-	card->wandev.interface = conf->interface; 
+	card->wandev.electrical_interface = conf->electrical_interface; 
 
 
 	/* The secondary port on S508 card can only have RS232 interface */
-	if ((card->u.c.comm_port == WANOPT_SEC && conf->interface == WANOPT_V35)&&
+	if ((card->u.c.comm_port == WANOPT_SEC && conf->electrical_interface == WANOPT_V35)&&
 	    card->type != SDLA_S514){
 		printk(KERN_INFO "%s: ERROR - V35 Interface not supported on S508 %s port \n",
 			card->devname, PORT(card->u.c.comm_port));
@@ -750,7 +750,7 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
  */
 static int update (wan_device_t* wandev)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	unsigned long smp_flags;
 #if 0
         SHARED_MEMORY_INFO_STRUCT *flags;
@@ -759,7 +759,7 @@ static int update (wan_device_t* wandev)
 
 
 	/* sanity checks */
-	if((wandev == NULL) || (wandev->private == NULL))
+	if((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	
 	if(wandev->state == WAN_UNCONFIGURED)
@@ -828,7 +828,7 @@ static int update (wan_device_t* wandev)
  */
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	fr_private_area_t* chan;
 	int err = 0;
 	unsigned short dlci=0;
@@ -983,7 +983,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
 	fr_private_area_t *chan = dev->priv;
-	sdla_t *card = wandev->private;
+	sdla_t *card = wandev->priv;
 	fr_prot_t *fr_prot = FR_PROT_AREA(card);
 	unsigned long smp_flags;
 	
@@ -1067,6 +1067,9 @@ static void disable_comm (sdla_t *card)
 #ifdef TE1_56_CARD_SUPPORT
 	/* TE1 - Unconfiging */
 	if (IS_TE1_CARD(card)) {
+		if (card->wandev.fe_iface.pre_release){
+			card->wandev.fe_iface.pre_release(&card->fe);
+		}
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -1107,6 +1110,7 @@ static int if_init (netdevice_t* dev)
 #endif
 	dev->do_ioctl		= if_do_ioctl;
 		
+	dev->hard_header = NULL;  
 	dev->hard_header_len = 0;
 	dev->addr_len = 2;
 	*(u16*)dev->dev_addr = htons(chan->dlci);
@@ -1344,7 +1348,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 	fr_private_area_t *chan = dev->priv;
 	sdla_t *card = chan->card;
 	//int udp_type = 0;
-	unsigned long smp_flags=0;
+	unsigned long smp_flags;
 	int err=0;
 
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
@@ -2376,7 +2380,7 @@ static int set_hdlc_config(sdla_t* card)
 	if(card->wandev.clocking)
 		cfg.baud_rate = card->wandev.bps;
 
-	cfg.line_config_options = (card->wandev.interface == WANOPT_RS232) ?
+	cfg.line_config_options = (card->wandev.electrical_interface == WANOPT_RS232) ?
 		INTERFACE_LEVEL_RS232 : INTERFACE_LEVEL_V35;
 
 	cfg.modem_config_options	= 0;
@@ -3579,6 +3583,10 @@ static int config_hdlc (sdla_t *card)
 					(IS_T1_CARD(card))?"T1":"E1");
 			return -EINVAL;
 		}
+		/* Run rest of initialization not from lock */
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
+		}
 	}
 
 	 
@@ -3594,6 +3602,10 @@ static int config_hdlc (sdla_t *card)
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EINVAL;
+		}
+		/* Run rest of initialization not from lock */
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
 	}
 		
@@ -3723,7 +3735,7 @@ static int fr_set_dev_config(struct file *file,
 	if (wandev == NULL)
 		return cnt;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	printk(KERN_INFO "%s: New device config (%s)\n",
 			wandev->name, buffer);
@@ -5028,7 +5040,7 @@ static netdevice_t * un_bind_annexg(wan_device_t *wandev, netdevice_t *annexg_de
 	struct wan_dev_le	*devle;
 	netdevice_t		*dev;
 	unsigned long		smp_flags=0;
-	sdla_t			*card = wandev->private;
+	sdla_t			*card = wandev->priv;
 
 	WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
 		fr_channel_t	*chan;

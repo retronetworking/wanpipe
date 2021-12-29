@@ -5,7 +5,11 @@
  *									*
  * Author:	Alex Feldman <al.feldman@sangoma.com>			*
  *======================================================================*
- *	Aug 10 2002		Alex Feldman	Initial version		*
+ *									*
+ * Nov 27, 2007	David Rokhvarg	Added header files needed to compile	*
+ *                              Sangoma MS Windows Driver and API.	*
+ *									*
+ * Aug 10, 2002	Alex Feldman	Initial version				*
  *									*
  ************************************************************************
  */
@@ -39,6 +43,7 @@
 # endif
 # include <sys/types.h>
 # include <sys/systm.h>
+# include <sys/endian.h>
 # include <sys/syslog.h>
 # include <sys/conf.h>
 # include <sys/errno.h>
@@ -68,6 +73,7 @@
 #  include <sys/rman.h>
 #  include <sys/interrupt.h>
 # endif
+# include <sys/pciio.h>
 # include <sys/filio.h>
 # include <sys/uio.h>
 # include <sys/tty.h>
@@ -99,6 +105,7 @@
 #ifdef NETGRAPH
 # include <netgraph/ng_message.h>
 # include <netgraph/netgraph.h>
+# include <netgraph/ng_parse.h>
 #endif /* NETGRAPH */
 # include <machine/param.h>
 # if (__FreeBSD_version < 500000)
@@ -320,19 +327,43 @@
 /*
 **		***	W I N D O W S	***
 */
-# if defined(__KERNEL__)
-#  include <ntddk.h>	/* PCI configuration struct */
-#  include <ndis.h>		/* NDIS functions */
-#  include <stdarg.h>
-#  include <stdio.h>
-#  include <stddef.h>	/* offsetof, etc. */
-#  include <bit_win.h>	/* bit manipulation macros */
-#  include <sang_status_defines.h>	/* operation return codes */
-#  include <wanpipe_defines.h>		/* for 'wan_udp_hdr_t' */
-#  include <sang_api.h>
-# else
-#  include <windows.h>
-# endif	/* if defined(__WINDOWS__) */
+
+
+#if defined(WAN_KERNEL) || defined(__KERNEL__)
+# include <stdlib.h>
+# include <time.h>	/* clock_t */
+
+# if defined(VIRTUAL_IF_DRV) || defined(SPROTOCOL)
+# include <ntddk.h>
+# include <wanpipe_ctypes.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_kernel.h>
+# include <wanpipe_skb.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_common.h>
+# include <wanpipe_cfg.h>
+# include <sdladrv.h>	/* API definitions */
+# include <wanpipe_abstr.h>
+# endif
+
+#if defined( NDIS_MINIPORT_DRIVER )
+# undef BINARY_COMPATIBLE	
+# define BINARY_COMPATIBLE 0	/* compile for Win2000 and later */
+# define NDIS50_MINIPORT   1 
+# include <ntddk.h>
+# include <ndis.h>
+# include <wanpipe_debug.h>
+#endif
+
+/*# include <windef.h> - UINT*/
+#else
+# include <windows.h>
+#endif
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <stddef.h>	/* offsetof, etc. */
+
 #elif defined (__SOLARIS__)
 #  include <sys/types.h>
 #  include <sys/systm.h>

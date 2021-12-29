@@ -147,8 +147,8 @@ char* err_messages[] =          /* Error messages */
 
 int main (int argc, char *argv[])
 {
-	int err=0;
-	char filename[sizeof(wandev_dir) + WAN_DRVNAME_SZ + 2];
+	int err=0, max_flen = sizeof(wandev_dir) + WAN_DRVNAME_SZ;
+	char filename[max_flen + 2];
 
 	if (argc < 3){
 		printf("Prog name is %s %i\n", argv[0],WAN_DRVNAME_SZ );
@@ -157,9 +157,9 @@ int main (int argc, char *argv[])
 	}
 
 #if defined(__LINUX__)
-	sprintf(filename, "%s/%s", wandev_dir, argv[1]);
+	snprintf(filename, max_flen, "%s/%s", wandev_dir, argv[1]);
 #else
-	sprintf(filename, "%s", WANDEV_NAME);
+	snprintf(filename, max_flen, "%s", WANDEV_NAME);
 #endif
 	dev = open(filename, O_RDONLY);
 	if (dev < 0){
@@ -177,7 +177,7 @@ int main (int argc, char *argv[])
 
 	/* Special for FreeBSD */
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-	strcpy(config.devname, argv[1]);
+	strlcpy(config.devname, argv[1], WAN_DRVNAME_SZ);
 	config.arg = exec;
 #endif
 

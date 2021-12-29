@@ -250,7 +250,7 @@ int wp_sdlc_init (sdla_t* card, wandev_conf_t* conf)
 	card->wandev.set_if_info     	= &chdlc_set_if_info;
 
 	card->wandev.ttl = conf->ttl;
-	card->wandev.interface = conf->interface; 
+	card->wandev.electrical_interface = conf->electrical_interface; 
 	card->wandev.clocking = conf->clocking;
 
 	port_num = card->u.sdlc.comm_port;
@@ -345,13 +345,13 @@ int wp_sdlc_init (sdla_t* card, wandev_conf_t* conf)
  */
 static int update (wan_device_t* wandev)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
  	netdevice_t* dev;
         volatile sdlc_private_area_t* sdlc_priv_area;
 	unsigned long timeout;
 
 	/* sanity checks */
-	if((wandev == NULL) || (wandev->private == NULL))
+	if((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 	
 	if(wandev->state == WAN_UNCONFIGURED)
@@ -410,7 +410,7 @@ static int update (wan_device_t* wandev)
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
 
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	sdlc_private_area_t* sdlc_priv_area;
 	int err = 0;
 	
@@ -518,6 +518,8 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 	 * since in some cases (mrouted) daemons continue
 	 * to call ioctl() after the device has gone down */
 	dev->do_ioctl = NULL;
+	dev->hard_header = NULL;
+	dev->rebuild_header = NULL;
 	
 	sdlc_set_intr_mode(card, 0);
 	if (card->u.sdlc.comm_enabled){
@@ -1646,7 +1648,7 @@ static int set_sdlc_config(sdla_t* card)
 	
 	cfg.general_operational_config_bits=card->wandev.sdlc_cfg.general_operational_config_bits;
 
-	if (card->wandev.interface != WANOPT_RS232){
+	if (card->wandev.electrical_interface != WANOPT_RS232){
 		cfg.general_operational_config_bits |= INTERFACE_LEVEL_V35;
 	}
 
@@ -2257,7 +2259,7 @@ static int chdlc_set_dev_config(struct file *file,
 	if (wandev == NULL)
 		return cnt;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	printk(KERN_INFO "%s: New device config (%s)\n",
 			wandev->name, buffer);

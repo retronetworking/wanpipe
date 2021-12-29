@@ -1,12 +1,13 @@
 /*
  *************************************************************************************
  *                                                                                   *
- * FRNT_END.H - the 'C' header file for the Sangoma S508/S514 adapter front-end API. *
+ * sdla_front_end.h - the 'C' header file for the Sangoma S508/S514 adapter front-end API. *
  *                                                                                   *
  *************************************************************************************
 */
 #ifndef _SDLA_FRONT_END_H_
 #define _SDLA_FRONT_END_H_
+
 
 /*
 *************************************************************************
@@ -23,6 +24,8 @@
 #define WAN_MEDIA_STS1		0x06
 #define WAN_MEDIA_J1		0x07
 #define WAN_MEDIA_FXOFXS	0x08
+#define WAN_MEDIA_BRI		0x09
+#define WAN_MEDIA_SERIAL	0x0A
 
 /*The line code */
 #define WAN_LCODE_NONE          0x00
@@ -42,19 +45,26 @@
 #define WAN_FR_E3_G751		0x07
 #define WAN_FR_E3_G832		0x08
 #define WAN_FR_DS3_Cbit		0x09
-#define WAN_FR_DS3_M13		0x10
+#define WAN_FR_DS3_M13		0x0A
+#define WAN_FR_SLC96		0x0B
 
 /* Clocking Master/Normal */
 #define WAN_NORMAL_CLK		0x01
 #define WAN_MASTER_CLK		0x02
 
+/* Serial Card FE options */
+#define WAN_FE_V35		0x01
+#define WAN_FE_RS232		0x02
+
 /* Front-End DEBUG flags */
-#define WAN_FE_DEBUG_NONE	0x00
-#define WAN_FE_DEBUG_RBS	0x01
-#define WAN_FE_DEBUG_ALARM	0x02
-#define WAN_FE_DEBUG_VOLTAGE	0x03
-#define WAN_FE_DEBUG_RECONFIG	0x04
-#define WAN_FE_DEBUG_REG	0x05
+#define WAN_FE_DEBUG_NONE		0x00
+#define WAN_FE_DEBUG_RBS		0x01
+#define WAN_FE_DEBUG_ALARM		0x02
+#define WAN_FE_DEBUG_VOLTAGE		0x03
+#define WAN_FE_DEBUG_RECONFIG		0x04
+#define WAN_FE_DEBUG_REG		0x05
+#define WAN_FE_DEBUG_CONFIG_VERIFY	0x06
+#define WAN_FE_DEBUG_HOOK		0x07
 
 /* Front-End DEBUG sub-flags */
 /* Sub-flags for RBS debugging */
@@ -134,8 +144,10 @@
 #define IS_TE1_56K_MEDIA(fe_cfg)(IS_TE1_MEDIA(fe_cfg) || 	\
 				 IS_56K_MEDIA(fe_cfg)
 #define IS_DS3_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_DS3)
-#define IS_E3_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_E3)
+#define IS_E3_MEDIA(fe_cfg)		(FE_MEDIA(fe_cfg) == WAN_MEDIA_E3)
 #define IS_FXOFXS_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_FXOFXS)
+#define IS_BRI_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_BRI)
+#define IS_SERIAL_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_SERIAL)
 
 #define IS_TXTRISTATE(fe_cfg)	(FE_TXTRISTATE(fe_cfg) == WANOPT_YES)
 
@@ -151,6 +163,8 @@
 		(FE_MEDIA(fe_cfg) == WAN_MEDIA_DS3) ? "DS3" : 	\
 		(FE_MEDIA(fe_cfg) == WAN_MEDIA_E3) ? "E3" :	\
 		(FE_MEDIA(fe_cfg) == WAN_MEDIA_FXOFXS) ? "FXO/FXS" :	\
+		(FE_MEDIA(fe_cfg) == WAN_MEDIA_BRI) ? "BRI" :	\
+		(FE_MEDIA(fe_cfg) == WAN_MEDIA_SERIAL) ? "V35/RS232" :	\
 						"Unknown"
 
 #define LCODE_DECODE(fe_cfg)					\
@@ -168,7 +182,8 @@
 		(FE_FRAME(fe_cfg) == WAN_FR_E3_G751)	? "G.751" : 	\
 		(FE_FRAME(fe_cfg) == WAN_FR_E3_G832)	? "G.832" : 	\
 		(FE_FRAME(fe_cfg) == WAN_FR_DS3_Cbit)	? "C-bit" : 	\
-		(FE_FRAME(fe_cfg) == WAN_FR_DS3_M13)	? "M13" : "Unknown"
+		(FE_FRAME(fe_cfg) == WAN_FR_DS3_M13)	? "M13" : 	\
+		(FE_FRAME(fe_cfg) == WAN_FR_SLC96)	? "SLC-96" : "Unknown"
 
 
 
@@ -187,21 +202,20 @@ typedef struct {
 	unsigned int	line_no;
 	unsigned char	tx_tristate_mode;
 	unsigned int	tdmv_law;
-	unsigned char	poll_mode;	/* enable fe poll driven arch */
+	unsigned char	poll_mode;
 	union {
 		sdla_te_cfg_t		te_cfg;
 		sdla_te3_cfg_t		te3_cfg;
 		sdla_remora_cfg_t	remora;
+		sdla_bri_cfg_t		bri;
 	} cfg;
 } sdla_fe_cfg_t;
 
 typedef struct {
-	unsigned int	alarms;
-	unsigned int	liu_alarms;
-	unsigned int	bert_alarms;
+	u_int32_t 	alarms;
 	union {
 		sdla_te_stats_t	te1_stats;
-		//sdla_te_pmon_t	te_pmon;
+		/*sdla_te_pmon_t	te_pmon;*/
 		sdla_te3_pmon_t	te3_pmon;
 	} u;
 #define te_pmon	u.te1_stats.pmon	
@@ -210,6 +224,7 @@ typedef struct {
 typedef struct {
 	unsigned char	type;
 	unsigned char	mode;
+	int		mod_no;	/* A200/A400 */
 	union{
 		struct {
 			int		channel;
@@ -220,11 +235,23 @@ typedef struct {
 			int		reg;
 			unsigned char	value;
 		} reg;
+		struct {
+			int		offhook;
+		}hook;
 	} fe_debug_un;
 #define fe_debug_rbs	fe_debug_un.rbs	
 #define fe_debug_reg	fe_debug_un.reg	
+#define fe_debug_hook	fe_debug_un.hook	
 } sdla_fe_debug_t;
 
+
+/* Front-End status */
+#define FE_STATUS_DECODE(fe_status)					\
+		(fe_status == FE_DISCONNECTED)  ? "disconnected" :\
+		(fe_status == FE_CONNECTED)     ? "connected" :	\
+						      "unknown"
+
+#define WAN_FE_STATUS_DECODE(fe)	FE_STATUS_DECODE((fe)->fe_status)
 
 #ifdef WAN_KERNEL
 
@@ -242,6 +269,8 @@ typedef struct {
 #define IS_FXOFXS_FEMEDIA(fe)	IS_FXOFXS_MEDIA(&((fe)->fe_cfg))
 #define IS_FE_TXTRISTATE(fe)	IS_TXTRISTATE(&((fe)->fe_cfg))
 #define IS_FR_FEUNFRAMED(fe)	IS_FR_UNFRAMED(&((fe)->fe_cfg))
+#define IS_BRI_FEMEDIA(fe)	IS_BRI_MEDIA(&((fe)->fe_cfg))
+#define IS_SERIAL_FEMEDIA(fe)	IS_SERIAL_MEDIA(&((fe)->fe_cfg))
 
 #define WAN_FE_MEDIA(fe)	FE_MEDIA(&((fe)->fe_cfg))
 #define WAN_FE_LCODE(fe)	FE_LCODE(&((fe)->fe_cfg))
@@ -254,15 +283,16 @@ typedef struct {
 #define FE_LCODE_DECODE(fe)	LCODE_DECODE(&((fe)->fe_cfg))
 #define FE_FRAME_DECODE(fe)	FRAME_DECODE(&((fe)->fe_cfg))
 
+#define WAN_FE_START_CHANNEL(fe)				\
+	(IS_TE1_FEMEDIA(fe))	? GET_TE_START_CHANNEL(fe) :	\
+	(IS_FXOFXS_FEMEDIA(fe))	? WAN_RM_START_CHANNEL:		\
+	(IS_BRI_FEMEDIA(fe))	? WAN_BRI_START_CHANNEL:	0
+
 #define WAN_FE_MAX_CHANNELS(fe)					\
 	(IS_TE1_FEMEDIA(fe))	? GET_TE_CHANNEL_RANGE(fe) :	\
-	(IS_FXOFXS_FEMEDIA(fe))	? MAX_FXOFXS_CHANNELS :	0
+	(IS_FXOFXS_FEMEDIA(fe))	? MAX_FXOFXS_CHANNELS :		\
+	(IS_BRI_FEMEDIA(fe))	? MAX_BRI_CHANNELS : 0
 
-/* Front-End status */
-#define WAN_FE_STATUS_DECODE(fe)					\
-		((fe)->fe_status == FE_DISCONNECTED)  ? "disconnected" :\
-		((fe)->fe_status == FE_CONNECTED)     ? "connected" :	\
-						      "unknown"
 #if 0
 enum fe_status {
 	FE_UNITIALIZED = 0x00,
@@ -390,7 +420,7 @@ typedef struct sdla_fe_timer_event_ {
 	WAN_LIST_ENTRY(sdla_fe_timer_event_)	next;
 } sdla_fe_timer_event_t;
 
-#define WAN_FE_MAX_QEVENT_LEN 20
+#define WAN_FE_MAX_QEVENT_LEN	20
 typedef struct {
 	char		*name;
 	void		*card;
@@ -406,21 +436,25 @@ typedef struct {
 #define te_param	fe_param.te
 #define te3_param	fe_param.te3
 #define rm_param	fe_param.remora
+#define bri_param	fe_param.bri
 		sdla_te_param_t		te;
 		sdla_56k_param_t	k56_param;
 		sdla_te3_param_t	te3;
 		sdla_remora_param_t	remora;
+		sdla_bri_param_t	bri;
 	} fe_param;
-#define fe_alarm	fe_stats.alarms
-#define liu_alarm	fe_stats.liu_alarms
-#define bert_alarm	fe_stats.bert_alarms
-	sdla_fe_stats_t	fe_stats;
+#define fe_alarm		fe_stats.alarms
+	sdla_fe_stats_t		fe_stats;
 	
-	wan_spinlock_t		lock;
+	wan_spinlock_t		lockirq;
 	wan_timer_t		timer;
+#if defined(__WINDOWS__)
+	WAN_LIST_HEAD(fe_timer_event_list_head, sdla_fe_timer_event_)	event;
+#else
 	WAN_LIST_HEAD(, sdla_fe_timer_event_)	event;
-	unsigned int		event_map;
-	
+#endif
+	unsigned int	event_map;
+
 	int		(*write_cpld)(void*, unsigned short, unsigned char);
 	int		(*read_cpld)(void*, unsigned short, unsigned char);
 	int		(*write_fe_cpld)(void*, unsigned short, unsigned char);
@@ -477,9 +511,10 @@ typedef struct {
 	int		(*if_unconfig)(void *fe, u32, u8);
 	int		(*disable_irq)(void *fe);
 	int		(*polling)(sdla_fe_t *fe);
+	int		(*add_timer)(sdla_fe_t *fe, unsigned long);
 	int		(*isr)(sdla_fe_t *fe);
 	int		(*process_udp)(sdla_fe_t *fe, void*, unsigned char*);
- 	unsigned int	(*read_alarm)(sdla_fe_t *fe, int);
+ 	u_int32_t 	(*read_alarm)(sdla_fe_t *fe, int);
 	int		(*read_pmon)(sdla_fe_t *fe, int);
 	int		(*flush_pmon)(sdla_fe_t *fe);
 	/* Set Front-End alarm (T1/E1) */
@@ -490,8 +525,10 @@ typedef struct {
 	char*		(*print_fe_act_channels)(sdla_fe_t*);
 	/* Print Front-End alarm (T1/E1/56K) */
 	int		(*print_fe_alarm)(sdla_fe_t*,unsigned int);
-	/* Get front end status */
+	/* Get front end status: Connected/Disconnected  */
 	int		(*get_fe_status)(sdla_fe_t *fe, unsigned char*);
+	/* Set front end status: Connected/Disconnected only ISDN BRI */
+	int		(*set_fe_status)(sdla_fe_t *fe, unsigned char);
 	/* Get front end media type */
 	unsigned char	(*get_fe_media)(sdla_fe_t *fe);
 	/* Get front end media type string */
@@ -499,9 +536,9 @@ typedef struct {
 	/* Set Line-loopback modes */
 	int		(*set_fe_lbmode)(sdla_fe_t*, unsigned char, unsigned char);
 	/* Update Alarm Status for proc file system */
-	int		(*update_alarm_info)(sdla_fe_t*, struct seq_file* m, int* stop_cnt);
+	int		(*update_alarm_info)(sdla_fe_t*, struct seq_file*, int*);
 	/* Update PMON Status for proc file system */
-	int		(*update_pmon_info)(sdla_fe_t*, struct seq_file* m, int* stop_cnt);
+	int		(*update_pmon_info)(sdla_fe_t*, struct seq_file*, int*);
 	/* AFT T1/E1 cards only */
 	int		(*led_ctrl)(sdla_fe_t*, int mode);
 	/* Check RBS bits (T1/E1 cards) */
@@ -521,7 +558,10 @@ typedef struct {
 	void	(*enable_timer)(sdla_fe_t* fe, unsigned char cmd, unsigned int delay);
 #endif
 	/* Available front-end map */
-	unsigned int	(*active_map)(sdla_fe_t *fe);
+	/* BRI addition - one Wanpipe may have two lines, provide the 'line_no' when
+	   getting the active channels map.
+	*/
+	unsigned int	(*active_map)(sdla_fe_t *fe, unsigned char line_no);
 	/* Transmit DTMF number */
 	int		(*set_dtmf)(sdla_fe_t*, int, unsigned char);
 	/* Enable/Disable FE interrupt */
@@ -530,6 +570,11 @@ typedef struct {
 	int		(*event_ctrl)(sdla_fe_t*, wan_event_ctrl_t*);
 	/* Front-End watchdog */
 	int		(*watchdog)(sdla_fe_t*);
+	/* Transmit ISDN BRI D-chan data */
+	int		(*isdn_bri_dchan_tx)(sdla_fe_t*, void*, unsigned int);
+	/* Receive ISDN BRI D-chan data */
+	int		(*isdn_bri_dchan_rx)(sdla_fe_t*, void*, unsigned int);
+
 } sdla_fe_iface_t;
 
 /* 

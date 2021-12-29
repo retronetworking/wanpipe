@@ -40,7 +40,8 @@ enum NET_IF_OPTIONS{
   TDMV_D_CHANNEL,
   CONFIGURE_NEXT_LEVEL,
   TDMV_HWEC,
-  TDMV_HWEC_MAP
+  TDMV_HWEC_MAP,
+  TDMV_HW_DTMF
 };
 
 char* net_if_name_help_str =
@@ -255,6 +256,7 @@ again:
   {
   case WANPIPE:
   case BRIDGE_NODE:
+  case WP_NETGRAPH:
 
     //check what was in the parsed file:
     if(interface_file_reader->if_config.gateway[0] != '\0'){
@@ -285,6 +287,7 @@ again:
     break;
 
   case TDM_VOICE:
+  case TDM_VOICE_API:
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_SPAN_NUMBER);
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM Voice Span-----------------> %d\" ", 
@@ -300,7 +303,8 @@ again:
       menu_str += tmp_buff;
       */
 
-      if(link_defs->card_version != A200_ADPTR_ANALOG){
+      if(link_defs->card_version != A200_ADPTR_ANALOG && link_defs->card_version != AFT_ADPTR_ISDN){
+
         snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_D_CHANNEL);
         menu_str += tmp_buff;
    
@@ -315,19 +319,20 @@ again:
       }
 
       //add_hw_echo_cancel_items(menu_str, link_defs, wan_xilinx_conf);
-      add_hw_echo_cancel_items(menu_str, chandef);
+      add_hw_echo_cancel_items(menu_str, chandef, tdmv_conf);
 
     //}
+
     break;
  
   case API:
   case TDM_API:
     //if(link_defs->card_version == A200_ADPTR_ANALOG){
     if(local_cfr->link_defs->linkconf->card_type == WANOPT_AFT && 
-       (link_defs->card_version == A104_ADPTR_4TE1 || link_defs->card_version == A101_ADPTR_1TE1 ||
-	link_defs->card_version == A200_ADPTR_ANALOG)){
+       (link_defs->card_version == A104_ADPTR_4TE1   || link_defs->card_version == A101_ADPTR_1TE1 ||
+	    link_defs->card_version == A200_ADPTR_ANALOG || link_defs->card_version == AFT_ADPTR_ISDN)){
       //add_hw_echo_cancel_items(menu_str, link_defs, wan_xilinx_conf);
-      add_hw_echo_cancel_items(menu_str, chandef);
+      add_hw_echo_cancel_items(menu_str, chandef, tdmv_conf);
     }
     break;
 
@@ -776,6 +781,32 @@ show_hwec_map_input_box:
         }else{
           //was enabled - disable
           chandef->chanconf->hwec.enable = WANOPT_NO;
+	  tdmv_conf->hw_dtmf =  WANOPT_NO;
+        }
+        break;
+      }
+      break;
+
+    case TDMV_HW_DTMF:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s Hardware DTMF Detection?",
+	(tdmv_conf->hw_dtmf == WANOPT_NO ? "Enable" : "Disable"));
+
+      if(yes_no_question(   selection_index,
+                            lxdialog_path,
+                            NO_PROTOCOL_NEEDED,
+                            tmp_buff) == NO){
+        return NO;
+      }
+
+      switch(*selection_index)
+      {
+      case YES_NO_TEXT_BOX_BUTTON_YES:
+        if(tdmv_conf->hw_dtmf == WANOPT_NO){
+          //was disabled - enable
+          tdmv_conf->hw_dtmf = WANOPT_YES;
+        }else{
+          //was enabled - disable
+          tdmv_conf->hw_dtmf = WANOPT_NO;
         }
         break;
       }
@@ -892,7 +923,8 @@ void menu_net_interface_setup::add_hw_echo_cancel_items(string& menu_str,
 #endif
 
 void menu_net_interface_setup::add_hw_echo_cancel_items(string& menu_str,
-							chan_def_t* chandef)
+							chan_def_t* chandef,
+							wan_tdmv_conf_t* tdmv_conf)
 {
   char tmp_buff[MAX_PATH_LENGTH];
 
@@ -914,4 +946,12 @@ void menu_net_interface_setup::add_hw_echo_cancel_items(string& menu_str,
     menu_str += tmp_buff;
   }
   */
+  if(chandef->chanconf->hwec.enable == WANOPT_YES){
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_HW_DTMF);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware DTMF Detection---------> %s\" ",
+        (tdmv_conf->hw_dtmf == WANOPT_YES ? "Yes" : "No"));
+    menu_str += tmp_buff;
+  }
+
 }

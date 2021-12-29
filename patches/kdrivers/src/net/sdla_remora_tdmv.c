@@ -25,15 +25,15 @@
 # include <wanpipe_abstr.h>
 # include <wanpipe_common.h>
 # include <wanpipe.h>
+# include <wanpipe_events.h>
 # include <sdla_remora.h>
 # include <zaptel.h>
-#elif (defined __WINDOWS__)
-# include <wanpipe\csu_dsu.h>
 #else
 # include <zaptel.h>
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe.h>
+# include <linux/wanpipe_events.h>
 # include <linux/sdla_remora.h>
 #endif
 
@@ -42,6 +42,7 @@
 *******************************************************************************/
 #define REG_SHADOW
 #define REG_WRITE_SHADOW
+#define NEW_PULSE_DIALING
 #undef  PULSE_DIALING
 
 #if 0
@@ -115,8 +116,8 @@ typedef struct wp_tdmv_remora_ {
 	char		*devname;
 	int		num;
 	int		flags;
-	wan_spinlock_t	lock;
-	wan_spinlock_t	tx_rx_lock;
+	wan_spinlock_t	lockirq;
+	wan_spinlock_t	tx_rx_lockirq;
 	union {
 		tdmv_fxo_t	fxo;
 		tdmv_fxs_t	fxs;
@@ -146,11 +147,9 @@ typedef struct wp_tdmv_remora_ {
 	int		channelized;
 	unsigned char	hwec;
 	unsigned long	echo_off_map;
-	int		rxsig_state[MAX_REMORA_MODULES];
-	int		txsig_state[MAX_REMORA_MODULES];	/* not used */
 	
-	int	battdebounce;	
-	int	battthresh;
+	int		battdebounce;		/* global for FXO */
+	int		battthresh;		/* global for FXO */
 
 	u_int8_t	dtmfsupport;
 	unsigned int	dtmfactive;
@@ -202,6 +201,7 @@ wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 	wp_tdmv_remora_t	*wr = chan->pvt;
 	sdla_t			*card = NULL;
 	sdla_fe_t		*fe = NULL;
+	wan_event_ctrl_t	*event_ctrl = NULL;
 	int			x, err;
 
 	WAN_ASSERT(wr->card == NULL);
@@ -276,7 +276,7 @@ wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 			wr->mod[chan->chanpos-1].fxo.echotune = 1;
 #else
 			DEBUG_EVENT("%s: Module %d: Setting echo registers: \n",
-					fe->name, chan->chanpos-1);
+					wr->devname, chan->chanpos-1);
 			/* Set the ACIM register */
 			WRITE_RM_REG(chan->chanpos - 1, 30, echoregs.acim);
 
@@ -291,7 +291,7 @@ wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 			WRITE_RM_REG(chan->chanpos - 1, 52, echoregs.coef8);
 
 			DEBUG_EVENT("%s: Module %d: Set echo registers successfully\n",
-					fe->name, chan->chanpos-1);
+					wr->devname, chan->chanpos-1);
 #endif
 			break;
 		} else {
@@ -300,33 +300,49 @@ wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 		}
 		break;
 
-		
 	case ZT_TONEDETECT:
-		err = WAN_COPY_FROM_USER(&x, (int*)data, sizeof(int));
-		/*err = get_user(x, (int *)data);*/
-		if (err) return -EFAULT;
 
-#if 0		
+		if (WAN_COPY_FROM_USER(&x, (int*)data, sizeof(int))){
+			return -EFAULT;
+		}
 
-		if (!wc->vpm)
-			return -ENOSYS;
-#endif			
-		if (wr->dtmfsupport != WANOPT_YES){
+		if (wr->dtmfsupport != WANOPT_YES || card->wandev.ec_dev == NULL){
 			return -ENOSYS;
 		}
-		DEBUG_EVENT("%s: Hardware Tone Event detection (%s:%s)!\n",
-			fe->name,
-			(x & ZT_TONEDETECT_ON) ? "ON" : "OFF",
+		DEBUG_TDMV("[TDMV_RM]: %s: HW Tone Detection %s on channel %d (%s)!\n",
+			wr->devname,
+			(x & ZT_TONEDETECT_ON) ? "ON" : "OFF", chan->chanpos - 1,
 			(x & ZT_TONEDETECT_MUTE) ? "Mute ON" : "Mute OFF");
 					
-		if (x & ZT_TONEDETECT_ON)
+		if (x & ZT_TONEDETECT_ON){
 			wr->dtmfmask |= (1 << (chan->chanpos - 1));
-		else
+		}else{
 			wr->dtmfmask &= ~(1 << (chan->chanpos - 1));
-		if (x & ZT_TONEDETECT_MUTE)
+		}
+		if (x & ZT_TONEDETECT_MUTE){
 			wr->dtmfmutemask |= (1 << (chan->chanpos - 1));
-		else
+		}else{
 			wr->dtmfmutemask &= ~(1 << (chan->chanpos - 1));
+		}
+		
+#if defined(CONFIG_WANPIPE_HWEC)
+		event_ctrl = wan_malloc(sizeof(wan_event_ctrl_t));
+		if (event_ctrl==NULL){
+			DEBUG_EVENT(
+			"%s: Failed to allocate memory for event ctrl!\n",
+						wr->devname);
+			return -EFAULT;
+		}
+		event_ctrl->type = WAN_EVENT_EC_CHAN_MODIFY;
+		event_ctrl->channel = chan->chanpos-1;
+		event_ctrl->mode = (x & ZT_TONEDETECT_MUTE) ? WAN_EVENT_ENABLE : WAN_EVENT_DISABLE;
+		if (wanpipe_ec_event_ctrl(card->wandev.ec_dev, card, event_ctrl)){
+			wan_free(event_ctrl);
+		}
+		err = 0;
+#else
+		err = -EINVAL;
+#endif
 		break;
 
 	default:
@@ -490,7 +506,7 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 {
 	wp_tdmv_remora_t	*wr = NULL;
 	sdla_t			*card = NULL;
-	int			channel = chan->chanpos;
+	int			fe_chan = chan->chanpos;
 	int			err = -ENODEV;
 	
 	WAN_ASSERT2(chan == NULL, -ENODEV);
@@ -506,7 +522,7 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
                  * asterisk.  In persist mode off asterisk 
                  * controls hardware echo cancellation */		 
 		if (card->hwec_conf.persist_disable) {
-			err = card->wandev.ec_enable(card, enable, channel-1);
+			err = card->wandev.ec_enable(card, enable, fe_chan);
 		} else {
 			err = 0;			
 		}           
@@ -558,7 +574,7 @@ static void wp_tdmv_remora_proslic_recheck_sanity(wp_tdmv_remora_t *wr, int mod_
 		if (res) {
 			DEBUG_EVENT(
 			"%s: Module %d: Ouch, part reset, quickly restoring reality\n",
-					wr->devname, mod_no);
+					wr->devname, mod_no+1);
 			wp_init_proslic(fe, mod_no, 1, 1);
 		} else {
 			if (wr->mod[mod_no].fxs.palarms++ < MAX_ALARMS) {
@@ -599,7 +615,7 @@ wp_tdmv_remora_voicedaa_recheck_sanity(wp_tdmv_remora_t *wr, int mod_no)
         if (!res) {
 		DEBUG_EVENT(
 		"%s: Module %d: Ouch, part reset, quickly restoring reality\n",
-					wr->devname, mod_no);
+					wr->devname, mod_no+1);
 		wp_init_voicedaa(fe, mod_no, 1, 1);
 	}
 	return;	
@@ -655,7 +671,6 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 			if (wr->mod[mod_no].fxo.ringdebounce >= ZT_CHUNKSIZE * 64) {
 				if (!wr->mod[mod_no].fxo.wasringing) {
 					wr->mod[mod_no].fxo.wasringing = 1;
-					wr->rxsig_state[mod_no] = ZT_RXSIG_RING;
 					zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_RING);
 					DEBUG_TDMV("%s: Module %d: RING on span %d!\n",
 							wr->devname,
@@ -669,7 +684,6 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 			if (wr->mod[mod_no].fxo.ringdebounce <= 0) {
 				if (wr->mod[mod_no].fxo.wasringing) {
 					wr->mod[mod_no].fxo.wasringing = 0;
-					wr->rxsig_state[mod_no] = ZT_RXSIG_OFFHOOK;
 					zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
 					DEBUG_TDMV("%s: Module %d: NO RING on span %d!\n",
 							wr->devname,
@@ -700,7 +714,8 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 		wr->mod[mod_no].fxo.nobatttimer++;
 #if 0
 		if (wr->mod[mod_no].fxo.battery)
-			printk("Battery loss: %d (%d debounce)\n", b, wr->mod[mod_no].fxo.battdebounce);
+			printk("Battery loss: %d (%d debounce)\n", 
+				b, wr->mod[mod_no].fxo.battdebounce);
 #endif
 		if (wr->mod[mod_no].fxo.battery && !wr->mod[mod_no].fxo.battdebounce) {
 			DEBUG_TDMV(
@@ -712,7 +727,6 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 #ifdef	JAPAN
 			if ((!wr->mod[mod_no].fxo.ohdebounce) &&
 		            wr->mod[mod_no].fxo.offhook) {
-				wr->rxsig_state[mod_no] = ZT_RXSIG_ONHOOK;
 				zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_ONHOOK);
 				DEBUG_TDMV(
 				"%s: Module %d: Signalled On Hook span %d\n",
@@ -745,7 +759,6 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 #ifdef	ZERO_BATT_RING
 			if (wr->mod[mod_no].fxo.onhook) {
 				wr->mod[mod_no].fxo.onhook = 0;
-				wr->rxsig_state[mod_no] = ZT_RXSIG_OFFHOOK;
 				zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
 				DEBUG_TDMV(
 				"%s: Module %d: Signalled Off Hook span %d\n",
@@ -754,13 +767,12 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 							wr->span.spanno);
 			}
 #else
+			zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
 			DEBUG_TDMV(
 			"%s: Module %d: Signalled Off Hook span %d\n",
 							wr->devname,
 							mod_no + 1,
 							wr->span.spanno);
-			wr->rxsig_state[mod_no] = ZT_RXSIG_OFFHOOK;
-			zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
 #endif
 			wr->mod[mod_no].fxo.battery = 1;
 			wr->mod[mod_no].fxo.nobatttimer = 0;
@@ -784,6 +796,7 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 		/* It's something else... */
 		wr->mod[mod_no].fxo.battdebounce = wr->battdebounce;
 	}
+
 	if (wr->mod[mod_no].fxo.battdebounce)
 		wr->mod[mod_no].fxo.battdebounce--;
 	if (wr->mod[mod_no].fxo.polaritydebounce) {
@@ -791,12 +804,12 @@ static void wp_tdmv_remora_voicedaa_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 		if (wr->mod[mod_no].fxo.polaritydebounce < 1) {
 			if (wr->mod[mod_no].fxo.lastpol != wr->mod[mod_no].fxo.polarity) {
 				DEBUG_TDMV(
-				"%s: Module %d: Polarity reversed %d -> %d (%lu)\n",
+				"%s: Module %d: Polarity reversed %d -> %d (%u)\n",
 						wr->devname,
 						mod_no + 1,
 						wr->mod[mod_no].fxo.polarity, 
 						wr->mod[mod_no].fxo.lastpol,
-						SYSTEM_TICKS);
+						(u32)SYSTEM_TICKS);
 				if (wr->mod[mod_no].fxo.polarity){
 					zt_qevent_lock(&wr->chans[mod_no],
 							ZT_EVENT_POLARITY);
@@ -855,7 +868,6 @@ static void wp_tdmv_remora_proslic_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 				DEBUG_TDMV(
 				"%s: Module %d: Going off hook\n",
 							wr->devname, mod_no + 1);
-				wr->rxsig_state[mod_no] = ZT_RXSIG_OFFHOOK;
 				zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
 #if 0
 				if (robust)
@@ -868,7 +880,6 @@ static void wp_tdmv_remora_proslic_check_hook(wp_tdmv_remora_t *wr, int mod_no)
 				DEBUG_TDMV(
 				"%s: Module %d: Going on hook\n",
 							wr->devname, mod_no + 1);
-				wr->rxsig_state[mod_no] = ZT_RXSIG_ONHOOK;
 				zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_ONHOOK);
 				wr->mod[mod_no].fxs.oldrxhook = 0;
 			}
@@ -893,16 +904,6 @@ static int wp_tdmv_remora_check_hook(sdla_fe_t *fe, int mod_no)
 		wp_tdmv_remora_voicedaa_check_hook(wr, mod_no);
 	}
 	
-#if 0
-	if (wr->rxsig_state[mod_no] != wr->chans[mod_no].rxhooksig){
-		DEBUG_EVENT(
-		"%s: Module %d: WARNING: Update RX SIG state again %X (%X)\n",
-					wr->devname, mod_no + 1,
-					wr->rxsig_state[mod_no], 
-					wr->chans[mod_no].rxhooksig);
-		zt_hooksig(&wr->chans[mod_no], wr->rxsig_state[mod_no]);
-	}
-#endif	
 	return 0;
 }
 
@@ -917,10 +918,8 @@ static int wp_tdmv_remora_hook(sdla_fe_t *fe, int mod_no, int off_hook)
 	wr	= wan_tdmv->sc;
 
 	if (off_hook){
-		wr->rxsig_state[mod_no] = ZT_RXSIG_OFFHOOK;
 		zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_OFFHOOK);
 	}else{
-		wr->rxsig_state[mod_no] = ZT_RXSIG_ONHOOK;
 		zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_ONHOOK);
 	}
 	wr->mod[mod_no].fxs.lastrxhook = off_hook;
@@ -987,15 +986,21 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 		break;
 	}
 	
-	wr->battthresh = (fe->fe_cfg.cfg.remora.battthresh) ? 
-				fe->fe_cfg.cfg.remora.battthresh : DEFAULT_BATT_THRESH;
-	wr->battdebounce = (fe->fe_cfg.cfg.remora.battdebounce) ? 
-				fe->fe_cfg.cfg.remora.battdebounce : DEFAULT_BATT_DEBOUNCE;
-	DEBUG_EVENT("%s: Battery Threshhold %d (%d)\n", 
-					wr->devname, wr->battthresh, DEFAULT_BATT_THRESH);
-	DEBUG_EVENT("%s: Battery Debounce %d (%d)\n", 
-					wr->devname, wr->battdebounce, DEFAULT_BATT_DEBOUNCE);
 	wr->dtmfsupport = card->u.aft.tdmv_hw_dtmf;
+	wr->battthresh	= DEFAULT_BATT_THRESH;
+	wr->battdebounce= DEFAULT_BATT_DEBOUNCE;
+	if (fe->fe_cfg.cfg.remora.battthresh && 
+	    fe->fe_cfg.cfg.remora.battthresh != DEFAULT_BATT_THRESH){
+		wr->battthresh = fe->fe_cfg.cfg.remora.battthresh;
+		DEBUG_EVENT("%s: A200/A400 Remora Battery Threshhold changed %d -> %d\n", 
+					wr->devname, DEFAULT_BATT_THRESH, wr->battthresh);
+	}
+	if (fe->fe_cfg.cfg.remora.battdebounce && 
+            fe->fe_cfg.cfg.remora.battdebounce != DEFAULT_BATT_DEBOUNCE){
+		wr->battdebounce = fe->fe_cfg.cfg.remora.battdebounce;
+		DEBUG_EVENT("%s: A200/A400 Remora Battery Debounce changed %d -> %d\n", 
+					wr->devname, DEFAULT_BATT_DEBOUNCE, wr->battdebounce);
+	}
 	
 	for (x = 0; x < MAX_REMORA_MODULES; x++) {
 		if (wan_test_bit(x, &fe->rm_param.module_map)){
@@ -1033,7 +1038,6 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 			wr->chans[x].pvt = wr;
 			num++;
 		}
-		wr->rxsig_state[x] = ZT_RXSIG_INITIAL;
 	}
 	wr->span.pvt = wr;
 	wr->span.chans		= wr->chans;
@@ -1076,7 +1080,12 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 
 	/* Initialize Callback event function pointers */	
 	if (wr->dtmfsupport == WANOPT_YES){
+		DEBUG_EVENT("%s: Enable HW DTMF detection!\n", wr->devname);
 		card->wandev.event_callback.dtmf = wp_tdmv_remora_dtmf;
+	}
+	if (fe->fe_cfg.cfg.remora.fxs_pulsedialing == WANOPT_YES){
+		DEBUG_EVENT("%s: Enable Pulse Dialing mode\n", 
+					wr->devname);
 	}
 	return 0;
 }
@@ -1178,8 +1187,8 @@ static int wp_tdmv_remora_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	wr->devname		= card->devname;
 	wr->max_timeslots	= card->fe.rm_param.max_fe_channels;
 	wr->max_rxtx_len	= 0;
-	wan_spin_lock_init(&wr->lock);
-	wan_spin_lock_init(&wr->tx_rx_lock);
+	wan_spin_lock_irq_init(&wr->lockirq, "wan_rmtdmv_lock");
+	wan_spin_lock_irq_init(&wr->tx_rx_lockirq, "wan_rmtdmv_txrx_lock");
 
 	if (tmp){
 		WAN_LIST_INSERT_AFTER(tmp, &card->wan_tdmv, next);
@@ -1413,7 +1422,7 @@ static int wp_tdmv_remora_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 	wan_tdmv_rxtx_pwr_t	*pwr_rxtx = NULL;
 #endif
 	sdla_t *card;
-	
+
 	WAN_ASSERT2(wr == NULL, -EINVAL);
 	WAN_ASSERT2(channo < 0, -EINVAL);
 	WAN_ASSERT2(channo > 31, -EINVAL);
@@ -1454,7 +1463,7 @@ DEBUG_EVENT("Module %d: RX: %02X %02X %02X %02X %02X %02X %02X %02X\n",
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 		if(pwr_rxtx->current_state != ECHO_ABSENT){
 #endif
-			
+
 		if (wan_test_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status)) {
 			/* Updated for SWRING buffer 
  		 	 * Sets up the spike at 3 bytes */
@@ -1559,7 +1568,7 @@ static int wp_tdmv_remora_rx_tx_span(void *pcard)
 		} else if (fe->rm_param.mod[x].type == MOD_TYPE_FXO) {
 
 			if (wr->mod[x].fxo.echotune){
-				DEBUG_EVENT("%s: Module %d: Setting echo registers: \n",
+				DEBUG_RM("%s: Module %d: Setting echo registers: \n",
 							fe->name, x);
 
 				/* Set the ACIM register */
@@ -1575,7 +1584,7 @@ static int wp_tdmv_remora_rx_tx_span(void *pcard)
 				WRITE_RM_REG(x, 51, wr->mod[x].fxo.echoregs.coef7);
 				WRITE_RM_REG(x, 52, wr->mod[x].fxo.echoregs.coef8);
 
-				DEBUG_EVENT("%s: Module %d: Set echo registers successfully\n",
+				DEBUG_RM("%s: Module %d: Set echo registers successfully\n",
 						fe->name, x);
 				wr->mod[x].fxo.echotune = 0;
 			}
@@ -1587,12 +1596,23 @@ static int wp_tdmv_remora_rx_tx_span(void *pcard)
 			}
 #endif
 		}
+
+#if defined(NEW_PULSE_DIALING)
+		if (fe->fe_cfg.cfg.remora.fxs_pulsedialing == WANOPT_YES){
+			/*
+			** Alex 31 Mar, 2006
+			** Check for HOOK status every interrupt
+			** (in pulse mode is very critical) */
+			wp_tdmv_remora_check_hook(fe, x);
+		}
+#else
 #ifdef PULSE_DIALING
 		/*
 		** Alex 31 Mar, 2006
 		** Check for HOOK status every interrupt
 		** (in pulse mode is very critical) */
 		wp_tdmv_remora_check_hook(fe, x);
+#endif
 #endif
 	}
 
@@ -1616,8 +1636,14 @@ static int wp_tdmv_remora_rx_tx_span(void *pcard)
 		}
 #endif
 
+#if defined(NEW_PULSE_DIALING)
+		if (fe->fe_cfg.cfg.remora.fxs_pulsedialing != WANOPT_YES){
+			wp_tdmv_remora_check_hook(fe, x);
+		}
+#else
 #ifndef PULSE_DIALING
 		wp_tdmv_remora_check_hook(fe, x);
+#endif
 #endif
 		if (!(wr->intcount & 0xf0)){
 			if (fe->rm_param.mod[x].type == MOD_TYPE_FXS) {
@@ -1670,25 +1696,29 @@ static void wp_tdmv_remora_dtmf (void* card_id, wan_event_t *event)
         wr = wan_tdmv->sc;
 	
 	if (event->type == WAN_EVENT_EC_DTMF){
-		DEBUG_EVENT("%s: Received DTMF Event at TDM RM (%d:%c:%s:%s)!\n",
+		DEBUG_TDMV(
+		"[TDMV_RM]: %s: Received EC DTMF Event at TDM (%d:%c:%s:%s)!\n",
 			card->devname,
 			event->channel,
 			event->digit,
 			(event->dtmf_port == WAN_EC_CHANNEL_PORT_ROUT)?"ROUT":"SOUT",
 			(event->dtmf_type == WAN_EC_TONE_PRESENT)?"PRESENT":"STOP");
 	}else if (event->type == WAN_EVENT_RM_DTMF){
-		DEBUG_EVENT("%s: Received DTMF Event at TDM RM (%d:%c)!\n",
+		DEBUG_TDMV(
+		"[TDMV_RM]: %s: Received RM DTMF Event at TDM (%d:%c)!\n",
 			card->devname,
 			event->channel,
 			event->digit);	
 	}
 					
 	if (!(wr->dtmfmask & (1 << (event->channel-1)))){
-		DEBUG_TDMV("%s: DTMF is not enabled for the channel %d\n",
+		DEBUG_TDMV(
+		"[TDMV] %s: DTMF is not enabled for the channel %d\n",
 					card->devname,
 					event->channel);
 		return;
 	}
+
 	if (event->dtmf_type == WAN_EC_TONE_PRESENT){
 		wr->dtmfactive |= (1 << event->channel);
 		zt_qevent_lock(

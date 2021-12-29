@@ -474,7 +474,6 @@ typedef struct {
 	unsigned long Rx_abort_count; 					/* abort frames received count */
 } HDLC_OPERATIONAL_STATS_STRUCT;
 
-#pragma pack()
 
 
 
@@ -486,19 +485,19 @@ typedef struct {
 /* UDP/IP packet (for UDP management) layout */
 /*
 typedef struct {
-	unsigned char	reserved[2]	 ;
-	unsigned short	ip_length	 ;
-	unsigned char	reserved2[4]	 ;
-	unsigned char	ip_ttl		 ;
-	unsigned char	ip_protocol	 ;
-	unsigned short	ip_checksum	 ;
-	unsigned long	ip_src_address	 ;
-	unsigned long	ip_dst_address	 ;
-	unsigned short	udp_src_port	 ;
-	unsigned short	udp_dst_port	 ;
-	unsigned short	udp_length	 ;
-	unsigned short	udp_checksum	 ;
-	udp_management_packet_t um_packet  ;
+	unsigned char	reserved[2]	;
+	unsigned short	ip_length	;
+	unsigned char	reserved2[4]	;
+	unsigned char	ip_ttl		;
+	unsigned char	ip_protocol	;
+	unsigned short	ip_checksum	;
+	unsigned long	ip_src_address	;
+	unsigned long	ip_dst_address	;
+	unsigned short	udp_src_port	;
+	unsigned short	udp_dst_port	;
+	unsigned short	udp_length	;
+	unsigned short	udp_checksum	;
+	udp_management_packet_t um_packet ;
 } ip_packet_t;
 */
 
@@ -507,34 +506,34 @@ typedef struct {
 
 #if 0
 typedef struct {
-	unsigned char	status		 ;
-	unsigned char	data_avail	 ;
-	unsigned short	real_length	 ;
-	unsigned short	time_stamp	 ;
-	unsigned char	data[1]		 ;
+	unsigned char	status		;
+	unsigned char	data_avail	;
+	unsigned short	real_length	;
+	unsigned short	time_stamp	;
+	unsigned char	data[1]		;
 } trace_pkt_t;
 #endif
 
 typedef struct {
-	unsigned char	error_flag	 ;
-	unsigned short	time_stamp	 ;
-	unsigned char	reserved[13]	 ;
+	unsigned char	error_flag	;
+	unsigned short	time_stamp	;
+	unsigned char	reserved[13]	;
 } api_rx_hdr_t;
 
 typedef struct {
-        api_rx_hdr_t	api_rx_hdr       ;
-        unsigned char  	data[1]    	 ;
+        api_rx_hdr_t	api_rx_hdr      ;
+        unsigned char  	data[1]    	;
 } api_rx_element_t;
 
 typedef struct {
-	unsigned char 	attr		 ;
-	unsigned char   misc_Tx_bits	 ;
-	unsigned char  	reserved[14]	 ;
+	unsigned char 	attr		;
+	unsigned char   misc_Tx_bits	;
+	unsigned char  	reserved[14]	;
 } api_tx_hdr_t;
 
 typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	 ;
-	unsigned char	data[1]		 ;
+	api_tx_hdr_t 	api_tx_hdr	;
+	unsigned char	data[1]		;
 } api_tx_element_t;
 
 /* Special UDP drivers management commands */
@@ -573,6 +572,8 @@ enum {
 	HDLC_RX_IN_PROCESS,
 	NO_HDLC_RX_IN_PROCESS
 };
+
+#pragma pack()
 
 #endif
 

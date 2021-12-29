@@ -94,6 +94,7 @@ typedef struct
 	/* ref. Q.931 Table 4-11 and Q.951 Section 3 */
 	uint8_t		calling_number_screening_ind;
 	uint8_t		calling_number_presentation;
+	char		calling_name[MAX_DIALED_DIGITS + 1];
 	char		redirection_string [SIZE_RDNIS]; /* it's a null terminated string */
 	/* redir string format: 
 	 * http://www.ss7box.com/wiki/tiki-index.php?page=Call+Redirection

@@ -1,0 +1,76 @@
+# ============================================================================
+# Makefile	WAN Echo Canceler Chip configurator.  Make Script.
+#
+# Copyright	(c) 1995-1997 Sangoma Technologies Inc.  All Rights Reserved.
+# ----------------------------------------------------------------------------
+# Augc 25, 2005		Alex Feldman	Initial version.
+# ============================================================================
+
+####### DEFINES ##############################################################
+
+# Build Options.
+PROD	= wan_ec_setup
+VERSION	= 1.0
+
+# Project File Paths.
+ARCH    = $(shell uname -m)
+WAN_EC_LIB = oct6100api
+#WAN_EC_LIB = wan_oct6100_lib
+WAN_EC_LIB_DIR = .
+WAN_EC_DAEMON = YES
+LOCINC = .
+WANINC = /sys
+
+SRC_DAEMON=wan_oct6100.c wan_oct6100api.c wan_oct6100u.c
+SRC_CLIENT=wan_ecmain.c y.tab.c wan_ec_argl.c wan_ec_cmd.c
+
+CFLAGS	= -Wall -O2 -DCONFIG_PRODUCT_WANPIPE_TDMV_EC -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(LOCINC) -I$(WANINC) -I/usr/include -Ioct6100_api/include -Ioct6100_api/octdeviceapi/oct6100api/
+
+LDFLAGS=-L$(WAN_EC_LIB_DIR) -l$(WAN_EC_LIB) -lc 
+#LDFLAGS=-L$(WAN_OCT6100_LIB_DIR) -loct6100api
+
+PRODS=wan_ec_client wan_ecd
+CFLAGS+=-DWAN_OCT6100_DAEMON
+#PRODS=wan_ec_setup
+
+####### RULES ################################################################
+
+all:	$(WAN_EC_LIB) $(PRODS) 
+	@echo "Ok."
+
+oct6100api:
+	@$(MAKE) -r -C oct6100_api/octdeviceapiw/oct6100_apiw_openbsd/ -f oct6100api.mak
+
+wan_ec_setup:	$(SRC_DAEMON) $(SRC_CLIENT)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+wan_ecd:	$(SRC_DAEMON)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+wan_ec_client:	$(SRC_CLIENT)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+y.tab.c:
+	$(YACC) -d wan_ec_arg.y
+
+wan_ec_argl.c:
+	$(LEX)	-owan_ec_argl.c wan_ec_arg.l
+
+install:
+	@echo "Installing Wanpipe EC API in $(WAN_VIRTUAL)/usr/sbin"
+	\cp -f image/OCT6116-32S.ima /etc/wanpipe/wan_ec/
+	\cp -f image/OCT6126-128S.ima /etc/wanpipe/wan_ec/
+	\cp -f image/OCT6116-256S.ima /etc/wanpipe/wan_ec/
+	install $(PRODS) $(WAN_VIRTUAL)/usr/local/sbin/
+	\cp -rf buffers /etc/wanpipe/wan_ec/
+
+uninstall:
+	@echo "Un-installing Wanpipe EC API from $(WAN_VIRTUAL)/usr/sbin"
+	rm -f $(WAN_VIRTUAL)/usr/sbin/$(PRODS)
+
+clean:
+	rm -f $(PRODS)
+	rm -f y.tab.c
+	rm -f y.tab.h
+	rm -f wan_ec_argl.c
+	@$(MAKE) -r -C oct6100_api/octdeviceapiw/oct6100_apiw_openbsd/ -f oct6100api.mak clean

@@ -66,12 +66,16 @@ libsangoma_la-libsangoma.lo libsangoma_la-libsangoma.o: libsangoma.c \
   ../../patches/kdrivers/include/linux/wanpipe_version.h \
   ../../patches/kdrivers/include/linux/wanpipe_kernel.h \
   /lib/modules/2.6.18-8.1.15.el5/build/include/linux/version.h \
+  ../../patches/kdrivers/include/linux/wanpipe_abstr_types.h \
   ../../patches/kdrivers/include/linux/wanpipe_cfg.h \
   ../../patches/kdrivers/include/linux/sdla_56k.h \
   ../../patches/kdrivers/include/linux/sdla_te1.h \
   ../../patches/kdrivers/include/linux/sdla_te3.h \
   ../../patches/kdrivers/include/linux/sdla_remora.h \
   ../../patches/kdrivers/include/linux/sdla_remora_proslic.h \
+  ../../patches/kdrivers/include/linux/sdla_bri.h \
+  ../../patches/kdrivers/include/linux/xhfc24succ.h \
+  ../../patches/kdrivers/include/linux/sdla_serial.h \
   ../../patches/kdrivers/include/linux/sdla_front_end.h \
   ../../patches/kdrivers/include/linux/wanpipe.h \
   ../../patches/kdrivers/include/linux/wanpipe_debug.h \
@@ -82,7 +86,8 @@ libsangoma_la-libsangoma.lo libsangoma_la-libsangoma.o: libsangoma.c \
   ../../patches/kdrivers/include/linux/wanpipe_includes.h \
   ../../patches/kdrivers/include/linux/if_wanpipe.h \
   /lib/modules/2.6.18-8.1.15.el5/build/include/linux/sockios.h \
-  ../../patches/kdrivers/include/linux/wanpipe_codec_iface.h
+  ../../patches/kdrivers/include/linux/wanpipe_codec_iface.h \
+  ../../patches/kdrivers/include/linux/wanpipe_tdm_api_iface.h
 
 libsangoma.h:
 
@@ -302,6 +307,8 @@ libsangoma.h:
 
 /lib/modules/2.6.18-8.1.15.el5/build/include/linux/version.h:
 
+../../patches/kdrivers/include/linux/wanpipe_abstr_types.h:
+
 ../../patches/kdrivers/include/linux/wanpipe_cfg.h:
 
 ../../patches/kdrivers/include/linux/sdla_56k.h:
@@ -313,6 +320,12 @@ libsangoma.h:
 ../../patches/kdrivers/include/linux/sdla_remora.h:
 
 ../../patches/kdrivers/include/linux/sdla_remora_proslic.h:
+
+../../patches/kdrivers/include/linux/sdla_bri.h:
+
+../../patches/kdrivers/include/linux/xhfc24succ.h:
+
+../../patches/kdrivers/include/linux/sdla_serial.h:
 
 ../../patches/kdrivers/include/linux/sdla_front_end.h:
 
@@ -335,3 +348,5 @@ libsangoma.h:
 /lib/modules/2.6.18-8.1.15.el5/build/include/linux/sockios.h:
 
 ../../patches/kdrivers/include/linux/wanpipe_codec_iface.h:
+
+../../patches/kdrivers/include/linux/wanpipe_tdm_api_iface.h:

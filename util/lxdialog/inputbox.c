@@ -104,7 +104,7 @@ dialog_inputbox (const char *title, const char *prompt, int height, int width,
     if (!init)
 	instr[0] = '\0';
     else
-	strcpy (instr, init);
+	strlcpy (instr, init, MAX_LEN);
 
     input_x = strlen (instr);
 

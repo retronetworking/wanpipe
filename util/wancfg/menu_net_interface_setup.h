@@ -34,7 +34,7 @@ class menu_net_interface_setup : public menu_base{
 				wan_xilinx_conf_t *wan_xilinx_conf);
 #endif
 
-  void add_hw_echo_cancel_items(string& menu_str, chan_def_t* chandef);
+  void add_hw_echo_cancel_items(string& menu_str, chan_def_t* chandef, wan_tdmv_conf_t* tdmv_conf);
 
 public: 
   menu_net_interface_setup( IN char * lxdialog_path,

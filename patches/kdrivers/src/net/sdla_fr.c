@@ -319,7 +319,9 @@ typedef struct fr_channel
 #define TMR_INT_ENABLED_UPDATE_DLCI	0x40
 #define TMR_INT_ENABLED_TE		0x80
 
+
 #pragma pack(1)
+
 typedef struct dlci_status
 {
 	unsigned short dlci	;
@@ -341,6 +343,7 @@ typedef struct fr_dlci_interface
 	unsigned short packet_length	;
 	unsigned char reserved		;
 } fr_dlci_interface_t; 
+
 #pragma pack()
 
 extern void disable_irq(unsigned int);
@@ -568,7 +571,7 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)) {
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_te_iface_init(&card->wandev.fe_iface);
+		sdla_te_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -576,14 +579,14 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 
 		card->wandev.fe_enable_timer = fr_enable_timer;
 		card->wandev.te_link_state = fr_handle_front_end_state;
-		conf->interface = 
+		conf->electrical_interface = 
 			(IS_T1_FEMEDIA(&card->fe)) ? WANOPT_V35 : WANOPT_RS232;
 		conf->clocking = WANOPT_EXTERNAL;
 		
         }else if (IS_56K_MEDIA(&conf->fe_cfg)) {
                 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
-		sdla_56k_iface_init(&card->wandev.fe_iface);
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -714,7 +717,7 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 	if (conf->clocking == WANOPT_INTERNAL)
 		u.cfg.port |= 0x0001;
 
-	if (conf->interface == WANOPT_RS232)
+	if (conf->electrical_interface == WANOPT_RS232)
 		u.cfg.port |= 0x0002;
 
 	if (conf->u.fr.t391)
@@ -766,7 +769,7 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 
 	card->wandev.mtu	= conf->mtu;
 	card->wandev.bps	= conf->bps;
-	card->wandev.interface	= conf->interface;
+	card->wandev.electrical_interface	= conf->electrical_interface;
 	card->wandev.clocking	= conf->clocking;
 	card->wandev.station	= conf->u.fr.station;
 	card->poll		= NULL; 
@@ -846,10 +849,10 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 					(IS_T1_CARD(card))?"T1":"E1");
 			return -EIO;
 		}
+		/* Run rest of initialization not from lock */
 		if (card->wandev.fe_iface.post_init){
 			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
-
 	
 	}else if (IS_56K_CARD(card)) {
 		int	err = -EINVAL;
@@ -864,6 +867,7 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 				card->devname);
 			return -EIO;
 		}
+		/* Run rest of initialization not from lock */
 		if (card->wandev.fe_iface.post_init){
 			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
@@ -947,13 +951,13 @@ static int update (wan_device_t* wandev)
 	unsigned long smp_flags;
 
 	/* sanity checks */
-	if ((wandev == NULL) || (wandev->private == NULL))
+	if ((wandev == NULL) || (wandev->priv == NULL))
 		return -EFAULT;
 
 	if (wandev->state == WAN_UNCONFIGURED)
 		return -ENODEV;
 
-	card = wandev->private;
+	card = wandev->priv;
 	
 	if (test_and_set_bit(0,&card->update_comms_stats)){
 		return -EBUSY;	
@@ -1020,7 +1024,7 @@ static int update (wan_device_t* wandev)
 
 static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
-	sdla_t* card = wandev->private;
+	sdla_t* card = wandev->priv;
 	fr_channel_t* chan;
 	int dlci = 0;
 	int err = 0;
@@ -1360,7 +1364,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
 	fr_channel_t* chan = dev->priv;
 	unsigned long smp_flags;
-	sdla_t *card=wandev->private;
+	sdla_t *card=wandev->priv;
 
 	/* Delete interface name from proc fs. */
 	wanrouter_proc_delete_interface(wandev, chan->name);
@@ -1434,7 +1438,6 @@ static void disable_comm (sdla_t *card)
 		if (card->wandev.fe_iface.pre_release){
 			card->wandev.fe_iface.pre_release(&card->fe);
 		}
-
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -1459,6 +1462,8 @@ static int if_init (netdevice_t* dev)
 	/* Initialize device driver entry points */
 	dev->open		= &if_open;
 	dev->stop		= &if_close;
+	dev->hard_header	= NULL;
+	dev->rebuild_header	= NULL;
 	dev->hard_start_xmit	= &if_send;
 	dev->get_stats		= &if_stats;
 #if defined(LINUX_2_4) || defined(LINUX_2_6)
@@ -6237,7 +6242,7 @@ static int fr_set_dev_config(struct file *file,
 	if (wandev == NULL)
 		return cnt;
 
-	card = (sdla_t*)wandev->private;
+	card = (sdla_t*)wandev->priv;
 
 	printk(KERN_INFO "%s: New device config (%s)\n",
 			wandev->name, buffer);

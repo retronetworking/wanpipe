@@ -1,5 +1,5 @@
 /**************************************************************************
- * wanpipe_codec_iface.c
+ * wanpipe_codec_iface.h
  * 		WANPIPE(tm) Multiprotocol WAN Link Driver. 
  *		TDM voice board configuration.
  *
