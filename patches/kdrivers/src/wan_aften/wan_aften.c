@@ -123,7 +123,7 @@ static int wan_aften_init(void *arg)
 		priv->common.iface.ioctl	= &wan_aften_ioctl;
 
 		priv->common.card		= card;
-		wan_netif_set_priv(dev, priv);
+		wan_netif_set_priv(dev, priv); 
 
 #if defined(__LINUX__)
 		/*sprintf(card->devname, "hdlc%d", if_index++);*/
@@ -463,6 +463,11 @@ static int wan_aften_all_read_reg(sdla_t *card_head, wan_cmd_api_t *api_cmd)
 		prev = card;
 	}
 
+	/*Update api_cmd->len to the new length of data to copy up
+	  as the ioctl call will copy up only api_cmd->len to increase
+	  the speed of a firmware update*/
+	api_cmd->len=idata;
+
 	return 0;	
 }
 
@@ -751,12 +756,162 @@ static int wan_aften_close(netdevice_t *dev)
 	return 0;
 }
 
+#if 1
+
 static int
 wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 {
 	sdla_t			*card;
 	struct wan_aften_priv	*priv= wan_netif_priv(dev);
-	wan_cmd_api_t		api_cmd;
+	wan_cmd_api_t		*api_cmd;
+	wan_cmd_api_t		*usr_api_cmd;
+	wan_cmd_api_t		api_cmd_struct;
+	int			err=-EINVAL;
+
+	api_cmd=&api_cmd_struct;
+
+	if (!priv || !priv->common.card){
+		DEBUG_EVENT("%s: Invalid structures!\n", wan_netif_name(dev));
+		return -ENODEV;
+	}
+
+	DEBUG_TEST("%s: CMD=0x%X\n",__FUNCTION__,cmd);
+
+	if (cmd != SIOC_WAN_DEVEL_IOCTL){
+		DEBUG_IOCTL("%s: Unsupported IOCTL call!\n", 
+					wan_netif_name(dev));
+		return -EINVAL;
+	}
+
+	if (!ifr->ifr_data){
+		DEBUG_EVENT("%s: No API data!\n", wan_netif_name(dev));
+		return -EINVAL;
+	}
+
+	memset(api_cmd,0,sizeof(wan_cmd_api_t));
+	
+	card = priv->common.card;
+	usr_api_cmd = (wan_cmd_api_t*)ifr->ifr_data;
+
+	/* Only copy the struct header + 8 bytes of data */
+	if (WAN_COPY_FROM_USER(api_cmd,usr_api_cmd,sizeof(wan_cmd_api_t)-WAN_MAX_CMD_DATA_SIZE+8)){
+		return -EFAULT;
+	}
+
+	/* If there is any length in data copy the data structure */
+	if (api_cmd->len) {
+		if (WAN_COPY_FROM_USER(api_cmd->data,usr_api_cmd->data,api_cmd->len)){
+	                return -EFAULT;
+        	}
+	}
+
+	/* Hardcode bar access FELD */
+	switch (api_cmd->cmd){
+	case SIOC_WAN_READ_REG:
+		err = wan_aften_read_reg(card, api_cmd, 0);
+		break;
+	
+	case SIOC_WAN_ALL_READ_REG:
+		err = wan_aften_all_read_reg(card_list, api_cmd);
+		break;
+
+	case SIOC_WAN_WRITE_REG:
+		err = wan_aften_write_reg(card, api_cmd);
+		break;
+
+	case SIOC_WAN_ALL_WRITE_REG:
+		err = wan_aften_all_write_reg(card_list, api_cmd);
+		break;
+		
+	case SIOC_WAN_SET_PCI_BIOS:
+		err = wan_aften_set_pci_bios(card);
+		break;
+
+	case SIOC_WAN_ALL_SET_PCI_BIOS:
+		err = wan_aften_all_set_pci_bios(card_list);
+		break;
+		
+	case SIOC_WAN_HWPROBE:
+		DEBUG_TEST("%s: Read Sangoma device hwprobe!\n",
+					wan_netif_name(dev));
+		memset(&api_cmd->data[0], 0, WAN_MAX_CMD_DATA_SIZE);
+		api_cmd->len = 0;
+		err = wan_aften_hwprobe(card, api_cmd);
+		break;
+		
+	case SIOC_WAN_ALL_HWPROBE:
+		DEBUG_TEST("%s: Read list of Sangoma devices!\n",
+					wan_netif_name(dev));
+		memset(&api_cmd->data[0], 0, WAN_MAX_CMD_DATA_SIZE);
+		api_cmd->len = 0;
+		err = wan_aften_all_hwprobe(card, api_cmd);
+		break;
+
+	case SIOC_WAN_COREREV:
+		if (card->hw_iface.getcfg){
+			err = card->hw_iface.getcfg(
+					card->hw,
+				       	SDLA_COREREV,
+					&api_cmd->data[0]);
+			api_cmd->len = 1;
+		}
+		DEBUG_TEST("%s: Get core revision (rev %X)!\n", 
+				wan_netif_name(dev), api_cmd->data[0]);
+		break;
+	case SIOC_WAN_READ_PCIBRIDGE_REG:
+		err = wan_aften_read_pcibridge_reg(card, api_cmd, 0);
+		break;
+	case SIOC_WAN_ALL_READ_PCIBRIDGE_REG:
+		err = wan_aften_all_read_pcibridge_reg(card, api_cmd);
+		break;
+	case SIOC_WAN_WRITE_PCIBRIDGE_REG:
+		err = wan_aften_write_pcibridge_reg(card, api_cmd);
+		break;
+	case SIOC_WAN_ALL_WRITE_PCIBRIDGE_REG:
+		err = wan_aften_all_write_pcibridge_reg(card, api_cmd);
+		break;
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	case SIOC_WAN_USB_READ_REG:
+		err = wan_aften_usb_read_reg(card, api_cmd);
+		break;
+	case SIOC_WAN_USB_WRITE_REG:
+		err = wan_aften_usb_write_reg(card, api_cmd);
+		break;
+#endif
+	default:
+		DEBUG_EVENT("%s: Unknown WAN_AFTEN command %X\n",
+				card->devname, api_cmd->cmd);
+	}
+
+
+	DEBUG_TEST("%s: CMD Executed err= %d len=%i\n",card->devname,api_cmd->cmd,api_cmd->len);
+
+	if (WAN_COPY_TO_USER(usr_api_cmd,api_cmd,sizeof(wan_cmd_api_t)-WAN_MAX_CMD_DATA_SIZE)){
+		return -EFAULT;
+	}	
+	
+	if (api_cmd->len) {
+
+		if (api_cmd->len >= WAN_MAX_CMD_DATA_SIZE) {
+			DEBUG_EVENT("%s: Error API CMD exceeded available data space!\n",card->devname);
+			return -EFAULT;
+		}
+
+		if (WAN_COPY_TO_USER(usr_api_cmd->data,api_cmd->data,api_cmd->len)){
+	                return -EFAULT;
+        	}
+	}
+	return err;
+}
+
+#else
+
+static int
+wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
+{
+	sdla_t			*card;
+	struct wan_aften_priv	*priv= wan_netif_priv(dev);
+	wan_cmd_api_t	api_cmd;
 	int			err=-EINVAL;
 		
 	if (!priv || !priv->common.card){
@@ -810,7 +965,7 @@ wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 	case SIOC_WAN_HWPROBE:
 		DEBUG_TEST("%s: Read Sangoma device hwprobe!\n",
 					wan_netif_name(dev));
-		memset(&api_cmd.data[0], 0, WAN_MAX_DATA_SIZE);
+		memset(&api_cmd.data[0], 0, WAN_MAX_CMD_DATA_SIZE);
 		api_cmd.len = 0;
 		err = wan_aften_hwprobe(card, &api_cmd);
 		break;
@@ -818,7 +973,7 @@ wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 	case SIOC_WAN_ALL_HWPROBE:
 		DEBUG_TEST("%s: Read list of Sangoma devices!\n",
 					wan_netif_name(dev));
-		memset(&api_cmd.data[0], 0, WAN_MAX_DATA_SIZE);
+		memset(&api_cmd.data[0], 0, WAN_MAX_CMD_DATA_SIZE);
 		api_cmd.len = 0;
 		err = wan_aften_all_hwprobe(card, &api_cmd);
 		break;
@@ -854,4 +1009,4 @@ wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 	
 	return err;
 }
-
+#endif

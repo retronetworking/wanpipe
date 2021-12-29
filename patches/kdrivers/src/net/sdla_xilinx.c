@@ -95,10 +95,7 @@ static int aft_rx_copyback=1000;
 
 
 #if defined(AFT_XMTP2_API_SUPPORT) 
-extern void xmtp2km_bs_handler (int fi, int len, unsigned char * p_rxbs, unsigned char * p_txbs);
-extern int xmtp2km_register    (void *, char *, int (*callback)(void*, unsigned char*, int));
-extern int xmtp2km_unregister  (int);
-extern int xmtp2km_facility_state_change (int fi, int state);
+#include "xmtp2km_kiface.h"
 #endif
 
 

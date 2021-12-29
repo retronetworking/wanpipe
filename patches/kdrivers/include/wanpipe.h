@@ -753,13 +753,14 @@ typedef struct
 	unsigned char	led_ctrl;
 	unsigned int	tdm_intr_status;
 	void 		*bar_virt;
-	unsigned short	tdm_rx_dma_toggle;
-	unsigned short	tdm_tx_dma_toggle;
+	unsigned char	tdm_rx_dma_toggle[32];
+	unsigned char	tdm_tx_dma_toggle[32];
 	unsigned int	tdm_logic_ch_map;
 
 	wan_ticks_t	sec_chk_cnt;
 	wan_skb_queue_t	rtp_tap_list;
 	unsigned int	serial_status;
+	unsigned char	global_tdm_irq;
 
 } sdla_xilinx_t;
 
@@ -973,10 +974,16 @@ typedef struct sdla
 	* rsync timeout, it should be long */
 	wan_ticks_t   rsync_timeout;
 
+	/* This value is used for detecting Fronte end interrupt
+	* timeout, it should be long */
+	wan_ticks_t   front_end_irq_timeout;
+
 	/* SDLA TDMV Dummy interface */
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
         void* sdla_tdmv_dummy;
 #endif
+
+	unsigned char wp_debug_chan_seq;
 
 } sdla_t;
 

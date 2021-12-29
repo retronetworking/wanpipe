@@ -1178,7 +1178,13 @@ u_char x25_variables_oid[] = { 1,3,6,1,2,1,10,5  };
 
 int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 {
-	wanpipe_snmp_t	snmp;
+	wanpipe_snmp_t	*snmp;
+
+	snmp = wan_malloc(sizeof(wanpipe_snmp_t));
+	if (!snmp) {
+		return -ENOMEM;
+	}
+	memset(snmp,0,sizeof(wanpipe_snmp_t));
 
 	switch(cmd){
 	case SIOC_WANPIPE_SNMP:
@@ -1188,6 +1194,7 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 		if (WAN_COPY_TO_USER(ifr->ifr_data, &card->wandev.bps, sizeof(card->wandev.bps))){
 			DEBUG_EVENT("%s: %s(): Line: %d: Failed to copy kernel space to user snmp data!\n",
 				card->devname, __FUNCTION__, __LINE__);
+			wan_free(snmp);
 			return -EFAULT;
 		}
 		return 0;
@@ -1195,34 +1202,35 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 		DEBUG_EVENT("%s: Unknown cmd: %d (0x%X) \n",__FUNCTION__,cmd,cmd);
 	}
 
-	if (WAN_COPY_FROM_USER(&snmp, ifr->ifr_data, sizeof(wanpipe_snmp_t))){
+	if (WAN_COPY_FROM_USER(snmp, ifr->ifr_data, sizeof(wanpipe_snmp_t))){
 		DEBUG_EVENT("%s: Failed to copy user snmp data to kernel space!\n",
 				card->devname);
+		wan_free(snmp);
 		return -EFAULT;
 	}
 
-	if (strncmp((char *)ds1_variables_oid,(char *)snmp.snmp_name, sizeof(ds1_variables_oid)) == 0){
+	if (strncmp((char *)ds1_variables_oid,(char *)snmp->snmp_name, sizeof(ds1_variables_oid)) == 0){
 		/* SNMP call for ds1 */
 		DEBUG_SNMP("%s: Get T1/E1 SNMP data\n", 
 					card->devname);
 		if(card->wandev.fe_iface.get_snmp_data){
-			card->wandev.fe_iface.get_snmp_data(&card->fe, dev, &snmp);
+			card->wandev.fe_iface.get_snmp_data(&card->fe, dev, snmp);
 		}else{
 			DEBUG_EVENT("%s: Failed to get Front End SNMP data! Request is invalid for Serial Card.\n",
 				card->devname);
 		}
 	}else{
-		if (strncmp((char *)fr_variables_oid,(char *)snmp.snmp_name, sizeof(fr_variables_oid)) == 0){
+		if (strncmp((char *)fr_variables_oid,(char *)snmp->snmp_name, sizeof(fr_variables_oid)) == 0){
 			/* SNMP call for frame relay */
 			DEBUG_SNMP("%s: Get Frame Relay SNMP data\n", card->devname);
 		}
 
-		if (strncmp((char *)ppp_variables_oid,(char *)snmp.snmp_name, sizeof(ppp_variables_oid)) == 0){
+		if (strncmp((char *)ppp_variables_oid,(char *)snmp->snmp_name, sizeof(ppp_variables_oid)) == 0){
 			/* SNMP call for PPP */
 			DEBUG_SNMP("%s: Get PPP SNMP data\n", card->devname);
 		}
 	
-		if (strncmp((char *)x25_variables_oid,(char *)snmp.snmp_name, sizeof(x25_variables_oid)) == 0){
+		if (strncmp((char *)x25_variables_oid,(char *)snmp->snmp_name, sizeof(x25_variables_oid)) == 0){
 			/* SNMP call for x251 */
 			DEBUG_SNMP("%s: Get X.25 SNMP data\n", card->devname);
 		}
@@ -1233,12 +1241,15 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 		}
 	}
 
-	if (WAN_COPY_TO_USER(ifr->ifr_data, &snmp, sizeof(wanpipe_snmp_t))){
+	if (WAN_COPY_TO_USER(ifr->ifr_data, snmp, sizeof(wanpipe_snmp_t))){
 		DEBUG_EVENT("%s: Failed to copy kernel space to user snmp data!\n",
 				card->devname);
+		wan_free(snmp);
 		return -EFAULT;
 	}
-	
+
+	wan_free(snmp);
+
 	return 0;
 }
 #endif

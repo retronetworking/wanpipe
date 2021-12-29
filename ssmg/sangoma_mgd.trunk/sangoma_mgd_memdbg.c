@@ -32,7 +32,7 @@ int sdla_memdbg_push(void *mem, char *func_name, int line, int len)
 
 	sdla_mem_el = malloc(sizeof(sdla_memdbg_el_t));
 	if (!sdla_mem_el) {
-		log_printf(0,NULL,"%s:%d Critical failed to allocate memory!\n",
+		log_printf(SMG_LOG_ALL,NULL,"%s:%d Critical failed to allocate memory!\n",
 			__FUNCTION__,__LINE__);
 		return -1;
 	}
@@ -51,7 +51,7 @@ int sdla_memdbg_push(void *mem, char *func_name, int line, int len)
 	pthread_mutex_unlock(&smg_debug_mem_lock);
 
 #ifdef SMG_MEMORY_DEBUG_PRINT
-	log_printf(0,NULL,"%s:%d: Alloc %p Len=%i Total=%i\n",
+	log_printf(SMG_LOG_ALL,NULL,"%s:%d: Alloc %p Len=%i Total=%i\n",
 			sdla_mem_el->cmd_func,sdla_mem_el->line,
 			 sdla_mem_el->mem, sdla_mem_el->len,wan_debug_mem);
 #endif
@@ -81,7 +81,7 @@ int sdla_memdbg_pull(void *mem, char *func_name, int line)
 		pthread_mutex_unlock(&smg_debug_mem_lock);
 
 #ifdef SMG_MEMORY_DEBUG_PRINT
-		log_printf(0,NULL,"%s:%d: DeAlloc %p Len=%i Total=%i (From %s:%d)\n",
+		log_printf(SMG_LOG_ALL,NULL,"%s:%d: DeAlloc %p Len=%i Total=%i (From %s:%d)\n",
 			func_name,line,
 			sdla_mem_el->mem, sdla_mem_el->len, wan_debug_mem,
 			sdla_mem_el->cmd_func,sdla_mem_el->line);
@@ -94,7 +94,7 @@ int sdla_memdbg_pull(void *mem, char *func_name, int line)
 	}
 
 	if (err) {
-		log_printf(0,NULL,"%s:%d: sdla_memdbg_pull - Critical Error: Unknown Memeory %p\n",
+		log_printf(SMG_LOG_ALL,NULL,"%s:%d: sdla_memdbg_pull - Critical Error: Unknown Memeory %p\n",
 			func_name,line,mem);
 	}
 
@@ -110,16 +110,16 @@ int sdla_memdbg_free(int free_mem)
 	sdla_memdbg_el_t *sdla_mem_el;
 	int total=0;
 
-	log_printf(0,NULL,"sdladrv: Memory Still Allocated=%i \n",
+	log_printf(SMG_LOG_ALL,NULL,"sdladrv: Memory Still Allocated=%i \n",
 			 wan_debug_mem);
 
-	log_printf(0,NULL,"=====================BEGIN================================\n");
+	log_printf(SMG_LOG_ALL,NULL,"=====================BEGIN================================\n");
 
 	sdla_mem_el = WAN_LIST_FIRST(&sdla_memdbg_head);
 	while(sdla_mem_el){
 		sdla_memdbg_el_t *tmp = sdla_mem_el;
 
-		log_printf(0,NULL,"%s:%d: Mem Leak %p Len=%i \n",
+		log_printf(SMG_LOG_ALL,NULL,"%s:%d: Mem Leak %p Len=%i \n",
 			sdla_mem_el->cmd_func,sdla_mem_el->line,
 			sdla_mem_el->mem, sdla_mem_el->len);
 		total+=sdla_mem_el->len;
@@ -132,8 +132,8 @@ int sdla_memdbg_free(int free_mem)
 		}
 	}
 
-	log_printf(0,NULL,"=====================END==================================\n");
-	log_printf(0,NULL,"sdladrv: Memory Still Allocated=%i  Leaks Found=%i Missing=%i\n",
+	log_printf(SMG_LOG_ALL,NULL,"=====================END==================================\n");
+	log_printf(SMG_LOG_ALL,NULL,"sdladrv: Memory Still Allocated=%i  Leaks Found=%i Missing=%i\n",
 			 wan_debug_mem,total,wan_debug_mem-total);
 
 	if (free_mem) {

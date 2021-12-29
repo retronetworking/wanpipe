@@ -989,13 +989,14 @@ int wanec_TonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int 
 	tOCT6100_TONE_DETECTION_ENABLE	f_ToneDetectionEnable;
 	UINT32				ulResult;
 	int					i;
+	unsigned char		port_map = WAN_EC_CHANNEL_PORT_SOUT;
 
+	if (dtmf) port_map = dtmf->port_map;
 	PRINT2(verbose, "%s: Enable EC tone detection on chan %d port %X ...\n",
-					ec->name,
-					ec_chan,
-					(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
+					ec->name,ec_chan,port_map);
+					//(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
 					
-	if (dtmf == NULL || dtmf->port_map & WAN_EC_CHANNEL_PORT_ROUT){
+	if (port_map & WAN_EC_CHANNEL_PORT_ROUT){
 		for(i = 0; i < WAN_NUM_DTMF_TONES; i++){
 	
 			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
@@ -1025,7 +1026,7 @@ int wanec_TonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int 
 			}
 		}
 	}
-	if (dtmf == NULL || dtmf->port_map & WAN_EC_CHANNEL_PORT_SOUT){
+	if (port_map & WAN_EC_CHANNEL_PORT_SOUT){
 		for(i = 0; i < WAN_NUM_DTMF_TONES; i++){
 	
 			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
@@ -1064,13 +1065,14 @@ int wanec_FaxTonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, i
 	tOCT6100_TONE_DETECTION_ENABLE	f_ToneDetectionEnable;
 	UINT32				ulResult;
 	int					i;
+	unsigned char		port_map = WAN_EC_CHANNEL_PORT_SOUT;
 
+	if (dtmf) port_map = dtmf->port_map;
 	PRINT2(verbose, "%s: Enable EC Fax tone detection on chan %d port %X ...\n",
-					ec->name,
-					ec_chan,
-					(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
+					ec->name,ec_chan,port_map);
+//					(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
 					
-	if (dtmf == NULL || dtmf->port_map & WAN_EC_CHANNEL_PORT_ROUT){
+	if (port_map & WAN_EC_CHANNEL_PORT_ROUT){
 		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
 	
 			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
@@ -1100,7 +1102,7 @@ int wanec_FaxTonesEnable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, i
 			}
 		}
 	}
-	if (dtmf == NULL || dtmf->port_map & WAN_EC_CHANNEL_PORT_SOUT){
+	if (port_map & WAN_EC_CHANNEL_PORT_SOUT){
 		for(i = 0; i < WAN_NUM_FAX_TONES; i++){
 	
 			Oct6100ToneDetectionEnableDef( &f_ToneDetectionEnable );
@@ -1139,12 +1141,14 @@ int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int
 	tOCT6100_TONE_DETECTION_DISABLE	f_ToneDetectionDisable;
 	UINT32				ulResult;
 	INT				i;
+	unsigned char		port_map = WAN_EC_CHANNEL_PORT_SOUT;
 
+	if (dtmf) port_map = dtmf->port_map;
 	PRINT2(verbose, "%s: Disable EC tone detection on channel %d port %X...\n",
-					ec->name,
-					ec_chan,
-					(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
-	if (dtmf == NULL || dtmf->port_map & WAN_EC_CHANNEL_PORT_ROUT){
+					ec->name,ec_chan,port_map);
+//					(dtmf == NULL) ? WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT:dtmf->port_map);
+
+	if (port_map & WAN_EC_CHANNEL_PORT_ROUT){
 	
 		for(i = 0; i < WAN_NUM_DTMF_TONES; i++){
 		
@@ -1197,7 +1201,7 @@ int wanec_TonesDisable(wan_ec_t *ec, int ec_chan, wanec_dtmf_config_t *dtmf, int
 		}
 
 	}
-	if (dtmf == NULL || dtmf->port_map & WAN_EC_CHANNEL_PORT_SOUT){	
+	if (port_map & WAN_EC_CHANNEL_PORT_SOUT){	
 		
 		for(i = 0; i < WAN_NUM_DTMF_TONES; i++){
 		

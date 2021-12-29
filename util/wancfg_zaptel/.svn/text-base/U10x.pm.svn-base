@@ -137,6 +137,8 @@ sub gen_wanpipe_conf{
 	my $hw_dtmf = $self->card->hw_dtmf;
 	my $is_tdm_api = $self->is_tdm_api;
 	my $tdm_voice_op_mode = "TDM_VOICE";
+	my $hw_fax = $self->card->hw_fax;
+	
 
 	my $device_alpha = &get_alpha_from_num($device_no);
 
@@ -160,14 +162,15 @@ sub gen_wanpipe_conf{
 	}
 
 	$wp_file =~ s/TDM_VOICE_OP_MODE/$tdm_voice_op_mode/g;
-        $wp_file =~ s/SLOTNUM/$pci_slot/g;
-        $wp_file =~ s/BUSNUM/$pci_bus/g;
-        $wp_file =~ s/TDM_LAW/$tdm_law/g;
+	$wp_file =~ s/SLOTNUM/$pci_slot/g;
+	$wp_file =~ s/BUSNUM/$pci_bus/g;
+	$wp_file =~ s/TDM_LAW/$tdm_law/g;
 	$wp_file =~ s/RMNETSYNC/$rm_network_sync/g;
-        $wp_file =~ s/TDM_OPERMODE/$tdm_opermode/g;
+	$wp_file =~ s/TDM_OPERMODE/$tdm_opermode/g;
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
-        $wp_file =~ s/HWECMODE/$hwec_mode/g;
+	$wp_file =~ s/HWECMODE/$hwec_mode/g;
 	$wp_file =~ s/HWDTMF/$hw_dtmf/g;
+	$wp_file =~ s/HWFAX/$hw_fax/g;
 
 	print FH $wp_file;
 	close (FH);
@@ -176,18 +179,28 @@ sub gen_wanpipe_conf{
 }
 sub gen_zaptel_conf{
 	my ($self, $channel, $type) = @_;
+	my $dahdi_conf = $self->card->dahdi_conf;
+	my $dahdi_echo = $self->card->dahdi_echo;
 	my $zp_file='';
 	#For USB device type is hardcoded to fxo
 	if ( 1 ){
 		$zp_file.="fxsks=$channel\n";
 	}
+	if($dahdi_conf eq 'YES') {
+			$zp_file.="echocanceller=" .$dahdi_echo.",".$channel."\n"; 
+	}
 	return $zp_file;	
 }
 sub gen_zapata_conf{
 	my ($self, $channel, $type) = @_;
+	my $dahdi_conf = $self->card->dahdi_conf;
+	my $dahdi_echo = $self->card->dahdi_echo;
 	my $zp_file='';
 	$zp_file.="context=".$self->card->zap_context."\n";
 	$zp_file.="group=".$self->card->zap_group."\n";
+	if($dahdi_conf eq 'YES') {
+			$zp_file.="echocancel=yes\n";
+	}
 		
 	if (1){
 	      $zp_file.="signalling = fxs_ks\n";

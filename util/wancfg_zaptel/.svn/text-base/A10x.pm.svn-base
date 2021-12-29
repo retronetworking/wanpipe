@@ -460,9 +460,7 @@ sub gen_zaptel_conf{
 					#$zp_file.="echocanceller=mg2".$first_ch."-".$last_ch."\n"; 
 					#dahdi software echo canellation conf
 					if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=" .$dahdi_echo.",".$first_ch."-".$last_ch."\n"; 
-						}
 
 					}
 
@@ -472,9 +470,7 @@ sub gen_zaptel_conf{
 	                	$zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+22)."\n"; 
 
 				if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=".$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+22)."\n";  
-						}
 
 				}
 
@@ -493,9 +489,7 @@ sub gen_zaptel_conf{
 						my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
 		                		$zp_file.="bchan=".$first_ch."\n"; 
 						if($dahdi_conf eq 'YES') {
-							if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."\n";  
-						}
 
 						}
 
@@ -516,9 +510,7 @@ sub gen_zaptel_conf{
 					
 		                		$zp_file.="bchan=".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n"; 
 						if($dahdi_conf eq 'YES') {
-							if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."-".$mid_ch1.",".$mid_ch2."-".$last_ch."\n";  
-							}
 
 						}
 						
@@ -529,9 +521,7 @@ sub gen_zaptel_conf{
 						my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
 		                		$zp_file.="bchan=".$first_ch."-".$last_ch."\n"; 
 						if($dahdi_conf eq 'YES') {
-							if($hwec_mode eq 'NO' ) {
 							$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."-".$last_ch."\n";  
-							}
 
 						}
 
@@ -542,9 +532,7 @@ sub gen_zaptel_conf{
                 		$zp_file.="bchan=".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n"; 
 
 				if($dahdi_conf eq 'YES') {
-					if($hwec_mode eq 'NO' ) {
 						$zp_file.="echocanceller=".$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+14).",".($self->card->first_chan+16)."-".($self->card->first_chan+30)."\n";   
-					}
 
 				}
 				
@@ -578,9 +566,7 @@ sub gen_zaptel_conf{
 					my $first_ch=$self->card->first_chan + $self->frac_chan_first-1;
 	        	        	$zp_file.=$zap_signal."=".$first_ch."\n"; 
 					if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 						$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."\n";   
-						}
 
 					}
 
@@ -590,9 +576,7 @@ sub gen_zaptel_conf{
 					my $last_ch=$self->card->first_chan + $self->frac_chan_last-1;
 	        	        	$zp_file.=$zap_signal."=".$first_ch."-".$last_ch."\n";
 					if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 						$zp_file.="echocanceller=".$dahdi_echo.",".$first_ch."-".$last_ch."\n";
-						}
 
 					}
 
@@ -601,9 +585,7 @@ sub gen_zaptel_conf{
 			} else {
                 		$zp_file.=$zap_signal."=".$self->card->first_chan."-".($self->card->first_chan+23)."\n"; 
 				if($dahdi_conf eq 'YES') {
-						if($hwec_mode eq 'NO' ) {
 						$zp_file.="echocanceller=".$dahdi_echo.",".$self->card->first_chan."-".($self->card->first_chan+23)."\n";
-						}
 
 					}
 				
@@ -633,6 +615,7 @@ sub gen_zapata_conf{
  	my $zp_file='';
 	my $dahdi_conf = $self->card->dahdi_conf;
 	my $hwec_mode = $self->card->hwec_mode;
+	my $fax_detect = $self->card->hw_fax;
        $zp_file.="\n\;Sangoma A".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
 
 	if ( $self->signalling eq 'PRI NET' | $self->signalling eq 'PRI CPE' ){
@@ -642,14 +625,13 @@ sub gen_zapata_conf{
 	$zp_file.="context=".$self->card->zap_context."\n";
        	$zp_file.="group=".$self->card->zap_group."\n";
 	if($dahdi_conf eq 'YES') {
-		if($hwec_mode eq 'NO' ) {
 			$zp_file.="echocancel=yes\n";
-		} else {
-			$zp_file.="echocancel=no\n";		
-		}
 
 	}
 
+	if($fax_detect eq 'YES'){
+			$zp_file.="faxdetect=incoming\n";
+	}
        	
 	if ( $self->signalling eq 'PRI NET' ){
 		$zp_file.="signalling=pri_net\n";

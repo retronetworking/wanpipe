@@ -11,10 +11,11 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 WAN_VIRTUAL=
-SYSINC=../../patches/kdrivers/include
+LINC=../../patches/kdrivers/include
+SYSINC=/usr/include/wanpipe
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG) -DCONFIG_PRODUCT_WANPIPE_AFT_BRI
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I $(LINC) -I$(SYSINC) -D_DEBUG_=$(DEBUG) -DCONFIG_PRODUCT_WANPIPE_AFT_BRI
 
 CFLAGS += $(EXTRA_FLAGS)
 

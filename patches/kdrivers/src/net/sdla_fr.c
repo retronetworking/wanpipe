@@ -4292,7 +4292,8 @@ static int fr_dlci_change (sdla_t *card, wan_mbox_t* mb, int mbox_offset)
 	WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
 		dev2 = WAN_DEVLE2DEV(devle);
 		if (!dev2 || !wan_netif_priv(dev2)) continue;
-		chan = dev2->priv;
+		chan = wan_netif_priv(dev2);
+
 		if (chan->dlci_configured == DLCI_CONFIG_PENDING) {
 			if (fr_init_dlci(card, chan)){
 				return 1;

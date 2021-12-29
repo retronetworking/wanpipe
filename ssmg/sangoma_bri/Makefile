@@ -11,7 +11,6 @@ endif
 all:
 
 install:
-	install -D smg_ctrl $(INSTALLPREFIX)/usr/sbin/smg_ctrl
 	install -D $(SANGOMA_BRID) $(INSTALLPREFIX)/usr/sbin/sangoma_brid
 
 	@echo

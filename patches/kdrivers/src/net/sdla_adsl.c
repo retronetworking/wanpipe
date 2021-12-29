@@ -313,9 +313,7 @@ int wp_adsl_init (sdla_t* card, wandev_conf_t* conf)
 			adsl_disable_comm(card->u.adsl.adapter);
 			return err;
 		}
-#if !defined(LINUX_2_6)
 		MOD_INC_USE_COUNT;
-#endif
 	}
 #endif
 
@@ -740,9 +738,7 @@ static void disable_comm(sdla_t* card)
 
 	if (wan){
 #if !defined(__WINDOWS__)
-#if !defined(LINUX_2_6)
 		MOD_DEC_USE_COUNT;
-#endif
 #endif
 	}
 }
@@ -815,9 +811,7 @@ static int adsl_open(netdevice_t* ifp)
 		wanpipe_lip_connect(adsl,0);
 	}
 
-#if !defined(LINUX_2_6)	
 	MOD_INC_USE_COUNT;
-#endif
 	return status;
 }
 
@@ -847,9 +841,7 @@ int adsl_close(netdevice_t* ifp)
 	/* Stop Tx queuing */
 	WAN_NETIF_STOP_QUEUE(ifp);
 	WAN_NETDEVICE_STOP(ifp);
-#if !defined(LINUX_2_6)
 	MOD_DEC_USE_COUNT;
-#endif
 	return status;
 }
 #elif defined(__WINDOWS__)

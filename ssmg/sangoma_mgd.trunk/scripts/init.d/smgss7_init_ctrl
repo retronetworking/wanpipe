@@ -118,30 +118,7 @@ function ss7_boost_ctrl ()
 {
 	cmd=$1
 	
-	cd $ss7dir
-
-	if [ $cmd != "start" ]; then
-		echo "Stopping:  $ss7boost" 
-	fi
-	
-	eval "./$ss7boost --term 2>> $smgctrl_log"
-	
-	if [ $cmd != "start" ]; then
-		echo "Stopping:  sangoma_mgd"
-	fi
-	eval "sangoma_mgd -term >> $smgctrl_log 2>> $smgctrl_log"
-
-	if [ $cmd = "start" ]; then
-		sleep 1
-		echo "Starting:  $ss7boost"
-		eval "./$ss7boost >> $smgctrl_log 2>> $smgctrl_log"
-		sleep 5
-		echo "Starting:  sangoma_mgd"
-		eval "$RENICE $(pidof $ss7boost) 2>> $smgctrl_log >> $smgctrl_log"
-		eval "sangoma_mgd -bg >> $smgctrl_log 2>> $smgctrl_log"
-	fi
-
-	cd $homedir
+	eval "smg_ctrl $cmd"
 }
 
 

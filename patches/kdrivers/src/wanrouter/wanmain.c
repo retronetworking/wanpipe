@@ -368,9 +368,7 @@ int register_wan_device(wan_device_t *wandev)
 
 	++devcnt;
 
-#if !defined(LINUX_2_6)
-        MOD_INC_USE_COUNT;	/* prevent module from unloading */
-#endif
+    MOD_INC_USE_COUNT;	/* prevent module from unloading */
 	return 0;
 }
 
@@ -421,9 +419,7 @@ int unregister_wan_device(char *name)
 	
 	--devcnt;
 	wanrouter_proc_delete(wandev);
-#if !defined(LINUX_2_6)
-        MOD_DEC_USE_COUNT;
-#endif
+    MOD_DEC_USE_COUNT;
 	return 0;
 }
 
@@ -1461,9 +1457,7 @@ int register_wanpipe_api_socket (struct wanpipe_api_register_struct *wan_api_reg
 	memcpy(&api_socket, wan_api_reg, sizeof(struct wanpipe_api_register_struct)); 
 	REG_PROTOCOL_FUNC(api_socket);
 	++devcnt;
-#if !defined(LINUX_2_6)
-        MOD_INC_USE_COUNT;
-#endif
+    MOD_INC_USE_COUNT;
 	return 0;
 }
 
@@ -1472,9 +1466,7 @@ void unregister_wanpipe_api_socket (void)
 
 	UNREG_PROTOCOL_FUNC(api_socket);
 	--devcnt;
-#if !defined(LINUX_2_6)
 	MOD_DEC_USE_COUNT;
-#endif
 }
 
 

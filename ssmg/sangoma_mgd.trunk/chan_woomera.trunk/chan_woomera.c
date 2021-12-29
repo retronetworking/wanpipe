@@ -14,6 +14,19 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.53 Nenad Corbic <ncorbic@sangoma.com>
+ * Jul 16 2009
+ *	Updated for Asterisk load balancing and well
+ *  as one to many call calling based on valid extension.
+ *
+ * v1.52 Konrad Hammel <konrad@sangoma.com>
+ * Jun 25 2009
+ * 	Bug fix for tg_context in multiple profiles
+ *
+ * v1.51 Nenad Corbic <ncorbic@sangoma.com>
+ * Jun 06 2009
+ * 	Updated for Asterisk 1.6.1
+ *
  * v1.50 Nenad Corbic <ncorbic@sangoma.com>
  * Apr 24 2009
  * 	Bug fix on write socket. Check that write woomera socket failed.
@@ -279,7 +292,7 @@
 #include "asterisk/musiconhold.h"
 #include "asterisk/transcap.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.53 $")
 
 #else
 
@@ -330,7 +343,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
 #define CALLWEAVER_19 1
 #endif
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.53 $")
 
 #if defined(DSP_FEATURE_FAX_CNG_DETECT)
 #undef		DSP_FEATURE_FAX_DETECT
@@ -637,7 +650,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.50 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.50"
+#define WOOMERA_VERSION "v1.53"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -667,6 +680,10 @@ static char mohinterpret[MAX_MUSICCLASS] = "default";
 static char mohsuggest[MAX_MUSICCLASS] = "";
 
 
+/* Used to debug a specific channel */
+static void *debug_tech_pvt=NULL;
+
+
 #if !defined (AST14) && !defined (AST16)
 struct ast_frame ast_null_frame;
 #endif
@@ -676,6 +693,15 @@ struct ast_frame ast_null_frame;
   #define AST_JB 1
  #endif
 #endif
+
+#if !defined(DSP_FEATURE_DTMF_DETECT) && defined(DSP_FEATURE_DIGIT_DETECT) 
+#define DSP_FEATURE_DTMF_DETECT DSP_FEATURE_DIGIT_DETECT
+#define ast_dsp_digitmode ast_dsp_set_digitmode
+#define woo_ast_data_ptr data.ptr
+#else
+#define woo_ast_data_ptr data
+#endif
+
 
 #if defined (AST_JB)
 #include "asterisk/abstract_jb.h"
@@ -1919,6 +1945,12 @@ retry_activate_again:
 				tech_pvt->callid,tech_pvt);
 		}
 		
+
+#if 0
+		/* NC: Took this out becuase its not needed any more.
+		       It was a kluge to get load balancing to work
+			   but now it works properly so it should be removed.
+			   I am keeping it here as depricated */
 		err=woomera_printf(tech_pvt->profile,
 				 tech_pvt->command_channel, 
 				 "PROCEED %s%s"
@@ -1944,7 +1976,8 @@ retry_activate_again:
 			/* Do not hangup on main because
 			 * socket connection has been
 			 * established */
-		 }
+	     }
+#endif
 	}
 	
 
@@ -2212,6 +2245,10 @@ static void tech_destroy(private_object *tech_pvt, struct ast_channel *owner)
 		tech_pvt->cid_rdnis=NULL;
 	}
 
+	if (debug_tech_pvt == tech_pvt) {
+     	debug_tech_pvt=NULL;
+	}
+
 	ast_free(tech_pvt);	
 	ast_mutex_lock(&usecnt_lock);
 	usecnt--;
@@ -2441,7 +2478,7 @@ static void *tech_monitor_thread(void *obj)
 					ast_hangup=1;
 
 				} else {
-					if (1) { //globals.debug > 2) {
+					if (globals.debug > 2) {
 						ast_log(LOG_NOTICE,"Tech Thread - Hanging up channel - owner=%p pbx=%i \n",
 							owner,ast_test_flag(tech_pvt, TFLAG_PBX));
 					}
@@ -2567,7 +2604,7 @@ static void *tech_monitor_thread(void *obj)
 				goto tech_thread_continue;
 		
 			} else {
-
+			
 				err=woomera_printf(tech_pvt->profile, tech_pvt->command_channel, 
 							"%s %s%s"
 							"Raw-Audio: %s:%d%s"
@@ -2601,6 +2638,7 @@ static void *tech_monitor_thread(void *obj)
 				ast_set_flag(tech_pvt, TFLAG_ABORT);
 				goto tech_thread_continue;
 			}
+			
 
 			/* It is possible for ACCEPT to have media info
 			 * This is how Early Media is started */
@@ -2634,16 +2672,15 @@ static void *tech_monitor_thread(void *obj)
 
 			if(err < 0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
 					ast_set_flag(tech_pvt, TFLAG_ABORT);
-					ast_log(LOG_NOTICE, "ACCEPT ABORT Ch=%d\n",
-									tech_pvt->command_channel);
-					ast_copy_string(tech_pvt->ds, "PROTOCOL_ERROR", sizeof(tech_pvt->ds));
-					tech_pvt->pri_cause=111;
+					if (globals.debug > 2) {
+						ast_log(LOG_NOTICE, "ACCEPT ABORT Ch=%d\n",
+										tech_pvt->command_channel);
+					}
 					goto tech_thread_continue;
 					continue;
 			}
 
 		}
-
 
 		if (ast_test_flag(tech_pvt, TFLAG_ANSWER)) {
 			int err;
@@ -2669,10 +2706,10 @@ static void *tech_monitor_thread(void *obj)
 				
 				if(err<0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
 					ast_set_flag(tech_pvt, TFLAG_ABORT);
-					ast_log(LOG_NOTICE, "ANSWER ABORT Ch=%d\n",
+					if (globals.debug > 2) {
+						ast_log(LOG_NOTICE, "ANSWER ABORT Ch=%d\n",
 							tech_pvt->command_channel);
-					ast_copy_string(tech_pvt->ds, "PROTOCOL_ERROR", sizeof(tech_pvt->ds));
-                			tech_pvt->pri_cause=111;
+					}
 					goto tech_thread_continue;
 					continue;
 				}
@@ -2854,7 +2891,7 @@ static int woomera_locate_socket(woomera_profile *profile, int *woomera_socket)
 				ast_log(LOG_NOTICE, "Woomera Master Socket \n");
 				}
 
-				err=woomera_printf(profile, *woomera_socket, "LISTEN MASTER%s", WOOMERA_RECORD_SEPARATOR);
+				err=woomera_printf(profile, *woomera_socket, "LISTEN %s", WOOMERA_RECORD_SEPARATOR);
 				if (err<0) {
 					if (*woomera_socket > -1) {
 						woomera_close_socket(woomera_socket);
@@ -3215,7 +3252,9 @@ static void destroy_woomera_profile(woomera_profile *profile)
 
 static woomera_profile *clone_woomera_profile(woomera_profile *new_profile, woomera_profile *default_profile) 
 {
-	return memcpy(new_profile, default_profile, sizeof(woomera_profile));
+	memcpy(new_profile, default_profile, sizeof(woomera_profile));
+        memset(new_profile->tg_context, 0,sizeof(new_profile->tg_context));
+        return new_profile;
 }
 
 static woomera_profile *create_woomera_profile(woomera_profile *default_profile) 
@@ -4249,13 +4288,13 @@ tech_read_again:
 	tech_pvt->frame.offset = AST_FRIENDLY_OFFSET;
 	tech_pvt->frame.datalen = res;
 	tech_pvt->frame.samples = res;
-	tech_pvt->frame.data = tech_pvt->fdata + AST_FRIENDLY_OFFSET;
+	tech_pvt->frame.woo_ast_data_ptr = tech_pvt->fdata + AST_FRIENDLY_OFFSET;
 
 	f=&tech_pvt->frame;
 
 	if (tech_pvt->profile->rxgain_val) {
 		int i;
-		unsigned char *data=tech_pvt->frame.data;
+		unsigned char *data=tech_pvt->frame.woo_ast_data_ptr;
 		for (i=0;i<tech_pvt->frame.datalen;i++) {
 			data[i]=tech_pvt->profile->rxgain[data[i]];
 		}
@@ -4337,7 +4376,7 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 
 	/* Used for debugging only never in production */
 	if (tech_pvt->profile->tx_sync_check_opt){
-		unsigned char *data = frame->data;
+		unsigned char *data = frame->woo_ast_data_ptr;
 		for (i=0;i<frame->datalen;i++) {
 			if (tech_pvt->sync_w == 0) {
 				if (data[i] == 0x01 && data[i+1] == 0x02) {
@@ -4367,7 +4406,7 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 
 	/* Used for debugging only never in production */
 	} else if (tech_pvt->profile->tx_sync_gen_opt){
-		unsigned char *data = frame->data;
+		unsigned char *data = frame->woo_ast_data_ptr;
 		int x;
 		for (x=0;x<frame->datalen;x++) {
 			data[x]=++tech_pvt->sync_data_w;
@@ -4378,20 +4417,20 @@ static int tech_write(struct ast_channel *self, struct ast_frame *frame)
 		if (frame->frametype == AST_FRAME_VOICE) {
 		
 			if (tech_pvt->profile->txgain_val) {
-				unsigned char *data=frame->data;
+				unsigned char *data=frame->woo_ast_data_ptr;
 				for (i=0;i<frame->datalen;i++) {
 					data[i]=tech_pvt->profile->txgain[data[i]];
 				}
 			} 
 
 			if (tech_pvt->profile->udp_seq){	
-				unsigned char *txdata=frame->data;
+				unsigned char *txdata=frame->woo_ast_data_ptr;
 				tech_pvt->tx_udp_seq++;
 				*((unsigned int*)&txdata[frame->datalen]) = tech_pvt->tx_udp_seq;
 				frame->datalen+=4;
 			}
  
-			i = sendto(tech_pvt->udp_socket, frame->data, frame->datalen, 0, 
+			i = sendto(tech_pvt->udp_socket, frame->woo_ast_data_ptr, frame->datalen, 0, 
 				   (struct sockaddr *) &tech_pvt->udpwrite, sizeof(tech_pvt->udpwrite));
 			if (i < 0) {
 				return -1;
@@ -4961,8 +5000,10 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
 				ast_verbose(WOOMERA_DEBUG_PREFIX "HW DTMF supported %s\n", tech_pvt->callid);
 			}
 			
-			tech_pvt->dsp_features &= ~DSP_FEATURE_DTMF_DETECT;
-			ast_dsp_set_features(tech_pvt->dsp, tech_pvt->dsp_features);
+			if(tech_pvt->dsp) {	
+				tech_pvt->dsp_features &= ~DSP_FEATURE_DTMF_DETECT;
+				ast_dsp_set_features(tech_pvt->dsp, tech_pvt->dsp_features);	
+			}
 		} else {
 			if (option_verbose > 2) {
 				ast_verbose(WOOMERA_DEBUG_PREFIX "HW DTMF not supported %s\n", tech_pvt->callid);
@@ -5207,17 +5248,20 @@ static int woomera_event_incoming (private_object *tech_pvt)
 			if(group >= 0 && 
 			   group <= WOOMERA_MAX_TRUNKGROUPS && 
 			   tech_pvt->profile->tg_context[group] != NULL){
-
+					if (option_verbose > 2) {
                                ast_log(LOG_ERROR, "Error: Invalid exten %s@%s called %s!\n",
                                        exten,
                                        owner->context,
                                        tech_pvt->callid);
+					}
 			}else{
+					if (option_verbose > 2) {
                                ast_log(LOG_ERROR, "Error: Invalid exten %s@%s%s called %s!\n",
                                        exten,
                                        tech_pvt->profile->context,
                                        tg_string,
                                        tech_pvt->callid);
+					}
 			}
 		}
 		return -1;	
@@ -5253,9 +5297,9 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 		char *q931cause;
 		struct ast_channel *owner;
 			
-
+            
 		if (option_verbose > 2) {
-			ast_verbose(WOOMERA_DEBUG_PREFIX "Hangup [%s]\n", tech_pvt->callid);
+			ast_verbose(WOOMERA_DEBUG_PREFIX "Hangup [%s] \n", tech_pvt->callid);
 		}
 		cause = woomera_message_header(wmsg, "Cause");
 		q931cause = woomera_message_header(wmsg, "Q931-Cause-Code");
@@ -5465,7 +5509,7 @@ int load_module(void)
 	ast_null_frame.subclass = 0;
 	ast_null_frame.delivery = ast_tv(0,0);
 	ast_null_frame.src = "zt_exception";
-	ast_null_frame.data = NULL;
+	ast_null_frame.woo_ast_data_ptr = NULL;
 #endif
 
 	return 0;

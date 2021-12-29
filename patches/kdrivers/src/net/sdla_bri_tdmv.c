@@ -106,9 +106,13 @@ typedef struct wp_tdmv_bri_ {
 	int		spanno;
 	struct zt_span	span;
 #ifdef DAHDI_ISSUES
+#ifdef DAHDI_22
+	struct dahdi_echocan_state ec[MAX_BRI_LINES];		/* echocan state for each channel */
+#endif
 	struct zt_chan *chans_ptrs[MAX_BRI_LINES];
 #endif
 	struct zt_chan	chans[MAX_BRI_LINES];
+
 	unsigned long	reg_module_map;	/* Registered modules */
 
 	u32		timeslot_map;
@@ -170,6 +174,14 @@ static int wp_tdmv_bri_ec_span(void *pcard);
 
 static void wp_tdmv_bri_dtmf (void* card_id, wan_event_t *event);
 
+#ifdef DAHDI_22
+static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan, struct dahdi_echocanparams *ecp,
+			   struct dahdi_echocanparam *p, struct dahdi_echocan_state **ec);
+static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_state *ec);
+#else
+static int wp_bri_zap_hwec(struct zt_chan *chan, int enable);
+#endif
+
 extern int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane);
 extern int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane);
 
@@ -178,9 +190,28 @@ static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len);
 #endif
 static int wp_tdmv_rx_dchan(wan_tdmv_t*, int, unsigned char*, unsigned int); 
 
-static int wp_tdmv_span_buf_rotate(void *pcard, u32, unsigned long);
+static int wp_tdmv_span_buf_rotate(void *pcard, u32, unsigned long, int);
+
 
 static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm);
+
+#ifdef DAHDI_22
+/*
+*******************************************************************************
+**			   DAHDI HWEC STRUCTURES
+*******************************************************************************
+*/
+static const struct dahdi_echocan_features wp_tdmv_bri_ec_features = {
+	.NLP_automatic = 1,
+	.CED_tx_detect = 1,
+	.CED_rx_detect = 1,
+};
+
+static const struct dahdi_echocan_ops wp_tdmv_bri_ec_ops = {
+	.name = "WANPIPE_HWEC",
+	.echocan_free = wp_tdmv_bri_hwec_free,
+};
+#endif
 
 /*******************************************************************************
 **			  FUNCTION DEFINITIONS
@@ -243,13 +274,17 @@ wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 static int wp_bri_zap_open(struct zt_chan *chan)
 {
 	wp_tdmv_bri_t	*wr = NULL;
+	sdla_t *card;
 	
 	BRI_FUNC();
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wr = chan->pvt;
+	WAN_ASSERT2(wr->card == NULL, -ENODEV);
+    card = wr->card;
 	wr->usecount++;
+	wanpipe_open(card);
 	wan_set_bit(WP_TDMV_RUNNING, &wr->flags);
 	DEBUG_EVENT("%s: Open (usecount=%d, channo=%d, chanpos=%d)...\n", 
 				wr->devname,
@@ -270,13 +305,15 @@ static int wp_bri_zap_close(struct zt_chan *chan)
 	WAN_ASSERT2(chan == NULL, -ENODEV);
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wr	= chan->pvt;
+	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card	= wr->card;
+	wanpipe_close(card);
 	fe	= &card->fe;
 	wr->usecount--;
 	wan_clear_bit(WP_TDMV_RUNNING, &wr->flags);
 
 	return 0;
-}
+}           
 
 static int wp_bri_zap_watchdog(struct zt_span *span, int event)
 {
@@ -289,45 +326,134 @@ static int wp_bri_zap_watchdog(struct zt_span *span, int event)
 	return 0;
 }
 
+
+#ifdef DAHDI_22
 /******************************************************************************
-** wp_remora_zap_hwec() - 
+** wp_tdmv_bri_hwec_create() - 
 **
 **	OK
 */
-static int wp_bri_zap_hwec(struct zt_chan *chan, int enable)
+static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan, struct dahdi_echocanparams *ecp,
+			  struct dahdi_echocanparam *p, struct dahdi_echocan_state **ec)
 {
-	wp_tdmv_bri_t	*wr = NULL;
-	sdla_t		*card = NULL;
-	int		fe_chan = chan->chanpos;
-	int		err = -ENODEV;
-	sdla_fe_t	*fe = NULL;
+	wp_tdmv_bri_t *wr = NULL;
+	sdla_t *card = NULL;
+	int	fe_chan = chan->chanpos;
+	int	err = -ENODEV;
 
-	BRI_FUNC();	
+	if (ecp->param_count > 0) {
+		DEBUG_TDMV("[TDMV] Wanpipe echo canceller does not support parameters; failing request\n");
+		return -EINVAL;
+	}
 
+	BRI_FUNC();
 	WAN_ASSERT2(chan == NULL, -ENODEV);
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wr = chan->pvt;
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
-	card	= wr->card;
-	fe	= &card->fe;
+	card = wr->card;
 
-	if (card->wandev.ec_enable){
+	*ec = &wr->ec[fe_chan];
+	(*ec)->ops = &wp_tdmv_bri_ec_ops;
+	(*ec)->features = wp_tdmv_bri_ec_features;
+
+	if (card->wandev.ec_enable) {
 		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
 			wr->devname, __FUNCTION__, fe_chan);
 
-		if(fe_chan == 1 || fe_chan == 2){
-			err = card->wandev.ec_enable(card, enable, fe_chan);
-		}else{
+		if(fe_chan == 1 || fe_chan == 2) {
+			err = card->wandev.ec_enable(card, 1, fe_chan);
+		} else {
 			DEBUG_EVENT("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
 				wr->devname, __FUNCTION__, fe_chan);
 			err = 0;
 		}
-	}else{
+	} else {
 		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): card->wandev.ec_enable == NULL!!!!!!\n",
 			wr->devname, __FUNCTION__);
 	}
 	return err;
 }
+
+/******************************************************************************
+** wp_tdmv_bri_hwec_free() - 
+**
+**	OK
+*/
+static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_state *ec)
+{
+	wp_tdmv_bri_t	*wr = NULL;
+	sdla_t *card = NULL;
+	int	fe_chan = chan->chanpos;
+
+	memset(ec, 0, sizeof(*ec));
+
+	if(chan == NULL) return;
+	if(chan->pvt == NULL) return;
+	wr = chan->pvt;
+	if(wr->card == NULL) return;
+	card = wr->card;
+
+	if (card->wandev.ec_enable) {
+		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
+			wr->devname, __FUNCTION__, fe_chan);
+
+		if(fe_chan == 1 || fe_chan == 2) {
+			card->wandev.ec_enable(card, 0, fe_chan);
+		} else {
+			DEBUG_EVENT("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
+				wr->devname, __FUNCTION__, fe_chan);
+		}
+	} else {
+		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): card->wandev.ec_enable == NULL!!!!!!\n",
+			wr->devname, __FUNCTION__);
+	}
+}
+
+#else
+
+/******************************************************************************
+** wp_remora_zap_hwec() -
+**
+**  OK
+*/
+static int wp_bri_zap_hwec(struct zt_chan *chan, int enable)
+{
+	wp_tdmv_bri_t   *wr = NULL;
+	sdla_t      *card = NULL;
+	int     fe_chan = chan->chanpos;
+	int     err = -ENODEV;
+	sdla_fe_t   *fe = NULL;
+
+	BRI_FUNC();
+
+	WAN_ASSERT2(chan == NULL, -ENODEV);
+	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
+	wr = chan->pvt;
+	WAN_ASSERT2(wr->card == NULL, -ENODEV);
+	card    = wr->card;
+	fe  = &card->fe;
+
+	if (card->wandev.ec_enable){
+		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): channel %d\n",
+					wr->devname, __FUNCTION__, fe_chan);
+
+		if(fe_chan == 1 || fe_chan == 2){
+			err = card->wandev.ec_enable(card, enable, fe_chan);
+		}else{
+			DEBUG_EVENT("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
+						wr->devname, __FUNCTION__, fe_chan);
+			err = 0;
+		}
+	}else{
+		DEBUG_EVENT("[TDMV_BRI]: %s: %s(): card->wandev.ec_enable == NULL!!!!!!\n",
+					wr->devname, __FUNCTION__);
+	}
+	return err;
+}
+
+
+#endif
 
 
 /******************************************************************************
@@ -478,7 +604,11 @@ wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
 	wr->span.watchdog	= wp_bri_zap_watchdog;
 	/* Set this pointer only if card has hw echo canceller module */
 	if (card->wandev.ec_dev){
+#ifdef DAHDI_22
+		wr->span.echocan_create = wp_tdmv_bri_hwec_create;
+#else
 		wr->span.echocan = wp_bri_zap_hwec;
+#endif
 	}
 #if defined(__LINUX__)
 	init_waitqueue_head(&wr->span.maintq);
@@ -859,7 +989,9 @@ static int wp_tdmv_bri_remove(void* pcard)
 	return 0;
 }
 
-static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask)
+
+
+static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask, int circ_buf_len)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
@@ -867,17 +999,27 @@ static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask)
 	int x;
 	unsigned int rx_offset, tx_offset;
 	void *ptr;
-	
+
 	WAN_ASSERT(wan_tdmv->sc == NULL);
 	wp = wan_tdmv->sc; 
-
-	rx_offset = buf_sz * card->u.aft.tdm_rx_dma_toggle;
-	tx_offset = buf_sz * card->u.aft.tdm_tx_dma_toggle;
 
 #define BRI_NUM_OF_BCHANNELS 2
 	for (x = 0; x < BRI_NUM_OF_BCHANNELS; x ++) {
 	/*for (x = 0; x < 32; x ++) {*/
 		if (wan_test_bit(x,&wp->timeslot_map)) {
+
+			rx_offset = buf_sz * card->u.aft.tdm_rx_dma_toggle[x];
+			tx_offset = buf_sz * card->u.aft.tdm_tx_dma_toggle[x];	
+
+			card->u.aft.tdm_rx_dma_toggle[x]++;
+			if (card->u.aft.tdm_rx_dma_toggle[x] >= circ_buf_len) {
+				card->u.aft.tdm_rx_dma_toggle[x]=0;
+			}
+			card->u.aft.tdm_tx_dma_toggle[x]++;
+			if (card->u.aft.tdm_tx_dma_toggle[x] >= circ_buf_len) {
+				card->u.aft.tdm_tx_dma_toggle[x]=0;
+			}
+
 
 			wan_spin_lock(&wp->chans[x].lock);
 				

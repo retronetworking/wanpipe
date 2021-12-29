@@ -3539,7 +3539,7 @@ static void handle_front_end_state(void *card_id)
 	if (status == FE_CONNECTED){
 		DEBUG_TEST("%s: Connected State %i\n",
 				card->devname,card->fe.fe_param.te3.e3_lb_ctrl);
-		if (IS_T1_CARD(card) || 
+		if (IS_DS3(&card->fe.fe_cfg) ||
 		    (card->fe.fe_param.te3.e3_lb_ctrl == 0 || card->fe.fe_param.te3.e3_lb_ctrl == 3)) {
 			if (card->wandev.state != WAN_CONNECTED){
 				enable_data_error_intr(card);
@@ -5275,9 +5275,13 @@ static int aft_dma_chain_rx(aft_dma_chain_t *dma_chain, private_area_t *chan, in
 		wan_clear_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
 	}else{
 
+#ifdef AFT_TE3_IFT_FEATURE_DISABLE
+#warning "AFT_TE3_IFT_FEATURE_DISABLE is defined!"
+#else
 		if (card->u.aft.firm_ver >= AFT_IFT_FIMR_VER) {
 			wan_set_bit(DMA_HI_TE3_IFT_INTR_ENB_BIT,&reg);
 		}
+#endif
 		wan_set_bit(DMA_HI_TE3_NOT_LAST_FRAME_BIT,&reg);
 
 		if (intr){

@@ -1,7 +1,7 @@
-kernel//root/development/3.3/wanpipe-3.3.16.20/patches/kdrivers/src/net/sdladrv.ko
-kernel//root/development/3.3/wanpipe-3.3.16.20/patches/kdrivers/src/net/wanrouter.ko
-kernel//root/development/3.3/wanpipe-3.3.16.20/patches/kdrivers/src/net/wanpipe.ko
-kernel//root/development/3.3/wanpipe-3.3.16.20/patches/kdrivers/src/net/wanpipe_syncppp.ko
-kernel//root/development/3.3/wanpipe-3.3.16.20/patches/kdrivers/src/net/af_wanpipe.ko
-kernel//root/development/3.3/wanpipe-3.3.16.20/patches/kdrivers/src/net/wanec.ko
-kernel//root/development/3.3/wanpipe-3.3.16.20/patches/kdrivers/src/net/wan_aften.ko
+kernel//usr/src/wanpipe-3.4.2.16/patches/kdrivers/src/net/sdladrv.ko
+kernel//usr/src/wanpipe-3.4.2.16/patches/kdrivers/src/net/wanrouter.ko
+kernel//usr/src/wanpipe-3.4.2.16/patches/kdrivers/src/net/wanpipe.ko
+kernel//usr/src/wanpipe-3.4.2.16/patches/kdrivers/src/net/wanpipe_syncppp.ko
+kernel//usr/src/wanpipe-3.4.2.16/patches/kdrivers/src/net/af_wanpipe.ko
+kernel//usr/src/wanpipe-3.4.2.16/patches/kdrivers/src/net/wanec.ko
+kernel//usr/src/wanpipe-3.4.2.16/patches/kdrivers/src/net/wan_aften.ko

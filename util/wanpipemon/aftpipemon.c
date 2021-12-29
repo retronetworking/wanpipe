@@ -45,12 +45,12 @@
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe.h>
-# include <linux/sdla_xilinx.h>
+# include <linux/sdla_aft_te1.h>
 #else
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
 # include <wanpipe.h>
-# include <sdla_xilinx.h>
+# include <sdla_aft_te1.h>
 #endif
 #include "fe_lib.h"
 #include "wanpipemon.h"
@@ -451,6 +451,17 @@ static void flush_operational_stats( void )
 	DO_COMMAND(wan_udp);
 #endif
 }; /* flush_operational_stats */
+
+
+static void wp_span_debugging( unsigned char toggle ) 
+{
+	wan_udp.wan_udphdr_command= WANPIPEMON_CHAN_SEQ_DEBUGGING;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0] = toggle;
+	DO_COMMAND(wan_udp);
+}; /* flush_operational_stats */
+
 
 
 int AFTDisableTrace(void)
@@ -1505,6 +1516,12 @@ int AFTMain(char *command,int argc, char* argv[])
 					fe_debug.fe_debug_reg.value = value;
 				}
 				set_fe_debug_mode(&fe_debug);
+
+			}else if (!strcmp(opt,"e_span_seq")){
+				wp_span_debugging(1);
+			}else if (!strcmp(opt,"d_span_seq")){
+				wp_span_debugging(0);
+
 			}else{
 				printf("ERROR: Invalid Status Command 'd', Type wanpipemon <cr> for help\n\n");
 			}

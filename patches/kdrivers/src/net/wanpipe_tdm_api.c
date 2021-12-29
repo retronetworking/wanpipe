@@ -2115,9 +2115,7 @@ int wanpipe_tdm_api_rx_tx (wanpipe_tdm_api_dev_t *tdm_api, u8 *rx_data, u8 *tx_d
 	}
 	
 	if (!wan_test_bit(0,&tdm_api->used)) {
-		if (tx_data[0] != tdm_api->cfg.idle_flag) {
-			memset(tx_data,tdm_api->cfg.idle_flag,len);
-		}
+		memset(tx_data,tdm_api->cfg.idle_flag,len);
 		return 0;
 	}
 	

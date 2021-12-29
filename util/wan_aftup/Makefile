@@ -42,20 +42,21 @@ wan_aftup:	$(SRCS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 install:
-	@echo "Installing Wanpipe Firmware update utility in $(WAN_VIRTUAL)/usr/sbin"
+	@echo "Installing Wanpipe Firmware  update utility in $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup"
 	install -D $(PROD)	  $(WAN_VIRTUAL)/usr/sbin/$(PROD)
-
-install:
-	@echo "Installing WAN_AFTUP in $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup"
 	install -d $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/scripts
 	install -m755 wan_aftup $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/wan_aftup
 	install -m755 update_aft_firm.sh $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/update_aft_firm.sh
 	install -m755 scripts/load.sh $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/scripts/load.sh
 	install -m755 scripts/unload.sh $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/scripts/unload.sh
+	cp -f *.BIN $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup/    
 
 uninstall:
 	@echo "Uninstalling WAN_AFTUP in $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup"
-	rm -rf $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup
+	@if [ -e $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup ]; then \
+		rm -rf $(WAN_VIRTUAL)/etc/wanpipe/util/wan_aftup;   \
+	fi
+	@rm -f $(WAN_VIRTUAL)/usr/sbin/$(PROD)
 
 clean:
 	rm -f $(PROD)

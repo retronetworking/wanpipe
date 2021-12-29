@@ -3434,41 +3434,50 @@ EXPORT_SYMBOL(sdla_hw_probe);
 #if defined(__LINUX__)
 unsigned int sdla_hw_probe(void)
 {
-	sdlahw_card_t 	tmp_hwcard;
-	sdlahw_cpu_t 	tmp_hwcpu;
-	sdlahw_t 	tmp_hw;
+	sdlahw_card_t 	*tmp_hwcard=NULL;
+	sdlahw_cpu_t 	*tmp_hwcpu=NULL;
+	sdlahw_t 		*tmp_hw=NULL;
 #if defined(WAN_ISA_SUPPORT)
-	unsigned* 	opt = s508_port_options; 
+	unsigned int	*opt = s508_port_options;
 	sdlahw_cpu_t 	*hwcpu;
 	int i;
-	sdlahw_card_t*	hwcard;
+	sdlahw_card_t	*hwcard;
 #endif
 	unsigned int	cardno=0;
-	
-	//if (!WAN_LIST_EMPTY(&sdlahw_card_head)){
-	//	DEBUG_EVENT("ADBG> SDLA_HW_PROBE: Number configured cards %d\n",
-	//					cardno);
-	//	return cardno;
-	//}
-	
-	memset(&tmp_hw, 0, sizeof(tmp_hw));
-	memset(&tmp_hwcpu, 0, sizeof(tmp_hwcpu));
-	memset(&tmp_hwcard, 0, sizeof(tmp_hwcard));
-	tmp_hwcpu.hwcard = &tmp_hwcard;
-	tmp_hw.hwcpu = &tmp_hwcpu;
-	tmp_hw.magic = SDLADRV_MAGIC;
+
+	tmp_hw = wan_malloc(sizeof(sdlahw_t));
+	WAN_ASSERT_RC(tmp_hw == NULL, 0);
+	tmp_hwcpu = wan_malloc(sizeof(sdlahw_cpu_t));
+	WAN_ASSERT_RC(tmp_hwcpu == NULL, 0);
+	tmp_hwcard = wan_malloc(sizeof(sdlahw_card_t));
+	WAN_ASSERT_RC(tmp_hwcard == NULL, 0);
+	memset(tmp_hw, 0, sizeof(sdlahw_t));
+	memset(tmp_hwcpu, 0, sizeof(sdlahw_cpu_t));
+	memset(tmp_hwcard, 0, sizeof(sdlahw_card_t));
+
+#if 0
+	if (!WAN_LIST_EMPTY(&sdlahw_card_head)){
+		DEBUG_EVENT("ADBG> SDLA_HW_PROBE: Number configured cards %d\n",
+						cardno);
+		return cardno;
+	}
+#endif
+
+	tmp_hwcpu->hwcard = tmp_hwcard;
+	tmp_hw->hwcpu = tmp_hwcpu;
+	tmp_hw->magic = SDLADRV_MAGIC;
 	
 #if defined(WAN_ISA_SUPPORT)
 	for (i = 1; i <= opt[0]; i++) {
-		tmp_hwcard.hw_type = SDLA_ISA_CARD;
-		tmp_hwcard.ioport = opt[i];
-		if (!sdla_detect_s508(&tmp_hw)){
+		tmp_hwcard->hw_type = SDLA_ISA_CARD;
+		tmp_hwcard->ioport = opt[i];
+		if (!sdla_detect_s508(tmp_hw)){
 			DEBUG_EVENT("%s: S508-ISA card found, port 0x%x\n",
-				wan_drvname, tmp_hwcard.ioport);
+				wan_drvname, tmp_hwcard->ioport);
 			hwcard = sdla_card_register(SDLA_ISA_CARD,
 						  0,
 						  0,
-						  tmp_hwcard.ioport);
+						  tmp_hwcard->ioport);
 			if (hwcard == NULL){
 				continue;
 			}
@@ -3482,7 +3491,7 @@ unsigned int sdla_hw_probe(void)
 						SDLA_ISA_CARD,
 						0,
 						0,
-						tmp_hwcard.ioport);
+						tmp_hwcard->ioport);
 				continue;
 			}
 			sdla_hw_register(hwcpu, 1);
@@ -3493,19 +3502,25 @@ unsigned int sdla_hw_probe(void)
 
 			sdla_adapter_cnt.s508_adapters++;
 		}
-		tmp_hwcard.ioport = 0x00;
+		tmp_hwcard->ioport = 0x00;
 	}
 #endif
 
 # ifdef CONFIG_PCI
-	tmp_hwcard.hw_type = SDLA_PCI_CARD;
-	tmp_hwcard.slot_no = 0;
-	tmp_hwcard.bus_no = 0;
-	cardno += sdla_pci_probe(&tmp_hw);
+	tmp_hwcard->hw_type = SDLA_PCI_CARD;
+	tmp_hwcard->slot_no = 0;
+	tmp_hwcard->bus_no = 0;
+	cardno += sdla_pci_probe(tmp_hw);
 # else
 	DEBUG_EVENT( "Warning, Kernel not compiled for PCI support!\n");
 	DEBUG_EVENT( "PCI Hardware Probe Failed!\n");
 # endif
+
+
+	if (tmp_hw) wan_free(tmp_hw);
+	if (tmp_hwcpu) wan_free(tmp_hwcpu);
+	if (tmp_hwcard) wan_free(tmp_hwcard);
+
 	return cardno;
 }
 #elif defined(__WINDOWS__)

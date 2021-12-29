@@ -5,6 +5,10 @@ Author: David Yat Sin <dyatsin@sangoma.com>
 Copyright (c) 2007-2008 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
+* Thu May 07 2009 David Yat Sin <david.yatsin@sangoma.com> - 2.06
+=================================================================
+- Fix for segfault on invalid ACU_DIGIT_IN
+
 * Thu Apr 30 2009 David Yat Sin <david.yatsin@sangoma.com> - 2.05
 =================================================================
 - Fix for segfault on incoming ACU_DIGIT_IN

@@ -109,6 +109,22 @@ typedef enum {
     WFLAG_WAIT_FOR_ACK_TIMEOUT 	= (1 << 20),		/* Timeout flag indicating that incoming ACK or NACK timedout */
 } WFLAGS;
 
+enum {
+
+	SMG_LOG_ALL  		= 0,
+	SMG_LOG_PROD  		= 1,
+	SMG_LOG_BOOST 		= 2,
+	SMG_LOG_WOOMERA 	= 3,
+	SMG_LOG_DEBUG_CALL  = 4,
+	SMG_LOG_DEBUG_MISC	= 5,
+	SMG_LOG_DEBUG_6		= 6,
+	SMG_LOG_DEBUG_7		= 7,
+	SMG_LOG_DEBUG_8		= 8,
+	SMG_LOG_DEBUG_9		= 9,
+	SMG_LOG_DEBUG_10  	= 10
+};
+
+
 #define woomera_print_flags(woomera,level) \
     log_printf(level,woomera->log,"%s: WFLAG_RUNNING                    = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_RUNNING));\
 	log_printf(level,woomera->log,"%s: WFLAG_LISTENING                  = %i\n",woomera->interface, woomera_test_flag(woomera,WFLAG_LISTENING));\
@@ -266,6 +282,7 @@ struct woomera_interface {
 	int loop_tdm;
 	char session[SMG_SESSION_NAME_SZ];
 	int check_digits;	/* set to 1 when session comes up */
+	int bearer_cap;
     	struct woomera_interface *next;
 };
 
@@ -274,6 +291,8 @@ struct  woomera_session {
 	char session[SMG_SESSION_NAME_SZ];
 	char digits[MAX_DIALED_DIGITS+1];
 	int  digits_len;
+	int bearer_cap;
+	int clients;
 };
 
 #define CORE_TANK_LEN CORE_MAX_CHAN_PER_SPAN*CORE_MAX_SPANS
@@ -319,6 +338,7 @@ struct woomera_server {
 	int all_ckt_gap;
 	int all_ckt_busy;
 	struct timeval all_ckt_busy_time;
+	struct timeval restart_timeout;
 	int dtmf_on; 
     	int dtmf_off;
     	int dtmf_intr_ch;
@@ -401,9 +421,10 @@ static inline void smg_all_ckt_busy(void)
 	} else {
 		server.all_ckt_busy+=server.call_count*15;
 	}
+
 	if (server.all_ckt_busy > 10000) {
-                server.all_ckt_busy = 10000;
-        }
+		server.all_ckt_busy = 10000;
+	}
 
 #if 0	
 	if (server.all_ckt_busy >= 5) {
@@ -487,7 +508,7 @@ static inline int woomera_open_file(struct woomera_config *cfg, char *path)
     FILE *f;
 
     if (!(f = fopen(path, "r"))) {
-		log_printf(0, stderr, "Cannot open file %s\n", path);
+		log_printf(SMG_LOG_ALL, stderr, "Cannot open file %s\n", path);
 		return 0;
     }
 
@@ -642,7 +663,7 @@ static inline void remove_end_of_digits_char(unsigned char *s)
         unsigned char *p;
         for (p = s; *p; p++) {
                 if (*p == 'F' || *p > 'f') {
-                        log_printf(2, server.log, "Removing a non-numeric character [%c]!\n", *p);
+                        log_printf(SMG_LOG_DEBUG_MISC, server.log, "Removing a non-numeric character [%c]!\n", *p);
                         *p = '\0';
                         break;
                 }
@@ -654,7 +675,7 @@ static inline void validate_number(unsigned char *s)
         unsigned char *p;
         for (p = s; *p; p++) {
                 if (*p < 48 || *p > 57) {
-                        log_printf(2, server.log, "Encountered a non-numeric character [%c]!\n", *p);
+                        log_printf(SMG_LOG_DEBUG_CALL, server.log, "Encountered a non-numeric character [%c]!\n", *p);
                         *p = '\0';
                         break;
                 }

@@ -58,7 +58,7 @@ static int create_udp_socket(call_signal_connection_t *mcon, char *local_ip, int
 	mcon->socket = socket(AF_INET, SOCK_DGRAM, 0);
 #endif
  
-	clog_printf(3,mcon->log,"Creating L=%s:%d R=%s:%d\n",
+	clog_printf(SMG_LOG_DEBUG_MISC,mcon->log,"Creating L=%s:%d R=%s:%d\n",
 			local_ip,local_port,ip,port);
 
 	if (mcon->socket >= 0) {
@@ -115,10 +115,10 @@ int call_signal_connection_open(call_signal_connection_t *mcon, char *local_ip, 
 }
 
 
-static int smg_event_dbg=2;
+static int smg_event_dbg=SMG_LOG_BOOST;
 static void clog_print_event_call(call_signal_connection_t *mcon,call_signal_event_t *event, int priority, int dir)
 {
-	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?4:smg_event_dbg, mcon->log,
+	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?SMG_LOG_DEBUG_CALL:smg_event_dbg, mcon->log,
                            "%s EVENT (%s): %s:(%X) [w%dg%d] CSid=%i Seq=%i Cn=[%s] Cd=[%s] Ci=[%s]\n",
 			   dir ? "TX":"RX",
 			   priority ? "P":"N",	
@@ -134,7 +134,7 @@ static void clog_print_event_call(call_signal_connection_t *mcon,call_signal_eve
 }
 static void clog_print_event_short(call_signal_connection_t *mcon,short_signal_event_t *event, int priority, int dir)
 {
-	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?4:smg_event_dbg, mcon->log,
+	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?SMG_LOG_DEBUG_CALL:smg_event_dbg, mcon->log,
                            "%s EVENT (%s): %s:(%X) [w%dg%d] Rc=%i CSid=%i Seq=%i \n",
 			   dir ? "TX":"RX",
 			   priority ? "P":"N",	
@@ -160,7 +160,7 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 	bytes = recvfrom(mcon->socket, &mcon->event, sizeof(mcon->event), MSG_DONTWAIT, 
 			(struct sockaddr *) &mcon->local_addr, &fromlen);
 
-	clog_printf(8,mcon->log,"RX EVENT len=%i sock=%i\n",bytes,mcon->socket);
+	clog_printf(SMG_LOG_DEBUG_8,mcon->log,"RX EVENT len=%i sock=%i\n",bytes,mcon->socket);
 
 	/* Must check for < 0 cannot rely on bytes > MIN_SIZE_... compiler issue */
 	if (bytes < 0) {
@@ -180,19 +180,19 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 
 #if 0
 		if (mcon->event.event_id == SIGBOOST_EVENT_SYSTEM_RESTART) {
-			clog_printf(0,mcon->log,"Rx sync ok\n");
+			clog_printf(SMG_LOG_ALL,mcon->log,"Rx sync ok\n");
 			woomera_set_flag(&server.master_connection, WFLAG_SYSTEM_RESET);
                         mcon->rxseq=mcon->event.fseqno;
                         return &mcon->event;
 		}
 		if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_RESET)){
 			if (mcon->event.event_id == SIGBOOST_EVENT_SYSTEM_RESTART_ACK) {
-				clog_printf(0,mcon->log,"Rx sync ok\n");
+				clog_printf(SMG_LOG_ALL,mcon->log,"Rx sync ok\n");
 				mcon->rxseq=mcon->event.fseqno;
 				return &mcon->event;
 			}
 			errno=EAGAIN;
-			clog_printf(0,mcon->log,"Waiting for rx sync...\n");
+			clog_printf(SMG_LOG_ALL,mcon->log,"Waiting for rx sync...\n");
 			return NULL;
 		}
 #endif
@@ -202,16 +202,16 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 		mcon->rxseq++;
 #endif
 	
-		clog_printf(6, mcon->log, "RX (N) CMD %i Exp_RX = %i Got_RX =%i",
+		clog_printf(SMG_LOG_DEBUG_6, mcon->log, "RX (N) CMD %i Exp_RX = %i Got_RX =%i",
 				mcon->event.event_id,mcon->rxseq,mcon->event.fseqno);
 
 		if (mcon->rxseq != mcon->event.fseqno) {
-			clog_printf(0, mcon->log, 
+			clog_printf(SMG_LOG_ALL, mcon->log, 
 				"------------------------------------------\n");
-			clog_printf(0, mcon->log, 
+			clog_printf(SMG_LOG_ALL, mcon->log, 
 				"Critical Error: Invalid Sequence Number Event=%i Rx(N) Expect=%i Rx=%i\n",
 				mcon->event.event_id,mcon->rxseq,mcon->event.fseqno);
-			clog_printf(0, mcon->log, 
+			clog_printf(SMG_LOG_ALL, mcon->log, 
 				"------------------------------------------\n");
 		}
 
@@ -233,12 +233,12 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 #if 0
 /* Debugging only not to be used in production because span/chan can be invalid */
 	   	if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > max_spans || mcon->event.chan > max_spans) {
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"------------------------------------------\n");
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"Critical Error: RX Cmd=%s Invalid Span=%i Chan=%i\n",
                         	call_signal_event_id_name(event->event_id), event->span,event->chan);
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"------------------------------------------\n");
 		
 			errno=EAGAIN;
@@ -249,12 +249,12 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 		return &mcon->event;
 	} else {
 		if (iteration == 0) {
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"------------------------------------------\n");
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"Critical Error: Invalid Event length from boost rxlen=%i expected=%i\n",
 					bytes, sizeof(mcon->event));
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"------------------------------------------\n");
 		}
 	}
@@ -275,12 +275,12 @@ call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon
 
 	if (bytes) {
 		if (mcon->event.version != SIGBOOST_VERSION) {
-			clog_printf(0, mcon->log,
+			clog_printf(SMG_LOG_ALL, mcon->log,
                         	"------------------------------------------\n");
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"Critical Error: Invalid Boost Version number %i, Expecting %i\n",
 								mcon->event.version,SIGBOOST_VERSION);
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"------------------------------------------\n");
 		}
 	}
@@ -292,12 +292,12 @@ call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon
 #if 0
 	/* Debugging only not to be used in production because span/chan can be invalid */
                if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > max_spans || mcon->event.chan > max_spans) {
-                        clog_printf(0, mcon->log,
+                        clog_printf(SMG_LOG_ALL, mcon->log,
                                 "------------------------------------------\n");
-                        clog_printf(0, mcon->log,
+                        clog_printf(SMG_LOG_ALL, mcon->log,
                                 "Critical Error: RXp Cmd=%s Invalid Span=%i Chan=%i\n",
                                 call_signal_event_id_name(event->event_id), event->span,event->chan);
-                        clog_printf(0, mcon->log,
+                        clog_printf(SMG_LOG_ALL, mcon->log,
                                 "------------------------------------------\n");
 
                         errno=EAGAIN;
@@ -309,12 +309,12 @@ call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon
 
 	} else {
 		if (iteration == 0) {
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"------------------------------------------\n");
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"Critical Error: PQ Invalid Event lenght from boost rxlen=%i evsz=%i\n",
 					bytes, sizeof(mcon->event));
-                	clog_printf(0, mcon->log,
+                	clog_printf(SMG_LOG_ALL, mcon->log,
                         	"------------------------------------------\n");
 		}
 	}
@@ -329,7 +329,7 @@ int call_signal_connection_writep(call_signal_connection_t *mcon, call_signal_ev
 	int event_size=MIN_SIZE_CALLSTART_MSG+event->isup_in_rdnis_size;
 
 	if (!event) {
-		clog_printf(0, mcon->log, "Critical Error: No Event Device\n");
+		clog_printf(SMG_LOG_ALL, mcon->log, "Critical Error: No Event Device\n");
 		return -EINVAL;
 	}
 
@@ -338,20 +338,18 @@ int call_signal_connection_writep(call_signal_connection_t *mcon, call_signal_ev
 	}	
 #if 0
 	if (event->span < 0 || event->chan < 0 || event->span > max_spans || event->chan > max_chans) {
-		clog_printf(0, mcon->log, 
+		clog_printf(SMG_LOG_ALL, mcon->log, 
 			"------------------------------------------\n");
-		clog_printf(0, mcon->log, 
+		clog_printf(SMG_LOG_ALL, mcon->log, 
 			"Critical Error: TX Cmd=%s Invalid Span=%i Chan=%i\n",
 			call_signal_event_id_name(event->event_id), event->span,event->chan);
-		clog_printf(0, mcon->log, 
+		clog_printf(SMG_LOG_ALL, mcon->log, 
 			"------------------------------------------\n");
 
 		return -1;
 	}
 #endif
 
-	gettimeofday(&event->tv,NULL);
-	
 	pthread_mutex_lock(&mcon->lock);
 	event->version=SIGBOOST_VERSION;
 	err=sendto(mcon->socket, event, event_size, 0, 
@@ -381,18 +379,18 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 
 
 	if (!event) {
-		clog_printf(0, mcon->log, "Critical Error: No Event Device\n");
+		clog_printf(SMG_LOG_ALL, mcon->log, "Critical Error: No Event Device\n");
 		return -EINVAL;
 	}
 
 	/* span chan are unsigned no point of checking if < 0 */
 	if (event->span > max_spans || event->chan > max_chans) {
-		clog_printf(0, mcon->log, 
+		clog_printf(SMG_LOG_ALL, mcon->log, 
 			"------------------------------------------\n");
-		clog_printf(0, mcon->log, 
+		clog_printf(SMG_LOG_ALL, mcon->log, 
 			"Critical Error: TX Cmd=%s Invalid Span=%i Chan=%i\n",
 			call_signal_event_id_name(event->event_id), event->span,event->chan);
-		clog_printf(0, mcon->log, 
+		clog_printf(SMG_LOG_ALL, mcon->log, 
 			"------------------------------------------\n");
 
 		return -1;
@@ -404,12 +402,10 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 	}	
 
 	if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_RESET) && event->event_id != SIGBOOST_EVENT_SYSTEM_RESTART_ACK) { 
-		clog_printf(0, mcon->log, "Error: Boost connection in reset ignoring packet\n");
+		clog_printf(SMG_LOG_ALL, mcon->log, "Error: Boost connection in reset ignoring packet\n");
 		return 0;
 	}
 
-	gettimeofday(&event->tv,NULL);
-	
 	pthread_mutex_lock(&mcon->lock);
 
 	if (event->event_id == SIGBOOST_EVENT_SYSTEM_RESTART_ACK) {

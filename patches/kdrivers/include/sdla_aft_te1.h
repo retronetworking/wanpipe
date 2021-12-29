@@ -1357,6 +1357,9 @@ aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
 	return num_of_slots;
 }
 
+
+
+
 #define MAX_AFT_HW_DEV 20
 
 typedef struct aft_hw_dev{
@@ -1454,7 +1457,8 @@ enum {
 	AFT_LINK_STATUS,
 	AFT_MODEM_STATUS,
 	AFT_HWEC_STATUS,
-	DIGITAL_LOOPTEST
+	DIGITAL_LOOPTEST,
+	WANPIPEMON_CHAN_SEQ_DEBUGGING
 };
 #endif
 	
@@ -1737,6 +1741,13 @@ enum {
 };
 
 
+enum {
+	WAN_AFT_DMA_CHAIN = 0,
+	WAN_AFT_DMA_CHAIN_IRQ_ALL,
+	WAN_AFT_DMA_CHAIN_SINGLE
+};
+
+
 #ifdef WAN_KERNEL
 
 #define AFT_MIN_FRMW_VER 0x11
@@ -1922,7 +1933,7 @@ typedef struct private_area
 	aft_comm_err_stats_t	errstats;
 
 	unsigned char   *tx_realign_buf;
-	unsigned char 	single_dma_chain;
+	unsigned char 	dma_chain_opmode;
 	unsigned char	tslot_sync;
 
 	dma_history_t 	dma_history[MAX_DMA_HIST_SIZE];
@@ -1971,6 +1982,25 @@ typedef struct private_area
 
 }private_area_t;
 
+
+static __inline int 
+aft_tx_dma_chain_chain_len(private_area_t *chan) 
+{
+	int pending_indx=chan->tx_pending_chain_indx;
+	int chain_diff=0;
+
+	if (chan->tx_chain_indx == pending_indx){
+        return chain_diff;
+	}            
+
+	if (chan->tx_chain_indx > pending_indx){
+		chain_diff = chan->tx_chain_indx - pending_indx;
+	}else{
+		chain_diff = MAX_AFT_DMA_CHAINS-(pending_indx - chan->tx_chain_indx);
+	}
+		
+	return chain_diff;
+}
 
 void 	aft_free_logical_channel_num (sdla_t *card, int logic_ch);
 void 	aft_dma_max_logic_ch(sdla_t *card);

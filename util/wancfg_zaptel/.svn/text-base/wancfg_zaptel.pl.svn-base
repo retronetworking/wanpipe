@@ -9,6 +9,11 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Jul 06   2009  2.35	Jignesh Patel 	Update enable/disable chan_woomera.so loading in Asterisk
+# May 26   2009	 2.34	Jignesh Patel 	Added support for USB FXO HW EC/DTMF/ Dahdi
+# May 5	   2009	 2.33	Jignesh Patel	Update start script for smgbri and wancfg_fs update
+# Apr 28   2009  2.32					smg_ctrl boot script update
+# Apr 27   2009  2,31   Yannick Lam     Added support --silent --safe_mode for smg
 # Apr 20   2009  2.30   Yannick Lam     Added support for fax detect support and smg_ctrl safe_start 
 # Apr 13   2009  2.29   Yannick Lam     Update for start/script with --silent
 # Apr 07   2009  2.28   Jignesh Patel	Added freeswitch conf for analog and BRI
@@ -52,9 +57,9 @@
 
 system('clear');
 print "\n########################################################################";
-print "\n#    		           Sangoma Wanpipe                              #";
+print "\n#    		           Sangoma Wanpipe                             #";
 print "\n#        Dahdi/Zaptel/SMG/TDMAPI/BOOT Configuration Script             #";
-print "\n#                             v2.30                                    #";
+print "\n#                             v2.35                                  #";
 print "\n#                     Sangoma Technologies Inc.                        #";
 print "\n#                        Copyright(c) 2009.                            #";
 print "\n########################################################################\n\n";
@@ -85,6 +90,7 @@ my $module_load="";
 my $module_unload="";
 my $os_type_name="";
 my $dchan_str="dchan";
+my $have_update_rc_d = 0;
 
 my $os_type_list=`sysctl -a 2>/dev/null |grep ostype`;
 if ($os_type_list =~ m/Linux/){
@@ -108,8 +114,13 @@ if ($os_type_list =~ m/Linux/){
 	exit(1);
 }
 
+#check if os have update-rc.d
+if (system('which update-rc.d 1>>/dev/null 2>>/dev/null') == 0) {
+	$have_update_rc_d = 1;
+}
 
 my $no_boot=$FALSE;
+my $no_smgboot=$FALSE;
 my $boot_only=$FALSE;
 my $no_hwdtmf=$FALSE;
 my $usb_device_support=$TRUE;
@@ -239,7 +250,10 @@ my $config_zaptel = $TRUE;
 my $config_zapata = $TRUE;
 my $config_woomera = $TRUE;
 my $is_smg = $FALSE;
+my $safe_mode = $FALSE;
 my $silent_zapata_conf_file = $FALSE;
+my $current_run_level=3;
+my $zaptel_start_level=9;
 
 my $tdm_api_span_num=0;
 my $zaptel_installed=$FALSE;
@@ -343,7 +357,7 @@ if ($os_type_list =~ m/FreeBSD/ && $zaptel_dahdi_installed==$TRUE) {
 	update_zaptel_cfg_script();
 }
 
-if( $zaptel_installed==$TRUE && $os_type_list =~ m/Linux/ ) {
+if( $zaptel_installed==$TRUE && $os_type_list =~ m/Linux/ && $is_fs == $FALSE) {
 	set_zaptel_hwhdlc();
 }
 
@@ -356,6 +370,7 @@ if($usb_device_support == $TRUE && $os_type_list =~ m/Linux/) {
 	config_usbfxo();
 }
 config_tdmv_dummy();
+update_module_load();
 summary();
 apply_changes();
 
@@ -368,6 +383,9 @@ if ($os_type_list =~ m/FreeBSD/){
 
 config_ztcfg_start();
 config_smg_ctrl_start();
+if($os_type_list =~ m/Linux/){
+config_smg_ctrl_boot();
+}
 clean_files();
 print "Sangoma cards configuration complete, exiting...\n\n";
 
@@ -442,18 +460,12 @@ sub config_boot_freebsd{
 
 }
 
-sub config_boot_linux{
-	if($no_boot==$TRUE){
-		return 1;
-	}
+sub config_boot_linux {
+	
 	my $script_name="wanrouter";
-	my $current_run_level=3;
-	my $zaptel_start_level=9;
 	my $zaptel_stop_level=92;
-	my $network_start_level=10;
 	my $wanrouter_start_level=8;
 	my $wanrouter_stop_level=91;
-	my $smg_ctrl_start_level=11;
 	my $command='';
 #	my $rc_dir=$etc_dir;			
 
@@ -469,12 +481,21 @@ sub config_boot_linux{
 
 	print "\nWanrouter boot scripts configuration...\n\n";
 	print "Removing existing $script_name boot scripts...";
-	$command="rm -f $rc_dir/rc?.d/*$script_name >/dev/null 2>/dev/null";
+
+	if ($have_update_rc_d) {#debian/ubuntu
+		$command = "update-rc.d -f $script_name remove >>/dev/null 2>>/dev/null";
+	} else {
+		$command="rm -f $rc_dir/rc?.d/*$script_name >/dev/null 2>/dev/null";
+	}
 	if(system($command) == 0){
 		print "OK\n";
 	} else {
 		print "Not installed\n";
 	}
+	if($no_boot==$TRUE){ #remove old script anyway.
+		return 1;
+	}
+
 	if($num_ss7_config!=0){
 		$script_name="smgss7_init_ctrl";
 	}
@@ -565,74 +586,37 @@ sub config_boot_linux{
 				return 1;
 			}
 		}
-		print "Enabling $script_name boot scripts ...(level:$wanrouter_start_level)\n";
-		my @run_levels= ("2","3","4","5");
-		foreach my $run_level (@run_levels) {
-			$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$wanrouter_start_script;
-			if(system($command) !=0){
-				print "Failed to install $script_name init script to $rc_dir/rc$run_level.d/$wanrouter_start_script\n";
-				print "$script_name start scripts not installed\n";
-				return 1;
-			}
-		}	
-				
-		print "Enabling $script_name shutdown scripts ...(level:$wanrouter_stop_level)\n";
-		@run_levels= ("0","1","6");
-		foreach my $run_level (@run_levels) {
-			$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$wanrouter_stop_script;
-			if(system($command) !=0){
-				print "Failed to install $script_name shutdown script to $rc_dir/rc$run_level.d/$wanrouter_stop_script\n";
-				print "$script_name stop scripts not installed\n";
-				return 1;
-			}
-		}	
-
-		if($num_bri_devices != 0){
-			#smg_ctrl must start after network
-			print "Verifying Network boot scripts...";
-			$command="find $rc_dir/rc".$current_run_level.".d/*network >/dev/null 2>/dev/null";
-			if (system($command) == 0){
-				$command="find $rc_dir/rc".$current_run_level.".d/*network";
-				$res=`$command`;
-				if ($res =~ /.*S(\d+)network/){
-					$network_start_level=$1;
-					print "Enabled (level:$network_start_level)\n";
-				} else {
-					print "\nfailed to parse network boot level, assuming $network_start_level";
+   		
+		if ($have_update_rc_d) {
+			print "Enabling $script_name init scripts ...(start:$wanrouter_start_level, stop:$wanrouter_stop_level)\n";
+			$command = "update-rc.d $script_name defaults $wanrouter_start_level $wanrouter_stop_level";
+			if (system($command .' >>/dev/null 2>>/dev/null') != 0) {
+				print "Command failed: $command\n";
+ 				return 1;
 				}
-			} else {
-				print "Not installed\n";
-				$network_start_level=0;
-			}
-			if ($network_start_level != 0 && $network_start_level > $zaptel_start_level){
-				$smg_ctrl_start_level=$network_start_level+1;	
-				print "Enabling smg_ctrl start scripts...(level:$smg_ctrl_start_level)\n";		
-				$command="install -D -m 755 /usr/sbin/smg_ctrl $rc_dir/init.d/smg_ctrl";
+		}else{
+			print "Enabling $script_name boot scripts ...(level:$wanrouter_start_level)\n";
+			my @run_levels= ("2","3","4","5");
+			foreach my $run_level (@run_levels) {
+				$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$wanrouter_start_script;
 				if(system($command) !=0){
-					print "Failed to install smg_ctrl start scripts to $rc_dir/init.d/smg_ctrl";
-					print "smg_ctrl start scripts not installed";
+					print "Failed to install $script_name init script to $rc_dir/rc$run_level.d/$wanrouter_start_script\n";
+					print "$script_name start scripts not installed\n";
 					return 1;
 				}
-				my $smg_ctrl_start_script='';
-				if($smg_ctrl_start_level < 10){
-					$smg_ctrl_start_script="S0".$smg_ctrl_start_level."smg_ctrl";
-				} else {
-					$smg_ctrl_start_script="S".$smg_ctrl_start_level."smg_ctrl";
+			}	
+					
+			print "Enabling $script_name shutdown scripts ...(level:$wanrouter_stop_level)\n";
+			@run_levels= ("0","1","6");
+			foreach my $run_level (@run_levels) {
+				$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$wanrouter_stop_script;
+				if(system($command) !=0){
+					print "Failed to install $script_name shutdown script to $rc_dir/rc$run_level.d/$wanrouter_stop_script\n";
+					print "$script_name stop scripts not installed\n";
+					return 1;
 				}
-				print "Enabling smg_ctrl boot scripts ...(level:$smg_ctrl_start_level)\n";
-				my @run_levels= ("2","3","4","5");
-				foreach my $run_level (@run_levels) {
-					$command="ln -sf $rc_dir/init.d/smg_ctrl ".$rc_dir."/rc".$run_level.".d/".$smg_ctrl_start_script;
-					if(system($command) !=0){
-						print "Failed to install smg_ctrl init script to $rc_dir/rc$run_level.d/$smg_ctrl_start_script\n";
-						print "smg_ctrl start scripts not installed\n";
-						return;
-					}
-				}	
 			}
-			
-		}
-
+		}	
 	}
 	return 0;	
 }
@@ -680,7 +664,11 @@ sub config_smg_ctrl_start{
 		print ("Would you like smg_ctrl to start/stop on wanrouter start \nor would you like to run smg_ctrl in safe start?\n");
 		$res = &prompt_user_list("YES","NO","SAFE_START","");
 	} else {
+		if($safe_mode==$TRUE){
+	                $res = "SAFE_START";
+	} else{
 		$res = "YES";
+	      }
 	}
 	         if ($res eq "YES" || $res eq "SAFE_START"){
                 #if zaptel start script is in $wanpipe_conf_dir/scripts/start, do not overwrite
@@ -693,7 +681,7 @@ sub config_smg_ctrl_start{
                         }else{
                         my $command="cat ".$current_dir."/templates/smgbri_start_script_addon >>".$wanpipe_conf_dir."/scripts/start";
                                 if (system($command) == 0){
-                                        print("smgbri start scrtip installed scuessfully\n");
+                                        print("smgbri start script installed successfully\n");
                                 }
                         }
                 } elsif(system($command) != 0) {
@@ -714,6 +702,7 @@ sub config_smg_ctrl_start{
 				if($res eq "SAFE_START") {
 					
 					update_start_smgbri_safe();
+					$safe_mode=$TRUE;#set it true anyway for boot safe_start
 
 				}
         }
@@ -801,6 +790,7 @@ sub apply_changes{
         	config_boot_freebsd();
 		} else {
         		config_boot_linux();
+				config_smg_ctrl_boot();
 			}
 
                 exit 0;
@@ -1218,9 +1208,9 @@ sub update_zaptel_cfg_script(){
 	print FH $sscript;
 	close (FH);
 }
-sub update_start_smgbri_safe(){
+sub update_start_smgbri_safe{
 
-	#update zaptel_cfg_script based on ztcfg_path
+	#update start script for safe start
 
 	my $sscript ="";
 	open (FH,"$wanpipe_conf_dir/scripts/start");
@@ -1263,7 +1253,7 @@ sub copy_config_files{
 }
 
 sub unload_zap_modules{
-	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zttranscode","wcusb", "wctdm24xxp","xpp_usb","xpp" ,"wcte12xp","opvxa1200", "dahdi_dummy" ,"dahdi_echocan_mg2", "dahdi", "zaptel");
+	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","wctc4xxp","wcb4xxp","tor2","zttranscode","wcusb", "wctdm24xxp","xpp_usb","xpp" ,"wcte12xp","opvxa1200", "dahdi_dummy" ,"dahdi_transcode","dahdi_echocan_mg2", "dahdi", "zaptel");
 	foreach my $module (@modules_list) {	
 		if ($modprobe_list =~ m/$module /){
 			exec_command("$module_unload $module");
@@ -1276,7 +1266,7 @@ sub write_zaptel_conf{
 	open(FH, "$zaptel_conf_template") or die "cannot open $zaptel_conf_template";
 	while (<FH>) {
 		$zp_file .= $_;
-}
+	}
 	close (FH);
 	$zp_file=$zp_file.$zaptel_conf;	
 	open(FH, ">$zaptel_conf_file") or die "cannot open $zaptel_conf_file";
@@ -1469,7 +1459,9 @@ sub read_args {
 		}elsif ( /^--hp_tdm_api/){
 			$is_hp_tdm_api=$TRUE;
 		}elsif ( /^--no_boot$/){
-			$no_boot=$TRUE;		
+			$no_boot=$TRUE;	
+		}elsif ( /^--no_smgboot$/){
+			$no_smgboot=$TRUE;			
 		}elsif ( /^--conf_fs$/){
 			$is_fs=$TRUE;
 			$is_tdm_api=$TRUE;#fs use tdmapi mode	
@@ -1477,6 +1469,8 @@ sub read_args {
 			$no_hwdtmf=$TRUE;
 		}elsif ( /^--silent$/){
 			$silent=$TRUE;
+		}elsif (/^--safe_mode$/){
+			$safe_mode=$TRUE;
 		}elsif ( /^--no-zapata$/){
 			$config_zapata=$FALSE;
 		}elsif ( /^--no-zaptel$/){
@@ -1904,7 +1898,7 @@ select_bri_option:
 			my $conn_type=get_bri_conn_type($a50x->fe_line());
 			my $country=get_bri_country();
 			my $operator=get_bri_operator();
-			if( ($is_trixbox==$TRUE && $silent==$FALSE) || $is_fs == $TRUE){
+			if( ($is_trixbox==$TRUE && $silent==$FALSE)){
 				if ( $dev =~ /(\d+):NT/ ){
 					$context="from-internal";
 					$group=1;
@@ -1912,7 +1906,16 @@ select_bri_option:
 					$context="from-zaptel";
 					$group=2;
 				}
-			} else {
+			} elsif ($is_fs == $TRUE) {
+				if ( $dev =~ /(\d+):NT/ ){
+					#$context="from-internal";
+					$group=1;
+				} else {
+					#$context="from-zaptel";
+					$group=1;
+				}
+				
+			}else {
 				$group=get_woomera_group();
 				#if a context has already been assigned to this group, do not prompt for options
 				foreach my $f_group (@woomera_groups) {
@@ -3038,9 +3041,9 @@ sub config_analog{
 					if ($silent==$FALSE){
 						if ($card->hwec_mode eq "YES"){
 							$card->hw_dtmf(&prompt_hw_dtmf());
-                                                        if ($card->hw_dtmf eq "YES"){
-								$card->hw_fax(&prompt_hw_fax());
-                                                        }
+                                if ($card->hw_dtmf eq "YES"){
+									$card->hw_fax(&prompt_hw_fax());
+                               }
 						} else {
 							$card->hw_dtmf("NO");
 							$card->hw_fax("NO");
@@ -3168,7 +3171,7 @@ sub config_analog{
 sub config_tdmv_dummy 
 {
 	my $command='';
-	if( $num_digital_devices == 0 && $num_analog_devices == 0 &&  $num_usb_devices == 0 && $num_bri_devices !=0 && $zaptel_dahdi_installed==$TRUE && $os_type_list =~ m/Linux/  && $silent == $FALSE ){
+	if( $num_digital_devices == 0 && $num_analog_devices == 0 &&  $num_usb_devices == 0 && $num_bri_devices !=0 && $zaptel_dahdi_installed==$TRUE && $os_type_list =~ m/Linux/  && $silent == $FALSE && $is_fs == $FALSE ){
 		system('clear');
 		print("Would you like to configure A500 BRI card as timing source for $zaptel_string?\n");
 		print("(Visit http://wiki.sangoma.com/wanpipe-linux-asterisk-appendix#bri-tdmv for more information)\n");		
@@ -3207,104 +3210,114 @@ sub config_usbfxo{
 		$zapata_conf.="\n";
 	}
 	foreach my $dev (@hwprobe) {
-			if ( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d.*\s).* /){
-		
-			$skip_card=$FALSE;
-			my $card = eval {new Card(); } or die ($@);
-			$card->current_dir($current_dir);
-			$card->cfg_dir($cfg_dir);
-			$card->device_no($devnum);
-			$card->card_model($1);
-			$card->pci_bus($2);
-			
-			if ($card->card_model eq 'U100'){
-				$num_usb_devices_total++;
-				
-				if($silent==$FALSE) {
-					system('clear');
-					print "\n-----------------------------------------------------------\n";
-					print "USB $1 detected on  bus:$2\n";
-					print "-----------------------------------------------------------\n";
+			if (( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d).*HWEC=(\w+).*/)||
+				( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d).*/)){		
+				$skip_card=$FALSE;
+				my $card = eval {new Card(); } or die ($@);
+				$card->current_dir($current_dir);
+				$card->cfg_dir($cfg_dir);
+				$card->device_no($devnum);
+				$card->card_model($1);
+				$card->pci_bus($2);
+				my $hwec=$3;
+				if($dahdi_installed == $TRUE) {
+						$card->dahdi_conf('YES');
+						$card->dahdi_echo($dahdi_echo)
+					}
+				if ($hwec==0){
+					$card->hwec_mode('NO');
+				}else{
+					$card->hwec_mode('YES');
 				}
-				if($is_trixbox==$FALSE){
-					if ($silent==$FALSE){
-						print "\nWould you like to configure USB $1 on bus:$2\n";
-						if (&prompt_user_list(("YES","NO","")) eq 'NO'){
-							$skip_card=$TRUE;	
+				if ($card->card_model eq 'U100'){
+					$num_usb_devices_total++;
+					
+					if($silent==$FALSE) {
+						system('clear');
+						print "\n-----------------------------------------------------------\n";
+						print "USB $1 detected on  bus:$2\n";
+						print "-----------------------------------------------------------\n";
+					}
+					if($is_trixbox==$FALSE){
+						if ($silent==$FALSE){
+							print "\nWould you like to configure USB $1 on bus:$2\n";
+							if (&prompt_user_list(("YES","NO","")) eq 'NO'){
+								$skip_card=$TRUE;	
+							}
 						}
 					}
-				}
-				if ($skip_card==$FALSE){
-					
-					$u10x = eval {new U10x(); } or die ($@);
-					$u10x->card($card);
-					$card->first_chan($current_zap_channel);
-			
-									
-					if ($silent==$FALSE){
-						$u10x->tdm_law(&prompt_tdm_law());
-						$u10x->tdm_opermode(&prompt_tdm_opemode());
-		
-					} else {
-												
-						if($#silent_tdm_laws >= 0){
-							$silent_tdm_law=pop(@silent_tdm_laws);
-						}						
+					if ($skip_card==$FALSE){
 						
-						$u10x->tdm_law($silent_tdm_law);
+						$u10x = eval {new U10x(); } or die ($@);
+						$u10x->card($card);
+						$card->first_chan($current_zap_channel);
+				
+										
+						if ($silent==$FALSE){
+							$u10x->tdm_law(&prompt_tdm_law());
+							$u10x->tdm_opermode(&prompt_tdm_opemode());
+							if ($card->hwec_mode eq "YES"){
+								$card->hw_fax(&prompt_hw_fax());
+							} 	
+						} else {
+													
+							if($#silent_tdm_laws >= 0){
+								$silent_tdm_law=pop(@silent_tdm_laws);
+							}						
+							
+							$u10x->tdm_law($silent_tdm_law);
+							
+						} 
+				
+						$startup_string.="wanpipe$devnum ";
+						$cfg_string.="wanpipe$devnum ";
 						
-					} 
-			
-					$startup_string.="wanpipe$devnum ";
-					$cfg_string.="wanpipe$devnum ";
-					
-					if($silent==$FALSE){
+						if($silent==$FALSE){
+							prompt_user("Press any key to continue");
+						}
+						my $i;
+						if( $is_tdm_api == $FALSE) {
+							print "$1 configured on  bus:$2 span:$current_zap_span\n";
+							$zaptel_conf.="#Sangoma USB $1  [bus:$2 span:$current_zap_span] <wanpipe".$u10x->card->device_no.">\n";
+							$zapata_conf.=";Sangoma A$1 [slot:$3 bus:$4 span:$current_zap_span]  <wanpipe".$u10x->card->device_no.">\n";
+							$current_zap_channel+=2;	
+							$num_zaptel_config++;
+							$card->tdmv_span_no($current_zap_span);
+							$current_zap_span++;
+						}else{
+							print "A$1 configured on slot:$3 bus:$4 span:$current_tdmapi_span\n";
+							$u10x->is_tdm_api($TRUE);
+							$card->tdmv_span_no($current_tdmapi_span);
+							$current_tdmapi_span++;
+						}
+							$devnum++;
+							$num_usb_devices++;
+						if ($os_type_list =~ m/FreeBSD/){
+							$u10x->gen_wanpipe_conf(1);
+						} else {
+							$u10x->gen_wanpipe_conf(0);
+						}
+						for (my $mod = 0; $mod <= 1; $mod++){
+							my $zap_pos = $mod+$current_zap_channel-2;
+							if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
+								if($#silent_zapata_contexts >= 0){
+									$silent_zapata_context=pop(@silent_zapata_contexts);
+								}
+								$u10x->card->zap_context($silent_zapata_context);
+							} else {
+								$u10x->card->zap_context("from-zaptel");
+							}
+							$u10x->card->zap_group("0");
+							$zaptel_conf.=$u10x->gen_zaptel_conf($zap_pos,"fxs");
+							$zapata_conf.=$u10x->gen_zapata_conf($zap_pos,"fxs");
+						}
+						
+					}else{
+						print "$1 on  bus:$2 not configured\n";
 						prompt_user("Press any key to continue");
 					}
-					my $i;
-					if( $is_tdm_api == $FALSE) {
-						print "$1 configured on  bus:$2 span:$current_zap_span\n";
-						$zaptel_conf.="#Sangoma USB $1  [bus:$2 span:$current_zap_span] <wanpipe".$u10x->card->device_no.">\n";
-						$zapata_conf.=";Sangoma A$1 [slot:$3 bus:$4 span:$current_zap_span]  <wanpipe".$u10x->card->device_no.">\n";
-						$current_zap_channel+=2;	
-						$num_zaptel_config++;
-						$card->tdmv_span_no($current_zap_span);
-						$current_zap_span++;
-					}else{
-						print "A$1 configured on slot:$3 bus:$4 span:$current_tdmapi_span\n";
-						$u10x->is_tdm_api($TRUE);
-						$card->tdmv_span_no($current_tdmapi_span);
-						$current_tdmapi_span++;
-					}
-						$devnum++;
-						$num_usb_devices++;
-					if ($os_type_list =~ m/FreeBSD/){
-						$u10x->gen_wanpipe_conf(1);
-					} else {
-						$u10x->gen_wanpipe_conf(0);
-					}
-					for (my $mod = 0; $mod <= 1; $mod++){
-						my $zap_pos = $mod+$current_zap_channel-2;
-						if($silent==$TRUE & $silent_zapata_context_opt == $TRUE){
-							if($#silent_zapata_contexts >= 0){
-								$silent_zapata_context=pop(@silent_zapata_contexts);
-							}
-							$u10x->card->zap_context($silent_zapata_context);
-						} else {
-							$u10x->card->zap_context("from-zaptel");
-						}
-						$u10x->card->zap_group("0");
-						$zaptel_conf.=$u10x->gen_zaptel_conf($zap_pos,"fxs");
-						$zapata_conf.=$u10x->gen_zapata_conf($zap_pos,"fxs");
-					}
-					
-				}else{
-					print "$1 on  bus:$2 not configured\n";
-					prompt_user("Press any key to continue");
 				}
 			}
-		
-		}
 	}
 	if($num_usb_devices_total!=0){
 		print("\nUSB analog card configuration complete\n\n");
@@ -3378,3 +3391,150 @@ sub write_openzap_conf{
 	close(FH);	
 	return ;
 }
+sub config_smg_ctrl_boot {
+	#smg_ctrl must start after network
+	my $network_start_level=10;
+	my $smg_ctrl_start_level=11;
+	my $res='YES';
+	my $script_name='smg_ctrl';
+	my $command='';
+
+	my @boot_scripts= ('smg_ctrl','smg_ctrl_safe');
+		foreach my $boot_scripts (@boot_scripts) {
+	
+		print"Remvoing old $boot_scripts boot";
+		if ($have_update_rc_d) {#debian/ubuntu
+			$command = "update-rc.d -f $boot_scripts remove >>/dev/null 2>>/dev/null";
+			if (system($command) == 0){
+				print".....OK\n";
+			}else{
+				printf".....Failed"
+			}
+		} else {
+			$command="rm -f $rc_dir/rc?.d/*$boot_scripts >/dev/null 2>/dev/null";
+			if (system($command) == 0){
+				print".....OK\n";
+			}else{
+				printf".....Failed"
+			}
+		}
+		
+	}
+	if($num_bri_devices == 0 || $no_smgboot== $TRUE){
+                return;
+        }
+	if($silent==$FALSE){
+		print ("Would you like $script_name to start on system boot?\n");
+		$res= &prompt_user_list("YES","NO","");
+		if($res eq "NO"){
+			return;
+		}
+	}
+	if($safe_mode==$TRUE){
+			$script_name='smg_ctrl_safe';
+			exec_command("cp -f $current_dir/templates/smg_ctrl_safe $rc_dir/init.d/smg_ctrl_safe");
+		
+	}
+
+	print "Verifying Network boot scripts...";
+	$command="find $rc_dir/rc".$current_run_level.".d/*network >/dev/null 2>/dev/null";
+	if (system($command) == 0){
+		$command="find $rc_dir/rc".$current_run_level.".d/*network";
+		$res=`$command`;
+		if ($res =~ /.*S(\d+)network/){
+			$network_start_level=$1;
+			print "Enabled (level:$network_start_level)\n";
+		} else {
+			print "\nfailed to parse network boot level, assuming $network_start_level";
+		}
+	}elsif(system("find $rc_dir/rcS.d/*networking >>/dev/null 2>>/dev/null") == 0){#ubuntu debian fix
+			$command="find $rc_dir/rcS.d/*networking ";
+			$res=`$command`;
+			if ($res =~ /.*S(\d+)network/){
+				$network_start_level=$1;
+				print "Enabled (level:$network_start_level)\n";
+			} else {
+				print "\nfailed to parse network boot level, assuming $network_start_level";
+			}
+ 
+	}else {
+		print "Not installed\n";
+		$network_start_level=0;
+	}
+	if ($network_start_level != 0 && $network_start_level > $zaptel_start_level){
+		$smg_ctrl_start_level=$network_start_level+1;	
+		print "Enabling smg_ctrl start scripts...(level:$smg_ctrl_start_level)\n";
+		#install smg_ctrl in init.d for both safe and regular mode		
+		$command="install -D -m 755 /usr/sbin/smg_ctrl $rc_dir/init.d/smg_ctrl";
+		if(system($command) !=0){
+			print "Failed to install smg_ctrl start scripts to $rc_dir/init.d/smg_ctrl";
+			print "smg_ctrl start scripts not installed";
+			return 1;
+		}
+		my $smg_ctrl_start_script='';
+		if($smg_ctrl_start_level < 10){
+			$smg_ctrl_start_script="S0".$smg_ctrl_start_level."smg_ctrl";
+		} else {
+			$smg_ctrl_start_script="S".$smg_ctrl_start_level."$script_name";
+		}
+		print "Enabling $script_name boot scripts ...(level:$smg_ctrl_start_level)\n";
+
+		if ($have_update_rc_d) {
+					$command = "update-rc.d $script_name defaults $smg_ctrl_start_level 20";
+					if (system($command .' >>/dev/null 2>>/dev/null') !=0 ) {
+						print "Command failed: $command\n";
+ 						return;
+ 					}
+		}else {
+			my @run_levels= ("2","3","4","5");
+			foreach my $run_level (@run_levels) {
+				$command="ln -sf $rc_dir/init.d/$script_name ".$rc_dir."/rc".$run_level.".d/".$smg_ctrl_start_script;
+				if(system($command) !=0){
+					print "Failed to install $script_name init script to $rc_dir/rc$run_level.d/$smg_ctrl_start_script\n";
+					print "$script_name start scripts not installed\n";
+					return;
+				}
+			}	
+		}
+	}
+	
+}
+sub update_module_load {
+	if ($os_type_list =~ m/FreeBSD/){
+		return;	
+	}
+
+	my @mod_file;
+	my $mod_file='';
+	if(-e "$asterisk_conf_dir/modules.conf") {
+
+		if(!(-e "$asterisk_conf_dir/modules.conf.bak")){
+				exec_command("cp -f $asterisk_conf_dir/modules.conf $asterisk_conf_dir/modules.conf.bak");	
+			}
+	
+		open(FH, "$asterisk_conf_dir/modules.conf") or die "cannot open $asterisk_conf_dir/modules.conf";
+		@mod_file=<FH>;
+		close (FH);
+		foreach my $line (@mod_file){
+			if(!($line =~ m/woomera/)){
+				$mod_file .= $line;
+				if($line =~ m/\[modules]/) {
+					if($num_bri_devices !=0){
+						if(-e "/usr/lib/asterisk/modules/chan_woomera.so") {
+							$mod_file .= "load=>chan_woomera.so\n";
+						}
+					}else{
+						$mod_file .= "noload=>chan_woomera.so\n";
+						
+					}
+				}
+			}
+			open (FH,">$asterisk_conf_dir/modules.conf") or die "cannot open $asterisk_conf_dir/modules.conf";;
+			print FH $mod_file;
+			close (FH);
+
+		}
+	}
+	return;
+}
+

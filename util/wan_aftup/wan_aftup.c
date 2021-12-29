@@ -159,7 +159,7 @@ aft_core_info_t aft_core_table[] = {
 	{ AFT_4SERIAL_RS232_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
 	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ AFT_A600_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
-	  "A600_0025_V", "A600_0025_V*.BIN", AFT_CORE_X250_SIZE },
+	  "B600_0025_V", "B600_0025_V*.BIN", AFT_CORE_X250_SIZE },
 
 #if 0
 	{ AFT_TE1_ATM_CORE_ID,	
@@ -1230,7 +1230,7 @@ int exec_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned int *d
 	struct ifreq	ifr;
 	char		msg[100];
 
-	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
 	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
 	ifr.ifr_data = (char*)&api_cmd;
@@ -1266,7 +1266,7 @@ int exec_write_cmd(void *arg, unsigned int off, unsigned int len, unsigned int d
 	struct ifreq	ifr;
 	char		msg[100];
 
-	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
 	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
 	ifr.ifr_data = (char*)&api_cmd;
@@ -1301,7 +1301,7 @@ int exec_bridge_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned
 	struct ifreq	ifr;
 	char		msg[100];
 
-	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
 	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
 	ifr.ifr_data = (char*)&api_cmd;
@@ -1337,7 +1337,7 @@ int exec_bridge_write_cmd(void *arg, unsigned int off, unsigned int len, unsigne
 	struct ifreq	ifr;
 	char		msg[100];
 
-	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
+	memset(api_cmd.data, 0, WAN_MAX_CMD_DATA_SIZE);
 	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
 	ifr.ifr_data = (char*)&api_cmd;

@@ -283,6 +283,7 @@ typedef u_int64_t		u64;
  ************************************************/
 #define WAN_MAILBOX_SIZE	16
 #define WAN_MAX_DATA_SIZE	2032
+#define WAN_MAX_CMD_DATA_SIZE	1000
 #define WAN_MAX_POS_DATA_SIZE	1030
 
 #pragma pack(1)
@@ -610,7 +611,7 @@ typedef struct wan_cmd_api_
 	unsigned short	len;
 	unsigned char	bar;
 	u_int32_t	offset;
-	unsigned char	data[WAN_MAX_DATA_SIZE];
+	unsigned char	data[WAN_MAX_CMD_DATA_SIZE];
 } wan_cmd_api_t;
 
 

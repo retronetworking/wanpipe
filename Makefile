@@ -14,6 +14,9 @@
 PWD=$(shell pwd)
 KBUILD_VERBOSE=0
 
+EXTRA_CFLAGS=
+EXTRA_FLAGS=
+
 #Default zaptel directory to be overwritten by user
 
 ifdef DAHDI_DIR
@@ -50,9 +53,20 @@ ifndef ASTDIR
     	ASTDIR=/usr/src/asterisk
 endif
 
+ifdef DESTDIR
+	INSTALLPREFIX=$(DESTDIR)
+endif
+
 ifndef INSTALLPREFIX
 	INSTALLPREFIX=
 endif
+
+ifndef 64BIT_4G
+    64BIT_4G="Disabled"
+else
+	EXTRA_CFLAGS+= -DWANPIPE_64BIT_4G_DMA
+endif
+
 
 #Local wanpipe includes
 WINCLUDE=patches/kdrivers/include
@@ -65,7 +79,7 @@ WANEC_DIR=$(PWD)/$(KMODDIR)/wanec
 MODTYPE=ko
 
 #Setup include path and extra cflags
-EXTRA_CFLAGS := -I$(PWD)/$(WINCLUDE) -I$(PWD)/$(WINCLUDE)/annexg -I$(PWD)/patches/kdrivers/wanec -D__LINUX__
+EXTRA_CFLAGS += -I$(PWD)/$(WINCLUDE) -I$(PWD)/$(WINCLUDE)/annexg -I$(PWD)/patches/kdrivers/wanec -D__LINUX__
 EXTRA_CFLAGS += -I$(WANEC_DIR) -I$(WANEC_DIR)/oct6100_api -I$(WANEC_DIR)/oct6100_api/include
 
 #Setup utility extra flags and include path
@@ -74,6 +88,8 @@ EXTRA_UTIL_FLAGS += -I$(PWD)/patches/kdrivers/wanec -I$(PWD)/patches/kdrivers/wa
 
 ENABLE_WANPIPEMON_ZAP=NO
 ZAPHDLC_PRIV=/etc/wanpipe/.zaphdlc
+
+EXTRA_CFLAGS += $(EXTRA_FLAGS)
 
 
 #Check if zaptel exists
@@ -128,11 +144,23 @@ else
 
 #This will check for zaptel, kenrel source and build utilites and kernel modules
 #within local directory structure
-all:   _checkzap _checksrc all_bin_kmod all_util 	
+all: cleanup_local _checkzap _checksrc all_bin_kmod all_util 	
 
-all_src:   _checkzap _checksrc all_kmod all_util all_lib
+all_src: cleanup_local  _checkzap _checksrc all_kmod all_util
+
+dahdi: all_src
+
+zaptel: all_src
 
 openzap: all_src all_lib
+	@touch .all_lib
+
+tdmapi: all_src all_lib
+	@touch .all_lib
+
+cleanup_local:
+	@rm -f .all* 2> /dev/null;
+
 
 
 #Build only kernel modules
@@ -149,7 +177,7 @@ all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 
 
 #Clean utilites and kernel modules
-clean:  clean_util _cleanoldwanpipe
+clean: cleanup_local  clean_util _cleanoldwanpipe
 	$(MAKE) -C $(KDIR) SUBDIRS=$(WAN_DIR) clean
 	@find patches/kdrivers -name '.*.cmd' | xargs rm -f
 	@find . -name 'Module.symver*' | xargs rm -f
@@ -192,14 +220,13 @@ _checkzap:
 	@echo " +--------- Wanpipe Build Info --------------+"  
 	@echo 
 	@if [ ! -e $(ZAPDIR)/zaptel.h ] && [ ! -e $(ZAPDIR)/kernel/zaptel.h ] && [ ! -e $(ZAPDIR)/include/dahdi/kernel.h ] ; then \
-		echo " Compiling Wanpipe without ZAPTEL/DAHDI Support!"; \
-		echo "      Zaptel/Dahdi Dir: $(ZAPDIR)"; \
+		echo " ZAPTEL/DAHDI Support: Disabled"; \
 		ZAPDIR_PRIV=; \
 		ENABLE_WANPIPEMON_ZAP=NO; \
 	else \
 		if [ -e $(ZAPDIR)/include/dahdi/kernel.h ]; then \
-			echo "   Compiling Wanpipe with DAHDI Support!"; \
-			echo "      Dahdi Dir: $(ZAPDIR)"; \
+		    echo " ZAPTEL/DAHDI Support: DAHDI Enabled"; \
+			echo " DAHDI Dir           : $(ZAPDIR)"; \
 			echo; \
 			ZAPDIR_PRIV=$(ZAPDIR); \
 			ENABLE_WANPIPEMON_ZAP=YES; \
@@ -212,8 +239,8 @@ _checkzap:
 				echo "	     Please recompile Dahdi directory first"; \
 			fi; \
 		else \
-			echo "   Compiling Wanpipe with ZAPTEL Support!"; \
-			echo "      Zaptel Dir: $(ZAPDIR)"; \
+		    echo " ZAPTEL/DAHDI Support: ZAPTEL Enabled"; \
+			echo " ZAPTEL Dir          : $(ZAPDIR)"; \
 			echo; \
 			eval "$(PWD)/patches/sangoma-zaptel-patch.sh $(ZAPDIR)"; \
 			ZAPDIR_PRIV=$(ZAPDIR); \
@@ -227,7 +254,6 @@ _checkzap:
 				echo "       Please recompile zaptel directory first"; \
 			fi; \
 			echo ; \
-			echo "Please recompile and reinstall ZAPTEL after installation"; \
 		fi \
 	fi
 	@echo 
@@ -236,7 +262,11 @@ _checkzap:
 	@sleep 2; 
 
 #Install all utilities etc and modules
-install: install_util install_etc install_kmod install_inc install_lib
+install: install_util install_etc install_kmod install_inc 
+	@if [ -e .all_lib ] ; then \
+		$(MAKE) -C api/libsangoma install; \
+    fi
+
 
 #Install kernel modules only
 install_kmod:
@@ -268,12 +298,12 @@ all_util:  install_inc
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(ARCH)
 
 all_lib:
-		$(shell cd api/libsangoma; ./init-automake.sh > /dev/null;  ./configure --prefix=/usr > /dev/null;)
+		$(shell cd api/libsangoma; ./init-automake.sh > /dev/null;  ./configure --prefix=/usr > /dev/null;) 
 		$(MAKE) -C api/libsangoma clean
 		$(MAKE) -C api/libsangoma all
 
 install_lib:
-		$(MAKE) -C api/libsangoma install
+		$(MAKE) -C api/libsangoma install DESTDIR=$(INSTALLPREFIX)
 
 #Clean utilities only
 clean_util:	

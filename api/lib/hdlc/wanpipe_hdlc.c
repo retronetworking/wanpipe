@@ -62,7 +62,7 @@ int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng,
 {
 	int i;
 	int word_len;
-	int found=0;
+	int found=1;
 	int gotdata=0;
 
 	
@@ -71,6 +71,8 @@ int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng,
 	 * bit stream contains data. Decoding is very expensive,
 	 * thus perform word (32bit) comparision test */
 	
+
+#if 0
 	for (i=0;i<word_len;i+=4){
 		if ((*(unsigned int*)&buf[i]) != *(unsigned int*)buf){
 			found=1;
@@ -86,6 +88,7 @@ int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng,
 			}
 		}
 	}
+#endif
 	
 	/* Data found proceed to decode
 	 * the bitstream and pull out data packets */
@@ -126,6 +129,15 @@ int wanpipe_hdlc_encode(wanpipe_hdlc_engine_t *hdlc_eng,
 	memset(&chan->tx_decode_buf[0],0,3);
 	chan->tx_decode_bit_cnt=0;
 	
+	if (hdlc_eng->seven_bit_hdlc){
+		chan->bits_in_byte=7;
+		hdlc_eng->bits_in_byte=7;
+		
+	}else{
+		chan->bits_in_byte=8;
+		hdlc_eng->bits_in_byte=8;
+	}
+
 #if 0 
 //HDLC_IDLE_ABORT	
 	chan->tx_flag_idle=0x7E;

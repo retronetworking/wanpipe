@@ -8,7 +8,73 @@ For more info visit: http://wiki.sangoma.com
 
 ------------------------------------------------------------------------------
 
-* Fri Apr 30 2009 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.4.1
+* Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.3
+=====================================================================
+
+- New firmware 
+  2007-07-10: A108D Latest Firmware Release........ v37 . More info
+  2007-07-10: A104D Latest Firmware Release ....... v35 . More info
+  2007-07-10: A102D Latest Firmware Release ....... v35 . More info
+  2007-07-10: A101D Latest Firmware Release. ...... v34 . More info
+  2007-07-10: A200 Latest Firmware Release ........ v11 . More info
+  2007-07-10: A400 Latest Firmware Release ........ v11 . More info
+  2007-07-10: A104D Latest Firmware Release........ v26 . More info
+  2007-07-10: A301-SH Latest Firmware Release...... v09 . More info
+  2008-10-28: A14X Latest Firmware Release......... v07 . More Info
+  2009-04-30: A500 Latest Firmware Release......... v35 . More info
+  2009-05-08: B600 Latest Firmware Release......... v02 . More Info
+  2009-07-03: B700 Latest Firmware Release......... v35 . More Info
+
+- Updated Makefile Build
+  make zaptel ZAPDIR=<absolute path to zaptel>  # Build for Zaptel
+  make dahdi DAHDI_DIR=<absolute path to dahdi> # Build for DAHDI
+  make install
+
+  	or use original script method
+
+  ./Setup install	# General Build
+  ./Setup zaptel    # Zaptel specific build
+  ./Setup dahdi     # Dahdi specific build
+
+- For 64bit systems there is no need to use --64bit_4G flag any more.
+  The check is done in the driver.
+
+- Updated TDM ring buffer logic to battle noise and data
+  corrupting in channelized voice mode.  Backport from 3.5.
+
+- Updated for 2.6.29 kernel.
+
+- Added DAHDI 2.2 support
+
+- AFT TE3 Update
+  Added a define AFT_TE3_IFT_FEATURE_DISABLE to disable
+  the hardware feature that implements IFT timeout interrupt
+  on DMA chains.  On some very slow machines this feature
+  can yeild slower performance because the machine does
+  not have to power to fill the T3/E3 line with traffic.
+
+- Turned off Framer Timer Interrupt
+  It was only used for stats and was not necessary
+
+- Update for DMA chains to combat PCI IRQ latency
+
+- Updated 64bit data protocols
+
+- Updated smg_ctrl scripts for bri and ss7
+  made them common
+
+- Bug fix for Mixed Voice & Data mode
+  On fifo overrun recovery do not disable dma if running in mixed
+  voice & data mode.
+
+- Updated to wancfg_zaptel script.
+  Bug fix smg was prompting user even if bri was not installed.
+
+- Updated SMG/Woomera
+  Added Asterisk Load balancing using extension information.
+
+
+* Fri Apr 30 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.1
 =======================================================================  
 
 - Updated wancfg_zaptel configuration utility

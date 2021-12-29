@@ -25,6 +25,12 @@
 #include <dahdi/kernel.h> // this will bring dahdi kernel stuff plus dahdi/user.h and friends
 #endif
 
+#ifdef DAHDI_ECHOCANCEL_FAX_MODE 
+#define DAHDI_22
+#else
+#undef DAHDI_22
+#endif
+
 // defines 
 #define ZT_CODE DAHDI_CODE
 

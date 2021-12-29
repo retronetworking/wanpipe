@@ -49,7 +49,7 @@ void __log_printf(int level, FILE *fp, char *file, const char *func, int line, c
 		fp = server.log;
 	} 
 	
-	if (level && level > server.debug && level < 100) {
+	if (level && level >= server.debug && level < 100) {
 		return;
 	}
 

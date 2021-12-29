@@ -432,10 +432,10 @@ static int32_t reset_chip(sdla_fe_t *fe, u32 mod_no)
 
 	/* general soft chip reset */
 	WRITE_REG(R_CIRM, M_SRES);
-	WP_DELAY(5);
+	WP_DELAY(50);
 	WRITE_REG(R_CIRM, 0);
 	/* wait for XHFC init seqeuence to be finished */
-	WP_DELAY(500);	
+	WP_DELAY(2000);	
 
 
 	return 0;
@@ -653,8 +653,9 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 	DBG_MODULE_TESTER("general soft chip reset\n");
 	/* general soft chip reset */
 	WRITE_REG(R_CIRM, M_SRES);
-	WP_DELAY(5);
+	WP_DELAY(50);
 	WRITE_REG(R_CIRM, 0);
+	WP_DELAY(2000);
 
 	/* amplitude */
 	WRITE_REG(R_PWM_MD, 0x80);
@@ -667,7 +668,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 
 	DBG_MODULE_TESTER("wait 1 second for XHFC init seqeuence to be finished\n");
 	/* wait for XHFC init seqeuence to be finished */
-	WP_DELAY(500);	
+	WP_DELAY(1000);	
 
 	DBG_MODULE_TESTER("read chip 'busy' bit\n");
 	while ((READ_REG(R_STATUS) & (M_BUSY | M_PCM_INIT)) && (timeout)){
@@ -1506,11 +1507,11 @@ static int32_t wp_bri_spi_bus_reset(sdla_fe_t	*fe)
 	card->hw_iface.bus_write_4(	card->hw,
 					SPI_INTERFACE_REG,
 					MOD_SPI_RESET);
-	WP_DELAY(500);
+	WP_DELAY(1000);
 	card->hw_iface.bus_write_4(	card->hw,
 					SPI_INTERFACE_REG,
 					0x00000000);
-	WP_DELAY(500);
+	WP_DELAY(1000);
 	return 0;
 }
 

@@ -15,6 +15,7 @@ SLEEPSECS=2
 BINDIR=/usr/sbin
 PIDFILE=/var/run/$APP.pid
 CORENAME=$(cat /proc/sys/kernel/core_pattern)
+VARDIR=/var/log
 
 if [ -z $APP ]; then
 		echo

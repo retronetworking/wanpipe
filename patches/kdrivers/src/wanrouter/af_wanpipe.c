@@ -834,9 +834,7 @@ static struct sock *wanpipe_alloc_socket(struct sock *osk, void *net)
 	AF_MEM_INC(sizeof(struct sock));
 	AF_MEM_INC(sizeof(struct wanpipe_opt));
 
-#ifndef LINUX_2_6
 	MOD_INC_USE_COUNT;
-#endif
 
 	sock_init_data(NULL, sk);
 	return sk;
@@ -1054,9 +1052,7 @@ void wanpipe_kill_sock (struct sock *sk)
 	AF_MEM_DEC(sizeof(struct sock));
 	atomic_dec(&wanpipe_socks_nr);
 
-#ifndef LINUX_2_6
 	MOD_DEC_USE_COUNT;
-#endif
 	return;
 }
 
@@ -1245,9 +1241,7 @@ static int wanpipe_release(struct socket *sock, struct socket *peersock)
 	AF_MEM_DEC(sizeof(struct sock));
 	atomic_dec(&wanpipe_socks_nr);
 
-#ifndef LINUX_2_6
 	MOD_DEC_USE_COUNT;
-#endif
 	
 	return 0;
 }

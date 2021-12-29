@@ -132,9 +132,14 @@ typedef struct wp_tdmv_remora_ {
 	int		spanno;
 	struct zt_span	span;
 #ifdef DAHDI_ISSUES
+#ifdef DAHDI_22
+	struct dahdi_echocan_state ec[MAX_REMORA_MODULES]; /* echocan state for each channel */
+#endif
 	struct zt_chan	*chans_ptrs[MAX_REMORA_MODULES];
 #endif
 	struct zt_chan	chans[MAX_REMORA_MODULES];
+	
+
 	unsigned long	reg_module_map;	/* Registered modules */
 
 	unsigned char	reg0shadow[MAX_REMORA_MODULES];	/* read> fxs: 68 fxo: 5 */
@@ -194,10 +199,33 @@ static int wp_tdmv_remora_rx_chan(wan_tdmv_t*, int,unsigned char*,unsigned char*
 static int wp_tdmv_remora_ec_span(void *pcard);
 
 static void wp_tdmv_remora_dtmf (void* card_id, wan_event_t *event);
+#ifdef DAHDI_22
+static int wp_tdmv_remora_hwec_create(struct dahdi_chan *chan, struct dahdi_echocanparams *ecp,
+			   struct dahdi_echocanparam *p, struct dahdi_echocan_state **ec);
+static void wp_tdmv_remora_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_state *ec);
+#endif
 
 extern int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane);
 extern int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane);
 
+
+#ifdef DAHDI_22
+/*
+*******************************************************************************
+**			   DAHDI HWEC STRUCTURES
+*******************************************************************************
+*/
+static const struct dahdi_echocan_features wp_tdmv_remora_ec_features = {
+	.NLP_automatic = 1,
+	.CED_tx_detect = 1,
+	.CED_rx_detect = 1,
+};
+
+static const struct dahdi_echocan_ops wp_tdmv_remora_ec_ops = {
+	.name = "WANPIPE_HWEC",
+	.echocan_free = wp_tdmv_remora_hwec_free,
+};
+#endif
 
 #if 0
 #define WAN_SYNC_RX_TX_TEST 1
@@ -482,12 +510,16 @@ static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig)
 static int wp_remora_zap_open(struct zt_chan *chan)
 {
 	wp_tdmv_remora_t	*wr = NULL;
+	sdla_t		*card = NULL; 
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wr = chan->pvt;
+	WAN_ASSERT2(wr->card == NULL, -ENODEV);
+    card = wr->card; 
 	wr->usecount++;
 	wan_set_bit(WP_TDMV_RUNNING, &wr->flags);
+	wanpipe_open(card);
 	DEBUG_EVENT("%s: Open (usecount=%d, channo=%d, chanpos=%d)...\n", 
 				wr->devname,
 				wr->usecount,
@@ -508,6 +540,7 @@ static int wp_remora_zap_close(struct zt_chan *chan)
 	card	= wr->card;
 	fe	= &card->fe;
 	wr->usecount--;
+	wanpipe_close(card);   
 	wan_clear_bit(WP_TDMV_RUNNING, &wr->flags);
 
 #if 1
@@ -519,7 +552,8 @@ static int wp_remora_zap_close(struct zt_chan *chan)
 	}
 #endif
 	return 0;
-}
+}           
+
 
 static int wp_remora_zap_watchdog(struct zt_span *span, int event)
 {
@@ -530,18 +564,105 @@ static int wp_remora_zap_watchdog(struct zt_span *span, int event)
 	return 0;
 }
 
+
+#ifdef DAHDI_22
 /******************************************************************************
-** wp_remora_zap_hwec() - 
+** wp_tdmv_remora_hwec_create() - 
 **
 **	OK
 */
+static int wp_tdmv_remora_hwec_create(struct dahdi_chan *chan, struct dahdi_echocanparams *ecp,
+			  struct dahdi_echocanparam *p, struct dahdi_echocan_state **ec)
+{
+	wp_tdmv_remora_t *wr = NULL;
+	sdla_t *card = NULL;
+	int fe_chan = chan->chanpos;
+	int err = -ENODEV;
+
+	WAN_ASSERT2(chan == NULL, -ENODEV);
+	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
+	wr = chan->pvt;
+	WAN_ASSERT2(wr->card == NULL, -ENODEV);
+	card = wr->card;
+
+	if (ecp->param_count > 0) {
+		DEBUG_TDMV("[TDMV] Wanpipe echo canceller does not support parameters; failing request\n");
+		return -EINVAL;
+	}
+
+	*ec = &wr->ec[fe_chan];
+	(*ec)->ops = &wp_tdmv_remora_ec_ops;
+	(*ec)->features = wp_tdmv_remora_ec_features;
+
+	wan_set_bit(fe_chan, &card->wandev.rtp_tap_call_map);
+
+	if (card->wandev.ec_enable) {
+		/* The ec persist flag enables and disables
+	         * persistent echo control.  In persist mode
+                 * echo cancellation is enabled regardless of
+                 * asterisk.  In persist mode off asterisk 
+                 * controls hardware echo cancellation */		 
+		if (card->hwec_conf.persist_disable) {
+			err = card->wandev.ec_enable(card, 1, fe_chan);
+		} else {
+			err = 0;			
+		}           
+		DEBUG_TDMV("[TDMV_RM]: %s: Enable HW echo canceller on channel %d\n",        
+				wr->devname, fe_chan);
+	}
+	return err;
+}
+
+
+/******************************************************************************
+** wp_tdmv_remora_hwec_free() - 
+**
+**	OK
+*/
+static void wp_tdmv_remora_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_state *ec)
+{
+	wp_tdmv_remora_t *wr = NULL;
+	sdla_t *card = NULL;
+	int	fe_chan = chan->chanpos;
+
+	memset(ec, 0, sizeof(*ec));
+
+	if(chan == NULL) return;
+	if(chan->pvt == NULL) return;
+	wr = chan->pvt;
+	if(wr->card == NULL) return;
+	card = wr->card;
+
+	wan_clear_bit(fe_chan, &card->wandev.rtp_tap_call_map);
+
+	if (card->wandev.ec_enable) {
+		/* The ec persist flag enables and disables
+	         * persistent echo control.  In persist mode
+                 * echo cancellation is enabled regardless of
+                 * asterisk.  In persist mode off asterisk 
+                 * controls hardware echo cancellation */
+		if (card->hwec_conf.persist_disable) {
+			card->wandev.ec_enable(card, 0, fe_chan);
+		}
+		DEBUG_TDMV("[TDMV] %s: Disable HW echo canceller on channel %d\n",
+				wr->devname, fe_chan);
+	}
+}
+
+#else
+
+/******************************************************************************
+** wp_remora_zap_hwec() -
+**
+**  OK
+*/
 static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 {
-	wp_tdmv_remora_t	*wr = NULL;
-	sdla_t			*card = NULL;
-	int			fe_chan = chan->chanpos;
-	int			err = -ENODEV;
-	
+	wp_tdmv_remora_t    *wr = NULL;
+	sdla_t          *card = NULL;
+	int         fe_chan = chan->chanpos;
+	int         err = -ENODEV;
+
 	WAN_ASSERT2(chan == NULL, -ENODEV);
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wr = chan->pvt;
@@ -555,23 +676,24 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 	}
 
 	if (card->wandev.ec_enable){
-		/* The ec persist flag enables and disables
-	         * persistent echo control.  In persist mode
-                 * echo cancellation is enabled regardless of
-                 * asterisk.  In persist mode off asterisk 
-                 * controls hardware echo cancellation */		 
+        /* The ec persist flag enables and disables
+		* persistent echo control.  In persist mode
+		* echo cancellation is enabled regardless of
+		* asterisk.  In persist mode off asterisk
+		* controls hardware echo cancellation */
 		if (card->hwec_conf.persist_disable) {
 			err = card->wandev.ec_enable(card, enable, fe_chan);
 		} else {
-			err = 0;			
-		}           
-		DEBUG_TDMV("[TDMV_RM]: %s: %s HW echo canceller on channel %d\n",        
-				wr->devname,
-				(enable) ? "Enable" : "Disable",
-				fe_chan);
+			err = 0;
+		}
+		DEBUG_TDMV("[TDMV_RM]: %s: %s HW echo canceller on channel %d\n",
+				   wr->devname,
+				   (enable) ? "Enable" : "Disable",
+				   fe_chan);
 	}
 	return err;
 }
+#endif
 
 static void
 wp_tdmv_remora_proslic_recheck_sanity(wp_tdmv_remora_t *wr, int mod_no)
@@ -1152,7 +1274,11 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 
 	/* Set this pointer only if card has hw echo canceller module */
 	if (wr->hwec == WANOPT_YES && card->wandev.ec_dev){
+#ifdef DAHDI_22
+		wr->span.echocan_create = wp_tdmv_remora_hwec_create;
+#else
 		wr->span.echocan = wp_remora_zap_hwec;
+#endif
 	}
 
 #if defined(__LINUX__)

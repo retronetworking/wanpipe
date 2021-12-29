@@ -34,6 +34,7 @@
 #include <linux/cdev.h>
 #include <linux/net.h>
 #include <linux/delay.h>
+#include <linux/sched.h>
 
 #include <asm/system.h>		/* cli(), *_flags */
 #include <asm/uaccess.h>	/* copy_*_user */

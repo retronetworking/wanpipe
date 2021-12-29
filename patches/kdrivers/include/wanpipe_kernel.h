@@ -116,18 +116,32 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 	schedule_work(tq);
  }
 
+
  static inline int wan_task_dequeue(struct tq_struct *tq)
  {
-#if  LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
+#if  LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)
 	return cancel_work_sync (tq);
+
+#elif defined(work_clear_pending)
+	return cancel_work_sync (tq);
+
+#elif defined(WORK_STRUCT_NOAUTOREL)
+	return 0;
 #else
 	int err;
 	err=cancel_delayed_work(tq);
 	flush_scheduled_work();
 	return err;
 #endif
- }
+ }           
 
+#if 1
+#define MOD_INC_USE_COUNT try_module_get(THIS_MODULE)
+#define MOD_DEC_USE_COUNT module_put(THIS_MODULE)
+#else
+#define MOD_INC_USE_COUNT 
+#define MOD_DEC_USE_COUNT
+#endif  
 
 #define ADMIN_CHECK()  {if (!capable(CAP_SYS_ADMIN)) {\
                              if (WAN_NET_RATELIMIT()) { \
