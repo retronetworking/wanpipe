@@ -534,6 +534,34 @@ void		wanpipe_debugging (unsigned long data);
 /*
 ** wan_malloc - 
 */
+
+static __inline void* wan_kmalloc(int size)
+{
+	void*	ptr = NULL;
+#if defined(__LINUX__)
+	ptr = kmalloc(size, GFP_KERNEL);
+	if (ptr){
+		DEBUG_ADD_MEM(size);
+	}
+#elif defined(__SOLARIS__)
+#warning "NC: NEED SLEEP VERSION"
+	ptr=kmem_alloc(size,KM_NOSLEEP);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#warning "NC: NEED SLEEP VERSION"
+	ptr = malloc(size, M_DEVBUF, M_NOWAIT); 
+#elif defined(__WINDOWS__)
+#warning "NC: NEED SLEEP VERSION"
+	ptr = ExAllocatePool(NonPagedPool, size);
+#else
+# error "wan_kmalloc() function is not supported yet!"
+#endif
+	if (ptr){
+		memset(ptr, 0, size);
+		DEBUG_ADD_MEM(size);
+	}
+	return ptr;
+}        
+
 static __inline void* wan_malloc(int size)
 {
 	void*	ptr = NULL;
@@ -1018,6 +1046,61 @@ static __inline int wan_skb_mark(void* pskb)
 ** wan_skb_alloc() - 
 **		Allocate kernel buffer with len.
 */
+static __inline void* wan_skb_kalloc(unsigned int len)
+{
+#if defined(__LINUX__)
+#if defined(WAN_DEBUG_MEM)
+	struct sk_buff *skb=__dev_alloc_skb(len,GFP_KERNEL);
+	if (skb){
+		DEBUG_ADD_MEM(skb->truesize);
+	}
+	return (void*)skb;
+#else
+	return (void*)__dev_alloc_skb(len,GFP_KERNEL);
+#endif
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#warning "NEED SLEEPING VERSION"
+	struct mbuf	*new = NULL;
+
+	if (len){
+		MGETHDR(new, M_DONTWAIT, MT_DATA);
+	}else{
+		MGET(new, M_DONTWAIT, MT_DATA);
+	}
+	if (new){
+		if (new->m_flags & M_PKTHDR){
+			new->m_pkthdr.len = 0;
+		}
+		new->m_len = 0;
+		MCLGET(new, M_DONTWAIT);
+		if ((new->m_flags & M_EXT) == 0){
+			wan_skb_free(new);
+			return NULL;
+		}
+		/* Always reserve extra 16 bytes (as Linux)
+		** for the header */
+		new->m_data += 16;
+		wan_skb_set_mark(new);
+		return (void*)new;
+	}
+	return NULL;
+#elif defined (__SOLARIS__)
+#warning "NEED SLEEPING VERSION"
+	mblk_t *mp=allocb(ROUNDUP(len+16, IOC_LINESIZE), BPRI_MED);
+	if (mp){
+		caddr_t ptr= (caddr_t) ROUNDUP((long)mp->b_rptr, 1);
+		mp->b_rptr=(uchar_t *)ptr+16;
+	}
+	return mp;
+#else
+# error "wan_skb_kalloc() function is not supported yet!"
+#endif
+}
+
+/*
+** wan_skb_alloc() - 
+**		Allocate kernel buffer with len.
+*/
 static __inline void* wan_skb_alloc(unsigned int len)
 {
 #if defined(__LINUX__)
@@ -1065,7 +1148,7 @@ static __inline void* wan_skb_alloc(unsigned int len)
 #else
 # error "wan_skb_alloc() function is not supported yet!"
 #endif
-}
+}             
 
 /*
 ** wan_skb_set_dev() - 
@@ -1557,6 +1640,9 @@ static __inline void wan_skb_init(void* pskb, unsigned int len)
 #if defined(__LINUX__)
 	struct sk_buff* skb = (struct sk_buff*)pskb;
 	skb->data = skb->head + len;
+	skb->tail = skb->data;
+	skb->len  = 0;
+	skb->data_len = 0;
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct mbuf*	m = (struct mbuf*)pskb;
 	m->m_data = m->m_ext.ext_buf + len;

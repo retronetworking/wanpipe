@@ -77,16 +77,12 @@ int wplip_open_dev(netdevice_t *dev)
 	if (lip_dev->lip_link->state == WAN_CONNECTED){
 		WAN_NETIF_CARRIER_ON(dev);		
 		WAN_NETIF_WAKE_QUEUE(dev);
-	}else{
-		WAN_NETIF_CARRIER_OFF(dev);
-		WAN_NETIF_STOP_QUEUE(dev);
 	}
 #else
 	if (lip_dev->lip_link->state == WAN_CONNECTED){
 		WAN_NETIF_CARRIER_ON(dev);		
-	}else{
-		WAN_NETIF_CARRIER_OFF(dev);
-	}	
+	}
+
 	WAN_NETIF_WAKE_QUEUE(dev);
 #endif
 
@@ -94,6 +90,10 @@ int wplip_open_dev(netdevice_t *dev)
 		wan_set_bit(WAN_DEV_READY,&lip_dev->interface_down);
 		wplip_trigger_if_task(lip_dev);
 	}
+
+#warning "NENAD"
+	DEBUG_EVENT("%s: LIP %s()\n",
+		wan_netif_name(dev),__FUNCTION__);
 	return 0;
 }
 

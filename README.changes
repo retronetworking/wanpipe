@@ -4,8 +4,170 @@ WANPIPE
 Linux WAN Router Package
 ------------------------------------------------------------------------------
 Author: Nenad Corbic <ncorbic@sangoma.com>
-Copyright (c) 1995-2006 Sangoma Technologies Inc.
+Copyright (c) 1995-2007 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
+
+Release Stable 2.3.3-9
+======================
+Jan 18 2007
+	
+	o Official Release
+          No changes
+
+Release Stable 2.3.3-8s
+=======================
+Jan 15 2007 
+
+	o Update to A301 T3/E3 Driver
+	  Fixed the restart dma errors.
+
+
+Release Stable 2.3.3-8r
+=======================
+Jan 12 2007
+
+	o Update to A101/2/4/ and A301 Drivers
+	  Do not allow tx until interface comes up.
+	  This will solve tx timeout on A102. 
+	  Sanity check for A104 and A301.
+
+	o Update to LIP Layer
+	  Removed possible racing conditions on startup.
+          Also the LIP layer protocol will now only
+	  connect once the lower interface is up.
+
+	o Inserted DEBUG statements to be removed
+	  after testing.
+	
+
+
+Release Stable 2.3.3-8q
+=======================
+Jan 11 2007
+
+	o Update to LIP Layer
+ 	  Fixed a possible race condition between
+	  startup and protocol up state change.
+
+Release Stable 2.3.3-8p
+=======================
+Jan 10 2007
+
+	o Update to A101/2 Driver
+ 	  Fixed the timeslot config timeout issue.
+	  Now the timeslot will guarantee to be configued.
+
+Release Stable 2.3.3-8o
+=======================
+Jan 9 2007
+
+	o Update to A101/2 Driver
+	  Fixed the tx timeout function. The tx timeout did not properly
+	  revive the LIP stack.
+
+Release Stable 2.3.3-8n
+=======================
+Jan 5 2007
+
+	o Update to A101/2 Driver
+	  Exteded the timeslot config timeout.  Could affect slow systems.
+	  If timeslot config timeout expires the card will fail to configure.
+
+Release Stable 2.3.3-8m
+=======================
+Jan 5 2007
+
+	o Update to A101/2 Driver
+  	  Fixed possible race condition on startup.
+	  
+	o Update to A104 Driver
+	  Added further debugging info on error condition.
+
+
+Release Stable 2.3.3-8l
+=======================
+Jan 4 2007
+
+	o Updated to A104 Driver
+	  Check for depleted rx buffers after restart.
+	  Possible with single tx buffer mode.
+
+Release Stable 2.3.3-8k
+=======================
+Jan 4 2007
+
+	o Update of A101/2/4 drivers
+	  Sanity checks as well as some bug fix backports from 2.3.4.
+
+Release Stable 2.3.3-8j
+=======================
+Jan 4 2007
+
+	o Bug fix on A301 T3/E3 Drivers.
+	  Same fix as in 8i release
+          The port state was set to connected before
+	  the chip was fully configued.  This could
+	  cause racing conditions between the chip
+	  configuration and transmitter.     
+
+Release Stable 2.3.3-8i
+=======================
+Jan 4 2007
+
+	o Bug fix on A101/2/4 Drivers.
+	  The port state was set to connected before
+	  the chip was fully configued.  This could
+	  cause racing conditions between the chip
+	  configuration and transmitter.
+
+Release Stable 2.3.3-8h
+=======================
+Jan 3 2007
+	
+	o Bug fix on A101/2 Drivers.
+ 	  The Interrupt handler was configured after the
+	  chip was enabled. On slow/embeded systems this can cause
+	  system instability.
+
+
+Release Stable 2.3.3-8f
+=======================
+Dec 8 2006
+
+	o Bug fix on A301 T3/E3 drivers.
+ 	  In some scenarios driver/card can get stuck in connected
+	  or disconnected state after which no more state changes are
+	  reported.
+
+	o Bug fix on A101/2 drivers.
+	  Bug found in skb manipulation on rx packets.
+	  Added locking to prevent shutdown null pointer dereference bug
+	  that occurs on some kenrels.  
+
+
+Release Stable 2.3.3-8a
+=======================
+	
+	o Replaced kernel process allocation with GPF_KERNEL 
+          flag instead of GPF_ATOMIC.  The Atomic allocation
+	  doesn not wait for memory. So on low memory devices
+	  kernel memeory allocation could fail during wanrouter
+          startup.
+
+
+Release Stable 2.3.3-8
+======================
+Nov 16 2006
+
+	o Bug fix in channelized A104Shark.
+	  The A104SH is always channeliezed.
+
+ 	  Minor bug fixes in critical shutdown cases, there was
+	  a potential for a crash due to unmanaged interrupt
+	  in a critical shutdown procedure.
+
+	o Support for 2.4.33 and above kernels.
+
 
 Release Stable 2.3.3-7
 =======================

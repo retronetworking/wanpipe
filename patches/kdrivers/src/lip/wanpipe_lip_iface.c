@@ -19,6 +19,20 @@
 #include <linux/wanpipe_lip.h>
 #endif
 
+
+#if 0
+static nc_delay(int sec)
+{
+#if 1
+		unsigned long timeout=SYSTEM_TICKS;
+			while ((SYSTEM_TICKS-timeout)<(sec*HZ)){
+						schedule();
+							}
+#endif  
+
+}
+#endif
+
 /*=============================================================
  * Definitions
  */
@@ -256,14 +270,9 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 	lip_dev->protocol	= conf->protocol;
 	lip_dev->common.usedby 	= usedby;
 	lip_dev->common.state	= WAN_DISCONNECTED;
+       	WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
 
-		
-	if (lip_link->state == WAN_CONNECTED){
-		WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
-	}else{
-		WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
-	}
-	
+
 #if defined(__LINUX__)
 	if (conf->true_if_encoding){
 		DEBUG_EVENT("%s: LIP: Setting IF Type to Broadcast\n",dev_name);
@@ -348,7 +357,16 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 	lip_link->latency_qlen=lip_dev->common.dev->tx_queue_len;
 #endif
 	
-	DEBUG_TEST("%s: LIP LIPDEV Created %p Magic 0x%lX\n",
+	if (lip_link->state == WAN_CONNECTED){
+		DEBUG_EVENT("%s: LIP CREATE Link already on!\n",
+						lip_dev->name);
+		WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
+	       	WAN_NETIF_WAKE_QUEUE(lip_dev->common.dev);
+	       	wplip_trigger_bh(lip_dev->lip_link);
+	}
+	
+#warning "NENAD"
+	DEBUG_EVENT("%s: LIP LIPDEV Created %p Magic 0x%lX\n",
 			lip_link->name,
 			lip_dev,
 			lip_dev->magic);
@@ -811,24 +829,29 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 			wplip_prot_oob(lip_dev,data,len);
 		}
 
-		if (lip_dev->common.state == WAN_CONNECTED){
+		if (state == WAN_CONNECTED){
+			lip_dev->common.state = state; 
 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
 			wan_update_api_state(lip_dev);
 		}else{
+			lip_dev->common.state = state; 
 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
-		}
+		}    
+		
 
 		wplip_trigger_bh(lip_dev->lip_link);
 
 	}else if (lip_dev->common.lip) { /*STACK*/
 		
-		if (lip_dev->common.state == WAN_CONNECTED){
+		if (state == WAN_CONNECTED){
+			lip_dev->common.state = state; 
 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
 			wplip_connect(lip_dev->common.lip,0);
 		}else{
+			lip_dev->common.state = state; 
 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
 #if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
@@ -837,11 +860,19 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 		}
 		
 	}else{
-		if (lip_dev->common.state == WAN_CONNECTED){
+		if (state == WAN_CONNECTED){
+#warning "NENAD"
+			DEBUG_EVENT("%s: LIP LIPDEV CARRIER ON\n",
+						lip_dev->name);
+			lip_dev->common.state = state; 
 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 			WAN_NETIF_WAKE_QUEUE(lip_dev->common.dev);
 			wplip_trigger_bh(lip_dev->lip_link);
 		}else{
+#warning "NENAD"
+			DEBUG_EVENT("%s: LIP LIPDEV CARRIER OFF\n",
+						lip_dev->name);
+			lip_dev->common.state = state; 
 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
 #if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);

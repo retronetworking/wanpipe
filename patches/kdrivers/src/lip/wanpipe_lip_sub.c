@@ -42,7 +42,7 @@ wplip_link_t *wplip_create_link(char *devname)
 	wplip_link_t *lip_link;
 	int i;
 	
-	lip_link=wan_malloc(sizeof(wplip_link_t));
+	lip_link=wan_kmalloc(sizeof(wplip_link_t));
 	if (lip_link==NULL){
 		WAN_MEM_ASSERT("LIP Link Alloc: ");
 		return NULL;
@@ -222,7 +222,7 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int iftype)
 {
 	wplip_dev_t *lip_dev;
 
-	lip_dev=wan_malloc(sizeof(wplip_dev_t));
+	lip_dev=wan_kmalloc(sizeof(wplip_dev_t));
 	if (lip_dev == NULL){
 		return NULL;
 	}
@@ -230,6 +230,10 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int iftype)
 	memset(lip_dev, 0x00, sizeof(wplip_dev_t));
 	
 	lip_dev->magic=WPLIP_MAGIC_DEV;
+
+	lip_dev->common.state = WAN_DISCONNECTED;
+	lip_dev->common.usedby = iftype;
+	strncpy(lip_dev->name,dev_name,MAX_PROC_NAME);
 
 	/* FIXME: No Entry Intializer */	
 	/*WPLIP_INIT_LIST_HEAD(&lip_dev->list_entry);*/
@@ -251,11 +255,6 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int iftype)
 		return NULL;
 	}
 
-	lip_dev->common.state = WAN_DISCONNECTED;
-	lip_dev->common.usedby = iftype;
-
-	strncpy(lip_dev->name,dev_name,MAX_PROC_NAME);
-	
 	WAN_DEV_HOLD(lip_dev);
 	
 	return lip_dev;

@@ -95,6 +95,7 @@ aft_core_info_t aft_core_table[] = {
 	  "A108_0100_V", "A108_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ A300_UTE3_SUBSYS_VENDOR, AFT_CHIP_X300, 0x00, 0x00,
 	  "A301_V", "A301_V*.BIN", AFT_CORE_SIZE },
+	
 #if 0
 	{ AFT_TE1_ATM_CORE_ID,	
 	  NULL, NULL, 0x00,
@@ -234,7 +235,7 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		//strcpy(aft->prefix_fw, "A104");
 		aft->cpld.adptr_type = A108_ADPTR_8TE1;
 		aft->cpld.iface	= &aftup_flash_iface;
-	}else if (strncmp(type,"AFT-A300",8) == 0){
+	}else if (strncmp(type,"AFT-A301",8) == 0){
 		//strcpy(aft->prefix_fw, "A301");
 		aft->cpld.adptr_type = A300_ADPTR_U_1TE3;
 		aft->cpld.iface	= &aftup_flash_iface;

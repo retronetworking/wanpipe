@@ -328,7 +328,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 	}
 
 	/* allocate and initialize private data */
-	adsl = wan_malloc(sizeof(adsl_private_area_t));
+	adsl = wan_kmalloc(sizeof(adsl_private_area_t));
 	if (adsl == NULL){ 
 		DEBUG_EVENT("%s: Failed allocating private data...\n", 
 					card->devname);

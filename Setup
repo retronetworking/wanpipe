@@ -251,7 +251,7 @@ banner()
 	clearscr
 	echo -e "\t----------------------------------------------------------"
 	echo -e "\t          WAN Router v$PROD_VER Installation Script"
-	echo -e "\t    Copyright (c) 1995-2006, Sangoma Technologies Inc."
+	echo -e "\t    Copyright (c) 1995-2007, Sangoma Technologies Inc."
 	echo -e "\t----------------------------------------------------------"
 	echo ""
 	return 0
@@ -3026,7 +3026,11 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 				 ;;
 
 			*)  
+				if [ $KLVL -lt 32 ]; then
 				CFLAGS="$CC -D__LINUX__ -Dlinux -D__KERNEL__ -I$SOURCEDIR/include -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer -fno-strict-aliasing -pipe -march=$ARCH -DMODULE -DEXPORT_SYMTAB"
+			 	else 
+				CFLAGS="$CC -D__LINUX__ -Dlinux -D__KERNEL__ -I$SOURCEDIR/include -Wall -Wstrict-prototypes -Wno-trigraphs -O2 -fno-strict-aliasing -fno-common -fomit-frame-pointer -pipe -mpreferred-stack-boundary=2 -march=$ARCH -fno-unit-at-a-time -DMODULE  -nostdinc -iwithprefix include -DMODULE -DEXPORT_SYMTAB" 
+				fi
 
 				#Old gcc do not have this option, thus we must check for it.
 				eval "$CC -mpreferred-stack-boundary=2 -S -o /dev/null \
@@ -5381,7 +5385,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=2.3.3-7
+PROD_VER=2.3.3-9
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

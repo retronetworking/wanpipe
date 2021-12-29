@@ -428,6 +428,7 @@ static void 	wp_aft_tdmv_per_port_isr(sdla_t *card);
 static void 	wp_aft_fifo_per_port_isr(sdla_t *card, u32 reg);
 static void 	wp_aft_wdt_per_port_isr(sdla_t *card, int wdt_intr);	
 
+
 /* Bottom half handlers */
 #if defined(__LINUX__)
 static void 	wp_bh (unsigned long);
@@ -440,6 +441,7 @@ static int 	process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 				private_area_t*,
 				int local_dev);
 
+static void 	aft_critical_shutdown (sdla_t *card);
 static int 	aft_global_chip_configuration(sdla_t *card, wandev_conf_t* conf);
 static int 	aft_global_chip_disable(sdla_t *card);
 #if 0
@@ -515,7 +517,7 @@ static int 	protocol_stop (sdla_t *card, netdevice_t *dev);
 static int 	protocol_shutdown (sdla_t *card, netdevice_t *dev);
 static void 	protocol_recv(sdla_t *card, private_area_t *chan, netskb_t *skb);
 
-static int 	aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num);
+static int 	aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, int irq);
 static int 	aft_init_requeue_free_skb(private_area_t *chan, netskb_t *skb);
 
 
@@ -636,7 +638,7 @@ int wp_aft_te1default_ifcfg(sdla_t* card, wanif_conf_t* conf)
 #if 0
 static void aft_delay(int sec)
 {
-#if 0
+#if 1
         unsigned long timeout=SYSTEM_TICKS;
         while ((SYSTEM_TICKS-timeout)<(sec*HZ)){
                 schedule();
@@ -890,6 +892,7 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 		}
 		return err;
 	}
+
 	wan_set_bit(AFT_CHIP_CONFIGURED,&card->u.aft.chip_cfg_status);
 
 	if (wan_test_bit(AFT_FRONT_END_UP,&card->u.aft.chip_cfg_status)){
@@ -1228,7 +1231,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	 * Allocate and initialize private data 
 	 * =====================================*/
 	
-	chan = wan_malloc(sizeof(private_area_t));
+	chan = wan_kmalloc(sizeof(private_area_t));
 	if(chan == NULL){
 		WAN_MEM_ASSERT(card->devname);
 		return -ENOMEM;
@@ -1573,7 +1576,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 			chan->single_dma_chain?"Off":"On");
 
 	
-	err=aft_alloc_rx_dma_buff(card, chan, dma_per_ch);
+	err=aft_alloc_rx_dma_buff(card, chan, dma_per_ch, 0);
 	if (err){
 		goto new_if_error;
 	}
@@ -1891,6 +1894,7 @@ static int del_if_private (wan_device_t* wandev, netdevice_t* dev)
 		card->u.aft.tdmv_chan_ptr=NULL;
 	}
  
+       	chan->logic_ch_num=-1;
         wan_spin_unlock_irq(&card->wandev.lock,&flags);
 
 	/* Delete interface name from proc fs. */
@@ -2156,6 +2160,12 @@ static int if_open (netdevice_t* dev)
 
 	if (card->wandev.state == WAN_CONNECTED){
 		set_chan_state(card, dev, WAN_CONNECTED);
+		WAN_NETIF_WAKE_QUEUE(dev);
+		if (chan->common.usedby == API){
+			wan_wakeup_api(chan);
+		}else if (chan->common.usedby == STACK){
+			wanpipe_lip_kick(chan,0);
+		}       
 	}
 
 	if (chan->cfg.ss7_enable){
@@ -2244,14 +2254,25 @@ static void disable_comm (sdla_t *card)
 	wan_smp_flag_t flags;
 	int used_cnt;
 
-	wan_spin_lock_irq(&card->wandev.lock,&flags);
 
-	wan_set_bit(CARD_DOWN,&card->wandev.critical);
+        /* Unconfiging, only on shutdown */
+	if (IS_TE1_CARD(card)) {
+		wan_smp_flag_t smp_flags,smp_flags1;
+		card->hw_iface.hw_lock(card->hw,&smp_flags1);
+		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
+		sdla_te_unconfig(&card->fe);
+		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+		card->hw_iface.hw_unlock(card->hw,&smp_flags1);
+	}           
+	
+	wan_spin_lock_irq(&card->wandev.lock,&flags);
 
 	/* Disable DMA ENGINE before we perform 
          * core reset.  Otherwise, we will receive
          * rx fifo errors on subsequent resetart. */
 	disable_data_error_intr(card,DEVICE_DOWN);
+	
+	wan_set_bit(CARD_DOWN,&card->wandev.critical);
 
 	wan_spin_unlock_irq(&card->wandev.lock,&flags);
 
@@ -2444,7 +2465,7 @@ static int if_send(netdevice_t *dev, netskb_t *skb, struct sockaddr *dst,struct 
 #endif
 	err=0;
 		
-	if (chan->common.state != WAN_CONNECTED){
+	if (chan->common.state != WAN_CONNECTED) {
 #if 1
 		WAN_NETIF_STOP_QUEUE(dev);
 		wan_netif_set_ticks(dev, SYSTEM_TICKS);
@@ -2457,8 +2478,15 @@ static int if_send(netdevice_t *dev, netskb_t *skb, struct sockaddr *dst,struct 
 		err=0;
 		goto if_send_exit_crit;
 #endif
+	 } else if (!WAN_NETIF_UP(dev)) {
+		++chan->if_stats.tx_carrier_errors;
+               	WAN_NETIF_START_QUEUE(dev); 
+		wan_skb_free(skb);
+		wan_netif_set_ticks(dev, SYSTEM_TICKS);
+		err=0;
+		goto if_send_exit_crit;
 	}
-
+	
 	if (chan->tdmv_zaptel_cfg){
 		private_area_t *top_chan=wan_netif_priv(chan->common.dev);
 
@@ -3594,7 +3622,7 @@ static void aft_rx_post_complete (sdla_t *card, private_area_t *chan,
 		wan_skb_put(skb,len);	
 		*new_skb=skb;
 
-		aft_alloc_rx_dma_buff(card,chan,1);
+		aft_alloc_rx_dma_buff(card,chan,1,1);
 	}else{
 
 		/* The rx packet is very
@@ -3659,13 +3687,17 @@ static int aft_init_requeue_free_skb(private_area_t *chan, netskb_t *skb)
 	return 0;
 }
 
-static int aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num)
+static int aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, int irq)
 {
 	int i;
 	netskb_t *skb;
 	
 	for (i=0;i<num;i++){
-		skb=wan_skb_alloc(chan->dma_mru);
+		if (irq) {
+	       	 	skb=wan_skb_alloc(chan->dma_mru);
+		} else {
+                 	skb=wan_skb_kalloc(chan->dma_mru);
+		}
 		if (!skb){
 			DEBUG_EVENT("%s: %s  no rx memory\n",
 					chan->if_name,__FUNCTION__);
@@ -3705,13 +3737,13 @@ static void enable_timer (void* card_id)
 	wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
 	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
 #else
-	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);
+	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 	if (card->wandev.fe_iface.polling){
 		card->wandev.fe_iface.polling(&card->fe);
 	}
-	card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 	wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+	card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 #endif
 
 	return;
@@ -4028,10 +4060,7 @@ static void wp_aft_fifo_per_port_isr(sdla_t *card, u32 cfg_reg)
 
 #if 1
 			aft_list_tx_descriptors(chan);
-			disable_data_error_intr(card,DEVICE_DOWN);
-			/* aft_global_intr_disable(card); */
-			wan_set_bit(CARD_DOWN,&card->wandev.critical);
-			port_set_state(card,WAN_DISCONNECTED);
+			aft_critical_shutdown(card);
 			break;
 			
 #endif
@@ -4109,8 +4138,7 @@ cfg_reg);
 				/* Debuging Code used to stop the line in 
 				 * case of fifo errors */
 				aft_list_descriptors(chan);
-				disable_data_error_intr(card,DEVICE_DOWN);
-				port_set_state(card,WAN_DISCONNECTED);
+				aft_critical_shutdown(card);
 #endif
 			}
 		}
@@ -4207,9 +4235,7 @@ static void wp_aft_global_isr (sdla_t* card)
 	if (gdma_cnt++ > 10){
 		DEBUG_EVENT("%s: Disabling ISR after %i interrupts\n",
 				card->devname,gdma_cnt);
-		disable_data_error_intr(card,DEVICE_DOWN);
-		/* aft_global_intr_disable(card); */
-		wan_set_bit(CARD_DOWN,&card->wandev.critical);
+		aft_critical_shutdown(card);
 	}
 	}
 #endif	
@@ -4308,14 +4334,19 @@ static void wp_aft_global_isr (sdla_t* card)
 #if AFT_SECURITY_CHECK
 	if (wan_test_bit(AFT_CHIPCFG_SECURITY_STAT_BIT,&reg)){
 		if (++card->u.aft.chip_security_cnt > AFT_MAX_CHIP_SECURITY_CNT){
+#ifdef __LINUX__
+			printk(KERN_ERR "%s: Critical: Chip Security Compromised: Disabling Driver!\n",
+				card->devname);
+			printk(KERN_ERR "%s: Please call Sangoma Tech Support (www.sangoma.com)!\n",
+				card->devname);
+#else
 			DEBUG_EVENT("%s: Critical: Chip Security Compromised: Disabling Driver!\n",
 				card->devname);
 			DEBUG_EVENT("%s: Please call Sangoma Tech Support (www.sangoma.com)!\n",
 				card->devname);
+#endif
 
-			disable_data_error_intr(card,DEVICE_DOWN);
-			/* aft_global_intr_disable(card); */
-			wan_set_bit(CARD_DOWN,&card->wandev.critical);
+			aft_critical_shutdown(card);
 		}
 	}else{
 		card->u.aft.chip_security_cnt=0;
@@ -5026,7 +5057,6 @@ static void handle_front_end_state(void *card_id)
 	if (card->fe.fe_status == FE_CONNECTED){
 		if (card->wandev.state != WAN_CONNECTED){
 
-				port_set_state(card,WAN_CONNECTED);
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 				if (card->wan_tdmv.sc){
@@ -5044,12 +5074,13 @@ static void handle_front_end_state(void *card_id)
 				}
 
 				enable_data_error_intr(card);
+				port_set_state(card,WAN_CONNECTED);
 				
 		}
 	}else{
 		if (card->wandev.state == WAN_CONNECTED){
-			disable_data_error_intr(card,LINK_DOWN);
 			port_set_state(card,WAN_DISCONNECTED);
+			disable_data_error_intr(card,LINK_DOWN);
 
 			wan_set_bit(AFT_FE_LED,&card->u.aft.port_task_cmd);
 
@@ -6270,11 +6301,11 @@ static int aft_chip_unconfigure(sdla_t *card)
 	/* Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
 		wan_smp_flag_t smp_flags,smp_flags1;
-		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 		card->hw_iface.hw_lock(card->hw,&smp_flags1);
+		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 		sdla_te_unconfig(&card->fe);
-		card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+		card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 	}
 
 	wan_set_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg);
@@ -6718,7 +6749,6 @@ static void aft_dev_unconfigure(sdla_t *card, private_area_t *chan)
 					AFT_PORT_REG(card,AFT_LINE_CFG_REG),reg);
 		}
 #endif
-		chan->logic_ch_num=-1;
 
 	}
 }
@@ -7600,10 +7630,22 @@ static int aft_dma_rx(sdla_t *card, private_area_t *chan)
 		aft_free_rx_complete_list(chan);
 		free_queue_len=wan_skb_queue_len(&chan->wp_rx_free_list);
 		if (free_queue_len < MAX_AFT_DMA_CHAINS){
-			DEBUG_EVENT("%s: %s() CRITICAL ERROR: No free rx buffers\n",
-					card->devname,__FUNCTION__);
+			DEBUG_EVENT("%s: %s() CRITICAL ERROR: No free rx buffers : chain on (F=%i C=%i)\n",
+					card->devname,__FUNCTION__,
+					wan_skb_queue_len(&chan->wp_rx_free_list),
+					wan_skb_queue_len(&chan->wp_rx_complete_list));      
 			goto te1rx_skip;
 		}
+	} else if (chan->single_dma_chain && free_queue_len == 0) {
+         	aft_free_rx_complete_list(chan); 
+                free_queue_len=wan_skb_queue_len(&chan->wp_rx_free_list);
+		if (free_queue_len == 0){
+			DEBUG_EVENT("%s: %s() CRITICAL ERROR: No free rx buffers : chain off (F=%i C=%i)\n",
+					card->devname,__FUNCTION__,
+					wan_skb_queue_len(&chan->wp_rx_free_list),
+					wan_skb_queue_len(&chan->wp_rx_complete_list));
+			goto te1rx_skip;
+		}     
 	}
 
 	dma_ram_desc=chan->logic_ch_num*4 + AFT_PORT_REG(card,AFT_DMA_CHAIN_RAM_BASE_REG);
@@ -8688,13 +8730,18 @@ static int aft_read_security(sdla_t *card)
 	int adptr_security;
 	wan_smp_flag_t flags,smp_flags;
 
-	card->hw_iface.hw_lock(card->hw,&smp_flags);
-	wan_spin_lock_irq(&card->wandev.lock,&flags);
-	adptr_security=read_cpld(card,0x09);	
-	wan_spin_unlock_irq(&card->wandev.lock,&flags);
-	card->hw_iface.hw_unlock(card->hw,&smp_flags);
+        if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
+		adptr_security=1;	
+	} else {
+		card->hw_iface.hw_lock(card->hw,&smp_flags);
+		wan_spin_lock_irq(&card->wandev.lock,&flags);
+		adptr_security=read_cpld(card,0x09);	
+		wan_spin_unlock_irq(&card->wandev.lock,&flags);
+		card->hw_iface.hw_unlock(card->hw,&smp_flags);
 
-	adptr_security=(adptr_security>>2)&0x03;
+		adptr_security=(adptr_security>>2)&0x03;
+	}
+	
 	card->u.aft.security_id=adptr_security;
 	
 	if (adptr_security == 0x00){
@@ -8894,6 +8941,12 @@ static void __aft_fe_intr_ctrl(sdla_t *card, int status)
 static void aft_fe_intr_ctrl(sdla_t *card, int status)
 {
 	wan_smp_flag_t smp_flags;
+
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical) && status){
+        	DEBUG_EVENT("%s: Sanity: Failed to enable front end on CARD DOWN!\n",
+				card->devname);
+		return;
+	}    
 
 	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 	__aft_fe_intr_ctrl(card,status);
@@ -9630,5 +9683,27 @@ static void aft_clear_ss7_force_rx(sdla_t *card, private_area_t *chan)
 	wan_clear_bit(0,&chan->ss7_force_rx);
 }
 
+static void aft_critical_shutdown (sdla_t *card)
+{
+
+#ifdef __LINUX__
+	printk(KERN_ERR "%s: Error: Card Critically Shutdown!\n",
+			card->devname);
+#else
+	DEBUG_EVENT("%s: Error: Card Critically Shutdown!\n",
+			card->devname);
+#endif  	
+
+	if (IS_TE1_CARD(card)) {
+		sdla_te_unconfig(&card->fe);
+	}    	
+	
+       	port_set_state(card,WAN_DISCONNECTED);
+	disable_data_error_intr(card,DEVICE_DOWN);
+	wan_set_bit(CARD_DOWN,&card->wandev.critical);	  
+
+	aft_led_ctrl(card, WAN_AFT_RED, 0,WAN_AFT_OFF);
+	aft_led_ctrl(card, WAN_AFT_GREEN, 0, WAN_AFT_ON);
+}
 
 /****** End ****************************************************************/

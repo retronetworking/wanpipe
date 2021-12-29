@@ -153,6 +153,26 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # wanrouter	WANPIPE WAN Router Initialization Script.
 #
 # copyright	(c) 1999-2002, Sangoma Technologies Inc.
@@ -1877,7 +1897,7 @@ DEPMOD=YES
 LINEPROBE_PATH=/usr/sbin/lineprobe
 
 if [ $OSYSTEM = "Linux" ]; then
-	ROUTER_VERSION=2.3.3-7
+	ROUTER_VERSION=2.3.3-9
 	IFCONFIG_LIST=ifconfig
 	MODULE_STAT=lsmod
 	WAN_DRIVERS="wanpipe"
