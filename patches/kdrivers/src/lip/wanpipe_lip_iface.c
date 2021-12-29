@@ -1035,7 +1035,7 @@ int wplip_change_mtu(netdevice_t *dev, int new_mtu)
 	}	
 
 	if (err == 0) {
-		WAN_NETDEV_CHANGE_MTU(dev,new_mtu);
+		dev->mtu = new_mtu;
 	}
 
 	return err;

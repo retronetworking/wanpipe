@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           3.5.16
+%define VERSION           3.5.17
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -238,6 +238,13 @@ echo "Done"
 ################################################################################
 
 %changelog
+
+
+* Fri Oct 08 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.17
+===================================================================
+
+- Critical Bug fix in WAN mode.  Bug introduced in 3.5.16 
+
 
 * Fri Sep 27 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.16
 ===================================================================
