@@ -549,12 +549,16 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 	unsigned int	data;
 	unsigned int 	iface_reg_off;
 
-	if (cpld->core_info->board_id == AFT_A600_SUBSYS_VENDOR) {
-		iface_reg_off = 0x1040;	
-	} else {
-		iface_reg_off = 0x40;	
+	switch(cpld->core_info->board_id) {
+		case AFT_A600_SUBSYS_VENDOR:
+		case AFT_B601_SUBSYS_VENDOR:
+			iface_reg_off = 0x1040;	
+			break;
+		default:
+			iface_reg_off = 0x40;	
+			break;
 	}
-
+	
 	/* Release board internal reset (AFT-T1/E1/T3/E3 */
 	if (exec_read_cmd(cpld->private, iface_reg_off, 4, &data)){
 		printf("Failed access (read) to the board!\n");
@@ -637,6 +641,7 @@ int board_reset(wan_aft_cpld_t *cpld, int clear)
 	       	else data |= 0x06;
 		break;
 	case AFT_A600_SUBSYS_VENDOR:
+	case AFT_B601_SUBSYS_VENDOR:
 		if (clear) data &= ~0x06;
 	       	else data |= 0x06;
 		break;

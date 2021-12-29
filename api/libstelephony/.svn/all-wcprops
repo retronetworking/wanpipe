@@ -1,13 +1,13 @@
 K 25
 svn:wc:ra_dav:version-url
 V 33
-/svn/stelephony/!svn/ver/52/trunk
+/svn/stelephony/!svn/ver/59/trunk
 END
 stelephony.h
 K 25
 svn:wc:ra_dav:version-url
 V 46
-/svn/stelephony/!svn/ver/43/trunk/stelephony.h
+/svn/stelephony/!svn/ver/59/trunk/stelephony.h
 END
 init-automake.sh
 K 25
@@ -73,7 +73,7 @@ PToneDecoder.h
 K 25
 svn:wc:ra_dav:version-url
 V 48
-/svn/stelephony/!svn/ver/51/trunk/PToneDecoder.h
+/svn/stelephony/!svn/ver/56/trunk/PToneDecoder.h
 END
 PToneEncoder.cpp
 K 25
@@ -91,7 +91,7 @@ libstelephony.h
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/stelephony/!svn/ver/43/trunk/libstelephony.h
+/svn/stelephony/!svn/ver/59/trunk/libstelephony.h
 END
 build.sh
 K 25
@@ -115,7 +115,7 @@ stelephony.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 48
-/svn/stelephony/!svn/ver/51/trunk/stelephony.cpp
+/svn/stelephony/!svn/ver/55/trunk/stelephony.cpp
 END
 stelephony.aps
 K 25
@@ -138,8 +138,8 @@ END
 stelephony.sln
 K 25
 svn:wc:ra_dav:version-url
-V 47
-/svn/stelephony/!svn/ver/1/trunk/stelephony.sln
+V 48
+/svn/stelephony/!svn/ver/59/trunk/stelephony.sln
 END
 version
 K 25
@@ -163,7 +163,7 @@ stelephony.def
 K 25
 svn:wc:ra_dav:version-url
 V 48
-/svn/stelephony/!svn/ver/43/trunk/stelephony.def
+/svn/stelephony/!svn/ver/59/trunk/stelephony.def
 END
 libstelephony_linux_compat.h
 K 25
@@ -175,13 +175,13 @@ PToneDecoder.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 50
-/svn/stelephony/!svn/ver/51/trunk/PToneDecoder.cpp
+/svn/stelephony/!svn/ver/54/trunk/PToneDecoder.cpp
 END
 stelephony.vcproj
 K 25
 svn:wc:ra_dav:version-url
 V 51
-/svn/stelephony/!svn/ver/43/trunk/stelephony.vcproj
+/svn/stelephony/!svn/ver/59/trunk/stelephony.vcproj
 END
 README
 K 25
@@ -207,18 +207,6 @@ svn:wc:ra_dav:version-url
 V 51
 /svn/stelephony/!svn/ver/43/trunk/libstelephony.cpp
 END
-Makefile.Windows
-K 25
-svn:wc:ra_dav:version-url
-V 49
-/svn/stelephony/!svn/ver/1/trunk/Makefile.Windows
-END
-stelephony.vcproj.DAVIDRNEW.User.user
-K 25
-svn:wc:ra_dav:version-url
-V 70
-/svn/stelephony/!svn/ver/1/trunk/stelephony.vcproj.DAVIDRNEW.User.user
-END
 missing
 K 25
 svn:wc:ra_dav:version-url
@@ -229,13 +217,13 @@ Makefile.am
 K 25
 svn:wc:ra_dav:version-url
 V 45
-/svn/stelephony/!svn/ver/47/trunk/Makefile.am
+/svn/stelephony/!svn/ver/56/trunk/Makefile.am
 END
 PToneEncoder.h
 K 25
 svn:wc:ra_dav:version-url
 V 48
-/svn/stelephony/!svn/ver/43/trunk/PToneEncoder.h
+/svn/stelephony/!svn/ver/56/trunk/PToneEncoder.h
 END
 ReadMe.txt
 K 25

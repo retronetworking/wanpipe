@@ -74,7 +74,10 @@ static void tty_poll_task (struct work_struct *work)
 		return;
 
 	while ((skb=wan_skb_dequeue(&lip_link->tty_rx)) != NULL){
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31))
+		const struct tty_ldisc_ops *ops = tty->ldisc->ops;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
 		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
 #else
 		const struct tty_ldisc *ops = &tty->ldisc;
@@ -86,14 +89,17 @@ static void tty_poll_task (struct work_struct *work)
 		wan_skb_free(skb);
 	}
 
-	wan_spin_lock_irq(&lip_link->bh_lock,&smp_flags);
+	wplip_spin_lock_irq(&lip_link->bh_lock,&smp_flags);
 	if (wan_test_and_clear_bit(WPLIP_TTY_BUSY,&lip_link->tq_working)){
 		err=1;
 	}
-	wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
+	wplip_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
 	
 	if (err){
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31))
+		const struct tty_ldisc_ops *ops = tty->ldisc->ops;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
 		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
 #else
 		const struct tty_ldisc *ops = &tty->ldisc;
@@ -142,7 +148,7 @@ static void wanpipe_tty_close(struct tty_struct *tty, struct file * filp)
 		
 		wplip_link_prot_change_state(lip_link,WAN_DISCONNECTED,NULL,0);
 
-		wan_spin_lock_irq(&lip_link->bh_lock,&smp_flags);	
+		wplip_spin_lock_irq(&lip_link->bh_lock,&smp_flags);	
 		lip_link->tty=NULL;
 
 		while ((skb=wan_skb_dequeue(&lip_link->tty_rx)) != NULL){
@@ -150,7 +156,7 @@ static void wanpipe_tty_close(struct tty_struct *tty, struct file * filp)
 		}
 		
 		/* BUGFIX: Moved down here */
-		wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
+		wplip_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
 
 	}
 	return;
@@ -182,9 +188,9 @@ static int wanpipe_tty_open(struct tty_struct *tty, struct file * filp)
 	lip_link = (wplip_link_t*)tty->driver_data;
 
 	if (!lip_link){
-		wan_spin_lock_irq(&lip_link->bh_lock,&smp_flags);	
+		wplip_spin_lock_irq(&lip_link->bh_lock,&smp_flags);	
 		lip_link->tty=NULL;
-		wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
+		wplip_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
 		return -ENODEV;
 	}
 
@@ -193,9 +199,9 @@ static int wanpipe_tty_open(struct tty_struct *tty, struct file * filp)
 
 	if (lip_link->tty_open == 0){
 		
-		wan_spin_lock_irq(&lip_link->bh_lock,&smp_flags);	
+		wplip_spin_lock_irq(&lip_link->bh_lock,&smp_flags);	
 		lip_link->tty=tty;
-		wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
+		wplip_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
 
 		wan_skb_queue_init(&lip_link->tty_rx);
 
@@ -268,9 +274,9 @@ static int wanpipe_tty_write(struct tty_struct * tty, int from_user,
 
 	err=wplip_data_tx_down(lip_link,skb);
 	if (err){
-		wan_spin_lock_irq(&lip_link->bh_lock,&smp_flags);
+		wplip_spin_lock_irq(&lip_link->bh_lock,&smp_flags);
 		wan_set_bit(WPLIP_TTY_BUSY,&lip_link->tq_working);
-		wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
+		wplip_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
 
 		DEBUG_TEST("%s: Failed to tx down!\n",
 				lip_link->name);
@@ -404,9 +410,9 @@ static void wanpipe_tty_put_char(struct tty_struct *tty, unsigned char ch)
 
 	err=wplip_data_tx_down(lip_link,skb);
 	if (err){
-		wan_spin_lock_irq(&lip_link->bh_lock,&smp_flags);
+		wplip_spin_lock_irq(&lip_link->bh_lock,&smp_flags);
 		wan_set_bit(WPLIP_TTY_BUSY,&lip_link->tq_working);
-		wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
+		wplip_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
 		wan_skb_free(skb);
 	}
 
@@ -435,7 +441,10 @@ static void wanpipe_tty_flush_buffer(struct tty_struct *tty)
 	wake_up_interruptible(&tty->poll_wait);
 #endif
 	if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP))) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31))
+		const struct tty_ldisc_ops *ops = tty->ldisc->ops;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
 		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
 #else
 		const struct tty_ldisc *ops = &tty->ldisc;
@@ -506,9 +515,9 @@ static void wanpipe_tty_hangup(struct tty_struct *tty)
 	if (!lip_link)
 		return;
 
-	wan_spin_lock_irq(&lip_link->bh_lock,&smp_flags);
+	wplip_spin_lock_irq(&lip_link->bh_lock,&smp_flags);
 	set_modem_status(lip_link,0);
-	wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
+	wplip_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
 
 	return;
 }
@@ -753,7 +762,7 @@ int wplip_unreg_tty(wplip_link_t *lip_link)
 				lip_link->name,WAN_TTY_MAJOR);
 
 	}
-	wan_spin_lock_irq(&lip_link->bh_lock,&smp_flags);	
+	wplip_spin_lock_irq(&lip_link->bh_lock,&smp_flags);	
 	lip_link->tty=NULL;
 
 	if (tty_lip_link_map[lip_link->tty_minor] == lip_link){
@@ -762,7 +771,7 @@ int wplip_unreg_tty(wplip_link_t *lip_link)
 
 	state = &rs_table[lip_link->tty_minor];
 	memset(state,0,sizeof(*state));
-	wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);	
+	wplip_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);	
 
 	return 0;
 }

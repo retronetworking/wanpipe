@@ -50,9 +50,9 @@
 #ifndef	_SDLADRV_H
 #   define	_SDLADRV_H
 #ifdef __SDLADRV__
-# define EXTERN 
+# define WP_EXTERN 
 #else
-# define EXTERN extern
+# define WP_EXTERN extern
 #endif
 
 #if defined(__LINUX__)
@@ -444,14 +444,13 @@ typedef struct sdlahw_usb_
 	struct usb_interface	*usb_intf;
 # endif
 
-////////////////////////////////
-        int 		urbcount_read;
+	int 	urbcount_read;
 	int		urb_read_ind;
 	struct wan_urb	dataread[MAX_READ_URB_COUNT];
 	
-        int 		urbcount_write;
+	int		urbcount_write;
 	int		urb_write_ind;
-        struct wan_urb	datawrite[MAX_WRITE_URB_COUNT];
+	struct wan_urb	datawrite[MAX_WRITE_URB_COUNT];
 
 	char		readchunk[2][WP_USB_MAX_CHUNKSIZE * 2+1];
 	char		writechunk[2][WP_USB_MAX_CHUNKSIZE * 2+1];
@@ -471,13 +470,13 @@ typedef struct sdlahw_usb_
 	int		rx_sync;
 	int		next_rx_ind;
 	int		next_read_ind;
-	char		readbuf[MAX_READ_BUF_LEN+MAX_USB_RX_LEN+10];	// 10 for safety 
+	char	readbuf[MAX_READ_BUF_LEN+MAX_USB_RX_LEN+10];	// 10 for safety 
 
 	int		next_tx_ind;
 	int		next_write_ind;
-	char		writebuf[MAX_WRITE_BUF_LEN+MAX_USB_TX_LEN+10];	// 10 for safety 
+	char	writebuf[MAX_WRITE_BUF_LEN+MAX_USB_TX_LEN+10];	// 10 for safety 
 
-	char		idlebuf[MAX_USB_TX_LEN+1];
+	char	idlebuf[MAX_USB_TX_LEN+1];
 
 	wan_tasklet_t	bh_task;
 
@@ -493,10 +492,10 @@ typedef struct sdlahw_usb_
 	void		(*isr_func)(void*);
 	void		*isr_arg;
 
-	// Statistics 
+	/* Statistics */
 	sdla_usb_comm_err_stats_t	stats;
 
-///////////////////////////////
+
 } sdlahw_usb_t;
 #else
 #define WP_USB_BUSID(hwcard)	"usb not supported"
@@ -622,6 +621,9 @@ typedef struct sdlahw_dev
 
 	int				max_chans_num;          /* maximum number of channels (timeslots) */
 	u_int32_t		chans_map;              /* channels map per hw device (A200/A400/ISDN) */
+	u_int32_t		fxo_map;              /* FXO channels map per hw device (A200/A400) */
+	u_int32_t		fxs_map;              /* FXS channels map per hw device (A200/A400) */
+	int             bri_modtype;          /* BRI type for hw device (ISDN) */
 
 	int				max_port_no;
 	sdlahw_port_t	hwport[SDLA_MAX_HWPORTS];
@@ -742,6 +744,7 @@ typedef struct sdla_hw_type_cnt
 	unsigned char aft_56k_adapters;
 	unsigned char aft_serial_adapters;
 	unsigned char aft_a600_adapters;
+	unsigned char aft_b601_adapters;
 	unsigned char aft_a700_adapters;
 	
 	unsigned char aft_x_adapters;
@@ -763,17 +766,17 @@ typedef struct sdladrv_hw_probe_iface {
 
 /****** Function Prototypes *************************************************/
 
-EXTERN int sdladrv_hw_mode(int);
-EXTERN unsigned int sdla_hw_probe(void);
-EXTERN unsigned int sdla_hw_bridge_probe(void);
-EXTERN void *sdla_get_hw_probe (void);
-EXTERN void *sdla_get_hw_adptr_cnt(void);
-EXTERN void* sdla_register	(sdlahw_iface_t* hw_iface, wandev_conf_t*,char*);
-EXTERN int sdla_unregister	(void**, char*);
+WP_EXTERN int sdladrv_hw_mode(int);
+WP_EXTERN unsigned int sdla_hw_probe(void);
+WP_EXTERN unsigned int sdla_hw_bridge_probe(void);
+WP_EXTERN void *sdla_get_hw_probe (void);
+WP_EXTERN void *sdla_get_hw_adptr_cnt(void);
+WP_EXTERN void* sdla_register	(sdlahw_iface_t* hw_iface, wandev_conf_t*,char*);
+WP_EXTERN int sdla_unregister	(void**, char*);
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
-EXTERN int sdla_get_hw_usb_adptr_cnt(void);
+WP_EXTERN int sdla_get_hw_usb_adptr_cnt(void);
 #endif
-EXTERN int sdla_get_hwinfo(hardware_info_t *hwinfo, int card_no);
+WP_EXTERN int sdla_get_hwinfo(hardware_info_t *hwinfo, int card_no);
 
 
 #ifdef __SDLADRV__
@@ -1226,7 +1229,8 @@ static __inline u32 SDLA_REG_OFF(sdlahw_card_t	*hwcard, u32 reg)
 		return reg;
 	}
 	
-	if (hwcard->adptr_type == AFT_ADPTR_A600) {
+	if (hwcard->adptr_type == AFT_ADPTR_A600 ||
+		hwcard->adptr_type == AFT_ADPTR_B601) {
 		if (reg < 0x100) {
 			return (reg+0x1000);
 		} else {
@@ -1238,5 +1242,5 @@ static __inline u32 SDLA_REG_OFF(sdlahw_card_t	*hwcard, u32 reg)
 }
 
 
-#undef EXTERN 
+#undef WP_EXTERN 
 #endif	/* _SDLADRV_H */

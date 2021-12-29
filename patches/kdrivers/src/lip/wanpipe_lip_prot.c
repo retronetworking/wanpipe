@@ -1,6 +1,8 @@
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <wanpipe_lip.h>
+#elif defined(__WINDOWS__)
+# include "wanpipe_lip.h"
 #else
 # include <linux/wanpipe_lip.h>
 #endif
@@ -16,9 +18,18 @@ static wplip_prot_iface_t *wplip_prot_ops[MAX_LIP_PROTOCOLS];
  */
 
 static wplip_prot_reg_t wplip_prot_reg_ops;
+
+#if defined(__WINDOWS__)
+static void wplip_prot_timer(IN PKDPC Dpc, void *arg, void *arg2, void *arg3);
+extern void wplip_poll_carrier_status(wplip_link_t *lip_link);
+#else
 static void wplip_prot_timer(wan_timer_arg_t arg);
+#endif
+
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static void wplip_port_task (void *arg, int);
+#elif defined(__WINDOWS__)
+static void wplip_port_task (IN PKDPC Dpc, void *arg, void *arg2, void *arg3);
 #else
 # if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
 static void wplip_port_task (void *arg);
@@ -535,6 +546,8 @@ int wplip_prot_udp_snmp_pkt(wplip_dev_t * lip_dev, int cmd, struct ifreq* ifr)
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static void wplip_port_task (void *arg, int dummy)
+#elif defined(__WINDOWS__)
+static void wplip_port_task (IN PKDPC Dpc, void *arg, void *arg2, void *arg3)
 #else
 # if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
 static void wplip_port_task (void *arg)
@@ -570,8 +583,12 @@ static void wplip_port_task (struct work_struct *work)
 	}
 }
 
-
+#if defined(__WINDOWS__)
+/* This timer runs all the time. The delay is 1 second. */
+static void wplip_prot_timer(IN PKDPC Dpc, void *arg, void *arg2, void *arg3)
+#else
 static void wplip_prot_timer(wan_timer_arg_t arg)
+#endif
 {
 	wplip_link_t	*lip_link=(wplip_link_t *)arg;
 	unsigned int	period=HZ;
@@ -595,7 +612,15 @@ static void wplip_prot_timer(wan_timer_arg_t arg)
 		return;
 	}
 
-	wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+#if defined(__WINDOWS__)
+	/* Front End often gets connected before Protocol is fully
+	 * initialized (especially on 56k), so "Connected" event is lost. 
+	 * Poll the Carrier for FE Status and, if different from what
+	 * 'lip_link->carrier_state', call wplip_connect()/wplip_disconnect(). */
+	wplip_poll_carrier_status(lip_link);
+#endif
+
+	wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 
 	if (lip_link->carrier_state == WAN_CONNECTED){
 		prot_iface->timer(lip_link->prot,&period,1);
@@ -603,7 +628,7 @@ static void wplip_prot_timer(wan_timer_arg_t arg)
 		prot_iface->timer(lip_link->prot,&period,0);
 	}
 
-	wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+	wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 
 	if (wan_skb_queue_len(&lip_link->tx_queue)){
 		wplip_trigger_bh(lip_link);
@@ -645,8 +670,7 @@ static int wplip_prot_rx_up(void *lip_dev_ptr, void *skb, int type)
 
 	case WPLIP_RAW:
 
-                if ((lip_dev->protocol == WANCONFIG_LIP_ATM ||
-                     lip_dev->protocol == WANCONFIG_LIP_ATM) &&
+                if ((lip_dev->protocol == WANCONFIG_LIP_ATM) &&
 		     lip_dev->common.usedby != API) {
 			/* If ATM is not in API mode
 			   Dont pass RAW Cells up the stack */
@@ -881,31 +905,31 @@ int wplip_init_prot(void)
 	prot_iface->bh				= wp_lapb_bh;
 	prot_iface->snmp			= NULL;
 #endif
-
-        /* LAPD initialization */
+	
+	/* LAPD initialization */
 #ifdef CONFIG_PRODUCT_WANPIPE_LIP_LAPD
-        offset+=sprintf(&tmp[offset],"%s ","LIP_LAPD");
-        prot_iface=wan_kmalloc(sizeof(wplip_prot_iface_t));
-        if (!prot_iface){
-	                return -ENOMEM;
-		        }
-        memset(prot_iface,0,sizeof(wplip_prot_iface_t));
-        wplip_prot_ops[WANCONFIG_LAPD]=prot_iface;
-
-        prot_iface->init                        = 1;
-        prot_iface->prot_link_register          = wp_register_lapd_prot;
-        prot_iface->prot_link_unregister        = wp_unregister_lapb_prot;
-        prot_iface->prot_chan_register          = wp_register_lapb_chan_prot;
-        prot_iface->prot_chan_unregister        = wp_unregister_lapb_chan_prot;
-        prot_iface->open_chan                   = wp_lapb_open;
-        prot_iface->close_chan                  = wp_lapb_close;
-        prot_iface->tx                          = wp_lapb_tx;
-        prot_iface->ioctl                       = NULL;
-        prot_iface->pipemon                     = NULL;
-        prot_iface->rx                          = wp_lapb_rx;
-        prot_iface->timer                       = wp_lapb_timer;
-        prot_iface->bh                          = wp_lapb_bh;
-        prot_iface->snmp                        = NULL;
+	offset+=sprintf(&tmp[offset],"%s ","LIP_LAPD");
+	prot_iface=wan_kmalloc(sizeof(wplip_prot_iface_t));
+	if (!prot_iface){
+		return -ENOMEM;
+	}
+	memset(prot_iface,0,sizeof(wplip_prot_iface_t));
+	wplip_prot_ops[WANCONFIG_LAPD]=prot_iface;
+	
+	prot_iface->init                        = 1;
+	prot_iface->prot_link_register          = wp_register_lapd_prot;
+	prot_iface->prot_link_unregister        = wp_unregister_lapb_prot;
+	prot_iface->prot_chan_register          = wp_register_lapb_chan_prot;
+	prot_iface->prot_chan_unregister        = wp_unregister_lapb_chan_prot;
+	prot_iface->open_chan                   = wp_lapb_open;
+	prot_iface->close_chan                  = wp_lapb_close;
+	prot_iface->tx                          = wp_lapb_tx;
+	prot_iface->ioctl                       = NULL;
+	prot_iface->pipemon                     = NULL;
+	prot_iface->rx                          = wp_lapb_rx;
+	prot_iface->timer                       = wp_lapb_timer;
+	prot_iface->bh                          = wp_lapb_bh;
+	prot_iface->snmp                        = NULL;
 #endif
 	
 

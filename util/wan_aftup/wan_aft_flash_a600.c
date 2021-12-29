@@ -40,6 +40,7 @@
 # include <wanpipe_cfg.h>
 #endif
 
+#include "wan_aftup.h"
 #include "wan_aft_prg.h"
 #include "wan_aft_flash_a600.h"
 
@@ -61,10 +62,8 @@ extern void hit_any_key(void);
 static int aft_reset_flash_a600(wan_aft_cpld_t *cpld);
 static int aft_is_protected_a600(wan_aft_cpld_t *cpld, int stype);
 static int aft_flash_id_a600(wan_aft_cpld_t *cpld, int mtype, int stype, int *flash_id);
-static int aft_reload_flash_a600(wan_aft_cpld_t *cpld, int sector_type);
-
+static int aft_reload_flash_a600(wan_aft_cpld_t *cpld, int unused);
 static int aft_write_flash_a600(wan_aft_cpld_t*,int,unsigned long,u8*);
-
 static int aft_read_flash_a600(wan_aft_cpld_t*,int,int,unsigned long,u8**);
 
 
@@ -165,12 +164,19 @@ static int aft_flash_id_a600(wan_aft_cpld_t *cpld, int unused_1, int unused_2, i
 static int aft_reload_flash_a600(wan_aft_cpld_t *cpld, int unused)
 {
 	unsigned int data_read = 0x00;
+	u32 firm_version;
+	firm_version = ((wan_aftup_t*) cpld->private)->flash_rev;
 
 	exec_read_cmd(cpld->private, 0x1040, 4, &data_read); 
 
-	data_read |= (1 << 18);
+	if (firm_version >=3) {
+		data_read |= (1 << 19);
+	} else {
+		data_read |= (1 << 18);
+	}
 
 	exec_write_cmd(cpld->private, 0x1040, 4, data_read);
+	wp_usleep(3000000);
 	return 0;
 }
 
@@ -619,7 +625,7 @@ int exec_sflash_wait_ready (wan_aft_cpld_t *cpld)
 	exec_read_cmd(cpld->private, EEPROM_CNTRL_REG, 4, &data_read); 
 	
 	while (data_read & EEPROM_READY_BIT) {
-		usleep(5);
+		wp_usleep(5);
 		exec_read_cmd(cpld->private, EEPROM_CNTRL_REG, 4, &data_read);
 		if (cnt++ > 200000) {
 			return -1;
@@ -642,7 +648,7 @@ int exec_sflash_wait_write_done (wan_aft_cpld_t *cpld, int typical_time)
 	data_read = (data_read >> 8) & 0xFF;
 		
 	while (data_read & M25P40_SR_BIT_WIP) {
-		usleep(typical_time/5);
+		wp_usleep(typical_time/5);
 		
 		err = exec_sflash_instruction_cmd(cpld, 
 					M25P40_COMMAND_RDSR, 

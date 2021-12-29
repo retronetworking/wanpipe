@@ -5,6 +5,10 @@ Author: David Yat Sin <dyatsin@sangoma.com>
 Copyright (c) 2007-2008 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
+* Tue Feb 23 2010 David Yat Sin <dyatsin@sangoma.com> - 2.21
+============================================================
+- Support for boost version 103
+
 * Thu May 07 2009 David Yat Sin <david.yatsin@sangoma.com> - 2.06
 =================================================================
 - Fix for segfault on invalid ACU_DIGIT_IN

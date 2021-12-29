@@ -44,11 +44,17 @@ public:
 	sangoma_port_configurator();
 	virtual ~sangoma_port_configurator();
 	
-	int open_port_registry_key(hardware_info_t *hardware_info);
-
 	int get_configration(port_cfg_t *port_cfg);
 
 	int set_default_configuration(port_cfg_t *port_cfg);
+
+	//Function to set Loop Current Measure (LCM) for analog FXO 
+	//control_val 1: enable,0: disable
+	int control_analog_rm_lcm(port_cfg_t *port_cfg, int control_val);
+
+	//Function to set Operation mode for analog FXO 
+	//opermode valid country name supported by Analog FXO
+	int set_analog_opermode(port_cfg_t *port_cfg, char *opermode);
 
 	//Function to check correctness of 'port_cfg_t' structure.
 	int check_port_cfg_structure(port_cfg_t *port_cfg);

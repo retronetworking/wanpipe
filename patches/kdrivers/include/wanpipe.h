@@ -620,7 +620,8 @@ typedef struct
 	unsigned long 	active_ch_map;
 	unsigned long 	fifo_addr_map;
 	unsigned long 	fifo_addr_map_l2;
-	wan_timer_t 	led_timer;
+	wan_timer_t 	bg_timer;
+	unsigned int 	bg_timer_cmd;
 	unsigned char 	tdmv_sync;
 	unsigned int	chip_cfg_status;	
 	wan_taskq_t 	port_task;
@@ -684,7 +685,8 @@ enum {
 	AFT_TDM_FAST_ISR,
 	AFT_TDM_SW_RING_BUF,
 	AFT_TDM_RING_SYNC_RESET,
-	AFT_TDM_FREE_RUN_ISR
+	AFT_TDM_FREE_RUN_ISR,
+	AFT_TDM_FE_SYNC_CNT
 };
 
 typedef struct 
@@ -907,21 +909,26 @@ typedef struct sdla
 	PDMA_ADAPTER	DmaAdapterObject;  /* Object for allocating memory for DMA.
 										* Can NOT be called from spin-locked code!!
 										* (not from regular lock too)	*/
+#if 0
 	wan_debug_t		wan_debug_rx_interrupt_timing;
 	wan_debug_t		wan_debug_tx_interrupt_timing;
+#endif
 #endif
 
 	void *tdm_api_dev;
 	void *tdm_api_span;
-	unsigned char wp_debug_gen_fifo_err;
+	unsigned int wp_debug_gen_fifo_err_tx;
+	unsigned int wp_debug_gen_fifo_err_rx;
 	unsigned char wp_debug_chan_seq;
- 
+	unsigned int wp_rx_fifo_sanity;
+	unsigned int wp_tx_fifo_sanity;
+
 #if defined(WANPIPE_PERFORMANCE_DEBUG)
- 	wan_ticks_t				debug_timeout;
-	struct timeval			timing_tv;
+	aft_driver_performance_stats_t aft_perf_stats;
 #endif
 
 } sdla_t;
+
 
 /****** Public Functions ****************************************************/
 

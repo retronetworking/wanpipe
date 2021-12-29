@@ -142,6 +142,7 @@ static int wanec_api_monitor(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api);
 static wan_ec_dev_t *wanec_search(char *devname);
 
 static int wanec_enable(void *pcard, int enable, int fe_chan);
+
 static int wanec_poll(void *arg, void *pcard);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -194,17 +195,16 @@ int wan_ec_read_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 *data)
 	card = ec_dev->card;
 	addr = convert_addr(addr1);
 	if (addr == 0x00){
-		DEBUG_EVENT("%s: %s:%d: Internal Error (EC off %X)\n",
+		DEBUG_ERROR("%s: %s:%d: Internal Error (EC off %X)\n",
 				card->devname,
 				__FUNCTION__,__LINE__,
 				addr1);
 		return -EINVAL;
 	}
 
-	if (IS_A600_CARD(card)) {
-                addr+=0x1000;
-        }
-
+	if (IS_A600_CARD(card) || IS_B601_CARD(card)) {
+		addr+=0x1000;
+	}
 
 	err = card->hw_iface.bus_read_4(card->hw, addr, data);
 
@@ -227,16 +227,16 @@ int wan_ec_write_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 data)
 	card = ec_dev->card;
 	addr = convert_addr(addr1);
 	if (addr == 0x00){
-		DEBUG_EVENT("%s: %s:%d: Internal Error (EC off %X)\n",
+		DEBUG_ERROR("%s: %s:%d: Internal Error (EC off %X)\n",
 				card->devname,
 				__FUNCTION__,__LINE__,
 				addr1);
 		return -EINVAL;
 	}
 
- 	if (IS_A600_CARD(card)) {
-                addr+=0x1000;
-        }
+ 	if (IS_A600_CARD(card) || IS_B601_CARD(card)) {
+		addr+=0x1000;
+	}
 
 	err = card->hw_iface.bus_write_4(card->hw, addr, data);
 
@@ -271,17 +271,56 @@ static int wanec_reset(wan_ec_dev_t *ec_dev, int reset)
 	return err;
 }
 
+
+static int wanec_state(void *pcard, wan_hwec_dev_state_t *ecdev_state)
+{
+	sdla_t		*card = (sdla_t*)pcard;
+	wan_ec_dev_t	*ec_dev = NULL;
+	wan_ec_t	*ec;
+
+	ec_dev = card->wandev.ec_dev;
+
+	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+
+	if (ec->state == WAN_EC_STATE_CHIP_OPEN) {
+		ec_dev->ecdev_state.ec_state=1;
+	} else {
+		ec_dev->ecdev_state.ec_state=0;
+	}
+
+	memcpy(ecdev_state,&ec_dev->ecdev_state,sizeof(wan_hwec_dev_state_t));
+
+	DEBUG_HWEC("%s: wanecdev_state  ec_state=%i, ec_mode_map=0x%08X, dtmf_map=0x%08X, fax_called=0x%08X, fax_calling=0x%08X\n",
+			ec_dev->name,
+			ecdev_state->ec_state,
+    		ecdev_state->ec_mode_map,
+			ecdev_state->dtmf_map,
+			ecdev_state->fax_called_map,
+			ecdev_state->fax_calling_map);
+
+	return 0;
+}
+
 static int wanec_enable(void *pcard, int enable, int fe_chan)
 {
 	sdla_t		*card = (sdla_t*)pcard;
+	wan_ec_t	*ec = NULL;
 	wan_ec_dev_t	*ec_dev = NULL;
 	wan_smp_flag_t flags;
 	int err;
 
-	ec_dev =
-		wanec_search(card->devname);
+	ec_dev = card->wandev.ec_dev;
 
 	WAN_ASSERT(ec_dev == NULL);
+	WAN_ASSERT(ec_dev->ec == NULL);
+	ec = ec_dev->ec;
+
+	if (ec->state != WAN_EC_STATE_CHIP_OPEN){
+   		return -EINVAL; 		
+	}
+
 
 #if defined(WANEC_BYDEFAULT_NORMAL)
 	WAN_ASSERT(ec_dev->ec == NULL);
@@ -327,8 +366,9 @@ wanec_bypass(wan_ec_dev_t *ec_dev, int fe_chan, int enable, int verbose)
 	if (!wan_test_bit(fe_chan, &ec_dev->fe_channel_map)){
 		PRINT1(verbose, "%s: FE channel %d is not available (fe_chan_map=%X)!\n",
 					ec->name, fe_chan, ec_dev->fe_channel_map);
-		return 0;
+		return -ENODEV;
 	}
+	
 	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
 	if (enable){
 		if (wan_test_bit(fe_chan, &card->wandev.fe_ec_map)){
@@ -350,7 +390,7 @@ wanec_bypass(wan_ec_dev_t *ec_dev, int fe_chan, int enable, int verbose)
 
 	err=wan_ec_update_and_check(ec,enable);
         if (err) {
-                DEBUG_EVENT("%s: Error: Maximum EC Channels Reached! MaxEC=%i\n",
+                DEBUG_ERROR("%s: Error: Maximum EC Channels Reached! MaxEC=%i\n",
                                 ec->name,ec->max_ec_chans);
                 return err;
         }
@@ -471,6 +511,7 @@ static int wanec_channel_opmode_modify(wan_ec_dev_t *ec_dev, int fe_chan, UINT32
 {
 	wan_ec_t	*ec = NULL;
 	u_int32_t	ec_chan = 0;
+	int 		err=0;
 
 	WAN_ASSERT(ec_dev == NULL);
 	WAN_ASSERT(ec_dev->ec == NULL);
@@ -513,7 +554,44 @@ static int wanec_channel_opmode_modify(wan_ec_dev_t *ec_dev, int fe_chan, UINT32
 			(opmode == cOCT6100_ECHO_OP_MODE_SPEECH_RECOGNITION) ? "Speech Recognition" : "Unknown",
 			fe_chan);
 	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
-	return wanec_ChannelModifyOpmode(ec_dev, ec_chan, opmode, verbose);
+	err=wanec_ChannelModifyOpmode(ec_dev, ec_chan, opmode, verbose);
+	
+	if (err == 0) {
+    	if (opmode == cOCT6100_ECHO_OP_MODE_POWER_DOWN) {
+         	wan_clear_bit(fe_chan,&ec_dev->ecdev_state.ec_mode_map);
+		} else {
+         	wan_set_bit(fe_chan,&ec_dev->ecdev_state.ec_mode_map);
+		}
+	}
+
+	return err;
+}
+static int wanec_update_tone_status (wan_ec_dev_t *ec_dev, 
+								     int fe_chan,
+									 int	cmd,
+									 wanec_tone_config_t	*tone)
+{
+	if (tone->id == WP_API_EVENT_TONE_DTMF) {
+		if (cmd == WAN_TRUE) {      
+        	wan_set_bit(fe_chan,&ec_dev->ecdev_state.dtmf_map);
+		} else {
+        	wan_clear_bit(fe_chan,&ec_dev->ecdev_state.dtmf_map);
+		}
+	} else if (tone->id == WP_API_EVENT_TONE_FAXCALLING) {
+		if (cmd == WAN_TRUE) {      
+        	wan_set_bit(fe_chan,&ec_dev->ecdev_state.fax_calling_map);
+		} else {
+        	wan_clear_bit(fe_chan,&ec_dev->ecdev_state.fax_calling_map);
+		}
+	} else if (tone->id == WP_API_EVENT_TONE_FAXCALLED) {
+		if (cmd == WAN_TRUE) {      
+        	wan_set_bit(fe_chan,&ec_dev->ecdev_state.fax_called_map);
+		} else {
+        	wan_clear_bit(fe_chan,&ec_dev->ecdev_state.fax_called_map);
+		}
+	}
+
+	return 0;
 }
 
 static int wanec_channel_tone(	wan_ec_dev_t		*ec_dev,
@@ -554,6 +632,9 @@ static int wanec_channel_tone(	wan_ec_dev_t		*ec_dev,
 	ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
 	err = wanec_TonesCtrl(ec, cmd, ec_chan, tone, verbose);
 	if (err == WAN_EC_API_RC_OK){
+
+		wanec_update_tone_status(ec_dev, fe_chan, cmd, tone);
+
 		if (cmd == WAN_TRUE){
 			wan_set_bit(WAN_EC_BIT_EVENT_TONE, &ec_dev->events);
 			ec->tone_verbose = verbose;
@@ -787,7 +868,7 @@ int wanec_api_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
 			if (ec_dev_tmp->state == WAN_EC_STATE_CHAN_READY){
 				/* This EC device is still connected */
 				ec->f_Context.ec_dev	= ec_dev_tmp;
-				strlcpy(ec->f_Context.devname, ec_dev_tmp->devname, WAN_DRVNAME_SZ);
+				wp_strlcpy(ec->f_Context.devname, ec_dev_tmp->devname, WAN_DRVNAME_SZ);
 				break;
 			}
 		}
@@ -804,9 +885,14 @@ int wanec_api_release(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api, int verbose)
 			}
 			if (ec_dev->fe_media == WAN_MEDIA_E1 && fe_chan == 0) continue;
 			ec_chan = wanec_fe2ec_channel(ec_dev, fe_chan);
+
+			wanec_bypass(ec_dev, fe_chan, 0, 0);
  			wanec_ChannelClose(ec_dev, ec_chan, verbose);
 		}
 	}
+
+	memset(&ec_dev->ecdev_state,0,sizeof(ec_dev->ecdev_state));
+
 	ec_dev->state = WAN_EC_STATE_RESET;
 	if (ec_dev_tmp){
 		/* EC device is still in used */
@@ -878,7 +964,9 @@ static int wanec_api_modify(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 					ec_dev, fe_chan,
 					cOCT6100_ECHO_OP_MODE_NORMAL,
 					ec_api->verbose);
-			if (err) return WAN_EC_API_RC_FAILED;
+			if (err) {
+				return WAN_EC_API_RC_FAILED;
+			}
 			err = wanec_bypass(ec_dev, fe_chan, 1, ec_api->verbose);
 		}else{
 			wanec_bypass(ec_dev, fe_chan, 0, ec_api->verbose);
@@ -1009,16 +1097,6 @@ static int wanec_api_modify_bypass(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
 
-#if 1
-	if (ec_dev->state != WAN_EC_STATE_CHAN_READY){
-		DEBUG_EVENT("DAVIDY Ignoring EC state - put back later\n");
-		DEBUG_EVENT(
-		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
-				ec_dev->devname,
-				ec->name,
-				WAN_EC_STATE_DECODE(ec->state));
-	}
-#else
 	if (ec_dev->state != WAN_EC_STATE_CHAN_READY){
 		DEBUG_EVENT(
 		"ERROR: %s: Invalid Echo Canceller %s API state (%s)\n",
@@ -1027,7 +1105,6 @@ static int wanec_api_modify_bypass(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 				WAN_EC_STATE_DECODE(ec->state));
 		return WAN_EC_API_RC_INVALID_STATE;
 	}
-#endif
 
 	if (ec_api->fe_chan_map == 0xFFFFFFFF){
 		/* All channels selected */
@@ -1595,6 +1672,8 @@ static int wan_ec_devnum(char *ptr)
 	return num;
 }
 
+
+
 static void*
 wanec_register(void *pcard, u_int32_t fe_port_mask, int max_fe_chans, int max_ec_chans, void *pconf)
 {
@@ -1608,7 +1687,7 @@ wanec_register(void *pcard, u_int32_t fe_port_mask, int max_fe_chans, int max_ec
 	WAN_LIST_FOREACH(ec, &wan_ec_head, next){
 		WAN_LIST_FOREACH(ec_dev, &ec->ec_dev_head, next){
 			if (ec_dev->card == NULL || ec_dev->card == card){
-				DEBUG_EVENT("%s: Internal Error (%s:%d)\n",
+				DEBUG_ERROR("%s: Internal Error (%s:%d)\n",
 					card->devname, __FUNCTION__,__LINE__);
 				return NULL;
 			}
@@ -1624,7 +1703,7 @@ wanec_register(void *pcard, u_int32_t fe_port_mask, int max_fe_chans, int max_ec
 
 	if (ec && ec_dev){
 		if(wan_test_bit(WAN_EC_BIT_CRIT_ERROR, &ec_dev->ec->critical)){
-			DEBUG_EVENT("%s: Echo Canceller chip has Critical Error flag set!\n",
+			DEBUG_ERROR("%s: Echo Canceller chip has Critical Error flag set!\n",
 					card->devname);
 			return NULL;
 		}
@@ -1705,7 +1784,13 @@ wanec_register(void *pcard, u_int32_t fe_port_mask, int max_fe_chans, int max_ec
 
 #if 1
 	if (IS_A600_CARD(card)) {
-		ec_dev_new->fe_max_chans	= 5;	//max_line_no;	//
+		ec_dev_new->fe_max_chans	= 5;
+	} else if (IS_B601_CARD(card)) {
+		if (IS_TE1_CARD(card)) {
+			ec_dev_new->fe_max_chans  = WAN_FE_MAX_CHANNELS(&card->fe);
+		} else {
+			ec_dev_new->fe_max_chans	= 5;
+		}
 	} else if (IS_A700_CARD(card)) {
 		ec_dev_new->fe_max_chans	= 2;	//max_line_no;	//
 	} else {
@@ -1746,6 +1831,7 @@ wanec_register(void *pcard, u_int32_t fe_port_mask, int max_fe_chans, int max_ec
 
 	/* Initialize hwec_bypass pointer */
 	card->wandev.ec_enable	= wanec_enable;
+	card->wandev.ec_state   = wanec_state;
 	card->wandev.fe_ec_map	= 0;
 
 	memcpy(ec_dev_new->devname, card->devname, sizeof(card->devname));
@@ -1953,6 +2039,7 @@ wanec_poll_done:
 	return err;
 }
 
+
 static int wanec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl)
 {
 	wan_ec_t	*ec = NULL;
@@ -1982,6 +2069,17 @@ static int wanec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl
 			err=wanec_channel_tone(ec_dev, event_ctrl->channel, enable, &tone, wanec_verbose);
 		}
 		break;
+
+	case WAN_EVENT_EC_FAX_DETECT:
+		{
+			wanec_tone_config_t	tone;
+			tone.id		= WP_API_EVENT_TONE_FAXCALLING;
+			tone.port_map	= WAN_EC_CHANNEL_PORT_SOUT;
+			tone.type	= WAN_EC_TONE_PRESENT;
+			enable = (event_ctrl->mode == WAN_EVENT_ENABLE) ? WAN_TRUE : WAN_FALSE;
+			err=wanec_channel_tone(ec_dev, event_ctrl->channel, enable, &tone, wanec_verbose);
+		}
+
 	case WAN_EVENT_EC_H100_REPORT:
 		if (event_ctrl->mode == WAN_EVENT_DISABLE){
 			ec->ignore_H100 = 1;
@@ -2005,7 +2103,7 @@ int wanec_init(void *arg)
 {
 #if defined(__WINDOWS__)
 	if(wanec_iface.reg != NULL){
-		DEBUG_EVENT("%s(): Warning: Initialization already done!\n", __FUNCTION__);
+		DEBUG_WARNING("%s(): Warning: Initialization already done!\n", __FUNCTION__);
 		return 0;
 	}
 #endif

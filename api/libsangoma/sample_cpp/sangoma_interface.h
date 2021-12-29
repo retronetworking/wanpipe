@@ -45,7 +45,7 @@
 # include <winioctl.h>
 # include <conio.h>
 # include "bit_win.h"
-# include "wanpipe_time.h" //for usleep()
+# include "wanpipe_time.h" //for wp_usleep()
 
 #elif defined(__LINUX__)
 
@@ -78,16 +78,16 @@
  *  API may provide input from a SINGLE or from MULTIPLE timeslots.
  */
 #define USE_STELEPHONY_API 1 /* set to zero if don't need to compile 
-								libstelephony.dll function calls */
+								function calls to libstelephony.dll */
 
 #include "wanpipe_api.h"
 #include "sangoma_cthread.h"
 #include "sample.h"
 
-#include <libsangoma.h>
+#include "libsangoma.h"
 
 #if USE_STELEPHONY_API
-# include <libstelephony.h>
+# include "libstelephony.h"
 #endif
 
 /*!
@@ -101,7 +101,7 @@ protected:
 	sng_fd_t	sangoma_dev;
 
 	/*! wait object device for an IO device */
-	void *sng_wait_obj;
+	sangoma_wait_obj_t *sng_wait_obj;
 
 	//////////////////////////////////////////////////////////////////
 	//receive stuff
@@ -156,19 +156,16 @@ protected:
 	/*! Tx Thread function */
 	void TxThreadFunc();
 
-	/*! Rx data call back function handler */
+	/*! Rx Data handler function */
 	int read_data();
-	/*! Rx event call back function handler */
-	int read_event();
+	/*! Rx Event handler function */
+	virtual int read_event();
 
 	int write_data(wp_api_hdr_t *hdr, void *tx_buffer);
 
 	/*! Shutdown function to cleanup the class */
 	void cleanup();
 
-	/*! deprecated: Developmnet API structure used to read write low level memory */
-	wan_cmd_api_t		wanpipe_api_cmd;
-	
 	/*! Get device span configuration */
 	int get_wan_config();
 
@@ -233,8 +230,9 @@ protected:
 	virtual unsigned long threadFunction(struct ThreadParam& thParam);
 
 public:
-	char				device_name[DEV_NAME_LEN];
+	char	device_name[DEV_NAME_LEN];
 
+	char	is_logger_dev;
 	//////////////////////////////////////////////////////////////////
 	//methods
 	sangoma_interface(int wanpipe_number, int interface_number);
@@ -259,7 +257,7 @@ public:
 	int loopback_command(u_int8_t type, u_int8_t mode, u_int32_t chan_map);
 
 	int get_operational_stats(wanpipe_chan_stats_t *stats);
-	int flush_operational_stats (void);
+	virtual int flush_operational_stats (void);
 
 	int	CreateSwDtmfTxThread(void *buffer);
 	int	CreateFskCidTxThread(void *buffer);
@@ -317,6 +315,11 @@ public:
 
 	int tdm_txsig_onhook();
 	int tdm_txsig_offhook();
+	int tdm_txsig_kewl();
+	/*To transmit data while FXS is on-hook */
+	/* Example: To transmit FSK Message Wait Indication (MWI)
+	to phone connected with FXS */
+	int tdm_txsig_onhooktransfer();
 
 	int tdm_enable_tone_events(uint16_t tone_id);
 	int tdm_disable_tone_events();
@@ -325,6 +328,20 @@ public:
 	int tdm_front_end_deactivate();
 
 	int tdm_control_flash_events(int rxflashtime);
+	
+	/* To set tx/rx gain for analog FXS/FXO modules
+		Gain in dB = gainvalue / 10 
+		For FXS: txgain/rxgain value could be -35 or 35 
+			FXO: txgain/rxgain value ranges from -150 to 120 
+			FXO/FXS: Set txgain/rxgain value 0 for default setting*/	
+	
+	int tdm_control_rm_txgain(int txgain);
+	int tdm_control_rm_rxgain(int rxgain);
+
+	/* Only valid for FXS module to Set Polarity on the line 
+		polarity 0: Forward Polarity
+			  1: Reverse Polarity */
+	int tdm_set_rm_polarity(int polarity);
 
 	/* get current state of the line - is it Connected or Disconnected */
 	int tdm_get_front_end_status(unsigned char *status);
@@ -356,6 +373,8 @@ public:
 	int fxo_go_off_hook();
 	int fxo_go_on_hook();
 
+	int fxs_txsig_offhook();
+
 	//BRI only:
 	int tdm_enable_bri_bchan_loopback(u_int8_t channel);
 	int tdm_disable_bri_bchan_loopback(u_int8_t channel);
@@ -370,18 +389,19 @@ public:
 	virtual int init(callback_functions_t *callback_functions_ptr);
 };
 
+class sangoma_api_logger_dev : public sangoma_interface
+{
+	wp_logger_cmd_t logger_cmd;
 
-#if defined(__WINDOWS__)
-#define HANDLE_DEVICE_IOCTL_RESULT(bResult)\
-{ \
-	if(bResult == 0){ \
-		/* check message log */ \
-		printf("%s(): Line: %d: Error!!\n", __FUNCTION__, __LINE__); \
-		DecodeLastError(__FUNCTION__); \
-		return 1; \
-	} \
-}
-#endif /*__WINDOWS__*/
+public:
+	sangoma_api_logger_dev(void);
+	~sangoma_api_logger_dev(void);
+	virtual int init(callback_functions_t *callback_functions_ptr);
+	/*! Logger Event handler function */
+	virtual int read_event();
+	virtual int flush_operational_stats (void);
+	int get_logger_dev_operational_stats(wp_logger_stats_t *stats);
+};
 
 #endif//SANGOMA_INTERFACE_H
 

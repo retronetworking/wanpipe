@@ -1,3 +1,4 @@
+/* wanpipe_cdev_iface.h */
 
 #ifndef __WANPIPE_CDEV_IFACE__
 #define __WANPIPE_CDEV_IFACE__
@@ -28,6 +29,9 @@ typedef struct wanpipe_cdev_ops
 	int (*write)(void* dev_ptr, netskb_t *skb,  wp_api_hdr_t *hdr);
 	int (*read)(void* dev_ptr,  netskb_t **skb,  wp_api_hdr_t *hdr, int count);
 
+	/* handle transmission time out */
+	int (*tx_timeout)(void* dev_ptr);
+
 }wanpipe_cdev_ops_t;
 
 
@@ -50,6 +54,7 @@ typedef struct file_operations
 enum WP_TDM_OPMODE{
 	WP_TDM_OPMODE_CHAN = 0,
 	WP_TDM_OPMODE_SPAN,
+	WP_TDM_OPMODE_MTP1
 };
 
 enum {
@@ -64,8 +69,8 @@ typedef struct wanpipe_cdev
 	u_int8_t init;
 	u_int8_t used;
 	
-	char	 span;
-	char	 chan;
+	int32_t	 span;
+	int32_t	 chan;
 	u_int8_t name[WAN_IFNAME_SZ+1];
 
 	void 	*dev_ptr;
@@ -73,8 +78,15 @@ typedef struct wanpipe_cdev
 
 	u8		operation_mode;/* WP_TDM_OPMODE */
 
+ 	wan_timer_t	tx_timeout_timer;
+
 	/* Private to cdev code - Do not use*/
 	void *priv;
+
+#if defined(__WINDOWS__)
+	void *PnpFdoPdx;
+#endif
+
 } wanpipe_cdev_t;
 
 
@@ -147,13 +159,13 @@ int wanpipe_global_cdev_free(void);
 
 int wanpipe_cdev_tdm_create(wanpipe_cdev_t *cdev);
 int wanpipe_cdev_free(wanpipe_cdev_t *cdev);
+int wanpipe_cdev_lip_api_create(wanpipe_cdev_t *cdev);
 
 
-
-int wanpipe_cdev_tdm_create(wanpipe_cdev_t *cdev);
 int wanpipe_cdev_tdm_ctrl_create(wanpipe_cdev_t *cdev);
 int wanpipe_cdev_cfg_ctrl_create(wanpipe_cdev_t *cdev);
 int wanpipe_cdev_timer_create(wanpipe_cdev_t *cdev);
+int wanpipe_cdev_logger_create(wanpipe_cdev_t *cdev);
 
 #endif
 

@@ -15,12 +15,12 @@
 # for example, if we ever fix a bug in priserver.c and we want to make a release we can do so
 # without incrementing libsangoma LT version
 
-AC_INIT([libsangoma],[3.2.0],[ncorbic@sangoma.com])
+AC_INIT([libsangoma],[3.3.0],[ncorbic@sangoma.com])
 AC_CONFIG_HEADERS(config.h)
 AM_INIT_AUTOMAKE
 
 LIBSANGOMA_LT_CURRENT=3  # interface 3
-LIBSANGOMA_LT_REVISION=2 # first revision of this interface
+LIBSANGOMA_LT_REVISION=3 # first revision of this interface
 LIBSANGOMA_LT_AGE=0      #not backwards compatible (0 previous interfaces are compatible)
 
 #AC_CONFIG_MACRO_DIR([m4])

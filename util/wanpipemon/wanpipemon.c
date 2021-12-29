@@ -19,11 +19,11 @@
  *****************************************************************************/
 #if defined(__WINDOWS__)
 # include <conio.h>				/* for _kbhit */
-# include <stdio.h>				/* unlink() */
+# include <stdio.h>				
 # include "wanpipe_includes.h"
 # include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t' */
 # include "wanpipe_time.h"		/* for 'struct timeval' */
-# include "wanpipe_common.h"		/* for 'strcasecmp' */
+# include "wanpipe_common.h"	/* for 'wp_strcasecmp(), wp_unlink()' */
 #else
 #include <stdio.h>
 #include <ctype.h>
@@ -94,13 +94,14 @@ extern int get_femedia_type(wan_femedia_t *fe_media);
 
 #ifdef __WINDOWS__
 sng_fd_t	sock = 0;
+char ipaddress[WAN_IFNAME_SZ+1];
 #else
 int		sock = 0;
 static sa_family_t		af = AF_INET;
 static struct sockaddr_in	soin;
+char ipaddress[16];
 #endif
 
-char ipaddress[16];
 int  udp_port = 9000;
 
 short dlci_number=16;
@@ -504,13 +505,13 @@ extern char* GetMasterDevName( void )
 #ifdef __WINDOWS__
 wanpipe_hdlc_engine_t *wanpipe_reg_hdlc_engine (void)
 {
-	WIN_DBG("%s() not implemented\n", __FUNCTION__);
+	WIN_DBG_FUNC_NOT_IMPLEMENTED();
 	return NULL;
 }
 
 void wanpipe_unreg_hdlc_engine(wanpipe_hdlc_engine_t *hdlc_eng)
 {
-	WIN_DBG("%s() not implemented\n", __FUNCTION__);
+	WIN_DBG_FUNC_NOT_IMPLEMENTED();
 }
 
 char* get_hardware_level_interface_name(char* interface_name)
@@ -640,7 +641,7 @@ int make_hardware_level_connection()
 void cleanup_hardware_level_connection()
 {
 	WIN_DBG("%s()\n", __FUNCTION__);
-	WIN_DBG("if_name: %s\n", if_name);
+	WIN_DBG("if_name: %s: doing nothing!\n", if_name);
 	//do nothing
 }
 #else
@@ -810,60 +811,11 @@ void hw_link_status()
 }
 
 #ifdef __WINDOWS__
-static void DecodeLastError(LPSTR lpszFunction) 
-{ 
-	LPVOID lpMsgBuf;
-	DWORD dwLastErr = GetLastError();
-	FormatMessage( 
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-		FORMAT_MESSAGE_FROM_SYSTEM | 
-		FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL,
-		dwLastErr,
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-		(LPTSTR) &lpMsgBuf,
-		0,
-		NULL 
-	);
-	// Display the string.
-	printf("Last Error: %s (GetLastError() returned: %d)\n", lpMsgBuf, dwLastErr);
-	// Free the buffer.
-	LocalFree( lpMsgBuf );
-} 
-
-static int handle_device_ioctl_result(int bResult)
-{
-	if(bResult == 0){
-		/* check message log */
-		printf("%s(): Line: %d: Error!!\n", __FUNCTION__, __LINE__);
-		DecodeLastError(__FUNCTION__);
-		return 1;
-	}else{
-		return 0;
-	}
-}
 
 int DoCommand(wan_udp_hdr_t* wan_udp)
 {
-	DWORD ln, bIoResult;
-    unsigned char id = 0;
-
-	wan_udp->wan_udphdr_request_reply = 0x01;
-	wan_udp->wan_udphdr_id = id;
-   	wan_udp->wan_udphdr_return_code = WAN_UDP_TIMEOUT_CMD;
-
-	bIoResult = DeviceIoControl(
-			sock,
-			IoctlManagementCommand,
-			(LPVOID)wan_udp,
-			sizeof(wan_udp_hdr_t),
-			(LPVOID)wan_udp,
-			sizeof(wan_udp_hdr_t),
-			(LPDWORD)(&ln),
-			(LPOVERLAPPED)NULL
-			);
-
-	return handle_device_ioctl_result(bIoResult);
+	/* call libsangoma */
+	return sangoma_mgmt_cmd(sock, wan_udp);
 }
 
 #define inet_aton(a,b)	0
@@ -1071,27 +1023,27 @@ static int init(int argc, char *argv[], char* command)
 			}
 
 			if (strcmp(argv[i+1], "chdlc") == 0){
-				strlcpy((char*)wan_udp.wan_udphdr_signature,
+				wp_strlcpy((char*)wan_udp.wan_udphdr_signature,
 					UDP_CHDLC_SIGNATURE,
 					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_CHDLC;
 			}else if (strcmp(argv[i+1], "fr") == 0){
-				strlcpy((char*)wan_udp.wan_udphdr_signature, 
+				wp_strlcpy((char*)wan_udp.wan_udphdr_signature, 
 					UDP_FR_SIGNATURE,
 					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_FR;
 			}else if (strcmp(argv[i+1], "ppp") == 0){
-				strlcpy((char*)wan_udp.wan_udphdr_signature, 
+				wp_strlcpy((char*)wan_udp.wan_udphdr_signature, 
 					UDP_PPP_SIGNATURE,
 					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_PPP;
 			}else if (strcmp(argv[i+1], "x25") == 0){
-				strlcpy((char*)wan_udp.wan_udphdr_signature, 
+				wp_strlcpy((char*)wan_udp.wan_udphdr_signature, 
 					UDP_X25_SIGNATURE,
 					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_X25;
 			}else if (strcmp(argv[i+1], "adsl") == 0){
-				strlcpy((char*)wan_udp.wan_udphdr_signature, 
+				wp_strlcpy((char*)wan_udp.wan_udphdr_signature, 
 					GLOBAL_UDP_SIGNATURE,
 					strlen(wan_udp.wan_udphdr_signature));
 				wan_protocol=WANCONFIG_ADSL;
@@ -1593,7 +1545,7 @@ void sig_end(int signal)
 	}
 
 	if (rx_hdlc_eng) {
-         	wanpipe_unreg_hdlc_engine(rx_hdlc_eng);  
+		wanpipe_unreg_hdlc_engine(rx_hdlc_eng);  
 		rx_hdlc_eng=NULL;
 	}
 
@@ -1607,8 +1559,8 @@ int main(int argc, char* argv[])
 {
 	char command[MAX_CMD_LENGTH+1];
 	int err = 0;
-	
-	strlcpy((char*)wan_udp.wan_udphdr_signature, 
+
+	wp_strlcpy((char*)wan_udp.wan_udphdr_signature, 
 		GLOBAL_UDP_SIGNATURE,
 		strlen(wan_udp.wan_udphdr_signature)); 
 	snprintf(pcap_output_file_name,
@@ -1647,7 +1599,7 @@ int main(int argc, char* argv[])
 				printf("Using custom pcap_prot=%d\n",pcap_prot);
 			}
 			
-			unlink(pcap_output_file_name);/* delete the file */
+			wp_unlink(pcap_output_file_name);/* delete the file */
 			pcap_output_file=fopen(pcap_output_file_name,"wb");
 			if (!pcap_output_file){
 				printf("wanpipemon: Failed to open %s binary file!\n",
@@ -1660,8 +1612,8 @@ int main(int argc, char* argv[])
 			
 			printf("Using binary trace\n");
 			
-			unlink("trace_bin.out");
-			unlink("trace_bin.in");
+			wp_unlink("trace_bin.out");
+			wp_unlink("trace_bin.in");
 			trace_bin_in=fopen("trace_bin.in","wb");
 			if (!trace_bin_in){
 				printf("wanpipemon: Failed to open %s binary file!\n",

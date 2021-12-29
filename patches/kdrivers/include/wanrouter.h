@@ -269,7 +269,7 @@ WAN_LIST_HEAD(wan_dev_lhead, wan_dev_le);
 
 typedef struct wan_device
 {
-	unsigned magic;			/* magic number */
+	unsigned int magic;	/* magic number */
 	char* name;			/* -> WAN device name (ASCIIZ) */
 	void* priv;			/* -> driver private data */
 	unsigned config_id;		/* Configuration ID */
@@ -277,17 +277,13 @@ typedef struct wan_device
 	unsigned ioport;		/* adapter I/O port base #1 */
 	char S514_cpu_no[1];		/* PCI CPU Number */
 	unsigned char S514_slot_no;	/* PCI Slot Number */
-#if 0
-	//ALEX_TODAY maddr not really used
-	unsigned long maddr;		/* dual-port memory address */
-	unsigned msize;			/* dual-port memory size */
-#endif
+
 	int irq;			/* interrupt request level */
 	int dma;			/* DMA request level */
 	unsigned int bps;		/* data transfer rate */
 	unsigned int mtu;		/* max physical transmit unit size */
 	unsigned int udp_port;          /* UDP port for management */
-        unsigned char ttl;		/* Time To Live for UDP security */
+	unsigned char ttl;		/* Time To Live for UDP security */
 	unsigned int enable_tx_int; 	/* Transmit Interrupt enabled or not */
 	char electrical_interface;			/* RS-232/V.35, etc. */
 	char clocking;			/* external/internal */
@@ -296,13 +292,10 @@ typedef struct wan_device
 	char connection;		/* permanent/switched/on-demand */
 	char signalling;		/* Signalling RS232 or V35 */
 	char read_mode;			/* read mode: Polling or interrupt */
-	char new_if_cnt;                /* Number of interfaces per wanpipe */ 
+	char new_if_cnt;		/* Number of interfaces per wanpipe */
 	char del_if_cnt;		/* Number of times del_if() gets called */
 	unsigned char piggyback;        /* Piggibacking a port */
-#if 0
-	//ALEX_TODAY hw_opt[0] -> card->type
-	unsigned hw_opt[4];		/* other hardware options */
-#endif
+
 					/****** status and statistics *******/
 	char state;			/* device state */
 	char api_status;		/* device api status */
@@ -310,12 +303,13 @@ typedef struct wan_device
 	unsigned reserved[16];		/* reserved for future use */
 	unsigned long critical;		/* critical section flag */
 	wan_spinlock_t	lock;           /* Support for SMP Locking */
+
 					/****** device management methods ***/
 	int (*setup) (struct wan_device *wandev, wandev_conf_t *conf);
 	int (*shutdown) (struct wan_device *wandev, wandev_conf_t* conf);
 	int (*update) (struct wan_device *wandev);
 #if defined(__LINUX__)
-	int (*ioctl) (struct wan_device *wandev, unsigned cmd, unsigned long arg);
+	int (*ioctl) (struct wan_device *wandev, unsigned int cmd, unsigned long arg);
 #else
 	int (*ioctl) (struct wan_device *wandev, u_long cmd, caddr_t arg);
 #endif
@@ -345,16 +339,19 @@ typedef struct wan_device
 	write_proc_t*	set_dev_config;
 	write_proc_t*	set_if_info;
 #endif
+
 	int 	(*get_info)(void*, struct seq_file* m, int *);
 	void	(*fe_enable_timer) (void* card_id);
 	void	(*te_report_rbsbits) (void* card_id, int channel, unsigned char rbsbits);
 	void	(*te_report_alarms) (void* card_id, unsigned long alarams);
 	void	(*te_link_state)  (void* card_id);
-	int	(*te_signaling_config) (void* card_id, unsigned long);
-	int	(*te_disable_signaling) (void* card_id, unsigned long);
-	int	(*te_read_signaling_config) (void* card_id);
-	int	(*report_dtmf) (void* card_id, int, unsigned char);
-	void	(*ec_enable_timer) (void* card_id);	
+	void	(*te_link_reset)  (void* card_id);
+	int		(*te_signaling_config) (void* card_id, unsigned long);
+	int		(*te_disable_signaling) (void* card_id, unsigned long);
+	int		(*te_read_signaling_config) (void* card_id);
+	int		(*report_dtmf) (void* card_id, int, unsigned char);
+	void	(*ec_enable_timer) (void* card_id);
+	
 	struct {
 		void	(*rbsbits) (void* card_id, int, unsigned char);
 		void	(*alarms) (void* card_id, wan_event_t*);
@@ -368,66 +365,53 @@ typedef struct wan_device
 	
 	unsigned char 		ignore_front_end_status;
 	unsigned char		line_idle;
-#if defined(__WINDOWS__)
-	u32		card_type;
-#else
-	unsigned char		card_type;
-#endif
-	atomic_t		if_cnt;
-	atomic_t		if_up_cnt;
+	unsigned int		card_type;
+	atomic_t			if_cnt;
+	atomic_t			if_up_cnt;
 	wan_sdlc_conf_t		sdlc_cfg;
-	wan_bscstrm_conf_t  	bscstrm_cfg;
-	int (*debugging) (struct wan_device *wandev);
-	int (*debug_read) (void*, void*);
-	int 		comm_port;
+	wan_bscstrm_conf_t 	bscstrm_cfg;
+	int 				(*debugging) (struct wan_device *wandev);
+	int 				(*debug_read) (void*, void*);
+	int 				comm_port;
 
 #if defined(__LINUX__)
 	spinlock_t		get_map_lock;
-	int (*get_map)(struct wan_device*,netdevice_t*,struct seq_file* m, int *);
-
-	int (*bind_annexg) (netdevice_t *dev, netdevice_t *adev);
-	netdevice_t *(*un_bind_annexg) (struct wan_device *wandev,netdevice_t *adev);
-	void (*get_active_inactive)(struct wan_device*,netdevice_t*,void*);
+	int 			(*get_map)(struct wan_device*,netdevice_t*,struct seq_file* m, int *);
+	int 			(*bind_annexg) (netdevice_t *dev, netdevice_t *adev);
+	netdevice_t 	*(*un_bind_annexg) (struct wan_device *wandev,netdevice_t *adev);
+	void 			(*get_active_inactive)(struct wan_device*,netdevice_t*,void*);
 #endif
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-#if 0
-/* Moved to common structure */
-	int (*protocol_open) (netdevice_t*);
-	int (*protocol_close) (netdevice_t*);
-	int (*protocol_send) (netskb_t* skb, netdevice_t*);
-	struct net_device_stats* (*protocol_ifstats) (netdevice_t*);
-	int (*protocol_ioctl) (netdevice_t*, struct ifreq*, int);
-	void (*protocol_tx_timeout) (netdevice_t*);
-	int (*hdlc_xmit) (netskb_t*, netdevice_t* dev);
+	int 					(*wanpipe_ioctl) (netdevice_t*, struct ifreq*, int);
 #endif
-	int (*wanpipe_ioctl) (netdevice_t*, struct ifreq*, int);
-#endif
-	unsigned char		macAddr[ETHER_ADDR_LEN];
+	unsigned char			macAddr[ETHER_ADDR_LEN];
 
-	sdla_fe_iface_t		fe_iface;
+	sdla_fe_iface_t			fe_iface;
 	sdla_fe_notify_iface_t	fe_notify_iface;
 
-	void			*ec_dev;
+	void					*ec_dev;
 	
-	unsigned long		ec_enable_map;
-	unsigned long		fe_ec_map;
-	wan_ticks_t		ec_intmask;
+	unsigned long			ec_enable_map;
+	unsigned long			fe_ec_map;
+	wan_ticks_t				ec_intmask;
 		
-	int			(*ec_enable)(void *pcard, int, int);
+	int						(*ec_enable)(void *pcard, int, int);
+	int						(*ec_state) (void* card_id, wan_hwec_dev_state_t *ec_state);
 
-	unsigned char	(*write_ec)(void*, unsigned short, unsigned char);
-	unsigned char	(*read_ec)(void*, unsigned short);
-	int		(*hwec_reset)(void* card_id, int);
-	int		(*hwec_enable)(void* card_id, int, int);
+	unsigned char			(*write_ec)(void*, unsigned short, unsigned char);
+	unsigned char			(*read_ec)(void*, unsigned short);
+	int						(*hwec_reset)(void* card_id, int);
+	int						(*hwec_enable)(void* card_id, int, int);
 	
-	unsigned long		rtp_tap_call_map;
-	unsigned long		rtp_tap_call_status;
-	wan_rtp_chan_t		rtp_chan[32];
-	void 			*rtp_dev;
-	int   			rtp_len;
-	void			(*rtp_tap)(void *card, u8 chan, u8* rx, u8* tx, u32 len);
-	void 			*port_cfg;
+	unsigned long			rtp_tap_call_map;
+	unsigned long			rtp_tap_call_status;
+	wan_rtp_chan_t			rtp_chan[32];
+	void 					*rtp_dev;
+	int   					rtp_len;
+	void					(*rtp_tap)(void *card, u8 chan, u8* rx, u8* tx, u32 len);
+	void 					*port_cfg;
+
 } wan_device_t;
 
 WAN_LIST_HEAD(wan_devlist_, wan_device);

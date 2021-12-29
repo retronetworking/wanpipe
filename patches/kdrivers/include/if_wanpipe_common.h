@@ -51,7 +51,7 @@ typedef struct {
 #endif
 } wanpipe_common_iface_t;
 
-typedef struct {
+typedef struct wanpipe_common {
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	/* !!! IMPORTANT !!! <- Do not move this parameter (GENERIC-PPP) */
 	void		*prot_ptr;
@@ -469,6 +469,14 @@ void wp_debug_func_init(void)
 }
 #endif
 
+
+#if defined(__WINDOWS__)
+extern int wanpipe_lip_rx(void *chan, void *sk_id);
+extern int wanpipe_lip_connect(void *chan, int );
+extern int wanpipe_lip_disconnect(void *chan, int);
+extern int wanpipe_lip_kick(void *chan,int);
+extern int wanpipe_lip_get_if_status(void *chan, void *m);
+#endif
 
 #endif /* WAN_KERNEL */
 

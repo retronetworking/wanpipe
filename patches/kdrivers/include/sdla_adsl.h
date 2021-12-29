@@ -68,7 +68,7 @@ typedef struct adsl_cfg {
 
 typedef struct adsl_private_area
 {
-	wanpipe_common_t 	common;
+	wanpipe_common_t 	common;/* MUST be at the top */
 	void*			pAdapter;
 	char			if_name[WAN_IFNAME_SZ];
 	u_char			macAddr[6];

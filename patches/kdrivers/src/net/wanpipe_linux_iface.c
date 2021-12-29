@@ -40,6 +40,8 @@
 #define	STATIC		static
 #endif
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 /****** Function Prototypes *************************************************/
 static netdevice_t* wan_iface_alloc (int, int);
 static void wan_iface_free (netdevice_t*);
@@ -137,7 +139,18 @@ static int wan_iface_attach_eth (netdevice_t* dev, char *ifname, int is_netdev)
 		if (ifname){
 			wan_netif_init(dev, ifname);
 		}
-		dev->init = &wan_iface_eth_init;
+		WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+		WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&wan_iface_eth_init);
+		WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
+		WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wan_iface_ioctl);
+		WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wan_iface_open);
+		WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wan_iface_close);
+	
+		WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wan_iface_send);
+		WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wan_iface_tx_timeout);
+		WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,&wan_iface_change_mtu);
+
 		err=register_netdev(dev);
 	}else{
 #ifdef CONFIG_PRODUCT_WANPIPE_GENERIC
@@ -154,7 +167,7 @@ static int wan_iface_attach_eth (netdevice_t* dev, char *ifname, int is_netdev)
 	if (err){
 		DEBUG_EVENT("%s: Failed to register interface (%d)\n",
 					wan_netif_name(dev), err);
-		dev->init = NULL;
+		WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,NULL);
 		*(dev->name) = 0;
 		wan_netif_free(dev);
 		return -EINVAL;
@@ -170,7 +183,17 @@ static int wan_iface_attach (netdevice_t* dev, char *ifname, int is_netdev)
 		if (ifname){
 			wan_netif_init(dev, ifname);
 		}
-		dev->init = &wan_iface_init;
+		WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+		WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&wan_iface_init);
+		WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
+		WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wan_iface_ioctl);
+		WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wan_iface_open);
+		WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wan_iface_close);
+		WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wan_iface_send);
+		WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wan_iface_tx_timeout);
+		WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,&wan_iface_change_mtu);
+		//dev->init = &wan_iface_init;
 		err=register_netdev(dev);
 	}else{
 #ifdef CONFIG_PRODUCT_WANPIPE_GENERIC
@@ -187,7 +210,8 @@ static int wan_iface_attach (netdevice_t* dev, char *ifname, int is_netdev)
 	if (err){
 		DEBUG_EVENT("%s: Failed to register interface (%d)\n",
 					wan_netif_name(dev), err);
-		dev->init = NULL;
+		WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,NULL);
+
 		*(dev->name) = 0;
 		wan_netif_free(dev);
 		return -EINVAL;
@@ -216,20 +240,18 @@ static void wan_iface_detach (netdevice_t* dev, int is_netdev)
 
 static int wan_iface_init(netdevice_t* dev)
 {
-//	dev->priv = NULL;	/* We need 'priv', hdlc doesn't */
-	dev->get_stats		= &wan_iface_get_stats;
-	dev->do_ioctl		= &wan_iface_ioctl;
-	dev->open		= &wan_iface_open;
-	dev->stop		= &wan_iface_close;
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wan_iface_ioctl);
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wan_iface_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wan_iface_close);
 
-	dev->hard_start_xmit	= &wan_iface_send;
-	dev->get_stats		= &wan_iface_get_stats;
-	dev->tx_timeout		= &wan_iface_tx_timeout;
-	dev->change_mtu		= &wan_iface_change_mtu;
-
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wan_iface_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wan_iface_tx_timeout);
+	WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,&wan_iface_change_mtu);
 	dev->watchdog_timeo	= HZ*2;
 	dev->hard_header_len	= 32;
-	dev->set_config		= NULL;
+	WAN_NETDEV_OPS_CONFIG(dev,wan_netdev_ops,NULL);
 	
 	/* Initialize media-specific parameters */
 	dev->flags		|= IFF_POINTOPOINT;
@@ -260,17 +282,18 @@ static int wan_iface_eth_init(netdevice_t* dev)
 {
 	int hw_addr=0;
 
-//	dev->priv = NULL;	/* We need 'priv', hdlc doesn't */
-	dev->get_stats		= &wan_iface_get_stats;
-	dev->do_ioctl		= &wan_iface_ioctl;
-	dev->open		= &wan_iface_open;
-	dev->stop		= &wan_iface_close;
-	dev->hard_start_xmit	= &wan_iface_send;
-	dev->get_stats		= &wan_iface_get_stats;
-	dev->tx_timeout		= &wan_iface_tx_timeout;
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wan_iface_ioctl);
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wan_iface_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wan_iface_close);
+
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wan_iface_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wan_iface_get_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wan_iface_tx_timeout);
+
 	dev->watchdog_timeo	= HZ*2;
 	dev->hard_header_len	= 32;
-	dev->set_config		= NULL;
+	WAN_NETDEV_OPS_CONFIG(dev,wan_netdev_ops,NULL);
 	
 	if (!dev->mtu) {
 		dev->mtu		= 1500;

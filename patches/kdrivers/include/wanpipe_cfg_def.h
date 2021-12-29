@@ -103,6 +103,7 @@ enum {
 #define WANOPT_AFT_SERIAL	14
 #define WANOPT_USB_ANALOG       15
 #define WANOPT_AFT600           16
+#define WANOPT_AFT601           17
 
 /*
  * Configuration options defines.
@@ -220,5 +221,9 @@ enum {
 
 #define WAN_CLK_OUT_OSC		0x03
 #define WAN_CLK_OUT_LINE	0x04
+
+#define WAN_CLK_IN_8000HZ  0x05
+#define WAN_CLK_IN_2000HZ  0x06
+#define WAN_CLK_IN_1500HZ  0x07
 
 #endif /* __WANPIPE_CFG_DEF_H__ */

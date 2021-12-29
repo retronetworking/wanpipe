@@ -144,7 +144,8 @@ enum {
 	AFT_ADPTR_2SERIAL_RS232,	/* AFT-A142 2 Port RS232 board */
 	AFT_ADPTR_4SERIAL_RS232,	/* AFT-A144 4 Port RS232 board */
 	U100_ADPTR,			/* USB board */
-	AFT_ADPTR_A600,			/* AFT A600 board */
+	AFT_ADPTR_A600,			/* AFT-A600 board */
+	AFT_ADPTR_B601,			/* AFT-B601 board */
 	AFT_ADPTR_FLEXBRI,		/* AFT-A700 FlexBRI board */
 
 	AFT_ADPTR_LAST			/* NOTE: Keep it as a last line */
@@ -266,9 +267,18 @@ enum {
 	((val) == AFT_RM_SECURITY_16_ECCHAN) ? 16 :	\
 	((val) == AFT_RM_SECURITY_32_ECCHAN) ? 32 : 0
 
-#define AFT_600_SECURITY_05_ECCHAN	0x01
+#define AFT_A600_SECURITY_00_ECCHAN	0x00
+#define AFT_A600_SECURITY_05_ECCHAN	0x01
 #define A600_ECCHAN(val) \
-  	((val) == AFT_600_SECURITY_05_ECCHAN) ? 05 : 0
+  	((val) == AFT_A600_SECURITY_00_ECCHAN) ? 0 :	\
+	((val) == AFT_A600_SECURITY_05_ECCHAN) ? 5 : 0
+
+#define AFT_B601_SECURITY_00_ECCHAN    0x00
+#define AFT_B601_SECURITY_64_ECCHAN    0x01
+#define B601_ECCHAN(val) \
+   ((val) == AFT_B601_SECURITY_00_ECCHAN)      ? 0 :   \
+   ((val) == AFT_B601_SECURITY_64_ECCHAN)      ? 64 :  0
+
 
 #define SDLA_ADPTR_NAME(adapter_type)			\
 		(adapter_type == S5141_ADPTR_1_CPU_SERIAL) ? "S514-1-PCI" : \
@@ -293,6 +303,7 @@ enum {
 		(adapter_type == AFT_ADPTR_4SERIAL_RS232)  ? "AFT-A144" : \
 		(adapter_type == U100_ADPTR) 	 	   ? "U100"  : \
 		(adapter_type == AFT_ADPTR_A600)           ? "AFT-B600" : \
+		(adapter_type == AFT_ADPTR_B601)           ? "AFT-B601" : \
 		(adapter_type == AFT_ADPTR_FLEXBRI)  ? "AFT-B700" : \
 							     "UNKNOWN"
 			

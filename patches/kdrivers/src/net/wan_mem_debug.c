@@ -33,18 +33,30 @@ typedef struct sdla_memdbg_el
 	WAN_LIST_ENTRY(sdla_memdbg_el)	next;
 }sdla_memdbg_el_t;
 
+#if defined(__WINDOWS__)
+int __sdla_memdbg_init(void);
+int __sdla_memdbg_free(void);
+#else
 int sdla_memdbg_init(void);
 int sdla_memdbg_free(void);
+#endif
 
+#if defined(__WINDOWS__)
+int __sdla_memdbg_init(void)
+#else
 int sdla_memdbg_init(void)
+#endif
 {
 	wan_spin_lock_init(&wan_debug_mem_lock,"wan_debug_mem_lock");
 	WAN_LIST_INIT(&sdla_memdbg_head);
 	return 0;
 }
 
-
+#if defined(__WINDOWS__)
+int __sdla_memdbg_push(void *mem, const char *func_name, const int line, int len)
+#else
 int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len)
+#endif
 {
 	sdla_memdbg_el_t *sdla_mem_el = NULL;
 	wan_smp_flag_t flags;
@@ -90,7 +102,11 @@ int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len)
 }
 EXPORT_SYMBOL(sdla_memdbg_push);
 
+#if defined(__WINDOWS__)
+int __sdla_memdbg_pull(void *mem, const char *func_name, const int line)
+#else
 int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
+#endif
 {
 	sdla_memdbg_el_t *sdla_mem_el;
 	wan_smp_flag_t flags;
@@ -138,7 +154,7 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 	}
 
 	if (err) {
-		DEBUG_EVENT("%s:%d: Critical Error: Unknown Memory 0x%p\n",
+		DEBUG_ERROR("%s:%d: Critical Error: Unknown Memory 0x%p\n",
 			__FUNCTION__,__LINE__,mem);
 	}
 
@@ -146,10 +162,15 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 }
 EXPORT_SYMBOL(sdla_memdbg_pull);
 
+#if defined(__WINDOWS__)
+int __sdla_memdbg_free(void)
+#else
 int sdla_memdbg_free(void)
+#endif
 {
 	sdla_memdbg_el_t *sdla_mem_el;
 	int total=0;
+	int leaked_buffer_counter=0;
 
 	DEBUG_EVENT("sdladrv: Memory Still Allocated=%i \n",
 			 wan_debug_mem);
@@ -164,6 +185,7 @@ int sdla_memdbg_free(void)
 			sdla_mem_el->cmd_func,sdla_mem_el->line,
 			sdla_mem_el->mem, sdla_mem_el->len);
 		total+=sdla_mem_el->len;
+		leaked_buffer_counter++;
 
 		sdla_mem_el = WAN_LIST_NEXT(sdla_mem_el, next);
 		WAN_LIST_REMOVE(tmp, next);
@@ -175,8 +197,8 @@ int sdla_memdbg_free(void)
 	}
 
 	DEBUG_EVENT("=====================END==================================\n");
-	DEBUG_EVENT("sdladrv: Memory Still Allocated=%i  Leaks Found=%i Missing=%i\n",
-			 wan_debug_mem,total,wan_debug_mem-total);
+	DEBUG_EVENT("sdladrv: Memory Still Allocated=%i  Leaks Found=%i Missing=%i leaked_buffer_counter=%i\n",
+			 wan_debug_mem, total, wan_debug_mem - total, leaked_buffer_counter);
 
 	return 0;
 }

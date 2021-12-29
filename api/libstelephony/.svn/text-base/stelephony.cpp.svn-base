@@ -158,8 +158,8 @@ void OnCallerID(void *callback_obj, char *Name, char *CallerNumber, char *Called
 	CStelephony* stelObj = (CStelephony*)callback_obj;
 	stelephony_callback_functions_t cbf;
 
-	DBG_STEL("%s(): Name: %s, CallerNumber: %s, CalledNumber: %s, DateTime: %s\r\n", 
-		__FUNCTION__, Name, CallerNumber, CalledNumber, DateTime);
+	DBG_STEL("%s(): Name: %s(%d), CallerNumber: %s(%d), CalledNumber: %s, DateTime: %s\r\n",
+		__FUNCTION__, Name, strlen(Name), CallerNumber, strlen(CallerNumber), CalledNumber, DateTime);
 
 	stelObj->GetCallbackFunctions(&cbf);
 

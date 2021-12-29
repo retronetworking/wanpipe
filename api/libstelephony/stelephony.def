@@ -1,13 +1,3 @@
 LIBRARY  STELEPHONY
 EXPORTS   
-	StelSetup
-	StelCleanup
-	StelStreamInput
-	StelEventControl
-	StelGenerateSwDTMF
-	StelGenerateFSKCallerID
-	StelBufferInuse
-	StelBufferRead
-	StelBufferReadUlaw
-	StelBufferReadAlaw
 		

@@ -35,6 +35,8 @@
 # include "sdla_usb_remora.h"
 #endif
 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+
 /*****************************************************************************
 *                         DEFINES/MACROS
 *****************************************************************************/
@@ -43,6 +45,8 @@
 #else
 # define WP_USB_FUNC_DEBUG()  DEBUG_EVENT("%s:%d\n",__FUNCTION__,__LINE__)
 #endif
+
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
 
 /* Private critical flags */
 enum {
@@ -296,7 +300,7 @@ wp_usb_new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* con
 		chan->common.usedby = TDM_VOICE;
 		WAN_TDMV_CALL(check_mtu, (card, conf->active_ch, &chan->mtu), err);
 		if (err){
-			DEBUG_EVENT("Error: TMDV mtu check failed!");
+			DEBUG_ERROR("Error: TMDV mtu check failed!");
 			return -EINVAL;
 		}
 
@@ -308,7 +312,7 @@ wp_usb_new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* con
 				chan->common.dev), channel);
 
 		if (channel < 0){
-			DEBUG_EVENT("%s: Error: Failed to register TDMV channel!\n",
+			DEBUG_ERROR("%s: Error: Failed to register TDMV channel!\n",
 					chan->if_name);
 
 			return -EINVAL;
@@ -321,7 +325,7 @@ wp_usb_new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* con
 		card->hw_iface.usb_rxtx_data_init(card->hw, channel, &chan->rxdata, &chan->txdata);
 		//sdla_usb_rxtx_data_init(card->hw, channel, &chan->rxdata, &chan->txdata);
 #else
-		DEBUG_EVENT("%s: Error: TDMV_VOICE Zaptel Option not compiled into the driver!\n",
+		DEBUG_ERROR("%s: Error: TDMV_VOICE Zaptel Option not compiled into the driver!\n",
 					card->devname);
 		return -EINVAL;
 #endif
@@ -354,7 +358,14 @@ wp_usb_new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* con
 	chan->time_slot_map=conf->active_ch;
 
 #if defined(__LINUX__)
-	dev->init = &wp_usb_if_init;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&wp_usb_if_init);
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wp_usb_if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wp_usb_if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wp_usb_if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wp_usb_if_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wp_usb_if_tx_timeout);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wp_usb_if_do_ioctl);
 # if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	wp_usb_if_init(dev);
 # endif
@@ -407,13 +418,13 @@ wp_usb_if_tdmv_init(wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 			break;
 		}
 		if (err){
-			DEBUG_EVENT("%s: Error: Failed to initialize tdmv functions!\n",
+			DEBUG_ERROR("%s: Error: Failed to initialize tdmv functions!\n",
 					card->devname);
 			return -EINVAL;
 		}
 		WAN_TDMV_CALL(create, (card, &card->tdmv_conf), err);
 		if (err){
-			DEBUG_EVENT("%s: Error: Failed to create tdmv span!\n",
+			DEBUG_ERROR("%s: Error: Failed to create tdmv span!\n",
 					card->devname);
 			return err;
 		}
@@ -485,13 +496,13 @@ wp_usb_new_if(wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		err = wp_usb_if_api_init(wandev, dev, conf);
 
 	}else{
-		DEBUG_EVENT( "%s: Error: Invalid IF operation mode %s\n",
+		DEBUG_ERROR( "%s: Error: Invalid IF operation mode %s\n",
 				card->devname,conf->usedby);
 		err=-EINVAL;
 		goto wp_usb_new_if_error;
 	}
 	if (err){
-		DEBUG_EVENT( "%s: Error: Failed initialize for %s operation mode!\n",
+		DEBUG_ERROR( "%s: Error: Failed initialize for %s operation mode!\n",
 				card->devname,conf->usedby);
 		err=-EINVAL;
 		goto wp_usb_new_if_error;
@@ -521,14 +532,14 @@ static int wp_usb_del_if_private (wan_device_t* wandev, netdevice_t* dev)
 	int			err;
 
 	if (!chan){
-		DEBUG_EVENT("%s: Critical Error del_if_private() chan=NULL!\n",
+		DEBUG_ERROR("%s: Critical Error del_if_private() chan=NULL!\n",
 			  wan_netif_name(dev));	
 		return 0;
 	}
 
 	card = chan->card;
 	if (!card){
-		DEBUG_EVENT("%s: Critical Error del_if_private() chan=NULL!\n",
+		DEBUG_ERROR("%s: Critical Error del_if_private() chan=NULL!\n",
 			  wan_netif_name(dev));
 		return 0;
 	}
@@ -659,13 +670,13 @@ wp_usb_del_if (wan_device_t* wandev, netdevice_t* dev)
 	WP_USB_FUNC_DEBUG();
 
 	if (!chan){
-		DEBUG_EVENT("%s: Critical Error del_if() chan=NULL!\n",
+		DEBUG_ERROR("%s: Critical Error del_if() chan=NULL!\n",
 			  wan_netif_name(dev));	
 		return 0;
 	}
 
 	if (!(card=chan->card)){
-		DEBUG_EVENT("%s: Critical Error del_if() chan=NULL!\n",
+		DEBUG_ERROR("%s: Critical Error del_if() chan=NULL!\n",
 			  wan_netif_name(dev));	
 		return 0;
 	}
@@ -697,7 +708,7 @@ static int wp_usb_add_device(char *devname, void *hw)
 		}	
 	}
 	if (card == NULL){
-		DEBUG_EVENT("%s: INTERNAL ERROR: Failed to find the device in a list!\n",
+		DEBUG_ERROR("%s: INTERNAL ERROR: Failed to find the device in a list!\n",
 					devname);
 		return -EINVAL;
 	}
@@ -723,7 +734,7 @@ static int wp_usb_delete_device(char *devname)
 		}	
 	}
 	if (card == NULL){
-		DEBUG_EVENT("%s: INTERNAL ERROR: Failed to find the device in a list!\n",
+		DEBUG_ERROR("%s: INTERNAL ERROR: Failed to find the device in a list!\n",
 					devname);
 		return -EINVAL;
 	}
@@ -767,21 +778,20 @@ static int wp_usb_if_init (netdevice_t* dev)
 	wp_usb_softc_t	*chan = wan_netif_priv(dev);
 	
 	/* Initialize device driver entry points */
-	dev->open		= &wp_usb_if_open;
-	dev->stop		= &wp_usb_if_close;
-	dev->hard_start_xmit	= &wp_usb_if_send;
-	dev->get_stats		= &wp_usb_if_stats;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&wp_usb_if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&wp_usb_if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&wp_usb_if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&wp_usb_if_stats);
 
 	if (chan->common.usedby == TDM_VOICE || 
 	    chan->common.usedby == TDM_VOICE_API){
-		dev->tx_timeout		= NULL;
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,NULL);
 	}else{
-		dev->tx_timeout		= &wp_usb_if_tx_timeout;
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&wp_usb_if_tx_timeout);
 	}
 	dev->watchdog_timeo	= 2*HZ;
 		
-	dev->do_ioctl		= wp_usb_if_do_ioctl;
-
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&wp_usb_if_do_ioctl);
 	dev->flags     |= IFF_POINTOPOINT;
 	dev->flags     |= IFF_NOARP;
 	dev->type	= ARPHRD_PPP;
@@ -960,7 +970,7 @@ wp_usb_if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 		 * PIPEMON commands due to udp_pkt_len
 		 * thus we can release the irq */
 		if (wan_atomic_read(&chan->udp_pkt_len) > sizeof(wan_udp_pkt_t)){
-			DEBUG_EVENT( "%s: Error: Pipemon buf too bit on the way up! %d\n",
+			DEBUG_ERROR( "%s: Error: Pipemon buf too bit on the way up! %d\n",
 					card->devname,wan_atomic_read(&chan->udp_pkt_len));
 			wan_atomic_set(&chan->udp_pkt_len,0);
 			return -EINVAL;
@@ -1077,7 +1087,7 @@ wp_usb_process_udp(sdla_t* card, netdevice_t* dev, wp_usb_softc_t *chan)
 				wan_set_bit (0,&trace_info->tracing_enabled);
 
 			}else{
-				DEBUG_EVENT("%s: Error: ATM trace running!\n",
+				DEBUG_ERROR("%s: Error: ATM trace running!\n",
 						card->devname);
 				wan_udp_pkt->wan_udp_return_code = 2;
 			}
@@ -1112,7 +1122,7 @@ wp_usb_process_udp(sdla_t* card, netdevice_t* dev, wp_usb_softc_t *chan)
 			if(wan_test_bit(0,&trace_info->tracing_enabled)){
 				trace_info->trace_timeout = SYSTEM_TICKS;
 			}else{
-				DEBUG_EVENT("%s: Error ATM trace not enabled\n",
+				DEBUG_ERROR("%s: Error ATM trace not enabled\n",
 						card->devname);
 				/* set return code */
 				wan_udp_pkt->wan_udp_return_code = 1;
@@ -1403,7 +1413,7 @@ static void wp_usb_task (void * data, int arg)
 	
 			chan=(wp_usb_softc_t*)card->u.usb.dev_to_ch_map[i];
 			if (!chan){
-				DEBUG_EVENT("%s: Error: No Dev for Rx logical ch=%d\n",
+				DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
 						card->devname,i);
 				continue;
 			}
@@ -1449,7 +1459,7 @@ static void wp_usb_isr(void *arg)
 			}
 			chan=(wp_usb_softc_t*)card->u.usb.dev_to_ch_map[i];
 			if (!chan){
-				DEBUG_EVENT("%s: Error: No Dev for Rx logical ch=%d\n",
+				DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
 						card->devname,i);
 				continue;
 			}
@@ -1465,7 +1475,7 @@ static void wp_usb_isr(void *arg)
 #endif
 			}
 			if (chan->rxdata == NULL || chan->txdata == NULL){
-				DEBUG_EVENT("%s: %s:%d ASSERT ERROR TxDma=%p RxDma=%p\n",
+				DEBUG_ERROR("%s: %s:%d ASSERT ERROR TxDma=%p RxDma=%p\n",
 							card->devname,__FUNCTION__,__LINE__,
 							chan->rxdata,chan->txdata);
 				return;
@@ -1627,7 +1637,7 @@ static int wp_usb_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 	int 		err = -EINVAL;
 
 	if (!ifr || !ifr->ifr_data){
-		DEBUG_EVENT("%s: Error: No ifr or ifr_data\n",__FUNCTION__);
+		DEBUG_ERROR("%s: Error: No ifr or ifr_data\n",__FUNCTION__);
 		return -EFAULT;
 	}
 
@@ -1653,3 +1663,5 @@ static int wp_usb_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 	return err;
 }
 
+
+#endif   /* #if defined(CONFIG_PRODUCT_WANPIPE_USB)        */

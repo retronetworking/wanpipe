@@ -7,30 +7,45 @@ shift
 APPARGS="$*"				# Grab any args passed to safe_sangoma
 TTY=						# TTY (if you want one) for APP to run on
 CONSOLE=no					# Whether or not you want a console
-#NOTIFY=user@email.com		# Who to notify about crashes
-#EXEC=/path/to/somescript	# Run this command if Asterisk crashes
 MACHINE=`hostname`			# To specify which machine has crashed when getting the mail
 DUMPDROP=/tmp
 SLEEPSECS=2
 BINDIR=/usr/sbin
+BINDIR_SS7="/usr/local/ss7box"
 PIDFILE=/var/run/$APP.pid
 CORENAME=$(cat /proc/sys/kernel/core_pattern)
 VARDIR=/var/log
+PROD="safe_sangoma"
+
+WAN_HOME=/etc/wanpipe
+META_SMG_CONF=$WAN_HOME/safe_sangoma.rc
+
+# Read meta-configuration file.
+# metconf file should define NOTIFY or EXEC path script
+# to run
+if [ -f $META_SMG_CONF ]
+	then . $META_SMG_CONF
+fi
 
 if [ -z $APP ]; then
 		echo
-        echo "Error: APP argument not specified"
+        logit "Error: APP argument not specified"
 		echo 
-		echo "Usage: safe_sangoma <app_name> <app arguments>"
+		logit "Usage: safe_sangoma <app_name> <app arguments>"
 		echo
         exit 1
+fi
+
+if [ -e $BINDIR_SS7/$APP ]; then
+  		BINDIR=$BINDIR_SS7
 fi
 
 if [ ! -e $BINDIR/$APP ]; then
 		echo
-        echo "Error: APP not found: $BINDIR/$APP"
+        logit "Error: APP not found: $BINDIR/$APP"
         exit 1
 fi
+
 
 # run APP with this priority
 PRIORITY=0
@@ -46,12 +61,12 @@ MAXFILES=32768
 # starting safe_sangoma when APP is running is very bad.
 PID=`pidof $APP`
 if [ ! -z $PID ]; then
-	echo "Error: $APP already running.  $0 will exit now."
+	logit "Error: $APP already running.  $0 will exit now."
 	exit 1
 fi
 
 if [ -f $PIDFILE ]; then
-	echo "Error: $APP pid file $PIDFILE exists!.  $0 will exit now."
+	logit "Error: $APP pid file $PIDFILE exists!.  $0 will exit now."
 	exit 1
 fi
 
@@ -61,8 +76,8 @@ fi
 # if we're not root, fall back to standard everything.
 if [ `id -u` != 0 ]
 then
-	echo "Oops. I'm not root. Falling back to standard prio and file max." >&2
-	echo "This is NOT suitable for large systems." >&2
+	logit "Oops. I'm not root. Falling back to standard prio and file max." >&2
+	logit "This is NOT suitable for large systems." >&2
 	PRIORITY=0
 else
 	if `echo $OSTYPE | grep linux 2>&1 > /dev/null `
@@ -124,7 +139,7 @@ ulimit -c unlimited
 #fi
 
 if [ ! -w ${DUMPDROP} ]; then	
-	echo "Cannot write to ${DUMPDROP}" >&2
+	logit "Cannot write to ${DUMPDROP}" >&2
 	exit 1
 fi
 
@@ -136,14 +151,23 @@ trap '' PIPE
 #
 # Run scripts to set any environment variables or do any other system-specific setup needed
 #
-
 if [ -d /etc/wanpipe/safe_startup.d ]; then
 	for script in /etc/wanpipe/safe_startup.d/*.sh; do
-		if [ -x ${script} ]; then
-			source ${script}
+		if [ -x $script ]; then
+			logit "Executing startup script: $script"
+			source $script
 		fi
 	done
 fi
+
+
+logit()
+{
+ 	local data="$1"
+
+	echo "$PROD: $data"
+	logger "$PROD: $data"
+}
 
 run_sangoma()
 {
@@ -153,26 +177,38 @@ run_sangoma()
 		nice -n $PRIORITY ${BINDIR}/$APP ${APPARGS} 
 
 		EXITSTATUS=$?
-		echo "$APP ended with exit status $EXITSTATUS"
+	   	logit  "$APP ended with exit status $EXITSTATUS"
 		if [ "$EXITSTATUS" = "0" ]; then
 			# Properly shutdown....
-			echo "$APP shutdown normally."
+			logit "$APP shutdown normally."
 			exit 0
 		elif [ $EXITSTATUS -gt 128 ]; then
 			let EXITSIGNAL=EXITSTATUS-128
-			echo "$APP exited on signal $EXITSIGNAL."
+			logit "$APP exited on signal $EXITSIGNAL."
 		else
-			echo "$APP died with code $EXITSTATUS."
+			logit "$APP died with code $EXITSTATUS."
 		fi
 
 		if [ "$NOTIFY" != "" ]; then
-			echo "$APP on $MACHINE exited on signal $EXITSIGNAL. Might want to take a peek." | \
-			mail -s "$APP Died" $NOTIFY
+			logfile="/etc/wanpipe/safe_sangoma_crash_"$APP"_"$$".log"
+			echo >  $logfile
+			date >> $logfile
+			echo >> $logfile
+			echo  "$APP on $MACHINE exited on signal $EXITSIGNAL. " >> $logfile
+			echo   >> $logfile     
+			echo "/var/log/messages"   >> $logfile     
+			echo "====================" >> $logfile     
+			tail -n 50 /var/log/messages  >> $logfile     
+			echo "====================" >> $logfile     
+			echo   >> $logfile     
+			cat $logfile | \
+			mail -s "$APP on $MACHINE Died" $NOTIFY
+			ret=$?
+			logit "Email sent to $NOTIFY result $ret"
 		fi
 		if [ "$EXEC" != "" ]; then
 			$EXEC
 		fi
-
 		PID=`cat ${PIDFILE}`
 		if [ -f /tmp/$CORENAME.${PID} ]; then
 			mv /tmp/$CORENAME.${PID} ${DUMPDROP}/core.$APP.`hostname`-`date -Iseconds` &
@@ -180,7 +216,7 @@ run_sangoma()
 			mv /tmp/$CORENAME ${DUMPDROP}/core.$APP.`hostname`-`date -Iseconds` &
 		fi
 
-		echo "Automatically restarting $APP."
+		logit "Automatically restarting $APP."
 		sleep $SLEEPSECS
 		\rm -f ${PIDFILE}
 	done

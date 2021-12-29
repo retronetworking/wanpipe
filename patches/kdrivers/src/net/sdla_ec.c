@@ -113,7 +113,7 @@ void *wan_ec_config(void *pcard, int max_channels)
 	WAN_LIST_FOREACH(ec, &wan_ec_head, next){
 		WAN_LIST_FOREACH(ec_dev, &ec->ec_dev, next){
 			if (ec_dev->card == NULL || ec_dev->card == card){
-				DEBUG_EVENT("%s: Internal Error (%s:%d)\n",
+				DEBUG_ERROR("%s: Internal Error (%s:%d)\n",
 						card->devname,
 						__FUNCTION__,__LINE__);
 				return NULL;
@@ -133,7 +133,7 @@ void *wan_ec_config(void *pcard, int max_channels)
 	}
 	ec_dev_new = wan_malloc(sizeof(wan_ec_dev_t));
 	if (ec_dev_new == NULL){
-		DEBUG_EVENT("%s: ERROR: Failed to allocate memory (%s:%d)!\n",
+		DEBUG_ERROR("%s: ERROR: Failed to allocate memory (%s:%d)!\n",
 					card->devname,
 					__FUNCTION__,__LINE__);
 		return NULL;
@@ -145,7 +145,7 @@ void *wan_ec_config(void *pcard, int max_channels)
 		/* First device for current Oct6100 chip */
 		ec = wan_malloc(sizeof(wan_ec_t));
 		if (ec == NULL){
-			DEBUG_EVENT("%s: ERROR: Failed to allocate memory (%s:%d)!\n",
+			DEBUG_ERROR("%s: ERROR: Failed to allocate memory (%s:%d)!\n",
 						card->devname,
 						__FUNCTION__,__LINE__);
 			return NULL;
@@ -384,7 +384,7 @@ wan_ec_read_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 *data)
 	WAN_ASSERT(card == NULL);
 	addr = convert_addr(addr1);
 	if (addr == 0x00){
-		DEBUG_EVENT("%s: %s:%d: Internal Error (EC off %X)\n",
+		DEBUG_ERROR("%s: %s:%d: Internal Error (EC off %X)\n",
 				card->devname,
 				__FUNCTION__,__LINE__,
 				addr1);
@@ -411,7 +411,7 @@ wan_ec_write_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 data)
 	WAN_ASSERT(card == NULL);
 	addr = convert_addr(addr1);
 	if (addr == 0x00){
-		DEBUG_EVENT("%s: %s:%d: Internal Error (EC off %X)\n",
+		DEBUG_ERROR("%s: %s:%d: Internal Error (EC off %X)\n",
 				card->devname,
 				__FUNCTION__,__LINE__,
 				addr1);
@@ -821,7 +821,7 @@ int wan_ec_dev_ioctl(void *ec_arg, void *data)
 
 	ec_dev = WAN_LIST_FIRST(&ec->ec_dev);
 	if (ec_dev == NULL){
-		DEBUG_EVENT("%s: Internal Error (%s:%d)\n",
+		DEBUG_ERROR("%s: Internal Error (%s:%d)\n",
 					ec->name,
 					__FUNCTION__,__LINE__);
 		return -EINVAL;

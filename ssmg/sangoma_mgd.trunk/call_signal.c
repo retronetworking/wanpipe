@@ -38,7 +38,8 @@ static struct call_signal_map call_signal_table[] = {
 	{SIGBOOST_EVENT_HEARTBEAT, "HEARTBEAT"},
 	{SIGBOOST_EVENT_INSERT_CHECK_LOOP, "LOOP START"},
 	{SIGBOOST_EVENT_REMOVE_CHECK_LOOP, "LOOP STOP"},
-	{SIGBOOST_EVENT_DIGIT_IN, "DIGIT_IN"}
+	{SIGBOOST_EVENT_DIGIT_IN, "DIGIT_IN"},
+	{SIGBOOST_EVENT_CALL_PROGRESS, "CALL_PROGRESS"}
 }; 
 
 #define USE_SCTP 1
@@ -79,6 +80,22 @@ static int create_udp_socket(call_signal_connection_t *mcon, char *local_ip, int
 				   (char *)&flag, sizeof(int));
 #endif
 
+		
+			rc = fcntl(mcon->socket, F_GETFL);
+			if ( rc < 0 ) {
+				close(mcon->socket);
+				mcon->socket = -1;
+				return mcon->socket;
+			}
+			
+			rc |= O_NONBLOCK;
+			rc = fcntl(mcon->socket, F_SETFL, rc);
+			if ( rc < 0 ) {
+				close(mcon->socket);
+				mcon->socket = -1;
+				return mcon->socket;
+			}
+
 			if ((rc = bind(mcon->socket, 
 				  (struct sockaddr *) &mcon->local_addr,
 				   sizeof(mcon->local_addr))) < 0) {
@@ -89,7 +106,7 @@ static int create_udp_socket(call_signal_connection_t *mcon, char *local_ip, int
 				rc=listen(mcon->socket,100);
 				if (rc) {
 					close(mcon->socket);
-	                                mcon->socket = -1;
+					mcon->socket = -1;
 				}
 #endif
 			}
@@ -119,23 +136,24 @@ static int smg_event_dbg=SMG_LOG_BOOST;
 static void clog_print_event_call(call_signal_connection_t *mcon,call_signal_event_t *event, int priority, int dir)
 {
 	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?SMG_LOG_DEBUG_CALL:smg_event_dbg, mcon->log,
-                           "%s EVENT (%s): %s:(%X) [w%dg%d] CSid=%i Seq=%i Cn=[%s] Cd=[%s] Ci=[%s]\n",
+                           "%s EVENT (%s): %s:(%X) [s%dc%d] Tg=%i CSid=%i Seq=%i Cn=[%s] Cd=[%s] Ci=[%s]\n",
 			   dir ? "TX":"RX",
 			   priority ? "P":"N",	
                            call_signal_event_id_name(event->event_id),
                            event->event_id,
                            event->span+1,
                            event->chan+1,
+						   event->trunk_group,
                            event->call_setup_id,
                            event->fseqno,
-			   strlen(event->calling_name)?event->calling_name:"N/A",
+			   			   strlen(event->calling_name)?event->calling_name:"N/A",
                            (event->called_number_digits_count ? (char *) event->called_number_digits : "N/A"),
                            (event->calling_number_digits_count ? (char *) event->calling_number_digits : "N/A"));
 }
 static void clog_print_event_short(call_signal_connection_t *mcon,short_signal_event_t *event, int priority, int dir)
 {
 	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?SMG_LOG_DEBUG_CALL:smg_event_dbg, mcon->log,
-                           "%s EVENT (%s): %s:(%X) [w%dg%d] Rc=%i CSid=%i Seq=%i \n",
+                           "%s EVENT (%s): %s:(%X) [s%dc%d] Rc=%i CSid=%i Seq=%i \n",
 			   dir ? "TX":"RX",
 			   priority ? "P":"N",	
                            call_signal_event_id_name(event->event_id),
@@ -213,6 +231,9 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 				mcon->event.event_id,mcon->rxseq,mcon->event.fseqno);
 			clog_printf(SMG_LOG_ALL, mcon->log, 
 				"------------------------------------------\n");
+
+			/* NC: Recover from a sequence error */
+            mcon->rxseq = mcon->event.fseqno;
 		}
 
 #ifdef SANGOMA_UNIT_TESTER
@@ -350,11 +371,10 @@ int call_signal_connection_writep(call_signal_connection_t *mcon, call_signal_ev
 	}
 #endif
 
-	pthread_mutex_lock(&mcon->lock);
 	event->version=SIGBOOST_VERSION;
+	/* Sendto is thread safe so no lock needed */
 	err=sendto(mcon->socket, event, event_size, 0, 
 		   (struct sockaddr *) &mcon->remote_addr, sizeof(mcon->remote_addr));
-	pthread_mutex_unlock(&mcon->lock);
 
 	if (err != event_size) {
 		err = -1;
@@ -422,8 +442,13 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 
 	event->bseqno=mcon->rxseq;
 	event->version=SIGBOOST_VERSION;
+	
 	err=sendto(mcon->socket, event, event_size, 0, 
 		   (struct sockaddr *) &mcon->remote_addr, sizeof(mcon->remote_addr));
+	
+	if (err != event_size) {
+		mcon->txseq--;	
+	}
 	pthread_mutex_unlock(&mcon->lock);
 
 	if (err != event_size) {

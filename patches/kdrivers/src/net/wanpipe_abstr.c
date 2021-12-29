@@ -573,9 +573,9 @@ void wpabs_debug_event(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_EVENT
 	va_list args;
-	char buf[1024];
+	char buf[1020];
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_EVENT("%s", buf);
 	va_end(args);
 #endif
@@ -586,9 +586,9 @@ void __wpabs_debug_event(const char * fmt, ...)
 {
 #ifdef WAN_DEBUG_EVENT
 	va_list args;
-	char buf[1024];
+	char buf[1020];
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_EVENT("%s", buf);
 	va_end(args);
 #endif
@@ -604,7 +604,7 @@ void wpabs_debug_test(const char * fmt, ...)
 	va_list args;
 	char buf[1024];
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_TEST("%s", buf);
 	va_end(args);
 #endif
@@ -620,7 +620,7 @@ void wpabs_debug_cfg(const char * fmt, ...)
 	va_list args;
 	char buf[1024];
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_CFG("%s",buf);
 	va_end(args);
 #endif
@@ -635,7 +635,7 @@ void wpabs_debug_init(const char * fmt, ...)
 	va_list args;
 	char buf[1024];
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_INIT("%s",buf);
 	va_end(args);
 #endif
@@ -650,7 +650,7 @@ void wpabs_debug_tx(const char * fmt, ...)
 	va_list args;
 	char buf[1024];
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_TX("%s",buf);
 	va_end(args);
 #endif
@@ -665,7 +665,7 @@ void wpabs_debug_rx(const char * fmt, ...)
 	va_list args;
 	char buf[1024];
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_RX("%s",buf);
 	va_end(args);
 #endif
@@ -680,7 +680,7 @@ void wpabs_debug_isr(const char * fmt, ...)
 	va_list args;
 	char buf[1024];
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_ISR("%s",buf);
 	va_end(args);
 #endif
@@ -694,7 +694,7 @@ void wpabs_debug_timer(const char * fmt, ...)
 	va_list args;
 	char buf[1024];
 	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
+	wp_vsnprintf(buf, sizeof(buf), fmt, args);
 	DEBUG_TIMER("%s",buf);
 	va_end(args);
 #endif
@@ -1102,7 +1102,7 @@ void wpabs_get_random_bytes(void *ptr, int len)
 #elif defined(__OpenBSD__)
 	get_random_bytes(ptr,len);
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL();
+	get_random_bytes(ptr, len);
 #else
 # error "wpabs_get_random_bytes not supported"
 #endif

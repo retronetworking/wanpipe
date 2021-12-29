@@ -2,13 +2,25 @@
   wanpipe_hdlc.h:  WANPIPE HDLC Library
 */
 
+#ifndef _WANPIPE_HDLC_H
+#define _WANPIPE_HDLC_H
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
-#include <unistd.h>
-#include <string.h>
+
+#if defined(__WINDOWS__)
+# define wan_inline __inline
+# ifdef __cplusplus
+   extern "C" {	/* for C++ users */
+# endif
+#else
+# include <ctype.h>
+# include <unistd.h>
+# include <errno.h>
+# define wan_inline inline
+#endif
 #include <errno.h>
-                
 
 /*===================================================================
  * 
@@ -126,6 +138,9 @@ typedef struct wanpipe_hdlc_engine
 
 	int (*hdlc_data) (struct wanpipe_hdlc_engine *hdlc_eng, void *data, int len);
 
+    void *context; /* user can store a pointer here, so it can be used when
+					* hdlc_data() callback runs */
+
 }wanpipe_hdlc_engine_t;
 
 typedef struct hdlc_list
@@ -147,7 +162,7 @@ typedef struct hdlc_list
 #define DEBUG_TX	
 #endif
 
-static inline 
+static wan_inline 
 void init_hdlc_decoder(wanpipe_hdlc_decoder_t *hdlc_decoder)
 {
 	hdlc_decoder->hdlc_flag=0;
@@ -164,7 +179,7 @@ void init_hdlc_decoder(wanpipe_hdlc_decoder_t *hdlc_decoder)
 	hdlc_decoder->crc_prv=0;
 }                   
 
-static inline
+static wan_inline
 void init_hdlc_encoder(wanpipe_hdlc_encoder_t *chan)
 {
 	chan->tx_crc=-1;
@@ -188,3 +203,11 @@ extern int wanpipe_get_tx_hdlc_errors (wanpipe_hdlc_engine_t *hdlc_eng);
 extern int wanpipe_get_rx_hdlc_packets (wanpipe_hdlc_engine_t *hdlc_eng);
 extern int wanpipe_get_tx_hdlc_packets (wanpipe_hdlc_engine_t *hdlc_eng);
 extern int wanpipe_hdlc_dump_ring(wanpipe_hdlc_engine_t *hdlc_eng);
+
+#if defined(__WINDOWS__)
+#ifdef __cplusplus
+}	/* for C++ users */
+#endif /* __cplusplus */
+#endif
+
+#endif /* _WANPIPE_HDLC_H */

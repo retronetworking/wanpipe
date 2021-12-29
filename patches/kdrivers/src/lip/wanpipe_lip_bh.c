@@ -1,11 +1,15 @@
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <wanpipe_lip.h>
+#elif defined(__WINDOWS__)
+# include "wanpipe_lip.h"
 #else
-#include <linux/wanpipe_lip.h>
+# include <linux/wanpipe_lip.h>
 #endif
 
 #if defined(__LINUX__)
 void wplip_link_bh(unsigned long data);
+#elif defined(__WINDOWS__)
+void wplip_link_bh(IN PKDPC Dpc, IN PVOID data, IN PVOID SystemArgument1, IN PVOID SystemArgument2);
 #else
 void wplip_link_bh(void* data, int pending);
 #endif
@@ -123,6 +127,8 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 				WAN_NETIF_START_QUEUE(lip_dev->common.dev);
 #if defined(__LINUX__)
 				wan_wakeup_api(lip_dev);
+#elif defined(__WINDOWS__)
+				WAN_NETIF_WAKE_QUEUE (lip_dev->common.dev);
 #endif
 			}else if (lip_dev->common.lip){ /*STACK*/
 				WAN_NETIF_START_QUEUE(lip_dev->common.dev);
@@ -203,6 +209,8 @@ static int wplip_retrigger_bh(wplip_link_t *lip_link)
 
 #if defined(__LINUX__)
 void wplip_link_bh(unsigned long data)
+#elif defined(__WINDOWS__)
+void wplip_link_bh(IN PKDPC Dpc, IN PVOID data, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
 #else
 void wplip_link_bh(void* data, int pending)
 #endif
@@ -217,7 +225,7 @@ void wplip_link_bh(void* data, int pending)
 		return;
 	}
 
-	wan_spin_lock_irq(&lip_link->bh_lock, &s);
+	wplip_spin_lock_irq(&lip_link->bh_lock, &s);
 
 	wan_set_bit(WPLIP_BH_RUNNING,&lip_link->tq_working);
 	
@@ -229,7 +237,7 @@ void wplip_link_bh(void* data, int pending)
 
 	WAN_TASKLET_END((&lip_link->task));
 
-	wan_spin_unlock_irq(&lip_link->bh_lock, &s);
+	wplip_spin_unlock_irq(&lip_link->bh_lock, &s);
 
 	wplip_retrigger_bh(lip_link);
 

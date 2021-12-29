@@ -173,7 +173,7 @@ static int request_fifo_baddr_and_size(sdla_t *card, private_area_t *chan)
 
 	fifo_size=(u8)aft_map_fifo_baddr_and_size(card,req_fifo_size,&chan->fifo_base_addr);
 	if (fifo_size == 0 || chan->fifo_base_addr == 31){
-		DEBUG_EVENT("%s:%s: Error: Failed to obtain fifo size %d or addr %d \n",
+		DEBUG_ERROR("%s:%s: Error: Failed to obtain fifo size %d or addr %d \n",
 				card->devname,chan->if_name,fifo_size,chan->fifo_base_addr);
                 return -EINVAL;
         }
@@ -190,7 +190,7 @@ static int request_fifo_baddr_and_size(sdla_t *card, private_area_t *chan)
 	}
 
 	if (fifo_size != req_fifo_size){
-		DEBUG_EVENT("%s:%s: Warning: Failed to obtain the req fifo %d got %d\n",
+		DEBUG_WARNING("%s:%s: Warning: Failed to obtain the req fifo %d got %d\n",
 			card->devname,chan->if_name,req_fifo_size,fifo_size);
 	}	
 
@@ -366,7 +366,7 @@ static int aft_request_logical_channel_num (sdla_t *card, private_area_t *chan)
 	}
 
 	if (card->u.aft.dev_to_ch_map[(unsigned char)logic_ch]){
-		DEBUG_EVENT("%s: Error, request logical ch=%d map busy\n",
+		DEBUG_ERROR("%s: Error, request logical ch=%d map busy\n",
 				card->devname,logic_ch);
 		return -1;
 	}
@@ -426,7 +426,7 @@ int aft_bri_test_sync(sdla_t *card, int tx_only)
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
 		
 	if (wan_test_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg)){
-		DEBUG_EVENT("%s: Warning: BRI Reset Enabled %d! \n",
+		DEBUG_WARNING("%s: Warning: BRI Reset Enabled %d! \n",
 				card->devname, card->wandev.comm_port+1);
 	}
 
@@ -553,7 +553,7 @@ int aft_bri_global_chip_config(sdla_t *card)
 	}
 
 	if (!IS_BRI_CARD(card)) {
-			DEBUG_EVENT("%s: Error: Xilinx doesn't support non BRI interface!\n",
+			DEBUG_ERROR("%s: Error: Xilinx doesn't support non BRI interface!\n",
 					card->devname);
 			return -EINVAL;
 	}
@@ -571,7 +571,7 @@ int aft_bri_global_chip_config(sdla_t *card)
      	
 	err=aft_test_hdlc(card);
 	if (err != 0){
-		DEBUG_EVENT("%s: Error: HDLC Core Not Ready (0x%X)!\n",
+		DEBUG_ERROR("%s: Error: HDLC Core Not Ready (0x%X)!\n",
 					card->devname,reg);
 		return -EINVAL;
     	} else{
@@ -804,7 +804,7 @@ int aft_bri_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG),&reg);
 	if (err != 0){
-		DEBUG_EVENT("%s: Error: Front End Interface Not Ready (0x%08X)!\n",
+		DEBUG_ERROR("%s: Error: Front End Interface Not Ready (0x%08X)!\n",
 					card->devname,reg);
 		return err;
 	} else{
@@ -1146,7 +1146,7 @@ unsigned char aft_bri_read_cpld(sdla_t *card, unsigned short cpld_off)
 	BRI_FUNC();
 
 	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			card->devname, __FUNCTION__,__LINE__);
 		return 0x00;
 	}
@@ -1168,7 +1168,7 @@ int aft_bri_write_cpld(sdla_t *card, unsigned short off,unsigned short data)
 
 
 	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			card->devname, __FUNCTION__,__LINE__);
 		return 0x00;
 	}
@@ -1190,7 +1190,7 @@ int bri_write_cpld(sdla_t *card, unsigned short off,unsigned char data)
 	BRI_FUNC();
 
 	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			card->devname, __FUNCTION__,__LINE__);
 		return 0x00;
 	}
@@ -1384,10 +1384,10 @@ int aft_bri_write_fe(void* pcard, ...)
 
 	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
 #if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
 			card->devname, __FUNCTION__,__LINE__, fname, fline);
 #else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			card->devname, __FUNCTION__,__LINE__);
 #endif			
 		return -EINVAL;
@@ -1432,10 +1432,10 @@ unsigned char aft_bri_read_fe (void* pcard, ...)
 
 	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
 #if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
 			card->devname, __FUNCTION__,__LINE__,fname,fline);
 #else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			card->devname, __FUNCTION__,__LINE__);
 #endif		
 		return 0x00;
@@ -1766,7 +1766,7 @@ write_bri_fe_byte(sdla_t *card, unsigned char mod_no, unsigned char addr, unsign
 	card->hw_iface.bus_read_4(card->hw, 0x40, dummy_ptr);
 	card->hw_iface.bus_read_4(card->hw, SPI_INTERFACE_REG, dummy_ptr);
 	if((*data_ptr & 0xFFFF) != (*dummy_ptr & 0xFFFF)){
-		DEBUG_EVENT("%s:%s(): Line:%d: Error: *data_ptr: 0x%02X, *dummy_ptr: 0x%02X\n",
+		DEBUG_ERROR("%s:%s(): Line:%d: Error: *data_ptr: 0x%02X, *dummy_ptr: 0x%02X\n",
 			card->devname, __FUNCTION__, __LINE__, *data_ptr, *dummy_ptr);			
 	}
 */
@@ -1790,7 +1790,7 @@ int aft_bri_dchan_transmit(sdla_t *card, void *chan_ptr, void *src_data_buffer, 
 					src_data_buffer, 
 					buffer_len);
 	}else{
-		DEBUG_EVENT("%s():%s: Warning: uninitialized isdn_bri_dchan_tx() pointer.\n",
+		DEBUG_WARNING("%s():%s: Warning: uninitialized isdn_bri_dchan_tx() pointer.\n",
 			__FUNCTION__, card->devname);
 	}
 
@@ -1814,7 +1814,7 @@ int aft_bri_dchan_receive( sdla_t *card, void *chan_ptr, void *dst_data_buffer, 
 					dst_data_buffer, 
 					buffer_len);
 	}else{
-		DEBUG_EVENT("%s():%s: Warning: uninitialized isdn_bri_dchan_rx() pointer.\n",
+		DEBUG_WARNING("%s():%s: Warning: uninitialized isdn_bri_dchan_rx() pointer.\n",
 			__FUNCTION__, card->devname);
 	}
 

@@ -17,9 +17,9 @@
 # define __SDLA_REMORA_H
 
 #ifdef __SDLA_REMORA_SRC
-# define EXTERN
+# define WP_EXTERN
 #else
-# define EXTERN extern
+# define WP_EXTERN extern
 #endif
 
 # include "aft_core_options.h"
@@ -165,6 +165,7 @@ typedef struct sdla_remora_cfg_ {
 	int		fxs_ringampl;
 	u_int8_t	rm_mode; 	/*Analog Operation mode: default or tapping */
 	u_int8_t	fake_polarity;
+	u_int8_t	rm_lcm; /*Analog Loop Current Measure (LCM) : Yes Or NO */
 } sdla_remora_cfg_t;
 
 typedef struct {
@@ -333,6 +334,7 @@ typedef struct {
 	int	offhook;		/* Xswitch */
 	int	battery;		/* Xswitch */
 	int	battdebounce;		/* Xswitch */
+	int i_debounce;
 	int ringdebounce;
 	int	wasringing;
 	int	nobatttimer;
@@ -417,6 +419,7 @@ typedef struct {
 	int		polarity;	/* SETPOLARITY */		
 	unsigned short	reg;		/* fe register */	
 	unsigned char	value;		/* fe register value */	
+	int	 	rm_gain;	/* Tx/Rx Gain */
 } sdla_rm_event_t;
 
 typedef struct sdla_remora_param {
@@ -443,7 +446,7 @@ typedef struct sdla_remora_param {
 	unsigned char	reg0shadow[MAX_REMORA_MODULES];	/* read> fxs: 68 fxo: 5 */
 	unsigned char	reg1shadow[MAX_REMORA_MODULES];	/* read> fxs: 64 fxo: 29 */
 	unsigned char	reg2shadow[MAX_REMORA_MODULES];	/* read> fxs: 64 fxo: 29 */
-	unsigned char	reg3shadow[MAX_REMORA_MODULES]; /* read > fxs : 19 for Ring/Trip Evnet , FXO no use yet */
+	unsigned char	reg3shadow[MAX_REMORA_MODULES]; /* read > fxs : 19 for Ring/Trip Evnet , FXO -used LCS2 (read 28) */
 	unsigned char	reg4shadow[MAX_REMORA_MODULES]; /* read > fxs : 20 for DTMF Evnet , FXO no use yet */
 
 	unsigned char	reg0shadow_write[MAX_REMORA_MODULES];	/* write> fxs: 68 fxo: 5 */
@@ -463,6 +466,6 @@ typedef struct sdla_remora_param {
 extern int	wp_remora_iface_init(void*, void*);
 extern int	wp_a700_remora_iface_init(void*, void*);
 
-#undef EXTERN
+#undef WP_EXTERN
 #endif	/* __SDLA_REMORA_H */
 

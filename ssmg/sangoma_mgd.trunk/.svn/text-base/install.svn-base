@@ -49,7 +49,7 @@ cfgdir="/etc/asterisk"
 mysyslog=" "
 smg_installed=0
 chan_woomera_installed=0
-
+no_woomera="false"
 
 
 while [ ! -z $1 ]
@@ -62,6 +62,9 @@ do
 		noss7="flase"
 	elif [ $1 = '-bri' ]; then
 		noss7="true"
+	elif [ $1 = '-no_woomera' ]; then
+		noss7="true"
+		no_woomera="true"
 	elif [ $1 = '-pri' ]; then
 		noss7="true"
 		pri="true"
@@ -118,12 +121,10 @@ fi
 
 if [ $noss7 != 'true' ]; then
 	if [ ! -e /usr/local/ss7box/$ss7boost ]; then
-		echo "Error: ss7boost not found in /usr/local/ss7box dir";
-		exit 1
+		echo "Warning: $ss7boost not found in /usr/local/ss7box dir";
 	fi
 	if [ ! -e /usr/local/ss7box/$ss7boxd ]; then
-		echo "Error: ss7boxd not found in /usr/local/ss7box dir";
-		exit 1
+		echo "Warning: ss7boxd not found in /usr/local/ss7box dir";
 	fi
 fi
 
@@ -242,7 +243,7 @@ if [ ! -e  /usr/include/netinet/sctp.h ] && [ ! -e /usr/include/sctp.h ]; then
 	echo
 	echo "Error: lksctp-tools-devel package missing"
 	echo "Please install sctp using a package manager"
-	echo "eg: yum install ksctp-tools-devel"
+	echo "eg: yum install lksctp-tools-devel"
 	echo
 	exit 1
 fi 
@@ -325,42 +326,44 @@ else
 	smg_installed=1;
 fi
 
-if [ -d chan_woomera.trunk ]; then
+if [ "$no_woomera" == "false" ]; then 
+	if [ -d chan_woomera.trunk ]; then
 
-	cd chan_woomera.trunk
+		cd chan_woomera.trunk
 
-	echo "Compiling Woomera Channel ..."
+		echo "Compiling Woomera Channel ..."
 
-	if [ ! -e $pbxdir ]; then
-		echo
-		echo "Error: $pbxdir directory does not exist!"
-		echo "       Please provide the path to Asterik or CallWeaver source."
-		echo "       Then re-run eg: ./install -pbxdir /usr/src/asterisk "
-		echo
-		getyn "Would you like to continue installation?"
-		if [ $? -ne 0 ]; then
-			exit 1;
+		if [ ! -e $pbxdir ]; then
+			echo
+			echo "Error: $pbxdir directory does not exist!"
+			echo "       Please provide the path to Asterik or CallWeaver source."
+			echo "       Then re-run eg: ./install -pbxdir /usr/src/asterisk "
+			echo
+			getyn "Would you like to continue installation?"
+			if [ $? -ne 0 ]; then
+				exit 1;
+			fi
+		else
+			eval "make clean 2> /dev/null > /dev/null"
+			eval "make PBXDIR=$pbxdir"
+			if [ $? -ne 0 ]; then
+				exit 1;
+			fi
+			make INSTALLPREFIX=$rootdir install
+			if [ $? -ne 0 ]; then
+				echo
+				echo "Error: Failed to compile chan_woomera into PBX source!"
+				echo
+				exit 1;
+			fi
+			echo "Ok."
+			chan_woomera_installed=1;
 		fi
+
 	else
-		eval "make clean 2> /dev/null > /dev/null"
-		eval "make PBXDIR=$pbxdir"
-		if [ $? -ne 0 ]; then
-			exit 1;
-		fi
-		make INSTALLPREFIX=$rootdir install
-		if [ $? -ne 0 ]; then
-			echo
-			echo "Error: Failed to compile chan_woomera into PBX source!"
-			echo
-			exit 1;
-		fi
-		echo "Ok."
-		chan_woomera_installed=1;
+		echo "Warning: chan_woomera directory does not exist!"
+		exit 1
 	fi
-
-else
-	echo "Warning: chan_woomera directory does not exist!"
-	exit 1
 fi
 
 if [ $smg_installed -eq 1 ]; then
@@ -389,6 +392,10 @@ if [ $chan_woomera_installed -eq 1 ]; then
 	echo "--> Start: start $pbxd (part of $pbxd)"
 	echo
 	echo "---------------------------------"
+elif [ $no_woomera = "true" ];then
+	echo
+	echo " You chose not to install Chan Woomera"
+	echo 
 else
 	echo
 	echo " Chan Woomera Installatin Failed"

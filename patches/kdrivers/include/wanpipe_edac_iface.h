@@ -1,3 +1,4 @@
+/* wanpipe_edac_iface.h */
 #ifndef __WANPIPE_EDAC_IFACE_H
 #define __WANPIPE_EDAC_IFACE_H
 

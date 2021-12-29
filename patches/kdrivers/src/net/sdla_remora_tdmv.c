@@ -1061,7 +1061,7 @@ static int wp_tdmv_remora_remove(void* pcard)
 		return -EINVAL;
 	}
 	if (wr && wr->usecount){
-		DEBUG_EVENT("%s: ERROR: Wanpipe is still used by Asterisk!\n",
+		DEBUG_ERROR("%s: ERROR: Wanpipe is still used by Asterisk!\n",
 				card->devname);
 		return -EINVAL;
 	}
@@ -1337,7 +1337,7 @@ static void wp_tdmv_remora_tone (void* card_id, wan_event_t *event)
 	wr = wan_tdmv->sc;
 
 	if (event->channel <= 0) {
-     	DEBUG_EVENT("%s: Error: wp_tdmv_remora_tone() Invalid Event Channel = %i\n",
+     	DEBUG_ERROR("%s: Error: wp_tdmv_remora_tone() Invalid Event Channel = %i\n",
 				card->devname, event->channel);
 		return;
 	}
@@ -1387,7 +1387,7 @@ static void wp_tdmv_remora_tone (void* card_id, wan_event_t *event)
 	    		   (SYSTEM_TICKS - wr->ec_fax_detect_timeout[fechan]) >= card->tdmv_conf.hw_fax_detect*HZ) {
 #ifdef WAN_DEBUG_TDMAPI 
 			if (WAN_NET_RATELIMIT()) {
-				DEBUG_EVENT("%s: Warning: Ignoring Fax detect during call (s%dc%d) - Call Time: %ld  Max: %d!\n",
+				DEBUG_WARNING("%s: Warning: Ignoring Fax detect during call (s%dc%d) - Call Time: %ld  Max: %d!\n",
 					card->devname,
 					wr->spanno+1,
 					event->channel,

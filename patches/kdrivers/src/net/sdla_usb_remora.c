@@ -305,7 +305,7 @@ static struct fxo_mode {
 	{ "CHINA", 0, 0, 0, 0, 0, 0, 0x3, 0xf, },
 	{ "COLUMBIA", 0, 0, 0, 0, 0, 0x3, 0, 0, },
 	{ "CROATIA", 0, 0, 0, 0, 1, 0x3, 0, 0x2, },
-	{ "CYRPUS", 0, 0, 0, 0, 1, 0x3, 0, 0x2, },
+	{ "CYPRUS", 0, 0, 0, 0, 1, 0x3, 0, 0x2, },
 	{ "CZECH", 0, 0, 0, 0, 1, 0x3, 0, 0x2, },
 	{ "DENMARK", 0, 1, 0, 0, 1, 0x3, 0, 0x2, },
 	{ "ECUADOR", 0, 0, 0, 0, 0, 0x3, 0, 0, },
@@ -1531,7 +1531,7 @@ retry_cfg:
 			"ERROR: %s: Configuration is failed for all FXO/FXS modules!\n",
 					fe->name);
 		}else{
-			DEBUG_EVENT("ERROR: %s: No FXO/FXS modules are found!\n",
+			DEBUG_ERROR("ERROR: %s: No FXO/FXS modules are found!\n",
 					fe->name);
 		}
 		return -EINVAL;
@@ -2191,7 +2191,7 @@ static int wp_usb_remora_polling(sdla_fe_t* fe)
 		}
 		break;
 	default:
-		DEBUG_EVENT("ERROR: %s: Invalid poll event type %X!\n", 
+		DEBUG_ERROR("ERROR: %s: Invalid poll event type %X!\n", 
 				fe->name, fe_event->type);
 		break;
 	}
@@ -2289,7 +2289,7 @@ wp_usb_remora_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *fe_event)
 //			if (!WAN_LIST_NEXT(tmp, next)) break;
 //		}
 //		if (tmp == NULL){
-//			DEBUG_EVENT("%s: Internal Error!!!\n", fe->name);
+//			DEBUG_ERROR("%s: Internal Error!!!\n", fe->name);
 //			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
 //			return -EINVAL;
 //		}

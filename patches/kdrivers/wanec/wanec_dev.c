@@ -88,7 +88,12 @@ devfs_handle_t devfs_handle;
 
 static int wanec_dev_open(struct inode*, struct file*);
 static int wanec_dev_release(struct inode*, struct file*);
+
+#if defined(__WINDOWS__)
+int wanec_dev_ioctl(void *data, char *card_devname);
+#else
 static int wanec_dev_ioctl(struct inode*, struct file*, unsigned int, unsigned long);
+#endif
 
 #if !defined(__WINDOWS__)
 /*==============================================================
@@ -203,7 +208,41 @@ static int wanec_dev_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-#if !defined(__WINDOWS__)
+#if defined(__WINDOWS__)
+extern int wanec_ioctl(void*);
+int wanec_dev_ioctl(void *data, char *card_devname)
+{
+	int rc;
+	wan_ec_api_t *ec_api;
+	char original_ec_api_dev_name[WAN_DRVNAME_SZ];
+
+	if (data == 0){
+		DEBUG_ERROR("%s(): Error: data pointer is NULL!\n",__FUNCTION__);
+		return EINVAL;
+	}
+	
+	ec_api = (wan_ec_api_t*)data;
+#if 0
+	DbgPrint("%s(): card_devname: %s, ec_api->devname: %s", 
+		__FUNCTION__, card_devname, ec_api->devname);
+#endif
+	/* keep the original name which was set in user mode */
+	snprintf(original_ec_api_dev_name, WAN_DRVNAME_SZ, "%s", ec_api->devname);
+
+	/*	In user mode the 'ec_api->devname' is set to interface name.
+		For example "wanpipe2_if0". But wanec code needs 'card name',
+		("wanpipe2") not 'interface name' when the wanec_search() is called.
+		Change 'ec_api->devname' to be the 'card name': */
+	snprintf(ec_api->devname, WAN_DRVNAME_SZ, "%s", card_devname);
+
+	rc = wanec_ioctl(data);
+
+	/* restore the original name which was set in user mode */
+	snprintf(ec_api->devname, WAN_DRVNAME_SZ, "%s", original_ec_api_dev_name);
+
+	return rc;
+}
+#else
 extern int wanec_ioctl(unsigned int, void*);
 static int wanec_dev_ioctl(struct inode *inode, struct file *file,
 		      unsigned int cmd, unsigned long data)

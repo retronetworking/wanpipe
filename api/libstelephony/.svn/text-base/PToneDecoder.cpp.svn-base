@@ -86,7 +86,7 @@ int PhoneToneDecoder::Init()
 
 int PhoneToneDecoder::WaveStreamInputExFSK(int16_t* slinData, int dataLength, int *retvalue)
 {
-	char CallerNumber[15], CallerName[15], DateTime[15];
+	char CallerNumber[22], CallerName[52], DateTime[16];
 	memset(CallerNumber,0,sizeof(CallerNumber));
 	memset(CallerName,0,sizeof(CallerName));
 	memset(DateTime,0,sizeof(DateTime));
@@ -178,7 +178,7 @@ int PhoneToneDecoder::WaveStreamInputEx(char* data, int dataLength, int *retValu
 			STEL_ERR("Failed to alloc mem (%s:%d)\n", __FUNCTION__,__LINE__);
 			return -1;
 		}
-		memset(slinData, 0, sizeof(slinData));
+		memset( slinData, 0, dataLength*2 );
 		if (variant.intVal==WFI_CCITT_uLaw_8kHzMono) {
 			for(i=0; i<dataLength; i++) {
 				/* Convert to linear data */

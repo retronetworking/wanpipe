@@ -29,13 +29,38 @@
 #if defined(WAN_KERNEL)
  #include "wanpipe_kernel.h"
 #endif
-#include "wanpipe_abstr_types.h"
+#include "wanpipe_abstr_types.h" /* Basic data types */
+
 
 #if defined(__WINDOWS__)
-# include "wanpipe_ctypes.h" /* Basic data types */
-# if defined(WAN_KERNEL)
+# if defined(WAN_KERNEL) 
 #  include "wanpipe_skb.h"
-# endif
+#  define inline __inline
+#  if defined(NTSTRSAFE_USE_SECURE_CRT)
+#   define wp_snwprintf	RtlStringCbPrintfW
+#   define wp_strcpy	RtlStringCchCopy
+#  else
+#   define wp_snwprintf	_snwprintf
+#  endif/* NTSTRSAFE_USE_SECURE_CRT */
+# endif/* WAN_KERNEL */
+
+# define wp_strlcpy		strncpy
+# define wp_strncasecmp	_strnicmp
+# define wp_strcasecmp	_stricmp
+# define wp_snprintf	_snprintf
+# define wp_vsnprintf	_vsnprintf
+# define wp_unlink		_unlink
+#else/* ! __WINDOWS__ */
+# define wp_strlcpy		strlcpy
+# define wp_strncasecmp	strnicmp
+# define wp_strcasecmp	strcasecmp
+# define wp_snprintf	snprintf
+# define wp_vsnprintf	vsnprintf
+# define wp_unlink		unlink
+# define wp_sleep		sleep
+# define wp_gettimeofday gettimeofday
+# define wp_localtime_r	localtime_r
+# define wp_usleep		usleep
 #endif
 
 
@@ -141,9 +166,6 @@ typedef	struct tcphdr		tcphdr_t;
 # define w_tcp_seq	seq
 # define w_tcp_ack_seq	ack_seq
 
-# define wan_time_t	 unsigned long
-# define wan_suseconds_t unsigned long
-
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 typedef	struct ip		iphdr_t;
 typedef	struct udphdr		udphdr_t;
@@ -236,9 +258,6 @@ typedef	struct	udphdr	udphdr_t;
 # define w_tcp_dport	dest
 # define w_tcp_seq	seq
 # define w_tcp_ack_seq	ack_seq
-
-# define wan_time_t	 unsigned long
-# define wan_suseconds_t unsigned long
 
 #if !defined snprintf
 # define snprintf	_snprintf
@@ -346,7 +365,25 @@ typedef u_long			wan_ioctl_cmd_t;
 #elif defined(__LINUX__)
 /*********************** L I N U X ******************************/
 # define ETHER_ADDR_LEN		ETH_ALEN
-# define WP_DELAY(usecs)	udelay(usecs)
+
+static __inline void WP_DELAY(int usecs)
+{
+   if ((usecs) <= 1000) {
+   		udelay(usecs) ; 
+   } else { 
+       int delay=usecs/1000; 
+   	   int i;              
+	   if (delay < 1) {
+	   		delay=1;   
+	   }
+	   for (i=0;i<delay;i++) { 
+           	udelay(1000);      
+	   }                       
+   }
+
+   return;
+}    
+
 # define atomic_set_int(name, val)	atomic_set(name, val)
 # define SYSTEM_TICKS		jiffies
 # define WP_SCHEDULE(arg,name)	schedule()
@@ -360,16 +397,6 @@ typedef u_long			wan_ioctl_cmd_t;
 typedef int			wan_ioctl_cmd_t;
 #elif defined(__WINDOWS__)
 /******************* W I N D O W S ******************************/
-# define ETHER_ADDR_LEN		6
-# define WP_DELAY(usecs)						\
-{												\
-	unsigned long i, j = usecs / 50;			\
-	for(i = 0; i < j; i++){						\
-		KeStallExecutionProcessor(50);			\
-	}											\
-	KeStallExecutionProcessor((usecs % 50));	\
-}
-
 # define SYSTEM_TICKS	get_systemticks()
 # define jiffies		SYSTEM_TICKS
 
@@ -380,19 +407,8 @@ typedef int			wan_ioctl_cmd_t;
 # define RW_LOCK_UNLOCKED	0
 typedef int			wan_ioctl_cmd_t;
 
-/* This macro allowed only at IRQL <= PASSIVE_LEVEL.
- * Convert timeout in Milliseconds to relative timeout in 100ns units
- * suitable as parameter 5 to KeWaitForSingleObject(..., TimeOut). */
-#define WP_MILLISECONDS_DELAY(ms_delay){		\
-	KEVENT		WaitEvent;						\
-	LARGE_INTEGER	TimeOut;					\
-												\
-	KeInitializeEvent(&WaitEvent, NotificationEvent, FALSE);\
-	TimeOut.QuadPart = -( (LONGLONG) (ms_delay)*10*1000 );	\
-	KeWaitForSingleObject(&WaitEvent, Executive, KernelMode, FALSE, &TimeOut);\
-}
-
 # define WP_SCHEDULE(arg,name)	WP_MILLISECONDS_DELAY(arg)
+# define WAN_IFT_OTHER		0x00
 
 #endif /* __WINDOWS__ */
 
@@ -485,6 +501,10 @@ typedef int			wan_ioctl_cmd_t;
     		dcmn_err((CE_CONT, "Get module info!\n"));	\
     		return (mod_info(&modlinkage, modinfop));	\
 	}
+#elif defined(__WINDOWS__)
+# define WAN_MODULE_VERSION(module, version)
+# define WAN_MODULE_DEPEND(module, mdepend, vmin, vpref, vmax)
+# define WAN_MODULE_DEFINE(name,name_str,author,descr,lic,mod_init,mod_exit,devsw)
 #endif
 
 /*
@@ -640,13 +660,11 @@ typedef struct sk_buff_head	wan_skb_queue_t;
 
 typedef struct 
 {
-    u8 DestAddr[6];
-    u8 SrcAddr[6];
+    u8 DestAddr[ETHER_ADDR_LEN];
+    u8 SrcAddr[ETHER_ADDR_LEN];
     u16 EtherType;
 } ethhdr_t;
 
-
-typedef struct { ULONG counter; } atomic_t;
 
 typedef int		wan_rwlock_t;
 typedef int		wan_rwlock_flag_t;
@@ -862,6 +880,58 @@ typedef struct wan_rtp_pkt {
 
 #pragma pack()
 
+
+#if defined(HAVE_NET_DEVICE_OPS) 
+
+#define WAN_DECLARE_NETDEV_OPS(_ops_name) static struct net_device_ops _ops_name = {0};
+
+#define WAN_NETDEV_OPS_BIND(dev,_ops_name)  dev->netdev_ops = &_ops_name
+
+#define WAN_NETDEV_OPS_INIT(dev,ops,wan_init)				ops.ndo_init = wan_init
+#define WAN_NETDEV_OPS_OPEN(dev,ops,wan_open)				ops.ndo_open = wan_open
+#define WAN_NETDEV_OPS_STOP(dev,ops,wan_stop)				ops.ndo_stop = wan_stop
+#define WAN_NETDEV_OPS_XMIT(dev,ops,wan_send)				ops.ndo_start_xmit = wan_send
+#define WAN_NETDEV_OPS_STATS(dev,ops,wan_stats)				ops.ndo_get_stats = wan_stats
+#define WAN_NETDEV_OPS_TIMEOUT(dev,ops,wan_timeout)			ops.ndo_tx_timeout = wan_timeout
+#define WAN_NETDEV_OPS_IOCTL(dev,ops,wan_ioctl)				ops.ndo_do_ioctl = wan_ioctl
+#define WAN_NETDEV_OPS_MTU(dev,ops,wan_mtu)				ops.ndo_change_mtu = wan_mtu
+#define WAN_NETDEV_OPS_CONFIG(dev,ops,wan_set_config)			ops.ndo_set_config = wan_set_config
+#define WAN_NETDEV_OPS_SET_MULTICAST_LIST(dev,ops,wan_multicast_list)	ops.ndo_set_multicast_list = wan_multicast_list
+//#define WAN_CHANGE_MTU(dev)						dev->netdev_ops->ndo_change_mtu
+//#define WAN_XMIT(dev)                                               	dev->netdev_ops->ndo_start_xmit
+//#define WAN_IOCTL(dev)						dev->netdev_ops->ndo_do_ioctl
+#define WAN_NETDEV_TEST_XMIT(dev)					dev->netdev_ops->ndo_start_xmit
+#define WAN_NETDEV_XMIT(skb,dev)					dev->netdev_ops->ndo_start_xmit(skb,dev)
+#define WAN_NETDEV_TEST_IOCTL(dev)					dev->netdev_ops->ndo_do_ioctl
+#define WAN_NETDEV_IOCTL(dev,ifr,cmd)					dev->netdev_ops->ndo_do_ioctl(dev,ifr,cmd)
+#define WAN_NETDEV_TEST_MTU(dev)					dev->netdev_ops->ndo_change_mtu
+#define WAN_NETDEV_CHANGE_MTU(dev,skb)					dev->netdev_ops->ndo_change_mtu(dev,skb)
+
+#else
+
+#define WAN_DECLARE_NETDEV_OPS(_ops_name) 
+#define WAN_NETDEV_OPS_BIND(dev,_ops_name)
+#define WAN_NETDEV_OPS_INIT(dev,ops,wan_init)				dev->init = wan_init
+#define WAN_NETDEV_OPS_OPEN(dev,ops,wan_open)				dev->open = wan_open	
+#define WAN_NETDEV_OPS_STOP(dev,ops,wan_stop)				dev->stop = wan_stop
+#define WAN_NETDEV_OPS_XMIT(dev,ops,wan_send)				dev->hard_start_xmit = wan_send
+#define WAN_NETDEV_OPS_STATS(dev,ops,wan_stats)				dev->get_stats = wan_stats
+#define WAN_NETDEV_OPS_TIMEOUT(dev,ops,wan_timeout)			dev->tx_timeout = wan_timeout
+#define WAN_NETDEV_OPS_IOCTL(dev,ops,wan_ioctl)				dev->do_ioctl = wan_ioctl
+#define WAN_NETDEV_OPS_MTU(dev,ops,wan_mtu)				dev->change_mtu = wan_mtu
+#define WAN_NETDEV_OPS_CONFIG(dev,ops,wan_set_config)			dev->set_config = wan_set_config
+#define WAN_NETDEV_OPS_SET_MULTICAST_LIST(dev,ops,wan_multicast_list)	dev->set_multicast_list = wan_multicast_list
+//#define WAN_CHANGE_MTU(dev)						dev->change_mtu
+//#define WAN_XMIT(dev)                                                 dev->hard_start_xmit
+//#define WAN_IOCTL(dev)                                                dev->do_ioctl
+#define WAN_NETDEV_TEST_XMIT(dev)					dev->hard_start_xmit
+#define WAN_NETDEV_XMIT(skb,dev)					dev->hard_start_xmit(skb,dev)
+#define WAN_NETDEV_TEST_IOCTL(dev)					dev->do_ioctl
+#define WAN_NETDEV_IOCTL(dev,ifr,cmd)					dev->do_ioctl(dev,ifr,cmd)
+#define WAN_NETDEV_TEST_MTU(dev)					dev->change_mtu
+#define WAN_NETDEV_CHANGE_MTU(dev,skb)					dev->change_mtu(dev,skb)
+
+#endif /* HAVE_NET_DEVICE_OPS */
 
 #endif /* KERNEL */ 
 

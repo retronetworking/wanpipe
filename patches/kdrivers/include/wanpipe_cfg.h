@@ -46,12 +46,12 @@ For example: a number of DLCIs. */
 #define MIN_N393	1
 #define MAX_N393	10
 
-#define HIGHEST_VALID_DLCI	MAX_NUMBER_OF_PROTOCOL_INTERFACES
+#define HIGHEST_VALID_DLCI	991
 #define LOWEST_VALID_DLCI	16
 /********** end of sprotocol.dll definitions ************/
 
 #pragma warning( disable : 4200 )	/* zero-sized array in struct */
-#endif
+#endif/* __WINDOWS__ */
 
 #define USED_BY_FIELD	128	/* max length of the used by field */
 
@@ -68,7 +68,7 @@ enum {
 	API,			/* Data OR Voice. Requires API Poll. */
 	BRIDGE,
 	BRIDGE_NODE,
-	SWITCH,
+	WP_SWITCH,
 	STACK,
 	ANNEXG,
 	TTY,
@@ -81,7 +81,8 @@ enum {
 	XMTP2_API,
 	TDM_SPAN_VOICE_API,	/* Voice API support. Delivers Voice stream from a Span of channels. */
 	TDM_CHAN_VOICE_API,	/* Voice API support. Delivers Voice stream from a single channel. */
-	API_LEGACY			/* Data OR Voice. Windows: Does NOT require API Poll. Linux: runs on Sangoma Socket interface. */
+	API_LEGACY,			/* Data OR Voice. Windows: Does NOT require API Poll. Linux: runs on Sangoma Socket interface. */
+	MTP1_API
 };
 
 
@@ -155,6 +156,7 @@ enum {
 		(card_type == WANOPT_AFT_SERIAL) ? "A14x"  :	\
 		(card_type == WANOPT_USB_ANALOG) ? "U100"  :	\
 		(card_type == WANOPT_AFT600)   ?   "A600"  :	\
+		(card_type == WANOPT_AFT601)   ?   "B601"  :	\
 						   "Unknown"
 
 #define COMPORT_DECODE(port)	(port == WANOPT_PRI) ? "PRI" : "SEC"
@@ -200,6 +202,58 @@ enum {
 
 typedef char devname_t[WAN_DRVNAME_SZ+1];
 
+/* Return:
+ *	sub-media as string or
+ * 'N/A' if sub-media does not exist or
+ * 'InvalidSubMedia' if error. */
+static __inline const char* wp_decode_submedia(int media, int sub_media)
+{
+	switch(media)
+	{
+	case WAN_MEDIA_FXOFXS:
+		switch(sub_media)
+		{
+		case MOD_TYPE_FXS:
+			return "FXS";
+		case MOD_TYPE_FXO:
+			return "FXO";
+		default:
+			return "InvalidSubMedia";
+		}
+		break;/* WAN_MEDIA_FXOFXS */
+
+	case WAN_MEDIA_BRI:
+		switch(sub_media)
+		{
+		case MOD_TYPE_NT:
+			return "ISDN BRI NT";
+		case MOD_TYPE_TE:
+			return "ISDN BRI TE";
+		default:
+			return "InvalidSubMedia";
+		}
+		break;/* WAN_MEDIA_BRI */
+
+	case WAN_MEDIA_SERIAL:
+		return INT_DECODE(sub_media);
+
+	default:
+		return "N/A";/* this media does not have any sub-media (e.g. T1) */
+	}
+}
+
+#define SDLA_DECODE_WAN_MEDIA(wan_media)	\
+(wan_media == WAN_MEDIA_NONE)	? "MEDIA_NONE":	\
+(wan_media == WAN_MEDIA_T1)		? "MEDIA_T1":	\
+(wan_media == WAN_MEDIA_E1)		? "MEDIA_E1":	\
+(wan_media == WAN_MEDIA_56K)	? "MEDIA_56K":	\
+(wan_media == WAN_MEDIA_DS3)	? "MEDIA_DS3":	\
+(wan_media == WAN_MEDIA_E3)		? "MEDIA_E3":	\
+(wan_media == WAN_MEDIA_STS1)	? "MEDIA_STS1":	\
+(wan_media == WAN_MEDIA_J1)		? "MEDIA_J1":	\
+(wan_media == WAN_MEDIA_FXOFXS)	? "MEDIA_FXOFXS":	\
+(wan_media == WAN_MEDIA_BRI)	? "MEDIA_BRI":	\
+(wan_media == WAN_MEDIA_SERIAL)	? "MEDIA_SERIAL":	"Media Unknown"
 
 typedef struct wan_atm_conf
 {
@@ -603,6 +657,15 @@ typedef struct wan_hwec_conf_
 	unsigned int	tone_disabler_delay;	/* delay in a fax mode */
 } wan_hwec_conf_t;
 
+typedef struct wan_hwec_dev_state
+{
+	u_int32_t	ec_state;
+    u_int32_t	ec_mode_map;
+	u_int32_t	dtmf_map;
+	u_int32_t	fax_called_map;
+	u_int32_t	fax_calling_map;
+}wan_hwec_dev_state_t;
+
 #define MAX_PARAM_LEN	50
 #define MAX_VALUE_LEN	50
 typedef struct wan_custom_param_
@@ -816,33 +879,6 @@ typedef struct wan_hwec_if_conf
 } wan_hwec_if_conf_t;
 
 
-
-enum DEVICE_CONFIGURATION_RETURN_CODE{
-
-	DEVICE_CFG_OK = 1,
-	DEVICE_CFG_FAILED_COMMS_ENABLED,
-	DEVICE_CFG_FAILED_INVALID_LENGTH_OF_DATA_QUEUE,	//must be between MINIMUM_LENGTH_OF_DATA_QUEUE
-													//and MAXIMUM_LENGTH_OF_DATA_QUEUE
-
-	DEVICE_CFG_FAILED_INVALID_DATA_LENGTH,		//must be at least	MINIMUM_LENGTH_OF_DATA
-	DEVICE_CFG_FAILED_MEMORY_ALLOCATION_ERR
-};
-
-typedef struct _DEVICE_CONFIGURATION
-{
-	u_int8_t return_code;
-
-	u_int16_t maximum_length_of_rx_queue;
-	u_int16_t maximum_rx_data_length;		//including CRC bytes
-
-	u_int16_t maximum_length_of_tx_queue;
-	u_int16_t maximum_tx_data_length;		//not including CRC bytes
-
-	/* Number of received blocks of data before Receive event is indicated to API caller. */
-	u_int16_t buffer_multiplier_factor;
-}DEVICE_CONFIGURATION, *PDEVICE_CONFIGURATION;
-
-
 /*----------------------------------------------------------------------------
  * WAN interface (logical channel) configuration (for ROUTER_IFNEW IOCTL).
  */
@@ -952,7 +988,6 @@ typedef struct wanif_conf
 
 	unsigned char lip_prot;
 
-	DEVICE_CONFIGURATION device_cfg;
 	unsigned char line_mode[USED_BY_FIELD];
 	unsigned char interface_number;/* from 0 to 31 */
 
@@ -965,12 +1000,10 @@ typedef struct wanif_conf
 		wan_bitstrm_conf_if_t 	bitstrm;
 		wan_xilinx_conf_if_t 	aft;
 		wan_xdlc_conf_t 	xdlc;
+		/* In LIP layer the same config structure 'wan_sppp_if_conf_t' used
+		 * for both PPP and CHDLC. */
 		wan_sppp_if_conf_t	ppp;
-#if defined(__WINDOWS__)
-		wan_sppp_if_conf_t	chdlc;
-#else
 		wan_chdlc_conf_t	chdlc;
-#endif
 		wan_lip_hdlc_if_conf_t	lip_hdlc;
 	}u;
 
@@ -1003,7 +1036,7 @@ typedef struct wan_debug {
 
 typedef struct wanpipe_debug_msg_hdr_t {
 	int len;
-	unsigned long time;
+	wan_time_t time;
 } wanpipe_kernel_msg_hdr_t;
 
 
@@ -1032,7 +1065,7 @@ typedef struct {
 	(usedby == API)				? "API"		:		\
 	(usedby == BRIDGE)			? "BRIDGE"	:		\
 	(usedby == BRIDGE_NODE)		? "BRIDGE_NODE" :	\
-	(usedby == SWITCH)			? "SWITCH"	:		\
+	(usedby == WP_SWITCH)			? "SWITCH"	:		\
 	(usedby == STACK)			? "STACK"	:		\
 	(usedby == TDM_VOICE_API)	? "TDM_VOICE_API" :	\
 	(usedby == TDM_SPAN_VOICE_API)	? "TDM_SPAN_VOICE_API" :	\

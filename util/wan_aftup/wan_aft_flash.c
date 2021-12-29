@@ -31,7 +31,7 @@
 
 # include "wanpipe_includes.h"
 # include "wanpipe_common.h"
-# include "wanpipe_time.h"	/* usleep() */
+# include "wanpipe_time.h"	/* wp_usleep() */
 # include "sdlasfm.h"
 # include "sdlapci.h"
 
@@ -310,7 +310,7 @@ aft_erase_flash_sector(wan_aft_cpld_t *cpld, int stype, int verify)
 		aft_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, offset, 0x30);
 		do{
 //MF			for(i=0;i<100000;i++);
-			usleep(1);
+			wp_usleep(1);
 			data = aft_read_flash_byte(
 						cpld, stype,
 						MEMORY_TYPE_FLASH,

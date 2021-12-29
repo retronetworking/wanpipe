@@ -12,6 +12,7 @@
  *		2 of the License, or (at your option) any later version.
  * ============================================================================
  * Oct 20, 2008	Jignesh Patel	Initial version based on sdla_remora_tdmv.c
+ * Sep 22, 2009	Moises Silva    Added TDMV Alarm reporting on line disconnect
  ******************************************************************************
  */
 
@@ -45,6 +46,7 @@ static void wp_remora_voicedaa_tapper_check_hook(sdla_fe_t *fe, int mod_no);
 #endif
 
 static int ohdebounce = 16;
+#define DEFAULT_CURRENT_THRESH 5  /*Anything under this is considered "on-hook" for active call on FXO */
 
 
 
@@ -159,6 +161,7 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 	unsigned char res;
 #endif	
 	signed char b;
+	signed char lc;	
 	int poopy = 0;
 	wp_remora_fxo_t 	*fxo = NULL;
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
@@ -295,7 +298,7 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce >= FXO_LINK_DEBOUNCE){
 			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_DISCONNECTED){
 				DEBUG_EVENT(
-				"%s: Module %d: FXO Line is disconnnected!\n",
+				"%s: Module %d: FXO Line is disconnected!\n",
 								fe->name,
 								mod_no + 1);
 				fe->rm_param.mod[mod_no].u.fxo.status = FE_DISCONNECTED;
@@ -308,6 +311,15 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 					if (card->wandev.event_callback.linkstatus) {
 						card->wandev.event_callback.linkstatus(card, &event);
 					}	
+				}
+#endif
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
+				if (card->u.aft.tdmv_zaptel_cfg) {
+					zt_alarm_channel(&wr->chans[mod_no], ZT_ALARM_RED);
+					DEBUG_TDMV("%s: Module %d: TDMV RED ALARM on span %d!\n",
+							fe->name,
+							mod_no + 1,
+							wr->span.spanno);
 				}
 #endif
 
@@ -334,11 +346,75 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 					}	
 				}
 #endif
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
+				if (card->u.aft.tdmv_zaptel_cfg) {
+					zt_alarm_channel(&wr->chans[mod_no], ZT_ALARM_NONE);
+					DEBUG_TDMV("%s: Module %d: TDMV NONE ALARM on span %d!\n",
+							fe->name,
+							mod_no + 1,
+							wr->span.spanno);
+				}
+#endif
 			}
 			fe->rm_param.mod[mod_no].u.fxo.statusdebounce = 0;
 		}
 	}
-
+	/*If current measure is enabled check measure once we are Off-hook */
+	if (fe->fe_cfg.cfg.remora.rm_lcm == WANOPT_YES) {
+#if defined(REG_SHADOW)
+		lc= fe->rm_param.reg3shadow[mod_no];
+#else
+		lc= READ_RM_REG(mod_no, 28);
+#endif
+		lc=(11*lc)/10; /* lc=current on the line, equivalent of lc*1.1*/
+		if  (DEFAULT_CURRENT_THRESH > lc){
+			if(fxo->offhook && !(fxo->i_debounce)){
+				if (card->u.aft.tdmv_zaptel_cfg) {
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
+					DEBUG_TDMV(
+					"%s: Module %d: FXO Line current %d !!\n",
+									fe->name,								
+									mod_no + 1,
+									lc);
+					
+					DEBUG_TDMV(
+					"%s: Module %d: Signalled On Hook span %d (%u) using LCM)\n",
+									fe->name,
+									mod_no + 1,
+									wr->span.spanno,(u32)SYSTEM_TICKS);
+					zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_ONHOOK);
+#endif
+				} else {
+#ifdef AFT_TDM_API_SUPPORT
+					DEBUG_RM(
+					"%s: Module %d: FXO Line current %d  (%u)!!\n",
+									fe->name,								
+									mod_no + 1,
+									lc,(u32)SYSTEM_TICKS);
+					DEBUG_RM("%s: Module %d: On-Hook status using LCM!\n",
+								fe->name,
+								mod_no + 1);
+					event.type	= WAN_EVENT_RM_LC;
+					event.channel	= mod_no+1;
+					event.rxhook	= WAN_EVENT_RXHOOK_ON;
+					if (card->wandev.event_callback.hook){
+						card->wandev.event_callback.hook(
+									card, &event);
+					}
+#endif
+				}
+				fxo->i_debounce=fe->rm_param.battdebounce; /*current debounce same as battry debounce*/
+			}
+			
+		}else{
+			fxo->i_debounce=fe->rm_param.battdebounce;
+		}
+		if(fxo->offhook) /*only during off-hook */{
+			if (fxo->i_debounce)
+				fxo->i_debounce--;
+		}			
+	}
+	
 	if (abs(b) < fe->rm_param.battthresh) {  /*Check for fe */
 		fxo->nobatttimer++;
 #if 0
@@ -367,29 +443,30 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 #ifdef	JAPAN
 			if ((!fxo->ohdebounce) &&
 		            fxo->offhook) {
-
-				if (card->u.aft.tdmv_zaptel_cfg) {
+					if (fe->fe_cfg.cfg.remora.rm_lcm != WANOPT_YES) {
+						if (card->u.aft.tdmv_zaptel_cfg) {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-					zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_ONHOOK);
-					DEBUG_TDMV(
-					"%s: Module %d: Signalled On Hook span %d\n",
-								fe->name,
-								mod_no + 1,
-								wr->span.spanno);
+							zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_ONHOOK);
+							DEBUG_TDMV(
+							"%s: Module %d: Signalled On Hook span %d\n",
+										fe->name,
+										mod_no + 1,
+										wr->span.spanno);
 #endif
-				} else {
+						} else {
 #ifdef AFT_TDM_API_SUPPORT
-					DEBUG_RM("%s: Module %d: On-Hook status!\n",
-							fe->name,
-							mod_no + 1);
-					event.type	= WAN_EVENT_RM_LC;
-					event.channel	= mod_no+1;
-					event.rxhook	= WAN_EVENT_RXHOOK_ON;
-					if (card->wandev.event_callback.hook){
-						card->wandev.event_callback.hook(
-								card, &event);
-					}
+							DEBUG_RM("%s: Module %d: On-Hook status!\n",
+									fe->name,
+									mod_no + 1);
+							event.type	= WAN_EVENT_RM_LC;
+							event.channel	= mod_no+1;
+							event.rxhook	= WAN_EVENT_RXHOOK_ON;
+							if (card->wandev.event_callback.hook){
+								card->wandev.event_callback.hook(
+										card, &event);
+							}
 #endif
+						}
 				}
 				
 #ifdef	ZERO_BATT_RING
@@ -397,30 +474,31 @@ static int wp_tdmv_remora_voicedaa_check_hook(sdla_fe_t *fe, int mod_no)
 #endif
 			}
 #else
-			
-			if (card->u.aft.tdmv_zaptel_cfg) {
+			if (fe->fe_cfg.cfg.remora.rm_lcm != WANOPT_YES) {
+				if (card->u.aft.tdmv_zaptel_cfg) {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-				DEBUG_TDMV(
-				"%s: Module %d: Signalled On Hook span %d\n",
-								fe->name,
-								mod_no + 1,
-								wr->span.spanno);
-				zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_ONHOOK);
+					DEBUG_TDMV(
+					"%s: Module %d: Signalled On Hook span %d\n",
+									fe->name,
+									mod_no + 1,
+									wr->span.spanno);
+					zt_hooksig(&wr->chans[mod_no], ZT_RXSIG_ONHOOK);
 #endif
-			} else {
+				} else {
 #ifdef AFT_TDM_API_SUPPORT
-				DEBUG_RM("%s: Module %d: On-Hook status!\n",
-							fe->name,
-							mod_no + 1);
-				event.type	= WAN_EVENT_RM_LC;
-				event.channel	= mod_no+1;
-				event.rxhook	= WAN_EVENT_RXHOOK_ON;
-				if (card->wandev.event_callback.hook){
-					card->wandev.event_callback.hook(
-								card, &event);
-				}
+					DEBUG_RM("%s: Module %d: On-Hook status!\n",
+								fe->name,
+								mod_no + 1);
+					event.type	= WAN_EVENT_RM_LC;
+					event.channel	= mod_no+1;
+					event.rxhook	= WAN_EVENT_RXHOOK_ON;
+					if (card->wandev.event_callback.hook){
+						card->wandev.event_callback.hook(
+									card, &event);
+					}
 #endif
-			}		
+				}
+			}
 #endif
 			fxo->battdebounce = fe->rm_param.battdebounce;
 		} else if (!fxo->battery)
@@ -684,7 +762,7 @@ static int wp_tdmv_remora_proslic_check_hook(sdla_fe_t *fe, int mod_no)
 											&event);
 							}
 						} else {
-									DEBUG_RM(
+								DEBUG_RM(
 								"RM: %s: Module %d: Off-Hook  status!\n",
 										fe->name, mod_no+1);
 								fxs->itimer=0;
@@ -733,6 +811,9 @@ static int wp_tdmv_remora_proslic_check_hook(sdla_fe_t *fe, int mod_no)
 													card,
 													&event);
 									}
+									/*need for mwi tranfer in TDMAPI mode */
+									fxs->lasttxhook=fxs->idletxhookstate;
+									fxs->lasttxhook_update=1;
 
 
 							}
@@ -973,7 +1054,7 @@ static void wp_remora_voicedaa_tapper_check_hook(sdla_fe_t *fe, int mod_no)
 		if (fe->rm_param.mod[mod_no].u.fxo.statusdebounce >= FXO_LINK_DEBOUNCE) {
 			if (fe->rm_param.mod[mod_no].u.fxo.status != FE_DISCONNECTED) {
 				DEBUG_EVENT(
-				"%s: Module %d: FXO Line is disconnnected!\n",
+				"%s: Module %d: FXO Line is disconnected (tapper)!\n",
 								fe->name,
 								mod_no + 1);
 				fe->rm_param.mod[mod_no].u.fxo.status = FE_DISCONNECTED;
@@ -1085,8 +1166,6 @@ static void wp_remora_voicedaa_tapper_check_hook(sdla_fe_t *fe, int mod_no)
 					card->wandev.event_callback.hook(
 							card, &event);
 				}
-					    
-				
 				fe->rm_param.mod[mod_no].u.fxo.offhook = 0;
 				fe->rm_param.mod[mod_no].u.fxo.ohdebounce = ohdebounce;
 			}
@@ -1179,8 +1258,9 @@ int wp_tdmv_remora_rx_tx_span_common(void *pcard )
 				if (card->wandev.event_callback.hook){
 					card->wandev.event_callback.hook(
 							card, &event);
-				
 				}
+				fxs->lasttxhook =fxs->idletxhookstate;
+				fxs->lasttxhook_update=1;
 			}
 
 		}
@@ -1247,9 +1327,6 @@ int wp_tdmv_remora_rx_tx_span_common(void *pcard )
 				/* Read first shadow reg */
 				WRITE_RM_REG(x, 5, fe->rm_param.reg0shadow[x]);
 				fe->rm_param.reg0shadow_update[x] = 0;
-
-
-
 			}
 #endif
 		}
@@ -1298,6 +1375,8 @@ int wp_tdmv_remora_rx_tx_span_common(void *pcard )
 			fe->rm_param.reg1shadow[x] = READ_RM_REG(x, 29);
 			/* Read third shadow reg */
 			fe->rm_param.reg2shadow[x] = READ_RM_REG(x, 34);
+			/* Read fourth shadow reg */
+			fe->rm_param.reg3shadow[x] = READ_RM_REG(x, 28);
 		}
 #endif
 

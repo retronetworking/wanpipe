@@ -44,6 +44,8 @@ int 	aft_tdmapi_mtu_check(sdla_t *card_ptr, unsigned int *mtu);
 
 int 	aft_devel_ioctl(sdla_t *card, struct ifreq *ifr);
 
+void 	aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan);
+
 unsigned char aft_write_ec (void *pcard, unsigned short off, unsigned char value);
 unsigned char aft_read_cpld(sdla_t *card, unsigned short cpld_off);
 unsigned char aft_read_ec (void *pcard, unsigned short off);
@@ -78,51 +80,100 @@ int 	wan_user_process_udp_mgmt_pkt(void* card_ptr, void* chan_ptr, void *udata);
  *================================================================*/
 
 #if defined WANPIPE_PERFORMANCE_DEBUG
-#warning "WANPIPE_PERFORMANCE_DEBUG Enabled"
+
 static __inline int aft_calc_elapsed(struct timeval *started, struct timeval *ended)
 {
-#if 0
-	return (((ended->tv_sec * 1000) + ended->tv_usec / 1000) -
-		((started->tv_sec * 1000) + started->tv_usec / 1000));
-#else
-	return ended->tv_usec -  started->tv_usec;
-#endif
+	if (started->tv_usec == 0) {
+		return 0;
+	}
 
-} 
+	if (ended->tv_usec  > started->tv_usec) {
+		return ended->tv_usec -  started->tv_usec;
+	} else {
+		return 0;
+	}
+}
 
-static int __inline aft_timing_start(sdla_t * card)
+#define AFT_PERFT_TIMING_START(card,var)  aft_timing_start(&card->aft_perf_stats.var)
+
+static int __inline aft_timing_start(aft_driver_timing_t *drv_timing)
 {
-#if 1
-#if defined(__LINUX__)
-	do_gettimeofday(&card->timing_tv);
-#endif
-#endif
+	do_gettimeofday(&drv_timing->timing_tv);
 	return 0;
 }
 
-static int __inline aft_timing_stop_calculate_elapsed(sdla_t * card)
+#define AFT_PERFT_TIMING_STOP_AND_CALC(card,var)  aft_timing_stop_calculate_elapsed(&card->aft_perf_stats.var)
+
+static int __inline aft_timing_stop_calculate_elapsed(aft_driver_timing_t *drv_timing)
 {
-#if 1
-#if defined(__LINUX__)
-	int elapsed=0;
+
+	unsigned long elapsed=0;
+	unsigned long cum=0;
+	int i;
+	int div=0;
+	int limit=0;
+
 	struct timeval current_tv;
 	do_gettimeofday(&current_tv);
-	elapsed=aft_calc_elapsed(&card->timing_tv,&current_tv);
-	if (elapsed > card->wandev.stats.rx_errors) {
-		card->wandev.stats.rx_errors=elapsed;
-	}
-	if (elapsed > 1000) {
-		DEBUG_EVENT("%s: Error: Timeout is huge %i\n",card->devname, elapsed);
-	}
-	if (card->wandev.stats.rx_errors > 2500) {
-		card->wandev.stats.rx_errors=0;
+	elapsed=aft_calc_elapsed(&drv_timing->timing_tv,&current_tv);
+
+	if (elapsed == 0) {
+		return 0;
 	}
 
-	card->wandev.stats.tx_errors=elapsed;
-#endif
-#endif
+	if (elapsed > drv_timing->max_latency) {
+		drv_timing->max_latency=elapsed;
+	}
+	if (drv_timing->min_latency == 0 || drv_timing->min_latency > elapsed) {
+		drv_timing->min_latency=elapsed;
+	}
+	drv_timing->latency=elapsed;
+
+	drv_timing->sma[drv_timing->sma_idx] = elapsed;
+	drv_timing->sma_idx++;
+	if (drv_timing->sma_idx >= MAX_SMA_IDX) {
+		drv_timing->sma_idx=0;
+	}
+
+	for (i=0;i<MAX_SMA_IDX;i++) {
+		if (drv_timing->sma[i] == 0) {
+			continue;
+		}
+		cum+=drv_timing->sma[i];
+		div++;
+	}
+
+	if (div) {
+		cum=cum/div;
+	}
+
+	drv_timing->latency_avg = cum;
+
+	if (drv_timing->latency_avg > 19000) {
+		limit=2000;
+	} else if (drv_timing->latency_avg > 9000) {
+		limit=1000;
+	} else if (drv_timing->latency_avg < 1000) {
+		limit=8;
+	}
+
+	drv_timing->limit=limit;
+
+	if (elapsed > drv_timing->latency_avg + limit) {
+		drv_timing->above_avg++;	
+	}
+	if (drv_timing->latency_avg >  limit) {
+		if (drv_timing->latency_avg - limit > elapsed) {
+			drv_timing->below_avg++;
+		}
+	}
+
 	return 0;
 }
+
+#else
+#define AFT_PERFT_TIMING_START(card,var)
+#define AFT_PERFT_TIMING_STOP_AND_CALC(card,var)
 #endif
 
 

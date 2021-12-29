@@ -1,6 +1,30 @@
 AFT A200 Firmware Change Log
 ============================
 
+
+Release V13
+-----------
+Feb 22 2010
+Type:	    Recommended A200d Firmware
+		Fixed PCIe dma timeouts.  On some new Dell/HP servers the PCIe timeouts
+	   	on dma transactions were causing PCI fatal error messages
+		in the logs.  This has now been fixed.
+						                                                       
+
+Release V12
+-----------
+Nov 12 2009
+
+Type     	Recommended update for A200d cards
+		Fixes the interrupt ack issue due to invalid 
+		fifo error status bit.
+
+Changes:	Firmware bug fixes for A200d cards
+		The new firmware will correcly display fifo interrupt
+		status bit. Note no extra interrupts were generated
+		by this bug, just that driver was acking each interrupt
+		it got.
+
 Release V11
 -----------
 Sep 27 2007

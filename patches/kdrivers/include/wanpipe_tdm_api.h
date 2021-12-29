@@ -182,6 +182,8 @@ typedef struct wanpipe_tdm_api_dev {
 	int (*read_rbs_bits)(void *chan, u32 ch, u8 *rbs_bits);
 	int (*write_rbs_bits)(void *chan, u32 ch, u8 rbs_bits);
 	int (*write_hdlc_frame)(void *chan, netskb_t *skb,  wp_api_hdr_t *hdr);
+	int (*write_hdlc_check)(void *chan, int lock);
+	int (*write_hdlc_timeout)(void *chan, int lock);
 	int (*pipemon)(void* card, void* chan, void *udata);
 	int (*driver_ctrl)(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd);
 
@@ -195,6 +197,8 @@ typedef struct wanpipe_tdm_api_dev {
 	uint8_t			operation_mode;/* WP_TDM_OPMODE */
 	uint8_t			api_mode;
 	int				mtu_mru;
+	
+	void *			mtp1_dev;
 }wanpipe_tdm_api_dev_t;
 
 

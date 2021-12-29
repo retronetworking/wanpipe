@@ -1564,7 +1564,7 @@ int get_used_by_integer_value(char* used_by_str)
   }else if(strcmp(used_by_str, "BRIDGE_NODE") == 0){
     return BRIDGE_NODE;
   }else if(strcmp(used_by_str, "SWITCH") == 0){
-    return SWITCH;
+    return WP_SWITCH;
   }else if(strcmp(used_by_str, "STACK") == 0){
     return STACK;
   }else if(strcmp(used_by_str, "ANNEXG") == 0){
@@ -1603,7 +1603,7 @@ char* get_used_by_string(int used_by)
   case BRIDGE_NODE:
     return "BRIDGE_NODE";
 
-  case SWITCH:
+  case WP_SWITCH:
     return "SWITCH";
 
   case STACK:

@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-#include <libstelephony.h>
+#include "libstelephony.h"
 #include "Q931EventsDecoder.h" 
 #include "Sink.h"
 

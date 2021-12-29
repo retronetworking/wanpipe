@@ -97,7 +97,7 @@
 #define WAN_EVENT_EC_DTMF		0x0001	/* WAN_EVENT_EC_TONE_DTMF */
 #define WAN_EVENT_RM_POWER		0x0002
 #define WAN_EVENT_RM_LC			0x0003
-#define WAN_EVENT_RM_RING_TRIP		0x0004
+#define WAN_EVENT_RM_RING_TRIP	0x0004
 #define WAN_EVENT_RM_DTMF		0x0005
 #define WAN_EVENT_TE_RBS		0x0006
 #define WAN_EVENT_RM_RING		0x0007
@@ -115,6 +115,9 @@
 #define WAN_EVENT_BRI_CHAN_LOOPBACK	0x0013
 #define WAN_EVENT_LINK_STATUS		0x0014
 #define WAN_EVENT_RM_POLARITY_REVERSE 	0x0016
+#define WAN_EVENT_EC_FAX_DETECT		0x0017
+#define WAN_EVENT_RM_SET_TX_GAIN	0x0018
+#define WAN_EVENT_RM_SET_RX_GAIN	0x0019
 	
 
 #define WAN_EVENT_TYPE_DECODE(type)					\
@@ -138,6 +141,9 @@
 		((type) == WAN_EVENT_BRI_CHAN_LOOPBACK)	? "BRI B-Chan Loopback" :	\
 		((type) == WAN_EVENT_LINK_STATUS)	? "Link Status" :	\
 		((type) == WAN_EVENT_RM_POLARITY_REVERSE)	? "RM Polarity Reverse" :	\
+		((type) == WAN_EVENT_EC_FAX_DETECT)	? "EC FAX Detect" :	\
+		((type) == WAN_EVENT_RM_SET_TX_GAIN)	? "RM Set Tx Gain" :	\
+		((type) == WAN_EVENT_RM_SET_TX_GAIN)	? "RM Set Rx Gain" :	\
 							"(Unknown type)"
 
 /* tone type list */						
@@ -178,11 +184,12 @@ typedef struct wan_event_ctrl_
 	u_int8_t	mode;
 	int		mod_no;		/* A200-Remora */
 	int		channel;
-	unsigned char	ec_tone_port;	/* EC DTMF: SOUT or ROUT */
+	unsigned char	ec_tone_port;	/* EC Tone: SOUT or ROUT */
 	unsigned long	ts_map;
 	u_int8_t	tone;
 	int		ohttimer;	/* On-hook transfer */
 	int		polarity;	/* SETPOLARITY */
+	signed int	rm_gain; /* RM GAIN VALUE */
 #if !defined(__WINDOWS__)
 	WAN_LIST_ENTRY(wan_event_ctrl_)	next;
 #endif

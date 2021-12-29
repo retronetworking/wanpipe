@@ -9,6 +9,7 @@ use strict;
 sub new	{
 	my ($class) = @_;
 	my $self = {
+		_is_tdm_api => undef,
 		_current_dir => undef,
 		_card      => undef,		
  		_fe_line   => undef,
@@ -20,6 +21,7 @@ sub new	{
 		_te_ref_clock  => '0',
 		_signalling => 'PRI_CPE',
 		_pri_switchtype => 'national',
+		_rx_slevel => '360',
 		_hw_dchan  => '0',
 		_frac_chanfirst => '0',
 		_frac_chanlast => '0',
@@ -31,6 +33,7 @@ sub new	{
 		_hp_option => undef,
 		_mtu_mru => undef,
 		_old_a10u => undef,
+		_smg_sig_mode => '1',
 	};			
 	bless $self, $class;
     	return $self;
@@ -160,12 +163,24 @@ sub mtu_mru {
                 $self->{_mtu_mru} = $mtu_mru if defined($mtu_mru);		
 	        return $self->{_mtu_mru};     
 }
+sub is_tdm_api {
+	            my ( $self, $is_tdm_api ) = @_;
+		                    $self->{_is_tdm_api} = $is_tdm_api if defined($is_tdm_api);
+				                        return $self->{_is_tdm_api};
+}
 
 sub old_a10u {
           my ( $self, $old_a10u ) = @_;
                 $self->{_old_a10u} = $old_a10u if defined($old_a10u);		
 	        return $self->{_old_a10u};     
 }
+
+sub rx_slevel {
+	            my ( $self, $rx_slevel ) = @_;
+		                    $self->{_rx_slevel} = $rx_slevel if defined($rx_slevel);
+				                        return $self->{_rx_slevel};
+}
+
 
 sub prompt_user{
 	my($promptString, $defaultValue) = @_;
@@ -184,6 +199,11 @@ sub prompt_user{
 	}
 }
 
+sub smg_sig_mode {
+	   my ( $self, $smg_sig_mode ) = @_;
+	        $self->{_smg_sig_mode} = $smg_sig_mode if defined($smg_sig_mode);
+		    return $self->{_smg_sig_mode};
+}
 sub prompt_user_list{
 	my @list = @_;
 	my $i;
@@ -246,6 +266,7 @@ sub gen_wanpipe_ss7_subinterfaces{
 	my $hp_option	= $self->hp_option;
 	my $card_type="WAN_AFT_TE1";
 	my $old_a10u =  $self->old_a10u;
+	my $rx_slevel= $self->rx_slevel;
 	my $wanpipe_ss7_interfaces_template = $self->card->current_dir."/templates/ss7_a100/wanpipe.ss7.$ss7_subinterface";
 	if (!($hp_option == ' ')) {
 		#for hp tdmapi change templates 
@@ -275,11 +296,12 @@ sub gen_wanpipe_ss7_subinterfaces{
 	$wp_file =~ s/SS7SIGCHAN/$ss7_sigchan/g;
 	$wp_file =~ s/TDMVOICECHAN/$ss7_tdmchan/g;
 	$wp_file =~ s/HWECMODE/$hwec_mode/g;
+	$wp_file =~ s/RXSLEVEL/$rx_slevel/g;
 	$wp_file =~ s/CHUNKTIME/$mtu_mru/g;
 	$wp_file =~ s/VOICEINTERFACE/$ss7_tdminterface/g;
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
 	$wp_file =~ s/HWDTMF/$hw_dtmf/g;
-        $wp_file =~ s/HWFAX/$hw_fax/g;
+	$wp_file =~ s/HWFAX/$hw_fax/g;
 	print FH $wp_file;
 	close (FH);
 }
@@ -309,11 +331,13 @@ sub gen_wanpipe_conf{
 	my $old_a10u =  $self->old_a10u;
 	my $fe_cpu = "A";
 	my $card_type="WAN_AFT_TE1";
-
+	my $tdm_voice_op_mode = "TDM_VOICE";
+	my $mtu_size='8';
 	my $device_alpha = &get_alpha_from_num($device_no);
 
 	my $te_sig_mode_line='';
-
+	my $card_model = $self->card->card_model;
+	my $rx_slevel= $self->rx_slevel;
 	if ($ss7_option == 1){
 	        $wanpipe_conf_template = $self->card->current_dir."/templates/ss7_a100/wanpipe.ss7.4";
 	} elsif ($ss7_option == 2){
@@ -334,7 +358,9 @@ sub gen_wanpipe_conf{
 			exit 1;
        		}
 	}
+	if($is_freebsd){
         $dchan = 0;
+	}
 	if(!$is_freebsd){
 		if ($self->signalling  =~ m/PRI/ | $self->signalling  =~ m/SS7/ ){
 			if(($self->fe_media eq 'T1')){
@@ -344,6 +370,11 @@ sub gen_wanpipe_conf{
 			}
 		}
 	}
+	if($card_model eq '601'){
+		#601 doesn't have hardware HDLC support
+		$dchan = '0';
+	}
+
    	if($self->fe_media eq 'T1'){
 		$te_sig_mode_line='';
 		$fe_lbo='0DB';
@@ -352,12 +383,13 @@ sub gen_wanpipe_conf{
 		$te_sig_mode_line= 'TE_SIG_MODE     = '.$te_sig_mode;
 	}
 
-	if($self->signalling eq 'TDM API' ){
-                $wanpipe_conf_template = $self->card->current_dir."/templates/wanpipe.tdm_api.a100";
+	if($self->is_tdm_api eq '0') {
+		$tdm_voice_op_mode = "TDM_VOICE_API";
 		#for tdm_api hw_dchan is set by user
 		$dchan = $self->hw_dchan;
-		
+		$mtu_size='80';
 	}
+
 	
 	open(FH, $wanpipe_conf_template) or die "Can't open $wanpipe_conf_template";
 	my $wp_file='';
@@ -374,24 +406,27 @@ sub gen_wanpipe_conf{
 	} else {
 		$wp_file =~ s/IFNUM/$device_no/g;
 	}
-	
+	$wp_file =~ s/TDM_VOICE_OP_MODE/$tdm_voice_op_mode/g;
 	$wp_file =~ s/FECPU/$fe_cpu/g;
 	$wp_file =~ s/WAN_AFT_TYPE/$card_type/g;
 	$wp_file =~ s/SLOTNUM/$pci_slot/g;
-        $wp_file =~ s/BUSNUM/$pci_bus/g;
-        $wp_file =~ s/FEMEDIA/$fe_media/g;
-        $wp_file =~ s/FELCODE/$fe_lcode/g;
-        $wp_file =~ s/FEFRAME/$fe_frame/g;
-        $wp_file =~ s/FELINE/$fe_line/g;
+	$wp_file =~ s/BUSNUM/$pci_bus/g;
+	$wp_file =~ s/FEMEDIA/$fe_media/g;
+	$wp_file =~ s/FELCODE/$fe_lcode/g;
+	$wp_file =~ s/FEFRAME/$fe_frame/g;
+	$wp_file =~ s/FELINE/$fe_line/g;
 	$wp_file =~ s/TESIGMODE/$te_sig_mode_line/g;
-        $wp_file =~ s/FECLOCK/$fe_clock/g;
+    $wp_file =~ s/FECLOCK/$fe_clock/g;
 	$wp_file =~ s/TEREFCLOCK/$te_ref_clock/g;
-        $wp_file =~ s/FELBO/$fe_lbo/g;
-        $wp_file =~ s/TDMVDCHAN/$dchan/g;
+	$wp_file =~ s/RXSLEVEL/$rx_slevel/g;
+    $wp_file =~ s/FELBO/$fe_lbo/g;
+    $wp_file =~ s/TDMVDCHAN/$dchan/g;
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
-        $wp_file =~ s/HWECMODE/$hwec_mode/g;
-        $wp_file =~ s/HWDTMF/$hw_dtmf/g;
-        $wp_file =~ s/HWFAX/$hw_fax/g;
+    $wp_file =~ s/HWECMODE/$hwec_mode/g;
+    $wp_file =~ s/HWDTMF/$hw_dtmf/g;
+		
+    $wp_file =~ s/HWFAX/$hw_fax/g;
+	$wp_file =~ s/MTUSIZE/$mtu_size/g;
 	       
 	print FH $wp_file;
 	close (FH);
@@ -408,8 +443,14 @@ sub gen_zaptel_conf{
 	my $dahdi_conf = $self->card->dahdi_conf;
 	my $hwec_mode = $self->card->hwec_mode;
 	my $dahdi_echo = $self->card->dahdi_echo;
+	my $card_model = $self->card->card_model;
+			
+	if($card_model eq '601'){
+		#601 doesn't have hardware HDLC support
+		$dchan_str = 'dchan';
+	}	
 
-        if ( $self->fe_lcode eq 'B8ZS' ){
+    if ( $self->fe_lcode eq 'B8ZS' ){
 		$zap_lcode='b8zs';
 	} elsif ( $self->fe_lcode eq 'AMI' ){
 		$zap_lcode='ami';
@@ -435,9 +476,9 @@ sub gen_zaptel_conf{
 	}
 
         $zp_file.="\n\#Sangoma A".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
-	$zp_file.="span=".$self->card->tdmv_span_no.",0,0,".$zap_frame.",".$zap_lcode.$zap_crc4."\n";	
+	$zp_file.="span=".$self->card->tdmv_span_no.",".$self->card->tdmv_span_no.",0,".$zap_frame.",".$zap_lcode.$zap_crc4."\n";	
 	
-	if ( $self->signalling eq 'PRI NET' | $self->signalling eq 'PRI CPE' ){
+	if ( $self->signalling =~ /PRI/ ){
         	if ( $self->fe_media eq 'T1' ){
 			if($self->frac_chan_first() != 0){
 				if ($self->frac_chan_first == $self->frac_chan_last) {
@@ -542,19 +583,19 @@ sub gen_zaptel_conf{
 		}  
 	} else {
 		my $zap_signal;
-        	if ( $self->signalling eq 'E & M' | $self->signalling eq 'E & M Wink' ){
+        	if ( $self->signalling eq 'Zaptel/Dahdi - E & M' | $self->signalling eq 'Zaptel/Dahdi - E & M Wink' ){
 			$zap_signal='e&m';
-		} elsif ( $self->signalling eq 'FXS - Loop Start' ){
+		} elsif ( $self->signalling eq 'Zaptel/Dahdi - FXS - Loop Start' ){
 			$zap_signal='fxsls';
-		} elsif ( $self->signalling eq 'FXS - Ground Start' ){
+		} elsif ( $self->signalling eq 'Zaptel/Dahdi - FXS - Ground Start' ){
 			$zap_signal='fxsgs';
-		} elsif ( $self->signalling eq 'FXS - Kewl Start' ){
+		} elsif ( $self->signalling eq 'Zaptel/Dahdi - FXS - Kewl Start' ){
 			$zap_signal='fxsks';
-		} elsif ( $self->signalling eq 'FX0 - Loop Start' ){
+		} elsif ( $self->signalling eq 'Zaptel/Dahdi - FX0 - Loop Start' ){
 			$zap_signal='fxols';
-		} elsif ( $self->signalling eq 'FX0 - Ground Start' ){
+		} elsif ( $self->signalling eq 'Zaptel/Dahdi - FX0 - Ground Start' ){
 			$zap_signal='fxogs';
-		} elsif ( $self->signalling eq 'FX0 - Kewl Start' ){
+		} elsif ( $self->signalling eq 'Zaptel/Dahdi - FX0 - Kewl Start' ){
 			$zap_signal='fxoks';
 		} else {
                  	printf("Error: invalid signalling %s\n", $self->card->signalling);
@@ -618,7 +659,7 @@ sub gen_zapata_conf{
 	my $fax_detect = $self->card->hw_fax;
        $zp_file.="\n\;Sangoma A".$self->card->card_model." port ".$self->fe_line." [slot:".$self->card->pci_slot." bus:".$self->card->pci_bus." span:".$self->card->tdmv_span_no."] <wanpipe".$self->card->device_no.">\n";
 
-	if ( $self->signalling eq 'PRI NET' | $self->signalling eq 'PRI CPE' ){
+	if ( $self->signalling =~ m/PRI/ ){
 		$zp_file.="switchtype=".$self->pri_switchtype."\n";
 	}	
        
@@ -633,31 +674,31 @@ sub gen_zapata_conf{
 			$zp_file.="faxdetect=incoming\n";
 	}
        	
-	if ( $self->signalling eq 'PRI NET' ){
+	if ( $self->signalling eq 'Zaptel/Dahdi - PRI NET' ){
 		$zp_file.="signalling=pri_net\n";
-	} elsif ( $self->signalling eq 'PRI CPE' ){
+	} elsif ( $self->signalling eq 'Zaptel/Dahdi - PRI CPE' ){
 		$zp_file.="signalling=pri_cpe\n";
-	} elsif ( $self->signalling eq 'E & M' ){
+	} elsif ( $self->signalling eq 'Zaptel/Dahdi - E & M' ){
 		$zp_file.="signalling=em\n";
-       	} elsif ($self->signalling eq 'E & M Wink' ){
+       	} elsif ($self->signalling eq 'Zaptel/Dahdi - E & M Wink' ){
 		$zp_file.="signalling=em_w\n";
-	} elsif ( $self->signalling eq 'FXS - Loop Start' ){
+	} elsif ( $self->signalling eq 'Zaptel/Dahdi - FXS - Loop Start' ){
 		$zp_file.="signalling=fxs_ls\n";
-	} elsif ( $self->signalling eq 'FXS - Ground Start' ){
+	} elsif ( $self->signalling eq 'Zaptel/Dahdi - FXS - Ground Start' ){
 		$zp_file.="signalling=fxs_gs\n";
-	} elsif ( $self->signalling eq 'FXS - Kewl Start' ){
+	} elsif ( $self->signalling eq 'Zaptel/Dahdi - FXS - Kewl Start' ){
 		$zp_file.="signalling=fxs_ks\n";
-	} elsif ( $self->signalling eq 'FX0 - Loop Start' ){
+	} elsif ( $self->signalling eq 'Zaptel/Dahdi - FX0 - Loop Start' ){
 		$zp_file.="signalling=fxo_ls\n";
-	} elsif ( $self->signalling eq 'FX0 - Ground Start' ){
+	} elsif ( $self->signalling eq 'Zaptel/Dahdi - FX0 - Ground Start' ){
 		$zp_file.="signalling=fxo_gs\n";
-	} elsif ( $self->signalling eq 'FX0 - Kewl Start' ){
+	} elsif ( $self->signalling eq 'Zaptel/Dahdi - FX0 - Kewl Start' ){
 		$zp_file.="signalling=fxo_ks\n";
 	} else {
                	printf("Error: invalid signalling %s\n", $self->signalling);
 	}
 		
-       	if ( $self->signalling eq 'PRI NET' | $self->signalling eq 'PRI CPE' ){
+       	if ( $self->signalling eq 'Zaptel/Dahdi - PRI NET' | $self->signalling eq 'Zaptel/Dahdi - PRI CPE' ){
               	if ( $self->fe_media eq 'T1' ){
 			if($self->frac_chan_first() != 0){
 				if ($self->frac_chan_first == $self->frac_chan_last) {
@@ -740,5 +781,31 @@ sub gen_zapata_conf{
 	return $zp_file;	
 	
 }
+sub gen_pri_conf{
+	my ($self ,$span_no,$span_type, $group_no, $switch_type,$trunk_type,$sig_mode) = @_;
+	my $pri_file='';
+	
+	$pri_file.="\n";
+	#$pri_file.="link=$trunk_type\n";
+	if ($sig_mode =~ m/CPE/ ){
+		$pri_file.="signalling=pri_cpe\n";
+	} elsif ( $sig_mode =~ m/NET/ ){
+			$pri_file.="signalling=pri_net\n";
+	}
+	$pri_file.="switchtype=$switch_type\n";	
+	$pri_file.="group=$group_no\n";
+	$pri_file.="spans=$span_no\n";
+	#$pri_file.="operator=$operator\n";
 
+	return $pri_file;	
+}
+sub gen_woomera_conf{
+	my ($self, $group, $context) = @_;
+	my $woomera_file='';
+	
+	$woomera_file.="\n";
+	$woomera_file.="context=$context\n";
+	$woomera_file.="group=$group\n";
+	return $woomera_file;	
+}
 1;

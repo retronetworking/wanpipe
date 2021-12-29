@@ -46,10 +46,19 @@
 
 
 #if defined(WAN_DEBUG_FE)
-# warning "WAN_DEBUG_FE - Debugging Enabled"
+# if defined(__WINDOWS__)
+#  pragma message("WAN_DEBUG_FE - Debugging Enabled")
+# else
+#  warning "WAN_DEBUG_FE - Debugging Enabled"
+# endif
 #endif
+
 #if defined(WAN_DEBUG_REG)
+# if defined(__WINDOWS__)
+#  pragma message("WAN_DEBUG_REG - Debugging Enabled")
+# else
 # warning "WAN_DEBUG_REG - Debugging Enabled"
+# endif
 #endif
 
 
@@ -398,7 +407,7 @@ int sdla_shark_te1_write_fe (void *phw, ...)
 	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 		if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+			DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 					hw->devname, __FUNCTION__,__LINE__);
 		}
 		return -EINVAL;
@@ -479,7 +488,7 @@ u_int8_t sdla_shark_te1_read_fe (void *phw, ...)
 	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 		if (WAN_NET_RATELIMIT()){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			hw->devname, __FUNCTION__,__LINE__);
 		}
 		return 0x00;
@@ -598,7 +607,7 @@ u_int8_t sdla_shark_56k_read_fe (void *phw, ...)
 	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 		if (WAN_NET_RATELIMIT()){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			hw->devname, __FUNCTION__,__LINE__);
 		}
 		return 0x00;
@@ -639,7 +648,7 @@ static int __sdla_a600_write_fe(void *phw, ...)
 	value	= va_arg(args, int);
 	va_end(args);
 	
-	if (chain) DEBUG_EVENT ("%s :%d Error: chain mode not supported on A600 (%s:%d)\n",
+	if (chain) DEBUG_ERROR ("%s :%d Error: chain mode not supported on A600 (%s:%d)\n",
 					hw->devname, mod_no, __FUNCTION__,__LINE__);
 				
 		    
@@ -684,7 +693,7 @@ static int __sdla_a600_write_fe(void *phw, ...)
 	}
 			
 	if (wan_test_bit(A600_SPI_REG_SPI_BUSY_BIT, &data)) {
-		DEBUG_EVENT("%s: ERROR:SPI Iface not ready\n", hw->devname);
+		DEBUG_ERROR("%s: ERROR:SPI Iface not ready\n", hw->devname);
 		return -EINVAL;
 	}
 		
@@ -712,7 +721,7 @@ int sdla_a600_write_fe(void *phw, ...)
 	va_end(args);
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			    hw->devname, __FUNCTION__,__LINE__);
 		return -EINVAL;
 	}
@@ -745,7 +754,7 @@ u_int8_t __sdla_a600_read_fe (void *phw, ...)
 	reg	= va_arg(args, int);
 	va_end(args);
 
-	if (chain) DEBUG_EVENT ("%s :%d Error: chain mode not supported on A600 (%s:%d)\n",
+	if (chain) DEBUG_ERROR ("%s :%d Error: chain mode not supported on A600 (%s:%d)\n",
 	    		hw->devname, mod_no, __FUNCTION__,__LINE__);
 	
 
@@ -790,7 +799,7 @@ u_int8_t __sdla_a600_read_fe (void *phw, ...)
 		
 spi_read_done:
 	if (wan_test_bit(A600_SPI_REG_SPI_BUSY_BIT, &data)) {
-		DEBUG_EVENT("%s: ERROR:SPI Iface not ready\n", hw->devname);
+		DEBUG_ERROR("%s: ERROR:SPI Iface not ready\n", hw->devname);
 		data = 0xFF;
 	}
 	
@@ -814,7 +823,7 @@ u_int8_t sdla_a600_read_fe (void *phw, ...)
 	va_end(args);
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			    hw->devname, __FUNCTION__,__LINE__);
 		return 0x00;
 	}
@@ -855,7 +864,7 @@ static int __sdla_a700_analog_write_fe (void* phw, ...)
 	va_end(args);
 #if 0
 	if (!wan_test_bit(mod_no, card->fe.fe_param.remora.module_map)){
-		DEBUG_EVENT("%s: %s:%d: Internal Error: Module %d\n",
+		DEBUG_ERROR("%s: %s:%d: Internal Error: Module %d\n",
 			card->devname, __FUNCTION__,__LINE__,mod_no);
 		return -EINVAL;
 	}
@@ -936,7 +945,7 @@ static int __sdla_a700_analog_write_fe (void* phw, ...)
 	}
 
 	if (data & MOD_SPI_BUSY) {
-		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d)!\n",
+		DEBUG_ERROR("%s: Module %d: Critical Error (%s:%d)!\n",
 					hw->devname, mod_no,
 					__FUNCTION__,__LINE__);
 		return -EINVAL;
@@ -969,10 +978,10 @@ int sdla_a700_analog_write_fe (void* phw, ...)
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 #if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
 			hw->devname, __FUNCTION__,__LINE__, fname, fline);
 #else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			hw->devname, __FUNCTION__,__LINE__);
 #endif			
 		return -EINVAL;
@@ -1082,7 +1091,7 @@ u_int8_t __sdla_a700_analog_read_fe (void* phw, ...)
 	}
 
 	if (data & MOD_SPI_BUSY){
-		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d)!\n",
+		DEBUG_ERROR("%s: Module %d: Critical Error (%s:%d)!\n",
 					hw->devname, mod_no,
 					__FUNCTION__,__LINE__);
 		return 0xFF;
@@ -1116,10 +1125,10 @@ u_int8_t sdla_a700_analog_read_fe (void* phw, ...)
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 #if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
 			hw->devname, __FUNCTION__,__LINE__,fname,fline);
 #else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			hw->devname, __FUNCTION__,__LINE__);
 #endif		
 		return 0x00;
@@ -1253,7 +1262,7 @@ static int __sdla_shark_rm_write_fe (void* phw, ...)
 	va_end(args);
 #if 0
 	if (!wan_test_bit(mod_no, card->fe.fe_param.remora.module_map)){
-		DEBUG_EVENT("%s: %s:%d: Internal Error: Module %d\n",
+		DEBUG_ERROR("%s: %s:%d: Internal Error: Module %d\n",
 			card->devname, __FUNCTION__,__LINE__,mod_no);
 		return -EINVAL;
 	}
@@ -1372,7 +1381,7 @@ static int __sdla_shark_rm_write_fe (void* phw, ...)
 	}
 
 	if (data & MOD_SPI_BUSY) {
-		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d)!\n",
+		DEBUG_ERROR("%s: Module %d: Critical Error (%s:%d)!\n",
 					hw->devname, mod_no,
 					__FUNCTION__,__LINE__);
 		return -EINVAL;
@@ -1405,10 +1414,10 @@ int sdla_shark_rm_write_fe (void* phw, ...)
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 #if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
 			hw->devname, __FUNCTION__,__LINE__, fname, fline);
 #else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			hw->devname, __FUNCTION__,__LINE__);
 #endif			
 		return -EINVAL;
@@ -1443,7 +1452,7 @@ u_int8_t __sdla_shark_rm_read_fe (void* phw, ...)
 	va_end(args);
 #if 0
 	if (!wan_test_bit(mod_no, card->fe.fe_param.remora.module_map)){
-		DEBUG_EVENT("%s: %s:%d: Internal Error: Module %d\n",
+		DEBUG_ERROR("%s: %s:%d: Internal Error: Module %d\n",
 			card->devname, __FUNCTION__,__LINE__,mod_no);
 		return 0x00;
 	}
@@ -1560,7 +1569,7 @@ u_int8_t __sdla_shark_rm_read_fe (void* phw, ...)
 	}
 
 	if (data & MOD_SPI_BUSY){
-		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d)!\n",
+		DEBUG_ERROR("%s: Module %d: Critical Error (%s:%d)!\n",
 					hw->devname, mod_no,
 					__FUNCTION__,__LINE__);
 		return 0xFF;
@@ -1594,10 +1603,10 @@ u_int8_t sdla_shark_rm_read_fe (void* phw, ...)
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 #if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
 			hw->devname, __FUNCTION__,__LINE__,fname,fline);
 #else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			hw->devname, __FUNCTION__,__LINE__);
 #endif		
 		return 0x00;
@@ -1750,10 +1759,10 @@ int sdla_shark_bri_write_fe (void* phw, ...)
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 #if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
 			hw->devname, __FUNCTION__,__LINE__, fname, fline);
 #else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			hw->devname, __FUNCTION__,__LINE__);
 #endif			
 		return -EINVAL;
@@ -1955,10 +1964,10 @@ u_int8_t sdla_shark_bri_read_fe (void* phw, ...)
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 #if defined(WAN_DEBUG_FE)
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
 			hw->devname, __FUNCTION__,__LINE__,fname,fline);
 #else
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			hw->devname, __FUNCTION__,__LINE__);
 #endif		
 		return 0x00;
@@ -2058,7 +2067,7 @@ u_int32_t sdla_shark_serial_read_fe(void *phw, ...)
 
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 		if (WAN_NET_RATELIMIT()){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			hw->devname, __FUNCTION__,__LINE__);
 		}
 		return 0x00;
@@ -2074,3 +2083,144 @@ u_int32_t sdla_shark_serial_read_fe(void *phw, ...)
 	sdla_hw_fe_clear_bit(hw,0);
         return value;
 }
+
+#if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
+static int __sdla_b601_te1_write_fe(void *phw, ...)
+{
+    sdlahw_t*   hw = (sdlahw_t*)phw;
+    sdlahw_cpu_t    *hwcpu;
+    sdlahw_card_t   *hwcard;
+    va_list     args;
+    int     qaccess=0, line_no=0, off=0, value=0;
+    u16 data_hi, data_lo;
+
+    WAN_ASSERT(hw == NULL);
+    WAN_ASSERT(hw->hwcpu == NULL);
+    WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+    hwcpu = hw->hwcpu;
+    hwcard = hwcpu->hwcard;
+    va_start(args, phw);
+    qaccess = (u_int16_t)va_arg(args, int);
+    line_no = (u_int16_t)va_arg(args, int);
+    off = (u_int16_t)va_arg(args, int);
+    value   = (u_int8_t)va_arg(args, int);
+    va_end(args);
+
+    data_hi = 0x0000;
+    data_lo = 0x0000;
+
+    if (off & 0x800) {
+        data_hi |= 0x2000;
+    }
+    if (off & 0x1000) {
+        data_hi |= 0x4000;
+    }
+
+    data_hi |= (off & 0x7FF);
+    sdla_bus_write_2(hw, A600_MAXIM_INTERFACE_REG_ADD_HI, data_hi);
+    data_lo = (value & 0xFF);
+    sdla_bus_write_2(hw, A600_MAXIM_INTERFACE_REG_ADD_LO, data_lo);
+
+    return 0;
+}
+
+int sdla_b601_te1_write_fe(void *phw, ...)
+{
+    sdlahw_t    *hw = (sdlahw_t*)phw;
+    va_list     args;
+    int     mod_no, type, chain, reg, value;
+#if defined(WAN_DEBUG_FE)
+    char        *fname;
+    int     fline;
+#endif
+
+    WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+    va_start(args, phw);
+    mod_no  = va_arg(args, int);
+    type    = va_arg(args, int);
+    chain   = va_arg(args, int);
+    reg = va_arg(args, int);
+    value   = va_arg(args, int);
+    va_end(args);
+
+    if (sdla_hw_fe_test_and_set_bit(hw,0)){
+        DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+                hw->devname, __FUNCTION__,__LINE__);
+        return -EINVAL;
+    }
+
+    __sdla_b601_te1_write_fe(hw, mod_no, type, chain, reg, value);
+
+    sdla_hw_fe_clear_bit(hw,0);
+    return 0;
+}
+
+u_int8_t __sdla_b601_te1_read_fe (void *phw, ...)
+{
+    sdlahw_t*   hw = (sdlahw_t*)phw;
+    sdlahw_cpu_t    *hwcpu;
+    sdlahw_card_t   *hwcard;
+    va_list     args;
+    int     qaccess=0, line_no=0, off=0;
+    u32     data_read;
+    u16     data_hi;
+
+    WAN_ASSERT(hw == NULL);
+    WAN_ASSERT(hw->hwcpu == NULL);
+    WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+    hwcpu = hw->hwcpu;
+    hwcard = hwcpu->hwcard;
+    va_start(args, phw);
+    qaccess = (u_int16_t)va_arg(args, int);
+    line_no = (u_int16_t)va_arg(args, int);
+    off = (u_int16_t)va_arg(args, int);
+    va_end(args);
+    WAN_ASSERT(qaccess != 0 && qaccess != 1);
+
+    data_hi = 0x00;
+    if (off & 0x800) {
+        data_hi |= 0x2000;
+    }
+    if (off & 0x1000) {
+        data_hi |= 0x4000;
+    }
+
+    data_hi |= (off & 0x7FF);
+    sdla_bus_write_2(hw, A600_MAXIM_INTERFACE_REG_ADD_HI, data_hi);
+    data_read = 0x00;
+    sdla_bus_read_4(hw, A600_MAXIM_INTERFACE_REG_ADD_LO, &data_read);
+
+    return (data_read & 0xFF);
+}
+
+u_int8_t sdla_b601_te1_read_fe (void *phw, ...)
+{
+    sdlahw_t    *hw = (sdlahw_t*)phw;
+    va_list     args;
+    int     mod_no, type, chain, reg;
+    unsigned char   data = 0;
+
+    WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+    va_start(args, phw);
+    mod_no  = va_arg(args, int);
+    type    = va_arg(args, int);
+    chain   = va_arg(args, int);
+    reg = va_arg(args, int);
+    va_end(args);
+
+    if (sdla_hw_fe_test_and_set_bit(hw,0)){
+        DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+                hw->devname, __FUNCTION__,__LINE__);
+        return 0x00;
+    }
+
+    data = __sdla_b601_te1_read_fe (hw, mod_no, type, chain, reg);
+
+    sdla_hw_fe_clear_bit(hw,0);
+    return data;
+}
+
+#endif
+
+
+

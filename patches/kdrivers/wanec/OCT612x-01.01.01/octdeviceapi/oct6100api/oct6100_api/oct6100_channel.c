@@ -115,12 +115,16 @@ UINT32 Oct6100ChannelOpenDef(
 	f_pChannelOpen->VqeConfig.lRinLevelControlGainDb = 0;
 	f_pChannelOpen->VqeConfig.fSoutLevelControl = FALSE;
 	f_pChannelOpen->VqeConfig.lSoutLevelControlGainDb = 0;
+
 	f_pChannelOpen->VqeConfig.fRinAutomaticLevelControl	= FALSE;
 	f_pChannelOpen->VqeConfig.lRinAutomaticLevelControlTargetDb = -20;
+
 	f_pChannelOpen->VqeConfig.fSoutAutomaticLevelControl = FALSE;
 	f_pChannelOpen->VqeConfig.lSoutAutomaticLevelControlTargetDb = -20;
+
 	f_pChannelOpen->VqeConfig.fRinHighLevelCompensation = FALSE;
 	f_pChannelOpen->VqeConfig.lRinHighLevelCompensationThresholdDb = -10;
+
 	f_pChannelOpen->VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
 	f_pChannelOpen->VqeConfig.fSoutNoiseBleaching = FALSE;
 	f_pChannelOpen->VqeConfig.fSoutConferencingNoiseReduction = FALSE;
@@ -146,6 +150,7 @@ UINT32 Oct6100ChannelOpenDef(
 	f_pChannelOpen->VqeConfig.lRoutNoiseReductionLevelGainDb = -18;
 	f_pChannelOpen->VqeConfig.lAnrSnrEnhancementDb = -18;
 	f_pChannelOpen->VqeConfig.ulAnrVoiceNoiseSegregation = 6;
+
 	f_pChannelOpen->VqeConfig.ulToneDisablerVqeActivationDelay = 300;
 	f_pChannelOpen->VqeConfig.fEnableMusicProtection = FALSE;
 	/* Older images have idle code detection hard-coded to enabled. */

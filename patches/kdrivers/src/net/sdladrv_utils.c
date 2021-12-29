@@ -134,7 +134,7 @@ static int sdla_plx_EE_waitidle(void *phw)
 		}
 		WP_DELAY(1000);
 	}
-	DEBUG_EVENT("%s: ERROR: EEPROM Busy timeout!\n",
+	DEBUG_ERROR("%s: ERROR: EEPROM Busy timeout!\n",
 				hw->devname);
 	return SDLA_PLXE_MASK_BUSY;
 }
@@ -172,7 +172,7 @@ static int sdla_plx_EE_readbyte(void *phw, unsigned char *data)
 		}
 	}
 	if (eeCtl & SDLA_PLXE_MASK_BYTE_READ_START){
-		DEBUG_EVENT("%s: ERROR: Timeout on PLX READ!\n",
+		DEBUG_ERROR("%s: ERROR: Timeout on PLX READ!\n",
 					hw->devname);
 		return -EINVAL;
 	}
@@ -206,7 +206,7 @@ static int sdla_plx_EE_writebyte(void *phw, unsigned char val)
 		}
 	}
 	if (eeCtl & SDLA_PLXE_MASK_BYTE_WRITE_START){
-		DEBUG_EVENT("%s: ERROR: Timeout on PLX write!\n",
+		DEBUG_ERROR("%s: ERROR: Timeout on PLX write!\n",
 						hw->devname);
 		return -EINVAL;
 	}

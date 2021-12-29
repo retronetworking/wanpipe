@@ -4149,7 +4149,7 @@ static int sdla_t1_cfg_verify(void* pfe)
 		WAN_FE_FRAME(fe) = WAN_FR_ESF;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s FE Framing type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s FE Framing type (%X)\n",
 						fe->name,
 						FE_MEDIA_DECODE(fe),
 						WAN_FE_FRAME(fe));
@@ -4167,7 +4167,7 @@ static int sdla_t1_cfg_verify(void* pfe)
 		WAN_FE_LCODE(fe) = WAN_LCODE_B8ZS;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s FE Line code type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s FE Line code type (%X)\n",
 						fe->name,
 						FE_MEDIA_DECODE(fe),
 						WAN_FE_LCODE(fe));
@@ -4191,7 +4191,7 @@ static int sdla_t1_cfg_verify(void* pfe)
 		WAN_TE1_LBO(fe) = WAN_T1_LBO_0_DB;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s LBO value (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s LBO value (%X)\n",
 						fe->name,
 						FE_MEDIA_DECODE(fe),
 						WAN_TE1_LBO(fe));
@@ -4222,7 +4222,7 @@ static int sdla_e1_cfg_verify(void* pfe)
 		WAN_FE_FRAME(fe) = WAN_FR_CRC4;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s FE Framing type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s FE Framing type (%X)\n",
 					fe->name,
 					FE_MEDIA_DECODE(fe),
 					WAN_FE_FRAME(fe));
@@ -4239,7 +4239,7 @@ static int sdla_e1_cfg_verify(void* pfe)
 		WAN_FE_LCODE(fe) = WAN_LCODE_HDB3;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s FE Line code type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s FE Line code type (%X)\n",
 					fe->name,
 					FE_MEDIA_DECODE(fe),
 					WAN_FE_LCODE(fe));
@@ -4257,7 +4257,7 @@ static int sdla_e1_cfg_verify(void* pfe)
 		WAN_TE1_LBO(fe) = WAN_E1_120;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s LBO value (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s LBO value (%X)\n",
 					fe->name,
 					FE_MEDIA_DECODE(fe),
 					WAN_TE1_LBO(fe));
@@ -4274,7 +4274,7 @@ static int sdla_e1_cfg_verify(void* pfe)
 		WAN_TE1_SIG_MODE(fe) = WAN_TE1_SIG_CCS;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid E1 Signalling type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid E1 Signalling type (%X)\n",
 					fe->name,
 					WAN_TE1_SIG_MODE(fe));
 		return -EINVAL;
@@ -4314,7 +4314,7 @@ static int sdla_te_chip_config(sdla_fe_t *fe)
 		break;
 
 	default:
-		DEBUG_EVENT("%s: ERROR: Unsupported T1/E1 CHIP (0x%02X)\n",
+		DEBUG_ERROR("%s: ERROR: Unsupported T1/E1 CHIP (0x%02X)\n",
 				fe->name, (fe->fe_chip_id >> 5));
 		return -EINVAL;
 	}
@@ -4386,7 +4386,7 @@ static int sdla_te_config(void* pfe)
 		}
 		break;
 	default:
-		DEBUG_EVENT("%s: ERROR: Unsupported PMC %s CHIP (%02X)\n",
+		DEBUG_ERROR("%s: ERROR: Unsupported PMC %s CHIP (%02X)\n",
 				fe->name, 
 				FE_MEDIA_DECODE(fe),
 				(fe->fe_chip_id >> 5));
@@ -4398,7 +4398,7 @@ static int sdla_te_config(void* pfe)
 	}else if (IS_E1_FEMEDIA(fe)){
 		err = sdla_e1_cfg_verify(fe);
 	}else{
-		DEBUG_EVENT("%s: Error: Invalid FE Media type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid FE Media type (%X)\n",
 					fe->name,
 					WAN_FE_MEDIA(fe));
 		err =-EINVAL;
@@ -6412,7 +6412,7 @@ sdla_te_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *fe_event)
 			if (!WAN_LIST_NEXT(tmp, next)) break;
 		}
 		if (tmp == NULL){
-			DEBUG_EVENT("%s: Internal Error!!!\n", fe->name);
+			DEBUG_ERROR("%s: Internal Error!!!\n", fe->name);
 			wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
 			return -EINVAL;
 		}
@@ -6640,7 +6640,7 @@ static int sdla_te_tx_lb(sdla_fe_t* fe, u_int8_t mode, u_int8_t cmd)
 		return -EINVAL;
 	}
 	if (WAN_FE_FRAME(fe) != WAN_FR_ESF){
-		DEBUG_EVENT("%s: ERROR: TX loopback code is available only for T1 ESF mode!\n",
+		DEBUG_ERROR("%s: ERROR: TX loopback code is available only for T1 ESF mode!\n",
 				fe->name);				
 		return -EINVAL;
 	}

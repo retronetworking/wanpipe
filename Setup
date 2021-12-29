@@ -9,6 +9,7 @@
 #		as published by the Free Software Foundation; either version
 #		2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Oct 29, 2009	Yannick Lam	Added --no_woomera option (will not install woomera)
 # Jul 29, 2009  Konrad Hammel   Added --with-asterisk option
 # Jul 27, 2009  Konrad Hammel   Update to not compile unneeded utilities in 
 #				TDM_VOICE mode.
@@ -2552,6 +2553,9 @@ function build_kernel_module()
 			rm -f $modname.ko
 			rm -f $modname.mod.o
 
+			echo " make MODULE_NAME=$modname OBJS=\"$ofiles\" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KDIR=$SOURCEDIR \
+                     	EXTRA_CFLAGS=\"-D__LINUX__ $PROTOCOL_DEFINES $extra_flags \""  >> $CMP_BUILD 
+
 			make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KDIR=$SOURCEDIR \
                      	EXTRA_CFLAGS="-D__LINUX__ $PROTOCOL_DEFINES $extra_flags " >> $CMP_LOG 2>> $CMP_LOG 
 		#	echo "ld $LD_ELF -r -o $modname.ko $modname.o $modname.mod.o" >> $CMP_BUILD 
@@ -3378,7 +3382,7 @@ ENDOFTEXT
 		rm -rf $DRIVER_TMP_DIR 
 	fi
 
-	eval "find $PROD_HOME -name \"Module.symvers*\" | xargs \rm -f"
+	eval "find $PROD_HOME/ -name \"Module.symvers*\" | xargs \rm -f"
 
 	\mkdir "$DRIVER_TMP_DIR"
 	\mkdir "$DRIVER_TMP_DIR/mod"
@@ -3934,7 +3938,7 @@ WANPIPE_OBJS=
 	rm -f sdladrv_src.c
 	ln -s sdladrv.c sdladrv_src.c
 
-	SDLADRV_OBJS="sdladrv_src sdladrv_fe sdladrv_utils "
+	SDLADRV_OBJS="sdladrv_src sdladrv_fe sdladrv_utils wanpipe_cdev_linux wanpipe_logger "
 
 	if [ "$AFT_USB_PROT" = "YES" ]; then
 		SDLADRV_OBJS=$SDLADRV_OBJS"sdladrv_usb "
@@ -3947,7 +3951,7 @@ WANPIPE_OBJS=
 
 	WANROUTER_OBJS="wanmain wanproc waniface "
 	if [ $REL != "3.4" ]; then
-    	WANROUTER_OBJS=$WANROUTER_OBJS" wandev wanpipe_cdev_linux"  	
+    	WANROUTER_OBJS=$WANROUTER_OBJS" wandev "  	
 	fi
 
 	build_kernel_module wanrouter "$WANROUTER_OBJS"
@@ -4786,92 +4790,6 @@ ENDOFTEXT
 	return 0
 }
 
-function install_chan_woomera()
-{
-	AST_MODULES=chan_woomera.c
-	if [ "$AST_DFLT_INSTALL_DIR" = "" ]; then
-        	ast_src_dir=/usr/src/asterisk
-	else
-		ast_src_dir=$AST_DFLT_INSTALL_DIR
-        fi
-
-	cd $PROD_HOME/$SSMG_DIR
-	cd sangoma_mgd.trunk 
-
-	CUR_PWD=`pwd`
-
-	if [ "$ast_src_dir" = "" ]; then
-		echo
-		echo "Please Specify Asterisk Source Directory"
-		echo "Default [/usr/src/asterisk] just press <enter>"
-		echo
-		echo -n "Asterisk Source: "
-		read ast_src_dir
-
-		if [ "$ast_src_dir" = "" ]; then
-			ast_src_dir="/usr/src/asterisk"
-		fi
-	fi
-
-	echo 
-	echo
-	echo "Installing chan_woomera in: $ast_src_dir"
-	echo
-
-	if [ ! -d $ast_src_dir ]; then
-		echo 
-		echo "Directory $ast_src_dir not found!"
-		echo
-		return 1
-	fi
-
-	if [ ! -e  $ast_src_dir/contrib/scripts/astxs ]; then
-		echo 
-		echo "Invalid asterisk source in $ast_src_dir"
-		echo
-		return 1
-	fi
-
-
-	eval "cp -f g711.h $ast_src_dir/"
-	eval "cp -f $AST_MODULES $ast_src_dir/"
-	cd $ast_src_dir
-
-	for mod in $AST_MODULES
-	do
-		echo "Installing: $mod"
-		eval "perl ./contrib/scripts/astxs -install $mod > /dev/null" 
-		if [ $? -ne 0 ]; then
-			echo 
-			echo "Error: Failed to install $mod module!"
-			install_failures=$install_failures"$mod "
-		else
-			echo "Done"
-		fi
-	done
-
-	cd $CUR_PWD
-
-	if [ "$install_failures" = "" ]; then
-		echo
-		echo "Installation Complete"
-		echo
-	else
-		echo
-		echo "-------------------------------------"
-		echo
-		echo "There was an ERROR in asterisk modules installation"
-		echo "Following modules failed to install:"
-		echo -e "\t$install_failures"
-		echo
-		echo
-
-		return 1
-	fi              
-
-	return 0         
-}
-
 function install_ssmg_ss7()
 {
 
@@ -4918,25 +4836,37 @@ function install_ssmg_ss7()
 	pause
 }
 
-
 function install_ssmg_pri()
 {
 	if [ $SSMG_PRI != "YES" ]; then
 		return 0
 	fi
-
-	if [ !-e $PROD_HOME/$SSMG_DIR/sangoma_pri ]; then
-		echo "-------------------------------------"
-		echo "SMG PRID is not part of this release"
-		echo "Please contact Sangoma Support!"
-		echo "-------------------------------------"
-		exit 1;
-	fi
-
 	banner
 	
 	check_sctp_utility
 	find_ast_dirs
+	
+	cd $PROD_HOME/$SSMG_DIR
+	eval "./get_sangoma_prid.sh"
+	if [ $? -ne 0 ]; then
+		echo "Failed to obtain SMG PRI package"
+		exit 1	
+	fi
+	cd sangoma_pri
+	echo
+	echo "Installing SMG PRI Daemon..."
+	eval "make INSTALLPREFIX=$ROOT install > /dev/null "
+	
+	echo
+	echo "----------------------------------------"
+	echo "Sangoma PRI Installation Complete"
+	echo
+	echo " -> To configure for PRI run:"
+	echo " -> /usr/bin/wancfg_smg"
+	echo
+	echo "----------------------------------------"
+	echo
+	pause
 	
 	eval "install_sangoma_mgd"
 	if [ $? -ne 0 ]; then
@@ -4967,21 +4897,7 @@ function install_ssmg_pri()
 	fi
 	echo
 	
-	cd $PROD_HOME/$SSMG_DIR
-	cd sangoma_pri
-	echo
-	echo "Installing SMG PRI Daemon..."
-	eval "make INSTALLPREFIX=$ROOT install > /dev/null "
-	
-	echo
-	echo "----------------------------------------"
-	echo "Sangoma PRI Installation Complete"
-	echo
-	echo " -> To configure for PRI run:"
-	echo " -> /usr/bin/wancfg_smg"
-	echo
-	echo "----------------------------------------"
-	echo
+
 	install_smg_samples_bri
 	pause
 }
@@ -4998,37 +4914,6 @@ function install_ssmg_bri()
 	
 	check_sctp_utility
 	find_ast_dirs
-	
-	eval "install_sangoma_mgd"
-	if [ $? -ne 0 ]; then
-		echo "-------------------------------------"
-		echo "Error: SMG Libraries Failed to install"	
-		echo "Please Contact Sangoma Support!"
-		echo "-------------------------------------"
-		exit 1;
-	fi
-	echo 
-
-
-
-	cd $PROD_HOME/$SSMG_DIR
-	cd sangoma_mgd.trunk 
-
-	echo "Installing SMG Daemon..."	
-	echo
-	if [ -z $ROOT ]; then
-		eval "./install -bri -pbxdir $AST_SOURCE_DIR"
-	else
-		eval "./install -bri -rootdir $ROOT -pbxdir $AST_SOURCE_DIR"
-	fi
-	if [ $? -ne 0 ]; then
-		echo "-------------------------------------"
-		echo "Error: SMG Failed to install"	
-		echo "Please Contact Sangoma Support!"
-		echo "-------------------------------------"
-		exit 1;
-	fi
-	echo 
 
 	cd $PROD_HOME/$SSMG_DIR
 	cd sangoma_bri
@@ -5044,7 +4929,47 @@ function install_ssmg_bri()
 	echo " -> /usr/bin/wancfg_smg"
 	echo 
 	echo "----------------------------------------"	
-	echo	
+	echo
+	
+	pause	
+	
+	eval "install_sangoma_mgd"
+	if [ $? -ne 0 ]; then
+		echo "-------------------------------------"
+		echo "Error: SMG Libraries Failed to install"	
+		echo "Please Contact Sangoma Support!"
+		echo "-------------------------------------"
+		exit 1;
+	fi
+	echo 
+
+	cd $PROD_HOME/$SSMG_DIR
+	cd sangoma_mgd.trunk 
+
+	echo "Installing SMG Daemon..."	
+	echo
+	
+	if [ "$no_woomera_option" == "TRUE" ];then
+		smg_installation_type="no_woomera"
+	else
+		smg_installation_type="bri"
+	fi
+
+	if [ -z $ROOT ]; then
+		eval "./install -$smg_installation_type -pbxdir $AST_SOURCE_DIR"
+	else
+		eval "./install -$smg_installation_type -rootdir $ROOT -pbxdir $AST_SOURCE_DIR"
+	fi
+
+	if [ $? -ne 0 ]; then
+		echo "-------------------------------------"
+		echo "Error: SMG Failed to install"	
+		echo "Please Contact Sangoma Support!"
+		echo "-------------------------------------"
+		exit 1;
+	fi
+	echo 
+
 	install_smg_samples_bri
 	pause
 }
@@ -6383,13 +6308,18 @@ function find_ast_dirs ()
 	if [ "$astdirs" = "" ]; then
 		astdirs=`find /usr/src -maxdepth 2 -name 'asterisk*' | xargs `
 		if [ -d "/usr/src/asterisk" ]; then
-                        astdirs="/usr/src/asterisk "$astdirs
-                fi
+			astdirs_tmp="/usr/src/asterisk "$astdirs
+			astdirs=$astdirs_tmp
+		fi
+		 if [ -d "$AST_DFLT_INCLUDE_DIR" ]; then
+            astdirs_tmp="$AST_DFLT_INCLUDE_DIR "$astdirs
+			astdirs=$astdirs_tmp
+		fi    
 
 		astdirs1=`find /usr/src -maxdepth 2 -name 'callweaver*' | xargs `
 		if [ -d "/usr/src/callweaver" ]; then
-                        astdirs1="/usr/src/callweaver "$astdirs1
-                fi
+            astdirs1="/usr/src/callweaver "$astdirs1
+        fi
 
 		astdirs="$astdirs $astdirs1"
 	fi
@@ -6407,18 +6337,19 @@ function find_ast_dirs ()
 			continue
 		fi
 
-		if [ ! -f $dir/include/asterisk.h ] && [ ! -f $dir/include/callweaver.h ]; then
-			continue;
-		fi
+		if [ $dir != "$AST_DFLT_INCLUDE_DIR" ]; then
+			if [ ! -f $dir/include/asterisk.h ] && [ ! -f $dir/include/callweaver.h ]; then
+				continue;
+			fi
 		
-		if [ "$dir" = "/usr/src/asterisk" ] && [ $cnt -ne 1 ]; then
-                        continue;
-                fi
+			if [ "$dir" = "/usr/src/asterisk" ] && [ $cnt -gt 2 ]; then
+			   	continue;
+			fi
 
-		if [ "$dir" = "/usr/src/callweaver" ] && [ $cnt -ne 1 ]; then
-                        continue;
-                fi
-
+			if [ "$dir" = "/usr/src/callweaver" ] && [ $cnt -ne 1 ]; then
+				continue;
+			fi
+		fi
 		
 		astdir_array[$cnt]=$dir;
 		echo "$cnt : $dir "
@@ -6492,16 +6423,18 @@ function find_ast_dirs ()
 	fi	
 
 	AST_SOURCE_DIR=$AST_INSTALL_DIR
-				
-	if [ ! -f $AST_SOURCE_DIR/include/asterisk.h ] && [ ! -f $AST_SOURCE_DIR/include/callweaver.h ]; then
-		echo
-		echo "Error: asterisk.h/callweaver.h not found in $AST_SOURCE_DIR"
-		echo
-		echo
-		astdir_manual=0
-		pause 1
-		clear
-		find_ast_dirs "$astdirs"
+			
+	if [ $AST_SOURCE_DIR != "$AST_DFLT_INCLUDE_DIR" ]; then	 
+		if [ ! -f $AST_SOURCE_DIR/include/asterisk.h ] && [ ! -f $AST_SOURCE_DIR/include/callweaver.h ]; then
+			echo
+			echo "Error: asterisk.h/callweaver.h not found in $AST_SOURCE_DIR"
+			echo
+			echo
+			astdir_manual=0
+			pause 1
+			clear
+			find_ast_dirs "$astdirs"
+		fi
 	fi
 	
 	if [ $find_ast_dir_quit -eq 1 ] ; then
@@ -6575,6 +6508,13 @@ function enable_protocols ()
 		PROT_MATCH=YES
 	fi
 	
+	echo "$PROTOCOL" | grep "PRI" > /dev/null
+	if [ $? -eq 0 ]; then
+		echo "Enabling the AFT PRI SMG Support"
+		SSMG_PRI="YES"
+		PROT_MATCH=YES
+	fi
+
 	echo "$PROTOCOL" | grep "SS7" > /dev/null
 	if [ $? -eq 0 ]; then
 		echo "Enabling the AFT SS7 SMG Support"
@@ -6821,16 +6761,21 @@ ENDOFTEXT
 	if [ $? -eq 0 ]; then
 		if [ $AFT_TE1_PROT != YES ]; then
 			echo "Enabling the AFT TE1 Support"
-			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_56K -DCONFIG_PRODUCT_WANPIPE_AFT_RM -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW  -DCONFIG_PRODUCT_WANPIPE_AFT_BRI  -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL -DCONFIG_PRODUCT_WANPIPE_AFT_A600 "
+			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_56K -DCONFIG_PRODUCT_WANPIPE_AFT_RM -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW  -DCONFIG_PRODUCT_WANPIPE_AFT_BRI  -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL -DCONFIG_PRODUCT_WANPIPE_AFT_A600 -DCONFIG_PRODUCT_WANPIPE_AFT_B601  "
 			if [ $REL != "3.4" ]; then
-              	   PROTOCOL_DEFINES="$PROTOCOL_DEFINES  -DCONFIG_PRODUCT_WANPIPE_USB -DCONFIG_PRODUCT_WANPIPE_AFT_A700 "
+              	   PROTOCOL_DEFINES="$PROTOCOL_DEFINES  -DCONFIG_PRODUCT_WANPIPE_AFT_A700 "
 			fi
 		fi
 		AFT_TE1_PROT=YES
 		AFT_BRI_PROT=YES
 		AFT_SERIAL_PROT=YES
 		if [ $REL != "3.4" ]; then
-		AFT_USB_PROT=YES
+			if [ $AFT_USB_PROT = "NO" ]; then
+        		PROTOCOL_DEFINES="$PROTOCOL_DEFINES  -DCONFIG_PRODUCT_WANPIPE_USB "
+				AFT_USB_PROT=YES
+			else 
+				echo "USB Support Disabled by user!"
+			fi
 		fi
 		PROT_MATCH=YES
 	fi
@@ -7174,6 +7119,8 @@ AFT_TE3_PROT=NO
 SSMG_SS7=NO
 SSMG_PRI=NO
 SSMG_BRI=NO
+no_woomera_option="FALSE"
+smg_installation_type="bri"
 
 WAN_FRM_UPDATE_DRIVER=YES
 
@@ -7375,6 +7322,8 @@ or
                           Drastically improves performance in TDM Voice
                           See the wiki for more information
 
+	--no_woomera	: Option to compile the driver without installing 
+			  chan_woomera.
 
 	--protocol	: Option to compile in extra protocols
 	             	  that are not installed by default.
@@ -7439,7 +7388,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.6
+PROD_VER=3.5.11
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7534,7 +7483,8 @@ ANNEXG_LOAD=NO
 SCTP_LOAD=NO
 
 ZAPTEL_DFLT_INSTALL_DIR="/usr/src/zaptel"
-AST_DFLT_INSTALL_DIR="/usr/src/asterisk"
+AST_DFLT_INCLUDE_DIR="/usr/include/asterisk"
+AST_DFLT_INSTALL_DIR=$AST_DFLT_INCLUDE_DIR
 AST_SOURCE_DIR=$AST_DFLT_INSTALL_DIR
 AST_PATH_OP="NO"
 ZAPTEL_SOURCE_DIR=$ZAPTEL_DFLT_INSTALL_DIR
@@ -7815,6 +7765,10 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DWANPIPE_64BIT_4G_DMA "
 			;;
 
+		--64bit_2G*)
+			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DWANPIPE_64BIT_2G_DMA "
+			;;
+
 		--hwec_noise_reduction*)
 			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DWANEC_ENABLE_NOISE_REDUCTION "
 			;;
@@ -7883,28 +7837,35 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 
 			;;
 
-                --with-asterisk*)
-                        AST_DFLT_INSTALL_DIR=`echo $arg | cut -d'=' -f2`;
-                        if [ "$AST_DFLT_INSTALL_DIR" = "" ]; then
-                                echo "Error invalid --with-asterisk option";
-                                exit 1;
-                        fi
-                        if [ ! -d "$AST_DFLT_INSTALL_DIR" ]; then
-                                echo "Error: Asterisk source directory not found: $AST_DFLT_INSTALL_DIR";
-                                exit 1;
-                        fi
-                        if [ ! -f "$AST_DFLT_INSTALL_DIR/Makefile" ]; then
-                                echo "Error: Invalid Asterisk source found in $AST_DFLT_INSTALL_DIR";
-                                exit 1;
-                        fi
-                        AST_PATH_OP="YES";
-                        echo "Asterisk path defined as: $AST_DFLT_INSTALL_DIR"
- 
-                        ;;
+		--with-asterisk*)
+				AST_DFLT_INSTALL_DIR=`echo $arg | cut -d'=' -f2`;
+				if [ "$AST_DFLT_INSTALL_DIR" = "" ]; then
+						echo "Error invalid --with-asterisk option";
+						exit 1;
+				fi
+				if [ ! -d "$AST_DFLT_INSTALL_DIR" ]; then
+						echo "Error: Asterisk source directory not found: $AST_DFLT_INSTALL_DIR";
+						exit 1;
+				fi
+				if [ $AST_DFLT_INSTALL_DIR != "$AST_DFLT_INCLUDE_DIR" ]; then
+					if [ ! -f "$AST_DFLT_INSTALL_DIR/Makefile" ]; then
+							echo "Error: Invalid Asterisk source found in $AST_DFLT_INSTALL_DIR";
+							exit 1;
+					fi
+				fi
+				AST_PATH_OP="YES";
+				echo "Asterisk path defined as: $AST_DFLT_INSTALL_DIR"
+				AST_SOURCE_DIR=$AST_DFLT_INSTALL_DIR
+				;;
 	
 		 --no-zaptel-compile*)
                         ZAPTEL_COMPILE_DISABLE="YES";
                         ;;
+
+		 --no-usb*)
+		 		echo "USB Support Disabled"
+		 	    AFT_USB_PROT="DISABLE"
+				;;
 
 		--builddir*)
 			ROOT=`echo $arg | cut -d'=' -f2`;
@@ -7979,7 +7940,11 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 		--gz-modules)
 			GZ_MODULES="YES";
 			;;
-		
+
+		--no_woomera)
+			no_woomera_option="TRUE";
+			;;
+ 			
 		--zap-chunk* | --dahdi-chunk*)
                         ZAP_CHUNK=`echo $arg | cut -d'=' -f2`;
 

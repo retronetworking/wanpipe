@@ -21,7 +21,7 @@ SYSINC=/usr/include/wanpipe
 WAN_VIRTUAL=
 
 # Tools options.
-SRCS=wanconfig.c $(DIR_EC_APILIB)/wanec_api.c $(DIR_EC_APILIB)/wanec_api_lib.c
+SRCS=wanconfig.c wanconfig_hwec.c $(DIR_EC_APILIB)/wanec_api.c $(DIR_EC_APILIB)/wanec_api_lib.c
 CFLAGS = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
 CFLAGS += -DCONFIG_PRODUCT_WANPIPE_AFT_BRI -DCONFIG_PRODUCT_WANPIPE_USB
 CFLAGS += -I../../patches/kdrivers/include -I$(SYSINC)

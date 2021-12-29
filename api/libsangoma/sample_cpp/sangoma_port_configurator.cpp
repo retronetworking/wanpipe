@@ -337,7 +337,7 @@ int sangoma_port_configurator::set_volatile_configration(port_cfg_t *port_cfg)
 	switch(port_cfg->operation_status)
 	{
 	case SANG_STATUS_DEVICE_BUSY:
-		INFO_CFG("Error: open handles exist for '%s_IF\?\?' interfaces!\n",	wanpipe_name_str);
+		INFO_CFG("Error: open handles exist for 'wanpipe%d_if\?\?' interfaces!\n",	wp_number);
 		return port_cfg->operation_status;
 	case SANG_STATUS_SUCCESS:
 		//OK
@@ -360,7 +360,7 @@ int sangoma_port_configurator::initialize_t1_tdm_span_voice_api_configration_str
 {
     wandev_conf_t	*wandev_conf = &port_cfg->wandev_conf;
     sdla_fe_cfg_t	*sdla_fe_cfg = &wandev_conf->fe_cfg;
-	sdla_te_cfg_t	*te_cfg = &sdla_fe_cfg->cfg.te_cfg;
+	//sdla_te_cfg_t	*te_cfg = &sdla_fe_cfg->cfg.te_cfg;
     wan_tdmv_conf_t *tdmv_cfg = &wandev_conf->tdmv_conf;
     wanif_conf_t	*wanif_cfg = &port_cfg->if_cfg[0];
 
@@ -396,7 +396,7 @@ int sangoma_port_configurator::initialize_t1_tdm_span_voice_api_configration_str
     wandev_conf->card_type = WANOPT_AFT; //m_DeviceInfoData.card_model;
 
 	wanif_cfg->magic = ROUTER_MAGIC;
-    wanif_cfg->active_ch = 0x01FFFFFE;// channels 1-24
+    wanif_cfg->active_ch = 0x00FFFFFF;//channels 1-24 (starting from bit zero)
     sprintf(wanif_cfg->usedby,"TDM_SPAN_VOICE_API");
     wanif_cfg->u.aft.idle_flag=0xFF;
     wanif_cfg->mtu = 160;
@@ -417,7 +417,7 @@ int sangoma_port_configurator::initialize_t1_tdm_span_voice_api_configration_str
     switch(FE_MEDIA(sdla_fe_cfg))
     {
 	case WAN_MEDIA_T1:
-		tdmv_cfg->dchan = (1<<23);/* channel 24 */
+		tdmv_cfg->dchan = (1<<23);/* Channel 24. This is a bitmap, not a channel number. */
         break;
 	default:
 		printf("%s(): Error: invalid media type!\n", __FUNCTION__);
@@ -469,7 +469,7 @@ int sangoma_port_configurator::initialize_e1_tdm_span_voice_api_configration_str
     wandev_conf->card_type = WANOPT_AFT; //m_DeviceInfoData.card_model;
 
 	wanif_cfg->magic = ROUTER_MAGIC;
-    wanif_cfg->active_ch = 0xFFFFFFFE;// channels 1-31
+    wanif_cfg->active_ch = 0x7FFFFFFF;// channels 1-31 (starting from bit zero)
     sprintf(wanif_cfg->usedby,"TDM_SPAN_VOICE_API");
     wanif_cfg->u.aft.idle_flag=0xFF;
     wanif_cfg->mtu = 160;
@@ -490,7 +490,7 @@ int sangoma_port_configurator::initialize_e1_tdm_span_voice_api_configration_str
     switch(FE_MEDIA(sdla_fe_cfg))
     {
 	case WAN_MEDIA_E1:
-		tdmv_cfg->dchan = (1<<15);/* channel 16 */
+		tdmv_cfg->dchan = (1<<15);/* Channel 16. This is a bitmap, not a channel number. */
         break;
 	default:
 		printf("%s(): Error: invalid media type!\n", __FUNCTION__);
@@ -507,3 +507,34 @@ int sangoma_port_configurator::write_configration_on_persistent_storage(port_cfg
 	return sangoma_write_port_config_on_persistent_storage(hardware_info, port_cfg, (unsigned short)span);
 }
 
+int sangoma_port_configurator::control_analog_rm_lcm(port_cfg_t *port_cfg, int control_val)
+{
+	wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
+    sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
+	if(wandev_conf->card_type == WANOPT_AFT_ANALOG){ //Only valid for Analog cards
+		if(control_val == 1){
+			sdla_fe_cfg->cfg.remora.rm_lcm = 1;
+		}else if(control_val == 0){
+			sdla_fe_cfg->cfg.remora.rm_lcm = 0;
+		}else{
+			printf("%s(): Error: invalid parameter!\n", __FUNCTION__);
+			return -EINVAL;
+		}	
+	} else{
+			return -EINVAL;
+	}
+	return 0;
+}
+int sangoma_port_configurator::set_analog_opermode(port_cfg_t *port_cfg, char *opermode)
+{
+	wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
+    sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
+	if(wandev_conf->card_type == WANOPT_AFT_ANALOG){ //Only valid for Analog cards
+			if(sizeof(sdla_fe_cfg->cfg.remora.opermode_name) < strlen(opermode))
+				return -EINVAL;
+			strcpy(sdla_fe_cfg->cfg.remora.opermode_name,opermode);                                                                                              
+	} else{
+			return -EINVAL;
+	}
+	return 0;
+}

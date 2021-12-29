@@ -112,7 +112,7 @@ int aft_rtp_config(sdla_t *card)
 	}
 
 	if (card->rtp_conf.rtp_sample < 10 || card->rtp_conf.rtp_sample > 150) {
-		DEBUG_EVENT("%s: Error: Invalid RTP Sample %d [Min=10 Max=150ms]\n",
+		DEBUG_ERROR("%s: Error: Invalid RTP Sample %d [Min=10 Max=150ms]\n",
 				card->devname,card->rtp_conf.rtp_sample);
 		goto aft_rtp_init_exit;
 	}
@@ -264,7 +264,7 @@ void aft_rtp_tap(void *card_ptr, u8 chan, u8* rx, u8* tx, u32 len)
 
 	if (!card || !rx || !tx ) {
 		if (WAN_NET_RATELIMIT()) {
-			DEBUG_EVENT("%s: Internal Error: rtp tap invalid pointers chan %d\n",
+			DEBUG_ERROR("%s: Internal Error: rtp tap invalid pointers chan %d\n",
 					__FUNCTION__,chan);
 		}
 		return;
@@ -283,7 +283,7 @@ void aft_rtp_tap(void *card_ptr, u8 chan, u8* rx, u8* tx, u32 len)
 
 	if (chan >= 32) {
 		if (WAN_NET_RATELIMIT()) {
-			DEBUG_EVENT("%s: Internal Error: rtp tap chan out of range %d\n",
+			DEBUG_ERROR("%s: Internal Error: rtp tap chan out of range %d\n",
 					card->devname,chan);
 		}
 		return;
@@ -724,6 +724,10 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		chan->wp_tdm_api_dev->tdm_chan = (u8)chan->if_cnt;
 	}
 
+	if (chan->usedby_cfg == MTP1_API) {
+		chan->wp_tdm_api_dev->operation_mode = 	WP_TDM_OPMODE_MTP1;
+	}
+	
 	/* Set the API interface mode.  Used on windows to
 	 * indicate legacy API interface */
 	chan->wp_tdm_api_dev->api_mode = chan->wp_api_iface_mode;
@@ -732,6 +736,7 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		DEBUG_EVENT("%s:    Memory: TDM API %d\n",
 				card->devname, sizeof(wanpipe_tdm_api_dev_t));
 	}
+	
 
 	err=wanpipe_tdm_api_reg(chan->wp_tdm_api_dev);
 	if (err){

@@ -9,6 +9,12 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Nov 26   2009  2.39   Jignesh Patel   Fix woomera.conf for sangoma_pri & openzap.conf for E1
+# Oct 29   2009  2.38	Jignesh Patel	Minor changes to signalling order dahdi start script update
+# Sep 07   2009  2.37 	Jignesh Patel	Added B601 support
+# Aug 27   2009  2.36	Jignesh Patel   Added smg.rc file for smg_ctrl script
+# Aug 24   2009	 2.36	Jignesh Patel	Added FreeSwitch conf for T1/E1 sangoma_pri
+# 										opnezap.conf.xml support for Boost-PRI/BRI and analog
 # Jul 06   2009  2.35	Jignesh Patel 	Update enable/disable chan_woomera.so loading in Asterisk
 # May 26   2009	 2.34	Jignesh Patel 	Added support for USB FXO HW EC/DTMF/ Dahdi
 # May 5	   2009	 2.33	Jignesh Patel	Update start script for smgbri and wancfg_fs update
@@ -59,7 +65,7 @@ system('clear');
 print "\n########################################################################";
 print "\n#    		           Sangoma Wanpipe                             #";
 print "\n#        Dahdi/Zaptel/SMG/TDMAPI/BOOT Configuration Script             #";
-print "\n#                             v2.35                                  #";
+print "\n#                             v2.39                                  #";
 print "\n#                     Sangoma Technologies Inc.                        #";
 print "\n#                        Copyright(c) 2009.                            #";
 print "\n########################################################################\n\n";
@@ -130,6 +136,7 @@ my $first_cfg=1;
 my $zaptel_conf="";
 my $zapata_conf="";
 my $bri_conf="";
+my $pri_conf="";
 my $woomera_conf="";
 my $devnum=1;
 my $current_zap_span=1;
@@ -146,6 +153,7 @@ my $num_digital_devices=0;
 my $num_digital_devices_total=0;
 my $num_ss7_config=0;
 my $num_zaptel_config=0;
+my $num_digital_smg=0;
 my $line_media='';
 my $max_chans=0;
 my $ss7_tdmvoicechans='';
@@ -159,9 +167,11 @@ my $ztcfg_path='';
 my @fxsspan;
 my @fxospan;
 my @boostbrispan;
+my @boostprispan;
 my $openzap_pos='';
 
 my $config_openzap = $FALSE;
+my $config_openzap_xml= $FALSE;
 
 my $device_has_hwec=$FALSE;
 my $device_has_normal_clock=$FALSE;
@@ -172,6 +182,7 @@ my $bri_device_has_master_clock=$FALSE;
 my $is_tdm_api=$FALSE;
 my $is_hp_tdm_api=$FALSE;
 my $is_fs=$FALSE;
+my $is_openzap=$FALSE;
 
 my $def_femedia='';
 my $def_feclock='';
@@ -179,6 +190,7 @@ my $def_bri_option='';
 my $def_bri_default_tei='';
 my $def_bri_default_tei_opt=$FALSE;
 my $def_signalling='';
+my $def_sigmode='';
 my $def_switchtype='';
 my $def_zapata_context='';
 my $def_woomera_context='';
@@ -195,6 +207,7 @@ my $def_hw_fax="NO";
 my $def_tdm_law='';
 my $def_tdm_opermode="FCC";
 my $def_is_ss7_xmpt2_only='';
+my $def_hw_dchan= '';
 
 my @silent_femedias;
 my @silent_feframes;
@@ -223,7 +236,7 @@ my $silent_tdm_law="MULAW";
 
 
 my $silent_feclock="NORMAL";
-my $silent_signalling="PRI CPE";
+my $silent_signalling="Zaptel/Dahdi - PRI CPE";
 my $silent_pri_switchtype="national";
 my $silent_zapata_context="from-pstn";
 my $silent_zapata_context_opt = $FALSE;
@@ -233,6 +246,7 @@ my $silent_zapata_context_fxs="from-internal";
 my $silent_woomera_context="from-pstn";
 my $silent_zapata_group="0";
 my $silent_te_sig_mode='CCS';
+my $silent_hw_dchan='';
 
 my $silent_bri_conn_type="point_to_multipoint";
 my $silent_woomera_group="1";
@@ -254,6 +268,7 @@ my $safe_mode = $FALSE;
 my $silent_zapata_conf_file = $FALSE;
 my $current_run_level=3;
 my $zaptel_start_level=9;
+my $fs_conf_dir="/usr/local/freeswitch/conf";
 
 my $tdm_api_span_num=0;
 my $zaptel_installed=$FALSE;
@@ -291,12 +306,14 @@ my $debug_info_file="$current_dir/$cfg_dir/debug_info";
 my @hwprobe=`wanrouter hwprobe verbose`;
 check_dahdi();
 check_zaptel();
+
 my $wanpipe_conf_dir="$etc_dir/wanpipe";
 my $asterisk_conf_dir="$etc_dir/asterisk";
-my $fs_conf_dir="/usr/local/freeswitch/conf";
 
 my $wanrouter_rc_template="$current_dir/templates/wanrouter.rc.template";
-
+my $smg_rc_template="$current_dir/templates/smg.rc.template";
+my $smg_rc_file="$current_dir/$cfg_dir/smg.rc";
+my $smg_rc_file_t="$wanpipe_conf_dir/smg.rc";
 my $zaptel_conf_template="$current_dir/templates/zaptel.conf";
 my $zaptel_conf_file="$current_dir/$cfg_dir/zaptel.conf";
 my $zaptel_conf_file_t="$etc_dir/zaptel.conf";
@@ -311,10 +328,6 @@ my $zaptel_boot = "zaptel";
 my $zaptel_cfg_script="zaptel_cfg_script";
 my $zap_cfg = "ztcfg";
 my $zap_com ="zap";
-
-my $openzap_conf_template="$current_dir/templates/openzap.conf";
-my $openzap_conf_file="$current_dir/$cfg_dir/openzap.conf";
-my $openzap_conf_file_t="$fs_conf_dir/openzap.conf";
 
 if ($dahdi_installed== $TRUE) {
 	$zapata_conf_file_t="$asterisk_conf_dir/chan_dahdi.conf";
@@ -333,6 +346,7 @@ if ($is_fs== $TRUE) {
 	$config_woomera=$FALSE;
 	$config_zapata = $FALSE; 
 	$config_openzap= $TRUE;
+	$config_openzap_xml=$TRUE;
 }
 
 
@@ -341,11 +355,25 @@ my $bri_conf_template="$current_dir/templates/smg_bri.conf";
 my $bri_conf_file="$current_dir/$cfg_dir/smg_bri.conf";
 my $bri_conf_file_t="$wanpipe_conf_dir/smg_bri.conf";
 
+my $pri_conf_template="$current_dir/templates/smg_pri.conf";
+my $pri_conf_file="$current_dir/$cfg_dir/smg_pri.conf";
+my $pri_conf_file_t="$wanpipe_conf_dir/smg_pri.conf";
+
 my $woomera_conf_template="$current_dir/templates/woomera.conf";
 my $woomera_conf_file="$current_dir/$cfg_dir/woomera.conf";
 my $woomera_conf_file_t="$asterisk_conf_dir/woomera.conf";
 
+my $openzap_conf_template="$current_dir/templates/openzap.conf";
+my $openzap_conf_file="$current_dir/$cfg_dir/openzap.conf";
+my $openzap_conf_file_t="$fs_conf_dir/openzap.conf";
+
+my $openzap_conf_xml_template="$current_dir/templates/openzap.conf.xml";
+my $openzap_conf_xml_file="$current_dir/$cfg_dir/openzap.conf.xml";
+my $openzap_conf_xml_file_t="$fs_conf_dir/autoload_configs/openzap.conf.xml";
+
+
 my $date=`date +%F`;
+my $mdate= `date +"%a-%d-%b-%Y-%I-%M:%S-%p"`;
 chomp($date);
 my $debug_tarball="$wanpipe_conf_dir/debug-".$date.".tgz";
 if( $zaptel_installed==$TRUE || $dahdi_installed==$TRUE ) {
@@ -656,7 +684,7 @@ sub config_ztcfg_start{
 
 sub config_smg_ctrl_start{
 		
-		if($num_bri_devices == 0){
+	if(($num_bri_devices == 0) && ($num_digital_smg == 0)){
 		return;
 	}
 	my $res;
@@ -745,7 +773,7 @@ sub apply_changes{
 					"Save cfg: Restart Asterisk & Wanpipe when convenient",
 					"Save cfg: Stop Asterisk & Wanpipe now", 
 					"Save cfg: Stop Asterisk & Wanpipe when convenient",
-					"Save cfg: Save cfg only", 
+					"Save cfg: Save cfg only (Not Recommanded!!!)", 
 					"Do not save cfg: Exit",
 					"");
 	}
@@ -759,16 +787,18 @@ sub apply_changes{
         	exec_command("rm -f $wanpipe_conf_dir/wanpipe*.conf");
 
         	gen_wanrouter_rc();
-
+			if( $num_bri_devices != 0 | $num_digital_smg != 0) { 
+				gen_smg_rc();
+			}
         	print "\nCopying new Wanpipe configuration files...\n";
         	copy_config_files();
         	if($num_bri_devices != 0){
                 	print "\nCopying new sangoma_brid configuration files ($bri_conf_file_t)...\n";
                 	exec_command("cp -f $bri_conf_file $bri_conf_file_t");
-					if($config_woomera == $TRUE){		
-                		exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
-					}
-        	}
+		    }
+			if(($num_bri_devices != 0 | $num_digital_smg !=0) &&$config_woomera == $TRUE) {
+                exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
+			}
         	if ($zaptel_dahdi_installed==$TRUE){
                 	if($config_zaptel==$TRUE){
                         	if ($num_zaptel_config !=0){
@@ -848,7 +878,7 @@ sub apply_changes{
 			
 	} 
 
-	if($num_bri_devices != 0){
+	if(-f "/usr/sbin/smg_ctrl" ){
 		exec_command("/usr/sbin/smg_ctrl stop");
 	}
 
@@ -867,7 +897,9 @@ sub apply_changes{
 	exec_command("rm -f $wanpipe_conf_dir/wanpipe*.conf");
 	
 	gen_wanrouter_rc();
-
+	if( $num_bri_devices != 0 | $num_digital_smg != 0) { 
+				gen_smg_rc();
+	}
 	print "\nCopying new Wanpipe configuration files...\n";
 	copy_config_files();
 	if($num_bri_devices != 0){
@@ -893,11 +925,30 @@ sub apply_changes{
 		}
 	}
 
-	if($config_openzap == $TRUE){
-		print "\nCopying new openzap configuration files ($openzap_conf_file_t)...\n";
-			exec_command("cp -f $openzap_conf_file $openzap_conf_file_t");
+	if( $num_digital_smg != 0){
+		print "\nCopying new sangoma_prid configuration files ($pri_conf_file_t)...\n";
+		exec_command("cp -f $pri_conf_file $pri_conf_file_t");
+			if($config_woomera == $TRUE){
+			print "\nCopying new woomera configuration files ($woomera_conf_file_t)...\n";
+			exec_command("cp -f $woomera_conf_file $woomera_conf_file_t");
+		}
 
 	}
+	if ($num_digital_smg !=0 || $num_bri_devices !=0){
+		print "\nCopying new smg.rc configuration files ($smg_rc_file_t)...\n";
+		exec_command("cp -f $smg_rc_file $smg_rc_file_t");
+	}
+
+	if($config_openzap == $TRUE){
+		print "\nCopying new openzap configuration files ($openzap_conf_file_t)...\n";
+		exec_command("cp -f $openzap_conf_file $openzap_conf_file_t");
+
+	}	
+	if($config_openzap_xml == $TRUE && $is_openzap == $FALSE){
+		print "\nCopying new openzap configuration files ($openzap_conf_xml_file_t)...\n";
+		exec_command("cp -f $openzap_conf_xml_file $openzap_conf_xml_file_t");
+	}
+
 
 	if( $asterisk_restart == $TRUE && $is_tdm_api==$FALSE && $is_hp_tdm_api==$FALSE ){
 		print "\nStarting Wanpipe...\n";
@@ -1162,6 +1213,19 @@ sub prepare_files{
 			if (&prompt_user_list(("YES","NO","")) eq 'NO'){
 				$config_zapata = $FALSE;
 			}
+		}elsif($is_fs==$TRUE && $is_openzap== $FALSE){
+			print"Would you like to change FreeSwitch Configuration Directory?\nDefault: $fs_conf_dir\n";
+			if (&prompt_user_list(("NO","YES","NO")) eq 'YES'){
+
+				$fs_conf_dir=&prompt_user("Enter FreeSwitch Conf Directory \n");
+				while(! -d $fs_conf_dir){
+					print "Invalid FFreeSwitch Configuration Directory, Please Enter FreeSwitch Configuration Directory\n";
+					$fs_conf_dir=&prompt_user("Input the FreeSwitch Conf Dir",$fs_conf_dir);
+				}
+				$openzap_conf_file_t="$fs_conf_dir/openzap.conf";
+				$openzap_conf_xml_file_t="$fs_conf_dir/autoload_configs/openzap.conf.xml";
+					
+			}
 		}	
 	}
 
@@ -1178,6 +1242,13 @@ sub prepare_files{
 
 	if ( -f $zapata_conf_file_t ) {
 		exec_command("cp -f $zapata_conf_file_t $zapata_conf_file_t.bak");
+	}
+	
+	if( -f $openzap_conf_xml_file_t) {
+		exec_command("cp -f $openzap_conf_xml_file_t $openzap_conf_xml_file_t.bak");	
+	}
+	if (-f $openzap_conf_file_t){
+		exec_command("cp -f $openzap_conf_file_t $openzap_conf_file_t.bak");
 	}
 
 }
@@ -1295,20 +1366,32 @@ sub summary{
 			write_zaptel_conf();
 			update_zaptel_template();
 		}
+		if($num_digital_smg != 0){
+			write_pri_conf();
+		}
+		
 		if ($num_bri_devices != 0 ){
 			write_bri_conf();
-			if($config_woomera == $TRUE){		
-				write_woomera_conf();
-			}
 		}
+		if( $config_woomera == $TRUE && ($num_bri_devices != 0 | $num_digital_smg != 0)) { 
+			write_woomera_conf();
+		}
+
 		if ($num_zaptel_config != 0 && $config_zapata==$TRUE){
 			write_zapata_conf();
 			update_zapata_template();
 			
 		}
+	
 
 		if($is_fs == $TRUE) {
+			if($num_digital_devices != 0){
+				write_pri_conf();
+				}
 			write_openzap_conf();
+			if($is_openzap == $FALSE){
+				write_openzap_conf_xml();
+			}
 		}
 
 		save_debug_info();
@@ -1332,8 +1415,17 @@ sub summary{
 			print "\t$file_list. sangoma_brid config file $wanpipe_conf_dir/smg_bri\n";
 			$file_list++;
 		}
+		if($num_digital_smg != 0){
+			print "\t$file_list. sangoma_prid config file $wanpipe_conf_dir/smg_pri\n";
+			$file_list++;
+		}
 		if($config_openzap == $TRUE){
 			print "\t$file_list. openzap config file $fs_conf_dir/openzap\n";
+			$file_list++;
+		}
+		
+		if($config_openzap_xml == $TRUE){
+			print "\t$file_list. openzap_xml config file $fs_conf_dir/openzap.conf.xml\n";
 			$file_list++;
 		}
 		
@@ -1341,6 +1433,13 @@ sub summary{
 			print "\t$file_list. $zaptel_string config file $zaptel_conf_file_t\n";
 			$file_list++;
 		}
+				
+		if ($num_digital_smg !=0 || $num_bri_devices !=0){
+			print "\t$file_list. smg.rc config file $wanpipe_conf_dir/smg.rc\n";
+			$file_list++
+			
+		}
+		
 		if ($config_zapata==$TRUE){
 			print "\t$file_list. $zapata_string config file $zapata_conf_file_t\n";
 		}
@@ -1354,6 +1453,7 @@ sub summary{
 			print "\t$file_list. $zaptel_conf_file_t.bak \n";
 			$file_list++;
 		}
+
 		if ($num_zaptel_config !=0 && $config_zapata==$TRUE){
 			print "\t$file_list. $zapata_conf_file_t.bak \n\n";
 		}
@@ -1472,6 +1572,10 @@ sub read_args {
 		}elsif ( /^--conf_fs$/){
 			$is_fs=$TRUE;
 			$is_tdm_api=$TRUE;#fs use tdmapi mode	
+		}elsif ( /^--conf_openzap$/){
+			$is_openzap=$TRUE;
+			$is_fs=$TRUE;
+			$is_tdm_api=$TRUE;#fs use tdmapi mode
 		}elsif ( /^--no_hwdtmf$/){
 			$no_hwdtmf=$TRUE;
 		}elsif ( /^--silent$/){
@@ -1560,25 +1664,25 @@ sub read_args {
 		}elsif ( $_ =~ /--signalling=(\w+)/){
 			my $tmp_signalling=$1;
 			if ($tmp_signalling eq 'em'){
-				$silent_signalling="E & M";
+				$silent_signalling="Zaptel/Dahdi - E & M";
 			}elsif ($tmp_signalling eq 'em_w'){
-				$silent_signalling="E & M Wink";
+				$silent_signalling="Zaptel/Dahdi - E & M Wink";
 			}elsif ($tmp_signalling eq 'pri_cpe'){
-				$silent_signalling="PRI CPE";
+				$silent_signalling="Zaptel/Dahdi - PRI CPE";
 			}elsif ($tmp_signalling eq 'pri_net'){
-				$silent_signalling="PRI NET";
+				$silent_signalling="Zaptel/Dahdi - PRI NET";
 			}elsif ($tmp_signalling eq 'fxs_ls'){
-				$silent_signalling="FXS - Loop Start";
+				$silent_signalling="Zaptel/Dahdi - FXS - Loop Start";
 			}elsif ($tmp_signalling eq 'fxs_gs'){
-				$silent_signalling="FXS - Ground Start";
+				$silent_signalling="Zaptel/Dahdi - FXS - Ground Start";
 			}elsif ($tmp_signalling eq 'fxs_ks'){
-				$silent_signalling="FXS - Kewl Start";
+				$silent_signalling="Zaptel/Dahdi - FXS - Kewl Start";
 			}elsif ($tmp_signalling eq 'fxo_ls'){
-				$silent_signalling="FXO - Loop Start";
+				$silent_signalling="Zaptel/Dahdi - FXO - Loop Start";
 			}elsif ($tmp_signalling eq 'fxo_gs'){
-				$silent_signalling="FXO - Ground Start";
+				$silent_signalling="Zaptel/Dahdi - FXO - Ground Start";
 			}elsif ($tmp_signalling eq 'fxo_ks'){
-				$silent_signalling="FXO - Kewl Start";
+				$silent_signalling="Zaptel/Dahdi - FXO - Kewl Start";
 			}else{
 				printf("Invalid option for --signalling, options are\n");
 				printf("\t pri_cpe/pri_net/em/em_w\n");
@@ -1619,6 +1723,15 @@ sub read_args {
 			}
 		}elsif ( $_ =~/--zapata_auto_conf/){
 			$silent_zapata_conf_file=$TRUE;
+		
+		}elsif ( $_ =~ /--fs_conf_dir=(.*)/){
+			$fs_conf_dir=$1;
+			if (! -d $fs_conf_dir){	
+				printf("Error: FreeSwitch conf directory $1 does not exist\n");
+				exit(1);
+			}
+		}elsif ( $_ =~ /--hw_dchan=(.*)/){
+			$silent_hw_dchan=$1;
 
 		}else {
 			printf("Error: Unrecognized parameter \"$_\" \n");
@@ -1742,6 +1855,20 @@ sub write_bri_conf{
 	$bri_file=$bri_file.$bri_conf;	
 	open(FH, ">$bri_conf_file") or die "cannot open $bri_conf_file";
 		print FH $bri_file;
+	close(FH);	
+}
+
+sub write_pri_conf{
+	my $pri_file="";
+#	printf("Generating T1 BOOST PRI Config...")
+	open(FH, "$pri_conf_template") or die "cannot open $pri_conf_template";
+	while (<FH>) {
+		$pri_file .= $_;
+	}
+	close (FH);
+	$pri_file=$pri_file.$pri_conf;	
+	open(FH, ">$pri_conf_file") or die "cannot open $pri_conf_file";
+		print FH $pri_file;
 	close(FH);	
 }
 
@@ -2042,13 +2169,13 @@ sub  prompt_user_hw_dchan{
 	my ($card_model, $port, $port_femedia) = @_;
 	my $res_dchan='';
 	my $dchan;
-
+	#$def_hw_dchan = 24;
 	printf("Hardware HDLC can be performed on the data channel.\n");
 prompt_hw_dchan:
-	$res_dchan = &prompt_user("Select the data channel on A$card_model, port:$port, select 0 for unused.\n","0");
+	$res_dchan = &prompt_user("Select the data channel on A$card_model, port:$port, select 0 for unused.\n","$def_hw_dchan");
 	while(length($res_dchan)==0 |!($res_dchan =~/(\d+)/)){
 		print "Invalid channel, input an integer (0 for unused).\n";
-		$res_dchan=&prompt_user("Select the data channel","0");
+		$res_dchan=&prompt_user("Select the data channel","$def_hw_dchan");
 	}
 	if ( $res_dchan < 0){
 		printf("Error: channel cannot have negative value\n");
@@ -2176,6 +2303,20 @@ sub get_pri_switchtype {
 	exit 1;
 }
 
+sub get_boost_switchtype {
+	my @options = ( "National", "Nortel DMS100", "Lucent 5ESS");
+	my @options_val = ( "national", "dms100", "5ess");
+	my $res = &prompt_user_list(@options,$def_switchtype);
+	my $i;
+	for $i (0..$#options){
+		if ( $res eq @options[$i] ){
+			$def_switchtype=@options[$i];
+			return @options_val[$i]; 
+		}
+	}	
+	print "Internal error: Invalid PRI switchtype\n";
+	exit 1;
+}
 
 sub gen_ss7_voicechans{
 	my @ss7_array = @_;
@@ -2289,9 +2430,9 @@ sub config_t1e1{
 	print "---------------------------------------------\n";
 	
 	foreach my $dev (@hwprobe) {
-		if ( $dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/){
+		if (( $dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/) || ($dev =~ /(\d+).(\w+\w+).*SLOT=(\d+).*BUS=(\d+).*(\w+).*PORT=(\d+).*HWEC=(\d+)/) ) {
 
-		  	if ( ! ($1 eq '200' | $1 eq '400' | $1 eq '500' | $1 eq '600') ){
+		  	if ( ! ($1 eq '200' | $1 eq '400' | $1 eq '500' | $1 eq '600') |($1 eq '601' && $6 eq '1') ){
 				#do not count analog devices
 				$num_digital_devices_total++;
 			}
@@ -2316,7 +2457,7 @@ sub config_t1e1{
 					$hwec=1;
 				}
 			}
-			if ( $dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/){
+			if ( ( $dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/)|| ($dev =~ /(\d+).(\w+\w+).*SLOT=(\d+).*BUS=(\d+).*(\w+).*PORT=(\d+).*HWEC=(\d+)/) ) {
 					my $abc=0;
 			}
 			if ($hwec==0){
@@ -2329,11 +2470,11 @@ sub config_t1e1{
 			if ($6 eq 'PRI') {
 				$port=$5;
 			} 
-	
 			if ( $card->card_model eq '101' |  
 			     $card->card_model eq '102' |  
 			     $card->card_model eq '104' |  
-			     $card->card_model eq '108' ){
+			     $card->card_model eq '108' |
+				 ($card->card_model eq '601' && $port eq '2') ){
 				if (!$first_cfg && $silent==$FALSE) {
 					system('clear');
 				}
@@ -2370,6 +2511,7 @@ sub config_t1e1{
 					}
 				}elsif ( $fe_media eq 'Unused'){
 					$def_femedia=$fe_media;	
+skip_card:
 					my $msg= "A$1 on slot:$3 bus:$4 port:$port not configured\n";
 					print "$msg";
 					prompt_user("Press any key to continue");
@@ -2387,11 +2529,16 @@ sub config_t1e1{
 					if($is_hp_tdm_api == $TRUE){
 						#hp_tdm_api uses same templates:)
 						$a10x = eval {new A10x(); } or die ($@);
-						$a10x->old_a10u("YES");
+						$a10x->old_a10u('YES');
 		
 					}else{
-		
+						if($is_fs == $TRUE) {
+						#don't support old a102/a101 with FS and boost'
+						printf("Old a101/102 card not supported in this release!!! with FreeSwitch\n\n");
+						goto skip_card;
+						}
 						$a10x = eval {new A10u(); } or die ($@);
+						$a10x->old_a10u('YES');
 						#$a10x->card($card);
 					}
 					$a10x->card($card);
@@ -2402,7 +2549,8 @@ sub config_t1e1{
 					}
 				} else {
 					$a10x = eval {new A10x(); } or die ($@);
-					if ($dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/){
+					$a10x->old_a10u('NO');
+					if (($dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/) ||($dev =~ /(\d+).(\w+\w+).*SLOT=(\d+).*BUS=(\d+).*(\w+).*PORT=(\d+).*HWEC=(\d+)/)) {
 						my $abc=0;
 					}
 					$a10x->card($card);
@@ -2469,15 +2617,13 @@ sub config_t1e1{
 				}else{ #fe_media = E1
 					$max_chans = 31;
 					$line_media = 'E1';
-					
-			
 					if(!($def_felcode eq 'HDB3' || $def_felcode eq 'AMI')){
 						$def_felcode='HDB3';
 					}
 					if(!($def_feframe eq 'CRC4' || $def_feframe eq 'NCRC4' || $def_feframe eq 'UNFRAMED')){
 						$def_feframe='CRC4';
 					}
-
+					$a10x->rx_slevel('430');#set E1 rx_slevel to 43
 					if ($silent==$FALSE){
 						printf ("Configuring port %s on %s as %s, line coding:%s, framing:%s \n", 
 											$port,
@@ -2496,7 +2642,6 @@ sub config_t1e1{
 							printf("Select framing for port %s on %s\n", $port, $card->card_model);
 							@options = ("CRC4", "NCRC4","UNFRAMED");
 							$def_feframe = &prompt_user_list(@options, $def_feframe);
-
 #							printf("Select signalling mode for port %s on %s\n", $port, $card->card_model);
 #							my @options = ("CCS - Clear channel signalling ", "CAS");
 #							$def_te_sig_mode = &prompt_user_list(@options, $def_te_sig_mode);
@@ -2520,8 +2665,6 @@ sub config_t1e1{
 							$def_feframe='CRC4';
 						}
 					}
-
-
 				}
 				$a10x->fe_lcode($def_felcode);
 				$a10x->fe_frame($def_feframe);
@@ -2554,22 +2697,37 @@ sub config_t1e1{
 					$def_te_ref_clock=&get_te_ref_clock(@device_normal_clocks);
 					$a10x->te_ref_clock($def_te_ref_clock);
 				}
-								
 				my @options="";	
 				if ($is_smg==$TRUE && $zaptel_dahdi_installed==$TRUE){
-					@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start", "SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
+					if($a10x->old_a10u eq 'NO'){
+						@options = ("Zaptel/Dahdi - PRI CPE", "Zaptel/Dahdi - PRI NET", "Zaptel/Dahdi - E & M", "Zaptel/Dahdi - E & M Wink", "Zaptel/Dahdi - FXS - Loop Start", "Zaptel/Dahdi - FXS - Ground Start", "Zaptel/Dahdi - FXS - Kewl Start", "Zaptel/Dahdi - FX0 - Loop Start", "Zaptel/Dahdi - FX0 - Ground Start", "Zaptel/Dahdi - FX0 - Kewl Start", "SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)","Sangoma SMG/sangoma_prid - PRI CPE","Sangoma SMG/sangoma_prid - PRI NET");
+					}else{
+							@options = ("Zaptel/Dahdi - PRI CPE", "Zaptel/Dahdi - PRI NET", "Zaptel/Dahdi - E & M", "Zaptel/Dahdi - E & M Wink", "Zaptel/Dahdi - FXS - Loop Start", "Zaptel/Dahdi - FXS - Ground Start", "Zaptel/Dahdi - FXS - Kewl Start", "Zaptel/Dahdi - FX0 - Loop Start", "Zaptel/Dahdi - FX0 - Ground Start", "Zaptel/Dahdi - FX0 - Kewl Start", "SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
+						}
 				} elsif ($is_smg==$TRUE && $zaptel_dahdi_installed==$FALSE){
 					@options = ("SS7 - Sangoma Signal Media Gateway", "No Signaling (Voice Only)");
-				} elsif ($is_tdm_api==$TRUE){
+				} elsif ($is_tdm_api==$TRUE && $is_fs == $FALSE){
 					$def_signalling="TDM API";
+					$a10x->is_tdm_api($TRUE);
 				} elsif ($is_hp_tdm_api==$TRUE){
 					$def_signalling="HPTDM API";
-				} else {			
-					@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start");
+				} elsif ($is_fs == $TRUE){
+						$def_signalling="pri_cpe";
+						$a10x->is_tdm_api($TRUE);
+			
+				} else {
+						if($a10x->old_a10u eq 'NO' && $is_trixbox==$FALSE){			
+							@options = ("Zaptel/Dahdi - PRI CPE", "Zaptel/Dahdi - PRI NET", "Zaptel/Dahdi - E & M", "Zaptel/Dahdi - E & M Wink", "Zaptel/Dahdi - FXS - Loop Start", "Zaptel/Dahdi - FXS - Ground Start", "Zaptel/Dahdi - FXS - Kewl Start", "Zaptel/Dahdi - FX0 - Loop Start", "Zaptel/Dahdi - FX0 - Ground Start", "Zaptel/Dahdi - FX0 - Kewl Start","Sangoma SMG/sangoma_prid- PRI CPE","Sangoma SMG/sangoma_prid- PRI NET");
+						} else {
+							@options = ("Zaptel/Dahdi - PRI CPE", "Zaptel/Dahdi - PRI NET", "Zaptel/Dahdi - E & M", "Zaptel/Dahdi - E & M Wink", "Zaptel/Dahdi - FXS - Loop Start", "Zaptel/Dahdi - FXS - Ground Start", "Zaptel/Dahdi - FXS - Kewl Start", "Zaptel/Dahdi - FX0 - Loop Start", "Zaptel/Dahdi - FX0 - Ground Start", "Zaptel/Dahdi - FX0 - Kewl Start");
+						}
 				}
 				if ($silent==$FALSE){
 					if( $is_tdm_api == $FALSE && $is_hp_tdm_api == $FALSE ){
 						printf ("Select signalling type for AFT-%s on port %s [slot:%s bus:%s span:$devnum]\n", get_card_name($card->card_model), $port, $card->pci_slot, $card->pci_bus);
+						if($def_signalling =~/sangoma_prid/ && $a10x->old_a10u eq 'YES' ){
+							$def_signalling='';
+						}
 						$def_signalling=&prompt_user_list(@options,$def_signalling); 
 					}
 				} else {
@@ -2578,6 +2736,7 @@ sub config_t1e1{
 					}
 					if($is_tdm_api == $TRUE){
 						$def_signalling="TDM API";
+						#	$a10x->is_tdm_api($TRUE);
 					} elsif ($is_hp_tdm_api == $TRUE){
 						$def_signalling="HPTDM API";
 					} else {
@@ -2585,13 +2744,12 @@ sub config_t1e1{
 					}
 				}
 				$a10x->signalling($def_signalling);
-				if ($fe_media eq 'E1') {
-					if (($def_signalling eq 'TDM API' ||$def_signalling eq 'HPTDM API')  & $silent==$FALSE){	
+				if ($fe_media eq 'E1'& $is_fs==$FALSE) {
+					if (($def_signalling eq 'TDM API' ||$def_signalling eq 'HPTDM API')  & $silent==$FALSE ){	
 						printf("Select signalling mode for port %s on %s\n", $port, $card->card_model);
 						my @options=("CCS","CAS");
 						$def_te_sig_mode=&prompt_user_list(@options, $def_te_sig_mode);
-					} elsif ($def_signalling eq 'PRI CPE' | 
-						$def_signalling eq 'PRI NET' | 
+					} elsif($def_signalling  =~ m/PRI/ |
 						$def_signalling eq 'SS7 - Sangoma Signal Media Gateway'|
 						$def_signalling eq 'No Signaling (Voice Only)'){
 	
@@ -2607,7 +2765,7 @@ sub config_t1e1{
 				my $ss7_group_end;
 				my @ss7_chan_array;
 				my @ss7_sorted;
-
+					
 				if( $a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway' ){
 					$a10x->ss7_option(1); 
 					my @options="";	
@@ -2704,16 +2862,93 @@ ENDSS7CONFIG:
 					$card->tdmv_span_no($current_tdmapi_span);
 					$startup_string.="wanpipe$devnum ";
 					$current_tdmapi_span++;
-
-				}elsif ($a10x->signalling eq 'TDM API'){
-					if ($a10x->te_sig_mode eq "CAS"){
+				
+				}elsif ($a10x->signalling eq 'TDM API' ||$a10x->signalling eq 'pri_cpe' ){
+					if ($a10x->te_sig_mode eq 'CAS'){
 						$a10x->hw_dchan('0');
 					} else {
-						$a10x->hw_dchan(&prompt_user_hw_dchan($card->card_model, $port, $a10x->fe_media));
-					}
+						if($is_fs == $FALSE && $silent== $FALSE) {
+							$def_hw_dchan=prompt_user_hw_dchan($card->card_model, $port, $a10x->fe_media,$def_hw_dchan);
+							$a10x->hw_dchan($def_hw_dchan);
+						}elsif($is_fs == $TRUE){
+							
+							if($fe_media eq 'E1') {
+								#fs boostpri support PRI only for now #Aug 14 2009
+								$a10x->hw_dchan('16');
+								$a10x->te_sig_mode('CCS');
+							}else{
+								$a10x->hw_dchan('24');
+							}
+						
+						}elsif($silent == $TRUE && $is_fs == $FALSE){
+						 	if($silent_hw_dchan eq ''){
+								if($fe_media eq 'E1' && $a10x->te_sig_mode() == 'CCS'){
+									$a10x->hw_dchan('16');				
+								} else {
+								$a10x->hw_dchan('24');
+								}
+							}else{
+								$a10x->hw_dchan($silent_hw_dchan);
+								}
+						}
+						my $dchan =$a10x->hw_dchan();
+					}	
 					$card->tdmv_span_no($current_tdmapi_span);
 					$startup_string.="wanpipe$devnum ";
 					$current_tdmapi_span++;
+					
+					if($is_fs == $TRUE){
+						#smg_pri.conf and openzap.conf
+						my $boostspan = eval { new boostspan();} or die ($@);
+						my $openzapspan = $current_tdmapi_span-1;
+						my $span_type ="t1";
+						my $chan_no="1-23";
+						my $switchtype = 'national';
+						my $chan_set='s'.$openzapspan.'c1-s'.$openzapspan.'c23';
+						my $group_no='1';
+						my $cardname='';
+						$def_sigmode='pri_cpe';
+						if($silent==$FALSE){
+							
+							printf ("Select Switchtype for AFT-%s on port %s [slot:%s bus:%s span:$devnum]\n", get_card_name($card->card_model), $port, $card->pci_slot, $card->pci_bus);
+							if($a10x->fe_media eq 'T1'){
+								$switchtype=get_boost_switchtype();
+							}		
+							
+							if($a10x->fe_media eq 'E1'){
+								$span_type="e1";
+								$chan_no="1-15";
+								$chan_set='s'.$openzapspan.'c1-s'.$openzapspan.'c15,s'.$openzapspan.'c17-s'.$openzapspan.'c31';
+								$switchtype='euroisdn';
+							}
+	
+							printf ("Select signalling type for AFT-%s on port %s [slot:%s bus:%s span:$devnum]\n", get_card_name($card->card_model), $port, $card->pci_slot, $card->pci_bus);
+							@options = ("PRI CPE", "PRI NET", );
+		
+							$def_sigmode=&prompt_user_list(@options,$def_sigmode);
+							$group_no=get_woomera_group();
+							#	$boostspan->print(); 
+						}
+					$boostspan->span_type($span_type);
+					$boostspan->span_no($openzapspan);
+					$boostspan->chan_no($chan_no);
+					$boostspan->group_no($group_no);
+					$boostspan->trunk_type($span_type);
+					$boostspan->switch_type($switchtype);
+					$boostspan->chan_set($chan_set);
+					$boostspan->sig_mode($def_sigmode);
+					$cardname =get_card_name($card->card_model);
+					$pri_conf .= "\n;AFT-$cardname on port $port";#slot:$card->pci_slot Bus:$card->pci_bus";
+					
+	
+					$pri_conf.=$a10x->gen_pri_conf($boostspan->span_no(),$boostspan->span_type(), $boostspan->group_no(), $boostspan->switch_type(),$boostspan->trunk_type(),$boostspan->sig_mode());
+#					print"$bri_conf\n";
+#					prompt_user('Press any key to continue');
+					$num_digital_smg++;
+					push(@boostprispan,$boostspan);
+		
+
+					}
 
 				}elsif ($a10x->signalling eq 'HPTDM API'){
 					$a10x->hp_option(1);
@@ -2759,15 +2994,58 @@ ENDSS7CONFIG:
 					}	
 					$a10x->mtu_mru($def_mtu_mru);
 				
-				}else{
-					$num_zaptel_config++;
-					$card->tdmv_span_no($current_zap_span);
+				}elsif( $a10x->signalling =~ m/sangoma_prid/ ){# config TDM API and smp_pri.conf & woomera.confwanr
+					my $group;
+					my $context;
+					my $span =$current_tdmapi_span;
+					my $cardname =get_card_name($card->card_model);
+					$a10x->is_tdm_api($TRUE);
+					$a10x->smg_sig_mode($TRUE);
+					
+					if($a10x->fe_media eq 'T1'){
+						$a10x->hw_dchan('24')
+					}else{
+						$a10x->hw_dchan('16')
+					}
+					if ($silent==$FALSE ){
+						printf ("Select switchtype for AFT-%s on port %s \n", get_card_name($card->card_model), $port);
+							if($a10x->fe_media eq 'T1'){
+								$a10x->pri_switchtype(get_boost_switchtype);
+							}else{
+								$a10x->pri_switchtype("euroisdn");	
+							}
+						$group=get_woomera_group($group, $cardname,$a10x->fe_line(),$a10x->fe_media);
+						$context=get_woomera_context($group, $cardname,$a10x->fe_line(),$a10x->fe_media);
+					} else {
+						if($#silent_pri_switchtypes >= 0){
+							$silent_pri_switchtype=pop(@silent_pri_switchtypes);
+						}			
+						$def_feframe=$silent_feframe;
+						$a10x->pri_switchtype($silent_pri_switchtype);
+						$context="from-zaptel";
+						$group=1;
+					}
+
+					$pri_conf .= "\n;AFT-$cardname on port $port";
+					$pri_conf.=$a10x->gen_pri_conf($span,'e1', $group,$a10x->pri_switchtype(),'e1',$a10x->signalling());
+					#woomera context & group
+					push(@woomera_groups, $group);
+					$woomera_conf.=$a10x->gen_woomera_conf($group, $context);
+					$card->tdmv_span_no($current_tdmapi_span);
 					$startup_string.="wanpipe$devnum ";
-					$current_zap_span++;
-					$current_zap_channel+=$max_chans;
+					$current_tdmapi_span++;
+					$num_digital_smg++
+				}else{
+					if($a10x->smg_sig_mode eq "1") {
+						$num_zaptel_config++;
+						$card->tdmv_span_no($current_zap_span);
+						$startup_string.="wanpipe$devnum ";
+						$current_zap_span++;
+						$current_zap_channel+=$max_chans;
+					}
 				}
-	
-				if ( $a10x->signalling eq 'PRI CPE' | $a10x->signalling eq 'PRI NET' ){    
+		
+				if ( $a10x->signalling =~ m/Dahdi - PRI/ ){    
 					if ($silent==$FALSE && $config_zapata==$TRUE){
 						printf ("Select switchtype for AFT-%s on port %s \n", get_card_name($card->card_model), $port);
 						$a10x->pri_switchtype(get_pri_switchtype());	
@@ -2779,7 +3057,7 @@ ENDSS7CONFIG:
 						$a10x->pri_switchtype($silent_pri_switchtype);
 					}
 				}
-
+			
 				# prompt the user if they would like to enable HW DTMF...HW_DTMF needs to be disabled for SMG
 				if (!($a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway'| $a10x->signalling eq 'No Signaling (Voice Only)')){
 					if ($silent==$FALSE){
@@ -2887,12 +3165,12 @@ ENDSS7CONFIG:
 					}
 				}
 			
-				if ($is_smg==$TRUE && $config_zapata==$FALSE){
+				if ($is_smg==$TRUE && $config_zapata==$FALSE && $a10x->smg_sig_mode eq '1'){
 					if (!($a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway'
 						| $a10x->signalling eq 'No Signaling (Voice Only)')){
 						$zaptel_conf.=$a10x->gen_zaptel_conf($dchan_str);
 					}
-				}elsif ($is_smg==$TRUE && $config_zapata==$TRUE){
+				}elsif ($is_smg==$TRUE && $config_zapata==$TRUE && $a10x->smg_sig_mode eq '1'){
 					if (!($a10x->signalling eq 'SS7 - Sangoma Signal Media Gateway'| $a10x->signalling eq 'No Signaling (Voice Only)')){
 					
 						$zaptel_conf.=$a10x->gen_zaptel_conf($dchan_str);
@@ -2900,7 +3178,7 @@ ENDSS7CONFIG:
 						$a10x->card->zap_group(&get_zapata_group($a10x->card->card_model,$port,$a10x->card->zap_context));
 						$zapata_conf.=$a10x->gen_zapata_conf();
 					}
-				}elsif ($is_trixbox==$TRUE | $config_zapata==$TRUE){
+				}elsif (($is_trixbox==$TRUE | $config_zapata==$TRUE) && $a10x->smg_sig_mode eq '1'){
 					if($silent==$FALSE){
 						printf ("Configuring port %s on AFT-%s as a full %s\n", $a10x->fe_line(), get_card_name($a10x->card->card_model()),$a10x->fe_media());
 						my $res=&prompt_user_list("YES - Use all channels", "NO  - Configure for fractional","YES");
@@ -2933,7 +3211,7 @@ ENDSS7CONFIG:
 					$a10x->card->zap_context(&get_zapata_context($a10x->card->card_model,$port));
 					$a10x->card->zap_group(&get_zapata_group($a10x->card->card_model,$port,$a10x->card->zap_context));
 					$zapata_conf.=$a10x->gen_zapata_conf();
-				}elsif ($is_tdm_api == $FALSE && $is_hp_tdm_api == $FALSE ){
+				}elsif ($is_tdm_api == $FALSE && $is_hp_tdm_api == $FALSE && $a10x->smg_sig_mode eq '1' ){
 					$zaptel_conf.=$a10x->gen_zaptel_conf($dchan_str);
 				}
 
@@ -3010,7 +3288,7 @@ sub config_analog{
 				$card->hwec_mode('YES');
 				
 			}
-			if ($card->card_model eq '200' || $card->card_model eq '400' || $card->card_model eq '600' || ($card->card_model eq '700' && $6 == '5')){
+			if ($card->card_model eq '200' || $card->card_model eq '400' || $card->card_model eq '600' || ($card->card_model eq '700' && $6 == '5') || ($card->card_model eq '601' && $6 == '1') ){
 				$num_analog_devices_total++;
 				if($silent==$FALSE) {
 					system('clear');
@@ -3116,6 +3394,7 @@ sub config_analog{
 					prompt_user("Press any key to continue");
 				}
 			}
+	
 		}elsif ( $dev =~ /(\d+):FXS/ & $skip_card==$FALSE){
 			if( $is_tdm_api==$FALSE) {
 				my $zap_pos = $1+$current_zap_channel-25;
@@ -3263,9 +3542,6 @@ sub config_usbfxo{
 						if ($silent==$FALSE){
 							$u10x->tdm_law(&prompt_tdm_law());
 							$u10x->tdm_opermode(&prompt_tdm_opemode());
-							if ($card->hwec_mode eq "YES"){
-								$card->hw_fax(&prompt_hw_fax());
-							} 	
 						} else {
 													
 							if($#silent_tdm_laws >= 0){
@@ -3342,8 +3618,35 @@ sub write_openzap_conf{
 	}
 	my $openzap='';
 	$openzap.="\n";
+	
+	if(@boostprispan){
+		$openzap.="[span wanpipe smg_prid]\n";
+		$openzap.="name => smg_prid\n";
+		foreach my $span (@boostprispan){
+			my $boostprispan=$span;
+			$openzap.="trunk_type =>";
+		    $openzap.=$boostprispan->span_type()."\n";
+			$openzap.="b-channel => ";
+			$openzap.=$boostprispan->span_no();
+			$openzap.=":";
+			$openzap.=$boostprispan->chan_no();
+			if($boostprispan->span_type() eq 'e1')
+			{
+				$openzap.="\n";
+				$openzap.="b-channel => ";
+				$openzap.=$boostprispan->span_no();
+				$openzap.=":";
+				$openzap.="17-31";
+			}
+			$openzap.="\n";
+		}
+		
+	}
+	$openzap.="\n\n";
+
 	if(@boostbrispan){
-		$openzap.="[span wanpipe boostbri]\n";
+		$openzap.="[span wanpipe smg_brid]\n";
+		$openzap.="name => smg_brid\n";
 		$openzap.="trunk_type => bri\n";
 		foreach my $span (@boostbrispan){
 			my $boostbrispan=$span;
@@ -3371,7 +3674,7 @@ sub write_openzap_conf{
 	$openzap.="\n\n";
 	}
 	if(@fxospan){
-		$openzap.="[span wanpipe FX0]\n";
+		$openzap.="[span wanpipe FXO]\n";
 		$openzap.="name => OpenZAP\n";
 		foreach my $span (@fxospan){
 			my $fxospan=$span;
@@ -3387,17 +3690,18 @@ sub write_openzap_conf{
 		
 	#need to fix properly
 	my $openzap_file="";
-	open(FH, "$openzap_conf_template") or die "cannot open $woomera_conf_template";
+	open(FH, "$openzap_conf_template") or die "cannot open $openzap_conf_template";
 	while (<FH>) {
 		$openzap_file .= $_;
 	}
 	close (FH);
 	$openzap_file=$openzap_file.$openzap;	
-	open(FH, ">$openzap_conf_file") or die "cannot open $woomera_conf_file";
+	open(FH, ">$openzap_conf_file") or die "cannot open $openzap_conf_file";
 		print FH $openzap_file;
 	close(FH);	
 	return ;
 }
+
 sub config_smg_ctrl_boot {
 	#smg_ctrl must start after network
 	my $network_start_level=10;
@@ -3526,7 +3830,7 @@ sub update_module_load {
 			if(!($line =~ m/woomera/)){
 				$mod_file .= $line;
 				if($line =~ m/\[modules]/) {
-					if($num_bri_devices !=0){
+					if($num_bri_devices !=0 | $num_digital_smg != 0){
 						if(-e "/usr/lib/asterisk/modules/chan_woomera.so") {
 							$mod_file .= "load=>chan_woomera.so\n";
 						}
@@ -3545,3 +3849,104 @@ sub update_module_load {
 	return;
 }
 
+sub write_openzap_conf_xml{
+	my $openzap_boostpri='';
+	my $openzap_boostbri='';
+	my $openzap_fxs='';
+	my $openzap_fxo='';
+
+	if(@boostprispan){
+		#add boost pri conf
+		$openzap_boostpri.='<span id="smg_prid">'."\n\t";
+		$openzap_boostpri.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
+		$openzap_boostpri.='<param name="dialplan" value="XML"/>'."\n\t";
+		$openzap_boostpri.='<param name="context" value="default"/>'."\n\t";;
+		$openzap_boostpri.=' <!-- regex to stop dialing when it matches -->'."\n\t";
+    	$openzap_boostpri.='<!--<param name="dial-regex" value="5555"/>-->'."\n\t";
+    	$openzap_boostpri.='<!-- regex to stop dialing when it does not match -->'."\n\t";
+     	$openzap_boostpri.='<!--<param name="fail-dial-regex" value="^5"/>-->'."\n\t";
+		$openzap_boostpri.='</span>'."\n";
+		
+	}
+	if(@boostbrispan){
+		#add boost bri conf
+		$openzap_boostbri.='<span id="smg_brid">'."\n\t";
+		$openzap_boostbri.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
+		$openzap_boostbri.='<param name="dialplan" value="XML"/>'."\n\t";
+		$openzap_boostbri.='<param name="context" value="default"/>'."\n\t";;
+		$openzap_boostbri.=' <!-- regex to stop dialing when it matches -->'."\n\t";
+    	$openzap_boostbri.='<!--<param name="dial-regex" value="5555"/>-->'."\n\t";
+    	$openzap_boostbri.='<!-- regex to stop dialing when it does not match -->'."\n\t";
+     	$openzap_boostbri.='<!--<param name="fail-dial-regex" value="^5"/>-->'."\n";
+		$openzap_boostbri.='</span>'."\n";
+	}
+	
+	if(@fxsspan){
+		$openzap_fxs.='<span id="FXS">'."\n\t";
+		$openzap_fxs.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
+		$openzap_fxs.='<param name="dialplan" value="XML"/>'."\n\t";
+		$openzap_fxs.='<param name="context" value="default"/>'."\n\t";;
+		$openzap_fxs.=' <!-- regex to stop dialing when it matches -->'."\n\t";
+    	$openzap_fxs.='<!--<param name="dial-regex" value="5555"/>-->'."\n\t";
+    	$openzap_fxs.='<!-- regex to stop dialing when it does not match -->'."\n\t";
+     	$openzap_fxs.='<!--<param name="fail-dial-regex" value="^5"/>-->'."\n";
+		$openzap_fxs.='</span>'."\n";
+	}
+	if(@fxospan){
+		$openzap_fxo.='<span id="FXO">'."\n\t";
+		$openzap_fxo.='<!--<param name="hold-music" value="$${moh_uri}"/>-->'."\n\t";
+		$openzap_fxo.='<param name="dialplan" value="XML"/>'."\n\t";
+		$openzap_fxo.='<param name="context" value="default"/>'."\n\t";;
+		$openzap_fxo.=' <!-- regex to stop dialing when it matches -->'."\n\t";
+    	$openzap_fxo.='<!--<param name="dial-regex" value="5555"/>-->'."\n\t";
+    	$openzap_fxo.='<!-- regex to stop dialing when it does not match -->'."\n\t";
+     	$openzap_fxo.='<!--<param name="fail-dial-regex" value="^5"/>-->'."\n";
+		$openzap_fxo.='</span>'."\n";
+	}
+	
+	my $openzap_xml_file="";
+	open(FH, "$openzap_conf_xml_template") or die "cannot open $openzap_conf_xml_template";
+	while (<FH>) {
+		$openzap_xml_file .= $_;
+	}
+	close (FH);
+
+	#$openzap_xml_file=$openzap_file.$openzap;	
+	$openzap_xml_file=~ s/<!--BOOSTPRI-->/$openzap_boostpri/g;
+	$openzap_xml_file=~ s/<!--BOOSTBRI-->/$openzap_boostbri/g;
+	$openzap_xml_file=~ s/<!--SANGOMA_FXS-->/$openzap_fxs/g;
+	$openzap_xml_file=~ s/<!--SANGOMA_FXO-->/$openzap_fxo/g;
+	open(FH, ">$openzap_conf_xml_file") or die "cannot open $openzap_conf_xml_file";
+		print FH $openzap_xml_file;
+	close(FH);	
+	return ;
+}
+
+sub gen_smg_rc{
+	#update smg rc 
+	printf("Generating smg.cr \n");
+	my $rcfile="";
+	
+	#open smg template
+	open(FH, "$smg_rc_template") or die "cannot open $smg_rc_template";
+	while (<FH>) {
+		$rcfile .= $_;
+	}
+	close (FH);
+
+	if($num_digital_smg != 0){	
+		$rcfile =~ s/SANGOMA_PRID\s*=.*/SANGOMA_PRID="YES"/g;
+	}elsif($num_bri_devices !=0){
+		$rcfile =~ s/SANGOMA_BRID\s*=.*/SANGOMA_BRID="YES"/g;
+	}
+	$rcfile=~ s/YES_NO/NO/g;
+	$rcfile=~ s/MYDATE/$mdate/g;
+
+	if ($is_fs == $FALSE)
+	{
+		$rcfile =~ s/SANGOMA_MEDIA_GATEWAY\s*=.*/SANGOMA_MEDIA_GATEWAY="YES"/g;
+	}
+	open (FH,">$smg_rc_file")or die "cannot open $smg_rc_file";;
+	print FH $rcfile;
+	close (FH);
+}

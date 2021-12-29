@@ -51,13 +51,10 @@
 # include "aft_core.h"		/* for 'private_area_t' */
 # include "sdla_bri.h"
 
-#undef	DEBUG_BRI
-#define DEBUG_BRI		if(0)DEBUG_EVENT
 
 /* DEBUG macro definitions */
 #define DEBUG_HFC_INIT		if(0)DEBUG_EVENT
 #define DEBUG_HFC_MODE		if(0)DEBUG_EVENT
-#define DEBUG_HFC_S0_STATES	if(0)DEBUG_EVENT
 #define DEBUG_HFC_IRQ		if(0)DEBUG_EVENT
 #define DEBUG_HFC_SU_IRQ	if(0)DEBUG_EVENT
 
@@ -82,8 +79,6 @@
 #define DEBUG_FE_STATUS		if(0)DEBUG_EVENT
 
 #define DEBUG_LOOPB			if(0)DEBUG_EVENT
-
-#define COLOGNE_TECH_SUPPORT_LOGIC_NT 1
 
 #define FIFO_THRESHOLD_INDEX	1
 
@@ -120,13 +115,13 @@ static u8 validate_fe_line_no(sdla_fe_t *fe, const char *caller_name)
 static int32_t validate_physical_mod_no(u32 mod_no, const char *caller_name)
 {
 	if(mod_no % 2){
-		DEBUG_EVENT("%s(): Error: mod_no (%d) is not divisible by 2!!\n", 
+		DEBUG_ERROR("%s(): Error: mod_no (%d) is not divisible by 2!!\n", 
 			caller_name, mod_no);
 		return 1;
 	}
 
 	if(mod_no >= MAX_BRI_LINES){
-		DEBUG_EVENT("%s(): Error: mod_no (%d) is greate than maximum of %d!!\n", 
+		DEBUG_ERROR("%s(): Error: mod_no (%d) is greate than maximum of %d!!\n", 
 			caller_name, mod_no, MAX_BRI_LINES - 1);
 		return 1;
 	}
@@ -439,7 +434,7 @@ static int32_t reset_chip(sdla_fe_t *fe, u32 mod_no)
 	}
 
 	if (!(maximum_reset_wait_counter)) {
-		DEBUG_EVENT("%s: %s(): Error: chip initialization sequence timeout!\n",
+		DEBUG_ERROR("%s: %s(): Error: chip initialization sequence timeout!\n",
 			       fe->name, __FUNCTION__);
 		return 1;
 	}
@@ -489,7 +484,7 @@ static int32_t __config_clock_routing(sdla_fe_t *fe, u32 mod_no, u8 master_mode)
 	}
 
 	if (fe->bri_param.mod[mod_no].type != MOD_TYPE_TE && master_mode) {
-		DEBUG_EVENT("%s: Module %d: error configuring clock routing on NT\n", 
+		DEBUG_ERROR("%s: Module %d: error configuring clock routing on NT\n", 
 			fe->name, mod_no);
 		return 1;
 	} 
@@ -621,7 +616,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 {
 	sdla_bri_param_t	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
-	int32_t			err = 0, i, timeout = 1000 /*0x2000*/;
+	int32_t			err = 0, i;
 
 	u8			port_no, bchan;
 	reg_a_su_ctrl0		a_su_ctrl0;
@@ -927,13 +922,13 @@ static int32_t check_f0cl_increment(sdla_fe_t *fe, u8 old_f0cl, u8 new_f0cl, int
 
 	/* should be between 70 and 90 over 10ms time */
 	if(*diff == 0){
-		DEBUG_EVENT("%s: PCM ERROR: BRI Modlue NO CLOCK found! 125us pulse f0cl diff: %d\n",
+		DEBUG_ERROR("%s: PCM ERROR: BRI Modlue NO CLOCK found! 125us pulse f0cl diff: %d\n",
 			fe->name, *diff);	
 		return 1;
 	}
 	
 	if(*diff > 150 || *diff < 70){
-		DEBUG_EVENT("%s: PCM Warning 125us pulse count f0cl diff: %d\n",
+		DEBUG_WARNING("%s: PCM Warning 125us pulse count f0cl diff: %d\n",
 			fe->name, *diff);	
 	}
 
@@ -1293,7 +1288,7 @@ static int xhfc_read_fifo_dchan(sdla_fe_t *fe,	u8 mod_no,
 			/* check crc */
 			if (buf[(*idx) - 1]) {
 				if (0 && WAN_NET_RATELIMIT()) {
-					DEBUG_EVENT("%s: %s(): CRC-error in frame in mod_no %d, port_no %d!\n",
+					DEBUG_ERROR("%s: %s(): CRC-error in frame in mod_no %d, port_no %d!\n",
 							  fe->name, __FUNCTION__, mod_no, port->idx);
 				}
 				*idx = 0;
@@ -1547,7 +1542,7 @@ static u_int8_t scan_modules(sdla_fe_t *fe, u_int8_t rm_no)
 			DEBUG_BRI_INIT("mod_no_index (line number) on CARD (should be 0-23): %d\n", mod_no_index);
 
 			if(mod_no_index >= MAX_BRI_LINES){
-					DEBUG_EVENT("%s: Error: Module %d/%d exceeds maximum (%d)\n",
+					DEBUG_ERROR("%s: Error: Module %d/%d exceeds maximum (%d)\n",
 						fe->name, mod_no_index, mod_no_index, MAX_BRI_LINES);
 				return 0;
 			}
@@ -1614,7 +1609,7 @@ static int32_t scan_remoras_and_modules(void* pfe)
 	}
 
 	if(modules_counter == 0){
-		DEBUG_EVENT("%s: Error: modules counter is zero!\n", fe->name);
+		DEBUG_ERROR("%s: Error: modules counter is zero!\n", fe->name);
 		return 1;
 	}else{
 		DEBUG_EVENT("%s: Total number of modules: %d.\n", fe->name, modules_counter);
@@ -1748,7 +1743,7 @@ static int32_t wp_bri_config(void *pfe)
 	fe->fe_status = FE_UNITIALIZED;
 
 	if(validate_fe_line_no(fe, __FUNCTION__)){
-		DEBUG_EVENT("%s: %s: Error: Invalid Front End Line number %i !\n", 
+		DEBUG_ERROR("%s: %s: Error: Invalid Front End Line number %i !\n", 
 			fe->name, FE_MEDIA_DECODE(fe), WAN_FE_LINENO(fe)+1);
 		return 1;
 	}
@@ -1821,7 +1816,7 @@ static int32_t wp_bri_config(void *pfe)
 		break;
 
 	default:
-		DEBUG_EVENT("%s(): %s: Error: Module %d (AFT Line: %d): Not Installed!!\n",
+		DEBUG_ERROR("%s(): %s: Error: Module %d (AFT Line: %d): Not Installed!!\n",
 			__FUNCTION__, fe->name, REPORT_MOD_NO(mod_no), aft_line_no);
 		return 1;
 	}
@@ -1855,7 +1850,7 @@ static int32_t wp_bri_config(void *pfe)
 		break;
 
 	default:
-		DEBUG_EVENT("%s(): %s: Warning: Module %d (AFT Line: %d): Not Installed.\n",
+		DEBUG_WARNING("%s(): %s: Warning: Module %d (AFT Line: %d): Not Installed.\n",
 			__FUNCTION__, fe->name, REPORT_MOD_NO(mod_no), aft_line_no);	
 		break;
 	}
@@ -1875,7 +1870,7 @@ static int32_t wp_bri_config(void *pfe)
 		}
 		break;
 	default:
-		DEBUG_EVENT("%s(): %s: Warning: Module %d (AFT Line: %d): Not Installed.\n",
+		DEBUG_WARNING("%s(): %s: Warning: Module %d (AFT Line: %d): Not Installed.\n",
 			__FUNCTION__, fe->name, REPORT_MOD_NO(mod_no), aft_line_no);	
 		break;
 	}
@@ -2525,7 +2520,7 @@ static u32 wp_bri_active_map(sdla_fe_t* fe, u8 line_no)
 	BRI_FUNC();
 
 	if(line_no >= 2){
-		DEBUG_EVENT("%s: %s(): Error: Line number %d is out of range!\n",
+		DEBUG_ERROR("%s: %s(): Error: Line number %d is out of range!\n",
 					fe->name, __FUNCTION__, line_no);
 		return 0;
 	}
@@ -2834,7 +2829,7 @@ static int wp_bri_control(sdla_fe_t *fe, u32 command)
 		break;
 
 	default:
-		DEBUG_EVENT("%s(): %s: Error: invalid command '%i'requested!\n",
+		DEBUG_ERROR("%s(): %s: Error: invalid command '%i'requested!\n",
 			__FUNCTION__, fe->name, command);
 		rc = 1;
 		break;
@@ -2899,15 +2894,8 @@ static int wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char new_status)
 				sdla_bri_set_status(fe, mod_no, port_no, FE_CONNECTED);	
 			} else {
 				xhfc_ph_command(fe, port_ptr, HFC_L1_ACTIVATE_NT);
-#if COLOGNE_TECH_SUPPORT_LOGIC_NT
 				/* After activation, state will automatically change to G2, where
 				 * T1 will be started. Don't start T1 here as recommended by Table 5.4. */
-#else
-				/* Start T1 deactivation timer - if line is not synchronized before T1 expires,
-				 * the timer will de-activate the line. If line already Active, no change of state will
-				 * occur. */
-				l1_timer_start_t1(port_ptr);
-#endif
 			}
         }
 		break;
@@ -2916,7 +2904,7 @@ static int wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char new_status)
 		DEBUG_HFC_S0_STATES("L2->L1 -- DEACTIVATE REQUEST\n");
 		if (port_ptr->mode & PORT_MODE_TE) {
 			/* no deact request in TE mode ! */
-			DEBUG_EVENT("%s(): %s: Error: 'deactivate' request is invalid for TE!\n",
+			DEBUG_ERROR("%s(): %s: Error: 'deactivate' request is invalid for TE!\n",
 				__FUNCTION__, fe->name);
 			rc = 1;
 		} else {
@@ -2925,7 +2913,7 @@ static int wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char new_status)
 		break;
 
 	default:
-		DEBUG_EVENT("%s(): %s: Error: invalid new status '%d' (%s) requested!\n",
+		DEBUG_ERROR("%s(): %s: Error: invalid new status '%d' (%s) requested!\n",
 			__FUNCTION__, fe->name, new_status, FE_STATUS_DECODE(new_status));
 		rc = 1;
 		break;
@@ -3152,7 +3140,9 @@ static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 	bri_xhfc_port_t		*port_ptr;
 	sdla_bri_param_t 	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
-	u8			connected = 0;
+	u8		connected = 0;
+	u8		current_fe_status = fe->fe_status;
+	
 
 	BRI_FUNC();
 
@@ -3220,7 +3210,7 @@ static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 	} else if (port_ptr->mode & PORT_MODE_NT) {
 
 		DEBUG_HFC_S0_STATES("NT G%d\n", port_ptr->l1_state);
-#if COLOGNE_TECH_SUPPORT_LOGIC_NT
+
 		/*	S/T state transition based Cologne recomendations:
 		 *	T1 is a counter that can be reset. An other stop function is not needed.
 		 *	There are only 3 states of T1:
@@ -3265,8 +3255,9 @@ static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 				 * where the line is deactivated. */
 				wan_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
 			}
-			/* In any case the line is in 'disconnected' state. */
-			connected = 0;
+
+			/* In any case, do NOT change the line state. */
+			connected = (current_fe_status == FE_CONNECTED ? 1 : 0);
 			break;
 
 		case NT_STATE_ACTIVE_G3:
@@ -3284,71 +3275,10 @@ static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 			break;
 
 		default:
-			DEBUG_EVENT("%s: Error: invalid NT State: %d.\n", fe->name, port_ptr->l1_state);
+			DEBUG_ERROR("%s: Error: invalid NT State: %d.\n", fe->name, port_ptr->l1_state);
 			break;
 		}
 
-#else
-		if(!port_ptr->su_state.bit.v_su_info0){
-			/* If INFO0 is not received, stop T1 timer */
-			l1_timer_stop_t1(port_ptr);
-		}
-
-		/* S/T state transitions based on Table 5.4 */
-		switch (port_ptr->l1_state) 
-		{
-		case (1):/* Deactivated */
-			if(!port_ptr->su_state.bit.v_su_info0){
-				/* We are NOT receiving INFO0 that means we ARE receiving INFO1.
-				 * Start T1.
-				 * Automatic transition to G2 is expected. */
-				l1_timer_start_t1(port_ptr);
-			}
-			wan_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
-			connected = 0;
-			break;
-
-		case (2):/* Pending Activation */
-			if(!port_ptr->su_state.bit.v_su_info0){
-				/* We are NOT receiving INFO0 and very likely we are receiving INFO3.
-				 * That means link is on the way UP. Next state should be G3.
-				 *
-				 * Automatic G2->G3 transition is allowed by init_xfhc() -
-				 * V_G2_G3_EN was set in the register A_SU_CTRL1.*/
-			}else{
-				/* Link on the way DOWN, but no automatic state change. 
-				 * The state change will be triggered by T1 expiration,
-				 * where the line is deactivated. */
-				wan_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
-			}
-			/* In any case the line is in 'disconnected' state. */
-			connected = 0;
-			break;
-
-		case (3):/* Active */
-			if(	(port_ptr->su_state.bit.v_su_info0)	||
-				(!port_ptr->su_state.bit.v_su_fr_sync)){
-				/* If receiving INFO0 or Lost Framing, chip will automatically go into G2. */
-				/* Wait for G2 to go into disconnected state, so here stay 'connected'. */
-				wan_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
-				connected = 1;
-			}else if(port_ptr->su_state.bit.v_su_fr_sync){
-				/* Got synchronized. No automatic state change expected. */
-				wan_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
-				connected = 1;
-			}
-			break;
-
-		case (4):/* Pending Deactivation */
-			/* No action required. */
-			wan_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
-			connected = 0;
-			break;
-
-		default:
-			break;
-		}
-#endif
 		if(connected == 1){
 			DEBUG_HFC_S0_STATES("NT: l1->l2 -- ACTIVATE INDICATION\n");
 		}else{
@@ -3544,7 +3474,7 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 
 				DEBUG_HFC_IRQ("%s(): chan ptr: 0x%p\n", __FUNCTION__, chan);
 				if (!chan){
-					DEBUG_EVENT("%s: Error: No Dev for Rx logical ch=%d\n",
+					DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
 							card->devname, BRI_DCHAN_LOGIC_CHAN);
 					break;
 				}

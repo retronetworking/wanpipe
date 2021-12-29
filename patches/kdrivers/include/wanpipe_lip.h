@@ -17,6 +17,10 @@
 # include "if_wanpipe.h"
 #endif
 
+#if defined(__WINDOWS__)
+# include "linux_if_ether.h"
+#endif
+
 #include "if_wanpipe_common.h"
 #include "wanpipe_fr_iface.h"
 #include "wanpipe_lip_atm_iface.h"
@@ -49,8 +53,10 @@
 
 #if defined(__WINDOWS__)
 /* Prototypes for interface between LIP and 'sprotocol' code in virt_adap_enum.c: */
-int sdla_tx_down(void* dev, void *tx_skb);
-int sdla_data_rx_up(void* sdla_net_dev, void *rx_skb);
+extern int sdla_tx_down(void* dev, void *tx_skb);
+extern int sdla_data_rx_up(void* sdla_net_dev, void *rx_skb);
+extern void netif_carrier_off(void* dev);
+extern void netif_carrier_on(void* dev);
 #endif
 
 
@@ -214,11 +220,8 @@ typedef struct wplip_link
 	unsigned char			carrier_state;
 	unsigned char			prot_state;
 
-#if defined(__WINDOWS__)
-	void	*prot_obj; /* this is the pointer to protocol object */
-#else
-	void				*prot;
-#endif
+	void				*prot;/* this is the pointer to protocol object */
+
 	wan_timer_t			prot_timer;
 
 	unsigned char			protocol;
@@ -369,11 +372,9 @@ typedef struct wplip_prot_iface
 		       unsigned int *len);
 
 	int (*rx)     (void *prot_ptr, void *rx_pkt);
-#if defined(__WINDOWS__)
-	int (*timer)  (void *prot_ptr, unsigned int *period);
-#else
+
 	int (*timer)  (void *prot_ptr, unsigned int *period, unsigned int);
-#endif
+
 	int (*bh)     (void *);
 	int (*snmp)   (void *, void *);
 	int (*task)   (void *prot_ptr);
@@ -407,8 +408,17 @@ typedef struct wplip_prot_iface
 #define wplip_hold(_dev)  wan_atomic_inc(&(_dev)->refcnt)
 #define wplip_put(_dev)   wan_atomic_dec(&(_dev)->refcnt)
 
+
 #define wplip_get_link(_reg)	(_reg)->wplip_link		 
-#define wplip_get_lipdev(_dev)	(wplip_dev_t*)wan_netif_priv((_dev))
+
+/*--------------------------------------------------------------*/
+/* Macros to access lipdev pointer inside of netdevice_t pointer.
+ * Use of those macros encouraged for code readability reasons and
+ * allows to adapt easily to future modifications in netdevice_t 
+ * structure. */
+#define wplip_netdev_get_lipdev(_dev)			(wplip_dev_t*)wan_netif_priv((_dev))
+#define wplip_netdev_set_lipdev(_dev, _lipdev)	wan_netif_set_priv(_dev, _lipdev)
+/*--------------------------------------------------------------*/
 
 #define wplip_liplink_magic(_link)  ((_link)->magic == WPLIP_MAGIC_LINK) 
 #define wplip_lipdev_magic(_lipdev) ((_lipdev)->magic == WPLIP_MAGIC_DEV)
@@ -429,8 +439,8 @@ extern int 		wplip_set_hw_idle_frame (void *liplink_ptr, unsigned char *data, in
 
 #if defined(__WINDOWS__)
 extern wplip_reg_t	wplip_protocol;
-extern int wanpipe_lip_init(void);
-extern int wanpipe_lip_exit(void);
+extern int wanpipe_lip_init(void*);
+extern int wanpipe_lip_exit(void*);
 #endif
 
 /* wanpipe_lip_sub.c */
@@ -441,12 +451,12 @@ extern int 		wplip_link_exists(wplip_link_t *lip_link);
 extern void 		wplip_free_link(wplip_link_t *lip_link);
 extern int		wplip_lipdev_latency_change(wplip_link_t *lip_link);
 
-
-#if 1
-extern wplip_dev_t*	wplip_create_lipdev(char *dev_name,int);
+#if defined(__WINDOWS__)
+ extern wplip_dev_t*	wplip_create_lipdev(netdevice_t *dev, int usedby);
 #else
-extern wplip_dev_t*	wplip_create_lipdev(char *dev_name);
+ extern wplip_dev_t*	wplip_create_lipdev(char *dev_name, int usedby);
 #endif
+
 extern void 		wplip_free_lipdev(wplip_dev_t *lip_dev);
 extern int		wplip_lipdev_exists(wplip_link_t *lip_link, char *dev_name);
 extern void 		wplip_remove_lipdev(wplip_link_t *lip_link, 
@@ -676,133 +686,14 @@ static __inline void wp_lip_config_bridge_mode(wplip_dev_t *lip_dev)
 #define PACKET_TYPE_DECODE(type)			\
 	((type == WPLIP_RAW)	? "WPLIP_RAW" :		\
 	(type == WPLIP_IP)	? "WPLIP_IP" :		\
-        (type == WPLIP_IPV6)	? "WPLIP_IPV6" : 	\
+	(type == WPLIP_IPV6)	? "WPLIP_IPV6" : 	\
 	(type == WPLIP_IPX)	? "WPLIP_IPX": 		\
 	(type == WPLIP_FR_ARP)	? "WPLIP_FR_ARP": "Unknown Packet type")
 
-//convert integer definition of a protocol to string
+/*convert integer definition of a protocol to string*/
 static char * get_protocol_string(int protocol)
 {
-#define MAX_PROT_NAME_LENGTH	256
-#define snprintf _snprintf
-	static char protocol_name[MAX_PROT_NAME_LENGTH];
-
-	switch(protocol)
-	{
-	case WANCONFIG_X25:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "X25");
-		break;
-
-	case WANCONFIG_FR:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Frame Relay");
-		break;
-
-	case WANCONFIG_PPP:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "PPP");
-		break;
-
-	case WANCONFIG_CHDLC:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "CHDLC");
-		break;
-
-	case WANCONFIG_BSC:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "BiSync Streaming");
-		break;
-
-	case WANCONFIG_HDLC:
-		//used with CHDLC firmware
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "HDLC Streaming");
-		break;
-
-	case WANCONFIG_MPPP://and WANCONFIG_MPROT too
-		//snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Multi Port PPP");
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "PPP");
-		break;
-
-	case WANCONFIG_LAPB:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "LAPB");
-		break;
-
-	case WANCONFIG_BITSTRM:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Bit Stream");
-		break;
-
-	case WANCONFIG_EDUKIT:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "WAN EduKit");
-		break;
-
-	case WANCONFIG_SS7:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "SS7");
-		break;
-
-	case WANCONFIG_BSCSTRM:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Bisync Streaming Nasdaq");
-		break;
-
-	case WANCONFIG_MFR:
-		//snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Multi-Port Frame Relay");
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Frame Relay");
-		break;
-
-	case WANCONFIG_ADSL:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "LLC Ethernet (ADSL)");
-		break;
-
-	case WANCONFIG_SDLC:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "SDLC");
-		break;
-
-	case WANCONFIG_ATM:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "ATM");
-		break;
-
-	case WANCONFIG_POS:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Point-of-Sale");
-		break;
-
-	case WANCONFIG_AFT:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "AFT");
-		break;
-
-	case WANCONFIG_AFT_TE3:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "AFT");
-		break;
-
-	case WANCONFIG_DEBUG:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Real Time Debugging");
-		break;
-
-	case WANCONFIG_ADCCP:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Special HDLC LAPB");
-		break;
-
-	case WANCONFIG_MLINK_PPP:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Multi-Link PPP");
-		break;
-
-	case WANCONFIG_GENERIC:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "WANPIPE Generic driver");
-		break;
-
-	case WANCONFIG_MPCHDLC:
-		//snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Multi-Port CHDLC");
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "CHDLC");
-		break;
-
-	case WANCONFIG_TTY:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "TTY");
-		break;
-/*
-	case PROTOCOL_TDM_VOICE:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "TDM Voice");
-	 break;
-*/
-	default:
-		snprintf((char*)protocol_name, MAX_PROT_NAME_LENGTH, "Invalid Protocol");
-		break;
-	}
-
-	return (char*)protocol_name;
+	return SDLA_DECODE_PROTOCOL(protocol);
 }
 
 #endif

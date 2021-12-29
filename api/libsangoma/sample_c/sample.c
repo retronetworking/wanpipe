@@ -49,7 +49,7 @@ static u_int32_t	poll_events_bitmap = 0;
 */
 #define TEST_NUMBER_OF_OBJECTS 1
 
-static void *sangoma_wait_objects[TEST_NUMBER_OF_OBJECTS];
+static sangoma_wait_obj_t *sangoma_wait_objects[TEST_NUMBER_OF_OBJECTS];
 
 /* This example application has only a single execution thread - it is safe
  * to use a global buffer for received data and for data to be transmitted. */
@@ -87,7 +87,7 @@ int write_data_to_file(unsigned char *data,	unsigned int data_length);
 void cleanup(void);
 
 #ifdef __WINDOWS__
-BOOL TerminateHandler(DWORD dwCtrlType);
+BOOL WINAPI TerminateHandler(DWORD dwCtrlType);
 #else
 void TerminateHandler(int);
 #endif

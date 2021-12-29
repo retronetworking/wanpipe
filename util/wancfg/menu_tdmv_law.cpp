@@ -34,7 +34,7 @@ char* fxo_modes[] =
 	"CHINA",
 	"COLUMBIA",
 	"CROATIA", 
-	"CYRPUS",
+	"CYPRUS",
 	"CZECH", 
 	"DENMARK",
 	"ECUADOR",

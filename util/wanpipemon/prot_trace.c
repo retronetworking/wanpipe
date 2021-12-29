@@ -157,9 +157,6 @@ void trace_banner (wp_trace_output_iface_t *trace_iface, int *trace_started)
 			time_t time_val=trace_iface->sec;
 			struct tm *time_tm;
 
-#if defined(__WINDOWS__)
-			time( &time_val );
-#endif
 			/* Parse time and date */
 			time_tm = localtime(&time_val);
    
@@ -606,7 +603,7 @@ static char *clear_diag(unsigned char code)
 static int decode_chdlc(wp_trace_output_iface_t *trace_iface,
 		        int *trace_started)
 {
-	printf("%s() not implemented\n", __FUNCTION__);
+	WIN_DBG_FUNC_NOT_IMPLEMENTED();
 	return 1;
 }
 #else
@@ -711,7 +708,7 @@ static void decode_chdlc_ip_transaction(cisco_slarp_t *cisco_slarp)
 #ifdef __WINDOWS__
 static int decode_data_ipv4(unsigned char* data, unsigned short data_len)
 {
-	printf("%s() not implemented\n", __FUNCTION__);
+	WIN_DBG_FUNC_NOT_IMPLEMENTED();
 	return 1;
 }
 #else
@@ -994,7 +991,7 @@ INCOMING     : Len=31   TimeStamp= 5211
 static int decode_fr(wp_trace_output_iface_t *trace_iface,
 		 int *trace_started,int dlci)
 {
-	printf("%s() not implemented\n", __FUNCTION__);
+	WIN_DBG_FUNC_NOT_IMPLEMENTED();
 	return 1;
 }
 #else

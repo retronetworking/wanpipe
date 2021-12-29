@@ -34,58 +34,11 @@
 # include "aft_core.h" /* Map of Zaptel -> DAHDI definitions */
 
 
-
 #undef	DEBUG_SERIAL
 #define DEBUG_SERIAL		if(0)DEBUG_EVENT
 
 /* DEBUG macro definitions */
-#define DEBUG_HFC_INIT		if(0)DEBUG_EVENT
-#define DEBUG_HFC_MODE		if(0)DEBUG_EVENT
-#define DEBUG_HFC_S0_STATES	if(0)DEBUG_EVENT
-#define DEBUG_HFC_IRQ		if(0)DEBUG_EVENT
-#define DEBUG_HFC_SU_IRQ	if(0)DEBUG_EVENT
-
-#define DEBUG_HFC_TX		if(0)DEBUG_EVENT
-#define DEBUG_TX_DATA		if(0)DEBUG_EVENT
-#define TX_EXTRA_DBG		if(0)DEBUG_EVENT
-#define TX_FAST_DBG		if(0)DEBUG_EVENT
-
-#define DEBUG_HFC_RX		if(0)DEBUG_EVENT
-#define RX_EXTRA_DBG		if(0)DEBUG_EVENT
-#define DEBUG_RX1		if(0)DEBUG_EVENT
-#define DBG_RX_DATA		if(0)DEBUG_EVENT
-
-#define DEBUG_HFC_CLOCK		if(0)DEBUG_EVENT
-
-#define BUILD_MOD_TESTER	0	/* for Production Test */
-#define DBG_MODULE_TESTER	if(0)DEBUG_EVENT
-
-#define NT_STATE_FUNC()		if(0)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
-#define CLOCK_FUNC()		if(0)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
-
-#define DBG_SPI			if(0)DEBUG_EVENT
-
-#define DEBUG_FE_STATUS		if(0)DEBUG_EVENT
-
 #define SERIAL_FUNC()		if(0)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
-
-/* Timer interrupt counter - used by activation timer T3 */
-#define HFC_TIMER_COUNTER_T3	2
-
-#undef NT_T1_COUNT
-
-#define FIFO_THRESHOLD_INDEX	1
-
-#define LINE_STABILITY_THRESHOLD 3
-
-enum {
-	WAITING_TO_STABILIZE=1,
-	LINE_STABLE,
-	LINE_DISCONNECTED
-};
-
-#define CHECK_DATA 0
-
 
 int aft_serial_write_cpld(void *card, unsigned short off,u_int16_t data);
 unsigned char aft_serial_read_cpld(void *card, unsigned short cpld_off);
@@ -356,7 +309,7 @@ static int32_t wp_serial_config(void *pfe)
 	case WANOPT_NRZI:
 		break;		
 	default:
-		DEBUG_EVENT("%s: A140: Error: Unsupported line coding mode 0x%X\n",
+		DEBUG_ERROR("%s: A140: Error: Unsupported line coding mode 0x%X\n",
 			card->devname,
 			card->wandev.line_coding);
 		return -1;
@@ -382,7 +335,7 @@ static int32_t wp_serial_config(void *pfe)
 					cpld_reg=0x09;
 					break;
 			default:
-					DEBUG_EVENT("%s: Error: Invalid Serial Port Number! (%i) \n",
+					DEBUG_ERROR("%s: Error: Invalid Serial Port Number! (%i) \n",
 							card->devname,WAN_FE_LINENO(fe));
 					return -EINVAL;
 			};
@@ -395,7 +348,7 @@ static int32_t wp_serial_config(void *pfe)
 				if (wan_test_bit(2,&cpld_reg)) {
 					/* In this case port is trying to configure for V35
 					* where previous port already configured for X21 */
-					DEBUG_EVENT("%s: Error: Invalid V35 Configuration, Previous Port configured for X21\n",
+					DEBUG_ERROR("%s: Error: Invalid V35 Configuration, Previous Port configured for X21\n",
 							card->devname);
 					return -EINVAL;
 				}
@@ -416,7 +369,7 @@ static int32_t wp_serial_config(void *pfe)
 					}
 			} else {
    				if (wan_test_bit(2,&cpld_reg_val)) {
-							DEBUG_EVENT("%s: Error: Clocking configuration mismatch!\n",
+							DEBUG_ERROR("%s: Error: Clocking configuration mismatch!\n",
 											card->devname);
 							DEBUG_EVENT("%s:        Ports 1&3 and 2&4 must use same clock source!\n",
 											card->devname);
@@ -454,7 +407,7 @@ static int32_t wp_serial_config(void *pfe)
 			break;
 
 	default:
-			DEBUG_EVENT("%s: Error: Invalid Serial Card Type 0x%X\n",
+			DEBUG_ERROR("%s: Error: Invalid Serial Card Type 0x%X\n",
 					card->devname,card->adptr_type);
 			return -1;
 	}
@@ -491,7 +444,7 @@ static int32_t wp_serial_config(void *pfe)
 		break;		
 	default:
 		/* Should never happen because we check above */
-		DEBUG_EVENT("%s: A140: Error: Unsupported line coding mode 0x%X\n",
+		DEBUG_ERROR("%s: A140: Error: Unsupported line coding mode 0x%X\n",
 			card->devname,
 			card->wandev.line_coding);
 		return -1;
@@ -964,7 +917,7 @@ int aft_serial_write_cpld(void *pcard, unsigned short off,u_int16_t data)
 	sdla_t *card = (sdla_t*)pcard;
 
 	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			card->devname, __FUNCTION__,__LINE__);
 		return 0x00;
 	}
@@ -984,7 +937,7 @@ unsigned char aft_serial_read_cpld(void *pcard, unsigned short cpld_off)
 	sdla_t *card = (sdla_t*)pcard;
 
 	if (card->hw_iface.fe_test_and_set_bit(card->hw,0)){
-		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
 			card->devname, __FUNCTION__,__LINE__);
 		return 0x00;
 	}

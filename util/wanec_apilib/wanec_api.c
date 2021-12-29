@@ -43,14 +43,11 @@
 # include <linux/wanpipe_cfg.h>
 # include <wanec_iface_api.h>
 #elif defined(__WINDOWS__)
-# include <windows.h>
-# include <wanpipe_ctypes.h>
-# include <sang_status_defines.h>
-# include <stdio.h>
-# include <sang_api.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_cfg.h>
-# include <wanec_iface_api.h>
+# include "wanpipe_includes.h"
+# include "sang_api.h"
+# include "wanpipe_defines.h"
+# include "wanpipe_cfg.h"
+# include "wanec_iface_api.h"
 #else
 # include <wanpipe_defines.h>
 # include <wanpipe_cfg.h>
@@ -401,15 +398,15 @@ static int wanec_api_print_chan_stats(wan_ec_api_t *ec_api, int fe_chan)
 	printf("%10s:%2d: (VQE) NLP status\t\t\t\t\t: %s\n",
 				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fEnableNlp == TRUE) ? "TRUE" : "FALSE");
-	printf("%10s:%2d: (VQE) Enable Tail Displacement\t\t\t: %s\n",
+	printf("%10s:%2d: (VQE) Tail Displacement Status\t\t\t: %s\n",
 				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fEnableTailDisplacement == TRUE) ? "TRUE" : "FALSE");
-	printf("%10s:%2d: (VQE) Offset of the Echo Cancellation window (ms)\t: %d\n",
+	printf("%10s:%2d: (VQE) Tail Displacement (ms)\t\t\t: %d\n",
 				ec_api->devname, fe_chan,
 				pChannelStatsVqe->ulTailDisplacement);
-	printf("%10s:%2d: (VQE) Echo Cancellation offset window (ms)\t: %d\n",
+	printf("%10s:%2d: (VQE) Tail Length (ms)\t\t\t\t: %d\n",
 				ec_api->devname, fe_chan,
-				pChannelStatsVqe->ulTailDisplacement);
+				pChannelStatsVqe->ulTailLength);
 	printf("%10s:%2d: (VQE) Comfort noise mode\t\t\t\t: %s\n",
 			ec_api->devname, fe_chan,
 			(pChannelStatsVqe->ulComfortNoiseMode == cOCT6100_COMFORT_NOISE_NORMAL) ? "NORMAL" :
@@ -419,6 +416,28 @@ static int wanec_api_print_chan_stats(wan_ec_api_t *ec_api, int fe_chan)
 	printf("%10s:%2d: (VQE) Acoustic Echo\t\t\t\t: %s\n",
 				ec_api->devname, fe_chan,
 				(pChannelStatsVqe->fAcousticEcho == TRUE) ? "TRUE" : "FALSE");
+	printf("%10s:%2d: (VQE) Out Automatic Level Control\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsVqe->fRinAutomaticLevelControl == TRUE) ? "TRUE" : "FALSE");
+	printf("%10s:%2d: (VQE) Out Automatic Level Control Target\t\t: %d dB\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsVqe->lRinAutomaticLevelControlTargetDb);
+	printf("%10s:%2d: (VQE) In  Automatic Level Control\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsVqe->fSoutAutomaticLevelControl == TRUE) ? "TRUE" : "FALSE");
+	printf("%10s:%2d: (VQE) In  Automatic Level Control Target\t\t: %d dB\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsVqe->lSoutAutomaticLevelControlTargetDb);
+	printf("%10s:%2d: (VQE) Noise Reduction\t\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsVqe->fSoutAdaptiveNoiseReduction == TRUE) ? "TRUE" : "FALSE");
+	printf("%10s:%2d: (VQE) Tone Removal\t\t\t\t: %s\n",
+				ec_api->devname, fe_chan,
+				(pChannelStatsVqe->fDtmfToneRemoval == TRUE) ? "TRUE" : "FALSE");
+	printf("%10s:%2d: (VQE) Activation Delay (ms)\t\t\t: %d\n",
+				ec_api->devname, fe_chan,
+				pChannelStatsVqe->ulToneDisablerVqeActivationDelay);
+
 
 	printf("\n");
 
@@ -751,13 +770,13 @@ static int wanec_api_verbose(int verbose)
 }
 
 
-int _SAPI_CALL wanec_api_init(void)
+int _WANEC_API_CALL wanec_api_init(void)
 {
 	memset(&ec_api, 0, sizeof(ec_api));
 	return 0;
 }
 
-int _SAPI_CALL wanec_api_config(	char			*devname,
+int _WANEC_API_CALL wanec_api_config(	char			*devname,
 			int			verbose,
 			wanec_api_config_t	*conf)
 {
@@ -772,7 +791,7 @@ int _SAPI_CALL wanec_api_config(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);	//return wanec_api_lib_config(&ec_api, 1);
 }
 
-int _SAPI_CALL wanec_api_release(	char			*devname,
+int _WANEC_API_CALL wanec_api_release(	char			*devname,
 			int			verbose,
 			wanec_api_release_t	*release)
 {
@@ -783,7 +802,7 @@ int _SAPI_CALL wanec_api_release(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int _SAPI_CALL wanec_api_mode(	char			*devname,
+int _WANEC_API_CALL wanec_api_mode(	char			*devname,
 			int			verbose,
 			wanec_api_mode_t	*mode)
 {
@@ -797,7 +816,7 @@ int _SAPI_CALL wanec_api_mode(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int _SAPI_CALL wanec_api_bypass(	char			*devname,
+int _WANEC_API_CALL wanec_api_bypass(	char			*devname,
 			int			verbose,
 			wanec_api_bypass_t	*bypass)
 {
@@ -811,7 +830,7 @@ int _SAPI_CALL wanec_api_bypass(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int _SAPI_CALL wanec_api_opmode(	char			*devname,
+int _WANEC_API_CALL wanec_api_opmode(	char			*devname,
 			int			verbose,
 			wanec_api_opmode_t	*opmode)
 {
@@ -845,7 +864,7 @@ int _SAPI_CALL wanec_api_opmode(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int _SAPI_CALL wanec_api_modify(	char			*devname,
+int _WANEC_API_CALL wanec_api_modify(	char			*devname,
 			int			verbose,
 			wanec_api_modify_t	*modify)
 {
@@ -862,7 +881,7 @@ int _SAPI_CALL wanec_api_modify(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int _SAPI_CALL wanec_api_mute(	char			*devname,
+int _WANEC_API_CALL wanec_api_mute(	char			*devname,
 			int			verbose,
 			wanec_api_mute_t	*mute)
 {
@@ -884,7 +903,7 @@ int _SAPI_CALL wanec_api_mute(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int _SAPI_CALL wanec_api_tone(	char			*devname,
+int _WANEC_API_CALL wanec_api_tone(	char			*devname,
 			int			verbose,
 			wanec_api_tone_t	*tone)
 {
@@ -901,7 +920,7 @@ int _SAPI_CALL wanec_api_tone(	char			*devname,
 	return wanec_api_lib_cmd(&ec_api);
 }
 
-int _SAPI_CALL wanec_api_stats(	char			*devname,
+int _WANEC_API_CALL wanec_api_stats(	char			*devname,
 			int			verbose,
 			wanec_api_stats_t	*stats)
 {
@@ -952,7 +971,7 @@ int _SAPI_CALL wanec_api_stats(	char			*devname,
 
 }
 
-int _SAPI_CALL wanec_api_hwimage(	char			*devname,
+int _WANEC_API_CALL wanec_api_hwimage(	char			*devname,
 			int			verbose,
 			wanec_api_image_t	*image)
 {
@@ -976,7 +995,7 @@ int _SAPI_CALL wanec_api_hwimage(	char			*devname,
 
 }
 
-int _SAPI_CALL wanec_api_buffer_load(char			*devname,
+int _WANEC_API_CALL wanec_api_buffer_load(char			*devname,
 			int			verbose,
 			wanec_api_bufferload_t	*bufferload)
 {
@@ -994,7 +1013,7 @@ int _SAPI_CALL wanec_api_buffer_load(char			*devname,
 	return 0;
 }
 
-int _SAPI_CALL wanec_api_buffer_unload(	char				*devname,
+int _WANEC_API_CALL wanec_api_buffer_unload(	char				*devname,
 				int				verbose,
 				wanec_api_bufferunload_t	*bufferunload)
 {
@@ -1010,7 +1029,7 @@ int _SAPI_CALL wanec_api_buffer_unload(	char				*devname,
 	return 0;
 }
 
-int _SAPI_CALL wanec_api_playout(	char			*devname,
+int _WANEC_API_CALL wanec_api_playout(	char			*devname,
 			int			verbose,
 			wanec_api_playout_t	*playout)
 {
@@ -1035,7 +1054,7 @@ int _SAPI_CALL wanec_api_playout(	char			*devname,
 	return 0;
 }
 
-int _SAPI_CALL wanec_api_monitor(	char			*devname,
+int _WANEC_API_CALL wanec_api_monitor(	char			*devname,
 			int			verbose,
 			wanec_api_monitor_t	*monitor)
 {

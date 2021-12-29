@@ -1,6 +1,6 @@
 #include "libstelephony_tone.h"
-#include "libteletone_generate.h" /* TODO: May not need this one */
-#include "g711.h"
+#include "wp_libteletone_generate.h" /* TODO: May not need this one */
+#include "wp_g711.h"
 
 extern int16_t TELETONE_SINES[SINE_TABLE_MAX];
 
@@ -18,6 +18,16 @@ int slin2ulaw(void* data, size_t max, size_t *datalen);
 
 int buffer_id = 0;
 
+size_t stelephony_buffer_inuse(void *pbuffer);
+void bitstream_init(bitstream_t *bsp, uint8_t *data, uint32_t datalen, endian_t endian, uint8_t ss);
+int fsk_modulator_init(fsk_modulator_t *, fsk_modem_types_t, uint32_t ,fsk_data_state_t*,float , uint32_t, uint32_t, uint32_t, fsk_write_sample_t ,void*);
+int8_t bitstream_get_bit(bitstream_t *bsp);
+void fsk_modulator_send_data(fsk_modulator_t *fsk_trans);
+size_t fsk_modulator_generate_bit(fsk_modulator_t *fsk_trans, int8_t bit, int16_t *buf, size_t buflen);
+size_t stelephony_buffer_read(void *pbuffer, void *data, size_t datalen);
+size_t stelephony_buffer_read_ulaw(void *pbuffer, unsigned char *data, int* dlen, int max);
+size_t stelephony_buffer_read_alaw(void *pbuffer, unsigned char *data, int* dlen, int max);
+void fsk_modulator_generate_chan_sieze(fsk_modulator_t *fsk_trans);
 
 int fsk_write_sample(short *buf, unsigned int buflen, void *user_data)
 {
@@ -669,68 +679,3 @@ int slin2ulaw(void* data, size_t max, size_t *datalen)
 	return 0;
 }
 
-#if 0
-#warning "REMOVE THESE FUNCTIONS LATER"
-void convert_ulaw_to_linear(u16 *linear_buffer, u8 *ulaw_buffer, int size)
-{
-	int i;
-	memset(linear_buffer, 0, size);
-	for(i = 0; i < size; i++) {
-		linear_buffer[i] = ulaw_to_linear (ulaw_buffer[i]);
-	}
-}
-
-
-void convert_linear_to_ulaw(u8 *ulaw_buffer, u16 *linear_buffer, int size)
-{
-	int i;
-	memset(ulaw_buffer, 0, size);
-	for(i = 0; i < size; i++) {
-		ulaw_buffer[i] = linear_to_ulaw (ulaw_buffer[i]);
-	}
-}
-
-int io_slin2ulaw (void *data, size_t max, size_t *datalen)
-{
-	int16_t sln_buf[512] = {0}, *sln = sln_buf;
-	uint8_t *lp = (unsigned char*) data;
-	uint32_t i;
-	size_t len = *datalen;
-
-	if (max > len) {
-		max = len;
-	}
-
-	memcpy(sln, data, max);
-	
-	for(i = 0; i < max; i++) {
-		*lp++ = linear_to_ulaw(*sln++);
-	}
-
-	*datalen = max / 2;
-
-	return 0;
-}
-
-int slin2ulaw(void* data, size_t max, size_t *datalen)
-{
-	int16_t sln_buf[512] = {0}, *sln = sln_buf;
-	uint8_t *lp = (unsigned char*) data;
-	uint32_t i;
-	size_t len = *datalen;
-
-	if (max > len) {
-		max = len;
-	}
-
-	memcpy(sln, data, max);
-	
-	for(i = 0; i < max; i++) {
-		*lp++ = linear_to_ulaw(*sln++);
-	}
-
-	*datalen = max / 2;
-
-	return 0;
-}
-#endif

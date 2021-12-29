@@ -71,6 +71,12 @@ else
 	EXTRA_CFLAGS+= -DWANPIPE_64BIT_4G_DMA
 endif
 
+ifndef 64BIT_2G
+    64BIT_2G="Disabled"
+else
+	EXTRA_CFLAGS+= -DWANPIPE_64BIT_2G_DMA
+endif
+
 
 #Local wanpipe includes
 WINCLUDE=patches/kdrivers/include
@@ -152,12 +158,20 @@ all: cleanup_local _checkzap _checksrc all_bin_kmod all_util
 
 all_src: cleanup_local  _checkzap _checksrc all_kmod all_util
 
+all_src_ss7: cleanup_local _checkzap _checksrc all_kmod_ss7 all_util
+
 dahdi: all_src
 
 zaptel: all_src
 
 openzap: all_src all_lib
 	@touch .all_lib .openzap
+
+freetdm: all_src all_lib
+	@touch .all_lib .openzap
+
+openzap_ss7: all_src_ss7 all_lib
+	@touch .all_lib
 
 tdmapi: all_src all_lib
 	@touch .all_lib
@@ -170,6 +184,14 @@ cleanup_local:
 #Build only kernel modules
 all_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) ZAPHDLC=$(ZAPHDLC_PRIV) HOMEDIR=$(PWD) modules  
+
+all_kmod_ss7: _checkzap _checksrc _cleanoldwanpipe _check_kver
+	@if [ -e  $(PWD)/ss7_build_dir ]; then \
+		rm -rf $(PWD)/ss7_build_dir; \
+	fi
+	@mkdir -p $(PWD)/ss7_build_dir
+	./Setup drivers --builddir=$(PWD)/ss7_build_dir --with-linux=$(KDIR) $(ZAP_OPTS) --usr-cc=$(CC) --protocol=AFT_TE1-XMTP2 --no-zaptel-compile --noautostart --arch=$(ARCH) --silent
+	@eval "./patches/copy_modules.sh $(PWD)/ss7_build_dir $(WAN_DIR)"  
 
 all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 	@if [ -e  $(PWD)/ast_build_dir ]; then \
@@ -186,8 +208,8 @@ clean: cleanup_local  clean_util _cleanoldwanpipe
 	$(MAKE) -C api SUBDIRS=$(WAN_DIR) clean
 	@find patches/kdrivers -name '.*.cmd' | xargs rm -f
 	@find . -name 'Module.symver*' | xargs rm -f
-	@if [ -e .openzap ]; then
-		rm -f .openzap
+	@if [ -e .openzap ]; then \
+		rm -f .openzap; \
 	fi
 
                                     
@@ -294,6 +316,11 @@ install_kmod:
 		echo "install -m 644 -D $(WAN_DIR)/wanpipe_lip.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}"; \
 		install -m 644 -D $(WAN_DIR)/wanpipe_lip.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}; \
 	fi
+	@rm -f $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/xmtp2km.${MODTYPE}
+	@if [ -f  $(WAN_DIR)/xmtp2km.${MODTYPE} ]; then \
+        echo "install -m 644 -D $(WAN_DIR)/xmtp2km.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/xmtp2km.${MODTYPE}"; \
+        install -m 644 -D $(WAN_DIR)/xmtp2km.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/xmtp2km.${MODTYPE}; \
+    fi
 	@eval "./patches/rundepmod.sh"	
 	
 endif
@@ -326,17 +353,25 @@ install_util:
 	$(MAKE) -C util install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)  
 
 install_smgbri:
-	$(MAKE) -C ssmg/sangoma_mgd.trunk/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PREFIX=$(INSTALLPREFIX)
-	install -D -m 755 ssmg/sangoma_bri/smg_ctrl $(INSTALLPREFIX)/usr/sbin/smg_ctrl
-	install -D -m 755 ssmg/sangoma_bri/sangoma_brid.$(ARCH) $(INSTALLPREFIX)/usr/sbin/sangoma_brid
+	$(MAKE) -C ssmg/sangoma_mgd.trunk/ install  SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) BRI=YES PREFIX=$(INSTALLPREFIX)
 	$(MAKE) -C ssmg/libsangoma.trunk/ install DESTDIR=$(INSTALLPREFIX)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone install DESTDIR=$(INSTALLPREFIX)
 
-install_pri:
+install_bri:
+	$(MAKE) -C ssmg/sangoma_bri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
+
+install_smgpri:
+	$(MAKE) -C ssmg/sangoma_pri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
 	@if [  ! -e .openzap ]; then \
 		@echo "Installing Sangoma MGD"; \
 		$(MAKE) -C ssmg/sangoma_mgd.trunk/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PRI=YES DESTDIR=$(INSTALLPREFIX) ; \
 	fi
+install_pri:
+	@eval "cd ssmg; ./get_sangoma_prid.sh; cd .."
+	$(MAKE) -C ssmg/sangoma_pri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
+
+install_pri_update:
+	@eval "cd ssmg; ./get_sangoma_prid.sh --update; cd .."
 	$(MAKE) -C ssmg/sangoma_pri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
 
 #Install etc files

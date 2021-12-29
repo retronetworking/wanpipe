@@ -1,4 +1,6 @@
 
+/* aft_core_private.h */
+
 #ifndef _AFT_CORE_PRIVATE_H
 #define _AFT_CORE_PRIVATE_H
 
@@ -9,6 +11,7 @@
 # include "if_wanpipe_common.h"	/* wanpipe_common_t */
 # include "aft_core_user.h"		/* aft_op_stats_t */
 # include "wanpipe_tdm_api.h"	/* wanpipe_tdm_api_dev_t */
+# include "aft_core_bert.h"		/* wp_bert_t */
 
 #if defined(__WINDOWS__)
 # include "sdladrv_private.h"
@@ -29,6 +32,7 @@
 
 #define AFT_MIN_ANALOG_FRMW_VER 0x05
 #define AFT_MIN_A600_FRMW_VER 	0x01
+#define AFT_MIN_B601_FRMW_VER  0x03
 
 #define A500_MAX_EC_CHANS 64
 
@@ -145,6 +149,13 @@ enum {
 	WAN_AFT_DMA_CHAIN_SINGLE
 };
 
+enum {
+	AFT_BG_TIMER_RUNNING,
+	AFT_BG_TIMER_KILL,
+
+	AFT_BG_TIMER_CMD_NONE
+};
+
 /*=================================================================
  * Private structures
  *================================================================*/
@@ -196,12 +207,13 @@ typedef struct aft_config
 
 static __inline u32 AFT_PORT_REG(sdla_t *card, u32 reg)
 {
-        if (card->adptr_type == AFT_ADPTR_A600) {
+        if (card->adptr_type == AFT_ADPTR_A600 || 
+			card->adptr_type == AFT_ADPTR_B601) {
         //A600 CASE
                 if (reg < 0x100) {
                         return (reg+0x1000);
                 } else {
-                        return (reg+0x2000);
+                        return (reg+0x2000)+(0x8000*card->wandev.comm_port);
                 }
         } else {
                 if (reg < 0x100) {
@@ -241,9 +253,18 @@ typedef struct aft_dma_swring {
 }aft_dma_swring_t;
 
 
+/* List of Maintenance modes for 'maintenance_mode_bitmap'
+ * in 'private_area_t'. 
+ * Currently only BERT is implemented. */
+enum wp_maintenance_modes {
+	WP_MAINTENANCE_MODE_BERT=0
+};
+
+
+
 typedef struct private_area
 {
-	wanpipe_common_t 	common;
+	wanpipe_common_t 	common;/* MUST be at the top */
 	sdla_t				*card;
 	u32 				busy;
 
@@ -258,10 +279,10 @@ typedef struct private_area
 
 	u32					dma_status;
 	unsigned char		hdlc_eng;
-	unsigned char		tx_chain_indx,tx_pending_chain_indx;
+	unsigned char		tx_chain_indx,tx_pending_chain_indx,tx_chain_data_sz,tx_chain_sz;
 	wan_dma_descr_t 	tx_dma_chain_table[MAX_AFT_DMA_CHAINS];
 
-	unsigned char		rx_chain_indx,rx_pending_chain_indx;
+	unsigned char		rx_chain_indx,rx_pending_chain_indx,rx_chain_sz;
 	wan_dma_descr_t 	rx_dma_chain_table[MAX_AFT_DMA_CHAINS];
 
 	wan_skb_queue_t 	wp_tx_pending_list;
@@ -426,6 +447,11 @@ typedef struct private_area
 	dma_history_t 		dma_history[MAX_DMA_HIST_SIZE];
 #endif
 
+	u32		maintenance_mode_bitmap;
+	wp_bert_t	wp_bert;
+	netskb_t	*tx_bert_skb;
+	u32 bert_data_length;
+
 }private_area_t;
 
 
@@ -466,6 +492,10 @@ int 	aft_tdm_chan_ring_rsyinc(sdla_t * card, private_area_t *chan, int log );
 
 static __inline void wan_aft_skb_defered_dealloc(private_area_t *chan, netskb_t *skb)
 {
+	if(chan->tx_bert_skb == skb){
+		return;
+	}
+
 	wan_skb_queue_tail(&chan->wp_dealloc_list,skb);
 	WAN_TASKLET_SCHEDULE((&chan->common.bh_task));
 }
@@ -483,8 +513,20 @@ static __inline int wan_chan_dev_stopped(private_area_t *chan)
 	return wan_test_bit(0,&chan->busy);
 }
 
+int aft_background_timer_kill(sdla_t* card);
+int aft_background_timer_add(sdla_t* card, unsigned long delay);
 
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+void aft_background_timer_expire(void* pcard);
+#elif defined(__WINDOWS__)
+void aft_background_timer_expire(IN PKDPC Dpc, void* pcard, void* arg2, void* arg3);
+#else
+void aft_background_timer_expire(unsigned long pcard);
 #endif
+
+int aft_fe_loop_back_status(sdla_t *card);
+
+#endif /* WAN_KERNEL */
 
 
 #endif

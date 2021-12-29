@@ -32,8 +32,8 @@ woomera_port		=> 42420
 # If changing from default values
 # ensure that woomera client
 # UDP ports do not conflict.
-base_media_port         => 9000
-max_media_ports         => 899
+base_media_port         => 10000
+max_media_ports         => 5000
 
 
 #Used to play Sangoma Rocks on all
@@ -83,8 +83,8 @@ strip_cid_non_digits => 0
 #This must be enabled on chan_woomera
 #side as well in order to work.
 #0-Disable (Default)
-#1-Eanble
-woomera_udp_seq => 0
+#1-Enable
+udp_seq => 0
 
 
 #Timeout an outboud call, if call setup is
@@ -94,3 +94,41 @@ woomera_udp_seq => 0
 call_timeout=100
 
 
+#Enable woomera sever
+#native bridging. On woomer to woomera
+#calls between two SMG gateways
+#Asterisk chan_woomera will indicate
+#to SMG servers to pass media directly
+#and not pass it through asterisk
+#0-Disable 
+#1-Enable (Default)
+media_pass_through => 1
+
+#Enable tdm bridge profile 1
+#Note profile number must not be zero.
+#Configure all parameters for the bridge.
+#The opposite sangoma_mgd must be configured
+#with same parameters except IP address
+#need to be swaped.
+#bridge_tdm_ip => 1
+#bridge_span => 1
+#bridge_chan => 1
+#bridge_local_ip => 192.168.1.251
+#bridge_remote_ip => 192.168.1.252
+#bridge_port => 60000
+#bridge_period => 10 #milliseconds
+
+
+#Enable tdm bridge profile 2
+#Note profile number must not be zero.
+#Configure all parameters for the bridge.
+#The opposite sangoma_mgd must be configured
+#with same parameters except IP address
+#need to be swaped.
+#bridge_tdm_ip => 2
+#bridge_span => 1
+#bridge_chan => 2
+#bridge_local_ip => 192.168.1.251
+#bridge_remote_ip => 192.168.1.252
+#bridge_port => 60001
+#bridge_period => 10 #milliseconds

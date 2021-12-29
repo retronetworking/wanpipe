@@ -41,12 +41,7 @@ typedef struct sppp_parms_struct {
 	unsigned char ppp_prot;
 
 	/* CHDLC */
-#if defined(__WINDOWS__)
-	unsigned int sppp_max_keepalive_count;
-#else
 	unsigned int keepalive_err_margin;
-#endif
-
 	unsigned char disable_magic;
 }wan_sppp_if_conf_t;
 

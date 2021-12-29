@@ -5,8 +5,12 @@
  *
  * ===========================================================
  *
+ * Oct 06 2009  David Rokhvarg	Modifications for Sangoma
+ *				Windows Device driver.
+ *
  * Feb 09 2007  Joel M. Pareja	Added link state notification 
  *				for NETGRAPH failover support.
+ *
  * Dec 02 2003	Nenad Corbic	Initial Driver
  */
 
@@ -19,7 +23,11 @@
 #include <wanpipe_lip.h>
 #elif defined(__LINUX__)
 #include <linux/wanpipe_lip.h>
+#elif defined(__WINDOWS__)
+#include "wanpipe_lip.h"
 #endif
+
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)	
 
 /*=============================================================
  * Definitions
@@ -58,6 +66,8 @@ static int wplip_unreg(void *reg_ptr);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static void wplip_if_task (void *arg, int dummy);
+#elif defined(__WINDOWS__)
+static void wplip_if_task (IN PKDPC Dpc, IN PVOID arg, IN PVOID SystemArgument1, IN PVOID SystemArgument2);
 #else
 # if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
 static void wplip_if_task (void *arg);
@@ -129,10 +139,10 @@ int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len)
 	sdla_mem_el->mem=mem;
 	strncpy(sdla_mem_el->cmd_func,func_name,sizeof(sdla_mem_el->cmd_func)-1);
 	
-	wan_spin_lock_irq(&wan_debug_mem_lock,&flags);
+	wplip_spin_lock_irq(&wan_debug_mem_lock,&flags);
 	wan_debug_mem+=sdla_mem_el->len;
 	WAN_LIST_INSERT_HEAD(&sdla_memdbg_head, sdla_mem_el, next);
-	wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
+	wplip_spin_unlock_irq(&wan_debug_mem_lock,&flags);
 
 	DEBUG_EVENT("%s:%d: Alloc %p Len=%i Total=%i\n",
 			sdla_mem_el->cmd_func,sdla_mem_el->line,
@@ -148,7 +158,7 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 	wan_smp_flag_t flags;
 	int err=-1;
 
-	wan_spin_lock_irq(&wan_debug_mem_lock,&flags);
+	wplip_spin_lock_irq(&wan_debug_mem_lock,&flags);
 
 	WAN_LIST_FOREACH(sdla_mem_el, &sdla_memdbg_head, next){
 		if (sdla_mem_el->mem == mem) {
@@ -160,7 +170,7 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 		
 		WAN_LIST_REMOVE(sdla_mem_el, next);
 		wan_debug_mem-=sdla_mem_el->len;
-		wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
+		wplip_spin_unlock_irq(&wan_debug_mem_lock,&flags);
 
 		DEBUG_EVENT("%s:%d: DeAlloc %p Len=%i Total=%i (From %s:%d)\n",
 			func_name,line,
@@ -173,7 +183,7 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 #endif
 		err=0;
 	} else {
-		wan_spin_unlock_irq(&wan_debug_mem_lock,&flags);
+		wplip_spin_unlock_irq(&wan_debug_mem_lock,&flags);
 	}
 
 	if (err) {
@@ -361,13 +371,19 @@ static int wplip_unreg(void *lip_link_ptr)
 	return 0;
 }
 
-
+#if defined(__WINDOWS__)
+static int wplip_if_reg(void *lip_link_ptr, netdevice_t *dev, wanif_conf_t *conf)
+#else
 static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
+#endif
 {		
 	wplip_link_t *lip_link = (wplip_link_t*)lip_link_ptr;
 	wplip_dev_t *lip_dev;
 	int usedby=0;
 	int err;
+#if defined(__WINDOWS__)
+	const char *dev_name = dev->name;
+#endif
 
 	if (!conf){
 		DEBUG_EVENT("%s: LIP DEV: If Registartion without configuration!\n",dev_name);
@@ -422,7 +438,11 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 		return -EINVAL;
 	}
 
+#if defined(__WINDOWS__)
+	if ((lip_dev = wplip_create_lipdev(dev, usedby)) == NULL){
+#else
 	if ((lip_dev = wplip_create_lipdev(dev_name, usedby)) == NULL){
+#endif
 		DEBUG_EVENT("%s: LIP: Failed to create lip priv device %s\n",
 				lip_link->name,dev_name);
 		return -ENOMEM;
@@ -430,7 +450,7 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 
 #if defined(__LINUX__)
 	if (conf->mtu){
-       		lip_dev->common.dev->mtu = conf->mtu; 
+       	lip_dev->common.dev->mtu = conf->mtu; 
 	}
 #endif
 	
@@ -439,7 +459,8 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 	lip_dev->protocol	= conf->protocol;
 	lip_dev->common.usedby 	= usedby;
 	lip_dev->common.state	= WAN_DISCONNECTED;
-       	WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
+    
+   	WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
 
 #if defined(__LINUX__)
 	if (conf->true_if_encoding){
@@ -548,6 +569,7 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 			lip_link->name,
 			lip_dev,
 			lip_dev->magic);
+
 	return 0;
 }
 
@@ -568,22 +590,23 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 
 static int wplip_if_unreg (netdevice_t *dev)
 {
-	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
+	wplip_dev_t *lip_dev = wplip_netdev_get_lipdev(dev);
 	wplip_link_t *lip_link = NULL;
 	wplip_link_t *stack_lip_link = NULL;
 	wan_smp_flag_t flags;
 
 	if (!lip_dev)
 		return -ENODEV;
-	
+
+	/* under windows interface is always up, disregard this flag */
+#ifndef __WINDOWS__
 	if (WAN_NETIF_UP(dev)){
 		DEBUG_EVENT("%s: Failed to unregister: Device UP!\n",
 				wan_netif_name(dev));
 		return -EBUSY;
 	}
-	
+#endif
 	lip_link = lip_dev->lip_link;
-	
 	if (wplip_link_exists(lip_link) != 0){
 		DEBUG_EVENT("%s: Failed to unregister: no link device\n",
 				wan_netif_name(dev));
@@ -609,10 +632,10 @@ static int wplip_if_unreg (netdevice_t *dev)
 
 	wplip_close_lipdev_prot(lip_dev);
 	
-	wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+	wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 	lip_link->cur_tx=NULL;
 	wan_skb_queue_purge(&lip_dev->tx_queue);
-	wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+	wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 	
 	DEBUG_EVENT("%s: Unregistering LIP device\n",
 				wan_netif_name(dev));
@@ -643,6 +666,7 @@ static int wplip_bind_link(void *lip_id,netdevice_t *dev)
 	wplip_link_t *lip_link = (wplip_link_t*)lip_id;
 	wplip_dev_list_t  *lip_dev_list_el;
 	wan_smp_flag_t	flags;
+	wanpipe_common_t *common = (wanpipe_common_t*)wan_netif_priv(dev);
 	
 	if (!lip_id){
 		return -ENODEV;
@@ -663,14 +687,22 @@ static int wplip_bind_link(void *lip_id,netdevice_t *dev)
 	
 	WAN_DEV_HOLD(dev);
 
+	/* Check if lower layer is connected. We must do this
+	   in case the lower layer is already connected on startup.
+	   Otherwise we can get into a condition where LIP layer is down
+	   and lower layer is UP */
+	if (common && common->state == WAN_CONNECTED) {
+		lip_link->carrier_state = WAN_CONNECTED;
+	}
+
 	lip_dev_list_el->dev=dev;
 	
-	wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+	wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 
 	WAN_LIST_INSERT_HEAD(&lip_link->list_head_tx_ifdev,lip_dev_list_el,list_entry);
 	lip_link->tx_dev_cnt++;
 
-	wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+	wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 
 	return 0;
 }
@@ -691,7 +723,7 @@ static int wplip_unbind_link(void *lip_id,netdevice_t *dev)
 	}
 	
 
-	wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+	wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 
 	WAN_LIST_FOREACH(lip_dev_list_el,&lip_link->list_head_tx_ifdev,list_entry){
 		if (lip_dev_list_el->dev == dev){
@@ -702,7 +734,7 @@ static int wplip_unbind_link(void *lip_id,netdevice_t *dev)
 		}
 	}	
 	
-	wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+	wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 
 	if (err==0){
 		WAN_DEV_PUT(lip_dev_list_el->dev);
@@ -847,6 +879,7 @@ int wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb)
 		break;
 #endif	
 
+#if !defined(__WINDOWS__)
 	case STACK:
 		if (lip_dev->common.lip){
 			int err=wplip_rx(lip_dev->common.lip,skb);
@@ -863,7 +896,10 @@ int wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb)
 		}
 
 		break;
+#endif
+
 	default:
+		/* Windows note: rx data always handled by 'default' case! */
 		if (wan_iface.input && wan_iface.input(lip_dev->common.dev, skb) == 0){
 			WAN_NETIF_STATS_INC_RX_PACKETS(&lip_dev->common);	//lip_dev->ifstats.rx_packets++;
 			WAN_NETIF_STATS_INC_RX_BYTES(&lip_dev->common,len);	//lip_dev->ifstats.rx_bytes += len;
@@ -910,7 +946,7 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
 
 	
 	if (!lip_link->tx_dev_cnt){ 
-		DEBUG_EVENT("%s: %s: Tx Dev List empty! dropping...\n",
+		DEBUG_EVENT("%s(): %s: (1) Tx Dev List empty! dropping...\n",
 				__FUNCTION__,lip_link->name);	
 		return -ENODEV;
 	}
@@ -919,7 +955,7 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
 	 * For now, we can only transmit on a FIRST Tx device */
 	lip_dev_list_el=WAN_LIST_FIRST(&lip_link->list_head_tx_ifdev);
 	if (!lip_dev_list_el){
-		DEBUG_EVENT("%s: %s: Tx Dev List empty! dropping...\n",
+		DEBUG_EVENT("%s(): %s: (2) Tx Dev List empty! dropping...\n",
 				__FUNCTION__,lip_link->name);	
 		return -ENODEV;
 	}
@@ -941,12 +977,12 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
 		return -EBUSY;
 	}
 
-#if defined(__LINUX__)
+#if defined(__LINUX__) || defined(__WINDOWS__)
 	if (lip_link->latency_qlen != dev->tx_queue_len) {
         	dev->tx_queue_len=lip_link->latency_qlen;
 	}  
 
-	return dev->hard_start_xmit(skb,dev);
+	return WAN_NETDEV_XMIT(skb,dev);
 #else
 	if (!(WAN_NETIF_QUEUE_STOPPED(dev)) && dev->if_output){
  		return dev->if_output(dev, skb, NULL,NULL);
@@ -960,7 +996,7 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
 int wplip_change_mtu(netdevice_t *dev, int new_mtu)
 {
 #if defined(__LINUX__)
-	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
+	wplip_dev_t *lip_dev = wplip_netdev_get_lipdev(dev);
 	wplip_link_t *lip_link = lip_dev->lip_link;
 	netdevice_t *hw_dev;
 	wplip_dev_list_t *lip_dev_list_el;
@@ -993,13 +1029,13 @@ int wplip_change_mtu(netdevice_t *dev, int new_mtu)
 				__FUNCTION__,lip_link->name);
 		return -ENODEV;
 	}	
+	
+	if (WAN_NETDEV_TEST_MTU(hw_dev)) {
+		err = WAN_NETDEV_CHANGE_MTU(hw_dev,new_mtu);
+	}	
 
-	if (hw_dev->change_mtu) {
-		err = hw_dev->change_mtu(hw_dev,new_mtu);
-	} 
-		
 	if (err == 0) {
-		dev->mtu = new_mtu;
+		WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,new_mtu);
 	}
 
 	return err;
@@ -1148,10 +1184,10 @@ static void wplip_connect(void *wplip_id,int reason)
 		DEBUG_EVENT("%s: Lip Link Carrier Connected! \n",
 			lip_link->name);
 
-		wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+		wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 		wan_skb_queue_purge(&lip_link->tx_queue);
 		wan_skb_queue_purge(&lip_link->rx_queue);
-		wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+		wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 
 		wplip_kick(lip_link,0);
 		
@@ -1394,6 +1430,8 @@ unsigned int wplip_get_ipv4_addr (void *wplip_id, int type)
 	default:
 		return 0;
 	}
+#elif defined(__WINDOWS__)
+	/* not used */
 #else
 	netdevice_t		*ifp = NULL;
 	struct ifaddr		*ifa = NULL;
@@ -1478,6 +1516,9 @@ int wplip_set_ipv4_addr (void *wplip_id,
 	err = wp_devinet_ioctl(SIOCSIFDSTADDR, &if_info);
 	set_fs(fs);
 
+	return 0;
+#elif defined(__WINDOWS__)
+	/* not used */
 	return 0;
 #else
 	netdevice_t		*ifp = NULL;
@@ -1596,6 +1637,8 @@ static int wplip_change_dev_flags (netdevice_t *dev, unsigned flags)
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 static void wplip_if_task (void *arg, int dummy)
+#elif defined(__WINDOWS__)
+static void wplip_if_task (IN PKDPC Dpc, IN PVOID arg, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
 #else
 # if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)) 	
 static void wplip_if_task (void *arg)
@@ -1607,7 +1650,7 @@ static void wplip_if_task (struct work_struct *work)
 #if defined(__LINUX__)
 	
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))   
-        wplip_dev_t	*lip_dev=(wplip_dev_t *)container_of(work, wplip_dev_t, if_task);
+	wplip_dev_t	*lip_dev=(wplip_dev_t *)container_of(work, wplip_dev_t, if_task);
 #else
 	wplip_dev_t	*lip_dev=(wplip_dev_t *)arg;
 #endif
@@ -1627,7 +1670,7 @@ static void wplip_if_task (struct work_struct *work)
 		return;
 	}
 	
-	DEBUG_TEST("%s:%d: Device %s\n",__FUNCTION__,__LINE__,lip_dev->name);
+	DEBUG_TEST("%s():line:%d: LIP Device %s\n",__FUNCTION__,__LINE__,lip_dev->name);
 	
 	lip_link = lip_dev->lip_link;
 	dev=lip_dev->common.dev;

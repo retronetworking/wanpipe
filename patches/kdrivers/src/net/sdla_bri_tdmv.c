@@ -361,7 +361,7 @@ static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan,
 		if(chan->chanpos == 1 || chan->chanpos == 2){
 			err = card->wandev.ec_enable(card, 1, chan->chanpos);
 		}else{
-			DEBUG_EVENT("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
+			DEBUG_WARNING("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
 						wr->devname, __FUNCTION__, chan->chanpos);
 			err = 0;
 		}
@@ -398,7 +398,7 @@ static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_
 		if(chan->chanpos == 1 || chan->chanpos == 2) {
 			card->wandev.ec_enable(card, 0, chan->chanpos);
 		} else {
-			DEBUG_EVENT("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
+			DEBUG_WARNING("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
 				wr->devname, __FUNCTION__, chan->chanpos);
 		}
 	} else {
@@ -438,7 +438,7 @@ static int wp_bri_zap_hwec(struct zt_chan *chan, int enable)
 		if (chan->chanpos == 1 || chan->chanpos == 2){
 			err = card->wandev.ec_enable(card, enable, chan->chanpos);
 		}else{
-			DEBUG_EVENT("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
+			DEBUG_WARNING("[TDMV_BRI]: %s: %s(): Warning: invalid fe_channel %d!!\n",
 				wr->devname, __FUNCTION__, chan->chanpos);
 			err = 0;
 		}
@@ -852,7 +852,7 @@ static int wp_tdmv_bri_reg(
 	wan_set_bit(channo, &wr->timeslot_map);
 	
 	if (i == wr->max_timeslots){
-		DEBUG_EVENT("%s: Error: TDMV iface %s failed to configure for 0x%08X timeslots!\n",
+		DEBUG_ERROR("%s: Error: TDMV iface %s failed to configure for 0x%08X timeslots!\n",
 					card->devname,
 					wan_netif_name(dev),
 					active_ch);
@@ -882,7 +882,7 @@ static int wp_tdmv_bri_reg(
 		__FUNCTION__, card->u.aft.tdmv_dchan, channo, wr->dchan);
 	
 	if(wr->dchan != 3){
-		DEBUG_EVENT("%s:%s: Error: 'dchan' (%d) not equal 3!\n",
+		DEBUG_ERROR("%s:%s: Error: 'dchan' (%d) not equal 3!\n",
 				card->devname, wan_netif_name(dev), wr->dchan);
 		return -EINVAL;
 	}
@@ -966,7 +966,7 @@ static int wp_tdmv_bri_remove(void* pcard)
 		return -EINVAL;
 	}
 	if (wr && wr->usecount){
-		DEBUG_EVENT("%s: ERROR: Wanpipe is still used by Asterisk!\n",
+		DEBUG_ERROR("%s: ERROR: Wanpipe is still used by Asterisk!\n",
 				card->devname);
 		return -EINVAL;
 	}
@@ -1395,7 +1395,7 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 	buf = ms->readbuf[ms->inreadbuf];
 	left = ms->blocksize - ms->readidx[ms->inreadbuf];
 	if (len + 2 > left) {
-		DEBUG_EVENT("%s: ERROR: Not ehough space for RX HDLC packet (%d:%d)!\n",
+		DEBUG_ERROR("%s: ERROR: Not ehough space for RX HDLC packet (%d:%d)!\n",
 				wp->devname, len+2, left); 
 		wan_spin_unlock_irq(&chan->lock, &smp_flags);
 		return -EINVAL;

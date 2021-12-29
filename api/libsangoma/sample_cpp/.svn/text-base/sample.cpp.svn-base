@@ -37,9 +37,9 @@
 #include "sangoma_interface.h"
 
 #if defined(__LINUX__)
-#include "sample_linux_compat.h"
+# include "sample_linux_compat.h"
 #else
-#include <conio.h>
+# include <conio.h>
 #endif
 
 #ifndef MAX_PATH
@@ -55,13 +55,15 @@ wp_program_settings_t	program_settings;
 callback_functions_t 	callback_functions;
 
 
-
 /*****************************************************************
  * Prototypes & Defines
  *****************************************************************/
 
 static int got_rx_data(void *sang_if_ptr, void *rx_data);
-static void got_TdmApiEvent(void *sang_if_ptr, void *event_data);
+static void got_tdm_api_event(void *sang_if_ptr, void *event_data);
+#if USE_WP_LOGGER
+static void got_logger_event(void *sang_if_ptr, wp_logger_event_t *logger_event);
+#endif
 
 typedef struct{
 	void				*sang_if_ptr;
@@ -116,16 +118,21 @@ static int set_port_configuration();
 sangoma_interface* init(int wanpipe_number, int interface_number)
 {
 	sangoma_interface	*sang_if = NULL;
-	DBG_MAIN("init()\n");
+	DBG_MAIN("%s()\n", __FUNCTION__);
+
 	if(program_settings.use_ctrl_dev == 1){
 		sang_if = new sangoma_api_ctrl_dev();
+	}else if(program_settings.use_logger_dev == 1){
+		sang_if = new sangoma_api_logger_dev();
 	}else{
 		sang_if = new sangoma_interface(wanpipe_number, interface_number);
 	}
+
 	if(sang_if->init(&callback_functions)){
 		delete sang_if;
 		return NULL;
 	}
+
 	DBG_MAIN("init(): OK\n");
 	return sang_if;
 }
@@ -187,11 +194,15 @@ void PrintRxData(wp_api_hdr_t *hdr, void *pdata)
 	rx_counter++;
 	if(program_settings.silent){
 		if((rx_counter % 1000) == 0){
-			INFO_MAIN("Rx counter:%d, Rx datlen : %d\n", rx_counter, datlen);
+			INFO_MAIN("Rx counter: %d, Rx datlen: %d\n", rx_counter, datlen);
+#if 0
+			INFO_MAIN("Timestamp: Seconds: %d, Microseconds: %d\n", 
+				hdr->wp_api_hdr_time_stamp_sec, hdr->wp_api_hdr_time_stamp_use);
+#endif
 		}
 		return;
 	}else{
-		INFO_MAIN("Rx counter:%d, Rx datlen : %d. Data :\n", rx_counter, datlen);
+		INFO_MAIN("Rx counter: %d, Rx datlen: %d. Data:\n", rx_counter, datlen);
 	}
 
 #if 1
@@ -250,7 +261,7 @@ static int got_rx_data(void *sang_if_ptr, void *rxhdr, void *rx_data)
 }
 
 /*!
-  \fn static void got_TdmApiEvent(void *sang_if_ptr, void *event_data)
+  \fn static void got_tdm_api_event(void *sang_if_ptr, void *event_data)
   \brief Callback function indicating Event is pending.
   \param sang_if_ptr sangoma interface pointer
   \param event_data  API event element strcutre containt header + data
@@ -259,7 +270,7 @@ static int got_rx_data(void *sang_if_ptr, void *rxhdr, void *rx_data)
    Currently Windows launches a thread to handle the event, where
    Linux handles the event directly.  Implementation is left to the user.
 */
-static void got_TdmApiEvent(void *sang_if_ptr, void *event_data)
+static void got_tdm_api_event(void *sang_if_ptr, void *event_data)
 {
 	TDM_API_EVENT_THREAD_PARAM	*param =
 		(TDM_API_EVENT_THREAD_PARAM*)malloc(sizeof(TDM_API_EVENT_THREAD_PARAM));
@@ -390,6 +401,27 @@ void *TdmApiEventThreadFunc(void *lpdwParam)
 	return 0;
 }
 
+#if USE_WP_LOGGER
+/*!
+  \fn static void got_logger_event(void *sang_if_ptr, wp_logger_event_t *logger_event)
+  \brief Callback function indicating Logger Event is pending.
+  \param sang_if_ptr sangoma interface pointer
+  \param logger_event API Logger Event structure
+  \return 0 - ok  non-zero - Error
+*/
+static void got_logger_event(void *sang_if_ptr, wp_logger_event_t *logger_event)
+{
+	char *timestamp_str = sangoma_ctime( &logger_event->time_stamp_sec );
+
+	INFO_MAIN("Logger Event Type:\t%s (Logger:%d BitMap: 0x%08X)\n",
+		wp_decode_logger_event_type(logger_event->logger_type, logger_event->event_type),
+		logger_event->logger_type, logger_event->event_type);
+	/* Display Logger Event Timestamp as UNIX-style Date string. */
+	INFO_MAIN("Time and Date:\t\t%s\n", 
+		(timestamp_str == NULL ? "Invalid Timestamp" : timestamp_str));
+	INFO_MAIN("Logger Event Data: %s\n\n", logger_event->data);
+}
+#endif
 
 /*!
   \fn int tx_file(sangoma_interface *sang_if)
@@ -492,34 +524,48 @@ static int get_user_hex_number()
   \param argc number of arguments
   \param argv argument list
   \return 0 - ok  non-zero - Error
-
 */
 static int parse_command_line_args(int argc, char* argv[])
 {
 	int i;
 	const char *USAGE_STR =
 "\n"
-"Usage: sample [-c] [-i] [-silent]\n"
+"Usage: sample [-c] [-i] [options]\n"
 "\n"
-"Options:\n"
-"\t-c		number	Wanpipe number: 1,2,3...\n"
-"\t-i		number	Interface number 0,1,2,3,....\n"
-"\t-driver_config	configure start/stop driver using volatile....\n"
+"\t-c		number	Wanpipe (Port/Span) number: 1,2,3...\n"
+"\t-i		number	Interface number 1,2,3,....\n"
+"options:\n"
 "\t-silent			Disable display of Rx data\n"
-"\t-rx2tx			All received data automatically transmitted on the SAME interface\n"
-"\t-txlength\tnumber\tLength of data frames to be transmitted when 't' key is pressed\n"
-"\t-txcount\tnumber	Number of test data frames to be transmitted when 't' key is pressed\n"
+"\t-driver_config	\tStop/Set Configuration/Start a Port....\n"
+"\t-rx2tx			All received data automatically transmitted on\n"
+"\t       			the SAME interface\n"
+"\t-txlength\tnumber\tLength of data frames to be transmitted when 't'\n"
+"\t         \t      \tkey is pressed\n"
+"\t-txcount\tnumber	Number of test data frames to be transmitted when 't'\n"
+"\t        \t       \tkey is pressed\n"
 "\t-tx_file_name\tstring\tFile to be transmitted when 't' key is pressed\n"
 #if USE_STELEPHONY_API
-"\t-decode_fsk_cid\t\tDecode FSK Caller ID on an Analog line. For Voice data only.\n"
-"\t-encode_fsk_cid\t\tEncode FSK Caller ID on an Analog line. For Voice data only.\n"
+"\t-decode_fsk_cid\t\tDecode FSK Caller ID on an Analog line.\n"
+"\t               \t\tFor Voice data only.\n"
+"\t-encode_fsk_cid\t\tEncode FSK Caller ID on an Analog line.\n"
+"\t               \t\tFor Voice data only.\n"
 "\t-encode_sw_dtmf\t\tEncode SW DTMF on an line. For Voice data only.\n"
 "\t-sw_dtmf		Enable Sangoma Software DTMF decoder. For Voice data only.\n"
 "\t-decode_q931		Enable Sangoma Q931 decoder. For HDLC (Dchannel) data only.\n"
 "\t-alaw\t\t	Use Alaw codec instead of default MuLaw codec for Voice data.\n"
+"\t-rm_txgain\t	Set txgain for FXS/FXO modules.\n"
+"\t          \t\tFXO range from -150 to 120, FXS 35 or -35\n"
+"\t-rm_rxgain\t	Set txgain for FXS/FXO modules.\n"
+"\t          \t\tFXO range from -150 to 120, FXS 35 or -35\n"
 #endif
 #if 0
-"\t-use_ctrl_dev	Use the global 'wptdm_ctrl' device to Get events and to Control device.\n"
+"\t-use_ctrl_dev	\tUse the global 'wptdm_ctrl' device to Get events from\n"
+"\t				\tall API devices.\n"
+#endif
+"\t-use_logger_dev	\tUse the global Logger device to Get Log Messages\n"
+"\t                 \tfrom API driver.\n"
+#ifdef WP_API_FEATURE_LIBSNG_HWEC
+"\t-use_hwec	\tInitialize/Configure/Use the Hardware Echo Canceller\n"
 #endif
 "\n"
 "Example: sample -c 1 -i 1\n";
@@ -527,8 +573,10 @@ static int parse_command_line_args(int argc, char* argv[])
 	memset(&program_settings, 0, sizeof(wp_program_settings_t));
 	program_settings.wanpipe_number = 1;
 	program_settings.interface_number = 1;
-	program_settings.txlength = 128;
+	program_settings.txlength = 80;
 	program_settings.txcount = 1;
+	program_settings.rxgain = 0xFFFF;	//FXO/FXS rx gain unchanged	
+	program_settings.txgain = 0xFFFF;	//FXO/FXS tx gain unchanged
 
 	
 	for(i = 1; i < argc;){
@@ -618,6 +666,29 @@ static int parse_command_line_args(int argc, char* argv[])
 		}else if(_stricmp(argv[i], "-use_ctrl_dev") == 0){
 			INFO_MAIN("Using ctrl_dev...\n");
 			program_settings.use_ctrl_dev = 1;
+		}else if(_stricmp(argv[i], "-use_logger_dev") == 0){
+			INFO_MAIN("Using logger_dev...\n");
+			program_settings.use_logger_dev = 1;
+		}else if(_stricmp(argv[i], "-rm_txgain") == 0){
+			if (i+1 > argc-1){
+				INFO_MAIN("No txgain provided!\n");
+				return 1;
+			}
+			program_settings.txgain = atoi(argv[i+1]);
+			i++;
+			INFO_MAIN("Setting txgain to %d.\n", program_settings.txgain);
+		}else if(_stricmp(argv[i], "-rm_rxgain") == 0){
+			if (i+1 > argc-1){
+				INFO_MAIN("No rxgain provided!\n");
+				return 1;
+			}
+			program_settings.rxgain = atoi(argv[i+1]);
+			i++;
+			INFO_MAIN("Setting rxgain to %d.\n", program_settings.txgain);
+		}else if(_stricmp(argv[i], "-use_hwec") == 0){
+
+			INFO_MAIN("Using hardware echo canceller...\n");
+			program_settings.use_hardware_echo_canceller = 1;
 		}else{
 			INFO_MAIN("Error: Invalid Argument %s\n",argv[i]);
 			return 1;
@@ -654,8 +725,10 @@ int __cdecl main(int argc, char* argv[])
 	////////////////////////////////////////////////////////////////////////////
 	memset(&callback_functions, 0x00, sizeof(callback_functions));
 	callback_functions.got_rx_data = got_rx_data;
-	callback_functions.got_TdmApiEvent = got_TdmApiEvent;
-
+	callback_functions.got_tdm_api_event = got_tdm_api_event;
+#if USE_WP_LOGGER
+	callback_functions.got_logger_event = got_logger_event;
+#endif
 	////////////////////////////////////////////////////////////////////////////
 	if(parse_command_line_args(argc, argv)){
 		return 1;
@@ -693,65 +766,92 @@ int __cdecl main(int argc, char* argv[])
 		cleanup(sang_if);
 		return rc;
 	}
+	if(program_settings.txgain !=  0xFFFF) {
+		INFO_MAIN("Applying  txgain...\n");
+		if (sang_if->tdm_control_rm_txgain(program_settings.txgain)){
+			INFO_MAIN("Failed to apply txgain!\n");
+		}
+	}
+	
+	/* FXS cannot detect if phone is connected or not when the card is started
+		therefore tranmit following two events for Set Polarity to work */
+	if(sang_if->get_adapter_type() == WAN_MEDIA_FXOFXS && sang_if->get_sub_media() == MOD_TYPE_FXS) {
+			INFO_MAIN("Setting Proper hookstates on FXS\n");
+			sang_if->tdm_txsig_offhook();
+			sang_if->tdm_txsig_onhook();
+	}
 
+	if(program_settings.rxgain !=  0xFFFF) {
+		INFO_MAIN("Applying rxgain...\n");
+		if (sang_if->tdm_control_rm_rxgain(program_settings.rxgain)){
+			INFO_MAIN("Failed to apply rxgain!\n");
+		}
+	}
 	do{
 		EnterCriticalSection(&PrintCriticalSection);
+		
 		INFO_MAIN("Press 'q' to quit the program.\n");
-		INFO_MAIN("Press 't' to transmit data.\n");
 		INFO_MAIN("Press 's' to get Operational Statistics.\n");
 		INFO_MAIN("Press 'f' to reset (flush) Operational Statistics.\n");
-		INFO_MAIN("Press 'v' to get API driver version.\n");
 
-		if(sang_if->get_adapter_type() == WAN_MEDIA_T1 || sang_if->get_adapter_type() == WAN_MEDIA_E1){
-			INFO_MAIN("Press 'a' to get T1/E1 alarms.\n");
-			//RBS (CAS) commands
-			INFO_MAIN("Press 'g' to get RBS bits.\n");
-			INFO_MAIN("Press 'r' to set RBS bits.\n");
-			INFO_MAIN("Press '1' to read FE register. Warning: used by Sangoma Techsupport only!\n");
-			INFO_MAIN("Press '2' to write FE register.  Warning: used by Sangoma Techsupport only!\n");
-		}
-		INFO_MAIN("Press 'i' to set Tx idle data buffer (BitStream only).\n");
-		switch(sang_if->get_adapter_type())
-		{
-		case WAN_MEDIA_T1:
-			//those commands valid only for T1
-			INFO_MAIN("Press 'l' to send 'activate remote loop back' signal.\n");
-			INFO_MAIN("Press 'd' to send 'deactivate remote loop back' signal.\n");
-			break;
-		case WAN_MEDIA_FXOFXS:
-			switch(sang_if->get_sub_media())
+		if(program_settings.use_logger_dev != 1){
+			/* these options valid for non-logger api devices */
+			INFO_MAIN("Press 't' to transmit data.\n");
+			INFO_MAIN("Press 'v' to get API driver version.\n");
+
+			if(sang_if->get_adapter_type() == WAN_MEDIA_T1 || sang_if->get_adapter_type() == WAN_MEDIA_E1){
+				INFO_MAIN("Press 'a' to get T1/E1 alarms.\n");
+				//RBS (CAS) commands
+				INFO_MAIN("Press 'g' to get RBS bits.\n");
+				INFO_MAIN("Press 'r' to set RBS bits.\n");
+				INFO_MAIN("Press '1' to read FE register. Warning: used by Sangoma Techsupport only!\n");
+				INFO_MAIN("Press '2' to write FE register.  Warning: used by Sangoma Techsupport only!\n");
+			}
+			INFO_MAIN("Press 'i' to set Tx idle data buffer (BitStream only).\n");
+			switch(sang_if->get_adapter_type())
 			{
-			case MOD_TYPE_FXS:
-				INFO_MAIN("Press 'e' to listen to test tones on a phone connected to the A200-FXS\n");
-				INFO_MAIN("Press 'c' to ring/stop ring phone connected to the A200-FXS\n");
-				INFO_MAIN("Press 'n' to enable/disable reception of ON/OFF Hook events on A200-FXS\n");
-				INFO_MAIN("Press 'm' to enable DTMF events (on SLIC chip) on A200-FXS\n");
-				INFO_MAIN("Press 'j' to enable/disable reception of Ring Trip events on A200-FXS\n");
+			case WAN_MEDIA_T1:
+				//those commands valid only for T1
+				INFO_MAIN("Press 'l' to send 'activate remote loop back' signal.\n");
+				INFO_MAIN("Press 'd' to send 'deactivate remote loop back' signal.\n");
 				break;
+			case WAN_MEDIA_FXOFXS:
+				switch(sang_if->get_sub_media())
+				{
+				case MOD_TYPE_FXS:
+					INFO_MAIN("Press 'e' to listen to test tones on a phone connected to the A200-FXS\n");
+					INFO_MAIN("Press 'c' to ring/stop ring phone connected to the A200-FXS\n");
+					INFO_MAIN("Press 'n' to enable/disable reception of ON/OFF Hook events on A200-FXS\n");
+					INFO_MAIN("Press 'm' to enable DTMF events (on SLIC chip) on A200-FXS\n");
+					INFO_MAIN("Press 'j 'to enable/disable reception of Ring Trip events on A200-FXS\n");
+					INFO_MAIN("Press 'k' to transmit kewl - drop line voltage on the line connected to the A200-FXS\n");
+					INFO_MAIN("Press 'h' to set polarity on the line connected to the A200-fXS\n");
+					INFO_MAIN("Press 'u' to transmit onhooktransfer on the line connected to the A200-FXS\n");
+					break;
 
-			case MOD_TYPE_FXO:
-				INFO_MAIN("Press 'u' to enable/disable reception of Ring Detect events on A200-FXO\n");
-				INFO_MAIN("Press 'h' to transmit ON/OFF hook signals on A200-FXO\n");
-				INFO_MAIN("Press 'a' to get Line Status (Connected/Disconnected)\n");
+				case MOD_TYPE_FXO:
+					INFO_MAIN("Press 'u' to enable/disable reception of Ring Detect events on A200-FXO\n");
+					INFO_MAIN("Press 'h' to transmit ON/OFF hook signals on A200-FXO\n");
+					INFO_MAIN("Press 'a' to get Line Status (Connected/Disconnected)\n");
+					break;
+				}
+				break;
+			case WAN_MEDIA_BRI:
+				INFO_MAIN("Press 'k' to Activate/Deactivate ISDN BRI line\n");
+				INFO_MAIN("Press 'l' to enable	bri bchan loopback\n");
+				INFO_MAIN("Press 'd' to disable bri bchan loopback\n");
 				break;
 			}
-			break;
-		case WAN_MEDIA_BRI:
-			INFO_MAIN("Press 'k' to Activate/Deactivate ISDN BRI line\n");
-			INFO_MAIN("Press 'l' to enable	bri bchan loopback\n");
-			INFO_MAIN("Press 'd' to disable bri bchan loopback\n");
-			break;
-		}
-		INFO_MAIN("Press 'o' to enable DTMF events (on Octasic chip)\n");
-		if (program_settings.encode_sw_dtmf) {
-			INFO_MAIN("Press 'x' to send software DTMF\n");
-		}
-		if (program_settings.encode_fsk_cid) {
-			INFO_MAIN("Press 'z' to send software FSK Caller ID\n");
-		}
+			INFO_MAIN("Press 'o' to enable DTMF events (on Octasic chip)\n");
+			if (program_settings.encode_sw_dtmf) {
+				INFO_MAIN("Press 'x' to send software DTMF\n");
+			}
+			if (program_settings.encode_fsk_cid) {
+				INFO_MAIN("Press 'z' to send software FSK Caller ID\n");
+			}
+		}//if(program_settings.use_logger_dev != 1)
 
 		LeaveCriticalSection(&PrintCriticalSection);
-
 		user_selection = tolower(_getch());
 		switch(user_selection)
 		{
@@ -772,7 +872,12 @@ int __cdecl main(int argc, char* argv[])
 			}
 			break;
 		case 's':
-			{
+			if(program_settings.use_logger_dev == 1){
+				wp_logger_stats_t stats;
+				/* Warning: for demonstration purposes only, it is assumed,
+				 *			that 'sang_if' is 'sangoma_api_logger_dev'. */
+				((sangoma_api_logger_dev*)sang_if)->get_logger_dev_operational_stats(&stats);
+			}else{
 				wanpipe_chan_stats_t stats;
 				sang_if->get_operational_stats(&stats);
 			}
@@ -1035,16 +1140,20 @@ user_retry_ring_e_d:
 			break;
 		case 'u':
 			//Enable/Disable Ring Detect events on FXO. 
-			INFO_MAIN("Press 'e' to ENABLE Rx Ring Detect Events, 'd' to DISABLE Rx Ring Detect Events.\n");
-			INFO_MAIN("\n");
-			switch(tolower(_getch()))
-			{
-			case 'e':
-				sang_if->tdm_enable_ring_detect_events();
-				break;
-			case 'd':
-			default:
-				sang_if->tdm_disable_ring_detect_events();
+			if(sang_if->get_sub_media()==MOD_TYPE_FXO){
+				INFO_MAIN("Press 'e' to ENABLE Rx Ring Detect Events, 'd' to DISABLE Rx Ring Detect Events.\n");
+				INFO_MAIN("\n");
+				switch(tolower(_getch()))
+				{
+				case 'e':
+					sang_if->tdm_enable_ring_detect_events();
+					break;
+				case 'd':
+				default:
+					sang_if->tdm_disable_ring_detect_events();
+				}
+			}else if(sang_if->get_sub_media()==MOD_TYPE_FXS){
+					sang_if->tdm_txsig_onhooktransfer();
 			}
 			break;
 		case 'j':
@@ -1062,29 +1171,56 @@ user_retry_ring_e_d:
 			}
 			break;
 		case 'h':
-			INFO_MAIN("Press 'e' to transmit OFF hook signal, 'd' to transmit ON hook signal.\n");
-			INFO_MAIN("\n");
-			switch(tolower(_getch()))
-			{
-			case 'e':
-				sang_if->fxo_go_off_hook();
-				break;
-			case 'd':
-			default:
-				sang_if->fxo_go_on_hook();
+			if(sang_if->get_sub_media()==MOD_TYPE_FXO) {
+				INFO_MAIN("Press 'e' to transmit OFF hook signal, 'd' to transmit ON hook signal.\n");
+				INFO_MAIN("\n");
+				switch(tolower(_getch()))
+				{
+				case 'e':
+					sang_if->fxo_go_off_hook();
+					break;
+				case 'd':
+				default:
+					sang_if->fxo_go_on_hook();
+				}
+			}else if(sang_if->get_sub_media()==MOD_TYPE_FXS ) {
+				INFO_MAIN("Press 'f' for forward, 'r' to for reverse.\n");
+				INFO_MAIN("\n");
+				switch(tolower(_getch()))
+				{
+				case 'f':
+					sang_if->tdm_set_rm_polarity(0);
+					break;
+				case 'r':
+					sang_if->tdm_set_rm_polarity(1);
+					break;
+				default:
+					//toggle it 
+					sang_if->tdm_set_rm_polarity(1);
+					sang_if->tdm_set_rm_polarity(0);
+				}
 			}
 			break;
 		case 'k':
-			INFO_MAIN("Press 'e' to Activate, 'd' to De-Activate line.\n");
-			INFO_MAIN("\n");
-			switch(tolower(_getch()))
-			{
-			case 'e':
-				sang_if->tdm_front_end_activate();
-				break;
-			case 'd':
-			default:
-				sang_if->tdm_front_end_deactivate();
+			if( sang_if->get_adapter_type() == WAN_MEDIA_BRI ) {
+				INFO_MAIN("Press 'e' to Activate, 'd' to De-Activate line.\n");
+				INFO_MAIN("\n");
+				switch(tolower(_getch()))
+				{
+				case 'e':
+					sang_if->tdm_front_end_activate();
+					break;
+				case 'd':
+				default:
+					sang_if->tdm_front_end_deactivate();
+				}
+			}else if(sang_if->get_adapter_type()== WAN_MEDIA_FXOFXS) {
+				if(sang_if->get_sub_media()==MOD_TYPE_FXS) {
+					sang_if->tdm_txsig_kewl();
+					sangoma_msleep(5000);
+					//to restore line current after txsig kewl
+					sang_if->tdm_txsig_offhook();
+				}
 			}
 			break;
 		case 'p':
@@ -1127,8 +1263,18 @@ user_retry_ring_e_d:
 			break;
 		case 'z':
 			{
-				INFO_MAIN("Sending CallerID.\n");
-				sang_if->sendCallerID("Sangoma Rocks", "9054741990");
+				if(WAN_MEDIA_FXOFXS == sang_if->get_adapter_type() &&  MOD_TYPE_FXS == sang_if->get_sub_media() ){
+					//Ring the line
+					sang_if->start_ringing_phone();
+					sangoma_msleep(2000);
+					//txsig offhook
+					sang_if->fxs_txsig_offhook();
+					INFO_MAIN("Sending CallerID.\n");
+					sang_if->sendCallerID("Sangoma Rocks", "9054741990");
+				}else{
+					INFO_MAIN("Sending CallerID.\n");
+					sang_if->sendCallerID("Sangoma Rocks", "9054741990");
+				}				
 			}
 			break;
 #endif
@@ -1184,7 +1330,8 @@ user_retry_ring_e_d:
 
 static int set_port_configuration()
 {
-	int				rc = 0, is_te1_card = 0, user_selection;
+	int		rc = 0, user_selection;
+	int		is_te1_card = 0, is_analog_card = 0;
 	hardware_info_t	hardware_info;
 	port_cfg_t		port_cfg;
 
@@ -1214,15 +1361,6 @@ static int set_port_configuration()
 		return 3;
 	}
 
-#if 0
-defined(__WINDOWS__)
-	rc = sng_port_cfg_obj->open_port_registry_key(&hardware_info);
-	if(rc != SANG_STATUS_SUCCESS){
-		delete sng_port_cfg_obj;
-		return 3;
-	}
-#endif
-
 	memset(&port_cfg, 0x00, sizeof(port_cfg_t));
 
 	switch(hardware_info.card_model)
@@ -1233,17 +1371,21 @@ defined(__WINDOWS__)
 	case A108_ADPTR_8TE1:
 		is_te1_card = 1;
 		break;
+	case A200_ADPTR_ANALOG:
+	case A400_ADPTR_ANALOG:
+		is_analog_card = 1;
+		break;
+	case AFT_ADPTR_FLEXBRI:
+		//B700, a hybrid card - may have both ISDN BRI and Analog ports
+		break;
 	}
 
 	if(is_te1_card){
-
 		INFO_MAIN("\n");
 		INFO_MAIN("Press 't' to set T1 configration.\n");
 		INFO_MAIN("Press 'e' to set E1 configration.\n");
-
 try_again:
 		user_selection = tolower(_getch());
-
 		switch(user_selection)
 		{
 		case 't'://T1
@@ -1254,27 +1396,38 @@ try_again:
 			rc=sng_port_cfg_obj->initialize_e1_tdm_span_voice_api_configration_structure(&port_cfg,&hardware_info,program_settings.wanpipe_number);
 			break;
 
+		case 'q'://quit the application
+			rc = 1;
+			break;
+
 		default:
 			INFO_MAIN("Invalid command %c.\n",user_selection);
 			goto try_again;
 			break;
 		}//switch(user_selection)
+	}//if(is_te1_card)
 
-	} else { //if(is_te1_card)
-#if 0
+	if(is_analog_card){
 		//read current configuration:
 		if(sng_port_cfg_obj->get_configration(&port_cfg)){
 			rc = 1;
 		}else{
 			//print the current configuration:
 			sng_port_cfg_obj->print_port_cfg_structure(&port_cfg);
-			//as an EXAMPLE, set the same configration as the current one:
-			//rc = sng_port_cfg_obj->set_default_configuration(&port_cfg);
-		}
-#else
-		INFO_MAIN("Unsupported Card %i\n",hardware_info.card_model);
-		rc = 1;
+#if 0
+			//as an EXAMPLE, enable Loop Current Monitoring for Analog FXO:
+			rc=sng_port_cfg_obj->control_analog_rm_lcm(&port_cfg, 1);
 #endif
+#if 0
+			//as an EXAMPLE, set Operation mode for FXO:
+			rc=sng_port_cfg_obj->set_analog_opermode(&port_cfg, "TBR21");
+#endif
+		}
+	}//if(is_analog_card)
+	
+	if(!is_te1_card && !is_analog_card){
+		INFO_MAIN("Unsupported Card %d\n", hardware_info.card_model);
+		rc = 1;
 	}
 
 	do{
@@ -1282,7 +1435,6 @@ try_again:
 			ERR_MAIN("Failed to Initialize Port Configuratoin structure!\n");
 			break;
 		}
-
 #if 1
 		INFO_MAIN("Stopping PORT for re-configuration!\n");
 		if ((rc = sng_port_cfg_obj->stop_port())) {
@@ -1316,7 +1468,7 @@ try_again:
 		delete sng_port_cfg_obj;
 	}
 
-	sangoma_msleep(2000);//wait a little (2 seconds) for initialization to complete
+	sangoma_msleep(2000);//wait 2 seconds for initialization to complete
 
 	return rc;
 }
@@ -1334,7 +1486,7 @@ static void FSKCallerIDEvent(void *callback_context,
 
 	if(Name){
 		INFO_MAIN("Name: %s\n", Name);
-#if 1
+#if 0
 		printf("caller name in SINGLE byte hex:\n");
 		for(unsigned int ind = 0; ind < strlen(Name); ind++){
 			printf("Name[%02d]: 0x%02X\n", ind, Name[ind]);
@@ -1345,9 +1497,11 @@ static void FSKCallerIDEvent(void *callback_context,
 		for(unsigned int ind = 0; ind < strlen(Name); ind += 2){
 			printf("Name[%02d]: 0x%04X\n", ind, *(unsigned short*)&Name[ind]);
 		}
-		printf("\n");
 #endif
+		printf("\n");
 	}
+
+
 	if(CallerNumber){
 		INFO_MAIN("CallerNumber: %s\n", CallerNumber);
 	}
@@ -1445,7 +1599,7 @@ static void FSKCallerIDTransmit (void *callback_context, void *FskCidBuffer)
 
 	/*	FSK CID buffer can be big (~8000 bytes), we don't want to block the calling thread,
 		so start a new thread to transmit FSK CID. */
-	sang_if->CreateSwDtmfTxThread(FskCidBuffer);
+	sang_if->CreateFskCidTxThread(FskCidBuffer);
 }
 
 #if 0

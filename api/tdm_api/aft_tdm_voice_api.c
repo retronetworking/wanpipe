@@ -53,6 +53,34 @@ FILE *tx_fd=NULL,*rx_fd=NULL;
 wanpipe_tdm_api_t tdm_api; 
 
 
+static int sample_time_test(void){
+
+	struct timeval last;
+	static struct timeval tv_start = {0};
+	static int elapsed_max=0;
+	static int elapsed_min=0;
+	int elapsed;
+	int err;
+
+	last=tv_start;
+	gettimeofday(&tv_start, NULL);
+	elapsed = abs((((last.tv_sec * 1000) + last.tv_usec / 1000) - ((tv_start.tv_sec * 1000) + tv_start.tv_usec / 1000)));
+	err = abs(20-elapsed);
+	if (err > 1 && err < 1000) {
+		if (elapsed > elapsed_max) {
+			elapsed_max = elapsed;
+		}
+		if (elapsed_min > elapsed) {
+         	elapsed_min = elapsed;
+		}
+		printf("wanpipe: Elapsed %i  diff=%i max=%i min=%i\n", 
+			elapsed,abs(20-elapsed),elapsed_max,elapsed_min);
+	}
+
+	return 0;
+}
+
+
 /***************************************************
 * HANDLE SOCKET 
 *
@@ -221,6 +249,7 @@ void handle_span_chan(void)
 
 				memset(Rx_data, 0, sizeof(Rx_data));
 
+
 				err = sangoma_readmsg_tdm(dev_fd,
 							Rx_data, 
 							sizeof(wp_tdm_api_rx_hdr_t),
@@ -230,6 +259,8 @@ void handle_span_chan(void)
 				if (!read_enable){
 					goto bitstrm_skip_read;
 				}
+
+				sample_time_test();
 
 				/* err indicates bytes received */
 				if(err <= 0) {

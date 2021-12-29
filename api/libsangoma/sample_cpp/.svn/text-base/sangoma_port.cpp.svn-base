@@ -51,7 +51,7 @@ int sangoma_port::init(uint16_t wanpipe_number)
 	wp_number = wanpipe_number;
 	wp_handle = sangoma_open_driver_ctrl(wanpipe_number);
 	if(wp_handle == INVALID_HANDLE_VALUE){
-		ERR_CFG("Error: failed to open %s!!\n", wanpipe_name_str);
+		ERR_CFG("Error: failed to open wanpipe%d!!\n", wp_number);
 		return 1;
 	}
 	return 0;
@@ -63,7 +63,7 @@ int sangoma_port::get_hardware_info(hardware_info_t *hardware_info)
 
 	int err=sangoma_driver_get_hw_info(wp_handle,&port_management, wp_number);
 	if (err) {
-		ERR_CFG("%s: Error: failed to get hw info!\n",wanpipe_name_str);
+		ERR_CFG("Error: failed to get hw info for wanpipe%d!\n", wp_number);
 		err=1;
 		return err;
 	}

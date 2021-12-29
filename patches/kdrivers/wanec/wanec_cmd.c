@@ -188,7 +188,6 @@ int wanec_fe2ec_channel(wan_ec_dev_t *ec_dev, int fe_channel)
 	/* WANEC_MAX_PORT_RANGE	= 32 */
 	/* For A500, fe_lineno 1-> 24 */
 
-	/* DavidY Clean up later */
 	if (ec_dev->card->adptr_type == AFT_ADPTR_FLEXBRI) {
 		if (ec_dev->fe_lineno == 4){
 		//if (ec_dev->fe_media == WAN_MEDIA_FXOFXS){
@@ -202,9 +201,11 @@ int wanec_fe2ec_channel(wan_ec_dev_t *ec_dev, int fe_channel)
 				ec_channel = WANEC_MAX_PORT_RANGE;
 			}
 			ec_channel += (ec_dev->fe_lineno * WANEC_MAX_BRI_PORT_RANGE + (fe_channel-1));
-		}else if (ec_dev->fe_media == WAN_MEDIA_T1 || ec_dev->fe_media == WAN_MEDIA_FXOFXS){
+		}else if (ec_dev->fe_media == WAN_MEDIA_T1 || 
+				  ec_dev->fe_media == WAN_MEDIA_FXOFXS || 
+				  ec_dev->card->adptr_type == AFT_ADPTR_B601) {
 			ec_channel = ec_dev->fe_lineno * WANEC_MAX_PORT_RANGE + (fe_channel-1);
-		}else{
+		} else {
 			/*ec_channel = ec_dev->fe_lineno * ec_dev->fe_max_chans + channel;*/
 			ec_channel = ec_dev->fe_lineno * WANEC_MAX_PORT_RANGE + fe_channel;
 		}
@@ -226,7 +227,8 @@ static int wanec_ec2fe_channel(wan_ec_t *ec, int ec_chan, wan_ec_dev_t **ec_dev)
 		fe_chan++;
 	}else{
 		if (ec_dev_tmp->fe_media == WAN_MEDIA_T1 ||
-		    ec_dev_tmp->fe_media == WAN_MEDIA_FXOFXS){
+		    ec_dev_tmp->fe_media == WAN_MEDIA_FXOFXS ||
+			ec_dev_tmp->card->adptr_type == AFT_ADPTR_B601){
 			fe_chan++;
 		}
 	}
@@ -494,7 +496,7 @@ int wanec_ChipOpenPrep(wan_ec_dev_t *ec_dev, char *devname, wanec_config_t *conf
 	ec->f_Context.ec_dev = ec_dev;
 
 	/* Interface name to driver */
-	strlcpy(ec->f_Context.devname, devname, WAN_DRVNAME_SZ);
+	wp_strlcpy(ec->f_Context.devname, devname, WAN_DRVNAME_SZ);
 
 	ulResult = Oct6100GetInstanceSize(&ec->f_OpenChip, &InstanceSize);
 	if ( ulResult != cOCT6100_ERR_OK ){
@@ -679,8 +681,7 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 				(pcm_law_type == cOCT6100_PCM_U_LAW) ?
 						"MULAW":"ALAW");
 
-	DEBUG_EVENT("%s: Opening HW Echo Canceller (NoiseRed=%s)\n",
-			ec->name,card->hwec_conf.noise_reduction?"On":"Off");
+
 
 
 	Oct6100ChannelOpenDef( &EchoChannelOpen );
@@ -734,9 +735,19 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 
 	if (card->hwec_conf.noise_reduction) {
 		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
+		EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = TRUE;
+		EchoChannelOpen.VqeConfig.fSoutAutomaticLevelControl = TRUE;
 	} else {
 		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
+		EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = FALSE;
+		EchoChannelOpen.VqeConfig.fSoutAutomaticLevelControl = FALSE;
 	}
+
+	EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay = ((UINT16)(1500 / 512) + 1) * 512 + 300; /*300;*/
+
+	DEBUG_EVENT("%s: Opening HW Echo Canceller (NoiseRed=%s VQE=%i)\n",
+			ec->name,(EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction == TRUE)?"On":"Off",
+			EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay);
 
 	EchoChannelOpen.VqeConfig.ulComfortNoiseMode	=
 				cOCT6100_COMFORT_NOISE_NORMAL;

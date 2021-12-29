@@ -1,16 +1,16 @@
 /*
  ************************************************************************
- * wanpipe_includes.h							*
- *		WANPIPE(tm) 	Global includes for Sangoma drivers	*
- *									*
- * Author:	Alex Feldman <al.feldman@sangoma.com>			*
+ * wanpipe_includes.h													*
+ *		WANPIPE(tm) 	Global includes for Sangoma drivers				*
+ *																		*
+ * Author:	Alex Feldman <al.feldman@sangoma.com>						*
  *======================================================================*
- *									*
+ *																		*
  * Nov 27, 2007	David Rokhvarg	Added header files needed to compile	*
- *                              Sangoma MS Windows Driver and API.	*
- *									*
- * Aug 10, 2002	Alex Feldman	Initial version				*
- *									*
+ *                              Sangoma MS Windows Driver and API.		*
+ *																		*
+ * Aug 10, 2002	Alex Feldman	Initial version							*
+ *																		*
  ************************************************************************
  */
 
@@ -275,7 +275,12 @@
 #  include <asm/delay.h>
 #  include <linux/pci.h>
 # if defined(CONFIG_PRODUCT_WANPIPE_USB)
-#  include <linux/usb.h>
+#  if defined(CONFIG_USB) || defined (CONFIG_USB_SUPPORT) 
+#   include <linux/usb.h>
+#  else
+#   warning "USB Kernel support not found... disabling usb support"
+#   undef CONFIG_PRODUCT_WANPIPE_USB
+#  endif
 # endif
 #  include <linux/if.h>
 #  include <linux/if_arp.h>
@@ -331,44 +336,44 @@
 **		***	W I N D O W S	***
 */
 
-
 #if defined(WAN_KERNEL) || defined(__KERNEL__)
 # include <stdlib.h>
 # include <time.h>	/* clock_t */
 
-# if defined(VIRTUAL_IF_DRV) || defined(SPROTOCOL) || defined(BUSENUM_DRV)
-# include <ntddk.h>
-# include "wanpipe_ctypes.h"
-# include "wanpipe_kernel_types.h"
-# include "aft_core_options.h"
-# include "wanpipe_debug.h"
-# include "wanpipe_kernel.h"
-# include "wanpipe_skb.h"
-# include "wanpipe_defines.h"
-# include "wanpipe_common.h"
-# include "wanpipe_cfg.h"
-# include "sdladrv.h"	/* API definitions */
-# include "wanpipe_abstr.h"
+# if !defined(NDIS_MINIPORT_DRIVER)
+#  include <ntddk.h>
+#  include "wanpipe_abstr_types.h"
+#  include "wanpipe_kernel_types.h"
+#  include "aft_core_options.h"
+#  include "wanpipe_debug.h"
+#  include "wanpipe_kernel.h"
+#  include "wanpipe_skb.h"
+#  include "wanpipe_defines.h"
+#  include "wanpipe_common.h"
+#  include "wanpipe_cfg.h"
+#  include "sdladrv.h"	/* API definitions */
+#  include "wanpipe_abstr.h"
 # endif
 
-#if defined( NDIS_MINIPORT_DRIVER )
-# undef BINARY_COMPATIBLE	
-# define BINARY_COMPATIBLE 0	/* compile for Win2000 and later */
-# define NDIS50_MINIPORT   1 
-# include <ntddk.h>
-# include <ndis.h>
-# include "wanpipe_ctypes.h"
-# include "wanpipe_kernel_types.h"
-# include "wanpipe_debug.h"
-#endif
+# if defined( NDIS_MINIPORT_DRIVER )
+#  undef BINARY_COMPATIBLE	
+#  define BINARY_COMPATIBLE 0 /* Windows 2000 and later (no Win98 support) */
+#  define NDIS50_MINIPORT   1 
+#  include <ntddk.h>
+#  include <ndis.h>
+#  include "wanpipe_abstr_types.h"
+#  include "wanpipe_kernel_types.h"
+#  include "wanpipe_debug.h"
+# endif
 
-#else
-# include <windows.h>
-#endif
+# else /* WAN_KERNEL */
+#  include <windows.h>
+#  include "wanpipe_abstr_types.h"
+# endif
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <stddef.h>	/* offsetof, etc. */
+# include <stdarg.h>
+# include <stdio.h>
+# include <stddef.h>	/* offsetof, etc. */
 
 #elif defined (__SOLARIS__)
 #  include <sys/types.h>

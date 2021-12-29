@@ -33,7 +33,12 @@
 #pragma once
 
 #if defined (__WINDOWS__)
-# define STELAPI_CALL	__cdecl
+#ifdef STELEPHONY_EXPORTS
+# define STELAPI_CALL __declspec(dllexport) __cdecl
+#else
+# define STELAPI_CALL __declspec(dllimport) __cdecl
+#endif
+
 # include <Windows.h>
 #elif defined (__LINUX__)
 
@@ -138,9 +143,9 @@ typedef struct {
 
 typedef struct {
 	unsigned char	auto_datetime;			/* if set to non-zero library will adjust date to system time */
-	char			datetime[16];
-	char			calling_number[16];
-	char			calling_name[16];
+	char		datetime[16];
+	char		calling_number[22];
+	char		calling_name[52];
 }stelephony_caller_id_t;
 
 

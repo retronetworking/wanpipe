@@ -41,10 +41,8 @@ extern int wp_sppp_tx(void *sppp_ptr, void *skb, int type);
 
 #if defined(__WINDOWS__)
 extern void *wp_register_sppp_prot(void *, char *, void *, wplip_prot_reg_t *);
-extern int wp_sppp_timer(void *sppp_ptr, unsigned int *period);
-#else
-extern int wp_sppp_timer(void *sppp_ptr, unsigned int *period, unsigned int carrier_reliable);
 #endif
+extern int wp_sppp_timer(void *sppp_ptr, unsigned int *period, unsigned int carrier_reliable);
 extern int wp_sppp_pipemon(void *sppp, int cmd, int addr, unsigned char* data, unsigned int *len);
 extern int wp_sppp_task(void *sppp_ptr);
 

@@ -54,7 +54,6 @@
 #include "wanrouter.h"	/* WAN router API definitions */
 #include "wanpipe.h"	/* WAN router API definitions */
 #include "if_wanpipe.h"
-#include "wanpipe_cdev_iface.h"
 
 #include <linux/wanpipe_lapb_kernel.h>
 #include <linux/wanpipe_x25_kernel.h>
@@ -255,10 +254,7 @@ int __init wanrouter_init (void)
 		"%s: can't create entry in proc filesystem!\n", modname);
 	}
 
-	err=wanpipe_global_cdev_init();
-	if (err == 0) {
-		wanpipe_wandev_create();
-	}
+	wanpipe_wandev_create();
 
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 	UNREG_PROTOCOL_FUNC(dsp_protocol);
@@ -294,7 +290,6 @@ void __exit wanrouter_exit (void)
 	UNREG_PROTOCOL_FUNC(wp_fw_protocol);
 	wanrouter_proc_cleanup();
 	wanpipe_wandev_free();
-	wanpipe_global_cdev_free();
 }
 
 module_init(wanrouter_init);

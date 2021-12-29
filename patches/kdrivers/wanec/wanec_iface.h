@@ -211,14 +211,17 @@ typedef struct _OCTPCIDRV_USER_PROCESS_CONTEXT_
 #if defined(WAN_KERNEL)
 
 #if defined(__WINDOWS__)
-# define PRINT1	if(0)Debug
-# define PRINT2	if(0)Debug
+# define PRINT1(v,...)	\
+	if (v & WAN_EC_VERBOSE_EXTRA1) DEBUG_EVENT(## __VA_ARGS__)
+# define PRINT2(v,...)	\
+	if (v & WAN_EC_VERBOSE_EXTRA2) DEBUG_EVENT(## __VA_ARGS__)
 #else
-# define PRINT1(v,format,msg...)					\
+# define PRINT1(v,format,msg...)	\
 	if (v & WAN_EC_VERBOSE_EXTRA1) DEBUG_EVENT(format,##msg)
-# define PRINT2(v,format,msg...)					\
+# define PRINT2(v,format,msg...)	\
 	if (v & WAN_EC_VERBOSE_EXTRA2) DEBUG_EVENT(format,##msg)
 #endif
+
 
 #define WANEC_IGNORE	(TRUE+1)
 
@@ -276,10 +279,8 @@ typedef struct wan_ec_dev_
 	int		poll_channel;
 
 	u_int32_t	events;			/* enable events map */
-#if 0
-	/* NC: Moved to wan_ec device */
-	wan_ticks_t	lastint_ticks;
-#endif
+
+	wan_hwec_dev_state_t ecdev_state;
 
 	struct wan_ec_	*ec;
 	WAN_LIST_ENTRY(wan_ec_dev_)	next;

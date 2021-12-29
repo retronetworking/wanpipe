@@ -1,5 +1,7 @@
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <wanpipe_lip.h>
+#elif defined(__WINDOWS__)
+#include "wanpipe_lip.h"
 #else
 # include <linux/wanpipe_lip.h>
 #endif
@@ -17,6 +19,8 @@ static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int ifty
 static void wplip_unregister_netif(netdevice_t *dev, wplip_dev_t *lip_dev);
 #if defined(__LINUX__)
 extern void wplip_link_bh(unsigned long data);
+#elif defined(__WINDOWS__)
+extern void wplip_link_bh(IN PKDPC Dpc, IN PVOID data, IN PVOID SystemArgument1, IN PVOID SystemArgument2);
 #else
 extern void wplip_link_bh(void *data, int pending);
 #endif
@@ -60,7 +64,7 @@ wplip_link_t *wplip_create_link(char *devname)
 	wan_skb_queue_init(&lip_link->tx_queue);
 	wan_skb_queue_init(&lip_link->rx_queue);
 
-	wan_spin_lock_irq_init(&lip_link->bh_lock, "wan_lip_bh_lock");
+	wplip_spin_lock_irq_init(&lip_link->bh_lock, "wan_lip_bh_lock");
 
 	wan_atomic_set(&lip_link->refcnt,0);
 
@@ -228,9 +232,9 @@ int wplip_lipdev_latency_change(wplip_link_t *lip_link)
 
 	if (latency_qlen > 0 && latency_qlen < 0xFFFF) {
 		wan_smp_flag_t flags;
-		wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+		wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
         	lip_link->latency_qlen = latency_qlen;
-		wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+		wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 	}
 	
 	return -ENODEV;
@@ -259,9 +263,20 @@ int wplip_lipdev_latency_change(wplip_link_t *lip_link)
  *	x25_register 
  */
 
+#if defined(__WINDOWS__)
+/*	Under Windows the order of structure creation is opposite to
+	Linux order. The netdev already exist when svc is created.
+	So the binding between the two structures is done a little
+	differently. */
+wplip_dev_t *wplip_create_lipdev(netdevice_t *dev, int usedby)
+#else
 wplip_dev_t *wplip_create_lipdev(char *dev_name, int usedby)
+#endif
 {
 	wplip_dev_t	*lip_dev;
+#if defined(__WINDOWS__)
+	char *dev_name = dev->name;
+#endif
 
 	lip_dev=wan_kmalloc(sizeof(wplip_dev_t));
 	if (lip_dev == NULL){
@@ -273,7 +288,12 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int usedby)
 	lip_dev->magic=WPLIP_MAGIC_DEV;
 	lip_dev->common.state = WAN_DISCONNECTED;
 	lip_dev->common.usedby = usedby;
+
+#if defined(__WINDOWS__)
+	snprintf(lip_dev->name, sizeof(lip_dev->name), "%s", dev_name);
+#else
 	strncpy(lip_dev->name,dev_name,MAX_PROC_NAME); 
+#endif
 
 	/* FIXME: No Entry Intializer */	
 	/*WPLIP_INIT_LIST_HEAD(&lip_dev->list_entry);*/
@@ -282,14 +302,20 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int usedby)
 
 	wan_atomic_set(&lip_dev->refcnt,0);
 
+#if defined(__WINDOWS__)
+	lip_dev->common.dev = dev;
+#else
 	lip_dev->common.dev=wplip_create_netif(dev_name, usedby);
 	if (!lip_dev->common.dev){
 		wan_free(lip_dev);
 		return NULL;
 	}
+#endif
 
 	if (wplip_register_netif(lip_dev->common.dev, lip_dev, usedby)){
+#ifndef __WINDOWS__
 		wplip_free_netif(lip_dev->common.dev);	
+#endif
 		lip_dev->common.dev=NULL;
 		wan_free(lip_dev);
 		return NULL;
@@ -313,7 +339,7 @@ void wplip_free_lipdev(wplip_dev_t *lip_dev)
 	if (lip_dev->common.dev){
 		/* FIXME: PRIV attached during unregister is it OK?*/ 
 		WAN_DEV_PUT(lip_dev->common.dev);
-		/*wan_netif_set_priv(lip_dev->common.dev, NULL);*/
+		/*wplip_netdev_set_lipdev(lip_dev->common.dev, NULL);*/
 		wplip_unregister_netif(lip_dev->common.dev, lip_dev);	
 		lip_dev->common.dev=NULL;
 	}
@@ -405,7 +431,7 @@ void wplip_remove_lipdev(wplip_link_t *lip_link, wplip_dev_t *lip_dev)
 
 
 
-
+#ifndef __WINDOWS__
 unsigned int dec_to_uint (unsigned char* str, int len)
 {
 	unsigned val;
@@ -418,7 +444,7 @@ unsigned int dec_to_uint (unsigned char* str, int len)
 	
 	return val;
 }
-
+#endif
 
 
 /******************************************************
@@ -488,7 +514,7 @@ static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int used
 {
 	int err = -EINVAL;
 
-	wan_netif_set_priv(dev, lip_dev);
+	wplip_netdev_set_lipdev(dev, lip_dev);
 	wplip_if_init(dev);
 
 	/* From this point forward, wplip_free_if() will deallocate
@@ -508,7 +534,7 @@ static int wplip_register_netif(netdevice_t *dev, wplip_dev_t *lip_dev, int used
 	}
 
 	if (err){
-		wan_netif_set_priv(dev, NULL);
+		wplip_netdev_set_lipdev(dev, NULL);
 	}
 	return err;
 }
@@ -521,7 +547,9 @@ static void wplip_unregister_netif(netdevice_t *dev, wplip_dev_t *lip_dev)
 	}
 	
 	if (wan_iface.free){
-                wan_iface.free(dev);
+#ifndef __WINDOWS__
+		wan_iface.free(dev);
+#endif
 	}
 
 	return;

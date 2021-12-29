@@ -1,5 +1,7 @@
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <wanpipe_lip.h>
+#elif defined(__WINDOWS__)
+#include "wanpipe_lip.h"
 #else
 # include <linux/wanpipe_lip.h>
 #endif

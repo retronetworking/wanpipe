@@ -31,7 +31,12 @@
  * Type Defines
  *================================================*/
 
-#define DEBUG_TDEV DEBUG_EVENT
+#if defined(__WINDOWS__)
+# define DEBUG_TDEV DbgPrint
+#else
+# define DEBUG_TDEV DEBUG_EVENT
+#endif
+
 #define MAX_WAN_TDEV_IDX_SZ 20
 
 typedef struct wanpipe_tdev
@@ -62,30 +67,40 @@ static int wan_alloc_skb_list(wanpipe_tdev_t *dev, int elements);
  * Global Defines 
  *================================================*/
 
-static sdla_t *wan_timer_card;
-static u32 wan_timer_initialized;
+static sdla_t *wan_timer_card = NULL;
+static u32 wan_timer_initialized = 0;
 
 static wanpipe_tdev_t *wan_tdev_idx[MAX_WAN_TDEV_IDX_SZ];
-static int wan_tdev_cnt;
-static u32 wan_event_seq_cnt;
+static int wan_tdev_cnt = 0;
+static u32 wan_event_seq_cnt = 0;
 
-#if defined(__WINDOWS__)
 static wanpipe_cdev_ops_t wan_tdev_fops;
-#else
-static wanpipe_cdev_ops_t wan_tdev_fops = {
-	open: wp_tdev_open,
-	close: wp_tdev_close,
-	ioctl: wp_tdev_ioctl,
-	poll: wp_tdev_poll,
-};
-#endif
+
+static void wanpipe_wandev_timer_init_globals()
+{
+	memset(wan_tdev_idx, 0x00, sizeof(wan_tdev_idx));
+
+	wan_timer_card = NULL;
+	wan_timer_initialized = 0;
+	wan_tdev_cnt = 0;
+	wan_event_seq_cnt = 0;
+
+	memset(&wan_tdev_fops, 0x00, sizeof(wan_tdev_fops));
+	wan_tdev_fops.open = wp_tdev_open;
+	wan_tdev_fops.close = wp_tdev_close;
+	wan_tdev_fops.ioctl = wp_tdev_ioctl;
+	wan_tdev_fops.poll = wp_tdev_poll;
+}
 
 int wanpipe_wandev_timer_create(void)
 {
 	int err=-EINVAL;
 	wanpipe_tdev_t *wan_tdev;
+	wanpipe_cdev_t *cdev;
 
-	wanpipe_cdev_t *cdev = wan_kmalloc(sizeof(wanpipe_cdev_t));
+	wanpipe_wandev_timer_init_globals();
+
+	cdev = wan_kmalloc(sizeof(wanpipe_cdev_t));
 	if (!cdev) {
 		return -ENOMEM;
 	}
@@ -119,7 +134,8 @@ int wanpipe_wandev_timer_create(void)
 
 	wan_timer_card=NULL;
 	wan_set_bit(0,&wan_timer_initialized);
-	DEBUG_TDEV("%s: WAN TDEV CREATE \n",__FUNCTION__);
+	DEBUG_TDEV("%s: WAN TDEV CREATE (err:%d, wan_tdev_cnt:%d) \n",
+		__FUNCTION__, err, wan_tdev_cnt);
 
 	return err;
 
@@ -197,9 +213,9 @@ static int wp_tdev_ioctl(void *obj, int cmd, void *udata)
 
 #if defined(__WINDOWS__)
 	/* udata is a pointer to wanpipe_tdm_api_cmd_t */
-	memcpy(&utcmd, udata, sizeof(wanpipe_timer_api_t));
+	memcpy(utcmd, udata, sizeof(wanpipe_timer_api_t));
 #else
-	if (WAN_COPY_FROM_USER(&utcmd,
+	if (WAN_COPY_FROM_USER(&utcmd, /* davidr: looks like a wrong pointer */
 			       udata,
 			       sizeof(wanpipe_timer_api_t))){
 	       return -EFAULT;
@@ -244,7 +260,7 @@ static int wp_tdev_ioctl(void *obj, int cmd, void *udata)
 
 #if defined(__WINDOWS__)
 	/* udata is a pointer to wanpipe_tdm_api_cmd_t */
-	memcpy(udata, &utcmd, sizeof(wanpipe_timer_api_t));
+	memcpy(udata, utcmd, sizeof(wanpipe_timer_api_t));
 #else
 	if (WAN_COPY_FROM_USER(&udata,
 			       &utcmd,

@@ -8,12 +8,89 @@ Copyright (c) 1995-2009 Sangoma Technologies Inc.
 For more info visit: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
 
+
+* Thu Apr 08 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.11
+===================================================================
+
+- Fix for 2.6.31 and higher kernels
+- TDM API Analog rx gain feature
+- Disabled default NOISE REDUCTION feature in hwec
+  that was enabled in 3.5.9 release. 
+- Updates to T1/E1 Loopback and BERT Test	
+
+
+* Wed Jan 11 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.10
+===================================================================
+
+- Release cleanup script earsed libsangoma.c during release packaging.
+  I have update release procedure so this does not happen again.
+  This release has no functionl differences aside from the missing
+  file from 3.5.9 release.
+
+* Wed Dec 30 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.9
+===================================================================
+
+- New logger dev feature
+- Bug fix in tx fifo handler
+- Dahdi 2.2 broke wanpipe rbs support.
+- Fixed free run interrupt supported on V38 (A108)
+- Fixed RBS signalling for E1 channel 31
+- Added Front end Reset Detection
+  -> Support for new A108 Firmware V40
+- Fixed RTP TAP bug: Caused high system load on RTP TAP usage.
+- Added excessive fifo error sanity check. Fixes random pci dma errors.
+- HWEC: Increased EC VQE Delay: Fixes random fax failure due to hwec.
+- HWEC: Check state before bypass enable.
+- HWEC: Disable bypass on release
+- HWEC: Enabled Noise Reduction by default
+- HWEC: Enabled Auto Gain Control by default
+- HWEC: To disable Noise Reduction and Gain control set
+        -> HWEC_NOISE_REDUCTION_DISABLE=NO in [wanpipe] section of wanpipe1.conf
+		To check if Noise Reduction or Gain control are set
+		-> wan_ec_client wanpipe1 stats 1
+
+
+* Thu Oct 02 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.8
+===================================================================
+
+- Bug fix in sangoma_prid PRI stack for FreeSwitch & Asterisk.
+  There was a slow memory leak.
+
+
+* Thu Sep 04 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.7
+===================================================================
+
+- New Telesoft PRI Stack Support for FreeSwitch & Asterisk
+  For Asterisk: The new stack uses the existing Sangoma Media Gateway
+                architecture currently used by SS7 and BRI.
+                -> run: wancfg_dahdi or wancfg_zaptel to configure
+				   for sangoma prid stack.
+
+  For FreeSwitch: The new stack binds to openzap directly just like
+                  current SS7 and BRI.
+				-> run: wancfg_fs to configure freeswitch for
+				        sangoma prid, brid, ss7.
+
+- Fixed Tx Tristate 
+
+- Updated yellow alarm handling for Dallas maxim cards
+  (A101/2/4/8)
+
+- Autodetect USB support so that driver will compile
+  correctly on kernel without USB support
+
+- Added DAHDI Red alarm for Analog
+
+
 * Thu Aug 20 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.6
 ===================================================================
 
 - Update to T1 Yellow Alarm handling.
   In some cases Yellow alarm did not turn off poperly causing
   line to stay down an card startup.
+- Update configuration utility
+  wancfg_fs updated for sangoma_prid configuration. Added wancfg_openzap
+  for OpenZap Configuration 
 
 
 * Mon Aug 17 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.5

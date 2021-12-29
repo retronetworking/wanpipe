@@ -15,8 +15,8 @@ INCLUDES=$(SDK_INC_PATH);
 
 TARGETLIBS=$(SDK_LIB_PATH)\user32.lib
 
-SOURCES=fsk.c \
-libteletone_detect.c \
-libteletone_generate.c \
+SOURCES=wp_fsk.c \
+wp_libteletone_detect.c \
+wp_libteletone_generate.c \
 stel_tone.c \
-uart.c
+wp_uart.c

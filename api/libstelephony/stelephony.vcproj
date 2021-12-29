@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="9.00"
 	Name="stelephony"
 	ProjectGUID="{973E1E5F-663B-40A3-90C9-8DD0772FDB01}"
 	RootNamespace="stelephony"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -48,7 +49,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="D:\development\wanpipe_windows\include"
+				AdditionalIncludeDirectories="&quot;$(SANG_WP_DEVEL)\stelephony&quot;;&quot;$(SANG_WP_DEVEL)\stelephony\stel_tone&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;STELEPHONY_EXPORTS;UNICODE;_CRT_SECURE_NO_WARNINGS;__WINDOWS__"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -75,6 +76,8 @@
 			<Tool
 				Name="VCLinkerTool"
 				ModuleDefinitionFile="stelephony.def"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -95,9 +98,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -169,6 +169,8 @@
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				ProgramDatabaseFile=".\Release/stelephony.pdb"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				ImportLibrary=".\Release/stelephony.lib"
 				TargetMachine="1"
 			/>
@@ -191,9 +193,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -224,6 +223,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\stel_tone\stel_tone.c"
+				>
+			</File>
+			<File
 				RelativePath="stelephony.cpp"
 				>
 				<FileConfiguration
@@ -247,6 +250,22 @@
 				RelativePath=".\stelephony.rc"
 				>
 			</File>
+			<File
+				RelativePath=".\stel_tone\wp_fsk.c"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\wp_libteletone_detect.c"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\wp_libteletone_generate.c"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\wp_uart.c"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -258,6 +277,10 @@
 			</File>
 			<File
 				RelativePath=".\libstelephony_linux_compat.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\libstelephony_tone.h"
 				>
 			</File>
 			<File
@@ -282,6 +305,30 @@
 			</File>
 			<File
 				RelativePath=".\StelephonyApi.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\wp_fsk.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\wp_g711.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\wp_libteletone.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\wp_libteletone_detect.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\wp_libteletone_generate.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stel_tone\wp_uart.h"
 				>
 			</File>
 		</Filter>

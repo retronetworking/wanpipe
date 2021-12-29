@@ -3,10 +3,10 @@
  * \brief Wanpipe API Library header for Sangoma AFT T1/E1/Analog/BRI/Serial Hardware -
  * \brief Provides User a Unified/OS Agnostic API to Wanpipe/Sangoma Drivers and Hardware
  *
- * Author(s):	Nenad Corbic <ncorbic@sangoma.com>
+ * Author(s):   Nenad Corbic <ncorbic@sangoma.com>
  *              David Rokhvarg <davidr@sangoma.com>
  *              Michael Jerris <mike@jerris.com>
- *		Anthony Minessale II <anthmct@yahoo.com>
+ *              Anthony Minessale II <anthmct@yahoo.com>
  *
  * Copyright:	(c) 2005-2008 Nenad Corbic <ncorbic@sangoma.com>
  *
@@ -40,6 +40,13 @@
 #ifndef _LIBSNAGOMA_H
 #define _LIBSNAGOMA_H
 
+#ifdef __linux__
+#ifndef __LINUX__
+/* most wanpipe driver headers require __LINUX__ to be defined */
+#define __LINUX__
+#endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {	/* for C++ users */
 #endif
@@ -65,20 +72,30 @@ extern "C" {	/* for C++ users */
   \def LIBSANGOMA_VERSION_CODE
   \brief LibSangoma Current Version Number to be checked against the LIBSANGOMA_VERSION Macro 
 */
-#define LIBSANGOMA_VERSION_CODE LIBSANGOMA_VERSION(3,2,0)
+#define LIBSANGOMA_VERSION_CODE LIBSANGOMA_VERSION(3,3,0)
 
 /*!
   \def LIBSANGOMA_VERSION_STR
   \brief LibSangoma Version in string format
 */
-#define LIBSANGOMA_VERSION_STR "3.2.0"
+#define LIBSANGOMA_VERSION_STR "3.3.0"
 
-#ifdef __COMPILING_LIBSANGOMA__
- struct sangoma_wait_obj;
- #define sangoma_wait_obj_t struct sangoma_wait_obj
-#else
- typedef void sangoma_wait_obj_t;
-#endif
+struct sangoma_wait_obj;
+#define sangoma_wait_obj_t struct sangoma_wait_obj
+
+
+/*!
+   \def	SANGOMA_DECLARE_TDM_API_CMD
+   \brief Instantiate/Declare a tdm api cmd strucure
+   \def SANGOMA_INIT_TDM_API_CMD
+   \brief Initialize the tdm api cmd structure. Set to 0.
+   \def SANGOMA_DECLARE_INIT_TDM_API_CMD
+   \brief Declare and initialize the tdm api cmd structure.
+*/
+#define SANGOMA_DECLARE_TDM_API_CMD(_name_)  		wanpipe_api_t _name_
+#define SANGOMA_INIT_TDM_API_CMD(_name_) 			memset(&_name_,0,sizeof(_name_)) 
+#define SANGOMA_DECLARE_INIT_TDM_API_CMD(_name_)  	wanpipe_tdm_api_t _name_; SANGOMA_INIT_TDM_API_CMD(_name_) 
+
 
 #if defined(WIN32) || defined(WIN64)
 #ifndef __WINDOWS__
@@ -91,10 +108,14 @@ extern "C" {	/* for C++ users */
 #include <stdlib.h>	
 
 /*!
-  \def _SAPI_CALL
+  \def _LIBSNG_CALL
   \brief libsangoma.dll functions exported as __cdecl calling convention
 */
-#define _SAPI_CALL	__cdecl
+#ifdef __COMPILING_LIBSANGOMA__
+# define _LIBSNG_CALL __declspec(dllexport) __cdecl
+#else
+# define _LIBSNG_CALL __declspec(dllimport) __cdecl
+#endif
 
 /*!
   \def SANGOMA_INFINITE_API_POLL_WAIT (deprecated, use SANGOMA_WAIT_INFINITE instead)
@@ -108,6 +129,13 @@ extern "C" {	/* for C++ users */
   \brief milisecond sleep function
 */
 #define sangoma_msleep(x)	Sleep(x)
+
+/*!
+  \def sangoma_ctime(time_val)
+  \brief Convert a time value to a string
+  \param time_val pointer to 64-bit time value
+*/
+#define sangoma_ctime(time)	_ctime64(time)
 
 #else
 /* L I N U X */
@@ -135,10 +163,10 @@ extern "C" {	/* for C++ users */
 #include <stdint.h>
 
 /*!
-  \def _SAPI_CALL
+  \def _LIBSNG_CALL
   \brief Not used in Linux
 */
-#define _SAPI_CALL
+#define _LIBSNG_CALL
 
 /*!
   \def INVALID_HANDLE_VALUE
@@ -184,6 +212,8 @@ extern "C" {	/* for C++ users */
   \brief LPSTR type mapped to unsigned char *, Ported from Windows
   \typedef PUCHAR
   \brief PUCHAR type mapped to unsigned char *, Ported from Windows
+  \typedef PVOID
+  \brief PVOID type mapped to void *, Ported from Windows
   \typedef LPTHREAD_START_ROUTINE
   \brief LPTHREAD_START_ROUTINE type mapped to unsigned char *, Ported from Windows
   \def _stricmp
@@ -218,6 +248,7 @@ typedef unsigned long ULONG;
 typedef unsigned short USHORT;
 typedef unsigned char * LPSTR;
 typedef unsigned char * PUCHAR;
+typedef void * PVOID;
 typedef void * LPTHREAD_START_ROUTINE;
 typedef pthread_mutex_t CRITICAL_SECTION;
 
@@ -227,7 +258,14 @@ typedef pthread_mutex_t CRITICAL_SECTION;
 
 typedef struct tm SYSTEMTIME;
 typedef char * LPCTSTR;
-               
+
+/*!
+  \def sangoma_ctime(time_val)
+  \brief Convert a time value to a string
+  \param time_val pointer to time value
+*/
+#define sangoma_ctime(time)	ctime((time_t*)time)
+
 #endif/* WIN32 */
 
 
@@ -277,8 +315,8 @@ typedef int32_t sangoma_status_t;
   \brief debug print function
 */
 #define FNAME_LEN		100
-#define FUNC_DBG(x)		if(0)printf("%s():%d\n", x, __LINE__)
-#define DBG_PRINT		if(1)printf
+#define LIBSNG_FUNC_DBG()	if(0)printf("%s(): line:%d\n", __FUNCTION__, __LINE__)
+#define LIBSNG_DBG_PRINT	if(0)printf
 
 /*!
   \typedef sangoma_api_hdr_t
@@ -310,6 +348,19 @@ typedef enum _sangoma_wait_obj_type
 	type == SANGOMA_DEVICE_WAIT_OBJ_SIG ? "SANGOMA_DEVICE_WAIT_OBJ_SIG"	:\
 	"Invalid Wait Object type!"
 
+/* 
+ * Possible flags for sangoma waitable objects 
+ * this definitions MUST match POLLIN, POLLOUT and POLLPRI 
+ * SANG_WAIT_OBJ_IS_SIGNALED has no posix equivalent though
+ * Users are encouraged to use this flags instead of the system ones
+ */
+typedef enum _sangoma_wait_obj_flags {
+  SANG_WAIT_OBJ_HAS_INPUT = POLLIN,
+  SANG_WAIT_OBJ_HAS_OUTPUT = POLLOUT,
+  SANG_WAIT_OBJ_HAS_EVENTS = POLLPRI,
+  SANG_WAIT_OBJ_IS_SIGNALED = 0x400 /* matches GNU extension POLLMSG */
+} sangoma_wait_obj_flags_t;
+
 /************************************************************//**
  * Device OPEN / CLOSE Functions
  ***************************************************************/
@@ -323,7 +374,7 @@ typedef enum _sangoma_wait_obj_type
 
   Restriced open, device will allowed to be open only once.
 */
-sng_fd_t _SAPI_CALL sangoma_open_api_span_chan(int span, int chan);
+sng_fd_t _LIBSNG_CALL sangoma_open_api_span_chan(int span, int chan);
 
 
 /*!
@@ -335,7 +386,7 @@ sng_fd_t _SAPI_CALL sangoma_open_api_span_chan(int span, int chan);
 
   Unrestriced open, allows mutiple open calls on a single device 
 */
-sng_fd_t _SAPI_CALL __sangoma_open_api_span_chan(int span, int chan);
+sng_fd_t _LIBSNG_CALL __sangoma_open_api_span_chan(int span, int chan);
 #define __sangoma_open_tdmapi_span_chan __sangoma_open_api_span_chan
 
 /*!
@@ -346,7 +397,7 @@ sng_fd_t _SAPI_CALL __sangoma_open_api_span_chan(int span, int chan);
 
   Unrestriced open, allows mutiple open calls on a single device 
 */
-sng_fd_t _SAPI_CALL sangoma_open_api_span(int span);
+sng_fd_t _LIBSNG_CALL sangoma_open_api_span(int span);
 
 
 /*!
@@ -372,8 +423,17 @@ sng_fd_t _SAPI_CALL sangoma_open_api_span(int span);
   The global control device receives events for all devices
   configured.
 */
-sng_fd_t _SAPI_CALL sangoma_open_api_ctrl(void);
+sng_fd_t _LIBSNG_CALL sangoma_open_api_ctrl(void);
 
+/*!
+  \fn sng_fd_t sangoma_logger_open(void)
+  \brief Open a Global Logger Device 
+  \return File Descriptor - negative=error  0 or greater = fd
+
+  The global Logger device receives Logger Events for all devices
+  configured.
+*/
+sng_fd_t _LIBSNG_CALL sangoma_logger_open(void);
 
 /*!
   \fn sng_fd_t sangoma_open_driver_ctrl(int port_no)
@@ -383,7 +443,7 @@ sng_fd_t _SAPI_CALL sangoma_open_api_ctrl(void);
   The global control device receives events for all devices
   configured.
 */
-sng_fd_t _SAPI_CALL sangoma_open_driver_ctrl(int port_no);
+sng_fd_t _LIBSNG_CALL sangoma_open_driver_ctrl(int port_no);
 
 
 
@@ -394,7 +454,7 @@ sng_fd_t _SAPI_CALL sangoma_open_driver_ctrl(int port_no);
   \return void
 
 */
-void _SAPI_CALL sangoma_close(sng_fd_t *fd);
+void _LIBSNG_CALL sangoma_close(sng_fd_t *fd);
 
 
 
@@ -406,7 +466,7 @@ void _SAPI_CALL sangoma_close(sng_fd_t *fd);
   \return negative or 0: error,  greater than 1 : open count
 */
 
-int _SAPI_CALL sangoma_get_open_cnt(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_get_open_cnt(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 
 /************************************************************//**
@@ -428,7 +488,7 @@ int _SAPI_CALL sangoma_get_open_cnt(sng_fd_t fd, wanpipe_api_t *tdm_api);
    variable to identify the reason of an error. Please refer to the error codes.
 */
 
-int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen,
+int _LIBSNG_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen,
 						 void *databuf, unsigned short datalen, int flag);
 
 
@@ -446,7 +506,7 @@ int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen,
   In case of error return code, one must check the header operation_status
   variable to identify the reason of error. Please refer to the error codes.
 */
-int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen,
+int _LIBSNG_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen,
 						void *databuf, int datalen, int flag);
 
 
@@ -457,16 +517,16 @@ int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen,
  ***************************************************************/ 
 
 /*!
-  \fn sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int32_t inflags, int32_t *outflags, int32_t timeout)
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int32_t inflags, int32_t *outflags, int32_t timeout)
   \brief Wait for a single waitable object
-  \param sangoma_wait_obj pointer to array of file descriptors to wait for
+  \param sangoma_wait_obj pointer to a wait object previously created with sangoma_wait_obj_create
   \param timeout timeout in miliseconds in case of no event
   \return SANG_STATUS_APIPOLL_TIMEOUT: timeout, SANG_STATUS_SUCCESS: event occured use sangoma_wait_obj_get_out_flags to check or error status
 */
-sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, uint32_t inflags, uint32_t *outflags, int32_t timeout);
+sangoma_status_t _LIBSNG_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, uint32_t inflags, uint32_t *outflags, int32_t timeout);
 
 /*!
-  \fn sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wait_objects[], int32_t in_flags[], int32_t out_flags[] uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout);
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wait_objects[], int32_t in_flags[], int32_t out_flags[] uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout);
   \brief Wait for multiple sangoma waitable objects 
   \param sangoma_wait_objects pointer to array of wait objects previously created with sangoma_wait_obj_create
   \param in_flags array of flags corresponding to the flags the user is interested on for each waitable object
@@ -475,7 +535,7 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj
   \param system_wait_timeout timeout in miliseconds in case of no event
   \return negative: SANG_STATUS_APIPOLL_TIMEOUT: timeout, SANG_STATUS_SUCCESS: event occured check in sangoma_wait_objects, any other return code is some error
 */
-sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wait_objects[], uint32_t in_flags[], uint32_t out_flags[],
+sangoma_status_t _LIBSNG_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wait_objects[], uint32_t in_flags[], uint32_t out_flags[],
 		uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout);
 
 /*!
@@ -487,7 +547,7 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wai
   \see sangoma_wait_obj_type_t
   \return SANG_STATUS_SUCCESS: success, or error status
 */
-sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma_wait_object, sng_fd_t fd, sangoma_wait_obj_type_t object_type);
+sangoma_status_t _LIBSNG_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma_wait_object, sng_fd_t fd, sangoma_wait_obj_type_t object_type);
 
 /*!
   \fn sangoma_status_t sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma_wait_object)
@@ -495,7 +555,7 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma
   \param sangoma_wait_object pointer to a pointer to a single device object
   \return SANG_STATUS_SUCCESS on success or some sangoma status error
 */
-sangoma_status_t _SAPI_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma_wait_object);
+sangoma_status_t _LIBSNG_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma_wait_object);
 
 /*!
   \fn void sangoma_wait_obj_signal(sangoma_wait_obj_t *sangoma_wait_object)
@@ -503,7 +563,7 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma
   \param sangoma_wait_object pointer a single device object that can be signaled
   \return sangoma_status_t
 */
-sangoma_status_t _SAPI_CALL sangoma_wait_obj_signal(sangoma_wait_obj_t *sangoma_wait_object);
+sangoma_status_t _LIBSNG_CALL sangoma_wait_obj_signal(sangoma_wait_obj_t *sangoma_wait_object);
 
 /*!
   \fn sng_fd_t sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sangoma_wait_object)
@@ -511,7 +571,7 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_signal(sangoma_wait_obj_t *sangoma_
   \param sangoma_wait_object pointer a single device object 
   \return sng_fd_t - device file descriptor
 */
-sng_fd_t _SAPI_CALL sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sangoma_wait_object);
+sng_fd_t _LIBSNG_CALL sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sangoma_wait_object);
 
 /*!
   \fn void sangoma_wait_obj_set_context(sangoma_wait_obj_t *sangoma_wait_object)
@@ -521,15 +581,16 @@ sng_fd_t _SAPI_CALL sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sangoma_wait_obj
   \param context void pointer to user context
   \return void
 */
-void _SAPI_CALL sangoma_wait_obj_set_context(sangoma_wait_obj_t *sangoma_wait_object, void *context);
+void _LIBSNG_CALL sangoma_wait_obj_set_context(sangoma_wait_obj_t *sangoma_wait_object, void *context);
 
 /*!
-  \fn void *sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_object)
+  \fn PVOID sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_object)
   \brief Retrieve the user context (if any) that was set via sangoma_wait_obj_set_context.
+  \brief Windows note: must use return type PVOID instead of void* to satisfy WDK compiler.
   \param sangoma_wait_object pointer a single device object 
   \return void*
 */
-void* _SAPI_CALL sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_object);
+PVOID _LIBSNG_CALL sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_object);
 
 
 /************************************************************//**
@@ -543,7 +604,7 @@ void* _SAPI_CALL sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_o
   \param tdm_api tdm api command structure
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_cmd_exec(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_cmd_exec(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 
 /*!
@@ -553,7 +614,7 @@ int _SAPI_CALL sangoma_cmd_exec(sng_fd_t fd, wanpipe_api_t *tdm_api);
   \param tdm_api tdm api command structure
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_get_full_cfg(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_get_full_cfg(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_set_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api, int period)
@@ -565,7 +626,7 @@ int _SAPI_CALL sangoma_get_full_cfg(sng_fd_t fd, wanpipe_api_t *tdm_api);
   
   Only valid in CHAN Operation Mode
 */
-int _SAPI_CALL sangoma_tdm_set_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api, int period);
+int _LIBSNG_CALL sangoma_tdm_set_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api, int period);
 
 /*!
   \fn int sangoma_tdm_get_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -574,7 +635,7 @@ int _SAPI_CALL sangoma_tdm_set_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api, i
   \param tdm_api tdm api command structure
   \return negative: error or configured period value
 */
-int _SAPI_CALL sangoma_tdm_get_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_get_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_get_usr_mtu_mru(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -583,18 +644,47 @@ int _SAPI_CALL sangoma_tdm_get_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api);
   \param tdm_api tdm api command structure
   \return negative: error or configured mtu/mru in bytes
 */
-int _SAPI_CALL sangoma_tdm_get_usr_mtu_mru(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_get_usr_mtu_mru(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 
 /*!
   \fn int sangoma_flush_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api)
-  \brief Flush buffers from current channel
+  \brief Flush all (tx/rx/event) buffers from current channel
   \param fd device file descriptor
   \param tdm_api tdm api command structure
   \return non-zero: error, 0: ok
   
 */
-int _SAPI_CALL sangoma_flush_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_flush_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+/*!
+  \fn int sangoma_flush_rx_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Flush only rx buffers from current channel
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: ok
+  
+*/
+int _LIBSNG_CALL sangoma_flush_rx_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api);
+/*!
+  \fn int sangoma_flush_tx_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Flush only tx buffers from current channel
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: ok
+  
+*/
+int _LIBSNG_CALL sangoma_flush_tx_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+/*!
+  \fn int sangoma_flush_event_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Flush only event buffers from current channel
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: ok
+  
+*/
+int _LIBSNG_CALL sangoma_flush_event_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 
 /*!
@@ -605,7 +695,7 @@ int _SAPI_CALL sangoma_flush_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api);
   \param poll_in_sec driver poll period for rbs events
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_tdm_enable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api, int poll_in_sec);
+int _LIBSNG_CALL sangoma_tdm_enable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api, int poll_in_sec);
 
 /*!
   \fn int sangoma_tdm_disable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -614,7 +704,7 @@ int _SAPI_CALL sangoma_tdm_enable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api
   \param tdm_api tdm api command structure
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_tdm_disable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_disable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_write_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char rbs)
@@ -625,7 +715,7 @@ int _SAPI_CALL sangoma_tdm_disable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_ap
   \param rbs rbs bits (ABCD)
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_tdm_write_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char rbs);
+int _LIBSNG_CALL sangoma_tdm_write_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char rbs);
 
 /*!
   \fn int sangoma_tdm_read_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char *rbs)
@@ -637,7 +727,7 @@ int _SAPI_CALL sangoma_tdm_write_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int ch
   \return non-zero: error, 0: ok
 */
 
-int _SAPI_CALL sangoma_tdm_read_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char *rbs);
+int _LIBSNG_CALL sangoma_tdm_read_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char *rbs);
 
 /*!
   \fn int sangoma_tdm_enable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -648,7 +738,7 @@ int _SAPI_CALL sangoma_tdm_read_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int cha
   
   Supported only on cards that have HWEC
 */
-int _SAPI_CALL sangoma_tdm_enable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_enable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_disable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -659,7 +749,44 @@ int _SAPI_CALL sangoma_tdm_enable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_ap
   
   Supported only on cards that have HWEC
 */
-int _SAPI_CALL sangoma_tdm_disable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_disable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+
+#ifdef WP_API_FEATURE_FAX_EVENTS
+/*!
+  \fn int sangoma_tdm_enable_fax_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Enable FAX Detection on Octasic chip (if hw supports it)
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: ok
+  
+  Supported only on cards that have HWEC
+*/
+int _LIBSNG_CALL sangoma_tdm_enable_fax_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+/*!
+  \fn int sangoma_tdm_disable_fax_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Disable FAX Detection on Octasic chip (if hw supports it)
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: ok
+  
+  Supported only on cards that have HWEC
+*/
+int _LIBSNG_CALL sangoma_tdm_disable_fax_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+/*!
+  \fn int sangoma_tdm_get_hw_fax(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Get HW FAX Detection State (Enable or Disabled) on Octasic chip (if hw supports it)
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: Disabled, 1: Enabled
+  
+  Supported only on cards that have HWEC
+*/
+int _LIBSNG_CALL sangoma_tdm_get_hw_fax(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+#endif
 
 
 /*!
@@ -668,10 +795,10 @@ int _SAPI_CALL sangoma_tdm_disable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_a
   \param fd device file descriptor
   \param tdm_api tdm api command structure
   \return non-zero: error, 0: ok
-  
+
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_enable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_enable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -682,7 +809,7 @@ int _SAPI_CALL sangoma_tdm_enable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -693,7 +820,7 @@ int _SAPI_CALL sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *td
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -704,7 +831,7 @@ int _SAPI_CALL sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_enable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -715,7 +842,7 @@ int _SAPI_CALL sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_enable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_enable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_disable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -726,7 +853,7 @@ int _SAPI_CALL sangoma_tdm_enable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_ap
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_disable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_disable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 
 /*!
@@ -738,7 +865,7 @@ int _SAPI_CALL sangoma_tdm_disable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_a
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_enable_ring_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_enable_ring_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_disable_ring_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -749,7 +876,7 @@ int _SAPI_CALL sangoma_tdm_enable_ring_detect_events(sng_fd_t fd, wanpipe_api_t 
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_disable_ring_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_disable_ring_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_enable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -760,7 +887,7 @@ int _SAPI_CALL sangoma_tdm_disable_ring_detect_events(sng_fd_t fd, wanpipe_api_t
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_enable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_enable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_disable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -771,7 +898,7 @@ int _SAPI_CALL sangoma_tdm_enable_ring_trip_detect_events(sng_fd_t fd, wanpipe_a
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_disable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_disable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_enable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api, uint16_t tone_id)
@@ -783,7 +910,7 @@ int _SAPI_CALL sangoma_tdm_disable_ring_trip_detect_events(sng_fd_t fd, wanpipe_
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_enable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api, uint16_t tone_id);
+int _LIBSNG_CALL sangoma_tdm_enable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api, uint16_t tone_id);
 
 /*!
   \fn int sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -794,7 +921,7 @@ int _SAPI_CALL sangoma_tdm_enable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_ap
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -805,7 +932,7 @@ int _SAPI_CALL sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_a
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -816,7 +943,7 @@ int _SAPI_CALL sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_api_t *tdm_api);
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -827,7 +954,7 @@ int _SAPI_CALL sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_api_t *tdm_api);
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -838,7 +965,7 @@ int _SAPI_CALL sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_api_t *tdm_api);
   
   Supported only on Analog Cards
 */
-int _SAPI_CALL sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -849,7 +976,7 @@ int _SAPI_CALL sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_api_t *tdm_api);
   
   Supported only on cards that have HWEC
 */
-int _SAPI_CALL sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -860,10 +987,10 @@ int _SAPI_CALL sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api);
   
   Supported only on cards that have HWEC
 */
-int _SAPI_CALL sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
-  \fn int _SAPI_CALL sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned int *alarms);
+  \fn int _LIBSNG_CALL sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned int *alarms);
   \brief Get Front End Alarms (T1/E1 Only)
   \param fd device file descriptor
   \param tdm_api tdm api command structure
@@ -872,7 +999,7 @@ int _SAPI_CALL sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api);
   
   Supported only on T1/E1 Cards
 */
-int _SAPI_CALL sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned int *alarms);
+int _LIBSNG_CALL sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned int *alarms);
 
 
 
@@ -894,7 +1021,7 @@ int _SAPI_CALL sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_api_t *tdm_api, un
   \return non-zero: error, 0: ok -> check current_status 
 
 */
-int _SAPI_CALL sangoma_get_link_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *current_status);
+int _LIBSNG_CALL sangoma_get_link_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *current_status);
 
 #endif
 
@@ -915,11 +1042,11 @@ int _SAPI_CALL sangoma_get_link_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsi
   \param new_status new status  0=Link UP  1=Link Down
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_set_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char new_status);
+int _LIBSNG_CALL sangoma_set_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char new_status);
 
 
 /*!
-  \fn int _SAPI_CALL sangoma_enable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel)
+  \fn int _LIBSNG_CALL sangoma_enable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel)
   \brief Enable BRI Bchannel loopback - used when debugging bri device
   \param fd device file descriptor
   \param tdm_api tdm api command structure
@@ -927,10 +1054,10 @@ int _SAPI_CALL sangoma_set_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsign
   \return non-zero: error, 0: ok
  
 */
-int _SAPI_CALL sangoma_enable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel);
+int _LIBSNG_CALL sangoma_enable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel);
 
 /*!
-  \fn int _SAPI_CALL sangoma_disable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel)
+  \fn int _LIBSNG_CALL sangoma_disable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel)
   \brief Disable BRI Bchannel loopback - used when debugging bri device
   \param fd device file descriptor
   \param tdm_api tdm api command structure
@@ -938,7 +1065,7 @@ int _SAPI_CALL sangoma_enable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm
   \return non-zero: error, 0: ok
  
 */
-int _SAPI_CALL sangoma_disable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel);
+int _LIBSNG_CALL sangoma_disable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel);
 
 
 /*!
@@ -948,7 +1075,7 @@ int _SAPI_CALL sangoma_disable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *td
   \param tdm_api tdm api command structure
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_get_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_get_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 
 /*!
@@ -959,7 +1086,7 @@ int _SAPI_CALL sangoma_get_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api);
   \param size tx queue size (minimum value of 1) 
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_set_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int size);
+int _LIBSNG_CALL sangoma_set_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int size);
 
 /*!
   \fn int sangoma_get_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -968,7 +1095,7 @@ int _SAPI_CALL sangoma_set_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int 
   \param tdm_api tdm api command structure
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_get_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_get_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_set_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int size)
@@ -978,7 +1105,7 @@ int _SAPI_CALL sangoma_get_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api);
   \param size rx queue size (minimum value of 1)
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_set_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int size);
+int _LIBSNG_CALL sangoma_set_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int size);
 
 
 #ifndef LIBSANGOMA_GET_HWCODING
@@ -999,7 +1126,7 @@ int _SAPI_CALL sangoma_set_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int 
   This function will return the low level voice coding
   depending on configuration.  (ulaw or alaw)
 */
-int _SAPI_CALL sangoma_get_hw_coding(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_get_hw_coding(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 
 
@@ -1019,7 +1146,7 @@ int _SAPI_CALL sangoma_get_hw_coding(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
   This function will check if hw supports HW DTMF.
 */
-int _SAPI_CALL sangoma_tdm_get_hw_dtmf(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_get_hw_dtmf(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -1030,7 +1157,7 @@ int _SAPI_CALL sangoma_tdm_get_hw_dtmf(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
   This function will check if hw supports HW EC.
 */
-int _SAPI_CALL sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_span_chan_toif(int span, int chan, char *interface_name)
@@ -1040,7 +1167,7 @@ int _SAPI_CALL sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api);
   \param interface_name pointer to string where interface name will be written
   \return non-zero = error, 0 = ok
 */
-int _SAPI_CALL sangoma_span_chan_toif(int span, int chan, char *interface_name);
+int _LIBSNG_CALL sangoma_span_chan_toif(int span, int chan, char *interface_name);
 
 /*!
   \fn int sangoma_span_chan_fromif(char *interface_name, int *span, int *chan)
@@ -1050,7 +1177,7 @@ int _SAPI_CALL sangoma_span_chan_toif(int span, int chan, char *interface_name);
   \param chan integer pointer where to write chan value
   \return non-zero = error, 0 = ok
 */
-int _SAPI_CALL sangoma_span_chan_fromif(char *interface_name, int *span, int *chan);
+int _LIBSNG_CALL sangoma_span_chan_fromif(char *interface_name, int *span, int *chan);
 
 
 /*!
@@ -1061,7 +1188,7 @@ int _SAPI_CALL sangoma_span_chan_fromif(char *interface_name, int *span, int *ch
   \param sectimeout how many seconds to wait for the device to come up, -1 to wait forever
   \return non-zero = error, 0 = ok
 */
-int _SAPI_CALL sangoma_interface_wait_up(int span, int chan, int sectimeout);
+int _LIBSNG_CALL sangoma_interface_wait_up(int span, int chan, int sectimeout);
 
 /*!
   \fn int sangoma_get_driver_version(sng_fd_t fd, wanpipe_api_t *tdm_api, wan_driver_version_t *drv_ver)
@@ -1071,7 +1198,7 @@ int _SAPI_CALL sangoma_interface_wait_up(int span, int chan, int sectimeout);
   \param drv_ver driver version structure that will contain the driver version
   \return non-zero = error, 0 = ok
 */
-int _SAPI_CALL sangoma_get_driver_version(sng_fd_t fd, wanpipe_api_t *tdm_api, wan_driver_version_t *drv_ver);
+int _LIBSNG_CALL sangoma_get_driver_version(sng_fd_t fd, wanpipe_api_t *tdm_api, wan_driver_version_t *drv_ver);
 
 /*!
   \fn int sangoma_get_firmware_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver)
@@ -1081,7 +1208,7 @@ int _SAPI_CALL sangoma_get_driver_version(sng_fd_t fd, wanpipe_api_t *tdm_api, w
   \param ver hardware/firmware version number
   \return non-zero = error, 0 = ok
 */
-int _SAPI_CALL sangoma_get_firmware_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver);
+int _LIBSNG_CALL sangoma_get_firmware_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver);
 
 /*!
   \fn int sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver)
@@ -1091,7 +1218,7 @@ int _SAPI_CALL sangoma_get_firmware_version(sng_fd_t fd, wanpipe_api_t *tdm_api,
   \param ver hardware/cpld version number
   \return non-zero = error, 0 = ok
 */
-int _SAPI_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver);
+int _LIBSNG_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver);
 
 
 /*!
@@ -1102,16 +1229,16 @@ int _SAPI_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, uns
   \param stats stats structure will be filled with device stats. (Optional, can be left NULL)
   \return non-zero = error, 0 = ok
 */
-int _SAPI_CALL sangoma_get_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, wanpipe_chan_stats_t *stats);
+int _LIBSNG_CALL sangoma_get_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, wanpipe_chan_stats_t *stats);
 
 /*!
-  \fn int _SAPI_CALL sangoma_flush_stats(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \fn int _LIBSNG_CALL sangoma_flush_stats(sng_fd_t fd, wanpipe_api_t *tdm_api)
   \brief Flush/Reset device statistics
   \param fd device file descriptor
   \param tdm_api tdm api command structure
   \return non-zero = error, 0 = ok
 */
-int _SAPI_CALL sangoma_flush_stats(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_flush_stats(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
   \fn int sangoma_set_rm_rxflashtime(sng_fd_t fd, wanpipe_api_t *tdm_api, int rxflashtime)
@@ -1121,9 +1248,73 @@ int _SAPI_CALL sangoma_flush_stats(sng_fd_t fd, wanpipe_api_t *tdm_api);
   \param rxflashtime time value 
   \return non-zero = error, 0 = ok
 */
-int _SAPI_CALL sangoma_set_rm_rxflashtime(sng_fd_t fd, wanpipe_api_t *tdm_api, int rxflashtime);
+int _LIBSNG_CALL sangoma_set_rm_rxflashtime(sng_fd_t fd, wanpipe_api_t *tdm_api, int rxflashtime);
+
+#ifdef WP_API_FEATURE_RM_GAIN
+/*!
+  \fn int sangoma_set_rm_tx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, int value)
+  \brief set tx gain for FXO/FXS module
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \param value txgain (FXO - txgain value ranges from -150 to 120 , FXS - txgain value 35,-35)
+  \return non-zero = error, 0 = ok
+*/
+int _LIBSNG_CALL sangoma_set_rm_tx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, int value);
 
 
+/*!
+  \fn int sangoma_set_rm_rx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, int value)
+  \brief set rx gain for FXO/FXS module
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \param value rxgain (FXO - rxgain value ranges from -150 to 120 , FXS -rxgain value 35,-35) 
+  \return non-zero = error, 0 = ok
+*/
+int _LIBSNG_CALL sangoma_set_rm_rx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, int value);
+
+#endif /* WP RM GAIN feature */
+
+/*!
+  \fn int sangoma_set_polarity(sng_fd_t fd, wanpipe_api_t *tdm_api, int value)
+  \brief set polarity on FXS (Analog only)
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \param value 0 fwd, 1 rev
+  \return non-zero = error, 0 = ok
+*/
+int _LIBSNG_CALL sangoma_tdm_set_polarity(sng_fd_t fd, wanpipe_api_t *tdm_api, int polarity);
+
+/*!
+  \fn int sangoma_tdm_txsig_onhooktranfer(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Tranmsmit TX SIG ON HOOK Tranfer (Analog Only)
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: ok
+  
+  Supported only on Analog Cards
+*/
+int _LIBSNG_CALL sangoma_tdm_txsig_onhooktransfer(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+
+#ifdef WP_API_FEATURE_LOOP
+/*!
+  \fn int sangoma_tdm_enable_loop(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Enable channel loop: All rx data will be transmitted back out.
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero = error, 0 = ok
+*/ 
+int _LIBSNG_CALL sangoma_tdm_enable_loop(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+/*!
+  \fn int sangoma_tdm_disable_loop(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Disable channel loop
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero = error, 0 = ok
+*/
+int _LIBSNG_CALL sangoma_tdm_disable_loop(sng_fd_t fd, wanpipe_api_t *tdm_api);    
+#endif
 
 /************************************************************//**
  * Device EVENT Function
@@ -1141,9 +1332,80 @@ int _SAPI_CALL sangoma_set_rm_rxflashtime(sng_fd_t fd, wanpipe_api_t *tdm_api, i
   This function usually used after wait() function indicated that event
   has occured.
 */
-int _SAPI_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
+#ifdef WP_API_FEATURE_LOGGER
 
+sangoma_status_t _LIBSNG_CALL sangoma_logger_cmd_exec(sng_fd_t fd, wp_logger_cmd_t *logger_cmd);
+
+/*!
+  \fn sangoma_status_t sangoma_logger_read_event(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+  \brief Read Wanpipe Logger Events
+  \param fd device file descriptor
+  \param logger_cmd Logger API command structure
+  \return SANG_STATUS_SUCCESS: ok, else: error
+  
+  The Logger API structure will be populated with a Logger Event.
+  This function usually used after wait() function indicated that
+  an event has occured.
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_logger_read_event(sng_fd_t fd, wp_logger_cmd_t *logger_cmd);
+
+/*!
+  \fn sangoma_status_t sangoma_logger_flush_buffers(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+  \brief Flush Wanpipe Logger internal buffers
+  \param fd device file descriptor
+  \param logger_cmd Logger API command structure
+  \return SANG_STATUS_SUCCESS: ok, else: error
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_logger_flush_buffers(sng_fd_t fd, wp_logger_cmd_t *logger_cmd);
+
+/*!
+  \fn sangoma_status_t sangoma_logger_get_statistics(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+  \brief Get Wanpipe Logger statistics
+  \param fd device file descriptor
+  \param logger_cmd Logger API command structure
+  \return SANG_STATUS_SUCCESS: ok, else: error
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_logger_get_statistics(sng_fd_t fd, wp_logger_cmd_t *logger_cmd);
+
+/*!
+  \fn sangoma_status_t sangoma_logger_reset_statistics(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+  \brief Reset Wanpipe Logger statistics
+  \param fd device file descriptor
+  \param logger_cmd Logger API command structure
+  \return SANG_STATUS_SUCCESS: ok, else: error
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_logger_reset_statistics(sng_fd_t fd, wp_logger_cmd_t *logger_cmd);
+
+/*!
+  \fn sangoma_status_t sangoma_logger_get_open_handle_counter(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+  \brief Get Counter of open Handles/File Descriptors of Wanpipe Logger
+  \param fd device file descriptor
+  \param logger_cmd Logger API command structure
+  \return SANG_STATUS_SUCCESS: ok, else: error
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_logger_get_open_handle_counter(sng_fd_t fd, wp_logger_cmd_t *logger_cmd);
+
+/*!
+  \fn sangoma_status_t sangoma_logger_get_logger_level(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+  \brief Get current level (types of events) of Wanpipe Logger
+  \param fd device file descriptor
+  \param logger_cmd Logger API command structure
+  \return SANG_STATUS_SUCCESS: ok, else: error
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_logger_get_logger_level(sng_fd_t fd, wp_logger_cmd_t *logger_cmd);
+
+/*!
+  \fn sangoma_status_t sangoma_logger_set_logger_level(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+  \brief Set current level (types of events) of Wanpipe Logger
+  \param fd device file descriptor
+  \param logger_cmd Logger API command structure
+  \return SANG_STATUS_SUCCESS: ok, else: error
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_logger_set_logger_level(sng_fd_t fd, wp_logger_cmd_t *logger_cmd);
+
+#endif /* WP LOGGER FEATURE */
 
 #ifndef LIBSANGOMA_LIGHT
 
@@ -1165,7 +1427,7 @@ int _SAPI_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api);
 							Windows example: combination of GetLastError()/FormatMessage()
 				zero:		no system error. Check port_mgmt->operation_status.
 */
-int _SAPI_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
+int _LIBSNG_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
 
 
 /*!
@@ -1182,7 +1444,7 @@ int _SAPI_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *
 							Windows example: combination of GetLastError()/FormatMessage()
 				zero:		no system error. Check port_mgmt->operation_status.
 */
-int _SAPI_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
+int _LIBSNG_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
 
 
 /*!
@@ -1201,7 +1463,7 @@ int _SAPI_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *p
 							Windows example: combination of GetLastError()/FormatMessage()
 				zero:		no system error. Check port_cfg->operation_status.
 */
-int _SAPI_CALL sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no);
+int _LIBSNG_CALL sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no);
 
 
 /*!
@@ -1217,7 +1479,7 @@ int _SAPI_CALL sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg,
 							Windows example: combination of GetLastError()/FormatMessage()
 				zero:		no system error. Check port_cfg->operation_status.
 */
-int _SAPI_CALL sangoma_driver_port_get_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no);
+int _LIBSNG_CALL sangoma_driver_port_get_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no);
 
 
 /*!
@@ -1232,7 +1494,7 @@ int _SAPI_CALL sangoma_driver_port_get_config(sng_fd_t fd, port_cfg_t *port_cfg,
 							Windows example: combination of GetLastError()/FormatMessage()
 				zero:		no system error. Check port_mgmt->operation_status.
 */
-int _SAPI_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
+int _LIBSNG_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
 
 
 /*!
@@ -1251,7 +1513,7 @@ int _SAPI_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_t 
   \param[in] port_no	please see comment of sangoma_driver_port_set_config()
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t *hardware_info, port_cfg_t *port_cfg, unsigned short port_no);
+int _LIBSNG_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t *hardware_info, port_cfg_t *port_cfg, unsigned short port_no);
 
 
 /************************************************************//**
@@ -1265,7 +1527,7 @@ int _SAPI_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t *
   \param wan_udp management command structure
   \return non-zero: error, 0: ok
 */
-int _SAPI_CALL sangoma_mgmt_cmd(sng_fd_t fd, wan_udp_hdr_t* wan_udp);
+int _LIBSNG_CALL sangoma_mgmt_cmd(sng_fd_t fd, wan_udp_hdr_t* wan_udp);
 
 
 #endif  /* LIBSANGOMA_LIGHT */
@@ -1295,7 +1557,7 @@ int _SAPI_CALL sangoma_mgmt_cmd(sng_fd_t fd, wan_udp_hdr_t* wan_udp);
 
   Deprecated - replaced by sangoma_tdm_get_link_status function 
 */
-int _SAPI_CALL sangoma_get_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *current_status);
+int _LIBSNG_CALL sangoma_get_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *current_status);
 
 
 
@@ -1310,7 +1572,7 @@ int _SAPI_CALL sangoma_get_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsign
   Deprecated Function - Here for backward compatibility
   Only valid in CHAN Operation Mode
 */
-int _SAPI_CALL sangoma_tdm_set_codec(sng_fd_t fd, wanpipe_api_t *tdm_api, int codec);
+int _LIBSNG_CALL sangoma_tdm_set_codec(sng_fd_t fd, wanpipe_api_t *tdm_api, int codec);
 
 /*!
   \fn int sangoma_tdm_get_codec(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -1322,7 +1584,7 @@ int _SAPI_CALL sangoma_tdm_set_codec(sng_fd_t fd, wanpipe_api_t *tdm_api, int co
   Deprecated Function - Here for backward compatibility
   Only valid in CHAN Operation Mode
 */
-int _SAPI_CALL sangoma_tdm_get_codec(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_get_codec(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 
 /*!
@@ -1334,7 +1596,7 @@ int _SAPI_CALL sangoma_tdm_get_codec(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
    Deprecated - here for backward compatibility
 */
-sng_fd_t _SAPI_CALL sangoma_create_socket_by_name(char *device, char *card);
+sng_fd_t _LIBSNG_CALL sangoma_create_socket_by_name(char *device, char *card);
 
 /*!
   \fn int sangoma_interface_toi(char *interface_name, int *span, int *chan)
@@ -1345,7 +1607,7 @@ sng_fd_t _SAPI_CALL sangoma_create_socket_by_name(char *device, char *card);
   \return non-zero = error, 0 = ok
   Deprecated - here for backward compatibility
 */
-int _SAPI_CALL sangoma_interface_toi(char *interface_name, int *span, int *chan);
+int _LIBSNG_CALL sangoma_interface_toi(char *interface_name, int *span, int *chan);
 
 
 /*!
@@ -1358,7 +1620,7 @@ int _SAPI_CALL sangoma_interface_toi(char *interface_name, int *span, int *chan)
   
   Deprecated - not used/implemented
 */
-int _SAPI_CALL sangoma_tdm_set_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api, int power);
+int _LIBSNG_CALL sangoma_tdm_set_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api, int power);
 
 /*!
   \fn int sangoma_tdm_get_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api)
@@ -1369,15 +1631,318 @@ int _SAPI_CALL sangoma_tdm_set_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api, 
   
   Deprecated - not used/implemented
 */
-int _SAPI_CALL sangoma_tdm_get_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api);
+int _LIBSNG_CALL sangoma_tdm_get_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+
+#ifdef WP_API_FEATURE_LIBSNG_HWEC
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name)
+
+  \brief Load Firmware image onto EC chip.
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_release(char *device_name)
+
+  \brief Reset internal state of HWEC API.
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_release(char *device_name);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_operation_mode(char *device_name, int mode, unsigned int fe_chan_map)
+
+  \brief	Modify channel operation mode.
+
+  \param	mode	One of WANEC_API_OPMODE_? values defined in wanpipe_api_iface.h:
+					WANEC_API_OPMODE_NORMAL,
+					WANEC_API_OPMODE_HT_FREEZE,
+					WANEC_API_OPMODE_HT_RESET, 
+					WANEC_API_OPMODE_POWER_DOWN,
+					WANEC_API_OPMODE_NO_ECHO,
+					WANEC_API_OPMODE_SPEECH_RECOGNITION.
+
+  \param fe_chan_map Bitmap of channels (timeslots for Digital,
+				lines for Analog) where the call will take effect.
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_operation_mode(char *device_name, int mode, unsigned int fe_chan_map);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_power_on (char *device_name,  unsigned int fe_chan_map)
+
+  \brief Set the channel state in the echo canceller to NORMAL/POWER ON.
+		 This enables echo cancelation logic inside the chip. 
+         The action is internal to EC chip itself, not related to AFT FPGA.
+		 This call is slow and should be used only on startup.
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \param fe_chan_map Bitmap of channels (timeslots for Digital,
+				lines for Analog) where the call will take effect.
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_power_on(char *device_name,  unsigned int fe_chan_map);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_power_off (char *device_name,  unsigned int fe_chan_map)
+
+  \brief  Set the channel state in the echo canceller to POWER OFF.
+          This disables echo cancellatio logic inside the chip and
+          data passes unmodified through the ec chip.
+          The action is internal to EC chip itself, not related
+		  to AFT FPGA. This call is slow and should be used only on startup.
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \param fe_chan_map Bitmap of channels (timeslots for Digital,
+				lines for Analog) where the call will take effect.
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_power_off(char *device_name,  unsigned int fe_chan_map);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_enable(char *device_name,  unsigned int fe_chan_map)
+
+  \brief Redirect audio stream from AFT FPGA to EC chip. 
+        This command effectively enables echo cancellation since
+		data is now forced through the EC chip by the FPGA. 
+		Data will be modified by the echo canceller.
+		This command is recommened for fast enabling of Echo Cancellation.
+        Note 1: Chip must be configured and in POWER ON state for echo
+				Chancellation to take place.
+		Note 2: sangoma_tdm_enable_hwec() function can be use to achive
+				the same funcitnality based on file descriptor versus
+				channel map.
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \param fe_chan_map Bitmap of channels (timeslots for Digital, lines for Analog) where 
+		the call will take effect.
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_enable(char *device_name,  unsigned int fe_chan_map);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_disable(char *device_name, unsigned int fe_chan_map)
+
+  \brief Force AFT FPGA to bypass the echo canceller.  
+         This command effectively disables echo cancellation since
+		 data will not flowing through the ec chip. 
+         Data will not be modified by the echo canceller.
+         This command is recommened for fast disabling of Echo Cancelation.
+		 Note: sangoma_tdm_disable_hwec() function can be use to achive
+				the same functionality based on file descriptor versus
+				channel map.
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \param fe_chan_map Bitmap of channels (timeslots for Digital, lines for Analog) where 
+		the call will take effect.
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_disable(char *device_name, unsigned int fe_chan_map);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameters(char *device_name,	char *parameter, char *parameter_value, unsigned int channel_map)
+
+  \brief Modify channel configuration parameters.
+	This is list of Echo Cancellation channel parameters:
+
+		Channel parameter					Channel parameter value
+		=================					=======================
+		WANEC_EnableNlp						TRUE | FALSE
+		WANEC_EnableTailDisplacement		TRUE | FALSE
+		WANEC_TailDisplacement				0-896
+		WANEC_SoutLevelControl				TRUE | FALSE
+		WANEC_RinAutomaticLevelControl		TRUE | FALSE
+		WANEC_SoutAutomaticLevelControl		TRUE | FALSE
+		WANEC_SoutAdaptiveNoiseReduction	TRUE | FALSE
+		WANEC_RoutNoiseReduction			TRUE | FALSE
+		WANEC_ComfortNoiseMode				COMFORT_NOISE_NORMAL
+											COMFORT_NOISE_FAST_LATCH
+											COMFORT_NOISE_EXTENDED
+											COMFORT_NOISE_OFF
+		WANEC_DtmfToneRemoval				TRUE | FALSE
+		WANEC_AcousticEcho					TRUE | FALSE
+		WANEC_NonLinearityBehaviorA			0-13
+		WANEC_NonLinearityBehaviorB			0-8
+		WANEC_DoubleTalkBehavior			DT_BEH_NORMAL
+											DT_BEH_LESS_AGGRESSIVE
+
+  \param fe_chan_map Bitmap of channels (timeslots for Digital, lines for Analog) where 
+		the call will take effect.
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameters(char *device_name,	char *parameter, char *parameter_value, unsigned int channel_map);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_tone_detection(char *device_name, int tone_id, int enable, unsigned int fe_chan_map, unsigned char port_map)
+  
+  \brief Enable/Disable tone detection (such as DTMF) of channels from channel map. 
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \param tone_id See wanpipe_api_iface.h for list of valid tones
+
+  \param enable A flag, if 1 - the specified tone will be detected,
+				if 0 - specified tone will not be detected.
+
+  \param fe_chan_map Bitmap of channels (timeslots for Digital, lines for Analog) where 
+		the call will take effect.
+
+  \param port_map Port\Direction of tone detection - Rx, Tx. See wanpipe_events.h for
+			list of valid ports (WAN_EC_CHANNEL_PORT_SOUT...).
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_tone_detection(char *device_name, int tone_id, int enable, unsigned int fe_chan_map, unsigned char port_map);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_print_statistics(char *device_name, int full, unsigned int fe_chan_map)
+
+  \brief Read and print Chip/Channel statistics from EC chip. 
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \param full Flag to read full statistics, if set to 1.
+
+  \param fe_chan_map Bitmap of channels (timeslots for Digital, lines for Analog) where 
+		the call will read statistics.
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_print_statistics(char *device_name, int full, unsigned int fe_chan_map);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_load(char *device_name, char *filename, char pcmlaw, int *out_buffer_id)
+
+  \brief Load audio buffer to EC chip. The buffer can be played out using the sangoma_hwec_audio_buffer_playout() function. 
+
+  \param filename name of the audio file (without the extension). 
+				Actual file must have .pcm extension.
+				Location:
+					Windows: %SystemRoot%\sang_ec_files (ex: c:\WINDOWS\sang_ec_files)
+				Linux: /etc/wanpipe/buffers
+
+ \param out_buffer_id when the buffer is loaded on the chip, it is assigned an ID. This ID should
+			be used when requesting to play out the buffer.
+ 
+  \return SANG_STATUS_SUCCESS: success, or error status
+
+ */
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_load(char *device_name, char *filename, char pcmlaw, int *out_buffer_id);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_bufferunload(char *device_name, int in_buffer_id)
+
+  \brief Unload/remove an audio buffer from the HWEC chip.
+
+  \param device_name Sangoma wanpipe device name. (ex: wanpipe1 - Linux; wanpipe1_if1 - Windows).
+
+  \param in_buffer_id	ID of the buffer which will be unloaded. The ID must be initialized by sangoma_hwec_audio_bufferload().
+
+  \return SANG_STATUS_SUCCESS - buffer was successfully unloaded/removed, SANG_STATUS_GENERAL_ERROR - error occured
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_unload(char *device_name, int in_buffer_id);
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_playout(char *device_name, unsigned int fe_chan_map, 
+										unsigned char port_map, int buffer_id, int start, int repeat_cnt, int duration)
+
+  \brief Start\Stop playing out an audio buffer previously loaded by sangoma_hwec_audio_buffer_load().
+
+  \param fe_chan_map Bitmap of channels (timeslots for Digital,
+				lines for Analog) where the call will take effect.
+
+  \param port_map Port\Direction where the buffer will be played out.
+					This is the channel port on which the buffer will be
+					played (WAN_EC_CHANNEL_PORT_SOUT or WAN_EC_CHANNEL_PORT_ROUT)
+  
+  \param in_buffer_id	ID of the buffer which will be unloaded. The ID must be initialized by sangoma_hwec_audio_bufferload().
+  
+  \param start	If 1 - start the play out, 0 - stop the play out
+		
+  \param repeat_cnt Number of times to play out the same buffer
+  
+  \param duration	Maximum duration of the playout, in milliseconds. If it takes less then 'duration' to
+					play out the whole buffer this paramter is ignored.
+
+  \return SANG_STATUS_SUCCESS: success, or error status
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_playout(char *device_name, unsigned int fe_chan_map, 
+																unsigned char port, int in_buffer_id, int start,
+																int repeat_cnt,	int duration);
+
+/*!
+  \fn void _LIBSNG_CALL sangoma_hwec_config_verbosity(int verbosity_level)
+
+  \brief Set Verbosity level of EC API. The level controls amount of data 
+			printed to stdout and wanpipelog.txt for diagnostic purposes.
+
+  \param verbosity_level Valid values are from 0 to 3.
+
+  \return	SANG_STATUS_SUCCESS: success - the level was changed to 'verbosity_level', 
+			SANG_STATUS_INVALID_PARAMETER: error - the level was not changed because new level is invalid
+*/
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_verbosity(int verbosity_level);
+
+#endif /* WP_API_FEATURE_LIBSNG_HWEC */
 
 
 #ifdef __cplusplus
 }
+#endif/* __WINDOWS__ */
+
+
+#if defined(__WINDOWS__)
+/*! Windows specific API */
+#ifdef __cplusplus
+extern "C" {	/* for C++ users */
 #endif
 
+sangoma_status_t _LIBSNG_CALL sangoma_unload_driver();
+sangoma_status_t _LIBSNG_CALL sangoma_load_driver();
+void _LIBSNG_CALL sangoma_reset_port_numbers();
+sangoma_status_t _LIBSNG_CALL sangoma_get_driver_version_from_registry(char *out_buffer, int out_buffer_length);
+sangoma_status_t _LIBSNG_CALL sangoma_set_driver_mode_of_all_hw_devices(int driver_mode);
+
+#ifdef __cplusplus
+}
+#endif/* __WINDOWS__ */
+
+#else
 /*! Backward compabile defines */
-#if !defined(__WINDOWS__)
 #define sangoma_open_tdmapi_span_chan sangoma_open_api_span_chan
 #define sangoma_open_tdmapi_span sangoma_open_api_span
 #define sangoma_open_tdmapi_ctrl sangoma_open_api_ctrl

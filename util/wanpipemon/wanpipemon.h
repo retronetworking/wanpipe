@@ -20,9 +20,11 @@
 
 #define inline __inline
 
-#define WIN_DBG if(0)printf
-#define WIN_DBG_FUNC() if(1)printf("%s(): line: %d\n", __FUNCTION__, __LINE__)
+#define WIN_DBG			if(0)printf
+#define WIN_DBG_FUNC()	if(0)printf("%s(): line: %d\n", __FUNCTION__, __LINE__)
+#define WIN_DBG_FUNC_NOT_IMPLEMENTED() if(0)printf("%s(): line: %d: not implemented\n", __FUNCTION__, __LINE__)
 
+#define BREAK_POINT()	DebugBreak()
 #else
 #include <stddef.h>
 #include <stdlib.h>
@@ -43,7 +45,10 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
+#define BREAK_POINT()
 #endif
+
+
 
 #include <wanpipe_hdlc.h>
 

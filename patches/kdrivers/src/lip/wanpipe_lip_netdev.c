@@ -15,6 +15,8 @@
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <wanpipe_lip.h>
+#elif defined(__WINDOWS__)
+#include "wanpipe_lip.h"
 #else
 # include <linux/wanpipe_lip.h>
 #endif
@@ -50,7 +52,7 @@ char* get_master_dev_name(wplip_link_t 	*lip_link);
 
 int wplip_open_dev(netdevice_t *dev)
 {
-	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
+	wplip_dev_t *lip_dev = wplip_netdev_get_lipdev(dev);
 	
 	if (!lip_dev || !lip_dev->lip_link){
 		return -ENODEV;
@@ -122,7 +124,7 @@ int wplip_open_dev(netdevice_t *dev)
 int wplip_stop_dev(netdevice_t *dev)
 {
 	
-	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
+	wplip_dev_t *lip_dev = wplip_netdev_get_lipdev(dev);
 
 	if (!lip_dev || !lip_dev->lip_link){
 		return 0;
@@ -163,7 +165,36 @@ int wplip_stop_dev(netdevice_t *dev)
 static struct net_device_stats gstats;
 struct net_device_stats* wplip_ifstats (netdevice_t *dev)
 {
-	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
+	wplip_dev_t *lip_dev = wplip_netdev_get_lipdev(dev);
+
+	DEBUG_TEST("%s: LIP %s()\n",
+		wan_netif_name(dev),__FUNCTION__);
+
+	if (lip_dev){
+		return &lip_dev->common.if_stats;
+	}
+
+	return &gstats;
+}
+#endif
+
+#if defined(__WINDOWS__)
+/*==============================================================
+ * wplip_ifstats
+ *
+ * Description:
+ * 	This fucntion interfaces the /proc file system
+ * 	to the svc device.  The svc keeps protocol and
+ * 	packet statistcs.  This function passes these
+ * 	statistics to the /proc file system.
+ *	
+ * Usedby:
+ * 	Kernel /proc/net/dev file system
+ */
+static struct net_device_stats gstats;
+struct net_device_stats* wplip_ifstats (netdevice_t *dev)
+{
+	wplip_dev_t *lip_dev = wplip_netdev_get_lipdev(dev);
 
 	DEBUG_TEST("%s: LIP %s()\n",
 		wan_netif_name(dev),__FUNCTION__);
@@ -202,14 +233,14 @@ struct net_device_stats* wplip_ifstats (netdevice_t *dev)
  * 	Kernel TCP/IP stack or upper layers to transmit data.
  */
 
-#if defined(__LINUX__)
+#if defined(__LINUX__) || defined(__WINDOWS__)
 int wplip_if_send (netskb_t* skb, netdevice_t* dev)
 #else
 int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct rtentry* rt)
 #endif
 {
-	wplip_dev_t 	 *lip_dev	=wplip_get_lipdev(dev);
-	wan_api_tx_hdr_t *api_tx_hdr	=NULL;
+	wplip_dev_t 	 *lip_dev		= wplip_netdev_get_lipdev(dev);
+	wan_api_tx_hdr_t *api_tx_hdr	= NULL;
 	int err, type;
 	int len = skb?wan_skb_len(skb):0;
 
@@ -266,7 +297,7 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 			
 		type = WPLIP_RAW;
 	}else{
-#if defined(__LINUX__)
+#if defined(__LINUX__) || defined(__WINDOWS__)
 		type = wplip_decode_protocol(lip_dev,skb);
 #else
 		type = wplip_decode_protocol(lip_dev,sa);
@@ -329,11 +360,9 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 }
 
 #if defined(__LINUX__)
-
-
 static void wplip_tx_timeout (netdevice_t *dev)
 {
-	wplip_dev_t *lip_dev = (wplip_dev_t *)wan_netif_priv(dev);
+	wplip_dev_t *lip_dev = wplip_netdev_get_lipdev(dev);
 	wplip_link_t *lip_link = lip_dev->lip_link;
 
 	/* If our device stays busy for at least 5 seconds then we will
@@ -356,13 +385,42 @@ static void wplip_tx_timeout (netdevice_t *dev)
 
 	wan_netif_set_ticks(dev, SYSTEM_TICKS);
 }
-#endif
+#endif/* __LINUX__ */
+
+#if defined(__WINDOWS__)
+static void wplip_tx_timeout (netdevice_t *dev)
+{
+	wplip_dev_t *lip_dev = wplip_netdev_get_lipdev(dev);
+	wplip_link_t *lip_link = lip_dev->lip_link;
+
+	/* If our device stays busy for at least 5 seconds then we will
+	 * kick start the device by making dev->tbusy = 0.  We expect
+	 * that our device never stays busy more than 5 seconds. So this
+	 * is only used as a last resort.
+	 */
+
+#if 0
+		gdbg_flag=1;
+#endif		
+	wan_clear_bit(WPLIP_BH_AWAITING_KICK,&lip_link->tq_working);
+	wplip_kick_trigger_bh(lip_link);
+
+	WAN_NETIF_WAKE_QUEUE (dev);
+
+	if (lip_dev->common.usedby == API){
+		wan_update_api_state(lip_dev);	
+	}
+
+	wan_netif_set_ticks(dev, SYSTEM_TICKS);
+}
+#endif/* __WINDOWS__ */
+
 
 static int
 wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 {
 
-	wplip_dev_t	*lip_dev= wplip_get_lipdev(dev);
+	wplip_dev_t	*lip_dev = wplip_netdev_get_lipdev(dev);
 	wplip_link_t 	*lip_link;
 	wan_smp_flag_t	flags;
 	int		err=0;
@@ -390,14 +448,14 @@ wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 				break;
 			}
 
-			wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+			wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 
 			if (lip_dev->common.usedby == API){
 				dev->watchdog_timeo=HZ*60;		
 			}
 			
 			err=wan_bind_api_to_svc(lip_dev,ifr->ifr_data);
-			wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+			wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 			break;
 
 		case SIOC_WANPIPE_UNBIND_SK:
@@ -406,13 +464,13 @@ wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 				break;
 			}
 
-			wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+			wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 			err=wan_unbind_api_from_svc(lip_dev,ifr->ifr_data);
 			if (lip_dev->common.usedby == API && 
 			    lip_dev->protocol == WANCONFIG_XDLC){
 				wplip_close_lipdev_prot(lip_dev);
 			}
-			wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+			wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 			break;
 
 		case SIOC_WANPIPE_CHECK_TX:
@@ -430,13 +488,13 @@ wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 
 		case SIOC_WANPIPE_PIPEMON:
 
-			wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+			wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 			if (lip_dev->udp_pkt_len != 0){
-				wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+				wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 				return -EBUSY;
 			}
 			lip_dev->udp_pkt_len = sizeof(wan_udp_hdr_t);
-			wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+			wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 
 			wan_udp_pkt=(wan_udp_pkt_t*)&lip_dev->udp_pkt_data;
 			if (WAN_COPY_FROM_USER(&wan_udp_pkt->wan_udp_hdr,ifr->ifr_data,sizeof(wan_udp_hdr_t))){
@@ -444,7 +502,7 @@ wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 				return -EFAULT;
 			}
 
-			wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+			wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 
 			if(wan_udp_pkt->wan_udp_command == WAN_GET_MASTER_DEV_NAME){
 				char* master_dev_name;
@@ -464,7 +522,7 @@ wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 			}else{
 				if (wplip_prot_udp_mgmt_pkt(lip_dev,wan_udp_pkt) <= 0){
 					lip_dev->udp_pkt_len=0;
-					wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+					wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 					return -EINVAL;
 				}
 			}
@@ -473,11 +531,11 @@ wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 				DEBUG_EVENT("%s: Error: Pipemon buf too bit on the way up! %i\n",
 						lip_dev->name,lip_dev->udp_pkt_len);
 				lip_dev->udp_pkt_len=0;
-				wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+				wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 				return -EINVAL;
 			}
 
-			wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+			wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 
 			/* This area will still be critical to other
 			 * PIPEMON commands due to udp_pkt_len
@@ -506,14 +564,14 @@ wplip_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 			if (cmd >= SIOC_WANPIPE_DEVPRIVATE)
 			{
 
-				wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+				wplip_spin_lock_irq(&lip_link->bh_lock,&flags);
 				cmd-=SIOC_WANPIPE_DEVPRIVATE;
 				if (ifr == NULL){
 					err=wplip_prot_ioctl(lip_dev,cmd,NULL);
 				}else{
 					err=wplip_prot_ioctl(lip_dev,cmd,ifr->ifr_data);
 				}
-				wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+				wplip_spin_unlock_irq(&lip_link->bh_lock,&flags);
 
 				return err;
 			}
@@ -583,7 +641,7 @@ char* get_master_dev_name(wplip_link_t 	*lip_link)
  */
 int wplip_if_init(netdevice_t *dev)
 {
-	wplip_dev_t* lip_dev= wplip_get_lipdev(dev);
+	wplip_dev_t* lip_dev = wplip_netdev_get_lipdev(dev);
 
 #if defined(__LINUX__)
 	lip_dev->common.is_netdev	= 1;
@@ -594,6 +652,17 @@ int wplip_if_init(netdevice_t *dev)
 	lip_dev->common.iface.tx_timeout= &wplip_tx_timeout;
 	lip_dev->common.iface.get_stats	= &wplip_ifstats;
 	lip_dev->common.iface.change_mtu = &wplip_change_mtu;
+
+	return 0;
+#elif defined(__WINDOWS__)
+	lip_dev->common.is_netdev	= 1;
+	lip_dev->common.iface.open	= &wplip_open_dev;
+	lip_dev->common.iface.close	= &wplip_stop_dev;
+	lip_dev->common.iface.send	= &wplip_if_send;
+	lip_dev->common.iface.ioctl	= &wplip_ioctl;
+	lip_dev->common.iface.tx_timeout= &wplip_tx_timeout;
+	lip_dev->common.iface.get_stats	= &wplip_ifstats;
+//	lip_dev->common.iface.change_mtu = &wplip_change_mtu;
 
 	return 0;
 #else

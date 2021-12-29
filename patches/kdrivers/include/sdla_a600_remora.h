@@ -10,7 +10,7 @@
  * **              as published by the Free Software Foundation; either version
  * **              2 of the License, or (at your option) any later version.
  * ** ============================================================================
- * ** Oct 6, 2005  Alex Feldman    Initial version.
+ * ** Nov , 2008  David Yat Sin    Initial version
  * *******************************************************************************/
 
 
@@ -51,5 +51,16 @@ extern int wp_a600_iface_init(void*, void*);
 #define IS_A600(fe) (((sdla_t*)(fe->card))->adptr_type == AFT_ADPTR_A600)
 #define IS_A600_CARD(card) (card->adptr_type == AFT_ADPTR_A600)
 
+#define IS_B601(fe) (((sdla_t*)(fe->card))->adptr_type == AFT_ADPTR_B601)
+#define IS_B601_CARD(card) (card->adptr_type == AFT_ADPTR_B601)
+#define IS_B601_TE1_CARD(card) (card->adptr_type == AFT_ADPTR_B601 && card->wandev.comm_port == 1)
+
+#define A600_MAXIM_INTERFACE_REG_ADD_LO 0x1044
+#define A600_MAXIM_INTERFACE_REG_ADD_HI 0x1046
+
+#define A600_FIRST_LINE_CFG_ADD  0x2100
+
+#define A600_FIRST_LINE_CFG_RESET_BIT 0x01
+
 #endif /* SDLA_A600_H */
-                                          
+

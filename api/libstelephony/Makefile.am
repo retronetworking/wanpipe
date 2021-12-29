@@ -8,7 +8,7 @@ AM_CFLAGS		= -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I$(WLINC) 
 AM_CXXFLAGS		= -fPIC -Wall -g -I$(WLINC) -I$(WINC)  -I. \
 	-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O2 -D_DEBUG_=2 -D_GNUC_ -I../lib  -Istel_tone
 
-LIB_SOUCES		= libstelephony.cpp PToneDecoder.cpp PToneEncoder.cpp Q931EventsDecoder.cpp stelephony.cpp stel_tone/stel_tone.c stel_tone/uart.c stel_tone/libteletone_generate.c stel_tone/libteletone_detect.c stel_tone/fsk.c
+LIB_SOUCES		= libstelephony.cpp PToneDecoder.cpp PToneEncoder.cpp Q931EventsDecoder.cpp stelephony.cpp stel_tone/stel_tone.c stel_tone/wp_uart.c stel_tone/wp_libteletone_generate.c stel_tone/wp_libteletone_detect.c stel_tone/wp_fsk.c
 
 
 library_includedir      = $(includedir)

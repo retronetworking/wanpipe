@@ -136,8 +136,9 @@
 # define AFT_CHIPCFG_A500_EC_INTR_ENABLE_BIT 14		/* A500 - BRI not used for now */
 
 
-# define AFT_CHIPCFG_EC_INTR_STAT_BIT	13
-
+# define AFT_CHIPCFG_EC_INTR_STAT_BIT						13
+#	define AFT_CHIPCFG_B600_EC_RESET_BIT					25
+# define AFT_CHIPCFG_B600_EC_CHIP_PRESENT_BIT		20              /* B600 and B601 only */
 
 /* A104 A200 A108 Differ Here 
  * By default any register without device name is
@@ -198,6 +199,62 @@
 #  define AFT_CHIPCFG_WDT_TX_INTR_STAT  1
 #  define AFT_CHIPCFG_WDT_RX_INTR_STAT	2
 
+
+#define AFT_CLKCFG_A600_REG 0x1090
+#define AFT_CLKCFG_A600_CLK_OUTPUT_BIT         0
+#define AFT_CLKCFG_A600_CLK_EXT_CLK_SRC_BIT    4
+#define AFT_CLKCFG_A600_CLK_SRC_BIT_MASK       0x6
+#define AFT_CLKCFG_A600_CLK_SRC_BIT_SHIFT      1
+#define AFT_CLKCFG_A600_CLK_OUT_BIT_MASK       0x7
+#define AFT_CLKCFG_A600_CLK_OUT_BIT_SHIFT      5
+
+
+/* Use the onboard oscillator clk 8.192 Mhz */
+# define AFT_CLKCFG_A600_CLK_SRC_OSC		0x00	
+
+/* Use the clock from front end no pll */
+# define AFT_CLKCFG_A600_CLK_SRC_EXT_NO_PLL	0x01
+
+/* Use the clock from front end with pll */
+# define AFT_CLKCFG_A600_CLK_SRC_EXT_PLL	0x02
+
+/* use the board system clock */
+# define AFT_CLKCFG_A600_CLK_OUT_BOARD		0x04
+
+
+#define AFT_CLKCFG_B601_EC_SRC_MUX_MASK					0x03
+#define AFT_CLKCFG_B601_EC_SRC_MUX_SHIFT				1
+
+#define AFT_CLKCFG_B601_EC_SRC_MUX_OSC_CLK				0x0
+#define AFT_CLKCFG_B601_EC_SRC_MUX_EXT_CLK				0x1
+#define AFT_CLKCFG_B601_EC_SRC_MUX_TRISTATE				0x2
+
+#define AFT_CLKCFG_B601_EXT_CLK_VAL_MASK				0x1
+#define AFT_CLKCFG_B601_EXT_CLK_VAL_SHIFT				4
+
+#define AFT_CLKCFG_B601_EXT_CLK_MUX_MASK				0x7
+#define AFT_CLKCFG_B601_EXT_CLK_MUX_SHIFT				5
+
+#define AFT_CLKCFG_B601_EXT_CLK_MUX_LINE_0				0x00
+#define AFT_CLKCFG_B601_EXT_CLK_MUX_LINE_1				0x01
+#define AFT_CLKCFG_B601_EXT_CLK_MUX_OSC_2000HZ			0x02
+#define AFT_CLKCFG_B601_EXT_CLK_MUX_OSC_1500HZ			0x03
+#define AFT_CLKCFG_B601_EXT_CLK_MUX_H100_CLK			0x04
+
+#define AFT_CLKCFG_B601_PLL_CLK_SRC_MUX_MASK           0x7
+#define AFT_CLKCFG_B601_PLL_CLK_SRC_MUX_SHIFT          8
+
+#define AFT_CLKCFG_B601_PLL_CLK_SRC_MUX_LINE_0         0x00
+#define AFT_CLKCFG_B601_PLL_CLK_SRC_MUX_LINE_1         0x01
+#define AFT_CLKCFG_B601_PLL_CLK_SRC_MUX_OSC_2000HZ     0x02
+#define AFT_CLKCFG_B601_PLL_CLK_SRC_MUX_OSC_1500HZ     0x03
+#define AFT_CLKCFG_B601_PLL_CLK_SRC_MUX_EXT_8000HZ     0x04
+#define AFT_CLKCFG_B601_PLL_CLK_SRC_MUX_EXT_1500HZ     0x05
+
+
+
+
+
 static __inline u32
 aft_chipcfg_get_fifo_reset_bit(sdla_t* card)
 {
@@ -256,30 +313,6 @@ aft_chipcfg_get_tx_intr_ack_bit_bymap(u32 comm_port)
 
 	return AFT_CHIPCFG_A108_TDM_GLOBAL_TX_INTR_ACK;
 }
-
-
-
-# define AFT_CLKCFG_A600_CLK_OUTPUT_BIT 	0
-# define AFT_CLKCFG_A600_CLK_EXT_CLK_SRC_BIT	4
-
-# define AFT_CLKCFG_A600_CLK_SRC_BIT_MASK 	0x6
-# define AFT_CLKCFG_A600_CLK_SRC_BIT_SHIFT 	1
-# define AFT_CLKCFG_A600_CLK_OUT_BIT_MASK	0x7
-# define AFT_CLKCFG_A600_CLK_OUT_BIT_SHIFT	5
-
-
-/* Use the onboard oscillator clk 8.192 Mhz */
-# define AFT_CLKCFG_A600_CLK_SRC_OSC		0x00	
-
-/* Use the clock from front end no pll */
-# define AFT_CLKCFG_A600_CLK_SRC_EXT_NO_PLL	0x01
-
-/* Use the clock from front end with pll */
-# define AFT_CLKCFG_A600_CLK_SRC_EXT_PLL	0x02
-
-/* use the board system clock */
-# define AFT_CLKCFG_A600_CLK_OUT_BOARD		0x04
-
 
 /* A104 & A104D Interrupt Status Funcitons */
 
@@ -495,18 +528,41 @@ aft_chipcfg_get_a200_ec_channels(u32 reg)
 }
 
 static __inline u32
-aft_chipcfg_get_a600_ec_channels(u32 reg)
+aft_chipcfg_get_a600_ec_channels(u32 reg, u8 core_rev)
 {
-	switch ((reg>>AFT_CHIPCFG_A600_EC_SEC_KEY_SHIFT)&AFT_CHIPCFG_A600_EC_SEC_KEY_MASK){
-		case 0x00:
-			return 0;
-		case 0x01:
+	if (core_rev >= 3) {
+		if (wan_test_bit(AFT_CHIPCFG_B600_EC_CHIP_PRESENT_BIT, &reg)) {
 			return 5;
-		default:
-			return 0;
+		}
+		return 0;
+	} else {
+		switch ((reg>>AFT_CHIPCFG_A600_EC_SEC_KEY_SHIFT) & AFT_CHIPCFG_A600_EC_SEC_KEY_MASK){
+			case 0x00:
+				return 0;
+			case 0x01:
+				return 5;
+			default:
+				return 0;
+		}
 	}
-
+	
 	return 0;
+}
+
+static __inline u32
+aft_chipcfg_get_b601_ec_channels(u32 reg)
+{
+	if (wan_test_bit(AFT_CHIPCFG_B600_EC_CHIP_PRESENT_BIT, &reg)) {
+		return 64;
+	} 
+	return 0;
+}
+
+
+static __inline u32
+aft_chipcfg_get_b601_security(u32 reg)
+{
+	return((reg >> AFT_CHIPCFG_A600_EC_SEC_KEY_SHIFT) & AFT_CHIPCFG_A600_EC_SEC_KEY_MASK);
 }
 
 static __inline u32
@@ -623,12 +679,17 @@ aft_fifo_mark_gset(u32 *reg, u8 mark)
 # define AFT_LCFG_A108_CLK_ROUTE_MASK	0x0F
 # define AFT_LCFG_A108_CLK_ROUTE_SHIFT	16
 
-# define AFT_LCFG_CLR_CHNL_EN		26
 
+# define AFT_LCFG_FE_SYNC_CNT_MASK		0xFF
+# define AFT_LCFG_FE_SYNC_CNT_SHIFT		20
+
+/* Not Digital */
+# define AFT_LCFG_CLR_CHNL_EN		26
 # define AFT_LCFG_FE_CLK_ROUTE_BIT	27
 
 # define AFT_LCFG_FE_CLK_SOURCE_MASK	0x03
 # define AFT_LCFG_FE_CLK_SOURCE_SHIFT	28
+
 
 # define AFT_LCFG_GREEN_LED_BIT		30
 # define AFT_LCFG_A108_FE_CLOCK_MODE_BIT 31	/* A108 */
@@ -636,6 +697,29 @@ aft_fifo_mark_gset(u32 *reg, u8 mark)
 # define AFT_LCFG_RED_LED_BIT		31
 # define AFT_LCFG_A108_FE_TE1_MODE_BIT	30	/* A108 */
 
+#define AFT_LCFG_B601_CLK_ROUTE_MASK		0x07
+#define AFT_LCFG_B601_CLK_ROUTE_SHIFT		16
+
+#define AFT_LCFG_B601_CLK_SRC_LINE_0		0x00    /* Receive clock from line 0 is source */
+#define AFT_LCFG_B601_CLK_SRC_LINE_1		0x01    /* Receive clock from line 1 is source , Not used for now */
+#define AFT_LCFG_B601_CLK_SRC_EXT_2000HZ	0x02       /* External clock in case 2.048 Mhz is the source */
+#define AFT_LCFG_B601_CLK_SRC_EXT_1500HZ	0x03       /* External clock in case 1.544 Mhz is the source */
+#define AFT_LCFG_B601_CLK_SRC_OSC_2000HZ	0x04    /* Master Board oscillator 2.048 Mhz is the source */
+#define AFT_LCFG_B601_CLK_SRC_OSC_1500HZ	0x05    /* Master Board oscillator 1.544 Mhz is the source */
+
+#define AFT_LCFG_B601_FE_CHIP_RESET_BIT       5 /* For B601 only */
+#define AFT_LCFG_B601_GREEN_LED_BIT           6
+#define AFT_LCFG_B601_RED_LED_BIT                     7
+
+#define AFT_B601_ECHO_EN_CTRL_REG                     0x210
+#define AFT_B601_DATA_MUX_EN_CTRL_REG         0x20C
+
+static __inline void
+aft_lcfg_b601_fe_clk_source(u32 *reg, u32 src)
+{
+       *reg&=~(AFT_LCFG_B601_CLK_ROUTE_MASK<<AFT_LCFG_B601_CLK_ROUTE_SHIFT);
+       *reg|=(src&AFT_LCFG_B601_CLK_ROUTE_MASK)<<AFT_LCFG_B601_CLK_ROUTE_SHIFT;
+}
 
 static __inline void
 aft_lcfg_fe_clk_source(u32 *reg, u32 src)
@@ -672,6 +756,20 @@ aft_lcfg_tdmv_cnt_dec(u32 *reg)
 	*reg&=~(AFT_LCFG_TDMV_CH_NUM_MASK<<AFT_LCFG_TDMV_CH_NUM_SHIFT);
 	*reg|=(cnt&AFT_LCFG_TDMV_CH_NUM_MASK)<<AFT_LCFG_TDMV_CH_NUM_SHIFT;
 }
+
+static __inline u32
+aft_lcfg_get_fe_sync_cnt(u32 reg)
+{
+	return (reg>>AFT_LCFG_FE_SYNC_CNT_SHIFT)&AFT_LCFG_FE_SYNC_CNT_MASK;
+}
+
+static __inline void
+aft_lcfg_set_fe_sync_cnt(u32 *reg, int cnt)
+{
+	*reg&=~(AFT_LCFG_FE_SYNC_CNT_MASK<<AFT_LCFG_FE_SYNC_CNT_SHIFT);
+	*reg|=((cnt&AFT_LCFG_FE_SYNC_CNT_MASK)<<AFT_LCFG_FE_SYNC_CNT_SHIFT);
+}
+
 
 /* SS7 LCFG MODE
  * 0: 128
@@ -1295,6 +1393,24 @@ static __inline unsigned short aft_dma_buf_bits(unsigned short dma_bufs)
 	}	
 }
 
+static __inline void
+aft_set_led_b601(unsigned int color, int led_pos, int on, u32 *reg)
+{
+	if (color == WAN_AFT_RED){
+		if (on == WAN_AFT_OFF){
+			wan_clear_bit(AFT_LCFG_B601_RED_LED_BIT,reg);
+		}else{
+			wan_set_bit(AFT_LCFG_B601_RED_LED_BIT,reg);
+		}
+	}else{
+		if (on == WAN_AFT_OFF){
+			wan_clear_bit(AFT_LCFG_B601_GREEN_LED_BIT,reg);
+		}else{
+			wan_set_bit(AFT_LCFG_B601_GREEN_LED_BIT,reg);
+		}
+	}
+}
+
 
 static __inline void
 aft_set_led(unsigned int color, int led_pos, int on, u32 *reg)
@@ -1326,25 +1442,6 @@ aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
 	}
 
 	return num_of_slots;
-}
-
-static __inline int 
-aft_tx_dma_chain_chain_len(private_area_t *chan) 
-{
-	int pending_indx=chan->tx_pending_chain_indx;
-	int chain_diff=0;
-
-	if (chan->tx_chain_indx == pending_indx){
-        return chain_diff;
-	}            
-
-	if (chan->tx_chain_indx > pending_indx){
-		chain_diff = chan->tx_chain_indx - pending_indx;
-	}else{
-		chain_diff = MAX_AFT_DMA_CHAINS-(pending_indx - chan->tx_chain_indx);
-	}
-		
-	return chain_diff;
 }
 
 #define MAX_AFT_HW_DEV 20

@@ -653,7 +653,7 @@ void wanpipe_debugging (ulong_ptr_t data)
 				if (card->wandev.clocking == WANOPT_EXTERNAL){
 					if (card->wan_debug_last_msg != WAN_DEBUG_LINERROR_MSG){
 						/* External clocking */
-						DEBUG_EVENT("%s: Your line is experiencing errors!\n",
+						DEBUG_ERROR("%s: Your line is experiencing errors!\n",
 									card->devname);
 						DEBUG_EVENT("%s:    Check your DSU/CSU and line configuration\n",
 									card->devname);
@@ -666,7 +666,7 @@ void wanpipe_debugging (ulong_ptr_t data)
 					if (card->wan_debug_last_msg != WAN_DEBUG_CLK_MSG){
 						DEBUG_EVENT("%s: You are set for Internal clocking, \n",
 									card->devname);
-						DEBUG_EVENT("%s: causing line errors!\n",
+						DEBUG_ERROR("%s: causing line errors!\n",
 									card->devname);
 						DEBUG_EVENT("%s:    Set to External clocking except for\n",
 									card->devname);
@@ -973,7 +973,7 @@ int wan_tracing_enabled(wan_trace_t *trace_info)
 		}
 
 		if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("wanpipe: Warning: trace queue overflow %d (max=%d)!\n",
+			DEBUG_WARNING("wanpipe: Warning: trace queue overflow %d (max=%d)!\n",
 					wan_skb_queue_len(&trace_info->trace_queue),
 					trace_info->max_trace_queue);
 		}
@@ -1400,7 +1400,7 @@ int init_atm_idle_buffer(unsigned char *buff, int buff_len, char *if_name, char 
 	number_of_cells_fit_idle_buffer = buff_len / ATM_CELL_SIZE;
 
 	if(number_of_cells_fit_idle_buffer == 0 /*|| buff_len % ATM_CELL_SIZE*/){
-	      DEBUG_EVENT("%s: Error: Invalid Idle buffer length=%d, not multiple of ATM_CELL_SIZE (53)!\n",
+	      DEBUG_ERROR("%s: Error: Invalid Idle buffer length=%d, not multiple of ATM_CELL_SIZE (53)!\n",
 			if_name, buff_len);
 	      return 1;
 	}
@@ -1418,7 +1418,7 @@ int atm_add_data_to_skb(void* skb, void *data, int data_len, char *if_name)
 	unsigned char 	*skb_data_ptr;
 
 	if (data_len != ATM_CELL_SIZE) {
-                DEBUG_EVENT("%s: %s(): Error, invalid datalen=%i\n",
+                DEBUG_ERROR("%s: %s(): Error, invalid datalen=%i\n",
                         if_name, __FUNCTION__, data_len);
                 return 1;
         }
@@ -1456,7 +1456,7 @@ int atm_pad_idle_cells_in_tx_skb(void *skb, void *tx_idle_skb, char *if_name)
 	DEBUG_ATM("num_of_cells_to_pad: %d\n", num_of_cells_to_pad);
 	
 	if(empty_space % ATM_CELL_SIZE){
-		DEBUG_EVENT("%s: %s(): Error, empty space length (%d) is not multiple of ATM_CELL_SIZE!\n", 
+		DEBUG_ERROR("%s: %s(): Error, empty space length (%d) is not multiple of ATM_CELL_SIZE!\n", 
 			if_name, __FUNCTION__, empty_space);
 		return 1;
 	}

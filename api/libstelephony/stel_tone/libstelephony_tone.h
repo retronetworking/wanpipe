@@ -1,8 +1,8 @@
 #ifndef __FSK_CALLER_ID_H_
 #define __FSK_CALLER_ID_H_
 
-#include "fsk.h"
-#include "libteletone_generate.h"
+#include "wp_fsk.h"
+#include "wp_libteletone_generate.h"
 
 #define my_copy_string(x,y,z) strncpy(x, y, z - 1) 
 
@@ -12,17 +12,10 @@
 #define u16	unsigned short
 #define s16	signed short
 
-#ifdef __WINDOWS__
-# define STELAPI_CALL	__cdecl
-#else
-# define STELAPI_CALL
-#endif
 
 #ifdef __cplusplus
 extern "C" {	/* for C++ users */
 #endif
-
-
 
 typedef enum {
 	CID_TYPE_SDMF = 0x04,

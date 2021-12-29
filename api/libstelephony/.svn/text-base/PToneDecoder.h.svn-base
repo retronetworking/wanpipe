@@ -7,8 +7,8 @@
 #include <libstelephony.h>
 
 #include "Sink.h"
-#include "g711.h"
-#include "libteletone.h"
+#include "wp_g711.h"
+#include "wp_libteletone.h"
 
 class PhoneToneDecoder
 {

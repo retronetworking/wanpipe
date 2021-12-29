@@ -31,7 +31,6 @@
 # include <linux/wanpipe_includes.h>
 # include <linux/tty.h>
 # include <linux/usb.h>
-# include <linux/usb/serial.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/wanpipe.h>
 # include <linux/wanproc.h>
@@ -43,6 +42,12 @@
 # include <linux/wanpipe_tdm_api.h>
 #endif
 
+#if defined(CONFIG_PRODUCT_WANPIPE_USB) 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10)
+#  include <linux/usb/serial.h>
+#else
+#  define MAX_NUM_PORTS 8  //This is normally defined in /linux/usb/serial.h
+#endif
 /***************************************************************************
 ****                   M A C R O S     D E F I N E S                    ****
 ***************************************************************************/
@@ -210,7 +215,11 @@ extern int sdla_usb_remove(struct usb_interface*, int);
 
 static int sdla_usb_probe(struct usb_interface*, const struct usb_device_id*);
 static void sdla_usb_disconnect(struct usb_interface*);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10) 
 static int sdla_usb_suspend (struct usb_interface*, pm_message_t);
+#else
+static int sdla_usb_suspend (struct usb_interface*, u32 msg);
+#endif
 static int sdla_usb_resume (struct usb_interface*);
 #if 0
 static void sdla_usb_prereset (struct usb_interface*);
@@ -361,7 +370,7 @@ static int sdla_usb_probe(struct usb_interface *intf, const struct usb_device_id
 				SDLA_USB_NAME, desc->name, desc->adptr_type, udev->devnum);
 
 	if (sdla_usb_create(intf, desc->adptr_type)){
-		DEBUG_EVENT("ERROR: %s: Failed to creae hwcard structures\n",
+		DEBUG_ERROR("ERROR: %s: Failed to creae hwcard structures\n",
 				SDLA_USB_NAME);
 		return -ENODEV;
 	}
@@ -386,6 +395,7 @@ static void sdla_usb_disconnect(struct usb_interface *intf)
 	return;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10)
 static int sdla_usb_suspend (struct usb_interface *intf, pm_message_t message)
 {
 	struct usb_device	*dev = interface_to_usbdev(intf);
@@ -393,6 +403,15 @@ static int sdla_usb_suspend (struct usb_interface *intf, pm_message_t message)
 				SDLA_USB_NAME, dev->devnum);
 	return 0;
 }
+#else
+static int sdla_usb_suspend (struct usb_interface *intf, u32 msg)
+{
+	struct usb_device	*dev = interface_to_usbdev(intf);
+	DEBUG_EVENT("%s: Suspend USB device on %d (not implemented)!\n", 
+				SDLA_USB_NAME, dev->devnum);
+	return 0;
+}
+#endif
 
 static int sdla_usb_resume (struct usb_interface *intf)
 {
@@ -1798,7 +1817,7 @@ sdla_usb_set_config(sdlahw_t *hw, u8 request, unsigned int *data, int size)
 
 	buf = kmalloc(length * sizeof(__le32), GFP_KERNEL);
 	if (!buf) {
-		DEBUG_EVENT("ERROR [%s:%d]: Out of memory!\n",
+		DEBUG_ERROR("ERROR [%s:%d]: Out of memory!\n",
 				__FUNCTION__,__LINE__);
 		return -ENOMEM;
 	}
@@ -1822,7 +1841,7 @@ sdla_usb_set_config(sdlahw_t *hw, u8 request, unsigned int *data, int size)
 	kfree(buf);
 
 	if ((size > 2 && result != size) || result < 0) {
-		DEBUG_EVENT("ERROR [%s:%d]: Unable to send request: request=0x%x size=%d result=%d!\n",
+		DEBUG_ERROR("ERROR [%s:%d]: Unable to send request: request=0x%x size=%d result=%d!\n",
 				__FUNCTION__,__LINE__, request, size, result);
 		return -EPROTO;
 	}
@@ -1862,7 +1881,7 @@ sdla_usb_get_config(sdlahw_t *hw, u8 request, unsigned int *data, int size)
 
 	buf = kcalloc(length, sizeof(__le32), GFP_KERNEL);
 	if (!buf) {
-		DEBUG_EVENT("ERROR [%s:%d]: Out of memory.\n", __FUNCTION__,__LINE__);
+		DEBUG_ERROR("ERROR [%s:%d]: Out of memory.\n", __FUNCTION__,__LINE__);
 		return -ENOMEM;
 	}
 
@@ -1927,7 +1946,7 @@ int sdla_usb_setup(sdlahw_t *hw)
 	for(x = 0; x < WP_USB_MAX_RX_CMD_QLEN; x++){
 		skb = wan_skb_alloc(10);
 		if (!skb){
-			DEBUG_EVENT("%s: ERROR: Failed to allocate RX cmd buffer!\n",
+			DEBUG_ERROR("%s: ERROR: Failed to allocate RX cmd buffer!\n",
 						hw->devname);
 			goto cleanup;
 		}
@@ -1939,7 +1958,7 @@ int sdla_usb_setup(sdlahw_t *hw)
 	for(x = 0; x < WP_USB_MAX_RX_CMD_QLEN; x++){
 		skb = wan_skb_alloc(10);
 		if (!skb){
-			DEBUG_EVENT("%s: ERROR: Failed to allocate TX cmd buffer!\n",
+			DEBUG_ERROR("%s: ERROR: Failed to allocate TX cmd buffer!\n",
 						hw->devname);
 			goto cleanup;
 		}
@@ -1958,7 +1977,7 @@ int sdla_usb_setup(sdlahw_t *hw)
 	wan_spin_lock_irq_init(&hwcard->u_usb.lock,"usb_bh_lock");
 	hwcard->u_usb.ctrl_idle_pattern  = WP_USB_CTRL_IDLE_PATTERN;
 	if (sdla_usb_set_config_single(hw, CP2101_UART, UART_ENABLE)) {
-		DEBUG_EVENT("%s: ERROR: Unable to enable UART!\n",
+		DEBUG_ERROR("%s: ERROR: Unable to enable UART!\n",
 					hw->devname);
 		goto cleanup;
 	}
@@ -2136,3 +2155,5 @@ int sdla_usb_down(sdlahw_t *hw, int force)
 	usb_set_intfdata(hwcard->u_usb.usb_intf, NULL);
 	return 0;
 }
+
+#endif   /* #if defined(CONFIG_PRODUCT_WANPIPE_USB)        */

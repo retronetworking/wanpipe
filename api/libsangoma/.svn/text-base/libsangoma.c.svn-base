@@ -44,6 +44,10 @@
 # define MAX_COMP_DESC		2096
 # define MAX_FRIENDLY		2096	
 # define TMP_BUFFER_LEN		256
+
+/*!+! jpboily used to tell get_out_flags no objects were signaled */
+# define INVALID_INDEX (uint32_t) -1 
+# define WP_ALL_BITS_SET ((uint32_t)-1)
 #endif
 
 static void libsng_dbg(const char * fmt, ...)
@@ -63,14 +67,15 @@ static void libsng_dbg(const char * fmt, ...)
 /*********************************************************************//**
  * WINDOWS Only Section
  *************************************************************************/
+static int libsng_dbg_level = 0;
 
-#define	DBG_POLL	if(0)libsng_dbg
-#define	DBG_EVNT	if(0)libsng_dbg
-#define	DBG_ERR		if(0)libsng_dbg("Error: %s() line: %d : ", __FUNCTION__, __LINE__);if(0)libsng_dbg
-#define	DBG_INIT	if(0)libsng_dbg
+#define	DBG_POLL	if(libsng_dbg_level)libsng_dbg
+#define	DBG_EVNT	if(libsng_dbg_level)libsng_dbg
+#define	DBG_ERR		if(libsng_dbg_level)libsng_dbg("Error: %s() line: %d : ", __FUNCTION__, __LINE__);if(libsng_dbg_level)libsng_dbg
+#define	DBG_INIT	if(libsng_dbg_level)libsng_dbg
 
 #if defined(__WINDOWS__)
-#define	DBG_REGISTRY	if(0)libsng_dbg
+#define	DBG_REGISTRY	if(libsng_dbg_level)libsng_dbg
 
 /*
   \fn static void DecodeLastError(LPSTR lpszFunction)
@@ -79,7 +84,7 @@ static void libsng_dbg(const char * fmt, ...)
 
   Private Windows Only Function
  */
-static void DecodeLastError(LPSTR lpszFunction) 
+static void LibSangomaDecodeLastError(LPSTR lpszFunction) 
 { 
 	LPVOID lpMsgBuf;
 	DWORD dwLastErr = GetLastError();
@@ -95,7 +100,7 @@ static void DecodeLastError(LPSTR lpszFunction)
 		NULL 
 	);
 	/* Display the string. */
-	DBG_POLL("Last Error in %s(): %s (%d)\n", lpszFunction, lpMsgBuf, dwLastErr);
+	DBG_POLL("Last Error in %s(): %s (%d)\n", lpszFunction, (char*)lpMsgBuf, dwLastErr);
 	/* Free the buffer. */
 	LocalFree( lpMsgBuf );
 } 
@@ -111,11 +116,10 @@ static u16 handle_device_ioctl_result(int bResult, char *caller_name)
 {
 	if(bResult == 0){
 		/*error*/
-		DecodeLastError(caller_name);
-		return 1;
-
+		LibSangomaDecodeLastError(caller_name);
+		return SANG_STATUS_IO_ERROR;
 	}else{
-		return 0;
+		return SANG_STATUS_SUCCESS;
 	}
 }
 
@@ -151,14 +155,14 @@ static int UdpManagementCommand(sng_fd_t fd, wan_udp_hdr_t* wan_udp)
 }
 
 /*
-  \fn static int TdmvApiCommand(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
-  \brief Executes Driver TDM API Command
+  \fn static int tdmv_api_ioctl(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
+  \brief Executes Driver TDM API Command Wrapper Function
   \param fd device file descriptor
   \param api_cmd tdm_api managemet cmd structure
 
   Private Windows Function
  */
-static int TdmvApiCommand(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
+static int tdmv_api_ioctl(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
 {
 	DWORD ln, bIoResult;
 
@@ -174,23 +178,6 @@ static int TdmvApiCommand(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
 			);
 
 	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
-}
-
-/*
-  \fn static int tdmv_api_ioctl(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
-  \brief Executes Driver TDM API Command Wrapper Function
-  \param fd device file descriptor
-  \param api_cmd tdm_api managemet cmd structure
-
-  Private Windows Function
- */
-static int tdmv_api_ioctl(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
-{
-	if(TdmvApiCommand(fd, api_cmd)){
-		return SANG_STATUS_GENERAL_ERROR;
-	}
-
-	return api_cmd->result;
 }
 
 /*
@@ -276,7 +263,33 @@ static USHORT sangoma_poll_fd(sng_fd_t fd, API_POLL_STRUCT *api_poll_ptr)
 	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
 }
 
-static int CdevCtrlCommand(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
+/*
+  \fn static int logger_api_ioctl(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+  \brief Executes Logger API IOCTL
+  \param fd device file descriptor
+  \param logger_cmd Logger API command structure
+
+  Private Windows Function
+ */
+static sangoma_status_t logger_api_ioctl(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+{
+	DWORD ln, bIoResult;
+
+	bIoResult = DeviceIoControl(
+			fd,
+			IoctlLoggerApiCommand,
+			(LPVOID)logger_cmd,
+			sizeof(wp_logger_cmd_t),
+			(LPVOID)logger_cmd,
+			sizeof(wp_logger_cmd_t),
+			(LPDWORD)(&ln),
+			(LPOVERLAPPED)NULL	);
+
+	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
+}
+
+/* This function is exported only for debugging purposes and NOT a part of API. */
+sangoma_status_t _LIBSNG_CALL sangoma_cdev_ctrl_cmd(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
 {
 	DWORD ln, bIoResult;
 
@@ -292,15 +305,6 @@ static int CdevCtrlCommand(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
 			);
 
 	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
-}
-
-/* This function is exported only for debugging purposes and NOT a part of API. */
-sangoma_status_t _SAPI_CALL sangoma_cdev_ctrl_cmd(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
-{
-	if(CdevCtrlCommand(fd, api_cmd)){
-		return SANG_STATUS_GENERAL_ERROR;
-	}
-	return api_cmd->result;
 }
 
 static sangoma_status_t init_sangoma_event_object(sangoma_wait_obj_t *sng_wait_obj, int flags_in, sng_fd_t fd)
@@ -356,14 +360,14 @@ static sangoma_status_t init_sangoma_event_object(sangoma_wait_obj_t *sng_wait_o
 	sng_wait_obj->sng_event_objects[event_index] = OpenEvent(EVENT_ALL_ACCESS, TRUE, event_name);
 	if(NULL == sng_wait_obj->sng_event_objects[event_index]){
 		/* error */
-		DecodeLastError(__FUNCTION__);
+		LibSangomaDecodeLastError(__FUNCTION__);
 		return SANG_STATUS_GENERAL_ERROR;
 	}
 
 	return SANG_STATUS_SUCCESS;
 }
 
-static sangoma_status_t _SAPI_CALL sangoma_wait_obj_poll(sangoma_wait_obj_t *sangoma_wait_object, int flags_in, int *flags_out)
+static sangoma_status_t sangoma_wait_obj_poll(sangoma_wait_obj_t *sangoma_wait_object, int flags_in, int *flags_out)
 {
 	int err;
 	sangoma_wait_obj_t *sng_wait_obj = sangoma_wait_object;
@@ -390,7 +394,7 @@ static sangoma_status_t _SAPI_CALL sangoma_wait_obj_poll(sangoma_wait_obj_t *san
 	}
 
 	if(*flags_out == 0){
-		DBG_POLL("======%s(): *flags_out: 0x%X, flags_in: 0x%X\n", __FUNCTION__, *flags_out, flags_in);
+		/*DBG_POLL("======%s(): *flags_out: 0x%X, flags_in: 0x%X\n", __FUNCTION__, *flags_out, flags_in);*/
 	}
 	return err;
 }
@@ -406,6 +410,7 @@ static int check_number_of_wait_objects(uint32_t number_of_objects, const char *
 }
 
 static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
+									  IN uint32_t first_signaled_obj_index,
 									  IN uint32_t in_flags[], OUT uint32_t out_flags[],
 									  IN uint32_t number_of_sangoma_wait_objects,
 									  OUT BOOL	*at_least_one_poll_set_flags_out)
@@ -419,7 +424,18 @@ static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
 	for(i = 0; i < number_of_sangoma_wait_objects; i++) {
 
 		sangoma_wait_obj_t *sangoma_wait_object = sng_wait_objects[i];
+
 		if (!SANGOMA_OBJ_HAS_DEVICE(sangoma_wait_object)) {
+
+			/* This object does not has a device, but, may have been signaled via sangoma_wait_obj_signal()
+			 * test if the object is signaled, if it is, set SANG_WAIT_OBJ_IS_SIGNALED */
+
+			if((i == first_signaled_obj_index) || (WaitForSingleObject(sangoma_wait_object->generic_event_object, 0) == WAIT_OBJECT_0)) {
+				/* !+! jpboily : Since WaitForMultipleObjects cleared the status
+				* of the first signaled object, we make sure that the out_flag
+				* for this object is set */
+				out_flags[i] |= SANG_WAIT_OBJ_IS_SIGNALED;
+			}
 			continue;
 		}
 
@@ -438,8 +454,14 @@ static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
 					*at_least_one_poll_set_flags_out = TRUE;
 				}
 			}
-		}
-	}
+#if 0
+			/* Check if a device-related object was signalled, if it is, set SANG_WAIT_OBJ_IS_SIGNALED. */
+			if (WaitForSingleObject(sangoma_wait_object->sng_event_objects[j], 0) == WAIT_OBJECT_0) {
+				out_flags[i] |= SANG_WAIT_OBJ_IS_SIGNALED;
+			}
+#endif
+		}/* for(j = 0; j < LIBSNG_NUMBER_OF_EVENT_OBJECTS; j++) */
+	}/* for(i = 0; i < number_of_sangoma_wait_objects; i++) */
 
 	return SANG_STATUS_SUCCESS;
 }
@@ -447,48 +469,69 @@ static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
 /*!
   \brief Brief description
  */
-static void registry_get_string_value(HKEY hkey, LPTSTR szKeyname, OUT LPSTR szValue, OUT DWORD *pdwSize)
+static LONG registry_get_string_value(HKEY hkey, LPTSTR szKeyname, OUT LPSTR szValue, OUT DWORD *pdwSize)
 {
+	LONG	iReturnCode;
+
 	/* reading twice to set pdwSize to needed value */
 	RegQueryValueEx(hkey, szKeyname, NULL, NULL, (unsigned char *)szValue, pdwSize);
-	RegQueryValueEx(hkey, szKeyname, NULL, NULL, (unsigned char *)szValue, pdwSize);
-	DBG_REGISTRY("%s(): %s: %s\n", __FUNCTION__, szKeyname, szValue);
+	
+	iReturnCode = RegQueryValueEx(hkey, szKeyname, NULL, NULL, (unsigned char *)szValue, pdwSize);
+	if(ERROR_SUCCESS == iReturnCode){
+		iReturnCode = 0;
+	}
+	DBG_REGISTRY("%s(): %s: %s: iReturnCode: %d\n", __FUNCTION__, szKeyname, szValue, iReturnCode);
+	return iReturnCode;
 }
 
 /*!
   \brief Brief description
  */
-static void registry_set_string_value(HKEY hkey, LPTSTR szKeyname, IN LPSTR szValue)
+static LONG registry_set_string_value(HKEY hkey, LPTSTR szKeyname, IN LPSTR szValue)
 {
 	DWORD	dwSize;
+	LONG	iReturnCode;
 
-	dwSize = strlen(szValue) + 1;
-    RegSetValueEx(hkey, szKeyname, 0, REG_SZ, (unsigned char *)szValue, dwSize);
+	dwSize = (DWORD)strlen(szValue) + 1;
+
+    iReturnCode = RegSetValueEx(hkey, szKeyname, 0, REG_SZ, (unsigned char *)szValue, dwSize);
 	DBG_REGISTRY("%s(): %s: %s\n", __FUNCTION__, szKeyname, szValue);
+
+	if(ERROR_SUCCESS == iReturnCode){
+		iReturnCode = 0;
+	}
+	return iReturnCode;
 }
 
 /*!
   \brief Convert an integer (iValue) to string and write it to registry
  */
-static void registry_set_integer_value(HKEY hkey, LPTSTR szKeyname, IN int iValue)
+static LONG registry_set_integer_value(HKEY hkey, LPTSTR szKeyname, IN int iValue)
 {
 	DWORD	dwSize;
 	char	szTemp[TMP_BUFFER_LEN];
+	LONG	iReturnCode;
 
 	sprintf(szTemp, "%u", iValue);
 
-	dwSize = strlen(szTemp) + 1;
-    RegSetValueEx(hkey, szKeyname, 0, REG_SZ, (unsigned char *)szTemp, dwSize);
-	DBG_REGISTRY("%s(): %s: %d\n", __FUNCTION__, szKeyname, iValue);
+	dwSize = (DWORD)strlen(szTemp) + 1;
+    iReturnCode = RegSetValueEx(hkey, szKeyname, 0, REG_SZ, (unsigned char *)szTemp, dwSize);
+
+	if(ERROR_SUCCESS == iReturnCode){
+		iReturnCode = 0;
+	}
+
+	DBG_REGISTRY("%s(): %s: %d: iReturnCode: %d\n", __FUNCTION__, szKeyname, iValue, iReturnCode);
+	return iReturnCode;
 }
 
 /*!
  * \brief Go through the list of ALL "Sangoma Hardware Abstraction Driver" ports installed on the system.
- * Read Bus/Slot/Port information for a port and copare with what is searched for.
+ * Read Bus/Slot/Port information for a port and compare with what is searched for.
  */
 static HKEY registry_open_port_key(hardware_info_t *hardware_info)
 {
-	int				i;
+	int				i, iRegistryReturnCode;
 	SP_DEVINFO_DATA deid={sizeof(SP_DEVINFO_DATA)};
 	HDEVINFO		hdi = SetupDiGetClassDevs((struct _GUID *)&GUID_DEVCLASS_SANGOMA_ADAPTER, NULL,NULL, DIGCF_PRESENT);
 	char			DeviceName[TMP_BUFFER_LEN], PCI_Bus[TMP_BUFFER_LEN], PCI_Slot[TMP_BUFFER_LEN], Port_Number[TMP_BUFFER_LEN];
@@ -496,12 +539,10 @@ static HKEY registry_open_port_key(hardware_info_t *hardware_info)
 	HKEY			hKeyTmp = (struct HKEY__ *)INVALID_HANDLE_VALUE;
 	HKEY			hPortRegistryKey = (struct HKEY__ *)INVALID_HANDLE_VALUE;
 
-	TCHAR	name[MAX_FRIENDLY];
 	char    szCompInstanceId[MAX_COMP_INSTID];
 	TCHAR   szCompDescription[MAX_COMP_DESC];
 	DWORD   dwRegType;
-
-	/* Possible Port Names (refer to sdladrv.inf):
+	/* Possible Sangoma Port Names (refer to sdladrv.inf):
 	Sangoma Hardware Abstraction Driver (Port 1)
 	Sangoma Hardware Abstraction Driver (Port 2)
 	Sangoma Hardware Abstraction Driver (Port 3)
@@ -512,23 +553,22 @@ static HKEY registry_open_port_key(hardware_info_t *hardware_info)
 	Sangoma Hardware Abstraction Driver (Port 8)
 	Sangoma Hardware Abstraction Driver (Analog)
 	Sangoma Hardware Abstraction Driver (ISDN BRI)	*/
+	const TCHAR	*search_SubStr = "Sangoma Hardware Abstraction Driver";
 
 	/* search for all (AFT) ports: */
-	sprintf(name,"  Sangoma Hardware Abstraction Driver");
-
 	for (i = 0; SetupDiEnumDeviceInfo(hdi, i, &deid); i++){
 
-		BOOL fSuccess = SetupDiGetDeviceInstanceId(hdi, &deid, (PSTR)szCompInstanceId,MAX_COMP_INSTID, NULL);
+		BOOL fSuccess = SetupDiGetDeviceInstanceId(hdi, &deid, (PSTR)szCompInstanceId, MAX_COMP_INSTID, NULL);
 		if (!fSuccess){
 			continue;
 		}
 
-		fSuccess = SetupDiGetDeviceRegistryProperty(hdi, &deid,SPDRP_DEVICEDESC,&dwRegType, (BYTE*)szCompDescription, MAX_COMP_DESC, NULL);
+		fSuccess = SetupDiGetDeviceRegistryProperty(hdi, &deid, SPDRP_DEVICEDESC, &dwRegType, (BYTE*)szCompDescription, MAX_COMP_DESC, NULL);
 		if (!fSuccess){
 			continue;
 		}
 
-		if (strncmp(szCompDescription, name, strlen(name)) != 0) {	/* Windows can add #2 etc - do NOT consider */
+		if (!strstr(szCompDescription, search_SubStr)) {	/* Windows can add #2 etc - do NOT consider */
 			/* This is a "Sangoma Card" device, we are interested only in "Sangoma Port" devices. */
 			continue;
 		}
@@ -542,13 +582,22 @@ static HKEY registry_open_port_key(hardware_info_t *hardware_info)
 		}
 
 		PCI_Bus[0] = '\0';
-		registry_get_string_value(hKeyTmp, "PCI_Bus", PCI_Bus, &dwTemp);
+		iRegistryReturnCode = registry_get_string_value(hKeyTmp, "PCI_Bus", PCI_Bus, &dwTemp);
+		if(iRegistryReturnCode){
+			continue;
+		}
 
 		PCI_Slot[0] = '\0';
-		registry_get_string_value(hKeyTmp, "PCI_Slot", PCI_Slot, &dwTemp);
+		iRegistryReturnCode = registry_get_string_value(hKeyTmp, "PCI_Slot", PCI_Slot, &dwTemp);
+		if(iRegistryReturnCode){
+			continue;
+		}
 
 		Port_Number[0] = '\0';
-		registry_get_string_value(hKeyTmp, "Port_Number", Port_Number, &dwTemp);
+		iRegistryReturnCode = registry_get_string_value(hKeyTmp, "Port_Number", Port_Number, &dwTemp);
+		if(iRegistryReturnCode){
+			continue;
+		}
 
 		if(	atoi(PCI_Bus)		== hardware_info->pci_bus_number	&&
 			atoi(PCI_Slot)		== hardware_info->pci_slot_number	&&
@@ -556,6 +605,7 @@ static HKEY registry_open_port_key(hardware_info_t *hardware_info)
 
 			hPortRegistryKey = hKeyTmp;
 
+			/* read device name for debugging only */
 			DeviceName[0] = '\0';
 			registry_get_string_value(hPortRegistryKey, "DeviceName", DeviceName, &dwTemp);
 
@@ -572,72 +622,16 @@ static HKEY registry_open_port_key(hardware_info_t *hardware_info)
 	return hPortRegistryKey;
 }
 
-static int registry_write_front_end_cfg(HKEY hPortRegistryKey, port_cfg_t *port_cfg)
-{
-	wandev_conf_t	*wandev_conf	= &port_cfg->wandev_conf;
-	sdla_fe_cfg_t	*sdla_fe_cfg	= &wandev_conf->fe_cfg;
-	sdla_te_cfg_t	*te_cfg			= &sdla_fe_cfg->cfg.te_cfg;
-	sdla_remora_cfg_t *analog_cfg	= &sdla_fe_cfg->cfg.remora;
-	sdla_bri_cfg_t	*bri_cfg		= &sdla_fe_cfg->cfg.bri;
-
-	/* set Media specific values. */
-	switch(sdla_fe_cfg->media)
-	{
-	case WAN_MEDIA_T1:
-	case WAN_MEDIA_J1: /* the same as T1 */
-	case WAN_MEDIA_E1:
-		/* only T1/E1 Port can change the Media, all other ports ignore this parameter. */
-		registry_set_integer_value(hPortRegistryKey, "Media",		sdla_fe_cfg->media	/*WAN_MEDIA_T1*/);
-		registry_set_integer_value(hPortRegistryKey, "LDecoding",	sdla_fe_cfg->lcode	/*WAN_LCODE_B8ZS*/);
-		registry_set_integer_value(hPortRegistryKey, "Framing",		sdla_fe_cfg->frame	/*WAN_FR_ESF*/);
-
-		registry_set_integer_value(hPortRegistryKey, "ClkRefPort",		te_cfg->te_ref_clock);
-		registry_set_integer_value(hPortRegistryKey, "TE_IGNORE_YEL",	te_cfg->ignore_yel_alarm);
-		registry_set_integer_value(hPortRegistryKey, "ACTIVE_CH",		ENABLE_ALL_CHANNELS	/*must be hardcoded*/);
-		registry_set_integer_value(hPortRegistryKey, "TE_RBS_CH",		te_cfg->te_rbs_ch);	/*not used by DS chip code, only by PMC */
-
-		registry_set_integer_value(hPortRegistryKey, "LBO",				te_cfg->lbo			/*WAN_T1_LBO_0_DB*/);
-		registry_set_integer_value(hPortRegistryKey, "ClkMode",			te_cfg->te_clock	/*WAN_NORMAL_CLK*/);
-		registry_set_integer_value(hPortRegistryKey, "HighImpedanceMode",te_cfg->high_impedance_mode /*WANOPT_NO*/);
-		registry_set_integer_value(hPortRegistryKey, "TE_RX_SLEVEL",	te_cfg->rx_slevel	/*WAN_TE1_RX_SLEVEL_12_DB*/);
-		/* write E1 signalling for both T1 and E1 */
-		registry_set_integer_value(hPortRegistryKey, "E1Signalling",	te_cfg->sig_mode	/*WAN_TE1_SIG_CCS*/);
-		break;
-	case WAN_MEDIA_56K:
-		/* do nothing */
-		break;
-	case WAN_MEDIA_FXOFXS:
-		/* Analog global (per-card) settings */
-		registry_set_string_value(hPortRegistryKey, "remora_fxo_operation_mode_name",	analog_cfg->opermode_name);
-		registry_set_integer_value(hPortRegistryKey, "RM_BATTTHRESH",					analog_cfg->battthresh);
-		registry_set_integer_value(hPortRegistryKey, "RM_BATTDEBOUNCE",					analog_cfg->battdebounce);
-		registry_set_integer_value(hPortRegistryKey, "RM_FXO_TAPPING",					analog_cfg->rm_mode);
-		registry_set_integer_value(hPortRegistryKey, "RM_FXO_TAPPING_OFF_HOOK_THRESHOLD",analog_cfg->ohthresh);
-		break;
-	case WAN_MEDIA_BRI:
-		registry_set_integer_value(hPortRegistryKey, "aft_bri_clock_mode", bri_cfg->clock_mode);
-		break;
-	case WAN_MEDIA_SERIAL:
-		registry_set_integer_value(hPortRegistryKey, "clock_source",			wandev_conf->clocking);
-		registry_set_integer_value(hPortRegistryKey, "BaudRate",				wandev_conf->bps);
-		registry_set_integer_value(hPortRegistryKey, "serial_connection_type",	wandev_conf->connection);
-		registry_set_integer_value(hPortRegistryKey, "serial_line_coding",		wandev_conf->line_coding);
-		registry_set_integer_value(hPortRegistryKey, "serial_line_idle",		wandev_conf->line_idle);
-		break;
-	default:
-		DBG_ERR("Invalid Media Type %d!\n", sdla_fe_cfg->media);
-		return 1;
-	}
-
-	return 0;
-}
-
 static char* timeslot_bitmap_to_string(int bitmap)
 {
 	int i = 0, range_counter = 0;
 	int start_channel = -1, stop_channel = -1;
 	static char tmp_string[256];
 
+	if( WP_ALL_BITS_SET == bitmap ){
+		return "ALL"; /* If all bits are set, use the "ALL" keyword. */
+	}
+	
 	tmp_string[0] = '\0';
 
 	/* all ranges between two zeros is what we will look for */
@@ -646,7 +640,7 @@ static char* timeslot_bitmap_to_string(int bitmap)
 		if(start_channel < 0){
 			/* found a starting one of a range */
 			if(bitmap & (1 << i)){
-				start_channel = i;
+				start_channel = i + 1;
 			}
 		}
 
@@ -654,14 +648,14 @@ static char* timeslot_bitmap_to_string(int bitmap)
 			if((bitmap & (1 << i)) == 0){
 				
 				/* we hit a zero, that means the previous channel is one */
-				stop_channel = i - 1;
+				stop_channel = i;
 
 			}else if(i == (sizeof(bitmap) * 8 - 1)){
 				/* The most significant bit is set - there will be no delimiting zero.
 				* It will also take care of "all channels" which is a special
 				* case - there is a start but no stop channel because all bits
-				* are set. result will be 0-31 */
-				stop_channel = (sizeof(bitmap) * 8 - 1);
+				* are set. result will be 1-32 */
+				stop_channel = (sizeof(bitmap) * 8);
 			}
 		}
 
@@ -690,33 +684,548 @@ static char* timeslot_bitmap_to_string(int bitmap)
 	return tmp_string;
 }
 
+static int registry_write_front_end_cfg(HKEY hPortRegistryKey, port_cfg_t *port_cfg)
+{
+	wandev_conf_t	*wandev_conf	= &port_cfg->wandev_conf;
+	sdla_fe_cfg_t	*sdla_fe_cfg	= &wandev_conf->fe_cfg;
+	sdla_te_cfg_t	*te_cfg			= &sdla_fe_cfg->cfg.te_cfg;
+	sdla_remora_cfg_t *analog_cfg	= &sdla_fe_cfg->cfg.remora;
+	sdla_bri_cfg_t	*bri_cfg		= &sdla_fe_cfg->cfg.bri;
+	int iReturnCode = 0;
+
+	/* Set Card/Port-wide values, which are independent of Media type, and
+	 * stored in sdla_fe_cfg_t. */
+
+	iReturnCode = registry_set_integer_value(hPortRegistryKey, "tdmv_law", FE_TDMV_LAW(sdla_fe_cfg) /* WAN_TDMV_MULAW/WAN_TDMV_ALAW */);
+	if(iReturnCode){
+		return iReturnCode;
+	}
+
+	iReturnCode = registry_set_integer_value(hPortRegistryKey, "ExternalSynchronization", FE_NETWORK_SYNC(sdla_fe_cfg) /* WANOPT_NO/WANOPT_YES */);
+	if(iReturnCode){
+		return iReturnCode;
+	}
+
+	iReturnCode = registry_set_integer_value(hPortRegistryKey, "FE_TXTRISTATE", FE_TXTRISTATE(sdla_fe_cfg) /* WANOPT_NO/WANOPT_YES */);
+	if(iReturnCode){
+		return iReturnCode;
+	}
+
+	/* set Media specific values. */
+	switch(sdla_fe_cfg->media)
+	{
+	case WAN_MEDIA_T1:
+	case WAN_MEDIA_J1: /* the same as T1 */
+	case WAN_MEDIA_E1:
+		/* only T1/E1 Port can change the Media, all other ports ignore this parameter. */
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "Media",		sdla_fe_cfg->media	/*WAN_MEDIA_T1*/);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "LDecoding",	sdla_fe_cfg->lcode	/*WAN_LCODE_B8ZS*/);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "Framing",		sdla_fe_cfg->frame	/*WAN_FR_ESF*/);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "ClkRefPort",		te_cfg->te_ref_clock);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "TE_IGNORE_YEL",	te_cfg->ignore_yel_alarm);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "ACTIVE_CH",		ENABLE_ALL_CHANNELS	/*must be hardcoded*/);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "TE_RBS_CH",		te_cfg->te_rbs_ch);	/*not used by DS chip code, only by PMC */
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "LBO",				te_cfg->lbo			/*WAN_T1_LBO_0_DB*/);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "ClkMode",			te_cfg->te_clock	/*WAN_NORMAL_CLK*/);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "HighImpedanceMode",te_cfg->high_impedance_mode /*WANOPT_NO*/);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "TE_RX_SLEVEL",	te_cfg->rx_slevel	/*WAN_TE1_RX_SLEVEL_12_DB*/);
+		if(iReturnCode){
+			break;
+		}
+
+		/* write E1 signalling for both T1 and E1 */
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "E1Signalling",	te_cfg->sig_mode	/*WAN_TE1_SIG_CCS*/);
+		if(iReturnCode){
+			break;
+		}
+		break;
+
+	case WAN_MEDIA_56K:
+		/* do nothing */
+		iReturnCode = 0;
+		break;
+
+	case WAN_MEDIA_FXOFXS:
+		/* Analog global (per-card) settings */
+		iReturnCode = registry_set_string_value(hPortRegistryKey, "remora_fxo_operation_mode_name",	analog_cfg->opermode_name);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "RM_BATTTHRESH",		analog_cfg->battthresh);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "RM_BATTDEBOUNCE",	analog_cfg->battdebounce);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "RM_FXO_TAPPING",	analog_cfg->rm_mode);
+		if(iReturnCode){
+			break;
+		}
+		
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "RM_FXO_TAPPING_OFF_HOOK_THRESHOLD",analog_cfg->ohthresh);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "RM_LCM", analog_cfg->rm_lcm);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "RM_FXSTXGAIN", analog_cfg->fxs_txgain);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "RM_FXSRXGAIN", analog_cfg->fxs_rxgain);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "RM_FXOTXGAIN", analog_cfg->fxo_txgain);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "RM_FXORXGAIN", analog_cfg->fxo_rxgain);
+		if(iReturnCode){
+			break;
+		}
+		break;
+
+	case WAN_MEDIA_BRI:
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "aft_bri_clock_mode", bri_cfg->clock_mode);
+		if(iReturnCode){
+			break;
+		}
+		break;
+
+	case WAN_MEDIA_SERIAL:
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "clock_source",			wandev_conf->clocking);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "BaudRate",				wandev_conf->bps);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "serial_connection_type",	wandev_conf->connection);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "serial_line_coding",		wandev_conf->line_coding);
+		if(iReturnCode){
+			break;
+		}
+
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, "serial_line_idle",		wandev_conf->line_idle);
+		if(iReturnCode){
+			break;
+		}
+		break;
+
+	default:
+		DBG_ERR("Invalid Media Type %d!\n", sdla_fe_cfg->media);
+		iReturnCode = 1;
+	}
+
+	return iReturnCode;
+}
+
+static int registry_write_wan_tdmv_conf(HKEY hPortRegistryKey, port_cfg_t *port_cfg)
+{
+	wandev_conf_t	*wandev_conf	= &port_cfg->wandev_conf;
+	sdla_fe_cfg_t	*sdla_fe_cfg	= &wandev_conf->fe_cfg;
+	wan_tdmv_conf_t	*tdmv_conf		= &wandev_conf->tdmv_conf;
+	int	iReturnCode = 1;
+
+	/* set Media specific values. */
+	switch(sdla_fe_cfg->media)
+	{
+	case WAN_MEDIA_T1:
+	case WAN_MEDIA_J1: /* the same as T1 */
+	case WAN_MEDIA_E1:
+		/* write dchannel bitmap as a string (the same way as active channels) */
+		iReturnCode = registry_set_string_value(hPortRegistryKey, "TDMV_DCHAN", timeslot_bitmap_to_string(tdmv_conf->dchan));
+		break;
+
+	case WAN_MEDIA_56K:
+	case WAN_MEDIA_FXOFXS:
+	case WAN_MEDIA_BRI:
+	case WAN_MEDIA_SERIAL:
+		/* do nothing */
+		iReturnCode = 0;
+		break;
+
+	default:
+		DBG_ERR("Invalid Media Type %d!\n", sdla_fe_cfg->media);
+		iReturnCode = 2;
+		break;
+	}
+
+	return iReturnCode;
+}
+
 static int registry_write_channel_group_cfg(HKEY hPortRegistryKey, port_cfg_t *port_cfg, int interface_index, wanif_conf_t wanif_conf)
 {
 	char	szTemp[TMP_BUFFER_LEN];
+	int		iReturnCode = 0;
 
-	// Line mode
-	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_line_mode", interface_index);
-	registry_set_string_value(hPortRegistryKey, szTemp, 
-		(wanif_conf.hdlc_streaming == WANOPT_YES ? MODE_OPTION_HDLC : MODE_OPTION_BITSTRM));
+	do{
+		// Line mode
+		_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_line_mode", interface_index);
+		iReturnCode = registry_set_string_value(hPortRegistryKey, szTemp, 
+			(wanif_conf.hdlc_streaming == WANOPT_YES ? MODE_OPTION_HDLC : MODE_OPTION_BITSTRM));
+		if(iReturnCode){
+			break;
+		}
 
-	// MTU
-	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_mtu", interface_index);
-	registry_set_integer_value(hPortRegistryKey, szTemp, wanif_conf.mtu);
+		// MTU
+		_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_mtu", interface_index);
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, szTemp, wanif_conf.mtu);
+		if(iReturnCode){
+			break;
+		}
 
-	// Operational mode
-	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_operational_mode", interface_index);
-	registry_set_string_value(hPortRegistryKey, szTemp, wanif_conf.usedby);
+		// Operational mode
+		_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_operational_mode", interface_index);
+		iReturnCode = registry_set_string_value(hPortRegistryKey, szTemp, wanif_conf.usedby);
+		if(iReturnCode){
+			break;
+		}
 
-	// Active Timeslots for the Group
-	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_active_ch", interface_index);
-	registry_set_string_value(hPortRegistryKey, szTemp, timeslot_bitmap_to_string(wanif_conf.active_ch));
+		// Active Timeslots for the Group
+		_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_active_ch", interface_index);
+		iReturnCode = registry_set_string_value(hPortRegistryKey, szTemp, timeslot_bitmap_to_string(wanif_conf.active_ch));
+		if(iReturnCode){
+			break;
+		}
 
-	// Idle char.
-	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_idle_char", interface_index);
-	registry_set_integer_value(hPortRegistryKey, szTemp, wanif_conf.u.aft.idle_flag);
+		// Idle char.
+		_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_idle_char", interface_index);
+		iReturnCode = registry_set_integer_value(hPortRegistryKey, szTemp, wanif_conf.u.aft.idle_flag);
+		if(iReturnCode){
+			break;
+		}
 
-	return 0;
+	}while(0);
+
+	return iReturnCode;
 }
+
+/*!
+ * \brief Go through the list of ALL Sangoma PCI Adapters (Cards) on the system.
+ * Enable or Disable each one of them (state change will be visible in the Device Manager).
+ */
+static sangoma_status_t sangoma_control_cards(DWORD StateChange)
+{
+	sangoma_status_t rc;
+	int		i;
+	SP_DEVINFO_DATA deid = {sizeof(SP_DEVINFO_DATA)};
+	HDEVINFO	hdi;
+	TCHAR	szInstanceId[MAX_COMP_INSTID];
+
+	const TCHAR *szAftSearchSubStr = "PCI\\VEN_1923"; /* Sangoma PCI Vendor ID is 1923 */
+	/*const TCHAR *szS518AdslSearchSubStr = "PCI\\VEN_14BC&DEV_D002";*/ /* Note: S518 is end-of-life */
+
+	SP_PROPCHANGE_PARAMS	pcp;
+
+	hdi = SetupDiGetClassDevs((struct _GUID *)&GUID_DEVCLASS_SANGOMA_ADAPTER, NULL, NULL, DIGCF_PRESENT);
+	if(INVALID_HANDLE_VALUE == hdi){
+		/* no sangoma cards installed on the system */
+		return SANG_STATUS_INVALID_DEVICE;
+	}
+
+	/* search for all AFT Cards: */
+	for (i = 0; SetupDiEnumDeviceInfo(hdi, i, &deid); i++){
+
+		BOOL fSuccess = SetupDiGetDeviceInstanceId(hdi, &deid, (PSTR)szInstanceId, sizeof(szInstanceId), NULL);
+		if (!fSuccess){
+			rc = SANG_STATUS_REGISTRY_ERROR;
+			break;
+		}
+		if(!strstr(szInstanceId, szAftSearchSubStr)){
+			/* Found Sangoma Port, but we are interested only Cards. */
+			continue;
+		}
+
+		memset(&pcp, 0x00, sizeof(pcp));
+		//Set the PropChangeParams structure.
+		pcp.ClassInstallHeader.cbSize = sizeof(SP_CLASSINSTALL_HEADER);
+		pcp.ClassInstallHeader.InstallFunction = DIF_PROPERTYCHANGE;
+		pcp.Scope = DICS_FLAG_GLOBAL; /* DICS_FLAG_CONFIGSPECIFIC will enable ALL cards, including
+									   * those explicetly DISABLED by the user in the Device Manager,
+									   * and we don't want to force anything on the user, hence we
+									   * use DICS_FLAG_GLOBAL. */
+		pcp.StateChange = StateChange;
+
+		if(!SetupDiSetClassInstallParams(hdi, &deid, (SP_CLASSINSTALL_HEADER *)&pcp, sizeof(pcp))){
+			rc = SANG_STATUS_REGISTRY_ERROR;
+			break;
+		}
+
+		if(!SetupDiCallClassInstaller(DIF_PROPERTYCHANGE, hdi, &deid)){
+			rc = SANG_STATUS_REGISTRY_ERROR;
+			break;
+		}
+
+	}/* for() */
+
+	SetupDiDestroyDeviceInfoList(hdi);
+
+	return SANG_STATUS_SUCCESS;
+}
+
+sangoma_status_t _LIBSNG_CALL sangoma_unload_driver()
+{
+	return sangoma_control_cards(DICS_DISABLE);
+}
+
+sangoma_status_t _LIBSNG_CALL sangoma_load_driver()
+{
+	return sangoma_control_cards(DICS_ENABLE);
+}
+
+/*!
+ * \brief Go through the list of ALL "Sangoma Hardware Abstraction Driver" ports installed on the system,
+ * and assign sequential numbers to the Ports, starting from 1. This will override the Automatic Wanpipe
+ * Span numbering.
+ */
+void _LIBSNG_CALL sangoma_reset_port_numbers()
+{
+	int				i, iRegistryReturnCode, iPortCounter = 0;
+	SP_DEVINFO_DATA deid={sizeof(SP_DEVINFO_DATA)};
+	HDEVINFO		hdi = SetupDiGetClassDevs((struct _GUID *)&GUID_DEVCLASS_SANGOMA_ADAPTER, NULL,NULL, DIGCF_PRESENT);
+	DWORD			dwTemp;
+	HKEY			hKeyTmp = (struct HKEY__ *)INVALID_HANDLE_VALUE;
+
+	char    szCompInstanceId[MAX_COMP_INSTID];
+	TCHAR   szCompDescription[MAX_COMP_DESC];
+	DWORD   dwRegType;
+	/* Possible Sangoma Port Names (refer to sdladrv.inf):
+	Sangoma Hardware Abstraction Driver (Port 1)
+	Sangoma Hardware Abstraction Driver (Port 2)
+	Sangoma Hardware Abstraction Driver (Port 3)
+	Sangoma Hardware Abstraction Driver (Port 4)
+	Sangoma Hardware Abstraction Driver (Port 5)
+	Sangoma Hardware Abstraction Driver (Port 6)
+	Sangoma Hardware Abstraction Driver (Port 7)
+	Sangoma Hardware Abstraction Driver (Port 8)
+	Sangoma Hardware Abstraction Driver (Analog)
+	Sangoma Hardware Abstraction Driver (ISDN BRI)	*/
+	const TCHAR	*search_SubStr = "Sangoma Hardware Abstraction Driver";
+
+	/* search for all (AFT) ports: */
+	for (i = 0; SetupDiEnumDeviceInfo(hdi, i, &deid); i++){
+
+		BOOL fSuccess = SetupDiGetDeviceInstanceId(hdi, &deid, (PSTR)szCompInstanceId, MAX_COMP_INSTID, NULL);
+		if (!fSuccess){
+			continue;
+		}
+
+		fSuccess = SetupDiGetDeviceRegistryProperty(hdi, &deid, SPDRP_DEVICEDESC, &dwRegType, (BYTE*)szCompDescription, MAX_COMP_DESC, NULL);
+		if (!fSuccess){
+			continue;
+		}
+
+		if (!strstr(szCompDescription, search_SubStr)) {	/* Windows can add #2 etc - do NOT consider */
+			/* This is a "Sangoma Card" device, we are interested only in "Sangoma Port" devices. */
+			continue;
+		}
+
+		hKeyTmp = SetupDiOpenDevRegKey(hdi, &deid, DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_READ | KEY_SET_VALUE );
+		if(hKeyTmp == INVALID_HANDLE_VALUE){
+			DBG_REGISTRY("Error: Failed to open Registry key!!\n");
+			continue;
+		}
+
+		iPortCounter++;
+
+		printf("* %s -> Setting Span/Port number: %d\n", szCompDescription, iPortCounter);
+
+		/* TODO: 1. search for installed Sangoma Cards
+				2. for each Card, search Ports (Bus/Slot must match)
+				3. based on number of installed Ports, set SerialNumbersRange of the Card
+				
+				This way the "UserWanpipeNumber" can be set to zero and Span numbers will be
+				seqencial automatically.
+		*/
+		iRegistryReturnCode = registry_set_integer_value(hKeyTmp, "UserWanpipeNumber", iPortCounter);
+		if(iRegistryReturnCode){
+			continue;
+		}
+
+		RegCloseKey(hKeyTmp);
+
+	}/* for() */
+
+	SetupDiDestroyDeviceInfoList(hdi);
+
+	return;
+}
+
+
+/*!
+ * \brief Get version of driver from the Windows Registry, as it was written by .inf parser.
+ *		Note that there is a possibility that currently loaded driver has a different
+ *		version (if the original binary file was overwritten).
+ */
+sangoma_status_t _LIBSNG_CALL sangoma_get_driver_version_from_registry(char *out_buffer, int out_buffer_length)
+{
+	int				i, iRegistryReturnCode;
+	SP_DEVINFO_DATA deid = {sizeof(SP_DEVINFO_DATA)};
+	HDEVINFO		hdi = SetupDiGetClassDevs((struct _GUID *)&GUID_DEVCLASS_SANGOMA_ADAPTER, NULL, NULL, DIGCF_PRESENT);
+	DWORD			dwTemp;
+	HKEY			hKeyTmp = (struct HKEY__ *)INVALID_HANDLE_VALUE;
+
+	TCHAR	szTmp[MAX_COMP_DESC];
+	BOOL	fSuccess = FALSE;
+
+	/* search for ANY Sangoma device of class GUID_DEVCLASS_SANGOMA_ADAPTER */
+	for (i = 0; SetupDiEnumDeviceInfo(hdi, i, &deid); i++){
+
+		fSuccess = SetupDiGetDeviceInstanceId(hdi, &deid, (PSTR)szTmp, sizeof(szTmp), NULL);
+		if (!fSuccess){
+			break;
+		}
+		DBG_REGISTRY("%s(): Device Instance Id: %s\n", __FUNCTION__, szTmp);
+		/*	Device Instance Id: COMMSADAPTER\SANGOMAADAPTER_AFT_LINE8\5&32E1B75F&0&13
+			Device Instance Id: PCI\VEN_1923&DEV_0100&SUBSYS_4113A114&REV_00\4&31B6CD7&0&10F0 	*/
+
+		hKeyTmp = SetupDiOpenDevRegKey( hdi, &deid, DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_READ | KEY_SET_VALUE );
+		if(hKeyTmp == INVALID_HANDLE_VALUE){
+			DBG_REGISTRY("Error: Failed to open Registry key!!\n");
+			fSuccess = FALSE;
+			break;
+		}
+
+		iRegistryReturnCode = registry_get_string_value(hKeyTmp, "DriverVersion", szTmp, &dwTemp);
+		if(iRegistryReturnCode){
+			fSuccess = FALSE;
+			break;
+		}
+
+		wp_snprintf(out_buffer, out_buffer_length, szTmp);
+
+		RegCloseKey(hKeyTmp);
+
+		/* it is enough to read the version only once, so break here */
+		break;
+	}/* for() */
+
+	SetupDiDestroyDeviceInfoList(hdi);
+
+	if (!fSuccess){
+		return SANG_STATUS_REGISTRY_ERROR;
+	}else{
+		return SANG_STATUS_SUCCESS;
+	}
+}
+
+/*!
+ * \brief Set the Driver Mode of all Hardware (not virtual) devices.
+ *		The modes are:	Normal
+ *						Firmware Update
+ */
+sangoma_status_t _LIBSNG_CALL sangoma_set_driver_mode_of_all_hw_devices(int driver_mode)
+{
+	sangoma_status_t rc;
+	int		i, iRegistryReturnCode;
+	SP_DEVINFO_DATA deid = {sizeof(SP_DEVINFO_DATA)};
+	HDEVINFO	hdi;
+	TCHAR	szInstanceId[MAX_COMP_INSTID];
+	HKEY	hKeyTmp = (struct HKEY__ *)INVALID_HANDLE_VALUE;
+
+	const TCHAR *szAftSearchSubStr = "PCI\\VEN_1923"; /* Sangoma PCI Vendor ID is 1923 */
+
+	hdi = SetupDiGetClassDevs((struct _GUID *)&GUID_DEVCLASS_SANGOMA_ADAPTER, NULL, NULL, DIGCF_PRESENT);
+	if(INVALID_HANDLE_VALUE == hdi){
+		/* no sangoma cards installed on the system */
+		return SANG_STATUS_INVALID_DEVICE;
+	}
+
+	/* search for all AFT Cards: */
+	for (i = 0; SetupDiEnumDeviceInfo(hdi, i, &deid); i++){
+
+		BOOL fSuccess = SetupDiGetDeviceInstanceId(hdi, &deid, (PSTR)szInstanceId, sizeof(szInstanceId), NULL);
+		if (!fSuccess){
+			rc = SANG_STATUS_REGISTRY_ERROR;
+			break;
+		}
+		if(!strstr(szInstanceId, szAftSearchSubStr)){
+			/* Found Sangoma Port, but we are interested only Cards. */
+			continue;
+		}
+
+		hKeyTmp = SetupDiOpenDevRegKey(hdi, &deid, DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_READ | KEY_SET_VALUE );
+		if(hKeyTmp == INVALID_HANDLE_VALUE){
+			rc = SANG_STATUS_REGISTRY_ERROR;
+			break;
+		}
+
+		iRegistryReturnCode = registry_set_integer_value(hKeyTmp, "driver_mode", driver_mode);
+		if(iRegistryReturnCode){
+			rc = SANG_STATUS_REGISTRY_ERROR;
+			break;
+		}
+
+		RegCloseKey(hKeyTmp);
+
+	}/* for() */
+
+	SetupDiDestroyDeviceInfoList(hdi);
+
+	return SANG_STATUS_SUCCESS;
+}
+
 
 #endif	/* __WINDOWS__ */
 
@@ -740,10 +1249,10 @@ static int registry_write_channel_group_cfg(HKEY hPortRegistryKey, port_cfg_t *p
   \see sangoma_wait_obj_type_t
   \return SANG_STATUS_SUCCESS: success, or error status
 */
-sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma_wait_object, sng_fd_t fd, sangoma_wait_obj_type_t object_type)
+sangoma_status_t _LIBSNG_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma_wait_object, sng_fd_t fd, sangoma_wait_obj_type_t object_type)
 {
 	int err = 0;
-	sangoma_wait_obj_t *sng_wait_obj;
+	sangoma_wait_obj_t *sng_wait_obj = NULL;
 
 	if (!sangoma_wait_object) { 
 		return SANG_STATUS_INVALID_DEVICE;
@@ -769,7 +1278,8 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma
 	if (SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
 		sng_wait_obj->generic_event_object = CreateEvent( NULL, FALSE, FALSE, NULL);
 		if(!sng_wait_obj->generic_event_object){
-			return SANG_STATUS_GENERAL_ERROR;
+			err = SANG_STATUS_GENERAL_ERROR;
+			goto failed;
 		}
 	}
 
@@ -781,17 +1291,17 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma
 
 	err = init_sangoma_event_object(sng_wait_obj, POLLIN, fd);
 	if(SANG_STATUS_SUCCESS != err){
-		return err;
+		goto failed;
 	}
 
 	err = init_sangoma_event_object(sng_wait_obj, POLLOUT, fd);
 	if(SANG_STATUS_SUCCESS != err){
-		return err;
+		goto failed;
 	}
 
 	err = init_sangoma_event_object(sng_wait_obj, POLLPRI, fd);
 	if(SANG_STATUS_SUCCESS != err) {
-		return err;
+		goto failed;
 	}
 		
 	DBG_INIT("%s(): returning: %d", __FUNCTION__, err);
@@ -802,13 +1312,20 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma
 		sng_wait_obj->signal_write_fd = INVALID_HANDLE_VALUE;
 		/* if we want cross-process event notification we can use a named pipe with mkfifo() */
 		if (pipe(filedes)) {
-			return -1;
+			err = SANG_STATUS_GENERAL_ERROR;
+			goto failed;
 		}
 		sng_wait_obj->signal_read_fd = filedes[0];
 		sng_wait_obj->signal_write_fd = filedes[1];
 	}
 #endif
 	*sangoma_wait_object = sng_wait_obj;
+	return err;
+
+failed:
+	if (sng_wait_obj) {
+		sangoma_wait_obj_delete(&sng_wait_obj);
+	}
 	return err;
 }
 
@@ -818,7 +1335,7 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma
   \param sangoma_wait_object pointer to a pointer to a single device object
   \return SANG_STATUS_SUCCESS on success or some sangoma status error
 */
-sangoma_status_t _SAPI_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma_wait_object)
+sangoma_status_t _LIBSNG_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma_wait_object)
 {
 	sangoma_wait_obj_t *sng_wait_obj = *sangoma_wait_object;
 #if defined(__WINDOWS__)
@@ -847,6 +1364,7 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma
 #endif
 	sng_wait_obj->init_flag = 0;
 	sng_wait_obj->object_type = UNKNOWN_WAIT_OBJ;
+	free(sng_wait_obj);
 	*sangoma_wait_object = NULL;
 	return SANG_STATUS_SUCCESS;
 }
@@ -857,7 +1375,7 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma
   \param sangoma_wait_object pointer a single device object 
   \return 0 on success, non-zero on error
 */
-int _SAPI_CALL sangoma_wait_obj_signal(sangoma_wait_obj_t *sng_wait_obj)
+int _LIBSNG_CALL sangoma_wait_obj_signal(sangoma_wait_obj_t *sng_wait_obj)
 {
 	if (!SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
 		/* even when Windows objects are always signalable for the sake of providing
@@ -887,7 +1405,7 @@ int _SAPI_CALL sangoma_wait_obj_signal(sangoma_wait_obj_t *sng_wait_obj)
   \param sangoma_wait_object pointer a single device object 
   \return fd - device file descriptor
 */
-sng_fd_t _SAPI_CALL sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sng_wait_obj)
+sng_fd_t _LIBSNG_CALL sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sng_wait_obj)
 {
 	return sng_wait_obj->fd;
 }
@@ -900,24 +1418,24 @@ sng_fd_t _SAPI_CALL sangoma_wait_obj_get_fd(sangoma_wait_obj_t *sng_wait_obj)
   \param context void pointer to user context
   \return void
 */
-void _SAPI_CALL sangoma_wait_obj_set_context(sangoma_wait_obj_t *sng_wait_obj, void *context)
+void _LIBSNG_CALL sangoma_wait_obj_set_context(sangoma_wait_obj_t *sng_wait_obj, void *context)
 {
 	sng_wait_obj->context = context;
 }
 
 /*!
-  \fn void *sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_object)
+  \fn PVOID sangoma_wait_obj_get_context(sangoma_wait_obj_t *sangoma_wait_object)
   \brief Retrieve the user context (if any) that was set via sangoma_wait_obj_set_context.
   \param sangoma_wait_object pointer a single device object 
   \return void*
 */
-void* _SAPI_CALL sangoma_wait_obj_get_context(sangoma_wait_obj_t *sng_wait_obj)
+PVOID _LIBSNG_CALL sangoma_wait_obj_get_context(sangoma_wait_obj_t *sng_wait_obj)
 {
 	return sng_wait_obj->context;
 }
 
 /*!
-  \fn sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wait_objects[], int32_t in_flags[], int32_t out_flags[] uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout);
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wait_objects[], int32_t in_flags[], int32_t out_flags[] uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout);
   \brief Wait for multiple sangoma waitable objects 
   \param sangoma_wait_objects pointer to array of wait objects previously created with sangoma_wait_obj_create
   \param in_flags array of flags corresponding to the flags the user is interested on for each waitable object
@@ -926,11 +1444,13 @@ void* _SAPI_CALL sangoma_wait_obj_get_context(sangoma_wait_obj_t *sng_wait_obj)
   \param system_wait_timeout timeout in miliseconds in case of no event
   \return negative: SANG_STATUS_APIPOLL_TIMEOUT: timeout, SANG_STATUS_SUCCESS: event occured check in sangoma_wait_objects, any other return code is some error
 */
-sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_objects[], uint32_t in_flags[], uint32_t out_flags[],
+sangoma_status_t _LIBSNG_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_objects[], uint32_t in_flags[], uint32_t out_flags[],
 		uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout)
 {
 #if defined(__WINDOWS__)
 	HANDLE hEvents[MAXIMUM_WAIT_OBJECTS];
+	uint32_t uiMapEventIndexToWaitObjectIndex[MAXIMUM_WAIT_OBJECTS];
+	DWORD dwResult;
 	int at_least_one_poll_set_flags_out, number_of_internal_signaling_objects, err;
 #endif
 	uint32_t i = 0, j = 0;
@@ -949,6 +1469,7 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 				return SANG_STATUS_NO_FREE_BUFFERS;
 			}
 			hEvents[number_of_internal_signaling_objects] = sangoma_wait_object->generic_event_object;
+			uiMapEventIndexToWaitObjectIndex[number_of_internal_signaling_objects] = i;
 			number_of_internal_signaling_objects++;
 		}
 
@@ -958,11 +1479,12 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 					((j == LIBSNG_EVENT_INDEX_POLLOUT)	&& (in_flags[i] & POLLOUT))	||
 					((j == LIBSNG_EVENT_INDEX_POLLPRI)	&& (in_flags[i] & POLLPRI))	){
 
-					if(check_number_of_wait_objects(number_of_internal_signaling_objects, __FUNCTION__, __LINE__)){
-						return SANG_STATUS_NO_FREE_BUFFERS;
-					}
-					hEvents[number_of_internal_signaling_objects] = sangoma_wait_object->sng_event_objects[j];
-					number_of_internal_signaling_objects++;
+						if(check_number_of_wait_objects(number_of_internal_signaling_objects, __FUNCTION__, __LINE__)){
+							return SANG_STATUS_NO_FREE_BUFFERS;
+						}
+						hEvents[number_of_internal_signaling_objects] = sangoma_wait_object->sng_event_objects[j];
+						uiMapEventIndexToWaitObjectIndex[number_of_internal_signaling_objects] = i;
+						number_of_internal_signaling_objects++;
 				}
 			}/* if () */
 		}/* for() */
@@ -979,7 +1501,7 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 
 	/* It is important to get 'out flags' BEFORE the WaitForMultipleObjects()
 	 * because it allows to keep API driver's transmit queue full. */
-	err = get_out_flags(sng_wait_objects, in_flags, out_flags, number_of_sangoma_wait_objects, &at_least_one_poll_set_flags_out);
+	err = get_out_flags(sng_wait_objects, INVALID_INDEX, in_flags, out_flags, number_of_sangoma_wait_objects, &at_least_one_poll_set_flags_out);
 	if(SANG_ERROR(err)){
 		return err;
 	}
@@ -989,12 +1511,20 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 	}
 
 	/* wait untill at least one of the events is signaled OR a 'system_wait_timeout' occured */
-	if (WAIT_TIMEOUT == WaitForMultipleObjects(number_of_internal_signaling_objects, &hEvents[0], FALSE, system_wait_timeout)){
+	dwResult = WaitForMultipleObjects(number_of_internal_signaling_objects, &hEvents[0], FALSE, system_wait_timeout);
+	if (WAIT_TIMEOUT == dwResult){
 		return SANG_STATUS_APIPOLL_TIMEOUT;
 	}
 
+	if( dwResult >= (DWORD)number_of_internal_signaling_objects ) {
+		return SANG_STATUS_GENERAL_ERROR;
+	}
+
 	/* WaitForMultipleObjects() was waken by a Sangoma or by a non-Sangoma wait object. */
-	err = get_out_flags(sng_wait_objects, in_flags, out_flags, number_of_sangoma_wait_objects, NULL);
+	err = get_out_flags(sng_wait_objects,
+						uiMapEventIndexToWaitObjectIndex[dwResult],/* This is the index of first signaled object in 
+																	* the original sng_wait_objects[] array, not in hEvents[] array. */
+						in_flags, out_flags, number_of_sangoma_wait_objects, NULL);
 	if(SANG_ERROR(err)){
 		return err;
 	}
@@ -1028,18 +1558,14 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 	if (res > 0) {
 		for(i = 0; i < number_of_sangoma_wait_objects; i++){
 			out_flags[i] = pfds[i].revents;
+      /* POLLIN, POLLOUT, POLLPRI have same values as SANG_WAIT_OBJ_ HAS_INPUT, CAN_OUTPUT and HAS_EVENTS, no need to set them */
 		}
 		for(i = 0; i < j; i++){
-			/* TODO: we must do something extra for signalled objects like setting a flag.
-			 * current user of the SANGOMA_OBJ_IS_SIGNALABLE feature is Netborder and they dont
-			 * need to know which object was signaled. If we want to know which object was signaled
-			 * we need a new libsangoma API sangoma_wait_obj_is_signaled() where in Windows we can
-			 * use WaitForSingleObject to test the signaled state and in Linux we can set a flag in
-			 * sng_wait_obj
-			 * */
 			if (pfds[number_of_sangoma_wait_objects+i].revents & POLLIN) {
-				/* read and discard the signal byte */
+				/* read and discard the signal byte  */
 				read(pfds[number_of_sangoma_wait_objects+i].fd, &dummy_buf, 1);
+				/* set the proper flag so users may know this object was signaled */
+				out_flags[i] |= SANG_WAIT_OBJ_IS_SIGNALED;
 			}
 		}
 	} else if (res < 0 && errno == EINTR) {
@@ -1058,13 +1584,13 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 
 
 /*!
-  \fn sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int32_t inflags, int32_t *outflags, int32_t timeout)
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, int32_t inflags, int32_t *outflags, int32_t timeout)
   \brief Wait for a single waitable object
-  \param sangoma_wait_obj pointer to array of file descriptors to wait for
+  \param sangoma_wait_obj pointer to a wait object previously created with sangoma_wait_obj_create
   \param timeout timeout in miliseconds in case of no event
   \return SANG_STATUS_APIPOLL_TIMEOUT: timeout, SANG_STATUS_SUCCESS: event occured use sangoma_wait_obj_get_out_flags to check or error status
 */
-sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, uint32_t inflags, uint32_t *outflags, int32_t timeout)
+sangoma_status_t _LIBSNG_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj, uint32_t inflags, uint32_t *outflags, int32_t timeout)
 {
 	return sangoma_waitfor_many(&sangoma_wait_obj, &inflags, outflags, 1, timeout);
 }
@@ -1075,18 +1601,18 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor(sangoma_wait_obj_t *sangoma_wait_obj
  ***************************************************************/
 
 
-int _SAPI_CALL sangoma_span_chan_toif(int span, int chan, char *interface_name)
+int _LIBSNG_CALL sangoma_span_chan_toif(int span, int chan, char *interface_name)
 {
 #if defined(__WINDOWS__)
-/* FIXME: Not implemented */
-	return -1;
+	/* Form the Interface Name from span and chan number (i.e. wanpipe1_if1). */
+	sprintf(interface_name, WP_INTERFACE_NAME_FORM, span, chan);
 #else
  	sprintf(interface_name,"s%ic%i",span,chan);
 #endif
 	return 0;
 }
 
-int _SAPI_CALL sangoma_interface_toi(char *interface_name, int *span, int *chan)
+int _LIBSNG_CALL sangoma_interface_toi(char *interface_name, int *span, int *chan)
 {
 	char *p=NULL, *sp = NULL, *ch = NULL;
 	int ret = 0;
@@ -1117,7 +1643,7 @@ int _SAPI_CALL sangoma_interface_toi(char *interface_name, int *span, int *chan)
 	return ret;
 }
 
-int _SAPI_CALL sangoma_interface_wait_up(int span, int chan, int sectimeout)
+int _LIBSNG_CALL sangoma_interface_wait_up(int span, int chan, int sectimeout)
 {
 #if defined(__WINDOWS__)
   /* Windows does not need to wait for interfaces to come up */
@@ -1149,7 +1675,7 @@ int _SAPI_CALL sangoma_interface_wait_up(int span, int chan, int sectimeout)
 #endif
 }
 
-int _SAPI_CALL sangoma_span_chan_fromif(char *interface_name, int *span, int *chan)
+int _LIBSNG_CALL sangoma_span_chan_fromif(char *interface_name, int *span, int *chan)
 {
 	char *p = NULL, *sp = NULL, *ch = NULL;
 	int ret = 0;
@@ -1180,7 +1706,7 @@ int _SAPI_CALL sangoma_span_chan_fromif(char *interface_name, int *span, int *ch
 	return ret;
 }
 
-sng_fd_t _SAPI_CALL sangoma_open_api_span_chan(int span, int chan) 
+sng_fd_t _LIBSNG_CALL sangoma_open_api_span_chan(int span, int chan) 
 {
 	sng_fd_t fd = INVALID_HANDLE_VALUE;
 	wanpipe_api_t tdm_api;
@@ -1215,40 +1741,12 @@ sng_fd_t _SAPI_CALL sangoma_open_api_span_chan(int span, int chan)
 	return fd;
 }            
 
-/* no checks done for multiple open */
-sng_fd_t _SAPI_CALL __sangoma_open_api_span_chan(int span, int chan)
+static sng_fd_t sangoma_open_dev_by_name(const char *dev_name)
 {
-   	char fname[FNAME_LEN], tmp_fname[FNAME_LEN];
-
-	/* Form the Interface Name from span and chan number (i.e. wanpipe1_if1). */
-	_snprintf(tmp_fname, DEV_NAME_LEN, WP_INTERFACE_NAME_FORM, span, chan);
+   	char fname[FNAME_LEN];
 
 #if defined(__WINDOWS__)
-	_snprintf(fname , FNAME_LEN, "\\\\.\\%s", tmp_fname);
-	return CreateFile(	fname, 
-						GENERIC_READ | GENERIC_WRITE, 
-						FILE_SHARE_READ | FILE_SHARE_WRITE,
-						(LPSECURITY_ATTRIBUTES)NULL, 
-						OPEN_EXISTING,
-						FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH,
-						(HANDLE)NULL
-						);
-#else
-	sprintf(fname,"/dev/%s", tmp_fname);
-
-	return open(fname, O_RDWR);
-#endif
-}            
-
-sng_fd_t _SAPI_CALL sangoma_open_api_ctrl(void)
-{
-   	char fname[FNAME_LEN], tmp_fname[FNAME_LEN];
-
-	/* Form the Ctrl Device Name. */
-	_snprintf(tmp_fname, DEV_NAME_LEN, WP_CTRL_DEV_NAME);
-
-#if defined(__WINDOWS__)
-	_snprintf(fname , FNAME_LEN, "\\\\.\\%s", tmp_fname);
+	_snprintf(fname , FNAME_LEN, "\\\\.\\%s", dev_name);
 
 	return CreateFile(	fname, 
 						GENERIC_READ | GENERIC_WRITE, 
@@ -1259,16 +1757,40 @@ sng_fd_t _SAPI_CALL sangoma_open_api_ctrl(void)
 						(HANDLE)NULL
 						);
 #else
-	sprintf(fname,"/dev/%s", tmp_fname);
+	sprintf(fname,"/dev/%s", dev_name);
 
 	return open(fname, O_RDWR);
 #endif
 }
 
+/* no checks done for multiple open */
+sng_fd_t _LIBSNG_CALL __sangoma_open_api_span_chan(int span, int chan)
+{
+   	char tmp_fname[FNAME_LEN];
 
-int _SAPI_CALL sangoma_get_open_cnt(sng_fd_t fd, wanpipe_api_t *tdm_api)
+	/* Form the Interface Name from span and chan number (i.e. wanpipe1_if1). */
+	_snprintf(tmp_fname, DEV_NAME_LEN, WP_INTERFACE_NAME_FORM, span, chan);
+
+	return sangoma_open_dev_by_name(tmp_fname);
+}            
+
+sng_fd_t _LIBSNG_CALL sangoma_open_api_ctrl(void)
+{
+	return sangoma_open_dev_by_name(WP_CTRL_DEV_NAME);
+}
+
+#ifdef WP_API_FEATURE_LOGGER
+sng_fd_t _LIBSNG_CALL sangoma_logger_open(void)
+{
+	return sangoma_open_dev_by_name(WP_LOGGER_DEV_NAME);
+}
+#endif
+
+int _LIBSNG_CALL sangoma_get_open_cnt(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_OPEN_CNT;
 
 	err=sangoma_cmd_exec(fd,tdm_api);
@@ -1279,7 +1801,7 @@ int _SAPI_CALL sangoma_get_open_cnt(sng_fd_t fd, wanpipe_api_t *tdm_api)
 	return tdm_api->wp_cmd.open_cnt;
 }
 
-sng_fd_t _SAPI_CALL sangoma_create_socket_by_name(char *device, char *card) 
+sng_fd_t _LIBSNG_CALL sangoma_create_socket_by_name(char *device, char *card) 
 {
 	int span,chan;
 	sangoma_interface_toi(device,&span,&chan);
@@ -1288,7 +1810,7 @@ sng_fd_t _SAPI_CALL sangoma_create_socket_by_name(char *device, char *card)
 }
 
           
-sng_fd_t _SAPI_CALL sangoma_open_api_span(int span) 
+sng_fd_t _LIBSNG_CALL sangoma_open_api_span(int span) 
 {
     int i=0;
 	sng_fd_t fd = INVALID_HANDLE_VALUE;
@@ -1319,18 +1841,21 @@ sng_fd_t _SAPI_CALL sangoma_open_api_span(int span)
   \param fd device file descriptor
   \return void
 */
-void _SAPI_CALL sangoma_close(sng_fd_t *fd)
+void _LIBSNG_CALL sangoma_close(sng_fd_t *fd)
 {
+	if (!fd) {
+		return;
+	}
 #if defined(__WINDOWS__)
-	if(	*fd != INVALID_HANDLE_VALUE){
+	if (*fd != INVALID_HANDLE_VALUE){
 		CloseHandle(*fd);
 		*fd = INVALID_HANDLE_VALUE;
 	}
 #else
-    if (*fd >= 0) {
+	if (*fd >= 0) {
 		close(*fd);
 		*fd = -1;
-    }
+	}
 #endif
 }
 
@@ -1340,7 +1865,7 @@ void _SAPI_CALL sangoma_close(sng_fd_t *fd)
  * Device READ / WRITE Functions
  ***************************************************************/ 
 
-int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *databuf, int datalen, int flag)
+int _LIBSNG_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *databuf, int datalen, int flag)
 {
 	int rx_len=0;
 
@@ -1374,7 +1899,7 @@ int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *data
 		break;
 	default:
 		/* note that SANG_STATUS_NO_DATA_AVAILABLE is NOT an error! */
-		if(0)DBG_ERR("Operation Status: %s(%d)\n",
+		if(libsng_dbg_level)DBG_ERR("Operation Status: %s(%d)\n",
 			SDLA_DECODE_SANG_STATUS(rx_hdr->operation_status), rx_hdr->operation_status);
 		return -5;
 	}
@@ -1407,7 +1932,7 @@ int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *data
     return rx_len;
 }                    
 
-int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *databuf, unsigned short datalen, int flag)
+int _LIBSNG_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *databuf, unsigned short datalen, int flag)
 {
 	int bsent=-1;
 	wp_api_hdr_t *wp_api_hdr = hdrbuf;
@@ -1487,7 +2012,7 @@ int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *dat
  * Execute TDM command
  *
  */
-int _SAPI_CALL sangoma_cmd_exec(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_cmd_exec(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
 
@@ -1509,10 +2034,11 @@ int _SAPI_CALL sangoma_cmd_exec(sng_fd_t fd, wanpipe_api_t *tdm_api)
  * Get Full TDM API configuration per channel
  *
  */
-int _SAPI_CALL sangoma_get_full_cfg(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_get_full_cfg(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_FULL_CFG;
 
 	err=sangoma_cmd_exec(fd,tdm_api);
@@ -1563,16 +2089,12 @@ int _SAPI_CALL sangoma_get_full_cfg(sng_fd_t fd, wanpipe_api_t *tdm_api)
  * }
  *
  */
-int _SAPI_CALL sangoma_tdm_set_codec(sng_fd_t fd, wanpipe_api_t *tdm_api, int codec)
+int _LIBSNG_CALL sangoma_tdm_set_codec(sng_fd_t fd, wanpipe_api_t *tdm_api, int codec)
 {
-	int err;
-
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_CODEC;
 	tdm_api->wp_cmd.tdm_codec = codec;
-
-	err=sangoma_cmd_exec(fd,tdm_api);
-
-	return err;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
 /*========================================================
@@ -1587,10 +2109,11 @@ int _SAPI_CALL sangoma_tdm_set_codec(sng_fd_t fd, wanpipe_api_t *tdm_api, int co
  * }
  *
  */
-int _SAPI_CALL sangoma_tdm_get_codec(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_get_codec(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_CODEC;
 
 	err=sangoma_cmd_exec(fd,tdm_api);
@@ -1608,16 +2131,12 @@ int _SAPI_CALL sangoma_tdm_get_codec(sng_fd_t fd, wanpipe_api_t *tdm_api)
  *  10,20,30,40,50 ms      
  *
  */
-int _SAPI_CALL sangoma_tdm_set_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api, int period)
+int _LIBSNG_CALL sangoma_tdm_set_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api, int period)
 {
-	int err;
-
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_USR_PERIOD;
 	tdm_api->wp_cmd.usr_period = period;
-
-	err=sangoma_cmd_exec(fd,tdm_api);
-
-	return err;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
 /*========================================================
@@ -1627,10 +2146,11 @@ int _SAPI_CALL sangoma_tdm_set_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api, i
  *  10,20,30,40,50 ms      
  *
  */
-int _SAPI_CALL sangoma_tdm_get_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_get_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_USR_PERIOD;
 
 	err=sangoma_cmd_exec(fd,tdm_api);
@@ -1647,15 +2167,17 @@ int _SAPI_CALL sangoma_tdm_get_usr_period(sng_fd_t fd, wanpipe_api_t *tdm_api)
  * Coding Format will be ULAW/ALAW based on T1/E1 
  */
 
-int _SAPI_CALL sangoma_get_hw_coding(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_get_hw_coding(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-        int err;
-        tdm_api->wp_cmd.cmd = WP_API_CMD_GET_HW_CODING;
-        err=sangoma_cmd_exec(fd,tdm_api);
-        if (err){
-                return err;
-        }
-        return tdm_api->wp_cmd.hw_tdm_coding;
+	int err;
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_HW_CODING;
+	err=sangoma_cmd_exec(fd,tdm_api);
+	if (err){
+		return err;
+	}
+	return tdm_api->wp_cmd.hw_tdm_coding;
 }
 
 #ifdef WP_API_FEATURE_DTMF_EVENTS
@@ -1665,9 +2187,11 @@ int _SAPI_CALL sangoma_get_hw_coding(sng_fd_t fd, wanpipe_api_t *tdm_api)
  * Will return true if HW DTMF is enabled on Octasic
  */
 
-int _SAPI_CALL sangoma_tdm_get_hw_dtmf(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_get_hw_dtmf(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_HW_DTMF;
 	err=sangoma_cmd_exec(fd,tdm_api);
 	if (err){
@@ -1682,9 +2206,11 @@ int _SAPI_CALL sangoma_tdm_get_hw_dtmf(sng_fd_t fd, wanpipe_api_t *tdm_api)
  * Will return true if HW EC is enabled 
  */
 
-int _SAPI_CALL sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_HW_EC;
 	err=sangoma_cmd_exec(fd,tdm_api);
 	if (err){
@@ -1700,10 +2226,11 @@ int _SAPI_CALL sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api)
  * The USER MTU/MRU values will change each time a PERIOD
  * or CODEC is adjusted.
  */
-int _SAPI_CALL sangoma_tdm_get_usr_mtu_mru(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_get_usr_mtu_mru(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_USR_MTU_MRU;
 
 	err=sangoma_cmd_exec(fd,tdm_api);
@@ -1720,16 +2247,12 @@ int _SAPI_CALL sangoma_tdm_get_usr_mtu_mru(sng_fd_t fd, wanpipe_api_t *tdm_api)
  * This option is not implemented yet
  *
  */
-int _SAPI_CALL sangoma_tdm_set_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api, int power)
+int _LIBSNG_CALL sangoma_tdm_set_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api, int power)
 {
-	int err;
-
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_POWER_LEVEL;
 	tdm_api->wp_cmd.power_level = power;
-
-	err=sangoma_cmd_exec(fd,tdm_api);
-
-	return err;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
 /*========================================================
@@ -1738,10 +2261,11 @@ int _SAPI_CALL sangoma_tdm_set_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api, 
  * This option is not implemented yet
  *
  */
-int _SAPI_CALL sangoma_tdm_get_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_get_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_POWER_LEVEL;
 
 	err=sangoma_cmd_exec(fd,tdm_api);
@@ -1752,71 +2276,62 @@ int _SAPI_CALL sangoma_tdm_get_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api)
 	return tdm_api->wp_cmd.power_level;
 }
 
-int _SAPI_CALL sangoma_flush_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_flush_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	int err;
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_FLUSH_BUFFERS;
-
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_enable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api, int poll_in_sec) {
-	
-	int err;
-	
-	tdm_api->wp_cmd.cmd = WP_API_CMD_ENABLE_RBS_EVENTS;
-	tdm_api->wp_cmd.rbs_poll=poll_in_sec;
-	
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-
-int _SAPI_CALL sangoma_tdm_disable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-
-	int err;
-	tdm_api->wp_cmd.cmd = WP_API_CMD_DISABLE_RBS_EVENTS;
-	
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
-}
-
-int _SAPI_CALL sangoma_tdm_write_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char rbs)
+int _LIBSNG_CALL sangoma_flush_rx_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	
-	int err;
-	tdm_api->wp_cmd.cmd = WP_API_CMD_WRITE_RBS_BITS;
-	tdm_api->wp_cmd.chan = (unsigned char)channel;
-	tdm_api->wp_cmd.rbs_tx_bits=rbs;
-	
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_FLUSH_RX_BUFFERS;
+	return sangoma_cmd_exec(fd,tdm_api);
+}
 
-	return 0;
+int _LIBSNG_CALL sangoma_flush_tx_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_FLUSH_TX_BUFFERS;
+	return sangoma_cmd_exec(fd,tdm_api);
+} 
+
+int _LIBSNG_CALL sangoma_flush_event_bufs(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_FLUSH_EVENT_BUFFERS;
+	return sangoma_cmd_exec(fd,tdm_api);
+}  
+
+int _LIBSNG_CALL sangoma_tdm_enable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api, int poll_in_sec) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_ENABLE_RBS_EVENTS;
+	tdm_api->wp_cmd.rbs_poll = poll_in_sec;
+	return sangoma_cmd_exec(fd,tdm_api);
+}
+
+int _LIBSNG_CALL sangoma_tdm_disable_rbs_events(sng_fd_t fd, wanpipe_api_t *tdm_api) {
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_DISABLE_RBS_EVENTS;
+	return sangoma_cmd_exec(fd,tdm_api);
+}
+
+int _LIBSNG_CALL sangoma_tdm_write_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char rbs)
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, channel);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_WRITE_RBS_BITS;
+	tdm_api->wp_cmd.rbs_tx_bits=rbs;
+	return sangoma_cmd_exec(fd,tdm_api);
 }        
 
-
-int _SAPI_CALL sangoma_tdm_read_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char *rbs)
+int _LIBSNG_CALL sangoma_tdm_read_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel, unsigned char *rbs)
 {
-	
 	int err;
+	WANPIPE_API_INIT_CHAN(tdm_api, channel);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_READ_RBS_BITS;
-	tdm_api->wp_cmd.chan = (unsigned char)channel;
 	tdm_api->wp_cmd.rbs_tx_bits=0;
 	
 	err=sangoma_cmd_exec(fd,tdm_api);
@@ -1825,17 +2340,17 @@ int _SAPI_CALL sangoma_tdm_read_rbs(sng_fd_t fd, wanpipe_api_t *tdm_api, int cha
 	}
 
 	*rbs=(unsigned char)tdm_api->wp_cmd.rbs_rx_bits;
-
 	return 0;
 }        
 
-int _SAPI_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 
 #ifdef WP_API_FEATURE_EVENTS
 	wp_api_event_t *rx_event;
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_READ_EVENT;
 	
 	err=sangoma_cmd_exec(fd,tdm_api);
@@ -1844,7 +2359,6 @@ int _SAPI_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api)
 	}
 
 	rx_event = &tdm_api->wp_cmd.event;
-
 
    	/*
 	 The use of callbacks here is purely optional and is left
@@ -1859,7 +2373,6 @@ int _SAPI_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api)
 		if (tdm_api->wp_callback.wp_rbs_event) {
 			tdm_api->wp_callback.wp_rbs_event(fd,rx_event->wp_api_event_rbs_bits);
 		}
-		
 		break;
 	
 #ifdef WP_API_FEATURE_DTMF_EVENTS
@@ -1920,9 +2433,9 @@ int _SAPI_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api)
 #endif	
 	default:
 #ifdef __WINDOWS__
-		printf("libsangoma: %s fd=0x%p: Unknown TDM event!", __FUNCTION__,fd);
+		if(0)printf("Warning: libsangoma: %s fd=0x%p: Unknown TDM event!", __FUNCTION__,fd);
 #else
-		printf("libsangoma: %s fd=%d: Unknown TDM event!", __FUNCTION__, fd);
+		if(0)printf("Warning: libsangoma: %s fd=%d: Unknown TDM event!", __FUNCTION__, fd);
 #endif
 		break;
 	}
@@ -1932,314 +2445,283 @@ int _SAPI_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api)
 	printf("Error: Read Event not supported!\n");
 	return -1;
 #endif
-}        
+}  
+
+
+#ifdef WP_API_FEATURE_LOGGER
+/*========================================================
+ * Execute Wanpipe Logger command
+ */
+sangoma_status_t _LIBSNG_CALL sangoma_logger_cmd_exec(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+{
+#if defined(__WINDOWS__)
+	return logger_api_ioctl(fd, logger_cmd);
+#else
+	int err = ioctl(fd,WANPIPE_IOCTL_LOGGER_CMD,logger_cmd);
+	if (err < 0){
+		char tmp[50];
+		sprintf(tmp,"Logger CMD: %i\n",logger_cmd->cmd);
+		perror(tmp);
+		return -1;
+	}
+	return err;
+#endif
+}
+
+sangoma_status_t _LIBSNG_CALL sangoma_logger_read_event(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+{
+	logger_cmd->cmd = WP_API_LOGGER_CMD_READ_EVENT;
+	return sangoma_logger_cmd_exec(fd, logger_cmd);
+}
+
+sangoma_status_t _LIBSNG_CALL sangoma_logger_flush_buffers(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+{
+	logger_cmd->cmd = WP_API_LOGGER_CMD_FLUSH_BUFFERS;
+	return sangoma_logger_cmd_exec(fd, logger_cmd);
+}
+
+sangoma_status_t _LIBSNG_CALL sangoma_logger_get_statistics(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+{
+	logger_cmd->cmd = WP_API_LOGGER_CMD_GET_STATS;
+	return sangoma_logger_cmd_exec(fd, logger_cmd);
+}
+
+sangoma_status_t _LIBSNG_CALL sangoma_logger_reset_statistics(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+{
+	logger_cmd->cmd = WP_API_LOGGER_CMD_RESET_STATS;
+	return sangoma_logger_cmd_exec(fd, logger_cmd);
+}
+
+sangoma_status_t _LIBSNG_CALL sangoma_logger_get_open_handle_counter(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+{
+	logger_cmd->cmd = WP_API_LOGGER_CMD_OPEN_CNT;
+	return sangoma_logger_cmd_exec(fd, logger_cmd);
+}
+
+sangoma_status_t _LIBSNG_CALL sangoma_logger_get_logger_level(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+{
+	logger_cmd->cmd = WP_API_LOGGER_CMD_GET_LOGGER_LEVEL;
+	return sangoma_logger_cmd_exec(fd, logger_cmd);
+}
+
+sangoma_status_t _LIBSNG_CALL sangoma_logger_set_logger_level(sng_fd_t fd, wp_logger_cmd_t *logger_cmd)
+{
+	logger_cmd->cmd = WP_API_LOGGER_CMD_SET_LOGGER_LEVEL;
+	return sangoma_logger_cmd_exec(fd, logger_cmd);
+}
+
+#endif /* WP_API_FEATURE_LOGGER */
+
+#ifdef WP_API_FEATURE_FAX_EVENTS
+int _LIBSNG_CALL sangoma_tdm_enable_fax_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);	
+	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
+	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_FAX_DETECT;
+	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
+	return sangoma_cmd_exec(fd,tdm_api);
+}
+
+int _LIBSNG_CALL sangoma_tdm_disable_fax_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
+	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_FAX_DETECT;
+	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_DISABLE;
+	return sangoma_cmd_exec(fd,tdm_api);
+}
+
+int _LIBSNG_CALL sangoma_tdm_get_hw_fax(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	int err;
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_HW_FAX_DETECT;
+	err=sangoma_cmd_exec(fd,tdm_api);
+	if (err){
+		return err;
+	}
+	return tdm_api->wp_cmd.hw_fax;
+}
+#endif
 
 #ifdef WP_API_FEATURE_DTMF_EVENTS
-int _SAPI_CALL sangoma_tdm_enable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_enable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	int err;
-	
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);	
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_DTMF;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_disable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_disable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	int err;
-
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_DTMF;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_DISABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-
-int _SAPI_CALL sangoma_tdm_enable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_enable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	int err;
-	
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RM_DTMF;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	int err;
-
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RM_DTMF;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_DISABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	int err;
-
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RXHOOK;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-	int err;
-
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RXHOOK;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_DISABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_enable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-	
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_enable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RING;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-
-int _SAPI_CALL sangoma_tdm_disable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_disable_ring_events(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RING;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_DISABLE;
-	
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_enable_ring_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-	
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_enable_ring_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);	
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RING_DETECT;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return err;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-
-int _SAPI_CALL sangoma_tdm_disable_ring_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_disable_ring_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RING_DETECT;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_DISABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_enable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-	
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_enable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RING_TRIP_DETECT;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return tdm_api->wp_cmd.rbs_poll;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-
-int _SAPI_CALL sangoma_tdm_disable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_disable_ring_trip_detect_events(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
-	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RING_DETECT;
+	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_RING_TRIP_DETECT;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_DISABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_txsig_kewl(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_TXSIG_KEWL;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_txsig_start(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);	
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_TXSIG_START;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_txsig_onhook(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_TXSIG_ONHOOK;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_txsig_offhook(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);	
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_TXSIG_OFFHOOK;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return 0;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-
-int _SAPI_CALL sangoma_tdm_enable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api, uint16_t tone_id) {
-	
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_enable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api, uint16_t tone_id) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_TONE;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
 	tdm_api->wp_cmd.event.wp_api_event_tone_type = tone_id;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return tdm_api->wp_cmd.rbs_poll;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api) {
-	
-	int err;
-	
+int _LIBSNG_CALL sangoma_tdm_disable_tone_events(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_TONE;
 	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_DISABLE;
 	tdm_api->wp_cmd.event.wp_api_event_tone_type = 0x00;
-	err=sangoma_cmd_exec(fd,tdm_api);
-	if (err){
-		return err;
-	}
-
-	return tdm_api->wp_cmd.rbs_poll;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
-
 #endif
 
-int _SAPI_CALL sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_enable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-        int err;
-
-        tdm_api->wp_cmd.cmd = WP_API_CMD_ENABLE_HWEC;
-        err=sangoma_cmd_exec(fd,tdm_api);
-        if (err){
-                return err;
-        }
-
-        return 0;
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_ENABLE_HWEC;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
-int _SAPI_CALL sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
-        int err;
-
-        tdm_api->wp_cmd.cmd = WP_API_CMD_DISABLE_HWEC;
-        err=sangoma_cmd_exec(fd,tdm_api);
-        if (err){
-                return err;
-        }
-
-        return 0;
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_DISABLE_HWEC;
+	return sangoma_cmd_exec(fd,tdm_api);
 }
 
 
@@ -2248,10 +2730,11 @@ int _SAPI_CALL sangoma_tdm_disable_hwec(sng_fd_t fd, wanpipe_api_t *tdm_api)
  * 
  */                  
 #ifdef WP_API_FEATURE_FE_ALARM
-int _SAPI_CALL sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned int *alarms)
+int _LIBSNG_CALL sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned int *alarms)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_FE_ALARMS;
 
 	err=sangoma_cmd_exec(fd,tdm_api);
@@ -2265,10 +2748,11 @@ int _SAPI_CALL sangoma_tdm_get_fe_alarms(sng_fd_t fd, wanpipe_api_t *tdm_api, un
 }         
 
 /* get current Line Connection state - Connected/Disconnected */
-int _SAPI_CALL sangoma_get_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *current_status)
+int _LIBSNG_CALL sangoma_get_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *current_status)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_FE_STATUS;
 	err = sangoma_cmd_exec(fd, tdm_api);
 	*current_status = tdm_api->wp_cmd.fe_status;
@@ -2279,10 +2763,11 @@ int _SAPI_CALL sangoma_get_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsign
 
 /* get current Line Connection state - Connected/Disconnected */
 #ifdef WP_API_FEATURE_LINK_STATUS
-int _SAPI_CALL sangoma_get_link_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *current_status)
+int _LIBSNG_CALL sangoma_get_link_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *current_status)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_FE_STATUS;
 	err = sangoma_cmd_exec(fd, tdm_api);
 	*current_status = tdm_api->wp_cmd.fe_status;
@@ -2291,17 +2776,18 @@ int _SAPI_CALL sangoma_get_link_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsi
 }
 
 /* set current Line Connection state - Connected/Disconnected. valid only for ISDN BRI */
-int _SAPI_CALL sangoma_set_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char new_status)
+int _LIBSNG_CALL sangoma_set_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char new_status)
 {
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_FE_STATUS;
 	tdm_api->wp_cmd.fe_status = new_status;
-
 	return sangoma_cmd_exec(fd, tdm_api);
 }
 #endif
 
-int _SAPI_CALL sangoma_disable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel)
+int _LIBSNG_CALL sangoma_disable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel)
 {
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.channel	= (unsigned char)channel;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_BRI_CHAN_LOOPBACK;
@@ -2309,8 +2795,9 @@ int _SAPI_CALL sangoma_disable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *td
 	return sangoma_cmd_exec(fd, tdm_api);
 }
 
-int _SAPI_CALL sangoma_enable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel)
+int _LIBSNG_CALL sangoma_enable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel)
 {
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
 	tdm_api->wp_cmd.event.channel	= (unsigned char)channel;
 	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_BRI_CHAN_LOOPBACK;
@@ -2318,11 +2805,11 @@ int _SAPI_CALL sangoma_enable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm
 	return sangoma_cmd_exec(fd, tdm_api);
 }
 
-
-int _SAPI_CALL sangoma_get_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_get_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_TX_Q_SIZE;
 	tdm_api->wp_cmd.tx_queue_sz = 0;
 	
@@ -2334,22 +2821,22 @@ int _SAPI_CALL sangoma_get_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api)
 	return tdm_api->wp_cmd.tx_queue_sz;
 }
 
-int _SAPI_CALL sangoma_set_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int size)
+int _LIBSNG_CALL sangoma_set_tx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int size)
 {
 	if (size < 0) {
 		return -1;
 	}
-
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_TX_Q_SIZE;
 	tdm_api->wp_cmd.tx_queue_sz = size;
-	
 	return sangoma_cmd_exec(fd, tdm_api);
 }
 
-int _SAPI_CALL sangoma_get_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_get_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_RX_Q_SIZE;
 	tdm_api->wp_cmd.rx_queue_sz = 0;
 	
@@ -2362,23 +2849,23 @@ int _SAPI_CALL sangoma_get_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api)
 
 }
 
-int _SAPI_CALL sangoma_set_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int size)
+int _LIBSNG_CALL sangoma_set_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, int size)
 {
 	if (size < 0) {
 		return -1;
 	}
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_RX_Q_SIZE;
 	tdm_api->wp_cmd.rx_queue_sz = size;
-	
 	return sangoma_cmd_exec(fd, tdm_api);
-
 }
 
-int _SAPI_CALL sangoma_get_driver_version(sng_fd_t fd, wanpipe_api_t *tdm_api, wan_driver_version_t *drv_ver)
+int _LIBSNG_CALL sangoma_get_driver_version(sng_fd_t fd, wanpipe_api_t *tdm_api, wan_driver_version_t *drv_ver)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_DRIVER_VERSION;
 
 	err = sangoma_cmd_exec(fd, tdm_api);
@@ -2395,10 +2882,11 @@ int _SAPI_CALL sangoma_get_driver_version(sng_fd_t fd, wanpipe_api_t *tdm_api, w
 	return err;
 }
 
-int _SAPI_CALL sangoma_get_firmware_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver)
+int _LIBSNG_CALL sangoma_get_firmware_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_FIRMWARE_VERSION;
 
 	err = sangoma_cmd_exec(fd, tdm_api);
@@ -2413,11 +2901,11 @@ int _SAPI_CALL sangoma_get_firmware_version(sng_fd_t fd, wanpipe_api_t *tdm_api,
 	return err;
 }
 
-
-int _SAPI_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver)
+int _LIBSNG_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char *ver)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_CPLD_VERSION;
 
 	err = sangoma_cmd_exec(fd, tdm_api);
@@ -2432,41 +2920,109 @@ int _SAPI_CALL sangoma_get_cpld_version(sng_fd_t fd, wanpipe_api_t *tdm_api, uns
 	return err;
 }
 
-int _SAPI_CALL sangoma_get_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, wanpipe_chan_stats_t *stats)
+int _LIBSNG_CALL sangoma_get_stats(sng_fd_t fd, wanpipe_api_t *tdm_api, wanpipe_chan_stats_t *stats)
 {
 	int err;
 
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_STATS;
 
 	err = sangoma_cmd_exec(fd, tdm_api);
 	if (err == 0) {
 		if (stats) {
-			memcpy(stats,&tdm_api->wp_cmd.stats,sizeof(wanpipe_chan_stats_t));
+			memcpy(stats, &tdm_api->wp_cmd.stats, sizeof(wanpipe_chan_stats_t));
 		}
 	}
 
 	return err;
 }
 
-int _SAPI_CALL sangoma_flush_stats(sng_fd_t fd, wanpipe_api_t *tdm_api)
+int _LIBSNG_CALL sangoma_flush_stats(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
 	tdm_api->wp_cmd.cmd = WP_API_CMD_RESET_STATS;
 	return sangoma_cmd_exec(fd, tdm_api);
 }
 
-int _SAPI_CALL sangoma_set_rm_rxflashtime(sng_fd_t fd, wanpipe_api_t *tdm_api, int rxflashtime)
+int _LIBSNG_CALL sangoma_set_rm_rxflashtime(sng_fd_t fd, wanpipe_api_t *tdm_api, int rxflashtime)
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_RM_RXFLASHTIME;
+	tdm_api->wp_cmd.rxflashtime=rxflashtime;
+	return sangoma_cmd_exec(fd, tdm_api);
+}
+
+#ifdef WP_API_FEATURE_RM_GAIN
+int _LIBSNG_CALL sangoma_set_rm_tx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, int value)
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
+	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_SET_RM_TX_GAIN;
+	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
+	tdm_api->wp_cmd.event.wp_api_event_gain_value = value;
+	return sangoma_cmd_exec(fd, tdm_api);
+}
+
+int _LIBSNG_CALL sangoma_set_rm_rx_gain(sng_fd_t fd, wanpipe_api_t *tdm_api, int value)
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
+	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_SET_RM_RX_GAIN;
+	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
+	tdm_api->wp_cmd.event.wp_api_event_gain_value = value;
+	return sangoma_cmd_exec(fd, tdm_api);
+}
+#endif /* WP_API_FEATURE_RM_GAIN */
+
+int _LIBSNG_CALL sangoma_tdm_set_polarity(sng_fd_t fd, wanpipe_api_t *tdm_api, int polarity)
 {
 	int err;
 
-	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_RM_RXFLASHTIME;
-	tdm_api->wp_cmd.rxflashtime=rxflashtime;
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
+	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_SETPOLARITY;
+	tdm_api->wp_cmd.event.wp_api_event_polarity = polarity;
 	err = sangoma_cmd_exec(fd, tdm_api);
 	return err;
+
 }
 
 
-#ifndef LIBSANGOMA_LIGHT 
+int _LIBSNG_CALL sangoma_tdm_txsig_onhooktransfer(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+{
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_SET_EVENT;
+	tdm_api->wp_cmd.event.wp_api_event_type = WP_API_EVENT_ONHOOKTRANSFER;
+	tdm_api->wp_cmd.event.wp_api_event_mode = WP_API_EVENT_ENABLE;
+	return sangoma_cmd_exec(fd,tdm_api);
+}
 
+#ifdef WP_API_FEATURE_LOOP
+
+int _LIBSNG_CALL sangoma_tdm_enable_loop(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	int err;
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_ENABLE_LOOP;
+	err = sangoma_cmd_exec(fd, tdm_api);
+	return err;
+}      
+
+int _LIBSNG_CALL sangoma_tdm_disable_loop(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	int err;
+
+	WANPIPE_API_INIT_CHAN(tdm_api, 0);
+	tdm_api->wp_cmd.cmd = WP_API_CMD_DISABLE_LOOP;
+	err = sangoma_cmd_exec(fd, tdm_api);
+	return err;
+}      
+
+#endif
+
+
+#ifndef LIBSANGOMA_LIGHT 
 
 /************************************************************//**
  * Device PORT Control Functions
@@ -2487,7 +3043,7 @@ static int sangoma_port_mgmnt_ioctl(sng_fd_t fd, port_management_struct_t *port_
 			(LPDWORD)(&ln),
 			(LPOVERLAPPED)NULL
 						) == FALSE){
-		/* Call Call OS specific code to find cause of the error and check messages log. */
+		/* Call OS specific code to find cause of the error and check messages log. */
 		DBG_ERR("%s():Error: IoctlPortManagementCommand failed!!\n", __FUNCTION__);
 		err = -1;
 	}
@@ -2519,7 +3075,7 @@ static int sangoma_port_cfg_ioctl(sng_fd_t fd, port_cfg_t *port_cfg)
 			(LPDWORD)(&ln),
 			(LPOVERLAPPED)NULL
 						) == FALSE){
-		/* Call Call OS specific code to find cause of the error and check messages log. */
+		/* Call OS specific code to find cause of the error and check messages log. */
 		DBG_ERR("%s():Error: IoctlPortConfigurationCommand failed!!\n", __FUNCTION__);
 		err = -1;
 	}
@@ -2537,60 +3093,50 @@ static int sangoma_port_cfg_ioctl(sng_fd_t fd, port_cfg_t *port_cfg)
 }
 
 /* open wanpipe configuration device */
-sng_fd_t _SAPI_CALL sangoma_open_driver_ctrl(int port_no)
+sng_fd_t _LIBSNG_CALL sangoma_open_driver_ctrl(int port_no)
 {
-	char fname[FNAME_LEN], tmp_fname[FNAME_LEN];
+	char tmp_fname[FNAME_LEN];
 
 #if defined(__WINDOWS__)
 	/* Form the Config Device Name (i.e. wanpipe1, wanpipe2,...). */
 	_snprintf(tmp_fname, DEV_NAME_LEN, WP_PORT_NAME_FORM, port_no);
-	_snprintf(fname, FNAME_LEN, "\\\\.\\%s", tmp_fname);
-
-	return CreateFile(	fname, 
-						GENERIC_READ | GENERIC_WRITE, 
-						FILE_SHARE_READ | FILE_SHARE_WRITE,
-						(LPSECURITY_ATTRIBUTES)NULL, 
-						OPEN_EXISTING,
-						FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH,
-						(HANDLE)NULL
-						);
 #else
 	/* Form the Config Device Name. ("/dev/wanpipe") */
 	_snprintf(tmp_fname, DEV_NAME_LEN, WP_CONFIG_DEV_NAME);
-
-	sprintf(fname,"/dev/%s", tmp_fname);
-
-	return open(fname, O_RDWR);
 #endif
+	return sangoma_open_dev_by_name(tmp_fname);
 }
 
-
-int _SAPI_CALL sangoma_mgmt_cmd(sng_fd_t fd, wan_udp_hdr_t* wan_udp)
+int _LIBSNG_CALL sangoma_mgmt_cmd(sng_fd_t fd, wan_udp_hdr_t* wan_udp)
 {
+	int err=0;
 #if defined(__WINDOWS__)
 	if(UdpManagementCommand(fd, wan_udp)){
-		return 1;
+		err = 1;
 	}
 #else
 	unsigned char id = 0;
-	int err=0;
+
 	wan_udp->wan_udphdr_request_reply = 0x01;
 	wan_udp->wan_udphdr_id = id;
 	wan_udp->wan_udphdr_return_code = WAN_UDP_TIMEOUT_CMD;
 
 	err=ioctl(fd,WANPIPE_IOCTL_PIPEMON,wan_udp);
 	if (err < 0) {
-		return 1;
+		err = 1;
 	}
 #endif
-
-	if(wan_udp->wan_udphdr_return_code != WAN_CMD_OK){
-		return 2;
+	if(err){
+		/* The ioctl failed. */
+		return err;
 	}
+
+	/* The ioctl was successfull. The caller must check
+	 * value of wan_udp->wan_udphdr_return_code. */
 	return 0;
 }
 
-int _SAPI_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
+int _LIBSNG_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
 {
 	int err;
 	port_mgmnt->command_code = START_PORT_VOLATILE_CONFIG;
@@ -2605,7 +3151,7 @@ int _SAPI_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *
 	return port_mgmnt->operation_status;
 }
 
-int _SAPI_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
+int _LIBSNG_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
 {
 	int err;
 	port_mgmnt->command_code = STOP_PORT;
@@ -2633,7 +3179,7 @@ int _SAPI_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *p
 	return err;
 }
 
-int _SAPI_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
+int _LIBSNG_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
 {
 	int err;
 	port_mgmnt->command_code = GET_HARDWARE_INFO;
@@ -2647,7 +3193,7 @@ int _SAPI_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_t 
 	return port_mgmnt->operation_status;
 }
 
-int _SAPI_CALL sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no)
+int _LIBSNG_CALL sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no)
 {
 	port_cfg->command_code = SET_PORT_VOLATILE_CONFIG;
 	port_cfg->port_no	= port_no;
@@ -2655,22 +3201,20 @@ int _SAPI_CALL sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg,
 	return sangoma_port_cfg_ioctl(fd, port_cfg);
 }
 
-int _SAPI_CALL sangoma_driver_port_get_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no)
+int _LIBSNG_CALL sangoma_driver_port_get_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no)
 {
-
 	port_cfg->command_code = GET_PORT_VOLATILE_CONFIG;
-	port_cfg->port_no	= port_no;
-
+	port_cfg->port_no = port_no;
 	return sangoma_port_cfg_ioctl(fd, port_cfg);
 }
 
-int _SAPI_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t *hardware_info, port_cfg_t *port_cfg, unsigned short port_no)
+int _LIBSNG_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t *hardware_info, port_cfg_t *port_cfg, unsigned short port_no)
 {
 	int err = 0;
 #if defined(__WINDOWS__)
 	HKEY		hPortRegistryKey	= registry_open_port_key(hardware_info);
-	wandev_conf_t	*wandev_conf	= &port_cfg->wandev_conf;
-	sdla_fe_cfg_t	*sdla_fe_cfg	= &wandev_conf->fe_cfg;
+/*	wandev_conf_t	*wandev_conf	= &port_cfg->wandev_conf;
+	sdla_fe_cfg_t	*sdla_fe_cfg	= &wandev_conf->fe_cfg;*/
 	unsigned int	ind;
 
 	if(hPortRegistryKey == INVALID_HANDLE_VALUE){
@@ -2682,9 +3226,17 @@ int _SAPI_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t *
 		return 2;
 	}
 
-	/* write number of groups */
-	registry_set_integer_value(hPortRegistryKey, "aft_number_of_logic_channels", port_cfg->num_of_ifs);
+	/* write TDM Voice configuration */
+	if(registry_write_wan_tdmv_conf(hPortRegistryKey, port_cfg)){
+		return 3;
+	}
 
+	/* write number of groups */
+	err = registry_set_integer_value(hPortRegistryKey, "aft_number_of_logic_channels", port_cfg->num_of_ifs);
+	if(err){
+		return err;
+	}
+	
 	/* write configuration of each group */
 	for(ind = 0; ind < port_cfg->num_of_ifs; ind++){
 		registry_write_channel_group_cfg(hPortRegistryKey, port_cfg, ind, port_cfg->if_cfg[ind]);
@@ -2696,7 +3248,6 @@ int _SAPI_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t *
 #endif
 	return err;
 }
-
 #endif /* #ifndef LIBSANGOMA_LIGHT */
 
 #endif /* WANPIPE_TDM_API */

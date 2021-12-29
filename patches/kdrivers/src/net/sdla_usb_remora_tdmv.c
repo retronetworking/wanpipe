@@ -34,6 +34,9 @@
 # include "zapcompat.h" /* Map of Zaptel -> DAHDI definitions */
 #endif
 
+
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)        
+
 /*******************************************************************************
 **			  DEFINES AND MACROS
 *******************************************************************************/
@@ -1543,7 +1546,7 @@ static int wp_usb_tdmv_remora_remove(void* pcard)
 		return -EINVAL;
 	}
 	if (wr && wr->usecount){
-		DEBUG_EVENT("%s: ERROR: Wanpipe is still used by Asterisk!\n",
+		DEBUG_ERROR("%s: ERROR: Wanpipe is still used by Asterisk!\n",
 				card->devname);
 		return -EINVAL;
 	}
@@ -1924,3 +1927,5 @@ static void wp_usb_tdmv_remora_tone (void* card_id, wan_event_t *event)
 	}
 	return;
 }
+
+#endif   /* #if defined(CONFIG_PRODUCT_WANPIPE_USB)        */

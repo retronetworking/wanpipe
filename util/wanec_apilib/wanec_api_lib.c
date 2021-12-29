@@ -596,7 +596,7 @@ config_poll:
 		}
 
 		if (ec_api->state == WAN_EC_STATE_CHIP_OPEN_PENDING){
-			sleep(5);
+			wp_sleep(5);
 			printf(".");
 			if (ec_api->u_config_poll.cnt++ < WANEC_API_MAX_CONFIG_POLL){
 				goto config_poll;
@@ -790,12 +790,12 @@ static int wanec_api_lib_monitor_stop(wan_ec_api_t *ec_api)
 			goto monitor_done;
 		}
 		if (output == NULL){
-			struct timeval	tv;
+			struct wan_timeval	tv;
 			struct tm		t;
 			/* Firsr data */
 			memset(filename, 0, MAX_PATH);
-			gettimeofday(&tv, NULL);
-			localtime_r((time_t*)&tv.tv_sec, &t);
+			wp_gettimeofday(&tv, NULL);
+			wp_localtime_r((time_t*)&tv.tv_sec, &t);
 			snprintf(filename, MAX_PATH,
 			"%s_%s_chan%d_%d.%d.%d_%d.%d.%d.bin",
 					WAN_EC_NAME,
@@ -849,7 +849,7 @@ int wanec_api_lib_monitor(wan_ec_api_t *ec_api)
 							data_mode);
 		sec = data_mode;
 		do {
-			sleep(scale);
+			wp_sleep(scale);
 			sec -= scale;
 			printf("Left: %3d sec(s)\r", sec);fflush(stdout);
 		}while (sec);

@@ -848,6 +848,9 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	if (hw_cnt->aft_a600_adapters){
 		PROC_ADD_LINE(m, "B600=%d ", hw_cnt->aft_a600_adapters);
 	}
+	if (hw_cnt->aft_b601_adapters){
+		PROC_ADD_LINE(m, "B601=%d ", hw_cnt->aft_b601_adapters);
+	}
 	PROC_ADD_LINE(m, "\n");
 
 	PROC_ADD_RET(m);
@@ -889,7 +892,7 @@ static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len, i
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
 	PROC_ADD_LINE(m,
-		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d A600=%d\n",
+		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d A600=%d B601=%d\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
@@ -901,7 +904,8 @@ static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len, i
 		hw_cnt->aft_56k_adapters,
 		hw_cnt->aft_isdn_adapters,
 		hw_cnt->aft_serial_adapters,
-		hw_cnt->aft_a600_adapters
+		hw_cnt->aft_a600_adapters,
+		hw_cnt->aft_b601_adapters
 		);
 
 	PROC_ADD_RET(m);
@@ -987,6 +991,9 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 	if (hw_cnt->aft_a600_adapters){
 		PROC_ADD_LINE(m, "B600=%d ", hw_cnt->aft_a600_adapters);
 	}
+	if (hw_cnt->aft_b601_adapters){
+		PROC_ADD_LINE(m, "B601=%d ", hw_cnt->aft_b601_adapters);
+	}
 	PROC_ADD_LINE(m, "\n");
 
 	PROC_ADD_RET(m);
@@ -1024,9 +1031,8 @@ static int probe_get_info_dump(char* buf, char** start, off_t offs, int len, int
 
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
-
 	PROC_ADD_LINE(m,
-		"|Card Cnt|S508=%d|S514X=%d|S518=%d|A101-2=%d|A104=%d|A300=%d|A200=%d|A108=%d|A056=%d|A500=%d|B700=%d|B600=%d|A14x=%d\n",
+		"|Card Cnt|S508=%d|S514X=%d|S518=%d|A101-2=%d|A104=%d|A300=%d|A200=%d|A108=%d|A056=%d|A500=%d|B700=%d|B600=%d|B601=%d|A14x=%d\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
@@ -1039,6 +1045,7 @@ static int probe_get_info_dump(char* buf, char** start, off_t offs, int len, int
 		hw_cnt->aft_isdn_adapters,
 		hw_cnt->aft_a700_adapters,
 		hw_cnt->aft_a600_adapters,
+		hw_cnt->aft_b601_adapters,
 		hw_cnt->aft_serial_adapters
 		);
 
@@ -2094,7 +2101,7 @@ int proc_add_line(struct seq_file* m, char* frm, ...)
 	size = vsprintf(tmp, frm, arg);
 	if (m->stop_cnt){
 		if (m->stop_cnt < size){
-			DEBUG_EVENT("!!! Error in writting in proc buffer !!!\n");
+			DEBUG_ERROR("!!! Error in writting in proc buffer !!!\n");
 			m->stop_cnt = size;
 		}
 		m->stop_cnt -= size;
@@ -2135,7 +2142,7 @@ int proc_add_line(struct seq_file* m, char* frm, ...)
 	size = vsprintf(tmp, frm, arg);
 	if (m->stop_cnt){
 		if (m->stop_cnt < size){
-			DEBUG_EVENT("!!! Error in writting in proc buffer !!!\n");
+			DEBUG_ERROR("!!! Error in writting in proc buffer !!!\n");
 			m->stop_cnt = size;
 		}
 		m->stop_cnt -= size;

@@ -209,7 +209,7 @@ set_conf_param (	wan_ec_t		*ec,
 			int			verbose)
 {
 	/* Search a keyword in configuration definition table */
-	for (; dtab->key && strncasecmp(dtab->key, param->name, strlen(param->name)); ++dtab);
+	for (; dtab->key && wp_strncasecmp(dtab->key, param->name, strlen(param->name)); ++dtab);
 	if (dtab->key == NULL){
 		DEBUG_EVENT("%s: Failed to find EC parameter (name=%s)\n",
 							ec->name, param->name);
@@ -219,7 +219,7 @@ set_conf_param (	wan_ec_t		*ec,
 	/* Search a keyword in configuration definition table */
 	if (dtab->dtype != DTYPE_BOOL && strlen(param->sValue)){
 		value_word_t *ValueParam = ValueParamList;
-		for (; ValueParam->sValue && strncasecmp(ValueParam->sValue, param->sValue, strlen(param->sValue)); ++ValueParam);
+		for (; ValueParam->sValue && wp_strncasecmp(ValueParam->sValue, param->sValue, strlen(param->sValue)); ++ValueParam);
 		if (ValueParam->sValue == NULL){
 			DEBUG_EVENT("%s: Failed to find EC parameter value (sValue=%s)\n",
 							ec->name, param->sValue);

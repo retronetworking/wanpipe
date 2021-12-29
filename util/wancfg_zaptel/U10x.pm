@@ -137,7 +137,6 @@ sub gen_wanpipe_conf{
 	my $hw_dtmf = $self->card->hw_dtmf;
 	my $is_tdm_api = $self->is_tdm_api;
 	my $tdm_voice_op_mode = "TDM_VOICE";
-	my $hw_fax = $self->card->hw_fax;
 	
 
 	my $device_alpha = &get_alpha_from_num($device_no);
@@ -170,7 +169,6 @@ sub gen_wanpipe_conf{
 	$wp_file =~ s/TDMVSPANNO/$tdmv_span_no/g;
 	$wp_file =~ s/HWECMODE/$hwec_mode/g;
 	$wp_file =~ s/HWDTMF/$hw_dtmf/g;
-	$wp_file =~ s/HWFAX/$hw_fax/g;
 
 	print FH $wp_file;
 	close (FH);

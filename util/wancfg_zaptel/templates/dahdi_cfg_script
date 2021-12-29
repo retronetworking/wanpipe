@@ -8,11 +8,11 @@ max_delay=30
 echo -n "Waiting for Dahdi /dev/dahdi ..."
 for ((i=0;i<$max_delay;i++))
 do
-	if [ -e /dev/dahdi ]; then
+	if [ -e /dev/dahdi/timer ]; then
         	break;
 	fi
 	echo -n "." 
-  	sleep 2
+  	sleep 1
 done
 echo " " 
 if [ ! -e /dev/dahdi ]; then

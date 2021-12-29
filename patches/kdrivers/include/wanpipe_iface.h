@@ -96,11 +96,7 @@ struct if_settings
 
 typedef struct
 {
-#if defined(__WINDOWS__)
-	netdevice_t*(*alloc)(int);
-#else
 	netdevice_t*(*alloc)(int, int ifType);
-#endif
 	void(*free)(netdevice_t*);
 	int(*attach)(netdevice_t*, char*, int);
 	void(*detach)(netdevice_t*, int);

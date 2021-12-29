@@ -8,9 +8,13 @@
 /****************************************************************************
  * wanpipe_common.h	WANPIPE(tm) Multiprotocol WAN Link Driver.
  *
- * Author: 	Alex Feldman <al.feldman@sangoma.com>
+ * Authors: 	Alex Feldman <al.feldman@sangoma.com>
+ *				David Rokhvarg <davidr@sangoma.com>
  *
  * ==========================================================================
+ *
+ * Nov 09,  2009 David Rokhvarg	Added wan_get_timestamp()
+ *
  * Nov 27,  2007 David Rokhvarg	Implemented functions/definitions for
  *                              Sangoma MS Windows Driver and API.
  *
@@ -25,6 +29,8 @@
 # include "wanpipe_kernel.h"
 #endif
 # include "wanpipe_cfg_def.h"
+
+# include "wanpipe_logger.h"
 
 #if defined(__WINDOWS__)
 # if defined(WAN_KERNEL)
@@ -43,23 +49,11 @@ allocate_dma_buffer(
 	OUT PVOID			*virtual_addr,
 	OUT u32				*physical_addr
 	);
+
 # endif/* WAN_KERNEL */
-# include <sang_status_defines.h>
-
-# if defined(WAN_KERNEL) && defined(NTSTRSAFE_USE_SECURE_CRT)
-#  define wan_snwprintf	RtlStringCbPrintfW
-#  define wan_strcpy	RtlStringCchCopy
-# else
-#  define wan_snwprintf	_snwprintf
-# endif
-
-# define strlcpy		strncpy
-# define strncasecmp	_strnicmp
-# define strcasecmp		_stricmp
-# define snprintf		_snprintf
-# define vsnprintf		_vsnprintf
-# define unlink			_unlink
+# include "sang_status_defines.h"
 #endif/* __WINDOWS__ */
+
 
 /****************************************************************************
 **			D E F I N E S				
@@ -217,6 +211,13 @@ static __inline void WP_MDELAY (u32 ms) {
 #define WAN_STIMEOUT(start, timeout)					\
 		((SYSTEM_TICKS - (start)) > ((timeout) * HZ))
 
+
+#define WP_MICROSECONDS_IN_A_TICK()	(1000000 / HZ)
+#define WP_TICKS_IN_LAST_SECOND()	(SYSTEM_TICKS % HZ)	
+
+#define WAN_TICKS_TO_MICROSECONDS()	\
+	WP_TICKS_IN_LAST_SECOND() * WP_MICROSECONDS_IN_A_TICK()
+
 #if defined(__LINUX__)
 # define WAN_COPY_FROM_USER(k,u,l)	copy_from_user(k,u,l)
 # define WAN_COPY_TO_USER(u,k,l)	copy_to_user(u,k,l)
@@ -298,7 +299,16 @@ static __inline void WP_MDELAY (u32 ms) {
 #elif defined(__WINDOWS__)
 # define WAN_NET_RATELIMIT()		1
 
-# define WAN_NETIF_QUEUE_STOPPED(dev)	1 /*test_bit(0,&dev->tbusy)*/ /* must be always stopped so aft_core.c would call wanpipe_wake_stack() */
+# if defined(SPROTOCOL)
+#  define WAN_NETIF_QUEUE_STOPPED(dev)	0 /* for LIP layer to work, it must be zero */
+#  define WAN_NETIF_CARRIER_OFF(dev)	netif_carrier_off(dev)
+#  define WAN_NETIF_CARRIER_ON(dev)		netif_carrier_on(dev)
+# else
+#  define WAN_NETIF_QUEUE_STOPPED(dev)	1 /*test_bit(0,&dev->tbusy)*/ /* must be always stopped so aft_core.c would call wanpipe_wake_stack() */
+#  define WAN_NETIF_CARRIER_OFF(dev)	((dev)->current_line_state = SANG_STATUS_LINE_DISCONNECTED)
+#  define WAN_NETIF_CARRIER_ON(dev)		((dev)->current_line_state = SANG_STATUS_LINE_CONNECTED)
+# endif
+
 # define WAN_NETIF_STOP_QUEUE(dev)	
 # define WAN_NETIF_START_QUEUE(dev)	
 
@@ -308,13 +318,14 @@ static __inline void WP_MDELAY (u32 ms) {
 
 # define WAN_NETIF_WAKE_QUEUE(dev)	netif_wake_queue(dev)
 
-# define WAN_NETIF_UP(dev)			((dev)->current_line_state == SANG_STATUS_LINE_CONNECTED)
-# define WAN_NETIF_CARRIER_OFF(dev)	((dev)->current_line_state = SANG_STATUS_LINE_DISCONNECTED)
-# define WAN_NETIF_CARRIER_ON(dev)	((dev)->current_line_state = SANG_STATUS_LINE_CONNECTED)
+/*# define WAN_NETIF_UP(dev)			((dev)->current_line_state == SANG_STATUS_LINE_CONNECTED)*/
+# define WAN_NETIF_UP(dev)			(1)
 
 # define WAN_IFQ_LEN(ifqueue)		skb_queue_len(ifqueue)
 # define NET_ADMIN_CHECK()
 # define WARN_ON(a)
+# define MOD_INC_USE_COUNT
+# define MOD_DEC_USE_COUNT
 
 #else
 # error "Undefined WAN_NETIF_x macros!"
@@ -452,7 +463,7 @@ static __inline void WP_MDELAY (u32 ms) {
 # define WAN_HOLD(str)	str->refcnt++
 #elif defined(__WINDOWS__)
 
-# define WAN_DEV_PUT(dev)	wan_atomic_dec(&(dev)->refcnt)
+# define WAN_DEV_PUT(dev)	wan_atomic_dec(&dev->refcnt)
 # define WAN_DEV_HOLD(dev)	wan_atomic_inc(&(dev)->refcnt)
 # define __WAN_PUT(str)		wan_atomic_dec(&(str)->refcnt)
 
@@ -508,11 +519,6 @@ typedef char *va_list;
 #define WAN_VA_END(ap)		(void) 0
 #endif
 
-/* String library definitions */
-#if defined(__LINUX__)
-# define strncasecmp	strnicmp
-# define _snprintf		snprintf
-#endif
 
 /****************************************************************************
 **			T Y P E D E F S				
@@ -589,10 +595,21 @@ void		wanpipe_debugging (ulong_ptr_t data);
 ****************************************************************************/
 
 #ifdef WAN_DEBUG_MEM
+#if defined(__WINDOWS__) 
+int __sdla_memdbg_init(void);
+int __sdla_memdbg_free(void);
+int __sdla_memdbg_push(void *mem, const char *func_name, const int line, int len);
+int __sdla_memdbg_pull(void *mem, const char *func_name, const int line);
 
+int sdla_memdbg_init(void);
+int sdla_memdbg_free(void);
 int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len);
 int sdla_memdbg_pull(void *mem, const char *func_name, const int line);
 
+#else
+int sdla_memdbg_push(void *mem, const char *func_name, const int line, int len);
+int sdla_memdbg_pull(void *mem, const char *func_name, const int line);
+#endif
 #endif
 
 
@@ -983,7 +1000,7 @@ static __inline unsigned long wan_dma_get_paddr(void* card, wan_dma_descr_org_t*
 /********************** WANPIPE TIMER FUNCTION **************************/
 
 
-//static __inline int wan_getcurrenttime(unsigned long *sec, unsigned long *usec)
+
 static __inline int wan_getcurrenttime(wan_time_t *sec, wan_suseconds_t *usec)
 {
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
@@ -1008,6 +1025,34 @@ static __inline int wan_getcurrenttime(wan_time_t *sec, wan_suseconds_t *usec)
 # error "wan_getcurrenttime() function is not supported yet!"
 #endif
 }
+
+
+static __inline int wan_get_timestamp(wan_time_t *sec, wan_suseconds_t *usec)
+{
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	struct timeval 	tv;
+	microtime(&tv);
+	if (sec) *sec = tv.tv_sec;
+	if (usec) *usec = tv.tv_usec;
+	return 0;
+#elif defined(__LINUX__)
+	struct timeval 	tv;
+	jiffies_to_timeval(jiffies,&tv);
+	if (sec) *sec = tv.tv_sec;
+	if (usec) *usec = tv.tv_usec;
+	return 0;
+#elif defined(__WINDOWS__)
+	struct timeval 	tv;
+	wp_time(&tv.tv_sec);/* number of seconds elapsed since midnight (00:00:00), January 1, 1970 */
+	tv.tv_usec = WAN_TICKS_TO_MICROSECONDS();
+	if (sec) *sec = tv.tv_sec;
+	if (usec) *usec = tv.tv_usec;
+	return 0;
+#else
+# error "wan_get_timestamp() function is not supported yet!"
+#endif
+}
+
 
 /*
 ** wan_init_timer
@@ -1109,26 +1154,9 @@ wan_add_timer(wan_timer_t* wan_timer, unsigned long delay)
 			wan_timer->timer_func,
 			wan_timer->timer_arg); 
 #elif defined(__WINDOWS__)
-#if 0
-	LARGE_INTEGER	large_int_delay;
-
-	if(0)DEBUG_TIMER("%s(): delay: %u\n", __FUNCTION__, delay);
-
-	/* The 'delay' is in milliseconds
-	RtlConvertLongToLargeInteger(-10000000L * 1) - this is 1 second.
-	Converted to milliseconds:
-	*/
-	large_int_delay = RtlConvertLongToLargeInteger(-10000L * delay);
-
-	KeSetTimer(&wan_timer->timer_info.Timer, large_int_delay,
-		&wan_timer->timer_info.TimerDpcObject);
-#endif
 	LARGE_INTEGER	CurrentTime;
 
-	if(0)DBG_ADSL_SYNCH("%s(): delay: %u\n", __FUNCTION__, delay);
-
 	/* The 'delay' is in SYSTEM TICKS! */
-
 
 	/* 10 000 000
 	 * System time is a count of 100-nanosecond intervals
@@ -2314,7 +2342,9 @@ static __inline int wan_netif_init(netdevice_t* dev, char* ifname)
 	strcpy(dev->name, ifname);
 # endif
 #elif defined(__WINDOWS__)
-	strncpy(dev->name, ifname, WAN_IFNAME_SZ);
+	if(ifname){
+		strncpy(dev->name, ifname, WAN_IFNAME_SZ);
+	}
 #else
 # error "wan_netif_init() function is not supported yet!"
 #endif
@@ -2532,7 +2562,6 @@ static __inline void* wan_netif_priv(netdevice_t* dev)
 # error "wan_netif_priv() function is not supported yet!"
 #endif
 }
-
 
 static __inline void wan_netif_set_priv(netdevice_t* dev, void* priv)
 {
@@ -2766,6 +2795,17 @@ static __inline void wan_spin_unlock_irq(void *lock, wan_smp_flag_t *flag)
 # warning "wan_spin_unlock_irq() function is not supported yet!"
 #endif	
 }
+
+/* special locking functions for the Wanpipe Protocol Layer (LIP) */
+#if defined(__WINDOWS__)
+# define wplip_spin_lock_irq_init	spin_lock_init
+# define wplip_spin_lock_irq		wp_spin_lock
+# define wplip_spin_unlock_irq		wp_spin_unlock
+#else
+# define wplip_spin_lock_irq_init	wan_spin_lock_irq_init
+# define wplip_spin_lock_irq		wan_spin_lock_irq
+# define wplip_spin_unlock_irq		wan_spin_unlock_irq
+#endif	
 
 static __inline int wan_spin_trylock(void *lock, wan_smp_flag_t *flag)
 {

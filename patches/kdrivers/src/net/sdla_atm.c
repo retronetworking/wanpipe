@@ -44,6 +44,8 @@
 #define ATM_TIMER_TIMEOUT	1
 #define POLL_DELAY_TIMEOUT	1
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 /* Private critical flags */
 enum { 
 	POLL_CRIT = PRIV_CRIT, 
@@ -443,15 +445,15 @@ int wp_atm_init (sdla_t* card, wandev_conf_t* conf)
 	if((card->wandev.comm_port == WANOPT_PRI)) {
 		/* For Primary Port 0 */
 		if (conf->mtu < MIN_WP_PRI_MTU){
-			DEBUG_EVENT("%s: Warning: Limiting MTU to Min=%i\n", 
+			DEBUG_WARNING("%s: Warning: Limiting MTU to Min=%i\n", 
 					card->devname,MIN_WP_PRI_MTU);
 			conf->mtu=MIN_WP_PRI_MTU;
 		}else if (conf->mtu > MAX_WP_PRI_MTU){
-			DEBUG_EVENT("%s: Warning: Limiting MTU to Max=%i\n", 
+			DEBUG_WARNING("%s: Warning: Limiting MTU to Max=%i\n", 
 					card->devname,MIN_WP_PRI_MTU);
 			conf->mtu=MAX_WP_PRI_MTU;
 		}else{
-			DEBUG_EVENT("%s: Warning: Limiting MTU to Max=%i\n", 
+			DEBUG_WARNING("%s: Warning: Limiting MTU to Max=%i\n", 
 					card->devname,MIN_WP_PRI_MTU);
 		}
 		card->wandev.mtu = conf->mtu;
@@ -755,7 +757,7 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 	int err = 0;
 
 	if ((conf->name[0] == '\0') || (strlen(conf->name) > WAN_IFNAME_SZ)) {
-		DEBUG_EVENT( "%s: Error: Invalid interface name!\n",
+		DEBUG_ERROR( "%s: Error: Invalid interface name!\n",
 			card->devname);
 		return -EINVAL;
 	}
@@ -826,7 +828,7 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 				card->devname,priv_area->if_name);
 	
 	}else{
-		DEBUG_EVENT( "%s:%s: Error: Invalid operation mode [WANPIPE|API|BRIDGE|BRIDGE_NODE]\n",
+		DEBUG_ERROR( "%s:%s: Error: Invalid operation mode [WANPIPE|API|BRIDGE|BRIDGE_NODE]\n",
 				card->devname,priv_area->if_name);
 		err=-EINVAL;
 		goto new_if_error;
@@ -923,7 +925,13 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 	/* Only setup the dev pointer once the new_if function has
 	 * finished successfully.  DO NOT place any code below that
 	 * can return an error */
-	dev->init = &if_init;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);	
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 	wan_netif_set_priv(dev,priv_area);
 
 	/* Increment the number of network interfaces 
@@ -1036,16 +1044,17 @@ static int if_init (struct net_device* dev)
 	wan_device_t* wandev = &card->wandev;
 
 	/* Initialize device driver entry points */
-	dev->open		= &if_open;
-	dev->stop		= &if_close;
-	dev->hard_start_xmit	= &if_send;
-	dev->get_stats		= &if_stats;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+
+
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-	dev->tx_timeout		= &if_tx_timeout;
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 	dev->watchdog_timeo	= TX_TIMEOUT;
 #endif
-	dev->do_ioctl		= if_do_ioctl;
-
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,if_do_ioctl);
 	if (priv_area->cfg.encap_mode == RFC_MODE_BRIDGED_ETH_LLC ||
 	    priv_area->cfg.encap_mode == RFC_MODE_BRIDGED_ETH_VC){
 
@@ -1607,7 +1616,7 @@ static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			 * thus we can release the irq */
 			
 			if (wan_atomic_read(&chan->udp_pkt_len) > sizeof(wan_udp_pkt_t)){
-				DEBUG_EVENT( "%s: Error: Pipemon buf too bit on the way up! %i\n",
+				DEBUG_ERROR( "%s: Error: Pipemon buf too bit on the way up! %i\n",
 						card->devname,wan_atomic_read(&chan->udp_pkt_len));
 				wan_atomic_set(&chan->udp_pkt_len,0);
 				return -EINVAL;
@@ -2276,7 +2285,7 @@ static int wp_handle_out_of_sync_condition(sdla_t *card, unsigned char irq)
 	err = card->hw_iface.cmd(card->hw, card->mbox_off, mb);
 	if (err != CMD_OK){ 
 		frmw_error(card, err, mb);
-		DEBUG_EVENT("%s: Error: Failed to re-syncing adapter !\n",
+		DEBUG_ERROR("%s: Error: Failed to re-syncing adapter !\n",
 			card->devname);
 
 		/* We failed to resync for some reason, get out
@@ -2326,7 +2335,7 @@ static void wp_handle_rx_packets(netskb_t *skb)
 	sdla_t *card;
 	
 	if (!chan){
-		DEBUG_EVENT("%s:%d Error, Rx packet has no dev pointer (skb->dev==NULL)\n",
+		DEBUG_ERROR("%s:%d Error, Rx packet has no dev pointer (skb->dev==NULL)\n",
 				__FUNCTION__,__LINE__);
 		wan_skb_free(skb);
 		return;
@@ -3054,7 +3063,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, struct net_device* dev,
 				wan_set_bit (0,&trace_info->tracing_enabled);
 
 			}else{
-				DEBUG_EVENT("%s: Error: ATM trace running!\n",
+				DEBUG_ERROR("%s: Error: ATM trace running!\n",
 						card->devname);
 				udp_hdr->wan_udphdr_return_code = 2;
 			}
@@ -3090,7 +3099,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, struct net_device* dev,
 			if(wan_test_bit(0,&trace_info->tracing_enabled)){
 				trace_info->trace_timeout = SYSTEM_TICKS;
 			}else{
-				DEBUG_EVENT("%s: Error ATM trace not enabled\n",
+				DEBUG_ERROR("%s: Error ATM trace not enabled\n",
 						card->devname);
 				/* set return code */
 				udp_hdr->wan_udphdr_return_code = 1;

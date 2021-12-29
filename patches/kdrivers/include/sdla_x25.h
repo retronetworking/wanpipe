@@ -759,14 +759,14 @@ enum {UDP_XPIPE_TYPE};
 #define XPIPE_ENABLE_TRACING                    0x14
 #define XPIPE_DISABLE_TRACING                   0x14
 #define XPIPE_GET_TRACE_INFO                    0x16
-#define XPIPE_FT1_READ_STATUS                   0x74
-#define XPIPE_DRIVER_STAT_IFSEND                0x75
-#define XPIPE_DRIVER_STAT_INTR                  0x76
-#define XPIPE_DRIVER_STAT_GEN                   0x77
-#define XPIPE_FLUSH_DRIVER_STATS                0x78
-#define XPIPE_ROUTER_UP_TIME                    0x79        
-#define XPIPE_SET_FT1_MODE			0x81
-#define XPIPE_FT1_STATUS_CTRL			0x80
+#define XPIPE_FT1_READ_STATUS                   0x90
+#define XPIPE_DRIVER_STAT_IFSEND                0x91
+#define XPIPE_DRIVER_STAT_INTR                  0x92
+#define XPIPE_DRIVER_STAT_GEN                   0x93
+#define XPIPE_FLUSH_DRIVER_STATS                0x94
+#define XPIPE_ROUTER_UP_TIME                    0x95        
+#define XPIPE_SET_FT1_MODE			0x96
+#define XPIPE_FT1_STATUS_CTRL			0x97
 
 
 /* error messages */

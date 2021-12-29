@@ -82,7 +82,6 @@ public:
 
 protected:
 	uint16_t wp_number;
-	char wanpipe_name_str[WAN_DRVNAME_SZ*2];
 	HANDLE wp_handle;
 
 	int push_a_card_into_wanpipe_info_array(wanpipe_instance_info_t *wanpipe_info_array,

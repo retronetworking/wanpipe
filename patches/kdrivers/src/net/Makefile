@@ -18,10 +18,11 @@ CONFIG_WANPIPE_MULTPPP=n
 EXTRA_CFLAGS=$(EXTRA_FLAGS)
 
 PRODUCT_DEFINES= -DCONFIG_PRODUCT_WANPIPE_BASE -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE 
-PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_TE3 
+PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_TE3 -DCONFIG_PRODUCT_WANPIPE_AFT_56K
 PRODUCT_DEFINES+= -DCONFIG_WANPIPE_HWEC  -DCONFIG_PRODUCT_WANPIPE_SOCK_DATASCOPE -DCONFIG_PRODUCT_WANPIPE_AFT_BRI -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL 
 PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW -DCONFIG_PRODUCT_WANPIPE_AFT_RM 
 PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_USB -DCONFIG_PRODUCT_WANPIPE_A700 -DCONFIG_PRODUCT_A600 -DCONFIG_PRODUCT_WANPIPE_AFT_A600 -DCONFIG_PRODUCT_WANPIPE_AFT_A700
+PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_AFT_B601
 
 wanpipe-y			:= sdlamain.o 
 
@@ -78,9 +79,9 @@ wanec-y += $(OCTAPIDIR)/oct6100_user.o
 
 wanec-objs	:= $(wanec-y)     	
 
-sdladrv-objs := sdladrv_src.o sdladrv_fe.o sdladrv_utils.o sdladrv_usb.o wan_mem_debug.o
+sdladrv-objs := sdladrv_src.o sdladrv_fe.o sdladrv_utils.o sdladrv_usb.o wan_mem_debug.o wanpipe_cdev_linux.o wanpipe_logger.o
 
-wanrouter-objs := ../wanrouter/wanmain.o ../wanrouter/wanproc.o ../wanrouter/waniface.o ../wanrouter/wanpipe_cdev_linux.o ../wanrouter/wandev.o 
+wanrouter-objs := ../wanrouter/wanmain.o ../wanrouter/wanproc.o ../wanrouter/waniface.o ../wanrouter/wandev.o 
 
 af_wanpipe-objs	:= ../wanrouter/af_wanpipe_src.o  ../wanrouter/af_wanpipe_datascope.o  
 

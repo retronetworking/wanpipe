@@ -21,8 +21,8 @@
 # include <conio.h>				/* for _kbhit */
 # include "wanpipe_includes.h"
 # include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t' */
-# include "wanpipe_time.h"		/* for 'struct timeval' */
-# include "wanpipe_common.h"		/* for 'strcasecmp' */
+# include "wanpipe_time.h"		/* for 'struct wan_timeval' */
+# include "wanpipe_common.h"		/* for 'wp_strcasecmp' */
 #else
 # include <stdio.h>
 # include <stddef.h>	/* offsetof(), etc. */
@@ -110,6 +110,7 @@ static int aft_read_hwec_status(void);
 static int aft_remora_tones(int);
 static int aft_remora_ring(int);
 static int aft_remora_regdump(int);
+static int aft_fe_reg_bit(int, int, int);
 
 static wp_trace_output_iface_t trace_iface;
 
@@ -244,7 +245,7 @@ int AFTConfig(void)
 
 	is_508 = WAN_FALSE;
    
-	strlcpy(codeversion, "?.??",10);
+	wp_strlcpy(codeversion, "?.??",10);
    
 	wan_udp.wan_udphdr_command = READ_CODE_VERSION;
 	wan_udp.wan_udphdr_data_len = 0;
@@ -252,7 +253,7 @@ int AFTConfig(void)
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data,10);
+		wp_strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data,10);
 	}
 	
 	return(WAN_TRUE);
@@ -305,56 +306,54 @@ int get_if_operational_stats()
 	/*! API command structure used to execute API commands. 
 	This command structure is used with libsangoma library */
 	wanpipe_api_t wp_api;
-	net_device_stats_t *stats;
+	net_device_stats_t stats;
 	int err;
 	unsigned char firm_ver, cpld_ver;
 
-	err=sangoma_get_stats(sock, &wp_api, NULL);
+	err=sangoma_get_stats(sock, &wp_api, &stats);
 	if (err) {
 		return 1;
 	}
 
-	stats = &wp_api.wp_cmd.stats;
-
 	printf( "******* OPERATIONAL_STATS *******\n");
 
-	printf("\trx_packets\t: %u\n",			stats->rx_packets);
-	printf("\ttx_packets\t: %u\n",			stats->tx_packets);
-	printf("\trx_bytes\t: %u\n",			stats->rx_bytes);
-	printf("\ttx_bytes\t: %u\n",			stats->tx_bytes);
-	printf("\trx_errors\t: %u\n",			stats->rx_errors);
-	printf("\ttx_errors\t: %u\n",			stats->tx_errors);
-	printf("\trx_dropped\t: %u\n",			stats->rx_dropped);
-	printf("\ttx_dropped\t: %u\n",			stats->tx_dropped);
-	printf("\tmulticast\t: %u\n",			stats->multicast);
-	printf("\tcollisions\t: %u\n",			stats->collisions);
+	printf("\trx_packets\t: %u\n",			stats.rx_packets);
+	printf("\ttx_packets\t: %u\n",			stats.tx_packets);
+	printf("\trx_bytes\t: %u\n",			stats.rx_bytes);
+	printf("\ttx_bytes\t: %u\n",			stats.tx_bytes);
+	printf("\trx_errors\t: %u\n",			stats.rx_errors);
+	printf("\ttx_errors\t: %u\n",			stats.tx_errors);
+	printf("\trx_dropped\t: %u\n",			stats.rx_dropped);
+	printf("\ttx_dropped\t: %u\n",			stats.tx_dropped);
+	printf("\tmulticast\t: %u\n",			stats.multicast);
+	printf("\tcollisions\t: %u\n",			stats.collisions);
 
-	printf("\trx_length_errors: %u\n",		stats->rx_length_errors);
-	printf("\trx_over_errors\t: %u\n",		stats->rx_over_errors);
-	printf("\trx_crc_errors\t: %u\n",		stats->rx_crc_errors);
-	printf("\trx_frame_errors\t: %u\n",	stats->rx_frame_errors);
-	printf("\trx_fifo_errors\t: %u\n",		stats->rx_fifo_errors);
-	printf("\trx_missed_errors: %u\n",		stats->rx_missed_errors);
+	printf("\trx_length_errors: %u\n",		stats.rx_length_errors);
+	printf("\trx_over_errors\t: %u\n",		stats.rx_over_errors);
+	printf("\trx_crc_errors\t: %u\n",		stats.rx_crc_errors);
+	printf("\trx_frame_errors\t: %u\n",	stats.rx_frame_errors);
+	printf("\trx_fifo_errors\t: %u\n",		stats.rx_fifo_errors);
+	printf("\trx_missed_errors: %u\n",		stats.rx_missed_errors);
 
-	printf("\ttx_aborted_errors: %u\n",	stats->tx_aborted_errors);
-	printf("\tTx Idle Data\t: %u\n",		stats->tx_carrier_errors);
+	printf("\ttx_aborted_errors: %u\n",	stats.tx_aborted_errors);
+	printf("\tTx Idle Data\t: %u\n",		stats.tx_carrier_errors);
 
-	printf("\ttx_fifo_errors\t: %u\n",		stats->tx_fifo_errors);
-	printf("\ttx_heartbeat_errors: %u\n",	stats->tx_heartbeat_errors);
-	printf("\ttx_window_errors: %u\n",		stats->tx_window_errors);
+	printf("\ttx_fifo_errors\t: %u\n",		stats.tx_fifo_errors);
+	printf("\ttx_heartbeat_errors: %u\n",	stats.tx_heartbeat_errors);
+	printf("\ttx_window_errors: %u\n",		stats.tx_window_errors);
 
-	printf("\n\ttx_packets_in_q: %u\n",	stats->current_number_of_frames_in_tx_queue);
-	printf("\ttx_queue_size: %u\n",		stats->max_tx_queue_length);
+	printf("\n\ttx_packets_in_q: %u\n",	stats.current_number_of_frames_in_tx_queue);
+	printf("\ttx_queue_size: %u\n",		stats.max_tx_queue_length);
 
-	printf("\n\trx_packets_in_q: %u\n",	stats->current_number_of_frames_in_rx_queue);
-	printf("\trx_queue_size: %u\n",		stats->max_rx_queue_length);
+	printf("\n\trx_packets_in_q: %u\n",	stats.current_number_of_frames_in_rx_queue);
+	printf("\trx_queue_size: %u\n",		stats.max_rx_queue_length);
 
-	printf("\n\trx_events_in_q: %u\n",	stats->current_number_of_events_in_event_queue);
-	printf("\trx_event_queue_size: %u\n",		stats->max_event_queue_length);
-	printf("\trx_events: %u\n",	stats->rx_events);
-	printf("\trx_events_dropped: %u\n",		stats->rx_events_dropped);
+	printf("\n\trx_events_in_q: %u\n",	stats.current_number_of_events_in_event_queue);
+	printf("\trx_event_queue_size: %u\n",		stats.max_event_queue_length);
+	printf("\trx_events: %u\n",	stats.rx_events);
+	printf("\trx_events_dropped: %u\n",		stats.rx_events_dropped);
 
-	printf("\tHWEC tone (DTMF) events counter: %u\n",		stats->rx_events_tone);
+	printf("\tHWEC tone (DTMF) events counter: %u\n",		stats.rx_events_tone);
 	printf( "*********************************\n");
 
 	err=sangoma_get_driver_version(sock,&wp_api, NULL);
@@ -367,14 +366,14 @@ int get_if_operational_stats()
 				wp_api.wp_cmd.version.minor1,
 				wp_api.wp_cmd.version.minor2);
 
-	err=sangoma_get_firmware_version(sock,&wp_api, &firm_ver);
+	err=sangoma_get_firmware_version(sock, &wp_api, &firm_ver);
 	if (err) {
 		return 1;
 	}
 	printf("\tFirmware Version: %X\n",
 				firm_ver);
 
-	err=sangoma_get_cpld_version(sock,&wp_api, &cpld_ver);
+	err=sangoma_get_cpld_version(sock, &wp_api, &cpld_ver);
 	if (err) {
 		return 1;
 	}
@@ -489,7 +488,7 @@ static void link_status (void)
 	
 	if (wan_udp.wan_udphdr_return_code == 0){
 		printf("Device Link Status:	%s\n", 
-		wan_udp.wan_udphdr_data[0] ? "Connected":"Disconnected");
+			STATE_DECODE(wan_udp.wan_udphdr_data[0]));
 	}
 	
 	return;
@@ -564,6 +563,27 @@ static void wp_span_debugging( unsigned char toggle )
 	DO_COMMAND(wan_udp);
 }; /* flush_operational_stats */
 
+static void wp_gen_fifo_debugging( unsigned char toggle )
+{
+	if (toggle) {
+		wan_udp.wan_udphdr_command= WANPIPEMON_GEN_FIFO_ERR_RX;
+	} else {
+		wan_udp.wan_udphdr_command= WANPIPEMON_GEN_FIFO_ERR_TX;
+	}
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0] = 0;
+	DO_COMMAND(wan_udp);
+}; /* flush_operational_stats */
+
+static void wp_get_fifo_sync_cnt(void)
+{
+	wan_udp.wan_udphdr_command= WANPIPEMON_GEN_FE_SYNC_ERR;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0] = 0;
+	DO_COMMAND(wan_udp);
+}; /* flush_operational_stats */
 
 
 int AFTDisableTrace(void)
@@ -607,24 +627,17 @@ static int print_local_time (char *date_string, int max_len)
 	return 0;
 }
 
-#ifdef __WINDOWS__
-static int loop_rx_data(int passnum)
-{
-	printf("%s() not implemented!\n", __FUNCTION__);
-	return 1;
-}
-#else
 static int loop_rx_data(int passnum)
 {
 	unsigned int num_frames;
 	unsigned short curr_pos = 0;
 	wan_trace_pkt_t *trace_pkt;
 	unsigned int i;
-	struct timeval to;
+	struct wan_timeval to;
 	int timeout=0;
 	char date_string[100];
 	
-	gettimeofday(&to, NULL);
+	wp_gettimeofday(&to, NULL);
 	to.tv_sec = 0;
 	to.tv_usec = 0;
 	
@@ -635,7 +648,13 @@ static int loop_rx_data(int passnum)
 	
         for(;;) {
 	
+#ifdef __WINDOWS__
+		if(to.tv_usec){
+			wp_usleep(to.tv_usec);
+		}
+#else
 		select(1,NULL, NULL, NULL, &to);
+#endif
 		
 		wan_udp.wan_udphdr_command = GET_TRACE_INFO;
 		wan_udp.wan_udphdr_return_code = 0xaa;
@@ -727,34 +746,35 @@ static int loop_rx_data(int passnum)
 	}
 	return 0;
 }
-#endif
 
 		
 static int aft_digital_loop_test( void )
 {
 	int passnum=0;
+
+	/* Disable trace to ensure that the buffers are flushed */
+	wan_udp.wan_udphdr_command= DISABLE_TRACING;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+	DO_COMMAND(wan_udp);
 	
-        /* Disable trace to ensure that the buffers are flushed */
-        wan_udp.wan_udphdr_command= DISABLE_TRACING;
-        wan_udp.wan_udphdr_return_code = 0xaa;
-        wan_udp.wan_udphdr_data_len = 0;
-        DO_COMMAND(wan_udp);
-
-        wan_udp.wan_udphdr_command= ENABLE_TRACING;
-        wan_udp.wan_udphdr_return_code = 0xaa;
-        wan_udp.wan_udphdr_data_len = 1;
-        wan_udp.wan_udphdr_data[0]=0;
-
-        DO_COMMAND(wan_udp);
+	wan_udp.wan_udphdr_command= ENABLE_TRACING;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 1;
+	wan_udp.wan_udphdr_data[0]=0;
+	
+	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code != 0 && 
-            wan_udp.wan_udphdr_return_code != 1) {
+		wan_udp.wan_udphdr_return_code != 1) {
 		printf("Error: Failed to start loop test: failed to start tracing!\n");
 		return -1;
 	}
 	
 	printf("Starting Loop Test (press ctrl-c to exit)!\n\n");
-
+	
 	while (1) {
+
+		memset(&wan_udp, 0x00, sizeof(wan_udp));
 
 		wan_udp.wan_udphdr_command= DIGITAL_LOOPTEST;
 		wan_udp.wan_udphdr_return_code = 0xaa;
@@ -766,45 +786,50 @@ static int aft_digital_loop_test( void )
 		DO_COMMAND(wan_udp);	
 
 		switch (wan_udp.wan_udphdr_return_code) {
-		
+			
 		case 0:
 			break;
 		case 1:
-	                printf("Error: Failed to start loop test: dev not found\n");
+			printf("Error: Failed to start loop test: dev not found\n");
 			goto loop_rx_exit;
 		case 2:
-	                printf("Error: Failed to start loop test: dev state not connected\n");
+			printf("Error: Failed to start loop test: dev state not connected\n");
 			goto loop_rx_exit;
 		case 3:
-	                printf("Error: Failed to start loop test: memory error\n");
+			printf("Error: Failed to start loop test: memory error\n");
 			goto loop_rx_exit;
 		case 4:
-	                printf("Error: Failed to start loop test: invalid operation mode\n");
+			printf("Error: Failed to start loop test: invalid operation mode\n");
 			goto loop_rx_exit;
-
+			
 		default:
+#if defined(__WINDOWS__)
+		printf("Error: Failed to start loop test: %s (%i)\n",
+				SDLA_DECODE_SANG_STATUS(wan_udp.wan_udphdr_return_code),
+				wan_udp.wan_udphdr_return_code);
+#else
 			printf("Error: Failed to start loop test: unknown error (%i)\n",
 				wan_udp.wan_udphdr_return_code);
+#endif
 			goto loop_rx_exit;
 		}
-
-
+		
 		loop_rx_data(++passnum);
-		usleep(500000);
+		wp_usleep(500000);
 		fflush(stdout);
 		
 		if (passnum >= 10) {
 			break;
 		}		
 	}
-
+	
 loop_rx_exit:
 	
 	wan_udp.wan_udphdr_command= DISABLE_TRACING;
-        wan_udp.wan_udphdr_return_code = 0xaa;
-        wan_udp.wan_udphdr_data_len = 0;
-        DO_COMMAND(wan_udp);
-
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+	DO_COMMAND(wan_udp);
+	
 	return 0;
 }
 
@@ -848,7 +873,7 @@ static int trace_aft_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int 
 int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng, 
 			 	unsigned char *buf, int len)
 {
-	printf("%s() not implemented!\n", __FUNCTION__);
+	WIN_DBG_FUNC_NOT_IMPLEMENTED();
 	return 1;
 }
 #endif
@@ -860,10 +885,10 @@ static void line_trace(int trace_mode)
 	wan_trace_pkt_t *trace_pkt;
 	unsigned int i;
 	int recv_buff = sizeof(wan_udp_hdr_t)+ 100;
-	fd_set ready;
-	struct timeval to;
+	struct wan_timeval to;
 
 #ifndef __WINDOWS__	
+	fd_set ready;
 	setsockopt( sock, SOL_SOCKET, SO_RCVBUF, &recv_buff, sizeof(int) );
 #endif
 
@@ -904,7 +929,7 @@ static void line_trace(int trace_mode)
 		
 #ifdef __WINDOWS__
 		if(to.tv_usec){
-			usleep(to.tv_usec);
+			wp_usleep(to.tv_usec);
 		}
 		if(_kbhit()){
 			if(_getch() == 0x0D){
@@ -1076,6 +1101,32 @@ static int aft_read_hwec_status()
 	return 0;
 }
 
+static int aft_fe_reg_bit(int is_setbit, int reg, int bit)
+ {
+ 	sdla_fe_debug_t	fe_debug;
+ 	unsigned char	value = 0;
+  
+ 	fe_debug.type = WAN_FE_DEBUG_REG;
+ 	fe_debug.fe_debug_reg.reg  = reg;
+ 	fe_debug.fe_debug_reg.read = 1;
+ 	set_fe_debug_mode(&fe_debug);
+ 
+ 	value = fe_debug.fe_debug_reg.value;
+ 	if (is_setbit){
+ 		fe_debug.fe_debug_reg.value |= (1<<bit);
+ 	}else{
+ 		fe_debug.fe_debug_reg.value &= ~(1<<bit);
+ 	}
+ 	fe_debug.fe_debug_reg.read = 0;
+ 	set_fe_debug_mode(&fe_debug);
+ 
+ 	printf("\t%s bit %d in Register %04X (%02X:%02X)\n", 
+ 			(is_setbit) ? "Set" : "Clear",
+ 			bit, fe_debug.fe_debug_reg.reg,
+ 			value, (unsigned char)fe_debug.fe_debug_reg.value);
+ 	return 0;
+}
+
 static int aft_remora_tones(int mod_no)
 {
 	int	cnt = 0;
@@ -1114,7 +1165,7 @@ tone_stop_again:
 
 	if (wan_udp.wan_udphdr_return_code) {
 		if (cnt++ > 10){
-			sleep(1);
+			wp_sleep(1);
 			goto tone_stop_again;
 		} 
 		printf("Failed to stop tone on Module %d (timeout)!\n",
@@ -1164,7 +1215,7 @@ ring_stop_again:
 
 	if (wan_udp.wan_udphdr_return_code) { 
 		if (cnt++ > 10){
-			sleep(1);
+			wp_sleep(1);
 			goto ring_stop_again;
 		} 
 		printf("Failed to stop ring for Module %d (timeout)!\n", mod_no); 
@@ -1326,52 +1377,84 @@ int AFTUsage(void)
 	printf("\t             o       Operational Statistics\n");
 	printf("\tTrace Data \n");
 #ifdef __WINDOWS__
-	printf("\t   t         r       Trace data frames. Do not attempt interpret the data.\n");
+	printf("\t   t         r       Trace data frames. Do not attempt interpret the\n");
+	printf("\t                     data.\n");
 #else
-	printf("\t   t         i       Trace and Interpret ALL frames\n");
+	printf("\tt         i       Trace and Interpret ALL frames\n");
 	printf("\t             r       Trace ALL frames, in RAW format\n");
 #endif
 	printf("\tT1/E1 Configuration/Statistics\n");
-	printf("\t   T         a       Read T1/E1/56K alarms.\n"); 
-	printf("\t             lt      Diagnostic Digital Loopback testing (T1/E1 card only)\n"); 
-	printf("\t             lb      Read Loopback status (T1/E1 cards)\n");  
-	printf("\t             allb    Active Line/Remote Loopback mode (T1/E1 cards)\n");  
-	printf("\t             dllb    Deactive Line/Remote Loopback mode (T1/E1 cards)\n");  
-	printf("\t             aplb    Active Payload Loopback mode (T1/E1 cards)\n");  
-	printf("\t             dplb    Deactive Payload Loopback mode (T1/E1 cards)\n");  
-	printf("\t             adlb    Active Diagnostic Digital Loopback mode (T1/E1 cards)\n");  
-	printf("\t             ddlb    Deactive Diagnostic Digital Loopback mode (T1/E1 cards)\n");  
-	printf("\t             salb    Send Loopback Activate Code (T1/E1 cards)\n");  
-	printf("\t             sdlb    Send Loopback Deactive Code (T1/E1 cards)\n");  
-	printf("\t             saplb   Send Payload Loopback Activate Code (T1/E1 cards)\n");  
-	printf("\t             sdplb   Send Payload Loopback Deactive Code (T1/E1 cards)\n");  
-	printf("\t             alalb   Active LIU Analog Loopback mode (T1/E1 DM card only)\n");  
-	printf("\t             dlalb   Deactive LIU Analog Loopback mode (T1/E1 DM card only)\n");  
-	printf("\t             alllb   Active LIU Local Loopback mode (T1/E1 DM card only)\n");  
-	printf("\t             dlllb   Deactive LIU Local Loopback mode (T1/E1 DM card only)\n");  
-	printf("\t             alrlb   Active LIU Remote Loopback mode (T1/E1 DM card only)\n");  
-	printf("\t             dlrlb   Deactive LIU Remote Loopback mode (T1/E1 DM card only)\n");  
-	printf("\t             aldlb   Active LIU Dual Loopback mode (T1/E1 DM card only)\n");  
-	printf("\t             dldlb   Deactive LIU Dual Loopback mode (T1/E1 DM card only)\n");
-	printf("\t             allb3   Active Analog Loopback mode (DS3/E3 cards)\n");  
-	printf("\t             dllb3   Deactive Analog Loopback mode (DS3/E3 cards)\n");  
-	printf("\t             arlb3   Active Remote Loopback mode (DS3/E3 cards)\n");  
-	printf("\t             drlb3   Deactive Remote Loopback mode (DS3/E3 cards)\n");  
-	printf("\t             adlb3   Active Digital Loopback mode (DS3/E3 cards)\n");  
-	printf("\t             ddlb3   Deactive Digital Loopback mode (DS3/E3 cards)\n");  
-	printf("\t             txe     Enable TX (AFT card only)\n");  
-	printf("\t             txd     Disable TX (AFT card only)\n");  
-	printf("\t             bert    T1/E1 BERT test (T1/E1 DM cards only)\n");  
+	printf("\t   T  a      Read T1/E1 alarms.\n"); 
+	printf("\n");
+	printf("\t   ============================================\n");
+	printf("\t   ========= T1/E1 Loop Back commands =========\n");
+	printf("\n");  
+	printf("\t      allb   Activate   Line (Remote) Loopback.\n");  
+	printf("\t             (T1/E1; NORMAL Clock)\n");  
+	printf("\t      dllb   Deactivate Line (Remote) Loopback.\n");  
+	printf("\t             (T1/E1; NORMAL Clock)\n");  
+	printf("\n");
+	printf("\t      adlb   Activate   Diagnostic (Local) Loopback.\n");  
+	printf("\t             (T1/E1; MASTER Clock\n");  
+	printf("\t      ddlb   Deactivate Diagnostic (Local) Loopback.\n");  
+	printf("\t             (T1/E1; MASTER Clock\n");  
+	printf("\n");
+	printf("\t      lb     Read LoopBack status (T1/E1). This is the LoopBack\n");
+	printf("\t             status of the LOCAL device, not a status of LoopBack\n");
+	printf("\t             COMMAND which was transmitted to REMOTE device.\n");
+	printf("\t             The status (return code) of any LoopBack COMMAND is\n");  
+	printf("\t             displayed on command completion.\n");  
+	printf("\n");
+	printf("\t   ============================================\n");
+	printf("\t   ======= T1 FDL/BOC Loop Back commands ======\n");
+	printf("\n"); 
+	printf("\t      salb   Send Activate   Loopback (Remote) Code.\n"); 
+	printf("\t             (T1; MASTER Clock)\n"); 
+	printf("\t      sdlb   Send Deactivate Loopback (Remote) Code.\n");
+	printf("\t             (T1; MASTER Clock)\n"); 
+	printf("\n");
+	printf("\t      saplb  Send Activate   Payload Loopback (Remote) Code.\n");  
+	printf("\t             (T1; MASTER Clock)\n"); 
+	printf("\t      sdplb  Send Deactivate Payload Loopback (Remote) Code.\n");  
+	printf("\t             (T1; MASTER Clock)\n"); 
+	printf("\n");
+	printf("\t   ============================================\n");
+	printf("\t   =============== BERT Commands ==============\n");
+	printf("\n");
+	printf("\t      sw_bert <command>  BERT test (AFT only)\n");  
+	printf("\t             command:\n");  
+	printf("\t               --random - start BERT, use random data\n");  
+	printf("\t               --ascendant - start BERT, use ascendant data\n");  
+	printf("\t               --descendant - start BERT, use descendant data\n");  
+	printf("\t               --stop - stop BERT\n");  
+	printf("\t               --status - print BERT status/statistics\n");  
+	printf("\n");
+
+	printf("\t   ***** DS3/E3 Test modes *****\n");  
+	printf("\t      allb3  Activate Analog Loopback mode (DS3/E3 cards)\n");  
+	printf("\t      dllb3  Deactivate Analog Loopback mode (DS3/E3 cards)\n");  
+	printf("\t      arlb3  Activate Remote Loopback mode (DS3/E3 cards)\n");  
+	printf("\t      drlb3  Deactivate Remote Loopback mode (DS3/E3 cards)\n");  
+	printf("\t      adlb3  Activate Digital Loopback mode (DS3/E3 cards)\n");  
+	printf("\t      ddlb3  Deactivate Digital Loopback mode (DS3/E3 cards)\n");  
+	printf("\t   ***** End of DS3/E3 Test modes *****\n");  
+	printf("\n");
+	printf("\t      txe    Enable TX (AFT card only)\n");  
+	printf("\t      txd    Disable TX (AFT card only)\n");  
+	printf("\n");
+
 	printf("\tFlush Statistics\n");
 	printf("\t   f         c       Flush Communication Error Statistics\n");
 	printf("\t             o       Flush Operational Statistics\n");
 	printf("\t             pm      Flush T1/E1 performance monitoring counters\n");
+	printf("\n");
 	printf("\tEcho Canceller Statistics\n");
 	printf("\t   e         hw      Read HW Echo Canceller Status\n");
 	printf("\tAFT Remora Statistics\n");
 	printf("\t   a         tone    Play a tones ( -m <mod_no> - Module number)\n");
 	printf("\t   a         ring    Rings phone ( -m <mod_no> - Module number)\n");
-	printf("\t   a         regdump Dumps FXS/FXO registers ( -m <mod_no> - Module number)\n");
+	printf("\t   a         regdump Dumps FXS/FXO registers.\n");
+	printf("\t                     ( -m <mod_no> - Module number)\n");
 	printf("\t   a         stats   Voltage status ( -m <mod_no> - Module number)\n");
 	printf("\tAFT Debugging\n");
 	printf("\t   d         err     Eanble RX RBS debugging\n");
@@ -1381,13 +1464,24 @@ int AFTUsage(void)
 	printf("\t   d         rr      Read RX/TX RBS status\n");
 	printf("\t   d         pr      Print current RX/TX RBS status\n");
 	printf("\t   d         sr      Set TX RBS status\n");
-	printf("\tExamples:\n");
+	printf("\n");
+	printf("\t   d         e_span_seq      Enable span seq debugging\n");
+	printf("\t   d         d_span_seq      Disable span seq debugging\n");
+	printf("\t   d         rx_fifo_gen     Generate rx fifo error\n");
+	printf("\t   d         tx_fifo_gen     Generate tx fifo error\n");
+	printf("\t   d         fifo_sync_cnt   Increment fifo sync cnt\n"); 
+	printf("\n");
 	printf("\t--------\n\n");
+	printf("\tExamples:\n");
 #ifdef __WINDOWS__
-	printf("\tex: wanpipemon -i wanpipe1_if1 -c Ta :View T1/E1 Alarams \n");
-	printf("\tex: wanpipemon -i wanpipe1_if1 -c sc :View Communications/Error statistics\n");
-	printf("\tex: wanpipemon -i wanpipe1_if1 -c fc :Flush (Reset) Communications/Error statistics\n");
-	printf("\tex: wanpipemon -i wanpipe1_if1 -c tr :Trace frames (Tx and Rx).\n\n");
+	printf("\t View T1/E1 Alarams:\n");
+	printf("\t\t wanpipemon -i wanpipe1_if1 -c Ta\n");
+	printf("\t View Communications/Error statistics:\n");
+	printf("\t\t wanpipemon -i wanpipe1_if1 -c sc\n");
+	printf("\t Flush (Reset) Communications/Error statistics:\n");
+	printf("\t\t wanpipemon -i wanpipe1_if1 -c fc\n");
+	printf("\t Trace frames (Tx and Rx):\n");
+	printf("\t\t wanpipemon -i wanpipe1_if1 -c tr\n\n");
 #else
 	printf("\tex: wanpipemon -i w1g1 -u 9000 -c xm :View Modem Status \n");
 	printf("\tex: wanpipemon -i 201.1.1.2 -u 9000 -c ti  :Trace and Interpret ALL frames\n\n");
@@ -1411,6 +1505,102 @@ static void aft_router_up_time( void )
 	BANNER("ROUTER UP TIME");
 	
 	print_router_up_time(time);
+}
+
+static void aft_perf_stats( void )
+{
+#ifdef WANPIPE_PERFORMANCE_DEBUG
+	aft_driver_performance_stats_t *aft_perf;
+	
+	wan_udp.wan_udphdr_command= WANPIPEMON_READ_PEFORMANCE_STATS;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+	wan_udp.wan_udphdr_data[0] = 0;
+	DO_COMMAND(wan_udp);
+	
+	aft_perf = (aft_driver_performance_stats_t*)&wan_udp.wan_udphdr_data[0];
+	
+	BANNER("WANPIPE PERFORMANCE STATS");
+
+	printf("                  ISR\n");
+	printf("===========================================\n");
+	printf("ISR    Latency=%02lu    Max=%02lu    Min=%02lu    Avg=%02lu    AbvAvg=%04lu BelAvg=%04lu Limit=%02lu\n",
+			aft_perf->aft_isr_latency.latency,
+			aft_perf->aft_isr_latency.max_latency,
+			aft_perf->aft_isr_latency.min_latency,
+			aft_perf->aft_isr_latency.latency_avg,
+			aft_perf->aft_isr_latency.above_avg,
+			aft_perf->aft_isr_latency.below_avg,
+			aft_perf->aft_isr_latency.limit);
+	
+	printf("Kernel Latency=%05lu Max=%05lu Min=%05lu Avg=%05lu AbvAvg=%04lu BelAvg=%04lu Limit=%02lu\n",
+			aft_perf->kernel_isr_latency.latency,
+			aft_perf->kernel_isr_latency.max_latency,
+			aft_perf->kernel_isr_latency.min_latency,
+			aft_perf->kernel_isr_latency.latency_avg,
+			aft_perf->kernel_isr_latency.above_avg,
+			aft_perf->kernel_isr_latency.below_avg,
+			aft_perf->kernel_isr_latency.limit);
+	printf("-------------------------------------------\n");
+	printf("ALL ..............................%lu\n",aft_perf->isr.all);
+	printf("AFT ..............................%lu\n",aft_perf->isr.aft);
+	printf("Non AFT  .........................%lu\n",aft_perf->isr.non_aft);
+	printf("-------------------------------------------\n");
+	printf("FE ...............................%lu\n",aft_perf->isr.fe);
+	printf("FE Run............................%lu\n",aft_perf->isr.fe_run);
+	printf("-------------------------------------------\n");
+	printf("TDM ..............................%lu\n",aft_perf->isr.tdm);
+	printf("TDM Run...........................%lu\n",aft_perf->isr.tdm_run);
+	printf("-------------------------------------------\n");
+	printf("DMA ..............................%lu\n",aft_perf->isr.dma);
+	printf("DMA Rx............................%lu\n",aft_perf->isr.dma_rx);
+	printf("DMA Tx ...........................%lu\n",aft_perf->isr.dma_tx);
+	printf("-------------------------------------------\n");
+	printf("FIFO..............................%lu\n",aft_perf->isr.fifo);
+	printf("FIFO RX...........................%lu\n",aft_perf->isr.fifo_rx);
+	printf("FIFO TX...........................%lu\n",aft_perf->isr.fifo_tx);
+	printf("-------------------------------------------\n");
+	printf("Free Run Timer....................%lu\n",aft_perf->isr.free_run);
+	printf("WDT ..............................%lu\n",aft_perf->isr.wdt);
+	printf("WDT Soft..........................%lu\n",aft_perf->isr.wdt_software);
+	printf("-------------------------------------------\n");
+	printf("Serial............................%lu\n",aft_perf->isr.serial);
+	printf("                  BH\n");
+	printf("===========================================\n");
+	printf("All ..............................%lu\n",aft_perf->bh.all);
+	printf("Rx ...............................%lu\n",aft_perf->bh.rx);
+	printf("Rx Stack .........................%lu\n",aft_perf->bh.rx_stack);
+	printf("Rx Bri Dchan .....................%lu\n",aft_perf->bh.rx_bri_dchan);
+	printf("Tx Post ..........................%lu\n",aft_perf->bh.tx_post);
+	printf("               Port Task\n");
+	printf("===========================================\n");
+	printf("All ..............................%lu\n",aft_perf->port_task.all);
+	printf("FE ISR............................%lu\n",aft_perf->port_task.fe_isr);
+	printf("FE Poll ..........................%lu\n",aft_perf->port_task.fe_poll);
+	printf("EC ...............................%lu\n",aft_perf->port_task.ec);
+	printf("EC Poll ..........................%lu\n",aft_perf->port_task.ec_poll);
+	printf("LED ..............................%lu\n",aft_perf->port_task.led);
+	printf("RBS ..... ........................%lu\n",aft_perf->port_task.rbs);
+	printf("Serial Status ....................%lu\n",aft_perf->port_task.serial_status);
+	printf("TAP Queue ........................%lu\n",aft_perf->port_task.tap_q);
+	printf("Restart ..... ....................%lu\n",aft_perf->port_task.restart);
+#else
+	printf("Error: Performance Stats Feature has not been compiled in!\n");
+#endif
+	
+}
+
+static void flush_aft_perf_stats( void )
+{
+#ifdef WANPIPE_PERFORMANCE_DEBUG
+	wan_udp.wan_udphdr_command= WANPIPEMON_FLUSH_PEFORMANCE_STATS;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+	wan_udp.wan_udphdr_data[0] = 0;
+	DO_COMMAND(wan_udp);
+#else
+	printf("Error: Performance Stats Feature has not been compiled in!\n");
+#endif
 }
 
 static void read_ft1_te1_56k_config (void)
@@ -1462,7 +1652,7 @@ static u_int32_t parse_channel_arg(int argc, char* argv[])
 
 			param 	= argv[argi+1];
 			chan_map= 0x00;
-			if (strcasecmp(param,"all") == 0){
+			if (wp_strcasecmp(param,"all") == 0){
 				return ENABLE_ALL_CHANNELS;
 			}else{
 				char	chan[10];
@@ -1511,6 +1701,8 @@ int AFTMain(char *command,int argc, char* argv[])
 				read_code_version();
 			}else if (!strcmp(opt,"ru")){
 				aft_router_up_time();
+			}else if (!strcmp(opt,"perf")) {
+				aft_perf_stats();
 			}else{
 				printf("ERROR: Invalid Status Command 'x', Type wanpipemon <cr> for help\n\n");
 			}
@@ -1568,6 +1760,8 @@ int AFTMain(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt, "pm")){
 				flush_te1_pmon();
 				printf("Performance monitoring counters flushed\n");
+			}else if (!strcmp(opt, "perf")) {
+				flush_aft_perf_stats();
 			} else{
 				printf("ERROR: Invalid Flush Command 'f', Type wanpipemon <cr> for help\n\n");
 			}
@@ -1576,10 +1770,14 @@ int AFTMain(char *command,int argc, char* argv[])
 		case 'T':
 			if (!strcmp(opt,"read")){
 				read_ft1_te1_56k_config();
+				/* T1/E1 begins */
 			}else if (!strcmp(opt,"lt")){
  				aft_digital_loop_test();
 			}else if (!strcmp(opt,"lb")){
 				get_lb_modes(0);
+
+			/* DavidR: 'apclb' and 'dpclb' commands don't work.
+			 *	Not removing to keep backward compatibility. */
 			}else if (!strcmp(opt,"apclb")){
 				chan_map = parse_channel_arg(argc, argv);
 				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_ENABLE);
@@ -1587,10 +1785,15 @@ int AFTMain(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt,"dpclb")){
 				chan_map = parse_channel_arg(argc, argv);
 				set_lb_modes_per_chan(WAN_TE1_PCLB_MODE, WAN_TE1_LB_DISABLE, chan_map);
+
+			/* DavidR: Warning: The LLB command should NOT be used Locally.
+			 *	These commands must be controlled from Remote side. 
+			 *	Not removing to keep backward compatibility. */
 			}else if (!strcmp(opt,"allb")){
 				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dllb")){
 				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_DISABLE);
+
 			}else if (!strcmp(opt,"aplb")){
 				set_lb_modes(WAN_TE1_PAYLB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dplb")){
@@ -1608,6 +1811,7 @@ int AFTMain(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt,"sdplb")){
 				set_lb_modes(WAN_TE1_TX_PAYLB_MODE, WAN_TE1_LB_DISABLE);
 			}else if (!strcmp(opt,"alalb")){
+				/* T1/E1 LIU LBs */
 				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dlalb")){
 				set_lb_modes(WAN_TE1_LIU_ALB_MODE, WAN_TE1_LB_DISABLE);
@@ -1623,6 +1827,7 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_lb_modes(WAN_TE1_LIU_DLB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dldlb")){
 				set_lb_modes(WAN_TE1_LIU_DLB_MODE, WAN_TE1_LB_DISABLE);
+				/* T3 begins */
 			}else if (!strcmp(opt,"allb3")){
 				set_lb_modes(WAN_TE3_LIU_LB_ANALOG, WAN_TE3_LB_ENABLE);
 			}else if (!strcmp(opt,"dllb3")){
@@ -1635,6 +1840,7 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_lb_modes(WAN_TE3_LIU_LB_DIGITAL, WAN_TE3_LB_ENABLE);
 			}else if (!strcmp(opt,"ddlb3")){
 				set_lb_modes(WAN_TE3_LIU_LB_DIGITAL, WAN_TE3_LB_DISABLE);
+				/* 56k begins */
 			}else if (!strcmp(opt,"a")){
 				read_te1_56k_stat(0);
 			}else if (!strcmp(opt,"af")){
@@ -1645,6 +1851,8 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_fe_tx_mode(WAN_FE_TXMODE_DISABLE);
 			}else if (!strcmp(opt,"bert")){
 				err = set_fe_bert(argc, argv);
+			}else if (!strcmp(opt,"sw_bert")){
+				err = set_sw_bert(argc, argv);
 			}else{
 				printf("ERROR: Invalid FT1 Command 'T', Type wanpipemon <cr> for help\n\n");
 			} 
@@ -1730,10 +1938,40 @@ int AFTMain(char *command,int argc, char* argv[])
 					fe_debug.fe_debug_reg.value = value;
 				}
 				set_fe_debug_mode(&fe_debug);
+
+            }else if (!strcmp(opt,"regsb") || !strcmp(opt,"regcb")){
+ 
+ 				long	value, bit;
+ 				fe_debug.type = WAN_FE_DEBUG_REG;
+ 				if (argc < 7){
+ 					printf("ERROR: Invalid command argument!\n");
+ 					break;				
+ 				}
+ 				value = strtol(argv[5],(char**)NULL, 16);
+ 				if (value == LONG_MIN || value == LONG_MAX){
+ 					printf("ERROR: Invalid argument 5: %s!\n",
+ 								argv[5]);
+ 					break;				
+ 				}
+ 
+ 				bit = strtol(argv[6],(char**)NULL, 10);
+ 				if (bit == LONG_MIN || bit == LONG_MAX){
+ 					printf("ERROR: Invalid argument 6: %s!\n",
+ 								argv[6]);
+ 					break;
+ 				}
+ 				aft_fe_reg_bit((!strcmp(opt,"regsb")) ? 1 : 0, value, bit);  
+
 			}else if (!strcmp(opt,"e_span_seq")){
 				wp_span_debugging(1);
 			}else if (!strcmp(opt,"d_span_seq")){
 				wp_span_debugging(0);
+			}else if (!strcmp(opt,"rx_fifo_gen")) {
+				wp_gen_fifo_debugging(1);
+			} else if  (!strcmp(opt,"tx_fifo_gen")) {
+				wp_gen_fifo_debugging(0);
+			} else if (!strcmp(opt, "fifo_sync_cnt")) {
+				wp_get_fifo_sync_cnt();
 			}else{
 				printf("ERROR: Invalid Status Command 'd', Type wanpipemon <cr> for help\n\n");
 			}
@@ -1749,7 +1987,7 @@ int AFTMain(char *command,int argc, char* argv[])
 		case 'a':
 			err = 0;
 			for(i=0;i<argc;i++){
-				if (!strcasecmp(argv[i], "-m") && argv[i+1]){
+				if (!wp_strcasecmp(argv[i], "-m") && argv[i+1]){
 					err = sscanf(argv[i+1], "%d", &mod_no);
 					if (err){
 						if (mod_no < 1 || mod_no > 16){

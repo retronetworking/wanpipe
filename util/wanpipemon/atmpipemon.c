@@ -282,7 +282,7 @@ int ATMConfig(void)
 		is_508 = WAN_FALSE;
 	} 
    
-	strlcpy(codeversion, "?.??",10);
+	wp_strlcpy(codeversion, "?.??",10);
    
 	wan_udp.wan_udphdr_command = READ_CODE_VERSION;
 	wan_udp.wan_udphdr_data_len = 0;
@@ -290,7 +290,7 @@ int ATMConfig(void)
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		wan_udp.wan_udphdr_data[wan_udp.wan_udphdr_data_len] = 0;
-		strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data,10);
+		wp_strlcpy(codeversion, (char*)wan_udp.wan_udphdr_data,10);
 	}
 	
 	return(WAN_TRUE);
@@ -688,7 +688,7 @@ static void line_trace( int trace_mode, int trace_sub_type)
 	unsigned int i, j;
 	int recv_buff = sizeof(wan_udp_hdr_t)+ 100;
 	fd_set ready;
-	struct timeval to;
+	struct wan_timeval to;
 	int count;
 	wp_trace_output_iface_t trace_iface;
 

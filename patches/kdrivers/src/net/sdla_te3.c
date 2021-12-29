@@ -1345,18 +1345,30 @@ static int sdla_te3_add_timer(sdla_fe_t* fe, unsigned long delay)
 {
 	int	err=0;
 
-	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical) ||
-	    wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)) {
+	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te3_param.critical)) {
+		DEBUG_EVENT("WARNING: %s: %s() Timer has been killed!\n", 
+					fe->name,__FUNCTION__);
 		return 0;
 	}
+	
+	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te3_param.critical)) {
+		DEBUG_ERROR("Error: %s: %s() Timer already running!\n", 
+					fe->name,__FUNCTION__);
+		return 0;
+	}
+	
+	wan_set_bit(TE_TIMER_RUNNING,(void*)&fe->te3_param.critical);
+
 
 	err = wan_add_timer(&fe->timer, delay * HZ / 1000);
 
 	if (err){
+		wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te3_param.critical);
+		DEBUG_ERROR("Error: %s: %s() Failed to add Timer err=%i!\n", 
+					fe->name,__FUNCTION__,err);
 		/* Failed to add timer */
 		return -EINVAL;
 	}
-	wan_set_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
 	return 0;	
 }
 
@@ -1375,25 +1387,25 @@ static void sdla_te3_timer(unsigned long pfe)
 	wan_device_t	*wandev = &card->wandev;
 
 	DEBUG_TEST("[TE3] %s: TE3 timer!\n", fe->name);
-	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical)){
-		wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
+	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te3_param.critical)){
+		wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te3_param.critical);
+		DEBUG_EVENT("WARNING: %s: Timer has been killed!\n", 
+					fe->name);
 		return;
 	}
-	if (!wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)){
+	if (!wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te3_param.critical)){
 		/* Somebody clear this bit */
 		DEBUG_EVENT("WARNING: %s: Timer bit is cleared (should never happened)!\n", 
 					fe->name);
 		return;
 	}
-	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
+	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te3_param.critical);
 
 	if (wandev->fe_enable_timer){
 		wandev->fe_enable_timer(fe->card);
 	}
 
-	
 	sdla_te3_add_timer(fe, 1000);
-	
 
 	return;
 }
@@ -1405,7 +1417,7 @@ static int sdla_te3_post_init(void* pfe)
 
 
 	/* Initialize and start T1/E1 timer */
-	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
+	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te3_param.critical);
 	
 	wan_init_timer(
 		&fe->timer, 
@@ -1413,7 +1425,7 @@ static int sdla_te3_post_init(void* pfe)
 	       	(wan_timer_arg_t)fe);
 
 	/* Initialize T1/E1 timer */
-	wan_clear_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
+	wan_clear_bit(TE_TIMER_KILL,(void*)&fe->te3_param.critical);
 
 	/* Start T1/E1 timer */
 	if (IS_E3(&fe->fe_cfg)){
@@ -1430,11 +1442,11 @@ static int sdla_te3_pre_release(void* pfe)
 
 
 	/* Kill TE timer poll command */
-	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
-	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)){
+	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te3_param.critical);
+	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te3_param.critical)){
 		wan_del_timer(&fe->timer);
 	}
-	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
+	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te3_param.critical);
 
 	return 0;
 }

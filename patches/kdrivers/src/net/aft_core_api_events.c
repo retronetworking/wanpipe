@@ -42,7 +42,8 @@ static void wan_aft_api_ringdetect (void* card_id, wan_event_t *event);
 static int aft_read_rbs_bits(void *chan_ptr, u32 ch, u8 *rbs_bits);
 static int aft_write_rbs_bits(void *chan_ptr, u32 ch, u8 rbs_bits);
 static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hdr);
-
+static int aft_write_hdlc_check(void *chan_ptr, int lock);
+static int aft_write_hdlc_timeout(void *chan_ptr, int lock);
 
 /*--------------------------------------------------------
  * PRIVATE EVENT FUNCTIONS
@@ -187,7 +188,7 @@ static void wan_aft_api_hook (void* card_id, wan_event_t *event)
 	int		i;
 
 	if (event->type != WAN_EVENT_RM_LC){
-		DEBUG_EVENT("ERROR: %s: Invalid Event type (%04X)!\n",
+		DEBUG_ERROR("ERROR: %s: Invalid Event type (%04X)!\n",
 				card->devname, event->type);
 		return;
 	}
@@ -267,7 +268,7 @@ static void wan_aft_api_ringtrip (void* card_id, wan_event_t *event)
 	int		i;
 
 	if (event->type != WP_API_EVENT_RING_TRIP_DETECT){
-		DEBUG_EVENT("ERROR: %s: Invalid Event type (%04X)!\n",
+		DEBUG_ERROR("ERROR: %s: Invalid Event type (%04X)!\n",
 				card->devname, event->type);
 		return;
 	}
@@ -350,7 +351,7 @@ static void wan_aft_api_ringdetect (void* card_id, wan_event_t *event)
 	int		i;
 
 	if (event->type != WAN_EVENT_RM_RING_DETECT){
-		DEBUG_EVENT("ERROR: %s: Invalid Event type (%04X)!\n",
+		DEBUG_ERROR("ERROR: %s: Invalid Event type (%04X)!\n",
 				card->devname, event->type);
 		return;
 	}
@@ -422,7 +423,52 @@ static void wan_aft_api_ringdetect (void* card_id, wan_event_t *event)
 	return;
 }
  
+static int aft_write_hdlc_check(void *chan_ptr, int lock)
+{
+	private_area_t *chan = (private_area_t *)chan_ptr;
+	sdla_t *card=chan->card;
+	wan_smp_flag_t smp_flags;
+	int rc;
+	
+	if (IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)){
+		/* For BRI rely on upper layer checking */
+		return 1;
+	}
 
+	if (lock) {
+		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
+	}
+	rc = wan_chan_dev_stopped(chan);
+
+	if (lock) {
+		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+	}
+
+	return rc;
+}
+
+static int aft_write_hdlc_timeout(void *chan_ptr, int lock)
+{
+	private_area_t *chan = (private_area_t *)chan_ptr;
+	sdla_t *card=chan->card;
+	wan_smp_flag_t smp_flags;
+	
+	if (IS_BRI_CARD(card)) {
+		return 0;
+	}
+
+	if (lock) {
+		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
+	}
+
+	aft_tx_fifo_under_recover(card,chan);
+
+	if (lock) {
+		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+	}
+
+	return 0;
+}
 
 static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hdr)
 {
@@ -500,18 +546,31 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 		WAN_NETIF_STOP_QUEUE(chan->common.dev);
 		hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
 		hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
+
+		if (chan->dma_chain_opmode != WAN_AFT_DMA_CHAIN_SINGLE) {
+			hdr->tx_h.current_number_of_frames_in_tx_queue += chan->tx_chain_data_sz;
+			hdr->tx_h.max_tx_queue_length += MAX_AFT_DMA_CHAINS;
+		}
+
+		hdr->tx_h.tx_idle_packets = chan->chan_stats.tx_idle_packets;
 		wan_chan_dev_stop(chan);
 		aft_dma_tx(card,chan);
 		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 		return -EBUSY;
 	}
 
-	hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
-	hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
-
 	wan_skb_unlink(skb);
 	wan_skb_queue_tail(&chan->wp_tx_pending_list,skb);
-	aft_dma_tx(card,chan);
+	aft_dma_tx(card,chan); 
+
+	hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
+	hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
+	hdr->tx_h.tx_idle_packets = chan->chan_stats.tx_idle_packets;
+
+	if (chan->dma_chain_opmode != WAN_AFT_DMA_CHAIN_SINGLE) {
+		hdr->tx_h.max_tx_queue_length += MAX_AFT_DMA_CHAINS;
+		hdr->tx_h.current_number_of_frames_in_tx_queue += chan->tx_chain_data_sz;
+	}  
 
 	if (wan_skb_queue_len(&chan->wp_tx_pending_list) >= chan->max_tx_bufs){
 		WAN_NETIF_STOP_QUEUE(chan->common.dev);
@@ -553,36 +612,50 @@ int aft_event_ctrl(void *chan_ptr, wan_event_ctrl_t *p_event)
 	memset(event_ctrl, 0, sizeof(wan_event_ctrl_t));
 	memcpy(event_ctrl, p_event, sizeof(wan_event_ctrl_t));
 
-	if (event_ctrl->type == WAN_EVENT_EC_DTMF && card->wandev.ec_dev){
+	switch (event_ctrl->type) {
+
+	case WAN_EVENT_EC_DTMF:
+	case WAN_EVENT_EC_FAX_DETECT:
+
+		if (card->wandev.ec_dev){
 #if defined(CONFIG_WANPIPE_HWEC)
-		DEBUG_TEST("%s: Event control request EC_DTMF...\n",
-					chan->if_name);
-		err = wanpipe_ec_event_ctrl(card->wandev.ec_dev, card, event_ctrl);
-#else
-		DEBUG_EVENT("%s: Error: Hardware EC not compiled! Failed to enable DTMF\n",
+			DEBUG_TEST("%s: Event control request EC_DTMF...\n",
 						chan->if_name);
-		err=-EINVAL;
+			err = wanpipe_ec_event_ctrl(card->wandev.ec_dev, card, event_ctrl);
+#else
+			DEBUG_ERROR("%s: Error: Hardware EC not compiled! Failed to enable DTMF\n",
+						chan->if_name);
+			err=-EINVAL;
 #endif
-	}else if (chan->card->wandev.fe_iface.event_ctrl){
+		} else {
+			err=-EINVAL;
+		}
+		break;
 
-		wan_smp_flag_t irq_flags,flags;
-		DEBUG_TDMAPI("%s: FE Event control request...\n", chan->if_name);
+	default:
 
-		chan->card->hw_iface.hw_lock(chan->card->hw,&flags);
-		wan_spin_lock_irq(&card->wandev.lock,&irq_flags);
+		if (chan->card->wandev.fe_iface.event_ctrl){
 
-		err = chan->card->wandev.fe_iface.event_ctrl(&chan->card->fe, event_ctrl);
+			wan_smp_flag_t irq_flags,flags;
+			DEBUG_TDMAPI("%s: FE Event control request...\n", chan->if_name);
+	
+			chan->card->hw_iface.hw_lock(chan->card->hw,&flags);
+			wan_spin_lock_irq(&card->wandev.lock,&irq_flags);
+	
+			err = chan->card->wandev.fe_iface.event_ctrl(&chan->card->fe, event_ctrl);
+	
+			wan_spin_unlock_irq(&card->wandev.lock,&irq_flags);
+			chan->card->hw_iface.hw_unlock(chan->card->hw,&flags);
+	
+			/* Front end interface does not use queue */
+			wan_free(event_ctrl);
+			event_ctrl=NULL;
 
-		wan_spin_unlock_irq(&card->wandev.lock,&irq_flags);
-		chan->card->hw_iface.hw_unlock(chan->card->hw,&flags);
-
-		/* Front end interface does not use queue */
-		wan_free(event_ctrl);
-		event_ctrl=NULL;
-
-	}else{
-		DEBUG_EVENT("%s: Unsupported event control request (%X)\n",
-					chan->if_name, event_ctrl->type);
+		}else{
+			DEBUG_EVENT("%s: Unsupported event control request (%X)\n",
+						chan->if_name, event_ctrl->type);
+		}
+		break;
 	}
 
 	if (err){
@@ -858,11 +931,13 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 	
 
 	if (!chan) {
+		DEBUG_ERROR("%s: ERROR: chan=NULL\n",__FUNCTION__);
 		return -ENODEV;
 	}
 
 	card = chan->card;
 	if (!card) {
+		DEBUG_ERROR("%s: ERROR: card=NULL\n",__FUNCTION__);
 		return -ENODEV;
 	}
 
@@ -886,19 +961,12 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 		chan->chan_stats.max_tx_queue_length = (u8)chan->max_tx_bufs;
 		chan->chan_stats.max_rx_queue_length = (u8)chan->dma_per_ch;
 
-		if (chan->dma_chain_opmode == WAN_AFT_DMA_CHAIN_SINGLE){
-            /* do not count the queue len */
-		} else {
-			chan->chan_stats.max_tx_queue_length += MAX_AFT_DMA_CHAINS;
-		}
-
 		wptdm_os_lock_irq(&card->wandev.lock, &smp_flags);
 		chan->chan_stats.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
 
-		if (chan->dma_chain_opmode == WAN_AFT_DMA_CHAIN_SINGLE){
-            /* do not count the queue len */
-		} else {
-			chan->chan_stats.current_number_of_frames_in_tx_queue += aft_tx_dma_chain_chain_len(chan);
+		if (chan->dma_chain_opmode != WAN_AFT_DMA_CHAIN_SINGLE){
+			chan->chan_stats.current_number_of_frames_in_tx_queue += chan->tx_chain_data_sz;
+			chan->chan_stats.max_tx_queue_length += MAX_AFT_DMA_CHAINS;
 		}
 
 		chan->chan_stats.current_number_of_frames_in_rx_queue = (u8)wan_skb_queue_len(&chan->wp_rx_complete_list);
@@ -933,20 +1001,28 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 		api_cmd->data_len=1;
 		break;
 	
-	case WP_API_CMD_GEN_FIFO_ERR:
-		card->wp_debug_gen_fifo_err=1;
+	case WP_API_CMD_GEN_FIFO_ERR_TX:
+		DEBUG_EVENT("%s: Span %i enable TX fifo error !\n",
+				card->devname, card->tdmv_conf.span_no);
+		card->wp_debug_gen_fifo_err_tx=1;
+        break;
+
+	case WP_API_CMD_GEN_FIFO_ERR_RX:
+		DEBUG_EVENT("%s: Span %i enable RX fifo error !\n",
+				card->devname, card->tdmv_conf.span_no);
+		card->wp_debug_gen_fifo_err_rx=1;
         break;
 
 	case WP_API_CMD_START_CHAN_SEQ_DEBUG:
 		DEBUG_EVENT("%s: Span %i channel sequence deugging enabled !\n",
 				card->devname, card->tdmv_conf.span_no);
-		card->wp_debug_gen_fifo_err=1;
-        break;
+		card->wp_debug_chan_seq=1;
+        break; 
 
 	case WP_API_CMD_STOP_CHAN_SEQ_DEBUG:
 		DEBUG_EVENT("%s: Span %i channel sequence deugging disabled !\n",
 				card->devname, card->tdmv_conf.span_no);
-		card->wp_debug_gen_fifo_err=0;
+		card->wp_debug_chan_seq=0;
         break;
 
 	case WP_API_CMD_SET_IDLE_FLAG:
@@ -957,12 +1033,13 @@ static int aft_driver_ctrl(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd)
 			memset(wan_skb_data(chan->tx_idle_skb), chan->idle_flag, wan_skb_len(chan->tx_idle_skb));
 
 		}else{
-			DEBUG_EVENT("%s: Error: WP_API_CMD_SET_IDLE_FLAG: tx_idle_skb is NULL!\n",
+			DEBUG_ERROR("%s: Error: WP_API_CMD_SET_IDLE_FLAG: tx_idle_skb is NULL!\n",
 				chan->if_name);
 		}
 		break;
 
 	default:
+		DEBUG_ERROR("%s: ERROR: driver_ctrl ioctl %i not supported\n",card->devname,cmd);
 		api_cmd->result=SANG_STATUS_OPTION_NOT_SUPPORTED;
 		err=-EOPNOTSUPP;
 		break;
@@ -980,6 +1057,8 @@ int aft_core_tdmapi_event_init(private_area_t *chan)
 	chan->wp_tdm_api_dev->read_rbs_bits	= aft_read_rbs_bits;
 	chan->wp_tdm_api_dev->write_rbs_bits	= aft_write_rbs_bits;
 	chan->wp_tdm_api_dev->write_hdlc_frame	= aft_write_hdlc_frame;
+	chan->wp_tdm_api_dev->write_hdlc_check  = aft_write_hdlc_check;
+	chan->wp_tdm_api_dev->write_hdlc_timeout  = aft_write_hdlc_timeout;
 	chan->wp_tdm_api_dev->pipemon		= wan_user_process_udp_mgmt_pkt;
 	chan->wp_tdm_api_dev->driver_ctrl 	= aft_driver_ctrl;
 #endif

@@ -12,6 +12,7 @@
  * ============================================================================
  * Sep 06,  2008 Moises Silva   Initial Version
  * Nov 20,  2008 Alex Feldman   Added ZT_XLAW
+ * Sep 22,  2009 Moises Silva   Added dahdi_alarm_channel stuff
  ******************************************************************************
  */
 
@@ -137,6 +138,7 @@
 // functions
 #define zt_rbsbits dahdi_rbsbits
 #define zt_alarm_notify dahdi_alarm_notify
+#define zt_alarm_channel dahdi_alarm_channel
 #define zt_receive dahdi_receive
 #define zt_transmit dahdi_transmit
 #define zt_ec_chunk dahdi_ec_chunk
@@ -156,6 +158,10 @@
 // to something like WP_XX instead of ZT_XX, but I don't see any benefit on it
 // and would make this file bigger 
 #include <zaptel.h>
+#ifndef ZT_GET_PARMS_V1
+#define zt_alarm_channel(a,b) zt_qevent_lock(a,( (b)==ZT_ALARM_NONE )? \
+		ZT_EVENT_NOALARM : ZT_EVENT_ALARM)
+#endif
 
 
 # define WP_ZT_QEVENT_LOCK(chan, event)	zt_qevent_lock(&(chan),(event))

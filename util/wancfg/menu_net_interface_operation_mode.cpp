@@ -198,7 +198,7 @@ again:
       break;
 
     case 5:
-      chandef->usedby = SWITCH;
+      chandef->usedby = WP_SWITCH;
       exit_dialog = YES;
       break;
 

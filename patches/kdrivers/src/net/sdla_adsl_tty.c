@@ -16,7 +16,6 @@
 
 
 #if defined(__WINDOWS__)
-#include <array_queue.h>
 #include <sdladrv_private.h>
 #endif
 
@@ -144,13 +143,13 @@ static int adsl_wan_open(ttystruct_t  *tp, struct file *pFile)
 
 	line = MINOR(tp->device) - tp->driver.minor_start;
 	if ((line < 0) || (line >= ADSL_NR_PORTS)){
-		DEBUG_EVENT("wanpipe: Error: Invalid tty line %d!\n", line);
+		DEBUG_ERROR("wanpipe: Error: Invalid tty line %d!\n", line);
 		status = -ENODEV;
 		goto adsl_wan_open_exit;
 	}
 
 	if (!tty_card_map[line]){
-		DEBUG_EVENT("wanpipe: Error: No adapter in tty map for minor %d!\n", line);
+		DEBUG_ERROR("wanpipe: Error: No adapter in tty map for minor %d!\n", line);
 		return -ENODEV;
 	}
 
@@ -174,12 +173,12 @@ static void adsl_wan_close(ttystruct_t  *tp, struct file *pFile)
 
 	line = MINOR(tp->device) - tp->driver.minor_start;
 	if ((line < 0) || (line >= ADSL_NR_PORTS)){
-		DEBUG_EVENT("wanpipe: Error: Invalid tty line %d!\n", line);
+		DEBUG_ERROR("wanpipe: Error: Invalid tty line %d!\n", line);
 		return;
 	}
 
 	if (!tty_card_map[line]){
-		DEBUG_EVENT("wanpipe: Error: No adapter in tty map for minor %d!\n", line);
+		DEBUG_ERROR("wanpipe: Error: No adapter in tty map for minor %d!\n", line);
 		return;
 	}
 	
@@ -290,13 +289,13 @@ int adsl_wan_register(void *driver_data,
     	ttydriver_t *tp = &serial_driver;
 
 	if (minor_no >= ADSL_NR_PORTS){
-		DEBUG_EVENT("%s: Error Illegal Minor TTY number (0-%d): %i\n",
+		DEBUG_ERROR("%s: Error Illegal Minor TTY number (0-%d): %i\n",
 				devname,ADSL_NR_PORTS,minor_no);
 		return -EINVAL;
 	}
 
 	if (tty_card_map[minor_no] != NULL){
-		DEBUG_EVENT("%s: Error TTY Minor %i, already in use\n",
+		DEBUG_ERROR("%s: Error TTY Minor %i, already in use\n",
 				devname,minor_no);
 		return -EBUSY;	
 	}

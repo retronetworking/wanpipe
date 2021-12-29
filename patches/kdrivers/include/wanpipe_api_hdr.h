@@ -92,6 +92,9 @@ typedef struct wp_api_event
 			u_int16_t	ohttimer;	/*!< */
 			u_int16_t	polarity_reverse;	/*!< */
 		} rm_common;
+		struct {
+			int32_t gain;
+		}rm_gain;
 		struct{
 			u_int16_t	status;		/*!< Link Status (connected/disconnnected) */
 		} linkstatus;
@@ -126,6 +129,7 @@ typedef struct wp_api_event
 #define wp_api_event_serial_status		serial.status
 #define wp_api_event_time_stamp_sec		time_stamp_sec
 #define wp_api_event_time_stamp_usec	time_stamp_usec
+#define wp_api_event_gain_value			rm_gain.gain
 } wp_api_event_t;
 
 
@@ -170,7 +174,6 @@ typedef struct wp_api_hdr
 		The rx_h and tx_h are to be used with all AFT Hardware
 		****************************************************/
 		struct {
-
 			u_int16_t	crc;									/*!< number of crc/abort/data errors */
 			u_int8_t	max_rx_queue_length;					/*!< max data queue configured */
 			u_int8_t	current_number_of_frames_in_rx_queue;	/*!< current buffers in device rx queue */
@@ -179,6 +182,7 @@ typedef struct wp_api_hdr
 		struct {
 			u_int8_t	max_tx_queue_length;					/*!< max data queue configured */
 			u_int8_t	current_number_of_frames_in_tx_queue;	/*!< current buffers in device tx queue */
+			u_int32_t	tx_idle_packets;						/*!< number of tx idle packes transmitted */
 		}tx_h;
 
 		/***********************************************//**
@@ -215,7 +219,7 @@ typedef struct wp_api_hdr
 			u_int8_t	repeat;
 			u_int8_t	len;
 			u_int8_t	data[8];
-		}rtp;
+		}rpt;
 		struct {
 			u_int8_t	type;
 			u_int8_t	force_tx;
@@ -244,6 +248,7 @@ typedef struct wp_api_hdr
 
 #define wp_api_tx_hdr_max_queue_length			tx_h.max_tx_queue_length
 #define wp_api_tx_hdr_number_of_frames_in_queue	tx_h.current_number_of_frames_in_tx_queue
+#define wp_api_tx_hdr_tx_idle_packets			tx_h.tx_idle_packets
 #define wp_api_tx_hdr_time_stamp_sec			time_stamp_sec
 #define wp_api_tx_hdr_time_stamp_use			time_stamp_usec
 
@@ -258,9 +263,9 @@ typedef struct wp_api_hdr
 #define wp_api_rx_hdr_time_stamp				data_length
 #endif
 
-#define wp_api_tx_hdr_hdlc_rpt_len				rtp.len
-#define wp_api_tx_hdr_hdlc_rpt_data				rtp.data
-#define wp_api_tx_hdr_hdlc_rpt_repeat			rtp.repeat
+#define wp_api_tx_hdr_hdlc_rpt_len				rpt.len
+#define wp_api_tx_hdr_hdlc_rpt_data				rpt.data
+#define wp_api_tx_hdr_hdlc_rpt_repeat			rpt.repeat
 
 #define wp_api_tx_hdr_aft_ss7_type				ss7_hw.type
 #define wp_api_tx_hdr_aft_ss7_force_tx			ss7_hw.force_tx
@@ -465,7 +470,7 @@ typedef enum SANG_STATUS
 	SANG_STATUS_UNSUPPORTED_PROTOCOL,		/*!< Unsupported protocol selected */
 	SANG_STATUS_DEVICE_ALREADY_EXIST,		/*!< Device already exists */
 	SANG_STATUS_DEV_INIT_INCOMPLETE,		/*!< Device initialization failed */
-	SANG_STATUS_TRACE_QUEUE_EMPTY,			/*!< Trace queueu empty */
+	SANG_STATUS_TRACE_QUEUE_EMPTY,			/*!< Trace queue empty */
 	SANG_STATUS_OPTION_NOT_SUPPORTED,		/*!< Unsupported command or option */
 
 	/*************************************//**
@@ -508,43 +513,44 @@ typedef enum SANG_STATUS
 
  */
 #define SDLA_DECODE_SANG_STATUS(status)	\
-(abs(status) == SANG_STATUS_SUCCESS) ? "SANG_STATUS_SUCCESS" :\
-(abs(status) == SANG_STATUS_COMMAND_ALREADY_RUNNING) ? "SANG_STATUS_COMMAND_ALREADY_RUNNING":\
-(abs(status) == SANG_STATUS_BUFFER_TOO_SMALL) ? "SANG_STATUS_BUFFER_TOO_SMALL":\
-(abs(status) == SANG_STATUS_FAILED_TO_LOCK_USER_MEMORY) ? "SANG_STATUS_FAILED_TO_LOCK_USER_MEMORY":\
-(abs(status) == SANG_STATUS_FAILED_ALLOCATE_MEMORY) ? "SANG_STATUS_FAILED_ALLOCATE_MEMORY":\
-(abs(status) == SANG_STATUS_INVALID_DEVICE_REQUEST) ? "SANG_STATUS_INVALID_DEVICE_REQUEST":\
-(abs(status) == SANG_STATUS_INVALID_PARAMETER) ? "SANG_STATUS_INVALID_PARAMETER":\
-(abs(status) == SANG_STATUS_DATA_QUEUE_EMPTY) ? "SANG_STATUS_DATA_QUEUE_EMPTY":\
-(abs(status) == SANG_STATUS_DATA_QUEUE_FULL) ? "SANG_STATUS_DATA_QUEUE_FULL":\
-(abs(status) == SANG_STATUS_RX_DATA_TIMEOUT) ? "SANG_STATUS_RX_DATA_TIMEOUT":\
-(abs(status) == SANG_STATUS_RX_DATA_AVAILABLE) ? "SANG_STATUS_RX_DATA_AVAILABLE":\
-(abs(status) == SANG_STATUS_TX_TIMEOUT) ? "SANG_STATUS_TX_TIMEOUT":\
-(abs(status) == SANG_STATUS_TX_DATA_TOO_LONG) ? "SANG_STATUS_TX_DATA_TOO_LONG":\
-(abs(status) == SANG_STATUS_TX_DATA_TOO_SHORT) ? "SANG_STATUS_TX_DATA_TOO_SHORT":\
-(abs(status) == SANG_STATUS_LINE_DISCONNECTED) ? "SANG_STATUS_LINE_DISCONNECTED":\
-(abs(status) == SANG_STATUS_LINE_CONNECTED) ? "SANG_STATUS_LINE_CONNECTED":\
-(abs(status) == SANG_STATUS_PROTOCOL_DISCONNECTED) ? "SANG_STATUS_PROTOCOL_DISCONNECTED":\
-(abs(status) == SANG_STATUS_PROTOCOL_CONNECTED) ? "SANG_STATUS_PROTOCOL_CONNECTED":\
-(abs(status) == SANG_STATUS_GENERAL_ERROR) ? "SANG_STATUS_GENERAL_ERROR":\
-(abs(status) == SANG_STATUS_DEVICE_BUSY) ? "SANG_STATUS_DEVICE_BUSY":\
-(abs(status) == SANG_STATUS_INVALID_DEVICE) ? "SANG_STATUS_INVALID_DEVICE":\
-(abs(status) == SANG_STATUS_IO_ERROR) ? "SANG_STATUS_IO_ERROR":\
-(abs(status) == SANG_STATUS_UNSUPPORTED_FUNCTION) ? "SANG_STATUS_UNSUPPORTED_FUNCTION":\
-(abs(status) == SANG_STATUS_UNSUPPORTED_PROTOCOL) ? "SANG_STATUS_UNSUPPORTED_PROTOCOL":\
-(abs(status) == SANG_STATUS_DEVICE_ALREADY_EXIST) ? "SANG_STATUS_DEVICE_ALREADY_EXIST":\
-(abs(status) == SANG_STATUS_DEV_INIT_INCOMPLETE) ? "SANG_STATUS_DEV_INIT_INCOMPLETE":\
-(abs(status) == SANG_STATUS_API_EVENT_AVAILABLE) ? "SANG_STATUS_API_EVENT_AVAILABLE":\
-(abs(status) == SANG_STATUS_REGISTRY_ERROR) ? "SANG_STATUS_REGISTRY_ERROR":\
-(abs(status) == SANG_STATUS_CAN_NOT_STOP_DEVICE_WHEN_ALREADY_STOPPED) ? "SANG_STATUS_CAN_NOT_STOP_DEVICE_WHEN_ALREADY_STOPPED":\
-(abs(status) == SANG_STATUS_CAN_NOT_RUN_TWO_PORT_CMDS_AT_THE_SAME_TIME) ? "SANG_STATUS_CAN_NOT_RUN_TWO_PORT_CMDS_AT_THE_SAME_TIME":\
-(abs(status) == SANG_STATUS_ASSOCIATED_IRP_SYSTEM_BUFFER_NULL_ERROR) ? "SANG_STATUS_ASSOCIATED_IRP_SYSTEM_BUFFER_NULL_ERROR":\
-(abs(status) == SANG_STATUS_STRUCTURE_SIZE_MISMATCH_ERROR) ? "SANG_STATUS_STRUCTURE_SIZE_MISMATCH_ERROR":\
-(abs(status) == SANG_STATUS_INVALID_IRQL) ? "SANG_STATUS_INVALID_IRQL":\
-(abs(status) == SANG_STATUS_NO_DATA_AVAILABLE) ? "SANG_STATUS_NO_DATA_AVAILABLE":\
-(abs(status) == SANG_STATUS_IO_PENDING) ? "SANG_STATUS_IO_PENDING":\
-(abs(status) == SANG_STATUS_APIPOLL_TIMEOUT) ? "SANG_STATUS_APIPOLL_TIMEOUT":\
-(abs(status) == SANG_STATUS_NO_FREE_BUFFERS) ? "SANG_STATUS_NO_FREE_BUFFERS":\
+(abs((int)status) == SANG_STATUS_SUCCESS) ? "SANG_STATUS_SUCCESS" :\
+(abs((int)status) == SANG_STATUS_COMMAND_ALREADY_RUNNING) ? "SANG_STATUS_COMMAND_ALREADY_RUNNING":\
+(abs((int)status) == SANG_STATUS_BUFFER_TOO_SMALL) ? "SANG_STATUS_BUFFER_TOO_SMALL":\
+(abs((int)status) == SANG_STATUS_FAILED_TO_LOCK_USER_MEMORY) ? "SANG_STATUS_FAILED_TO_LOCK_USER_MEMORY":\
+(abs((int)status) == SANG_STATUS_FAILED_ALLOCATE_MEMORY) ? "SANG_STATUS_FAILED_ALLOCATE_MEMORY":\
+(abs((int)status) == SANG_STATUS_INVALID_DEVICE_REQUEST) ? "SANG_STATUS_INVALID_DEVICE_REQUEST":\
+(abs((int)status) == SANG_STATUS_INVALID_PARAMETER) ? "SANG_STATUS_INVALID_PARAMETER":\
+(abs((int)status) == SANG_STATUS_DATA_QUEUE_EMPTY) ? "SANG_STATUS_DATA_QUEUE_EMPTY":\
+(abs((int)status) == SANG_STATUS_DATA_QUEUE_FULL) ? "SANG_STATUS_DATA_QUEUE_FULL":\
+(abs((int)status) == SANG_STATUS_RX_DATA_TIMEOUT) ? "SANG_STATUS_RX_DATA_TIMEOUT":\
+(abs((int)status) == SANG_STATUS_RX_DATA_AVAILABLE) ? "SANG_STATUS_RX_DATA_AVAILABLE":\
+(abs((int)status) == SANG_STATUS_TX_TIMEOUT) ? "SANG_STATUS_TX_TIMEOUT":\
+(abs((int)status) == SANG_STATUS_TX_DATA_TOO_LONG) ? "SANG_STATUS_TX_DATA_TOO_LONG":\
+(abs((int)status) == SANG_STATUS_TX_DATA_TOO_SHORT) ? "SANG_STATUS_TX_DATA_TOO_SHORT":\
+(abs((int)status) == SANG_STATUS_LINE_DISCONNECTED) ? "SANG_STATUS_LINE_DISCONNECTED":\
+(abs((int)status) == SANG_STATUS_LINE_CONNECTED) ? "SANG_STATUS_LINE_CONNECTED":\
+(abs((int)status) == SANG_STATUS_PROTOCOL_DISCONNECTED) ? "SANG_STATUS_PROTOCOL_DISCONNECTED":\
+(abs((int)status) == SANG_STATUS_PROTOCOL_CONNECTED) ? "SANG_STATUS_PROTOCOL_CONNECTED":\
+(abs((int)status) == SANG_STATUS_GENERAL_ERROR) ? "SANG_STATUS_GENERAL_ERROR":\
+(abs((int)status) == SANG_STATUS_DEVICE_BUSY) ? "SANG_STATUS_DEVICE_BUSY":\
+(abs((int)status) == SANG_STATUS_INVALID_DEVICE) ? "SANG_STATUS_INVALID_DEVICE":\
+(abs((int)status) == SANG_STATUS_IO_ERROR) ? "SANG_STATUS_IO_ERROR":\
+(abs((int)status) == SANG_STATUS_UNSUPPORTED_FUNCTION) ? "SANG_STATUS_UNSUPPORTED_FUNCTION":\
+(abs((int)status) == SANG_STATUS_UNSUPPORTED_PROTOCOL) ? "SANG_STATUS_UNSUPPORTED_PROTOCOL":\
+(abs((int)status) == SANG_STATUS_DEVICE_ALREADY_EXIST) ? "SANG_STATUS_DEVICE_ALREADY_EXIST":\
+(abs((int)status) == SANG_STATUS_DEV_INIT_INCOMPLETE) ? "SANG_STATUS_DEV_INIT_INCOMPLETE":\
+(abs((int)status) == SANG_STATUS_API_EVENT_AVAILABLE) ? "SANG_STATUS_API_EVENT_AVAILABLE":\
+(abs((int)status) == SANG_STATUS_REGISTRY_ERROR) ? "SANG_STATUS_REGISTRY_ERROR":\
+(abs((int)status) == SANG_STATUS_CAN_NOT_STOP_DEVICE_WHEN_ALREADY_STOPPED) ? "SANG_STATUS_CAN_NOT_STOP_DEVICE_WHEN_ALREADY_STOPPED":\
+(abs((int)status) == SANG_STATUS_CAN_NOT_RUN_TWO_PORT_CMDS_AT_THE_SAME_TIME) ? "SANG_STATUS_CAN_NOT_RUN_TWO_PORT_CMDS_AT_THE_SAME_TIME":\
+(abs((int)status) == SANG_STATUS_ASSOCIATED_IRP_SYSTEM_BUFFER_NULL_ERROR) ? "SANG_STATUS_ASSOCIATED_IRP_SYSTEM_BUFFER_NULL_ERROR":\
+(abs((int)status) == SANG_STATUS_STRUCTURE_SIZE_MISMATCH_ERROR) ? "SANG_STATUS_STRUCTURE_SIZE_MISMATCH_ERROR":\
+(abs((int)status) == SANG_STATUS_INVALID_IRQL) ? "SANG_STATUS_INVALID_IRQL":\
+(abs((int)status) == SANG_STATUS_NO_DATA_AVAILABLE) ? "SANG_STATUS_NO_DATA_AVAILABLE":\
+(abs((int)status) == SANG_STATUS_IO_PENDING) ? "SANG_STATUS_IO_PENDING":\
+(abs((int)status) == SANG_STATUS_APIPOLL_TIMEOUT) ? "SANG_STATUS_APIPOLL_TIMEOUT":\
+(abs((int)status) == SANG_STATUS_NO_FREE_BUFFERS) ? "SANG_STATUS_NO_FREE_BUFFERS":\
+(abs((int)status) == SANG_STATUS_OPTION_NOT_SUPPORTED) ? "SANG_STATUS_OPTION_NOT_SUPPORTED":\
 "Status Unknown"
 
 #define SANG_SUCCESS(status)	(status == SANG_STATUS_SUCCESS)
@@ -580,14 +586,14 @@ typedef enum SANG_STATUS
 # define EPROTONOSUPPORT	SANG_STATUS_UNSUPPORTED_PROTOCOL
 # define ENOMEM				SANG_STATUS_FAILED_ALLOCATE_MEMORY
 # define EEXIST				SANG_STATUS_DEVICE_ALREADY_EXIST
-# define ENOBUFS			SANG_STATUS_NO_FREE_BUFFERS /* no free tx buffers */
+# define ENOBUFS			SANG_STATUS_NO_FREE_BUFFERS /* no free tx or rx buffers */
 # define EOPNOTSUPP			SANG_STATUS_OPTION_NOT_SUPPORTED
 # define ENXIO				EFAULT
 # define ENETDOWN			SANG_STATUS_LINE_DISCONNECTED
 # define EAGAIN				SANG_STATUS_DEVICE_BUSY
 # define EFBIG				SANG_STATUS_TX_DATA_TOO_LONG
+# define EAFNOSUPPORT		SANG_STATUS_UNSUPPORTED_FUNCTION
 #endif
 #endif /* __WINDOWS */
 
-
-#endif
+#endif/* __WANPIPE_API_HDR__ */

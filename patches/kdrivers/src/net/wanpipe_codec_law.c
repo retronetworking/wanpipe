@@ -246,7 +246,7 @@ static int wanpipe_codec_convert_law2s(u8 *data,
 		}
 		if (usr) {
 #if defined(__WINDOWS__)
-			DEBUG_EVENT("%s(): Error: copy_to_user() is NOT supported!!\n");
+			DEBUG_ERROR("%s(): Error: copy_to_user() is NOT supported!!\n");
 #else
 			int err;
 			err=copy_to_user(&buf[i],&codec[ data[i] ],sizeof(u16));
@@ -288,7 +288,7 @@ static int wanpipe_codec_convert_s2law(u16 *data,
 	for (i=0;i<len;i++){
 		if (usr) {
 #if defined(__WINDOWS__)
-			DEBUG_EVENT("%s(): Error: copy_from_user() is NOT supported!!\n");
+			DEBUG_ERROR("%s(): Error: copy_from_user() is NOT supported!!\n");
 #else
 			int err;
 			err=copy_from_user(&kdata,&data[i],sizeof(u16));

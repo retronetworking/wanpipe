@@ -97,6 +97,9 @@
 #define MAX_TRACE_QUEUE		100
 
 #define MAX_RX_QUEUE 100
+
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
 /******Data Structures*****************************************************/
 
 /* This structure is placed in the private data area of the device structure.
@@ -293,7 +296,7 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 			if (conf->comm_port != card->next->u.c.comm_port){
 				card->u.c.comm_port = conf->comm_port;
 			}else{
-				DEBUG_EVENT("%s: ERROR - %s port used!\n",
+				DEBUG_ERROR("%s: ERROR - %s port used!\n",
         		        	card->wandev.name, PORT(conf->comm_port));
 				return -EINVAL;
 			}
@@ -301,7 +304,7 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 			card->u.c.comm_port = conf->comm_port;
 		}
 	}else{
-		DEBUG_EVENT("%s: ERROR - Invalid Port Selected!\n",
+		DEBUG_ERROR("%s: ERROR - Invalid Port Selected!\n",
                 			card->wandev.name);
 		return -EINVAL;
 	}
@@ -445,7 +448,7 @@ int wp_mprot_init (sdla_t* card, wandev_conf_t* conf)
 
 	if ((card->u.c.comm_port == WANOPT_SEC && conf->electrical_interface == WANOPT_V35)&&
 	    card->type != SDLA_S514){
-		DEBUG_EVENT("%s: ERROR - V35 Interface not supported on S508 %s port \n",
+		DEBUG_ERROR("%s: ERROR - V35 Interface not supported on S508 %s port \n",
 			card->devname, PORT(card->u.c.comm_port));
 		return -EIO;
 	}
@@ -650,7 +653,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	}
 
 	if(++card->wandev.new_if_cnt > 1) {
-		DEBUG_EVENT("%s: Error: Interface already configured!\n",
+		DEBUG_ERROR("%s: Error: Interface already configured!\n",
 				card->devname);
 		--card->wandev.new_if_cnt;
 		return -EEXIST;
@@ -894,7 +897,14 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	wan_netif_set_priv(dev, chan);
 	chan->dev=dev;
 #if defined(__LINUX__)
-	dev->init = &if_init;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
 #else
 	chan->common.iface.open      = &if_open;
         chan->common.iface.close     = &if_close;
@@ -1019,7 +1029,8 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 	 * We must manually remove the ioctl call binding
 	 * since in some cases (mrouted) daemons continue
 	 * to call ioctl() after the device has gone down */
-	dev->do_ioctl = NULL;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,NULL);
+
 #endif
 
 	if (chan->common.prot_ptr){
@@ -1083,12 +1094,13 @@ static int if_init (netdevice_t* dev)
          */
 
 	/* Initialize device driver entry points */
-	dev->open		= &if_open;
-	dev->stop		= &if_close;
-	dev->hard_start_xmit	= &if_send;
-	dev->get_stats		= &if_stats;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-	dev->tx_timeout		= &if_tx_timeout;
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 	dev->watchdog_timeo	= TX_TIMEOUT;
 #endif
 
@@ -1103,7 +1115,7 @@ static int if_init (netdevice_t* dev)
 	/* Overwrite the sppp ioctl, because we need to run
 	 * our debugging commands via ioctl(). However
 	 * call syncppp ioctl with in it :) */
-	dev->do_ioctl 		= &if_do_ioctl;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
 
 	/* Initialize hardware parameters */
 	dev->irq	= wandev->irq;
@@ -1983,7 +1995,7 @@ static void rx_intr (sdla_t* card)
 	skb = wan_skb_alloc(len+2);
 	if (skb == NULL) {
 		if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT("%s: Error: No memory available!\n",
+			DEBUG_ERROR("%s: Error: No memory available!\n",
 						card->devname);
 		}
 		++card->wandev.stats.rx_dropped;
@@ -2029,7 +2041,7 @@ static void rx_intr (sdla_t* card)
 			if (wan_skb_queue_len(&chan->rx_queue) > MAX_RX_QUEUE){
 				wan_skb_free(skb);
 				if (WAN_NET_RATELIMIT()){
-					DEBUG_EVENT("%s: Error Rx queue full, dropping pkt!\n",
+					DEBUG_ERROR("%s: Error Rx queue full, dropping pkt!\n",
 							card->devname);
 				}
 				++card->wandev.stats.rx_dropped;
@@ -2052,7 +2064,7 @@ static void rx_intr (sdla_t* card)
 		if (wan_skb_queue_len(&chan->rx_queue) > MAX_RX_QUEUE){
 			wan_skb_free(skb);
 			if (WAN_NET_RATELIMIT()){
-				DEBUG_EVENT("%s: Error:(STACK) Rx queue full, dropping pkt!\n",
+				DEBUG_ERROR("%s: Error:(STACK) Rx queue full, dropping pkt!\n",
 						card->devname);
 			}
 			++card->wandev.stats.rx_dropped;
@@ -2067,7 +2079,7 @@ static void rx_intr (sdla_t* card)
 		if (wan_skb_queue_len(&chan->rx_queue) > MAX_RX_QUEUE){
 			wan_skb_free(skb);
 			if (WAN_NET_RATELIMIT()){
-				DEBUG_EVENT("%s: Error Rx queue full, dropping pkt!\n",
+				DEBUG_ERROR("%s: Error Rx queue full, dropping pkt!\n",
 						card->devname);
 			}
 			++card->wandev.stats.rx_dropped;
@@ -2183,7 +2195,7 @@ static int set_asy_config(sdla_t* card)
 		chdlc_error (card, err, mb);
 
 	if (err == 0x4F){
-		DEBUG_EVENT("%s: Error: ASYNC Not Supported by Firmware!\n",
+		DEBUG_ERROR("%s: Error: ASYNC Not Supported by Firmware!\n",
 				card->devname);
 	}
 	return err;
@@ -2591,7 +2603,7 @@ if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 			 * thus we can release the irq */
 
 			if (wan_atomic_read(&chan->udp_pkt_len) > sizeof(wan_udp_pkt_t)){
-				DEBUG_EVENT("%s: Error: Pipemon buf too bit on the way up! %i\n",
+				DEBUG_ERROR("%s: Error: Pipemon buf too bit on the way up! %i\n",
 						card->devname,wan_atomic_read(&chan->udp_pkt_len));
 				wan_atomic_set(&chan->udp_pkt_len,0);
 				return -EINVAL;
@@ -2715,7 +2727,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 				wan_set_bit (0,&trace_info->tracing_enabled);
 
 			}else{
-				DEBUG_EVENT("%s: Error: Trace running!\n",
+				DEBUG_ERROR("%s: Error: Trace running!\n",
 						card->devname);
 				udp_hdr->wan_udphdr_return_code = 2;
 			}
@@ -2749,7 +2761,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			if(wan_test_bit(0,&trace_info->tracing_enabled)){
 				trace_info->trace_timeout = SYSTEM_TICKS;
 			}else{
-				DEBUG_EVENT("%s: Error trace not enabled\n",
+				DEBUG_ERROR("%s: Error trace not enabled\n",
 						card->devname);
 				/* set return code */
 				udp_hdr->wan_udphdr_return_code = 1;
@@ -3626,7 +3638,7 @@ static void wp_bh (void *data, int pending)
 				memset(rx_hdr,0,sizeof(api_rx_hdr_t));
 			}else{
 				if (WAN_NET_RATELIMIT()){
-				DEBUG_EVENT("%s: Error Rx pkt headroom %d < %d\n",
+				DEBUG_ERROR("%s: Error Rx pkt headroom %d < %d\n",
 						chan->if_name,
 						wan_skb_headroom(skb),
 						(int)sizeof(api_rx_hdr_t));

@@ -110,6 +110,7 @@ static wan_cmd_api_t	api_cmd;
 static char		ifname_def[MAX_IFNAME_LEN];
 #if defined(__WINDOWS__)
 static wan_aftup_t	global_wan_aftup;
+static char exit_on_complete = 0;
 #else
 static struct ifreq	req;
 #endif
@@ -185,7 +186,9 @@ aft_core_info_t aft_core_table[] = {
 	{ AFT_4SERIAL_V35X21_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
 	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ AFT_A600_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
-	  "B600_0025_V", "AB00_0025_V*.BIN", AFT_CORE_X250_SIZE },
+	  "B600_0025_V", "B600_0025_V*.BIN", AFT_CORE_X250_SIZE },
+	{ AFT_B601_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
+	  "B601_0025_V", "B601_0025_V*.BIN", AFT_CORE_X250_SIZE },
 #if 0
 	{ AFT_TE1_ATM_CORE_ID,	
 	  NULL, NULL, 0x00,
@@ -489,6 +492,9 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 	          strncmp(type,"AFT-B600",8) == 0){
 		aft->cpld.adptr_type = AFT_ADPTR_A600;
 		aft->cpld.iface	= &aftup_a600_flash_iface;
+	}else if (strncmp(type,"AFT-B601",8) == 0) {
+		aft->cpld.adptr_type = AFT_ADPTR_B601;
+		aft->cpld.iface	= &aftup_a600_flash_iface;
 	}else if (strncmp(type,"U100",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
 		aft->cpld.adptr_type = U100_ADPTR;
@@ -608,7 +614,8 @@ wan_aftup_getfile_again:
 			return 1;
 		}
 	}
-	
+	aft->flash_new = ver_no;
+
 verify_firmware_file:
 	f = fopen(aft->cpld.core_info->firmware, "rb");
 	if (f == NULL){
@@ -654,7 +661,21 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 					&flash_id);
 	}
 
-	
+	if (aft->cpld.adptr_type == AFT_ADPTR_A600 ||
+		aft->cpld.adptr_type == AFT_ADPTR_B601) {
+		
+		if(aft->flash_rev < 3) {
+			if (aft->flash_new > 2) {
+				/* B600's and B601's with firmware revision less 2 or lower are physically different from 
+         *  the new cards (missing resistor), so it is not possible to update from firmware 2 to 3
+         *  on these cards */
+
+        printf("%s: Error: Firmware update not possible on this A600 (max:2)\n", aft->if_name);
+				return -EINVAL;
+			}
+		}
+	}
+
 	if (err){
 		return -EINVAL;
 	}
@@ -662,7 +683,7 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 					aft->if_name,
 					aft->flash_rev,
 					flash_id);
-
+	
 	err = update_flash(
 			&aft->cpld,
 			USER_SECTOR_FLASH,
@@ -694,22 +715,21 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 #else
 	printf("\n");
 #endif
+	
 	if (aft->cpld.iface){
 		printf("%s: Reloading Sangoma flash\t\tDONE\n", aft->if_name);
 		aft->cpld.iface->reload(&aft->cpld, USER_SECTOR_FLASH);
 	}
 
-	if (aft->board_id == AFT_A600_SUBSYS_VENDOR) {
-		usleep(3000000);
-	} else {
-		usleep(1000000);
-	}
-
-	/* Read flash revision */
+	wp_usleep(1000000);
+	
+	/* Restore PCI configuration space */
 	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_SET_PCI_BIOS, aft->if_name)){
 		printf("%s: Failed to restore PCI registers!\n",
 					aft->if_name);
 		return -EINVAL;
+	}else{
+		printf("%s: Restore PCI registers\t\t\tDONE\n", aft->if_name);
 	}
 
 	/* Release board internal reset (AFT-T1/E1/T3/E3 */
@@ -821,7 +841,7 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 	if (MakeConnection(aft->if_name)){
 		printf("%s: Failed to create socket to the driver!\n",
 			aft->if_name);
-		return 0;
+		return 1;
 	}
 	
 	/* Read core revision */
@@ -948,6 +968,7 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 		break;
 	case AFT_A600_SUBSYS_VENDOR:
+	case AFT_B601_SUBSYS_VENDOR:
 		aft->cpld.iface	= &aftup_a600_flash_iface;
 		break;
 	default:
@@ -994,6 +1015,7 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 		aft->cpld.flash	= &aft_shark_flash;
 		break;
 	case AFT_A600_SUBSYS_VENDOR:
+	case AFT_B601_SUBSYS_VENDOR:
 		aft->cpld.chip_id = AFT_CHIP_X250;
 		aft->cpld.flash = &aft_a600_flash;
 		break;
@@ -1067,6 +1089,7 @@ static int wan_pcie_ctrl(struct wan_aftup_head_t *head)
 		case A200_REMORA_SHARK_SUBSYS_VENDOR:
 		case A400_REMORA_SHARK_SUBSYS_VENDOR:
 		case AFT_A600_SUBSYS_VENDOR:
+		case AFT_B601_SUBSYS_VENDOR:
 			break;
 		case A300_UTE3_SHARK_SUBSYS_VENDOR:
 			break;
@@ -1476,12 +1499,14 @@ int main(int argc, char* argv[])
 			}
 		}else if (!strcmp(argv[i],"-f")){
 			if(argc > i+1){
-				_snprintf(aft_firmware_force , MAX_IFNAME_LEN, "%s", argv[i+1]);
-				printf("Using Firmware file: %s\n", aft_firmware_force);
+				_snprintf(aft_firmware_force , sizeof(aft_firmware_force), "%s", argv[i+1]);
+				printf("Using Firmware file: '%s'\n", aft_firmware_force);
 			}else{
 				printf("Error: No Firmware file was provided!!\n");
 				return 2;
 			}
+		}else if (!strcmp(argv[i],"-exit_on_complete")){
+			exit_on_complete = 1;
 #endif
 		}else if (!strcmp(argv[i],"-usbfxo")){
 			printf("usbfxo....\n");
@@ -1497,8 +1522,13 @@ int main(int argc, char* argv[])
 	}else{
 		printf("\nFlash Memory update was successful\n");
 	}
-	printf("\nPress any key to exit Flash Memory update.(returning: %d)\n", err);
-	_getch();
+	if (!exit_on_complete) {
+		/* When fw update is started from Device Manager, user needs
+		 * to see the result and without stopping here the command window
+		 * closes automatically. */
+		printf("\nPress any key to exit Flash Memory update.(returning: %d)\n", err);
+		_getch();
+	}
 #endif
 	return err;
 }
@@ -1611,7 +1641,7 @@ int exec_bridge_read_cmd(void *arg, unsigned int off, unsigned short len, unsign
 	wan_aftup_t	*aft = (wan_aftup_t*)arg;
 	int		err;
 #if defined(__WINDOWS__)
-	printf("%s(): Error: function not implemented!\n");
+	printf("%s(): Error: function not implemented!\n", __FUNCTION__);
 	err = 1;
 #else
 	struct ifreq	ifr;
@@ -1651,7 +1681,7 @@ int exec_bridge_write_cmd(void *arg, unsigned int off, unsigned short len, unsig
 	wan_aftup_t	*aft = (wan_aftup_t*)arg;
 	int		err;
 #if defined(__WINDOWS__)
-	printf("%s(): Error: function not implemented!\n");
+	printf("%s(): Error: function not implemented!\n", __FUNCTION__);
 	err = 1;
 #else
 	struct ifreq	ifr;
@@ -1690,7 +1720,7 @@ int exec_usb_data_write(void *arg, int off, char *data, unsigned short len)
 	wan_aftup_t	*aft = (wan_aftup_t*)arg;
 	int		err, cnt;
 #if defined(__WINDOWS__)
-	printf("%s(): Error: function not implemented!\n");
+	printf("%s(): Error: function not implemented!\n", __FUNCTION__);
 	err = 1;
 #else
 	struct ifreq	ifr;
@@ -1702,7 +1732,7 @@ int exec_usb_data_write(void *arg, int off, char *data, unsigned short len)
 	ifr.ifr_data = (char*)&api_cmd;
 
 	cnt = 0;
-write_data_again:
+//write_data_again:
 	api_cmd.cmd	= SIOC_WAN_USB_WRITE_REG;
 	api_cmd.ret	= 3;
 	api_cmd.bar	= 0;
@@ -1718,7 +1748,7 @@ write_data_again:
 		return -EINVAL;
 	}
 	if (api_cmd.ret != len){
-		usleep(1000);
+		wp_usleep(1000);
 		printf("Failed (Write %d:%d bytes)\n",  api_cmd.ret, len);
 	//	if (++cnt < 10) goto write_data_again;
 		return -EINVAL;
@@ -1742,7 +1772,7 @@ write_data_poll_again:
 
 	if (api_cmd.ret == -EBUSY){
 		api_cmd.ret = 0;
-		usleep(1000);
+		wp_usleep(1000);
 		if (++cnt < 100) goto write_data_poll_again;
 		printf("Failed (timeout:tx:%s)\n", ifr.ifr_name);
 		return -EINVAL;
@@ -1756,7 +1786,7 @@ int exec_usb_data_read(void *arg, unsigned int *data, unsigned short len)
 	wan_aftup_t	*aft = (wan_aftup_t*)arg;
 	int		err, cnt = 0;
 #if defined(__WINDOWS__)
-	printf("%s(): Error: function not implemented!\n");
+	printf("%s(): Error: function not implemented!\n", __FUNCTION__);
 	return 1;
 #else
 	struct ifreq	ifr;
@@ -1783,7 +1813,7 @@ try_read_again:
 	}
 
 	if (!api_cmd.ret){
-		usleep(1000);
+		wp_usleep(1000);
 		if (++cnt < 1000) goto try_read_again;
 		printf("Failed (timeout:rx:%s)\n", ifr.ifr_name);
 		return -EINVAL;

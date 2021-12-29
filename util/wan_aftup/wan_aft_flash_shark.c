@@ -30,7 +30,7 @@
 
 # include "wanpipe_includes.h"
 # include "wanpipe_common.h"
-# include "wanpipe_time.h"	/* usleep() */
+# include "wanpipe_time.h"	/* wp_usleep() */
 # include "sdlasfm.h"
 # include "sdlapci.h"
 #else
@@ -299,7 +299,7 @@ aft_erase_flash_shark(wan_aft_cpld_t *cpld, int stype, int verify)
 
 		do{
 //MF			for(i=0;i<100000;i++);
-			usleep(1);
+			wp_usleep(1);
 			data = aft_read_flash_byte_shark(
 					cpld, stype,
 					MEMORY_TYPE_FLASH,

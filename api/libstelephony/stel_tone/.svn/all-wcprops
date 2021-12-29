@@ -1,89 +1,83 @@
 K 25
 svn:wc:ra_dav:version-url
 V 43
-/svn/stelephony/!svn/ver/43/trunk/stel_tone
+/svn/stelephony/!svn/ver/59/trunk/stel_tone
 END
-libteletone_detect.c
+wp_fsk.h
 K 25
 svn:wc:ra_dav:version-url
-V 63
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/libteletone_detect.c
+V 52
+/svn/stelephony/!svn/ver/56/trunk/stel_tone/wp_fsk.h
 END
-libteletone_generate.c
+wp_libteletone.h
 K 25
 svn:wc:ra_dav:version-url
-V 65
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/libteletone_generate.c
+V 60
+/svn/stelephony/!svn/ver/56/trunk/stel_tone/wp_libteletone.h
 END
-uart.h
+wp_uart.c
 K 25
 svn:wc:ra_dav:version-url
-V 49
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/uart.h
+V 53
+/svn/stelephony/!svn/ver/56/trunk/stel_tone/wp_uart.c
 END
 sources
 K 25
 svn:wc:ra_dav:version-url
 V 51
-/svn/stelephony/!svn/ver/43/trunk/stel_tone/sources
+/svn/stelephony/!svn/ver/56/trunk/stel_tone/sources
 END
-fsk.c
+wp_libteletone_detect.c
 K 25
 svn:wc:ra_dav:version-url
-V 48
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/fsk.c
+V 67
+/svn/stelephony/!svn/ver/57/trunk/stel_tone/wp_libteletone_detect.c
 END
-libteletone_detect.h
+wp_libteletone_generate.c
 K 25
 svn:wc:ra_dav:version-url
-V 63
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/libteletone_detect.h
+V 69
+/svn/stelephony/!svn/ver/56/trunk/stel_tone/wp_libteletone_generate.c
 END
-g711.h
+wp_uart.h
 K 25
 svn:wc:ra_dav:version-url
-V 49
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/g711.h
+V 53
+/svn/stelephony/!svn/ver/56/trunk/stel_tone/wp_uart.h
 END
-Makefile.Windows
+wp_libteletone_detect.h
 K 25
 svn:wc:ra_dav:version-url
-V 60
-/svn/stelephony/!svn/ver/43/trunk/stel_tone/Makefile.Windows
+V 67
+/svn/stelephony/!svn/ver/57/trunk/stel_tone/wp_libteletone_detect.h
 END
-libteletone_generate.h
+wp_fsk.c
 K 25
 svn:wc:ra_dav:version-url
-V 66
-/svn/stelephony/!svn/ver/43/trunk/stel_tone/libteletone_generate.h
+V 52
+/svn/stelephony/!svn/ver/56/trunk/stel_tone/wp_fsk.c
 END
-fsk.h
+wp_g711.h
 K 25
 svn:wc:ra_dav:version-url
-V 48
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/fsk.h
-END
-libteletone.h
-K 25
-svn:wc:ra_dav:version-url
-V 57
-/svn/stelephony/!svn/ver/12/trunk/stel_tone/libteletone.h
-END
-uart.c
-K 25
-svn:wc:ra_dav:version-url
-V 49
-/svn/stelephony/!svn/ver/6/trunk/stel_tone/uart.c
+V 53
+/svn/stelephony/!svn/ver/56/trunk/stel_tone/wp_g711.h
 END
 libstelephony_tone.h
 K 25
 svn:wc:ra_dav:version-url
 V 64
-/svn/stelephony/!svn/ver/43/trunk/stel_tone/libstelephony_tone.h
+/svn/stelephony/!svn/ver/59/trunk/stel_tone/libstelephony_tone.h
+END
+wp_libteletone_generate.h
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/stelephony/!svn/ver/57/trunk/stel_tone/wp_libteletone_generate.h
 END
 stel_tone.c
 K 25
 svn:wc:ra_dav:version-url
 V 55
-/svn/stelephony/!svn/ver/43/trunk/stel_tone/stel_tone.c
+/svn/stelephony/!svn/ver/57/trunk/stel_tone/stel_tone.c
 END

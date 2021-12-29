@@ -782,7 +782,7 @@ static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			if (mb->wan_pos_data_len > 0){
 
 				if (mb->wan_pos_data_len > 1030){
-					DEBUG_EVENT("MAJORE ERROR !! DATA LEN > 1030\n");
+					DEBUG_ERROR("MAJORE ERROR !! DATA LEN > 1030\n");
 					err=-EFAULT;
 					break;
 				}
@@ -821,7 +821,7 @@ static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			if (mb->wan_pos_data_len>0) {
 		
 				if (mb->wan_pos_data_len > 1030){
-					DEBUG_EVENT("MAJORE ERROR !! DATA LEN > 1030\n");
+					DEBUG_ERROR("MAJORE ERROR !! DATA LEN > 1030\n");
 					err=-EFAULT;
 					break;
 				}

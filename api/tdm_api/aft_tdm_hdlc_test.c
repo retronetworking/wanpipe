@@ -95,7 +95,7 @@ void print_packet(unsigned char *buf, int len)
 
 void sig_end(int sigid)
 {
-	printf("%d: Got Signal %i\n",getpid(),sigid);
+	//printf("%d: Got Signal %i\n",getpid(),sigid);
 	end=1;
 }        
 
@@ -182,7 +182,7 @@ void process_con_rx(void)
 	unsigned char Rx_data[15000];
 	int error_bit=0, error_crc=0, error_abort=0, error_frm=0;
 	struct timeval tv;
-	int frame=0;
+	int frame=0,print_status=0;
 	int max_fd=0, packets=0;
 	timeslot_t *slot=NULL;
 	wanpipe_tdm_api_t tdm_api;
@@ -300,6 +300,7 @@ void process_con_rx(void)
 					continue;
 #endif					
 					frame++;
+					print_status++;
 					slot->frames++;	
 					
 					wanpipe_hdlc_decode(slot->hdlc_eng,rx_frame,len);
@@ -320,7 +321,8 @@ void process_con_rx(void)
 						slot->hdlc_eng->decoder.stats.crc,
 						slot->hdlc_eng->decoder.stats.abort,
 						slot->hdlc_eng->decoder.stats.frame_overflow);
-						sangoma_get_full_cfg(slot->sock, &tdm_api);
+						//sangoma_get_full_cfg(slot->sock, &tdm_api);
+						wanpipe_hdlc_dump_ring(slot->hdlc_eng);
 						}
 					}
 
@@ -332,7 +334,6 @@ void process_con_rx(void)
 						slot->hdlc_eng->decoder.stats.crc,
 						slot->hdlc_eng->decoder.stats.abort,
 						slot->hdlc_eng->decoder.stats.frame_overflow);
-						sangoma_get_full_cfg(slot->sock, &tdm_api);
 					}
 #endif
 #if 0
@@ -345,14 +346,15 @@ void process_con_rx(void)
 #endif
 
 				} else {
-					//printf("\n%s: Error receiving data\n",slot->if_name);
+					printf("\n%s: Error receiving data\n",slot->if_name);
 				}
 
 			 } /* If rx */
 			 
 		    } /* for all slots */
 		
-		    if (frame%500==0){	 
+		    if (print_status>100*slots){	 
+				print_status=0;
 		    putchar('\r');
 		    printf("Slots=%04i frame=%04i packets=%04i errors=%04i (crc=%04i abort=%04i frm=%04i)",
 		    	slots,
@@ -385,7 +387,7 @@ void process_con_rx(void)
 		}
 	}
 	
-	printf("\nRx Unloading HDLC\n");
+	//printf("\nRx Unloading HDLC\n");
 	
 } 
 
@@ -400,6 +402,7 @@ void process_con_tx(timeslot_t *slot)
 	wanpipe_hdlc_engine_t *hdlc_eng;
 	unsigned char next_idle;
 	wanpipe_tdm_api_t tdm_api;
+	int txdata=0;
 
 	memset(&tdm_api,0,sizeof(tdm_api));
 	
@@ -431,7 +434,7 @@ void process_con_tx(timeslot_t *slot)
 	 */
 
 	memset(&Tx_data[0],0,MAX_TX_DATA + sizeof(wp_api_hdr_t));
-	slot->data=1;
+	slot->data=0x0;
 	for (i=0;i<Tx_hdlc_len;i++){
 		if (slot->data){
 			Tx_data[i+sizeof(wp_api_hdr_t)] = slot->data;
@@ -558,6 +561,16 @@ void process_con_tx(timeslot_t *slot)
 						mysrand(myrand(255));
 					}
 #endif					
+
+
+#if 0
+					if (Tx_count%100 == 0) {
+						txdata = (txdata + 1) % 2;
+						for (i=0;i<Tx_hdlc_len;i++){
+							Tx_data[i+sizeof(wp_api_hdr_t)] = txdata;;
+						}
+	    			}
+#endif
 					Tx_count++;
 					tx_ok=1;
 				}else{
@@ -595,7 +608,7 @@ void process_con_tx(timeslot_t *slot)
 			break;
 		}
 	}
-	printf("\nTx Unloading HDLC\n");
+	//printf("\nTx Unloading HDLC\n");
 	wanpipe_unreg_hdlc_engine(hdlc_eng);
 } 
 

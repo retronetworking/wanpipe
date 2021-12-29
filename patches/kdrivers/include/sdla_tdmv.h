@@ -17,9 +17,9 @@
 # define __SDLA_TDMV_H
 
 #ifdef __SDLA_TDMV_SRC
-# define EXTERN
+# define WP_EXTERN
 #else
-# define EXTERN extern
+# define WP_EXTERN extern
 #endif
 
 
@@ -102,26 +102,26 @@ typedef struct wan_tdmv_iface_
 /******************************************************************************
 **			  FUNCTION PROTOTYPES
 ******************************************************************************/
-EXTERN int wp_tdmv_te1_init(wan_tdmv_iface_t *iface);
-EXTERN int wp_tdmv_remora_init(wan_tdmv_iface_t *iface);
-EXTERN int wp_tdmv_bri_init(wan_tdmv_iface_t *iface);
+WP_EXTERN int wp_tdmv_te1_init(wan_tdmv_iface_t *iface);
+WP_EXTERN int wp_tdmv_remora_init(wan_tdmv_iface_t *iface);
+WP_EXTERN int wp_tdmv_bri_init(wan_tdmv_iface_t *iface);
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
-EXTERN int wp_usb_tdmv_remora_init(wan_tdmv_iface_t *iface);
+WP_EXTERN int wp_usb_tdmv_remora_init(wan_tdmv_iface_t *iface);
 #endif
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
-EXTERN int wp_tdmv_echo_check(wan_tdmv_t *wan_tdmv, void *current_ztchan, int channo);
+WP_EXTERN int wp_tdmv_echo_check(wan_tdmv_t *wan_tdmv, void *current_ztchan, int channo);
 #endif
 
 
-EXTERN int wanpipe_codec_convert_2s(u8 *data, int len, netskb_t *nskb, 
+WP_EXTERN int wanpipe_codec_convert_2s(u8 *data, int len, netskb_t *nskb,
                                     u16 *power_ptr, int is_alaw);
 
-EXTERN int wanpipe_codec_convert_s2ulaw(netskb_t *skb, netskb_t *nskb, int is_alaw);
+WP_EXTERN int wanpipe_codec_convert_s2ulaw(netskb_t *skb, netskb_t *nskb, int is_alaw);
 
 
 #endif /* WAN_KERNEL */
 
-#undef EXTERN
+#undef WP_EXTERN
 
 #endif	/* __SDLA_VOIP_H */

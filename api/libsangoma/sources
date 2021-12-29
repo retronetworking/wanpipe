@@ -18,13 +18,15 @@ INCLUDES=$(SDK_INC_PATH);\
 $(SANG_WP_DEVEL)\wanpipe_common\include;\
 $(SANG_WP_DEVEL)\wanpipe_common\include\aft_core;\
 $(SANG_WP_DEVEL)\wanpipe_windows\include;\
-$(SANG_WP_DEVEL)\libsangoma
+$(SANG_WP_DEVEL)\libsangoma;\
+$(SANG_WP_DEVEL)\wanpipe_common\wantools\wanec_apilib
 
 
 TARGETLIBS=$(SDK_LIB_PATH)\kernel32.lib \
 $(SDK_LIB_PATH)\user32.lib \
 $(SDK_LIB_PATH)\SetupApi.lib \
-$(SDK_LIB_PATH)\Advapi32.lib
+$(SDK_LIB_PATH)\Advapi32.lib \
+$(SANG_WP_DEVEL)\wanpipe_common\wantools\wanec_apilib\$(O)\waneclib.lib
 
-SOURCES=libsangoma.c libsangoma.rc
+SOURCES=libsangoma.c libsangoma.rc libsangoma_hwec.c
 

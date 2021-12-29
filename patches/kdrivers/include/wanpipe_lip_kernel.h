@@ -32,8 +32,7 @@ typedef struct wplip_reg
 	int  (*wplip_unbind_link)     	(void*, netdevice_t *);
 	
 #if defined(__WINDOWS__)	
-	int  (*wplip_if_reg)		(void* lip_link_ptr, char *dev_name, 
-					wanif_conf_t *conf, void** new_lip_dev);
+	int  (*wplip_if_reg)		(void *lip_link_ptr, netdevice_t *dev, wanif_conf_t *conf);
 	int  (*wplip_if_unreg)   	(void *);
 #else
 	int  (*wplip_if_reg)     	(void*, char*, wanif_conf_t *);

@@ -1,5 +1,5 @@
 
-
+/* wanec_api.h - declarations for wanec_api */
 
 #if !defined(__WANEC_API_H__)
 # define __WANEC_API_H__
@@ -8,9 +8,15 @@
 # ifdef __cplusplus
    extern "C" {	/* for C++ users */
 # endif
-# define _SAPI_CALL	__cdecl
+
+# ifdef _WANEC_API_EXPORTS_
+#  define _WANEC_API_CALL __declspec(dllexport) __cdecl
+# else
+#  define _WANEC_API_CALL __declspec(dllimport) __cdecl
+# endif
+
 #else
-# define _SAPI_CALL
+# define _WANEC_API_CALL
 #endif
 
 /* Echo Cancellatio OP MOde defines */
@@ -87,34 +93,40 @@ typedef struct {
 	int			data_mode;
 } wanec_api_monitor_t;
 
-extern int _SAPI_CALL wanec_api_init(void);
-extern int _SAPI_CALL wanec_api_param_name(char *key);
-extern int _SAPI_CALL wanec_api_param_value(char *value);
-extern int _SAPI_CALL wanec_api_config(char*,int,wanec_api_config_t*);
-extern int _SAPI_CALL wanec_api_release(char*,int,wanec_api_release_t*);
-extern int _SAPI_CALL wanec_api_mode(char*,int,wanec_api_mode_t*);
-extern int _SAPI_CALL wanec_api_bypass(char*,int,wanec_api_bypass_t*);
-extern int _SAPI_CALL wanec_api_opmode(char*,int,wanec_api_opmode_t*);
-extern int _SAPI_CALL wanec_api_modify(char*,int,wanec_api_modify_t*);
-extern int _SAPI_CALL wanec_api_mute(char*,int,wanec_api_mute_t*);
-extern int _SAPI_CALL wanec_api_tone(char*,int,wanec_api_tone_t*);
-extern int _SAPI_CALL wanec_api_stats(char*,int,wanec_api_stats_t*);
-extern int _SAPI_CALL wanec_api_hwimage(char*,int,wanec_api_image_t*);
-extern int _SAPI_CALL wanec_api_buffer_load(char*,int,wanec_api_bufferload_t*);
-extern int _SAPI_CALL wanec_api_buffer_unload(char*,int,wanec_api_bufferunload_t*);
-extern int _SAPI_CALL wanec_api_playout(char*,int,wanec_api_playout_t*);
-extern int _SAPI_CALL wanec_api_monitor(char*,int,wanec_api_monitor_t*);
+extern int _WANEC_API_CALL wanec_api_init(void);
+extern int _WANEC_API_CALL wanec_api_param_name(char *key);
+extern int _WANEC_API_CALL wanec_api_param_value(char *value);
+extern int _WANEC_API_CALL wanec_api_config(char*,int,wanec_api_config_t*);
+extern int _WANEC_API_CALL wanec_api_release(char*,int,wanec_api_release_t*);
+extern int _WANEC_API_CALL wanec_api_mode(char*,int,wanec_api_mode_t*);
+extern int _WANEC_API_CALL wanec_api_bypass(char*,int,wanec_api_bypass_t*);
+extern int _WANEC_API_CALL wanec_api_opmode(char*,int,wanec_api_opmode_t*);
+extern int _WANEC_API_CALL wanec_api_modify(char*,int,wanec_api_modify_t*);
+extern int _WANEC_API_CALL wanec_api_mute(char*,int,wanec_api_mute_t*);
+extern int _WANEC_API_CALL wanec_api_tone(char*,int,wanec_api_tone_t*);
+extern int _WANEC_API_CALL wanec_api_stats(char*,int,wanec_api_stats_t*);
+extern int _WANEC_API_CALL wanec_api_hwimage(char*,int,wanec_api_image_t*);
+extern int _WANEC_API_CALL wanec_api_buffer_load(char*,int,wanec_api_bufferload_t*);
+extern int _WANEC_API_CALL wanec_api_buffer_unload(char*,int,wanec_api_bufferunload_t*);
+extern int _WANEC_API_CALL wanec_api_playout(char*,int,wanec_api_playout_t*);
+extern int _WANEC_API_CALL wanec_api_monitor(char*,int,wanec_api_monitor_t*);
 
 #ifdef __WINDOWS__
-#ifdef __cplusplus
+# ifdef __cplusplus
 }	/* for C++ users */
-#endif
+# endif
 #endif
 
 /* Backward compatible */
 #define wanec_api_dtmf_t wanec_api_tone_t
 #define wanec_api_dtmf wanec_api_tone
+
+/* Forward compatible with 'trunk' version */
+#define wanec_api_hwec_t wanec_api_bypass_t
+#define wanec_api_hwec	wanec_api_bypass 
+
 #define WAN_EC_API_CMD_DTMF_ENABLE  WAN_EC_API_CMD_TONE_ENABLE
 #define WAN_EC_API_CMD_DTMF_DISABLE WAN_EC_API_CMD_TONE_DISABLE
+
 
 #endif /* __WANEC_API_H__ */

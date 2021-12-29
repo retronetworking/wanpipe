@@ -32,7 +32,27 @@ void
 wan_get_random_mac_address(
 	OUT unsigned char *mac_address
 	);
+
+extern
+int
+sdla_restore_pci_config_space(
+	IN void *level1_dev_pdx
+    ) ;
+
+extern 
+int wp_get_motherboard_enclosure_serial_number(
+	OUT char *buf, 
+	IN int buf_length
+	);
+
+extern
+int 
+wp_get_netdev_open_handles_count(
+	netdevice_t *sdla_net_dev
+	);
+
 #endif
+
 
 #ifdef __WINDOWS__
 #define wp_os_lock_irq(card,flags)   wan_spin_lock_irq(card,flags)
@@ -89,13 +109,13 @@ int aft_front_end_mismatch_check(sdla_t * card)
 	
 		if (IS_T1_CARD(card)){
 			if (wan_test_bit(AFT_CHIPCFG_TE1_CFG_BIT,&reg)){
-				DEBUG_EVENT("%s: Global Cfg Error: Initial front end cfg: E1\n",
+				DEBUG_ERROR("%s: Global Cfg Error: Initial front end cfg: E1\n",
 					card->devname);
 				return -EINVAL;
 			}
 		}else{
 			if (!wan_test_bit(AFT_CHIPCFG_TE1_CFG_BIT,&reg)){
-				DEBUG_EVENT("%s: Global Cfg Error: Initial front end cfg: T1\n",
+				DEBUG_ERROR("%s: Global Cfg Error: Initial front end cfg: T1\n",
 					card->devname);
 				return -EINVAL;
 			}
@@ -111,22 +131,15 @@ int aft_realign_skb_pkt(private_area_t *chan, netskb_t *skb)
 	int len = wan_skb_len(skb);
 	
 	if (len > chan->dma_mru){
-		DEBUG_EVENT("%s: Critical error: Tx unalign pkt(%d) > MTU buf(%d)!\n",
+		DEBUG_ERROR("%s: Critical error: Tx unalign pkt(%d) > MTU buf(%d)!\n",
 				chan->if_name,len,chan->dma_mru);
 		return -ENOMEM;
 	}
 
 	if (!chan->tx_realign_buf){
-		chan->tx_realign_buf=wan_malloc(chan->dma_mru);
-		if (!chan->tx_realign_buf){
-			DEBUG_EVENT("%s: Error: Failed to allocate tx memory buf\n",
-						chan->if_name);
-			return -ENOMEM;
-		}else{
-			DEBUG_EVENT("%s: AFT Realign buffer allocated Len=%d\n",
-						chan->if_name,chan->dma_mru);
-
-		}
+		DEBUG_ERROR("%s: Error: realign buf not allocated!\n",
+			chan->if_name);
+		return -ENOMEM;
 	}
 
 	memcpy(chan->tx_realign_buf,data,len);
@@ -135,7 +148,7 @@ int aft_realign_skb_pkt(private_area_t *chan, netskb_t *skb)
 	wan_skb_trim(skb,0);
 
 	if (wan_skb_tailroom(skb) < len){
-		DEBUG_EVENT("%s: Critical error: Tx unalign pkt tail room(%i) < unalign len(%i)!\n",
+		DEBUG_ERROR("%s: Critical error: Tx unalign pkt tail room(%i) < unalign len(%i)!\n",
 				chan->if_name,wan_skb_tailroom(skb),len);
 		
 		return -ENOMEM;
@@ -178,13 +191,13 @@ int aft_free_running_timer_set_enable(sdla_t *card, u32 ms)
 		msec=(msec&AFT_FREE_RUN_TIMER_DIVIDER_MASK)<<AFT_FREE_RUN_TIMER_DIVIDER_SHIFT;
 
 		if (msec==0) {
-			DEBUG_EVENT("%s: Error: Free Run Timeout config overrun 0x%X  Max=0x%X\n",
+			DEBUG_ERROR("%s: Error: Free Run Timeout config overrun 0x%X  Max=0x%X\n",
 						card->devname,msec,AFT_FREE_RUN_TIMER_DIVIDER_MASK);
 			return -EINVAL;
 		}
 		
 	} else {
-		DEBUG_EVENT("%s: Error: Free Run Timeout config ms=0\n",
+		DEBUG_ERROR("%s: Error: Free Run Timeout config ms=0\n",
 						card->devname);
 		return -EINVAL;
 	}
@@ -369,6 +382,10 @@ void aft_tx_dma_skb_init(private_area_t *chan, netskb_t *skb)
 		return;
 	}
 
+	if (chan->tx_bert_skb == skb) {
+		return;
+	}
+
 	if (chan->common.usedby == XMTP2_API) {
 		/* Requeue the tx buffer because it came from rx_free_list */
 		aft_init_requeue_free_skb(chan, skb);
@@ -398,7 +415,7 @@ int aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, int irq)
 		}
 #else
 		if (chan->channelized_cfg && !chan->hdlc_eng){
-#if defined(WANPIPE_64BIT_4G_DMA) || defined(CONFIG_X86_64)
+#if (!defined(WANPIPE_64BIT_2G_DMA) && (defined(WANPIPE_64BIT_4G_DMA) || defined(CONFIG_X86_64)))
 			/* On 64bit Systems greater than 4GB we must
 			 * allocated our DMA buffers using GFP_DMA 
 			 * flag */
@@ -659,7 +676,7 @@ int aft_hwec(sdla_t *card, wan_cmd_api_t *api_cmd)
 	
 	return 0;
 }
-
+ 
 int aft_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 {
 	wan_cmd_api_t*	api_cmd;
@@ -671,7 +688,7 @@ int aft_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 	ifr_data_ptr = ifr;
 #else
 	if (!ifr || !ifr->ifr_data){
-		DEBUG_EVENT("%s: Error: No ifr or ifr_data\n",__FUNCTION__);
+		DEBUG_ERROR("%s: Error: No ifr or ifr_data\n",__FUNCTION__);
 		return -EFAULT;
 	}
 	ifr_data_ptr = ifr->ifr_data;
@@ -689,6 +706,7 @@ int aft_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 	case SIOC_WAN_READ_REG:
 		err=aft_read(card, api_cmd);
 		break;
+
 	case SIOC_WAN_WRITE_REG:
 		err=aft_write(card, api_cmd);
 		break;
@@ -702,27 +720,58 @@ int aft_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 		break;
 
 	case SIOC_WAN_SET_PCI_BIOS:
+#if defined(__WINDOWS__)
+		/* Restore PCI config space to what it was
+		 * before the firmware update, so access to card
+		 * is possible again. */
+		err=sdla_restore_pci_config_space(card);
+#else
 		err=aft_write_bios(card, api_cmd);
+#endif
 		break;
 
 	case SIOC_WAN_EC_REG:
 		err = aft_hwec(card, api_cmd);
 		break;
+
 #if defined(__WINDOWS__)
 	case SIOC_WAN_GET_CARD_TYPE:
+		api_cmd->len = 0;
 
-		card->hw_iface.getcfg(card->hw, SDLA_ADAPTERTYPE,	 (u16*)&api_cmd->data[0]);
-		card->hw_iface.getcfg(card->hw, SDLA_ADAPTERSUBTYPE, (u16*)&api_cmd->data[sizeof(u16)]);
+		err = card->hw_iface.getcfg(card->hw, SDLA_ADAPTERTYPE,	 (u16*)&api_cmd->data[0]);
+		if(err){
+			break;
+		}
+
+		err = card->hw_iface.getcfg(card->hw, SDLA_ADAPTERSUBTYPE, (u16*)&api_cmd->data[sizeof(u16)]);
+		if(err){
+			break;
+		}
 
 		api_cmd->len = 2*sizeof(u16);
 		break;
 #endif
+
+	case SIOC_WAN_COREREV:
+		api_cmd->len = 0;
+
+		err = card->hw_iface.getcfg(card->hw, SDLA_COREREV, (u8*)&api_cmd->data[0]);
+		if(err){
+			break;
+		}
+
+		api_cmd->len = sizeof(u8);
+		break;
+
 	default:
-		DEBUG_EVENT("%s(): Error: unsupported cmd: %d\n",__FUNCTION__, api_cmd->cmd);
+		DEBUG_ERROR("%s(): Error: unsupported cmd: %d\n", __FUNCTION__, api_cmd->cmd);
+		err = -EINVAL;
 		break;
 	}
 
-	if (WAN_COPY_TO_USER(ifr_data_ptr, api_cmd,sizeof(wan_cmd_api_t))){
+	api_cmd->ret = err;
+
+	if (WAN_COPY_TO_USER(ifr_data_ptr, api_cmd, sizeof(wan_cmd_api_t))){
 		return -EFAULT;
 	}
 	return err;
@@ -843,13 +892,68 @@ int if_change_mtu(netdevice_t *dev, int new_mtu)
 #endif
 
 
+#if defined(__WINDOWS__)
+
+static int digital_loop_test(sdla_t* card, private_area_t* chan, wan_udp_pkt_t* wan_udp_pkt)
+{
+	wanpipe_tdm_api_dev_t	*tdm_api = chan->wp_tdm_api_dev;
+	int err;
+	netskb_t *skb;
+	wp_api_hdr_t hdr;
+	void *buf;
+
+	memset(&hdr, 0x00, sizeof(hdr));
+	hdr.wp_api_hdr_data_length = wan_udp_pkt->wan_udp_data_len;
+
+	if (wan_test_and_set_bit(WP_TDM_HDLC_TX,&tdm_api->critical)){
+
+		DEBUG_ERROR("%s: Error: %s() WP_TDM_HDLC_TX critical\n",
+			tdm_api->name, __FUNCTION__);
+		return SANG_STATUS_GENERAL_ERROR;
+	}
+
+	if (!tdm_api->write_hdlc_frame || !tdm_api->hdlc_framing) {
+		
+		DEBUG_ERROR("%s: Error: %s(): invalid request for non-HDLC channel!\n",
+			tdm_api->name, __FUNCTION__);
+			wan_clear_bit(WP_TDM_HDLC_TX,&tdm_api->critical);
+		return SANG_STATUS_INVALID_DEVICE_REQUEST;
+	}
+
+	if (chan->common.state != WAN_CONNECTED) {
+
+		wan_clear_bit(WP_TDM_HDLC_TX,&tdm_api->critical);
+		DEBUG_EVENT("%s: Loop test failed: line not in 'connected' state!\n",
+			card->devname);
+		return SANG_STATUS_LINE_DISCONNECTED;
+	}
+
+	skb = wan_skb_alloc(wan_udp_pkt->wan_udp_data_len);
+	if (skb == NULL) {
+	
+		wan_clear_bit(WP_TDM_HDLC_TX,&tdm_api->critical);
+		return SANG_STATUS_FAILED_ALLOCATE_MEMORY;
+	}
+
+	/* wan_skb_push(skb, sizeof(wp_api_hdr_t)); */ /* do NOT push the header! */
+
+	buf = wan_skb_put(skb, wan_udp_pkt->wan_udp_data_len);
+	memcpy(buf, wan_udp_pkt->wan_udp_data, wan_udp_pkt->wan_udp_data_len);
+
+	err=tdm_api->write_hdlc_frame(tdm_api->chan, skb, &hdr);
+
+	wan_clear_bit(WP_TDM_HDLC_TX,&tdm_api->critical);
+	return err;
+}
+
+#else
 static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
 {
 	netskb_t* skb;
 	netdevice_t* dev;
 	char* buf;
 	private_area_t *chan;
-
+	
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
 	if (dev == NULL) {
 		return 1;
@@ -861,25 +965,25 @@ static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
 	
 	if (chan->common.state != WAN_CONNECTED) {
 		DEBUG_EVENT("%s: Loop test failed: dev not connected!\n",
-		                        card->devname);
+			card->devname);
 		return 2;
 	}
-	 
+	
 	skb = wan_skb_alloc(wan_udp_pkt->wan_udp_data_len+100);
 	if (skb == NULL) {
 		return 3;
 	}
-
+	
 	switch (chan->common.usedby) {
-
+		
 	case API:
 		wan_skb_push(skb, sizeof(wp_api_hdr_t));
 		break;
-
+		
 	case STACK:
 	case WANPIPE:
 		break;
-
+		
 	case TDM_VOICE:
 	case TDM_VOICE_API:
 	case TDM_VOICE_DCHAN:
@@ -887,35 +991,33 @@ static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
 			break;
 		} else {
 			DEBUG_EVENT("%s: Loop test failed: no dchan in TDMV mode!\n",
-		                        card->devname);
+				card->devname);
 		}
 		/* Fall into the default case */
-
+		
 	default:
 		DEBUG_EVENT("%s: Loop test failed: invalid operation mode!\n",
 			card->devname);
 		wan_skb_free(skb);
 		return 4;
 	}
-
+	
 	buf = wan_skb_put(skb, wan_udp_pkt->wan_udp_data_len);
 	memcpy(buf, wan_udp_pkt->wan_udp_data, wan_udp_pkt->wan_udp_data_len);
-
+	
 #if defined(__LINUX__)
 	skb->next = skb->prev = NULL;
-        skb->dev = dev;
-        skb->protocol = htons(ETH_P_IP);
+	skb->dev = dev;
+	skb->protocol = htons(ETH_P_IP);
 	wan_skb_reset_mac_header(skb);
-        dev_queue_xmit(skb);
+	dev_queue_xmit(skb);
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
 	DEBUG_EVENT("%s: WARNING: Digital loop test mode is not supported!\n",
-				card->devname);
+		card->devname);
 #endif
 	return 0;
 }
-
-
-
+#endif
 
 #if defined(AFT_XMTP2_TAP)
 static int xmtp2km_tap_func(void *prot_ptr, int slot, int dir, unsigned char *data, int len)
@@ -944,6 +1046,40 @@ static int xmtp2km_tap_func(void *prot_ptr, int slot, int dir, unsigned char *da
 	return 0;
 }
 #endif
+
+
+static int wp_bert_allocate_tx_bert_skb(private_area_t* chan)
+{
+	void *buf;
+
+	if (chan->tx_bert_skb) {
+		/* the 'tx_bert_skb' already allocated. */
+		return 0;
+	}
+
+	if (chan->hdlc_eng) {
+		/* For MTU of 2048 dma_mru will be 4096;
+		* it will result in 1024 bytes being transmitted
+		* during BERT. */
+		chan->bert_data_length = chan->dma_mru / 4;
+	} else {
+		chan->bert_data_length = chan->max_idle_size;
+	}
+	
+	chan->tx_bert_skb = wan_skb_alloc(chan->dma_mru);
+	if (!chan->tx_bert_skb){
+		return -EINVAL;
+	}
+	
+	/* reset the tx_bert_skb buffer to the actual mtu size */
+	wan_skb_init(chan->tx_bert_skb, sizeof(wp_api_hdr_t));
+	wan_skb_trim(chan->tx_bert_skb, 0);
+	buf=wan_skb_put(chan->tx_bert_skb, chan->bert_data_length);
+	
+	memset(buf, 0x00, chan->bert_data_length);
+
+	return 0;
+}
 
 
 
@@ -1033,11 +1169,11 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 
 			/* line_mode: MODE_OPTION_HDLC/MODE_OPTION_BITSTRM/ISDN_BRI_DCHAN */
 			if (IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)){
-				_snprintf(if_cfg->line_mode, USED_BY_FIELD, "%s", ISDN_BRI_DCHAN);
+				wp_snprintf(if_cfg->line_mode, USED_BY_FIELD, "%s", ISDN_BRI_DCHAN);
 			} else if (chan->hdlc_eng) {
-				_snprintf(if_cfg->line_mode, USED_BY_FIELD, "%s", MODE_OPTION_HDLC);
+				wp_snprintf(if_cfg->line_mode, USED_BY_FIELD, "%s", MODE_OPTION_HDLC);
 			} else {
-				_snprintf(if_cfg->line_mode, USED_BY_FIELD, "%s", MODE_OPTION_BITSTRM);
+				wp_snprintf(if_cfg->line_mode, USED_BY_FIELD, "%s", MODE_OPTION_BITSTRM);
 			}
 
 			if(IS_FXOFXS_MEDIA(&card->fe.fe_cfg)){
@@ -1047,7 +1183,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 				if(mod_num < MAX_REMORA_MODULES){
 					if_cfg->sub_media = card->fe.rm_param.mod[mod_num].type;
 				}else{
-					DEBUG_EVENT("%s(): %s: Error: READ_CONFIGURATION: Invalid mod_num: %d\n", __FUNCTION__, card->devname, mod_num);
+					DEBUG_ERROR("%s(): %s: Error: READ_CONFIGURATION: Invalid mod_num: %d\n", __FUNCTION__, card->devname, mod_num);
 				}
 			}else if(IS_BRI_CARD(card)){
 				if(aft_is_bri_te_card(card)){
@@ -1089,13 +1225,9 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			break;
 	
 		case WANPIPEMON_AFT_LINK_STATUS:
-			wan_udp_pkt->wan_udp_return_code = 0;
-			if (card->wandev.state == WAN_CONNECTED){
-				wan_udp_pkt->wan_udp_data[0]=1;
-			}else{
-				wan_udp_pkt->wan_udp_data[0]=0;
-			}
-			wan_udp_pkt->wan_udp_data_len=1;
+			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			wan_udp_pkt->wan_udp_data[0] = card->wandev.state;/* WAN_CONNECTED/WAN_DISCONNECTED */
+			wan_udp_pkt->wan_udp_data_len = 1;
 			break;
 
 		case WANPIPEMON_AFT_MODEM_STATUS:
@@ -1121,10 +1253,28 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			break;
 
 		case WANPIPEMON_DIGITAL_LOOPTEST:
+#if defined(__WINDOWS__)
+			wan_udp_pkt->wan_udp_return_code = 
+				(u8)digital_loop_test(card, chan, wan_udp_pkt);
+#else
 			wan_udp_pkt->wan_udp_return_code = 
 				(u8)digital_loop_test(card,wan_udp_pkt);
+#endif
 			break;
-				
+
+#ifdef WANPIPE_PERFORMANCE_DEBUG
+		case WANPIPEMON_READ_PEFORMANCE_STATS:
+			memcpy(wan_udp_pkt->wan_udp_data,&card->aft_perf_stats,sizeof(card->aft_perf_stats));
+			wan_udp_pkt->wan_udp_data_len=sizeof(card->aft_perf_stats);
+			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			break;
+
+		case WANPIPEMON_FLUSH_PEFORMANCE_STATS:
+			memset(&card->aft_perf_stats,0,sizeof(card->aft_perf_stats));
+			wan_udp_pkt->wan_udp_data_len=sizeof(card->aft_perf_stats);
+			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			break;
+#endif
 		case WANPIPEMON_READ_OPERATIONAL_STATS:
 			memcpy(wan_udp_pkt->wan_udp_data,&chan->chan_stats,sizeof(wp_tdm_chan_stats_t));
 			wan_udp_pkt->wan_udp_data_len=sizeof(wp_tdm_chan_stats_t);
@@ -1204,7 +1354,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 				wan_set_bit (0,&trace_info->tracing_enabled);
 
 			}else{
-				DEBUG_EVENT("%s: Error: AFT trace running!\n",
+				DEBUG_ERROR("%s: Error: AFT trace running!\n",
 						card->devname);
 				wan_udp_pkt->wan_udp_return_code = 2;
 			}
@@ -1246,7 +1396,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			if(wan_test_bit(0,&trace_info->tracing_enabled)){
 				trace_info->trace_timeout = SYSTEM_TICKS;
 			}else{
-				DEBUG_EVENT("%s: Error AFT trace not enabled\n",
+				DEBUG_ERROR("%s: Error AFT trace not enabled\n",
 						card->devname);
 				/* set return code */
 				wan_udp_pkt->wan_udp_return_code = 1;
@@ -1382,9 +1532,45 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 		case WANPIPEMON_ROUTER_UP_TIME:
 			wan_getcurrenttime(&chan->router_up_time, NULL);
 			chan->router_up_time -= chan->router_start_time;
-			*(u32 *)&wan_udp_pkt->wan_udp_data = chan->router_up_time;	
+			*(wan_time_t *)&wan_udp_pkt->wan_udp_data = chan->router_up_time;	
 			wan_udp_pkt->wan_udp_data_len = sizeof(u32);
 	    	wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			break;
+
+		case WANPIPEMON_GEN_FIFO_ERR_TX:
+			card->wp_debug_gen_fifo_err_tx=1;
+
+			DEBUG_EVENT("%s: Wanipemon Gen TX fifo error\n",card->devname);
+			wan_udp_pkt->wan_udp_data_len = 0;
+			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			break;
+
+		case WANPIPEMON_GEN_FIFO_ERR_RX:
+			card->wp_debug_gen_fifo_err_rx=1;
+
+			DEBUG_EVENT("%s: Wanipemon Gen RX fifo error\n",card->devname);
+			wan_udp_pkt->wan_udp_data_len = 0;
+			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			break;
+
+		case WANPIPEMON_GEN_FE_SYNC_ERR:
+			if (wan_test_bit(AFT_TDM_FE_SYNC_CNT,&card->u.aft.chip_cfg_status)) {
+				u32 reg,cnt;
+				card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+				cnt = aft_lcfg_get_fe_sync_cnt(reg);
+
+				DEBUG_EVENT("%s: FE SYNC Cnt %i!\n",card->devname,cnt);
+
+				//aft_lcfg_set_fe_sync_cnt(&reg,1);
+				//card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
+			
+				wan_udp_pkt->wan_udp_data_len = 0;
+				wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			} else {
+				DEBUG_EVENT("%s: Error: WANPIPEMON_GEN_FE_SYNC_ERR not supported on this hw!\n",card->devname);
+				wan_udp_pkt->wan_udp_data_len = 0;
+				wan_udp_pkt->wan_udp_return_code = EPFNOSUPPORT;
+			}
 			break;
 
 		case WAN_GET_PROTOCOL:
@@ -1412,7 +1598,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 
 		case WANPIPEMON_GET_OPEN_HANDLES_COUNTER:
 #if defined(__WINDOWS__)			
-			*(int*)&wan_udp_pkt->wan_udp_data[0] = dev->open_handle_counter;
+			*(int*)&wan_udp_pkt->wan_udp_data[0] = wp_get_netdev_open_handles_count(dev);
 #else
 			*(int*)&wan_udp_pkt->wan_udp_data[0] = 1;
 #endif
@@ -1423,7 +1609,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 #if defined(__WINDOWS__)			
 		case WANPIPEMON_EC_IOCTL:
 			if (wan_test_and_set_bit(CARD_HW_EC,&card->wandev.critical)){
-				DEBUG_EVENT("%s: Error: EC IOCTL Reentrant!\n", card->devname);
+				DEBUG_ERROR("%s: Error: EC IOCTL Reentrant!\n", card->devname);
 				return -EBUSY;
 			}
 
@@ -1504,6 +1690,13 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			wan_udp_pkt->wan_udp_data_len = ETHER_ADDR_LEN;
 			break;
 
+		case WANPIPEMON_GET_BIOS_ENCLOSURE3_SERIAL_NUMBER:
+			wan_udp_pkt->wan_udp_return_code = 
+				wp_get_motherboard_enclosure_serial_number(wan_udp_pkt->wan_udp_data, 
+						sizeof(wan_udp_pkt->wan_udp_data));
+
+			wan_udp_pkt->wan_udp_data_len = sizeof(wan_udp_pkt->wan_udp_data);
+			break;
 #endif
 		case WANPIPEMON_AFT_CUSTOMER_ID:
 			{
@@ -1550,6 +1743,86 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			break;
 
+		case WANPIPEMON_ENABLE_BERT:
+					
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
+			if ( wan_test_bit(WP_MAINTENANCE_MODE_BERT, &chan->maintenance_mode_bitmap) ) {
+				wan_udp_pkt->wan_udp_return_code = EBUSY;
+				wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);	
+				DEBUG_WARNING("%s: Warning: BERT already running!\n", chan->if_name);
+				break;
+			}
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
+
+			if (wp_bert_allocate_tx_bert_skb(chan)) {
+				wan_udp_pkt->wan_udp_return_code = ENOMEM;
+				DEBUG_ERROR("%s: Error: failed memory allocation for BERT!\n", chan->if_name);
+				break;
+			}
+
+			{
+				int err;
+
+				DEBUG_EVENT("%s: Starting BERT (type:%s).\n", chan->if_name, 
+					WP_BERT_DECODE_SEQUENCE_TYPE(wan_udp_pkt->wan_udp_data[0]));
+
+				err = wp_bert_set_sequence_type(&chan->wp_bert, 
+							wan_udp_pkt->wan_udp_data[0] /* sequence type */);
+
+				wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
+				if(!err) {
+					/* everything is ready for the test to start */
+					wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+					wan_set_bit(WP_MAINTENANCE_MODE_BERT, &chan->maintenance_mode_bitmap);
+	
+					/* For HDLC channel the first transmission must be initiated,
+					 * after that it will continue transmission automatically.
+					 * This especially important for A101/A102, not so much for A104/A108. */
+					if (chan->hdlc_eng) {
+						aft_dma_tx (card, chan);
+					}
+
+				} else {
+					wan_udp_pkt->wan_udp_return_code = err;
+				}
+				wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);	
+			}
+			break;
+
+		case WANPIPEMON_DISABLE_BERT:
+			DEBUG_EVENT("%s: Stopping BERT.\n", chan->if_name);
+
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
+			wan_clear_bit(WP_MAINTENANCE_MODE_BERT, &chan->maintenance_mode_bitmap);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
+			
+			/* reset internal state of BERT by setting new sequence type */
+			wp_bert_set_sequence_type(&chan->wp_bert, WP_BERT_RANDOM_SEQUENCE);
+			
+			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			break;
+
+		case WANPIPEMON_GET_BERT_STATUS:
+			
+			if ( !wan_test_bit(WP_MAINTENANCE_MODE_BERT, &chan->maintenance_mode_bitmap) ) {
+				DEBUG_WARNING("%s: Warning: BERT Status is invalid when BERT is not running!\n",
+					chan->if_name);
+			}
+
+			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+			{
+				wp_bert_status_t *wp_bert_status = (wp_bert_status_t*)&wan_udp_pkt->wan_udp_data[0];
+
+				wp_bert_status->state =
+					(wp_bert_is_synchronized(&chan->wp_bert) == 1 ? 
+						WP_BERT_STATUS_IN_SYNCH : WP_BERT_STATUS_OUT_OF_SYNCH);
+
+				wp_bert_status->errors = wp_bert_get_errors(&chan->wp_bert);
+				wp_bert_status->synchonized_count = wp_bert_get_synchonized_count(&chan->wp_bert);
+			}
+			wan_udp_pkt->wan_udp_data_len = sizeof(u8);
+			break;
+
 		default:
 			if ((wan_udp_pkt->wan_udp_command == WAN_GET_MEDIA_TYPE) ||
 			    ((wan_udp_pkt->wan_udp_command & 0xF0) == WAN_FE_UDP_CMD_START)){
@@ -1572,7 +1845,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			wan_udp_pkt->wan_udp_data_len = 0;
 			wan_udp_pkt->wan_udp_return_code = WAN_UDP_INVALID_NET_CMD;
 	
-			DEBUG_EVENT("%s: %s: Error: Unsupported Management command: %x\n",
+			DEBUG_ERROR("%s: %s: Error: Unsupported Management command: %x\n",
 						__FUNCTION__,card->devname,wan_udp_pkt->wan_udp_command);
 			break;
 		} /* end of switch */
@@ -1629,7 +1902,7 @@ int wan_user_process_udp_mgmt_pkt(void* card_ptr, void* chan_ptr, void *udata)
 		* thus we can release the irq */
 
 	if (wan_atomic_read(&chan->udp_pkt_len) > sizeof(wan_udp_pkt_t)){
-		DEBUG_EVENT( "%s: Error: Pipemon buf too bit on the way up! %d\n",
+		DEBUG_ERROR( "%s: Error: Pipemon buf too bit on the way up! %d\n",
 				card->devname,wan_atomic_read(&chan->udp_pkt_len));
 		wan_atomic_set(&chan->udp_pkt_len,0);
 		return -EINVAL;
@@ -1893,7 +2166,7 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 						aft_bri_clock_control(card,0);
 					
 					} else {
-						DEBUG_EVENT("%s: Internal Error: ctrl_clock feature not available!\n",
+						DEBUG_ERROR("%s: Internal Error: ctrl_clock feature not available!\n",
 							card->devname);
 						aft_bri_clock_control(card,0);
 					}
@@ -1959,7 +2232,11 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 		legacy_tdm_timer_enable = 0;
 	}
 
-	if (master_clock_src_found || legacy_tdm_timer_enable == 0) {
+	if (IS_BRI_CARD(card_ptr)) {
+		if (master_clock_src_found) {
+	    	return 0;
+		}
+	} else if (legacy_tdm_timer_enable == 0) {
 		return 0;
 	}
 
@@ -2051,11 +2328,9 @@ void wanpipe_wake_stack(private_area_t* chan)
 		}
 
 	} else if (chan->common.usedby == STACK){
-#if defined(__WINDOWS__)
-		FUNC_NOT_IMPL();
-#else
+
 		wanpipe_lip_kick(chan,0);
-#endif
+
 	} else if (chan->wp_api_op_mode || chan->common.usedby == TDM_VOICE_DCHAN){
 #ifdef AFT_TDM_API_SUPPORT
 		if (is_tdm_api(chan,chan->wp_tdm_api_dev)){
@@ -2120,7 +2395,7 @@ int aft_find_master_if_and_dchan(sdla_t *card, int *master_if, u32 active_ch)
 	       	}
 
 	       	if (!dchan_found) {
-	       		DEBUG_EVENT("%s: Error: TDM DCHAN is out of range 0x%08X\n",
+	       		DEBUG_ERROR("%s: Error: TDM DCHAN is out of range 0x%08X\n",
 	       			card->devname,card->tdmv_conf.dchan);
 	       		return -EINVAL;       
 	       	}
@@ -2275,7 +2550,7 @@ int aft_tdm_ring_rsync(sdla_t *card)
 
 		chan=(private_area_t*)card->u.aft.dev_to_ch_map[i];
 		if (!chan){
-			DEBUG_EVENT("%s: Error: No Dev for Rx logical ch=%d\n",
+			DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
 					card->devname,i);
 			continue;
 		}
@@ -2371,7 +2646,7 @@ void aft_list_tx_descriptors(private_area_t *chan)
 
 		dma_chain = &chan->tx_dma_chain_table[i];
 		if (!dma_chain){
-			DEBUG_EVENT("%s:%d Assertion Error !!!!\n",
+			DEBUG_ERROR("%s:%d Assertion Error !!!!\n",
 				__FUNCTION__,__LINE__);
 			break;
 		}
@@ -2466,7 +2741,7 @@ static void aft_list_descriptors(private_area_t *chan)
 
 		dma_chain = &chan->rx_dma_chain_table[i];
 		if (!dma_chain){
-			DEBUG_EVENT("%s:%d Assertion Error !!!!\n",
+			DEBUG_ERROR("%s:%d Assertion Error !!!!\n",
 				__FUNCTION__,__LINE__);
 			break;
 		}
@@ -2845,7 +3120,7 @@ int aft_register_dump(sdla_t *card)
 		}
 		chan=(private_area_t*)card->u.aft.dev_to_ch_map[i];
 		if (!chan){
-			DEBUG_EVENT("%s: Error: No Dev for Rx logical ch=%d\n",
+			DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
 					card->devname,i);
 			continue;
 		}
@@ -2894,6 +3169,251 @@ int aft_register_dump(sdla_t *card)
 }
 
 
+/* Currently the background timer is not used */
+
+int aft_background_timer_kill(sdla_t* card)
+{
+#if 0
+	wan_set_bit(AFT_BG_TIMER_KILL,(void*)&card->u.aft.bg_timer_cmd);
+
+	if (!wan_test_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd)) {
+		return 0;
+	}
+
+	wan_del_timer(&card->u.aft.bg_timer);
+#endif
+	return 0;
+}
+
+int aft_background_timer_add(sdla_t* card, unsigned long delay)
+{
+#if 0
+	int err;
+
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)) {
+		wan_set_bit(AFT_BG_TIMER_KILL,(void*)&card->u.aft.bg_timer_cmd);
+		wan_clear_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd);
+		return 0;
+	}
+
+	if (wan_test_bit(AFT_BG_TIMER_KILL,(void*)&card->u.aft.bg_timer_cmd)) {
+		wan_clear_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd);
+		return 0;
+	}
+
+	if (wan_test_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd)) {
+		return 0;
+	}
+
+	err = wan_add_timer(&card->u.aft.bg_timer, delay * HZ );
+
+	if (err){
+		/* Failed to add timer */
+		return -EINVAL;
+	}
+
+	wan_set_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd);
+#endif
+	return 0;	
+}
+
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+void aft_background_timer_expire(void* pcard)
+#elif defined(__WINDOWS__)
+void aft_background_timer_expire(IN PKDPC Dpc, void* pcard, void* arg2, void* arg3)
+#else
+void aft_background_timer_expire(unsigned long pcard)
+#endif
+{
+#if 0
+	sdla_t	*card = (sdla_t*)pcard;
+
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)) {
+		wan_set_bit(AFT_BG_TIMER_KILL,(void*)&card->u.aft.bg_timer_cmd);
+		wan_clear_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd);
+		return;
+	}
+
+	if (wan_test_bit(AFT_BG_TIMER_KILL,(void*)&card->u.aft.bg_timer_cmd)) {
+		wan_clear_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd);
+		return;
+	}
+
+	if (!wan_test_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd)){
+		/* Somebody clear this bit */
+		DEBUG_EVENT("%s: %s() Timer AFT_BG_TIMER_RUNNING is cleared (should never happened)!\n",
+					card->devname, __FUNCTION__);
+		return;
+	}
+
+	wan_clear_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd);
+
+	DEBUG_EVENT("%s: aft_background_timer_expire() \n",card->devname);
 
 
+	/* Sanity Check */
 
+	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)) {
+		wan_set_bit(AFT_BG_TIMER_KILL,(void*)&card->u.aft.bg_timer_cmd);
+		wan_clear_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd);
+		return;
+	}
+
+	if (wan_test_bit(AFT_BG_TIMER_KILL,(void*)&card->u.aft.bg_timer_cmd)) {
+		wan_clear_bit(AFT_BG_TIMER_RUNNING,(void*)&card->u.aft.bg_timer_cmd);
+		return;
+	}
+
+	aft_background_timer_add(card,1);
+#endif
+
+	return;	
+}
+
+/* Read status of Front End Loop Back (T1/E1) - is it
+ * enabled or disabled. */
+int aft_fe_loop_back_status(sdla_t *card)
+{
+	return card->fe.te_param.lb_mode_map;
+}
+
+/** @brief reset */
+int wp_bert_reset(wp_bert_t *bert)
+{
+	int err = 0;
+
+	bert->m_bSynchronized = 0;
+	bert->m_uiErrors = 0;
+	bert->m_uiSynchronizedCount = 0;
+	bert->m_uiNumberOfIdenticalValues = 0;
+	
+	switch(bert->m_eSequenceType) {
+    case WP_BERT_RANDOM_SEQUENCE:
+		{
+			size_t uiSequenceLength 
+				= sizeof(wp_bert_random_sequence) / sizeof(wp_bert_random_sequence[0]);
+			bert->m_pSequenceBegin = (unsigned char*)&wp_bert_random_sequence[0];
+			bert->m_pSequenceEnd = (unsigned char*)&wp_bert_random_sequence[uiSequenceLength];
+			bert->m_uiNumberOfIdenticalValuesRequireToSynchronize = uiSequenceLength / 4;
+			break;
+		}
+		
+    case WP_BERT_ASCENDANT_SEQUENCE:
+		{
+			size_t uiSequenceLength 
+				= sizeof(wp_bert_ascendant_sequence) / sizeof(wp_bert_ascendant_sequence[0]);
+			bert->m_pSequenceBegin = (unsigned char*)&wp_bert_ascendant_sequence[0];
+			bert->m_pSequenceEnd = (unsigned char*)&wp_bert_ascendant_sequence[uiSequenceLength];
+			bert->m_uiNumberOfIdenticalValuesRequireToSynchronize = uiSequenceLength / 4;
+			break;
+		}
+		
+    case WP_BERT_DESCENDANT_SEQUENCE:
+		{
+			size_t uiSequenceLength 
+				= sizeof(wp_bert_descendant_sequence) / sizeof(wp_bert_descendant_sequence[0]);
+			bert->m_pSequenceBegin = (unsigned char*)&wp_bert_descendant_sequence[0];
+			bert->m_pSequenceEnd = (unsigned char*)&wp_bert_descendant_sequence[uiSequenceLength];
+			bert->m_uiNumberOfIdenticalValuesRequireToSynchronize = uiSequenceLength / 4;
+			break;
+		}
+		
+    default:
+		DEBUG_ERROR("%s(): Invalid BERT type selected!\n", __FUNCTION__);
+		err = EINVAL;
+	}
+	
+	bert->m_pNextValue = bert->m_pSequenceBegin;
+	bert->m_pNextExpectedValue = bert->m_pSequenceBegin;
+	return err;
+}
+
+/** @brief change the type sequence used by this bert */
+int wp_bert_set_sequence_type(wp_bert_t *bert, wp_bert_sequence_type_t sequence_type)
+{
+	bert->m_eSequenceType = sequence_type;
+	return wp_bert_reset(bert);
+}
+
+/** @bried Get the number of times when the BERT entered in the
+	synchronized state */
+u32 wp_bert_get_synchonized_count(wp_bert_t *bert)
+{
+	return bert->m_uiSynchronizedCount;
+}
+
+/** @brief Get the number errors */
+u32 wp_bert_get_errors(wp_bert_t *bert)
+{
+	return bert->m_uiErrors;
+}
+
+/** @brief Returns 1 when the BERT is synchronized */
+u8 wp_bert_is_synchronized(wp_bert_t *bert)
+{
+	return bert->m_bSynchronized;
+}
+
+void wp_bert_increase_sequence_value_ptr(wp_bert_t *bert, unsigned char **out_pucPtr)
+{
+	++(*out_pucPtr);/* increment value at 'out_pucPtr' */
+
+	if( *out_pucPtr == bert->m_pSequenceEnd ) {
+		*out_pucPtr =  bert->m_pSequenceBegin; /* wrap... */
+	}
+}
+
+/** @brief Return the next value to stream toward the remote BERT
+	entity */
+u8 wp_bert_pop_value(wp_bert_t *bert, u8 *value)
+{
+	*value = *bert->m_pNextValue;
+	wp_bert_increase_sequence_value_ptr( bert, &bert->m_pNextValue );
+	return *value;
+}
+
+
+/** @brief Push value in the BERT.  This method return 1 if the
+	BERT is synchronized and 0 otherwise.  The expected value is
+	also set when the BERT is not synchronized.  */
+u8 wp_bert_push_value(wp_bert_t *bert, u8 current_value, u8 *expected_value)
+{
+	*expected_value = *bert->m_pNextExpectedValue;
+	if( bert->m_bSynchronized ) {
+		if( current_value == *bert->m_pNextExpectedValue ) {
+			wp_bert_increase_sequence_value_ptr( bert, &bert->m_pNextExpectedValue );
+		} else {
+			/* got in synch */
+			bert->m_bSynchronized = 0;
+			bert->m_uiNumberOfIdenticalValues = 0;
+			bert->m_uiErrors++;
+		}
+	} else {
+		if( current_value == *bert->m_pNextExpectedValue ) {
+			wp_bert_increase_sequence_value_ptr( bert, &bert->m_pNextExpectedValue );
+			if( ++bert->m_uiNumberOfIdenticalValues 
+				== bert->m_uiNumberOfIdenticalValuesRequireToSynchronize ) {
+				/* got out of synch */
+				bert->m_bSynchronized = 1;
+				++bert->m_uiSynchronizedCount;
+			}
+		} else {
+			bert->m_uiNumberOfIdenticalValues = 0;
+		}
+		bert->m_uiErrors++;
+	}
+	
+	return bert->m_bSynchronized;
+}
+
+/**  @brief print current state of BERT */
+void wp_bert_print_state(wp_bert_t *bert)
+{
+	DEBUG_EVENT("BERT: isSynchronized=%s, errors=%d, synchronizedCount=%d\n", 
+		(wp_bert_is_synchronized(bert) == 1 ? "Yes":"No"),
+		wp_bert_get_errors(bert),
+		wp_bert_get_synchonized_count(bert));
+}
+
+
+/************** EOF *************/

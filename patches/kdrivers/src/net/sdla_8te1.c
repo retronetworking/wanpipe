@@ -36,17 +36,28 @@
 ** sdla_8te1.c	WANPIPE(tm) Multiprotocol WAN Link Driver. 
 **				8 ports T1/E1 board configuration.
 **
-** Author: 	Alex Feldman  <al.feldman@sangoma.com>
+** Author: 	Alex Feldman <al.feldman@sangoma.com>
 **
 ** ============================================================================
-** Date		Name		Label	Description
+** Date			Name			Label		Description
 ** ============================================================================
-** 02-18-06	Alex Feldman		Initial version.
-** 07-10-07	Alex Feldman	EBIT	Enable auto E-bit support.
-** Nov 23, 2007	Alex Feldman	UNFRM	Add support E1 Unframe mode for E1
-**					interface. 
-** Nov 23, 2007 Alex Feldman	TXTRI	Add support for TX Tri-state.
+** 
+** Feb 01, 2010 David Rokhvarg	PATTERN_LEN
+**										Fixed division-by-zero error in BERT
+**										test, when test pattern was *not*
+**										initialized by user-mode application.  
+** 
 ** Feb 06, 2008 Alex Feldman	E1_120	Adjust waveform for E1, 120 ohm.
+**
+** Nov 23, 2007 Alex Feldman	TXTRI	Add support for TX Tri-state.
+**
+** Nov 23, 2007	Alex Feldman	UNFRM	Add support E1 Unframe mode for E1
+**										interface. 
+**
+** 07-10-07	Alex Feldman		EBIT	Enable auto E-bit support.
+**
+** 02-18-06	Alex Feldman		Initial version.
+
 ******************************************************************************/
 
 /******************************************************************************
@@ -127,9 +138,11 @@
 		(int)fe_line_no,						\
 		(int)sdla_ds_te1_address(fe,fe_line_no,(reg)))
 
-#define WAN_TE1_FRAMED_ALARMS		(WAN_TE_BIT_ALARM_RED |	WAN_TE_BIT_ALARM_LOF | WAN_TE_BIT_ALARM_LIU_LOS)
+#define WAN_T1_FRAMED_ALARMS		(WAN_TE_BIT_ALARM_RED |	WAN_TE_BIT_ALARM_LOF)
+#define WAN_E1_FRAMED_ALARMS		(WAN_TE_BIT_ALARM_RED |	WAN_TE_BIT_ALARM_LOF) // | WAN_TE_BIT_ALARM_LIU_LOS)
 /*Nov 23, 2007 UNFRM */ 
-#define WAN_TE1_UNFRAMED_ALARMS		(WAN_TE_BIT_ALARM_RED | WAN_TE_BIT_ALARM_LOS)
+#define WAN_TE1_UNFRAMED_ALARMS		(WAN_TE_BIT_ALARM_RED | 		\
+					 WAN_TE_BIT_ALARM_LOS)
 
 #define IS_T1_ALARM(alarm)			\
 		(alarm & 			\
@@ -467,7 +480,7 @@ static int sdla_ds_te1_device_id(sdla_fe_t* fe)
 		fe->fe_max_ports = 2;
 		break;
 	default:
-		DEBUG_EVENT("%s: ERROR: Unsupported DS %s CHIP (%02X:%02X)\n",
+		DEBUG_ERROR("%s: ERROR: Unsupported DS %s CHIP (%02X:%02X)\n",
 				fe->name, 
 				FE_MEDIA_DECODE(fe),
 				fe->fe_chip_id,
@@ -679,7 +692,7 @@ static int sdla_ds_t1_cfg_verify(void* pfe)
 		WAN_FE_FRAME(fe) = WAN_FR_ESF;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s FE Framing type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s FE Framing type (%X)\n",
 						fe->name,
 						FE_MEDIA_DECODE(fe),
 						WAN_FE_FRAME(fe));
@@ -697,7 +710,7 @@ static int sdla_ds_t1_cfg_verify(void* pfe)
 		WAN_FE_LCODE(fe) = WAN_LCODE_B8ZS;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s FE Line code type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s FE Line code type (%X)\n",
 						fe->name,
 						FE_MEDIA_DECODE(fe),
 						WAN_FE_LCODE(fe));
@@ -721,7 +734,7 @@ static int sdla_ds_t1_cfg_verify(void* pfe)
 		WAN_TE1_LBO(fe) = WAN_T1_LBO_0_DB;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s LBO value (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s LBO value (%X)\n",
 						fe->name,
 						FE_MEDIA_DECODE(fe),
 						WAN_TE1_LBO(fe));
@@ -789,7 +802,7 @@ static int sdla_ds_e1_cfg_verify(void* pfe)
 		WAN_FE_FRAME(fe) = WAN_FR_CRC4;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s FE Framing type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s FE Framing type (%X)\n",
 					fe->name,
 					FE_MEDIA_DECODE(fe),
 					WAN_FE_FRAME(fe));
@@ -806,7 +819,7 @@ static int sdla_ds_e1_cfg_verify(void* pfe)
 		WAN_FE_LCODE(fe) = WAN_LCODE_HDB3;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s FE Line code type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s FE Line code type (%X)\n",
 					fe->name,
 					FE_MEDIA_DECODE(fe),
 					WAN_FE_LCODE(fe));
@@ -824,7 +837,7 @@ static int sdla_ds_e1_cfg_verify(void* pfe)
 		WAN_TE1_LBO(fe) = WAN_E1_120;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid %s LBO value (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid %s LBO value (%X)\n",
 					fe->name,
 					FE_MEDIA_DECODE(fe),
 					WAN_TE1_LBO(fe));
@@ -841,7 +854,7 @@ static int sdla_ds_e1_cfg_verify(void* pfe)
 		WAN_TE1_SIG_MODE(fe) = WAN_TE1_SIG_CCS;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid E1 Signalling type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid E1 Signalling type (%X)\n",
 					fe->name,
 					WAN_TE1_SIG_MODE(fe));
 		return -EINVAL;
@@ -1282,8 +1295,9 @@ static int sdla_ds_te1_chip_config(void* pfe)
 	if (IS_FE_TXTRISTATE(fe)){
 		DEBUG_EVENT("%s:    Disable TX (tri-state mode)\n",
 						fe->name);
-	}else{
-		WRITE_REG(REG_LMCR, BIT_LMCR_TE);
+	}else{	
+		/* Sep 17, 2009 - Auto AIS transmition (experimental) */
+		WRITE_REG(REG_LMCR, BIT_LMCR_ATAIS | BIT_LMCR_TE);
 	}
 
 	/* INIT RBS bits to 1 */
@@ -1414,7 +1428,7 @@ static int sdla_ds_te1_config(void* pfe)
 	}else if (IS_E1_FEMEDIA(fe)){
 		err = sdla_ds_e1_cfg_verify(fe);
 	}else{
-		DEBUG_EVENT("%s: Error: Invalid FE Media type (%X)\n",
+		DEBUG_ERROR("%s: Error: Invalid FE Media type (%X)\n",
 					fe->name,
 					WAN_FE_MEDIA(fe));
 		err =-EINVAL;
@@ -1550,7 +1564,6 @@ static int sdla_ds_te1_pre_release(void* pfe)
 		wan_free(fe->swirq);
 		fe->swirq = NULL;
 	}
-
 	return 0;
 }
 
@@ -1670,7 +1683,16 @@ sdla_ds_te1_sigctrl(sdla_fe_t *fe, int sig_mode, unsigned long ch_map, int mode)
 ******************************************************************************/
 static u_int32_t sdla_ds_t1_is_alarm(sdla_fe_t *fe, u_int32_t alarms)
 {
-	return (alarms & WAN_TE1_FRAMED_ALARMS);
+	u_int32_t alarm_mask = WAN_T1_FRAMED_ALARMS;
+
+	/* Alex Feb 27, 2008
+	** Special case for customer that uses 
+	** YEL alarm for protocol control */
+	if (fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+		alarm_mask |= WAN_TE_BIT_RAI_ALARM;
+	}
+
+	return (alarms & alarm_mask);
 }
 
 /******************************************************************************
@@ -1693,8 +1715,16 @@ static u_int32_t sdla_ds_e1_is_alarm(sdla_fe_t *fe, u_int32_t alarms)
 					WAN_TE_BIT_ALARM_LIU_LOS);
 		}
 	}else{
-		alarm_mask = WAN_TE1_FRAMED_ALARMS;
+		alarm_mask = WAN_E1_FRAMED_ALARMS;
 	}
+
+	/* Alex Feb 27, 2008
+	** Special case for customer that uses 
+	** YEL alarm for protocol control */
+	if (fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+		alarm_mask |= WAN_TE_BIT_RAI_ALARM;
+	}
+
 	return (alarms & alarm_mask);
 }
 
@@ -1720,66 +1750,75 @@ static int sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms)
 
 	if (valid_rx_alarms){
 		if (fe->fe_status != FE_DISCONNECTED){
-   			new_fe_status = FE_DISCONNECTED;
+			new_fe_status = FE_DISCONNECTED;
 		}
 	}else{
 		if (fe->fe_status != FE_CONNECTED){
-   			new_fe_status = FE_CONNECTED;
+			new_fe_status = FE_CONNECTED;
 		}
 	}
 
 	if (fe->fe_status == new_fe_status){
+
+        if (fe->te_param.tx_yel_alarm && valid_rx_alarms == WAN_TE_BIT_RAI_ALARM){
+			sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_YEL_ALARM);
+		}     
+
 		fe->te_param.status_cnt = 0;	
-		DEBUG_TE1("%s: %s %s...%d\n", 
+		DEBUG_TE1("%s: (1) %s %s...%d\n", 
+					fe->name,
+					FE_MEDIA_DECODE(fe),
+					WAN_FE_STATUS_DECODE(fe),
+					fe->te_param.status_cnt);
+		return 0;
+	}
+	if (new_fe_status == FE_CONNECTED){
+		if (fe->te_param.status_cnt > WAN_TE1_STATUS_THRESHOLD){
+			if (fe->te_param.tx_yel_alarm){
+				sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_ALARM_YEL);
+			}
+			DEBUG_EVENT("%s: %s connected!\n", 
+					fe->name,
+					FE_MEDIA_DECODE(fe));
+			fe->fe_status = FE_CONNECTED;
+			if (card->wandev.te_report_alarms){
+				card->wandev.te_report_alarms(
+						card,
+						fe->fe_alarm);
+			}
+		}else{
+
+			DEBUG_TE1("%s: (2) %s %s...%d\n", 
 					fe->name,
 					FE_MEDIA_DECODE(fe),
 					WAN_FE_STATUS_DECODE(fe),
 					fe->te_param.status_cnt);
 
-        return 0;
-	}
-   	if (new_fe_status == FE_CONNECTED){
-   		if (fe->te_param.status_cnt > WAN_TE1_STATUS_THRESHOLD){
-       		if (fe->te_param.tx_yel_alarm){
-       			sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_ALARM_YEL);
-   			}
-   			DEBUG_EVENT("%s: %s connected!\n", 
-      					fe->name,
-   						FE_MEDIA_DECODE(fe));
-  			fe->fe_status = FE_CONNECTED;
-   			if (card->wandev.te_report_alarms){
-   				card->wandev.te_report_alarms(
-							card,
-							fe->fe_alarm);
-   			}
-   		}else{
-   			if (!fe->te_param.status_cnt){
-   				DEBUG_TE1("%s: %s connecting...\n", 
-   						fe->name,
-   						FE_MEDIA_DECODE(fe));
-   			}
-   			fe->te_param.status_cnt ++;
-   			fe->fe_status = FE_DISCONNECTED;
-   			DEBUG_TE1("%s: %s connecting...%d\n", 
-   						fe->name,
-   						FE_MEDIA_DECODE(fe),
-   						fe->te_param.status_cnt);
-   		}
-   	}else{
-   		DEBUG_EVENT("%s: %s disconnected!\n", 
-   				fe->name,
-   				FE_MEDIA_DECODE(fe));
-   		fe->fe_status = FE_DISCONNECTED;
-   		if (fe->te_param.tx_yel_alarm){
-   			sdla_ds_te1_set_alarms(fe, WAN_TE_BIT_ALARM_YEL);
-   		}
-   		fe->te_param.status_cnt = 0;
-   		if (card->wandev.te_report_alarms){
-   			card->wandev.te_report_alarms(card, fe->fe_alarm);
-   		}
-   	}
+			fe->te_param.status_cnt ++;
+			fe->fe_status = FE_DISCONNECTED;
+		}
+	}else{
+		DEBUG_EVENT("%s: %s disconnected!\n", 
+				fe->name,
+				FE_MEDIA_DECODE(fe));
+		fe->fe_status = FE_DISCONNECTED;
 
-	/* Front-End state changed */
+		/* Special case, if remote alarms is ONLY RAI, then do not transmit yellow */
+		if (!fe->te_param.tx_yel_alarm && !(valid_rx_alarms == WAN_TE_BIT_RAI_ALARM)){
+			sdla_ds_te1_set_alarms(fe, WAN_TE_BIT_ALARM_YEL);
+		}
+
+        /* Special case, loopback if only valid alarm is RAI and we already transmitted yellow,
+		   then we must clear yellow */
+		if (fe->te_param.tx_yel_alarm && valid_rx_alarms == WAN_TE_BIT_RAI_ALARM){
+			sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_YEL_ALARM);
+		}
+
+		fe->te_param.status_cnt = 0;
+		if (card->wandev.te_report_alarms){
+			card->wandev.te_report_alarms(card, fe->fe_alarm);
+		}
+	}
 	return 1;
 }
 
@@ -2125,7 +2164,7 @@ static int sdla_ds_te1_set_alarms(sdla_fe_t* fe, u_int32_t alarms)
 		if (IS_T1_FEMEDIA(fe)){
 			value = READ_REG(REG_TCR1);
 			if (!(value & BIT_TCR1_T1_TRAI)){
-				DEBUG_TE1("%s: Enable transmit RAI alarm\n",
+				DEBUG_EVENT("%s: Enable transmit RAI alarm\n",
 								fe->name);
 				WRITE_REG(REG_TCR1, value | BIT_TCR1_T1_TRAI);
 				fe->te_param.tx_yel_alarm = 1;
@@ -2160,7 +2199,7 @@ static int sdla_ds_te1_clear_alarms(sdla_fe_t* fe, u_int32_t alarms)
 		if (IS_T1_FEMEDIA(fe)){
 			value = READ_REG(REG_TCR1);
 			if (value & BIT_TCR1_T1_TRAI){
-				DEBUG_TE1("%s: Disable transmit RAI alarm\n",
+				DEBUG_EVENT("%s: Disable transmit RAI alarm\n",
 							fe->name);
 				WRITE_REG(REG_TCR1, value & ~BIT_TCR1_T1_TRAI);
 				fe->te_param.tx_yel_alarm = 0;
@@ -2770,11 +2809,11 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, u_int8_t type, u_int8_t mode, un
 
 			/* In-band loop codes */
 			if (IS_T1_FEMEDIA(fe)){
-				mask = BIT_RIM3_T1_LDNC|BIT_RIM3_T1_LDND |
+    				mask = BIT_RIM3_T1_LDNC|BIT_RIM3_T1_LDND |
 				BIT_RIM3_T1_LUPC|BIT_RIM3_T1_LUPD;
 				WRITE_REG(REG_RIM3, mask);
-				WRITE_REG(REG_RLS3, 0xFF);
-			}
+                		WRITE_REG(REG_RLS3, 0xFF);
+            		}
 
 			//WRITE_REG(REG_RIM4, BIT_RIM4_TIMER);
 			WRITE_REG(REG_RLS4, 0xFF);
@@ -2911,22 +2950,32 @@ static int sdla_ds_te1_fr_rxintr_rls1(sdla_fe_t *fe, int silent)
     	}
 	if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
 		if (rim1 & (BIT_RIM1_RLOFC | BIT_RIM1_RLOFD)){
-    			if (rls1 & (BIT_RLS1_RLOFC|BIT_RLS1_RLOFD)){
+			if (rls1 & (BIT_RLS1_RLOFC|BIT_RLS1_RLOFD)){
 				if (rrts1 & BIT_RRTS1_RLOF){
+
 					sdla_ds_te1_swirq_trigger(
 							fe,
 							WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
 							WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
 							WAN_T1_ALARM_THRESHOLD_LOF_ON);
+							
 				}else{
+
+					if (fe->fe_status == FE_CONNECTED){
+						sdla_t 	*card = (sdla_t*)fe->card;
+						if (card && card->wandev.te_link_reset){
+							card->wandev.te_link_reset(card);
+						}
+					}
+					
 					sdla_ds_te1_swirq_trigger(
 							fe,
 							WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
 							WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
 							WAN_T1_ALARM_THRESHOLD_LOF_OFF);
 				}
-    			}
-            	}    			
+			}
+		}    			
 	}
 	WRITE_REG(REG_RLS1, rls1);
 	return 0;
@@ -3269,7 +3318,7 @@ static int sdla_ds_te1_bert_intr(sdla_fe_t *fe, int silent)
 	
 	if (blsr & BIT_BLSR_BBED && bsim & BIT_BSIM_BBED){
 		if (!silent && WAN_NET_RATELIMIT())
-			DEBUG_EVENT("%s: BERT bit error detected!\n",
+			DEBUG_ERROR("%s: BERT bit error detected!\n",
 					fe->name);
 	}
 	if (blsr & BIT_BLSR_BBCO && bsim & BIT_BSIM_BBCO){
@@ -3277,7 +3326,7 @@ static int sdla_ds_te1_bert_intr(sdla_fe_t *fe, int silent)
 					fe->name);
 	}
 	if (blsr & BIT_BLSR_BECO && bsim & BIT_BSIM_BECO){
-		if (!silent) DEBUG_EVENT("%s: BERT Error Counter overflows!\n",
+		if (!silent) DEBUG_ERROR("%s: BERT Error Counter overflows!\n",
 					fe->name);
 	}
 	if (blsr & BIT_BLSR_BRA1 && bsim & BIT_BSIM_BRA1){
@@ -3474,6 +3523,7 @@ static void sdla_ds_te1_timer(unsigned long pfe)
 	wan_spin_unlock_irq(&fe->lockirq,&smp_flags);	
 
 	if (!empty || fe->swirq_map){
+		DEBUG_TEST("%s: TE1 timer!\n", fe->name);
 		if (wan_test_and_set_bit(TE_TIMER_EVENT_PENDING,(void*)&fe->te_param.critical)){
 			DEBUG_EVENT("%s: TE1 timer event is pending!\n", fe->name);
 			return;
@@ -3578,15 +3628,15 @@ sdla_ds_te1_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *event)
 			cnt ++;
 		}
 		if (tmp == NULL){
-			DEBUG_EVENT("%s: ERROR: Internal Error!!!\n", fe->name);
+			DEBUG_ERROR("%s: ERROR: Internal Error!!!\n", fe->name);
 			wan_clear_bit(event->type,(void*)&fe->event_map);
 			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
 			return -EINVAL;
 		}
 		if (cnt > WAN_FE_MAX_QEVENT_LEN){
-			DEBUG_EVENT("%s: ERROR: Too many events in event queue!\n",
+			DEBUG_ERROR("%s: ERROR: Too many events in event queue!\n",
 							fe->name);
-			DEBUG_EVENT("%s: ERROR: Dropping new event type %d!\n",
+			DEBUG_ERROR("%s: ERROR: Dropping new event type %d!\n",
 							fe->name, event->type);
 			wan_clear_bit(event->type,(void*)&fe->event_map);
 			wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
@@ -3595,7 +3645,7 @@ sdla_ds_te1_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *event)
 		}
 		WAN_LIST_INSERT_AFTER(tmp, tevent, next);
 	}
-	DEBUG_TE1("%s: Add new DS Event=0x%X (%d sec)\n",
+	DEBUG_TEST("%s: Add new DS Event=0x%X (%d sec)\n",
 			fe->name, event->type,event->delay);
 	wan_spin_unlock_irq(&fe->lockirq, &smp_flags);	
 	return 0;
@@ -3620,7 +3670,7 @@ static int sdla_ds_te1_swirq_link(sdla_fe_t* fe)
 
 	if (!WAN_STIMEOUT(swirq->start, swirq->delay)){
 		/* Timeout is not expired yet */
-		DEBUG_TE1("%s: T1/E1 link swirq (%s) is not ready (%ld:%ld:%d)...\n",
+		DEBUG_TEST("%s: T1/E1 link swirq (%s) is not ready (%ld:%ld:%d)...\n",
 				fe->name, WAN_TE1_SWIRQ_SUBTYPE_DECODE(swirq->subtype),
 				swirq->start,SYSTEM_TICKS,swirq->delay*HZ);
 		wan_set_bit(WAN_TE1_SWIRQ_TYPE_LINK, (void*)&fe->swirq_map);
@@ -3666,7 +3716,7 @@ static int sdla_ds_te1_swirq_link(sdla_fe_t* fe)
 				subtype	= WAN_TE1_SWIRQ_SUBTYPE_LINKREADY;
 				delay	= POLLING_TE1_TIMER;
 			}else{
-                /* Get alarm status before enabling interrupts */
+				/* Read alarm status before enabling fe interrupt */
 				sdla_ds_te1_read_alarms(fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
 				/* Enable Basic Interrupt
 				** Enable automatic update pmon counters */
@@ -3725,7 +3775,7 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 	WAN_ASSERT(fe->swirq == NULL);
 	swirq = &fe->swirq[type];
 
-	DEBUG_TE1("%s: %s swirq (%s)\n",
+	DEBUG_TEST("%s: %s swirq (%s)\n",
 			fe->name,
 			WAN_TE1_SWIRQ_TYPE_DECODE(type),
 			WAN_TE1_SWIRQ_SUBTYPE_DECODE(swirq->subtype));
@@ -3744,7 +3794,7 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 			wan_clear_bit(1, (void*)&swirq->pending);
 			update = WAN_TRUE; 
 		}else{
-			DEBUG_TE1("%s: %s swirq (%s) is not ready (%ld:%ld:%d)...\n",
+			DEBUG_TEST("%s: %s swirq (%s) is not ready (%ld:%ld:%d)...\n",
 					fe->name,
 					WAN_TE1_SWIRQ_TYPE_DECODE(type),
 					WAN_TE1_SWIRQ_SUBTYPE_DECODE(swirq->subtype),
@@ -3767,7 +3817,7 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 			wan_clear_bit(1, (void*)&swirq->pending);
 			update = WAN_TRUE; 
 		}else{
-			DEBUG_TE1("%s: %s swirq (%s) is not ready (%ld:%ld:%d)...\n",
+			DEBUG_TEST("%s: %s swirq (%s) is not ready (%ld:%ld:%d)...\n",
 					fe->name,
 					WAN_TE1_SWIRQ_TYPE_DECODE(type),
 					WAN_TE1_SWIRQ_SUBTYPE_DECODE(swirq->subtype),
@@ -3778,7 +3828,7 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 	}
 
 	if (update == WAN_TRUE){
-		DEBUG_TE1("%s: %s swirq (%s) updating state ...\n",
+		DEBUG_TEST("%s: %s swirq (%s) updating state ...\n",
 					fe->name,
 					WAN_TE1_SWIRQ_TYPE_DECODE(type),
 					WAN_TE1_SWIRQ_SUBTYPE_DECODE(swirq->subtype));
@@ -3825,12 +3875,12 @@ static int sdla_ds_te1_swirq_trigger(sdla_fe_t* fe, int type, int subtype, int d
 				fe->swirq[type].subtype);
 	if (!wan_test_and_set_bit(1, (void*)&fe->swirq[type].pending)){
 		/* new swirq */
-		fe->swirq[type].subtype = subtype;
+		fe->swirq[type].subtype = (u8)subtype;
 		fe->swirq[type].start = SYSTEM_TICKS;
 	}else{
 		/* already in a process */
 		if (fe->swirq[type].subtype != subtype){
-			fe->swirq[type].subtype = subtype;
+			fe->swirq[type].subtype = (u8)subtype;
 			fe->swirq[type].start = SYSTEM_TICKS;
 		}
 	} 
@@ -4078,6 +4128,7 @@ static int sdla_ds_te1_txlbcode_done(sdla_fe_t *fe)
 	}
 	
 	wan_clear_bit(fe->te_param.lb_tx_mode, &fe->te_param.lb_mode_map);
+
 	DEBUG_TE1("%s: T1 %s loopback code sent.\n",
 					fe->name,	
 					WAN_TE1_BOC_LB_CODE_DECODE(fe->te_param.lb_tx_code));
@@ -4175,16 +4226,16 @@ static int sdla_ds_te1_pmon(sdla_fe_t *fe, int action)
 		DEBUG_EVENT("%s: Line Code Viilation:\t\t%d\n",
 				fe->name, pmon->lcv_errors);
 		if (IS_T1_FEMEDIA(fe)){
-			DEBUG_EVENT("%s: Bit error events:\t\t%d\n",
+			DEBUG_ERROR("%s: Bit error events:\t\t%d\n",
 					fe->name, pmon->bee_errors);
 			DEBUG_EVENT("%s: Frames out of sync:\t\t%d\n",
 					fe->name, pmon->oof_errors);
 		}else{
-			DEBUG_EVENT("%s: CRC4 errors:\t\t\t%d\n",
+			DEBUG_ERROR("%s: CRC4 errors:\t\t\t%d\n",
 					fe->name, pmon->crc4_errors);
-			DEBUG_EVENT("%s: Frame Alignment signal errors:\t%d\n",
+			DEBUG_ERROR("%s: Frame Alignment signal errors:\t%d\n",
 					fe->name, pmon->fas_errors);
-			DEBUG_EVENT("%s: Far End Block errors:\t\t%d\n",
+			DEBUG_ERROR("%s: Far End Block errors:\t\t%d\n",
 					fe->name, pmon->feb_errors);
 		}
 	}
@@ -4242,7 +4293,7 @@ static int sdla_ds_te1_boc(sdla_fe_t *fe, int mode)
 		break;
 
 	case UNIVLB_DEACTIVATE_CODE:
-		DEBUG_EVENT("%s: Received T1 %s code from far end.(%08X)\n", 
+		DEBUG_EVENT("%s: Received T1 %s code from far end.(LB Mode Map: %08X)\n", 
 				fe->name, WAN_TE1_BOC_LB_CODE_DECODE(boc),fe->te_param.lb_mode_map);
 		if (wan_test_bit(WAN_TE1_LINELB_MODE, &fe->te_param.lb_mode_map)){
 			sdla_ds_te1_set_lb(fe, WAN_TE1_LINELB_MODE, WAN_TE1_LB_DISABLE, ENABLE_ALL_CHANNELS);
@@ -4357,6 +4408,33 @@ static int sdla_ds_te1_rxlevel(sdla_fe_t* fe)
  ******************************************************************************
  *				sdla_ds_te1_liu_alb()	
  *
+ * Description: check if port configuration allows to enable/disable Loop Back
+ * Arguments:
+ * Returns:	1 - yes it is ok to enable LB; 0 - it is not possible to enable LB
+ ******************************************************************************
+ */
+static int sdla_is_loop_back_valid_for_clock_mode(sdla_fe_t* fe, unsigned char cmd)
+{
+	if (cmd == WAN_TE1_LB_ENABLE) {
+		
+		if (WAN_TE1_CLK(fe) == WAN_MASTER_CLK || WAN_TE1_REFCLK(fe)) {
+			/* If Master clock OR referencing another port, which
+			 * must be Master clock, it is ok to enable LB. */
+			return 1;
+		}else{
+			/* can not enable LB */
+			return 0;
+		}
+	} else {
+		/* It is always ok to disable LB */
+		return 1;
+	}
+}
+
+/*
+ ******************************************************************************
+ *				sdla_ds_te1_liu_alb()	
+ *
  * Description:
  * Arguments:
  * Returns:
@@ -4369,11 +4447,12 @@ static int sdla_ds_te1_liu_alb(sdla_fe_t* fe, unsigned char cmd)
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
-	if (cmd == WAN_TE1_LB_ENABLE && WAN_TE1_CLK(fe) != WAN_MASTER_CLK){
-		DEBUG_EVENT("%s: ERROR: You must be configured to Master Clock to execute this Loopback type!\n",
-				fe->name);
+	if (!sdla_is_loop_back_valid_for_clock_mode(fe, cmd)) {
+		DEBUG_ERROR("%s: %s(): ERROR: You must be configured to Master Clock to execute this Loopback type!\n",
+				fe->name, __FUNCTION__);
 		return -EINVAL;
 	}
+
 	value = READ_REG(REG_LMCR);
 	if (cmd == WAN_TE1_LB_ENABLE){
 		value |= BIT_LMCR_ALB;
@@ -4400,11 +4479,12 @@ static int sdla_ds_te1_liu_llb(sdla_fe_t* fe, unsigned char cmd)
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
-	if (cmd == WAN_TE1_LB_ENABLE && WAN_TE1_CLK(fe) != WAN_MASTER_CLK){
-		DEBUG_EVENT("%s: ERROR: You must be configured to Master Clock to execute this Loopback type!\n",
-				fe->name);
+	if (!sdla_is_loop_back_valid_for_clock_mode(fe, cmd)) {
+		DEBUG_ERROR("%s: %s(): ERROR: You must be configured to Master Clock to execute this Loopback type!\n",
+				fe->name, __FUNCTION__);
 		return -EINVAL;
 	}
+
 	value = READ_REG(REG_LMCR);
 	if (cmd == WAN_TE1_LB_ENABLE){
 		value |= BIT_LMCR_LLB;
@@ -4446,6 +4526,20 @@ static int sdla_ds_te1_liu_rlb(sdla_fe_t* fe, unsigned char cmd)
  *				sdla_ds_te1_fr_flb()	
  *
  * Description:
+	Bit 0: Framer Loopback (FLB).	is it the "Local" LB??
+		0 = loopback disabled
+		1 = loopback enabled
+
+		This loopback is useful in testing and debugging applications.
+		In FLB, the DS26528 loops data from the transmit side back to the receive side.
+		When FLB is enabled, the following will occur:
+			1) (T1 mode) An unframed all-ones code will be transmitted at TTIP and TRING.
+				(E1 mode) Normal data will be transmitted at TTIP and TRING.
+			2) Data at RTIP and RRING will be ignored.
+			3) All receive-side signals will take on timing synchronous with TCLK instead of RCLK.
+			4) Note that it is not acceptable to have RCLK tied to TCLK during this loopback because this will cause an
+				unstable condition.
+
  * Arguments:
  * Returns:
  ******************************************************************************
@@ -4457,9 +4551,9 @@ static int sdla_ds_te1_fr_flb(sdla_fe_t* fe, unsigned char cmd)
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
-	if (cmd == WAN_TE1_LB_ENABLE && WAN_TE1_CLK(fe) != WAN_MASTER_CLK){
-		DEBUG_EVENT("%s: ERROR: You must be configured to Master Clock to execute this Loopback type!\n",
-				fe->name);
+	if (!sdla_is_loop_back_valid_for_clock_mode(fe, cmd)) {
+		DEBUG_ERROR("%s: %s(): ERROR: You must be configured to Master Clock to execute this Loopback type!\n",
+				fe->name, __FUNCTION__);
 		return -EINVAL;
 	}
 
@@ -4478,6 +4572,23 @@ static int sdla_ds_te1_fr_flb(sdla_fe_t* fe, unsigned char cmd)
  *				sdla_ds_te1_fr_plb()
  *
  * Description:
+	Bit 1: Payload Loopback (PLB).
+		0 = loopback disabled
+		1 = loopback enabled
+
+	When PLB is enabled, the following will occur:
+		1) Data will be transmitted from the TTIP and TRING pins synchronous with RCLK instead of TCLK.
+		2) All the receive-side signals will continue to operate normally.
+		3) The TCHCLK and TCHBLK signals are forced low.
+		4) Data at the TSER, TDATA, and TSIG pins is ignored.
+		5) The TLCLK signal will become synchronous with RCLK instead of TCLK.
+			In a PLB situation, the DS26528 loops the 192 bits (248 for E1) of payload data (with BPVs corrected) from the
+			receive section back to the transmit section. The transmitter follows the frame alignment provided by the receiver.
+			The receive frame boundary is automatically fed into the transmit section, such that the transmit frame position is
+			locked to the receiver (i.e., TSYNC is sourced from RSYNC). The FPS framing pattern, CRC-6 calculation, and the
+			FDL bits (FAS word, Si, Sa, E-bits, and CRC-4 for E1) are not looped back. Rather, they are reinserted by the
+		DS26528 (i.e., the transmit section will modify the payload as if it was input at TSER).
+
  * Arguments:
  * Returns:
  ******************************************************************************
@@ -4520,17 +4631,19 @@ sdla_ds_te1_tx_lb(sdla_fe_t* fe, u_int8_t type, u_int8_t mode)
 				fe->name, WAN_TE1_LB_MODE_DECODE(type));
 		return WAN_FE_LBMODE_RC_FAILED;
 	}
+
 	if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical)){
 		DEBUG_TE1("%s: Still waiting for far end to send loopback signal back!\n",
 				fe->name);
 		return WAN_FE_LBMODE_RC_TXBUSY;			
 	}
 
-	if (WAN_TE1_CLK(fe) != WAN_MASTER_CLK){
-		DEBUG_EVENT("%s: ERROR: You must be configured to Master Clock to execute this Loopback type!\n",
-				fe->name);
+	if (!sdla_is_loop_back_valid_for_clock_mode(fe, WAN_TE1_LB_ENABLE)) {
+		DEBUG_ERROR("%s: %s(): ERROR: You must be configured to Master Clock to execute this Loopback type!\n",
+				fe->name, __FUNCTION__);
 		return WAN_FE_LBMODE_RC_FAILED;
 	}
+
 	fe->te_param.lb_tx_mode	= type;
 	fe->te_param.lb_tx_cmd	= mode;
 	if (type == WAN_TE1_TX_LINELB_MODE){
@@ -4627,31 +4740,36 @@ sdla_ds_te1_set_lb(sdla_fe_t *fe, u_int8_t type, u_int8_t mode, u_int32_t chan_m
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 	if (!chan_map) chan_map = WAN_TE1_ACTIVE_CH(fe);
 	switch(type){
-	case WAN_TE1_LIU_ALB_MODE:
+	case WAN_TE1_LIU_ALB_MODE: /* Analog (Local) LB () */
 		err = sdla_ds_te1_liu_alb(fe, mode);
 		break;
-	case WAN_TE1_LIU_LLB_MODE:
+	case WAN_TE1_LIU_LLB_MODE: /* Local LB */
 		err = sdla_ds_te1_liu_llb(fe, mode);
 		break;
-	//case WAN_TE1_LIU_RLB_MODE:
-	//	err = sdla_ds_te1_liu_rlb(fe, mode);
-	//	break;
-	case WAN_TE1_LIU_DLB_MODE:
+	case WAN_TE1_LIU_RLB_MODE:/* Remote LB - issued LOCALLY */
+		err = sdla_ds_te1_liu_rlb(fe, mode);
+		break;
+	case WAN_TE1_LIU_DLB_MODE:/* Dual LB */
 		if (!(err = sdla_ds_te1_liu_llb(fe, mode))){
 			err = sdla_ds_te1_liu_rlb(fe, mode);
 		}
 		break;
-	case WAN_TE1_LIU_RLB_MODE:
-	case WAN_TE1_LINELB_MODE:
+	case WAN_TE1_LINELB_MODE:/* Remote LB (allb/dllb commands).
+							  * If issued REMOTELY (T1 only) by sending LB command 
+							  *	from master clock device the right thing to do is
+							  * activate LIU Line Loopback. 
+							  * Can be issued LOCALLY for both T1 and E1.
+							  * */
 		err = sdla_ds_te1_liu_rlb(fe, mode);
 		break;
 	case WAN_TE1_PAYLB_MODE:
 		err = sdla_ds_te1_fr_plb(fe, mode);
 		break;
-	case WAN_TE1_DDLB_MODE:
-		err = sdla_ds_te1_fr_flb(fe, mode);
+	case WAN_TE1_DDLB_MODE:	/* Diagnostic (Local) LB (adlb/ddlb commands) */
+		/*err = sdla_ds_te1_fr_flb(fe, mode); March 31, 2010: replaced by sdla_ds_te1_liu_alb() */
+		err = sdla_ds_te1_liu_alb(fe, mode);
 		break;
-	case WAN_TE1_PCLB_MODE:
+	case WAN_TE1_PCLB_MODE:/* Per-channel LB */
 		err = sdla_ds_te1_pclb(fe, mode, chan_map);
 		break;
 	default:
@@ -4699,7 +4817,13 @@ static u32 sdla_ds_te1_get_lbmode(sdla_fe_t *fe)
 	}else if (lmcr & BIT_LMCR_LLB){
 		wan_set_bit(WAN_TE1_LIU_LLB_MODE, &type_map);
 	}
- 	if (lmcr & BIT_LMCR_RLB) wan_set_bit(WAN_TE1_LINELB_MODE, &type_map);
+ 	
+	//DavidR: this is misleading!!
+	//if (lmcr & BIT_LMCR_RLB) wan_set_bit(WAN_TE1_LINELB_MODE, &type_map);
+
+	//this is what it should be:
+	if (lmcr & BIT_LMCR_RLB) wan_set_bit(WAN_TE1_LIU_RLB_MODE, &type_map);
+
 
 	rcr3 = READ_REG(REG_RCR3);
 	if (rcr3 & BIT_RCR3_FLB) wan_set_bit(WAN_TE1_DDLB_MODE, &type_map); 
@@ -4712,6 +4836,7 @@ static u32 sdla_ds_te1_get_lbmode(sdla_fe_t *fe)
 	if (wan_test_bit(WAN_TE1_TX_LINELB_MODE, &fe->te_param.lb_mode_map)){
 		wan_set_bit(WAN_TE1_TX_LINELB_MODE, &type_map);
 	}
+
 	return type_map;
 }
 
@@ -4732,9 +4857,14 @@ static int sdla_ds_te1_udp_lb(sdla_fe_t *fe, char *data)
 		switch(lb->type){
 		case WAN_TE1_TX_LINELB_MODE:
 		case WAN_TE1_TX_PAYLB_MODE:
-			lb->rc = sdla_ds_te1_tx_lb(fe, lb->type, lb->mode);
+			lb->rc = (u8)sdla_ds_te1_tx_lb(fe, lb->type, lb->mode);
 			return 0; 
 			break;
+
+		/*case WAN_TE1_LINELB_MODE:
+			DEBUG_WARNING("%s: Warning: %s %s should not be used Locally. This loopback should be controlled by Remote side.\n",
+				fe->name, WAN_TE1_LB_ACTION_DECODE(lb->mode), WAN_TE1_LB_MODE_DECODE(lb->type));*/
+
 		default:
 			err = sdla_ds_te1_set_lb(fe, lb->type, lb->mode, lb->chan_map);
 			break;
@@ -4889,7 +5019,7 @@ static int sdla_ds_te1_bert_status(sdla_fe_t *fe, sdla_te_bert_stats_t *bert_sta
 static int sdla_ds_te1_bert_stop(sdla_fe_t *fe)
 {
 
-	DEBUG_EVENT("%s: Stopping Bit-Error-Test ...\n", fe->name);
+	DEBUG_ERROR("%s: Stopping Bit-Error-Test ...\n", fe->name);
 	WRITE_REG(REG_BSIM, 0x00);
 
 	WRITE_REG(REG_RXPC, READ_REG(REG_RXPC) & ~BIT_RXPC_RBPEN);
@@ -4965,7 +5095,7 @@ static int sdla_ds_te1_bert_eib(sdla_fe_t *fe, sdla_te_bert_t *bert)
 	}
 	WP_DELAY(100);
 	if (bert->cmd == WAN_TE_BERT_CMD_EIB){
-		DEBUG_EVENT("%s: Insert Bit Errors: %s\n", 
+		DEBUG_ERROR("%s: Insert Bit Errors: %s\n", 
 				fe->name, WAN_TE_BERT_EIB_DECODE(bert->un.cfg.eib));
 	}
 	WRITE_REG(REG_BC2, value); 
@@ -4989,9 +5119,10 @@ static int sdla_ds_te1_bert_config(sdla_fe_t *fe, sdla_te_bert_t *bert)
 							NUM_OF_E1_TIMESLOTS;
 
 	DEBUG_EVENT("%s: Starting Bit-Error-Test ...\n", fe->name);
+
 	if (bert->verbose){
 		DEBUG_EVENT("%s: BERT command        : %s\n", fe->name, WAN_TE_BERT_CMD_DECODE(bert->cmd));
-		DEBUG_EVENT("%s: BERT channel list   : %08X\n", fe->name, bert->un.cfg.chan_map); 
+		DEBUG_EVENT("%s: BERT channel list   : %08X (FE chans: %08X)\n", fe->name, bert->un.cfg.chan_map, WAN_TE1_ACTIVE_CH(fe)); 
 		DEBUG_EVENT("%s: BERT pattern type   : %s\n", fe->name, WAN_TE_BERT_PATTERN_DECODE(bert->un.cfg.pattern_type)); 
 		DEBUG_EVENT("%s: BERT pattern length : %d\n", fe->name, bert->un.cfg.pattern_len); 
 		DEBUG_EVENT("%s: BERT pattern        : %08X\n",fe->name, bert->un.cfg.pattern);
@@ -5026,10 +5157,11 @@ static int sdla_ds_te1_bert_config(sdla_fe_t *fe, sdla_te_bert_t *bert)
 	if (bert->un.cfg.chan_map == ENABLE_ALL_CHANNELS){
 		bert->un.cfg.chan_map  = WAN_TE1_ACTIVE_CH(fe);
 	}
-	for(i = 1; i <= channel_range; i++){
+
+	for(i = 1 /* DavidR: starting from bit one!? */; i <= channel_range; i++){
 		int 		off, shift;
 		u_int8_t	val;
-		if (wan_test_bit(i, (void*)&bert->un.cfg.chan_map) && wan_test_bit(i,(void*)&active_ch)){
+		if (wan_test_bit(i, (void*)&bert->un.cfg.chan_map) && wan_test_bit(i, (void*)&active_ch)){
 			off = (i-1) / 8;
 			shift = (i-1) % 8;
 			val = READ_REG(REG_TBPCS1+off);
@@ -5056,16 +5188,17 @@ static int sdla_ds_te1_bert_config(sdla_fe_t *fe, sdla_te_bert_t *bert)
 		break;
 	case WAN_TE_BERT_PATTERN_REPETITIVE:
 		value = BIT_BC1_PS2;
-		if (bert->un.cfg.pattern_len > 32){
-			DEBUG_EVENT("%s: ERROR: Invalid BERT pattern length %d bits (0-32)!\n",
-							fe->name, bert->un.cfg.pattern_len);
+		if (bert->un.cfg.pattern_len > 32 || 
+			bert->un.cfg.pattern_len < 1 /* prevent zero-length pattern length */){
+			DEBUG_ERROR("%s: ERROR: Invalid BERT pattern length of %d bits. (Must be between 1 and 32)!\n",
+					fe->name, bert->un.cfg.pattern_len);
 			return -EINVAL;
 		}
 		break;
 	case WAN_TE_BERT_PATTERN_WORD:
 		value = BIT_BC1_PS2 | BIT_BC1_PS0;
 		if (bert->un.cfg.count >= 256){
-			DEBUG_EVENT("%s: ERROR: Invalid BERT Alternating Word Count %d (1-256)!\n",
+			DEBUG_ERROR("%s: ERROR: Invalid BERT Alternating Word Count %d (1-256)!\n",
 							fe->name, bert->un.cfg.count);
 			return -EINVAL;
 		}
@@ -5077,7 +5210,7 @@ static int sdla_ds_te1_bert_config(sdla_fe_t *fe, sdla_te_bert_t *bert)
 		value = BIT_BC1_PS2 | BIT_BC1_PS1 | BIT_BC1_PS0;
 		break;
 	default:
-		DEBUG_EVENT("%s: Error: Invalid BERT pattern type %s\n", 
+		DEBUG_ERROR("%s: Error: Invalid BERT pattern type %s\n", 
 				fe->name,
 				WAN_TE_BERT_PATTERN_DECODE(bert->un.cfg.pattern_type));
 		return -EINVAL;
@@ -5090,7 +5223,7 @@ static int sdla_ds_te1_bert_config(sdla_fe_t *fe, sdla_te_bert_t *bert)
 		int		i = 0;
 		u16		repeat = 0;
 		
-		if (bert->un.cfg.pattern_len < 17){
+		if (bert->un.cfg.pattern_len && bert->un.cfg.pattern_len < 17){
 			repeat = 32 / bert->un.cfg.pattern_len;
 			for(i=0; i < repeat; i++){
 				bert->un.cfg.pattern |= (pattern << bert->un.cfg.pattern_len);
@@ -5171,7 +5304,7 @@ static int sdla_ds_te1_bert(sdla_fe_t *fe, sdla_te_bert_t *bert)
 	switch(bert->cmd){
 	case WAN_TE_BERT_CMD_START:
 		if (wan_test_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag)){
-			DEBUG_EVENT("%s: ERROR: BERT test is still running!\n", 
+			DEBUG_ERROR("%s: ERROR: BERT test is still running!\n", 
 						fe->name);
 			bert->rc = WAN_TE_BERT_RC_RUNNING;
 			return 0;
@@ -5181,7 +5314,7 @@ static int sdla_ds_te1_bert(sdla_fe_t *fe, sdla_te_bert_t *bert)
 	case WAN_TE_BERT_CMD_EIB:
 	case WAN_TE_BERT_CMD_RESET:
 		if (!wan_test_bit(WAN_TE_BERT_FLAG_READY, &fe->te_param.bert_flag)){
-			DEBUG_EVENT("%s: ERROR: BERT test is not running!\n",
+			DEBUG_ERROR("%s: ERROR: BERT test is not running!\n",
 						fe->name);
 			bert->rc = WAN_TE_BERT_RC_STOPPED;
 			return 0;
@@ -5191,7 +5324,7 @@ static int sdla_ds_te1_bert(sdla_fe_t *fe, sdla_te_bert_t *bert)
 	case WAN_TE_BERT_CMD_RUNNING:
 		break;
 	default:
-		DEBUG_EVENT("%s: ERROR: Invalid BERT command (%02X)\n", 
+		DEBUG_ERROR("%s: ERROR: Invalid BERT command (%02X)\n", 
 						fe->name, bert->cmd);
 		bert->rc = WAN_TE_BERT_RC_EINVAL;
 		return 0;
@@ -5430,14 +5563,27 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 		break;
 
 	case WAN_FE_BERT_MODE:
+
+		if (fe->fe_status != FE_CONNECTED){
+			DEBUG_WARNING("%s: Warning: Bit-Error-Test can not run when line is in \"Disconnected\" state.\n", fe->name);
+			udp_cmd->wan_cmd_return_code = SANG_STATUS_LINE_DISCONNECTED;
+			break;
+		}
+
+		if (IS_E1_FEMEDIA(fe)){
+			DEBUG_WARNING("%s: Warning: Transmission of LB Activation Code not supported in E1 mode.\n", fe->name);
+			udp_cmd->wan_cmd_return_code = SANG_STATUS_OPTION_NOT_SUPPORTED;
+			break;
+		}
+
 		sdla_ds_te1_bert(fe, (sdla_te_bert_t*)&data[0]);
-    	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_te_bert_t);
+    	udp_cmd->wan_cmd_data_len = sizeof(sdla_te_bert_t);
 		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 		break;
 
 	default:
 		udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
-	    	udp_cmd->wan_cmd_data_len = 0;
+    	udp_cmd->wan_cmd_data_len = 0;
 		break;
 	}
 	return 0;

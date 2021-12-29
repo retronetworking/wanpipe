@@ -1,7 +1,7 @@
 /******************************************************************************//**
  * \file wanpipe_api_iface.h
  * \brief WANPIPE(tm) Driver API Interface -
- * \brief Provies IO/Event API Only
+ * \brief Provides IO/Event API Only
  *
  * Authors: Nenad Corbic <ncorbic@sangoma.com>
  *			David Rokhvarg <davidr@sangoma.com>
@@ -58,15 +58,28 @@ typedef int sng_fd_t;
   \def WP_API_FEATURE_LINK_STATUS
   \brief Indicates to developer that link status feature is available
   \def WP_API_FEATURE_POL_REV
-  \brief Indicates to developer that polarity reversal feature is avaliable
+  \brief Indicates to developer that polarity reversal feature is available
+  \def WP_API_FEATURE_LOGGER
+  \brief Indicates to developer that Wanpipe Logger API feature is available
+  \def WP_API_FEATURE_RM_GAIN
+  \brief Indicates to developer that analog hardware gain feature is available
+  \def WP_API_FEATURE_LOOP
+  \brief Indicates to developer that loop feature is available
+  \def WP_API_FEATURE_HWEC
+  \brief Indicates to developer that Hardware Echo canceller feature is available
 */
 #define WP_API_FEATURE_DTMF_EVENTS	1
 #define WP_API_FEATURE_FE_ALARM		1
 #define WP_API_FEATURE_EVENTS		1
 #define WP_API_FEATURE_LINK_STATUS	1
-#define  WP_API_FEATURE_POL_REV     1
-
-
+#define WP_API_FEATURE_POL_REV		1
+#define WP_API_FEATURE_LOGGER		1
+#define WP_API_FEATURE_FAX_EVENTS   1
+#define WP_API_FEATURE_RM_GAIN		1
+#define WP_API_FEATURE_LOOP			1
+#if defined(__WINDOWS__)
+ #define WP_API_FEATURE_LIBSNG_HWEC	1
+#endif
 
 /*!
   \enum WANPIPE_IOCTL_CODE
@@ -91,7 +104,8 @@ enum WANPIPE_IOCTL_CODE {
 	WANPIPE_IOCTL_DEVEL,				/*!< Development Cmds, use only for hw debugging */
 	WANPIPE_IOCTL_WRITE_NON_BLOCKING,	/*!< Non-Blocking Write cmd, Windows Only */
 	WANPIPE_IOCTL_READ_NON_BLOCKING,	/*!< Non-Blocking Read cmd, Windows Only */
-	WANPIPE_IOCTL_CDEV_CTRL				/*!< Non-Blocking Cdev control cmd, Windows Only */
+	WANPIPE_IOCTL_CDEV_CTRL,			/*!< Non-Blocking Cdev control cmd, Windows Only */
+	WANPIPE_IOCTL_LOGGER_CMD			/*!< Wanpipe Logger command */
 };
 
 
@@ -135,12 +149,54 @@ enum WANPIPE_IOCTL_PIPEMON_CMDS {
 	WANPIPEMON_GET_IBA_DATA,				/*!< Get IBA Data - Deprecated not used */
 	WANPIPEMON_TDM_API,						/*!< Windows Legacy- TDM API commands */
 
+	WANPIPEMON_READ_PEFORMANCE_STATS,
+	WANPIPEMON_FLUSH_PEFORMANCE_STATS,
+	WANPIPEMON_GET_BIOS_ENCLOSURE3_SERIAL_NUMBER,	/*!< Get Enclosure3 Serial Number from Motherboard BIOS. */
+
+	WANPIPEMON_ENABLE_BERT,				/*!< Start BERT for the interface. */
+	WANPIPEMON_DISABLE_BERT,			/*!< Stop BERT for the interface.  */
+	WANPIPEMON_GET_BERT_STATUS,			/*!< Get BERT status/statistics (Locked/Not Locked) */
 
 	/* Do not add any non-debugging commands below */
-	WANPIPEMON_CHAN_SEQ_DEBUGGING,			/*!< Debugging only - enable/disalbe span level sequence debugging */
+	WANPIPEMON_CHAN_SEQ_DEBUGGING,			/*!< Debugging only - enable/disable span level sequence debugging */
+	WANPIPEMON_GEN_FIFO_ERR_TX,				/*!< Debugging only - generate tx fifo error */
+	WANPIPEMON_GEN_FIFO_ERR_RX,				/*!< Debugging only - generate rx fifo error */
+	WANPIPEMON_GEN_FE_SYNC_ERR,				/*!< Debugging only - generate fe sync error */
 
-	WANPIPEMON_PROTOCOL_PRIVATE				/*!< Private Wanpipemon commands used by lower layers */
+	/* All Public commands must be between WANPIPEMON_ROUTER_UP_TIME and WANPIPEMON_PROTOCOL_PRIVATE. */
+
+	WANPIPEMON_PROTOCOL_PRIVATE		/*!< Private Wanpipemon commands used by lower layers */
 };
+
+
+typedef enum wp_bert_sequence_type{
+	WP_BERT_RANDOM_SEQUENCE = 1,
+    WP_BERT_ASCENDANT_SEQUENCE,
+    WP_BERT_DESCENDANT_SEQUENCE
+}wp_bert_sequence_type_t;
+
+#define WP_BERT_DECODE_SEQUENCE_TYPE(sequence)					\
+	((sequence) == WP_BERT_RANDOM_SEQUENCE) ? "WP_BERT_RANDOM_SEQUENCE" :			\
+	((sequence) == WP_BERT_ASCENDANT_SEQUENCE) ? "WP_BERT_ASCENDANT_SEQUENCE" :		\
+	((sequence) == WP_BERT_DESCENDANT_SEQUENCE) ? "WP_BERT_DESCENDANT_SEQUENCE" :	\
+		"(Unknown BERT sequence)"
+
+#define	WP_BERT_STATUS_OUT_OF_SYNCH	0
+#define WP_BERT_STATUS_IN_SYNCH		1
+
+/*!
+  \struct _wp_bert_status
+  \brief BERT status and statistics
+
+  \typedef wp_bert_status_t
+*/
+typedef struct _wp_bert_status{
+
+	unsigned char state;	/*!< Current state of BERT */
+	unsigned int errors;	/*!< Nuber of errors during BERT */
+	unsigned int synchonized_count; /*!< Number of times BERT got into synch */
+
+}wp_bert_status_t;
 
 
 /*!
@@ -186,7 +242,7 @@ enum wanpipe_api_cmds
 	WP_API_CMD_DISABLE_HWEC,		/*!<  */
 	WP_API_CMD_SET_FE_STATUS,		/*!<  */
 	WP_API_CMD_GET_FE_STATUS,		/*!<  */
-	WP_API_CMD_GET_HW_DTMF,			/*!<  */
+	WP_API_CMD_GET_HW_DTMF,			/*!< Get Status of the HW DTMF. Enabled(1) or Disabled(0) */
 	WP_API_CMD_DRV_MGMNT,			/*!<  */
 	WP_API_CMD_RESET_STATS,			/*!< Reset device statistics */
 	WP_API_CMD_DRIVER_VERSION,		/*!< Driver Version */
@@ -201,10 +257,14 @@ enum wanpipe_api_cmds
 	WP_API_CMD_NOTSUPP,				/*!<  */
 	WP_API_CMD_SET_RM_RXFLASHTIME,	/*!< Set rxflashtime for FXS */
 	WP_API_CMD_SET_IDLE_FLAG,		/*!< Set Idle Flag (char) for a BitStream (Voice) channel */
-	WP_API_CMD_GET_HW_EC,			/*!< Check to see if hwec is available */
+	WP_API_CMD_GET_HW_EC,			/*!< Check Status of HW Echo Cancelation. Enabled(1) or Disabled(0) */
+	WP_API_CMD_GET_HW_FAX_DETECT,	/*!< Check Status of HW Fax Detect. Enabled(1) or Disabled(0) */
+	WP_API_CMD_ENABLE_LOOP,			/*!< Remote Loop the channel */
+	WP_API_CMD_DISABLE_LOOP,		/*!< Disable remote loop */
 
 	/* Add only debugging commands here */
-    WP_API_CMD_GEN_FIFO_ERR=500,
+    WP_API_CMD_GEN_FIFO_ERR_TX=500,
+	WP_API_CMD_GEN_FIFO_ERR_RX,
 	WP_API_CMD_START_CHAN_SEQ_DEBUG,
 	WP_API_CMD_STOP_CHAN_SEQ_DEBUG
 };
@@ -237,25 +297,28 @@ enum wanpipe_cdev_ctrl_cmds
 enum wanpipe_api_events
 {
 	WP_API_EVENT_NONE,				/*!<  */
-	WP_API_EVENT_RBS,				/*!<  */
+	WP_API_EVENT_RBS,				/*!< Enable Disable RBS Opertaion Mode (T1: RBS E1: CAS) */
 	WP_API_EVENT_ALARM,				/*!<  */
-	WP_API_EVENT_DTMF,				/*!<  */
+	WP_API_EVENT_DTMF,				/*!< Enable Disable HW DTMF Detection  */
 	WP_API_EVENT_RM_DTMF,			/*!<  */
-	WP_API_EVENT_RXHOOK,				/*!<  */
+	WP_API_EVENT_RXHOOK,			/*!<  */
 	WP_API_EVENT_RING,				/*!<  */
 	WP_API_EVENT_RING_DETECT,		/*!<  */
 	WP_API_EVENT_RING_TRIP_DETECT,	/*!<  */
 	WP_API_EVENT_TONE,				/*!<  */
-	WP_API_EVENT_TXSIG_KEWL,			/*!<  */
+	WP_API_EVENT_TXSIG_KEWL,		/*!<  */
 	WP_API_EVENT_TXSIG_START,		/*!<  */
 	WP_API_EVENT_TXSIG_OFFHOOK,		/*!<  */
 	WP_API_EVENT_TXSIG_ONHOOK,		/*!<  */
-	WP_API_EVENT_ONHOOKTRANSFER,		/*!<  */
+	WP_API_EVENT_ONHOOKTRANSFER,	/*!<  */
 	WP_API_EVENT_SETPOLARITY,		/*!<  */
 	WP_API_EVENT_BRI_CHAN_LOOPBACK,	/*!<  */
 	WP_API_EVENT_LINK_STATUS,		/*!<  */
-	WP_API_EVENT_MODEM_STATUS,		
-	WP_API_EVENT_POLARITY_REVERSE		/*!<  */
+	WP_API_EVENT_MODEM_STATUS,		/*!<  */
+	WP_API_EVENT_POLARITY_REVERSE,	/*!<  */
+	WP_API_EVENT_FAX_DETECT,		/*!< Enable Disable HW Fax Detection */
+	WP_API_EVENT_SET_RM_TX_GAIN,		/*!< Set Tx Gain for FXO/FXS */
+	WP_API_EVENT_SET_RM_RX_GAIN		/*!< Set Rx Gain for FXO/FXS */
 };
 
 
@@ -428,6 +491,7 @@ enum wanpipe_api_events
 #define WP_CTRL_DEV_NAME		"wanpipe_ctrl"
 #define WP_CONFIG_DEV_NAME		"wanpipe"
 #define WP_TIMER_DEV_NAME_FORM	"wanpipe_timer%d"
+#define WP_LOGGER_DEV_NAME		"wanpipe_logger"
 
 #pragma pack(1)
 
@@ -497,13 +561,23 @@ typedef struct _DRIVER_VERSION {
 }wan_driver_version_t, DRIVER_VERSION, *PDRIVER_VERSION;
 
 #define WANPIPE_API_CMD_SZ 512
+#define WANPIPE_API_DEV_CFG_MAX_SZ 333
 
 /* The the union size is max-cmd-result-span-chan-data_len */
 #define WANPIPE_API_CMD_SZ_UNION  WANPIPE_API_CMD_SZ - (sizeof(unsigned int)*3) - (sizeof(unsigned char)*2)
 
 
-#define WANPIPE_API_CMD_RESERVED_SZ 128 - sizeof(int)*1 - sizeof(char)*1
-#define WANPIPE_API_DEV_CFG_SZ sizeof(int)*20 + sizeof(char)*2 + WANPIPE_API_CMD_RESERVED_SZ + sizeof(wanpipe_chan_stats_t)
+/* Each time you add a parameter to the wanpipe_api_dev_cfg_t you must update
+   WANPIPE_API_CMD_RESERVED_SZ as well as WANPIPE_API_DEV_CFG_SZ */
+
+/*                                         rxflashtime     hw_ec,hw_fax,loop */ 
+#define WANPIPE_API_CMD_RESERVED_SZ 128 - sizeof(int)*1 - sizeof(char)*3
+
+/* The sizeof WANPIPE_API_DEV_CFG_SZ must account for every variable in
+   wanpipe_api_dev_cfg_t strcture */
+
+/*                                20 int             4 chars */
+#define WANPIPE_API_DEV_CFG_SZ sizeof(int)*20 + sizeof(char)*4 + WANPIPE_API_CMD_RESERVED_SZ + sizeof(wanpipe_chan_stats_t)
 
 
 /*!
@@ -540,6 +614,8 @@ typedef struct wanpipe_api_dev_cfg
 		/* Any new paramets should decrement the reserved size */
 		unsigned int rxflashtime;	/* Set Rxflash time for Wink-Flash */
 		unsigned char hw_ec;
+		unsigned char hw_fax;
+		unsigned char loop;
 
 		unsigned char reserved[WANPIPE_API_CMD_RESERVED_SZ];
 		/* Duplicate the structure below */
@@ -549,7 +625,7 @@ typedef struct wanpipe_api_dev_cfg
 
 /*!
   \struct wanpipe_api_cmd
-  \brief Wanpipe API Device Configuration Structure used with WANPIPE_IOCTL_API_CMD
+  \brief Wanpipe API Device Command Structure used with WANPIPE_IOCTL_API_CMD
 
   Wanpipe API Commands structure used to execute WANPIPE_IOCTL_API_CMD iocl commands
   All commands are defined in: 
@@ -590,6 +666,8 @@ typedef struct wanpipe_api_cmd
 			/* Any new paramets should decrement the reserved size */
 			unsigned int rxflashtime;	/*!< Set Rxflash time for Wink-Flash */
 			unsigned char hw_ec;
+			unsigned char hw_fax;
+			unsigned char loop;
 
 			unsigned char reserved[WANPIPE_API_CMD_RESERVED_SZ];
 			wanpipe_chan_stats_t stats;	/*!< Wanpipe API Statistics */
@@ -602,6 +680,12 @@ typedef struct wanpipe_api_cmd
 		};
 	};
 }wanpipe_api_cmd_t;
+
+/* \brief Initialize 'span' in wanpipe_api_cmd_t */
+#define WANPIPE_API_CMD_INIT_SPAN(wp_cmd_ptr, span_no)	((wp_cmd_ptr)->span = (unsigned char)span_no)
+
+/* \brief Initialize 'channel' in wanpipe_api_cmd_t */
+#define WANPIPE_API_CMD_INIT_CHAN(wp_cmd_ptr, chan_no)	((wp_cmd_ptr)->chan = (unsigned char)chan_no)
 
 /*!
   \struct wanpipe_api_callbacks
@@ -635,6 +719,12 @@ typedef struct wanpipe_api
 	wanpipe_api_cmd_t	wp_cmd;			/*!< Contains API command info */
 	wanpipe_api_callbacks_t wp_callback;	/*!< Deprecated: Callbacks used by libsangoma */
 }wanpipe_api_t;
+
+/* \brief Initialize 'span' in wanpipe_api_t->wp_cmd */
+#define WANPIPE_API_INIT_SPAN(wanpipe_api_ptr, span_no)	WANPIPE_API_CMD_INIT_SPAN(&wanpipe_api_ptr->wp_cmd, span_no)
+
+/* \brief Initialize 'channel' in wanpipe_api_t->wp_cmd */
+#define WANPIPE_API_INIT_CHAN(wanpipe_api_ptr, chan_no)	WANPIPE_API_CMD_INIT_CHAN(&wanpipe_api_ptr->wp_cmd, chan_no)
 
 #pragma pack()
 

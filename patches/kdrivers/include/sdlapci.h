@@ -86,6 +86,7 @@
 #define AFT_56K_SHARK_SUBSYS_VENDOR		0xA056	/* AFT-56K SHARK board */
 
 #define AFT_A600_SUBSYS_VENDOR			0xA600	/* AFT-600 Series board */
+#define AFT_B601_SUBSYS_VENDOR			0xA601	/* AFT-600 Series board */
 
 #define AFT_2SERIAL_V35X21_SUBSYS_VENDOR	0xA031	/* AFT-A142 2 Port V.35/X.21 board */
 #define AFT_4SERIAL_V35X21_SUBSYS_VENDOR	0xA032	/* AFT-A144 4 Port V.35/X.21 board */
@@ -147,6 +148,8 @@
 #define PCI_MAP1_DWORD          0x44		/* PCI to local bus address 1 */
 #define PCI_INT_STATUS          0x48		/* interrupt status */
 #define PCI_INT_CONFIG		0x4C		/* interrupt configuration */
+#define PCI_CORE_REV_REG	0xFC 		/* firmware version */
+#define WAN_INVALID_FIRMWARE 0x42 /* Implies the card is using new style firmware version */
   
 /* Local PCI register usage */
 #define PCI_MEMORY_ENABLE	0x00000003	/* enable PCI memory */

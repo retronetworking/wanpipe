@@ -12,11 +12,22 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ----------------------------------------------------------------------------
+* Feb 08, 2010  David Rokhvarg  Added decoding of "LIU Dual Loopback"
+* 								Fixed parsing of '--chan' parameter for BERT
+*								test and also it is shifter left by one to be
+*								in synch with the kernel-mode code which
+*								usese 'bert->un.cfg.chan_map'.
+*								Stopping a BERT test will NOT automatically
+*								disable Loopback modes.
+*
 * Feb 06, 2009  David Rokhvarg  Ported to MS Windows and added Makefile.Windows
-* 				to compile into SangomaFeLib.lib
+* 								to compile into SangomaFeLib.lib
+*
 * Jan 11, 2005  David Rokhvarg  Added code to run above AFT card with protocol
-* 				in the LIP layer. Fixed many not working options.
+* 								in the LIP layer. Fixed many not working options.
+*
 * May 24, 2000  Gideon Hack     Modifications for FT1 adapters
+*
 * Sep 21, 1999  Nenad Corbic    Changed the input parameters, hearders
 *                               data types. More user friendly.
 *****************************************************************************/
@@ -29,8 +40,8 @@
 #include <conio.h>				/* for _kbhit */
 #include "wanpipe_includes.h"
 #include "wanpipe_defines.h"	/* for 'wan_udp_hdr_t' */
-#include "wanpipe_time.h"		/* for 'struct timeval' */
-#include "wanpipe_common.h"		/* for 'strcasecmp' */
+#include "wanpipe_time.h"		/* for 'struct wan_timeval' */
+#include "wanpipe_common.h"		/* for 'wp_strcasecmp' */
 
 static int kbdhit(int *key)
 {
@@ -78,6 +89,9 @@ static int set_lb_modes_status(u_int8_t, u_int8_t, u_int32_t, int);
 static int loopback_command(u_int8_t type, u_int8_t mode, u_int32_t);
 static int hw_get_femedia_type(wan_femedia_t*);
 static int hw_get_fe_type(unsigned char* adapter_type);
+
+unsigned int felib_parse_active_channel_str(char* val);
+static unsigned int get_active_channels(int channel_flag, int start_channel, int stop_channel);
 
 /******************************************************************************
  * 			TYPEDEF/STRUCTURE				      *
@@ -211,7 +225,7 @@ void view_FT1_status( void )
 {
 	int FT1_LED_read_count = 0;
 	int key;
-	struct timeval to;
+	struct wan_timeval to;
 	long curr_sec;
 
 	printf("The FT1 status is depicted by the eight LEDs shown below. ");
@@ -256,7 +270,7 @@ void view_FT1_status( void )
         printf("\n  INS   ERR   TxD   RxD    ST    DL    LL    RT\n");
  
 	memset(&FT1_LED, 0, sizeof(FT1_LED_STATUS));
-	gettimeofday(&to, NULL);
+	wp_gettimeofday(&to, NULL);
 	curr_sec = to.tv_sec;
 	
 	/* loop and display the FT1 LEDs until the <ESC> or <M> key is hit */
@@ -268,8 +282,8 @@ void view_FT1_status( void )
 				EXEC_PROT_VOID_FUNC(set_FT1_mode,wan_protocol,());
                                 printf("       Current mode:             ");
 				/* delay 1/10th sec to let FT1 settle down */
- 				usleep(100000);
-				gettimeofday(&to, NULL);
+ 				wp_usleep(100000);
+				wp_gettimeofday(&to, NULL);
 				curr_sec = to.tv_sec;
 				memset(&FT1_LED, 0, sizeof(FT1_LED_STATUS));
 			}
@@ -285,7 +299,7 @@ void view_FT1_status( void )
 			                if((++ FT1_LED_read_count) == 30) {
 						break;
 					}
-					usleep(50000);
+					wp_usleep(50000);
 				}
 				if(FT1_LED.ST_red || FT1_LED.ST_green ||
 					FT1_LED.DL_red || FT1_LED.LL_red ||
@@ -311,7 +325,7 @@ void view_FT1_status( void )
 		EXEC_PROT_VOID_FUNC(read_FT1_status,wan_protocol,());
 		display_FT1_LEDs();
 		/* update the current FT1 status at 1 second intervals */
-		gettimeofday(&to, NULL);
+		wp_gettimeofday(&to, NULL);
 		if(curr_sec != to.tv_sec) {
 		        curr_sec = to.tv_sec;
 			printf("   |  Current mode: | ");
@@ -342,7 +356,7 @@ void view_FT1_status( void )
 		if((++ FT1_LED_read_count) == 40) {
                         break;
                 }
-		usleep(50000);
+		wp_usleep(50000);
         }
 
 	printf("\nINS (In-service)   : ");
@@ -589,7 +603,7 @@ void FT1_operational_mode(void)
 	/* operational (in-service) mode */
         for(;;) {
                 EXEC_PROT_VOID_FUNC(read_FT1_status,wan_protocol,());
-                usleep(50000);
+                wp_usleep(50000);
                 if((++ FT1_LED_read_count) == 20) {
                         if(FT1_LED.ST_red || FT1_LED.ST_green || FT1_LED.DL_red
 				|| FT1_LED.LL_red || FT1_LED.RT_red
@@ -605,7 +619,7 @@ void FT1_operational_mode(void)
                                 }
                                 EXEC_PROT_VOID_FUNC(set_FT1_mode,wan_protocol,());
                                 /* delay 1/10th sec to let FT1 settle down */
-                                usleep(100000);
+                                wp_usleep(100000);
                                 memset(&FT1_LED, 0, sizeof(FT1_LED_STATUS));
                                 FT1_LED_read_count = 0;
                         } else {
@@ -632,7 +646,7 @@ void FT1_self_test(void)
 	/* change the FT1 mode at 1 second intervals until we enter ST mode */
         for(;;) {
                 EXEC_PROT_VOID_FUNC(read_FT1_status,wan_protocol,());
-                usleep(50000);
+                wp_usleep(50000);
                 if((++ FT1_LED_read_count) == 20) {
                         if(!FT1_LED.ST_red) {
 				if((++ ST_mode_search_count) == 10) {
@@ -647,7 +661,7 @@ void FT1_self_test(void)
 				}
 				EXEC_PROT_VOID_FUNC(set_FT1_mode,wan_protocol,());
                                 /* delay 1/10th sec to let FT1 settle down */
-                                usleep(100000);
+                                wp_usleep(100000);
 				memset(&FT1_LED, 0, sizeof(FT1_LED_STATUS));
 				FT1_LED_read_count = 0;
 			} else {
@@ -667,7 +681,7 @@ void FT1_self_test(void)
 			printf("Self Test passed\n");
 			break;
 		}
-                usleep(50000);
+                wp_usleep(50000);
                 if((++ FT1_LED_read_count) == 120) {
 			printf("Self Test failed\n");
 			printf("Please contact your Sangoma representative\n");
@@ -694,7 +708,7 @@ void FT1_digital_loop_mode( void )
         /* change the FT1 mode at 1 second intervals until we enter DL mode */
         for(;;) {
                 EXEC_PROT_VOID_FUNC(read_FT1_status,wan_protocol,());
-                usleep(50000);
+                wp_usleep(50000);
                 if((++ FT1_LED_read_count) == 20) {
                         if(!FT1_LED.DL_red) {
                                 if((++ DL_mode_search_count) == 10) {
@@ -708,7 +722,7 @@ void FT1_digital_loop_mode( void )
                                 }
                                 EXEC_PROT_VOID_FUNC(set_FT1_mode,wan_protocol,());
                                 /* delay 1/10th sec to let FT1 settle down */
-                                usleep(100000);
+                                wp_usleep(100000);
                                 memset(&FT1_LED, 0, sizeof(FT1_LED_STATUS));
                                 FT1_LED_read_count = 0;
                         } else {
@@ -737,7 +751,7 @@ void FT1_local_loop_mode( void )
 	/* change the FT1 mode at 1 second intervals until we enter LL mode */
         for(;;) {
                 EXEC_PROT_VOID_FUNC(read_FT1_status,wan_protocol,());
-                usleep(50000);
+                wp_usleep(50000);
                 if((++ FT1_LED_read_count) == 20) {
                         if(!FT1_LED.LL_red) {
                                 if((++ LL_mode_search_count) == 10) {
@@ -752,7 +766,7 @@ void FT1_local_loop_mode( void )
                                 }
                                 EXEC_PROT_VOID_FUNC(set_FT1_mode,wan_protocol,());
                                 /* delay 1/10th sec to let FT1 settle down */
-                                usleep(100000);
+                                wp_usleep(100000);
                                 memset(&FT1_LED, 0, sizeof(FT1_LED_STATUS));
                                 FT1_LED_read_count = 0;
                         } else {
@@ -780,7 +794,7 @@ void FT1_remote_test( void )
 	/* change the FT1 mode at 1 second intervals until we enter RT mode */
         for(;;) {
                 EXEC_PROT_VOID_FUNC(read_FT1_status,wan_protocol,());
-                usleep(50000);
+                wp_usleep(50000);
                 if((++ FT1_LED_read_count) == 20) {
                         if(!FT1_LED.RT_red) {
                                 if((++ RT_mode_search_count) == 10) {
@@ -795,7 +809,7 @@ void FT1_remote_test( void )
                                 }
                                 EXEC_PROT_VOID_FUNC(set_FT1_mode,wan_protocol,());
                                 /* delay 1/10th sec to let FT1 settle down */
-                                usleep(100000);
+                                wp_usleep(100000);
                                 memset(&FT1_LED, 0, sizeof(FT1_LED_STATUS));
                                 FT1_LED_read_count = 0;
                         } else {
@@ -809,7 +823,7 @@ void FT1_remote_test( void )
 	/* delay 10 seconds after starting the RT before checking the result */
 	for(FT1_LED_read_count = 0; FT1_LED_read_count < 10;
 		FT1_LED_read_count ++) {
-		usleep(1000000);
+		wp_usleep(1000000);
     		printf(".");
 		fflush(stdout);
        	}
@@ -825,7 +839,7 @@ void FT1_remote_test( void )
                         printf("\nRemote Test passed\n");
                         break;
                 }
-                usleep(50000);
+                wp_usleep(50000);
                 if((++ FT1_LED_read_count) == 40) {
                         printf("\nRemote Test failed\n");
 			printf("Please ensure that the remote CSU/DSU is a Sangoma FT1 card.\n");
@@ -970,6 +984,9 @@ static int set_lb_modes_status(unsigned char type, unsigned char mode, u_int32_t
 				WAN_TE1_LB_MODE_DECODE(type),
 				(!err)?"Done":"Failed");
 	}
+
+	printf("LB CMD Return Code: %s (%d)\n", SDLA_DECODE_SANG_STATUS(err), err);
+
 	return err;
 }
 
@@ -998,14 +1015,16 @@ lb_poll_again:
 	DO_COMMAND(wan_udp);
 	
 	if (wan_udp.wan_udphdr_return_code){
-		err = -EINVAL;
+		err = wan_udp.wan_udphdr_return_code;
+		goto loopback_command_exit;
 	}
+
 	if (lb->rc == WAN_FE_LBMODE_RC_PENDING){
 
 		if (!cnt) printf("Please wait ..");fflush(stdout);
 		if (cnt++ < 10){
 			printf(".");fflush(stdout);
-			sleep(1);
+			wp_sleep(1);
 			lb->cmd	= WAN_FE_LBMODE_CMD_POLL;
 			lb->rc	= 0x00;
 			goto lb_poll_again;
@@ -1059,25 +1078,33 @@ u_int32_t get_lb_modes(int silent)
 
 		if (silent) return lb->type_map;
 		if (!lb->type_map){
-			printf("All loopback mode are disabled!");
+			printf("All loopback modes are disabled!\n");
 		}else{
-			printf("***** %s: %s Loopback status *****\n\n",
+			printf("***** %s: %s Loopback status (0x%08X) *****\n\n",
 					if_name,
 					(femedia.media == WAN_MEDIA_T1)  ? "T1" :
 					(femedia.media == WAN_MEDIA_E1)  ? "E1" :
 					(femedia.media == WAN_MEDIA_DS3) ? "DS3" :
-					(femedia.media == WAN_MEDIA_E3)  ? "E3" : "Unknown");
+					(femedia.media == WAN_MEDIA_E3)  ? "E3" : "Unknown",
+					lb->type_map);
 			if ((femedia.media == WAN_MEDIA_T1) || (femedia.media == WAN_MEDIA_E1)){
 			
+				/* LIU LBs */
 				if (lb->type_map & (1<<WAN_TE1_LIU_ALB_MODE)){
-					printf("\tLIU Analog Loopback:\tON\n");
+					/*printf("\tLIU Analog Loopback:\tON\n"); March 31, 2010: report as Diagnostic (Local) LB*/
+					printf("\tDiagnostic (Local) Loopback:\tON\n");
 				}
 				if (lb->type_map & (1<<WAN_TE1_LIU_LLB_MODE)){
 					printf("\tLIU Local Loopback:\tON\n");
 				}
 				if (lb->type_map & (1<<WAN_TE1_LIU_RLB_MODE)){
-					printf("\tLIU Remote Loopback:\tON\n");
+					/*printf("\tLIU Remote Loopback:\tON\n"); March 31, 2010: report as Line (Remote) LB*/
+					printf("\tLine (Remote) Loopback:\tON\n");
 				}
+				if (lb->type_map & (1<<WAN_TE1_LIU_DLB_MODE)){
+					printf("\tLIU Dual Loopback:\tON\n");
+				}
+
 				if (lb->type_map & (1<<WAN_TE1_LINELB_MODE)){
 					printf("\tLine/Remote Loopback:\t\tON\n");
 				}
@@ -1456,7 +1483,7 @@ repeat_read_reg:
 			wan_udp.wan_udphdr_return_code	= 0xaa;
 			fe_debug->fe_debug_reg.read = 2;
 			memcpy(data, (unsigned char*)fe_debug, sizeof(sdla_fe_debug_t));
-			usleep(100000);
+			wp_usleep(100000);
 			err = DO_COMMAND(wan_udp);
 			if (err || wan_udp.wan_udphdr_return_code != 0){
 				if (cnt < 5){
@@ -1510,16 +1537,21 @@ repeat_read_reg:
 
 void set_fe_tx_mode(unsigned char mode)
 {
+	sdla_fe_debug_t	fe_debug;
+	unsigned char	*data = NULL;
+
 	if(make_hardware_level_connection()){
 		return;
 	}
 
 	wan_udp.wan_udphdr_command	= WAN_FE_TX_MODE;
-	wan_udp.wan_udphdr_data_len	= 1;
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_debug_t);
 	wan_udp.wan_udphdr_return_code	= 0xaa;
-
-	set_wan_udphdr_data_byte(0,WAN_FE_TX_MODE);	//not used
-	set_wan_udphdr_data_byte(1,mode);
+	
+	fe_debug.type = WAN_FE_TX_MODE;
+	fe_debug.mode = mode;
+	data = get_wan_udphdr_data_ptr(0);
+	memcpy(data, (unsigned char*)&fe_debug, sizeof(sdla_fe_debug_t));
 
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code != 0){
@@ -1559,7 +1591,7 @@ repeat_read_reg:
 			wan_udp.wan_udphdr_return_code	= 0xaa;
 			fe_debug->fe_debug_reg.read = 2;
 			memcpy(data, (unsigned char*)fe_debug, sizeof(sdla_fe_debug_t));
-			usleep(100000);
+			wp_usleep(100000);
 			err = DO_COMMAND(wan_udp);
 			if (err || wan_udp.wan_udphdr_return_code != 0){
 				if (cnt < 5){
@@ -1622,7 +1654,7 @@ static int set_fe_bert_help()
 	printf("    pseudor4:\tPseudorandom Pattern QRSS\n");
 	printf("    pseudor5:\tPseudorandom 2E9-1\n");
 	printf("    repet:\tRepetitive Pattern (pattern 32 bits)\n");
-	printf("    alterw:\tAleternating Word Pattern (pattern 16/32 bits)\n");
+	printf("    alterw:\tAlternating Word Pattern (pattern 16/32 bits)\n");
 	printf("    daly:\tModified 55 Octet (Daly) Pattern\n");
 	printf("\n");
 	printf("* pattern (--pattern <pattern>)\t: BERT Repetitive Pattern (32 bits)\n");
@@ -1803,19 +1835,22 @@ int parse_bert_args(int argc, char *argv[], sdla_te_bert_t *bert, int *silent)
 				printf("ERROR: BERT loop mode is missing!\n");
 				return -EINVAL;
 			}
+
 			if (femedia.media == WAN_MEDIA_E1){
-				printf("ERROR: BERT loop parameter is invalid in E1 mode!\n");
-				return -EINVAL;
-			}
-			if (strncmp(argv[argi+1],"none",4) == 0){
+				
 				bert->un.cfg.lb_type = WAN_TE_BERT_LOOPBACK_NONE;
-			}else if (strncmp(argv[argi+1],"payload",7) == 0){
-				bert->un.cfg.lb_type = WAN_TE_BERT_LOOPBACK_PAYLOAD;
-			}else if (strncmp(argv[argi+1],"line",4) == 0){
-				bert->un.cfg.lb_type = WAN_TE_BERT_LOOPBACK_LINE;
 			} else {
-				printf("ERROR: Invalid BERT Loopback mode (%s)!\n", argv[argi+1]);
-				return -EINVAL;
+
+				if (strncmp(argv[argi+1],"none",4) == 0){
+					bert->un.cfg.lb_type = WAN_TE_BERT_LOOPBACK_NONE;
+				}else if (strncmp(argv[argi+1],"payload",7) == 0){
+					bert->un.cfg.lb_type = WAN_TE_BERT_LOOPBACK_PAYLOAD;
+				}else if (strncmp(argv[argi+1],"line",4) == 0){
+					bert->un.cfg.lb_type = WAN_TE_BERT_LOOPBACK_LINE;
+				} else {
+					printf("ERROR: Invalid BERT Loopback mode (%s)!\n", argv[argi+1]);
+					return -EINVAL;
+				}
 			}
 
 		}else if (strcmp(parg, "--chan") == 0){
@@ -1825,30 +1860,14 @@ int parse_bert_args(int argc, char *argv[], sdla_te_bert_t *bert, int *silent)
 				return -EINVAL;
 			}
 			param = argv[argi+1]; 
-			if (strcasecmp(param,"all") == 0){
+			if (wp_strcasecmp(param,"all") == 0){
 				bert->un.cfg.chan_map = ENABLE_ALL_CHANNELS;
 			}else{
-				char	chan[10];
-				int	i, j = 0, len=strlen(param);
-				int	start_ch = 0, stop_ch = 0, range = 0;
-			
-				for(i = 0; i < len; i++){
-					if (param[i] == '-'){
-						range = 1;
-						start_ch = atoi(chan);
-						j = 0;
-						continue;
-					}
-					chan[j++] = param[i];
-				}
-				if (!range){
-					start_ch = atoi(chan);
-				}
-				stop_ch = atoi(chan);
-				bert->un.cfg.chan_map = 0x00;
-				for(i = stop_ch; i >= start_ch; i--){
-					bert->un.cfg.chan_map |= (0x01 << i);
-				}
+				bert->un.cfg.chan_map = felib_parse_active_channel_str(param);
+				/* In the kernel code the bits must start from bit 1,
+				 * not zero, shift left by one. */
+				bert->un.cfg.chan_map = bert->un.cfg.chan_map << 1;
+				printf("Channels str: %s, Channels bitmap: 0x%08X\n", param, bert->un.cfg.chan_map);
 			}
 		}else if (strcmp(parg, "--verbose") == 0){
 
@@ -1879,7 +1898,7 @@ int set_fe_bert(int argc, char *argv[])
 	bert.cmd = WAN_TE_BERT_CMD_NONE;
 	if (bert.cmd == WAN_TE_BERT_CMD_START){
 		bert.un.cfg.pattern_type	= WAN_TE_BERT_PATTERN_PSEUDORANDOM_2E7;
-		bert.un.cfg.eib			= WAN_TE_BERT_EIB_NONE;
+		bert.un.cfg.eib				= WAN_TE_BERT_EIB_NONE;
 		bert.un.cfg.chan_map		= ENABLE_ALL_CHANNELS;
 	}
 
@@ -1932,8 +1951,13 @@ int set_fe_bert(int argc, char *argv[])
 
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code != 0){
-		printf("Failed to execute BERT %s command\n",
+		
+		printf("Failed to execute BERT %s command.\n",
 				WAN_TE_BERT_CMD_DECODE(bert.cmd));
+		printf("BERT CMD Return Code: %s (%d)\n", 
+				SDLA_DECODE_SANG_STATUS(wan_udp.wan_udphdr_return_code), 
+				wan_udp.wan_udphdr_return_code);
+
 		cleanup_hardware_level_connection();
 		if (lb_type) set_lb_modes(lb_type, WAN_TE1_LB_DISABLE);
 		return -EINVAL;
@@ -2011,6 +2035,11 @@ int set_fe_bert(int argc, char *argv[])
 	if (bert.cmd == WAN_TE_BERT_CMD_STOP){
 		printf("\n");
 		printf("Stopping Bit-Error-Test... Done!\n");
+
+#if 0
+		/* DavidR:	this code produces an error for MOST bert tests! 
+		 *			The errors are meaningless because code disables loopbacks which
+		 *			were NOT enabled. */
 		if (bert.un.stop.lb_type != WAN_TE_BERT_LOOPBACK_NONE){
 			if (bert.un.stop.lb_type == WAN_TE_BERT_LOOPBACK_LINE){
 				lb_type = WAN_TE1_TX_LINELB_MODE;
@@ -2022,8 +2051,224 @@ int set_fe_bert(int argc, char *argv[])
 						WAN_TE_BERT_LOOPBACK_DECODE(bert.un.stop.lb_type));
 			}
 		}
+#endif
+
 	}
 
 	return 0;
 }
 
+int	sw_bert_start(unsigned char bert_sequence_type)
+{
+	memset(&wan_udp, 0x00, sizeof(wan_udp));
+
+	if (make_hardware_level_connection()) {
+		return 1;
+	}
+
+	wan_udp.wan_udphdr_command = WANPIPEMON_ENABLE_BERT;
+	wan_udp.wan_udphdr_data_len = sizeof(bert_sequence_type);
+	*get_wan_udphdr_data_ptr(0) = bert_sequence_type;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+
+	if (DO_COMMAND(wan_udp)) {
+		printf("Error: ioctl failed!\n");
+		return 1;
+	}
+
+	if (wan_udp.wan_udphdr_return_code) {
+		printf("Failed to start SW BERT! err: %s (%d)\n", 
+			SDLA_DECODE_SANG_STATUS(wan_udp.wan_udphdr_return_code),
+			wan_udp.wan_udphdr_return_code);
+		cleanup_hardware_level_connection();
+		return 1;
+	}
+
+	printf("SW BERT started\n");	
+	cleanup_hardware_level_connection();
+	return 0;
+}
+
+int	sw_bert_stop()
+{
+	memset(&wan_udp, 0x00, sizeof(wan_udp));
+
+	if (make_hardware_level_connection()) {
+		return 1;
+	}
+
+	wan_udp.wan_udphdr_command = WANPIPEMON_DISABLE_BERT;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+
+	if (DO_COMMAND(wan_udp)) {
+		printf("Error: ioctl failed!\n");
+		return 1;
+	}
+
+	if (wan_udp.wan_udphdr_return_code) {
+		printf("Failed to stop SW BERT! err: %s (%d)\n", 
+			SDLA_DECODE_SANG_STATUS(wan_udp.wan_udphdr_return_code),
+			wan_udp.wan_udphdr_return_code);
+		cleanup_hardware_level_connection();
+		return 1;
+	}
+	
+	printf("SW BERT stopped\n");
+	cleanup_hardware_level_connection();
+	return 0;
+}
+
+int	sw_bert_status()
+{
+	wp_bert_status_t *wp_bert_status;
+
+	memset(&wan_udp, 0x00, sizeof(wan_udp));
+
+	if (make_hardware_level_connection()) {
+		return 1;
+	}
+
+	wan_udp.wan_udphdr_command = WANPIPEMON_GET_BERT_STATUS;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+
+	if (DO_COMMAND(wan_udp)) {
+		printf("Error: ioctl failed!\n");
+		return 1;
+	}
+
+	if (wan_udp.wan_udphdr_return_code) {
+		printf("Failed to get SW BERT status! err: %s (%d)\n", 
+			SDLA_DECODE_SANG_STATUS(wan_udp.wan_udphdr_return_code),
+			wan_udp.wan_udphdr_return_code);
+		cleanup_hardware_level_connection();
+		return 1;
+	}
+
+	wp_bert_status = get_wan_udphdr_data_ptr(0);
+
+	printf("SW BERT Status/Statistics:\n");
+	if (wp_bert_status->state == WP_BERT_STATUS_IN_SYNCH) {
+		printf("Status            : IN SYNCH\n");
+	} else {
+		printf("Status            : OUT OF SYNCH\n");
+	}
+	
+	printf("Error Count       : %d\n", wp_bert_status->errors);
+	printf("Synchonized Count : %d\n", wp_bert_status->synchonized_count);
+
+	cleanup_hardware_level_connection();
+	return 0;
+}
+
+int set_sw_bert(int argc, char *argv[])
+{
+	int	argi = 0, err = 1;
+	char *param;
+
+	for(argi = 1; argi < argc; argi++){
+		
+		param = argv[argi]; 
+		
+		if (strcmp(param,"--random") == 0){
+			
+			err = sw_bert_start(WP_BERT_RANDOM_SEQUENCE);
+
+		}else if (strcmp(param,"--ascendant") == 0){
+			
+			err = sw_bert_start(WP_BERT_ASCENDANT_SEQUENCE);
+
+		}else if (strcmp(param,"--descendant") == 0){
+			
+			err = sw_bert_start(WP_BERT_DESCENDANT_SEQUENCE);
+
+		}else if (strcmp(param,"--stop") == 0){
+
+			err = sw_bert_stop();
+
+		}else if (strcmp(param,"--status") == 0){
+
+			err = sw_bert_status();
+
+		}
+	}
+
+	return err;
+}
+
+
+/*============================================================================
+ * TE1
+ * Parse active channel string.
+ *
+ * Return ULONG value, that include 1 in position `i` if channels i is active.
+ */
+
+unsigned int felib_parse_active_channel_str(char* val)
+{
+#define SINGLE_CHANNEL	0x2
+#define RANGE_CHANNEL	0x1
+	int channel_flag = 0;
+	char* ptr = val;
+	int channel = 0, start_channel = 0;
+	unsigned int tmp = 0;
+
+	if (strcmp(val,"ALL") == 0)
+		return ENABLE_ALL_CHANNELS;
+	
+	if (strcmp(val,"0") == 0)
+		return 0;
+
+	while(*ptr != '\0') {
+		//printf("\nMAP DIGIT %c\n", *ptr);
+		if (isdigit(*ptr)) {
+			channel = strtoul(ptr, &ptr, 10);
+			channel_flag |= SINGLE_CHANNEL;
+		} else {
+			if (*ptr == '-') {
+				channel_flag |= RANGE_CHANNEL;
+				start_channel = channel;
+			} else {
+				tmp |= get_active_channels(channel_flag, start_channel, channel);
+				channel_flag = 0;
+			}
+			ptr++;
+		}
+	}
+	if (channel_flag){
+		tmp |= get_active_channels(channel_flag, start_channel, channel);
+	}
+
+	return tmp;
+}
+
+/*============================================================================
+ * TE1
+ */
+static unsigned int get_active_channels(int channel_flag, int start_channel, int stop_channel)
+{
+	int i = 0;
+	unsigned int tmp = 0, mask = 0;
+
+	/* If the channel map is set to 0 then
+	 * stop_channel will be zero. In this case just return
+	 * 0 */
+	if (stop_channel < 1) {
+        	return 0;
+	}
+
+	if ((channel_flag & (SINGLE_CHANNEL | RANGE_CHANNEL)) == 0)
+		return tmp;
+	if (channel_flag & RANGE_CHANNEL) { /* Range of channels */
+		for(i = start_channel; i <= stop_channel; i++) {
+			mask = 1 << (i - 1);
+			tmp |=mask;
+		}
+	} else { /* Single channel */ 
+		mask = 1 << (stop_channel - 1);
+		tmp |= mask; 
+	}
+	return tmp;
+}
+
+
+//****** End *****************************************************************/

@@ -9,6 +9,7 @@
 #include <libstelephony.h>
 #endif
 
+#define USE_WP_LOGGER 1
 #define SAMPLE_CPP_MAX_PATH 1024
 
 typedef struct{
@@ -27,6 +28,10 @@ typedef struct{
 	unsigned int	txcount;
 	unsigned char   driver_config;
 	unsigned char	use_ctrl_dev;
+	unsigned char	use_logger_dev;
+	int				txgain;
+	int				rxgain;
+	unsigned char	use_hardware_echo_canceller;
 }wp_program_settings_t;
 
 #define DEV_NAME_LEN			100
@@ -38,7 +43,7 @@ typedef struct{
 	//Recieved data
 	int		(*got_rx_data)(void *sang_if_ptr, void *rxhdr, void *rx_data);
 	//TDM events
-	void	(*got_TdmApiEvent)(void *sang_if_ptr, void *event_data);
+	void	(*got_tdm_api_event)(void *sang_if_ptr, void *event_data);
 #if USE_STELEPHONY_API
 	//FSK Caller ID detected
 	void	(*FSKCallerIDEvent)(void *sang_if_ptr, char * Name, char * CallerNumber, char * CalledNumber, char * DateTime);
@@ -51,6 +56,11 @@ typedef struct{
 	//DTMF buffer ready for transmission events
 	void	(*SwDtmfTransmit)(void *callback_context, void* buffer);
 #endif
+
+#if USE_WP_LOGGER
+	void	(*got_logger_event)(void *sang_if_ptr, wp_logger_event_t *logger_event);
+#endif
+
 }callback_functions_t;
 
 static void DecodeLastError(LPSTR lpszFunction) 
@@ -70,7 +80,7 @@ static void DecodeLastError(LPSTR lpszFunction)
 		NULL 
 	);
 	// Display the string.
-	printf("Last Error: %s (GetLastError() returned: %d)\n", lpMsgBuf, dwLastErr);
+	printf("Last Error: %s (GetLastError() returned: %d)\n", (char*)lpMsgBuf, dwLastErr);
 	// Free the buffer.
 	LocalFree( lpMsgBuf );
 #endif

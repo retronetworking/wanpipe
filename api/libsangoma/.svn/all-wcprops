@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 34
-/svn/libsangoma/!svn/ver/222/trunk
+/svn/libsangoma/!svn/ver/273/trunk
 END
 init-automake.sh
 K 25
@@ -13,7 +13,7 @@ configure
 K 25
 svn:wc:ra_dav:version-url
 V 44
-/svn/libsangoma/!svn/ver/222/trunk/configure
+/svn/libsangoma/!svn/ver/224/trunk/configure
 END
 Makefile.in
 K 25
@@ -25,7 +25,7 @@ sources
 K 25
 svn:wc:ra_dav:version-url
 V 42
-/svn/libsangoma/!svn/ver/221/trunk/sources
+/svn/libsangoma/!svn/ver/269/trunk/sources
 END
 AUTHORS
 K 25
@@ -57,18 +57,6 @@ svn:wc:ra_dav:version-url
 V 54
 /svn/libsangoma/!svn/ver/222/trunk/libhpsangoma_priv.h
 END
-libsangoma.vcproj.DAVIDRNEW.User.user
-K 25
-svn:wc:ra_dav:version-url
-V 72
-/svn/libsangoma/!svn/ver/136/trunk/libsangoma.vcproj.DAVIDRNEW.User.user
-END
-config.guess
-K 25
-svn:wc:ra_dav:version-url
-V 47
-/svn/libsangoma/!svn/ver/202/trunk/config.guess
-END
 libsangoma-doxygen.config
 K 25
 svn:wc:ra_dav:version-url
@@ -79,7 +67,7 @@ libsangoma.c
 K 25
 svn:wc:ra_dav:version-url
 V 47
-/svn/libsangoma/!svn/ver/222/trunk/libsangoma.c
+/svn/libsangoma/!svn/ver/272/trunk/libsangoma.c
 END
 compile.bat
 K 25
@@ -87,29 +75,23 @@ svn:wc:ra_dav:version-url
 V 45
 /svn/libsangoma/!svn/ver/32/trunk/compile.bat
 END
-ltmain.sh
-K 25
-svn:wc:ra_dav:version-url
-V 44
-/svn/libsangoma/!svn/ver/222/trunk/ltmain.sh
-END
-config.sub
-K 25
-svn:wc:ra_dav:version-url
-V 45
-/svn/libsangoma/!svn/ver/202/trunk/config.sub
-END
 cleanup.sh
 K 25
 svn:wc:ra_dav:version-url
 V 45
-/svn/libsangoma/!svn/ver/222/trunk/cleanup.sh
+/svn/libsangoma/!svn/ver/244/trunk/cleanup.sh
 END
 libsangoma.h
 K 25
 svn:wc:ra_dav:version-url
 V 47
-/svn/libsangoma/!svn/ver/222/trunk/libsangoma.h
+/svn/libsangoma/!svn/ver/273/trunk/libsangoma.h
+END
+libsangoma_hwec.c
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/libsangoma/!svn/ver/271/trunk/libsangoma_hwec.c
 END
 g711.h
 K 25
@@ -123,17 +105,17 @@ svn:wc:ra_dav:version-url
 V 40
 /svn/libsangoma/!svn/ver/1/trunk/INSTALL
 END
-COPYING
-K 25
-svn:wc:ra_dav:version-url
-V 40
-/svn/libsangoma/!svn/ver/1/trunk/COPYING
-END
 build.sh
 K 25
 svn:wc:ra_dav:version-url
 V 43
 /svn/libsangoma/!svn/ver/222/trunk/build.sh
+END
+COPYING
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/libsangoma/!svn/ver/1/trunk/COPYING
 END
 NEWS
 K 25
@@ -153,17 +135,17 @@ svn:wc:ra_dav:version-url
 V 48
 /svn/libsangoma/!svn/ver/146/trunk/libsangoma.rc
 END
-libsangoma.so.conf
-K 25
-svn:wc:ra_dav:version-url
-V 51
-/svn/libsangoma/!svn/ver/1/trunk/libsangoma.so.conf
-END
 sangoma_pri.c
 K 25
 svn:wc:ra_dav:version-url
 V 48
 /svn/libsangoma/!svn/ver/222/trunk/sangoma_pri.c
+END
+libsangoma.so.conf
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/libsangoma/!svn/ver/1/trunk/libsangoma.so.conf
 END
 libhpsangoma-doxygen.config
 K 25
@@ -171,11 +153,11 @@ svn:wc:ra_dav:version-url
 V 61
 /svn/libsangoma/!svn/ver/50/trunk/libhpsangoma-doxygen.config
 END
-libhpsangoma.c
+sangoma_pri.h
 K 25
 svn:wc:ra_dav:version-url
-V 49
-/svn/libsangoma/!svn/ver/222/trunk/libhpsangoma.c
+V 48
+/svn/libsangoma/!svn/ver/222/trunk/sangoma_pri.h
 END
 version
 K 25
@@ -183,17 +165,17 @@ svn:wc:ra_dav:version-url
 V 40
 /svn/libsangoma/!svn/ver/1/trunk/version
 END
-sangoma_pri.h
+libhpsangoma.c
 K 25
 svn:wc:ra_dav:version-url
-V 48
-/svn/libsangoma/!svn/ver/222/trunk/sangoma_pri.h
+V 49
+/svn/libsangoma/!svn/ver/222/trunk/libhpsangoma.c
 END
 configure.in
 K 25
 svn:wc:ra_dav:version-url
 V 47
-/svn/libsangoma/!svn/ver/216/trunk/configure.in
+/svn/libsangoma/!svn/ver/224/trunk/configure.in
 END
 ChangeLog
 K 25
@@ -219,17 +201,11 @@ svn:wc:ra_dav:version-url
 V 46
 /svn/libsangoma/!svn/ver/222/trunk/config.h.in
 END
-Makefile.Windows
-K 25
-svn:wc:ra_dav:version-url
-V 50
-/svn/libsangoma/!svn/ver/27/trunk/Makefile.Windows
-END
 libsangoma.sln
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/libsangoma/!svn/ver/136/trunk/libsangoma.sln
+/svn/libsangoma/!svn/ver/235/trunk/libsangoma.sln
 END
 Makefile.am
 K 25
@@ -247,7 +223,7 @@ libsangoma.def
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/libsangoma/!svn/ver/221/trunk/libsangoma.def
+/svn/libsangoma/!svn/ver/269/trunk/libsangoma.def
 END
 libsangoma-pvt.h
 K 25
@@ -265,5 +241,5 @@ libsangoma.vcproj
 K 25
 svn:wc:ra_dav:version-url
 V 52
-/svn/libsangoma/!svn/ver/219/trunk/libsangoma.vcproj
+/svn/libsangoma/!svn/ver/269/trunk/libsangoma.vcproj
 END

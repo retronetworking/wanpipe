@@ -141,6 +141,9 @@ atomic_t rx_data;
 # undef HDLC_IDLE_ABORT	
 #endif
 
+WAN_DECLARE_NETDEV_OPS(wan_netdev_ops)
+
+
 /******Data Structures*****************************************************/
 
 /* This structure is placed in the private data area of the device structure.
@@ -970,7 +973,7 @@ static int update (wan_device_t* wandev)
 #endif
 
 #if 0
-	if (bstrm_priv_area->common.usedby == SWITCH && bstrm_priv_area->sw_dev){
+	if (bstrm_priv_area->common.usedby == WP_SWITCH && bstrm_priv_area->sw_dev){
 		bitstrm_private_area_t *sw_chan=
 			(bitstrm_private_area_t *)bstrm_priv_area->sw_dev->priv;	
 		sdla_t *sw_card=sw_chan->card;
@@ -1237,7 +1240,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 #endif
 		
 	} else if( strcmp(conf->usedby, "SWITCH") == 0) {
-		bstrm_priv_area->common.usedby=SWITCH;
+		bstrm_priv_area->common.usedby=WP_SWITCH;
 		bstrm_priv_area->protocol=0;
 		DEBUG_EVENT( "%s: Running in SWITCH mode !\n",
 			wandev->name);
@@ -1267,7 +1270,15 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 	/* prepare network device data space for registration */
 
-	dev->init = &if_init;
+	WAN_NETDEV_OPS_BIND(dev,wan_netdev_ops);
+	WAN_NETDEV_OPS_INIT(dev,wan_netdev_ops,&if_init);
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
+
 	wan_netif_set_priv(dev,bstrm_priv_area);
 	bstrm_priv_area->common.dev = dev;
 
@@ -1282,7 +1293,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	bstrm_priv_area->tx_flag= 0x7E; //card->u.b.cfg.monosync_tx_time_fill_char;
 	bstrm_priv_area->tx_flag_idle= 0x7E; //card->u.b.cfg.monosync_tx_time_fill_char;
 
-	if (bstrm_priv_area->common.usedby == SWITCH){
+	if (bstrm_priv_area->common.usedby == WP_SWITCH){
 		strncpy(bstrm_priv_area->sw_if_name,conf->sw_dev_name,WAN_IFNAME_SZ);
 	}
 
@@ -1529,15 +1540,15 @@ static int if_init (netdevice_t* dev)
 	wan_device_t* wandev = &card->wandev;
 
 	/* Initialize device driver entry points */
-	dev->open		= &if_open;
-	dev->stop		= &if_close;
-	dev->hard_start_xmit	= &if_send;
-	dev->get_stats		= &if_stats;
+	WAN_NETDEV_OPS_OPEN(dev,wan_netdev_ops,&if_open);
+	WAN_NETDEV_OPS_STOP(dev,wan_netdev_ops,&if_close);
+	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
+	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
 #if defined(LINUX_2_4)||defined(LINUX_2_6)
-	dev->tx_timeout		= &if_tx_timeout;
+	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 	dev->watchdog_timeo	= TX_TIMEOUT;
 #endif
-	dev->do_ioctl		= &if_do_ioctl;
+	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
 
 	/* Initialize media-specific parameters */
 	if (!bstrm_priv_area->protocol){
@@ -1554,7 +1565,7 @@ static int if_init (netdevice_t* dev)
 		dev->type	= ARPHRD_PPP;
 	}
 
-	if (bstrm_priv_area->common.usedby == SWITCH){
+	if (bstrm_priv_area->common.usedby == WP_SWITCH){
 		dev->mtu = card->u.b.cfg.max_length_tx_data_block;
 	}else{
 		if (!bstrm_priv_area->protocol){
@@ -1929,7 +1940,7 @@ static int if_open (netdevice_t* dev)
 
 	protocol_start(card,dev);
 
-	if (bstrm_priv_area->common.usedby == SWITCH){
+	if (bstrm_priv_area->common.usedby == WP_SWITCH){
 		int err;
 		err=bstrm_bind_dev_switch(card,bstrm_priv_area,bstrm_priv_area->sw_if_name);
 		if (err){
@@ -1999,7 +2010,7 @@ static int if_close (netdevice_t* dev)
 
 	protocol_stop(card,dev);
 
-	if (bstrm_priv_area->common.usedby == SWITCH){
+	if (bstrm_priv_area->common.usedby == WP_SWITCH){
 		wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 		bstrm_unbind_dev_switch(card,bstrm_priv_area);
 		wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
@@ -2219,7 +2230,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 
 		wan_skb_unlink(skb);
 
-		if (bstrm_priv_area->common.usedby == SWITCH){
+		if (bstrm_priv_area->common.usedby == WP_SWITCH){
 			wanpipe_switch_datascope_tx_up(bstrm_priv_area,skb);
 		}
 
@@ -2233,7 +2244,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 			skb_pull(skb,sizeof(api_tx_hdr_t));
 		}
 		
-		if (bstrm_priv_area->common.usedby != SWITCH &&
+		if (bstrm_priv_area->common.usedby != WP_SWITCH &&
 		    bstrm_priv_area->hdlc_eng){
 			if (hdlc_encode(bstrm_priv_area,&skb) != 0){
 				++card->wandev.stats.tx_dropped;
@@ -2263,7 +2274,7 @@ static int if_send (struct sk_buff* skb, netdevice_t* dev)
 		bstrm_priv_area->ifstats.tx_bytes += skb->len;
 
 		spin_lock_irqsave(&card->wandev.lock,smp_flags);
-		if (bstrm_priv_area->common.usedby != SWITCH &&
+		if (bstrm_priv_area->common.usedby != WP_SWITCH &&
 		    bstrm_priv_area->hdlc_eng){
 			bstrm_priv_area->tx_idle_flag = bstrm_priv_area->tx_flag_idle;
 		}
@@ -2671,7 +2682,7 @@ static void bstrm_tx_bh (unsigned long data)
 			goto tx_bh_exit;
 		}
 	
-		if (chan->common.usedby == SWITCH && 
+		if (chan->common.usedby == WP_SWITCH && 
 		    test_bit(WAIT_DEVICE_BUFFERS,&chan->tq_control)){
 			DEBUG_EVENT("%s: Warning: Tx Intr while waiting for buffers\n",
 					chan->common.dev->name);
@@ -2681,7 +2692,7 @@ static void bstrm_tx_bh (unsigned long data)
 			if (chan->common.usedby == API){
 				start_net_queue(chan->common.dev);	
 				wan_wakeup_api(chan);
-			}else if (chan->common.usedby == SWITCH){
+			}else if (chan->common.usedby == WP_SWITCH){
 				start_net_queue(chan->common.dev);
 			}else{
 				wake_net_dev(chan->common.dev);
@@ -2741,14 +2752,14 @@ static void bstrm_tx_bh (unsigned long data)
 						lapb_protocol.lapb_mark_bh(chan->annexg_dev);
 					}	
 #endif		
-				}else if (chan->common.usedby == SWITCH){
+				}else if (chan->common.usedby == WP_SWITCH){
 					start_net_queue(chan->common.dev);
 				}else{
 					wake_net_dev(chan->common.dev);
 				}
 			}
 			
-			if (chan->common.usedby == SWITCH &&
+			if (chan->common.usedby == WP_SWITCH &&
 			    test_bit(WAIT_DEVICE_BUFFERS,&chan->tq_control)){
 				card->u.b.tx_scratch_buf[card->u.b.tx_scratch_buf_len]=chan->tx_idle_flag;
 				card->u.b.tx_scratch_buf_len++;
@@ -2876,7 +2887,7 @@ static void bstrm_rx_bh (unsigned long data)
 				continue;
 			}
 
-			if (chan->common.usedby == SWITCH){
+			if (chan->common.usedby == WP_SWITCH){
 
 				bstrm_bh_data_tx_up(card,skb,chan);
 				
@@ -2967,9 +2978,9 @@ static void bstrm_rx_bh (unsigned long data)
 				 * HDLC decoder or API. For now just push it
 				 * into the used queue */
 			
-				if (chan->common.usedby == SWITCH){
+				if (chan->common.usedby == WP_SWITCH){
 					//if (skb->len != 0){
-					//	DEBUG_EVENT( "%s: SWITCH Sending %i, orig skb %i\n",
+					//	DEBUG_EVENT( "%s: WP_SWITCH Sending %i, orig skb %i\n",
 					//	      card->devname,chan->rx_skb->len, skb->len);
 					//}
 				
@@ -3066,8 +3077,7 @@ static void bstrm_switch_send(sdla_t *card, bitstrm_private_area_t * chan, struc
 			card->wandev.stats.rx_errors++;
 			chan->ifstats.rx_errors++;
 		}else{
-			if (!chan->sw_dev->hard_start_xmit ||
-			    chan->sw_dev->hard_start_xmit(new_skb,chan->sw_dev) != 0){
+			if (!WAN_NETDEV_TEST_XMIT(chan->sw_dev) || WAN_NETDEV_XMIT(new_skb,chan->sw_dev) != 0){
 				kfree(new_skb);
 				DEBUG_EVENT( "%s: Failed to send on SW dev %s\n",
 						chan->if_name,chan->sw_dev->name);
@@ -3099,11 +3109,11 @@ static int bstrm_bh_data_tx_up(sdla_t*card, struct sk_buff *non_te1_skb, bitstrm
 	if ((chan=chan_ptr) != NULL){
 		dev=chan->common.dev;
 
-		/* Channel exists, the SWITCH code is trying
+		/* Channel exists, the WP_SWITCH code is trying
 		 * to send a packet up the stack.  Thus
-		 * check if this device is actually in SWITCH
+		 * check if this device is actually in WP_SWITCH
 		 * mode */
-		if (dev && chan->common.usedby == SWITCH){
+		if (dev && chan->common.usedby == WP_SWITCH){
 
 			/* If API socket is not bound in
 			 * then exit */
@@ -3165,9 +3175,9 @@ static int bstrm_bh_data_tx_up(sdla_t*card, struct sk_buff *non_te1_skb, bitstrm
 			}
 		}
 
-		/* This is just a precaution, SWITCH device
+		/* This is just a precaution, WP_SWITCH device
 		 * shouldnt be here */
-		if (chan->common.usedby == SWITCH){
+		if (chan->common.usedby == WP_SWITCH){
 			goto tx_up_skb_recover;
 
 		}else if (chan->common.usedby == API){
@@ -3705,7 +3715,7 @@ static void tx_up_decode_pkt(bitstrm_private_area_t *chan)
 		}
 		
 #endif
-	}else if (chan->common.usedby==API || chan->common.usedby==SWITCH){
+	}else if (chan->common.usedby==API || chan->common.usedby==WP_SWITCH){
 
 		buf = skb_put(skb,sizeof(api_rx_hdr_t));
 		memset(buf, 0, sizeof(api_rx_hdr_t));
@@ -4966,7 +4976,7 @@ static void port_set_state (sdla_t *card, int state)
 			bstrm_priv_area = wan_netif_priv(dev);
 	
 			if (IS_TE1_CARD(card) && 
-			    bstrm_priv_area->common.usedby == SWITCH &&
+			    bstrm_priv_area->common.usedby == WP_SWITCH &&
 			    state == WAN_CONNECTED){
 
 				bitstrm_private_area_t *sw_chan;
@@ -5051,7 +5061,7 @@ static void port_set_state (sdla_t *card, int state)
 					skb_queue_tail(&bstrm_priv_area->rx_free_queue,skb);
 				}
 
-				if (bstrm_priv_area->common.usedby==SWITCH){
+				if (bstrm_priv_area->common.usedby==WP_SWITCH){
 					set_bit(WAIT_DEVICE_BUFFERS,&bstrm_priv_area->tq_control);
 				}
 			}
@@ -5385,7 +5395,7 @@ static int bstrm_bind_dev_switch (sdla_t *card, bitstrm_private_area_t*chan, cha
 		return -EINVAL;
 	}
 
-	if (((wanpipe_common_t*)wan_netif_priv(sw_dev))->usedby != SWITCH){
+	if (((wanpipe_common_t*)wan_netif_priv(sw_dev))->usedby != WP_SWITCH){
 		DEBUG_EVENT( "%s: Error: Device %s not configured for switching\n",
 				card->devname, sw_dev->name);
 		
@@ -5576,7 +5586,7 @@ static int protocol_shutdown (sdla_t *card, netdevice_t *dev)
 	    chan->protocol == WANCONFIG_CHDLC){
 		wp_sppp_detach(dev);
 		
-		dev->do_ioctl = NULL;
+		WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,NULL);
 
 		if (chan->common.prot_ptr){
 			kfree(chan->common.prot_ptr);

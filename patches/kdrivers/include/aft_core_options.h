@@ -57,50 +57,53 @@
 
 
 #if defined(__WINDOWS__)
- /********** compilation flags ************/
- /* compile protocols in the LIP layer */
- #define CONFIG_PRODUCT_WANPIPE_FR
- #define CONFIG_PRODUCT_WANPIPE_CHDLC
- #define CONFIG_PRODUCT_WANPIPE_PPP
- #define CONFIG_PRODUCT_WANPIPE_LAPB
+/********** compilation flags ************/
+/* compile protocols in the LIP layer */
+# define CONFIG_PRODUCT_WANPIPE_FR
+# define CONFIG_PRODUCT_WANPIPE_CHDLC
+# define CONFIG_PRODUCT_WANPIPE_PPP
 
-  /* compile AFT 56k code */
- #define CONFIG_PRODUCT_WANPIPE_AFT_56K
- /* compile "old" AFT T1/E1 code */
- #define CONFIG_PRODUCT_WANPIPE_AFT
- /* compile "new/shark" AFT T1/E1 code */
- #define CONFIG_PRODUCT_WANPIPE_AFT_TE1
- /* compile AFT A200 Analog code */
- #define CONFIG_PRODUCT_WANPIPE_AFT_RM
- #define CONFIG_WANPIPE_PRODUCT_AFT_RM
+# define CONFIG_PRODUCT_WANPIPE_LIP_LAPD
 
- /* compile AFT B600 Analog - 4 FXO / 1 FXS code */
- #define CONFIG_PRODUCT_WANPIPE_AFT_A600
+/* compile AFT 56k code */
+# define CONFIG_PRODUCT_WANPIPE_AFT_56K
+/* compile "old" AFT T1/E1 code */
+# define CONFIG_PRODUCT_WANPIPE_AFT
+/* compile "new/shark" AFT T1/E1 code */
+# define CONFIG_PRODUCT_WANPIPE_AFT_TE1
+/* compile AFT A200 Analog code */
+# define CONFIG_PRODUCT_WANPIPE_AFT_RM
+# define CONFIG_WANPIPE_PRODUCT_AFT_RM
 
- /* compile AFT B700 4 BRI and 2 Analog - FXO or FXS code */
- #define CONFIG_PRODUCT_WANPIPE_AFT_A700
+/* compile AFT B600 Analog - 4 FXO / 1 FXS code */
+# define CONFIG_PRODUCT_WANPIPE_AFT_A600
 
- /* compile HWEC code */
- #define CONFIG_WANPIPE_HWEC
- /* compile ADSL code */
- #define CONFIG_PRODUCT_WANPIPE_ADSL
- /* compile ISDN BRI code */
- #define CONFIG_PRODUCT_WANPIPE_AFT_BRI
- #define CONFIG_WANPIPE_PRODUCT_AFT_BRI
+/* compile AFT B700 4 BRI and 2 Analog - FXO or FXS code */
+# define CONFIG_PRODUCT_WANPIPE_AFT_A700
 
- /* compile AFT Serial code */
- #define CONFIG_PRODUCT_WANPIPE_AFT_SERIAL
+/* compile HWEC code */
+# define CONFIG_WANPIPE_HWEC
+/* compile ADSL code */
+# define CONFIG_PRODUCT_WANPIPE_ADSL
+/* compile ISDN BRI code */
+# define CONFIG_PRODUCT_WANPIPE_AFT_BRI
+# define CONFIG_WANPIPE_PRODUCT_AFT_BRI
 
- #define WAN_IS_TASKQ_SCHEDULE 1
+/* compile AFT Serial code */
+# define CONFIG_PRODUCT_WANPIPE_AFT_SERIAL
 
- /* compile TDM Voice API in wanpipe_tdm_api.c */
- #define BUILD_TDMV_API
+# define WAN_IS_TASKQ_SCHEDULE 1
 
- #define SDLADRV_HW_IFACE
+/* compile TDM Voice API in wanpipe_tdm_api.c */
+# define BUILD_TDMV_API
 
- /********** end of compilation flags ************/
+# define SDLADRV_HW_IFACE
+
+// #define WANPIPE_PERFORMANCE_DEBUG
+
+/********** end of compilation flags ************/
 #endif/* __WINDOWS__ */
 
-#endif
-#endif
+#endif/* WAN_KERNEL */
+#endif/* _AFT_CORE_OPTIONS_H */
 

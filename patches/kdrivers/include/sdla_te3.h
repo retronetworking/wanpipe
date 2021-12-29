@@ -105,6 +105,7 @@ typedef struct {
 #if defined(WAN_KERNEL)
 
 typedef struct {
+    unsigned long	critical;
 	int dummy;
 	u_int8_t	cpld_cntrl;
 	u_int8_t	cpld_status;

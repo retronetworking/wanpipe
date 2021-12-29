@@ -26,7 +26,8 @@ typedef struct wan_aftup_ {
 	unsigned char	core_rev;
 	unsigned char	core_id;
 	int		revision_id;
-	char		flash_rev;
+	char	flash_rev;
+	char	flash_new;	
 #if 0
 	char	firmware[100];
 	char	prefix_fw[100];

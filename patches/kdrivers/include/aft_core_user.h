@@ -1,3 +1,4 @@
+/* aft_core_user.h */
 #ifndef  __AFT_CORE_USER__
 #define  __AFT_CORE_USER__
 
@@ -316,6 +317,78 @@ typedef struct pipe_mgmt_stat{
         unsigned long UDP_PIPE_mgmt_passed_to_adptr;
 } pipe_mgmt_stat_t;
 
+typedef struct aft_driver_isr_stats {
+	unsigned long all;
+	unsigned long aft;
+	unsigned long non_aft;
+	unsigned long fe;
+	unsigned long fe_run;
+	unsigned long tdm;
+	unsigned long tdm_run;
+	unsigned long dma;
+	unsigned long dma_rx;
+	unsigned long dma_tx;
+	unsigned long fifo;
+	unsigned long fifo_rx;
+	unsigned long fifo_tx;
+	unsigned long wdt;
+	unsigned long wdt_software;
+	unsigned long free_run;
+	unsigned long serial;
+}aft_driver_isr_stats_t;
+
+typedef struct aft_driver_bh_stats {
+	unsigned long all;
+	unsigned long rx;
+	unsigned long rx_stack;
+	unsigned long rx_bri_dchan;
+	unsigned long tx_post;
+}aft_driver_bh_stats_t;
+
+typedef struct aft_driver_port_task_stats {
+	unsigned long all;
+	unsigned long fe_isr;
+	unsigned long fe_poll;
+	unsigned long ec;
+	unsigned long ec_poll;
+	unsigned long led;
+	unsigned long serial_status;
+	unsigned long tap_q;
+	unsigned long restart;
+	unsigned long rbs;
+}aft_driver_port_task_stats_t;
+
+#define MAX_SMA_IDX 255
+typedef struct aft_driver_timing {
+	unsigned long			max_latency;
+	unsigned long			min_latency;
+	unsigned long			latency;
+	unsigned long			above_avg;
+	unsigned long			below_avg;
+	unsigned long			limit;
+	int						sma_idx;
+	unsigned long			sma[MAX_SMA_IDX];
+	unsigned long			latency_avg;
+	wan_ticks_t				timeout;
+
+	wan_timeval_t			timing_tv;	
+
+}aft_driver_timing_t;
+
+typedef struct aft_driver_performance_stats {
+	aft_driver_isr_stats_t isr;
+	aft_driver_bh_stats_t bh;
+	aft_driver_port_task_stats_t port_task;
+
+	aft_driver_timing_t     aft_isr_latency;
+	aft_driver_timing_t     kernel_isr_latency;
+} aft_driver_performance_stats_t;
+
+#if defined(WANPIPE_PERFORMANCE_DEBUG)
+#define AFT_PERF_STAT_INC(card,type,var) card->aft_perf_stats.type.var++												 
+#else
+#define AFT_PERF_STAT_INC(card,type,var)
+#endif
 
 
 #if defined(__WINDOWS__)
@@ -396,16 +469,19 @@ typedef struct pipe_mgmt_stat{
 
 
 //Definitions for 'poll_events_bitmap' and 'user_flags_bitmap' in API_POLL_STRUCT:
-#define POLL_EVENT_RX_DATA			1
-#define POLL_EVENT_TX_READY			(1 << 2)
-#define POLL_EVENT_OOB				(1 << 3) /* Out-Of-Band events such as Line Connect/Disconnect,
+#define POLL_EVENT_RX_DATA			(1)
+#define POLL_EVENT_TX_READY			(1 << 1)
+#define POLL_EVENT_OOB				(1 << 2) /* Out-Of-Band events such as Line Connect/Disconnect,
 												RBS change, Ring, On/Off Hook, DTMF... */
 
-#define POLLIN		(POLL_EVENT_RX_DATA)
-#define POLLOUT		(POLL_EVENT_TX_READY)
-#define POLLPRI		(POLL_EVENT_OOB)
+#define POLLIN		POLL_EVENT_RX_DATA
+#define POLLOUT		POLL_EVENT_TX_READY
+#define POLLPRI		POLL_EVENT_OOB
 #define POLLHUP		POLLPRI
 #define POLLERR		POLLPRI
+
+#define POLLWRNORM	0
+#define POLLRDNORM	0
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // Command to Set data in Idle Transmit buffer of the driver:
@@ -493,6 +569,15 @@ static void print_poll_event_bitmap(u_int32_t bitmap)
 	}
 }
 
+///////////////////////////////////////////////////////////////////////////////////////
+// Command to control Logger API:
+// Input : ptr to wp_logger_cmd_t structure.
+// Output: ptr to wp_logger_cmd_t structure (same as input)
+// Uses Buffered I/O, Synchronous call.
+// This command is thread safe.
+#define IoctlLoggerApiCommand	\
+	CTL_CODE(FILE_DEVICE_UNKNOWN, WANPIPE_IOCTL_LOGGER_CMD, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
 #endif /* __WINDOWS__ */
 
 /*
@@ -558,12 +643,24 @@ typedef struct {
 	int	pci_bus_number;
 	int	pci_slot_number;
 	/* Number of HW Echo Canceller channels.
-	    Zero means HW Echo Canceller not installed the card. */
+		Zero means HW Echo Canceller not installed the card. */
 	int	max_hw_ec_chans;
 
-	/* Port's number on a card (zero based). */
+	/* Port's number on a card
+	   For T1/E1: Indicates FE_LINE number starting from 1 
+	   For Analog: Always set to 1. (Not used) (use fxo/fxs map instead)
+	   For BRI: Indicats module number starting from 1
+	   For S514: Indicates Primary or Secondary Port 
+	*/
 	int port_number;
 	char serial_number[CARD_SERIAL_NUMBER_LENGTH];	/* Not implemented, for future use. */
+
+	unsigned int chans_map; /* bitmap of available TDM slots */
+	unsigned int fxo_map; /* bitmap of available fxo TDM slots, if analog port */
+	unsigned int fxs_map; /* bitmap of available fxs TDM slots, if analog port */
+	int max_chans_num; /* max number of TDM slots */
+	int bri_modtype; /* which BRI type (MOD_TYPE_NT, MOD_TYPE_TE), if BRI port */
+
 }hardware_info_t;
 
 typedef struct{

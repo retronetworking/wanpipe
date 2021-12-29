@@ -10,11 +10,16 @@ use strict;
 sub new	{
 	my ($class) = @_;
 	my $self = {
+		#openzap conf
 		_span_type => undef,
 		_span_name => 'OpenZap',
 		_span_no   => undef,
 		_chan_no   => undef,
-		_trunk_type => undef,		
+		#signalling conf
+		_trunk_type => undef,
+		_group_no => undef,
+		_chan_set => undef,
+		_sig_mode => undef,		
 	};			
 	bless $self, $class;
     	return $self;
@@ -46,10 +51,32 @@ sub trunk_type {
 		                    $self->{_trunk_type} = $trunk_type if defined($trunk_type);
 				                        return $self->{_trunk_type};
 }
+sub group_no {
+	            my ( $self, $group_no ) = @_;
+		                    $self->{_group_no} = $group_no if defined($group_no);
+				                        return $self->{_group_no};
+}
+sub switch_type {
+	            my ( $self, $switch_type ) = @_;
+		                    $self->{_switch_type} = $switch_type if defined($switch_type);
+				                        return $self->{_switch_type};
+}
+
+sub chan_set {
+	            my ( $self, $chan_set ) = @_;
+		                    $self->{_chan_set} = $chan_set if defined($chan_set);
+				                        return $self->{_chan_set};
+}
+
+sub sig_mode {
+	            my ( $self, $sig_mode ) = @_;
+		                    $self->{_sig_mode} = $sig_mode if defined($sig_mode);
+				                        return $self->{_sig_mode};
+}
 
 sub print {
     my ($self) = @_;
-    printf (" span_name: %s\n span_type: %s\n span_no: %s\n chan_no:  %s \ntrunk type: %s \n", $self->span_name, $self->span_type, $self->span_no, $self->chan_no, $self->trunk_type);
+    printf (" span_name: %s\n span_type: %s\n span_no: %s\n chan_no:  %s \ntrunk type: %s \ngroup_no:  %s\n switchtype: %s\n chan_set: %s\n sig_mode:%s\n", $self->span_name, $self->span_type, $self->span_no, $self->chan_no, $self->trunk_type,$self->group_no,$self->switch_type,$self->chan_set,$self->sig_mode);
 
 }
 
