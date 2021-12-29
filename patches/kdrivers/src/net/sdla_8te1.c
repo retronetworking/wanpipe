@@ -1545,6 +1545,12 @@ static int sdla_ds_te1_pre_release(void* pfe)
 		if (fe_event) wan_free(fe_event);
 		fe_event = NULL;
 	}while(!empty);
+
+	if (fe->swirq){
+		wan_free(fe->swirq);
+		fe->swirq = NULL;
+	}
+
 	return 0;
 }
 
@@ -1579,11 +1585,6 @@ static int sdla_ds_te1_unconfig(void* pfe)
 	/* Set Tx Framer soft reset */
 	WRITE_REG(REG_TMMR, BIT_RMMR_SFTRST);
 
-	if (fe->swirq){
-		wan_free(fe->swirq);
-		fe->swirq = NULL;
-	}
-	
 	/* Clear configuration flag */
 	wan_clear_bit(TE_CONFIGURED,(void*)&fe->te_param.critical);
 
@@ -1669,15 +1670,7 @@ sdla_ds_te1_sigctrl(sdla_fe_t *fe, int sig_mode, unsigned long ch_map, int mode)
 ******************************************************************************/
 static u_int32_t sdla_ds_t1_is_alarm(sdla_fe_t *fe, u_int32_t alarms)
 {
-	u_int32_t	alarm_mask = WAN_TE1_FRAMED_ALARMS;
-
-	/* Alex Feb 27, 2008
-	** Special case for customer that uses 
-	** YEL alarm for protocol control */
-	if (fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
-		alarm_mask |= WAN_TE_BIT_ALARM_RAI;
-	}
-	return (alarms & alarm_mask);
+	return (alarms & WAN_TE1_FRAMED_ALARMS);
 }
 
 /******************************************************************************
@@ -1716,7 +1709,7 @@ static u_int32_t sdla_ds_e1_is_alarm(sdla_fe_t *fe, u_int32_t alarms)
 static int sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms)
 {
 	sdla_t		*card = (sdla_t*)fe->card;
-	unsigned char	curr_fe_status = fe->fe_status;
+	unsigned char	new_fe_status = fe->fe_status;
 	u_int32_t	valid_rx_alarms = 0x00;
 
 	if (IS_T1_FEMEDIA(fe)){
@@ -1727,69 +1720,67 @@ static int sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms)
 
 	if (valid_rx_alarms){
 		if (fe->fe_status != FE_DISCONNECTED){
-			if (!(valid_rx_alarms & WAN_TE_BIT_ALARM_RAI)){
-				sdla_ds_te1_set_alarms(fe, WAN_TE_BIT_ALARM_YEL);
-			}
-			fe->fe_status = FE_DISCONNECTED;
-		}else if (fe->te_param.tx_yel_alarm && valid_rx_alarms == WAN_TE_BIT_ALARM_RAI){
-			/* NC. The special loopback case is when ONLY RAI alarm is on an
-			 * no other alarm is active, so we must use "==" instead of "&" */
-			sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_ALARM_YEL);
-		} 
+   			new_fe_status = FE_DISCONNECTED;
+		}
 	}else{
 		if (fe->fe_status != FE_CONNECTED){
-			fe->fe_status = FE_CONNECTED;
+   			new_fe_status = FE_CONNECTED;
 		}
 	}
 
-	if (curr_fe_status != fe->fe_status){
-		if (fe->fe_status == FE_CONNECTED){
-			if (fe->te_param.status_cnt > WAN_TE1_STATUS_THRESHOLD){
-                		if (fe->te_param.tx_yel_alarm){
-                    			sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_ALARM_YEL);
-    				}
-				DEBUG_EVENT("%s: %s connected!\n", 
-						fe->name,
-						FE_MEDIA_DECODE(fe));
-				if (card->wandev.te_report_alarms){
-					card->wandev.te_report_alarms(
-							card,
-							fe->fe_alarm);
-				}
-			}else{
-				if (!fe->te_param.status_cnt){
-					DEBUG_TE1("%s: %s connecting...\n", 
-							fe->name,
-							FE_MEDIA_DECODE(fe));
-				}
-				fe->te_param.status_cnt ++;
-				fe->fe_status = FE_DISCONNECTED;
-				DEBUG_TE1("%s: %s connecting...%d\n", 
-							fe->name,
-							FE_MEDIA_DECODE(fe),
-							fe->te_param.status_cnt);
-			}
-		}else{
-			DEBUG_EVENT("%s: %s disconnected!\n", 
-					fe->name,
-					FE_MEDIA_DECODE(fe));
-			fe->fe_status = FE_DISCONNECTED;
-			fe->te_param.status_cnt = 0;
-			if (card->wandev.te_report_alarms){
-				card->wandev.te_report_alarms(card, fe->fe_alarm);
-			}
-		}
-
-	}else{
+	if (fe->fe_status == new_fe_status){
 		fe->te_param.status_cnt = 0;	
 		DEBUG_TE1("%s: %s %s...%d\n", 
 					fe->name,
 					FE_MEDIA_DECODE(fe),
 					WAN_FE_STATUS_DECODE(fe),
 					fe->te_param.status_cnt);
-	}
 
-	return (curr_fe_status != fe->fe_status);
+        return 0;
+	}
+   	if (new_fe_status == FE_CONNECTED){
+   		if (fe->te_param.status_cnt > WAN_TE1_STATUS_THRESHOLD){
+       		if (fe->te_param.tx_yel_alarm){
+       			sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_ALARM_YEL);
+   			}
+   			DEBUG_EVENT("%s: %s connected!\n", 
+      					fe->name,
+   						FE_MEDIA_DECODE(fe));
+  			fe->fe_status = FE_CONNECTED;
+   			if (card->wandev.te_report_alarms){
+   				card->wandev.te_report_alarms(
+							card,
+							fe->fe_alarm);
+   			}
+   		}else{
+   			if (!fe->te_param.status_cnt){
+   				DEBUG_TE1("%s: %s connecting...\n", 
+   						fe->name,
+   						FE_MEDIA_DECODE(fe));
+   			}
+   			fe->te_param.status_cnt ++;
+   			fe->fe_status = FE_DISCONNECTED;
+   			DEBUG_TE1("%s: %s connecting...%d\n", 
+   						fe->name,
+   						FE_MEDIA_DECODE(fe),
+   						fe->te_param.status_cnt);
+   		}
+   	}else{
+   		DEBUG_EVENT("%s: %s disconnected!\n", 
+   				fe->name,
+   				FE_MEDIA_DECODE(fe));
+   		fe->fe_status = FE_DISCONNECTED;
+   		if (fe->te_param.tx_yel_alarm){
+   			sdla_ds_te1_set_alarms(fe, WAN_TE_BIT_ALARM_YEL);
+   		}
+   		fe->te_param.status_cnt = 0;
+   		if (card->wandev.te_report_alarms){
+   			card->wandev.te_report_alarms(card, fe->fe_alarm);
+   		}
+   	}
+
+	/* Front-End state changed */
+	return 1;
 }
 
 
@@ -3675,6 +3666,8 @@ static int sdla_ds_te1_swirq_link(sdla_fe_t* fe)
 				subtype	= WAN_TE1_SWIRQ_SUBTYPE_LINKREADY;
 				delay	= POLLING_TE1_TIMER;
 			}else{
+                /* Get alarm status before enabling interrupts */
+				sdla_ds_te1_read_alarms(fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
 				/* Enable Basic Interrupt
 				** Enable automatic update pmon counters */
 				sdla_ds_te1_intr_ctrl(	

@@ -27,6 +27,11 @@
 
 #if defined(__WINDOWS__)
 extern int wanec_dev_ioctl(void *data, char *card_devname);
+extern
+void
+wan_get_random_mac_address(
+	OUT unsigned char *mac_address
+	);
 #endif
 
 #ifdef __WINDOWS__
@@ -1494,14 +1499,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			break;
 
 		case WAN_GET_HW_MAC_ADDR:
-			{
-				/*	There is no MAC address on AFT hardware, simply create a random MAC.
-					Only S518 ADSL provides built-in MAC addrr (sdla_adsl.c). */
-				int i;
-				for(i = 0; i < ETHER_ADDR_LEN; i++){
-					wan_udp_pkt->wan_udp_data[i] = (u8)SYSTEM_TICKS+i;
-				}
-			}
+			wan_get_random_mac_address(wan_udp_pkt->wan_udp_data);
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			wan_udp_pkt->wan_udp_data_len = ETHER_ADDR_LEN;
 			break;

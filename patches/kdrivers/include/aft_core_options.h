@@ -67,7 +67,7 @@
   /* compile AFT 56k code */
  #define CONFIG_PRODUCT_WANPIPE_AFT_56K
  /* compile "old" AFT T1/E1 code */
- /*#define CONFIG_PRODUCT_WANPIPE_AFT*/
+ #define CONFIG_PRODUCT_WANPIPE_AFT
  /* compile "new/shark" AFT T1/E1 code */
  #define CONFIG_PRODUCT_WANPIPE_AFT_TE1
  /* compile AFT A200 Analog code */
@@ -83,7 +83,7 @@
  /* compile HWEC code */
  #define CONFIG_WANPIPE_HWEC
  /* compile ADSL code */
- //#define CONFIG_PRODUCT_WANPIPE_ADSL
+ #define CONFIG_PRODUCT_WANPIPE_ADSL
  /* compile ISDN BRI code */
  #define CONFIG_PRODUCT_WANPIPE_AFT_BRI
  #define CONFIG_WANPIPE_PRODUCT_AFT_BRI

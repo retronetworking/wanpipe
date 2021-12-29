@@ -2302,7 +2302,6 @@ wanpipe_tdm_api_event_ioctl(wanpipe_tdm_api_dev_t *tdm_api, wanpipe_api_cmd_t *t
 					event_ctrl.mode = WAN_EVENT_DISABLE;
 			}
 
-			event_ctrl.mode = WAN_EC_CHANNEL_PORT_SOUT;
 #if 0
 			if(tdm_event->channel < 1 || tdm_event->channel > NUM_OF_E1_CHANNELS - 1){
 					DEBUG_EVENT("%s: Error: DTMF control requested on invalid channel %u!\n",
@@ -2723,10 +2722,10 @@ int wanpipe_tdm_api_span_rx_tx(sdla_t *card, wanpipe_tdm_api_span_t *tdm_span, u
 					card->u.aft.tdm_tx_dma_toggle[tidx]=0;
 				}
 
-				ptr=(void*)((((unsigned long)tdm_api->rx_buf) & ~(mask)) + rx_offset);
+				ptr=(void*)((((ulong_ptr_t)tdm_api->rx_buf) & ~((ulong_ptr_t)mask)) + rx_offset);
 				tdm_api->rx_buf = ptr;
 
-				ptr=(void*)((((unsigned long)tdm_api->tx_buf) & ~(mask)) + tx_offset);
+				ptr=(void*)((((ulong_ptr_t)tdm_api->tx_buf) & ~((ulong_ptr_t)mask)) + tx_offset);
 				tdm_api->tx_buf = ptr;
 			}
 

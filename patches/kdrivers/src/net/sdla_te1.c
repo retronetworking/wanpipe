@@ -6440,7 +6440,7 @@ static int sdla_te_add_timer(sdla_fe_t* fe, unsigned long delay)
 		return 0;
 	}
 
-	err = wan_add_timer(&fe->timer, delay * HZ / 1000);
+	err = wan_add_timer(&fe->timer, delay * HZ);
 	if (err){
 		/* Failed to add timer */
 		return -EINVAL;

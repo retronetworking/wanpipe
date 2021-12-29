@@ -561,13 +561,14 @@ typedef struct {
 	    Zero means HW Echo Canceller not installed the card. */
 	int	max_hw_ec_chans;
 
-	/* Port's number (zero based). */
+	/* Port's number on a card (zero based). */
 	int port_number;
 	char serial_number[CARD_SERIAL_NUMBER_LENGTH];	/* Not implemented, for future use. */
 }hardware_info_t;
 
 typedef struct{
-	int	wanpipe_number;
+	int	wanpipe_number;	/* One based wanpipe number, corresponds to wanpipe name,
+						 * for example, WANPIPE1, WANPIPE2... */
 	hardware_info_t hardware_info;
 }wanpipe_instance_info_t;
 

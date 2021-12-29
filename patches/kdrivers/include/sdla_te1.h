@@ -150,7 +150,7 @@
 #define WAN_TE1_RX_SLEVEL_NONE		0
 #define WAN_TE1_RX_SLEVEL_43_DB		430	/* 43 dB   E1, RMONEN=0 */
 #define WAN_TE1_RX_SLEVEL_36_DB		360	/* 36 dB   T1, RMONEN=0 */
-#define WAN_TE1_RX_SLEVEL_30_DB		300 	/* 30 dB   RMONEN=0 | 1 */
+#define WAN_TE1_RX_SLEVEL_30_DB		300 /* 30 dB   RMONEN=0 | 1 */
 #define WAN_TE1_RX_SLEVEL_225_DB	225	/* 22.5 dB RMONEN=1 */
 #define WAN_TE1_RX_SLEVEL_18_DB		180	/* 18 dB   RMONEN=0 */
 #define WAN_TE1_RX_SLEVEL_175_DB	175	/* 17.5 dB RMONEN=1 */
@@ -232,9 +232,9 @@
 #define POLLING_TE1_TIMER		1	/* 1 sec */
 #define WAN_T1_ALARM_THRESHOLD_LOF_ON	(3)	/* 2-3 sec */
 #define WAN_T1_ALARM_THRESHOLD_LOF_OFF	(10)	/* 10 sec */
-#define WAN_T1_ALARM_THRESHOLD_AIS_ON	(2.5)   // must be 2.5s
+#define WAN_T1_ALARM_THRESHOLD_AIS_ON	(3)   // must be 2.5s
 #define WAN_T1_ALARM_THRESHOLD_AIS_OFF	(10)	// must be 10s
-#define WAN_T1_ALARM_THRESHOLD_LOS_ON	(2.5)   // must be 2.5s
+#define WAN_T1_ALARM_THRESHOLD_LOS_ON	(3)   // must be 2.5s
 #define WAN_T1_ALARM_THRESHOLD_LOS_OFF	(10)    // must be 10s
 
 /* TE1 critical flag */

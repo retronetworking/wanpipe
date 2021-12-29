@@ -87,6 +87,12 @@
 #if defined(__WINDOWS__)
 #include "array_queue.h"
 #include "sdladrv_private.h"	/* prototypes of global functions */
+extern
+void
+wan_get_random_mac_address(
+	OUT unsigned char *mac_address
+	);
+
 #endif
 
 /*
@@ -174,13 +180,7 @@ static struct net_device_stats* adsl_stats(netdevice_t* dev);
 static int 	wanpipe_attach_sppp(sdla_t *card, netdevice_t *dev, wanif_conf_t *conf);
 
 static int netif_rx(netdevice_t	*sdla_net_dev, netskb_t *rx_skb);
-static int adsl_if_send(void *not_used, netdevice_t *sdla_net_dev);
-
-static int 
-adsl_insert_packet_in_to_rx_queue(
-	netdevice_t			*sdla_net_dev,
-	RX_DATA_STRUCT		*rx_data_struct
-	);
+static int adsl_if_send(netskb_t* skb, netdevice_t* dev);
 
 extern DRIVER_VERSION drv_version;
 #else
@@ -210,14 +210,6 @@ static void process_bh(
 	IN PVOID	not_used2
 	);
 
-static void adsl_if_send_task_func(
-	IN PKDPC	Dpc, 
-	IN PVOID	arg, 
-	IN PVOID	not_used1, 
-	IN PVOID	not_used2
-	);
-
-static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* netdev, adsl_private_area_t* chan);
 static int 	adsl_init(void* priv);
 
 #else
@@ -320,13 +312,8 @@ int wp_adsl_init (sdla_t* card, wandev_conf_t* conf)
 	card->wandev.state = WAN_CONNECTING;	
 
 #if defined(__WINDOWS__)
-	//connect to the Interrupt Line
-	if(connect_to_interrupt_line(card)){
-		return 1;
-	}else{
-		//at this point we can handle front end interrupts
-		card->init_flag = 0;
-	}
+	//at this point we can handle front end interrupts
+	card->init_flag = 0;
 #endif
 
 	return 0;
@@ -437,7 +424,6 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 #elif defined(__WINDOWS__)
 	/* # define WAN_TASKQ_INIT(task, priority, func, arg) */
 	WAN_TASKQ_INIT((&adsl->common.wanpipe_task), 0, process_bh, ifp);
-	WAN_TASKQ_INIT((&adsl->adsl_if_send_task), 0, adsl_if_send_task_func, ifp);
 #endif
 
 	wan_netif_set_priv(ifp,adsl);
@@ -450,7 +436,6 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 
 #if defined(__WINDOWS__)
 	ifp->hard_start_xmit    = &adsl_if_send;/* will call adsl_output() */
-	ifp->udp_mgmt			= &process_udp_mgmt_pkt;
 	ifp->init				= &adsl_init;
 
 	adsl->common.card = card;
@@ -458,11 +443,11 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 
 	wpabs_trace_info_init(&adsl->trace_info, MAX_TRACE_QUEUE);
 	ifp->trace_info = &adsl->trace_info;
-	adsl->sdla_net_dev = ifp;
-
 #else
 	ifp->hard_start_xmit    = &adsl_output;
 #endif
+	
+	adsl->common.dev = ifp;
 
 	ifp->get_stats          = &adsl_stats;
 
@@ -484,15 +469,6 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 		del_if(wandev, ifp);
 		return -EINVAL;
 	}
-#if 0//defined(__WINDOWS__)
-	//connect to the Interrupt Line
-	if(connect_to_interrupt_line(card)){
-		return 1;
-	}else{
-		//at this point we can handle front end interrupts
-		card->init_flag = 0;
-	}
-#endif
 
 #if !defined(__WINDOWS__)
 	if(strcmp(conf->usedby, "STACK") == 0) {
@@ -636,7 +612,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* ifp)
 	/* Initialize interrupt handler pointer */
 	card->isr = NULL;
 #if defined(__WINDOWS__)
-	disconnect_from_interrupt_line(card);
+	;/* do nothing */
 #else
 	/* Initialize network interface */
 	if (card->u.adsl.EncapMode == RFC_MODE_PPP_VC ||
@@ -860,7 +836,7 @@ static void adsl_tx_timeout (netdevice_t *dev)
 	adsl_private_area_t*	adsl = wan_netif_priv(dev);
 	sdla_t*			card = adsl->common.card;
 
-	DBG_DSL_NOT_IMPLD
+	DBG_DSL_NOT_IMPLD();
 
 	/* If our device stays busy for at least 5 seconds then we will
 	* kick start the device by making dev->tbusy = 0.  We expect
@@ -888,7 +864,7 @@ static int adsl_open(netdevice_t* ifp)
 {
 	int     status = 0;
 	
-	DBG_DSL_NOT_IMPLD
+	DBG_DSL_NOT_IMPLD();
 #if defined (__LINUX__)
 	adsl_private_area_t* adsl = wan_netif_priv(ifp);
 #endif
@@ -909,7 +885,7 @@ int adsl_close(netdevice_t* ifp)
 #if defined (__LINUX__)
 	adsl_private_area_t* adsl = wan_netif_priv(ifp);
 #endif
-	DBG_DSL_NOT_IMPLD
+	DBG_DSL_NOT_IMPLD();
 
 	return status;
 }
@@ -1194,7 +1170,6 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 	WAN_PKTATTR_DECL(pktattr);
 #endif
 
-
 	if (!skb){
 		WAN_NETIF_START_QUEUE(dev);
 		return 0;
@@ -1247,7 +1222,6 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 	DEBUG_TX("%s: TxLan %d bytes...\n", 
 		card->devname, wan_skb_len(skb));
 
-
 #if 0
 	DBG_ASSERT(skb->len < GSI_LAN_NDIS_BUFFER_SIZE);
 
@@ -1289,15 +1263,15 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 		status = 1;
 	}else{
 		if (status == 2){
-			card->wandev.stats.rx_dropped++;
+			card->wandev.stats.tx_dropped++;
 		}
-//		wpabs_skb_free(skb);//can NOT deallocate memory inside IRQ Lock!!!
 		WAN_NETIF_START_QUEUE(dev);
 		status = 0;
 	}
 	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);	
 
 	if(status == 0){
+		/* free skb OUTSIDE of IRQ spinlock! */
 		wpabs_skb_free(skb);
 	}
 #else
@@ -1953,61 +1927,23 @@ VOID process_bh(
 	IN PVOID	not_used2
 	)
 {
-	DBG_DSL_NOT_IMPLD
+	DBG_DSL_NOT_IMPLD();
 }
 #endif
 
 #if defined(__WINDOWS__)
 static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* netdev, adsl_private_area_t* chan)
 {
-	unsigned short buffer_length;
 	wan_udp_pkt_t *wan_udp_pkt;
-//	struct timeval tv;
-	unsigned long 	tv;
-	wan_trace_t *trace_info=NULL;
-	unsigned long	smp_flags;
-	struct sk_buff*	skb;
-	DATA_QUEUE_ELEMENT*	tmp_trace_q_el;
+	unsigned long tv;
 	int	rc = SANG_STATUS_SUCCESS;
-	wanif_conf_t		*wanif_conf;
 
 	wan_udp_pkt = (wan_udp_pkt_t*)chan->udp_pkt_data;
-	//trace_info = &chan->trace_info;
-	wanif_conf = netdev->wanif_conf;
-
-	//copy from the user buffer
-	wpabs_memcpy(&wan_udp_pkt->wan_udp_hdr, netdev->mgmt_userbfr,
-		netdev->mgmt_userbfr_len);
 
 	wan_udp_pkt->wan_udp_opp_flag = 0;
 	
 	switch(wan_udp_pkt->wan_udp_command) {
 		
-	case READ_CONFIGURATION:
-		DEBUG_UDP("READ_CONFIGURATION\n");
-		{		
-			if_cfg_t *if_cfg = (if_cfg_t*)wan_udp_pkt->wan_udp_data;
-
-			DEBUG_UDP("usedby: %s\n", wanif_conf->usedby);
-			DEBUG_UDP("active_ch: 0x%08X\n", wanif_conf->active_ch);
-
-			DEBUG_UDP("sizeof(wan_udp_hdr_t): %d, sizeof(wanif_conf_t): %d\n",
-				sizeof(wan_udp_hdr_t), sizeof(wanif_conf_t));
-
-			//DO NOT do this!! because "sizeof(wan_udp_hdr_t) < sizeof(wanif_conf_t)"
-			//so it will crash the system. Use "if_cfg_t" instead!!
-			//wpabs_memcpy(wan_udp_pkt->wan_udp_data, wanif_conf, sizeof(wanif_conf_t));//WRONG!!!
-			
-			_snprintf(if_cfg->usedby, USED_BY_FIELD, "%s", wanif_conf->usedby);
-			if_cfg->active_ch = wanif_conf->active_ch;
-			if_cfg->media = WAN_FE_MEDIA(&card->fe);
-			if_cfg->interface_number = netdev->interface_number;
-		}
-
-		wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
-		wan_udp_pkt->wan_udp_data_len = sizeof(wanif_conf_t);
-		break;
-
 	case READ_CODE_VERSION:
 		wpabs_memcpy(wan_udp_pkt->wan_udp_data, &drv_version, sizeof(DRIVER_VERSION));
 		wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
@@ -2068,13 +2004,20 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* netdev, adsl_private_
 
 	case WAN_GET_HW_MAC_ADDR:
 		DEBUG_UDP("WAN_GET_HW_MAC_ADDR\n");
+		/* Some S518 cards have duplicate MAC addresses - can NOT use them
+		 * on Bridged networks. Use randomly generated MAC address instead. */
+#if 0
+		wan_get_random_mac_address(wan_udp_pkt->wan_udp_data);
+#else
 		{
 			int i;
 			for(i = 0; i < ETHER_ADDR_LEN; i++){
 				wan_udp_pkt->wan_udp_data[i] = chan->macAddr[i];
 			}
 		}
+#endif
 		wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+		wan_udp_pkt->wan_udp_data_len = ETHER_ADDR_LEN;
 		break;
 
 	default:
@@ -2086,12 +2029,39 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* netdev, adsl_private_
 		break;
 	}//end of switch
 
-	//copy back to the user buffer
-	wpabs_memcpy(netdev->mgmt_userbfr, &wan_udp_pkt->wan_udp_hdr,
-		netdev->mgmt_userbfr_len);
 	return rc;
 }
 
+int adsl_wan_user_process_udp_mgmt_pkt(void* card_ptr, void* chan_ptr, void *udata)
+{
+	sdla_t *card = (sdla_t *)card_ptr;
+	adsl_private_area_t *adsl = (adsl_private_area_t*)chan_ptr;
+	wan_udp_pkt_t *wan_udp_pkt;
+	
+	DEBUG_UDP("%s(): line: %d\n", __FUNCTION__, __LINE__);
+
+	if (wan_atomic_read(&adsl->udp_pkt_len) != 0){
+		return -EBUSY;
+	}
+
+	wan_atomic_set(&adsl->udp_pkt_len, MAX_LGTH_UDP_MGNT_PKT);
+
+	wan_udp_pkt=(wan_udp_pkt_t*)adsl->udp_pkt_data;
+
+	/* udata IS a pointer to wan_udp_hdr_t. copy data from user's buffer */
+	wpabs_memcpy(&wan_udp_pkt->wan_udp_hdr, udata, sizeof(wan_udp_hdr_t));
+
+
+	process_udp_mgmt_pkt(card, adsl->common.dev, adsl);
+
+
+	/* udata IS a pointer to wan_udp_hdr_t. copy data into user's buffer */
+	wpabs_memcpy(udata, &wan_udp_pkt->wan_udp_hdr, sizeof(wan_udp_hdr_t));
+
+	wan_atomic_set(&adsl->udp_pkt_len,0);
+
+	return 0;
+}
 #else
 static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 								adsl_private_area_t* adsl, int local_dev) 
@@ -2500,221 +2470,46 @@ static int wanpipe_attach_sppp(sdla_t *card, netdevice_t *dev, wanif_conf_t *con
 //////////// RX
 static int netif_rx(netdevice_t	*sdla_net_dev, netskb_t *rx_skb)
 {
-	TX_RX_DATA_STRUCT	*tx_rx_struct;
-	int					rc;
-	wan_smp_flag_t		smp_flags;
 	adsl_private_area_t *chan = (adsl_private_area_t*)wan_netif_priv(sdla_net_dev);
 	sdla_t				*card = (sdla_t*)chan->common.card;
 
 	DBG_ADSL_RX("%s()\n", __FUNCTION__);
 
-	if((tx_rx_struct = convert_skb_to_TX_RX_DATA_STRUCT(rx_skb)) == NULL){
-		return 1;
-	}
+//	wan_skb_print(rx_skb);
 
-	wan_skb_print(rx_skb);
+	rx_dpc(sdla_net_dev, rx_skb, 0, wan_skb_len(rx_skb));
 
-	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
-	rc = adsl_insert_packet_in_to_rx_queue(sdla_net_dev, tx_rx_struct);
-	if(rc == SANG_STATUS_SUCCESS){
-		//At this point all the data in per-Logic Channel RX queue.
-		//Queue the DPC, where data will be passed up to the user.
-		if(KeInsertQueueDpc(&card->rx_dpc_obj, NULL, NULL) == FALSE){
-			//may happen when there is a lot of data. Not critical.
-			DBG_ADSL_RX("ADSL:Failed to 'queue rx_dpc_obj' - Not critical.\n");
-		}
-	}
-	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
-	
-	//deallocate temporary buffer
-	wpabs_free(tx_rx_struct);
-	//deallocate the original rx skb buffer
-	wpabs_skb_free(rx_skb);
-	return rc;
-}
-
-//////////////////////////////////////////////////////////////////////////
-//must be called with IRQ Lock or from ISR.
-static int 
-adsl_insert_packet_in_to_rx_queue(
-	netdevice_t			*sdla_net_dev,
-	RX_DATA_STRUCT		*rx_data_struct
-	)
-{
-	DATA_QUEUE_ELEMENT	tmp_rx_q_el;
-	int					rc = 0, i;
-	adsl_private_area_t *chan = (adsl_private_area_t*)wan_netif_priv(sdla_net_dev);
-	sdla_t				*card = (sdla_t*)chan->common.card;
-	api_header_t		*api_header = &rx_data_struct->api_header;
-	unsigned char		*rx_data	= rx_data_struct->data;
-
-	DBG_ADSL_RX("%s: api_header->data_length: %d\n",
-		chan->if_name, api_header->data_length);
-/*
-	//this will print the RX data into debugger:
-	for(i = 0; i < api_header->data_length; i++){
-		DBG_ADSL_RX("rx_data[%d]: 0x%02X\n", i, rx_data[i]);
-		if(i > 30){
-			DBG_ADSL_RX("...\n");
-			break;
-		}
-	}
-*/
-	if(sdla_net_dev->open_handle_counter == 0){
-		DBG_ADSL_RX("%s: open_handle_counter == 0. discarding data\n",
-			chan->if_name);
-		return 1;
-	}
-
-	//check data length
-	if(api_header->data_length > ((DATA_QUEUE*)sdla_net_dev->rx_user_info.queue)->max_data_length){
-
-		//won't fit into rx queue buffer
-		DBG_ADSL_RX("api_header->data_length > DATA_BUFFER_LEN!!\n");
-		chan->if_stats.rx_packets_discarded_excessive_length++;
-		return 2;
-	}
-
-	if(api_header->data_length < 1){
-		DBG_ADSL_RX("api_header->data_length < 1!!\n");
-		chan->if_stats.rx_packets_discarded_too_short++;
-		return 3;
-	}
-
-	//now copy header in to the element
-	RtlCopyMemory(&tmp_rx_q_el.api_header, api_header, sizeof(api_header_t));
-	//initialize data pointer
-	tmp_rx_q_el.data = rx_data;
-
-	tmp_rx_q_el.api_header.operation_status = SANG_STATUS_RX_DATA_AVAILABLE;
-
-	//
-	//Code inside enqueue() will copy from 'tmp_rx_q_el' to a real queue element.
-	//Insert element at the tail of the rx queue.
-	//
-	rc = enqueue(sdla_net_dev->rx_user_info.queue, &tmp_rx_q_el);
-	if(rc){
-		if(((DATA_QUEUE*)sdla_net_dev->rx_user_info.queue)->q_full_message_printed == 0){
-			((DATA_QUEUE*)sdla_net_dev->rx_user_info.queue)->q_full_message_printed = 1;
-			switch(rc)
-			{
-			default:
-				DEBUG_EVENT("%s: Warning: Discarding Rx data - rx queue is full!!\n", 
-					sdla_net_dev->name);
-				break;
-			case 2:
-				DEBUG_EVENT("%s: Warning: Discarding Rx data - data too long!!\n", 
-					sdla_net_dev->name);
-				break;
-			}
-		}
-
-		//DbgPrint("rx q full!!\n");
-		//DbgBreakPoint();
-		chan->if_stats.rx_packets_discarded_rx_q_full++;
-	}else{
-		((DATA_QUEUE*)sdla_net_dev->rx_user_info.queue)->q_full_message_printed = 0;
-	}
-
-	//even if data was discarded because rx q was full, increment
-	//statistics to indicate that rx is happening
-	chan->if_stats.rx_packets++;
-	chan->if_stats.rx_bytes += tmp_rx_q_el.api_header.data_length;
-
-	//arr_q_size(sdla_net_dev->rx_queue);
-
-	return rc;
+	return 0;
 }
 
 //////////////////////////////////////////////////////////////////////////
 //////////// TX
-//must be called with IRQ Lock or from ISR.
-static int adsl_if_send(void *not_used, netdevice_t *sdla_net_dev)
+static int adsl_if_send(netskb_t* skb, netdevice_t* dev)
 {
-	DATA_QUEUE_ELEMENT	*tmp_tx_q_el;
-	int					len;
-	adsl_private_area_t *chan = (adsl_private_area_t*)wan_netif_priv(sdla_net_dev);
+	adsl_private_area_t *chan = (adsl_private_area_t*)wan_netif_priv(dev);
 	sdla_t				*card = (sdla_t*)chan->common.card;
-	api_header_t		*tx_header;
 
 	DBG_ADSL_TX("%s()\n", __FUNCTION__);
 
 	if(wan_test_bit(TX_BUSY_SET,&card->wandev.critical)){
-		DBG_ADSL_FAST_TX("%s: return 'SANG_STATUS_DEVICE_BUSY'\n", sdla_net_dev->name);
+		DBG_ADSL_FAST_TX("%s: return 'SANG_STATUS_DEVICE_BUSY'\n", dev->name);
 		return SANG_STATUS_DEVICE_BUSY;
 	}
 
-	if(sdla_net_dev->open_handle_counter == 0){
-		//nobody is using this device, drop the data??
-		DBG_ADSL_TX("%s: open_handle_counter == 0. return 'SANG_STATUS_INVALID_PARAMETER'\n",
-				sdla_net_dev->name);
-		return SANG_STATUS_INVALID_PARAMETER;
-	}
+//	wan_skb_print(skb);
 
-	DBG_ADSL_TX("%s():line:%d: current_num_of_elements_in_q: %d\n",	__FUNCTION__, __LINE__,
-		((DATA_QUEUE*)sdla_net_dev->tx_queue)->current_num_of_elements_in_q);
+	if(adsl_output(skb, dev)){
 
-	//Reasons to queue DPC:
-	//1. can NOT allocate memory while holding irq spinlock, do it in adsl_if_send_task_func()
-	//
-	//2. IMPORTANT: first queue DPC, AFTER that return, becase otherwise there can be an infinite busy loop,
-	//		since there will be always something in transmit queue. The problem is easyly reproduced by
-	//		printing lots of messages to WinDebug over the Serial port, because it slows down the code.
-	wpabs_tasklet_schedule(&chan->adsl_if_send_task);
-	return SANG_STATUS_SUCCESS;
-}
+		DBG_ADSL_TX("%s():%s:Warning: adsl_output() failed. Dropping TX data!\n",
+			__FUNCTION__, dev->name);
 
-static void adsl_if_send_task_func(
-	IN PKDPC	Dpc, 
-	IN PVOID	arg, 
-	IN PVOID	not_used1, 
-	IN PVOID	not_used2
-	)
-{
-	netdevice_t			*sdla_net_dev = (netdevice_t *)arg;
-	adsl_private_area_t *chan = (adsl_private_area_t*)wan_netif_priv(sdla_net_dev);
-	sdla_t				*card = (sdla_t*)chan->common.card;
-	wan_smp_flag_t		smp_flags;
-	netskb_t			*skb;
-	DATA_QUEUE_ELEMENT	*tmp_tx_q_el;
-	unsigned int		tx_retry_counter;
+		WAN_NETIF_START_QUEUE(dev);
+		return 1;
 
-	DBG_ADSL_TX("%s()\n", __FUNCTION__);
-
-	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);	
-	//check there is something in tx queue
-	tmp_tx_q_el	= dequeue(sdla_net_dev->tx_queue);
-	if(tmp_tx_q_el == NULL){
-		DBG_ADSL_TX("%s():%s: tx queue is empty!\n", __FUNCTION__, sdla_net_dev->name);
-		wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);	
-		return;
-	}
-	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);	
-
-	skb = convert_DATA_QUEUE_ELEMENT_to_skb(tmp_tx_q_el);
-	if(skb == NULL){
-		DEBUG_EVENT("%s():Warning: %s: skb is NULL!\n", __FUNCTION__, sdla_net_dev->name);
-		return;
-	}
-	tx_retry_counter = 0;
-retry:
-	if(adsl_output(skb, sdla_net_dev)){
-		tx_retry_counter++;
-		if(tx_retry_counter < 100){
-			DBG_ADSL_FAST_TX("retry tx\n");
-			KeStallExecutionProcessor(50UL);
-			goto retry;
-		}else{
-			wpabs_skb_free(skb);
-			DEBUG_EVENT("%s():%s:Warning: adsl_output() failed. Dropping TX data!\n",
-				__FUNCTION__, sdla_net_dev->name);
-
-			WAN_NETIF_START_QUEUE(sdla_net_dev);
-		}
 	}else{
 		chan->if_stats.tx_packets++;
-		chan->if_stats.tx_bytes += tmp_tx_q_el->api_header.data_length;
+		chan->if_stats.tx_bytes += wan_skb_len(skb);
+		return 0;
 	}
 }
-
 #endif /* #if defined(__WINDOWS__) */

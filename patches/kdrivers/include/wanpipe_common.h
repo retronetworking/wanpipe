@@ -308,9 +308,9 @@ static __inline void WP_MDELAY (u32 ms) {
 
 # define WAN_NETIF_WAKE_QUEUE(dev)	netif_wake_queue(dev)
 
-# define WAN_NETIF_UP(dev)		((dev)->current_line_state == SANG_STATUS_LINE_CONNECTED)
-# define WAN_NETIF_CARRIER_OFF(dev)	if(0)DbgPrint("WAN_NETIF_CARRIER_OFF()\n")
-# define WAN_NETIF_CARRIER_ON(dev)	if(0)DbgPrint("WAN_NETIF_CARRIER_ON()\n")
+# define WAN_NETIF_UP(dev)			((dev)->current_line_state == SANG_STATUS_LINE_CONNECTED)
+# define WAN_NETIF_CARRIER_OFF(dev)	((dev)->current_line_state = SANG_STATUS_LINE_DISCONNECTED)
+# define WAN_NETIF_CARRIER_ON(dev)	((dev)->current_line_state = SANG_STATUS_LINE_CONNECTED)
 
 # define WAN_IFQ_LEN(ifqueue)		skb_queue_len(ifqueue)
 # define NET_ADMIN_CHECK()
@@ -1125,7 +1125,7 @@ wan_add_timer(wan_timer_t* wan_timer, unsigned long delay)
 #endif
 	LARGE_INTEGER	CurrentTime;
 
-	if(1)DBG_ADSL_SYNCH("%s(): delay: %u\n", __FUNCTION__, delay);
+	if(0)DBG_ADSL_SYNCH("%s(): delay: %u\n", __FUNCTION__, delay);
 
 	/* The 'delay' is in SYSTEM TICKS! */
 
@@ -1455,7 +1455,7 @@ static __inline void wan_skb_set_raw(void* pskb)
 #elif defined(__WINDOWS__)
 	struct sk_buff *skb = (struct sk_buff*)pskb;
 	/* skb->mac.raw = skb->data; */
-	FUNC_NOT_IMPL();
+	/*FUNC_NOT_IMPL();*/
 #else
 # warning "wan_skb_set_raw() function is not supported yet!"
 #endif
@@ -2561,7 +2561,7 @@ static __inline int wan_netif_up(netdevice_t* dev)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	return WAN_NETIF_UP(dev);
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL();
+	return WAN_NETIF_UP(dev);
 #else
 # error "wan_netif_up() function is not supported yet!"
 #endif

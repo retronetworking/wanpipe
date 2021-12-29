@@ -10191,8 +10191,11 @@ static sdla_dma_addr_t sdla_pci_map_dma(void *phw, void *buf, int len, int ctrl)
 #if defined(__LINUX__)
 	return cpu_to_le32(pci_map_single(hwcard->u_pci.pci_dev, buf, len, ctrl));
 #elif defined(__WINDOWS__)
-	FUNC_NOT_IMPL();
-	return 0;
+	{
+		/* translate virtual to physical */
+		PHYSICAL_ADDRESS	phaTemp = MmGetPhysicalAddress(buf);
+		return phaTemp.QuadPart;
+	}
 #else	
 	return virt_to_phys(buf);
 #endif

@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.5.5
+%define version           3.5.6
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -327,6 +327,14 @@ enable_smg_log;
 
 
 %changelog
+
+* Thu Aug 20 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.6
+===================================================================
+
+- Update to T1 Yellow Alarm handling.
+  In some cases Yellow alarm did not turn off poperly causing
+  line to stay down an card startup.
+
 
 * Mon Aug 17 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.5
 ===================================================================

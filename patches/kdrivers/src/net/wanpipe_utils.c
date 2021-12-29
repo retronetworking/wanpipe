@@ -68,6 +68,7 @@
 static void wanpipe_debug_timer(void* arg);
 #elif defined(__WINDOWS__)
 static void wanpipe_debug_timer(IN PKDPC Dpc, void* arg, void* arg2, void* arg3);
+extern int set_netdev_state(sdla_t* card, netdevice_t* sdla_net_dev, int state);
 #else
 static void wanpipe_debug_timer(unsigned long arg);
 #endif
@@ -182,6 +183,17 @@ void wanpipe_set_baud (void* card_id, unsigned int baud)
 
 void wanpipe_set_dev_carrier_state(sdla_t* card, int state)
 {
+
+#if defined(__WINDOWS__)
+	{
+		int i;
+		for (i = 0; i < NUM_OF_E1_CHANNELS; i++){
+			if(card->sdla_net_device[i] != NULL && wan_test_bit(0,&card->up[i]) ){
+				set_netdev_state(card, card->sdla_net_device[i], state);
+			}
+		}
+	}
+#else
 	netdevice_t *dev;
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
         if (dev && WAN_NETIF_UP(dev)) {
@@ -193,6 +205,7 @@ void wanpipe_set_dev_carrier_state(sdla_t* card, int state)
 	       		WAN_NETIF_STOP_QUEUE(dev); 
 		}			
 	}
+#endif
 }
            
 

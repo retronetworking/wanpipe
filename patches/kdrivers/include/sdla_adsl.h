@@ -83,10 +83,8 @@ typedef struct adsl_private_area
 	struct ifmedia media;	/* media information */
 #endif
 #if defined(__WINDOWS__)
-	void			*sdla_net_dev;
 	void			*card;
 	struct net_device_stats	if_stats;
-	wan_tasklet_t		adsl_if_send_task;    /* Immediate BH handler task */
 	wan_trace_t		trace_info;
 #endif
 } adsl_private_area_t;

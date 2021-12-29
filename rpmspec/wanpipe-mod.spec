@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.5.5
+%define version           3.5.6
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,14 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+
+* Thu Aug 20 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.6
+===================================================================
+
+- Update to T1 Yellow Alarm handling.
+  In some cases Yellow alarm did not turn off poperly causing
+  line to stay down an card startup.
+
 
 * Mon Aug 17 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.5
 ===================================================================

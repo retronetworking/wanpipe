@@ -2390,8 +2390,6 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 		chan->hdlc_eng = conf->hdlc_streaming;
 #if defined(__WINDOWS__)
 		dev->hdlc_eng = conf->hdlc_streaming;
-		dev->udp_mgmt = &process_udp_mgmt_pkt;
-//		dev->set_tx_idle_data_in_priv = &aft_te1_set_tx_idle_data_in_priv;
 		dev->trace_info = &chan->trace_info;
 #endif
 
