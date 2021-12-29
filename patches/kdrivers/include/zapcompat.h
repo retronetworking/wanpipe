@@ -50,14 +50,24 @@
 #define DAHDI_24
 #define DAHDI_23
 #define DAHDI_22
-#elif defined(DAHDI_MAINT_ALARM_SIM)
+#elif defined(DAHDI_25)
 #define DAHDI_24
 #define DAHDI_23
 #define DAHDI_22
-#elif defined(DAHDI_AUDIO_NOTIFY)
+#elif defined(DAHDI_23)
 #define DAHDI_23
 #define DAHDI_22
-#elif defined(DAHDI_ECHOCANCEL_FAX_MODE)
+#elif defined(DAHDI_22)
+#define DAHDI_22
+#else
+#define DAHDI_210
+#define DAHDI_29
+#define DAHDI_28
+#define DAHDI_27
+#define DAHDI_26
+#define DAHDI_25
+#define DAHDI_24
+#define DAHDI_23
 #define DAHDI_22
 #endif
 

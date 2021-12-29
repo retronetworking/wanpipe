@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.15
+%define VERSION           7.0.16
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -260,6 +260,14 @@ fi
 
 %changelog
 
+* Mon Feb 03 2016 Nenad Corbic <ncorbic@sangoma.com> -  7.0.16
+==================================================================
+- FreePBX fwconsole support in wancfg_zaptel.pl
+- Reduced the clock sync error polling: can cause massive printing in bad
+clock conditions
+- Support for DAHDI 2.11
+
+
 * Mon Nov 21 2015 Nenad Corbic <ncorbic@sangoma.com> -  7.0.15
 ==================================================================
 
@@ -278,7 +286,7 @@ fi
 * Mon Apr 20 2015 Nenad Corbic <ncorbic@sangoma.com> -  7.0.14
 ==================================================================
 
-- Updated PCIe PLX configuraiton
+- Updated PCIe PLX configuration
   Fixes the PCIe retry errors on some newer servers
 - Bug fix for B601 card
   Clock set incorrecty causing the card not to start.
@@ -320,14 +328,14 @@ fi
 - Support for Centos 6.5
 - Support for kernels up to 3.12
 - Fixes A116 clocking for dahdi when link is down
-- Updates to A116 for possible NMI interrupt erros on some motherboards.
+- Updates to A116 for possible NMI interrupt errors on some motherboards.
 
 * Wed Nov 14 2013 Nenad Corbic <ncorbic@sangoma.com> -  7.0.8
 ==================================================================
 
 - Updated wanpipemon to trace on multiple dchan in a single span
   eg: wanpipemon -i w1g1 -chan 1 -c trd
-  If chan is not specificed then all dchans will be traced together.
+  If chan is not specified then all dchans will be traced together.
 - Updated sample tapping application.
   Allow configuration for dchan and seven bit hdlc
 - Fixed GSM drivers for Windows
@@ -349,7 +357,7 @@ fi
 ==================================================================
 
 - Added sync error statistic in wanpipeomon Ta command
-  Sync error indicates clocking or synchronizatio errors
+  Sync error indicates clocking or sync errors
   on T1/E1 lines.  Provides added statistic to debug line,
   slip errors on T1/E1.
 

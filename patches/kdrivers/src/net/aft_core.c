@@ -7729,7 +7729,7 @@ global_irq_skip:
 			aft_critical_trigger(card);
 		}
 
-	} else if (SYSTEM_TICKS-card->u.aft.sec_chk_cnt > (HZ/50)) {
+	} else if (SYSTEM_TICKS-card->u.aft.sec_chk_cnt > (HZ)) {
 		
 		card->u.aft.sec_chk_cnt=SYSTEM_TICKS;
 
