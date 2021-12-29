@@ -12,12 +12,12 @@ DEBUG	= 2
 
 PROD=wanpipemon
 
-SYSINC=$(shell if [ -d /lib/modules/$(uname -r)/build/include ]; then echo "/lib/modules/$(uname -r)/build/include" else echo "/usr/src/linux/include"; fi)
-SYSINC=$(shell echo "/lib/modules/$(uname -r)/build/include")
+SYSINC=$(shell echo "/lib/modules/$(shell uname -r)/build/include")
 
 WAN_VIRTUAL=
 LXDIR=../lxdialog
 ENABLE_GUI=YES
+ENABLE_HDLC=YES
 ENABLE_WANPIPEMON_ZAP=
 PROTOCOL_DEFS=
 ASTBROOT=/usr
@@ -25,22 +25,11 @@ ASTBROOT=/usr
 
 CC = gcc 
 CPP = gcc -E
-CFLAGS = -Wall -Wstrict-prototypes -I$(SYSINC) -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG) $(HOSTCFLAGS)
-LDFLAGS = -s -L .
+CFLAGS = -Wall -Wstrict-prototypes 
+CFLAGS += $(EXTRA_FLAGS)
+CFLAGS += -I$(SYSINC) -D$(OS_TYPE) -I../ft1 -O2 -fomit-frame-pointer -DLOCALE -D_DEBUG_=$(DEBUG)
 WAN_VIRTUAL=
 
-
-HOSTCFLAGS=-I$(SYSINC)
-#ifeq (/usr/include/ncurses/ncurses.h, $(wildcard /usr/include/ncurses/ncurses.h))
-#        HOSTCFLAGS += -I/usr/include/ncurses
-#else
-#ifeq (/usr/include/ncurses/curses.h, $(wildcard /usr/include/ncurses/curses.h))
-#        HOSTCFLAGS += -I/usr/include/ncurses
-#else
-#endif
-#endif
-
-HOSTCFLAGS += -I$(ASTBROOT)/include     
 
 # Tools options.
 
@@ -61,21 +50,6 @@ LDLIBS += -lstdc++
 endif
 
 CFLAGS += -DCURSES_LOC="<ncurses.h>"       
-
-#ifeq (/usr/include/ncurses/ncurses.h, $(wildcard /usr/include/ncurses/ncurses.h))
-#        CFLAGS += -I/usr/include/ncurses -DCURSES_LOC="<ncurses.h>"
-#else
-#ifeq (/usr/include/ncurses/curses.h, $(wildcard /usr/include/ncurses/curses.h))
-#        CFLAGS += -I/usr/include/ncurses -DCURSES_LOC="<ncurses/curses.h>"
-#else
-#ifeq (/usr/include/ncurses.h, $(wildcard /usr/include/ncurses.h))
-#        CFLAGS += -DCURSES_LOC="<ncurses.h>"
-#else
-#	CFLAGS += -DCURSES_LOC="<curses.h>"
-#endif
-#endif
-#endif
-
 endif
 
 OBJS= wanpipemon.o fpipemon.o cpipemon.o ppipemon.o xpipemon.o atmpipemon.o aftpipemon.o dslpipemon.o prot_trace.o ss7pipemon.o bpipemon.o fe_lib.o xml_lib.o ../ft1/unixio.o
@@ -85,6 +59,11 @@ ifeq "${ENABLE_WANPIPEMON_ZAP}" "YES"
 OBJS+=zapmon.o
 endif
 
+ifeq "${ENABLE_HDLC}" "YES"
+CFLAGS += -DWANPIPEMON_HDLC_TRACE -I../lib/hdlc 
+OBJS += ../lib/hdlc/wanpipe_hdlc.o
+endif 
+
 SRCS = $(OBJS:.o=.c)
 
 OBJS+=$(LX_OBJ)
@@ -92,8 +71,7 @@ OBJS+=$(LX_OBJ)
 
 ####### RULES ################################################################
 
-all:    ncurses \
-	$(PROD) 
+all:    $(PROD) 
 	@echo "Ok. Using INCLUDE $(SYSINC)"
 
 $(PROD):  $(OBJS) 

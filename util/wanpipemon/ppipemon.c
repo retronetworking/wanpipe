@@ -1,5 +1,5 @@
 /*****************************************************************************
-* wanpipemon.c	PPP Monitor.
+* ppipemon.c	PPP Monitor.
 *
 * Author:	Nenad Corbic <ncorbic@sangoma.com>		
 *
@@ -10,6 +10,7 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ----------------------------------------------------------------------------
+* June 2, 2006  David Rokhvarg  Fixed Statistics counters for PPP.
 * Jan 11, 2005  David Rokhvarg  Added code to run above AFT card with protocol
 * 				in the LIP layer.
 * Oct 18, 1999  Nenad Corbic    Added new features for 2.1.0 release version
@@ -51,11 +52,11 @@
 # include <netinet/in.h>
 # include <netinet/ip.h>
 # include <netinet/udp.h>      
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe.h>
-# include <net/sdla_ppp.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe.h>
+# include <sdla_ppp.h>
 #endif
 #include "fe_lib.h" 
 #include "wanpipemon.h"
@@ -89,7 +90,7 @@ extern int is_508;
 /******************************************************************************
  * 			FUNCTION PROTOTYPES				      *
  *****************************************************************************/
-static unsigned long decode_bps( unsigned char bps );
+static u_int32_t decode_bps( unsigned char bps );
 static void set_FT1_monitor_status( unsigned char);
 
 
@@ -251,9 +252,9 @@ void PPP_read_FT1_status( void )
 
 
 
-static unsigned long decode_bps( unsigned char bps ) 
+static u_int32_t decode_bps( unsigned char bps ) 
 {
-	unsigned long number;
+	u_int32_t number;
  
 	switch( bps ) {
 		case 0x00:
@@ -313,7 +314,7 @@ static void error( void )
 
 static void general_conf( void ) 
 {
-	unsigned long baud;
+	u_int32_t baud;
 	unsigned short s_number, mtu, mru;
 	unsigned char misc;
  
@@ -347,7 +348,7 @@ static void general_conf( void )
 			memcpy(&mru, &wan_udp.wan_udphdr_data[7],2);
 		} 
 
-		printf("Baud rate in bps: %lu\n",baud);
+		printf("Baud rate in bps: %u\n",baud);
 		printf("Update transmit statistics( user data ): ");
 		( misc & 0x02 ) ? printf("Yes\n") : printf("No\n");
 		printf("Update receive statistics( user data ): ");
@@ -360,52 +361,6 @@ static void general_conf( void )
 		error();
 	} 
 }; /* general_conf */
-
-static void timers( void ) 
-{
-	int i;
-	unsigned short tmp;
-   
-	wan_udp.wan_udphdr_command = PPP_READ_CONFIG;
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-
-	if( wan_udp.wan_udphdr_return_code == 0 ) {
-
-		BANNER("PPP TIMERS");
-
-		if( is_508 == WAN_TRUE ) {
-			i = 12;
-		} else {
-			i = 9;
-		} 
-
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i],2);
-		printf("Restart timer: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i+2],2);
-		printf("Authentication restart timer: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i+4],2);
-		printf("Authentication wait timer: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i+6],2);
-		printf("DCD/CTS failure detection timer: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i+8],2);
-		printf("Drop DTR duration timer: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i+10],2);
-		printf("Connection attempt timeout: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i+12],2);
-		printf("Max-Configure counter: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i+14],2);
-		printf("Max-Terminate counter: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i+16],2);
-		printf("Max-Failure counter: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[i+18],2);
-		printf("Max-Authenticate counter: %u\n",tmp);
-
-	} else {
-		error();
-	} 
-}; /* timers */
 
 static void authent( void ) 
 {
@@ -545,6 +500,7 @@ static void ipx_config( void )
 	} //if
 }; /* ipx_config */
 
+/*
 static void set_state( unsigned char tmp ) 
 {
 	switch( tmp ) {
@@ -583,307 +539,71 @@ static void set_state( unsigned char tmp )
 			break;
 	} //switch
 
-}; /* set_state */
+}
+*/
 
 static void state( void ) 
 {
-	wan_udp.wan_udphdr_command = PPIPE_GET_IBA_DATA;
+	wan_udp.wan_udphdr_command = PPP_GET_LINK_STATUS;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
 	DO_COMMAND(wan_udp);
 
 	if( wan_udp.wan_udphdr_return_code == 0 ) {
-
-		BANNER("PPP LINK STATE");
-
-		switch( wan_udp.wan_udphdr_data[2] ) {
-			case 0:
-				printf("PPP Phase: Link Dead\n");
-				break;
-			case 1:
-				printf("PPP Phase: Establishment( LCP )\n");
-				break;
-			case 2:
-				printf("PPP Phase: Authentication\n");
-				break;
-			case 3:
-				printf("PPP Phase: Network Layer\n");
-				break;
-			case 4:
-				printf("PPP Phase: Link Termination\n");
-				break;
-			default:
-				printf("PPP Phase: Unknown\n");
-				break;
-		} 
-
-		printf("LCP State: ");
-		set_state( wan_udp.wan_udphdr_data[1] );
-		printf("IPCP State: ");
-		set_state( wan_udp.wan_udphdr_data[3] );
-		printf("IPXCP State: ");
-		set_state( wan_udp.wan_udphdr_data[4] );
-		switch( wan_udp.wan_udphdr_data[5] ) {
-			case 0:
-				printf("PAP State: Initial( Inactive )\n");
-				break;
-			case 1:
-				printf("PAP State: Failed\n");
-				break;
-			case 2:
-				printf("PAP State: Request Sent\n");
-				break;
-			case 3:
-				printf("PAP State: Waiting\n");
-				break;
-			case 4:
-				printf("PAP State: Opened( Success )\n");
-				break;
-			default:
-				printf("PAP State: Unknown\n");
-				break;
-		} 
-
-		switch( wan_udp.wan_udphdr_data[5] ) {
-			case 0:
-				printf("CHAP State: Initial( Inactive )\n");
-				break;
-			case 1:
-				printf("CHAP State: Failed\n");
-				break;
-			case 2:
-				printf("CHAP State: Challenge Sent\n");
-				break;
-			case 3:
-				printf("CHAP State: Waiting for Challenge\n");
-				break;
-			case 4:
-				printf("CHAP State: Response Sent\n");
-				break;
-			case 5:
-				printf("CHAP State: Opened( Success )\n");
-				break;
-			default:
-				printf("CHAP State: Unknown\n");
-				break;
-		} 
+		BANNER("PPP LINK STATUS");
+		printf("Link Status: %s\n", (wan_udp.wan_udphdr_data[0] == 1 ? "Connected" : "Disconnected"));
 	} else {
 		error();
-	} 
+	}
 }; /* state */
-
-static void negot( void ) 
-{
-	unsigned short mru;
-   
-	wan_udp.wan_udphdr_command = PPP_GET_CONNECTION_INFO;
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-
-	if( wan_udp.wan_udphdr_return_code == 0 ) {
-
-		BANNER("PPP NEGOTIATIONS");
-
-		memcpy(&mru,&wan_udp.wan_udphdr_data[0],2);
-		printf("Remote Maximum Receive Unit: %u\n",mru);
-		printf("Negotiated IP options: %02X",wan_udp.wan_udphdr_data[2]);
-		( wan_udp.wan_udphdr_data[2] & 0x80 ) ? printf("( IP Enabled )\n") : 
-					printf("( IP Disabled )\n");
-		printf("Local IP address: %u.%u.%u.%u\n",wan_udp.wan_udphdr_data[3],wan_udp.wan_udphdr_data[4],
-			wan_udp.wan_udphdr_data[5],wan_udp.wan_udphdr_data[6]);
-		printf("Remote IP address: %u.%u.%u.%u\n",wan_udp.wan_udphdr_data[7],wan_udp.wan_udphdr_data[8],
-			wan_udp.wan_udphdr_data[9],wan_udp.wan_udphdr_data[10]);
-		printf("Negotiated IPX options: %02X",wan_udp.wan_udphdr_data[11]);
-		( wan_udp.wan_udphdr_data[11] & 0x80 ) ? printf("( IPX Enabled )\n") : 
-					printf("( IPX Disabled )\n");
-		printf("IPX network number: %02X %02X %02X %02X\n",wan_udp.wan_udphdr_data[12],
-			wan_udp.wan_udphdr_data[13],wan_udp.wan_udphdr_data[14],wan_udp.wan_udphdr_data[15]);
-		printf("Local IPX node number: %02X %02X %02X %02X %02X %02X\n",
-			wan_udp.wan_udphdr_data[16],wan_udp.wan_udphdr_data[17],wan_udp.wan_udphdr_data[18],wan_udp.wan_udphdr_data[19],
-			wan_udp.wan_udphdr_data[20],wan_udp.wan_udphdr_data[21]);
-		printf("Remote IPX node number: %02X %02X %02X %02X %02X %02X\n"
-			,wan_udp.wan_udphdr_data[22],wan_udp.wan_udphdr_data[23],wan_udp.wan_udphdr_data[24],wan_udp.wan_udphdr_data[25],
-			wan_udp.wan_udphdr_data[26],wan_udp.wan_udphdr_data[27]);
-		printf("Remote IPX router name: %s\n",&wan_udp.wan_udphdr_data[28]);
-		
-		switch( wan_udp.wan_udphdr_data[76] ) {
-			case 0:
-				printf("Authentication status: No inbound authentication negotiated\n");
-				break;
-			case 1:
-				printf("Authentication status: PeerID valid, Password Incorrect\n");
-				break;
-			case 2:
-				printf("Authentication status: PeerID was invalid\n");
-				break;
-			case 3:
-				printf("Authentication status: PeerID and Password were correct\n");
-				break;
-			default:
-				printf("Authentication status: Unknown\n");
-				break;
-		} 
-
-		printf("Inbound PeerID: %s\n",&wan_udp.wan_udphdr_data[77]);
-		
-	} else {
-		error();
-	} //if
-}; /* negot */
-
-static void cause( void ) 
-{
-	unsigned short disc;
-  
-	wan_udp.wan_udphdr_command = PPIPE_GET_IBA_DATA;
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-
-	if( wan_udp.wan_udphdr_return_code == 0 ) {
-
-		BANNER("LAST CAUSE OF LINK FAILURE");
-
-		memcpy(&disc,&wan_udp.wan_udphdr_data[7],2);
-		printf("Local request by termination phase: ");
-		(disc & 0x0100) ? printf("Yes\n") : printf("No\n");
-		printf("DCD and/or CTS dropped: ");
-		(disc & 0x0200) ? printf("Yes\n") : printf("No\n");
-		printf("Disabled communications locally: ");
-		(disc & 0x0400) ? printf("Yes\n") : printf("No\n");
-		printf("Inbound/Outbound authentication failed: ");
-		(disc & 0x0800) ? printf("Yes\n") : printf("No\n");
-		printf("Failed to negotiate inbound auth. protocol with peer:");
-		(disc & 0x1000) ? printf(" Yes\n") : printf(" No\n");
-		printf("Rejected peers request for authentication: ");
-		(disc & 0x2000) ? printf("Yes\n") : printf("No\n");
-		printf("Peer rejected MRU option of config-request: ");
-		(disc & 0x4000) ? printf("Yes\n") : printf("No\n");
-		printf("MRU of peer was below required minumum: ");
-		(disc & 0x8000) ? printf("Yes\n") : printf("No\n");
-		printf("Rejected peers LCP option(s) too many times: ");
-		(disc & 0x0001) ? printf("Yes\n") : printf("No\n");
-		printf("Rejected peers IPCP option(s) too many times: ");
-		(disc & 0x0002) ? printf("Yes\n") : printf("No\n");
-		printf("Rejected peers IPXCP option(s) too many times: ");
-		(disc & 0x0004) ? printf("Yes\n") : printf("No\n");
-	} else {
-		error();
-	} //if
-}; /* cause */
-
-static void packet( void ) 
-{
-   	ppp_pkt_stats_t *packet_stats;
-	wan_udp.wan_udphdr_command = PPP_READ_PACKET_STATS;
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-
-	packet_stats = (ppp_pkt_stats_t *)&wan_udp.wan_udphdr_data[0];
-
-	if( wan_udp.wan_udphdr_return_code == 0 ) {
-
-		BANNER("PACKET STATISTICS");
-
-		printf("Number discards( bad header ): %u\n",
-				packet_stats->rx_bad_header);
-		printf("Number discards( unknown/unsupported protocol ): %u\n",
-				packet_stats->rx_prot_unknwn);
-		printf("Number discards(unknown/unsupported protocol+too large for Protocol-Reject): %u\n",
-				packet_stats->rx_too_large);
-		printf("\n\t\t\tReceived\tTransmitted\n");
-		printf("Number of LCP packets: %u\t\t%u\n",
-				packet_stats->rx_lcp,packet_stats->tx_lcp);
-		printf("Number of IPCP packets: %u\t\t%u\n",
-				packet_stats->rx_ipcp,  packet_stats->tx_ipcp);
-		printf("Number of IPXCP packets: %u\t\t%u\n",
-				packet_stats->rx_ipxcp,packet_stats->tx_ipxcp);
-		printf("Number of PAP packets: %u\t\t%u\n",
-				packet_stats->rx_pap,packet_stats->tx_pap);
-		printf("Number of CHAP packets: %u\t\t%u\n",
-				packet_stats->rx_chap,packet_stats->tx_chap);
-		printf("Number of LQR packets: %u\t\t%u\n",
-				packet_stats->rx_lqr,packet_stats->tx_lqr);
-		printf("Number of IP packets:  %u\t\t%u\n",
-				packet_stats->rx_ip,packet_stats->tx_ip);
-		printf("Number of IPX packets: %u\t\t%u\n",
-				packet_stats->rx_ipx,packet_stats->tx_ipx);
-	} else {
-		error();
-	} 
-}; /* packet */
-
-static void flush_packet( void ) 
-{
-	wan_udp.wan_udphdr_command = PPP_FLUSH_PACKET_STATS;
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-
-	if( wan_udp.wan_udphdr_return_code != 0 ) {
-		error();
-	} 
-}; /* flush_packet */
 
 static void lcp( void ) 
 {
-	unsigned short tmp, tmp2;
- 
+	ppp_lcp_stats_t *lcp_stats = (ppp_lcp_stats_t *)&wan_udp.wan_udphdr_data[0];
+
 	wan_udp.wan_udphdr_command = PPP_READ_LCP_STATS;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
 	DO_COMMAND(wan_udp);
 
 	if( wan_udp.wan_udphdr_return_code == 0 ) {
-
 		BANNER("LCP STATISTICS");
 
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[0],2);
-		printf("Packets discarded (unknown LCP code): %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[48],2);
-		printf("Received LCP packets too large: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[50],2);
-		printf("Received packets invalid or out-of-sequence Configure-Acks: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[52],2);
-		printf("Received packets invalid Configure-Naks or Configure-Rejects: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[54],2);
-		printf("Configure-Naks or Configure-Rejects with bad Identifier: %u\n",tmp);
+		printf("Packets discarded (unknown LCP code): %u\n",
+			lcp_stats->rx_unknown);
+		printf("Received LCP packets too large: %u\n",
+			lcp_stats->rx_too_large);
+		printf("Received packets invalid or out-of-sequence Configure-Acks: %u\n",
+			lcp_stats->rx_ack_inval);
+		printf("Received packets invalid Configure-Naks or Configure-Rejects: %u\n",
+			lcp_stats->rx_rej_inval);
+		printf("Configure-Naks or Configure-Rejects with bad Identifier: %u\n",
+			lcp_stats->rx_rej_badid);
+
 		printf("\n\t\t\tReceived\tTransmitted\n");
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[2],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[26],2);
-		printf("Number of Config-Request pkts: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[4],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[28],2);
-		printf("Number of Config-Ack packets : %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[6],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[30],2);
-		printf("Number of Config-Nack packets: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[8],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[32],2);
-		printf("Number of Config-Reject packets: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[10],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[34],2);
-		printf("Number of Term-Reqst packets : %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[12],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[36],2);
-		printf("Number of Terminate-Ack packets: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[14],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[38],2);
-		printf("Number of Code-Reject packets: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[16],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[40],2);
-		printf("Number of Protocol-Rej packets: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[18],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[42],2);
-		printf("Number of Echo-Request packets: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[20],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[44],2);
-		printf("Number of Echo-Reply packets : %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[22],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[46],2);
-		printf("Number of Discard-Request packets: %u\t%u\n",tmp,tmp2);
+		printf("Number of Config-Request pkts: %u\t%u\n",
+			lcp_stats->rx_conf_rqst, lcp_stats->tx_conf_rqst);
+
+		printf("Number of Config-Ack packets : %u\t%u\n",
+			lcp_stats->rx_conf_ack ,lcp_stats->tx_conf_ack );
+		printf("Number of Config-Nack packets: %u\t%u\n",
+			lcp_stats->rx_conf_nak, lcp_stats->tx_conf_nak);
+		printf("Number of Config-Reject packets: %u\t%u\n",
+			lcp_stats->rx_conf_rej  , lcp_stats->tx_conf_rej);
+		printf("Number of Term-Reqst packets : %u\t%u\n",
+			lcp_stats->rx_term_rqst, lcp_stats->tx_term_rqst);
+		printf("Number of Terminate-Ack packets: %u\t%u\n",
+			lcp_stats->rx_term_ack, lcp_stats->tx_term_ack);
+		printf("Number of Code-Reject packets: %u\t%u\n",
+			lcp_stats->rx_code_rej, lcp_stats->tx_code_rej);
+		printf("Number of Protocol-Rej packets: %u\t%u\n",
+			lcp_stats->rx_proto_rej, lcp_stats->tx_proto_rej);
+		printf("Number of Echo-Request packets: %u\t%u\n",
+			lcp_stats->rx_echo_rqst, lcp_stats->tx_echo_rqst);
+		printf("Number of Echo-Reply packets : %u\t%u\n",
+			lcp_stats->rx_echo_reply, lcp_stats->tx_echo_reply);
+		printf("Number of Discard-Request packets: %u\t%u\n",
+			lcp_stats->rx_disc_rqst, lcp_stats->tx_disc_rqst);
 	} else {
 		error();
 	} 
@@ -901,61 +621,10 @@ static void flush_lcp( void )
 	} 
 }; /* flush_packet */
 
-static void loopback( void ) 
-{
-	unsigned short tmp;
-   
-	wan_udp.wan_udphdr_command = PPP_READ_LCP_STATS;
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-	
-	if( wan_udp.wan_udphdr_return_code == 0 ) {
-
-		BANNER("LOOPBACK STATISTICS");
-
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[0],2);
-		printf("Looped-back link possible given Config-Req/Nak/Rej: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[2],2);
-		printf("Looped-back link detected with Echo-Request: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[4],2);
-		printf("Echo-Request received from bad source: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[6],2);
-		printf("Looped-back link detected with Echo-Reply: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[8],2);
-		printf("Echo-Reply received from bad source: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[10],2);
-		printf("Looped-back link detected with Discard-Request: %u\n",
-			tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[12],2);
-		printf("Discard-Request received from bad source: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[14],2);
-		printf("Echo-Reply discarded( transmit collision ): %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[16],2);
-		printf("Echo-Reply discarded( receive collision ): %u\n",tmp);
-	
-	} else {
-		error();
-	} 
-}; /* loopback */
-
-static void flush_loopback( void ) 
-{
-	wan_udp.wan_udphdr_command = PPP_FLUSH_LPBK_STATS;
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-
-	if( wan_udp.wan_udphdr_return_code != 0 ) {
-		error();
-	}
- 
-}; /* flush_loopback */
-
 static void ipcp( void ) 
 {
-	unsigned short tmp, tmp2;
-   
+	ppp_prot_stats_t *ipcp_stats = (ppp_prot_stats_t*)&wan_udp.wan_udphdr_data[0];
+ 
 	wan_udp.wan_udphdr_command = PPP_READ_IPCP_STATS;
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
@@ -965,38 +634,27 @@ static void ipcp( void )
 
 		BANNER("IPCP STATISTICS");
 
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[0],2);
-		printf("Packets discarded (unknown IPCP code): %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[32],2);
-		printf("Received IPCP packets too large: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[34],2);
-		printf("Received packets invalid or out-of-sequence Configure-Acks: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[36],2);
-		printf("Received packets invalid Configure-Naks or Configure-Rejects: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[38],2);
-		printf("Configure-Naks or Configure-Rejects with bad Identifier: %u\n",tmp);
+		printf("Packets discarded (unknown IPCP code): %u\n", ipcp_stats->rx_unknown);
+		printf("Received IPCP packets too large: %u\n", ipcp_stats->rx_too_large);
+		printf("Received packets invalid or out-of-sequence Configure-Acks: %u\n", ipcp_stats->rx_ack_inval);
+		printf("Received packets invalid Configure-Naks or Configure-Rejects: %u\n", ipcp_stats->rx_ack_inval);
+		printf("Configure-Naks or Configure-Rejects with bad Identifier: %u\n", ipcp_stats->rx_rej_badid);
+
 		printf("\n\t\t\tReceived\tTransmitted\n");
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[2],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[18],2);
-		printf("Number of Config-Request pkts: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[4],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[20],2);
-		printf("Number of Config-Ack packets : %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[6],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[22],2);
-		printf("Number of Config-Nack packets: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[8],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[24],2);
-		printf("Number of Config-Reject packets: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[10],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[26],2);
-		printf("Number of Term-Reqst packets : %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[12],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[28],2);
-		printf("Number of Terminate-Ack packets: %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[14],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[30],2);
-		printf("Number of Code-Reject packets: %u\t%u\n",tmp,tmp2);
+		printf("Number of Config-Request pkts: %u\t%u\n",
+			ipcp_stats->rx_conf_rqst, ipcp_stats->tx_conf_rqst);
+		printf("Number of Config-Ack packets : %u\t%u\n",
+			ipcp_stats->rx_conf_ack, ipcp_stats->tx_conf_ack);
+		printf("Number of Config-Nack packets: %u\t%u\n",
+			ipcp_stats->rx_conf_nak, ipcp_stats->tx_conf_nak);
+		printf("Number of Config-Reject packets: %u\t%u\n",
+			ipcp_stats->rx_conf_rej, ipcp_stats->tx_conf_rej);
+		printf("Number of Term-Reqst packets : %u\t%u\n",
+			ipcp_stats->rx_term_rqst, ipcp_stats->tx_term_rqst);
+		printf("Number of Terminate-Ack packets: %u\t%u\n",
+			ipcp_stats->rx_term_ack, ipcp_stats->tx_term_ack);
+		printf("Number of Code-Reject packets: %u\t%u\n",
+			ipcp_stats->rx_code_rej, ipcp_stats->tx_code_rej);
 	} else {
 		error();
 	} 
@@ -1014,6 +672,7 @@ static void flush_ipcp( void )
 	} 
 }; /* flush_ipcp */
 
+#if 0
 static void ipxcp( void ) 
 {
 	unsigned short tmp, tmp2;
@@ -1073,6 +732,7 @@ static void flush_ipxcp( void )
 		error();
 	}
 }; /* flush_ipxcp */
+#endif
 
 static void pap( void ) 
 {
@@ -1124,7 +784,7 @@ static void flush_pap( void )
 
 static void chap( void ) 
 {
-	unsigned short tmp, tmp2;
+   	ppp_chap_stats_t *chap_stats;
    
 	wan_udp.wan_udphdr_command = PPP_READ_CHAP_STATS;
 	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -1134,33 +794,20 @@ static void chap( void )
 	if( wan_udp.wan_udphdr_return_code == 0 ) {
 
 		BANNER("CHAP STATISTICS");
+   		chap_stats = (ppp_chap_stats_t*)&wan_udp.wan_udphdr_data[0];
+		/*chap_stats = (ppp_chap_stats_t*)&wan_udp.wan_udphdr_u.data[0];*/
 
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[0],2);
-		printf("Packets discarded (unknown CHAP code): %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[20],2);
-		printf("Received CHAP packets too large: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[22],2);
-		printf("Received packets invalid inbound PeerID: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[24],2);
-		printf("Received packets invalid inbound Password/Secret: %u\n",
-			tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[26],2);
-		printf("Received packets invalid inbound MD5 message digest format: %u\n",tmp);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[28],2);
-		printf("Invalid inbound ID or out-of-order or unelicited responses: %u\n",tmp);
+		printf("Packets discarded (unknown CHAP code): %u\n", chap_stats->rx_unknown);
+		printf("Received CHAP packets too large: %u\n", chap_stats->rx_too_large);
+		printf("Received packets invalid inbound PeerID: %u\n", chap_stats->rx_bad_peerid);
+		printf("Received packets invalid inbound Password/Secret: %u\n", chap_stats->rx_bad_passwd);
+		printf("Received packets invalid inbound MD5 message digest format: %u\n", chap_stats->rx_bad_md5);
+		/*printf("Invalid inbound ID or out-of-order or unelicited responses: %u\n", chap_stats->);*/
 		printf("\n\t\t\tReceived\tTransmitted\n");
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[2],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[12],2);
-		printf("Number of Challenge packets  : %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[4],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[14],2);
-		printf("Number of Response packets   : %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[6],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[16],2);
-		printf("Number of Success packets    : %u\t%u\n",tmp,tmp2);
-		memcpy(&tmp,&wan_udp.wan_udphdr_data[8],2);
-		memcpy(&tmp2,&wan_udp.wan_udphdr_data[18],2);
-		printf("Number of Failure packets    : %u\t%u\n",tmp,tmp2);
+		printf("Number of Challenge packets  : %u\t%u\n", chap_stats->rx_challenge, chap_stats->tx_challenge);
+		printf("Number of Response packets   : %u\t%u\n", chap_stats->rx_response, chap_stats->tx_response);
+		printf("Number of Success packets    : %u\t%u\n", chap_stats->rx_success, chap_stats->tx_success);
+		printf("Number of Failure packets    : %u\t%u\n", chap_stats->rx_failure, chap_stats->tx_failure);
 	} else {
 		error();
 	} 
@@ -1178,6 +825,65 @@ static void flush_chap( void )
 	} 
 }; /* flush_chap */
 
+static void data_packet_stats( void ) 
+{
+   	ppp_pkt_stats_t *packet_stats;
+	wan_udp.wan_udphdr_command = PPP_READ_PACKET_STATS;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+	DO_COMMAND(wan_udp);
+
+	packet_stats = (ppp_pkt_stats_t *)&wan_udp.wan_udphdr_data[0];
+
+	if( wan_udp.wan_udphdr_return_code == 0 ) {
+
+		BANNER("PACKET STATISTICS");
+
+		printf("Number discards( bad header ): %u\n",
+				packet_stats->rx_bad_header);
+		printf("Number discards( unknown/unsupported protocol ): %u\n",
+				packet_stats->rx_prot_unknwn);
+		printf("Number discards(unknown/unsupported protocol+too large for Protocol-Reject): %u\n",
+				packet_stats->rx_too_large);
+		printf("\n\t\t\tReceived\tTransmitted\n");
+		printf("Number of LCP packets: %u\t\t%u\n",
+				packet_stats->rx_lcp,packet_stats->tx_lcp);
+		printf("Number of IPCP packets: %u\t\t%u\n",
+				packet_stats->rx_ipcp,  packet_stats->tx_ipcp);
+		printf("Number of IPXCP packets: %u\t\t%u\n",
+				packet_stats->rx_ipxcp,packet_stats->tx_ipxcp);
+		printf("Number of PAP packets: %u\t\t%u\n",
+				packet_stats->rx_pap,packet_stats->tx_pap);
+		printf("Number of CHAP packets: %u\t\t%u\n",
+				packet_stats->rx_chap,packet_stats->tx_chap);
+		printf("Number of LQR packets: %u\t\t%u\n",
+				packet_stats->rx_lqr,packet_stats->tx_lqr);
+		printf("Number of IP packets:  %u\t\t%u\n",
+				packet_stats->rx_ip,packet_stats->tx_ip);
+		printf("Number of IPX packets: %u\t\t%u\n",
+				packet_stats->rx_ipx,packet_stats->tx_ipx);
+	} else {
+		error();
+	} 
+}; /* packet */
+
+static void flush_data_packet_stats(void)
+{
+	flush_lcp();
+	flush_ipcp();
+	flush_pap();
+	flush_chap();
+
+	wan_udp.wan_udphdr_command = PPP_FLUSH_PACKET_STATS;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+	DO_COMMAND(wan_udp);
+
+	if( wan_udp.wan_udphdr_return_code != 0 ) {
+		error();
+	} 
+};
+
 int PPPUsage( void ) 
 {
 	printf("wanpipemon: Wanpipe PPP Debugging Utility\n\n");
@@ -1186,7 +892,7 @@ int PPPUsage( void )
 	printf("wanpipemon -i <ip-address or interface name> -u <port> -c <command>\n\n");
 	printf("\tOption -i: \n");
 	printf("\t\tWanpipe remote IP address must be supplied\n");
-	printf("\t\t<or> Wanpipe network interface name (ex: wp1_ppp)\n");   
+	printf("\t\t<or> Wanpipe network interface name (ex: w1g1ppp)\n");   
 	printf("\tOption -u: (Optional, default: 9000)\n");
 	printf("\t\tWanpipe UDPPORT specified in /etc/wanpipe#.conf\n");
 	printf("\tOption -full: (Optional, trace option)\n");
@@ -1195,30 +901,21 @@ int PPPUsage( void )
 	printf("\t\tCommand is split into two parts:\n"); 
 	printf("\t\t\tFirst letter is a command and the rest are options:\n"); 
 	printf("\t\t\tex: xm = View Modem Status\n\n");
-	printf("\tSupported Commands: x=status : s=statistics : t=trace \n");
-	printf("\t                    c=config : T=FT1 stats  : f=flush\n\n");
+	printf("\tSupported Commands: x=status     : s=statistics : t=trace \n");
+	printf("\t                    T=FT1 stats  : f=flush\n\n");
 	printf("\tCommand:  Options:   Description \n");	
 	printf("\t-------------------------------- \n\n");    
 	printf("\tCard Status\n");
 	printf("\t   x         m       Modem Status\n");
-	printf("\t             n       Parameters Negotiated on Last Connection/Attempt\n");
+	printf("\t             n       PPP Link Status\n");
 	printf("\t             ru      Display Router UP time\n");
-	printf("\t             u       PPP Timers and Counters\n");
-	//printf("\t             s       PPP FSM Current State\n");
-	//printf("\t             c       Cause for Last Disconnection\n");
-	printf("\tCard Configuration\n");
-	printf("\t   c         g       PPP General Configuration\n");
-	printf("\t             a       Authentication Configuration\n");
-	printf("\t             i       IP Configuration\n");
-	printf("\t             x       IPX Configuration\n");
 	printf("\tCard Statistics\n");
 	printf("\t   s         g       Global Statistics\n");
 	printf("\t             c       Communication Error Statistics\n");
-	printf("\t             p       Packet Statistics\n");
+	printf("\t             p       General Packet Statistics\n");
 	printf("\t             lcp     LCP Statistics\n");
-	printf("\t             lo      Loopback Detection / LCP Error Statistics\n");
 	printf("\t             ipc     IP Control Protocol( IPCP )Statistics\n");
-	printf("\t             xpc     IPX Control Protocol( IPXCP )Statistics\n");
+	//printf("\t             xcp     IPX Control Protocol( IPXCP )Statistics\n");
 	printf("\t             pap     Password Authentication (PAP) Statistics\n");
 	printf("\t             chp     Challenge-Handshake Auth.(CHAP) Statistics\n");
 	printf("\tTrace Data\n");
@@ -1248,9 +945,8 @@ int PPPUsage( void )
 	printf("\tFlush Statistics\n");
 	printf("\t   f         g       Global Statistics\n");
 	printf("\t             c       Communication Error Statistics\n");
-	printf("\t             p       Packet Statistics\n");
+	printf("\t             p       General Packet Statistics\n");
 	printf("\t             lcp     LCP Statistics\n");
-	printf("\t             lo      Loopback Detection / LCP Error Statistics\n");
 	printf("\t             ipc     IP Control Protocol( IPCP )Statistics\n");
 	printf("\t             ipxc    IPX Control Protocol( IPXCP )Statistics\n");
 	printf("\t             pap     Password Authentication (PAP) Statistics\n");
@@ -1270,7 +966,6 @@ int PPPUsage( void )
 
 static char *gui_main_menu[]={
 "ppp_card_stats_menu","Card Status",
-"ppp_card_conf_menu","Card Configuration",
 "ppp_stats_menu","Card Statistics",
 "ppp_trace_menu","Trace Data",
 "csudsu_menu","CSU DSU Config/Stats",
@@ -1281,30 +976,18 @@ static char *gui_main_menu[]={
 
 static char *ppp_card_stats_menu[]={
 "xm","Modem Status",
-"xn","Negotiated Parameters",
+"xs","PPP Link Status",
 "xru","Display Router UP time",
-"xu","PPP Timers and Counters",
-//"xs","PPP FSM Current State",
-//"xc","Cause for Last Disconnection",
 "."	
 };
 
-static char *ppp_card_conf_menu[]={
-"cg","PPP General Configuration",
-"ca","Authentication Configuration",
-"ci","IP Configuration",
-"cx","IPX Configuration",
-"."
-};
-	
 static char *ppp_stats_menu[]={
 "sg","Global Statistics",
 "sc","Communication Error Statistics",
-"sp","Packet Statistics",
+"sp","Data Packet Statistics",
 "slcp","LCP Statistics",
-"slo","Loopback Detection / LCP Error Statistics",
 "sipc","IP Control Protocol( IPCP )Statistics",
-"sxpc","IPX Control Protocol( IPXCP )Statistics",
+//"sxcp","IPX Control Protocol( IPXCP )Statistics",
 "spap","Password Authentication (PAP) Statistics",
 "schp","Challenge-Handshake Auth.(CHAP) Statistics",
 "."
@@ -1345,11 +1028,10 @@ static char *ppp_csudsu_menu[]={
 static char *ppp_flush_menu[]={
 "fg","Flush Global Statistics",
 "fc","Flush Communication Error Statistics",
-"fp","Flush Packet Statistics",
-"flpc","Flush LCP Statistics",
-"flo","Flush Loopback Detection / LCP Error Statistics",
+"fp","Flush General Packet Statistics",
+"flcp","Flush LCP Statistics",
 "fipc","Flush IP Control Protocol( IPCP )Statistics",
-"fxpc","Flush IPX Control Protocol( IPXCP )Statistics",
+//"fxcp","Flush IPX Control Protocol( IPXCP )Statistics",
 "fpap","Flush Password Authentication (PAP) Statistics",
 "fchp","Flush Challenge-Handshake Auth.(CHAP) Statistics",
 "fd","Flush Driver Statistics",
@@ -1366,7 +1048,6 @@ static char *ppp_driver_menu[]={
 
 static struct cmd_menu_lookup_t gui_cmd_menu_lookup[]={
 	{"ppp_card_stats_menu",ppp_card_stats_menu},
-	{"ppp_card_conf_menu",ppp_card_conf_menu},
 	{"ppp_stats_menu",ppp_stats_menu},
 	{"ppp_trace_menu",ppp_trace_menu},
 	{"csudsu_menu",csudsu_menu},
@@ -1479,12 +1160,6 @@ int PPPMain(char *command,int argc, char* argv[])
 		case 'x':
 			if (!strcmp(opt,"m")){
 				modem();
-			}else if (!strcmp(opt,"u")){
-				timers();	
-			}else if (!strcmp(opt,"n")){
-				negot();
-			}else if (!strcmp(opt,"c")){
-				cause();
 			}else if (!strcmp(opt,"s")){
 				state();
 			}else if (!strcmp(opt,"ru")){
@@ -1513,20 +1188,20 @@ int PPPMain(char *command,int argc, char* argv[])
 				general_stats();
 			}else if (!strcmp(opt,"c")){
 				comm_err();
-			}else if (!strcmp(opt,"p")){
-				packet();
-			}else if (!strcmp(opt,"lo")){
-				loopback();
 			}else if (!strcmp(opt,"pap")){
 				pap();
 			}else if (!strcmp(opt,"chp")){
 				chap();			
 			}else if (!strcmp(opt,"ipc")){
 				ipcp();
-			}else if (!strcmp(opt,"xpc")){
+			/*
+			}else if (!strcmp(opt,"xcp")){
 				ipxcp();			
+			*/
 			}else if (!strcmp(opt,"lcp")){
 				lcp();
+			}else if (!strcmp(opt,"p")){
+				data_packet_stats();
 			}else{
 				printf("ERROR: Invalid Statistics Command 's', Type wanpipemon <cr> for help\n\n");
 			}
@@ -1574,20 +1249,19 @@ int PPPMain(char *command,int argc, char* argv[])
 				flush_comm_err();
 				comm_err();
 			}else if (!strcmp(opt,"p" )){
-				flush_packet();
-				packet();
+				flush_data_packet_stats();
+				data_packet_stats();
 			}else if (!strcmp(opt,"lcp" )){
 				flush_lcp();
 				lcp();
-			}else if (!strcmp(opt,"lo" )){
-				flush_loopback();
-				loopback();
 			}else if (!strcmp(opt,"ipc" )){
 				flush_ipcp();
 				ipcp();
-			}else if (!strcmp(opt,"ipxc" )){
+			/*
+			}else if (!strcmp(opt,"xcp" )){
 				flush_ipxcp();
 				ipxcp();
+			*/
 			}else if (!strcmp(opt,"pap" )){
 				flush_pap();
 				pap();
@@ -1599,7 +1273,7 @@ int PPPMain(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt,"pm" )){
 				flush_te1_pmon();
 			} else {
-				printf("ERROR: Invalid Flush Command 'f', Type wanpipemon <cr> for help\n\n");
+				printf("ERROR: Invalid Flush Command: '%s', Type wanpipemon <cr> for help\n\n", opt);
 			}
 			break;
 		case 'T':

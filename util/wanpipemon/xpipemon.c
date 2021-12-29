@@ -451,7 +451,7 @@ void decode_timestamp (trace_data_t *trace_info)
 	strftime(tmp_time,sizeof(tmp_time),"%S",time_tm);
 	printf("%s ",tmp_time);
 
-	printf("%ld [1/100s]",trace_info->usec );
+	printf("%u [1/100s]",trace_info->usec );
 }
 
 void line_trace(int trace_mode) 
@@ -602,29 +602,29 @@ void x25_driver_stat_ifsend( void )
 
       BANNER("X25:  DRIVER IF_SEND STATISTICS");       
 
-      printf("                                    Total Number of Send entries:  %ld\n", 
+      printf("                                    Total Number of Send entries:  %lu\n", 
                                      	if_snd_stat->if_send_entry);
-      printf("                          Number of Send entries with SKB = NULL:  %ld\n", 
+      printf("                          Number of Send entries with SKB = NULL:  %lu\n", 
                                       	if_snd_stat->if_send_skb_null);
-      printf("Number of Send entries with broadcast addressed packet discarded:  %ld\n", 
+      printf("Number of Send entries with broadcast addressed packet discarded:  %lu\n", 
                     			if_snd_stat->if_send_broadcast);
-      printf("Number of Send entries with multicast addressed packet discarded:  %ld\n", 
+      printf("Number of Send entries with multicast addressed packet discarded:  %lu\n", 
 					if_snd_stat->if_send_multicast);
-      printf("                Number of Send entries with CRITICAL_RX_INTR set:  %ld\n", 
+      printf("                Number of Send entries with CRITICAL_RX_INTR set:  %lu\n", 
 					if_snd_stat->if_send_critical_ISR);
-      printf("   Number of Send entries with Critical set and packet discarded:  %ld\n", 
+      printf("   Number of Send entries with Critical set and packet discarded:  %lu\n", 
 					if_snd_stat->if_send_critical_non_ISR);
-      printf("                     Number of Send entries with Device Busy set:  %ld\n", 
+      printf("                     Number of Send entries with Device Busy set:  %lu\n", 
 					if_snd_stat->if_send_tbusy);
-      printf("                 Number of Send entries with Device Busy Timeout:  %ld\n", 
+      printf("                 Number of Send entries with Device Busy Timeout:  %lu\n", 
 					if_snd_stat->if_send_tbusy_timeout);
-      printf("               Number of Send entries with XPIPE MONITOR Request:  %ld\n", 
+      printf("               Number of Send entries with XPIPE MONITOR Request:  %lu\n", 
 					if_snd_stat->if_send_PIPE_request);
-      printf("                    Number of Send entries with WAN Disconnected:  %ld\n", 
+      printf("                    Number of Send entries with WAN Disconnected:  %lu\n", 
 					if_snd_stat->if_send_wan_disconnected);
-      printf("                         Number of Send entries with Send failed:  %ld\n", 
+      printf("                         Number of Send entries with Send failed:  %lu\n", 
 					if_snd_stat->if_send_bfr_not_passed_to_adptr);
-      printf("        If_send, number of packets passed to the board successfully:  %ld\n", 
+      printf("        If_send, number of packets passed to the board successfully:  %lu\n", 
 					if_snd_stat->if_send_bfr_passed_to_adptr);
       
  
@@ -643,36 +643,36 @@ void x25_driver_stat_intr( void )
        
       BANNER("X25: DRIVER INTERRUPT STATISTICS");       
 
-      printf("                                   Number of ISR entries:    %ld\n" , 
+      printf("                                   Number of ISR entries:    %lu\n" , 
                               		global_stat->isr_entry);
-      printf("                 Number of ISR entries with Critical Set:    %ld\n" , 
+      printf("                 Number of ISR entries with Critical Set:    %lu\n" , 
 					global_stat->isr_already_critical);
-      printf("                             Number of Receive Interrupt:    %ld\n" , 
+      printf("                             Number of Receive Interrupt:    %lu\n" , 
 					global_stat->isr_rx);
-      printf("                            Number of Transmit Interrupt:    %ld\n" , 
+      printf("                            Number of Transmit Interrupt:    %lu\n" , 
 					global_stat->isr_tx);
-      printf("             Number of ISR entries for Interrupt Testing:    %ld\n" , 
+      printf("             Number of ISR entries for Interrupt Testing:    %lu\n" , 
 					global_stat->isr_intr_test);
-      printf("                            Number of Spurious Interrupt:    %ld\n" , 
+      printf("                            Number of Spurious Interrupt:    %lu\n" , 
 					global_stat->isr_spurious);
-      printf("      Number of Times Transmit Interrupts Enabled in ISR:    %ld\n" , 
+      printf("      Number of Times Transmit Interrupts Enabled in ISR:    %lu\n" , 
 					global_stat->isr_enable_tx_int);
-      printf("        Number of Receive Interrupts with Corrupt Buffer:    %ld\n\n" , 
+      printf("        Number of Receive Interrupts with Corrupt Buffer:    %lu\n\n" , 
 					global_stat->rx_intr_corrupt_rx_bfr);
 
-      printf("                                  Number of Poll Entries:    %ld\n",
+      printf("                                  Number of Poll Entries:    %lu\n",
                  			global_stat->poll_entry);
-      printf("                Number of Poll Entries with Critical set:    %ld\n", 
+      printf("                Number of Poll Entries with Critical set:    %lu\n", 
 					global_stat->poll_already_critical);
-      printf("                        Number of Poll Entries Processed:    %ld\n\n", 
+      printf("                        Number of Poll Entries Processed:    %lu\n\n", 
 					global_stat->poll_processed);
 
 
-      printf("             Number of Receive Interrupts with No socket:    %ld\n" , 
+      printf("             Number of Receive Interrupts with No socket:    %lu\n" , 
 					rx_int_stat->rx_intr_no_socket);
-      printf("  Number of Receive Interrupts for XPIPE MONITOR Request:    %ld\n" , 
+      printf("  Number of Receive Interrupts for XPIPE MONITOR Request:    %lu\n" , 
 					rx_int_stat->rx_intr_PIPE_request);
-      printf("Number of Receive Interrupts with Buffer Passed to Stack:    %ld\n" , 
+      printf("Number of Receive Interrupts with Buffer Passed to Stack:    %lu\n" , 
 					rx_int_stat->rx_intr_bfr_passed_to_stack);
      
 
@@ -692,25 +692,25 @@ void x25_driver_stat_gen( void )
 
       BANNER("X25:  DRIVER GENERAL STATISTICS");       
 
-      printf("            Number of XPIPE Monitor call with kmalloc error:  %ld\n", 
+      printf("            Number of XPIPE Monitor call with kmalloc error:  %lu\n", 
 					pipe_mgmt_stat->UDP_PIPE_mgmt_kmalloc_err);
-      printf("       Number of XPIPE Monitor call with Adapter Type error:  %ld\n", 
+      printf("       Number of XPIPE Monitor call with Adapter Type error:  %lu\n", 
 					pipe_mgmt_stat->UDP_PIPE_mgmt_adptr_type_err);
-      printf("          Number of XPIPE Monitor call with Direction Error:  %ld\n", 
+      printf("          Number of XPIPE Monitor call with Direction Error:  %lu\n", 
 					pipe_mgmt_stat->UDP_PIPE_mgmt_direction_err);
-      printf("  Number of XPIPE Monitor call with Adapter Command Timeout:  %ld\n", 
+      printf("  Number of XPIPE Monitor call with Adapter Command Timeout:  %lu\n", 
 					pipe_mgmt_stat->UDP_PIPE_mgmt_adptr_cmnd_timeout);
-      printf("       Number of XPIPE Monitor call with Adapter Command OK:  %ld\n", 
+      printf("       Number of XPIPE Monitor call with Adapter Command OK:  %lu\n", 
 					pipe_mgmt_stat->UDP_PIPE_mgmt_adptr_cmnd_OK);
-      printf("      Number of XPIPE Monitor call with Adapter Send passed:  %ld\n", 
+      printf("      Number of XPIPE Monitor call with Adapter Send passed:  %lu\n", 
 					pipe_mgmt_stat->UDP_PIPE_mgmt_adptr_send_passed);
-      printf("      Number of XPIPE Monitor call with Adapter Send failed:  %ld\n", 
+      printf("      Number of XPIPE Monitor call with Adapter Send failed:  %lu\n", 
 					pipe_mgmt_stat->UDP_PIPE_mgmt_adptr_send_failed);
-      printf("   Number of XPIPE Monitor call with packet passed to stack:  %ld\n", 
+      printf("   Number of XPIPE Monitor call with packet passed to stack:  %lu\n", 
 					pipe_mgmt_stat->UDP_PIPE_mgmt_passed_to_stack);
-      printf("  Number of XPIPE Monitor call with pkt NOT passed to stack:  %ld\n",
+      printf("  Number of XPIPE Monitor call with pkt NOT passed to stack:  %lu\n",
  					pipe_mgmt_stat->UDP_PIPE_mgmt_not_passed_to_stack);
-      printf("                Number of XPIPE Monitor call with no socket:  %ld\n\n", 
+      printf("                Number of XPIPE Monitor call with no socket:  %lu\n\n", 
 					pipe_mgmt_stat->UDP_PIPE_mgmt_no_socket);
 
 } /* x25_driver_stat_gen */
@@ -741,11 +741,11 @@ void x25_router_up_time( void )
 					(wan_udp.wan_udphdr_data[3]*16777216);
      if (time < 3600) {
 	if (time<60) 
-     		printf("    Router UP Time:  %ld seconds\n", time);
+     		printf("    Router UP Time:  %lu seconds\n", time);
 	else
-     		printf("    Router UP Time:  %ld minute(s)\n", (time/60));
+     		printf("    Router UP Time:  %lu minute(s)\n", (time/60));
      }else
-     		printf("    Router UP Time:  %ld hour(s)\n", (time/3600));
+     		printf("    Router UP Time:  %lu hour(s)\n", (time/3600));
 			
       
 } /* x25_router_up_time */

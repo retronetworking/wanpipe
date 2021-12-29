@@ -149,6 +149,12 @@ PPPD MULTILINK Setup
 	lcp-echo-interval 5
 	lcp-echo-failure 12
 
+	nobsdcomp
+	nodeflate
+	nopcomp
+	novj
+	novjccomp
+	noaccomp -am
 
 	#On some CISCO routers we must
 	#be in silent mode

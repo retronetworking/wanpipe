@@ -24,17 +24,21 @@
 */
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/wanpipe_version.h>
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe.h>
-# include <net/wanpipe_abstr.h>
+# include <wanpipe_version.h>
+# include <wanpipe_includes.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_common.h>
+# include <wanpipe_events.h>
+# include <wanpipe.h>
+# include <wanpipe_abstr.h>
 #elif defined(__KERNEL__)
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe_debug.h>
 # include <linux/wanpipe_common.h>
+# include <linux/wanpipe_events.h>
+# include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_wanpipe_common.h>
@@ -295,7 +299,7 @@ unsigned int wpabs_skb_csum(void *skb_new_ptr)
 
 void *wpabs_netif_alloc(unsigned char *dev_name,int ifType, int *err)
 {
-	return wan_netif_alloc(dev_name,err);
+	return wan_netif_alloc(dev_name,ifType,err);
 }
 
 void wpabs_netif_free(void *dev)
@@ -923,7 +927,12 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 
 	switch (option){
 	case WAN_LOCAL_IP:
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+#if defined(__FreeBSD__)
+		ifa = WAN_TAILQ_NEXT(ifa);
+		if (ifa == NULL) return 0;
+		addr = (struct sockaddr_in *)ifa->ifa_addr;
+		return addr->sin_addr.s_addr;
+#elif defined(__NetBSD__) || defined(__OpenBSD__)
 		addr = (struct sockaddr_in *)ifa->ifa_addr;
 		return htonl(addr->sin_addr.s_addr);
 #else
@@ -932,7 +941,12 @@ unsigned long wan_get_ip_addr(void* dev, int option)
 		break;
 	
 	case WAN_POINTOPOINT_IP:
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+#if defined(__FreeBSD__)
+		ifa = WAN_TAILQ_NEXT(ifa);
+		if (ifa == NULL) return 0;
+		addr = (struct sockaddr_in *)ifa->ifa_dstaddr;
+		return addr->sin_addr.s_addr;
+#elif defined(__NetBSD__) || defined(__OpenBSD__)
 		return 0;
 #else
 		return ifaddr->ifa_address;

@@ -41,7 +41,7 @@
 #endif
 
 /****** Function Prototypes *************************************************/
-static netdevice_t* wan_iface_alloc (int);
+static netdevice_t* wan_iface_alloc (int, int);
 static void wan_iface_free (netdevice_t*);
 static int wan_iface_attach (netdevice_t*, char*,int is_netdev);
 static int wan_iface_attach_eth (netdevice_t* dev, char *ifname, int is_netdev);
@@ -77,7 +77,7 @@ wan_iface_t wan_iface =
 
 /******* WAN Device Driver Entry Points *************************************/
 
-static netdevice_t* wan_iface_alloc (int is_netdev)
+static netdevice_t* wan_iface_alloc (int is_netdev, int ifType)
 {
 	netdevice_t	*dev;
 	int err;
@@ -88,15 +88,17 @@ static netdevice_t* wan_iface_alloc (int is_netdev)
 
 	/* Register in HDLC device */
 	if (is_netdev){
-		dev = wan_netif_alloc(tmp_name,&err);
-		if (dev == NULL)
+		dev = wan_netif_alloc(tmp_name,ifType,&err);
+		if (dev == NULL) {
 			return NULL;
+		}
 
 	}else{
 #ifdef CONFIG_PRODUCT_WANPIPE_GENERIC	
 		hdlc = (hdlc_device*)wan_malloc(sizeof(hdlc_device));
-		if (hdlc == NULL)
+		if (hdlc == NULL) {
 			return NULL;
+		}
 		dev = hdlc_to_dev(hdlc);
 #else
 		DEBUG_EVENT("%s: Critical Compile Error %i!\n",__FUNCTION__,__LINE__);
@@ -108,8 +110,7 @@ static netdevice_t* wan_iface_alloc (int is_netdev)
 
 static void wan_iface_free(netdevice_t* dev)
 {
-
-	    /* On 2.4 kernels device is freed
+	/* On 2.4 kernels device is freed
 	 * on unregisger_netdev.  However,
 	 * on 2.6 kernels we must call free
 	 * ouselves.
@@ -123,7 +124,8 @@ static void wan_iface_free(netdevice_t* dev)
 	return;
 #else
 	wan_netif_free(dev);
-#endif
+	return;
+#endif     
 }
 
 
@@ -201,6 +203,7 @@ static void wan_iface_detach (netdevice_t* dev, int is_netdev)
 			dev->priv=NULL;
 		}
 		unregister_netdev(dev);
+
 	}else{
 #ifdef CONFIG_PRODUCT_WANPIPE_GENERIC
 		unregister_hdlc_device(dev_to_hdlc(dev));
@@ -226,14 +229,16 @@ static int wan_iface_init(netdevice_t* dev)
 	dev->get_stats		= &wan_iface_get_stats;
 	dev->tx_timeout		= &wan_iface_tx_timeout;
 	dev->watchdog_timeo	= HZ*2;
-	dev->hard_header_len	= 16;
+	dev->hard_header_len	= 32;
 	dev->set_config		= NULL;
 	
 	/* Initialize media-specific parameters */
 	dev->flags		|= IFF_POINTOPOINT;
 	dev->flags		|= IFF_NOARP;
 
-	dev->mtu		= 1500;
+	if (!dev->mtu) {
+		dev->mtu		= 1500;
+	}
 	dev->tx_queue_len	= 100;
 	dev->type		= ARPHRD_PPP;
 	dev->addr_len		= 0;
@@ -268,10 +273,12 @@ static int wan_iface_eth_init(netdevice_t* dev)
 	dev->get_stats		= &wan_iface_get_stats;
 	dev->tx_timeout		= &wan_iface_tx_timeout;
 	dev->watchdog_timeo	= HZ*2;
-	dev->hard_header_len	= 16;
+	dev->hard_header_len	= 32;
 	dev->set_config		= NULL;
 	
-	dev->mtu		= 1500;
+	if (!dev->mtu) {
+		dev->mtu		= 1500;
+	}
 	dev->tx_queue_len	= 100;
 
 	dev->trans_start	= SYSTEM_TICKS;
@@ -288,7 +295,8 @@ static int wan_iface_eth_init(netdevice_t* dev)
 	get_random_bytes(&hw_addr, sizeof(hw_addr));
 	*(int *)(dev->dev_addr + 2) += hw_addr;
 
-	dev->hard_header_len = 32;
+	dev->hard_header_len 	= 32;
+	dev->tx_queue_len	= 100;
 
 	DEBUG_TEST("%s: %s:%d %p\n",
 			dev->name,

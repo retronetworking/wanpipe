@@ -24,23 +24,18 @@
  ******************************************************************************
 */
 
-#if (defined __FreeBSD__) | (defined __OpenBSD__)
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe_debug.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe_common.h>
-# include <net/wanpipe.h>
-# include <net/sdla_tdmv.h>	/* WANPIPE TDM Voice definitions */
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+# include <wanpipe_includes.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe_common.h>
+# include <wanpipe.h>
+# include <sdla_tdmv.h>	/* WANPIPE TDM Voice definitions */
 # include <zaptel.h>
 #elif (defined __WINDOWS__)
 # include <wanpipe\csu_dsu.h>
 #else
-
-#if 0
-# define CONFIG_ZAPATA_BRI_DCHANS 
-#endif
-
 # include <zaptel.h>
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -53,7 +48,6 @@
 			  DEFINES AND MACROS
  ******************************************************************************
 */
-//#define DEBUG_ECHO	DEBUG_EVENT
 #define DEBUG_ECHO	if(0) DEBUG_EVENT
 
 #define WP_MAX_CARDS		32
@@ -78,6 +72,7 @@
 #define IS_TDMV_SIG_ENABLE(wp)	wan_test_bit(WP_TDMV_SIG_ENABLE, &(wp)->flags)
 #define IS_TDMV_UP_RUNNING(wp)	(IS_TDMV_UP(wp) && IS_TDMV_RUNNING(wp))
 #define IS_TDMV_SIG(wp)		(IS_TDMV_SIG_POLL(wp) && IS_TDMV_SIG_ENABLE(wp))
+#define IS_TDMV_RBS_READY(wp)	wan_test_bit(WP_TDMV_RBS_READY, &(wp)->flags)
 
 #define WP_TDMV_ENABLE		0x01
 #define WP_TDMV_DISABLE		0x02
@@ -133,7 +128,6 @@ typedef struct wp_tdmv_pvt_area
 {
 	sdla_t*		card;
 	char*		devname;
-	// FIXME struct pci_dev *dev;
 	wan_spinlock_t	lock;
 	wan_spinlock_t	tx_rx_lock;
 	int		ise1;
@@ -169,8 +163,8 @@ typedef struct wp_tdmv_pvt_area
 	unsigned char	rbs_tx1[31];
 	unsigned char	rbs_rx[31];
 	unsigned long	rbs_rx_pending;
-	int 		intcount;
-	int 		rbscount;
+	u32 		intcount;
+	u32 		rbscount;
 	unsigned int	brt_ctrl;
 	unsigned char	echo_off;
 	unsigned long	echo_off_map;
@@ -193,7 +187,6 @@ typedef struct wp_tdmv_pvt_area
 *******************************************************************************
 */
 static int		wp_card_no = 0;
-static unsigned char	brt[256];
 WAN_LIST_HEAD(, wan_tdmv_) wan_tdmv_head = 
 			WAN_LIST_HEAD_INITIALIZER(&wan_tdmv_head);
 /*
@@ -202,26 +195,52 @@ WAN_LIST_HEAD(, wan_tdmv_) wan_tdmv_head =
 *******************************************************************************
 */
 
+static int wp_tdmv_check_mtu(void* pcard, unsigned long timeslot_map, int *mtu);
+static int wp_tdmv_create(void* pcard, wan_xilinx_conf_t *conf);
+static int wp_tdmv_remove(void* pcard);
+static int wp_tdmv_reg(void* pcard, wanif_conf_t *conf, netdevice_t *dev);
+static int wp_tdmv_unreg(void* pcard, unsigned long ts_map);
+static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv);
 static int wp_tdmv_startup(struct zt_span *span);
 static int wp_tdmv_shutdown(struct zt_span *span);
 static int wp_tdmv_maint(struct zt_span *span, int cmd);
 static int wp_tdmv_chanconfig(struct zt_chan *chan, int sigtype);
 static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc);
-static int wp_tdmv_sigctrl(sdla_t* card, wp_tdmv_softc_t *wp, int status);
-static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits);
-static int wp_tdmv_tx_rbsbits(wp_tdmv_softc_t *wp);
 static int wp_tdmv_open(struct zt_chan *chan);
 static int wp_tdmv_close(struct zt_chan *chan);
 static void wp_tdmv_release(wp_tdmv_softc_t *wp);
-#if defined(__FreeBSD__)
+
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
 static int wp_tdmv_ioctl(struct zt_chan*, unsigned int, caddr_t);
 #else
 static int wp_tdmv_ioctl(struct zt_chan*, unsigned int, unsigned long);
 #endif
+
+static int wp_tdmv_hwec(struct zt_chan *chan, int enable);
+
+static int wp_tdmv_state(void* pcard, int state);
+static int wp_tdmv_running(void* pcard);
+
+/* RBS functions */
+static int wp_tdmv_sigctrl(sdla_t* card, wp_tdmv_softc_t *wp, int channel, int status);
+static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits);
+static int wp_tdmv_tx_rbsbits(wp_tdmv_softc_t *wp);
+static int wp_tdmv_is_rbsbits(wan_tdmv_t *wan_tdmv);
+static int wp_tdmv_rbsbits_poll(wan_tdmv_t *wan_tdmv, void *card1);
+static void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char status);
+
+static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm);
+
+/* Rx/Tx functions */
+static int wp_tdmv_rx_tx(void* pcard, netskb_t* skb);
+static int wp_tdmv_rx_tx_span(void *pcard);
+static int wp_tdmv_span_buf_rotate(void *pcard, u32, unsigned long);
+static int wp_tdmv_ec_span(void *pcard);
+static int wp_tdmv_rx_chan(wan_tdmv_t*, int, unsigned char*, unsigned char*); 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN)
 static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len);
+static int wp_tdmv_rx_dchan(wan_tdmv_t*, int, unsigned char*, unsigned int); 
 #endif
-
 static int wp_tdmv_rxcopy(wan_tdmv_t *wan_tdmv, unsigned char* rxbuf, int max_len);
 static int wp_tdmv_rxprep(wan_tdmv_t* wan_tdmv, unsigned char*, int);
 static int wp_tdmv_txcopy(wan_tdmv_t* wan_tdmv, unsigned char*, int);
@@ -230,28 +249,53 @@ static int wp_tdmv_txprep(wan_tdmv_t* wan_tdmv, unsigned char*, int);
 static inline void start_alarm(wp_tdmv_softc_t* wp);
 static inline void stop_alarm(wp_tdmv_softc_t* wp);
 
-/******************************************************************************
-** () - 
-**
-**
-*/
+static int wp_tdmv_init(void* pcard, wanif_conf_t *conf);
 
-/*
-**			  FUNCTION DEFINITIONS
+/******************************************************************************
+** wp_tdmv_te1_init() - 
 **
+**	OK
 */
-int wp_tdmv_check_mtu(void* pcard, unsigned long timeslot_map)
+int wp_tdmv_te1_init(wan_tdmv_iface_t *iface)
+{
+	WAN_ASSERT(iface == NULL);
+
+	iface->check_mtu	= wp_tdmv_check_mtu;
+	iface->create		= wp_tdmv_create;
+	iface->remove		= wp_tdmv_remove;
+	iface->reg		= wp_tdmv_reg;
+	iface->unreg		= wp_tdmv_unreg;
+	iface->software_init	= wp_tdmv_software_init;
+	iface->state		= wp_tdmv_state;
+	iface->running		= wp_tdmv_running;
+	iface->rx_tx		= wp_tdmv_rx_tx;
+	iface->rx_chan		= wp_tdmv_rx_chan;
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN)
+	iface->rx_dchan		= wp_tdmv_rx_dchan;
+#endif
+	iface->rx_tx_span	= wp_tdmv_rx_tx_span;
+	iface->is_rbsbits	= wp_tdmv_is_rbsbits;	//????
+	iface->rbsbits_poll	= wp_tdmv_rbsbits_poll;	//?????
+	iface->init		= wp_tdmv_init;
+	iface->buf_rotate	= wp_tdmv_span_buf_rotate;
+	iface->ec_span		= wp_tdmv_ec_span;
+
+	return 0;
+}
+
+static int wp_tdmv_check_mtu(void* pcard, unsigned long timeslot_map, int *mtu)
 {
 	sdla_t	*card = (sdla_t*)pcard;
 	int	x, num_of_channels = 0, max_channels;
 
 	max_channels = GET_TE_CHANNEL_RANGE(&card->fe);
 	for (x = 0; x < max_channels; x++) {
-		if (test_bit(x,&timeslot_map)){
+		if (wan_test_bit(x,&timeslot_map)){
 			num_of_channels++;
 		}
 	}
-	return (ZT_CHUNKSIZE * num_of_channels);
+	*mtu = ZT_CHUNKSIZE * num_of_channels;
+	return 0;
 }
 
 /******************************************************************************
@@ -259,23 +303,23 @@ int wp_tdmv_check_mtu(void* pcard, unsigned long timeslot_map)
 **
 **	OK
 */
-int wp_tdmv_create(void* pcard, wandev_conf_t *conf)
+static int wp_tdmv_create(void* pcard, wan_xilinx_conf_t *conf)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wp_tdmv_softc_t	*wp = NULL;
 	wan_tdmv_t	*tmp = NULL;
 
 	WAN_ASSERT(card == NULL);
-	WAN_ASSERT(conf->u.aft.tdmv_span_no == 0);
+	WAN_ASSERT(conf->tdmv_span_no == 0);
 	memset(&card->wan_tdmv, 0x0, sizeof(wan_tdmv_t));
 	/* We are forcing to register wanpipe devices at the same sequence
 	 * that it defines in /etc/zaptel.conf */
    	WAN_LIST_FOREACH(tmp, &wan_tdmv_head, next){
-		if (tmp->spanno == conf->u.aft.tdmv_span_no){
+		if (tmp->spanno == conf->tdmv_span_no){
 			DEBUG_EVENT("%s: Registering device with an incorrect span number!\n",
 					card->devname);
 			DEBUG_EVENT("%s: Another wanpipe device already configured to span #%d!\n",
-					card->devname, conf->u.aft.tdmv_span_no);
+					card->devname, conf->tdmv_span_no);
 			return -EINVAL;
 		}
 		if (!WAN_LIST_NEXT(tmp, next)){
@@ -284,7 +328,7 @@ int wp_tdmv_create(void* pcard, wandev_conf_t *conf)
 	}
 
 	card->wan_tdmv.max_timeslots	= GET_TE_CHANNEL_RANGE(&card->fe);
-	card->wan_tdmv.spanno		= conf->u.aft.tdmv_span_no;
+	card->wan_tdmv.spanno		= conf->tdmv_span_no;
 	card->wandev.te_report_rbsbits  = wp_tdmv_report_rbsbits;
 	card->wandev.te_report_alarms	= wp_tdmv_report_alarms;	
 
@@ -294,7 +338,7 @@ int wp_tdmv_create(void* pcard, wandev_conf_t *conf)
 	}
 	memset(wp, 0x0, sizeof(wp_tdmv_softc_t));
 	card->wan_tdmv.sc	= wp;
-	wp->spanno		= conf->u.aft.tdmv_span_no-1;
+	wp->spanno		= conf->tdmv_span_no-1;
 	wp->num			= wp_card_no++;
 	wp->card		= card;
 	wp->devname		= card->devname;
@@ -307,9 +351,9 @@ int wp_tdmv_create(void* pcard, wandev_conf_t *conf)
 	wan_spin_lock_init(&wp->lock);
 	wan_spin_lock_init(&wp->tx_rx_lock);
 	/* AHDLC */
-	if (conf->u.aft.tdmv_dchan){
+	if (conf->tdmv_dchan){
 		/* PRI signalling is selected with hw HDLC (dchan is not 0) */
-		wp->dchan = conf->u.aft.tdmv_dchan;
+		wp->dchan = conf->tdmv_dchan;
 	}
 
 	if (tmp){
@@ -328,7 +372,7 @@ int wp_tdmv_create(void* pcard, wandev_conf_t *conf)
 **		-EINVAL - otherwise
 **	OK
 */
-int wp_tdmv_reg(void* pcard, wanif_conf_t *conf, netdevice_t *dev)
+static int wp_tdmv_reg(void* pcard, wanif_conf_t *conf, netdevice_t *dev)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
@@ -411,7 +455,7 @@ int wp_tdmv_reg(void* pcard, wanif_conf_t *conf, netdevice_t *dev)
 		wp->chans[channo].writechunk = wp->chans[channo].swritechunk;
 		wp->channelized = WAN_TRUE;
 	}
-	wp->max_rxtx_len = wp_tdmv_check_mtu(card, conf->active_ch);
+	wp_tdmv_check_mtu(card, conf->active_ch, &wp->max_rxtx_len);
 	return channo;
 }
 
@@ -421,7 +465,7 @@ int wp_tdmv_reg(void* pcard, wanif_conf_t *conf, netdevice_t *dev)
 **
 **	OK
 */
-int wp_tdmv_unreg(void* pcard, unsigned long ts_map)
+static int wp_tdmv_unreg(void* pcard, unsigned long ts_map)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
@@ -457,7 +501,7 @@ int wp_tdmv_unreg(void* pcard, unsigned long ts_map)
 **
 **	OK
 */
-int wp_tdmv_running(void* pcard)
+static int wp_tdmv_running(void* pcard)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
@@ -477,7 +521,7 @@ int wp_tdmv_running(void* pcard)
 **
 **	OK
 */
-int wp_tdmv_remove(void* pcard)
+static int wp_tdmv_remove(void* pcard)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
@@ -489,6 +533,7 @@ int wp_tdmv_remove(void* pcard)
 	}
 	
 	wp = wan_tdmv->sc;
+	DEBUG_TDMV("Removing TDM VOICE interfaces\n");
 	/* Release span, possibly delayed */
 	if (wp && wp->timeslot_map){
 		DEBUG_EVENT("%s: Some interfaces are not unregistered (%08lX)!\n",
@@ -510,7 +555,7 @@ int wp_tdmv_remove(void* pcard)
 		wan_clear_bit(WP_TDMV_RUNNING, &wp->flags);
 		wan_clear_bit(WP_TDMV_UP, &wp->flags);
 		wan_tdmv->sc = NULL;
-		wp_tdmv_sigctrl(card, wp, WP_TDMV_DISABLE);
+		wp_tdmv_sigctrl(card, wp, 0, WP_TDMV_DISABLE);
 		WAN_LIST_REMOVE(wan_tdmv, next);
 		wp_tdmv_release(wp);
 	}else{
@@ -519,13 +564,13 @@ int wp_tdmv_remove(void* pcard)
 	return 0;
 }
 
-void wp_tdmv_state(void* pcard, int state)
+static int wp_tdmv_state(void* pcard, int state)
 {
 	sdla_t*	card = (sdla_t*)pcard;
 	wan_tdmv_t*	wan_tdmv = &card->wan_tdmv;
 	wp_tdmv_softc_t*	wp = NULL;
 
-	WAN_ASSERT1(wan_tdmv->sc == NULL);
+	WAN_ASSERT(wan_tdmv->sc == NULL);
 	wp = (wp_tdmv_softc_t*)wan_tdmv->sc;
 	
 	switch(state){
@@ -538,49 +583,43 @@ void wp_tdmv_state(void* pcard, int state)
 		wp->rbs_rx_pending = wp->sig_timeslot_map;
 		break;
 	}
-	return;
+	return 0;
 }
 
-static int wp_tdmv_sigctrl(sdla_t* card, wp_tdmv_softc_t *wp, int status)
+static int wp_tdmv_sigctrl(sdla_t* card, wp_tdmv_softc_t *wp, int channel, int status)
 {
 
 	WAN_ASSERT(wp == NULL);
 	WAN_ASSERT(card == NULL);
 
-#if 0
-	if (wp->sig_timeslots == wp->span.channels){
-		/* All channels are configured to FXO/FXS.
-		 * Only in this case we can use Signalling interrupt */
-   		if (!wan_test_bit(WP_TDMV_SIG_POLL, &wp->flags)){
-			if (status == WP_TDMV_ENABLE){
-				DEBUG_EVENT("%s: Enable Signalling interrupt (span=%d)!\n",
-					card->devname, 
-					wp->spanno);
-				card->wandev.fe_iface.set_fe_sigcfg(&card->fe, 0);
-   				wan_set_bit(WP_TDMV_SIG_ENABLE, &wp->flags);
-			}
-		}else{
-			if (status == WP_TDMV_DISABLE){
-				DEBUG_EVENT("%s: Disable Signalling interrupt (span=%d)!\n",
-					card->devname, 
-					wp->spanno);
-				card->wandev.fe_iface.set_fe_sigcfg(&card->fe, 0);
-				wp->flags &= ~WP_TDMV_SIG_NONE;
-			}
-		}
-	}else{
-		wp->sig_status = (status == WP_TDMV_ENABLE) ? 
-						WP_TDMV_SIG_POLL : WP_TDMV_SIG_NONE;
+	if (status == WP_TDMV_ENABLE && IS_TDMV_RBS_READY(wp)){
+		return 0;
+	}else if (status == WP_TDMV_DISABLE && !IS_TDMV_RBS_READY(wp)){
+		return 0;
 	}
-#else
+	DEBUG_TDMV("%s: %s signalling mode for all channels!\n",
+			wp->devname,
+		       	(status==WP_TDMV_ENABLE)?"Enable":"Disable");
+  		
+	if (card->wandev.fe_iface.set_fe_sigctrl){
+		if (wan_test_bit(WP_TDMV_SIG_POLL, &wp->flags)){
+			card->wandev.fe_iface.set_fe_sigctrl(
+					&card->fe, 
+					WAN_TE_SIG_POLL,
+					ENABLE_ALL_CHANNELS,
+					(status == WP_TDMV_ENABLE)?WAN_ENABLE:WAN_DISABLE);
+		}else{
+			card->wandev.fe_iface.set_fe_sigctrl(
+					&card->fe,
+					WAN_TE_SIG_INTR,
+					ENABLE_ALL_CHANNELS,
+					(status == WP_TDMV_ENABLE)?WAN_ENABLE:WAN_DISABLE);
+		}
+	}
 	switch(status){
 	case WP_TDMV_ENABLE:
    		wan_set_bit(WP_TDMV_SIG_ENABLE, &wp->flags);
    		wan_set_bit(WP_TDMV_RBS_READY, &wp->flags);
-		if (!wan_test_bit(WP_TDMV_SIG_POLL, &wp->flags)){
-			card->wandev.fe_iface.set_fe_sigctrl(
-					&card->fe, WAN_TE_SIG_INTR);
-		}
 		break;
 	case WP_TDMV_DISABLE:
    		wan_clear_bit(WP_TDMV_RBS_READY, &wp->flags);
@@ -591,7 +630,6 @@ static int wp_tdmv_sigctrl(sdla_t* card, wp_tdmv_softc_t *wp, int status)
 				wp->devname, status);
 		return -EINVAL;
 	}
-#endif
 	return 0;
 }
 
@@ -601,31 +639,30 @@ static int wp_tdmv_sigctrl(sdla_t* card, wp_tdmv_softc_t *wp, int status)
 **
 **	DONE
 */
-void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char status)
+static void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char status)
 {
 	sdla_t*			card = (sdla_t*)pcard;
 	wan_tdmv_t*		wan_tdmv = &card->wan_tdmv;
 	wp_tdmv_softc_t*	wp = NULL;
 	int 			rxs = 0, i = 0;
-	// int a = 0, b = 0, i = 0, y = 0;
 
 	WAN_ASSERT1(wan_tdmv->sc == NULL);
 	wp = (wp_tdmv_softc_t*)wan_tdmv->sc;
 
-	if (!test_bit(channel-1, &wp->timeslot_map)){
+	if (!wan_test_bit(channel-1, &wp->timeslot_map)){
 		return;
 	}
 
-	if (status & BIT_SIGX_A) rxs |= ZT_ABIT;
-	if (status & BIT_SIGX_B) rxs |= ZT_BBIT;
-	if (status & BIT_SIGX_C) rxs |= ZT_CBIT;
-	if (status & BIT_SIGX_D) rxs |= ZT_DBIT;
+	if (status & WAN_RBS_SIG_A) rxs |= ZT_ABIT;
+	if (status & WAN_RBS_SIG_B) rxs |= ZT_BBIT;
+	if (status & WAN_RBS_SIG_C) rxs |= ZT_CBIT;
+	if (status & WAN_RBS_SIG_D) rxs |= ZT_DBIT;
 #if 0
 	if (wp->ise1){
 		FIXME_MSG("wp_tdmv_report_rbsbits");
 		/* Read 5 registers at a time, loading 10 channels at a time */
 		for (i = (x *5); i < (x * 5) + 5; i++) {
-			// FIXME a = __t1_get_reg(wp, 0x31 + i);
+			/* FIXME a = __t1_get_reg(wp, 0x31 + i); */
 			/* Get high channel in low bits */
 			rxs = (a & 0xf);
 			if (!(wp->chans[i+15].sig & ZT_SIG_CLEAR)) {
@@ -650,8 +687,9 @@ void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char status)
 	if (!(wp->chans[i].sig & ZT_SIG_CLEAR) &&
 	    (wp->chans[i].rxsig != rxs)){
 		zt_rbsbits(&wp->chans[i], rxs);
-#if 0
-		DEBUG_EVENT("[TDMV] %s: %s:%02d(%d) RX RBS: A:%1d B:%1d C:%1d D:%1d\n",
+#if 1
+		DEBUG_TDMV(
+		"[TDMV] %s: %s:%02d(%d) RX RBS: A:%1d B:%1d C:%1d D:%1d\n",
 				wp->devname, 
 				(wp->ise1) ? "E1" : "T1",
 				channel, wp->chans[i].channo,
@@ -668,7 +706,7 @@ void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char status)
 **
 **	DONE
 */
-void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
+static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
@@ -683,7 +721,7 @@ void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 		return;
 	}
 
-	/* And consider only carrier alarms */
+	/* Consider only carrier alarms */
 	wp->span.alarms &= (ZT_ALARM_RED | ZT_ALARM_BLUE | ZT_ALARM_NOTOPEN);
 	prev_alarms = wp->span.alarms;
 
@@ -741,14 +779,14 @@ void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 	if (wp->ise1) {
 		if (te_alarm & WAN_TE_BIT_RED_ALARM) 
 			alarms |= ZT_ALARM_RED;
-		if (te_alarm & WAN_TE_BIT_AIS_ALARM)
-			alarms |= ZT_ALARM_BLUE;
+		if (te_alarm & WAN_TE_BIT_OOF_ALARM) 
+			alarms |= ZT_ALARM_RED;
 	} else {
 		/* Check actual alarm status */
 		if (te_alarm & WAN_TE_BIT_RED_ALARM) 
 			alarms |= ZT_ALARM_RED;
-		if (te_alarm & WAN_TE_BIT_AIS_ALARM)
-			alarms |= ZT_ALARM_BLUE;
+		if (te_alarm & WAN_TE_BIT_OOF_ALARM)
+			alarms |= ZT_ALARM_RED;
 	}
 	/* Keep track of recovering */
 	if ((!alarms) && wp->span.alarms)
@@ -766,31 +804,19 @@ void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 #endif
 
 	if (wp->span.alarms != alarms) {
-		// FIXME: Alarm status changed!!!
+		/* FIXME: Alarm status changed!!! */
 	 	DEBUG_TDMV("%s: Alarm status changed %X!\n",
 			       	wp->devname,alarms);
 	}
-//	if (wp->alarmtimer)
-//		alarms |= ZT_ALARM_RECOVER;
+	/*
+	** if (wp->alarmtimer)
+	** alarms |= ZT_ALARM_RECOVER; */
 	if (te_alarm & WAN_TE_BIT_YEL_ALARM)
 		alarms |= ZT_ALARM_YELLOW;
 
 	wp->span.alarms = alarms;
-	if (wan_test_bit(WP_TDMV_RUNNING, &wp->flags)){
-#if 0
-		/* If receiving alarms, go into Yellow alarm state */
-		if (alarms && (!prev_alarms)) {
-			DEBUG_TDMV("%s: Going into yellow alarm\n",
-					wp->devname);
-			if (card->wandev.fe_iface.set_fe_alarm){
-				card->wandev.fe_iface.set_fe_alarm(
-							&card->fe,
-							WAN_TE_BIT_YEL_ALARM);
-			}
-		}
-#endif
-		zt_alarm_notify(&wp->span);
-	}
+	zt_alarm_notify(&wp->span);
+
 	return;
 }
 
@@ -808,12 +834,10 @@ wp_tdmv_txcopy(wan_tdmv_t *wan_tdmv, unsigned char* txbuf, int max_len)
 	WAN_ASSERT(wp == NULL);
 	for (y=0;y<ZT_CHUNKSIZE;y++) {
 		for (x=0;x<wp->span.channels;x++){
-			if (!test_bit(x,&wp->timeslot_map)){
+			if (!wan_test_bit(x,&wp->timeslot_map)){
 				continue;
 			}
-			txbuf[offset++] = (wan_tdmv->brt_enable) ?
-						brt[wp->chans[x].writechunk[y]] :
-						wp->chans[x].writechunk[y];
+			txbuf[offset++] =  wp->chans[x].writechunk[y];
 		}
 	}
 	return (offset+1);
@@ -850,13 +874,12 @@ wp_tdmv_rxcopy(wan_tdmv_t *wan_tdmv, unsigned char* rxbuf, int max_len)
 	WAN_ASSERT(wp == NULL);
 	for (y=0;y<ZT_CHUNKSIZE;y++){
 		for (x=0;x<channels;x++){
-			if (test_bit(x,&wp->timeslot_map)){
+			if (wan_test_bit(x,&wp->timeslot_map)){
 				value = rxbuf[offset++];
 			}else{
-				value = WAN_TDMV_IDLE_FLAG;	//0xFE;
+				value = WAN_TDMV_IDLE_FLAG;	/* 0xFE; */
 			}
-			wp->chans[x].readchunk[y] = 
-				(wan_tdmv->brt_enable) ? brt[value] : value;
+			wp->chans[x].readchunk[y] = value;
 		}
 	}
 	return offset;
@@ -915,7 +938,7 @@ wp_tdmv_rxprep(wan_tdmv_t *wan_tdmv, unsigned char* rxbuf, int max_len)
 **
 **	OK
 */
-int wp_tdmv_rx_tx(void* pcard, netskb_t* skb)
+static int wp_tdmv_rx_tx(void* pcard, netskb_t* skb)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
@@ -927,12 +950,12 @@ int wp_tdmv_rx_tx(void* pcard, netskb_t* skb)
 	wp = wan_tdmv->sc;
 
 	if (wan_skb_len(skb) != wp->max_rxtx_len){
-		if (WAN_NET_RATELIMIT()) {   
-                DEBUG_EVENT("%s: Internal Error[%s:%d]: Wrong buffer lenght %d (%d)!\n", 
+		if (WAN_NET_RATELIMIT()) {
+		DEBUG_EVENT("%s: Internal Error[%s:%d]: Wrong buffer lenght %d (%d)!\n", 
 					wp->devname, 
 					__FUNCTION__,__LINE__,
 					wan_skb_len(skb),
-					wp->max_rxtx_len);
+					wp->max_rxtx_len); 
 		}
                 return 0;
         }
@@ -960,44 +983,17 @@ int wp_tdmv_rx_tx(void* pcard, netskb_t* skb)
 }
 
 
-
 /*
 **		STATIC FUNCTION DEFINITIONS
 **
 */
-
-static void wp_tdmv_generate_bit_rev_table(void)
-{
-	unsigned char util_char;
-	unsigned char misc_status_byte;
-	int i;
-
-	/* generate the bit-reversing table for all unsigned characters */
-	for(util_char = 0;; util_char ++) {
-		misc_status_byte = 0;			/* zero the character to be 'built' */
-		/* process all 8 bits of the source byte and generate the */
-		for(i = 0; i <= 7; i ++) {
-		      	/* corresponding 'bit-flipped' character */
-			if(util_char & (1 << i)) {
-				misc_status_byte |= (1 << (7 - i));
-			}
-		}
-		/* insert the 'bit-flipped' character into the table at the appropriate location */
-		brt[util_char] = misc_status_byte; 
-
-		/* exit when all unsigned characters have been processed */
-		if(util_char == 0xFF) {
-			break;
-		}
-	}
-}
 
 /******************************************************************************
 ** wp_tdmv_software_init() - 
 **
 ** OK
 */
-int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
+static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 {
 	sdla_t		*card = NULL;
 	wp_tdmv_softc_t	*wp = wan_tdmv->sc;
@@ -1040,17 +1036,24 @@ int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 	wp->span.flags = ZT_FLAG_RBS;
 	wp->span.linecompat = ZT_CONFIG_AMI | ZT_CONFIG_B8ZS | ZT_CONFIG_D4 | ZT_CONFIG_ESF;
 	wp->span.ioctl = wp_tdmv_ioctl;
+	/* Set this pointer only if card has hw echo canceller module */
+	if (card->wandev.ec_dev){
+		wp->span.echocan = wp_tdmv_hwec;
+	}
 	wp->span.pvt = wp;
-	if (wp->ise1)
+	if (wp->ise1){
 		wp->span.deflaw = ZT_LAW_ALAW;
-	else
+		card->fe.fe_cfg.tdmv_law = WAN_TDMV_ALAW;
+	}else{
 		wp->span.deflaw = ZT_LAW_MULAW;
-#if !defined(__FreeBSD__)
+		card->fe.fe_cfg.tdmv_law = WAN_TDMV_MULAW;
+	}
+#if !defined(__FreeBSD__) && !defined(__OpenBSD__)
 	init_waitqueue_head(&wp->span.maintq);
 #endif
 	for (x=0;x<wp->span.channels;x++) {
 		sprintf(wp->chans[x].name, "%s/%d", wp->span.name, x+1);
-		if (test_bit(x,&wp->timeslot_map)){
+		if (wan_test_bit(x,&wp->timeslot_map)){
 			DEBUG_TEST("%s: Configure channel %d for voice (%s)!\n", 
 					wp->devname, 
 					x + 1,
@@ -1059,7 +1062,8 @@ int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 				ZT_SIG_EM | ZT_SIG_CLEAR | ZT_SIG_EM_E1 | 
 				ZT_SIG_FXSLS | ZT_SIG_FXSGS | 
 				ZT_SIG_FXSKS | ZT_SIG_FXOLS | 
-				ZT_SIG_FXOGS | ZT_SIG_FXOKS | ZT_SIG_CAS;
+				ZT_SIG_FXOGS | ZT_SIG_FXOKS |
+				ZT_SIG_CAS | ZT_SIG_DACS_RBS;
 		}else{
 			wp->chans[x].sigcap = ZT_SIG_NONE;
 		}
@@ -1089,7 +1093,6 @@ int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 		DEBUG_EVENT("%s: Wanpipe device is registered to Zaptel span # %d!\n", 
 					wp->devname, wp->span.spanno);
 	}
-	wp_tdmv_generate_bit_rev_table();
 	if (wp->channelized == WAN_FALSE && wp->dchan){
 		/* Apr 15, 2005
 		 * For unchannelized mode, if HW HDLC protocol is selected
@@ -1098,17 +1101,16 @@ int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 		wan_clear_bit(wp->dchan-1, &wp->timeslot_map);
 		wan_clear_bit(wp->dchan-1, &wp->echo_off_map);
 	}
-	wp->max_rxtx_len = wp_tdmv_check_mtu(card, wp->timeslot_map);
+	wp_tdmv_check_mtu(card, wp->timeslot_map, &wp->max_rxtx_len);
 	wan_set_bit(WP_TDMV_REGISTER, &wp->flags);
-	wan_set_bit(WP_TDMV_SIG_POLL, &wp->flags);
-
+	if (!wan_tdmv->sig_intr_enable){
+		wan_set_bit(WP_TDMV_SIG_POLL, &wp->flags);
+		/* These function is available if poll used for signalling detection */
+		card->tdmv_iface.is_rbsbits	= wp_tdmv_is_rbsbits;
+		card->tdmv_iface.rbsbits_poll	= wp_tdmv_rbsbits_poll;
+	}
 	return 0;
 }
-
-
-
-
-
 
 
 /******************************************************************************
@@ -1178,23 +1180,23 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 	wp		= span->pvt;
 	wan_spin_lock_irq(&wp->lock, &flags);
 	if (wp->ise1) {
-		// FIXME: Support E1
 #if 0
+		/* FIXME: Support E1 */
 		switch(cmd) {
 		case ZT_MAINT_NONE:
 			DEBUG_EVENT("%s: E1: Set to normal mode (no local/remote loops)\n",
 				       wp->card->devname);	
-			// FIXME __t1_set_reg(wp,0xa8,0); /* no loops */
+			/* FIXME __t1_set_reg(wp,0xa8,0); */ /* no loops */
 			break;
 		case ZT_MAINT_LOCALLOOP:
 			DEBUG_EVENT("%s: E1: Set to local loopback mode\n",
 				       wp->card->devname);	
-			// FIXME __t1_set_reg(wp,0xa8,0x40); /* local loop */
+			/* FIXME __t1_set_reg(wp,0xa8,0x40); */ /* local loop */
 			break;
 		case ZT_MAINT_REMOTELOOP:
 			DEBUG_EVENT("%s: E1: Set to remote loopback mode\n",
 				       wp->card->devname);	
-			// FIXME __t1_set_reg(wp,0xa8,0x80); /* remote loop */
+			/* FIXME __t1_set_reg(wp,0xa8,0x80);*/ /* remote loop */
 			break;
 		case ZT_MAINT_LOOPUP:
 		case ZT_MAINT_LOOPDOWN:
@@ -1265,7 +1267,7 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 	    	case ZT_MAINT_LOOPSTOP:
 			DEBUG_EVENT("%s: T1: Stop sending loop code\n",
 				       wp->card->devname);	
-			// FIXME __t1_set_reg(wp,0x30,0);	/* stop sending loopup code */
+			/* FIXME __t1_set_reg(wp,0x30,0); */	/* stop sending loopup code */
 			break;
 	    	default:
 			DEBUG_EVENT("%s: T1: Unknown maintenance mode (%d)\n", 
@@ -1281,7 +1283,7 @@ static void wp_tdmv_set_clear(wp_tdmv_softc_t* wp)
 {
 	WAN_ASSERT1(wp == NULL);
 
-	// FIXME: Add action for this function 
+	/* FIXME: Add action for this function  */
 }
 
 /******************************************************************************
@@ -1341,6 +1343,7 @@ static int wp_tdmv_chanconfig(struct zt_chan *chan, int sigtype)
 	wp	= chan->pvt;
 	card	= (sdla_t*)wp->card;
 
+	DEBUG_TDMV("%s: Configuring chan %d..\n", wp->devname, chan->chanpos);
 	if (chan->span->flags & ZT_FLAG_RUNNING){
 		wp_tdmv_set_clear(wp);
 	}
@@ -1354,7 +1357,7 @@ static int wp_tdmv_chanconfig(struct zt_chan *chan, int sigtype)
 			wp->sig_timeslots ++;
 			wan_set_bit(chan->chanpos-1, &wp->rbs_rx_pending);
 		}
-		wp_tdmv_sigctrl(card, wp, WP_TDMV_ENABLE);
+		wp_tdmv_sigctrl(card, wp, chan->chanpos, WP_TDMV_ENABLE);
 	}
 	return 0;
 }
@@ -1374,6 +1377,7 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 	WAN_ASSERT2(span->pvt == NULL, -ENODEV);
 	wp		= span->pvt;
 	card = (sdla_t*)wp->card;
+	DEBUG_TDMV("%s: Configuring span device..\n", wp->devname);
 	switch(wp->lcode){
 	case WAN_LCODE_AMI:
 		span->lineconfig |= ZT_CONFIG_AMI;
@@ -1403,7 +1407,9 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 		}else{
 			card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CAS;
 		}
-		card->wandev.fe_iface.post_config(&card->fe);
+		if (card->wandev.fe_iface.post_config){
+			card->wandev.fe_iface.post_config(&card->fe);
+		}
 	}
 	span->txlevel = 0;
 	switch(wp->lbo){
@@ -1478,46 +1484,30 @@ static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits)
 	if ((wp = chan->pvt) == NULL) return 0;
 	WAN_ASSERT2(wp->card == NULL, 0);
 	card = (sdla_t*)wp->card;
-	if (!test_bit(chan->chanpos-1, &wp->timeslot_map)){
+	if (!wan_test_bit(chan->chanpos-1, &wp->timeslot_map)){
 		return 0;	
 	}
    	if (!wan_test_bit(WP_TDMV_SIG_ENABLE, &wp->flags)){
                 return 0;
         }
-	if (bits & ZT_ABIT) ABCD_bits |= BIT_TPSC_SIGBYTE_A;
-	if (bits & ZT_BBIT) ABCD_bits |= BIT_TPSC_SIGBYTE_B;
-	if (bits & ZT_CBIT) ABCD_bits |= BIT_TPSC_SIGBYTE_C;
-	if (bits & ZT_DBIT) ABCD_bits |= BIT_TPSC_SIGBYTE_D;
-#if 0
-	if (wp->ise1){
-		FIXME_MSG("wp_tdmv_rbsbits");
-		if (chan->chanpos > 15){
-			mask = (bits | (wp->chans[chan->chanpos-15].txsig<<4));
-			DEBUG_EVENT("%s: E1 Timeslot %d mask=%02x\n", 
-					__FUNCTION__,chan->chanpos, mask);
-			//__t1_set_reg(wp, 0x41 + chan->chanpos - 15, mask);
-		}else if (chan->chanpos < 15){
-			mask = ((bits<<4) | wp->chans[chan->chanpos+15].txsig);
-			DEBUG_EVENT("%s: E1 Timeslot %d mask=%02x\n",
-				       __FUNCTION__,chan->chanpos, mask);
-			//__t1_set_reg(wp, 0x41 + chan->chanpos, mask);
-		} 
-		wp->chans[chan->chanpos - 1].txsig = bits;
-	}else{
-#endif
+	if (bits & ZT_ABIT) ABCD_bits |= WAN_RBS_SIG_A;
+	if (bits & ZT_BBIT) ABCD_bits |= WAN_RBS_SIG_B;
+	if (bits & ZT_CBIT) ABCD_bits |= WAN_RBS_SIG_C;
+	if (bits & ZT_DBIT) ABCD_bits |= WAN_RBS_SIG_D;
 
 	if (chan->flags & ZT_FLAG_HDLC){
 		return 0;
 	}
-#if 0
-	DEBUG_EVENT("[TDMV] %s: %s:%02d(%d) TX RBS: A:%1d B:%1d C:%1d D:%1d\n", 
+#if 1
+	DEBUG_TDMV(
+	"[TDMV] %s: %s:%02d(%d) TX RBS: A:%1d B:%1d C:%1d D:%1d\n", 
 			wp->devname, 
 			(wp->ise1) ? "E1" : "T1",
 			chan->chanpos, chan->channo,
-			(ABCD_bits & BIT_TPSC_SIGBYTE_A) ? 1 : 0,
-			(ABCD_bits & BIT_TPSC_SIGBYTE_B) ? 1 : 0,
-			(ABCD_bits & BIT_TPSC_SIGBYTE_C) ? 1 : 0,
-			(ABCD_bits & BIT_TPSC_SIGBYTE_D) ? 1 : 0);
+			(ABCD_bits & WAN_RBS_SIG_A) ? 1 : 0,
+			(ABCD_bits & WAN_RBS_SIG_B) ? 1 : 0,
+			(ABCD_bits & WAN_RBS_SIG_C) ? 1 : 0,
+			(ABCD_bits & WAN_RBS_SIG_D) ? 1 : 0);
 #endif
 
 	if (wan_test_and_set_bit(chan->chanpos-1, &wp->rbs_tx_status)){
@@ -1564,7 +1554,7 @@ static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits)
 **
 **	Returns: 1 - start RBS poll routine, 0 - otherwise
 */
-int wp_tdmv_is_rbsbits(wan_tdmv_t *wan_tdmv)
+static int wp_tdmv_is_rbsbits(wan_tdmv_t *wan_tdmv)
 {
 	wp_tdmv_softc_t	*wp = NULL;
 	
@@ -1605,11 +1595,11 @@ int wp_tdmv_is_rbsbits(wan_tdmv_t *wan_tdmv)
 }
 
 /******************************************************************************
-** wp_tdmv_read_rbsbits() -
+** wp_tdmv_rbsbits_poll() -
 **
 **	DONE
 */
-int wp_tdmv_rbsbits_poll(wan_tdmv_t *wan_tdmv, void *card1)
+static int wp_tdmv_rbsbits_poll(wan_tdmv_t *wan_tdmv, void *card1)
 {
 	sdla_t		*card = (sdla_t*)card1;
 	wp_tdmv_softc_t	*wp = NULL;
@@ -1635,9 +1625,9 @@ int wp_tdmv_rbsbits_poll(wan_tdmv_t *wan_tdmv, void *card1)
 			if (wan_test_bit(i, &wp->rbs_rx_pending)){
 				wan_clear_bit(i, &wp->rbs_rx_pending);
 				card->wandev.fe_iface.read_rbsbits(
-						&card->fe, 
-						i+1,
-						1);
+					&card->fe, 
+					i+1,
+					WAN_TE_RBS_UPDATE|WAN_TE_RBS_REPORT);
 			}
 		}
 		wan_set_bit(WP_TDMV_RBS_UPDATE, &wp->flags);
@@ -1653,8 +1643,9 @@ int wp_tdmv_rbsbits_poll(wan_tdmv_t *wan_tdmv, void *card1)
 		for(x = 0; x < wp->max_timeslots; x++){
 			if (wan_test_bit(x, &wp->sig_timeslot_map)){
 				card->wandev.fe_iface.read_rbsbits(
-						&card->fe,
-						x+1, 0);
+					&card->fe,
+					x+1,
+					WAN_TE_RBS_UPDATE);
 			}
 		}
 	}else{
@@ -1738,7 +1729,7 @@ static int wp_tdmv_tx_rbsbits(wp_tdmv_softc_t *wp)
 **	OK
 */
 static int 
-#if defined(__FreeBSD__)
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
 wp_tdmv_ioctl(struct zt_chan *chan, unsigned int cmd, caddr_t data)
 #else
 wp_tdmv_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
@@ -1817,6 +1808,47 @@ wp_tdmv_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 	return err;
 }
 
+/******************************************************************************
+** wp_tdmv_hwec() - 
+**
+**	OK
+*/
+static int wp_tdmv_hwec(struct zt_chan *chan, int enable)
+{
+	wp_tdmv_softc_t	*wp = NULL;
+	sdla_t		*card = NULL;
+	int		channel = chan->chanpos;
+	int		err = -EINVAL;
+	
+	WAN_ASSERT2(chan == NULL, -ENODEV);
+	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
+	wp = chan->pvt;
+	WAN_ASSERT2(wp->card == NULL, -ENODEV);
+	card = wp->card;
+
+	if (card->wandev.ec_enable){
+		DEBUG_TDMV("[TDMV]: %s: %s HW echo canceller on channel %d\n",
+				wp->devname,
+				(enable) ? "Enable" : "Disable",
+				channel);
+		if (!wp->ise1){
+			channel--;
+		}
+	
+		/* The ec persist flag enables and disables
+	         * persistent echo control.  In persist mode
+                 * echo cancellation is enabled regardless of
+                 * asterisk.  In persist mode off asterisk 
+                 * controls hardware echo cancellation */		 
+		if (card->u.aft.cfg.ec_persist_disable) {
+                	err = card->wandev.ec_enable(card, enable, channel);
+		} else {
+			err = 0;			
+		}
+	}
+
+	return err;
+}
 
 /******************************************************************************
 ** wp_tdmv_open() - 
@@ -1915,7 +1947,7 @@ static inline void stop_alarm(wp_tdmv_softc_t* wp)
 **
 **	OK
 */
-int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo, 
+static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo, 
 			unsigned char *rxbuf, unsigned int len)
 {
 	wp_tdmv_softc_t	*wp = wan_tdmv->sc;
@@ -1995,7 +2027,7 @@ int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 		wake_up_interruptible(&ms->sel);
 		if (ms->iomask & ZT_IOMUX_READ)
 			wake_up_interruptible(&ms->eventbufq);
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(__OpenBSD__)
 		wakeup(&ms->readbufq);
 		wakeup(&ms->sel);
 		if (ms->iomask & ZT_IOMUX_READ)
@@ -2021,19 +2053,18 @@ static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len)
 	wp	= chan->pvt;
 	WAN_ASSERT(wp->dchan_dev == NULL);
 
-	wan_spin_lock_irq(&chan->lock, &smp_flags);
 	if (len <= 2){
-		wan_spin_unlock_irq(&chan->lock, &smp_flags);
 		return -EINVAL;
 	}
 	len -= 2; /* Remove checksum */
 	skb = wan_skb_alloc(len+1);
 	if (skb == NULL){
-		wan_spin_unlock_irq(&chan->lock, &smp_flags);
-		return -ENOMEM;
+        	return -ENOMEM;
 	}
 	data = wan_skb_put(skb, len);
+	wan_spin_lock_irq(&chan->lock, &smp_flags);
 	memcpy(data, chan->writebuf[chan->inwritebuf], len);
+	wan_spin_unlock_irq(&chan->lock, &smp_flags);
 #if 0
 	{
 	int i;
@@ -2044,7 +2075,6 @@ static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len)
 	_DEBUG_EVENT("\n");
 	}
 #endif
-	wan_spin_unlock_irq(&chan->lock, &smp_flags);
 	if (skb){
 		err = wp->dchan_dev->hard_start_xmit(skb, wp->dchan_dev);
 		if (err){
@@ -2062,11 +2092,12 @@ static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len)
 **
 **	OK
 */
-int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo, 
+static int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo, 
 			unsigned char *rxbuf,
 			unsigned char *txbuf)
 {
 	wp_tdmv_softc_t	*wp = wan_tdmv->sc;
+	sdla_t *card;
 	
 	WAN_ASSERT2(wp == NULL, -EINVAL);
 	WAN_ASSERT2(channo < 0, -EINVAL);
@@ -2075,9 +2106,9 @@ int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 	if (!IS_TDMV_UP(wp)){
 		return -EINVAL;
 	}
+	card = wp->card;
 
 	if (wp->channelized == WAN_TRUE){
-		int	y;
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 		wan_tdmv_rxtx_pwr_t *pwr_rxtx = &wan_tdmv->chan_pwr[channo];
 #endif
@@ -2085,18 +2116,12 @@ int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 		wp->chans[channo].readchunk = rxbuf;	
 		wp->chans[channo].writechunk = txbuf;	
 
-		if (wan_tdmv->brt_enable){
-			for (y=0;y<ZT_CHUNKSIZE;y++){
-				wp->chans[channo].readchunk[y] = 
-					brt[wp->chans[channo].readchunk[y]];
-			}
-		}
-
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 		wp_tdmv_echo_check(wan_tdmv, &wp->chans[channo], channo);
 #endif		
 
-		if (!wan_test_bit(channo, &wp->echo_off_map)){
+		/* If using hwec do not even call ec chunk */
+		if (!card->wandev.ec_enable && !wan_test_bit(channo, &wp->echo_off_map)){
 /*Echo spike starts at 25bytes*/
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 			if(pwr_rxtx->current_state != ECHO_ABSENT){
@@ -2140,9 +2165,9 @@ int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 #endif
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
-			}//if(pwr_rxtx->current_state != ECHO_ABSENT)
+			} /* if(pwr_rxtx->current_state != ECHO_ABSENT) */
 #endif
-		}//if (!wan_test_bit(channo, &wp->echo_off_map))
+		} /* if (!wan_test_bit(channo, &wp->echo_off_map)) */
 	}else{
 		int	x, channels = wp->span.channels;
 
@@ -2152,8 +2177,9 @@ int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 		if (!wp->echo_off_map){
 			for (x = 0; x < channels; x++){
 #if 0
-				//This code never runs. Instead wp_tdmv_rx_chan() is called for A101/A102.
-				//All Echo Detection is done there for A101/A102.
+				/* This code never runs. Instead wp_tdmv_rx_chan()
+				** is called for A101/A102. All Echo Detection is
+				** done there for A101/A102. */
 				wp_tdmv_echo_check(wan_tdmv, &wp->chans[0], x);
 #endif
 
@@ -2179,12 +2205,71 @@ int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 	return 0;
 }
 
+static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask)
+{
+	sdla_t		*card = (sdla_t*)pcard;
+	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
+	wp_tdmv_softc_t	*wp = NULL;
+	int x;
+	unsigned int rx_offset, tx_offset;
+	void *ptr;
+	
+	WAN_ASSERT(wan_tdmv->sc == NULL);
+	wp = wan_tdmv->sc; 
+
+	rx_offset = buf_sz * card->u.aft.tdm_rx_dma_toggle;
+	tx_offset = buf_sz * card->u.aft.tdm_tx_dma_toggle;
+
+	for (x = 0; x < 32; x ++) {
+		if (wan_test_bit(x,&wp->timeslot_map)) {
+
+			if (card->u.aft.cfg.tdmv_dchan &&
+			   (card->u.aft.cfg.tdmv_dchan-1) == x) {
+				continue;
+			}
+
+			wan_spin_lock(&wp->chans[x].lock);
+				
+                        ptr=(void*)((((unsigned long)wp->chans[x].readchunk) & ~(mask)) + rx_offset);
+			wp->chans[x].readchunk = ptr;
+                        ptr=(void*)((((unsigned long)wp->chans[x].writechunk) & ~(mask)) + tx_offset);
+			wp->chans[x].writechunk = ptr;
+			
+			wan_spin_unlock(&wp->chans[x].lock);
+
+#if defined(__LINUX__)
+      			prefetch(wp->chans[x].readchunk);
+      			prefetch(wp->chans[x].writechunk);
+#endif
+
+		}
+	}          
+
+
+	return 0;
+}
+
+static int wp_tdmv_ec_span(void *pcard)
+{
+	sdla_t          *card = (sdla_t*)pcard;
+        wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
+        wp_tdmv_softc_t *wp = NULL;
+
+        WAN_ASSERT(wan_tdmv->sc == NULL);
+        wp = wan_tdmv->sc;
+
+	zt_ec_span(&wp->span);
+
+	return 0;
+
+}
+
 /******************************************************************************
 ** wp_tdmv_rx_tx_span() - 
 **
 **	OK
 */
-int wp_tdmv_rx_tx_span(void *pcard)
+static int wp_tdmv_rx_tx_span(void *pcard)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
@@ -2222,84 +2307,8 @@ int wp_tdmv_rx_tx_span(void *pcard)
 *
 **	OK
 */
-int wp_tdmv_init(void* pcard, wanif_conf_t *conf)
+static int wp_tdmv_init(void* pcard, wanif_conf_t *conf)
 {
 	return -EINVAL;
 }
 
-
-#undef WANPIPE_CODEC_CONVERTER
-
-#ifdef WANPIPE_CODEC_CONVERTER
-
-#define ENABLE_BRT 1
-
-#ifdef ENABLE_BRT
-static int codec_init=0;
-#endif
-int wanpipe_codec_convert_2s(u8 *data, int len, netskb_t *nskb, u16 *power_ptr, int is_alaw)
-{
-	int i;
-	u16 	*buf;
-	u16 	power=0;
-	short   *codec;
-	unsigned short *pcodec;
-	u8	brtdata;
-
-#ifdef ENABLE_BRT
-	if (codec_init==0){
-		wp_tdmv_generate_bit_rev_table();
-		codec_init=1;
-	}
-#endif
-
-	if (is_alaw == 0){
-		codec=__zt_mulaw;	
-		pcodec=u2s;
-	}else{
-		codec=__zt_alaw;
-		pcodec=a2s;
-	}
-
-	for (i=0;i<len;i++){
-		buf=(short *)wan_skb_put(nskb,2);
-#ifdef ENABLE_BRT
-		brtdata=brt[data[i]];
-#else
-		brtdata=data[i];
-#endif
-		buf[0]=codec[ brtdata ];	
-		power+=pcodec[ brtdata & 0x7F ];		
-	}
-
-	power = (u16)(power/len);
-
-	if (power_ptr){
-		*power_ptr=power;
-	}
-
-	return 0;
-}
-
-
-int wanpipe_codec_convert_s2ulaw(netskb_t *skb, netskb_t *nskb, int is_alaw)
-{	
-	int i;
-	u8 *buf;
-	int len = wan_skb_len(skb);
-	u16 *data = (u16*)wan_skb_data(skb);
-
-	len=len/2;
-
-	for (i=0;i<len;i++){
-		buf=(u8 *)wan_skb_put(nskb,1);
-		buf[0]=__zt_lin2mu[data[i]>>2];	
-#ifdef ENABLE_BRT
-		buf[0]=brt[buf[0]];
-#endif	
-	}	
-
-	return 0;
-}
-
-#endif

@@ -2,16 +2,16 @@
 #define __WAN_AFTEN__
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe_debug.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_common.h>
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe_snmp.h>
-# include <net/sdlapci.h>
-# include <net/if_wanpipe_common.h>
-# include <net/wanpipe_iface.h>
+# include <wanpipe_includes.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_common.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe_snmp.h>
+# include <sdlapci.h>
+# include <if_wanpipe_common.h>
+# include <wanpipe_iface.h>
 #else
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_debug.h>

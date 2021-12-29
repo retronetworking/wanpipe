@@ -28,6 +28,10 @@
 #include "menu_chdlc_basic_cfg.h"
 #include "menu_lapb_basic_cfg.h"
 
+#if defined(CONFIG_PRODUCT_WANPIPE_LIP_ATM)
+#include "menu_atm_basic_cfg.h"
+#endif
+
 #include "menu_net_interfaces_list.h"
 
 #define DBG_MENU_WAN_CHANNEL_CFG 1
@@ -86,15 +90,14 @@ int menu_wan_channel_cfg::run(IN int wanpipe_number,
   
   list_element_chan_def* next_level_list_el_chan_def;
   objects_list* next_level_obj_list;
-  chan_def_t* chandef;
+  chan_def_t *chandef, *chandef_1st_level;
   
   input_box input_bx;
   char backtitle[MAX_PATH_LENGTH];
 
   snprintf(backtitle, MAX_PATH_LENGTH, "WANPIPE Configuration Utility");
 
-  Debug(DBG_MENU_WAN_CHANNEL_CFG,
-    ("menu_frame_relay_DLCI_configuration::run()\n"));
+  Debug(DBG_MENU_WAN_CHANNEL_CFG, ("menu_wan_channel_cfg::run()\n"));
 
   input_box_active_channels act_channels_ip;
 
@@ -112,6 +115,8 @@ again:
     goto cleanup;
   }
   
+  chandef_1st_level = &list_element_logical_ch->data;
+
 #if DBG_MENU_WAN_CHANNEL_CFG
   chandef = &list_element_logical_ch->data;
   Debug(DBG_MENU_WAN_CHANNEL_CFG, ("1-st level: chan_def->usedby: %d\n", chandef->usedby));
@@ -332,6 +337,7 @@ select_new_protocol:
 
 	//set 'sub_config_id' before calling handle_protocol_change() !!!
 	link_def->sub_config_id = new_protocol;
+	chandef_1st_level->chanconf->protocol = PROTOCOL_NOT_SET;// WANCONFIG_LIP_ATM
 
 	if(handle_protocol_change(new_protocol, list_element_logical_ch) == NO){
 	  goto cleanup;
@@ -353,6 +359,14 @@ select_new_protocol:
 	    linkconf->config_id = WANCONFIG_MPROT;
 	    break;
 	    
+	  case WANCONFIG_LIP_ATM:
+	    linkconf->config_id = WANCONFIG_LIP_ATM;
+	    chandef_1st_level->chanconf->protocol = WANCONFIG_LIP_ATM;
+            chandef_1st_level->chanconf->u.aft.data_mux = WANOPT_YES;
+            chandef_1st_level->chanconf->hdlc_streaming = WANOPT_NO;
+	    is_there_a_lip_atm_if = YES;
+	    break;
+
 	  //these are in firmware
 	  case WANCONFIG_EDUKIT:
 	    linkconf->config_id = WANCONFIG_EDUKIT;
@@ -382,6 +396,15 @@ select_new_protocol:
 	  case PROTOCOL_TDM_VOICE:  //exception
 	    linkconf->config_id = WANCONFIG_AFT;
 	    break;
+
+          case WANCONFIG_LIP_ATM:
+	    linkconf->config_id = WANCONFIG_AFT;
+	    chandef_1st_level->chanconf->protocol = WANCONFIG_LIP_ATM;
+            chandef_1st_level->chanconf->u.aft.data_mux = WANOPT_YES;
+            chandef_1st_level->chanconf->hdlc_streaming = WANOPT_NO;
+	    is_there_a_lip_atm_if = YES;
+            break;
+
 	  default:
 	    ERR_DBG_OUT(("Unsupprted new protocol (%d)!\n", new_protocol))
 	    return NO;
@@ -518,7 +541,7 @@ int menu_wan_channel_cfg::display_protocol_cfg(IN list_element_chan_def* list_el
   case WANCONFIG_MFR:
     {
       menu_frame_relay_basic_cfg fr_basic_cfg(lxdialog_path, list_element_logical_ch);
-      //pass parent device name for clarity of display
+      //pass parent device, so paren device name will be accessible for clarity of display
       fr_basic_cfg.run(&selection_index);
     }
     break;
@@ -550,7 +573,16 @@ ppp_cfg:
       lapb_basic_cfg.run(&selection_index);
     }
     break;
-    
+ 
+#if defined(CONFIG_PRODUCT_WANPIPE_LIP_ATM)
+  case WANCONFIG_LIP_ATM:
+    {
+      menu_atm_basic_cfg atm_basic_cfg(lxdialog_path, list_element_logical_ch);
+      atm_basic_cfg.run(&selection_index);
+    }
+    break;
+#endif
+   
   default:
     rc = NO;
     break;
@@ -627,7 +659,12 @@ int menu_wan_channel_cfg::handle_protocol_change(
 	  
   case WANCONFIG_HDLC:
     //no LIP layer	
-    chandef->usedby = WANPIPE;
+    if(global_card_type == WANOPT_AFT  &&  global_card_version == A200_ADPTR_ANALOG){
+      chandef->usedby = API;
+      chanconf->hdlc_streaming = WANOPT_NO;
+    }else{
+      chandef->usedby = WANPIPE;
+    }
     //chanconf->hdlc_streaming = WANOPT_YES;//???? - don't do it!! or it may overwrite
     					    //user setting for BitStreaming mode!
     chanconf->config_id = WANCONFIG_HDLC;
@@ -695,6 +732,19 @@ int menu_wan_channel_cfg::handle_protocol_change(
 					      list_element_logical_ch->next_objects_list,
 					      &fr_config_info,
 					      1);
+    break;
+
+  case WANCONFIG_LIP_ATM:
+    //needs LIP layer
+    chandef->usedby = STACK;
+    
+    list_element_logical_ch->next_objects_list = new objects_list();
+    
+    //create one ATM interface and insert it into the list
+    adjust_number_of_logical_channels_in_list(	WANCONFIG_LIP_ATM, 
+						list_element_logical_ch->next_objects_list,
+					       	list_element_logical_ch->data.name,
+					       	1);
     break;
 
   case WANCONFIG_MPCHDLC:

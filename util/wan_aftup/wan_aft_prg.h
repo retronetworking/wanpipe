@@ -57,6 +57,7 @@ typedef struct {
 typedef struct {
 	int		board_id;
 	int		chip_id;
+	unsigned char	core_id;
 	unsigned char	man_id;
 	unsigned char	dev_id;
 	char*		fw_prefix;

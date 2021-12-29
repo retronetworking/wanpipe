@@ -1595,7 +1595,7 @@ void timer_intr(sdla_t *card)
                         /* TE1 Update T1/E1 alarms */
                         card->wandev.fe_iface.read_alarm(&card->fe, 0);
                         /* TE1 Update T1/E1 perfomance counters */
-                        card->wandev.fe_iface.read_pmon(&card->fe);
+                        card->wandev.fe_iface.read_pmon(&card->fe, 0);
 
                 }else if (IS_56K_CARD(card)) {
 			/* 56K Update CSU/DSU alarms */

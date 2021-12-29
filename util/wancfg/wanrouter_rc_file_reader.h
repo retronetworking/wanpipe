@@ -38,8 +38,12 @@ public:
   wanrouter_rc_file_reader(int wanpipe_number);
   ~wanrouter_rc_file_reader();
 
-  int search_boot_start_device();
+  int search_and_update_boot_start_device_setting();
   int update_wanrouter_rc_file();//to save updated file
+  int get_setting_value(IN char* setting_name,
+			OUT char* setting_value_buff,
+			int setting_value_buff_len);
+
 };
 
 #endif

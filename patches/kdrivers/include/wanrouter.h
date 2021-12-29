@@ -76,7 +76,8 @@
 # define SIOC_WAN_DEVEL_IOCTL	_IOWR('i', 152, struct ifreq) /* get hwprobe string */
 # define SIOC_WANPIPE_DUMP	_IOWR('i', 153, struct ifreq) /* get memdump string (GENERIC) */
 # define SIOC_AFT_CUSTOMER_ID	_IOWR('i', 154, struct ifreq) /* get AFT customer ID */
-
+# define SIOC_WAN_EC_IOCTL	_IOWR('i', 155, struct ifreq) /* Echo Canceller interface */
+# define SIOC_WAN_FE_IOCTL	_IOWR('i', 156, struct ifreq) /* FE interface */
 #else
 
 enum router_ioctls
@@ -202,21 +203,23 @@ typedef struct wan_conf
 #if defined(WAN_KERNEL)
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/wanpipe_debug.h>	
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe_common.h>	
+# include <wanpipe_debug.h>	
+# include <wanpipe_common.h>	
+# include <wanpipe_events.h>	
+# include <wanpipe_cfg.h>
 # ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
-#  include <net/sdla_tdmv.h>
+#  include <sdla_tdmv.h>
 # endif
 
 #else
 //# include <linux/version.h>
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_cfg.h>
-//# include <linux/wanpipe_kernel.h>
 # include <linux/wanpipe_debug.h>	
 # include <linux/wanpipe_common.h>	
+# include <linux/wanpipe_events.h>	
+# include <linux/wanpipe_cfg.h>
+//# include <linux/wanpipe_kernel.h>
 # include <linux/fs.h>		/* support for device drivers */
 # include <linux/proc_fs.h>	/* proc filesystem pragmatics */
 # include <linux/inet.h>		/* in_aton(), in_ntoa() prototypes */
@@ -270,11 +273,11 @@ typedef struct wan_device
 #endif
 	int irq;			/* interrupt request level */
 	int dma;			/* DMA request level */
-	unsigned bps;			/* data transfer rate */
-	unsigned mtu;			/* max physical transmit unit size */
-	unsigned udp_port;              /* UDP port for management */
+	unsigned int bps;		/* data transfer rate */
+	unsigned int mtu;		/* max physical transmit unit size */
+	unsigned int udp_port;          /* UDP port for management */
         unsigned char ttl;		/* Time To Live for UDP security */
-	unsigned enable_tx_int; 	/* Transmit Interrupt enabled or not */
+	unsigned int enable_tx_int; 	/* Transmit Interrupt enabled or not */
 	char interface;			/* RS-232/V.35, etc. */
 	char clocking;			/* external/internal */
 	char line_coding;		/* NRZ/NRZI/FM0/FM1, etc. */
@@ -295,12 +298,7 @@ typedef struct wan_device
 	struct net_device_stats stats; 	/* interface statistics */
 	unsigned reserved[16];		/* reserved for future use */
 	unsigned long critical;		/* critical section flag */
-	/* FIXME: use wan_spinlock_t for All OS */
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-	wan_spinlock_t	lock;
-#elif defined(__LINUX__)
-	spinlock_t lock;                /* Support for SMP Locking */
-#endif
+	wan_spinlock_t	lock;           /* Support for SMP Locking */
 
 					/****** device management methods ***/
 	int (*setup) (struct wan_device *wandev, wandev_conf_t *conf);
@@ -321,6 +319,7 @@ typedef struct wan_device
 #endif
 	WAN_LIST_ENTRY(wan_device)	next;	/* -> next device */
 	struct wan_dev_lhead		dev_head;
+	wan_spinlock_t			dev_head_lock;			
 	unsigned ndev;			/* number of interfaces */
 
 #if defined(__LINUX__)
@@ -337,13 +336,23 @@ typedef struct wan_device
 	write_proc_t*	set_if_info;
 #endif
 	int 	(*get_info)(void*, struct seq_file* m, int *);
-	void (*te_enable_timer) (void* card_id);
-	void (*te_report_rbsbits) (void* card_id, int channel, unsigned char rbsbits);
-	void (*te_report_alarms) (void* card_id, unsigned long alarams);
-	void (*te_link_state)  (void* card_id);
-	int (*te_signaling_config) (void* card_id, unsigned long);
-	int (*te_disable_signaling) (void* card_id, unsigned long);
-	int (*te_read_signaling_config) (void* card_id);
+	void	(*fe_enable_timer) (void* card_id);
+	void	(*te_report_rbsbits) (void* card_id, int channel, unsigned char rbsbits);
+	void	(*te_report_alarms) (void* card_id, unsigned long alarams);
+	void	(*te_link_state)  (void* card_id);
+	int	(*te_signaling_config) (void* card_id, unsigned long);
+	int	(*te_disable_signaling) (void* card_id, unsigned long);
+	int	(*te_read_signaling_config) (void* card_id);
+	int	(*report_dtmf) (void* card_id, int, unsigned char);
+	void	(*ec_enable_timer) (void* card_id);	
+	struct {
+		void	(*rbsbits) (void* card_id, int, unsigned char);
+		void	(*alarms) (void* card_id, unsigned long);
+		void	(*dtmf) (void* card_id, wan_event_t*);	
+		void	(*hook) (void* card_id, wan_event_t*);	
+		void	(*ringtrip) (void* card_id, wan_event_t*);	
+		void	(*ringdetect) (void* card_id, wan_event_t*);	
+	} event_callback;
 	unsigned char 		ignore_front_end_status;
 	unsigned char		line_idle;
 	unsigned char		card_type;
@@ -378,12 +387,20 @@ typedef struct wan_device
 	int (*wanpipe_ioctl) (netdevice_t*, struct ifreq*, int);
 #endif
 	unsigned char	macAddr[ETHER_ADDR_LEN];
-	sdla_fe_iface_t	fe_iface;
 
-#if defined(CONFIG_PRODUCT_WANPIPE_TDMV_EC)
+	sdla_fe_iface_t		fe_iface;
+	sdla_fe_notify_iface_t	fe_notify_iface;
+
+	void			*ec_dev;
+	unsigned long		ec_enable_map;
+	unsigned long		ec_map;
+	unsigned long		ec_intmask;
+	int			(*ec_enable)(void *pcard, int, int);
+
 	unsigned char	(*write_ec)(void*, unsigned short, unsigned char);
 	unsigned char	(*read_ec)(void*, unsigned short);
-#endif
+	int		(*hwec_reset)(void* card_id, int);
+	int		(*hwec_enable)(void* card_id, int, int);
 } wan_device_t;
 
 WAN_LIST_HEAD(wan_devlist_, wan_device);
@@ -433,6 +450,12 @@ extern void unregister_wanpipe_fw_protocol (void);
 
 extern void wan_skb_destructor (struct sk_buff *skb);
 #endif
+
+void *wanpipe_ec_register(void*, int);
+int wanpipe_ec_unregister(void*,void*);
+int wanpipe_ec_isr(void*,void*);
+int wanpipe_ec_poll(void*,void*);
+int wanpipe_ec_event_ctrl(void*,void*,wan_event_ctrl_t*);
 
 #endif	/* __KERNEL__ */
 #endif	/* _ROUTER_H */

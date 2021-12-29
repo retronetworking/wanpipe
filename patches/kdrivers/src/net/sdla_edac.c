@@ -20,15 +20,15 @@
 */
 
 #if (defined __FreeBSD__) | (defined __OpenBSD__)
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe_debug.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe_common.h>
-# include <net/wanpipe.h>
-# include <net/sdla_tdmv.h>	/* WANPIPE TDM Voice definitions */
+# include <wanpipe_includes.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe_common.h>
+# include <wanpipe.h>
+# include <sdla_tdmv.h>	/* WANPIPE TDM Voice definitions */
 # include <zaptel.h>
-# include <net/wanpipe_edac_iface.h>
+# include <wanpipe_edac_iface.h>
 
 #elif (defined __WINDOWS__)
 # include <wanpipe\csu_dsu.h>
@@ -51,7 +51,6 @@
 			  DEFINES AND MACROS
  ******************************************************************************
 */
-//#define DEBUG_ECHO	DEBUG_EVENT
 #define DEBUG_ECHO	if(0) DEBUG_EVENT
 
 

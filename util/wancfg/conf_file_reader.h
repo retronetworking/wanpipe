@@ -39,9 +39,9 @@
 #include <time.h>
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/wanpipe_version.h>
-# include <net/wanproc.h>
-# include <net/wanpipe.h>
+# include <wanpipe_version.h>
+# include <wanproc.h>
+# include <wanpipe.h>
 #else
 # include <linux/wanpipe_version.h>
 # include <linux/wanpipe.h>

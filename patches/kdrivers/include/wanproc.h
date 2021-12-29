@@ -29,7 +29,7 @@ enum {
 # if defined(WAN_KERNEL)
 
 # define PROC_STATS_ALARM_FORMAT "%25s: %10s %25s: %10s\n"
-# define PROC_STATS_PMON_FORMAT "%25s: %10lu %25s: %10lu\n"
+# define PROC_STATS_PMON_FORMAT "%25s: %10u %25s: %10u\n"
 
 /*
  * ******************************************************************

@@ -26,9 +26,10 @@
 
 #include <linux/wanpipe_includes.h>
 #include <linux/wanpipe_defines.h>
-#include <linux/wanpipe_cfg.h>
 #include <linux/wanpipe_debug.h>
 #include <linux/wanpipe_common.h>
+#include <linux/wanpipe_events.h>
+#include <linux/wanpipe_cfg.h>
 
 
 #include <linux/wanrouter.h>	/* WAN router definitions */

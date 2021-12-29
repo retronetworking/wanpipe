@@ -14,13 +14,14 @@
 #include <arpa/inet.h>
 #if defined(__LINUX__)
 # include <linux/wanpipe.h>
+# include <linux/types.h>
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
 #else
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe.h>
-# include <net/sdla_chdlc.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe.h>
+# include <sdla_chdlc.h>
 #endif
 #include "fe_lib.h"
 #include "wanpipemon.h"

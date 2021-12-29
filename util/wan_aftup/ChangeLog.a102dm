@@ -1,0 +1,24 @@
+AFT A102dm Firmware Change Log
+=============================
+
+
+Release V28
+-------------
+Nov 1 2006
+
+Type:  		Mandatory
+	        Inital Firmware Relase for A102dm
+
+Changes:	This firmware release contains new feature:
+		- Global TDM Voice Interrupt:
+			It that combines all spans on a single
+		   	interrupt. This significantly reduces cpu load.
+		  
+		  This option is only used in TDM Voice Mode.
+
+
+Symptoms:	New Feature.
+
+Compatilbity:	This hardware is supported by release beta11-2.3.4 and greater.
+
+

@@ -21,23 +21,6 @@
 #include "input_box.h"
 
 
-//#include <linux/sdla_chdlc.h> - can not include!!
-//because of conflicting type: 'api_rx_hdr_t' wich
-//is also defined in 'sdla_fr.h'
-//because of it copying some definintions here:
-#define MIN_Tx_KPALV_TIMER	0	  /* minimum transmit keepalive timer */
-#define MAX_Tx_KPALV_TIMER	60000	  /* maximum transmit keepalive timer */
-#define DEFAULT_Tx_KPALV_TIMER	10000	  /* default transmit keepalive timer */
-
-#define MIN_Rx_KPALV_TIMER	10	  /* minimum receive keepalive timer */
-#define MAX_Rx_KPALV_TIMER	60000	  /* maximum receive keepalive timer */
-#define DEFAULT_Rx_KPALV_TIMER	10000	  /* default receive keepalive timer */
-
-#define MIN_KPALV_ERR_TOL	1	  /* min kpalv error tolerance count */
-#define MAX_KPALV_ERR_TOL	20	  /* max kpalv error tolerance count */
-#define DEFAULT_KPALV_ERR_TOL	3	  /* default value */
-
-
 char* chdlc_ignore_dcd_help_str =
 "IGNORE DCD\n"
 "\n"
@@ -125,6 +108,7 @@ enum CHDLC_BASIC_CFG_OPTIONS{
   //Keep Alive Error Margin --> 5
   KEEPALIVE_ERR_MARGIN,
 
+  TX_RX_KEEPALIVE_TIMER
 };
 
 #define DBG_MENU_CHDLC_ADVANCED_CFG  1
@@ -189,7 +173,7 @@ again:
   }
 
   chanconf = list_el_chan_def->data.chanconf;
-
+/*
   //////////////////////////////////////////////////////////////////////////////////////
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", IGNORE_DCD);
   menu_str += tmp_buff;
@@ -203,14 +187,34 @@ again:
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Ignore CTS--------------> %s\" ",
     (chanconf->ignore_cts == 0 ? "NO" : "YES"));
   menu_str += tmp_buff;
-
+*/
   //////////////////////////////////////////////////////////////////////////////////////
+/*
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", IGNORE_KEEPALIVE);
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Ignore Keepalive--------> %s\" ",
-    (chanconf->ignore_keepalive == 0 ? "NO" : "YES"));
+    (chanconf->ignore_keepalive == WANOPT_NO ? "NO" : "YES"));
   menu_str += tmp_buff;
+*/
 
+//  if(chanconf->ignore_keepalive == WANOPT_NO){
+    //do NOT ignore keepalive
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TX_RX_KEEPALIVE_TIMER);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Keepalive Timer---------> %d\" ",
+      chanconf->u.ppp.sppp_keepalive_timer);
+    menu_str += tmp_buff;
+
+    //////////////////////////////////////////////////////////////////////////////////////
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", KEEPALIVE_ERR_MARGIN);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Keepalive Error Margin--> %d\" ",
+      chanconf->u.ppp.keepalive_err_margin);
+    //  chanconf->keepalive_err_margin);
+    menu_str += tmp_buff;
+//  }
+
+/*
   //////////////////////////////////////////////////////////////////////////////////////
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", KEEPALIVE_TX_TIMER);
   menu_str += tmp_buff;
@@ -224,13 +228,7 @@ again:
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Keepalive RX Timer------> %d\" ",
     chanconf->keepalive_rx_tmr);
   menu_str += tmp_buff;
-
-  //////////////////////////////////////////////////////////////////////////////////////
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", KEEPALIVE_ERR_MARGIN);
-  menu_str += tmp_buff;
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Keepalive Error Margin--> %d\" ",
-    chanconf->keepalive_err_margin);
-  menu_str += tmp_buff;
+*/
 
   //////////////////////////////////////////////////////////////////////////////////////
   //create the explanation text for the menu
@@ -331,8 +329,8 @@ again:
 
       snprintf(tmp_buff, MAX_PATH_LENGTH,
 "Do you want to %s Keep Alive Monitoring?\n",
-(chanconf->ignore_keepalive == 0 ?
-"enable" : "disable"));
+(chanconf->ignore_keepalive == WANOPT_NO ?
+"disable" : "enable"));
 
       if(yes_no_question(   selection_index,
                             lxdialog_path,
@@ -344,10 +342,16 @@ again:
       switch(*selection_index)
       {
       case YES_NO_TEXT_BOX_BUTTON_YES:
-        if(chanconf->ignore_keepalive == 1){
-          chanconf->ignore_keepalive = 0;
+        if(chanconf->ignore_keepalive == WANOPT_YES){
+	  //was set to ignore
+          chanconf->ignore_keepalive = WANOPT_NO;
+	  chanconf->u.ppp.sppp_keepalive_timer = DEFAULT_Tx_KPALV_TIMER; 
+          chanconf->u.ppp.keepalive_err_margin = DEFAULT_KPALV_ERR_TOL;
         }else{
-          chanconf->ignore_keepalive = 1;
+	  //was set NOT to ingnore
+          chanconf->ignore_keepalive = WANOPT_YES;
+	  chanconf->u.ppp.sppp_keepalive_timer = 0;
+          chanconf->u.ppp.keepalive_err_margin = 0;
         }
         break;
 
@@ -355,7 +359,7 @@ again:
         break;
       }
       break;
-
+#if 0
     case KEEPALIVE_TX_TIMER:
 
 show_keepalive_tx_timer_input_box:
@@ -401,7 +405,6 @@ show_keepalive_tx_timer_input_box:
       break;
 
     case KEEPALIVE_RX_TIMER:
-
 show_keepalive_rx_timer_input_box:
 
       snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify Keepalive Rx timer");
@@ -443,14 +446,14 @@ show_keepalive_rx_timer_input_box:
       }//switch(*selection_index)
       /////////////////////////////////////////////////////////////
       break;
+#endif
 
     case KEEPALIVE_ERR_MARGIN:
-
 show_keepalive_err_margin_input_box:
 
       snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify Keep Alive Error Margin");
       snprintf(initial_text, MAX_PATH_LENGTH, "%d",
-        chanconf->keepalive_err_margin);
+        chanconf->u.ppp.keepalive_err_margin);
 
       inb.set_configuration(  lxdialog_path,
                               backtitle,
@@ -475,7 +478,7 @@ show_keepalive_err_margin_input_box:
             MAX_KPALV_ERR_TOL);
           goto show_keepalive_err_margin_input_box;
         }else{
-          chanconf->keepalive_err_margin = int_tmp;
+          chanconf->u.ppp.keepalive_err_margin = int_tmp;
         }
         break;
 
@@ -483,7 +486,46 @@ show_keepalive_err_margin_input_box:
         tb.show_help_message(lxdialog_path, WANCONFIG_CHDLC,
           option_not_implemented_yet_help_str);
         goto show_keepalive_err_margin_input_box;
+      }//switch(*selection_index)
+      /////////////////////////////////////////////////////////////
+      break;
+
+    case TX_RX_KEEPALIVE_TIMER:
+show_tx_rx_keepalive_timer_input_box:
+      snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify Keep Alive Timer");
+      snprintf(initial_text, MAX_PATH_LENGTH, "%d", chanconf->u.ppp.sppp_keepalive_timer);
+
+      inb.set_configuration(  lxdialog_path,
+                              backtitle,
+                              explanation_text,
+                              INPUT_BOX_HIGTH,
+                              INPUT_BOX_WIDTH,
+                              initial_text);
+
+      inb.show(selection_index);
+
+      switch(*selection_index)
+      {
+      case INPUT_BOX_BUTTON_OK:
+        Debug(DBG_MENU_CHDLC_ADVANCED_CFG,("keepalive timer on return: %s\n",
+		inb.get_lxdialog_output_string()));
+
+        int_tmp = atoi(inb.get_lxdialog_output_string());
+        if(int_tmp < MIN_Tx_KPALV_TIMER || int_tmp > MAX_Tx_KPALV_TIMER){
+          tb.show_error_message(lxdialog_path, WANCONFIG_CHDLC,
+            "Invalid Keepalive timer! Min: %d, Max %d.",
+            MIN_Tx_KPALV_TIMER,
+            MAX_Tx_KPALV_TIMER);
+          goto show_tx_rx_keepalive_timer_input_box;
+        }else{
+          chanconf->u.ppp.sppp_keepalive_timer = int_tmp;
+        }
         break;
+
+      case INPUT_BOX_BUTTON_HELP:
+        tb.show_help_message(lxdialog_path, WANCONFIG_CHDLC,
+          option_not_implemented_yet_help_str);
+        goto show_tx_rx_keepalive_timer_input_box;
       }//switch(*selection_index)
       /////////////////////////////////////////////////////////////
       break;

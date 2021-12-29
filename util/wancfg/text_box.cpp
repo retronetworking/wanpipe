@@ -26,6 +26,8 @@ wanpipe_lxdialog --backtitle "the backtitle" --textbox "path to text file" 20 60
 
 text_box::text_box()
 {
+  Debug(DBG_TEXT_BOX, ("text_box::text_box()\n"));
+  box_type = 0;
 }
 
 text_box::~text_box()
@@ -42,14 +44,29 @@ int text_box::set_configuration(IN char * lxdialog_path,
 
   Debug(DBG_TEXT_BOX, ("text_box::set_configuration() - V1\n"));
 
-  snprintf(tmp_buff, MAX_PATH_LENGTH,
-    "%s --backtitle \"%s\" --textbox \"%s\" %d %d\n",
-    lxdialog_path,
-    backtitle,
-    path_to_text_file,
-    hight,
-    width
-    );
+  switch(box_type)
+  {
+  case 1:
+    snprintf(tmp_buff, MAX_PATH_LENGTH,
+      "%s --backtitle \"%s\" --textbox_ok \"%s\" %d %d\n",
+      lxdialog_path,
+      backtitle,
+      path_to_text_file,
+      hight,
+      width
+      );
+    break;
+
+  default:
+    snprintf(tmp_buff, MAX_PATH_LENGTH,
+      "%s --backtitle \"%s\" --textbox \"%s\" %d %d\n",
+      lxdialog_path,
+      backtitle,
+      path_to_text_file,
+      hight,
+      width
+      );
+  }
 
   return set_lxdialog_path((char*)tmp_buff);
 }
@@ -87,13 +104,13 @@ void text_box::show_error_message(IN char * lxdialog_path,
 {
   FILE * err_msg_file;
   char dbg_tmp_buff[LEN_OF_DBG_BUFF];
-	va_list ap;
+  va_list ap;
   char* err_msg_file_name = "./wancfg_err_msg_file_name";
   char* remove_err_msg_file = "rm -rf wancfg_err_msg_file_name";
 
-	va_start(ap, format);
+  va_start(ap, format);
   vsnprintf(dbg_tmp_buff, LEN_OF_DBG_BUFF, format, ap);
-	va_end(ap);
+  va_end(ap);
 
   //open temporary file
   err_msg_file = fopen(err_msg_file_name, "w");

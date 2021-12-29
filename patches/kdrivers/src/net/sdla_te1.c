@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1.c,v 1.201 2005/11/09 18:12:54 sangoma Exp $
+ *	$Id: sdla_te1.c,v 1.241 2006/11/30 19:21:35 sangoma Exp $
  */
 
 /*
@@ -44,26 +44,24 @@
  ******************************************************************************
  */
 
-/*
- ******************************************************************************
-			   INCLUDE FILES
- ******************************************************************************
-*/
+/******************************************************************************
+*			   INCLUDE FILES
+******************************************************************************/
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/wanpipe_includes.h>
+# include <wanpipe_includes.h>
 # if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-#  include <net/wanpipe_snmp.h>
+#  include <wanpipe_snmp.h>
 # endif
-# include <net/wanpipe.h>	/* WANPIPE common user API definitions */
-# include <net/wanproc.h>
+# include <sdla_te1_pmc.h>
+# include <wanpipe.h>	/* WANPIPE common user API definitions */
+# include <wanproc.h>
 #elif (defined __WINDOWS__)
-# include <include_A104\pnp\wanpipe_includes.h>
-# include <include_A104\pnp\wanpipe.h>	/* WANPIPE common user API definitions */
-# include <include_A104\pnp\wanpipe_snmp.h>
-# include <include_A104\pnp\sdla_te1_def.h>
-# if defined te_cfg
-#  undef te_cfg
-# endif
+# include <wanpipe_includes.h>
+# include <wanpipe.h>	/* WANPIPE common user API definitions */
+# include <wanpipe_snmp.h>
+# include <sdla_te1_pmc.h>
+
+#define _DEBUG_EVENT	DEBUG_EVENT
 #elif (defined __LINUX__) || (defined __KERNEL__)
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
@@ -72,16 +70,15 @@
 # if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 #  include <linux/wanpipe_snmp.h>
 # endif
+# include <linux/sdla_te1_pmc.h>
 # include <linux/wanpipe.h>	/* WANPIPE common user API definitions */
 #else
 # error "No OS Defined"
 #endif
 
-/*
- ******************************************************************************
-			  DEFINES AND MACROS
- ******************************************************************************
-*/
+/******************************************************************************
+*			  DEFINES AND MACROS
+******************************************************************************/
 #define FIRST_SAMPLE	0
 #define LAST_SAMPLE	23
 #define FIRST_UI	0
@@ -89,11 +86,38 @@
 
 #define MAX_BUSY_READ	0x05
 
+/* Read/Write to front-end register */
+#define WRITE_REG(reg,val)						\
+	fe->write_fe_reg(						\
+		fe->card,						\
+		(u32)fe->fe_cfg.line_no,					\
+		(u32)((reg) + (fe->fe_cfg.line_no*PMC4_LINE_DELTA)),	\
+		(u32)(val))
+
+#define WRITE_REG_LINE(fe_line_no, reg,val)				\
+	fe->write_fe_reg(						\
+		fe->card,						\
+		(u32)fe_line_no,						\
+		(u32)((reg) + (fe_line_no)*PMC4_LINE_DELTA),		\
+		(u32)(val))
+	
+#define READ_REG(reg)							\
+	fe->read_fe_reg(						\
+		fe->card,						\
+		(u32)fe->fe_cfg.line_no,					\
+		(u32)((reg) + (fe->fe_cfg.line_no*PMC4_LINE_DELTA)))
+	
+#define READ_REG_LINE(fe_line_no, reg)					\
+	fe->read_fe_reg(						\
+		fe->card,						\
+		(u32)fe_line_no,						\
+		(u32)((reg) + (fe_line_no)*PMC4_LINE_DELTA))
+
 /* Enabling/Disabling register debugging */
-#undef WAN_DEBUG_TE1_REG
+	#undef WAN_DEBUG_TE1_REG
 #ifdef WAN_DEBUG_TE1_REG
 
-#define TEST_REG(reg,value){						\
+# define TEST_REG(reg,value){						\
 	unsigned char test_value = READ_REG(reg);			\
 	if (test_value != value){					\
 		DEBUG_EVENT("%s:%d: Test Failed\n",			\
@@ -103,7 +127,7 @@
 	}								\
 }
 
-#define TEST_RPSC_REG(fe,reg,channel,value){				\
+# define TEST_RPSC_REG(fe,reg,channel,value){				\
 	unsigned char test_value = ReadRPSCReg(fe,channel,reg);	\
 	if (test_value != value){					\
 		DEBUG_EVENT("%s:%d: RPSC Test Failed\n",		\
@@ -113,7 +137,7 @@
 	}								\
 }
 
-#define TEST_TPSC_REG(fe,reg,channel,value){				\
+# define TEST_TPSC_REG(fe,reg,channel,value){				\
 	unsigned char test_value = ReadTPSCReg(fe,channel,reg);	\
 	if (test_value != value){					\
 		DEBUG_EVENT("%s:%d: TPSC Test Failed\n",		\
@@ -124,11 +148,9 @@
 }
 
 #else
-
-#define TEST_REG(reg,value)
-#define TEST_RPSC_REG(fe,reg,channel,value)
-#define TEST_TPSC_REG(fe,reg,channel,value)
-	
+# define TEST_REG(reg,value)
+# define TEST_RPSC_REG(fe,reg,channel,value)
+# define TEST_TPSC_REG(fe,reg,channel,value)
 #endif
 
 #if 0
@@ -157,15 +179,18 @@
 		TEST_SIGX_REG(fe,reg,channel,(unsigned char)value);	\
 	}
 #endif
-	
+
+#define WAN_TE1_FRAMED_ALARMS		(WAN_TE_BIT_RED_ALARM |	WAN_TE_BIT_OOF_ALARM)
+#define WAN_TE1_UNFRAMED_ALARMS		(WAN_TE_BIT_RED_ALARM)
+
+#if 0	
 #define IS_T1_ALARM(alarm)			\
 		(alarm & 			\
 			(			\
 			 WAN_TE_BIT_RED_ALARM |	\
 			 WAN_TE_BIT_AIS_ALARM |	\
 			 WAN_TE_BIT_OOF_ALARM |	\
-			 WAN_TE_BIT_LOS_ALARM |	\
-			 WAN_TE_BIT_ALOS_ALARM	\
+			 WAN_TE_BIT_LOS_ALARM 	\
 			 )) 
 
 #define IS_E1_ALARM(alarm)			\
@@ -174,23 +199,22 @@
 			 WAN_TE_BIT_RED_ALARM | \
 			 WAN_TE_BIT_AIS_ALARM | \
 			 WAN_TE_BIT_OOF_ALARM | \
-			 WAN_TE_BIT_LOS_ALARM | \
-			 WAN_TE_BIT_ALOS_ALARM 	\
+			 WAN_TE_BIT_LOS_ALARM  \
 			 ))
+#endif
 
 #if 0
 # define FE_ALOS_ENABLE
+# define FE_LOS_ENABLE
 
 # define FE_OOF_PRINT
 # define FE_LOS_PRINT
 # define FE_ALOS_PRINT
 #endif
 
-/*
- ******************************************************************************
-			STRUCTURES AND TYPEDEFS
- ******************************************************************************
-*/
+/******************************************************************************
+*			STRUCTURES AND TYPEDEFS
+******************************************************************************/
 typedef unsigned char TX_WAVEFORM[LAST_SAMPLE-FIRST_SAMPLE+1][LAST_UI-FIRST_UI+1];
 typedef struct RLPS_EQUALIZER_RAM_T {
 	/*unsigned char address;*/
@@ -2214,11 +2238,14 @@ RLPS_EQUALIZER_RAM pmc4_e1_rlps_ram_table[] =
 };
 
 
-/*
- ******************************************************************************
-			  FUNCTION PROTOTYPES
- ******************************************************************************
-*/
+/******************************************************************************
+*			  FUNCTION PROTOTYPES
+******************************************************************************/
+static int sdla_te_reset(void* pfe, int port_no, int reset);	
+static int sdla_te_global_config(void* pfe);
+static int sdla_te_global_unconfig(void* pfe);
+static int sdla_te_config(void* pfe);
+static int sdla_te_unconfig(void* pfe);
 static void ClearTemplate(sdla_fe_t* fe);
 static unsigned char PrgTransmitTemplate(sdla_fe_t* fe);
 static void InitLineReceiver(sdla_fe_t* fe, RLPS_EQUALIZER_RAM* rlps_table);
@@ -2241,7 +2268,7 @@ static unsigned char ReadSIGXReg(sdla_fe_t* fe, int reg, int channel);
 static void sdla_channels(void*, unsigned long);
 #endif
 static void DisableAllChannels(sdla_fe_t* fe);
-static void EnableAllChannels(sdla_fe_t* fe);
+static void EnableChannels(sdla_fe_t* fe);
 static int DisableTxChannel(sdla_fe_t* fe, int channel);
 static int DisableRxChannel(sdla_fe_t* fe, int channel);
 static int EnableTxChannel(sdla_fe_t* fe, int channel);
@@ -2256,6 +2283,7 @@ static void sdla_te_rx_intr(sdla_fe_t*);
 static void sdla_t1_rx_intr(sdla_fe_t*); 
 static void sdla_e1_rx_intr(sdla_fe_t*); 
 
+static int sdla_te_disable_irq(void* pfe);
 static int sdla_te_intr(sdla_fe_t *); 
 static int sdla_te_check_intr(sdla_fe_t *); 
 static int sdla_te_polling(sdla_fe_t*);
@@ -2264,7 +2292,7 @@ static void sdla_te_set_status(sdla_fe_t*, unsigned long);
 static int sdla_te_get_snmp_data(sdla_fe_t* fe, void* pdev, void* data);
 static int sdla_te_set_lbmode(sdla_fe_t*, unsigned char, unsigned char);
 
-static void sdla_te_enable_timer(sdla_fe_t*, unsigned char, unsigned long); 
+static void sdla_te_enable_timer(sdla_fe_t*, unsigned char, unsigned int); 
 
 static int sdla_te_linelb(sdla_fe_t*, unsigned char);
 static int sdla_te_paylb(sdla_fe_t*, unsigned char);
@@ -2277,7 +2305,7 @@ static void sdla_te_timer(IN PKDPC,void*,void*,void*);
 #else
 static void sdla_te_timer(unsigned long);
 #endif
-static int sdla_te_check_rbsbits(sdla_fe_t*, int, unsigned long, int);
+static int sdla_te_check_rbsbits(sdla_fe_t*, int, unsigned int, int);
 static unsigned char sdla_te_read_rbsbits(sdla_fe_t*, int, int);
 static int sdla_te_set_rbsbits(sdla_fe_t*, int, unsigned char);
 static int sdla_te_rbs_report(sdla_fe_t* fe);
@@ -2287,24 +2315,22 @@ static int sdla_te_rbs_print(sdla_fe_t* fe, int);
 static void sdla_te_abcd_update(sdla_fe_t* fe);
 #endif
 
-static int sdla_te_pmon(sdla_fe_t *fe);
+static int sdla_te_pmon(sdla_fe_t *fe, int);
 static int sdla_te_flush_pmon(sdla_fe_t *fe);
-static unsigned long sdla_te_read_alarms(sdla_fe_t *fe, int);
-static int sdla_te_print_alarms(sdla_fe_t* fe, unsigned long);
+static unsigned int sdla_te_read_alarms(sdla_fe_t *fe, int action);
+static int sdla_te_print_alarms(sdla_fe_t* fe, unsigned int);
 static char* sdla_te_print_channels(sdla_fe_t* fe);
-static int sdla_te_set_alarms(sdla_fe_t* pfe, unsigned long);
+static int sdla_te_set_alarms(sdla_fe_t* pfe, unsigned int);
 static int sdla_te_clear_alarms(sdla_fe_t* pfe, unsigned long);
-static int sdla_te_sigctrl(sdla_fe_t*, int);
+static int sdla_te_sigctrl(sdla_fe_t*, int, unsigned long, int);
 
 static int sdla_te_update_alarm_info(sdla_fe_t*, struct seq_file*, int*);
 static int sdla_te_update_pmon_info(sdla_fe_t*, struct seq_file*, int*);
 
 static int sdla_te_led_ctrl(sdla_fe_t *fe, int mode);
-/*
- ******************************************************************************
-			  FUNCTION DEFINITIONS
- ******************************************************************************
-*/
+/******************************************************************************
+*			  FUNCTION DEFINITIONS
+******************************************************************************/
 /******************************************************************************
  *				sdla_te3_get_fe_status()	
  *
@@ -3039,17 +3065,18 @@ static void DisableAllChannels(sdla_fe_t* fe)
 
 /*
  ******************************************************************************
- *			EnableAllChannels()	
+ *			EnableChannels()	
  *
  * Description:
  * Arguments:
  * Returns:
  ******************************************************************************
  */
-static void EnableAllChannels(sdla_fe_t* fe)
+static void EnableChannels(sdla_fe_t* fe)
 {
-	int i = 0;
+ 	int	all_channels, i = 0;
 
+	all_channels = (WAN_TE1_ACTIVE_CH(fe) == ENABLE_ALL_CHANNELS);
 	if (IS_E1_FEMEDIA(fe)) {
 		int first_ts = 
 			(WAN_FE_FRAME(fe) == WAN_FR_UNFRAMED) ? 0 : 1;
@@ -3057,13 +3084,18 @@ static void EnableAllChannels(sdla_fe_t* fe)
 		DisableTxChannel(fe, E1_FRAMING_TIMESLOT);
 		DisableRxChannel(fe, E1_FRAMING_TIMESLOT);
 		for(i = first_ts; i <= NUM_OF_E1_TIMESLOTS; i++){
-			EnableTxChannel(fe, i);
-			EnableRxChannel(fe, i);
+		
+			if (all_channels || WAN_TE1_ACTIVE_CH(fe) & (1 << i)){
+				EnableTxChannel(fe, i);
+				EnableRxChannel(fe, i);
+			}
 		}
 	}else{
 		for(i = 1; i <= NUM_OF_T1_CHANNELS; i++){
-			EnableTxChannel(fe, i);
-			EnableRxChannel(fe, i);
+			if (all_channels || WAN_TE1_ACTIVE_CH(fe) & (1 << i)){
+				EnableTxChannel(fe, i);
+				EnableRxChannel(fe, i);
+			}
 		}
 	}
 }
@@ -3080,6 +3112,7 @@ static void EnableAllChannels(sdla_fe_t* fe)
 static int EnableTxChannel(sdla_fe_t* fe, int channel)	
 {
 
+	DEBUG_TE1("%s: Enable Tx on channel %d\n", fe->name, channel);
 	if (WAN_FE_LCODE(fe) == WAN_LCODE_AMI){
 		/* ZCs=1 AMI*/
 		WRITE_TPSC_REG(REG_TPSC_DATA_CTRL_BYTE, channel, 
@@ -3127,6 +3160,7 @@ static int EnableTxChannel(sdla_fe_t* fe, int channel)
 static int EnableRxChannel(sdla_fe_t* fe, int channel)	
 {
 
+	DEBUG_TE1("%s: Enable Rx on channel %d\n", fe->name, channel);
 	/* Set DTRPC bit to 0 in RPSC */
 	WRITE_RPSC_REG(REG_RPSC_DATA_CTRL_BYTE, channel,
 		((READ_RPSC_REG(REG_RPSC_DATA_CTRL_BYTE, channel) & MASK_RPSC_DATA_CTRL_BYTE) & 
@@ -3147,6 +3181,7 @@ static int EnableRxChannel(sdla_fe_t* fe, int channel)
 static int DisableTxChannel(sdla_fe_t* fe, int channel)
 {
 
+	DEBUG_TE1("%s: Disable Tx on channel %d\n", fe->name, channel);
 	/* Set IDLE_DS0 to 1 for an IDLE code byte will insert and 
 	 * BTCLK will suppressed 
 	 */
@@ -3187,6 +3222,7 @@ static int DisableTxChannel(sdla_fe_t* fe, int channel)
  */
 static int DisableRxChannel(sdla_fe_t* fe, int channel)
 {
+	DEBUG_TE1("%s: Disable Rx on channel %d\n", fe->name, channel);
 	/* Set DTRPC bit to 1 in RPSC to hold low for the duration of the channel */
 	WRITE_RPSC_REG(REG_RPSC_DATA_CTRL_BYTE, channel, 
 	 	((READ_RPSC_REG(REG_RPSC_DATA_CTRL_BYTE, channel) & MASK_RPSC_DATA_CTRL_BYTE) | 
@@ -3236,6 +3272,55 @@ int sdla_te_default_cfg(void* pfe, void* pfe_cfg, int media)
 
 /*
  ******************************************************************************
+ *				sdla_te_iface_init()	
+ *
+ * Description: Inialize Front-End interface functions.
+ * Arguments:	
+ * Returns:
+ ******************************************************************************
+ */
+int sdla_te_iface_init(void *pfe_iface)
+{
+	sdla_fe_iface_t	*fe_iface = (sdla_fe_iface_t*)pfe_iface;
+
+	fe_iface->reset			= &sdla_te_reset;
+	fe_iface->global_config		= &sdla_te_global_config;
+	fe_iface->global_unconfig	= &sdla_te_global_unconfig;
+	fe_iface->config		= &sdla_te_config;
+	fe_iface->unconfig		= &sdla_te_unconfig;
+	fe_iface->isr			= &sdla_te_intr;
+	fe_iface->disable_irq		= &sdla_te_disable_irq;
+	fe_iface->check_isr		= &sdla_te_check_intr;
+	fe_iface->polling		= &sdla_te_polling;
+	fe_iface->process_udp		= &sdla_te_udp;
+	fe_iface->print_fe_alarm	= &sdla_te_print_alarms;
+	fe_iface->print_fe_act_channels	= &sdla_te_print_channels;
+	fe_iface->set_fe_alarm		= &sdla_te_set_alarms;
+	fe_iface->set_fe_sigctrl	= &sdla_te_sigctrl;
+	fe_iface->read_alarm		= &sdla_te_read_alarms;
+	fe_iface->read_pmon		= &sdla_te_pmon;
+	fe_iface->flush_pmon		= &sdla_te_flush_pmon;
+	fe_iface->get_fe_status		= &sdla_te_get_fe_status;
+	fe_iface->get_fe_media		= &sdla_te_get_fe_media;
+	fe_iface->set_fe_lbmode		= &sdla_te_set_lbmode;
+	fe_iface->get_fe_media_string	= &sdla_te_get_fe_media_string;
+	fe_iface->update_alarm_info	= &sdla_te_update_alarm_info;
+	fe_iface->update_pmon_info	= &sdla_te_update_pmon_info;
+	fe_iface->led_ctrl		= &sdla_te_led_ctrl;
+	fe_iface->check_rbsbits		= &sdla_te_check_rbsbits;
+	fe_iface->read_rbsbits		= &sdla_te_read_rbsbits;
+	fe_iface->set_rbsbits		= &sdla_te_set_rbsbits;
+	fe_iface->report_rbsbits	= &sdla_te_rbs_report;
+#if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
+	fe_iface->get_snmp_data		= &sdla_te_get_snmp_data;
+#endif
+	fe_iface->post_config		= &sdla_te_post_config;
+
+	return 0;
+}
+
+/*
+ ******************************************************************************
  *				sdla_te_copycfg()	
  *
  * Description: Copy T1/E1 configuration to card structure.
@@ -3258,6 +3343,20 @@ int sdla_te_copycfg(void* pfe, void* pfe_cfg)
 }
 
 
+/******************************************************************************
+ *				sdla_te_reset()	
+ *
+ * Description: Global configuration for Sangoma TE1 PMC board.
+ * 		Note: 	These register should be program only once for AFT-QUAD
+ * 			cards.
+ * Arguments:	
+ * Returns:	WANTRUE - TE1 configred successfully, otherwise WAN_FALSE.
+******************************************************************************/
+static int sdla_te_reset(void* pfe, int port_no, int reset)
+{
+	return 0;
+}
+	
 /*
  ******************************************************************************
  *				sdla_te_global_config()	
@@ -3269,7 +3368,7 @@ int sdla_te_copycfg(void* pfe, void* pfe_cfg)
  * Returns:	WANTRUE - TE1 configred successfully, otherwise WAN_FALSE.
  ******************************************************************************
  */
-int sdla_te_global_config(void* pfe)
+static int sdla_te_global_config(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
 	unsigned char	value = 0x00;
@@ -3318,7 +3417,7 @@ int sdla_te_global_config(void* pfe)
  * Returns:	WANTRUE - TE1 configred successfully, otherwise WAN_FALSE.
  ******************************************************************************
  */
-static short sdla_pmc4351_te_config(sdla_fe_t *fe, u16 adapter_type)
+static int sdla_pmc4351_te_config(sdla_fe_t *fe, u16 adapter_type)
 {
 	unsigned char	value = 0x00;
 	
@@ -3328,7 +3427,7 @@ static short sdla_pmc4351_te_config(sdla_fe_t *fe, u16 adapter_type)
 	/* 2.Setup the XLPG(Transmit pulse template) to clear the pulse
 	** template */
 	ClearTemplate(fe);
-	fe->fe_param.te_param.xlpg_scale = PrgTransmitTemplate(fe);
+	fe->te_param.xlpg_scale = PrgTransmitTemplate(fe);
 
 	/* Global Configuration (Reg 0x00) */
 	value = READ_REG(REG_GLOBAL_CFG);
@@ -3349,7 +3448,7 @@ static short sdla_pmc4351_te_config(sdla_fe_t *fe, u16 adapter_type)
 					fe->name);
 		WRITE_REG(REG_XLPG_LINE_CFG, BIT_XLPG_LINE_CFG_HIGHZ);
 	}else{
-		WRITE_REG(REG_XLPG_LINE_CFG, fe->fe_param.te_param.xlpg_scale);
+		WRITE_REG(REG_XLPG_LINE_CFG, fe->te_param.xlpg_scale);
 	}
 
 	/* CDRC Configuration (Reg. 0x10) */
@@ -3505,9 +3604,9 @@ static short sdla_pmc4351_te_config(sdla_fe_t *fe, u16 adapter_type)
 	}
 
 	/* RLPS Configuration and Status (Reg 0xF8) */
-	WRITE_REG(REG_RLPS_CFG_STATUS, 
-				BIT_RLPS_CFG_STATUS_LONGE |
-				BIT_RLPS_CFG_STATUS_SQUELCHE);
+	 WRITE_REG(REG_RLPS_CFG_STATUS, 
+				BIT_RLPS_CFG_STATUS_LONGE/* |
+				BIT_RLPS_CFG_STATUS_SQUELCHE*/); 
 
 	/* RLPS ALOS Detection/Clearance Thresholds (Reg 0xF9) */
 	/* NC: Aug 20 2003:
@@ -3621,15 +3720,10 @@ static short sdla_pmc4351_te_config(sdla_fe_t *fe, u16 adapter_type)
  * Returns:	WANTRUE - TE1 configred successfully, otherwise WAN_FALSE.
  ******************************************************************************
  */
-static short sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
+static int sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
 {
 	unsigned char	value = 0x00;
-	
-	if (WAN_FE_FRAME(fe) == WAN_FR_UNFRAMED){
-		DEBUG_EVENT("%s: ERROR: AFT-QUAD doesn't support UNFRAMED mode!\n",
-			  	fe->name);
-		return -EINVAL;	
-	}
+		
 		
 	/* Global Configuration (Reg 0xQ00) */
 	value = READ_REG(REG_GLOBAL_CFG);
@@ -3670,6 +3764,7 @@ static short sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
 			value |= BIT_E1_TRAN_GENCRC;
 		}else if (WAN_FE_FRAME(fe) == WAN_FR_UNFRAMED){
 			value |= BIT_E1_TRAN_FDIS;
+			value |= BIT_E1_TRAN_INDIS;	//today
 		}
 		if (WAN_TE1_SIG_MODE(fe) == WAN_TE1_SIG_CAS){
 			value |= (BIT_E1_TRAN_SIGEN|BIT_E1_TRAN_DLEN);
@@ -3773,7 +3868,11 @@ static short sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
 		value |= BIT_BRIF_NXDS0_0;
 	}
 #endif
-	value |= (BIT_BRIF_CMODE | BIT_BRIF_FE);
+	value |= BIT_BRIF_FE;
+	// today: CMODe set to 1 only for FRAMED mode
+	//today if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
+		value |= BIT_BRIF_CMODE;	
+	//}
 	WRITE_REG(REG_BRIF_CFG, value);
 	
 	/* BRIF Frame Pulse Configuration (Reg. 0xQ31) */
@@ -3798,7 +3897,7 @@ static short sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
 			** WRITE_REG(REG_TX_TIMING_OPT, 
 			**		BIT_TX_PLLREF1 |
 			**		BIT_TX_PLLREF0); */
-			WRITE_REG(REG_TX_TIMING_OPT, BIT_TX_PLLREF0);
+			WRITE_REG(REG_TX_TIMING_OPT, BIT_TX_PLLREF0|BIT_TX_TXELSTBYP);
 		}else{
 			/* 1. Set TJAT FIFO output clock signal
 			 * 2. CTCLK input */
@@ -3811,8 +3910,8 @@ static short sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
 
 	/* RLPS Configuration and Status (Reg 0xQF8) */
 	WRITE_REG(REG_RLPS_CFG_STATUS, 
-				BIT_RLPS_CFG_STATUS_LONGE |
-				BIT_RLPS_CFG_STATUS_SQUELCHE);
+				BIT_RLPS_CFG_STATUS_LONGE/* |
+				BIT_RLPS_CFG_STATUS_SQUELCHE*/);
 
 	/* RLPS ALOS Detection/Clearance Thresholds (Reg 0xQF9) */
 	/* NC: Aug 20 2003:
@@ -3856,6 +3955,7 @@ static short sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
 
 	/* Receive Options (Reg 0xQ02) */
 	if (WAN_FE_FRAME(fe) == WAN_FR_UNFRAMED){
+		// today: add RXELSTBYP in clear channel mode
 		WRITE_REG(REG_RECEIVE_OPT, BIT_RECEIVE_OPT_UNF);
 	}else{
 		WRITE_REG(REG_RECEIVE_OPT, 0x00);
@@ -3914,7 +4014,7 @@ static short sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
 				BIT_RLPS_EQ_RESERVED_0);
 
 	/* Program Transmit pulse template */
-	fe->fe_param.te_param.xlpg_scale = PrgTransmitTemplate(fe);
+	fe->te_param.xlpg_scale = PrgTransmitTemplate(fe);
 	
 	/* Call fuse stabilization procedure */
 	FuseStabilizationProc(fe);
@@ -3925,7 +4025,7 @@ static short sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
 					fe->name);
 		WRITE_REG(REG_XLPG_LINE_CFG, BIT_XLPG_LINE_CFG_HIGHZ);
 	}else{
-		WRITE_REG(REG_XLPG_LINE_CFG, fe->fe_param.te_param.xlpg_scale);
+		WRITE_REG(REG_XLPG_LINE_CFG, fe->te_param.xlpg_scale);
 	}
 
 	return 0;
@@ -3992,11 +4092,10 @@ static int sdla_pmc4354_rlps_optim(sdla_fe_t *fe)
  * Returns:	WANTRUE - TE1 configred successfully, otherwise WAN_FALSE.
  ******************************************************************************
  */
-short sdla_te_config(void* pfe, void *p_fe_iface)
+static int sdla_te_config(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
 	sdla_t*		card = (sdla_t*)fe->card;
-	sdla_fe_iface_t	*fe_iface = (sdla_fe_iface_t*)p_fe_iface;
 	u16		adapter_type;
 	unsigned char	value = 0x00;
 
@@ -4004,7 +4103,7 @@ short sdla_te_config(void* pfe, void *p_fe_iface)
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
 	/* Initial FE state */
-	fe->fe_status=FE_DISCONNECTED;
+	fe->fe_status=FE_UNITIALIZED;
 
 	/* Revision/Chip ID (Reg. 0x0D) */
 	value = READ_REG_LINE(0, REG_REVISION_CHIP_ID);
@@ -4014,7 +4113,7 @@ short sdla_te_config(void* pfe, void *p_fe_iface)
 		fe->fe_cfg.line_no = 0;
 		break;
 	case CHIP_ID_COMET_QUAD:
-		if (WAN_FE_LINENO(fe) < 0 || WAN_FE_LINENO(fe) > 3){
+		if ((int)WAN_FE_LINENO(fe) < 0 || WAN_FE_LINENO(fe) > 3){
 			DEBUG_EVENT("%s: TE Config: Invalid Port selected %d (Min=1 Max=4)\n",
 					fe->name,
 					WAN_FE_LINENO(fe)+1);
@@ -4022,20 +4121,49 @@ short sdla_te_config(void* pfe, void *p_fe_iface)
 		}
 		break;
 	default:
-		DEBUG_EVENT("%s: ERROR: Unsupported %s CHIP (0x%02X)\n",
+		DEBUG_EVENT("%s: ERROR: Unsupported PMC %s CHIP (%02X)\n",
 				fe->name, 
 				FE_MEDIA_DECODE(fe),
 				(fe->fe_chip_id >> 5));
 		return -EINVAL;
 	}
 
+	
 	card->hw_iface.getcfg(card->hw, SDLA_ADAPTERTYPE, &adapter_type);
-	DEBUG_EVENT("%s: Configuring PMC %s %s Front End (Port %d)!\n",
-        		     	fe->name, 
+	DEBUG_EVENT("%s: Configuring PMC %s %s FE\n", 
+				fe->name, 
 				DECODE_CHIPID(fe->fe_chip_id),
-				FE_MEDIA_DECODE(fe), 
-				WAN_FE_LINENO(fe)+1);
-
+				FE_MEDIA_DECODE(fe));
+	DEBUG_EVENT("%s:    Port %d,%s,%s,%s\n", 
+				fe->name, 
+				WAN_FE_LINENO(fe)+1,
+				FE_LCODE_DECODE(fe),
+				FE_FRAME_DECODE(fe),
+				TE_LBO_DECODE(fe));
+	DEBUG_EVENT("%s:    Clk %s:%d, Ch %lX\n",
+				fe->name, 
+				TE_CLK_DECODE(fe),
+				WAN_TE1_REFCLK(fe),
+				WAN_TE1_ACTIVE_CH(fe));
+						
+	if (IS_E1_FEMEDIA(fe)){				
+		DEBUG_EVENT("%s:    Sig Mode %s\n",
+					fe->name, 
+					WAN_TE1_SIG_DECODE(fe));
+	}
+					
+#if 0				
+	DEBUG_EVENT("%s: Configuring PMC %s %s FE (%d:%s,%s,%s,%s:%d,%X)\n", 
+				fe->name, 
+				DECODE_CHIPID(fe->fe_chip_id),
+				FE_MEDIA_DECODE(fe),
+				WAN_FE_LINENO(fe)+1,
+				FE_LCODE_DECODE(fe),
+				FE_FRAME_DECODE(fe),
+				TE_LBO_DECODE(fe),
+				TE_CLK_DECODE(fe),
+				WAN_TE1_REFCLK(fe),
+				WAN_TE1_ACTIVE_CH(fe));
        	DEBUG_TE1("%s: %s Line decoding %s\n", 
 			fe->name, 
 			FE_MEDIA_DECODE(fe), 
@@ -4066,14 +4194,28 @@ short sdla_te_config(void* pfe, void *p_fe_iface)
 				fe->name,
 				FE_MEDIA_DECODE(fe)); 
 	}
-	DEBUG_TE1("%s: %s robbit-signalling channels %lX\n",
+	DEBUG_TE1("%s: %s active channels %lX\n",
+			fe->name,
+			FE_MEDIA_DECODE(fe), 
+			WAN_TE1_ACTIVE_CH(fe));
+	DEBUG_TE1("%s: %s robbit-signalling channels %X\n",
 			fe->name,
 			FE_MEDIA_DECODE(fe), 
 			fe->fe_cfg.cfg.te_cfg.te_rbs_ch);
-	memset(&fe->fe_param.te_param, 0, sizeof(sdla_te_param_t));
+#endif	
+	memset(&fe->te_param, 0, sizeof(sdla_te_param_t));
 
-	fe->fe_param.te_param.max_channels = 
+        if (WAN_FE_FRAME(fe) == WAN_FR_UNFRAMED &&
+	    WAN_TE1_ACTIVE_CH(fe) != ENABLE_ALL_CHANNELS){
+		DEBUG_EVENT(
+		"%s: ERROR: Invalid active channel list for Unframed mode (%lX)!\n",
+				fe->name, WAN_TE1_ACTIVE_CH(fe));
+		return -EINVAL;
+	}
+
+	fe->te_param.max_channels = 
 		(IS_E1_FEMEDIA(fe)) ? NUM_OF_E1_TIMESLOTS: NUM_OF_T1_CHANNELS;
+	fe->te_param.lb_rx_code = LINELB_DS1LINE_DISABLE;
 	switch(fe->fe_chip_id){
 	case CHIP_ID_COMET:
 		sdla_pmc4351_te_config(fe, adapter_type);
@@ -4093,78 +4235,56 @@ short sdla_te_config(void* pfe, void *p_fe_iface)
 	ClearRPSCReg(fe);
 	ClearTPSCReg(fe);
 	DisableAllChannels(fe);
-
+	EnableChannels(fe);
+#if 0
 	if (WAN_TE1_ACTIVE_CH(fe) == ENABLE_ALL_CHANNELS){
 		DEBUG_EVENT("%s: All channels enabled\n", fe->name);
 		EnableAllChannels(fe);
 	}else{
 		int channel_range = (IS_T1_FEMEDIA(fe)) ? 
-				NUM_OF_T1_CHANNELS : NUM_OF_E1_TIMESLOTS;
+				NUM_OF_T1_CHANNELS : NUM_OF_E1_CHANNELS;
+				//NUM_OF_T1_CHANNELS : NUM_OF_E1_TIMESLOTS;
 
 		int i = 0;
 
  		for(i = 1; i <= channel_range; i++){
 			if (WAN_TE1_ACTIVE_CH(fe) & (1 << (i - 1))){
 				DEBUG_EVENT("%s: Enable channel %d\n", 
-						fe->name, i);
-				EnableTxChannel(fe, i);
-				EnableRxChannel(fe, i);
+						fe->name, i-1);
+				EnableTxChannel(fe, i-1);
+				EnableRxChannel(fe, i-1);
 			}
 		}
 	}
-
+#endif
 	/* Initialize and start T1/E1 timer */
-	wan_set_bit(TE_TIMER_KILL,(void*)&fe->fe_param.te_param.critical);
+	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
+
+#if defined(__WINDOWS__)
+	/* can NOT initialize timer while holding the spinlock */
+	card->hw_iface.hw_unlock(card->hw,NULL);
+#endif
 
 	wan_init_timer(
-		&fe->fe_param.te_param.timer, 
+		&fe->te_param.timer, 
 		sdla_te_timer,
 	       	(wan_timer_arg_t)fe);
 	
-	/* Inialize Front-End interface functions */
-	fe_iface->isr			= &sdla_te_intr;
-	fe_iface->check_isr		= &sdla_te_check_intr;
-	fe_iface->polling		= &sdla_te_polling;
-	fe_iface->process_udp		= &sdla_te_udp;
-	fe_iface->print_fe_alarm	= &sdla_te_print_alarms;
-	fe_iface->print_fe_act_channels	= &sdla_te_print_channels;
-	fe_iface->set_fe_alarm		= &sdla_te_set_alarms;
-	fe_iface->set_fe_sigctrl	= &sdla_te_sigctrl;
-	fe_iface->read_alarm		= &sdla_te_read_alarms;
-	fe_iface->read_pmon		= &sdla_te_pmon;
-	fe_iface->flush_pmon		= &sdla_te_flush_pmon;
-	fe_iface->get_fe_status		= &sdla_te_get_fe_status;
-	fe_iface->get_fe_media		= &sdla_te_get_fe_media;
-	fe_iface->set_fe_lbmode		= &sdla_te_set_lbmode;
-	fe_iface->get_fe_media_string	= &sdla_te_get_fe_media_string;
-	fe_iface->update_alarm_info	= &sdla_te_update_alarm_info;
-	fe_iface->update_pmon_info	= &sdla_te_update_pmon_info;
-	fe_iface->led_ctrl		= &sdla_te_led_ctrl;
-	fe_iface->check_rbsbits		= &sdla_te_check_rbsbits;
-	fe_iface->read_rbsbits		= &sdla_te_read_rbsbits;
-	fe_iface->set_rbsbits		= &sdla_te_set_rbsbits;
-	fe_iface->report_rbsbits	= &sdla_te_rbs_report;
-#if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-	fe_iface->get_snmp_data		= &sdla_te_get_snmp_data;
-#endif
-	fe_iface->post_config		= &sdla_te_post_config;
-
-#if defined(__WINDOWS__)
-	/* (Windows only) Can't execute poll timer from interrupt level */
-	fe_iface->enable_timer		= &sdla_te_enable_timer;
-#endif
-
 	/* Set initial FE status to uninitialized value and let the next function
 	 * set correct value */
-	fe->fe_status = 0;
+	fe->fe_status=FE_UNITIALIZED;
 	/* Read initial alarm status and then enable T1/E1 alarm interrupts */
 	/* sdla_te_alarm(fe, 0); */
 
-	wan_clear_bit(TE_TIMER_KILL,(void*)&fe->fe_param.te_param.critical);
-	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->fe_param.te_param.critical);
+	wan_clear_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
+	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
 	sdla_te_enable_timer(fe, TE_LINKDOWN_TIMER, INTR_TE1_TIMER);
+
+#if defined(__WINDOWS__)
+	card->hw_iface.hw_lock(card->hw,NULL);
+#endif
 	
-	wan_set_bit(TE_CONFIGURED,(void*)&fe->fe_param.te_param.critical);
+	wan_set_bit(TE_CONFIGURED,(void*)&fe->te_param.critical);
 
 	return 0;
 }
@@ -4225,16 +4345,21 @@ static int sdla_te_post_config(sdla_fe_t* fe)
 static void sdla_te_set_intr(sdla_fe_t* fe)
 {
 
-	DEBUG_TEST("%s: Enabling TE1 Interrupts \n",fe->name);
+	DEBUG_EVENT("%s: Enabling %s Interrupts \n",
+				fe->name,
+				FE_MEDIA_DECODE(fe));
 
+#if defined(FE_LOS_ENABLE)
 	/* Enable LOS interrupt */
 	WRITE_REG(REG_CDRC_INT_EN, BIT_CDRC_INT_EN_LOSE);
+#endif
 
 #if defined(FE_ALOS_ENABLE)
 	/* Enable ALOS interrupt */
 	WRITE_REG(REG_RLPS_CFG_STATUS, 
 		READ_REG(REG_RLPS_CFG_STATUS) | BIT_RLPS_CFG_STATUS_ALOSE);
 #endif
+
 	if (IS_T1_FEMEDIA(fe)){
 		/* Enable RBOC interrupt */
 		WRITE_REG(REG_T1_RBOC_ENABLE, 
@@ -4256,7 +4381,9 @@ static void sdla_te_set_intr(sdla_fe_t* fe)
 		/* Enable OOF Interrupt */
 		/*WRITE_REG(REG_E1_FRMR_FRM_STAT_INT_EN,BIT_E1_FRMR_FRM_STAT_INT_EN_OOFE);*/
 	}
-
+	/* Enable PMON interrupt */
+	WRITE_REG(REG_PMON_INT_EN_STATUS, 
+			READ_REG(REG_PMON_INT_EN_STATUS) | BIT_PMON_INT_EN_STATUS_INTE);
 	return;
 }
 
@@ -4272,7 +4399,9 @@ static void sdla_te_set_intr(sdla_fe_t* fe)
 static void sdla_te_clear_intr(sdla_fe_t* fe)
 {
 
-	DEBUG_TEST("%s: Clearing TE1 Interrupts\n",fe->name);
+	DEBUG_EVENT("%s: Clearing %s Interrupts\n",
+				fe->name,
+				FE_MEDIA_DECODE(fe));
 
 	/* Enable LOS interrupt */
 	WRITE_REG(REG_CDRC_INT_EN, 
@@ -4305,16 +4434,20 @@ static void sdla_te_clear_intr(sdla_fe_t* fe)
 		/* WRITE_REG(REG_E1_FRMR_FRM_STAT_INT_EN,
 		 * 			BIT_E1_FRMR_FRM_STAT_INT_EN_OOFE);*/
 	}
+	/* Disable PMON interrupt */
+	WRITE_REG(REG_PMON_INT_EN_STATUS, 
+			READ_REG(REG_PMON_INT_EN_STATUS) & ~BIT_PMON_INT_EN_STATUS_INTE);
 
 	return;
 }
 
 
-static int sdla_te_sigctrl(sdla_fe_t *fe, int sig_mode)
+static int sdla_te_sigctrl(sdla_fe_t *fe, int sig_mode, unsigned long ch_map, int mode)
 {
 	int	err = 0;
 	
 	if (sig_mode == WAN_TE_SIG_INTR){
+
 		/* Enable signaling interrupt in case if we are not
 		** using polling routines for reading signaling bits
 		** from PMC chip. te_signaling_config function pointer
@@ -4326,13 +4459,16 @@ static int sdla_te_sigctrl(sdla_fe_t *fe, int sig_mode)
 			DEBUG_TEST("%s: Enable SIGX interrupt\n",
 			 			 fe->name); 
 			WRITE_REG(REG_SIGX_CFG, 
+				READ_REG(REG_SIGX_CFG) & ~BIT_SIGX_COSS);
+			WRITE_REG(REG_SIGX_CFG, 
 				READ_REG(REG_SIGX_CFG) | BIT_SIGX_SIGE);
-			WRITE_REG(REG_SIGX_CFG, 
-				READ_REG(REG_SIGX_CFG) | BIT_SIGX_COSS);
 		}else{
+			DEBUG_TEST("%s: Disable SIGX interrupt\n",
+			 			 fe->name); 
 			WRITE_REG(REG_SIGX_CFG, 
-				READ_REG(REG_SIGX_CFG) &
-					~(BIT_SIGX_SIGE|BIT_SIGX_COSS));
+				READ_REG(REG_SIGX_CFG) & ~BIT_SIGX_COSS);
+			WRITE_REG(REG_SIGX_CFG, 
+				READ_REG(REG_SIGX_CFG) & ~BIT_SIGX_SIGE);
 		}
 	}
 #if 0
@@ -4358,11 +4494,14 @@ static int sdla_te_sigctrl(sdla_fe_t *fe, int sig_mode)
  * Returns:	WANTRUE - TE1 configred successfully, otherwise WAN_FALSE.
  ******************************************************************************
  */
-int sdla_te_global_unconfig(void* pfe)
+static int sdla_te_global_unconfig(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
 
-	DEBUG_EVENT("%s: T1/E1 Global unconfiguration!\n", fe->name);
+	DEBUG_EVENT("%s: %s Global unconfiguration!\n",
+				fe->name,
+				FE_MEDIA_DECODE(fe));
+
 	/* 1. Initiate software reset of the COMET */
 	/* Set RESET=1 to place COMET into RESET */
 	WRITE_REG_LINE(0, REG_RESET, BIT_RESET);
@@ -4381,29 +4520,66 @@ int sdla_te_global_unconfig(void* pfe)
  * Returns:
  ******************************************************************************
  */
-void sdla_te_unconfig(void* pfe)
+static int sdla_te_unconfig(void* pfe)
+{
+	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
+#if defined(__WINDOWS__)
+	sdla_t*		card = (sdla_t*)fe->card;
+#endif
+
+	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->te_param.critical)){
+		return -EINVAL;
+	}
+
+	/* Disable interrupts here */
+	sdla_te_clear_intr(fe);
+	
+	/* Clear TE_CONFIGURED flag */
+	wan_clear_bit(TE_CONFIGURED,(void*)&fe->te_param.critical);
+	/* Kill TE timer poll command */
+	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
+
+#if defined(__WINDOWS__)
+	/* can NOT stop timer while holding the spinlock(s) */
+	wan_spin_unlock_irq(&card->wandev.lock,NULL);
+	card->hw_iface.hw_unlock(card->hw,NULL);
+#endif
+	
+	wan_del_timer(&fe->te_param.timer);
+
+#if defined(__WINDOWS__)
+	card->hw_iface.hw_lock(card->hw,NULL);
+	wan_spin_lock_irq(&card->wandev.lock,NULL);
+#endif
+
+	fe->te_param.timer_cmd = 0x00;
+	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
+
+	ClearTemplate(fe);
+	
+	return 0;
+}
+
+/*
+ ******************************************************************************
+ *			sdla_te_disable_irq()	
+ *
+ * Description: Disable irq for current port
+ * Arguments:
+ * Returns:
+ ******************************************************************************
+ */
+static int sdla_te_disable_irq(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
 
-	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->fe_param.te_param.critical)){
-		return;
+	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->te_param.critical)){
+		return -EINVAL;
 	}
 
-	/* Clear and Kill TE timer poll command */
-	wan_clear_bit(TE_CONFIGURED,(void*)&fe->fe_param.te_param.critical);
-	wan_set_bit(TE_TIMER_KILL,(void*)&fe->fe_param.te_param.critical);
-
-	/* FIXME: Alex to disable interrupts here */
+	/* Disable interrupts here */
 	sdla_te_clear_intr(fe);
-
-	wan_del_timer(&fe->fe_param.te_param.timer);
-
-	fe->fe_param.te_param.timer_cmd = 0x00;
-	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->fe_param.te_param.critical);
-
-	ClearTemplate(fe);
-
-	return;
+	return 0;
 }
 
 /*****************************************************************************
@@ -4445,6 +4621,20 @@ static int sdla_te_normal_clock(sdla_fe_t *fe)
 	return 0;
 }
 
+static int sdla_te_is_t1_alarm(sdla_fe_t *fe, unsigned long alarm)
+{
+	return (alarm & WAN_TE1_FRAMED_ALARMS);			 
+}
+
+static int sdla_te_is_e1_alarm(sdla_fe_t *fe, unsigned long alarm)
+{
+
+	if (WAN_FE_FRAME(fe) == WAN_FR_UNFRAMED){
+		return (alarm &	WAN_TE1_UNFRAMED_ALARMS);
+	}
+	return (alarm &	WAN_TE1_FRAMED_ALARMS);
+}        
+
 /*
  ******************************************************************************
  *			sdla_te_set_status()	
@@ -4461,7 +4651,7 @@ static void sdla_te_set_status(sdla_fe_t* fe, unsigned long alarms)
 	unsigned char	curr_fe_status = fe->fe_status;
 
 	if (IS_T1_FEMEDIA(fe)){
-		if (IS_T1_ALARM(alarms)){
+		if (sdla_te_is_t1_alarm(fe, alarms)){
 			if (fe->fe_status != FE_DISCONNECTED){
 				sdla_te_set_alarms(fe, WAN_TE_BIT_YEL_ALARM);
 				fe->fe_status = FE_DISCONNECTED;
@@ -4473,11 +4663,15 @@ static void sdla_te_set_status(sdla_fe_t* fe, unsigned long alarms)
 					fe->fe_status = FE_CONNECTED;
 				}
 			}else{
+			        if (WAN_NET_RATELIMIT()){
+				DEBUG_EVENT("%s: T1 Waiting for Yellow Alarm to clear...\n",
+						fe->name);
+				}
 				fe->fe_status = FE_DISCONNECTED;
 			}
-		}
+		}                          
 	}else{
-		if (IS_E1_ALARM(alarms)){
+		if (sdla_te_is_e1_alarm(fe, alarms)){
 			if (fe->fe_status != FE_DISCONNECTED){
 				fe->fe_status = FE_DISCONNECTED;
 			}
@@ -4487,6 +4681,7 @@ static void sdla_te_set_status(sdla_fe_t* fe, unsigned long alarms)
 			}
 		}
 	}
+
 	if (curr_fe_status != fe->fe_status){
 		if (fe->fe_status == FE_CONNECTED){
 			DEBUG_EVENT("%s: %s connected!\n", 
@@ -4497,70 +4692,11 @@ static void sdla_te_set_status(sdla_fe_t* fe, unsigned long alarms)
 					fe->name,
 					FE_MEDIA_DECODE(fe));
 		}
-
-	}
-
-#if 0
-	if (IS_T1_FEMEDIA(fe)){
-		if (IS_T1_ALARM(alarms)){
-			if (fe->fe_status != FE_DISCONNECTED){
-				DEBUG_EVENT("%s: T1 disconnected!\n", 
-							fe->name);
-				fe->fe_status = FE_DISCONNECTED;
-			}
-		}else{
-			if (fe->fe_status != FE_CONNECTED){
-				DEBUG_EVENT("%s: T1 connected!\n", 
-							fe->name);
-				fe->fe_status = FE_CONNECTED;
-			}
+		if (card->wandev.te_report_alarms){
+			card->wandev.te_report_alarms(card, alarms);
 		}
-	}else{
-		if (IS_E1_ALARM(alarms)){
-			if (fe->fe_status != FE_DISCONNECTED){
-				DEBUG_EVENT("%s: E1 disconnected!\n", 
-							fe->name);
-				fe->fe_status = FE_DISCONNECTED;
-			}
-		}else{
-			if (fe->fe_status != FE_CONNECTED){
-				DEBUG_EVENT("%s: E1 connected!\n", 
-							fe->name);
-				fe->fe_status = FE_CONNECTED;
-			}
-		}
-	}
-#endif
-	if (card->wandev.te_report_alarms){
-		card->wandev.te_report_alarms(card, alarms);
 	}
 
-#if 0
-	if (curr_fe_status != fe->fe_status && enable_poll){
-		if (fe->fe_status == FE_DISCONNECTED){
-			/* Start T1/E1 timer (5 sec) */
-			sdla_te_enable_timer(fe, TE_LINKDOWN_TIMER, POLLING_TE1_TIMER * 5);
-		}
-#if 0
-		ADEBUG!!!!
-		if (fe->fe_status == FE_CONNECTED){
-			sdla_te_set_intr(fe);
-		}else{
-			sdla_te_clear_intr(fe);
-		}
-#endif
-	}
-#endif
-	
-#if 0
-	if (fe->fe_status == FE_CONNECTED){
-		WRITE_REG(REG_CDRC_INT_EN, 
-			(READ_REG(REG_CDRC_INT_EN) | BIT_CDRC_INT_EN_LOSE));
-	}else{
-		WRITE_REG(REG_CDRC_INT_EN, 
-			(READ_REG(REG_CDRC_INT_EN) & ~BIT_CDRC_INT_EN_LOSE));
-	}
-#endif
 
 	return;
 }
@@ -4656,9 +4792,11 @@ static void sdla_channels(sdla_fe_t* fe, unsigned long active_ch)
 	return;
 }
 #endif
+
+
 /*
  ******************************************************************************
- *						ReadAlarmStatus()	
+ *				ReadAlarmStatus()	
  *
  * Description: Read Alram Status for T1/E1 modes.
  * Arguments:
@@ -4675,8 +4813,9 @@ static void sdla_channels(sdla_fe_t* fe, unsigned long active_ch)
  *			bit A - YEL	(T1)
  ******************************************************************************
  */
-static unsigned long sdla_te_read_alarms(sdla_fe_t *fe, int action)
+static unsigned int sdla_te_read_alarms(sdla_fe_t *fe, int action)
 {
+
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
@@ -4686,25 +4825,22 @@ static unsigned long sdla_te_read_alarms(sdla_fe_t *fe, int action)
 		unsigned char	value = 0x00;
 
 		/* Check common alarm for E1 and T1 configuration
-		 * 1. ALOS alarm 
-		 * Reg 0xFA 
-		 * Reg 0xF8 (ALOSI = 1)
-		 */
+		** 1. ALOS alarm 
+		** Reg 0xFA 
+		** Reg 0xF8 (ALOSI = 1) */
 		if (READ_REG(REG_RLPS_ALOS_DET_PER) &&
 		    (READ_REG(REG_RLPS_CFG_STATUS) & BIT_RLPS_CFG_STATUS_ALOSV)){
 			status |= WAN_TE_BIT_ALOS_ALARM;
 		}
 
 		/* 2. LOS alarm 
-		 * Reg 0x12
-		 */
+		** Reg 0x12 */
 		if (READ_REG(REG_CDRC_INT_STATUS) & BIT_CDRC_INT_STATUS_LOSV){
 			status |= WAN_TE_BIT_LOS_ALARM;
 		}
 
 		/* 3. ALTLOS alarm ??????????????????
-		 * Reg 0x13
-		 */
+		** Reg 0x13 */
 		if (READ_REG(REG_ALTLOS_STATUS) & BIT_ALTLOS_STATUS_ALTLOS){
 			status |= WAN_TE_BIT_ALTLOS_ALARM;
 		}
@@ -4712,8 +4848,10 @@ static unsigned long sdla_te_read_alarms(sdla_fe_t *fe, int action)
 		/* Check specific E1 and T1 alarms */
 		if (IS_E1_FEMEDIA(fe)){
 			/* 4. OOF alarm */
-			if (READ_REG(REG_E1_FRMR_FR_STATUS) & BIT_E1_FRMR_FR_STATUS_OOFV){
-				status |= WAN_TE_BIT_OOF_ALARM;
+			if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
+				if (READ_REG(REG_E1_FRMR_FR_STATUS) & BIT_E1_FRMR_FR_STATUS_OOFV){
+					status |= WAN_TE_BIT_OOF_ALARM;
+				}
 			}
 			/* 5. OOSMF alarm */
 			if (READ_REG(REG_E1_FRMR_FR_STATUS) & BIT_E1_FRMR_FR_STATUS_OOSMFV){
@@ -4732,51 +4870,46 @@ static unsigned long sdla_te_read_alarms(sdla_fe_t *fe, int action)
 				status |= WAN_TE_BIT_RAI_ALARM;
 			}
 			/* 9. RED alarm
-			 * Reg 0x97 (REDD)
-			 */
+			** Reg 0x97 (REDD) */
 			if (READ_REG(REG_E1_FRMR_MAINT_STATUS) & BIT_E1_FRMR_MAINT_STATUS_RED){
 				status |= WAN_TE_BIT_RED_ALARM;
 			}
 			/* 10. AIS alarm
-			 * Reg 0x91 (AISC)
-			 * Reg 0x97 (AIS)
-			 */
+			** Reg 0x91 (AISC)
+			** Reg 0x97 (AIS) */
 			if ((READ_REG(REG_E1_FRMR_MAINT_OPT) & BIT_E1_FRMR_MAINT_OPT_AISC) &&
 				(READ_REG(REG_E1_FRMR_MAINT_STATUS) & BIT_E1_FRMR_MAINT_STATUS_AIS)){
 				status |= WAN_TE_BIT_AIS_ALARM;
 			}
 		} else {
 			/* 4. OOF alarm
-			 * Reg 0x4A (INFR=0 T1 mode)
-			 */
+			** Reg 0x4A (INFR=0 T1 mode) */
 			if (!(READ_REG(REG_T1_FRMR_INT_STATUS) & BIT_T1_FRMR_INT_STATUS_INFR)){
 				status |= WAN_TE_BIT_OOF_ALARM;
 			}
 			value = READ_REG(REG_T1_ALMI_DET_STATUS);
 
 			/* 5. AIS alarm
-			 * Reg 0x62 (AIS)
-			 * Reg 0x63 (AISD)
-			 */
+			** Reg 0x62 (AIS)
+			** Reg 0x63 (AISD) */
 			if (value & BIT_T1_ALMI_DET_STATUS_AISD){
 				status |= WAN_TE_BIT_AIS_ALARM;
 			}
 			/* 6. RED alarm
-			 * Reg 0x63 (REDD)	
-			 */
+			** Reg 0x63 (REDD) */
 			if (value & BIT_T1_ALMI_DET_STATUS_REDD){
 				status |= WAN_TE_BIT_RED_ALARM;
 			}
 			/* 7. YEL alarm
-			 * Reg 0x62 (YEL)
-			 * Reg 0x63 (YELD)
-			 */
+			** Reg 0x62 (YEL)
+			** Reg 0x63 (YELD) */
 			if (value & BIT_T1_ALMI_DET_STATUS_YELD){
 				status |= WAN_TE_BIT_YEL_ALARM;
 			}
 		}
 		fe->fe_alarm = status;
 	}
+	
 	if (IS_FE_ALARM_PRINT(action)){
 		sdla_te_print_alarms(fe, fe->fe_alarm);
 	}
@@ -4791,7 +4924,7 @@ static unsigned long sdla_te_read_alarms(sdla_fe_t *fe, int action)
 ** Arguments:
 ** Returns:
 */
-static int sdla_te_print_alarms(sdla_fe_t* fe, unsigned long alarms)
+static int sdla_te_print_alarms(sdla_fe_t* fe, unsigned int alarms)
 {
 	if (!alarms){
 		alarms = fe->fe_alarm; 
@@ -4842,7 +4975,7 @@ static int sdla_te_print_alarms(sdla_fe_t* fe, unsigned long alarms)
 ** Arguments:
 ** Returns:
 */
-static int sdla_te_set_alarms(sdla_fe_t* fe, unsigned long alarms)
+static int sdla_te_set_alarms(sdla_fe_t* fe, unsigned int alarms)
 {
 	unsigned char	value = 0x00;
 	
@@ -4896,33 +5029,53 @@ static int sdla_te_clear_alarms(sdla_fe_t* fe, unsigned long alarms)
  ******************************************************************************
  */
 #define PMON_DEF_NUM	0x1FFF
-static int sdla_te_pmon(sdla_fe_t *fe)
+static int sdla_te_pmon(sdla_fe_t *fe, int action)
 {
-	sdla_te_pmon_t	*pmon = &fe->fe_pmon.u.te_pmon;
-	u16		num;
+	sdla_te_pmon_t	*pmon = &fe->fe_stats.u.te_pmon;
+	u16		pmon1, pmon2, pmon3, pmon4;
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
-	/* Update PMON counters */
-	WRITE_REG(REG_PMON_BIT_ERROR, 0x00);
+	
+	if (IS_FE_PMON_UPDATE(action)){
+		/* Update PMON counters */
+		//WRITE_REG(REG_PMON_BIT_ERROR, 0x00);
+		WRITE_REG(REG_REVISION_CHIP_ID, 0x00);
+	}
+	
+	pmon->mask = 0x00;
 	/* Framing bit for E1/T1 */
-	pmon->frm_bit_error += READ_REG(REG_PMON_BIT_ERROR) & BITS_PMON_BIT_ERROR;
-
+	pmon1 = READ_REG(REG_PMON_BIT_ERROR) & BITS_PMON_BIT_ERROR;
 	/* OOF Error for T1 or Far End Block Error for E1 */
-	pmon->oof_errors += 
-		((READ_REG(REG_PMON_OOF_FEB_MSB_ERROR) & BITS_PMON_OOF_FEB_MSB_ERROR) << 8) | 
+	pmon2 =	((READ_REG(REG_PMON_OOF_FEB_MSB_ERROR) & BITS_PMON_OOF_FEB_MSB_ERROR) << 8) | 
 		READ_REG(REG_PMON_OOF_FEB_LSB_ERROR);
-
 	/* Bit Error for T1 or CRC Error for E1 */
-	pmon->bit_errors += 
-		((READ_REG(REG_PMON_BIT_CRC_MSB_ERROR) & BITS_PMON_BIT_CRC_MSB_ERROR) << 8) | 
+	pmon3 =	((READ_REG(REG_PMON_BIT_CRC_MSB_ERROR) & BITS_PMON_BIT_CRC_MSB_ERROR) << 8) | 
 		READ_REG(REG_PMON_BIT_CRC_LSB_ERROR);
-
 	/* LCV Error for E1/T1 */
-	num = ((READ_REG(REG_PMON_LCV_MSB_COUNT) & BITS_PMON_LCV_MSB_COUNT) << 8) | 
+	pmon4 = ((READ_REG(REG_PMON_LCV_MSB_COUNT) & BITS_PMON_LCV_MSB_COUNT) << 8) | 
 				READ_REG(REG_PMON_LCV_LSB_COUNT);
-	if (num != PMON_DEF_NUM){
-		pmon->lcv += num;
+
+	pmon->mask |= WAN_TE_BIT_PMON_LCV;
+	if (pmon4 != PMON_DEF_NUM){
+		pmon->lcv_errors += pmon4;
+	}
+
+	if (IS_T1_FEMEDIA(fe)){
+		pmon->mask |= WAN_TE_BIT_PMON_FER;
+		pmon->fer_errors	+= pmon1;
+		pmon->mask |= WAN_TE_BIT_PMON_OOF;
+		pmon->oof_errors	+= pmon2;
+		pmon->mask |= WAN_TE_BIT_PMON_BEE;
+		pmon->bee_errors	+= pmon3;
+		
+	}else{
+		pmon->mask |= WAN_TE_BIT_PMON_FAS;
+		pmon->fas_errors	+= pmon1;
+		pmon->mask |= WAN_TE_BIT_PMON_FEB;
+		pmon->feb_errors	+= pmon2;
+		pmon->mask |= WAN_TE_BIT_PMON_CRC4;
+		pmon->crc4_errors	+= pmon3;
 	}
 	return 0;
 }
@@ -4938,10 +5091,13 @@ static int sdla_te_pmon(sdla_fe_t *fe)
  */
 static int sdla_te_flush_pmon(sdla_fe_t *fe)
 {
-	fe->fe_pmon.u.te_pmon.pmon1 = 0;
-	fe->fe_pmon.u.te_pmon.pmon2 = 0;
-	fe->fe_pmon.u.te_pmon.pmon3 = 0;
-	fe->fe_pmon.u.te_pmon.pmon4 = 0;
+	fe->fe_stats.u.te_pmon.lcv_errors = 0;
+	fe->fe_stats.u.te_pmon.fer_errors = 0;
+	fe->fe_stats.u.te_pmon.oof_errors = 0;
+	fe->fe_stats.u.te_pmon.bee_errors = 0;
+	fe->fe_stats.u.te_pmon.fas_errors = 0;
+	fe->fe_stats.u.te_pmon.feb_errors = 0;
+	fe->fe_stats.u.te_pmon.crc4_errors = 0;
 	return 0;
 }
 
@@ -4997,7 +5153,7 @@ static int sdla_te_check_intr(sdla_fe_t *fe)
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
-	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->fe_param.te_param.critical)){
+	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->te_param.critical)){
 		return 0;
 	}
 	
@@ -5034,18 +5190,18 @@ static int sdla_te_intr(sdla_fe_t *fe)
 		}
 	}
 	
-	fe->fe_param.te_param.intr_src1 = READ_REG(REG_INT_SRC_1);
-	fe->fe_param.te_param.intr_src2 = READ_REG(REG_INT_SRC_2);
-	fe->fe_param.te_param.intr_src3 = READ_REG(REG_INT_SRC_3);
+	fe->te_param.intr_src1 = READ_REG(REG_INT_SRC_1);
+	fe->te_param.intr_src2 = READ_REG(REG_INT_SRC_2);
+	fe->te_param.intr_src3 = READ_REG(REG_INT_SRC_3);
 	DEBUG_ISR("%s: %s: INTR SRC1=0x%X SRC2=0x%X SRC3=0x%X\n",
 			__FUNCTION__,
 			fe->name,
-			fe->fe_param.te_param.intr_src1,
-			fe->fe_param.te_param.intr_src2,
-			fe->fe_param.te_param.intr_src3);
-	if (fe->fe_param.te_param.intr_src1 == 0 &&
-	    fe->fe_param.te_param.intr_src2 == 0 && 
-	    fe->fe_param.te_param.intr_src3 == 0){
+			fe->te_param.intr_src1,
+			fe->te_param.intr_src2,
+			fe->te_param.intr_src3);
+	if (fe->te_param.intr_src1 == 0 &&
+	    fe->te_param.intr_src2 == 0 && 
+	    fe->te_param.intr_src3 == 0){
 		DEBUG_ISR("%s: Unknown %s interrupt!\n", 
 				fe->name, 
 				FE_MEDIA_DECODE(fe));
@@ -5060,7 +5216,8 @@ static int sdla_te_intr(sdla_fe_t *fe)
 
 	sdla_te_set_status(fe, fe->fe_alarm);
 	if (status != fe->fe_status){
-		if (fe->fe_status == FE_DISCONNECTED){
+		if (fe->fe_status != FE_CONNECTED){
+			/* AL: March 1, 2006: Disable FE intr */
 			sdla_te_clear_intr(fe);
 			/* Start T1/E1 timer (5 sec) */
 			sdla_te_enable_timer(fe, TE_LINKDOWN_TIMER, POLLING_TE1_TIMER * 5);
@@ -5095,30 +5252,30 @@ static int sdla_te_intr(sdla_fe_t *fe)
 static void sdla_te_tx_intr(sdla_fe_t* fe)
 {
 
-	if (!(fe->fe_param.te_param.intr_src1 & BITS_TX_INT_SRC_1 || 
-	      fe->fe_param.te_param.intr_src2 & BITS_TX_INT_SRC_2 ||  
-     	      fe->fe_param.te_param.intr_src3 & BITS_TX_INT_SRC_3)){
+	if (!(fe->te_param.intr_src1 & BITS_TX_INT_SRC_1 || 
+	      fe->te_param.intr_src2 & BITS_TX_INT_SRC_2 ||  
+     	      fe->te_param.intr_src3 & BITS_TX_INT_SRC_3)){
 		return;
 	}
 
 #if 0
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_TJAT){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_TJAT){
 	}
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_APRM){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_APRM){
 	}
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_TX_ELST){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_TX_ELST){
 	}
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_TDPR_1){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_TDPR_1){
 	}
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_TDPR_2){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_TDPR_2){
 	}
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_TDPR_3){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_TDPR_3){
 	}
-	if (fe->fe_param.te_param.intr_src3 & BIT_INT_SRC_3_TRAN){
+	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_TRAN){
 	}
-	if (fe->fe_param.te_param.intr_src3 & BIT_INT_SRC_3_XPDE){
+	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_XPDE){
 	}
-	if (fe->fe_param.te_param.intr_src3 & BIT_INT_SRC_3_BTIF){
+	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_BTIF){
 	}
 #endif
 	return;
@@ -5161,14 +5318,14 @@ static void sdla_t1_rx_intr(sdla_fe_t* fe)
 {
 	unsigned char status = 0x00;
 
-	if (!(fe->fe_param.te_param.intr_src1 & BITS_RX_INT_SRC_1 || 
-	      fe->fe_param.te_param.intr_src2 & BITS_RX_INT_SRC_2 ||  
-     	      fe->fe_param.te_param.intr_src3 & BITS_RX_INT_SRC_3)){
+	if (!(fe->te_param.intr_src1 & BITS_RX_INT_SRC_1 || 
+	      fe->te_param.intr_src2 & BITS_RX_INT_SRC_2 ||  
+     	      fe->te_param.intr_src3 & BITS_RX_INT_SRC_3)){
 		return;
 	}
 
 	/* 3. PDVD */
-	if (fe->fe_param.te_param.intr_src3 & BIT_INT_SRC_3_PDVD){
+	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_PDVD){
 		status = READ_REG(REG_PDVD_INT_EN_STATUS);
 		if ((status & BIT_PDVD_INT_EN_STATUS_PDVE) && 
 		    (status & BIT_PDVD_INT_EN_STATUS_PDVI)){
@@ -5185,7 +5342,7 @@ static void sdla_t1_rx_intr(sdla_fe_t* fe)
 	}
 
 	/* 6. ALMI */
-	if (fe->fe_param.te_param.intr_src3 & BIT_INT_SRC_3_ALMI){
+	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_ALMI){
 		status = READ_REG(REG_T1_ALMI_INT_STATUS);
 		if (status & BIT_T1_ALMI_INT_STATUS_YELI){
 			if (status & BIT_T1_ALMI_INT_STATUS_YEL){
@@ -5293,18 +5450,27 @@ Alex Sep 16
 	} 
 
 	/* 8. RBOC */
-	if (fe->fe_param.te_param.intr_src3 & BIT_INT_SRC_3_RBOC){
+	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_RBOC){
 		status = READ_REG(REG_T1_RBOC_CODE_STATUS);
 		if (status & BIT_T1_RBOC_CODE_STATUS_BOCI){
 			unsigned long 	time;
-			time = SYSTEM_TICKS;
+			time = SYSTEM_TICKS;	
 			status &= MASK_T1_RBOC_CODE_STATUS;
 			switch(status){
+
+		        case RBOC_CODE_YEL:
+			        if (WAN_NET_RATELIMIT()){
+					DEBUG_EVENT(
+					"%s: Received Yellow alarm condition!\n", 
+								fe->name);
+				}
+				break;  	
+				
 			case LINELB_ACTIVATE_CODE:
 			case LINELB_DEACTIVATE_CODE:
-				if (wan_test_bit(LINELB_WAITING,(void*)&fe->fe_param.te_param.critical) &&
-				    wan_test_bit(LINELB_CODE_BIT,(void*)&fe->fe_param.te_param.critical)){
-				    	wan_clear_bit(LINELB_CODE_BIT,(void*)&fe->fe_param.te_param.critical);
+				if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical) &&
+				    wan_test_bit(LINELB_CODE_BIT,(void*)&fe->te_param.critical)){
+				    	wan_clear_bit(LINELB_CODE_BIT,(void*)&fe->te_param.critical);
 					break;
 				}
 				
@@ -5312,44 +5478,44 @@ Alex Sep 16
 						fe->name,
 						(status==LINELB_ACTIVATE_CODE)?
 							"activation" : "deactivation");
-				fe->fe_param.te_param.lb_cmd = status;
-				fe->fe_param.te_param.lb_time = time;
+				fe->te_param.lb_cmd = status;
+				fe->te_param.lb_time = time;
 				break;
 
 			case LINELB_DS1LINE_ALL:
-				if (wan_test_bit(LINELB_WAITING,(void*)&fe->fe_param.te_param.critical) &&
-				    wan_test_bit(LINELB_CHANNEL_BIT,(void*)&fe->fe_param.te_param.critical)){
-				    	wan_clear_bit(LINELB_CHANNEL_BIT,(void*)&fe->fe_param.te_param.critical);
-				    	wan_clear_bit(LINELB_WAITING,(void*)&fe->fe_param.te_param.critical);
+				if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical) &&
+				    wan_test_bit(LINELB_CHANNEL_BIT,(void*)&fe->te_param.critical)){
+				    	wan_clear_bit(LINELB_CHANNEL_BIT,(void*)&fe->te_param.critical);
+				    	wan_clear_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
 					break;
 				}
-				if (!fe->fe_param.te_param.lb_cmd)
+				if (!fe->te_param.lb_cmd)
 					break; 
-				if ((time - fe->fe_param.te_param.lb_time) < LINELB_TE1_TIMER){
-					DEBUG_TE1("%s: T1 loopback %s mode cancelled!\n",
+				if ((time - fe->te_param.lb_time) < LINELB_TE1_TIMER){
+					DEBUG_EVENT("%s: T1 loopback %s mode cancelled (timeout)!\n",
 							fe->name,
-							(fe->fe_param.te_param.lb_cmd == LINELB_ACTIVATE_CODE) ? 
+							(fe->te_param.lb_cmd == LINELB_ACTIVATE_CODE) ? 
 								"activatation" : 
 								"deactivation");
 				}else{
-					if (fe->fe_param.te_param.lb_cmd == LINELB_ACTIVATE_CODE){
+					if (fe->te_param.lb_cmd == LINELB_ACTIVATE_CODE){
 						DEBUG_EVENT("%s: T1 loopback mode activated.\n", 
 							fe->name); 
 						WRITE_REG(REG_MASTER_DIAG, 
 							READ_REG(REG_MASTER_DIAG) | 
-							BIT_MASTER_DIAG_LINELB);
-						fe->fe_param.te_param.lb_rx_code = LINELB_DS1LINE_ALL;
+							BIT_MASTER_DIAG_PAYLB);
+						fe->te_param.lb_rx_code = LINELB_DS1LINE_ALL;
 					}else{
 						DEBUG_EVENT("%s: T1 loopback mode deactivated.\n", 
 							fe->name);
 						WRITE_REG(REG_MASTER_DIAG, 
 							READ_REG(REG_MASTER_DIAG) & 
-							~BIT_MASTER_DIAG_LINELB);
-						fe->fe_param.te_param.lb_rx_code = LINELB_DS1LINE_DISABLE;
+							~BIT_MASTER_DIAG_PAYLB);
+						fe->te_param.lb_rx_code = LINELB_DS1LINE_DISABLE;
 					}
 				}
-				fe->fe_param.te_param.lb_cmd = 0x00;
-				fe->fe_param.te_param.lb_time = 0x00;
+				fe->te_param.lb_cmd = 0x00;
+				fe->te_param.lb_time = 0x00;
 				break;
 		
 			case LINELB_DS3LINE:
@@ -5383,49 +5549,50 @@ Alex Sep 16
 			case LINELB_DS1LINE_26:	
 			case LINELB_DS1LINE_27:
 			case LINELB_DS1LINE_28:
-				if (!fe->fe_param.te_param.lb_cmd)
+				if (!fe->te_param.lb_cmd)
 					break;
-				if ((time - fe->fe_param.te_param.lb_time) < LINELB_TE1_TIMER){
-					DEBUG_TE1("%s: T1 loopback %s mode cancelled!\n",
+				if ((time - fe->te_param.lb_time) < LINELB_TE1_TIMER){
+					DEBUG_EVENT("%s: T1 loopback %s mode cancelled (timeout)!\n",
 							fe->name,
-							(fe->fe_param.te_param.lb_cmd == LINELB_ACTIVATE_CODE) ? 
+							(fe->te_param.lb_cmd == LINELB_ACTIVATE_CODE) ? 
 								"activatation" : 
 								"deactivation");
 				}else{
 					int channel = status & LINELB_DS1LINE_MASK; 
 					DEBUG_EVENT("%s: T1 loopback mode %s on channel %d.\n", 
 						fe->name,
-						(fe->fe_param.te_param.lb_cmd == LINELB_ACTIVATE_CODE) ? "activated" : "deactivated",
+						(fe->te_param.lb_cmd == LINELB_ACTIVATE_CODE) ? "activated" : "deactivated",
 						channel);
-					SetLoopBackChannel(fe, channel, fe->fe_param.te_param.lb_cmd);
-       					fe->fe_param.te_param.lb_rx_code = status;
+					SetLoopBackChannel(fe, channel, fe->te_param.lb_cmd);
+					fe->te_param.lb_rx_code = status;
 				}
-				fe->fe_param.te_param.lb_cmd = 0x00;				
-				fe->fe_param.te_param.lb_time = 0x00;				
+				fe->te_param.lb_cmd = 0x00;				
+				fe->te_param.lb_time = 0x00;				
 				break;
-			case BITS_T1_XBOC_DISABLE:
-      				if (fe->fe_param.te_param.lb_rx_code == LINELB_DS1LINE_ALL){
-       					DEBUG_EVENT("%s: T1 loopback mode deactivated.\n", 
-							fe->name);
-       					WRITE_REG(REG_MASTER_DIAG, 
-							READ_REG(REG_MASTER_DIAG) & 
-							~BIT_MASTER_DIAG_LINELB);
-       					fe->fe_param.te_param.lb_rx_code = LINELB_DS1LINE_DISABLE;
 
+			case BITS_T1_XBOC_DISABLE:
+				if (fe->te_param.lb_rx_code == LINELB_DS1LINE_ALL){
+					DEBUG_EVENT("%s: T1 loopback mode deactivated.\n", 
+								fe->name);
+					WRITE_REG(REG_MASTER_DIAG, 
+						READ_REG(REG_MASTER_DIAG) & 
+						~BIT_MASTER_DIAG_PAYLB);
+					fe->te_param.lb_rx_code = LINELB_DS1LINE_DISABLE;
 				}
 				break;
 
 			default:
-       			       DEBUG_TE1(
-       				"%s: Received Reserved Loopback code %02x.\n", 
-							fe->name, status);
+			        if (WAN_NET_RATELIMIT()){
+				DEBUG_EVENT("%s: Received Reserved LoopBack code %02X!\n", 
+								fe->name, status);
+				}
 				break;
 			}
 		}
 	}
 
 	/* 7. FRMR */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_FRMR){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_FRMR){
 		status = READ_REG(REG_T1_FRMR_INT_STATUS);
 		if ((READ_REG(REG_T1_FRMR_INT_EN) & BIT_T1_FRMR_INT_EN_INFRE) &&
 		    (status & BIT_T1_FRMR_INT_STATUS_INFRI)){
@@ -5446,7 +5613,7 @@ Alex Sep 16
 	}
 
 	/* 1. RLPS */
-	if (fe->fe_param.te_param.intr_src3 & BIT_INT_SRC_3_RLPS){
+	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_RLPS){
 		status = READ_REG(REG_RLPS_CFG_STATUS);
 		if ((status & BIT_RLPS_CFG_STATUS_ALOSE) && (status & BIT_RLPS_CFG_STATUS_ALOSI)){
 			if (status & BIT_RLPS_CFG_STATUS_ALOSV){
@@ -5470,7 +5637,7 @@ Alex Sep 16
 	}
 
 	/* 2. CDRC */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_CDRC){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_CDRC){
 		status = READ_REG(REG_CDRC_INT_STATUS);
 		if ((READ_REG(REG_CDRC_INT_EN) & BIT_CDRC_INT_EN_LOSE) && 
 		    (status & BIT_CDRC_INT_STATUS_LOSI)){
@@ -5526,17 +5693,17 @@ Alex Sep 16
 	}
 
 	/* 14. PMON */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_PMON){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_PMON){
 		status = READ_REG(REG_PMON_INT_EN_STATUS);
 		if (status & BIT_PMON_INT_EN_STATUS_XFER){
 			DEBUG_TE1("%s: T1 Updating PMON counters...\n",
 					fe->name);
-			sdla_te_pmon(fe);
+			sdla_te_pmon(fe, WAN_FE_PMON_READ);
 		}
 	}
 
 	/* 9. SIGX */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_SIGX){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_SIGX){
 #if 0
 		unsigned char SIGX_chg_30_25;
 		unsigned char SIGX_chg_24_17;
@@ -5589,7 +5756,7 @@ Alex Sep 16
 
 	/* 5. IBCD */
 	fe->fe_alarm &= ~(WAN_TE_BIT_LOOPUP_CODE|WAN_TE_BIT_LOOPDOWN_CODE);
-	if (fe->fe_param.te_param.intr_src3 & BIT_INT_SRC_3_IBCD){
+	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_IBCD){
 		status = READ_REG(REG_IBCD_INT_EN_STATUS);
 		if (status & BIT_IBCD_INT_EN_STATUS_LBAI){
 			fe->fe_alarm |= WAN_TE_BIT_LOOPUP_CODE;
@@ -5600,19 +5767,19 @@ Alex Sep 16
 	}
 #if 0
 	/* 4. RJAT */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_RJAT){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_RJAT){
 	}
 	/* 10. RX-ELST */
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_RX_ELST){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_RX_ELST){
 	}	
 	/* 11. RDLC-1 */
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_RDLC_1){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_RDLC_1){
 	}
 	/* 12. RDLC-2 */
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_RDLC_2){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_RDLC_2){
 	}
 	/* 13. RDLC-3 */
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_RDLC_3){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_RDLC_3){
 	}
 #endif
 
@@ -5635,13 +5802,13 @@ static void sdla_e1_rx_intr(sdla_fe_t* fe)
 {
 	unsigned char int_status = 0x00, status = 0x00;
 
-	if (!(fe->fe_param.te_param.intr_src1 & BITS_RX_INT_SRC_1 || 
-	      fe->fe_param.te_param.intr_src2 & BITS_RX_INT_SRC_2 ||  
-     	      fe->fe_param.te_param.intr_src3 & BITS_RX_INT_SRC_3))
+	if (!(fe->te_param.intr_src1 & BITS_RX_INT_SRC_1 || 
+	      fe->te_param.intr_src2 & BITS_RX_INT_SRC_2 ||  
+     	      fe->te_param.intr_src3 & BITS_RX_INT_SRC_3))
 		return;
 	
 	/* 4. FRMR */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_FRMR){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_FRMR){
 		/* Register 0x92h E1 FRMR Framing Status Interrupt Enable */
 		unsigned char	int_en = READ_REG(REG_E1_FRMR_FRM_STAT_INT_EN);
 		/* Register 0x94h E1 FRMR */
@@ -5650,17 +5817,20 @@ static void sdla_e1_rx_intr(sdla_fe_t* fe)
 		status = READ_REG(REG_E1_FRMR_FR_STATUS);
 		if ((int_en & BIT_E1_FRMR_FRM_STAT_INT_EN_OOFE) && 
 		    (int_status & BIT_E1_FRMR_FRM_STAT_INT_IND_OOFI)){
-			if (status & BIT_E1_FRMR_FR_STATUS_OOFV){
-				if (!(fe->fe_alarm & WAN_TE_BIT_OOF_ALARM)){
-					DEBUG_EVENT("%s: E1 Out of Frame alarm is ON\n",
-							fe->name);
-					fe->fe_alarm |= WAN_TE_BIT_OOF_ALARM; 
-				}
-			}else{
-				if (fe->fe_alarm & WAN_TE_BIT_OOF_ALARM){
-					DEBUG_EVENT("%s: E1 Out of Frame alarm is OFF\n",
-							fe->name);
-					fe->fe_alarm &= ~WAN_TE_BIT_OOF_ALARM; 
+			/* Always ignore OOF alarm (even it is ON) */
+			if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
+				if (status & BIT_E1_FRMR_FR_STATUS_OOFV){
+					if (!(fe->fe_alarm & WAN_TE_BIT_OOF_ALARM)){
+						DEBUG_EVENT("%s: E1 Out of Frame alarm is ON\n",
+								fe->name);
+						fe->fe_alarm |= WAN_TE_BIT_OOF_ALARM; 
+					}
+				}else{
+					if (fe->fe_alarm & WAN_TE_BIT_OOF_ALARM){
+						DEBUG_EVENT("%s: E1 Out of Frame alarm is OFF\n",
+								fe->name);
+						fe->fe_alarm &= ~WAN_TE_BIT_OOF_ALARM; 
+					}
 				}
 			}
 		}
@@ -5761,16 +5931,14 @@ static void sdla_e1_rx_intr(sdla_fe_t* fe)
 	}
 
 	/* 1. RLPS */
-	if (fe->fe_param.te_param.intr_src3 & BIT_INT_SRC_3_RLPS){
+	if (fe->te_param.intr_src3 & BIT_INT_SRC_3_RLPS){
 		status = READ_REG(REG_RLPS_CFG_STATUS);
 		if ((status & BIT_RLPS_CFG_STATUS_ALOSE) &&
 		    (status & BIT_RLPS_CFG_STATUS_ALOSI)){
 			if (status & BIT_RLPS_CFG_STATUS_ALOSV){
 				if (!(fe->fe_alarm & WAN_TE_BIT_ALOS_ALARM)){
-					if (WAN_NET_RATELIMIT()){ 
 					DEBUG_EVENT("%s: E1 ALOS alarm is ON\n", 
 						fe->name);
-					}
 					fe->fe_alarm |= WAN_TE_BIT_ALOS_ALARM;
 					/* AS/ACIF S016 Clause 5.2.3 */
 					WRITE_REG(REG_E1_TRAN_TX_ALARM_CTRL,
@@ -5779,10 +5947,8 @@ static void sdla_e1_rx_intr(sdla_fe_t* fe)
 				}
 			}else{
 				if (fe->fe_alarm & WAN_TE_BIT_ALOS_ALARM){
-					if (WAN_NET_RATELIMIT()){ 
 					DEBUG_EVENT("%s: E1 ALOS alarm is OFF\n", 
 						fe->name);
-					}
 					fe->fe_alarm &= ~WAN_TE_BIT_ALOS_ALARM;
 					/* AS/ACIF S016 Clause 5.2.3 */
 					WRITE_REG(REG_E1_TRAN_TX_ALARM_CTRL,
@@ -5794,22 +5960,18 @@ static void sdla_e1_rx_intr(sdla_fe_t* fe)
 	}
 
 	/* 2. CDRC */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_CDRC){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_CDRC){
 		status = READ_REG(REG_CDRC_INT_STATUS);
 		if ((READ_REG(REG_CDRC_INT_EN) & BIT_CDRC_INT_EN_LOSE) && 
 		    (status & BIT_CDRC_INT_STATUS_LOSI)){
 			if (status & BIT_CDRC_INT_STATUS_LOSV){
 				if (!(fe->fe_alarm & WAN_TE_BIT_LOS_ALARM)){
-					if (WAN_NET_RATELIMIT()){ 
 					DEBUG_EVENT("%s: E1 LOS alarm is ON\n", fe->name);
-					}
 					fe->fe_alarm |= WAN_TE_BIT_LOS_ALARM;
 				}
 			}else{
 				if (fe->fe_alarm & WAN_TE_BIT_LOS_ALARM){
-					if (WAN_NET_RATELIMIT()){ 
 					DEBUG_EVENT("%s: E1 LOS alarm is OFF\n", fe->name);
-					}
 					fe->fe_alarm &= ~WAN_TE_BIT_LOS_ALARM;
 				}
 			}
@@ -5845,33 +6007,33 @@ static void sdla_e1_rx_intr(sdla_fe_t* fe)
 		}
 	}
 	/* 11. PMON */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_PMON){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_PMON){
 		status = READ_REG(REG_PMON_INT_EN_STATUS);
 		if (status & BIT_PMON_INT_EN_STATUS_XFER){
-			sdla_te_pmon(fe);
+			sdla_te_pmon(fe, 0);
 		}
 	}
 #if 0
 	/* 3. RJAT */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_RJAT){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_RJAT){
 	}
 	/* 5. SIGX */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_SIGX){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_SIGX){
 	}
 	/* 6. RX-ELST */
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_RX_ELST){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_RX_ELST){
 	}
 	/* 7. PRGD */
-	if (fe->fe_param.te_param.intr_src1 & BIT_INT_SRC_1_PRGD){
+	if (fe->te_param.intr_src1 & BIT_INT_SRC_1_PRGD){
 	}
 	/* 8. RDLC-1 */
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_RDLC_1){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_RDLC_1){
 	}
 	/* 9. RDLC-2 */
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_RDLC_2){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_RDLC_2){
 	}
 	/* 10. RDLC-3 */
-	if (fe->fe_param.te_param.intr_src2 & BIT_INT_SRC_2_RDLC_3){
+	if (fe->te_param.intr_src2 & BIT_INT_SRC_2_RDLC_3){
 	}
 #endif
 	if (!(READ_REG(REG_RLPS_CFG_STATUS) & BIT_RLPS_CFG_STATUS_ALOSV)){
@@ -6023,16 +6185,19 @@ static void sdla_te_timer(unsigned long pfe)
 	sdla_t 		*card = (sdla_t*)fe->card;
 	wan_device_t	*wandev = &card->wandev;
 
-	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->fe_param.te_param.critical)){
-		wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->fe_param.te_param.critical);
+	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical)){
+		wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
 		return;
 	}
 	/*WAN_ASSERT1(wandev->te_enable_timer == NULL); */
-	DEBUG_TIMER("%s: TE1 timer!\n", fe->name);
+	DEBUG_TIMER("%s: %s timer!\n",
+				fe->name,
+				FE_MEDIA_DECODE(fe));
+
 	/* Enable hardware interrupt for TE1 */
 
-	if (wandev->te_enable_timer){
-		wandev->te_enable_timer(fe->card);
+	if (wandev->fe_enable_timer){
+		wandev->fe_enable_timer(fe->card);
 	}else{
 		sdla_te_polling(fe);
 	}
@@ -6049,7 +6214,7 @@ static void sdla_te_timer(unsigned long pfe)
  * Returns:
  ******************************************************************************
  */
-static void sdla_te_enable_timer(sdla_fe_t* fe, unsigned char cmd, unsigned long delay)
+static void sdla_te_enable_timer(sdla_fe_t* fe, unsigned char cmd, unsigned int delay)
 {
 	sdla_t	*card = (sdla_t*)fe->card;
 
@@ -6058,50 +6223,41 @@ static void sdla_te_enable_timer(sdla_fe_t* fe, unsigned char cmd, unsigned long
 			fe->name,__FUNCTION__,__LINE__,cmd);
 
 #if defined (__WINDOWS__)
-	if(KeGetCurrentIrql() > DISPATCH_LEVEL){
-		/*	May get here on AFT card because front end interrupt
-			is handled inside ISR not in DPC as on S514.
-			The KeSetTimer() function is illegal inside ISR,
-			so queue 'front_end_dpc_obj' DPC and this routine
-			will be called again from xilinx_front_end_dpc().
-		*/
-		card->xilinx_fe_dpc.te_timer_delay = delay;
-		fe->fe_param.te_param.timer_cmd=(unsigned char)cmd;
-
-		if(KeInsertQueueDpc(&card->front_end_dpc_obj, NULL,
-			(PVOID)ENABLE_TE_TIMER) == FALSE){
-
-			DEBUG_TE1("Failed to queue 'front_end_dpc_obj'!\n");
-		}else{
-			DEBUG_TEST("Successfully queued 'front_end_dpc_obj'.\n");
+	{
+		int rc=SILENT;
+		/* make sure not called from ISR */
+		VERIFY_DISPATCH_IRQL(rc);
+		if(rc){
+			DEBUG_EVENT("%s(): Error: invalid IRQL! current irql: %d\n",
+				__FUNCTION__, KeGetCurrentIrql());
+			return;
 		}
-		return;
-	}//if()
+	}
 #endif
-	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->fe_param.te_param.critical)){
+	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical)){
 		wan_clear_bit(
 				TE_TIMER_RUNNING,
-				(void*)&fe->fe_param.te_param.critical);
+				(void*)&fe->te_param.critical);
 		return;
 	}
 	
-	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->fe_param.te_param.critical)){
-		if (fe->fe_param.te_param.timer_cmd == cmd){
+	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)){
+		if (fe->te_param.timer_cmd == cmd){
 			/* Just ignore current request */
 			return;
 		}
 		DEBUG_TEST("%s: TE_TIMER_RUNNING: new_cmd=%X curr_cmd=%X\n",
 					fe->name,
 					cmd,
-					fe->fe_param.te_param.timer_cmd);
+					fe->te_param.timer_cmd);
 		return;
 	}
 
-	wan_set_bit(TE_TIMER_RUNNING,(void*)&fe->fe_param.te_param.critical);
+	wan_set_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
 	
-	fe->fe_param.te_param.timer_cmd=cmd;
+	fe->te_param.timer_cmd=cmd;
 
-	wan_add_timer(&fe->fe_param.te_param.timer, delay * HZ / 1000);
+	wan_add_timer(&fe->te_param.timer, delay * HZ / 1000);
 	return;	
 }
 
@@ -6121,38 +6277,39 @@ static int sdla_te_polling(sdla_fe_t* fe)
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
 
-	DEBUG_TEST("%s: TE1 Polling State=%s Cmd=0x%X!\n", 
-			fe->name, fe->fe_status==FE_CONNECTED?"Con":"Disconn",
-			fe->fe_param.te_param.timer_cmd);
+	DEBUG_TEST("%s: %s Polling State=%s Cmd=0x%X!\n", 
+			fe->name, FE_MEDIA_DECODE(fe),
+			fe->fe_status==FE_CONNECTED?"Con":"Disconn",
+			fe->te_param.timer_cmd);
 
-	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->fe_param.te_param.critical);
+	wan_clear_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical);
 	
-	switch(fe->fe_param.te_param.timer_cmd){
+	switch(fe->te_param.timer_cmd){
 		
 	case TE_LINELB_TIMER:
 		
 		if (IS_T1_FEMEDIA(fe)){
-			
+
 			/* Sending T1 activation/deactivation loopback signal */
-			if (fe->fe_param.te_param.lb_tx_cnt > 11){
+			if (fe->te_param.lb_tx_cnt > 11){
 				WRITE_REG(REG_T1_XBOC_CODE, 
-					(fe->fe_param.te_param.lb_tx_cmd == WAN_TE1_ACTIVATE_LB) ? 
+					(fe->te_param.lb_tx_cmd == WAN_TE1_ACTIVATE_LB) ? 
 						LINELB_ACTIVATE_CODE : LINELB_DEACTIVATE_CODE);
-			}else if (fe->fe_param.te_param.lb_tx_cnt){
+			}else if (fe->te_param.lb_tx_cnt){
 				WRITE_REG(REG_T1_XBOC_CODE, LINELB_DS1LINE_ALL);  
 			}else{
-				WRITE_REG(REG_T1_XBOC_CODE, BITS_T1_XBOC_DISABLE);  
-			}	
+				WRITE_REG(REG_T1_XBOC_CODE, BITS_T1_XBOC_DISABLE);			
+			}
 			
-			if (fe->fe_param.te_param.lb_tx_cnt--){
+			if (fe->te_param.lb_tx_cnt--){
 				sdla_te_enable_timer(fe, TE_LINELB_TIMER, LINELB_TE1_TIMER);
 			}else{
-				DEBUG_TE1("%s: T1 loopback %s signal sent.\n",
+				DEBUG_EVENT("%s: T1 loopback %s signal sent.\n",
 						fe->name,	
-						(fe->fe_param.te_param.lb_tx_cmd == WAN_TE1_ACTIVATE_LB) ? 
+						(fe->te_param.lb_tx_cmd == WAN_TE1_ACTIVATE_LB) ? 
 							"activation" : "deactivation");
-				fe->fe_param.te_param.lb_tx_cmd = 0x00;
-				wan_clear_bit(LINELB_WAITING,(void*)&fe->fe_param.te_param.critical);
+				wan_clear_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
+				fe->te_param.lb_tx_cmd = 0x00;
 			}
 		}
 		break;
@@ -6163,6 +6320,7 @@ static int sdla_te_polling(sdla_fe_t* fe)
 
 	case TE_LINKDOWN_TIMER:
 		sdla_te_read_alarms(fe, WAN_FE_ALARM_READ);
+		sdla_te_pmon(fe, WAN_FE_PMON_UPDATE);
 		sdla_te_set_status(fe, fe->fe_alarm); 
 		if (fe->fe_status == FE_CONNECTED){
 			sdla_te_enable_timer(fe, TE_LINKUP_TIMER, POLLING_TE1_TIMER);
@@ -6177,10 +6335,11 @@ static int sdla_te_polling(sdla_fe_t* fe)
 		** because it cause to stay longer in interrupt handler
 	        ** (critical for XILINX code) */
 		if (fe->fe_status == FE_CONNECTED){
-			sdla_te_set_intr(fe);
 			if (card->wandev.te_link_state){
 				card->wandev.te_link_state(card);
 			}
+			/* AL: March 1, 2006: Enable FE INTR */
+			sdla_te_set_intr(fe);
 		}else{
 			sdla_te_enable_timer(fe, TE_LINKDOWN_TIMER, POLLING_TE1_TIMER);
 		}
@@ -6189,6 +6348,15 @@ static int sdla_te_polling(sdla_fe_t* fe)
 	case TE_RBS_READ:
 		/* Physically read RBS status and print */
 		sdla_te_rbs_print(fe, 0);
+		break;
+
+	case TE_SET_RBS:
+		/* Set RBS bits */
+		sdla_te_set_rbsbits(	fe,
+					fe->te_param.timer_channel,
+					fe->te_param.timer_abcd);
+		fe->te_param.timer_channel	= 0;
+		fe->te_param.timer_abcd		= 0;
 		break;
 	}
 	return 0;
@@ -6214,10 +6382,10 @@ static int sdla_te_lb(sdla_fe_t* fe, unsigned char mode)
 	if (fe->fe_status != FE_CONNECTED){
 		return 1;
 	}
-	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->fe_param.te_param.critical)){
+	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)){
 		return 1;
 	}
-	if (wan_test_bit(LINELB_WAITING,(void*)&fe->fe_param.te_param.critical)){
+	if (wan_test_bit(LINELB_WAITING,(void*)&fe->te_param.critical)){
 		DEBUG_TE1("%s: Still waiting for far end to send loopback signal back!\n",
 				fe->name);				
 	}
@@ -6226,11 +6394,11 @@ static int sdla_te_lb(sdla_fe_t* fe, unsigned char mode)
 			FE_MEDIA_DECODE(fe),
 			(mode == WAN_TE1_ACTIVATE_LB) ? 
 				"activation" : "deactivation");
-	fe->fe_param.te_param.lb_tx_cmd		= mode;
-	fe->fe_param.te_param.lb_tx_cnt		= LINELB_CODE_CNT + LINELB_CHANNEL_CNT + 1;
-	wan_set_bit(LINELB_WAITING,(void*)&fe->fe_param.te_param.critical);
-	wan_set_bit(LINELB_CODE_BIT,(void*)&fe->fe_param.te_param.critical);
-	wan_set_bit(LINELB_CHANNEL_BIT,(void*)&fe->fe_param.te_param.critical);
+	fe->te_param.lb_tx_cmd		= mode;
+	fe->te_param.lb_tx_cnt		= LINELB_CODE_CNT + LINELB_CHANNEL_CNT + 1;
+	wan_set_bit(LINELB_WAITING,(void*)&fe->te_param.critical);
+	wan_set_bit(LINELB_CODE_BIT,(void*)&fe->te_param.critical);
+	wan_set_bit(LINELB_CHANNEL_BIT,(void*)&fe->te_param.critical);
 	sdla_te_enable_timer(fe, TE_LINELB_TIMER, LINELB_TE1_TIMER);
 	return 0;
 }
@@ -6249,6 +6417,7 @@ static int sdla_te_lb(sdla_fe_t* fe, unsigned char mode)
 static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 {
 	wan_cmd_t	*udp_cmd = (wan_cmd_t*)p_udp_cmd;
+	sdla_fe_debug_t	*fe_debug;
 	int		err = 0;
 
 	switch(udp_cmd->wan_cmd_command){
@@ -6270,16 +6439,13 @@ static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 
 	case WAN_FE_GET_STAT:
  	        /* TE1_56K Read T1/E1/56K alarms */
+#if 0
 	  	*(unsigned long *)&data[0] = fe->fe_alarm;
+#endif
 		/* TE1 Update T1/E1 perfomance counters */
-		sdla_te_pmon(fe);
-	        memcpy(&data[sizeof(unsigned long)],
-			&fe->fe_pmon.u.te_pmon,
-			sizeof(sdla_te_pmon_t));
+	        memcpy(&data[0], &fe->fe_stats, sizeof(sdla_fe_stats_t));
 	        udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-	    	udp_cmd->wan_cmd_data_len = 
-			sizeof(unsigned long) + sizeof(sdla_te_pmon_t); 
-
+	    	udp_cmd->wan_cmd_data_len = sizeof(sdla_fe_stats_t); 
 		break;
 
  	case WAN_FE_FLUSH_PMON:
@@ -6298,49 +6464,71 @@ static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 	    	break;
 
 	case WAN_FE_SET_DEBUG_MODE:
-		switch(data[0]){
+		fe_debug = (sdla_fe_debug_t*)&data[0];
+		switch(fe_debug->type){
 		case WAN_FE_DEBUG_RBS:
-			if (data[1] & WAN_FE_DEBUG_RBS_READ){
+			if (fe_debug->mode == WAN_FE_DEBUG_RBS_READ){
 				DEBUG_EVENT("%s: Reading RBS status!\n",
 					fe->name);
-#if 1
 				sdla_te_enable_timer(fe, TE_RBS_READ, POLLING_TE1_TIMER);
-#else
-				sdla_te_rbs_print(fe, 0);
-#endif
 	    			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-			}else if (data[1] & WAN_FE_DEBUG_RBS_RX_ENABLE){
+			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_PRINT){
+				sdla_te_rbs_print(fe, 1);
+	    			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_RX_ENABLE){
 				/* Enable extra debugging */
 				DEBUG_EVENT("%s: Enable RBS RX DEBUG mode!\n",
 					fe->name);
 				fe->fe_debug |= WAN_FE_DEBUG_RBS_RX_ENABLE;
 				sdla_te_rbs_print(fe, 1);
 	    			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-			}else if (data[1] & WAN_FE_DEBUG_RBS_TX_ENABLE){
+			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_TX_ENABLE){
 				/* Enable extra debugging */
 				DEBUG_EVENT("%s: Enable RBS TX DEBUG mode!\n",
 					fe->name);
 				fe->fe_debug |= WAN_FE_DEBUG_RBS_TX_ENABLE;
 				sdla_te_rbs_print(fe, 1);
 	    			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-			}else if (data[1] & WAN_FE_DEBUG_RBS_RX_DISABLE){
+			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_RX_DISABLE){
 				/* Disable extra debugging */
 				DEBUG_EVENT("%s: Disable RBS RX DEBUG mode!\n",
 					fe->name);
 				fe->fe_debug &= ~WAN_FE_DEBUG_RBS_RX_ENABLE;
 				sdla_te_rbs_print(fe, 1);
 	    			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-			}else if (data[1] & WAN_FE_DEBUG_RBS_TX_DISABLE){
+			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_TX_DISABLE){
 				/* Disable extra debugging */
 				DEBUG_EVENT("%s: Disable RBS TX DEBUG mode!\n",
 					fe->name);
 				fe->fe_debug &= ~WAN_FE_DEBUG_RBS_TX_ENABLE;
 				sdla_te_rbs_print(fe, 1);
 	    			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_SET){
+				/* Set RBS bits */
+				if (IS_T1_FEMEDIA(fe)){
+					if (fe_debug->channel < 1 || fe_debug->channel > 24){
+						DEBUG_EVENT("%s: Invalid channel number %d\n",
+								fe->name,
+								fe_debug->channel);
+						break;
+					}
+				}else{
+					if (fe_debug->channel < 0 || fe_debug->channel > 31){
+						DEBUG_EVENT("%s: Invalid channel number %d\n",
+								fe->name,
+								fe_debug->channel);
+						break;
+					}
+				}
+
+				fe->te_param.timer_channel	= fe_debug->channel;	
+				fe->te_param.timer_abcd		= fe_debug->abcd;	
+				sdla_te_enable_timer(fe, TE_SET_RBS, POLLING_TE1_TIMER);
+	    			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			}
 			break;
 		case WAN_FE_DEBUG_ALARM:
-			if (data[1] & WAN_FE_DEBUG_ALARM_AIS_ENABLE){
+			if (fe_debug->mode == WAN_FE_DEBUG_ALARM_AIS_ENABLE){
 				/* Enable TX AIS alarm */
 				DEBUG_EVENT("%s: Enable TX AIS alarm!\n",
 					fe->name);
@@ -6351,7 +6539,7 @@ static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 					READ_REG(REG_TX_LINE_CONF) |
 						BIT_TX_LINE_CONF_TAISEN);
 	    			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
-			}else if (data[1] & WAN_FE_DEBUG_ALARM_AIS_DISABLE){
+			}else if (fe_debug->mode == WAN_FE_DEBUG_ALARM_AIS_DISABLE){
 				/* Disable TX AIS alarm */
 				DEBUG_EVENT("%s: Disable TX AIS alarm!\n",
 					fe->name);
@@ -6371,11 +6559,12 @@ static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
     	    	udp_cmd->wan_cmd_data_len = 0;
 		break;
 	case WAN_FE_TX_MODE:
-		switch(data[0]){
+		fe_debug = (sdla_fe_debug_t*)&data[0];
+		switch(fe_debug->mode){
 		case WAN_FE_TXMODE_ENABLE:
 			DEBUG_EVENT("%s: Enable Transmitter!\n",
 					fe->name);
-			WRITE_REG(REG_XLPG_LINE_CFG, fe->fe_param.te_param.xlpg_scale);
+			WRITE_REG(REG_XLPG_LINE_CFG, fe->te_param.xlpg_scale);
 			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			break;
 		case WAN_FE_TXMODE_DISABLE:
@@ -6404,62 +6593,72 @@ static int sdla_te_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
  ******************************************************************************
  */
 static int 
-sdla_te_set_rbsbits(sdla_fe_t *fe, int channel, unsigned char ABCD_bits)	
+sdla_te_set_rbsbits(sdla_fe_t *fe, int channel, unsigned char status)
 {
 	sdla_t*		card = (sdla_t*)fe->card;
-	
-	if (channel > fe->fe_param.te_param.max_channels){
+	unsigned char	rbsbits = 0x00;
+
+	if ((unsigned int)channel > fe->te_param.max_channels){
 		DEBUG_EVENT("%s: Invalid channel number %d\n",
 				fe->name, channel);
 		return -EINVAL;
 	}
 
+	if (status & WAN_RBS_SIG_A) rbsbits |= BIT_TPSC_SIGBYTE_A;
+	if (status & WAN_RBS_SIG_B) rbsbits |= BIT_TPSC_SIGBYTE_B;
+	if (IS_T1_FEMEDIA(fe) && WAN_FE_FRAME(fe) == WAN_FR_D4){
+		if (status & WAN_RBS_SIG_A) rbsbits |= BIT_TPSC_SIGBYTE_C;
+		if (status & WAN_RBS_SIG_B) rbsbits |= BIT_TPSC_SIGBYTE_D;
+	}else{
+		if (status & WAN_RBS_SIG_C) rbsbits |= BIT_TPSC_SIGBYTE_C;
+		if (status & WAN_RBS_SIG_D) rbsbits |= BIT_TPSC_SIGBYTE_D;
+	}
 	if (fe->fe_debug & WAN_FE_DEBUG_RBS_TX_ENABLE){
 		DEBUG_EVENT("%s: %s:%-3d TX RBS A:%1d B:%1d C:%1d D:%1d\n",
 				fe->name,
 				FE_MEDIA_DECODE(fe),
 				channel,	
-				(ABCD_bits & BIT_TPSC_SIGBYTE_A) ? 1 : 0,
-				(ABCD_bits & BIT_TPSC_SIGBYTE_B) ? 1 : 0,
-				(ABCD_bits & BIT_TPSC_SIGBYTE_C) ? 1 : 0,
-				(ABCD_bits & BIT_TPSC_SIGBYTE_D) ? 1 : 0);
+				(rbsbits & BIT_TPSC_SIGBYTE_A) ? 1 : 0,
+				(rbsbits & BIT_TPSC_SIGBYTE_B) ? 1 : 0,
+				(rbsbits & BIT_TPSC_SIGBYTE_C) ? 1 : 0,
+				(rbsbits & BIT_TPSC_SIGBYTE_D) ? 1 : 0);
 	}
-	if (ABCD_bits & BIT_TPSC_SIGBYTE_A){
-		wan_set_bit(channel,(unsigned long*)&fe->fe_param.te_param.tx_rbs_A);
+	if (rbsbits & BIT_TPSC_SIGBYTE_A){
+		wan_set_bit(channel,(unsigned long*)&fe->te_param.tx_rbs_A);
 	}else{
-		wan_clear_bit(channel,(unsigned long*)&fe->fe_param.te_param.tx_rbs_A);
+		wan_clear_bit(channel,(unsigned long*)&fe->te_param.tx_rbs_A);
 	}
-	if (ABCD_bits & BIT_TPSC_SIGBYTE_B){
-		wan_set_bit(channel,(unsigned long*)&fe->fe_param.te_param.tx_rbs_B);
+	if (rbsbits & BIT_TPSC_SIGBYTE_B){
+		wan_set_bit(channel,(unsigned long*)&fe->te_param.tx_rbs_B);
 	}else{
-		wan_clear_bit(channel,(unsigned long*)&fe->fe_param.te_param.tx_rbs_B);
+		wan_clear_bit(channel,(unsigned long*)&fe->te_param.tx_rbs_B);
 	}
-	if (ABCD_bits & BIT_TPSC_SIGBYTE_C){
-		wan_set_bit(channel,(unsigned long*)&fe->fe_param.te_param.tx_rbs_C);
+	if (rbsbits & BIT_TPSC_SIGBYTE_C){
+		wan_set_bit(channel,(unsigned long*)&fe->te_param.tx_rbs_C);
 	}else{
-		wan_clear_bit(channel,(unsigned long*)&fe->fe_param.te_param.tx_rbs_C);
+		wan_clear_bit(channel,(unsigned long*)&fe->te_param.tx_rbs_C);
 	}
-	if (ABCD_bits & BIT_TPSC_SIGBYTE_D){
-		wan_set_bit(channel,(unsigned long*)&fe->fe_param.te_param.tx_rbs_D);
+	if (rbsbits & BIT_TPSC_SIGBYTE_D){
+		wan_set_bit(channel,(unsigned long*)&fe->te_param.tx_rbs_D);
 	}else{
-		wan_clear_bit(channel,(unsigned long*)&fe->fe_param.te_param.tx_rbs_D);
+		wan_clear_bit(channel,(unsigned long*)&fe->te_param.tx_rbs_D);
 	}
-	if (fe->fe_param.te_param.ptr_te_Tx_sig_off){
-		unsigned char	tx_sig = TE_SET_TX_SIG_BITS | ABCD_bits;
+	if (fe->te_param.ptr_te_Tx_sig_off){
+		unsigned char	tx_sig = TE_SET_TX_SIG_BITS | rbsbits;
 		card->hw_iface.poke(
 			card->hw,
-			fe->fe_param.te_param.ptr_te_Tx_sig_off + channel - 1,
+			fe->te_param.ptr_te_Tx_sig_off + channel - 1,
 			&tx_sig,
 		       	sizeof(tx_sig));
 	}else{
 		if (IS_T1_FEMEDIA(fe)){ 
 			WRITE_TPSC_REG(REG_TPSC_SIGNALING_BYTE, channel, 
-				(ABCD_bits |
+				(rbsbits |
 				 BIT_TPSC_SIGBYTE_SIGC_0 | 
 				 BIT_TPSC_SIGBYTE_SIGC_1));
 		}else{
 			WRITE_TPSC_REG(REG_TPSC_SIGNALING_BYTE, channel, 
-				(ABCD_bits |
+				(rbsbits |
 				 BIT_TPSC_SIGBYTE_SIGSRC));
 		}
 	}
@@ -6473,21 +6672,21 @@ static void sdla_te_abcd_update(sdla_fe_t* fe)
 
 	sigx_cfg = READ_REG(REG_SIGX_CFG);
 	WRITE_REG(REG_SIGX_CFG, READ_REG(REG_SIGX_CFG) | BIT_SIGX_COSS);
-	fe->fe_param.te_param.SIGX_chg_30_25 = 
+	fe->te_param.SIGX_chg_30_25 = 
 				READ_REG(REG_SIGX_CFG) & MASK_SIGX_COSS_30_25;
-	fe->fe_param.te_param.SIGX_chg_24_17 = 
+	fe->te_param.SIGX_chg_24_17 = 
 				READ_REG(REG_SIGX_TIMESLOT_IND_STATUS);
-	fe->fe_param.te_param.SIGX_chg_16_9  = 
+	fe->te_param.SIGX_chg_16_9  = 
 				READ_REG(REG_SIGX_TIMESLOT_IND_ACCESS);
-	fe->fe_param.te_param.SIGX_chg_8_1   = 
+	fe->te_param.SIGX_chg_8_1   = 
 				READ_REG(REG_SIGX_TIMESLOT_IND_DATA_BUFFER);
 	WRITE_REG(REG_SIGX_CFG, sigx_cfg);
 
 	if ((IS_E1_FEMEDIA(fe) && 
-		fe->fe_param.te_param.SIGX_chg_30_25) || 
-	    fe->fe_param.te_param.SIGX_chg_24_17 || 
-	    fe->fe_param.te_param.SIGX_chg_16_9 || 
-	    fe->fe_param.te_param.SIGX_chg_8_1){
+		fe->te_param.SIGX_chg_30_25) || 
+	    fe->te_param.SIGX_chg_24_17 || 
+	    fe->te_param.SIGX_chg_16_9 || 
+	    fe->te_param.SIGX_chg_8_1){
 		sdla_te_enable_timer(fe, TE_ABCD_UPDATE, 10);
 	}
 	return;	
@@ -6505,51 +6704,52 @@ static void sdla_te_abcd_update(sdla_fe_t* fe)
  ******************************************************************************
  */
 static int 
-sdla_te_rbs_update(sdla_fe_t* fe, int channo, unsigned char rbsbits)
+sdla_te_rbs_update(sdla_fe_t* fe, int channo, unsigned char status)
 {
 
 	if (fe->fe_debug & WAN_FE_DEBUG_RBS_RX_ENABLE){
-		DEBUG_EVENT("%s: %s:%-3d RX RBS A:%1d B:%1d C:%1d D:%1d\n",
-						fe->name,
-						FE_MEDIA_DECODE(fe),
-						channo, 
-						(rbsbits & BIT_SIGX_A) ? 1 : 0,
-						(rbsbits & BIT_SIGX_B) ? 1 : 0,
-						(rbsbits & BIT_SIGX_C) ? 1 : 0,
-						(rbsbits & BIT_SIGX_D) ? 1 : 0);
+		DEBUG_EVENT(
+		"%s: %s:%-3d RX RBS A:%1d B:%1d C:%1d D:%1d\n",
+					fe->name,
+					FE_MEDIA_DECODE(fe),
+					channo, 
+					(status & WAN_RBS_SIG_A) ? 1 : 0,
+					(status & WAN_RBS_SIG_B) ? 1 : 0,
+					(status & WAN_RBS_SIG_C) ? 1 : 0,
+					(status & WAN_RBS_SIG_D) ? 1 : 0);
 	}
 	
 	/* Update rbs value in private structures */
-	wan_set_bit(channo, &fe->fe_param.te_param.rx_rbs_status);
-	fe->fe_param.te_param.rx_rbs[channo] = rbsbits;
+	wan_set_bit(channo, &fe->te_param.rx_rbs_status);
+	fe->te_param.rx_rbs[channo] = status;
 
-	if (rbsbits & BIT_SIGX_A){
+	if (status & WAN_RBS_SIG_A){
 		wan_set_bit(channo,
-			(unsigned long*)&fe->fe_param.te_param.rx_rbs_A);
+			(unsigned long*)&fe->te_param.rx_rbs_A);
 	}else{
 		wan_clear_bit(channo,
-			(unsigned long*)&fe->fe_param.te_param.rx_rbs_A);
+			(unsigned long*)&fe->te_param.rx_rbs_A);
 	}	
-	if (rbsbits & BIT_SIGX_B){
+	if (status & WAN_RBS_SIG_B){
 		wan_set_bit(channo,
-			(unsigned long*)&fe->fe_param.te_param.rx_rbs_B);
+			(unsigned long*)&fe->te_param.rx_rbs_B);
 	}else{
 		wan_clear_bit(channo,
-			(unsigned long*)&fe->fe_param.te_param.rx_rbs_B);
+			(unsigned long*)&fe->te_param.rx_rbs_B);
 	}
-	if (rbsbits & BIT_SIGX_C){
+	if (status & WAN_RBS_SIG_C){
 		wan_set_bit(channo,
-			(unsigned long*)&fe->fe_param.te_param.rx_rbs_C);
+			(unsigned long*)&fe->te_param.rx_rbs_C);
 	}else{
 		wan_clear_bit(channo,
-			(unsigned long*)&fe->fe_param.te_param.rx_rbs_C);
+			(unsigned long*)&fe->te_param.rx_rbs_C);
 	}
-	if (rbsbits & BIT_SIGX_D){
+	if (status & WAN_RBS_SIG_D){
 		wan_set_bit(channo,
-			(unsigned long*)&fe->fe_param.te_param.rx_rbs_D);
+			(unsigned long*)&fe->te_param.rx_rbs_D);
 	}else{
 		wan_clear_bit(channo,
-			(unsigned long*)&fe->fe_param.te_param.rx_rbs_D);
+			(unsigned long*)&fe->te_param.rx_rbs_D);
 	}
 
 	return 0;
@@ -6570,17 +6770,17 @@ sdla_te_rbs_report(sdla_fe_t* fe)
 	sdla_t*		card = (sdla_t*)fe->card;
 	int		ch = 1, max_channels;
 	
-	max_channels = fe->fe_param.te_param.max_channels;
+	max_channels = fe->te_param.max_channels;
 	ch = (IS_E1_FEMEDIA(fe)) ? 0 : 1;
 	for(; ch <= max_channels; ch++) {
-		if (wan_test_bit(ch, &fe->fe_param.te_param.rx_rbs_status)){
+		if (wan_test_bit(ch, &fe->te_param.rx_rbs_status)){
 			if (card->wandev.te_report_rbsbits){
 				card->wandev.te_report_rbsbits(
 					card, 
 					ch, 
-					fe->fe_param.te_param.rx_rbs[ch]);
+					fe->te_param.rx_rbs[ch]);
 			}
-			wan_clear_bit(ch, &fe->fe_param.te_param.rx_rbs_status);
+			wan_clear_bit(ch, &fe->te_param.rx_rbs_status);
 		}
 	}
 	return 0;
@@ -6596,7 +6796,7 @@ sdla_te_rbs_report(sdla_fe_t* fe)
  ******************************************************************************
  */
 static int 
-sdla_te_check_rbsbits(sdla_fe_t* fe, int ch_base, unsigned long ts_map, int report)
+sdla_te_check_rbsbits(sdla_fe_t* fe, int ch_base, unsigned int ts_map, int report)
 {
 	unsigned char	status = 0x0, rbsbits = 0x00;
 	unsigned char	sigx_cfg = 0x00;
@@ -6640,6 +6840,8 @@ sdla_te_check_rbsbits(sdla_fe_t* fe, int ch_base, unsigned long ts_map, int repo
 			continue;
 		}
 		if(status & ((unsigned char)(0x01 << i))) {
+			unsigned char	abcd_status = 0x00;
+
 			rbsbits = READ_SIGX_REG(REG_SIGX_CURRENT, channel);
 			if (channel > 16){
 				rbsbits &= 0x0F;
@@ -6647,7 +6849,11 @@ sdla_te_check_rbsbits(sdla_fe_t* fe, int ch_base, unsigned long ts_map, int repo
 				rbsbits = (rbsbits >> 4) & 0x0F;
 			}
 		
-			sdla_te_rbs_update(fe, channel, rbsbits);
+			if (rbsbits & BIT_SIGX_A) abcd_status |= WAN_RBS_SIG_A;
+			if (rbsbits & BIT_SIGX_B) abcd_status |= WAN_RBS_SIG_B;
+			if (rbsbits & BIT_SIGX_C) abcd_status |= WAN_RBS_SIG_C;
+			if (rbsbits & BIT_SIGX_D) abcd_status |= WAN_RBS_SIG_D;
+			sdla_te_rbs_update(fe, channel, abcd_status);
 		}
 	}	
 	return 0; 
@@ -6663,10 +6869,10 @@ sdla_te_check_rbsbits(sdla_fe_t* fe, int ch_base, unsigned long ts_map, int repo
  ******************************************************************************
  */
 static unsigned char 
-sdla_te_read_rbsbits(sdla_fe_t* fe, int channo, int report)
+sdla_te_read_rbsbits(sdla_fe_t* fe, int channo, int mode)
 {
 	sdla_t*		card = (sdla_t*)fe->card;
-	unsigned char	rbsbits = 0x00;
+	unsigned char	rbsbits = 0x00, status = 0x00;
 
 	rbsbits = READ_SIGX_REG(REG_SIGX_CURRENT, channo);
 	if (channo <= 16){
@@ -6675,15 +6881,22 @@ sdla_te_read_rbsbits(sdla_fe_t* fe, int channo, int report)
 		rbsbits &= 0xF;
 	}
 	
-	sdla_te_rbs_update(fe, channo, rbsbits);
+	if (rbsbits & BIT_SIGX_A) status |= WAN_RBS_SIG_A;
+	if (rbsbits & BIT_SIGX_B) status |= WAN_RBS_SIG_B;
+	if (rbsbits & BIT_SIGX_C) status |= WAN_RBS_SIG_C;
+	if (rbsbits & BIT_SIGX_D) status |= WAN_RBS_SIG_D;
 
-	if (report && card->wandev.te_report_rbsbits){
+	if (mode & WAN_TE_RBS_UPDATE){
+		sdla_te_rbs_update(fe, channo, status);
+	}
+
+	if ((mode & WAN_TE_RBS_REPORT) && card->wandev.te_report_rbsbits){
 		card->wandev.te_report_rbsbits(
 					card, 
 					channo, 
-					rbsbits);
+					status);
 	}
-	return rbsbits;
+	return status;
 }
 
 /*
@@ -6728,7 +6941,7 @@ sdla_te_rbs_print_banner(sdla_fe_t* fe)
 static int 
 sdla_te_rbs_print_bits(sdla_fe_t* fe, unsigned long bits, char *msg)
 {
-	int 	i, max_channels = fe->fe_param.te_param.max_channels;
+	int 	i, max_channels = fe->te_param.max_channels;
 	int	start_chan = 1;
 
 	if (IS_E1_FEMEDIA(fe)){
@@ -6760,23 +6973,23 @@ sdla_te_rbs_print(sdla_fe_t* fe, int last_status)
 	unsigned long	rx_d = 0x00;
 	
 	if (last_status){
-		rx_a = fe->fe_param.te_param.rx_rbs_A;	
-		rx_b = fe->fe_param.te_param.rx_rbs_B;
-		rx_c = fe->fe_param.te_param.rx_rbs_C;
-		rx_d = fe->fe_param.te_param.rx_rbs_D;
+		rx_a = fe->te_param.rx_rbs_A;	
+		rx_b = fe->te_param.rx_rbs_B;
+		rx_c = fe->te_param.rx_rbs_C;
+		rx_d = fe->te_param.rx_rbs_D;
 		
 		DEBUG_EVENT("%s: Last Status:\n",
 					fe->name);
 		sdla_te_rbs_print_banner(fe);
-		sdla_te_rbs_print_bits(fe, fe->fe_param.te_param.tx_rbs_A, "TX A:");
-		sdla_te_rbs_print_bits(fe, fe->fe_param.te_param.tx_rbs_B, "TX B:");
-		sdla_te_rbs_print_bits(fe, fe->fe_param.te_param.tx_rbs_C, "TX C:");
-		sdla_te_rbs_print_bits(fe, fe->fe_param.te_param.tx_rbs_D, "TX D:");
+		sdla_te_rbs_print_bits(fe, fe->te_param.tx_rbs_A, "TX A:");
+		sdla_te_rbs_print_bits(fe, fe->te_param.tx_rbs_B, "TX B:");
+		sdla_te_rbs_print_bits(fe, fe->te_param.tx_rbs_C, "TX C:");
+		sdla_te_rbs_print_bits(fe, fe->te_param.tx_rbs_D, "TX D:");
 		DEBUG_EVENT("%s:\n", fe->name);
 	}else{
-		int		i, channo = 0;
+		unsigned int	i, channo = 0;
 		unsigned char	rbsbits = 0x00;
-		for(i = 0; i < fe->fe_param.te_param.max_channels; i++) {
+		for(i = 0; i < fe->te_param.max_channels; i++) {
 
 			channo = (IS_T1_FEMEDIA(fe)) ? i+1 : i;
 			rbsbits = READ_SIGX_REG(REG_SIGX_CURRENT, channo);
@@ -6999,7 +7212,7 @@ static int sdla_te_get_snmp_data(sdla_fe_t* fe, void* pdev, void* data)
 	netdevice_t* 	dev = (netdevice_t *)dev_ptr;
 #endif
 	wanpipe_snmp_t*	snmp;
-	sdla_te_pmon_t*	pmon = &fe->fe_pmon.u.te_pmon;
+	sdla_te_pmon_t*	pmon = &fe->fe_stats.u.te_pmon;
 	unsigned long	alarms = 0;
 
 	snmp = (wanpipe_snmp_t*)data;
@@ -7031,8 +7244,7 @@ static int sdla_te_get_snmp_data(sdla_fe_t* fe, void* pdev, void* data)
 	case DSX1TOTALLCVS:
 		/* Current measurement in a current 15 minutes interval */
 		/* FIXME: Currently, I return total number of LCV */
-		sdla_te_pmon(fe);
-		snmp->snmp_val = pmon->lcv;
+		snmp->snmp_val = pmon->lcv_errors;
 		break;
 
 	case DSX1CURRENTSEFSS:
@@ -7040,7 +7252,6 @@ static int sdla_te_get_snmp_data(sdla_fe_t* fe, void* pdev, void* data)
 	case DSX1TOTALSEFSS:
 		/* Second with one or more Out of Frame defects */
 		/* FIXME: If we got OOF errors, return 1 */
-		sdla_te_pmon(fe);
 		if (pmon->oof_errors){
 			snmp->snmp_val = 1;
 		}
@@ -7051,8 +7262,9 @@ static int sdla_te_get_snmp_data(sdla_fe_t* fe, void* pdev, void* data)
 	case DSX1TOTALPCVS:
 		/* Second with one or more CRC or bit errors defects */
 		/* FIXME: If we got OOF errors, return 1 */
-		sdla_te_pmon(fe);
-		if (pmon->bit_errors){
+		if (IS_T1_FEMEDIA(fe) && pmon->oof_errors){
+			snmp->snmp_val = 1;
+		}else if (IS_E1_FEMEDIA(fe) && pmon->crc4_errors){
 			snmp->snmp_val = 1;
 		}
 		break;
@@ -7129,20 +7341,26 @@ sdla_te_update_pmon_info(sdla_fe_t* fe, struct seq_file* m, int* stop_cnt)
 	PROC_ADD_LINE(m,
 		 "=========================== %s PMON counters ============================\n",
 		 FE_MEDIA_DECODE(fe));
-	PROC_ADD_LINE(m,
-		PROC_STATS_PMON_FORMAT,
-		"Framing Bit Error", fe->fe_pmon.u.te_pmon.frm_bit_error,
-		"Line Code Violation", fe->fe_pmon.u.te_pmon.lcv);
+
 	if (IS_T1_FEMEDIA(fe)){
 		PROC_ADD_LINE(m,
 			PROC_STATS_PMON_FORMAT,
-			"Out of Frame Errors", fe->fe_pmon.u.te_pmon.bit_errors,
-			"Bit Errors", fe->fe_pmon.u.te_pmon.bit_errors);
-	}else{ 
+			"Framing Bit Error", fe->fe_stats.u.te_pmon.fer_errors,
+			"Line Code Violation", fe->fe_stats.u.te_pmon.lcv_errors);
 		PROC_ADD_LINE(m,
 			PROC_STATS_PMON_FORMAT,
-			"Far End Block Errors", fe->fe_pmon.u.te_pmon.far_end_blk_errors,
-			"CRC Errors", fe->fe_pmon.u.te_pmon.crc_errors);
+			"Out of Frame Errors", fe->fe_stats.u.te_pmon.oof_errors,
+			"Bit Errors", fe->fe_stats.u.te_pmon.bee_errors);
+	}else{
+		PROC_ADD_LINE(m,
+			PROC_STATS_PMON_FORMAT,
+			"Frame Alighment Signal", fe->fe_stats.u.te_pmon.fas_errors,
+			"Line Code Violation", fe->fe_stats.u.te_pmon.lcv_errors);
+		PROC_ADD_LINE(m,
+			PROC_STATS_PMON_FORMAT,
+			"CRC4 Errors", fe->fe_stats.u.te_pmon.crc4_errors,
+			"Far End Block Errors", fe->fe_stats.u.te_pmon.feb_errors);
+
 	}
 	return m->count;
 #endif

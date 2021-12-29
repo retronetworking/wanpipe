@@ -24,17 +24,16 @@
 * Jan 30, 1997	Alan Cox	Hacked around for 2.1
 * Dec 13, 1996	Gene Kozin	Initial version (based on Sangoma's WANPIPE)
 *****************************************************************************/
-
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe_version.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_debug.h>
-# include <net/wanpipe_common.h>
-# include <net/wanpipe.h>	/* WAN router API definitions */
-# include <net/sdladrv.h>
-# include <net/wanproc.h>
-# include <net/if_wanpipe_common.h>
+# include <wanpipe_includes.h>
+# include <wanpipe_version.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_common.h>
+# include <wanpipe.h>	/* WAN router API definitions */
+# include <sdladrv.h>
+# include <wanproc.h>
+# include <if_wanpipe_common.h>
 # define STATIC	
 # define CONFIG_PROC_FS
 #else
@@ -64,7 +63,6 @@
 #define PROC_STATS_2_FORMAT "%25s: %10lu %25s: %10lu\n"
 #define PROC_STATS_ALARM_FORMAT "%25s: %10s %25s: %10s\n"
 #define PROC_STATS_STR_FORMAT "%25s: %10s\n"
-#define PROC_STATS_PMON_FORMAT "%25s: %10lu %25s: %10lu\n"
 
 /****** Defines and Macros **************************************************/
 
@@ -120,6 +118,7 @@ typedef struct wan_proc_entry
 extern atomic_t wan_debug_mem;
 #endif
 
+extern wan_spinlock_t 		wan_devlist_lock;
 extern struct wan_devlist_	wan_devlist;
 
 #if defined(CONFIG_PROC_FS)
@@ -175,6 +174,7 @@ static ssize_t router_proc_write(struct file*, const char*, size_t,loff_t*);
 static int config_get_info(struct seq_file *m, void *v);
 static int status_get_info(struct seq_file *m, void *v);
 static int probe_get_info(struct seq_file *m, void *v);
+static int probe_get_info_verbose(struct seq_file *m, void *v);
 static int wandev_get_info(struct seq_file *m, void *v);
 
 static int map_get_info(struct seq_file *m, void *v);
@@ -189,6 +189,7 @@ static int wandev_mapdir_get_info(struct seq_file *m, void *v);
 static int config_get_info(char* buf, char** start, off_t offs, int len);
 static int status_get_info(char* buf, char** start, off_t offs, int len);
 static int probe_get_info(char* buf, char** start, off_t offs, int len);
+static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len);
 static int wandev_get_info(char* buf, char** start, off_t offs, int len);
 
 static int map_get_info(char* buf, char** start, off_t offs, int len);
@@ -203,6 +204,7 @@ static int wandev_mapdir_get_info(char* buf, char** start, off_t offs, int len);
 static int config_get_info(char* buf, char** start, off_t offs, int len, int dummy);
 static int status_get_info(char* buf, char** start, off_t offs, int len, int dummy);
 static int probe_get_info(char* buf, char** start, off_t offs, int len, int dummy);
+static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, int dummy);
 static int wandev_get_info(char* buf, char** start, off_t offs, int len, int dummy);
 
 static int map_get_info(char* buf, char** start, off_t offs, int len, int dummy);
@@ -283,6 +285,19 @@ static int wp_hwprobe_open(struct inode *inode, struct file *file)
 static struct file_operations wp_hwprobe_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wp_hwprobe_open,
+	.read	 = seq_read,
+	.llseek	 = seq_lseek,
+	.release = single_release,
+};
+
+static int wp_hwprobe_verbose_open(struct inode *inode, struct file *file)
+{
+ 	return single_open(file, probe_get_info_verbose, WP_PDE(inode)->data);
+}
+
+static struct file_operations wp_hwprobe_verbose_fops = {
+	.owner	 = THIS_MODULE,
+	.open	 = wp_hwprobe_verbose_open,
 	.read	 = seq_read,
 	.llseek	 = seq_lseek,
 	.release = single_release,
@@ -512,6 +527,8 @@ static int config_get_info(char* buf, char** start, off_t offs, int len, int dum
 	PROC_ADD_INIT(m, buf, offs, len);
 
 	PROC_ADD_LINE(m, conf_hdr);
+
+	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		/*for (wandev = router_devlist; wandev; wandev = wandev->next){*/
 		sdla_t*	card = (sdla_t*)wandev->private;
@@ -538,6 +555,7 @@ static int config_get_info(char* buf, char** start, off_t offs, int len, int dum
 				wandev->bps);
 		}
 	}
+	wan_spin_unlock(&wan_devlist_lock);  
 
 	PROC_ADD_RET(m);
 }
@@ -573,6 +591,8 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 	PROC_ADD_LINE(m,  stat_hdr);
 
 	devle=NULL;
+
+	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		
 		if (!wandev->state) continue;
@@ -581,6 +601,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 		memset(&wp_stats,0,sizeof(wp_stack_stats_t));
 
 		if (wandev->get_active_inactive){
+			wan_spin_lock(&wandev->dev_head_lock);
 			WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 				dev = WAN_DEVLE2DEV(devle);
 				if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
@@ -588,6 +609,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 				}  
 				wandev->get_active_inactive(wandev,dev,&wp_stats);
 			}
+			wan_spin_unlock(&wandev->dev_head_lock);
 		}
 	
 		PROC_ADD_LINE(m, 
@@ -609,6 +631,8 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 			       		"A104 TE1":
 				wandev->config_id == WANCONFIG_AFT_TE3 ?
 					"A300 TE3" :
+				wandev->config_id == WANCONFIG_AFT_ANALOG ?
+					"A200 RM" :
 					("N/A"),
 			       STATE_DECODE(wandev->state),
 			       wp_stats.fr_active,wp_stats.fr_inactive,
@@ -635,6 +659,8 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 				STATE_DECODE(wandev->state));
 #endif
 	}
+	wan_spin_unlock(&wan_devlist_lock);  
+	
 	PROC_ADD_RET(m);
 }
 
@@ -664,16 +690,19 @@ static int interfaces_get_info(char* buf, char** start, off_t offs, int len, int
 
 	PROC_ADD_LINE(m, interfaces_hdr);
 
+	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		wanpipe_common_t *dev_priv;
 		if (!(m->count < (m->size - 80))) break;
 		if (!wandev->state) continue;
+
+		wan_spin_lock(&wandev->dev_head_lock);
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
-			}  
+			}
 
 			dev_priv = wan_netif_priv(dev);
 			PROC_ADD_LINE(m, 
@@ -686,7 +715,10 @@ static int interfaces_get_info(char* buf, char** start, off_t offs, int len, int
 				wanpipe_lip_get_if_status(dev_priv,m);	
 			}
 		}
+		wan_spin_unlock(&wandev->dev_head_lock);
 	}
+	wan_spin_unlock(&wan_devlist_lock);  
+
 	PROC_ADD_RET(m);
 }
 
@@ -720,19 +752,80 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 
 		i++;
 		PROC_ADD_LINE(m, 
-		       "%-2d. %s\n", i, hw_probe->hw_info); 
+		       "%-2d. %s\n", i, hw_probe->hw_info);
 	}
 
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
 	PROC_ADD_LINE(m,
-		"\nCard Cnt: S508=%-2d S514X=%-2d S518=%-2d A101-2=%-2d A104=%-2d A300=%-2d\n",
+		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
 		hw_cnt->aft101_adapters,
 		hw_cnt->aft104_adapters,
-		hw_cnt->aft300_adapters);
+		hw_cnt->aft300_adapters,
+		hw_cnt->aft200_adapters,
+		hw_cnt->aft108_adapters,
+		hw_cnt->aft_56k_adapters
+		);
+
+#ifdef WAN_DEBUG_MEM
+	PROC_ADD_LINE(m,
+		
+		"Total Memory = %d\n", atomic_read(&wan_debug_mem));
+#endif
+
+	PROC_ADD_RET(m);
+}
+
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(LINUX_2_4)
+STATIC int probe_get_info_verbose(char* buf, char** start, off_t offs, int len)
+#else
+#if defined(LINUX_2_6)
+static int probe_get_info_verbose(struct seq_file *m, void *v)
+#elif defined(LINUX_2_4)
+static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len)
+#else
+static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, int dummy)
+#endif
+#endif
+{
+	int i=0;
+	sdla_hw_probe_t* hw_probe;
+	sdla_hw_type_cnt_t *hw_cnt;
+	PROC_ADD_DECL(m);
+	PROC_ADD_INIT(m, buf, offs, len);
+
+	PROC_ADD_LINE(m,  "-----------------------------------------\n");
+	PROC_ADD_LINE(m,  "| Wanpipe Hardware Probe Info (verbose) |\n");
+	PROC_ADD_LINE(m,  "-----------------------------------------\n");
+
+	hw_probe = (sdla_hw_probe_t *)sdla_get_hw_probe();	
+	
+	for (;
+	     hw_probe;
+	     hw_probe = WAN_LIST_NEXT(hw_probe, next)) {
+
+		i++;
+		PROC_ADD_LINE(m, 
+		       "%-2d. %s", i, hw_probe->hw_info);
+		PROC_ADD_LINE(m, 
+		       "%s\n", hw_probe->hw_info_verbose); 
+	}
+
+	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
+	
+	PROC_ADD_LINE(m,
+		"\nCard Cnt: S508=%-2d S514X=%-2d S518=%-2d A101-2=%-2d A104=%-2d A300=%-2d A200=%-2d A108=%-2d\n",
+		hw_cnt->s508_adapters,
+		hw_cnt->s514x_adapters,
+		hw_cnt->s518_adapters,
+		hw_cnt->aft101_adapters,
+		hw_cnt->aft104_adapters,
+		hw_cnt->aft300_adapters,
+		hw_cnt->aft200_adapters,
+		hw_cnt->aft108_adapters);
 #ifdef WAN_DEBUG_MEM
 	PROC_ADD_LINE(m,
 		
@@ -920,6 +1013,22 @@ int wanrouter_proc_init (void)
 	p->get_info = probe_get_info;
 #endif
 
+	p = create_proc_entry("hwprobe_verbose",0,proc_router);
+	if (!p)
+		goto fail_probe_verbose;
+
+#if defined(LINUX_2_6)
+	p->proc_fops = &wp_hwprobe_verbose_fops;
+#elif defined(LINUX_2_4)
+	p->proc_fops = &router_fops;
+	p->proc_iops = &router_inode;
+	p->get_info = probe_get_info_verbose;
+#else
+	p->ops = &router_inode;
+	p->nlink = 1;
+	p->get_info = probe_get_info_verbose;
+#endif
+
 	p = create_proc_entry("map",0,proc_router);
 	if (!p)
 		goto fail_map;
@@ -976,6 +1085,8 @@ fail_interfaces:
 fail_map:	
 	remove_proc_entry("hwprobe", proc_router);
 fail_probe:
+	remove_proc_entry("hwprobe_verbose", proc_router);
+fail_probe_verbose:	
 	remove_proc_entry("status", proc_router);
 fail_stat:
 	remove_proc_entry("config", proc_router);
@@ -1001,6 +1112,7 @@ void wanrouter_proc_cleanup (void)
 	remove_proc_entry("config", proc_router);
 	remove_proc_entry("status", proc_router);
 	remove_proc_entry("hwprobe", proc_router);
+	remove_proc_entry("hwprobe_verbose", proc_router);
 	remove_proc_entry("map", proc_router);
 	remove_proc_entry("interfaces", proc_router);
 	remove_proc_entry("dev_map",proc_router);
@@ -1355,8 +1467,12 @@ static ssize_t router_proc_read(struct file* file, char* buf, size_t count,
 
 	if (count <= 0)
 		return 0;
-		
+
+#if defined(WANPIPE_USE_I_PRIVATE)
+	dent = inode->i_private;
+#else
 	dent = inode->u.generic_ip;
+#endif
 	if ((dent == NULL) || (dent->get_info == NULL))
 		return 0;
 		
@@ -1406,10 +1522,16 @@ static ssize_t router_proc_write (struct file *file, const char *buf, size_t cou
 
 	if (count <= 0)
 		return 0;
-		
-	dent = inode->u.generic_ip;
+
+
+#if defined(WANPIPE_USE_I_PRIVATE)
+        dent = inode->i_private;
+#else
+        dent = inode->u.generic_ip;
+#endif
+
 	if ((dent == NULL) || (dent->write_proc == NULL))
-		return count;
+	return count;
 		
 	page = wan_malloc(count);
 	if (page == NULL)
@@ -1453,6 +1575,8 @@ static int map_get_info(char* buf, char** start, off_t offs, int len, int dummy)
 	PROC_ADD_INIT(m, buf, offs, len);
 
 	PROC_ADD_LINE(m, map_hdr);
+
+	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		
 		if (!wandev->state){ 
@@ -1462,16 +1586,18 @@ static int map_get_info(char* buf, char** start, off_t offs, int len, int dummy)
 			continue;
 		}
 
-		spin_lock(&wandev->get_map_lock);
+		wan_spin_lock(&wandev->dev_head_lock);
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
 			}
+
 			m->count = wandev->get_map(wandev, dev, m, M_STOP_CNT(m));
 		}
-		spin_unlock(&wandev->get_map_lock);
+		wan_spin_unlock(&wandev->dev_head_lock);
 	}
+	wan_spin_unlock(&wan_devlist_lock);  
 
 	PROC_ADD_RET(m);
 }
@@ -1496,6 +1622,7 @@ static int get_dev_config_info(char* buf, char** start, off_t offs, int len,int 
 	PROC_ADD_DECL(m);
 	PROC_ADD_INIT(m, buf, offs, len);
 
+	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 	     if (!(m->count < (PROC_BUFSZ - 80))) break;
 		if (!wandev->get_config_info)
@@ -1509,6 +1636,7 @@ static int get_dev_config_info(char* buf, char** start, off_t offs, int len,int 
 			continue;
 #endif
 
+	       	wan_spin_lock(&wandev->dev_head_lock);
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
@@ -1518,7 +1646,9 @@ static int get_dev_config_info(char* buf, char** start, off_t offs, int len,int 
 							   m, 
 							   M_STOP_CNT(m)); 
 		}
+	       	wan_spin_unlock(&wandev->dev_head_lock);
 	}
+	wan_spin_unlock(&wan_devlist_lock);  
 
 	PROC_ADD_RET(m);
 }	
@@ -1544,6 +1674,7 @@ static int get_dev_status_info(char* buf, char** start, off_t offs, int len, int
 	
 	PROC_ADD_INIT(m, buf, offs, len);
 
+	wan_spin_lock(&wan_devlist_lock);  
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 	     if (!(cnt < (PROC_BUFSZ - 80))) break;
 
@@ -1558,6 +1689,7 @@ static int get_dev_status_info(char* buf, char** start, off_t offs, int len, int
 			continue;
 #endif
 
+	       	wan_spin_lock(&wandev->dev_head_lock);
 		WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 			dev = WAN_DEVLE2DEV(devle);
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
@@ -1565,7 +1697,10 @@ static int get_dev_status_info(char* buf, char** start, off_t offs, int len, int
 			}
 			m->count = wandev->get_status_info(dev->priv, m, M_STOP_CNT(m)); 
 		}
+	       	wan_spin_unlock(&wandev->dev_head_lock);
 	}
+	wan_spin_unlock(&wan_devlist_lock);  
+	
 
 	PROC_ADD_RET(m);
 }
@@ -1599,19 +1734,15 @@ static int wandev_mapdir_get_info(char* buf, char** start, off_t offs, int len, 
 		goto wandev_mapdir_get_info_exit;
 	}
 
-	spin_lock(&wandev->get_map_lock);
+	wan_spin_lock(&wandev->dev_head_lock);
 	WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
 		dev = WAN_DEVLE2DEV(devle);
 		if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 		       	continue;
-		}
-
-		if (!wandev->get_map || !(dev->flags&IFF_UP)){
-			continue;
-		}
+		}   
 		m->count = wandev->get_map(wandev, dev, m, M_STOP_CNT(m));
 	}
-	spin_unlock(&wandev->get_map_lock);
+        wan_spin_unlock(&wandev->dev_head_lock);
 	
 wandev_mapdir_get_info_exit:
 	PROC_ADD_RET(m);
@@ -1686,7 +1817,12 @@ static int device_write(
 
         if (err) return err;
 
+#if defined(WANPIPE_USE_I_PRIVATE)
+        dent = inode->i_private;
+#else
         dent = inode->u.generic_ip;
+#endif
+
         if ((dent == NULL) || (dent->data == NULL))
                 return -ENODATA;
 
@@ -1776,9 +1912,7 @@ int proc_add_line(struct seq_file* m, char* frm, ...)
 	return ret;
 #endif
 }
-#endif      
-
+#endif   
 /*
  *	End
  */
- 

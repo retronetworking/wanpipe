@@ -15,7 +15,7 @@
 #================================================
 
 [devices]
-wanpipe1 = WAN_AFT_TE1, Comment		#WAN_AFT_TE1 - Indicates A104   card
+wanpipe1 = WAN_AFT_TE1, Comment		#WAN_AFT_TE1 - Indicates A104/8 card
 					#WAN_AFT     - Indicates A101/2 card
 
 [interfaces]
@@ -41,7 +41,7 @@ w1g1fr = wanpipe1, auto, WANPIPE, fr, w1g1.fr
 #           must be same as above
 #
 #dlci_num - auto   - auto dlci (CPE ONLY)
-#           16-902 - actual dlci number
+#           16-1007 - actual dlci number
 #           (Note this filed is not used 
 #            for PPP or CHDLC protocols)
 #
@@ -72,7 +72,6 @@ CARD_TYPE 	= AFT	#AFT: Same for all aft cards must
 S514CPU 	= A     #Used by A101/2 driver to determine T1/E1 port
                         #A - port 1   
                         #B - port 2
-		
 			#For A104 driver: Always set this value to A!
 
 CommPort 	= PRI   #Only used by S514 cards. 
@@ -216,7 +215,13 @@ GATEWAY	= NO		  #Indicates that this interface is a default
                           #gateway interface.  Used by dynamic IP code.
                           #NO - This interface is not gateway
                           #YES- This interface is a gateway
-                          
+
+LIP_MTU	= 1500		  #OPTIONAL 
+			  #MTU for LIP Interface
+                          #Values: 128 to 4096
+			  #Note! This value should not be greater
+			  #      Than MTU for lower interfaces
+                          #If not defined: default 1500
 
 #--------------------------------------------
 #Protocol Profile Configuration
@@ -272,11 +277,13 @@ ACTIVE_CH	= ALL   #Timeslot binding
                         #1.5 - 1 and 5
                         #1-10.11-20 - 1 to 10 and 11 to 20
 
-MTU		= 1500  #Maximum Tx Size for this interface
+MTU		= 1500  #OPTIONAL
+			#Maximum Tx Size for this interface
                         #if this value is NOT set the global
                         #MTU value will be used
 
-MRU		= 1500  #Maximum Rx Size for this interface
+MRU		= 1500  #OPTIONAL
+			#Maximum Rx Size for this interface
                         #if this value is NOT set the global
                         #MRU value will be used
 

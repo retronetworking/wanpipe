@@ -28,7 +28,7 @@ class menu_adsl_encapsulation : public menu_base  {
 
   char lxdialog_path[MAX_PATH_LENGTH];
   wan_adsl_conf_t* adsl_cfg;
-
+  
 public: 
   
   menu_adsl_encapsulation(IN char * lxdialog_path, IN wan_adsl_conf_t* adsl_cfg);

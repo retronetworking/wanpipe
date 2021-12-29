@@ -29,6 +29,12 @@ class menu_net_interface_setup : public menu_base{
 
   char lxdialog_path[MAX_PATH_LENGTH];
   list_element_chan_def* list_element_logical_ch;
+#if 0
+  void add_hw_echo_cancel_items(string& menu_str, link_def_t *link_defs, 
+				wan_xilinx_conf_t *wan_xilinx_conf);
+#endif
+
+  void add_hw_echo_cancel_items(string& menu_str, chan_def_t* chandef);
 
 public: 
   menu_net_interface_setup( IN char * lxdialog_path,
@@ -37,7 +43,6 @@ public:
   ~menu_net_interface_setup();
 
   int run(OUT int * selection_index);
-
 };
 
 #endif

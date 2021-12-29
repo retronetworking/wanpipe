@@ -60,6 +60,22 @@ FILE *tx_fd=NULL,*rx_fd=NULL;
 *       (Interface name is supplied by the user)
 */         
 
+void print_packet(unsigned char *buf, int len)
+{
+	int x;
+	printf("{  | ");
+	for (x=0;x<len;x++){
+		if (x && x%24 == 0){
+			printf("\n  ");
+		}
+		if (x && x%8 == 0)
+			printf(" | ");
+		printf("%02x ",buf[x]);
+	}
+	printf("}\n");
+}
+
+
 int MakeConnection(void) 
 {
 	struct wan_sockaddr_ll 	sa;
@@ -125,8 +141,6 @@ int sangoma_readmsg_socket(int sock, void *hdrbuf, int hdrlen, void *databuf, in
 	msg.msg_iovlen=2;
 	msg.msg_iov=iov;
 
-	printf("RECVMSG: \n");
-
 	return recvmsg(sock,&msg,flag);
 }
 
@@ -151,8 +165,6 @@ int sangoma_sendmsg_socket(int sock, void *hdrbuf, int hdrlen, void *databuf, in
 
 	msg.msg_iovlen=2;
 	msg.msg_iov=iov;
-
-	printf("SENDMSG: \n");
 
 	return sendmsg(sock,&msg,flag);
 }
@@ -402,6 +414,10 @@ void handle_socket(void)
 			
 				++Rx_count;
 
+				printf("RECEIVE:\n");
+				print_packet(&Rx_data[16],Rx_lgth);
+
+
 				if (verbose){
 					printf("Received %i Olen=%i Length = %i\n", 
 							Rx_count, err,Rx_lgth);
@@ -426,6 +442,11 @@ bitstrm_skip_read:
 		   	if (FD_ISSET(sock,&write)){
 
 
+				if (Tx_count == 0){
+					printf("SEND: Len=%i\n",Tx_length);
+					print_packet(&Tx_data[16],Tx_length);
+				}
+
 #if 1
 				err = sangoma_sendmsg_socket(sock,
 						       Tx_data,16, 
@@ -449,7 +470,7 @@ bitstrm_skip_read:
 							(err == 1) ? "DISCONNECTED" :
 							 "CONNECTING");
 
-						printf("Faild to send %i \n",errno);
+						printf("Failed to send errno=%i len=%i \n",errno,Tx_length);
 						perror("Send: ");
 						break;
 					}

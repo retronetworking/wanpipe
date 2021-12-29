@@ -14,7 +14,7 @@
  */
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <net/wanpipe_lip.h>
+# include <wanpipe_lip.h>
 #else
 # include <linux/wanpipe_lip.h>
 #endif
@@ -82,7 +82,6 @@ int wplip_open_dev(netdevice_t *dev)
 	if (lip_dev->lip_link->state == WAN_CONNECTED){
 		WAN_NETIF_CARRIER_ON(dev);		
 	}
-
 	WAN_NETIF_WAKE_QUEUE(dev);
 #endif
 
@@ -90,10 +89,6 @@ int wplip_open_dev(netdevice_t *dev)
 		wan_set_bit(WAN_DEV_READY,&lip_dev->interface_down);
 		wplip_trigger_if_task(lip_dev);
 	}
-
-#warning "NENAD"
-	DEBUG_EVENT("%s: LIP %s()\n",
-		wan_netif_name(dev),__FUNCTION__);
 	return 0;
 }
 
@@ -312,7 +307,8 @@ int wplip_if_output (netdevice_t* dev,netskb_t* skb,struct sockaddr* sa, struct 
 			wplip_lipdev_latency_change(lip_dev->lip_link);
 		}
 	}
-#endif
+#endif     
+	
 	return err;
 }
 

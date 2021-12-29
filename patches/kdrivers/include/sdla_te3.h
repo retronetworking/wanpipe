@@ -62,15 +62,16 @@ typedef struct {
 	int			rdevice_type;
 	int			fcs;
 	int			clock;
+	unsigned char		lcode;
 } sdla_te3_cfg_t;
 
 typedef struct {
-	unsigned long	pmon_lcv;
-	unsigned long	pmon_framing;
-	unsigned long	pmon_parity;
-	unsigned long 	pmon_febe;
-	unsigned long	pmon_cpbit;
-}sdla_te3_pmon_t;
+	unsigned int	pmon_lcv;
+	unsigned int	pmon_framing;
+	unsigned int	pmon_parity;
+	unsigned int 	pmon_febe;
+	unsigned int	pmon_cpbit;
+} sdla_te3_pmon_t;
 
 #define IS_DS3(cfg)	((cfg)->media == WAN_MEDIA_DS3)
 #define IS_E3(cfg)	((cfg)->media == WAN_MEDIA_E3)
@@ -94,8 +95,7 @@ typedef struct {
 	int dummy;
 } sdla_te3_param_t;
 
-int sdla_te3_config(void *p_fe, void *p_fe_iface);
-int sdla_te3_unconfig(void *p_fe);
+int sdla_te3_iface_init(void *p_fe_iface);
 #endif /* WAN_KERNEL */
 
 #endif /* __SDLA_TE3_H */

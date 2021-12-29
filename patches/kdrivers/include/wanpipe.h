@@ -41,11 +41,17 @@
 #define	_WANPIPE_H
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-#include <net/wanpipe_defines.h>
-#include <net/wanpipe_cfg.h>
-# include <net/wanrouter.h>
+#include <wanpipe_defines.h>
+#include <wanpipe_debug.h>
+#include <wanpipe_common.h>
+#include <wanpipe_events.h>
+#include <wanpipe_cfg.h>
+# include <wanrouter.h>
 #elif defined(__LINUX__) || defined (__KERNEL__)
 #include <linux/wanpipe_defines.h>
+#include <linux/wanpipe_debug.h>
+#include <linux/wanpipe_common.h>
+#include <linux/wanpipe_events.h>
 #include <linux/wanpipe_cfg.h>
 # include <linux/wanrouter.h>
 #else
@@ -132,7 +138,7 @@ enum {
 };
 
 /* TE timer critical flags */
-/* #define LINELB_TIMER_RUNNING 0x04 - define in sdla_te1_def.h */
+/* #define LINELB_TIMER_RUNNING 0x04 - define in sdla_te1_pmc.h */
 
 /* Bit maps for dynamic interface configuration
  * DYN_OPT_ON : turns this option on/off 
@@ -276,11 +282,11 @@ typedef struct {
 /****** Kernel Interface ****************************************************/
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/wanpipe_debug.h>	/* WANPIPE Debugging messages */
-# include <net/wanpipe_kernel.h>
-# include <net/sdlasfm.h>
-# include <net/sdladrv.h>
-# include <net/wanpipe_common.h>
+# include <wanpipe_debug.h>	/* WANPIPE Debugging messages */
+# include <wanpipe_kernel.h>
+# include <sdlasfm.h>
+# include <sdladrv.h>
+# include <wanpipe_common.h>
 #elif defined(__LINUX__)
 # include <linux/wanpipe_kernel.h>
 # ifndef KERNEL_VERSION
@@ -703,6 +709,7 @@ typedef struct
 	unsigned int	security_id;
 	unsigned int	security_cnt;
 	unsigned char	firm_ver;
+	unsigned char	firm_id;
 	unsigned int	chip_security_cnt;
 	unsigned long	rx_timeout,gtimeout;
 	unsigned int	comm_enabled;
@@ -718,7 +725,14 @@ typedef struct
 	unsigned int	tdmv_chan;	
 	unsigned int	tdmv_dchan_active_ch;
 	void 		*tdmv_chan_ptr;
-	unsigned char	led_ctrl;   
+
+	unsigned char	led_ctrl;
+	unsigned int	tdm_intr_status;
+	void 		*bar_virt;
+	unsigned short	tdm_rx_dma_toggle;
+	unsigned short	tdm_tx_dma_toggle;
+	unsigned int	tdm_logic_ch_map;
+	unsigned long	sec_chk_cnt;
 } sdla_xilinx_t;
 
 typedef struct 
@@ -847,18 +861,18 @@ typedef struct sdla
 	int (*bind_api_to_svc)(struct sdla*, void *sk_id);
 	
 	unsigned long	spurious;
+
+	unsigned long	intcount;
 	
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-	wan_tdmv_t	wan_tdmv;
+	wan_tdmv_iface_t	tdmv_iface;
+	wan_tdmv_t		wan_tdmv;
 #endif
 	
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 	struct sdla*	same_card;
 #endif
 
-#if defined(CONFIG_PRODUCT_WANPIPE_TDMV_EC)
-	void		*oct6100;
-#endif
 
 #if defined(__FreeBSD__)
 # if defined(NETGRAPH)
@@ -922,10 +936,15 @@ int wp_atm_init(sdla_t* card, wandev_conf_t* conf);	/* ATM Driver */
 int wp_pos_init(sdla_t* card, wandev_conf_t* conf);	/* POS Driver */	
 int wp_xilinx_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_aft_te1_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
+int wp_aft_56k_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
+int wp_aft_analog_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_adccp_init(sdla_t* card, wandev_conf_t* conf);	
 int wp_xilinx_if_init(sdla_t* card, netdevice_t* dev);
 int wp_aft_te3_init(sdla_t* card, wandev_conf_t* conf); /* AFT TE3 Hardware Support */
 int wp_aft_te1_ss7_init(sdla_t* card, wandev_conf_t* conf); /* AFT TE1 SS7 Hardware Support */
+int aft_global_hw_device_init(void);
+
+int wanpipe_globals_util_init(void); /* Initialize All Global Tables */
 
 #if defined(__LINUX__)
 extern int wanpipe_queue_tq (struct tq_struct *);
@@ -933,6 +952,12 @@ extern int wanpipe_mark_bh (void);
 extern int change_dev_flags (netdevice_t *, unsigned); 
 extern unsigned long get_ip_address (netdevice_t *dev, int option);
 extern void add_gateway(sdla_t *, netdevice_t *);
+
+#if 0
+extern void fastcall wp_tasklet_hi_schedule_per_cpu(struct tasklet_struct *t, int cpu_no);
+extern void wp_tasklet_per_cpu_init (void);
+#endif
+
 //FIXME: Take it out
 //extern int wan_reply_udp( unsigned char *data, unsigned int mbox_len, int trace_opt);
 //extern int wan_udp_pkt_type(sdla_t* card,unsigned char *data);
@@ -952,6 +977,18 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr);
 
 int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, char direction);
 int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, int off,char direction);
+
+#if defined(__LINUX__)
+int wan_verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode);
+int wan_memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len);
+int wan_memcpy_toiovec(struct iovec *iov, unsigned char *kdata, int len);
+#endif
+
+/* LIP ATM prototypes */
+int init_atm_idle_buffer(unsigned char *buff, int buff_len, char *if_name, char hardware_flip);
+int atm_add_data_to_skb(void* skb, void *data, int data_len, char *if_name);
+int atm_pad_idle_cells_in_tx_skb(void *skb, void *tx_idle_skb, char *if_name);
+void *atm_tx_skb_dequeue(void* wp_tx_pending_list, void *tx_idle_skb, char *if_name);
 
 
 #if defined(__FreeBSD__) && defined(NETGRAPH)

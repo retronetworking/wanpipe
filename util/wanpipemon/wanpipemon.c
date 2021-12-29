@@ -34,6 +34,7 @@
 #include <arpa/inet.h>
 #if defined(__LINUX__)
 # include <linux/version.h>
+# include <linux/types.h>
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
@@ -47,9 +48,9 @@
 # include <netinet/in.h>
 # include <netinet/ip.h>
 # include <netinet/udp.h>  
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe.h>
 #endif
 #include "fe_lib.h"
 #include "wanpipemon.h"
@@ -83,18 +84,22 @@ int 		is_508;
 int		gui_interface=0;
 
 
+extern int trace_hdlc_data(wanpipe_hdlc_engine_t *hdlc_eng, void *data, int len);
+
 static sa_family_t		af = AF_INET;
 static struct sockaddr_in	soin;
  char ipaddress[16];
 int  udp_port = 9000;
 
-short dlci_number;
+short dlci_number=16;
 char if_name[WAN_IFNAME_SZ+1];
 int ip_addr = -1;
 int start_xml_router=0;
 int stop_xml_router=1;
 int raw_data=0;
 int trace_all_data=0;
+int zap_monitor=0;
+int zap_chan = 0;
 int lcn_number=0;
 unsigned char par_port_A_byte, par_port_B_byte;
 
@@ -113,6 +118,8 @@ int pcap_output=0;
 int pcap_prot=0;
 FILE *pcap_output_file;
 unsigned char pcap_output_file_name[50];
+
+wanpipe_hdlc_engine_t *rx_hdlc_eng; 
 
 trace_prot_t trace_prot_opt[]={ 
 	{"FR", FRAME,107},
@@ -173,6 +180,10 @@ struct fun_protocol function_lookup[] = {
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 	
+	{ WANCONFIG_AFT_56K,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
+		                         AFTget_main_menu, AFTget_cmd_menu, 
+					 NULL,NULL, 2 },
+
 	{ WANCONFIG_AFT_TE1,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
@@ -215,6 +226,20 @@ struct fun_protocol function_lookup[] = {
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
 
+	{ WANCONFIG_AFT_56K,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
+		                         AFTget_main_menu, AFTget_cmd_menu, 
+					 NULL,NULL, 2 },
+
+	{ WANCONFIG_AFT_ANALOG,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
+		                         AFTget_main_menu, AFTget_cmd_menu, 
+					 NULL,NULL, 2 },
+
+#ifdef WANPIPEMON_ZAP
+	{ WANCONFIG_ZAP,	"zap",   NULL, ZAPUsage, ZAPMain, NULL, 
+		                         ZAPget_main_menu, ZAPget_cmd_menu, 
+					 NULL,NULL, 0 },
+#endif
+
 	{ WANCONFIG_AFT_TE3,	"aft",   AFTConfig, AFTUsage, AFTMain, AFTDisableTrace, 
 		                         AFTget_main_menu, AFTget_cmd_menu, 
 					 NULL,NULL, 2 },
@@ -249,6 +274,11 @@ struct fun_protocol function_lookup[] = {
  *****************************************************************************/
 int MakeConnection( void )
 {
+#ifdef WANPIPEMON_ZAP
+	if(zap_monitor == 1){
+		return MakeZapConnection();
+	}
+#endif
 	if (ip_addr == WAN_TRUE){
 
 		sock = socket((af == AF_INET) ? PF_INET : PF_INET6, SOCK_DGRAM, 0);
@@ -390,10 +420,12 @@ char* get_hardware_level_interface_name(char* interface_name)
 
   //initialize 'master name' with current name, so in case
   //of failure to get the 'maser name' current name will be used.
-  strncpy(master_dev_name, interface_name, WAN_IFNAME_SZ+1);
+  strncpy(master_dev_name, interface_name, WAN_IFNAME_SZ);
+  master_dev_name[WAN_IFNAME_SZ]='\0'; 	
 
   //save the original values.
-  strncpy(original_global_if_name, if_name, WAN_IFNAME_SZ+1);
+  strncpy(original_global_if_name, if_name, WAN_IFNAME_SZ);
+  original_global_if_name[WAN_IFNAME_SZ]='\0'; 	
   original_global_wan_protocol = wan_protocol;
   
   while(found_hardware_level == 0){
@@ -405,7 +437,8 @@ char* get_hardware_level_interface_name(char* interface_name)
     if(interface_name != if_name){
       //on the first iteration 'interface_name' is the same pointer as the global 'if_name'.
       //after the first iteration, use 'tmp_master_dev_name'.
-      strncpy(if_name, interface_name, WAN_IFNAME_SZ+1);
+      strncpy(if_name, interface_name, WAN_IFNAME_SZ);
+      if_name[WAN_IFNAME_SZ]='\0'; 	
     }
 
     if(MakeConnection() == WAN_FALSE){ 
@@ -596,23 +629,23 @@ void hw_router_up_time()
 	cleanup_hardware_level_connection();
 }
 
-void print_router_up_time(unsigned long time)
+void print_router_up_time(u_int32_t time)
 {
-	unsigned long minutes;
-	unsigned long seconds;
+	u_int32_t minutes;
+	u_int32_t seconds;
 	
      	if (time < 3600) {
 		if (time<60){
-     			printf("    Router UP Time:  %lu seconds\n", time);
+     			printf("    Router UP Time:  %u seconds\n", time);
 		}else{
-     			printf("    Router UP Time:  %lu minute(s),  %lu seconds\n",
+     			printf("    Router UP Time:  %u minute(s),  %u seconds\n",
 			       	time/60, time%60);
 		}
      	}else{
 		minutes = (time%3600) / 60;
 		seconds = (time%3600) % 60;
 			
-     		printf("    Router UP Time:  %lu hour(s), %lu minute(s),  %lu seconds.\n",
+     		printf("    Router UP Time:  %u hour(s), %u minute(s),  %u seconds.\n",
 			time/3600, minutes, seconds);
 	}
 }
@@ -723,8 +756,6 @@ static int init(int argc, char *argv[], char* command)
 
 
 	for (i = 0; i < argc; i++){
-
-		
 		if (!strcmp(argv[i],"-h")){
 #if defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 			EXEC_NAME_FUNC(usage,"hdlc",());
@@ -739,14 +770,13 @@ static int init(int argc, char *argv[], char* command)
 			return WAN_FALSE;
 #endif			
 		}else if (!strcmp(argv[i],"-i")){
-
 			if (i+1 > argc-1){
 				printf("ERROR: Invalid IP or Interface Name!\n");
 				printf("Type wanpipemon <cr> for help\n");
 				return WAN_FALSE;
 			}
 
-			strcpy(ipaddress,argv[i+1]);
+			strncpy(ipaddress,argv[i+1], WAN_IFNAME_SZ+1);
 			if (inet_aton(ipaddress,ip_str) != 0 ){
 				ip_addr = WAN_TRUE;
 			}else{
@@ -772,7 +802,24 @@ static int init(int argc, char *argv[], char* command)
 			return WAN_TRUE;
 #else
 			printf("wanpipemon: Warning GUI interface not compiled in!\n\n");
-#endif			
+#endif	
+
+#ifdef WANPIPEMON_ZAP
+		}else if (!strcmp(argv[i],"-zap")){
+			zap_monitor=1;
+			wan_protocol = WANCONFIG_ZAP;
+		
+		}else if (!strcmp(argv[i],"-zapchan")){
+			if (i+1 > argc-1){
+				printf("ERROR: No Zap channel specified! i.e. '-zapchan 1'\n");
+				return WAN_FALSE;
+			}
+			if(isdigit(argv[i+1][0]) == 0 || (zap_chan = atoi(argv[i+1])) == 0){
+				printf("ERROR: Invalid -zapchan input: %s! Has to be a number greater than zero.\n",
+					argv[i+1]);
+				return WAN_FALSE;
+			}
+#endif				
 		}else if (!strcmp(argv[i],"-u")){
 
 			if (i+1 > argc-1){
@@ -797,25 +844,14 @@ static int init(int argc, char *argv[], char* command)
 				return WAN_FALSE;
 			}
 
-			strcpy(command,argv[i+1]);
+			memset(command, 0, MAX_CMD_LENGTH+1);
+			strncpy(command,argv[i+1], strlen(argv[i+1]));
+			//strncpy(command,argv[i+1], MAX_CMD_LENGTH);
+			//command[MAX_CMD_LENGTH]='\0';	
 			c_cnt=1;
 		}else if (!strcmp(argv[i], "-d")){
-
-			if (i+1 > argc-1){
-				printf("ERROR: Invalid Command!\n");
-				printf("Type wanpipemon <cr> for help\n\n");
-				return WAN_FALSE;
-			}
-			if (isdigit(argv[i+1][0])){
-				dlci_number = atoi(argv[i+1]);
-				TRACE_DLCI=dlci_number;
-			}else{
-				printf("ERROR: DLCI must be an integer!\n");
-				printf("Type wanpipemon <cr> for help\n");
-				return WAN_FALSE;
-			} 
+			TRACE_DLCI=dlci_number=16;
 			d_cnt=1;
-		
 		}else if (!strcmp(argv[i],"-pv6")){
 			af = AF_INET6;	// IPV6
 
@@ -950,6 +986,12 @@ static int init(int argc, char *argv[], char* command)
 		}
 	}
 
+#ifdef WANPIPEMON_ZAP
+	if (zap_monitor == 1){
+		return WAN_TRUE;
+	}
+#endif
+	
 	if (!i_cnt){
 		printf("ERROR: No IP address or Interface Name!\n");
 		printf("Type %s <cr> for help\n", progname);
@@ -966,8 +1008,8 @@ static int init(int argc, char *argv[], char* command)
 		return WAN_FALSE;
 	}
 	if (!d_cnt){
-		/* Default DLCI Number to 0 */
-		dlci_number = 0;
+		/* Default DLCI Number to 16 */
+		dlci_number = 16;
 	}
 
 	return WAN_TRUE;
@@ -1260,18 +1302,25 @@ void sig_end(int signal)
 		pcap_output_file=NULL;
 	}
 
-	if (sock)
+	if (sock) {
 		close(sock);
+		sock=-1;
+	}
+
+	if (rx_hdlc_eng) {
+         	wanpipe_unreg_hdlc_engine(rx_hdlc_eng);  
+		rx_hdlc_eng=NULL;
+	}
 
 	//printf("\n\nSignal: Terminating wanpipemon\n");
 
 	exit(0);
 }
 
-
 int main(int argc, char* argv[])
 {
-	char command[5];
+	char command[MAX_CMD_LENGTH+1];
+	int err = 0;
 
 	strcpy(wan_udp.wan_udphdr_signature, GLOBAL_UDP_SIGNATURE);
 	sprintf(pcap_output_file_name,"wp_trace_pcap.bin");
@@ -1279,13 +1328,18 @@ int main(int argc, char* argv[])
 	signal(SIGHUP,sig_end);
 	signal(SIGINT,sig_end);
 	signal(SIGTERM,sig_end);
+
+	rx_hdlc_eng = wanpipe_reg_hdlc_engine();
+	if (rx_hdlc_eng) {
+         	rx_hdlc_eng->hdlc_data = trace_hdlc_data;
+	}
 	
   	printf("\n");
    	if (argc >= 2){
-		int err=0;
     
 		if (init(argc, argv, command) == WAN_FALSE){
-			return -EINVAL;		
+			err=-EINVAL;
+			goto main_exit;
 		}
 
 		if (pcap_output){
@@ -1299,21 +1353,24 @@ int main(int argc, char* argv[])
 			if (!pcap_output_file){
 				printf("wanpipemon: Failed to open %s binary file!\n",
 						pcap_output_file_name);
-				return -EINVAL;
+				err=-EINVAL;
+				goto main_exit;
 			}
 		}
 
 #ifdef WANPIPEMON_GUI
 		if (gui_interface && ip_addr==-1){
 			if (wan_main_gui() == WAN_FALSE){
-				return -EINVAL;
+				err=-EINVAL;
+				goto main_exit;
 			}
 		}
 gui_loop:		
 #endif
 		if (MakeConnection() == WAN_FALSE){ 
 			close(sock);
-			return -ENODEV;	
+		       	err=-ENODEV;
+		       	goto main_exit;
 		}
 		
 		//get_hardware_level_interface_name(if_name);
@@ -1339,7 +1396,15 @@ gui_loop:
    	}
   
 	printf("\n");
-   	return 0;
+
+main_exit:
+
+	if (rx_hdlc_eng) {
+         	wanpipe_unreg_hdlc_engine(rx_hdlc_eng);  
+		rx_hdlc_eng=NULL;
+	}
+
+   	return err;
 }
 
 

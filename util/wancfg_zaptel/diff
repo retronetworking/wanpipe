@@ -1,0 +1,443 @@
+? tmp_cfg/debug_info
+? tmp_cfg/wanpipe1.conf
+? tmp_cfg/wanpipe10.conf
+? tmp_cfg/wanpipe2.conf
+? tmp_cfg/wanpipe3.conf
+? tmp_cfg/wanpipe4.conf
+? tmp_cfg/wanpipe5.conf
+? tmp_cfg/wanpipe6.conf
+? tmp_cfg/wanpipe7.conf
+? tmp_cfg/wanpipe8.conf
+? tmp_cfg/wanpipe9.conf
+? tmp_cfg/wanrouter.rc
+? tmp_cfg/zapata.conf
+? tmp_cfg/zaptel.conf
+Index: A10u.pm
+===================================================================
+RCS file: /usr/local/cvsroot/wanpipe_common/wantools/wancfg_zaptel/A10u.pm,v
+retrieving revision 1.1
+diff -u -r1.1 A10u.pm
+--- A10u.pm	28 Mar 2007 20:56:52 -0000	1.1
++++ A10u.pm	6 Jun 2007 18:55:08 -0000
+@@ -15,6 +15,7 @@
+ 		_fe_lcode  => 'B8ZS',
+ 		_fe_frame  => 'ESF',
+ 		_fe_clock  => 'NORMAL',
++		_te_ref_clock  => '0',
+ 		_signalling => 'PRI_CPE',
+ 		_pri_switchtype => 'national',
+ 		_hw_dchan  => '0',
+@@ -32,6 +33,11 @@
+ 	    my ( $self, $fe_line ) = @_;
+ 	        $self->{_fe_line} = $fe_line if defined($fe_line);
+ 		    return $self->{_fe_line};
++}
++sub te_ref_clock {
++	    my ( $self, $te_ref_clock ) = @_;
++	        $self->{_te_ref_clock} = $te_ref_clock if defined($te_ref_clock);
++		    return $self->{_te_ref_clock};
+ }
+ sub signalling {
+ 	    my ( $self, $signalling ) = @_;
+Index: A10x.pm
+===================================================================
+RCS file: /usr/local/cvsroot/wanpipe_common/wantools/wancfg_zaptel/A10x.pm,v
+retrieving revision 1.5
+diff -u -r1.5 A10x.pm
+--- A10x.pm	1 Jun 2007 19:50:43 -0000	1.5
++++ A10x.pm	6 Jun 2007 18:55:08 -0000
+@@ -16,6 +16,7 @@
+ 		_fe_lcode  => 'B8ZS',
+ 		_fe_frame  => 'ESF',
+ 		_fe_clock  => 'NORMAL',
++		_te_ref_clock  => '0',
+ 		_signalling => 'PRI_CPE',
+ 		_pri_switchtype => 'national',
+ 		_hw_dchan  => '0',
+@@ -34,6 +35,12 @@
+ 	        $self->{_fe_line} = $fe_line if defined($fe_line);
+ 		    return $self->{_fe_line};
+ }
++
++sub te_ref_clock {
++	    my ( $self, $te_ref_clock ) = @_;
++	        $self->{_te_ref_clock} = $te_ref_clock if defined($te_ref_clock);
++		    return $self->{_te_ref_clock};
++}
+ sub signalling {
+ 	    my ( $self, $signalling ) = @_;
+ 	    $self->{_signalling} = $signalling if defined($signalling);
+@@ -134,6 +141,7 @@
+ 	my $fe_frame = $self->fe_frame;
+ 	my $fe_line = $self->fe_line;
+ 	my $fe_clock = $self->fe_clock;
++	my $te_ref_clock = $self->te_ref_clock;
+ 	my $te_sig_mode = '';
+ 	my $hwec_mode = $self->card->hwec_mode;
+ 	my $dchan = 0;
+@@ -170,6 +178,7 @@
+         $wp_file =~ s/FELINE/$fe_line/g;
+ 	$wp_file =~ s/TESIGMODE/$te_sig_mode/g;
+         $wp_file =~ s/FECLOCK/$fe_clock/g;
++	$wp_file =~ s/TEREFCLOCK/$te_ref_clock/g;
+         $wp_file =~ s/FELBO/$fe_lbo/g;
+         $wp_file =~ s/TDMVDCHAN/$dchan/g;
+         $wp_file =~ s/HWECMODE/$hwec_mode/g;
+Index: A20x.pm
+===================================================================
+RCS file: /usr/local/cvsroot/wanpipe_common/wantools/wancfg_zaptel/A20x.pm,v
+retrieving revision 1.1
+diff -u -r1.1 A20x.pm
+--- A20x.pm	28 Mar 2007 20:56:52 -0000	1.1
++++ A20x.pm	6 Jun 2007 18:55:08 -0000
+@@ -12,6 +12,7 @@
+ 		_card      => undef,		
+ 		_tdm_opermode => 'FCC',
+ 		_tdm_law => 'MULAW',
++		_rm_network_sync => 'NO',
+ 		_analog_modules => undef,
+ 	};			
+ 	bless $self, $class;
+@@ -36,6 +37,12 @@
+ 				                        return $self->{_tdm_law};
+ }
+ 
++sub rm_network_sync {
++	            my ( $self, $rm_network_sync ) = @_;
++		                    $self->{_rm_network_sync} = $rm_network_sync if defined($rm_network_sync);
++				                        return $self->{_rm_network_sync};
++}
++
+ sub analog_modules {
+ 	            my ( $self, $analog_modules ) = @_;
+ 		                    $self->{_analog_modules} = $analog_modules if defined($analog_modules);
+@@ -98,6 +105,7 @@
+ 	my $pci_bus = $self->card->pci_bus;
+ 	my $tdm_law = $self->tdm_law;
+ 	my $tdm_opermode = $self->tdm_opermode;
++	my $rm_network_sync = $self->rm_network_sync;
+ 	my $hwec_mode = $self->card->hwec_mode;
+ 
+ 	open(FH, $wanpipe_conf_template) or die "Can open $wanpipe_conf_template";
+@@ -111,6 +119,7 @@
+         $wp_file =~ s/SLOTNUM/$pci_slot/g;
+         $wp_file =~ s/BUSNUM/$pci_bus/g;
+         $wp_file =~ s/TDM_LAW/$tdm_law/g;
++	$wp_file =~ s/RMNETSYNC/$rm_network_sync/g;
+         $wp_file =~ s/TDM_OPERMODE/$tdm_opermode/g;
+         $wp_file =~ s/HWECMODE/$hwec_mode/g;
+ 	
+Index: wancfg_zaptel.pl
+===================================================================
+RCS file: /usr/local/cvsroot/wanpipe_common/wantools/wancfg_zaptel/wancfg_zaptel.pl,v
+retrieving revision 1.5
+diff -u -r1.5 wancfg_zaptel.pl
+--- wancfg_zaptel.pl	5 Jun 2007 15:54:34 -0000	1.5
++++ wancfg_zaptel.pl	6 Jun 2007 18:55:08 -0000
+@@ -53,6 +53,10 @@
+ my $num_digital_devices=0;
+ my $num_digital_devices_total=0;
+ 
++my $device_has_hwec=$FALSE;
++my $device_has_normal_clock=$FALSE;
++my @device_normal_clocks=("0");
++
+ my $def_femedia='';
+ my $def_feframe='';
+ my $def_feclock='';
+@@ -60,6 +64,7 @@
+ my $def_switchtype='';
+ my $def_zapata_context='';
+ my $def_zapata_group='';
++my $def_te_ref_clock='';
+ 
+ my $is_trixbox = $FALSE;
+ my $config_zapata = $TRUE;
+@@ -97,6 +102,8 @@
+ config_digital();
+ config_analog();
+ 
++
++
+ if($devnum==1){
+ 	system('clear');
+ 	print "\n###################################################################";
+@@ -303,14 +310,11 @@
+ 	}else{
+ 		$asterisk_restart=$FALSE;
+ 	}
+-	 
+-
+ 
+ 	if ($is_trixbox==$TRUE){
+ 		exec_command("amportal stop");
+-#unload_zap_modules();
+ 	}else{
+-		print "\nStopping Asterisk...\n";	
++		print "\nTrying to stop Asterisk...\n";	
+ 		exec_command("asterisk -rx \"$asterisk_command\"");
+ 	} 
+ 	print "\n\nStopping Wanpipe...\n";
+@@ -326,7 +330,6 @@
+ 
+ 	print "\nCopying new Wanpipe configuration files...\n";
+ 	copy_config_files();
+-#	exec_command("cp -f $current_dir/$cfg_dir/* /etc/wanpipe");
+ 	
+ 	print "\nCopying new Zaptel configuration file ($zaptel_conf_file_t)...\n";
+ 	exec_command("cp -f $zaptel_conf_file $zaptel_conf_file_t");
+@@ -423,13 +426,7 @@
+        	close (FH);	
+ 			
+ 	
+-#	print "\n\nGenerating debug tarball $debug_tarball \n";
+ 	exec_command("tar cvfz $debug_tarball $cfg_dir/* >/dev/null 2>/dev/null");
+-
+-#	print "\nEmail $debug_tarball to techdesk\@sangoma.com";
+-#	print "\nwhen requesting support.\n";	
+-#	prompt_user("Press any key to continue");
+-	
+ }
+ 
+ sub config_analog{
+@@ -438,7 +435,6 @@
+ 	print "------------------------------------\n";
+ 	print "Configuring analog cards [A200/A400]\n";
+ 	print "------------------------------------\n";
+-#	prompt_user("Press any key to continue");
+ 	my $skip_card=$FALSE;
+ 	$zaptel_conf.="\n";
+ 	$zapata_conf.="\n";
+@@ -473,17 +469,30 @@
+ 			       		} 
+ 				}
+ 				if ($skip_card==$FALSE){
++               				$a20x = eval {new A20x(); } or die ($@);
++					$a20x->card($card);
++					$card->first_chan($current_zap_channel);
++       					$current_zap_channel+=24;
++
++					if ( $device_has_hwec==$TRUE){
++						print "Will this A$1 to synchronize with an existing Sangoma T1/E1 card?\n";
++						print "\n WARNING: for hardware and firmware requirements, check:\n";
++						print "          http://wiki.sangoma.com/t1e1analogfaxing\n";
++						
++						if (&prompt_user_list(("YES","NO","")) eq 'NO'){
++							$a20x->rm_network_sync('NO');
++						} else {
++							$a20x->rm_network_sync('YES');
++						}
++					} 
++
+ 					print "A$1 configured on slot:$3 bus:$4 span:$devnum\n";
+ 					prompt_user("Press any key to continue");
+ 			 		$zaptel_conf.="#Sangoma A$1 [slot:$3 bus:$4 span:$devnum]\n";
+ 					$zapata_conf.=";Sangoma A$1 [slot:$3 bus:$4 span:$devnum]\n";
+ 					$startup_string.="wanpipe$devnum ";
+ 			
+-               				$a20x = eval {new A20x(); } or die ($@);
+-					$a20x->card($card);
+-					$card->first_chan($current_zap_channel);
+-       					$current_zap_channel+=24;
+-					my $i;
++	#				my $i;
+ 					$a20x->gen_wanpipe_conf();
+ 					$devnum++;
+ 					$num_analog_devices++;
+@@ -519,7 +528,6 @@
+ 	print "---------------------------------------------\n";
+ 	print "Configuring T1/E1 cards [A101/A102/A104/A108]\n";
+ 	print "---------------------------------------------\n";
+-#	prompt_user("Press any key to continue");
+ 	
+ 	foreach my $dev (@hwprobe) {
+ 		if ( $dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/){
+@@ -564,21 +572,14 @@
+ 				system('clear');
+ 				if (($6 eq '1' || $6 eq 'PRI') && $5 eq 'A'){
+                                		print "A$1 detected on slot:$3 bus:$4\n";
+-			#		prompt_user("Press any key to continue");
+-			#		$def_femedia='';
+-		#			$def_feframe='';
+-		#			$def_feclock='';
+-	#				$def_signalling='';
+-#					$def_switchtype='';
+-#					$def_zapata_context='';
+-#					$def_zapata_group='';
++					$device_has_normal_clock=$FALSE;
++					@device_normal_clocks = ("0");
+ 				}
+ 				system('clear');
+ 				my $msg ="Configuring port ".$port." on A".$card->card_model." slot:".$card->pci_slot." bus:".$card->pci_bus.".\n";
+ 				print "\n-----------------------------------------------------------\n";
+ 				print "$msg";
+ 				print "-----------------------------------------------------------\n";
+-		#		prompt_user("Press any key to continue");
+ 					
+ 				printf ("\nSelect media type for A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+ 				my @options = ("T1", "E1", "Unused","Exit");
+@@ -591,12 +592,15 @@
+ 					}
+ 				}elsif ( $fe_media eq 'Unused'){
+ 					$def_femedia=$fe_media;	
+-			#		system('clear');
+ 					my $msg= "A$1 on slot:$3 bus:$4 port:$port not configured\n";
+ 					print "$msg";
+ 					prompt_user("Press any key to continue");
+ 				}else{
+-			       		$def_femedia=$fe_media; 
++					if ($card->hwec_mode eq 'YES' && $device_has_hwec==$FALSE){
++						$device_has_hwec=$TRUE;
++					} 
++			       		
++					$def_femedia=$fe_media; 
+ 					$startup_string.="wanpipe$devnum ";
+ 					my $a10x;
+ 		       	
+@@ -630,16 +634,33 @@
+ 			      			$current_zap_channel+=31;
+ 					}
+ 					my @options = ("NORMAL", "MASTER");
+-					printf ("Select clock for A%s on port %s \n", $card->card_model, $port);
++					printf ("Select clock for A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+ 					$def_feclock=&prompt_user_list(@options, $def_feclock);
+ 					$a10x->fe_clock($def_feclock);
++
++					if ( $def_feclock eq 'NORMAL') {
++						$device_has_normal_clock=$TRUE;
++						 push(@device_normal_clocks, $a10x->fe_line);
++					} elsif ( $def_feclock eq 'MASTER' && $device_has_normal_clock == $TRUE ){
++						printf("Clock synchronisation options for %s on port %s [slot:%s bus:%s span:$devnum] \n", 
++								$card->card_model, 
++								$port, 
++								$card->pci_slot, 
++								$card->pci_bus);
++						printf(" Free run: Use internal oscillator on card [default] \n");
++        					printf(" Port N: Sync with clock from port N \n\n");
++						
++						printf("Select clock source %s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
++						$def_te_ref_clock=&get_te_ref_clock(@device_normal_clocks);
++						$a10x->te_ref_clock($def_te_ref_clock);
++					}
+ 			
+ 		     	   		@options = ("PRI CPE", "PRI NET", "E & M", "E & M Wink", "FXS - Loop Start", "FXS - Ground Start", "FXS - Kewl Start", "FX0 - Loop Start", "FX0 - Ground Start", "FX0 - Kewl Start");
+ 					printf ("Select signalling type for %s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+ 				       	$def_signalling=&prompt_user_list(@options,$def_signalling); 
+ 					$a10x->signalling($def_signalling);
+ 
+-					if ( $a10x->signalling eq 'PRI CPE' | $a10x->signalling eq 'PRI NET' ){
++					if ( $a10x->signalling eq 'PRI CPE' || $a10x->signalling eq 'PRI NET' ){
+ 						if ( $config_zapata==$TRUE){
+ 							printf ("Select switchtype for %s on port %s \n", $card->card_model, $port);
+ 							$a10x->pri_switchtype(get_pri_switchtype());
+@@ -654,7 +675,6 @@
+ 					}
+ 					$devnum++;
+ 					$num_digital_devices++;
+-			#		system('clear');
+ 					my $msg ="Port ".$port." on A".$card->card_model." configuration complete...\n";
+ 					print "$msg";
+ 					prompt_user("Press any key to continue");
+@@ -679,14 +699,6 @@
+ 		       	if( $4 eq 'A' ){
+                       		print "\n\nSangoma single/dual T1/E1 card detected on slot:$2 bus:$3\n";
+ 		      		print "Select configuration options:\n";
+-		#		prompt_user("Press any key to continue");
+-#				$def_femedia='';
+-#				$def_feframe='';
+-#				$def_feclock='';
+-#				$def_signalling='';
+-#				$def_switchtype='';
+-#				$def_zapata_context='';
+-#				$def_zapata_group='';
+ 		       		
+ 				$port=1;
+ 			}else{
+@@ -756,6 +768,33 @@
+ 	close SCR;
+ }
+ 
++
++sub get_te_ref_clock{
++	my @list_normal_clocks=@_;
++	my @f_list_normal_clocks;
++	my $f_port;
++	foreach my $port (@list_normal_clocks) {
++		if ($port eq '0'){
++			$f_port = "Free run";
++		} else {
++			$f_port = "Port ".$port;
++		}
++		push(@f_list_normal_clocks, $f_port);
++	}		
++
++	my $res = &prompt_user_list(@f_list_normal_clocks, "Free run");
++	my $i;
++	
++	for $i (0..$#f_list_normal_clocks){
++		if ( $res eq @f_list_normal_clocks[$i] ){
++			return @list_normal_clocks[$i];
++		}
++	}
++
++	print "Internal error: Invalid reference clock\n";
++	exit 1;
++
++}
+ sub get_zapata_context{
+ 	my ($card_model,$card_port)=@_;
+ 	my $context='';
+@@ -786,10 +825,6 @@
+ 		exit 1;
+ 	}
+ 	$def_zapata_context=$context;
+-#	if($is_trixbox==$FALSE){
+-#		print "\n Use \"[$context]\" in your /etc/asterisk/extensions.conf to";
+-#		print "\n configure your dialplan for incoming calls on this port.\n";
+-#	}
+ 	return $context;	
+ }
+ sub get_zapata_group{
+@@ -820,10 +855,6 @@
+ 			$def_zapata_group=$group;
+ 		}      
+ 	}
+-#	if($is_trixbox==$FALSE){
+-#		print "\n Use \"exten=>s,1,Dial(Zap/g$group/\${EXTEN})\" in your";
+-#		print "\n /etc/asterisk/extensions.conf to dial out on this port.\n";
+-#	}
+        
+        	return $group;
+ }
+Index: templates/wanpipe.tdm.a100
+===================================================================
+RCS file: /usr/local/cvsroot/wanpipe_common/wantools/wancfg_zaptel/templates/wanpipe.tdm.a100,v
+retrieving revision 1.3
+diff -u -r1.3 wanpipe.tdm.a100
+--- templates/wanpipe.tdm.a100	10 Apr 2007 19:19:09 -0000	1.3
++++ templates/wanpipe.tdm.a100	6 Jun 2007 18:55:08 -0000
+@@ -32,8 +32,8 @@
+ FE_FRAME	= FEFRAME
+ FE_LINE		= FELINE
+ TE_CLOCK 	= FECLOCK
++TE_REF_CLOCK    = TEREFCLOCK
+ TESIGMODE
+-TE_REF_CLOCK 	= 0
+ TE_HIGHIMPEDANCE	= NO
+ LBO 		= FELBO
+ FE_TXTRISTATE	= NO
+Index: templates/wanpipe.tdm.a200
+===================================================================
+RCS file: /usr/local/cvsroot/wanpipe_common/wantools/wancfg_zaptel/templates/wanpipe.tdm.a200,v
+retrieving revision 1.1
+diff -u -r1.1 wanpipe.tdm.a200
+--- templates/wanpipe.tdm.a200	9 Apr 2007 20:45:24 -0000	1.1
++++ templates/wanpipe.tdm.a200	6 Jun 2007 18:55:08 -0000
+@@ -30,6 +30,7 @@
+ FE_MEDIA	= FXO/FXS
+ TDMV_LAW	= TDM_LAW
+ TDMV_OPERMODE	= TDM_OPERMODE
++RM_NETWORK_SYNC = RMNETSYNC
+ MTU 		= 1500
+ UDPPORT 	= 9000
+ TTL		= 255

@@ -155,6 +155,10 @@ again:
     max_valid_number_of_logical_channels = 1;
     break;
 
+  case WAN_MEDIA_FXOFXS:
+    max_valid_number_of_logical_channels = MAX_FXOFXS_CHANNELS;
+    break;
+
   default:
     ERR_DBG_OUT(("Invalid Media Type!! (0x%X)\n", fe_cfg->media));
     return NO;
@@ -167,8 +171,45 @@ again:
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", HW_SETUP);
   menu_str += tmp_buff;
   //create the menu item
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s\" ",
-    get_card_type_string(linkconf->card_type, link_def->card_version));
+  switch(linkconf->card_type)
+  {
+  case WANOPT_AFT:
+    switch(link_def->card_version)
+    {
+    case A101_ADPTR_1TE1:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s (CPU: %s)\" ",
+        get_card_type_string(linkconf->card_type, link_def->card_version), 
+	linkconf->S514_CPU_no);
+      break;
+
+    case A104_ADPTR_4TE1:
+    case A200_ADPTR_ANALOG:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s (Line No: %d)\" ",
+        get_card_type_string(linkconf->card_type, link_def->card_version), fe_cfg->line_no);
+      break;
+
+    case AFT_ADPTR_56K:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s\" ",
+	get_card_type_string(linkconf->card_type, link_def->card_version));
+      break;
+
+    default:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s\" ",
+        get_card_type_string(linkconf->card_type, link_def->card_version));
+    }
+    break;
+
+  case WANOPT_S51X:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s (CPU:%s, Port:%s)\" ",
+        get_card_type_string(linkconf->card_type, link_def->card_version), 
+	linkconf->S514_CPU_no,
+	(linkconf->comm_port == WANOPT_PRI ? "Pri" : "Sec"));
+    break;
+
+  default:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Setup--> %s\" ",
+        get_card_type_string(linkconf->card_type, link_def->card_version));
+  }
   menu_str += tmp_buff;
 
   ////////////////////////////////////////////////////////////////////
@@ -412,7 +453,7 @@ display_hw_setup_dialog_label:
     }
     ///////////////////////////////////////////////////////////
     //check if this wanpipe is in wanrouter.rc->WAN_DEVICES list
-    if(wanrouter_rc_fr->search_boot_start_device() == NO){
+    if(wanrouter_rc_fr->search_and_update_boot_start_device_setting() == NO){
     
       snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to add  '%s' to\n 'wanrouter start' sequence?",
         cfr->link_defs->name);

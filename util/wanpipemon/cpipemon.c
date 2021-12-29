@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stddef.h>	/* offsetof(), etc. */
 #include <ctype.h>
+#include <time.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -43,6 +44,7 @@
 #include <netinet/udp.h>
 #if defined(__LINUX__)
 # include <linux/version.h>
+# include <linux/types.h>
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
@@ -52,11 +54,11 @@
 # include <linux/wanpipe.h>
 # include <linux/sdla_chdlc.h>
 #else
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe.h>
-# include <net/sdla_chdlc.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe.h>
+# include <sdla_chdlc.h>
 #endif
 #include "fe_lib.h"
 #include "wanpipemon.h"
@@ -101,6 +103,8 @@ static void flush_operational_stats_S514( void );
 static void read_code_version_S514(void);
 static void link_status_S514(void);
 
+static void flush_slarp_cdp_stats(void);
+
 static void comm_err( void );
 static void flush_comm_err( void );
 
@@ -124,12 +128,12 @@ static void set_FT1_monitor_status( unsigned char);
 static void read_ft1_op_stats( void );
 static void read_ft1_te1_56k_config( void );
 static void ft1_usage (void);
-static void chdlc_reset_adapter (void);
 
+static wp_trace_output_iface_t trace_iface;
 
 static char *gui_main_menu[]={
 "chdlc_card_stats_menu","Card Status",
-"chdlc_card_config_menu","Card Configuration",
+//"chdlc_card_config_menu","Card Configuration",
 "chdlc_stats_menu", "Card Statistics",
 "chdlc_trace_menu", "Trace Data",
 "csudsu_menu", "CSU DSU Config/Stats",
@@ -148,7 +152,6 @@ static char *chdlc_card_stats_menu[]={
 	
 static char *chdlc_card_config_menu[]={
 "crc","Read Configuration\n",
-"creset","Reset Adapter\n",
 "."
 };
 
@@ -579,112 +582,31 @@ static void read_code_version_S514(void)
 
 static void chdlc_configuration (void)
 {
-	CHDLC_CONFIGURATION_STRUCT *chdlc_cfg;
+	wan_sppp_if_conf_t *chdlc_cfg;
 	wan_udp.wan_udphdr_command = READ_CHDLC_CONFIGURATION; 
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
 	DO_COMMAND(wan_udp);
 
 	if (wan_udp.wan_udphdr_return_code == 0) {
-		chdlc_cfg = (CHDLC_CONFIGURATION_STRUCT *)&wan_udp.wan_udphdr_data[0];
+		chdlc_cfg = (wan_sppp_if_conf_t*)&wan_udp.wan_udphdr_u.data[0];
 		BANNER("CHDLC CONFIGURATION");
 
-		printf("Baud rate: %lu", chdlc_cfg->baud_rate);
+		printf("Ignore Keepalive\t: %s\n", 
+			(chdlc_cfg->sppp_keepalive_timer == 0 ? "Yes" : "No"));
 
-		printf("\nLine configuration: ");
-		     switch (chdlc_cfg->line_config_options) {
-			case INTERFACE_LEVEL_V35:
-				printf("V.35");
-				break;
-			case INTERFACE_LEVEL_RS232:
-				printf("RS-232");
-				break;
-		     }
-
-		printf("\n\nLink State depends on:");
-		     if (chdlc_cfg->CHDLC_protocol_options & IGNORE_DCD_FOR_LINK_STAT)
-			     printf ("\n\t\t\tDCD:  NO");
-		     else
-			     printf ("\n\t\t\tDCD:  YES");
-		     
-		     if (chdlc_cfg->CHDLC_protocol_options & IGNORE_CTS_FOR_LINK_STAT)
-			     printf ("\n\t\t\tCTS:  NO\n");
-		     else	
-			     printf ("\n\t\t\tCTS:  YES\n");
-		     
-		     if (chdlc_cfg->CHDLC_protocol_options & IGNORE_KPALV_FOR_LINK_STAT)
-			     printf ("\tKeepalive Reception:  NO\n");
-		     else
-			     printf ("\tKeepalive Reception:  YES\n");
-
-		printf("\n\n                 Maximum data field length:  %u",
-			chdlc_cfg->max_CHDLC_data_field_length);
-
-		printf(  "\n          Keepalive transmit interval (ms):  %u",
-			chdlc_cfg->transmit_keepalive_timer);
-
-		printf(  "\nExpected keepalive reception interval (ms):  %u",
-			chdlc_cfg->receive_keepalive_timer);
-		
-		printf(  "\n       Keepalive reception error tolerance:  %u",
-			chdlc_cfg->keepalive_error_tolerance);
-
-		printf(  "\n      SLARP request transmit interval (ms):  %u",
-			chdlc_cfg->SLARP_request_timer);
+		if(chdlc_cfg->sppp_keepalive_timer){
+			printf("Keepalive interval (s)\t: %u\n", 
+				chdlc_cfg->sppp_keepalive_timer);
+			printf("Keepalive reception error tolerance: %u",
+				chdlc_cfg->keepalive_err_margin);
+		}
 		
 	} else {
 		error();
 	}
 }; /* chdlc_configuration */
 
-static void chdlc_reset_adapter (void)
-{
-
-	wan_udp.wan_udphdr_command= DISABLE_CHDLC_COMMUNICATIONS; 
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-
-	if (wan_udp.wan_udphdr_return_code != 0){
-		printf("Failed to Disable Comm rc=0x%X\n",
-				wan_udp.wan_udphdr_return_code);
-		return;
-	}
-
-	wan_udp.wan_udphdr_command= RESET_ESCC; 
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-
-	if (wan_udp.wan_udphdr_return_code != 0){
-
-		printf("Failed to Reset Comm rc=0x%X\n",
-				wan_udp.wan_udphdr_return_code);
-
-		wan_udp.wan_udphdr_command= ENABLE_CHDLC_COMMUNICATIONS; 
-		wan_udp.wan_udphdr_return_code = 0xaa;
-		wan_udp.wan_udphdr_data_len = 0;
-		DO_COMMAND(wan_udp);
-
-		return;
-	}
-
-	
-	wan_udp.wan_udphdr_command= ENABLE_CHDLC_COMMUNICATIONS; 
-	wan_udp.wan_udphdr_return_code = 0xaa;
-	wan_udp.wan_udphdr_data_len = 0;
-	DO_COMMAND(wan_udp);
-
-	if (wan_udp.wan_udphdr_return_code != 0){
-		printf("Failed to Enable Comm rc=0x%X\n",
-				wan_udp.wan_udphdr_return_code);
-		return;
-	}
-
-	printf("Comm reset successful\n");
-
-	return;
-}
 
 static void link_status (void)
 {
@@ -772,17 +694,17 @@ static void operational_stats_S514(void)
 		BANNER("OPERATIONAL STATISTICS");
 		stats = (CHDLC_OPERATIONAL_STATS_STRUCT *)&wan_udp.wan_udphdr_data[0];
  
-		printf(    "             Number of frames transmitted:   %lu",stats->Data_frames_Tx_count);
-		printf(  "\n              Number of bytes transmitted:   %lu",stats->Data_bytes_Tx_count);
-		printf(  "\n                      Transmit Throughput:   %lu",stats->Data_Tx_throughput);
-		printf(  "\n Transmit frames discarded (length error):   %lu",stats->Tx_Data_discard_lgth_err_count);
+		printf(    "             Number of frames transmitted:   %u",stats->Data_frames_Tx_count);
+		printf(  "\n              Number of bytes transmitted:   %u",stats->Data_bytes_Tx_count);
+		printf(  "\n                      Transmit Throughput:   %u",stats->Data_Tx_throughput);
+		printf(  "\n Transmit frames discarded (length error):   %u",stats->Tx_Data_discard_lgth_err_count);
 
-		printf("\n\n                Number of frames received:   %lu",stats->Data_frames_Rx_count);
-		printf(  "\n                 Number of bytes received:   %lu",stats->Data_bytes_Rx_count);
-		printf(  "\n                       Receive Throughput:   %lu",stats->Data_Rx_throughput);
-		printf(  "\n    Received frames discarded (too short):   %lu",stats->Rx_Data_discard_short_count);
-		printf(  "\n     Received frames discarded (too long):   %lu",stats->Rx_Data_discard_long_count);
-		printf(  "\nReceived frames discarded (link inactive):   %lu",stats->Rx_Data_discard_inactive_count);
+		printf("\n\n                Number of frames received:   %u",stats->Data_frames_Rx_count);
+		printf(  "\n                 Number of bytes received:   %u",stats->Data_bytes_Rx_count);
+		printf(  "\n                       Receive Throughput:   %u",stats->Data_Rx_throughput);
+		printf(  "\n    Received frames discarded (too short):   %u",stats->Rx_Data_discard_short_count);
+		printf(  "\n     Received frames discarded (too long):   %u",stats->Rx_Data_discard_long_count);
+		printf(  "\nReceived frames discarded (link inactive):   %u",stats->Rx_Data_discard_inactive_count);
 
 
 		printf("\n\nIncoming frames with format errors");
@@ -833,6 +755,18 @@ static void flush_operational_stats_S514( void )
 	}
 }
 
+static void flush_slarp_cdp_stats(void)
+{
+	wan_udp.wan_udphdr_command= FLUSH_CHDLC_OPERATIONAL_STATS;
+	wan_udp.wan_udphdr_return_code = 0xaa;
+	wan_udp.wan_udphdr_data_len = 0;
+	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != 0 ) {
+		error();
+	}
+}
+
 static void slarp_stats (void)
 {
 	CHDLC_OPERATIONAL_STATS_STRUCT *stats;
@@ -843,20 +777,21 @@ static void slarp_stats (void)
 
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		BANNER("SLARP STATISTICS");
-		stats = (CHDLC_OPERATIONAL_STATS_STRUCT *)&wan_udp.wan_udphdr_data[0];
+		/*stats = (CHDLC_OPERATIONAL_STATS_STRUCT *)&wan_udp.wan_udphdr_data[0];*/ /* WRONG OFFSET!!! */
+		stats = (CHDLC_OPERATIONAL_STATS_STRUCT *)&wan_udp.wan_udphdr_u.data[0];
 
 		printf("\n SLARP frame transmission/reception statistics");
-		printf(  "\n       SLARP request packets transmitted:   %lu",
+		printf(  "\n       SLARP request packets transmitted:   %u",
  stats->CHDLC_SLARP_REQ_Tx_count);
-		printf(  "\n          SLARP request packets received:   %lu",
+		printf(  "\n          SLARP request packets received:   %u",
  stats->CHDLC_SLARP_REQ_Rx_count);
-		printf("\n\n         SLARP Reply packets transmitted:   %lu",
+		printf("\n\n         SLARP Reply packets transmitted:   %u",
  stats->CHDLC_SLARP_REPLY_Tx_count);
-		printf(  "\n            SLARP Reply packets received:   %lu",
+		printf(  "\n            SLARP Reply packets received:   %u",
  stats->CHDLC_SLARP_REPLY_Rx_count);
-		printf("\n\n     SLARP keepalive packets transmitted:   %lu",
+		printf("\n\n     SLARP keepalive packets transmitted:   %u",
  stats->CHDLC_SLARP_KPALV_Tx_count);
-		printf(  "\n        SLARP keepalive packets received:   %lu",
+		printf(  "\n        SLARP keepalive packets received:   %u",
  stats->CHDLC_SLARP_KPALV_Rx_count);
 
 		printf(  "\n\nIncoming SLARP Packets with format errors");
@@ -868,8 +803,8 @@ static void slarp_stats (void)
 		printf(  "\n            keepalive reception timeouts:   %u",stats->SLARP_Rx_keepalive_TO_count);
 
 		printf("\n\nCisco Discovery Protocol frames");
-		printf(  "\n                             Transmitted:   %lu", stats->CHDLC_CDP_Tx_count);
-		printf(  "\n                                Received:   %lu", stats->CHDLC_CDP_Rx_count);
+		printf(  "\n                             Transmitted:   %u", stats->CHDLC_CDP_Tx_count);
+		printf(  "\n                                Received:   %u", stats->CHDLC_CDP_Rx_count);
 
 	} else {
 		error();
@@ -886,6 +821,234 @@ int CHDLCDisableTrace(void)
 	DO_COMMAND(wan_udp);
 	return 0;
 }
+
+static int print_local_time (char *date_string)
+{
+	
+  	char tmp_time[50];
+	time_t time_val;
+	struct tm *time_tm;
+	
+	date_string[0]='\0';
+
+	time_val=time(NULL);
+		
+	/* Parse time and date */
+	time_tm=localtime(&time_val);
+
+	strftime(tmp_time,sizeof(tmp_time),"%b",time_tm);
+	sprintf(date_string, " %s ",tmp_time);
+
+	strftime(tmp_time,sizeof(tmp_time),"%d",time_tm);
+	sprintf(date_string+strlen(date_string), "%s ",tmp_time);
+
+	strftime(tmp_time,sizeof(tmp_time),"%H",time_tm);
+	sprintf(date_string+strlen(date_string), "%s:",tmp_time);
+
+	strftime(tmp_time,sizeof(tmp_time),"%M",time_tm);
+	sprintf(date_string+strlen(date_string), "%s:",tmp_time);
+
+	strftime(tmp_time,sizeof(tmp_time),"%S",time_tm);
+	sprintf(date_string+strlen(date_string), "%s",tmp_time);
+
+	return 0;
+}
+
+static int loop_rx_data(int passnum)
+{
+	unsigned int num_frames;
+	unsigned short curr_pos = 0;
+	wan_trace_pkt_t *trace_pkt;
+	unsigned int i;
+	struct timeval to;
+	int timeout=0;
+	unsigned char date_string[100];
+	
+	gettimeofday(&to, NULL);
+	to.tv_sec = 0;
+	to.tv_usec = 0;
+	
+	print_local_time(date_string);
+		
+	printf("%s | Test %04i | ",
+		date_string, passnum);
+	
+        for(;;) {
+	
+		select(1,NULL, NULL, NULL, &to);
+		
+		wan_udp.wan_udphdr_command = CPIPE_GET_TRACE_INFO;
+		wan_udp.wan_udphdr_return_code = 0xaa;
+		wan_udp.wan_udphdr_data_len = 0;
+		DO_COMMAND(wan_udp);
+		
+		if (wan_udp.wan_udphdr_return_code == 0 && wan_udp.wan_udphdr_data_len) { 
+		     
+			num_frames = wan_udp.wan_udphdr_aft_num_frames;
+
+		     	for ( i = 0; i < num_frames; i++) {
+				trace_pkt= (wan_trace_pkt_t *)&wan_udp.wan_udphdr_data[curr_pos];
+
+				/*  frame type */
+				if (trace_pkt->status & 0x01) {
+					trace_iface.status |= WP_TRACE_OUTGOING;
+				}else{
+					if (trace_pkt->status & 0x10) { 
+						trace_iface.status |= WP_TRACE_ABORT;
+					} else if (trace_pkt->status & 0x20) {
+						trace_iface.status |= WP_TRACE_CRC;
+					} else if (trace_pkt->status & 0x40) {
+						trace_iface.status |= WP_TRACE_OVERRUN;
+					}
+				}
+
+				trace_iface.len = trace_pkt->real_length;
+				trace_iface.timestamp=trace_pkt->time_stamp;
+				trace_iface.sec = trace_pkt->sec;
+				trace_iface.usec = trace_pkt->usec;
+				
+				curr_pos += sizeof(wan_trace_pkt_t);
+		
+				if (trace_pkt->real_length >= WAN_MAX_DATA_SIZE){
+					printf("\t:the frame data is to big (%u)!",
+									trace_pkt->real_length);
+					fflush(stdout);
+					continue;
+
+				}else if (trace_pkt->data_avail == 0) {
+
+					printf("\t: the frame data is not available" );
+					fflush(stdout);
+					continue;
+				} 
+
+				
+				/* update curr_pos again */
+				curr_pos += trace_pkt->real_length;
+			
+				trace_iface.trace_all_data=trace_all_data;
+				trace_iface.data=(unsigned char*)&trace_pkt->data[0];
+
+				
+				if (trace_pkt->status & 0x01){ 
+					continue;
+				}
+				
+				if (trace_iface.data[0] == (0x0F) &&
+				    trace_iface.data[1] == (0x0F) &&
+				    trace_iface.data[2] == (0x0F) &&
+				    trace_iface.data[3] == (0x0F)) {
+				 	printf("Successful (%s)!\n",
+						trace_iface.status & WP_TRACE_ABORT ? "Abort" :
+						trace_iface.status & WP_TRACE_CRC ? "Crc" :
+						trace_iface.status & WP_TRACE_OVERRUN ? "Overrun" : "Ok"
+						);   
+					return 0;
+				} 
+				
+				
+
+		   	} //for
+		} //if
+		curr_pos = 0;
+
+		if (!wan_udp.wan_udphdr_chdlc_ismoredata){
+			to.tv_sec = 0;
+			to.tv_usec = WAN_TRACE_DELAY;
+			timeout++;
+			if (timeout > 100) {
+				printf("Timeout!\n");
+				break;
+			}   
+		}else{
+			to.tv_sec = 0;
+			to.tv_usec = 0;
+		}
+	}
+	return 0;
+}
+
+
+static int aft_digital_loop_test( void )
+{
+	int passnum=0;
+	int i;
+	
+        /* Disable trace to ensure that the buffers are flushed */
+        wan_udp.wan_udphdr_command= CPIPE_DISABLE_TRACING;
+        wan_udp.wan_udphdr_return_code = 0xaa;
+        wan_udp.wan_udphdr_data_len = 0;
+        DO_COMMAND(wan_udp);
+
+        wan_udp.wan_udphdr_command= CPIPE_ENABLE_TRACING;
+        wan_udp.wan_udphdr_return_code = 0xaa;
+        wan_udp.wan_udphdr_data_len = 1;
+        wan_udp.wan_udphdr_data[0]=0;
+
+        DO_COMMAND(wan_udp);
+	if (wan_udp.wan_udphdr_return_code != 0 && 
+            wan_udp.wan_udphdr_return_code != 1) {
+		printf("Error: Failed to start loop test: failed to start tracing!\n");
+		return -1;
+	}
+	
+	printf("Starting Loop Test (press ctrl-c to exit)!\n\n");
+
+	
+	
+	while (1) {
+
+		wan_udp.wan_udphdr_command= DIGITAL_LOOPTEST;
+		wan_udp.wan_udphdr_return_code = 0xaa;
+		
+		for (i=0;i<100;i++){ 
+			wan_udp.wan_udphdr_data[i] = 0x0F;
+		}
+		wan_udp.wan_udphdr_data_len = 100;
+		DO_COMMAND(wan_udp);	
+
+		switch (wan_udp.wan_udphdr_return_code) {
+		
+		case 0:
+			break;
+		case 1:
+	                printf("Error: Failed to start loop test: dev not found\n");
+			goto loop_rx_exit;
+		case 2:
+	                printf("Error: Failed to start loop test: dev state not connected\n");
+			goto loop_rx_exit;
+		case 3:
+	                printf("Error: Failed to start loop test: memory error\n");
+			goto loop_rx_exit;
+		case 4:
+	                printf("Error: Failed to start loop test: invalid operation mode\n");
+			goto loop_rx_exit;
+
+		default:
+			printf("Error: Failed to start loop test: unknown error (%i)\n",
+				wan_udp.wan_udphdr_return_code);
+			goto loop_rx_exit;
+		}
+
+
+		loop_rx_data(++passnum);
+		usleep(500000);
+		fflush(stdout);
+		
+	}
+
+loop_rx_exit:
+	
+	wan_udp.wan_udphdr_command= CPIPE_DISABLE_TRACING;
+        wan_udp.wan_udphdr_return_code = 0xaa;
+        wan_udp.wan_udphdr_data_len = 0;
+        DO_COMMAND(wan_udp);
+
+	return 0;
+}
+
+
+
 
 static void line_trace(int trace_mode, int trace_subtype)
 {
@@ -1120,7 +1283,7 @@ int CHDLCUsage(void)
 	printf("\t             l       Link Status\n");
 	printf("\t             cv      Read Code Version\n");
 	printf("\t             ru      Display Router UP time\n");
-	printf("\tCard Configuration\n");
+	printf("\tProtocol Configuration\n");
 	printf("\t   c         rc      Read CHDLC Configuration\n");
 	printf("\tCard Statistics\n");
 //	printf("\t   s         g       Global Statistics\n");
@@ -1158,6 +1321,7 @@ int CHDLCUsage(void)
 	printf("\t             salb    Send Loopback Activate Code (T1/E1 card only)\n");  
 	printf("\t             sdlb    Send Loopback Deactive Code (T1/E1 card only)\n");  
 	printf("\t             a       Read T1/E1/56K alarms.\n");  
+	printf("\t             lt      Diagnostic Digital Loopback testing (T1/E1 card only)\n"); 
 	printf("\tFlush Statistics\n");
 	//printf("\t   f         g       Flush Global Statistics\n");
 	printf("\t    f        c       Flush Communication Error Statistics\n");
@@ -1180,7 +1344,7 @@ int CHDLCUsage(void)
 
 static void chdlc_router_up_time( void )
 {
-  unsigned long time;
+  u_int32_t time;
 
   if(!connected_to_hw_level){
     if(make_hardware_level_connection()){
@@ -1195,7 +1359,7 @@ static void chdlc_router_up_time( void )
     wan_udp.wan_udphdr_data[0] = 0;
     DO_COMMAND(wan_udp);
     
-    time = *(unsigned long*)&wan_udp.wan_udphdr_data[0];
+    time = *(u_int32_t*)&wan_udp.wan_udphdr_data[0];
 
     BANNER("ROUTER UP TIME (CHDLC)");
 
@@ -1530,11 +1694,14 @@ int CHDLCMain(char *command,int argc, char* argv[])
 				printf("ERROR: Type %s <cr> for help\n\n", progname);
 			}
 			break;
+
 		case 'c':
 			if (!strcmp(opt,"rc")){
 				chdlc_configuration();
+/*
 			}else if (!strcmp(opt,"reset")){
 				chdlc_reset_adapter();
+*/
 			}else{
 				printf("ERROR: Invalid Configuration Command 'c'\n");
 				printf("ERROR: Type %s <cr> for help\n\n", progname);
@@ -1579,7 +1746,7 @@ int CHDLCMain(char *command,int argc, char* argv[])
 				flush_operational_stats();
 				operational_stats();
 			}else if (!strcmp(opt, "s")){
-				flush_operational_stats();
+				flush_slarp_cdp_stats();
 				slarp_stats();
 			//}else if (!strcmp(opt, "g")){
 			//	flush_global_stats();
@@ -1602,6 +1769,10 @@ int CHDLCMain(char *command,int argc, char* argv[])
 					view_FT1_status();
 				 }
 				set_FT1_monitor_status(0x00);
+			
+			}else if (!strcmp(opt,"lt")){
+ 				aft_digital_loop_test();
+				
 			}else if (!strcmp(opt, "s")){
 				set_FT1_monitor_status(0x01);
 				if(!gfail){	 	

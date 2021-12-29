@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="157"
+   name=""
+   committed-date="2006-12-04T22:21:07.339224Z"
+   url="svn://sangoma.freeswitch.org/libsangoma/trunk/include/octasic/apilib/llman"
+   last-author="mikej"
+   kind="dir"
+   uuid="2028fedf-720c-0410-83b8-d54a3e729fb0"
+   revision="198"/>
+<entry
+   committed-rev="157"
+   name="octapi_llman_private.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="13237f8684535f0dd4f4b11af48b3a2c"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+<entry
+   committed-rev="157"
+   name="sources"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="7a4c58d154dc949c940fecf3e8e2daf0"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+<entry
+   committed-rev="157"
+   name="Makefile"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="a17ac70bbce5e7bd36232bdaf1691fd3"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+</wc-entries>

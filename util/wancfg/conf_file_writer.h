@@ -20,6 +20,16 @@
 
 #include "conf_file_reader.h"
 
+#if defined(ZAPTEL_PARSER)
+#include "list_element_sangoma_card.h"
+
+#if defined(__LINUX__)
+# include <zaptel.h>
+#else
+#endif
+
+#endif
+
 /**
   *@author David Rokhvarg
   */
@@ -27,6 +37,10 @@
 class conf_file_writer {
 
   conf_file_reader* cfr;
+
+#if defined(ZAPTEL_PARSER)
+  list_element_sangoma_card *list_element_sangoma_card_ptr;
+#endif
 
   string full_file_path;
 
@@ -37,7 +51,7 @@ class conf_file_writer {
 			 IN list_element_chan_def* parent_list_el_chan_def);
   int form_wanpipe_section_str(string& wanpipe_section_str);
   int form_wanpipe_card_location_str(string& wp_card_location_string);
-  int form_fe_card_cfg_str(string& te1_cfg_string);
+  int form_fe_card_cfg_str(string& te1_cfg_string, sdla_fe_cfg_t*  fe_cfg);
   int form_wanpipe_card_miscellaneous_options_str(string& misc_opt_string);
 
   ///////////////////////////////////////////////////////////////////////////////////////////
@@ -47,8 +61,11 @@ class conf_file_writer {
   int form_ppp_global_configuration_string(wan_sppp_if_conf_t* ppp_cfg,
                                            string& global_protocol_cfg);
 
-  int form_chdlc_global_configuration_string( wan_chdlc_conf_t* chdlc_cfg,
-                                              string& global_protocol_cfg);
+  int form_chdlc_global_configuration_string(wan_sppp_if_conf_t* chdlc_cfg,
+                                           string& global_protocol_cfg);
+
+//  int form_chdlc_global_configuration_string( wan_chdlc_conf_t* chdlc_cfg,
+//                                              string& global_protocol_cfg);
 
   int form_aft_global_configuration_string( wan_xilinx_conf_t* xilinx_conf,
                                             string& global_protocol_cfg);
@@ -58,6 +75,8 @@ class conf_file_writer {
   int form_lapb_global_configuration_string(wan_lapb_if_conf_t *lapb_cfg,
                                            string& global_protocol_cfg);
   
+  int form_atm_per_interface_str( string& wp_interface,
+                                  list_element_chan_def* list_el_chan_def);
   ///////////////////////////////////////////////////////////////////////////////////////////
   int traverse_interfaces(string& interfaces_section_str, objects_list * obj_list, IN int task_type,
 	IN list_element_chan_def* parent_list_el_chan_def);
@@ -74,7 +93,8 @@ class conf_file_writer {
 		  		 wanif_conf_t* chanconf);
                                  
   int form_chdlc_per_interface_str(string& wp_interface,
-                                   list_element_chan_def* list_el_chan_def);
+                                   list_element_chan_def* list_el_chan_def,
+		  			wanif_conf_t* chanconf);
 
   int form_hardware_interface_str( string& wp_interface,
                                   list_element_chan_def* list_el_chan_def);
@@ -87,6 +107,11 @@ class conf_file_writer {
 
 public: 
   conf_file_writer(IN conf_file_reader* cfr);
+#if defined(ZAPTEL_PARSER)
+  conf_file_writer(IN list_element_sangoma_card *list_element_sangoma_card_ptr);
+  int write_wanpipe_zap_file(int wanpipe_number);
+  int add_to_wanrouter_start_sequence(int wanpipe_number);
+#endif
   ~conf_file_writer();
   int write();
 

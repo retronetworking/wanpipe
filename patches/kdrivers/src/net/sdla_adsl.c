@@ -76,13 +76,13 @@
 # include <linux/wanpipe_syncppp.h>
 # include <linux/sdla_adsl.h>
 #elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/wanpipe_version.h>
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe.h>
-# include <net/if_wanpipe_common.h>
-# include <net/sdla_adsl.h>
+# include <wanpipe_version.h>
+# include <wanpipe_includes.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe.h>
+# include <if_wanpipe_common.h>
+# include <sdla_adsl.h>
 #else
 # error "Unsupported Operating System!"
 #endif
@@ -328,7 +328,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 	}
 
 	/* allocate and initialize private data */
-	adsl = wan_kmalloc(sizeof(adsl_private_area_t));
+	adsl = wan_malloc(sizeof(adsl_private_area_t));
 	if (adsl == NULL){ 
 		DEBUG_EVENT("%s: Failed allocating private data...\n", 
 					card->devname);
@@ -411,13 +411,13 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 		DEBUG_EVENT("%s: Configuring %s as Ethernet\n",
 					card->devname, wan_netif_name(ifp));
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-	    	ifp->if_flags  |= (IFF_RUNNING|IFF_BROADCAST|IFF_SIMPLEX|IFF_MULTICAST);
+	    	ifp->if_flags  |= (IFF_DRV_RUNNING|IFF_BROADCAST|IFF_SIMPLEX|IFF_MULTICAST);
 		/* if_type,if_addrlen, if_hdrlen, if_mtu inialize 
 		 * in ether_ifattach
 		 */
 # if !defined(__NetBSD__)
 		bcopy(adsl->macAddr, 
-		      (WAN_IFP2AC(ifp))->ac_enaddr, 
+		      WAN_IFP2ENADDR(ifp)/*(WAN_IFP2AC(ifp))->ac_enaddr*/,
 		      6);
 # endif
 		bcopy(adsl->macAddr, wandev->macAddr, ETHER_ADDR_LEN); 
@@ -439,7 +439,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
    		ifp->if_mtu	= card->wandev.mtu; /* ETHERMTU */
 	    	ifp->if_type    = IFT_OTHER;
-	    	ifp->if_flags  |= (IFF_POINTOPOINT|IFF_RUNNING);
+	    	ifp->if_flags  |= (IFF_POINTOPOINT|IFF_DRV_RUNNING);
 	    	/*ifp->if_flags  |= IFF_NOARP;*/
     		ifp->if_hdrlen	= 0;
 #else
@@ -447,8 +447,8 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 		ifp->flags |= IFF_POINTOPOINT;
 		ifp->flags |= IFF_NOARP;
 		ifp->mtu = card->wandev.mtu;
-		ifp->hard_header_len=0; //ETH_HLEN;
-		ifp->addr_len=0; 	// ETH_ALEN;
+		ifp->hard_header_len=0; /* ETH_HLEN;*/
+		ifp->addr_len=0; 	/* ETH_ALEN;*/
 		ifp->tx_queue_len = 100;
 #endif
 		break;
@@ -554,7 +554,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* ifp)
 # if defined(__NetBSD__) || defined(__FreeBSD__)
     	ifp->if_init 	= NULL;
 # endif
-    	ifp->if_flags 	&= ~(IFF_UP | IFF_RUNNING | IFF_OACTIVE);
+    	ifp->if_flags 	&= ~(IFF_UP | IFF_DRV_RUNNING | IFF_DRV_OACTIVE);
     	if (ifp->if_softc){ 
         	wan_free(ifp->if_softc);
         	ifp->if_softc = NULL;
@@ -670,6 +670,7 @@ static int adsl_open(netdevice_t* ifp)
 	int     status = 0;
 #if defined (__LINUX__)
 	adsl_private_area_t* adsl = wan_netif_priv(ifp);
+	sdla_t *card=adsl->common.card;
 #endif
 
 #if defined (__LINUX__)
@@ -682,7 +683,14 @@ static int adsl_open(netdevice_t* ifp)
 	
 	/* Start Tx queuing */
 	WAN_NETDEVICE_START(ifp);
-	WAN_NETIF_START_QUEUE(ifp);
+
+	if (card->wandev.state == WAN_CONNECTED) {
+		WAN_NETIF_CARRIER_ON(ifp);
+		WAN_NETIF_START_QUEUE(ifp); 
+	} else {
+                WAN_NETIF_CARRIER_OFF(ifp);
+		WAN_NETIF_STOP_QUEUE(ifp); 
+	}
 
 	if (adsl->common.usedby == STACK){
 		/* Force the lip to connect state
@@ -774,7 +782,7 @@ adsl_lan_rx(
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 	struct ether_header*	eh;
 #endif
-#if defined(__NetBSD__) || defined(__OpenBSD__) || (__FreeBSD_version < 501000)
+#if defined(__NetBSD__) || defined(__OpenBSD__) || (defined(__FreeBSD__) && __FreeBSD_version < 501000)
 #ifndef __LINUX__
 	wan_smp_flag_t			s;
 #endif
@@ -844,10 +852,12 @@ adsl_lan_rx(
 		
 	case RFC_MODE_PPP_VC:
 	case RFC_MODE_PPP_LLC:
+		wan_skb_clear_mark(rx_skb);
 		WAN_SPPP_INPUT(dev, rx_skb);
 		break;
 	case RFC_MODE_ROUTED_IP_LLC:
 	case RFC_MODE_ROUTED_IP_VC:	
+		wan_skb_clear_mark(rx_skb);
 #if (__FreeBSD_version >= 501000)
 		wan_bpf_report(dev, rx_skb, 0);
 		netisr_queue(NETISR_IP, rx_skb);
@@ -876,6 +886,7 @@ adsl_lan_rx(
 		break;
 	case RFC_MODE_BRIDGED_ETH_LLC:
 	case RFC_MODE_BRIDGED_ETH_VC:
+		wan_skb_clear_mark(rx_skb);
 # if defined(__NetBSD__) || defined(__FreeBSD__) && (__FreeBSD_version > 500000)
 		dev->if_input(dev, rx_skb);
 # else
@@ -950,7 +961,7 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 	unsigned long		smp_flags;
 #endif
 #if defined(ALTQ)
-	struct altq_pktattr	pktattr;
+	WAN_PKTATTR_DECL(pktattr);
 #endif
 
 		
@@ -1063,7 +1074,7 @@ adsl_output(netdevice_t* dev, netskb_t* skb, struct sockaddr* dst, struct rtentr
 			break;
 		}
 
-		if ((dev->if_flags & IFF_OACTIVE) == 0){ 
+		if ((dev->if_flags & IFF_DRV_OACTIVE) == 0){ 
 			adsl_tx(dev);
 		}
 
@@ -1116,6 +1127,7 @@ void adsl_sppp_tx (netdevice_t *ifp)
 		DEBUG_TX("%s: TxLan %d bytes...\n", 
 					wan_netif_name(ifp), 
 					wan_skb_len(tx_mbuf));
+		wan_bpf_report(ifp, tx_mbuf, 0);
 		wan_skb_pull(tx_mbuf, 2);	
 		if (adsl_send(adsl->pAdapter, tx_mbuf, 0)){
 			DEBUG_TX("%s: TX failed to send %d bytes!\n", 
@@ -1123,8 +1135,6 @@ void adsl_sppp_tx (netdevice_t *ifp)
 					wan_skb_len(tx_mbuf));
 			ifp->if_iqdrops++;
 		}
-			
-		wan_bpf_report(ifp, tx_mbuf, 0);
 
 		if (tx_mbuf){
 			wan_skb_free(tx_mbuf);
@@ -1561,12 +1571,7 @@ static int adsl_ioctl(netdevice_t* ifp, struct ifreq *ifr, int command)
 		break;
 # endif
 	case SIOCSIFMTU:
-		if (card->u.adsl.EncapMode == RFC_MODE_ROUTED_IP_LLC || 
-		    card->u.adsl.EncapMode == RFC_MODE_ROUTED_IP_VC){
-			ifp->if_mtu = ifr->ifr_mtu;
-		}else{
-			error = EINVAL;
-		}
+	      	ifp->if_mtu = ifr->ifr_mtu;
 		break;
 
 	case SIOCSIFADDR:
@@ -1712,7 +1717,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			WAN_IFQ_ENQUEUE(&dev->if_snd, new_skb, NULL, error);
 			if (!error){
 				dev->if_obytes += wan_skb_len(new_skb) + sizeof(ethhdr_t);
-				if ((dev->if_flags & IFF_OACTIVE) == 0){
+				if ((dev->if_flags & IFF_DRV_OACTIVE) == 0){
 					(*dev->if_start)(dev);
 				}
 			}

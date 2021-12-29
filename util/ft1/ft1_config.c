@@ -55,10 +55,10 @@
 # include <linux/wanpipe.h>
 # include <linux/sdla_chdlc.h>
 #else
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe.h>
-# include <net/sdla_chdlc.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe.h>
+# include <sdla_chdlc.h>
 #endif
 /****** Defines *************************************************************/
 

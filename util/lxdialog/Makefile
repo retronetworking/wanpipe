@@ -1,13 +1,12 @@
 CC = gcc 
 CPP = gcc -E
 #Will be overwritten by ./Setup
-SYSINC=/usr/src/linux/include
+SYSINC=/lib/modules/$(shell uname -r)/build/include
 
 CFLAGS = -Wall -Wstrict-prototypes -I$(SYSINC) -O2 -fomit-frame-pointer -DLOCALE 
 LDFLAGS = -s -L .
 LDLIBS = -lncurses
 WAN_VIRTUAL=
-ASTBROOT=/usr
 
 CFLAGS += -I$(ASTBROOT)/include -DCURSES_LOC="<ncurses.h>"
 

@@ -41,6 +41,7 @@
 #include <netinet/udp.h>
 #if defined(__LINUX__)
 # include <linux/version.h>
+# include <linux/types.h>
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
@@ -50,11 +51,11 @@
 # include <linux/wanpipe.h>
 # include <linux/sdla_chdlc.h>
 #else
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe.h>
-# include <net/sdla_chdlc.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe.h>
+# include <sdla_chdlc.h>
 #endif
 #include "fe_lib.h"
 #include "wanpipemon.h"
@@ -492,7 +493,7 @@ static void chdlc_configuration (void)
 		chdlc_cfg = (CHDLC_CONFIGURATION_STRUCT *)&wan_udp.wan_udphdr_data[0];
 		BANNER("CHDLC CONFIGURATION");
 
-		printf("Baud rate: %lu", chdlc_cfg->baud_rate);
+		printf("Baud rate: %u", chdlc_cfg->baud_rate);
 
 		printf("\nLine configuration: ");
 		     switch (chdlc_cfg->line_config_options) {
@@ -638,17 +639,17 @@ static void operational_stats (void)
 		BANNER("OPERATIONAL STATISTICS");
 		stats = (CHDLC_OPERATIONAL_STATS_STRUCT *)&wan_udp.wan_udphdr_data[0];
  
-		printf(    "             Number of frames transmitted:   %lu",stats->Data_frames_Tx_count);
-		printf(  "\n              Number of bytes transmitted:   %lu",stats->Data_bytes_Tx_count);
-		printf(  "\n                      Transmit Throughput:   %lu",stats->Data_Tx_throughput);
-		printf(  "\n Transmit frames discarded (length error):   %lu",stats->Tx_Data_discard_lgth_err_count);
+		printf(    "             Number of frames transmitted:   %u",stats->Data_frames_Tx_count);
+		printf(  "\n              Number of bytes transmitted:   %u",stats->Data_bytes_Tx_count);
+		printf(  "\n                      Transmit Throughput:   %u",stats->Data_Tx_throughput);
+		printf(  "\n Transmit frames discarded (length error):   %u",stats->Tx_Data_discard_lgth_err_count);
 
-		printf("\n\n                Number of frames received:   %lu",stats->Data_frames_Rx_count);
-		printf(  "\n                 Number of bytes received:   %lu",stats->Data_bytes_Rx_count);
-		printf(  "\n                       Receive Throughput:   %lu",stats->Data_Rx_throughput);
-		printf(  "\n    Received frames discarded (too short):   %lu",stats->Rx_Data_discard_short_count);
-		printf(  "\n     Received frames discarded (too long):   %lu",stats->Rx_Data_discard_long_count);
-		printf(  "\nReceived frames discarded (link inactive):   %lu",stats->Rx_Data_discard_inactive_count);
+		printf("\n\n                Number of frames received:   %u",stats->Data_frames_Rx_count);
+		printf(  "\n                 Number of bytes received:   %u",stats->Data_bytes_Rx_count);
+		printf(  "\n                       Receive Throughput:   %u",stats->Data_Rx_throughput);
+		printf(  "\n    Received frames discarded (too short):   %u",stats->Rx_Data_discard_short_count);
+		printf(  "\n     Received frames discarded (too long):   %u",stats->Rx_Data_discard_long_count);
+		printf(  "\nReceived frames discarded (link inactive):   %u",stats->Rx_Data_discard_inactive_count);
 
 
 		printf("\n\nIncoming frames with format errors");
@@ -695,17 +696,17 @@ static void slarp_stats (void)
 		stats = (CHDLC_OPERATIONAL_STATS_STRUCT *)&wan_udp.wan_udphdr_data[0];
 
 		printf("\n SLARP frame transmission/reception statistics");
-		printf(  "\n       SLARP request packets transmitted:   %lu",
+		printf(  "\n       SLARP request packets transmitted:   %u",
  stats->CHDLC_SLARP_REQ_Tx_count);
-		printf(  "\n          SLARP request packets received:   %lu",
+		printf(  "\n          SLARP request packets received:   %u",
  stats->CHDLC_SLARP_REQ_Rx_count);
-		printf("\n\n         SLARP Reply packets transmitted:   %lu",
+		printf("\n\n         SLARP Reply packets transmitted:   %u",
  stats->CHDLC_SLARP_REPLY_Tx_count);
-		printf(  "\n            SLARP Reply packets received:   %lu",
+		printf(  "\n            SLARP Reply packets received:   %u",
  stats->CHDLC_SLARP_REPLY_Rx_count);
-		printf("\n\n     SLARP keepalive packets transmitted:   %lu",
+		printf("\n\n     SLARP keepalive packets transmitted:   %u",
  stats->CHDLC_SLARP_KPALV_Tx_count);
-		printf(  "\n        SLARP keepalive packets received:   %lu",
+		printf(  "\n        SLARP keepalive packets received:   %u",
  stats->CHDLC_SLARP_KPALV_Rx_count);
 
 		printf(  "\n\nIncoming SLARP Packets with format errors");
@@ -717,8 +718,8 @@ static void slarp_stats (void)
 		printf(  "\n            keepalive reception timeouts:   %u",stats->SLARP_Rx_keepalive_TO_count);
 
 		printf("\n\nCisco Discovery Protocol frames");
-		printf(  "\n                             Transmitted:   %lu", stats->CHDLC_CDP_Tx_count);
-		printf(  "\n                                Received:   %lu", stats->CHDLC_CDP_Rx_count);
+		printf(  "\n                             Transmitted:   %u", stats->CHDLC_CDP_Tx_count);
+		printf(  "\n                                Received:   %u", stats->CHDLC_CDP_Rx_count);
 
 	} else {
 		error();
@@ -1013,7 +1014,7 @@ int CHDLCUsage(void)
 
 static void chdlc_router_up_time( void )
 {
-     	unsigned long time;
+     	u_int32_t time;
      
      	wan_udp.wan_udphdr_command= CPIPE_ROUTER_UP_TIME;
 	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -1021,18 +1022,18 @@ static void chdlc_router_up_time( void )
      	wan_udp.wan_udphdr_data[0] = 0;
      	DO_COMMAND(wan_udp);
     
-     	time = *(unsigned long*)&wan_udp.wan_udphdr_data[0];
+     	time = *(u_int32_t*)&wan_udp.wan_udphdr_data[0];
 	
 	BANNER("ROUTER UP TIME");
 
 	
      	if (time < 3600) {
 		if (time<60) 
-     			printf("    Router UP Time:  %lu seconds\n", time);
+     			printf("    Router UP Time:  %u seconds\n", time);
 		else
-     			printf("    Router UP Time:  %lu minute(s)\n", (time/60));
+     			printf("    Router UP Time:  %u minute(s)\n", (time/60));
      	}else
-     		printf("    Router UP Time:  %lu hour(s)\n", (time/3600));
+     		printf("    Router UP Time:  %u hour(s)\n", (time/3600));
 			
       
 }

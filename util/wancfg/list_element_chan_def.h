@@ -59,7 +59,7 @@ public:
     data.chanconf = (wanif_conf_t*)malloc(sizeof(wanif_conf_t));
     if(data.chanconf == NULL){
       ERR_DBG_OUT(("Memory allocation failed while creating new\
-'list_element_frame_relay_dlci' object!!\n"));
+'list_element_chan_def' object!!\n"));
       exit(1);
     }
 
@@ -90,8 +90,23 @@ public:
       //memset(data.addr, 0x00, MAX_USEDBY_STR_LEN);
       snprintf(data.addr, WAN_ADDRESS_SZ, "1");
     }
-    snprintf(data.active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "ALL");
-    data.chanconf->active_ch = ENABLE_ALL_CHANNELS;
+
+    //FIXME: David to set active_ch to ALL for VOICE and 1 for API
+    //       For now 99% is VOICE which should have ALL set
+    if(global_card_type == WANOPT_AFT  &&  global_card_version == A200_ADPTR_ANALOG){
+      snprintf(data.active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "ALL");
+      data.chanconf->active_ch = ENABLE_ALL_CHANNELS;
+    }else{
+      snprintf(data.active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "ALL");
+      data.chanconf->active_ch = ENABLE_ALL_CHANNELS;
+    }
+    /////////////////////////////////////////////////////////////////////////////////////
+    //init to "ALL" but set to NO
+    snprintf(data.active_hwec_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "ALL");
+    //data.hwec_flag = WANOPT_NO;
+    data.chanconf->xoff_char = WANOPT_NO;//used instead of hwec_flag
+    /////////////////////////////////////////////////////////////////////////////////////
+
     data.chanconf->config_id = PROTOCOL_NOT_SET;
 
     data.chanconf->hdlc_streaming = WANOPT_YES;

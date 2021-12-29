@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="1562"
+   name=""
+   committed-date="2006-06-07T22:26:12.605661Z"
+   url="http://svn.freeswitch.org/svn/freeswitch/trunk/libs/libteletone"
+   last-author="mikej"
+   kind="dir"
+   uuid="d0543943-73ff-0310-b7d9-9358b9ac24b2"
+   prop-time="2006-06-27T15:15:56.000000Z"
+   revision="1687"/>
+<entry
+   committed-rev="629"
+   name="mkinstalldirs"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="792922784eade1d03ecb1b33ba8bb7c3"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:29.000000Z"/>
+<entry
+   committed-rev="630"
+   name="configure"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:30:51.882096Z"
+   checksum="28023e66f3a078df20ba80031d144952"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:37.000000Z"/>
+<entry
+   committed-rev="887"
+   name="Makefile.in"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-03-21T16:26:49.657459Z"
+   checksum="1b6345d4e9fd16e1096238cad862b547"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:38.000000Z"/>
+<entry
+   committed-rev="629"
+   name="AUTHORS"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="2a307cc617b923385f157cc693f908e9"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:38.000000Z"/>
+<entry
+   committed-rev="630"
+   name="configure.in"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:30:51.882096Z"
+   checksum="4b0bfa262e16e1c9538664e5b42a0134"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:38.000000Z"/>
+<entry
+   committed-rev="629"
+   name="ChangeLog"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="d41d8cd98f00b204e9800998ecf8427e"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:39.000000Z"/>
+<entry
+   committed-rev="629"
+   name="depcomp"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="7e26ecc61d5c27c50d334ebe19d5ef06"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:39.000000Z"/>
+<entry
+   name="src"
+   kind="dir"/>
+<entry
+   committed-rev="629"
+   name="compile"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="b2a35e98453194ca837c363ee9c0d379"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:40.000000Z"/>
+<entry
+   committed-rev="629"
+   name="config.guess"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="e8f87acaddff75a691755466f0918100"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:40.000000Z"/>
+<entry
+   committed-rev="629"
+   name="ltmain.sh"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="0f44520873ce706852086fc2ad45106f"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:47.000000Z"/>
+<entry
+   committed-rev="629"
+   name="README"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="234c8df99750448a5b1c4709304a38e5"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:42.000000Z"/>
+<entry
+   committed-rev="629"
+   name="config.sub"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="74587542264e2bb761ee931ddb7d69f1"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:42.000000Z"/>
+<entry
+   committed-rev="629"
+   name="INSTALL"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="9f3e20fdff9c78aa8e3f9b42be166769"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:47.000000Z"/>
+<entry
+   committed-rev="629"
+   name="COPYING"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="c878b7dac31225fc5b03ff92d985f147"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:47.000000Z"/>
+<entry
+   committed-rev="797"
+   name="libteletone.vcproj"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-03-08T03:29:56.831339Z"
+   checksum="7652cc60b4a56426a8c94b20217b7f86"
+   last-author="mikej"
+   kind="file"
+   prop-time="2006-06-27T15:15:47.000000Z"/>
+<entry
+   committed-rev="880"
+   name="Makefile.am"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-03-20T23:41:21.688332Z"
+   checksum="cdd15e1ba31199e3299b958981cde8d9"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:47.000000Z"/>
+<entry
+   committed-rev="629"
+   name="missing"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="0a5e8ed778878a2656e3ea2313dac833"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:47.000000Z"/>
+<entry
+   committed-rev="629"
+   name="NEWS"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="53eff28ecd16c5529e73546a297e9f53"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:47.000000Z"/>
+<entry
+   committed-rev="797"
+   name="teletone.def"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-03-08T03:29:56.831339Z"
+   checksum="e4a88cfdc6991c1740b000753b905eec"
+   last-author="mikej"
+   kind="file"
+   prop-time="2006-06-27T15:15:47.000000Z"/>
+<entry
+   committed-rev="629"
+   name="aclocal.m4"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="e41e60b06c482e1de80a44404e3c4c30"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:56.000000Z"/>
+<entry
+   committed-rev="629"
+   name="install-sh"
+   text-time="2006-06-27T15:15:56.000000Z"
+   committed-date="2006-02-19T20:28:24.791837Z"
+   checksum="d4c3da374db4aa2301a21ab3e51ddb21"
+   last-author="anthm"
+   kind="file"
+   prop-time="2006-06-27T15:15:56.000000Z"/>
+</wc-entries>

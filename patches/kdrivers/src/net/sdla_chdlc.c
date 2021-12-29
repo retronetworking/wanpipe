@@ -448,12 +448,13 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_te_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
 		card->fe.read_fe_reg	= read_front_end_reg;
 
-		card->wandev.te_enable_timer = chdlc_enable_timer;
+		card->wandev.fe_enable_timer = chdlc_enable_timer;
 		card->wandev.te_link_state = chdlc_handle_front_end_state;
 		conf->interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
@@ -465,6 +466,7 @@ int wpc_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -1058,7 +1060,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	if (conf->single_tx_buf) {
 		DEBUG_EVENT("%s: Enabling Single Tx Buffer \n",chdlc_priv_area->if_name);
 		card->u.c.protocol_options|=SINGLE_TX_BUFFER;
-	}    
+	}
 
 	/* Get Multicast Information */
 	chdlc_priv_area->mc = conf->mc;
@@ -1377,7 +1379,9 @@ static void disable_comm (sdla_t *card)
 
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
-		sdla_te_unconfig(&card->fe);
+		if (card->wandev.fe_iface.unconfig){
+			card->wandev.fe_iface.unconfig(&card->fe);
+		}
 	}
 
 #if 1 
@@ -1885,7 +1889,9 @@ static int chdlc_disable_comm_shutdown (sdla_t *card)
 
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
-		sdla_te_unconfig(&card->fe);
+		if (card->wandev.fe_iface.unconfig){
+			card->wandev.fe_iface.unconfig(&card->fe);
+		}
 	}
 
 	return 0;
@@ -1983,7 +1989,7 @@ static int update_comms_stats(sdla_t* card,
 	if (IS_TE1_CARD(card)) {	
 		card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 		/* TE1 Update T1/E1 perfomance counters */
-		card->wandev.fe_iface.read_pmon(&card->fe); 
+		card->wandev.fe_iface.read_pmon(&card->fe, 0); 
 	}else if (IS_56K_CARD(card)) {
 		/* 56K Update CSU/DSU alarms */
 		card->wandev.fe_iface.read_alarm(&card->fe, 1); 
@@ -2060,12 +2066,20 @@ static int chdlc_send (sdla_t* card, void* data, unsigned len, unsigned char tx_
 /*============================================================================
  * Read TE1/56K Front end registers
  */
-static unsigned char read_front_end_reg (void* card1, unsigned short reg)
+//static unsigned char read_front_end_reg (void* card1, unsigned short reg)
+static unsigned char read_front_end_reg (void* card1, ...)
 {
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	char* data = mb->wan_data;
+	va_list		args;
+	sdla_t		*card = (sdla_t*)card1;
+        wan_mbox_t	*mb = &card->wan_mbox;
+	char		*data = mb->wan_data;
+	u16		reg, line_no;
         int err;
+
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	va_end(args);
 
 	((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
 	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
@@ -2081,13 +2095,23 @@ static unsigned char read_front_end_reg (void* card1, unsigned short reg)
 /*============================================================================
  * Write to TE1/56K Front end registers  
  */
-static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
+//static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
+static int write_front_end_reg (void* card1, ...)
 {
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	char* data = mb->wan_data;
+	va_list		args;
+	sdla_t		*card = (sdla_t*)card1;
+        wan_mbox_t	*mb = &card->wan_mbox;
+	char		*data = mb->wan_data;
+	u16		reg, line_no;
+	u8		value;
         int err;
 	int retry=15;
+
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	value	= (u8)va_arg(args, int);
+	va_end(args);
 	
 	do {
 		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
@@ -2482,10 +2506,15 @@ static void rx_intr (sdla_t* card)
 	} else if(chdlc_priv_area->common.usedby == API) {
 
 		api_rx_hdr_t* api_rx_hdr;
+		struct timeval tv;
        		skb_push(skb, sizeof(api_rx_hdr_t));
                 api_rx_hdr = (api_rx_hdr_t*)&skb->data[0x00];
 		api_rx_hdr->error_flag = rxbuf.error_flag;
      		api_rx_hdr->time_stamp = rxbuf.time_stamp;
+
+		do_gettimeofday(&tv);
+		api_rx_hdr->sec=tv.tv_sec;
+		api_rx_hdr->usec=tv.tv_usec;		
 
                 skb->protocol = htons(WP_PVC_PROT);
      		skb->mac.raw  = skb->data;
@@ -3235,16 +3264,16 @@ static void process_route (sdla_t *card)
 			if_data2 = (struct sockaddr_in *)&if_info.ifr_dstaddr;
 			if_data2->sin_addr.s_addr = remote_IP_addr;
 			if_data2->sin_family = AF_INET;
-			err = devinet_ioctl(SIOCSIFDSTADDR, &if_info);
+			err = wp_devinet_ioctl(SIOCSIFDSTADDR, &if_info);
 		} else { 
 			if_data1 = (struct sockaddr_in *)&if_info.ifr_addr;
 			if_data1->sin_addr.s_addr = local_IP_addr;
 			if_data1->sin_family = AF_INET;
-			if(!(err = devinet_ioctl(SIOCSIFADDR, &if_info))){
+			if(!(err = wp_devinet_ioctl(SIOCSIFADDR, &if_info))){
 				if_data2 = (struct sockaddr_in *)&if_info.ifr_dstaddr;
 				if_data2->sin_addr.s_addr = remote_IP_addr;
 				if_data2->sin_family = AF_INET;
-				err = devinet_ioctl(SIOCSIFDSTADDR, &if_info);
+				err = wp_devinet_ioctl(SIOCSIFDSTADDR, &if_info);
 			}
 		}
 
@@ -3273,12 +3302,12 @@ static void process_route (sdla_t *card)
 			if_data2 = (struct sockaddr_in *)&if_info.ifr_dstaddr;
 			if_data2->sin_addr.s_addr = 0;
 			if_data2->sin_family = AF_INET;
-			err = devinet_ioctl(SIOCSIFDSTADDR, &if_info);
+			err = wp_devinet_ioctl(SIOCSIFDSTADDR, &if_info);
 		} else {
 			if_data1 = (struct sockaddr_in *)&if_info.ifr_addr;
 			if_data1->sin_addr.s_addr = 0;
 			if_data1->sin_family = AF_INET;
-			err = devinet_ioctl(SIOCSIFADDR,&if_info);
+			err = wp_devinet_ioctl(SIOCSIFADDR,&if_info);
 		
 		}
 		if(err) {
@@ -4178,10 +4207,14 @@ static int config_chdlc (sdla_t *card, netdevice_t *dev)
 	card->hw_iface.poke_byte(card->hw, card->intr_perm_off, 0x00);
 
 	if (IS_TE1_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring onboard %s CSU/DSU\n",
 			card->devname, 
 			(IS_T1_CARD(card))?"T1":"E1");
-		if (sdla_te_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			printk(KERN_INFO "%s: Failed %s configuratoin!\n",
 					card->devname,
 					(IS_T1_CARD(card))?"T1":"E1");
@@ -4191,10 +4224,14 @@ static int config_chdlc (sdla_t *card, netdevice_t *dev)
 
 	 
 	if (IS_56K_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring 56K onboard CSU/DSU\n",
 			card->devname);
 
-		if(sdla_56k_config(&card->fe, &card->wandev.fe_iface)) {
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if(err) {
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EINVAL;
@@ -4823,6 +4860,8 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 	unsigned offset=0;
 	struct tty_struct *tty;
 	int i;
+
+	i=0;
 	
 	if (!card->tty_open){
 		DEBUG_TEST("%s: TTY not open during receive\n",
@@ -4844,11 +4883,14 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 	
 
 	if (card->u.c.async_mode){
-
+		
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
 		unsigned char *buf;
 		struct sk_buff *skb;      
     		
+#if 1
+# warning "FIXME: Compilation error on 2.6.15 kernel"			
+#else
 		if (len > TTY_CHDLC_MAX_MTU){
 			if (net_ratelimit()){
 				printk(KERN_INFO 
@@ -4862,6 +4904,7 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 		if (skb == NULL){
 			return;
 		}      
+#endif		
 #else		
 		if ((tty->flip.count+len) >= TTY_FLIPBUF_SIZE){
 			if (net_ratelimit()){
@@ -4878,6 +4921,9 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 			
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+#if 1
+# warning "FIXME: Compilation error on 2.6.15 kernel"			
+#else
                         buf=skb_put(skb,offset);
 			card->hw_iface.peek(card->hw, addr, buf, offset);  
 
@@ -4885,7 +4931,7 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 			len -= offset;
 
 			tty_insert_flip_string(tty,buf,offset);
-			
+#endif			
 #else			
 			card->hw_iface.peek(card->hw, addr, tty->flip.char_buf_ptr, offset);
 			
@@ -4904,6 +4950,9 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 		
 		
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+#if 1
+# warning "FIXME: Compilation error on 2.6.15 kernel"			
+#else
                 buf=skb_put(skb,len);
 		card->hw_iface.peek(card->hw, addr, buf, len);
 		
@@ -4911,6 +4960,7 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 
 		skb_trim(skb,0);
 		skb_queue_tail(&card->tty_rx_empty,skb);
+#endif
 #else		
 		card->hw_iface.peek(card->hw, addr, tty->flip.char_buf_ptr, len);
 		
@@ -4922,7 +4972,8 @@ static void wanpipe_tty_receive(sdla_t *card, unsigned addr, unsigned int len)
 		}
 #endif
 		tty->low_latency=1;
-		tty_flip_buffer_push(tty); 
+		tty_flip_buffer_push(tty);
+
 	}else{
 		if (len > TTY_CHDLC_MAX_MTU){
 			if (net_ratelimit()){
@@ -5010,10 +5061,14 @@ static int config_tty (sdla_t *card)
 	card->hw_iface.poke_byte(card->hw, card->intr_perm_off, 0x00);
 	
 	if (IS_TE1_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring onboard %s CSU/DSU\n",
 			card->devname, 
 			(IS_T1_CARD(card))?"T1":"E1");
-		if (sdla_te_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			printk(KERN_INFO "%s: Failed %s configuratoin!\n",
 					card->devname,
 					(IS_T1_CARD(card))?"T1":"E1");
@@ -5023,10 +5078,14 @@ static int config_tty (sdla_t *card)
 
 	 
 	if (IS_56K_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring 56K onboard CSU/DSU\n",
 			card->devname);
 
-		if(sdla_56k_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if(err){
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EINVAL;

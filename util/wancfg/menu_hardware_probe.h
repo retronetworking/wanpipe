@@ -21,6 +21,10 @@
 #include <menu_base.h>
 #include "conf_file_reader.h"
 
+#if defined(ZAPTEL_PARSER)
+#include "sangoma_card_list.h"
+#endif
+
 /**
   *@author David Rokhvarg
   */
@@ -31,11 +35,14 @@ class menu_hardware_probe : public menu_base  {
   char lxdialog_path[MAX_PATH_LENGTH];
   conf_file_reader* cfr;
 
-  int hardware_probe();
+#if defined(ZAPTEL_PARSER)
+  sangoma_card_list *sang_card_list;
+#endif
 
-  int parse_selected_card_line(char* selected_card_line,
-                               char* card_type,
-                               unsigned int* card_version);
+  int parse_selected_card_line(char *selected_card_line,
+                               char *card_type,
+                               unsigned int *card_version,
+                               unsigned int *card_sub_version);
 
   int get_card_location_from_hwprobe_line(wandev_conf_t* linkconf,
 		  			  link_def_t * link_def,
@@ -47,13 +54,24 @@ class menu_hardware_probe : public menu_base  {
 
   int verify_hwprobe_command_is_successfull();
 
+#if defined(ZAPTEL_PARSER)
+  int add_card_to_list(IN char *hw_probe_output_line);
+#endif
+
 public:
-	menu_hardware_probe(  	IN char * lxdialog_path,
-                      		IN conf_file_reader* ptr_cfr);
+  menu_hardware_probe( 	IN char * lxdialog_path,
+                      	IN conf_file_reader* ptr_cfr);
 
-	~menu_hardware_probe();
+#if defined(ZAPTEL_PARSER)
+  menu_hardware_probe( 	IN sangoma_card_list *sang_card_list);
+#endif
 
-	int run(OUT int * selection_index);
+  ~menu_hardware_probe();
+
+  int hardware_probe();
+
+  int run(OUT int * selection_index);
 };
 
 #endif
+

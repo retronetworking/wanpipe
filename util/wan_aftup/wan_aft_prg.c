@@ -12,15 +12,18 @@
 #include <netinet/in.h>
 #if defined(__LINUX__)
 # include <linux/if.h>
+# include <linux/types.h>
 # include <linux/if_packet.h>
 # include <linux/wanpipe_defines.h>
 # include <linux/sdlasfm.h>
 # include <linux/wanpipe_cfg.h>
+# include <linux/sdlapci.h>
 #else
 # include <net/if.h>
-# include <net/wanpipe_defines.h>
-# include <net/sdlasfm.h>
-# include <net/wanpipe_cfg.h>
+# include <wanpipe_defines.h>
+# include <sdlasfm.h>
+# include <wanpipe_cfg.h>
+# include <sdlapci.h>
 #endif
 
 #include "wan_aft_prg.h"
@@ -167,6 +170,10 @@ extern int	progress_bar(char*,int,int);
 extern int exec_read_cmd(void*,unsigned int, unsigned int, unsigned int*);
 extern int exec_write_cmd(void*,unsigned int, unsigned int, unsigned int);
 
+
+int board_reset(wan_aft_cpld_t *cpld, int clear);
+int update_flash(wan_aft_cpld_t *cpld, int stype, int mtype, char* filename);
+
 /*
  ******************************************************************************
 			  FUNCTION PROTOTYPES
@@ -262,7 +269,7 @@ static long read_bin_data_file(char* filename, char** data)
 #define HEX_START_SEG_ADDR_RECORD	0x03
 #define HEX_EXT_LIN_ADDR_RECORD		0x04
 #define HEX_START_LIN_ADDR_RECORD	0x05
-int parse_hex_line(char *line, int data[], int *addr, int *num, int *type)
+static int parse_hex_line(char *line, int data[], int *addr, int *num, int *type)
 {
 	int	sum, len, cksum;
 	char	*ptr = line;
@@ -525,7 +532,7 @@ int update_flash(wan_aft_cpld_t *cpld, int stype, int mtype, char* filename)
 	return err;
 }
 
-int set_board_reset(wan_aft_cpld_t *cpld)
+int board_reset(wan_aft_cpld_t *cpld, int clear)
 {
 	unsigned int	data;
 
@@ -535,61 +542,61 @@ int set_board_reset(wan_aft_cpld_t *cpld)
 		return -EINVAL;
 	}
 
-	switch(cpld->adptr_type){
-	case A104_ADPTR_4TE1:
-	case A108_ADPTR_8TE1:
-		data |= 0x06;
+	switch(cpld->core_info->board_id){
+	case A101_1TE1_SUBSYS_VENDOR:
+	case A101_2TE1_SUBSYS_VENDOR:
+	case A104_4TE1_SUBSYS_VENDOR:
+	case A300_UTE3_SUBSYS_VENDOR:
+		switch(cpld->adptr_type){
+		case A104_ADPTR_4TE1:
+		case A108_ADPTR_8TE1:
+       			if (clear) data &= ~0x06;
+       	       	       	else data |= 0x06;
+			break;
+		case A101_ADPTR_1TE1:
+		case A101_ADPTR_2TE1:
+       			if (clear) data &= ~0x20;
+       		       	else data |= 0x20;
+			break;
+		case A300_ADPTR_U_1TE3:
+       			if (clear) data &= ~0x20;
+       		       	else data |= 0x20;
+			break;
+		default:
+			return -EINVAL;
+		}
 		break;
-	case A101_ADPTR_1TE1:
-	case A101_ADPTR_2TE1:
-		data |= 0x20;
+	case AFT_1TE1_SHARK_SUBSYS_VENDOR:
+	case AFT_2TE1_SHARK_SUBSYS_VENDOR:
+	case AFT_4TE1_SHARK_SUBSYS_VENDOR:
+	case AFT_8TE1_SHARK_SUBSYS_VENDOR:
+		switch(cpld->core_info->core_id){
+		case AFT_PMC_FE_CORE_ID:
+			switch(cpld->adptr_type){
+       		 	case A104_ADPTR_4TE1:
+       				if (clear) data &= ~0x06;
+		       	       	else data |= 0x06;
+				break;
+			case A101_ADPTR_2TE1:
+       				if (clear) data &= ~0x20;
+			       	else data |= 0x20;
+				break;
+			default:
+				return -EINVAL;
+			}
+		case AFT_DS_FE_CORE_ID:
+       			if (clear) data &= ~0x06;
+		       	else data |= 0x06;
+			break;
+		default:
+			return -EINVAL;
+		}
 		break;
-	case A300_ADPTR_U_1TE3:
-		data |= 0x20;
-		break;
-	case A200_ADPTR_ANALOG:
-		data |= 0x06;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	if (exec_write_cmd(cpld->private, 0x40,4,data)){
-		printf("Failed access (write) to the board!\n");
-		return -EINVAL;
-	}
-	return 0;
-}
-
-int clear_board_reset(wan_aft_cpld_t *cpld)
-{
-	unsigned int	data;
-
-	if (set_board_reset(cpld)){
-		return -EINVAL;
-	}
-
-	/* Release board internal reset (AFT-T1/E1/T3/E3 */
-	if (exec_read_cmd(cpld->private, 0x40, 4, &data)){
-		printf("Failed access (read) to the board!\n");
-		return -EINVAL;
-	}
-
-	switch(cpld->adptr_type){
-	case A104_ADPTR_4TE1:
-	case A108_ADPTR_8TE1:
-		data &= ~(0x06);
-		break;
-	case A101_ADPTR_1TE1:
-	case A101_ADPTR_2TE1:
-		data &= ~(0x20);
-		break;
-	case A300_ADPTR_U_1TE3:
-		data &= ~(0x20);
-		break;
-	case A200_ADPTR_ANALOG:
-		data &= ~(0x06);
-		break;
+	case A200_REMORA_SHARK_SUBSYS_VENDOR:
+	case A400_REMORA_SHARK_SUBSYS_VENDOR:
+       		if (clear) data &= ~0x06;
+       	       	else data |= 0x06;
+       		break;
 	default:
 		return -EINVAL;
 	}

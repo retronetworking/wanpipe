@@ -1,10 +1,10 @@
 Package: wanpipe
-Version: 2.3.3-9
+Version: 2.3.4-10
 Section: networking
 Priority: optional
 Architecture: all
 Essential: no
-Depends: libncurses5-dev,libc6,libc6-dev,perl 
+Depends: libncurses5,libc6,perl 
 Pre-Depends: 
 Recommends:   
 Suggests:  

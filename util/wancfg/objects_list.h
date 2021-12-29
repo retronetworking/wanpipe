@@ -27,9 +27,18 @@ enum LIST_ACTION_RETURN_CODE{
   LIST_INSERTION_FAILED_GENERAL_ERROR
 };
 
+#define DECODE_LIST_ACTION_RC(rc)		\
+(						\
+(rc == LIST_ACTION_OK) ? "LIST_ACTION_OK" :	\
+(rc == LIST_INSERTION_FAILED_ELEMENT_EXIST) ? "LIST_INSERTION_FAILED_ELEMENT_EXIST" :	\
+(rc == LIST_INSERTION_FAILED_GENERAL_ERROR) ? "LIST_INSERTION_FAILED_GENERAL_ERROR" : "Unknown")
+
 #include "list_element.h"
 #include "list_element_chan_def.h"
 
+#if defined(ZAPTEL_PARSER)
+#include "list_element_sangoma_card.h"
+#endif
 
 /**
   *@author David Rokhvarg
@@ -62,6 +71,12 @@ public:
 	}
         delete tmp_chan_def;
         break;
+
+#if defined(ZAPTEL_PARSER)
+      case SANGOMA_CARD_LIST_ELEMENT:
+        delete (list_element_sangoma_card*)tmp;
+	break;
+#endif
 
       default:
         Debug(1, ("remove_all_elements() - deleting 'list_element' of unknown type: %d!!\n",

@@ -30,6 +30,9 @@ class menu_aft_logical_channels_list : public menu_base  {
   char lxdialog_path[MAX_PATH_LENGTH];
   conf_file_reader* cfr;
   
+  link_def_t    *link_defs;
+  wandev_conf_t *linkconf;
+
   unsigned int max_valid_number_of_logical_channels;
   int create_logical_channels_list_str(string& menu_str);
 

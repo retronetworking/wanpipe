@@ -12,12 +12,14 @@ DEBUG	= 2
 
 SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
 ifeq "$(SYSINC)" "" 
-SYSINC=/usr/src/linux/include
+SYSINC=/lib/modules/$(shell uname -r)/build/include
 endif
 WAN_VIRTUAL=
 
 # Tools options.
 CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
+
+CFLAGS += -DWAN_HWEC
 
 ####### RULES ################################################################
 

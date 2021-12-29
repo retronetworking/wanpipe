@@ -20,9 +20,9 @@
 #if defined(WAN_KERNEL)
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/wanpipe_debug.h>
-# include <net/wanpipe_common.h>
-# include <net/wanpipe_kernel.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_common.h>
+# include <wanpipe_kernel.h>
 #elif defined(__LINUX__)
 # include <linux/version.h>
 # include <linux/wanpipe_debug.h>
@@ -63,6 +63,7 @@ typedef struct {
 	unsigned int	protocol;
 	unsigned short lcn;
 	void 		*lip;
+	unsigned int    lip_prot;
 #elif defined(__LINUX__)
 	/* !!! IMPORTANT !!! <- Do not move this parameter (GENERIC-PPP) */
 	void*		*prot_ptr;
@@ -163,11 +164,20 @@ static __inline int wan_api_rx(void *chan_ptr,netskb_t *skb)
 	if (test_bit(SK_ID,&chan->used) && chan->sk){
 		return wanpipe_api_sock_rx(skb,chan->dev,chan->sk);
 	}
-
-	return -EINVAL;
-#else
-	return 0;
 #endif
+	return -EINVAL;
+}
+
+static __inline int wan_api_rx_dtmf(void *chan_ptr,netskb_t *skb)
+{
+#if defined(__LINUX__)
+	wanpipe_common_t *chan = (wanpipe_common_t*)chan_ptr;
+	
+	if (test_bit(SK_ID,&chan->used) && chan->sk){
+		return wanpipe_api_sock_rx(skb,chan->dev,chan->sk);
+	}
+#endif
+	return -EINVAL;
 }
 
 static __inline void wan_wakeup_api(void *chan_ptr)
@@ -271,7 +281,7 @@ static __inline int wan_bind_api_to_svc(void *chan_ptr, void *sk_id)
 	wan_get_svc_dev(chan);
 	chan->sk = sk_id;
 	sock_hold(chan->sk);
-	wan_set_bit(SK_ID,&chan->used);
+	wan_set_bit(SK_ID,&chan->used);	
 #endif
 	return 0;	
 }

@@ -17,6 +17,7 @@
 
 #include "input_box_number_of_logical_channels.h"
 #include "text_box.h"
+#include "conf_file_reader.h"
 
 #define DBG_INPUT_BOX_NUMBER_OF_LOGICAL_CHANNELS 1
 
@@ -51,6 +52,12 @@ int input_box_number_of_logical_channels::show( IN char * lxdialog_path,
     (media == WAN_MEDIA_T1 ? NUM_OF_T1_CHANNELS : (NUM_OF_E1_CHANNELS - 1));
   //help text box
   text_box tb;
+  conf_file_reader  *local_cfr = (conf_file_reader*)global_conf_file_reader_ptr;
+  link_def_t        *link_defs = local_cfr->link_defs;
+
+  if(link_defs->card_version == A200_ADPTR_ANALOG){
+    max_valid_number_of_channels = MAX_FXOFXS_CHANNELS;
+  }
 
   snprintf(backtitle, MAX_PATH_LENGTH, "WANPIPE Configuration Utility ");
 //  snprintf(&backtitle[strlen(backtitle)], MAX_PATH_LENGTH,
@@ -86,24 +93,31 @@ again:
     if(number_of_channels < 1 || number_of_channels > max_valid_number_of_channels){
 
       text_box tb;
-      tb.show_error_message(lxdialog_path, WANCONFIG_AFT,
+
+      if(link_defs->card_version == A200_ADPTR_ANALOG){
+
+        tb.show_error_message(lxdialog_path, WANCONFIG_AFT,
+"Invalid number of Channels. Minimum: 1, Max: %d.", MAX_FXOFXS_CHANNELS);
+        goto again;
+
+      }else{
+        tb.show_error_message(lxdialog_path, WANCONFIG_AFT,
 "Invalid number of %s.\n\
 For T1 line Min: %d, Max: %d.\n\
 For E1 line Min: %d, Max: %d.",
-       TIME_SLOT_GROUPS_STR,
-       1, NUM_OF_T1_CHANNELS,
-       1, NUM_OF_E1_CHANNELS - 1);
-      goto again;
+         TIME_SLOT_GROUPS_STR,
+         1, NUM_OF_T1_CHANNELS,
+         1, NUM_OF_E1_CHANNELS - 1);
+        goto again;
+      }
     }else{
       *this->number_of_channels = number_of_channels;
     }
     goto cleanup;
-    break;
 
   case INPUT_BOX_BUTTON_HELP:
     tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, option_not_implemented_yet_help_str);
     goto again;
-    break;
 
   }//switch(*selection_index)
 

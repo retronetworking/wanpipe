@@ -65,7 +65,7 @@
 * Dec 09, 1997	Jaspreet Singh	o Added PAP and CHAP.
 *				o Implemented new routines like 
 *				  ppp_set_inbnd_auth(), ppp_set_outbnd_auth(),
-*				  tokenize() and strstrip().
+*				  tokenize() and str_strip().
 * Nov 27, 1997	Jaspreet Singh	o Added protection against enabling of irqs 
 *				  while they have been disabled.
 * Nov 24, 1997  Jaspreet Singh  o Fixed another RACE condition caused by
@@ -324,7 +324,7 @@ static int udp_pkt_type( struct sk_buff *skb , sdla_t *card);
 static void init_ppp_priv_struct( ppp_private_area_t *ppp_priv_area);
 static void init_global_statistics( sdla_t *card );
 static int tokenize(char *str, char **tokens);
-static char* strstrip(char *str, char *s);
+static char* str_strip(char *str, char *s);
 static int chk_bcast_mcast_addr(sdla_t* card, netdevice_t* dev,
 				struct sk_buff *skb);
 
@@ -435,12 +435,13 @@ int wpp_init(sdla_t *card, wandev_conf_t *conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_te_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
 		card->fe.read_fe_reg	= read_front_end_reg;
 	
-		card->wandev.te_enable_timer = ppp_enable_timer;
+		card->wandev.fe_enable_timer = ppp_enable_timer;
 		card->wandev.te_link_state = ppp_handle_front_end_state;
 		conf->interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
@@ -449,6 +450,7 @@ int wpp_init(sdla_t *card, wandev_conf_t *conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -600,7 +602,7 @@ static int update(wan_device_t *wandev)
 	if (IS_TE1_CARD(card)) {	
 		card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 		/* TE1 Update T1/E1 perfomance counters */
-		card->wandev.fe_iface.read_pmon(&card->fe); 
+		card->wandev.fe_iface.read_pmon(&card->fe, 0); 
 	}else if (IS_56K_CARD(card)) {
 		/* 56K Update CSU/DSU alarms */
 		card->wandev.fe_iface.read_alarm(&card->fe, 1); 
@@ -859,7 +861,9 @@ static void disable_comm (sdla_t *card)
 
 	/* TE1 unconfiging */
 	if (IS_TE1_CARD(card)) {
-		sdla_te_unconfig(&card->fe);
+		if (card->wandev.fe_iface.unconfig){
+			card->wandev.fe_iface.unconfig(&card->fe);
+		}
 	}
 	return;
 }
@@ -1492,12 +1496,20 @@ static struct net_device_stats *if_stats(netdevice_t *dev)
 /*============================================================================
  * Read TE1/56K Front end registers
  */
-static unsigned char read_front_end_reg (void* card1, unsigned short reg)
+//static unsigned char read_front_end_reg (void* card1, unsigned short reg)
+static unsigned char read_front_end_reg (void* card1, ...)
 {
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	char* data = mb->wan_data;
+	va_list		args;
+	sdla_t		*card = (sdla_t*)card1;
+        wan_mbox_t	*mb = &card->wan_mbox;
+	char		*data = mb->wan_data;
+	u16		reg, line_no;
         int err;
+
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	va_end(args);
 
 	((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
 	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
@@ -1512,14 +1524,24 @@ static unsigned char read_front_end_reg (void* card1, unsigned short reg)
 /*============================================================================
  * Write to TE1/56K Front end registers 
  */
-static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
+//static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
+static int write_front_end_reg (void* card1, ...)
 {
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	char* data = mb->wan_data;
+	va_list		args;
+	sdla_t		*card = (sdla_t*)card1;
+        wan_mbox_t	*mb = &card->wan_mbox;
+	char		*data = mb->wan_data;
+	u16		reg, line_no;
+	u8		value;
         int err;
 	int retry=15;
 	
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	value	= (u8)va_arg(args, int);
+	va_end(args);
+
 	do {
 		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
 		((FRONT_END_REG_STRUCT *)data)->register_value = value;
@@ -1678,7 +1700,7 @@ static int tokenize (char *str, char **tokens)
 	tokens[0] = strsep(&str, "/");
         while (tokens[cnt] && (cnt < 32 - 1))
         {
-                tokens[cnt] = strstrip(tokens[cnt], " \t");
+                tokens[cnt] = str_strip(tokens[cnt], " \t");
                 tokens[++cnt] = strsep(&str, "/");
         }
 	return cnt;
@@ -1687,7 +1709,7 @@ static int tokenize (char *str, char **tokens)
 /*============================================================================
  * Strip leading and trailing spaces off the string str.
  */
-static char* strstrip (char *str, char* s)
+static char* str_strip (char *str, char* s)
 {
         char *eos = str + strlen(str);          /* -> end of string */
 
@@ -2428,7 +2450,7 @@ void timer_intr (sdla_t *card)
 		if (IS_TE1_CARD(card)) {	
 			card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 			/* TE1 Update T1/E1 perfomance counters */
-			card->wandev.fe_iface.read_pmon(&card->fe); 
+			card->wandev.fe_iface.read_pmon(&card->fe, 0); 
 		}else if (IS_56K_CARD(card)) {
 			/* 56K Update CSU/DSU alarms */
 			card->wandev.fe_iface.read_alarm(&card->fe, 1);
@@ -3476,11 +3498,11 @@ static int read_info( sdla_t *card )
 	if_data1 = (struct sockaddr_in *)&if_info.ifr_addr;
 	if_data1->sin_addr.s_addr = ppp_priv_area->ip_local;
 	if_data1->sin_family = AF_INET;
-	err = devinet_ioctl( SIOCSIFADDR, &if_info );
+	err = wp_devinet_ioctl( SIOCSIFADDR, &if_info );
 	if_data2 = (struct sockaddr_in *)&if_info.ifr_dstaddr;
 	if_data2->sin_addr.s_addr = ppp_priv_area->ip_remote;
 	if_data2->sin_family = AF_INET;
-	err = devinet_ioctl( SIOCSIFDSTADDR, &if_info );
+	err = wp_devinet_ioctl( SIOCSIFDSTADDR, &if_info );
 
 	set_fs(fs);           /* restore old block */
 	
@@ -3537,7 +3559,7 @@ static void remove_route( sdla_t *card )
 	if_data1 = (struct sockaddr_in *)&if_info.ifr_addr;
 	if_data1->sin_addr.s_addr = 0;
 	if_data1->sin_family = AF_INET;
-	err = devinet_ioctl( SIOCSIFADDR, &if_info );
+	err = wp_devinet_ioctl( SIOCSIFADDR, &if_info );
 
         set_fs(fs);           /* restore old block */
 
@@ -3778,10 +3800,14 @@ static int config_ppp (sdla_t *card)
 
 	
 	if (IS_TE1_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring onboard %s CSU/DSU\n",
 			card->devname, 
 			(IS_T1_CARD(card))?"T1":"E1");
-		if (sdla_te_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			printk(KERN_INFO "%s: Failed %s configuratoin!\n",
 					card->devname,
 					(IS_T1_CARD(card))?"T1":"E1");
@@ -3789,10 +3815,14 @@ static int config_ppp (sdla_t *card)
 		}
 		
 	}else if (IS_56K_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring 56K onboard CSU/DSU\n",
 			card->devname);
 
-		if(sdla_56k_config(&card->fe, &card->wandev.fe_iface)) {
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return 0;

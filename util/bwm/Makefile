@@ -2,7 +2,7 @@ all: bwm.c
 	$(CC) $(CFLAGS) -O2 -Wall bwm.c -o wpbwm
 
 clean:
-	rm wpbwm
+	rm -f wpbwm
 
 install:
 	@echo "Installing wpbwm in $(WAN_VIRTUAL)/usr/sbin"

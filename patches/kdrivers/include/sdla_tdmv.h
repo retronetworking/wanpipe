@@ -22,59 +22,88 @@
 # define EXTERN extern
 #endif
 
-#include <linux/wanpipe_edac_iface.h>
 
-/*
-*******************************************************************************
+/******************************************************************************
 **			  DEFINES and MACROS
-*******************************************************************************
-*/
+******************************************************************************/
+
+#if defined(WAN_KERNEL)
+
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+# if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER)
+#  include <wanpipe_edac_iface.h>
+# endif
+#else
+# if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER)
+#  include <linux/wanpipe_edac_iface.h>
+# endif
+#endif
+
+/******************************************************************************
+**			  DEFINES and MACROS
+******************************************************************************/
+
 #define WAN_TDMV_IDLE_FLAG	0x7F
 
-/*
-*******************************************************************************
+#define WAN_TDMV_CALL(func, args, err)					\
+	if (card->tdmv_iface.func){					\
+		err = card->tdmv_iface.func args;			\
+	}else{								\
+		DEBUG_EVENT("%s: Internal Error (%s:%d)!\n",\
+				card->devname,				\
+				__FUNCTION__,__LINE__);			\
+		err = -EINVAL;						\
+	}
+			
+
+/******************************************************************************
 **			  TYPEDEF STRUCTURE
-*******************************************************************************
-*/
-
-
-
-typedef struct wan_tdmv_ {
+******************************************************************************/
+typedef struct wan_tdmv_ 
+{
 	void	*sc;
 	int	max_tx_len;
 	int	max_timeslots;
 	int	brt_enable;
+	int	sig_intr_enable;
 	int	spanno;
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER)
 	wan_tdmv_rxtx_pwr_t chan_pwr[31];	
+#endif
 	WAN_LIST_ENTRY(wan_tdmv_)	next;
 } wan_tdmv_t;
 
-/*
-*******************************************************************************
-**			  FUNCTION PROTOTYPES
-*******************************************************************************
-*/
-EXTERN int  wp_tdmv_check_mtu(void*, unsigned long);
-EXTERN int  wp_tdmv_init(void*, wanif_conf_t*);
-EXTERN void wp_tdmv_free(wan_tdmv_t*);
-EXTERN int  wp_tdmv_software_init(wan_tdmv_t*);
-EXTERN void wp_tdmv_state(void*, int);
-EXTERN int  wp_tdmv_running(void*);
-EXTERN int  wp_tdmv_rx_tx(void*, netskb_t*);
-EXTERN void wp_tdmv_report_rbsbits(void*, int, unsigned char);
-EXTERN void wp_tdmv_report_alarms(void*, unsigned long);
-
-EXTERN int wp_tdmv_create(void* pcard, wandev_conf_t *conf);
-EXTERN int wp_tdmv_reg(void*, wanif_conf_t*, netdevice_t*);
-EXTERN int wp_tdmv_unreg(void* pcard, unsigned long ts_map);
-EXTERN int wp_tdmv_remove(void* pcard);
-EXTERN int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo, 
-			   unsigned char *rxbuf, unsigned char *txbuf);
+typedef struct wan_tdmv_iface_
+{
+	int	(*check_mtu)(void*, unsigned long, int *);
+	int	(*create)(void* pcard, wan_xilinx_conf_t *conf);
+	int	(*remove)(void* pcard);
+	int	(*reg)(void*, wanif_conf_t*, netdevice_t*);
+	int	(*unreg)(void* pcard, unsigned long ts_map);
+	int	(*software_init)(wan_tdmv_t*);
+	int 	(*state)(void*, int);
+	int	(*running)(void*);
+	int	(*rx_tx)(void*, netskb_t*);
+	int	(*rx_chan)(wan_tdmv_t*, int, unsigned char*, unsigned char*); 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN)
-EXTERN int  wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo, 
-			   unsigned char *rxbuf, unsigned int len);
+	int	(*rx_dchan)(wan_tdmv_t*, int, unsigned char*, unsigned int); 
 #endif
-EXTERN int  wp_tdmv_rx_tx_span(void *pcard);
+	int	(*rx_tx_span)(void *pcard);
+	int	(*is_rbsbits)(wan_tdmv_t *);
+	int	(*rbsbits_poll)(wan_tdmv_t *, void*);
+	int	(*init)(void*, wanif_conf_t*);
+	int	(*free)(wan_tdmv_t*);
+	int	(*polling)(void*);
+	int	(*buf_rotate)(void *pcard,u32,unsigned long);
+	int	(*ec_span)(void *pcard);
+
+} wan_tdmv_iface_t;
+
+/******************************************************************************
+**			  FUNCTION PROTOTYPES
+******************************************************************************/
+EXTERN int wp_tdmv_te1_init(wan_tdmv_iface_t *iface);
+EXTERN int wp_tdmv_remora_init(wan_tdmv_iface_t *iface);
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 EXTERN int wp_tdmv_echo_check(wan_tdmv_t *wan_tdmv, void *current_ztchan, int channo);
@@ -86,8 +115,9 @@ EXTERN int wanpipe_codec_convert_2s(u8 *data, int len, netskb_t *nskb,
 
 EXTERN int wanpipe_codec_convert_s2ulaw(netskb_t *skb, netskb_t *nskb, int is_alaw);
 
-EXTERN int wp_tdmv_is_rbsbits(wan_tdmv_t *);
-EXTERN int wp_tdmv_rbsbits_poll(wan_tdmv_t *, void*);
+
+#endif /* WAN_KERNEL */
 
 #undef EXTERN
+
 #endif	/* __SDLA_VOIP_H */

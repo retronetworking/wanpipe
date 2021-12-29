@@ -475,12 +475,13 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_te_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
 		card->fe.read_fe_reg	= read_front_end_reg;
 
-		card->wandev.te_enable_timer = bstrm_enable_timer;
+		card->wandev.fe_enable_timer = bstrm_enable_timer;
 		card->wandev.te_link_state = bstrm_handle_front_end_state;
 
 		conf->interface = 
@@ -490,7 +491,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 			conf->clocking = WANOPT_EXTERNAL;
 		}
 
-		if (IS_TE1_UNFRAMED(&card->fe)){
+		if (IS_FR_FEUNFRAMED(&card->fe)){
 			card->u.b.serial=1;
 		}
 
@@ -500,6 +501,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -706,7 +708,7 @@ int wpbit_init (sdla_t* card, wandev_conf_t* conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		int tx_time_slots=card->u.b.time_slots;
 		
-		if (IS_E1_CARD(card) && !IS_TE1_UNFRAMED(&card->fe) && card->u.b.time_slots == 32){
+		if (IS_E1_CARD(card) && !IS_FR_FEUNFRAMED(&card->fe) && card->u.b.time_slots == 32){
 			tx_time_slots=31;
 		}
 		
@@ -1090,7 +1092,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		/* Channel definition section. If not channels defined 
 		 * return error */
 
-		if (IS_E1_CARD(card) && !IS_TE1_UNFRAMED(&card->fe)){
+		if (IS_E1_CARD(card) && !IS_FR_FEUNFRAMED(&card->fe)){
 			conf->active_ch=conf->active_ch&0x7FFFFFFF;
 		}
 
@@ -1108,7 +1110,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		/* Default the max_tx_up_size */
 		bstrm_priv_area->max_tx_up_size=MAX_T1_CHAN_TX_UP_SIZE;
 		if (IS_E1_CARD(card)){
-			if (IS_TE1_UNFRAMED(&card->fe)){
+			if (IS_FR_FEUNFRAMED(&card->fe)){
 				bstrm_priv_area->max_tx_up_size=MAX_E1_UNFRM_CHAN_TX_UP_SIZE;
 			}else{
 				bstrm_priv_area->max_tx_up_size=MAX_E1_CHAN_TX_UP_SIZE;
@@ -1652,7 +1654,9 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 					card->u.b.cfg.max_length_tx_data_block = 682;//divisible by 31
 					card->u.b.time_slots = NO_ACTIVE_RX_TIME_SLOTS_E1;
 				}
-				sdla_te_unconfig(&card->fe);
+				if (card->wandev.fe_iface.unconfig){
+					card->wandev.fe_iface.unconfig(&card->fe);
+				}
 			}
 
 			err=config_bstrm(card);
@@ -1676,13 +1680,13 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 					unsigned char val = 0;
 					unsigned char new_val;
 						
-					val = read_front_end_reg(card, custom_control_pkt.reg);
+					val = read_front_end_reg(card, 1, custom_control_pkt.reg);
 				
 					DEBUG_DBG("%s: read val : 0x%02X\n", card->devname, val);
 
 					new_val = val | (0x01 << custom_control_pkt.bit_number);
 					
-					err = write_front_end_reg(card, custom_control_pkt.reg, new_val);
+					err = write_front_end_reg(card, 1, custom_control_pkt.reg, new_val);
 					
 					if(err){
 						printk(	KERN_INFO
@@ -1690,7 +1694,7 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 								card->devname, err);
 					}
 
-					val = read_front_end_reg(card, custom_control_pkt.reg);
+					val = read_front_end_reg(card, 1, custom_control_pkt.reg);
 				
 					DEBUG_DBG("%s: read val after OR : 0x%02X\n", card->devname, val);
 
@@ -1708,11 +1712,11 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 					unsigned char val = 0;
 					unsigned char new_val;
 						
-					val = read_front_end_reg(card, custom_control_pkt.reg);
+					val = read_front_end_reg(card, 1, custom_control_pkt.reg);
 				
 					new_val = val &= (~(0x01 << custom_control_pkt.bit_number));
 					
-					err = write_front_end_reg(card, custom_control_pkt.reg, new_val);
+					err = write_front_end_reg(card, 1, custom_control_pkt.reg, new_val);
 					
 					if(err){
 						DEBUG_EVENT(
@@ -1981,7 +1985,9 @@ static void disable_comm (sdla_t *card)
 
 	/* TE1 - Unconfiging */
 	if (IS_TE1_CARD(card)) {
-		sdla_te_unconfig(&card->fe);
+		if (card->wandev.fe_iface.unconfig){
+			card->wandev.fe_iface.unconfig(&card->fe);
+		}
 	}
 	return;
 }
@@ -2410,7 +2416,7 @@ static int update_comms_stats(sdla_t* card,
 		if (IS_TE1_CARD(card)) {
 			card->wandev.fe_iface.read_alarm(&card->fe, 0);
 			/* TE1 Update T1/E1 perfomance counters */
-			card->wandev.fe_iface.read_pmon(&card->fe);
+			card->wandev.fe_iface.read_pmon(&card->fe, 0);
 		}else if (IS_56K_CARD(card)) {
 			/* 56K Update CSU/DSU alarms */
 			card->wandev.fe_iface.read_alarm(&card->fe, 1); 
@@ -2489,12 +2495,19 @@ static int bstrm_send (sdla_t* card, void* data, unsigned len, unsigned char fla
  * TE1
  * Read value from PMC register.
  */
-static unsigned char read_front_end_reg (void* card1, unsigned short reg)
+static unsigned char read_front_end_reg (void* card1, ...)
 {
+	va_list		args;
 	sdla_t* card = (sdla_t*)card1;
         wan_mbox_t* mb = &card->wan_mbox;
+	u16		reg, line_no;
         int rc;
 	char* data = mb->wan_data;
+
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	va_end(args);
 
 	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
         mb->wan_command = READ_FRONT_END_REGISTER;
@@ -2509,13 +2522,22 @@ static unsigned char read_front_end_reg (void* card1, unsigned short reg)
  * TE1 
  * Write value to PMC register.
  */
-static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
+static int write_front_end_reg (void* card1, ...)
 {
+	va_list		args;
 	sdla_t* card = (sdla_t*)card1;
         wan_mbox_t* mb = &card->wan_mbox;
+	u16		reg, line_no;
+	u8		value;
         int rc;
 	char* data = mb->wan_data;
 	int retry=10;
+
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	value	= (u8)va_arg(args, int);
+	va_end(args);
 
 	do {
 		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
@@ -2677,7 +2699,7 @@ static void bstrm_tx_bh (unsigned long data)
 		/* Do not tx on E1 channel 0 since it is a signalling
 		 * channel */
 		
-		if (!IS_TE1_UNFRAMED(&card->fe) && card->u.b.time_slots == NUM_OF_E1_CHANNELS && ch == 0){
+		if (!IS_FR_FEUNFRAMED(&card->fe) && card->u.b.time_slots == NUM_OF_E1_CHANNELS && ch == 0){
 			goto tx_time_slot_handled;
 		}
 	
@@ -4112,7 +4134,7 @@ static void rx_intr (sdla_t* card)
 
 	if (card->u.b.cfg.rbs_map){
 		int channel_range = GET_TE_CHANNEL_RANGE(&card->fe);
-		card->hw_iface.peek(card->hw, card->fe.fe_param.te_param.ptr_te_Rx_sig_off,
+		card->hw_iface.peek(card->hw, card->fe.te_param.ptr_te_Rx_sig_off,
 				&card->u.b.rbs_sig[0], channel_range);
 		//card->hw_iface.peek(card->hw, card->u_fe.te_iface.ptr_te_Rx_sig_off,
 		//		&card->u.b.rbs_sig[0], channel_range);
@@ -5017,10 +5039,14 @@ static int config_bstrm (sdla_t *card)
 			card->devname, 
 			(IS_T1_CARD(card))?"T1":"E1");
 
-		if (sdla_te_config(&card->fe, &card->wandev.fe_iface)){
-			DEBUG_EVENT( "%s: Failed %s configuration!\n",
-					card->devname,
-					(IS_T1_CARD(card))?"T1":"E1");
+		err = -EINVAL;
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
+			DEBUG_EVENT("%s: Failed %s configuration!\n",
+						card->devname,
+						(IS_T1_CARD(card))?"T1":"E1");
 			return -EINVAL;
 		}
 
@@ -5031,8 +5057,12 @@ static int config_bstrm (sdla_t *card)
 		printk(KERN_INFO "%s: Configuring 56K onboard CSU/DSU\n",
 			card->devname);
 
-		if(sdla_56k_config(&card->fe, &card->wandev.fe_iface)) {
-			printk (KERN_INFO "%s: Failed 56K configuration!\n",
+		err = -EINVAL;
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
+			DEBUG_EVENT("%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EINVAL;
 		}
@@ -5208,7 +5238,7 @@ static int bstrm_set_FE_config (sdla_t *card)
 	FE_RX_DISC_TX_IDLE_STRUCT FE_str;
 	int i;
 
-	if (IS_TE1_UNFRAMED(&card->fe)){
+	if (IS_FR_FEUNFRAMED(&card->fe)){
 		return 0;
 	}	
 	
@@ -5590,8 +5620,8 @@ static int bstrm_disable_te_signaling (void* card_id, unsigned long ts_map)
 			ts_sig_perm[i] = TE_SIG_DISABLED;
 		}
 	}
-	if (card->fe.fe_param.te_param.ptr_te_sig_perm_off){
-		card->hw_iface.poke(card->hw, card->fe.fe_param.te_param.ptr_te_sig_perm_off,
+	if (card->fe.te_param.ptr_te_sig_perm_off){
+		card->hw_iface.poke(card->hw, card->fe.te_param.ptr_te_sig_perm_off,
 				ts_sig_perm, channel_range);
 	}
 	// REMOVE it later!!
@@ -5624,13 +5654,13 @@ static int bstrm_read_te_signaling_config (void* card_id)
 		bstrm_error(card,err,mb);
 	}else{
 		//card->u_fe.te_iface.ptr_te_sig_perm_off = 
-		card->fe.fe_param.te_param.ptr_te_sig_perm_off = 
+		card->fe.te_param.ptr_te_sig_perm_off = 
                		((te_signaling_cfg_t *)data)->ptr_te_sig_perm_struct;
 		//card->u_fe.te_iface.ptr_te_Rx_sig_off =
-		card->fe.fe_param.te_param.ptr_te_Rx_sig_off =
+		card->fe.te_param.ptr_te_Rx_sig_off =
         	       	((te_signaling_cfg_t *)data)->ptr_te_Rx_sig_struct;
 		//card->u_fe.te_iface.ptr_te_Tx_sig_off =
-		card->fe.fe_param.te_param.ptr_te_Tx_sig_off =
+		card->fe.te_param.ptr_te_Tx_sig_off =
      	          	((te_signaling_cfg_t *)data)->ptr_te_Tx_sig_struct;
 	}	
 	

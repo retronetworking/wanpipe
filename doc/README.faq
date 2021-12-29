@@ -100,17 +100,7 @@ with our driver.
 
 Possible Solutions:
 
-1) Remove the Hotplug RPM
-	rpm -qa | grep hotplug
-	rpm -e <hotplug name>
- 
-2) Stop hotplug:
-	/etc/init.d/hotplug stop
-
-	However, you must do this each
-	time you boot up.
-
-3) Insert wanpipe interface name into the hotplug
+1) Insert wanpipe interface name into the hotplug
    interface list, and restart hotplug.
 	
 	vi /etc/hotplug/net.agent
@@ -127,4 +117,13 @@ Possible Solutions:
 	
 	/etc/init.d/hotplug restart
 
+2) Remove the Hotplug RPM
+	rpm -qa | grep hotplug
+	rpm -e <hotplug name>
+ 
+3) Stop hotplug:
+	/etc/init.d/hotplug stop
+
+	However, you must do this each
+	time you boot up.   
 

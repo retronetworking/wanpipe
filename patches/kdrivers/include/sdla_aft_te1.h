@@ -1,9 +1,11 @@
 /*****************************************************************************
-* sdla_xilinx.h	WANPIPE(tm) S51XX Xilinx Hardware Support
+* sdla_aft_te1.h
+*	
+*		WANPIPE(tm) AFT Hardware Support
 * 		
 * Authors: 	Nenad Corbic <ncorbic@sangoma.com>
 *
-* Copyright:	(c) 2003 Sangoma Technologies Inc.
+* Copyright:	(c) 2003-2005 Sangoma Technologies Inc.
 *
 *		This program is free software; you can redistribute it and/or
 *		modify it under the terms of the GNU General Public License
@@ -17,12 +19,27 @@
 #ifndef _SDLA_AFT_TE1_H
 #define _SDLA_AFT_TE1_H
 
+
 #ifdef WAN_KERNEL
 
-#define AFT_PORT0_OFFSET		0x0000
-#define AFT_PORT1_OFFSET		0x4000
-#define AFT_PORT2_OFFSET		0x8000
-#define AFT_PORT3_OFFSET		0xC000
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+# include <aft_a104.h>
+# include <aft_analog.h>
+#else
+# include <linux/wanpipe_tdm_api.h>
+# include <linux/aft_a104.h>
+# include <linux/aft_analog.h>
+#endif
+
+#define AFT_PORT0_OFFSET		0x00000
+#define AFT_PORT1_OFFSET		0x04000
+#define AFT_PORT2_OFFSET		0x08000
+#define AFT_PORT3_OFFSET		0x0C000
+
+#define AFT_PORT4_OFFSET		0x10000
+#define AFT_PORT5_OFFSET		0x14000
+#define AFT_PORT6_OFFSET		0x18000
+#define AFT_PORT7_OFFSET		0x1C000
 
 #define AFT_PORT_REG(card,reg)		(reg+(0x4000*card->wandev.comm_port))
 
@@ -37,40 +54,102 @@
 
 #define AFT_CHIP_CFG_REG		0x40
 
-#define AFT_MCPU_INTERFACE_RW		0x54
+#define AFT_ANALOG_MCPU_IFACE_RW	0x44
 
 #define AFT_WDT_CTRL_REG		0x48 
+#define AFT_WDT_1TO4_CTRL_REG		AFT_WDT_CTRL_REG
 
 #define AFT_DATA_MUX_REG		0x4C 
 
 #define AFT_FIFO_MARK_REG		0x50
 
+#define AFT_MCPU_INTERFACE_RW		0x54
+
+#define AFT_ANALOG_SPI_IFACE_RW		0x54
+
+#define AFT_CHIP_STAT_REG		0x58
+
+#define AFT_WDT_4TO8_CTRL_REG		0x5C
+
+
+/*================================================= 
+  A104 CHIP CFG REGISTERS  
+*/
+
 # define AFT_CHIPCFG_TE1_CFG_BIT	0
+# define AFT_CHIPCFG_56K_CFG_BIT	0
+# define AFT_CHIPCFG_ANALOG_CLOCK_SELECT_BIT 0
 # define AFT_CHIPCFG_SFR_EX_BIT		1
 # define AFT_CHIPCFG_SFR_IN_BIT		2
 # define AFT_CHIPCFG_FE_INTR_CFG_BIT	3
+
+# define AFT_CHIPCFG_A104D_EC_SEC_KEY_MASK	0x7
+# define AFT_CHIPCFG_A104D_EC_SEC_KEY_SHIFT 	4
+
+# define AFT_CHIPCFG_A200_EC_SEC_KEY_MASK	0x3
+# define AFT_CHIPCFG_A200_EC_SEC_KEY_SHIFT  	16 
+
+# define AFT_CHIPCFG_SPI_SLOW_BIT	5	/* Slow down SPI */
+#if 0
+# define AFT_CHIPCFG_EC_INTR_CFG_BIT	4	/* Shark or Analog */
 # define AFT_CHIPCFG_SECURITY_CFG_BIT	6
+#endif
+
 # define AFT_CHIPCFG_RAM_READY_BIT	7
 # define AFT_CHIPCFG_HDLC_CTRL_RDY_BIT  8
 
+# define AFT_CHIPCFG_ANALOG_INTR_MASK	0x0F		/* Analog */
+# define AFT_CHIPCFG_ANALOG_INTR_SHIFT	9
+
+# define AFT_CHIPCFG_A108_EC_CLOCK_SRC_MASK	0x07	/* A108 */
+# define AFT_CHIPCFG_A108_EC_CLOCK_SRC_SHIFT	9	
+
+# define AFT_CHIPCFG_A104D_EC_SECURITY_BIT 12
+# define AFT_CHIPCFG_A108_EC_INTR_ENABLE_BIT 12		/* A108 */
+
+# define AFT_CHIPCFG_EC_INTR_STAT_BIT	13
+
+
+/* A104 A200 A108 Differ Here 
+ * By default any register without device name is
+ * common to all all.
+ */
+
 # define AFT_CHIPCFG_P1_TDMV_INTR_BIT	14	
+
 # define AFT_CHIPCFG_P2_TDMV_INTR_BIT	15	
+# define AFT_CHIPCFG_A104_TDM_ACK_BIT 15
+
+# define AFT_CHIPCFG_A200_EC_SECURITY_BIT 15		/* Analog */
+# define AFT_CHIPCFG_A108_EC_SECURITY_BIT 15		/* A108 */
+
 # define AFT_CHIPCFG_P3_TDMV_INTR_BIT	16	
+# define AFT_CHIPCFG_A108_A104_TDM_FIFO_SYNC_BIT	16 	/* A108 Global Fifo Sync Bit */
+
 # define AFT_CHIPCFG_P4_TDMV_INTR_BIT	17	
+# define AFT_CHIPCFG_A108_A104_TDM_DMA_RINGBUF_BIT	17   	/* A108 Quad DMA Ring buf enable */
 
 # define AFT_CHIPCFG_P1_WDT_INTR_BIT	18
 # define AFT_CHIPCFG_P2_WDT_INTR_BIT	19
 # define AFT_CHIPCFG_P3_WDT_INTR_BIT	20
 # define AFT_CHIPCFG_P4_WDT_INTR_BIT	21
 
+# define AFT_CHIPCFG_A108_EC_INTER_STAT_BIT	21	/* A108 */
+
 # define AFT_CHIPCFG_FE_INTR_STAT_BIT	22
 # define AFT_CHIPCFG_SECURITY_STAT_BIT	23
+
+
+/* A104 & A104D IRQ Status Bits */
 
 # define AFT_CHIPCFG_HDLC_INTR_MASK	0x0F
 # define AFT_CHIPCFG_HDLC_INTR_SHIFT	24
 
 # define AFT_CHIPCFG_DMA_INTR_MASK	0x0F
 # define AFT_CHIPCFG_DMA_INTR_SHIFT	28
+
+# define AFT_CHIPCFG_A108_TDM_GLOBAL_RX_INTR_ACK 30
+# define AFT_CHIPCFG_A108_TDM_GLOBAL_TX_INTR_ACK 31
 
 # define AFT_CHIPCFG_WDT_INTR_MASK	0x0F
 # define AFT_CHIPCFG_WDT_INTR_SHIFT	18
@@ -82,6 +161,10 @@
 #  define AFT_CHIPCFG_WDT_TX_INTR_STAT  1
 #  define AFT_CHIPCFG_WDT_RX_INTR_STAT	2
 
+
+
+/* A104 & A104D Interrupt Status Funcitons */
+
 static __inline u32
 aft_chipcfg_get_hdlc_intr_stats(u32 reg)
 {
@@ -89,6 +172,24 @@ aft_chipcfg_get_hdlc_intr_stats(u32 reg)
 	reg&=AFT_CHIPCFG_HDLC_INTR_MASK;
 	return reg;
 }
+
+static __inline u32
+aft_chipcfg_get_analog_intr_stats(u32 reg)
+{
+	reg=reg>>AFT_CHIPCFG_ANALOG_INTR_SHIFT;
+	reg&=AFT_CHIPCFG_ANALOG_INTR_MASK;
+	return reg;
+}
+
+static __inline void
+aft_chipcfg_set_oct_clk_src(u32 *reg, u32 src)
+{ 
+ 	*reg&=~(AFT_CHIPCFG_A108_EC_CLOCK_SRC_MASK<<AFT_CHIPCFG_A108_EC_CLOCK_SRC_SHIFT);
+	src&=AFT_CHIPCFG_A108_EC_CLOCK_SRC_MASK;
+	*reg|=(src<<AFT_CHIPCFG_A108_EC_CLOCK_SRC_SHIFT);       
+}
+
+
 static __inline u32
 aft_chipcfg_get_dma_intr_stats(u32 reg)
 {
@@ -114,6 +215,128 @@ aft_chipcfg_get_tdmv_intr_stats(u32 reg)
 }
 
 
+
+
+/* A108 IRQ Status Bits on CHIP_STAT_REG */
+
+# define AFT_CHIPCFG_A108_WDT_INTR_MASK		0xFF
+# define AFT_CHIPCFG_A108_WDT_INTR_SHIFT	0
+
+# define AFT_CHIPCFG_A108_TDMV_INTR_MASK	0xFF
+# define AFT_CHIPCFG_A108_TDMV_INTR_SHIFT	8
+
+# define AFT_CHIPCFG_A108_FIFO_INTR_MASK	0xFF
+# define AFT_CHIPCFG_A108_FIFO_INTR_SHIFT	16
+
+# define AFT_CHIPCFG_A108_DMA_INTR_MASK		0xFF
+# define AFT_CHIPCFG_A108_DMA_INTR_SHIFT	24
+
+/* A108 Interrupt Status Functions */
+
+static __inline u32
+aft_chipcfg_a108_get_fifo_intr_stats(u32 reg)
+{
+	reg=reg>>AFT_CHIPCFG_A108_FIFO_INTR_SHIFT;
+	reg&=AFT_CHIPCFG_A108_FIFO_INTR_MASK;
+	return reg;
+}
+
+static __inline u32
+aft_chipcfg_a108_get_dma_intr_stats(u32 reg)
+{
+	reg=reg>>AFT_CHIPCFG_A108_DMA_INTR_SHIFT;
+	reg&=AFT_CHIPCFG_A108_DMA_INTR_MASK;
+	return reg;
+}
+
+static __inline u32
+aft_chipcfg_a108_get_wdt_intr_stats(u32 reg)
+{
+	reg=reg>>AFT_CHIPCFG_A108_WDT_INTR_SHIFT;
+	reg&=AFT_CHIPCFG_A108_WDT_INTR_MASK;
+	return reg;
+}
+
+static __inline u32
+aft_chipcfg_a108_get_tdmv_intr_stats(u32 reg)
+{
+	reg=reg>>AFT_CHIPCFG_A108_TDMV_INTR_SHIFT;
+	reg&=AFT_CHIPCFG_A108_TDMV_INTR_MASK;
+	return reg;
+}
+
+
+
+/* 56k IRQ status bits */
+# define AFT_CHIPCFG_A56K_WDT_INTR_BIT		0
+# define AFT_CHIPCFG_A56K_DMA_INTR_BIT		24
+# define AFT_CHIPCFG_A56K_FIFO_INTR_BIT		16
+
+# define AFT_CHIPCFG_A56K_FE_MASK			0x7F
+# define AFT_CHIPCFG_A56K_FE_SHIFT			9
+
+static __inline u32
+aft_chipcfg_a56k_read_fe(u32 reg)
+{
+	reg=reg>>AFT_CHIPCFG_A56K_FE_SHIFT;
+	reg&=AFT_CHIPCFG_A56K_FE_MASK;
+	return reg;
+}
+
+static __inline u32
+aft_chipcfg_a56k_write_fe(u32 reg, u32 val)
+{
+	val&=AFT_CHIPCFG_A56K_FE_MASK;
+
+	reg &= ~(AFT_CHIPCFG_A56K_FE_MASK<<AFT_CHIPCFG_A56K_FE_SHIFT);
+
+	reg |= (val<<AFT_CHIPCFG_A56K_FE_SHIFT);
+
+	return reg;
+}
+static __inline u32
+aft_chipcfg_get_ec_channels(u32 reg)
+{
+	switch ((reg>>AFT_CHIPCFG_A104D_EC_SEC_KEY_SHIFT)&AFT_CHIPCFG_A104D_EC_SEC_KEY_MASK){
+    
+	case 0x00:
+		return 0;
+	case 0x01:
+		return 32;
+	case 0x02:
+		return 64;
+	case 0x03:
+		return 96;
+	case 0x04:
+		return 128;
+	case 0x05:
+		return 256;
+   	default:
+		return 0;
+	}
+	
+	return 0;
+}
+
+
+
+static __inline u32
+aft_chipcfg_get_a200_ec_channels(u32 reg)
+{
+	switch ((reg>>AFT_CHIPCFG_A200_EC_SEC_KEY_SHIFT)&AFT_CHIPCFG_A200_EC_SEC_KEY_MASK){
+    
+	case 0x00:
+		return 0;
+	case 0x01:
+		return 16;
+	case 0x02:
+		return 32;
+   	default:
+		return 0;
+	}
+	
+	return 0;
+}        
 
 # define AFT_WDTCTRL_MASK		0xFF
 # define AFT_WDTCTRL_TIMEOUT 		75	/* ms */
@@ -199,13 +422,23 @@ aft_fifo_mark_gset(u32 *reg, u8 mark)
 
 # define AFT_LCFG_TDMV_INTR_BIT		15
 
+# define AFT_LCFG_A108_CLK_ROUTE_MASK	0x0F
+# define AFT_LCFG_A108_CLK_ROUTE_SHIFT	16
+
+# define AFT_LCFG_CLR_CHNL_EN		26
+
 # define AFT_LCFG_FE_CLK_ROUTE_BIT	27
 
 # define AFT_LCFG_FE_CLK_SOURCE_MASK	0x03
 # define AFT_LCFG_FE_CLK_SOURCE_SHIFT	28
 
 # define AFT_LCFG_GREEN_LED_BIT		30
+# define AFT_LCFG_A108_FE_CLOCK_MODE_BIT 31	/* A108 */
+
 # define AFT_LCFG_RED_LED_BIT		31
+# define AFT_LCFG_A108_FE_TE1_MODE_BIT	30	/* A108 */
+
+
 
 
 static __inline void
@@ -213,6 +446,13 @@ aft_lcfg_fe_clk_source(u32 *reg, u32 src)
 {
 	*reg&=~(AFT_LCFG_FE_CLK_SOURCE_MASK<<AFT_LCFG_FE_CLK_SOURCE_SHIFT);
 	*reg|=(src&AFT_LCFG_FE_CLK_SOURCE_MASK)<<AFT_LCFG_FE_CLK_SOURCE_SHIFT;
+}
+
+static __inline void
+aft_lcfg_a108_fe_clk_source(u32 *reg, u32 src)
+{
+	*reg&=~(AFT_LCFG_A108_CLK_ROUTE_MASK<<AFT_LCFG_A108_CLK_ROUTE_SHIFT);
+	*reg|=(src&AFT_LCFG_A108_CLK_ROUTE_MASK)<<AFT_LCFG_A108_CLK_ROUTE_SHIFT;
 }
 
 
@@ -281,6 +521,10 @@ aft_lcfg_ss7_mode4096_cfg(u32 *reg, int lssu_size)
 #define AFT_TX_DMA_CTRL_REG		0x204
 
 #define AFT_RX_DMA_CTRL_REG		0x208
+
+#define AFT_ANALOG_DATA_MUX_CTRL_REG	0x20C
+
+#define AFT_ANALOG_EC_CTRL_REG		0x210
 
 # define AFT_DMACTRL_TDMV_RX_TOGGLE	14
 # define AFT_DMACTRL_TDMV_TX_TOGGLE	15
@@ -409,7 +653,6 @@ aft_dmachain_set_tx_dma_addr(u32 *reg, int addr)
 	return;
 }
 
-
 static __inline u32
 aft_dmachain_get_rx_dma_addr(u32 reg)
 {
@@ -427,6 +670,7 @@ aft_dmachain_set_rx_dma_addr(u32 *reg, int addr)
 	*reg|=addr<<AFT_DMACHAIN_RX_ADDR_CNT_SHIFT;
 	return;
 }
+
 
 static __inline void
 aft_dmachain_set_fifo_size(u32 *reg, int size)
@@ -456,10 +700,10 @@ aft_dmachain_enable_tdmv_and_mtu_size(u32 *reg, int size)
 	case 16:
 		size=0x01;
 		break;
-	case 32:
+	case 40:
 		size=0x02;
 		break;
-	case 64:
+	case 80:
 		size=0x03;
 		break;
 	default:
@@ -695,24 +939,7 @@ enum {
 #define SW0_VALUE               0x04
 #define SW1_VALUE               0x08
 
-
-#define SECURITY_CPLD_REG       0x09
 #define CUSTOMER_CPLD_ID_REG	0x0A
-
-#define SECURITY_CPLD_MASK	0x03
-#define SECURITY_CPLD_SHIFT	0x02
-
-#define SECURITY_1LINE_UNCH	0x00
-#define SECURITY_1LINE_CH	0x01
-#define SECURITY_2LINE_UNCH	0x02
-#define SECURITY_2LINE_CH	0x03
-
-#define WAN_AFT_SECURITY(sec)					\
-	((sec) == SECURITY_1LINE_UNCH) ? "Unchannelized!" :	\
-	((sec) == SECURITY_1LINE_CH)   ? "Channelized!" :	\
-	((sec) == SECURITY_2LINE_UNCH) ? "Unchannelized!" :	\
-	((sec) == SECURITY_2LINE_CH)   ? "Channelized!" :	\
-						"Unknown"
 
 /* -------------------------------------- */
 
@@ -811,6 +1038,64 @@ aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
 	return num_of_slots;
 }
 
+
+#define MAX_AFT_HW_DEV 14
+
+typedef struct aft_hw_dev{
+
+	int init;
+
+	int (*aft_global_chip_config)(sdla_t *card);
+	int (*aft_global_chip_unconfig)(sdla_t *card);
+
+	int (*aft_chip_config)(sdla_t *card);
+	int (*aft_chip_unconfig)(sdla_t *card);
+
+	int (*aft_chan_config)(sdla_t *card, void *chan);
+	int (*aft_chan_unconfig)(sdla_t *card, void *chan);
+
+	int (*aft_led_ctrl)(sdla_t *card, int, int, int);
+	int (*aft_test_sync)(sdla_t *card, int);
+
+	unsigned char (*aft_read_fe)(sdla_t* card, unsigned short off);
+	int (*aft_write_fe)(sdla_t *card, unsigned short off, unsigned char value);
+
+	unsigned char (*aft_read_cpld)(sdla_t *card, unsigned short cpld_off);
+	int (*aft_write_cpld)(sdla_t *card, unsigned short cpld_off, unsigned char cpld_data);
+
+	void (*aft_fifo_adjust)(sdla_t *card, u32 level);
+
+	int (*aft_check_ec_security)(sdla_t *card);
+
+}aft_hw_dev_t;
+
+extern aft_hw_dev_t aft_hwdev[MAX_AFT_HW_DEV];
+
+#define ASSERT_AFT_HWDEV(type) \
+	if (type >= MAX_AFT_HW_DEV){ \
+		DEBUG_EVENT("%s:%d: Critical Invalid AFT HW DEV Type %d\n", \
+				__FUNCTION__,__LINE__,type); \
+		return -EINVAL;	\
+	}\
+	if (!wan_test_bit(0,&aft_hwdev[type].init)) { \
+		DEBUG_EVENT("%s:%d: Critical AFT HW DEV Type %d not initialized\n", \
+				__FUNCTION__,__LINE__,type); \
+		return -EINVAL; \
+	}
+
+#define ASSERT_AFT_HWDEV_VOID(type) \
+	if (type >= MAX_AFT_HW_DEV){ \
+		DEBUG_EVENT("%s:%d: Critical Invalid AFT HW DEV Type %d\n", \
+				__FUNCTION__,__LINE__,type); \
+		return;	\
+	}\
+	if (!aft_hwdev[type] || !wan_test_bit(0,&aft_hwdev[type].init)) { \
+		DEBUG_EVENT("%s:%d: Critical AFT HW DEV Type %d not initialized\n", \
+				__FUNCTION__,__LINE__,type); \
+		return; \
+	}
+
+
 #endif /* WAN_KERNEL */
 
 /*================================================================
@@ -848,7 +1133,9 @@ enum {
 	READ_COMMS_ERROR_STATS,
 	FLUSH_COMMS_ERROR_STATS,
 	AFT_LINK_STATUS,
-	AFT_MODEM_STATUS
+	AFT_MODEM_STATUS,
+	AFT_HWEC_STATUS,
+	DIGITAL_LOOPTEST
 };
 
 #define UDPMGMT_SIGNATURE		"AFTPIPEA"
@@ -885,7 +1172,8 @@ typedef struct aft_config
 #if defined(__LINUX__)
 enum {
 	SIOC_AFT_CUSTOMER_ID = SIOC_WANPIPE_DEVPRIVATE,
-	SIOC_AFT_SS7_FORCE_RX
+	SIOC_AFT_SS7_FORCE_RX,
+        SIOC_WANPIPE_API 	
 };
 #endif
 
@@ -959,11 +1247,75 @@ typedef struct {
 
 } aft_comm_err_stats_t;
 
+enum wanpipe_aft_api_events {
+	WP_API_EVENT_NONE,
+	WP_API_EVENT_DTMF,
+	WP_API_EVENT_RM_DTMF,
+	WP_API_EVENT_RXHOOK,
+	WP_API_EVENT_RING,
+	WP_API_EVENT_TONE,
+	WP_API_EVENT_RING_DETECT,
+	WP_API_EVENT_TXSIG_KEWL,
+	WP_API_EVENT_TXSIG_START,
+	WP_API_EVENT_TXSIG_OFFHOOK,
+	WP_API_EVENT_TXSIG_ONHOOK,
+	WP_API_EVENT_ONHOOKTRANSFER,
+	WP_API_EVENT_SETPOLARITY
+
+};
+
+#define WP_API_EVENT_ENABLE		0x01
+#define WP_API_EVENT_DISABLE		0x02
+#define WP_API_EVENT_MODE_DECODE(mode)					\
+		((mode) == WP_API_EVENT_ENABLE) ? "Enable" :		\
+		((mode) == WP_API_EVENT_DISABLE) ? "Disable" :		\
+						"(Unknown mode)"
+
+#define WP_API_EVENT_RXHOOK_OFF		0x01
+#define WP_API_EVENT_RXHOOK_ON		0x02
+
+#define WP_API_EVENT_RING_PRESENT	0x01
+#define WP_API_EVENT_RING_STOP		0x02
+
+/* tone type */
+#define	WP_API_EVENT_TONE_DIAL		0x01
+#define	WP_API_EVENT_TONE_BUSY		0x02
+#define	WP_API_EVENT_TONE_RING		0x03
+#define	WP_API_EVENT_TONE_CONGESTION	0x04
 
 typedef struct {
 	unsigned char	error_flag;
 	unsigned short	time_stamp;
-	unsigned char	reserved[13];
+	unsigned char	event_type;
+	union {
+		struct {
+			u_int16_t	channel; 
+			union {
+				struct {
+					unsigned char	rbs_bits;
+				} rbs;
+				struct {
+					unsigned char	state;
+				} rxhook;
+				struct {
+					unsigned char	state;
+				} ring;
+				struct {
+					unsigned char	digit;	/* DTMF: digit  */
+					unsigned char	port;	/* DTMF: SOUT/ROUT */
+					unsigned char	type;	/* DTMF: PRESET/STOP */
+				} dtmf;
+			} u_event;
+		} wp_api_event;
+		unsigned char	reserved[12];
+	}hdr_u;
+#define wp_api_rx_hdr_event_channel 		hdr_u.wp_api_event.channel
+#define wp_api_rx_hdr_event_rxhook_state 	hdr_u.wp_api_event.u_event.rxhook.state
+#define wp_api_rx_hdr_event_ring_state 		hdr_u.wp_api_event.u_event.ring.state
+#define wp_api_rx_hdr_event_dtmf_digit 		hdr_u.wp_api_event.u_event.dtmf.digit
+#define wp_api_rx_hdr_event_dtmf_type 		hdr_u.wp_api_event.u_event.dtmf.type
+#define wp_api_rx_hdr_event_dtmf_port 		hdr_u.wp_api_event.u_event.dtmf.port
+#define wp_api_rx_hdr_event_ringdetect_state 	hdr_u.wp_api_event.u_event.ring.state
 } api_rx_hdr_t;
 
 typedef struct {
@@ -971,17 +1323,34 @@ typedef struct {
         unsigned char  	data[1];
 } api_rx_element_t;
 
-typedef struct { 
+typedef struct {
 	unsigned char	type;
 	unsigned char	force_tx;
 	unsigned char	data[8];
 } api_tx_ss7_hdr_t;
 
 typedef struct {
+	u_int8_t	type;
+	u_int8_t	mode; 
+	u_int8_t	tone;
+	u_int16_t	channel;
+	u_int16_t	polarity;
+	u_int16_t	ohttimer;
+	
+} api_tdm_event_hdr_t;
+
+typedef struct {
 	union {
-		api_tx_ss7_hdr_t ss7;
-		unsigned char 	 reserved[16];
+		api_tx_ss7_hdr_t 	ss7;
+		api_tdm_event_hdr_t	event;
+		unsigned char		reserved[16];
 	}u;
+#define wp_api_tx_hdr_event_type	u.event.type
+#define wp_api_tx_hdr_event_mode 	u.event.mode
+#define wp_api_tx_hdr_event_tone 	u.event.tone
+#define wp_api_tx_hdr_event_channel 	u.event.channel
+#define wp_api_tx_hdr_event_ohttimer 	u.event.ohttimer
+#define wp_api_tx_hdr_event_polarity 	u.event.polarity
 } api_tx_hdr_t;
 
 typedef struct {
@@ -1001,6 +1370,194 @@ enum {
 	WP_ABORT_ERROR_BIT,
 };
 
+
+#ifdef WAN_KERNEL
+
+#define AFT_MIN_FRMW_VER 0x11
+#define AFT_TDMV_FRM_VER 0x11
+#define AFT_TDMV_FRM_CLK_SYNC_VER 0x14
+#define AFT_TDMV_SHARK_FRM_CLK_SYNC_VER 0x17
+#define AFT_TDMV_SHARK_A108_FRM_CLK_SYNC_VER 0x25
+
+#define AFT_MIN_ANALOG_FRMW_VER 0x05
+
+typedef struct aft_dma_chain
+{
+	unsigned long	init;
+	sdla_dma_addr_t	dma_addr;
+	u32		dma_len;
+	u32		dma_map_len;
+	netskb_t 	*skb;
+	u32		index;
+
+	u32		dma_descr;
+	u32		len_align;
+	u32		reg;
+
+	u8		pkt_error;
+	void*		dma_virt;
+	u32		dma_offset;
+	u32		dma_toggle;
+}aft_dma_chain_t;
+
+typedef struct dma_history{
+	u8	end;
+	u8	cur;
+	u8	begin;
+	u8	status;
+	u8 	loc;
+}dma_history_t;
+
+#define MAX_DMA_HIST_SIZE 	10
+#define MAX_AFT_DMA_CHAINS 	16
+#define MAX_TX_BUF		MAX_AFT_DMA_CHAINS*2+1
+#define MAX_RX_BUF		MAX_AFT_DMA_CHAINS*4+1
+#define AFT_DMA_INDEX_OFFSET	0x200
+
+
+typedef struct private_area
+{
+	wanpipe_common_t 	common;
+	sdla_t			*card;
+
+	wan_xilinx_conf_if_t 	cfg;
+
+	wan_skb_queue_t 	wp_tx_pending_list;
+	wan_skb_queue_t 	wp_tx_complete_list;
+	netskb_t 		*tx_dma_skb;
+	u8			tx_dma_cnt;
+
+	wan_skb_queue_t 	wp_rx_free_list;
+	wan_skb_queue_t 	wp_rx_complete_list;
+
+	wan_skb_queue_t 	wp_rx_stack_complete_list;
+	wan_skb_queue_t 	wp_rx_zap_complete_list;
+
+	unsigned long 		time_slot_map;
+	unsigned char 		num_of_time_slots;
+	long          		logic_ch_num;
+
+	unsigned char		hdlc_eng;
+	unsigned long		dma_status;
+	unsigned char		protocol;
+
+	struct net_device_stats	if_stats;
+
+	int 		tracing_enabled;	/* For enabling Tracing */
+	unsigned long 	router_start_time;
+	unsigned long   trace_timeout;
+
+	unsigned long 	tick_counter;		/* For 5s timeout counter */
+	unsigned long 	router_up_time;
+
+	unsigned char  	mc;			/* Mulitcast support on/off */
+
+	unsigned char 	interface_down;
+
+	/* Polling task queue. Each interface
+         * has its own task queue, which is used
+         * to defer events from the interrupt */
+	wan_taskq_t 		poll_task;
+	wan_timer_info_t 	poll_delay_timer;
+
+	u8 		gateway;
+	u8 		true_if_encoding;
+
+#if defined(__LINUX__)
+	/* Entry in proc fs per each interface */
+	struct proc_dir_entry	*dent;
+#endif
+	unsigned char 	udp_pkt_data[sizeof(wan_udp_pkt_t)+10];
+	atomic_t 	udp_pkt_len;
+
+	char 		if_name[WAN_IFNAME_SZ+1];
+
+	u8		idle_flag;
+	u16		max_idle_size;
+	u8		idle_start;
+
+	u8		pkt_error;
+	u8		rx_fifo_err_cnt;
+
+	int		first_time_slot;
+	int		last_time_slot;
+	
+	netskb_t	*tx_idle_skb;
+	unsigned char	rx_dma;
+	unsigned char   pci_retry;
+	
+	unsigned char	fifo_size_code;
+	unsigned char	fifo_base_addr;
+	unsigned char 	fifo_size;
+
+	int		dma_mru;
+	int		mru,mtu;
+
+	void *		prot_ch;
+	int		prot_state;
+
+	wan_trace_t	trace_info;
+
+	/* TE1 Specific Dma Chains */
+	unsigned char	tx_chain_indx,tx_pending_chain_indx;
+	aft_dma_chain_t tx_dma_chain_table[MAX_AFT_DMA_CHAINS];
+
+	unsigned char	rx_chain_indx,rx_pending_chain_indx;
+	aft_dma_chain_t rx_dma_chain_table[MAX_AFT_DMA_CHAINS];
+	int		rx_no_data_cnt;
+
+	unsigned long	dma_chain_status;
+	unsigned long 	up;
+	int		tx_attempts;
+	
+	aft_op_stats_t  	opstats;
+	aft_comm_err_stats_t	errstats;
+
+	unsigned char   *tx_realign_buf;
+	unsigned char 	single_dma_chain;
+	unsigned char	tslot_sync;
+
+	dma_history_t 	dma_history[MAX_DMA_HIST_SIZE];
+	unsigned int	dma_index;
+
+	/* Used by ss7 mangle code */
+	api_tx_hdr_t 	tx_api_hdr;
+	unsigned char   *tx_ss7_realign_buf;
+
+	int		tdmv_chan;
+	unsigned int	tdmv_irq_cfg;
+
+	unsigned char	channelized_cfg;
+	unsigned char	tdmv_zaptel_cfg;
+
+	unsigned int	tdmv_rx_delay;
+	unsigned char	tdmv_rx_delay_cfg;
+	unsigned short	max_tx_bufs;
+	unsigned short	max_tx_bufs_orig;
+
+	unsigned int	ss7_force_rx;
+	
+	unsigned char	lip_atm;
+
+#if defined(__LINUX__)
+	wanpipe_tdm_api_dev_t	wp_tdm_api_dev;
+#endif
+	int	rx_api_crc_bytes;
+
+	struct private_area *next;
+	
+}private_area_t;
+
+
+void 	aft_free_logical_channel_num (sdla_t *card, int logic_ch);
+void 	aft_dma_max_logic_ch(sdla_t *card);
+void 	aft_fe_intr_ctrl(sdla_t *card, int status);
+void 	__aft_fe_intr_ctrl(sdla_t *card, int status);
+void 	aft_wdt_set(sdla_t *card, unsigned char val);
+void 	aft_wdt_reset(sdla_t *card);
+
+
+#endif
 
 
 #endif

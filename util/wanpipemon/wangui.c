@@ -25,9 +25,9 @@
 #else
 # include <sys/wait.h>
 # include <netinet/in.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe.h>
 #endif
 #include "unixio.h"
 #include "fe_lib.h"
@@ -79,7 +79,7 @@
 #endif
 				
 
-static char* strstrip (char*, char*);
+static char* str_strip (char*, char*);
 static int tokenize (char*, char **, char *, char *, char *);
 static int wan_if_ip_menu(void);
 static int wan_ip_menu(void);
@@ -89,7 +89,7 @@ static void wan_main_menu(void);
 /*============================================================================
  * Strip leading and trailing spaces off the string str.
  */
-static char* strstrip (char* str, char* s)
+static char* str_strip (char* str, char* s)
 {
 	char* eos = str + strlen(str);		/* -> end of string */
 
@@ -116,7 +116,7 @@ static int tokenize (char* str, char **tokens, char *arg1, char *arg2, char *arg
 
 	tokens[0] = strtok(str, arg1);
 	while (tokens[cnt] && (cnt < MAX_TOKENS - 1)) {
-		tokens[cnt] = strstrip(tokens[cnt], arg2);
+		tokens[cnt] = str_strip(tokens[cnt], arg2);
 		tokens[++cnt] = strtok(NULL, arg3);
 	}
 	return cnt;

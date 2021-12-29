@@ -146,8 +146,10 @@ again:
       if(old_media != linkconf->fe_cfg.media){
         //set default values for E1
         linkconf->fe_cfg.lcode = WAN_LCODE_HDB3;
-        linkconf->fe_cfg.frame = WAN_FR_NCRC4;
+        linkconf->fe_cfg.frame = WAN_FR_CRC4;
+        linkconf->fe_cfg.cfg.te_cfg.lbo = WAN_E1_120;
         linkconf->fe_cfg.cfg.te_cfg.te_clock = WAN_NORMAL_CLK;
+        linkconf->fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CCS;
 
       	if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL &&
           cfr->link_defs->linkconf->card_type != WANOPT_S50X &&
@@ -155,7 +157,7 @@ again:
           
 	  wan_xilinx_conf_t* wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
           //wan_xilinx_conf->tdmv_dchan = 16;
-          wan_xilinx_conf->tdmv_dchan = 0;//user will have manually set/enable this option
+          wan_xilinx_conf->tdmv_dchan = 0;//user will have to manually set/enable this option
         }
       }
       exit_dialog = YES;

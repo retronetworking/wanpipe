@@ -26,14 +26,15 @@ SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else ec
 
 ifeq "$(SYSINC)" "" 
 # Project file paths.
-SYSINC=/usr/src/linux/include
+SYSINC=/lib/modules/$(shell uname -r)/build/include
 endif
 
+LSYSINC=../../patches/kdrivers/include
 WAN_VIRTUAL=
 
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -I$(LSYSINC) -D_DEBUG_=$(DEBUG)
 
 
 ####### RULES ################################################################
@@ -41,7 +42,7 @@ CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
 all:	wan_aftup 
 	@echo "Ok."
 
-wan_aftup:	wan_aftup.c wan_aft_prg.c wan_aft_flash.c wan_aft_flash_shark.c
+wan_aftup:	wan_aftup.c wan_aft_prg.c wan_aft_flash.c wan_aft_flash_shark.c wan_aft_flash_shark_ds.c wan_plxctrl.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:

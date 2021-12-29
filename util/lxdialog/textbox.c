@@ -35,7 +35,7 @@ static char *buf, *page;
  * Display text from a file in a dialog box.
  */
 int
-dialog_textbox (const char *title, const char *file, int height, int width)
+new_dialog_textbox (const char *title, const char *file, int height, int width, char* button_text)
 {
     int i, x, y, cur_x, cur_y, fpos, key = 0;
     int passed_end;
@@ -120,7 +120,9 @@ dialog_textbox (const char *title, const char *file, int height, int width)
 	waddstr (dialog, (char *)title);
 	waddch (dialog, ' ');
     }
-    print_button (dialog, " Exit ", height - 2, width / 2 - 4, TRUE);
+    /*print_button (dialog, " Exit ", height - 2, width / 2 - 4, TRUE);*/
+    print_button (dialog, button_text, height - 2, width / 2 - 4, TRUE);
+
     wnoutrefresh (dialog);
     getyx (dialog, cur_y, cur_x);	/* Save cursor position */
 

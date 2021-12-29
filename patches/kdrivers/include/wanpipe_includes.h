@@ -31,9 +31,13 @@
 **		***	F R E E B S D	***
 # include <stddef.h>
 */
-# include <gnu/ext2fs/i386-bitops.h>
-# include <sys/types.h>
 # include <sys/param.h>
+# if (__FreeBSD_version > 600000)
+#  include <gnu/fs/ext2fs/i386-bitops.h>
+# else
+#  include <gnu/ext2fs/i386-bitops.h>
+# endif
+# include <sys/types.h>
 # include <sys/systm.h>
 # include <sys/syslog.h>
 # include <sys/conf.h>
@@ -103,10 +107,10 @@
 # include <machine/clock.h>
 # include <machine/stdarg.h>
 # include <machine/atomic.h>
-# include <machine/clock.h>
 # include <machine/bus.h>
 # include <machine/md_var.h>
 # include <vm/vm.h>
+# include <vm/vm_param.h>
 # include <vm/pmap.h>
 # include <vm/vm_extern.h>
 # include <vm/vm_kern.h>
@@ -175,6 +179,7 @@
 # include <sys/exec.h>
 # include <sys/lkm.h>
 # include <sys/mbuf.h>
+# include <sys/mutex.h>
 # include <sys/sockio.h>
 # include <sys/socket.h>
 # include <sys/kernel.h>
@@ -184,7 +189,9 @@
 # include <sys/tty.h>
 # include <sys/ttycom.h>
 # include <i386/bus.h>
-# include <machine/types.h>
+# if !defined(OpenBSD3_9)
+#  include <machine/types.h>
+# endif
 # include <machine/param.h>
 # include <machine/cpufunc.h>
 # include <machine/bus.h>
@@ -216,7 +223,11 @@
 */
 # include <linux/init.h>
 # include <linux/version.h>	/**/
+
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 # include <linux/config.h>	/* OS configuration options */
+# endif
+
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2,3,0)
 #  if !(defined __NO_VERSION__) && !defined(_K22X_MODULE_FIX_)
 #   define __NO_VERSION__	
@@ -309,15 +320,19 @@
 /*
 **		***	W I N D O W S	***
 */
-# if !defined(USER_MODE)
-#  include "stddcls.h"
+# if defined(__KERNEL__)
 #  include <ntddk.h>	/* PCI configuration struct */
-#  include <ndis.h>	/* NDIS functions */
-/* For drivers running over "Sangoma bus" (only Windows 2000/XP) */
-#  include <sdla\pnp\busenum.h>
+#  include <ndis.h>		/* NDIS functions */
 #  include <stdarg.h>
 #  include <stdio.h>
-# endif
+#  include <stddef.h>	/* offsetof, etc. */
+#  include <bit_win.h>	/* bit manipulation macros */
+#  include <sang_status_defines.h>	/* operation return codes */
+#  include <wanpipe_defines.h>		/* for 'wan_udp_hdr_t' */
+#  include <sang_api.h>
+# else
+#  include <windows.h>
+# endif	/* if defined(__WINDOWS__) */
 #elif defined (__SOLARIS__)
 #  include <sys/types.h>
 #  include <sys/systm.h>

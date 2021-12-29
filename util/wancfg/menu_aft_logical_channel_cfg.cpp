@@ -63,6 +63,7 @@ enum AFT_LOGICAL_CHANNEL_CONFIGURATION{
   CHAN_MTU,
   CHAN_MRU,
   CORE_MODE,
+  BOUND_ANALOG_CHANNEL,
   EMPTY_LINE
 };
 
@@ -104,6 +105,10 @@ int menu_aft_logical_channel_cfg::run(IN int wanpipe_number, OUT int * selection
   char explanation_text[MAX_PATH_LENGTH];
   char initial_text[MAX_PATH_LENGTH];
 
+
+  link_defs = cfr->link_defs;
+  linkconf = cfr->link_defs->linkconf;
+
   snprintf(backtitle, MAX_PATH_LENGTH, "WANPIPE Configuration Utility");
 
   Debug(DBG_MENU_AFT_LOGICAL_CHANNEL_CFG,
@@ -123,29 +128,35 @@ again:
   }
 
   num_of_visible_items = 5;
-  /////////////////////////////////////////////////////////////////////////////////////
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", BOUND_TE1_CHANNELS);
-  menu_str += tmp_buff;
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Timeslots in Group-> %s\" ",
-    logical_ch_cfg->data.active_channels_string);
-  menu_str += tmp_buff;
 
   /////////////////////////////////////////////////////////////////////////////////////
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", CORE_MODE);
-  menu_str += tmp_buff;
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"HDLC engine--------> %s\" ",
-    logical_ch_cfg->data.chanconf->hdlc_streaming == WANOPT_YES ? "Enabled" : "Disabled");
-    //logical_ch_cfg->data.active_channels_string);
-  menu_str += tmp_buff;
+  if(link_defs->card_version != A200_ADPTR_ANALOG){
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", BOUND_TE1_CHANNELS);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Timeslots in Group-> %s\" ",
+      logical_ch_cfg->data.active_channels_string);
+    menu_str += tmp_buff;
 
-  /////////////////////////////////////////////////////////////////////////////////////
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", IDLE_FLAG_CHAR);
-  menu_str += tmp_buff;
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Idle char ---------> 0x%02X\" ",
-    logical_ch_cfg->data.chanconf->u.aft.idle_flag);
-    //logical_ch_cfg->data.active_channels_string);
-  menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", CORE_MODE);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"HDLC engine--------> %s\" ",
+      logical_ch_cfg->data.chanconf->hdlc_streaming == WANOPT_YES ? "Enabled" : "Disabled");
+      //logical_ch_cfg->data.active_channels_string);
+    menu_str += tmp_buff;
 
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", IDLE_FLAG_CHAR);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Idle char ---------> 0x%02X\" ",
+      logical_ch_cfg->data.chanconf->u.aft.idle_flag);
+      //logical_ch_cfg->data.active_channels_string);
+    menu_str += tmp_buff;
+  }else{
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", BOUND_ANALOG_CHANNEL);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Channel in Group---> %s\" ",
+      logical_ch_cfg->data.active_channels_string);
+    menu_str += tmp_buff;
+  }
   /////////////////////////////////////////////////////////////////////////////////////
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", CHAN_MTU);
   menu_str += tmp_buff;
@@ -161,7 +172,6 @@ again:
   menu_str += tmp_buff;
   //goto label_show_bound_timeslots;
 
-
   /////////////////////////////////////////////////////////////////////////////////////
   //create the explanation text for the menu
   snprintf(tmp_buff, MAX_PATH_LENGTH,
@@ -172,7 +182,9 @@ again:
   if(set_configuration(   YES,//indicates to call V2 of the function
                           MENU_BOX_BACK,//MENU_BOX_SELECT,
                           lxdialog_path,
-                          "AFT DS0 CHANNEL CONFIGURATION",
+			  (char*)(link_defs->card_version != A200_ADPTR_ANALOG ?
+                          "AFT DS0 CHANNEL CONFIGURATION" :
+			  "AFT ANALOG CHANNEL CONFIGURATION"),
                           WANCFG_PROGRAM_NAME,
                           tmp_buff,
                           MENU_HEIGTH, MENU_WIDTH,
@@ -199,6 +211,49 @@ again:
     case EMPTY_LINE:
       //do nothing
       goto again;
+
+    case BOUND_ANALOG_CHANNEL:
+show_analog_chan_input_box:
+      snprintf(explanation_text, MAX_PATH_LENGTH, "Enter Channel Number. From 1 to 16 or ALL.");
+      snprintf(initial_text, MAX_PATH_LENGTH, "%s", logical_ch_cfg->data.active_channels_string);
+
+      input_bx.set_configuration(lxdialog_path,
+                              	backtitle,
+                                explanation_text,
+                                INPUT_BOX_HIGTH,
+                                INPUT_BOX_WIDTH,
+                                initial_text);
+
+      input_bx.show(selection_index);
+
+      switch(*selection_index)
+      {
+      case INPUT_BOX_BUTTON_OK:
+        snprintf(tmp_buff, MAX_PATH_LENGTH, input_bx.get_lxdialog_output_string());
+
+        str_tolower(tmp_buff);
+      
+	if(strcmp(tmp_buff, "all") == 0){
+		snprintf(logical_ch_cfg->data.active_channels_string, 
+					MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "ALL");
+        }else{
+		int chan = atoi(remove_spaces_in_int_string(tmp_buff));
+      
+		if(chan >= 1 && chan <= MAX_FXOFXS_CHANNELS){
+          		logical_ch_cfg->data.chanconf->active_ch = chan;
+			snprintf(logical_ch_cfg->data.active_channels_string,
+					MAX_LEN_OF_ACTIVE_CHANNELS_STRING, tmp_buff);
+		}else{
+			tb.show_error_message(lxdialog_path, NO_PROTOCOL_NEEDED, "Invalid input: %s!",
+				input_bx.get_lxdialog_output_string());
+		}
+	}
+        break;
+
+      case INPUT_BOX_BUTTON_HELP:
+	tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, "Channel number 1-16 or ALL.");
+        goto show_analog_chan_input_box;
+      }//switch(*selection_index)
       break;
 
     case BOUND_TE1_CHANNELS:

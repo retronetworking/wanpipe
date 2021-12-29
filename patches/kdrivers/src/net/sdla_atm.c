@@ -333,12 +333,13 @@ int wp_atm_init (sdla_t* card, wandev_conf_t* conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)){
 		
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_te_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
 		card->fe.read_fe_reg	= read_front_end_reg;
 
-		card->wandev.te_enable_timer = enable_timer;
+		card->wandev.fe_enable_timer = enable_timer;
 		card->wandev.te_link_state = handle_front_end_state;
 		conf->interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
@@ -350,6 +351,7 @@ int wp_atm_init (sdla_t* card, wandev_conf_t* conf)
 	}else if (IS_56K_MEDIA(&conf->fe_cfg)){
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -576,7 +578,7 @@ static void atm_timer_poll(unsigned long data)
 	private_area_t *chan;
 	int err;
 
-	if (test_bit(PERI_CRIT,&card->wandev.critical)){
+	if (wan_test_bit(PERI_CRIT,&card->wandev.critical)){
 		DEBUG_EVENT ("%s: ATM Poll Timer exiting due to PERI CRIT\n",
 				card->devname);
 		return;
@@ -666,7 +668,7 @@ static int update (wan_device_t* wandev)
         if(!card->flags_off)
                 return -ENODEV;
 
-	if(test_bit(PERI_CRIT, (void*)&card->wandev.critical))
+	if(wan_test_bit(PERI_CRIT, (void*)&card->wandev.critical))
                 return -EAGAIN;
 
 	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
@@ -799,7 +801,7 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 		/* Option to bring down the interface when 
         	 * the link goes down */
 		if (conf->if_down){
-			set_bit(DYN_OPT_ON,&priv_area->interface_down);
+			wan_set_bit(DYN_OPT_ON,&priv_area->interface_down);
 			DEBUG_EVENT( 
 			 "%s:%s: Dynamic interface configuration enabled\n",
 			   card->devname,priv_area->if_name);
@@ -1249,7 +1251,9 @@ static void disable_comm (sdla_t *card)
 
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
-		sdla_te_unconfig(&card->fe);
+		if (card->wandev.fe_iface.unconfig){
+			card->wandev.fe_iface.unconfig(&card->fe);
+		}
 	}
 	return;
 }
@@ -1581,7 +1585,7 @@ static int if_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
 			/* We have to check here again because we don't know
 			 * what happened during spin_lock */
-			if (test_bit(0,&card->in_isr)) {
+			if (wan_test_bit(0,&card->in_isr)) {
 				DEBUG_EVENT( "%s:%s Pipemon command failed, Driver busy: try again.\n",
 						card->devname,dev->name);
 				wan_atomic_set(&chan->udp_pkt_len,0);
@@ -1861,7 +1865,7 @@ static int update_comms_stats(sdla_t* card, private_area_t* priv_area)
 		if (IS_TE1_CARD(card)) {	
 			card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 			/* TE1 Update T1/E1 perfomance counters */
-			card->wandev.fe_iface.read_pmon(&card->fe); 
+			card->wandev.fe_iface.read_pmon(&card->fe, 0); 
 
 		}else if (IS_56K_CARD(card)) {
 			/* 56K Update CSU/DSU alarms */
@@ -1945,12 +1949,18 @@ static int frmw_send (sdla_t* card, void* data, unsigned len, unsigned char tx_b
 /*============================================================================
  * Read TE1/56K Front end registers
  */
-static unsigned char read_front_end_reg (void* card1, unsigned short reg)
+static unsigned char read_front_end_reg (void* card1, ...)
 {
+	va_list		args;
 	sdla_t* card = (sdla_t*)card1;
         wan_mbox_t* mb = &card->wan_mbox;
+	u16		reg;
 	char* data = mb->wan_data;
         int err;
+
+	va_start(args, card1);
+	reg	= (u16)va_arg(args, int);
+	va_end(args);
 
 	((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
 	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
@@ -1965,14 +1975,22 @@ static unsigned char read_front_end_reg (void* card1, unsigned short reg)
 /*============================================================================
  * Write to TE1/56K Front end registers  
  */
-static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
+static int write_front_end_reg (void* card1, ...)
 {
+	va_list		args;
 	sdla_t* card = (sdla_t*)card1;
         wan_mbox_t* mb = &card->wan_mbox;
+	u16		reg;
+	u8		value;
 	char* data = mb->wan_data;
         int err;
 	int retry=15;
 	
+	va_start(args, card1);
+	reg	= (u16)va_arg(args, int);
+	value	= (u8)va_arg(args, int);
+	va_end(args);
+
 	do {
 		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
 		((FRONT_END_REG_STRUCT *)data)->register_value = value;
@@ -2233,7 +2251,7 @@ static void wp_bh (unsigned long data)
 	netskb_t *skb;
 	int err=0;
 
-	if (test_bit(PERI_CRIT, (void*)&card->wandev.critical)){
+	if (wan_test_bit(PERI_CRIT, (void*)&card->wandev.critical)){
 		DEBUG_EVENT("%s: WpBH PERI Critical\n",
 				card->devname);
 		WAN_TASKLET_END(((wan_tasklet_t*)&card->u.atm.wanpipe_rx_task));
@@ -2412,13 +2430,13 @@ static void wpatm_isr (sdla_t* card)
 		return;
 	}
 	
-	set_bit(0,&card->in_isr);
+	wan_set_bit(0,&card->in_isr);
 	
 	/* if critical due to peripheral operations
 	 * ie. update() or getstats() then reset the interrupt and
 	 * wait for the board to retrigger.
 	 */
-	if(test_bit(PERI_CRIT, (void*)&card->wandev.critical)) {
+	if(wan_test_bit(PERI_CRIT, (void*)&card->wandev.critical)) {
 		DEBUG_EVENT( "%s: ISR:  Critical with PERI_CRIT!\n",
 				card->devname);
 		goto isr_done;
@@ -2477,7 +2495,7 @@ static void wpatm_isr (sdla_t* card)
 
 isr_done:
 
-	clear_bit(0,&card->in_isr);
+	wan_clear_bit(0,&card->in_isr);
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
 	return;
 }
@@ -2670,7 +2688,6 @@ void timer_intr(sdla_t *card)
 {
         struct net_device* dev=NULL;
         private_area_t* priv_area = NULL;
-	
 	/* TE timer interrupt */
 	if (card->timer_int_enabled & TMR_INT_ENABLED_TE) {
 		card->wandev.fe_iface.polling(&card->fe);
@@ -3051,7 +3068,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, struct net_device* dev,
 			udp_hdr->wan_udphdr_return_code = WAN_CMD_OK;
 			udp_hdr->wan_udphdr_data_len = 0;
 			
-			if (!test_bit(0,&trace_info->tracing_enabled)){
+			if (!wan_test_bit(0,&trace_info->tracing_enabled)){
 						
 				trace_info->trace_timeout = SYSTEM_TICKS;
 					
@@ -3063,31 +3080,31 @@ static int process_udp_mgmt_pkt(sdla_t* card, struct net_device* dev,
 				switch(udp_hdr->wan_udphdr_data[0])
 				{
 				case 0:
-					clear_bit(1,&trace_info->tracing_enabled);
+					wan_clear_bit(1,&trace_info->tracing_enabled);
 					DEBUG_UDP("%s: ADSL L3 trace enabled!\n",
 						card->devname);
 					break;
 				case 1:
-					clear_bit(2,&trace_info->tracing_enabled);
-					set_bit(1,&trace_info->tracing_enabled);
+					wan_clear_bit(2,&trace_info->tracing_enabled);
+					wan_set_bit(1,&trace_info->tracing_enabled);
 					DEBUG_UDP("%s: ADSL L2 trace enabled!\n",
 						card->devname);
 					break;
 				case 3:
-					clear_bit(1,&trace_info->tracing_enabled);
+					wan_clear_bit(1,&trace_info->tracing_enabled);
 					//user wants to see all cells, including idle
-					set_bit(2,&trace_info->tracing_enabled);
-					set_bit(3,&trace_info->tracing_enabled);
+					wan_set_bit(2,&trace_info->tracing_enabled);
+					wan_set_bit(3,&trace_info->tracing_enabled);
 					DEBUG_UDP("%s: ATM 'All Cells' trace enabled!\n",
 						card->devname);
 					break;
 				default:
-					clear_bit(1,&trace_info->tracing_enabled);
-					set_bit(2,&trace_info->tracing_enabled);
+					wan_clear_bit(1,&trace_info->tracing_enabled);
+					wan_set_bit(2,&trace_info->tracing_enabled);
 					DEBUG_UDP("%s: ADSL L1 trace enabled!\n",
 						card->devname);
 				}
-				set_bit (0,&trace_info->tracing_enabled);
+				wan_set_bit (0,&trace_info->tracing_enabled);
 
 			}else{
 				DEBUG_EVENT("%s: Error: ATM trace running!\n",
@@ -3101,12 +3118,12 @@ static int process_udp_mgmt_pkt(sdla_t* card, struct net_device* dev,
 			
 			udp_hdr->wan_udphdr_return_code = WAN_CMD_OK;
 			
-			if(test_bit(0,&trace_info->tracing_enabled)) {
+			if(wan_test_bit(0,&trace_info->tracing_enabled)) {
 					
-				clear_bit(0,&trace_info->tracing_enabled);
-				clear_bit(1,&trace_info->tracing_enabled);
-				clear_bit(2,&trace_info->tracing_enabled);
-				clear_bit(3,&trace_info->tracing_enabled);
+				wan_clear_bit(0,&trace_info->tracing_enabled);
+				wan_clear_bit(1,&trace_info->tracing_enabled);
+				wan_clear_bit(2,&trace_info->tracing_enabled);
+				wan_clear_bit(3,&trace_info->tracing_enabled);
 				
 				wan_trace_purge(trace_info);
 				
@@ -3123,7 +3140,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, struct net_device* dev,
 
 	        case GET_TRACE_INFO:
 
-			if(test_bit(0,&trace_info->tracing_enabled)){
+			if(wan_test_bit(0,&trace_info->tracing_enabled)){
 				trace_info->trace_timeout = SYSTEM_TICKS;
 			}else{
 				DEBUG_EVENT("%s: Error ATM trace not enabled\n",
@@ -3164,7 +3181,7 @@ static int process_udp_mgmt_pkt(sdla_t* card, struct net_device* dev,
 			}
 #elif defined(__LINUX__)
 
-			if( (test_bit(3,&trace_info->tracing_enabled)) ){
+			if( (wan_test_bit(3,&trace_info->tracing_enabled)) ){
 					
 				memset(&tx_idle_data, 0x00, sizeof(wp_atm_cell_t));
 		
@@ -3381,7 +3398,7 @@ process_udp_cmd_exit:
 
 		/* Must check if we interrupted if_send() routine. The
 		 * tx buffers might be used. If so drop the packet */
-	   	if (!test_bit(SEND_CRIT,&card->wandev.critical)) {
+	   	if (!wan_test_bit(SEND_CRIT,&card->wandev.critical)) {
 		
 			if(!frmw_send(card, priv_area->udp_pkt_data, len, 0)) {
 				++ chan->if_stats.tx_packets;
@@ -3570,10 +3587,14 @@ static int config_frmw (sdla_t *card)
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
 	card->hw_iface.poke_byte(card->hw, card->intr_perm_off, 0x00);
 	if (IS_TE1_CARD(card)) {
+		int	err = -EINVAL;
 		DEBUG_EVENT( "%s: Configuring onboard %s CSU/DSU\n",
 			card->devname, 
 			(IS_T1_CARD(card))?"T1":"E1");
-		if (sdla_te_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			DEBUG_EVENT( "%s: Failed %s configuratoin!\n",
 					card->devname,
 					(IS_T1_CARD(card))?"T1":"E1");
@@ -3583,10 +3604,14 @@ static int config_frmw (sdla_t *card)
 
 	 
 	if (IS_56K_CARD(card)) {
+		int	err = -EINVAL;
 		DEBUG_EVENT( "%s: Configuring 56K onboard CSU/DSU\n",
 			card->devname);
 
-		if(sdla_56k_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			DEBUG_EVENT( "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EINVAL;
@@ -3680,8 +3705,8 @@ static void frmw_poll (void *dev_ptr)
 
 	/* (Re)Configuraiton is in progress, stop what you are 
 	 * doing and get out */
-	if (test_bit(PERI_CRIT,&card->wandev.critical)){
-		clear_bit(POLL_CRIT,&card->wandev.critical);
+	if (wan_test_bit(PERI_CRIT,&card->wandev.critical)){
+		wan_clear_bit(POLL_CRIT,&card->wandev.critical);
 		return;
 	}
 	
@@ -3692,8 +3717,8 @@ static void frmw_poll (void *dev_ptr)
 		/* If the dynamic interface configuration is on, and interface 
 		 * is up, then bring down the network interface */
 		
-		if (test_bit(DYN_OPT_ON,&priv_area->interface_down) && 
-		    !test_bit(DEV_DOWN,  &priv_area->interface_down) &&		
+		if (wan_test_bit(DYN_OPT_ON,&priv_area->interface_down) && 
+		    !wan_test_bit(DEV_DOWN,  &priv_area->interface_down) &&		
 		    dev->flags & IFF_UP){	
 
 			DEBUG_EVENT( "%s: Interface %s down.\n",
@@ -3717,14 +3742,14 @@ static void frmw_poll (void *dev_ptr)
 		 * for the very first time. This way we know that it was us
 		 * that brought the interface down */
 		
-		if (test_bit(DYN_OPT_ON,&priv_area->interface_down) &&
-		    test_bit(DEV_DOWN,  &priv_area->interface_down) &&
+		if (wan_test_bit(DYN_OPT_ON,&priv_area->interface_down) &&
+		    wan_test_bit(DEV_DOWN,  &priv_area->interface_down) &&
 		    !(dev->flags & IFF_UP)){
 			
 			DEBUG_EVENT( "%s: Interface %s up.\n",
 				card->devname,dev->name);
 			change_dev_flags(dev,(dev->flags|IFF_UP));
-			clear_bit(DEV_DOWN,&priv_area->interface_down);
+			wan_clear_bit(DEV_DOWN,&priv_area->interface_down);
 			check_gateway=1;
 		}
 
@@ -3734,7 +3759,7 @@ static void frmw_poll (void *dev_ptr)
 		break;
 	}	
 
-	clear_bit(POLL_CRIT,&card->wandev.critical);
+	wan_clear_bit(POLL_CRIT,&card->wandev.critical);
 }
 
 /*============================================================
@@ -3768,10 +3793,10 @@ static void trigger_poll (struct net_device *dev)
 
 	card = priv_area->card;
 	
-	if (test_and_set_bit(POLL_CRIT,&card->wandev.critical)){
+	if (wan_test_and_set_bit(POLL_CRIT,&card->wandev.critical)){
 		return;
 	}
-	if (test_bit(PERI_CRIT,&card->wandev.critical)){
+	if (wan_test_bit(PERI_CRIT,&card->wandev.critical)){
 		return; 
 	}
 

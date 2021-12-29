@@ -11,6 +11,8 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ----------------------------------------------------------------------------
+* Feb  2, 2006  David Rokhvarg  Made sure to call FRConfig() each time before
+*				using 'station_config', otherwise left uninitialized.
 * Jan 12, 2005  David Rokhvarg  Added code to run above AFT card with protocol
 * 				in the LIP layer.
 * Jul 05, 2004	David Rokhvarg	Added i4 option to decode IPV4 level data
@@ -52,6 +54,7 @@
 #include <arpa/inet.h>
 #if defined(__LINUX__)
 # include <linux/version.h>
+# include <linux/types.h>
 # include <linux/if_packet.h>
 # include <linux/if_wanpipe.h>
 # include <linux/if_ether.h>
@@ -64,10 +67,10 @@
 # include <netinet/in.h>
 # include <netinet/ip.h>
 # include <netinet/udp.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe.h>
-# include <net/sdla_fr.h>     
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe.h>
+# include <sdla_fr.h>     
 #endif
 #include "fe_lib.h"
 #include "wanpipemon.h"
@@ -87,6 +90,11 @@
 
 #define HDR_SIZE sizeof(fr_encap_hdr_t)+sizeof(ip_pkt_t)+sizeof(udp_pkt_t) 
 #define CB_SIZE sizeof(wp_mgmt_t)+sizeof(cblock_t)+1
+
+#define FR_DBG if(1) printf
+
+#define PVC_STATE_NEW       0x01
+#define PVC_STATE_ACTIVE    0x02
 
 /******************************************************************************
  * 			GLOBAL VARIABLES				      *
@@ -112,13 +120,13 @@ char *fr_stats_menu[]={
 "sg","Global Statistics",
 "sc","Communication Error Statistics",
 "se","Error Statistics",
-"sd","Read Statistics for a specific DLCI",
+//"sd","Read Statistics for a specific DLCI",
 "."
 };
 
 char *fr_trace_menu[]={
 "ti","Trace and Interpret ALL frames",
-"ti4","Trace and Interpret IP V4 DATA frames",
+//"ti4","Trace and Interpret IP V4 DATA frames",
 "tr","Trace ALL frames in HEX format",
 //"tip","Trace and Interpret PROTOCOL frames",
 //"tid","Trace and Interpret DATA frames",
@@ -165,7 +173,7 @@ char *fr_flush_menu[]={
 "fg","Flush Global Statistics",
 "fc","Flush Communication Error Statistics",
 "fe","Flush Error Statistics",
-"fi","Flush DLCI Statistics",
+//"fi","Flush DLCI Statistics",
 "fd","Flush Driver Statistics",
 "fpm","Flush T1/E1 performance monitoring cnters",
 "."
@@ -174,7 +182,7 @@ char *fr_flush_menu[]={
 
 char *fr_main_menu[]={
 "fr_card_stats_menu","Card Status",
-"fr_card_config_menu","Card Configuration",
+//"fr_card_config_menu","Card Configuration",
 "fr_stats_menu","Card Statistics",
 "fr_trace_menu","Trace Data",
 "csudsu_menu","CSU DSU Config/Stats",
@@ -273,7 +281,7 @@ int FRConfig( void )
    
 	if (x >= 4) return(WAN_FALSE);
    	station_config = wan_udp.wan_udphdr_data[0];
-   
+	
    	strcpy(codeversion, "?.??");
    
    	wan_udp.wan_udphdr_command = FR_READ_CODE_VERSION;
@@ -395,6 +403,9 @@ static void error( char return_code )
 static void global_stats( void ) 
 {
 	fr_link_stat_t *link_stats;
+
+	FRConfig();
+
    	ResetWanUdp(&wan_udp);
    	wan_udp.wan_udphdr_command = FR_READ_STATISTICS;
       	wan_udp.wan_udphdr_return_code = 0xaa;
@@ -505,7 +516,9 @@ static void flush_global_stats( void )
 
 static void error_stats( void ) 
 {
+	FRConfig();
 	ResetWanUdp(&wan_udp);
+
 	wan_udp.wan_udphdr_command = FR_READ_STATISTICS;
       	wan_udp.wan_udphdr_return_code = 0xaa;
    	wan_udp.wan_udphdr_data_len = 0;
@@ -577,6 +590,7 @@ int FRDisableTrace(void)
 	return 0;
 }
 
+#if 0
 static void list_all_dlcis(void)
 {
 	int i;
@@ -651,50 +665,78 @@ static void list_all_dlcis(void)
 		}
 	}
 }
+#endif
 
-static void list_dlcis( void )
+static void list_configured_dlcis(void)
 {
-   	int i,cnt;
+	int i, num_of_dlcis_in_the_list;
+	wan_fr_dlci_t	*wan_fr_dlci_ptr;
+
+   	wan_udp.wan_udphdr_command = FR_LIST_CONFIGURED_DLCIS;
+      	wan_udp.wan_udphdr_return_code = 0xaa;
+   	wan_udp.wan_udphdr_data_len = 0;
+	wan_udp.wan_udphdr_fr_dlci = 0;
+   	DO_COMMAND(wan_udp);
+
+	if (wan_udp.wan_udphdr_return_code != 0) {
+		error(wan_udp.wan_udphdr_return_code);
+		return;
+	}
+
+	banner("DLCI STATUS LIST",0);
+	
+	num_of_dlcis_in_the_list = *((int*)wan_udp.wan_udphdr_data);
+	wan_fr_dlci_ptr = (wan_fr_dlci_t*)&wan_udp.wan_udphdr_data[sizeof(int)];
+
+	printf("Number of DLCIs in the list: %d\n", num_of_dlcis_in_the_list);
+
+	for (i=0; i < num_of_dlcis_in_the_list; i++){
+		printf("%s:\tDLCI %d:\t%sactive\t%s\n", 
+	       		wan_fr_dlci_ptr->name,
+		        wan_fr_dlci_ptr->dlci,
+	       		wan_fr_dlci_ptr->dlci_state & PVC_STATE_ACTIVE ? " " : "in",
+	       		wan_fr_dlci_ptr->dlci_state & PVC_STATE_NEW ? " new" : " ");
+
+		wan_fr_dlci_ptr++;
+	}
+}
+
+static void list_active_dlcis( void )
+{
+	int i, num_of_dlcis_in_the_list, number_of_active_dlcis;
+	wan_fr_dlci_t	*wan_fr_dlci_ptr;
 
    	wan_udp.wan_udphdr_command = FR_LIST_ACTIVE_DLCI;
       	wan_udp.wan_udphdr_return_code = 0xaa;
    	wan_udp.wan_udphdr_data_len = 0;
+	wan_udp.wan_udphdr_fr_dlci = 0;
    	DO_COMMAND(wan_udp);
- 
-	if( wan_udp.wan_udphdr_return_code != 0){
+
+	if (wan_udp.wan_udphdr_return_code != 0) {
 		error(wan_udp.wan_udphdr_return_code);
 		return;
-   	}	
+	}
 
-	if (xml_output){
-		output_start_xml_router();
-		output_start_xml_header("LIST OF ACTIVE DLCIs");
+	banner("LIST OF ACTIVE DLCIs",0);
 	
-		cnt = wan_udp.wan_udphdr_data_len;
-     		if( cnt != 0 ){
-       			for(i=0; i< cnt; i+=2){
-				output_xml_val_data("DLCI", 
-					*(unsigned short*)&wan_udp.wan_udphdr_data[i]);
-       			}
-     		}
-		output_stop_xml_header();
-		output_stop_xml_router();
-	}else{
-	
-	
-		banner("LIST OF ACTIVE DLCIs",0);
+	num_of_dlcis_in_the_list = *((int*)wan_udp.wan_udphdr_data);
+	wan_fr_dlci_ptr = (wan_fr_dlci_t*)&wan_udp.wan_udphdr_data[sizeof(int)];
+
+	number_of_active_dlcis = 0;
+	for (i=0; i < num_of_dlcis_in_the_list && wan_fr_dlci_ptr->dlci_state & PVC_STATE_ACTIVE; i++){
+		printf("%s:\tDLCI %d:\tactive\n", 
+	       		wan_fr_dlci_ptr->name,
+		        wan_fr_dlci_ptr->dlci);
+
+		number_of_active_dlcis++;
+		wan_fr_dlci_ptr++;
+	}
+
+	if(number_of_active_dlcis == 0){
+		printf("All DLCIs are Inactive.\n");
+	}
  
-		cnt = wan_udp.wan_udphdr_data_len;
-     		if( cnt != 0 ){
-       			printf("ACTIVE DLCIs\n");
-       			for(i=0; i< cnt; i+=2){
-       	  			printf("DLCI: %u\n", *(unsigned short*)&wan_udp.wan_udphdr_data[i]);	
-       			}
-     		}else{
-       			printf("There are NO ACTIVE DLCIs\n"); 
-     		}
-   	} 
-} /* list_dlcis */
+} /* list_active_dlcis */
 
 static void read_dlci_stat( void )
 {
@@ -723,12 +765,18 @@ static void read_dlci_stat( void )
 		output_start_xml_header(tmp);
 	
 		if( (wan_udp.wan_udphdr_return_code == 0) && (wan_udp.wan_udphdr_data_len == 0x20)){
-			output_xml_val_data("Information frames transmitted", *(unsigned long*)&wan_udp.wan_udphdr_data[0]);
-			output_xml_val_data("Information bytes transmitted", *(unsigned long*)&wan_udp.wan_udphdr_data[4]);
-			output_xml_val_data("Information frames received", *(unsigned long*)&wan_udp.wan_udphdr_data[8]);
-			output_xml_val_data("Information bytes received", *(unsigned long*)&wan_udp.wan_udphdr_data[12]);
-			output_xml_val_data("Received I-frames discarded due to inactive DLCI", *(unsigned long*)&wan_udp.wan_udphdr_data[20]);
-			output_xml_val_data("I-frames received with Discard Eligibility (DE) indicator set", *(unsigned long*)&wan_udp.wan_udphdr_data[28]); 
+			output_xml_val_data("Information frames transmitted", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[0]);
+			output_xml_val_data("Information bytes transmitted",
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[4]);
+			output_xml_val_data("Information frames received", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[8]);
+			output_xml_val_data("Information bytes received", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[12]);
+			output_xml_val_data("Received I-frames discarded due to inactive DLCI", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[20]);
+			output_xml_val_data("I-frames received with Discard Eligibility (DE) indicator set", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[28]); 
 		}
 	
 		wan_udp.wan_udphdr_command = FR_READ_ADD_DLC_STATS;
@@ -739,8 +787,10 @@ static void read_dlci_stat( void )
 		DO_COMMAND(wan_udp);
 	     
 		if( wan_udp.wan_udphdr_return_code == 0 ){
-			output_xml_val_data("I-frames received with the FECN bit set", *(unsigned short*)&wan_udp.wan_udphdr_data[0]);
-			output_xml_val_data("I-frames received with the BECN bit set", *(unsigned short*)&wan_udp.wan_udphdr_data[2]);
+			output_xml_val_data("I-frames received with the FECN bit set", 
+				*(unsigned short*)&wan_udp.wan_udphdr_data[0]);
+			output_xml_val_data("I-frames received with the BECN bit set", 
+				*(unsigned short*)&wan_udp.wan_udphdr_data[2]);
 		} 
 		output_stop_xml_header();
 		output_stop_xml_router();
@@ -749,12 +799,18 @@ static void read_dlci_stat( void )
 		banner("STATISTICS FOR DLCI",dlci_number);
 
 		if(wan_udp.wan_udphdr_return_code == 0){
-			printf("                                Information frames transmitted: %lu\n", *(unsigned long*)&wan_udp.wan_udphdr_data[0]);
-			printf("                                 Information bytes transmitted: %lu\n", *(unsigned long*)&wan_udp.wan_udphdr_data[4]);
-			printf("                                   Information frames received: %lu\n", *(unsigned long*)&wan_udp.wan_udphdr_data[8]);
-			printf("                                    Information bytes received: %lu\n", *(unsigned long*)&wan_udp.wan_udphdr_data[12]);
-			printf("              Received I-frames discarded due to inactive DLCI: %lu\n", *(unsigned long*)&wan_udp.wan_udphdr_data[20]);
-			printf(" I-frames received with Discard Eligibility (DE) indicator set: %lu\n", *(unsigned long*)&wan_udp.wan_udphdr_data[28]); 
+			printf("                                Information frames transmitted: %u\n",
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[0]);
+			printf("                                 Information bytes transmitted: %u\n", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[4]);
+			printf("                                   Information frames received: %u\n", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[8]);
+			printf("                                    Information bytes received: %u\n", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[12]);
+			printf("              Received I-frames discarded due to inactive DLCI: %u\n", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[20]);
+			printf(" I-frames received with Discard Eligibility (DE) indicator set: %u\n", 
+				*(u_int32_t*)&wan_udp.wan_udphdr_data[28]); 
 		}
 	     
 		wan_udp.wan_udphdr_command = FR_READ_ADD_DLC_STATS;
@@ -765,8 +821,10 @@ static void read_dlci_stat( void )
 		DO_COMMAND(wan_udp);
 	     
 		if( wan_udp.wan_udphdr_return_code == 0 ){
-			printf("                       I-frames received with the FECN bit set: %u\n", *(unsigned short*)&wan_udp.wan_udphdr_data[0]);
-			printf("                       I-frames received with the BECN bit set: %u\n", *(unsigned short*)&wan_udp.wan_udphdr_data[2]);
+			printf("                       I-frames received with the FECN bit set: %u\n", 
+				*(unsigned short*)&wan_udp.wan_udphdr_data[0]);
+			printf("                       I-frames received with the BECN bit set: %u\n", 
+				*(unsigned short*)&wan_udp.wan_udphdr_data[2]);
 		
 		} else { 
 			printf("Error: Please enter a non-zero DLCI\n");
@@ -876,40 +934,40 @@ static void fr_driver_stat_ifsend( void )
 	
 		banner("DRIVER IF_SEND STATISTICS",0);
 
-		printf("                                    Total Number of Send entries:  %lu\n",
+		printf("                                    Total Number of Send entries:  %u\n",
 			stats->if_send_entry);
 #if defined(__LINUX__)
-		printf("                          Number of Send entries with SKB = NULL:  %lu\n", 
+		printf("                          Number of Send entries with SKB = NULL:  %u\n", 
 			stats->if_send_skb_null);
 #else
-		printf("                            Number of Send entries with mbuf = NULL:  %lu\n", 
+		printf("                            Number of Send entries with mbuf = NULL:  %u\n", 
 			stats->if_send_skb_null);
 #endif
-		printf("Number of Send entries with broadcast addressed packet discarded:  %lu\n",
+		printf("Number of Send entries with broadcast addressed packet discarded:  %u\n",
 			 stats->if_send_broadcast);
-		printf("Number of Send entries with multicast addressed packet discarded:  %lu\n",
+		printf("Number of Send entries with multicast addressed packet discarded:  %u\n",
 			 stats->if_send_multicast);
-		printf("                Number of Send entries with CRITICAL_RX_INTR set:  %lu\n", 
+		printf("                Number of Send entries with CRITICAL_RX_INTR set:  %u\n", 
 			stats->if_send_critical_ISR);
-		printf("   Number of Send entries with Critical set and packet discarded:  %lu\n", 
+		printf("   Number of Send entries with Critical set and packet discarded:  %u\n", 
 			stats->if_send_critical_non_ISR);
-		printf("                     Number of Send entries with Device Busy set:  %lu\n", 
+		printf("                     Number of Send entries with Device Busy set:  %u\n", 
 			stats->if_send_tbusy);
-		printf("                 Number of Send entries with Device Busy Timeout:  %lu\n", 
+		printf("                 Number of Send entries with Device Busy Timeout:  %u\n", 
 			stats->if_send_tbusy_timeout);
-		printf("               Number of Send entries with FPIPE MONITOR Request:  %lu\n", 
+		printf("               Number of Send entries with FPIPE MONITOR Request:  %u\n", 
 			stats->if_send_PIPE_request);
-		printf("                    Number of Send entries with WAN Disconnected:  %lu\n", 
+		printf("                    Number of Send entries with WAN Disconnected:  %u\n", 
 			stats->if_send_wan_disconnected);
-		printf("                   Number of Send entries with DLCI Disconnected:  %lu\n", 
+		printf("                   Number of Send entries with DLCI Disconnected:  %u\n", 
 			stats->if_send_dlci_disconnected);
-		printf("            Number of Send entries with check for Buffers failed:  %lu\n", 
+		printf("            Number of Send entries with check for Buffers failed:  %u\n", 
 			stats->if_send_no_bfrs);
-		printf("                         Number of Send entries with Send failed:  %lu\n", 
+		printf("                         Number of Send entries with Send failed:  %u\n", 
 			stats->if_send_adptr_bfrs_full);
-		printf("                         Number of Send entries with Send passed:  %lu\n", 
+		printf("                         Number of Send entries with Send passed:  %u\n", 
 			stats->if_send_bfr_passed_to_adptr);
-		printf("                   Number of Consecutive send failures for a packet:  %lu\n", 
+		printf("                   Number of Consecutive send failures for a packet:  %u\n", 
 			stats->if_send_consec_send_fail);
 	}
 } /* fr_driver_stat_ifsend */
@@ -917,7 +975,8 @@ static void fr_driver_stat_ifsend( void )
 
 static void link_status( void ) 
 {
-    hw_link_status();
+
+	hw_link_status();
 #if 0
 	wan_udp.wan_udphdr_command = FR_READ_STATUS;
 	wan_udp.wan_udphdr_data_len = 0;
@@ -929,23 +988,13 @@ static void link_status( void )
 		return;
 	}
 
-	if (xml_output){
-		output_start_xml_router();
-		output_start_xml_header("Physical Link Status");
-		if (wan_udp.wan_udphdr_data[0])
-			output_xml_val_asc("Channel status","OPERATIVE");
-		else
-	 		output_xml_val_asc("Channel status", "INOPERATIVE");
-		output_stop_xml_header();
-		output_stop_xml_router();
-	}else{
-		banner("PHYSICAL LINK STATUS", 0);
+	banner("LINK STATUS", 0);
 
-		if (wan_udp.wan_udphdr_data[0])
-			printf("Channel status: OPERATIVE\n");
-		else
-	 		printf("Channel status: INOPERATIVE\n");
-	}
+	if (wan_udp.wan_udphdr_data[0] == WAN_CONNECTED){
+		printf("Channel status: OPERATIVE\n");
+	}else{
+		printf("Channel status: INOPERATIVE\n");
+	}	
 #endif
 }
 
@@ -1134,10 +1183,14 @@ int FRMain(char* command, int argc, char* argv[])
 
 		case 'c':
 			if (!strcmp(opt, "l")){
-				list_dlcis();
+				list_active_dlcis();
 				
 			}else if (!strcmp(opt, "lr")){
-				list_all_dlcis();
+				/* list_all_dlcis(); */
+				list_configured_dlcis();
+
+			}else if (!strcmp(opt, "lc")){
+				list_configured_dlcis();
 
 			}else{
 				output_error("Invalid Status Command 'c', Type wanpipemon <cr> for help");

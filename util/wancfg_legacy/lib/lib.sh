@@ -2935,7 +2935,7 @@ function probe_wanpipe_hw ()
 {
 	local devices
 
-	/usr/sbin/wanrouter hwprobe > /dev/null
+	${WAN_BIN_DIR}/wanrouter hwprobe > /dev/null
 	if [ $? -ne 0 ]; then
 		error "NO_HWPROBE"
 		return
@@ -4491,7 +4491,7 @@ function save_configuration () {
 # Date: $date
 #
 # Note: This file was generated automatically
-#       by /usr/sbin/wancfg program.
+#       by ${WAN_BIN_DIR}/wancfg program.
 #
 #       If you want to edit this file, it is
 #       recommended that you use wancfg program
@@ -5347,7 +5347,7 @@ function configure_scripts()
 # WANPIPE Interface ($ifname) Start Script
 #
 # Description:
-# 	This script is called by /usr/sbin/wanrouter
+# 	This script is called by ${WAN_BIN_DIR}/wanrouter
 #       after the interface has been started using
 #       ifconfig.
 #
@@ -5389,7 +5389,7 @@ EOM
 # WANPIPE Interface ($ifname) Stop Script
 #
 # Description:
-# 	This script is called by /usr/sbin/wanrouter
+# 	This script is called by ${WAN_BIN_DIR}/wanrouter
 #       after the interface has been stopped using
 #       ifconfig.
 #
@@ -5414,7 +5414,7 @@ EOM
 # WANPIPE Device ($dev) Start Script
 #
 # Description:
-# 	This script is called by /usr/sbin/wanrouter
+# 	This script is called by ${WAN_BIN_DIR}/wanrouter
 #       after the device $dev has been started.
 #
 #       Use this script to add extra routes or start
@@ -5433,7 +5433,7 @@ EOM
 # WANPIPE Device ($dev) Start Script
 #
 # Description:
-# 	This script is called by /usr/sbin/wanrouter
+# 	This script is called by ${WAN_BIN_DIR}/wanrouter
 #       after the device $dev has been stopped.
 #
 #       Use this script to remove extra routes or stop
@@ -5457,7 +5457,7 @@ EOM
 # WANPIPE Global Device Start Script
 #
 # Description:
-# 	This script is called by /usr/sbin/wanrouter
+# 	This script is called by ${WAN_BIN_DIR}/wanrouter
 #       after all wanpipe devices in $PROD_HOME/wanrouter.rc
 #       have been started.
 #
@@ -5476,7 +5476,7 @@ EOM
 # WANPIPE Global Device Stop Script
 #
 # Description:
-# 	This script is called by /usr/sbin/wanrouter
+# 	This script is called by ${WAN_BIN_DIR}/wanrouter
 #       after all wanpipe devices in $PROD_HOME/wanrouter.rc
 #       have been stopped.
 #

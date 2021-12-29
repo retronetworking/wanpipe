@@ -2,7 +2,7 @@
  * Copyright (c) 2002
  *	Alex Feldman <al.feldman@sangoma.com>.  All rights reserved.
  *
- *	$Id: wanpipe_common.h,v 1.146 2005/11/10 18:02:32 sangoma Exp $
+ *	$Id: wanpipe_common.h,v 1.167 2006/10/19 21:32:35 sangoma Exp $
  */
 
 /****************************************************************************
@@ -21,7 +21,7 @@
 #ifdef __LINUX__
 # include <linux/wanpipe_kernel.h>
 #else
-# include <net/wanpipe_kernel.h>
+# include <wanpipe_kernel.h>
 #endif
 
 #ifdef WAN_DEBUG_MEM
@@ -93,7 +93,7 @@ extern atomic_t wan_debug_mem;
 
 
 #elif defined(__LINUX__)
-/*                ********* L I N U X *****************/
+/* ********* L I N U X *****************/
 
 # define WAN_LIST_HEAD(name, type)		struct name { struct type * lh_first; }
 # define WAN_LIST_HEAD_INITIALIZER(head)	{ NULL }
@@ -135,14 +135,14 @@ extern atomic_t wan_debug_mem;
 #if defined(WAN_KERNEL)
 
 #if defined(__FreeBSD__)
-# define WAN_TAILQ_FIRST(ifp)	TAILQ_FIRST(&ifp->if_addrhead)
-# define WAN_TAILQ_NEXT(ifa)	TAILQ_NEXT(ifa, ifa_link)
+# define WAN_TAILQ_FIRST(ifp)		TAILQ_FIRST(&ifp->if_addrhead)
+# define WAN_TAILQ_NEXT(ifa)		TAILQ_NEXT(ifa, ifa_link)
 #elif defined (__OpenBSD__)
-# define WAN_TAILQ_FIRST(ifp)	TAILQ_FIRST(&ifp->if_addrlist)
-# define WAN_TAILQ_NEXT(ifa)	TAILQ_NEXT(ifa, ifa_list)
+# define WAN_TAILQ_FIRST(ifp)		TAILQ_FIRST(&ifp->if_addrlist)
+# define WAN_TAILQ_NEXT(ifa)		TAILQ_NEXT(ifa, ifa_list)
 #elif defined (__NetBSD__)
-# define WAN_TAILQ_FIRST(ifp)	TAILQ_FIRST(&ifp->if_addrlist)
-# define WAN_TAILQ_NEXT(ifa)	TAILQ_NEXT(ifa, ifa_list)
+# define WAN_TAILQ_FIRST(ifp)		TAILQ_FIRST(&ifp->if_addrlist)
+# define WAN_TAILQ_NEXT(ifa)		TAILQ_NEXT(ifa, ifa_list)
 #elif defined(__LINUX__)
 #elif defined(__SOLARIS__)
 #elif defined(__WINDOWS__)
@@ -151,6 +151,11 @@ extern atomic_t wan_debug_mem;
 #endif
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+# if defined(__FreeBSD__)
+#  define WAN_PKTATTR_DECL(pktattr)
+# else
+#  define WAN_PKTATTR_DECL(pktattr)	struct altq_pktattr	pktattr
+# endif
 # define WAN_IFQ_SET_READY		IFQ_SET_READY
 # define WAN_IFQ_IS_EMPTY		IFQ_IS_EMPTY
 # define WAN_IFQ_INC_LEN		IFQ_INC_LEN
@@ -285,13 +290,16 @@ extern atomic_t wan_debug_mem;
 #endif
 
 #if defined(__FreeBSD__) && (__FreeBSD_version >= 410000)
+# define WAN_IS_TASKQ_SCHEDULE
 # define WAN_TASKQ_SCHEDULE(task)			\
 	taskqueue_enqueue(taskqueue_swi, &task->tqueue);\
 	taskqueue_run(taskqueue_swi)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+# define WAN_IS_TASKQ_SCHEDULE
 # define WAN_TASKQ_SCHEDULE(task)			\
 	task->tfunc(task->data, 0)
 #elif defined(__LINUX__)
+# define WAN_IS_TASKQ_SCHEDULE
 # define WAN_TASKQ_SCHEDULE(task)			\
 	wan_schedule_task(&task->tqueue)
 #elif defined(__WINDOWS__)
@@ -460,6 +468,21 @@ extern atomic_t wan_debug_mem;
 
 #define WAN_MAX_TRACE_TIMEOUT	(5*HZ)
 
+#if 0
+/*
+ * Variable argument list macro definitions
+ */
+#ifndef _VALIST
+#define _VALIST
+typedef char *va_list;
+#endif /* _VALIST */
+#define _WAN_VA_SIZE(type) (((sizeof(type) + sizeof(long) - 1) / sizeof(long)) * sizeof(long))
+
+#define WAN_VA_START(ap, A)	((ap) = (va_list) &(A) + _WAN_VA_SIZE(A))
+#define WAN_VA_ARG(ap, T)	(*(T *)((ap) += _WAN_VA_SIZE(T),(ap) - _WAN_VA_SIZE (T)))
+#define WAN_VA_END(ap)		(void) 0
+#endif
+
 
 /****************************************************************************
 **			T Y P E D E F S				
@@ -534,34 +557,6 @@ void		wanpipe_debugging (unsigned long data);
 /*
 ** wan_malloc - 
 */
-
-static __inline void* wan_kmalloc(int size)
-{
-	void*	ptr = NULL;
-#if defined(__LINUX__)
-	ptr = kmalloc(size, GFP_KERNEL);
-	if (ptr){
-		DEBUG_ADD_MEM(size);
-	}
-#elif defined(__SOLARIS__)
-#warning "NC: NEED SLEEP VERSION"
-	ptr=kmem_alloc(size,KM_NOSLEEP);
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-#warning "NC: NEED SLEEP VERSION"
-	ptr = malloc(size, M_DEVBUF, M_NOWAIT); 
-#elif defined(__WINDOWS__)
-#warning "NC: NEED SLEEP VERSION"
-	ptr = ExAllocatePool(NonPagedPool, size);
-#else
-# error "wan_kmalloc() function is not supported yet!"
-#endif
-	if (ptr){
-		memset(ptr, 0, size);
-		DEBUG_ADD_MEM(size);
-	}
-	return ptr;
-}        
-
 static __inline void* wan_malloc(int size)
 {
 	void*	ptr = NULL;
@@ -585,6 +580,32 @@ static __inline void* wan_malloc(int size)
 	}
 	return ptr;
 }
+
+
+static __inline void* wan_kmalloc(int size)
+{
+	void*	ptr = NULL;
+#if defined(__LINUX__)
+	ptr = kmalloc(size, GFP_KERNEL);
+	if (ptr){
+		DEBUG_ADD_MEM(size);
+	}
+#elif defined(__SOLARIS__)
+	ptr=kmem_alloc(size,KM_NOSLEEP);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	ptr = malloc(size, M_DEVBUF, M_NOWAIT); 
+#elif defined(__WINDOWS__)
+	ptr = ExAllocatePool(NonPagedPool, size);
+#else
+# error "wan_malloc() function is not supported yet!"
+#endif
+	if (ptr){
+		memset(ptr, 0, size);
+		DEBUG_ADD_MEM(size);
+	}
+	return ptr;
+}
+
 
 /*
 ** wan_free - 
@@ -610,6 +631,72 @@ static __inline void wan_free(void* ptr)
 #endif
 }
 
+static __inline void* wan_vmalloc(int size)
+{
+	void*	ptr = NULL;
+#if defined(__LINUX__)
+	ptr = vmalloc(size);
+	if (ptr){
+		DEBUG_ADD_MEM(size);
+	}
+#elif defined(__FreeBSD__)
+	ptr = (caddr_t)kmem_alloc(kernel_map, size + sizeof(vm_size_t));
+	if (ptr){
+		vm_size_t	*ptr1 = (vm_size_t*)ptr;
+		bzero(ptr, size);
+		*ptr1 = size + sizeof(vm_size_t);
+		ptr = ptr1++;
+	}
+#elif defined(__OpenBSD__) || defined(__NetBSD__)
+	ptr = (caddr_t)uvm_km_alloc(kernel_map, size + sizeof(vsize_t));
+	if (ptr){
+		vsize_t	*ptr1 = (vsize_t*)ptr;
+		bzero(ptr, size);
+		*ptr1 = size + sizeof(vsize_t);
+		ptr = ptr1++;
+	}
+#elif defined(__SOLARIS__)
+#elif defined(__WINDOWS__)
+#else
+# error "wan_vmalloc() function is not supported yet!"
+#endif
+	if (ptr){
+		memset(ptr, 0, size);
+		DEBUG_ADD_MEM(size);
+	}
+	return ptr;
+}
+
+/*
+** wan_vfree - 
+*/
+static __inline void wan_vfree(void* ptr)
+{
+	if (!ptr){
+		DEBUG_EVENT("wan_vfree: NULL PTR !!!!!\n");
+		return;
+	}
+#if defined(__LINUX__)
+	vfree(ptr);
+#elif defined(__FreeBSD__)
+	{
+		vm_size_t	*ptr1 = (vm_size_t*)ptr;
+		ptr1 --;
+		kmem_free(kernel_map, (vm_offset_t)ptr1, (vm_size_t)*ptr1);
+	}
+#elif defined(__OpenBSD__) || defined(__NetBSD__)
+	{
+		vsize_t	*ptr1 = (vsize_t*)ptr;
+		ptr1 --;
+		uvm_km_free(kernel_map, (vaddr_t)ptr1, (vsize_t)*ptr1);
+	}
+#elif defined(__SOLARIS__)
+#elif defined(__WINDOWS__)
+#else
+# error "wan_free() function is not supported yet!"
+#endif
+	return;
+}
 
 
 /******************* WANPIPE VIRT<->BUS SPACE FUNCTION ******************/
@@ -867,7 +954,7 @@ wan_del_timer(wan_timer_t* wan_timer)
 /*
 ** wan_add_timer
 */
-static __inline void 
+static __inline int 
 wan_add_timer(wan_timer_t* wan_timer, unsigned long delay)
 {
 #if defined(__LINUX__)
@@ -878,7 +965,7 @@ wan_add_timer(wan_timer_t* wan_timer, unsigned long delay)
 				__FUNCTION__,__LINE__,
 				wan_timer->timer_info.function);
 		}
-		return;
+		return -EINVAL;
 	}
     	wan_timer->timer_info.expires = SYSTEM_TICKS + delay;
     	add_timer(&wan_timer->timer_info);
@@ -899,6 +986,7 @@ wan_add_timer(wan_timer_t* wan_timer, unsigned long delay)
 #else
 # error "wan_add_timer() function is not supported yet!"
 #endif /* linux */
+	return 0;
 }
 
 /********************** WANPIPE KERNEL BUFFER **************************/
@@ -990,7 +1078,7 @@ static __inline void wan_skb_free(void* skb)
 #if defined(WAN_DEBUG_MEM)
 	DEBUG_SUB_MEM(((struct sk_buff*)skb)->truesize);
 #endif
-	wan_dev_kfree_skb(skb, FREE_WRITE);
+	dev_kfree_skb_any(skb);
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	m_freem(skb);
 #elif defined(__SOLARIS__)
@@ -1046,61 +1134,6 @@ static __inline int wan_skb_mark(void* pskb)
 ** wan_skb_alloc() - 
 **		Allocate kernel buffer with len.
 */
-static __inline void* wan_skb_kalloc(unsigned int len)
-{
-#if defined(__LINUX__)
-#if defined(WAN_DEBUG_MEM)
-	struct sk_buff *skb=__dev_alloc_skb(len,GFP_KERNEL);
-	if (skb){
-		DEBUG_ADD_MEM(skb->truesize);
-	}
-	return (void*)skb;
-#else
-	return (void*)__dev_alloc_skb(len,GFP_KERNEL);
-#endif
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-#warning "NEED SLEEPING VERSION"
-	struct mbuf	*new = NULL;
-
-	if (len){
-		MGETHDR(new, M_DONTWAIT, MT_DATA);
-	}else{
-		MGET(new, M_DONTWAIT, MT_DATA);
-	}
-	if (new){
-		if (new->m_flags & M_PKTHDR){
-			new->m_pkthdr.len = 0;
-		}
-		new->m_len = 0;
-		MCLGET(new, M_DONTWAIT);
-		if ((new->m_flags & M_EXT) == 0){
-			wan_skb_free(new);
-			return NULL;
-		}
-		/* Always reserve extra 16 bytes (as Linux)
-		** for the header */
-		new->m_data += 16;
-		wan_skb_set_mark(new);
-		return (void*)new;
-	}
-	return NULL;
-#elif defined (__SOLARIS__)
-#warning "NEED SLEEPING VERSION"
-	mblk_t *mp=allocb(ROUNDUP(len+16, IOC_LINESIZE), BPRI_MED);
-	if (mp){
-		caddr_t ptr= (caddr_t) ROUNDUP((long)mp->b_rptr, 1);
-		mp->b_rptr=(uchar_t *)ptr+16;
-	}
-	return mp;
-#else
-# error "wan_skb_kalloc() function is not supported yet!"
-#endif
-}
-
-/*
-** wan_skb_alloc() - 
-**		Allocate kernel buffer with len.
-*/
 static __inline void* wan_skb_alloc(unsigned int len)
 {
 #if defined(__LINUX__)
@@ -1148,7 +1181,58 @@ static __inline void* wan_skb_alloc(unsigned int len)
 #else
 # error "wan_skb_alloc() function is not supported yet!"
 #endif
-}             
+}
+
+
+static __inline void* wan_skb_kalloc(unsigned int len)
+{
+#if defined(__LINUX__)
+#if defined(WAN_DEBUG_MEM)
+	struct sk_buff *skb=__dev_alloc_skb(len,GFP_KERNEL);
+	if (skb){
+		DEBUG_ADD_MEM(skb->truesize);
+	}
+	return (void*)skb;
+#else
+	return (void*)__dev_alloc_skb(len,GFP_KERNEL);
+#endif
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	struct mbuf	*new = NULL;
+
+	if (len){
+		MGETHDR(new, M_DONTWAIT, MT_DATA);
+	}else{
+		MGET(new, M_DONTWAIT, MT_DATA);
+	}
+	if (new){
+		if (new->m_flags & M_PKTHDR){
+			new->m_pkthdr.len = 0;
+		}
+		new->m_len = 0;
+		MCLGET(new, M_DONTWAIT);
+		if ((new->m_flags & M_EXT) == 0){
+			wan_skb_free(new);
+			return NULL;
+		}
+		/* Always reserve extra 16 bytes (as Linux)
+		** for the header */
+		new->m_data += 16;
+		wan_skb_set_mark(new);
+		return (void*)new;
+	}
+	return NULL;
+#elif defined (__SOLARIS__)
+	mblk_t *mp=allocb(ROUNDUP(len+16, IOC_LINESIZE), BPRI_MED);
+	if (mp){
+		caddr_t ptr= (caddr_t) ROUNDUP((long)mp->b_rptr, 1);
+		mp->b_rptr=(uchar_t *)ptr+16;
+	}
+	return mp;
+#else
+# error "wan_skb_kalloc() function is not supported yet!"
+#endif
+}               
+
 
 /*
 ** wan_skb_set_dev() - 
@@ -1219,7 +1303,11 @@ static __inline void wan_skb_set_csum(void* skb, unsigned int csum)
 #elif defined(__OpenBSD__)
 	netskb_t*	m = (netskb_t*)skb;
 	if (m){
+# if defined(OpenBSD3_8) || defined(OpenBSD3_9)
+		m->m_pkthdr.csum_flags = csum;
+# else
 		m->m_pkthdr.csum = csum;
+# endif
 	}
 #elif defined(__NetBSD__) || defined(__FreeBSD__)
 	netskb_t*	m = (netskb_t*)skb;
@@ -1245,7 +1333,11 @@ static __inline unsigned int wan_skb_csum(void* skb)
 	return (m) ? m->m_pkthdr.csum_data : 0;
 #elif defined(__OpenBSD__)
 	netskb_t*	m = (netskb_t*)skb;
+# if defined(OpenBSD3_8) || defined(OpenBSD3_9)
+	return (m) ? m->m_pkthdr.csum_flags : 0;
+# else
 	return (m) ? m->m_pkthdr.csum : 0;
+# endif
 #else
 # error "wan_skb_set_dev() function is not supported yet!"
 #endif
@@ -1642,7 +1734,7 @@ static __inline void wan_skb_init(void* pskb, unsigned int len)
 	skb->data = skb->head + len;
 	skb->tail = skb->data;
 	skb->len  = 0;
-	skb->data_len = 0;
+	skb->data_len = 0;   
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct mbuf*	m = (struct mbuf*)pskb;
 	m->m_data = m->m_ext.ext_buf + len;
@@ -1903,7 +1995,8 @@ static __inline void wan_netif_fake_init(netdevice_t *d)
 }
 #endif
 	
-static __inline void* wan_netif_alloc(unsigned char *devname,int *err)
+static __inline void*
+wan_netif_alloc(unsigned char *devname, int ifType, int *err)
 {
 #if defined(__LINUX__)
 # if defined(LINUX_2_6)
@@ -1942,18 +2035,52 @@ static __inline void* wan_netif_alloc(unsigned char *devname,int *err)
 	strncpy(dev->name,devname,30);
 	return dev;
 # endif
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#elif defined(__FreeBSD__) && (__FreeBSD_version > 600000)
 	struct ifnet* ifp;
-	ifp = wan_malloc(sizeof(struct ifnet));
+	ifp = IFALLOC(ifType);
+	/*ifp = wan_malloc(sizeof(struct ifnet));*/
 	if (ifp == NULL){
 		*err = -ENOMEM;
 		return NULL;
 	}
-	*err = wan_netif_init(ifp, devname);
-	if (*err){
-		wan_netif_del(ifp);
+	if (devname){
+		*err = wan_netif_init(ifp, devname);
+		if (*err){
+			wan_netif_del(ifp);
+			return NULL;
+		}
+	}
+	return ifp;
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	struct ifnet* ifp;
+	switch(ifType){
+	case WAN_IFT_PPP:
+		ifp = (struct ifnet*)wan_malloc(sizeof(struct sppp));
+		if (ifp) bzero((struct sppp*)ifp, sizeof(struct sppp));
+		break;
+	case WAN_IFT_ETHER:
+		ifp = (struct ifnet*)wan_malloc(sizeof(wan_ethercom_t));
+		if (ifp) bzero(WAN_IFP2AC(ifp), sizeof(wan_ethercom_t));
+		break;
+	case WAN_IFT_OTHER:
+	default:
+		ifp = wan_malloc(sizeof(struct ifnet));
+		if (ifp) bzero(ifp, sizeof(struct ifnet));
+		break;
+	}
+	/*ifp = IFALLOC(ifType);*/
+	/*ifp = wan_malloc(sizeof(struct ifnet));*/
+	if (ifp == NULL){
+		*err = -ENOMEM;
 		return NULL;
-	};
+	}
+	if (devname){
+		*err = wan_netif_init(ifp, devname);
+		if (*err){
+			wan_netif_del(ifp);
+			return NULL;
+		}
+	}
 	return ifp;
 #else
 # error "wan_netif_alloc() unsupported"
@@ -1978,7 +2105,7 @@ static __inline void wan_netif_free(netdevice_t *dev)
 # endif
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	wan_netif_del(dev);
-	wan_free(dev);
+	IFFREE(dev);	/*wan_free(dev);*/
 #else
 #error "wan_netif_free() not supported!"
 #endif
@@ -2251,6 +2378,26 @@ static __inline void wan_write_rw_unlock_irq(void *lock, unsigned long *flag)
 # warning "wan_read_rw_unlock() function is not supported yet!"
 #endif
 }
+#endif
+
+#if 0
+static __inline void wan_read_bus_4(void *phw, void *virt, int offset, unsigned int *value)
+{
+#if defined(__LINUX__)
+	*value = wp_readl((unsigned char*)virt + offset); 
+#else
+        sdla_bus_read_4(phw,offset,value);
+#endif	
+}
+
+static __inline void wan_write_bus_4(void *phw, void *virt, int offset, unsigned int value)
+{
+#if defined(__LINUX__)
+	wp_writel(value,(u8*)virt + offset);
+#else
+        sdla_bus_write_4(phw,offset,value);
+#endif	
+}   
 #endif
 
 #endif  /* WAN_KERNEL */

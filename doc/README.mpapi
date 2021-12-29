@@ -31,15 +31,8 @@ Installing WANPIPE with MPAPI X25 support
 ----------------------------------------
 
 The MPAPI X25 API is NOT distributed with standard
-wanpipe release. One has to request the MPAPI
+wanpiep release. One has the request the MPAPI
 binary or source from Sangoma Technologies.
-
- 1. Untar latest wanpipe release located at
-      ftp.sangoma.com/linux/current_wanpipe
-
- 2. Untar the MPAPI release obtained from Sangoma
-    in the same directory as wanpipe release.
-    
 
 The MPAPI X25 API support IS NOT installed by default
 during WANPIPE installation process.

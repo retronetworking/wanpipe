@@ -319,17 +319,17 @@ typedef struct fr_channel
 #define TMR_INT_ENABLED_UPDATE_DLCI	0x40
 #define TMR_INT_ENABLED_TE		0x80
 
-
+#pragma pack(1)
 typedef struct dlci_status
 {
-	unsigned short dlci	PACKED;
-	unsigned char state	PACKED;
+	unsigned short dlci	;
+	unsigned char state	;
 } dlci_status_t;
 
 typedef struct dlci_IB_mapping
 {
-	unsigned short dlci		PACKED;
-	unsigned long  addr_value	PACKED;
+	unsigned short dlci		;
+	unsigned long  addr_value	;
 } dlci_IB_mapping_t;
 
 /* This structure is used for DLCI list Tx interrupt mode.  It is used to
@@ -337,10 +337,11 @@ typedef struct dlci_IB_mapping
  */
 typedef struct fr_dlci_interface 
 {
-	unsigned char gen_interrupt	PACKED;
-	unsigned short packet_length	PACKED;
-	unsigned char reserved		PACKED;
+	unsigned char gen_interrupt	;
+	unsigned short packet_length	;
+	unsigned char reserved		;
 } fr_dlci_interface_t; 
+#pragma pack()
 
 extern void disable_irq(unsigned int);
 extern void enable_irq(unsigned int);
@@ -562,12 +563,13 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 	if (IS_TE1_MEDIA(&conf->fe_cfg)) {
 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_te_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
 		card->fe.read_fe_reg	= read_front_end_reg;
 
-		card->wandev.te_enable_timer = fr_enable_timer;
+		card->wandev.fe_enable_timer = fr_enable_timer;
 		card->wandev.te_link_state = fr_handle_front_end_state;
 		conf->interface = 
 			(IS_T1_FEMEDIA(&card->fe)) ? WANOPT_V35 : WANOPT_RS232;
@@ -576,6 +578,7 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
         }else if (IS_56K_MEDIA(&conf->fe_cfg)) {
                 
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -825,10 +828,14 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 	 * If the onboard CSU/DSU exists, configure via
 	 * user defined options */
 	if (IS_TE1_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring onboard %s CSU/DSU\n",
 			card->devname, 
 			(IS_T1_CARD(card))?"T1":"E1");
-		if (sdla_te_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			printk(KERN_INFO "%s: Failed %s configuratoin!\n",
 					card->devname,
 					(IS_T1_CARD(card))?"T1":"E1");
@@ -836,10 +843,14 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 		}
 	
 	}else if (IS_56K_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring 56K onboard CSU/DSU\n",
 			card->devname);
 
-		if(sdla_56k_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EIO;
@@ -946,7 +957,7 @@ static int update (wan_device_t* wandev)
 			/* TE1 Update T1/E1 alarms */
 			card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 			/* TE1 Update T1/E1 perfomance counters */
-			card->wandev.fe_iface.read_pmon(&card->fe); 
+			card->wandev.fe_iface.read_pmon(&card->fe, 0); 
 		}else if (IS_56K_CARD(card)) {
 			/* 56K Update CSU/DSU alarms */
 			card->wandev.fe_iface.read_alarm(&card->fe, 1); 
@@ -1408,7 +1419,9 @@ static void disable_comm (sdla_t *card)
 
 	/* TE1 unconfiging */
 	if (IS_TE1_CARD(card)) {
-		sdla_te_unconfig(&card->fe);
+		if (card->wandev.fe_iface.unconfig){
+			card->wandev.fe_iface.unconfig(&card->fe);
+		}
 	}
 }
 
@@ -3117,7 +3130,7 @@ static void timer_intr(sdla_t *card)
 			/* TE1 Update T1/E1 alarms */
 			card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 			/* TE1 Update T1/E1 perfomance counters */
-			card->wandev.fe_iface.read_pmon(&card->fe); 
+			card->wandev.fe_iface.read_pmon(&card->fe, 0); 
 		}else if (IS_56K_CARD(card)) {
 			/* 56K Update CSU/DSU alarms */
 			card->wandev.fe_iface.read_alarm(&card->fe, 1); 
@@ -3420,7 +3433,7 @@ static void process_route (netdevice_t *dev)
 		if_data = (struct sockaddr_in *)&if_info.ifr_dstaddr;
 		if_data->sin_addr.s_addr = chan->ip_remote;
 		if_data->sin_family = AF_INET;
-		err = devinet_ioctl( SIOCSIFDSTADDR, &if_info );
+		err = wp_devinet_ioctl( SIOCSIFDSTADDR, &if_info );
 
 		set_fs(fs);           /* restore old block */
 
@@ -3452,7 +3465,7 @@ static void process_route (netdevice_t *dev)
 		if_data = (struct sockaddr_in *)&if_info.ifr_dstaddr;
 		if_data->sin_addr.s_addr = 0;
 		if_data->sin_family = AF_INET;
-		err = devinet_ioctl( SIOCSIFDSTADDR, &if_info );
+		err = wp_devinet_ioctl( SIOCSIFDSTADDR, &if_info );
 
 		set_fs(fs);    
 		
@@ -3931,14 +3944,21 @@ static int fr_send (sdla_t* card, int dlci, unsigned char attr, int len,
  * TE1
  * Read value from PMC register.
  */
-static unsigned char read_front_end_reg (void* card1, unsigned short reg)
+//static unsigned char read_front_end_reg (void* card1, unsigned short reg)
+static unsigned char read_front_end_reg (void* card1, ...)
 {
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	char* data = mb->wan_data;
-        int err;
-	int retry=15;
+	va_list		args;
+	sdla_t		*card = (sdla_t*)card1;
+        wan_mbox_t	*mb = &card->wan_mbox;
+	char		*data = mb->wan_data;
+	u16		reg, line_no;
+        int		err;
+	int		retry=15;
 
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	va_end(args);
 	WAN_MBOX_INIT(mb);
 	do {
 		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
@@ -3957,15 +3977,24 @@ static unsigned char read_front_end_reg (void* card1, unsigned short reg)
  * TE1 
  * Write value to PMC register.
  */
-static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
+//static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
+static int write_front_end_reg (void* card1, ...)
 {
-	sdla_t* card = (sdla_t*)card1;
-        wan_mbox_t* mb = &card->wan_mbox;
-	char* data = mb->wan_data;
-        int err;
-	int retry=15;
+	va_list		args;
+	sdla_t		*card = (sdla_t*)card1;
+        wan_mbox_t	*mb = &card->wan_mbox;
+	char		*data = mb->wan_data;
+	u16		reg, line_no;
+	u8		value;
+        int		err;
+	int		retry=15;
 
-	
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	value	= (u8)va_arg(args, int);
+	va_end(args);
+
 	WAN_MBOX_INIT(mb);
 	do {
 		((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;

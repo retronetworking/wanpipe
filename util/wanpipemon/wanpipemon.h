@@ -2,6 +2,13 @@
 #include "../lxdialog/dialog.h"
 #endif
 
+#include <wanpipe_hdlc.h>
+
+#ifdef WANPIPEMON_ZAP
+extern int MakeZapConnection(void);
+extern int zap_chan;
+#endif
+
 extern int 	output_start_xml_router (void);
 extern int 	output_stop_xml_router (void);
 extern int 	output_start_xml_header (char *hdr);
@@ -66,6 +73,7 @@ extern unsigned char pcap_output_file_name[];
 
 
 #define MAX_CMD_ARG 10
+#define MAX_CMD_LENGTH 15
 #define DEFAULT_TRACE_LEN 39
 #define DO_COMMAND(packet)	DoCommand((wan_udp_hdr_t*)&packet)
 
@@ -104,9 +112,11 @@ extern char ** BITSTRMget_cmd_menu(char *cmd_name,int *len);
 extern char ** ADSLget_main_menu(int *len);
 extern char ** ATMget_main_menu(int *len);
 extern char ** AFTget_main_menu(int *len);
+extern char ** ZAPget_main_menu(int *len);
 extern char ** ADSLget_cmd_menu(char *cmd_name,int *len);
 extern char ** ATMget_cmd_menu(char *cmd_name,int *len);
 extern char ** AFTget_cmd_menu(char *cmd_name,int *len);
+extern char ** ZAPget_cmd_menu(char *cmd_name,int *len);
 
 typedef int	config_t(void);
 typedef int 	usage_t(void);
@@ -146,6 +156,7 @@ extern config_t		BITSTRMConfig;
 
 extern usage_t		ATMUsage;
 extern usage_t		AFTUsage;
+extern usage_t		ZAPUsage;
 extern usage_t		CHDLCUsage;
 extern usage_t		FRUsage;
 extern usage_t		PPPUsage;
@@ -159,6 +170,7 @@ extern usage_t		BITSTRMUsage;
 extern main_t		CHDLCMain;
 extern main_t		ATMMain;
 extern main_t		AFTMain;
+extern main_t		ZAPMain;
 extern main_t		FRMain;
 extern main_t		PPPMain;
 extern main_t		ADSLMain;
@@ -191,6 +203,8 @@ extern struct fun_protocol function_lookup[];
 			  (prot==WANCONFIG_AFT)?"AFT":\
 			  (prot==WANCONFIG_AFT_TE1)?"AFT_TE1":\
 			  (prot==WANCONFIG_AFT_TE3)?"AFT_TE3":\
+			  (prot==WANCONFIG_AFT_ANALOG)?"AFT_ANALOG":\
+			  (prot==WANCONFIG_ZAP)?"Zaptel":\
 							"Unknown")
 
 #define EXEC_PROT_FUNC(func,prot,err,arg) {\
@@ -358,21 +372,21 @@ typedef struct {
 
 /* "libpcap" file header (minus magic number). */
 struct pcap_hdr {
-    unsigned long    	magic;          /* magic */
+    u_int32_t    	magic;          /* magic */
     unsigned short	version_major;	/* major version number */
     unsigned short	version_minor;	/* minor version number */
-    unsigned long	thiszone;	/* GMT to local correction */
-    unsigned long	sigfigs;	/* accuracy of timestamps */
-    unsigned long	snaplen;	/* max length of captured packets, in octets */
-    unsigned long	network;	/* data link type */
+    u_int32_t	thiszone;	/* GMT to local correction */
+    u_int32_t	sigfigs;	/* accuracy of timestamps */
+    u_int32_t	snaplen;	/* max length of captured packets, in octets */
+    u_int32_t	network;	/* data link type */
 };
 
 /* "libpcap" record header. */
 struct pcaprec_hdr {
-    unsigned long	ts_sec;		/* timestamp seconds */
-    unsigned long	ts_usec;	/* timestamp microseconds */
-    unsigned long	incl_len;	/* number of octets of packet saved in file */
-    unsigned long	orig_len;	/* actual length of packet */
+    u_int32_t	ts_sec;		/* timestamp seconds */
+    u_int32_t	ts_usec;	/* timestamp microseconds */
+    u_int32_t	incl_len;	/* number of octets of packet saved in file */
+    u_int32_t	orig_len;	/* actual length of packet */
 };
 
 
@@ -383,7 +397,8 @@ enum {
 	WP_OUT_TRACE_PCAP,
 	WP_OUT_TRACE_INTERP_IPV4,
 	WP_OUT_TRACE_ATM_RAW_PHY,
-	WP_OUT_TRACE_ATM_INTERPRETED_PHY
+	WP_OUT_TRACE_ATM_INTERPRETED_PHY,
+	WP_OUT_TRACE_HDLC
 };
 
 #define WP_TRACE_OUTGOING 0x01
@@ -420,16 +435,16 @@ typedef struct {
 } cisco_header_t;
 
 typedef struct {
-        unsigned long code;     /* Slarp Control Packet Code */
+        u_int32_t code;     /* Slarp Control Packet Code */
         union {
                 struct {
-                        unsigned long address;  /* IP address */
-                        unsigned long mask;     /* IP mask    */
+                        u_int32_t address;  /* IP address */
+                        u_int32_t mask;     /* IP mask    */
                         unsigned short reserved[3];
                 } address;
                 struct {
-                        unsigned long my_sequence;
-                        unsigned long your_sequence;
+                        u_int32_t my_sequence;
+                        u_int32_t your_sequence;
                         unsigned short reliability;
                         unsigned short t1;      /* time alive (upper) */
                         unsigned short t2;      /* time alive (lower) */
@@ -457,13 +472,12 @@ typedef struct {
 //		        unsigned char status, unsigned int timestamp, int protocol);
 
 extern void wp_trace_output(wp_trace_output_iface_t *trace_iface);
-extern void print_router_up_time(unsigned long time);
+extern void print_router_up_time(u_int32_t time);
 
 extern char*	get_hardware_level_interface_name(char* interface_name);
 extern int 	make_hardware_level_connection(void);
 extern void	cleanup_hardware_level_connection(void);
 
-extern void	read_te1_56k_stat(void);
 extern void	flush_te1_pmon(void);
 
 extern void	hw_line_trace(int trace_mode);

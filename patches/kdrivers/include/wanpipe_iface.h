@@ -94,15 +94,23 @@ struct if_settings
 /* WANPIPE Generic function interface */
 # if defined(WAN_KERNEL)
 
+/* ifType - SNMP */
+#if 0
+/* moved to wanpipe_defines.h */
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
 # define WAN_IFT_OTHER	IFT_OTHER
+# define WAN_IFT_ETHER	IFT_ETHER
+# define WAN_IFT_PPP	IFT_PPP
 #elif defined(__LINUX__)
 # define WAN_IFT_OTHER	0x00
+# define WAN_IFT_ETHER	0x00
+# define WAN_IFT_PPP	0x00
+#endif
 #endif
 
 typedef struct
 {
-	netdevice_t*(*alloc)(int);
+	netdevice_t*(*alloc)(int, int ifType);
 	void(*free)(netdevice_t*);
 	int(*attach)(netdevice_t*, char*, int);
 	void(*detach)(netdevice_t*, int);

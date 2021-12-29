@@ -5,9 +5,9 @@
 # include <linux/wanpipe.h>
 # include <linux/wanpipe_cfg.h>
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe.h>
-# include <net/wanpipe_cfg.h>
+# include <wanpipe_includes.h>
+# include <wanpipe.h>
+# include <wanpipe_cfg.h>
 #else
 # error "This Operating System is not supported!"
 #endif
@@ -72,7 +72,6 @@ static int wan_aften_init(void *arg)
 				wan_fullname, 
 				WAN_AFTEN_VER, 
 				wan_copyright); 
-
 	
 	ncards = sdla_hw_probe();
 	if (!ncards){
@@ -92,7 +91,7 @@ static int wan_aften_init(void *arg)
 		}
 		memset(card, 0, sizeof(sdla_t));
 		/* Allocate HDLC device */
-		if (!wan_iface.alloc || (dev = wan_iface.alloc(1)) == NULL){
+		if (!wan_iface.alloc || (dev = wan_iface.alloc(1,WAN_IFT_OTHER)) == NULL){
 			wan_free(card);
 			goto wanpipe_init_done;
 		}
@@ -127,6 +126,7 @@ static int wan_aften_init(void *arg)
 			'a' + if_index++);
 
 #endif
+
 		/* Register in HDLC device */
 		if (!wan_iface.attach || wan_iface.attach(dev, card->devname, 1)){
 			wan_free(devle);
@@ -186,6 +186,7 @@ static int wan_aften_exit(void *arg)
 	int			err = 0;
 
 	for (card=card_list;card_list;){
+		DEBUG_EVENT("%s: Unregistering device\n", card->devname);
 		devle = WAN_LIST_FIRST(&card->wandev.dev_head);
 		if (devle && devle->dev){
 			struct wan_aften_priv	*priv = wan_netif_priv(devle->dev);
@@ -612,6 +613,73 @@ static int wan_aften_all_hwprobe(sdla_t *card_head, wan_cmd_api_t *api_cmd)
 	return 0;	
 }
 
+static int
+wan_aften_read_pcibridge_reg(sdla_t *card, wan_cmd_api_t *api_cmd, int idata)
+{
+	if (card->hw_iface.pci_bridge_read_config_dword == NULL){
+		return -EINVAL;
+	}
+	card->hw_iface.pci_bridge_read_config_dword(
+				card->hw,
+				api_cmd->offset,
+				(u32*)&api_cmd->data[idata]);	
+	DEBUG_TEST("%s: Reading value from %X: %X\n",
+				card->devname,
+				api_cmd->offset,
+				api_cmd->data[idata]);		
+	return 0;	
+}
+
+static int 
+wan_aften_all_read_pcibridge_reg(sdla_t *card_head, wan_cmd_api_t *api_cmd)
+{
+	sdla_t		*card, *prev = NULL;
+	int 		idata = 0;
+	
+	for (card=card_list; card; card = card->list){
+		if (prev == NULL||!card->hw_iface.hw_same(prev->hw, card->hw)){
+			wan_aften_read_pcibridge_reg(card, api_cmd, idata);
+			idata += api_cmd->len;
+		}
+		prev = card;
+	}
+
+	return 0;	
+}
+
+static int wan_aften_write_pcibridge_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
+{
+	if (card->hw_iface.pci_bridge_write_config_dword == NULL){
+		return -EINVAL;
+	}
+	card->hw_iface.pci_bridge_write_config_dword(
+				card->hw,
+				api_cmd->offset,
+				*(unsigned int*)&api_cmd->data[0]);
+	DEBUG_TEST("%s: Writing value %X to %X\n",
+				card->devname,
+				*(unsigned int*)&api_cmd->data[0],
+				api_cmd->offset);
+						
+	return 0;
+}
+
+static int wan_aften_all_write_pcibridge_reg(sdla_t *card_head, wan_cmd_api_t *api_cmd)
+{
+	sdla_t		*card, *prev = NULL;
+
+	for (card=card_list; card; card = card->list){
+		if (prev == NULL||!card->hw_iface.hw_same(prev->hw, card->hw)){
+			wan_aften_write_pcibridge_reg(card, api_cmd);
+		}
+		prev = card;
+	}
+
+	return 0;	
+}
+
+
+
 static int wan_aften_open(netdevice_t *dev)
 {
 	WAN_NETIF_START_QUEUE(dev);
@@ -638,10 +706,7 @@ static int wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
 
 	DEBUG_TEST("%s: CMD=0x%X\n",__FUNCTION__,cmd);
 
-	switch (cmd){
-	case SIOC_WAN_DEVEL_IOCTL:
-		break;
-	default:
+	if (cmd != SIOC_WAN_DEVEL_IOCTL){
 		DEBUG_IOCTL("%s: Unsupported IOCTL call!\n", 
 					wan_netif_name(dev));
 		return -EINVAL;
@@ -708,6 +773,18 @@ static int wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, int cmd)
 		}
 		DEBUG_TEST("%s: Get core revision (rev %X)!\n", 
 				wan_netif_name(dev), api_cmd.data[0]);
+		break;
+	case SIOC_WAN_READ_PCIBRIDGE_REG:
+		err = wan_aften_read_pcibridge_reg(card, &api_cmd, 0);
+		break;
+	case SIOC_WAN_ALL_READ_PCIBRIDGE_REG:
+		err = wan_aften_all_read_pcibridge_reg(card, &api_cmd);
+		break;
+	case SIOC_WAN_WRITE_PCIBRIDGE_REG:
+		err = wan_aften_write_pcibridge_reg(card, &api_cmd);
+		break;
+	case SIOC_WAN_ALL_WRITE_PCIBRIDGE_REG:
+		err = wan_aften_all_write_pcibridge_reg(card, &api_cmd);
 		break;
 	}
 

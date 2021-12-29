@@ -88,13 +88,15 @@ BSD interface names rules:
 # include <linux/sdla_te1.h>
 # include <linux/sdlasfm.h>
 # include <linux/sdla_front_end.h>
+# include <linux/sdla_remora.h>
 #else
 # include <time.h>
-# include <net/sdla_fr.h>
-# include <net/wanpipe_cfg.h>
-# include <net/sdla_te1.h>
-# include <net/sdlasfm.h>
-# include <net/sdla_front_end.h>
+# include <sdla_fr.h>
+# include <wanpipe_cfg.h>
+# include <sdla_te1.h>
+# include <sdlasfm.h>
+# include <sdla_front_end.h>
+# include <sdla_remora.h>
 #endif
 
 #define MAX_PATH_LENGTH 4096
@@ -119,6 +121,8 @@ typedef struct chan_def		/* Logical Channel definition */
   char chan_start_script;
   char chan_stop_script;
   char active_channels_string[MAX_LEN_OF_ACTIVE_CHANNELS_STRING];
+  char active_hwec_channels_string[MAX_LEN_OF_ACTIVE_CHANNELS_STRING];
+//  char hwec_flag;//WANOPT_YES/WANOPT_NO
 } chan_def_t;
 
 typedef struct link_def		/* WAN Link definition */
@@ -133,13 +137,15 @@ typedef struct link_def		/* WAN Link definition */
   char stop_script;
   
   unsigned int card_version;	//S514 has many versions: S514-1/2/3/...7
+  unsigned int card_sub_version;//A104 can be "Shark" 
 
   char active_channels_string[MAX_LEN_OF_ACTIVE_CHANNELS_STRING];
   char firmware_file_path[MAX_PATH_LENGTH];
 } link_def_t;
 
-//flag used around debugging variabales. set to zero
-//to avoid 'unused variable' message from the compiler.
+//Flag used around variabales used ONLY for debugging.
+//Set to zero in "release" version to avoid 'unused variable' message
+//from the compiler.
 //#define DBG_FLAG 1
 #define DBG_FLAG 0
 
@@ -198,6 +204,7 @@ Press <ESC> to go back, <Help> for help."
 #define OP_MODE_VoIP        	" \"TDM_VOICE\" "   //8
 #define OP_MODE_PPPoE       	" \"PPPoE\" "       //9
 #define OP_MODE_TTY		" \"TTY\" "         //10
+#define OP_MODE_TDM_API  	" \"TDM_API\" "     //11
 
 #define PPPoE TTY+10  //a valid Operation Mode for ADSL card.
 		      //(but not defined in wanpipe_cfg.h !)	
@@ -212,7 +219,9 @@ Press <ESC> to go back, <Help> for help."
 #define QUOTED_8     " \"8\" "
 #define QUOTED_9     " \"9\" "
 #define QUOTED_10    " \"10\" "
+#define QUOTED_11    " \"11\" "
 
+////////////////////////////////////////////////////
 //Frame Relay definitions
 #define MAX_DLCI_NUMBER   100
 #define MIN_CIR 1
@@ -224,6 +233,31 @@ Press <ESC> to go back, <Help> for help."
 
 #define MANUAL_DLCI 	1
 #define AUTO_DLCI	2
+
+////////////////////////////////////////////////////
+//LIP ATM definitions
+#define LIP_ATM_MTU_MRU	212	//4 cells: 4*53=212
+
+////////////////////////////////////////////////////
+//CHDLC definintions
+//#include <linux/sdla_chdlc.h> - can not include!!
+//because of conflicting type: 'api_rx_hdr_t' wich
+//is also defined in 'sdla_fr.h'
+//because of it copying some definintions here:
+#define MIN_Tx_KPALV_TIMER	0	/* minimum transmit keepalive timer */
+#define MAX_Tx_KPALV_TIMER	60	/* maximum transmit keepalive timer - in seconds */
+#define DEFAULT_Tx_KPALV_TIMER	5	/* default transmit keepalive timer - in seconds */
+//#define MAX_Tx_KPALV_TIMER		60000	  /* maximum transmit keepalive timer - in milliseconds */
+//#define DEFAULT_Tx_KPALV_TIMER	10000	  /* default transmit keepalive timer - in milliseconds */
+#if 0
+#define MIN_Rx_KPALV_TIMER	10	  /* minimum receive keepalive timer */
+#define MAX_Rx_KPALV_TIMER	60000	  /* maximum receive keepalive timer */
+#define DEFAULT_Rx_KPALV_TIMER	10000	  /* default receive keepalive timer */
+#endif
+#define MIN_KPALV_ERR_TOL	1	  /* min kpalv error tolerance count */
+#define MAX_KPALV_ERR_TOL	20	  /* max kpalv error tolerance count */
+#define DEFAULT_KPALV_ERR_TOL	3	  /* default value */
+
 
 ////////////////////////////////////////////////////
 //structure for reading and writing "interface" file
@@ -419,7 +453,7 @@ void err_printf(char* format, ...);
 #define INVALID_HELP_TOPIC_STR "Invalid Help topic was selected!!!"
 
 //global variables in main.cpp
-extern char * wanpipe_cfg_dir;
+extern const char * wanpipe_cfg_dir;
 
 extern char* invalid_help_str;
 extern char* fr_cir_help_str;
@@ -427,6 +461,8 @@ extern char* option_not_implemented_yet_help_str;
 extern char* no_configuration_onptions_available_help_str;
 
 extern char* interfaces_cfg_dir;
+
+extern int global_hw_ec_max_num;
 
 //taken from wanconfig.c:
 extern char prognamed[20];
@@ -443,9 +479,15 @@ extern char *verbose_log;
 //make sure initialize it each time "new conf_file_reader()" is called
 extern void* global_conf_file_reader_ptr;
 //when writing conf file, TDMV_SPAN, TDMV_DCHAN and all other 
-//Voice related should be written only if at least one interface
+//Voice related stuff should be written only if at least one interface
 //is actually configured for VOICE
 extern char is_there_a_voice_if;
+//LIP ATM flag - if there is at least one such interface
+extern char is_there_a_lip_atm_if;
+
+extern int global_card_type;
+extern int global_card_version;
+
 #endif//WANCFG_H
 
 

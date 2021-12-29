@@ -295,7 +295,7 @@ create_mataconf()
 		ENABLE_IP_FWD=NO
 	fi
 
-	if [ $ANNEXG_PROT = YES ]; then
+	if [ $ANNEXG_PROT -a $ANNEXG_PROT = YES ]; then
 		ANNEXG_LOAD=YES;
 	fi
 
@@ -466,7 +466,7 @@ remove_init()
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 KERNEL=`uname -r`
 PROD=wanrouter
-PROD_VER=beta2-2.3.0
+PROD_VER=beta1-2.3.4
 PROD_HOME=/etc/wanpipe
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -477,9 +477,7 @@ PROD_INIT=/usr/sbin/
 FILELIST=$PROD_HOME/Filelist
 SOURCEDIR=/usr/src/linux
 START_SCRIPT=S03$PROD
-OLD_START=S20router
 STOP_SCRIPT=K10$PROD
-OLD_STOP=K10router
 ROUTER_RC=$META_CONF
 UTIL_DIR=$PROD_HOME/util
 WANROUTER_STARTUP_SMPL=$PROD_HOME/samples/wanrouter
@@ -526,7 +524,6 @@ if [ "$1" = "remove" ]; then
 	exit; 
 elif [ "$1" = "install" ]; then
         install_init;
-        install_config;
         exit;
 else
 	echo -e "\nUSAGE:";

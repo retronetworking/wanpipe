@@ -26,9 +26,9 @@
  *
  */
 
-#ifndef	PACKED
-#	define	PACKED	__attribute__((packed))
-#endif	/* PACKED */
+#pragma pack(1)
+
+
 
 /******	CONSTANTS DEFINITIONS ***********************************************/
 
@@ -57,16 +57,16 @@
  */
 typedef struct X25Cmd
 {
-	unsigned char command	PACKED;	/* command code */
-	unsigned short length	PACKED;	/* transfer data length */
-	unsigned char result	PACKED;	/* return code */
-	unsigned char pf	PACKED;	/* P/F bit */
-	unsigned short lcn	PACKED;	/* logical channel */
-	unsigned char qdm	PACKED;	/* Q/D/M bits */
-	unsigned char cause	PACKED;	/* cause field */
-	unsigned char diagn	PACKED;	/* diagnostics */
-	unsigned char pktType	PACKED;	/* packet type */
-	unsigned char resrv[4]	PACKED;	/* reserved */
+	unsigned char command	;	/* command code */
+	unsigned short length	;	/* transfer data length */
+	unsigned char result	;	/* return code */
+	unsigned char pf	;	/* P/F bit */
+	unsigned short lcn	;	/* logical channel */
+	unsigned char qdm	;	/* Q/D/M bits */
+	unsigned char cause	;	/* cause field */
+	unsigned char diagn	;	/* diagnostics */
+	unsigned char pktType	;	/* packet type */
+	unsigned char resrv[4]	;	/* reserved */
 } TX25Cmd;
 
 /*
@@ -229,9 +229,9 @@ typedef struct X25Cmd
  */
 typedef struct X25Mbox
 {
-	unsigned char opflag	PACKED;	/* 00h: execution flag */
-	TX25Cmd cmd		PACKED;	/* 01h: command block */
-	unsigned char data[1]	PACKED;	/* 10h: data buffer */
+	unsigned char opflag	;	/* 00h: execution flag */
+	TX25Cmd cmd		;	/* 01h: command block */
+	unsigned char data[1]	;	/* 10h: data buffer */
 } TX25Mbox;
 
 /*----------------------------------------------------------------------------
@@ -239,11 +239,11 @@ typedef struct X25Mbox
  */
 typedef struct X25TimeStamp
 {
-	unsigned char month	PACKED;
-	unsigned char date	PACKED;
-	unsigned char sec	PACKED;
-	unsigned char min	PACKED;
-	unsigned char hour	PACKED;
+	unsigned char month	;
+	unsigned char date	;
+	unsigned char sec	;
+	unsigned char min	;
+	unsigned char hour	;
 } TX25TimeStamp;
 
 /*----------------------------------------------------------------------------
@@ -253,11 +253,11 @@ typedef struct X25TimeStamp
  */
 typedef struct X25Status
 {
-	TX25TimeStamp tstamp	PACKED;	/* 08h: timestamp (BCD) */
-	unsigned char iflags	PACKED;	/* 0Dh: interrupt flags */
-	unsigned char imask     PACKED; /* 0Eh: interrupt mask  */
-	unsigned char hdlc_status  PACKED;	/* 10h: misc. HDLC/X25 flags */
-	unsigned char ghdlc_status   PACKED; /* channel status bytes */
+	TX25TimeStamp tstamp	;	/* 08h: timestamp (BCD) */
+	unsigned char iflags	;	/* 0Dh: interrupt flags */
+	unsigned char imask     ; /* 0Eh: interrupt mask  */
+	unsigned char hdlc_status  ;	/* 10h: misc. HDLC/X25 flags */
+	unsigned char ghdlc_status   ; /* channel status bytes */
 } TX25Status;
 
 /*
@@ -295,9 +295,9 @@ typedef struct X25Status
  */
 typedef struct X25GlobalVars
 {
-	unsigned char resrv	PACKED;	/* 00h: reserved */
-	unsigned char dtrCtl	PACKED;	/* 01h: DTR control code */
-	unsigned char resErr	PACKED;	/* 01h: '1' - reset modem error */
+	unsigned char resrv	;	/* 00h: reserved */
+	unsigned char dtrCtl	;	/* 01h: DTR control code */
+	unsigned char resErr	;	/* 01h: '1' - reset modem error */
 } TX25GlobalVars;
 
 /*
@@ -311,7 +311,7 @@ typedef struct X25GlobalVars
  */
 typedef struct X25ModemStatus
 {
-	unsigned char	status	PACKED;		/* 00h: modem status */
+	unsigned char	status	;		/* 00h: modem status */
 } TX25ModemStatus;
 
 /*
@@ -325,11 +325,11 @@ typedef struct X25ModemStatus
  */
 typedef struct X25LinkStatus
 {
-	unsigned char txQueued	PACKED;	/* 00h: queued Tx I-frames*/
-	unsigned char rxQueued	PACKED;	/* 01h: queued Rx I-frames*/
-	unsigned char station	PACKED;	/* 02h: DTE/DCE config. */
-	unsigned char reserved	PACKED;	/* 03h: reserved */
-	unsigned char sfTally	PACKED;	/* 04h: supervisory frame tally */
+	unsigned char txQueued	;	/* 00h: queued Tx I-frames*/
+	unsigned char rxQueued	;	/* 01h: queued Rx I-frames*/
+	unsigned char station	;	/* 02h: DTE/DCE config. */
+	unsigned char reserved	;	/* 03h: reserved */
+	unsigned char sfTally	;	/* 04h: supervisory frame tally */
 } TX25LinkStatus;
 
 /*
@@ -343,23 +343,23 @@ typedef struct X25LinkStatus
  */
 typedef struct HdlcStats
 {						/*	a number of ... */
-	unsigned short rxIFrames	PACKED;	/* 00h: ready Rx I-frames */
-	unsigned short rxNoseq		PACKED;	/* 02h: frms out-of-sequence */
-	unsigned short rxNodata		PACKED;	/* 04h: I-frms without data */
-	unsigned short rxDiscarded	PACKED;	/* 06h: discarded frames */
-	unsigned short rxTooLong	PACKED;	/* 08h: frames too long */
-	unsigned short rxBadAddr	PACKED;	/* 0Ah: frms with inval.addr*/
-	unsigned short txAcked		PACKED;	/* 0Ch: acknowledged I-frms */
-	unsigned short txRetransm	PACKED;	/* 0Eh: re-transmit. I-frms */
-	unsigned short t1Timeout	PACKED;	/* 10h: T1 timeouts */
-	unsigned short rxSABM		PACKED;	/* 12h: received SABM frames */
-	unsigned short rxDISC		PACKED;	/* 14h: received DISC frames */
-	unsigned short rxDM		PACKED;	/* 16h: received DM frames */
-	unsigned short rxFRMR		PACKED;	/* 18h: FRMR frames received */
-	unsigned short txSABM		PACKED;	/* 1Ah: transm. SABM frames*/
-	unsigned short txDISC		PACKED;	/* 1Ch: transm. DISC frames*/
-	unsigned short txDM		PACKED;	/* 1Eh: transm. DM frames */
-	unsigned short txFRMR		PACKED;	/* 20h: transm. FRMR frames*/
+	unsigned short rxIFrames	;	/* 00h: ready Rx I-frames */
+	unsigned short rxNoseq		;	/* 02h: frms out-of-sequence */
+	unsigned short rxNodata		;	/* 04h: I-frms without data */
+	unsigned short rxDiscarded	;	/* 06h: discarded frames */
+	unsigned short rxTooLong	;	/* 08h: frames too long */
+	unsigned short rxBadAddr	;	/* 0Ah: frms with inval.addr*/
+	unsigned short txAcked		;	/* 0Ch: acknowledged I-frms */
+	unsigned short txRetransm	;	/* 0Eh: re-transmit. I-frms */
+	unsigned short t1Timeout	;	/* 10h: T1 timeouts */
+	unsigned short rxSABM		;	/* 12h: received SABM frames */
+	unsigned short rxDISC		;	/* 14h: received DISC frames */
+	unsigned short rxDM		;	/* 16h: received DM frames */
+	unsigned short rxFRMR		;	/* 18h: FRMR frames received */
+	unsigned short txSABM		;	/* 1Ah: transm. SABM frames*/
+	unsigned short txDISC		;	/* 1Ch: transm. DISC frames*/
+	unsigned short txDM		;	/* 1Eh: transm. DM frames */
+	unsigned short txFRMR		;	/* 20h: transm. FRMR frames*/
 } THdlcStats;
 
 /* ---------------------------------------------------------------------------
@@ -367,16 +367,16 @@ typedef struct HdlcStats
  */
 typedef struct HdlcCommErr
 {						/*	a number of ... */
-	unsigned char rxOverrun		PACKED;	/* 00h: Rx overrun errors */
-	unsigned char rxBadCrc		PACKED;	/* 01h: Rx CRC errors */
-	unsigned char rxAborted		PACKED;	/* 02h: Rx aborted frames */
-	unsigned char rxDropped		PACKED;	/* 03h: frames lost */
-	unsigned char txAborted		PACKED;	/* 04h: Tx aborted frames */
-	unsigned char txUnderrun	PACKED;	/* 05h: Tx underrun errors */
-	unsigned char txMissIntr	PACKED;	/* 06h: missed underrun ints */
-	unsigned char reserved		PACKED;	/* 07h: reserved */
-	unsigned char droppedDCD	PACKED;	/* 08h: times DCD dropped */
-	unsigned char droppedCTS	PACKED;	/* 09h: times CTS dropped */
+	unsigned char rxOverrun		;	/* 00h: Rx overrun errors */
+	unsigned char rxBadCrc		;	/* 01h: Rx CRC errors */
+	unsigned char rxAborted		;	/* 02h: Rx aborted frames */
+	unsigned char rxDropped		;	/* 03h: frames lost */
+	unsigned char txAborted		;	/* 04h: Tx aborted frames */
+	unsigned char txUnderrun	;	/* 05h: Tx underrun errors */
+	unsigned char txMissIntr	;	/* 06h: missed underrun ints */
+	unsigned char reserved		;	/* 07h: reserved */
+	unsigned char droppedDCD	;	/* 08h: times DCD dropped */
+	unsigned char droppedCTS	;	/* 09h: times CTS dropped */
 } THdlcCommErr;
 
 /* ---------------------------------------------------------------------------
@@ -384,47 +384,47 @@ typedef struct HdlcCommErr
  */
 typedef struct X25Config
 {
-	unsigned char baudRate		PACKED;	/* 00h:  */
-	unsigned char t1		PACKED;	/* 01h:  */
-	unsigned char t2		PACKED;	/* 02h:  */
-	unsigned char n2		PACKED;	/* 03h:  */
-	unsigned short hdlcMTU		PACKED;	/* 04h:  */
-	unsigned char hdlcWindow	PACKED;	/* 06h:  */
-	unsigned char t4		PACKED;	/* 07h:  */
-	unsigned char autoModem		PACKED;	/* 08h:  */
-	unsigned char autoHdlc		PACKED;	/* 09h:  */
-	unsigned char hdlcOptions	PACKED;	/* 0Ah:  */
-	unsigned char station		PACKED;	/* 0Bh:  */
-	unsigned char local_station_address PACKED;
+	unsigned char baudRate		;	/* 00h:  */
+	unsigned char t1		;	/* 01h:  */
+	unsigned char t2		;	/* 02h:  */
+	unsigned char n2		;	/* 03h:  */
+	unsigned short hdlcMTU		;	/* 04h:  */
+	unsigned char hdlcWindow	;	/* 06h:  */
+	unsigned char t4		;	/* 07h:  */
+	unsigned char autoModem		;	/* 08h:  */
+	unsigned char autoHdlc		;	/* 09h:  */
+	unsigned char hdlcOptions	;	/* 0Ah:  */
+	unsigned char station		;	/* 0Bh:  */
+	unsigned char local_station_address ;
 	
 #if 0
-	unsigned char pktWindow		PACKED;	/* 0Ch:  */
-	unsigned short defPktSize	PACKED;	/* 0Dh:  */
-	unsigned short pktMTU		PACKED;	/* 0Fh:  */
-	unsigned short loPVC		PACKED;	/* 11h:  */
-	unsigned short hiPVC		PACKED;	/* 13h:  */
-	unsigned short loIncommingSVC	PACKED;	/* 15h:  */
-	unsigned short hiIncommingSVC	PACKED;	/* 17h:  */
-	unsigned short loTwoWaySVC	PACKED;	/* 19h:  */
-	unsigned short hiTwoWaySVC	PACKED;	/* 1Bh:  */
-	unsigned short loOutgoingSVC	PACKED;	/* 1Dh:  */
-	unsigned short hiOutgoingSVC	PACKED;	/* 1Fh:  */
-	unsigned short options		PACKED;	/* 21h:  */
-	unsigned char responseOpt	PACKED;	/* 23h:  */
-	unsigned short facil1		PACKED;	/* 24h:  */
-	unsigned short facil2		PACKED;	/* 26h:  */
-	unsigned short ccittFacil	PACKED;	/* 28h:  */
-	unsigned short otherFacil	PACKED;	/* 2Ah:  */
-	unsigned short ccittCompat	PACKED;	/* 2Ch:  */
-	unsigned char t10t20		PACKED;	/* 2Eh:  */
-	unsigned char t11t21		PACKED;	/* 2Fh:  */
-	unsigned char t12t22		PACKED;	/* 30h:  */
-	unsigned char t13t23		PACKED;	/* 31h:  */
-	unsigned char t16t26		PACKED;	/* 32H:  */
-	unsigned char t28		PACKED;	/* 33h:  */
-	unsigned char r10r20		PACKED;	/* 34h:  */
-	unsigned char r12r22		PACKED;	/* 35h:  */
-	unsigned char r13r23		PACKED;	/* 36h:  */
+	unsigned char pktWindow		;	/* 0Ch:  */
+	unsigned short defPktSize	;	/* 0Dh:  */
+	unsigned short pktMTU		;	/* 0Fh:  */
+	unsigned short loPVC		;	/* 11h:  */
+	unsigned short hiPVC		;	/* 13h:  */
+	unsigned short loIncommingSVC	;	/* 15h:  */
+	unsigned short hiIncommingSVC	;	/* 17h:  */
+	unsigned short loTwoWaySVC	;	/* 19h:  */
+	unsigned short hiTwoWaySVC	;	/* 1Bh:  */
+	unsigned short loOutgoingSVC	;	/* 1Dh:  */
+	unsigned short hiOutgoingSVC	;	/* 1Fh:  */
+	unsigned short options		;	/* 21h:  */
+	unsigned char responseOpt	;	/* 23h:  */
+	unsigned short facil1		;	/* 24h:  */
+	unsigned short facil2		;	/* 26h:  */
+	unsigned short ccittFacil	;	/* 28h:  */
+	unsigned short otherFacil	;	/* 2Ah:  */
+	unsigned short ccittCompat	;	/* 2Ch:  */
+	unsigned char t10t20		;	/* 2Eh:  */
+	unsigned char t11t21		;	/* 2Fh:  */
+	unsigned char t12t22		;	/* 30h:  */
+	unsigned char t13t23		;	/* 31h:  */
+	unsigned char t16t26		;	/* 32H:  */
+	unsigned char t28		;	/* 33h:  */
+	unsigned char r10r20		;	/* 34h:  */
+	unsigned char r12r22		;	/* 35h:  */
+	unsigned char r13r23		;	/* 36h:  */
 #endif
 } TX25Config;
 
@@ -434,21 +434,21 @@ typedef struct X25Config
  */
 typedef struct X25ChanAlloc			/*----- Channel allocation -*/
 {
-	unsigned short loPVC		PACKED;	/* 00h: lowest PVC number */
-	unsigned short hiPVC		PACKED;	/* 02h: highest PVC number */
-	unsigned short loIncommingSVC	PACKED;	/* 04h: lowest incoming SVC */
-	unsigned short hiIncommingSVC	PACKED;	/* 06h: highest incoming SVC */
-	unsigned short loTwoWaySVC	PACKED;	/* 08h: lowest two-way SVC */
-	unsigned short hiTwoWaySVC	PACKED;	/* 0Ah: highest two-way SVC */
-	unsigned short loOutgoingSVC	PACKED;	/* 0Ch: lowest outgoing SVC */
-	unsigned short hiOutgoingSVC	PACKED;	/* 0Eh: highest outgoing SVC */
+	unsigned short loPVC		;	/* 00h: lowest PVC number */
+	unsigned short hiPVC		;	/* 02h: highest PVC number */
+	unsigned short loIncommingSVC	;	/* 04h: lowest incoming SVC */
+	unsigned short hiIncommingSVC	;	/* 06h: highest incoming SVC */
+	unsigned short loTwoWaySVC	;	/* 08h: lowest two-way SVC */
+	unsigned short hiTwoWaySVC	;	/* 0Ah: highest two-way SVC */
+	unsigned short loOutgoingSVC	;	/* 0Ch: lowest outgoing SVC */
+	unsigned short hiOutgoingSVC	;	/* 0Eh: highest outgoing SVC */
 } TX25ChanAlloc;
 
 typedef struct X25ChanCfg		/*------ Channel configuration -----*/
 {
-	unsigned char type	PACKED;	/* 00h: channel type */
-	unsigned char txConf	PACKED;	/* 01h: Tx packet and window sizes */
-	unsigned char rxConf	PACKED;	/* 01h: Rx packet and window sizes */
+	unsigned char type	;	/* 00h: channel type */
+	unsigned char txConf	;	/* 01h: Tx packet and window sizes */
+	unsigned char rxConf	;	/* 01h: Rx packet and window sizes */
 } TX25ChanCfg;
 
 /*
@@ -464,38 +464,38 @@ typedef struct X25ChanCfg		/*------ Channel configuration -----*/
  */
 typedef struct X25Stats
 {						/* number of packets Tx/Rx'ed */
-	unsigned short txRestartRqst	PACKED;	/* 00h: Restart Request */
-	unsigned short rxRestartRqst	PACKED;	/* 02h: Restart Request */
-	unsigned short txRestartConf	PACKED;	/* 04h: Restart Confirmation */
-	unsigned short rxRestartConf	PACKED;	/* 06h: Restart Confirmation */
-	unsigned short txResetRqst	PACKED;	/* 08h: Reset Request */
-	unsigned short rxResetRqst	PACKED;	/* 0Ah: Reset Request */
-	unsigned short txResetConf	PACKED;	/* 0Ch: Reset Confirmation */
-	unsigned short rxResetConf	PACKED;	/* 0Eh: Reset Confirmation */
-	unsigned short txCallRequest	PACKED;	/* 10h: Call Request */
-	unsigned short rxCallRequest	PACKED;	/* 12h: Call Request */
-	unsigned short txCallAccept	PACKED;	/* 14h: Call Accept */
-	unsigned short rxCallAccept	PACKED;	/* 16h: Call Accept */
-	unsigned short txClearRqst	PACKED;	/* 18h: Clear Request */
-	unsigned short rxClearRqst	PACKED;	/* 1Ah: Clear Request */
-	unsigned short txClearConf	PACKED;	/* 1Ch: Clear Confirmation */
-	unsigned short rxClearConf	PACKED;	/* 1Eh: Clear Confirmation */
-	unsigned short txDiagnostic	PACKED;	/* 20h: Diagnostic */
-	unsigned short rxDiagnostic	PACKED;	/* 22h: Diagnostic */
-	unsigned short txRegRqst	PACKED;	/* 24h: Registration Request */
-	unsigned short rxRegRqst	PACKED;	/* 26h: Registration Request */
-	unsigned short txRegConf	PACKED;	/* 28h: Registration Confirm.*/
-	unsigned short rxRegConf	PACKED;	/* 2Ah: Registration Confirm.*/
-	unsigned short txInterrupt	PACKED;	/* 2Ch: Interrupt */
-	unsigned short rxInterrupt	PACKED;	/* 2Eh: Interrupt */
-	unsigned short txIntrConf	PACKED;	/* 30h: Interrupt Confirm. */
-	unsigned short rxIntrConf	PACKED;	/* 32h: Interrupt Confirm. */
-	unsigned short txData		PACKED;	/* 34h: Data */
-	unsigned short rxData		PACKED;	/* 36h: Data */
-	unsigned short txRR		PACKED;	/* 38h: RR */
-	unsigned short rxRR		PACKED;	/* 3Ah: RR */
-	unsigned short txRNR		PACKED;	/* 3Ch: RNR */
-	unsigned short rxRNR		PACKED;	/* 3Eh: RNR */
+	unsigned short txRestartRqst	;	/* 00h: Restart Request */
+	unsigned short rxRestartRqst	;	/* 02h: Restart Request */
+	unsigned short txRestartConf	;	/* 04h: Restart Confirmation */
+	unsigned short rxRestartConf	;	/* 06h: Restart Confirmation */
+	unsigned short txResetRqst	;	/* 08h: Reset Request */
+	unsigned short rxResetRqst	;	/* 0Ah: Reset Request */
+	unsigned short txResetConf	;	/* 0Ch: Reset Confirmation */
+	unsigned short rxResetConf	;	/* 0Eh: Reset Confirmation */
+	unsigned short txCallRequest	;	/* 10h: Call Request */
+	unsigned short rxCallRequest	;	/* 12h: Call Request */
+	unsigned short txCallAccept	;	/* 14h: Call Accept */
+	unsigned short rxCallAccept	;	/* 16h: Call Accept */
+	unsigned short txClearRqst	;	/* 18h: Clear Request */
+	unsigned short rxClearRqst	;	/* 1Ah: Clear Request */
+	unsigned short txClearConf	;	/* 1Ch: Clear Confirmation */
+	unsigned short rxClearConf	;	/* 1Eh: Clear Confirmation */
+	unsigned short txDiagnostic	;	/* 20h: Diagnostic */
+	unsigned short rxDiagnostic	;	/* 22h: Diagnostic */
+	unsigned short txRegRqst	;	/* 24h: Registration Request */
+	unsigned short rxRegRqst	;	/* 26h: Registration Request */
+	unsigned short txRegConf	;	/* 28h: Registration Confirm.*/
+	unsigned short rxRegConf	;	/* 2Ah: Registration Confirm.*/
+	unsigned short txInterrupt	;	/* 2Ch: Interrupt */
+	unsigned short rxInterrupt	;	/* 2Eh: Interrupt */
+	unsigned short txIntrConf	;	/* 30h: Interrupt Confirm. */
+	unsigned short rxIntrConf	;	/* 32h: Interrupt Confirm. */
+	unsigned short txData		;	/* 34h: Data */
+	unsigned short rxData		;	/* 36h: Data */
+	unsigned short txRR		;	/* 38h: RR */
+	unsigned short rxRR		;	/* 3Ah: RR */
+	unsigned short txRNR		;	/* 3Ch: RNR */
+	unsigned short rxRNR		;	/* 3Eh: RNR */
 } TX25Stats;
 
 /*----------------------------------------------------------------------------
@@ -503,12 +503,12 @@ typedef struct X25Stats
  */
 typedef struct X25EventLog
 {
-	unsigned char	type	PACKED;	/* 00h: transaction type */
-	unsigned short	lcn	PACKED;	/* 01h: logical channel num */
-	unsigned char	packet	PACKED;	/* 03h: async packet type */
-	unsigned char	cause	PACKED;	/* 04h: X.25 cause field */
-	unsigned char	diag	PACKED;	/* 05h: X.25 diag field */
-	TX25TimeStamp	ts	PACKED;	/* 06h: time stamp */
+	unsigned char	type	;	/* 00h: transaction type */
+	unsigned short	lcn	;	/* 01h: logical channel num */
+	unsigned char	packet	;	/* 03h: async packet type */
+	unsigned char	cause	;	/* 04h: X.25 cause field */
+	unsigned char	diag	;	/* 05h: X.25 diag field */
+	TX25TimeStamp	ts	;	/* 06h: time stamp */
 } TX25EventLog;
 
 /*
@@ -541,8 +541,8 @@ typedef struct X25EventLog
  */
 typedef struct X25TraceCfg
 {
-	unsigned char flags	PACKED;	/* 00h: trace configuration flags */
-	unsigned char timeout	PACKED;	/* 01h: timeout for trace delay mode*/
+	unsigned char flags	;	/* 00h: trace configuration flags */
+	unsigned char timeout	;	/* 01h: timeout for trace delay mode*/
 } TX25TraceCfg;
 
 /*
@@ -562,12 +562,12 @@ typedef struct X25TraceCfg
  */
 typedef struct X25Trace			/*----- Trace data structure -------*/
 {
-	unsigned short length	PACKED;	/* 00h: trace data length */
-	unsigned char type	PACKED;	/* 02h: trace type */
-	unsigned char lost_cnt	PACKED;	/* 03h: N of traces lost */
-	TX25TimeStamp tstamp	PACKED;	/* 04h: mon/date/sec/min/hour */
-	unsigned short millisec	PACKED;	/* 09h: ms time stamp */
-	unsigned char data[0]	PACKED;	/* 0Bh: traced frame */
+	unsigned short length	;	/* 00h: trace data length */
+	unsigned char type	;	/* 02h: trace type */
+	unsigned char lost_cnt	;	/* 03h: N of traces lost */
+	TX25TimeStamp tstamp	;	/* 04h: mon/date/sec/min/hour */
+	unsigned short millisec	;	/* 09h: ms time stamp */
+	unsigned char data[0]	;	/* 0Bh: traced frame */
 } TX25Trace;
 
 /*
@@ -592,17 +592,17 @@ typedef struct X25Trace			/*----- Trace data structure -------*/
 
 typedef struct HDLCFrame		/*----- DHLC Frame Format ----------*/
 {
-	unsigned char addr	PACKED;	/* address field */
-	unsigned char cntl	PACKED;	/* control field */
-	unsigned char data[0]	PACKED;
+	unsigned char addr	;	/* address field */
+	unsigned char cntl	;	/* control field */
+	unsigned char data[0]	;
 } THDLCFrame;
 
 typedef struct X25Pkt			/*----- X.25 Paket Format ----------*/
 {
-	unsigned char lcn_hi	PACKED;	/* 4 MSB of Logical Channel Number */
-	unsigned char lcn_lo	PACKED;	/* 8 LSB of Logical Channel Number */
-	unsigned char type	PACKED;
-	unsigned char data[0]	PACKED;
+	unsigned char lcn_hi	;	/* 4 MSB of Logical Channel Number */
+	unsigned char lcn_lo	;	/* 8 LSB of Logical Channel Number */
+	unsigned char type	;
+	unsigned char data[0]	;
 } TX25Pkt;
 
 /*
@@ -636,27 +636,27 @@ typedef struct X25Pkt			/*----- X.25 Paket Format ----------*/
 
 
 typedef struct {
-	TX25Cmd cmd		PACKED;
-	char data[X25_MAX_DATA]	PACKED;
+	TX25Cmd cmd		;
+	char data[X25_MAX_DATA]	;
 } mbox_cmd_t;
 
 
 #if 0
 typedef struct {
-	unsigned char  qdm	PACKED;	/* Q/D/M bits */
-	unsigned char  cause	PACKED;	/* cause field */
-	unsigned char  diagn	PACKED;	/* diagnostics */
-	unsigned char  pktType  PACKED;
-	unsigned short length   PACKED;
-	unsigned char  result	PACKED;
-	unsigned short lcn	PACKED;
-	char reserved[7]	PACKED;
+	unsigned char  qdm	;	/* Q/D/M bits */
+	unsigned char  cause	;	/* cause field */
+	unsigned char  diagn	;	/* diagnostics */
+	unsigned char  pktType  ;
+	unsigned short length   ;
+	unsigned char  result	;
+	unsigned short lcn	;
+	char reserved[7]	;
 }x25api_hdr_t;
 
 
 typedef struct {
-	x25api_hdr_t hdr	PACKED;
-	char data[X25_MAX_DATA]	PACKED;
+	x25api_hdr_t hdr	;
+	char data[X25_MAX_DATA]	;
 }x25api_t;
 #endif
 
@@ -676,68 +676,68 @@ typedef struct {
 
 #if 0
 typedef struct {
-	unsigned char opp_flag  PACKED; /* the opp flag */
-	unsigned char command	PACKED;	/* command code */
-	unsigned short length	PACKED;	/* transfer data length */
-	unsigned char result	PACKED;	/* return code */
-	unsigned char pf	PACKED;	/* P/F bit */
-	unsigned short lcn	PACKED;	/* logical channel */
-	unsigned char qdm	PACKED;	/* Q/D/M bits */
-	unsigned char cause	PACKED;	/* cause field */
-	unsigned char diagn	PACKED;	/* diagnostics */
-	unsigned char pktType	PACKED;	/* packet type */
-	unsigned char resrv[4]	PACKED;	/* reserved */
+	unsigned char opp_flag  ; /* the opp flag */
+	unsigned char command	;	/* command code */
+	unsigned short length	;	/* transfer data length */
+	unsigned char result	;	/* return code */
+	unsigned char pf	;	/* P/F bit */
+	unsigned short lcn	;	/* logical channel */
+	unsigned char qdm	;	/* Q/D/M bits */
+	unsigned char cause	;	/* cause field */
+	unsigned char diagn	;	/* diagnostics */
+	unsigned char pktType	;	/* packet type */
+	unsigned char resrv[4]	;	/* reserved */
 } cblock_t;
 
 typedef struct {
-	ip_pkt_t 		ip_pkt		PACKED;
-	udp_pkt_t		udp_pkt		PACKED;
-	wp_mgmt_t 		wp_mgmt       	PACKED;
-        cblock_t                cblock          PACKED;
-        unsigned char           data[4080]      PACKED;
+	ip_pkt_t 		ip_pkt		;
+	udp_pkt_t		udp_pkt		;
+	wp_mgmt_t 		wp_mgmt       	;
+        cblock_t                cblock          ;
+        unsigned char           data[4080]      ;
 } x25_udp_pkt_t;
 #endif
 
 typedef struct read_hdlc_stat {
-	unsigned short inf_frames_rx_ok PACKED;
-        unsigned short inf_frames_rx_out_of_seq PACKED;
-	unsigned short inf_frames_rx_no_data PACKED;
-	unsigned short inf_frames_rx_dropped PACKED;
-	unsigned short inf_frames_rx_data_too_long PACKED;
-	unsigned short inf_frames_rx_invalid_addr PACKED;
-	unsigned short inf_frames_tx_ok PACKED;
-        unsigned short inf_frames_tx_retransmit PACKED;
-       	unsigned short T1_timeouts PACKED;
-	unsigned short SABM_frames_rx PACKED;
-	unsigned short DISC_frames_rx PACKED;
-	unsigned short DM_frames_rx PACKED;
-	unsigned short FRMR_frames_rx PACKED;
-	unsigned short SABM_frames_tx PACKED;
-	unsigned short DISC_frames_tx PACKED;
-	unsigned short DM_frames_tx PACKED;
-	unsigned short FRMR_frames_tx PACKED;
+	unsigned short inf_frames_rx_ok ;
+        unsigned short inf_frames_rx_out_of_seq ;
+	unsigned short inf_frames_rx_no_data ;
+	unsigned short inf_frames_rx_dropped ;
+	unsigned short inf_frames_rx_data_too_long ;
+	unsigned short inf_frames_rx_invalid_addr ;
+	unsigned short inf_frames_tx_ok ;
+        unsigned short inf_frames_tx_retransmit ;
+       	unsigned short T1_timeouts ;
+	unsigned short SABM_frames_rx ;
+	unsigned short DISC_frames_rx ;
+	unsigned short DM_frames_rx ;
+	unsigned short FRMR_frames_rx ;
+	unsigned short SABM_frames_tx ;
+	unsigned short DISC_frames_tx ;
+	unsigned short DM_frames_tx ;
+	unsigned short FRMR_frames_tx ;
 } read_hdlc_stat_t;
 
 typedef struct read_comms_err_stats{
-	unsigned char overrun_err_rx PACKED;
-	unsigned char CRC_err PACKED;
-	unsigned char abort_frames_rx PACKED;
-	unsigned char frames_dropped_buf_full PACKED;
-	unsigned char abort_frames_tx PACKED;
-	unsigned char transmit_underruns PACKED;
-	unsigned char missed_tx_underruns_intr PACKED;
-	unsigned char reserved PACKED;
-	unsigned char DCD_drop PACKED;
-	unsigned char CTS_drop PACKED;
+	unsigned char overrun_err_rx ;
+	unsigned char CRC_err ;
+	unsigned char abort_frames_rx ;
+	unsigned char frames_dropped_buf_full ;
+	unsigned char abort_frames_tx ;
+	unsigned char transmit_underruns ;
+	unsigned char missed_tx_underruns_intr ;
+	unsigned char reserved ;
+	unsigned char DCD_drop ;
+	unsigned char CTS_drop ;
 } read_comms_err_stats_t;
 
 typedef struct trace_data {
-	unsigned short length PACKED;
-	unsigned char  type PACKED;
-	unsigned char  trace_dropped PACKED;
-	unsigned char  reserved[5] PACKED;
-	unsigned short timestamp PACKED;
-        unsigned char  data PACKED;
+	unsigned short length ;
+	unsigned char  type ;
+	unsigned char  trace_dropped ;
+	unsigned char  reserved[5] ;
+	unsigned short timestamp ;
+        unsigned char  data ;
 } trace_data_t;
 
 enum {UDP_XPIPE_TYPE};
@@ -769,6 +769,9 @@ enum {UDP_XPIPE_TYPE};
 #define TRACE_ASYNC_FRMS	0x20
 #define TRACE_ALL_HDLC_FRMS	0x40
 #define TRACE_DATA_FRMS		0x08
+
+
+#pragma pack()
 
 
 #endif	/* _SDLA_X25_H */

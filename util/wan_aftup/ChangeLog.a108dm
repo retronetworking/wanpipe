@@ -1,0 +1,46 @@
+AFT A108dm Firmware Change Log
+===============================
+
+
+Release V28
+-------------
+Nov 21 2006
+
+Type: 		Mandatory for PCI Express Cards
+		A serious bug exists in A108dm Firmware for PCI-E cards.
+		On each front end access the next pci transaction can
+		become corrupted, and if the next pci transaction is dma
+		transaction, then an invalid memory can be written to.
+
+Changes:	Firmware bug fix for PCI-E cards.
+		This bug can cause hard crashes.
+		
+		Note: This bug only affects DATA operation of A108dm PCI
+		Express Card. The TDM Voice operation is not affected.
+
+
+
+Release V27
+-------------
+Sep 27 2006
+
+Type:  		Mandatory
+	        Reason this feature is mandatory for A108D is that it
+		greatly reduces the CPU load.  With previous drivers/firmware
+		A108D consumed too much cpu.
+
+Changes:	This firmware release contains new feature:
+		- Global TDM Voice Interrupt:
+			It that combines all spans on a single
+		   	interrupt. This significantly reduces cpu load.
+		  
+		  This option is only used in TDM Voice Mode.
+
+
+Symptoms:	New Feature.
+
+Compatibility:	This feature is actually backward compatible to older wanpipe driver releases.
+		Meaning that if you install this firmware with pre beta8-2.3.4 release, the
+		new feature will not be used, and the TDM Driver will work as before.
+
+

@@ -11,16 +11,16 @@
 # include <linux/sdla_adsl.h>
 # define  STATIC	static
 #elif defined(__FreeBSD__)
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe.h>
-# include <net/if_wanpipe_common.h>
-# include <net/sdla_adsl.h>
+# include <wanpipe_includes.h>
+# include <wanpipe.h>
+# include <if_wanpipe_common.h>
+# include <sdla_adsl.h>
 # define  STATIC
 #else
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe.h>
-# include <net/if_wanpipe_common.h>
-# include <net/sdla_adsl.h>
+# include <wanpipe_includes.h>
+# include <wanpipe.h>
+# include <if_wanpipe_common.h>
+# include <sdla_adsl.h>
 # define  STATIC
 # if 0
 #  error "Unsupported Operating System!"

@@ -1,4 +1,4 @@
-// ProSlic Header File
+/* ProSlic Header File - sdla_remora_proslic.h */
 
 typedef struct {
 	unsigned char address;
@@ -12,14 +12,14 @@ typedef struct {
 	unsigned char DTMF_digit;
 	unsigned char interrupt_line;
 	unsigned char hook_status;
-	unsigned long half_pulses[20]; // Contains the time stamps of incomming half pulses.
-	unsigned char half_pulses_detected; // Contains the number of half pulses detected.
+	unsigned long half_pulses[20]; /* Contains the time stamps of incomming half pulses. */
+	unsigned char half_pulses_detected; /* Contains the number of half pulses detected. */
 	unsigned char Pulse_digit;
 	unsigned long On_Hook_time;
 	unsigned long Off_Hook_time;
 } chipStruct;
 
-// Defines
+/* Defines */
 #define LPT 0X378
 
 #define IDA_LO  28
@@ -144,7 +144,7 @@ typedef struct {
 #define	COMMON_BAL_CAL	106
 #define	DC_PEAK_CAL	107
 
-//		Indirect Register (decimal)
+/*		Indirect Register (decimal) */
 #define	DTMF_ROW_0_PEAK	0
 #define	DTMF_ROW_1_PEAK	1
 #define	DTMF_ROW2_PEAK	2

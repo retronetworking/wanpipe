@@ -17,13 +17,17 @@
 
 #include "conf_file_writer.h"
 
+#if defined(ZAPTEL_PARSER)
+#include "wanrouter_rc_file_reader.h"
+#endif
+
 void print_look_up_t_table(look_up_t* table);
 void print_key_word_t_table(key_word_t* table);
 
 extern key_word_t common_conftab[];
 extern look_up_t config_id_str[];
 extern key_word_t fr_conftab[];
-extern key_word_t synch_ppp_conftab[];
+extern key_word_t sppp_conftab[];
 extern key_word_t lapb_annexg_conftab[];
 extern key_word_t chdlc_conftab[];
 extern key_word_t chan_conftab[];
@@ -58,12 +62,13 @@ look_up_t	yes_no_options_table[] =
 
 look_up_t	physical_medium_options_table[] =
 {
-	{ WAN_MEDIA_NONE,    (void*)"None"   },
-	{ WAN_MEDIA_T1,      (void*)"T1"     },
-	{ WAN_MEDIA_E1,      (void*)"E1"     },
-	{ WAN_MEDIA_56K,     (void*)"56K"    },
+	{ WAN_MEDIA_NONE,    	(void*)"None"   },
+	{ WAN_MEDIA_T1,      	(void*)"T1"     },
+	{ WAN_MEDIA_E1,      	(void*)"E1"     },
+	{ WAN_MEDIA_56K,     	(void*)"56K"    },
 	{ WAN_MEDIA_DS3,	(void*)"DS3"	},
 	{ WAN_MEDIA_E3,	  	(void*)"E3"  	},  
+  	{ WAN_MEDIA_FXOFXS,   	(void*)"FXO/FXS"},
 	{ 0,	                NULL	        }
 };
 
@@ -112,6 +117,22 @@ look_up_t t1_line_build_out_options_table[] =
   { 0,		              NULL               }
 };
 
+look_up_t e1_line_build_out_options_table[] =
+{
+  { WAN_E1_120,  	(void*)"120OH"     },
+  { WAN_E1_75,  	(void*)"75OOH"     },
+  { 1,  		(void*)"120OH"     },//for "zaptel" parsing only
+  { 0,		        	NULL       }
+};
+
+look_up_t e1_sig_mode_options_table[] =
+{
+  { WAN_TE1_SIG_CCS,  	(void*)"CCS"     },
+  { WAN_TE1_SIG_CAS,  	(void*)"CAS"     },
+  { 0,  		(void*)"CCS"     },//for "zaptel" parsing only
+  { 0,		              NULL         }
+};
+
 look_up_t serial_interface_type_options_table[] =
 {
 	{ WANOPT_RS232,	(void*)"RS232"	},
@@ -154,16 +175,16 @@ look_up_t commport_type_options_table[] =
 {
 	{ WANOPT_PRI,           (void*)"PRI"  },
 	{ WANOPT_SEC,           (void*)"SEC"  },
-	{ 0,			              NULL	        }
+	{ 0,	              	NULL	      }
 };
 
 look_up_t ppp_ip_mode_options_table[] =
 {
 	/*----- PPP IP Mode Options -----------*/
 	{ WANOPT_PPP_STATIC,	(void*)"STATIC"	},
-	{ WANOPT_PPP_HOST,	(void*)"HOST"		},
-	{ WANOPT_PPP_PEER,	(void*)"PEER"		},
-	{ 0,			              NULL	        }
+	{ WANOPT_PPP_HOST,	(void*)"HOST"	},
+	{ WANOPT_PPP_PEER,	(void*)"PEER"	},
+	{ 0,		              NULL      }
 };
 
 look_up_t connection_type_options_table[] =
@@ -206,6 +227,7 @@ look_up_t protocol_options_table[] =
 	{ WANCONFIG_EDUKIT,	(void*)"EDUKIT"	  },
 	{ WANCONFIG_PPP,	(void*)"PPP"	  },
 	{ WANCONFIG_CHDLC,	(void*)"CHDLC"	  },
+	{ WANCONFIG_LIP_ATM,	(void*)"MP_ATM"	  },
 	{ 0,			NULL		  }
 };
 
@@ -295,13 +317,33 @@ look_up_t adsl_clock_type_options_table[] =
 	{ WANOPT_ADSL_CLOCK_OSCILLATOR,         (void*)"ADSL_CLOCK_OSCILLATOR"         },
 	{ 0,			        NULL				  }
 };
+
+look_up_t tdmv_law_options_table[] =
+{
+	{ WAN_TDMV_ALAW, (void*)"ALAW"	},
+	{ WAN_TDMV_MULAW,(void*)"MULAW" },
+	{ 0,		 NULL		}
+};
+
 //////////////////////////////////////////////////////////////
 
 conf_file_writer::conf_file_writer(IN conf_file_reader* cfr)
 {
   Debug(DBG_CONF_FILE_WRITER, ("conf_file_writer::conf_file_writer()\n"));
   this->cfr = cfr;
+#if defined(ZAPTEL_PARSER)
+  this->list_element_sangoma_card_ptr = NULL;
+#endif
 }
+
+#if defined(ZAPTEL_PARSER)
+conf_file_writer::conf_file_writer(IN list_element_sangoma_card* list_element_sangoma_card_ptr)
+{
+  Debug(DBG_CONF_FILE_WRITER, ("conf_file_writer::conf_file_writer()\n"));
+  this->list_element_sangoma_card_ptr = list_element_sangoma_card_ptr;
+  this->cfr = NULL;
+}
+#endif
 
 conf_file_writer::~conf_file_writer()
 {
@@ -510,7 +552,31 @@ get_keyword_from_look_up_t_table(config_id_str, WANCONFIG_AFT_TE1),//for A104
 (cfr->link_defs->descr == NULL ? "Comment" : cfr->link_defs->descr)
 );
       break;
- 
+
+     case AFT_ADPTR_56K:
+      snprintf(tmp_buff, MAX_PATH_LENGTH,
+"\n\
+[devices]\n\
+%s = %s, %s\n",
+cfr->link_defs->name,
+get_keyword_from_look_up_t_table(config_id_str, WANCONFIG_AFT_56K),//for A056
+(cfr->link_defs->descr == NULL ? "Comment" : cfr->link_defs->descr)
+);
+      break;
+
+
+
+    case A200_ADPTR_ANALOG:
+      snprintf(tmp_buff, MAX_PATH_LENGTH,
+"\n\
+[devices]\n\
+%s = %s, %s\n",
+cfr->link_defs->name,
+get_keyword_from_look_up_t_table(config_id_str, WANCONFIG_AFT_ANALOG),//for AFT Analog card
+(cfr->link_defs->descr == NULL ? "Comment" : cfr->link_defs->descr)
+);
+      break;
+
     default:
       ERR_DBG_OUT(("Unsupported 'card_version' (%d) passed for saving to file!!\n",
 	card_version));
@@ -603,7 +669,7 @@ void print_look_up_t_table(look_up_t* table)
 
   keyword = (char*)table->ptr;
   while(keyword != NULL){
-    Debug(1, ("%s\t-->%d\n", keyword, table->val));
+    printf("%s\t-->%d\n", keyword, table->val);
     table++;
     keyword = (char*)table->ptr;
   }
@@ -816,8 +882,7 @@ int conf_file_writer::form_wanpipe_section_str(string& wanpipe_section_str)
     {
     case S5144_ADPTR_1_CPU_T1E1:
     case S5145_ADPTR_1_CPU_56K:
-
-      if(form_fe_card_cfg_str(tmp_string) == NO){
+      if(form_fe_card_cfg_str(tmp_string, &cfr->link_defs->linkconf->fe_cfg) == NO){
         return NO;
       }else{
         wanpipe_section_str += tmp_string;
@@ -827,7 +892,7 @@ int conf_file_writer::form_wanpipe_section_str(string& wanpipe_section_str)
     break;
 
   case WANOPT_AFT:
-     if(form_fe_card_cfg_str(tmp_string) == NO){
+     if(form_fe_card_cfg_str(tmp_string, &cfr->link_defs->linkconf->fe_cfg) == NO){
        return NO;
      }else{
        wanpipe_section_str += tmp_string;
@@ -1279,10 +1344,9 @@ ACTIVE_CH	= ALL
 LBO 		= 0DB
 */
 //write stuff needed for cards with an integrated dsu/csu
-int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string)
+int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string, sdla_fe_cfg_t*  fe_cfg)
 {
   char tmp_buff[MAX_PATH_LENGTH];
-  sdla_fe_cfg_t*  fe_cfg = &cfr->link_defs->linkconf->fe_cfg;
   sdla_te_cfg_t*  te_cfg = &fe_cfg->cfg.te_cfg;
   sdla_te3_cfg_t* te3_cfg= &fe_cfg->cfg.te3_cfg;
     
@@ -1295,6 +1359,7 @@ int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string)
   case WAN_MEDIA_DS3:
   case WAN_MEDIA_E3:
   case WAN_MEDIA_56K:
+  case WAN_MEDIA_FXOFXS:
     snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_MEDIA	= %s\n",
       get_keyword_from_look_up_t_table( physical_medium_options_table,
         fe_cfg->media));
@@ -1338,9 +1403,19 @@ int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string)
       te_cfg->te_ref_clock);
     te1_cfg_string += tmp_buff;
 
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "ACTIVE_CH	= %s\n",
-      cfr->link_defs->active_channels_string);
-    te1_cfg_string += tmp_buff;
+#if defined(ZAPTEL_PARSER)
+    if(list_element_sangoma_card_ptr != NULL){
+	;//do nothing here, when parsing zaptel.conf
+    }else{
+#endif
+      if(cfr != NULL && cfr->link_defs->linkconf->card_type != WANOPT_AFT){
+        snprintf(tmp_buff, MAX_PATH_LENGTH, "ACTIVE_CH	= %s\n",
+          cfr->link_defs->active_channels_string);
+        te1_cfg_string += tmp_buff;
+      }
+#if defined(ZAPTEL_PARSER)
+    }
+#endif
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, "TE_HIGHIMPEDANCE	= %s\n",
       (te_cfg->high_impedance_mode == WANOPT_YES ? "YES" : "NO"));
@@ -1356,6 +1431,18 @@ int conf_file_writer::form_fe_card_cfg_str(string& te1_cfg_string)
     snprintf(tmp_buff, MAX_PATH_LENGTH, "LBO 		= %s\n",
       get_keyword_from_look_up_t_table( t1_line_build_out_options_table,
         te_cfg->lbo));
+    te1_cfg_string += tmp_buff;
+    break;
+
+  case WAN_MEDIA_E1:
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "LBO 		= %s\n",
+      get_keyword_from_look_up_t_table( e1_line_build_out_options_table,
+        te_cfg->lbo));
+    te1_cfg_string += tmp_buff;
+
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "TE_SIG_MODE	= %s\n",
+      get_keyword_from_look_up_t_table( e1_sig_mode_options_table,
+        te_cfg->sig_mode));
     te1_cfg_string += tmp_buff;
     break;
 
@@ -1446,10 +1533,49 @@ TE3_TXLBO	= NO		# NO (default) / YES
     break;
   }
  
-  snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_TXTRISTATE	= %s\n", 
+  switch(fe_cfg->media)
+  {
+  case WAN_MEDIA_FXOFXS:
+//    { "TDMV_LAW",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, tdmv_law), DTYPE_UINT },
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_LAW	= %s\n",
+      get_keyword_from_look_up_t_table( tdmv_law_options_table,
+        fe_cfg->tdmv_law));
+    te1_cfg_string += tmp_buff;
+
+    //for backwards compatibility with older files, check TDMV_OPERMODE was read
+    //or initiaized when card type was selected
+    if(fe_cfg->cfg.remora.opermode_name[0] != 0){
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_OPERMODE	= %s\n",
+        fe_cfg->cfg.remora.opermode_name);
+      te1_cfg_string += tmp_buff;
+    }
+   
+
+/* DAVIDY: Uncomment this when RM_BATTTHRESH and RM_BATTDEBOUNCE become available in 2.3.4 drivers*/ 
+#if 0
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_BATTTHRESH	= %d\n",
+        fe_cfg->cfg.remora.battthresh);
+    te1_cfg_string += tmp_buff;
+
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_BATTDEBOUNCE = %d\n",
+        fe_cfg->cfg.remora.battdebounce);
+    te1_cfg_string += tmp_buff;
+
+    break;
+#endif
+	
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_NETWORK_SYNC = %s\n",
+        fe_cfg->cfg.remora.network_sync == WANOPT_YES ? "YES" : "NO");
+    te1_cfg_string += tmp_buff;
+
+     break;
+
+  default:	
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_TXTRISTATE	= %s\n", 
 	(fe_cfg->tx_tristate_mode == WANOPT_YES ? "YES" : "NO"));
-  te1_cfg_string += tmp_buff;
- 
+    te1_cfg_string += tmp_buff;
+  }
+
   return YES;
 }
 
@@ -1465,9 +1591,12 @@ IGNORE_FRONT_END  = NO
 */
 int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_opt_string)
 {
-  char tmp_buff[MAX_PATH_LENGTH];
-  
+  char			tmp_buff[MAX_PATH_LENGTH];
+  wan_xilinx_conf_t 	*wan_xilinx_conf;
+
   Debug(DBG_CONF_FILE_WRITER, ("form_wanpipe_card_miscellaneous_options_str()\n"));
+
+  wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
   
   switch(cfr->link_defs->linkconf->card_type)
   {
@@ -1479,9 +1608,20 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
     break;
 
   case WANOPT_AFT:
+    if(is_there_a_lip_atm_if == YES){
+      wan_xilinx_conf->data_mux_map = 0x01234567;
+    }
+
+    if(wan_xilinx_conf->data_mux_map){
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "DATA_MUX_MAP	= 0x%08X\n",
+				wan_xilinx_conf->data_mux_map);
+      misc_opt_string = tmp_buff;
+    }
+    break;
+
   case WANOPT_ADSL:
-     //no firmware file needed
-     break;
+    //no firmware file needed
+    break;
   }
  
   if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL &&
@@ -1502,6 +1642,10 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
     misc_opt_string += tmp_buff;
   }
   
+  if(is_there_a_lip_atm_if == YES){
+      cfr->link_defs->linkconf->mtu = LIP_ATM_MTU_MRU;
+  }
+
   snprintf(tmp_buff, MAX_PATH_LENGTH, "MTU 		= %d\n",
       cfr->link_defs->linkconf->mtu);
   misc_opt_string += tmp_buff;
@@ -1522,9 +1666,8 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
   if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL &&
      cfr->link_defs->linkconf->card_type != WANOPT_S50X &&
      cfr->link_defs->linkconf->card_type != WANOPT_S51X &&
+     cfr->link_defs->card_version        != A200_ADPTR_ANALOG &&
      is_there_a_voice_if == YES){
-
-    wan_xilinx_conf_t* wan_xilinx_conf = &cfr->link_defs->linkconf->u.aft;
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_SPAN\t= %u\n",
        wan_xilinx_conf->tdmv_span_no);
@@ -1534,6 +1677,38 @@ int conf_file_writer::form_wanpipe_card_miscellaneous_options_str(string& misc_o
        wan_xilinx_conf->tdmv_dchan);
     misc_opt_string += tmp_buff;
   }
+
+  if(cfr->link_defs->linkconf->card_type == WANOPT_AFT &&
+     cfr->link_defs->card_version == A200_ADPTR_ANALOG){
+    //if(is_there_a_voice_if == YES){
+    //the analog card is AWAYS in some "SPAN" !!!
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_SPAN\t= %u\n",
+         wan_xilinx_conf->tdmv_span_no);
+      misc_opt_string += tmp_buff;
+    //}
+  }
+
+  if(cfr->link_defs->linkconf->card_type == WANOPT_AFT &&
+     (	cfr->link_defs->card_version == A104_ADPTR_4TE1 || 
+	cfr->link_defs->card_version == A101_ADPTR_1TE1 ||
+      	cfr->link_defs->card_version == A200_ADPTR_ANALOG)){
+/*
+    //moved to per-interface section
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC\t= %s\n",
+	get_keyword_from_look_up_t_table(yes_no_options_table,
+       					 wan_xilinx_conf->tdmv_hwec));
+    misc_opt_string += tmp_buff;
+
+    //not used anymore, "ACTIVE_CH" for the group is used instead
+    if(wan_xilinx_conf->tdmv_hwec == WANOPT_YES){
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC_MAP\t= %s\n",
+			cfr->link_defs->active_channels_string);
+			//wan_xilinx_conf->tdmv_hwec_map);
+      misc_opt_string += tmp_buff;
+    }
+*/
+  }
+
   return YES;
 }
 
@@ -1727,7 +1902,7 @@ int conf_file_writer::form_ppp_global_configuration_string(wan_sppp_if_conf_t* p
   Debug(DBG_CONF_FILE_WRITER, ("ppp_cfg->dynamic_ip: %d\n", ppp_cfg->dynamic_ip));
 
   global_protocol_cfg += form_keyword_and_value_str(  
-		  			synch_ppp_conftab,
+		  			sppp_conftab,
                                         offsetof(wan_sppp_if_conf_t, dynamic_ip),
                                         ppp_ip_mode_options_table,
                                         ppp_cfg->dynamic_ip
@@ -1737,6 +1912,68 @@ int conf_file_writer::form_ppp_global_configuration_string(wan_sppp_if_conf_t* p
   
   return YES;
 }
+
+int conf_file_writer::form_chdlc_global_configuration_string(wan_sppp_if_conf_t *chdlc_cfg,
+                                                           string& global_protocol_cfg)
+{
+  char tmp_buff[MAX_PATH_LENGTH];
+
+  global_protocol_cfg = "";
+
+  Debug(DBG_CONF_FILE_WRITER, ("%s()\n", __FUNCTION__));
+
+  global_protocol_cfg += get_keyword_from_key_word_t_table(sppp_conftab,
+                                                      offsetof(wan_sppp_if_conf_t, sppp_keepalive_timer));
+  global_protocol_cfg += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", chdlc_cfg->sppp_keepalive_timer);
+  global_protocol_cfg += tmp_buff;
+
+  global_protocol_cfg += get_keyword_from_key_word_t_table(sppp_conftab,
+                                                      offsetof(wan_sppp_if_conf_t, keepalive_err_margin));
+  global_protocol_cfg += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", chdlc_cfg->keepalive_err_margin);
+  global_protocol_cfg += tmp_buff;
+
+  Debug(DBG_CONF_FILE_WRITER, ("global_protocol_cfg': %s\n",  global_protocol_cfg.c_str()));
+  return YES;
+}
+
+/*
+Receive_Only	= NO
+Connection	= Permanent
+LineCoding	= NRZ
+LineIdle	= Flag
+*/
+/*
+old version
+int conf_file_writer::form_chdlc_global_configuration_string( wan_chdlc_conf_t* chdlc_cfg,
+                                                              string& global_protocol_cfg)
+{
+  global_protocol_cfg = "";
+
+  global_protocol_cfg += form_keyword_and_value_str(  common_conftab,
+                                                      offsetof(wandev_conf_t, receive_only),
+                                                      yes_no_options_table,
+                                                      cfr->link_defs->linkconf->receive_only);
+
+  global_protocol_cfg += form_keyword_and_value_str(  common_conftab,
+                                                      offsetof(wandev_conf_t, connection),
+                                                      connection_type_options_table,
+                                                      cfr->link_defs->linkconf->connection);
+
+  global_protocol_cfg += form_keyword_and_value_str(  common_conftab,
+                                                      offsetof(wandev_conf_t, line_coding),
+                                                      data_encoding_options_table,
+                                                      cfr->link_defs->linkconf->line_coding);
+
+  global_protocol_cfg += form_keyword_and_value_str(  common_conftab,
+                                                      offsetof(wandev_conf_t, line_idle),
+                                                      line_idle_options_table,
+                                                      cfr->link_defs->linkconf->line_idle);
+
+  return YES;
+}
+*/
 
 int conf_file_writer::form_lapb_global_configuration_string(wan_lapb_if_conf_t *lapb_cfg,
                                                             string& global_protocol_cfg)
@@ -1875,41 +2112,6 @@ int conf_file_writer::form_lapb_global_configuration_string(wan_lapb_if_conf_t *
   return YES;
 }
 
-
-/*
-Receive_Only	= NO
-Connection	= Permanent
-LineCoding	= NRZ
-LineIdle	= Flag
-*/
-int conf_file_writer::form_chdlc_global_configuration_string( wan_chdlc_conf_t* chdlc_cfg,
-                                                              string& global_protocol_cfg)
-{
-  global_protocol_cfg = "";
-
-  global_protocol_cfg += form_keyword_and_value_str(  common_conftab,
-                                                      offsetof(wandev_conf_t, receive_only),
-                                                      yes_no_options_table,
-                                                      cfr->link_defs->linkconf->receive_only);
-
-  global_protocol_cfg += form_keyword_and_value_str(  common_conftab,
-                                                      offsetof(wandev_conf_t, connection),
-                                                      connection_type_options_table,
-                                                      cfr->link_defs->linkconf->connection);
-
-  global_protocol_cfg += form_keyword_and_value_str(  common_conftab,
-                                                      offsetof(wandev_conf_t, line_coding),
-                                                      data_encoding_options_table,
-                                                      cfr->link_defs->linkconf->line_coding);
-
-  global_protocol_cfg += form_keyword_and_value_str(  common_conftab,
-                                                      offsetof(wandev_conf_t, line_idle),
-                                                      line_idle_options_table,
-                                                      cfr->link_defs->linkconf->line_idle);
-
-  return YES;
-}
-
 int conf_file_writer::form_aft_global_configuration_string( wan_xilinx_conf_t* xilinx_conf,
                                                             string& global_protocol_cfg)
 {
@@ -1983,6 +2185,12 @@ int conf_file_writer::form_per_interface_str( string& wp_interface,
     }
     break;
 
+  case WANCONFIG_LIP_ATM:
+    if(form_atm_per_interface_str(tmp_str, list_el_chan_def) == NO){
+      return NO;
+    }
+    break;
+
   case WANCONFIG_TTY:
   case WANCONFIG_EDUKIT:
     //empty interface string, so don't do anything
@@ -1994,9 +2202,12 @@ int conf_file_writer::form_per_interface_str( string& wp_interface,
     break;
 
   case WANCONFIG_MPCHDLC:
-    if(form_chdlc_per_interface_str(tmp_str, list_el_chan_def) == NO){
+    /* everything done in the profile section. do nothing here.*/
+/*
+    if(form_chdlc_per_interface_str(tmp_str, list_el_chan_def, chanconf) == NO){
       return NO;
     }
+*/
     break;
 
   case WANCONFIG_ADSL:
@@ -2097,6 +2308,81 @@ int conf_file_writer::form_frame_relay_per_interface_str( string& wp_interface,
   return YES;
 }
 
+int conf_file_writer::form_atm_per_interface_str( string& wp_interface,
+                                                  list_element_chan_def* list_el_chan_def)
+{
+  char tmp_buff[MAX_PATH_LENGTH];
+  wan_atm_conf_if_t *atm_if_cfg = (wan_atm_conf_if_t*)&list_el_chan_def->data.chanconf->u;
+
+  wp_interface += "VPI";
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", atm_if_cfg->vpi);
+  wp_interface += tmp_buff;
+
+  wp_interface += "VCI";
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", atm_if_cfg->vci);
+  wp_interface += tmp_buff;
+
+  wp_interface += "ENCAPMODE";
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%s\n", get_keyword_from_look_up_t_table(
+							adsl_encapsulation_options_table,
+	
+  			      			atm_if_cfg->encap_mode));
+  wp_interface += tmp_buff;
+
+  wp_interface += "\n";
+  /////////////////////////////////////////////////////////////////////////////////////////
+  wp_interface += "OAM_LOOPBACK";
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%s\n", get_keyword_from_look_up_t_table(
+							yes_no_options_table,
+				      			atm_if_cfg->atm_oam_loopback));
+  wp_interface += tmp_buff;
+
+  wp_interface += "OAM_LOOPBACK_INT";
+  wp_interface += "= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", atm_if_cfg->atm_oam_loopback_intr);
+  wp_interface += tmp_buff;
+
+  wp_interface += "\n";
+  /////////////////////////////////////////////////////////////////////////////////////////
+  wp_interface += "OAM_CC_CHECK";
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%s\n", get_keyword_from_look_up_t_table(
+							yes_no_options_table,
+				      			atm_if_cfg->atm_oam_continuity));
+  wp_interface += tmp_buff;
+
+  wp_interface += "OAM_CC_CHECK_INT";
+  wp_interface += "= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", atm_if_cfg->atm_oam_continuity_intr);
+  wp_interface += tmp_buff;
+
+  wp_interface += "\n";
+  /////////////////////////////////////////////////////////////////////////////////////////
+  wp_interface += "ATMARP";
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%s\n", get_keyword_from_look_up_t_table(
+							yes_no_options_table,
+				      			atm_if_cfg->atm_arp));
+  wp_interface += tmp_buff;
+
+  wp_interface += "ATMARP_INT";
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", atm_if_cfg->atm_arp_intr);
+  wp_interface += tmp_buff;
+
+  wp_interface += "\n";
+  /////////////////////////////////////////////////////////////////////////////////////////
+  wp_interface += "MTU";
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", atm_if_cfg->mtu);
+  wp_interface += tmp_buff;
+  return YES;
+}
+
 /*
 MULTICAST 	= NO
 IPX		= YES
@@ -2182,32 +2468,31 @@ int conf_file_writer::form_ppp_per_interface_str( string& wp_interface,
     authenticate = YES;
   }
 
-  wp_interface += form_keyword_and_value_str( synch_ppp_conftab,
+  wp_interface += form_keyword_and_value_str( sppp_conftab,
                                               offsetof(wan_sppp_if_conf_t, pap),
                                               yes_no_options_table,
                                               chanconf->u.ppp.pap);
 
-  wp_interface += form_keyword_and_value_str( synch_ppp_conftab,
+  wp_interface += form_keyword_and_value_str( sppp_conftab,
                                               offsetof(wan_sppp_if_conf_t, chap),
                                               yes_no_options_table,
                                               chanconf->u.ppp.chap);
 
-
   if(authenticate == YES){
 
-    wp_interface += get_keyword_from_key_word_t_table(synch_ppp_conftab,
+    wp_interface += get_keyword_from_key_word_t_table(sppp_conftab,
                                                       offsetof(wan_sppp_if_conf_t, userid));
     wp_interface += "\t= ";
     wp_interface += (char*)chanconf->u.ppp.userid;
     wp_interface += "\n";
-
-    wp_interface += get_keyword_from_key_word_t_table(synch_ppp_conftab,
+    
+    wp_interface += get_keyword_from_key_word_t_table(sppp_conftab,
                                                       offsetof(wan_sppp_if_conf_t, passwd));
     wp_interface += "\t= ";
     wp_interface += (char*)chanconf->u.ppp.passwd;
     wp_interface += "\n";
 
-    wp_interface += get_keyword_from_key_word_t_table(synch_ppp_conftab,
+    wp_interface += get_keyword_from_key_word_t_table(sppp_conftab,
                                                       offsetof(wan_sppp_if_conf_t, sysname));
     wp_interface += "\t= ";
     wp_interface += (char*)chanconf->u.ppp.sysname;
@@ -2236,6 +2521,36 @@ KEEPALIVE_RX_TIMER	= 11000
 KEEPALIVE_ERR_MARGIN	= 5
 SLARP_TIMER		= 1000
 */
+/*
+Note: PPP and CHDLC using common structures
+*/
+int conf_file_writer::form_chdlc_per_interface_str(string& wp_interface,
+                                   list_element_chan_def* list_el_chan_def,
+		  			wanif_conf_t* chanconf)
+{
+  char tmp_buff[MAX_PATH_LENGTH];
+
+  wp_interface += form_keyword_and_value_str( chan_conftab,
+                                              offsetof(wanif_conf_t, ignore_keepalive),
+                                              yes_no_options_table,
+                                              list_el_chan_def->data.chanconf->ignore_keepalive);
+
+  wp_interface += get_keyword_from_key_word_t_table(sppp_conftab,
+                                                      offsetof(wan_sppp_if_conf_t, sppp_keepalive_timer));
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", chanconf->u.ppp.sppp_keepalive_timer);
+  wp_interface += tmp_buff;
+
+  wp_interface += get_keyword_from_key_word_t_table(sppp_conftab,
+                                                      offsetof(wan_sppp_if_conf_t, keepalive_err_margin));
+  wp_interface += "\t= ";
+  snprintf(tmp_buff, MAX_PATH_LENGTH, "%d\n", chanconf->u.ppp.keepalive_err_margin);
+  wp_interface += tmp_buff;
+
+  return YES;
+}
+
+#if 0
 int conf_file_writer::form_chdlc_per_interface_str(string& wp_interface,
                                                   list_element_chan_def* list_el_chan_def)
 {
@@ -2293,6 +2608,7 @@ int conf_file_writer::form_chdlc_per_interface_str(string& wp_interface,
 
   return YES;
 }
+#endif
 
 /*
 ACTIVE_CH	= 1-4
@@ -2308,16 +2624,18 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
   char tmp_buff[MAX_PATH_LENGTH];
   chan_def_t* chandef = &list_el_chan_def->data;
 
-/*
-  //not used anymore:
-  wp_interface += "PROTOCOL",
-  wp_interface += "\t= ";
-  wp_interface += get_keyword_from_look_up_t_table( protocol_options_table,
-                                                    list_el_chan_def->data.chanconf->config_id);
-  wp_interface += "\n";
-*/
+  if(list_el_chan_def->data.chanconf->protocol == WANCONFIG_LIP_ATM){
+    wp_interface += "PROTOCOL",
+    wp_interface += "\t= ";
+    wp_interface += get_keyword_from_look_up_t_table( protocol_options_table,
+                                                      list_el_chan_def->data.chanconf->protocol);
+    wp_interface += "\n";
+
+  }
+  
   if(cfr->link_defs->linkconf->card_type != WANOPT_ADSL &&
-     chandef->usedby != TDM_VOICE){
+     chandef->usedby != TDM_VOICE &&
+     chandef->usedby != TDM_API){
 	  
     wp_interface += form_keyword_and_value_str( chan_conftab,
                                               offsetof(wanif_conf_t, hdlc_streaming),
@@ -2325,6 +2643,7 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
                                               list_el_chan_def->data.chanconf->hdlc_streaming);
   }
 
+  //AFT onlu options:
   if(cfr->link_defs->linkconf->card_type != WANOPT_S51X &&
      cfr->link_defs->linkconf->card_type != WANOPT_S50X &&
      cfr->link_defs->linkconf->card_type != WANOPT_ADSL ){
@@ -2335,7 +2654,7 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
     wp_interface += list_el_chan_def->data.active_channels_string;
     wp_interface += "\n";
 
-    if(chandef->usedby != TDM_VOICE){
+    if(chandef->usedby != TDM_VOICE && chandef->usedby != TDM_API){
 	
       if(list_el_chan_def->data.chanconf->hdlc_streaming == WANOPT_NO){    
         wp_interface += "IDLE_FLAG",
@@ -2343,6 +2662,11 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
         snprintf(tmp_buff, MAX_PATH_LENGTH, "0x%02X", list_el_chan_def->data.chanconf->u.aft.idle_flag);
         wp_interface += tmp_buff;
         wp_interface += "\n";
+      }
+
+      if(list_el_chan_def->data.chanconf->protocol == WANCONFIG_LIP_ATM){
+      	list_el_chan_def->data.chanconf->u.aft.mtu = LIP_ATM_MTU_MRU;
+      	list_el_chan_def->data.chanconf->u.aft.mru = LIP_ATM_MTU_MRU;
       }
 
       wp_interface += "MTU";
@@ -2356,6 +2680,16 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
       snprintf(tmp_buff, MAX_PATH_LENGTH, "%u", list_el_chan_def->data.chanconf->u.aft.mru);
       wp_interface += tmp_buff;
       wp_interface += "\n";
+
+      if(cfr->link_defs->card_version != A200_ADPTR_ANALOG){
+        wp_interface += "DATA_MUX";
+        wp_interface += "\t= ";
+        snprintf(tmp_buff, MAX_PATH_LENGTH, "%s",
+	          get_keyword_from_look_up_t_table(yes_no_options_table,
+						   list_el_chan_def->data.chanconf->u.aft.data_mux));
+        wp_interface += tmp_buff;
+        wp_interface += "\n";
+      }
     }
     
     if(chandef->usedby == TDM_VOICE){
@@ -2367,6 +2701,21 @@ int conf_file_writer::form_hardware_interface_str(string& wp_interface,
 		     			  chandef->chanconf->tdmv_echo_off));
       wp_interface += tmp_buff;
       wp_interface += "\n";
+    }
+
+    //YATE is running in API mode, and may need HWEC, make it possible.
+    if(chandef->usedby == TDM_VOICE || chandef->usedby == TDM_API || chandef->usedby == API){
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC\t= %s\n",
+		get_keyword_from_look_up_t_table(yes_no_options_table,
+       					 chandef->chanconf->xoff_char));
+      wp_interface += tmp_buff;
+/*
+      if(chandef->hwec_flag == WANOPT_YES){
+        snprintf(tmp_buff, MAX_PATH_LENGTH, "TDMV_HWEC_MAP\t= %s\n",
+		chandef->active_hwec_channels_string);
+        wp_interface += tmp_buff;
+      }
+*/
     }
     
   }else{
@@ -2403,7 +2752,11 @@ char* conf_file_writer::get_aft_lip_layer_protocol(int protocol)
   case WANCONFIG_LAPB:
     return "lip_lapb";
 
+  case WANCONFIG_LIP_ATM:
+    return "lip_atm";
+
   default:
+    ERR_DBG_OUT(("Unsupported LIP protocol (%d) !\n", protocol));
     return "unknown";
   }
 }
@@ -2416,7 +2769,7 @@ int conf_file_writer::form_profile_str(string& profile_str,
   string tmp_str = "";
   
   wan_fr_conf_t* fr_cfg;
-  wan_sppp_if_conf_t* ppp_cfg;
+  wan_sppp_if_conf_t *ppp_cfg, *chdlc_cfg;
   //wan_chdlc_conf_t* chdlc_cfg;
 
   Debug(DBG_CONF_FILE_WRITER, ("form_profile_str(): name: %s\n",
@@ -2488,6 +2841,7 @@ int conf_file_writer::form_profile_str(string& profile_str,
     if(form_ppp_per_interface_str(tmp_str, chanconf) == NO){
       return NO;
     }
+    Debug(DBG_CONF_FILE_WRITER, ("%s(): %d\n", __FUNCTION__, __LINE__));
     global_protocol_cfg += tmp_str;
     break;
 
@@ -2507,6 +2861,16 @@ int conf_file_writer::form_profile_str(string& profile_str,
       return NO;
     }
     */
+    chdlc_cfg = &chanconf->u.ppp;
+    if(form_chdlc_global_configuration_string(chdlc_cfg, global_protocol_cfg) == NO){
+      return NO;
+    }
+    Debug(DBG_CONF_FILE_WRITER, ("%s(): %d\n", __FUNCTION__, __LINE__));
+    global_protocol_cfg += tmp_str;
+    break;
+
+  case WANCONFIG_LIP_ATM:
+    ;//do nothing - profile is empty
     break;
 
   default:
@@ -2521,4 +2885,192 @@ int conf_file_writer::form_profile_str(string& profile_str,
   return YES;
 }
 
+#if defined(ZAPTEL_PARSER)
+int conf_file_writer::write_wanpipe_zap_file(int wanpipe_number)
+{
+  Debug(DBG_CONF_FILE_WRITER, ("%s()\n", __FUNCTION__));
+  string card_str;
+
+  if(list_element_sangoma_card_ptr == NULL){
+    	ERR_DBG_OUT(("%s(): Invalid 'list_element_sangoma_card_ptr'!\n", __FUNCTION__));
+	return 1;
+  }
+
+  //form full path to the conf file we want to write to
+  full_file_path.sprintf("%swanpipe%d.conf", wanpipe_cfg_dir, wanpipe_number);
+
+  if(list_element_sangoma_card_ptr->card_version == A200_ADPTR_ANALOG){
+    card_str.sprintf(
+"#================================================\n\
+# WANPIPE%d Configuration File\n\
+#================================================\n\
+#\n\
+# Date: %s\
+#\n\
+# Note: This file was generated automatically\n\
+#       by /usr/sbin/%s program.\n\
+#\n\
+#       If you want to edit this file, it is\n\
+#       recommended that you use wancfg program\n\
+#       to do so.\n\
+#================================================\n\
+# Sangoma Technologies Inc.\n\
+#================================================\n\
+\n\
+[devices]\n\
+wanpipe%d = WAN_AFT_ANALOG, Comment\n\
+\n\
+[interfaces]\n\
+w%dg1 = wanpipe%d, , TDM_VOICE, Comment\n\
+\n\
+[wanpipe%d]\n\
+CARD_TYPE 	= AFT\n\
+S514CPU 	= A\n\
+CommPort 	= PRI\n\
+AUTO_PCISLOT 	= NO\n\
+PCIBUS  	= %d\n\
+PCISLOT 	= %d\n\
+FE_MEDIA	= FXO/FXS\n\
+TDMV_LAW	= %s\n\
+TDMV_OPERMODE	= FCC\n\
+MTU 		= 1500\n\
+UDPPORT 	= 9000\n\
+TTL		= 255\n\
+IGNORE_FRONT_END = NO\n\
+TDMV_SPAN	= %d\n\
+\n\
+[w%dg1]\n\
+ACTIVE_CH	= ALL\n\
+TDMV_ECHO_OFF	= NO\n",
+
+wanpipe_number,
+get_date_and_time(),
+WANCFG_EXECUTABLE_NAME,
+
+wanpipe_number,
+wanpipe_number,
+wanpipe_number,
+wanpipe_number,
+
+list_element_sangoma_card_ptr->pci_bus_no,
+list_element_sangoma_card_ptr->PCI_slot_no,
+
+(list_element_sangoma_card_ptr->fe_cfg.tdmv_law == ZT_LAW_MULAW ? "MULAW" : "ALAW"),
+list_element_sangoma_card_ptr->get_spanno(),
+
+wanpipe_number
+);
+  }else if(list_element_sangoma_card_ptr->card_version == A101_ADPTR_1TE1 ||
+	   list_element_sangoma_card_ptr->card_version == A104_ADPTR_4TE1){
+    string te1_cfg_string;
+
+    if(form_fe_card_cfg_str(te1_cfg_string, &list_element_sangoma_card_ptr->fe_cfg) == NO){
+    	ERR_DBG_OUT(("%s(): Invalid data in 'front end' configuration structure!\n", __FUNCTION__));
+	return 1;
+    }
+
+    Debug(DBG_CONF_FILE_WRITER, ("te1_cfg_string:\n %s \n", te1_cfg_string.c_str()));
+
+    card_str.sprintf(
+"#================================================\n\
+# WANPIPE%d Configuration File\n\
+#================================================\n\
+#\n\
+# Date: %s\
+#\n\
+# Note: This file was generated automatically\n\
+#       by /usr/sbin/%s program.\n\
+#\n\
+#       If you want to edit this file, it is\n\
+#       recommended that you use wancfg program\n\
+#       to do so.\n\
+#================================================\n\
+# Sangoma Technologies Inc.\n\
+#================================================\n\
+\n\
+[devices]\n\
+wanpipe%d = %s, Comment\n\
+\n\
+[interfaces]\n\
+w%dg1 = wanpipe%d, , TDM_VOICE, Comment\n\
+\n\
+[wanpipe%d]\n\
+CARD_TYPE 	= AFT\n\
+S514CPU 	= %c\n\
+CommPort 	= PRI\n\
+AUTO_PCISLOT 	= NO\n\
+PCIBUS  	= %d\n\
+PCISLOT 	= %d\n\
+%s\
+MTU 		= 1500\n\
+UDPPORT 	= 9000\n\
+TTL		= 255\n\
+IGNORE_FRONT_END = NO\n\
+TDMV_SPAN	= %d\n\
+TDMV_DCHAN	= %d\n\
+\n\
+[w%dg1]\n\
+ACTIVE_CH	= ALL\n\
+TDMV_ECHO_OFF	= NO\n\
+TDMV_HWEC	= %s\n",
+
+wanpipe_number,
+get_date_and_time(),
+WANCFG_EXECUTABLE_NAME,
+
+wanpipe_number,
+(list_element_sangoma_card_ptr->card_version == A101_ADPTR_1TE1 ? "WAN_AFT" : "WAN_AFT_TE1"),
+wanpipe_number,
+wanpipe_number,
+wanpipe_number,
+
+(list_element_sangoma_card_ptr->card_version == A104_ADPTR_4TE1 ? 
+			'A' : list_element_sangoma_card_ptr->S514_CPU_no),
+
+list_element_sangoma_card_ptr->pci_bus_no,
+list_element_sangoma_card_ptr->PCI_slot_no,
+
+te1_cfg_string.c_str(),
+
+list_element_sangoma_card_ptr->get_spanno(),
+list_element_sangoma_card_ptr->get_dchan(),
+
+wanpipe_number,
+
+(list_element_sangoma_card_ptr->card_sub_version == A104D ? "YES" : "NO")
+);
+
+  }else{
+    ERR_DBG_OUT(("Invalid 'card_version' (%d) passed for saving to file!!\n",
+	list_element_sangoma_card_ptr->card_version));
+	return 1;
+  }//if()
+
+  //the comment should be 'written', all the rest should be 'appended' to file.
+  if(write_string_to_file((char*)full_file_path.c_str(),
+                          (char*)card_str.c_str()) == NO){
+	return 1;
+  }
+
+  printf("Writing: '%s'\n", (char*)full_file_path.c_str());
+  list_element_sangoma_card_ptr->print_card_summary();
+  printf("\n");
+
+  add_to_wanrouter_start_sequence(wanpipe_number);
+
+  return 0;
+}
+
+int conf_file_writer::add_to_wanrouter_start_sequence(int wanpipe_number)
+{
+  wanrouter_rc_file_reader *wanrouter_rc_fr = new wanrouter_rc_file_reader(wanpipe_number);
+
+  if(wanrouter_rc_fr->search_and_update_boot_start_device_setting() == NO){
+    //this wanpipe is NOT in sequence yet
+    return wanrouter_rc_fr->update_wanrouter_rc_file();
+  }
+  return 0;
+}
+
+#endif
 

@@ -206,6 +206,21 @@ static int wanpipe_ioctl(struct socket *sock, unsigned int cmd, unsigned long ar
 				return 2;
 			}
 
+		case SIOC_WANPIPE_SOCK_FLUSH_BUFS:
+			{
+				netskb_t *skb;
+				int err;
+				while ((skb=skb_dequeue(&sk->sk_error_queue)) != NULL){
+					AF_SKB_DEC(skb->truesize);
+					skb_free_datagram(sk, skb);
+				}
+				while ((skb=skb_recv_datagram(sk,0,1,&err)) != NULL){
+					AF_SKB_DEC(skb->truesize);
+					skb_free_datagram(sk, skb);
+				}
+			}
+			return 0;
+
 		case SIOC_WANPIPE_SET_NONBLOCK:
 
 			if (sk->sk_state != WANSOCK_DISCONNECTED)
@@ -213,8 +228,8 @@ static int wanpipe_ioctl(struct socket *sock, unsigned int cmd, unsigned long ar
 
 			sock->file->f_flags |= O_NONBLOCK;
 			return 0;
-	
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15)
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15)	
 		case SIOCGIFFLAGS:
 #ifndef CONFIG_INET
 		case SIOCSIFFLAGS:
@@ -239,7 +254,7 @@ static int wanpipe_ioctl(struct socket *sock, unsigned int cmd, unsigned long ar
 		case SIOCSIFHWBROADCAST:
 			return(dev_ioctl(cmd,(void *) arg));
 #endif
-
+			
 #ifdef CONFIG_INET
 		case SIOCADDRT:
 		case SIOCDELRT:
@@ -269,6 +284,7 @@ static int wanpipe_ioctl(struct socket *sock, unsigned int cmd, unsigned long ar
 				netdevice_t *dev;
 				struct ifreq ifr;
 dev_private_ioctl:
+
 				dev = (struct net_device *)SK_PRIV(sk)->dev;
 				if (!dev)
 					return -ENODEV;
@@ -722,6 +738,7 @@ static int wanpipe_api_sock_rcv(struct sk_buff *skb, netdevice_t *dev,  struct s
 #endif
 					return -ENODEV;
 				}
+				
 				return wanpipe_sk_parent_rx(sk,skb);	
 			}else{
 				if (sock_queue_rcv_skb(sk,skb)<0){
@@ -1114,6 +1131,10 @@ static int wanpipe_release(struct socket *sock, struct socket *peersock)
 
 	if (sk->sk_state == WANSOCK_LISTEN || sk->sk_state == WANSOCK_BIND_LISTEN){
 		unbind_api_listen_from_protocol	(SK_PRIV(sk)->num,sk);
+		if (SK_PRIV(sk)->dev){
+			dev_put(SK_PRIV(sk)->dev);
+			SK_PRIV(sk)->dev=NULL;
+		}
 		release_queued_pending_sockets(sk);
 		
 	}else if ((SK_PRIV(sk)->num == htons(ETH_P_X25) ||
@@ -1383,7 +1404,8 @@ wanpipe_svc_connect_skip:
 
 		err = bind_api_listen_to_protocol(dev,sll->sll_card,SK_PRIV(sk)->num,sk);	
 
-		dev_put(dev);
+		SK_PRIV(sk)->dev=dev;
+		sk->sk_bound_dev_if=dev->ifindex;
 
 wanpipe_svc_listen_skip:
 
@@ -1697,7 +1719,7 @@ int wanpipe_notifier(struct notifier_block *this, unsigned long msg, void *data)
 				wansk_reset_zapped(sk);
 				
 				if (SK_PRIV(sk) && SK_PRIV(sk)->dev){
-					dev_put((struct net_device *)SK_PRIV(sk)->dev);
+					dev_put((struct net_device *)SK_PRIV(sk)->dev); 
 					SK_PRIV(sk)->dev=NULL;
 				}
 				sk->sk_data_ready(sk,0);
@@ -2056,8 +2078,6 @@ int __init af_wanpipe_init(void)
 	sock_register(&wanpipe_family_ops);
 	register_netdevice_notifier(&wanpipe_netdev_notifier);
 	
-	DEBUG_EVENT("af_wanpipe: Registering Wanpipe API Socket Module\n");
-
 	wan_api_reg.wanpipe_api_sock_rcv = wanpipe_api_sock_rcv; 
 	wan_api_reg.wanpipe_api_connected = wanpipe_api_connected;
 	wan_api_reg.wanpipe_api_disconnected = wanpipe_api_disconnected;

@@ -24,12 +24,10 @@ Descripiton:
 #ifndef _SS7_LINUX_H
 #define _SS7_LINUX_H
 
-#ifndef	PACKED
-#define	PACKED __attribute__((packed))
-#endif
-
 #include <linux/sdla_ss7.h>
 #include <linux/if_wanpipe.h>
+
+#pragma pack(1)
 
 enum {
 	SIOCC_PC_RESERVED = (SIOC_WANPIPE_DEVPRIVATE),
@@ -46,32 +44,32 @@ enum {
 
 
 typedef struct {
-	unsigned char	status		PACKED;
-	unsigned char	data_avail	PACKED;
-	unsigned short	real_length	PACKED;
-	unsigned short	time_stamp	PACKED;
-	unsigned char	data[1]		PACKED;
+	unsigned char	status		;
+	unsigned char	data_avail	;
+	unsigned short	real_length	;
+	unsigned short	time_stamp	;
+	unsigned char	data[1]		;
 } trace_pkt_t;
 
 typedef struct {
-	unsigned char	SIO	PACKED;
-	unsigned short	time_stamp	PACKED;
-	unsigned char	reserved[13]	PACKED;
+	unsigned char	SIO	;
+	unsigned short	time_stamp	;
+	unsigned char	reserved[13]	;
 } api_rx_hdr_t;
 
 typedef struct {
-        api_rx_hdr_t	api_rx_hdr      PACKED;
-        void *   	data    	PACKED;
+        api_rx_hdr_t	api_rx_hdr      ;
+        void *   	data    	;
 } api_rx_element_t;
 
 typedef struct {
-	unsigned char 	SIO		PACKED;
-	unsigned char  	reserved[15]	PACKED;
+	unsigned char 	SIO		;
+	unsigned char  	reserved[15]	;
 } api_tx_hdr_t;
 
 typedef struct {
-	api_tx_hdr_t 	api_tx_hdr	PACKED;
-	void *		data		PACKED;
+	api_tx_hdr_t 	api_tx_hdr	;
+	void *		data		;
 } api_tx_element_t;
 
 
@@ -79,26 +77,26 @@ typedef struct {
    This is essentially a mailbox structure, without the large data field */
 #if 0
 typedef struct {
-        unsigned char  opp_flag PACKED;                  /* the opp flag */
-        unsigned char  command PACKED;                   /* the user command */
-        unsigned short buffer_length PACKED;             /* the data length */
-        unsigned char  return_code PACKED;               /* the return code */
-	unsigned char  MB_reserved[NUMBER_MB_RESERVED_BYTES] PACKED;	/* reserved for later */
+        unsigned char  opp_flag ;                  /* the opp flag */
+        unsigned char  command ;                   /* the user command */
+        unsigned short buffer_length ;             /* the data length */
+        unsigned char  return_code ;               /* the return code */
+	unsigned char  MB_reserved[NUMBER_MB_RESERVED_BYTES] ;	/* reserved for later */
 } cblock_t;
 
 
 typedef struct {
-	unsigned char		num_frames	PACKED;
-	unsigned char		ismoredata	PACKED;
+	unsigned char		num_frames	;
+	unsigned char		ismoredata	;
 } trace_info_t;
 
 typedef struct {
-	ip_pkt_t 		ip_pkt		PACKED;
-	udp_pkt_t		udp_pkt		PACKED;
-	wp_mgmt_t		wp_mgmt		PACKED;
-	cblock_t                cblock          PACKED;
-	trace_info_t       	trace_info      PACKED;
-	unsigned char           data[SIZEOF_MB_DATA_BFR]      PACKED;
+	ip_pkt_t 		ip_pkt		;
+	udp_pkt_t		udp_pkt		;
+	wp_mgmt_t		wp_mgmt		;
+	cblock_t                cblock          ;
+	trace_info_t       	trace_info      ;
+	unsigned char           data[SIZEOF_MB_DATA_BFR]      ;
 } ss7_udp_pkt_t;
 #endif
 
@@ -127,6 +125,7 @@ typedef struct {
 #define UDPMGMT_UDP_PROTOCOL 0x11
 #define UDPMGMT_SIGNATURE    "CTPIPEAB"   /* "STPIPEAB" */
 
+#pragma pack()
 
 #endif
 

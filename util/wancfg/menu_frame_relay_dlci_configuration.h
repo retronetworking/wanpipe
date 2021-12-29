@@ -18,7 +18,7 @@
 #ifndef MENU_FRAME_RELAY_DLCI_CONFIGURATION_H
 #define MENU_FRAME_RELAY_DLCI_CONFIGURATION_H
 
-#include <menu_base.h>
+#include "menu_base.h"
 #include "list_element_frame_relay_dlci.h"
 #include "objects_list.h"
 

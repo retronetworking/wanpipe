@@ -44,6 +44,7 @@
 #include <linux/wanpipe.h>
 #include <linux/if_ether.h>
 #include <linux/wanpipe_x25_kernel.h>
+#include <linux/wanpipe_lapb_kernel.h>
 #include "lib_api.h"
 
 /*===========================================================
@@ -226,8 +227,20 @@ int MakeConnection (char *i_name )
 			if (FD_ISSET(sock,&oobset)){
 				printf("%s: Listen sock rx OOB event!\n",
 						prognamed);
-				close(sock);	
-				break;	
+
+				/* Set the state back to listen and wait
+                                 * for connection to come up */
+				if (listen(sock,10) != 0){
+			                perror("Listen");
+                			close(sock);
+					break;
+        			}
+				err=ioctl(sock,SIOCG_LAPB_STATUS,0);
+				if (err<0){
+					perror("HDLC LINK STATUS");
+				}
+				printf("LAPB STATE = %s (err=%i)\n", err==1?"On":"Off",err);
+
 			}
 			
 			if (FD_ISSET(sock,&readset)){

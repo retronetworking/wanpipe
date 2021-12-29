@@ -103,6 +103,7 @@ extern int wp_fr_snmp(void* chan_ptr, void* data);
 #define FR_SET_TRACE_CONFIG	0x60
 #define FR_FT1_STATUS_CTRL 	0x80
 #define FR_SET_FT1_MODE		0x81
+#define	FR_LIST_CONFIGURED_DLCIS 0x82
 
 
 #pragma pack(1)
@@ -151,18 +152,18 @@ typedef struct	fr_link_stat
  */
 typedef struct	fr_dlci_stat
 {
-	unsigned long tx_frames		;	/* 00h:  */
-	unsigned long tx_bytes		;	/* 04h:  */
-	unsigned long rx_frames		;	/* 08h:  */
-	unsigned long rx_bytes		;	/* 0Ch:  */
-	unsigned long rx_dropped	;	/* 10h:  */
-	unsigned long rx_inactive	;	/* 14h:  */
-	unsigned long rx_exceed_CIR	;	/* 18h:  */
-	unsigned long rx_DE_set		;	/* 1Ch:  */
-	unsigned long tx_throughput	;	/* 20h:  */
-	unsigned long tx_calc_timer	;	/* 24h:  */
-	unsigned long rx_throughput	;	/* 28h:  */
-	unsigned long rx_calc_timer	;	/* 2Ch:  */
+	unsigned int tx_frames		;	/* 00h:  */
+	unsigned int tx_bytes		;	/* 04h:  */
+	unsigned int rx_frames		;	/* 08h:  */
+	unsigned int rx_bytes		;	/* 0Ch:  */
+	unsigned int rx_dropped	;	/* 10h:  */
+	unsigned int rx_inactive	;	/* 14h:  */
+	unsigned int rx_exceed_CIR	;	/* 18h:  */
+	unsigned int rx_DE_set		;	/* 1Ch:  */
+	unsigned int tx_throughput	;	/* 20h:  */
+	unsigned int tx_calc_timer	;	/* 24h:  */
+	unsigned int rx_throughput	;	/* 28h:  */
+	unsigned int rx_calc_timer	;	/* 2Ch:  */
 } fr_dlci_stat_t;
 
 #pragma pack()

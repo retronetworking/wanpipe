@@ -434,12 +434,13 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 
 #ifdef TE1_56_CARD_SUPPORT
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_te_iface_init(&card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
 		card->fe.read_fe_reg	= read_front_end_reg;
 
-		card->wandev.te_enable_timer = hdlc_enable_timer;
+		card->wandev.fe_enable_timer = hdlc_enable_timer;
 		card->wandev.te_link_state = fr_handle_front_end_state;
 		conf->interface = 
 			(IS_T1_CARD(card)) ? WANOPT_V35 : WANOPT_RS232;
@@ -455,6 +456,7 @@ int wp_hdlc_fr_init (sdla_t* card, wandev_conf_t* conf)
 
 #ifdef TE1_56_CARD_SUPPORT
 		memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+		sdla_56k_iface_init(&card->fe, &card->wandev.fe_iface);
 		card->fe.name		= card->devname;
 		card->fe.card		= card;
 		card->fe.write_fe_reg	= write_front_end_reg;
@@ -1065,7 +1067,9 @@ static void disable_comm (sdla_t *card)
 #ifdef TE1_56_CARD_SUPPORT
 	/* TE1 - Unconfiging */
 	if (IS_TE1_CARD(card)) {
-		sdla_te_unconfig(&card->fe);
+		if (card->wandev.fe_iface.unconfig){
+			card->wandev.fe_iface.unconfig(&card->fe);
+		}
 	}
 #endif
 }
@@ -1722,7 +1726,7 @@ static int update_comms_stats(sdla_t* card)
 	if (IS_TE1_CARD(card)) {	
 		card->wandev.fe_iface.read_alarm(&card->fe, 0); 
 		/* TE1 Update T1/E1 perfomance counters */
-		card->wandev.fe_iface.read_pmon(&card->fe); 
+		card->wandev.fe_iface.read_pmon(&card->fe, 0); 
 	}else if (IS_56K_CARD(card)) {
 		/* 56K Update CSU/DSU alarms */
 		card->wandev.fe_iface.read_alarm(&card->fe, 1); 
@@ -1765,7 +1769,7 @@ static int hdlc_send_hdr_data (sdla_t* card, netdevice_t *dev, void* data, unsig
 	if (txbuf.opp_flag)
 		return 1;
 	
-#ifdef TX_PKT_DEBUG
+#if defined(TX_PKT_DEBUG)
 	if (len <= 5 && !(((char *)data)[1]&0x01)){
 		int x;
 
@@ -1867,12 +1871,19 @@ static int set_adapter_config (sdla_t* card)
 /*============================================================================
  * Read TE1/56K Front end registers
  */
-static unsigned char read_front_end_reg (void* card1, unsigned short reg)
+static unsigned char read_front_end_reg (void* card1, ...)
 {
+	va_list		args;
 	sdla_t* card = (sdla_t*)card1;
         wan_mbox_t* mb = &card->wan_mbox;
+	u16		reg, line_no;
 	char* data = mb->wan_data;
         int err;
+
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	va_end(args);
 
 	((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
 	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
@@ -1888,13 +1899,22 @@ static unsigned char read_front_end_reg (void* card1, unsigned short reg)
 /*============================================================================
  * Write to TE1/56K Front end registers  
  */
-static unsigned char write_front_end_reg (void* card1, unsigned short reg, unsigned char value)
+static int write_front_end_reg (void* card1, ...)
 {
+	va_list		args;
 	sdla_t* card = (sdla_t*)card1;
         wan_mbox_t* mb = &card->wan_mbox;
+	u16		reg, line_no;
+	u8		value;
 	char* data = mb->wan_data;
         int err;
 	
+	va_start(args, card1);
+	line_no	= (u16)va_arg(args, int);
+	reg	= (u16)va_arg(args, int);
+	value	= (u8)va_arg(args, int);
+	va_end(args);
+
 	((FRONT_END_REG_STRUCT *)data)->register_number = (unsigned short)reg;
 	((FRONT_END_REG_STRUCT *)data)->register_value = value;
 	mb->wan_data_len = sizeof(FRONT_END_REG_STRUCT);
@@ -3545,11 +3565,15 @@ static int config_hdlc (sdla_t *card)
 	card->hw_iface.poke_byte(card->hw, card->intr_type_off, 0x00);
 	card->hw_iface.poke_byte(card->hw, card->intr_perm_off, 0x00);
 	if (IS_TE1_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring onboard %s CSU/DSU\n",
 			card->devname, 
 			(IS_T1_CARD(card))?"T1":"E1");
 
-		if (sdla_te_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			printk(KERN_INFO "%s: Failed %s configuratoin!\n",
 					card->devname,
 					(IS_T1_CARD(card))?"T1":"E1");
@@ -3559,10 +3583,14 @@ static int config_hdlc (sdla_t *card)
 
 	 
 	if (IS_56K_CARD(card)) {
+		int	err = -EINVAL;
 		printk(KERN_INFO "%s: Configuring 56K onboard CSU/DSU\n",
 			card->devname);
 
-		if(sdla_56k_config(&card->fe, &card->wandev.fe_iface)){
+		if (card->wandev.fe_iface.config){
+			err = card->wandev.fe_iface.config(&card->fe);
+		}
+		if (err){
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EINVAL;

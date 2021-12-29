@@ -20,7 +20,8 @@
 
 enum LIST_ELEMENT_TYPE{
   BASE_LIST_ELEMENT = 1,
-  CHAN_DEF_LIST_ELEMENT
+  CHAN_DEF_LIST_ELEMENT,
+  SANGOMA_CARD_LIST_ELEMENT
 };
 
 #define DBG_LIST_ELEMENT  0
@@ -40,19 +41,19 @@ public:
   void * next;
   void * previous;
 
-	list_element()
+  list_element()
   {
     Debug(DBG_LIST_ELEMENT, ("list_element::list_element()\n"));
     next = previous = NULL;
     //must be set to real value in the subclasses
     list_element_type = BASE_LIST_ELEMENT;
   }
+
 /*
   //no real work is done here. comment it out to reduce number of warnings
   //" list_element.h:204: warning: `class list_element_chan_def' has
   //  virtual functions but non-virtual destructor".
-
-	~list_element()
+  ~list_element()
   {
     Debug(DBG_LIST_ELEMENT, ("list_element::~list_element()\n"));
   }
@@ -69,8 +70,8 @@ public:
   }
 
   //set these functions to 0 to make the class abstract
-	virtual int compare(list_element* element) = 0;
-	virtual int compare(char* comparator) = 0;
+  virtual int compare(list_element* element) = 0;
+  virtual int compare(char* comparator) = 0;
   //virtual int compare(int comparator) = 0;
   //the comparator is char string in this case
   virtual char* get_comparator() = 0;

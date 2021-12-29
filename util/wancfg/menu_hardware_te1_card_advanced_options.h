@@ -40,4 +40,19 @@ public:
   int run(OUT int * selection_index);
 };
 
+class menu_hardware_analog_card_advanced_options : public menu_base  {
+
+  char lxdialog_path[MAX_PATH_LENGTH];
+  conf_file_reader* cfr;
+
+public:
+
+	menu_hardware_analog_card_advanced_options(  IN char * lxdialog_path,
+                                            IN conf_file_reader* ptr_cfr);
+
+	~menu_hardware_analog_card_advanced_options();
+
+  int run(OUT int * selection_index);
+};
+
 #endif

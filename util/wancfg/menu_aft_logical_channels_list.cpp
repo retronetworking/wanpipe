@@ -78,6 +78,9 @@ int menu_aft_logical_channels_list::run(OUT int * selection_index)
   list_element_chan_def* list_el_chan_def = NULL;
   sdla_fe_cfg_t* fe_cfg = &cfr->link_defs->linkconf->fe_cfg;
 
+  link_defs = cfr->link_defs;
+  linkconf = cfr->link_defs->linkconf;
+
   //help text box
   text_box tb;
 
@@ -259,18 +262,22 @@ int menu_aft_logical_channels_list::create_logical_channels_list_str(string& men
   char tmp_buff[MAX_PATH_LENGTH];
   sdla_fe_cfg_t* fe_cfg = &cfr->link_defs->linkconf->fe_cfg;
 
-  if(fe_cfg->media == WAN_MEDIA_T1){
-
-    max_valid_number_of_logical_channels = NUM_OF_T1_CHANNELS;
-  }else if(fe_cfg->media == WAN_MEDIA_E1){
-
-    max_valid_number_of_logical_channels = NUM_OF_E1_CHANNELS - 1;
-  }else if(fe_cfg->media == WAN_MEDIA_NONE || fe_cfg->media == WAN_MEDIA_56K){
-    //serial or 56k
-    max_valid_number_of_logical_channels = 1;
+  if(link_defs->card_version == A200_ADPTR_ANALOG){
+      max_valid_number_of_logical_channels = MAX_FXOFXS_CHANNELS;
   }else{
-    ERR_DBG_OUT(("Invalid Media Type!! (0x%X)\n", fe_cfg->media));
-    return NO;
+    if(fe_cfg->media == WAN_MEDIA_T1){
+
+      max_valid_number_of_logical_channels = NUM_OF_T1_CHANNELS;
+    }else if(fe_cfg->media == WAN_MEDIA_E1){
+
+      max_valid_number_of_logical_channels = NUM_OF_E1_CHANNELS - 1;
+    }else if(fe_cfg->media == WAN_MEDIA_NONE || fe_cfg->media == WAN_MEDIA_56K){
+      //serial or 56k
+      max_valid_number_of_logical_channels = 1;
+    }else{
+      ERR_DBG_OUT(("Invalid Media Type!! (0x%X)\n", fe_cfg->media));
+      return NO;
+    }
   }
 
   objects_list * obj_list = cfr->main_obj_list;
@@ -309,25 +316,31 @@ int menu_aft_logical_channels_list::
                                       IN unsigned int new_number_of_groups_of_channels)
 {
   sdla_fe_cfg_t* fe_cfg = &cfr->link_defs->linkconf->fe_cfg;
+  text_box tb;
   
-  if(fe_cfg->media == WAN_MEDIA_T1){
-
-    max_valid_number_of_logical_channels = NUM_OF_T1_CHANNELS;
-  }else if(fe_cfg->media == WAN_MEDIA_E1){
-
-    max_valid_number_of_logical_channels = NUM_OF_E1_CHANNELS - 1;
-  }else if(fe_cfg->media == WAN_MEDIA_NONE || fe_cfg->media == WAN_MEDIA_56K){
-    //serial or 56k
-    max_valid_number_of_logical_channels = 1;
+  if(link_defs->card_version == A200_ADPTR_ANALOG){
+      max_valid_number_of_logical_channels = MAX_FXOFXS_CHANNELS;
   }else{
-    ERR_DBG_OUT(("Invalid Media Type!! (0x%X)\n", fe_cfg->media));
-    return NO;
+    if(fe_cfg->media == WAN_MEDIA_T1){
+
+      max_valid_number_of_logical_channels = NUM_OF_T1_CHANNELS;
+    }else if(fe_cfg->media == WAN_MEDIA_E1){
+
+      max_valid_number_of_logical_channels = NUM_OF_E1_CHANNELS - 1;
+    }else if(fe_cfg->media == WAN_MEDIA_NONE || fe_cfg->media == WAN_MEDIA_56K){
+      //serial or 56k
+      max_valid_number_of_logical_channels = 1;
+    }else{
+      ERR_DBG_OUT(("Invalid Media Type!! (0x%X)\n", fe_cfg->media));
+      return NO;
+    }
   }
 
   if(new_number_of_groups_of_channels > max_valid_number_of_logical_channels){
-    ERR_DBG_OUT(("Invalid new_number_of_groups_of_channels: %d! Maximum is: %d.\n",
+    tb.show_error_message(lxdialog_path, NO_PROTOCOL_NEEDED, 
+	"Invalid number of groups of channels: %d! Maximum is: %d.\n",
 		  new_number_of_groups_of_channels,
-		  max_valid_number_of_logical_channels));
+		  max_valid_number_of_logical_channels);
     return NO;
   }
 

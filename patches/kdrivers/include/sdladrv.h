@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdladrv.h,v 1.47 2005/11/10 18:02:32 sangoma Exp $
+ *	$Id: sdladrv.h,v 1.62 2006/10/27 14:34:44 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -51,6 +51,10 @@
 # define EXTERN extern
 #endif
 
+#if defined(__LINUX__)
+# define WAN_ISA_SUPPORT
+#endif
+
 /*
 ******************************************************************
 **			I N C L U D E S				**	
@@ -59,6 +63,14 @@
 #if defined(__LINUX__)
 # include <linux/version.h>
 # include <linux/wanpipe_kernel.h>
+#elif defined(__FreeBSD__)
+# ifdef __SDLADRV__
+#  include <i386/isa/sdla_dev.h>
+# endif
+#elif defined(__OpenBSD__) || defined(__NetBSD__)
+# ifdef __SDLADRV__
+#  include <dev/ic/sdla_dev.h>
+# endif
 #endif
 
 /*
@@ -66,6 +78,10 @@
 **			D E F I N E S				**	
 ******************************************************************
 */
+#if defined(__LINUX__)
+# define WAN_ISA_SUPPORT
+#endif
+
 #define	SDLADRV_MAGIC	0x414C4453L	/* signature: 'SDLA' reversed */
 
 #define SDLADRV_MAJOR_VER 2
@@ -93,11 +109,14 @@
 #define SDLA_COREREV		0x11
 #define SDLA_USEDCNT		0x12
 #define SDLA_ADAPTERSUBTYPE	0x13
+#define SDLA_HWEC_NO		0x14
+#define SDLA_COREID		0x15
 
 
 #define SDLA_MAX_CPUS		2
 
-#define SDLA_MAX_PORTS		4	/* Serial card - 2, AFT-Quad - 4 */
+	/* Serial card - 2, A104 - 4, A108 - 8, A200 - 1 */
+#define SDLA_MAX_PORTS		8
 
 /* Status values */
 #define SDLA_MEM_RESERVED	0x0001
@@ -106,6 +125,14 @@
 #define SDLA_PCI_ENABLE		0x0008
 
 #define SDLA_NAME_SIZE		20
+
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+# define PCI_DMA_FROMDEVICE	1
+# define PCI_DMA_TODEVICE	2
+#endif
+
+#define SDLA_MAGIC(hw)	WAN_ASSERT(hw->magic != SDLADRV_MAGIC)
+
 /*
 ******************************************************************
 **			T Y P E D E F S				**	
@@ -167,12 +194,6 @@ typedef struct pci_dev*		sdla_pci_dev_t;
 #define IS_SDLA_PCI(hw)		(hw->type == SDLA_S514 || hw->type == SDLA_ADSL)
 #define IS_SDLA_ISA(hw)		(hw->type == SDLA_S508)
 
-#define AFT_CORE_ID_DECODE(core_id)			\
-		(core_id == AFT_HDLC_CORE_ID) ? "HDLC" :	\
-		(core_id == AFT_ATM_CORE_ID) ? "ATM"   :	\
-		(core_id == AFT_SS7_CORE_ID) ? "SS7"   :	\
-						"Unknown"
-
 #define WAN_HWCALL(func, x)						\
 	if (card->hw_iface.func){					\
 		card->hw_iface.func x;					\
@@ -189,6 +210,7 @@ typedef struct pci_dev*		sdla_pci_dev_t;
 typedef struct sdla_hw_probe {
 	int 				used;
 	unsigned char			hw_info[100];
+	unsigned char			hw_info_verbose[500];
 	WAN_LIST_ENTRY(sdla_hw_probe)	next;
 } sdla_hw_probe_t;
 
@@ -219,9 +241,13 @@ typedef struct sdlahw_card {
 #endif
 	sdla_pci_dev_t		pci_dev;	/* PCI config header info */
 #endif
-	wan_spinlock_t		pcard_lock;	/* lock per physical card */
+	sdla_pci_dev_t		pci_bridge_dev;	/* PCI Bridge config header info */
+	wan_spinlock_t		pcard_lock;	/* lock per physical card for FE */
+	wan_spinlock_t		pcard_ec_lock;	/* lock per physical card for EC */
 	wan_smp_flag_t		fe_rw_flag;
 	unsigned char		adptr_security;	/* Adapter security (AFT cards) */
+	u16			hwec_chan_no;	/* max hwec channels number */
+	int			rm_mod_type[MAX_REMORA_MODULES];
 	WAN_LIST_ENTRY(sdlahw_card)	next;
 } sdlahw_card_t;
 
@@ -267,7 +293,7 @@ typedef struct sdlahw
 	unsigned char 		regs[SDLA_MAXIORANGE];	/* was written to registers */
 
 	unsigned 		reserved[5];
-	unsigned char		hw_info[100];
+	//unsigned char		hw_info[100];
 
 	/* */
 	unsigned		magic;
@@ -307,6 +333,8 @@ typedef struct sdlahw_iface
 	int	(*pci_read_config_byte)(void* hw, int reg, u8* value);
 	int	(*pci_read_config_word)(void* hw, int reg, u16* value);
 	int	(*pci_read_config_dword)(void* hw, int reg, u32* value);
+	int 	(*pci_bridge_write_config_dword)(void* hw, int reg, u32 value);
+	int	(*pci_bridge_read_config_dword)(void* hw, int reg, u32* value);
 	int	(*cmd)(void* phw, unsigned long offset, wan_mbox_t* mbox);
 	int	(*peek)(void*,unsigned long, void*,unsigned);
 	int 	(*poke)(void*,unsigned long, void*,unsigned);
@@ -321,11 +349,17 @@ typedef struct sdlahw_iface
 	int	(*get_hwprobe)(void*, int comm_port, void**);
 	int 	(*hw_unlock)(void *phw, wan_smp_flag_t *flag);
 	int 	(*hw_lock)(void *phw, wan_smp_flag_t *flag);
+	int 	(*hw_ec_unlock)(void *phw, wan_smp_flag_t *flag);
+	int 	(*hw_ec_lock)(void *phw, wan_smp_flag_t *flag);
 	int 	(*hw_same)(void *phw1, void *phw2);
-	int 	(*fe_test_and_set_bit)(void *phw);
-	int 	(*fe_clear_bit)(void *phw);
+	int 	(*fe_test_and_set_bit)(void *phw, int value);
+	int 	(*fe_test_bit)(void *phw,int value);
+	int 	(*fe_set_bit)(void *phw,int value);
+	int 	(*fe_clear_bit)(void *phw,int value);
 	sdla_dma_addr_t (*pci_map_dma)(void *phw, void *buf, int len, int ctrl);
-	int    (*pci_unmap_dma)(void *phw, sdla_dma_addr_t buf, int len, int ctrl);
+	int    	(*pci_unmap_dma)(void *phw, sdla_dma_addr_t buf, int len, int ctrl);
+	int	(*read_cpld)(void *phw, u16, u8*);
+	int	(*write_cpld)(void *phw, u16, u8);
 } sdlahw_iface_t;
 
 typedef struct sdla_hw_type_cnt
@@ -336,12 +370,17 @@ typedef struct sdla_hw_type_cnt
 	unsigned char aft101_adapters;
 	unsigned char aft104_adapters;
 	unsigned char aft300_adapters;
-	unsigned char aft_analog_adapters;
+	unsigned char aft200_adapters;
+	unsigned char aft108_adapters;
+	unsigned char aft_56k_adapters;
+
+	unsigned char aft_x_adapters;
 }sdla_hw_type_cnt_t;
 
 /****** Function Prototypes *************************************************/
 
 EXTERN unsigned int sdla_hw_probe(void);
+EXTERN unsigned int sdla_hw_bridge_probe(void);
 EXTERN void *sdla_get_hw_probe (void);
 EXTERN void *sdla_get_hw_adptr_cnt(void);
 EXTERN void* sdla_register	(sdlahw_iface_t* hw_iface, wandev_conf_t*,char*);
@@ -567,9 +606,47 @@ sdla_get_pci_base_resource_addr(sdlahw_t* hw, int pci_offset, sdla_base_addr_t *
 #endif
 }
 
-
-
 #endif /* __SDLADRV__ */
+
+
+static __inline int __sdla_bus_read_4(void* phw, unsigned int offset, u32* value)
+{
+	sdlahw_t*	hw = (sdlahw_t*)phw;
+
+	WAN_ASSERT2(hw == NULL, 0);	
+	WAN_ASSERT2(hw->dpmbase == 0, 0);	
+	SDLA_MAGIC(hw);
+	if (!(hw->status & SDLA_MEM_MAPPED)) return 0;
+#if defined(__FreeBSD__)
+	*value = readl(((u8*)hw->dpmbase + offset));
+#elif defined(__NetBSD__) || defined(__OpenBSD__)
+	*value = bus_space_read_4(hw->hwcard->memt, hw->dpmbase, offset); 
+#elif defined(__LINUX__)
+	*value = wp_readl((unsigned char*)hw->dpmbase + offset);
+#else
+# warning "sdla_bus_read_4: Not supported yet!"
+#endif
+	return 0;
+}
+
+static __inline int __sdla_bus_write_4(void* phw, unsigned int offset, u32 value) 
+{
+	sdlahw_t*	hw = (sdlahw_t*)phw;
+
+	WAN_ASSERT(hw == NULL);	
+	SDLA_MAGIC(hw);
+	if (!(hw->status & SDLA_MEM_MAPPED)) return 0;
+#if defined(__FreeBSD__)
+	writel(((u8*)hw->dpmbase + offset), value);
+#elif defined(__NetBSD__) || defined(__OpenBSD__)
+	bus_space_write_4(hw->hwcard->memt, hw->dpmbase, offset, value);
+#elif defined(__LINUX__)
+	wp_writel(value,(u8*)hw->dpmbase + offset);
+#else
+# warning "sdla_bus_write_4: Not supported yet!"
+#endif
+	return 0;
+}
 
 
 #undef EXTERN 

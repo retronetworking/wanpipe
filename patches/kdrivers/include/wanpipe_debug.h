@@ -13,6 +13,8 @@
 #ifndef __WANPIPE_DEBUG_H
 # define __WANPIPE_DEBUG_H
 
+#if defined(WAN_KERNEL)
+
 #define WAN_DEBUG_EVENT
 #undef WAN_DEBUG_KERNEL
 #undef WAN_DEBUG_MOD
@@ -36,6 +38,10 @@
 #undef WAN_DEBUG_DMA
 #undef WAN_DEBUG_SNMP
 #undef WAN_DEBUG_TE3
+#undef WAN_DEBUG_RM
+#undef WAN_DEBUG_HWEC
+#undef WAN_DEBUG_TDMAPI
+#undef WAN_DEBUG_FE
 
 #undef WAN_DEBUG_MEM
 
@@ -66,10 +72,17 @@
 # define DEBUG_56K	DEBUG_NONE
 # define DEBUG_PROCFS	DEBUG_NONE
 # define DEBUG_TDMV	DEBUG_NONE
-# define DEBUG_TEST	DEGUG_NONE
-# define DEBUG_DBG	DEGUG_NONE
-# define DEBUG_DMA	DEGUG_NONE
-# define DEBUG_SNMP	DEGUG_NONE
+# define DEBUG_TEST	DEBUG_NONE
+# define DEBUG_DBG	DEBUG_NONE
+# define DEBUG_DMA	DEBUG_NONE
+# define DEBUG_SNMP	DEBUG_NONE
+# define DEBUG_RM	DEBUG_NONE
+# define DEBUG_HWEC	DEBUG_NONE
+# define DEBUG_TDMAPI	DEBUG_NONE
+# define DEBUG_FE	DEBUG_NONE
+# define WAN_DEBUG_FUNC_START	DEBUG_NONE
+# define WAN_DEBUG_FUNC_END	DEBUG_NONE
+# define WAN_DEBUG_FUNC_LINE	DEBUG_NONE
 
 # ifdef WAN_DEBUG_KERNEL
 #  undef  DEBUG_KERNEL
@@ -165,7 +178,26 @@
 #  undef  DEBUG_SNMP
 #  define DEBUG_SNMP	DEBUG_PRINT
 # endif
-
+# ifdef WAN_DEBUG_RM
+#  undef  DEBUG_RM
+#  define DEBUG_RM	DEBUG_PRINT
+# endif 
+# ifdef WAN_DEBUG_FE
+#  undef  DEBUG_FE
+#  define DEBUG_FE	DEBUG_PRINT
+# endif 
+# ifdef WAN_DEBUG_HWEC
+#  undef  DEBUG_HWEC
+#  define DEBUG_HWEC	DEBUG_PRINT
+# endif 
+# ifdef WAN_DEBUG_TDMAPI
+#  undef  DEBUG_TDMAPI
+#  define DEBUG_TDMAPI	DEBUG_PRINT
+# endif 
+# ifdef WAN_DEBUG_FE
+#  undef  DEBUG_FE
+#  define DEBUG_FE	DEBUG_PRINT
+# endif 
 
 
 #else	/* !__WINDOWS__*/
@@ -196,6 +228,13 @@
 # define DEBUG_SNMP(format,msg...)
 # define DEBUG_ADD_MEM(a)
 # define DEBUG_SUB_MEM(a)
+# define DEBUG_RM(format,msg...)
+# define DEBUG_HWEC(format,msg...)
+# define DEBUG_TDMAPI(format,msg...)
+# define DEBUG_FE(format,msg...)
+# define WAN_DEBUG_FUNC_START
+# define WAN_DEBUG_FUNC_END
+# define WAN_DEBUG_FUNC_LINE
 
 # if (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__)
 
@@ -311,12 +350,40 @@
 #  undef  DEBUG_SNMP
 #  define DEBUG_SNMP(format,msg...) 		DEBUG_PRINT(format,##msg)
 # endif
+# ifdef WAN_DEBUG_RM
+#  undef  DEBUG_RM
+#  define DEBUG_RM(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif 
+# ifdef WAN_DEBUG_HWEC
+#  undef  DEBUG_HWEC
+#  define DEBUG_HWEC(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif 
+# ifdef WAN_DEBUG_TDMAPI
+#  undef  DEBUG_TDMAPI
+#  define DEBUG_TDMAPI(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif 
+# ifdef WAN_DEBUG_FE
+#  undef  DEBUG_FE
+#  define DEBUG_FE(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif 
 
 
 #endif	/* __WINDOWS__ */
 
 #define WAN_DEBUG_FLINE	DEBUG_EVENT("[%s]: %s:%d\n",			\
 				__FILE__,__FUNCTION__,__LINE__);
+
+#if defined(WAN_DEBUG_FUNC)
+# undef WAN_DEBUG_FUNC_START
+# define WAN_DEBUG_FUNC_START	DEBUG_EVENT("[%s]: %s:%d: Start (%ld)\n",	\
+				__FILE__,__FUNCTION__,__LINE__, SYSTEM_TICKS);
+# undef WAN_DEBUG_FUNC_END
+# define WAN_DEBUG_FUNC_END	DEBUG_EVENT("[%s]: %s:%d: End (%ld)\n",		\
+				__FILE__,__FUNCTION__,__LINE__,SYSTEM_TICKS);
+# undef WAN_DEBUG_FUNC_LINE
+# define WAN_DEBUG_FUNC_LINE	DEBUG_EVENT("[%s]: %s:%d: (%ld)\n",		\
+				__FILE__,__FUNCTION__,__LINE__,SYSTEM_TICKS);
+#endif
 
 #define WAN_ASSERT(val) if (val){					\
 	DEBUG_EVENT("************** ASSERT FAILED **************\n");	\
@@ -589,4 +656,5 @@ extern void wp_debug_func_add(unsigned char *func);
 extern void wp_debug_func_print(void);
 #endif
 
+#endif /* WAN_KERNEL */
 #endif /* __WANPIPE_DEBUG_H */

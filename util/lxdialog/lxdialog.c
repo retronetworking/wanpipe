@@ -31,7 +31,7 @@ struct Mode {
     jumperFn *jumper;
 };
 
-jumperFn j_menu, j_checklist, j_radiolist, j_yesno, j_textbox, j_inputbox, j_textyesno ;
+jumperFn j_menu, j_checklist, j_radiolist, j_yesno, j_textbox, j_inputbox, j_textyesno, j_textbox_ok;
 jumperFn j_msgbox, j_infobox, j_menuback, j_menutext ;
 
 static struct Mode modes[] =
@@ -43,6 +43,7 @@ static struct Mode modes[] =
     {"--radiolist", 9, 0, 3, j_radiolist},
     {"--yesno",    5,5,1, j_yesno},
     {"--textbox",  5,5,1, j_textbox},
+    {"--textbox_ok",  5,5,1, j_textbox_ok},
     {"--inputbox", 5, 6, 1, j_inputbox},
     {"--msgbox", 5, 5, 1, j_msgbox},
     {"--infobox", 5, 5, 1, j_infobox},
@@ -209,10 +210,17 @@ j_radiolist (const char *t, int ac, const char * const * av)
 int
 j_textbox (const char *t, int ac, const char * const * av)
 {
-    return dialog_textbox (t, av[2], atoi (av[3]), atoi (av[4]));
+    return new_dialog_textbox (t, av[2], atoi (av[3]), atoi (av[4]), " Exit ");
 }
 
-//Added by Nenad
+/*Added by David Rokhvarg*/
+int
+j_textbox_ok (const char *t, int ac, const char * const * av)
+{
+    return new_dialog_textbox (t, av[2], atoi (av[3]), atoi (av[4]), " OK ");
+}
+
+/*Added by Nenad*/
 int
 j_textyesno (const char *t, int ac, const char * const * av)
 {

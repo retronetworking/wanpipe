@@ -35,8 +35,8 @@
  * Version 2.0, Fri Aug 30 09:59:07 EDT 2002
  * Version 2.1, Wed Mar 26 10:03:00 EDT 2003
  * 
- * $Id: wanpipe_syncppp.c,v 1.21 2005/07/28 19:30:56 sangoma Exp $
- * $Id: wanpipe_syncppp.c,v 1.21 2005/07/28 19:30:56 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.25 2006/09/28 17:21:40 sangoma Exp $
+ * $Id: wanpipe_syncppp.c,v 1.25 2006/09/28 17:21:40 sangoma Exp $
  */
 
 /*
@@ -441,6 +441,7 @@ void wp_sppp_input (struct net_device *dev, struct sk_buff *skb)
 	skb->dev=dev;
 	skb->mac.raw=skb->data;
 	skb->nh.raw=skb->data;
+
 
 	if (dev->flags & IFF_RUNNING)
 	{
@@ -1603,6 +1604,21 @@ badreq:
 			sppp_cp_send (sp, PPP_LCP, LCP_CONF_ACK, h->ident, len-4, h+1);
 		}
 
+		//AFTER the ack send PAP request
+		//Wait until LCP is finished
+#if 0
+		if(rc_from_lcp_options == PPP_PAP){
+			
+			//authenticator wants PAP. initiate PAP request.
+			sp->confid[IDX_PAP] = h->ident;
+			sppp_pap_scr(sp);
+			break;
+		}
+#endif
+		//NC. Kernel change 
+		//sppp_cp_send (sp, PPP_LCP, LCP_CONF_ACK,
+		//		h->ident, len-4, h+1);
+				
 		/* Change the state. */
 		switch (sp->lcp.state) {
 		case LCP_STATE_CLOSED:
@@ -1611,7 +1627,7 @@ badreq:
 		case LCP_STATE_ACK_RCVD:
 			sp->lcp.state = LCP_STATE_OPENED;
 
-                        /* 3/20/2006 CXH begin */
+			/* 3/20/2006 CXH begin */
 			if(sp->pp_flags & PP_NEEDAUTH){
 				//authenticator wants PAP. initiate PAP request.
 				sp->confid[IDX_PAP] = h->ident;
@@ -1621,7 +1637,7 @@ badreq:
 				 * yet, PAP_ACK will do it for us */
 				break;  
 			}
-			/* CXH end */   
+			/* CXH end */
 			
 			sppp_ipcp_open (sp);
 			break;
@@ -1659,7 +1675,7 @@ badreq:
 			break;
 		case LCP_STATE_ACK_SENT:
 			sp->lcp.state = LCP_STATE_OPENED;
-
+			
 			/* 3/20/2006 CXH begin */
 			if(sp->pp_flags & PP_NEEDAUTH){
 				//authenticator wants PAP. initiate PAP request.
@@ -1981,8 +1997,8 @@ static void sppp_cp_send (struct sppp *sp, u16 proto, u8 type,
 	skb->priority=TC_PRIO_CONTROL;
 	skb->dev = dev;
 	skb->protocol = htons(PPP_IP);
-        skb->mac.raw=skb->data;
-	skb->nh.raw=skb->data;     
+	skb->mac.raw=skb->data;
+	skb->nh.raw=skb->data;
 	dev_queue_xmit(skb);
 }
 
@@ -2026,7 +2042,7 @@ static void sppp_cisco_send (struct sppp *sp, int type, long par1, long par2)
 	skb->priority=TC_PRIO_CONTROL;
 	skb->dev = dev;
 	skb->mac.raw=skb->data;
-	skb->nh.raw=skb->data;    
+	skb->nh.raw=skb->data;
 	dev_queue_xmit(skb);
 }
 
@@ -2687,6 +2703,7 @@ static void sppp_ipcp_input (struct sppp *sp, struct sk_buff *skb)
 	struct ipcp_header *ipcp_h;
 	struct net_device *dev = sp->pp_if;
 	int len = skb->len;
+	unsigned int remote_ip, local_ip;
 
 	if (len < 4) 
 	{
@@ -2740,54 +2757,66 @@ static void sppp_ipcp_input (struct sppp *sp, struct sk_buff *skb)
 		if (len > 4) {
 
 			if (!sp->dynamic_ip){
-				sp->local_ip=wan_get_ip_address(sp->pp_if,WAN_LOCAL_IP);
-				sp->remote_ip=wan_get_ip_address(sp->pp_if,WAN_POINTOPOINT_IP);	
-				DEBUG_EVENT("%s: Refusing remote IP addresses: Dynamic ip disabled!\n",
-						dev->name);
-				DEBUG_EVENT("%s: Existing: Local %u.%u.%u.%u P-to-P %u.%u.%u.%u\n",
-						dev->name,
-						NIPQUAD(sp->local_ip),
-						NIPQUAD(sp->remote_ip));
 
-				sppp_cp_send (sp, PPP_IPCP, LCP_CONF_REJ, h->ident,
+				remote_ip=wan_get_ip_address(sp->pp_if,WAN_POINTOPOINT_IP);	
+
+				if (remote_ip == *(unsigned long*)&ipcp_h->data[0]){
+					sppp_cp_send (sp, PPP_IPCP, LCP_CONF_ACK, h->ident,
 					len-4, h+1);
 
-				switch (sp->ipcp.state) {
-				case IPCP_STATE_OPENED:
-					/* Initiate renegotiation. */
-					sppp_ipcp_open (sp);
-					/* fall through... */
-				case IPCP_STATE_ACK_SENT:
-					/* Go to closed state. */
-					sp->ipcp.state = IPCP_STATE_CLOSED;
+					sppp_clear_timeout (sp);
+					
+					remote_ip=*(unsigned long*)&ipcp_h->data[0];
+					DEBUG_EVENT("%s: IPCP Static: P-to-P verified: %u.%u.%u.%u\n",
+							sp->pp_if->name,
+							NIPQUAD(remote_ip));
+
+				} else {
+
+					remote_ip = *(unsigned long*)&ipcp_h->data[0];
+
+					sp->local_ip=wan_get_ip_address(sp->pp_if,WAN_LOCAL_IP);
+					sp->remote_ip=wan_get_ip_address(sp->pp_if,WAN_POINTOPOINT_IP);	
+					DEBUG_EVENT("%s: IPCP Static Refusing P-to-P %u.%u.%u.%u: Dynamic ip disabled!\n",
+							sp->pp_if->name, NIPQUAD(remote_ip));
+
+					DEBUG_EVENT("%s: IPCP Current Cfg: Local %u.%u.%u.%u P-to-P %u.%u.%u.%u\n",
+							sp->pp_if->name,
+							NIPQUAD(sp->local_ip),
+							NIPQUAD(sp->remote_ip));
+
+					if (++sp->dynamic_failures > 10){
+				
+						sppp_cp_send (sp, PPP_IPCP, IPCP_TERM_REQ, h->ident, 0, 0);
+						sp->ipcp.state = IPCP_STATE_CLOSED;
+						sppp_set_timeout (sp, 5);
+						sp->dynamic_failures=0;
+						
+					}else{
+					
+						sppp_cp_send (sp, PPP_IPCP, LCP_CONF_REJ, h->ident,
+							len-4, h+1);
+
+						switch (sp->ipcp.state) {
+						case IPCP_STATE_OPENED:
+							/* Initiate renegotiation. */
+							sppp_ipcp_open (sp);
+							/* fall through... */
+						case IPCP_STATE_ACK_SENT:
+							/* Go to closed state. */
+							sp->ipcp.state = IPCP_STATE_CLOSED;
+						}
+					}
 				}
 
-				
-			}else{
-#if 1
+			} else {
 				sp->remote_ip = *(unsigned long*)&ipcp_h->data[0];
 				sppp_cp_send (sp, PPP_IPCP, LCP_CONF_ACK, h->ident,
 				len-4, h+1);
 
 				sppp_clear_timeout (sp);
-			
-#else
-				if (!sp->remote_ip){
-					sp->remote_ip = *(unsigned long*)&ipcp_h->data[0];
-					sppp_cp_send (sp, PPP_IPCP, LCP_CONF_ACK, h->ident,
-					len-4, h+1);
-
-					sppp_clear_timeout (sp);
-				}else{
-					DEBUG_EVENT("%s: Error: Invalid IPCP Request: P-to-P exists %u.%u.%u.%u!",
-							dev->name,NIPQUAD(sp->remote_ip));
-					
-					sppp_cp_send (sp, PPP_IPCP, LCP_CONF_REJ, h->ident,
-						len-4, h+1);
-				}
-#endif
 			}
-			
+				
 		} else {
 			/* Send Configure-Ack packet. */
 			sppp_cp_send (sp, PPP_IPCP, IPCP_CONF_ACK, h->ident,
@@ -2825,15 +2854,51 @@ static void sppp_ipcp_input (struct sppp *sp, struct sk_buff *skb)
 		if (h->ident != sp->ipcp.confid)
 			break;
 
-		if (sp->dynamic_ip && !sp->local_ip && ipcp_h->len >= 6){
+		if (ipcp_h->len >= 6) {
 
-			sp->local_ip = *(unsigned long*)&ipcp_h->data[0];
-			sppp_cp_send (sp, PPP_IPCP, LCP_CONF_REQ, h->ident,
-			len-4, h+1);
+			if (!sp->dynamic_ip) {
+
+				local_ip=wan_get_ip_address(sp->pp_if,WAN_LOCAL_IP);
+	
+				if (local_ip == *(unsigned long*)&ipcp_h->data[0]) {
+					sppp_cp_send (sp, PPP_IPCP, LCP_CONF_REQ, h->ident,
+						len-4, h+1);
 					
-			sp->ipcp.state = IPCP_STATE_ACK_SENT;
+					sp->ipcp.state = IPCP_STATE_ACK_SENT;
+		
+					local_ip=*(unsigned long*)&ipcp_h->data[0];	
+					DEBUG_EVENT("%s: IPCP Static: Local IP verified: %u.%u.%u.%u\n",
+							sp->pp_if->name,
+							NIPQUAD(local_ip));
+
+					break;
+				} else {
+					local_ip=*(unsigned long*)&ipcp_h->data[0]; 
+					DEBUG_EVENT("%s: IPCP Static: Refusing Local %u.%u.%u.%u: Dynamic ip disabled!\n",
+							sp->pp_if->name, NIPQUAD(local_ip));
+
+					DEBUG_EVENT("%s: IPCP Current Cfg: Local %u.%u.%u.%u P-to-P %u.%u.%u.%u\n",
+							sp->pp_if->name,
+							NIPQUAD(sp->local_ip),
+							NIPQUAD(sp->remote_ip));
+				
+					sppp_cp_send (sp, PPP_IPCP, LCP_CONF_REJ, h->ident,
+						len-4, h+1);
+
+					/* Drop down to reject */
+
+				}
+
+			} else {
+				sp->local_ip = *(unsigned long*)&ipcp_h->data[0];
+				sppp_cp_send (sp, PPP_IPCP, LCP_CONF_REQ, h->ident,
+					len-4, h+1);
+					
+				sp->ipcp.state = IPCP_STATE_ACK_SENT;
+				break;
+			}
 		}
-		break;
+		/* Drop down to reject */
 		
 	case IPCP_CONF_REJ:
 		if (h->ident != sp->ipcp.confid)
@@ -3112,8 +3177,12 @@ static ssize_t router_proc_read(struct file* file, char* buf, size_t count,
 
 	if (count <= 0)
 		return 0;
-		
+
+#if defined(WANPIPE_USE_I_PRIVATE)
+	dent = inode->i_private;
+#else	
 	dent = inode->u.generic_ip;
+#endif
 	if ((dent == NULL) || (dent->get_info == NULL)){
 		printk(KERN_INFO "NO DENT\n");
 		return 0;
@@ -3144,7 +3213,7 @@ static ssize_t router_proc_read(struct file* file, char* buf, size_t count,
 /*============================================================================
  * Strip leading and trailing spaces off the string str.
  */
-char* strstrip (char* str, char* s)
+char* str_strip (char* str, char* s)
 {
 	char* eos = str + strlen(str);		/* -> end of string */
 
@@ -3170,7 +3239,7 @@ int tokenize (char* str, char **tokens, char *arg1, char *arg2, char *arg3)
 
 	tokens[0] = strsep(&str, arg1);
 	while (tokens[cnt] && (cnt < MAX_TOKENS - 1)) {
-		tokens[cnt] = strstrip(tokens[cnt], arg2);
+		tokens[cnt] = str_strip(tokens[cnt], arg2);
 		tokens[++cnt] = strsep(&str, arg3);
 	}
 	return cnt;
@@ -3192,7 +3261,11 @@ static ssize_t router_proc_write(struct file *file, const char *buf, size_t coun
 	if (count <= 0 || count > PROC_BUFSZ)
 		return -EIO;
 		
+#if defined(WANPIPE_USE_I_PRIVATE)
+	dent = inode->i_private;
+#else	
 	dent = inode->u.generic_ip;
+#endif
 	if ((dent == NULL) || (dent->get_info == NULL))
 		return -EIO;
 

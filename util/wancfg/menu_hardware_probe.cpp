@@ -34,7 +34,7 @@
 
 Card Cnt: S508=0  S514X=2  S518=0  AFT=2
 ------------------------------------------------------------------
-new:
+new1:
 -------------------------------
 | Wanpipe Hardware Probe Info |
 -------------------------------
@@ -51,6 +51,77 @@ new:
 11. AFT-A104   : SLOT=6 : BUS=0 : IRQ=16 : CPU=A : PORT=2
 12. AFT-A104   : SLOT=6 : BUS=0 : IRQ=16 : CPU=A : PORT=3
 
+new2:
+-------------------------------
+| Wanpipe Hardware Probe Info |
+-------------------------------
+1 . S514-2-PCI : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=PRI
+2 . S514-2-PCI : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=SEC
+3 . S514-2-PCI : SLOT=4 : BUS=0 : IRQ=177 : CPU=B : PORT=PRI
+4 . S514-2-PCI : SLOT=4 : BUS=0 : IRQ=177 : CPU=B : PORT=SEC
+5 . S514-7-PCI : SLOT=3 : BUS=1 : IRQ=217 : CPU=A : PORT=PRI
+6 . S514-7-PCI : SLOT=3 : BUS=1 : IRQ=217 : CPU=B : PORT=PRI
+7 . AFT-A104-SH : SLOT=6 : BUS=0 : IRQ=193 : CPU=A : PORT=1
+8 . AFT-A104-SH : SLOT=6 : BUS=0 : IRQ=193 : CPU=A : PORT=2
+9 . AFT-A104-SH : SLOT=6 : BUS=0 : IRQ=193 : CPU=A : PORT=3
+10. AFT-A104-SH : SLOT=6 : BUS=0 : IRQ=193 : CPU=A : PORT=4
+11. AFT-A102c  : SLOT=2 : BUS=1 : IRQ=209 : CPU=A : PORT=PRI
+12. AFT-A102c  : SLOT=2 : BUS=1 : IRQ=209 : CPU=B : PORT=PRI
+13. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=185 : CPU=A : PORT=1
+14. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=185 : CPU=A : PORT=2
+15. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=185 : CPU=A : PORT=3
+16. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=185 : CPU=A : PORT=4
+
+Card Cnt: S508=0  S514X=2  S518=0  A101-2=1  A104=2  A300=0
+
+new3
+-------------------------------
+| Wanpipe Hardware Probe Info |
+-------------------------------
+1 . S514-2-PCI : SLOT=3 : BUS=0 : IRQ=177 : CPU=A : PORT=PRI
+2 . S514-2-PCI : SLOT=3 : BUS=0 : IRQ=177 : CPU=A : PORT=SEC
+3 . S514-2-PCI : SLOT=3 : BUS=0 : IRQ=177 : CPU=B : PORT=PRI
+4 . S514-2-PCI : SLOT=3 : BUS=0 : IRQ=177 : CPU=B : PORT=SEC
+5 . S514-7-PCI : SLOT=3 : BUS=1 : IRQ=225 : CPU=A : PORT=PRI
+6 . S514-7-PCI : SLOT=3 : BUS=1 : IRQ=225 : CPU=B : PORT=PRI
+7 . AFT-A104-SHc : SLOT=4 : BUS=0 : IRQ=185 : CPU=A : PORT=1 : HWEC=128
+8 . AFT-A104-SHc : SLOT=4 : BUS=0 : IRQ=185 : CPU=A : PORT=2 : HWEC=128
+9 . AFT-A104-SHc : SLOT=4 : BUS=0 : IRQ=185 : CPU=A : PORT=3 : HWEC=128
+10. AFT-A104-SHc : SLOT=4 : BUS=0 : IRQ=185 : CPU=A : PORT=4 : HWEC=128
+11. AFT-A200-SH : SLOT=6 : BUS=0 : IRQ=201 : CPU=A : PORT=PRI : HWEC=16
+12. AFT-A102c  : SLOT=2 : BUS=1 : IRQ=217 : CPU=A : PORT=PRI
+13. AFT-A102c  : SLOT=2 : BUS=1 : IRQ=217 : CPU=B : PORT=PRI
+14. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=193 : CPU=A : PORT=1
+15. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=193 : CPU=A : PORT=2
+16. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=193 : CPU=A : PORT=3
+17. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=193 : CPU=A : PORT=4
+
+Card Cnt: S508=0  S514X=2  S518=0  A101-2=1  A104=2  A300=0  A200=1
+
+new March 1, 2006 - A108
+
+-------------------------------
+| Wanpipe Hardware Probe Info |
+-------------------------------
+1 . S514-7-PCI : SLOT=3 : BUS=1 : IRQ=217 : CPU=A : PORT=PRI
+2 . S514-7-PCI : SLOT=3 : BUS=1 : IRQ=217 : CPU=B : PORT=PRI
+3 . AFT-A108-SH : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=1 : HWEC=0
+4 . AFT-A108-SH : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=2 : HWEC=0
+5 . AFT-A108-SH : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=3 : HWEC=0
+6 . AFT-A108-SH : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=4 : HWEC=0
+7 . AFT-A108-SH : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=5 : HWEC=0
+8 . AFT-A108-SH : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=6 : HWEC=0
+9 . AFT-A108-SH : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=7 : HWEC=0
+10. AFT-A108-SH : SLOT=4 : BUS=0 : IRQ=177 : CPU=A : PORT=8 : HWEC=0
+11. AFT-A200-SH : SLOT=6 : BUS=0 : IRQ=193 : CPU=A : PORT=PRI : HWEC=0
+12. AFT-A102c  : SLOT=2 : BUS=1 : IRQ=209 : CPU=A : PORT=PRI
+13. AFT-A102c  : SLOT=2 : BUS=1 : IRQ=209 : CPU=B : PORT=PRI
+14. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=185 : CPU=A : PORT=1
+15. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=185 : CPU=A : PORT=2
+16. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=185 : CPU=A : PORT=3
+17. AFT-A104u  : SLOT=5 : BUS=0 : IRQ=185 : CPU=A : PORT=4
+
+Card Cnt: S508=0  S514X=1  S518=0  A101-2=1  A104=1  A300=0  A200=1  A108=1
 */
 
 #include "menu_hardware_probe.h"
@@ -61,15 +132,17 @@ char* hw_probe_help_str =
 "Select a card for WANPIPE device\n"
 "from a list of cards detected on the system.";
 
+//PCI
 int get_slot_from_str(char * str_buff, unsigned* PCI_slot_no);
 int get_bus_from_str(char * str_buff, unsigned* pci_bus_no);
 int get_cpu_from_str(char * str_buff, char* S514_CPU_no);
-
-
 //ISA
 int get_io_port_from_str(char * str_buff, unsigned* ioport);
 
 #define DBG_MENU_HARDWARE_PROBE 1
+#define DBG_CARD_LIST		1
+
+static unsigned int longest_line_in_hwprobe_output = MENU_WIDTH+2;
 
 menu_hardware_probe::menu_hardware_probe( IN char * lxdialog_path,
                                           IN conf_file_reader* ptr_cfr)
@@ -79,12 +152,25 @@ menu_hardware_probe::menu_hardware_probe( IN char * lxdialog_path,
 
   snprintf(this->lxdialog_path, MAX_PATH_LENGTH, "%s", lxdialog_path);
   this->cfr = ptr_cfr;
+#if defined(ZAPTEL_PARSER)
+  sang_card_list = NULL;
+#endif
 }
 
 menu_hardware_probe::~menu_hardware_probe()
 {
   Debug(DBG_MENU_HARDWARE_PROBE, ("menu_hardware_probe::~menu_hardware_probe()\n"));
 }
+
+#if defined(ZAPTEL_PARSER)
+menu_hardware_probe::menu_hardware_probe( IN sangoma_card_list *sang_card_list)
+
+{
+  Debug(DBG_MENU_HARDWARE_PROBE, 
+	("menu_hardware_probe::menu_hardware_probe(IN sangoma_card_list *sang_card_list)\n"));
+  this->sang_card_list = sang_card_list;
+}
+#endif
 
 int menu_hardware_probe::run(OUT int * selection_index)
 {
@@ -129,8 +215,7 @@ again:
   //////////////////////////////////////////////////////////////////////////////////////
   //create the explanation text for the menu
   snprintf(tmp_buff, MAX_PATH_LENGTH,
-"\n------------------------------------------\
-\nSelect card from the list of detected cards.");
+"\nSelect card from the list of detected cards.");
 
   if(set_configuration(   YES,//indicates to call V2 of the function
                           MENU_BOX_BACK,//MENU_BOX_SELECT,
@@ -138,7 +223,11 @@ again:
                           "SELECT CARD FROM LIST",
                           WANCFG_PROGRAM_NAME,
                           tmp_buff,
-                          MENU_HEIGTH, MENU_WIDTH+1,
+                          MENU_HEIGTH, 
+			  //MENU_WIDTH+2,//some strings are very long, like for A104D-SH....
+			  //MENU_WIDTH+5,//some strings are very long, like for A104D-SH....
+			  //MENU_WIDTH+10,//some strings are very long, like for A104D-SH....
+			  longest_line_in_hwprobe_output+6,
                           number_of_items,
                           (char*)menu_str.c_str()
                           ) == NO){
@@ -169,7 +258,8 @@ again:
     if(parse_selected_card_line(
                   replace_new_line_with_zero_term(get_lxdialog_output_string()),
                   &linkconf->card_type,
-                  &link_def->card_version) == NO){
+                  &link_def->card_version,
+                  &link_def->card_sub_version) == NO){
       ERR_DBG_OUT(("Failed to get Card Type from selected card line!! line: %s\n",
         get_lxdialog_output_string()));
       rc = NO;
@@ -275,6 +365,10 @@ int menu_hardware_probe::hardware_probe()
 
         replace_new_line_with_zero_term(str_buff);
 
+	if(longest_line_in_hwprobe_output < strlen(str_buff)){
+		longest_line_in_hwprobe_output = strlen(str_buff);
+	}
+
         //tag and item strings are the same.
         snprintf(shell_command_line, MAX_PATH_LENGTH, " \"%s\" ", str_buff);
         Debug(DBG_MENU_HARDWARE_PROBE, ("1.shell_command_line: %s\n", shell_command_line));
@@ -285,6 +379,12 @@ int menu_hardware_probe::hardware_probe()
         local_menu_str += shell_command_line;
 
         probed_cards_count++;
+
+#if defined(ZAPTEL_PARSER)
+  	if(sang_card_list != NULL){
+	  add_card_to_list(shell_command_line);
+	}
+#endif
       }
     }
 
@@ -313,9 +413,10 @@ int menu_hardware_probe::hardware_probe()
   return YES;
 }
 
-int menu_hardware_probe::parse_selected_card_line(char* selected_card_line,
-                                                  char* card_type,
-                                                  unsigned int* card_version)
+int menu_hardware_probe::parse_selected_card_line(char *selected_card_line,
+                                                  char *card_type,
+                                                  unsigned int *card_version,
+                                                  unsigned int *card_sub_version)
 {
   char * tmp;
   int rc = NO;
@@ -418,7 +519,49 @@ int menu_hardware_probe::parse_selected_card_line(char* selected_card_line,
   }
 
   //
-  //A101/2 (AFT) T1/E1 card
+  //A104 (AFT) quad port T1/E1 card. A108 handled the same way as A104.
+  //August 11, 2006: added A101/A102 Shark
+  if( strstr(selected_card_line, "AFT-A104") 	!= NULL ||
+      strstr(selected_card_line, "AFT-A108") 	!= NULL	||
+      strstr(selected_card_line, "AFT-A101-SH") != NULL ||
+      strstr(selected_card_line, "AFT-A102-SH") != NULL){
+    
+    Debug(DBG_MENU_HARDWARE_PROBE, ("found \"AFT-A104\" string\n"));
+    
+    rc = YES;
+    *card_type = WANOPT_AFT;
+    *card_version = A104_ADPTR_4TE1;//indicates A104 and A101/A102 Shark
+
+    char *hw_ec_max_num_ptr = strstr(selected_card_line, "HWEC=");
+    if(hw_ec_max_num_ptr != NULL){
+      char *max_ec_str = strdup(hw_ec_max_num_ptr);
+      char *max_ec_ptr = max_ec_str;
+      char *tmp_str = strstr(max_ec_str, ":");
+      if (tmp_str != NULL) {
+      	*(tmp_str-1)='\0';
+      }
+      Debug(DBG_MENU_HARDWARE_PROBE, ("hw_ec_max_num_ptr: %s\n", hw_ec_max_num_ptr));
+      max_ec_str += strlen("HWEC=");
+      //valid values are: 0, 32, 128, 256.
+      //0 (zero) means there is no HWEC on the card.
+      global_hw_ec_max_num = atoi(max_ec_str);
+      Debug(DBG_MENU_HARDWARE_PROBE, ("global_hw_ec_max_num: %d\n", global_hw_ec_max_num));
+      free(max_ec_ptr);
+    }
+#if defined(ZAPTEL_PARSER)
+    if( strstr(selected_card_line, "SH") != NULL){
+      Debug(DBG_MENU_HARDWARE_PROBE, ("*card_sub_version = A104D\n"));
+      *card_sub_version = A104D;
+    }else{
+      Debug(DBG_MENU_HARDWARE_PROBE, ("*card_sub_version = A104\n"));
+      *card_sub_version = A104;
+    }
+#endif
+    goto done;
+  }
+
+  //
+  //Old (original) A101/2 (AFT) T1/E1 card
   //
   if( strstr(selected_card_line, "A100") != NULL ||
       strstr(selected_card_line, "AFT-A101") != NULL ||
@@ -429,34 +572,61 @@ int menu_hardware_probe::parse_selected_card_line(char* selected_card_line,
     goto done;
   }
 
-  //
-  //A104 (AFT) quad port T1/E1 card
-  //
-  if( strstr(selected_card_line, "AFT-A104") != NULL){
 
-    Debug(DBG_MENU_HARDWARE_PROBE, ("found \"AFT-A104\" string\n"));
-    
-    rc = YES;
-    *card_type = WANOPT_AFT;
-    *card_version = A104_ADPTR_4TE1;//indicates A104
-    goto done;
-  }
-  
+
+
   //
   //A105 (AFT) T3/E3 card
   //
   if( strstr(selected_card_line, "A105-1-PCI") != NULL ||
       strstr(selected_card_line, "A105-2-PCI") != NULL ||
-      strstr(selected_card_line, "AFT-A300") != NULL || 
-      strstr(selected_card_line, "AFT-A301") != NULL) {
+      strstr(selected_card_line, "AFT-A301") != NULL ||
+      strstr(selected_card_line, "AFT-A300") != NULL){
     rc = YES;
     *card_type = WANOPT_AFT;
     *card_version = A300_ADPTR_U_1TE3;//WAN_MEDIA_DS3;//indicates A105
     goto done;
   }
 
+  //
+  //Analog card
+  //
+  if( strstr(selected_card_line, "AFT-A200-SH") != NULL || 
+      strstr(selected_card_line, "AFT-A400-SH") != NULL){
+    rc = YES;
+    *card_type = WANOPT_AFT;
+    *card_version = A200_ADPTR_ANALOG;
+    global_card_type = WANOPT_AFT;
+    global_card_version = A200_ADPTR_ANALOG;
+
+    char *hw_ec_max_num_ptr = strstr(selected_card_line, "HWEC=");
+    if(hw_ec_max_num_ptr != NULL){
+      Debug(DBG_MENU_HARDWARE_PROBE, ("hw_ec_max_num_ptr: %s\n", hw_ec_max_num_ptr));
+      hw_ec_max_num_ptr += strlen("HWEC=");
+      //valid values are: 0, 32, 128.
+      //0 (zero) means there is no HWEC on the card.
+      global_hw_ec_max_num = atoi(hw_ec_max_num_ptr);
+      Debug(DBG_MENU_HARDWARE_PROBE, ("global_hw_ec_max_num: %d\n", global_hw_ec_max_num));
+    }
+    goto done;
+    }	
+  //
+  //A056 (AFT) 56k DDS card
+  //
+ 
+  if( strstr(selected_card_line, "AFT-A056-SH") != NULL){
+    rc = YES;
+    *card_type = WANOPT_AFT;
+    *card_version = AFT_ADPTR_56K;
+    goto done;
+   }
+
 done:
 
+  if(global_hw_ec_max_num == 1){
+    //it is default value! it means the card does NOT have HWEC.
+    global_hw_ec_max_num = 0;
+  }
   return rc;
 }
 
@@ -611,12 +781,11 @@ int menu_hardware_probe::get_port_from_str(char * str_buff, int* comm_port)
   }
 
   tmp += strlen("PORT=");
-  
-
-  if(strncmp(tmp, "PRI",3) == 0){
+/*
+  if(strcmp(tmp, "PRI") == 0){
     *comm_port = 0;
     Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): PORT : PRI\n"));
-  }else if(strncmp(tmp, "SEC",3) == 0){
+  }else if(strcmp(tmp, "SEC") == 0){
     *comm_port = 1;
     Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): PORT : SEC\n"));
   }else{
@@ -624,7 +793,18 @@ int menu_hardware_probe::get_port_from_str(char * str_buff, int* comm_port)
     ERR_DBG_OUT(("Failed to get 'comm_port' from line: %s!\n", str_buff));
     return NO;
   }
-
+*/
+  if(strstr(tmp, "PRI") != NULL){
+    *comm_port = 0;
+    Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): PORT : PRI\n"));
+  }else if(strstr(tmp, "SEC") != NULL){
+    *comm_port = 1;
+    Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): PORT : SEC\n"));
+  }else{
+    Debug(DBG_MENU_HARDWARE_PROBE, ("get_port_from_str(): Invalid Port!!\n"));
+    ERR_DBG_OUT(("Failed to get 'comm_port' from line: %s!\n", str_buff));
+    return NO;
+  }
   return YES;
 }
 
@@ -707,4 +887,109 @@ int menu_hardware_probe::verify_hwprobe_command_is_successfull()
   
   return rc;
 }
+
+#if defined(ZAPTEL_PARSER)
+int menu_hardware_probe::add_card_to_list(IN char *hw_probe_output_line)
+{
+  int rc = YES, key;
+  char card_type;
+  int card_version = 0, card_sub_version = 0;
+  unsigned int line_no, PCI_slot_no, pci_bus_no;
+  char S514_CPU_no[10];
+
+  list_element_sangoma_card *sangoma_card, *last_in_list_card;
+
+  replace_new_line_with_zero_term(hw_probe_output_line);
+
+  if(parse_selected_card_line(
+                  hw_probe_output_line,
+                  (char*)&card_type,
+                  (unsigned int*)&card_version,
+                  (unsigned int*)&card_sub_version) == NO){
+    ERR_DBG_OUT(("Failed to get Card Type from from Hardware Proble output line!! line: %s\n",
+    		hw_probe_output_line));
+    rc = NO;
+    goto cleanup;
+  }
+
+  switch(sang_card_list->get_list_card_type())
+  {
+  case CARD_TYPE_ANY:
+    //caller needs ALL detected cards
+    break;
+
+  case WANOPT_AFT:
+    //caller needs only TE1 cards
+    if(card_type == WANOPT_AFT && (card_version == A101_ADPTR_1TE1 || card_version == A104_ADPTR_4TE1)){
+      break;
+    }else{
+      rc = YES;
+      goto cleanup;
+    }
+
+  case WANOPT_AFT_ANALOG:
+    //caller needs only Analog cards
+    if(card_type == WANOPT_AFT && card_version == A200_ADPTR_ANALOG){
+      break;
+    }else{
+      rc = YES;
+      goto cleanup;
+    }
+
+  default:
+    //not interested in other cards
+    rc = YES;
+    goto cleanup;
+  }
+
+  if(get_line_number_from_str(hw_probe_output_line, &line_no) == NO){
+    ERR_DBG_OUT(("Failed to get Line Number (Port) from Hardware Proble output line!! line: %s\n",
+    		hw_probe_output_line));
+    rc = NO;
+    goto cleanup;
+  }
+
+  if(get_slot_from_str(hw_probe_output_line, &PCI_slot_no) == NO){
+      ERR_DBG_OUT(("Failed to get 'PCI_slot_no' from line: %s!\n",
+        hw_probe_output_line));
+      return NO;
+  }
+
+  if(get_bus_from_str(hw_probe_output_line, &pci_bus_no) == NO){
+      ERR_DBG_OUT(("Failed to get 'pci_bus_no' from line: %s!\n",
+        hw_probe_output_line));
+      return NO;
+  }
+
+  //ADSL card always have only one CPU. But check anyway
+  if(get_cpu_from_str(hw_probe_output_line, S514_CPU_no) == NO){
+      ERR_DBG_OUT(("Failed to get 'S514_CPU_no' from line: %s!\n",
+        hw_probe_output_line));
+      return NO;
+  }
+
+  Debug(DBG_CARD_LIST, ("%s(): adding card_type: %d, card_version: %d\n\
+line_no: %d, PCI_slot_no: %d, pci_bus_no: %d, CPU: %c\n",
+	__FUNCTION__, card_type, card_version, line_no, PCI_slot_no, pci_bus_no,
+  	S514_CPU_no[0]));
+
+  sangoma_card = new list_element_sangoma_card(	card_type, card_version,
+						line_no, PCI_slot_no, pci_bus_no,
+  						S514_CPU_no[0], card_sub_version);
+
+  if((last_in_list_card = (list_element_sangoma_card*)sang_card_list->get_last()) == NULL){
+    key = 1;
+  }else{
+    key = last_in_list_card->get_key() + 1;
+  }
+
+  sangoma_card->set_key(key);
+
+  sang_card_list->insert((list_element*)sangoma_card);
+
+cleanup:
+
+  return rc;
+}
+#endif
 

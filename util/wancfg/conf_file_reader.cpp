@@ -44,7 +44,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "PCISLOT",    offsetof(wandev_conf_t, PCI_slot_no), DTYPE_UINT },
   { "PCIBUS", 	  offsetof(wandev_conf_t, pci_bus_no),	DTYPE_UINT },
   { "AUTO_PCISLOT",offsetof(wandev_conf_t, auto_pci_cfg), DTYPE_UCHAR },
-  { "COMMPORT",   offsetof(wandev_conf_t, comm_port),   DTYPE_UCHAR },
+  { "COMMPORT",   offsetof(wandev_conf_t, comm_port),   DTYPE_UINT },
 
   /* Front-End parameters */
   { "FE_MEDIA",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, media), DTYPE_UCHAR },
@@ -66,6 +66,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TE_HIGHIMPEDANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, high_impedance_mode), DTYPE_UCHAR },
   { "TE_REF_CLOCK",offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, te_ref_clock),
 	 DTYPE_UINT },
+  { "TE_SIG_MODE",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, sig_mode), DTYPE_UINT },
   /* T1/E1 Front-End parameters (old style) */
   { "LBO",           offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, lbo), DTYPE_UCHAR },
   { "ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te_cfg_t, active_ch), DTYPE_ULONG },
@@ -83,8 +84,20 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   
   { "TE3_TXLBO",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, liu_cfg) + offsetof(sdla_te3_liu_cfg_t, tx_lbo), DTYPE_UINT },
 
-   { "TE3_CLOCK",         offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, clock), DTYPE_UCHAR },
+   { "TE3_CLOCK",       offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_te3_cfg_t, clock), DTYPE_UCHAR },
    
+  { "TDMV_LAW",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, tdmv_law), DTYPE_UINT },
+
+  { "TDMV_OPERMODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_remora_cfg_t, opermode_name), DTYPE_STR },
+
+  { "RM_NETWORK_SYNC",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + offsetof(sdla_remora_cfg_t, network_sync), DTYPE_UCHAR},
+
+/* DAVIDY: Uncomment this when RM_BATTTHRESH and RM_BATTDEBOUNCE become available in 2.3.4 drivers*/ 
+#if 0
+  { "RM_BATTTHRESH",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battthresh), DTYPE_UINT },
+  { "RM_BATTDEBOUNCE",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battdebounce), DTYPE_UINT },
+#endif
+  
   { "BAUDRATE",   offsetof(wandev_conf_t, bps),         DTYPE_UINT },
   { "MTU",        offsetof(wandev_conf_t, mtu),         DTYPE_UINT },
   { "UDPPORT",    offsetof(wandev_conf_t, udp_port),    DTYPE_UINT },
@@ -133,9 +146,9 @@ key_word_t ppp_conftab[] =	// PPP-specific configuration (on Firmware PPP)
 };
 */
 
+#if 0
 key_word_t synch_ppp_conftab[] =	/* PPP-on LIP layer configuration */
  {
-#if 0
   { "IP_MODE",        	offsetof(wan_sppp_if_conf_t, dynamic_ip),       DTYPE_UCHAR},
   { "IP_MODE",		offsetof(wan_sppp_if_conf_t, dynamic_ip),       DTYPE_UCHAR},
   { "PAP",   	     	offsetof(wan_sppp_if_conf_t, pap),		DTYPE_UCHAR},
@@ -143,8 +156,12 @@ key_word_t synch_ppp_conftab[] =	/* PPP-on LIP layer configuration */
   { "USERID",        	offsetof(wan_sppp_if_conf_t, userid),	 	DTYPE_STR},
   { "PASSWD",        	offsetof(wan_sppp_if_conf_t, passwd),		DTYPE_STR},
   { "SYSNAME",       	offsetof(wan_sppp_if_conf_t, sysname),		DTYPE_STR},
+  { NULL, 0, 0 }
+};
 #endif
 
+key_word_t sppp_conftab[] =	/* PPP-CHDLC (in LIP layer!!!) specific configuration */
+ {
   { "IP_MODE",        offsetof(wan_sppp_if_conf_t, dynamic_ip),       DTYPE_UCHAR},
 	
   { "AUTH_TIMER",     offsetof(wan_sppp_if_conf_t, pp_auth_timer),    DTYPE_UINT},
@@ -159,13 +176,14 @@ key_word_t synch_ppp_conftab[] =	/* PPP-on LIP layer configuration */
   { "PASSWD",         offsetof(wan_sppp_if_conf_t, passwd),	DTYPE_STR},
   { "SYSNAME",        offsetof(wan_sppp_if_conf_t, sysname),	DTYPE_STR},
 
-  { "KEEPALIVE_ERROR_MARGIN", offsetof(wan_sppp_if_conf_t, keepalive_err_margin),    DTYPE_UINT },        
+  { "KEEPALIVE_ERROR_MARGIN", offsetof(wan_sppp_if_conf_t, keepalive_err_margin),    DTYPE_UINT },
+
   { NULL, 0, 0 }
 };
 
-#if 1
+#if 0
 //not used by MP_CHDLC!! - it is all in 'wanif_conf_t'
-key_word_t chdlc_conftab[] =	/* Cisco HDLC-specific configuration */
+key_word_t chdlc_conftab[] =	/* Cisco HDLC-specific configuration - in FIRMWARE!!*/
  {
   { "IGNORE_DCD", offsetof(wan_chdlc_conf_t, ignore_dcd), DTYPE_UCHAR},
   { "IGNORE_CTS", offsetof(wan_chdlc_conf_t, ignore_cts), DTYPE_UCHAR},
@@ -202,6 +220,9 @@ key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
   { "DATA_MUX_MAP",  offsetof(wan_xilinx_conf_t, data_mux_map),      DTYPE_UINT },
   { "TDMV_SPAN",     offsetof(wan_xilinx_conf_t, tdmv_span_no),      DTYPE_UINT},
   { "TDMV_DCHAN",    offsetof(wan_xilinx_conf_t, tdmv_dchan),   DTYPE_UINT},
+  //{ "TDMV_HWEC",     offsetof(wan_xilinx_conf_t, tdmv_hwec),    DTYPE_UCHAR},
+  //{ "TDMV_HWEC_MAP", offsetof(wan_xilinx_conf_t, tdmv_hwec_map),    DTYPE_UCHAR},
+  { "RX_CRC_BYTES",  offsetof(wan_xilinx_conf_t, rx_crc_bytes), DTYPE_UINT},
   { NULL, 0, 0 }
 };
 
@@ -238,9 +259,9 @@ key_word_t atm_conftab[] =
 
 key_word_t atm_if_conftab[] =
 {
-  {"ENCAPMODE",        offsetof(wan_atm_conf_if_t,encap_mode), DTYPE_UCHAR },
-  {"VCI", 	       offsetof(wan_atm_conf_if_t,vci), DTYPE_USHORT },
-  {"VPI", 	       offsetof(wan_atm_conf_if_t,vpi), DTYPE_USHORT },
+  {"ENCAPMODE",        offsetof(wan_atm_conf_if_t, encap_mode), DTYPE_UCHAR },
+  {"VCI", 	       offsetof(wan_atm_conf_if_t, vci), DTYPE_USHORT },
+  {"VPI", 	       offsetof(wan_atm_conf_if_t, vpi), DTYPE_USHORT },
 
   {"OAM_LOOPBACK",	offsetof(wan_atm_conf_if_t,atm_oam_loopback),  DTYPE_UCHAR },
   {"OAM_LOOPBACK_INT",  offsetof(wan_atm_conf_if_t,atm_oam_loopback_intr),  DTYPE_UCHAR },
@@ -248,6 +269,7 @@ key_word_t atm_if_conftab[] =
   {"OAM_CC_CHECK_INT",	offsetof(wan_atm_conf_if_t,atm_oam_continuity_intr),  DTYPE_UCHAR },
   {"ATMARP",		offsetof(wan_atm_conf_if_t,atm_arp),  DTYPE_UCHAR },
   {"ATMARP_INT",	offsetof(wan_atm_conf_if_t,atm_arp_intr),  DTYPE_UCHAR },
+  {"MTU",		offsetof(wan_atm_conf_if_t,mtu),  DTYPE_USHORT },
   { NULL, 0, 0 }
 };
 
@@ -259,6 +281,7 @@ key_word_t xilinx_if_conftab[] =
   { "MRU",     	offsetof(wan_xilinx_conf_if_t, mru),  DTYPE_UINT },
   { "MTU",     	offsetof(wan_xilinx_conf_if_t, mtu),  DTYPE_UINT },
   { "IDLE_FLAG",     offsetof(wan_xilinx_conf_if_t, idle_flag),  DTYPE_UCHAR},
+  { "DATA_MUX",    offsetof(wan_xilinx_conf_if_t, data_mux),  DTYPE_UCHAR},
   { NULL, 0, 0 }
 };
 
@@ -532,10 +555,10 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
   { "IGNORE_CTS",    	offsetof(wanif_conf_t, ignore_cts),        	DTYPE_UCHAR},
   { "IGNORE_KEEPALIVE", offsetof(wanif_conf_t, ignore_keepalive), 	DTYPE_UCHAR},
   { "HDLC_STREAMING", 	offsetof(wanif_conf_t, hdlc_streaming), 	DTYPE_UCHAR},
-  { "KEEPALIVE_TX_TIMER",	offsetof(wanif_conf_t, keepalive_tx_tmr), 	DTYPE_UINT },
-  { "KEEPALIVE_RX_TIMER",	offsetof(wanif_conf_t, keepalive_rx_tmr), 	DTYPE_UINT },
-  { "KEEPALIVE_ERR_MARGIN",	offsetof(wanif_conf_t, keepalive_err_margin),	DTYPE_UINT },
-  { "SLARP_TIMER", 	offsetof(wanif_conf_t, slarp_timer),    DTYPE_UINT },
+  //{ "KEEPALIVE_TX_TIMER",	offsetof(wanif_conf_t, keepalive_tx_tmr), 	DTYPE_UINT },
+  //{ "KEEPALIVE_RX_TIMER",	offsetof(wanif_conf_t, keepalive_rx_tmr), 	DTYPE_UINT },
+  //{ "KEEPALIVE_ERR_MARGIN",	offsetof(wanif_conf_t, keepalive_err_margin),	DTYPE_UINT },
+  //{ "SLARP_TIMER", 	offsetof(wanif_conf_t, slarp_timer),    DTYPE_UINT },
   { "TTL",        	offsetof(wanif_conf_t, ttl),         DTYPE_UCHAR },
 
   { "STATION" ,          offsetof(wanif_conf_t, station),     DTYPE_UCHAR },
@@ -562,33 +585,39 @@ key_word_t chan_conftab[] =	/* Channel configuration parameters */
   { "XOFF_CHAR",               offsetof(wanif_conf_t, xoff_char),    DTYPE_UINT },	
   //{ "MPPP_PROT",	       offsetof(wanif_conf_t, protocol),  DTYPE_UCHAR},
   { "PROTOCOL",      	       offsetof(wanif_conf_t, protocol),  DTYPE_UCHAR},	//note!! it is read, ignored and
-  										//NOT written!
+  										//NOT written for everything but 
+										//LIP ATM!
   
-  { "ACTIVE_CH",	       offsetof(wanif_conf_t, active_ch),  DTYPE_ULONG},
-  { "SW_DEV_NAME",	       offsetof(wanif_conf_t, sw_dev_name),  DTYPE_STR},
+  { "ACTIVE_CH",	       	offsetof(wanif_conf_t, active_ch),  	DTYPE_ULONG},
+  { "SW_DEV_NAME",	       	offsetof(wanif_conf_t, sw_dev_name),  	DTYPE_STR},
 
   { "DLCI_TRACE_QUEUE",		offsetof(wanif_conf_t, max_trace_queue), DTYPE_UINT},
   { "MAX_TRACE_QUEUE",		offsetof(wanif_conf_t, max_trace_queue), DTYPE_UINT},
 
-  { "TDMV_ECHO_OFF",		offsetof(wanif_conf_t, tdmv_echo_off), DTYPE_UCHAR},
+  { "TDMV_ECHO_OFF",		offsetof(wanif_conf_t, tdmv_echo_off), 	DTYPE_UCHAR},
+
+  { "TDMV_HWEC_MAP", 		offsetof(wanif_conf_t, active_ch),  	DTYPE_ULONG},
+
+  //reusing 'xoff_char' here for HWEC yes/no
+  { "TDMV_HWEC",     		offsetof(wanif_conf_t, xoff_char), DTYPE_UCHAR},
  
   { NULL, 0, 0 }
 };
 
 look_up_t conf_def_tables[] =
 {
-	{ WANCONFIG_PPP,	synch_ppp_conftab},//ppp_conftab	},
 	{ WANCONFIG_FR,		fr_conftab	},
 	{ WANCONFIG_X25,	x25_conftab	},
 	{ WANCONFIG_ADCCP,	x25_conftab	},
-	{ WANCONFIG_CHDLC,	chdlc_conftab	},
-	{ WANCONFIG_MPPP,	chdlc_conftab	},
+	{ WANCONFIG_MPCHDLC,	sppp_conftab},//chdlc_conftab	},
+	{ WANCONFIG_MPPP,	sppp_conftab},//chdlc_conftab	},
 	{ WANCONFIG_MFR,	fr_conftab	},
 	{ WANCONFIG_SS7,	ss7_conftab 	},
 	{ WANCONFIG_ADSL,	adsl_conftab 	},
 	{ WANCONFIG_BSCSTRM,	bscstrm_conftab	},
-	{ WANCONFIG_ATM,	atm_conftab	},
-	{ WANCONFIG_MLINK_PPP,	chdlc_conftab	},
+	//{ WANCONFIG_ATM,	atm_conftab	},
+	//{ WANCONFIG_LIP_ATM,	atm_conftab	},//not used
+	//{ WANCONFIG_MLINK_PPP,	chdlc_conftab	},
 	{ WANCONFIG_AFT,        xilinx_conftab  },
 	{ WANCONFIG_EDUKIT,     edukit_conftab  },
 	{ WANCONFIG_AFT_TE3,    xilinx_conftab  },
@@ -600,6 +629,7 @@ look_up_t conf_def_tables[] =
 look_up_t conf_if_def_tables[] =
 {
 	{ WANCONFIG_ATM,	atm_if_conftab	},
+	{ WANCONFIG_LIP_ATM,	atm_if_conftab	},
 	{ WANCONFIG_BITSTRM,    bitstrm_if_conftab },
 	{ WANCONFIG_AFT,	xilinx_if_conftab },
 	{ WANCONFIG_AFT_TE3,    xilinx_if_conftab },
@@ -617,17 +647,18 @@ look_up_t conf_annexg_def_tables[] =
 look_up_t	config_id_str[] =
 {
 	{ WANCONFIG_PPP,	(void*)"WAN_PPP"	},
-	{ WANCONFIG_FR,		(void*)"WAN_FR"	},
+	{ WANCONFIG_FR,		(void*)"WAN_FR"		},
+	{ WANCONFIG_LIP_ATM,    (void*)"WAN_LIP_ATM"   	},
 	{ WANCONFIG_X25,	(void*)"WAN_X25"	},
 	{ WANCONFIG_CHDLC,	(void*)"WAN_CHDLC"	},
-  	{ WANCONFIG_BSC,        (void*)"WAN_BSC"       },
-  	{ WANCONFIG_HDLC,       (void*)"WAN_HDLC"      },
-	{ WANCONFIG_MPROT,      (void*)"WAN_MULTPROT"  },
-	{ WANCONFIG_MPPP,       (void*)"WAN_MULTPPP"   },
+  	{ WANCONFIG_BSC,        (void*)"WAN_BSC"       	},
+  	{ WANCONFIG_HDLC,       (void*)"WAN_HDLC"      	},
+	{ WANCONFIG_MPROT,      (void*)"WAN_MULTPROT"  	},
+	{ WANCONFIG_MPPP,       (void*)"WAN_MULTPPP"   	},
 	{ WANCONFIG_BITSTRM, 	(void*)"WAN_BITSTRM"	},
 	{ WANCONFIG_EDUKIT, 	(void*)"WAN_EDU_KIT"	},
-	{ WANCONFIG_SS7,        (void*)"WAN_SS7"       },
-	{ WANCONFIG_BSCSTRM,    (void*)"WAN_BSCSTRM"   },
+	{ WANCONFIG_SS7,        (void*)"WAN_SS7"       	},
+	{ WANCONFIG_BSCSTRM,    (void*)"WAN_BSCSTRM"   	},
 	{ WANCONFIG_ADSL,	(void*)"WAN_ADSL"	},
 	{ WANCONFIG_ADSL,	(void*)"WAN_ETH"	},
 	{ WANCONFIG_SDLC,	(void*)"WAN_SDLC"	},
@@ -635,6 +666,7 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_POS,	(void*)"WAN_POS"	},
 	{ WANCONFIG_AFT,	(void*)"WAN_AFT"	},
 	{ WANCONFIG_AFT_TE1,	(void*)"WAN_AFT_TE1"	},
+	{ WANCONFIG_AFT_56K,	(void*)"WAN_AFT_56K"	},
 	{ WANCONFIG_AFT_TE3,	(void*)"WAN_AFT_TE3"	},
 	{ WANCONFIG_AFT,	(void*)"WAN_XILINX"	},
 	{ WANCONFIG_MFR,    	(void*)"WAN_MFR"   	},
@@ -643,7 +675,8 @@ look_up_t	config_id_str[] =
 	{ WANCONFIG_ADCCP,    	(void*)"WAN_ADCCP"   	},
 	{ WANCONFIG_MLINK_PPP, 	(void*)"WAN_MLINK_PPP"  },
 	{ WANCONFIG_TTY,	(void*)"WAN_TTY"	}, //????
-	{ 0,			NULL,		}
+	{ WANCONFIG_AFT_ANALOG,	(void*)"WAN_AFT_ANALOG" },
+	{ 0,			NULL,			}
 };
 
 /*
@@ -726,6 +759,7 @@ look_up_t	sym_table[] =
   { WAN_MEDIA_DS3,	(void*)"DS3"           },
   { WAN_MEDIA_STS1,     (void*)"STS-1"         },
   { WAN_MEDIA_E3,       (void*)"E3"            },
+  { WAN_MEDIA_FXOFXS,   (void*)"FXO/FXS"       },
   
   { WAN_LCODE_AMI, 	(void*)"AMI"           },
   { WAN_LCODE_B8ZS,     (void*)"B8ZS"          },
@@ -752,8 +786,13 @@ look_up_t	sym_table[] =
   { WAN_T1_330_440,  	(void*)"330-440FT"     },
   { WAN_T1_440_550,  	(void*)"440-550FT"     },
   { WAN_T1_550_660,  	(void*)"550-660FT"     },
+  { WAN_E1_120,  	(void*)"120OH"     },
+  { WAN_E1_75,  	(void*)"75OOH"     },
   { WAN_NORMAL_CLK,   	(void*)"NORMAL"        },
   { WAN_MASTER_CLK,   	(void*)"MASTER"        },
+  { WAN_TE1_SIG_CAS,	(void*)"CAS"           },
+  { WAN_TE1_SIG_CCS,	(void*)"CCS"		},
+
 
   	/* T3/E3 configuration */
         { WAN_TE3_RDEVICE_ADTRAN,	(void*)"ADTRAN"        },
@@ -786,7 +825,8 @@ look_up_t	sym_table[] =
 	{ WANCONFIG_PPP,	(void*)"PPP"		},
 	{ WANCONFIG_CHDLC,	(void*)"CHDLC"		},
 	{ WANCONFIG_EDUKIT,	(void*)"EDUKIT"		},
-	
+	{ WANCONFIG_LIP_ATM, 	(void*)"MP_ATM"		},
+
 	/*-------------SS7 options--------------*/
 	{ WANOPT_SS7_ANSI,      (void*)"ANSI" },
 	{ WANOPT_SS7_ITU,       (void*)"ITU"  },
@@ -864,6 +904,9 @@ look_up_t	sym_table[] =
 	{ WANOPT_AUTO,  (void*)"AUTO" },
 	{ WANOPT_MANUAL,(void*)"MANUAL" },
 
+	{ WAN_TDMV_ALAW, (void*)"ALAW" },
+	{ WAN_TDMV_MULAW,(void*)"MULAW" },
+
 	/*----- End ---------------------------*/
 	{ 0,			NULL		},
 };
@@ -873,7 +916,7 @@ look_up_t	sym_table[] =
 /****** Global Function Prototypes *************************************************/
 
 int tokenize (char* str, char **tokens);
-char* strstrip (char* str, char* s);
+char* str_strip (char* str, char* s);
 char* strupcase	(char* str);
 void* lookup (int val, look_up_t* table);
 int name2val (char* name, look_up_t* table);
@@ -1170,7 +1213,19 @@ int conf_file_reader::read_devices_section(FILE* file)
     link_defs->linkconf->config_id = WANCONFIG_AFT;
     link_defs->card_version = A104_ADPTR_4TE1;
     break;
+
+  case WANCONFIG_AFT_ANALOG:	/* AFT (shark) analog card */
+    link_defs->linkconf->config_id = WANCONFIG_AFT;
+    link_defs->card_version = A200_ADPTR_ANALOG;
+    break;
+
+  case WANCONFIG_AFT_56K:	/* AFT 56k DDS */
+    link_defs->linkconf->config_id = WANCONFIG_AFT;//WANCONFIG_AFT_56K;
+    link_defs->card_version = AFT_ADPTR_56K;
+    break;
+
   }
+
   Debug(DBG_CONF_FILE_READER, ("Updated link_defs->linkconf->config_id: %d\n",
 			 link_defs->linkconf->config_id)); 
  
@@ -1604,6 +1659,7 @@ int conf_file_reader::read_interfaces_section(
     {
     case WANPIPE:
     case API:
+    case TDM_API:
     case BRIDGE:
     case BRIDGE_NODE:
     //case ANNEXG:
@@ -1785,7 +1841,8 @@ int conf_file_reader::set_conf_param (char* key, char* val, key_word_t* dtab, vo
   if( !isdigit(*val) ||
       strcmp(key, "ACTIVE_CH") == 0 ||
       strcmp(key, "LBO") == 0 ||
-      strcmp(key, "MEDIA") == 0) {
+      strcmp(key, "MEDIA") == 0 ||
+      strcmp(key, "TDMV_HWEC_MAP") == 0 ) {
 	  
     look_up_t* sym;
     unsigned long tmp_ch;
@@ -1797,19 +1854,21 @@ int conf_file_reader::set_conf_param (char* key, char* val, key_word_t* dtab, vo
 	
     if (sym->ptr == NULL) {
       /* TE1 */
-      if (strcmp(key, "ACTIVE_CH")) {		
-	ERR_DBG_OUT((" * invalid term %s ...\n", val));
-	return -1;
-      }
-	
-      if(lnks_def != NULL){
-        /* TE1 Convert active channel string to ULONG */
-        tmp_ch = parse_active_channel(val, lnks_def->linkconf->fe_cfg.media);	
-        if (tmp_ch == 0){
-	  ERR_DBG_OUT(("Illegal active channel range for media type ! (%s).\n", val));
+      if(strcmp(key, "TDMV_HWEC_MAP")){
+        if (strcmp(key, "ACTIVE_CH")) {		
+	  ERR_DBG_OUT((" * invalid term %s ...\n", val));
 	  return -1;
-	}
-	tmp = (unsigned long)tmp_ch;
+        }
+	
+        if(lnks_def != NULL){
+          /* TE1 Convert active channel string to ULONG */
+          tmp_ch = parse_active_channel(val, lnks_def->linkconf->fe_cfg.media);	
+          if (tmp_ch == 0){
+	    ERR_DBG_OUT(("Illegal active channel range for media type ! (%s).\n", val));
+	    return -1;
+	  }
+	  tmp = (unsigned long)tmp_ch;
+        }
       }
 
       Debug(DBG_CONF_FILE_READER, ("Active Channels val: ")); Debug(DBG_CONF_FILE_READER, ("%s\n", val));
@@ -1823,7 +1882,15 @@ int conf_file_reader::set_conf_param (char* key, char* val, key_word_t* dtab, vo
         //lnks_def->chanconf->active_ch = tmp;
       }else if(conf != NULL && chan_def != NULL){
         //time slots for this 'channel'
-        snprintf(chan_def->active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "%s", val);
+        if(strcmp(key, "TDMV_HWEC_MAP") == 0){
+          snprintf(chan_def->active_hwec_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "%s", val);
+	  //chan_def->hwec_flag = WANOPT_YES;
+
+          Debug(DBG_CONF_FILE_READER, ("HWEC Channels: %s\n", 
+		chan_def->active_hwec_channels_string));
+	}else{
+          snprintf(chan_def->active_channels_string, MAX_LEN_OF_ACTIVE_CHANNELS_STRING, "%s", val);
+	}
         //chan_def->chanconf->active_ch = tmp;
       }
       
@@ -2005,7 +2072,7 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
 	  Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
 	  Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
 
-	  if(set_conf_param(token[0], token[1], synch_ppp_conftab, &chandef->chanconf->u.ppp,
+	  if(set_conf_param(token[0], token[1], sppp_conftab, &chandef->chanconf->u.ppp,
 			  NULL, chandef)) {
 	    ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
 	    return ERR_CONFIG;
@@ -2020,6 +2087,7 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
 	  Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_MPCHDLC\n"));	
 	  Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
 	  Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
+
 	  break;
 	
 	case WANCONFIG_LAPB:
@@ -2110,15 +2178,26 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
 
           if(id == WANCONFIG_ADSL && link_defs->sub_config_id == WANCONFIG_MPPP){
             //on ADSL there can be PPP without the LIP layer!!
-	    if(set_conf_param(token[0], token[1], synch_ppp_conftab, &chandef->chanconf->u.ppp,
+	    if(set_conf_param(token[0], token[1], sppp_conftab, &chandef->chanconf->u.ppp,
 			  NULL, chandef)) {
 	      ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
 	      return ERR_CONFIG;
 	    }//if()
+/*
+Nov 21, 2006 - not done anymore - all configuration is in profile
+          }else if(id == WANCONFIG_MPCHDLC){
+	    //getting here because CHDLC configuration is kept in 2 places:
+	    // 1. wanif conf  2. in u.ppp
+	    if(set_conf_param(token[0], token[1], sppp_conftab, &chandef->chanconf->u.ppp,
+			  NULL, chandef)) {
+	      ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
+	      return ERR_CONFIG;
+	    }//if()
+*/
 	  }else{
 	    //not found in 'conf_if_def_tables' too !!
 	    ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
-	   return ERR_CONFIG;
+	    return ERR_CONFIG;
 	  }
 	}
       }//if()
@@ -2193,7 +2272,7 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
 
-	if(set_conf_param(token[0], token[1], synch_ppp_conftab, &chandef->chanconf->u.ppp,
+	if(set_conf_param(token[0], token[1], sppp_conftab, &chandef->chanconf->u.ppp,
 			  NULL, chandef)) {
 	  ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
 	  return ERR_CONFIG;
@@ -2203,11 +2282,19 @@ int conf_file_reader::configure_chan (chan_def_t* chandef, int id)
 	//			 link_defs->linkconf->u.ppp.ip_mode));
 	break;
 
+      case WANCONFIG_CHDLC:
       case WANCONFIG_MPCHDLC:
         //profile for this protocol is empty, so we never get here.
 	Debug(DBG_CONF_FILE_READER_AFT, ("WANCONFIG_MPCHDLC\n"));	
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[0]: %s\n", token[0]));
 	Debug(DBG_CONF_FILE_READER_AFT, ("token[1]: %s\n", token[1]));
+
+        if(set_conf_param(token[0], token[1], sppp_conftab, &chandef->chanconf->u.ppp,
+			  NULL, chandef)) {
+	  ERR_DBG_OUT(("Invalid parameter %s\n", token[0]));
+	  return ERR_CONFIG;
+	}//if()
+
 	break;
 	
       case WANCONFIG_LAPB:
@@ -2397,7 +2484,7 @@ void init_tokens(char **token){
 	}
 }
 
-/* Bug Fix by René Scharfe <l.s.r@web.de>
+/* Bug Fix by RenÃ© Scharfe <l.s.r@web.de>
  * removed strtok
  */
 int tokenize (char *str, char **tokens)
@@ -2422,16 +2509,16 @@ int tokenize (char *str, char **tokens)
 	
  	while (tokens[cnt] && (cnt < MAX_TOKENS-1)) {
 	
-		tokens[cnt] = strstrip(tokens[cnt], " \t");
+		tokens[cnt] = str_strip(tokens[cnt], " \t");
 		
 		if ((tok = strchr(str, ',')) == NULL){
-			tokens[++cnt] = strstrip(str, " \t");
+			tokens[++cnt] = str_strip(str, " \t");
 			goto end_tokenize;
 		}
 
 		*tok='\0';
 
-		tokens[++cnt] = strstrip(str, " \t");
+		tokens[++cnt] = str_strip(str, " \t");
 		str=++tok;
  	}
 
@@ -2442,7 +2529,7 @@ end_tokenize:
 /*============================================================================
  * Strip leading and trailing spaces off the string str.
  */
-char* strstrip (char* str, char* s)
+char* str_strip (char* str, char* s)
 {
 	char* eos = str + strlen(str);		/* -> end of string */
 

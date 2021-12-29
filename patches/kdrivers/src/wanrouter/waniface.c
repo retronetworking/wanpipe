@@ -249,8 +249,9 @@ int wanpipe_api_sock_rx (struct sk_buff *skb, netdevice_t *dev, void *sk_id)
 	WAN_ASSERT2((!dev),-ENODEV);
 	WAN_ASSERT2((!skb),-ENOBUFS);
 
-	if (!IS_FUNC_CALL(api_socket,wanpipe_api_sock_rcv))
+	if (!IS_FUNC_CALL(api_socket,wanpipe_api_sock_rcv)){
 		return -ENODEV;
+	}
 	
 	return api_socket.wanpipe_api_sock_rcv(skb, dev, (struct sock *)sk_id);
 }

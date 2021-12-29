@@ -1,0 +1,7 @@
+#!/bin/sh
+
+cp /common/include/*.h /usr/src/linux/include/linux
+cp /wanpipe/code/include/annexg/*.h /usr/src/linux/include/linux
+cp -f /wanpipe/code/include/*.h /usr/src/linux/include/linux
+echo "UPDATE COMPLETE FOR $(uname -r)"
+

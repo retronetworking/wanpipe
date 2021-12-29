@@ -18,8 +18,10 @@
 #define DBG_WANCFG_MAIN 1
 
 #include "wancfg.h"
+
 #include "text_box.h"
 #include "text_box_yes_no.h"
+#include "message_box.h"
 
 #include "conf_file_reader.h"
 #include "list_element_chan_def.h"
@@ -29,16 +31,44 @@
 #include "list_element_tty_interface.h"
 #include "list_element_lapb_interface.h"
 
+#if defined(CONFIG_PRODUCT_WANPIPE_LIP_ATM)
+#include "list_element_atm_interface.h"
+#endif
+
 #include "objects_list.h"
 #include "menu_main_configuration_options.h"
+#include "wanrouter_rc_file_reader.h"
+
+#if defined(ZAPTEL_PARSER)
+#include "zaptel_conf_file_reader.h"
+#include "menu_hardware_probe.h"
+#include "sangoma_card_list.h"
+int zaptel_to_wanpipe();
+#endif
 
 //globals
-char * lxdialog_path = "/usr/sbin/wanpipe_lxdialog";
-char * wanpipe_cfg_dir = "/etc/wanpipe/";
+char lxdialog_path[MAX_PATH_LENGTH];// usually /usr/sbin/wanpipe_lxdialog
+char wan_bin_dir[MAX_PATH_LENGTH];
+
+const char * wanpipe_cfg_dir = "/etc/wanpipe/";
 char * start_stop_scripts_dir = "scripts";
 
 char * interfaces_cfg_dir = "/etc/wanpipe/interfaces/";
 char * date_and_time_file_name = "date_and_time_file.tmp";
+
+int global_card_type = 0;
+int global_card_version = 0;
+
+//It is assumed the card HAS HWEC, the only time when
+//it is know for sure, is when "hwprobe" is used to detect
+//the card. If no HWEC detected, 'global_hw_ec_max_num' will
+//be set to zero.
+//The reson for this is: there is no way to know if card has
+//HWEC when the 'conf' file is edited.
+int global_hw_ec_max_num = 1;
+
+char zaptel_conf_path[MAX_PATH_LENGTH];// usually /etc/
+char *zaptel_default_conf_path = "/etc/";
 
 ////////////////////////////////////////////////////////////
 //help messages
@@ -84,10 +114,13 @@ char *krnl_log_file = "/var/log/messages";
 char *verbose_log = "/var/log/wanrouter";
 
 char is_there_a_voice_if=NO;
+char is_there_a_lip_atm_if=NO;
 
 ///////////////////////////////////////////////
 
 int active_channels_str_invalid_characters_check(char* active_ch_str);
+int read_wanrouter_rc_file();
+int main_loop();
 void cleanup();
 
 ///////////////////////////////////////////////
@@ -238,6 +271,10 @@ char * get_protocol_string(int protocol)
   case WANCONFIG_LAPB:
     snprintf((char*)protocol_name, MAX_PATH_LENGTH, "HDLC LAPB");
     break;
+
+  case WANCONFIG_LIP_ATM:
+    snprintf((char*)protocol_name, MAX_PATH_LENGTH, "ATM (LIP)");
+    break;
     
   default:
     ERR_DBG_OUT(("Invalid protocol: %d\n", protocol));
@@ -253,14 +290,14 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 						IN void* info,
 						IN unsigned int new_number_of_logical_channels)
 {
-  int rc = YES;
+  int rc = YES, insert_rc;
   list_element_chan_def* chan_def_tmp = NULL;
   list_element_chan_def* list_el_chan_def_last = NULL;
   list_element_chan_def* list_el_chan_def_first = NULL;
   objects_list* obj_list = (objects_list*)list;
   char* name_of_parent_layer = NULL;
   conf_file_reader* cfr = NULL;
-    
+
   Debug(DBG_WANCFG_MAIN, ("adjust_number_of_logical_channels_in_list(): config_id: %d.\n",
       config_id));
      
@@ -275,6 +312,7 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
   case WANCONFIG_MPCHDLC:
   case WANCONFIG_TTY:
   case WANCONFIG_LAPB:
+  case WANCONFIG_LIP_ATM:
     name_of_parent_layer = (char*)info;
     break;
 	  
@@ -300,6 +338,9 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
     //
     while(obj_list->get_size() != new_number_of_logical_channels)
     {
+      Debug(DBG_WANCFG_MAIN, ("obj_list->get_size(): %d (configid: %d)\n", obj_list->get_size(),
+      		config_id));
+
       switch(config_id)
       {
       case WANCONFIG_MFR:
@@ -323,6 +364,12 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	chan_def_tmp = (list_element_chan_def*)(new list_element_ppp_interface());
 	break;
 	
+#if defined(CONFIG_PRODUCT_WANPIPE_LIP_ATM)
+      case WANCONFIG_LIP_ATM:
+	chan_def_tmp = (list_element_chan_def*)(new list_element_atm_interface());
+	break;
+#endif
+
       case WANCONFIG_MPCHDLC:
 	chan_def_tmp = (list_element_chan_def*)(new list_element_chdlc_interface());
 	break;
@@ -348,12 +395,17 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	switch(config_id)
 	{
 	case WANCONFIG_MFR:
-	  
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d",
                                           atoi(list_el_chan_def_last->data.addr) + 1);
 	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_MFR;
 	  break;
-	  
+	
+	case WANCONFIG_LIP_ATM:
+	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d",
+                                          atoi(list_el_chan_def_last->data.addr) + 1);
+	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_LIP_ATM;
+	  break;
+  
 	case WANCONFIG_MPPP:
 	case WANCONFIG_TTY:
 	case WANCONFIG_MPCHDLC:
@@ -408,6 +460,11 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_MPCHDLC;
 	  break;
 	  
+	case WANCONFIG_LIP_ATM:
+	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d", 1);
+	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_LIP_ATM;
+	  break;
+
 	case WANCONFIG_MPPP:
 	  snprintf(chan_def_tmp->data.addr, MAX_ADDR_STR_LEN, "%d", 1);
 	  chan_def_tmp->data.chanconf->config_id = WANCONFIG_MPPP;
@@ -484,6 +541,19 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 #endif
 	break;
 	
+      case WANCONFIG_LIP_ATM:
+#if defined(__LINUX__) && !BSD_DEBG
+        snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%sa%s",
+	    name_of_parent_layer,
+	    chan_def_tmp->data.addr);
+#elif (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__) || BSD_DEBG
+	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%sa%s",
+	    //underlying layer name ends with digit - change it
+	    replace_numeric_with_char(name_of_parent_layer),
+	    chan_def_tmp->data.addr);
+#endif
+	break;
+
       case WANCONFIG_MPCHDLC:
 #if defined(__LINUX__) && !BSD_DEBG
 	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%schdl",
@@ -552,20 +622,31 @@ int adjust_number_of_logical_channels_in_list(	int config_id,
 	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "w%dad",
 	  cfr->wanpipe_number);
 #elif (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__) || BSD_DEBG
-	//name must end with a digit
-	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "w%dad0",
+	//name must end with a digit: i.g. : wbad0 == w2ad0
+	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "w%dad",
 	  cfr->wanpipe_number);
+	
+	snprintf(chan_def_tmp->data.name, WAN_IFNAME_SZ, "%s",
+	  replace_numeric_with_char(chan_def_tmp->data.name));
+
+	snprintf(&chan_def_tmp->data.name[strlen(chan_def_tmp->data.name)],
+	  WAN_IFNAME_SZ, "%d", 0);
 #endif
 	break;
       }//switch()
       
-      obj_list->insert(chan_def_tmp);
+      //very important check! otherwise may get into infinite loop!!
+      if((insert_rc = obj_list->insert(chan_def_tmp)) != LIST_ACTION_OK){
+        ERR_DBG_OUT(("Failed to add new interface: name: %s, address: %s, return code: %s!\n",
+		chan_def_tmp->data.name, chan_def_tmp->data.addr, DECODE_LIST_ACTION_RC(insert_rc)));
+        return NO;
+      }
 
     }//while()
 
   }else if(new_number_of_logical_channels < obj_list->get_size()){
 
-    //remove unneeded DLCIs (from the end of the list)
+    //remove unneeded interfaces (DLCIs or ATM ifs) - from the end of the list!
     while(obj_list->get_size() != new_number_of_logical_channels &&
           (chan_def_tmp = (list_element_chan_def*)obj_list->remove_from_head()) != NULL){
       delete chan_def_tmp;
@@ -592,6 +673,8 @@ int get_config_id_from_profile(char* config_id)
     return WANCONFIG_TTY;
   }else if(!strcmp(config_id, "lip_lapb")){
     return WANCONFIG_LAPB;
+  }else if(!strcmp(config_id, "lip_atm")){
+    return WANCONFIG_LIP_ATM;
   }else{
     return PROTOCOL_NOT_SET;
   }
@@ -618,6 +701,8 @@ char * get_card_type_string(int card_type, int card_version)
 {
   static char card_type_name[MAX_PATH_LENGTH];
 
+  snprintf(card_type_name, MAX_PATH_LENGTH, "???");
+
   switch(card_type)
   {
   case NOT_SET:
@@ -638,14 +723,20 @@ char * get_card_type_string(int card_type, int card_version)
     case A101_ADPTR_1TE1://WAN_MEDIA_T1:
     	snprintf(card_type_name, MAX_PATH_LENGTH, "A101/2");
 	break;
-
-    case A104_ADPTR_4TE1:
-        snprintf(card_type_name, MAX_PATH_LENGTH, "A104");
+    case A104_ADPTR_4TE1://including A101-SH and A102-SH
+        snprintf(card_type_name, MAX_PATH_LENGTH, "A101/2/4/8");
 	break;
-	
     case A300_ADPTR_U_1TE3://WAN_MEDIA_DS3:
     	snprintf(card_type_name, MAX_PATH_LENGTH, "A301-T3/E3");
 	break;
+    case A200_ADPTR_ANALOG:
+    	snprintf(card_type_name, MAX_PATH_LENGTH, "A200/A400-Analog");
+	break;
+    case AFT_ADPTR_56K:
+    	snprintf(card_type_name, MAX_PATH_LENGTH, "A056-56k DDS");
+	break;
+    default:
+        ERR_DBG_OUT(("Invalid AFT card version: 0x%x!\n", card_version));
     }
     break;
   default:
@@ -704,7 +795,8 @@ int is_console_size_valid()
     }
   }else{
     //window size unknown. put a warning but continue.
-    err_printf("\nFailed to get console window size!\n");
+    err_printf("\nFailed to get console window size row=%i col=%i!\n",
+		    	win.ws_row,win.ws_col);
   }
   return YES;
 }
@@ -1332,7 +1424,7 @@ int yes_no_question(  OUT int* selection_index,
 {
   FILE * yes_no_question_file;
   char yes_no_question_buff[LEN_OF_DBG_BUFF];
-	va_list ap;
+  va_list ap;
   char* yes_no_question_file_name = "wancfg_yes_no_question_file_name";
   //char* remove_yes_no_question_file = "rm -rf wancfg_yes_no_question_file_name";
   int rc = YES;
@@ -1443,6 +1535,8 @@ int get_used_by_integer_value(char* used_by_str)
     return WANPIPE;
   }else if(strcmp(used_by_str, "API") == 0){
     return API;
+  }else if(strcmp(used_by_str, "TDM_API") == 0){
+    return TDM_API;
   }else if(strcmp(used_by_str, "BRIDGE") == 0){
     return BRIDGE;
   }else if(strcmp(used_by_str, "BRIDGE_NODE") == 0){
@@ -1473,6 +1567,9 @@ char* get_used_by_string(int used_by)
 
   case API:
     return "API";
+
+  case TDM_API:
+    return "TDM_API";
 
   case BRIDGE:
     return "BRIDGE";
@@ -1646,17 +1743,17 @@ int active_channels_str_invalid_characters_check(char* active_ch_str)
 
 	while(*ptr != '\0') {
 		if (isdigit(*ptr)) {
-      ;//ok
+      			;//ok
 		} else {
 			if(*ptr == '-' || *ptr == '.') {
-        ;//ok
+        			;//ok
 			}else{
-        //invalid char
-        printf("Found invalid character '%c' in active channels string!!", *ptr);
-        return NO;
+			        //invalid char
+			        printf("Found invalid character '%c' in active channels string!!", *ptr);
+			        return NO;
 			}
 		}
-	  ptr++;
+		ptr++;
 	}//while()
   return YES;
 }
@@ -1974,7 +2071,25 @@ char* replace_numeric_with_char(char* str)
 	return new_str;
 }
 
-#if 1
+//Read location of "lxdialog" and other configrable path settings.
+int read_wanrouter_rc_file()
+{
+  wanrouter_rc_file_reader wanrouter_rc_fr(0);
+
+  if(wanrouter_rc_fr.get_setting_value("WAN_BIN_DIR=", wan_bin_dir, MAX_PATH_LENGTH) == NO){
+    return NO;
+  }
+
+  Debug(DBG_WANCFG_MAIN, ("wan_bin_dir: %s\n", wan_bin_dir));
+
+  replace_new_line_with_zero_term(wan_bin_dir);
+
+  snprintf(lxdialog_path, MAX_PATH_LENGTH, "%s/wanpipe_lxdialog", wan_bin_dir);
+
+  Debug(DBG_WANCFG_MAIN, ("lxdialog_path: %s\n", lxdialog_path));
+
+  return YES;
+}
 
 void cleanup()
 {
@@ -1993,18 +2108,34 @@ void cleanup()
   system(command_line);
 }
 
+
 int main(int argc, char *argv[])
 {
-  int selection_index;
   int rc = EXIT_SUCCESS;
-  text_box note_text;
-  menu_main_configuration_options main_menu_box(lxdialog_path);
 
   Debug(DBG_WANCFG_MAIN, ("%s: main()\n", WANCFG_PROGRAM_NAME));
 
-  if(argc == 2 && !strcmp(argv[1], "-v")){
-    printf("\nwancfg version: 1.05\n");
+  if(argc == 2 && !strcmp(argv[1], "version")){
+    printf("\nwancfg version: 1.28\n");
     return EXIT_SUCCESS;
+  }
+
+#if defined(ZAPTEL_PARSER)
+  //user needs to convert zaptel.conf to wanpipe#.conf file(s)
+  if(argc == 2 && !strcmp(argv[1], "zaptel")){
+    zaptel_to_wanpipe();
+    return EXIT_SUCCESS;
+  }
+#endif
+
+  //this call must be done BEFORE any dialog created!!
+  if(read_wanrouter_rc_file() == NO){
+    //intitialize with most common default path
+    snprintf(wan_bin_dir, MAX_PATH_LENGTH, "/usr/sbin");
+    snprintf(lxdialog_path, MAX_PATH_LENGTH, "%s/wanpipe_lxdialog", wan_bin_dir);
+
+    err_printf("Failed to read 'WAN_BIN_DIR' in 'wanrouter.rc'! Using default: '%s'.",
+	wan_bin_dir);
   }
   
   if(is_console_size_valid() == NO){
@@ -2012,42 +2143,7 @@ int main(int argc, char *argv[])
     goto cleanup;
   }
 
-  note_text.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
-"Please note:\n\
- 1.This program can be used to configure\n\
-   Frame Relay, PPP, CISCO HDLC, HDLC Streaming,\n\
-   TDM Voice (AFT only), TTY and EduKit to run on\n\
-   Sangoma S508/S514/S518(ADSL)/AFT cards.\n\n\
-   If you need to configure any other protocols,\n\
-   use \"/usr/sbin/wancfg_legacy\" utility.\n\n\
- 2.You can exit any of application's dialogs\n\
-   by pressing \"Esc\" key. No data will be\n\
-   saved to file in this case.");
-
-again:
-
-  /////////////////////////////////////////////////////////////////////////////////
-  if(main_menu_box.run(&selection_index) == NO){
-    rc = EXIT_FAILURE;
-    goto cleanup;
-  }
-
-  switch(selection_index)
-  {
-  case MENU_BOX_BUTTON_SELECT:
-  case MENU_BOX_BUTTON_HELP:
-    goto again;
-
-  case MENU_BOX_BUTTON_EXIT:
-    //exit the program
-    break;
-
-  default:
-    ERR_DBG_OUT(("Unknown selection_index: %d\n", selection_index));
-    rc = EXIT_FAILURE;
-    goto cleanup;
-  }
-
+  rc = main_loop();
 cleanup:
 
   if(rc == EXIT_SUCCESS){
@@ -2061,7 +2157,56 @@ cleanup:
   
   return rc;
 }
-#endif
+
+int main_loop()
+{
+  int		selection_index;
+  int 		rc = EXIT_SUCCESS;
+  char 		exit_main_loop = NO;
+  message_box	note_text;
+  menu_main_configuration_options main_menu_box(lxdialog_path);
+
+  Debug(DBG_WANCFG_MAIN, ("%s: main_loop()\n", WANCFG_PROGRAM_NAME));
+
+  note_text.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+"Please note:\n\
+ 1.This program can be used to configure\n\
+   Frame Relay, PPP, CISCO HDLC, HDLC Streaming,\n\
+   TDM Voice (AFT), TTY and ATM (AFT)\n\
+   to run on Sangoma S508/S514/S518(ADSL)/AFT cards.\n\n\
+   If you need to configure any other protocols,\n\
+   use \"/usr/sbin/wancfg_legacy\" utility.\n\n\
+ 2.You can exit any of application's dialogs\n\
+   by pressing \"Esc\" key. No data will be\n\
+   saved to file in this case.");
+
+  do{
+    if(main_menu_box.run(&selection_index) == NO){
+      exit_main_loop = YES;
+      rc = EXIT_FAILURE;
+      break;
+    }
+
+    switch(selection_index)
+    {
+    case MENU_BOX_BUTTON_SELECT:
+    case MENU_BOX_BUTTON_HELP:
+      break;
+
+    case MENU_BOX_BUTTON_EXIT:
+      exit_main_loop = YES;
+      break;
+
+    default:
+      ERR_DBG_OUT(("Unknown selection_index: %d\n", selection_index));
+      exit_main_loop = YES;
+      rc = EXIT_FAILURE;
+    }
+
+  }while(exit_main_loop == NO);
+
+  return rc;
+}
 
 #if 0
 int main(int argc, char *argv[])
@@ -2088,4 +2233,42 @@ int main(int argc, char *argv[])
 }
 #endif
 
+#if defined(ZAPTEL_PARSER)
+int zaptel_to_wanpipe()
+{
+  Debug(DBG_WANCFG_MAIN, ("%s: main()\n", WANCFG_PROGRAM_NAME));
+
+  snprintf(zaptel_conf_path, MAX_PATH_LENGTH, "%szaptel.conf", zaptel_default_conf_path);
+  zaptel_conf_file_reader  zaptel_cfr(&zaptel_conf_path[0]);
+
+  if(zaptel_cfr.read_file() == 0){
+    //zaptel_cfr.printconfig();
+    if(zaptel_cfr.create_wanpipe_config() != 0){
+      return 1;
+    }
+  }else{
+    printf("Error found in '%s'!\n", zaptel_conf_path);
+  }
+  
+  return 0;
+}
+#endif
+
+#if 0
+int main(int argc, char *argv[])
+{
+  Debug(DBG_WANCFG_MAIN, ("%s: main()\n", WANCFG_PROGRAM_NAME));
+  //sangoma_card_list sang_te1_card_list;
+  sangoma_card_list sang_te1_card_list(WANOPT_AFT);
+  sangoma_card_list sang_analog_card_list(WANOPT_AFT_ANALOG);
+
+  menu_hardware_probe hw_probe_te1(&sang_te1_card_list);
+  hw_probe_te1.hardware_probe();
+
+  menu_hardware_probe hw_probe_analog(&sang_analog_card_list);
+  hw_probe_analog.hardware_probe();
+
+  return 0;
+}
+#endif
 

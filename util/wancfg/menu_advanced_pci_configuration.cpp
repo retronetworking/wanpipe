@@ -301,7 +301,7 @@ show_pcibus_input_box:
 
     case FE_LINE_NUMBER:
       int line_no;
-      snprintf(explanation_text, MAX_PATH_LENGTH, "Line Number (between 1 and 4)");
+      snprintf(explanation_text, MAX_PATH_LENGTH, "Line Number (between 1 and 8)");
       snprintf(initial_text, MAX_PATH_LENGTH, "%d", fe_cfg->line_no);
 
 show_line_no_input_box:
@@ -322,11 +322,11 @@ show_line_no_input_box:
 
         line_no = atoi(remove_spaces_in_int_string(inb.get_lxdialog_output_string()));
 
-        if(line_no < 1 || line_no > 4){
+        if(line_no < 1 || line_no > 8){
 
           tb.show_error_message(lxdialog_path, NO_PROTOCOL_NEEDED,
                                 "Invalid Line Number. Min: %d, Max: %d.",
-                                1, 4);
+                                1, 8);
           goto show_line_no_input_box;
         }else{
           fe_cfg->line_no = line_no;
@@ -336,7 +336,7 @@ show_line_no_input_box:
       case INPUT_BOX_BUTTON_HELP:
 
         tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
-          "Enter Line Number (between 1 and 4)");
+          "Enter Line Number (between 1 and 8)");
         goto show_line_no_input_box;
         break;
 

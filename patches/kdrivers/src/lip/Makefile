@@ -16,7 +16,7 @@
 
 ####### DEFINES ##############################################################
 
-ARCH	= i686
+ARCH    = $(shell uname -m)
 
 OUTDIR  = mod
 TMPDIR  = tmp
@@ -24,6 +24,7 @@ MODDIR  = modinfo
 WANDIR  = ../wanpipe
 FRDIR   = ../fr
 LAPBDIR = ../lapb
+LAPDDIR = ../lapd
 XDLCDIR = ../xdlc
 SPPPDIR = ../sppp
 XMTP2DIR= ../xmtp2
@@ -36,9 +37,10 @@ WAN_FR_SUPPORT=YES
 WAN_X25_SUPPORT=NO
 WAN_CHDLC_PPP_SUPPORT=YES
 WAN_XDLC_SUPPORT=YES
-WAN_LAPB_SUPPORT=YES
+WAN_LAPB_SUPPORT=NO
 WAN_XMTP2_SUPPORT=NO
 WANPIPE_LIP_ATM=YES
+WAN_LAPD_SUPPORT=NO
 REGPARM=YES
 
 LIP_LINKED_PROTS=
@@ -55,7 +57,13 @@ else
 
 ifneq "${KERN_V26}" ""
 
+ifeq "${ARCH}" "x86_64"
+#LDFLAGS=-m elf_x86_64
+LD_ELF=-m elf_x86_64
+else
+#LDFLAGS=-m elf_i386
 LD_ELF=-m elf_i386
+endif
 
 MODTYPE=ko
 K_WAN_DIR=drivers/net/wan
@@ -108,6 +116,11 @@ endif
 ifeq "$(WAN_LAPB_SUPPORT)" "YES"
 CFLAGS+= -DCONFIG_PRODUCT_WANPIPE_LAPB
 LIP_LINKED_PROTS+= $(LAPBDIR)/wanpipe_lapb.o
+endif
+
+ifeq "$(WAN_LAPD_SUPPORT)" "YES"
+CFLAGS+= -DCONFIG_PRODUCT_WANPIPE_LAPD
+LIP_LINKED_PROTS+= $(LAPDDIR)/wanpipe_lapd.o
 endif
 
 ifeq "$(WAN_XMTP2_SUPPORT)" "YES"
@@ -188,6 +201,10 @@ $(LIP_ATM_DIR)/wanpipe_lip_atm.o:
 $(LAPBDIR)/wanpipe_lapb.o: 
 	make -C $(LAPBDIR) clean
 	make -C $(LAPBDIR) all REGPARM=$(REGPARM)
+	
+$(LAPDDIR)/wanpipe_lapd.o: 
+	make -C $(LAPDDIR) clean
+	make -C $(LAPDDIR) all REGPARM=$(REGPARM)
 
 $(XDLCDIR)/wanpipe_xdlc.o:
 	make -C $(XDLCDIR) clean
@@ -213,6 +230,7 @@ clean:
 	rm -f modinfo/*.*o
 	make -C ../fr clean
 	make -C ../lapb clean
+	make -C ../lapd clean
 	make -C ../xdlc clean
 	make -C $(SPPPDIR) clean
 	make -C $(XMTP2DIR) clean

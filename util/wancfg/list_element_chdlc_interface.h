@@ -41,25 +41,25 @@ public:
     data.chanconf->config_id = WANCONFIG_MPCHDLC;
 
     //the configuration is in 'wanif_conf_t'
-    data.chanconf->keepalive_tx_tmr = 10000;
-    data.chanconf->keepalive_rx_tmr = 11000;
-    data.chanconf->keepalive_err_margin = 5;
-    data.chanconf->slarp_timer = 0;
-    data.chanconf->ignore_dcd = WANOPT_NO;       //valid only for CHDLC in firmware
-    data.chanconf->ignore_cts = WANOPT_NO;       //valid only for CHDLC in firmware
-    data.chanconf->ignore_keepalive = WANOPT_NO; //valid only for CHDLC in firmware
+//    data.chanconf->keepalive_tx_tmr = 10000;
+//    data.chanconf->keepalive_rx_tmr = 11000;
+//    data.chanconf->keepalive_err_margin = 5;	//valid only for CHDLC in firmware
+//    data.chanconf->slarp_timer = 0;
+//    data.chanconf->ignore_dcd = WANOPT_NO;    //valid only for CHDLC in firmware
+//    data.chanconf->ignore_cts = WANOPT_NO;    //valid only for CHDLC in firmware
+    data.chanconf->ignore_keepalive = WANOPT_NO;//if yes, user will be able to set sppp_keepalive_timer
+						//to some value
 		
     //the above initialization should be in 'wanif_conf_t.u.chdlc',
     //but there is not such thing, so i just follow the
     //legacy structure.
-    //chdlc = &data.chanconf->u.ppp;
+    chdlc = &data.chanconf->u.ppp;
     //chdlc = &data.chanconf->u.chdlc;
     //nothing to do for now
-    /*
-	unsigned int  pp_auth_timer;
- 	unsigned int  sppp_keepalive_timer;
-	unsigned int  pp_timer;
-    */
+    //unsigned int  pp_auth_timer;
+    chdlc->sppp_keepalive_timer = DEFAULT_Tx_KPALV_TIMER;//the same value used for both TX and RX
+    //unsigned int  pp_timer;
+    chdlc->keepalive_err_margin = DEFAULT_KPALV_ERR_TOL;
   }
 
   ~list_element_chdlc_interface()

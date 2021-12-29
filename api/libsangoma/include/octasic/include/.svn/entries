@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="157"
+   name=""
+   committed-date="2006-12-04T22:21:07.339224Z"
+   url="svn://sangoma.freeswitch.org/libsangoma/trunk/include/octasic/include"
+   last-author="mikej"
+   kind="dir"
+   uuid="2028fedf-720c-0410-83b8-d54a3e729fb0"
+   revision="198"/>
+<entry
+   name="apilib"
+   kind="dir"/>
+<entry
+   committed-rev="157"
+   name="octosdependant.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="97398496facd0182d7d6346b75e40cbd"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+<entry
+   name="oct6100api"
+   kind="dir"/>
+<entry
+   name="octrpc"
+   kind="dir"/>
+<entry
+   committed-rev="157"
+   name="octdef.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="4e6778138c1a76402fb9c66187e056b0"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+<entry
+   committed-rev="157"
+   name="octtypentdrv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="f5d91a68fc4e874f6d8cc4fc38b8ca12"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+<entry
+   committed-rev="157"
+   name="octtypevx.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="96929cfe14ba35d420bde87242cd7c1b"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+<entry
+   committed-rev="157"
+   name="octtypewin.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="d05a4a7a26133db181a49f54cec2ea7c"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+<entry
+   committed-rev="157"
+   name="octmac.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="22c68bef346d81ed41372053e301fff4"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+<entry
+   committed-rev="157"
+   name="octtype.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="ad8fcaf88d153145a6ad8e343ec13aaf"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+</wc-entries>

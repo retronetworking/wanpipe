@@ -22,6 +22,7 @@
 #include "menu_te_select_line_decoding.h"
 #include "menu_te_select_framing.h"
 #include "menu_t1_lbo.h"
+#include "menu_e1_lbo.h"
 #include "input_box_active_channels.h"
 #include "menu_te1_clock_mode.h"
 
@@ -130,10 +131,12 @@ enum TE1_ADVANCED_OPTIONS{
 	TE1_LCODE,
 	TE1_FRAME,
 	T1_LBO,
+	E1_LBO,
 	TE1_CLOCK,
 	TE1_ACTIVE_CH,
   	AFT_FE_TXTRISTATE,
-	TE_REF_CLOCK
+	TE_REF_CLOCK,
+	E1_SIG_MODE
 };
 
 #define DBG_MENU_HARDWARE_TE1_CARD_ADVANCED_OPTIONS 1
@@ -197,7 +200,7 @@ again:
   if(linkconf->fe_cfg.media == WAN_MEDIA_T1){
     number_of_items = 7;
   }else if(linkconf->fe_cfg.media == WAN_MEDIA_E1){
-    number_of_items = 6;
+    number_of_items = 7;
   }else{
     ERR_DBG_OUT(("Unknown Media Type!! te_cfg.media: 0x%X\n", linkconf->fe_cfg.media));
     return NO;
@@ -257,6 +260,18 @@ again:
     menu_str += tmp_buff;
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"LBO--------------> %s\" ", 
 		    LBO_DECODE(&linkconf->fe_cfg));
+    menu_str += tmp_buff;
+  }else{
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", E1_LBO);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"LBO--------------> %s\" ", 
+		    LBO_DECODE(&linkconf->fe_cfg));
+    menu_str += tmp_buff;
+
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", E1_SIG_MODE);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Signalling Mode--> %s\" ", 
+	    (FE_SIG_MODE(&linkconf->fe_cfg) == WAN_TE1_SIG_CCS ? "CCS":"CAS"));
     menu_str += tmp_buff;
   }
 
@@ -349,6 +364,26 @@ again:
       {
         menu_t1_lbo t1_lbo(lxdialog_path, cfr);
         if(t1_lbo.run(selection_index) == NO){
+          rc = NO;
+          exit_dialog = YES;
+        }
+      }
+      break;
+
+    case E1_LBO:
+      {
+        menu_e1_lbo e1_lbo(lxdialog_path, cfr);
+        if(e1_lbo.run(selection_index) == NO){
+          rc = NO;
+          exit_dialog = YES;
+        }
+      }
+      break;
+
+    case E1_SIG_MODE:
+      {
+        menu_e1_signalling_mode e1_signalling_mode(lxdialog_path, cfr);
+        if(e1_signalling_mode.run(selection_index) == NO){
           rc = NO;
           exit_dialog = YES;
         }
@@ -489,3 +524,261 @@ If this option is used, TE1 Clock MUST be set to Master!");
 cleanup:
   return rc;
 }
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+//							ANALOG
+//////////////////////////////////////////////////////////////////////////////////////////////
+#define DBG_MENU_HARDWARE_ANALOG_CARD_ADVANCED_OPTIONS 1
+
+enum {
+	RM_BATTTHRESH=1,
+	RM_BATTDEBOUNCE,
+	RM_NETWORK_SYNC
+};
+
+menu_hardware_analog_card_advanced_options::
+	menu_hardware_analog_card_advanced_options(  IN char * lxdialog_path,
+											IN conf_file_reader* ptr_cfr)
+{
+  Debug(DBG_MENU_HARDWARE_ANALOG_CARD_ADVANCED_OPTIONS,
+	("menu_hardware_analog_card_advanced_options::menu_hardware_analog_card_advanced_options()\n"));
+
+  snprintf(this->lxdialog_path, MAX_PATH_LENGTH, "%s", lxdialog_path);
+  this->cfr = ptr_cfr;
+}
+
+menu_hardware_analog_card_advanced_options::~menu_hardware_analog_card_advanced_options()
+{
+  Debug(DBG_MENU_HARDWARE_ANALOG_CARD_ADVANCED_OPTIONS,
+	("menu_hardware_analog_card_advanced_options::~menu_hardware_analog_card_advanced_options()\n"));
+}
+
+int menu_hardware_analog_card_advanced_options::run(OUT int * selection_index)
+{
+  string menu_str;
+  int rc;
+  char tmp_buff[MAX_PATH_LENGTH];
+  unsigned int option_selected;
+  char exit_dialog;
+  int number_of_items=0;
+
+  //help text box
+  text_box tb;
+
+  link_def_t * link_def;
+  wandev_conf_t *linkconf;
+  sdla_remora_cfg_t	*remora_cfg;
+
+  input_box_active_channels act_channels_ip;
+
+  input_box inb;
+  char backtitle[MAX_PATH_LENGTH];
+/* DAVIDY: Uncomment this when RM_BATTTHRESH and RM_BATTDEBOUNCE become available in 2.3.4 drivers*/ 
+#if 0
+  char explanation_text[MAX_PATH_LENGTH];
+  char initial_text[MAX_PATH_LENGTH];
+#endif
+  snprintf(backtitle, MAX_PATH_LENGTH, "WANPIPE Configuration Utility");
+
+  Debug(DBG_MENU_HARDWARE_ANALOG_CARD_ADVANCED_OPTIONS, ("menu_net_interface_setup::%s()\n", __FUNCTION__));
+
+again:
+  rc = YES;
+  option_selected = 0;
+  exit_dialog = NO;
+  number_of_items=0;
+
+  link_def = cfr->link_defs;
+  linkconf = cfr->link_defs->linkconf;
+  remora_cfg = &linkconf->fe_cfg.cfg.remora;
+
+  Debug(DBG_MENU_HARDWARE_ANALOG_CARD_ADVANCED_OPTIONS,
+	("cfr->link_defs->name: %s\n", link_def->name));
+
+  menu_str = "";
+
+/* DAVIDY: Uncomment this when RM_BATTTHRESH and RM_BATTDEBOUNCE become available in 2.3.4 drivers*/ 
+#if 0
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", RM_BATTTHRESH);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Battery Threshold--> %d\" ", 
+    	remora_cfg->battthresh);
+  menu_str += tmp_buff;
+  number_of_items++;
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", RM_BATTDEBOUNCE);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Battery Debounce---> %d\" ", 
+    	remora_cfg->battdebounce);
+  menu_str += tmp_buff;
+  number_of_items++;
+#endif
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", RM_NETWORK_SYNC);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"External Network Sync--> %s\" ",
+	(remora_cfg->network_sync == WANOPT_YES ? "Yes" : "No"));
+  menu_str += tmp_buff;
+  number_of_items++;
+
+  //////////////////////////////////////////////////////////////////////////////////////
+  //create the explanation text for the menu
+  snprintf(tmp_buff, MAX_PATH_LENGTH,
+"\n------------------------------------------\
+\nAdvanced Hardware settings for: %s.", link_def->name);
+
+  if(set_configuration(   YES,//indicates to call V2 of the function
+						  MENU_BOX_BACK,//MENU_BOX_SELECT,
+						  lxdialog_path,
+						  "ANALOG ADVANCED CONFIGURATION OPTIONS",
+						  WANCFG_PROGRAM_NAME,
+						  tmp_buff,
+						  MENU_HEIGTH, MENU_WIDTH,
+						  number_of_items,
+						  (char*)menu_str.c_str()
+						  ) == NO){
+	rc = NO;
+	goto cleanup;
+  }
+
+  if(show(selection_index) == NO){
+	rc = NO;
+	goto cleanup;
+  }
+  //////////////////////////////////////////////////////////////////////////////////////
+
+  exit_dialog = NO;
+  switch(*selection_index)
+  {
+  case MENU_BOX_BUTTON_SELECT:
+	Debug(DBG_MENU_HARDWARE_ANALOG_CARD_ADVANCED_OPTIONS,
+	  ("hardware_setup: option selected for editing: %s\n", get_lxdialog_output_string()));
+
+	switch(atoi(get_lxdialog_output_string()))
+	{
+/* DAVIDY: Uncomment this when RM_BATTTHRESH and RM_BATTDEBOUNCE become available in 2.3.4 drivers*/ 
+#if 0
+	case RM_BATTTHRESH:
+		unsigned int battery_threshold;
+
+show_RM_BATTTHRESH_input_box:
+
+		snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify Battery Threshold value (minimum is 1).");
+		snprintf(initial_text, MAX_PATH_LENGTH, "%d", remora_cfg->battthresh);
+
+		inb.set_configuration(lxdialog_path,
+							  backtitle,
+							  explanation_text,
+							  INPUT_BOX_HIGTH,
+							  INPUT_BOX_WIDTH,
+							  initial_text);
+
+		inb.show(selection_index);
+
+		switch(*selection_index)
+		{
+		case INPUT_BOX_BUTTON_OK:
+		  battery_threshold = atoi(remove_spaces_in_int_string(inb.get_lxdialog_output_string()));
+
+		  if(battery_threshold < 1){
+			tb.show_error_message(lxdialog_path, WANCONFIG_AFT, "Invalid Battery Threshold!");
+			goto show_RM_BATTTHRESH_input_box;
+		  }else{
+			remora_cfg->battthresh = battery_threshold;
+		  }
+		  break;
+
+		case INPUT_BOX_BUTTON_HELP:
+		  tb.show_help_message(lxdialog_path, WANCONFIG_AFT, option_not_implemented_yet_help_str);
+		  goto show_RM_BATTTHRESH_input_box;
+		}//switch(*selection_index)
+		break;
+
+	case RM_BATTDEBOUNCE:
+		unsigned int battdebounce;
+
+show_RM_BATTDEBOUNCE_input_box:
+
+		snprintf(explanation_text, MAX_PATH_LENGTH, "Please specify Battery Debounce value (minimum is 1).");
+		snprintf(initial_text, MAX_PATH_LENGTH, "%d", remora_cfg->battdebounce);
+
+		inb.set_configuration(lxdialog_path,
+							  backtitle,
+							  explanation_text,
+							  INPUT_BOX_HIGTH,
+							  INPUT_BOX_WIDTH,
+							  initial_text);
+
+		inb.show(selection_index);
+
+		switch(*selection_index)
+		{
+		case INPUT_BOX_BUTTON_OK:
+		  battdebounce = atoi(remove_spaces_in_int_string(inb.get_lxdialog_output_string()));
+
+		  if(battdebounce < 1){
+			tb.show_error_message(lxdialog_path, WANCONFIG_AFT, "Invalid Battery Debounce!");
+			goto show_RM_BATTDEBOUNCE_input_box;
+		  }else{
+			remora_cfg->battdebounce = battdebounce;
+		  }
+		  break;
+
+		case INPUT_BOX_BUTTON_HELP:
+		  tb.show_help_message(lxdialog_path, WANCONFIG_AFT, option_not_implemented_yet_help_str);
+		  goto show_RM_BATTDEBOUNCE_input_box;
+		}//switch(*selection_index)
+		break;
+
+#endif
+	case RM_NETWORK_SYNC:
+		snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s External Network Sync?",
+		(remora_cfg->network_sync == WANOPT_NO ? "Enable" : "Disable"));
+
+		if(yes_no_question( selection_index,
+				lxdialog_path,
+				NO_PROTOCOL_NEEDED,
+				tmp_buff) == NO){
+			return NO;
+		}
+		
+		switch(*selection_index)
+		{
+		case YES_NO_TEXT_BOX_BUTTON_YES:
+			if(remora_cfg->network_sync == WANOPT_NO){
+				//was disabled - enable
+				remora_cfg->network_sync = WANOPT_YES;
+			}else{
+				//was enabled - disable
+				remora_cfg->network_sync = WANOPT_NO;
+			}
+			break;
+		}
+		break;
+
+	default:
+	  ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
+		get_lxdialog_output_string()));
+	  rc = NO;
+	  exit_dialog = YES;
+	}//switch(atoi(get_lxdialog_output_string()))
+	break;
+
+  case MENU_BOX_BUTTON_HELP:
+	tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, te1_options_help_str);
+	break;
+
+  case MENU_BOX_BUTTON_EXIT:
+	exit_dialog = YES;
+	break;
+  }//switch(*selection_index)
+
+  if(exit_dialog == NO){
+	goto again;
+  }
+
+cleanup:
+  return rc;
+}
+

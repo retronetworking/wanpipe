@@ -14,23 +14,9 @@
  */
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
-#include <net/wanpipe_lip.h>
+#include <wanpipe_lip.h>
 #elif defined(__LINUX__)
 #include <linux/wanpipe_lip.h>
-#endif
-
-
-#if 0
-static nc_delay(int sec)
-{
-#if 1
-		unsigned long timeout=SYSTEM_TICKS;
-			while ((SYSTEM_TICKS-timeout)<(sec*HZ)){
-						schedule();
-							}
-#endif  
-
-}
 #endif
 
 /*=============================================================
@@ -118,6 +104,7 @@ static int wplip_register (void **lip_link_ptr, wanif_conf_t *conf, char *devnam
 
 	lip_link->state = WAN_DISCONNECTED;
 	lip_link->carrier_state = WAN_DISCONNECTED;
+
 
 	lip_link->latency_qlen=100;
 
@@ -263,7 +250,11 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 		return -ENOMEM;
 	}
 
-	
+#if defined(__LINUX__)
+	if (conf->mtu){
+       		lip_dev->common.dev->mtu = conf->mtu; 
+	}
+#endif
 	
 	WAN_HOLD(lip_link);
 	lip_dev->lip_link 	= lip_link;
@@ -344,7 +335,6 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 		wplip_free_lipdev(lip_dev);
 		return err;
 	}
-
 	
 #ifdef __LINUX__	
 	if (conf->if_down && usedby != API && usedby != STACK){
@@ -356,17 +346,17 @@ static int wplip_if_reg(void *lip_link_ptr, char *dev_name, wanif_conf_t *conf)
 	}
 	lip_link->latency_qlen=lip_dev->common.dev->tx_queue_len;
 #endif
-	
+
+	 
 	if (lip_link->state == WAN_CONNECTED){
-		DEBUG_EVENT("%s: LIP CREATE Link already on!\n",
+		DEBUG_TEST("%s: LIP CREATE Link already on!\n",
 						lip_dev->name);
 		WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 	       	WAN_NETIF_WAKE_QUEUE(lip_dev->common.dev);
 	       	wplip_trigger_bh(lip_dev->lip_link);
-	}
+	}              
 	
-#warning "NENAD"
-	DEBUG_EVENT("%s: LIP LIPDEV Created %p Magic 0x%lX\n",
+	DEBUG_TEST("%s: LIP LIPDEV Created %p Magic 0x%lX\n",
 			lip_link->name,
 			lip_dev,
 			lip_dev->magic);
@@ -655,10 +645,9 @@ int wplip_data_rx_up(wplip_dev_t* lip_dev, void *skb)
 #endif
 
 #if 0
-			/* Must implement for LAPB */
 			wan_skb_pull(skb,sizeof(wan_api_rx_hdr_t));
 #else
-		        wan_skb_free(skb);
+      			wan_skb_free(skb);
 #endif
 			lip_dev->ifstats.rx_errors++;		
 			return 1;
@@ -764,11 +753,10 @@ int wplip_data_tx_down(wplip_link_t *lip_link, void *skb)
 		return -EBUSY;
 	}
 
-	
 #if defined(__LINUX__)
-        if (lip_link->latency_qlen != dev->tx_queue_len) {
+	if (lip_link->latency_qlen != dev->tx_queue_len) {
         	dev->tx_queue_len=lip_link->latency_qlen;
-	}
+	}  
 
 	return dev->hard_start_xmit(skb,dev);
 #else
@@ -830,28 +818,27 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 		}
 
 		if (state == WAN_CONNECTED){
-			lip_dev->common.state = state; 
+			lip_dev->common.state = state;
 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
 			wan_update_api_state(lip_dev);
 		}else{
-			lip_dev->common.state = state; 
+			lip_dev->common.state = state;
 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
-		}    
-		
+		}
 
 		wplip_trigger_bh(lip_dev->lip_link);
 
 	}else if (lip_dev->common.lip) { /*STACK*/
 		
 		if (state == WAN_CONNECTED){
-			lip_dev->common.state = state; 
+			lip_dev->common.state = state;
 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
 			wplip_connect(lip_dev->common.lip,0);
 		}else{
-			lip_dev->common.state = state; 
+			lip_dev->common.state = state;
 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
 #if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
@@ -861,18 +848,12 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 		
 	}else{
 		if (state == WAN_CONNECTED){
-#warning "NENAD"
-			DEBUG_EVENT("%s: LIP LIPDEV CARRIER ON\n",
-						lip_dev->name);
-			lip_dev->common.state = state; 
+			lip_dev->common.state = state;
 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 			WAN_NETIF_WAKE_QUEUE(lip_dev->common.dev);
 			wplip_trigger_bh(lip_dev->lip_link);
 		}else{
-#warning "NENAD"
-			DEBUG_EVENT("%s: LIP LIPDEV CARRIER OFF\n",
-						lip_dev->name);
-			lip_dev->common.state = state; 
+			lip_dev->common.state = state;
 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
 #if defined(WANPIPE_LIP_IFNET_QUEUE_POLICY_INIT_OFF)
 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
@@ -1048,11 +1029,12 @@ int wplip_callback_tx_down(void *wplip_id, void *skb)
 	}
 
 	if (!skb){
-		if (lip_dev->max_mtu_sz - wan_skb_queue_len(&lip_dev->tx_queue) < 0) {
+		int free_space=lip_dev->max_mtu_sz - wan_skb_queue_len(&lip_dev->tx_queue);
+		if (free_space < 0) {
 			return 0;
 		} else {
-			return lip_dev->max_mtu_sz - wan_skb_queue_len(&lip_dev->tx_queue);
-		}
+			return free_space;
+		}    
 	}
 
 
@@ -1068,7 +1050,7 @@ int wplip_callback_tx_down(void *wplip_id, void *skb)
 		return 0;
 	}
 
-	if (wan_skb_queue_len(&lip_dev->tx_queue) > lip_dev->max_mtu_sz){
+	if (wan_skb_queue_len(&lip_dev->tx_queue) >= lip_dev->max_mtu_sz){
 		wplip_trigger_bh(lip_dev->lip_link);
 		DEBUG_TEST("%s: %s() Error  Tx queue full Kick=%d!\n",
 				lip_dev->name,__FUNCTION__,
@@ -1205,7 +1187,7 @@ int wplip_set_ipv4_addr (void *wplip_id,
 
 	fs = get_fs();                  /* Save file system  */
        	set_fs(get_ds());    
-	err = devinet_ioctl(SIOCSIFADDR, &if_info);
+	err = wp_devinet_ioctl(SIOCSIFADDR, &if_info);
 	set_fs(fs);
         
 	memset(&if_info, 0, sizeof(if_info));
@@ -1217,7 +1199,7 @@ int wplip_set_ipv4_addr (void *wplip_id,
 
 	fs = get_fs();                  /* Save file system  */
        	set_fs(get_ds());  
-	err = devinet_ioctl(SIOCSIFDSTADDR, &if_info);
+	err = wp_devinet_ioctl(SIOCSIFDSTADDR, &if_info);
 	set_fs(fs);
 
 	return 0;
@@ -1237,7 +1219,7 @@ int wplip_set_ipv4_addr (void *wplip_id,
 		int error;
 		struct in_ifaddr *ia;
 
-#if __NetBSD_Version__ >= 103080000
+#if defined(__NetBSD__) && (__NetBSD_Version__ >= 103080000)
 		struct sockaddr_in new_sin = *si;
 
 		new_sin.sin_addr.s_addr = htonl(src);
@@ -1326,7 +1308,7 @@ static int wplip_change_dev_flags (netdevice_t *dev, unsigned flags)
 	if_info.ifr_flags = flags;	
 
 	set_fs(get_ds());     /* get user space block */ 
-	err = devinet_ioctl(SIOCSIFFLAGS, &if_info);
+	err = wp_devinet_ioctl(SIOCSIFFLAGS, &if_info);
 	set_fs(fs);
 
 	return err;
@@ -1457,10 +1439,10 @@ int wanpipe_lip_init(void *arg)
 	
 	if (WANPIPE_VERSION_BETA){
 		DEBUG_EVENT("%s Beta%s-%s %s\n",
-			wplip_fullname, WANPIPE_SUB_VERSION, WANPIPE_VERSION, wplip_copyright);
+			wplip_fullname, WANPIPE_SUB_VERSION, WANPIPE_VERSION, WANPIPE_COPYRIGHT_DATES);
 	}else{
 		DEBUG_EVENT("%s Stable %s-%s %s\n",
-			wplip_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION, wplip_copyright);
+			wplip_fullname, WANPIPE_VERSION, WANPIPE_SUB_VERSION, WANPIPE_COPYRIGHT_DATES);
 	}
 
 	err=wplip_init_prot();

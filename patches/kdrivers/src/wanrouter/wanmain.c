@@ -60,6 +60,7 @@
 #include <linux/wanpipe_x25_kernel.h>
 #include <linux/wanpipe_dsp_kernel.h>
 #include <linux/wanpipe_lip_kernel.h>
+#include <linux/wanpipe_ec_kernel.h>
 
 #define KMEM_SAFETYZONE 8
 
@@ -190,6 +191,7 @@ static int delete_interface (wan_device_t *wandev, netdevice_t	*dev, int force);
 
 static char fullname[]		= "WANPIPE(tm) Interface Support Module";
 static char modname[]		= ROUTER_NAME;	/* short module name */
+wan_spinlock_t          wan_devlist_lock;
 struct wan_devlist_	wan_devlist = 
 	WAN_LIST_HEAD_INITIALIZER(wan_devlist); 
 //wan_device_t* router_devlist 	= NULL;	/* list of registered devices */
@@ -213,6 +215,11 @@ struct wanpipe_x25_register_struct x25_protocol;
 struct wanpipe_dsp_register_struct dsp_protocol;
 struct wanpipe_fw_register_struct  wp_fw_protocol;
 struct wplip_reg		   wplip_protocol;
+
+#if defined(CONFIG_WANPIPE_HWEC)
+struct wanec_iface_		   wanec_iface;
+#endif
+
 /*
  *	Kernel Loadable Module Entry Points
  */
@@ -247,6 +254,7 @@ int __init wanrouter_init (void)
 	}
 
 	WAN_LIST_INIT(&wan_devlist);
+        wan_spin_lock_init(&wan_devlist_lock);
 
 	err = wanrouter_proc_init();
 	
@@ -262,6 +270,9 @@ int __init wanrouter_init (void)
 	UNREG_PROTOCOL_FUNC(lapb_protocol);
 #endif
 	UNREG_PROTOCOL_FUNC(wplip_protocol);
+#if defined(CONFIG_WANPIPE_HWEC)
+	UNREG_PROTOCOL_FUNC(wanec_iface);
+#endif
 	
 	return err;
 }
@@ -273,6 +284,10 @@ int __init wanrouter_init (void)
 
 void __exit wanrouter_exit (void)
 {
+#if defined(CONFIG_WANPIPE_HWEC)
+	UNREG_PROTOCOL_FUNC(wanec_iface);
+#endif
+
 #ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG
 	UNREG_PROTOCOL_FUNC(dsp_protocol);
 	UNREG_PROTOCOL_FUNC(x25_protocol);
@@ -345,10 +360,12 @@ int register_wan_device(wan_device_t *wandev)
 	 
 	wandev->ndev = 0;
 	WAN_LIST_INIT(&wandev->dev_head);
+	wan_spin_lock_init(&wandev->dev_head_lock);
+
+	wan_spin_lock(&wan_devlist_lock);
 	WAN_LIST_INSERT_HEAD(&wan_devlist, wandev, next);
-	//wandev->dev  = NULL;
-	//wandev->next = router_devlist;
-	//router_devlist = wandev;
+	wan_spin_unlock(&wan_devlist_lock);
+
 	++devcnt;
 
 #if !defined(LINUX_2_6)
@@ -383,10 +400,7 @@ int unregister_wan_device(char *name)
 			break;
 		}
 	}
-	//for (wandev = router_devlist, prev = NULL;
-	//	wandev && strcmp(wandev->name, name);
-	//	prev = wandev, wandev = wandev->next)
-	//	;
+
 	if (wandev == NULL)
 		return -ENODEV;
 
@@ -398,12 +412,9 @@ int unregister_wan_device(char *name)
 		wan_device_shutdown(wandev, NULL);
 	}
 	
+	wan_spin_lock(&wan_devlist_lock);
 	WAN_LIST_REMOVE(wandev, next);
-	//if (prev){
-	//	prev->next = wandev->next;
-	//}else{
-	//	router_devlist = wandev->next;
-	//}
+	wan_spin_unlock(&wan_devlist_lock);
 	
 	--devcnt;
 	wanrouter_proc_delete(wandev);
@@ -531,8 +542,13 @@ int wanrouter_ioctl(struct inode *inode, struct file *file,
 		
 	dent = WP_PDE(inode);
 	if ((dent == NULL) || (dent->data == NULL)){
+#if defined(WANPIPE_USE_I_PRIVATE) 
+		DEBUG_EVENT("%s: Invalid dent %p\n",
+				__FUNCTION__,inode->i_private);
+#else		
 		DEBUG_EVENT("%s: Invalid dent %p\n",
 				__FUNCTION__,inode->u.generic_ip);
+#endif
 		return -EINVAL;
 	}
 		
@@ -739,7 +755,6 @@ static int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf)
 	struct wan_dev_le	*devle;
 	netdevice_t		*dev;
 	wandev_conf_t *conf = NULL;
-	wan_smp_flag_t smp_flags;
 	int err=0;
 	int force=0;
 		
@@ -771,6 +786,7 @@ static int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf)
 	printk(KERN_INFO "%s: Shutting Down!\n",wandev->name);
 		
 	devle = WAN_LIST_FIRST(&wandev->dev_head);
+	
 	while(devle){
 
 		dev = WAN_DEVLE2DEV(devle);
@@ -778,10 +794,10 @@ static int wan_device_shutdown (wan_device_t *wandev, wandev_conf_t *u_conf)
 			return err;
 		}
 
-		wan_spin_lock_irq(&wandev->lock, &smp_flags);
+		wan_spin_lock(&wandev->dev_head_lock);
 		WAN_LIST_REMOVE(devle, dev_link);
 		--wandev->ndev;
-		wan_spin_unlock_irq(&wandev->lock, &smp_flags);
+		wan_spin_unlock(&wandev->dev_head_lock);
 
 		wan_free(devle);
 		/* the next interface is alwast first */
@@ -867,6 +883,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 		err=-EINVAL;
 		goto wan_device_new_if_exit;
 	}
+       
 
 	if ((dev=dev_get_by_name(conf->name))){
 		dev_put(dev);
@@ -875,9 +892,9 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 		DEBUG_EVENT("%s: Device %s already exists\n",
 				wandev->name,conf->name);
 		goto wan_device_new_if_exit;
-	}      
-
-	dev=wan_netif_alloc(conf->name, &err);
+	}
+	
+	dev=wan_netif_alloc(conf->name, WAN_IFT_OTHER, &err);
 	if (dev == NULL){
 		goto wan_device_new_if_exit;
 	}
@@ -891,7 +908,7 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 	err = wandev->new_if(wandev, dev, conf);
 	
 	if (!err) {
-		netdevice_t *tmp_dev; 
+		netdevice_t *tmp_dev;
 		/* Register network interface. This will invoke init()
 		 * function supplied by the driver.  If device registered
 		 * successfully, add it to the interface list.
@@ -905,14 +922,12 @@ static int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf)
 		}else if (dev->priv){
 			err = register_netdev(dev);
 			if (!err) {
-				wan_smp_flag_t smp_flags=0;
-				
 				devle->dev = dev;
 				
-				wan_spin_lock_irq(&wandev->lock, &smp_flags);
+				wan_spin_lock(&wandev->dev_head_lock);
 				WAN_LIST_INSERT_HEAD(&wandev->dev_head, devle, dev_link);
 				++wandev->ndev;
-				wan_spin_unlock_irq(&wandev->lock, &smp_flags);
+				wan_spin_unlock(&wandev->dev_head_lock);
 				err = 0;
 
 				wan_free(conf);
@@ -955,7 +970,6 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
 {
 	struct wan_dev_le	*devle;
 	netdevice_t		*dev=NULL;
-	wan_smp_flag_t smp_flags;
 	char name[WAN_IFNAME_SZ + 1];
         int err = 0;
 
@@ -972,16 +986,16 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
 		if (dev && !strcmp(name, wan_netif_name(dev))){
 			break;
 		}
-	}
+        }
 
 	if (devle == NULL || dev == NULL){
-#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG		
 		if ((dev = dev_get_by_name(name)) == NULL){
 			printk(KERN_INFO "%s: dev_get_by_name failed\n", name);
 			return err;
 		}
 
 		dev_put(dev);
+#ifdef CONFIG_PRODUCT_WANPIPE_ANNEXG		
 		if (dev->type == ARPHRD_LAPB){
 			printk(KERN_INFO "%s: Unregistering LAPB interface\n", dev->name);
 			return wan_device_del_if_lapb(wandev,dev);
@@ -991,7 +1005,9 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
 		}else if (dev->type == ARPHRD_VOID){
 			printk(KERN_INFO "%s: Unregistering DSP interface\n", dev->name);
 			return wan_device_del_if_dsp(wandev,dev);
-		}else{
+		}else
+#endif		
+		{
 			printk(KERN_INFO "%s: Unregistering LIP interface\n", dev->name);
 			return wan_device_del_if_lip(wandev,dev);
 		}
@@ -1003,7 +1019,6 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
 					dev->name,dev->type);
 			err=-EINVAL;		
 #endif
-#endif
 		return -ENODEV;
 	}
 
@@ -1013,10 +1028,11 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
 		return(err);
 	}
 
-	wan_spin_lock_irq(&wandev->lock, &smp_flags);
+       	wan_spin_lock(&wandev->dev_head_lock);
 	WAN_LIST_REMOVE(devle, dev_link);
 	--wandev->ndev;
-	wan_spin_unlock_irq(&wandev->lock, &smp_flags);
+       	wan_spin_unlock(&wandev->dev_head_lock);
+
 	wan_free(devle);
 
 		
@@ -1048,14 +1064,15 @@ static int wan_device_del_if (wan_device_t *wandev, char *u_name)
 static wan_device_t *find_device(char *name)
 {
 	wan_device_t *wandev;
-
+	
+	wan_spin_lock(&wan_devlist_lock);
 	WAN_LIST_FOREACH(wandev, &wan_devlist, next){
 		if (!strcmp(wandev->name, name)){
 			break;
 		}
 	}
-	//for (wandev = router_devlist;wandev && strcmp(wandev->name, name);
-	//	wandev = wandev->next);
+	wan_spin_unlock(&wan_devlist_lock);
+
 	return wandev;
 }
 
@@ -1119,9 +1136,11 @@ static int delete_interface (wan_device_t *wandev, netdevice_t *dev, int force)
 #ifdef LINUX_2_4
 	return 0;
 #else
+	/* Changed behaviour for 2.6 kernels */
 	wan_netif_free(dev);
 	return 0;
 #endif
+
 }
 
 /* 
@@ -1166,7 +1185,7 @@ unsigned long wan_set_ip_address (netdevice_t *dev, int option, unsigned long ip
 
 		fs = get_fs();                  /* Save file system  */
        		set_fs(get_ds());    
-		err = devinet_ioctl(SIOCSIFADDR, &if_info);
+		err = wp_devinet_ioctl(SIOCSIFADDR, &if_info);
 		set_fs(fs);
 		break;
 	
@@ -1178,7 +1197,7 @@ unsigned long wan_set_ip_address (netdevice_t *dev, int option, unsigned long ip
 
 		fs = get_fs();                  /* Save file system  */
        		set_fs(get_ds());  
-		err = devinet_ioctl(SIOCSIFDSTADDR, &if_info);
+		err = wp_devinet_ioctl(SIOCSIFDSTADDR, &if_info);
 		set_fs(fs);
 		break;	
 
@@ -1294,7 +1313,7 @@ void wan_add_gateway(netdevice_t *dev)
 
 	oldfs = get_fs();
 	set_fs(get_ds());
-	res = ip_rt_ioctl(SIOCADDRT,&route);
+	res = wp_ip_rt_ioctl(SIOCADDRT,&route);
 	set_fs(oldfs);
 
 	if (res == 0){
@@ -1515,7 +1534,6 @@ static int wan_device_new_if_lapb (wan_device_t *wandev, wanif_conf_t *u_conf)
 
 	/* Find the Frame Relay DLCI to bind to the LAPB device */
 	WAN_LIST_FOREACH(devle, &wandev->dev_head, dev_link){
-	//for (dev=wandev->dev; dev; dev=*(netdevice_t**)dev->priv){
 		dev = WAN_DEVLE2DEV(devle);
 		if (dev && !strcmp(dev->name, conf->master)){
 			break;
@@ -1996,20 +2014,69 @@ static int wan_device_del_if_lip(wan_device_t *wandev, netdevice_t *dev)
 
 #endif
 
+#if defined(CONFIG_WANPIPE_HWEC)
+int register_wanec_iface (wanec_iface_t *iface)
+{
+	memcpy(&wanec_iface, iface, sizeof(wanec_iface_t));
+	REG_PROTOCOL_FUNC(wanec_iface);
+	return 0;
+}
 
+void unregister_wanec_iface (void)
+{
+	UNREG_PROTOCOL_FUNC(wanec_iface);
+	return;
+}
 
+void *wanpipe_ec_register(void *pcard, int max_channels)
+{
+	if (wanec_iface.reg){
+		return wanec_iface.reg(pcard, max_channels);
+	}
+	return NULL;
+}
+int wanpipe_ec_unregister(void *arg, void *pcard)
+{
+	if (wanec_iface.unreg){
+		return wanec_iface.unreg(arg, pcard);
+	}
+	return -EINVAL;
+}
+
+int wanpipe_ec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl)	
+{
+	if (wanec_iface.event_ctrl){
+		return wanec_iface.event_ctrl(arg, pcard, event_ctrl);
+	}
+	return 0;
+}
+
+int wanpipe_ec_isr(void *arg, void *pcard)
+{
+	if (wanec_iface.isr){
+		return wanec_iface.isr(arg, pcard);
+	}
+	return 0;
+}
+
+int wanpipe_ec_poll(void *arg, void *pcard)
+{
+	if (wanec_iface.poll){
+		return wanec_iface.poll(arg, pcard);
+	}
+	return -EINVAL;
+}
+#endif
 
 void wan_skb_destructor (struct sk_buff *skb)
 {
 	if (skb->dev){
 		struct net_device *dev=skb->dev;
-		__dev_put(dev);
+		atomic_dec(&(dev)->refcnt);
 		//printk(KERN_INFO "%s: Skb destructor: put dev: refcnt=%i\n",
 		//		dev->name,atomic_read(&dev->refcnt));
 	}	
 }
-
-
 
 /**
  * @path: pathname for the application
@@ -2151,6 +2218,15 @@ EXPORT_SYMBOL(unregister_wanpipe_api_socket);
 EXPORT_SYMBOL(register_wanpipe_fw_protocol);
 EXPORT_SYMBOL(unregister_wanpipe_fw_protocol);
 
+#if defined(CONFIG_WANPIPE_HWEC)
+EXPORT_SYMBOL(register_wanec_iface);
+EXPORT_SYMBOL(unregister_wanec_iface);
+EXPORT_SYMBOL(wanpipe_ec_register);
+EXPORT_SYMBOL(wanpipe_ec_unregister);
+EXPORT_SYMBOL(wanpipe_ec_event_ctrl);
+EXPORT_SYMBOL(wanpipe_ec_isr);
+EXPORT_SYMBOL(wanpipe_ec_poll);
+#endif
 
 /*
  *	End

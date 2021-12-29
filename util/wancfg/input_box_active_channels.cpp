@@ -71,7 +71,7 @@ again:
   case INPUT_BOX_BUTTON_OK:
 
     //all that should be in "input_box_active_channels" object
-	  active_ch = parse_active_channel(get_lxdialog_output_string(), media_type);	
+    active_ch = parse_active_channel(get_lxdialog_output_string(), media_type);	
     if(active_ch == 0){
       tb.show_error_message(lxdialog_path, protocol,
 "Failed to parse active channels.\n\

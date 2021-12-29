@@ -1,5 +1,5 @@
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <net/wanpipe_lip.h>
+# include <wanpipe_lip.h>
 #else
 #include <linux/wanpipe_lip.h>
 #endif
@@ -128,14 +128,14 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 #if defined(__LINUX__)
 				wan_wakeup_api(lip_dev);
 #endif
-       			}else if (lip_dev->common.lip){ /*STACK*/
-       				WAN_NETIF_START_QUEUE(lip_dev->common.dev);
-       				wplip_kick(lip_dev->common.lip,0);
-       				
-       			}else{
-       				WAN_NETIF_WAKE_QUEUE (lip_dev->common.dev);
-       			}
-       		}
+			}else if (lip_dev->common.lip){ /*STACK*/
+				WAN_NETIF_START_QUEUE(lip_dev->common.dev);
+				wplip_kick(lip_dev->common.lip,0);
+				
+			}else{
+				WAN_NETIF_WAKE_QUEUE (lip_dev->common.dev);
+			}
+		}
 
 		if (wan_skb_queue_len(&lip_dev->tx_queue)){
 			wan_set_bit(WPLIP_MORE_LINK_TX,&lip_link->tq_working);

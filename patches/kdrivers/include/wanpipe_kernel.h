@@ -14,6 +14,13 @@
 # define snprintf(a,b,c,d...)	sprintf(a,c,##d)
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+# define wp_ip_rt_ioctl(_cmd_,_rptr_) -EINVAL
+# define wp_devinet_ioctl(_cmd_,_rptr_) -EINVAL
+#else
+# define wp_ip_rt_ioctl(_cmd_,_rptr_) ip_rt_ioctl(_cmd_,_rptr_)   
+# define wp_devinet_ioctl(_cmd_,_rptr_)  devinet_ioctl(_cmd_,_rptr_)
+#endif    
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 /* KERNEL 2.6.X */
@@ -70,6 +77,7 @@
 
  #define WP_PDE(_a)		PDE(_a)
 
+     
 
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,9)
  # define wp_rcu_read_lock(in_dev)     rcu_read_lock()
@@ -91,6 +99,13 @@
  # define wp_writew(data,ptr)	       writew(data,(ptr))
  # define wp_writel(data,ptr)	       writel(data,(ptr))
  # define wp_memset_io(ptr,data,len)   memset_io((ptr),data,len)
+ #endif
+
+ #if LINUX_VERSION_CODE == KERNEL_VERSION(2,6,14) 
+ #define htonl	__constant_htonl
+ #define htons	__constant_htons
+ #define ntohl  __constant_ntohl
+ #define ntohs  __constant_ntohs
  #endif
 
 
@@ -159,7 +174,11 @@
 
  static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
  {
+#if defined(WANPIPE_USE_I_PRIVATE)
+        return (struct proc_dir_entry *)inode->i_private;
+#else
         return (struct proc_dir_entry *)inode->u.generic_ip;
+#endif
  }
 
  #define wp_rcu_read_lock(in_dev)     read_lock_bh(&in_dev->lock) 
@@ -318,7 +337,11 @@
 
  static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
  {
+#if defined(WANPIPE_USE_I_PRIVATE)
+        return (struct proc_dir_entry *)inode->i_private;
+#else
         return (struct proc_dir_entry *)inode->u.generic_ip;
+#endif
  }
 
 #else
@@ -330,7 +353,11 @@
 
  static inline struct proc_dir_entry *WP_PDE(const struct inode *inode)
  {
+#if defined(WANPIPE_USE_I_PRIVATE)
+        return (struct proc_dir_entry *)inode->i_private;
+#else
         return (struct proc_dir_entry *)inode->u.generic_ip;
+#endif
  }
 
  #define test_and_set_bit set_bit

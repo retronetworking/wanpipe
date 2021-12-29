@@ -826,8 +826,15 @@ static int new_if (wan_device_t* wandev, struct net_device* dev, wanif_conf_t* c
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
 	if (chan->common.usedby == TDM_VOICE){
-		card->wandev.mtu = wp_tdmv_check_mtu(card, conf->active_ch);
-		if (wp_tdmv_init(card, conf)){
+		//card->wandev.mtu = wp_tdmv_check_mtu(card, conf->active_ch);
+		WAN_TDMV_CALL(check_mtu,(card, conf->active_ch, &card->wandev.mtu),err);
+		if (err){
+			err = -EINVAL;
+			goto new_if_error;
+		}
+		//if (wp_tdmv_init(card, conf)){
+		WAN_TDMV_CALL(init, (card, conf), err);
+		if (err){
 			err = -EINVAL;
 			goto new_if_error;
 		}
@@ -1042,7 +1049,9 @@ static int del_if (wan_device_t* wandev, struct net_device* dev)
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
 	if (chan->common.usedby == TDM_VOICE){
 		int err;
-		if ((err = wp_tdmv_remove(card)) != 0){
+		//if ((err = wp_tdmv_remove(card)) != 0){
+		WAN_TDMV_CALL(remove, (card), err);
+		if (err){
 			return err;
 		}
 	}
@@ -4643,7 +4652,7 @@ static void aft_tx_dma_chain_init(private_area_t *chan, aft_dma_chain_t *dma_cha
 {
 
 	if (dma_chain->dma_addr){
-		pci_unmap_single(NULL,
+		chan->card->hw_iface.pci_unmap_dma(chan->card->hw,
 			 dma_chain->dma_addr,
 	 		 dma_chain->dma_len,
 	 		 PCI_DMA_TODEVICE);
@@ -4665,7 +4674,7 @@ static void aft_rx_dma_chain_init(private_area_t *chan, aft_dma_chain_t *dma_cha
 {
 
 	if (dma_chain->dma_addr){
-		pci_unmap_single(NULL,
+		chan->card->hw_iface.pci_unmap_dma(chan->card->hw,
 			 dma_chain->dma_addr,
 	 		 dma_chain->dma_len,
 	 		 PCI_DMA_FROMDEVICE);
@@ -4784,7 +4793,8 @@ static int xilinx_dma_te3_tx (sdla_t *card,private_area_t *chan, struct sk_buff 
 
 	dma_chain->skb=skb;
 		
-	dma_chain->dma_addr = pci_map_single(NULL,
+	dma_chain->dma_addr = 
+			      card->hw_iface.pci_map_dma(card->hw,
 				  		wan_skb_data(dma_chain->skb),
 				  		wan_skb_len(dma_chain->skb),
 				  		PCI_DMA_TODEVICE); 	
@@ -4923,9 +4933,10 @@ static int aft_dma_chain_rx(aft_dma_chain_t *dma_chain, private_area_t *chan, in
 
 	wan_set_bit(RxDMA_HI_DMA_GO_READY_BIT,&reg);
 
+#if 0
 	DEBUG_RX("%s: RXDMA_HI = 0x%X, BusAddr=0x%X DmaDescr=0x%X\n",
  	             __FUNCTION__,reg,bus_addr,dma_descr);
-
+#endif
 	card->hw_iface.bus_write_4(card->hw,dma_descr,reg);
 
 	return 0;
@@ -5017,10 +5028,11 @@ static int xilinx_dma_rx(sdla_t *card, private_area_t *chan, int gcur_ptr)
 			break;
 		}
 		
-		dma_chain->dma_addr = cpu_to_le32(pci_map_single(NULL,
+		dma_chain->dma_addr = 
+				      card->hw_iface.pci_map_dma(card->hw,
 			      	       		wan_skb_tail(dma_chain->skb),
 						chan->dma_mtu,
-		    		       		PCI_DMA_FROMDEVICE)); 	
+		    		       		PCI_DMA_FROMDEVICE); 	
 		
 		dma_chain->dma_len  = chan->dma_mtu;
 
@@ -5147,7 +5159,7 @@ static void aft_rx_dma_chain_handler(private_area_t *chan, int wtd, int reset)
 			break;
 		}
 
-		pci_unmap_single(NULL, 
+		card->hw_iface.pci_unmap_dma(card->hw,
 				 dma_chain->dma_addr,
 				 chan->dma_mtu,
 				 PCI_DMA_FROMDEVICE);
@@ -5462,7 +5474,7 @@ static void aft_free_rx_descriptors(private_area_t *chan)
 		reg=0;
 		card->hw_iface.bus_write_4(card->hw,dma_descr,reg);
 
-		pci_unmap_single(NULL, 
+		card->hw_iface.pci_unmap_dma(card->hw,
 				 dma_chain->dma_addr,
 				 chan->dma_mtu,
 				 PCI_DMA_FROMDEVICE);

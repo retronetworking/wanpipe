@@ -127,8 +127,15 @@ int menu_select_protocol::form_protocol_list_valid_for_lip_layer(OUT string& men
   int num_of_items = 0;
   char tmp_buff[MAX_PATH_LENGTH];
   conf_file_reader* local_cfr = (conf_file_reader*)global_conf_file_reader_ptr;
+  link_def_t * link_defs = local_cfr->link_defs;
+  //wandev_conf_t *linkconf = local_cfr->link_defs->linkconf;
+
+  if(link_defs->linkconf->card_type == WANOPT_AFT && link_defs->card_version == A200_ADPTR_ANALOG){
+    //no LIP layer protocols for analog card!
+    return 0;
+  }
   
-  if(local_cfr->link_defs->linkconf->card_type != WANOPT_ADSL){
+  if(link_defs->linkconf->card_type != WANOPT_ADSL){
 
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_MPPP);
     menu_str += tmp_buff;
@@ -147,6 +154,16 @@ int menu_select_protocol::form_protocol_list_valid_for_lip_layer(OUT string& men
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_MFR));
     menu_str += tmp_buff;
     num_of_items++;
+
+#if defined(CONFIG_PRODUCT_WANPIPE_LIP_ATM)
+   if(link_defs->card_version != AFT_ADPTR_56K){
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_LIP_ATM);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_LIP_ATM));
+    menu_str += tmp_buff;
+    num_of_items++;
+   }
+#endif
   }
 
 #if defined(__LINUX__) && !BSD_DEBG
@@ -218,24 +235,23 @@ int menu_select_protocol::form_protocol_list_valid_for_hardware(string& menu_str
     {
     case A101_ADPTR_1TE1://WAN_MEDIA_T1:
     case A104_ADPTR_4TE1:
+    case A200_ADPTR_ANALOG:
       //the 'TDM_VOICE' should be displayed as protocol, not 'operational mode'
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", PROTOCOL_TDM_VOICE);
       menu_str += tmp_buff;
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(PROTOCOL_TDM_VOICE));
       menu_str += tmp_buff;
 
-#if defined(__LINUX__) && !BSD_DEBG
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_HDLC);
       menu_str += tmp_buff;
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_HDLC));
       menu_str += tmp_buff;
-#endif
            
       num_of_items += 2;
       break;
 
-#if defined(__LINUX__) && !BSD_DEBG
     case A300_ADPTR_U_1TE3://WAN_MEDIA_DS3:
+    case AFT_ADPTR_56K:
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", WANCONFIG_HDLC);
       menu_str += tmp_buff;
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%s\" ", get_protocol_string(WANCONFIG_HDLC));
@@ -243,7 +259,6 @@ int menu_select_protocol::form_protocol_list_valid_for_hardware(string& menu_str
       
       num_of_items += 1;
       break;
-#endif
     }
     break;
     

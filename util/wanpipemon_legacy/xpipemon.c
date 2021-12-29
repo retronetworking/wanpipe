@@ -451,7 +451,7 @@ void decode_timestamp (trace_data_t *trace_info)
 	strftime(tmp_time,sizeof(tmp_time),"%S",time_tm);
 	printf("%s ",tmp_time);
 
-	printf("%ld [1/100s]",trace_info->usec );
+	printf("%d [1/100s]",trace_info->usec );
 }
 
 void line_trace(int trace_mode) 
@@ -729,7 +729,7 @@ void flush_driver_stats( void )
 
 void x25_router_up_time( void )
 {
-     unsigned long time;
+     u_int32_t time;
      wan_udp.wan_udphdr_command = XPIPE_ROUTER_UP_TIME;
      wan_udp.wan_udphdr_data_len = 0;
      wan_udp.wan_udphdr_data[0] = 0;
@@ -741,11 +741,11 @@ void x25_router_up_time( void )
 					(wan_udp.wan_udphdr_data[3]*16777216);
      if (time < 3600) {
 	if (time<60) 
-     		printf("    Router UP Time:  %ld seconds\n", time);
+     		printf("    Router UP Time:  %d seconds\n", time);
 	else
-     		printf("    Router UP Time:  %ld minute(s)\n", (time/60));
+     		printf("    Router UP Time:  %d minute(s)\n", (time/60));
      }else
-     		printf("    Router UP Time:  %ld hour(s)\n", (time/3600));
+     		printf("    Router UP Time:  %d hour(s)\n", (time/3600));
 			
       
 } /* x25_router_up_time */

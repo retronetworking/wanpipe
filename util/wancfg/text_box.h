@@ -28,9 +28,11 @@
   */
 
 class text_box : public dialog_base  {
-public: 
-	text_box();
-	~text_box();
+public:
+  unsigned int box_type;
+
+  text_box();
+  ~text_box();
 
 	int set_configuration(IN char * lxdialog_path,
                         IN char * backtitle,

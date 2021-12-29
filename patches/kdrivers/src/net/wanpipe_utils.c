@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: wanpipe_utils.c,v 1.76 2005/06/16 17:15:20 sangoma Exp $
+ *	$Id: wanpipe_utils.c,v 1.91 2006/08/30 15:16:56 sangoma Exp $
  */
 
 /*
@@ -44,18 +44,17 @@
 */
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/wanpipe_includes.h>
+# include <wanpipe_includes.h>
 # if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
-#  include <net/wanpipe_snmp.h>
+#  include <wanpipe_snmp.h>
 # endif
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe.h>	/* WANPIPE common user API definitions */
+# include <wanpipe_abstr.h>
+# include <wanpipe.h>	/* WANPIPE common user API definitions */
 #elif (defined __WINDOWS__)
 # include <wanpipe\wanpipe_include.h>
 #elif (defined __KERNEL__)
 # include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_defines.h>
-//ALEX# include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe_abstr.h>
 # include <linux/wanpipe.h>
 # if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
@@ -87,6 +86,38 @@ static void wanpipe_debug_timer(unsigned long arg);
 
 extern sdla_t*	wanpipe_debug;
 int wan_get_dbg_msg(wan_device_t* wandev, void* u_dbg_msg);
+
+
+unsigned char wp_brt[256];
+
+static void wan_generate_bit_rev_table(void)
+{
+	unsigned char util_char;
+	unsigned char misc_status_byte;
+	int i;
+
+	/* generate the bit-reversing table for all unsigned characters */
+	for(util_char = 0;; util_char ++) {
+		misc_status_byte = 0;			/* zero the character to be 'built' */
+		/* process all 8 bits of the source byte and generate the */
+		for(i = 0; i <= 7; i ++) {
+		      	/* corresponding 'bit-flipped' character */
+			if(util_char & (1 << i)) {
+				misc_status_byte |= (1 << (7 - i));
+			}
+		}
+		/* insert the 'bit-flipped' character into the table 
+		 * at the appropriate location */
+		wp_brt[util_char] = misc_status_byte; 
+
+		/* exit when all unsigned characters have been processed */
+		if(util_char == 0xFF) {
+			break;
+		}
+	}
+}
+
+
 
 /*============================================================================
  * Convert decimal string to unsigned integer.
@@ -153,6 +184,21 @@ void wanpipe_set_baud (void* card_id, unsigned int baud)
 	card->wandev.bps=baud*1000;
 }
 
+void wanpipe_set_dev_carrier_state(sdla_t* card, int state)
+{
+	netdevice_t *dev;
+	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
+        if (dev && WAN_NETIF_UP(dev)) {
+		if (state == WAN_CONNECTED) {
+                 	WAN_NETIF_CARRIER_ON(dev);
+	       		WAN_NETIF_WAKE_QUEUE(dev);       		
+		} else {
+                	WAN_NETIF_CARRIER_OFF(dev);
+	       		WAN_NETIF_STOP_QUEUE(dev); 
+		}			
+	}
+}
+
 
 /* 
  * ============================================================================
@@ -177,6 +223,10 @@ void wanpipe_set_state (void* card_id, int state)
 			break;
 		}
 		card->wandev.state = state;
+
+		if (card->wandev.config_id == WANCONFIG_ADSL) {
+			wanpipe_set_dev_carrier_state(card,state);
+		}
 	}
 	card->state_tick = SYSTEM_TICKS;
 }
@@ -219,12 +269,12 @@ int wan_udp_pkt_type(void* card_id, caddr_t ptr)
 unsigned short wan_calc_checksum(char *data, int len)
 {
 	unsigned short temp;
-	unsigned long sum = 0;
+	u_int32_t sum = 0;
 	int i;
   
 	for(i=0; i < len; i += 2){
 		memcpy(&temp, &data[i], 2);
-		sum += (unsigned long)temp;
+		sum += (u_int32_t)temp;
 	}
 
 	while(sum >> 16){
@@ -252,7 +302,7 @@ int wan_reply_udp(void* card_id, unsigned char *data, unsigned int mbox_len)
 {
 	sdla_t*		card = (sdla_t*)card_id;
 	wan_udp_pkt_t*	udp_pkt = (wan_udp_pkt_t*)data;
-	unsigned long 	ip_temp;
+	u_int32_t 	ip_temp;
 	unsigned short 	len, 
 			udp_length, 
 			temp, 
@@ -386,8 +436,8 @@ void wanpipe_debugging (unsigned long data)
 {
 	sdla_t*			card = (sdla_t*)data;
 	wan_tasklet_t*		debug_task = NULL;
-	static unsigned long	CRC_frames = 0, abort_frames = 0;
-	static unsigned long	tx_underun_frames = 0;
+	static u_int32_t	CRC_frames = 0, abort_frames = 0;
+	static u_int32_t	tx_underun_frames = 0;
 	int			delay = 0;
 
 	WAN_ASSERT1(card == NULL);
@@ -410,7 +460,7 @@ void wanpipe_debugging (unsigned long data)
 		card->wan_debugging_state = WAN_DEBUGGING_START;
 	}
 	if (IS_TE1_CARD(card) || IS_56K_CARD(card)){ 
-		unsigned long status;
+		u_int32_t status;
 		/* Sangoma T1/E1/56K cards */
 		/* Check Tv attributes */
 		if (card->wandev.fe_iface.read_alarm){ 
@@ -989,9 +1039,9 @@ int wan_trace_enqueue(wan_trace_t *trace, void *skb_ptr)
 */
 #if !defined(CONFIG_PRODUCT_WANPIPE_GENERIC)
 u_char ds1_variables_oid[] = { 1,3,6,1,2,1,10,18 };
-u_char fr_variables_oid[] = { 1,3,6,1,2,1,10,32 };
+u_char fr_variables_oid[] =  { 1,3,6,1,2,1,10,32 };
 u_char ppp_variables_oid[] = { 1,3,6,1,2,1,10,23 };
-u_char x25_variables_oid[] = { 1,3,6,1,2,1,10,5 };
+u_char x25_variables_oid[] = { 1,3,6,1,2,1,10,5  };
 
 int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 {
@@ -1003,9 +1053,13 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 
 	case SIOC_WANPIPE_SNMP_IFSPEED:
 		if (WAN_COPY_TO_USER(ifr->ifr_data, &card->wandev.bps, sizeof(card->wandev.bps))){
-				return -EFAULT;
+			DEBUG_EVENT("%s: %s(): Line: %d: Failed to copy kernel space to user snmp data!\n",
+				card->devname, __FUNCTION__, __LINE__);
+			return -EFAULT;
 		}
-		return 0;			
+		return 0;
+	default:
+		DEBUG_EVENT("%s: Unknown cmd: %d (0x%X) \n",__FUNCTION__,cmd,cmd);
 	}
 
 	if (WAN_COPY_FROM_USER(&snmp, ifr->ifr_data, sizeof(wanpipe_snmp_t))){
@@ -1018,27 +1072,31 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 		/* SNMP call for ds1 */
 		DEBUG_SNMP("%s: Get T1/E1 SNMP data\n", 
 					card->devname);
-		card->wandev.fe_iface.get_snmp_data(&card->fe, dev, &snmp);
+		if(card->wandev.fe_iface.get_snmp_data){
+			card->wandev.fe_iface.get_snmp_data(&card->fe, dev, &snmp);
+		}else{
+			DEBUG_EVENT("%s: Failed to get Front End SNMP data! Request is invalid for Serial Card.\n",
+				card->devname);
+		}
 	}else{
 		if (strncmp((char *)fr_variables_oid,(char *)snmp.snmp_name, sizeof(fr_variables_oid)) == 0){
 			/* SNMP call for frame relay */
-			DEBUG_SNMP("%s: Get Frame Relay SNMP data\n", 
-						card->devname);
+			DEBUG_SNMP("%s: Get Frame Relay SNMP data\n", card->devname);
 		}
 
 		if (strncmp((char *)ppp_variables_oid,(char *)snmp.snmp_name, sizeof(ppp_variables_oid)) == 0){
 			/* SNMP call for PPP */
-			DEBUG_SNMP("%s: Get PPP SNMP data\n", 
-						card->devname);
+			DEBUG_SNMP("%s: Get PPP SNMP data\n", card->devname);
 		}
 	
 		if (strncmp((char *)x25_variables_oid,(char *)snmp.snmp_name, sizeof(x25_variables_oid)) == 0){
 			/* SNMP call for x251 */
-			DEBUG_SNMP("%s: Get X.25 SNMP data\n", 
-						card->devname);
+			DEBUG_SNMP("%s: Get X.25 SNMP data\n", card->devname);
 		}
 		if (card->get_snmp_data){
 			card->get_snmp_data(card, dev, &snmp);
+		}else{
+			DEBUG_SNMP("%s: get_snmp_data() ptr is NULL!!\n", card->devname);
 		}
 	}
 
@@ -1047,7 +1105,7 @@ int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr)
 				card->devname);
 		return -EFAULT;
 	}
-
+	
 	return 0;
 }
 #endif
@@ -1172,4 +1230,232 @@ int wpabs_dma_free(void* pcard, void* dma_descr)
 	return err;
 }
 
+/* LIP ATM definitions */
+#define ATM_CELL_SIZE	53
+#define ATM_HEADER_SZ 	5
+#define ATM_PAYLOAD_SZ	48
+#define ATM_PAD_CHAR	0x6A
 
+/*#define DEBUG_ATM	DEBUG_EVENT*/
+#define DEBUG_ATM	DEBUG_TEST
+
+int init_atm_idle_buffer(unsigned char *buff, int buff_len, char *if_name, char hardware_flip)
+{
+	const unsigned char idle_cell_header[ATM_HEADER_SZ] = {0x00, 0x00, 0x00, 0x01, 0x52};
+	unsigned char idle_cell[ATM_CELL_SIZE];
+	int ind, number_of_cells_fit_idle_buffer;
+
+	/* copy header */
+	memcpy(idle_cell, idle_cell_header, ATM_HEADER_SZ);
+	/* init pad chars */
+	memset(&idle_cell[ATM_HEADER_SZ], ATM_PAD_CHAR, ATM_PAYLOAD_SZ);
+	
+	number_of_cells_fit_idle_buffer = buff_len / ATM_CELL_SIZE;
+
+	if(number_of_cells_fit_idle_buffer == 0 /*|| buff_len % ATM_CELL_SIZE*/){
+	      DEBUG_EVENT("%s: Error: Invalid Idle buffer length=%d, not multiple of ATM_CELL_SIZE (53)!\n",
+			if_name, buff_len);
+	      return 1;
+	}
+
+	/* finally, init the buffer */
+	for(ind = 0; ind < number_of_cells_fit_idle_buffer; ind++){
+		memcpy(&buff[ind*ATM_CELL_SIZE], idle_cell, ATM_CELL_SIZE);
+	}
+
+	return 0;
+}
+
+int atm_add_data_to_skb(void* skb, void *data, int data_len, char *if_name)
+{
+	unsigned char 	*skb_data_ptr;
+		
+	DEBUG_ATM("%s(): data_len=%d, skb tail room=%d\n", 
+			__FUNCTION__, data_len, wan_skb_tailroom(skb));
+
+	if(data_len > wan_skb_tailroom(skb)){
+		DEBUG_EVENT("%s: %s(): Warining: 'data_len=%d > skb tail room=%d'!\n", 
+			if_name, __FUNCTION__, data_len, wan_skb_tailroom(skb));
+		return 1;
+	}
+
+	skb_data_ptr = wan_skb_put(skb, data_len);
+
+	/* copy data to the new skb */
+	memcpy(skb_data_ptr, data, data_len);
+
+	return 0;
+}
+
+int atm_pad_idle_cells_in_tx_skb(void *skb, void *tx_idle_skb, char *if_name)
+{
+	unsigned char 	*idle_skb_data_ptr;
+	int		num_of_cells_to_pad, i, empty_space;
+	
+	DEBUG_ATM("%s()\n", __FUNCTION__);
+
+	idle_skb_data_ptr = wan_skb_data(tx_idle_skb);
+
+	empty_space = wan_skb_len(tx_idle_skb) - wan_skb_len(skb);
+	DEBUG_ATM("empty space length: %d\n", empty_space);
+
+	num_of_cells_to_pad = empty_space / ATM_CELL_SIZE;
+	DEBUG_ATM("num_of_cells_to_pad: %d\n", num_of_cells_to_pad);
+	
+	if(empty_space % ATM_CELL_SIZE){
+		DEBUG_EVENT("%s: %s(): Error, empty space length (%d) is not multiple of ATM_CELL_SIZE!\n", 
+			if_name, __FUNCTION__, empty_space);
+		return 1;
+	}
+
+	if(num_of_cells_to_pad){
+		for(i = 0 ; i < num_of_cells_to_pad; i++){
+			if(atm_add_data_to_skb(skb, idle_skb_data_ptr, ATM_CELL_SIZE, if_name)){
+				return 2;
+			}
+		}
+	}
+
+	return 0;
+}
+
+void *atm_tx_skb_dequeue(void* wp_tx_pending_list, void *tx_idle_skb, char *if_name)
+{
+	void	*tx_skb, *single_cell_skb;
+	int	max_num_of_cells_fit_in_tx_buffer, i;
+
+	if(wan_skb_queue_len(wp_tx_pending_list) == 0){
+		return NULL;
+	}
+
+	DEBUG_ATM("%s(): queue len: %d\n", __FUNCTION__, wan_skb_queue_len(wp_tx_pending_list));
+
+	tx_skb = wan_skb_alloc(wan_skb_len(tx_idle_skb));
+	if (!tx_skb){
+		DEBUG_EVENT("%s: Failed to allocate ATM TX skb!\n", if_name);
+		return NULL;
+	}
+	
+	max_num_of_cells_fit_in_tx_buffer = wan_skb_len(tx_idle_skb) / ATM_CELL_SIZE;
+	DEBUG_ATM("max_num_of_cells_fit_in_tx_buffer=%d\n", max_num_of_cells_fit_in_tx_buffer);
+
+	i=0;
+	while(i++ < max_num_of_cells_fit_in_tx_buffer){
+	
+		single_cell_skb = wan_skb_dequeue(wp_tx_pending_list);
+		if(single_cell_skb == NULL){
+			/* no more data, but may be idle cells should be added */
+			DEBUG_ATM("no more data\n");
+			break;
+		}
+
+		atm_add_data_to_skb(	tx_skb,
+					wan_skb_data(single_cell_skb),
+					wan_skb_len (single_cell_skb),
+					if_name);
+
+		wan_skb_free(single_cell_skb);
+	}
+
+	/* try to add idle cells, if no space it won't do anything */
+	atm_pad_idle_cells_in_tx_skb(tx_skb, tx_idle_skb, if_name);
+
+	return tx_skb;
+}
+
+int wanpipe_globals_util_init(void)
+{
+	wan_generate_bit_rev_table();
+
+	return 0;
+}
+
+
+
+/*
+ *	Verify iovec. The caller must ensure that the iovec is big enough
+ *	to hold the message iovec.
+ *
+ *	Save time not doing verify_area. copy_*_user will make this work
+ *	in any case.
+ */
+
+#if defined(__LINUX__)
+ 
+int wan_verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode)
+{
+	int size, err, ct;
+	
+	m->msg_name = NULL;
+	
+	size = m->msg_iovlen * sizeof(struct iovec);
+	
+	if (copy_from_user(iov, m->msg_iov, size))
+		return -EFAULT;
+
+	m->msg_iov = iov;
+	err = 0;
+
+	for (ct = 0; ct < m->msg_iovlen; ct++) {
+		err += iov[ct].iov_len;
+		/*
+		 * Goal is not to verify user data, but to prevent returning
+		 * negative value, which is interpreted as errno.
+		 * Overflow is still possible, but it is harmless.
+		 */
+		if (err < 0)
+			return -EMSGSIZE;
+	}
+
+	return err;
+}
+      
+ /*
+ *	Copy iovec to kernel. Returns -EFAULT on error.
+ *
+ *	Note: this modifies the original iovec.
+ */
+ 
+int wan_memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len)
+{
+	while (len > 0) {
+		if (iov->iov_len) {
+			int copy = min_t(unsigned int, len, iov->iov_len);
+			if (copy_from_user(kdata, iov->iov_base, copy))
+				return -EFAULT;
+			len -= copy;
+			kdata += copy;
+			iov->iov_base += copy;
+			iov->iov_len -= copy;
+		}
+		iov++;
+	}
+
+	return 0;
+}                
+
+/*
+ *	Copy kernel to iovec. Returns -EFAULT on error.
+ *
+ *	Note: this modifies the original iovec.
+ */
+ 
+int wan_memcpy_toiovec(struct iovec *iov, unsigned char *kdata, int len)
+{
+	while (len > 0) {
+		if (iov->iov_len) {
+			int copy = min_t(unsigned int, iov->iov_len, len);
+			if (copy_to_user(iov->iov_base, kdata, copy))
+				return -EFAULT;
+			kdata += copy;
+			len -= copy;
+			iov->iov_len -= copy;
+			iov->iov_base += copy;
+		}
+		iov++;
+	}
+
+	return 0;
+}             
+
+#endif

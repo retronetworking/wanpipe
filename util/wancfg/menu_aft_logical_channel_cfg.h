@@ -35,6 +35,9 @@ class menu_aft_logical_channel_cfg : public menu_base  {
   objects_list* obj_list;
   list_element_chan_def* logical_ch_cfg;
 
+  link_def_t    *link_defs;
+  wandev_conf_t *linkconf;
+
   int display_protocol_cfg(IN int protocol, IN conf_file_reader* local_cfr);
   int handle_protocol_change(unsigned int protocol_selected);
 

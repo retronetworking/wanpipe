@@ -34,9 +34,9 @@
 # include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe.h>
 #else
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe.h>
 #endif
 #include "fe_lib.h"
 #include "wanpipemon.h"
@@ -45,6 +45,7 @@
  * 			DEFINES/MACROS					      *
  *****************************************************************************/
 #define TIMEOUT 1
+#define NUM_OF_DS3_CHANNELS		672
 #define MDATALEN 2024
 
 #define CB_SIZE 	sizeof(wan_mgmt_t) + sizeof(wan_cmd_t) + 1
@@ -60,7 +61,6 @@
 #endif	
 
 static void hw_set_lb_modes(unsigned char type, unsigned char mode);
-static void hw_set_debug_mode(unsigned char type, unsigned char mode);
 static int hw_get_fe_type(unsigned char* adapter_type);
 
 /******************************************************************************
@@ -837,8 +837,8 @@ static void hw_set_lb_modes(unsigned char type, unsigned char mode)
 
 void read_te1_56k_stat(void)
 {
-	unsigned char* data = NULL;
-	unsigned long 	alarms = 0x00;
+	sdla_fe_stats_t	*fe_stats;
+	//unsigned char* data = NULL;
 	unsigned char	adapter_type = 0x00;
 
 	/* Read Adapter Type */
@@ -861,8 +861,6 @@ void read_te1_56k_stat(void)
 		return;
 	}
 
-	data = get_wan_udphdr_data_ptr(0);
-
 #if 0
 	if (wan_protocol == WANCONFIG_CHDLC){
 		data = &wan_udp.wan_udphdr_chdlc_data[0];
@@ -870,24 +868,34 @@ void read_te1_56k_stat(void)
 		data = &wan_udp.wan_udphdr_data[0];
 	}
 #endif
-
-	alarms = *(unsigned long*)data;
+	fe_stats = (sdla_fe_stats_t*)get_wan_udphdr_data_ptr(0);
 	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
-		printf("***** %s: %s Alarms *****\n\n",
+		printf("***** %s: %s Alarms (Framer) *****\n\n",
 			if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
 		printf("ALOS:\t%s\t| LOS:\t%s\n", 
-				WAN_TE_ALOS_ALARM(alarms), 
-				WAN_TE_LOS_ALARM(alarms));
+				WAN_TE_ALOS_ALARM(fe_stats->alarms), 
+				WAN_TE_LOS_ALARM(fe_stats->alarms));
 		printf("RED:\t%s\t| AIS:\t%s\n", 
-				WAN_TE_RED_ALARM(alarms), 
-				WAN_TE_AIS_ALARM(alarms));
+				WAN_TE_RED_ALARM(fe_stats->alarms), 
+				WAN_TE_AIS_ALARM(fe_stats->alarms));
 		if (adapter_type == WAN_MEDIA_T1){ 
 			printf("YEL:\t%s\t| OOF:\t%s\n", 
-					WAN_TE_YEL_ALARM(alarms), 
-					WAN_TE_OOF_ALARM(alarms));
+					WAN_TE_YEL_ALARM(fe_stats->alarms), 
+					WAN_TE_OOF_ALARM(fe_stats->alarms));
 		}else{
 			printf("OOF:\t%s\n", 
-					WAN_TE_OOF_ALARM(alarms));
+					WAN_TE_OOF_ALARM(fe_stats->alarms));
+		}
+
+		if (fe_stats->liu_alarms & WAN_TE_BIT_LIU_ALARM){
+			printf("\n***** %s: %s Alarms (LIU) *****\n\n",
+				if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
+			printf("Short Circuit:\t%s\n", 
+					WAN_TE_LIU_ALARM_SC(fe_stats->liu_alarms));
+			printf("Open Circuit:\t%s\n", 
+					WAN_TE_LIU_ALARM_OC(fe_stats->liu_alarms));
+			printf("Loss of Signal:\t%s\n", 
+					WAN_TE_LIU_ALARM_LOS(fe_stats->liu_alarms));
 		}
 
 	}else if  (adapter_type == WAN_MEDIA_DS3 || adapter_type == WAN_MEDIA_E3){
@@ -896,45 +904,45 @@ void read_te1_56k_stat(void)
 
 		if (adapter_type == WAN_MEDIA_DS3){
 			printf("AIS:\t%s\t| LOS:\t%s\n",
-					WAN_TE3_AIS_ALARM(alarms),
-					WAN_TE3_LOS_ALARM(alarms));
+					WAN_TE3_AIS_ALARM(fe_stats->alarms),
+					WAN_TE3_LOS_ALARM(fe_stats->alarms));
 
 			printf("OOF:\t%s\t| YEL:\t%s\n",
-					WAN_TE3_OOF_ALARM(alarms),
-					WAN_TE3_YEL_ALARM(alarms));
+					WAN_TE3_OOF_ALARM(fe_stats->alarms),
+					WAN_TE3_YEL_ALARM(fe_stats->alarms));
 		}else{
 			printf("AIS:\t%s\t| LOS:\t%s\n",
-					WAN_TE3_AIS_ALARM(alarms),
-					WAN_TE3_LOS_ALARM(alarms));
+					WAN_TE3_AIS_ALARM(fe_stats->alarms),
+					WAN_TE3_LOS_ALARM(fe_stats->alarms));
 
 			printf("OOF:\t%s\t| YEL:\t%s\n",
-					WAN_TE3_OOF_ALARM(alarms),
-					WAN_TE3_YEL_ALARM(alarms));
+					WAN_TE3_OOF_ALARM(fe_stats->alarms),
+					WAN_TE3_YEL_ALARM(fe_stats->alarms));
 			
 			printf("LOF:\t%s\t\n",
-					WAN_TE3_LOF_ALARM(alarms));
+					WAN_TE3_LOF_ALARM(fe_stats->alarms));
 		}
 		
 	}else if (adapter_type == WAN_MEDIA_56K){
 		printf("***** %s: 56K CSU/DSU Alarms *****\n\n\n", if_name);
 	 	printf("In Service:\t\t%s\tData mode idle:\t\t%s\n",
-			 	INS_ALARM_56K(alarms), 
-			 	DMI_ALARM_56K(alarms));
+			 	INS_ALARM_56K(fe_stats->alarms), 
+			 	DMI_ALARM_56K(fe_stats->alarms));
 	
 	 	printf("Zero supp. code:\t%s\tCtrl mode idle:\t\t%s\n",
-			 	ZCS_ALARM_56K(alarms), 
-			 	CMI_ALARM_56K(alarms));
+			 	ZCS_ALARM_56K(fe_stats->alarms), 
+			 	CMI_ALARM_56K(fe_stats->alarms));
 
 	 	printf("Out of service code:\t%s\tOut of frame code:\t%s\n",
-			 	OOS_ALARM_56K(alarms), 
-			 	OOF_ALARM_56K(alarms));
+			 	OOS_ALARM_56K(fe_stats->alarms), 
+			 	OOF_ALARM_56K(fe_stats->alarms));
 		
 	 	printf("Valid DSU NL loopback:\t%s\tUnsigned mux code:\t%s\n",
-			 	DLP_ALARM_56K(alarms), 
-			 	UMC_ALARM_56K(alarms));
+			 	DLP_ALARM_56K(fe_stats->alarms), 
+			 	UMC_ALARM_56K(fe_stats->alarms));
 
 	 	printf("Rx loss of signal:\t%s\t\n",
-			 	RLOS_ALARM_56K(alarms)); 
+			 	RLOS_ALARM_56K(fe_stats->alarms)); 
 		
 	}else{
 		printf("***** %s: Unknown Front End 0x%X *****\n\n",
@@ -942,42 +950,58 @@ void read_te1_56k_stat(void)
 	}
 
 	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
-		sdla_te_pmon_t*	pmon = NULL;
-		pmon = (sdla_te_pmon_t*)&data[sizeof(unsigned long)];
+		sdla_te_pmon_t*	pmon = &fe_stats->u.te_pmon;
+
 		printf("\n\n***** %s: %s Performance Monitoring Counters *****\n\n",
 				if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
-		printf("Framing Bit Error:\t%ld\tLine Code Violation:\t%ld\n", 
-				pmon->frm_bit_error,
-				pmon->lcv);
-		if (adapter_type == WAN_MEDIA_T1){
-			printf("Out of Frame Errors:\t%ld\tBit Errors:\t\t%ld\n", 
-					pmon->oof_errors,
-					pmon->bit_errors);
-		}else{
-			printf("Far End Block Errors:\t%ld\tCRC Errors:\t%ld\n", 
-					pmon->far_end_blk_errors,
-					pmon->crc_errors);
+		if (pmon->mask & WAN_TE_BIT_PMON_LCV){
+			printf("Line Code Violation\t: %d\n",
+						pmon->lcv_errors);
+		}
+		if (pmon->mask & WAN_TE_BIT_PMON_BEE){
+			printf("Bit Errors (CRC6/Ft/Fs)\t: %d\n",
+						pmon->bee_errors);
+		}
+		if (pmon->mask & WAN_TE_BIT_PMON_OOF){
+			printf("Out of Frame Errors\t: %d\n",
+						pmon->oof_errors);
+		}
+		if (pmon->mask & WAN_TE_BIT_PMON_FEB){
+			printf("Far End Block Errors\t: %d\n",
+						pmon->feb_errors);
+		}
+		if (pmon->mask & WAN_TE_BIT_PMON_CRC4){
+			printf("CRC4 Errors\t\t: %d\n",
+						pmon->crc4_errors);
+		}
+		if (pmon->mask & WAN_TE_BIT_PMON_FER){
+			printf("Framing Bit Errors\t: %d\n",
+						pmon->fer_errors);
+		}
+		if (pmon->mask & WAN_TE_BIT_PMON_FAS){
+			printf("FAS Errors\t\t: %d\n",
+						pmon->fas_errors);
 		}
 	}
 
 	if (adapter_type == WAN_MEDIA_DS3 || adapter_type == WAN_MEDIA_E3){
-		sdla_te3_pmon_t*	pmon = NULL;
-		pmon = (sdla_te3_pmon_t*)&data[sizeof(unsigned long)];
+		sdla_te3_pmon_t*	pmon = &fe_stats->u.te3_pmon;
+
 		printf("\n\n***** %s: %s Performance Monitoring Counters *****\n\n",
 				if_name, (adapter_type == WAN_MEDIA_DS3) ? "DS3" : "E3");
 
-		printf("Framing Bit Error:\t%ld\tLine Code Violation:\t%ld\n", 
+		printf("Framing Bit Error:\t%d\tLine Code Violation:\t%d\n", 
 				pmon->pmon_framing,
 				pmon->pmon_lcv);
 
 		if (adapter_type == WAN_MEDIA_DS3){
-			printf("Parity Error:\t\t%ld\n",
+			printf("Parity Error:\t\t%d\n",
 					pmon->pmon_parity);
-			printf("CP-Bit Error Event:\t%ld\tFEBE Event:\t\t%ld\n", 
+			printf("CP-Bit Error Event:\t%d\tFEBE Event:\t\t%d\n", 
 					pmon->pmon_cpbit,
 					pmon->pmon_febe);
 		}else{
-			printf("Parity Error:\t%ld\tFEBE Event:\t\t%ld\n",
+			printf("Parity Error:\t%d\tFEBE Event:\t\t%d\n",
 					pmon->pmon_parity,
 					pmon->pmon_febe);
 		}
@@ -1025,7 +1049,6 @@ void flush_te1_pmon(void)
 void read_te1_56k_config (void)
 {
 	unsigned char	adapter_type = 0x00;
-
 	/* Read Adapter Type */
 	if (get_fe_type(&adapter_type)){
 		return;
@@ -1060,7 +1083,7 @@ void read_te1_56k_config (void)
 				te_cfg = (sdla_te_cfg_t *)&wan_udp.wan_udphdr_data[0];
 			}
 #endif
-			printf("CSU/DSU %s Conriguration:\n", if_name);
+			printf("CSU/DSU %s Configuration:\n", if_name);
 			printf("\tMedia type\t%s\n",
 				MEDIA_DECODE(fe_cfg));
 			printf("\tFraming\t\t%s\n",
@@ -1101,28 +1124,62 @@ void read_te1_56k_config (void)
 				TECLK_DECODE(fe_cfg));
 		}
 	}
-    	cleanup_hardware_level_connection();
+	else if (adapter_type == WAN_MEDIA_DS3){
+
+		if(make_hardware_level_connection()){
+    			return;
+  		}
+
+		/* DS3 card */
+		wan_udp.wan_udphdr_command = WAN_FE_GET_CFG;
+		wan_udp.wan_udphdr_data_len = 0;
+		wan_udp.wan_udphdr_return_code = 0xaa;
+
+		DO_COMMAND(wan_udp);
+		if (wan_udp.wan_udphdr_return_code != 0){
+			printf("CSU/DSU Read Configuration Failed");
+		}else{
+			sdla_fe_cfg_t *fe_cfg = NULL;
+
+			fe_cfg = (sdla_fe_cfg_t *) get_wan_udphdr_data_ptr(0);
+			
+			printf("CSU/DSU %s Configuration:\n", if_name);
+			printf("\tMedia type\t%s\n",
+				MEDIA_DECODE(fe_cfg));
+			printf("\tFraming\t\t%s\n",
+				FRAME_DECODE(fe_cfg));
+			printf("\tEncoding\t%s\n",
+				LCODE_DECODE(fe_cfg));
+			printf("\tClock Mode\t%s\n", (fe_cfg->cfg.te3_cfg.clock == WAN_NORMAL_CLK) ? "Normal": (fe_cfg->cfg.te3_cfg.clock == WAN_MASTER_CLK) ? "Master" : "Unknown");
+		}		
+	}
+	cleanup_hardware_level_connection();
 	return;
 }
 
 void set_debug_mode(unsigned char type, unsigned char mode)
 {
-  if(make_hardware_level_connection()){
-    return;
-  }
-  hw_set_debug_mode(type, mode);
+	sdla_fe_debug_t	fe_debug;
 
-  cleanup_hardware_level_connection();
+	fe_debug.type	= type;
+	fe_debug.mode	= mode;
+	set_fe_debug_mode(&fe_debug);
 }
 
-static void hw_set_debug_mode(unsigned char type, unsigned char mode)
+void set_fe_debug_mode(sdla_fe_debug_t *fe_debug)
 {
+	int	err = 0;
+	unsigned char	*data = NULL;
+
+	if(make_hardware_level_connection()){
+		return;
+	}
 	wan_udp.wan_udphdr_command	= WAN_FE_SET_DEBUG_MODE;
-	wan_udp.wan_udphdr_data_len	= 1;
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_debug_t);
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 
-	set_wan_udphdr_data_byte(0,type);
-	set_wan_udphdr_data_byte(1,mode);
+	data = get_wan_udphdr_data_ptr(0);
+	memcpy(data, (unsigned char*)fe_debug, sizeof(sdla_fe_debug_t));
 
 #if 0
 	if (wan_protocol == WANCONFIG_CHDLC){
@@ -1133,35 +1190,30 @@ static void hw_set_debug_mode(unsigned char type, unsigned char mode)
 		wan_udp.wan_udphdr_data[1] = mode;
 	}
 #endif
-	DO_COMMAND(wan_udp);
-	if (wan_udp.wan_udphdr_return_code != 0){
-		printf("Failed to Enable/Disable Rx/TX debugging mode.\n");
+	err = DO_COMMAND(wan_udp);
+	if (err || wan_udp.wan_udphdr_return_code != 0){
+		printf("Failed to %s mode.\n",
+				WAN_FE_DEBUG_RBS_DECODE(fe_debug->mode));
 	}else{
-		switch(type){
+		switch(fe_debug->type){
 		case WAN_FE_DEBUG_RBS:
-			if (mode == WAN_FE_DEBUG_RBS_READ){
-				printf("Reading RBS status is finished!\n");
+			if (fe_debug->mode == WAN_FE_DEBUG_RBS_READ){
+				printf("Read RBS status is suceeded!\n");
+			}else if (fe_debug->mode == WAN_FE_DEBUG_RBS_SET){
+				printf("Setting ABCD bits (%X) for channel %d is suceeded!\n",
+						fe_debug->abcd, fe_debug->channel);
 			}else{
 				printf("%s debug mode!\n",
-					(mode == WAN_FE_DEBUG_RBS_RX_ENABLE) ? 
-						"Enable RBS RX" :
-					(mode == WAN_FE_DEBUG_RBS_TX_ENABLE) ? 
-						"Enable RBS TX" :
-					(mode == WAN_FE_DEBUG_RBS_RX_DISABLE) ? 
-						"Disable RBS RX" :
-					(mode == WAN_FE_DEBUG_RBS_TX_DISABLE) ? 
-						"Disable RBS Tx" : "Unknown");
+					WAN_FE_DEBUG_RBS_DECODE(fe_debug->mode));
 			}
 			break;
 		case WAN_FE_DEBUG_ALARM:
 			printf("%s AIS alarm!\n",
-				(mode == WAN_FE_DEBUG_ALARM_AIS_ENABLE) ? 
-					"Enable TX" :
-				(mode == WAN_FE_DEBUG_ALARM_AIS_DISABLE) ?
-					"Disable TX" : "Unknown");
+					WAN_FE_DEBUG_ALARM_DECODE(fe_debug->mode));
 			break;
 		}
 	}
+	cleanup_hardware_level_connection();
 	return;
 }
 

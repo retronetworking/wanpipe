@@ -227,6 +227,11 @@ again:
       exit_dialog = YES;
       break;
 
+    case 11:
+      chandef->usedby = TDM_API;
+      exit_dialog = YES;
+      break;
+
     default:
       ERR_DBG_OUT(("Invalid option selected for editing!! selection: %s\n",
         get_lxdialog_output_string()));
@@ -249,6 +254,7 @@ again:
     case 8:
     case 9:
     case 10:
+    case 11:
       tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED, net_if_operational_mode_help_str);
       break;
 
@@ -282,10 +288,12 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
   operation_modes_str = "";
 
   conf_file_reader* cfr = (conf_file_reader*)global_conf_file_reader_ptr;
-  //link_def_t * link_def = cfr->link_defs;
+  link_def_t * link_defs =  cfr->link_defs;
   wandev_conf_t *linkconf = cfr->link_defs->linkconf;
   wan_adsl_conf_t* adsl_cfg = &linkconf->u.adsl;
-
+  
+  Debug(DBG_MENU_NET_INTERFACE_OPERATION_MODE, ("protocol: %d\n", protocol));
+ 
   switch(protocol)
   {
   case PROTOCOL_TDM_VOICE:
@@ -345,13 +353,21 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
   case WANCONFIG_HDLC:
   
     Debug(DBG_MENU_NET_INTERFACE_OPERATION_MODE, ("WANCONFIG_HDLC\n"));
-    
+
     operation_modes_str = QUOTED_1;
     operation_modes_str += OP_MODE_WANPIPE;
 
     operation_modes_str += QUOTED_2;
     operation_modes_str += OP_MODE_API;
-
+      
+    number_of_items_in_menu = 2;
+  
+    if(linkconf->card_type == WANOPT_AFT || linkconf->card_type == WANOPT_AFT104){
+      operation_modes_str += QUOTED_11;
+      operation_modes_str += OP_MODE_TDM_API;
+      number_of_items_in_menu = 3;
+    }
+    
     //treaded as a protocol
     //operation_modes_str += QUOTED_8;
     //operation_modes_str += OP_MODE_VoIP;
@@ -360,7 +376,6 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
     //operation_modes_str += QUOTED_10;
     //operation_modes_str += OP_MODE_TTY;
 
-    number_of_items_in_menu = 3;
     break;
   
   //case WANCONFIG_CHDLC:
@@ -382,6 +397,17 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
     operation_modes_str += OP_MODE_STACK;
 
     number_of_items_in_menu = 5;
+    break;
+
+  case WANCONFIG_LIP_ATM:
+
+    operation_modes_str = QUOTED_1;
+    operation_modes_str += OP_MODE_WANPIPE;
+
+    operation_modes_str += QUOTED_6;
+    operation_modes_str += OP_MODE_STACK;
+
+    number_of_items_in_menu = 2;
     break;
 
   case WANCONFIG_BSC:
@@ -514,22 +540,35 @@ int menu_net_interface_operation_mode::form_operation_modes_menu_for_protocol(
 
   case WANCONFIG_AFT:
     //"AFT Mode"
-    operation_modes_str = QUOTED_1;
-    operation_modes_str += OP_MODE_WANPIPE;
+    if(link_defs->card_version != A200_ADPTR_ANALOG){
+      operation_modes_str = QUOTED_1;
+      operation_modes_str += OP_MODE_WANPIPE;
 
-    operation_modes_str += QUOTED_2;
-    operation_modes_str += OP_MODE_API;
+      operation_modes_str += QUOTED_2;
+      operation_modes_str += OP_MODE_API;
 
-    //operation_modes_str += QUOTED_8;
-    //operation_modes_str += OP_MODE_VoIP;
+      operation_modes_str += QUOTED_11;
+      operation_modes_str += OP_MODE_TDM_API;
 
-    //FIXIT: for two levels user will not be able to select STACK,
-    //because it is set automatically on Protocol selcection
-    //in "menu_aft_logical_channel_cfg::run()"
+      //operation_modes_str += QUOTED_8;
+      //operation_modes_str += OP_MODE_VoIP;
+
+      //FIXIT: for two levels user will not be able to select STACK,
+      //because it is set automatically on Protocol selcection
+      //in "menu_aft_logical_channel_cfg::run()"
 //    operation_modes_str += QUOTED_6;
 //    operation_modes_str += OP_MODE_STACK;
 
-    number_of_items_in_menu = 2;
+      number_of_items_in_menu = 3;
+    }else{
+      operation_modes_str += QUOTED_2;
+      operation_modes_str += OP_MODE_API;
+
+      operation_modes_str += QUOTED_11;
+      operation_modes_str += OP_MODE_TDM_API;
+
+      number_of_items_in_menu = 2;
+    }
     break;
 
   case WANCONFIG_ADCCP:

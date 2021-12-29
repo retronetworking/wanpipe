@@ -38,7 +38,9 @@ enum NET_IF_OPTIONS{
   TDMV_SPAN_NUMBER,
   TDMV_ECHO_OPTIONS,
   TDMV_D_CHANNEL,
-  CONFIGURE_NEXT_LEVEL
+  CONFIGURE_NEXT_LEVEL,
+  TDMV_HWEC,
+  TDMV_HWEC_MAP
 };
 
 char* net_if_name_help_str =
@@ -128,16 +130,17 @@ char* net_if_tdmv_dchan_help_str =
 "TDMV DCHAN PRI HDLC OPTIONS:\n"
 "---------------------------\n"
 "\n"
-"   The DCHAN TDMV PRI HDLC option enables the\n"
-"HARDWARE HDLC engine for a particular PRI\n"
-"timeslot. (A104 Option Only)\n"
+"   The DCHAN TDMV PRI HDLC option enables an on\n"
+"board HARDWARE HDLC engine for a particular PRI\n"
+"timeslot.\n"
 "\n"
-"  If enabled, WANPIPE AFT card will encode/decode\n"
-"              HDLC pri frames in HARDWARE and tx/rx\n"
-"              hdlc frames to and from Zaptel.\n"
+"   If enabled (set to non-zero value such as 16 for E1\n"
+"or 24 for T1), WANPIPE AFT card will encode/decode\n"
+"HDLC pri frames in HARDWARE, bypassing the Zaptel\n"
+"software HDLC engine.\n"
 "\n"
-"  If disabled,WANPIPE will pass raw pri bits to\n"
-"              ZAPTEL HDLC engine for encoding/decoding.\n"
+"   If disabled (set to 0), WANPIPE will pass raw bits to\n"
+"Zaptel software HDLC engine for encoding/decoding.\n"
 "\n"
 "Options:  [0, 1-31]\n"
 "\n"
@@ -186,6 +189,7 @@ int menu_net_interface_setup::run(OUT int * selection_index)
   conf_file_reader* local_cfr = (conf_file_reader*)global_conf_file_reader_ptr;
   wan_xilinx_conf_t* wan_xilinx_conf = &local_cfr->link_defs->linkconf->u.aft;
   sdla_fe_cfg_t*  fe_cfg = &local_cfr->link_defs->linkconf->fe_cfg;
+  link_def_t * link_defs = local_cfr->link_defs;
  
   //help text box
   text_box tb;
@@ -287,26 +291,46 @@ again:
 		    wan_xilinx_conf->tdmv_span_no);
     menu_str += tmp_buff;
 
-    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_ECHO_OPTIONS);
-    menu_str += tmp_buff;
-    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Override Asterisk Echo Enable -> %s\" ",
+    //if(link_defs->card_version != A200_ADPTR_ANALOG){
+      /*
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_ECHO_OPTIONS);
+      menu_str += tmp_buff;
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Override Asterisk Echo Enable -> %s\" ",
 	(chandef->chanconf->tdmv_echo_off == WANOPT_YES ? "Yes" : "No"));
-    menu_str += tmp_buff;
+      menu_str += tmp_buff;
+      */
 
-    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_D_CHANNEL);
-    menu_str += tmp_buff;
-    
-    if(wan_xilinx_conf->tdmv_dchan != 0){
-      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM PRI HW-HDLC Timeslot-------> %d\" ", 
-		    wan_xilinx_conf->tdmv_dchan);
-    }else{
-      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM PRI HW-HDLC Timeslot-------> %d Not Used\" ", 
-		    wan_xilinx_conf->tdmv_dchan);
-    }
-    menu_str += tmp_buff;
+      if(link_defs->card_version != A200_ADPTR_ANALOG){
+        snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_D_CHANNEL);
+        menu_str += tmp_buff;
    
+        if(wan_xilinx_conf->tdmv_dchan != 0){
+          snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM PRI HW-HDLC Timeslot-------> %d\" ", 
+		    wan_xilinx_conf->tdmv_dchan);
+        }else{
+          snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDM PRI HW-HDLC Timeslot-------> %d Not Used\" ", 
+		    wan_xilinx_conf->tdmv_dchan);
+        }
+        menu_str += tmp_buff;
+      }
+
+      //add_hw_echo_cancel_items(menu_str, link_defs, wan_xilinx_conf);
+      add_hw_echo_cancel_items(menu_str, chandef);
+
+    //}
     break;
  
+  case API:
+  case TDM_API:
+    //if(link_defs->card_version == A200_ADPTR_ANALOG){
+    if(local_cfr->link_defs->linkconf->card_type == WANOPT_AFT && 
+       (link_defs->card_version == A104_ADPTR_4TE1 || link_defs->card_version == A101_ADPTR_1TE1 ||
+	link_defs->card_version == A200_ADPTR_ANALOG)){
+      //add_hw_echo_cancel_items(menu_str, link_defs, wan_xilinx_conf);
+      add_hw_echo_cancel_items(menu_str, chandef);
+    }
+    break;
+
   case STACK:
     snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", CONFIGURE_NEXT_LEVEL);
     menu_str += tmp_buff;
@@ -673,6 +697,117 @@ show_tdm_dchan_input_box:
       }	
       break;
 
+#if 0
+//old version - when HWEC MAP was in [device] section
+    case TDMV_HWEC:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s Hardware Echo Cancellation?",
+	(wan_xilinx_conf->tdmv_hwec == WANOPT_NO ? "Enable" : "Disable"));
+
+      if(yes_no_question(   selection_index,
+                            lxdialog_path,
+                            NO_PROTOCOL_NEEDED,
+                            tmp_buff) == NO){
+        return NO;
+      }
+
+      switch(*selection_index)
+      {
+      case YES_NO_TEXT_BOX_BUTTON_YES:
+        if(wan_xilinx_conf->tdmv_hwec == WANOPT_NO){
+          //was disabled - enable
+          wan_xilinx_conf->tdmv_hwec = WANOPT_YES;
+        }else{
+          //was enabled - disable
+          wan_xilinx_conf->tdmv_hwec = WANOPT_NO;
+        }
+        break;
+      }
+      break;
+
+    case TDMV_HWEC_MAP:
+      snprintf(explanation_text, MAX_PATH_LENGTH, "Hardware Echo Cancellation Map");
+      snprintf(initial_text, MAX_PATH_LENGTH, "%s", local_cfr->link_defs->active_channels_string);
+		//wan_xilinx_conf->tdmv_hwec_map);
+
+show_hwec_map_input_box:
+      inb.set_configuration(  lxdialog_path,
+                              backtitle,
+                              explanation_text,
+                              INPUT_BOX_HIGTH,
+                              INPUT_BOX_WIDTH,
+                              initial_text);
+
+      inb.show(selection_index);
+
+      switch(*selection_index)
+      {
+      case INPUT_BOX_BUTTON_OK:
+	snprintf(local_cfr->link_defs->active_channels_string,
+		MAX_LEN_OF_ACTIVE_CHANNELS_STRING, inb.get_lxdialog_output_string());
+	break;
+
+      case INPUT_BOX_BUTTON_HELP:
+        tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+          "Enter Hardware Echo Cancellation Map.");
+        goto show_hwec_map_input_box;
+      }//switch(*selection_index) 
+      break;
+#endif
+    case TDMV_HWEC:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s Hardware Echo Cancellation?",
+	(chandef->chanconf->xoff_char == WANOPT_NO ? "Enable" : "Disable"));
+
+      if(yes_no_question(   selection_index,
+                            lxdialog_path,
+                            NO_PROTOCOL_NEEDED,
+                            tmp_buff) == NO){
+        return NO;
+      }
+
+      switch(*selection_index)
+      {
+      case YES_NO_TEXT_BOX_BUTTON_YES:
+        if(chandef->chanconf->xoff_char == WANOPT_NO){
+          //was disabled - enable
+          chandef->chanconf->xoff_char = WANOPT_YES;
+	  //suggest to user HWEC chan MAP to be the same as active chans for the group
+          strncpy(chandef->active_hwec_channels_string, chandef->active_channels_string,
+		 MAX_LEN_OF_ACTIVE_CHANNELS_STRING);
+        }else{
+          //was enabled - disable
+          chandef->chanconf->xoff_char = WANOPT_NO;
+        }
+        break;
+      }
+      break;
+
+    case TDMV_HWEC_MAP:
+      snprintf(explanation_text, MAX_PATH_LENGTH, "Hardware Echo Cancellation Map");
+      snprintf(initial_text, MAX_PATH_LENGTH, "%s", chandef->active_hwec_channels_string);
+	
+show_hwec_map_input_box:
+      inb.set_configuration(  lxdialog_path,
+                              backtitle,
+                              explanation_text,
+                              INPUT_BOX_HIGTH,
+                              INPUT_BOX_WIDTH,
+                              initial_text);
+
+      inb.show(selection_index);
+
+      switch(*selection_index)
+      {
+      case INPUT_BOX_BUTTON_OK:
+	snprintf(chandef->active_hwec_channels_string,
+		MAX_LEN_OF_ACTIVE_CHANNELS_STRING, inb.get_lxdialog_output_string());
+	break;
+
+      case INPUT_BOX_BUTTON_HELP:
+        tb.show_help_message(lxdialog_path, NO_PROTOCOL_NEEDED,
+          "Enter Hardware Echo Cancellation Map.");
+        goto show_hwec_map_input_box;
+      }//switch(*selection_index) 
+      break;
     case EMPTY_LINE:
       break;
       
@@ -726,3 +861,57 @@ cleanup:
   return rc;
 }
 
+#if 0
+//old version: when it was in [device] section
+void menu_net_interface_setup::add_hw_echo_cancel_items(string& menu_str,
+						     link_def_t *link_defs,
+						     wan_xilinx_conf_t *wan_xilinx_conf)
+{
+  char tmp_buff[MAX_PATH_LENGTH];
+
+  //TDMV_HWEC = YES/NO
+  //TDMV_HWEC_MAP	= 1 (from 1 to 16 including)
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_HWEC);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Echo Cancellation------> %s\" ",
+        (wan_xilinx_conf->tdmv_hwec == WANOPT_YES ? "Yes" : "No"));
+  menu_str += tmp_buff;
+      
+/*
+//not used anymore
+  if(wan_xilinx_conf->tdmv_hwec == WANOPT_YES){
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_HWEC_MAP);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Echo Cancellation Map--> %s\" ", 
+			link_defs->active_channels_string);
+    menu_str += tmp_buff;
+  }
+*/
+}
+#endif
+
+void menu_net_interface_setup::add_hw_echo_cancel_items(string& menu_str,
+							chan_def_t* chandef)
+{
+  char tmp_buff[MAX_PATH_LENGTH];
+
+  if(global_hw_ec_max_num == 0){
+    return;
+  }
+
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_HWEC);
+  menu_str += tmp_buff;
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Echo Cancellation------> %s\" ",
+        (chandef->chanconf->xoff_char == WANOPT_YES ? "Yes" : "No"));
+  menu_str += tmp_buff;
+  /*     
+  if(chandef->chanconf->xoff_char == WANOPT_YES){
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_HWEC_MAP);
+    menu_str += tmp_buff;
+    snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Hardware Echo Cancellation Map--> %s\" ", 
+			chandef->active_hwec_channels_string);
+    menu_str += tmp_buff;
+  }
+  */
+}

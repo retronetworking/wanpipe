@@ -1,0 +1,148 @@
+51,52c51,52
+< #  include <wanpipe_defines.h>
+< #  include <wanpipe_cfg.h>
+---
+> #  include <net/wanpipe_defines.h>
+> #  include <net/wanpipe_cfg.h>
+68c68
+< # else
+---
+> # elif defined(__WINDOWS__)
+73d72
+< #  include <wanpipe.h>
+74a74,82
+> //#  include <if_wanpipe.h>
+> #  include <wanpipe.h>
+> # else
+> #  include <net/wanpipe_includes.h>
+> #  include <net/wanpipe_defines.h>
+> #  include <net/wanpipe_debug.h>
+> #  include <net/wanpipe_common.h>
+> #  include <net/wanpipe_cfg.h>
+> #  include <net/wanpipe.h>
+77,78c85,86
+< #include "oct6100api/oct6100_apiud.h"
+< #include "oct6100api/oct6100_errors.h"
+---
+> #include "oct6100_apiud.h"
+> #include "oct6100_errors.h"
+80c88
+< #include "oct6100api/oct6100_api.h"
+---
+> #include "oct6100_api.h"
+103a112
+> 
+115a125
+> #if !defined(__WINDOWS__)
+124a135,137
+> #else
+> 	ulClockTicks = wpabs_get_systemticks();
+> #endif
+142a156,198
+> #if 0
+> UINT32 Oct6100UserGetTime(
+> 
+> 			IN OUT tPOCT6100_GET_TIME	f_pTime )
+> {
+> //FIXME: enable it
+> 	OCT_FUNC_DEBUG();
+> #if 0
+> 	clock_t		ulClockTicks;
+> 	struct timeval	TimeVal;
+> 	static UINT32	ulWallTimeUsHigh = 0;
+> 	static UINT32	ulWallTimeUsLow = 0;
+> 
+> 	if( !f_pTime )
+> 		return cOCT6100_GET_TIME_FAILED_0;
+> 
+> 	/* Retrieve clock tick */
+> #if defined(WAN_KERNEL)
+> 	wan_getcurrenttime( &TimeVal.tv_sec, &TimeVal.tv_usec );
+> #else
+> 	gettimeofday( &TimeVal, NULL );
+> #endif
+> 	/* ulClockTicks = ( TimeVal.tv_sec * 1000000 ) + ( TimeVal.tv_usec ); */
+> 	/* Create a value im ms (as clock does) */
+> 	ulClockTicks = ( TimeVal.tv_sec * 1000 ) + ( TimeVal.tv_usec /1000 );
+> 
+> 	/* move to micro sec */
+> 	ulClockTicks *= 1000;
+> 
+> 	/* Did it wrap ? */
+> 	if ( (UINT32)ulClockTicks < ulWallTimeUsLow )
+> 	{
+> 		/* Yes, so increment MSB */
+> 		ulWallTimeUsHigh++;
+> 	}
+> 
+> 	f_pTime->aulWallTimeUs[ 0 ] = ulClockTicks;
+> 	f_pTime->aulWallTimeUs[ 1 ] = ulWallTimeUsHigh;
+> 	ulWallTimeUsLow = f_pTime->aulWallTimeUs[ 0 ];
+> #endif
+> 	return cOCT6100_ERR_OK;
+> }
+> #endif
+806a863,866
+> #if defined(__WINDOWS__)
+> 	unsigned char tmp_buf[OCT_TMP_MEMORY_SIZE];
+> 	int rc = SILENT;
+> #endif
+820a881
+> # if !defined(__WINDOWS__)
+821a883,896
+> # else
+> 	VERIFY_DISPATCH_IRQL(rc);
+> 	if(rc){
+> 		//Memory allocation is invalid inside ISR, use a temp buffer.
+> 		if(f_pBurstParams->ulWriteLength * sizeof(unsigned short) > OCT_TMP_MEMORY_SIZE){
+> 			DEBUG_EVENT("%s(): Memory requested (%d) bigger than 'temp' (%d) buffer!!\n",
+> 				__FUNCTION__, f_pBurstParams->ulWriteLength * sizeof(unsigned short), OCT_TMP_MEMORY_SIZE);
+> 			return cOCT6100_DRIVER_WBURST_FAILED_1;
+> 		}
+> 		data = (unsigned short*)tmp_buf;
+> 	}else{
+> 		data = wan_malloc(f_pBurstParams->ulWriteLength * sizeof(unsigned short));
+> 	}
+> # endif
+839a915
+> # if !defined(__WINDOWS__)
+840a917,923
+> # else
+> 	rc = SILENT;
+> 	VERIFY_DISPATCH_IRQL(rc);
+> 	if(rc == 0){
+> 		wan_free(data);
+> 	}
+> # endif
+976a1060,1063
+> #if defined(__WINDOWS__)
+> 	unsigned char tmp_buf[OCT_TMP_MEMORY_SIZE];
+> 	int rc = SILENT;
+> #endif
+990a1078
+> # if !defined(__WINDOWS__)
+991a1080,1093
+> # else
+> 	VERIFY_DISPATCH_IRQL(rc);
+> 	if(rc){
+> 		//Memory allocation is invalid inside ISR, use a temp buffer.
+> 		if(f_pBurstParams->ulReadLength * sizeof(unsigned short) > OCT_TMP_MEMORY_SIZE){
+> 			DEBUG_EVENT("%s(): Memory requested (%d) bigger than 'temp' (%d) buffer!!\n",
+> 				__FUNCTION__, f_pBurstParams->ulReadLength * sizeof(unsigned short), OCT_TMP_MEMORY_SIZE);
+> 			return cOCT6100_DRIVER_WBURST_FAILED_1;
+> 		}
+> 		data = (unsigned short*)tmp_buf;
+> 	}else{
+> 		data = (unsigned short*)wan_malloc(f_pBurstParams->ulReadLength * sizeof(unsigned short));
+> 	}
+> # endif
+1012a1115
+> # if !defined(__WINDOWS__)
+1013a1117,1123
+> # else
+> 	rc = SILENT;
+> 	VERIFY_DISPATCH_IRQL(rc);
+> 	if(rc == 0){
+> 		wan_free(data);
+> 	}
+> # endif

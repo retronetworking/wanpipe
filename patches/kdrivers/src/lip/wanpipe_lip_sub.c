@@ -1,5 +1,5 @@
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <net/wanpipe_lip.h>
+# include <wanpipe_lip.h>
 #else
 # include <linux/wanpipe_lip.h>
 #endif
@@ -194,6 +194,47 @@ void wplip_remove_link(wplip_link_t *lip_link)
 	WP_READ_UNLOCK(&wplip_link_lock,flag);
 }
 
+/*==============================================================
+ * wplip_lipdev_latency_change
+ *
+ * Description:
+ *
+ * Purpose:
+ * 	Indicate a latency queue len change
+ *      to the link.
+ * 
+ * Used by: 
+ */
+
+int wplip_lipdev_latency_change(wplip_link_t *lip_link)
+{
+	wplip_dev_t *cur_dev;
+	wan_rwlock_flag_t flag;
+	unsigned int latency_qlen=0xFFFF;
+	
+	WP_READ_LOCK(&lip_link->dev_list_lock,flag);
+
+	/* Get the smallest queue latency out of all 
+	 * protocol interfaces. The smallest value will be
+	 * used as the new latency for the master device */
+
+	WAN_LIST_FOREACH(cur_dev,&lip_link->list_head_ifdev,list_entry){
+		if (cur_dev->max_mtu_sz < latency_qlen) {
+			latency_qlen=cur_dev->max_mtu_sz;	
+		}
+	}
+
+	WP_READ_UNLOCK(&lip_link->dev_list_lock,flag);
+
+	if (latency_qlen > 0 && latency_qlen < 0xFFFF) {
+		wan_smp_flag_t flags;
+		wan_spin_lock_irq(&lip_link->bh_lock,&flags);
+        	lip_link->latency_qlen = latency_qlen;
+		wan_spin_unlock_irq(&lip_link->bh_lock,&flags);
+	}
+	
+	return -ENODEV;
+}
 
 
 
@@ -230,7 +271,6 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int iftype)
 	memset(lip_dev, 0x00, sizeof(wplip_dev_t));
 	
 	lip_dev->magic=WPLIP_MAGIC_DEV;
-
 	lip_dev->common.state = WAN_DISCONNECTED;
 	lip_dev->common.usedby = iftype;
 	strncpy(lip_dev->name,dev_name,MAX_PROC_NAME);
@@ -255,6 +295,8 @@ wplip_dev_t *wplip_create_lipdev(char *dev_name, int iftype)
 		return NULL;
 	}
 
+
+	
 	WAN_DEV_HOLD(lip_dev);
 	
 	return lip_dev;
@@ -341,46 +383,6 @@ int wplip_lipdev_exists(wplip_link_t *lip_link, char *dev_name)
 	return -ENODEV;
 }
 
-/*==============================================================
- * wplip_lipdev_latency_change
- *
- * Description:
- *
- * Purpose:
- * 	Indicate a latency queue len change
- *      to the link.
- * 
- * Used by: 
- */
-
-int wplip_lipdev_latency_change(wplip_link_t *lip_link)
-{
-	wplip_dev_t *cur_dev;
-	wan_rwlock_flag_t flag;
-	unsigned int latency_qlen=0xFFFF;
-	
-	WP_READ_LOCK(&lip_link->dev_list_lock,flag);
-
-	/* Get the smallest queue latency out of all 
-	 * protocol interfaces. The smallest value will be
-	 * used as the new latency for the master device */
-
-	WAN_LIST_FOREACH(cur_dev,&lip_link->list_head_ifdev,list_entry){
-		if (cur_dev->max_mtu_sz < latency_qlen) {
-			latency_qlen=cur_dev->max_mtu_sz;	
-		}
-	}
-
-	WP_READ_UNLOCK(&lip_link->dev_list_lock,flag);
-
-	if (latency_qlen > 0 && latency_qlen < 0xFFFF) {
-        	lip_link->latency_qlen = latency_qlen;
-	}
-	
-	return -ENODEV;
-}        
-
-
 
 /*==============================================================
  * wplip_remove_lipdev
@@ -447,7 +449,7 @@ static netdevice_t *wplip_create_netif(char *dev_name, int iftype)
 	netdevice_t *dev;
 	int err;
 
-	dev = wan_netif_alloc(dev_name, &err);
+	dev = wan_netif_alloc(dev_name, WAN_IFT_OTHER, &err);
 	if (dev == NULL){
 		return NULL;
 	}
@@ -514,10 +516,11 @@ static void wplip_unregister_netif(netdevice_t *dev, wplip_dev_t *lip_dev)
 	if (wan_iface.detach){
 		wan_iface.detach(dev, lip_dev->common.is_netdev);
 	}
-
+	
 	if (wan_iface.free){
-		wan_iface.free(dev);
-	} 
+                wan_iface.free(dev);
+	}
+
 	return;
 }
 

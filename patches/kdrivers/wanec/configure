@@ -1,0 +1,19 @@
+#!/bin/sh
+
+
+REL="oct6100_api.PR43"
+IMG="OCT6126-128S.ima"
+
+rm -f oct6100_api
+rm -f image/OCT6116-32S.ima
+rm -f image/OCT6126-128S.ima
+rm -f image/OCT6116-256S.ima
+
+
+ln -s ${REL} oct6100_api
+
+cd image
+
+ln -s OCT6116FW-01.05.01/OCT6116-32S.ima OCT6116-32S.ima
+ln -s OCT6126FW-01.05.01/OCT6126-128S.ima OCT6126-128S.ima
+ln -s OCT6116FW-01.05.01/OCT6116-256S.ima OCT6116-256S.ima

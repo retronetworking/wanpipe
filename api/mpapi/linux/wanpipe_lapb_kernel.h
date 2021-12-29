@@ -29,7 +29,7 @@
 #define	LAPB_DCE		0x04
 
 enum lapb_ioctl_cmds {
-	SIOCC_PC_RESERVED = (SIOCDEVPRIVATE),
+	SIOCC_PC_RESERVED = (SIOC_WANPIPE_DEVPRIVATE),
 	SIOCG_LAPB_CONF,
 	SIOCS_LAPB_NEW_X25_CONF,
 	SIOCS_LAPB_DEL_X25_CONF,
@@ -37,6 +37,7 @@ enum lapb_ioctl_cmds {
 };
 
 
+#ifdef __KERNEL__
 
 extern int register_lapb_x25_protocol (struct lapb_x25_register_struct * x25_reg);
 extern void unregister_lapb_x25_protocol (void);
@@ -84,6 +85,8 @@ struct wanpipe_lapb_register_struct {
 
 extern int register_wanpipe_lapb_protocol (struct wanpipe_lapb_register_struct *lapb_reg);
 extern void unregister_wanpipe_lapb_protocol (void);
+
+#endif
 
 
 #endif

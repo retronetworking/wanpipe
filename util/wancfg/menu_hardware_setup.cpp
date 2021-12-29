@@ -41,6 +41,8 @@
 #include "menu_adsl_encapsulation.h"
 #include "menu_adsl_advanced_cfg.h"
 
+#include "menu_tdmv_law.h"
+
 #define DBG_MENU_HARDWARE_SETUP 1
 
 extern char* adapter_type_help_str;
@@ -166,7 +168,10 @@ enum HW_SETUP_OPTIONS {
   S508_MEMORY,
   S508_IRQ,
   TIMESLOT_GROUP_CFG,
-  ADVANCED_PCI_CFG
+  ADVANCED_PCI_CFG,
+  TDMV_LAW_SELECT,
+  TDMV_OPERMODE,
+  AFT_ANALOG_ADVANCED
 };
 
 menu_hardware_setup::menu_hardware_setup(   IN char * lxdialog_path,
@@ -347,7 +352,44 @@ again:
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Advanced %s Configuration\" ", TIME_SLOT_GROUPS_STR);
       menu_str += tmp_buff;
       number_of_items++;
+      break;
 
+    case A200_ADPTR_ANALOG:
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_LAW_SELECT);
+      menu_str += tmp_buff;
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDMV LAW--------> %s\" ", 
+	(fe_cfg->tdmv_law == WAN_TDMV_MULAW ? "MuLaw" : "ALaw"));
+      menu_str += tmp_buff;
+      number_of_items++;
+
+      //for backwards compatibility with older files, check TDMV_OPERMODE was read
+      //or initiaized when card type was selected
+      if(fe_cfg->cfg.remora.opermode_name[0] != 0){
+        snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TDMV_OPERMODE);
+        menu_str += tmp_buff;
+        snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TDMV Operational Mode-> %s\" ", 
+	  fe_cfg->cfg.remora.opermode_name);
+        menu_str += tmp_buff;
+        number_of_items++;
+      }
+
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", EMPTY_LINE);
+      menu_str += tmp_buff;
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \" \" ");
+      menu_str += tmp_buff;
+      number_of_items++;
+
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", AFT_ANALOG_ADVANCED);
+      menu_str += tmp_buff;
+      menu_str += " \"Advanced Physical Medium Configuration\" ";
+      number_of_items++;
+
+      //timeslot group configuration
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", TIMESLOT_GROUP_CFG);
+      menu_str += tmp_buff;
+      snprintf(tmp_buff, MAX_PATH_LENGTH, " \"Advanced %s Configuration\" ", TIME_SLOT_GROUPS_STR);
+      menu_str += tmp_buff;
+      number_of_items++;
       break;
       
     case A300_ADPTR_U_1TE3://WAN_MEDIA_DS3:
@@ -659,6 +701,17 @@ display_hardware_selection_label:
       }
       break;
 
+    case AFT_ANALOG_ADVANCED:
+      {
+        menu_hardware_analog_card_advanced_options hardware_analog_card_advanced_options(
+                                                                  lxdialog_path, cfr);
+        if(hardware_analog_card_advanced_options.run(selection_index) == NO){
+          rc = NO;
+          exit_dialog = YES;
+        }
+      }
+      break;
+
     case AFT_TE3_ADVANCED:
       {
         menu_hardware_te3_card_advanced_options hardware_te3_card_advanced_options(
@@ -874,6 +927,26 @@ show_vpi_input_box:
       {
 	menu_adsl_advanced_cfg adsl_advanced_cfg(lxdialog_path, adsl_cfg);
 	if(adsl_advanced_cfg.run(selection_index) == NO){
+          rc = NO;
+          exit_dialog = YES;
+        }
+      }
+      break;
+
+    case TDMV_LAW_SELECT:
+      {
+        menu_tdmv_law tdmv_law(lxdialog_path, cfr);
+        if(tdmv_law.run(selection_index) == NO){
+          rc = NO;
+          exit_dialog = YES;
+        }
+      }
+      break;
+
+    case TDMV_OPERMODE:
+      {
+        menu_tdmv_opermode tdmv_opermode(lxdialog_path, cfr);
+        if(tdmv_opermode.run(selection_index) == NO){
           rc = NO;
           exit_dialog = YES;
         }

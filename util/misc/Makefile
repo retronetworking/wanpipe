@@ -11,7 +11,7 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 # Project file paths.
-SYSINC	= /usr/src/linux/include
+SYSINC=/lib/modules/$(shell uname -r)/build/include
 WAN_VIRTUAL=
 
 # Tools options.

@@ -1,6 +1,6 @@
 # 05 Jun 93
 #
-# $Id: Makefile.FreeBSD,v 1.5 2005/05/03 21:36:58 sangoma Exp $
+# $Id: Makefile.FreeBSD,v 1.9 2006/09/13 14:38:40 sangoma Exp $
 #
 
 # Uncomment this to output debug messages
@@ -10,10 +10,10 @@ DEBUG=2
 # don't change anything below 
 
 .OBJDIR 	= /usr/obj${.CURDIR}
-BINDIR  	= /usr/sbin
+BINDIR  	= /usr/local/sbin
 PROG    	= wancfg_bsd
 LDADD		= -ll -ly -lm -lstdc++
-CFLAGS		+= -Wall -O2 -D_DEBUG_=$(DEBUG) -D_GNUC_ -I.
+CFLAGS		+= -Wall -O2 -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -I/usr/include/wanpipe
 SRCS		= cpp_string.cpp\
 conf_file_reader.cpp\
 text_box_yes_no.cpp\
@@ -49,10 +49,8 @@ menu_hardware_probe.cpp\
 menu_aft_logical_channels_list.cpp\
 input_box_number_of_logical_channels.cpp\
 menu_aft_logical_channel_cfg.cpp\
-net_interface_file_reader.cpp\
 menu_advanced_pci_configuration.cpp\
 menu_hardware_cpu_number.cpp\
-menu_hardware_select_comms_port.cpp\
 menu_wan_channel_cfg.cpp\
 menu_frame_relay_basic_cfg.cpp\
 menu_frame_relay_signalling.cpp\
@@ -91,6 +89,11 @@ menu_adsl_clock_type.cpp\
 wanrouter_rc_file_reader.cpp\
 menu_wan_channel_cfg_v1.cpp\
 menu_lapb_basic_cfg.cpp\
+menu_atm_basic_cfg.cpp\
+menu_atm_interface_configuration.cpp\
+message_box.cpp\
+menu_tdmv_law.cpp\
+menu_e1_lbo.cpp\
 main.cpp
 
 NOMAN   	=

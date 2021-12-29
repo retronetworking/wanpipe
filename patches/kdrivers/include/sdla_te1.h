@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- *	$Id: sdla_te1.h,v 1.29 2005/09/08 17:30:53 sangoma Exp $
+ *	$Id: sdla_te1.h,v 1.47 2006/10/17 16:07:42 sangoma Exp $
  */
 
 /*****************************************************************************
@@ -53,12 +53,14 @@
 /************************************************************************
  *			  DEFINES AND MACROS				*
  ***********************************************************************/
+#if 0
 #if defined(__NetBSD__) || defined (__FreeBSD__) || defined (__OpenBSD__)
-# include <net/sdla_te1_def.h>
+# include <sdla_te1_pmc.h>
 #elif defined (__WINDOWS__)
-# include "sdla_te1_def.h"
+# include "sdla_te1_pmc.h"
 #else
-# include <linux/sdla_te1_def.h>
+# include <linux/sdla_te1_pmc.h>
+#endif
 #endif
 
 /*
@@ -78,7 +80,7 @@
 #define WAN_TE_SIG_POLL		0x01
 #define WAN_TE_SIG_INTR		0x02
 
-/* Alram bit mask */
+/* Framer Alarm bit mask */
 #define WAN_TE_BIT_ALOS_ALARM		0x0001
 #define WAN_TE_BIT_LOS_ALARM		0x0002
 #define WAN_TE_BIT_ALTLOS_ALARM		0x0004
@@ -93,14 +95,32 @@
 #define WAN_TE_BIT_LOOPUP_CODE		0x2000	
 #define WAN_TE_BIT_LOOPDOWN_CODE	0x4000	
 #define WAN_TE_BIT_TE1_ALARM		0x8000	/* for Windows only */
+#define IS_TE_ALARM(alarm, mask)	(alarm & mask)
+#define IS_TE_ALOS_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALOS_ALARM)
+#define IS_TE_LOS_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_LOS_ALARM)
+#define IS_TE_OOF_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_OOF_ALARM)
+#define IS_TE_RED_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_RED_ALARM)
+#define IS_TE_AIS_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_AIS_ALARM)
+#define IS_TE_OOSMF_ALARM(alarm)	IS_TE_ALARM(alarm, WAN_TE_BIT_OOSMF_ALARM)
+#define IS_TE_OOCMF_ALARM(alarm)	IS_TE_ALARM(alarm, WAN_TE_BIT_OOCMF_ALARM)
+#define IS_TE_OOOF_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_OOOF_ALARM)
+#define IS_TE_RAI_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_RAI_ALARM)
+#define IS_TE_YEL_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_YEL_ALARM)
 
-/* Performamce monitor counter defines */
-#define frm_bit_error		pmon1	/* E1/T1   */
-#define oof_errors		pmon2	/* T1 only */
-#define far_end_blk_errors	pmon2	/* E1 only */
-#define bit_errors		pmon3	/* T1 only */
-#define crc_errors		pmon3	/* E1 only */
-#define lcv			pmon4	/* E1/T1   */
+/* Performance monitor counters bit mask */
+#define WAN_TE_BIT_PMON_LCV		0x01	/* line code violation counter */
+#define WAN_TE_BIT_PMON_BEE		0x02	/* bit errror event (T1) */
+#define WAN_TE_BIT_PMON_OOF		0x04	/* frame out of sync counter */
+#define WAN_TE_BIT_PMON_FEB		0x08	/* far end block counter */
+#define WAN_TE_BIT_PMON_CRC4		0x10	/* crc4 error counter (E1) */
+#define WAN_TE_BIT_PMON_FER		0x20	/* framing bit error (T1-pmc) */
+#define WAN_TE_BIT_PMON_FAS		0x40	/* Frame Alginment signal (E1) */
+
+/* LIU Alarm bit mask */
+#define WAN_TE_BIT_LIU_ALARM		0x8000	/* print liu status */
+#define WAN_TE_BIT_LIU_ALARM_SC		0x0001
+#define WAN_TE_BIT_LIU_ALARM_OC		0x0002
+#define WAN_TE_BIT_LIU_ALARM_LOS	0x0004
 
 /* For T1 only */
 #define WAN_T1_LBO_0_DB		0x01
@@ -113,10 +133,16 @@
 #define WAN_T1_330_440		0x08
 #define WAN_T1_440_550		0x09
 #define WAN_T1_550_660		0x0A
-
 /* For E1 only */
 #define WAN_E1_120		0x0B
 #define WAN_E1_75		0x0C
+/* T1/E1 8 ports */
+#define WAN_T1_0_133		0x0D
+#define WAN_T1_133_266		0x0E
+#define WAN_T1_266_399		0x0F
+#define WAN_T1_399_533		0x10
+#define WAN_T1_533_655		0x11
+
 
 /* For T1 only (long or short haul) */
 #define WAN_T1_LONG_HAUL	0x01
@@ -127,10 +153,34 @@
 #define WAN_TE1_PAYLB_MODE	0x02
 #define WAN_TE1_DDLB_MODE	0x03
 #define WAN_TE1_TX_LB_MODE	0x04
+#define WAN_TE1_LIU_ALB_MODE	0x05
+#define WAN_TE1_LIU_LLB_MODE	0x06
+#define WAN_TE1_LIU_RLB_MODE	0x07
+#define WAN_TE1_LIU_DLB_MODE	0x08
+#define WAN_TE1_FR_FLB_MODE	0x09
+#define WAN_TE1_FR_PLB_MODE	0x0A
+#define WAN_TE1_FR_RLB_MODE	0x0B
+#define WAN_TE1_LB_TYPE_DECODE(type)						\
+		(type == WAN_TE1_LINELB_MODE) ? "Line Loopback" :		\
+		(type == WAN_TE1_PAYLB_MODE) ? "Payload Loopback" :		\
+		(type == WAN_TE1_DDLB_MODE) ? "Diagnostic Digital Loopback" :	\
+		(type == WAN_TE1_TX_LB_MODE) ? "TX Loopback" :			\
+		(type == WAN_TE1_LIU_ALB_MODE) ? "Analog LIU Loopback" :	\
+		(type == WAN_TE1_LIU_LLB_MODE) ? "Local LIU Loopback" :		\
+		(type == WAN_TE1_LIU_RLB_MODE) ? "Remote LIU Loopback" :	\
+		(type == WAN_TE1_LIU_DLB_MODE) ? "Dual LIU Loopback" :		\
+		(type == WAN_TE1_FR_FLB_MODE) ? "Framer Loopback" :		\
+		(type == WAN_TE1_FR_RLB_MODE) ? "Remote Framer Loopback" :	\
+		(type == WAN_TE1_FR_PLB_MODE) ? "Payload Framer Loopback" :	\
+						"Unknown Loopback"
 
 /* Line loopback activate/deactive modes */
 #define WAN_TE1_ACTIVATE_LB	0x01
 #define WAN_TE1_DEACTIVATE_LB	0x02
+#define WAN_TE1_LB_MODE_DECODE(mode)				\
+		(mode == WAN_TE1_ACTIVATE_LB) ? "Activate" :	\
+		(mode == WAN_TE1_DEACTIVATE_LB) ? "Deactivate" :\
+						"Unknown"
 
 /* T1/E1 front end Master clock source */
 #define WAN_TE1_REFCLK_OSC	0x00
@@ -140,13 +190,19 @@
 #define WAN_TE1_REFCLK_LINE4	0x04
 
 /* E1 signalling insertion mode */
-#define WAN_TE1_SIG_CCS		0x00	/* default */
-#define WAN_TE1_SIG_CAS		0x01
+#define WAN_TE1_SIG_NONE	0x00	/* default */
+#define WAN_TE1_SIG_CCS		0x01	/* E1 CCS - default */
+#define WAN_TE1_SIG_CAS		0x02	/* E1 CAS */
+#define TE1SIG_DECODE(fe_cfg)                                   \
+                ((FE_SIG_MODE(fe_cfg)) == WAN_TE1_SIG_CCS) ? "CCS" :    \
+                ((FE_SIG_MODE(fe_cfg)) == WAN_TE1_SIG_CAS) ? "CAS" :    \
+                                                "Unknown"
 
 /* Loopback commands (T1.107-1995 p.44) */
 #define LINELB_TE1_TIMER	40	/* 40ms */
 #define LINELB_CODE_CNT		10	/* no. of repetitions for lb_code */
 #define LINELB_CHANNEL_CNT	10	/* no. of repetitions for channel */
+#define RBOC_CODE_YEL           0x00
 #define LINELB_ACTIVATE_CODE	0x07
 #define LINELB_DEACTIVATE_CODE	0x1C
 #define LINELB_DS3LINE		0x1B
@@ -180,7 +236,7 @@
 #define LINELB_DS1LINE_28	0x3C
 #define LINELB_DS1LINE_ALL	0x13
 #define LINELB_DS1LINE_DISABLE	0x3F
-#define LINELB_DS1LINE_MASK	0x1F
+#define LINELB_DS1LINE_MASK	0x3F
 
 /* Interrupt polling delay */
 #define POLLING_TE1_TIMER	1000	/* 1 sec */
@@ -193,23 +249,27 @@
 #define LINELB_CHANNEL_BIT	0x05
 #define TE_CONFIGURED		0x06
 
-#if 0
-#define TE_TIMER_RUNNING 	0x01
-#define TE_TIMER_KILL 		0x02
-#define LINELB_WAITING		0x04
-#define LINELB_CODE_BIT		0x08
-#define LINELB_CHANNEL_BIT	0x10
-#endif
-
-/* TE1 timer flags */
+/* TE1 timer flags (polling) */
 #define TE_LINELB_TIMER		0x01
 #define TE_LINKDOWN_TIMER	0x02
 #define TE_SET_INTR		0x03
 #define TE_RBS_READ		0x04
 #define TE_LINKUP_TIMER		0x05
+#define TE_SET_RBS		0x06
+#define TE_UPDATE_PMON		0x07
+#define TE_SET_LB_MODE		0x08
+#define TE_RBS_ENABLE		0x09
+#define TE_RBS_DISABLE		0x0A
+#define TE_POLL_CFG		0x0B
 
 /* TE1 T1/E1 interrupt setting delay */
 #define INTR_TE1_TIMER		150	/* 50 ms */
+
+/* T1/E1 RBS flags (bit-map) */
+#define WAN_TE_RBS_NONE		0x00
+#define WAN_TE_RBS_UPDATE	0x01
+#define WAN_TE_RBS_REPORT	0x02
+
 
 #define IS_T1_CARD(card)	IS_T1_FEMEDIA(&(card)->fe)
 #define IS_E1_CARD(card)	IS_E1_FEMEDIA(&(card)->fe)
@@ -222,9 +282,6 @@
 #define FE_ACTIVE_CH(fe_cfg)	(fe_cfg)->cfg.te_cfg.active_ch
 #define FE_SIG_MODE(fe_cfg)	(fe_cfg)->cfg.te_cfg.sig_mode
 
-#define IS_TE1_UNFRAMED(fe)   					\
-	(((sdla_fe_t*)(fe))->fe_cfg.frame == WAN_FR_UNFRAMED)
- 
 #define GET_TE_CHANNEL_RANGE(fe)				\
 	(IS_T1_FEMEDIA(fe) ? NUM_OF_T1_CHANNELS :\
 	 IS_E1_FEMEDIA(fe) ? NUM_OF_E1_CHANNELS :0)
@@ -243,6 +300,10 @@
 #define WAN_TE_RAI_ALARM(alarm)		WAN_TE_ALARM(alarm, WAN_TE_BIT_RAI_ALARM)
 #define WAN_TE_YEL_ALARM(alarm)		WAN_TE_ALARM(alarm, WAN_TE_BIT_YEL_ALARM)
 
+#define WAN_TE_LIU_ALARM_SC(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_LIU_ALARM_SC)
+#define WAN_TE_LIU_ALARM_OC(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_LIU_ALARM_OC)
+#define WAN_TE_LIU_ALARM_LOS(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_LIU_ALARM_LOS)
+
 #define TECLK_DECODE(fe_cfg)			\
 	(FE_CLK(fe_cfg) == WAN_NORMAL_CLK) ? "Normal" :	\
 	(FE_CLK(fe_cfg) == WAN_MASTER_CLK) ? "Master" : "Unknown"
@@ -257,8 +318,34 @@
 	(FE_LBO(fe_cfg) == WAN_T1_220_330)	? "220-330ft" :	\
 	(FE_LBO(fe_cfg) == WAN_T1_330_440)	? "330-440ft" :	\
 	(FE_LBO(fe_cfg) == WAN_T1_440_550)	? "440-550ft" :	\
-	(FE_LBO(fe_cfg) == WAN_T1_550_660)	? "550-660ft" : "Unknown"
+	(FE_LBO(fe_cfg) == WAN_T1_550_660)	? "550-660ft" : \
+	(FE_LBO(fe_cfg) == WAN_T1_0_133)	? "0-133ft"   :	\
+	(FE_LBO(fe_cfg) == WAN_T1_133_266)	? "133-266ft" :	\
+	(FE_LBO(fe_cfg) == WAN_T1_266_399)	? "266-399ft" :	\
+	(FE_LBO(fe_cfg) == WAN_T1_399_533)	? "399-533ft" :	\
+	(FE_LBO(fe_cfg) == WAN_T1_533_655)	? "5330-599ft":	\
+	(FE_LBO(fe_cfg) == WAN_E1_120)		? "120OH"     :	\
+	(FE_LBO(fe_cfg) == WAN_E1_75)		? "75OH"      :	\
+							"Unknown"
 
+#define WAN_TE1_SIG_DECODE(fe) TE1SIG_DECODE(&((fe)->fe_cfg))
+
+
+/* Front-End UDP command */
+#define WAN_FE_GET_STAT		(WAN_FE_UDP_CMD_START + 0)
+#define WAN_FE_SET_LB_MODE	(WAN_FE_UDP_CMD_START + 1)
+#define WAN_FE_FLUSH_PMON	(WAN_FE_UDP_CMD_START + 2)
+#define WAN_FE_GET_CFG		(WAN_FE_UDP_CMD_START + 3)
+#define WAN_FE_SET_DEBUG_MODE	(WAN_FE_UDP_CMD_START + 4)
+#define WAN_FE_TX_MODE		(WAN_FE_UDP_CMD_START + 5)
+
+/* FE interrupt types */
+#define WAN_TE_INTR_NONE	0x00
+#define WAN_TE_INTR_GLOBAL	0x01
+#define WAN_TE_INTR_BASIC	0x02
+#define WAN_TE_INTR_SIGNALLING	0x03
+#define WAN_TE_INTR_FXS_DTMF	0x04
+#define WAN_TE_INTR_PMON	0x05
 
 /*----------------------------------------------------------------------------
  * T1/E1 configuration structures.
@@ -275,12 +362,22 @@ typedef struct sdla_te_cfg {
 
 /* Performamce monitor counters */
 typedef struct {
-	unsigned long pmon1;
-	unsigned long pmon2;
-	unsigned long pmon3;
-	unsigned long pmon4;
+	unsigned char	mask;
+	unsigned int	lcv_errors;	/* Line code violation (T1/E1) */
+	unsigned short	lcv_diff;
+	unsigned int	bee_errors;	/* Bit errors (T1) */
+	unsigned short	bee_diff;
+	unsigned int	oof_errors;	/* Frame out of sync (T1) */
+	unsigned short	oof_diff;
+	unsigned int	crc4_errors;	/* CRC4 errors (E1) */
+	unsigned short	crc4_diff;
+	unsigned int	fas_errors;	/* Frame Aligment Signal (E1)*/
+	unsigned short	fas_diff;
+	unsigned int	feb_errors;	/* Far End Block errors (E1) */
+	unsigned short	feb_diff;
+	unsigned int	fer_errors;	/* Framing bit errors (T1) */
+	unsigned short	fer_diff;
 } sdla_te_pmon_t;
-
 
 /*
  ******************************************************************************
@@ -289,6 +386,9 @@ typedef struct {
 */
 
 #ifdef WAN_KERNEL
+
+/* Connection status threshold */
+#define WAN_TE1_STATUS_THRESHOLD	5
 
 #define WAN_TE1_LBO(fe)		FE_LBO(&((fe)->fe_cfg))
 #define WAN_TE1_CLK(fe)		FE_CLK(&((fe)->fe_cfg))
@@ -299,6 +399,35 @@ typedef struct {
 
 #define TE_LBO_DECODE(fe)	LBO_DECODE(&((fe)->fe_cfg))
 #define TE_CLK_DECODE(fe)	TECLK_DECODE(&((fe)->fe_cfg))
+
+/* Read/Write to front-end register */
+#if 0
+#if 0
+#define READ_REG(reg)		card->wandev.read_front_end_reg(card, reg)
+#define WRITE_REG(reg, value)	card->wandev.write_front_end_reg(card, reg, (unsigned char)(value))
+#endif
+#define WRITE_REG(reg,val)						\
+	fe->write_fe_reg(						\
+		fe->card,						\
+		(int)((reg) + (fe->fe_cfg.line_no*PMC4_LINE_DELTA)),	\
+		(int)(val))
+
+#define WRITE_REG_LINE(fe_line_no, reg,val)				\
+	fe->write_fe_reg(						\
+		fe->card,						\
+		(int)((reg) + (fe_line_no)*PMC4_LINE_DELTA),	\
+		(int)(val))
+	
+#define READ_REG(reg)							\
+	fe->read_fe_reg(						\
+		fe->card,						\
+		(int)((reg) + (fe->fe_cfg.line_no*PMC4_LINE_DELTA)))
+	
+#define READ_REG_LINE(fe_line_no, reg)					\
+	fe->read_fe_reg(						\
+		fe->card,						\
+		(int)((reg) + (fe_line_no)*PMC4_LINE_DELTA))
+#endif
 
 /* -----------------------------------------------------------------------------
  * Constants for the SET_T1_E1_SIGNALING_CFG/READ_T1_E1_SIGNALING_CFG commands
@@ -355,6 +484,9 @@ typedef struct {
 	unsigned char	critical;
 	wan_timer_t	timer;
 	unsigned char	timer_cmd;
+	unsigned long	timer_ch_map;
+	int 		timer_channel;	/* tx rbs per channel */
+	unsigned char	timer_abcd;	/* tx rbs pec channel */
 		
 	unsigned char	SIGX_chg_30_25;
 	unsigned char	SIGX_chg_24_17;
@@ -386,6 +518,8 @@ typedef struct {
 	unsigned long	rx_rbs_D;
 
 	unsigned char	xlpg_scale;
+	
+	u_int16_t	status_cnt;
 } sdla_te_param_t;
 
 
@@ -397,10 +531,9 @@ typedef struct {
 
 EXTERN int sdla_te_default_cfg(void* pfe, void* fe_cfg, int media);
 EXTERN int sdla_te_copycfg(void* pfe, void* fe_cfg);
-EXTERN int sdla_te_global_config(void *pfe);
-EXTERN short sdla_te_config(void *pfe,void *pfe_iface);
-EXTERN int sdla_te_global_unconfig(void *pfe);
-EXTERN void sdla_te_unconfig(void *pfe);
+
+EXTERN int sdla_te_iface_init(void *p_fe_iface);
+EXTERN int sdla_ds_te1_iface_init(void *p_fe_iface);
 
 #endif /* WAN_KERNEL */
 

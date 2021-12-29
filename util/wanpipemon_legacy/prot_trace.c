@@ -25,11 +25,11 @@
 # include <netinet/in_systm.h>
 # include <netinet/ip.h>
 # include <netinet/tcp.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe.h>
-# include <net/sdla_chdlc.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe.h>
+# include <sdla_chdlc.h>
 #endif
 #include "fe_lib.h"
 #include "wanpipemon.h"

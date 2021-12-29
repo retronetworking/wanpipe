@@ -24,7 +24,7 @@ eval "./scripts/load.sh"
 if [ "$cmd" == "auto" ]; then
 	eval "./wan_aftup -auto"
 else
-	eval "./wan_aftup"
+	eval "./wan_aftup "
 fi
 
 eval "./scripts/unload.sh"

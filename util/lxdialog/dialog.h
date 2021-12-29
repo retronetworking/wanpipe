@@ -157,7 +157,7 @@ int first_alpha (const char *string, const char *exempt);
 int dialog_yesno (const char *title, const char *prompt, int height, int width);
 int dialog_msgbox (const char *title, const char *prompt, int height,
 		int width, int pause);
-int dialog_textbox (const char *title, const char *file, int height, int width);
+int new_dialog_textbox (const char *title, const char *file, int height, int width, char* button_text);
 int dialog_textyesno (const char *title, const char *file, int height, int width);
 int dialog_menu (const char *title, const char *prompt, int height, int width,
 		int menu_height, const char *choice, int item_no, 

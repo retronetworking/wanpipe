@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="157"
+   name=""
+   committed-date="2006-12-04T22:21:07.339224Z"
+   url="svn://sangoma.freeswitch.org/libsangoma/trunk/include/octasic/octdeviceapi/oct6100api"
+   last-author="mikej"
+   kind="dir"
+   uuid="2028fedf-720c-0410-83b8-d54a3e729fb0"
+   revision="198"/>
+<entry
+   committed-rev="157"
+   name="oct6100_adpcm_chan_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="66e3bb143c284f8e9f55f69a41ed295b"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_interrupts_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="3226268d5fb69dc8f9e71f529c14cc34"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   name="oct6100_api"
+   kind="dir"/>
+<entry
+   committed-rev="157"
+   name="oct6100_mixer_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="983a69d5905c706b6f2aa260ea27fde9"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_version.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="eff333ee890c2689b9caf4779dc03b90"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_debug_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="4608717a202f4342cccf874e93250bf9"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_playout_buf_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="05a26a8366a10957e7e66ee5265f91d7"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_tsst_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="a5f21b51eb079b8dbe88fd244f28434e"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_chip_stats_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="734ad971f5a355276bdbeec341187711"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_conf_bridge_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="adad75b60a50cf34dd00405874c19a97"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_remote_debug_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="16c0bb275ba3a6d07fc0f1d1b2890a54"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_tone_detection_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="e89faec14274740f839d6f1cbe3beb1f"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_miscellaneous_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="b8ca34fb8dc0dd8dcbb8bba83f9aba9e"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_events_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="bbdaf2935ff0c2eb12182c27e5dacfa1"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_chip_open_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="b1523cb65993d81d7696c0b8debc96e3"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_tlv_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="60c4a19fb00edd49a33fcf8ac5a9f65a"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_phasing_tsst_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="634bbb13f7c105c5c172504aa98e74d2"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_tsi_cnct_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="2b23e7f05c9c8669a97c4043bdcac551"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_memory_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="5665b5258e2feab38f94d3f205bf71bd"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:54.000000Z"/>
+<entry
+   committed-rev="157"
+   name="oct6100_channel_priv.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="51ba4068570f90c032a337a8148ad21b"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+<entry
+   name="oct6100_apimi"
+   kind="dir"/>
+</wc-entries>

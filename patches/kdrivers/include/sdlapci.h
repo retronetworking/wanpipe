@@ -19,49 +19,79 @@
 /****** Defines *************************************************************/
 
 /* Definitions for identifying and finding S514 PCI adapters */
-#define V3_VENDOR_ID		0x11B0		/* V3 vendor ID number */
-#define V3_DEVICE_ID  		0x0002		/* V3 device ID number */
-#define SANGOMA_SUBSYS_VENDOR 	0x4753		/* ID for Sangoma */
-#define PCI_DEV_SLOT_MASK	0x1F		/* mask for slot numbering */
-#define PCI_IRQ_NOT_ALLOCATED	0xFF		/* interrupt line for no IRQ */
+#define V3_VENDOR_ID			0x11B0	/* V3 vendor ID number */
+#define V3_DEVICE_ID  			0x0002	/* V3 device ID number */
+#define SANGOMA_SUBSYS_VENDOR 		0x4753	/* ID for Sangoma */
+#define PCI_DEV_SLOT_MASK		0x1F	/* mask for slot numbering */
+#define PCI_IRQ_NOT_ALLOCATED		0xFF	/* interrupt line for no IRQ */
 
 /* Definition for identifying and finding XILINX PCI adapters */
-#define SANGOMA_PCI_VENDOR	0x1923		/* Old value -> 0x11B0 */
-#define SANGOMA_PCI_VENDOR_OLD	0x10EE		/* Old value -> 0x11B0 */
-#define SANGOMA_PCI_DEVICE	0x0300		/* Old value -> 0x0200 */
-#define SANGOMA_PCI_4_DEVICE	0x0400		/* */
+#define SANGOMA_PCI_VENDOR		0x1923	/* Old value -> 0x11B0 */
+#define SANGOMA_PCI_VENDOR_OLD		0x10EE	/* Old value -> 0x11B0 */
+#define SANGOMA_PCI_DEVICE		0x0300	/* Old value -> 0x0200 */
+#define SANGOMA_PCI_4_DEVICE		0x0400	/* */
 
-#define A101_1TE1_SUBSYS_VENDOR	0xA010		/* A101 with T1/E1 1 line  */
-#define A101_2TE1_SUBSYS_VENDOR	0xA011		/* A101 with T1/E1 2 lines */
-#define A104_4TE1_SUBSYS_VENDOR	0xA013		/* A104 with T1/E1 4 lines */
-#define A300_UTE3_SUBSYS_VENDOR	0xA020		/* A300 with T3/E3 (unchannelized) */
-#define A305_CT3_SUBSYS_VENDOR	0xA030		/* A305 with T3 (channelized) */
+#if defined(__WINDOWS__)
+#define SANGOMA_PCI_4_SHARK_DEVICE	0x0100	/* A104D */
+#define SANGOMA_PCI_A200_SHARK_DEVICE	0x0040	/* A200 (D) */
+#endif
 
-#define A104_1TE1_SHARK_SUBSYS_VENDOR	0xA111	/* A101-SHARK T1/E1 1 lines */
-#define A104_2TE1_SHARK_SUBSYS_VENDOR	0xA112	/* A102-SHARK T1/E1 2 lines */
-#define A104_4TE1_SHARK_SUBSYS_VENDOR	0xA113	/* A104-SHARK T1/E1 4 lines */
-#define A104_8TE1_SHARK_SUBSYS_VENDOR	0xA114	/* A108-SHARK T1/E1 8 lines */
-#define A300_UTE3_SHARK_SUBSYS_VENDOR	0xA115	/* A300-SHARK with T3/E3 (unchannelized) */
-#define A305_CTE3_SHARK_SUBSYS_VENDOR	0xA116	/* A305-SHARK with T3 (channelized) */
-#define A200_REMORA_SHARK_SUBSYS_VENDOR	0xA200	/* AFT-REMORA SHARK analog board */
+/* Definition for identifying and finding PLX PCI bridge adapters */
+#define PLX_VENDOR_ID			0x10b5	/* PLX vendor ID number */
+#define PLX_DEVICE_ID  			0x8111	/* PLX device ID number */
+
+#define A101_1TE1_SUBSYS_VENDOR			0xA010	/* A101 with T1/E1 1 line  */
+#define A101_2TE1_SUBSYS_VENDOR			0xA011	/* A101 with T1/E1 2 lines */
+#define A104_4TE1_SUBSYS_VENDOR			0xA013	/* A104 with T1/E1 4 lines */
+#define A300_UTE3_SUBSYS_VENDOR			0xA020	/* A300 with T3/E3 (unchannelized) */
+#define A305_CT3_SUBSYS_VENDOR			0xA030	/* A305 with T3 (channelized) */
+
+#define AFT_1TE1_SHARK_SUBSYS_VENDOR		0xA111	/* A101-SHARK T1/E1 1 lines */
+#define AFT_2TE1_SHARK_SUBSYS_VENDOR		0xA112	/* A102-SHARK T1/E1 2 lines */
+#define AFT_4TE1_SHARK_SUBSYS_VENDOR		0xA113	/* A104-SHARK T1/E1 4 lines */
+#define AFT_8TE1_SHARK_SUBSYS_VENDOR		0xA114	/* A108-SHARK T1/E1 8 lines */
+#define A300_UTE3_SHARK_SUBSYS_VENDOR		0xA115	/* A300-SHARK with T3/E3 (unchannelized) */
+#define A305_CTE3_SHARK_SUBSYS_VENDOR		0xA116	/* A305-SHARK with T3 (channelized) */
+#define A200_REMORA_SHARK_SUBSYS_VENDOR		0xA200	/* AFT-REMORA SHARK analog board */
+#define A400_REMORA_SHARK_SUBSYS_VENDOR		0xA400	/* AFT-REMORA SHARK analog board */
+
+#define AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR	0xA500	/* AFT-ISDN BRI SHARK board */
+#define AFT_56K_SHARK_SUBSYS_VENDOR		0xA056	/* AFT-56K SHARK board */
 
 #define AFT_CORE_ID_MASK	0x00FF
 #define AFT_CORE_REV_MASK	0xFF00
+#define AFT_CORE_REV_SHIFT	8
 #define AFT_HDLC_CORE_ID	0x00	/* HDLC core */
+#define AFT_ANALOG_FE_CORE_ID	0x00	/* A200 FXS/FXO core */
 #define AFT_ATM_CORE_ID		0x01	/* ATM core */
 #define AFT_SS7_CORE_ID		0x02	/* SS7 core */
+#define AFT_HDLC_EC_CORE_ID	0x10	/* HDLC & EC */
+#define AFT_PMC_FE_CORE_ID	0x10	/* HDLC & EC (with PMC FE) 	*/
+#define AFT_DS_FE_CORE_ID	0x13	/* HDLC & EC (with Dallas FE) 	*/
+#define AFT_CORE_ID(subsys_id)	(subsys_id & AFT_CORE_ID_MASK)
+#define AFT_CORE_REV(subsys_id)	((subsys_id >> AFT_CORE_REV_SHIFT) & 0xFF)
+#define AFT_CORE_ID_DECODE(core_id)					\
+		(core_id == AFT_HDLC_CORE_ID)		? "HDLC"  :	\
+		(core_id == AFT_ATM_CORE_ID)		? "ATM"   :	\
+		(core_id == AFT_SS7_CORE_ID)		? "SS7"   :	\
+		(core_id == AFT_HDLC_EC_CORE_ID)	? "HDLC"  :	\
+		(core_id == AFT_DS_FE_CORE_ID)		? "HDLC (DS)" :	\
+								"Unknown"
 
 #define AFT_CHIP_UNKNOWN	0x0000
 #define AFT_CHIP_OLD_X300	0x0300
 #define AFT_CHIP_OLD_X400	0x0400
+#define AFT_CHIP_X200		0x0020
 #define AFT_CHIP_X300		0x0030
 #define AFT_CHIP_X400		0x0040
 #define AFT_CHIP_X1000		0x0100
 
-#define AFT_PCI_MEM_SIZE	0x2FF
+#define AFT_PCI_MEM_SIZE	0x002FF
 #define XILINX_PCI_LATENCY	0x0000FF00
 
-#define AFT4_PCI_MEM_SIZE	0xFFFF
+#define AFT2_PCI_MEM_SIZE	0x07FFF
+#define AFT4_PCI_MEM_SIZE	0x0FFFF
+#define AFT8_PCI_MEM_SIZE	0x1FFFF
 
 #define XILINX_PCI_CMD_REG	0x04
 #define XILINX_PCI_LATENCY_REG  0x0C
@@ -125,4 +155,3 @@
 
 
 #endif	/* _SDLAPCI_H */
-

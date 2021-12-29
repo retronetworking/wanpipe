@@ -1,30 +1,29 @@
-/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.33 2005/11/10 18:02:32 sangoma Exp $ */
+/* $Header: /usr/local/cvsroot/wanpipe_common/include/wanpipe_lip.h,v 1.36 2006/07/25 19:44:50 sangoma Exp $ */
 
 #ifndef _WANPIPE_LIP_HEADER_
 #define _WANPIPE_LIP_HEADER_
 
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <net/wanpipe_includes.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_debug.h>
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_common.h>
-# include <net/wanpipe_abstr.h>
-# include <net/wanpipe_snmp.h>
-# include <net/wanproc.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe.h>
-# include <net/if_wanpipe_common.h>
-# include <net/wanpipe_iface.h>
-# include <net/wanpipe_lip_kernel.h>
-# include <net/wanpipe_fr_iface.h>
-# include <net/wanpipe_sppp_iface.h>
+# include <wanpipe_includes.h>
+# include <wanpipe_defines.h>
+# include <wanpipe_debug.h>
+# include <wanpipe_common.h>
+# include <wanpipe_abstr.h>
+# include <wanpipe_snmp.h>
+# include <wanproc.h>
+# include <wanpipe.h>
+# include <wanpipe_cfg.h>
+# include <if_wanpipe_common.h>
+# include <wanpipe_iface.h>
+# include <wanpipe_lip_kernel.h>
+# include <wanpipe_fr_iface.h>
+# include <wanpipe_sppp_iface.h>
 # if defined(CONFIG_PRODUCT_WANPIPE_LAPB)
-#  include <net/wanpipe_lapb_iface.h>
+#  include <wanpipe_lapb_iface.h>
 # endif
 # if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
-#  include <net/wanpipe_xdlc_iface.h>
+#  include <wanpipe_xdlc_iface.h>
 # endif
 #else
 # include <linux/wanpipe_includes.h>
@@ -43,6 +42,9 @@
 # include <linux/wanpipe_sppp_iface.h>
 # if defined(CONFIG_PRODUCT_WANPIPE_LAPB)
 #  include <linux/wanpipe_lapb_iface.h>
+# endif 
+# if defined(CONFIG_PRODUCT_WANPIPE_LAPD)
+#  include <linux/wanpipe_lapd_iface.h>
 # endif 
 # if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
 #  include <linux/wanpipe_xdlc_iface.h>
@@ -265,7 +267,7 @@ typedef struct wplip_link
 #endif
 
 	wan_taskq_t 			prot_task;
-	unsigned int			latency_qlen;
+	u32				latency_qlen;
 
 } wplip_link_t;
 
@@ -571,6 +573,10 @@ static __inline int wplip_decode_protocol(wplip_dev_t *lip_dev, void *ptr)
             lip_dev->common.usedby == BRIDGE_NODE){
 		return WPLIP_ETH;
 
+	}
+
+	if (lip_dev->common.lip_prot == WANCONFIG_LAPD) {
+         	return WPLIP_LAPD;
 	}
 
 	if (lip_dev->common.usedby == STACK){

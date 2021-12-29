@@ -10,7 +10,7 @@
 DEBUG	= 2
 
 # Project file paths.
-SYSINC	= /usr/src/linux/include
+SYSINC=/lib/modules/$(shell uname -r)/build/include
 
 # Tools options.
 CFLAGS  = -D__LINUX__ -I$(SYSINC) -Wall -O2  -D_DEBUG_=$(DEBUG) 

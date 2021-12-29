@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="157"
+   name=""
+   committed-date="2006-12-04T22:21:07.339224Z"
+   url="svn://sangoma.freeswitch.org/libsangoma/trunk/include/debug"
+   last-author="mikej"
+   kind="dir"
+   uuid="2028fedf-720c-0410-83b8-d54a3e729fb0"
+   revision="198"/>
+<entry
+   committed-rev="157"
+   name="DebugOut.h"
+   text-time="2007-05-17T22:12:55.000000Z"
+   committed-date="2006-12-04T22:21:07.339224Z"
+   checksum="67ce09fc38b7f9f109a8436075a94039"
+   last-author="mikej"
+   kind="file"
+   prop-time="2007-05-17T22:12:55.000000Z"/>
+</wc-entries>

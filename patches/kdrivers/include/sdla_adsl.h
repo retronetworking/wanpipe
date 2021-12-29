@@ -2,7 +2,7 @@
  * Copyright (c) 2002
  *	Alex Feldman <al.feldman@sangoma.com>.  All rights reserved.
  *
- *	$Id: sdla_adsl.h,v 1.7 2004/06/07 15:53:43 sangoma Exp $
+ *	$Id: sdla_adsl.h,v 1.8 2006/07/25 19:44:50 sangoma Exp $
  */
 
 /*************************************************************************
@@ -23,11 +23,11 @@
 
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/sdla_adsl_iface.h>
+# include <sdla_adsl_iface.h>
 #elif defined(__LINUX__) || defined(__KERNEL__)
 # include <linux/sdla_adsl_iface.h>
 #elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <net/sdla_adsl_iface.h>
+# include <sdla_adsl_iface.h>
 #else
 # error "Unsuported OS!"
 #endif

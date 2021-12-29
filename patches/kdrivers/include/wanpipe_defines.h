@@ -1,3 +1,4 @@
+
 /*
  ************************************************************************
  * wanpipe_defines.h							*
@@ -27,9 +28,9 @@
 # include <linux/wanpipe_version.h>
 # include <linux/wanpipe_kernel.h>
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-# include <net/wanpipe_version.h>
+# include <wanpipe_version.h>
 # if defined(WAN_KERNEL)
-#  include <net/wanpipe_kernel.h>
+#  include <wanpipe_kernel.h>
 # endif
 #endif
 
@@ -188,6 +189,15 @@ typedef	void*		udphdr_t;
 #endif
 
 /************************************************
+**	GLOBAL SANGOMA MACROS
+************************************************/
+#if defined(__LINUX__)
+# define strlcpy(d,s,l)	strcpy(d,s)
+#elif defined(__FreeBSD__)
+# define strlcpy(d,s,l)	strcpy(d,s)
+#endif
+
+/************************************************
  *	GLOBAL DEFINITION FOR SANGOMA MAILBOX	*
  ************************************************/
 #define WAN_MAILBOX_SIZE	16
@@ -210,7 +220,7 @@ typedef struct {
 					unsigned short	dlci;		/* DLCI number */
 					unsigned char	attr;		/* FECN, BECN, DE and C/R bits */
 					unsigned short	rxlost1;	/* frames discarded at int. level */
-					unsigned long	rxlost2;	/* frames discarded at app. level */
+					u_int32_t	rxlost2;	/* frames discarded at app. level */
 				} fr;
 				struct {
 					unsigned char	pf;			/* P/F bit */
@@ -492,14 +502,19 @@ enum {
 	SIOC_WAN_GET_CFG,
 	SIOC_WAN_FE_READ_REG,
 	SIOC_WAN_FE_WRITE_REG,
-	SIOC_WAN_OCT6100_REG
+	SIOC_WAN_EC_REG,
+	SIOC_WAN_READ_PCIBRIDGE_REG,
+	SIOC_WAN_ALL_READ_PCIBRIDGE_REG,
+	SIOC_WAN_WRITE_PCIBRIDGE_REG,
+	SIOC_WAN_ALL_WRITE_PCIBRIDGE_REG
 };
+
 typedef struct wan_cmd_api_
 {
 	unsigned int	cmd;
 	unsigned short	len;
 	unsigned char	bar;
-	unsigned short	offset;
+	u_int32_t	offset;
 	unsigned char	data[WAN_MAX_DATA_SIZE];
 } wan_cmd_api_t;
 
@@ -591,6 +606,14 @@ typedef struct wan_udp_hdr{
 
 #ifdef WAN_KERNEL
 
+#if 0
+#if defined(__LINUX__)
+# include <linux/wanpipe_events.h>
+#elif defined(__FreeBSD__) || defned(__OpenBSD__)
+# include <wanpipe_events.h>
+#endif
+#endif
+
 /*
 ******************************************************************
 **	D E F I N E S
@@ -609,24 +632,32 @@ typedef struct wan_udp_hdr{
 #  define WAN_MOD_QUIESCE	WAN_MOD_UNLOAD+2
 # endif
 # define WP_DELAY		DELAY
+# define WP_SCHEDULE(arg,name)	tsleep(&(arg),PPAUSE,(name),(arg))
 # define SYSTEM_TICKS		ticks
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
 # define ETH_P_IP		AF_INET
 # define ETH_P_IPV6		AF_INET6
 # define ETH_P_IPX		AF_IPX
+# define WAN_IFT_OTHER		IFT_OTHER
+# define WAN_IFT_ETHER		IFT_ETHER
+# define WAN_IFT_PPP		IFT_PPP
 # define WAN_MFLAG_PRV		M_PROTO1
 #elif defined(__OpenBSD__)
 /******************* O P E N B S D ******************************/
 # define WAN_MOD_LOAD		LKM_E_LOAD
 # define WAN_MOD_UNLOAD		LKM_E_UNLOAD
 # define WP_DELAY		DELAY
+# define WP_SCHEDULE(arg,name)	tsleep(&(arg),PPAUSE,(name),(arg))
 # define SYSTEM_TICKS		ticks
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
 # define ETH_P_IP		AF_INET
 # define ETH_P_IPV6		AF_INET6
 # define ETH_P_IPX		AF_IPX
+# define WAN_IFT_OTHER		IFT_OTHER
+# define WAN_IFT_ETHER		IFT_ETHER
+# define WAN_IFT_PPP		IFT_PPP
 # define WAN_MFLAG_PRV		M_PROTO1
 #elif defined(__NetBSD__)
 /******************* N E T B S D ******************************/
@@ -636,16 +667,23 @@ typedef struct wan_udp_hdr{
 # define SYSTEM_TICKS		tick
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
+# define WAN_IFT_OTHER		IFT_OTHER
+# define WAN_IFT_ETHER		IFT_ETHER
+# define WAN_IFT_PPP		IFT_PPP
 #elif defined(__LINUX__)
 /*********************** L I N U X ******************************/
 # define ETHER_ADDR_LEN		ETH_ALEN
 # define WP_DELAY(usecs)	udelay(usecs)
 # define atomic_set_int(name, val)	atomic_set(name, val)
 # define SYSTEM_TICKS		jiffies
+# define WP_SCHEDULE(arg,name)	schedule()
 # define wan_atomic_read	atomic_read
 # define wan_atomic_set		atomic_set
 # define wan_atomic_inc		atomic_inc
 # define wan_atomic_dec		atomic_dec
+# define WAN_IFT_OTHER		0x00
+# define WAN_IFT_ETHER		0x00
+# define WAN_IFT_PPP		0x00
 #elif defined(__WINDOWS__)
 /******************* W I N D O W S ******************************/
 # define EINVAL		22
@@ -990,13 +1028,15 @@ typedef struct _wan_taskq
 
 typedef struct wan_trace
 {
-	unsigned long  		tracing_enabled;
+	u_int32_t  		tracing_enabled;
 	wan_skb_queue_t		trace_queue;
-	unsigned int  		trace_timeout;
+	unsigned long  		trace_timeout;/* WARNING: has to be 'unsigned long' !!!*/
 	unsigned int   		max_trace_queue;
 	unsigned char		last_trace_direction;
-	unsigned long		missed_idle_rx_counter;
+	u_int32_t		missed_idle_rx_counter;
 }wan_trace_t;
+
+
 
 /*
 ** TIMER structure
@@ -1032,6 +1072,8 @@ struct seq_file {
 	int		stop_cnt;/* last stop offset*/
 };
 #endif
+
+
 
 /****** DEFINITION OF UDP HEADER AND STRUCTURE PER PROTOCOL *******/
 typedef struct wan_udp_pkt {

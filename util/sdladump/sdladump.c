@@ -53,9 +53,9 @@
 # include <linux/wanpipe_cfg.h>
 # include <linux/wanpipe.h>	/* WANPIPE user API definitions */
 #else
-# include <net/wanpipe_defines.h>
-# include <net/wanpipe_cfg.h>
-# include <net/wanpipe.h>	/* WANPIPE user API definitions */
+# include <wanpipe_defines.h>
+# include <wanpipe_cfg.h>
+# include <wanpipe.h>	/* WANPIPE user API definitions */
 #endif
 
 /****** Defines *************************************************************/

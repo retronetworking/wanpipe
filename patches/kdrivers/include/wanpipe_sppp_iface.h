@@ -275,75 +275,75 @@ typedef struct	ppp_conn_info
 typedef struct {
 
 	/* Data frame transmission statistics */
-	unsigned long Data_frames_Tx_count ;	
+	unsigned int Data_frames_Tx_count ;	
 	/* # of frames transmitted */
-	unsigned long Data_bytes_Tx_count ; 	
+	unsigned int Data_bytes_Tx_count ; 	
 	/* # of bytes transmitted */
-	unsigned long Data_Tx_throughput ;	
+	unsigned int Data_Tx_throughput ;	
 	/* transmit throughput */
-	unsigned long no_ms_for_Data_Tx_thruput_comp ;	
+	unsigned int no_ms_for_Data_Tx_thruput_comp ;	
 	/* millisecond time used for the Tx throughput computation */
-	unsigned long Tx_Data_discard_lgth_err_count ;	
+	unsigned int Tx_Data_discard_lgth_err_count ;	
 	/* number of Data frames discarded (length error) */
-	unsigned long reserved_Data_frm_Tx_stat1 ;	
+	unsigned int reserved_Data_frm_Tx_stat1 ;	
 	/* reserved for later */
-	unsigned long reserved_Data_frm_Tx_stat2 ;
+	unsigned int reserved_Data_frm_Tx_stat2 ;
 	/* reserved for later */
-	unsigned long reserved_Data_frm_Tx_stat3 ;	
+	unsigned int reserved_Data_frm_Tx_stat3 ;	
 	/* reserved for later */
 
 	/* Data frame reception statistics */
-	unsigned long Data_frames_Rx_count ;	
+	unsigned int Data_frames_Rx_count ;	
 	/* number of frames received */
-	unsigned long Data_bytes_Rx_count ;	
+	unsigned int Data_bytes_Rx_count ;	
 	/* number of bytes received */
-	unsigned long Data_Rx_throughput ;	
+	unsigned int Data_Rx_throughput ;	
 	/* receive throughput */
-	unsigned long no_ms_for_Data_Rx_thruput_comp ;	
+	unsigned int no_ms_for_Data_Rx_thruput_comp ;	
 	/* millisecond time used for the Rx throughput computation */
-	unsigned long Rx_Data_discard_short_count ;	
+	unsigned int Rx_Data_discard_short_count ;	
 	/* received Data frames discarded (too short) */
-	unsigned long Rx_Data_discard_long_count ;	
+	unsigned int Rx_Data_discard_long_count ;	
 	/* received Data frames discarded (too long) */
-	unsigned long Rx_Data_discard_inactive_count ;	
+	unsigned int Rx_Data_discard_inactive_count ;	
 	/* received Data frames discarded (link inactive) */
-	unsigned long reserved_Data_frm_Rx_stat1 ;	
+	unsigned int reserved_Data_frm_Rx_stat1 ;	
 	/* reserved for later */
 
 	/* SLARP frame transmission/reception statistics */
-	unsigned long CHDLC_SLARP_REQ_Tx_count ;		
 	/* number of SLARP Request frames transmitted */
-	unsigned long CHDLC_SLARP_REQ_Rx_count ;		
+	unsigned int CHDLC_SLARP_REQ_Tx_count ;		
 	/* number of SLARP Request frames received */
-	unsigned long CHDLC_SLARP_REPLY_Tx_count ;	
+	unsigned int CHDLC_SLARP_REQ_Rx_count ;		
 	/* number of SLARP Reply frames transmitted */
-	unsigned long CHDLC_SLARP_REPLY_Rx_count ;	
+	unsigned int CHDLC_SLARP_REPLY_Tx_count ;	
 	/* number of SLARP Reply frames received */
-	unsigned long CHDLC_SLARP_KPALV_Tx_count ;	
+	unsigned int CHDLC_SLARP_REPLY_Rx_count ;	
 	/* number of SLARP keepalive frames transmitted */
-	unsigned long CHDLC_SLARP_KPALV_Rx_count ;	
+	unsigned int CHDLC_SLARP_KPALV_Tx_count ;	
 	/* number of SLARP keepalive frames received */
-	unsigned long reserved_SLARP_stat1 ;		
+	unsigned int CHDLC_SLARP_KPALV_Rx_count ;	
 	/* reserved for later */
-	unsigned long reserved_SLARP_stat2 ;		
+	unsigned int reserved_SLARP_stat1 ;		
 	/* reserved for later */
+	unsigned int reserved_SLARP_stat2 ;		
 
 	/* CDP frame transmission/reception statistics */
-	unsigned long CHDLC_CDP_Tx_count ;		
+	unsigned int CHDLC_CDP_Tx_count ;		
 	/* number of CDP frames transmitted */
-	unsigned long CHDLC_CDP_Rx_count ;		
+	unsigned int CHDLC_CDP_Rx_count ;		
 	/* number of CDP frames received */
-	unsigned long reserved_CDP_stat1 ;		
+	unsigned int reserved_CDP_stat1 ;		
 	/* reserved for later */
-	unsigned long reserved_CDP_stat2 ;		
+	unsigned int reserved_CDP_stat2 ;		
 	/* reserved for later */
-	unsigned long reserved_CDP_stat3 ;		
+	unsigned int reserved_CDP_stat3 ;		
 	/* reserved for later */
-	unsigned long reserved_CDP_stat4 ;		
+	unsigned int reserved_CDP_stat4 ;		
 	/* reserved for later */
-	unsigned long reserved_CDP_stat5 ;		
+	unsigned int reserved_CDP_stat5 ;		
 	/* reserved for later */
-	unsigned long reserved_CDP_stat6 ;		
+	unsigned int reserved_CDP_stat6 ;		
 	/* reserved for later */
 
 	/* Incomming frames with a format error statistics */
@@ -363,13 +363,13 @@ typedef struct {
 	/* SLARP Reply received - bad IP address */
 	unsigned short Rx_SLARP_Reply_bad_netmask ;	
 	/* SLARP Reply received - bad netmask */
-	unsigned long reserved_frm_format_err1 ;		
+	unsigned int reserved_frm_format_err1 ;		
 	/* reserved for later */
-	unsigned long reserved_frm_format_err2 ;		
+	unsigned int reserved_frm_format_err2 ;		
 	/* reserved for later */
-	unsigned long reserved_frm_format_err3 ;		
+	unsigned int reserved_frm_format_err3 ;		
 	/* reserved for later */
-	unsigned long reserved_frm_format_err4 ;		
+	unsigned int reserved_frm_format_err4 ;		
 	/* reserved for later */
 
 	/* CHDLC timeout/retry statistics */
@@ -377,11 +377,11 @@ typedef struct {
 	/* timeout count for incomming SLARP frames */
 	unsigned short SLARP_Request_TO_count ;		
 	/* timeout count for SLARP Request frames */
-	unsigned long To_retry_reserved_stat1 ;		
+	unsigned int To_retry_reserved_stat1 ;		
 	/* reserved for later */
-	unsigned long To_retry_reserved_stat2 ;		
+	unsigned int To_retry_reserved_stat2 ;		
 	/* reserved for later */
-	unsigned long To_retry_reserved_stat3 ;		
+	unsigned int To_retry_reserved_stat3 ;		
 	/* reserved for later */
 
 	/* CHDLC link active/inactive and loopback statistics */
@@ -393,19 +393,19 @@ typedef struct {
 	/* number of times that the link went inactive (keepalive failure) */
 	unsigned short link_looped_count ;		
 	/* link looped count */
-	unsigned long link_status_reserved_stat1 ;	
+	unsigned int link_status_reserved_stat1 ;	
 	/* reserved for later use */
-	unsigned long link_status_reserved_stat2 ;	
+	unsigned int link_status_reserved_stat2 ;	
 	/* reserved for later use */
 
 	/* miscellaneous statistics */
-	unsigned long reserved_misc_stat1 ;		
+	unsigned int reserved_misc_stat1 ;		
 	/* reserved for later */
-	unsigned long reserved_misc_stat2 ;		
+	unsigned int reserved_misc_stat2 ;		
 	/* reserved for later */
-	unsigned long reserved_misc_stat3 ;		
+	unsigned int reserved_misc_stat3 ;		
 	/* reserved for later */
-	unsigned long reserved_misc_stat4 ;		
+	unsigned int reserved_misc_stat4 ;		
 	/* reserved for later */
 
 } CHDLC_OPERATIONAL_STATS_STRUCT, chdlc_stat_t;

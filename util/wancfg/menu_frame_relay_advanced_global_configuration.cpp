@@ -183,17 +183,17 @@ again:
 
   /////////////////////////////////////////////////
   menu_str += "\"4\" ";
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"N391 timer---> %u\" ", fr->n391);
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"N391 counter-> %u\" ", fr->n391);
   menu_str += tmp_buff;
 
   /////////////////////////////////////////////////
   menu_str += "\"5\" ";
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"N392 timer---> %u\" ", fr->n392);
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"N392 counter-> %u\" ", fr->n392);
   menu_str += tmp_buff;
 
   /////////////////////////////////////////////////
   menu_str += "\"6\" ";
-  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"N393 timer---> %u\" ", fr->n393);
+  snprintf(tmp_buff, MAX_PATH_LENGTH, " \"N393 counter-> %u\" ", fr->n393);
   menu_str += tmp_buff;
 
   /////////////////////////////////////////////////
