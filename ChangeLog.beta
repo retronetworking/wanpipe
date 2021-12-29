@@ -8,6 +8,16 @@ Author: Nenad Corbic <ncorbic@sangoma.com>
 Copyright (c) 1995-2008 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
+
+* Wed Mar 27 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.5
+======================================================================
+
+- Removed debugging out of firmware update utility
+- Updated firmware bin files
+- Updated firmware update script.
+
+- No Functional Changes from 3.3.4
+
 * Wed Mar 26 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.4
 ====================================================================== 
 

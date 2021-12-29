@@ -2,6 +2,32 @@ AFT A101dm Firmware Change Log
 =============================
 
 
+Release V34
+-----------
+Oct 09 2007
+Type:		Optional A101dm Firmware
+		Internal change to improve stability on some cards.
+
+Changes:	Firmware bug fix
+		This bug can cause your card to fail to start
+
+
+Release V33
+-----------
+Sep 27 2007
+
+Type:		Recommended A101dm Firmware for echo cancel cards
+		Fixes issue with hardware echo canceller chip 
+		security. 
+		Supports DTMF detection without hardware echo
+		cancellation operation.
+
+Changes:	Firmware bug fix for echo canceller
+		This bug can shut down the driver.
+
+		Note: This bug only afected new Maxim AFT cards with HWEC.
+		      DTMF detection only applies AFT cards with HWEC.
+
 Release V31
 -----------
 Jul 10 2007

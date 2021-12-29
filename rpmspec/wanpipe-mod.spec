@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.3.4
+%define version           3.3.5
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,16 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+
+
+* Wed Mar 27 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.5
+======================================================================
+
+- Removed debugging out of firmware update utility
+- Updated firmware bin files
+- Updated firmware update script.
+
+- No Functional Changes from 3.3.4
 
 * Wed Mar 26 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.4
 ====================================================================== 

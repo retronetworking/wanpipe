@@ -376,7 +376,7 @@ static int wan_aften_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd, int idata)
 				       	api_cmd->offset,
 			       		(unsigned char*)&api_cmd->data[idata]);
 		}
-#if defined(DEBUG_REG)
+#if defined(WAN_DEBUG_REG)
 		DEBUG_EVENT("%s: Reading Off=0x%08X Len=%i Data=0x%02X\n",
 				card->devname,
 				api_cmd->offset,
@@ -395,7 +395,7 @@ static int wan_aften_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd, int idata)
 			       		api_cmd->offset,
 				       	(unsigned short*)&api_cmd->data[idata]);
 		}
-#if defined(DEBUG_REG)
+#if defined(WAN_DEBUG_REG)
 		DEBUG_EVENT("%s: Reading Off=0x%08X Len=%i Data=0x%04X\n",
 				card->devname,
 				api_cmd->offset,
@@ -414,7 +414,7 @@ static int wan_aften_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd, int idata)
 				       	api_cmd->offset,
 				       	(unsigned int*)&api_cmd->data[idata]);
 		}
-#if defined(DEBUG_REG)
+#if defined(WAN_DEBUG_REG)
 		DEBUG_EVENT("ADEBUG: %s: Reading Off=0x%08X Len=%i Data=0x%04X (idata=%d)\n",
 				card->devname,
 				api_cmd->offset,
@@ -433,7 +433,7 @@ static int wan_aften_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd, int idata)
 				(unsigned char*)vector, api_cmd.len);
 #endif
 
-#if defined(DEBUG_REG)
+#if defined(WAN_DEBUG_REG)
 		DEBUG_EVENT("%s: Reading Off=0x%08X Len=%i\n",
 				card->devname,
 				api_cmd->offset,
@@ -470,7 +470,7 @@ static int wan_aften_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 				card->hw,
 				api_cmd->offset,
 				*(unsigned char*)&api_cmd->data[0]);
-#if defined(DEBUG_REG)
+#if defined(WAN_DEBUG_REG)
 		DEBUG_EVENT("%s: Write  Offset=0x%08X Data=0x%02X\n",
 			card->devname,api_cmd->offset,
 			*(unsigned char*)&api_cmd->data[0]);
@@ -480,7 +480,7 @@ static int wan_aften_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 				card->hw,
 				api_cmd->offset,
 				*(unsigned short*)&api_cmd->data[0]);
-#if defined(DEBUG_REG)
+#if defined(WAN_DEBUG_REG)
 		DEBUG_EVENT("%s: Write  Offset=0x%08X Data=0x%04X\n",
 			card->devname,api_cmd->offset,
 			*(unsigned short*)&api_cmd->data[0]);
@@ -490,7 +490,7 @@ static int wan_aften_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 				card->hw,
 				api_cmd->offset,
 				*(unsigned int*)&api_cmd->data[0]);
-#if defined(DEBUG_REG)
+#if defined(WAN_DEBUG_REG)
 		DEBUG_EVENT("ADEBUG: %s: Write  Offset=0x%08X Data=0x%08X\n",
 			card->devname,api_cmd->offset,
 			*(unsigned int*)&api_cmd->data[0]);
