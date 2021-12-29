@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.22
+%define VERSION           7.0.23
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,7 +259,12 @@ fi
 ################################################################################
 
 %changelog
-* Tue Oct 11 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.22
+* Thu Oct 12 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.23
+==================================================================
+- Support to create proper wanec device for dahdi
+
+
+* Wed Oct 11 2017 Pushkar Singh <psingh@sangoma.com> - 7.0.22
 ==================================================================
 - Support for redhat release version 7.4+ kernel i.e. 3.10.0-693
 
