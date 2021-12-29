@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.2.7
+%define version           3.2.7.1
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin

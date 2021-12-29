@@ -7,6 +7,13 @@ Author: Nenad Corbic <ncorbic@sangoma.com>
 Copyright (c) 1995-2008 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
+* Thu Aug 21 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.7.1
+========================================================================
+- Fixed bug in wancfg_zaptel configuration utility
+  This bug was introduced in previous release. It will set d-channels
+  as "dchan" instead of "hardhdlc" for zaptel-1.4.x .
+  No driver changes.
+
 * Thu Jul 16 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.7
 ========================================================================
 

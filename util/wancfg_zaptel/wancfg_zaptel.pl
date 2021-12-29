@@ -240,7 +240,7 @@ my $date=`date +%F`;
 chomp($date);
 my $debug_tarball="$wanpipe_conf_dir/debug-".$date.".tgz";
 
-if( $zaptel_installed= $TRUE){
+if( $zaptel_installed == $TRUE){
 	set_zaptel_hwhdlc();
 }
 prepare_files();
