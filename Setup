@@ -2405,6 +2405,26 @@ function build_wanec_module ()
 	
 }
 
+function sangoma_64bit_4g_check()
+{
+	eval "uname -a | grep x86_64" > /dev/null 2> /dev/null	
+        if [ $? -ne 0 ] ; then
+		val=`cat /proc/meminfo | grep MemTotal | cut -d':' -f2`
+		tmp=${val// /}
+		b=`expr match "$tmp" '\([0-9]*\)'`
+		morethan4bg=`expr $b \> 4000000`
+		if [ $morethan4bg -eq 1 ]; then
+			#More than 4G of memory
+			return 0;
+		else
+			return 1;
+		fi      
+	fi                                                            
+
+	#not 64bit 4G mode
+        return 1;
+}
+
 
 function create_kernel_mod_file()
 {
@@ -3182,7 +3202,6 @@ ENDOFTEXT
 		CONFIG_SMP=NO;
 	fi
 
-
 	#Find out our processor type. This is needed to properly
 	#compile our modules.
 	echo -n "Checking current processor type ..."
@@ -3281,10 +3300,6 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 				 echo -e "Disabled.\n"
 			fi
 		fi
-
-		
-
-
 
 		echo -n "Compiling General ${DISTR_NAME} Driver for 2.6.X Kernel ."
 		
@@ -3469,6 +3484,18 @@ ENDOFTEXT
 
 EVALCMD=eval
 WANPIPE_OBJS=
+
+
+ 		 if [ 0 -eq 1 ]; then
+                echo
+                echo "ALLFLAGS"
+                echo "--------------------------------------------------"
+                echo "$CFLAGS"
+                echo "--------------------------------------------------"
+                echo
+                echo
+		fi
+                      
 
 	rm -f sdladrv_src.c
 	ln -s sdladrv.c sdladrv_src.c
@@ -4878,7 +4905,12 @@ function tdmv_apply_zaptel_dchan_patch ()
 	fi
 
 	# patch $ZAPTEL_C_FILE
-	eval "search_and_replace $ZAPTEL_C_FILE $ZAPTEL_C_FILE \"$ZAPTEL_C_SEARCH_STR\" \"$ZAPTEL_C_PATCH\""
+        eval "grep \"$ZAPTEL_C_SEARCH_STR\"  $ZAPTEL_C_FILE > /dev/null 2> /dev/null"
+	if [ $? -eq 0 ]; then
+		eval "search_and_replace $ZAPTEL_C_FILE $ZAPTEL_C_FILE \"$ZAPTEL_C_SEARCH_STR\" \"$ZAPTEL_C_PATCH\""
+	else
+		eval "search_and_replace $ZAPTEL_C_FILE $ZAPTEL_C_FILE \"$ZAPTEL_C_SEARCH_STR_NEW\" \"$ZAPTEL_C_PATCH_NEW\""
+	fi
 
 	if [ $? -ne 0 ]; then
 		echo "search_and_replace($ZAPTEL_C_FILE) failed"
@@ -5227,8 +5259,22 @@ function tdmv_compile_zaptel()
                 fi
         else
                 echo "OK"
+		if [ -e menuselect/mxml ]; then
+			cd menuselect/mxml			
+		               eval "grep \" $ZAPTEL_MENUSELECT_SEARCH_STR\"  Makefile.in > /dev/null 2> /dev/null"
+			       if [ $? -eq 0 ]; then
+				     eval "search_and_replace Makefile.in Makefile.in \"$ZAPTEL_MENUSELECT_SEARCH_STR\" \"$ZAPTEL_MENUSELECT_REMOVE\""
+                               fi 
+			       if [ -e Makefile ]; then
+                                    eval "grep \" $ZAPTEL_MENUSELECT_SEARCH_STR\"  Makefile > /dev/null 2> /dev/null"
+			       	    if [ $? -eq 0 ]; then
+				         eval "search_and_replace Makefile Makefile \"$ZAPTEL_MENUSELECT_SEARCH_STR\" \"$ZAPTEL_MENUSELECT_REMOVE\""
+                                    fi
+			       fi	
+		fi
         fi
 
+	cd $ZAPTEL_INSTALL_DIR
         echo -n "   Recompiling/reinstalling Zaptel(make install)..."
         eval "make >> $PROD_HOME/zaptel_compilation_log 2>> $PROD_HOME/zaptel_compilation_log"
         if [ ! $? -eq 0 ]; then
@@ -6117,7 +6163,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.1.0
+PROD_VER=3.1.0.1
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -6215,6 +6261,17 @@ ZAPTEL_C_PATCH="if ((chan->flags \& ZT_FLAG_HDLC) \&\& chan->span->ioctl != NULL
 				}\n\
 			}\n\
 			chan->writen[chan->inwritebuf] = amnt;"
+# D channel patching for zaptel version 1.2.17.1/1.4.2.1 or above
+ZAPTEL_C_SEARCH_STR_NEW="chan->writen\[res\] = amnt;"
+ZAPTEL_C_PATCH_NEW="if ((chan->flags \& ZT_FLAG_HDLC) \&\& chan->span->ioctl != NULL){\n\
+                                if (chan->span->ioctl(chan, ZT_DCHAN_TX_V2, amnt)==0){\n\
+                                        return amnt;\n\
+                                }\n\
+                        }\n\
+                        chan->writen[res] = amnt;"
+# Zaptel 1.4.2.1 "Menuselect" issue
+ZAPTEL_MENUSELECT_SEARCH_STR="autoconf"
+ZAPTEL_MENUSELECT_REMOVE=" "
 
 #NOTE1: the 'sed' command does NOT work on more than one line, so the
 #closing '*/' will be pushed AFTER the inserted strings.
@@ -6405,6 +6462,9 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 			;;
 		--noautostart*)
 			NO_AUTO_START=1
+			;;
+		--64bit_4G*)
+			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DWANPIPE_64BIT_4G_DMA "
 			;;
 		--with-linux*)
 			SOURCEDIR=`echo $arg | cut -d'=' -f2`;
