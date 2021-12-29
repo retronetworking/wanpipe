@@ -1303,10 +1303,6 @@ int a104_chip_unconfig(sdla_t *card)
 	AFT_FUNC_DEBUG();
 #if INIT_FE_ONLY
 
-	if (card->wandev.fe_iface.pre_release){
-		card->wandev.fe_iface.pre_release(&card->fe);
-	}
-
 	if (card->wandev.fe_iface.unconfig){
 		card->wandev.fe_iface.unconfig(&card->fe);
 	}
@@ -1336,16 +1332,14 @@ int a104_chip_unconfig(sdla_t *card)
 	if (IS_TE1_CARD(card)) {
 		wan_smp_flag_t smp_flags1;
 
-		if (card->wandev.fe_iface.pre_release){
-			card->wandev.fe_iface.pre_release(&card->fe);
-		}
 		card->hw_iface.hw_lock(card->hw,&smp_flags1);
-                aft_fe_intr_ctrl(card,0);
+		aft_fe_intr_ctrl(card,0);
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
-                aft_fe_intr_ctrl(card,1);
+		aft_fe_intr_ctrl(card,1);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags1);
+
 	}else if (IS_56K_CARD(card)) {
 		//reset_on_LXT441PE(card);
 		aft_56k_write_cpld(card, 0x00,0x00);

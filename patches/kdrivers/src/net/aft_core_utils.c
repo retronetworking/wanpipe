@@ -871,14 +871,14 @@ int if_change_mtu(netdevice_t *dev, int new_mtu)
 		return -EINVAL;
 	}
 
-	if (new_mtu < 16) {
+	if (new_mtu < sizeof(wp_api_hdr_t)) {
 		return -EINVAL;
 	}
 
 	if (chan->common.usedby == API){
 		new_mtu+=sizeof(wp_api_hdr_t);
 	}else if (chan->common.usedby == STACK){
-		new_mtu+=32;
+		new_mtu+=sizeof(wp_api_hdr_t);
 	}
 
 	if (new_mtu > chan->dma_mru) {
@@ -2319,7 +2319,7 @@ void wanpipe_wake_stack(private_area_t* chan)
 	if (chan->common.usedby == API){
 		if (chan->wp_api_op_mode){
 #ifdef AFT_TDM_API_SUPPORT
-			if (is_tdm_api(chan,chan->wp_tdm_api_dev)){
+			if (is_tdm_api(chan,chan->wp_tdm_api_dev)) {
 				wanpipe_tdm_api_kick(chan->wp_tdm_api_dev);
 			}
 #endif
@@ -3415,5 +3415,33 @@ void wp_bert_print_state(wp_bert_t *bert)
 		wp_bert_get_synchonized_count(bert));
 }
 
+
+int aft_hdlc_repeat_mangle(sdla_t *card,private_area_t *chan, netskb_t *skb, wp_api_hdr_t *tx_hdr, netskb_t **rskb)
+{
+	unsigned char *buf;
+
+	if (tx_hdr->wp_api_tx_hdr_hdlc_rpt_len == 0) {
+		/* Nothing to repeat */
+		return 0;
+	}
+
+	if (tx_hdr->wp_api_tx_hdr_hdlc_rpt_len > 8) {
+		DEBUG_ERROR("%s: hdlc repeat error rpt_len=%i (max=8)\n",
+			chan->if_name,tx_hdr->wp_api_tx_hdr_hdlc_rpt_len);
+		return -1;
+	}
+
+	*rskb=wan_skb_alloc(128);
+	if (!rskb) {
+		DEBUG_ERROR("%s: %s() failed to allocate mem\n",
+			chan->if_name, __FUNCTION__);
+		return -ENOMEM;
+	}
+
+	buf=wan_skb_put(*rskb,tx_hdr->wp_api_tx_hdr_hdlc_rpt_len);
+	memcpy(buf,tx_hdr->wp_api_tx_hdr_hdlc_rpt_data,tx_hdr->wp_api_tx_hdr_hdlc_rpt_len);
+
+	return 0;
+}
 
 /************** EOF *************/

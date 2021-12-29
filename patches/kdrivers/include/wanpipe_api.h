@@ -39,7 +39,7 @@
 #include "aft_core_user.h"
 #include "wanpipe_api_hdr.h"
 #include "wanpipe_api_iface.h"
-
+#include "wanpipe_codec_iface.h"
 
 /***************************************************************//**
  * WANPIPE API HEADER & EVENT STRUCTURE
@@ -273,6 +273,13 @@ enum wanpipe_aft_devel_events {
 	SIOC_WAN_GET_CARD_TYPE,
 	SIOC_WAN_USB_READ_REG,
 	SIOC_WAN_USB_WRITE_REG,
+	SIOC_WAN_USB_CPU_WRITE_REG,
+	SIOC_WAN_USB_CPU_READ_REG,
+	SIOC_WAN_USB_FE_WRITE_REG,
+	SIOC_WAN_USB_FE_READ_REG,
+	SIOC_WAN_USB_FW_DATA_READ,
+	SIOC_WAN_USB_FW_DATA_WRITE,
+	SIOC_WAN_USB_FWUPDATE_ENABLE,
 };
 
 #include "wanpipe_api_deprecated.h"

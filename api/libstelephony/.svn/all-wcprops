@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 33
-/svn/stelephony/!svn/ver/59/trunk
+/svn/stelephony/!svn/ver/60/trunk
 END
 stelephony.h
 K 25
@@ -175,7 +175,7 @@ PToneDecoder.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 50
-/svn/stelephony/!svn/ver/54/trunk/PToneDecoder.cpp
+/svn/stelephony/!svn/ver/60/trunk/PToneDecoder.cpp
 END
 stelephony.vcproj
 K 25

@@ -146,6 +146,7 @@ enum {
 	U100_ADPTR,			/* USB board */
 	AFT_ADPTR_A600,			/* AFT-A600 board */
 	AFT_ADPTR_B601,			/* AFT-B601 board */
+	AFT_ADPTR_B800,			/* AFT-B800 board */
 	AFT_ADPTR_FLEXBRI,		/* AFT-A700 FlexBRI board */
 
 	AFT_ADPTR_LAST			/* NOTE: Keep it as a last line */
@@ -304,6 +305,7 @@ enum {
 		(adapter_type == U100_ADPTR) 	 	   ? "U100"  : \
 		(adapter_type == AFT_ADPTR_A600)           ? "AFT-B600" : \
 		(adapter_type == AFT_ADPTR_B601)           ? "AFT-B601" : \
+		(adapter_type == AFT_ADPTR_B800)           ? "AFT-B800" : \
 		(adapter_type == AFT_ADPTR_FLEXBRI)  ? "AFT-B700" : \
 							     "UNKNOWN"
 			

@@ -525,6 +525,7 @@ void aft_background_timer_expire(unsigned long pcard);
 #endif
 
 int aft_fe_loop_back_status(sdla_t *card);
+int aft_hdlc_repeat_mangle(sdla_t *card,private_area_t *chan, netskb_t *skb, wp_api_hdr_t *tx_hdr, netskb_t **rkb);
 
 #endif /* WAN_KERNEL */
 

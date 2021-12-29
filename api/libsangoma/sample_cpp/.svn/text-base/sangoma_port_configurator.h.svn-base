@@ -56,6 +56,38 @@ public:
 	//opermode valid country name supported by Analog FXO
 	int set_analog_opermode(port_cfg_t *port_cfg, char *opermode);
 
+
+	/**************************************************************/
+	/*********** Analog Global Gain Setting Functions**************/
+	/**************************************************************/
+
+	//Note: following gain settings are global. It requires drivers to
+	//restart the card.
+	//It is recommended to use dynamic analog txgain/rxgain functions
+	//from libsangoma library:sangoma_set_rm_tx_gain and sangoma_set_rm_rx_gain
+
+	
+	//Function to set FXO  txgain
+	//FXO - txgain value ranges from -150 to 120 
+	int set_analog_rm_fxo_txgain(port_cfg_t *port_cfg, int txgain);
+
+	//Function to set FXO  rxgain
+	//FXO - rxgain value ranges from -150 to 120 
+	int set_analog_rm_fxo_rxgain(port_cfg_t *port_cfg, int rxgain);
+
+	//Function to set FXS  txgain
+	//FXO - txgain value can be -35 or 35 
+	int set_analog_rm_fxs_txgain(port_cfg_t *port_cfg, int txgain);
+
+	//Function to set FXS  rxgain
+	//FXO - rxgain value can be -35 or 35 
+	int set_analog_rm_fxs_rxgain(port_cfg_t *port_cfg, int rxgain);
+
+	/**************************************************************/
+	/*********** End of Analog Global Gain Setting Functions ******/
+	/**************************************************************/
+
+
 	//Function to check correctness of 'port_cfg_t' structure.
 	int check_port_cfg_structure(port_cfg_t *port_cfg);
 

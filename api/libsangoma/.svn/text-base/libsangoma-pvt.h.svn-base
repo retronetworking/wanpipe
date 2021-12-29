@@ -75,13 +75,6 @@ extern "C" {	/* for C++ users */
 #define SANGOMA_OBJ_HAS_DEVICE(object) ((object)->object_type == SANGOMA_DEVICE_WAIT_OBJ \
 		                       || (object)->object_type == SANGOMA_DEVICE_WAIT_OBJ_SIG)
 
-#define LIBSNG_NUMBER_OF_EVENT_OBJECTS 3 /* POLLIN, POLLOUT and POLLPRI */
-enum {
-	LIBSNG_EVENT_INDEX_POLLIN=0,
-	LIBSNG_EVENT_INDEX_POLLOUT,
-	LIBSNG_EVENT_INDEX_POLLPRI
-};
-
 #define LIBSNG_MAGIC_NO	0x90547419
 
 /* libsangoma.h defines sangoma_wait_obj_t for the sake of clean prototype definitions, time to undefine it since from now on 
@@ -114,10 +107,8 @@ typedef struct sangoma_wait_obj
 	sangoma_wait_obj_type_t object_type;
 
 #if defined(__WINDOWS__)
-	/*! WINDOWS: api structure used by windows IoctlSetSharedEvent call */
-	/*! to wait on events or data from the Sangoma device driver. */
-	HANDLE sng_event_objects[LIBSNG_NUMBER_OF_EVENT_OBJECTS];
-	HANDLE generic_event_object;
+	/*! signallable object to wait on events or data from the Sangoma device driver or can be signalled by sangoma_wait_obj_signal(). */
+	HANDLE signal_object;
 #else
 	/*! LINUX: To be used by a pipe to asynchronously break a poll() */
 	sng_fd_t signal_write_fd;

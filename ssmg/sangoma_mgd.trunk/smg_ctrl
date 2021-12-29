@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash -p 
 cmd=$1;
 sigd=$2;
 xtraargs='';
@@ -27,7 +27,7 @@ function usage()
 	echo "  stop        :stop $sigd and sangoma media gateway"
 	echo "  restart     :restart $sigd and sangoma media gateway"
 	echo
-	echo "  BRI Specific"
+	echo "  BRI/PRI Specific"
 	echo "  test        :test configuration only "
 	echo "  capture     :enable protocol capture "
 	echo "  show_spans  :show configured spans "
@@ -458,9 +458,9 @@ function toggle_capture()
 	eval "kill -SIGRTMIN+2 $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		logit "BRI: Protocol capture toggled"
+		logit "BRI/PRI: Protocol capture toggled"
 	else 
-		logit "BRI: Failed to send command"
+		logit "BRI/PRI: Failed to send command"
 	fi
 
 	return $rc
@@ -475,9 +475,9 @@ function increase_verbose()
 	eval "kill -SIGRTMIN $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		logit "BRI: Verbosity increased"
+		logit "BRI/PRI: Verbosity increased"
 	else 
-		logit "BRI: Failed to send command"
+		logit "BRI/PRI: Failed to send command"
 	fi
 
 	return $rc
@@ -490,9 +490,9 @@ function decrease_verbose()
 	eval "kill -SIGRTMIN+1 $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		logit "BRI: Verbosity decreased"
+		logit "BRI/PRI: Verbosity decreased"
 	else 
-		logit "BRI: Failed to send command"
+		logit "BRI/PRI: Failed to send command"
 	fi
 
 	return $rc
@@ -505,9 +505,9 @@ function show_calls()
 	eval "kill -SIGRTMIN+3 $(pidof $sigd) "
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		logit "BRI: Show calls"
+		logit "BRI/PRI: Show calls"
 	else 
-		logit "BRI: Failed to send command"
+		logit "BRI/PRI: Failed to send command"
 	fi
 
 	return $rc

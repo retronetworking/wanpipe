@@ -42,7 +42,7 @@ static void wan_aft_api_ringdetect (void* card_id, wan_event_t *event);
 static int aft_read_rbs_bits(void *chan_ptr, u32 ch, u8 *rbs_bits);
 static int aft_write_rbs_bits(void *chan_ptr, u32 ch, u8 rbs_bits);
 static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hdr);
-static int aft_write_hdlc_check(void *chan_ptr, int lock);
+static int aft_write_hdlc_check(void *chan_ptr, int lock, int buffers);
 static int aft_write_hdlc_timeout(void *chan_ptr, int lock);
 
 /*--------------------------------------------------------
@@ -423,22 +423,44 @@ static void wan_aft_api_ringdetect (void* card_id, wan_event_t *event)
 	return;
 }
  
-static int aft_write_hdlc_check(void *chan_ptr, int lock)
+static int aft_write_hdlc_check(void *chan_ptr, int lock, int buffers)
 {
 	private_area_t *chan = (private_area_t *)chan_ptr;
 	sdla_t *card=chan->card;
-	wan_smp_flag_t smp_flags;
-	int rc;
-	
-	if (IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)){
-		/* For BRI rely on upper layer checking */
+	wan_smp_flag_t smp_flags=0;
+	int rc=0;
+
+
+	/* If we are disconnected do now allow tx */
+	if (chan->common.state != WAN_CONNECTED) {
 		return 1;
 	}
+
+	if (IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)){
+		
+		rc=aft_bri_dchan_transmit(card, chan,
+						NULL,
+						0);
+
+		if (rc) {
+			/* Tx busy */
+			return 1;
+		}
+
+		return 0;
+	}
+
 
 	if (lock) {
 		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 	}
+
 	rc = wan_chan_dev_stopped(chan);
+	if (!rc && buffers > 1) {
+		if (chan->max_tx_bufs - wan_skb_queue_len(&chan->wp_tx_pending_list) <= buffers) {
+			rc=1;
+		}
+	}
 
 	if (lock) {
 		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
@@ -477,6 +499,7 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 	wan_smp_flag_t smp_flags;
 	int err=-EINVAL;
 	private_area_t	*top_chan;
+	netskb_t *rskb=NULL;
 
 	if (!chan_ptr || !chan->common.dev || !card){
 		WAN_ASSERT(1);
@@ -484,6 +507,10 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 	}
 
 	if (wan_skb_len(skb) > chan->mtu) {
+		if (WAN_NET_RATELIMIT()) {
+			DEBUG_ERROR("%s: %s Error: skb len %i > mtu = %i  \n",
+				chan->if_name,__FUNCTION__,wan_skb_len(skb),chan->mtu);
+		}
 		return -EINVAL;
 	}
 #if defined(__WINDOWS__)
@@ -495,6 +522,12 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 		top_chan=chan;
 	}
 #endif
+
+	if (chan->common.state != WAN_CONNECTED){
+		DEBUG_TEST("%s: %s Error Device disconnected!\n",
+				chan->if_name,__FUNCTION__);
+		return -EBUSY;
+	}
 
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
 	if(IS_BRI_CARD(card) && (chan->dchan_time_slot >= 0)){
@@ -540,6 +573,13 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 	}
 #endif
 
+	if (chan->hdlc_eng && chan->cfg.hdlc_repeat) {
+		err=aft_hdlc_repeat_mangle(card,chan,skb,hdr,&rskb);
+		if (err) {
+			return err;
+		}
+	}
+
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 
 	if (wan_skb_queue_len(&chan->wp_tx_pending_list) >= chan->max_tx_bufs){
@@ -561,12 +601,18 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 
 	wan_skb_unlink(skb);
 	wan_skb_queue_tail(&chan->wp_tx_pending_list,skb);
+
+	if (rskb) {
+		wan_skb_queue_tail(&chan->wp_tx_hdlc_rpt_list,rskb);
+	}
+
 	aft_dma_tx(card,chan); 
 
 	hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
 	hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
 	hdr->tx_h.tx_idle_packets = chan->chan_stats.tx_idle_packets;
-
+	hdr->tx_h.errors = WP_AFT_TX_ERROR_SUM(chan->chan_stats);
+	
 	if (chan->dma_chain_opmode != WAN_AFT_DMA_CHAIN_SINGLE) {
 		hdr->tx_h.max_tx_queue_length += MAX_AFT_DMA_CHAINS;
 		hdr->tx_h.current_number_of_frames_in_tx_queue += chan->tx_chain_data_sz;

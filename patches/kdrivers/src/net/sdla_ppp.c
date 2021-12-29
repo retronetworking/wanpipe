@@ -871,11 +871,11 @@ static void disable_comm (sdla_t *card)
 
 	/* TE1 unconfiging */
 	if (IS_TE1_CARD(card)) {
-		if (card->wandev.fe_iface.pre_release){
-			card->wandev.fe_iface.pre_release(&card->fe);
-		}
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
+		}
+		if (card->wandev.fe_iface.post_unconfig){
+			card->wandev.fe_iface.post_unconfig(&card->fe);
 		}
 	}
 	return;

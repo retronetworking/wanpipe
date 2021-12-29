@@ -74,6 +74,7 @@ public:
 	int start_port();
 
 	int init(uint16_t wanpipe_number);
+	void cleanup();
 
 	sangoma_port();
 	virtual ~sangoma_port();
@@ -82,7 +83,7 @@ public:
 
 protected:
 	uint16_t wp_number;
-	HANDLE wp_handle;
+	sng_fd_t wp_handle;
 
 	int push_a_card_into_wanpipe_info_array(wanpipe_instance_info_t *wanpipe_info_array,
 										hardware_info_t *new_hw_info);

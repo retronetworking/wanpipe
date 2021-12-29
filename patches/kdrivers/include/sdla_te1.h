@@ -278,6 +278,7 @@
 #define TE_CONFIGURED			0x06
 #define TE_TIMER_EVENT_PENDING 		0x07
 #define TE_TIMER_EVENT_INPROGRESS	0x08
+#define TE_AIS_TX_STARTUP		0x09				
 
 /* TE1 sw irq types */
 enum {
@@ -453,6 +454,7 @@ typedef struct sdla_te_cfg {
 	u_int8_t	te_ref_clock;
 	u_int8_t	sig_mode;
 	u_int8_t	ignore_yel_alarm;
+	u_int8_t	ais_maintenance;
 } sdla_te_cfg_t;
 
 /* Performamce monitor counters */
@@ -784,6 +786,9 @@ typedef struct {
 	wan_ticks_t		bert_start;
 	sdla_te_bert_cfg_t	bert_cfg;
 	sdla_te_bert_stats_t	bert_stats;
+	
+	uint8_t			tx_ais_alarm;
+	wan_ticks_t		tx_ais_startup_timeout;
 
 } sdla_te_param_t;
 

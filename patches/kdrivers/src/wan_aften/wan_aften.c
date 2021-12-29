@@ -17,7 +17,7 @@ static sdla_t* card_list = NULL;	/* adapter data space */
 extern wan_iface_t wan_iface;
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
-static int wan_aften_callback_add_device(char *devname, void *phw);
+static int wan_aften_callback_add_device(void);
 static int wan_aften_callback_delete_device(char *);
 extern sdladrv_callback_t sdladrv_callback;
 
@@ -372,14 +372,14 @@ static int wan_aften_release(sdla_t *card)
 }
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
-static int wan_aften_callback_add_device(char *devname, void *phw)
+static int wan_aften_callback_add_device(void)
 {
 	int	err = 0;
 
 	err = wan_aften_add_device(0);
 	if (err){
 		DEBUG_EVENT("%s: ERROR: Failed to add new device!\n",
-					devname);
+					__FUNCTION__);
 		return -EINVAL;
 	}
 	return 0;
@@ -823,7 +823,8 @@ static int wan_aften_close(netdevice_t *dev)
 }
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
-static int wan_aften_usb_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
+
+static int wan_aften_usb_write_access(sdla_t *card, wan_cmd_api_t *api_cmd)
 {
 
 	if (card->type != SDLA_USB){
@@ -832,8 +833,8 @@ static int wan_aften_usb_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 		return -EINVAL;
 	}
 
-	if (api_cmd->ret == 1){
-
+	switch(api_cmd->cmd){
+	case SIOC_WAN_USB_CPU_WRITE_REG:
 		DEBUG_TEST("%s: Write USB-CPU CMD: Reg:0x%02X <- 0x%02X\n",
 				card->devname, 
 				(unsigned char)api_cmd->offset,
@@ -842,9 +843,25 @@ static int wan_aften_usb_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 						card->hw, 
 						(u_int8_t)api_cmd->offset, 
 						(u_int8_t)api_cmd->data[0]);
+		break;
 
-	}else if (api_cmd->ret == 2){
+	case SIOC_WAN_USB_FW_DATA_WRITE:
+		if (api_cmd->len){
+			DEBUG_TEST("%s: Write USB-FXO DATA: %d (%d) bytes\n",
+					card->devname, api_cmd->len, api_cmd->offset);
+			api_cmd->len = card->hw_iface.usb_txdata_raw(
+						card->hw,
+						&api_cmd->data[0],
+						api_cmd->len);
+			api_cmd->ret = 0;
+		}else{
+			DEBUG_TEST("%s: Write USB-FXO DATA Ready?\n",
+					card->devname);
+			api_cmd->ret = card->hw_iface.usb_txdata_raw_ready(card->hw);
+		}
+		break;
 
+	case SIOC_WAN_USB_FE_WRITE_REG:
 		DEBUG_TEST("%s: Write USB-FXO CMD: Module:%d Reg:%d <- 0x%02X\n",
 				card->devname, api_cmd->bar,
 				(unsigned char)api_cmd->offset,
@@ -853,47 +870,18 @@ static int wan_aften_usb_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 						api_cmd->bar,
 						(u_int8_t)api_cmd->offset,
 						(u_int8_t)api_cmd->data[0]);
+		break;	
 
-	}else if (api_cmd->ret == 3){
-
-		if (api_cmd->len){
-			DEBUG_TEST("%s: Write USB-FXO DATA: %d (%d) bytes\n",
-					card->devname, api_cmd->len, api_cmd->offset);
-			api_cmd->ret = card->hw_iface.usb_txdata(
-							card->hw,
-							&api_cmd->data[0],
-							api_cmd->len);
-		}else{
-			DEBUG_TEST("%s: Write USB-FXO DATA Ready?\n",
-					card->devname);
-			api_cmd->ret = card->hw_iface.usb_txdata_ready(card->hw);
-		}
-	}else if (api_cmd->ret == 0){
-			
-		api_cmd->ret = card->hw_iface.usb_write_poll(	
-						card->hw,
-						(u_int8_t)api_cmd->offset,
-						(u_int8_t)api_cmd->data[0]);
-		if (api_cmd->ret){
-			api_cmd->ret = -EBUSY;
-			return 0;
-		}
-		DEBUG_EVENT("%s: WRITE USB CMD: Reg:%d <- 0x%02X\n",
-				card->devname, 
-				(unsigned char)api_cmd->offset,
-				(unsigned char)api_cmd->data[0]);
-		api_cmd->ret = 0;
-
-	}else{
-		DEBUG_EVENT("%s: Unknown SDLA-USB command %d\n", 
-				card->devname, api_cmd->len);
+	default:
+		DEBUG_EVENT("%s: %s:%d: Invalid command\n", card->devname,__FUNCTION__,__LINE__);
 		api_cmd->ret = -EBUSY;
-		return 0;
-	}
+		break;
+	}	
+
 	return 0;
 }
 
-static int wan_aften_usb_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
+static int wan_aften_usb_read_access(sdla_t *card, wan_cmd_api_t *api_cmd)
 {
 	int	err = 0;
 
@@ -902,8 +890,9 @@ static int wan_aften_usb_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 					card->devname);
 		return -EINVAL;
 	}
-	if (api_cmd->ret == 1){
 
+	switch(api_cmd->cmd){
+	case SIOC_WAN_USB_CPU_READ_REG:
 		api_cmd->data[0] = 0xFF;
 		/* Add function here */
 		err = card->hw_iface.usb_cpu_read(
@@ -920,9 +909,19 @@ static int wan_aften_usb_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 				(unsigned char)api_cmd->data[0]);
 		api_cmd->ret = 0;
 		api_cmd->len = 1;
+		break;
 
-	}else if (api_cmd->ret == 2){
+	case SIOC_WAN_USB_FW_DATA_READ:
+		api_cmd->len = 
+			card->hw_iface.usb_rxdata_raw(	card->hw,
+							&api_cmd->data[0],
+							api_cmd->len); 
+		DEBUG_TEST("%s: Read USB-FXO Data: %d (%d) bytes\n",
+				card->devname, api_cmd->ret, api_cmd->len);
+		api_cmd->ret = 0;
+		break;
 
+	case SIOC_WAN_USB_FE_READ_REG:
 		/* Add function here */
 		api_cmd->data[0] = card->hw_iface.fe_read(
 						card->hw, 
@@ -935,40 +934,26 @@ static int wan_aften_usb_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 				(unsigned char)api_cmd->data[0]);
 		api_cmd->ret = 0;
 		api_cmd->len = 1;
+		break;	
 
-	}else if (api_cmd->ret == 3){
-
-		/* Add function here */
-		api_cmd->ret = 
-			card->hw_iface.usb_rxdata(card->hw, &api_cmd->data[0], api_cmd->len); 
-
-		DEBUG_TEST("%s: Read USB-FXO Data: %d (%d) bytes\n",
-				card->devname,  api_cmd->ret, api_cmd->len);
-
-	}else if (api_cmd->ret == 0){
-
-		err = card->hw_iface.usb_read_poll(	card->hw,
-							(u_int8_t)api_cmd->offset,
-							(u_int8_t*)&api_cmd->data[0]);
-		if (err){
-			api_cmd->ret = -EBUSY;
-			return 0;
-		}
-		DEBUG_EVENT("%s: Read USB CMD: Reg:%d -> 0x%02X\n",
-				card->devname, 
-				(unsigned char)api_cmd->offset,
-				(unsigned char)api_cmd->data[0]);
-		api_cmd->ret = 0;
-		api_cmd->len = 1;
-
-	}else{
-		DEBUG_EVENT("%s: Unknown SDLA-USB command %d\n", 
-				card->devname, api_cmd->len);
-		api_cmd->ret = -EINVAL;
-		return 0;
-	}  
+	default:
+		DEBUG_EVENT("%s: %s:%d: Invalid command\n", card->devname,__FUNCTION__,__LINE__);
+		api_cmd->ret = -EBUSY;
+		break;
+	}	
 	return 0;
 }
+
+static int wan_aften_usb_fwupdate_enable(sdla_t *card)
+{
+	if (card->type != SDLA_USB){
+		DEBUG_EVENT("%s: Unsupported command for current device!\n",
+					card->devname);
+		return -EINVAL;
+	}
+	return card->hw_iface.usb_fwupdate_enable(card->hw); 
+}                
+
 #endif
 
 static int
@@ -1084,13 +1069,20 @@ wan_aften_ioctl (netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 		err = wan_aften_all_write_pcibridge_reg(card, api_cmd);
 		break;
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
-	case SIOC_WAN_USB_READ_REG:
-		err = wan_aften_usb_read_reg(card, api_cmd);
+	case SIOC_WAN_USB_CPU_READ_REG:
+	case SIOC_WAN_USB_FW_DATA_READ:
+	case SIOC_WAN_USB_FE_READ_REG:
+		err = wan_aften_usb_read_access(card, api_cmd);
 		break;
-	case SIOC_WAN_USB_WRITE_REG:
-		err = wan_aften_usb_write_reg(card, api_cmd);
+	case SIOC_WAN_USB_CPU_WRITE_REG:
+	case SIOC_WAN_USB_FW_DATA_WRITE:
+	case SIOC_WAN_USB_FE_WRITE_REG:
+		err = wan_aften_usb_write_access(card, api_cmd);
 		break;
-#endif
+	case SIOC_WAN_USB_FWUPDATE_ENABLE:
+		err = wan_aften_usb_fwupdate_enable(card);
+		break;
+#endif                 
 	default:
 		DEBUG_EVENT("%s: Unknown WAN_AFTEN command %X\n",
 				card->devname, api_cmd->cmd);

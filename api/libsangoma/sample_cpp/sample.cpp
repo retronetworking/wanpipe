@@ -59,16 +59,11 @@ callback_functions_t 	callback_functions;
  * Prototypes & Defines
  *****************************************************************/
 
-static int got_rx_data(void *sang_if_ptr, void *rx_data);
+static int got_rx_data(void *sang_if_ptr, void *rxhdr, void *rx_data);
 static void got_tdm_api_event(void *sang_if_ptr, void *event_data);
 #if USE_WP_LOGGER
 static void got_logger_event(void *sang_if_ptr, wp_logger_event_t *logger_event);
 #endif
-
-typedef struct{
-	void				*sang_if_ptr;
-	wp_api_event_t		event;
-}TDM_API_EVENT_THREAD_PARAM;
 
 
 #if USE_STELEPHONY_API
@@ -87,13 +82,6 @@ static void SwDtmfTransmit (void *callback_context, void* buffer);
 CRITICAL_SECTION	PrintCriticalSection;
 //critical section for TDM events
 CRITICAL_SECTION	TdmEventCriticalSection;
-
-#if defined (__WINDOWS__)
-DWORD TdmApiEventThreadFunc(LPDWORD lpdwParam);
-#else
-void *TdmApiEventThreadFunc(void *lpdwParam);
-#endif
-
 
 /*****************************************************************
  * Debugging Macros
@@ -195,9 +183,9 @@ void PrintRxData(wp_api_hdr_t *hdr, void *pdata)
 	if(program_settings.silent){
 		if((rx_counter % 1000) == 0){
 			INFO_MAIN("Rx counter: %d, Rx datlen: %d\n", rx_counter, datlen);
-#if 0
+#if 1
 			INFO_MAIN("Timestamp: Seconds: %d, Microseconds: %d\n", 
-				hdr->wp_api_hdr_time_stamp_sec, hdr->wp_api_hdr_time_stamp_use);
+				hdr->time_stamp_sec, hdr->time_stamp_usec);
 #endif
 		}
 		return;
@@ -222,10 +210,13 @@ void PrintRxData(wp_api_hdr_t *hdr, void *pdata)
 
 /*!
   \fn static int got_rx_data(void *sang_if_ptr, void *rx_data)
-  \brief Callback function indicating data rx is pending
+  \brief Callback function indicating data rx is pending.
   \param sang_if_ptr sangoma interface pointer
   \param rx_data API data element strcutre containt header + data
   \return 0 - ok  non-zero - Error
+
+  This function must return as fast as possible
+  because it is called from real time receiver thread.
 */
 static int got_rx_data(void *sang_if_ptr, void *rxhdr, void *rx_data)
 {
@@ -267,71 +258,33 @@ static int got_rx_data(void *sang_if_ptr, void *rxhdr, void *rx_data)
   \param event_data  API event element strcutre containt header + data
   \return 0 - ok  non-zero - Error
 
-   Currently Windows launches a thread to handle the event, where
-   Linux handles the event directly.  Implementation is left to the user.
+
+  Handling of Events must be done OUTSIDE of the REAL-TIME Rx thread
+  because it may make take a lot of time.
+  Create a special thread for Event hadling Or push Event into
+  a queue - implentation is left to the user.
+  In this example event is handled directly.
 */
 static void got_tdm_api_event(void *sang_if_ptr, void *event_data)
 {
-	TDM_API_EVENT_THREAD_PARAM	*param =
-		(TDM_API_EVENT_THREAD_PARAM*)malloc(sizeof(TDM_API_EVENT_THREAD_PARAM));
-
-	if(param == NULL){
-		ERR_MAIN("Failed to allocate memory for 'Event Thread parameter'!!\n");
-		return;
-	}
-
-	memcpy(&param->event, event_data, sizeof(wp_api_event_t));
-	param->sang_if_ptr = sang_if_ptr;
-
-	//////////////////////////////////////////////////////////////////////
-	//Handling of Events must be done OUTSIDE of the REAL-TIME Rx thread//
-	//because it may make take a lot of time.							//
-	//Create a special thread for Event hadling.						//
-	//////////////////////////////////////////////////////////////////////
-#if defined(__WINDOWS__)
-	DWORD	dwThreadId;
-
-	if(CreateThread(
-        NULL,                       /* no security attributes        */ 
-        0,                          /* use default stack size        */ 
-        (LPTHREAD_START_ROUTINE)TdmApiEventThreadFunc, /* thread function     */ 
-        param,						/* argument to thread function   */ 
-        0,                          /* use default creation flags    */ 
-        &dwThreadId					/* returns the thread identifier */ 
-		) == NULL){
-		ERR_MAIN("Failed to create 'TdmApiEvent' thread!!\n");
-	}
-#else
-	//FIXME: implement the thread. Consider using sangoma_cthread class.
-	TdmApiEventThreadFunc(param);
-#endif
-}
-
-/*!
-  \fn void *TdmApiEventThreadFunc(void *lpdwParam)
-  \brief Event handling Function
-  \param lpdwParam pointer to the span/chan device
-  \return void
-*/
-#if defined(__WINDOWS__)
-DWORD TdmApiEventThreadFunc(LPDWORD lpdwParam)
-#else
-void *TdmApiEventThreadFunc(void *lpdwParam)
-#endif
-{ 
-	TDM_API_EVENT_THREAD_PARAM	*param;
-	sangoma_interface			*sang_if;
-	wp_api_event_t			*wp_tdm_api_event;
+	sangoma_interface	*sang_if = (sangoma_interface *)sang_if_ptr;
+	wp_api_event_t		*wp_tdm_api_event = (wp_api_event_t *)event_data;
+	wan_time_t			wan_time;
+	char				*timestamp_str;
 
 	EnterCriticalSection(&TdmEventCriticalSection);
 
-	param = (TDM_API_EVENT_THREAD_PARAM*)lpdwParam;
+	/* Windows: wan_time is 64bit, time_stamp_sec is 32bit 
+	 * Linux: wan_time and time_stamp_sec is 32bit */
+	wan_time = wp_tdm_api_event->time_stamp_sec;
+	timestamp_str = sangoma_ctime( &wan_time );
 
-	wp_tdm_api_event = &param->event;
-	sang_if = (sangoma_interface*)param->sang_if_ptr;
+	/* Display Logger Event Timestamp as UNIX-style Date string. */
+	/*DBG_MAIN("Time and Date:\t\t%s\n", (timestamp_str == NULL ? "Invalid Timestamp" : timestamp_str));*/
 
-	DBG_MAIN("%s(): ifname: %s: Span: %d, Channel: %d\n", __FUNCTION__,	sang_if->device_name,
-		wp_tdm_api_event->wp_api_event_span, wp_tdm_api_event->wp_api_event_channel);
+	DBG_MAIN("%s(): Span: %d, Channel: %d (Seconds:%u, Microseconds:%u)\n", __FUNCTION__,	
+		wp_tdm_api_event->wp_api_event_span, wp_tdm_api_event->wp_api_event_channel,
+		wp_tdm_api_event->time_stamp_sec, wp_tdm_api_event->time_stamp_usec);
 
 	switch(wp_tdm_api_event->wp_api_event_type)
 	{
@@ -340,7 +293,6 @@ void *TdmApiEventThreadFunc(void *lpdwParam)
 			wp_tdm_api_event->wp_api_event_dtmf_digit,
 			(wp_tdm_api_event->wp_api_event_dtmf_port == WAN_EC_CHANNEL_PORT_ROUT)?"ROUT":"SOUT",
 			(wp_tdm_api_event->wp_api_event_dtmf_type == WAN_EC_TONE_PRESENT)?"PRESENT":"STOP");
-
 		break;
 
 	case WP_API_EVENT_RXHOOK:
@@ -395,10 +347,8 @@ void *TdmApiEventThreadFunc(void *lpdwParam)
 		break;
 	}
 
-	free(lpdwParam);
 	LeaveCriticalSection(&TdmEventCriticalSection);
-	//Done with the Event, exit the thread.
-	return 0;
+	return;
 }
 
 #if USE_WP_LOGGER
@@ -567,6 +517,8 @@ static int parse_command_line_args(int argc, char* argv[])
 #ifdef WP_API_FEATURE_LIBSNG_HWEC
 "\t-use_hwec	\tInitialize/Configure/Use the Hardware Echo Canceller\n"
 #endif
+"\t-real_time	\tRun the Program at real-time priority. This maybe\n"
+"\t             \t\timportant when Audio stream is used for timing.\n"
 "\n"
 "Example: sample -c 1 -i 1\n";
 
@@ -686,9 +638,11 @@ static int parse_command_line_args(int argc, char* argv[])
 			i++;
 			INFO_MAIN("Setting rxgain to %d.\n", program_settings.txgain);
 		}else if(_stricmp(argv[i], "-use_hwec") == 0){
-
 			INFO_MAIN("Using hardware echo canceller...\n");
 			program_settings.use_hardware_echo_canceller = 1;
+		}else if(_stricmp(argv[i], "-real_time") == 0){
+			INFO_MAIN("Will be running at real-time priority...\n");
+			program_settings.real_time = 1;
 		}else{
 			INFO_MAIN("Error: Invalid Argument %s\n",argv[i]);
 			return 1;
@@ -750,6 +704,10 @@ int __cdecl main(int argc, char* argv[])
 	//initialize critical section objects
 	InitializeCriticalSection(&PrintCriticalSection);
 	InitializeCriticalSection(&TdmEventCriticalSection);
+
+	if (program_settings.real_time) {
+		sng_set_process_priority_to_real_time();
+	}
 
 	////////////////////////////////////////////////////////////////////////////
 	//User may provide Wanpipe Number and Interface Number as a command line arguments:
@@ -842,7 +800,7 @@ int __cdecl main(int argc, char* argv[])
 				INFO_MAIN("Press 'd' to disable bri bchan loopback\n");
 				break;
 			}
-			INFO_MAIN("Press 'o' to enable DTMF events (on Octasic chip)\n");
+			INFO_MAIN("Press 'o' to control DTMF events on DSP (Octasic)\n");
 			if (program_settings.encode_sw_dtmf) {
 				INFO_MAIN("Press 'x' to send software DTMF\n");
 			}

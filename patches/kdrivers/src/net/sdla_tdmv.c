@@ -284,7 +284,7 @@ static int wp_tdmv_is_rbsbits(wan_tdmv_t *wan_tdmv);
 static int wp_tdmv_rbsbits_poll(wan_tdmv_t *wan_tdmv, void *card1);
 static void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char status);
 
-static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm);
+static void wp_tdmv_report_alarms(void* pcard, uint32_t te_alarm);
 
 /* Rx/Tx functions */
 static int wp_tdmv_rx_tx(void* pcard, netskb_t* skb);
@@ -410,8 +410,6 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 
 	card->wan_tdmv.max_timeslots	= GET_TE_CHANNEL_RANGE(&card->fe);
 	card->wan_tdmv.spanno		= tdmv_conf->span_no;
-	card->wandev.te_report_rbsbits  = wp_tdmv_report_rbsbits;
-	card->wandev.te_report_alarms	= wp_tdmv_report_alarms;	
 
 	wp = wan_kmalloc(sizeof(wp_tdmv_softc_t));
 	if (wp == NULL){
@@ -451,6 +449,10 @@ static int wp_tdmv_create(void* pcard, wan_tdmv_conf_t *tdmv_conf)
 	}else{
 		WAN_LIST_INSERT_HEAD(&wan_tdmv_head, &card->wan_tdmv, next);
 	}
+	
+	/* Bind alarms only when wp has been initialized */
+	card->wandev.te_report_rbsbits  = wp_tdmv_report_rbsbits;
+	card->wandev.te_report_alarms	= wp_tdmv_report_alarms;
 
 	return 0;
 }
@@ -791,7 +793,7 @@ static void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char statu
 	if (!(wp->chans[i].sig & ZT_SIG_CLEAR) &&
 	    (wp->chans[i].rxsig != rxs)){
 		zt_rbsbits(&wp->chans[i], rxs);
-#if 1
+
 		DEBUG_TDMV(
 		"[TDMV] %s: %s:%02d(%d) RX RBS: A:%1d B:%1d C:%1d D:%1d\n",
 				wp->devname, 
@@ -801,7 +803,6 @@ static void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char statu
 				(rxs & ZT_BBIT) ? 1 : 0,
 				(rxs & ZT_CBIT) ? 1 : 0,
 				(rxs & ZT_DBIT) ? 1 : 0);
-#endif
 	}
 }
 
@@ -810,13 +811,15 @@ static void wp_tdmv_report_rbsbits(void* pcard, int channel, unsigned char statu
 **
 **	DONE
 */
-static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
+static void wp_tdmv_report_alarms(void* pcard, uint32_t te_alarm)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
 	wp_tdmv_softc_t	*wp = NULL;
-	int		alarms = 0, prev_alarms;
+	unsigned int alarms = 0, prev_alarms;
 	int		x,j;
+
+
 
 	/* The sc pointer can be NULL, on shutdown. In this
 	 * case don't generate error, just get out */
@@ -1138,6 +1141,9 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 	wp->span.close = wp_tdmv_close;
 	wp->span.channels = wp->max_timeslots;
 #ifdef DAHDI_ISSUES
+#ifdef DAHDI_23
+        wp->span.owner = THIS_MODULE;
+#endif
 	wp->span.chans = wp->chans_ptrs;
 #else
 	wp->span.chans = wp->chans;
@@ -1548,6 +1554,7 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 	wp_tdmv_softc_t	*wp = NULL;
 	sdla_t		*card = NULL;
 	int		err = 0;
+	wan_smp_flag_t smp_flags;
 
 	WAN_ASSERT2(span == NULL, -ENODEV);
 	WAN_ASSERT2(span->pvt == NULL, -ENODEV);
@@ -1583,9 +1590,14 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 		}else{
 			card->fe.fe_cfg.cfg.te_cfg.sig_mode = WAN_TE1_SIG_CAS;
 		}
+
+		
 		if (card->wandev.fe_iface.reconfig){
+			card->hw_iface.hw_lock(card->hw,&smp_flags);
 			card->wandev.fe_iface.reconfig(&card->fe);
+			card->hw_iface.hw_unlock(card->hw,&smp_flags);
 		}
+		
 	}
 	span->txlevel = 0;
 	switch(wp->lbo){
@@ -1634,10 +1646,22 @@ static int wp_tdmv_spanconfig(struct zt_span *span, struct zt_lineconfig *lc)
 	span->rxlevel = 0;
 	/* Do we want to SYNC on receive or not */
 	wp->sync = lc->sync;
+
 	/* */
 	/* If already running, apply changes immediately */
 	if (span->flags & ZT_FLAG_RUNNING){
 		err = wp_tdmv_startup(span);
+	}
+
+	if (card->wandev.fe_iface.read_alarm) {
+		u32 alarm;
+		card->hw_iface.hw_lock(card->hw,&smp_flags);
+		alarm=card->wandev.fe_iface.read_alarm(&card->fe,WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
+		if (card->wandev.te_report_alarms) {
+			card->wandev.te_report_alarms(card,alarm);
+		}
+		card->hw_iface.hw_unlock(card->hw,&smp_flags);
+		
 	}
 
 	return err;
@@ -1789,7 +1813,11 @@ static int wp_tdmv_is_rbsbits(wan_tdmv_t *wan_tdmv)
 /******************************************************************************
 ** wp_tdmv_rbsbits_poll() -
 **
-**	DONE
+** Note: this code MUST run locked with hw_lock.
+**       The calling code must take the hw_lock because this function
+**       accesses the front end.
+**
+** DONE
 */
 
 static int wp_tdmv_rbsbits_poll(wan_tdmv_t *wan_tdmv, void *card1)
@@ -1941,7 +1969,7 @@ static int wp_tdmv_tx_rbsbits(wp_tdmv_softc_t *wp)
 	while ((rbs_skb=wan_skb_dequeue(&wp->rbs_tx_q))) {
 		rbs_pkt=(wp_tdmv_rbs_t*)wan_skb_data(rbs_skb);
 
-		DEBUG_TEST("%s: TX RBS HW Chan=%02i Data=0x%02X\n",
+		DEBUG_TDMV("%s: TX RBS HW Chan=%02i Data=0x%02X\n",
 			wp->devname, rbs_pkt->chan, rbs_pkt->data);
 
 		card->wandev.fe_iface.set_rbsbits(
@@ -2445,6 +2473,12 @@ static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan)
 	WAN_ASSERT_VOID(wp->dchan_dev == NULL);
 
 	size = chan->writen[chan->outwritebuf] - chan->writeidx[chan->outwritebuf]-2;
+	if (!size) {
+     /* Do not transmit zero length frame */
+     zt_hdlc_getbuf(chan, data, &size);     
+		return;
+	}
+
 	skb = wan_skb_alloc(size+1);
 	if (skb == NULL){
         	return;

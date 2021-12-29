@@ -744,6 +744,9 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 	}
 	wr->span.pvt = wr;
 #ifdef DAHDI_ISSUES
+#ifdef DAHDI_23
+        wr->span.owner          = THIS_MODULE;
+#endif
 	wr->span.chans		= wr->chans_ptrs;
 #else
 	wr->span.chans		= wr->chans;

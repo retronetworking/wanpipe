@@ -67,6 +67,12 @@ typedef int sng_fd_t;
   \brief Indicates to developer that loop feature is available
   \def WP_API_FEATURE_HWEC
   \brief Indicates to developer that Hardware Echo canceller feature is available
+  \def WP_API_FEATURE_BUFFER_MULT
+  \brief Indicates to developer that buffer multiplier featere is available
+  \def WP_API_FEATURE_RX_TX_ERRS
+  \brief Indicates to developer that rx tx error reporting feature is available
+  \def WP_API_FEATURE_EC_CHAN_STAT
+  \brief Indicates to developer that echo channel status feature is available
 */
 #define WP_API_FEATURE_DTMF_EVENTS	1
 #define WP_API_FEATURE_FE_ALARM		1
@@ -77,6 +83,9 @@ typedef int sng_fd_t;
 #define WP_API_FEATURE_FAX_EVENTS   1
 #define WP_API_FEATURE_RM_GAIN		1
 #define WP_API_FEATURE_LOOP			1
+#define WP_API_FEATURE_BUFFER_MULT  1
+#define WP_API_FEATURE_RX_TX_ERRS	1
+#define WP_API_FEATURE_EC_CHAN_STAT 1
 #if defined(__WINDOWS__)
  #define WP_API_FEATURE_LIBSNG_HWEC	1
 #endif
@@ -253,7 +262,7 @@ enum wanpipe_api_cmds
 	WP_API_CMD_GET_TX_Q_SIZE,		/*!< Get TX Queue Size */
 	WP_API_CMD_SET_RX_Q_SIZE,		/*!< Set RX Queue Size */
 	WP_API_CMD_GET_RX_Q_SIZE,		/*!< Get RX Queue Size */
-	WP_API_CMD_EVENT_CTRL,
+	WP_API_CMD_EVENT_CTRL,			/*!<  */
 	WP_API_CMD_NOTSUPP,				/*!<  */
 	WP_API_CMD_SET_RM_RXFLASHTIME,	/*!< Set rxflashtime for FXS */
 	WP_API_CMD_SET_IDLE_FLAG,		/*!< Set Idle Flag (char) for a BitStream (Voice) channel */
@@ -261,6 +270,8 @@ enum wanpipe_api_cmds
 	WP_API_CMD_GET_HW_FAX_DETECT,	/*!< Check Status of HW Fax Detect. Enabled(1) or Disabled(0) */
 	WP_API_CMD_ENABLE_LOOP,			/*!< Remote Loop the channel */
 	WP_API_CMD_DISABLE_LOOP,		/*!< Disable remote loop */
+	WP_API_CMD_BUFFER_MULTIPLIER,	/*!< Set Buffer Multiplier - for SPAN voice mode only */
+	WP_API_CMD_GET_HW_EC_CHAN,		/*!< Get status of hwec for the current timeslot */
 
 	/* Add only debugging commands here */
     WP_API_CMD_GEN_FIFO_ERR_TX=500,
@@ -547,12 +558,31 @@ typedef struct wanpipe_chan_stats
 	unsigned int	rx_events_dropped;
 
 	unsigned int	rx_events_tone;
+
+	unsigned int	rx_hdlc_abort_counter; /* this is not an error */
 	
 }wanpipe_chan_stats_t;
 
 
 #define WP_AFT_CHAN_ERROR_STATS(chan_stats,var) chan_stats.var++;chan_stats.errors++
 
+#define WP_AFT_RX_ERROR_SUM(chan_stats) chan_stats.rx_errors+ \
+										chan_stats.rx_dropped+ \
+										chan_stats.rx_length_errors + \
+										chan_stats.rx_crc_errors + \
+										chan_stats.rx_frame_errors + \
+										chan_stats.rx_fifo_errors + \
+										chan_stats.rx_missed_errors + \
+										chan_stats.rx_hdlc_abort_counter
+											 
+#define WP_AFT_TX_ERROR_SUM(chan_stats) chan_stats.tx_errors+ \
+										chan_stats.tx_dropped + \
+										chan_stats.tx_aborted_errors + \
+										chan_stats.tx_carrier_errors + \
+										chan_stats.tx_fifo_errors+ \
+										chan_stats.tx_heartbeat_errors + \
+										chan_stats.tx_window_errors 
+										
 typedef struct _DRIVER_VERSION {
 	unsigned int major;
 	unsigned int minor;
@@ -561,7 +591,7 @@ typedef struct _DRIVER_VERSION {
 }wan_driver_version_t, DRIVER_VERSION, *PDRIVER_VERSION;
 
 #define WANPIPE_API_CMD_SZ 512
-#define WANPIPE_API_DEV_CFG_MAX_SZ 333
+#define WANPIPE_API_DEV_CFG_MAX_SZ 337
 
 /* The the union size is max-cmd-result-span-chan-data_len */
 #define WANPIPE_API_CMD_SZ_UNION  WANPIPE_API_CMD_SZ - (sizeof(unsigned int)*3) - (sizeof(unsigned char)*2)

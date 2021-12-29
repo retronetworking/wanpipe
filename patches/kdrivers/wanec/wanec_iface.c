@@ -284,7 +284,7 @@ static int wanec_state(void *pcard, wan_hwec_dev_state_t *ecdev_state)
 	WAN_ASSERT(ec_dev->ec == NULL);
 	ec = ec_dev->ec;
 
-	if (ec->state == WAN_EC_STATE_CHIP_OPEN) {
+	if (ec->state == WAN_EC_STATE_CHIP_OPEN && ec_dev->state == WAN_EC_STATE_CHAN_READY) {
 		ec_dev->ecdev_state.ec_state=1;
 	} else {
 		ec_dev->ecdev_state.ec_state=0;
@@ -321,6 +321,9 @@ static int wanec_enable(void *pcard, int enable, int fe_chan)
    		return -EINVAL; 		
 	}
 
+	if (ec_dev->state != WAN_EC_STATE_CHAN_READY) {
+		return -EINVAL;
+	}
 
 #if defined(WANEC_BYDEFAULT_NORMAL)
 	WAN_ASSERT(ec_dev->ec == NULL);
@@ -333,7 +336,7 @@ static int wanec_enable(void *pcard, int enable, int fe_chan)
 	return wanec_channel_opmode_modify(
 			ec_dev,
 			fe_chan,
-			(enable) ? cOCT6100_ECHO_OP_MODE_NORMAL : cOCT6100_ECHO_OP_MODE_POWER_DOWN,
+			(enable) ? cOCT6100_ECHO_OP_MODE_SPEECH_RECOGNITION : cOCT6100_ECHO_OP_MODE_POWER_DOWN,
 			0);
 #endif
 }
@@ -962,7 +965,7 @@ static int wanec_api_modify(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 		if (cmd == WAN_EC_API_CMD_ENABLE){
 			err = wanec_channel_opmode_modify(
 					ec_dev, fe_chan,
-					cOCT6100_ECHO_OP_MODE_NORMAL,
+					cOCT6100_ECHO_OP_MODE_SPEECH_RECOGNITION,
 					ec_api->verbose);
 			if (err) {
 				return WAN_EC_API_RC_FAILED;

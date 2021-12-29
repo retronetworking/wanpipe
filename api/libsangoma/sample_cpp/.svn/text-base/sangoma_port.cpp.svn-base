@@ -15,8 +15,6 @@
 #define ERR_CFG		if(1)printf("PORT:");if(1)printf
 #define _ERR_CFG	if(1)printf
 
-#define DEV_NAME_PREFIX	"\\\\.\\"
-
 //////////////////////////////////////////////////////////////////////
 //common functions
 //////////////////////////////////////////////////////////////////////
@@ -35,14 +33,8 @@ sangoma_port::sangoma_port()
 sangoma_port::~sangoma_port()
 {
 	DBG_CFG("%s()\n", __FUNCTION__);
-
-	if(wp_handle != INVALID_HANDLE_VALUE){
-		CloseHandle(wp_handle);
-		wp_handle = INVALID_HANDLE_VALUE;
-	}
+	cleanup();
 }
-
-
 
 int sangoma_port::init(uint16_t wanpipe_number)
 {
@@ -55,6 +47,16 @@ int sangoma_port::init(uint16_t wanpipe_number)
 		return 1;
 	}
 	return 0;
+}
+
+void sangoma_port::cleanup()
+{
+	DBG_CFG("%s()\n", __FUNCTION__);
+
+	if(wp_handle != INVALID_HANDLE_VALUE){
+		sangoma_close(&wp_handle);
+		wp_handle = INVALID_HANDLE_VALUE;
+	}
 }
 
 int sangoma_port::get_hardware_info(hardware_info_t *hardware_info)
@@ -179,6 +181,10 @@ int sangoma_port::scan_for_sangoma_cards(wanpipe_instance_info_t *wanpipe_info_a
 		}else{
 			DBG_CFG("Found a Card but Card Model is different from what was searched for.\n");
 		}
+
+		//For each init() there MUST be cleanup(). Otherwise Open Handles will remain to the Port.
+		cleanup();
+
 	}//for()
 
 	return card_counter;

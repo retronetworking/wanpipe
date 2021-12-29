@@ -390,7 +390,7 @@ int wp_usb_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane);
 static int wp_usb_remora_config(void *pfe);
 static int wp_usb_remora_unconfig(void *pfe);
 static int wp_usb_remora_post_init(void *pfe);
-static int wp_usb_remora_pre_release(void* pfe);
+static int wp_usb_remora_post_unconfig(void* pfe);
 static int wp_usb_remora_if_config(void *pfe, u32 mod_map, u8);
 static int wp_usb_remora_if_unconfig(void *pfe, u32 mod_map, u8);
 static int wp_usb_remora_disable_irq(void *pfe); 
@@ -1366,7 +1366,7 @@ int wp_usb_remora_iface_init(void *p_fe, void *pfe_iface)
 	
 	fe_iface->if_config	= &wp_usb_remora_if_config;
 	fe_iface->if_unconfig	= &wp_usb_remora_if_unconfig;
-	fe_iface->pre_release	= &wp_usb_remora_pre_release;
+	fe_iface->post_unconfig	= &wp_usb_remora_post_unconfig;
 	fe_iface->active_map	= &wp_usb_remora_active_map;
 
 	fe_iface->isr		= &wp_usb_remora_intr;
@@ -1590,6 +1590,8 @@ static int wp_usb_remora_unconfig(void *pfe)
 	/* Clear and Kill TE timer poll command */
 	wan_clear_bit(WP_RM_CONFIGURED,(void*)&fe->rm_param.critical);
 	
+	wan_set_bit(WP_RM_TIMER_KILL,(void*)&fe->rm_param.critical);
+	
 	for(mod_no = 0; mod_no < MAX_USB_REMORA_MODULES; mod_no++){
 		if (!wan_test_bit(mod_no, &fe->rm_param.module_map)) continue;
 		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXO){
@@ -1602,14 +1604,14 @@ static int wp_usb_remora_unconfig(void *pfe)
 
 /*
  ******************************************************************************
- *			sdla_te_pre_release()	
+ *			sdla_te_post_unconfig()	
  *
  * Description: T1/E1 pre release routines (not locked).
  * Arguments:
  * Returns:
  ******************************************************************************
  */
-static int wp_usb_remora_pre_release(void* pfe)
+static int wp_usb_remora_post_unconfig(void* pfe)
 {
 	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
 	sdla_fe_timer_event_t	*fe_event = NULL;
@@ -1617,7 +1619,6 @@ static int wp_usb_remora_pre_release(void* pfe)
 	int			empty = 0;
 	
 	/* Kill TE timer poll command */
-	wan_set_bit(WP_RM_TIMER_KILL,(void*)&fe->rm_param.critical);
 
 	if (wan_test_bit(WP_RM_TIMER_RUNNING,(void*)&fe->rm_param.critical)){
 		wan_del_timer(&fe->timer);

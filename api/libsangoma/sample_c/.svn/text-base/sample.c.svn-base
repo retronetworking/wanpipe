@@ -77,13 +77,14 @@ void handle_span_chan(int open_device_counter);
 int handle_tdm_event(uint32_t dev_index);
 int handle_data(uint32_t dev_index, int flags_out);
 int read_data(uint32_t dev_index, wp_api_hdr_t *rx_hdr, void *rx_buffer, int rx_buffer_length);
-int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer);
+int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer, int tx_len);
 int dtmf_event(sng_fd_t fd,unsigned char digit,unsigned char type,unsigned char port);
 int rbs_event(sng_fd_t fd,unsigned char rbs_bits);
 int rxhook_event(sng_fd_t fd,unsigned char hook_state);
 int rxring_event(sng_fd_t fd,unsigned char ring_state);
 int ringtrip_event (sng_fd_t fd, unsigned char ring_state);
 int write_data_to_file(unsigned char *data,	unsigned int data_length);
+int sangoma_print_stats(sng_fd_t sangoma_dev);
 void cleanup(void);
 
 #ifdef __WINDOWS__
@@ -103,12 +104,16 @@ void TerminateHandler(int);
   \param datalen size of data buffer
   \return void
 */
-void print_rxdata(unsigned char *data, int	datalen); /* dont remove prototype, gcc complains */
-void print_rxdata(unsigned char *data, int	datalen)
+void print_rxdata(unsigned char *data, int	datalen, wp_api_hdr_t *hdr); /* dont remove prototype, gcc complains */
+void print_rxdata(unsigned char *data, int	datalen, wp_api_hdr_t *hdr)
 {
 	int i;
+	int err=0;
 
-	printf("Data: (Len=%i)\n",datalen);
+#ifdef WP_API_FEATURE_RX_TX_ERRS
+	err=hdr->wp_api_rx_hdr_errors;
+#endif
+	printf("Data: (Len=%i,Errs=%i)\n",datalen,err);
 	for(i = 0; i < datalen; i++) {
 		if((i % 20 == 0)){
 			if(i){
@@ -125,6 +130,94 @@ void print_rxdata(unsigned char *data, int	datalen)
 #endif
 	}
 	printf("\n");
+}
+
+
+int sangoma_print_stats(sng_fd_t sangoma_dev)
+{
+    int err;
+	unsigned char firm_ver, cpld_ver;
+	wanpipe_api_t wp_api;
+	wanpipe_chan_stats_t stats_str;
+	wanpipe_chan_stats_t *stats=&stats_str;
+	memset(&wp_api,0,sizeof(wp_api));
+
+
+  	err=sangoma_get_stats(sangoma_dev, &wp_api, stats);
+	if (err) {
+		printf("sangoma_get_stats(() failed (err: %d (0x%X))!\n", err, err);
+		return 1;
+	}
+
+	printf( "******* OPERATIONAL_STATS *******\n");
+
+	printf("\trx_packets\t: %u\n",			stats->rx_packets);
+	printf("\ttx_packets\t: %u\n",			stats->tx_packets);
+	printf("\trx_bytes\t: %u\n",			stats->rx_bytes);
+	printf("\ttx_bytes\t: %u\n",			stats->tx_bytes);
+	printf("\trx_errors\t: %u\n",			stats->rx_errors);	//Total number of Rx errors
+	printf("\ttx_errors\t: %u\n",			stats->tx_errors);	//Total number of Tx errors
+	printf("\trx_dropped\t: %u\n",			stats->rx_dropped);
+	printf("\ttx_dropped\t: %u\n",			stats->tx_dropped);
+	printf("\tmulticast\t: %u\n",			stats->multicast);
+	printf("\tcollisions\t: %u\n",			stats->collisions);
+
+	printf("\trx_length_errors: %u\n",		stats->rx_length_errors);
+	printf("\trx_over_errors\t: %u\n",		stats->rx_over_errors);
+	printf("\trx_crc_errors\t: %u\n",		stats->rx_crc_errors);	//HDLC CRC mismatch
+	printf("\trx_frame_errors\t: %u\n",		stats->rx_frame_errors);//HDLC "abort" occured
+	printf("\trx_fifo_errors\t: %u\n",		stats->rx_fifo_errors);
+	printf("\trx_missed_errors: %u\n",		stats->rx_missed_errors);
+
+	printf("\ttx_aborted_errors: %u\n",		stats->tx_aborted_errors);
+	printf("\tTx Idle Data\t: %u\n",		stats->tx_carrier_errors);
+
+	printf("\ttx_fifo_errors\t: %u\n",		stats->tx_fifo_errors);
+	printf("\ttx_heartbeat_errors: %u\n",	stats->tx_heartbeat_errors);
+	printf("\ttx_window_errors: %u\n",		stats->tx_window_errors);
+
+	printf("\n\ttx_packets_in_q: %u\n",	stats->current_number_of_frames_in_tx_queue);
+	printf("\ttx_queue_size: %u\n",		stats->max_tx_queue_length);
+
+	printf("\n\trx_packets_in_q: %u\n",	stats->current_number_of_frames_in_rx_queue);
+	printf("\trx_queue_size: %u\n",		stats->max_rx_queue_length);
+
+	printf("\n\trx_events_in_q: %u\n",		stats->current_number_of_events_in_event_queue);
+	printf("\trx_event_queue_size: %u\n",	stats->max_event_queue_length);
+	printf("\trx_events: %u\n",				stats->rx_events);
+	printf("\trx_events_dropped: %u\n",		stats->rx_events_dropped);
+
+	printf("\tHWEC tone (DTMF) events counter: %u\n",	stats->rx_events_tone);
+	printf( "*********************************\n");
+
+	SANGOMA_INIT_TDM_API_CMD(wp_api);
+	err=sangoma_get_driver_version(sangoma_dev,&wp_api, NULL);
+	if (err) {
+		return 1;
+	}
+	printf("\tDriver Version: %u.%u.%u.%u\n",
+				wp_api.wp_cmd.version.major,
+				wp_api.wp_cmd.version.minor,
+				wp_api.wp_cmd.version.minor1,
+				wp_api.wp_cmd.version.minor2);
+
+	SANGOMA_INIT_TDM_API_CMD(wp_api);
+	err=sangoma_get_firmware_version(sangoma_dev, &wp_api, &firm_ver);
+	if (err) {
+		return 1;
+	}
+	printf("\tFirmware Version: %X\n",
+				firm_ver);
+
+	SANGOMA_INIT_TDM_API_CMD(wp_api);
+	err=sangoma_get_cpld_version(sangoma_dev, &wp_api, &cpld_ver);
+	if (err) {
+		return 1;
+	}
+	printf("\tCPLD Version: %X\n",
+				cpld_ver);
+
+	return 0;
 }
 
 /*!
@@ -161,8 +254,36 @@ int read_data(uint32_t dev_index, wp_api_hdr_t *rx_hdr, void *rx_buffer, int rx_
 		return 1;
 	}
 
+
+#ifdef WP_API_FEATURE_RX_TX_ERRS
+	if (rx_hdr->wp_api_rx_hdr_error_map) {
+     	if (rx_hdr->wp_api_rx_hdr_error_map & 1<<WP_FIFO_ERROR_BIT) {
+         	printf("Span: %d, Chan: %d rx fifo error 0x%02X\n",chan->spanno,chan->channo,rx_hdr->wp_api_rx_hdr_error_map);
+		}
+     	if (rx_hdr->wp_api_rx_hdr_error_map & 1<<WP_CRC_ERROR_BIT) {
+         	printf("Span: %d, Chan: %d rx crc error 0x%02X\n",chan->spanno,chan->channo,rx_hdr->wp_api_rx_hdr_error_map);
+		}
+     	if (rx_hdr->wp_api_rx_hdr_error_map & 1<<WP_ABORT_ERROR_BIT) {
+         	printf("Span: %d, Chan: %d rx abort error 0x%02X\n",chan->spanno,chan->channo,rx_hdr->wp_api_rx_hdr_error_map);
+		}
+     	if (rx_hdr->wp_api_rx_hdr_error_map & 1<<WP_FRAME_ERROR_BIT) {
+         	printf("Span: %d, Chan: %d rx framing error 0x%02X\n",chan->spanno,chan->channo,rx_hdr->wp_api_rx_hdr_error_map);
+		}
+     	if (rx_hdr->wp_api_rx_hdr_error_map & 1<<WP_DMA_ERROR_BIT) {
+         	printf("Span: %d, Chan: %d rx dma error 0x%02X\n",chan->spanno,chan->channo,rx_hdr->wp_api_rx_hdr_error_map);
+		}
+		//return 1;
+	}
+#endif
+
+	Rx_count++;
+
 	if (verbose){
-		print_rxdata(rx_buffer, Rx_lgth);
+		print_rxdata(rx_buffer, Rx_lgth,rx_hdr);
+	}
+
+	if (stats_period && Rx_count % stats_period == 0) {
+     	sangoma_print_stats(dev_fd);
 	}
 			
 	/* use Rx_counter as "write" events trigger: */
@@ -192,19 +313,25 @@ int read_data(uint32_t dev_index, wp_api_hdr_t *rx_hdr, void *rx_buffer, int rx_
 }
 
 /*!
-  \fn int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_data)
+  \fn int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_data, int tx_len)
   \brief Transmit a data buffer to a device.
   \param dev_index device index number associated with device file descriptor
   \param tx_hdr pointer to a wp_api_hdr_t
   \param tx_data pointer to a data buffer 
+  \param tx_len tx data buffer len
   \return 0 - Ok otherwise Error
 */
-int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer)
+int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer, int tx_len)
 {
 	sng_fd_t	dev_fd	= sangoma_wait_obj_get_fd(sangoma_wait_objects[dev_index]);
 	sangoma_chan_t *chan = sangoma_wait_obj_get_context(sangoma_wait_objects[dev_index]);
 	int			err;
 	static int	Tx_count = 0;
+
+	if (hdlc_repeat) {
+        tx_hdr->wp_api_tx_hdr_hdlc_rpt_len=4;
+		memset(tx_hdr->wp_api_tx_hdr_hdlc_rpt_data,Tx_count,4);
+	}
 
 	/* write a message */
 	err = sangoma_writemsg(
@@ -212,7 +339,7 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer)
 				tx_hdr,					/* header buffer */
 				sizeof(wp_api_hdr_t),	/* header size */
 				tx_buffer,				/* data buffer */
-				tx_hdr->data_length,	/* DATA size */
+				tx_len,					/* DATA size */
 				0);
 
 	if (err <= 0){
@@ -224,21 +351,22 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer)
 	
 	Tx_count++;
 	if (verbose){
-		printf("Packet sent: counter: %i, len: %i\n", Tx_count, err);
+		printf("Packet sent: counter: %i, len: %i, errors %i\n", Tx_count, err, tx_hdr->wp_api_tx_hdr_errors);
 	}else{
 		if(Tx_count && (!(Tx_count % 1000))){
 			printf("Packet sent: counter: %i, len: %i\n", Tx_count, err);
 		}
 	}
 
-#if 0
-	if(Tx_count >= tx_cnt){
+#if 1
+	if(tx_cnt && Tx_count >= tx_cnt){
 		write_enable=0;
 		printf("Disabling POLLOUT...\n");
 		/* No need for POLLOUT, turn it off!! If not turned off, and we
 		 * have nothing for transmission, sangoma_socket_waitfor() will return
 		 * immediately, creating a busy loop. */
-		sangoma_wait_objects[dev_index].flags_in &= (~POLLOUT);
+		//sangoma_wait_objects[dev_index].flags_in &= (~POLLOUT);
+		return 1;
 	}
 #endif
 	return 0;
@@ -255,6 +383,7 @@ int write_data(uint32_t dev_index, wp_api_hdr_t *tx_hdr, void *tx_buffer)
 int handle_data(uint32_t dev_index, int flags_out)
 {
 	wp_api_hdr_t	rxhdr;
+	int err=0;
 
 	memset(&rxhdr, 0, sizeof(rxhdr));
 
@@ -267,7 +396,7 @@ int handle_data(uint32_t dev_index, int flags_out)
 		if(read_data(dev_index, &rxhdr, rxdata, MAX_NO_DATA_BYTES_IN_FRAME) == 0){
 			if(rx2tx){
 				/* Send back received data (create a "software loopback"), just a test. */
-				return write_data(dev_index, &rxhdr, rxdata);
+				return write_data(dev_index, &rxhdr, rxdata,rxhdr.data_length);
 			}
 		}
 	}
@@ -282,12 +411,13 @@ int handle_data(uint32_t dev_index, int flags_out)
 
 		/* set data which will be transmitted */
 		memset(txdata, tx_test_byte, txhdr.data_length);
-					
-		if(write_data(dev_index, &txhdr, txdata) == 0){
+		
+		err = write_data(dev_index, &txhdr, txdata, tx_size);
+		if (err== 0) {
 			tx_test_byte++;
 		}
 	}
-	return 0;
+	return err;
 }
 
 /*!
@@ -422,11 +552,15 @@ void handle_span_chan(int open_device_counter)
 					       input_flags,
 					       output_flags,
 				           open_device_counter /* number of wait objects */,
-					       2000 /* wait timeout, in milliseconds */);
+					       5000 /* wait timeout, in milliseconds */);
 		switch(iResult)
 		{
 		case SANG_STATUS_APIPOLL_TIMEOUT:
 			/* timeout (not an error) */
+			{
+			sng_fd_t dev_fd = sangoma_wait_obj_get_fd(sangoma_wait_objects[0]);
+			sangoma_print_stats(dev_fd);
+			}
 			printf("Timeout\n");
 			continue;
 
@@ -438,6 +572,8 @@ void handle_span_chan(int open_device_counter)
 					/* got tdm api event */
 					if(handle_tdm_event(i)){
 						printf("Error in handle_tdm_event()!\n");
+                        application_termination_flag=1;
+						break;
 					}
 				}
 					
@@ -445,6 +581,8 @@ void handle_span_chan(int open_device_counter)
 					/* rx data OR a free tx buffer available */
 					if(handle_data(i, output_flags[i])){
 						printf("Error in handle_data()!\n");
+                        //application_termination_flag=1;
+						break;
 					}
 				}
 			}/* for() */
@@ -670,6 +808,13 @@ int open_sangoma_device()
 			return 1;
 		}
 	}
+	if (buffer_multiplier) {
+		printf("Setting buffer multiplier to %i\n",buffer_multiplier);
+		err=sangoma_tdm_set_buffer_multiplier(dev_fd,&tdm_api,buffer_multiplier);
+		if (err) {
+			return 1;
+		}
+	}
 
 	printf("Device Config RxQ=%i TxQ=%i \n",
 		sangoma_get_rx_queue_sz(dev_fd,&tdm_api),
@@ -681,6 +826,11 @@ int open_sangoma_device()
 	printf("Device Config RxQ=%i TxQ=%i \n",
 		sangoma_get_rx_queue_sz(dev_fd,&tdm_api),
 		sangoma_get_tx_queue_sz(dev_fd,&tdm_api));
+	
+	sangoma_flush_bufs(dev_fd,&tdm_api);
+
+	sangoma_print_stats(dev_fd);
+
 
 	return err;
 }

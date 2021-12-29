@@ -34,7 +34,7 @@
 #if defined(__WINDOWS__)
 # define DEBUG_TDEV DbgPrint
 #else
-# define DEBUG_TDEV DEBUG_EVENT
+# define DEBUG_TDEV DEBUG_TEST
 #endif
 
 #define MAX_WAN_TDEV_IDX_SZ 20
@@ -78,6 +78,8 @@ static wanpipe_cdev_ops_t wan_tdev_fops;
 
 static void wanpipe_wandev_timer_init_globals()
 {
+	DEBUG_TEST("%s:%d\n",__FUNCTION__,__LINE__);
+
 	memset(wan_tdev_idx, 0x00, sizeof(wan_tdev_idx));
 
 	wan_timer_card = NULL;
@@ -98,7 +100,15 @@ int wanpipe_wandev_timer_create(void)
 	wanpipe_tdev_t *wan_tdev;
 	wanpipe_cdev_t *cdev;
 
+	DEBUG_TEST("%s:%d\n",__FUNCTION__,__LINE__);
+
 	wanpipe_wandev_timer_init_globals();
+
+	if (wan_tdev_cnt >= MAX_WAN_TDEV_IDX_SZ) {
+		DEBUG_ERROR("%s:%d Error Invalid wan_tdev_cnt %i\n",
+			__FUNCTION__,__LINE__,wan_tdev_cnt);
+		return -EINVAL;
+	}
 
 	cdev = wan_kmalloc(sizeof(wanpipe_cdev_t));
 	if (!cdev) {
@@ -134,6 +144,7 @@ int wanpipe_wandev_timer_create(void)
 
 	wan_timer_card=NULL;
 	wan_set_bit(0,&wan_timer_initialized);
+
 	DEBUG_TDEV("%s: WAN TDEV CREATE (err:%d, wan_tdev_cnt:%d) \n",
 		__FUNCTION__, err, wan_tdev_cnt);
 
@@ -147,6 +158,13 @@ int wanpipe_wandev_timer_free(void)
 	int i;
 	wanpipe_tdev_t *wan_tdev;
 	netskb_t *skb;
+
+	DEBUG_TEST("%s:%d\n",__FUNCTION__,__LINE__);
+
+	if (!wan_test_bit(0,&wan_timer_initialized)) {
+		DEBUG_EVENT("%s:%d Error wan_timer not initialized\n",__FUNCTION__,__LINE__);
+		return -1;
+	}
 
 	wan_clear_bit(0,&wan_timer_initialized);
 
@@ -210,6 +228,12 @@ static int wp_tdev_ioctl(void *obj, int cmd, void *udata)
 	wanpipe_timer_api_t *utcmd=&tdev->ucmd;
 	netskb_t *skb;
 	wan_smp_flag_t flags;
+
+	if (!wan_test_bit(0,&wan_timer_initialized)) {
+		return -1;
+	}
+
+	DEBUG_TEST("%s:%d\n",__FUNCTION__,__LINE__);
 
 #if defined(__WINDOWS__)
 	/* udata is a pointer to wanpipe_tdm_api_cmd_t */
@@ -276,7 +300,13 @@ static unsigned int wp_tdev_poll(void *obj)
 {
 	wanpipe_tdev_t *tdev=(wanpipe_tdev_t*)obj;
 	int err=0;
-	
+
+	if (!wan_test_bit(0,&wan_timer_initialized)) {
+		return -1;
+	}
+
+	DEBUG_TEST("%s:%d\n",__FUNCTION__,__LINE__);
+
 	if (tdev->event) {
 		/* Indicate an exception */
 		err |= POLLPRI;
@@ -297,6 +327,8 @@ int wp_timer_device_reg_tick(sdla_t *card)
 	u8 *buf;
 	wan_smp_flag_t flags;
 	int init=0;
+
+	DEBUG_TEST("%s:%d\n",__FUNCTION__,__LINE__);
 
 	if (!wan_test_bit(0,&wan_timer_initialized)) {
 		return -1;
@@ -354,6 +386,8 @@ int wp_timer_device_reg_tick(sdla_t *card)
 
 int wp_timer_device_unreg(sdla_t *card)
 {
+	DEBUG_TEST("%s:%d\n",__FUNCTION__,__LINE__);
+
 	if (!wan_test_bit(0,&wan_timer_initialized)) {
 		return -1;
 	}

@@ -1730,8 +1730,8 @@ static int if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, int cmd)
 					card->u.b.cfg.max_length_tx_data_block = 682;//divisible by 31
 					card->u.b.time_slots = NO_ACTIVE_RX_TIME_SLOTS_E1;
 				}
-				if (card->wandev.fe_iface.pre_release){
-					card->wandev.fe_iface.pre_release(&card->fe);
+				if (card->wandev.fe_iface.post_unconfig){
+					card->wandev.fe_iface.post_unconfig(&card->fe);
 				}
 				if (card->wandev.fe_iface.unconfig){
 					card->wandev.fe_iface.unconfig(&card->fe);
@@ -2058,12 +2058,12 @@ static void disable_comm (sdla_t *card)
 
 
 	/* TE1 - Unconfiging */
-	if (card->wandev.fe_iface.pre_release){
-		card->wandev.fe_iface.pre_release(&card->fe);
-	}
 	if (IS_TE1_CARD(card)) {
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
+		}
+		if (card->wandev.fe_iface.post_unconfig){
+			card->wandev.fe_iface.post_unconfig(&card->fe);
 		}
 	}
 	return;

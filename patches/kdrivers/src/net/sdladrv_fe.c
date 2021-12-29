@@ -135,6 +135,17 @@ extern int sdla_hw_fe_test_bit(void *phw, int value);
 extern int sdla_hw_fe_clear_bit(void *phw, int value);
 extern int sdla_hw_fe_set_bit(void *phw, int value);
 
+
+#define SDLA_HW_T1E1_FE_ACCESS_BLOCK { u32 breg; sdla_bus_read_4(hw, 0x40, &breg); \
+								  if (breg == (u32)-1) { \
+									if (WAN_NET_RATELIMIT()) { \
+										DEBUG_ERROR("%s:%d: wanpipe PCI Error: Illegal Register read: 0x40 = 0xFFFFFFFF\n", \
+											__FUNCTION__,__LINE__);  \
+									} \
+								 } \
+}
+
+
 /***************************************************************************
 ****                      G L O B A L  D A T A                          ****
 ***************************************************************************/
@@ -291,21 +302,23 @@ int sdla_te1_write_fe(void* phw, ...)
 	value	= va_arg(args, int);
 	va_end(args);
 
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
 	off &= ~BIT_DEV_ADDR_CLEAR;
-       	sdla_bus_write_2(hw, XILINX_MCPU_INTERFACE_ADDR, (u16)off);
+    sdla_bus_write_2(hw, XILINX_MCPU_INTERFACE_ADDR, (u16)off);
+	
 	/* AF: Sep 10, 2003
 	 * IMPORTANT
 	 * This delays are required to avoid bridge optimization 
 	 * (combining two writes together)
 	 */
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-        sdla_bus_write_1(hw, XILINX_MCPU_INTERFACE, (u8)value);
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-        return 0;
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
+    sdla_bus_write_1(hw, XILINX_MCPU_INTERFACE, (u8)value);
+        
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
+	return 0;
 }
 
 
@@ -326,14 +339,18 @@ u_int8_t sdla_te1_read_fe (void* phw, ...)
 	off	= va_arg(args, int);
 	va_end(args);
 
-        off &= ~BIT_DEV_ADDR_CLEAR;
-        sdla_bus_write_2(hw, XILINX_MCPU_INTERFACE_ADDR, (u16)off);
-        sdla_bus_read_1(hw,XILINX_MCPU_INTERFACE, &tmp);
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+    
+	off &= ~BIT_DEV_ADDR_CLEAR;
+    sdla_bus_write_2(hw, XILINX_MCPU_INTERFACE_ADDR, (u16)off);
 	
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-        return tmp;
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+    
+	sdla_bus_read_1(hw,XILINX_MCPU_INTERFACE, &tmp);
+
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+	
+    return tmp;
 }
 
 /***************************************************************************
@@ -372,30 +389,31 @@ static int __sdla_shark_te1_write_fe (void *phw, ...)
 		}
 	}
 
+
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
 	sdla_bus_read_2(hw, AFT_MCPU_INTERFACE_ADDR, (u16*)&org_off);
 	
-       	sdla_bus_write_2(hw,AFT_MCPU_INTERFACE_ADDR, (u16)off);
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
+    sdla_bus_write_2(hw,AFT_MCPU_INTERFACE_ADDR, (u16)off);
+	
 	/* AF: Sep 10, 2003
 	 * IMPORTANT
 	 * This delays are required to avoid bridge optimization 
 	 * (combining two writes together)
 	 */
-	if (!qaccess){
-		WP_DELAY(5);
-	}
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
 	sdla_bus_write_1(hw, AFT_MCPU_INTERFACE, (u8)value);
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-	
+
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
 	sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, (u16)org_off);	
 
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-        return 0;
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
+    return 0;
 }
 
 int sdla_shark_te1_write_fe (void *phw, ...)
@@ -423,7 +441,7 @@ int sdla_shark_te1_write_fe (void *phw, ...)
 					hw->devname, line_no, off, value);
 	__sdla_shark_te1_write_fe(hw, qaccess, line_no, off, value);
 	sdla_hw_fe_clear_bit(hw,0);
-       return 0;
+	return 0;
 }
 
 /*============================================================================
@@ -461,21 +479,26 @@ u_int8_t __sdla_shark_te1_read_fe (void *phw, ...)
 		}
 	}
 	
+
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
 	sdla_bus_read_2(hw, AFT_MCPU_INTERFACE_ADDR, (u16*)&org_off);
 	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+	
 	sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, (u16)off);
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
 	sdla_bus_read_1(hw,AFT_MCPU_INTERFACE, (u8*)&tmp);
-	if (!qaccess){
-		WP_DELAY(5);
-	}
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 	
 	sdla_bus_write_2(hw, AFT_MCPU_INTERFACE_ADDR, (u16)org_off);	
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-        return (u8)tmp;
+    return (u8)tmp;
 }
 
 u_int8_t sdla_shark_te1_read_fe (void *phw, ...)
@@ -528,15 +551,17 @@ static int __sdla_shark_56k_write_fe (void *phw, ...)
 	va_end(args);
 
 	off &= ~AFT8_BIT_DEV_ADDR_CLEAR;	
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
    	sdla_bus_write_2(hw,0x46, (u16)off);
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
 	sdla_bus_write_2(hw,0x44, (u16)value);
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
-	if (!qaccess){
-		WP_DELAY(5);
-	}
-   	
 	return 0;
 }
 
@@ -586,14 +611,16 @@ u_int8_t __sdla_shark_56k_read_fe (void *phw, ...)
 	va_end(args);
 
 	off &= ~AFT8_BIT_DEV_ADDR_CLEAR;	
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
    	sdla_bus_write_2(hw, AFT56K_MCPU_INTERFACE_ADDR, (u16)off);
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
    	sdla_bus_read_4(hw, AFT56K_MCPU_INTERFACE, &tmp);
-
-	if (!qaccess){
-		WP_DELAY(5);
-	}
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
 	return (u_int8_t)tmp;
 }
@@ -736,7 +763,6 @@ int sdla_a600_write_fe(void *phw, ...)
 
 u_int8_t __sdla_a600_read_fe (void *phw, ...)
 {
-
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	va_list		args;
 	int		mod_no, type, chain, reg;
@@ -1215,6 +1241,44 @@ void sdla_a600_reset_fe (void *fe)
 	WP_DELAY(1000);
 }
 
+void sdla_b800_reset_module(sdla_t *card, int mod_no)
+{
+	u32 reg;
+	u8 remora_no, module_no;
+	
+	remora_no = mod_no/4;
+	module_no = mod_no%4;
+
+	reg = 0x00;
+	reg |= (module_no & 0x3) <<  24;
+	reg |= (remora_no & 0x3) <<  26;
+	reg |= 1<< B800_SPI_REG_RESET_BIT;
+	
+	card->hw_iface.bus_write_4(card->hw, SPI_INTERFACE_REG, reg);
+	
+	WP_DELAY(1000);
+	card->hw_iface.bus_write_4(card->hw, SPI_INTERFACE_REG,	0x00000000);
+	WP_DELAY(1000);
+}
+
+void sdla_b800_reset_fe (void *fe)
+{
+	int i;
+	sdla_t *card;
+
+	WAN_ASSERT1(fe == NULL);
+	card = (sdla_t*)((sdla_fe_t*)fe)->card;
+
+	WAN_ASSERT1(card == NULL);
+
+	/* reset all modules together for now until we have the ability/need
+		reset 1 module at a time from driver core */
+	for (i=0;i<NUM_B800_ANALOG_PORTS;i++) {
+		sdla_b800_reset_module(card, i);
+	}
+}
+
+
 void sdla_a200_reset_fe (void *fe)
 {
 	sdla_t *card;
@@ -1239,6 +1303,123 @@ void sdla_a200_reset_fe (void *fe)
 /*============================================================================
  * Read TE1/56K Front end registers
  */
+
+static int __sdla_b800_write_fe (void* phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain;
+	u8 module_no, remora_no;
+	int		reg, value;
+	u32		data = 0;
+	//unsigned char	cs = 0x00, ctrl_byte = 0x00;
+	int		i;
+
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	value	= va_arg(args, int);
+	va_end(args);
+
+	if (chain) DEBUG_ERROR ("%s :%d Error: chain mode not supported on A600 (%s:%d)\n",
+					hw->devname, mod_no, __FUNCTION__,__LINE__);
+
+	remora_no = mod_no/4;
+	module_no = mod_no%4;
+
+	data |= (module_no & 0x3) << 24;
+	data |= (remora_no & 0x3) << 26;
+	data &= 0xFF000000;
+
+	if (type == MOD_TYPE_FXO) {
+		/* Clear data bits */
+		data |= (value & 0xFF);
+		data |= (reg & 0xFF) << 8;
+	} else if (type == MOD_TYPE_FXS) {
+		wan_set_bit(B800_SPI_REG_CHAN_TYPE_FXS_BIT, &data);
+		/* Clear data bits */
+		data |= (value & 0xFF);
+		data |= (reg & 0x7F) << 8;
+	} else {
+		DEBUG_EVENT("%s: Module %d: Unsupported module type %d!\n",
+					hw->devname, mod_no, type);
+					return -EINVAL;
+	}
+	
+	sdla_bus_write_4(hw, SPI_INTERFACE_REG, data);
+		
+	WP_DELAY(10);
+		
+	wan_set_bit(B800_SPI_REG_START_BIT, &data);
+	sdla_bus_write_4(hw, SPI_INTERFACE_REG, data);
+	
+	for (i=0;i<10;i++) {	
+		WP_DELAY(10);
+		sdla_bus_read_4(hw, SPI_INTERFACE_REG,&data);
+		if (!(wan_test_bit(B800_SPI_REG_SPI_BUSY_BIT, &data))) {
+			goto spi_write_done;
+		}
+	}
+			
+	if (wan_test_bit(B800_SPI_REG_SPI_BUSY_BIT, &data)) {
+		DEBUG_ERROR("%s: ERROR:SPI Iface not ready\n", hw->devname);
+		return -EINVAL;
+	}
+		
+spi_write_done:
+	return 0;
+}
+
+
+int sdla_b800_write_fe(void* phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain, reg, value;
+#if defined(WAN_DEBUG_FE)
+	char		*fname;	
+	int		fline;
+#endif
+
+	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	value	= va_arg(args, int);
+#if defined(WAN_DEBUG_FE)
+	fname	= va_arg(args, char*);
+	fline	= va_arg(args, int);
+#endif
+	va_end(args);
+
+	if (sdla_hw_fe_test_and_set_bit(hw,0)){
+#if defined(WAN_DEBUG_FE)
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+			hw->devname, __FUNCTION__,__LINE__, fname, fline);
+#else
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+			hw->devname, __FUNCTION__,__LINE__);
+#endif			
+		return -EINVAL;
+	}
+	
+	DEBUG_REG("%s: Remora Direct Register %d = %02X\n",
+			hw->devname, reg, value);
+
+	__sdla_b800_write_fe(hw, mod_no, type, chain, reg, value);
+
+	sdla_hw_fe_clear_bit(hw,0);
+	return 0;
+}
+
 static int __sdla_shark_rm_write_fe (void* phw, ...)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
@@ -1429,6 +1610,119 @@ int sdla_shark_rm_write_fe (void* phw, ...)
 
 	sdla_hw_fe_clear_bit(hw,0);
         return 0;
+}
+
+u_int8_t __sdla_b800_read_fe (void* phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain, reg;
+	u8		module_no, remora_no;
+	u32		data = 0;
+	int		i;
+
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	va_end(args);
+
+	remora_no = mod_no/4;
+	module_no = mod_no%4;
+
+	if (chain) {
+			DEBUG_ERROR ("%s :%d Error: chain mode not supported on B800 (%s:%d)\n", hw->devname, mod_no, __FUNCTION__,__LINE__);
+			WARN_ON(1);
+	}
+	
+	wan_set_bit(B800_SPI_REG_READ_ENABLE_BIT, &data);
+
+	data |= (module_no & 0x3) << 24;
+	data |= (remora_no & 0x3) << 26;
+	data &= 0xFF000000;
+	
+	if (type == MOD_TYPE_FXO) {
+		data |= (reg & 0xFF) << 8;
+		data &= 0xFFFFFF00;
+	} else if (type == MOD_TYPE_FXS) {
+		wan_set_bit(B800_SPI_REG_CHAN_TYPE_FXS_BIT, &data);			
+		data |= (reg & 0x7F) << 8;
+		data &= 0xFFFFFF00;
+	} else {
+		DEBUG_EVENT("%s: Module %d: Unsupported module type %d!\n",
+					hw->devname, mod_no, type);
+		return 0xFF;
+	}
+	
+	sdla_bus_write_4(hw, SPI_INTERFACE_REG, data);
+	WP_DELAY(10);
+
+	wan_set_bit(B800_SPI_REG_START_BIT, &data);
+	sdla_bus_write_4(hw, SPI_INTERFACE_REG, data);
+	
+		
+	for (i=0;i<10;i++) {
+		WP_DELAY(10);
+		sdla_bus_read_4(hw, SPI_INTERFACE_REG,&data);
+			
+		if (!(wan_test_bit(B800_SPI_REG_SPI_BUSY_BIT, &data))) {
+			goto spi_read_done;
+		}
+	}
+		
+spi_read_done:
+	if (wan_test_bit(B800_SPI_REG_SPI_BUSY_BIT, &data)) {
+		DEBUG_ERROR("%s: ERROR:SPI Iface not ready\n", hw->devname);
+		data = 0xFF;
+	}
+		
+	return (u8)(data & 0xFF);
+}
+
+u_int8_t sdla_b800_read_fe (void* phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain, reg;
+	unsigned char	data = 0;
+#if defined(WAN_DEBUG_FE)
+	char		*fname;
+	int		fline;
+#endif
+
+	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+#if defined(WAN_DEBUG_FE)
+	fname	= va_arg(args, char*);
+	fline	= va_arg(args, int);
+#endif
+	va_end(args);
+
+	if (sdla_hw_fe_test_and_set_bit(hw,0)){
+#if defined(WAN_DEBUG_FE)
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE (%s:%d)!\n",
+			hw->devname, __FUNCTION__,__LINE__,fname,fline);
+#else
+		DEBUG_ERROR("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+			hw->devname, __FUNCTION__,__LINE__);
+#endif		
+		return 0x00;
+	}
+	data = __sdla_b800_read_fe (hw, mod_no, type, chain, reg);
+	//DEBUG_REG("%s: Remora Read Reg %X = %02X\n",
+	//		hw->devname, reg, data);
+
+	sdla_hw_fe_clear_bit(hw,0);
+	return data;
 }
 
 u_int8_t __sdla_shark_rm_read_fe (void* phw, ...)
@@ -2116,10 +2410,17 @@ static int __sdla_b601_te1_write_fe(void *phw, ...)
         data_hi |= 0x4000;
     }
 
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+
     data_hi |= (off & 0x7FF);
     sdla_bus_write_2(hw, A600_MAXIM_INTERFACE_REG_ADD_HI, data_hi);
-    data_lo = (value & 0xFF);
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+    
+	data_lo = (value & 0xFF);
     sdla_bus_write_2(hw, A600_MAXIM_INTERFACE_REG_ADD_LO, data_lo);
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
     return 0;
 }
@@ -2185,10 +2486,17 @@ u_int8_t __sdla_b601_te1_read_fe (void *phw, ...)
         data_hi |= 0x4000;
     }
 
-    data_hi |= (off & 0x7FF);
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+    
+	data_hi |= (off & 0x7FF);
     sdla_bus_write_2(hw, A600_MAXIM_INTERFACE_REG_ADD_HI, data_hi);
-    data_read = 0x00;
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
+    
+	data_read = 0x00;
     sdla_bus_read_4(hw, A600_MAXIM_INTERFACE_REG_ADD_LO, &data_read);
+	
+	SDLA_HW_T1E1_FE_ACCESS_BLOCK;
 
     return (data_read & 0xFF);
 }

@@ -89,12 +89,19 @@ struct sangoma_wait_obj;
    \brief Instantiate/Declare a tdm api cmd strucure
    \def SANGOMA_INIT_TDM_API_CMD
    \brief Initialize the tdm api cmd structure. Set to 0.
+   \def SANGOMA_INIT_TDM_API_CMD_RESULT
+   \brief Initialize the 'result' in wanpipe_api_t to SANG_STATUS_GENERAL_ERROR.
    \def SANGOMA_DECLARE_INIT_TDM_API_CMD
    \brief Declare and initialize the tdm api cmd structure.
 */
 #define SANGOMA_DECLARE_TDM_API_CMD(_name_)  		wanpipe_api_t _name_
-#define SANGOMA_INIT_TDM_API_CMD(_name_) 			memset(&_name_,0,sizeof(_name_)) 
-#define SANGOMA_DECLARE_INIT_TDM_API_CMD(_name_)  	wanpipe_tdm_api_t _name_; SANGOMA_INIT_TDM_API_CMD(_name_) 
+
+#define SANGOMA_INIT_TDM_API_CMD(_name_) 			memset(&_name_,0,sizeof(_name_)); \
+														SANGOMA_INIT_TDM_API_CMD_RESULT(_name_)
+
+#define SANGOMA_INIT_TDM_API_CMD_RESULT(_name_)		(_name_).wp_cmd.result = SANG_STATUS_GENERAL_ERROR 
+
+#define SANGOMA_DECLARE_INIT_TDM_API_CMD(_name_)  	wanpipe_tdm_api_t _name_; SANGOMA_INIT_TDM_API_CMD(_name_);
 
 
 #if defined(WIN32) || defined(WIN64)
@@ -106,6 +113,7 @@ struct sangoma_wait_obj;
 #include <conio.h>
 #include <stddef.h>	
 #include <stdlib.h>	
+#include <time.h>
 
 /*!
   \def _LIBSNG_CALL
@@ -114,8 +122,14 @@ struct sangoma_wait_obj;
 #ifdef __COMPILING_LIBSANGOMA__
 # define _LIBSNG_CALL __declspec(dllexport) __cdecl
 #else
-# define _LIBSNG_CALL __declspec(dllimport) __cdecl
-#endif
+# ifdef __LIBSANGOMA_IS_STATIC_LIB__
+/* libsangoma is static lib OR 'compiled in' */
+#  define _LIBSNG_CALL __cdecl
+# else
+/* compiling an application which will use libsangoma.dll */
+#  define _LIBSNG_CALL __declspec(dllimport) __cdecl
+# endif
+#endif /* __COMPILING_LIBSANGOMA__ */
 
 /*!
   \def SANGOMA_INFINITE_API_POLL_WAIT (deprecated, use SANGOMA_WAIT_INFINITE instead)
@@ -251,10 +265,12 @@ typedef unsigned char * PUCHAR;
 typedef void * PVOID;
 typedef void * LPTHREAD_START_ROUTINE;
 typedef pthread_mutex_t CRITICAL_SECTION;
+typedef unsigned int UINT;
 
 #define EnterCriticalSection(arg) 	pthread_mutex_lock(arg)
+#define TryEnterCriticalSection(arg)	pthread_mutex_trylock(arg)
 #define LeaveCriticalSection(arg) 	pthread_mutex_unlock(arg)
-#define InitializeCriticalSection(arg) pthread_mutex_init(arg, NULL);
+#define InitializeCriticalSection(arg)	pthread_mutex_init(arg, NULL);
 
 typedef struct tm SYSTEMTIME;
 typedef char * LPCTSTR;
@@ -355,9 +371,9 @@ typedef enum _sangoma_wait_obj_type
  * Users are encouraged to use this flags instead of the system ones
  */
 typedef enum _sangoma_wait_obj_flags {
-  SANG_WAIT_OBJ_HAS_INPUT = POLLIN,
-  SANG_WAIT_OBJ_HAS_OUTPUT = POLLOUT,
-  SANG_WAIT_OBJ_HAS_EVENTS = POLLPRI,
+  SANG_WAIT_OBJ_HAS_INPUT = WP_POLLIN,
+  SANG_WAIT_OBJ_HAS_OUTPUT = WP_POLLOUT,
+  SANG_WAIT_OBJ_HAS_EVENTS = WP_POLLPRI,
   SANG_WAIT_OBJ_IS_SIGNALED = 0x400 /* matches GNU extension POLLMSG */
 } sangoma_wait_obj_flags_t;
 
@@ -1045,6 +1061,21 @@ int _LIBSNG_CALL sangoma_get_link_status(sng_fd_t fd, wanpipe_api_t *tdm_api, un
 int _LIBSNG_CALL sangoma_set_fe_status(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned char new_status);
 
 
+
+#ifdef WP_API_FEATURE_BUFFER_MULT
+/*!
+  \fn int sangoma_tdm_set_buffer_multiplier(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned int multiplier)
+  \brief Set voice tx/rx buffer multiplier. 
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \param multiplier buffer multiplier value 0-disable or 1 to TDMAPI_MAX_BUFFER_MULTIPLIER
+  \return non-zero: error, 0: ok
+*/
+int _LIBSNG_CALL sangoma_tdm_set_buffer_multiplier(sng_fd_t fd, wanpipe_api_t *tdm_api, unsigned int multiplier);
+
+#endif
+
+
 /*!
   \fn int _LIBSNG_CALL sangoma_enable_bri_bchan_loopback(sng_fd_t fd, wanpipe_api_t *tdm_api, int channel)
   \brief Enable BRI Bchannel loopback - used when debugging bri device
@@ -1121,10 +1152,7 @@ int _LIBSNG_CALL sangoma_set_rx_queue_sz(sng_fd_t fd, wanpipe_api_t *tdm_api, in
   \brief Get HW Voice Coding (ulaw/alaw)
   \param fd device file descriptor
   \param tdm_api tdm api command structure
-  \return non-zero: error, 0: ok
-
-  This function will return the low level voice coding
-  depending on configuration.  (ulaw or alaw)
+  \return the low level voice coding, depending on configuration.  (WP_MULAW or WP_ALAW)
 */
 int _LIBSNG_CALL sangoma_get_hw_coding(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
@@ -1153,11 +1181,28 @@ int _LIBSNG_CALL sangoma_tdm_get_hw_dtmf(sng_fd_t fd, wanpipe_api_t *tdm_api);
   \brief Check if hw echo cancelation support is available
   \param fd device file descriptor
   \param tdm_api tdm api command structure
-  \return non-zero: error, 0: ok
+  \return non-zero: error, 0: disable, >0:enabled
 
   This function will check if hw supports HW EC.
 */
 int _LIBSNG_CALL sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+
+#ifdef WP_API_FEATURE_EC_CHAN_STAT
+/*!
+  \fn int sangoma_tdm_get_hwec_chan_status(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Check if hw echo cancelation is enabled on current timeslot
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: disabled, >0: enabled
+
+  This function will check if hw echo cancelation is enable
+  on current timeslot.
+*/
+
+int _LIBSNG_CALL sangoma_tdm_get_hwec_chan_status(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+#endif
 
 /*!
   \fn int sangoma_span_chan_toif(int span, int chan, char *interface_name)
@@ -1498,6 +1543,22 @@ int _LIBSNG_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_
 
 
 /*!
+  \fn int sangoma_driver_get_version(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
+  \brief Retrieve Driver Version BEFORE any communication interface is configured and sangoma_get_driver_version()
+				can not be called.
+  \param[in] fd                         Port Device file descriptor
+  \param[out]   port_mgmnt      pointer to port_management_struct_t structure which will contain wan_driver_version_t at
+                                                        it's "data" field, when this function returns.
+  \param[in]    port_no         please see comment of sangoma_driver_port_set_config()
+  \return       non-zero:               system error. Call OS specific code to find cause of the error.
+                                                        Linux example: strerror(errno)
+                                                        Windows example: combination of GetLastError()/FormatMessage()
+                                zero:           no system error. Check port_mgmt->operation_status.
+*/
+int _LIBSNG_CALL sangoma_driver_get_version(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
+
+
+/*!
   \fn int sangoma_write_port_config_on_persistent_storage(hardware_info_t *hardware_info, port_cfg_t *port_cfg)
   \brief Write Port's configuration on the hard disk. 
 		Linux Specific: the "Persistent" configuration of a Port N (e.g. WANPIPE1) is stored in
@@ -1635,18 +1696,34 @@ int _LIBSNG_CALL sangoma_tdm_get_power_level(sng_fd_t fd, wanpipe_api_t *tdm_api
 
 
 #ifdef WP_API_FEATURE_LIBSNG_HWEC
-/*!
-  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name)
 
-  \brief Load Firmware image onto EC chip.
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name, wan_custom_param_t custom_params[], unsigned int number_of_custom_params)
+
+  \brief Load Firmware image onto EC chip. All chip-wide configuration paramters, if any,
+		must be specified at the time of chip initialization.
 
   \param device_name Sangoma API device name. 
 		Windows: wanpipe1_if1, wanpipe2_if1...
 		Linux: wanpipe1, wanpipe2...
 
+  \param custom_params[] - (optional) array of custom paramter structures.
+
+		This is list of Echo Cancellation chip parameters:
+
+		Chip parameter					Chip parameter value
+		=================				=======================
+		WANEC_TailDisplacement			0-896
+		WANEC_MaxPlayoutBuffers			0-4678
+		WANEC_EnableExtToneDetection	TRUE | FALSE
+		WANEC_EnableAcousticEcho		TRUE | FALSE
+
+  \param number_of_custom_params - (optional) number of structures in custom_params[]. Minimum value is 1, maximum is 4,
+		if any other value the custom_params[] will be ignored.
+
   \return SANG_STATUS_SUCCESS: success, or error status
 */
-sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name);
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name, wan_custom_param_t custom_params[], unsigned int number_of_custom_params);
 
 /*!
   \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_release(char *device_name)
@@ -1769,9 +1846,16 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_enable(char *device_name,  unsigned i
 sangoma_status_t _LIBSNG_CALL sangoma_hwec_disable(char *device_name, unsigned int fe_chan_map);
 
 /*!
-  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameters(char *device_name,	char *parameter, char *parameter_value, unsigned int channel_map)
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameter(char *device_name, char *parameter, char *parameter_value, unsigned int channel_map)
 
   \brief Modify channel configuration parameters.
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \param parameter Echo Cancellation channel parameter
+
 	This is list of Echo Cancellation channel parameters:
 
 		Channel parameter					Channel parameter value
@@ -1800,7 +1884,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_disable(char *device_name, unsigned i
 
   \return SANG_STATUS_SUCCESS: success, or error status
 */
-sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameters(char *device_name,	char *parameter, char *parameter_value, unsigned int channel_map);
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameter(char *device_name, char *parameter, char *parameter_value, unsigned int channel_map);
 
 /*!
   \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_tone_detection(char *device_name, int tone_id, int enable, unsigned int fe_chan_map, unsigned char port_map)
@@ -1916,6 +2000,19 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_playout(char *device_nam
 			SANG_STATUS_INVALID_PARAMETER: error - the level was not changed because new level is invalid
 */
 sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_verbosity(int verbosity_level);
+
+/*!
+  \fn void _LIBSNG_CALL sangoma_hwec_initialize_custom_parameter_structure(wan_custom_param_t *custom_param, char *parameter_name, char *parameter_value)
+
+  \brief Initialize Custom Paramter structure.
+
+  \param parameter_name  Parameter Name
+
+  \param parameter_value Parameter Value
+
+  \return None
+*/
+void _LIBSNG_CALL sangoma_hwec_initialize_custom_parameter_structure(wan_custom_param_t *custom_param, char *parameter_name, char *parameter_value);
 
 #endif /* WP_API_FEATURE_LIBSNG_HWEC */
 

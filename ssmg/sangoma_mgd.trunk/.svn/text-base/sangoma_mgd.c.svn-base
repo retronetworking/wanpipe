@@ -1,7 +1,7 @@
 /*********************************************************************************
  * sangoma_mgd.c --  Sangoma Media Gateway Daemon for Sangoma/Wanpipe Cards
  *
- * Copyright 05-09, Nenad Corbic <ncorbic@sangoma.com>
+ * Copyright 05-10, Nenad Corbic <ncorbic@sangoma.com>
  *		    Anthony Minessale II <anthmct@yahoo.com>
  *
  * This program is free software, distributed under the terms of
@@ -9,27 +9,41 @@
  * 
  * =============================================
  *
- *  v1.68 David Yat Sin <dyatsin@sangoma.com>
- *  Mar 18 2010
- *  Media and RING bits implemented
+ * v1.71 Nenad Corbic <ncorbic@sangoma.com>
+ * Jun 21 2010
+ * Added a hwec_chan_status check instead of hwec check.
+ * This allows some ports to have hwec disabled and others enabled.
+ *
+ * v1.70 Nenad Corbic <ncorbic@sangoma.com>
+ * May 07 2010
+ * remove_end_of_digits_char was being run on custom_data.
+ * thus cutting off the custom isup parameters.
+ *
+ * v1.69 David Yat Sin <dyatsin@sangoma.com>
+ * May 03 2010
+ * Added support for WOOMERA_CUSTOM variable on outgoing calls
  *  
- *  v1.67 David Yat Sin <dyatsin@sangoma.com>
- *  Mar 16 2010
- *  Added sanity check for span chan on call stopped and call answered
-
- *  v1.66 David Yat Sin <dyatsin@sangoma.com>
- *  Mar 15 2010
- *  Fix for WFLAG_SYSTEM_RESET being cleared if when
- *  no boost msg was received from signalling daemon
+ * v1.68 David Yat Sin <dyatsin@sangoma.com>
+ * Mar 18 2010
+ * Media and RING bits implemented
+ *  
+ * v1.67 David Yat Sin <dyatsin@sangoma.com>
+ * Mar 16 2010
+ * Added sanity check for span chan on call stopped and call answered
+ *
+ * v1.66 David Yat Sin <dyatsin@sangoma.com>
+ * Mar 15 2010
+ * Fix for WFLAG_SYSTEM_RESET being cleared if when
+ * no boost msg was received from signalling daemon
  *  
  * v1.65 David Yat Sin <dyatsin@sangoma.com>
  * Mar 10 2010
- *  Support for TON and NPI passthrough
+ * Support for TON and NPI passthrough
  * 
  * v1.64 David Yat Sin <dyatsin@sangoma.com>
  * Feb 22 2010
- *  Updated to sigboost 103
- *  Added checks for hwec present
+ * Updated to sigboost 103
+ * Added checks for hwec present
  *
  * v1.63 Nenad Corbic <ncorbic@sangoma.com>
  * Jan 27 2010
@@ -38,19 +52,19 @@
  *
  * v1.62 Konrad Hammel <konrad@sangoma.com>
  * Jan 26 2010
- *  Added rbs relay code
+ * Added rbs relay code
  *
  * v1.61 Konrad Hammel <konrad@sangoma.com>
  * Jan 19 2010
- *  changed all_ckt_busy to be per trunk group.
+ * changed all_ckt_busy to be per trunk group.
  *
  * v1.60 Nenad Corbic <ncorbic@sangoma.com>
  * Jan 14 2010
- *  Added media sequencing option. 
- *  Check if server has it enabled.
+ * Added media sequencing option. 
+ * Check if server has it enabled.
  *
  * v1.59 Nenad Corbic <ncorbic@sangoma.com>
- *  Changed w1g1 to s1c1 
+ * Changed w1g1 to s1c1 
  *
  * v1.58 Nenad Corbic <ncorbic@sangoma.com>
  *  Added bridge tdm to ip functionality
@@ -370,7 +384,7 @@ pthread_mutex_t g_smg_ip_bridge_lock;
 #endif
 
 
-#define SMG_VERSION	"v1.68"
+#define SMG_VERSION	"v1.71"
 
 /* enable early media */
 #if 1
@@ -422,7 +436,7 @@ static int drop_seq=0;
 
 const char WELCOME_TEXT[] =
 "================================================================================\n"
-"Sangoma Media Gateway Daemon v1.68 \n"
+"Sangoma Media Gateway Daemon v1.71 \n"
 "\n"
 "TDM Signal Media Gateway for Sangoma/Wanpipe Cards\n"
 "Copyright 2005, 2006, 2007 \n"
@@ -1460,9 +1474,15 @@ retry_loop:
 		sangoma_frame_len = sangoma_tdm_get_usr_mtu_mru(ms->sangoma_sock,&tdm_api);
 
 #ifdef LIBSANGOMA_VERSION
+#ifdef WP_API_FEATURE_EC_CHAN_STAT  
+		ms->has_hwec = sangoma_tdm_get_hwec_chan_status(ms->sangoma_sock, &tdm_api);
+#else		
 		ms->has_hwec = sangoma_tdm_get_hw_ec(ms->sangoma_sock, &tdm_api);
-		if (ms->has_hwec) {
+#endif
+		if (ms->has_hwec > 0) {
 			sangoma_tdm_disable_hwec(ms->sangoma_sock,&tdm_api);
+		} else {
+         	ms->has_hwec=0;
 		}
 #else
 		ms->has_hwec=1;
@@ -1708,7 +1728,14 @@ media_retry:
 			}
 
 #ifdef LIBSANGOMA_VERSION
+#ifdef WP_API_FEATURE_EC_CHAN_STAT  
+			ms->has_hwec = sangoma_tdm_get_hwec_chan_status(ms->sangoma_sock, &tdm_api);
+#else		
 			ms->has_hwec = sangoma_tdm_get_hw_ec(ms->sangoma_sock, &tdm_api);
+#endif
+			if (ms->has_hwec < 0) {
+             	 ms->has_hwec=0;
+			}
 #else
 			ms->has_hwec = 1;
 #endif
@@ -3260,6 +3287,7 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 	char *rdnis = woomera_message_header(wmsg, "RDNIS");
 	char *bearer_cap = woomera_message_header(wmsg, "Bearer-Cap");
 	char *uil1p = woomera_message_header(wmsg, "uil1p");
+	char *custom_data = woomera_message_header(wmsg, "xCustom");
 
 	char *called = wmsg->callid;
 	char *grp = wmsg->callid;
@@ -3396,19 +3424,26 @@ static int handle_woomera_call_start (struct woomera_interface *woomera,
 	event.isup_in_rdnis[0]=0;
 
 	if (rdnis && strlen(rdnis) ) {
-
-		if (strlen(rdnis) > sizeof(event.isup_in_rdnis)){ 
+		if (strlen(rdnis) > sizeof(event.rdnis.digits)){ 
 			log_printf(SMG_LOG_ALL,server.log,"Error: RDNIS Overflow (in size=%i max=%i)\n",
-					strlen(rdnis), sizeof(event.isup_in_rdnis));
+					strlen(rdnis), sizeof(event.rdnis.digits));
 			
 		} else {
-
-			strncpy(event.isup_in_rdnis,rdnis,
-					sizeof(event.isup_in_rdnis)-1);
-			event.isup_in_rdnis_size=strlen(rdnis)+1;
+			strncpy(event.rdnis.digits,rdnis, sizeof(event.rdnis.digits)-1);
+			event.rdnis.digits_count=strlen(rdnis)+1;
 			log_printf(SMG_LOG_DEBUG_MISC,server.log,"RDNIS %s\n", rdnis);
 		}
+	}
 
+	if (custom_data && strlen(custom_data)) {
+		if (strlen(custom_data) > sizeof(event.custom_data)){
+			log_printf(SMG_LOG_ALL,server.log,"Error: CUSTOM Overflow (in size=%i max=%i)\n",
+					strlen(custom_data), sizeof(event.custom_data));
+		} else {
+			strncpy(event.custom_data, custom_data, sizeof(event.custom_data)-1);
+			event.custom_data_size=strlen(custom_data)+1;
+			log_printf(SMG_LOG_DEBUG_MISC, server.log, "CUSTOM %s\n", custom_data);
+		}
 	}
 
 	if (bearer_cap && strlen(bearer_cap)) {
@@ -4379,7 +4414,6 @@ static void handle_call_start(call_signal_event_t *event)
 	remove_end_of_digits_char((unsigned char*)event->called.digits);
 	remove_end_of_digits_char((unsigned char*)event->calling.digits);
 	remove_end_of_digits_char((unsigned char*)event->rdnis.digits);
-	remove_end_of_digits_char((unsigned char*)event->custom_data);
 
 	if (server.strip_cid_non_digits) {	
 		validate_number((unsigned char*)event->called.digits);
@@ -4600,6 +4634,9 @@ static void handle_restart(call_signal_connection_t *mcon, short_signal_event_t 
 {
      	if (!woomera_test_flag(&server.master_connection, WFLAG_MONITOR_RUNNING)) {
             log_printf(SMG_LOG_ALL, server.log,"ERROR! Monitor Thread not running!\n");
+		} else if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_NEED_RESET_ACK)){
+			log_printf(SMG_LOG_ALL, server.log,
+									   "RESTART Ignored: Outgoing RESTART ACK not received\n");  
         } else {
 			/* Clear Reset */	
 			/* Tell all threads to go down */
@@ -4611,8 +4648,10 @@ static void handle_restart(call_signal_connection_t *mcon, short_signal_event_t 
 			for ( i =0 ; i < SMG_MAX_TG ; i++ ){
 				smg_all_ckt_busy(i);
 			}
-			woomera_set_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
+
 			gettimeofday(&server.restart_timeout,NULL);
+			woomera_set_flag(&server.master_connection, WFLAG_SYSTEM_NEED_IN_RESET_ACK); 
+			woomera_set_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
 
 #if 0
 			sleep(5);
@@ -4935,6 +4974,7 @@ static void *monitor_thread_run(void *obj)
 			  SIGBOOST_EVENT_SYSTEM_RESTART,
 			  0);
 
+	gettimeofday(&server.restart_timeout,NULL);
 	woomera_set_flag(&server.master_connection, WFLAG_SYSTEM_NEED_RESET_ACK);
 	woomera_set_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
 
@@ -5003,8 +5043,7 @@ mcon_retry_priority:
 			break;
 		}
 			
-		if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_RESET) &&
-				!woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_NEED_RESET_ACK)) {
+		if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_RESET)) {
 			short_signal_event_t event;
 			struct timeval current;
 			int elapsed;
@@ -5013,21 +5052,38 @@ mcon_retry_priority:
 			elapsed=smg_calc_elapsed(&server.restart_timeout, &current);
 			if (elapsed > 5000) {
 				int err;
-				log_printf(SMG_LOG_ALL, server.log, "Reset Condition Cleared Elapsed=%i!\n",elapsed);
-				clear_all_holding_tank();
-				memset(&event,0,sizeof(event));
-				event.event_id = SIGBOOST_EVENT_SYSTEM_RESTART_ACK;	
-				err=call_signal_connection_write(&server.mcon, (call_signal_event_t*)&event);
-			   	if (err < 0) {
-					log_printf(SMG_LOG_ALL, server.log,
-						   "Critical System Error: Failed to tx on ISUP socket [%s]: %s\n",
-							 strerror(errno));
+
+                if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_NEED_RESET_ACK)) {
+                    log_printf(SMG_LOG_ALL, server.log, "Reset Timeout: Tx RESTART Elapsed=%i!\n",elapsed);     
+					gettimeofday(&server.restart_timeout,NULL);
+                    woomera_clear_flag(&server.master_connection, WFLAG_SYSTEM_NEED_IN_RESET_ACK);
+					isup_exec_commandp(0, 
+						  0, 
+						  -1,
+						  SIGBOOST_EVENT_SYSTEM_RESTART,
+						  0);
+
+
+				} else if (woomera_test_flag(&server.master_connection, WFLAG_SYSTEM_NEED_IN_RESET_ACK)) {
+
+					log_printf(SMG_LOG_ALL, server.log, "Reset Condition Cleared Elapsed=%i!\n",elapsed);
+					clear_all_holding_tank();
+					memset(&event,0,sizeof(event));
+					event.event_id = SIGBOOST_EVENT_SYSTEM_RESTART_ACK;	
+					err=call_signal_connection_write(&server.mcon, (call_signal_event_t*)&event);
+					if (err < 0) {
+						log_printf(SMG_LOG_ALL, server.log,
+							   "Critical System Error: Failed to tx on ISUP socket [%s]: %s\n",
+								 strerror(errno));
+					}
+					int i=0;
+					for ( i =0 ; i < SMG_MAX_TG ; i++ ){
+						smg_all_ckt_busy(i);
+					}  
+					woomera_clear_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
+				} else {
+					gettimeofday(&server.restart_timeout,NULL);
 				}
-				int i=0;
-				for ( i =0 ; i < SMG_MAX_TG ; i++ ){
-					smg_all_ckt_busy(i);
-				}  
-				woomera_clear_flag(&server.master_connection, WFLAG_SYSTEM_RESET); 
 			}
 		}
 		

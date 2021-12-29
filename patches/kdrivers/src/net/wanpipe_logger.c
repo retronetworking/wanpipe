@@ -42,6 +42,8 @@ if(0){	\
 		wan_skb_queue_len(queue));	\
 }
 
+#define WAN_MESSAGE_DISCARD_COUNT 1000
+
 /*=================================================================
  * Macro Definitions
  *================================================================*/
@@ -96,9 +98,6 @@ typedef struct wp_logger_api_dev {
 	void 			*cdev;
 	u32				magic_no;
 
-#if defined(__WINDOWS__)
-	LONG spin_flag;
-#endif
 } wp_logger_api_dev_t;
 
 
@@ -145,20 +144,12 @@ static u_int32_t* wp_logger_type_to_variable_ptr(u_int32_t logger_type)
 
 static void wp_logger_spin_lock_irq(wan_smp_flag_t *flags)
 {
-#if defined(__WINDOWS__)		
-	wan_lock_global_irq_spin_flag(&logger_api_dev.spin_flag, flags);
-#else
 	wan_spin_lock_irq(&logger_api_dev.lock, flags);
-#endif
 }
 
 static void wp_logger_spin_unlock_irq(wan_smp_flag_t *flags)
 {
-#if defined(__WINDOWS__)
-	wan_unlock_global_irq_spin_flag(&logger_api_dev.spin_flag, flags);
-#else
 	wan_spin_unlock_irq(&logger_api_dev.lock, flags);
-#endif
 }
 
 static int wp_logger_increment_open_cnt(void)
@@ -572,6 +563,8 @@ int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type
 
 	if(!apply_filter){
 		/* consider it as NOT a repeating message */
+		memset(previous_error_message, 0x00, sizeof(previous_error_message));
+		repeating_error_message_counter = 0;
 		return 0;
 	}
 
@@ -587,13 +580,25 @@ int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type
 		
 	if(!memcmp(previous_error_message, current_error_message, sizeof(current_error_message))){
 		
-		++repeating_error_message_counter;
-		/* every 100 messages print the repeating message counter */
-		if((repeating_error_message_counter % 100 == 0)){
-			wp_snprintf(tmp_message_buf, sizeof(tmp_message_buf),
-				"* Message repeated %d times.\n", repeating_error_message_counter);
-			wp_logger_input(logger_type, evt_type, tmp_message_buf);
+		/* Every WAN_MESSAGE_DISCARD_COUNT messages print the repeating message
+		 * and the counter how many times it was repeated. */
+
+		if(!(repeating_error_message_counter % WAN_MESSAGE_DISCARD_COUNT)){
+
+			if (repeating_error_message_counter) {
+
+				/* print the repeating message */
+				wp_logger_input(logger_type, evt_type, current_error_message);
+
+				/* and say how many times it was repeated. */
+				wp_snprintf(tmp_message_buf, sizeof(tmp_message_buf),
+					"* Message repeated %d times.\n", repeating_error_message_counter);
+				wp_logger_input(logger_type, evt_type, tmp_message_buf);
+			}
 		}
+
+		++repeating_error_message_counter;
+
 		/* is IS a repeating message */
 		return 1;
 
@@ -606,6 +611,7 @@ int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type
 			wp_logger_input(logger_type, evt_type, tmp_message_buf);
 			repeating_error_message_counter = 0;
 		}
+
 		/* store current message for comparison with a future message */
 		memcpy(previous_error_message, current_error_message, sizeof(current_error_message));
 

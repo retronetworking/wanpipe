@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 35
-/svn/sangoma_mgd/!svn/ver/276/trunk
+/svn/sangoma_mgd/!svn/ver/282/trunk
 END
 sigboost.h
 K 25
@@ -73,7 +73,7 @@ sangoma_mgd.c
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/277/trunk/sangoma_mgd.c
+/svn/sangoma_mgd/!svn/ver/282/trunk/sangoma_mgd.c
 END
 woomera.conf
 K 25
@@ -103,13 +103,13 @@ Changelog.sangoma_mgd
 K 25
 svn:wc:ra_dav:version-url
 V 57
-/svn/sangoma_mgd/!svn/ver/161/trunk/Changelog.sangoma_mgd
+/svn/sangoma_mgd/!svn/ver/282/trunk/Changelog.sangoma_mgd
 END
 sangoma_mgd.h
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/267/trunk/sangoma_mgd.h
+/svn/sangoma_mgd/!svn/ver/280/trunk/sangoma_mgd.h
 END
 q931_cause.h
 K 25
@@ -145,7 +145,7 @@ smg_ctrl
 K 25
 svn:wc:ra_dav:version-url
 V 44
-/svn/sangoma_mgd/!svn/ver/274/trunk/smg_ctrl
+/svn/sangoma_mgd/!svn/ver/278/trunk/smg_ctrl
 END
 switch_buffer.c
 K 25

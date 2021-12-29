@@ -149,8 +149,7 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 #define IRQF_SHARED SA_SHIRQ
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18) 
-static inline int strncasecmp(const char *s1, const char *s2, size_t n)
+static inline int wp_linux_strncasecmp(const char *s1, const char *s2, size_t n)
 {
   if (n == 0)
     return 0;
@@ -165,7 +164,6 @@ static inline int strncasecmp(const char *s1, const char *s2, size_t n)
 
   return tolower(*(unsigned char *) s1) - tolower(*(unsigned char *) s2);
 }
-#endif
 
 /*==========================================================================
    KERNEL 2.6.
@@ -702,8 +700,20 @@ static inline int open_dev_check(netdevice_t *dev)
 		INIT_WORK((task),func)	
 # endif
 # define WAN_IS_TASKQ_SCHEDULE
+
+#if 0
 # define WAN_TASKQ_SCHEDULE(task)			\
-	wan_schedule_task(task)
+	{ int err; \
+		err =wan_schedule_task(task); \
+	if (err) { \
+		printk(KERN_INFO "%s:%d Error: Failed to schedule a Task (err=%i)!\n", 	__FUNCTION__,__LINE__,err);   \
+	} \
+	}
+#else
+# define WAN_TASKQ_SCHEDULE(task)			\
+		wan_schedule_task(task); 
+#endif
+
 
 # define WAN_TASKQ_STOP(task) \
 	wan_task_cancel(task)

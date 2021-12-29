@@ -88,6 +88,9 @@
 #define AFT_A600_SUBSYS_VENDOR			0xA600	/* AFT-600 Series board */
 #define AFT_B601_SUBSYS_VENDOR			0xA601	/* AFT-600 Series board */
 
+/* DAVIDY change to B800 ID when B800 ID is ready */
+#define AFT_B800_SUBSYS_VENDOR			0xB800	/* AFT-800 Series board */
+
 #define AFT_2SERIAL_V35X21_SUBSYS_VENDOR	0xA031	/* AFT-A142 2 Port V.35/X.21 board */
 #define AFT_4SERIAL_V35X21_SUBSYS_VENDOR	0xA032	/* AFT-A144 4 Port V.35/X.21 board */
 #define AFT_2SERIAL_RS232_SUBSYS_VENDOR		0xA033	/* AFT-A142 2 Port RS232 board */

@@ -1,13 +1,19 @@
 K 25
 svn:wc:ra_dav:version-url
 V 45
-/svn/libsangoma/!svn/ver/270/trunk/sample_cpp
+/svn/libsangoma/!svn/ver/291/trunk/sample_cpp
 END
 sangoma_port.h
 K 25
 svn:wc:ra_dav:version-url
 V 60
-/svn/libsangoma/!svn/ver/248/trunk/sample_cpp/sangoma_port.h
+/svn/libsangoma/!svn/ver/278/trunk/sample_cpp/sangoma_port.h
+END
+sources
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/libsangoma/!svn/ver/291/trunk/sample_cpp/sources
 END
 sample.vcproj
 K 25
@@ -15,17 +21,11 @@ svn:wc:ra_dav:version-url
 V 59
 /svn/libsangoma/!svn/ver/248/trunk/sample_cpp/sample.vcproj
 END
-sources
-K 25
-svn:wc:ra_dav:version-url
-V 53
-/svn/libsangoma/!svn/ver/248/trunk/sample_cpp/sources
-END
 sangoma_interface.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 67
-/svn/libsangoma/!svn/ver/270/trunk/sample_cpp/sangoma_interface.cpp
+/svn/libsangoma/!svn/ver/288/trunk/sample_cpp/sangoma_interface.cpp
 END
 sample_linux_compat.h
 K 25
@@ -37,13 +37,13 @@ sangoma_interface.h
 K 25
 svn:wc:ra_dav:version-url
 V 65
-/svn/libsangoma/!svn/ver/270/trunk/sample_cpp/sangoma_interface.h
+/svn/libsangoma/!svn/ver/278/trunk/sample_cpp/sangoma_interface.h
 END
 sangoma_port_configurator.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 75
-/svn/libsangoma/!svn/ver/268/trunk/sample_cpp/sangoma_port_configurator.cpp
+/svn/libsangoma/!svn/ver/279/trunk/sample_cpp/sangoma_port_configurator.cpp
 END
 compile.bat
 K 25
@@ -61,13 +61,13 @@ sangoma_port_configurator.h
 K 25
 svn:wc:ra_dav:version-url
 V 73
-/svn/libsangoma/!svn/ver/268/trunk/sample_cpp/sangoma_port_configurator.h
+/svn/libsangoma/!svn/ver/275/trunk/sample_cpp/sangoma_port_configurator.h
 END
 sample.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 56
-/svn/libsangoma/!svn/ver/270/trunk/sample_cpp/sample.cpp
+/svn/libsangoma/!svn/ver/288/trunk/sample_cpp/sample.cpp
 END
 sangoma_cthread.h
 K 25
@@ -79,13 +79,13 @@ sample.h
 K 25
 svn:wc:ra_dav:version-url
 V 54
-/svn/libsangoma/!svn/ver/269/trunk/sample_cpp/sample.h
+/svn/libsangoma/!svn/ver/288/trunk/sample_cpp/sample.h
 END
 sangoma_port.cpp
 K 25
 svn:wc:ra_dav:version-url
 V 62
-/svn/libsangoma/!svn/ver/248/trunk/sample_cpp/sangoma_port.cpp
+/svn/libsangoma/!svn/ver/286/trunk/sample_cpp/sangoma_port.cpp
 END
 Makefile.Linux
 K 25

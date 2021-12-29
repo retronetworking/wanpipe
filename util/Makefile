@@ -66,3 +66,6 @@ clean:
 	make -C wancfg clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_aftup clean WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C bwm clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
+	make -C misc clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
+	make -C wanctrl clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
+	make -C bwm-ng clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 

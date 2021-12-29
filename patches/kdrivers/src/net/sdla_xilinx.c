@@ -2413,9 +2413,7 @@ static void disable_comm (sdla_t *card)
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
 		wan_smp_flag_t smp_flags,smp_flags1;
-		if (card->wandev.fe_iface.pre_release){
-			card->wandev.fe_iface.pre_release(&card->fe);
-		}
+
 		card->hw_iface.hw_lock(card->hw,&smp_flags1);
 		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 		if (card->wandev.fe_iface.unconfig){
@@ -8029,9 +8027,6 @@ static void aft_critical_shutdown (sdla_t *card)
 
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
-		if (card->wandev.fe_iface.pre_release){
-			card->wandev.fe_iface.pre_release(&card->fe);
-		}
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}

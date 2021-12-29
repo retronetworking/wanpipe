@@ -168,6 +168,7 @@ enum {
 #define SDLA_MAGIC_RC(hw,rc)	WAN_ASSERT_RC((hw)->magic != SDLADRV_MAGIC, (rc))
 #define SDLA_MAGIC_VOID(hw)	WAN_ASSERT_VOID((hw)->magic != SDLADRV_MAGIC)
 
+#define WAN_BUS_ID_SIZE		20
 
 /*
 ******************************************************************
@@ -385,6 +386,7 @@ typedef struct sdlahw_pci_
 #define SDLA_USB_OPMODE_VOICE		0x01
 #define SDLA_USB_OPMODE_API		0x02
 
+#define SDLA_URB_STATUS_READY	1
 struct wan_urb {
 	void		*pvt;
 	int		id;
@@ -428,22 +430,26 @@ typedef struct {
 	int		tx_overrun_cnt;
 	int		tx_notready_cnt;
 
-	unsigned char	fifo_status;
-	unsigned char	uart_status;
-	unsigned char	hostif_status;
+	unsigned char	dev_fifo_status;
+	unsigned char	dev_uart_status;
+	unsigned char	dev_hostif_status;
+	int		dev_sync_err_cnt;
 
 } sdla_usb_comm_err_stats_t;
-
 
 typedef struct sdlahw_usb_
 {
 	int		opmode;		/* Voice or API Data protocol */
+	unsigned char	hw_rev;		/* hardware (pcb) revision */
 
 # if defined(__LINUX__)
+	char			bus_id[WAN_BUS_ID_SIZE];    
 	struct usb_device	*usb_dev;
 	struct usb_interface	*usb_intf;
 # endif
 
+
+	unsigned char	reg_cpu_ctrl;		/* Reg 0x03 */  
 	int 	urbcount_read;
 	int		urb_read_ind;
 	struct wan_urb	dataread[MAX_READ_URB_COUNT];
@@ -458,6 +464,7 @@ typedef struct sdlahw_usb_
 
 	wan_spinlock_t	cmd_lock;
 	wan_spinlock_t	lock;
+	wan_spinlock_t	tx_lock;
 
 	int		rxtx_len;		/* number of data bytes in record */
 	int		rxtx_count;		/* number records in single transcation */
@@ -468,13 +475,14 @@ typedef struct sdlahw_usb_
 	int		write_buf_len;		/* size of write cycle buffer */
  		
 	int		rx_sync;
+	int		tx_sync; 
 	int		next_rx_ind;
 	int		next_read_ind;
-	char	readbuf[MAX_READ_BUF_LEN+MAX_USB_RX_LEN+10];	// 10 for safety 
+	char	*readbuf;
 
 	int		next_tx_ind;
 	int		next_write_ind;
-	char	writebuf[MAX_WRITE_BUF_LEN+MAX_USB_TX_LEN+10];	// 10 for safety 
+	char	*writebuf; 
 
 	char	idlebuf[MAX_USB_TX_LEN+1];
 
@@ -483,6 +491,8 @@ typedef struct sdlahw_usb_
 	unsigned char	ctrl_idle_pattern;
 
 	unsigned int	status;
+
+	 wan_ticks_t	tx_cmd_start;
 
 	wan_skb_queue_t	tx_cmd_list;
 	wan_skb_queue_t	tx_cmd_free_list;
@@ -504,6 +514,7 @@ typedef struct sdlahw_usb_
 /* This structure keeps common parameters per physical card */
 typedef struct sdlahw_card {
 	int 				internal_used;
+	unsigned char		name[SDLA_NAME_SIZE];	/* Card name */
 	unsigned int		hw_type;	/* ISA/PCI */
 	unsigned int		type;		/* S50x/S514/ADSL/SDLA_AFT */
 	unsigned char		cfg_type;	/* Config card type WANOPT_XXX */
@@ -712,21 +723,23 @@ typedef struct sdlahw_iface
 	char*		(*hwec_name)(void *phw);
 	int		(*get_hwec_index)(void *phw);
 
-	/* usb function interface (FIXME) */
+	  /* usb function interface (FIXME) */
 	int		(*usb_cpu_read)(void *phw, unsigned char off, unsigned char *data);
 	int		(*usb_cpu_write)(void *phw, unsigned char off, unsigned char data);
 	int		(*usb_write_poll)(void *phw, unsigned char off, unsigned char data);
 	int		(*usb_read_poll)(void *phw, unsigned char off, unsigned char *data);
+	int		(*usb_hwec_enable)(void *phw, int, int);
 	int		(*usb_rxevent_enable)(void *phw, int, int);
 	int		(*usb_rxevent)(void *phw, int, u8*, int);
 	int		(*usb_rxtx_data_init)(void *phw, int, unsigned char**, unsigned char**);
 	int		(*usb_rxdata_enable)(void *phw, int enable);
-	int		(*usb_rxdata)(void *phw, unsigned char*, int);
-	int		(*usb_txdata)(void *phw, unsigned char*, int);
-	int		(*usb_txdata_ready)(void *phw);
+	int 		(*usb_fwupdate_enable)(void *phw);
+	int		(*usb_txdata_raw)(void *phw, unsigned char*, int);
+	int		(*usb_txdata_raw_ready)(void *phw);
+	int		(*usb_rxdata_raw)(void *phw, unsigned char*, int);
 	int		(*usb_err_stats)(void *phw, void*, int);
 	int		(*usb_flush_err_stats)(void *phw);
-	void		(*reset_fe)(void*);
+	void		(*reset_fe)(void*);            
 
 } sdlahw_iface_t;
 
@@ -746,13 +759,14 @@ typedef struct sdla_hw_type_cnt
 	unsigned char aft_a600_adapters;
 	unsigned char aft_b601_adapters;
 	unsigned char aft_a700_adapters;
+	unsigned char aft_b800_adapters;
 	
 	unsigned char aft_x_adapters;
 	unsigned char usb_adapters;
 }sdla_hw_type_cnt_t;
 
 typedef struct sdladrv_callback_ {
-	int (*add_device)(char*, void*);
+	int (*add_device)(void);
 	int (*delete_device)(char*);
 } sdladrv_callback_t;
 

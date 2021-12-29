@@ -32,6 +32,7 @@ typedef struct{
 	int				txgain;
 	int				rxgain;
 	unsigned char	use_hardware_echo_canceller;
+	unsigned char	real_time;
 }wp_program_settings_t;
 
 #define DEV_NAME_LEN			100
@@ -63,9 +64,9 @@ typedef struct{
 
 }callback_functions_t;
 
+#if defined (__WINDOWS__)
 static void DecodeLastError(LPSTR lpszFunction) 
 {
-#if defined (__WINDOWS__)
 	LPVOID lpMsgBuf;
 	DWORD dwLastErr = GetLastError();
 	FormatMessage( 
@@ -83,8 +84,32 @@ static void DecodeLastError(LPSTR lpszFunction)
 	printf("Last Error: %s (GetLastError() returned: %d)\n", (char*)lpMsgBuf, dwLastErr);
 	// Free the buffer.
 	LocalFree( lpMsgBuf );
-#endif
 } 
+#endif
+
+//This Program interfaces directly to hardware, it should be real time.
+static void sng_set_process_priority_to_real_time()
+{
+#if defined (__WINDOWS__)
+	if (!SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS)) {
+		printf("Failed to set program priority!\n");
+	}
+#else
+	//TODO: implement for Linux
+#endif
+}
+
+//This Execution Thread interfaces directly to hardware, it should be real time.
+static void sng_set_thread_priority_to_real_time()
+{
+#if defined (__WINDOWS__)
+	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
+		printf("Failed to set thread priority!\n");
+	}
+#else
+	//TODO: implement for Linux
+#endif
+}
 
 /* This flag controls debugging of time difference between 
  * data receive indications. Disabled by default. */
@@ -118,13 +143,14 @@ debug_print_dbg_struct(
 	const char *caller_name
 	)
 {
-	printf("timediff_deviation_counter: %d\n\tTimeDiff (ms) between '%s()':\n\tHighest:%d  Lowest:%d  Expected: %d  Latest: %d\n", 
+	printf("timediff_deviation_counter: %d\n\tTimeDiff (ms) between '%s()':\n\tHighest:%d  Lowest:%d  Expected: %d  Latest: %d allowed deviation:%d\n", 
 		wan_debug_ptr->timediff_deviation_counter,
 		caller_name,
 		wan_debug_ptr->highest_timediff,
 		wan_debug_ptr->lowest_timediff,
 		wan_debug_ptr->high_resolution_timediff_value,
-		wan_debug_ptr->latest_timediff);
+		wan_debug_ptr->latest_timediff,
+		wan_debug_ptr->allowed_deviation_of_timediff_value);
 }
 
 /* Call this function to mesure TimeDiff between some function call. */

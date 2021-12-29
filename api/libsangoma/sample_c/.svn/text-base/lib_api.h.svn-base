@@ -48,6 +48,8 @@ extern int	rbs_events;
 extern int	rx2tx;
 extern int  flush_period;
 extern int  stats_period;
+extern int  hdlc_repeat;
+extern int  buffer_multiplier;
 
 extern unsigned char tx_file[WAN_IFNAME_SZ];
 extern unsigned char rx_file[WAN_IFNAME_SZ];

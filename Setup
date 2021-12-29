@@ -9,7 +9,9 @@
 #		as published by the Free Software Foundation; either version
 #		2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
-# Oct 29, 2009	Yannick Lam	Added --no_woomera option (will not install woomera)
+# May 10, 2010  Yannick Lam     Added support for OSLEC for DAHDI only (--with-oslec)
+# Apr 22, 2010  Yannick Lam     Added support for dahdi-2.3 for various chunksize
+# Oct 29, 2009	Yannick Lam		Added --no_woomera option (will not install woomera)
 # Jul 29, 2009  Konrad Hammel   Added --with-asterisk option
 # Jul 27, 2009  Konrad Hammel   Update to not compile unneeded utilities in 
 #				TDM_VOICE mode.
@@ -4796,6 +4798,10 @@ function install_ssmg_ss7()
 	if [ $SSMG_SS7 != "YES" ]; then
 		return 0
 	fi
+
+	if [ $NO_SMG_INSTALL -eq 1 ]; then
+        return 0
+	fi	
 		
 	banner
 	
@@ -5731,11 +5737,63 @@ function tdmv_apply_zaptel_chunk_patch () {
 			zaptel_modified=1
 		fi
 
+		eval "cat Kbuild | sed 's/^obj-.*+=.*wctdm24xxp.*//g'>$TEMP 2>/dev/null "
+		if [ $? -ne 0 ]; then
+			echo "   Failed to remove wctdm24xxp from Kbuild"
+			exit 1
+		
+		else
+			eval "\mv -f $TEMP Kbuild"
+			echo "   wctdm24xxp module removed from Kbuild successfully"
+			zaptel_modified=1
+		fi
+
+		eval "cat Kbuild | sed 's/^obj-.*+=.*wcte12xp.*//g'>$TEMP 2>/dev/null "
+		if [ $? -ne 0 ]; then
+			echo "   Failed to remove wcte12xp from Kbuild"
+			exit 1
+
+		else
+			eval "\mv -f $TEMP Kbuild"
+			echo "   wcte12xp module removed from Kbuild successfully"
+			zaptel_modified=1
+		fi
+
 	fi
 
 	cd $lhome
 	return 0;
 }
+
+function tdmv_apply_oslec_patch ()
+{
+	lhome_tmp=`pwd`
+	cd ..
+	lhome=`pwd`
+	TEMP=tmp
+	cd $ZAPTEL_SOURCE_DIR
+	echo "Applying Zaptel/Dahdi OSLEC echocanceler..."
+	echo " "
+	
+	dhname="Zaptel"
+	isdahdi="no"
+	if [ -f $ZAPTEL_SOURCE_DIR/dahdi/kernel.h ]; then
+		filetopatch="$ZAPTEL_SOURCE_DIR/dahdi/kernel.h"
+		dhname="Dahdi"
+		isdahdi="yes"
+		
+		cd ..
+		eval "mkdir drivers/staging"
+		eval "cp -rf $lhome/OSLEC/echo drivers/staging "
+		sed -i "s|#obj-m += dahdi_echocan_oslec.o|obj-m += dahdi_echocan_oslec.o|" drivers/dahdi/Kbuild
+		echo 'obj-m += echo.o' > drivers/staging/echo/Kbuild
+		make
+		make install
+		cd $lhome_tmp
+	
+	fi
+}
+
 
 function tdmv_apply_zaptel_echo_debug_patch ()
 {
@@ -6761,7 +6819,7 @@ ENDOFTEXT
 	if [ $? -eq 0 ]; then
 		if [ $AFT_TE1_PROT != YES ]; then
 			echo "Enabling the AFT TE1 Support"
-			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_56K -DCONFIG_PRODUCT_WANPIPE_AFT_RM -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW  -DCONFIG_PRODUCT_WANPIPE_AFT_BRI  -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL -DCONFIG_PRODUCT_WANPIPE_AFT_A600 -DCONFIG_PRODUCT_WANPIPE_AFT_B601  "
+			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_56K -DCONFIG_PRODUCT_WANPIPE_AFT_RM -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW  -DCONFIG_PRODUCT_WANPIPE_AFT_BRI  -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL -DCONFIG_PRODUCT_WANPIPE_AFT_A600 -DCONFIG_PRODUCT_WANPIPE_AFT_B601 -DCONFIG_PRODUCT_WANPIPE_AFT_B800  "
 			if [ $REL != "3.4" ]; then
               	   PROTOCOL_DEFINES="$PROTOCOL_DEFINES  -DCONFIG_PRODUCT_WANPIPE_AFT_A700 "
 			fi
@@ -6948,6 +7006,11 @@ ENDOFTEXT
                         if [ $ZAP_CHUNK_OP == "YES" ] ; then
                                tdmv_apply_zaptel_chunk_patch
                         fi
+
+						if [ $OSLEC == "YES" ]; then
+							tdmv_apply_oslec_patch
+						fi
+
 
 			####################################################################
 			if [ $ENABLE_ECHO_DEBUG -eq 1 ]; then
@@ -7240,17 +7303,20 @@ or
 	
 	commands:
 	---------
-	install  	: Install/Upgrade WANPIPE
-	upgrade  	: Upgrade WANPIPE kernel device drivers
-		   	  and utilities. (Same as install!)
+	install  	: Install/Upgrade General Wanpipe
+	zaptel		: Install Wanpipe for Zaptel
+	dahdi		: Install Wanpipe for Dahdi
+	xmtp2_api	: Install Wanpipe for MTP2 API mode
+
 	remove   	: Uninstall WANPIPE
 	remove_init     : Uninstall WANPIPE Boot Startup Scripts
 	install_init    : Install WANPIPE Boot Startup Scripts
+
 	drivers  	: Re-install and Re-compile
-		   	  WANPIPE kernel device drivers ONLY
+		   	      Wanpipe kernel device drivers only
 	buildrpm 	: Build the custom WANPIPE RPM binary for the
 	           	  current system.  
-		   	  For further help read README.rpm
+		   	      For further help read README.rpm
 	helprpm  	: RPM build help information.
 	builddeb	: Build the custom WANPIPE Debian binary 
 		        : package for current system.
@@ -7388,7 +7454,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.11
+PROD_VER=3.5.12
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7419,6 +7485,7 @@ ZAPTEL_PATH_OP="NO"
 ZAPTEL_COMPILE_DISABLE="NO"
 BRI_MODULE_TEST="NO"
 ZAP_CHUNK_OP="NO"
+OSLEC="NO"
 CMP_LOG=$PROD_HOME/setup_drv_compile.log
 CMP_BUILD=build.sh
 CMP_INSTALL=install.sh
@@ -7582,6 +7649,7 @@ USR_CC=
 KBUILD_VERBOSE=0
 KBUILD_DISABLE=0
 NO_AUTO_START=0
+NO_SMG_INSTALL=0
 PROTS=
 
 ROOT=;
@@ -7662,6 +7730,12 @@ if [ "$setup_cmd" = "zaptel" ] || [ "$setup_cmd" = "dahdi" ] ; then
 	setup_cmd="install"
 	#EXTRA_ARGS=" --protocol=TDM --silent --no-zaptel-compile "
 	#EXTRA_ARGS=" --protocol=TDM "
+fi
+
+if [ "$setup_cmd" = "xmtp2_api" ]; then
+	setup_cmd="install"
+	NO_SMG_INSTALL=1
+	PROTS="AFT_TE1-XMTP2"
 fi
 
 if [ "$setup_cmd" = "bri" ]; then
@@ -7962,6 +8036,18 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
                                 fi
                         fi
                         ;;
+
+        --with-oslec)
+						echo "WARNING:"
+						echo "You are going to use OSLEC as software echo canceler"
+						echo "Note: If you want to use OSLEC, do not forget to turn off the hardware echo canceler in wanpipe configuration"
+						getyn "Do you want to use OSLEC for Dahdi/Zaptel"
+						if [ $? -eq 0 ]; then
+							OSLEC="YES"
+						else
+							OSLEC="NO"
+						fi
+						;;
 		*)
 			echo "Invalid option $arg"
 			exit 1;

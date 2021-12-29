@@ -23,11 +23,12 @@
 char	read_enable=0;
 char 	write_enable=0;
 char 	primary_enable=0;
-int 	tx_cnt=1;
-int		rx_cnt=1;
+int 	tx_cnt=0;
+int		rx_cnt=0;
 int		tx_size=10;
 int		tx_delay=0;
 int		tx_data=-1;
+int		buffer_multiplier=0;
 
 unsigned char tx_file[WAN_IFNAME_SZ];
 unsigned char rx_file[WAN_IFNAME_SZ];
@@ -65,6 +66,7 @@ int		rbs_events = 0;
 int		rx2tx = 0;
 int 	flush_period=0;
 int 	stats_period=0;
+int		hdlc_repeat=0;
 
 unsigned long parse_active_channel(char* val);
 
@@ -79,7 +81,7 @@ int init_args(int argc, char *argv[])
 	
 	for (i = 0; i < argc; i++){
 		
-		if (!strcmp(argv[i],"-i")){
+		if (!strcmp(argv[i],"-i") || !strcmp(argv[i],"-chan")){
 
 			if (i+1 > argc-1){
 				printf("ERROR: Number of Interfaces was NOT specified!\n");
@@ -87,7 +89,7 @@ int init_args(int argc, char *argv[])
 			}
 			wanpipe_if_no = atoi(argv[i+1]);
 		
-		}else if (!strcmp(argv[i],"-p")){
+		}else if (!strcmp(argv[i],"-p") || !strcmp(argv[i],"-span")){
 
 			if (i+1 > argc-1){
 				printf("ERROR: Number of Ports was NOT specified!\n");
@@ -102,6 +104,8 @@ int init_args(int argc, char *argv[])
 		}else if (!strcmp(argv[i],"-w")){
 			write_enable=1;
 			c_cnt=1;
+		}else if (!strcmp(argv[i],"-hdlc_repeat")){
+			hdlc_repeat=1;
 
 		}else if (!strcmp(argv[i],"-pri")){
 			primary_enable=1;
@@ -218,6 +222,19 @@ int init_args(int argc, char *argv[])
 
 		}else if (!strcmp(argv[i],"-verbose")){
 			verbose=1;
+
+		}else if (!strcmp(argv[i],"-buffer_multiplier")) {
+			if (i+1 > argc-1){
+				printf("ERROR: Invalid prot!\n");
+				return WAN_FALSE;
+			}
+
+			if(isdigit(argv[i+1][0])){
+				buffer_multiplier = atoi(argv[i+1]);
+			}else{
+				printf("ERROR: Invalid prot, must be a digit!\n");
+				return WAN_FALSE;
+			}
 
 		}else if (!strcmp(argv[i],"-prot")){
 			if (i+1 > argc-1){
@@ -365,13 +382,13 @@ int init_args(int argc, char *argv[])
 static char api_usage[]="\n"
 "\n"
 "<options>:\n"
-"	-p  <port number>	#port/span number\n"
-"	-i  <if number>		#if/chan number\n"
-"	-r					#read enable\n"
-"	-w					#write eable\n"
+"	-span  <port/span number>	#port/span number\n"
+"	-chan  <if/chan number>		#if/chan number\n"
+"	-r							#read enable\n"
+"	-w							#write eable\n"
 "\n"
-"	example 1: sangoma_c -p 1 -i 1 -r\n"
-"	  in this example Wanpipe 1, Interface 1 will be used for reading data\n"
+"	example 1: sangoma_c -span 1 -chan 1 -r -verbose\n"
+"	  in this example Wanpipe span 1, Interface chan 1 will be used for reading data\n"
 "\n"
 "<extra options>\n"
 "	-txcnt   <digit>	#number of tx packets  (Dflt: 1)\n"

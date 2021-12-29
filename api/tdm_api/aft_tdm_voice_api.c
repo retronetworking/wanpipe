@@ -52,6 +52,25 @@ int dev_fd;
 FILE *tx_fd=NULL,*rx_fd=NULL;	
 wanpipe_tdm_api_t tdm_api; 
 
+void print_packet(unsigned char *buf, int len)
+{
+	int x;
+
+    if (buf[0]==126 && buf[1]==126) {
+	 	return;
+	}
+
+	printf("{  | ");
+	for (x=0;x<len;x++){
+		if (x && x%24 == 0){
+			printf("\n  ");
+		}
+		if (x && x%8 == 0)
+			printf(" | ");
+		printf("%02d ",buf[x]);
+	}
+	printf("}\n");
+}
 
 static int sample_time_test(void){
 
@@ -180,7 +199,7 @@ void handle_span_chan(void)
 	 * by deafult incrementing number starting from 0 */
 	for (i=0;i<Tx_length;i++){
 		if (tx_data == -1){
-			api_tx_el->data[i] = (unsigned char)i;
+			api_tx_el->data[i] = (unsigned char)(i%24);
 		}else{
 #if 0
 			api_tx_el->data[i] = (unsigned char)tx_data+(i%4);
@@ -189,6 +208,8 @@ void handle_span_chan(void)
 #endif
 		}
 	}
+
+    print_packet(api_tx_el->data,Tx_length);
 
 	/* Main Rx Tx OOB routine */
 	for(;;) {	
@@ -254,13 +275,13 @@ void handle_span_chan(void)
 							Rx_data, 
 							sizeof(wp_tdm_api_rx_hdr_t),
 							&Rx_data[sizeof(wp_tdm_api_rx_hdr_t)],
-							MAX_RX_DATA, 0);   
+							70, 0);   
 
 				if (!read_enable){
 					goto bitstrm_skip_read;
 				}
 
-				sample_time_test();
+				//sample_time_test();
 
 				/* err indicates bytes received */
 				if(err <= 0) {
@@ -294,12 +315,17 @@ void handle_span_chan(void)
 				++Rx_count;
 
 				if (verbose){
-					printf("Received %i Length = %i\n", 
-							Rx_count,Rx_lgth);
+				   // printf("Received %i Length = %i\n", 
+					 //   	Rx_count,Rx_lgth);
 #if 1
-					printf("Data: ");
+     				print_packet(api_rx_el->data,Rx_lgth);
+#else
+					//printf("Data: \n");
 					for(i=0;i<Rx_lgth; i ++) {
-						printf("0x%02X ", api_rx_el->data[i]);
+						if (i && i%24==0) {
+							printf("\n");
+						}
+						printf("%02d ", api_rx_el->data[i]);
 					}
 					printf("\n");
 #endif

@@ -322,7 +322,7 @@ void process_con_rx(void)
 						slot->hdlc_eng->decoder.stats.abort,
 						slot->hdlc_eng->decoder.stats.frame_overflow);
 						//sangoma_get_full_cfg(slot->sock, &tdm_api);
-						wanpipe_hdlc_dump_ring(slot->hdlc_eng);
+						//wanpipe_hdlc_dump_ring(slot->hdlc_eng);
 						}
 					}
 

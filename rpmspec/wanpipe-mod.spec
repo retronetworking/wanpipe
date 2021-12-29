@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.5.11
+%define version           3.5.12
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -50,6 +50,42 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 
 %changelog
+
+* Mon Jun 28 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.12
+===================================================================
+
+- Fixed Dahdi 2.3 Support
+- Fixed FreeSwitch Openzap HardHDLC option for AFT cards
+- Fixed wanpipemon support for non aft cards.
+- Merged USB FXO code from 3.6 release
+- USB FXO bug fix for 2.6.32 kernels
+- Support for B800 Analog card
+- Fixed alarm reporting in DAHDI/ZAPTEL
+
+- Added Extra EC DSP Configuration Options
+  HWEC_OPERATION_MODE	= OCT_NORMAL 	# OCT_NORMAL: echo cancelation enabled with nlp (default)  
+										# OCT_SPEECH: improves software tone detection by disabling NLP (echo possible)
+										# OCT_NO_ECHO:disables echo cancelation but allows VQE/tone functions. 
+  HWEC_DTMF_REMOVAL		= NO          	# NO: default  YES: remove dtmf out of incoming media (must have hwdtmf enabled)
+  HWEC_NOISE_REDUCTION	= NO 			# NO: default  YES: reduces noise on the line - could break fax
+  HWEC_ACUSTIC_ECHO		= NO			# NO: default  YES: enables acustic echo cancelation
+  HWEC_NLP_DISABLE		= NO			# NO: default  YES: guarantees software tone detection (possible echo)   
+  HWEC_TX_AUTO_GAIN		= 0    			# 0: disable   -40-0: default tx audio level to be maintained (-20 default)
+  HWEC_RX_AUTO_GAIN		= 0				# 0: disable   -40-0: default rx audio level to be maintained (-20 default)
+  HWEC_TX_GAIN			= 0				# 0: disable   -24-24: db values to be applied to tx signal
+  HWEC_RX_GAIN			= 0				# 0: disable   -24-24: db values to be applied to tx signal  
+
+- Added AIS BLUE Alarm Maintenance Startup option
+  Allows a port to be started in BLUE alarm.
+
+  TE_AIS_MAINTENANCE = NO         	#NO: defualt  YES: Start port in AIS Blue Alarm and keep line down
+									#wanpipemon -i w1g1 -c Ttx_ais_off to disable AIS maintenance mode
+									#wanpipemon -i w1g1 -c Ttx_ais_on to enable AIS maintenance mode           
+  
+- Fixed Legacy XDLC compile	
+- Fixed core edge case scenarios where
+  potential race condition could occour.
+
 
 
 * Thu Apr 08 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.11

@@ -1,8 +1,8 @@
 /******************************************************************************
-** Copyright (c) 2005
-**	Alex Feldman <al.feldman@sangoma.com>.  All rights reserved.
+** Copyright (c) 2005 Sangoma Technologies.  All rights reserved.
 **
 ** ============================================================================
+** May 12, 2010		David Rokhvarg 	added verbosity control (WANEC_API_PRINT()).
 ** May 29, 2008		Alex Feldman 	Merge two monitor function in one call.
 ** Jul 26, 2006		David Rokhvarg	<davidr@sangoma.com>	Ported to Windows.
 ** Oct 13, 2005		Alex Feldman	Initial version.
@@ -112,6 +112,13 @@ char OCT6116_256S_IMAGE_PATH[MAX_PATH];
 #endif
 
 #define MAX_OPEN_RETRY	10
+
+extern int ec_library_verbose;
+#ifdef __WINDOWS__
+#define WANEC_API_PRINT(...)	if(ec_library_verbose)printf(## __VA_ARGS__)
+#else
+#define WANEC_API_PRINT(...)	if(ec_library_verbose)printf(__VA_ARGS__)
+#endif
 
 /******************************************************************************
 **			STRUCTURES AND TYPEDEFS
@@ -278,7 +285,7 @@ dev_open_again:
 			sleep(1);
 			goto dev_open_again;
 		}
-		printf("ERROR: Failed to open device %s%s (err=%d,%s)\n",
+		WANEC_API_PRINT("ERROR: Failed to open device %s%s (err=%d,%s)\n",
 					WANEC_DEV_DIR, WANEC_DEV_NAME,
 					errno, strerror(errno));
 		return -EINVAL;
@@ -302,13 +309,13 @@ static int wanec_api_lib_ioctl(int dev, wan_ec_api_t *ec_api, int verbose)
 	ec_api->err = WAN_EC_API_RC_OK;
 	err = ioctl(dev, ec_api->cmd, ec_api);
 	if (err){
-		printf("Failed (%s)!\n", strerror(errno));
+		WANEC_API_PRINT("Failed (%s)!\n", strerror(errno));
 		return err;
 	}
 	if (ec_api->err){
 		switch(ec_api->err){
 		case WAN_EC_API_RC_INVALID_STATE:
-			printf("Failed (Invalid State:%s)!\n",
+			WANEC_API_PRINT("Failed (Invalid State:%s)!\n",
 					WAN_EC_STATE_DECODE(ec_api->state));
 			break;
 		case WAN_EC_API_RC_FAILED:
@@ -318,7 +325,7 @@ static int wanec_api_lib_ioctl(int dev, wan_ec_api_t *ec_api, int verbose)
 		case WAN_EC_API_RC_INVALID_CHANNELS:
 		case WAN_EC_API_RC_INVALID_PORT:
 		default:
-			printf("Failed (%s)!\n",
+			WANEC_API_PRINT("Failed (%s)!\n",
 					WAN_EC_API_RC_DECODE(ec_api->err));
 			break;
 		}
@@ -335,7 +342,7 @@ HANDLE wanec_api_lib_open(wan_ec_api_t *ec_api)
 	char device_name[200];
 
 	/* Open device for general commands */
-	/*printf("Opening Device: %s\n", ec_api->devname);*/
+	/*WANEC_API_PRINT("Opening Device: %s\n", ec_api->devname);*/
 	_snprintf(device_name , 200, "\\\\.\\%s", ec_api->devname);
 
 	hGeneralCommands = CreateFile(
@@ -348,7 +355,7 @@ HANDLE wanec_api_lib_open(wan_ec_api_t *ec_api)
 							(HANDLE)NULL
 							);
     if (hGeneralCommands == INVALID_HANDLE_VALUE){
-		printf("Unable to open %s for general commands!\n", device_name);
+		WANEC_API_PRINT("Unable to open %s for general commands!\n", device_name);
 		return INVALID_HANDLE_VALUE;
 	}
 
@@ -390,7 +397,7 @@ int wanec_api_lib_ioctl(HANDLE dev, wan_ec_api_t *ec_api, int verbose)
 			(LPDWORD)(&ln),
 			(LPOVERLAPPED)NULL
 			) == FALSE){
-		printf("%s(): IoctlManagementCommand failed!!\n", __FUNCTION__);
+		WANEC_API_PRINT("%s(): IoctlManagementCommand failed!!\n", __FUNCTION__);
 		return 1;
 	}
 
@@ -400,7 +407,7 @@ int wanec_api_lib_ioctl(HANDLE dev, wan_ec_api_t *ec_api, int verbose)
 	if (ec_api->err){
 		switch(ec_api->err){
 		case WAN_EC_API_RC_INVALID_STATE:
-			printf("Failed (Invalid State:%s)!\n",
+			WANEC_API_PRINT("Failed (Invalid State:%s)!\n",
 				WAN_EC_STATE_DECODE(ec_api->state));
 			break;
 		case WAN_EC_API_RC_FAILED:
@@ -410,7 +417,7 @@ int wanec_api_lib_ioctl(HANDLE dev, wan_ec_api_t *ec_api, int verbose)
 		case WAN_EC_API_RC_INVALID_CHANNELS:
 		case WAN_EC_API_RC_INVALID_PORT:
 		default:
-			printf("Failed (%s)!\n",
+			WANEC_API_PRINT("Failed (%s)!\n",
 				WAN_EC_API_RC_DECODE(ec_api->err));
 			break;
 		}
@@ -430,8 +437,8 @@ static int
 //wan_ec_loadImageFile(wan_ec_api_t *ec_api, struct wan_ec_image *image_info)
 wanec_api_lib_loadImageFile(	wan_ec_api_t 	*ec_api,
 				char		*path,
-				PUINT8		*pData,
-				UINT32		*size)
+				UINT8		**WP_POINTER_64 pData,
+				UINT32		*file_size)
 {
 	UINT32	ulNumBytesRead;
 	FILE*	pFile;
@@ -439,7 +446,7 @@ wanec_api_lib_loadImageFile(	wan_ec_api_t 	*ec_api,
 	
 	/* Validate the parameters.*/
 	if (path == NULL){
-		printf("ERROR: %s: Invalid image filename!\n",
+		WANEC_API_PRINT("ERROR: %s: Invalid image filename!\n",
 					ec_api->devname);
 		return -EINVAL;
 	}
@@ -449,7 +456,7 @@ wanec_api_lib_loadImageFile(	wan_ec_api_t 	*ec_api,
 	
 	pFile = fopen(path, "rb" );
 	if ( pFile == NULL ){
-		printf("ERROR: %s: Failed to open file (%s)!\n",
+		WANEC_API_PRINT("ERROR: %s: Failed to open file (%s)!\n",
 					ec_api->devname, path);
 		return -EINVAL;
 	}
@@ -458,12 +465,12 @@ wanec_api_lib_loadImageFile(	wan_ec_api_t 	*ec_api,
 	/* Extract the file length.*/
 
 	fseek( pFile, 0, SEEK_END );
-	*size = (UINT32)ftell( pFile );
+	*file_size = (UINT32)ftell( pFile );
 	fseek( pFile, 0, SEEK_SET );
 	
-	if (*size == 0 ){
+	if (*file_size == 0 ){
 		fclose( pFile );
-		printf("ERROR: %s: Image file is too short!\n",
+		WANEC_API_PRINT("ERROR: %s: Image file is too short!\n",
 					ec_api->devname);
 		return -EINVAL;
 	}
@@ -471,10 +478,10 @@ wanec_api_lib_loadImageFile(	wan_ec_api_t 	*ec_api,
 	/*==================================================================*/
 	/* Allocate enough memory to store the file content.*/
 	
-	ptr = (PUINT8)malloc(*size * sizeof(UINT8));
+	ptr = (PUINT8)malloc(*file_size * sizeof(UINT8));
 	if (ptr == NULL ){
 		fclose( pFile );
-		printf("ERROR: %s: Failed allocate memory for image file!\n",
+		WANEC_API_PRINT("ERROR: %s: Failed allocate memory for image file!\n",
 					ec_api->devname);
 		return -EINVAL;
 	}
@@ -484,12 +491,12 @@ wanec_api_lib_loadImageFile(	wan_ec_api_t 	*ec_api,
 
 	ulNumBytesRead = fread(	ptr,
 				sizeof(UINT8),
-				*size,
+				*file_size,
 				pFile );
-	if ( ulNumBytesRead != *size ){
+	if ( ulNumBytesRead != *file_size ){
 		free( ptr );
 		fclose( pFile );
-		printf("ERROR: %s: Failed to read image file!\n",
+		WANEC_API_PRINT("ERROR: %s: Failed to read image file!\n",
 					ec_api->devname);
 		return -EINVAL;
 	}
@@ -537,18 +544,18 @@ int wanec_api_lib_chip_load(int dev, wan_ec_api_t *ec_api, u_int16_t max_channel
 #endif
 
 	if (max_channels == 0){
-		printf("ERROR: %s: this card does NOT have Echo Canceller chip!\n",
+		WANEC_API_PRINT("ERROR: %s: this card does NOT have Echo Canceller chip!\n",
 					ec_api->devname);
 		return -EINVAL;
 	}
-	printf("Searching image for %d channels...\n", max_channels);
+	WANEC_API_PRINT("Searching image for %d channels...\n", max_channels);
 	
 	image_list = wanec_api_lib_image_search(max_channels);
 	while(image_no < image_list->images_no){
 		image_info = image_list->image_info[image_no];
 		if (image_info == NULL){
-			printf("Failed!\n\n");
-			printf(
+			WANEC_API_PRINT("Failed!\n\n");
+			WANEC_API_PRINT(
 			"ERROR: %s: Failed to find image file to EC chip (max=%d)!\n",
 					ec_api->devname,
 					max_channels);
@@ -559,7 +566,7 @@ int wanec_api_lib_chip_load(int dev, wan_ec_api_t *ec_api, u_int16_t max_channel
 						image_info->image_name);
 
 #if defined(__WINDOWS__)
-		printf("Found Image path: %s\n", image_info->image_path);
+		WANEC_API_PRINT("Found Image path: %s\n", image_info->image_path);
 #endif
 
 		ec_api->u_config.max_channels		= max_channels;
@@ -597,7 +604,7 @@ config_poll:
 
 		if (ec_api->state == WAN_EC_STATE_CHIP_OPEN_PENDING){
 			wp_sleep(5);
-			printf(".");
+			WANEC_API_PRINT(".");
 			if (ec_api->u_config_poll.cnt++ < WANEC_API_MAX_CONFIG_POLL){
 				goto config_poll;
 			}
@@ -610,7 +617,7 @@ config_poll:
 	}
 	
 	if (ec_api->state != WAN_EC_STATE_CHIP_OPEN){
-		printf("Timeout!\n");
+		WANEC_API_PRINT("Timeout!\n");
 		return -EINVAL;
 	}
 
@@ -627,7 +634,7 @@ int wanec_api_lib_config(wan_ec_api_t *ec_api, int verbose)
 	u_int16_t	hwec_max_channels = 0;
 	int		err;
 
-	printf("%s: Configuring Echo Canceller device...\t",
+	WANEC_API_PRINT("%s: Configuring Echo Canceller device...\t",
 				ec_api->devname);
 
 	dev = wanec_api_lib_open(ec_api);
@@ -636,7 +643,7 @@ int wanec_api_lib_config(wan_ec_api_t *ec_api, int verbose)
 #else
 	if (dev == INVALID_HANDLE_VALUE){
 #endif
-		printf("Failed (Device open)!\n");
+		WANEC_API_PRINT("Failed (Device open)!\n");
 		return -ENXIO;
 	}
 
@@ -655,7 +662,7 @@ int wanec_api_lib_config(wan_ec_api_t *ec_api, int verbose)
 		}
 	}
 	if (ec_api->state != WAN_EC_STATE_CHIP_OPEN){
-		printf("%s: WARNING: Incorrect Echo Canceller state (%s)!\n",
+		WANEC_API_PRINT("%s: WARNING: Incorrect Echo Canceller state (%s)!\n",
 				ec_api->devname,
 				WAN_EC_STATE_DECODE(ec_api->state));
 		return -EINVAL;
@@ -670,7 +677,7 @@ int wanec_api_lib_config(wan_ec_api_t *ec_api, int verbose)
 		return (err) ? -EINVAL : 0;
 	}
 
-	printf("Done!\n");
+	WANEC_API_PRINT("Done!\n");
 	wanec_api_lib_close(ec_api, dev);
 	return err;
 }
@@ -686,7 +693,7 @@ int wanec_api_lib_bufferload(wan_ec_api_t *ec_api)
 	HANDLE	dev;
 #endif
 
-	printf("%s: Start Tone loading...\t",
+	WANEC_API_PRINT("%s: Start Tone loading...\t",
 			ec_api->devname);
 	dev = wanec_api_lib_open(ec_api);
 #if !defined(__WINDOWS__)
@@ -694,7 +701,7 @@ int wanec_api_lib_bufferload(wan_ec_api_t *ec_api)
 #else
 	if (dev == INVALID_HANDLE_VALUE){
 #endif
-		printf("Failed (Device open)!\n");
+		WANEC_API_PRINT("Failed (Device open)!\n");
 		return -ENXIO;
 	}
 #if !defined(__WINDOWS__)
@@ -709,7 +716,7 @@ int wanec_api_lib_bufferload(wan_ec_api_t *ec_api)
 						&ec_api->u_buffer_config.data,
 						&ec_api->u_buffer_config.size);
 	if (err){
-		printf("Failed!\n");
+		WANEC_API_PRINT("Failed!\n");
 		goto buffer_load_done;
 	}	
 	
@@ -717,7 +724,7 @@ int wanec_api_lib_bufferload(wan_ec_api_t *ec_api)
 	if (err || ec_api->err){
 		goto buffer_load_done;
 	}	
-	printf("Done!\n");
+	WANEC_API_PRINT("Done!\n");
 	
 buffer_load_done:
 	wanec_api_lib_close(ec_api, dev);
@@ -742,7 +749,7 @@ static int wanec_api_lib_monitor_start(wan_ec_api_t *ec_api)
 	if (dev < 0){
 		return ENXIO;
 	}
-	printf("%s: Starting monitor on channel %d ...",
+	WANEC_API_PRINT("%s: Starting monitor on channel %d ...",
 					ec_api->devname,
 					ec_api->fe_chan);
 	err = wanec_api_lib_ioctl(dev, ec_api, 1);
@@ -751,9 +758,9 @@ static int wanec_api_lib_monitor_start(wan_ec_api_t *ec_api)
 		return (err) ? -EINVAL : 0;
 	}
 #if defined(WANEC_API_MONITOR_NEW)
- 	printf("\n");
+ 	WANEC_API_PRINT("\n");
 #else
-	printf("Done!\n");
+	WANEC_API_PRINT("Done!\n");
 #endif
 	wanec_api_lib_close(ec_api, dev);
 	return 0;
@@ -772,7 +779,7 @@ static int wanec_api_lib_monitor_stop(wan_ec_api_t *ec_api)
 	HANDLE	dev;
 #endif
 		
-	printf("%s: Reading Monitor Data ..",
+	WANEC_API_PRINT("%s: Reading Monitor Data ..",
 				ec_api->devname); fflush(stdout);
 	/* Set to zero for the first call only */
 	ec_api->u_chan_monitor.remain_len = 0;
@@ -804,8 +811,8 @@ static int wanec_api_lib_monitor_stop(wan_ec_api_t *ec_api)
 					t.tm_hour,t.tm_min,t.tm_sec);
 			output = fopen(filename, "wb");
 			if (output == NULL){
-				printf("Failed!\n");
-				printf("ERROR: %s: Failed to open binary file (%s)\n",
+				WANEC_API_PRINT("Failed!\n");
+				WANEC_API_PRINT("ERROR: %s: Failed to open binary file (%s)\n",
 						ec_api->devname, filename);
 				err = -EINVAL;
 				goto monitor_done;
@@ -814,20 +821,20 @@ static int wanec_api_lib_monitor_stop(wan_ec_api_t *ec_api)
 		len = fwrite(&ec_api->u_chan_monitor.data[0], sizeof(UINT8),
 				ec_api->u_chan_monitor.data_len, output);
 		if (len != ec_api->u_chan_monitor.data_len){
-			printf("Failed!\n");
-			printf("ERROR: %s: Failed to write to binary file (%s)!\n",
+			WANEC_API_PRINT("Failed!\n");
+			WANEC_API_PRINT("ERROR: %s: Failed to write to binary file (%s)!\n",
 						ec_api->devname, filename);
 			err = -EINVAL;
 			goto monitor_done;
 		}
 		if (++cnt % 100 == 0){
-			printf(".");
+			WANEC_API_PRINT(".");
 		}
 		wanec_api_lib_close(ec_api, dev);
 	}while(ec_api->u_chan_monitor.remain_len);
 	if (output) fclose(output);
-	printf("Done!\n");
-	printf("Binary dump information is stored in %s file.\n", filename);
+	WANEC_API_PRINT("Done!\n");
+	WANEC_API_PRINT("Binary dump information is stored in %s file.\n", filename);
 	
 monitor_done:
 	return err;
@@ -843,15 +850,15 @@ int wanec_api_lib_monitor(wan_ec_api_t *ec_api)
 
 		err = wanec_api_lib_monitor_start(ec_api);
 #if defined(WANEC_API_MONITOR_NEW)
-		printf("\n");
-		printf("Note: You can start talk now in order to record the binary file!\n");
-		printf("      !!! Do not press any key during recording time (%d seconds) !!!\n\n",
+		WANEC_API_PRINT("\n");
+		WANEC_API_PRINT("Note: You can start talk now in order to record the binary file!\n");
+		WANEC_API_PRINT("      !!! Do not press any key during recording time (%d seconds) !!!\n\n",
 							data_mode);
 		sec = data_mode;
 		do {
 			wp_sleep(scale);
 			sec -= scale;
-			printf("Left: %3d sec(s)\r", sec);fflush(stdout);
+			WANEC_API_PRINT("Left: %3d sec(s)\r", sec);fflush(stdout);
 		}while (sec);
 
 		err = wanec_api_lib_monitor_stop(ec_api);
@@ -887,10 +894,10 @@ int wanec_api_lib_cmd(wan_ec_api_t *ec_api)
 #else
 		if (dev == INVALID_HANDLE_VALUE){
 #endif
-			printf("Failed (Device open)!\n");
+			WANEC_API_PRINT("Failed (Device open)!\n");
 			return -ENXIO;
 		}
-		printf("%s: Running %s command to Echo Canceller device...\t",
+		WANEC_API_PRINT("%s: Running %s command to Echo Canceller device...\t",
 				ec_api->devname,
 				WAN_EC_API_CMD_DECODE(ec_api->cmd));
 		err = wanec_api_lib_ioctl(dev, ec_api, 1);
@@ -898,7 +905,7 @@ int wanec_api_lib_cmd(wan_ec_api_t *ec_api)
 			wanec_api_lib_close(ec_api, dev);
 			return (err) ? -EINVAL : 0;
 		}
-		printf("Done!\n\n");
+		WANEC_API_PRINT("Done!\n\n");
 		wanec_api_lib_close(ec_api, dev);
 		break;
 	}

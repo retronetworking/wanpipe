@@ -104,6 +104,7 @@ static _inline unsigned char wp_get_next_expected_digit(unsigned char current_di
 
 #define WPTDM_WIN_LEGACY_API_MODE(tdm_api) (tdm_api->api_mode==WP_TDM_API_MODE_LEGACY_WIN_API)
 
+#define TDMAPI_MAX_BUFFER_MULTIPLIER 8
 
 typedef struct wanpipe_tdm_api_card_dev {
 
@@ -124,6 +125,7 @@ typedef struct wanpipe_tdm_api_dev {
 	void 	*card;/* pointer to sdla_t */
 	char 	name[WAN_IFNAME_SZ];
 	wan_spinlock_t lock;
+	wan_spinlock_t irq_lock;
 
 	u32	used, open_cnt;
 	u8	tdm_span;
@@ -133,9 +135,9 @@ typedef struct wanpipe_tdm_api_dev {
 	u32	active_ch;		/* ALEX */
 
 	u8 *rx_buf;
-	int rx_buf_len;
+	u32 rx_buf_len;
 	u8 *tx_buf;
-	int tx_buf_len;
+	u32 tx_buf_len;
 	
 	wanpipe_api_dev_cfg_t cfg;
 
@@ -182,23 +184,27 @@ typedef struct wanpipe_tdm_api_dev {
 	int (*read_rbs_bits)(void *chan, u32 ch, u8 *rbs_bits);
 	int (*write_rbs_bits)(void *chan, u32 ch, u8 rbs_bits);
 	int (*write_hdlc_frame)(void *chan, netskb_t *skb,  wp_api_hdr_t *hdr);
-	int (*write_hdlc_check)(void *chan, int lock);
+	int (*write_hdlc_check)(void *chan, int lock, int bufs);
 	int (*write_hdlc_timeout)(void *chan, int lock);
 	int (*pipemon)(void* card, void* chan, void *udata);
 	int (*driver_ctrl)(void *chan_ptr, int cmd, wanpipe_api_cmd_t *api_cmd);
 
-	unsigned int 	rbs_rx_bits[NUM_OF_E1_CHANNELS];	/* Rx RBS Bits */
+	u32		 		rbs_rx_bits[NUM_OF_E1_CHANNELS];	/* Rx RBS Bits */
 #ifdef WAN_TDMAPI_DTMF_TEST
 	wp_dtmf_seq_t 	dtmf_check[NUM_OF_E1_CHANNELS+1];	/* Rx RBS Bits */
  	wp_dtmf_seq_t 	dtmf_check_event[NUM_OF_E1_CHANNELS+1];	/* Rx RBS Bits */
 #endif
-	uint8_t	 		dtmfsupport;
+	u8		 		dtmfsupport;
 	void 			*cdev;
-	uint8_t			operation_mode;/* WP_TDM_OPMODE */
-	uint8_t			api_mode;
-	int				mtu_mru;
+	u8				operation_mode;/* WP_TDM_OPMODE */
+	u8				api_mode;
+	u32				mtu_mru;
 	
 	void *			mtp1_dev;
+	u32				buffer_multiplier;
+	u32				timeslots;
+	u8				loop_reenable_hwec;
+
 }wanpipe_tdm_api_dev_t;
 
 

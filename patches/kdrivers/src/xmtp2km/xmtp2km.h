@@ -55,7 +55,6 @@
 #define XMTP2KM_IOCG_GETOPM 	_IOR (XMTP2KM_IOC_MAGIC,  13, uint8_t *)
 #define XMTP2KM_IOCS_STOP_FAC 	_IOR (XMTP2KM_IOC_MAGIC,  14, uint8_t *)
 
-
 /*
  * The other entities only have "Tell" and "Query", because they're
  * not printed in the book, and there's no need to have all six.

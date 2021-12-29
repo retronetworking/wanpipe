@@ -31,6 +31,11 @@ enum wan_codec_source_format{
 	WP_ALAW
 };
 
+#define WP_CODEC_FORMAT_DECODE(codec)	\
+codec == WP_MULAW	? "WP_MULAW" :	\
+codec == WP_ALAW	? "WP_ALAW" :	\
+"Invalid Codec"
+
 #if 0
 enum wan_codec_format{
 	WP_NONE,

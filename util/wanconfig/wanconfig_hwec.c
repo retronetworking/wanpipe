@@ -62,7 +62,7 @@ unsigned int wancfglib_parse_active_channel(char *val);
 #if defined(WAN_HWEC)
 static int wanconfig_hwec_config(char *devname);
 static int wanconfig_hwec_release(char *devname);
-static int wanconfig_hwec_enable(char *devname, char *);
+static int wanconfig_hwec_enable(char *devname, char *, uint8_t);
 static int wanconfig_hwec_modify(char *devname, chan_def_t *def);
 static int wanconfig_hwec_bypass(char *devname, chan_def_t *def, int enable);
 static int wanconfig_hwec_tone(char *devname, int, int, char *);
@@ -76,13 +76,30 @@ int wanconfig_hwec(chan_def_t *def)
 	struct link_def	*linkdef = def->link;
 	int		err;
 	char	devname[100];
+	
+	/* We never want to enable dsp for non voice apps */
+	if (strcmp(def->usedby, "XMTP2_API") == 0 ||
+		strcmp(def->usedby, "STACK") == 0 ||
+		strcmp(def->usedby, "DATA_API") == 0) {
+		def->chanconf->hwec.enable = WANOPT_NO;
+		return 0;
+	}
 
-	if ((linkdef->config_id != WANCONFIG_AFT_TE1 &&
+	if (linkdef->config_id != WANCONFIG_AFT_TE1 &&
 	     linkdef->config_id != WANCONFIG_AFT_ANALOG &&
-	     linkdef->config_id != WANCONFIG_AFT_ISDN_BRI) ||
-	     (def->chanconf->hwec.enable != WANOPT_YES &&
-	      linkdef->linkconf->tdmv_conf.hw_dtmf != WANOPT_YES)){
+	     linkdef->config_id != WANCONFIG_AFT_ISDN_BRI) {
+		
+		/* Do not enalbe hwec for non TE1/ANALOG/BRI cards */
+		def->chanconf->hwec.enable = WANOPT_NO;
 		linkdef->linkconf->tdmv_conf.hw_dtmf = WANOPT_NO;
+		linkdef->linkconf->tdmv_conf.hw_fax_detect = WANOPT_NO;
+		return 0;    
+	}
+
+	/* If both hwec and global dtmf are set to no then
+	   nothing for us to do here */
+	if (def->chanconf->hwec.enable != WANOPT_YES &&
+	    linkdef->linkconf->tdmv_conf.hw_dtmf != WANOPT_YES) {
 		return 0;    
 	}
 
@@ -97,10 +114,12 @@ int wanconfig_hwec(chan_def_t *def)
 		return err;
 	}
 	
-	if ((err = wanconfig_hwec_enable(devname, def->active_ch))){
+
+	if ((err = wanconfig_hwec_enable(devname, def->active_ch, linkdef->linkconf->hwec_conf.operation_mode))){
 		wanconfig_hwec_release(devname);
 		return err;
 	}
+
 
 	if (linkdef->config_id == WANCONFIG_AFT_ISDN_BRI ||
 		linkdef->linkconf->hwec_conf.persist_disable) {
@@ -110,32 +129,61 @@ int wanconfig_hwec(chan_def_t *def)
 			return err;
 		}
 	} else {
+		
 		if ((err = wanconfig_hwec_bypass(devname, def, 1))){
 			wanconfig_hwec_release(devname);
 			return err;
 		}
 	}
-
+	
 	if ((err = wanconfig_hwec_modify(devname, def))){
 		wanconfig_hwec_release(devname);
 		return err;
 	}
 		
 	if (linkdef->linkconf->tdmv_conf.hw_dtmf == WANOPT_YES){
+		
 		err = wanconfig_hwec_tone(devname, 1, WP_API_EVENT_TONE_DTMF, def->active_ch);
 		if (err){
 			wanconfig_hwec_release(devname);
 			return err;		
 		}
 
-		if (linkdef->linkconf->tdmv_conf.hw_fax_detect){
+		if (linkdef->linkconf->tdmv_conf.hw_fax_detect == WANOPT_YES){
+				
 			err = wanconfig_hwec_tone(devname, 1, WP_API_EVENT_TONE_FAXCALLING, def->active_ch);
 			if (err){
 				wanconfig_hwec_release(devname);
 				return err;		
 			}
 		}
+	} 
+	
+	/* In this case the hwec was not selected yes in interface
+	   section, but dtmf or fax detection was still requested globaly. 
+	   Therefore, had to proceed to configure the hwec */
+	if (def->chanconf->hwec.enable != WANOPT_YES) {
+
+		if (linkdef->linkconf->tdmv_conf.hw_dtmf == WANOPT_YES && 
+			linkdef->linkconf->hwec_conf.dtmf_removal == WANOPT_YES) {
+			/* If dtmf_removal has been set then customer wants us to
+			   remove dtmf from the media but does not want us to peform
+			   echo cancelation. In this case keep the bypass enabled, but
+			   set the operation mode to NO_ECHO.  This way media will still
+			   flow through the chip but no echo cancelation will occour */
+        	err=wanconfig_hwec_enable(devname, def->active_ch, WANOPT_OCT_CHAN_OPERMODE_NO_ECHO);	
+			if (err) {
+            	wanconfig_hwec_release(devname); 
+				return err;
+			}
+		} else {
+            /* In this case no media processing is needed, dtmf can
+			   still be obtained via event.  Thus we can proceed to do
+			   a full bypass fo the echo canceler */
+			wanconfig_hwec_bypass(devname, def, 0);
+		}
 	}
+	
 	return 0;
 }
 
@@ -202,6 +250,7 @@ static int wanconfig_hwec_modify(char *devname, chan_def_t *def)
 		wp_snprintf(cmd, sizeof(cmd), "%s %s modify %s %s",
 			WANEC_CLIENT_NAME, devname, def->active_ch, conf_string);
 	}
+	
 	status = system(cmd);
 	if (WEXITSTATUS(status) != 0){
 		fprintf(stderr,"--> Error: system command: %s\n",cmd);
@@ -222,7 +271,7 @@ static int wanconfig_hwec_bypass(char *devname, chan_def_t *def, int enable)
 	char cmd[500];
 	
 
-	if (wp_strcasecmp(def->active_ch, "all") == 0){
+	if (wp_strcasecmp(def->active_ch, "all") == 0) {
 		char chan_str [20];
 		unsigned int tdmv_dchan_map = def->link->linkconf->tdmv_conf.dchan;
 		memset(chan_str, 0, sizeof(chan_str));
@@ -252,6 +301,7 @@ static int wanconfig_hwec_bypass(char *devname, chan_def_t *def, int enable)
 					(enable)?"be":"bd",
 					def->active_ch);
 	}
+
 	
 	status = system(cmd);
 	if (WEXITSTATUS(status) != 0){
@@ -265,15 +315,32 @@ static int wanconfig_hwec_bypass(char *devname, chan_def_t *def, int enable)
 }
 
 static int
-wanconfig_hwec_enable(char *devname, char *channel_list)
+wanconfig_hwec_enable(char *devname, char *channel_list, uint8_t op_mode)
 {
 # if 1
 	wanec_api_opmode_t	opmode;
 	unsigned int		fe_chan_map;
 
+	
 	fe_chan_map = parse_active_channel(channel_list);
 	memset(&opmode, 0, sizeof(wanec_api_opmode_t));
-	opmode.mode		= WANEC_API_OPMODE_NORMAL;
+
+	switch (op_mode) {
+	
+	case WANOPT_OCT_CHAN_OPERMODE_NORMAL:
+    	opmode.mode=WANEC_API_OPMODE_NORMAL;   	 
+		break;
+	case WANOPT_OCT_CHAN_OPERMODE_SPEECH:
+    	opmode.mode=WANEC_API_OPMODE_SPEECH_RECOGNITION;   	 
+		break;
+	case WANOPT_OCT_CHAN_OPERMODE_NO_ECHO:
+    	opmode.mode=WANEC_API_OPMODE_NO_ECHO;   	 
+		break;
+	default:
+    	opmode.mode=WANEC_API_OPMODE_NORMAL;   	 
+		break;
+	}
+		
 	opmode.fe_chan_map	= fe_chan_map;
 	return wanec_api_opmode(devname, 0, &opmode);
 # else
@@ -295,7 +362,7 @@ wanconfig_hwec_tone(char *devname, int enable, int id, char *channel_list)
 	wanec_api_tone_t	tone;
 	unsigned int		fe_chan_map;
 	int			err;
-
+	
 	fe_chan_map = parse_active_channel(channel_list);
 	memset(&tone, 0, sizeof(wanec_api_tone_t));
 	tone.id			= id;

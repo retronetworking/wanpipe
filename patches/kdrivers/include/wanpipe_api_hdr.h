@@ -174,15 +174,17 @@ typedef struct wp_api_hdr
 		The rx_h and tx_h are to be used with all AFT Hardware
 		****************************************************/
 		struct {
-			u_int16_t	crc;									/*!< number of crc/abort/data errors */
+			u_int16_t	crc;									/*!< bit map of possible errors: CRC/ABORT/FRAME/DMA  */
 			u_int8_t	max_rx_queue_length;					/*!< max data queue configured */
 			u_int8_t	current_number_of_frames_in_rx_queue;	/*!< current buffers in device rx queue */
+			u_int32_t	errors;									/*!< number of rx errors since driver start */
 		}rx_h;
 
 		struct {
 			u_int8_t	max_tx_queue_length;					/*!< max data queue configured */
 			u_int8_t	current_number_of_frames_in_tx_queue;	/*!< current buffers in device tx queue */
 			u_int32_t	tx_idle_packets;						/*!< number of tx idle packes transmitted */
+			u_int32_t	errors;									/*!< number of tx errors since driver start */
 		}tx_h;
 
 		/***********************************************//**
@@ -193,28 +195,18 @@ typedef struct wp_api_hdr
 			u_int8_t	status;
 		}serial;
 		struct {
-			u_int32_t	time_stamp_sec;	
-			u_int32_t   time_stamp_usec;
 			u_int8_t    exception;
 			u_int8_t 	pf;
 		}lapb;
 		struct {
-			u_int32_t	time_stamp_sec;
-			u_int32_t   time_stamp_usec;
 			u_int8_t	state;
 			u_int8_t	address;
 			u_int16_t   exception;
 		}xdlc;
 		struct {
-			u_int32_t	time_stamp_sec;
-			u_int32_t   time_stamp_usec;
 			u_int8_t	channel;
 			u_int8_t    direction;
 		}bitstrm;
-		struct {
-			u_int32_t	time_stamp_sec;
-			u_int32_t   time_stamp_usec;
-		}chdlc,fr,ppp;
 		struct {
 			u_int8_t	repeat;
 			u_int8_t	len;
@@ -241,16 +233,19 @@ typedef struct wp_api_hdr
 #define wp_api_hdr_time_stamp_use				time_stamp_usec
 
 #define wp_api_rx_hdr_crc						rx_h.crc
+#define wp_api_rx_hdr_error_map					rx_h.crc
 #define wp_api_rx_hdr_max_queue_length			rx_h.max_rx_queue_length
 #define wp_api_rx_hdr_number_of_frames_in_queue	rx_h.current_number_of_frames_in_rx_queue
 #define wp_api_rx_hdr_time_stamp_sec			time_stamp_sec
 #define wp_api_rx_hdr_time_stamp_use			time_stamp_usec
+#define wp_api_rx_hdr_errors					rx_h.errors
 
 #define wp_api_tx_hdr_max_queue_length			tx_h.max_tx_queue_length
 #define wp_api_tx_hdr_number_of_frames_in_queue	tx_h.current_number_of_frames_in_tx_queue
 #define wp_api_tx_hdr_tx_idle_packets			tx_h.tx_idle_packets
 #define wp_api_tx_hdr_time_stamp_sec			time_stamp_sec
 #define wp_api_tx_hdr_time_stamp_use			time_stamp_usec
+#define wp_api_tx_hdr_errors					tx_h.errors
 
 /***********************************************//**
  Defines below are Deprecated and are for
@@ -283,8 +278,8 @@ typedef struct wp_api_hdr
 /* CHDLC Old backdward comptabile */
 #define wp_api_rx_hdr_chdlc_error_flag			wp_api_rx_hdr_error_flag
 #define wp_api_rx_hdr_chdlc_time_stamp			wp_api_rx_hdr_time_stamp
-#define wp_api_rx_hdr_chdlc_time_sec			chdlc.time_stamp_sec
-#define wp_api_rx_hdr_chdlc_time_usec			chdlc.time_stamp_usec
+#define wp_api_rx_hdr_chdlc_time_sec			time_stamp_sec
+#define wp_api_rx_hdr_chdlc_time_usec			time_stamp_usec
 
 #define wan_hdr_chdlc_error_flag				wp_api_rx_hdr_chdlc_error_flag
 #define wan_hdr_chdlc_time_stamp				wp_api_rx_hdr_chdlc_time_stamp
@@ -294,8 +289,8 @@ typedef struct wp_api_hdr
 /* BITSTRM Old backdward comptabile */
 #define wp_api_rx_hdr_bitstrm_error_flag		wp_api_rx_hdr_error_flag
 #define wp_api_rx_hdr_bitstrm_time_stamp		wp_api_rx_hdr_time_stamp
-#define wp_api_rx_hdr_bitstrm_time_sec			bitstrm.time_stamp_sec
-#define wp_api_rx_hdr_bitstrm_time_usec			bitstrm.time_stamp_usec
+#define wp_api_rx_hdr_bitstrm_time_sec			time_stamp_sec
+#define wp_api_rx_hdr_bitstrm_time_usec			time_stamp_usec
 #define wp_api_rx_hdr_bitstrm_channel			bitstrm.channel
 #define wp_api_rx_hdr_bitstrm_direction			bitstrm.direction
 
@@ -309,8 +304,8 @@ typedef struct wp_api_hdr
 /* HDLC Old backdward comptabile */
 #define wp_api_rx_hdr_hdlc_error_flag			wp_api_rx_hdr_error_flag
 #define wp_api_rx_hdr_hdlc_time_stamp			wp_api_rx_hdr_time_stamp
-#define wp_api_rx_hdr_hdlc_time_sec				hdlc.time_stamp_sec
-#define wp_api_rx_hdr_hdlc_time_usec			hdlc.time_stamp_usec
+#define wp_api_rx_hdr_hdlc_time_sec				time_stamp_sec
+#define wp_api_rx_hdr_hdlc_time_usec			time_stamp_usec
 
 #define wan_hdr_hdlc_error_flag					wp_api_rx_hdr_error_flag
 #define wan_hdr_hdlc_time_stamp					wp_api_rx_hdr_time_stamp
@@ -318,8 +313,8 @@ typedef struct wp_api_hdr
 /* LAPBS Old backdward comptabile */
 #define wp_api_rx_hdr_lapb_pf					lapb.pf
 #define wp_api_rx_hdr_lapb_exception			lapb.exception
-#define wp_api_rx_hdr_lapb_time_sec				lapb.time_stamp_sec
-#define wp_api_rx_hdr_lapb_time_usec			lapb.time_stamp_usec
+#define wp_api_rx_hdr_lapb_time_sec				time_stamp_sec
+#define wp_api_rx_hdr_lapb_time_usec			time_stamp_usec
 
 #define wan_hdr_lapb_pf							wp_api_rx_hdr_lapb_pf
 #define wan_hdr_lapb_exception					wp_api_rx_hdr_lapb_exception
@@ -327,8 +322,8 @@ typedef struct wp_api_hdr
 /* FR Old backdward comptabile */
 #define wp_api_rx_hdr_fr_attr					wp_api_rx_hdr_error_flag
 #define wp_api_rx_hdr_fr_time_stamp				wp_api_rx_hdr_time_stamp
-#define wp_api_rx_hdr_fr_time_sec				fr.time_stamp_sec
-#define wp_api_rx_hdr_fr_time_usec				fr.time_stamp_usec
+#define wp_api_rx_hdr_fr_time_sec				time_stamp_sec
+#define wp_api_rx_hdr_fr_time_usec				time_stamp_usec
 
 #define wan_hdr_fr_attr							wp_api_rx_hdr_fr_attr
 #define wan_hdr_fr_time_stamp					wp_api_rx_hdr_fr_time_stamp
@@ -469,7 +464,7 @@ typedef enum SANG_STATUS
 	SANG_STATUS_UNSUPPORTED_FUNCTION,		/*!< Unsupported command or function */
 	SANG_STATUS_UNSUPPORTED_PROTOCOL,		/*!< Unsupported protocol selected */
 	SANG_STATUS_DEVICE_ALREADY_EXIST,		/*!< Device already exists */
-	SANG_STATUS_DEV_INIT_INCOMPLETE,		/*!< Device initialization failed */
+	SANG_STATUS_DEV_INIT_INCOMPLETE,		/*!< Device initialization failed or not done */
 	SANG_STATUS_TRACE_QUEUE_EMPTY,			/*!< Trace queue empty */
 	SANG_STATUS_OPTION_NOT_SUPPORTED,		/*!< Unsupported command or option */
 

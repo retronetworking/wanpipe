@@ -694,6 +694,8 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 	EchoChannelOpen.ulEchoOperationMode =
 					cOCT6100_ECHO_OP_MODE_NORMAL;
 #else
+	/* purposely fail the compile */
+#error "No supported mode"
 	EchoChannelOpen.ulEchoOperationMode =
 					cOCT6100_ECHO_OP_MODE_POWER_DOWN;
 #endif
@@ -720,9 +722,39 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 	EchoChannelOpen.VqeConfig.fEnableNlp		= TRUE;
 	EchoChannelOpen.VqeConfig.fRinDcOffsetRemoval	= TRUE;
 	EchoChannelOpen.VqeConfig.fSinDcOffsetRemoval	= TRUE;
-#if defined(ENABLE_ACOUSTICECHO)
-	EchoChannelOpen.VqeConfig.fAcousticEcho		= TRUE;
-#endif
+
+	if (card->hwec_conf.acustic_echo) {
+		EchoChannelOpen.VqeConfig.fAcousticEcho		= TRUE;
+    } else {
+		EchoChannelOpen.VqeConfig.fAcousticEcho		= FALSE;
+	}
+
+	if (card->hwec_conf.nlp_disable) {
+		EchoChannelOpen.VqeConfig.fEnableNlp		= FALSE;	
+	} else {
+		EchoChannelOpen.VqeConfig.fEnableNlp		= TRUE;	
+	}
+	
+	if (card->hwec_conf.operation_mode) {
+    	switch (card->hwec_conf.operation_mode) {
+			case WANOPT_OCT_CHAN_OPERMODE_SPEECH:
+				EchoChannelOpen.ulEchoOperationMode = cOCT6100_ECHO_OP_MODE_SPEECH_RECOGNITION;
+				break;
+			default:
+				EchoChannelOpen.ulEchoOperationMode=cOCT6100_ECHO_OP_MODE_NORMAL;
+				break;
+		}
+	} else {
+       	EchoChannelOpen.ulEchoOperationMode=cOCT6100_ECHO_OP_MODE_NORMAL; 
+	}
+
+
+	if (card->tdmv_conf.hw_dtmf && card->hwec_conf.dtmf_removal) {
+    	EchoChannelOpen.VqeConfig.fDtmfToneRemoval = TRUE;
+	} else {
+    	EchoChannelOpen.VqeConfig.fDtmfToneRemoval = FALSE;
+	}
+
 	if (card->hwec_conf.tone_disabler_delay) {
 		UINT32	delay = card->hwec_conf.tone_disabler_delay;
 		delay = ((delay / 512) + 1) * 512 + 300;
@@ -735,19 +767,34 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, INT ec_chan, int verbose)
 
 	if (card->hwec_conf.noise_reduction) {
 		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
-		EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = TRUE;
-		EchoChannelOpen.VqeConfig.fSoutAutomaticLevelControl = TRUE;
 	} else {
 		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
-		EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = FALSE;
+	}
+
+    if (card->hwec_conf.rx_auto_gain) {
+		EchoChannelOpen.VqeConfig.fSoutAutomaticLevelControl = TRUE;
+		EchoChannelOpen.VqeConfig.lSoutAutomaticLevelControlTargetDb = card->hwec_conf.rx_auto_gain;
+	} else {
 		EchoChannelOpen.VqeConfig.fSoutAutomaticLevelControl = FALSE;
+	}
+    
+	if (card->hwec_conf.tx_auto_gain) {
+		EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = TRUE;
+		EchoChannelOpen.VqeConfig.lRinAutomaticLevelControlTargetDb = card->hwec_conf.tx_auto_gain;
+	} else {
+		EchoChannelOpen.VqeConfig.fRinAutomaticLevelControl = FALSE;
 	}
 
 	EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay = ((UINT16)(1500 / 512) + 1) * 512 + 300; /*300;*/
 
-	DEBUG_EVENT("%s: Opening HW Echo Canceller (NoiseRed=%s VQE=%i)\n",
-			ec->name,(EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction == TRUE)?"On":"Off",
-			EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay);
+	DEBUG_EVENT("%s: Opening HW Echo: [Mode=%s NoiseRed=%s VQE=%i DtmfRmv=%s TxAGain=%i RxAGain=%i]\n",
+			ec->name,
+			EchoChannelOpen.ulEchoOperationMode==cOCT6100_ECHO_OP_MODE_NORMAL?"Normal":"Speech",
+			(EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction == TRUE)?"On":"Off",
+			EchoChannelOpen.VqeConfig.ulToneDisablerVqeActivationDelay,
+			EchoChannelOpen.VqeConfig.fDtmfToneRemoval==TRUE?"On":"Off",
+			card->hwec_conf.tx_auto_gain,
+			card->hwec_conf.rx_auto_gain);
 
 	EchoChannelOpen.VqeConfig.ulComfortNoiseMode	=
 				cOCT6100_COMFORT_NOISE_NORMAL;

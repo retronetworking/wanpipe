@@ -31,18 +31,13 @@
 # include <linux/wanpipe_includes.h>
 # include <linux/tty.h>
 # include <linux/usb.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe.h>
-# include <linux/wanproc.h>
-# include <linux/wanpipe_abstr.h>
-# include <linux/if_wanpipe_common.h>    /* Socket Driver common area */
-# include <linux/if_wanpipe.h>
-# include <linux/sdlapci.h>
-# include <linux/wanpipe_iface.h>
-# include <linux/wanpipe_tdm_api.h>
+# include "wanpipe.h"
+# include "sdlapci.h"
+# include "sdladrv_usb.h"
 #endif
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB) 
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10)
 #  include <linux/usb/serial.h>
 #else
@@ -55,7 +50,10 @@
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,4,19)
 #define USB2420
 #endif
+
 #define LINUX26
+
+#define SDLA_USBFXO_BL_DELAY		(10)	// ms 
 
 #define WP_USB_RXTX_DATA_LEN		8
 #define WP_USB_RXTX_DATA_COUNT		2	// Original 2
@@ -66,56 +64,12 @@
 #define SDLA_USBFXO_VID			0x10C4
 #define SDLA_USBFXO_PID			0x8461
 
-#define SDLA_USBFXO_READ_DELAY		100
+#define SDLA_USBFXO_SYNC_DELAY		10
+#define SDLA_USBFXO_SYNC_RX_RETRIES	100
+#define SDLA_USBFXO_SYNC_TX_RETRIES	400
+#define SDLA_USBFXO_READ_DELAY		10
+#define SDLA_USBFXO_READ_RETRIES	100
 #define SDLA_USBFXO_WRITE_DELAY		10
-
-/* Internal USB-FXO CPU registers */
-#define SDLA_USB_CPU_REG_DEVICEID		0x00
-
-#define SDLA_USB_CPU_REG_HARDWAREVER		0x01
-
-#define SDLA_USB_CPU_REG_FIRMWAREVER		0x02
-
-#define SDLA_USB_CPU_REG_CONRTOL		0x03
-#define SDLA_USB_CPU_BIT_CONRTOL_TS1_EVENT_EN	0x02
-#define SDLA_USB_CPU_BIT_CONRTOL_TS0_EVENT_EN	0x01
-
-#define SDLA_USB_CPU_REG_FIFO_STATUS		0x04
-#define SDLA_USB_CPU_BIT_FIFO_STATUS_TS1_TX_UF	0x80
-#define SDLA_USB_CPU_BIT_FIFO_STATUS_TS1_TX_OF	0x40
-#define SDLA_USB_CPU_BIT_FIFO_STATUS_TS0_TX_UF	0x20
-#define SDLA_USB_CPU_BIT_FIFO_STATUS_TS0_TX_OF	0x10
-#define SDLA_USB_CPU_BIT_FIFO_STATUS_TS1_RX_UF	0x08
-#define SDLA_USB_CPU_BIT_FIFO_STATUS_TS1_RX_OF	0x04
-#define SDLA_USB_CPU_BIT_FIFO_STATUS_TS0_RX_UF	0x02
-#define SDLA_USB_CPU_BIT_FIFO_STATUS_TS0_RX_OF	0x01
-
-#define SDLA_USB_CPU_REG_UART_STATUS		0x05
-#define SDLA_USB_CPU_BIT_UART_STATUS_LOST_SYNC	0x10
-#define SDLA_USB_CPU_BIT_UART_STATUS_CMD_UNKNOWN	0x10
-#define SDLA_USB_CPU_BIT_UART_STATUS_RX_UF	0x08
-#define SDLA_USB_CPU_BIT_UART_STATUS_RX_OF	0x04
-#define SDLA_USB_CPU_BIT_UART_STATUS_TX_UF	0x02
-#define SDLA_USB_CPU_BIT_UART_STATUS_TX_OF	0x01
-
-#define SDLA_USB_CPU_REG_HOSTIF_STATUS		0x06
-#define SDLA_USB_CPU_BIT_HOSTIF_STATUS_RX_UF	0x08
-#define SDLA_USB_CPU_BIT_HOSTIF_STATUS_RX_OF	0x04
-#define SDLA_USB_CPU_BIT_HOSTIF_STATUS_TX_UF	0x02
-#define SDLA_USB_CPU_BIT_HOSTIF_STATUS_TX_OF	0x01
-
-#define SDLA_USB_CPU_REG_LED_CONTROL		0x07
-#define SDLA_USB_CPU_BIT_LED_CONTROL_TS1_GRN	0x08
-#define SDLA_USB_CPU_BIT_LED_CONTROL_TS1_RED	0x04
-#define SDLA_USB_CPU_BIT_LED_CONTROL_TS0_GRN	0x02
-#define SDLA_USB_CPU_BIT_LED_CONTROL_TS0_RED	0x01
-
-#define SDLA_USB_CPU_REG_DEBUG			0x08
-#define SDLA_USB_CPU_BIT_DEBUG_WEN_ACK		0x08
-#define SDLA_USB_CPU_BIT_DEBUG_DTMF		0x04
-#define SDLA_USB_CPU_BIT_DEBUG_LOCAL_LB		0x02
-#define SDLA_USB_CPU_BIT_DEBUG_LINE_LB		0x01
-
 
 #define WP_USB_BAUD_RATE		500000
 
@@ -147,13 +101,14 @@ unsigned char idlebuf[]=
 		0x57, 0xCF, 0xCF, 0x8E
 	};
 
-#define WP_USB_STATUS_READY		1
-#define WP_USB_STATUS_TX_READY		2
-#define WP_USB_STATUS_RX_EVENT1_READY	3
-#define WP_USB_STATUS_RX_EVENT2_READY	4
-#define WP_USB_STATUS_RX_DATA_READY	5
-#define WP_USB_STATUS_BH		6
-#define WP_USB_STATUS_TX_CMD		7
+#define WP_USB_STATUS_ATTACHED		1
+#define WP_USB_STATUS_READY		2
+#define WP_USB_STATUS_TX_READY		3
+#define WP_USB_STATUS_RX_EVENT1_READY	4
+#define WP_USB_STATUS_RX_EVENT2_READY	5
+#define WP_USB_STATUS_RX_DATA_READY	6
+#define WP_USB_STATUS_BH		7
+#define WP_USB_STATUS_TX_CMD		8
 
 #define WP_USB_CMD_TYPE_MASK		0x1C
 #define WP_USB_CMD_TYPE_SHIFT		2
@@ -192,6 +147,35 @@ unsigned char idlebuf[]=
 	*((buf)+2) |= ((ctrl) & 0x0C) << 4;					\
 	*((buf)+3) |= ((ctrl) & 0x03) << 6; 
 #endif
+
+#define WP_USB_GUARD1_CHECK(hwcard) if(hwcard){	\
+	if (hwcard->u_usb.guard1[0]){\
+	 DEBUG_EVENT("%s: Memory problem guard1 %d (%s:%d)!\n",\
+		hwcard->name, 0, __FUNCTION__,__LINE__);\
+	hwcard->u_usb.guard1[0]=0x00;\
+	}\
+	}
+
+#define WP_USB_GUARD1(hwcard) if(hwcard){	\
+	int i=0;\
+	for(i=0;i<1000;i++){\
+	if (hwcard->u_usb.guard1[i]){\
+	 DEBUG_EVENT("%s: Memory problem guard1 %d (%s:%d)!\n",\
+		hwcard->name, i, __FUNCTION__,__LINE__);\
+	}\
+	}\
+	}
+
+#define WP_USB_GUARD2(hwcard) if (hwcard){	\
+	int i=0;\
+	for(i=0;i<1000;i++){\
+	if (hwcard->u_usb.guard2[i]){\
+	 DEBUG_EVENT("%s: Memory problem guard2 %d (%s:%d)!\n",\
+		hwcard->name, i, __FUNCTION__,__LINE__);\
+	}\
+	}\
+	}
+
 /***************************************************************************
 ****               S T R U C T U R E S   T Y P E D E F S                ****
 ***************************************************************************/
@@ -218,7 +202,7 @@ static void sdla_usb_disconnect(struct usb_interface*);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10) 
 static int sdla_usb_suspend (struct usb_interface*, pm_message_t);
 #else
-static int sdla_usb_suspend (struct usb_interface*, u32 msg);
+static int sdla_usb_suspend (struct usb_interface*, u32);
 #endif
 static int sdla_usb_resume (struct usb_interface*);
 #if 0
@@ -232,26 +216,26 @@ int sdla_usb_cpu_read(void *phw, unsigned char off, unsigned char *data);
 int sdla_usb_cpu_write(void *phw, unsigned char off, unsigned char data);
 int sdla_usb_write_poll(void *phw, unsigned char off, unsigned char data);
 int sdla_usb_read_poll(void *phw, unsigned char off, unsigned char *data);
+int sdla_usb_hwec_enable(void *phw, int mod_no, int enable);
 int sdla_usb_rxevent_enable(void *phw, int mod_no, int enable);
 int sdla_usb_rxevent(void *phw, int mod_no, u8 *regs, int);
 int sdla_usb_rxtx_data_init(void *phw, int, unsigned char **, unsigned char **);
 int sdla_usb_rxdata_enable(void *phw, int enable);
-int sdla_usb_rxdata(void *phw, unsigned char*, int);
-int sdla_usb_txdata(void *phw, unsigned char*, int);
-int sdla_usb_txdata_ready(void *phw);
 int sdla_usb_set_intrhand(void* phw, wan_pci_ifunc_t *isr_func, void* arg, int notused);
 int sdla_usb_restore_intrhand(void* phw, int notused);
 int sdla_usb_err_stats(void*,void*,int);
-//int sdla_usb_rxdata_ready(void *phw, int mod_no);
-//netskb_t* sdla_usb_rxdata(void *phw, int mod_no);
-//int sdla_usb_txdata(void *phw, netskb_t*, in t mod_no);
 
 #if defined(__LINUX__)
 static void 	sdla_usb_bh (unsigned long);
 #else
 static void 	sdla_usb_bh (void*,int);
 #endif
+
+static int sdla_usb_rxdata_get(sdlahw_card_t*, unsigned char*, int);
+static int sdla_usb_txdata_prepare(sdlahw_card_t*, char*, int);
 static int wp_usb_start_transfer(struct wan_urb*);
+static int sdla_usb_rxurb_reset(sdlahw_card_t *hwcard);
+static int sdla_usb_txurb_reset(sdlahw_card_t *hwcard);
 
 /***************************************************************************
 ****                   G L O B A L   V A R I A B L E                    ****
@@ -370,8 +354,8 @@ static int sdla_usb_probe(struct usb_interface *intf, const struct usb_device_id
 				SDLA_USB_NAME, desc->name, desc->adptr_type, udev->devnum);
 
 	if (sdla_usb_create(intf, desc->adptr_type)){
-		DEBUG_ERROR("ERROR: %s: Failed to creae hwcard structures\n",
-				SDLA_USB_NAME);
+		DEBUG_ERROR("ERROR: %s: Failed to probe new device on %d!\n",
+				SDLA_USB_NAME, udev->devnum);
 		return -ENODEV;
 	}
 	return 0;
@@ -386,7 +370,6 @@ static void sdla_usb_disconnect(struct usb_interface *intf)
 	DEBUG_EVENT("%s: Disconnect USB from %d ...\n", 
 				SDLA_USB_NAME, dev->devnum);
 	if ((hwcard = usb_get_intfdata(intf)) != NULL){
-		DEBUG_EVENT("WARNING: Force to remove usb device!\n");
 		wan_clear_bit(WP_USB_STATUS_READY, &hwcard->u_usb.status);
 		force = 1;
 	}
@@ -395,23 +378,17 @@ static void sdla_usb_disconnect(struct usb_interface *intf)
 	return;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10) 
 static int sdla_usb_suspend (struct usb_interface *intf, pm_message_t message)
-{
-	struct usb_device	*dev = interface_to_usbdev(intf);
-	DEBUG_EVENT("%s: Suspend USB device on %d (not implemented)!\n", 
-				SDLA_USB_NAME, dev->devnum);
-	return 0;
-}
 #else
-static int sdla_usb_suspend (struct usb_interface *intf, u32 msg)
+static int sdla_usb_suspend (struct usb_interface *intf, u32 message)
+#endif
 {
 	struct usb_device	*dev = interface_to_usbdev(intf);
 	DEBUG_EVENT("%s: Suspend USB device on %d (not implemented)!\n", 
 				SDLA_USB_NAME, dev->devnum);
 	return 0;
 }
-#endif
 
 static int sdla_usb_resume (struct usb_interface *intf)
 {
@@ -440,15 +417,15 @@ static void sdla_usb_postreset (struct usb_interface *intf)
 
 /***************************************************************************
 ***************************************************************************/
-static void wait_just_a_bit(int foo, int fast)
+static void wait_just_a_bit(int ms, int fast)
 {
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
 	WP_SCHEDULE(foo, "A-USB");
 #else
-	wan_ticks_t	start_ticks;
-	start_ticks = SYSTEM_TICKS + foo;
-	while(SYSTEM_TICKS < start_ticks){
+	wan_ticks_t	start_ticks = SYSTEM_TICKS;
+	int		delay_ticks = (HZ*ms)/1000;
+	while((SYSTEM_TICKS-start_ticks) < delay_ticks){
 		WP_DELAY(1);
 # if defined(__LINUX__)
 		if (!fast) WP_SCHEDULE(foo, "A-USB");
@@ -457,144 +434,81 @@ static void wait_just_a_bit(int foo, int fast)
 #endif
 }
 
-static u_int8_t __sdla_usb_fxo_read(void *phw, int mod_no, unsigned char off)
+static u_int8_t __sdla_usb_fxo_read(sdlahw_card_t *hwcard, int mod_no, unsigned char off)
 { 
-	sdlahw_t	*hw = (sdlahw_t*)phw;
-	sdlahw_card_t	*hwcard = NULL;
+	sdlahw_usb_t	*hwusb = NULL;
 	netskb_t	*skb;
+	int		retry = 0;	
 	u8		data = 0xFF, *cmd_data;
 	wan_smp_flag_t	flags;
 
-	WAN_ASSERT_RC(hw == NULL, 0xFF);
-	SDLA_MAGIC(hw);
-	WAN_ASSERT_RC(hw->hwcpu == NULL, 0xFF);
-	WAN_ASSERT_RC(hw->hwcpu->hwcard == NULL, 0xFF);
-	hwcard = hw->hwcpu->hwcard;
-
-	wan_spin_lock(&hwcard->u_usb.cmd_lock,&flags);
+	data = 0xFF;
+	hwusb = &hwcard->u_usb;
+	wan_spin_lock(&hwusb->cmd_lock, &flags);
 	DEBUG_TX("%s: Tx Read FXO register (%02X:%d)!\n", 
-			hw->devname,
+			hwcard->name,
 			WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_READ_FXO) | mod_no, 
 			(unsigned char)off);
-	if (wan_test_and_set_bit(WP_USB_STATUS_TX_CMD, &hwcard->u_usb.status)){
+	if (wan_test_and_set_bit(WP_USB_STATUS_TX_CMD, &hwusb->status)){
 		DEBUG_USB("%s: WARNING: USB FXO Read Command Overrun (Read command in process)!\n",
-					hw->devname);
-		hwcard->u_usb.stats.cmd_overrun++;
+					hwcard->name);
+		hwusb->stats.cmd_overrun++;
 		goto fxo_read_done;
 	}
 	
-	if (!wan_skb_queue_len(&hwcard->u_usb.tx_cmd_free_list)){
+	if (!wan_skb_queue_len(&hwusb->tx_cmd_free_list)){
 		DEBUG_USB("%s: WARNING: USB FXO Read Command Overrun (%d commands in process)!\n",
-					hw->devname, wan_skb_queue_len(&hwcard->u_usb.tx_cmd_list));
-		hwcard->u_usb.stats.cmd_overrun++;
+					hwcard->name, wan_skb_queue_len(&hwusb->tx_cmd_list));
+		hwusb->stats.cmd_overrun++;
 		goto fxo_read_done;
 	}	
-	skb = wan_skb_dequeue(&hwcard->u_usb.tx_cmd_free_list);
+	skb = wan_skb_dequeue(&hwusb->tx_cmd_free_list);
 	cmd_data = wan_skb_put(skb, 2);
 	cmd_data[0] = WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_READ_FXO) | mod_no;
 	cmd_data[1] = off;
-	wan_skb_queue_tail(&hwcard->u_usb.tx_cmd_list, skb);
+	wan_skb_queue_tail(&hwusb->tx_cmd_list, skb);
 
-	wait_just_a_bit(SDLA_USBFXO_READ_DELAY, gl_usb_rw_fast);	//WP_DELAY(10000);
-
-	if (!wan_skb_queue_len(&hwcard->u_usb.rx_cmd_list)){
+	do {
+		wait_just_a_bit(SDLA_USBFXO_READ_DELAY, 1);	//WP_DELAY(10000);
+		if (++retry > SDLA_USBFXO_READ_RETRIES) break;
+	} while(!wan_skb_queue_len(&hwusb->rx_cmd_list));
+	if (!wan_skb_queue_len(&hwusb->rx_cmd_list)){
 		DEBUG_USB("%s: WARNING: Timeout on Read USB-FXO Reg!\n",
-				hw->devname);
-		hwcard->u_usb.stats.cmd_timeout++;
+				hwcard->name);
+		hwusb->stats.cmd_timeout++;
 		goto fxo_read_done;
-	}	
-	skb = wan_skb_dequeue(&hwcard->u_usb.rx_cmd_list);
+	}
+
+	skb = wan_skb_dequeue(&hwusb->rx_cmd_list);
 	cmd_data = wan_skb_data(skb);
 	if (cmd_data[1] != off){
 		DEBUG_USB("%s: USB FXO Read response is out of order (%02X:%02X)!\n",
-				hw->devname, cmd_data[1], off);
-		hwcard->u_usb.stats.cmd_invalid++;
+				hwcard->name, cmd_data[1], off);
+		hwusb->stats.cmd_invalid++;
 		goto fxo_read_done;
 	}
 	data = (unsigned char)cmd_data[2];
 	wan_skb_init(skb, 0);
-	wan_skb_queue_tail(&hwcard->u_usb.rx_cmd_free_list, skb);
+	wan_skb_queue_tail(&hwusb->rx_cmd_free_list, skb);
 
 fxo_read_done:
-	wan_clear_bit(WP_USB_STATUS_TX_CMD, &hwcard->u_usb.status);
-	wan_spin_unlock(&hwcard->u_usb.cmd_lock,&flags);
+	wan_clear_bit(WP_USB_STATUS_TX_CMD, &hwusb->status);
+	wan_spin_unlock(&hwusb->cmd_lock, &flags);
 	return data;
 }
 
 u_int8_t sdla_usb_fxo_read(void *phw, ...)
 {
-	sdlahw_t*	hw = (sdlahw_t*)phw;
-	va_list		args;
-	int 		mod_no, off, data;
-
-	WAN_ASSERT(hw == NULL);
-	SDLA_MAGIC(hw);
-	if (sdla_hw_fe_test_and_set_bit(hw,0)){
-		if (WAN_NET_RATELIMIT()){
-			DEBUG_EVENT(
-			"%s: %s:%d: Critical Error: Re-entry in FE!\n",
-					hw->devname,
-					__FUNCTION__,__LINE__);
-		}
-		return -EINVAL;
-	}
-	va_start(args, phw);
-	mod_no = va_arg(args, int);
-	off	= va_arg(args, int);
-	data	= va_arg(args, int);
-	va_end(args);
-
-	data = __sdla_usb_fxo_read(hw, mod_no, (unsigned char)off);
-	sdla_hw_fe_clear_bit(hw,0);
-	return data;
-}
-
-static int __sdla_usb_fxo_write(void *phw, int mod_no, unsigned char off, unsigned char data)
-{
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	sdlahw_card_t	*hwcard = NULL;
-	netskb_t	*skb;
-	u8		*cmd_data;
-	wan_smp_flag_t	flags; 
+	va_list		args;
+	int 		mod_no, off, data;
 
 	WAN_ASSERT(hw == NULL);
 	SDLA_MAGIC(hw);
 	WAN_ASSERT(hw->hwcpu == NULL);
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcard = hw->hwcpu->hwcard;
-	wan_spin_lock(&hwcard->u_usb.cmd_lock,&flags);
-	DEBUG_TX("%s: Tx Write FXO register (%02X: %d <- 0x%02X)!\n", 
-			hw->devname, 
-			WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_WRITE_FXO) | mod_no, 
-			(unsigned char)off, (unsigned char)data);
-	if (!wan_skb_queue_len(&hwcard->u_usb.tx_cmd_free_list)){
-		DEBUG_USB("%s: WARNING: USB FXO Write Command Overrun (%d commands in process)!\n",
-					hw->devname, wan_skb_queue_len(&hwcard->u_usb.tx_cmd_list));
-		hwcard->u_usb.stats.cmd_overrun++;
-		wan_spin_unlock(&hwcard->u_usb.cmd_lock,&flags);
-		return 0;
-	}	
-	skb = wan_skb_dequeue(&hwcard->u_usb.tx_cmd_free_list);
-	cmd_data = wan_skb_put(skb, 3);
-	cmd_data[0] = WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_WRITE_FXO) | mod_no;
-	cmd_data[1] = off; 
-	cmd_data[2] = data; 
-	wan_skb_queue_tail(&hwcard->u_usb.tx_cmd_list, skb);
-
-	/* update mirror registers */
-	hwcard->u_usb.regs[mod_no][off]  = data;
-
-	wan_spin_unlock(&hwcard->u_usb.cmd_lock,&flags);
-	return 0;
-}
-int sdla_usb_fxo_write(void *phw, ...)
-{
-	sdlahw_t*	hw = (sdlahw_t*)phw;
-	va_list		args;
-	int 		mod_no, off, err, data;
-
-	WAN_ASSERT(hw == NULL);
-	SDLA_MAGIC(hw);
 	if (sdla_hw_fe_test_and_set_bit(hw,0)){
 		if (WAN_NET_RATELIMIT()){
 			DEBUG_EVENT(
@@ -610,8 +524,153 @@ int sdla_usb_fxo_write(void *phw, ...)
 	data	= va_arg(args, int);
 	va_end(args);
 
-	err = __sdla_usb_fxo_write(hw, mod_no, (unsigned char)off, (unsigned char)data);
+	data = __sdla_usb_fxo_read(hwcard, mod_no, (unsigned char)off);
 	sdla_hw_fe_clear_bit(hw,0);
+	return data;
+}
+
+static int __sdla_usb_fxo_write(sdlahw_card_t *hwcard, int mod_no, unsigned char off, unsigned char data)
+{
+	sdlahw_usb_t	*hwusb;
+	netskb_t	*skb;
+	u8		*cmd_data;
+	wan_smp_flag_t	flags; 
+
+	hwusb = &hwcard->u_usb;
+	wan_spin_lock(&hwusb->cmd_lock, &flags);
+	DEBUG_TX("%s: Tx Write FXO register (%02X: %d <- 0x%02X)!\n", 
+			hwcard->name, 
+			WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_WRITE_FXO) | mod_no, 
+			(unsigned char)off, (unsigned char)data);
+	if (!wan_skb_queue_len(&hwusb->tx_cmd_free_list)){
+		DEBUG_USB("%s: WARNING: USB FXO Write Command Overrun (%d commands in process)!\n",
+					hwcard->name, wan_skb_queue_len(&hwusb->tx_cmd_list));
+		hwusb->stats.cmd_overrun++;
+		wan_spin_unlock(&hwusb->cmd_lock, &flags);
+		return 0;
+	}	
+	skb = wan_skb_dequeue(&hwusb->tx_cmd_free_list);
+	cmd_data = wan_skb_put(skb, 3);
+	cmd_data[0] = WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_WRITE_FXO) | mod_no;
+	cmd_data[1] = off; 
+	cmd_data[2] = data; 
+	wan_skb_queue_tail(&hwusb->tx_cmd_list, skb);
+
+	/* update mirror registers */
+	hwusb->regs[mod_no][off]  = data;
+
+	wan_spin_unlock(&hwusb->cmd_lock, &flags);
+	return 0;
+}
+int sdla_usb_fxo_write(void *phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	sdlahw_card_t	*hwcard = NULL;
+	va_list		args;
+	int 		mod_no, off, err, data;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+	hwcard = hw->hwcpu->hwcard;
+	if (sdla_hw_fe_test_and_set_bit(hw,0)){
+		if (WAN_NET_RATELIMIT()){
+			DEBUG_EVENT(
+			"%s: %s:%d: Critical Error: Re-entry in FE!\n",
+					hw->devname,
+					__FUNCTION__,__LINE__);
+		}
+		return -EINVAL;
+	}
+	va_start(args, phw);
+	mod_no = va_arg(args, int);
+	off	= va_arg(args, int);
+	data	= va_arg(args, int);
+	va_end(args);
+
+	err = __sdla_usb_fxo_write(hwcard, mod_no, (unsigned char)off, (unsigned char)data);
+	sdla_hw_fe_clear_bit(hw,0);
+	return err;
+}
+
+static int __sdla_usb_cpu_read(sdlahw_card_t *hwcard, unsigned char off, unsigned char *data)
+{
+	sdlahw_usb_t	*hwusb;
+	netskb_t 	*skb;
+	int		err = 0, retry = 0;
+	u8		*cmd_data;
+	wan_smp_flag_t	flags; 
+
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+	*data = 0xFF;
+	if (!wan_test_bit(WP_USB_STATUS_READY, &hwusb->status)){
+		DEBUG_USB("%s: WARNING: RX USB core is not ready (%ld)!\n",
+				hwcard->name,
+				(unsigned long)SYSTEM_TICKS);
+		hwusb->stats.core_notready_cnt++;
+		return -ENODEV;
+	}
+	wan_spin_lock(&hwusb->cmd_lock, &flags);
+	DEBUG_TX("%s: Tx Read CPU register (0x%02X:ticks=%ld)!\n", 
+			hwcard->name,(unsigned char)off,SYSTEM_TICKS);
+	if (wan_test_and_set_bit(WP_USB_STATUS_TX_CMD, &hwusb->status)){
+		DEBUG_USB("%s: WARNING: USB CPU Read Command Overrun (Read command in process)!\n",
+					hwcard->name);
+		hwusb->stats.cmd_overrun++;
+		err = -EBUSY;
+		goto cpu_read_done;
+	}
+	
+	if (!wan_skb_queue_len(&hwusb->tx_cmd_free_list)){
+		DEBUG_USB("%s: WARNING: USB CPU Read Command Overrun (%d commands in process)!\n",
+					hwcard->name, wan_skb_queue_len(&hwusb->tx_cmd_list));
+		hwusb->stats.cmd_overrun++;
+		err = -EBUSY;
+		goto cpu_read_done;
+	}	
+	skb = wan_skb_dequeue(&hwusb->tx_cmd_free_list);
+	cmd_data = wan_skb_put(skb, 2);
+	cmd_data[0] = WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_READ_CPU);
+	cmd_data[1] = off;
+	wan_skb_queue_tail(&hwusb->tx_cmd_list, skb);
+	hwusb->tx_cmd_start = SYSTEM_TICKS;
+
+	//WP_DELAY(20000);
+	do {
+		wait_just_a_bit(SDLA_USBFXO_READ_DELAY, 1);	//WP_DELAY(10000);
+		if (++retry > SDLA_USBFXO_READ_RETRIES) break;
+	} while(!wan_skb_queue_len(&hwusb->rx_cmd_list));
+	if (!wan_skb_queue_len(&hwusb->rx_cmd_list)){
+		DEBUG_USB("%s: WARNING: Timeout on Read USB-CPU Reg (%d:%02X:%ld:%ld:%ld)!\n",
+					hwcard->name, retry,off,
+					(unsigned long)(SYSTEM_TICKS-hwusb->tx_cmd_start),
+					(unsigned long)hwusb->tx_cmd_start,
+					(unsigned long)SYSTEM_TICKS);
+		hwusb->stats.cmd_timeout++;
+		err = -EINVAL;
+		goto cpu_read_done;
+	}
+	skb = wan_skb_dequeue(&hwusb->rx_cmd_list);
+	cmd_data = wan_skb_data(skb);
+	if (cmd_data[1] != off){
+		DEBUG_USB("%s: USB Read response is out of order (%02X:%02X)!\n",
+				hwcard->name, cmd_data[1], off);
+		hwusb->stats.cmd_invalid++;
+		wan_skb_init(skb, 0);
+		wan_skb_queue_tail(&hwusb->rx_cmd_free_list, skb);
+		err = -EINVAL;
+		goto cpu_read_done;
+	}
+	*data = (unsigned char)cmd_data[2];
+
+	wan_skb_init(skb, 0);
+	wan_skb_queue_tail(&hwusb->rx_cmd_free_list, skb);
+
+cpu_read_done: 
+	wan_clear_bit(WP_USB_STATUS_TX_CMD, &hwusb->status);
+	wan_spin_unlock(&hwusb->cmd_lock, &flags);
 	return err;
 }
 
@@ -619,9 +678,7 @@ int sdla_usb_cpu_read(void *phw, unsigned char off, unsigned char *data)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	sdlahw_card_t	*hwcard = NULL;
-	netskb_t 	*skb;
-	u8		*cmd_data;
-	wan_smp_flag_t	flags; 
+//	wan_smp_flag_t	flags; 
 
 	WAN_ASSERT(hw == NULL);
 	SDLA_MAGIC(hw);
@@ -629,58 +686,37 @@ int sdla_usb_cpu_read(void *phw, unsigned char off, unsigned char *data)
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 
 	hwcard = hw->hwcpu->hwcard;
-	*data = 0xFF;
-	if (!wan_test_bit(WP_USB_STATUS_READY, &hwcard->u_usb.status)){
+	return __sdla_usb_cpu_read(hwcard, off, data);
+}
 
-	}
-	wan_spin_lock(&hwcard->u_usb.cmd_lock,&flags);
-	DEBUG_TX("%s: Tx Read CPU register (0x%02X:ticks=%ld)!\n", 
-			hw->devname,(unsigned char)off,SYSTEM_TICKS);
-	if (wan_test_and_set_bit(WP_USB_STATUS_TX_CMD, &hwcard->u_usb.status)){
-		DEBUG_USB("%s: WARNING: USB CPU Read Command Overrun (Read command in process)!\n",
-					hw->devname);
-		hwcard->u_usb.stats.cmd_overrun++;
-		goto cpu_read_done;
-	}
-	
-	if (!wan_skb_queue_len(&hwcard->u_usb.tx_cmd_free_list)){
-		DEBUG_USB("%s: WARNING: USB CPU Read Command Overrun (%d commands in process)!\n",
-					hw->devname, wan_skb_queue_len(&hwcard->u_usb.tx_cmd_list));
-		hwcard->u_usb.stats.cmd_overrun++;
-		goto cpu_read_done;
+static int __sdla_usb_cpu_write(sdlahw_card_t *hwcard, unsigned char off, unsigned char data)
+{
+	sdlahw_usb_t	*hwusb;
+	netskb_t	*skb;
+	u8		*cmd_data;
+	wan_smp_flag_t	flags; 
+
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+	wan_spin_lock(&hwusb->cmd_lock, &flags);
+
+	DEBUG_TX("%s: Tx Write CPU register (0x%02X <- 0x%02X)!\n", 
+			hw->devname, (unsigned char)off, (unsigned char)data);
+	if (!wan_skb_queue_len(&hwusb->tx_cmd_free_list)){
+		DEBUG_USB("%s: WARNING: USB CPU Write Command Overrun (%d commands in process)!\n",
+					hwcard->name, wan_skb_queue_len(&hwusb->tx_cmd_list));
+		hwusb->stats.cmd_overrun++;
+		wan_spin_unlock(&hwusb->cmd_lock, &flags);
+		return -EINVAL;
 	}	
-	skb = wan_skb_dequeue(&hwcard->u_usb.tx_cmd_free_list);
-	cmd_data = wan_skb_put(skb, 2);
-	cmd_data[0] = WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_READ_CPU);
-	cmd_data[1] = off;
-	wan_skb_queue_tail(&hwcard->u_usb.tx_cmd_list, skb);
+	skb = wan_skb_dequeue(&hwusb->tx_cmd_free_list);
+	cmd_data = wan_skb_put(skb, 3);
+	cmd_data[0] = WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_WRITE_CPU);
+	cmd_data[1] = off; 
+	cmd_data[2] = data; 
+	wan_skb_queue_tail(&hwusb->tx_cmd_list, skb);
 
-	//WP_DELAY(20000);
-	wait_just_a_bit(SDLA_USBFXO_READ_DELAY, gl_usb_rw_fast);	//WP_DELAY(10000);
-
-	if (!wan_skb_queue_len(&hwcard->u_usb.rx_cmd_list)){
-		DEBUG_USB("WARNING: %s: Timeout on Read USB-CPU Reg!\n",
-				hw->devname);
-		hwcard->u_usb.stats.cmd_timeout++;
-		goto cpu_read_done;
-	}	
-	skb = wan_skb_dequeue(&hwcard->u_usb.rx_cmd_list);
-	cmd_data = wan_skb_data(skb);
-	if (cmd_data[1] != off){
-		DEBUG_USB("%s: USB Read response is out of order (%02X:%02X)!\n",
-				hw->devname, cmd_data[1], off);
-		hwcard->u_usb.stats.cmd_invalid++;
-		wan_skb_init(skb, 0);
-		wan_skb_queue_tail(&hwcard->u_usb.rx_cmd_free_list, skb);
-		goto cpu_read_done;
-	}
-	*data = (unsigned char)cmd_data[2];
-	wan_skb_init(skb, 0);
-	wan_skb_queue_tail(&hwcard->u_usb.rx_cmd_free_list, skb);
-
-cpu_read_done:
-	wan_clear_bit(WP_USB_STATUS_TX_CMD, &hwcard->u_usb.status);
-	wan_spin_unlock(&hwcard->u_usb.cmd_lock,&flags);
+	wan_spin_unlock(&hwusb->cmd_lock, &flags);
 	return 0;
 }
 
@@ -688,35 +724,14 @@ int sdla_usb_cpu_write(void *phw, unsigned char off, unsigned char data)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	sdlahw_card_t	*hwcard = NULL;
-	netskb_t	*skb;
-	u8		*cmd_data;
-	wan_smp_flag_t	flags; 
 
 	WAN_ASSERT(hw == NULL);
 	SDLA_MAGIC(hw);
 	WAN_ASSERT(hw->hwcpu == NULL);
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcard = hw->hwcpu->hwcard;
-	wan_spin_lock(&hwcard->u_usb.cmd_lock,&flags);
 
-	DEBUG_TX("%s: Tx Write CPU register (0x%02X <- 0x%02X)!\n", 
-			hw->devname, (unsigned char)off, (unsigned char)data);
-	if (!wan_skb_queue_len(&hwcard->u_usb.tx_cmd_free_list)){
-		DEBUG_USB("%s: WARNING: USB CPU Write Command Overrun (%d commands in process)!\n",
-					hw->devname, wan_skb_queue_len(&hwcard->u_usb.tx_cmd_list));
-		hwcard->u_usb.stats.cmd_overrun++;
-		wan_spin_unlock(&hwcard->u_usb.cmd_lock,&flags);
-		return 0;
-	}	
-	skb = wan_skb_dequeue(&hwcard->u_usb.tx_cmd_free_list);
-	cmd_data = wan_skb_put(skb, 3);
-	cmd_data[0] = WP_USB_CMD_TYPE_ENCODE(WP_USB_CMD_TYPE_WRITE_CPU);
-	cmd_data[1] = off; 
-	cmd_data[2] = data; 
-	wan_skb_queue_tail(&hwcard->u_usb.tx_cmd_list, skb);
-
-	wan_spin_unlock(&hwcard->u_usb.cmd_lock,&flags);
-	return 0;
+	return __sdla_usb_cpu_write(hwcard, off, data);
 }
 
 int sdla_usb_write_poll(void *phw, unsigned char off, unsigned char data)
@@ -726,6 +741,7 @@ int sdla_usb_write_poll(void *phw, unsigned char off, unsigned char data)
 
 int sdla_usb_read_poll(void *phw, unsigned char off, unsigned char *data)
 {
+	sdlahw_usb_t	*hwusb = NULL;
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	sdlahw_card_t	*hwcard = NULL;
 	netskb_t	*skb;
@@ -736,53 +752,77 @@ int sdla_usb_read_poll(void *phw, unsigned char off, unsigned char *data)
 	WAN_ASSERT(hw->hwcpu == NULL);
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcard = hw->hwcpu->hwcard;
-	if (!wan_skb_queue_len(&hwcard->u_usb.rx_cmd_list)){
+	hwusb = &hwcard->u_usb;
+	if (!wan_skb_queue_len(&hwusb->rx_cmd_list)){
 		DEBUG_EVENT("WARNING: %s: Timeout on Read USB Reg!\n",
 					hw->devname);
 		return -EBUSY;
 	}	
-	skb = wan_skb_dequeue(&hwcard->u_usb.rx_cmd_list);
+	skb = wan_skb_dequeue(&hwusb->rx_cmd_list);
 	cmd_data = wan_skb_data(skb);
 	*data = (unsigned char)cmd_data[2];
 	wan_skb_init(skb, 0);
-	wan_skb_queue_tail(&hwcard->u_usb.rx_cmd_free_list, skb);
+	wan_skb_queue_tail(&hwusb->rx_cmd_free_list, skb);
 	return 0;
 }
 
 int sdla_usb_rxevent_enable(void *phw, int mod_no, int enable)
 {
+	sdlahw_usb_t	*hwusb = NULL;
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	sdlahw_card_t	*hwcard = NULL;
 	int		event_bit;
-	u8		mask, data;
+	u8		mask;
 
 	WAN_ASSERT(hw == NULL);
 	SDLA_MAGIC(hw);
 	WAN_ASSERT(hw->hwcpu == NULL);
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcard = hw->hwcpu->hwcard;
-
-	if (sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_CONRTOL, &data)){
-		return -EBUSY;
-	}		
-	if (mod_no) mask = SDLA_USB_CPU_BIT_CONRTOL_TS1_EVENT_EN;
-	else mask = SDLA_USB_CPU_BIT_CONRTOL_TS0_EVENT_EN;
-	if (enable) data |= mask;
-	else data &= ~mask; 
-	sdla_usb_cpu_write(hw, SDLA_USB_CPU_REG_CONRTOL, data);
+	hwusb = &hwcard->u_usb;
+	if (mod_no) mask = SDLA_USB_CPU_BIT_CTRL_TS1_EVENT_EN;
+	else mask = SDLA_USB_CPU_BIT_CTRL_TS0_EVENT_EN;
+	if (enable) hwusb->reg_cpu_ctrl |= mask;
+	else hwusb->reg_cpu_ctrl &= ~mask; 
+	sdla_usb_cpu_write(hw, SDLA_USB_CPU_REG_CTRL, hwusb->reg_cpu_ctrl);
 
 	event_bit = (mod_no) ? WP_USB_STATUS_RX_EVENT2_READY : WP_USB_STATUS_RX_EVENT1_READY;
-	wan_set_bit(event_bit, &hwcard->u_usb.status);
+	wan_set_bit(event_bit, &hwusb->status);
 	DEBUG_USB("%s: Module %d: %s RX Events (%02X:%ld)!\n",
 				hw->devname, mod_no+1, 
-				(enable) ? "Enable" : "Disable", data,
+				(enable) ? "Enable" : "Disable", hwusb->reg_cpu_ctrl,
 				(unsigned long)SYSTEM_TICKS);
 	return 0;
 }
 
+int sdla_usb_hwec_enable(void *phw, int mod_no, int enable)
+{
+	sdlahw_usb_t	*hwusb = NULL;
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	sdlahw_card_t	*hwcard = NULL;
+	u8		mask;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+	hwcard = hw->hwcpu->hwcard;
+	hwusb = &hwcard->u_usb;
+	if (mod_no) mask = SDLA_USB_CPU_BIT_CTRL_TS1_HWEC_EN;
+	else mask = SDLA_USB_CPU_BIT_CTRL_TS0_HWEC_EN;
+	if (enable) hwusb->reg_cpu_ctrl |= mask;
+	else hwusb->reg_cpu_ctrl &= ~mask; 
+	sdla_usb_cpu_write(hw, SDLA_USB_CPU_REG_CTRL, hwusb->reg_cpu_ctrl);
+
+	DEBUG_USB("%s: Module %d: %s hw echo canceller!\n",
+				hw->devname, mod_no+1, 
+				(enable) ? "Enable" : "Disable");
+	return 0;
+}
 int sdla_usb_rxevent(void *phw, int mod_no, u8 *regs, int force)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
+	sdlahw_usb_t	*hwusb = NULL;
 	sdlahw_card_t	*hwcard = NULL;
 	int		event_bit;
 
@@ -791,25 +831,25 @@ int sdla_usb_rxevent(void *phw, int mod_no, u8 *regs, int force)
 	WAN_ASSERT(hw->hwcpu == NULL);
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcard = hw->hwcpu->hwcard;
-
+	hwusb = &hwcard->u_usb;
 	event_bit = (mod_no) ? WP_USB_STATUS_RX_EVENT2_READY : WP_USB_STATUS_RX_EVENT1_READY;
-	if(!wan_test_bit(event_bit, &hwcard->u_usb.status)){
+	if(!wan_test_bit(event_bit, &hwusb->status)){
 		return -EINVAL;
 	}
 	if (force){
-		hwcard->u_usb.regs[mod_no][5]  = __sdla_usb_fxo_read(hw, mod_no, 5);
-		hwcard->u_usb.regs[mod_no][29] = __sdla_usb_fxo_read(hw, mod_no, 29);
-		hwcard->u_usb.regs[mod_no][34] = __sdla_usb_fxo_read(hw, mod_no, 34);
-		hwcard->u_usb.regs[mod_no][4]  = __sdla_usb_fxo_read(hw, mod_no, 4);
+		hwusb->regs[mod_no][5]  = __sdla_usb_fxo_read(hwcard, mod_no, 5);
+		hwusb->regs[mod_no][29] = __sdla_usb_fxo_read(hwcard, mod_no, 29);
+		hwusb->regs[mod_no][34] = __sdla_usb_fxo_read(hwcard, mod_no, 34);
+		hwusb->regs[mod_no][4]  = __sdla_usb_fxo_read(hwcard, mod_no, 4);
 		DEBUG_USB("%s: Module %d: RX Event Init (%02X:%02X:%02X:%02X)...\n",
 				hw->devname, mod_no+1,
-				hwcard->u_usb.regs[mod_no][5], hwcard->u_usb.regs[mod_no][29],
-				hwcard->u_usb.regs[mod_no][34], hwcard->u_usb.regs[mod_no][4]);
+				hwusb->regs[mod_no][5], hwusb->regs[mod_no][29],
+				hwusb->regs[mod_no][34], hwusb->regs[mod_no][4]);
 	}
-	regs[0] = hwcard->u_usb.regs[mod_no][5];
-	regs[1] = hwcard->u_usb.regs[mod_no][29];
-	regs[2] = hwcard->u_usb.regs[mod_no][34];
-	regs[3] = hwcard->u_usb.regs[mod_no][4];
+	regs[0] = hwusb->regs[mod_no][5];
+	regs[1] = hwusb->regs[mod_no][29];
+	regs[2] = hwusb->regs[mod_no][34];
+	regs[3] = hwusb->regs[mod_no][4];
 	return 0;
 }
 
@@ -848,96 +888,70 @@ int sdla_usb_rxdata_enable(void *phw, int enable)
 	return 0;
 }
 
-int sdla_usb_rxdata(void *phw, unsigned char *data, int len)
+int sdla_usb_fwupdate_enable(void *phw)
 {
+	sdlahw_usb_t	*hwusb = NULL;
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	sdlahw_card_t	*hwcard = NULL;
-	int		rx_len, rx_ind;
- 
-	WAN_ASSERT_RC(hw == NULL, 0);
-	SDLA_MAGIC_RC(hw, 0);
-	WAN_ASSERT_RC(hw->hwcpu == NULL, 0);
-	WAN_ASSERT_RC(hw->hwcpu->hwcard == NULL, 0);
+	unsigned char	data[1];
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcard = hw->hwcpu->hwcard;
+	hwusb = &hwcard->u_usb;
 
-	rx_ind = hwcard->u_usb.next_rx_ind;
-	if (rx_ind > hwcard->u_usb.next_read_ind){
-		rx_len = rx_ind - hwcard->u_usb.next_read_ind; 
-	}else if (rx_ind < hwcard->u_usb.next_read_ind){
-		rx_len = MAX_READ_BUF_LEN - hwcard->u_usb.next_read_ind + rx_ind;
-	}else{
-		DEBUG_USB("%s: No data available!\n",
-					hw->devname);
-		return 0;
-	}
-	if (rx_len < len){
-		DEBUG_USB("%s: No enought data received (%d:%d)\n",
-					hw->devname, rx_len, len);
-		return 0;
-	}
+	/* Send Firmware update command */
+	data[0] = SDLA_USB_CPU_BITS_FWUPDATE_MAGIC;
+	sdla_usb_cpu_write(phw, SDLA_USB_CPU_REG_FWUPDATE_MAGIC, SDLA_USB_CPU_BITS_FWUPDATE_MAGIC);
+	data[0] = SDLA_USB_CPU_BIT_CTRL_FWUPDATE;
+	sdla_usb_cpu_write(phw, SDLA_USB_CPU_REG_CTRL, SDLA_USB_CPU_BIT_CTRL_FWUPDATE);
+	wait_just_a_bit(SDLA_USBFXO_WRITE_DELAY, 0);
+	DEBUG_EVENT("%s: Enabling Firmware Update mode...\n",
+				  hwcard->name);
+	hwusb->opmode = SDLA_USB_OPMODE_API;
 
-	memcpy(data, &hwcard->u_usb.readbuf[hwcard->u_usb.next_read_ind], len);
-	hwcard->u_usb.next_read_ind += len;
-	return len;
+	/* Initialize rx urb */
+	sdla_usb_rxurb_reset(hwcard);
+	sdla_usb_txurb_reset(hwcard);
+
+	return 0;
 }
 
-int sdla_usb_txdata(void *phw, unsigned char *data, int len)
+int sdla_usb_txdata_raw(void *phw, unsigned char *data, int max_len)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
 	sdlahw_card_t	*hwcard = NULL;
-	int		urb_write_ind;
- 
-	WAN_ASSERT_RC(hw == NULL, 0);
-	SDLA_MAGIC_RC(hw, 0);
-	WAN_ASSERT_RC(hw->hwcpu == NULL, 0);
-	WAN_ASSERT_RC(hw->hwcpu->hwcard == NULL, 0);
+	int		err = 0;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcard = hw->hwcpu->hwcard;
 
-	if (len > MAX_USB_TX_LEN){
-		len = MAX_USB_TX_LEN;
+	if (max_len > MAX_USB_TX_LEN){
+		max_len = MAX_USB_TX_LEN;
 	}
-	memcpy(&hwcard->u_usb.writebuf[hwcard->u_usb.next_tx_ind], data, len);
-
-	/* Mark this urb as busy */
-	urb_write_ind = (hwcard->u_usb.urb_write_ind + 1) % MAX_WRITE_URB_COUNT;
-	hwcard->u_usb.datawrite[urb_write_ind].urb.transfer_buffer = &hwcard->u_usb.writebuf[hwcard->u_usb.next_tx_ind];
-	hwcard->u_usb.datawrite[urb_write_ind].urb.transfer_buffer_length = len;
-	hwcard->u_usb.next_tx_ind += len;
-	hwcard->u_usb.next_tx_ind = hwcard->u_usb.next_tx_ind % MAX_WRITE_BUF_LEN;
-	wan_clear_bit(WP_USB_STATUS_TX_READY, &hwcard->u_usb.status);
-	if (wp_usb_start_transfer(&hwcard->u_usb.datawrite[urb_write_ind])){
-		DEBUG_TX("%s: Failed to execute write cycle (%d:%d)\n",
- 				hw->devname,
-				hwcard->u_usb.next_tx_ind, hwcard->u_usb.next_write_ind);
-		hwcard->u_usb.stats.tx_notready_cnt++;
-		return 0;
-	}else{
-		hwcard->u_usb.urb_write_ind = urb_write_ind;
-	}	
-
-	return len;
+	err = sdla_usb_txdata_prepare(hwcard, data, max_len);
+	return (!err) ? max_len : 0;
 }
 
-int sdla_usb_txdata_ready(void *phw)
+int sdla_usb_txdata_raw_ready(void *phw)
 {
-	sdlahw_t	*hw = (sdlahw_t*)phw;
-	sdlahw_card_t	*hwcard = NULL;
-	int		urb_write_ind;
- 
-	WAN_ASSERT_RC(hw == NULL, -EBUSY);
-	SDLA_MAGIC_RC(hw, -EBUSY);
-	WAN_ASSERT_RC(hw->hwcpu == NULL, -EBUSY);
-	WAN_ASSERT_RC(hw->hwcpu->hwcard == NULL, -EBUSY);
-	hwcard = hw->hwcpu->hwcard;
+	sdlahw_t			*hw = (sdlahw_t*)phw;
+	sdlahw_usb_t			*hwusb = NULL;
+	sdlahw_card_t			*hwcard = NULL;
 
-	urb_write_ind = (hwcard->u_usb.urb_write_ind + 1) % MAX_WRITE_URB_COUNT;
-	if (!wan_test_bit(1, &hwcard->u_usb.datawrite[urb_write_ind].ready)){
-		DEBUG_TX("%s:%d: Tx Data is busy!\n",
-				hw->devname, hwcard->u_usb.datawrite[urb_write_ind].id,
-				(unsigned long)SYSTEM_TICKS);
-		return -EBUSY;
-	}
-	if (!wan_test_bit(WP_USB_STATUS_TX_READY, &hwcard->u_usb.status)){
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+	hwcard = hw->hwcpu->hwcard;
+	hwusb = &hwcard->u_usb;
+
+	if (!wan_test_bit(WP_USB_STATUS_TX_READY, &hwusb->status)){
 		DEBUG_TX("%s:%d: Tx Data is busy (%ld)!\n",
 				hw->devname, hwcard->u_usb.datawrite[urb_write_ind].id,
 				(unsigned long)SYSTEM_TICKS);
@@ -945,6 +959,26 @@ int sdla_usb_txdata_ready(void *phw)
 	}
 	return 0;
 }
+
+int sdla_usb_rxdata_raw(void *phw, unsigned char *data, int max_len)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	sdlahw_card_t	*hwcard = NULL;
+	int		rxlen = 0;
+
+	WAN_ASSERT(hw == NULL);
+	SDLA_MAGIC(hw);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+	hwcard = hw->hwcpu->hwcard;
+
+	if (max_len > MAX_USB_RX_LEN){
+		max_len = MAX_USB_RX_LEN;
+	}
+	rxlen = sdla_usb_rxdata_get(hwcard, data, max_len);
+	return rxlen;
+}
+
 
 int sdla_usb_set_intrhand(void* phw, wan_pci_ifunc_t *isr_func, void* arg, int notused)
 {
@@ -981,6 +1015,7 @@ int sdla_usb_restore_intrhand(void* phw, int notused)
 int sdla_usb_err_stats(void *phw,void *buf,int len)
 {
 	sdlahw_t			*hw = (sdlahw_t*)phw;
+	sdlahw_usb_t			*hwusb = NULL;
 	sdlahw_card_t			*hwcard = NULL;
 	sdla_usb_comm_err_stats_t	*stats;
 
@@ -989,16 +1024,16 @@ int sdla_usb_err_stats(void *phw,void *buf,int len)
 	WAN_ASSERT(hw->hwcpu == NULL);
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcard = hw->hwcpu->hwcard;
-
+	hwusb = &hwcard->u_usb;
 	if (len != sizeof(sdla_usb_comm_err_stats_t)){
 		DEBUG_EVENT("%s: Invalid stats structure (%d:%d)!\n",
-				hw->devname, len, sizeof(sdla_usb_comm_err_stats_t)); 
+				hw->devname, len, (int)sizeof(sdla_usb_comm_err_stats_t)); 
 		return -EINVAL;
 	}
-	stats = &hwcard->u_usb.stats;
-	sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_FIFO_STATUS, &stats->fifo_status);
-	sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_UART_STATUS, &stats->uart_status);
-	sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_HOSTIF_STATUS, &stats->hostif_status);
+	stats = &hwusb->stats;
+	sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_FIFO_STATUS, &stats->dev_fifo_status);
+	sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_UART_STATUS, &stats->dev_uart_status);
+	sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_HOSTIF_STATUS, &stats->dev_hostif_status);
 
 	memcpy(buf, stats,sizeof(sdla_usb_comm_err_stats_t));
 	return 0; 
@@ -1021,40 +1056,38 @@ int sdla_usb_flush_err_stats(void *phw)
 
 static unsigned int	bhcount=0, rxcount=0, txcount=0;
 
-static int sdla_usb_decode_rxcmd(sdlahw_t *hw, u8 *rx_cmd, int rx_cmd_len)
+static int sdla_usb_rxcmd_decode(sdlahw_card_t *hwcard, u8 *rx_cmd, int rx_cmd_len)
 {
-	sdlahw_card_t	*hwcard;
+	sdlahw_usb_t	*hwusb = NULL;
 	netskb_t	*skb;
 	u_int8_t	*cmd;
 	u_int8_t	reg_no;
 	int		mod_no;
 
-	WAN_ASSERT(hw == NULL);
-	WAN_ASSERT(hw->hwcpu == NULL);
-	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
 	switch(WP_USB_CMD_TYPE_DECODE(rx_cmd[0])){
 	case WP_USB_CMD_TYPE_WRITE_CPU:
 		DEBUG_RX("%s: Rx Write CPU register (%02X:%02X)!\n", 
-					hw->devname,
+					hwcard->name,
 					(unsigned char)rx_cmd[1],
 					(unsigned char)rx_cmd[2]);
 		break;			
 	case WP_USB_CMD_TYPE_READ_CPU:
 		DEBUG_RX("%s: Rx Read CPU register (%02X:%02X)!\n", 
-					hw->devname,
+					hwcard->name,
 					(unsigned char)rx_cmd[1],
 					(unsigned char)rx_cmd[2]);
 		break;
 	case WP_USB_CMD_TYPE_WRITE_FXO:
 		DEBUG_RX("%s: Rx Write FXO register (%02X:%02X)!\n", 
-					hw->devname,
+					hwcard->name,
 					(unsigned char)rx_cmd[1],
 					(unsigned char)rx_cmd[2]);
 		break;
 	case WP_USB_CMD_TYPE_READ_FXO:
 		DEBUG_RX("%s: Rx Read FXO register (%d:%02X)!\n", 
-					hw->devname,
+					hwcard->name,
 					(unsigned char)rx_cmd[1],
 					(unsigned char)rx_cmd[2]);
 		break;
@@ -1062,81 +1095,87 @@ static int sdla_usb_decode_rxcmd(sdlahw_t *hw, u8 *rx_cmd, int rx_cmd_len)
 		mod_no = rx_cmd[0] & 0x01;
 		reg_no = rx_cmd[1];
 		DEBUG_RX("%s: Module %d: Rx Event Info (Reg:%d = %02X:%ld)!\n", 
-					hw->devname, mod_no+1, 
+					hwcard->name, mod_no+1, 
 					reg_no, rx_cmd[2],
 					(unsigned long)SYSTEM_TICKS);
-		hwcard->u_usb.regs[mod_no][reg_no] = rx_cmd[2];
+		hwusb->regs[mod_no][reg_no] = rx_cmd[2];
 		return 0;
 	default:
 		DEBUG_USB("%s: Unknown command %X : %02X!\n",
-				hw->devname,
+				hwcard->name,
 				WP_USB_CMD_TYPE_DECODE(rx_cmd[0]), rx_cmd[0]);
-		hwcard->u_usb.stats.rx_cmd_unknown++;
+		hwusb->stats.rx_cmd_unknown++;
 		return -EINVAL;
 	}
-	skb = wan_skb_dequeue(&hwcard->u_usb.rx_cmd_free_list);
+	skb = wan_skb_dequeue(&hwusb->rx_cmd_free_list);
 	cmd = wan_skb_put(skb, rx_cmd_len);
 	memcpy(cmd, &rx_cmd[0], rx_cmd_len);
-	wan_skb_queue_tail(&hwcard->u_usb.rx_cmd_list, skb); 
+	wan_skb_queue_tail(&hwusb->rx_cmd_list, skb);
 	return 0;
 }
 
-static int sdla_usb_rx_bh (sdlahw_t *hw)
+static int 
+sdla_usb_rxdata_get(sdlahw_card_t *hwcard, unsigned char *rxdata, int max_len)
 {
-	sdlahw_card_t	*hwcard = NULL;
-	int		rx_len, rx_ind = 0;
-	int		off, x = 0, mod_no=0, ind=0, high=0, shift=0;
+	sdlahw_usb_t	*hwusb = NULL;
+	int		rx_len, next_rx_ind = 0, next_read_ind;
+	
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+
+	next_rx_ind	= hwusb->next_rx_ind;
+	next_read_ind	= hwusb->next_read_ind;
+	if (next_rx_ind > next_read_ind){
+		rx_len = next_rx_ind - next_read_ind; 
+	}else if (next_rx_ind < next_read_ind){
+		rx_len = MAX_READ_BUF_LEN - next_read_ind + next_rx_ind;
+	}else{
+		return 0;
+	}
+	if (rxdata == NULL){
+		/* ignore previously received data */
+		hwusb->next_read_ind = (next_read_ind + rx_len) % MAX_READ_BUF_LEN;
+		return rx_len;
+	}
+	if (rx_len > max_len) rx_len = max_len;
+	if (rx_len > MAX_USB_RX_LEN) rx_len = MAX_USB_RX_LEN;
+
+	if (next_read_ind + rx_len < MAX_READ_BUF_LEN){
+		memcpy(rxdata, &hwusb->readbuf[next_read_ind], rx_len);
+	}else{
+		int len = MAX_READ_BUF_LEN - next_read_ind;
+		memcpy(rxdata, &hwusb->readbuf[next_read_ind], len);
+		memcpy(&rxdata[len], &hwusb->readbuf[0], rx_len-len);
+	}
+	hwusb->next_read_ind = (next_read_ind + rx_len) % MAX_READ_BUF_LEN;
+	return rx_len;
+}
+
+static int sdla_usb_rxdata_decode (sdlahw_card_t *hwcard, unsigned char *rxdata, int len)
+{
+	sdlahw_usb_t	*hwusb = NULL;
+	int		x = 0, mod_no=0, ind=0, high=0, shift=0;
 	unsigned char	data, cmd, start_bit, start_fr_bit;
 	u_int8_t	*rx_data[2];
 	u_int8_t	rx_cmd[10];
-	int	rx_cmd_len= 0;
+	int		rx_cmd_len= 0;
 
-	WAN_ASSERT(hw == NULL);
-	WAN_ASSERT(hw->hwcpu == NULL);
-	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
-	rx_ind = hwcard->u_usb.next_rx_ind;
-	if (rx_ind > hwcard->u_usb.next_read_ind){
-		rx_len = rx_ind - hwcard->u_usb.next_read_ind; 
-	}else if (rx_ind < hwcard->u_usb.next_read_ind){
-		rx_len = MAX_READ_BUF_LEN - hwcard->u_usb.next_read_ind + rx_ind;
-	}else{
-		DEBUG_USB("%s: INTERNAL ERROR:%d: No data available!\n",
-					hw->devname, (u32)SYSTEM_TICKS);
-		hwcard->u_usb.stats.rx_underrun_cnt++;
-		return -EINVAL;
-	}
-	if (rx_len < MAX_USB_RX_LEN){
-		DEBUG_USB("%s: ERROR: Not enough data (%d:%d:%d:%d)!\n",
-				hw->devname, rx_len,
-				hwcard->u_usb.next_read_ind,
-				hwcard->u_usb.next_rx_ind,
-				MAX_READ_BUF_LEN);
-		hwcard->u_usb.stats.rx_underrun_cnt++;
-		return 0;
-	}
-	if (rx_len > MAX_USB_RX_LEN) rx_len = MAX_USB_RX_LEN;
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
 
-	DEBUG_RX("[RX-BH]%s:%d: RX:%d (%d:%d)\n",
-			__FUNCTION__,__LINE__,rx_len, 
-			hwcard->u_usb.next_read_ind,
-			hwcard->u_usb.next_rx_ind);
+	rx_data[0] = hwusb->readchunk[0];
+	rx_data[1] = hwusb->readchunk[1];
 
-	off = hwcard->u_usb.next_read_ind;
-	x = 0;
-
-	rx_data[0] = hwcard->u_usb.readchunk[0];
-	rx_data[1] = hwcard->u_usb.readchunk[1];
-	//memset(&hwcard->u_usb.readchunk[0][0], 0, WP_USB_MAX_CHUNKSIZE);
-	//memset(&hwcard->u_usb.readchunk[1][0], 0, WP_USB_MAX_CHUNKSIZE);
+	//memset(&hwusb->readchunk[0][0], 0, WP_USB_MAX_CHUNKSIZE);
+	//memset(&hwusb->readchunk[1][0], 0, WP_USB_MAX_CHUNKSIZE);
 	memset(&rx_cmd[0],0, 10);
+	x = 0;
+	while(x < MAX_USB_RX_LEN){
 
-	while(rx_len){
-
-		DEBUG_RX("  RX: %02X\n", (unsigned char)hwcard->u_usb.readbuf[off]);
-		data		= hwcard->u_usb.readbuf[off] & 0x0F;
-		start_bit	= hwcard->u_usb.readbuf[off] & 0x10;
-		start_fr_bit	= hwcard->u_usb.readbuf[off] & 0x20;
+		DEBUG_RX("  RX: %02X\n", (unsigned char)rxdata[x]);
+		data		= rxdata[x] & 0x0F;
+		start_bit	= rxdata[x] & 0x10;
+		start_fr_bit	= rxdata[x] & 0x20;
 
 		ind	= x / 4;
 		mod_no	= x % 2;
@@ -1146,13 +1185,11 @@ static int sdla_usb_rx_bh (sdlahw_t *hw)
 			if (!start_fr_bit){
 				DEBUG_USB(
 				"%s: ERROR:%d: Start Frame bit missing (%d:%d:%02X:%ld)\n",
-						hw->devname,
-						bhcount,off,ind,
-						(unsigned char)hwcard->u_usb.readbuf[off],
+						hwcard->name,
+						bhcount,x,ind,
+						(unsigned char)rxdata[x],
 						(unsigned long)SYSTEM_TICKS);
-				hwcard->u_usb.stats.rx_start_fr_err_cnt++;
- 				/* Skip the current packet */
-				off = (off + rx_len) % MAX_READ_BUF_LEN;
+				hwusb->stats.rx_start_fr_err_cnt++;
 				break;
 			}
 		}
@@ -1160,19 +1197,17 @@ static int sdla_usb_rx_bh (sdlahw_t *hw)
 			if (!start_bit){
 				DEBUG_USB(
 				"%s: ERROR:%d: Start bit missing (%d:%02X:%ld)\n",
-						hw->devname,
-						bhcount,off,
-						(unsigned char)hwcard->u_usb.readbuf[off],
+						hwcard->name,
+						bhcount,x,
+						(unsigned char)rxdata[x],
 						(unsigned long)SYSTEM_TICKS);
-				hwcard->u_usb.stats.rx_start_err_cnt++;
- 				/* Skip the current packet */
-				off = (off + rx_len) % MAX_READ_BUF_LEN;
+				hwusb->stats.rx_start_err_cnt++;
 				break;
 			}
 		}
 		DEBUG_RX("x:%d mod:%d ind:%d high:%d data:%02X\n",
 					x, mod_no, ind, high,
-					(unsigned char)hwcard->u_usb.readbuf[off]);
+					(unsigned char)rxdata[x]);
 		if (high){
 			rx_data[mod_no][ind] |= (data << 4);	//sc->readchunk[mod_no][ind] |= (data << 4);
 		}else{
@@ -1180,34 +1215,34 @@ static int sdla_usb_rx_bh (sdlahw_t *hw)
 		}
 
 		/* decode control command (2 bits) */
-		cmd = hwcard->u_usb.readbuf[off] & 0xC0;
+		cmd = rxdata[x] & 0xC0;
 
 		ind = x / 4;
 		shift = (x % 4) * 2;
 		cmd = cmd >> shift;
 		if (ind && shift == 0){
-			if (rx_cmd[rx_cmd_len] == hwcard->u_usb.ctrl_idle_pattern){
+			if (rx_cmd[rx_cmd_len] == hwusb->ctrl_idle_pattern){
 				DEBUG_RX("RX_CMD: x:%d ind:%d shift:%d len:%d ctrl_idle_pattern\n",
 							x, ind, shift, rx_cmd_len);
 				rx_cmd[rx_cmd_len] = 0x00;
 				if (rx_cmd_len){
-					if (!wan_skb_queue_len(&hwcard->u_usb.rx_cmd_free_list)){
+					if (!wan_skb_queue_len(&hwusb->rx_cmd_free_list)){
 						DEBUG_USB("%s: INTERNAL ERROR:%d: Received too many commands!\n",
-								hw->devname, (u32)SYSTEM_TICKS);
-						hwcard->u_usb.stats.rx_cmd_drop_cnt++;
+								hwcard->name, (u32)SYSTEM_TICKS);
+						hwusb->stats.rx_cmd_drop_cnt++;
 						rx_cmd_len = 0;
 					}
 					if (rx_cmd_len >= 3){
-						sdla_usb_decode_rxcmd(hw, rx_cmd, rx_cmd_len);
+						sdla_usb_rxcmd_decode(hwcard, rx_cmd, rx_cmd_len);
 					}else{
-						hwcard->u_usb.stats.rx_cmd_reset_cnt++;
+						hwusb->stats.rx_cmd_reset_cnt++;
 						if (rx_cmd_len == 1){
 							DEBUG_USB("%s: Reset RX Cmd (%d:%02X:%02X)!\n",	
-								hw->devname, rx_cmd_len,
+								hwcard->name, rx_cmd_len,
 								WP_USB_CMD_TYPE_DECODE(rx_cmd[0]), rx_cmd[0]);
 						}else{
 							DEBUG_USB("%s: Reset RX Cmd (%d:%02X:%02X:%02X)!\n",	
-								hw->devname, rx_cmd_len,
+								hwcard->name, rx_cmd_len,
 								WP_USB_CMD_TYPE_DECODE(rx_cmd[0]), rx_cmd[0],rx_cmd[1]);
 						}
 					}
@@ -1224,37 +1259,107 @@ static int sdla_usb_rx_bh (sdlahw_t *hw)
 		DEBUG_RX("RX_CMD: x:%d ind:%d shift:%d cmd:%02X:%02X\n",
 					x, ind, shift, (unsigned char)cmd,
 					(unsigned char)rx_cmd[rx_cmd_len]);
-		off = (off + 1) % MAX_READ_BUF_LEN;
-		rx_len --;
 		x++;
 	}
-	hwcard->u_usb.next_read_ind = off;
-
-	if (wan_test_bit(WP_USB_STATUS_RX_DATA_READY, &hwcard->u_usb.status) && hwcard->u_usb.isr_func){
-		hwcard->u_usb.isr_func(hwcard->u_usb.isr_arg);
-	}	
 	return 0;
 }
 
-static int sdla_usb_tx_bh (sdlahw_t *hw)
-{	
-	sdlahw_card_t	*hwcard = NULL;
-	int		next_write_ind;
+static int
+sdla_usb_txdata_prepare(sdlahw_card_t *hwcard, char *writebuf, int len)
+{
+	sdlahw_usb_t	*hwusb = NULL;
+	int		next_write_ind, urb_write_ind; 
+	int		err;
+
+	WAN_ASSERT(hwcard == NULL);
+	WAN_ASSERT(len > MAX_USB_TX_LEN);
+	hwusb = &hwcard->u_usb;
+	
+	next_write_ind = hwusb->next_write_ind;
+	memcpy(&hwusb->writebuf[next_write_ind], writebuf, len); 
+
+	next_write_ind = (next_write_ind + len) % MAX_WRITE_BUF_LEN;  
+	if (next_write_ind == hwusb->next_tx_ind){
+		DEBUG_USB("ERROR:%d: TX BH is too fast (%d:%ld)\n",
+					bhcount,
+					next_write_ind, 
+					(unsigned long)SYSTEM_TICKS);
+		hwusb->stats.tx_overrun_cnt++;
+	}else{
+		hwusb->next_write_ind = next_write_ind;
+	}
+
+	urb_write_ind = (hwusb->urb_write_ind + 1) % MAX_WRITE_URB_COUNT;
+#if 1
+	if (!wan_test_bit(SDLA_URB_STATUS_READY, &hwusb->datawrite[urb_write_ind].ready)){
+		/* Use previous urb for now and increment errors */
+		DEBUG_TX("%s: [BH:%d:%d:%d]: TX is not ready (%ld)!\n",
+				hwcard->name, 
+				bhcount,rxcount,txcount,
+				(unsigned long)SYSTEM_TICKS);
+		hwusb->stats.tx_overrun_cnt++;
+		return -EINVAL;
+	}
+	/* Update tx urb */
+	hwusb->datawrite[urb_write_ind].urb.transfer_buffer = &hwusb->writebuf[hwusb->next_tx_ind];
+	hwusb->datawrite[urb_write_ind].urb.transfer_buffer_length = len;
+	hwusb->next_tx_ind += len;
+	hwusb->next_tx_ind = hwusb->next_tx_ind % MAX_WRITE_BUF_LEN;
+	wan_clear_bit(WP_USB_STATUS_TX_READY, &hwusb->status);	//sc->tx_ready = 0;
+	if ((err = wp_usb_start_transfer(&hwusb->datawrite[urb_write_ind]))){
+		if (err != -ENOENT){
+			DEBUG_EVENT("%s: Failed to program transmitter (%ld)!\n",
+					hwcard->name,
+					(unsigned long)SYSTEM_TICKS);
+		}
+		hwusb->stats.tx_notready_cnt++;
+		return -EINVAL;
+	}
+	hwusb->urb_write_ind = urb_write_ind;
+
+#else
+	if (wan_test_bit(1, &hwusb->datawrite[urb_write_ind].ready)){
+		/* Update tx urb */
+		hwusb->datawrite[urb_write_ind].urb.transfer_buffer = &hwusb->writebuf[hwusb->next_tx_ind];
+		hwusb->next_tx_ind += len;
+		hwusb->next_tx_ind = hwusb->next_tx_ind % MAX_WRITE_BUF_LEN;
+	}else{
+		/* Use previous urb for now and increment errors */
+		DEBUG_USB("%s: [BH:%d:%d:%d]: TX is not ready (%ld)!\n",
+				hwcard->name, 
+				bhcount,rxcount,txcount,
+				(unsigned long)SYSTEM_TICKS);
+		hwusb->stats.tx_overrun_cnt++;
+	}
+	wan_clear_bit(WP_USB_STATUS_TX_READY, &hwusb->status);	//sc->tx_ready = 0;
+	if ((err = wp_usb_start_transfer(&hwusb->datawrite[urb_write_ind]))){
+		if (err != -ENOENT){
+			DEBUG_EVENT("%s: Failed to program transmitter (%ld)!\n",
+					hwcard->name,
+					(unsigned long)SYSTEM_TICKS);
+		}
+		hwusb->stats.tx_notready_cnt++;
+		return -EINVAL;
+	}
+	hwusb->urb_write_ind = urb_write_ind;
+#endif
+	return 0;
+}
+
+static int
+sdla_usb_txdata_encode (sdlahw_card_t *hwcard, unsigned char *writebuf, int len)
+{
+	sdlahw_usb_t	*hwusb = NULL;
 	int		off, x = 0, ind, mod_no, tx_idle = 0;
 	unsigned char	data, start_bit;
 	unsigned char	*txdata[2];
 
-	WAN_ASSERT(hw == NULL);
-	WAN_ASSERT(hw->hwcpu == NULL);
-	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
-	DEBUG_TX("%s:%d: TX:%d (%d:%d)\n",
-			__FUNCTION__,__LINE__,MAX_USB_TX_LEN,
-			hwcard->u_usb.next_tx_ind, hwcard->u_usb.next_write_ind);
-	txdata[0] = hwcard->u_usb.writechunk[0];
-	txdata[1] = hwcard->u_usb.writechunk[1];
-	next_write_ind = hwcard->u_usb.next_write_ind; 
-	memcpy(&hwcard->u_usb.writebuf[next_write_ind], &hwcard->u_usb.idlebuf[0], MAX_USB_TX_LEN); 
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+
+	txdata[0] = hwusb->writechunk[0];
+	txdata[1] = hwusb->writechunk[1];
+	memcpy(writebuf, &hwusb->idlebuf[0], MAX_USB_TX_LEN); 
 	for (x = 0; x < WP_USB_RXTX_CHUNKSIZE; x++) {
 		for (mod_no = 0; mod_no < 2; mod_no++) {
 			start_bit = 0x00;
@@ -1265,96 +1370,102 @@ static int sdla_usb_tx_bh (sdlahw_t *hw)
 			}
 	
 			ind = x * 4 + mod_no;
-			WP_USB_CTRL_ENCODE(&hwcard->u_usb.writebuf[next_write_ind], ind);
+			WP_USB_CTRL_ENCODE(writebuf, ind);
 			/* write loq nibble */
-			WP_USB_DATA_ENCODE(&hwcard->u_usb.writebuf[next_write_ind+ind], data);
+			WP_USB_DATA_ENCODE(&writebuf[ind], data);
 			DEBUG_TX("TX: x:%d mod:%d ind:%d:%d data:%02X:%02X:%02X\n",
 						x, mod_no, ind, ind+2,
 						(unsigned char)data,
-						(unsigned char)hwcard->u_usb.writebuf[next_write_ind+ind],
-						(unsigned char)hwcard->u_usb.writebuf[next_write_ind+ind+2]);
+						(unsigned char)writebuf[ind],
+						(unsigned char)writebuf[ind+2]);
 		}
 	}	
 
-	if (wan_skb_queue_len(&hwcard->u_usb.tx_cmd_list)){
+	if (wan_skb_queue_len(&hwusb->tx_cmd_list)){
 		u8		*cmd;
 		int		cmd_len;
 		netskb_t	*skb;
 	
-		skb = wan_skb_dequeue(&hwcard->u_usb.tx_cmd_list);
+		skb = wan_skb_dequeue(&hwusb->tx_cmd_list);
 		cmd = wan_skb_data(skb);
 		cmd_len = wan_skb_len(skb);
 		off = 0;
 
 		off++;
 		for (x=0; x < cmd_len; x++,off++) {
-			WP_USB_CMD_ENCODE(&hwcard->u_usb.writebuf[next_write_ind+off*4], cmd[x]);
+			WP_USB_CMD_ENCODE(&writebuf[off*4], cmd[x]);
 			DEBUG_TX("TX_CMD: off:%d byte:%02X %02X:%02X:%02X:%02X\n",
 					off, cmd[x],
-					(unsigned char)hwcard->u_usb.writebuf[next_write_ind+off*4],
-					(unsigned char)hwcard->u_usb.writebuf[next_write_ind+off*4+1],
-					(unsigned char)hwcard->u_usb.writebuf[next_write_ind+off*4+2],
-					(unsigned char)hwcard->u_usb.writebuf[next_write_ind+off*4+3]);
+					(unsigned char)writebuf[off*4],
+					(unsigned char)writebuf[off*4+1],
+					(unsigned char)writebuf[off*4+2],
+					(unsigned char)writebuf[off*4+3]);
 		}
 		wan_skb_init(skb, 0);
-		wan_skb_queue_tail(&hwcard->u_usb.tx_cmd_free_list, skb);
+		wan_skb_queue_tail(&hwusb->tx_cmd_free_list, skb);
 	}
-	
-	next_write_ind = (next_write_ind + MAX_USB_TX_LEN) % MAX_WRITE_BUF_LEN;  
-	if (next_write_ind == hwcard->u_usb.next_tx_ind){
-		DEBUG_USB("ERROR:%d: TX BH is too fast (%d:%ld)\n",
-					bhcount,
-					next_write_ind, 
-					(unsigned long)SYSTEM_TICKS);
-		hwcard->u_usb.stats.tx_overrun_cnt++;
-	}else{
-		hwcard->u_usb.next_write_ind = next_write_ind;
-	}
-
-#if 1
-{
-	int urb_write_ind = (hwcard->u_usb.urb_write_ind + 1) % MAX_WRITE_URB_COUNT;
-	if (wan_test_bit(1, &hwcard->u_usb.datawrite[urb_write_ind].ready)){
-		/* Update tx urb */
-		hwcard->u_usb.datawrite[urb_write_ind].urb.transfer_buffer = &hwcard->u_usb.writebuf[hwcard->u_usb.next_tx_ind];
-		hwcard->u_usb.next_tx_ind += MAX_USB_TX_LEN;
-		hwcard->u_usb.next_tx_ind = hwcard->u_usb.next_tx_ind % MAX_WRITE_BUF_LEN;
-	}else{
-		/* Use previous urb for now and increment errors */
-		DEBUG_USB("%s: [BH:%d:%d:%d]: TX is not ready (%ld)!\n",
-				hw->devname, bhcount,rxcount,txcount,(unsigned long)SYSTEM_TICKS);
-		hwcard->u_usb.stats.tx_overrun_cnt++;
-	}
-	wan_clear_bit(WP_USB_STATUS_TX_READY, &hwcard->u_usb.status);	//sc->tx_ready = 0;
-	if (wp_usb_start_transfer(&hwcard->u_usb.datawrite[urb_write_ind])){
-		DEBUG_EVENT("%s: Failed to program transmitter\n", hw->devname);
-		hwcard->u_usb.stats.tx_notready_cnt++;
-	}else{
-		hwcard->u_usb.urb_write_ind = urb_write_ind;
-	}	
+	return 0;
 }
 
-#else
-	if (!wan_test_bit(WP_USB_STATUS_TX_READY, &hwcard->u_usb.status)){
-		DEBUG_USB("%s: [BH:%d:%d:%d]: TX is not ready (%ld)!\n",
-				hw->devname, bhcount,rxcount,txcount,(unsigned long)SYSTEM_TICKS);
-		hwcard->u_usb.stats.tx_overrun_cnt++;
+static int
+sdla_usb_bh_rx (sdlahw_card_t *hwcard)
+{
+	sdlahw_usb_t	*hwusb = NULL;
+	int		rx_len;
+	u_int8_t	readbuf[MAX_USB_RX_LEN];
+
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+
+	DEBUG_USB("[BH-RX] %s:%d: RX:%d (%d:%d)\n",
+			__FUNCTION__,__LINE__,rx_len, 
+			hwusb->next_read_ind, hwusb->next_rx_ind);
+
+	rx_len = sdla_usb_rxdata_get(hwcard, &readbuf[0], MAX_USB_RX_LEN);
+	if (!rx_len){
+		DEBUG_USB("%s: INTERNAL ERROR:%d: No data available!\n",
+					hwcard->name, (u32)SYSTEM_TICKS);
+		hwusb->stats.rx_underrun_cnt++;
 		return -EINVAL;
 	}
 
-	hwcard->u_usb.datawrite[0].urb.transfer_buffer = &hwcard->u_usb.writebuf[hwcard->u_usb.next_tx_ind];
-	hwcard->u_usb.next_tx_ind += MAX_USB_TX_LEN;
-	hwcard->u_usb.next_tx_ind = hwcard->u_usb.next_tx_ind % MAX_WRITE_BUF_LEN;
-	wan_clear_bit(WP_USB_STATUS_TX_READY, &hwcard->u_usb.status);	//sc->tx_ready = 0;
-	if (wp_usb_start_transfer(&hwcard->u_usb.datawrite[0])){
-		DEBUG_USB("%s: [BH:%d]: Write cycle failed (%d:%d)\n",
-				hw->devname, bhcount,
-				hwcard->u_usb.next_tx_ind, hwcard->u_usb.next_write_ind);
-		hwcard->u_usb.stats.tx_notready_cnt++;
+	if (rx_len < MAX_USB_RX_LEN){
+		DEBUG_USB("%s: ERROR: Not enough data (%d:%d:%d:%d)!\n",
+				hwcard->name, rx_len,
+				hwusb->next_read_ind,
+				hwusb->next_rx_ind,
+				MAX_READ_BUF_LEN);
+		hwusb->stats.rx_underrun_cnt++;
+		return 0;
 	}
-#endif
-	DEBUG_USB("%s: [BH:%d:%d:%d]: Tx is programmed!\n",
-			hw->devname, bhcount, rxcount, txcount);
+
+	sdla_usb_rxdata_decode(hwcard, readbuf, MAX_USB_RX_LEN);
+	if (wan_test_bit(WP_USB_STATUS_RX_DATA_READY, &hwusb->status) && hwusb->isr_func){
+		hwusb->isr_func(hwusb->isr_arg);
+	}	
+	return 0;
+}
+
+
+static int sdla_usb_bh_tx (sdlahw_card_t *hwcard)
+{	
+	sdlahw_usb_t	*hwusb = NULL;
+	unsigned char	writebuf[MAX_USB_TX_LEN];
+
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+
+	if (hwusb->opmode == SDLA_USB_OPMODE_VOICE){
+		DEBUG_USB("[BH-TX] %s:%d: TX:%d (%d:%d)\n",
+			__FUNCTION__,__LINE__,MAX_USB_TX_LEN,
+			hwusb->next_tx_ind, hwusb->next_write_ind);
+
+		sdla_usb_txdata_encode(hwcard, writebuf, MAX_USB_TX_LEN);
+
+ 		if (sdla_usb_txdata_prepare(hwcard, writebuf, MAX_USB_TX_LEN)){
+			return -EINVAL;
+		}
+	}
 	return 0;
 }
 
@@ -1364,42 +1475,134 @@ static void sdla_usb_bh (unsigned long data)
 static void sdla_usb_bh (void *data, int pending)
 #endif
 {
-	sdlahw_t	*hw = (sdlahw_t*)data;
-	sdlahw_card_t	*hwcard = NULL;
-	wan_smp_flag_t flags;
+	sdlahw_card_t	*hwcard = (sdlahw_card_t*)data;
+	sdlahw_usb_t	*hwusb = NULL;
+//	wan_smp_flag_t flags;
 	
-	WAN_ASSERT_VOID(hw == NULL);
-	WAN_ASSERT_VOID(hw->hwcpu == NULL);
-	WAN_ASSERT_VOID(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
-
+	WAN_ASSERT_VOID(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
  	DEBUG_TEST("%s:%d: ------------ BEGIN --------------: %ld\n",
 			__FUNCTION__,__LINE__,(unsigned long)SYSTEM_TICKS);
-	wan_spin_lock_irq(&hwcard->u_usb.lock,&flags);
-	if (!wan_test_bit(WP_USB_STATUS_READY, &hwcard->u_usb.status)){
-		goto usb_bh_done;
+	if (!wan_test_bit(WP_USB_STATUS_READY, &hwusb->status)){
+		goto usb_bh_exit;
 	}
-	if (wan_test_and_set_bit(WP_USB_STATUS_BH, &hwcard->u_usb.status)){
+	//wan_spin_lock_irq(&hwusb->lock,&flags);
+	if (wan_test_and_set_bit(WP_USB_STATUS_BH, &hwusb->status)){
 		DEBUG_EVENT("%s: [BH:%ld]: Re-entry in USB BH!\n",
-				hw->devname, (unsigned long)SYSTEM_TICKS);
+				hwcard->name, (unsigned long)SYSTEM_TICKS);
 		goto usb_bh_done;
 	}
 	bhcount++;
 
 	/* receive path */
-	sdla_usb_rx_bh(hw);
+	sdla_usb_bh_rx(hwcard);
 	/* transmit path */
-	sdla_usb_tx_bh(hw);
+	sdla_usb_bh_tx(hwcard);
 
-	wan_clear_bit(WP_USB_STATUS_BH, &hwcard->u_usb.status);
+	wan_clear_bit(WP_USB_STATUS_BH, &hwusb->status);
 
 usb_bh_done:
-	wan_spin_unlock_irq(&hwcard->u_usb.lock,&flags);
-	WAN_TASKLET_END((&hwcard->u_usb.bh_task));
+	//wan_spin_unlock_irq(&hwusb->lock,&flags);
+
+usb_bh_exit:
+	WAN_TASKLET_END((&hwusb->bh_task));
 
 	DEBUG_TEST("%s: ------------ END -----------------: %ld\n",
                         __FUNCTION__,(unsigned long)SYSTEM_TICKS);
 	return;
+}
+
+int sdlausb_syncverify(sdlahw_card_t *hwcard, int len)
+{
+	sdlahw_usb_t	*hwusb = NULL;
+	unsigned char	data;
+
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+	if (!hwusb->rx_sync){
+	
+		DEBUG_USB("%s: Searching for sync from %d...\n", 
+					hwcard->name, hwusb->next_read_ind);
+		do {
+			if ((hwusb->readbuf[hwusb->next_read_ind] & 0x30) != 0x30){
+				hwusb->next_read_ind = (hwusb->next_read_ind+1) % MAX_READ_BUF_LEN;
+				len--;
+				continue;
+			}
+			/* Found first sync condition */
+			DEBUG_USB("%s: Got first sync condition at %d:%d!\n",
+						hwcard->name,
+						hwusb->next_read_ind,
+						hwusb->next_rx_ind);
+			if (len < 4) break;
+			data = WP_USB_CTRL_DECODE(&hwusb->readbuf[hwusb->next_read_ind]);
+			if (data == 0x7E){
+				/* Found second sync condition */
+				DEBUG_EVENT("%s: USB device is connected!\n",
+							hwcard->name);
+				DEBUG_USB("%s: Got in sync at %d:%d!\n",
+							hwcard->name,
+							hwusb->next_read_ind,
+							hwusb->next_rx_ind);
+				hwusb->rx_sync = 1;
+				break;
+			}
+			hwusb->next_read_ind = (hwusb->next_read_ind+4) % MAX_READ_BUF_LEN;
+			len -= 4;
+		}while(len);
+		//if (sc->next_read_ind >= MAX_READ_BUF_LEN){
+		//	sc->next_read_ind = sc->next_read_ind % MAX_READ_BUF_LEN;
+		//}
+	}else{
+		if ((hwusb->readbuf[hwusb->next_read_ind] & 0x30) != 0x30){
+			DEBUG_EVENT("%s: USB device is disconnected!\n",
+						hwcard->name);
+			DEBUG_USB("%s: WARNING: Got out of sync 1 at %d:%d (%02X)!\n",
+						hwcard->name,
+						hwusb->next_read_ind, hwusb->next_rx_ind,
+						(unsigned char)hwusb->readbuf[hwusb->next_read_ind]);
+			hwusb->stats.rx_sync_err_cnt++;
+	
+			hwusb->rx_sync = 0;
+			//sc->next_read_ind++;
+			hwusb->next_read_ind = (hwusb->next_read_ind+1) % MAX_READ_BUF_LEN;
+			return 0;
+		}
+		data = WP_USB_CTRL_DECODE(&hwusb->readbuf[hwusb->next_read_ind]);
+		if (data != 0x7E){
+			DEBUG_EVENT("%s: USB device is disconnected!\n",
+						hwcard->name);
+			DEBUG_USB("%s: WARNING: Got out of sync 2 at %d:%d!\n",
+						hwcard->name,
+						hwusb->next_read_ind,
+						hwusb->next_rx_ind);
+			hwusb->stats.rx_sync_err_cnt++;
+			hwusb->rx_sync = 0;
+			//sc->next_read_ind++;
+			hwusb->next_read_ind = (hwusb->next_read_ind+1) % MAX_READ_BUF_LEN;
+			return 0;
+		}
+
+		if (hwcard->core_rev >= 0x20){
+
+			if ((hwusb->readbuf[hwusb->next_read_ind+1] & 0x20) == 0x20){
+				if (hwcard->core_rev != 0xFF && !hwusb->tx_sync){
+					DEBUG_USB("%s: USB device is in sync!\n",
+							hwcard->name);
+				}
+				hwusb->tx_sync = 1;
+			}else{
+				if (hwcard->core_rev != 0xFF && hwusb->tx_sync){
+					DEBUG_USB("%s: USB device is out of sync (%02X)!\n",
+						hwcard->name,
+						(unsigned char)hwusb->readbuf[hwusb->next_read_ind+1]);
+					hwusb->stats.dev_sync_err_cnt++;
+				}
+				hwusb->tx_sync = 0;
+			}
+		}
+	}
+	return 1;
 }
 
 #if defined(LINUX26)  && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19))
@@ -1409,77 +1612,82 @@ void sdlausb_read_complete(struct urb *q)
 #endif
 {
 	struct wan_urb	*wurb = (struct wan_urb*)q->context;
-	sdlahw_t	*hw = (sdlahw_t*)wurb->pvt;
-	sdlahw_card_t	*hwcard = NULL;
+	sdlahw_card_t	*hwcard = (sdlahw_card_t*)wurb->pvt;
+	sdlahw_usb_t	*hwusb = NULL;
 	int		next_rx_ind = 0, next_rx_off = 0;
-	int		len = 0;	// actual_length = MAX_USB_RX_LEN;
-	wan_smp_flag_t	flags; 
+	int		err, len = 0;	// actual_length = MAX_USB_RX_LEN;
+//	wan_smp_flag_t	flags; 
 
-	WAN_ASSERT_VOID(hw == NULL);
-	WAN_ASSERT_VOID(hw->hwcpu == NULL);
-	WAN_ASSERT_VOID(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
-	wan_spin_lock_irq(&hwcard->u_usb.lock,&flags);
+	WAN_ASSERT_VOID(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+	if (q->status){
+		if (!(q->status == -ENOENT ||q->status == -ECONNRESET || q->status == -ESHUTDOWN)){
+			DEBUG_EVENT("%s: ERROR: RX transaction failed (%d)!\n",
+					hwcard->name, q->status);
+		}
+		return;
+	}
+	//wan_spin_lock_irq(&hwusb->lock,&flags);
 	rxcount++;
-	if (!wan_test_bit(WP_USB_STATUS_READY, &hwcard->u_usb.status)){
+	if (!wan_test_bit(WP_USB_STATUS_READY, &hwusb->status)){
 		DEBUG_RX("%s: WARNING: RX USB core is not ready (%d:%ld)!\n",
-					hw->devname, rxcount,
+					hwcard->name, rxcount,
 					(unsigned long)SYSTEM_TICKS);
-		hwcard->u_usb.stats.core_notready_cnt++;
-		wan_spin_unlock_irq(&hwcard->u_usb.lock,&flags);
+		hwusb->stats.core_notready_cnt++;
+	//	wan_spin_unlock_irq(&hwusb->lock,&flags);
 		return;
 	}
 #if 0
 	if (q->actual_length < MAX_USB_RX_LEN){
-		DEBUG_EVENT("%s: [RX:%d]: WARNING: Invalid Rx length (%d:%d)\n",
-					hw->devname, rxcount,
-					q->actual_length,MAX_USB_RX_LEN);
-		actual_length = q->actual_length; 
+		DEBUG_EVENT("%s: [RX:%d]: WARNING: Invalid Rx length (%d:%d:%d)\n",
+					hwcard->name, rxcount,
+					q->actual_length,q->transfer_buffer_length, MAX_USB_RX_LEN);
 	}
 #endif
+
 	DEBUG_RX("%s:%d: [RX:%d]: RX:%d:%02X %d:%02X %d:%02X (%ld)\n", 
-			hw->devname, wurb->id, rxcount, 
+			hwcard->name, wurb->id, rxcount, 
 			q->actual_length, ((unsigned char*)q->transfer_buffer)[0], 
-			hwcard->u_usb.next_read_ind, (unsigned char)hwcard->u_usb.readbuf[hwcard->u_usb.next_read_ind],
-			hwcard->u_usb.next_rx_ind, (unsigned char)hwcard->u_usb.readbuf[hwcard->u_usb.next_rx_ind],
+			hwusb->next_read_ind, (unsigned char)hwusb->readbuf[hwusb->next_read_ind],
+			hwusb->next_rx_ind, (unsigned char)hwusb->readbuf[hwusb->next_rx_ind],
 			(unsigned long)SYSTEM_TICKS);
 
 	if (!q->actual_length) goto read_complete_done;
 
-	next_rx_ind = hwcard->u_usb.next_rx_ind + q->actual_length;
-	next_rx_off = hwcard->u_usb.next_rx_ind + q->actual_length * hwcard->u_usb.urbcount_read;
+	next_rx_ind = hwusb->next_rx_ind + q->actual_length;
+	next_rx_off = hwusb->next_rx_ind + q->actual_length * hwusb->urbcount_read;
 
-	if (hwcard->u_usb.next_rx_ind < hwcard->u_usb.next_read_ind){
+	if (hwusb->next_rx_ind < hwusb->next_read_ind){
 
-		if (next_rx_off > hwcard->u_usb.next_read_ind){
+		if (next_rx_off > hwusb->next_read_ind){
 			DEBUG_USB("%s: ERROR:%ld:%d: RX BH is too slow %d:%d:%d (Reset:1)\n",
-					hw->devname,		
+					hwcard->name,		
 					(unsigned long)SYSTEM_TICKS, rxcount,
-					hwcard->u_usb.next_read_ind,hwcard->u_usb.next_rx_ind,
-					q->actual_length*hwcard->u_usb.urbcount_read);
-			hwcard->u_usb.stats.rx_overrun_cnt++;
-			WAN_TASKLET_SCHEDULE((&hwcard->u_usb.bh_task));
+					hwusb->next_read_ind,hwusb->next_rx_ind,
+					q->actual_length*hwusb->urbcount_read);
+			hwusb->stats.rx_overrun_cnt++;
+			WAN_TASKLET_SCHEDULE((&hwusb->bh_task));
 			goto read_complete_done;
 		}
 		next_rx_ind = next_rx_ind % MAX_READ_BUF_LEN;
 		next_rx_off = next_rx_off % MAX_READ_BUF_LEN;
 
-	}else if (hwcard->u_usb.next_rx_ind > hwcard->u_usb.next_read_ind){
+	}else if (hwusb->next_rx_ind > hwusb->next_read_ind){
 
 		if (next_rx_ind > MAX_READ_BUF_LEN){
 
-			memcpy(	&hwcard->u_usb.readbuf[0], 
-				&hwcard->u_usb.readbuf[MAX_READ_BUF_LEN],
+			memcpy(	&hwusb->readbuf[0], 
+				&hwusb->readbuf[MAX_READ_BUF_LEN],
 				next_rx_ind - MAX_READ_BUF_LEN);
 			next_rx_off = next_rx_off % MAX_READ_BUF_LEN;
-			if (next_rx_off > hwcard->u_usb.next_read_ind){
+			if (next_rx_off > hwusb->next_read_ind){
 				DEBUG_USB("%s: ERROR:%ld:%d: RX BH is too slow %d:%d:%d (Reset:2)\n",
-						hw->devname,
+						hwcard->name,
 						(unsigned long)SYSTEM_TICKS, rxcount,
-						hwcard->u_usb.next_read_ind,hwcard->u_usb.next_rx_ind,
-						q->actual_length*hwcard->u_usb.urbcount_read);
-				hwcard->u_usb.stats.rx_overrun_cnt++;
-				WAN_TASKLET_SCHEDULE((&hwcard->u_usb.bh_task));
+						hwusb->next_read_ind,hwusb->next_rx_ind,
+						q->actual_length*hwusb->urbcount_read);
+				hwusb->stats.rx_overrun_cnt++;
+				WAN_TASKLET_SCHEDULE((&hwusb->bh_task));
 				goto read_complete_done;
 			}
 			next_rx_ind = next_rx_ind % MAX_READ_BUF_LEN;
@@ -1491,89 +1699,26 @@ void sdlausb_read_complete(struct urb *q)
 		next_rx_ind = next_rx_ind % MAX_READ_BUF_LEN;
 		next_rx_off = next_rx_off % MAX_READ_BUF_LEN;
 	}
-	hwcard->u_usb.next_rx_ind = next_rx_ind;
+
+	hwusb->next_rx_ind = next_rx_ind;
 	wurb->next_off = next_rx_off;	
 
 	/* analyze data */
-	if (hwcard->u_usb.next_rx_ind >= hwcard->u_usb.next_read_ind){
-		len = hwcard->u_usb.next_rx_ind - hwcard->u_usb.next_read_ind; 
+	if (hwusb->next_rx_ind >= hwusb->next_read_ind){
+		len = hwusb->next_rx_ind - hwusb->next_read_ind; 
 	}else{
-		len = MAX_READ_BUF_LEN - hwcard->u_usb.next_read_ind + hwcard->u_usb.next_rx_ind;
+		len = MAX_READ_BUF_LEN - hwusb->next_read_ind + hwusb->next_rx_ind;
 	}
 
-	if (hwcard->u_usb.opmode == SDLA_USB_OPMODE_VOICE){
+	if (hwusb->opmode == SDLA_USB_OPMODE_VOICE){
 		DEBUG_RX("[RX-] %s: RX:%d %d:%d\n", 
-				hw->devname, len, hwcard->u_usb.next_read_ind, hwcard->u_usb.next_rx_ind);
+				hwcard->name, len, hwusb->next_read_ind, hwusb->next_rx_ind);
 		if (len > 4){
-			unsigned char data;
-			if (!hwcard->u_usb.rx_sync){
-	
-				DEBUG_USB("%s: Searching for sync from %d...\n", 
-								hw->devname, hwcard->u_usb.next_read_ind);
-				do {
-					if ((hwcard->u_usb.readbuf[hwcard->u_usb.next_read_ind] & 0x30) != 0x30){
-						hwcard->u_usb.next_read_ind = (hwcard->u_usb.next_read_ind+1) % MAX_READ_BUF_LEN;
-						len--;
-						continue;
-					}
-					/* Found first sync condition */
-					DEBUG_USB("%s: Got first sync condition at %d:%d!\n",
-								hw->devname,
-								hwcard->u_usb.next_read_ind,
-								hwcard->u_usb.next_rx_ind);
-					if (len < 4) break;
-					data = WP_USB_CTRL_DECODE(&hwcard->u_usb.readbuf[hwcard->u_usb.next_read_ind]);
-					if (data == 0x7E){
-						/* Found second sync condition */
-						DEBUG_EVENT("%s: USB device is connected!\n",
-									hw->devname);
-						DEBUG_USB("%s: Got in sync at %d:%d!\n",
-								hw->devname,
-								hwcard->u_usb.next_read_ind,
-								hwcard->u_usb.next_rx_ind);
-						hwcard->u_usb.rx_sync = 1;
-						break;
-					}
-					hwcard->u_usb.next_read_ind = (hwcard->u_usb.next_read_ind+4) % MAX_READ_BUF_LEN;
-					len -= 4;
-				}while(len);
-				//if (sc->next_read_ind >= MAX_READ_BUF_LEN){
-				//	sc->next_read_ind = sc->next_read_ind % MAX_READ_BUF_LEN;
-				//}
-			}else{
-				if ((hwcard->u_usb.readbuf[hwcard->u_usb.next_read_ind] & 0x30) != 0x30){
-					DEBUG_EVENT("%s: USB device is disconnected!\n",
-									hw->devname);
-					DEBUG_USB("%s: WARNING: Got out of sync 1 at %d:%d (%02X)!\n",
-							hw->devname,
-							hwcard->u_usb.next_read_ind, hwcard->u_usb.next_rx_ind,
-							(unsigned char)hwcard->u_usb.readbuf[hwcard->u_usb.next_read_ind]);
-					hwcard->u_usb.stats.rx_sync_err_cnt++;
-	
-					hwcard->u_usb.rx_sync = 0;
-					//sc->next_read_ind++;
-					hwcard->u_usb.next_read_ind = (hwcard->u_usb.next_read_ind+1) % MAX_READ_BUF_LEN;
-					goto read_complete_done;
-				}
-				data = WP_USB_CTRL_DECODE(&hwcard->u_usb.readbuf[hwcard->u_usb.next_read_ind]);
-				if (data != 0x7E){
-					DEBUG_EVENT("%s: USB device is disconnected!\n",
-									hw->devname);
-					DEBUG_USB("%s: WARNING: Got out of sync 2 at %d:%d!\n",
-							hw->devname,
-							hwcard->u_usb.next_read_ind,
-							hwcard->u_usb.next_rx_ind);
-					hwcard->u_usb.stats.rx_sync_err_cnt++;
-					hwcard->u_usb.rx_sync = 0;
-					//sc->next_read_ind++;
-					hwcard->u_usb.next_read_ind = (hwcard->u_usb.next_read_ind+1) % MAX_READ_BUF_LEN;
-					goto read_complete_done;
-				}
-			}
+			sdlausb_syncverify(hwcard, len);
 		}
 	
-		if (len >= MAX_USB_RX_LEN){
-			WAN_TASKLET_SCHEDULE((&hwcard->u_usb.bh_task));
+		if (hwusb->rx_sync && len >= MAX_USB_RX_LEN){
+			WAN_TASKLET_SCHEDULE((&hwusb->bh_task));
 		}	
 	}
 
@@ -1582,16 +1727,19 @@ read_complete_done:
 				SDLA_USB_NAME, q->dev, q->transfer_buffer);
 	//q->dev = sc->dev;
 	
-	q->transfer_buffer = &hwcard->u_usb.readbuf[wurb->next_off];
-	if (wp_usb_start_transfer(wurb)){
-		DEBUG_EVENT("%s: Failed to program receiver\n", 
-				hw->devname);
+	q->transfer_buffer = &hwusb->readbuf[wurb->next_off];
+	if ((err = wp_usb_start_transfer(wurb))){
+		if (err != -ENOENT){
+			DEBUG_EVENT("%s: Failed to program receiver (%ld)!\n", 
+					hwcard->name,
+					(unsigned long)SYSTEM_TICKS);
+		}
 	}
 
 	DEBUG_RX("%s: [RX:%d:%d]: %s: %d:%d:%d!\n",
 			hw->devname,wurb->id,rxcount,
-			hwcard->u_usb.next_read_ind, hwcard->u_usb.next_rx_ind, next_rx_off);
-	wan_spin_unlock_irq(&hwcard->u_usb.lock,&flags);
+			hwusb->next_read_ind, hwusb->next_rx_ind, next_rx_off);
+	//wan_spin_unlock_irq(&hwusb->lock,&flags);
 	return;
 }
 
@@ -1603,27 +1751,32 @@ void sdlausb_write_complete(struct urb *q)
 #endif
 {
 	struct wan_urb	*wurb = (struct wan_urb*)q->context;
-	sdlahw_t	*hw = (sdlahw_t*)wurb->pvt;
-	sdlahw_card_t	*hwcard = NULL;
+	sdlahw_card_t	*hwcard = (sdlahw_card_t*)wurb->pvt;
+	sdlahw_usb_t	*hwusb = NULL;
 	int		actual_length = MAX_USB_TX_LEN;
-	wan_smp_flag_t	flags;
+//	wan_smp_flag_t	flags;
 
-	WAN_ASSERT_VOID(hw == NULL);
-	WAN_ASSERT_VOID(hw->hwcpu == NULL);
-	WAN_ASSERT_VOID(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
+	WAN_ASSERT_VOID(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
 	txcount++;
-	wan_spin_lock_irq(&hwcard->u_usb.lock,&flags);
-	if (!wan_test_bit(WP_USB_STATUS_READY, &hwcard->u_usb.status)){
+	if (q->status){
+		if (!(q->status == -ENOENT ||q->status == -ECONNRESET || q->status == -ESHUTDOWN)){
+			DEBUG_EVENT("%s: ERROR: RX transaction failed (%d)!\n",
+					hwcard->name, q->status);
+		}
+		return;
+	}
+	//wan_spin_lock_irq(&hwusb->lock,&flags);
+	if (!wan_test_bit(WP_USB_STATUS_READY, &hwusb->status)){
 		DEBUG_USB("%s: WARNING: TX USB core is not ready (%d:%ld)!\n",
-					hw->devname, txcount,
+					hwcard->name, txcount,
 					(unsigned long)SYSTEM_TICKS);
-		hwcard->u_usb.stats.core_notready_cnt++;
-		wan_spin_unlock_irq(&hwcard->u_usb.lock,&flags);
+		hwusb->stats.core_notready_cnt++;
+	//	wan_spin_unlock_irq(&hwusb->lock,&flags);
 		return;
 	}
 
-	if (hwcard->u_usb.opmode == SDLA_USB_OPMODE_VOICE){
+	if (hwusb->opmode == SDLA_USB_OPMODE_VOICE){
 		if (q->actual_length < MAX_USB_TX_LEN){
 			DEBUG_TEST("[TX]: WARNING: Invalid Tx length (%d:%d)\n",
 						q->actual_length,MAX_USB_TX_LEN);
@@ -1632,13 +1785,13 @@ void sdlausb_write_complete(struct urb *q)
 	}
 
 	/* Mark this urb as ready */
-	wan_set_bit(1, &wurb->ready);
-	wan_set_bit(WP_USB_STATUS_TX_READY, &hwcard->u_usb.status);	//sc->tx_ready = 1;
+	wan_set_bit(SDLA_URB_STATUS_READY, &wurb->ready);
+	wan_set_bit(WP_USB_STATUS_TX_READY, &hwusb->status);	//sc->tx_ready = 1;
 	DEBUG_TX("%s:%d: [TX:%d:%d] %d:%d (%d:%d)\n", 
-			hw->devname, wurb->id, txcount, txcount,
+			hwcard->name, wurb->id, txcount, txcount,
 			MAX_USB_TX_LEN,q->transfer_buffer_length,
-			hwcard->u_usb.next_tx_ind, hwcard->u_usb.next_write_ind);
-	wan_spin_unlock_irq(&hwcard->u_usb.lock,&flags);
+			hwusb->next_tx_ind, hwusb->next_write_ind);
+	//wan_spin_unlock_irq(&hwusb->lock,&flags);
 	return;
 }
 
@@ -1655,88 +1808,145 @@ void sdlausb_write_complete(struct urb *q)
 #define usb_endpoint_is_bulk_out(epd)					\
 		(usb_endpoint_xfer_bulk((epd)) && usb_endpoint_dir_out(epd))
 
-static int sdla_prepare_transfer_urbs(sdlahw_t * hw, struct usb_interface *intf)
+static int
+sdla_prepare_transfer_urbs(sdlahw_card_t *hwcard, struct usb_interface *intf)
 {
-	sdlahw_card_t			*hwcard = NULL;
 	struct usb_host_interface	*iface_desc;
 	struct usb_endpoint_descriptor	*endpoint;
-	struct usb_endpoint_descriptor	*bulk_in_endpoint[MAX_NUM_PORTS];
-	struct usb_endpoint_descriptor	*bulk_out_endpoint[MAX_NUM_PORTS];	
-	int				num_bulk_in = 0, num_bulk_out = 0;
+	sdlahw_usb_t			*hwusb = NULL;
 	int				x, i = 0;
 
-	WAN_ASSERT(hw == NULL);
-	WAN_ASSERT(hw->hwcpu == NULL);
-	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
-
-	DEBUG_USB("%s: Preparing Transfer URBs...\n", hw->devname); 
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+	DEBUG_USB("%s: Preparing Transfer URBs...\n", hwcard->name); 
 	/* descriptor matches, let's find the endpoints needed */
 	/* check out the endpoints */
 	iface_desc = intf->cur_altsetting;
+	
+#if 1
 	for (i = 0; i < iface_desc->desc.bNumEndpoints; ++i) {
 		endpoint = &iface_desc->endpoint[i].desc;
 
 		if (usb_endpoint_is_bulk_in(endpoint)) {
 			/* we found a bulk in endpoint */
-			DEBUG_USB("%s: Found bulk in on endpoint %d\n", hw->devname, i);
+			DEBUG_USB("%s: Found bulk in on endpoint %d\n",
+					hwcard->name, i);
+
+			for (x = 0; x < hwusb->urbcount_read; x++) {
+				usb_init_urb(&hwusb->dataread[x].urb);
+				usb_fill_bulk_urb (
+						&hwusb->dataread[x].urb,
+						hwusb->usb_dev,
+						usb_rcvbulkpipe (hwusb->usb_dev,
+								endpoint->bEndpointAddress),
+						&hwusb->readbuf[MAX_USB_RX_LEN*x], 
+						endpoint->wMaxPacketSize,
+						sdlausb_read_complete,
+						&hwusb->dataread[x]);	//p
+				hwusb->dataread[x].next_off = MAX_USB_RX_LEN*x;
+				DEBUG_USB("%s: %d: Bulk In ENAddress:%X Len:%d (%d:%p)\n",
+						hwcard->name, x,
+						endpoint->bEndpointAddress,
+						endpoint->wMaxPacketSize,
+						hwusb->dataread[x].next_off,
+						&hwusb->readbuf[MAX_USB_RX_LEN*x]);
+			}
+		}
+
+		if (usb_endpoint_is_bulk_out(endpoint)) {
+			/* we found a bulk out endpoint */
+			DEBUG_USB("%s: Found bulk out on endpoint %d\n",
+					 hwcard->name, i);
+			for (x = 0; x < hwusb->urbcount_write; x++) {
+				usb_init_urb(&hwusb->datawrite[x].urb);
+				usb_fill_bulk_urb (
+						&hwusb->datawrite[x].urb,
+						hwusb->usb_dev,
+						usb_sndbulkpipe (hwusb->usb_dev,
+								endpoint->bEndpointAddress),
+						&hwusb->writebuf[MAX_USB_TX_LEN*x], 
+						MAX_USB_TX_LEN,
+						sdlausb_write_complete,
+						&hwusb->datawrite[x]);	//p
+				hwusb->datawrite[x].next_off = MAX_USB_TX_LEN*x;
+				DEBUG_USB("%s: %d: Bulk Out ENAddress:%X Len:%d (%d:%p)\n",
+						hwcard->name, x,
+						endpoint->bEndpointAddress,
+						MAX_USB_TX_LEN,
+						hwusb->datawrite[x].next_off,
+						&hwusb->writebuf[MAX_USB_TX_LEN*x]);
+			}
+		}
+	}
+
+#else
+	for (i = 0; i < iface_desc->desc.bNumEndpoints; ++i) {
+		endpoint = &iface_desc->endpoint[i].desc;
+
+		if (usb_endpoint_is_bulk_in(endpoint)) {
+			/* we found a bulk in endpoint */
+			DEBUG_USB("%s: Found bulk in on endpoint %d\n",
+					hwcard->name, i);
 			bulk_in_endpoint[num_bulk_in] = endpoint;
 			++num_bulk_in;
 		}
 
 		if (usb_endpoint_is_bulk_out(endpoint)) {
 			/* we found a bulk out endpoint */
-			DEBUG_USB("%s: Found bulk out on endpoint %d\n", hw->devname, i);
+			DEBUG_USB("%s: Found bulk out on endpoint %d\n",
+					 hwcard->name, i);
 			bulk_out_endpoint[num_bulk_out] = endpoint;
 			++num_bulk_out;
 		}
 	}
 
-	for (x = 0; x < hwcard->u_usb.urbcount_read; x++) {
+	for (x = 0; x < hwusb->urbcount_read; x++) {
 		/* set up the endpoint information */
 		for (i = 0; i < num_bulk_in; ++i) {
 			endpoint = bulk_in_endpoint[i];
-			usb_init_urb(&hwcard->u_usb.dataread[x].urb);
+			usb_init_urb(&hwusb->dataread[x].urb);
 			usb_fill_bulk_urb (
-					&hwcard->u_usb.dataread[x].urb,
-					hwcard->u_usb.usb_dev,
-					usb_rcvbulkpipe (hwcard->u_usb.usb_dev,
+					&hwusb->dataread[x].urb,
+					hwusb->usb_dev,
+					usb_rcvbulkpipe (hwusb->usb_dev,
 							   endpoint->bEndpointAddress),
-					&hwcard->u_usb.readbuf[MAX_USB_RX_LEN*x], 
-					64,	//MAX_USB_RX_LEN,
+					&hwusb->readbuf[MAX_USB_RX_LEN*x], 
+					endpoint->wMaxPacketSize,
 					sdlausb_read_complete,
-					&hwcard->u_usb.dataread[x]);	//p
-			hwcard->u_usb.dataread[x].next_off = MAX_USB_RX_LEN*x;
-			DEBUG_USB("%s: %d: Bulk Int ENAddress:%X Len:%d (%d:%p)\n",
-					hw->devname, x,
-					endpoint->bEndpointAddress,MAX_USB_RX_LEN,
-					hwcard->u_usb.dataread[x].next_off,
-					&hwcard->u_usb.readbuf[MAX_USB_RX_LEN*x]);
+					&hwusb->dataread[x]);	//p
+			hwusb->dataread[x].next_off = MAX_USB_RX_LEN*x;
+			DEBUG_USB("%s: %d: Bulk In ENAddress:%X Len:%d (%d:%p)\n",
+					hwcard->name, x,
+					endpoint->bEndpointAddress,
+					endpoint->wMaxPacketSize,
+					hwusb->dataread[x].next_off,
+					&hwusb->readbuf[MAX_USB_RX_LEN*x]);
 		}
 	}
 	
-	for (x = 0; x < hwcard->u_usb.urbcount_write; x++) {
+	for (x = 0; x < hwusb->urbcount_write; x++) {
 		for (i = 0; i < num_bulk_out; ++i) {
 			endpoint = bulk_out_endpoint[i];
-			usb_init_urb(&hwcard->u_usb.datawrite[x].urb);
+			usb_init_urb(&hwusb->datawrite[x].urb);
 			usb_fill_bulk_urb (
-					&hwcard->u_usb.datawrite[x].urb,
-					hwcard->u_usb.usb_dev,
-					usb_sndbulkpipe (hwcard->u_usb.usb_dev,
+					&hwusb->datawrite[x].urb,
+					hwusb->usb_dev,
+					usb_sndbulkpipe (hwusb->usb_dev,
 							endpoint->bEndpointAddress),
-					&hwcard->u_usb.writebuf[MAX_USB_TX_LEN*x], 
+					&hwusb->writebuf[MAX_USB_TX_LEN*x], 
 					MAX_USB_TX_LEN,
 					sdlausb_write_complete,
-					&hwcard->u_usb.datawrite[x]);	//p
-			hwcard->u_usb.datawrite[x].next_off = MAX_USB_TX_LEN*x;
+					&hwusb->datawrite[x]);	//p
+			hwusb->datawrite[x].next_off = MAX_USB_TX_LEN*x;
 			DEBUG_USB("%s: %d: Bulk Out ENAddress:%X Len:%d (%d:%p)\n",
-					hw->devname, x,
-					endpoint->bEndpointAddress,MAX_USB_TX_LEN,
-					hwcard->u_usb.datawrite[x].next_off,
-					&hwcard->u_usb.writebuf[MAX_USB_TX_LEN*x]);
+					hwcard->name, x,
+					endpoint->bEndpointAddress,
+					MAX_USB_TX_LEN,
+					hwusb->datawrite[x].next_off,
+					&hwusb->writebuf[MAX_USB_TX_LEN*x]);
 		}
 	}	
-
+#endif
 	return 0;
 }
 
@@ -1750,11 +1960,11 @@ static int wp_usb_start_transfer(struct wan_urb *wurb)
 	ret = usb_submit_urb(q); 
 #endif
 	if (ret){
-		return -EINVAL;
+		DEBUG_USB("%s: usb_submit %p returns %d (%s)\n",
+			__FUNCTION__, wurb, ret,
+			wan_test_bit(SDLA_URB_STATUS_READY, &wurb->ready)?"Ready":"Busy");
+		return ret;
 	}
-	wan_clear_bit(1, &wurb->ready);
-	/* Start checking for interrupts */
-	//sdlausb_check_interrupt(p);
 	return 0;
 }
 
@@ -1799,17 +2009,12 @@ static int wp_usb_start_transfer(struct wan_urb *wurb)
 
 
 static int 
-sdla_usb_set_config(sdlahw_t *hw, u8 request, unsigned int *data, int size)
+sdla_usb_set_config(sdlahw_card_t *hwcard, u8 request, unsigned int *data, int size)
 {
-	sdlahw_card_t	*hwcard;
 	__le32		*buf;
 	int		result, i, length;
 
-	WAN_ASSERT(hw == NULL);
-	SDLA_MAGIC(hw);
-	WAN_ASSERT(hw->hwcpu == NULL);
-	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
+	WAN_ASSERT(hwcard == NULL);
 	WAN_ASSERT(hwcard->u_usb.usb_dev == NULL);
 
 	/* Number of integers required to contain the array */
@@ -1863,17 +2068,12 @@ sdla_usb_set_config(sdlahw_t *hw, u8 request, unsigned int *data, int size)
  * enough to hold 'size' bytes (with 4 bytes to each integer)
  */
 static int 
-sdla_usb_get_config(sdlahw_t *hw, u8 request, unsigned int *data, int size)
+sdla_usb_get_config(sdlahw_card_t *hwcard, u8 request, unsigned int *data, int size)
 {
-	sdlahw_card_t	*hwcard = NULL;
 	__le32 *buf;
 	int result, i, length;
 
-	WAN_ASSERT(hw == NULL);
-	SDLA_MAGIC(hw);
-	WAN_ASSERT(hw->hwcpu == NULL);
-	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
+	WAN_ASSERT(hwcard == NULL);
 	WAN_ASSERT(hwcard->u_usb.usb_dev == NULL);
 
 	/* Number of integers required to contain the array */
@@ -1916,243 +2116,345 @@ sdla_usb_get_config(sdlahw_t *hw, u8 request, unsigned int *data, int size)
  * without requiring an integer pointer
  */
 static inline int 
-sdla_usb_set_config_single(sdlahw_t *hw, u8 request, unsigned int data)
+sdla_usb_set_config_single(sdlahw_card_t *hwcard, u8 request, unsigned int data)
 {
-	return sdla_usb_set_config(hw, request, &data, 2);
+	return sdla_usb_set_config(hwcard, request, &data, 2);
 }
 
 
-
-int sdla_usb_setup(sdlahw_t *hw)
+static int sdla_usb_search_rxsync(sdlahw_card_t *hwcard)
 {
-	sdlahw_card_t	*hwcard;
+	int	retry = 0;
+
+	wait_just_a_bit(5*HZ, 0);
+	do{
+		if (retry++ > SDLA_USBFXO_SYNC_RX_RETRIES) return -EINVAL;
+		wait_just_a_bit(SDLA_USBFXO_SYNC_DELAY, 0);
+	} while(!hwcard->u_usb.rx_sync);
+	return 0;
+}
+
+static int sdla_usb_search_txsync(sdlahw_card_t *hwcard)
+{
+	int		retry = 0;
+	do{
+		if (retry++ > SDLA_USBFXO_SYNC_TX_RETRIES) return -EINVAL;
+		wait_just_a_bit(SDLA_USBFXO_SYNC_DELAY, 0);
+	} while(!hwcard->u_usb.tx_sync);
+	return 0;
+}
+
+
+static int sdla_usb_rxurb_reset(sdlahw_card_t *hwcard)
+{
+	sdlahw_usb_t	*hwusb = NULL;
+	int		x=0;
+
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+
+	for (x = 0; x < hwusb->urbcount_read; x++){
+		usb_unlink_urb(&hwusb->dataread[x].urb);
+		usb_kill_urb(&hwusb->dataread[x].urb);
+	}
+	hwusb->next_rx_ind	= 0;
+	hwusb->next_read_ind	= 0;
+	for (x = 0; x < hwusb->urbcount_read; x++){
+		hwusb->dataread[x].urb.transfer_buffer = &hwusb->readbuf[hwusb->next_rx_ind];
+		if (wp_usb_start_transfer(&hwusb->dataread[x])) {
+			DEBUG_EVENT("%s: Failed to start RX:%d transfer!\n", 
+					hwcard->name, x);
+			return -EINVAL;
+		}
+	}
+	return 0;
+}
+
+static int sdla_usb_txurb_reset(sdlahw_card_t *hwcard)
+{
+	sdlahw_usb_t	*hwusb = NULL;
+	int		x=0;
+
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+
+	for (x = 0; x < hwusb->urbcount_write; x++){
+		usb_unlink_urb(&hwusb->datawrite[x].urb);
+		usb_kill_urb(&hwusb->datawrite[x].urb);
+	}
+	hwusb->next_tx_ind	= 0;
+	hwusb->next_write_ind	= 0;
+	return 0;
+}
+
+int sdla_usb_setup(sdlahw_card_t *hwcard, int new_usbdev)
+{
+	sdlahw_usb_t	*hwusb = NULL;
 	netskb_t	*skb;
 	int		err, bits, x = 0, mod_no = 0;
 	u8		data8;
 
-	WAN_ASSERT(hw == NULL);
-	SDLA_MAGIC(hw);
-	WAN_ASSERT(hw->hwcpu == NULL);
-	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
-
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
 	DEBUG_USB("%s: Creating private data for usb%s...\n", 
-				hw->devname,hwcard->u_usb.bus_id);
+				hwcard->name,hwusb->bus_id);
 
-	WAN_TASKLET_INIT((&hwcard->u_usb.bh_task),0,sdla_usb_bh,hw);
+	if (!new_usbdev){
+		DEBUG_EVENT("%s: Loading USB-FXO firmware code...",
+					hwcard->name);
+		wait_just_a_bit(SDLA_USBFXO_BL_DELAY, 0);
+	}
+    
+	WAN_TASKLET_INIT((&hwusb->bh_task), 0, sdla_usb_bh, hwcard);
 
-	WAN_IFQ_INIT(&hwcard->u_usb.rx_cmd_free_list, WP_USB_MAX_RX_CMD_QLEN);
-	WAN_IFQ_INIT(&hwcard->u_usb.rx_cmd_list, WP_USB_MAX_RX_CMD_QLEN);
+	hwusb->writebuf = wan_malloc(MAX_READ_BUF_LEN+MAX_USB_TX_LEN+1);
+	if (hwusb->writebuf == NULL){
+		DEBUG_EVENT("%s: Failed to allocate TX buffer!\n",
+				hwcard->name);
+		return -ENOMEM;
+	}
+	memset(hwusb->writebuf,0x00,MAX_READ_BUF_LEN+MAX_USB_TX_LEN+1);
+
+	hwusb->readbuf = wan_malloc(MAX_READ_BUF_LEN+MAX_USB_RX_LEN+1);
+	if (hwusb->readbuf == NULL){
+		DEBUG_EVENT("%s: Failed to allocate RX buffer!\n",
+				hwcard->name);
+		return -ENOMEM;
+	}
+	memset(hwusb->readbuf,0x00,MAX_READ_BUF_LEN+MAX_USB_RX_LEN+1);
+	//memset(&hwusb->guard1[0],0x00,1000);
+	//memset(&hwusb->guard2[0],0x00,1000);
+	WAN_IFQ_INIT(&hwusb->rx_cmd_free_list, WP_USB_MAX_RX_CMD_QLEN);
+	WAN_IFQ_INIT(&hwusb->rx_cmd_list, WP_USB_MAX_RX_CMD_QLEN);
 	for(x = 0; x < WP_USB_MAX_RX_CMD_QLEN; x++){
 		skb = wan_skb_alloc(10);
 		if (!skb){
 			DEBUG_ERROR("%s: ERROR: Failed to allocate RX cmd buffer!\n",
-						hw->devname);
+						hwcard->name);
 			goto cleanup;
 		}
-		wan_skb_queue_tail(&hwcard->u_usb.rx_cmd_free_list, skb);
-
+		wan_skb_queue_tail(&hwusb->rx_cmd_free_list, skb);
 	}
-	WAN_IFQ_INIT(&hwcard->u_usb.tx_cmd_free_list, WP_USB_MAX_TX_CMD_QLEN);
-	WAN_IFQ_INIT(&hwcard->u_usb.tx_cmd_list, WP_USB_MAX_TX_CMD_QLEN);
-	for(x = 0; x < WP_USB_MAX_RX_CMD_QLEN; x++){
+	WAN_IFQ_INIT(&hwusb->tx_cmd_free_list, WP_USB_MAX_TX_CMD_QLEN);
+	WAN_IFQ_INIT(&hwusb->tx_cmd_list, WP_USB_MAX_TX_CMD_QLEN);
+	for(x = 0; x < WP_USB_MAX_TX_CMD_QLEN; x++){
 		skb = wan_skb_alloc(10);
 		if (!skb){
 			DEBUG_ERROR("%s: ERROR: Failed to allocate TX cmd buffer!\n",
-						hw->devname);
+						hwcard->name);
 			goto cleanup;
 		}
-		wan_skb_queue_tail(&hwcard->u_usb.tx_cmd_free_list, skb);
+		wan_skb_queue_tail(&hwusb->tx_cmd_free_list, skb);
 	}
 
-	hwcard->u_usb.rxtx_len		= WP_USB_RXTX_DATA_LEN;
-	hwcard->u_usb.rxtx_count	= WP_USB_RXTX_DATA_COUNT;
-	hwcard->u_usb.rxtx_total_len	= hwcard->u_usb.rxtx_len * hwcard->u_usb.rxtx_count;
+	hwusb->rxtx_len		= WP_USB_RXTX_DATA_LEN;
+	hwusb->rxtx_count	= WP_USB_RXTX_DATA_COUNT;
+	hwusb->rxtx_total_len	= hwusb->rxtx_len * hwusb->rxtx_count;
  	
-	hwcard->u_usb.rxtx_buf_len	= hwcard->u_usb.rxtx_total_len * 4;
-	hwcard->u_usb.read_buf_len	= hwcard->u_usb.rxtx_buf_len * (WP_USB_MAX_RW_COUNT + 2);
-	hwcard->u_usb.write_buf_len	= hwcard->u_usb.rxtx_buf_len * (WP_USB_MAX_RW_COUNT + 2);
+	hwusb->rxtx_buf_len	= hwusb->rxtx_total_len * 4;
+	hwusb->read_buf_len	= hwusb->rxtx_buf_len * (WP_USB_MAX_RW_COUNT + 2);
+	hwusb->write_buf_len	= hwusb->rxtx_buf_len * (WP_USB_MAX_RW_COUNT + 2);
  
-	wan_spin_lock_init(&hwcard->u_usb.cmd_lock,"usb_cmd");
-	wan_spin_lock_irq_init(&hwcard->u_usb.lock,"usb_bh_lock");
-	hwcard->u_usb.ctrl_idle_pattern  = WP_USB_CTRL_IDLE_PATTERN;
-	if (sdla_usb_set_config_single(hw, CP2101_UART, UART_ENABLE)) {
+	wan_spin_lock_init(&hwusb->cmd_lock,"usb_cmd");
+	wan_spin_lock_irq_init(&hwusb->lock,"usb_bh_lock");
+	hwusb->ctrl_idle_pattern  = WP_USB_CTRL_IDLE_PATTERN;
+	if (sdla_usb_set_config_single(hwcard, CP2101_UART, UART_ENABLE)) {
 		DEBUG_ERROR("%s: ERROR: Unable to enable UART!\n",
-					hw->devname);
+					hwcard->name);
 		goto cleanup;
 	}
 
-	if (sdla_usb_set_config_single(hw, CP2101_BAUDRATE, (BAUD_RATE_GEN_FREQ / WP_USB_BAUD_RATE))){
+	if (sdla_usb_set_config_single(hwcard, CP2101_BAUDRATE, (BAUD_RATE_GEN_FREQ / WP_USB_BAUD_RATE))){
 		DEBUG_EVENT(
 		"%s: ERROR: Baud rate requested not supported by device (%d bps)!\n",
-				hw->devname, WP_USB_BAUD_RATE);
+				hwcard->name, WP_USB_BAUD_RATE);
 		goto cleanup;
 	}
 
-	sdla_usb_get_config(hw, CP2101_BITS, &bits, 2);
+	sdla_usb_get_config(hwcard, CP2101_BITS, &bits, 2);
 	bits &= ~BITS_DATA_MASK;
 	bits |= BITS_DATA_8;
-	if (sdla_usb_set_config(hw, CP2101_BITS, &bits, 2)){
+	if (sdla_usb_set_config(hwcard, CP2101_BITS, &bits, 2)){
 		DEBUG_EVENT(
 		"%s: ERROR: Number of data bits requested not supported by device (%02X)!\n",
-				hw->devname, bits);
+				hwcard->name, bits);
 		goto cleanup;
 	}
 
-	hwcard->u_usb.urbcount_read = MAX_READ_URB_COUNT;	//4
-	hwcard->u_usb.urb_read_ind = 0;
-	for (x = 0; x < hwcard->u_usb.urbcount_read; x++){
-		hwcard->u_usb.dataread[x].id = x;
-		hwcard->u_usb.dataread[x].pvt = hw;
-		wan_set_bit(1, &hwcard->u_usb.datawrite[x].ready);
+	hwusb->urbcount_read = MAX_READ_URB_COUNT;	//4
+	hwusb->urb_read_ind = 0;
+	for (x = 0; x < hwusb->urbcount_read; x++){
+		hwusb->dataread[x].id = x;
+		hwusb->dataread[x].pvt = hwcard;
+		wan_set_bit(SDLA_URB_STATUS_READY, &hwusb->datawrite[x].ready);
 	}
 
-	hwcard->u_usb.urbcount_write = MAX_WRITE_URB_COUNT;	//4
-	hwcard->u_usb.urb_write_ind = 0;
-	for (x = 0; x < hwcard->u_usb.urbcount_write; x++){
-		hwcard->u_usb.datawrite[x].id = x;
-		hwcard->u_usb.datawrite[x].pvt = hw;
-		wan_set_bit(1, &hwcard->u_usb.datawrite[x].ready);
+	hwusb->urbcount_write = MAX_WRITE_URB_COUNT;	//4
+	hwusb->urb_write_ind = 0;
+	for (x = 0; x < hwusb->urbcount_write; x++){
+		hwusb->datawrite[x].id = x;
+		hwusb->datawrite[x].pvt = hwcard;
+		wan_set_bit(SDLA_URB_STATUS_READY, &hwusb->datawrite[x].ready);
 	}
-	if (sdla_prepare_transfer_urbs(hw, hwcard->u_usb.usb_intf)) {
+	if (sdla_prepare_transfer_urbs(hwcard, hwusb->usb_intf)) {
 		DEBUG_EVENT(
 		"%s: Failed to prepare the urbs for transfer!\n",
-				hw->devname);
+				hwcard->name);
 		goto cleanup;
 	}
 
-	hwcard->u_usb.next_rx_ind	= 0;
-	hwcard->u_usb.next_read_ind	= 0;
-	hwcard->u_usb.next_tx_ind	= 0;
-	hwcard->u_usb.next_write_ind	= 0;
+	hwusb->next_rx_ind	= 0;
+	hwusb->next_read_ind	= 0;
+	hwusb->next_tx_ind	= 0;
+	hwusb->next_write_ind	= 0;
 
 	/* Create dummy voice */
 	for(mod_no = 0; mod_no < 2; mod_no++){
-		memset(&hwcard->u_usb.regs[mod_no][0], 0xFF, 110); 
+		memset(&hwusb->regs[mod_no][0], 0xFF, 110); 
 	}
 
 	/* init initial and idle buffer */
 	for (x=0; x < MAX_USB_TX_LEN;x++){
-		hwcard->u_usb.writebuf[x] = idlebuf[x];
-		hwcard->u_usb.idlebuf[x] = idlebuf[x];
+		hwusb->writebuf[x] = idlebuf[x];
+		hwusb->idlebuf[x] = idlebuf[x];
 	}
 	
-	usb_set_intfdata(hwcard->u_usb.usb_intf, hw);
-	wan_set_bit(WP_USB_STATUS_READY, &hwcard->u_usb.status);
+	usb_set_intfdata(hwusb->usb_intf, hwcard);
+	hwcard->internal_used++;
+	hwcard->core_rev = 0xFF;
+	wan_set_bit(WP_USB_STATUS_READY, &hwusb->status);
 
 	/* Verifing sync with USB-FXO device */
-	hwcard->u_usb.opmode = SDLA_USB_OPMODE_VOICE;
-	for (x = 0; x < hwcard->u_usb.urbcount_read; x++){
-		DEBUG_EVENT("%s: Start read sequence...\n",
-					hw->devname);
-		if (wp_usb_start_transfer(&hwcard->u_usb.dataread[x])) {
+	hwusb->opmode = SDLA_USB_OPMODE_VOICE;
+	for (x = 0; x < hwusb->urbcount_read; x++){
+		if (wp_usb_start_transfer(&hwusb->dataread[x])) {
 			DEBUG_EVENT(
 			"%s: Failed to start RX:%d transfer!\n", 
-					hw->devname, x);
+					hwcard->name, x);
 			goto cleanup;
 		}
 	}
 
-	err = 0;
-	do{
-		if (err++ > 10) break;
-		wait_just_a_bit(SDLA_USBFXO_READ_DELAY, 0);
-	} while(!hwcard->u_usb.rx_sync);
+	err = sdla_usb_search_rxsync(hwcard);
+	if (!err && hwusb->rx_sync){
 
-	if (hwcard->u_usb.rx_sync){
+		hwusb->opmode = SDLA_USB_OPMODE_VOICE;
 
-		hwcard->u_usb.opmode = SDLA_USB_OPMODE_VOICE;
-	
+        	/* Waiting for USB device to sync */
+		sdla_usb_search_txsync(hwcard);
+				
 		/* Read hardware ID */
-		err = sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_DEVICEID, &data8);
-		if (err){
-			DEBUG_EVENT("%s: Failed to read USB Device ID (err=%d)!\n",
-					hw->devname, err);
+		err = __sdla_usb_cpu_read(hwcard, SDLA_USB_CPU_REG_DEVICEID, &data8);
+		if (data8 != SDLA_USB_DEVICEID){
+			DEBUG_EVENT("%s: Failed to read USB Device ID (%02X:err=%d)!\n",
+					hwcard->name, data8, err);
 			goto cleanup;
 		}
-		if (data8 != 0x55){
-			DEBUG_EVENT("%s: Failed to verify USB Device ID (%X:55)!\n",
-					hw->devname, data8);
-			goto cleanup;
-		}
+		DEBUG_USB("%s: Detected USB-FXO interface!\n",
+					hwcard->name);
+
 		/* Read hardware version */ 
-		err = sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_HARDWAREVER, &data8);
+		err = __sdla_usb_cpu_read(hwcard, SDLA_USB_CPU_REG_HARDWAREVER, &data8);
 		if (err){
 			DEBUG_EVENT("%s: Failed to read USB Hardware Version (err=%d)!\n",
-					hw->devname, err);
+					hwcard->name, err);
 			goto cleanup;
 		}
-		DEBUG_EVENT("%s: USB-FXO Hardware Version %d.%d!\n",
-					hw->devname, (data8 >> 4) & 0x0F, data8 & 0x0F);
+		hwusb->hw_rev = data8;
 	
 		/* Read firmware version */
-		err = sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_FIRMWAREVER, &data8);
+		err = __sdla_usb_cpu_read(hwcard, SDLA_USB_CPU_REG_FIRMWAREVER, &data8);
 		if (err){
 			DEBUG_EVENT("%s: Failed to read USB Firmware Version (err=%d)!\n",
-					hw->devname, err);
+					hwcard->name, err);
 			goto cleanup;
 		}
-		DEBUG_EVENT("%s: USB-FXO Firmware Version %d.%d!\n",
-					hw->devname, (data8 >> 4) & 0x0F, data8 & 0x0F);
+		hwcard->core_rev = data8;
+
+		/* Read EC channels number */
+		__sdla_usb_cpu_read(hwcard, SDLA_USB_CPU_REG_EC_NUM, &data8);
+		hwcard->hwec_chan_no = data8;
+		if (hwcard->core_rev < 0x20){
+			/* Undefined register before ver 2.0 */
+			hwcard->hwec_chan_no = 0x00;
+			/* TX Sync is not implemented in early version */
+			hwusb->tx_sync = 1;
+		}else{
+			if (!hwusb->tx_sync){
+    				DEBUG_EVENT("%s: USB device is out of sync!\n",
+                                			hwcard->name);
+                		goto cleanup;
+            		}
+        	}
+
+		/* Reset register to default values */
+		__sdla_usb_cpu_write(hwcard, SDLA_USB_CPU_REG_CTRL, SDLA_USB_CPU_BIT_CTRL_RESET);
+		hwusb->reg_cpu_ctrl = 0x00;
+
+		__sdla_usb_cpu_read(hwcard, SDLA_USB_CPU_REG_FIFO_STATUS, &data8);
+		__sdla_usb_cpu_read(hwcard, SDLA_USB_CPU_REG_UART_STATUS, &data8);
+		__sdla_usb_cpu_read(hwcard, SDLA_USB_CPU_REG_HOSTIF_STATUS, &data8);
 	}else{
 		DEBUG_EVENT("%s: USB-FXO Device in Firmware Update mode...\n",
-				  hw->devname);
-		hwcard->u_usb.opmode = SDLA_USB_OPMODE_API;
-
+				  hwcard->name);
+		hwusb->opmode = SDLA_USB_OPMODE_API;
+		hwusb->hw_rev	= 0xFF;
+		hwcard->core_rev= 0xFF;
 	}
 
-	sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_FIFO_STATUS, &data8);
-	sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_UART_STATUS, &data8);
-	sdla_usb_cpu_read(hw, SDLA_USB_CPU_REG_HOSTIF_STATUS, &data8);
 	return 0;
 
 cleanup:
 
-	wan_clear_bit(WP_USB_STATUS_READY, &hwcard->u_usb.status);
-	WAN_IFQ_PURGE(&hwcard->u_usb.tx_cmd_free_list);
-	WAN_IFQ_DESTROY(&hwcard->u_usb.tx_cmd_free_list);
-	WAN_IFQ_PURGE(&hwcard->u_usb.rx_cmd_free_list);
-	WAN_IFQ_DESTROY(&hwcard->u_usb.rx_cmd_free_list);
-	WAN_TASKLET_KILL(&hwcard->u_usb.bh_task);
-	usb_set_intfdata(hwcard->u_usb.usb_intf, NULL);
+	wan_clear_bit(WP_USB_STATUS_READY, &hwusb->status);
+	WAN_IFQ_PURGE(&hwusb->tx_cmd_free_list);
+	WAN_IFQ_DESTROY(&hwusb->tx_cmd_free_list);
+	WAN_IFQ_PURGE(&hwusb->rx_cmd_free_list);
+	WAN_IFQ_DESTROY(&hwusb->rx_cmd_free_list);
+	WAN_TASKLET_KILL(&hwusb->bh_task);
+	if (usb_get_intfdata(hwusb->usb_intf)){
+		hwcard->internal_used--;
+		usb_set_intfdata(hwusb->usb_intf, NULL);
+	}
 	return -ENODEV;
 }
 
-int sdla_usb_down(sdlahw_t *hw, int force)
+int sdla_usb_down(sdlahw_card_t *hwcard, int force)
 {
-	sdlahw_card_t	*hwcard;
+	sdlahw_usb_t	*hwusb = NULL;
 	int		x = 0;
 
-	DEBUG_EVENT("%s: Releasing private data...\n", hw->devname);
-	WAN_ASSERT(hw == NULL);
-	WAN_ASSERT(hw->hwcpu == NULL);
-	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
-	hwcard = hw->hwcpu->hwcard;
+	WAN_ASSERT(hwcard == NULL);
+	hwusb = &hwcard->u_usb;
+	DEBUG_EVENT("%s: Releasing private data...\n", hwcard->name);
 
-	wan_clear_bit(WP_USB_STATUS_READY, &hwcard->u_usb.status);
+	wan_clear_bit(WP_USB_STATUS_READY, &hwusb->status);
+	WAN_TASKLET_KILL(&hwusb->bh_task);
 
 	/* Do not clear the structures if force=1 */
-	if (force) return 0;
-	WAN_IFQ_PURGE(&hwcard->u_usb.tx_cmd_free_list);
-	WAN_IFQ_DESTROY(&hwcard->u_usb.tx_cmd_free_list);
-	WAN_IFQ_PURGE(&hwcard->u_usb.rx_cmd_free_list);
-	WAN_IFQ_DESTROY(&hwcard->u_usb.rx_cmd_free_list);
-	WAN_IFQ_PURGE(&hwcard->u_usb.tx_cmd_list);
-	WAN_IFQ_DESTROY(&hwcard->u_usb.tx_cmd_list);
-	WAN_IFQ_PURGE(&hwcard->u_usb.rx_cmd_list);
-	WAN_IFQ_DESTROY(&hwcard->u_usb.rx_cmd_list);
+	WAN_IFQ_PURGE(&hwusb->tx_cmd_free_list);
+	WAN_IFQ_DESTROY(&hwusb->tx_cmd_free_list);
+	WAN_IFQ_PURGE(&hwusb->rx_cmd_free_list);
+	WAN_IFQ_DESTROY(&hwusb->rx_cmd_free_list);
+	WAN_IFQ_PURGE(&hwusb->tx_cmd_list);
+	WAN_IFQ_DESTROY(&hwusb->tx_cmd_list);
+	WAN_IFQ_PURGE(&hwusb->rx_cmd_list);
+	WAN_IFQ_DESTROY(&hwusb->rx_cmd_list);
 
-	for (x = 0; x < hwcard->u_usb.urbcount_read; x++){
-		usb_unlink_urb(&hwcard->u_usb.dataread[x].urb);
-		usb_kill_urb(&hwcard->u_usb.dataread[x].urb);
+	for (x = 0; x < hwusb->urbcount_read; x++){
+		usb_unlink_urb(&hwusb->dataread[x].urb);
+		usb_kill_urb(&hwusb->dataread[x].urb);
 	}
-	for (x = 0; x < hwcard->u_usb.urbcount_write; x++){
-		usb_unlink_urb(&hwcard->u_usb.datawrite[x].urb);
-		usb_kill_urb(&hwcard->u_usb.datawrite[x].urb);
+	for (x = 0; x < hwusb->urbcount_write; x++){
+		usb_unlink_urb(&hwusb->datawrite[x].urb);
+		usb_kill_urb(&hwusb->datawrite[x].urb);
 	}
-
-	WAN_TASKLET_KILL(&hwcard->u_usb.bh_task);
-	usb_set_intfdata(hwcard->u_usb.usb_intf, NULL);
+	if (hwusb->writebuf) wan_free(hwusb->writebuf);
+	if (hwusb->readbuf) wan_free(hwusb->readbuf);
+	if (usb_get_intfdata(hwusb->usb_intf)){
+		hwcard->internal_used--;
+		usb_set_intfdata(hwusb->usb_intf, NULL);
+	}
 	return 0;
 }
 

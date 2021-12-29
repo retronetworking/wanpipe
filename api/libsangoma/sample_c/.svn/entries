@@ -1,15 +1,15 @@
 8
 
 dir
-273
+293
 https://www.sangomapbx.com/svn/libsangoma/trunk/sample_c
 https://www.sangomapbx.com/svn/libsangoma
 
 
 
-2010-01-22T21:30:47.609627Z
-248
-davidr
+2010-06-17T18:02:18.733671Z
+292
+ncorbic
 has-props
 
 svn:special svn:externals svn:needs-lock
@@ -32,10 +32,10 @@ file
 
 
 
-2009-08-25T20:44:41.000000Z
-df0de3e86155c3e69e9d289a7d923f68
-2009-04-07T01:30:57.044470Z
-139
+2010-06-14T20:01:26.000000Z
+0d8197d3f408802760d39c2c5ef70299
+2010-06-15T00:59:38.715189Z
+289
 ncorbic
 
 sample-doxygen.config
@@ -56,11 +56,11 @@ file
 
 
 
-2009-12-04T21:21:35.000000Z
-17f4ef3cc598f84b869bbcc38d2e12aa
-2009-11-19T22:00:29.815332Z
-234
-davidr
+2010-06-17T18:13:17.000000Z
+c291876c4c6d01386787a8ca925c2363
+2010-06-17T18:02:18.733671Z
+292
+ncorbic
 
 sources
 file
@@ -80,10 +80,10 @@ file
 
 
 
-2009-08-25T20:44:41.000000Z
-80b2a1bced5f696771e5a92163a9967e
-2009-04-07T01:30:57.044470Z
-139
+2010-06-14T20:01:44.000000Z
+2226e4aee423aa808e5002b1c95e20eb
+2010-06-15T00:59:38.715189Z
+289
 ncorbic
 
 Makefile.Linux

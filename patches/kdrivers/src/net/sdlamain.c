@@ -350,6 +350,8 @@ static int check_aft_conflicts (sdla_t* card,wandev_conf_t* conf, int*);
 static int wanpipe_register_fw_to_api(void);
 static int wanpipe_unregister_fw_from_api(void);
 
+static int wan_add_device(void);
+static int wan_delete_device(char*);
 
 /****** Global Data **********************************************************
  * Note: All data must be explicitly initialized!!!
@@ -370,6 +372,8 @@ typedef struct{
 
 static int DBG_ARRAY_CNT;
 func_debug_t DEBUG_ARRAY[100];
+
+extern sdladrv_callback_t sdladrv_callback;
 
 /******* Kernel Loadable Module Entry Points ********************************/
 
@@ -394,7 +398,6 @@ MODULE_LICENSE("GPL");
 int __init wanpipe_init(void)
 {
 	int i, cnt, err = 0;
-	sdla_t *card,*tmpcard;
 
 	ncards=0;
 
@@ -405,13 +408,16 @@ int __init wanpipe_init(void)
 	
 	/* Probe for wanpipe cards and return the number found */
 	DEBUG_EVENT("wanpipe: Probing for WANPIPE hardware.\n");
-	ncards = sdla_hw_probe();
+	cnt = sdla_hw_probe();
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
-	ncards += sdla_get_hw_usb_adptr_cnt();
+	cnt += sdla_get_hw_usb_adptr_cnt();
+	/* Hot-plug is not supported yet */
+	sdladrv_callback.add_device = wan_add_device;
+	sdladrv_callback.delete_device = wan_delete_device;
 #endif
-	if (ncards){
+	if (cnt){
 		DEBUG_EVENT("wanpipe: Allocating maximum %i devices: wanpipe%i - wanpipe%i.\n",
-					ncards,1,ncards);
+					cnt,1,cnt);
 	}else{
 		DEBUG_EVENT("wanpipe: No AFT/S514/S508 cards found, unloading modules!\n");
 		return -ENODEV;
@@ -420,66 +426,13 @@ int __init wanpipe_init(void)
 	card_list=NULL;
 	wanpipe_debug=NULL;
 	
-	for (i=0;i<ncards;i++){
-		tmpcard=wan_kmalloc(sizeof(sdla_t));
-		if (!tmpcard){
-			sdla_t *tmp;
-			for (tmpcard=card_list;tmpcard;){
-				tmp=tmpcard->list;
-				wan_free(tmpcard);
-				tmpcard=tmp;
-			}
-			card_list=NULL;
-			return -ENOMEM;
-		}
-		memset(tmpcard,0,sizeof(sdla_t));
-		tmpcard->list=card_list;
-		card_list=tmpcard;
+	for (i = 0; i < cnt; i++){
+		if (wan_add_device()) break;
 	}
-	
-	cnt=0;
-	/* Register adapters with WAN router */
-	for (card = card_list; card; card = card->list) {
-		
-		wan_device_t* wandev = &card->wandev;
-		
-		card->next = NULL;
-		sprintf(card->devname, "%s%d", drvname, ++cnt);
-		card->card_no=cnt;
-		wandev->magic    = ROUTER_MAGIC;
-		wandev->name     = card->devname;
-		wandev->priv  = card;
-		wandev->enable_tx_int = 0;
-		wandev->setup    = &setup;
-		wandev->shutdown = &shutdown;
-		wandev->ioctl    = &ioctl;
-		wandev->debugging      = &debugging;
-		err = register_wan_device(wandev);
-		if (err) {
-			DEBUG_EVENT("%s: %s registration failed with error %d!\n",
-						drvname, card->devname, err);
-			break;
-		}
-	}
-	if (cnt){
-		ncards = cnt;	/* adjust actual number of cards */
-	}else {
-		sdla_t *tmp;
-		for (tmpcard=card_list;tmpcard;){
-			unregister_wan_device(tmpcard->devname);
-			tmp=tmpcard->list;
-			wan_free(tmpcard);
-			tmpcard=tmp;
-		}
-		card_list=NULL;
+	if (ncards == 0){
 		DEBUG_EVENT("IN Init Module: NO Cards registered\n");
-		err = -ENODEV;
+		return -ENODEV;
 	}
-
-	if (err){
-		return err;
-	}
-	
 	
 	err=wanpipe_register_fw_to_api();
 	if (err){
@@ -512,21 +465,21 @@ int __init wanpipe_init(void)
  */
 void __exit wanpipe_exit(void)
 {
-	sdla_t *tmpcard, *tmp;
-
 
 	wanpipe_unregister_fw_from_api();
 
-	if (!card_list)
+	if (!card_list){
 		return;
-		
-	for (tmpcard=card_list;tmpcard;){
-		unregister_wan_device(tmpcard->devname);
-		tmp=tmpcard->list;
-		wan_free(tmpcard);
-		tmpcard=tmp;
 	}
-
+		
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+	sdladrv_callback.add_device = NULL;
+	sdladrv_callback.delete_device = NULL;
+#endif
+	/* Remove all devices */
+	while(card_list){
+		wan_delete_device(card_list->devname);
+	}
 	card_list=NULL;
 
 	wanpipe_codec_free();
@@ -540,6 +493,77 @@ module_init(wanpipe_init);
 module_exit(wanpipe_exit);
 
 /******* WAN Device Driver Entry Points *************************************/
+
+static int wan_add_device(void)
+{
+	sdla_t		*card;
+	wan_device_t	*wandev;
+	int		err = 0;
+ 
+	card = wan_kmalloc(sizeof(sdla_t));
+	if (card == NULL){
+		return -ENOMEM;
+	}
+		
+	memset(card, 0, sizeof(sdla_t));
+	card->next = NULL;
+	sprintf(card->devname, "%s%d", drvname, ncards+1);
+	wandev = &card->wandev;
+	wandev->magic    	= ROUTER_MAGIC;
+	wandev->name		= card->devname;
+	wandev->priv  		= card;
+	wandev->enable_tx_int 	= 0;
+	wandev->setup    	= &setup;
+	wandev->shutdown 	= &shutdown;
+	wandev->ioctl    	= &ioctl;
+	wandev->debugging	= &debugging;
+	card->card_no		= ncards+1;
+	err = register_wan_device(wandev);
+	if (err) {
+		DEBUG_EVENT("%s: %s registration failed with error %d!\n",
+					drvname, card->devname, err);
+		wan_free(card);
+		return -EINVAL;
+	}
+
+	card->list=card_list;
+	card_list=card;
+	ncards++;
+	return 0;
+}
+
+static int wan_delete_device(char *devname)
+{
+	sdla_t	*card = NULL, *tmp;
+
+	if (strcmp(card_list->devname, devname) == 0){
+		card = card_list;
+		card_list = card_list->list;
+	}else{
+		for (tmp = card_list; tmp; tmp = tmp->list){
+			if (tmp->list && strcmp(tmp->list->devname, devname) == 0){
+				card = tmp->list;
+				tmp->list = card->list;
+				card->list = NULL;
+				break;
+			}
+		}
+		if (card == NULL){
+			DEBUG_EVENT("%s: Failed to find device in a list!\n",
+					devname);
+			return -EINVAL;
+		}
+	}
+	if (card->wandev.state != WAN_UNCONFIGURED){
+		DEBUG_EVENT("%s: Device is still running!\n",
+				card->devname);
+		return -EINVAL;
+	}
+
+	unregister_wan_device(card->devname);
+	wan_free(card);
+	return 0;
+}
 
 /*============================================================================
  * Setup/configure WAN link driver.
@@ -1716,6 +1740,16 @@ STATIC WAN_IRQ_RETVAL sdla_isr (int irq, void* dev_id)
 		if (card->isr){
 			WAN_IRQ_CALL(card->isr, (card), val);
 		}
+
+#ifdef CONFIG_SMP
+		if (!spin_is_locked(&card->wandev.lock)) {
+			if (WAN_NET_RATELIMIT()) {
+         		DEBUG_ERROR("%s:%s Critical error: driver locking has been corrupted, isr lock left unlocked!\n",
+					__FUNCTION__,__LINE__);
+			}
+		}
+#endif
+
 		spin_unlock(&card->wandev.lock);
 	
 		WAN_IRQ_RETURN(val);
@@ -1728,6 +1762,7 @@ STATIC WAN_IRQ_RETVAL sdla_isr (int irq, void* dev_id)
 		if (card->isr){
 			WAN_IRQ_CALL(card->isr, (card), val);
 		}
+
 		spin_unlock_irqrestore(&card->wandev.lock,flags);
 		WAN_IRQ_RETURN(val);
 	}

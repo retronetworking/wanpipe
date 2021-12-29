@@ -36,6 +36,12 @@
 #undef DAHDI_22
 #endif
 
+#ifdef DAHDI_AUDIO_NOTIFY
+#define DAHDI_23
+#else
+#undef DAHDI_23
+#endif
+
 // defines 
 #define ZT_CODE DAHDI_CODE
 

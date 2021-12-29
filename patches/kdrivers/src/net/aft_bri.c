@@ -885,18 +885,13 @@ int aft_bri_chip_unconfig(sdla_t *card)
 	card->wandev.hwec_enable = NULL;
 	card->wandev.ec_dev = NULL;
 
-	/* Unconfiging, only on shutdown */
-	if (card->wandev.fe_iface.pre_release){
-		card->wandev.fe_iface.pre_release(&card->fe);
-	}
-
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 	__aft_fe_intr_ctrl(card,0);
 	if (card->wandev.fe_iface.unconfig){
 		card->wandev.fe_iface.unconfig(&card->fe);
 	}
-	__aft_fe_intr_ctrl(card,0);
+	__aft_fe_intr_ctrl(card,0 /* FIXME: should it be 1? */);
 	wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 	card->hw_iface.hw_unlock(card->hw,&smp_flags1);
 

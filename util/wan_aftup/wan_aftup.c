@@ -159,6 +159,8 @@ aft_core_info_t aft_core_table[] = {
 	  "A108dm_0100_V", "A108dm_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ A200_REMORA_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_ANALOG_FE_CORE_ID, 0x01, 0x4F,	
 	  "A200_0040_V", "A200_0040_V*.BIN", AFT_CORE_X400_SIZE },
+	{ AFT_B800_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_ANALOG_FE_CORE_ID, 0x01, 0x4F,	
+	  "B800_0040_V", "B800_0040_V*.BIN", AFT_CORE_X400_SIZE },
 	{ A400_REMORA_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_ANALOG_FE_CORE_ID, 0x01, 0x4F,	
 	  "A400_0040_V", "A400_0040_V*.BIN", AFT_CORE_X400_SIZE },
 	{ A200_REMORA_SHARK_SUBSYS_VENDOR, AFT_CHIP_X200, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
@@ -418,6 +420,7 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		aft->cpld.iface	= &aftup_flash_iface;
 		break;
 	case A200_ADPTR_ANALOG:
+	case AFT_ADPTR_B800:
 	case A400_ADPTR_ANALOG:
 	case A305_ADPTR_C_1TE3:
 	case AFT_ADPTR_56K:
@@ -459,6 +462,9 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 	}else if (strncmp(type,"AFT-A200",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
 		aft->cpld.adptr_type = A200_ADPTR_ANALOG;
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+	}else if (strncmp(type,"AFT-B800",8) == 0){
+		aft->cpld.adptr_type = AFT_ADPTR_B800;
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 	}else if (strncmp(type,"AFT-A400",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
@@ -948,6 +954,9 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 	case A200_REMORA_SHARK_SUBSYS_VENDOR:
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 		break;
+	case AFT_B800_SUBSYS_VENDOR:
+		aft->cpld.iface	= &aftup_shark_flash_iface;
+		break;
 	case A400_REMORA_SHARK_SUBSYS_VENDOR:
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 		break;
@@ -1011,6 +1020,7 @@ static int wan_aftup_update_card(wan_aftup_t *aft)
 		break;
 	case A200_REMORA_SHARK_SUBSYS_VENDOR:
 	case A400_REMORA_SHARK_SUBSYS_VENDOR:
+	case AFT_B800_SUBSYS_VENDOR:
 		aft->cpld.chip_id = AFT_CHIP_X1000;
 		aft->cpld.flash	= &aft_shark_flash;
 		break;
@@ -1088,6 +1098,7 @@ static int wan_pcie_ctrl(struct wan_aftup_head_t *head)
 			break;
 		case A200_REMORA_SHARK_SUBSYS_VENDOR:
 		case A400_REMORA_SHARK_SUBSYS_VENDOR:
+		case AFT_B800_SUBSYS_VENDOR:
 		case AFT_A600_SUBSYS_VENDOR:
 		case AFT_B601_SUBSYS_VENDOR:
 			break;

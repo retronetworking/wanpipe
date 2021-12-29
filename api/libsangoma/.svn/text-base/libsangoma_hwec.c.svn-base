@@ -44,12 +44,7 @@
 # pragma comment( lib, "waneclib" )	/* import functions from waneclib.dll */
 #endif/* __WINDOWS__) */
 
-/* Fast sequence of commands to HWEC may cause the chip
- * enter fatal error state, the workaround is to have
- * a guaranteed delay after eache command. */
-#define HWEC_CMD_DELAY() wp_usleep(20000)	/* 20ms */
-
-static int libsng_hwec_verbosity_level = 0;
+static int libsng_hwec_verbosity_level = 0x00;
 
 /************************************************************//**
  * Private Functions. (Not exported)
@@ -67,54 +62,145 @@ static sangoma_status_t sangoma_hwec_bypass(char *device_name, int enable, unsig
 
 	/* WAN_EC_API_CMD_HWEC_ENABLE/WAN_EC_API_CMD_HWEC_DISABLE - Controls the "bypass" mode.)*/
 	rc = wanec_api_hwec(device_name, libsng_hwec_verbosity_level, &hwec);
-	if( rc ) {
-		return rc;
-	}
-	HWEC_CMD_DELAY();
-	return SANG_STATUS_SUCCESS;
+
+	return rc;
 }
 
+static int sangoma_hwec_is_numeric_parameter(char *parameter)
+{
+	int i;
+	static char *WANEC_numeric_params[] = {
+		"WANEC_TailDisplacement",
+		"WANEC_MaxPlayoutBuffers",
+		"WANEC_MaxConfBridges",
+		"WANEC_EchoOperationMode",
+		"WANEC_ComfortNoiseMode",
+		"WANEC_NonLinearityBehaviorA",
+		"WANEC_NonLinearityBehaviorB",
+		"WANEC_DoubleTalkBehavior",
+		"WANEC_RinLevelControlGainDb",
+		"WANEC_SoutLevelControlGainDb",
+		"WANEC_RinAutomaticLevelControlTargetDb",
+		"WANEC_SoutAutomaticLevelControlTargetDb",
+		"WANEC_RinHighLevelCompensationThresholdDb",
+		"WANEC_AnrSnrEnhancementDb",
+		NULL
+	};
 
-/************************************************************//**
+	i = 0;
+	while(WANEC_numeric_params[i]){
+		if (!wp_strncasecmp(parameter, WANEC_numeric_params[i], strlen(parameter))) {
+			return 1;/* this IS a numeric parameter */
+		}
+		i++;
+	};
+
+	return 0;/* NOT a numeric parameter */
+}
+
+/***************************************************************
  * Public Functions. (Exported)
  ***************************************************************/ 
 
 /*!
-  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name)
+  \fn void _LIBSNG_CALL sangoma_hwec_initialize_custom_parameter_structure(wan_custom_param_t *custom_param, char *parameter_name, char *parameter_value)
 
-  \brief Load Firmware image onto EC chip.
+  \brief Initialize Custom Paramter structure.
+
+  \param parameter_name  Parameter Name
+
+  \param parameter_value Parameter Value
+
+  \return None
+*/
+void _LIBSNG_CALL sangoma_hwec_initialize_custom_parameter_structure(wan_custom_param_t *custom_param, char *parameter_name, char *parameter_value)
+{
+	memset(custom_param, 0x00, sizeof(*custom_param));
+
+	strncpy( custom_param->name, parameter_name, sizeof(custom_param->name) );
+
+	if (sangoma_hwec_is_numeric_parameter(parameter_name)) {
+		custom_param->dValue = atoi(parameter_value);
+	} else {
+		strncpy(custom_param->sValue, parameter_value, sizeof(custom_param->sValue));
+	}
+}
+
+/*!
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name, wan_custom_param_t custom_params[], unsigned int number_of_custom_params)
+
+  \brief Load Firmware image onto EC chip. All chip-wide configuration paramters, if any,
+		must be specified at the time of chip initialization.
 
   \param device_name Sangoma API device name. 
 		Windows: wanpipe1_if1, wanpipe2_if1...
 		Linux: wanpipe1, wanpipe2...
 
+  \param custom_params[] - (optional) array of custom paramter structures.
+
+		This is list of Echo Cancellation chip parameters:
+
+		Chip parameter					Chip parameter value
+		=================				=======================
+		WANEC_TailDisplacement			0-896
+		WANEC_MaxPlayoutBuffers			0-4678
+		WANEC_EnableExtToneDetection	TRUE | FALSE
+		WANEC_EnableAcousticEcho		TRUE | FALSE
+
+  \param number_of_custom_params - (optional) number of structures in custom_params[]. Minimum value is 1, maximum is 4,
+		if any other value the custom_params[] will be ignored.
+
   \return SANG_STATUS_SUCCESS: success, or error status
 */
-sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name)
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_init(char *device_name, wan_custom_param_t custom_params[], unsigned int number_of_custom_params)
 {
-	sangoma_status_t rc;
-	wan_custom_param_t custom_parms;
+	sangoma_status_t rc = SANG_STATUS_SUCCESS;
 	wanec_api_config_t config;
 
 	memset(&config, 0x00, sizeof(config));
-	memset(&custom_parms, 0x0, sizeof(custom_parms));
 
-#if 1
-	/* enable acoustic echo cancellation by default */
-	strcpy( custom_parms.name, "WANEC_EnableAcousticEcho" );
-	strcpy( custom_parms.sValue, "TRUE" );
-	
-	config.conf.param_no = 1;
-	config.conf.params = &custom_parms;
-#endif
+	if (number_of_custom_params >= 1 && number_of_custom_params <= 4) {
 
-	/* Load firmware on EC chip */
+		wan_custom_param_t *custom_parms_ptr;
+		unsigned int i, custom_params_memory_size;
+
+		custom_params_memory_size = sizeof(wan_custom_param_t) * number_of_custom_params;
+
+		/* Do NOT change memory at custom_params[] (it belongs to the caller).
+		 * Instead allocate temporary buffer, and use information in custom_params[]
+		 * for proper initialization the temproary buffer and
+		 * and send if down to API driver. */
+		custom_parms_ptr = malloc(custom_params_memory_size);
+		if (!custom_parms_ptr) {
+			return SANG_STATUS_FAILED_ALLOCATE_MEMORY;
+		}
+
+		memset(custom_parms_ptr, 0x00, custom_params_memory_size);
+
+		for (i = 0; i < number_of_custom_params; i++) {
+
+			strcpy( custom_parms_ptr[i].name, custom_params[i].name );
+
+			if (sangoma_hwec_is_numeric_parameter(custom_params[i].name)) {
+				custom_parms_ptr[i].dValue = atoi(custom_params[i].sValue);
+			} else {
+				strcpy(custom_parms_ptr[i].sValue, custom_params[i].sValue);
+			}
+		} /* for() */
+
+		config.conf.param_no = number_of_custom_params;
+		config.conf.params = custom_parms_ptr;
+
+	}/* if() */
+
+	/* Load firmware on EC chip AND apply configuration, if any. */
 	rc = wanec_api_config( device_name, libsng_hwec_verbosity_level, &config );
-	if( rc ) {
-		return rc;
+
+	if (config.conf.params) {
+		free(config.conf.params);
 	}
-	HWEC_CMD_DELAY();
-	return SANG_STATUS_SUCCESS;
+
+	return rc;
 }
 
 
@@ -137,13 +223,9 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_release(char *device_name)
 	memset(&release, 0, sizeof(wanec_api_release_t));
 
 	rc = wanec_api_release( device_name, libsng_hwec_verbosity_level, &release );
-	if( rc ) {
-		return rc;
-	}
-	HWEC_CMD_DELAY();
-	return SANG_STATUS_SUCCESS;
-}
 
+	return rc;
+}
 
 /*!
 	Modify channel operation mode.
@@ -167,11 +249,8 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_operation_mode(char *device_na
 	WANEC_API_OPMODE_SPEECH_RECOGNITION.
 	*/
 	rc = wanec_api_opmode(device_name, libsng_hwec_verbosity_level, &opmode);
-	if( rc ) {
-		return rc;
-	}
-	HWEC_CMD_DELAY();
-	return SANG_STATUS_SUCCESS;
+
+	return rc;
 }
 
 /*!
@@ -229,7 +308,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_power_off(char *device_name,  
 		This command is recommened for fast enabling of Echo Cancellation.
         Note 1: Chip must be configured and in POWER ON state for echo
 				Chancellation to take place.
-		Note 2: sangoma_tdm_enable_hwec() function can be use to achive
+		Note 2: sangoma_tdm_enable_hwec() function can be used to achive
 				the same funcitnality based on file descriptor versus
 				channel map.
 
@@ -275,10 +354,17 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_disable(char *device_name, unsigned i
 }
 
 /*!
-  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameters(char *device_name,	char *parameter, char *parameter_value, unsigned int channel_map)
+  \fn sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameter(char *device_name,	char *parameter, char *parameter_value, unsigned int channel_map)
 
   \brief Modify channel configuration parameters.
-	This is list of Echo Cancellation channel parameters:
+
+  \param device_name Sangoma API device name. 
+		Windows: wanpipe1_if1, wanpipe2_if1...
+		Linux: wanpipe1, wanpipe2...
+
+  \param parameter Echo Cancellation channel parameter
+
+	This channel parameters are listed under "Channel parameter":
 
 		Channel parameter					Channel parameter value
 		=================					=======================
@@ -301,33 +387,30 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_disable(char *device_name, unsigned i
 		WANEC_DoubleTalkBehavior			DT_BEH_NORMAL
 											DT_BEH_LESS_AGGRESSIVE
 
+  \param parameter_value channel parameter value, listed under "Channel parameter value"
+
   \param fe_chan_map Bitmap of channels (timeslots for Digital, lines for Analog) where 
 		the call will take effect.
 
   \return SANG_STATUS_SUCCESS: success, or error status
 */
-sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameters(char *device_name,	char *parameter, char *parameter_value, unsigned int channel_map)
+sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_channel_parameter(char *device_name,	char *parameter, char *parameter_value, unsigned int channel_map)
 {
 	sangoma_status_t rc;
 	wanec_api_modify_t channelModify;
-	wan_custom_param_t aParms;
+	wan_custom_param_t custom_param;
 
 	memset(&channelModify, 0x00, sizeof(channelModify));
-	memset(&aParms, 0x00, sizeof(aParms));
+
+	sangoma_hwec_initialize_custom_parameter_structure(&custom_param, parameter, parameter_value);
 
 	channelModify.fe_chan_map = channel_map;
 	channelModify.conf.param_no = 1;
-	channelModify.conf.params = &aParms;
-
-	strcpy( aParms.name, parameter);
-	strcpy( aParms.sValue, parameter_value);
+	channelModify.conf.params = &custom_param;
 
 	rc = wanec_api_modify( device_name, libsng_hwec_verbosity_level, &channelModify );
-	if( rc ){
-		return rc;
-	}
-	HWEC_CMD_DELAY();
-	return SANG_STATUS_SUCCESS;
+
+	return rc;
 }
 
 /*!
@@ -366,11 +449,8 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_tone_detection(char *device_na
 	tone.type_map	= WAN_EC_TONE_PRESENT | WAN_EC_TONE_STOP;
 
 	rc = wanec_api_tone( device_name, libsng_hwec_verbosity_level, &tone );
-	if( rc ) {
-		return rc;
-	}
-	HWEC_CMD_DELAY();
-	return SANG_STATUS_SUCCESS;
+
+	return rc;
 }
 
 /*!
@@ -401,11 +481,8 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_print_statistics(char *device_name, i
 	stats.reset = 0;	/* do not reset */
 
 	rc = wanec_api_stats( device_name, libsng_hwec_verbosity_level, &stats );
-	if( rc ) {
-		return rc;
-	}
-	HWEC_CMD_DELAY();
-	return SANG_STATUS_SUCCESS;
+
+	return rc;
 }
 
 /*!
@@ -443,7 +520,6 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_load(char *device_name, 
 
 	*out_buffer_id = bufferload.buffer_id;
 
-	HWEC_CMD_DELAY();
 	return SANG_STATUS_SUCCESS;
 }
 
@@ -468,11 +544,8 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_unload(char *device_name
 	bufferunload.buffer_id	= (unsigned int)in_buffer_id;
 
 	rc = wanec_api_buffer_unload( device_name, libsng_hwec_verbosity_level, &bufferunload);
-	if( rc ) {
-		return rc;
-	}
-	HWEC_CMD_DELAY();
-	return SANG_STATUS_SUCCESS;
+
+	return rc;
 }
 
 /*!
@@ -518,18 +591,17 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_audio_buffer_playout(char *device_nam
 	playout.duration	= (duration) ? duration : 5000;	/* default is 5s */
 
 	rc = wanec_api_playout( device_name, libsng_hwec_verbosity_level, &playout);
-	if( rc ) {
-		return rc;
-	}
-	HWEC_CMD_DELAY();
-	return SANG_STATUS_SUCCESS;
+
+	return rc;
 }
 
 /*!
   \fn void _LIBSNG_CALL sangoma_hwec_config_verbosity(int verbosity_level)
 
-  \brief Set Verbosity level of EC API. The level controls amount of data 
-			printed to stdout and wanpipelog.txt for diagnostic purposes.
+  \brief Set Verbosity level of EC API Driver and Library.
+		The level controls amount of data 
+		printed to stdout and to wanpipelog.txt (Windows) or
+		/var/log/messages (Linux) for diagnostic purposes.
 
   \param verbosity_level Valid values are from 0 to 3.
 
@@ -539,6 +611,7 @@ sangoma_status_t _LIBSNG_CALL sangoma_hwec_config_verbosity(int verbosity_level)
 {
 	if (verbosity_level >= 0 || verbosity_level <= 3) {
 		libsng_hwec_verbosity_level = verbosity_level;
+		wanec_api_set_lib_verbosity(verbosity_level);
 		return SANG_STATUS_SUCCESS;
 	}
 	return SANG_STATUS_INVALID_PARAMETER;

@@ -150,7 +150,7 @@ enum {
 		 card_type == WANOPT_AFT104 ||			\
 		 card_type == WANOPT_AFT108) ?     "A101/1D/A102/2D/4/4D/8" :	\
 		(card_type == WANOPT_AFT300) ?     "A300"  :	\
-		(card_type == WANOPT_AFT_ANALOG) ? "A200/A400/B600/B700"  :	\
+		(card_type == WANOPT_AFT_ANALOG) ? "A200/A400/B600/B700/B800"  :	\
 		(card_type == WANOPT_AFT_ISDN) ?   "A500/B700"  :	\
 		(card_type == WANOPT_AFT_56K) ?    "A056"  :	\
 		(card_type == WANOPT_AFT_SERIAL) ? "A14x"  :	\
@@ -655,6 +655,14 @@ typedef struct wan_hwec_conf_
 	unsigned char	noise_reduction;			/* Noise Reduction control */
 	unsigned char	noise_reduction_disable;	/* Noise Reduction control - because now its on by default */
 	unsigned int	tone_disabler_delay;	/* delay in a fax mode */
+	unsigned char	dtmf_removal;		/* remove dtmf */
+	unsigned char 	operation_mode;
+	unsigned char 	acustic_echo;
+	unsigned char 	nlp_disable;
+	int 			rx_auto_gain;
+	int 			tx_auto_gain;
+	int				rx_gain;
+	int				tx_gain;
 } wan_hwec_conf_t;
 
 typedef struct wan_hwec_dev_state
@@ -678,7 +686,7 @@ typedef struct wan_custom_param_
 typedef struct wan_custom_conf_
 {
 	unsigned int		param_no;
-	wan_custom_param_t	*params;
+	wan_custom_param_t	*WP_POINTER_64 params;
 } wan_custom_conf_t;
 
 
@@ -721,7 +729,8 @@ typedef struct wandev_conf
 
 				/****** arbitrary data ***************/
 	unsigned data_size;	/* data buffer size */
-	void* data;		/* data buffer, e.g. firmware */
+
+	void *WP_POINTER_64 data;		/* data buffer, e.g. firmware */
 
 	union{			/****** protocol-specific ************/
 		wan_x25_conf_t 		x25;	/* X.25 configuration */

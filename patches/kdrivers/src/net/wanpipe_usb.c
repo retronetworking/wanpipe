@@ -20,8 +20,8 @@
 /*****************************************************************************
 *                             INCLUDE FILES
 *****************************************************************************/
-#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-#else
+
+
 # include "wanpipe_includes.h"
 # include "wanpipe_defines.h"
 # include "wanpipe.h"
@@ -33,7 +33,6 @@
 # include "wanpipe_iface.h"
 # include "wanpipe_usb.h"
 # include "sdla_usb_remora.h"
-#endif
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 
@@ -55,8 +54,9 @@ enum {
 };
 
 enum {
-	WP_USB_RXENABLE,
-	WP_USB_FE_POLL
+	WP_USB_TASK_UNKNOWN = 0x00,
+	WP_USB_TASK_RXENABLE,
+	WP_USB_TASK_FE_POLL
 };
 
 /*****************************************************************************
@@ -99,6 +99,8 @@ typedef struct wp_usb_softc {
 
 	wp_usb_op_stats_t	opstats;
 
+	wan_hwec_if_conf_t	hwec;
+
 	struct wp_usb_softc	*next;
 
 } wp_usb_softc_t;
@@ -109,14 +111,11 @@ typedef struct wp_usb_softc {
 /* Function interface between WANPIPE layer and kernel */
 extern wan_iface_t wan_iface;
 
-extern sdladrv_callback_t sdladrv_callback;
-
 extern sdla_t	*card_list;
 
 /*****************************************************************************
 *                        FUNCTION PROTOTYPES
 *****************************************************************************/
-
 static int	wp_usb_chip_config(sdla_t *card);
 
 static int	wp_usb_add_device(char *devname, void*);
@@ -173,11 +172,6 @@ static void wp_usb_isr(void *arg);
 int wp_usb_init(sdla_t *card, wandev_conf_t *conf)
 {
 
-#if 0
-	/* Hot-plug is not supported yet */
-	sdladrv_callback.add_device = wp_usb_add_device;
-	sdladrv_callback.delete_device = wp_usb_delete_device;
-#endif
 	/* Verify configuration ID */
 	if (card->wandev.config_id != WANCONFIG_USB_ANALOG) {
 		DEBUG_EVENT( "%s: invalid configuration ID %u!\n",
@@ -189,6 +183,8 @@ int wp_usb_init(sdla_t *card, wandev_conf_t *conf)
 	memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
 	wp_usb_remora_iface_init(&card->fe, &card->wandev.fe_iface);
 	memcpy(&card->tdmv_conf,&conf->tdmv_conf,sizeof(wan_tdmv_conf_t));
+	memcpy(&card->hwec_conf,&conf->hwec_conf,sizeof(wan_hwec_conf_t));
+
 	card->fe.name		= card->devname;
 	card->fe.card		= card;
 	card->fe.write_fe_reg	= card->hw_iface.fe_write;
@@ -235,6 +231,7 @@ static int wp_usb_chip_config(sdla_t *card)
 					card->devname);
 		return -EINVAL;
 	}
+
 	/* Run rest of initialization not from lock */
 	err = -EINVAL;
 	if (card->wandev.fe_iface.post_init){
@@ -268,6 +265,7 @@ wp_usb_new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* con
 	wp_usb_softc_t	*chan;
 
 	WP_USB_FUNC_DEBUG();
+
 	chan = wan_kmalloc(sizeof(wp_usb_softc_t));
 	if(chan == NULL){
 		WAN_MEM_ASSERT(card->devname);
@@ -323,7 +321,12 @@ wp_usb_new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* con
 		DEBUG_EVENT( "%s:%s: Running in TDM Voice Zaptel Mode (channel=%d:%08X).\n",
 				card->devname,chan->if_name,channel, card->u.usb.tdm_logic_ch_map);
 		card->hw_iface.usb_rxtx_data_init(card->hw, channel, &chan->rxdata, &chan->txdata);
-		//sdla_usb_rxtx_data_init(card->hw, channel, &chan->rxdata, &chan->txdata);
+
+		memcpy(&chan->hwec, &conf->hwec, sizeof(wan_hwec_if_conf_t));
+		if (conf->hwec.enable){
+			card->wandev.ec_enable_map = 0x03;
+		}
+
 #else
 		DEBUG_ERROR("%s: Error: TDMV_VOICE Zaptel Option not compiled into the driver!\n",
 					card->devname);
@@ -399,6 +402,8 @@ wp_usb_new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* con
 }
 
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
+extern int wp_usb_rm_tdmv_init(wan_tdmv_iface_t *iface);
+
 static int
 wp_usb_if_tdmv_init(wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
@@ -414,7 +419,7 @@ wp_usb_if_tdmv_init(wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 
 		switch(card->wandev.config_id){
 		case WANCONFIG_USB_ANALOG:
-			err = wp_usb_tdmv_remora_init(&card->tdmv_iface);
+			err = wp_usb_rm_tdmv_init(&card->tdmv_iface);
 			break;
 		}
 		if (err){
@@ -448,7 +453,7 @@ wp_usb_if_tdmv_init(wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 		}
 		WAN_TDMV_CALL(software_init, (&card->wan_tdmv), err);
 		WAN_TDMV_CALL(state, (card, WAN_CONNECTED), err);
-		wan_set_bit(WP_USB_RXENABLE,&card->u.usb.port_task_cmd);
+		wan_set_bit(WP_USB_TASK_RXENABLE,&card->u.usb.port_task_cmd);
 		WAN_TASKQ_SCHEDULE(&card->u.usb.port_task);
 	}
 
@@ -608,13 +613,12 @@ static int wp_usb_del_if_tdmv (wan_device_t* wandev, netdevice_t* dev)
 		sdla_t *card=chan->card;
 
 		card->hw_iface.usb_rxdata_enable(card->hw, 0);
-		//sdla_usb_rxdata_enable(card->hw, 0);
 		while(chan){
 
+			/* Disable fxo event from usbfxo device */
+			card->hw_iface.usb_rxevent_enable(card->hw, chan->tdmv_chan, 0);
 			chan->rxdata = NULL;
 			chan->txdata = NULL;
-			card->hw_iface.usb_rxevent_enable(card->hw, chan->tdmv_chan, 0);
-			//sdla_usb_rxevent_enable(card->hw, chan->tdmv_chan, 0);
 			card->u.usb.dev_to_ch_map[chan->tdmv_chan] = NULL;
 			err = wp_usb_del_if_private(wandev,dev);
 			if (err) {
@@ -762,11 +766,11 @@ static void wp_usb_disable_comm (sdla_t *card)
 
 	wan_set_bit(CARD_DOWN,&card->wandev.critical);
    	/* Unconfiging, only on shutdown */
-	if (card->wandev.fe_iface.pre_release){
-		card->wandev.fe_iface.pre_release(&card->fe);
-	}
 	if (card->wandev.fe_iface.unconfig){
 		card->wandev.fe_iface.unconfig(&card->fe);
+	}
+	if (card->wandev.fe_iface.post_unconfig){
+		card->wandev.fe_iface.post_unconfig(&card->fe);
 	}
 	return;
 }
@@ -915,7 +919,6 @@ static int wp_usb_if_send(netdevice_t *dev, netskb_t *skb, struct sockaddr *dst,
 	return -EINVAL;
 }
 
-
 static int
 wp_usb_if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 {
@@ -948,8 +951,6 @@ wp_usb_if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
 
 	case SIOC_WANPIPE_PIPEMON:
 			
-		NET_ADMIN_CHECK();
-
 		if (wan_atomic_read(&chan->udp_pkt_len) != 0){
 			return -EBUSY;
 		}
@@ -1011,7 +1012,6 @@ wp_usb_if_do_ioctl(netdevice_t *dev, struct ifreq *ifr, wan_ioctl_cmd_t cmd)
  * is used to debug the WANPIPE product.
  *
  */
-#if 1
 static int
 wp_usb_process_udp(sdla_t* card, netdevice_t* dev, wp_usb_softc_t *chan)
 {
@@ -1026,22 +1026,16 @@ wp_usb_process_udp(sdla_t* card, netdevice_t* dev, wp_usb_softc_t *chan)
 		return -ENODEV;
 	}
 
-//	trace_info=&chan->trace_info;
 	wan_udp_pkt = (wan_udp_pkt_t *)chan->udp_pkt_data;
 
    	{
 
-//		netskb_t *skb;
-
 		wan_udp_pkt->wan_udp_opp_flag = 0;
 
 		switch(wan_udp_pkt->wan_udp_command) {
-#if 0
-		case READ_CONFIGURATION:
-			wan_udp_pkt->wan_udp_return_code = 0;
-			wan_udp_pkt->wan_udp_data_len=0;
-			break;
 
+ /* Added during merge */
+#if 0
 		case READ_CODE_VERSION:
 			wan_udp_pkt->wan_udp_return_code = 0;
 			wan_udp_pkt->wan_udp_data[0]=card->u.usb.firm_ver;
@@ -1196,7 +1190,7 @@ wp_usb_process_udp(sdla_t* card, netdevice_t* dev, wp_usb_softc_t *chan)
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
 			break;
 
-#endif
+#endif  /* Added during merge */
 
 		case ROUTER_UP_TIME:
 			wan_getcurrenttime(&chan->current_time, NULL);
@@ -1234,9 +1228,8 @@ wp_usb_process_udp(sdla_t* card, netdevice_t* dev, wp_usb_softc_t *chan)
 			wan_udp_pkt->wan_udp_data_len=0;
 			break;
 	
-	
 		case WAN_GET_PROTOCOL:
-		   	wan_udp_pkt->wan_udp_aft_num_frames = card->wandev.config_id;
+			wan_udp_pkt->wan_udp_data[0] = (u8)card->wandev.config_id;
 		    	wan_udp_pkt->wan_udp_return_code = CMD_OK;
 		    	wan_udp_pkt->wan_udp_data_len = 1;
 		    	break;
@@ -1252,7 +1245,14 @@ wp_usb_process_udp(sdla_t* card, netdevice_t* dev, wp_usb_softc_t *chan)
 			wan_udp_pkt->wan_udp_return_code = 0xCD;
 			break;
 			
-
+		case AFT_HWEC_STATUS:
+			//*(u32*)&wan_udp_pkt->wan_udp_aft_num_frames = 
+			//				card->wandev.fe_ec_map;
+			*(u32*)&wan_udp_pkt->wan_udp_data[0] = card->wandev.fe_ec_map;
+			wan_udp_pkt->wan_udp_data_len = sizeof(u32);
+			wan_udp_pkt->wan_udp_return_code = CMD_OK;
+			break;
+	
 		default:
 			if ((wan_udp_pkt->wan_udp_command == WAN_GET_MEDIA_TYPE) ||
 			    (wan_udp_pkt->wan_udp_command & 0xF0) == WAN_FE_UDP_CMD_START){
@@ -1286,10 +1286,9 @@ wp_usb_process_udp(sdla_t* card, netdevice_t* dev, wp_usb_softc_t *chan)
 	wan_udp_pkt->wan_ip_ttl= card->wandev.ttl;
 
 	wan_udp_pkt->wan_udp_request_reply = UDPMGMT_REPLY;
-	return 1;
+	return 0;
 
 }
-#endif
 
 static int wp_usb_set_chan_state(sdla_t* card, netdevice_t* dev, int state)
 {
@@ -1341,7 +1340,7 @@ static void wp_usb_enable_timer (void* card_id)
 	}
 
 	DEBUG_EVENT("%s: Enable USB-FXO FE POll...\n", card->devname); 
-	wan_set_bit(WP_USB_FE_POLL,&card->u.usb.port_task_cmd);
+	wan_set_bit(WP_USB_TASK_FE_POLL,&card->u.usb.port_task_cmd);
 	WAN_TASKQ_SCHEDULE(&card->u.usb.port_task);
 	return;
 }
@@ -1367,6 +1366,33 @@ static void wp_usb_bh (void *data, int pending)
 }
 
 
+static int wp_usb_task_rxenable (sdla_t *card)
+{
+	wp_usb_softc_t	*chan = NULL;
+	int	i;
+
+	for (i=0; i<card->u.usb.num_of_time_slots;i++){
+
+		if (!wan_test_bit(i,&card->u.usb.tdm_logic_ch_map)){
+			continue;
+		}
+
+		chan=(wp_usb_softc_t*)card->u.usb.dev_to_ch_map[i];
+		if (!chan){
+			DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
+					card->devname,i);
+			continue;
+		}
+		if (!wan_test_bit(0,&chan->up)){
+			continue;
+		}
+		card->hw_iface.usb_rxevent(card->hw, chan->tdmv_chan, &chan->regs_mirror[0], 1);
+		card->hw_iface.usb_rxevent_enable(card->hw, chan->tdmv_chan, 1);
+	}
+	card->hw_iface.usb_rxdata_enable(card->hw, 1);
+	return 0;
+}
+
 
 #if defined(__LINUX__)
 # if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))     
@@ -1387,47 +1413,28 @@ static void wp_usb_task (void * data, int arg)
 #else
 	sdla_t		*card = (sdla_t*)data;
 #endif 
-	wp_usb_softc_t	*chan = NULL;
-	int		i;
-
 	WAN_ASSERT_VOID(card == NULL);
 
 	if (wan_test_bit(CARD_DOWN,&card->wandev.critical)){
 		return;
 	}
 
-	if (wan_test_bit(WP_USB_FE_POLL,&card->u.usb.port_task_cmd)){
+	if (wan_test_bit(WP_USB_TASK_FE_POLL,&card->u.usb.port_task_cmd)){
 		if (card->wandev.fe_iface.polling){
 			DEBUG_EVENT("%s: Calling USB-FXO FE Polling...\n", card->devname); 
 			card->wandev.fe_iface.polling(&card->fe);
 		}
-		wan_clear_bit(WP_USB_FE_POLL,&card->u.usb.port_task_cmd);
+		wan_clear_bit(WP_USB_TASK_FE_POLL,&card->u.usb.port_task_cmd);
 	}
-	if (wan_test_bit(WP_USB_RXENABLE,&card->u.usb.port_task_cmd)){
-		/* Add code */
-		for (i=0; i<card->u.usb.num_of_time_slots;i++){
-	
-			if (!wan_test_bit(i,&card->u.usb.tdm_logic_ch_map)){
-				continue;
-			}
-	
-			chan=(wp_usb_softc_t*)card->u.usb.dev_to_ch_map[i];
-			if (!chan){
-				DEBUG_ERROR("%s: Error: No Dev for Rx logical ch=%d\n",
-						card->devname,i);
-				continue;
-			}
-	
-			if (!wan_test_bit(0,&chan->up)){
-				continue;
-			}
-	
-			card->hw_iface.usb_rxevent(card->hw, chan->tdmv_chan, &chan->regs_mirror[0], 1);
-			card->hw_iface.usb_rxevent_enable(card->hw, chan->tdmv_chan, 1);
-		}
-		card->hw_iface.usb_rxdata_enable(card->hw, 1);
-		wan_clear_bit(WP_USB_RXENABLE,&card->u.usb.port_task_cmd);
+	if (wan_test_bit(WP_USB_TASK_RXENABLE,&card->u.usb.port_task_cmd)){
+		wp_usb_task_rxenable(card);
+		wan_clear_bit(WP_USB_TASK_RXENABLE,&card->u.usb.port_task_cmd);
 	}
+
+	if (card->u.usb.port_task_cmd){
+		WAN_TASKQ_SCHEDULE(&card->u.usb.port_task);
+	}
+	
 	return;
 }
 
@@ -1506,7 +1513,7 @@ static void wp_usb_isr(void *arg)
 /******************************************************************************
 **                  SIOC_WAN_DEVEL_IOCTL interface 
 ******************************************************************************/
-static int wp_usb_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
+static int wp_usb_write_access(sdla_t *card, wan_cmd_api_t *api_cmd)
 {
 
 	if (card->type != SDLA_USB){
@@ -1515,7 +1522,8 @@ static int wp_usb_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 		return -EINVAL;
 	}
 
-	if (api_cmd->ret == 1){
+	switch(api_cmd->cmd){
+	case SIOC_WAN_USB_CPU_WRITE_REG:
 		DEBUG_EVENT("%s: Write USB-CPU CMD: Reg:%02X <- %02X\n",
 				card->devname, 
 				(unsigned char)api_cmd->offset,
@@ -1524,12 +1532,9 @@ static int wp_usb_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 						card->hw, 
 						(u_int8_t)api_cmd->offset, 
 						(u_int8_t)api_cmd->data[0]);
-#if defined(USB_WRITE_WAIT_ACK)
-		api_cmd->ret = -EBUSY;
-#endif
+		break;
 
-	}else if (api_cmd->ret == 2){
-
+	case SIOC_WAN_USB_FE_WRITE_REG:
 		DEBUG_EVENT("%s: Write USB-FXO CMD: Module:%d Reg:%02X <- %02X\n",
 				card->devname, api_cmd->bar,
 				(unsigned char)api_cmd->offset,
@@ -1539,44 +1544,29 @@ static int wp_usb_write_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 						card->hw, api_cmd->bar, 
 						(u_int8_t)api_cmd->offset, 
 						(u_int8_t)api_cmd->data[0]);
-#if defined(USB_WRITE_WAIT_ACK)
-		api_cmd->ret = -EBUSY;
-#endif
+		break;
 
-	}else if (api_cmd->ret == 0){
-			
-		int 	err; 
-		err = card->hw_iface.usb_write_poll(card->hw, (u_int8_t)api_cmd->offset, (u_int8_t)api_cmd->data[0]);
-		if (err){
-			api_cmd->ret = -EBUSY;
-			return 0;
-		}
-		DEBUG_EVENT("%s: WRITE USB CMD: Reg:%02X -> %02X\n",
-				card->devname, 
-				(unsigned char)api_cmd->offset,
-				(unsigned char)api_cmd->data[0]);
-		api_cmd->ret = 0;
-
-	}else{
-		DEBUG_EVENT("%s: Unknown SDLA-USB command %d\n", 
-				card->devname, api_cmd->len);
-		api_cmd->ret = -EBUSY;
-		return 0;
+	default:
+		DEBUG_EVENT("%s: Invalid USB-FXO Write command (0x%08X)\n", 
+				card->devname, api_cmd->cmd);
+		api_cmd->ret = -EINVAL;
+		break;
 	}
 	return 0;
 }
 
-static int wp_usb_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
+static int wp_usb_read_access(sdla_t *card, wan_cmd_api_t *api_cmd)
 {
 	int	err = 0;
 
 	if (card->type != SDLA_USB){
 		DEBUG_EVENT("%s: Unsupported command for current device!\n",
 					card->devname);
-		return -EINVAL;
+		api_cmd->ret = -EINVAL;
+		return 0;
 	}
-	if (api_cmd->ret == 1){
-
+	switch(api_cmd->cmd){
+	case SIOC_WAN_USB_CPU_READ_REG:
 		api_cmd->data[0] = 0xFF;
 		/* Add function here */
 		err = card->hw_iface.usb_cpu_read(
@@ -1593,9 +1583,9 @@ static int wp_usb_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 				(unsigned char)api_cmd->data[0]);
 		api_cmd->ret = 0;
 		api_cmd->len = 1;
+		break;
 
-	}else if (api_cmd->ret == 2){
-
+	case SIOC_WAN_USB_FE_READ_REG:
 		/* Add function here */
 		api_cmd->data[0] = card->hw_iface.fe_read(
 						card->hw, 
@@ -1608,58 +1598,54 @@ static int wp_usb_read_reg(sdla_t *card, wan_cmd_api_t *api_cmd)
 				(unsigned char)api_cmd->data[0]);
 		api_cmd->ret = 0;
 		api_cmd->len = 1;
+		break;
 
-	}else if (api_cmd->ret == 0){
-		err = card->hw_iface.usb_read_poll(card->hw, (u_int8_t)api_cmd->offset, (u_int8_t*)&api_cmd->data[0]);
-		if (err){
-			api_cmd->ret = -EBUSY;
-			return 0;
-		}
-		DEBUG_EVENT("%s: Read USB CMD: Reg:%02X -> %02X\n",
-				card->devname, 
-				(unsigned char)api_cmd->offset,
-				(unsigned char)api_cmd->data[0]);
-		api_cmd->ret = 0;
-		api_cmd->len = 1;
-
-	}else{
-		DEBUG_EVENT("%s: Unknown SDLA-USB command %d\n", 
-				card->devname, api_cmd->len);
+	default:
+		DEBUG_EVENT("%s: Invalid USB-FXO Read command (0x%08X)\n", 
+				card->devname, api_cmd->cmd);
 		api_cmd->ret = -EINVAL;
-		return 0;
-	}  
+		break;
+	}
 	return 0;
 }
 
 static int wp_usb_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 {
-	wan_cmd_api_t	api_cmd;
+	wan_cmd_api_t	*api_cmd;
 	int 		err = -EINVAL;
 
 	if (!ifr || !ifr->ifr_data){
 		DEBUG_ERROR("%s: Error: No ifr or ifr_data\n",__FUNCTION__);
 		return -EFAULT;
 	}
+	api_cmd = wan_malloc(sizeof(wan_cmd_api_t));
+	if (api_cmd == NULL) {
+		DEBUG_EVENT("Failed to allocate memory (%s)\n", __FUNCTION__);
+		return -EFAULT;
+	}
+	memset(api_cmd, 0, sizeof(wan_cmd_api_t));	
 
-	memset(&api_cmd,0,sizeof(wan_cmd_api_t));
-
-	if (WAN_COPY_FROM_USER(&api_cmd,ifr->ifr_data,sizeof(wan_cmd_api_t))){
+	if (WAN_COPY_FROM_USER(api_cmd,ifr->ifr_data,sizeof(wan_cmd_api_t))){
 		return -EFAULT;
 	}
 
-	switch(api_cmd.cmd){
-	case SIOC_WAN_USB_READ_REG:
-		err = wp_usb_read_reg(card, &api_cmd);
+	switch(api_cmd->cmd){
+	case SIOC_WAN_USB_CPU_WRITE_REG:
+	case SIOC_WAN_USB_FE_WRITE_REG:
+		err = wp_usb_write_access(card, api_cmd);
 		break;
-	case SIOC_WAN_USB_WRITE_REG:
-		err = wp_usb_write_reg(card, &api_cmd);
+
+	case SIOC_WAN_USB_CPU_READ_REG:
+	case SIOC_WAN_USB_FE_READ_REG:
+		err = wp_usb_read_access(card, api_cmd);
 		break;
 	}
-
-	if (WAN_COPY_TO_USER(ifr->ifr_data,&api_cmd,sizeof(wan_cmd_api_t))){
+	if (WAN_COPY_TO_USER(ifr->ifr_data,api_cmd,sizeof(wan_cmd_api_t))){
 		return -EFAULT;
 	}
-
+	if (api_cmd != NULL) {
+		wan_free(api_cmd);
+	}
 	return err;
 }
 

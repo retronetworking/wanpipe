@@ -36,8 +36,7 @@ $(SDK_LIB_PATH)\uuid.lib \
 $(SDK_LIB_PATH)\comctl32.lib \
 $(SDK_LIB_PATH)\Setupapi.lib \
 $(SANG_WP_DEVEL)\libsangoma\$(O)\libsangoma.lib \
-$(SANG_WP_DEVEL)\stelephony\$(O)\stelephony.lib \
-$(SANG_WP_DEVEL)\wanpipe_common\wantools\wanec_apilib\$(O)\waneclib.lib
+$(SANG_WP_DEVEL)\stelephony\$(O)\stelephony.lib
 
 
 SOURCES=sample.cpp \

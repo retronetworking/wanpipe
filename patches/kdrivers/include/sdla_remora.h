@@ -24,6 +24,7 @@
 
 # include "aft_core_options.h"
 # include "sdla_a600_remora.h"
+# include "sdla_b800_remora.h"
 # include "sdla_remora_proslic.h"
 # include "wanpipe_events.h"
 

@@ -3931,7 +3931,7 @@ unsigned int parse_active_channel(char* val)
 		return 0;
 
 	while(*ptr != '\0') {
-       		printf("\nMAP DIGIT %c\n", *ptr);
+       		//printf("\nMAP DIGIT %c\n", *ptr);
 		if (isdigit(*ptr)) {
 			channel = strtoul(ptr, &ptr, 10);
 			channel_flag |= SINGLE_CHANNEL;

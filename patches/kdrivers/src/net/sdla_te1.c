@@ -2247,7 +2247,7 @@ static int sdla_te_global_unconfig(void* pfe);
 static int sdla_te_config(void* pfe);
 static int sdla_te_unconfig(void* pfe);
 static int sdla_te_post_init(void *pfe);
-static int sdla_te_pre_release(void* pfe);
+static int sdla_te_post_unconfig(void* pfe);
 static void ClearTemplate(sdla_fe_t* fe);
 static unsigned char PrgTransmitTemplate(sdla_fe_t* fe);
 static void InitLineReceiver(sdla_fe_t* fe, RLPS_EQUALIZER_RAM* rlps_table);
@@ -3300,7 +3300,7 @@ int sdla_te_iface_init(void *p_fe, void *pfe_iface)
 	fe_iface->post_init		= &sdla_te_post_init;
 	fe_iface->reconfig		= &sdla_te_reconfig;
 	fe_iface->unconfig		= &sdla_te_unconfig;
-	fe_iface->pre_release		= &sdla_te_pre_release;
+	fe_iface->post_unconfig		= &sdla_te_post_unconfig;
 	fe_iface->isr			= &sdla_te_intr;
 	fe_iface->disable_irq		= &sdla_te_disable_irq;
 	fe_iface->check_isr		= &sdla_te_check_intr;
@@ -4533,14 +4533,14 @@ static int sdla_te_post_init(void *pfe)
 
 /*
  ******************************************************************************
- *			sdla_te_pre_release()	
+ *			sdla_te_post_unconfig()	
  *
  * Description: T1/E1 pre release routines (not locked).
  * Arguments:
  * Returns:
  ******************************************************************************
  */
-static int sdla_te_pre_release(void* pfe)
+static int sdla_te_post_unconfig(void* pfe)
 {
 	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
 	sdla_fe_timer_event_t	*fe_event = NULL;
@@ -4764,14 +4764,9 @@ static int sdla_te_global_unconfig(void* pfe)
 static int sdla_te_unconfig(void* pfe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)pfe;
-
-	/* Verify the FE timer is stopped */
-	if (!wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical)){
-		DEBUG_EVENT("%s: %s(): Front-End timer is not stopped!\n",
-					fe->name, __FUNCTION__);
-		return -EINVAL;
-	}
 	
+	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical);
+
 	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->te_param.critical)){
 		return -EINVAL;
 	}

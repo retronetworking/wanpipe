@@ -2225,9 +2225,9 @@ static int process_udp_cmd(netdevice_t* ifp, wan_udp_hdr_t* udp_hdr)
 	}
 	switch(udp_hdr->wan_udphdr_command){
 	case WAN_GET_PROTOCOL:
-		udp_hdr->wan_udphdr_adsl_num_frames = WANCONFIG_ADSL;
-		udp_hdr->wan_udphdr_return_code = WAN_CMD_OK;
-		udp_hdr->wan_udphdr_data_len = 2;
+		udp_hdr->wan_udphdr_data[0] = (unsigned char)card->wandev.config_id;
+        udp_hdr->wan_udphdr_return_code = WAN_CMD_OK;
+        udp_hdr->wan_udphdr_data_len = 1;
 		break;
 
 	case WAN_GET_PLATFORM:

@@ -90,6 +90,12 @@
 # include "libstelephony.h"
 #endif
 
+/* sangoma_waitfor_many() can wait on an array of sangoma wait objects.
+ * In this example there is a single object in the array. */
+#define SANGOMA_INTERFACE_NUMBER_OF_WAIT_OBJECTS 1
+#define SANGOMA_TX_WAIT_OBJECT				0
+#define SANGOMA_RX_AND_EVENT_WAIT_OBJECT	0
+
 /*!
   \class sangoma_interface
   \brief Sangoma Interface Class that deals with span/chan IO (read/write/events)
@@ -100,8 +106,8 @@ protected:
 	/*! Sangoma IO device descriptor */
 	sng_fd_t	sangoma_dev;
 
-	/*! wait object device for an IO device */
-	sangoma_wait_obj_t *sng_wait_obj;
+	/*! wait object for an IO device */
+	sangoma_wait_obj_t *sng_wait_obj[SANGOMA_INTERFACE_NUMBER_OF_WAIT_OBJECTS];
 
 	//////////////////////////////////////////////////////////////////
 	//receive stuff
@@ -274,8 +280,6 @@ public:
 
 	//remove all data from API driver's transmit queue
 	int flush_tx_buffers (void);
-
-	sng_fd_t open_api_device();
 
 	unsigned char get_adapter_type();
 	unsigned int get_sub_media();

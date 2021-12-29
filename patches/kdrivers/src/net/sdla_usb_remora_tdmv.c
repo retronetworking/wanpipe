@@ -65,7 +65,7 @@
 
 #define OHT_TIMER		6000	/* How long after RING to retain OHT */
 
-#define FXO_LINK_DEBOUNCE	200
+#define FXO_LINK_DEBOUNCE	400 /* 200 */
 
 #define MAX_ALARMS		10
 
@@ -1122,11 +1122,11 @@ static int wp_usb_tdmv_remora_hook(sdla_fe_t *fe, int mod_no, int off_hook)
 
 
 /******************************************************************************
-** wp_usb_tdmv_remora_init() - 
+** wp_usb_rm_tdmv_init() - 
 **
 **	OK
 */
-int wp_usb_tdmv_remora_init(wan_tdmv_iface_t *iface)
+int wp_usb_rm_tdmv_init(wan_tdmv_iface_t *iface)
 {
 	WAN_ASSERT(iface == NULL);
 

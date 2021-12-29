@@ -139,6 +139,9 @@ FILE *trace_bin_in;
 int  trace_binary=0;
 
 int mtp2_msu_only=0;
+int trace_only_diff=0;
+int trace_rx_only=0;
+int trace_tx_only=0; 
 
 wanpipe_hdlc_engine_t *rx_hdlc_eng; 
 
@@ -1064,6 +1067,16 @@ static int init(int argc, char *argv[], char* command)
 		}else if (!strcmp(argv[i], "-mtp2-msu")){
 			mtp2_msu_only=1;
 			printf("MTP2 Trace MSU Only\n"); 
+   		}else if (!strcmp(argv[i], "-diff")){
+			trace_only_diff=1;
+			printf("Trace Diff Only\n"); 
+		}else if (!strcmp(argv[i], "-rx")){
+			trace_rx_only=1;
+			printf("Trace Rx Only\n"); 
+		}else if (!strcmp(argv[i], "-tx")){
+			trace_tx_only=1;
+			printf("Trace Tx Only\n"); 
+
 		}else if (!strcmp(argv[i], "-7bit-hdlc")){
 			if (rx_hdlc_eng) {
 				rx_hdlc_eng->seven_bit_hdlc = 1;	

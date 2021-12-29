@@ -44,6 +44,22 @@ TTL		= 255
 IGNORE_FRONT_END = NO
 TDMV_SPAN	= TDMVSPANNO
 TDMV_DCHAN	= TDMVDCHAN
+TE_AIS_MAINTENANCE = NO         #NO: defualt  YES: Start port in AIS Blue Alarm and keep line down
+                                #wanpipemon -i w1g1 -c Ttx_ais_off to disable AIS maintenance mode
+								#wanpipemon -i w1g1 -c Ttx_ais_on to enable AIS maintenance mode  
+TDMV_HW_DTMF        = HWDTMF        # YES: receive dtmf events from hardware
+TDMV_HW_FAX_DETECT      = HWFAX     # YES: receive fax 1100hz events from hardware
+HWEC_OPERATION_MODE     = OCT_NORMAL    # OCT_NORMAL: echo cancelation enabled with nlp (default) 
+                                        # OCT_SPEECH: improves software tone detection by disabling NLP (echo possible)
+										# OCT_NO_ECHO:disables echo cancelation but allows VQE/tone functions. 
+HWEC_DTMF_REMOVAL       = NO    # NO: default  YES: remove dtmf out of incoming media (must have hwdtmf enabled)
+HWEC_NOISE_REDUCTION    = NO    # NO: default  YES: reduces noise on the line - could break fax
+HWEC_ACUSTIC_ECHO       = NO    # NO: default  YES: enables acustic echo cancelation
+HWEC_NLP_DISABLE        = NO    # NO: default  YES: guarantees software tone detection (possible echo)   
+HWEC_TX_AUTO_GAIN       = 0     # 0: disable   -40-0: default tx audio level to be maintained (-20 default)
+HWEC_RX_AUTO_GAIN       = 0     # 0: disable   -40-0: default tx audio level to be maintained (-20 default)  
+HWEC_TX_GAIN            = 0     # 0: disable   -24-24: db values to be applied to tx signal
+HWEC_RX_GAIN            = 0     # 0: disable   -24-24: db values to be applied to tx signal
 
 [wIFNUMg1]
 ACTIVE_CH	= ALL

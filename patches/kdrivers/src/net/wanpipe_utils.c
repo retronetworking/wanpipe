@@ -1035,6 +1035,11 @@ int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *sk
 	wan_smp_flag_t smp_flags;
 
 	smp_flags=0;
+	
+	/* 8 is a spacial buffer trace */
+	if (wan_test_bit(8,&trace_info->tracing_enabled)){
+		return -EBUSY;
+	}
 
 	if ((flag = wan_tracing_enabled(trace_info)) >= 0){
 
@@ -1074,7 +1079,13 @@ int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *sk
 
 int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, int off,char direction)
 {
-       	int	flag = 0;
+    int	flag = 0;
+	
+	/* 8 is a spacial buffer trace */
+	if (wan_test_bit(8,&trace_info->tracing_enabled)){
+		return -EBUSY;
+	}
+
 	if ((flag = wan_tracing_enabled(trace_info)) >= 1){
 
 		int             len = 0;

@@ -358,7 +358,7 @@
 # if defined( NDIS_MINIPORT_DRIVER )
 #  undef BINARY_COMPATIBLE	
 #  define BINARY_COMPATIBLE 0 /* Windows 2000 and later (no Win98 support) */
-#  define NDIS50_MINIPORT   1 
+/*#  define NDIS51_MINIPORT   1 */
 #  include <ntddk.h>
 #  include <ndis.h>
 #  include "wanpipe_abstr_types.h"

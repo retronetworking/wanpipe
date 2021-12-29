@@ -219,7 +219,7 @@ typedef struct {
 	unsigned char	tx_tristate_mode;
 	unsigned int	tdmv_law;
 	unsigned char	poll_mode;
-	int		network_sync;
+	int				network_sync;
 
 	union {
 		sdla_te_cfg_t		te_cfg;
@@ -236,6 +236,8 @@ typedef struct {
 		/*sdla_te_pmon_t	te_pmon;*/
 		sdla_te3_pmon_t	te3_pmon;
 	} u;
+	u_int32_t	tx_alarms;
+	u_int32_t	tx_maint_alarms;
 #define te_pmon	u.te1_stats.pmon	
 } sdla_fe_stats_t;
 
@@ -559,7 +561,7 @@ typedef struct {
 	/* Set extra T1/E1 configuration */
 	int		(*reconfig)(sdla_fe_t*);
 	int		(*unconfig)(void *fe);
-	int		(*pre_release)(void*);
+	int		(*post_unconfig)(void*);
 	int		(*if_config)(void *fe, u32, u8);
 	int		(*if_unconfig)(void *fe, u32, u8);
 	int		(*disable_irq)(void *fe);
@@ -568,6 +570,7 @@ typedef struct {
 	int		(*isr)(sdla_fe_t *fe);
 	int		(*process_udp)(sdla_fe_t *fe, void*, unsigned char*);
  	u_int32_t 	(*read_alarm)(sdla_fe_t *fe, int);
+	
 	int		(*read_pmon)(sdla_fe_t *fe, int);
 	int		(*flush_pmon)(sdla_fe_t *fe);
 	/* Set Front-End alarm (T1/E1) */
@@ -626,6 +629,7 @@ typedef struct {
 	int		(*isdn_bri_dchan_rx)(sdla_fe_t*, void*, unsigned int);
 	/* Enable/Disable Clock recovery from the line */
 	int		(*clock_ctrl)(sdla_fe_t*, u_int8_t /* WANOPT_NO/WANOPT_YES */);
+	u_int32_t 	(*read_tx_alarm)(sdla_fe_t *fe, int);
 } sdla_fe_iface_t;
 
 /* 

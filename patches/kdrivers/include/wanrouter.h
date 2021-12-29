@@ -343,7 +343,7 @@ typedef struct wan_device
 	int 	(*get_info)(void*, struct seq_file* m, int *);
 	void	(*fe_enable_timer) (void* card_id);
 	void	(*te_report_rbsbits) (void* card_id, int channel, unsigned char rbsbits);
-	void	(*te_report_alarms) (void* card_id, unsigned long alarams);
+	void	(*te_report_alarms) (void* card_id, uint32_t alarms);
 	void	(*te_link_state)  (void* card_id);
 	void	(*te_link_reset)  (void* card_id);
 	int		(*te_signaling_config) (void* card_id, unsigned long);

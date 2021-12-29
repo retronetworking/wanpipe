@@ -137,6 +137,9 @@
 #include "sdlasfm.h"	/* SDLA firmware module definitions */
 #include "sdlapci.h"	/* SDLA PCI hardware definitions */
 #include "sdladrv.h"	/* API definitions */
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)
+# include "sdladrv_usb.h"
+#endif
 
 
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -426,6 +429,11 @@ extern u_int8_t	__sdla_a600_read_fe (void* phw, ...);
 extern u_int8_t	sdla_a600_read_fe (void* phw, ...);
 extern void sdla_a600_reset_fe (void* fe);
 
+extern int	sdla_b800_write_fe (void* phw, ...);
+extern u_int8_t	__sdla_b800_read_fe (void* phw, ...);
+extern u_int8_t	sdla_b800_read_fe (void* phw, ...);
+extern void sdla_b800_reset_fe (void* fe);
+
 extern int	sdla_shark_bri_write_fe (void* phw, ...);
 extern u_int8_t	sdla_shark_bri_read_fe (void* phw, ...);
 
@@ -456,24 +464,6 @@ extern u_int8_t	sdla_usb_fxo_read(void *phw, ...);
 
 extern int	sdla_plxctrl_read8(void *phw, short, unsigned char*);
 extern int	sdla_plxctrl_write8(void *phw, short, unsigned char);
-
-/*usb interface */
-extern int	sdla_usb_cpu_read(void *phw, unsigned char off, unsigned char *data);
-extern int	sdla_usb_cpu_write(void *phw, unsigned char off, unsigned char data);
-extern int	sdla_usb_write_poll(void *phw, unsigned char off, unsigned char data);
-extern int	sdla_usb_read_poll(void *phw, unsigned char off, unsigned char *data);
-extern int	sdla_usb_rxevent_enable(void *phw, int mod_no, int enable);
-extern int	sdla_usb_rxevent(void *phw, int mod_no, u8 *regs, int);
-extern int	sdla_usb_rxtx_data_init(void *phw, int, unsigned char **, unsigned char **);
-extern int	sdla_usb_rxdata_enable(void *phw, int enable);
-extern int	sdla_usb_rxdata(void *phw, unsigned char*, int);
-extern int	sdla_usb_txdata(void *phw, unsigned char*, int);
-extern int	sdla_usb_txdata_ready(void *phw);
-extern int	sdla_usb_set_intrhand(void*, wan_pci_ifunc_t*, void*, int);
-extern int	sdla_usb_restore_intrhand(void*, int);
-extern int 	sdla_usb_err_stats(void*,void*,int);
-extern int 	sdla_usb_flush_err_stats(void*);
-
 
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 extern int sdla_b601_te1_write_fe(void *phw, ...);
@@ -643,10 +633,6 @@ static unsigned char s507_irqmask[] =
 sdladrv_callback_t sdladrv_callback;
 EXPORT_SYMBOL(sdladrv_callback);
 
-extern void sdla_usb_init(void);
-extern void sdla_usb_exit(void);
-extern int sdla_usb_setup(sdlahw_t*);
-extern int sdla_usb_down(sdlahw_t*, int force);
 #endif
 
 #if defined(SDLADRV_HW_IFACE)
@@ -947,7 +933,7 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 			break;
 
 		case A200_ADPTR_ANALOG:
-		case A400_ADPTR_ANALOG:
+		case A400_ADPTR_ANALOG:		
 			/*sprintf(tmp_hw_probe->hw_info,*/
 			SDLA_PROBE_SPRINT(hwprobe->hw_info,
 				sizeof(hwprobe->hw_info),
@@ -964,6 +950,9 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 		case AFT_ADPTR_A600:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
+#endif
+#if defined(CONFIG_PRODUCT_WANPIPE_AFT_B800)
+		case AFT_ADPTR_B800:
 #endif
 			SDLA_PROBE_SPRINT(hwprobe->hw_info,
 					sizeof(hwprobe->hw_info),
@@ -1527,9 +1516,127 @@ sdla_hwdev_Remora_register(sdlahw_cpu_t* hwcpu, int *line_num)
 	sdla_bus_write_4(hw,0x40,reg);
 	
 	sdla_memory_unmap(hw);
-
 	return first_hw;
 }
+
+#if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
+static sdlahw_t*
+sdla_hwdev_b800_register(sdlahw_cpu_t* hwcpu, int *line_num)
+{
+	sdlahw_t	*hw;
+	sdlahw_t	*first_hw = NULL;
+	u32		reg, reg1;
+	int		mod_no;
+	int		rm_mod_type[NUM_B800_ANALOG_PORTS+2];
+	unsigned char	value;
+	//unsigned char str[150];
+	int err;
+
+	//memset(str,0,sizeof(str));
+
+	WAN_ASSERT_RC(hwcpu == NULL, NULL);
+	*line_num = 0;
+
+	if ((hw = sdla_hw_register(hwcpu, 0)) == NULL){
+		return NULL;
+	}
+
+	if (sdla_memory_map(hw)){
+		sdla_hw_unregister(hw);
+		return NULL;
+	}
+
+	/* A200 clear reset */
+	sdla_bus_read_4(hw, 0x40,&reg);
+	wan_set_bit(1,&reg);
+	wan_set_bit(2,&reg);
+	sdla_bus_write_4(hw,0x40,reg);
+
+	WP_DELAY(10);
+
+	wan_clear_bit(1,&reg);
+	wan_clear_bit(2,&reg);
+	sdla_bus_write_4(hw,0x40,reg);
+
+	WP_DELAY(10);
+
+	/* Reset SPI for all modules */
+	for(mod_no = 0; mod_no < NUM_B800_ANALOG_PORTS; mod_no++) {
+			reg1 = 0;
+			reg1 |= (mod_no/4) << 26;
+			reg1 |= (mod_no%4) << 24;
+			wan_set_bit(B800_SPI_REG_RESET_BIT, &reg1);
+
+			sdla_bus_write_4(hw,SPI_INTERFACE_REG, reg1);
+			WP_DELAY(1000);
+			sdla_bus_write_4(hw,SPI_INTERFACE_REG,0x00000000);
+			WP_DELAY(1000);
+	}
+
+
+	for(mod_no = 0; mod_no < NUM_B800_ANALOG_PORTS; mod_no ++){
+ 		rm_mod_type[mod_no] = MOD_TYPE_NONE;		
+		value = sdla_b800_read_fe(hw, mod_no, MOD_TYPE_FXS, 0, 0);
+		if ((value & 0x0F) == 0x05){
+			rm_mod_type[mod_no] = MOD_TYPE_FXS;		
+		}
+	}
+	
+		/* Reset SPI for all modules */
+	for(mod_no = 0; mod_no < NUM_B800_ANALOG_PORTS; mod_no++) {
+			reg1 = 0;
+			reg1 |= (mod_no/4) << 26;
+			reg1 |= (mod_no%4) << 24;
+			wan_set_bit(B800_SPI_REG_RESET_BIT, &reg1);
+
+			sdla_bus_write_4(hw,SPI_INTERFACE_REG, reg1);
+			WP_DELAY(1000);
+			sdla_bus_write_4(hw,SPI_INTERFACE_REG,0x00000000);
+			WP_DELAY(1000);
+	}
+
+	for(mod_no = 0; mod_no < NUM_B800_ANALOG_PORTS; mod_no ++){
+		if (rm_mod_type[mod_no] != MOD_TYPE_NONE) continue;
+
+		/* Confirm this section of code when we receive B800 with FXO modules */
+		value = sdla_b800_read_fe(hw, mod_no, MOD_TYPE_FXO, 0, 2);
+		if (value == 0x03){
+			rm_mod_type[mod_no] = MOD_TYPE_FXO;
+		}
+	}
+
+	err = sdla_hwdev_register_analog(hwcpu, &first_hw, rm_mod_type, 0, NUM_B800_ANALOG_PORTS);
+	if (err) {
+		DEBUG_EVENT("%s: Failed to register FXO/FXS modules\n", hw->devname);
+	}
+	if (first_hw == NULL) {
+		DEBUG_EVENT("%s: No FXO/FXS modules detected\n", hw->devname);
+	}
+
+	if (first_hw) {
+		/* the original 'hw' was freed! */
+		hw = first_hw;
+	}
+	
+	sprintf(&hw->hwport[hw->max_port_no-1].hwprobe->hw_info_dump[strlen(hw->hwport[hw->max_port_no-1].hwprobe->hw_info_dump)], "|BUS_IF=%s|BRDG=%s",
+		AFT_PCITYPE_DECODE(hwcpu->hwcard), AFT_PCIBRIDGE_DECODE(hwcpu->hwcard));
+
+	/* Reset SPI bus */
+	sdla_bus_write_4(hw,SPI_INTERFACE_REG,MOD_SPI_RESET);
+	WP_DELAY(1000);
+	sdla_bus_write_4(hw,SPI_INTERFACE_REG,0x00000000);
+	WP_DELAY(1000);
+	
+	WP_DELAY(10);
+
+	wan_set_bit(1,&reg);
+	wan_set_bit(2,&reg);
+	sdla_bus_write_4(hw,0x40,reg);
+	
+	sdla_memory_unmap(hw);
+	return first_hw;
+}
+#endif
 
 static sdlahw_t*
 sdla_hwdev_ISDN_register(sdlahw_cpu_t* hwcpu, int *lines_no)
@@ -2040,6 +2147,7 @@ int sdla_get_hw_info(sdlahw_t* hw)
 			switch(hwcard->adptr_type){
 			case A200_ADPTR_ANALOG:
 			case A400_ADPTR_ANALOG:
+			case AFT_ADPTR_B800:
 				/* Enable memory access */	
 				sdla_bus_read_4(hw, SDLA_REG_OFF(hwcard, AFT_CHIP_CFG_REG), &reg1);
 				reg = reg1;
@@ -2614,7 +2722,28 @@ static int sdla_aft_hw_select (sdlahw_card_t* hwcard, int cpu_no, int irq, void*
 			hwcard->core_rev,
 			hwcard->u_pci.bus_no, hwcard->u_pci.slot_no, irq);
 		break;
-
+#if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
+	case AFT_ADPTR_B800:
+		hwcard->cfg_type = WANOPT_AFT_ANALOG;
+		sdla_adapter_cnt.aft_b800_adapters++;
+		if ((hwcpu = sdla_hwcpu_register(hwcard, cpu_no, irq, dev)) == NULL){
+			return 0;
+		}
+		if ((hw = sdla_hwdev_b800_register(hwcpu, &lines_no)) == NULL){
+			sdla_hwcpu_unregister(hwcpu);
+			return 0;
+		}
+		number_of_cards ++;	
+		DEBUG_EVENT(
+		"%s: %s %s FXO/FXS card found (%s rev.%X), cpu(s) 1, bus #%d, slot #%d, irq #%d\n",
+			wan_drvname,
+			hwcard->adptr_name,
+			AFT_PCITYPE_DECODE(hwcard),
+			AFT_CORE_ID_DECODE(hwcard->core_id),
+			hwcard->core_rev,
+			hwcard->u_pci.bus_no, hwcard->u_pci.slot_no, irq);		
+		break;
+#endif
 	case AFT_ADPTR_ISDN:
 		hwcard->cfg_type = WANOPT_AFT_ISDN;
 		sdla_adapter_cnt.aft_isdn_adapters++;
@@ -3046,6 +3175,12 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 		hwcard->adptr_type	= AFT_ADPTR_A600;
 		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
 		break;
+#if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
+	case AFT_B800_SUBSYS_VENDOR:
+		hwcard->adptr_type	= AFT_ADPTR_B800;
+		hwcard->adptr_subtype	= AFT_SUBTYPE_SHARK;
+		break;
+#endif
 #if defined (CONFIG_PRODUCT_WANPIPE_AFT_B601)
 	case AFT_B601_SUBSYS_VENDOR:
 		hwcard->adptr_type	= AFT_ADPTR_B601;
@@ -3077,7 +3212,10 @@ sdla_pci_probe_aft(sdlahw_t *hw, int bus_no, int slot_no, int irq)
 	case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
 	case AFT_A600_SUBSYS_VENDOR:
 	case AFT_B601_SUBSYS_VENDOR:
-	case A700_SHARK_SUBSYS_VENDOR:
+#if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
+	case AFT_B800_SUBSYS_VENDOR:
+#endif
+	case A700_SHARK_SUBSYS_VENDOR:	
 		sdla_pcibridge_detect(hwcard);
 		break;
 	}	
@@ -3561,12 +3699,6 @@ unsigned int sdla_hw_probe(void)
 	sdlahw_card_t*	hwcard;
 #endif
 	unsigned int	cardno=0;
-	
-	//if (!WAN_LIST_EMPTY(&sdlahw_card_head)){
-	//	DEBUG_EVENT("ADBG> SDLA_HW_PROBE: Number configured cards %d\n",
-	//					cardno);
-	//	return cardno;
-	//}
 	
 	tmp_hw = wan_malloc(sizeof(sdlahw_t));
 	WAN_ASSERT_RC(tmp_hw == NULL, 0);
@@ -4081,10 +4213,14 @@ sdla_card_register(u8 hw_type, int bus_no, int slot_no, int ioport, char *bus_id
 	case SDLA_PCI_CARD:
 		new_hwcard->u_pci.bus_no  	= bus_no;
 		new_hwcard->u_pci.slot_no	= slot_no;
-		break;
+		break;     
+#if defined(CONFIG_PRODUCT_WANPIPE_USB)  
 	case SDLA_USB_CARD:
 //		new_hwcard->u_usb.devnum  	= bus_no;
+		sprintf(new_hwcard->name, "sdla-%s", bus_id);
+		sprintf(new_hwcard->u_usb.bus_id, "%s", bus_id);         
 		break;
+#endif
 	}
 	wan_spin_lock_init(&new_hwcard->pcard_lock,"wan_hwcard_lock");
 	wan_spin_lock_init(&new_hwcard->pcard_ec_lock,"wan_hwcard_ec_lock");
@@ -4109,7 +4245,7 @@ sdla_card_unregister(sdlahw_card_t* hwcard)
 
 	WAN_ASSERT(hwcard == NULL);
 	if (hwcard->internal_used){
-		DEBUG_ERROR("%s: Error: This card is still in used (used=%d)!\n",
+		DEBUG_ERROR("%s: Error: This card is still in use (used=%d)!\n",
 				__FUNCTION__,
 				hwcard->internal_used);
 		sdla_card_info(hwcard);
@@ -4669,6 +4805,14 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 			hw_iface->fe_write = sdla_shark_rm_write_fe;
 			hw_iface->reset_fe = sdla_a200_reset_fe;
 			break;
+#if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
+		case AFT_ADPTR_B800:
+			hw_iface->fe_read = sdla_b800_read_fe;
+			hw_iface->__fe_read = __sdla_b800_read_fe;
+			hw_iface->fe_write = sdla_b800_write_fe;
+			hw_iface->reset_fe = sdla_b800_reset_fe;
+			break;
+#endif
 		case A300_ADPTR_U_1TE3:
 			hw_iface->fe_read = sdla_te3_read_fe;
 			hw_iface->fe_write = sdla_te3_write_fe;
@@ -4738,7 +4882,10 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 		case AFT_ADPTR_4SERIAL_RS232:
 		case AFT_ADPTR_A600:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
-       case AFT_ADPTR_B601:
+		case AFT_ADPTR_B601:
+#endif
+#if defined(CONFIG_PRODUCT_WANPIPE_AFT_B800)
+		case AFT_ADPTR_B800:
 #endif
 			DEBUG_EVENT("%s: Found: %s card, CPU %c, PciBus=%d, PciSlot=%d, Port=%d\n",
 					devname, 
@@ -4760,11 +4907,11 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 		break;
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
-	case WANOPT_USB_ANALOG:
-		DEBUG_EVENT("%s: Found: %s card (%d)\n",
-					devname, 
-					SDLA_DECODE_CARDTYPE(hwcard->cfg_type),
-					hw->used);
+ case WANOPT_USB_ANALOG:
+		DEBUG_EVENT("%s: Found: %s card, BusId %s\n",
+				devname, 
+				SDLA_DECODE_CARDTYPE(hwcard->cfg_type),
+				hwcard->u_usb.bus_id);
 		hwcard->type			= SDLA_USB;
 		hw_iface->fe_read		= sdla_usb_fxo_read;
 		hw_iface->fe_write		= sdla_usb_fxo_write;
@@ -4776,9 +4923,10 @@ void* sdla_register(sdlahw_iface_t* hw_iface, wandev_conf_t* conf, char* devname
 		hw_iface->usb_rxevent		= sdla_usb_rxevent;
 		hw_iface->usb_rxtx_data_init	= sdla_usb_rxtx_data_init;
 		hw_iface->usb_rxdata_enable	= sdla_usb_rxdata_enable;
-		hw_iface->usb_rxdata		= sdla_usb_rxdata;
-		hw_iface->usb_txdata		= sdla_usb_txdata;
-		hw_iface->usb_txdata_ready	= sdla_usb_txdata_ready;
+		hw_iface->usb_fwupdate_enable	= sdla_usb_fwupdate_enable;
+		hw_iface->usb_txdata_raw	= sdla_usb_txdata_raw;
+		hw_iface->usb_txdata_raw_ready	= sdla_usb_txdata_raw_ready;
+		hw_iface->usb_rxdata_raw	= sdla_usb_rxdata_raw;
 		hw_iface->usb_err_stats		= sdla_usb_err_stats;
 		hw_iface->usb_flush_err_stats	= sdla_usb_flush_err_stats;
 		hw_iface->set_intrhand		= sdla_usb_set_intrhand;
@@ -5223,7 +5371,10 @@ static int sdla_setup (void* phw, wandev_conf_t* conf)
 		case AFT_ADPTR_4SERIAL_RS232:
 		case AFT_ADPTR_A600:
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
-       case AFT_ADPTR_B601:
+		case AFT_ADPTR_B601:
+#endif
+#if defined(CONFIG_PRODUCT_WANPIPE_AFT_B800)
+		case AFT_ADPTR_B800:
 #endif
 			if (hwcpu->used > 1){
 				if (conf) conf->irq = hwcpu->irq;
@@ -5237,9 +5388,6 @@ static int sdla_setup (void* phw, wandev_conf_t* conf)
 		
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 	case SDLA_USB:
-		if (sdla_usb_setup(hw)){
-			return -EINVAL;
-		}
 		return 0;
 		break;
 #endif
@@ -5921,7 +6069,9 @@ static int sdla_down (void* phw)
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
 #endif
-
+#if defined(CONFIG_PRODUCT_WANPIPE_AFT_B800)
+		case AFT_ADPTR_B800:
+#endif
 			if (hwcpu->used > 1){
 				break;
 			}
@@ -5934,7 +6084,6 @@ static int sdla_down (void* phw)
 
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 	case SDLA_USB:
-		sdla_usb_down(hw, 0);
 		break;
 #endif
 
@@ -7727,6 +7876,9 @@ static int sdla_memory_map(sdlahw_t* hw)
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_B601)
 		case AFT_ADPTR_B601:
 #endif
+#if defined(CONFIG_PRODUCT_WANPIPE_AFT_B800)
+		case AFT_ADPTR_B800:
+#endif
 		case AFT_ADPTR_FLEXBRI:
 			hwcpu->memory = AFT4_PCI_MEM_SIZE; 
 			break;
@@ -8251,6 +8403,9 @@ adapter_found:
 		case A400_ADPTR_ANALOG:
 		case AFT_ADPTR_56K:
 		case AFT_ADPTR_A600:
+#if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
+		case AFT_ADPTR_B800:
+#endif
 			conf->comm_port = 0;
 			conf->fe_cfg.line_no = 0;
 			break;
@@ -9712,6 +9867,14 @@ static int sdla_hw_lock(void *phw, wan_smp_flag_t *flag)
 	hwcpu = hw->hwcpu;
 	hwcard = hwcpu->hwcard;
 
+#ifdef __LINUX__
+	if (in_interrupt()) {
+		if (WAN_NET_RATELIMIT()) {
+			WARN_ON(1);
+			DEBUG_ERROR("%s:%d: Error hw_lock taken in interrupt!\n",__FUNCTION__,__LINE__);
+		}
+	}
+#endif
 	wan_spin_lock(&hw->hwcpu->lines_info[hw->cfg_type].pcard_lock,flag);
 
 	return 0;
@@ -9746,6 +9909,16 @@ static int sdla_hw_ec_trylock(void *phw, wan_smp_flag_t *flag)
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcpu = hw->hwcpu;
 	hwcard = hwcpu->hwcard;
+
+#ifdef __LINUX__
+	if (in_interrupt()) {
+		if (WAN_NET_RATELIMIT()) {
+			WARN_ON(1);
+			DEBUG_ERROR("%s:%d: Error hw_lock taken in interrupt!\n",__FUNCTION__,__LINE__);
+		}
+	}
+#endif
+
 	return wan_spin_trylock(&hwcard->pcard_ec_lock,flag);
 }
 
@@ -9761,6 +9934,16 @@ static int sdla_hw_ec_lock(void *phw, wan_smp_flag_t *flag)
 	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
 	hwcpu = hw->hwcpu;
 	hwcard = hwcpu->hwcard;
+
+#ifdef __LINUX__
+	if (in_interrupt()) {
+		if (WAN_NET_RATELIMIT()) {
+			WARN_ON(1);
+			DEBUG_ERROR("%s:%d: Error hw_lock taken in interrupt!\n",__FUNCTION__,__LINE__);
+		}
+	}
+#endif
+
 	wan_spin_lock(&hwcard->pcard_ec_lock,flag);
 	return 0;
 }
@@ -10571,6 +10754,9 @@ static int sdla_hw_read_cpld(void *phw, u16 off, u8 *data)
 			case A400_ADPTR_ANALOG:
 			case AFT_ADPTR_FLEXBRI:
 			case AFT_ADPTR_ISDN:
+#if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
+			case AFT_ADPTR_B800:
+#endif
 				off &= ~AFT4_BIT_DEV_ADDR_CLEAR;
 				off |= AFT4_BIT_DEV_ADDR_CPLD;
 				/* Save current original address */
@@ -10733,7 +10919,10 @@ static int sdla_hw_write_cpld(void *phw, u16 off, u8 data)
 			case A200_ADPTR_ANALOG:
 			case A400_ADPTR_ANALOG:
 			case AFT_ADPTR_FLEXBRI:
-			case AFT_ADPTR_ISDN://????
+			case AFT_ADPTR_ISDN:
+#if defined (CONFIG_PRODUCT_WANPIPE_AFT_B800)
+			case AFT_ADPTR_B800:
+#endif
 				off &= ~AFT4_BIT_DEV_ADDR_CLEAR;
 				off |= AFT4_BIT_DEV_ADDR_CPLD;
 				/* Save current original address */
@@ -10822,6 +11011,7 @@ static int sdla_get_hwec_index(void *phw)
 	return hw->hwcpu->hwcard->hwec_ind;
 }
 
+
 #if defined(CONFIG_PRODUCT_WANPIPE_USB)
 static int sdla_usb_hw_select (sdlahw_card_t*, void*);
 
@@ -10850,21 +11040,17 @@ static int sdla_usb_hw_select (sdlahw_card_t* hwcard, void* dev)
 			return 0;
 		}
 		number_of_cards += 1;
-		DEBUG_EVENT("%s: %s USB-FXO module found (rev.%X)!\n",
-				wan_drvname,
+		DEBUG_EVENT("%s: %s USB-FXO module found (rev.%X), busid:%s\n",
+				hwcard->name,
 				hwcard->adptr_name,
-				hwcard->core_rev);
-		if (sdladrv_callback.add_device){
-			sdladrv_callback.add_device(hw->devname, hw);
-		}else{
-			DEBUG_EVENT("WARNING: Undefined add_defice callback function (just loaded)!\n");
-		}
+				hwcard->core_rev,
+				hwcard->u_usb.bus_id);
 		break;
 	default:
 		DEBUG_EVENT("%s: Unknown USB adapter %04X (Bus Id #%s)!\n",
 				wan_drvname,
 				hwcard->adptr_type,
-				WP_USB_BUSID(hwcard));
+				hwcard->u_usb.bus_id);
 		break;		
 	}
 	return number_of_cards;
@@ -10873,21 +11059,42 @@ static int sdla_usb_hw_select (sdlahw_card_t* hwcard, void* dev)
 int sdla_usb_create(struct usb_interface *intf, int adptr_type)
 {
 	struct usb_device	*udev = interface_to_usbdev(intf);
-	sdlahw_card_t		*hwcard = NULL;	
+	sdlahw_card_t		*hwcard = NULL;
+	int			new_usbdev = 0;	
 
 	WAN_ASSERT(udev == NULL);
 	DEBUG_EVENT("sdlausb: Attaching sdlausb on %d (BusId %s)\n",
 				 udev->devnum, WAN_DEV_NAME(udev));
 
-	hwcard = sdla_card_register(SDLA_USB_CARD, udev->devnum, 0, 0, WAN_DEV_NAME(udev)); 
+	hwcard = sdla_card_search(SDLA_USB_CARD, udev->devnum, 0, 0,  WAN_DEV_NAME(udev));
 	if (hwcard == NULL){
-		return 0;
+		hwcard = sdla_card_register(SDLA_USB_CARD, udev->devnum, 0, 0, WAN_DEV_NAME(udev)); 
+		if (hwcard == NULL){
+			return 0;
+		}
+ 		new_usbdev = 1;
+	}else{
+		DEBUG_EVENT("%s: %s USB-FXO module plugged in (rev.%X), busid:%s\n",
+				hwcard->name,
+				hwcard->adptr_name,
+				hwcard->core_rev,
+				hwcard->u_usb.bus_id);
 	}
 	hwcard->adptr_type	= adptr_type;
 	hwcard->u_usb.usb_dev	= udev;
-	hwcard->u_usb.usb_intf	= intf;
-	if (!sdla_usb_hw_select(hwcard, udev)){
+	hwcard->u_usb.usb_intf	 = intf;
+
+	if (sdla_usb_setup(hwcard, new_usbdev)){
+		sdla_card_unregister(hwcard);	
 		return -EINVAL;
+	}
+	if (new_usbdev){
+		if (!sdla_usb_hw_select(hwcard, udev)){
+			return -EINVAL;
+		}
+		if (sdladrv_callback.add_device){
+			sdladrv_callback.add_device();
+		}
 	}
 	return 0;
 }
@@ -10896,58 +11103,29 @@ int sdla_usb_remove(struct usb_interface *intf, int force)
 {
 	struct usb_device	*udev = interface_to_usbdev(intf);
 	sdlahw_card_t		*hwcard = NULL;
-	sdlahw_cpu_t		*hwcpu = NULL;
-	sdlahw_t		*hw = NULL;
 
 	WAN_ASSERT(intf == NULL);
 	udev = interface_to_usbdev(intf);
 	WAN_ASSERT(udev == NULL);
 
-	DEBUG_EVENT("sdlausb: Detaching device from %d (BusId %s)\n",
-					udev->devnum, WAN_DEV_NAME(udev));
-	hwcard = sdla_card_search(SDLA_USB_CARD, udev->devnum, 0, 0, WAN_DEV_NAME(udev));
+	hwcard = sdla_card_search(SDLA_USB_CARD, udev->devnum, 0, 0,  WAN_DEV_NAME(udev));
 	if (hwcard == NULL){
 		DEBUG_EVENT("sdlausb: Failed to find HW USB module!\n");
 		return -EINVAL;
 	}
-	hwcpu = sdla_hwcpu_search(SDLA_USB_CARD, udev->devnum, 0, 0, 0, WAN_DEV_NAME(udev));
-	if (hwcpu == NULL){
-		DEBUG_EVENT("sdlausb: Failed to find HW USB module!\n");
-		return -EINVAL;
-	}
-	hw = sdla_hw_search(hwcpu, 0);
-	if (hw == NULL){
-		DEBUG_EVENT("sdlausb: Failed to find HW USB device!\n");
-		return -EINVAL;
-	}
-	if (force){
-		if (sdladrv_callback.delete_device){
-			sdladrv_callback.delete_device(hw->devname);
-		}else{
-			DEBUG_EVENT("sdlausb: Sangoma USB devices doesn't support hot-plug functionality!\n");
-			sdla_usb_down(hw, force);
-			return 0;
-		}
-	}
-	
-	if (sdla_hwdev_common_unregister(hwcpu) == -EBUSY){
-		DEBUG_EVENT("sdlausb: Failed to unregister HW USB ports!\n");
-		return -EINVAL;
-	}
-	if (sdla_hwcpu_unregister(hwcpu) == -EBUSY){
-		DEBUG_EVENT("sdlausb: Failed to unregister HW USB module!\n");
-		return -EINVAL;
-	}
-	if (sdla_card_unregister(hwcard) == -EBUSY){
-		DEBUG_EVENT("sdlausb: Failed to unregister HW USB card!\n");
-		return -EINVAL;
-	}
-	sdla_adapter_cnt.usb_adapters--;
-	DEBUG_EVENT("sdlausb: USB-FXO module on %d detached (BusId %s)\n", 
-					udev->devnum, WAN_DEV_NAME(udev));
+	DEBUG_EVENT("%s: Detaching device from %d (BusId %s)\n",
+				hwcard->name,
+				udev->devnum, WAN_DEV_NAME(udev));
+
+	sdla_usb_down(hwcard, 1);
+
+	hwcard->u_usb.usb_dev	= NULL;
+	hwcard->u_usb.usb_intf	= NULL;
+
 	return 0;
 }
 #endif
+
 
 void _sdla_copy_hwinfo(hardware_info_t *hwinfo, sdlahw_t *hw, sdlahw_cpu_t *hwcpu)
 {

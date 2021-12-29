@@ -1,5 +1,8 @@
+CC=gcc
+CFLAGS= -O2 -Wall
+
 all: bwm.c
-	$(CC) $(CFLAGS) -O2 -Wall bwm.c -o wpbwm
+	$(CC) $(CFLAGS)  bwm.c -o wpbwm
 
 clean:
 	rm -f wpbwm

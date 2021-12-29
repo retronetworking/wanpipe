@@ -15,6 +15,14 @@
  * the GNU General Public License
  * =============================================
  *
+ * v1.70 David Yat Sin <dyatsin@sangoma.com>
+ * May 11 2010
+ * Added check for invalid hangup causes
+ *
+ * v1.69 David Yat Sin <dyatsin@sangoma.com>
+ * May 03 2010
+ * Added support for WOOMERA_CUSTOM variable on outgoing calls
+ * 
  * v1.68 David Yat Sin <dyatsin@sangoma.com>
  * Mar 19 2010
  * MEDIA and RING flags set on answer, based on tech_indicate
@@ -364,7 +372,7 @@
 #include "asterisk/musiconhold.h"
 #include "asterisk/transcap.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.68 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.70 $")
 
 #else
 
@@ -415,7 +423,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.68 $")
 #define CALLWEAVER_19 1
 #endif
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.68 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.70 $")
 
 #if defined(DSP_FEATURE_FAX_CNG_DETECT)
 #undef		DSP_FEATURE_FAX_DETECT
@@ -722,7 +730,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.68 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.68"
+#define WOOMERA_VERSION "v1.69"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -1045,6 +1053,18 @@ typedef struct woomera_event_queue woomera_event_queue;
                 ast_mutex_lock(lock); \
         } while (0)
 #endif
+
+static inline int validate_number(char *s)
+{
+	char *p;
+	for (p = s; *p; p++) {
+		if (*p < 48 || *p > 57) {
+			return -1;
+		}
+	}
+	return 0;
+}
+
 
 
 static inline int woomera_profile_verbose(woomera_profile *profile)
@@ -1909,6 +1929,7 @@ static int tech_activate(private_object *tech_pvt)
 	int retry_activate_call=0;
 	woomera_message wmsg;
 	char *callid;
+	char *rdnis = NULL;
 	int err=0;
 
 	tech_pvt->owner->hangupcause = 34;
@@ -1949,8 +1970,17 @@ retry_activate_again:
 		goto tech_activate_failed;
 	}
 
+	if (tech_pvt->cid_rdnis) {
+		if (validate_number(tech_pvt->cid_rdnis) < 0) {
+			/* cid_rdnis should only contain digits */
+			ast_log(LOG_ERROR, "Error, invalid RDNIS value %s - ignoring\n", tech_pvt->cid_rdnis);
+		} else {
+			rdnis = tech_pvt->cid_rdnis;
+		}
+	} 
 	
 	retry_activate_call=0;
+	const char *custom = pbx_builtin_getvar_helper(tech_pvt->owner, "WOOMERA_CUSTOM");
 
 	if (ast_test_flag(tech_pvt, TFLAG_OUTBOUND)) {
 	
@@ -1966,12 +1996,13 @@ retry_activate_again:
 				 "Bearer-Cap:%s%s"
 				 "uil1p:%s%s"
 				 "RDNIS:%s%s"
-				 "xCalledTon:%d:%s"
-				 "xCalledNpi:%d:%s"
-				 "xCallingTon:%d:%s"
-				 "xCallingNpi:%d:%s"
-				 "xRdnisTon:%d:%s"
-				 "xRdnisNpi:%d:%s",
+				 "xCalledTon:%d%s"
+				 "xCalledNpi:%d%s"
+				 "xCallingTon:%d%s"
+				 "xCallingNpi:%d%s"
+				 "xRdnisTon:%d%s"
+				 "xRdnisNpi:%d%s"
+				 "xCustom:%s%s",
 				 tech_pvt->proto,
 				 tech_pvt->dest, 
 				 WOOMERA_LINE_SEPARATOR,
@@ -1991,7 +2022,7 @@ retry_activate_again:
 				 WOOMERA_LINE_SEPARATOR,
 				 woomera_ast_coding_to_string(tech_pvt->coding),
 				 WOOMERA_LINE_SEPARATOR,
-				 tech_pvt->cid_rdnis?tech_pvt->cid_rdnis:"",
+				 rdnis?rdnis:"",
 				 WOOMERA_LINE_SEPARATOR,
 				 get_digits_val_from_pbx_var(tech_pvt->owner, "OUTBOUND_CALLED_TON", 255),
 				 WOOMERA_LINE_SEPARATOR,
@@ -2004,6 +2035,8 @@ retry_activate_again:
 				 get_digits_val_from_pbx_var(tech_pvt->owner, "OUTBOUND_RDNIS_TON", 255),
 				 WOOMERA_LINE_SEPARATOR,
 				 get_digits_val_from_pbx_var(tech_pvt->owner, "OUTBOUND_RDNIS_NPI", 255),
+				 WOOMERA_LINE_SEPARATOR,
+				 custom?custom:"",
 				 WOOMERA_RECORD_SEPARATOR
 				 );
 
@@ -2019,12 +2052,13 @@ retry_activate_again:
 				 "Bearer-Cap:%s%s"
 				 "uil1p:%s%s"
 				 "RDNIS:%s%s"
-				 "xCalledTon:%d:%s"
-				 "xCalledNpi:%d:%s"
-				 "xCallingTon:%d:%s"
-				 "xCallingNpi:%d:%s"
-				 "xRdnisTon:%d:%s"
-				 "xRdnisNpi:%d:%s",
+				 "xCalledTon:%d%s"
+				 "xCalledNpi:%d%s"
+				 "xCallingTon:%d%s"
+				 "xCallingNpi:%d%s"
+				 "xRdnisTon:%d%s"
+				 "xRdnisNpi:%d%s"
+				 "xCustom:%s%s",
 				 tech_pvt->dest, 
 				 WOOMERA_LINE_SEPARATOR,
 				 tech_pvt->profile->audio_ip,
@@ -2043,7 +2077,7 @@ retry_activate_again:
 				 WOOMERA_LINE_SEPARATOR,
 				 woomera_ast_coding_to_string(tech_pvt->coding),
 				 WOOMERA_LINE_SEPARATOR,
-				 tech_pvt->cid_rdnis?tech_pvt->cid_rdnis:"",
+				 rdnis?rdnis:"",
 				 WOOMERA_LINE_SEPARATOR,
 				 get_digits_val_from_pbx_var(tech_pvt->owner, "OUTBOUND_CALLED_TON", 255),
 				 WOOMERA_LINE_SEPARATOR,
@@ -2056,6 +2090,8 @@ retry_activate_again:
 				 get_digits_val_from_pbx_var(tech_pvt->owner, "OUTBOUND_RDNIS_TON", 255),
 				 WOOMERA_LINE_SEPARATOR,
 				 get_digits_val_from_pbx_var(tech_pvt->owner, "OUTBOUND_RDNIS_NPI", 255),
+				 WOOMERA_LINE_SEPARATOR,
+				 custom?custom:"",
 				 WOOMERA_RECORD_SEPARATOR
 				 );
 		 }
@@ -2275,7 +2311,7 @@ static int tech_init(private_object *tech_pvt, woomera_profile *profile, int fla
 	 * tech_create_read_socket(tech_pvt); to setup a read socket
 	 * which, by the way, asterisk insists we have before going any furthur.  
 	 * So, in short, we are between a rock and a hard place and asterisk wants us to open a socket here
-	 * but it too impaitent to wait for us to make sure it's ready so in the case of outgoing calls
+	 * but it too impatient to wait for us to make sure it's ready so in the case of outgoing calls
 	 * we will defer the rest of the socket establishment process to the monitor thread.  This is, of course, common 
 	 * knowledge since asterisk abounds in documentation right?, sorry to bother you with all this!
 	 */
@@ -4345,14 +4381,19 @@ static int tech_hangup(struct ast_channel *self)
 		ast_copy_string(tech_pvt->ds, ds, sizeof(tech_pvt->ds));
 
 		ds=pbx_builtin_getvar_helper(self, "PRI_CAUSE");
-		if (ds && atoi(ds)) {
+		if (ds && atoi(ds)) {			
 			tech_pvt->pri_cause=atoi(ds);
 		} else if (self->hangupcause) {
-                        tech_pvt->pri_cause=self->hangupcause;
+			tech_pvt->pri_cause=self->hangupcause;
 		} else {
 			tech_pvt->pri_cause=AST_CAUSE_NORMAL_CLEARING;
 		}
-		
+
+		if (tech_pvt->pri_cause > 127) {
+			ast_log(LOG_NOTICE, "Invalid HangUp Cause %i\n", tech_pvt->pri_cause);
+			tech_pvt->pri_cause = AST_CAUSE_NORMAL_UNSPECIFIED;
+		}
+
 		if (globals.debug > 2) {
 			ast_log(LOG_NOTICE, "TECH HANGUP [%s] Cause=%i HangCause=%i ds=%s\n",
 				self->name,tech_pvt->pri_cause, self->hangupcause,  ds?ds:"N/A");

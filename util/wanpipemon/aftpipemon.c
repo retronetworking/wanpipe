@@ -335,6 +335,9 @@ int get_if_operational_stats()
 	printf("\trx_fifo_errors\t: %u\n",		stats.rx_fifo_errors);
 	printf("\trx_missed_errors: %u\n",		stats.rx_missed_errors);
 
+	/* Transmitter aborted frame transmission. Not an error. */
+	printf("\trx_hdlc_abort_counter: %u\n",	stats.rx_hdlc_abort_counter);
+
 	printf("\ttx_aborted_errors: %u\n",	stats.tx_aborted_errors);
 	printf("\tTx Idle Data\t: %u\n",		stats.tx_carrier_errors);
 
@@ -497,50 +500,68 @@ static void link_status (void)
 
 static void operational_stats (void)
 {
-	aft_op_stats_t *stats;
+	wanpipe_chan_stats_t *stats;
 	wan_udp.wan_udphdr_command= READ_OPERATIONAL_STATS; 
 	wan_udp.wan_udphdr_return_code = 0xaa;
 	wan_udp.wan_udphdr_data_len = 0;
 	DO_COMMAND(wan_udp);
 
+	if (wan_udp.wan_udphdr_data_len  != sizeof(wanpipe_chan_stats_t)) {
+     	 printf("Error: op stats data_len=%i != stats %i\n",
+		 		     wan_udp.wan_udphdr_data_len,sizeof(wanpipe_chan_stats_t));  
+	}
+
+
 	if (wan_udp.wan_udphdr_return_code == 0) {
 		BANNER("AFT OPERATIONAL STATISTICS");
-		stats = (aft_op_stats_t *)&wan_udp.wan_udphdr_data[0];
+		stats = (wanpipe_chan_stats_t *)&wan_udp.wan_udphdr_data[0];
  
-		printf(    "             Number of frames transmitted:   %u",
-				stats->Data_frames_Tx_count);
-		printf(  "\n              Number of bytes transmitted:   %u",
-				stats->Data_bytes_Tx_count);
-		printf(  "\n                      Transmit Throughput:   %u",
-				stats->Data_Tx_throughput);
-		printf(  "\n Transmit frames discarded (length error):   %u",
-				stats->Tx_Data_discard_lgth_err_count);
-		printf(  "\n                Transmit frames realigned:   %u",
-				stats->Data_frames_Tx_realign_count);
 
+   	printf( "******* OPERATIONAL_STATS *******\n");
 
-		printf("\n\n                Number of frames received:   %u",
-				stats->Data_frames_Rx_count);
-		printf(  "\n                 Number of bytes received:   %u",
-				stats->Data_bytes_Rx_count);
-		printf(  "\n                       Receive Throughput:   %u",
-				stats->Data_Rx_throughput);
-		printf(  "\n    Received frames discarded (too short):   %u",
-				stats->Rx_Data_discard_short_count);
-		printf(  "\n     Received frames discarded (too long):   %u",
-				stats->Rx_Data_discard_long_count);
-		printf(  "\nReceived frames discarded (link inactive):   %u",
-				stats->Rx_Data_discard_inactive_count);
+	printf("\trx_packets\t: %u\n",			stats->rx_packets);
+	printf("\ttx_packets\t: %u\n",			stats->tx_packets);
+	printf("\trx_bytes\t: %u\n",			stats->rx_bytes);
+	printf("\ttx_bytes\t: %u\n",			stats->tx_bytes);
+	printf("\trx_errors\t: %u\n",			stats->rx_errors);
+	printf("\ttx_errors\t: %u\n",			stats->tx_errors);
+	printf("\trx_dropped\t: %u\n",			stats->rx_dropped);
+	printf("\ttx_dropped\t: %u\n",			stats->tx_dropped);
+	printf("\tmulticast\t: %u\n",			stats->multicast);
+	printf("\tcollisions\t: %u\n",			stats->collisions);
 
+	printf("\trx_length_errors: %u\n",		stats->rx_length_errors);
+	printf("\trx_over_errors\t: %u\n",		stats->rx_over_errors);
+	printf("\trx_crc_errors\t: %u\n",		stats->rx_crc_errors);
+	printf("\trx_frame_errors\t: %u\n",	stats->rx_frame_errors);
+	printf("\trx_fifo_errors\t: %u\n",		stats->rx_fifo_errors);
+	printf("\trx_missed_errors: %u\n",		stats->rx_missed_errors);
 
-		printf("\n\nHDLC link active/inactive and loopback statistics");
-		printf(  "\n                           Times that the link went active:   %u", stats->link_active_count);	
-		printf(  "\n         Times that the link went inactive (modem failure):   %u", stats->link_inactive_modem_count);
-		printf(  "\n     Times that the link went inactive (keepalive failure):   %u", stats->link_inactive_keepalive_count);
-		printf(  "\n                                         link looped count:   %u", stats->link_looped_count);
+	/* Transmitter aborted frame transmission. Not an error. */
+	printf("\trx_hdlc_abort_counter: %u\n",	stats->rx_hdlc_abort_counter);
 
+	printf("\ttx_aborted_errors: %u\n",	stats->tx_aborted_errors);
+	printf("\tTx Idle Data\t: %u\n",		stats->tx_carrier_errors);
 
-	} 
+	printf("\ttx_fifo_errors\t: %u\n",		stats->tx_fifo_errors);
+	printf("\ttx_heartbeat_errors: %u\n",	stats->tx_heartbeat_errors);
+	printf("\ttx_window_errors: %u\n",		stats->tx_window_errors);
+
+	printf("\n\ttx_packets_in_q: %u\n",	stats->current_number_of_frames_in_tx_queue);
+	printf("\ttx_queue_size: %u\n",		stats->max_tx_queue_length);
+
+	printf("\n\trx_packets_in_q: %u\n",	stats->current_number_of_frames_in_rx_queue);
+	printf("\trx_queue_size: %u\n",		stats->max_rx_queue_length);
+
+	printf("\n\trx_events_in_q: %u\n",	stats->current_number_of_events_in_event_queue);
+	printf("\trx_event_queue_size: %u\n",		stats->max_event_queue_length);
+	printf("\trx_events: %u\n",	stats->rx_events);
+	printf("\trx_events_dropped: %u\n",		stats->rx_events_dropped);
+
+	printf("\tHWEC tone (DTMF) events counter: %u\n",		stats->rx_events_tone);
+	printf( "*********************************\n");                                    
+	}
+
 }; /* Operational_stats */
 
 
@@ -834,6 +855,9 @@ loop_rx_exit:
 }
 
 extern int mtp2_msu_only;
+extern int trace_only_diff;
+extern int trace_rx_only;
+extern int trace_tx_only;  
 extern wanpipe_hdlc_engine_t *rx_hdlc_eng;  
 wp_trace_output_iface_t hdlc_trace_iface;
 
@@ -877,6 +901,9 @@ int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng,
 	return 1;
 }
 #endif
+
+static int previous_trace_len=0;
+static int previous_trace_data[5000];  
 
 static void line_trace(int trace_mode) 
 {
@@ -1016,6 +1043,13 @@ static void line_trace(int trace_mode)
 				hdlc_trace_iface.trace_all_data = trace_iface.trace_all_data;
 				hdlc_trace_iface.data = trace_iface.data;
 				hdlc_trace_iface.len = trace_iface.len;
+
+ 				if (trace_rx_only && (trace_iface.status & WP_TRACE_OUTGOING)) {
+					continue;
+				}
+				if (trace_tx_only && !(trace_iface.status & WP_TRACE_OUTGOING)) {
+					continue;
+				}      
 				
 				
 				/*
@@ -1029,6 +1063,26 @@ static void line_trace(int trace_mode)
 					wanpipe_hdlc_decode(rx_hdlc_eng,trace_iface.data,trace_iface.len);
 					continue;		
 				} 
+
+		
+				if (mtp2_msu_only) {
+					if (trace_iface.data[2] < 3) {
+						continue;
+					}
+				}			
+
+
+				if (trace_only_diff) { 
+					if (trace_iface.len == previous_trace_len) {
+						int err=memcmp(trace_iface.data,previous_trace_data,trace_iface.len);
+						if (err == 0) {
+							continue;
+						}	
+					}
+					previous_trace_len=trace_iface.len;
+					memcpy(previous_trace_data,trace_iface.data,trace_iface.len);
+				}                  
+
 				
 				if (pcap_output){
 					trace_iface.type=WP_OUT_TRACE_PCAP;
@@ -1395,9 +1449,9 @@ int AFTUsage(void)
 	printf("\t             (T1/E1; NORMAL Clock)\n");  
 	printf("\n");
 	printf("\t      adlb   Activate   Diagnostic (Local) Loopback.\n");  
-	printf("\t             (T1/E1; MASTER Clock\n");  
+	printf("\t             (T1/E1; MASTER Clock)\n");  
 	printf("\t      ddlb   Deactivate Diagnostic (Local) Loopback.\n");  
-	printf("\t             (T1/E1; MASTER Clock\n");  
+	printf("\t             (T1/E1; MASTER Clock)\n");  
 	printf("\n");
 	printf("\t      lb     Read LoopBack status (T1/E1). This is the LoopBack\n");
 	printf("\t             status of the LOCAL device, not a status of LoopBack\n");
@@ -1637,7 +1691,7 @@ static void read_ft1_te1_56k_config (void)
 static u_int32_t parse_channel_arg(int argc, char* argv[])
 {
 	u_int32_t	chan_map = 0x00;
-	int		argi = 0, chan;
+	int		argi = 0;
 
 	for(argi = 1; argi < argc; argi++){
 
@@ -1849,6 +1903,10 @@ int AFTMain(char *command,int argc, char* argv[])
 				set_fe_tx_mode(WAN_FE_TXMODE_ENABLE);
 			}else if (!strcmp(opt,"txd")){
 				set_fe_tx_mode(WAN_FE_TXMODE_DISABLE);
+			}else if (!strcmp(opt,"tx_ais_on")){
+				set_fe_tx_alarm(WAN_FE_DEBUG_ALARM_AIS_ENABLE);
+			}else if (!strcmp(opt,"tx_ais_off")){
+				set_fe_tx_alarm(WAN_FE_DEBUG_ALARM_AIS_DISABLE);
 			}else if (!strcmp(opt,"bert")){
 				err = set_fe_bert(argc, argv);
 			}else if (!strcmp(opt,"sw_bert")){

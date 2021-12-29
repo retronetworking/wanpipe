@@ -13,6 +13,9 @@
  *
  * ==========================================================================
  *
+ * Apr 26,  2010 David Rokhvarg	Added "Global Irq lock" and "Mutex"
+ *								functions.
+ *
  * Nov 09,  2009 David Rokhvarg	Added wan_get_timestamp()
  *
  * Nov 27,  2007 David Rokhvarg	Implemented functions/definitions for
@@ -2807,6 +2810,7 @@ static __inline void wan_spin_unlock_irq(void *lock, wan_smp_flag_t *flag)
 # define wplip_spin_unlock_irq		wan_spin_unlock_irq
 #endif	
 
+/* SPINLOCK functions */
 static __inline int wan_spin_trylock(void *lock, wan_smp_flag_t *flag)
 {
 #if defined(__LINUX__)
@@ -2818,7 +2822,7 @@ static __inline int wan_spin_trylock(void *lock, wan_smp_flag_t *flag)
 #elif defined(__NetBSD__)
 	#warning "FIXME: Complete this code.!!!!!!!!!!!"
 #elif defined(__WINDOWS__)
-	return spin_trylock((wan_spinlock_t*)lock, flag);
+	return wp_spin_trylock((wan_spinlock_t*)lock, flag);
 #else
 # warning "wan_spin_trylock() function is not supported yet!"
 #endif	
@@ -2851,11 +2855,12 @@ static __inline void wan_spin_lock(void *lock, wan_smp_flag_t *flag)
 	*((wan_spinlock_t*)lock) = splimp();
 # endif
 #elif defined(__WINDOWS__)
-	spin_lock((wan_spinlock_t*)lock, flag);	
+	wp_spin_lock((wan_spinlock_t*)lock, flag);	
 #else
 # warning "wan_spin_lock() function is not supported yet!"
 #endif	
 }
+
 static __inline void wan_spin_unlock(void *lock,  wan_smp_flag_t *flag)
 {
 #if defined(__LINUX__)
@@ -2874,12 +2879,42 @@ static __inline void wan_spin_unlock(void *lock,  wan_smp_flag_t *flag)
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
 	splx(*(wan_spinlock_t*)lock);
 #elif defined(__WINDOWS__)
-	spin_unlock((wan_spinlock_t*)lock, flag);	
+	wp_spin_unlock((wan_spinlock_t*)lock, flag);	
 #else
 # warning "wan_spin_unlock() function is not supported yet!"
 #endif	
 }
 
+/*==============================================================
+ * MUTEX functions.
+ */
+
+static __inline void wan_mutex_lock(void *mutex, wan_smp_flag_t *flag /* FIXME: 'flag' should be removed */)
+{
+#if defined(__WINDOWS__)
+	wp_mutex_lock(mutex);	
+#else
+	wan_spin_lock(mutex, flag);
+#endif	
+}
+
+static __inline void wan_mutex_unlock(void *mutex, wan_smp_flag_t *flag /* FIXME: 'flag' should be removed */)
+{
+#if defined(__WINDOWS__)
+	wp_mutex_unlock(mutex);	
+#else
+	wan_spin_unlock(mutex, flag);
+#endif	
+}
+
+static __inline int wan_mutex_trylock(void *mutex, wan_smp_flag_t *flag /* FIXME: 'flag' should be removed */)
+{
+#if defined(__WINDOWS__)
+	return wp_mutex_trylock(mutex);	
+#else
+	return wan_spin_trylock(mutex, flag);
+#endif	
+}
 
 
 #if 0

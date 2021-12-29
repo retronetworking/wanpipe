@@ -13,6 +13,7 @@
 
 PWD=$(shell pwd)
 KBUILD_VERBOSE=0
+CC=gcc
 
 EXTRA_CFLAGS=
 EXTRA_FLAGS=
@@ -99,7 +100,15 @@ EXTRA_UTIL_FLAGS += -I$(PWD)/patches/kdrivers/wanec -I$(PWD)/patches/kdrivers/wa
 ENABLE_WANPIPEMON_ZAP=NO
 ZAPHDLC_PRIV=/etc/wanpipe/.zaphdlc
 
-EXTRA_CFLAGS += $(EXTRA_FLAGS)
+PRODUCT_DEFINES= -DCONFIG_PRODUCT_WANPIPE_BASE -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE 
+PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_TE3 -DCONFIG_PRODUCT_WANPIPE_AFT_56K
+PRODUCT_DEFINES+= -DCONFIG_WANPIPE_HWEC  -DCONFIG_PRODUCT_WANPIPE_SOCK_DATASCOPE -DCONFIG_PRODUCT_WANPIPE_AFT_BRI -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL 
+PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW -DCONFIG_PRODUCT_WANPIPE_AFT_RM 
+PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_USB -DCONFIG_PRODUCT_WANPIPE_A700 -DCONFIG_PRODUCT_A600 -DCONFIG_PRODUCT_WANPIPE_AFT_A600 -DCONFIG_PRODUCT_WANPIPE_AFT_A700
+PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_AFT_B601 -DCONFIG_PRODUCT_WANPIPE_AFT_B800 
+
+EXTRA_CFLAGS += $(EXTRA_FLAGS) $(PRODUCT_DEFINES)
+EXTRA_UTIL_FLAGS +=  $(PRODUCT_DEFINES)  
 
 
 #Check if zaptel exists
@@ -168,6 +177,9 @@ openzap: all_src all_lib
 	@touch .all_lib .openzap
 
 freetdm: all_src all_lib
+	@touch .all_lib .openzap
+
+g3ti: all_src all_lib
 	@touch .all_lib .openzap
 
 openzap_ss7: all_src_ss7 all_lib
@@ -369,6 +381,15 @@ install_smgpri:
 install_pri:
 	@eval "cd ssmg; ./get_sangoma_prid.sh; cd .."
 	$(MAKE) -C ssmg/sangoma_pri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
+
+install_pri_freetdm:
+	@eval "cd ssmg; ./get_sangoma_prid.sh; cd .."
+	$(MAKE) -C ssmg/sangoma_pri/ install_libs install_freetdm_lib SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
+
+install_pri_freetdm_update:
+	@eval "cd ssmg; ./get_sangoma_prid.sh --update; cd .."
+	$(MAKE) -C ssmg/sangoma_pri/ install_libs install_freetdm_lib SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
+	
 
 install_pri_update:
 	@eval "cd ssmg; ./get_sangoma_prid.sh --update; cd .."

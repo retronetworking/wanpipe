@@ -110,6 +110,7 @@ extern int _WANEC_API_CALL wanec_api_buffer_load(char*,int,wanec_api_bufferload_
 extern int _WANEC_API_CALL wanec_api_buffer_unload(char*,int,wanec_api_bufferunload_t*);
 extern int _WANEC_API_CALL wanec_api_playout(char*,int,wanec_api_playout_t*);
 extern int _WANEC_API_CALL wanec_api_monitor(char*,int,wanec_api_monitor_t*);
+extern void _WANEC_API_CALL wanec_api_set_lib_verbosity(int verbosity_level);
 
 #ifdef __WINDOWS__
 # ifdef __cplusplus

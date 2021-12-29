@@ -97,6 +97,11 @@ static void dump_data(u8 *data, int data_len);
 static int check_data(u8 *data, int data_len);
 #endif
 
+typedef enum _wp_bri_critical_bits {
+	WP_BCB_BRI_CONFIG,
+	WP_BCB_BRI_POST_INIT
+} wp_bri_critical_bits_t;
+
 /*******************************************************************************
 **			  DEFINES AND MACROS
 *******************************************************************************/
@@ -188,11 +193,16 @@ extern WAN_LIST_HEAD(, wan_tdmv_) wan_tdmv_head;
 *******************************************************************************/
 static int32_t	bri_global_config(void* pfe);
 static int32_t	bri_global_unconfig(void* pfe);
+
 static int32_t	wp_bri_config(void *pfe);
-static int32_t	wp_bri_unconfig(void *pfe);
 static int32_t	wp_bri_post_init(void *pfe);
+
+static int32_t	wp_bri_unconfig(void *pfe);
+static int32_t	wp_bri_post_unconfig(void* pfe);
+
 static int32_t	wp_bri_if_config(void *pfe, u32 mod_map, u8);
 static int32_t	wp_bri_if_unconfig(void *pfe, u32 mod_map, u8);
+
 static int32_t	wp_bri_disable_irq(sdla_fe_t *fe, u32 mod_no, u8 port_no);
 static int	wp_bri_disable_fe_irq(void *fe);
 static void	bri_enable_interrupts(sdla_fe_t *fe, u32 mod_no, u8 port_no);
@@ -203,10 +213,9 @@ static int32_t	wp_bri_udp(sdla_fe_t*, void*, u8*);
 static u32	wp_bri_active_map(sdla_fe_t* fe, u8 line_no);
 static u8	wp_bri_fe_media(sdla_fe_t *fe);
 static int32_t	wp_bri_set_dtmf(sdla_fe_t*, int32_t, u8);
+
 static int	wp_bri_intr_ctrl(sdla_fe_t *fe, int, u_int8_t, u_int8_t, unsigned int);
 static int	wp_bri_event_ctrl(sdla_fe_t*, wan_event_ctrl_t*);
-
-static int	wp_bri_pre_release(void* pfe);
 
 static int32_t	wp_bri_dchan_tx(sdla_fe_t *fe, void *src_data_buffer, u32 buffer_len);
 
@@ -1412,13 +1421,13 @@ int32_t wp_bri_iface_init(void *pfe_iface)
 	sdla_fe_iface_t	*fe_iface = (sdla_fe_iface_t*)pfe_iface;
 
 	BRI_FUNC();
-	fe_iface->global_config		= &bri_global_config;	/* not used in remora */
-	fe_iface->global_unconfig	= &bri_global_unconfig;	/* not used in remora */
+	fe_iface->global_config		= &bri_global_config;	/* not used in BRI */
+	fe_iface->global_unconfig	= &bri_global_unconfig;	/* not used in BRI */
 
 	fe_iface->config		= &wp_bri_config;
 	fe_iface->unconfig		= &wp_bri_unconfig;
 
-	fe_iface->pre_release		= &wp_bri_pre_release;
+	fe_iface->post_unconfig		= &wp_bri_post_unconfig;
 
 	fe_iface->post_init		= &wp_bri_post_init;
 
@@ -1668,14 +1677,15 @@ static int32_t bri_global_unconfig(void* pfe)
 
 /*
  ******************************************************************************
- *			wp_bri_pre_release()	
+ *			wp_bri_post_unconfig()	
  *
- * Description: BRI pre release function (not locked routines)
+ * Description: Free resources used by 'fe'. This function is NOT locked and
+ *				it must NOT be called more than one time.
  * Arguments:
  * Returns:
  ******************************************************************************
  */
-static int wp_bri_pre_release(void* pfe)
+static int wp_bri_post_unconfig(void* pfe)
 {
 	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
 	wp_bri_module_t		*bri_module;
@@ -1683,17 +1693,15 @@ static int wp_bri_pre_release(void* pfe)
 	u8			mod_no, port_no;
 	bri_xhfc_port_t		*port_ptr;
 
-	DEBUG_EVENT("%s: Running pre-release...\n", fe->name);
-
-	if(fe->fe_status == FE_UNITIALIZED){
-		DEBUG_BRI("%s: %s(): Warning: Front End initialization was incomplete.\n", 
-			fe->name, __FUNCTION__);
+	if (!wan_test_bit(WP_BCB_BRI_POST_INIT, &fe->bri_param.critical)) {
 		return 1;
 	}
 
 	if(validate_fe_line_no(fe, __FUNCTION__)){
 		return 1;
 	}
+
+	DEBUG_EVENT("%s: Running post-unconfig...\n", fe->name);
 
 	mod_no = fe_line_no_to_physical_mod_no(fe);	
 	port_no = fe_line_no_to_port_no(fe);
@@ -1710,6 +1718,8 @@ static int wp_bri_pre_release(void* pfe)
 		wan_del_timer(&port_ptr->t1_timer);		
 
 	}/* for (port_no = 0; port_no < bri_module->num_ports; port_no++) */
+
+	wan_clear_bit(WP_BCB_BRI_POST_INIT, &fe->bri_param.critical);
 
 	return 0;
 }
@@ -1739,6 +1749,11 @@ static int32_t wp_bri_config(void *pfe)
 
 	BRI_FUNC();
 
+	if (wan_test_bit(WP_BCB_BRI_CONFIG, &fe->bri_param.critical)) {
+		DEBUG_ERROR("%s: %s: Error: Line already configred! Line number %i !\n", 
+			fe->name, FE_MEDIA_DECODE(fe), WAN_FE_LINENO(fe)+1);
+		return 1;
+	}
 
 	fe->fe_status = FE_UNITIALIZED;
 
@@ -1902,6 +1917,9 @@ static int32_t wp_bri_config(void *pfe)
 	/******************************************************/
 
 	fe->fe_status = FE_DISCONNECTED;
+
+	wan_set_bit(WP_BCB_BRI_CONFIG, &fe->bri_param.critical);
+
 	return 0;
 }
 
@@ -1929,14 +1947,14 @@ static int32_t wp_bri_unconfig(void *pfe)
 
 	DEBUG_HFC_INIT("%s(): mod_no: %d, port_no: %d\n", __FUNCTION__, mod_no, port_no);
 
-	DEBUG_EVENT("%s: Unconfiguring BRI Front End...\n", fe->name);
-
-	/* Check if port was configured, if no, return. */
-	if(fe->fe_status == FE_UNITIALIZED){
-		DEBUG_BRI("%s: %s(): Warning: Front End initialization was incomplete.\n", 
+	/* Check if port was configured. If not, return. */
+	if (!wan_test_bit(WP_BCB_BRI_CONFIG, &fe->bri_param.critical)) {
+		DEBUG_BRI("%s: %s(): Warning: Front End initialization was incomplete OR not a first call to UnConfig!\n", 
 			fe->name, __FUNCTION__);
 		return 1;
 	}
+
+	DEBUG_EVENT("%s: Unconfiguring BRI Front End...\n", fe->name);
 
 	bri_module = &bri->mod[mod_no];
 	port_ptr   = &bri_module->port[port_no];
@@ -1998,7 +2016,11 @@ static int32_t wp_bri_unconfig(void *pfe)
 	}
 #endif
 	/******************************************************************/
+	
 	fe->fe_status = FE_UNITIALIZED;
+	
+	wan_clear_bit(WP_BCB_BRI_CONFIG, &fe->bri_param.critical);
+
 	return 0;
 }
 
@@ -2015,11 +2037,15 @@ static int32_t wp_bri_post_init(void *pfe)
 	u8			mod_no, port_no;
 	bri_xhfc_port_t		*port_ptr;
 
-	DEBUG_EVENT("%s: Running post initialization...\n", fe->name);
+	if (wan_test_bit(WP_BCB_BRI_POST_INIT, &fe->bri_param.critical)) {
+		return 1;
+	}
 
 	if(validate_fe_line_no(fe, __FUNCTION__)){
 		return 1;
 	}
+
+	DEBUG_EVENT("%s: Running post initialization...\n", fe->name);
 
 	mod_no = fe_line_no_to_physical_mod_no(fe);	
 	port_no = fe_line_no_to_port_no(fe);
@@ -2050,6 +2076,9 @@ static int32_t wp_bri_post_init(void *pfe)
 		card->hw_iface.hw_unlock(card->hw,&smp_flags1);   
 	}
 #endif
+
+	wan_set_bit(WP_BCB_BRI_POST_INIT, &fe->bri_param.critical);
+
 	return 0;
 }
 
@@ -2076,7 +2105,7 @@ static void l1_timer_start_t3(void *pport)
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
-	if(fe->fe_status == FE_UNITIALIZED){
+	if (!wan_test_bit(WP_BCB_BRI_CONFIG, &fe->bri_param.critical)) {
 		/* may get here during unload!! */
 		return;
 	}
@@ -2179,7 +2208,7 @@ static void l1_timer_start_t4(void *pport)
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
-	if(fe->fe_status == FE_UNITIALIZED){
+	if (!wan_test_bit(WP_BCB_BRI_CONFIG, &fe->bri_param.critical)) {
 		/* may get here during unload!! */
 		return;
 	}
@@ -2328,7 +2357,7 @@ static void l1_timer_start_t1(void *pport)
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
-	if(fe->fe_status == FE_UNITIALIZED){
+	if (!wan_test_bit(WP_BCB_BRI_CONFIG, &fe->bri_param.critical)) {
 		/* may get here during unload!! */
 		return;
 	}
@@ -3502,7 +3531,7 @@ static int32_t wp_bri_intr(sdla_fe_t *fe)
 
 	BRI_FUNC();
 
-	if(fe->fe_status == FE_UNITIALIZED){
+	if (!wan_test_bit(WP_BCB_BRI_CONFIG, &fe->bri_param.critical)) {
 		return 0;
 	}
 

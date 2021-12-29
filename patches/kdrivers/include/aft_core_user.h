@@ -89,6 +89,8 @@ enum {
 	WP_FIFO_ERROR_BIT,
 	WP_CRC_ERROR_BIT,
 	WP_ABORT_ERROR_BIT,
+	WP_FRAME_ERROR_BIT,
+	WP_DMA_ERROR_BIT
 };
 
 /*================================================================
@@ -474,14 +476,26 @@ typedef struct aft_driver_performance_stats {
 #define POLL_EVENT_OOB				(1 << 2) /* Out-Of-Band events such as Line Connect/Disconnect,
 												RBS change, Ring, On/Off Hook, DTMF... */
 
-#define POLLIN		POLL_EVENT_RX_DATA
-#define POLLOUT		POLL_EVENT_TX_READY
-#define POLLPRI		POLL_EVENT_OOB
-#define POLLHUP		POLLPRI
-#define POLLERR		POLLPRI
+#if !defined(WP_PREVENT_WINSOCK_NAME_CONFLICT)
+/* Old definitions - conflicting with winsock2.h.
+ * Kept for backward compatibility. */
+# define POLLIN			POLL_EVENT_RX_DATA
+# define POLLOUT		POLL_EVENT_TX_READY
+# define POLLPRI		POLL_EVENT_OOB
+# define POLLHUP		POLLPRI
+# define POLLERR		POLLPRI
+# define POLLWRNORM	0
+# define POLLRDNORM	0
+#endif
 
-#define POLLWRNORM	0
-#define POLLRDNORM	0
+/* New definitions. Should be used in all new code. */
+#define WP_POLLIN		POLL_EVENT_RX_DATA
+#define WP_POLLOUT		POLL_EVENT_TX_READY
+#define WP_POLLPRI		POLL_EVENT_OOB
+#define WP_POLLHUP		WP_POLLPRI
+#define WP_POLLERR		WP_POLLPRI
+#define WP_POLLWRNORM	0
+#define WP_POLLRDNORM	0
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // Command to Set data in Idle Transmit buffer of the driver:
@@ -517,7 +531,7 @@ typedef struct _REGISTER_EVENT
 	u_int8_t	operation_status;	// operation completion status
 	u_int32_t	user_flags_bitmap;	// bitmap of events API user is interested to 
 									// receive when hEvent is signalled
-	HANDLE		hEvent;
+	HANDLE	*WP_POINTER_64	hEvent;
 } REGISTER_EVENT , *PREGISTER_EVENT ;
 
 #define SIZEOF_REGISTER_EVENT  sizeof(REGISTER_EVENT)
@@ -552,17 +566,17 @@ static void print_poll_event_bitmap(u_int32_t bitmap)
 {
 	char known_event = 0;
 
-	if(bitmap & POLLIN){
+	if(bitmap & WP_POLLIN){
 		known_event = 1;
-		PRINT_BITMAP("POLLIN\n");
+		PRINT_BITMAP("WP_POLLIN\n");
 	}
-	if(bitmap & POLLOUT){
+	if(bitmap & WP_POLLOUT){
 		known_event = 1;
-		PRINT_BITMAP("POLLOUT\n");
+		PRINT_BITMAP("WP_POLLOUT\n");
 	}
-	if(bitmap & POLLPRI){
+	if(bitmap & WP_POLLPRI){
 		known_event = 1;
-		PRINT_BITMAP("POLLPRI\n");
+		PRINT_BITMAP("WP_POLLPRI\n");
 	}
 	if(known_event == 0){
 		PRINT_BITMAP("Unknown event!\n");
@@ -578,7 +592,15 @@ static void print_poll_event_bitmap(u_int32_t bitmap)
 #define IoctlLoggerApiCommand	\
 	CTL_CODE(FILE_DEVICE_UNKNOWN, WANPIPE_IOCTL_LOGGER_CMD, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
-#endif /* __WINDOWS__ */
+#else  /* __WINDOWS__ */
+# define WP_POLLIN		POLLIN
+# define WP_POLLOUT		POLLOUT
+# define WP_POLLPRI		POLLPRI
+# define WP_POLLHUP		POLLHUP
+# define WP_POLLERR		POLLERR
+# define WP_POLLWRNORM	POLLWRNORM
+# define WP_POLLRDNORM	POLLRDNORM
+#endif
 
 /*
 #define MEM_TEST_BUFFER_LEN	100

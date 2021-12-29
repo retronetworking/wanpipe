@@ -107,6 +107,7 @@ int PhoneToneDecoder::WaveStreamInputExFSK(int16_t* slinData, int dataLength, in
 				case MDMF_DATETIME:
 					strncpy(DateTime, sp, mlen-1);
 					break;
+				case MDMF_DDN:
 				case MDMF_PHONE_NUM:
 					strncpy(CallerNumber, sp, mlen-1);
 					break;

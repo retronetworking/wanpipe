@@ -161,5 +161,14 @@ typedef u32	gfp_t;
  #endif
 #endif/* !defined(WAN_KERNEL) */
 
+#endif /* __WINDOWS__ */
+
+#if defined(__WINDOWS__)
+/* Do NOT use "POINTER_64" - some versions of MS compiler 
+ * will expand it incorrectly to __ptr32. */
+# define WP_POINTER_64	__ptr64
+#else
+# define WP_POINTER_64
 #endif
+
 #endif	/* __WANPIPE_ABSTR_TYPES_H */

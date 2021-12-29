@@ -33,7 +33,7 @@
 # include "wanpipe_katm_iface.h"
 #endif
 #if defined(CONFIG_PRODUCT_WANPIPE_XDLC)
-# include "/wanpipe_xdlc_iface.h"
+# include "wanpipe_xdlc_iface.h"
 #endif
 #if defined(CONFIG_PRODUCT_WANPIPE_XMTP2)
 # include "wanpipe_xmtp2_iface.h"

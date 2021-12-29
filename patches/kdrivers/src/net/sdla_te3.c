@@ -92,7 +92,7 @@ static unsigned int sdla_te3_read_alarms(sdla_fe_t *fe, int);
 static int sdla_te3_read_pmon(sdla_fe_t *fe, int);
 static int sdla_te3_flush_pmon(sdla_fe_t *fe);
 static int sdla_te3_post_init(void* pfe);
-static int sdla_te3_pre_release(void* pfe);
+static int sdla_te3_post_unconfig(void* pfe);
 
 static int sdla_te3_update_alarm_info(sdla_fe_t* fe, struct seq_file* m, int* stop_cnt);
 static int sdla_te3_update_pmon_info(sdla_fe_t* fe, struct seq_file* m, int* stop_cnt);
@@ -1189,7 +1189,7 @@ int sdla_te3_iface_init(void *p_fe_iface)
 	fe_iface->config		= &sdla_te3_config;
 	fe_iface->unconfig		= &sdla_te3_unconfig;
 	fe_iface->post_init		= &sdla_te3_post_init;
-	fe_iface->pre_release		= &sdla_te3_pre_release;
+	fe_iface->post_unconfig	= &sdla_te3_post_unconfig;
 	fe_iface->polling		= &sdla_te3_polling;
 	fe_iface->isr			= &sdla_te3_isr;
 	fe_iface->process_udp		= &sdla_te3_udp;
@@ -1220,6 +1220,9 @@ static int sdla_te3_config(void *p_fe)
 	card->hw_iface.getcfg(card->hw, SDLA_ADAPTERSUBTYPE, &adptr_subtype);
 	
 	data = READ_REG(0x02);
+
+
+	data=0x00;
 	
 	/* configure Line Interface Unit */
 	if (card->adptr_subtype == AFT_SUBTYPE_NORMAL){
@@ -1295,7 +1298,6 @@ static int sdla_te3_config(void *p_fe)
 				fe->name,fe_cfg->frame);
 		return -EINVAL;
 	}
-	data |= BIT_OPMODE_INTERNAL_LOS;
 	data |= (BIT_OPMODE_TIMREFSEL1 | BIT_OPMODE_TIMREFSEL0);
 	WRITE_REG(REG_OPMODE, data);
 
@@ -1436,7 +1438,7 @@ static int sdla_te3_post_init(void* pfe)
 	return 0;
 }
 
-static int sdla_te3_pre_release(void* pfe)
+static int sdla_te3_post_unconfig(void* pfe)
 {
 	sdla_fe_t		*fe = (sdla_fe_t*)pfe;
 
@@ -1454,6 +1456,9 @@ static int sdla_te3_pre_release(void* pfe)
 static int sdla_te3_unconfig(void *p_fe)
 {
 	sdla_fe_t	*fe = (sdla_fe_t*)p_fe;
+	
+	wan_set_bit(TE_TIMER_KILL,(void*)&fe->te3_param.critical);
+
 	DEBUG_EVENT("%s: Unconfiguring T3/E3 interface\n",
 			fe->name);
 	return 0;

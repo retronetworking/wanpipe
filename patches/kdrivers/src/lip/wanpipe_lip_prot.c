@@ -332,7 +332,7 @@ int wplip_prot_oob(wplip_dev_t *lip_dev, unsigned char *data, int len)
 		rx_el=(wan_api_rx_hdr_t*)wan_skb_push(skb,sizeof(wan_api_rx_hdr_t));
 
 		/* FIXME: */
-		rx_el->u.lapb.exception=0;	
+		rx_el->lapb.exception=0;	
 		skb->protocol=htons(ETH_P_X25);
 		break;
 #endif
@@ -346,9 +346,9 @@ int wplip_prot_oob(wplip_dev_t *lip_dev, unsigned char *data, int len)
 			return -1;
 		}
 		rx_el=(wan_api_rx_hdr_t*)wan_skb_push(skb,sizeof(wan_api_rx_hdr_t));
-		rx_el->u.xdlc.state=xdlc_excep->state;
-		rx_el->u.xdlc.address=xdlc_excep->address;
-		rx_el->u.xdlc.exception=xdlc_excep->exception;
+		rx_el->xdlc.state=xdlc_excep->state;
+		rx_el->xdlc.address=xdlc_excep->address;
+		rx_el->xdlc.exception=xdlc_excep->exception;
 		skb->protocol=htons(ETH_P_X25);
 		}
 		break;

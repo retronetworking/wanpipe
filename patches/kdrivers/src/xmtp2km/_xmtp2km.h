@@ -49,6 +49,7 @@ extern int xmtp2km_qset;
 
 extern int xmtp2km_p_buffer;	/* pipe.c */
 
+extern int xmtp2km_ratelimit(void);
 
 /*
  * Prototypes for shared functions

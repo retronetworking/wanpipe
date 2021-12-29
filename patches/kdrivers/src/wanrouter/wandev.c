@@ -54,6 +54,7 @@ static int wanpipe_port_management(wanpipe_wandev_t *wdev, void *data);
 static int wanpipe_mgmnt_get_hardware_info(wanpipe_wandev_t *wdev, wan_device_t *wandev, port_management_struct_t *usr_port_mgmnt);
 static int wanpipe_mgmnt_stop_port(wanpipe_wandev_t *wdev, wan_device_t *wandev, port_management_struct_t *usr_port_mgmnt);
 static int wanpipe_mgmnt_start_port(wanpipe_wandev_t *wdev, wan_device_t *wandev, port_management_struct_t *usr_port_mgmnt);
+static int wanpipe_mgmnt_get_driver_version(wanpipe_wandev_t *wdev, wan_device_t *wandev, port_management_struct_t *usr_port_mgmnt);
 
 
 /*=================================================
@@ -120,9 +121,9 @@ int wanpipe_wandev_free()
 
 static int wp_wandev_open(void *obj)
 {
+#if 0
 	wanpipe_wandev_t *wdev=(wanpipe_wandev_t*)obj;
 
-#if 0
 	if (wan_test_and_set_bit(0,&wdev->used)) {
 		return -EBUSY;
 	}
@@ -136,10 +137,10 @@ static int wp_wandev_open(void *obj)
 
 static int wp_wandev_close(void *obj)
 {
+#if 0
 	wanpipe_wandev_t *wdev=(wanpipe_wandev_t*)obj;
 
 
-#if 0
 	wan_clear_bit(0,&wdev->used);
 #endif
 
@@ -248,7 +249,7 @@ static int wanpipe_port_management(wanpipe_wandev_t *wdev, void *data)
 
 	case GET_DRIVER_VERSION:
 		/* Fill in "DRIVER_VERSION" structure. */
-
+		err = wanpipe_mgmnt_get_driver_version(wdev, wandev, usr_port_mgmnt);
 		break;
 
 	case GET_PORT_OPERATIONAL_STATS:
@@ -295,7 +296,7 @@ static int wanpipe_port_cfg(wanpipe_wandev_t *wdev, void *data)
 	char card_name[100];
 
 	if (!wdev || !data) {
-		DEBUG_EVENT("%s: Error: Invalid wdev or data ptrs \n",__FUNCTION__);
+		DEBUG_ERROR("%s: Error: Invalid wdev or data ptrs \n",__FUNCTION__);
 		return -EFAULT;
 	}
 
@@ -312,12 +313,15 @@ static int wanpipe_port_cfg(wanpipe_wandev_t *wdev, void *data)
 	if (err) {
 		goto wanpipe_port_cfg_exit;
 	}
+	
+	usr_port_cfg->operation_status = SANG_STATUS_INVALID_DEVICE;
 
 	if (!usr_port_cfg->port_no) {
 		goto wanpipe_port_cfg_exit;
 	}
 
 	sprintf(card_name,"wanpipe%d",usr_port_cfg->port_no);
+
 
 	wandev=wan_find_wandev_device(card_name);
 	if (!wandev) {
@@ -334,9 +338,9 @@ static int wanpipe_port_cfg(wanpipe_wandev_t *wdev, void *data)
 			goto wanpipe_port_cfg_exit;
 		}
 
-		err= WAN_COPY_TO_USER(data,
-						 wandev->port_cfg,
-						 sizeof(wanpipe_port_cfg_t));
+		err=0;
+		memcpy(usr_port_cfg,wandev->port_cfg, sizeof(wanpipe_port_cfg_t));
+
 
 		/* Get current Port configuration stored in a Port's Driver memory buffer */
 		break;
@@ -355,20 +359,25 @@ static int wanpipe_port_cfg(wanpipe_wandev_t *wdev, void *data)
 			}
 		}
 
-		err=WAN_COPY_FROM_USER(wandev->port_cfg,
-								data,
-								sizeof(wanpipe_port_cfg_t));
-
+		err=0;
+		memcpy(wandev->port_cfg,usr_port_cfg,sizeof(wanpipe_port_cfg_t));
 
 		break;
 
 	}
 
+	if (err == 0) {
+       	 usr_port_cfg->operation_status = SANG_STATUS_SUCCESS;   
+	}
 
 wanpipe_port_cfg_exit:
 
-
 	if (usr_port_cfg) {
+	
+		err= WAN_COPY_TO_USER(data,
+						 usr_port_cfg,
+						 sizeof(wanpipe_port_cfg_t));
+
 		wan_free(usr_port_cfg);
 		usr_port_cfg=NULL;
 	}
@@ -376,6 +385,20 @@ wanpipe_port_cfg_exit:
 	return err;
 
 
+}
+
+
+static int wanpipe_mgmnt_get_driver_version(wanpipe_wandev_t *wdev, wan_device_t *wandev, port_management_struct_t *usr_port_mgmnt)
+{
+	wan_driver_version_t *drv_ver = (wan_driver_version_t*)usr_port_mgmnt->data;
+
+	drv_ver->major=WANPIPE_VERSION_MAJOR;
+	drv_ver->minor=WANPIPE_VERSION_MINOR;
+	drv_ver->minor1=WANPIPE_VERSION_MINOR1;
+	drv_ver->minor2=WANPIPE_VERSION_MINOR2;
+
+	usr_port_mgmnt->operation_status = 0;
+        return 0;
 }
 
 

@@ -110,6 +110,7 @@ typedef enum {
     WFLAG_SYSTEM_RESET 		= (1 << 19),		/* Initial System Reset Condition no calls allowed */
     WFLAG_SYSTEM_NEED_RESET_ACK = (1 << 20),		/* We sent a RESTART */
     WFLAG_WAIT_FOR_ACK_TIMEOUT 	= (1 << 21),		/* Timeout flag indicating that incoming ACK or NACK timedout */
+    WFLAG_SYSTEM_NEED_IN_RESET_ACK = (1 << 22),		/* We got a RESTART */
 } WFLAGS;
 
 enum {

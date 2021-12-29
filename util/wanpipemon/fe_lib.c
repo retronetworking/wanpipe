@@ -1163,7 +1163,7 @@ void read_te1_56k_stat(unsigned char force)
 #endif
 	fe_stats = (sdla_fe_stats_t*)get_wan_udphdr_data_ptr(0);
 	if (femedia.media == WAN_MEDIA_T1 || femedia.media == WAN_MEDIA_E1){
-		printf("***** %s: %s Alarms (Framer) *****\n\n",
+		printf("***** %s: %s Rx Alarms (Framer) *****\n\n",
 			if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 		printf("ALOS:\t%s\t| LOS:\t%s\n", 
 				WAN_TE_PRN_ALARM_ALOS(fe_stats->alarms), 
@@ -1176,7 +1176,7 @@ void read_te1_56k_stat(unsigned char force)
 				WAN_TE_PRN_ALARM_RAI(fe_stats->alarms));
 
 		if (fe_stats->alarms & WAN_TE_ALARM_LIU){
-			printf("\n***** %s: %s Alarms (LIU) *****\n\n",
+			printf("\n***** %s: %s Rx Alarms (LIU) *****\n\n",
 				if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 			printf("Short Circuit:\t%s\n", 
 					WAN_TE_PRN_ALARM_LIU_SC(fe_stats->alarms));
@@ -1185,6 +1185,13 @@ void read_te1_56k_stat(unsigned char force)
 			printf("Loss of Signal:\t%s\n", 
 					WAN_TE_PRN_ALARM_LIU_LOS(fe_stats->alarms));
 		}
+
+		printf("\n***** %s: %s Tx Alarms *****\n\n",
+			if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
+		printf("AIS:\t%s\t| YEL:\t%s\n", 
+				(fe_stats->tx_maint_alarms & WAN_TE_BIT_ALARM_AIS) ? "MAINT" :
+				(fe_stats->tx_alarms & WAN_TE_BIT_ALARM_AIS) ? "ON":"OFF",
+				WAN_TE_PRN_ALARM_YEL(fe_stats->tx_alarms));
 
 	}else if  (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){
 		printf("***** %s: %s Alarms *****\n\n",
@@ -1535,6 +1542,35 @@ repeat_read_reg:
 	return;
 }
 
+void set_fe_tx_alarm(int mode)
+{
+	sdla_fe_debug_t	fe_debug;
+	unsigned char	*data = NULL;
+
+	if(make_hardware_level_connection()){
+		return;
+	}
+
+	wan_udp.wan_udphdr_command	= WAN_FE_SET_DEBUG_MODE;
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_debug_t);
+	wan_udp.wan_udphdr_return_code	= 0xaa;
+	
+	fe_debug.type = WAN_FE_DEBUG_ALARM;
+	fe_debug.mode = mode;
+	data = get_wan_udphdr_data_ptr(0);
+	memcpy(data, (unsigned char*)&fe_debug, sizeof(sdla_fe_debug_t));
+
+	DO_COMMAND(wan_udp);
+	if (wan_udp.wan_udphdr_return_code != 0){
+		printf("Failed to tx alarm\n");
+	}else{
+		printf("Alarm transmited ok!\n");
+	}
+  	
+	cleanup_hardware_level_connection();
+	return;         
+}
+
 void set_fe_tx_mode(unsigned char mode)
 {
 	sdla_fe_debug_t	fe_debug;
@@ -1630,7 +1666,7 @@ repeat_read_reg:
 * repetitive word: wanpipemon -i <ifname> -c Tbert <pattern_type> <pattern> <count> <eib> <chan_map>
 
 ******************************************************************************/
-static int set_fe_bert_help()
+static int set_fe_bert_help(void)
 {
 	printf("\n");
 	printf("\tSangoma T1 Bit-Error-Test\n\n");
@@ -2089,7 +2125,7 @@ int	sw_bert_start(unsigned char bert_sequence_type)
 	return 0;
 }
 
-int	sw_bert_stop()
+int	sw_bert_stop(void)
 {
 	memset(&wan_udp, 0x00, sizeof(wan_udp));
 
@@ -2118,7 +2154,7 @@ int	sw_bert_stop()
 	return 0;
 }
 
-int	sw_bert_status()
+int	sw_bert_status(void)
 {
 	wp_bert_status_t *wp_bert_status;
 
@@ -2144,7 +2180,7 @@ int	sw_bert_status()
 		return 1;
 	}
 
-	wp_bert_status = get_wan_udphdr_data_ptr(0);
+	wp_bert_status = (wp_bert_status_t*) get_wan_udphdr_data_ptr(0);
 
 	printf("SW BERT Status/Statistics:\n");
 	if (wp_bert_status->state == WP_BERT_STATUS_IN_SYNCH) {

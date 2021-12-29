@@ -81,6 +81,8 @@ extern void remora_debug_mode(sdla_fe_debug_t *);
 extern int 	set_fe_bert(int argc, char *argv[]);
 extern int	set_sw_bert(int argc, char *argv[]);
 
+extern void set_fe_tx_alarm(int type);
+
 #define WAN_TRUE  1 
 #define WAN_FALSE 0
 #endif	/* _SDLA_FT1_H */

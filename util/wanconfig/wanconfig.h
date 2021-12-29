@@ -282,6 +282,7 @@ static key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TE_REF_CLOCK",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, te_ref_clock), DTYPE_UCHAR },
   { "TE_SIG_MODE",     offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, sig_mode), DTYPE_UCHAR },
   { "TE_IGNORE_YEL", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, ignore_yel_alarm), DTYPE_UCHAR },
+  { "TE_AIS_MAINTENANCE", offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, ais_maintenance), DTYPE_UCHAR },
   /* T1/E1 Front-End parameters (old style) */
   { "LBO",           offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, lbo), DTYPE_UCHAR },
   { "ACTIVE_CH",	offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_te_cfg_t, active_ch), DTYPE_UINT },
@@ -336,9 +337,19 @@ static key_word_t common_conftab[] =	/* Common configuration parameters */
   { "HWEC_PERSIST",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
    /* Keep backward compatibility */
   { "TDMV_HWEC_PERSIST_DISABLE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
+
+  /* hwec parameters */
   { "HWEC_NOISE_REDUCTION",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, noise_reduction), DTYPE_UCHAR},  
   { "HWEC_NOISE_REDUCTION_DISABLE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, noise_reduction_disable), DTYPE_UCHAR},  
   { "HWEC_TONEDISABLERDELAY",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, tone_disabler_delay), DTYPE_UINT},
+  { "HWEC_DTMF_REMOVAL",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, dtmf_removal), DTYPE_UCHAR},
+  { "HWEC_OPERATION_MODE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, operation_mode), DTYPE_UCHAR},
+  { "HWEC_ACUSTIC_ECHO",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, acustic_echo), DTYPE_UCHAR},
+  { "HWEC_NLP_DISABLE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, nlp_disable), DTYPE_UCHAR},
+  { "HWEC_TX_AUTO_GAIN",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, tx_auto_gain), DTYPE_INT},
+  { "HWEC_RX_AUTO_GAIN",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, rx_auto_gain), DTYPE_INT},
+  { "HWEC_TX_GAIN",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, tx_gain), DTYPE_INT},
+  { "HWEC_RX_GAIN",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, rx_gain), DTYPE_INT},
 
   { "OCT_CHIP_CONF",	smemof(wandev_conf_t, oct_conf), DTYPE_OCT_FILENAME }, 
   { "OCT_ECHOOPERATIONMODE",	smemof(wandev_conf_t, oct_conf), DTYPE_OCT_CHAN_CONF},
@@ -1329,6 +1340,10 @@ static look_up_t	sym_table[] =
 	{ WAN_TDMV_MULAW,	"MULAW" },
 		
 	{ WANOPT_SIM,	"SIMULATE" },
+
+	{ WANOPT_OCT_CHAN_OPERMODE_NORMAL, "OCT_NORMAL" },
+	{ WANOPT_OCT_CHAN_OPERMODE_SPEECH, "OCT_SPEECH" },
+	{ WANOPT_OCT_CHAN_OPERMODE_NO_ECHO, "OCT_NO_ECHO" },
 	
 	/*----- End ---------------------------*/
 	{ 0,			NULL		}, 

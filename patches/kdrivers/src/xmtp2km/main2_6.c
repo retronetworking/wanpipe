@@ -33,7 +33,6 @@
 #include <linux/seq_file.h>
 #include <linux/cdev.h>
 #include <linux/net.h>
-#include <linux/delay.h>
 
 #include <asm/system.h>		/* cli(), *_flags */
 #include <asm/uaccess.h>	/* copy_*_user */
@@ -43,9 +42,6 @@
 #include "fwmsg.h"
 
 /* parameters which can be set at load time */
-
-#undef XMTP2KM_DEBUG_MEM 
-#undef XMTP2KM_SPIN 
 
 int xmtp2km_major =   XMTP2KM_MAJOR;
 int xmtp2km_minor =   0;
@@ -58,12 +54,14 @@ MODULE_AUTHOR("Michael Mueller/Xygnada Technology, Inc.");
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct xmtp2km_dev *xmtp2km_devices;	/* allocated in xmtp2km_init_module */
-spinlock_t xmtp2km_lock;
 /* extern global vars */
 extern int	module_use_count;
 
+static spinlock_t xmtp2km_spinlock; 
+
 /* prototypes for non-open parts of xmtp2km kernel modules */
 /* prototypes for functions used by the Sangoma xmtp2 LIP device driver */
+#if 0
 void xmtp2km_bs_handler (int fi, int len, uint8_t * p_rxbs, uint8_t * p_txbs);
 void xmtp2km_facility_state_change (int card_iface_id, int state);
 int xmtp2km_unregister (int fi);
@@ -71,9 +69,16 @@ int xmtp2km_register (
 	void * p_instance_data, 
 	char * ps_ifname, 
 	int (*sangoma_drvr_cb)(void*, unsigned char*, int));
+int xmtp2km_tap_disable(int card_iface_id);
+int xmtp2km_tap_enable(
+		int card_iface_id, 
+		void *dev, 
+		int (*frame)(void *ptr, int slot, int dir, unsigned char *data, int len));
+#else
+	#include "xmtp2km_kiface.h"
+#endif
 /* prototypes for functions used by the xmtp2km kernel module ioctl function */
 int xmtp2km_ioctl_binit (void);
-int xmtp2km_ioctl_stop_fac (unsigned int cmd, unsigned long arg);
 int xmtp2km_ioctl_opsparms (unsigned int cmd, unsigned long arg);
 int xmtp2km_ioctl_pwr_on (unsigned int cmd, unsigned long arg);
 int xmtp2km_ioctl_emergency (unsigned int cmd, unsigned long arg);
@@ -85,48 +90,13 @@ int xmtp2km_ioctl_getbsnt (unsigned int cmd, unsigned long arg);
 int xmtp2km_ioctl_gettbq (unsigned int cmd, unsigned long arg);
 int xmtp2km_ioctl_lnkrcvy (unsigned int cmd, unsigned long arg);
 int xmtp2km_ioctl_getopm (unsigned int cmd, unsigned long arg);
+int xmtp2km_ioctl_close(void);
+int xmtp2km_ioctl_stop_fac (unsigned int cmd, unsigned long arg);
 /* protoypes for functions used by the xmtp2km kernel module startup and shutdown functions */
 void xmtp2km_init (void);
 void xmtp2km_shutdown (void);
 
-int xmtp2km_rate_limit(void)
-{
-	return net_ratelimit();
-}
 
-void xmtp2km_spin_lock_init(void)
-{
-	spin_lock_init(&xmtp2km_lock);	
-}
-
-void xmtp2km_spin_lock_irq(unsigned long *flag)
-{
-#ifdef XMTP2KM_SPIN
-...
-	spin_lock_irqsave(&xmtp2km_lock,*flag);	
-#endif
-}
-
-void xmtp2km_spin_unlock_irq(unsigned long *flag)
-{
-#ifdef XMTP2KM_SPIN
-	spin_unlock_irqrestore(&xmtp2km_lock,*flag);	
-#endif
-}
-
-void xmtp2km_spin_lock(void)
-{
-#ifdef XMTP2KM_SPIN
-	spin_lock(&xmtp2km_lock);	
-#endif
-}
-
-void xmtp2km_spin_unlock(void)
-{
-#ifdef XMTP2KM_SPIN
-	spin_unlock(&xmtp2km_lock);	
-#endif
-}
 
 void* xmtp2_memset(void *b, int c, int len)
 {
@@ -143,40 +113,31 @@ void xmtp2_printk(const char * fmt, ...)
 	va_end(args);
 }
 
-#ifdef XMTP2_MEM_DEBUG
-extern int sdla_memdbg_push(void *mem, char *func_name, int line, int len);
-void * __xmtp2km_kmalloc (const unsigned int bsize, char *func, int line)
-#else
-void * __xmtp2km_kmalloc (const unsigned int bsize)
-#endif
+void * xmtp2km_kmalloc (const unsigned int bsize)
 /***************************************************************************************/
 {
-	void *ptr=kmalloc (bsize, GFP_ATOMIC);
-
-#ifdef XMTP2_MEM_DEBUG
-	if (ptr) {
-		sdla_memdbg_push(ptr,func,line,bsize);	
-	}
-#endif
-
-	return ptr;
+	return kmalloc (bsize, GFP_ATOMIC);
 }
 
-
-#ifdef XMTP2_MEM_DEBUG
-extern int sdla_memdbg_pull(void *mem, char *func_name, int line);
-void __xmtp2km_kfree (void * p_buffer, char *func, int line)
-#else
-void __xmtp2km_kfree (void * p_buffer)
-#endif
+void xmtp2km_kfree (void * p_buffer)
 /***************************************************************************************/
 {
-#ifdef XMTP2_MEM_DEBUG
-	if (p_buffer) {
-		sdla_memdbg_pull(p_buffer,func,line);	
-	}
-#endif
 	kfree (p_buffer);
+}
+
+void xmtp2km_lock(unsigned long *flags)
+{
+	spin_lock_irqsave(&xmtp2km_spinlock,*flags);
+}
+
+void xmtp2km_unlock(unsigned long *flags)
+{
+    spin_unlock_irqrestore(&xmtp2km_spinlock,*flags);
+}
+
+int xmtp2km_ratelimit(void)
+{
+    return net_ratelimit();
 }
 
 int xmtp2km_access_ok   (int type, const void *p_addr, unsigned long n)
@@ -194,21 +155,6 @@ int xmtp2km_access_ok   (int type, const void *p_addr, unsigned long n)
 			break;
 	}
 	return 0;
-}
-
-void xmtp2_mdelay(int s)
-{
-	/* wait for "milliseconds * 1/1000" of sec */	
-	unsigned long timeout=jiffies;
-
-	if (s > 2) {
-		s=2;
-	}
-	
-	while (jiffies-timeout < (HZ/10) * s){
-		udelay(100);
-		schedule();
-	}
 }
 
 unsigned long xmtp2km_copy_to_user   (void *p_to, const void *p_from, unsigned long n)
@@ -258,9 +204,9 @@ int xmtp2km_release(struct inode *inode, struct file *filp)
 /***************************************************************************************/
 {
 	if (module_use_count > 0) module_use_count--;
-
+	
 	xmtp2km_ioctl_close();
-
+	
 	return 0;
 }
 
@@ -270,6 +216,7 @@ int xmtp2km_ioctl(struct inode *inode, struct file *filp,
 {
 	int err = 0;
 	int ret = 0; /* default is success */
+	unsigned long flags;
 
 	/*
 	 * extract the type and number bitfields, and don't decode
@@ -291,6 +238,7 @@ int xmtp2km_ioctl(struct inode *inode, struct file *filp,
 
 	if (err) return -EFAULT;
 
+
 	switch(cmd) 
 	{
 		case XMTP2KM_IOCS_BINIT:
@@ -300,7 +248,7 @@ int xmtp2km_ioctl(struct inode *inode, struct file *filp,
 			ret = xmtp2km_ioctl_stop_fac (cmd, arg);
 			break;
 		case XMTP2KM_IOCS_OPSPARMS:
-			ret = xmtp2km_ioctl_opsparms (cmd, arg);
+			 ret = xmtp2km_ioctl_opsparms (cmd, arg);
 			break;
 		case XMTP2KM_IOCS_PWR_ON:
 			//printk ("%s ptr %u size %u\n", __FUNCTION__, (unsigned int)((void __user *)arg), _IOC_SIZE(cmd));
@@ -338,8 +286,11 @@ int xmtp2km_ioctl(struct inode *inode, struct file *filp,
 			ret = xmtp2km_ioctl_getopm (cmd, arg);
 			break;
 		default:  /* redundant, as cmd was checked against MAXNR */
-			return -ENOTTY;
+			ret = -ENOTTY;
+			break;
 	}
+ 
+
 	return ret;
 }
 
@@ -406,13 +357,16 @@ int xmtp2km_init_module(void)
 	int result, i;
 	dev_t dev = 0;
 
-	printk ("MARK 0: Nenad 1.0\n");
+	printk ("MARK 0\n");
 	info_u (__FILE__, __FUNCTION__,
 "MARK", 0);
 /*
  * Get a range of minor numbers to work with, asking for a dynamic
  * major unless directed otherwise at load time.
  */
+
+ 	spin_lock_init(&xmtp2km_spinlock);
+
 	if (xmtp2km_major) 
 	{
 		dev = MKDEV(xmtp2km_major, xmtp2km_minor);
@@ -428,8 +382,6 @@ int xmtp2km_init_module(void)
 		printk(KERN_WARNING "xmtp2km: can't get major %d\n", xmtp2km_major);
 		return result;
 	}
-
-	xmtp2km_spin_lock_init();
 
         /* 
 	 * allocate the devices -- we can't have them static, as the number
@@ -468,4 +420,6 @@ module_exit(xmtp2km_cleanup_module);
 EXPORT_SYMBOL (xmtp2km_register);
 EXPORT_SYMBOL (xmtp2km_unregister);
 EXPORT_SYMBOL (xmtp2km_bs_handler);
+EXPORT_SYMBOL (xmtp2km_tap_enable);
+EXPORT_SYMBOL (xmtp2km_tap_disable);
 EXPORT_SYMBOL (xmtp2km_facility_state_change);

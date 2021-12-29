@@ -177,7 +177,7 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t*, int, unsigned char*, unsigned int);
 
 static int wp_tdmv_span_buf_rotate(void *pcard, u32, unsigned long, int);
 
-static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm);
+static void wp_tdmv_report_alarms(void* pcard, uint32_t te_alarm);
 
 #ifdef DAHDI_22
 static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan, 
@@ -1450,7 +1450,7 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 **
 **	DONE
 */
-static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
+static void wp_tdmv_report_alarms(void* pcard, uint32_t te_alarm)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;

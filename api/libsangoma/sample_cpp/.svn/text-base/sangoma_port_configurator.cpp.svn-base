@@ -442,7 +442,7 @@ int sangoma_port_configurator::initialize_e1_tdm_span_voice_api_configration_str
     FE_LCODE(sdla_fe_cfg) = WAN_LCODE_HDB3;
     FE_FRAME(sdla_fe_cfg) = WAN_FR_CRC4;
 	FE_LINENO(sdla_fe_cfg) = hardware_info->port_number;
-	FE_TDMV_LAW(sdla_fe_cfg) = WAN_TDMV_MULAW;
+	FE_TDMV_LAW(sdla_fe_cfg) = WAN_TDMV_ALAW;
 	FE_NETWORK_SYNC(sdla_fe_cfg) = 0;
 
 	FE_LBO(sdla_fe_cfg) = WAN_E1_120;
@@ -525,6 +525,72 @@ int sangoma_port_configurator::control_analog_rm_lcm(port_cfg_t *port_cfg, int c
 	}
 	return 0;
 }
+
+	/**************************************************************/
+	/*********** Analog Global Gain Setting Functions**************/
+	/**************************************************************/
+
+	//Note: following gain settings are global. It requires drivers to
+	//restart the card.
+	//It is recommended to use dynamic analog txgain/rxgain functions
+	//from libsangoma library:sangoma_set_rm_tx_gain and sangoma_set_rm_rx_gain
+
+int sangoma_port_configurator::set_analog_rm_fxo_txgain(port_cfg_t *port_cfg, int txgain)
+{
+	wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
+    sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
+	
+	if(wandev_conf->card_type == WANOPT_AFT_ANALOG){//Only valid for Analog cards
+			sdla_fe_cfg->cfg.remora.fxo_txgain = txgain;
+	} else{
+			return -EINVAL;
+	}
+	return 0;
+}
+int sangoma_port_configurator::set_analog_rm_fxo_rxgain(port_cfg_t *port_cfg, int rxgain)
+{
+	wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
+    sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
+	
+	if(wandev_conf->card_type == WANOPT_AFT_ANALOG){//Only valid for Analog cards
+			sdla_fe_cfg->cfg.remora.fxo_rxgain = rxgain;
+	} else{
+			return -EINVAL;
+	}
+	return 0;
+}
+
+int sangoma_port_configurator::set_analog_rm_fxs_txgain(port_cfg_t *port_cfg, int txgain)
+{
+	wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
+    sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
+	
+	if(wandev_conf->card_type == WANOPT_AFT_ANALOG){//Only valid for Analog cards
+			sdla_fe_cfg->cfg.remora.fxs_txgain = txgain;
+	} else{
+			return -EINVAL;
+	}
+	return 0;
+}
+
+int sangoma_port_configurator::set_analog_rm_fxs_rxgain(port_cfg_t *port_cfg, int rxgain)
+{
+	wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
+    sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
+	
+	if(wandev_conf->card_type == WANOPT_AFT_ANALOG){//Only valid for Analog cards
+			sdla_fe_cfg->cfg.remora.fxs_rxgain = rxgain;
+	} else{
+			return -EINVAL;
+	}
+	return 0;
+}
+
+	/**************************************************************/
+	/*********** End of Analog Global Gain Setting Functions ******/
+	/**************************************************************/
+
+
 int sangoma_port_configurator::set_analog_opermode(port_cfg_t *port_cfg, char *opermode)
 {
 	wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
