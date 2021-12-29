@@ -55,11 +55,22 @@
 # define wan_dev_get_by_name(name) dev_get_by_name(&init_net,name)
 # define wan_dev_get_by_index(idx) dev_get_by_index(&init_net,idx)
 # define wan_init_net(name)  init_net.name
+
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26) || defined(LINUX_FEAT_CONFIG_NET_NS) 
+#  define	wan_sock_net(_x)	sock_net(_x)
+# else
+static __inline struct net *wan_sock_net(const struct sock *sk)
+{
+        return sk->sk_net;
+}
+# endif
+
 #else
 # define wan_dev_get_by_name(name) dev_get_by_name(name)
 # define wan_dev_get_by_index(idx) dev_get_by_index(idx)
 # define wan_init_net(name)  name
 #endif
+
 
 typedef int (wan_get_info_t)(char *, char **, off_t, int);
 

@@ -1,11 +1,11 @@
 WANPIPE PACKAGE INSTALLATION/UN-INSTALLATION
 ============================================
 
-Author: Nenad Corbic
-
 
 For Lates Docs Please visit
+---------------------------------------------
 http://wiki.sangoma.com
+---------------------------------------------
 
 
 
@@ -21,13 +21,13 @@ Wanpipe SOURCE packages are located in:
 	        tar xvfz wanpipe-<version>.tgz 
 
         The tar will create the temporary 
-	wanpipe/ directory.
+	wanpipe-<version>/ directory.
 
 
 WANPIPE SOURCE PACKAGE Installation
 ====================================
 
-The 'Setup' script located in temporary wanpipe/
+The 'Setup' script located in temporary wanpipe-<version>/
 directory should be used to install/un-install
 and re-configure all WANPIPE driver and utilities.
 
@@ -36,12 +36,12 @@ options that can be used to customise wanpipe
 installation. Run ./Setup without any arguments
 for usage.
 
-Run the Setup script from temporary wanpipe/ directory
+Run the Setup script from temporary wanpipe-<version>/ directory
 (wanpipe directory was created by untaring the source package)
 
-  cd wanpipe/
-  
   ./Setup install
+or
+  ./Setup zaptel 	#Compile for Zaptel/Asterisk
 
 The install option will do the following:
     -------	
@@ -52,36 +52,10 @@ The install option will do the following:
 	3. Prompt the user to Install/Upgrade WANPIPE
 	   drivers into the Linux kernel source.
 
-	   NOTE: The kernel source must be located
-	         in /usr/src/linux. 
-		 
-		 Or the linux source directory
-		 must be supplied with '--with-linux' argument.
-
-		 It is always RECOMMENDED to upgrade/update
-		 the kernel source tree with the latest
-		 wanpipe source.  
-
 	4. Prompt the user to re-compile all WANPIPE
 	   kernel drivers and install them as modules
 	   in the the current /lib/modules/<kernel-version>
 	   directory.  
-
-	   Compilaton Options:  Default or Custom
-
-	   Default compilation: 
-	   	option will compile the standard WANPIPE protocols 
-		into the kernel device driver: Frame Relay, PPP, CHDLC 
-		Multi-Port Frame Relay, Multi-Port PPP, and X25(API). " 
-		
-	   Custom compilation:
-	        option will offer a menu of all available WAN and 
-		API protocols. The user will be able to enable 
-		protocols individually or all at once, 
-		as desired. 
-
-	   With this option, NO kernel recomilation is
-	   necessary :)
 
 	5. Prompt the user to install bootstrap 
 	   scripts that will be used to start wanpipe
@@ -234,9 +208,9 @@ source tree with the latest wanpipe drivers
 and to compile the wanpipe kernel modules 
 against the updated kernel source tree.
 
-Run the Setup script in temporary wanpipe/ directory:
+Run the Setup script in temporary wanpipe-<version>/ directory:
 
-ex: cd wanpipe/
+ex: cd wanpipe-<version>/
 
     ./Setup drivers
  
@@ -277,20 +251,20 @@ WANPIPE Utilities Re-Compilation
 =================================
 
 This option will re-compile all WANPIPE utilities
-in temporary wanpipe/ directory.
+in temporary wanpipe-<version>/ directory.
 
 NOTE: If this is a first time install you MUST run
       the install option: Setup install.
 
-Run the Setup script in temporary wanpipe/ directory:
+Run the Setup script in temporary  directory:
 
-ex: cd wanpipe/
+ex: cd wanpipe-<version>/
     ./Setup utility
  
 The utility option will do the following:
     -------	
 	1. Compile all WANPIPE utilities 
-           in temporary wanpipe/ directory	
+           in temporary wanpipe-<version>/ directory	
 
 To install utilities into /usr/sbin
 directory one must run:
@@ -308,9 +282,9 @@ info.
 WANPIPE Un-Install
 ==================
 
-Run the Setup script in temporary wanpipe/ directory:
+Run the Setup script in temporary wanpipe-<version>/ directory:
 
-ex: cd wanpipe/
+ex: cd wanpipe-<version>/
     ./Setup remove
 
  
@@ -322,10 +296,10 @@ The remove option will do the following:
 	   directories.
 
 After the 'Setup remove' command, it is safe
-to remove the whole temporary wanpipe/ directory.
+to remove the whole temporary wanpipe-<version>/ directory.
 
 	ex:
-	    rm -rf wanpipe/
+	    rm -rf wanpipe-<version>/
 
 
 

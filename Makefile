@@ -73,6 +73,7 @@ ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
 	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
 	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
 	ZAP_PROT=TDM
+	PROTS=DEF
 else
 	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
 		ZAPDIR=/usr/src/zaptel/kernel
@@ -81,11 +82,13 @@ else
 		EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
 		ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
 		ZAP_PROT=TDM
+		PROTS=DEF-TDM
 	else
 		ZAP_OPTS=
 		ZAP_PROT=
 		ZAPDIR_PRIV=
 		ENABLE_WANPIPEMON_ZAP=NO
+		PROTS=DEF
 	endif
 endif  
 
@@ -117,7 +120,7 @@ all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 		rm -rf $(PWD)/ast_build_dir; \
 	fi
 	@mkdir -p $(PWD)/ast_build_dir
-	./Setup drivers --builddir=$(PWD)/ast_build_dir --with-linux=$(KDIR) $(ZAP_OPTS) --usr-cc=$(CC) --protocol=DEF-$(ZAP_PROT) --no-zaptel-compile --noautostart --arch=$(ARCH) --silent
+	./Setup drivers --builddir=$(PWD)/ast_build_dir --with-linux=$(KDIR) $(ZAP_OPTS) --usr-cc=$(CC) --protocol=$(PROTS) --no-zaptel-compile --noautostart --arch=$(ARCH) --silent
 	@eval "./patches/copy_modules.sh $(PWD)/ast_build_dir $(WAN_DIR)"
 
 

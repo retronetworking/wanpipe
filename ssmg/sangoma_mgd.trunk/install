@@ -292,6 +292,10 @@ if [ -d chan_woomera.trunk ]; then
 		echo "       Please provide the path to Asterik or CallWeaver source."
 		echo "       Then re-run eg: ./install -pbxdir /usr/src/asterisk "
 		echo
+		getyn "Would you like to continue installation?"
+		if [ $? -ne 0 ]; then
+			exit 1;
+		fi
 	else
 		eval "make clean 2> /dev/null > /dev/null"
 		eval "make PBXDIR=$pbxdir"

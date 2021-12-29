@@ -369,11 +369,14 @@ welcome()
 {
 	banner
 
-	if [ $zaptel_auto_install = "YES" ]; then
+	if [ "$bri_auto_install" = "YES" ]; then
+		
+		welcome_default
+
+	elif [ $zaptel_auto_install = "YES" ]; then
 	
 		welcome_zaptel
 	else 
-
 		welcome_default
 	fi
 
@@ -472,8 +475,8 @@ WANPIPE kernel modules:
 
 	1) Proceed to configure the WANPIPE drivers:
 		Asterisk/Zaptel: /usr/sbin/wancfg_zaptel
+		SMG SS7 or BRI : /usr/sbin/wancfg_smg
 		TDM API        : /usr/sbin/wancfg_tdmapi
-		SMG SS7        : /usr/sbin/wancfg_smg
 		WAN Routing/API: /usr/sbin/wancfg
 	2) Use the /usr/sbin/wanrouter startup scrip to start and stop
 	   the router. (eg: wanrouter start)
@@ -685,6 +688,12 @@ prepare()
                         return 1
                 fi
         fi
+
+	if [ "$SSMG_BRI" = "YES" ]; then
+		check_sctp_utility
+		find_ast_dirs
+	fi
+
 	pause
 
         return 0
@@ -761,8 +770,11 @@ update_wanpipe_drivers ()
 
 
 	if [ "$PKG_NAME" != "wanpipe-lite" ]; then
-		if [ -d "$SOURCEDIR/Documentation" ]; then
+		if [ -e $SOURCEDIR/Documentation/networking/wanpipe.txt ]; then
 		eval "cp -f README $SOURCEDIR/Documentation/networking/wanpipe.txt"
+		fi
+
+		if [ -e $SOURCEDIR/Documentation/networking/wan-router.txt ]; then
 		eval "cp -f README $SOURCEDIR/Documentation/networking/wan-router.txt"
 		fi	
 	fi
@@ -1083,7 +1095,7 @@ prompted during the install!
 
 ENDOFTEXT
 
-	getyn "Would you like build wanpipe kernel drivers? [y]" || return 0
+	#getyn "Would you like build wanpipe kernel drivers? [y]" || return 0
 
 	banner
 
@@ -1902,10 +1914,12 @@ compile_src ()
 WANPIPE UTILITIES SETUP
 
 WANPIPE utilities are used to:
-	1) create WANPIPE configuration files.
+	1) create configuration files: for Zaptel and Asterisk
+		/usr/sbin/wancfg_zaptel	#Zaptel and Asterisk
+		/usr/sbin/wancfg_smg	#BRI/SS7, Zaptel and Asterisk
+		/usr/sbin/wancfg_tdmapi	#TDM API
+	2) create WANPIPE WAN/IP configuration files.
 		(/usr/sbin/wancfg)
-	2) create configuration files for Zaptel and Asterisk
-		(/usr/sbin/wancfg_zaptel)
 	3) start,stop,restart individual/all devices and interfaces.
 		(/usr/sbin/wanrouter)
 	4) debug line, protocol and driver problems.
@@ -2198,11 +2212,16 @@ function check_for_af_wanpipe_updates()
 		if [ $KLVL -eq 11 ]; then
 			eval "grep sk_zapped $SOURCEDIR/include/net/sock.h > /dev/null 2> /dev/null"
 			if [ $? -ne 0 ]; then
-				AF_EXTRA_FLAGS="$AF_EXTRA_FLAGS -DAF_WANPIPE_2612_FORCE_UPDATE"
+				AF_EXTRA_FLAGS="$AF_EXTRA_FLAGS -DAF_WANPIPE_2612_FORCE_UPDATE "
 			fi	
 		elif [ $KLVL -gt 11 ]; then
-			AF_EXTRA_FLAGS="$AF_EXTRA_FLAGS -DAF_WANPIPE_2612_FORCE_UPDATE"
+			AF_EXTRA_FLAGS="$AF_EXTRA_FLAGS -DAF_WANPIPE_2612_FORCE_UPDATE "
 		fi	
+			
+		eval "grep CONFIG_NET_NS $SOURCEDIR/include/net/sock.h > /dev/null 2> /dev/null"
+		if [ $? -eq 0 ]; then
+			AF_EXTRA_FLAGS="$AF_EXTRA_FLAGS -DLINUX_FEAT_CONFIG_NET_NS "
+		fi
 	fi	
 }
 
@@ -3009,15 +3028,13 @@ if [ -z $NONINTERACTIVE ]; then
 		enable_protocols "AFT_TE1"
 
 	elif [ "$response"  -eq 6 ]; then
-		check_sctp_utility
-                enable_protocols "AFT_TE1"
                 SSMG_BRI=YES
+                enable_protocols "AFT_TE1"
 
 	elif [ "$response"  -eq 7 ]; then
-		check_sctp_utility
+                SSMG_BRI=YES
                 enable_protocols "AFT_TE1"
 		enable_protocols "TDM"
-                SSMG_BRI=YES
 
 	elif [ "$response"  -eq 8 ]; then
                 enable_protocols "AFT_TE1"
@@ -3029,16 +3046,32 @@ if [ -z $NONINTERACTIVE ]; then
 	fi
 else
 	if [ "$PROTS" = "" ]; then
-		if [ $zaptel_auto_install = "YES" ]; then
+		if [ $bri_auto_install = "YES" ]; then
+			SSMG=YES
+        		SSMG_BRI=YES
+			enable_protocols "BRI"
+			enable_protocols "AFT_TE1"
+			LIP_PROT=NO
+			LIP_LOAD=NO
+
+		elif [ $zaptel_auto_install = "YES" ]; then
 			enable_protocols "TDM"
 			enable_protocols "AFT_TE1"
 			LIP_PROT=NO
 			LIP_LOAD=NO
-		else 
+
+		else	
 			enable_protocols $DEFAULT_PROTOCOLS
 		fi	
 	fi  
+
 fi
+	if [ "$SSMG_BRI" = "YES" ]; then
+		check_sctp_utility
+		find_ast_dirs
+	fi
+
+	return 
 }
 
 
@@ -3120,7 +3153,7 @@ ENDOFTEXT
 	fi
 
 	echo
-	getyn "Proceed to build ${DISTR_NAME} kernel modules ? [y]" || return 0;
+	#getyn "Proceed to build ${DISTR_NAME} kernel modules ? [y]" || return 0;
 
 	if [ ! -d $DRIVER_TMP_DIR ]; then
 		eval "\mkdir -p $DRIVER_TMP_DIR > /dev/null"
@@ -3268,7 +3301,7 @@ ENDOFTEXT
 
 	select_compilation_mode
 
-	display_compiled_protocols
+	#display_compiled_protocols
 
 	#Disply all supported protocols that will be compiled
 	#into the driver.
@@ -3364,7 +3397,6 @@ ENDOFTEXT
 		CONFIG_SMP=NO;
 	fi
 
-
 	#Find out our processor type. This is needed to properly
 	#compile our modules.
 	echo -n "Checking current processor type ..."
@@ -3397,6 +3429,8 @@ ENDOFTEXT
 		 LD_ELF="-m elf_i386" 
 		 ;;
 	i386*)   LD_ELF="-m elf_i386" 
+		 ;;
+	x86*)   LD_ELF="-m elf_i386" 
 		 ;;
 	ppc*)
 		 ;;
@@ -3625,7 +3659,7 @@ CFLAGS="$CC -Wp,-MD,.wanpipe.o.d -nostdinc -iwithprefix include -D__LINUX__ -Dli
 	echo
 	fi
 
-cat <<ENDOFTEXT > $PROD_HOME/Compile_Setup.sh
+cat <<ENDOFTEXT > $PROD_HOME/scripts/Compile_Setup.sh
 
 #!/bin/sh
 
@@ -3659,7 +3693,7 @@ ENDOFTEXT
 
 
 tmp=${CFLAGS/$CC/}
-cat <<ENDOFTEXT > $PROD_HOME/Compile.sh
+cat <<ENDOFTEXT > $PROD_HOME/scripts/Compile.sh
 
 #!/bin/sh
 
@@ -3684,7 +3718,7 @@ WANPIPE_OBJS=
 
 	AF_EXTRA_FLAGS="-DCONFIG_PRODUCT_WANPIPE_SOCK_DATASCOPE"
 	check_for_af_wanpipe_updates
-
+	
 	rm -f af_wanpipe_src.c
 	ln -s af_wanpipe.c af_wanpipe_src.c
 	build_kernel_module af_wanpipe "af_wanpipe_src af_wanpipe_datascope" "$AF_EXTRA_FLAGS"
@@ -4545,12 +4579,17 @@ function install_chan_woomera()
 	return 0         
 }
 
-function install_ssmg_bri()
+function install_ssmg_ss7()
 {
 
-	if [ $SSMG_BRI != "YES" ]; then
+	if [ $SSMG_SS7 != "YES" ]; then
 		return 0
 	fi
+		
+	banner
+	
+	check_sctp_utility
+	find_ast_dirs
 	
 	SSMG="YES"
 	eval "install_ssmg"
@@ -4569,9 +4608,57 @@ function install_ssmg_bri()
 	echo "Installing SMG Daemon..."	
 	echo
 	if [ -z $ROOT ]; then
-		eval "./install -noss7"
+		eval "./install -pbxdir $AST_SOURCE_DIR"
 	else
-		eval "./install -noss7 -rootdir $ROOT"
+		eval "./install -rootdir $ROOT -pbxdir $AST_SOURCE_DIR"
+	fi
+	if [ $? -ne 0 ]; then
+		echo "-------------------------------------"
+		echo "Error: SMG Failed to install"	
+		echo "Please Contact Sangoma Support!"
+		echo "-------------------------------------"
+		exit 1;
+	fi
+	echo 
+
+	pause
+}
+
+
+function install_ssmg_bri()
+{
+
+	if [ $SSMG_BRI != "YES" ]; then
+		return 0
+	fi
+		
+	banner
+	
+	check_sctp_utility
+	find_ast_dirs
+	
+	SSMG="YES"
+	eval "install_ssmg"
+	if [ $? -ne 0 ]; then
+		echo "-------------------------------------"
+		echo "Error: SMG Libraries Failed to install"	
+		echo "Please Contact Sangoma Support!"
+		echo "-------------------------------------"
+		exit 1;
+	fi
+	echo 
+
+
+
+	cd $PROD_HOME/$SSMG_DIR
+	cd sangoma_mgd.trunk 
+
+	echo "Installing SMG Daemon..."	
+	echo
+	if [ -z $ROOT ]; then
+		eval "./install -noss7 -pbxdir $AST_SOURCE_DIR"
+	else
+		eval "./install -noss7 -rootdir $ROOT -pbxdir $AST_SOURCE_DIR"
 	fi
 	if [ $? -ne 0 ]; then
 		echo "-------------------------------------"
@@ -4608,6 +4695,10 @@ function install_ssmg ()
           	return 0;
 	fi        	
 
+	if [ "$SSMG_INSTALLED" == "YES" ]; then
+		return 0;
+	fi
+	
 	cd $PROD_HOME/$SSMG_DIR
 	
 	banner
@@ -4636,13 +4727,15 @@ function install_ssmg ()
 	if [ $SSMG_BRI != "YES" ]; then
 		install_smg_samples_ss7
 	fi
-                    
+                
+	SSMG_INSTALLED=YES
+	return 0;	    
 }
 
 
 function install_smg_samples_bri()
 {
-	getyn "Add Woomera config in Asterisk Extensions and Iax Conf"
+	getyn "Append sample config in Asterisk Extensions and Iax Conf"
 	if [ $? -ne 0 ]; then
           	return 0;
 	fi
@@ -4670,8 +4763,6 @@ function install_smg_samples_bri()
                    	echo "Asterisk iax.conf already updated"       	
 		fi
 	fi
-
-	pause
 
 	return 0
 }
@@ -5809,6 +5900,178 @@ function find_zap_dirs ()
 	
 }
 
+function find_ast_dirs_invalid ()
+{
+	echo
+	echo "Invalid Response $response"
+	echo
+	clear
+	find_ast_dirs "$1"
+}
+
+
+
+function find_ast_dirs ()
+{
+	local cnt
+	local dir
+	local astdir_manual=0
+	local astdirs=$1
+	local astdirs1
+
+
+	if [ "$AST_PATH_OP" = "YES" ]; then
+		return;
+	fi
+
+	echo
+	echo "Looking for Asteris/CallWeaver directory in /usr/src ..."	
+	echo "-------------------------------------------"
+	if [ "$astdirs" = "" ]; then
+		astdirs=`find /usr/src -maxdepth 2 -name 'asterisk*' | xargs `
+		if [ -d "/usr/src/asterisk" ]; then
+                        astdirs="/usr/src/asterisk "$astdirs
+                fi
+
+		astdirs1=`find /usr/src -maxdepth 2 -name 'callweaver*' | xargs `
+		if [ -d "/usr/src/callweaver" ]; then
+                        astdirs1="/usr/src/callweaver "$astdirs1
+                fi
+
+		astdirs="$astdirs $astdirs1"
+	fi
+
+	unset astdir_array;
+
+	if [ -f  $PROD_HOME/zaptel/ast.path ]; then
+		astextradir=`cat $PROD_HOME/zaptel/ast.path`
+	fi
+
+	cnt=1
+	for dir in $astdirs
+	do
+		if [ ! -d $dir ]; then
+			continue
+		fi
+
+		if [ ! -f $dir/include/asterisk.h ] && [ ! -f $dir/include/callweaver.h ]; then
+			continue;
+		fi
+		
+		if [ "$dir" = "/usr/src/asterisk" ] && [ $cnt -ne 1 ]; then
+                        continue;
+                fi
+
+		if [ "$dir" = "/usr/src/callweaver" ] && [ $cnt -ne 1 ]; then
+                        continue;
+                fi
+
+		
+		astdir_array[$cnt]=$dir;
+		echo "$cnt : $dir "
+
+		cnt=$((cnt+1))
+	done
+	
+	if [ $cnt -eq 1 ]; then
+		echo
+		echo "No asterisk/callweaver dirs found in /usr/src "
+		echo "Please use option \"m\" to enter asterisk/callweaver path"
+		echo
+	fi
+	echo "------------------------------------------ "
+
+	for dir in $astextradir
+	do
+		if [ ! -d $dir ]; then
+			continue
+		fi
+
+		if [ ! -f $dir/include/asterisk.h ] && [ ! -f $dir/include/callweaver.h ]; then
+			continue;
+		fi
+
+		astdir_array[$cnt]=$dir;
+		echo "$cnt : $dir    (entered manually) "
+
+		cnt=$((cnt+1))
+	done
+
+
+	echo "------------------------------------------ "
+	echo "m : Enter Asterisk/CallWeaver path manually"
+	echo
+#	echo "d2: Download Latest 1.2"
+#	echo "d4: Download Latest 1.4"
+	echo "(ctrl-c to Exit)"
+	echo -n "Please select working Asterisk/CallWeaver directory [1-$((cnt-1))][m]: "
+
+	response=1
+
+	if [ -z $NONINTERACTIVE ] || [ $bri_auto_install = "YES" ]; then
+	read response
+	fi
+
+	if [ "$response" = "" ]; then
+		find_ast_dirs_invalid "$astdirs"
+	elif [ $response = "m" ]; then
+		echo
+		echo  "Please enter Asterisk/CallWeaver dir: [Default: $AST_DFLT_INSTALL_DIR]"
+		echo -n "#> "
+		read response
+		
+		if [ "$response" = "" ]; then
+			AST_INSTALL_DIR=$AST_DFLT_INSTALL_DIR		
+		else
+			AST_INSTALL_DIR=$response
+		fi
+
+		astdir_manual=1
+	
+#	elif [ $response = "q" ]; then
+#		find_ast_dir_quit=1
+#		return 1;
+
+	elif [ $response -gt 0 ] && [ $response -lt $cnt ]; then
+		AST_INSTALL_DIR=${astdir_array[$response]}
+	else
+		find_ast_dirs_invalid "$astdirs"
+	fi	
+
+	AST_SOURCE_DIR=$AST_INSTALL_DIR
+				
+	if [ ! -f $AST_SOURCE_DIR/include/asterisk.h ] && [ ! -f $AST_SOURCE_DIR/include/callweaver.h ]; then
+		echo
+		echo "Error: asterisk.h/callweaver.h not found in $AST_SOURCE_DIR"
+		echo
+		echo
+		astdir_manual=0
+		pause 1
+		clear
+		find_ast_dirs "$astdirs"
+	fi
+	
+	if [ $find_ast_dir_quit -eq 1 ] ; then
+		AST_INSTALL_DIR=$AST_DFLT_INSTALL_DIR	
+		return 1
+	fi
+
+	if [ $astdir_manual -eq 1 ]; then
+		eval "grep \"$AST_INSTALL_DIR\" $PROD_HOME/zaptel/ast.path 2> /dev/null > /dev/null "
+		if [ $? -ne 0 ]; then
+			echo "$AST_INSTALL_DIR" >> $PROD_HOME/zaptel/ast.path
+		fi
+	fi
+
+
+	AST_PATH_OP="YES";
+
+	return 0;
+	
+}
+
+
+
 function tdmv_get_asterisk_source_path ()
 {
 	echo 
@@ -5841,8 +6104,13 @@ function enable_protocols ()
 	local PROT_MATCH=NO
 	local PROTOCOL=$1
 	local ARG
+		
 
 	ARG=${2:-NO}
+
+	if [ "$PROTOCOL" = "DEF" ]; then
+		PROTOCOL=$DEFAULT_PROTOCOLS
+	fi	
 	
 	echo "$PROTOCOL" | grep "BRI" > /dev/null
 	if [ $? -eq 0 ]; then
@@ -6388,10 +6656,10 @@ ENDOFTEXT
 	
 	if [ $PROT_MATCH = NO ]; then
 		echo
-		echo "Error: invalid --protocol option"
+		echo "Error: invalid --protocol option ($PROTOCOL)"
 		echo
 		echo "Available non-default protocols are: $AVAIL_PROTOCOLS";
-		echo "Example:  ./Setup install --protocol=BITSTRM-BISYNC"
+		echo "Example:  ./Setup install --protocol=DEF"
 		echo
 		return 1
 	fi
@@ -6502,7 +6770,7 @@ function compile_aft_firmware_util()
 
 function check_sctp_utility ()
 {
-	clearscr
+	echo
 	echo -n "Checking for SCTP Utilities...."
 	if [ ! -e  /usr/include/netinet/sctp.h ] && [ ! -e /usr/include/sctp.h ]; then
 		echo "Failed!"
@@ -6656,7 +6924,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.3.11
+PROD_VER=3.3.12
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -6697,7 +6965,9 @@ WANCFG_ZAPTEL_CFG=NO
 WANCFG_ZAPTEL=/usr/sbin/wancfg_zaptel
 WANCFG_SMG=/usr/sbin/wancfg_smg
 find_zap_dir_quit=0
+find_ast_dir_quit=0
 zaptel_auto_install="NO"
+bri_auto_install="NO"
 setup_install_quick="NO"
 
 
@@ -6744,6 +7014,9 @@ ANNEXG_LOAD=NO
 SCTP_LOAD=NO
 
 ZAPTEL_DFLT_INSTALL_DIR="/usr/src/zaptel"
+AST_DFLT_INSTALL_DIR="/usr/src/asterisk"
+AST_SOURCE_DIR=$AST_DFLT_INSTALL_DIR
+AST_PATH_OP="NO"
 ZAPTEL_SOURCE_DIR=$ZAPTEL_DFLT_INSTALL_DIR
 ZAPTEL_INSTALL_DIR=$ZAPTEL_DFLT_INSTALL_DIR
 ZAPTEL_C_FILE="zaptel.c"
@@ -6915,6 +7188,17 @@ if [ "$setup_cmd" = "zaptel" ]; then
 	#EXTRA_ARGS=" --protocol=TDM --silent --no-zaptel-compile "
 	#EXTRA_ARGS=" --protocol=TDM "
 fi
+
+if [ "$setup_cmd" = "bri" ]; then
+	setup_cmd="install"
+	zaptel_auto_install="YES"
+	bri_auto_install="YES"
+	SSMG=YES
+        SSMG_BRI=YES
+	#EXTRA_ARGS=" --protocol=AFT_TE1-BRI "
+	#EXTRA_ARGS=" --protocol=TDM "
+fi
+
 
 if [ "$setup_cmd" = "buildrpm" ]; then
 	EXTRA_ARGS=" --no-zaptel-compile "
@@ -7207,7 +7491,10 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 	if [ "$setup_cmd" = "smgbri" ]; then
                 SSMG=YES
                 SSMG_BRI=YES
-		NONINTERACTIVE=1;
+		zaptel_auto_install="YES"
+		bri_auto_install="YES"
+		SSMG=YES
+        	SSMG_BRI=YES
                 install_ssmg_bri;
                 exit;
         fi
@@ -7507,6 +7794,7 @@ fi
 
 install_ssmg
 install_ssmg_bri
+
 clean_up 
 goodbye
 
@@ -7515,16 +7803,35 @@ if [ $zaptel_auto_install = "YES" ]; then
 	NONINTERACTIVE=
 fi
 
-if [ -z $NONINTERACTIVE ] && [ "$WANCFG_ZAPTEL_CFG" = "YES" ] && [ -e $WANCFG_ZAPTEL ]; then
+NONINTERACTIVE=
+
+if [ -z $NONINTERACTIVE ]; then
+
+if [ "$WANCFG_ZAPTEL_CFG" = "YES" ] && [ -e $WANCFG_ZAPTEL ]; then
 	echo 
+	if [ $SSMG_BRI == "YES" ]; then
+	echo "Wanpipe / Zaptel & SMG BRI Configuration"
+	echo "========================================"
+	else
 	echo "Wanpipe / Zaptel Configuration"
 	echo "=============================="
+	fi
 	echo
-	echo "wancfg_zaptel configurator can create all wanpipe devices"
-        echo "for ZAPTEL as well as /etc/zaptel.conf file."
-	echo "Optionally: wancfg_zaptel can also create Asterisk zapata.conf"
+	if  [ $SSMG_BRI == "YES" ]; then
+	echo "wancfg_smg configurator can create all wanpipe config files"
+	echo "for ZAPTEL as well as for SMG BRI."
+	else
+	echo "wancfg_zaptel configurator can create all wanpipe config files"
+        echo "for ZAPTEL including /etc/zaptel.conf file."
+	fi
+	echo "Optionally: the configurator can also create Asterisk zapata.conf"
 	echo "-----------------------------------------------------"
+	if [ $SSMG_BRI == "YES" ]; then
+       	getyn "Would you like to configure wanpipe devices for ZAPTEL & BRI?"
+	else
        	getyn "Would you like to configure wanpipe devices for ZAPTEL?"
+	fi
+
        	if [ $? -eq 0 ]; then
 		if [ $SSMG_BRI == "YES" ]; then
 	        	eval "$WANCFG_SMG"
@@ -7537,5 +7844,27 @@ if [ -z $NONINTERACTIVE ] && [ "$WANCFG_ZAPTEL_CFG" = "YES" ] && [ -e $WANCFG_ZA
 		echo "Please proceed to configure wanpipe user /usr/sbin/wancfg"
 		echo
 	fi
+elif [ "$SSMG_BRI" = "YES" ]; then
+	echo 
+	echo "Wanpipe / SMG BRI Configuration"
+	echo "==============================="
+	echo
+	echo "wancfg_smg configurator can create all wanpipe devices"
+        echo "for BRI as well as BRI config file and Asterisk config files."
+	echo "-----------------------------------------------------"
+       	getyn "Would you like to configure wanpipe devices for SMG BRI/Asterisk/CallWeaver?"
+       	if [ $? -eq 0 ]; then
+		if [ $SSMG_BRI == "YES" ]; then
+	        	eval "$WANCFG_SMG"
+		else
+	        	eval "$WANCFG_ZAPTEL"
+		fi
+	else
+		echo "Wanpipe Installation Complete"
+		echo "-----------------------------" 
+		echo "Please proceed to configure wanpipe user /usr/sbin/wancfg"
+		echo
+	fi
+fi
 fi
 

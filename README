@@ -1,12 +1,57 @@
 ------------------------------------------------------------------------------
-Linux WAN Router Utilities Package
-------------------------------------------------------------------------------
-
-Author: Nenad Corbic <ncorbic@sangoma.com>
-Copyright (c) 1995-2006 Sangoma Technologies Inc.
-------------------------------------------------------------------------------
-
 For latest docs please visit Sangoma Wiki
 Sangoma Wiki: http://wiki.sangoma.com
 ------------------------------------------------------------------------------
+
+Copyright (c) 1995-2008 Sangoma Technologies Inc.
+
+
+Installation
+------------
+
+	./Setup install		#General Installation (Most Flexible)
+or
+	./Setup zaptel		#Install for Asterisk/CallWeaver/Zaptel
+or
+	./Setup bri		#Install SMG BRI card for Asterisk/CallWeaver
+
+
+Configuration
+-------------
+
+	1) create configuration files for Zaptel and Asterisk/CallWeaver
+		-> /usr/sbin/wancfg_zaptel
+
+	2) create configuration files for SMG BRI/SS7, Zaptel and Asterisk/CallWeaver
+		-> /usr/sbin/wancfg_smg
+
+	3) create configuration files for TDM API (Default for FreeSwitch) 
+		-> /usr/sbin/wancfg_tdmapi
+
+	2) create WANPIPE WAN/IP configuration files.
+		-> /usr/sbin/wancfg
+
+
+Operation
+---------
+
+	1) start,stop,restart individual/all devices and interfaces.
+		-> /usr/sbin/wanrouter	
+		-> /usr/sbin/wanrouter [start|stop|restart|status|hwprobe|help]
+
+	2) debug line, protocol and driver problems.
+		-> /usr/sbin/wanpipemon
+		-> /usr/sbin/wanpipemon -p aft		#Help
+		-> /usr/sbin/wanpipemon -g 		#GUI Debug Mode
+		-> /usr/sbin/wanpipemon -i w1g1 -c Ta 	#View T1/E1 Alarms 
+
+
+API Samples
+------------
+
+	1) aid in WANPIPE API development
+		-> /etc/wanpipe/api
+
+	
+	
 

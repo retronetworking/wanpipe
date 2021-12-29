@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.3.11
+%define version           3.3.12
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -255,17 +255,38 @@ install_init;
 
 %changelog
 
-* Wed Jul 14 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.11
+* Fri Aug 1 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.12
+=====================================================================
+
+- Compilation fix for 2.6.25 kernel
+  Introduced in 3.3.11 release
+
+- Setup update
+  Added bri and zaptel installation modes.
+	-> ./Setup install 	#General installation
+	-> ./Setup zaptel	#Zaptel based installation
+	-> ./Setup bri		#SMG BRI installation
+
+  Streamlined Setup installation script
+  Added check for Asterisk directory when installing BRI
+  Added check for x86 in architecture
+
+- Fixed Makefile build
+
+- Updated README File
+  
+
+* Wed Jul 30 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.11
 =====================================================================
 
 - BRI to Analog Faxing Update
   Improved faxing over SMG Gateway and Zaptel Analog.
-  This feature drasticly improves faxing peformance between
+  This feature drastically improves faxing performance between
   BRI and Analog cards over Asterisk.
 
 - BRI Update
-  Added overlap dailing support
-  Added support for BRI with 16 channel Echo Canceller.
+  Added overlap dialing support
+  Added support for BRI with 16 channel Echo Canceler.
   Support for test start option, that only verifies configuration 
   files without applying changes.
   Support for non-syslog logging.
@@ -294,7 +315,7 @@ install_init;
   Added a check for buffer overflow in write function.
 
 - New Octasic EC Image
-  Impoves faxing over Hardware Echo Canceller. 
+  Improves faxing over Hardware Echo Canceler. 
 
 - BRI Bug fix on startup
   The clock measuring function has limited and could fail on some machines.
