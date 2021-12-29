@@ -50,6 +50,7 @@
 # define DEBUG_NONE	if (0)	DbgPrint
 # define PRINT		OutputLogString
 # define DEBUG_PRINT	DbgPrint
+# define DEBUG_LIMIT	DbgPrint
 # define _DEBUG_PRINT	DbgPrint
 
 # define DEBUG_KERNEL	DEBUG_NONE
@@ -239,11 +240,14 @@
 # if (defined __FreeBSD__) || (defined __OpenBSD__) || defined(__NetBSD__)
 
 #  define DEBUG_PRINT(format,msg...)	log(LOG_INFO, format, ##msg)
+#  define DEBUG_LIMIT(format,msg...)	log(LOG_INFO, format, ##msg)
 #  define _DEBUG_PRINT(format,msg...)   log(LOG_INFO, format, ##msg)
 
 # else	/* !__FreeBSD__ && !__OpenBSD__ */
 
 #  define DEBUG_PRINT(format,msg...)	printk(KERN_INFO format, ##msg)
+#  define DEBUG_LIMIT(format,msg...)    printk(KERN_INFO format, ##msg)
+//#  define DEBUG_LIMIT(format,msg...)    if (WAN_NET_RATELIMIT()) printk(KERN_INFO format, ##msg)
 #  define _DEBUG_PRINT(format,msg...)   printk(format,##msg)
 
 # endif	/* __FreeBSD__ || __OpenBSD__ */

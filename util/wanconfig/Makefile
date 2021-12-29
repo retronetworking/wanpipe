@@ -17,7 +17,7 @@ endif
 WAN_VIRTUAL=
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG)
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -I../../patches/kdrivers/include -D_DEBUG_=$(DEBUG)
 
 CFLAGS += -DWAN_HWEC
 

@@ -889,6 +889,7 @@ typedef struct wan_hwec_conf_
 {
 	unsigned int	clk_src;	/* Octasic Clock Source Port */
 	unsigned int	persist_disable;/* HW EC Persist */
+	unsigned int	noise_reduction;/* Noise Reduction control */
 
 } wan_hwec_conf_t;
 

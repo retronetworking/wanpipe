@@ -28,7 +28,12 @@ wanpipe-y			:= sdlamain.o
 ifneq (,$(ZAPDIR))
 PRODUCT_DEFINES			+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE 
 wanpipe-y			+= sdla_tdmv.o sdla_remora_tdmv.o 
+
+ifneq (,$(wildcard $(ZAPHDLC)))
+PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL
+endif
 endif       
+
 
 wanpipe-y			+= sdla_ft1.o sdla_te1.o sdla_te3.o sdla_56k.o sdla_8te1.o 
 wanpipe-y			+= wanpipe_tdm_api.o 

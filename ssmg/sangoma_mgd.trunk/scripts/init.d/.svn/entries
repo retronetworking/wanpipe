@@ -1,14 +1,14 @@
 8
 
 dir
-24
+58
 https://www.sangomapbx.com:/svn/sangoma_mgd/trunk/scripts/init.d
 https://www.sangomapbx.com:/svn/sangoma_mgd
 
 
 
-2007-10-02T17:11:50.536582Z
-23
+2007-12-20T00:48:05.657582Z
+50
 ncorbic
 
 
@@ -32,10 +32,10 @@ file
 
 
 
-2007-10-03T19:44:50.000000Z
-9d70d87f6dfceaf193f93c047fc8d6df
-2007-10-02T17:11:50.536582Z
-23
+2007-12-20T17:31:41.000000Z
+d66448101bb8d62f7c3723618b2619f8
+2007-12-20T00:48:05.657582Z
+50
 ncorbic
 has-props
 

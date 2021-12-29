@@ -829,6 +829,9 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 				(pcm_law_type == cOCT6100_PCM_U_LAW) ?
 						"MULAW":"ALAW");
 
+	DEBUG_EVENT("%s: Opening HW Echo Canceller (NoiseRed=%s)\n",
+			ec->name,card->hwec_conf.noise_reduction?"On":"Off");
+ 
 	for(channel = 0; channel < ec->max_channels; channel++){
 		Oct6100ChannelOpenDef( &EchoChannelOpen );
 
@@ -871,12 +874,12 @@ int wanec_ChannelOpen(wan_ec_dev_t *ec_dev, wan_ec_api_t *ec_api)
 		EchoChannelOpen.VqeConfig.fAcousticEcho		= TRUE;
 #endif
 
-#if defined(WANEC_ENABLE_NOISE_REDUCTION)
-#warning "WAN HWEC NOISE Reduction Enabled"
-		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
-#else
-		EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
-#endif
+		if (card->hwec_conf.noise_reduction) {
+			EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = TRUE;
+		} else {
+			EchoChannelOpen.VqeConfig.fSoutAdaptiveNoiseReduction = FALSE;
+		}
+
 		EchoChannelOpen.VqeConfig.ulComfortNoiseMode	= 
 					cOCT6100_COMFORT_NOISE_NORMAL;
 				/*	cOCT6100_COMFORT_NOISE_NORMAL

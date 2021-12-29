@@ -116,6 +116,9 @@ int call_signal_connection_open(call_signal_connection_t *mcon, char *local_ip, 
 call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon, int iteration)
 {
 	unsigned int fromlen = sizeof(struct sockaddr_in);
+#if 0
+	call_signal_event_t *event = &mcon->event;
+#endif
 	int bytes = 0;
 
 	bytes = recvfrom(mcon->socket, &mcon->event, sizeof(mcon->event), MSG_DONTWAIT, 
@@ -135,6 +138,7 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 			return NULL;
 		}
 		
+		mcon->txwindow = mcon->txseq - mcon->event.bseqno;
 		mcon->rxseq++;
 
 		if (mcon->rxseq != mcon->event.fseqno) {
@@ -146,8 +150,24 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 			clog_printf(0, mcon->log, 
 				"------------------------------------------\n");
 		}
+
+#if 0
+/* Debugging only not to be used in production because span/chan can be invalid */
+	   	if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > 16 || mcon->event.chan > 31) {
+                	clog_printf(0, mcon->log,
+                        	"------------------------------------------\n");
+                	clog_printf(0, mcon->log,
+                        	"Critical Error: RX Cmd=%s Invalid Span=%i Chan=%i\n",
+                        	call_signal_event_id_name(event->event_id), event->span,event->chan);
+                	clog_printf(0, mcon->log,
+                        	"------------------------------------------\n");
+		
+			errno=EAGAIN;
+                	return NULL;
+        	}
+#endif
+
  
-		mcon->txwindow = mcon->txseq - mcon->event.bseqno;
 
 
 		return &mcon->event;
@@ -169,6 +189,9 @@ call_signal_event_t *call_signal_connection_read(call_signal_connection_t *mcon,
 call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon, int iteration)
 {
 	unsigned int fromlen = sizeof(struct sockaddr_in);
+#if 0
+	call_signal_event_t *event = &mcon->event;
+#endif
 	int bytes = 0;
 
 	bytes = recvfrom(mcon->socket, &mcon->event, sizeof(mcon->event), MSG_DONTWAIT, 
@@ -176,6 +199,23 @@ call_signal_event_t *call_signal_connection_readp(call_signal_connection_t *mcon
 
 	if (bytes == sizeof(mcon->event) || 
             bytes == (sizeof(mcon->event)-sizeof(uint32_t))) {
+
+#if 0
+	/* Debugging only not to be used in production because span/chan can be invalid */
+               if (mcon->event.span < 0 || mcon->event.chan < 0 || mcon->event.span > 16 || mcon->event.chan > 31) {
+                        clog_printf(0, mcon->log,
+                                "------------------------------------------\n");
+                        clog_printf(0, mcon->log,
+                                "Critical Error: RXp Cmd=%s Invalid Span=%i Chan=%i\n",
+                                call_signal_event_id_name(event->event_id), event->span,event->chan);
+                        clog_printf(0, mcon->log,
+                                "------------------------------------------\n");
+
+                        errno=EAGAIN;
+                        return NULL;
+                }
+#endif
+
 		return &mcon->event;
 	} else {
 		if (iteration == 0) {
@@ -205,7 +245,7 @@ int call_signal_connection_write(call_signal_connection_t *mcon, call_signal_eve
 		clog_printf(0, mcon->log, 
 			"------------------------------------------\n");
 		clog_printf(0, mcon->log, 
-			"Critical Error: Cmd=%s Invalid Span=%i Chan=%i\n",
+			"Critical Error: TX Cmd=%s Invalid Span=%i Chan=%i\n",
 			call_signal_event_id_name(event->event_id), event->span,event->chan);
 		clog_printf(0, mcon->log, 
 			"------------------------------------------\n");

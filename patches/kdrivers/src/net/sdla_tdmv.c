@@ -77,6 +77,20 @@
 #define WP_TDMV_ENABLE		0x01
 #define WP_TDMV_DISABLE		0x02
 
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+# define IS_CHAN_HARDHDLC(chan)	(((chan)->flags & ZT_FLAG_NOSTDTXRX) || ((chan)->flags & ZT_FLAG_HDLC))
+#else
+# define IS_CHAN_HARDHDLC(chan)	((chan)->flags & ZT_FLAG_HDLC)
+#endif	
+
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN)
+# if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+#  undef ZT_DCHAN_TX
+# endif
+#else
+#warning "TDM VOICE DCHAN DISABLED"
+#endif
+
 #if defined(__FreeBSD__)
 extern short *__zt_mulaw;
 #endif
@@ -218,6 +232,9 @@ static int wp_tdmv_ioctl(struct zt_chan*, unsigned int, unsigned long);
 #endif
 
 static int wp_tdmv_hwec(struct zt_chan *chan, int enable);
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan);
+#endif
 
 static int wp_tdmv_state(void* pcard, int state);
 static int wp_tdmv_running(void* pcard);
@@ -238,8 +255,10 @@ static int wp_tdmv_rx_tx_span(void *pcard);
 static int wp_tdmv_span_buf_rotate(void *pcard, u32, unsigned long);
 static int wp_tdmv_ec_span(void *pcard);
 static int wp_tdmv_rx_chan(wan_tdmv_t*, int, unsigned char*, unsigned char*); 
-#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN)
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(ZT_DCHAN_TX)
 static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len);
+#endif
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN)
 static int wp_tdmv_rx_dchan(wan_tdmv_t*, int, unsigned char*, unsigned int); 
 #endif
 static int wp_tdmv_rxcopy(wan_tdmv_t *wan_tdmv, unsigned char* rxbuf, int max_len);
@@ -1047,20 +1066,29 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 	wp->span.channels = wp->max_timeslots;
 	wp->span.chans = wp->chans;
 	wp->span.flags = ZT_FLAG_RBS;
-	wp->span.linecompat = ZT_CONFIG_AMI | ZT_CONFIG_B8ZS | ZT_CONFIG_D4 | ZT_CONFIG_ESF;
+
 	wp->span.ioctl = wp_tdmv_ioctl;
 	/* Set this pointer only if card has hw echo canceller module */
 	if (wp->hwec == WANOPT_YES && card->wandev.ec_dev){
 		/* Initialize it only if HWEC option is enabled */
 		wp->span.echocan = wp_tdmv_hwec;
 	}
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+	if (wp->dchan_map){
+		DEBUG_EVENT("%s: Enable Zaptel HW DCHAN interface\n",
+				wp->devname);
+		wp->span.hdlc_hard_xmit = wp_tdmv_tx_hdlc_hard;
+	}
+#endif
 	wp->span.pvt = wp;
 	if (wp->ise1){
 		wp->span.deflaw = ZT_LAW_ALAW;
 		card->fe.fe_cfg.tdmv_law = WAN_TDMV_ALAW;
+		wp->span.linecompat = ZT_CONFIG_HDB3 | ZT_CONFIG_CCS | ZT_CONFIG_CRC4;
 	}else{
 		wp->span.deflaw = ZT_LAW_MULAW;
 		card->fe.fe_cfg.tdmv_law = WAN_TDMV_MULAW;
+		wp->span.linecompat = ZT_CONFIG_AMI | ZT_CONFIG_B8ZS | ZT_CONFIG_D4 | ZT_CONFIG_ESF;
 	}
 #if !defined(__FreeBSD__) && !defined(__OpenBSD__)
 	init_waitqueue_head(&wp->span.maintq);
@@ -1077,7 +1105,11 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 				ZT_SIG_FXSLS | ZT_SIG_FXSGS | 
 				ZT_SIG_FXSKS | ZT_SIG_FXOLS | 
 				ZT_SIG_FXOGS | ZT_SIG_FXOKS |
-				ZT_SIG_CAS | ZT_SIG_DACS_RBS;
+				ZT_SIG_CAS | ZT_SIG_DACS_RBS
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+ 				| ZT_SIG_HARDHDLC
+#endif
+				;
 		}else{
 			wp->chans[x].sigcap = ZT_SIG_NONE;
 		}
@@ -1516,9 +1548,10 @@ static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits)
 	if (bits & ZT_CBIT) ABCD_bits |= WAN_RBS_SIG_C;
 	if (bits & ZT_DBIT) ABCD_bits |= WAN_RBS_SIG_D;
 
-	if (chan->flags & ZT_FLAG_HDLC){
-		return 0;
-	}
+	if (IS_CHAN_HARDHDLC(chan)){
+                return 0;
+        }
+
 	DEBUG_TDMV(
 	"[TDMV] %s: %s:%02d(%d) TX RBS: A:%1d B:%1d C:%1d D:%1d\n", 
 			wp->devname, 
@@ -1755,17 +1788,19 @@ wp_tdmv_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 #endif
 {
 	int err = -ENOTTY;
-#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN)
-	wp_tdmv_softc_t	*wp = NULL;
-#endif
+	wp_tdmv_softc_t	*wp=NULL;
+
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER
 	wp_tdmv_softc_t	*echo_detect_wp	= NULL;
 	int echo_detect_chan = 0;
 #endif
 
+	wp = chan->pvt;
+
 	switch(cmd) 
 	{
-#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN)
+
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(ZT_DCHAN_TX)
 	case ZT_DCHAN_TX:
 
 		WAN_ASSERT(chan == NULL || chan->pvt == NULL);
@@ -1859,7 +1894,7 @@ static int wp_tdmv_hwec(struct zt_chan *chan, int enable)
                  * echo cancellation is enabled regardless of
                  * asterisk.  In persist mode off asterisk 
                  * controls hardware echo cancellation */		 
-		if (card->hwec_conf.persist_disable || chan->flags & ZT_FLAG_HDLC) {
+		if (card->hwec_conf.persist_disable || IS_CHAN_HARDHDLC(chan)) {
                 	err = card->wandev.ec_enable(card, enable, channel);
 		} else {
 			err = 0;			
@@ -1989,7 +2024,8 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 				wp->devname); 
 		return -EINVAL;
 	}
-	if (!(ms->flags & ZT_FLAG_HDLC)){
+
+	if (!IS_CHAN_HARDHDLC(ms)){
 		DEBUG_TDMV("%s: ERROR: %s not defined as D-CHAN!\n",
 				wp->devname, ms->name); 
 		return -EINVAL;
@@ -2060,7 +2096,41 @@ static int wp_tdmv_rx_dchan(wan_tdmv_t *wan_tdmv, int channo,
 }
 #endif
 
-#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN)
+
+
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
+static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan)
+{
+	wp_tdmv_softc_t	*wp = NULL;
+	netskb_t	*skb = NULL;
+	unsigned char	*data = NULL;
+	int		size = 0, err = 0, res = 0;
+
+	WAN_ASSERT_VOID(chan == NULL);
+	WAN_ASSERT_VOID(chan->pvt == NULL);
+	wp	= chan->pvt;
+	WAN_ASSERT_VOID(wp->dchan_dev == NULL);
+
+	size = chan->writen[chan->outwritebuf] - chan->writeidx[chan->outwritebuf]-2;
+	skb = wan_skb_alloc(size+1);
+	if (skb == NULL){
+        	return;
+	}
+	data = wan_skb_put(skb, size);
+	res = zt_hdlc_getbuf(chan, data, &size);
+	if (res == 0){
+		DEBUG_EVENT("%s: ERROR: TX HW DCHAN %d bytes (res %d)\n",
+					wp->devname, size, res);
+	}
+	err = wp->dchan_dev->hard_start_xmit(skb, wp->dchan_dev);
+	if (err){
+		wan_skb_free(skb);
+	}
+	return;
+}
+#endif
+
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(ZT_DCHAN_TX)
 static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len)
 {
 	wp_tdmv_softc_t	*wp = NULL;
@@ -2073,11 +2143,13 @@ static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len)
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wp	= chan->pvt;
 	WAN_ASSERT(wp->dchan_dev == NULL);
+	
 
 	if (len <= 2){
 		return -EINVAL;
 	}
 	len -= 2; /* Remove checksum */
+
 	skb = wan_skb_alloc(len+1);
 	if (skb == NULL){
         	return -ENOMEM;
@@ -2106,6 +2178,7 @@ static int wp_tdmv_tx_dchan(struct zt_chan *chan, int len)
 	return err;
 }
 #endif
+
 
 
 /******************************************************************************

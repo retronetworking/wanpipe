@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 42
-/svn/sangoma_mgd/!svn/ver/23/trunk/scripts
+/svn/sangoma_mgd/!svn/ver/50/trunk/scripts
 END
 astxs
 K 25
@@ -24,6 +24,6 @@ END
 old_cleanup.sh
 K 25
 svn:wc:ra_dav:version-url
-V 56
-/svn/sangoma_mgd/!svn/ver/1/trunk/scripts/old_cleanup.sh
+V 57
+/svn/sangoma_mgd/!svn/ver/47/trunk/scripts/old_cleanup.sh
 END

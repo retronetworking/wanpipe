@@ -1,14 +1,14 @@
 8
 
 dir
-6
+35
 https://www.sangomapbx.com:/svn/chan_woomera/trunk
 https://www.sangomapbx.com:/svn/chan_woomera
 
 
 
-2007-10-02T20:33:46.624857Z
-6
+2007-12-27T20:02:22.474001Z
+35
 ncorbic
 
 
@@ -28,14 +28,14 @@ b26a191e-ab3a-0410-a271-b1e04e243bf1
 
 chan_woomera.c
 file
+36
 
 
 
-
-2007-10-07T16:40:41.000000Z
-7dcba9f7acaf61774093ca6b7fb3d102
-2007-10-02T20:33:46.624857Z
-6
+2008-01-02T15:37:24.000000Z
+89e6106f6033f3664d7e1f7a0136a9fb
+2008-01-02T15:34:17.744631Z
+36
 ncorbic
 
 g711.h
@@ -50,16 +50,28 @@ file
 1
 root
 
+Changelog.chan_woomera
+file
+
+
+
+
+2007-12-31T16:40:05.000000Z
+8ea889f5c578c76386df2e6b225856f7
+2007-12-27T20:02:22.474001Z
+35
+ncorbic
+
 Makefile
 file
 
 
 
 
-2007-09-24T19:55:33.000000Z
-35ea632f9ff5e91d3fdf5c9f2208f138
-2007-09-24T18:47:53.807908Z
-3
+2007-12-20T17:31:49.000000Z
+39268f5baaa58f6391cba2f506e41f18
+2007-12-18T20:11:15.703141Z
+29
 ncorbic
 
 README
@@ -68,11 +80,11 @@ file
 
 
 
-2007-09-21T20:31:17.000000Z
-54d0bdf8090399a87acea5a0ab986d7d
-2007-09-21T20:29:00.887216Z
-1
-root
+2007-11-26T01:25:59.000000Z
+6b44396eddae33cda9cdb078e5030a1f
+2007-10-30T20:04:39.055688Z
+14
+svnanon
 
 woomera.conf
 file

@@ -398,6 +398,7 @@ static int 	aft_tdmv_free(sdla_t *card);
 static int	aft_tdmv_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf);
 static int 	aft_tdmv_if_free(sdla_t *card, private_area_t *chan);
 static void 	aft_critical_shutdown (sdla_t *card);
+static int 	digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt);
 
 #ifdef AFT_TDM_API_SUPPORT
 static int aft_read_rbs_bits(void *chan_ptr, u32 ch, u8 *rbs_bits);
@@ -5151,10 +5152,9 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			break;
 
 		case DIGITAL_LOOPTEST:
-			wan_udp_pkt->wan_udp_return_code = 0;
-			DEBUG_EVENT("Ready to send some data!!!\n");
+			wan_udp_pkt->wan_udp_return_code = 
+				digital_loop_test(card,wan_udp_pkt);
 			break;
-
 
 		case AFT_MODEM_STATUS:
 			wan_udp_pkt->wan_udp_return_code = 0;
@@ -7580,6 +7580,76 @@ static void aft_critical_shutdown (sdla_t *card)
 	aft_red_led_ctrl(card, AFT_LED_ON);	
 	card->wandev.fe_iface.led_ctrl(&card->fe, AFT_LED_OFF);
 }
+
+
+
+static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
+{
+	netskb_t* skb;
+	netdevice_t* dev;
+	char* buf;
+	private_area_t *chan;
+
+	dev = WAN_DEVLE2DEV(WAN_LIST_FIRST(&card->wandev.dev_head));
+	if (dev == NULL) {
+		return 1;
+	}
+	chan = wan_netif_priv(dev);
+	if (chan == NULL) {
+		return 1;
+	}
+	
+	if (chan->common.state != WAN_CONNECTED) {
+		DEBUG_EVENT("%s: Loop test failed: dev not connected!\n",
+		                        card->devname);
+		return 2;
+	}
+	 
+	skb = wan_skb_alloc(wan_udp_pkt->wan_udp_data_len+100);
+	if (skb == NULL) {
+		return 3;
+	}
+
+	switch (chan->common.usedby) {
+
+	case API:
+		wan_skb_push(skb, sizeof(api_rx_hdr_t));
+		break;
+
+	case STACK:
+	case WANPIPE:
+		break;
+
+	case TDM_VOICE:
+	case TDM_VOICE_API:
+	case TDM_VOICE_DCHAN:
+		if (card->u.aft.tdmv_dchan) {
+			break;
+		} else {
+			DEBUG_EVENT("%s: Loop test failed: no dchan in TDMV mode!\n",
+		                        card->devname);
+		}
+		/* Fall into the default case */
+
+	default:
+		DEBUG_EVENT("%s: Loop test failed: invalid operation mode!\n",
+			card->devname);
+		wan_skb_free(skb);
+		return 4;
+	}
+
+	buf = wan_skb_put(skb, wan_udp_pkt->wan_udp_data_len);
+	memcpy(buf, wan_udp_pkt->wan_udp_data, wan_udp_pkt->wan_udp_data_len);
+
+
+	skb->next = skb->prev = NULL;
+        skb->dev = dev;
+        skb->protocol = htons(ETH_P_IP);
+	wan_skb_reset_mac_header(skb);
+        dev_queue_xmit(skb);
+
+	return 0;
+}       
 
 
 

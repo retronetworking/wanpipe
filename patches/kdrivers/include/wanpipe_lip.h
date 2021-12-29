@@ -166,7 +166,7 @@ enum {
 /*#define MAX_TX_BUF 10*/
 #define MAX_TX_BUF 10
 #define MAX_ATM_TX_BUF 35
-#define MAX_RX_Q 32
+#define MAX_RX_Q 128
 
 #define WPLIP_MAGIC_LINK  	0xDAFE1234
 #define WPLIP_MAGIC_DEV   	0xDAFE4321

@@ -8,6 +8,7 @@ all:
 	make -C ft1 all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 	make -C lxdialog all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 	make -C sdladump all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
+	make -C lib/hdlc all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wanconfig all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wanec_client all CC=$(CC)  SYSINC=$(SYSINC) WANINCDIR=$(WANINCDIR) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
 	make -C wan_plxctrl all CC=$(CC)  SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
@@ -58,3 +59,5 @@ clean:
 	make -C wancfg clean WAN_VIRTUAL=$(WAN_VIRTUAL)
 	make -C wan_aftup clean WAN_VIRTUAL=$(WAN_VIRTUAL) 
 	make -C bwm clean  WAN_VIRTUAL=$(WAN_VIRTUAL) 
+	make -C lib/hdlc clean WAN_VIRTUAL=$(WAN_VIRTUAL)
+

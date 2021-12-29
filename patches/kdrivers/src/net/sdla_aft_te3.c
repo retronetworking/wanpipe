@@ -1285,7 +1285,8 @@ static int if_open (netdevice_t* dev)
 	 * how long has the interface been up */
 	wan_getcurrenttime(&chan->router_start_time, NULL);
 
-	WAN_NETIF_START_QUEUE(dev);
+	WAN_NETIF_STOP_QUEUE(dev);
+	WAN_NETIF_CARRIER_OFF(dev);
 
         /* If FRONT End is down, it means that the DMA
          * is disabled.  In this case don't try to

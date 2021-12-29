@@ -31,10 +31,8 @@ function stop_all()
 	else
 		echo "$sigd not running..."
 	fi
-	if [ $(pidof $sigd) ]; then
-		echo "Error: failed to stop $sigd...exiting"
-		exit 1
-	fi
+		
+	eval "kill -KILL $(pidof $sigd) 2>/dev/null >/dev/null"
 
 #stop sangoma media gateway
 	if [ $(pidof sangoma_mgd) ]; then
@@ -50,6 +48,8 @@ function stop_all()
 	else 
 		echo "sangoma_mgd not running..."
 	fi
+		
+	eval "kill -KILL $(pidof sangoma_mgd) 2>/dev/null >/dev/null"
 }
 
 function start_all()

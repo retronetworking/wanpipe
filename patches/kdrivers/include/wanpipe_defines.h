@@ -659,6 +659,7 @@ typedef struct wan_udp_hdr{
 # define WP_DELAY		DELAY
 # define WP_SCHEDULE(arg,name)	tsleep(&(arg),PPAUSE,(name),(arg))
 # define SYSTEM_TICKS		ticks
+typedef int			wan_ticks_t;
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
 # define ETH_P_IP		AF_INET
@@ -675,6 +676,7 @@ typedef struct wan_udp_hdr{
 # define WP_DELAY		DELAY
 # define WP_SCHEDULE(arg,name)	tsleep(&(arg),PPAUSE,(name),(arg))
 # define SYSTEM_TICKS		ticks
+typedef int			wan_ticks_t;
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
 # define ETH_P_IP		AF_INET
@@ -690,6 +692,7 @@ typedef struct wan_udp_hdr{
 # define WAN_MOD_UNLOAD		LKM_E_UNLOAD
 # define WP_DELAY		DELAY
 # define SYSTEM_TICKS		tick
+typedef int			wan_ticks_t;
 # define HZ			hz
 # define RW_LOCK_UNLOCKED	0
 # define WAN_IFT_OTHER		IFT_OTHER
@@ -701,6 +704,7 @@ typedef struct wan_udp_hdr{
 # define WP_DELAY(usecs)	udelay(usecs)
 # define atomic_set_int(name, val)	atomic_set(name, val)
 # define SYSTEM_TICKS		jiffies
+typedef unsigned long		wan_ticks_t;
 # define WP_SCHEDULE(arg,name)	schedule()
 # define wan_atomic_read	atomic_read
 # define wan_atomic_set		atomic_set

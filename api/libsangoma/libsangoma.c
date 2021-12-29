@@ -24,13 +24,22 @@
 
 
 #ifndef WP_TDM_EVENT_FE_ALARM
-#warning "Warning: TDM FE ALARM not supported by driver"
+#warning "Note: TDM FE ALARM not supported by driver"
 #endif
 
 
 #ifndef WP_TDMAPI_EVENT_DTMF
-#warning "Warning: TDM EVENTS not supported by driver"
+#warning "Note: TDM DTMF EVENTS not supported by driver"
 #endif
+
+#ifndef WP_TDMAPI_EVENT_RING
+#warning "Note: TDM RING EVENTS not supported by driver"
+#endif
+
+#ifndef WP_TDMAPI_EVENT_RXHOOK
+#warning "Note: TDM RXHOOK EVENTS not supported by driver"
+#endif
+
 
 
 
@@ -912,6 +921,11 @@ int sangoma_tdm_disable_rm_dtmf_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 	return 0;
 }
 
+#endif
+
+
+#ifdef WP_TDMAPI_EVENT_RXHOOK
+
 int sangoma_tdm_enable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) 
 {
 	int err;
@@ -943,6 +957,10 @@ int sangoma_tdm_disable_rxhook_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api)
 
 	return 0;
 }
+
+#endif
+
+#ifdef WP_TDMAPI_EVENT_RING
 
 int sangoma_tdm_enable_ring_events(sng_fd_t fd, wanpipe_tdm_api_t *tdm_api) {
 	

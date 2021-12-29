@@ -85,8 +85,8 @@ int MakeConnection(void)
   
 	printf("\nConnecting to card %s, interface %s prot %x\n", card_name, if_name,htons(PVC_PROT));
 	
-	strcpy( sa.sll_device, if_name);
-	strcpy( sa.sll_card, card_name);
+	strcpy( (char*)sa.sll_device, if_name);
+	strcpy( (char*)sa.sll_card, card_name);
 	sa.sll_protocol = htons(PVC_PROT);
 	sa.sll_family=AF_WANPIPE;
 	
@@ -234,6 +234,7 @@ tone_try_again:
 	return 0;
 }
 
+#if 0
 static int ringdetect_event_ctrl(u_int8_t mode, int channel, int tone)
 {
 	api_tx_hdr_t	api_tx_hdr;
@@ -258,6 +259,7 @@ ringdetect_try_again:
 
 	return 0;
 }
+#endif
 
 static int event_decode(api_rx_hdr_t *rx_hdr)
 {
@@ -727,7 +729,7 @@ int main(int argc, char* argv[])
 
 	proceed=init_args(argc,argv);
 	if (proceed != WAN_TRUE){
-		usage(argv[0]);
+		usage((unsigned char*)argv[0]);
 		return -1;
 	}
 	

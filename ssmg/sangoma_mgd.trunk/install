@@ -6,6 +6,10 @@ force="false"
 noss7="false"
 rootdir=""
 pbxdir=/usr/src/asterisk
+pbxd="asterisk"
+cfgdir="/etc/asterisk"
+
+
 
 while [ ! -z $1 ]
 do
@@ -17,10 +21,10 @@ do
 		shift
                 pbxdir=$1
                 if [ "$pbxdir" = "" ]; then
-                        echo "Error: Invalid Asterisk dir: $pbxdir!";
+                        echo "Error: Invalid $pbxd dir: $pbxdir!";
                         exit 1
                 elif [ ! -d $pbxdir ]; then
-                        echo "Error: Asterisk dir does not exist: $pbxdir!";
+                        echo "Error: $pbxd dir does not exist: $pbxdir!";
                         exit 1
                 fi
 
@@ -44,6 +48,16 @@ do
 	fi
 	shift
 done
+
+if [ -f $pbxdir/include/callweaver.h ]; then
+	echo "PBXD=callweaver" > /etc/wanpipe/pbxd
+	pbxd="callweaver"
+	cfgdir="/usr/local/etc/callweaver"
+else
+	echo "PBXD=asterisk" > /etc/wanpipe/pbxd
+	pbxd="asterisk"
+	cfgdir="/etc/asterisk"
+fi
 
 if [ $noss7 != 'true' ]; then
 	if [ ! -e /usr/local/ss7box/$ss7boost ]; then
@@ -176,7 +190,7 @@ eval "make"
 if [ $? -ne 0 ]; then
 	exit 1;
 fi
-make install
+make INSTALLPREFIX=$rootdir install
 echo "Ok."
 
 if [ -d chan_woomera.trunk ]; then
@@ -201,14 +215,8 @@ if [ -d chan_woomera.trunk ]; then
 		exit 1;
 	fi
 
-	make install
+	make INSTALLPREFIX=$rootdir install
 	echo "Ok."
-
-	if [ -d /etc/asterisk ]; then
-		if [ ! -f /etc/asterisk/woomera.conf ]; then
-			\cp -f woomera.conf /etc/asterisk
-		fi
-	fi
 
 else
 	echo "Warning: chan_woomera directory does not exist!"
@@ -225,8 +233,8 @@ echo "--> Start:  sangoma_mgd -bg"
 echo
 echo " Chan Woomera Install Done"
 echo 
-echo "--> Config: /etc/asterisk/woomera.conf"
-echo "--> Start: Part of Asterisk (start asterisk)"
+echo "--> Config: $cfgdir/woomera.conf"
+echo "--> Start: start $pbxd (part of $pbxd)"
 echo
 echo "---------------------------------"
 

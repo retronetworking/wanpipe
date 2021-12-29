@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 50
-/svn/sangoma_mgd/!svn/ver/20/trunk/lib/libteletone
+/svn/sangoma_mgd/!svn/ver/49/trunk/lib/libteletone
 END
 mkinstalldirs
 K 25
@@ -21,12 +21,6 @@ svn:wc:ra_dav:version-url
 V 61
 /svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/Makefile.in
 END
-config.log
-K 25
-svn:wc:ra_dav:version-url
-V 60
-/svn/sangoma_mgd/!svn/ver/4/trunk/lib/libteletone/config.log
-END
 AUTHORS
 K 25
 svn:wc:ra_dav:version-url
@@ -44,12 +38,6 @@ K 25
 svn:wc:ra_dav:version-url
 V 57
 /svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/depcomp
-END
-config.status
-K 25
-svn:wc:ra_dav:version-url
-V 63
-/svn/sangoma_mgd/!svn/ver/4/trunk/lib/libteletone/config.status
 END
 ChangeLog
 K 25
@@ -146,12 +134,6 @@ K 25
 svn:wc:ra_dav:version-url
 V 60
 /svn/sangoma_mgd/!svn/ver/1/trunk/lib/libteletone/aclocal.m4
-END
-Makefile
-K 25
-svn:wc:ra_dav:version-url
-V 58
-/svn/sangoma_mgd/!svn/ver/4/trunk/lib/libteletone/Makefile
 END
 install-sh
 K 25

@@ -1,11 +1,12 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.2.1
+%define version           3.2.2
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
-%define UTILS_LOCAL_DIR   /usr/local/sbin
+%define ETC_DIR		  /etc
+%define USR_DIR		  /usr
 %define PROD_HOME  	  /etc/wanpipe
 %define WANCFG_LIBS_DIR   /etc/wanpipe/lib
 %define API_DIR           /etc/wanpipe/api
@@ -244,15 +245,123 @@ install_init;
 
 %files
 %{UTILS_DIR}
-%{UTILS_LOCAL_DIR}
+%{ETC_DIR}
+%{USR_DIR}
 %{PROD_HOME}
 %{DOCS_DIR}
 %{MODULES_DIR}
 %{USR_INCLUDE_DIR}
-%{LIBSANGOMA_CONF}
 
 
 %changelog
+* Thu Jan 18 2008 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.2
+======================================================================== 
+
+- AFT Maxim Front end update
+  Implemented graceful recovery on short circuit.
+
+- AFT Driver update
+  Added a check for TDM IRQ timeout.
+  On some machines its possible for TDM IRQ to timeout.
+
+- SMG updated
+  Fixed wancfg_smg  
+  MTU not properly set on ports 2 and up
+  Voice only ports were not being added to startup sequence
+  Updated for callweaver
+
+- Added Zaptel 1.4 HW HDLC Support
+  No Sangoma zaptel patch needed with Zaptel 1.4
+
+- Added HWEC Noise flag in wanpipe config file
+
+- Updated SMG
+- Updated E1 Unframed on Maxim Cards
+
+- Updates for AFT PMC and MAXIM framers
+  PMC - lowered LOS sensitivity
+        Fixes fake up/down state changes on
+        started inactive lines.
+
+  MAXIM - lowered sensistivy
+          Fixes cable cross talk on 8 port cards.
+        - Enabled Unframed E1
+        - Enabled Tri-State Mode
+        - Fixed loopback commands
+
+- Fixed HWEC_PERSIST_DISABLE
+  This option was broken in previous release
+  This option lets Asterisk control HWEC
+  on each call start/stop.
+  By default all hwec channels are enabled on
+  device startup.
+
+- Updated SMG/SS7 
+- Updated loopback commands for AFT Maxim cards
+
+- Updated for AstLinux
+  The make file can now build all WAN and Voice Protocols
+  
+- Fixed add_timer warnings for ALL AFT cards
+  Caused when a port is left in unconnected state.
+
+- Updated legacy protocols for new front end architecture
+
+- Updated Setup script 
+
+
+* Wed Oct 6 2007 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.1
+===================================================================== 
+
+- Setup Zap Chunk Size Patch updated for Zaptel 1.4 
+  Patch allows running zaptel in 8,16,40,80 chunk size.
+  However wct drivers must be removed from compilation :)
+  Patch is now fixed for Zaptel 1.4
+
+- Update to All AFT drivers for 64bit 2.6.22 kernel.
+  Updated affects: AFT A101/2/4/8/200/400 (all cards)
+  The major 2.6.20+ updates extend to 64bit as well.
+  Previous drivers segfaulted under 2.6.22 64bit 
+  kernels. This does not affect you if you are running
+  kennels lower than 2.6.22.
+
+- Updated legacy drivers for 2.6.22 kernel
+
+
+
+* Wed Oct 3 2007 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.2.0
+===================================================================== 
+
+- The Beta 3.1.X releases has now been declared as STABLE 3.2.X 
+
+- Fixed AMI/D4 on MAXIM (A101/2/4/8D) cards
+- Fixed A200/A400 tip/ring no dial tone issues.
+- Fixed 2.6.22 support and above
+- Fixed RPM Build post install issue
+- Updated Setup install script
+  Option to build for zaptel: ./Setup zaptel
+- Working E&M/RBS/CAS Channel Bank support for MAXIM (A101/2/4/8) cards.
+- Fixed wanpipe crashing on system shutdown on some machines.
+  Caused by RedHat /var/lock/subsys mandatory lock file.
+- New Firmware for all MAXIM Cards (A101/2/4/8D)
+  Firmware V33: Fixes EC Chip Security errors that can cause
+  PRI to go down on some computers. Firmware is backward compatible
+  to any previous release.
+- Faxes/Modems working through hardware echo canceler.
+  Tested at 56K from one port to another.
+  New octasic update.
+- Analog Network SYNC Feature for Fax Support
+  Analog cards can be synced to T1/E1 clock
+  from adjacent A101/2/4/8 cards for flawless faxing
+  from FXO/FXS to T1/E1.
+
+- Known Issues: 
+  T1/E1 High Impedance Tap for MAXIM (A101/2/4/8D) cards.
+  It works on original PMC A101/2/4 cards
+
+For more info: http://wiki.sangoma.com
+
+
 * Mon Oct 1 2007 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.1.4.6
 ==================================================================== 
 

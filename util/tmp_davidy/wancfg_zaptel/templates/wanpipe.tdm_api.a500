@@ -1,0 +1,44 @@
+#================================================
+# WANPIPE1 Configuration File
+#================================================
+#
+# Note: This file was generated automatically
+#       by /usr/local/sbin/setup-sangoma program.
+#
+#       If you want to edit this file, it is
+#       recommended that you use wancfg program
+#       to do so.
+#================================================
+# Sangoma Technologies Inc.
+#================================================
+
+
+
+
+[devices]
+wanpipeDEVNUM = WAN_AFT_ISDN_BRI, Comment
+
+[interfaces]
+wDEVNUMg1 = wanpipeDEVNUM, , TDM_VOICE_API, Comment
+
+[wanpipeDEVNUM]
+CARD_TYPE 	= AFT
+S514CPU 	= A
+CommPort 	= PRI
+AUTO_PCISLOT 	= NO
+PCISLOT 	= SLOTNUM
+PCIBUS  	= BUSNUM
+FE_MEDIA	= BRI
+FE_LINE		= FELINE
+TDMV_LAW	= ALAW
+MTU 		= 1500
+UDPPORT 	= 9000
+TTL		= 255
+IGNORE_FRONT_END = NO
+TDMV_SPAN	= TDMVSPANNO
+
+[wDEVNUMg1]
+ACTIVE_CH	= ALL
+TDMV_ECHO_OFF	= NO
+TDMV_HWEC	= HWECMODE
+MTU 		= 80

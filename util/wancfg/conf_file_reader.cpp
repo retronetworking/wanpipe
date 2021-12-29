@@ -797,7 +797,7 @@ look_up_t	sym_table[] =
   { WAN_T1_440_550,  	(void*)"440-550FT"     },
   { WAN_T1_550_660,  	(void*)"550-660FT"     },
   { WAN_E1_120,  	(void*)"120OH"     },
-  { WAN_E1_75,  	(void*)"75OOH"     },
+  { WAN_E1_75,  	(void*)"75OH"     },
   { WAN_NORMAL_CLK,   	(void*)"NORMAL"        },
   { WAN_MASTER_CLK,   	(void*)"MASTER"        },
   { WAN_TE1_SIG_CAS,	(void*)"CAS"           },

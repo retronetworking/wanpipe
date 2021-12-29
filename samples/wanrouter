@@ -1,6 +1,6 @@
 #!/bin/bash -p
 # chkconfig: 2345 7 9
-# wanrouter	WANPIPE WAN Router Initialization Script.
+# description: Starts and stop Wanpipe devices
 #
 # copyright	(c) 1999-2002, Sangoma Technologies Inc.
 #
@@ -730,6 +730,7 @@ interf_down()
 		for i in $INTERFACES
 		do
 			int_file=${i%%=*}
+			wanrouter_script stop $device $int_file #excutes interface stop script
 			echo "Shutting down $device interface: $int_file"
 			ifconfig $int_file down
 		done
@@ -807,6 +808,7 @@ unconfig_devices()
 
 		#If we are starting ft1 device there are no
 		#interfaces. 
+		wanrouter_script stop $dev
 		if [  $ft1_or_wanpipe -gt 0 ]; then
 			echo "Shutting down device: $dev, FT1 config mode"
 			echo "Shutting down device: $dev, FT1 config mode" >> $WAN_LOG
@@ -829,18 +831,6 @@ unconfig_devices()
 	echo -e "No devices running, Unloading Modules"
 	remove_cdev
 	unload_module
-
-	for dev in $devices; do
-		WAN_CONF=$WAN_CONF_DIR/$dev.conf
-
-		INTERFACES=`grep ".*=.*$dev" -i $WAN_CONF | cut -d' ' -f1 2> /dev/null`
-		for ifname in $INTERFACES; do
-			ifname=${ifname%%=*}
-			wanrouter_script stop $dev $ifname
-		done
-		wanrouter_script stop $dev
-
-	done
 
 	return 0
 }
@@ -2116,7 +2106,7 @@ WANPIPE_IS_RUNNING=/var/run/wanpipe_is_running
 RUGGEDCOM=No
 
 if [ $OSYSTEM = "Linux" ]; then
-	ROUTER_VERSION=3.2.1
+	ROUTER_VERSION=3.2.2
 	IFCONFIG_LIST=ifconfig
 	MODULE_STAT=lsmod
 	WAN_DRIVERS="wanpipe"
@@ -2523,11 +2513,12 @@ case "$1" in
 				WAN_DEVICES=$tmp_dev_list
 			fi
 
+			wanrouter_script stop 
+
 			unconfig_interfaces $WAN_DEVICES
 
 			unconfig_devices $WAN_DEVICES
 
-			wanrouter_script stop 
 
 		elif [ -z $3 ]; then
 		#WANROUTER STOP WANPIPE
@@ -2586,6 +2577,8 @@ case "$1" in
 			WAN_CONF=$WAN_CONF_DIR/$dev.conf
 
 			check_file $WAN_CONF || cleanup 1
+			
+			wanrouter_script stop $dev $if_name
 
 			eval "$IFCONFIG_LIST | grep -w $if_name > /dev/null 2> /dev/null"
 			if [ $? -eq 0 ]; then
@@ -2609,7 +2602,6 @@ case "$1" in
 			echo -e "No devices running, Unloading Modules"
 			unload_module
 
-			wanrouter_script stop $dev $if_name
 		fi			
 		;;
 

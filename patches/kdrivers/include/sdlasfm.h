@@ -312,8 +312,12 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(adptr_subtype == AFT_SUBTYPE_NORMAL)	? "" :		\
 		(adptr_subtype == AFT_SUBTYPE_SHARK)	? "SHARK" : ""
 
-#define AFT_PCIEXPRESS_DECODE(hwcard)				\
-		((hwcard)->pci_bridge_dev) ? " PCI-Express" : ""
+#define AFT_PCITYPE_DECODE(hwcard)				\
+		((hwcard)->pci_bridge_dev) ? "PCIe" : "PCI"
+
+#define AFT_PCIEXPRESS_DECODE AFT_PCITYPE_DECODE
+
+
 
 #endif	/* _SDLASFM_H */
 

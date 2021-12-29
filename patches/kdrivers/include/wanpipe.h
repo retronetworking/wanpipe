@@ -915,6 +915,10 @@ typedef struct sdla
 	u_long		oerrors, ierrors;
 	u_long		opackets, ipackets;
 #endif /* __FreeBSD__ */
+
+	/* This value is used for detecting TDM Voice
+         * rsync timeout, it should be long */
+	unsigned long	rsync_timeout;
 } sdla_t;
 
 /****** Public Functions ****************************************************/

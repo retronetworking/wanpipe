@@ -1,14 +1,14 @@
 8
 
 dir
-24
+58
 https://www.sangomapbx.com:/svn/sangoma_mgd/trunk/lib/libteletone
 https://www.sangomapbx.com:/svn/sangoma_mgd
 
 
 
-2007-09-25T02:04:57.936973Z
-20
+2007-12-05T21:10:15.262399Z
+49
 ncorbic
 
 
@@ -63,18 +63,6 @@ file
 1
 root
 
-config.log
-file
-
-
-
-
-2007-09-21T21:04:01.000000Z
-f44c820cb27388bf0405b3e069d5c860
-2007-09-21T21:04:29.921415Z
-4
-ncorbic
-
 AUTHORS
 file
 
@@ -114,19 +102,6 @@ file
 2007-09-21T20:53:51.260136Z
 1
 root
-
-config.status
-file
-
-
-
-
-2007-09-21T21:04:01.000000Z
-b9df10c61c3eb8283374deff60d89707
-2007-09-21T21:04:29.921415Z
-4
-ncorbic
-has-props
 
 ChangeLog
 file
@@ -219,7 +194,7 @@ file
 
 
 
-2007-09-21T21:04:00.000000Z
+2007-12-31T16:38:51.000000Z
 abcebd272f6e68af6b81e21fb7eec687
 2007-09-21T21:04:29.921415Z
 4
@@ -324,18 +299,6 @@ e41e60b06c482e1de80a44404e3c4c30
 2007-09-21T20:53:51.260136Z
 1
 root
-
-Makefile
-file
-
-
-
-
-2007-09-21T21:04:01.000000Z
-315e6550b21dac6d39646ea999a8d5d9
-2007-09-21T21:04:29.921415Z
-4
-ncorbic
 
 install-sh
 file

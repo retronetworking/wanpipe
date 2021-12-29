@@ -113,7 +113,26 @@ if [ "$ZAPTEL_DIR" == "" ]; then
 	ZAPTEL_DIR=/usr/src/zaptel
 fi
 
+cd $ZAPTEL_DIR
+if [ -e $ZAPTEL_DIR/zaptel-base.c ]; then
+        ZAPTEL_C_FILE=zaptel-base.c
+fi
+
+
+eval "grep hdlc_hard_xmit $ZAPTEL_C_FILE > /dev/null 2> /dev/null"
+if [ $? -eq 0 ] ; then
+	touch /etc/wanpipe/.zaphdlc
+	echo "Zaptel HW HDLC support detected"
+	exit 10
+else
+	if [ -e  /etc/wanpipe/.zaphdlc ]; then
+		eval "rm -f  /etc/wanpipe/.zaphdlc 2> /dev/null"
+	fi
+fi
+
 echo "Applying Sangoma DCHAN patch to $ZAPTEL_DIR"
 echo " "
 tdmv_apply_zaptel_dchan_patch
+
+exit $?
  

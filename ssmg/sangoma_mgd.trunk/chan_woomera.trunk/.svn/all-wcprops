@@ -1,13 +1,13 @@
 K 25
 svn:wc:ra_dav:version-url
-V 34
-/svn/chan_woomera/!svn/ver/6/trunk
+V 35
+/svn/chan_woomera/!svn/ver/35/trunk
 END
 chan_woomera.c
 K 25
 svn:wc:ra_dav:version-url
-V 49
-/svn/chan_woomera/!svn/ver/6/trunk/chan_woomera.c
+V 50
+/svn/chan_woomera/!svn/ver/36/trunk/chan_woomera.c
 END
 g711.h
 K 25
@@ -15,17 +15,23 @@ svn:wc:ra_dav:version-url
 V 41
 /svn/chan_woomera/!svn/ver/1/trunk/g711.h
 END
+Changelog.chan_woomera
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/chan_woomera/!svn/ver/35/trunk/Changelog.chan_woomera
+END
 Makefile
 K 25
 svn:wc:ra_dav:version-url
-V 43
-/svn/chan_woomera/!svn/ver/3/trunk/Makefile
+V 44
+/svn/chan_woomera/!svn/ver/29/trunk/Makefile
 END
 README
 K 25
 svn:wc:ra_dav:version-url
-V 41
-/svn/chan_woomera/!svn/ver/1/trunk/README
+V 42
+/svn/chan_woomera/!svn/ver/14/trunk/README
 END
 woomera.conf
 K 25

@@ -402,6 +402,8 @@ typedef struct wan_device
 	unsigned char	(*read_ec)(void*, unsigned short);
 	int		(*hwec_reset)(void* card_id, int);
 	int		(*hwec_enable)(void* card_id, int, int);
+
+	void 		(*critical_event) (void *, int);
 } wan_device_t;
 
 WAN_LIST_HEAD(wan_devlist_, wan_device);

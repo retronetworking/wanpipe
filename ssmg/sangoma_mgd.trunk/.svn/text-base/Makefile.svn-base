@@ -30,10 +30,11 @@ ifndef KINSTDIR
 endif
 
 CC = gcc
+INSTALLPREFIX=
 
 INCLUDES = -I$(KDIR)/include -I ../../ssmg/libsangoma.trunk -I. -I ../../patches/kdrivers/include -I ../../patches/kdrivers/wanec/oct6100_api/include -I ../../patches/kdrivers/wanec -I/usr/local/include -I../../patches/kdrivers/include -I/usr/include/wanpipe -Ilib/libteletone/src
 
-CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 -march=i686
+CFLAGS = -D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O6 
 CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
 LDFLAGS=-L lib/libteletone/.libs -L. -L/usr/local/lib -L ../../ssmg/libsangoma.trunk/.libs -lpthread -lsangoma -lm
 
@@ -47,7 +48,7 @@ endif
 all: sangoma_mgd  
 
 libs: 
-	$(shell cd lib/libteletone; ./configure; cd ../../; )
+	$(shell cd lib/libteletone; ./configure --prefix=$(INSTALLPREFIX); cd ../../; )
 	$(MAKE) -C lib/libteletone all
 
 switch_buffer.o: switch_buffer.c switch_buffer.h
@@ -79,23 +80,20 @@ install_smg: old_cleanup
 	@if [ ! -e $(INSTALLPREFIX)/etc/sangoma_mgd.conf ]; then \
 		install -D -m 755 sangoma_mgd.conf.sample $(INSTALLPREFIX)/etc/sangoma_mgd.conf; \
 	fi
+ifeq "${NO_SS7}" "YES"
+	@echo"SS7 control and service script not installed"
+else	
 	install -D -m 755 smg_ctrl $(INSTALLPREFIX)/usr/sbin/smg_ctrl
 	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(INSTALLPREFIX)/etc/init.d/smgss7_init_ctrl
+	install -D -m 755 scripts/init.d/smgss7_init_ctrl $(INSTALLPREFIX)/usr/sbin/smgss7_init_ctrl
+endif	
 	@echo "sangoma_mgd Installed"
 
 old_cleanup:
 	./scripts/old_cleanup.sh
 
 
-install_woomera:
-	install -D -m 755 chan_woomera.so $(INSTALLPREFIX)/usr/lib/asterisk/modules/chan_woomera.so
-	@if [ ! -e $(INSTALLPREFIX)/etc/asterisk/woomera.conf ]; then \
-		install -D -m 755 woomera.conf $(INSTALLPREFIX)/etc/asterisk/woomera.conf; \
-	fi
-	@echo "chan_woomera Installed"
-
-
-install_all: all install_smg install_woomera
+install_all: all install_smg 
 
 uninstall: 
 	/bin/rm $(INSTALLPREFIX)/usr/sbin/sangoma_mgd $(INSTALLPREFIX)/etc/sangoma_mgd.conf

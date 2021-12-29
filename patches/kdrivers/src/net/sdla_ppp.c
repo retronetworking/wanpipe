@@ -865,6 +865,10 @@ static void disable_comm (sdla_t *card)
 
 	/* TE1 unconfiging */
 	if (IS_TE1_CARD(card)) {
+		if (card->wandev.fe_iface.pre_release){
+			card->wandev.fe_iface.pre_release(&card->fe);
+		}
+
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -3817,6 +3821,9 @@ static int config_ppp (sdla_t *card)
 					(IS_T1_CARD(card))?"T1":"E1");
 			return 0;
 		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
+		}
 		
 	}else if (IS_56K_CARD(card)) {
 		int	err = -EINVAL;
@@ -3830,6 +3837,9 @@ static int config_ppp (sdla_t *card)
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return 0;
+		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
 	}
 

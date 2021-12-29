@@ -419,6 +419,16 @@
 #define REG_RCICE4		0xD3
 
 /* TX Framer Register Definitions */
+#define REG_E1TSACR		0x114
+#define BIT_E1TSACR_SiAF	0x80
+#define BIT_E1TSACR_SiNAF	0x40
+#define BIT_E1TSACR_RA		0x20
+#define BIT_E1TSACR_Sa4		0x10
+#define BIT_E1TSACR_Sa5		0x08
+#define BIT_E1TSACR_Sa6		0x04
+#define BIT_E1TSACR_Sa7		0x02
+#define BIT_E1TSACR_Sa8		0x01
+
 #define REG_SSIE1		0x118
 #define BITS_SSIE1_ALL		0xFF
 #define BIT_SSIE1_CH1		0x80
@@ -494,6 +504,12 @@
 #define REG_E1TAF		0x164
 
 #define REG_E1TNAF		0x165
+
+#define REG_E1TSa4		0x169
+#define REG_E1TSa5		0x16A
+#define REG_E1TSa6		0x16B
+#define REG_E1TSa7		0x16C
+#define REG_E1TSa8		0x16D
 
 #define REG_TMMR		0x180
 #define BIT_TMMR_FRM_EN		0x80

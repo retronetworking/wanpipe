@@ -1,5 +1,14 @@
 AFT A104d Firmware Change Log
 =============================
+Release V26
+-----------
+Sep 27 2007
+
+Type:		Recommended Firmware for PCI/PCI-Express Cards
+		Fixes chip security issue.
+
+Changes:	Firmware bug fix for PCI/PCI-Express Cards
+		This bug can shut down the driver.
 
 Release V25
 ------------

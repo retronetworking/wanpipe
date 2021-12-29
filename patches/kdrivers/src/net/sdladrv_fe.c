@@ -756,13 +756,11 @@ static u_int8_t __sdla_shark_rm_read_fe (void* phw, ...)
 	}
 	sdla_bus_write_4(hw, SPI_INTERFACE_REG, data);	
 #endif
-#if 0
-	DEBUG_EVENT("%s: %s: Module %d - Execute SPI command %08X\n",
+	DEBUG_TEST("%s: %s: Module %d - Execute SPI command %08X\n",
 					hw->devname,
 					__FUNCTION__,
 					mod_no,
 					data);
-#endif
 	for (i=0;i<10;i++){
 		WP_DELAY(10);
 		sdla_bus_read_4(hw, SPI_INTERFACE_REG, &data);
@@ -772,9 +770,9 @@ static u_int8_t __sdla_shark_rm_read_fe (void* phw, ...)
 	}
 
 	if (data & MOD_SPI_BUSY){
-		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d)!\n",
+		DEBUG_EVENT("%s: Module %d: Critical Error (%s:%d) Data=0x%0X!\n",
 					hw->devname, mod_no,
-					__FUNCTION__,__LINE__);
+					__FUNCTION__,__LINE__,data);
 		return 0xFF;
 	}
 

@@ -59,6 +59,7 @@ enum	e_sigboost_call_setup_ack_nack_cause_values
 };
 
 #define MAX_DIALED_DIGITS	31
+#define MAX_CALLING_NAME	31
 
 /* Next two defines are used to create the range of values for call_setup_id
  * in the t_sigboost structure.

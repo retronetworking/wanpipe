@@ -52,3 +52,10 @@ dtmf_off_duration => 10
 #on configuration. Default chunk size
 #is 10ms. 
 #dtmf_inter_ch_duration => 0
+
+#Enable/Disable Auto ISUP ACM 
+#response to an incoming ss7 call. 
+#0-Disable
+#1-Enable (Default)
+autoacm => 1
+

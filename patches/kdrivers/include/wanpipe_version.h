@@ -2,13 +2,13 @@
 #define __WANPIPE_VERSION__
 
 
-#define WANPIPE_COPYRIGHT_DATES "(c) 1994-2007"
+#define WANPIPE_COPYRIGHT_DATES "(c) 1994-2008"
 #define WANPIPE_COMPANY         "Sangoma Technologies Inc"
 
 /********** LINUX **********/
-#define WANPIPE_VERSION			"3.2.1"
+#define WANPIPE_VERSION			"3.2.2"
 #define WANPIPE_SUB_VERSION		"0"
-#define WANPIPE_VERSION_BETA		1
+#define WANPIPE_VERSION_BETA		0
 #define WANPIPE_LITE_VERSION		"1.1.1"
 
 /********** FreeBSD **********/

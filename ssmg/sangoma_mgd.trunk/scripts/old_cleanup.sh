@@ -9,3 +9,6 @@ fi
 if [ -e /usr/sbin/smgss7_init_ctrl ]; then 
 	rm -f /usr/sbin/smgss7_init_ctrl
 fi
+if [ -e /etc/init.d/smgss7_ctrl ]; then 
+	rm -f /etc/init.d/smgss7_ctrl
+fi

@@ -1,0 +1,45 @@
+#!/bin/sh
+home=`pwd`
+cd $home
+
+read_meta_conf ()
+{
+
+	if [ $ostype = "Linux" ]; then
+		WAN_HOME=/etc
+		META_CONF=/etc/wanpipe/wanrouter.rc
+	elif [ $ostype = "FreeBSD" -o $ostype = "OpenBSD" ]; then
+		WAN_HOME=/usr/local/etc
+		wanrouter_rc_file=""
+		if [ -r /etc/rc.conf ]; then
+			. /etc/rc.conf
+		fi
+		if [ -n "$wanrouter_rc_file" ]; then
+			WAN_HOME=${wanrouter_rc_file%/*}
+		fi
+		META_CONF=$wanrouter_rc_file
+	fi
+
+	# Read meta-configuration file.
+	if [ -f $META_CONF ]
+	then . $META_CONF
+	else
+		return 1 
+	fi
+	return 0
+}
+
+ostype=`/sbin/sysctl -a |grep ostype`
+#ostype=`echo $ostype | sed 's/.*: //'`
+ostype=`echo $ostype | sed 's/.* //'`
+
+read_meta_conf
+if [ $? -ne 0 ]; then
+	echo "ERROR: Failed to find Wanpipe meta config file!"
+	exit 1
+fi
+
+
+cd ${WAN_HOME}/wanpipe/wancfg_zaptel
+./wancfg_zaptel.pl --conf_dir=$WAN_HOME
+cd $home

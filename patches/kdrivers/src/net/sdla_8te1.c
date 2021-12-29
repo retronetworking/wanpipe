@@ -81,6 +81,11 @@
 /******************************************************************************
 *			  DEFINES AND MACROS
 ******************************************************************************/
+#undef WANPIPE_IGNORE_T1_YELLOW
+/* Dec 14, 2007 
+** Disable all FE interrupt if Short Circuit condition detected! */
+#undef WAN_FE_SC_DISABLE_INTR
+
 #define CLEAR_REG(sreg,ereg) {				\
 	unsigned short reg;				\
 	for(reg = sreg; reg < ereg; reg++){		\
@@ -165,7 +170,7 @@
 
 
 #define WAN_TE1_FRAMED_ALARMS		(WAN_TE_BIT_RED_ALARM |	WAN_TE_BIT_OOF_ALARM)
-#define WAN_TE1_UNFRAMED_ALARMS		(WAN_TE_BIT_RED_ALARM)
+#define WAN_TE1_UNFRAMED_ALARMS		(WAN_TE_BIT_RED_ALARM | WAN_TE_BIT_LOS_ALARM)
 
 #define IS_T1_ALARM(alarm)			\
 		(alarm & 			\
@@ -693,8 +698,13 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		WRITE_REG(REG_TMMR, 0x00);
 		/* Enable Rx Framer */
 		WRITE_REG(REG_RMMR, BIT_RMMR_FRM_EN);
-		/* Enable Tx Framer */
-		WRITE_REG(REG_TMMR, BIT_TMMR_FRM_EN);
+		if (IS_FE_TXTRISTATE(fe)){
+			DEBUG_EVENT("%s:    Tx Disabled (tri-state mode)\n",
+						fe->name);
+		}else{
+			/* Enable Tx Framer */
+			WRITE_REG(REG_TMMR, BIT_TMMR_FRM_EN);
+		}
 	}else{
 		/* Clear Rx Framer soft reset */
 		WRITE_REG(REG_RMMR, BIT_RMMR_T1E1);
@@ -702,8 +712,13 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		WRITE_REG(REG_TMMR, BIT_TMMR_T1E1);
 		/* Enable Rx Framer */
 		WRITE_REG(REG_RMMR, (BIT_RMMR_FRM_EN | BIT_RMMR_T1E1));
-		/* Enable Tx Framer */
-		WRITE_REG(REG_TMMR, (BIT_TMMR_FRM_EN | BIT_TMMR_T1E1));
+		if (IS_FE_TXTRISTATE(fe)){
+			DEBUG_EVENT("%s:    Tx Disabled (tri-state mode)\n",
+						fe->name);
+		}else{
+			/* Enable Tx Framer */
+			WRITE_REG(REG_TMMR, (BIT_TMMR_FRM_EN | BIT_TMMR_T1E1));
+		}
 	}
 
 	if (IS_T1_FEMEDIA(fe)){
@@ -740,6 +755,15 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		WRITE_REG(REG_RCR1, value | BIT_RCR1_E1_RCRC4);
 		value = READ_REG(REG_TCR1);
 		WRITE_REG(REG_TCR1, value | BIT_TCR1_E1_TCRC4);
+		value = READ_REG(REG_TCR2);
+		WRITE_REG(REG_TCR2, value | BIT_TCR2_E1_AEBE);
+		break;
+	case WAN_FR_UNFRAMED:
+		/* Nov 23, 2007 UNFRM */
+		value = READ_REG(REG_TCR1);
+		WRITE_REG(REG_TCR1, value | BIT_TCR1_E1_TTPT);
+		value = READ_REG(REG_RCR1);
+		WRITE_REG(REG_RCR1, value | BIT_RCR1_E1_SYNCE);
 		break;
 	default:
 		DEBUG_EVENT("%s: Unsupported DS Frame mode (%X)\n",
@@ -747,15 +771,6 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		return -EINVAL;
 	}
 	
-	if (IS_E1_FEMEDIA(fe)){
-		switch(WAN_FE_FRAME(fe)){
-		case WAN_FR_CRC4:
-			value = READ_REG(REG_TCR2);
-			WRITE_REG(REG_TCR2, value | BIT_TCR2_E1_AEBE);
-			break;
-		}
-	}
-
 	if (IS_E1_FEMEDIA(fe)){
 		sdla_ds_e1_set_sig_mode(fe, 0);
 	}
@@ -821,16 +836,33 @@ static int sdla_ds_te1_chip_config(void* pfe)
 	}
 #endif
 	if (IS_E1_FEMEDIA(fe)){
+		//WRITE_REG(REG_E1TAF, 0x1B);
+		//WRITE_REG(REG_E1TNAF, 0x40);
 		WRITE_REG(REG_E1TAF, 0x1B);
-		WRITE_REG(REG_E1TNAF, 0x40);
+		WRITE_REG(REG_E1TNAF, 0x5F);
+		WRITE_REG(REG_E1TSa4, 0x00);
+		WRITE_REG(REG_E1TSa5, 0x00);
+		WRITE_REG(REG_E1TSa6, 0x00);
+		WRITE_REG(REG_E1TSa7, 0x00);
+		WRITE_REG(REG_E1TSa8, 0x00);
+		WRITE_REG(REG_E1TSACR, 0x00);
+		if (WAN_FE_FRAME(fe) == WAN_FR_CRC4){
+			WRITE_REG(REG_E1TSa4, 0xFF);
+			WRITE_REG(REG_E1TSa5, 0xFF);
+			WRITE_REG(REG_E1TSa6, 0xFF);
+			WRITE_REG(REG_E1TSa7, 0xFF);
+			WRITE_REG(REG_E1TSa8, 0xFF);
+			WRITE_REG(REG_E1TSACR, 0x1F);
+		}
 	}
 
-	/* Set INIT_DONE */
-	value = READ_REG(REG_RMMR);
-	WRITE_REG(REG_RMMR, value | BIT_RMMR_INIT_DONE);
-	/* Set INIT_DONE */
-	value = READ_REG(REG_TMMR);
-	WRITE_REG(REG_TMMR, value | BIT_TMMR_INIT_DONE);
+	if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
+		/* Set INIT_DONE (not unframed mode) */
+		value = READ_REG(REG_RMMR);
+		WRITE_REG(REG_RMMR, value | BIT_RMMR_INIT_DONE);
+		value = READ_REG(REG_TMMR);
+		WRITE_REG(REG_TMMR, value | BIT_TMMR_INIT_DONE);
+	}
 
 	/* T1/J1 or E1 */
 	if (IS_T1_FEMEDIA(fe)){
@@ -858,15 +890,19 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		value = 0x00;
 		break;
 	case WAN_T1_133_266:
+	case WAN_T1_110_220:
 		value = BIT_LTITSR_L0;
 		break;
 	case WAN_T1_266_399:
+	case WAN_T1_220_330:
 		value = BIT_LTITSR_L1;
 		break;
 	case WAN_T1_399_533:
+	case WAN_T1_330_440:
 		value = BIT_LTITSR_L1 | BIT_LTITSR_L0;
 		break;
 	case WAN_T1_533_655:
+	case WAN_T1_550_660:
 		value = BIT_LTITSR_L2;
 		break;
 	case WAN_E1_120:
@@ -893,10 +929,51 @@ static int sdla_ds_te1_chip_config(void* pfe)
 			value | BIT_LTITSR_TIMPL0);
 	}
 
-	value = BIT_LRISMR_RSMS1 | BIT_LRISMR_RSMS0;
+	value = 0x00;
 	if (WAN_TE1_HI_MODE(fe)){
 		value |= BIT_LRISMR_RMONEN;
+		switch(fe->fe_cfg.cfg.te_cfg.rx_slevel){
+		case WAN_TE1_RX_SLEVEL_30_DB:
+			break;
+		case WAN_TE1_RX_SLEVEL_225_DB:
+			value |= BIT_LRISMR_RSMS0;
+			break;
+		case WAN_TE1_RX_SLEVEL_175_DB:
+			value |= BIT_LRISMR_RSMS1;
+			break;
+		case WAN_TE1_RX_SLEVEL_12_DB:
+			value |= (BIT_LRISMR_RSMS1 | BIT_LRISMR_RSMS0);
+			break;
+		default:	/* set default value */ 
+			fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_30_DB;
+			break;
+		}
+		DEBUG_EVENT("%s:    Rx Sensitivity Gain %s (High Impedence mode).\n", 
+				fe->name, 
+				WAN_TE1_RX_SLEVEL_DECODE(fe->fe_cfg.cfg.te_cfg.rx_slevel));
+	}else{
+		switch(fe->fe_cfg.cfg.te_cfg.rx_slevel){
+		case WAN_TE1_RX_SLEVEL_12_DB:
+			break;
+		case WAN_TE1_RX_SLEVEL_18_DB:
+			value |= BIT_LRISMR_RSMS0;
+			break;
+		case WAN_TE1_RX_SLEVEL_30_DB:
+			value |= BIT_LRISMR_RSMS1;
+			break;
+		case WAN_TE1_RX_SLEVEL_36_DB:
+		case WAN_TE1_RX_SLEVEL_43_DB:
+			value |= (BIT_LRISMR_RSMS1 | BIT_LRISMR_RSMS0);
+			break;
+		default:	/* set default value */ 
+			fe->fe_cfg.cfg.te_cfg.rx_slevel = WAN_TE1_RX_SLEVEL_12_DB;
+			break;
+		}
+		DEBUG_EVENT("%s:    Rx Sensitivity Gain %s.\n", 
+				fe->name, 
+				WAN_TE1_RX_SLEVEL_DECODE(fe->fe_cfg.cfg.te_cfg.rx_slevel));
 	}
+
 	if (IS_T1_FEMEDIA(fe)){
 		WRITE_REG(REG_LRISMR, value | BIT_LRISMR_RIMPM0);
 	}else{
@@ -1043,7 +1120,7 @@ static int sdla_ds_te1_config(void* pfe)
 	wan_set_bit(TE_CONFIGURED,(void*)&fe->te_param.critical);
 
 	/* Enable interrupts */
-	sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_BASIC, WAN_FE_INTR_ENABLE, 0x00); 
+	sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_GLOBAL, WAN_FE_INTR_ENABLE, 0x00); 
 	/* Enable manual update pmon counter */
 	sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_PMON, WAN_FE_INTR_MASK, 0x00);
 	return 0;
@@ -1215,31 +1292,46 @@ sdla_ds_te1_sigctrl(sdla_fe_t *fe, int sig_mode, unsigned long ch_map, int mode)
 
 
 /******************************************************************************
-**			sdla_ds_t1_is_connected()	
+**			sdla_ds_t1_is_alarm()	
 **
 ** Description: Verify T1 status.
 ** Arguments:
 ** Returns:	1 - the port is connected
 **		0 - the port is disconnected
 ******************************************************************************/
-static int sdla_ds_t1_is_connected(sdla_fe_t *fe, unsigned long alarms)
+static int sdla_ds_t1_is_alarm(sdla_fe_t *fe, unsigned long alarms)
 {
-
-	if (alarms & WAN_TE1_FRAMED_ALARMS) return 0;
-	return 1;
+	/* NC: Bring the link down if we re in SC mode */
+	if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC){
+		return 1;
+	}
+	return (alarms & WAN_TE1_FRAMED_ALARMS);
 }
 /******************************************************************************
-**			sdla_ds_e1_is_connected()	
+**			sdla_ds_e1_is_alarm()	
 **
 ** Description: Verify E1 status.
 ** Arguments:
 ** Returns:	1 - the port is connected
 **		0 - the port is disconnected
 ******************************************************************************/
-static int sdla_ds_e1_is_connected(sdla_fe_t *fe, unsigned long alarms)
+static int sdla_ds_e1_is_alarm(sdla_fe_t *fe, unsigned long alarms)
 {
-	if (alarms & WAN_TE1_FRAMED_ALARMS) return 0;
-	return 1;
+	if (WAN_FE_FRAME(fe) == WAN_FR_UNFRAMED){
+		if (!fe->te_param.lb_mode &&
+		    (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_OC ||
+		     fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC ||
+		     fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_LOS)){
+			return 1;
+		}
+		return (alarms & WAN_TE1_UNFRAMED_ALARMS);
+	}
+
+	/* NC: Bring the link down if we re in SC mode */
+	if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC){
+		return 1;
+	}
+	return (alarms & WAN_TE1_FRAMED_ALARMS);
 }
 
 /*
@@ -1259,8 +1351,31 @@ static void sdla_ds_te1_set_status(sdla_fe_t* fe, unsigned long alarms)
 
 	if (IS_T1_FEMEDIA(fe)){
 
-		if (sdla_ds_t1_is_connected(fe, alarms)){
-			sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_YEL_ALARM);
+		if (sdla_ds_t1_is_alarm(fe, alarms)){
+			if (fe->fe_status != FE_DISCONNECTED){
+				fe->fe_status = FE_DISCONNECTED;
+			}
+		}else{
+
+#ifdef WANPIPE_IGNORE_T1_YELLOW
+#warning "AFT IGNORING YELLOW ALARM!"
+/* If we ignore yellow alarm, we will pass it up
+   to zaptel. We will be in connected state where 
+   zaptel will be in alarm.  Its a deadlock 
+   condition 
+
+   This option can be compiled using Setup
+   script in case of some users that
+   have yellow alarm issues.
+
+   Should never be used in ZAPTEL mode!
+*/	
+			if (fe->fe_status != FE_CONNECTED){
+				sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_YEL_ALARM);
+				fe->fe_status = FE_CONNECTED;
+			}
+#else
+			//sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_YEL_ALARM);
 			if (!(fe->fe_alarm & WAN_TE_BIT_YEL_ALARM)){
 				if (fe->fe_status != FE_CONNECTED){
 					fe->fe_status = FE_CONNECTED;
@@ -1272,20 +1387,16 @@ static void sdla_ds_te1_set_status(sdla_fe_t* fe, unsigned long alarms)
 				}
 				fe->fe_status = FE_DISCONNECTED;
 			}
-		}else{
+#endif            
+		}
+	} else {
+		if (sdla_ds_e1_is_alarm(fe, alarms)){
 			if (fe->fe_status != FE_DISCONNECTED){
 				fe->fe_status = FE_DISCONNECTED;
 			}
-		}            
-
-	} else {
-		if (sdla_ds_e1_is_connected(fe, alarms)){
+		}else{
 			if (fe->fe_status != FE_CONNECTED){
 				fe->fe_status = FE_CONNECTED;
-			}
-		} else {
-			if (fe->fe_status != FE_DISCONNECTED){
-				fe->fe_status = FE_DISCONNECTED;
 			}
 		}
 	}
@@ -1333,6 +1444,14 @@ static void sdla_ds_te1_set_status(sdla_fe_t* fe, unsigned long alarms)
 					WAN_FE_STATUS_DECODE(fe),
 					fe->te_param.status_cnt);
 	}
+
+#if defined(WAN_FE_SC_DISABLE_INTR)
+	if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC){
+		if (card->wandev.critical_event){
+			card->wandev.critical_event(card, 0);
+		}
+	}
+#endif
 
 	return;
 }
@@ -1402,130 +1521,176 @@ static int sdla_ds_te1_print_alarms(sdla_fe_t* fe, unsigned int alarms)
 ** Arguments:
 ** Returns:
 */
-static unsigned int sdla_ds_te1_read_alarms(sdla_fe_t *fe, int action)
+static unsigned int sdla_ds_te1_read_frame_alarms(sdla_fe_t *fe)
 {
+	unsigned int	fr_alarm = fe->fe_alarm;
+	unsigned char	rrts1 = READ_REG(REG_RRTS1);
 
-	if (IS_FE_ALARM_READ(action)){
-		unsigned char	rrts1 = READ_REG(REG_RRTS1);
-		unsigned char	lrsr = READ_REG(REG_LRSR);
-
-		DEBUG_TE1("%s: Alarm status =  %02X (%X)\n", 
-				fe->name, rrts1, fe->fe_alarm);
-		/* Framer alarms */
+	DEBUG_TE1("%s: Framer Alarm status =  %02X (%X)\n", 
+				fe->name, rrts1, fr_alarm);
+	/* Framer alarms */
+	//if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
 		if (rrts1 & BIT_RRTS1_RRAI){
-			if (!(fe->fe_alarm & WAN_TE_BIT_RAI_ALARM)){
+			if (!(fr_alarm & WAN_TE_BIT_RAI_ALARM)){
 				DEBUG_EVENT("%s: RAI alarm is ON\n", 
 							fe->name);
 			}
-			fe->fe_alarm |= WAN_TE_BIT_RAI_ALARM;		
+			fr_alarm |= WAN_TE_BIT_RAI_ALARM;		
 		}else{
-			if (fe->fe_alarm & WAN_TE_BIT_RAI_ALARM){
+			if (fr_alarm & WAN_TE_BIT_RAI_ALARM){
 				DEBUG_EVENT("%s: RAI alarm is OFF\n", 
 							fe->name);
 			}
-			fe->fe_alarm &= ~WAN_TE_BIT_RAI_ALARM;		
+			fr_alarm &= ~WAN_TE_BIT_RAI_ALARM;		
 		}
-		if (rrts1 & BIT_RRTS1_RAIS){
-			if (!(fe->fe_alarm & WAN_TE_BIT_AIS_ALARM)){
-				DEBUG_EVENT("%s: AIS alarm is ON\n", 
-							fe->name);
-			}
-			fe->fe_alarm |= WAN_TE_BIT_AIS_ALARM;		
-		}else{
-			if (fe->fe_alarm & WAN_TE_BIT_AIS_ALARM){
-				DEBUG_EVENT("%s: AIS alarm is OFF\n", 
-							fe->name);
-			}
-			fe->fe_alarm &= ~WAN_TE_BIT_AIS_ALARM;		
+	//}
+	if (rrts1 & BIT_RRTS1_RAIS){
+		if (!(fr_alarm & WAN_TE_BIT_AIS_ALARM)){
+			DEBUG_EVENT("%s: AIS alarm is ON\n", 
+						fe->name);
 		}
-		if (rrts1 & BIT_RRTS1_RLOS){
-			if (!(fe->fe_alarm & WAN_TE_BIT_LOS_ALARM)){
-				DEBUG_EVENT("%s: LOS alarm is ON\n", 
-							fe->name);
-			}
-			fe->fe_alarm |= WAN_TE_BIT_LOS_ALARM;		
-		}else{
-			if (fe->fe_alarm & WAN_TE_BIT_LOS_ALARM){
-				DEBUG_EVENT("%s: LOS alarm is OFF\n", 
-							fe->name);
-			}
-			fe->fe_alarm &= ~WAN_TE_BIT_LOS_ALARM;		
+		fr_alarm |= WAN_TE_BIT_AIS_ALARM;		
+	}else{
+		if (fr_alarm & WAN_TE_BIT_AIS_ALARM){
+			DEBUG_EVENT("%s: AIS alarm is OFF\n", 
+						fe->name);
 		}
+		fr_alarm &= ~WAN_TE_BIT_AIS_ALARM;		
+	}
+	if (rrts1 & BIT_RRTS1_RLOS){
+		if (!(fr_alarm & WAN_TE_BIT_LOS_ALARM)){
+			DEBUG_EVENT("%s: LOS alarm is ON\n", 
+						fe->name);
+		}
+		fr_alarm |= WAN_TE_BIT_LOS_ALARM;		
+	}else{
+		if (fr_alarm & WAN_TE_BIT_LOS_ALARM){
+			DEBUG_EVENT("%s: LOS alarm is OFF\n", 
+						fe->name);
+		}
+		fr_alarm &= ~WAN_TE_BIT_LOS_ALARM;		
+	}
+	if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
 		if (rrts1 & BIT_RRTS1_RLOF){
-			if (!(fe->fe_alarm & WAN_TE_BIT_OOF_ALARM)){
+			if (!(fr_alarm & WAN_TE_BIT_OOF_ALARM)){
 				DEBUG_EVENT("%s: OOF alarm is ON\n", 
-							fe->name);
+						fe->name);
 			}
-			fe->fe_alarm |= WAN_TE_BIT_OOF_ALARM;		
+			fr_alarm |= WAN_TE_BIT_OOF_ALARM;
 		}else{
-			if (fe->fe_alarm & WAN_TE_BIT_OOF_ALARM){
+			if (fr_alarm & WAN_TE_BIT_OOF_ALARM){
 				DEBUG_EVENT("%s: OOF alarm is OFF\n", 
-							fe->name);
+						fe->name);
 			}
-			fe->fe_alarm &= ~WAN_TE_BIT_OOF_ALARM;		
+			fr_alarm &= ~WAN_TE_BIT_OOF_ALARM;
+		}		
+	}
+	/* Aug 30, 2006
+	** Red alarm is either LOS or OOF alarms */
+	if (IS_TE_OOF_ALARM(fr_alarm) ||
+	    IS_TE_LOS_ALARM(fr_alarm)){
+		if (!(fr_alarm & WAN_TE_BIT_RED_ALARM)){
+			DEBUG_EVENT("%s: RED alarm is ON\n", 
+						fe->name);
 		}
-		/* Aug 30, 2006
-		** Red alarm is either LOS or OOF alarms */
-		if (IS_TE_OOF_ALARM(fe->fe_alarm) ||
-		    IS_TE_LOS_ALARM(fe->fe_alarm)){
-			if (!(fe->fe_alarm & WAN_TE_BIT_RED_ALARM)){
-				DEBUG_EVENT("%s: RED alarm is ON\n", 
-							fe->name);
-			}
-			fe->fe_alarm |= WAN_TE_BIT_RED_ALARM;
-		}else{
-			if (fe->fe_alarm & WAN_TE_BIT_RED_ALARM){
-				DEBUG_EVENT("%s: RED alarm is OFF\n", 
-							fe->name);
-			}
-			fe->fe_alarm &= ~WAN_TE_BIT_RED_ALARM;
+		fr_alarm |= WAN_TE_BIT_RED_ALARM;
+	}else{
+		if (fr_alarm & WAN_TE_BIT_RED_ALARM){
+			DEBUG_EVENT("%s: RED alarm is OFF\n", 
+						fe->name);
 		}
+		fr_alarm &= ~WAN_TE_BIT_RED_ALARM;
+	}
+	return fr_alarm;
+}
 
-		/* LIU alarms */
-		if (lrsr & BIT_LRSR_OCS){
-			if (!(fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_OC)){
-				DEBUG_EVENT("%s: Open Circuit is detected!\n",
-						fe->name);
-			}
-			fe->liu_alarm |= WAN_TE_BIT_LIU_ALARM_OC;
-		}else{
-			if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_OC){
-				DEBUG_EVENT("%s: Open Circuit is cleared!\n",
-						fe->name);
-			}
-			fe->liu_alarm &= ~WAN_TE_BIT_LIU_ALARM_OC;
+static unsigned int sdla_ds_te1_read_liu_alarms(sdla_fe_t *fe)
+{
+	unsigned int	alarm = fe->liu_alarm;
+	unsigned char	lrsr = READ_REG(REG_LRSR);
+
+	DEBUG_TE1("%s: LIU Alarm status =  %02X (%X)\n", 
+				fe->name, lrsr1, alarm);
+
+	/* LIU alarms */
+	if (lrsr & BIT_LRSR_OCS){
+		if (!(alarm & WAN_TE_BIT_LIU_ALARM_OC)){
+			DEBUG_EVENT("%s: Open Circuit is detected!\n",
+					fe->name);
 		}
-		if (lrsr & BIT_LRSR_SCS){
-			if (!(fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC)){
-				DEBUG_EVENT("%s: Short Circuit is detected!\n",
-						fe->name);
-			}
-			fe->liu_alarm |= WAN_TE_BIT_LIU_ALARM_SC;
-		}else{
-			if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC){
-				DEBUG_EVENT("%s: Short Circuit is cleared!\n",
-						fe->name);
-			}
-			fe->liu_alarm &= ~WAN_TE_BIT_LIU_ALARM_SC;	
+		alarm |= WAN_TE_BIT_LIU_ALARM_OC;
+	}else{
+		if (alarm & WAN_TE_BIT_LIU_ALARM_OC){
+			DEBUG_EVENT("%s: Open Circuit is cleared!\n",
+					fe->name);
 		}
-		if (lrsr & BIT_LRSR_LOSS){
-			if (!(fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_LOS)){
-				DEBUG_EVENT("%s: Lost of Signal is detected!\n",
-						fe->name);
-			}
-			fe->liu_alarm |= WAN_TE_BIT_LIU_ALARM_LOS;
-		}else{
-			if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_LOS){
-				DEBUG_EVENT("%s: Lost of Signal is cleared!\n",
-						fe->name);
-			}
-			fe->liu_alarm &= ~WAN_TE_BIT_LIU_ALARM_LOS;	
+		alarm &= ~WAN_TE_BIT_LIU_ALARM_OC;
+	}
+	if (lrsr & BIT_LRSR_SCS){
+		if (!(alarm & WAN_TE_BIT_LIU_ALARM_SC)){
+			DEBUG_EVENT("%s: Short Circuit is detected!\n",
+					fe->name);
 		}
+		alarm |= WAN_TE_BIT_LIU_ALARM_SC;
+	}else{
+		if (alarm & WAN_TE_BIT_LIU_ALARM_SC){
+			DEBUG_EVENT("%s: Short Circuit is cleared!\n",
+					fe->name);
+		}
+		alarm &= ~WAN_TE_BIT_LIU_ALARM_SC;	
+	}
+	if (lrsr & BIT_LRSR_LOSS){
+		if (!(alarm & WAN_TE_BIT_LIU_ALARM_LOS)){
+			DEBUG_EVENT("%s: Lost of Signal is detected!\n",
+					fe->name);
+		}
+		alarm |= WAN_TE_BIT_LIU_ALARM_LOS;
+	}else{
+		if (alarm & WAN_TE_BIT_LIU_ALARM_LOS){
+			DEBUG_EVENT("%s: Lost of Signal is cleared!\n",
+					fe->name);
+		}
+		alarm &= ~WAN_TE_BIT_LIU_ALARM_LOS;	
+	}
+
+	return alarm;
+}
+
+static unsigned int sdla_ds_te1_read_alarms(sdla_fe_t *fe, int action)
+{
+	unsigned int	fr_alarm = fe->fe_alarm;
+	unsigned int	alarm = fe->liu_alarm;
+
+	if (IS_FE_ALARM_READ(action)){
+
+		fr_alarm = sdla_ds_te1_read_frame_alarms(fe);
+		alarm = sdla_ds_te1_read_liu_alarms(fe);
 	}
 	if (IS_FE_ALARM_PRINT(action)){
-		sdla_ds_te1_print_alarms(fe, fe->fe_alarm);
+		sdla_ds_te1_print_alarms(fe, fr_alarm);
 	}
+	if (IS_FE_ALARM_UPDATE(action)){
+		fe->fe_alarm = fr_alarm;
+		fe->liu_alarm = alarm;
+	} 
 	return fe->fe_alarm;
+}
+
+#define WAN_TE_CRIT_ALARM_TIMEOUT	30000	/* 30 sec */
+static int sdla_ds_te1_read_crit_alarms(sdla_fe_t *fe)
+{
+
+	fe->liu_alarm = sdla_ds_te1_read_liu_alarms(fe);
+	if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC){
+		fe->te_param.crit_alarm_start = SYSTEM_TICKS;
+	}else{
+		if((SYSTEM_TICKS - fe->te_param.crit_alarm_start) > ((WAN_TE_CRIT_ALARM_TIMEOUT * HZ)/1000)) {
+			/* The link was stable for 30 sec, let try to go back */
+			return 0;
+		}
+	}
+	/* we are still in critical alarm state */
+	return 1;
 }
 
 /*
@@ -2057,11 +2222,17 @@ sdla_ds_te1_intr_ctrl(sdla_fe_t *fe, int dummy, int type, int mode, unsigned int
 
 	case WAN_TE_INTR_BASIC:
 		if (mode == WAN_FE_INTR_ENABLE){
-			WRITE_REG(REG_RIM1,
-				BIT_RIM1_RRAIC | BIT_RIM1_RRAID |
-				BIT_RIM1_RAISC | BIT_RIM1_RAISD |
-				BIT_RIM1_RLOSC | BIT_RIM1_RLOSD |
-				BIT_RIM1_RLOFC | BIT_RIM1_RLOFD);
+			unsigned char	mask = 0x00;
+
+			mask = 	BIT_RIM1_RAISC | BIT_RIM1_RAISD |
+				BIT_RIM1_RRAIC | BIT_RIM1_RRAID;
+			if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
+				mask |= (BIT_RIM1_RLOFC | BIT_RIM1_RLOFD);
+			}
+#if defined(FE_LOS_ENABLE)
+			mask |= (BIT_RIM1_RLOSC | BIT_RIM1_RLOSD);
+#endif
+			WRITE_REG(REG_RIM1, mask);
 			/*WRITE_REG(REG_RIM4, BIT_RIM4_TIMER);*/
 			WRITE_REG(REG_LSIMR,
 				BIT_LSIMR_OCCIM | BIT_LSIMR_OCDIM |
@@ -2147,17 +2318,19 @@ static int sdla_ds_te1_framer_rx_intr(sdla_fe_t *fe)
 
 		DEBUG_TE1("%s: RX Latched Status Register 1 %02X\n",
 					fe->name, rls1);
-		if (rls1 & (BIT_RLS1_RRAIC|BIT_RLS1_RRAID)){
-			if (rrts1 & BIT_RRTS1_RRAI){
-				fe->fe_alarm |= WAN_TE_BIT_RAI_ALARM;		
-				DEBUG_EVENT("%s: RAI alarm is ON\n",
-							fe->name);
-			}else{
-				fe->fe_alarm &= ~WAN_TE_BIT_RAI_ALARM;		
-				DEBUG_EVENT("%s: RAI alarm is OFF\n",
-							fe->name);
+		//if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
+			if (rls1 & (BIT_RLS1_RRAIC|BIT_RLS1_RRAID)){
+				if (rrts1 & BIT_RRTS1_RRAI){
+					fe->fe_alarm |= WAN_TE_BIT_RAI_ALARM;		
+					DEBUG_EVENT("%s: RAI alarm is ON\n",
+								fe->name);
+				}else{
+					fe->fe_alarm &= ~WAN_TE_BIT_RAI_ALARM;		
+					DEBUG_EVENT("%s: RAI alarm is OFF\n",
+								fe->name);
+				}
 			}
-		}
+		//}
 		if (rls1 & (BIT_RLS1_RAISC|BIT_RLS1_RAISD)){
 			if (rrts1 & BIT_RRTS1_RAIS){
 				fe->fe_alarm |= WAN_TE_BIT_AIS_ALARM;		
@@ -2180,15 +2353,17 @@ static int sdla_ds_te1_framer_rx_intr(sdla_fe_t *fe)
 							fe->name);
 			}
 		}
-		if (rls1 & (BIT_RLS1_RLOFC|BIT_RLS1_RLOFD)){
-			if (rrts1 & BIT_RRTS1_RLOF){
-				fe->fe_alarm |= WAN_TE_BIT_OOF_ALARM;		
-				DEBUG_EVENT("%s: OOF alarm is ON\n",
-							fe->name);
-			}else{
-				fe->fe_alarm &= ~WAN_TE_BIT_OOF_ALARM;		
-				DEBUG_EVENT("%s: OOF alarm is OFF\n",
-							fe->name);
+		if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
+			if (rls1 & (BIT_RLS1_RLOFC|BIT_RLS1_RLOFD)){
+				if (rrts1 & BIT_RRTS1_RLOF){
+					fe->fe_alarm |= WAN_TE_BIT_OOF_ALARM;		
+					DEBUG_EVENT("%s: OOF alarm is ON\n",
+								fe->name);
+				}else{
+					fe->fe_alarm &= ~WAN_TE_BIT_OOF_ALARM;		
+					DEBUG_EVENT("%s: OOF alarm is OFF\n",
+								fe->name);
+				}
 			}
 		}
 		WRITE_REG(REG_RLS1, rls1);
@@ -2491,9 +2666,9 @@ static int sdla_ds_te1_liu_intr(sdla_fe_t *fe)
 
 static int sdla_ds_te1_check_intr(sdla_fe_t *fe) 
 {
-	unsigned char	framer_istatus;
-	unsigned char	liu_istatus;
-	unsigned char	bert_istatus;
+	unsigned char	framer_istatus, framer_imask;
+	unsigned char	liu_istatus, liu_imask;
+	unsigned char	bert_istatus, bert_imask;
 	
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
@@ -2502,6 +2677,10 @@ static int sdla_ds_te1_check_intr(sdla_fe_t *fe)
 	liu_istatus	= __READ_REG(REG_GLISR);
 	bert_istatus	= __READ_REG(REG_GBISR);
 
+	framer_imask	= __READ_REG(REG_GFIMR);
+	liu_imask	= __READ_REG(REG_GLIMR);
+	bert_imask	= __READ_REG(REG_GBIMR);	
+
 	//if (framer_istatus & (1 << WAN_FE_LINENO(fe))){
 	if (framer_istatus & (1 << WAN_DS_REGBITMAP(fe))){
 		DEBUG_ISR("%s: Interrupt for line %d (framer)\n",
@@ -2509,17 +2688,27 @@ static int sdla_ds_te1_check_intr(sdla_fe_t *fe)
 		return 1;
 	}
 	//if (liu_istatus & (1 << WAN_FE_LINENO(fe))){
-	if (liu_istatus & (1 << WAN_DS_REGBITMAP(fe))){
-		DEBUG_ISR("%s: Interrupt for line %d (liu)\n",
+	if ((framer_istatus & (1 << WAN_DS_REGBITMAP(fe))) && 
+	    (framer_imask & (1 << WAN_DS_REGBITMAP(fe)))) {
+		DEBUG_ISR("%s: Interrupt for line %d (FRAMER)\n",
+					fe->name, WAN_FE_LINENO(fe));
+		return 1;
+	}
+	//if (liu_istatus & (1 << WAN_FE_LINENO(fe))){
+	if ((liu_istatus & (1 << WAN_DS_REGBITMAP(fe))) &&
+	    (liu_imask & (1 << WAN_DS_REGBITMAP(fe)))) { 
+		DEBUG_ISR("%s: Interrupt for line %d (LIU)\n",
 					fe->name, WAN_FE_LINENO(fe));
 		return 1;
 	}
 	//if (bert_istatus & (1 << WAN_FE_LINENO(fe))){
-	if (bert_istatus & (1 << WAN_DS_REGBITMAP(fe))){
-		DEBUG_ISR("%s: Interrupt for line %d (bert)\n",
+	if ((bert_istatus & (1 << WAN_DS_REGBITMAP(fe))) &&
+	    (bert_imask & (1 << WAN_DS_REGBITMAP(fe)))) {
+		DEBUG_ISR("%s: Interrupt for line %d (BERT)\n",
 					fe->name, WAN_FE_LINENO(fe));
 		return 1;
 	}
+
 	DEBUG_ISR("%s: This interrupt not for this port %d\n",
 				fe->name,
 				WAN_FE_LINENO(fe)+1);
@@ -2563,6 +2752,27 @@ static int sdla_ds_te1_intr(sdla_fe_t *fe)
 	DEBUG_TE1("%s: FE Interrupt Alarms=0x%X\n",
 			fe->name,fe->fe_alarm);
 
+#if 1
+	if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC){
+		sdla_fe_timer_event_t	event;
+		/* AL: March 1, 2006: Mask global FE intr */
+		sdla_ds_te1_intr_ctrl(
+			fe, 0, WAN_TE_INTR_BASIC, WAN_FE_INTR_MASK, 0x00);
+		/* Disable automatic update */
+		sdla_ds_te1_intr_ctrl(
+			fe, 0, WAN_TE_INTR_PMON, WAN_FE_INTR_MASK, 0x00);
+		/* Start LINKDOWN poll */
+		event.type	= TE_LINKCRIT_TIMER;
+		event.delay	= POLLING_TE1_TIMER*5;
+		sdla_ds_te1_add_event(fe, &event);
+
+		//if (card->wandev.critical_event){
+		//	card->wandev.critical_event(card, 0);
+		//}
+		return 0;
+	}
+#endif
+
 	sdla_ds_te1_set_status(fe, fe->fe_alarm);
 	if (status != fe->fe_status){
 		if (fe->fe_status != FE_CONNECTED){
@@ -2570,7 +2780,7 @@ static int sdla_ds_te1_intr(sdla_fe_t *fe)
 			/* AL: March 1, 2006: Mask global FE intr */
 			sdla_ds_te1_intr_ctrl(
 					fe, 0,
-					WAN_TE_INTR_GLOBAL,
+					WAN_TE_INTR_BASIC,
 					WAN_FE_INTR_MASK,
 					0x00);
 			/* Disable automatic update */
@@ -2656,7 +2866,15 @@ static void sdla_ds_te1_timer(unsigned long pfe)
  */
 static int sdla_ds_te1_add_timer(sdla_fe_t* fe, unsigned long delay)
 {
-	int	err;
+	int	err=0;
+
+	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical)){
+		return 0;
+	}
+
+	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)) {
+		return 0;
+	}
 	
 	err = wan_add_timer(&fe->timer, delay * HZ / 1000);
 	if (err){
@@ -2707,16 +2925,37 @@ sdla_ds_te1_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *event)
 				fe->name, __FUNCTION__,__LINE__);
 #endif	
 	wan_spin_lock_irq(&fe->lock,&smp_flags);	
+	/* Set event from pending event map */
+	if (wan_test_and_set_bit(event->type,(void*)&fe->event_map)){
+		DEBUG_EVENT("%s: WARNING: Event type %d is already pending!\n",
+							fe->name, event->type);
+		wan_spin_unlock_irq(&fe->lock, &smp_flags);	
+		wan_free(tevent);
+		return -EINVAL;
+	}
 	if (WAN_LIST_EMPTY(&fe->event)){
 		WAN_LIST_INSERT_HEAD(&fe->event, tevent, next);
 	}else{
 		sdla_fe_timer_event_t	*tmp;
+		int			cnt = 0;
 		WAN_LIST_FOREACH(tmp, &fe->event, next){
 			if (!WAN_LIST_NEXT(tmp, next)) break;
+			cnt ++;
 		}
 		if (tmp == NULL){
 			DEBUG_EVENT("%s: Internal Error!!!\n", fe->name);
+			wan_clear_bit(event->type,(void*)&fe->event_map);
 			wan_spin_unlock_irq(&fe->lock, &smp_flags);	
+			return -EINVAL;
+		}
+		if (cnt > WAN_FE_MAX_QEVENT_LEN){
+			DEBUG_EVENT("%s: ERROR: Too many events in event queue!\n",
+							fe->name);
+			DEBUG_EVENT("%s: ERROR: Dropping new event type %d!\n",
+							fe->name, event->type);
+			wan_clear_bit(event->type,(void*)&fe->event_map);
+			wan_spin_unlock_irq(&fe->lock, &smp_flags);	
+			wan_free(tevent);
 			return -EINVAL;
 		}
 		WAN_LIST_INSERT_AFTER(tmp, tevent, next);
@@ -2765,13 +3004,32 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 	}
 	event = WAN_LIST_FIRST(&fe->event);
 	WAN_LIST_REMOVE(event, next);
+	/* Clear event from pending event map */
+	wan_clear_bit(event->type,(void*)&fe->event_map);
 	wan_spin_unlock_irq(&fe->lock,&smp_flags);
 		
 	DEBUG_TE1("%s: TE1 Polling State=%s Event=%X!\n", 
 			fe->name, WAN_FE_STATUS_DECODE(fe), event->type);	
 	switch(event->type){
+	case TE_LINKCRIT_TIMER:
+		if (!sdla_ds_te1_read_crit_alarms(fe)){
+			event->type	= TE_LINKDOWN_TIMER;
+		}else{
+			event->type	= TE_LINKCRIT_TIMER;
+		}
+		event->delay	= POLLING_TE1_TIMER;
+		pending	= 1;
+		break;
+
 	case TE_LINKDOWN_TIMER:
-		sdla_ds_te1_read_alarms(fe, WAN_FE_ALARM_READ);
+		sdla_ds_te1_read_alarms(fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
+		if (fe->liu_alarm & WAN_TE_BIT_LIU_ALARM_SC){
+			/* Short circuit detected, go to LINKCRIT state */
+			event->type	= TE_LINKCRIT_TIMER;
+			event->delay	= POLLING_TE1_TIMER;
+			pending	= 1;
+			break;
+		}
 		sdla_ds_te1_pmon(fe, WAN_FE_PMON_UPDATE|WAN_FE_PMON_READ);
 		sdla_ds_te1_set_status(fe, fe->fe_alarm);
 		if (fe->fe_status == FE_CONNECTED){
@@ -2793,7 +3051,7 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 		if (fe->fe_status == FE_CONNECTED){
 			/* Enable Basic Interrupt */
 			sdla_ds_te1_intr_ctrl(	fe, 0, 
-						WAN_TE_INTR_GLOBAL, 
+						WAN_TE_INTR_BASIC, 
 						WAN_FE_INTR_ENABLE, 
 						0x00);
 			/* Enable automatic update pmon counters */
@@ -2884,7 +3142,7 @@ static int sdla_ds_te1_polling(sdla_fe_t* fe)
 		/* Enable interrupts */
 		sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_BASIC, WAN_FE_INTR_ENABLE, 0x00); 
 		/* Enable manual update pmon counter */
-		sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_PMON, WAN_FE_INTR_MASK, 0x00);
+		sdla_ds_te1_intr_ctrl(fe, 0, WAN_TE_INTR_PMON, WAN_FE_INTR_ENABLE, 0x00);
 		event->type	= TE_LINKDOWN_TIMER;
 		event->delay	= POLLING_TE1_TIMER;
 		pending = 1;
@@ -3206,6 +3464,7 @@ static int sdla_ds_te1_fr_plb(sdla_fe_t* fe, unsigned char mode)
 static int 
 sdla_ds_te1_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode) 
 {
+	int	err = 0;
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
@@ -3214,27 +3473,42 @@ sdla_ds_te1_set_lbmode(sdla_fe_t *fe, unsigned char type, unsigned char mode)
 			WAN_TE1_LB_MODE_DECODE(mode),
 			WAN_TE1_LB_TYPE_DECODE(type));
 	switch(type){
+	case WAN_TE1_DDLB_MODE:
 	case WAN_TE1_LIU_ALB_MODE:
-		sdla_ds_te1_liu_alb(fe, mode);
+		err = sdla_ds_te1_liu_alb(fe, mode);
 		break;
 	case WAN_TE1_LIU_LLB_MODE:
-		sdla_ds_te1_liu_llb(fe, mode);
+		err = sdla_ds_te1_liu_llb(fe, mode);
 		break;
+	case WAN_TE1_LINELB_MODE:
 	case WAN_TE1_LIU_RLB_MODE:
-		sdla_ds_te1_liu_rlb(fe, mode);
+		err = sdla_ds_te1_liu_rlb(fe, mode);
 		break;
 	case WAN_TE1_LIU_DLB_MODE:
-		sdla_ds_te1_liu_llb(fe, mode);
-		sdla_ds_te1_liu_rlb(fe, mode);
+		if (!sdla_ds_te1_liu_llb(fe, mode)){
+			err = sdla_ds_te1_liu_rlb(fe, mode);
+		}
 		break;
 	case WAN_TE1_FR_FLB_MODE:
-		sdla_ds_te1_fr_flb(fe, mode);
+		err = sdla_ds_te1_fr_flb(fe, mode);
 		break;
+	case WAN_TE1_PAYLB_MODE:
 	case WAN_TE1_FR_PLB_MODE:
-		sdla_ds_te1_fr_plb(fe, mode);
+		err = sdla_ds_te1_fr_plb(fe, mode);
 		break;
 	case WAN_TE1_FR_RLB_MODE:
-		break;
+	default:
+		DEBUG_EVENT("%s: Unsupport loopback mode (%s)!\n",
+				fe->name,
+				WAN_TE1_LB_MODE_DECODE(mode));
+		return -EINVAL;
+	}
+	if (!err){
+		if (mode == WAN_TE1_ACTIVATE_LB){
+			wan_set_bit(type, &fe->te_param.lb_mode);
+		}else{
+			wan_clear_bit(type, &fe->te_param.lb_mode);
+		}
 	}
 	return 0;
 }
@@ -3288,7 +3562,7 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 			DEBUG_EVENT("%s: Force to read Front-End alarms\n",
 						fe->name);
 			fe->fe_stats.alarms = 
-				sdla_ds_te1_read_alarms(fe, WAN_FE_ALARM_READ);
+				sdla_ds_te1_read_alarms(fe, WAN_FE_ALARM_READ|WAN_FE_ALARM_UPDATE);
 		}
 		sdla_ds_te1_rxlevel(fe);
 	        memcpy(&data[0], &fe->fe_stats, sizeof(sdla_fe_stats_t));

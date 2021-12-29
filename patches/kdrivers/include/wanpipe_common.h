@@ -578,6 +578,7 @@ void		wanpipe_debugging (void* data, int pending);
 #else
 void		wanpipe_debugging (unsigned long data);
 #endif
+static __inline int wan_skb_tailroom(void* skb);
 
 /****************************************************************************
 **		I N L I N E   F U N C T I O N S				
@@ -1417,7 +1418,7 @@ static __inline void wan_skb_copyback(void* skb, int off, int len, caddr_t cp)
 	struct sk_buff* sk = (struct sk_buff*)skb;
 	unsigned char* data = NULL;
 	if (off == wan_skb_len(skb)){
-		if (sk->tail + len > sk->end){	
+		if (len > wan_skb_tailroom(sk)){	
 			DEBUG_EVENT("wan_skb_copyback: Internal Error (off=%d,len=%d,skb_len=%d)!\n",
 					off, len, wan_skb_len(skb));
 			return;
@@ -1458,7 +1459,7 @@ static __inline int wan_skb_copyback_user(void* skb, int off, int len, caddr_t c
 	struct sk_buff* sk = (struct sk_buff*)skb;
 	unsigned char* data = NULL;
 	if (off == wan_skb_len(skb)){
-		if (sk->tail + len > sk->end){	
+		if (len > wan_skb_tailroom(sk)) {	
 			DEBUG_EVENT("wan_skb_copyback_user: Internal Error (off=%d,len=%d,skb_len=%d)!\n",
 					off, len, wan_skb_len(skb));
 			return -EINVAL;

@@ -8,6 +8,16 @@ ss7boost="ss7boost"
 #Set the ss7box file name
 ss7box="ss7boxd"
 
+if [ -f /etc/wanpipe/pbxd ]; then
+	. /etc/wanpipe/pbxd
+fi
+
+if [ "$PBXD" = "" ]; then
+	PBXD="asterisk"
+fi
+
+PBXD_LAUNCH="safe_$PBXD"
+
 
 smgctrl_log="/etc/wanpipe/smgctrl_log"
 ss7dir="/usr/local/ss7box"
@@ -71,21 +81,28 @@ EOUT
 
 
 
-function ast_ctrl ()
+function pbx_ctrl ()
 {
         cmd=$1
 
         cd $ss7dir
 
 	if [ $cmd != "start" ]; then
-		echo "Stopping:  asterisk"
+		echo "Stopping:  $PBXD"
 	fi
-        eval "kill -TERM $(pidof  asterisk) 2>> $smgctrl_log"	
+	eval "killall $PBXD_LAUNCH 2> /dev/null > /dev/null"
+	eval "killall $PBXD 2> /dev/null > /dev/null"
+	sleep 1
+	eval "killall $PBXD 2> /dev/null > /dev/null"
+	if [ $? -eq 0 ]; then
+		eval "killall -9 $PBXD_LAUNCH 2> /dev/null > /dev/null"
+		eval "killall -9 $PBXD 2> /dev/null > /dev/null"
+	fi
 	
         if [ $cmd = "start" ]; then
                 sleep 1
-		echo "Starting:  asterisk"
-                eval "asterisk -g >> $smgctrl_log"
+		echo "Starting:  $PBXD"
+                eval "$PBXD_LAUNCH"
         fi
 
         cd $homedir
@@ -192,11 +209,11 @@ case "$arg1" in
 	
 	if [ "$arg2" == isup ]; then
 		ss7_boost_ctrl "$arg1"		
-		ast_ctrl "$arg1"
+		pbx_ctrl "$arg1"
 	else
 		ss7_box_ctrl "$arg1"		
 		ss7_boost_ctrl "$arg1"		
-		ast_ctrl "$arg1"
+		pbx_ctrl "$arg1"
 		
 		echo
 		cat /proc/net/wanrouter/status 
@@ -207,10 +224,10 @@ case "$arg1" in
   stop)
 
 	if [ "$arg2" == isup ]; then
-                ast_ctrl "$arg1"
+                pbx_ctrl "$arg1"
                 ss7_boost_ctrl "$arg1"
         else
-                ast_ctrl "$arg1"
+                pbx_ctrl "$arg1"
                 ss7_boost_ctrl "$arg1"
                 ss7_box_ctrl "$arg1"
 		

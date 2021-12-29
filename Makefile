@@ -59,19 +59,25 @@ EXTRA_UTIL_FLAGS = -I$(PWD)/$(WINCLUDE) -I$(KDIR)/include/ -I$(INSTALLPREFIX)/in
 EXTRA_UTIL_FLAGS += -I$(PWD)/patches/kdrivers/wanec -I$(PWD)/patches/kdrivers/wanec/oct6100_api/include
 
 ENABLE_WANPIPEMON_ZAP=NO
+ZAPHDLC_PRIV=/etc/wanpipe/.zaphdlc
+
+RM      = @rm -rf
+JUNK	= *~ *.bak DEADJOE
 
 #Check if zaptel exists
 ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
 	ZAPDIR_PRIV=$(ZAPDIR) 
 	ENABLE_WANPIPEMON_ZAP=YES
 	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
+	ZAP_PROT=TDM
 else
+	ZAP_OPTS=
+	ZAP_PROT=
 	ZAPDIR_PRIV=
 	ENABLE_WANPIPEMON_ZAP=NO
 endif  
 
-RM      = @rm -rf
-JUNK	= *~ *.bak DEADJOE
 
 
 # First pass, kernel Makefile reads module objects
@@ -83,11 +89,25 @@ else
 
 #This will check for zaptel, kenrel source and build utilites and kernel modules
 #within local directory structure
-all:   _checkzap _checksrc all_util all_kmod
+
+#Build with all binaries
+all:   _checkzap _checksrc all_bin_kmod all_util
+
+#Build only source (NO WAN protocols)
+all_src:   _checkzap _checksrc all_kmod all_util
+
 	
 #Build only kernel modules
 all_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
-	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) HOMEDIR=$(PWD) modules  
+	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) ZAPHDLC=$(ZAPHDLC_PRIV) HOMEDIR=$(PWD) modules 
+
+all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
+	@if [ -e  $(PWD)/ast_build_dir ]; then \
+		rm -rf $(PWD)/ast_build_dir; \
+	fi
+	@mkdir -p $(PWD)/ast_build_dir
+	./Setup drivers --builddir=$(PWD)/ast_build_dir --with-linux=$(KDIR) $(ZAP_OPTS) --usr-cc=$(CC) --protocol=DEF-$(ZAP_PROT) --no-zaptel-compile --noautostart --arch=$(ARCH) --silent
+	@eval "./patches/copy_modules.sh $(PWD)/ast_build_dir $(WAN_DIR)"
 
 
 #Clean utilites and kernel modules
@@ -163,11 +183,13 @@ install_kmod:
 	install -m 644 -D $(WAN_DIR)/sdladrv.${MODTYPE} 	$(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/sdladrv.${MODTYPE}
 	install -m 644 -D $(WAN_DIR)/wanpipe.${MODTYPE} 	$(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/wanpipe.${MODTYPE}            
 	@rm -f $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/wanpipe_syncppp.${MODTYPE}
-	@if [ -f  $(WAN_DIR)/wanpipe_syncppp.${MODTYPE} ]; then \
+	@if [ -e  $(WAN_DIR)/wanpipe_syncppp.${MODTYPE} ]; then \
+		echo "install -m 644 -D $(WAN_DIR)/wanpipe_syncppp.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/wanpipe_syncppp.${MODTYPE}"; \
 		install -m 644 -D $(WAN_DIR)/wanpipe_syncppp.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/wanpipe_syncppp.${MODTYPE}; \
 	fi
 	@rm -f $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}; 
-	@if [ -f  $(WAN_DIR)/wanpipe_lip.${MODTYPE} ]; then \
+	@if [ -e  $(WAN_DIR)/wanpipe_lip.${MODTYPE} ]; then \
+		echo "install -m 644 -D $(WAN_DIR)/wanpipe_lip.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}"; \
 		install -m 644 -D $(WAN_DIR)/wanpipe_lip.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}; \
 	fi
 	@eval "./patches/rundepmod.sh"	

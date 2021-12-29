@@ -620,6 +620,9 @@ static void
 sdla_save_hw_probe (sdlahw_t* hw, int port)
 {
 	sdla_hw_probe_t *tmp_hw_probe, *tmp;
+	unsigned char	id_str[50];
+
+	memset(id_str,0,sizeof(id_str));
 
 	tmp_hw_probe = wan_malloc(sizeof(sdla_hw_probe_t));
 	if (!tmp_hw_probe)
@@ -656,6 +659,17 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					port ? "SEC" : "PRI",
 					hw->hwcard->core_rev);
 			}
+			
+			if (hw->hwcard->core_id == AFT_DS_FE_CORE_ID) {
+				strcpy(id_str,"DS26521");
+			} else {
+				strcpy(id_str,"PMC4351");
+			}
+			sprintf(&tmp_hw_probe->hw_info_verbose[0], "\n+%02d:%s:%s",
+						port+1, id_str,  
+						AFT_PCITYPE_DECODE(hw->hwcard));
+
+			
 			break;       
 		
 		case A104_ADPTR_4TE1:
@@ -685,6 +699,20 @@ sdla_save_hw_probe (sdlahw_t* hw, int port)
 					hw->hwcard->core_rev
 					);		/* line_no */
 			}
+	
+			if (hw->hwcard->core_id == AFT_DS_FE_CORE_ID) {
+				if (hw->hwcard->adptr_type == A108_ADPTR_8TE1) {
+					strcpy(id_str,"DS26528");
+				} else {
+					strcpy(id_str,"DS26524");
+				}
+			} else {
+				strcpy(id_str,"PMC4354");
+			}
+
+			sprintf(&tmp_hw_probe->hw_info_verbose[0], "\n+%02d:%s:%s",
+						port+1, id_str,  
+						AFT_PCITYPE_DECODE(hw->hwcard));
 			break;
 
 		case A200_ADPTR_ANALOG:
@@ -838,9 +866,9 @@ static int sdla_save_Remora_hw_probe_verbose(sdlahw_t* hw, int port)
 	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no ++){
 	
 		if (hw->hwcard->rm_mod_type[mod_no] == MOD_TYPE_FXS){
-			sprintf(str, "\n+%02d:FXS", mod_no+1);		
+			sprintf(str, "\n+%02d:FXS:%s", mod_no+1,AFT_PCITYPE_DECODE(hw->hwcard));		
 		}else if (hw->hwcard->rm_mod_type[mod_no] == MOD_TYPE_FXO){
-			sprintf(str, "\n+%02d:FXO", mod_no+1);		
+			sprintf(str, "\n+%02d:FXO:%s", mod_no+1,AFT_PCITYPE_DECODE(hw->hwcard));		
 		}else{
 			sprintf(str, "\n+%02d:EMPTY", mod_no+1);		
 		}

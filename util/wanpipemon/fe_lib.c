@@ -829,7 +829,8 @@ static void hw_set_lb_modes(unsigned char type, unsigned char mode)
 		printf("Failed to %s line loopback mode.\n",
 			(mode == WAN_TE1_ACTIVATE_LB) ? "activate" : "deactivate");
 	}else{
-		printf("Line loopback mode is %s!\n",
+		printf("%s mode is %s!\n",
+			WAN_TE1_LB_TYPE_DECODE(type),
 			(mode == WAN_TE1_ACTIVATE_LB) ? "activated" : "deactivated");
 	}
 	return;
@@ -884,8 +885,9 @@ void read_te1_56k_stat(int force)
 					WAN_TE_YEL_ALARM(fe_stats->alarms), 
 					WAN_TE_OOF_ALARM(fe_stats->alarms));
 		}else{
-			printf("OOF:\t%s\n", 
-					WAN_TE_OOF_ALARM(fe_stats->alarms));
+			printf("OOF:\t%s\t| RAI:\t%s\n", 
+					WAN_TE_OOF_ALARM(fe_stats->alarms),
+					WAN_TE_RAI_ALARM(fe_stats->alarms));
 		}
 
 		if (fe_stats->liu_alarms & WAN_TE_BIT_LIU_ALARM){

@@ -846,6 +846,10 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 					(IS_T1_CARD(card))?"T1":"E1");
 			return -EIO;
 		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
+		}
+
 	
 	}else if (IS_56K_CARD(card)) {
 		int	err = -EINVAL;
@@ -859,6 +863,9 @@ int wpf_init(sdla_t *card, wandev_conf_t *conf)
 			printk (KERN_INFO "%s: Failed 56K configuration!\n",
 				card->devname);
 			return -EIO;
+		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
 		}
 	}
 	
@@ -1424,6 +1431,10 @@ static void disable_comm (sdla_t *card)
 
 	/* TE1 unconfiging */
 	if (IS_TE1_CARD(card)) {
+		if (card->wandev.fe_iface.pre_release){
+			card->wandev.fe_iface.pre_release(&card->fe);
+		}
+
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}

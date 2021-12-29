@@ -147,6 +147,22 @@
 #define WAN_T1_399_533		0x10
 #define WAN_T1_533_655		0x11
 
+/* T1/E1: Recever */
+#define WAN_TE1_RX_SLEVEL_43_DB		430	/* 43 dB   E1, RMONEN=0 */
+#define WAN_TE1_RX_SLEVEL_36_DB		360	/* 36 dB   T1, RMONEN=0 */
+#define WAN_TE1_RX_SLEVEL_30_DB		300 	/* 30 dB   RMONEN=0 | 1 */
+#define WAN_TE1_RX_SLEVEL_225_DB	225	/* 22.5 dB RMONEN=1 */
+#define WAN_TE1_RX_SLEVEL_18_DB		180	/* 18 dB   RMONEN=0 */
+#define WAN_TE1_RX_SLEVEL_175_DB	175	/* 17.5 dB RMONEN=1 */
+#define WAN_TE1_RX_SLEVEL_12_DB		120	/* 12 dB   RMONEN=0 | 1 */
+#define WAN_TE1_RX_SLEVEL_DECODE(slevel)						\
+		((slevel) == WAN_TE1_RX_SLEVEL_43_DB) ? "43dB" :		\
+		((slevel) == WAN_TE1_RX_SLEVEL_36_DB) ? "36dB" :		\
+		((slevel) == WAN_TE1_RX_SLEVEL_30_DB) ? "30dB" :		\
+		((slevel) == WAN_TE1_RX_SLEVEL_225_DB) ? "22.5dB" :		\
+		((slevel) == WAN_TE1_RX_SLEVEL_18_DB) ? "18dB" :		\
+		((slevel) == WAN_TE1_RX_SLEVEL_175_DB) ? "17.5dB" :		\
+		((slevel) == WAN_TE1_RX_SLEVEL_12_DB) ? "12dB" : "0dB"
 
 /* For T1 only (long or short haul) */
 #define WAN_T1_LONG_HAUL	0x01
@@ -260,6 +276,7 @@
 #define TE_POLL_CONFIG		0x0B
 #define TE_POLL_READ		0x0C
 #define TE_POLL_WRITE		0x0D
+#define TE_LINKCRIT_TIMER	0x0F
 
 /* TE1 T1/E1 interrupt setting delay */
 #define INTR_TE1_TIMER		150	/* 50 ms */
@@ -322,7 +339,7 @@
 	(FE_LBO(fe_cfg) == WAN_T1_133_266)	? "133-266ft" :	\
 	(FE_LBO(fe_cfg) == WAN_T1_266_399)	? "266-399ft" :	\
 	(FE_LBO(fe_cfg) == WAN_T1_399_533)	? "399-533ft" :	\
-	(FE_LBO(fe_cfg) == WAN_T1_533_655)	? "5330-599ft":	\
+	(FE_LBO(fe_cfg) == WAN_T1_533_655)	? "533-599ft":	\
 	(FE_LBO(fe_cfg) == WAN_E1_120)		? "120OH"     :	\
 	(FE_LBO(fe_cfg) == WAN_E1_75)		? "75OH"      :	\
 							"Unknown"
@@ -361,6 +378,7 @@ typedef struct sdla_te_cfg {
 	u_int32_t	active_ch;
 	u_int32_t	te_rbs_ch;
 	u_int8_t	high_impedance_mode;
+	int		rx_slevel;
 	u_int8_t	te_ref_clock;
 	u_int8_t	sig_mode;
 } sdla_te_cfg_t;
@@ -545,6 +563,8 @@ typedef struct {
 	
 	u_int16_t	status_cnt;
 	
+	wan_ticks_t	crit_alarm_start;
+	unsigned int	lb_mode;
 } sdla_te_param_t;
 
 

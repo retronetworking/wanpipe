@@ -1,0 +1,11 @@
+Nov 28 2007
+
+ * v1.22 Nenad Corbic  <ncorbic@sangoma.com>
+ *      Bug fix on socket open. Check for retun code >= 0
+ *
+
+--This line, and those below, will be ignored--
+
+M    Changelog
+M    call_signal.c
+M    sangoma_mgd.c

@@ -9,6 +9,7 @@
 #		as published by the Free Software Foundation; either version
 #		2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Oct 26, 2007  Konrad Hammel   Updated minor start script bug
 # Nov 27, 2005  David Rokhvarg 	Added Echo Debugging option
 # Mar 18, 2002  Nenad Corbic	Added BSCSTRM protocol
 # Mar 01, 2002  Nenad Corbic	Added option to split rpm build into
@@ -268,7 +269,7 @@ banner()
 	clearscr
 	echo -e "\t----------------------------------------------------------"
 	echo -e "\t          WANPIPE v$PROD_VER Installation Script"
-	echo -e "\t    Copyright (c) 1995-2007, Sangoma Technologies Inc."
+	echo -e "\t    Copyright (c) 1995-2008, Sangoma Technologies Inc."
 	echo -e "\t----------------------------------------------------------"
 	echo ""
 	return 0
@@ -537,8 +538,6 @@ prepare()
                  "Failed!"
                 missing_packages=$missing_packages"libtermcap-devel "
         fi
-
-        echo -n "Checking for yacc..."
 
         echo -n "Checking for yacc..."
         eval "type yacc 2> /dev/null > /dev/null"
@@ -1456,7 +1455,7 @@ create_mataconf()
 	fi
 
 
-	if [ -f /etc/wanpipe/wanrouter.rc ]; then
+	if [ -f $ROOT/etc/wanpipe/wanrouter.rc ]; then
 		. /etc/wanpipe/wanrouter.rc
 	fi  
 
@@ -1570,7 +1569,60 @@ ENDOFTEXT
 # ----------------------------------------------------------------------------
 # Install initialization scripts.
 # ----------------------------------------------------------------------------
+
 install_init()
+{
+	if [ "$PKG_NAME" = "wanpipe-lite" ]; then
+                return 0
+        fi
+
+        if [ $NO_AUTO_START -eq 1 ]; then
+                return 0;
+        fi
+	banner
+        cat << ENDOFTEXT
+
+WANPIPE BOOTSTRAP CONFIGURATION
+
+Your system uses System V -style initialization scripts.  You have an option
+to add router start-up script to those scripts so that the router will start
+automatically when system enters multi-user mode and shut down when it enters
+single-user mode or when it is halted.
+
+i.e. By selecting this option WANPIPE will startup on system bootup and 
+     stop on system shutdown.
+
+ENDOFTEXT
+   
+	getyn "Would you like to install WANPIPE start-up scripts?" || return 0
+	
+	cd $PROD_HOME/util/wancfg_zaptel
+	eval "./wancfg_zaptel.pl --silent --install_boot_script"
+	
+	if [ $? -ne 0 ]; then
+		echo "Failed to install boot scripts"
+	fi
+	
+	if [ "$TDM_PROT" = "YES" ]; then
+                getyn "Would you like to auto-execute ztcfg after wanrouter start?" || return 0
+                        if [ ! -d $WAN_CONF_DIR/scripts ]; then
+                                eval "\mkdir -p $WAN_CONF_DIR/scripts >/dev/null 2>/dev/null"
+                        fi
+                        eval "\cp -f  $PROD_HOME/samples/wanpipe_zaptel_start $WAN_CONF_DIR/scripts/start > /dev/null 2> /dev/null"
+                        if [ ! -f $WAN_CONF_DIR/scripts/start ]; then
+                                echo "Error: Could not copy auto-ztcfg script"
+                        fi
+        fi
+
+	cd $PROD_HOME
+	
+}
+
+# ----------------------------------------------------------------------------
+# Old Install initialization scripts.
+# ----------------------------------------------------------------------------
+
+install_init_old()
 {
 	if [ "$PKG_NAME" = "wanpipe-lite" ]; then
 		return 0
@@ -1642,8 +1694,8 @@ ENDOFTEXT
 		getyn "Would you like to auto-execute ztcfg after wanrouter start?" || return 0
 			if [ ! -d $WAN_CONF_DIR/scripts ]; then
 				eval "\mkdir -p $WAN_CONF_DIR/scripts >/dev/null 2>/dev/null"
-			fi 
-			eval "\cp -f  $PROD_HOME/samples/wanpipe_zaptel_start $WAN_CONF_DIR/scripts/start >/dev/null 2>/dev/null"
+			fi
+			eval "\cp -f  $PROD_HOME/samples/wanpipe_zaptel_start $WAN_CONF_DIR/scripts/start > /dev/null 2> /dev/null"
 			if [ ! -f $WAN_CONF_DIR/scripts/start ]; then
 				echo "Error: Could not copy auto-ztcfg script"
 			fi
@@ -1922,8 +1974,15 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 
 	cd $PROD_HOME/api
 
+	if [ $superuser = "YES" ] && [ -z $ROOT ]; then
+		eval "find /usr/local/lib -name 'libsangoma*' > /dev/null 2>/dev/null"
+		if [ $? -eq 0 ]; then 
+			eval "find /usr/local/lib -name 'libsangoma*' | xargs rm > /dev/null 2>/dev/null"		
+		fi
+	fi
+
 	cd libsangoma
-	eval "./configure --prefix=$ROOT/usr/include >> $CMP_LOG 2>> $CMP_LOG" 
+	eval "./configure --prefix=$ROOT/usr >> $CMP_LOG 2>> $CMP_LOG" 
 	eval "make clean >> $CMP_LOG 2>> $CMP_LOG" 
 	eval "make CC=$CC SYSINC=$SOURCEDIR/include >> $CMP_LOG 2>> $CMP_LOG" 
 	if [ $? -eq 0 ]; then
@@ -1934,33 +1993,10 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 	fi
 	eval "make install >> $CMP_LOG 2>> $CMP_LOG"
 
+	if [ $superuser = "YES" ] && [ -z $ROOT ]; then
+		eval "ldconfig > /dev/null 2> /dev/null"
+ 	fi
 
-	if [ $superuser = "YES" ]; then
-	if [ -d /etc/ld.so.conf.d ]; then
-		if [ ! -e $ROOT/etc/ld.so.conf.d/ ]; then
-			\mkdir -p $ROOT/etc/ld.so.conf.d/
-		fi
-          	\cp -f libsangoma.so.conf $ROOT/etc/ld.so.conf.d/  
-
-		if [ $superuser = "YES" ]; then
-			eval "ldconfig"
-		fi
-	elif [ -f /etc/ld.so.conf ]; then
-		if [ $superuser = "YES" ]; then
-                	cat /etc/ld.so.conf libsangoma.so.conf > ldconf.$$
-			mv ldconf.$$ /etc/ld.so.conf
-			eval "ldconfig"
-		fi
-	else
-		echo
-		echo "Warning: LD Conf files not found in /etc directory"
-		echo "Please add /usr/local/lib to the LD_LIBRARY_PATH"
-		echo
-		eval "ldconfig"
-		pause
-	fi             
-	fi
-	
 	echo
 	echo -n "Compiling WANPIPE API Development Utilities ..."
 
@@ -2240,12 +2276,12 @@ function build_kernel_module()
 			local_link=$local_link" $file.o "
 		done
 
-		echo "make MODULE_NAME=$modname OBJS=\"$ofiles\" CC=$CC KDIR=$SOURCEDIR \
+		echo "make MODULE_NAME=$modname OBJS=\"$ofiles\" SUBDIRS=$PWD CC=$CC KDIR=$SOURCEDIR \
                      EXTRA_CFLAGS=\"-D__LINUX__ $PROTOCOL_DEFINES $extra_flags \"" >> $CMP_BUILD
 
 		chmod 755 $CMP_BUILD
 
-		make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC KBUILD_VERBOSE=$KBUILD_VERBOSE KDIR=$SOURCEDIR \
+		make MODULE_NAME=$modname OBJS="$ofiles" CC=$CC SUBDIRS=$PWD KBUILD_VERBOSE=$KBUILD_VERBOSE KDIR=$SOURCEDIR \
                      EXTRA_CFLAGS="-D__LINUX__ $PROTOCOL_DEFINES $extra_flags " >> $CMP_LOG 2>> $CMP_LOG 
 
 		if [ $? -ne 0 ]; then
@@ -2345,7 +2381,7 @@ function build_wanec_module ()
 	local files="wanec_iface wanec_cmd wanec_utils wanec_dev $BTDIR/octapi_bt0 $LARGMATHDIR/octapi_largmath $LLMANDIR/octapi_llman $OCTAPIMIDIR/oct6100_mask_interrupts $OCTAPIDIR/oct6100_adpcm_chan $OCTAPIDIR/oct6100_channel $OCTAPIDIR/oct6100_chip_open $OCTAPIDIR/oct6100_chip_stats $OCTAPIDIR/oct6100_conf_bridge $OCTAPIDIR/oct6100_debug $OCTAPIDIR/oct6100_events $OCTAPIDIR/oct6100_interrupts $OCTAPIDIR/oct6100_memory $OCTAPIDIR/oct6100_miscellaneous  $OCTAPIDIR/oct6100_mixer $OCTAPIDIR/oct6100_phasing_tsst $OCTAPIDIR/oct6100_playout_buf $OCTAPIDIR/oct6100_remote_debug $OCTAPIDIR/oct6100_tlv $OCTAPIDIR/oct6100_tone_detection $OCTAPIDIR/oct6100_tsi_cnct $OCTAPIDIR/oct6100_tsst $OCTAPIDIR/oct6100_user " 
          
 	               
-	eval "make clean > /dev/null 2> /dev/null"
+	eval "make SUBDIRS=$PWD clean >> $CMP_BUILD 2>> $CMP_BUILD"
 
 	if [ $KERN_VER -eq 24 ]; then
         	if [ -e wanectmp ]; then
@@ -2496,10 +2532,10 @@ function select_compilation_mode()
 
 3. TDM Voice (Zaptel) + WAN Protocol Support
 
-4. SMG (SS7) (Default for Asterisk SMG/SS7 install)
+4. SMG (SS7) (Default for Asterisk/CallWeaver SMG/SS7 install)
        
 5. SMG (SS7) + TDM Voice (Zaptel)
-       Default for: Asterisk SS7 + PRI
+       Default for: Asterisk/CallWeaver SS7 + PRI
 
 6. TDM API  
        Protocols: TDM API on AFT adapters:
@@ -3197,6 +3233,13 @@ ENDOFTEXT
 	#Find out our processor type. This is needed to properly
 	#compile our modules.
 	echo -n "Checking current processor type ..."
+	if [ -e $SOURCEDIR/include/linux/autoconf.h ]; then
+		grep "CONFIG_ARCH \"" $SOURCEDIR/include/linux/autoconf.h > /dev/null 
+		if [ $? -eq 0 ] ; then
+			ARCH=`grep "CONFIG_ARCH \"" $SOURCEDIR/include/linux/autoconf.h  | cut -d '"' -f2`
+		fi
+	fi
+
 	if [ -z $ARCH ]; then
 		ARCH=`uname -m`
 	fi
@@ -4371,93 +4414,48 @@ function install_ssmg ()
 
 	echo "Installing Sangoma Media Gateway Daemon..."
         cd lib/libteletone/
-	eval "./configure; make clean; make; make install " > /dev/null
+	eval "./configure --prefix=$ROOT/usr; make clean; make CC=$CC; make install " > /dev/null
         if [ $? -ne 0 ]; then
 	  	echo "FAILED"
 		return 1
 	fi   
-        eval "ldconfig"
 
-	cd $PROD_HOME/$SSMG_DIR
-
-#	Let smg install script install SMG components
-#=======================================================
-
-#	cd sangoma_mgd.trunk
-#
-#       eval "make clean > /dev/null; make > /dev/null "
-#        if [ $? -ne 0 ]; then
-#	  	echo "FAILED"
-#		return 1
-#	fi
-#        eval "make install > /dev/null "
-#	
-#	echo "Installing Sangoma Media Gateway Daemon...DONE"
-	
-#      	eval "type asterisk > /dev/null 2> /dev/null"
-#	if [ $? -ne 0 ]; then
-#          	echo "Error: Asterisk not installed!"
-#		echo "Please install Asterisk first then retry SSMG installation!"
-#		return 1
-#	fi  	
- 	
-#	echo
-#	echo "Installing Chan Woomera into Asterisk..."
-#	echo
-#	install_chan_woomera
-#	if [ $? -ne 0 ]; then
-#         	echo "Error: Failed to install chan_woomera into Asterisk!"
-#		echo "Check that Asterisk is installed or Call Sangoma Tech Support"
-#		echo
-#		return 1
-#	fi	
-#=========================================================
+	if [ $superuser = "YES" ]; then
+        	eval "ldconfig"
+	fi
 
 	cd $PROD_HOME/$SSMG_DIR
 	cd sangoma_mgd.trunk 
                     
-	if [ ! -f /etc/asterisk/woomera.conf ]; then
-		cp woomera.conf /etc/asterisk
-	fi
-
-	echo "Installing Chan Woomera into Asterisk...DONE"
-	echo
-
-	if [ ! -f /usr/sbin/smgss7_ctrl ]; then
-		cp smgss7_ctrl /usr/sbin/
-	fi
 
 	getyn "Add Woomera config in Asterisk Extensions and Iax Conf"
 	if [ $? -ne 0 ]; then
           	return 0;
 	fi
 
-	if [ -f /etc/asterisk/extensions.conf ]; then
-        	eval "grep -i woomera /etc/asterisk/extensions.conf 2> /dev/null > /dev/null"
+	if [ -f $ROOT/etc/asterisk/extensions.conf ]; then
+        	eval "grep -i woomera $ROOT/etc/asterisk/extensions.conf 2> /dev/null > /dev/null"
 		if [ $? -ne 0 ]; then
-          		cat /etc/asterisk/extensions.conf ./conf/woomera_ext.conf > conf.$$
-	       	 	mv conf.$$ /etc/asterisk/extensions.conf
+          		cat $ROOT/etc/asterisk/extensions.conf ./conf/woomera_ext.conf > conf.$$
+	       	 	mv conf.$$ $ROOT/etc/asterisk/extensions.conf
 			echo "Asterisk extensions.conf file updated with woomera config"
 		else
 			echo "Asterisk extensions.conf already updated"
 			
 		fi
-	else
-		echo "Warning: Asterisk extensions.conf file not found!"
 	fi
 
-	if [ -f /etc/asterisk/iax.conf ]; then 
-        	eval "grep -i ss7 /etc/asterisk/iax.conf 2> /dev/null > /dev/null"
+	if [ -f $ROOT/etc/asterisk/iax.conf ]; then 
+        	eval "grep -i ss7 $ROOT/etc/asterisk/iax.conf 2> /dev/null > /dev/null"
 		if [ $? -ne 0 ]; then
-                	cat /etc/asterisk/iax.conf ./conf/woomera_iax.conf > conf.$$
-			mv conf.$$ /etc/asterisk/iax.conf 
+                	cat $ROOT/etc/asterisk/iax.conf ./conf/woomera_iax.conf > conf.$$
+			mv conf.$$ $ROOT/etc/asterisk/iax.conf 
 			echo "Asterisk iax.conf file updated with ss7 guest config"
 		else
                    	echo "Asterisk iax.conf already updated"       	
 		fi
-	else
-		echo "Warning: Asterisk extensions.conf file not found!" 
 	fi
+
 
 	pause
 
@@ -4512,6 +4510,7 @@ function install_all ()
 	echo "Installing sample api code in $ROOT/etc/wanpipe/api"
 	\cp -rf api $ROOT/etc/wanpipe
 	\cp -rf samples $ROOT/etc/wanpipe
+	\cp -rf util/wanec_apilib /etc/wanpipe/api
 
 
 	if [ ! -d $ROOT/etc/wanpipe/scripts ]; then
@@ -5374,8 +5373,13 @@ function find_zap_dirs ()
 	echo
 	echo "Looking for zaptel directory in /usr/src ..."	
 	echo "-------------------------------------------"
+	
 	if [ "$zapdirs" = "" ]; then
 		zapdirs=`find /usr/src -maxdepth 2 -name 'zaptel*' | xargs `
+		if [ -d "/usr/src/zaptel" ]; then
+			zapdirs="/usr/src/zaptel "$zapdirs
+		fi
+
 	fi
 
 	unset zapdir_array;
@@ -5383,7 +5387,6 @@ function find_zap_dirs ()
 	if [ -f  $PROD_HOME/zaptel/zaptel.path ]; then
 		zapextradir=`cat $PROD_HOME/zaptel/zaptel.path`
 	fi
-
 	cnt=1
 	for dir in $zapdirs
 	do
@@ -5391,7 +5394,11 @@ function find_zap_dirs ()
 			continue
 		fi
 
-		if [ ! -f $dir/zaptel.h ]; then
+		if [ ! -f $dir/zaptel.h ];then
+			continue;
+		fi
+	
+		if [ "$dir" = "/usr/src/zaptel" ] && [ $cnt -ne 1 ]; then
 			continue;
 		fi
 
@@ -5400,6 +5407,7 @@ function find_zap_dirs ()
 
 		cnt=$((cnt+1))
 	done
+	
 	
 	if [ $cnt -eq 1 ]; then
 		echo
@@ -5432,7 +5440,8 @@ function find_zap_dirs ()
 #	echo "d2: Download Latest 1.2"
 #	echo "d4: Download Latest 1.4"
 	echo "(ctrl-c to Exit)"
-	echo -n "Please select working zaptel directory [1-9][m]: "
+	echo -n "Please select working zaptel directory [1-$((cnt-1))][m]: "
+
 
 	response=1
 
@@ -5859,13 +5868,28 @@ ENDOFTEXT
 				fi
 
 
-				eval "grep ZT_DCHAN_TX_V2 $ZAPTEL_INSTALL_DIR/* 2> /dev/null > /dev/null"
-				if [ $? -eq 0 ]; then
-					TDM_DCHAN="(DCHAN)"
-					PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN"
-					echo "Sangoma DCHAN Patch detected in zaptel"
-				fi
+				#Check for new zaptel hw hdlc option
+				if [ -f $ZAPTEL_INSTALL_DIR/zaptel-base.c ]; then
+					eval "grep hdlc_hard_xmit $ZAPTEL_INSTALL_DIR/zaptel-base.c > /dev/null 2> /dev/null"
+					if [ $? -eq 0 ] ; then
+						echo "Native Zaptel HW HDLC Support Detected - No patch required"
+						echo "Zaptel source unmodified"
+	
+						TDM_DCHAN="(DCHAN)"
+						PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN  -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL "
+					fi
+ 				fi
 
+				#Check if dchan patch is already enabled 
+				if [ "$TDM_DCHAN" = "" ]; then
+					eval "grep ZT_DCHAN_TX_V2 $ZAPTEL_INSTALL_DIR/* 2> /dev/null > /dev/null"
+					if [ $? -eq 0 ]; then
+						TDM_DCHAN="(DCHAN)"
+						PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN"
+						echo "Sangoma DCHAN Patch detected in zaptel"
+						zaptel_modified=1
+					fi
+				fi
 
 				if [ "$TDM_DCHAN" = "" ]; then
 				echo 
@@ -5881,9 +5905,11 @@ ENDOFTEXT
 						TDM_DCHAN="(DCHAN)"
 						echo "   Zaptel DCHAN Patch successful"
 						echo
+						zaptel_modified=1
 					elif [ $result -eq 1 ]; then
 						TDM_DCHAN="(DCHAN)"
 						echo
+						zaptel_modified=1
 					else
 						echo "Zaptel Update Failed!"	
 						echo
@@ -5959,7 +5985,6 @@ ENDOFTEXT
 			fi
 
 				TDM_PROT=YES
-				zaptel_modified=1;
 				if [ $zaptel_modified ] && [ $zaptel_modified -eq 1 ] && [ "$ZAPTEL_COMPILE_DISABLE" = "NO" ]; then
 					echo
 					getyn "Recompile/reinstall Zaptel (recommended) ?"
@@ -6296,11 +6321,11 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.2.1
+PROD_VER=3.2.2
 PROD_HOME=`pwd`
-META_CONF=$PROD_HOME/$PROD.rc
+WAN_CONF_DIR=/etc/wanpipe            
+META_CONF=$WAN_CONF_DIR/$PROD.rc      
 WAN_INTR_DIR=$PROD_HOME/interfaces
-WAN_CONF_DIR=$PROD_HOME
 PROD_CONF=$WAN_CONF_DIR/wanpipe1.conf
 PROD_PATCH=$PROD_HOME/patches
 PROD_INIT=/usr/sbin/
@@ -6919,14 +6944,16 @@ you know what you are doing :)
 			exit 1
 		fi
 
-
-		$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile --zaptel-path=$ZAPTEL_INSTALL_DIR
+		if [ $TDM_PROT = "YES" ]; then
+			$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile --zaptel-path=$ZAPTEL_INSTALL_DIR --usr-cc=$CC
+		else
+			$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --usr-cc=$CC 
+		fi
 
 		if [ $? -ne 0 ]; then
 			echo "Error: WANPIPE Installation Failed!"
 			exit 1;
 		fi
-
 
 		if [ "$setup_cmd" = "buildrpm" ]; then
                         compile_aft_firmware_util
@@ -7101,7 +7128,7 @@ prepare	|| exit 1
 apply_patches || exit 1
 compile_drivers  || exit 1
 install_init || exit 1
-install_config || exit 1
+install_config || exit 1   
 compile_src || exit 1
 install_all 
 install_ssmg

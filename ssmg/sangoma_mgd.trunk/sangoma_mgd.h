@@ -40,21 +40,16 @@
 #include <sys/prctl.h>
 #endif
 
-/* Enable DTMF encoding by default */
-#ifndef SMG_DTMF_ENABLE
-#define SMG_DTMF_ENABLE 1
-#endif
 
-#ifdef SMG_DTMF_ENABLE
 #include <libteletone.h>
 #include <switch_buffer.h>
-#endif
 
 
 #define WOOMERA_MAX_SPAN	16
 #define WOOMERA_MAX_CHAN	31
 
 #define SMG_SESSION_NAME_SZ	100
+#define SMG_CHAN_NAME_SZ	20
 
 #define PIDFILE "/var/run/sangoma_mgd.pid"
 #define CORE_EVENT_LEN 512
@@ -95,6 +90,9 @@ typedef enum {
     WFLAG_WAIT_FOR_NACK_ACK 	= (1 << 13),
     WFLAG_WAIT_FOR_STOPPED_ACK 	= (1 << 14),
     WFLAG_RAW_MEDIA_STARTED 	= (1 << 15),
+    WFLAG_CALL_ACKED     	= (1 << 16),
+    WFLAG_WAIT_FOR_NACK_ACK_SENT = (1 << 17),
+    WFLAG_WAIT_FOR_STOPPED_ACK_SENT = (1 << 18),
 } WFLAGS;
 
 typedef enum {
@@ -169,11 +167,9 @@ struct media_session {
     hp_tdm_api_chan_t *tdmchan;
 #endif
     
-#ifdef SMG_DTMF_ENABLE
     teletone_dtmf_detect_state_t dtmf_detect;
     teletone_generation_session_t tone_session;
     switch_buffer_t *dtmf_buffer;
-#endif
     
 };
 
@@ -224,6 +220,7 @@ struct woomera_interface {
 	int index_hold;
 	int span;
 	int chan;
+	int trunk_group;
 	int call_count;
 	int q931_rel_cause_tosig;
 	int q931_rel_cause_topbx;
@@ -349,7 +346,16 @@ static inline int smg_check_all_busy(void)
  
 static inline void smg_all_ckt_busy(void)
 {
-	server.all_ckt_busy+=1000;
+
+	if (server.call_count*10 < 1500) {
+		server.all_ckt_busy+=1500;
+	} else {
+		server.all_ckt_busy+=server.call_count*15;
+	}
+
+	if (server.all_ckt_busy > 60000) {
+		server.all_ckt_busy = 60000;
+	}	
 
 #if 0	
 	if (server.all_ckt_busy >= 5) {
@@ -529,6 +535,10 @@ static inline void woomera_set_cause_topbx(struct woomera_interface *woomera, in
 	if (!cause) {
                 cause=SIGBOOST_RELEASE_CAUSE_NORMAL;
         }
+
+	if (cause == SIGBOOST_CALL_SETUP_NACK_ALL_CKTS_BUSY) {
+		cause=34;
+	}	
 
         woomera->q931_rel_cause_topbx=cause;
 

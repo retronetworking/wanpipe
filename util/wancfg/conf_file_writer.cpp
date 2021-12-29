@@ -120,7 +120,7 @@ look_up_t t1_line_build_out_options_table[] =
 look_up_t e1_line_build_out_options_table[] =
 {
   { WAN_E1_120,  	(void*)"120OH"     },
-  { WAN_E1_75,  	(void*)"75OOH"     },
+  { WAN_E1_75,  	(void*)"75OH"     },
   { 1,  		(void*)"120OH"     },//for "zaptel" parsing only
   { 0,		        	NULL       }
 };

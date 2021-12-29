@@ -996,6 +996,11 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 
 	/* TE1 - Unconfiging, only on shutdown */
 	if (IS_TE1_CARD(card)) {
+
+		if (card->wandev.fe_iface.pre_release){
+			card->wandev.fe_iface.pre_release(&card->fe);
+		}
+
 		if (card->wandev.fe_iface.unconfig){
 			card->wandev.fe_iface.unconfig(&card->fe);
 		}
@@ -3206,6 +3211,9 @@ static int config_chdlc (sdla_t *card)
 					(IS_T1_CARD(card))?"T1":"E1");
 			return -EINVAL;
 		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
+		}	
 	}
 
 	if (IS_56K_CARD(card)) {
@@ -3220,6 +3228,9 @@ static int config_chdlc (sdla_t *card)
 				card->devname);
 			return -EINVAL;
 		}
+		if (card->wandev.fe_iface.post_init){
+			err=card->wandev.fe_iface.post_init(&card->fe);
+		}	
 	}
 
 
@@ -3251,7 +3262,7 @@ static int config_chdlc (sdla_t *card)
 			port_set_state(card, WAN_DISCONNECTED);
 			return 0;
 		}
-	}else{ 
+	} else { 
 		if (chdlc_comm_enable(card) != 0) {
 			printk(KERN_INFO "%s: Failed to enable chdlc communications!\n",
 					card->devname);

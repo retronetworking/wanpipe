@@ -84,6 +84,8 @@
 /******************************************************************************
 *			  DEFINES AND MACROS
 ******************************************************************************/
+#define	WAN_TE1_IGNORE_RLPS_ALOS
+
 #define FIRST_SAMPLE	0
 #define LAST_SAMPLE	23
 #define FIRST_UI	0
@@ -197,7 +199,7 @@ static int te_reg_verify = 0;
 
 
 #define WAN_TE1_FRAMED_ALARMS		(WAN_TE_BIT_RED_ALARM |	WAN_TE_BIT_OOF_ALARM)
-#define WAN_TE1_UNFRAMED_ALARMS		(WAN_TE_BIT_RED_ALARM)
+#define WAN_TE1_UNFRAMED_ALARMS		(WAN_TE_BIT_RED_ALARM | WAN_TE_BIT_LOS_ALARM)
 								
 #if 0
 #define TE1_FRAME_ALARM		(\
@@ -3617,9 +3619,17 @@ static int sdla_pmc4351_te_config(sdla_fe_t *fe, u16 adapter_type)
 	}
 
 	/* RLPS Configuration and Status (Reg 0xF8) */
+	/* AF Nov 2007
+	** Set SQUELCHE to 1. This forces RLPS to stop sending pulses
+	** to CDRC during ALOS conditions */
+#if defined (WAN_TE1_IGNORE_RLPS_ALOS)
 	WRITE_REG(REG_RLPS_CFG_STATUS, 
-				BIT_RLPS_CFG_STATUS_LONGE/* |
-				BIT_RLPS_CFG_STATUS_SQUELCHE*/);
+				BIT_RLPS_CFG_STATUS_LONGE |
+				BIT_RLPS_CFG_STATUS_SQUELCHE);
+#else
+	WRITE_REG(REG_RLPS_CFG_STATUS, 
+				BIT_RLPS_CFG_STATUS_LONGE);
+#endif
 
 	/* RLPS ALOS Detection/Clearance Thresholds (Reg 0xF9) */
 	/* NC: Aug 20 2003:
@@ -3922,9 +3932,17 @@ static int sdla_pmc4354_te_config(sdla_fe_t *fe, u16 adapter_type)
 	}
 
 	/* RLPS Configuration and Status (Reg 0xQF8) */
-	WRITE_REG(REG_RLPS_CFG_STATUS, 
-				BIT_RLPS_CFG_STATUS_LONGE/* |
-				BIT_RLPS_CFG_STATUS_SQUELCHE*/);
+	/* AF Nov 2007
+        ** Set SQUELCHE to 1. This forces RLPS to stop sending pulses
+        ** to CDRC during ALOS conditions */
+#if defined (WAN_TE1_IGNORE_RLPS_ALOS)
+        WRITE_REG(REG_RLPS_CFG_STATUS,
+                                BIT_RLPS_CFG_STATUS_LONGE |
+                                BIT_RLPS_CFG_STATUS_SQUELCHE);
+#else
+        WRITE_REG(REG_RLPS_CFG_STATUS,
+                                BIT_RLPS_CFG_STATUS_LONGE);
+#endif
 
 	/* RLPS ALOS Detection/Clearance Thresholds (Reg 0xQF9) */
 	/* NC: Aug 20 2003:
@@ -6404,7 +6422,15 @@ sdla_te_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *fe_event)
  */
 static int sdla_te_add_timer(sdla_fe_t* fe, unsigned long delay)
 {
-	int	err; 
+	int	err=0; 
+
+	if (wan_test_bit(TE_TIMER_KILL,(void*)&fe->te_param.critical)){
+		return 0;
+	}
+
+	if (wan_test_bit(TE_TIMER_RUNNING,(void*)&fe->te_param.critical)) {
+		return 0;
+	}
 	
 	err = wan_add_timer(&fe->timer, delay * HZ / 1000);
 	if (err){

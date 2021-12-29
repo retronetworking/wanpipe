@@ -50,18 +50,18 @@ int	tx_data=-1;
 int	tx_ss7_type=0;
 int	rx_ss7_timer=0;
 
-unsigned char card_name[WAN_IFNAME_SZ];
-unsigned char if_name[WAN_IFNAME_SZ];
+char card_name[WAN_IFNAME_SZ];
+char if_name[WAN_IFNAME_SZ];
 
-unsigned char sw_if_name[WAN_IFNAME_SZ];
-unsigned char sw_card_name[WAN_IFNAME_SZ];
+char sw_if_name[WAN_IFNAME_SZ];
+char sw_card_name[WAN_IFNAME_SZ];
 
-unsigned char tx_file[WAN_IFNAME_SZ];
-unsigned char rx_file[WAN_IFNAME_SZ];
+char tx_file[WAN_IFNAME_SZ];
+char rx_file[WAN_IFNAME_SZ];
 
-unsigned char daddr[TX_ADDR_STR_SZ];
-unsigned char saddr[TX_ADDR_STR_SZ];
-unsigned char udata[TX_ADDR_STR_SZ];
+char daddr[TX_ADDR_STR_SZ];
+char saddr[TX_ADDR_STR_SZ];
+char udata[TX_ADDR_STR_SZ];
 
 int	files_used=0;
 int	verbose=0;

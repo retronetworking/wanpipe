@@ -734,7 +734,7 @@ aft_dmachain_enable_tdmv_and_mtu_size(u32 *reg, int size)
 # define AFT_TXDMA_LO_ALIGN_MASK	0x03
 # define AFT_TXDMA_LO_ALIGN_SHIFT	0
 
-# define AFT_TXDMA_HI_DMA_LENGTH_MASK	0x3FF
+# define AFT_TXDMA_HI_DMA_LENGTH_MASK	0xFFF
 # define AFT_TXDMA_HI_DMA_LENGTH_SHIFT	0
 
 # define AFT_TXDMA_HI_DMA_STATUS_MASK	0x0F
@@ -759,7 +759,7 @@ aft_dmachain_enable_tdmv_and_mtu_size(u32 *reg, int size)
 # define AFT_RXDMA_LO_ALIGN_MASK	0x03
 # define AFT_RXDMA_LO_ALIGN_SHIFT	0
 
-# define AFT_RXDMA_HI_DMA_LENGTH_MASK	0x3FF
+# define AFT_RXDMA_HI_DMA_LENGTH_MASK	0xFFF
 # define AFT_RXDMA_HI_DMA_LENGTH_SHIFT	0
 
 # define AFT_RXDMA_HI_DMA_STATUS_MASK	0x0F
@@ -962,17 +962,17 @@ enum {
 static __inline unsigned short aft_valid_mtu(unsigned short mtu)
 {
 	if (mtu <= 128){
-		return 128;
-	}else if (mtu <= 256){
 		return 256;
-	}else if (mtu <= 512){
+	}else if (mtu <= 256){
 		return 512;
-	}else if (mtu <= 1024){
+	}else if (mtu <= 512){
 		return 1024;
-	}else if (mtu <= 2048){
+	}else if (mtu <= 1024){
 		return 2048;
-	}else if (mtu <= 4096){
+	}else if (mtu <= 2048){
 		return 4096;
+	}else if (mtu <= 4096){
+		return 8188;
 	}else if (mtu <= 8188){
 		return 8188;
 	}else{

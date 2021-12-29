@@ -22,9 +22,9 @@ CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib/hdlc -I../l
 TARGETS = aft_tdm_voice_api
 TARGETS += aft_tdm_hdlc_test
 TARGETS += aft_tdm_voice_api_rbs
-TARGETS += aft_tdm_voice_api_dtmf
-TARGETS += aft_tdm_voice_api_rm_dtmf
-TARGETS += aft_tdm_voice_api_rxhook
+#TARGETS += aft_tdm_voice_api_dtmf
+#TARGETS += aft_tdm_voice_api_rm_dtmf
+#TARGETS += aft_tdm_voice_api_rxhook
 
 ####### RULES ################################################################
 

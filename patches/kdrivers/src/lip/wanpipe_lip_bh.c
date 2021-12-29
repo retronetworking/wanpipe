@@ -123,7 +123,6 @@ static int wplip_bh_transmit(wplip_link_t *lip_link)
 
 		if (WAN_NETIF_QUEUE_STOPPED(lip_dev->common.dev)){
 			if (lip_dev->common.usedby == API){
-				DEBUG_TEST("%s: Api waking stack!\n",lip_dev->name);
 				WAN_NETIF_START_QUEUE(lip_dev->common.dev);
 #if defined(__LINUX__)
 				wan_wakeup_api(lip_dev);

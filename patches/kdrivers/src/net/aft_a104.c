@@ -1731,8 +1731,12 @@ static int aft_hwec_reset(void *pcard, int reset)
 		DEBUG_EVENT("%s: Clear Echo Canceller chip reset.\n",
 					card->devname);
 
-		if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID/*card->adptr_type == A108_ADPTR_8TE1*/) {
-			aft_te1_write_cpld(card,0x00,0x07);
+		if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID) {
+			if(card->adptr_type == A108_ADPTR_8TE1){
+                                aft_te1_write_cpld(card,0x00,0x0F);
+                        } else {
+                                aft_te1_write_cpld(card,0x00,0x07);
+                        }
 		}else{
 
 			if (IS_T1_CARD(card)){

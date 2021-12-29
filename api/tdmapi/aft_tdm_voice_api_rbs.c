@@ -449,7 +449,7 @@ int main(int argc, char* argv[])
 
 	proceed=init_args(argc,argv);
 	if (proceed != WAN_TRUE){
-		usage(argv[0]);
+		usage((unsigned char*)argv[0]);
 		return -1;
 	}
 

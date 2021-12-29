@@ -88,8 +88,10 @@
 #define WAN_FE_ALARM_NONE	0x00
 #define WAN_FE_ALARM_READ	0x01
 #define WAN_FE_ALARM_PRINT	0x02
+#define WAN_FE_ALARM_UPDATE	0x04
 #define IS_FE_ALARM_READ(action)	((action) & WAN_FE_ALARM_READ)
 #define IS_FE_ALARM_PRINT(action)	((action) & WAN_FE_ALARM_PRINT)
+#define IS_FE_ALARM_UPDATE(action)	((action) & WAN_FE_ALARM_UPDATE)
 
 /* Read pmon flag */
 #define WAN_FE_PMON_UPDATE	0x01
@@ -385,6 +387,7 @@ typedef struct sdla_fe_timer_event_ {
 	WAN_LIST_ENTRY(sdla_fe_timer_event_)	next;
 } sdla_fe_timer_event_t;
 
+#define WAN_FE_MAX_QEVENT_LEN 20
 typedef struct {
 	char		*name;
 	void		*card;
@@ -412,6 +415,7 @@ typedef struct {
 	wan_spinlock_t		lock;
 	wan_timer_t		timer;
 	WAN_LIST_HEAD(, sdla_fe_timer_event_)	event;
+	unsigned int		event_map;
 	
 	int		(*write_cpld)(void*, unsigned short, unsigned char);
 	int		(*read_cpld)(void*, unsigned short, unsigned char);

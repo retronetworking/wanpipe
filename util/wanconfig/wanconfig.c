@@ -580,10 +580,11 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TDMV_DCHAN",    offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, dchan),   DTYPE_UINT},
   { "TDMV_HW_DTMF",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_tdmv_conf_t, hw_dtmf), DTYPE_UCHAR},
   
-  { "HWEC_CLKSRC",   offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_hwec_conf_t, clk_src), DTYPE_UINT},  
-  { "HWEC_PERSIST_DISABLE",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
+  { "HWEC_CLKSRC",   offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, clk_src), DTYPE_UINT},  
+  { "HWEC_PERSIST_DISABLE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
   /* Keep backward compatibility */
-  { "TDMV_HWEC_PERSIST_DISABLE",  offsetof(wandev_conf_t, tdmv_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
+  { "TDMV_HWEC_PERSIST_DISABLE",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, persist_disable), DTYPE_UINT},  
+  { "HWEC_NOISE_REDUCTION",  offsetof(wandev_conf_t, hwec_conf)+smemof(wan_hwec_conf_t, noise_reduction), DTYPE_UINT},  
       
   { "BAUDRATE",   smemof(wandev_conf_t, bps),         DTYPE_UINT },
   { "MTU",        smemof(wandev_conf_t, mtu),         DTYPE_UINT },

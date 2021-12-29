@@ -217,7 +217,8 @@ enum {
 	AFT_FE_POLL,
 	AFT_FE_TDM_RBS,
 	AFT_FE_LED,
-	AFT_FE_EC_POLL
+	AFT_FE_EC_POLL,
+	AFT_FE_RESTART
 };
 
 #define MAX_IP_ERRORS	10
@@ -472,6 +473,7 @@ static int aft_write_hdlc_frame(void *chan_ptr,  netskb_t *skb);
 #endif
 static int aft_tdm_ring_rsync(sdla_t *card);
 static void aft_critical_shutdown(sdla_t *card);
+static void aft_critical_event(void *arg, int type);
 
 /* API VoIP event */
 #if defined(AFT_API_SUPPORT)
@@ -759,6 +761,7 @@ int wp_aft_te1_init (sdla_t* card, wandev_conf_t* conf)
 		conf->interface =
 			IS_T1_CARD(card) ? WANOPT_V35 : WANOPT_RS232;
 
+		card->wandev.critical_event = aft_critical_event;
 		if (card->wandev.comm_port == WANOPT_PRI){
 			conf->clocking = WANOPT_EXTERNAL;
 		}
@@ -5371,6 +5374,20 @@ static void wp_aft_wdt_per_port_isr(sdla_t *card, int wdt_intr)
 	int timeout=AFT_WDTCTRL_TIMEOUT;
 
 	aft_wdt_reset(card);
+		
+	if (card->rsync_timeout){
+		if (SYSTEM_TICKS - card->rsync_timeout > 3*HZ) {
+			card->rsync_timeout=0;
+			if (card->fe.fe_status == FE_CONNECTED) {
+				DEBUG_EVENT("%s: TDM IRQ Timeout \n",
+					card->devname);	
+				wan_set_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+			}
+		} 
+		aft_wdt_set(card,timeout);
+		return;
+	}
 
 	for (i=0; i<card->u.aft.num_of_time_slots;i++){
 
@@ -6599,6 +6616,7 @@ static void enable_data_error_intr(sdla_t *card)
 
 #endif
 	       		card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+			card->rsync_timeout=SYSTEM_TICKS;
 
 			DEBUG_EVENT("%s: AFT Global TDM Intr\n",
 					card->devname);
@@ -8992,6 +9010,21 @@ static void aft_port_task (void * card_ptr, int arg)
 		}
 	}
 #endif
+
+	
+	if (wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)){
+		wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+		if (card->fe.fe_status == FE_CONNECTED) {
+			DEBUG_EVENT("%s: TDM IRQ Restart\n",
+					card->devname);	
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
+			card->fe.fe_status = FE_DISCONNECTED;
+			handle_front_end_state(card);
+			card->fe.fe_status = FE_CONNECTED;
+			handle_front_end_state(card);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
+		}
+	}
 }
 
 void __aft_fe_intr_ctrl(sdla_t *card, int status)
@@ -10546,6 +10579,7 @@ static int aft_tdm_ring_rsync(sdla_t *card)
                          	card->u.aft.tdm_tx_dma_toggle = 0;
 			}
 
+			card->rsync_timeout=0;
 			DEBUG_EVENT("%s: Card TDM Rsync Rx=%i Tx=%i\n",
 					   card->devname,
 					   card->u.aft.tdm_rx_dma_toggle,
@@ -10554,6 +10588,15 @@ static int aft_tdm_ring_rsync(sdla_t *card)
 	}                   
 
 	return 0;
+}
+
+static void aft_critical_event (void *arg, int type)
+{
+	sdla_t	*card = (sdla_t*)arg;
+	DEBUG_EVENT("%s: Error: Card Critically Shutdown: Short Circuit Detected!\n",
+				card->devname);
+	aft_critical_shutdown(card);
+	return;
 }
 
 static void aft_critical_shutdown (sdla_t *card)
@@ -10624,6 +10667,7 @@ static int aft_hwec_config (sdla_t *card, private_area_t *chan, wanif_conf_t *co
 	}
 
 	return err;
+
 }               
 
 

@@ -833,12 +833,13 @@ int wplip_lipdev_prot_change_state(void *wplip_id,int state,
 			lip_dev->common.state = state;     
 			WAN_NETIF_CARRIER_ON(lip_dev->common.dev);
 			WAN_NETIF_START_QUEUE(lip_dev->common.dev);
-			wan_update_api_state(lip_dev);
 		}else{
 			lip_dev->common.state = state;
 			WAN_NETIF_CARRIER_OFF(lip_dev->common.dev);
 			WAN_NETIF_STOP_QUEUE(lip_dev->common.dev);
 		}
+
+		wan_update_api_state(lip_dev);
 
 		wplip_trigger_bh(lip_dev->lip_link);
 
