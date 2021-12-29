@@ -4228,7 +4228,7 @@ kick_rx_bh:
 	if (!card->u.b.sw_card){
 		tasklet_hi_schedule(&card->u.b.wanpipe_rx_task);
 	}else{
-		bstrm_rx_bh((u32)card);
+		bstrm_rx_bh((unsigned long)card);
 	}
 	
 	/* Release buffer element and calculate a pointer to the next one */

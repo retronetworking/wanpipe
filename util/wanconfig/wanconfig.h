@@ -449,6 +449,7 @@ static key_word_t xilinx_conftab[] =	/* Xilinx specific configuration */
   { "HW_RJ45_PORT_MAP",   smemof(wan_xilinx_conf_t, hw_port_map), DTYPE_UCHAR },
   { "RX_FIFO_TRIGGER",  smemof(wan_xilinx_conf_t, rx_fifo_trigger), DTYPE_USHORT },
   { "TX_FIFO_TRIGGER",  smemof(wan_xilinx_conf_t, tx_fifo_trigger), DTYPE_USHORT },
+  { "GLOBAL_POLL_IRQ",  smemof(wan_xilinx_conf_t, global_poll_irq), DTYPE_UCHAR },
   { NULL, 0, 0 }
 };
 

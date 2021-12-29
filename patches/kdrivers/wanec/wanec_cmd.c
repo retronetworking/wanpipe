@@ -1708,6 +1708,9 @@ int wanec_PlayoutEvent(wan_ec_t *ec, int verbose)
 	return (f_BufferPlayoutGetEvent.fMoreEvents == TRUE) ? 1 : 0;
 }
 
+#define wan_ec_isr_error_print(_format, _message, ...) if (!wan_test_and_set_bit(1,&silent)) { DEBUG_ERROR(_format, _message, ## __VA_ARGS__) };
+
+
 /*
 **				wanec_ISR()
 **
@@ -1719,6 +1722,7 @@ int wanec_ISR(wan_ec_t *ec, int verbose)
 {
 	UINT32	ulResult;
 	int	ret = 0;
+	unsigned int silent=0;
 
 	WAN_ASSERT(ec == NULL);
 
@@ -1730,56 +1734,63 @@ int wanec_ISR(wan_ec_t *ec, int verbose)
 					ec->pChipInstance,
 					&ec->f_InterruptFlag );
 	if ( ulResult != cOCT6100_ERR_OK ){
-		DEBUG_ERROR(
-		"ERROR: %s: Failed to execute interrupt Service Routine (err=%08X)!\n",
-					ec->name,
-					ulResult);
+		/* The 0x001DFF02D does not mean that the EC is dead. 
+		   It means that a problem has occurred while doing a read burst to get the detected tones */
+		if (ulResult != 0x001DF02D) {
+			wan_ec_isr_error_print(
+			"ERROR: %s: Failed to execute interrupt Service Routine (err=%08X)!\n",
+						ec->name,
+						ulResult);
+		}
 		return -EINVAL;
 	}
 	/* Critical errors */
 	if (ec->f_InterruptFlag.fFatalGeneral == TRUE){
-		DEBUG_ERROR(
-		"%s: An internal fatal chip error detected (0x%X)!\n",
-				ec->name,
-				ec->f_InterruptFlag.ulFatalGeneralFlags);
+		/* Ignore cOCT6100_FATAL_GENERAL_ERROR_TYPE_5 timeout errors */
+		if (ec->f_InterruptFlag.ulFatalGeneralFlags != cOCT6100_FATAL_GENERAL_ERROR_TYPE_5) {
+			wan_ec_isr_error_print(
+			"%s: An internal fatal chip error detected (0x%X)!\n",
+					ec->name,
+					ec->f_InterruptFlag.ulFatalGeneralFlags);
+		}
 	}
 	if (ec->f_InterruptFlag.fFatalReadTimeout == TRUE){
-		DEBUG_ERROR(
+		wan_ec_isr_error_print(
 		"%s: A read to the external memory has failed!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorRefreshTooLate == TRUE){
-		DEBUG_ERROR(
+		wan_ec_isr_error_print(
 		"%s: Error Refresh Too Late!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorPllJitter == TRUE){
-		DEBUG_ERROR(
+		wan_ec_isr_error_print(
 		"%s: Error Pll Jitter\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorH100OutOfSync == TRUE && !ec->ignore_H100){
-		DEBUG_ERROR(
+		wan_ec_isr_error_print(
 		"%s: The H100 slave has lost its framing on the bus!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorH100ClkA == TRUE){
-		DEBUG_ERROR(
+		wan_ec_isr_error_print(
 		"%s: The CT_C8_A clock behavior does not conform to the H.100 spec!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorH100FrameA == TRUE){
-		DEBUG_ERROR(
+		wan_ec_isr_error_print(
 		"%s: The CT_FRAME_A clock behavior does not comform to the H.100 spec!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorH100ClkB == TRUE){
-		DEBUG_ERROR(
+		wan_ec_isr_error_print(
 		"%s: The CT_C8_B clock is not running a 16.384 MHz!\n",
 				ec->name);
 	}
 	if (ec->f_InterruptFlag.fErrorOverflowToneEvents == TRUE){
-		DEBUG_ERROR(
+		wan_ec_isr_error_print(
 		"%s: Error: Tone Event buffer has overflowed\n",
 				ec->name);
 	}

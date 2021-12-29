@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           7.0.14
+%define version           7.0.15
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -245,6 +245,21 @@ chmod 755 /usr/local/sbin/setup-sangoma
 
 
 %changelog
+
+* Mon Nov 21 2015 Nenad Corbic <ncorbic@sangoma.com> -  7.0.15
+==================================================================
+
+
+- Support for 4.3 kernels
+- Updated T1/E1 Alarm debouncing
+  Fixes RAI alarm issues detected on some Indian E1 lines.
+- Added a global limit to max printed error messages per sec.
+  Protects the Server from over logging
+- Updated wanec stats
+- wanrouter script fix for 4.0 kernels
+- Added new IRQ mode
+  GLOBAL_POLL_IRQ=YES
+
 
 * Mon Apr 20 2015 Nenad Corbic <ncorbic@sangoma.com> -  7.0.14
 ==================================================================

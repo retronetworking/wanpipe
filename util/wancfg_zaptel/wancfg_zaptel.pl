@@ -998,7 +998,7 @@ sub apply_changes{
 		} elsif (($asterisk_version1 >= 6) && ($asterisk_version2 >= 2)) {
 			$asterisk_command='core stop now';
 		} else {
-			$asterisk_command='stop now';
+			$asterisk_command='core stop now';
 		}
 	} else {
 		$asterisk_command='core stop when convenient';
@@ -1018,7 +1018,7 @@ sub apply_changes{
 			exec_command("asterisk -rx \"$asterisk_command\"");
 			sleep 5;
 			while (`(pidof asterisk)` != 0 ){
-				if ($asterisk_command eq "stop now"){
+				if ($asterisk_command eq "core stop now"){
 					print "Failed to stop asterisk using command: \'$asterisk_command\' Forcing Asterisk Down \n";
 					execute_command("killall -9 safe_asterisk");
 					execute_command("killall -9 asterisk");

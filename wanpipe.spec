@@ -25,7 +25,7 @@
 #
 
 %define NAME			wanpipe
-%define VERSION           7.0.14
+%define VERSION           7.0.15
 %define RELEASE			0
 %define KVERSION		%{?kernel}
 %define KSRC			%{?ksrc}
@@ -259,6 +259,21 @@ fi
 ################################################################################
 
 %changelog
+
+* Mon Nov 21 2015 Nenad Corbic <ncorbic@sangoma.com> -  7.0.15
+==================================================================
+
+
+- Support for 4.3 kernels
+- Updated T1/E1 Alarm debouncing
+  Fixes RAI alarm issues detected on some Indian E1 lines.
+- Added a global limit to max printed error messages per sec.
+  Protects the Server from over logging
+- Updated wanec stats
+- wanrouter script fix for 4.0 kernels
+- Added new IRQ mode
+  GLOBAL_POLL_IRQ=YES
+
 
 * Mon Apr 20 2015 Nenad Corbic <ncorbic@sangoma.com> -  7.0.14
 ==================================================================

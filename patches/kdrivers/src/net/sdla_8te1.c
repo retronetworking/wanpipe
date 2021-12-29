@@ -2355,77 +2355,63 @@ static u_int32_t sdla_ds_te1_read_frame_alarms(sdla_fe_t *fe)
 	DEBUG_TE1("%s: Reading %s Framer status (Old:%08X,%02X)\n", 
 				fe->name, FE_MEDIA_DECODE(fe),
 				rrts1, alarm);
-			
+
 	/* Framer alarms */
-	//if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
-		if (rrts1 & BIT_RRTS1_RRAI){
-			if (!(alarm & WAN_TE_BIT_ALARM_RAI)){
-				DEBUG_EVENT("%s:    RAI : ON\n", 
-							fe->name);
-			}
-			alarm |= WAN_TE_BIT_ALARM_RAI;		
-		}else{
-			if (alarm & WAN_TE_BIT_ALARM_RAI){
-				DEBUG_EVENT("%s:    RAI : OFF\n", 
-							fe->name);
-			}
-			alarm &= ~WAN_TE_BIT_ALARM_RAI;		
-		}
-	//}
+	if (rrts1 & BIT_RRTS1_RRAI){
+		sdla_ds_te1_swirq_trigger(
+				fe,
+				WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
+				WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+				WAN_T1_ALARM_THRESHOLD_RAI_ON);
+	}else{
+		sdla_ds_te1_swirq_trigger(
+				fe,
+				WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
+				WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+				WAN_T1_ALARM_THRESHOLD_RAI_OFF);
+	}
 
 	if (rrts1 & BIT_RRTS1_RAIS){
-		if (!IS_TE_ALARM_AIS(alarm)){
-			sdla_ds_te1_swirq_trigger(
-					fe,
-					WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
-					WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
-					WAN_T1_ALARM_THRESHOLD_AIS_ON);
-		}
+		sdla_ds_te1_swirq_trigger(
+				fe,
+				WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
+				WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+				WAN_T1_ALARM_THRESHOLD_AIS_ON);
 	}else{
-		if (IS_TE_ALARM_AIS(alarm)){
-			sdla_ds_te1_swirq_trigger(
-					fe,
-					WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
-					WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
-					WAN_T1_ALARM_THRESHOLD_AIS_OFF);
-		}
+		sdla_ds_te1_swirq_trigger(
+				fe,
+				WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
+				WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+				WAN_T1_ALARM_THRESHOLD_AIS_OFF);
 	}
 
 	if (rrts1 & BIT_RRTS1_RLOS){
-		if (!IS_TE_ALARM_LOS(alarm)){
-			sdla_ds_te1_swirq_trigger(
-					fe,
-					WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
-					WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
-					WAN_T1_ALARM_THRESHOLD_LOS_ON);
-		}
+		sdla_ds_te1_swirq_trigger(
+				fe,
+				WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
+				WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+				WAN_T1_ALARM_THRESHOLD_LOS_ON);
 	}else{
-		if (IS_TE_ALARM_LOS(alarm)){
-			sdla_ds_te1_swirq_trigger(
-					fe,
-					WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
-					WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
-					WAN_T1_ALARM_THRESHOLD_LOS_OFF);
-		}
+		sdla_ds_te1_swirq_trigger(
+				fe,
+				WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
+				WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+				WAN_T1_ALARM_THRESHOLD_LOS_OFF);
 	}
 
 	if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
 		if (rrts1 & BIT_RRTS1_RLOF){
-			if (!IS_TE_ALARM_LOF(alarm)){
-				sdla_ds_te1_swirq_trigger(
-					fe,
-					WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
-					WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
-					WAN_T1_ALARM_THRESHOLD_LOF_ON);
-			}
+			sdla_ds_te1_swirq_trigger(
+				fe,
+				WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
+				WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+				WAN_T1_ALARM_THRESHOLD_LOF_ON);
 		}else{
-			if (IS_TE_ALARM_LOF(alarm)){
-				sdla_ds_te1_swirq_trigger(
-					fe,
-					WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
-					WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
-					WAN_T1_ALARM_THRESHOLD_LOF_OFF);
-			}
+			sdla_ds_te1_swirq_trigger(
+				fe,
+				WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
+				WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+				WAN_T1_ALARM_THRESHOLD_LOF_OFF);
 		}
 	}
 	/* Aug 30, 2006
@@ -2552,16 +2538,35 @@ static u_int32_t  sdla_ds_te1_read_alarms(sdla_fe_t *fe, int action)
 static int
 sdla_ds_te1_update_alarms(sdla_fe_t *fe, u_int32_t alarms)
 {
+	if (!IS_TE_ALARM_RAI(fe->fe_alarm)){
+		if (IS_TE_ALARM_RAI(alarms)){
+			if (fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+				DEBUG_EVENT("%s:    RAI : ON\n",
+						fe->name);
+				fe->fe_alarm |= WAN_TE_BIT_ALARM_RAI;
+			} else {
+				DEBUG_EVENT("%s:    RAI : ON (Skipped)\n",
+						fe->name);
+				fe->fe_alarm &= ~WAN_TE_BIT_ALARM_RAI;
+			}
+		}
+	}else{
+		if (!IS_TE_ALARM_RAI(alarms)){
+			DEBUG_EVENT("%s:    RAI : OFF\n",
+						fe->name);
+			fe->fe_alarm &= ~WAN_TE_BIT_ALARM_RAI;
+		}
+	}
 	
 	if (!IS_TE_ALARM_AIS(fe->fe_alarm)){
 		if (IS_TE_ALARM_AIS(alarms)){
-			DEBUG_EVENT("%s:    AIS : ON\n", 
+			DEBUG_EVENT("%s:    AIS : ON\n",
 						fe->name);
 			fe->fe_alarm |= WAN_TE_BIT_ALARM_AIS;
 		}
 	}else{
 		if (!IS_TE_ALARM_AIS(alarms)){
-			DEBUG_EVENT("%s:    AIS : OFF\n", 
+			DEBUG_EVENT("%s:    AIS : OFF\n",
 						fe->name);
 			fe->fe_alarm &= ~WAN_TE_BIT_ALARM_AIS;
 		}
@@ -2569,13 +2574,13 @@ sdla_ds_te1_update_alarms(sdla_fe_t *fe, u_int32_t alarms)
 
 	if (!IS_TE_ALARM_LOF(fe->fe_alarm)){
 		if (IS_TE_ALARM_LOF(alarms)){
-			DEBUG_EVENT("%s:    LOF : ON\n", 
+			DEBUG_EVENT("%s:    LOF : ON\n",
 						fe->name);
 			fe->fe_alarm |= WAN_TE_BIT_ALARM_LOF;
 		}
 	}else{
 		if (!IS_TE_ALARM_LOF(alarms)){
-			DEBUG_EVENT("%s:    LOF : OFF\n", 
+			DEBUG_EVENT("%s:    LOF : OFF\n",
 						fe->name);
 			fe->fe_alarm &= ~WAN_TE_BIT_ALARM_LOF;
 		}
@@ -2583,13 +2588,13 @@ sdla_ds_te1_update_alarms(sdla_fe_t *fe, u_int32_t alarms)
 
 	if (!IS_TE_ALARM_LOS(fe->fe_alarm)){
 		if (IS_TE_ALARM_LOS(alarms)){
-			DEBUG_EVENT("%s:    LOS : ON\n", 
+			DEBUG_EVENT("%s:    LOS : ON\n",
 						fe->name);
 			fe->fe_alarm |= WAN_TE_BIT_ALARM_LOS;
 		}
 	}else{
 		if (!IS_TE_ALARM_LOS(alarms)){
-			DEBUG_EVENT("%s:    LOS : OFF\n", 
+			DEBUG_EVENT("%s:    LOS : OFF\n",
 						fe->name);
 			fe->fe_alarm &= ~WAN_TE_BIT_ALARM_LOS;
 		}
@@ -3443,20 +3448,23 @@ static int sdla_ds_te1_fr_rxintr_rls1(sdla_fe_t *fe, int silent)
 	unsigned char	rls1 = READ_REG(REG_RLS1);
 	unsigned char	rrts1 = READ_REG(REG_RRTS1);
 
-	//if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
-		if (rls1 & (BIT_RLS1_RRAIC|BIT_RLS1_RRAID)){
-			if (rrts1 & BIT_RRTS1_RRAI){
-				fe->fe_alarm |= WAN_TE_BIT_ALARM_RAI;		
-				if (!silent) DEBUG_EVENT("%s: RAI alarm is ON\n",
-							fe->name);
-			}else{
-				fe->fe_alarm &= ~WAN_TE_BIT_ALARM_RAI;		
-				if (!silent) DEBUG_EVENT("%s: RAI alarm is OFF\n",
-							fe->name);
-			}
+	if (rls1 & (BIT_RLS1_RRAIC|BIT_RLS1_RRAID)){
+		if (rrts1 & BIT_RRTS1_RRAI){
+			sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+					WAN_T1_ALARM_THRESHOLD_RAI_ON);
+		}else{
+			sdla_ds_te1_swirq_trigger(
+					fe,
+					WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
+					WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
+					WAN_T1_ALARM_THRESHOLD_RAI_OFF);
 		}
-	//}
-        if (rim1 & (BIT_RIM1_RAISC|BIT_RIM1_RAISD)){
+	}
+
+	if (rim1 & (BIT_RIM1_RAISC|BIT_RIM1_RAISD)){
 		if (rls1 & (BIT_RLS1_RAISC|BIT_RLS1_RAISD)){
 			if (rrts1 & BIT_RRTS1_RAIS){
 
@@ -3475,8 +3483,8 @@ static int sdla_ds_te1_fr_rxintr_rls1(sdla_fe_t *fe, int silent)
 		}
 	}
 
-        if (rim1 & (BIT_RIM1_RLOSC|BIT_RIM1_RLOSD)){
-    		if (rls1 & (BIT_RLS1_RLOSC|BIT_RLS1_RLOSD)){
+	if (rim1 & (BIT_RIM1_RLOSC|BIT_RIM1_RLOSD)){
+		if (rls1 & (BIT_RLS1_RLOSC|BIT_RLS1_RLOSD)){
 			if (rrts1 & BIT_RRTS1_RLOS){
 				sdla_ds_te1_swirq_trigger(
 						fe,
@@ -3490,8 +3498,9 @@ static int sdla_ds_te1_fr_rxintr_rls1(sdla_fe_t *fe, int silent)
 						WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF,
 						WAN_T1_ALARM_THRESHOLD_LOS_OFF);
 			}
-    		}
-    	}
+		}
+	}
+
 	if (WAN_FE_FRAME(fe) != WAN_FR_UNFRAMED){
 		if (rim1 & (BIT_RIM1_RLOFC | BIT_RIM1_RLOFD)){
 			if (rls1 & (BIT_RLS1_RLOFC|BIT_RLS1_RLOFD)){
@@ -4334,6 +4343,8 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 				alarms |= WAN_TE_BIT_ALARM_LOS;
 			}else if (type == WAN_TE1_SWIRQ_TYPE_ALARM_LOF){
 				alarms |= WAN_TE_BIT_ALARM_LOF;
+			}else if (type == WAN_TE1_SWIRQ_TYPE_ALARM_RAI){
+				alarms |= WAN_TE_BIT_ALARM_RAI;
 			}			
 			wan_clear_bit(1, (void*)&swirq->pending);
 			update = WAN_TRUE; 
@@ -4357,6 +4368,8 @@ static int sdla_ds_te1_swirq_alarm(sdla_fe_t* fe, int type)
 				alarms &= ~WAN_TE_BIT_ALARM_LOS;
 			}else if (type == WAN_TE1_SWIRQ_TYPE_ALARM_LOF){
 				alarms &= ~WAN_TE_BIT_ALARM_LOF;
+			}else if (type == WAN_TE1_SWIRQ_TYPE_ALARM_RAI){
+				alarms &= ~WAN_TE_BIT_ALARM_RAI;
 			}			
 			wan_clear_bit(1, (void*)&swirq->pending);
 			update = WAN_TRUE; 
@@ -4417,20 +4430,23 @@ static int sdla_ds_te1_swirq_trigger(sdla_fe_t* fe, int type, int subtype, int d
 				WAN_TE1_SWIRQ_SUBTYPE_DECODE(subtype),
 				wan_test_bit(1, (void*)&fe->swirq[type].pending),
 				fe->swirq[type].subtype);
+
 	if (!wan_test_and_set_bit(1, (void*)&fe->swirq[type].pending)){
 		/* new swirq */
 		fe->swirq[type].subtype = (u8)subtype;
 		fe->swirq[type].start = SYSTEM_TICKS;
+		fe->swirq[type].delay = delay;
+		wan_set_bit(type, (void*)&fe->swirq_map);
 	}else{
 		/* already in a process */
 		if (fe->swirq[type].subtype != subtype){
 			fe->swirq[type].subtype = (u8)subtype;
 			fe->swirq[type].start = SYSTEM_TICKS;
+			fe->swirq[type].delay = delay;
+			wan_set_bit(type, (void*)&fe->swirq_map);
 		}
 	} 
 
-	fe->swirq[type].delay = delay;	
-	wan_set_bit(type, (void*)&fe->swirq_map);
 	return 0;
 }
 
@@ -4462,6 +4478,11 @@ static int sdla_ds_te1_swirq(sdla_fe_t* fe)
 	if (wan_test_bit(1, (void*)&fe->swirq[WAN_TE1_SWIRQ_TYPE_ALARM_LOF].pending)){
 		sdla_ds_te1_swirq_alarm(fe, WAN_TE1_SWIRQ_TYPE_ALARM_LOF);
 	}
+
+	if (wan_test_bit(1, (void*)&fe->swirq[WAN_TE1_SWIRQ_TYPE_ALARM_RAI].pending)){
+		sdla_ds_te1_swirq_alarm(fe, WAN_TE1_SWIRQ_TYPE_ALARM_RAI);
+	}
+
 	return 0;
 }
 

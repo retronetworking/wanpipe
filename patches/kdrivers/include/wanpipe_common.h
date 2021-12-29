@@ -2393,7 +2393,18 @@ static __inline void wan_netif_fake_init(netdevice_t *d)
 	return;
 }
 #endif
-	
+
+static struct net_device *sng_alloc_netdev(int sizeof_priv, const char *name,
+                                           void (*setup)(struct net_device *))
+{
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0))
+	return alloc_netdev(sizeof_priv, name, NET_NAME_PREDICTABLE, setup);
+#else
+	return alloc_netdev(sizeof_priv, name, setup);
+#endif
+}
+
+
 static __inline void*
 wan_netif_alloc(unsigned char *devname, int ifType, int *err)
 {
@@ -2402,7 +2413,7 @@ wan_netif_alloc(unsigned char *devname, int ifType, int *err)
 #  if  (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,4))
 	return __dev_alloc(devname, err);
 #  else
-	return alloc_netdev(0,devname,wan_netif_fake_init);	
+	return sng_alloc_netdev(0, devname, wan_netif_fake_init);
 # endif
 # elif defined(LINUX_2_4)
 	netdevice_t *dev=wan_malloc(sizeof(netdevice_t));

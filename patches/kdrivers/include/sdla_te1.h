@@ -268,6 +268,8 @@
 #define WAN_T1_ALARM_THRESHOLD_AIS_OFF	(1)	// must be 10s
 #define WAN_T1_ALARM_THRESHOLD_LOS_ON	(3)   // must be 2.5s
 #define WAN_T1_ALARM_THRESHOLD_LOS_OFF	(1)    // must be 10s
+#define WAN_T1_ALARM_THRESHOLD_RAI_ON	(3)   // must be 2.5s
+#define WAN_T1_ALARM_THRESHOLD_RAI_OFF	(1)    // must be 10s
 
 /* TE1 critical flag */
 #define TE_TIMER_RUNNING 		0x01
@@ -289,6 +291,7 @@ enum {
 	WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
 	WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
 	WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
+	WAN_TE1_SWIRQ_TYPE_ALARM_RAI,
 
 	WAN_TE1_SWIRQ_MAX
 };
@@ -297,6 +300,7 @@ enum {
 		((type) == WAN_TE1_SWIRQ_TYPE_ALARM_AIS) ? "T1/E1 Alarm (AIS)" :\
 		((type) == WAN_TE1_SWIRQ_TYPE_ALARM_LOS) ? "T1/E1 Alarm (LOS)" :\
 		((type) == WAN_TE1_SWIRQ_TYPE_ALARM_LOF) ? "T1/E1 Alarm (LOF)" :\
+		((type) == WAN_TE1_SWIRQ_TYPE_ALARM_RAI) ? "T1/E1 Alarm (RAI)" :\
 								"Unknown"
 
 enum {

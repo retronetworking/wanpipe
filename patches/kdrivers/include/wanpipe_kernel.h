@@ -21,6 +21,10 @@
 # define WAN_LITTLE_ENDIAN 1
 # endif 
 
+#ifndef RHEL_RELEASE_VERSION
+#define RHEL_RELEASE_VERSION(a, b) (((a) << 8) + (b))
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,9) 
 # define MODULE_LICENSE(a)
 #endif
@@ -145,6 +149,25 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 #define IRQF_SHARED SA_SHIRQ
 #endif
 
+#ifndef f_dentry
+#define f_dentry f_path.dentry
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,15,0)
+ #define SK_DATA_READY(sk, len) sk->sk_data_ready((sk), (len))
+#else
+ #define SK_DATA_READY(sk, len) sk->sk_data_ready((sk))
+#endif
+
+#if defined(KERN_PROC_PDE_FEATURE) && KERN_PROC_PDE_FEATURE > 0
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0) && \
+    (!(defined(RHEL_RELEASE_CODE) && RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(6, 5)))
+void *PDE_DATA(const struct inode *inode)
+{
+	return __PDE_DATA(inode);
+}
+#endif
+#endif
 
 /*==========================================================================
    KERNEL 2.6.
@@ -159,6 +182,10 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
    #define pci_dev_b(n) list_entry(n, struct pci_dev, bus_list)
  #endif
 #endif
+
+ #ifndef pci_bus_b
+   #define pci_bus_b(n) list_entry(n, struct pci_bus, node)
+ #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 /* KERNEL 2.6.X */

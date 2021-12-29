@@ -1947,7 +1947,7 @@ UINT32 Oct6100BufferPlayoutStartSer(
 				IN OUT	tPOCT6100_BUFFER_PLAYOUT_START		f_pBufferPlayoutStart,
 				IN		UINT32								f_ulPlayoutStopEventType )
 {
-	UINT32	ulBufferIndex;
+	UINT32	ulBufferIndex = 0;
 	UINT32	ulChannelIndex;
 	BOOL	fNotifyOnPlayoutStop;
 	UINT32	ulUserEventId;

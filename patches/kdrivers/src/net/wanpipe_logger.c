@@ -531,6 +531,36 @@ static int wp_logger_push_event(netskb_t *skb)
 
 static char previous_error_message[WP_MAX_NO_BYTES_IN_LOGGER_EVENT];
 static u32	repeating_error_message_counter = 0;
+static wan_ticks_t wp_logger_max_msg_timeout=0;
+static u32  wp_logger_max_msg_cnt=0;
+
+#define WP_MAX_ERROR_MSG_PER_SEC 100
+
+static int wp_logger_global_max_limit_check (u_int32_t logger_type, u_int32_t evt_type, char *tmp_message_buf)
+{
+
+	wp_logger_max_msg_cnt++;
+
+	if ((SYSTEM_TICKS - wp_logger_max_msg_timeout) > HZ) {
+		wp_logger_max_msg_timeout=SYSTEM_TICKS;
+		wp_logger_max_msg_cnt=0;
+		return 0;
+	}
+
+	if (wp_logger_max_msg_cnt == WP_MAX_ERROR_MSG_PER_SEC) {
+		wp_snprintf(tmp_message_buf, WP_MAX_NO_BYTES_IN_LOGGER_EVENT-1,
+				"wanpipe: Global message per sec %d exceeded.\n", WP_MAX_ERROR_MSG_PER_SEC);
+		__wp_logger_input(logger_type, evt_type, "%s", tmp_message_buf);
+		return 1;
+	}
+
+	if (wp_logger_max_msg_cnt > WP_MAX_ERROR_MSG_PER_SEC) {
+		return 1;
+	}
+
+	return 0;
+}
+
 
 
 static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t evt_type, const char * fmt, va_list *va_arg_list)
@@ -556,6 +586,13 @@ static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t e
 		return 0;
 	}
 
+	/* Only allow limited number of filtered messags per sec for the whole diver.
+	   This prevents edge scenarios where driver can start printing thousands of
+	   messages per sec */
+	if (wp_logger_global_max_limit_check(logger_type, evt_type, tmp_message_buf)) {
+		return 1;
+	}
+
 	memset(current_error_message, 0x00, sizeof(current_error_message));
 
 	wp_vsnprintf(current_error_message, sizeof(current_error_message) - 1,
@@ -574,7 +611,7 @@ static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t e
 
 				/* and say how many times it was repeated. */
 				wp_snprintf(tmp_message_buf, sizeof(tmp_message_buf),
-					"* Message repeated %d times.\n", repeating_error_message_counter);
+					"wanpipe: Message repeated %d times.\n", repeating_error_message_counter);
 				__wp_logger_input(logger_type, evt_type, "%s", tmp_message_buf);
 			}
 		}
@@ -590,7 +627,7 @@ static int wp_logger_repeating_message_filter(u_int32_t logger_type, u_int32_t e
 
 			/* this message broke a sequence of repeating messages */
 			wp_snprintf(tmp_message_buf, sizeof(tmp_message_buf),
-				"* Message repeated %d times.\n", repeating_error_message_counter);
+				"wanpipe: Message repeated %d times.\n", repeating_error_message_counter);
 			__wp_logger_input(logger_type, evt_type, "%s", tmp_message_buf);
 			repeating_error_message_counter = 0;
 		}

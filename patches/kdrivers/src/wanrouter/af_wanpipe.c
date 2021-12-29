@@ -84,6 +84,20 @@
  #define AF_MEM_INC(x)	
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
+static inline int memcpy_from_msg(void *data, struct msghdr *msg, int len)
+{
+	/* XXX: stripping const */
+	return memcpy_fromiovec(data, (struct iovec *)msg->msg_iov, len);
+}
+
+static inline int memcpy_to_msg(struct msghdr *msg, void *data, int len)
+{
+	return memcpy_toiovec((struct iovec *)msg->msg_iov, data, len);
+
+}
+#endif
+
 #define WP_API_HDR_SZ 16
 
 #ifdef CONFIG_PRODUCT_WANPIPE_SOCK_DATASCOPE
@@ -142,7 +156,11 @@ static atomic_t af_skb_alloc;
 atomic_t wanpipe_socks_nr;
 extern struct proto_ops wanpipe_ops;
 
+#ifdef sk_net_refcnt
+static struct sock *wanpipe_alloc_socket(struct sock *, void *net, int kern);
+#else
 static struct sock *wanpipe_alloc_socket(struct sock *, void *net);
+#endif
 static void check_write_queue(struct sock *);
 
 
@@ -327,8 +345,13 @@ struct sock *wanpipe_make_new(struct sock *osk)
 	if (osk->sk_type != SOCK_RAW)
 		return NULL;
 
+#ifdef sk_net_refcnt
+	if ((sk = wanpipe_alloc_socket(osk,NULL,1)) == NULL)
+		return NULL;
+#else
 	if ((sk = wanpipe_alloc_socket(osk,NULL)) == NULL)
 		return NULL;
+#endif
 
 	sk->sk_family      = osk->sk_family;
 	sk->sk_type        = osk->sk_type;
@@ -393,13 +416,13 @@ static int wanpipe_listen_rcv (struct sk_buff *skb,  struct sock *sk)
 	 * processes. */
 	if (!skb){
 		sk->sk_state = WANSOCK_BIND_LISTEN;
-		sk->sk_data_ready(sk,0);
+		SK_DATA_READY(sk, 0);
 		return 0;
 	}
 
 	if (sk->sk_state != WANSOCK_LISTEN){
 		printk(KERN_INFO "af_wanpipe: Listen rcv in disconnected state!\n");
-		sk->sk_data_ready(sk,0);
+		SK_DATA_READY(sk, 0);
 		return -EINVAL;
 	}
 
@@ -493,7 +516,7 @@ static int wanpipe_listen_rcv (struct sk_buff *skb,  struct sock *sk)
 	 * the dev field in the accept function.*/ 
 
 	skb_set_owner_r(skb, sk);
-	sk->sk_data_ready(sk,skb->len);
+	SK_DATA_READY(sk, skb->len);
 	skb_queue_tail(&sk->sk_receive_queue, skb);
 	
 	return 0;
@@ -750,14 +773,14 @@ static int wanpipe_api_sock_rcv(struct sk_buff *skb, netdevice_t *dev,  struct s
 			}else{
 				if (sock_queue_rcv_skb(sk,skb)<0){
 					AF_SKB_DEC(skb->truesize);
-					sk->sk_data_ready(sk,0);
+					SK_DATA_READY(sk, 0);
 					return -ENOMEM;
 				}
 			}
 #else
 			if (sock_queue_rcv_skb(sk,skb)<0){
 				AF_SKB_DEC(skb->truesize);
-				sk->sk_data_ready(sk,0);
+				SK_DATA_READY(sk, 0);
 				return -ENOMEM;
 			}
 #endif
@@ -767,7 +790,7 @@ static int wanpipe_api_sock_rcv(struct sk_buff *skb, netdevice_t *dev,  struct s
                          * Do not set the sock lcn number here, since
          		 * cmd is not guaranteed to be executed on the
                          * board, thus Lcn could be wrong */
-			sk->sk_data_ready(sk,skb->len);
+			SK_DATA_READY(sk, skb->len);
 			KFREE_SKB(skb);
 			break;
 		case WAN_PACKET_ERR:
@@ -795,7 +818,11 @@ static int wanpipe_api_sock_rcv(struct sk_buff *skb, netdevice_t *dev,  struct s
  *       	
  *===========================================================*/
 
+#ifdef sk_net_refcnt
+static struct sock *wanpipe_alloc_socket(struct sock *osk, void *net, int kern)
+#else
 static struct sock *wanpipe_alloc_socket(struct sock *osk, void *net)
+#endif
 {
 	struct sock *sk;
 	struct wanpipe_opt *wan_opt;
@@ -813,7 +840,11 @@ static struct sock *wanpipe_alloc_socket(struct sock *osk, void *net)
 		net=wan_sock_net(osk);
 	}
 
+#ifdef sk_net_refcnt
+	sk = sk_alloc((struct net*)net, PF_WANPIPE, GFP_ATOMIC, &packet_proto, kern);
+#else
 	sk = sk_alloc((struct net*)net, PF_WANPIPE, GFP_ATOMIC, &packet_proto);
+#endif
 
 # elif defined(AF_WANPIPE_2612_UPDATE)
 	sk = sk_alloc(PF_WANPIPE, GFP_ATOMIC, &packet_proto,1);
@@ -868,7 +899,11 @@ static struct sock *wanpipe_alloc_socket(struct sock *osk, void *net)
  *      a packet is queued into sk->write_queue.
  *===========================================================*/
 
-#ifdef LINUX_2_6
+#ifdef sk_cookie
+static int wanpipe_sendmsg(struct socket *sock,
+			       struct msghdr *msg, size_t len)
+
+#elif defined(LINUX_2_6)
 static int wanpipe_sendmsg(struct kiocb *iocb, struct socket *sock,
 			       struct msghdr *msg, size_t len)
 
@@ -951,7 +986,7 @@ static int wanpipe_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	wan_skb_reset_network_header(skb);
 
 	/* Returns -EFAULT on error */
-	err = memcpy_fromiovec(skb_put(skb,len), msg->msg_iov, len);
+	err = memcpy_from_msg(skb_put(skb,len), msg, len);
 	if (err){
 		goto out_free;
 	}
@@ -1537,7 +1572,11 @@ int wanpipe_create(struct socket *sock, int protocol)
 
 	sock->state = SS_UNCONNECTED;
 	
+#ifdef sk_net_refcnt
+	if ((sk = wanpipe_alloc_socket(NULL, net, kern)) == NULL){
+#else
 	if ((sk = wanpipe_alloc_socket(NULL, net)) == NULL){
+#endif
 		return -ENOMEM;
 	}
 
@@ -1579,7 +1618,10 @@ int wanpipe_create(struct socket *sock, int protocol)
  *      to the user. If necessary we block.
  *===========================================================*/
 
-#ifdef LINUX_2_6
+#ifdef sk_cookie
+static int wanpipe_recvmsg(struct socket *sock,
+			  struct msghdr *msg, size_t len, int flags)
+#elif defined(LINUX_2_6)
 
 static int wanpipe_recvmsg(struct kiocb *iocb, struct socket *sock,
 			  struct msghdr *msg, size_t len, int flags)
@@ -1649,7 +1691,7 @@ static int wanpipe_recvmsg(struct socket *sock, struct msghdr *msg, int len,
 	}
 
 	/* We can't use skb_copy_datagram here */
-	err = memcpy_toiovec(msg->msg_iov, skb->data, copied);
+	err = memcpy_to_msg(msg, skb->data, copied);
 	if (err)
 		goto out_free;
 	
@@ -1761,7 +1803,7 @@ int wanpipe_notifier(struct notifier_block *this, unsigned long msg, void *data)
 					dev_put((struct net_device *)SK_PRIV(sk)->dev); 
 					SK_PRIV(sk)->dev=NULL;
 				}
-				sk->sk_data_ready(sk,0);
+				SK_DATA_READY(sk, 0);
 			}
 			break;
 		}
@@ -1866,7 +1908,7 @@ static int wanpipe_api_connected(struct net_device *dev, struct sock *sk)
 	DEBUG_TEST("%s: API Connected!\n",__FUNCTION__);
 	
 	sk->sk_state = WANSOCK_CONNECTED;
-	sk->sk_data_ready(sk,0);
+	SK_DATA_READY(sk, 0);
 	return 0;
 }
 
@@ -1881,7 +1923,7 @@ static int wanpipe_api_connecting(struct net_device *dev, struct sock *sk)
 	DEBUG_TEST("%s: API Connecting!\n",__FUNCTION__);
 	
 	sk->sk_state = WANSOCK_CONNECTING;
-	sk->sk_data_ready(sk,0);
+	SK_DATA_READY(sk, 0);
 	return 0;
 }
 
@@ -1896,7 +1938,7 @@ static int wanpipe_api_disconnected(struct sock *sk)
 	    sk->sk_state == WANSOCK_LISTEN) {
 		
 		sk->sk_state = WANSOCK_DISCONNECTED;
-		sk->sk_data_ready(sk,0);
+		SK_DATA_READY(sk, 0);
 		return 0;
 	}
 	
@@ -1909,7 +1951,7 @@ static int wanpipe_api_disconnected(struct sock *sk)
 	
 	sk->sk_state = WANSOCK_DISCONNECTED;
 
-	sk->sk_data_ready(sk,0);
+	SK_DATA_READY(sk, 0);
 	return 0;
 }
 
@@ -2009,7 +2051,7 @@ static int sk_poll_wake (struct sock *sk)
 	if (!wansk_is_zapped(sk))
 		return -EINVAL;
 
-	sk->sk_data_ready(sk,0);
+	SK_DATA_READY(sk, 0);
 	return 0;
 }
 
