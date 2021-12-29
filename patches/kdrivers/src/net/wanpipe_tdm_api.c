@@ -1367,6 +1367,14 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 			card->hw_iface.hw_unlock(card->hw,&smp_flags1);   
 		}
 		break;	
+	
+	case SIOC_WP_TDM_GET_HW_DTMF:
+		if (card->wandev.ec_enable && card->u.aft.tdmv_hw_dtmf == WANOPT_YES) {
+			usr_tdm_api.hw_dtmf = WANOPT_YES;
+		} else {
+			usr_tdm_api.hw_dtmf = WANOPT_NO;
+		}
+		break;
 		
 	case SIOC_WP_TDM_GET_STATS:
 		memcpy(&usr_tdm_api.stats,&tdm_api->cfg.stats,sizeof(tdm_api->cfg.stats));

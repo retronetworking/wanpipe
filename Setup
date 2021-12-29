@@ -3015,6 +3015,9 @@ if [ -z $NONINTERACTIVE ]; then
 		enable_protocols "TDM"
                 SSMG_BRI=YES
 
+	elif [ "$response"  -eq 8 ]; then
+                enable_protocols "AFT_TE1"
+
 	elif [ "$response"  -eq 9 ]; then
 		enable_custom_protocols 
 	else
@@ -6598,7 +6601,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.3.8
+PROD_VER=3.3.9
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

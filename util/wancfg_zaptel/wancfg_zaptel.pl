@@ -910,7 +910,7 @@ sub copy_config_files{
 }
 
 sub unload_zap_modules{
-	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zttranscode","wcusb", "wctdm24xxp","xpp_usb","xpp" ,"wcte12xp", "zaptel");
+	my @modules_list = ("ztdummy","wctdm","wcfxo","wcte11xp","wct1xxp","wct4xxp","tor2","zttranscode","wcusb", "wctdm24xxp","xpp_usb","xpp" ,"wcte12xp","opvxa1200", "zaptel");
 	foreach my $module (@modules_list) {	
 		if ($modprobe_list =~ m/$module/){
 			exec_command("$module_unload $module");

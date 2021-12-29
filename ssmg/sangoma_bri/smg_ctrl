@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 cmd=$1;
 cnt=0;
 max_retry=5;
@@ -165,7 +165,20 @@ function start_all()
 	echo " "
 }
 
-if [ "$cmd" = "start" ]; then
+function usage()
+{
+	echo " "
+	echo "Usage: smg_ctrl <options>"
+	echo "	options:"
+	echo " "
+	echo "start	:start sangoma_brid and sangoma media gateway"
+	echo "stop 	:stop sangoma_brid and sangoma media gateway"
+	echo "restart	:restart sangoma_brid and sangoma media gateway"
+	echo " "
+
+}
+function check_running ()
+{
 	if [ $(pidof sangoma_brid) ]; then
 		echo "sangoma_brid is currently running"
 		echo "exiting..."
@@ -177,23 +190,93 @@ if [ "$cmd" = "start" ]; then
 		echo "exiting..."
 		exit 0
 	fi
+}
+function check_pid_brid()
+{
+	if [ ! $(pidof sangoma_brid) ]; then
+		echo "sangoma_brid is not running"
+		exit 1
+	fi
+}
 
+function toggle_capture()
+{
+	check_pid_brid
+	eval "kill -SIGRTMIN+2 $(pidof sangoma_brid)"
+	if [ $? -eq 0 ]; then
+		echo "BRI: Protocol capture toggled"
+	else 
+		echo "BRI: Failed to send command"
+	fi
+}
+
+function increase_verbose()
+{
+	check_pid_brid
+	SIG_VAL=`kill -l SIGRTMIN`
+	echo "signal: $SIG_VAL"
+	eval "kill -SIGRTMIN $(pidof sangoma_brid)"
+	if [ $? -eq 0 ]; then
+		echo "BRI: Verbosity increased"
+	else 
+		echo "BRI: Failed to send command"
+	fi
+
+}
+
+function decrease_verbose()
+{
+	check_pid_brid
+	eval "kill -SIGRTMIN+1 $(pidof sangoma_brid)"
+	if [ $? -eq 0 ]; then
+		echo "BRI: Verbosity decreased"
+	else 
+		echo "BRI: Failed to send command"
+	fi
+}
+
+function show_calls()
+{
+	check_pid_brid
+	eval "kill -SIGRTMIN+3 $(pidof sangoma_brid) "
+	if [ $? -eq 0 ]; then
+		echo "BRI: Show calls"
+	else 
+		echo "BRI: Failed to send command"
+	fi
+}
+
+function show_spans()
+{
+	check_pid_brid
+	eval "kill -SIGRTMIN+4 $(pidof sangoma_brid)"
+	if [ $? -eq 0 ]; then
+		echo "BRI: Show spans"
+	else 
+		echo "BRI: Failed to send command"
+	fi
+}
+
+if [ "$cmd" = "start" ]; then
+	check_running
 	start_all
 elif [ "$cmd" = "stop" ]; then
-
 	stop_all
 elif [ "$cmd" = "restart" ]; then
 	stop_all
 	start_all
+elif [ "$cmd" = "capture" ]; then
+	toggle_capture	
+elif [ "$cmd" = "v+" ]; then
+	increase_verbose
+elif [ "$cmd" = "v-" ]; then
+	decrease_verbose
+elif [ "$cmd" = "show_spans" ]; then
+	show_spans
+elif [ "$cmd" = "show_calls" ]; then
+	show_calls
 else 
-	echo " "
-	echo "Usage: smg_ctrl <options>"
-	echo "	options:"
-	echo " "
-	echo "start	:start sangoma_brid and sangoma media gateway"
-	echo "stop 	:stop sangoma_brid and sangoma media gateway"
-	echo "restart	:restart sangoma_brid and sangoma media gateway"
-	echo " "
+	usage
 fi
 
 

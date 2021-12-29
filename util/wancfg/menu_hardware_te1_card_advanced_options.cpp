@@ -150,7 +150,8 @@ enum TE1_ADVANCED_OPTIONS{
 	E1_SIG_MODE,
 	TE_HIGHIMPEDANCE,
 	BRI_CLOCK_MASTER,
-	TE_RX_SLEVEL
+	TE_RX_SLEVEL,
+	RM_NETWORK_SYNC
 };
 
 
@@ -250,7 +251,8 @@ int menu_hardware_te1_card_advanced_options::run(OUT int * selection_index)
   link_def_t * link_def;
   wandev_conf_t *linkconf;
   sdla_te_cfg_t*  te_cfg;
-	const te_rx_slevel_t *te_rx_slevel_ptr;
+  const te_rx_slevel_t *te_rx_slevel_ptr;
+  sdla_fe_cfg_t		*sdla_fe_cfg;
 
   input_box_active_channels act_channels_ip;
 
@@ -271,6 +273,7 @@ again:
   link_def = cfr->link_defs;
   linkconf = cfr->link_defs->linkconf;
   te_cfg = &linkconf->fe_cfg.cfg.te_cfg;
+  sdla_fe_cfg = &linkconf->fe_cfg;
 
   Debug(DBG_MENU_HARDWARE_TE1_CARD_ADVANCED_OPTIONS,
 	("cfr->link_defs->name: %s\n", link_def->name));
@@ -311,15 +314,20 @@ again:
   menu_str = "";
 
   if(linkconf->fe_cfg.media == WAN_MEDIA_BRI){
+
+		//////////////////////////////////////////////////////////////////////////////////////
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", RM_NETWORK_SYNC);
+		menu_str += tmp_buff;
+		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"External Network Sync--> %s\" ",
+			(sdla_fe_cfg->network_sync == WANOPT_YES ? "Yes" : "No"));
+		menu_str += tmp_buff;
+		number_of_items++;
+
 		//////////////////////////////////////////////////////////////////////////////////////
 		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", BRI_CLOCK_MASTER);
 		menu_str += tmp_buff;
 		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"BRI Master Clock Port--> %s\" ",
 				(linkconf->fe_cfg.cfg.bri.clock_mode == WANOPT_YES ? "Yes":"No"));
-#if 0
-		snprintf(tmp_buff, MAX_PATH_LENGTH, " \"TE clock mode----> %s\" ",
-			(linkconf->fe_cfg.cfg.te_cfg.te_clock == WANOPT_NORMAL_CLK ? "Normal" : "Master"));
-#endif
 		menu_str += tmp_buff;
 
   }else{
@@ -568,6 +576,32 @@ again:
 	  }
 	  break;
 #endif
+
+	case RM_NETWORK_SYNC:
+		snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s External Network Sync?",
+		(sdla_fe_cfg->network_sync == WANOPT_NO ? "Enable" : "Disable"));
+
+		if(yes_no_question( selection_index,
+				lxdialog_path,
+				NO_PROTOCOL_NEEDED,
+				tmp_buff) == NO){
+			return NO;
+		}
+		
+		switch(*selection_index)
+		{
+		case YES_NO_TEXT_BOX_BUTTON_YES:
+			if(sdla_fe_cfg->network_sync == WANOPT_NO){
+				//was disabled - enable
+				sdla_fe_cfg->network_sync = WANOPT_YES;
+			}else{
+				//was enabled - disable
+				sdla_fe_cfg->network_sync = WANOPT_NO;
+			}
+			break;
+		}
+		break;
+
 	case BRI_CLOCK_MASTER:
 		if(linkconf->fe_cfg.cfg.bri.clock_mode == WANOPT_YES){
 			//It is currently Master, ask if user wants to change Normal mode
@@ -736,7 +770,6 @@ cleanup:
 enum {
 	RM_BATTTHRESH=1,
 	RM_BATTDEBOUNCE,
-	RM_NETWORK_SYNC
 };
 
 menu_hardware_analog_card_advanced_options::
@@ -771,6 +804,7 @@ int menu_hardware_analog_card_advanced_options::run(OUT int * selection_index)
   link_def_t * link_def;
   wandev_conf_t *linkconf;
   sdla_remora_cfg_t	*remora_cfg;
+  sdla_fe_cfg_t		*sdla_fe_cfg;
 
   input_box_active_channels act_channels_ip;
 
@@ -791,6 +825,8 @@ again:
 
   link_def = cfr->link_defs;
   linkconf = cfr->link_defs->linkconf;
+
+  sdla_fe_cfg = &linkconf->fe_cfg;
   remora_cfg = &linkconf->fe_cfg.cfg.remora;
 
   Debug(DBG_MENU_HARDWARE_ANALOG_CARD_ADVANCED_OPTIONS,
@@ -815,7 +851,7 @@ again:
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", RM_NETWORK_SYNC);
   menu_str += tmp_buff;
   snprintf(tmp_buff, MAX_PATH_LENGTH, " \"External Network Sync--> %s\" ",
-	(remora_cfg->network_sync == WANOPT_YES ? "Yes" : "No"));
+	(sdla_fe_cfg->network_sync == WANOPT_YES ? "Yes" : "No"));
   menu_str += tmp_buff;
   number_of_items++;
 
@@ -928,7 +964,7 @@ show_RM_BATTDEBOUNCE_input_box:
 
 	case RM_NETWORK_SYNC:
 		snprintf(tmp_buff, MAX_PATH_LENGTH, "Do you want to %s External Network Sync?",
-		(remora_cfg->network_sync == WANOPT_NO ? "Enable" : "Disable"));
+		(sdla_fe_cfg->network_sync == WANOPT_NO ? "Enable" : "Disable"));
 
 		if(yes_no_question( selection_index,
 				lxdialog_path,
@@ -940,12 +976,12 @@ show_RM_BATTDEBOUNCE_input_box:
 		switch(*selection_index)
 		{
 		case YES_NO_TEXT_BOX_BUTTON_YES:
-			if(remora_cfg->network_sync == WANOPT_NO){
+			if(sdla_fe_cfg->network_sync == WANOPT_NO){
 				//was disabled - enable
-				remora_cfg->network_sync = WANOPT_YES;
+				sdla_fe_cfg->network_sync = WANOPT_YES;
 			}else{
 				//was enabled - disable
-				remora_cfg->network_sync = WANOPT_NO;
+				sdla_fe_cfg->network_sync = WANOPT_NO;
 			}
 			break;
 		}

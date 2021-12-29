@@ -102,6 +102,8 @@ enum wanpipe_tdm_api_cmds {
 	SIOC_WP_TDM_SET_FE_STATUS,	/* 0x1E */
 	SIOC_WP_TDM_GET_FE_STATUS,	/* 0x1F */
 
+	SIOC_WP_TDM_GET_HW_DTMF,	/* 0x20 */
+
 	SIOC_WP_TDM_NOTSUPP		/*  */
 
 };
@@ -312,6 +314,7 @@ typedef struct wanpipe_tdm_api_cmd{
 	unsigned int data_len;
         void *data;	
 	unsigned char fe_status;	/* FE status - Connected or Disconnected */
+	unsigned int hw_dtmf;		/* HW DTMF enabled */
 }wanpipe_tdm_api_cmd_t;
 
 typedef struct wanpipe_tdm_api_event{

@@ -10857,10 +10857,6 @@ aft_tdm_bh_skip:
 	
 #ifdef AFT_TDM_API_SUPPORT 
 
-		if (card->wandev.fe_iface.watchdog){
-			err = card->wandev.fe_iface.watchdog(&card->fe);
-		}
-
 		wanpipe_tdm_api_rx_tx(&chan->wp_tdm_api_dev,
 			    rxbuf,
 			    txbuf,
@@ -10954,9 +10950,6 @@ defined(AFT_TDMV_BH_ENABLE)
 		if (!chan->tdmv_zaptel_cfg){
 
 #endif
-			if (card->wandev.fe_iface.watchdog) {
-				err = card->wandev.fe_iface.watchdog(&card->fe);
-			}
 			
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
                         if (card->sdla_tdmv_dummy) {
@@ -10970,6 +10963,10 @@ defined(AFT_TDMV_BH_ENABLE)
 				wan_set_bit(AFT_DMACTRL_TDMV_RX_TOGGLE,&reg);
 				wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&reg);
 				card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
+			}
+			
+			if (card->wandev.fe_iface.watchdog) {
+				err = card->wandev.fe_iface.watchdog(&card->fe);
 			}
 		}
 
@@ -12509,6 +12506,11 @@ static int aft_handle_clock_master (sdla_t *card_ptr)
 			/* Check if this module is forced configured in oscillator mode */
 			if (IS_BRI_CLK(card) == WAN_MASTER_CLK) {
 				continue;
+			}
+
+			/* Only enable clock recovery on cards with new CPLD */
+			if (!aft_is_bri_512khz_card(card)) {
+				continue;	
 			}
 
 			if (aft_is_bri_te_card(card) && !wan_test_bit(CARD_MASTER_CLOCK,&card->wandev.critical)) {	

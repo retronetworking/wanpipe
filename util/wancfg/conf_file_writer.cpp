@@ -1597,8 +1597,8 @@ TE3_TXLBO	= NO		# NO (default) / YES
         fe_cfg->cfg.remora.battdebounce);
     te1_cfg_string += tmp_buff;
 
-    snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_NETWORK_SYNC = %s\n",
-     fe_cfg->cfg.remora.network_sync == WANOPT_YES ? "YES" : "NO");
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_NETWORK_SYNC = %s\n",
+     fe_cfg->network_sync == WANOPT_YES ? "YES" : "NO");
     te1_cfg_string += tmp_buff;
 
     break;
@@ -1612,11 +1612,16 @@ TE3_TXLBO	= NO		# NO (default) / YES
     snprintf(tmp_buff, MAX_PATH_LENGTH, "RM_BRI_CLOCK_MASTER	= %s\n",
 	    (fe_cfg->cfg.bri.clock_mode == WANOPT_YES ? "YES":"NO"));
     te1_cfg_string += tmp_buff;
+
+    snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_NETWORK_SYNC = %s\n",
+     fe_cfg->network_sync == WANOPT_YES ? "YES" : "NO");
+    te1_cfg_string += tmp_buff;
+
     break;
 
-	case WAN_MEDIA_SERIAL:
-		;//do nothing
-		break;
+  case WAN_MEDIA_SERIAL:
+    ;//do nothing
+    break;
 
   default:
     snprintf(tmp_buff, MAX_PATH_LENGTH, "FE_TXTRISTATE	= %s\n", 

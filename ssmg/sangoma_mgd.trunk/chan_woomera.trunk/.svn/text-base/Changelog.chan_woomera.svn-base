@@ -1,6 +1,11 @@
 chan_woomera.c
 ======================================
 
+April 29 2008
+* v1.28 David Yat Sin <davidy@sangoma.com>
+*	Fix for compilation issues with Callweaver v1.99
+*
+
 Feb 13 2008
 * v1.27 David Yat Sin <davidy@sangoma.com>
 *     Fixed issue channel type not defined when calling tech_call 

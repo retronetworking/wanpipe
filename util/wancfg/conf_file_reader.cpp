@@ -108,7 +108,10 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "TDMV_OPERMODE",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, opermode_name), DTYPE_STR },
   { "RM_BATTTHRESH",    offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battthresh), DTYPE_UINT },
   { "RM_BATTDEBOUNCE",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, battdebounce), DTYPE_UINT },
-  { "RM_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, network_sync), DTYPE_UINT },
+
+//  { "RM_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, network_sync), DTYPE_UINT },
+  { "RM_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, network_sync), DTYPE_UINT },
+  { "FE_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, network_sync), DTYPE_UINT },
 
   { "RM_BRI_CLOCK_MASTER",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_bri_cfg_t, clock_mode), DTYPE_UCHAR },
 

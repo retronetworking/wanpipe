@@ -172,9 +172,9 @@ enum HW_SETUP_OPTIONS {
   TDMV_LAW_SELECT,
   TDMV_OPERMODE,
   AFT_ANALOG_ADVANCED,
-	AFT_SERIAL_CONNECTION_TYPE,
-	AFT_SERIAL_LINE_CODING,
-	AFT_SERIAL_LINE_IDLE
+  AFT_SERIAL_CONNECTION_TYPE,
+  AFT_SERIAL_LINE_CODING,
+  AFT_SERIAL_LINE_IDLE
 };
 
 menu_hardware_setup::menu_hardware_setup(   IN char * lxdialog_path,
@@ -419,7 +419,7 @@ again:
       menu_str += tmp_buff;
       menu_str += " \"Advanced Physical Medium Configuration\" ";
       break;
-		case AFT_ADPTR_2SERIAL_V35X21:
+    case AFT_ADPTR_2SERIAL_V35X21:
       form_AFT_Serial_options_menu(menu_str, number_of_items);
 
       snprintf(tmp_buff, MAX_PATH_LENGTH, " \"%d\" ", EMPTY_LINE);

@@ -538,7 +538,7 @@ int aft_bri_global_chip_config(sdla_t *card)
 
 	DEBUG_CFG("--- Chip enable/config. -- \n");
 
-	if (card->fe.fe_cfg.cfg.remora.network_sync) {
+	if (WAN_FE_NETWORK_SYNC(&card->fe)){	/*card->fe.fe_cfg.cfg.remora.network_sync*/
 		DEBUG_EVENT("%s: ISDN BRI Clock set to (External) Network Sync!\n",
 				card->devname);
 		wan_set_bit(AFT_CHIPCFG_A500_NET_SYNC_CLOCK_SELECT_BIT,&reg);	

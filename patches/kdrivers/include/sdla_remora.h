@@ -135,7 +135,6 @@ typedef struct sdla_remora_cfg_ {
 	int		reversepolarity;
 	int		battthresh;
 	int		battdebounce;	
-	int		network_sync;
 
 	u_int8_t	relaxcfg;	/* do not failed during config if one of 
 					** the modules failed to configure */

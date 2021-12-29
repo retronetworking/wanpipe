@@ -557,6 +557,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
   { "FE_LINE",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, line_no),  DTYPE_UINT },
   { "FE_POLL",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, poll_mode),  DTYPE_UCHAR },
   { "FE_TXTRISTATE",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, tx_tristate_mode),  DTYPE_UCHAR },
+  { "FE_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, network_sync), DTYPE_UINT },
   /* Front-End parameters (old style) */
   /* Front-End parameters (old style) */
   { "MEDIA",    offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, media), DTYPE_UCHAR },
@@ -592,7 +593,7 @@ key_word_t common_conftab[] =	/* Common configuration parameters */
 
   { "RM_BRI_CLOCK_MASTER",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_bri_cfg_t, clock_mode), DTYPE_UCHAR },
   { "RM_BRI_CLOCK",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_bri_cfg_t, clock_mode), DTYPE_UCHAR },
-  { "RM_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, network_sync), DTYPE_UINT },
+  { "RM_NETWORK_SYNC",  offsetof(wandev_conf_t, fe_cfg)+smemof(sdla_fe_cfg_t, network_sync), DTYPE_UINT },
   { "RM_FASTRINGER",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_fastringer), DTYPE_UCHAR },
   { "RM_LOWPOWER",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_lowpower), DTYPE_UCHAR },
   { "RM_FXSTXGAIN",  offsetof(wandev_conf_t, fe_cfg)+offsetof(sdla_fe_cfg_t, cfg) + smemof(sdla_remora_cfg_t, fxs_txgain), DTYPE_INT },

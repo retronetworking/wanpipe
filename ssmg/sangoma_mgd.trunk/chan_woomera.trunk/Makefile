@@ -25,25 +25,23 @@ $(shell echo $(PBXDIR) > .pbxdir)
 
 PBXMODDIR=/usr/lib/asterisk/modules
 PBXCFGDIR=/etc/asterisk
+PBXDEFINES=
 
+#Check for Asterisk AST_CONTROL_SRC feature
+$(shell if [[ -f $(PBXDIR)/include/asterisk/frame.h ]]; then grep -c AST_CONTROL_SRC $(PBXDIR)/include/asterisk/frame.h > .ast_src_check; else echo 0 > .ast_src_check; fi;)
+ifeq (1,$(shell cat .ast_src_check))
+	PBXDEFINES=-DWOO_CONTROL_SRC_FEATURE
+endif
 
 ifneq (,$(wildcard $(PBXDIR)/include/callweaver.h))
-	PBXFLAGS_EXTRA=-DCALLWEAVER -DHAVE_CONFIG_H
+	PBXFLAGS_EXTRA=-DCALLWEAVER 
 	PBXMODDIR=/usr/local/lib/callweaver/modules
 	PBXCFGDIR=/usr/local/etc/callweaver
-
-#Enable this for callweaver 1.2-rc5
-#	PBXFLAGS_EXTRA += -DCALLWEAVER_1_2
 endif
 
-ifneq (,$(wildcard $(PBXDIR)/include/asterisk.h))
 ifneq (,$(wildcard $(PBXDIR)/configure))
-	PBXFLAGS_EXTRA=-DAST14 -DAST_MODULE=\"chan_woomera\" 
-else
-	PBXFLAGS_EXTRA=
-endif
-endif
-
+	PBXFLAGS_EXTRA=-DAST14 -DAST_MODULE=\"chan_woomera\"
+endif	
 
 CC = gcc
 
@@ -54,7 +52,7 @@ CCFLAGS = -Wall -Wstrict-prototypes -Wmissing-prototypes -g
 LDFLAGS=-L lib/libteletone/.libs -L. -L/usr/local/lib -L ../../ssmg/libsangoma.trunk/.libs -lpthread -lsangoma -lm
 
 
-PBXFLAGS= $(INCLUDES) -I$(PBXDIR) -I$(PBXDIR)/include -pipe  -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -g3 -Iinclude -I../include -D_REENTRANT  -DWOOMERA_CHAN_NAME=\"$(CHAN_NAME)\" -D_GNU_SOURCE  -O6 -fomit-frame-pointer  -fPIC
+PBXFLAGS= $(INCLUDES) -I$(PBXDIR) -I$(PBXDIR)/include -pipe  -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -g3 -Iinclude -I../include -D_REENTRANT  -DWOOMERA_CHAN_NAME=\"$(CHAN_NAME)\" -D_GNU_SOURCE $(PBXDEFINES)  -O6 -fomit-frame-pointer  -fPIC
 
 
 all: chan_woomera.so 

@@ -2165,7 +2165,7 @@ int main(int argc, char *argv[])
   Debug(DBG_WANCFG_MAIN, ("%s: main()\n", WANCFG_PROGRAM_NAME));
 
   if(argc == 2 && !strcmp(argv[1], "version")){
-    printf("\nwancfg version: 1.34\n");
+    printf("\nwancfg version: 1.35 (April 28, 2008)\n");
     return EXIT_SUCCESS;
   }
 

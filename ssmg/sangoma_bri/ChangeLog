@@ -5,6 +5,30 @@ Author: David Yat Sin <david.yatsin@sangoma.com>
 Copyright (c) 2007-2008 Sangoma Technologies Inc.
 ------------------------------------------------------------------------------
 
+* Mon April 30 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.39
+====================================================================
+- Fix for RDNIS not cleared
+
+* Wed April 16 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.38
+====================================================================
+- Support for show_spans and show_calls.
+
+* Tues April 15 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.37
+====================================================================
+- Added support for multiple MSNs.
+
+* Mon April 14 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.36
+====================================================================
+- Added support for timer_t3 and timer_t302
+- Changed boost_msg.cpp to use shared path for all SMG-BRI messages
+- Minor changes: Increased verbosity level for some informational
+- messages
+
+* Mon April 05 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.35d
+====================================================================
+- Fix for TEI not being re-negotiated on PHY disconnect.
+
+
 * Mon April 03 2008 David Yat Sin <david.yatsin@sangoma.com> - 1.35
 ====================================================================
 - First stable release. 

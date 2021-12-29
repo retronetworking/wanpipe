@@ -5,14 +5,28 @@
  * Woomera Channel Driver
  * 
  * Copyright (C) 05-08 Nenad Corbic 
+ *		       David Yat Sin
  * 		       Anthony Minessale II 
  *
  * Nenad Corbic <ncorbic@sangoma.com>
+ * David Yat Sin <davidy@sangoma.com>
  * Anthony Minessale II <anthmct@yahoo.com>
  *
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.29 David Yat Sin <davidy@sangoma.com>
+ * Apr 30 2008
+ *	Added AST_CONTROL_SRCUPDATE in tech_indicate
+ *
+ * v1.29 David Yat Sin <davidy@sangoma.com>
+ * April 29 2008
+ *	Support for HW DTMF
+ *
+ * v1.28 David Yat Sin <davidy@sangoma.com>
+ * Apr 29 2008
+ *	Fix for compilation issues with Callweaver v1.99
+ *
  * v1.27 David Yat Sin <davidy@sangoma.com>
  * Feb 13 2008
  *	Fix for ast_channel type not defined on 
@@ -129,6 +143,9 @@
 #include "confdefs.h"
 #endif
 
+#if defined (cw_config) 
+#define CALLWEAVER_19
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -165,7 +182,7 @@
 #include "asterisk/dsp.h"
 #include "asterisk/musiconhold.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.27 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.29 $")
 
 #else
 
@@ -188,9 +205,118 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.27 $")
 #include "callweaver.h"
 #include "confdefs.h"
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.27 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.29 $")
 
-// strings...
+		/* CALLWEAVER v1.9 and later */
+#if defined (CALLWEAVER_19) 
+#define		
+#define		ast_config		cw_config
+#define 	AST_CONTROL_RINGING	CW_CONTROL_RINGING
+#define 	AST_CONTROL_BUSY	CW_CONTROL_BUSY
+#define 	AST_CONTROL_CONGESTION	CW_CONTROL_CONGESTION
+#define 	AST_CONTROL_PROCEEDING	CW_CONTROL_PROCEEDING
+#define 	AST_CONTROL_PROGRESS	CW_CONTROL_PROGRESS
+#define 	AST_CONTROL_HOLD	CW_CONTROL_HOLD
+#define 	AST_CONTROL_UNHOLD	CW_CONTROL_UNHOLD
+#define		AST_CONTROL_VIDUPDATE	CW_CONTROL_VIDUPDATE
+
+
+#define		LOG_NOTICE		CW_LOG_NOTICE
+
+#define		LOG_DEBUG		CW_LOG_DEBUG
+
+#define		LOG_ERROR		CW_LOG_ERROR
+
+#define		LOG_WARNING		CW_LOG_WARNING
+
+#define 	AST_FORMAT_SLINEAR 	CW_FORMAT_SLINEAR
+#define 	AST_FORMAT_ULAW		CW_FORMAT_ULAW
+#define 	AST_FORMAT_ALAW 	CW_FORMAT_ALAW
+#define 	ast_mutex_t 		cw_mutex_t
+#define 	ast_frame 		cw_frame
+#define 	ast_verbose 		cw_verbose
+#define 	AST_FRIENDLY_OFFSET 	CW_FRIENDLY_OFFSET
+#define 	AST_MUTEX_DEFINE_STATIC 	CW_MUTEX_DEFINE_STATIC
+#define 	AST_CONTROL_PROGRESS 		CW_CONTROL_PROGRESS
+#define 	AST_CAUSE_REQUESTED_CHAN_UNAVAIL 	CW_CAUSE_REQUESTED_CHAN_UNAVAIL
+#define 	AST_CAUSE_NORMAL_CIRCUIT_CONGESTION 	CW_CAUSE_NORMAL_CIRCUIT_CONGESTION
+#define 	AST_CAUSE_USER_BUSY 		CW_CAUSE_USER_BUSY
+#define 	AST_CAUSE_NO_ANSWER 		CW_CAUSE_NO_ANSWER
+#define 	AST_CAUSE_NORMAL_CLEARING 	CW_CAUSE_NORMAL_CLEARING
+#define 	AST_SOFTHANGUP_EXPLICIT 	CW_SOFTHANGUP_EXPLICIT
+#define 	AST_SOFTHANGUP_DEV 		CW_SOFTHANGUP_DEV
+#define		AST_CAUSE_NORMAL_CLEARING 	CW_CAUSE_NORMAL_CLEARING
+#define 	AST_FRAME_DTMF 			CW_FRAME_DTMF
+#define 	AST_FRAME_CONTROL 		CW_FRAME_CONTROL
+#define 	AST_CONTROL_ANSWER 		CW_CONTROL_ANSWER
+#define 	AST_STATE_UP 			CW_STATE_UP
+#define 	AST_STATE_RINGING 		CW_STATE_RINGING
+#define 	AST_STATE_DOWN 			CW_STATE_DOWN
+#define 	AST_FLAGS_ALL 			CW_FLAGS_ALL
+#define 	AST_FRAME_VOICE 		CW_FRAME_VOICE
+#define 	ASTERISK_GPL_KEY 		0
+#define 	ast_channel_tech 		opbx_channel_tech
+#define 	ast_test_flag  			cw_test_flag
+#define 	ast_queue_frame 		cw_queue_frame
+#define		ast_frdup 			cw_frdup
+#define 	ast_channel 			cw_channel
+#define 	ast_exists_extension 		cw_exists_extension
+#define 	ast_hostent 		cw_hostent
+#define         ast_clear_flag          cw_clear_flag
+#define         ast_log                 cw_log
+#define         ast_set_flag            cw_set_flag
+#define         ast_copy_string         cw_copy_string
+#define         ast_set_flag            cw_set_flag
+#define         ast_set2_flag           cw_set2_flag
+#define         ast_setstate            cw_setstate
+#define         ast_test_flag           cw_test_flag
+#define         ast_softhangup          cw_softhangup
+#define         ast_true                cw_true
+#define         ast_false               cw_false
+#define         ast_strlen_zero         cw_strlen_zero
+#define         ast_exists_extension    cw_exists_extension
+#define         ast_frame               cw_frame
+#define         ast_jb_conf             cw_jb_conf
+#define         ast_carefulwrite        cw_carefulwrite
+#define         ast_channel_unregister  cw_channel_unregister
+#define         ast_cli                 cw_cli
+#define         ast_cli_register        cw_cli_register
+#define         ast_cli_unregister      cw_cli_unregister
+#define         ast_jb_read_conf        cw_jb_read_conf
+#define         ast_mutex_destroy       cw_mutex_destroy
+#define         ast_mutex_init          cw_mutex_init
+#define         ast_mutex_lock          cw_mutex_lock
+#define         ast_mutex_unlock        cw_mutex_unlock
+#define         ast_mutex_t             cw_mutex_t
+#define         ast_queue_control       cw_queue_control
+#define         ast_queue_frame         cw_queue_frame
+#define         ast_queue_hangup        cw_queue_hangup
+#define         ast_set_callerid        cw_set_callerid
+#define         ast_variable            cw_variable
+#define         ast_pthread_create      cw_pthread_create
+#define         ast_cli_entry           cw_cli_entry
+#define         ast_channel_register    cw_channel_register
+#define         ast_config_load         cw_config_load
+#define         ast_config_destroy      cw_config_destroy
+#define         ast_category_browse     cw_category_browse
+#define         ast_variable_browse     cw_variable_browse
+#define         ast_gethostbyname       cw_gethostbyname
+#define         ast_channel_alloc       cw_channel_alloc
+#define         ast_dsp_new                     cw_dsp_new
+#define         ast_dsp                         cw_dsp
+#define         ast_dsp_set_features            cw_dsp_set_features
+#define         ast_dsp_digitmode               cw_dsp_digitmode
+#define         ast_dsp_set_call_progress_zone  cw_dsp_set_call_progress_zone
+#define         ast_dsp_set_busy_count          cw_dsp_set_busy_count
+#define         ast_dsp_set_busy_pattern        cw_dsp_set_busy_pattern
+#define         ast_dsp_process                 cw_dsp_process
+#define         ast_strdupa             cw_strdupa
+#define         ast_mutex_trylock       cw_mutex_trylock
+#define         ast_cause2str           cw_cause2str
+#define         ast_pbx_start           cw_pbx_start
+#define         ast_hangup	 	cw_hangup
+		
+#else /* CALLWEAVER prior to v1.9 */
 
 #define		ast_config		opbx_config
 #define 	AST_CONTROL_RINGING	OPBX_CONTROL_RINGING
@@ -305,6 +431,8 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.27 $")
 #define         ast_pbx_start           opbx_pbx_start
 #define         ast_hangup	 	opbx_hangup
 
+		
+#endif /* CALLWEAVER_19 */
 #endif
 
 #include "g711.h"
@@ -322,7 +450,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.27 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.27"
+#define WOOMERA_VERSION "v1.29"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -3811,6 +3939,11 @@ static int tech_indicate(struct ast_channel *self, int condition)
 			ast_set_flag(tech_pvt, TFLAG_ACCEPT);
 		}
 		break;
+#ifdef WOO_CONTROL_SRC_FEATURE
+	case AST_CONTROL_SRCUPDATE:
+		res = 0;
+		break;
+#endif
 	case -1:
                 res = -1;
                 break;
@@ -4132,6 +4265,7 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
 {
 
 	char *raw_audio_header;
+	char *hw_dtmf;
 	char ip[25];
 	char *ptr;
 	int port = 0;
@@ -4161,7 +4295,7 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
                 ptr++;
                 port = atoi(ptr);
 	}
-
+	
 #if 0	
 	audio_codec = woomera_message_header(wmsg, "Receive-Audio-Codec");
 	if (audio_codec) {
@@ -4174,7 +4308,22 @@ static int woomera_event_media (private_object *tech_pvt, woomera_message *wmsg)
 		} 
 	}
 #endif
-
+	
+	hw_dtmf = woomera_message_header(wmsg, "DTMF");
+	if (hw_dtmf != NULL) {
+		if (strncmp(hw_dtmf, "OutofBand" ,9) == 0) {
+			if (option_verbose > 2) {
+				ast_verbose(WOOMERA_DEBUG_PREFIX "HW DTMF supported %s\n", tech_pvt->callid);
+			}
+			
+			tech_pvt->dsp_features &= ~DSP_FEATURE_DTMF_DETECT;
+			ast_dsp_set_features(tech_pvt->dsp, tech_pvt->dsp_features);
+		} else {
+			if (option_verbose > 2) {
+				ast_verbose(WOOMERA_DEBUG_PREFIX "HW DTMF not supported %s\n", tech_pvt->callid);
+			}
+		}
+	}
 
 	/* Sanity Check */
 	owner = tech_get_owner(tech_pvt);
@@ -4342,7 +4491,7 @@ static int woomera_event_incoming (private_object *tech_pvt)
 
 			if(tech_pvt->profile->tg_language[group] != NULL &&
 			   strlen(tech_pvt->profile->tg_language[group])){
-				strncpy(owner->language, tech_pvt->profile->tg_language[group], sizeof(owner->language) - 1);
+				strncpy((char*)owner->language, (char*)tech_pvt->profile->tg_language[group], sizeof(owner->language) - 1);
 			}
 
 		}else {
@@ -4469,22 +4618,25 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 		return;		
 
 	} else if (!strcasecmp(wmsg->command, "DTMF")) {
-		struct ast_frame dtmf_frame = {AST_FRAME_DTMF};
-		int x = 0;
-		for (x = 0; x < strlen(wmsg->command_args); x++) {
-			struct ast_channel *owner = tech_get_owner(tech_pvt);
-			dtmf_frame.subclass = wmsg->command_args[x];
-
-			if (owner) {
-			ast_queue_frame(owner, ast_frdup(&dtmf_frame));
-			}
-
-			if (globals.debug > 1 && option_verbose > 1) {
-				if (option_verbose > 2) {
-					ast_verbose(WOOMERA_DEBUG_PREFIX "SEND DTMF [%c] to %s\n", dtmf_frame.subclass,tech_pvt->callid);
+			
+		char *content_len = woomera_message_header(wmsg, "Content-Length");
+		struct ast_channel *owner = tech_get_owner(tech_pvt);
+		if (owner && content_len && atoi(content_len) > 0) {
+			int clen=atoi(content_len);
+			int x;
+			for (x = 0; x < clen; x++) {
+				struct ast_frame dtmf_frame = {AST_FRAME_DTMF};
+				dtmf_frame.subclass = wmsg->body[x];
+				ast_queue_frame(owner, &dtmf_frame);
+				
+				if (globals.debug > 1 && option_verbose > 1) {
+					if (option_verbose > 2) {
+						ast_verbose(WOOMERA_DEBUG_PREFIX "SEND DTMF [%c] to %s\n", dtmf_frame.subclass,tech_pvt->callid);
+					}
 				}
 			}
 		}
+
 
 	} else if (!strcasecmp(wmsg->command, "PROCEED")) {
 		/* This packet has lots of info so well keep it */
@@ -4551,7 +4703,6 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 
 
 	} else if (!strcasecmp(wmsg->command, "MEDIA")) {
-	
 		int err;
 		err=woomera_event_media (tech_pvt, wmsg);
 		if (err != 0) {

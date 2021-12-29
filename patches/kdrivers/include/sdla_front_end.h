@@ -132,6 +132,7 @@
 #define FE_LINENO(fe_cfg)	((fe_cfg)->line_no)
 #define FE_TXTRISTATE(fe_cfg)	((fe_cfg)->tx_tristate_mode)
 #define FE_TDMV_LAW(fe_cfg)	((fe_cfg)->tdmv_law)
+#define FE_NETWORK_SYNC(fe_cfg)	((fe_cfg)->network_sync)
 
 #define IS_T1_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_T1)
 #define IS_E1_MEDIA(fe_cfg)	(FE_MEDIA(fe_cfg) == WAN_MEDIA_E1)
@@ -203,6 +204,8 @@ typedef struct {
 	unsigned char	tx_tristate_mode;
 	unsigned int	tdmv_law;
 	unsigned char	poll_mode;
+	int		network_sync;
+
 	union {
 		sdla_te_cfg_t		te_cfg;
 		sdla_te3_cfg_t		te3_cfg;
@@ -278,6 +281,7 @@ typedef struct {
 #define WAN_FE_LINENO(fe)	FE_LINENO(&((fe)->fe_cfg))
 #define WAN_FE_TXTRISTATE(fe)	FE_TXTRISTATE(&((fe)->fe_cfg))
 #define WAN_FE_TDMV_LAW(fe)	FE_TDMV_LAW(&((fe)->fe_cfg))
+#define WAN_FE_NETWORK_SYNC(fe)	FE_NETWORK_SYNC(&((fe)->fe_cfg))
 
 #define FE_MEDIA_DECODE(fe)	MEDIA_DECODE(&((fe)->fe_cfg))
 #define FE_LCODE_DECODE(fe)	LCODE_DECODE(&((fe)->fe_cfg))

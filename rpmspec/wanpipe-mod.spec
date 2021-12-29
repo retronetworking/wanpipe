@@ -1,6 +1,6 @@
 %define WANPIPE_VER	  wanpipe-modules
 %define name              %{WANPIPE_VER}
-%define version           3.3.8
+%define version           3.3.9
 %define release           0
 %define	serial	 	  1
 %define MODULES_DIR	  /lib/modules
@@ -51,6 +51,50 @@ echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"
 
 %changelog
 
+* Fri Apr 30 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.9
+======================================================================
+
+- AFT BRI Clock Reference Update
+  Disabled reference clocking feature on original A500 BRI Cards.
+  It has been determined that reference clocking feature is not always stable 
+  on original A500 BRI cards.  It can cause noise and call drops in some 
+  circumstances where BRI lines go up and down due to power saving mode.
+  
+  If you have problems with FAX synchronization on an original A500 BRI Card
+  contact Sangoma Support and we will swap out the card for one with
+  an updated CPLD that will work with the reference clock and provide
+  reliable FAXing.
+
+  Run wanrouter hwprobe verbose to determine your A500 BRI CPLD Version
+   -> wanrouter hwprobe verbose
+	-C00 -> old bri cpld (non reference clock)
+	-C01 -> new bri cpld (reference clock enabled)
+
+
+- Manually Disabling BRI Clock Reference
+  This option is valid from 3.3.6 release and greater.
+  This option can be used in case of noise and voice quality issues
+  and call drop issues on BRI card.  
+
+  In order to disable BRI clock reference manually one can add
+  RM_BRI_CLOCK=OSC in each BRI wanpipe config file in /etc/wanpipe directory.
+  1. vi /etc/wanpipe/wanpipe1.conf
+  2. Under the TDMV_SPAN option add
+     RM_BRI_CLOCK=OSC
+  3. Save file
+  4. Repeat for all BRI wanpipe configuration files
+  5. Restart all wanpipe devices
+  
+  Note from 3.3.9 release on, all old CPLD A500 BRI cards
+  have clock referencing disabled automatically.
+
+- Updated BRI Stack
+  Fix for RDNIS not cleared
+  Support for show_spans and show_calls.
+  Added support for multiple MSNs.
+  Added support for timer_t3 and timer_t302
+  http://wiki.sangoma.com/sangoma-wanpipe-smg-asterisk-bri-installation
+  
 
 * Fri Apr 25 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.8
 ======================================================================
