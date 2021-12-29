@@ -200,6 +200,10 @@
  #define wp_aft_analog_init(card,conf) (-EPROTONOSUPPORT)
 #endif
 
+#ifndef CONFIG_PRODUCT_WANPIPE_AFT_A600
+ #define wp_aft_a600_init(card, conf) (-EPROTONOSUPPORT)
+#endif
+
 #ifndef CONFIG_PRODUCT_WANPIPE_AFT_56K
  #define wp_aft_56k_init(card,conf) (-EPROTONOSUPPORT)
 #endif
@@ -913,7 +917,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		break;
 		
 	case WANCONFIG_AFT:
-		DEBUG_EVENT("%s: Starting AFT Hardware Init.\n",
+		DEBUG_EVENT("%s: Starting AFT Legacy Hardware Init.\n",
 					card->devname);
 		err = wp_xilinx_init(card,conf);
 		break;
@@ -931,11 +935,17 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		break;
 
 	case WANCONFIG_AFT_ANALOG:
-		DEBUG_EVENT("%s: Starting AFT Analog Hardware Init.\n",
-					card->devname);
-		err = wp_aft_analog_init(card,conf);
-		break;
-
+		if (card->adptr_type == AFT_ADPTR_A600) {
+                        DEBUG_EVENT("%s: Starting AFT B600 Hardware Init.\n",
+                                                card->devname);
+                        err = wp_aft_a600_init(card,conf);
+                } else {
+                        DEBUG_EVENT("%s: Starting AFT Analog Hardware Init.\n",
+                                                card->devname);
+                        err = wp_aft_analog_init(card,conf);
+                }
+                break;
+		
 	case WANCONFIG_AFT_ISDN_BRI:
 		DEBUG_EVENT("%s: Starting AFT ISDN BRI Hardware Init.\n",
 					card->devname);
@@ -943,7 +953,7 @@ static int setup (wan_device_t* wandev, wandev_conf_t* conf)
 		break;
 
 	case WANCONFIG_AFT_SERIAL:
-		DEBUG_EVENT("%s: Starting AFT Serial (V32/RS232) Hardware Init.\n",
+		DEBUG_EVENT("%s: Starting AFT Serial (V35/RS232) Hardware Init.\n",
 					card->devname);
 		err = wp_aft_serial_init(card,conf);
 		break;

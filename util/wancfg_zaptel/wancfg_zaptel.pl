@@ -9,6 +9,7 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Oct 16   2008  2.22	Jignesh Patel	Added Support for A600 
 # Oct 07   2008  2.21   Jignesh Patel 	Dahdi Soft-EC conf support for Analog & A101/2 cards
 # Sep 30   2008  2.20	Jignesh Patel   Configuration Support for Dahdi
 # Aug 20   2008  2.19	Jignesh Patel 	Suppor for HP TDM API for A10x added hp_a100
@@ -45,7 +46,7 @@ system('clear');
 print "\n########################################################################";
 print "\n#    		           Sangoma Wanpipe                              #";
 print "\n#        Dahdi/Zaptel/SMG/TDMAPI/BOOT Configuration Script             #";
-print "\n#                             v2.21                                    #";
+print "\n#                             v2.22                                    #";
 print "\n#                     Sangoma Technologies Inc.                        #";
 print "\n#                        Copyright(c) 2008.                            #";
 print "\n########################################################################\n\n";
@@ -334,6 +335,15 @@ print "Sangoma cards configuration complete, exiting...\n\n";
 
 #######################################FUNCTIONS##################################################
 
+sub get_card_name{
+	my ($card_name) = @_;
+	if ( $card_name eq '600' || $card_name eq '700') {
+		$card_name = "B".$card_name;
+	} else {
+		$card_name = "A".$card_name;
+	}
+	return $card_name;
+}
 
 sub set_zaptel_hwhdlc{
 	print "Checking for native zaptel hardhdlc support...";
@@ -892,7 +902,7 @@ sub get_zapata_context{
 		@options = ("PSTN", "INTERNAL");
 	}
 	if ($silent==$FALSE){
-		printf ("Select dialplan context for AFT-A%s on port %s\n", $card_model, $card_port);
+		printf ("Select dialplan context for AFT-%s on port %s\n", get_card_name($card_model), $card_port);
 		my $res = &prompt_user_list(@options,$def_zapata_context);
 		if($res eq "PSTN"){
 			$context="from-zaptel";
@@ -995,7 +1005,7 @@ sub update_zapata_template{
 	#update comments for zapata.conf or chan_dahdi.conf
 	my $zapfile="";
 	if (!open (FH,"$zapata_conf_file")) {
-		printf("Unable to modify $zapata_conf_file\n");
+# 		printf("Unable to modify $zapata_conf_file\n");
 		
 	}
 	while (<FH>) {
@@ -1691,7 +1701,8 @@ sub config_bri{
 				
 select_bri_option:
 					if($silent==$FALSE){
-						print "\nWould you like to configure AFT-A$1 port $5 on slot:$3 bus:$4\n";
+						printf ("\nWould you like to configure AFT-%s port %s on slot:%s bus:%s\n",
+										get_card_name($card->card_model), $5, $3, $4);
 						my @options=("YES", "NO", "Exit");
 						$def_bri_option=&prompt_user_list(@options,$def_bri_option);
 					} else {
@@ -1701,7 +1712,7 @@ select_bri_option:
 					
 					if($def_bri_option eq 'YES'){
 						$skip_card=$FALSE;
-						$bri_conf.="\n;Sangoma AFT-A$1 port $5 [slot:$3 bus:$4 span:$current_tdmapi_span]";
+						$bri_conf.="\n;Sangoma AFT-".get_card_name($1)." port $5 [slot:$3 bus:$4 span:$current_tdmapi_span]";
 					}elsif($def_bri_option eq 'NO'){
 						$skip_card=$TRUE;
 					}else{
@@ -1724,7 +1735,7 @@ select_bri_option:
 						$card->tdmv_span_no($current_tdmapi_span);
 						$current_tdmapi_span++;
 					}else{
-						print "A$1 on slot:$3 bus:$4 port:$5 not configured\n";
+						printf ("%s on slot:%s bus:%s port:%s not configured\n", 												get_card_name($card->card_model), $3, $4, $5);
 						prompt_user("Press any key to continue");
 					}
 
@@ -1737,7 +1748,7 @@ select_bri_option:
 	 		my $group="";
 			my $bri_pos=$a50x->card->tdmv_span_no;
 			
-	 		printf("\nConfiguring port %d on AFT-A%d [slot:%d bus:%d span:%d]\n", $a50x->fe_line(), $a50x->card->card_model(), $a50x->card->pci_slot(), $a50x->card->pci_bus(), $current_tdmapi_span-1);
+	 		printf("\nConfiguring port %d on AFT-%s [slot:%d bus:%d span:%d]\n", $a50x->fe_line(), get_card_name($a50x->card->card_model()), $a50x->card->pci_slot(), $a50x->card->pci_bus(), $current_tdmapi_span-1);
 			my $conn_type=get_bri_conn_type($a50x->fe_line());
 			my $country=get_bri_country();
 			my $operator=get_bri_operator();
@@ -2083,7 +2094,7 @@ sub config_t1e1{
 	foreach my $dev (@hwprobe) {
 		if ( $dev =~ /A(\d+)(.*):.*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*/){
 
-		  	if ( ! ($1 eq '200' | $1 eq '400' | $1 eq '500') ){
+		  	if ( ! ($1 eq '200' | $1 eq '400' | $1 eq '500' | $1 eq '600') ){
 				#do not count analog devices
 				$num_digital_devices_total++;
 			}
@@ -2319,7 +2330,7 @@ sub config_t1e1{
 				$a10x->fe_frame($def_feframe);
 				if($silent==$FALSE){
 					my @options = ("NORMAL", "MASTER");
-					printf ("Select clock for AFT-A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+					printf ("Select clock for AFT-%s on port %s [slot:%s bus:%s span:$devnum]\n", get_card_name($card->card_model), $port, $card->pci_slot, $card->pci_bus);
 					$def_feclock=&prompt_user_list(@options, $def_feclock);
 				} else {
 					if($#silent_feclocks >= 0){
@@ -2381,7 +2392,7 @@ sub config_t1e1{
 				}
 				if ($silent==$FALSE){
 					if( $is_tdm_api == $FALSE && $is_hp_tdm_api == $FALSE ){
-						printf ("Select signalling type for AFT-A%s on port %s [slot:%s bus:%s span:$devnum]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+						printf ("Select signalling type for AFT-%s on port %s [slot:%s bus:%s span:$devnum]\n", get_card_name($card->card_model), $port, $card->pci_slot, $card->pci_bus);
 						$def_signalling=&prompt_user_list(@options,$def_signalling); 
 					}
 				} else {
@@ -2533,7 +2544,7 @@ ENDSS7CONFIG:
 					@options = ("160","80", "40");
 				
 					if ($silent==$FALSE){
-						printf ("Select Chunk Size for AFT-A%s on port %s [slot:%s bus:%s]\n", $card->card_model, $port, $card->pci_slot, $card->pci_bus);
+						printf ("Select Chunk Size for AFT-%s on port %s [slot:%s bus:%s]\n", get_card_name($card->card_model), $port, $card->pci_slot, $card->pci_bus);
 						$def_chunk_size=&prompt_user_list(@options,$def_chunk_size); 
 					}
 
@@ -2581,7 +2592,7 @@ ENDSS7CONFIG:
 	
 				if ( $a10x->signalling eq 'PRI CPE' | $a10x->signalling eq 'PRI NET' ){    
 					if ($silent==$FALSE && $config_zapata==$TRUE){
-						printf ("Select switchtype for AFT-A%s on port %s \n", $card->card_model, $port);
+						printf ("Select switchtype for AFT-%s on port %s \n", get_card_name($card->card_model), $port);
 						$a10x->pri_switchtype(get_pri_switchtype());	
 					} else {
 						if($#silent_pri_switchtypes >= 0){
@@ -2684,7 +2695,7 @@ ENDSS7CONFIG:
 					}
 				}elsif ($is_trixbox==$TRUE | $config_zapata==$TRUE){
 					if($silent==$FALSE){
-						printf ("Configuring port %s on %s as a full %s\n", $a10x->fe_line(), $a10x->card->card_model(),$a10x->fe_media());
+						printf ("Configuring port %s on AFT-%s as a full %s\n", $a10x->fe_line(), get_card_name($a10x->card->card_model()),$a10x->fe_media());
 						my $res=&prompt_user_list("YES - Use all channels", "NO  - Configure for fractional","YES");
 						if ($res =~ m/NO/){
 							my $max_chan=0;
@@ -2756,7 +2767,7 @@ sub config_analog{
 	}
 	$first_cfg=0;
 	print "------------------------------------\n";
-	print "Configuring analog cards [A200/A400]\n";
+	print "Configuring analog cards [A200/A400/B600]\n";
 	print "------------------------------------\n";
 
 	my $skip_card=$FALSE;
@@ -2766,7 +2777,9 @@ sub config_analog{
 	}
 	foreach my $dev (@hwprobe) {
 		
-		if ( $dev =~ /(\d+).(\w+\w+).*SLOT=(\d+).*BUS=(\d+).*CPU=(\w+).*PORT=(\w+).*HWEC=(\d+)/){
+		
+	        if ( $dev =~ /(\d+).(\w+\w+).*SLOT=(\d+).*BUS=(\d+).*.*HWEC=(\d+)/){
+
 			$skip_card=$FALSE;
 			my $card = eval {new Card(); } or die ($@);
 			$card->current_dir($current_dir);
@@ -2775,8 +2788,9 @@ sub config_analog{
 			$card->card_model($1);
 			$card->pci_slot($3);
 			$card->pci_bus($4);
-			$card->fe_cpu($5);
-			my $hwec=$7;
+			#fe_cpu is not used for analog cards
+			#$card->fe_cpu($5);
+			my $hwec=$5;
 			if($dahdi_installed == $TRUE) {
 					$card->dahdi_conf('YES');
 					$card->dahdi_echo($dahdi_echo)
@@ -2788,17 +2802,18 @@ sub config_analog{
 				$card->hwec_mode('YES');
 				
 			}
-			if ($card->card_model eq '200' | $card->card_model eq '400'){
+			if ($card->card_model eq '200' | $card->card_model eq '400' | $card->card_model eq '600'){
 				$num_analog_devices_total++;
 				if($silent==$FALSE) {
 					system('clear');
 					print "\n-----------------------------------------------------------\n";
-					print "A$1 detected on slot:$3 bus:$4\n";
+					print "AFT-$1 detected on slot:$3 bus:$4\n";
 					print "-----------------------------------------------------------\n";
 				}
 				if($is_trixbox==$FALSE){
 					if ($silent==$FALSE){
-						print "\nWould you like to configure AFT-A$1 on slot:$3 bus:$4\n";
+						printf ("\nWould you like to configure AFT-%s on slot:%d bus:%s\n",
+											get_card_name($card->card_model), $3, $4);
 						if (&prompt_user_list(("YES","NO","")) eq 'NO'){
 							$skip_card=$TRUE;	
 						}
@@ -2858,15 +2873,15 @@ sub config_analog{
 					}
 					my $i;
 					if( $is_tdm_api == $FALSE) {
-						print "A$1 configured on slot:$3 bus:$4 span:$current_zap_span\n";
-						$zaptel_conf.="#Sangoma A$1 [slot:$3 bus:$4 span:$current_zap_span] <wanpipe".$a20x->card->device_no.">\n";
-						$zapata_conf.=";Sangoma A$1 [slot:$3 bus:$4 span:$current_zap_span]  <wanpipe".$a20x->card->device_no.">\n";
+						printf ("AFT-%s configured on slot:%d bus:%d span:%s\n", get_card_name($1), $3, $4,$current_zap_span);
+						$zaptel_conf.="#Sangoma AFT-".get_card_name($1)." [slot:$3 bus:$4 span:$current_zap_span] <wanpipe".$a20x->card->device_no.">\n";
+						$zapata_conf.=";Sangoma AFT-".get_card_name($1)." [slot:$3 bus:$4 span:$current_zap_span]  <wanpipe".$a20x->card->device_no.">\n";
 						$current_zap_channel+=24;	
 						$num_zaptel_config++;
 						$card->tdmv_span_no($current_zap_span);
 						$current_zap_span++;
 					}else{
-						print "A$1 configured on slot:$3 bus:$4 span:$current_tdmapi_span\n";
+						printf ("AFT-%s configured on slot:%s bus:%s span:$current_tdmapi_span\n", 							get_card_name($1), $3, $4);
 						$a20x->is_tdm_api($TRUE);
 						$card->tdmv_span_no($current_tdmapi_span);
 						$current_tdmapi_span++;
@@ -2880,7 +2895,8 @@ sub config_analog{
 					}
 					
 				}else{
-					print "A$1 on slot:$3 bus:$4 not configured\n";
+					printf ("AFT-%s on slot:%s bus:%s not configured\n", 
+								get_card_name($1), $3, $4);
 					prompt_user("Press any key to continue");
 				}
 			}

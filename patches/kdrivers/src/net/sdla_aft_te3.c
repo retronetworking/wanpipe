@@ -411,7 +411,7 @@ static void 	aft_reset_rx_chain_cnt(private_area_t *chan);
 static void 	aft_reset_tx_chain_cnt(private_area_t *chan); 
 static void 	aft_critical_shutdown (sdla_t *card);
 static int      aft_fifo_intr_ctrl(sdla_t *card, int ctrl);
-
+static int 		xilinx_t3_exar_dev_configure_post(sdla_t *card, private_area_t *chan);
 
 /* Procfs functions */
 static int wan_aft3_get_info(void* pcard, struct seq_file* m, int* stop_cnt); 
@@ -1042,6 +1042,10 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 	wan_atomic_inc(&card->wandev.if_cnt);
 
 	chan->common.state = WAN_CONNECTING;
+
+	wan_set_bit(AFT_FE_LED,&card->u.aft.port_task_cmd);
+	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+	
 
 	DEBUG_EVENT( "\n");
 
@@ -3533,11 +3537,16 @@ static void handle_front_end_state(void *card_id)
 	
 	WAN_FECALL(&card->wandev, get_fe_status, (&card->fe, &status,0));
 	if (status == FE_CONNECTED){
-		if (card->wandev.state != WAN_CONNECTED){
-			enable_data_error_intr(card);
-			port_set_state(card,WAN_CONNECTED);
-			card->u.xilinx.state_change_exit_isr=1;
-			wan_set_bit(AFT_FE_LED,&card->u.aft.port_task_cmd);
+		DEBUG_TEST("%s: Connected State %i\n",
+				card->devname,card->fe.fe_param.te3.e3_lb_ctrl);
+		if (IS_T1_CARD(card) || 
+		    (card->fe.fe_param.te3.e3_lb_ctrl == 0 || card->fe.fe_param.te3.e3_lb_ctrl == 3)) {
+			if (card->wandev.state != WAN_CONNECTED){
+				enable_data_error_intr(card);
+				port_set_state(card,WAN_CONNECTED);
+				card->u.xilinx.state_change_exit_isr=1;
+				wan_set_bit(AFT_FE_LED,&card->u.aft.port_task_cmd);
+			}
 		}
 	} else {
 		if (card->wandev.state != WAN_DISCONNECTED){
@@ -3805,157 +3814,158 @@ static void enable_data_error_intr(sdla_t *card)
 
 	DEBUG_TEST("%s: %s() !!!\n",
 			card->devname,__FUNCTION__);
-
+	
 	
 	/* Clean Tx/Rx DMA interrupts */
 	card->hw_iface.bus_read_4(card->hw,
-                                  XILINX_DMA_RX_INTR_PENDING_REG, &reg);
-        card->hw_iface.bus_read_4(card->hw,
-                                  XILINX_DMA_TX_INTR_PENDING_REG, &reg);
-
-
-        /* For all channels clean Tx/Rx fifos */
-        WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
-        	private_area_t *chan;
+									XILINX_DMA_RX_INTR_PENDING_REG, &reg);
+	card->hw_iface.bus_read_4(card->hw,
+									XILINX_DMA_TX_INTR_PENDING_REG, &reg);
+	
+	
+	/* For all channels clean Tx/Rx fifos */
+	WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
+		private_area_t *chan;
 
 		dev = WAN_DEVLE2DEV(devle);
 		if (!dev || !wan_netif_priv(dev))
 			continue;
-                chan = wan_netif_priv(dev);
 
+		chan = wan_netif_priv(dev);
+	
 		if (!wan_test_bit(0,&chan->up)){
 			continue;
 		}
-		
-		aft_list_descriptors(chan);
 
+		xilinx_t3_exar_dev_configure_post(card,chan);
+
+		aft_list_descriptors(chan);
+	
 		DEBUG_TEST("%s: 1) Free Used DMA CHAINS %s\n",
 				card->devname,chan->if_name);
-		
+	
 		aft_rx_dma_chain_handler(chan,0,1);
 		aft_free_rx_complete_list(chan);
-
-		
+	
+	
 		aft_list_descriptors(chan);
-
+	
 		DEBUG_TEST("%s: 1) Free UNUSED DMA CHAINS %s\n",
 				card->devname,chan->if_name);
-		
+	
 		aft_free_rx_descriptors(chan);
-
+	
 		aft_free_tx_descriptors(chan);
-		
-		
+	
+	
 		DEBUG_TEST("%s: 2) Init interface fifo no wait %s\n",
 				card->devname,chan->if_name);
-
-                xilinx_init_rx_dev_fifo(card, chan, WP_NO_WAIT);
-                xilinx_init_tx_dev_fifo(card, chan, WP_NO_WAIT);
-
+	
+				xilinx_init_rx_dev_fifo(card, chan, WP_NO_WAIT);
+				xilinx_init_tx_dev_fifo(card, chan, WP_NO_WAIT);
+	
 		aft_list_descriptors(chan);
-        }
-
-
+	}
 	
 	if (card->fe.fe_cfg.cfg.te3_cfg.fractional){
 		card->hw_iface.bus_read_4(card->hw,TE3_FRACT_ENCAPSULATION_REG,&reg);
-
+	
 		DEBUG_EVENT("%s: Rx Fractional Frame Size = 0x%lX\n",
 				card->devname,
 				get_te3_rx_fract_frame_size(reg));
-
+	
 		/* FIXME: Setup bitrate and tx frame size */
 	}
-		
-
-        /* Enable DMA controler, in order to start the
-         * fifo cleaning */
+	
+	
+		/* Enable DMA controler, in order to start the
+			* fifo cleaning */
 	reg=0;
 	reg|=(AFT_T3_DMA_FIFO_MARK << DMA_FIFO_T3_MARK_BIT_SHIFT);
 	reg|=(MAX_AFT_DMA_CHAINS-1)&DMA_CHAIN_TE3_MASK;
-
-        wan_set_bit(DMA_RX_ENGINE_ENABLE_BIT,&reg);
-        wan_set_bit(DMA_TX_ENGINE_ENABLE_BIT,&reg);
-        card->hw_iface.bus_write_4(card->hw,XILINX_DMA_CONTROL_REG,reg);
-
+	
+		wan_set_bit(DMA_RX_ENGINE_ENABLE_BIT,&reg);
+		wan_set_bit(DMA_TX_ENGINE_ENABLE_BIT,&reg);
+		card->hw_iface.bus_write_4(card->hw,XILINX_DMA_CONTROL_REG,reg);
+	
 	/* For all channels clean Tx/Rx fifos */
-        WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
-        	private_area_t *chan;
-
+	WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
+		private_area_t *chan;
+	
 		dev = WAN_DEVLE2DEV(devle);
 		if (!dev || !wan_netif_priv(dev))
 			continue;
-                chan = wan_netif_priv(dev);
-
+				chan = wan_netif_priv(dev);
+	
 		if (!wan_test_bit(0,&chan->up)){
 			continue;
 		}
-
+	
 		DEBUG_TEST("%s: 3) Init interface fifo %s\n",
 				card->devname,chan->if_name);
-
+	
 		xilinx_init_rx_dev_fifo(card, chan, WP_WAIT);
 		xilinx_init_tx_dev_fifo(card, chan, WP_WAIT);
-
+	
 		DEBUG_TEST("%s: Clearing Fifo and idle_flag %s\n",
 				card->devname,chan->if_name);
 		wan_clear_bit(0,&chan->idle_start);
 	}
-
+	
 	/* For all channels, reprogram Tx/Rx DMA descriptors.
-         * For Tx also make sure that the BUSY flag is clear
-         * and previoulsy Tx packet is deallocated */
-
-       	WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
-        	private_area_t *chan;
-
+			* For Tx also make sure that the BUSY flag is clear
+			* and previoulsy Tx packet is deallocated */
+	
+	WAN_LIST_FOREACH(devle, &card->wandev.dev_head, dev_link){
+		private_area_t *chan;
+	
 		dev = WAN_DEVLE2DEV(devle);
 		if (!dev || !wan_netif_priv(dev))
 			continue;
-                chan = wan_netif_priv(dev);
-
+				chan = wan_netif_priv(dev);
+	
 		if (!wan_test_bit(0,&chan->up)){
 			continue;
 		}
-
+	
 		DEBUG_TEST("%s: 4) Init interface %s\n",
 				card->devname,chan->if_name);
-
-                xilinx_dma_rx(card,chan,-1);
-
+	
+				xilinx_dma_rx(card,chan,-1);
+	
 		if (!chan->hdlc_eng) {
 			aft_reset_tx_chain_cnt(chan);
 			xilinx_dma_te3_tx(card,chan);
 		}
-
+	
 		aft_list_descriptors(chan);
-
-                DEBUG_TEST("%s: Clearing Fifo and idle_flag %s\n",
-                                card->devname,chan->if_name);
-
-        }
-
+	
+		DEBUG_TEST("%s: Clearing Fifo and idle_flag %s\n",
+								card->devname,chan->if_name);
+	
+	}
+	
 	/* Clean Tx/Rx Error interrupts, since fifos are now
-         * empty, and Tx fifo may generate an underrun which
-         * we want to ignore :) */
+		* empty, and Tx fifo may generate an underrun which
+		* we want to ignore :) */
 
-     	card->hw_iface.bus_read_4(card->hw,
-                                  XILINX_HDLC_RX_INTR_PENDING_REG, &reg);
-        card->hw_iface.bus_read_4(card->hw,
-                                  XILINX_HDLC_TX_INTR_PENDING_REG, &reg);
+	card->hw_iface.bus_read_4(card->hw,
+								XILINX_HDLC_RX_INTR_PENDING_REG, &reg);
+	card->hw_iface.bus_read_4(card->hw,
+								XILINX_HDLC_TX_INTR_PENDING_REG, &reg);
 
 	/* Enable Global DMA and Error Interrupts */
 	reg=0;
 	card->hw_iface.bus_read_4(card->hw,XILINX_CHIP_CFG_REG,&reg);
-    	wan_set_bit(GLOBAL_INTR_ENABLE_BIT,&reg);
-
+		wan_set_bit(GLOBAL_INTR_ENABLE_BIT,&reg);
+	
 	/* Enable Fifo interrupt after first successful DMA */
 	wan_clear_bit(ERROR_INTR_ENABLE_BIT,&reg);
 	card->hw_iface.bus_write_4(card->hw,XILINX_CHIP_CFG_REG,reg);
-
-
+	
+	
 	card->hw_iface.bus_read_4(card->hw,XILINX_DMA_CONTROL_REG,&reg);
-
+	
 	aft_enable_rx_watchdog(card,AFT_RX_TIMEOUT);
 	aft_enable_tx_watchdog(card,AFT_TX_TIMEOUT);
 	
@@ -4555,6 +4565,71 @@ static int xilinx_t3_exar_chip_configure(sdla_t *card)
 	return err;
 }
 
+static int xilinx_t3_exar_dev_configure_post(sdla_t *card, private_area_t *chan)
+{
+	u32 reg=0,reg1=0;
+
+	if (IS_DS3(&card->fe.fe_cfg)){
+		return 0;
+	}
+
+	DEBUG_TEST("%s: E3 Post Dev Config!\n",chan->if_name);
+
+	if (chan->hdlc_eng){
+		/* HDLC engine is enabled on the above logical channels */
+		wan_clear_bit(HDLC_RX_PROT_DISABLE_BIT,&reg);
+		wan_clear_bit(HDLC_TX_PROT_DISABLE_BIT,&reg);
+		
+		wan_set_bit(HDLC_TX_CHAN_ENABLE_BIT,&reg);
+
+		if (card->fe.fe_cfg.cfg.te3_cfg.fractional){
+			DEBUG_EVENT("%s: Configuring for Fractional\n",card->devname);
+			wan_set_bit(HDLC_RX_ADDR_FIELD_DISC_BIT,&reg);
+			wan_set_bit(HDLC_TX_ADDR_INSERTION_BIT,&reg);
+		}else{
+			wan_set_bit(HDLC_RX_ADDR_RECOGN_DIS_BIT,&reg);
+		}
+
+		if (card->fe.fe_cfg.cfg.te3_cfg.fcs == 32){
+			wan_set_bit(HDLC_TX_FCS_SIZE_BIT,&reg);
+			wan_set_bit(HDLC_RX_FCS_SIZE_BIT,&reg);
+		}
+		
+		DEBUG_TEST("%s:%s: Config for HDLC mode: FCS=%d\n",
+                        card->devname,chan->if_name,
+			card->fe.fe_cfg.cfg.te3_cfg.fcs);
+	}else{
+
+		/* Transprent Mode */
+
+		/* Do not start HDLC Core here, because
+                 * we have to setup Tx/Rx DMA buffers first
+	         * The transparent mode, will start
+                 * comms as soon as the HDLC is enabled */
+
+	}
+
+/* Select an HDLC Rx channel for configuration */
+	reg1=1;
+	card->hw_iface.bus_write_4(card->hw, AFT_T3_RXTX_ADDR_SELECT_REG, reg1);
+	
+	if (card->fe.fe_cfg.cfg.te3_cfg.fractional){
+		
+			xilinx_write_ctrl_hdlc(card,
+									chan->first_time_slot,
+									XILINX_HDLC_ADDR_REG,
+									0xA5A5A5A5);
+	}
+		
+	xilinx_write_ctrl_hdlc(card,
+							chan->first_time_slot,
+							XILINX_HDLC_CONTROL_REG,
+							reg);
+
+	return 0;
+
+}
+
 static int xilinx_t3_exar_dev_configure(sdla_t *card, private_area_t *chan)
 {
 
@@ -4578,7 +4653,6 @@ static int xilinx_t3_exar_dev_configure(sdla_t *card, private_area_t *chan)
         	reg|=1&DMA_CHAIN_TE3_MASK;
         	card->hw_iface.bus_write_4(card->hw,XILINX_DMA_CONTROL_REG,reg);
 	}
-
 
 	reg=0;
 	
@@ -4633,23 +4707,25 @@ static int xilinx_t3_exar_dev_configure(sdla_t *card, private_area_t *chan)
                                reg);
 
 
-	/* Select an HDLC Rx channel for configuration */
-	reg1=1;
-	card->hw_iface.bus_write_4(card->hw, AFT_T3_RXTX_ADDR_SELECT_REG, reg1);
+	if (IS_DS3(&card->fe.fe_cfg)){
+	
+		/* Select an HDLC Rx channel for configuration */
+		reg1=1;
+		card->hw_iface.bus_write_4(card->hw, AFT_T3_RXTX_ADDR_SELECT_REG, reg1);
 
-	if (card->fe.fe_cfg.cfg.te3_cfg.fractional){
-
+		if (card->fe.fe_cfg.cfg.te3_cfg.fractional){
+	
+			xilinx_write_ctrl_hdlc(card,
+								chan->first_time_slot,
+								XILINX_HDLC_ADDR_REG,
+								0xA5A5A5A5);
+		}
+	
 		xilinx_write_ctrl_hdlc(card,
-                               chan->first_time_slot,
-                               XILINX_HDLC_ADDR_REG,
-                               0xA5A5A5A5);
+								chan->first_time_slot,
+								XILINX_HDLC_CONTROL_REG,
+								reg);
 	}
-
-	xilinx_write_ctrl_hdlc(card,
-                               chan->first_time_slot,
-                               XILINX_HDLC_CONTROL_REG,
-                               reg);
-
 	return 0;
 
 }

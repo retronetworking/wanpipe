@@ -1558,7 +1558,7 @@ static __inline void wan_skb_copyback(void* skb, int off, int len, caddr_t cp)
 	struct sk_buff* sk = (struct sk_buff*)skb;
 	unsigned char* data = NULL;
 	if (off == wan_skb_len(skb)){
-		if (sk->tail + len > sk->end){	
+		if (__wan_skb_tail_pointer(sk) + len > __wan_skb_end_pointer(sk)){	
 			DEBUG_EVENT(
 			"%s:%d: Internal Error (off=%d,len=%d,skb_len=%d)!\n",
 				__FUNCTION__,__LINE__,
@@ -1636,7 +1636,7 @@ static __inline int wan_skb_copyback_user(void* skb, int off, int len, caddr_t c
 	struct sk_buff* sk = (struct sk_buff*)skb;
 	unsigned char* data = NULL;
 	if (off == wan_skb_len(skb)){
-		if (__wan_skb_tail_pointer(sk) + len > sk->end){	
+		if (__wan_skb_tail_pointer(sk) + len > __wan_skb_end_pointer(sk)){	
 			DEBUG_EVENT(
 			"%s:%d: Internal Error (off=%d,len=%d,skb_len=%d)!\n",
 					__FUNCTION__,__LINE__,

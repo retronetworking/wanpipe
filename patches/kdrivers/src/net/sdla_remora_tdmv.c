@@ -1590,7 +1590,7 @@ DEBUG_EVENT("Module %d: RX: %02X %02X %02X %02X %02X %02X %02X %02X\n",
 	/* This feature is used to change zaptel buffering that improves
 	   faxing between analog & SMG. Enable this feature ONLY when 
 	   network sync is ON */
-	if (WAN_FE_NETWORK_SYNC(&card->fe) && 
+	if (WAN_FE_NETWORK_SYNC(&card->fe) == WANOPT_YES && 
 	    wr->chans[channo].txbufpolicy != ZT_POLICY_WHEN_FULL) {
 		DEBUG_EVENT("%s: RX CHAN %i Setting FULL POLICY\n", 
 			card->devname,channo);

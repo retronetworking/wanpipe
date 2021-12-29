@@ -385,7 +385,7 @@ static int aft_test_hdlc(sdla_t *card)
 #if INIT_FE_ONLY
 #else
 	for (i=0;i<10;i++){
-		card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &reg);
+		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &reg);
 
 		if (!wan_test_bit(AFT_CHIPCFG_HDLC_CTRL_RDY_BIT,&reg) ||
 		    !wan_test_bit(AFT_CHIPCFG_RAM_READY_BIT,&reg)){
@@ -525,7 +525,7 @@ int a104_global_chip_config(sdla_t *card)
 
 	DEBUG_CFG("--- AFT Chip Reset. -- \n");
 
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 	
 	WP_DELAY(10);
 
@@ -555,7 +555,7 @@ int a104_global_chip_config(sdla_t *card)
 
 	DEBUG_CFG("--- Chip enable/config. -- \n");
 
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 
 	if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID){
 		/* A104/A108 with Dallas FE */
@@ -612,9 +612,9 @@ int a104_global_chip_config(sdla_t *card)
 		if (max_ec_chans) {
 			DEBUG_EVENT("%s: Global HWEC Clock Source : %i\n", 
 					card->devname,card->wandev.comm_port+1); 
-			card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG,&reg); 
+			card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),&reg); 
                  	aft_chipcfg_set_oct_clk_src(&reg,card->wandev.comm_port);  
-			card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg); 
+			card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg); 
 		}
 	}
 #endif/*INIT_FE_ONLY*/
@@ -645,7 +645,7 @@ int a104_global_chip_unconfig(sdla_t *card)
 	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
 	wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 #endif
 	return 0;
 }
@@ -664,25 +664,26 @@ static int aft_ds_set_clock_ref(sdla_t *card, u32 *reg, u32 master_port)
 		master_cfg=0x08;
 	}  
 
-	if (WAN_TE1_CLK(&card->fe) == WAN_MASTER_CLK) {  
-	        wan_set_bit(AFT_LCFG_A108_FE_CLOCK_MODE_BIT,reg);
+	if (WAN_TE1_CLK(&card->fe) == WAN_MASTER_CLK) {
+
+		wan_set_bit(AFT_LCFG_A108_FE_CLOCK_MODE_BIT,reg);
 
 		if (WAN_FE_LINENO(&card->fe) >= 4) {
         	 	a108m_write_cpld(card,
 					WAN_FE_LINENO(&card->fe)-4,
 					(u8)master_cfg);      	
 		}  
-	       	/* July 5, 2006 
-	      	 ** Modification for Master mode 
-	       	 ** (next line execute for all channels) 
-	       	 */
+		/* July 5, 2006
+			** Modification for Master mode
+			** (next line execute for all channels)
+			*/
 		/* We must configure the xilinx space for
-		 * each port, only for ports greater than 3
-		 * we must also configure the CPLD */
-               	aft_lcfg_a108_fe_clk_source(reg,master_cfg);       
+		* each port, only for ports greater than 3
+		* we must also configure the CPLD */
+		aft_lcfg_a108_fe_clk_source(reg,master_cfg);
 
 	} else {
-	        wan_clear_bit(AFT_LCFG_A108_FE_CLOCK_MODE_BIT,reg);
+		wan_clear_bit(AFT_LCFG_A108_FE_CLOCK_MODE_BIT,reg);
 
 		if (WAN_FE_LINENO(&card->fe) >= 4) {
         	 	a108m_write_cpld(card,
@@ -718,9 +719,9 @@ static void aft_set_hwec_clock_src(sdla_t *card)
 		card->hw_iface.hw_lock(card->hw,&smp_flags);
 		wan_spin_lock_irq(&card->wandev.lock,&flags);
 
-		card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg);
+		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &cfg_reg);
 	     	aft_chipcfg_set_oct_clk_src(&cfg_reg,card->hwec_conf.clk_src);
-		card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG, cfg_reg);
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), cfg_reg);
 
 		wan_spin_unlock_irq(&card->wandev.lock,&flags);
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
@@ -940,7 +941,7 @@ int a104_chip_config(sdla_t *card, wandev_conf_t *conf)
 
 		card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
 
-		card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg); 
+		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &cfg_reg); 
 		if (max_ec_chans > aft_chipcfg_get_ec_channels(cfg_reg)){
 	        	DEBUG_EVENT("%s: Critical Error: Exceeded Maximum Available Echo Channels!\n",
 					card->devname);
@@ -1308,7 +1309,7 @@ int a104_check_ec_security(sdla_t *card)
 		security_bit=AFT_CHIPCFG_A108_EC_SECURITY_BIT;
 	}
 	
-    	card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg);
+    	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &cfg_reg);
 	if (wan_test_bit(security_bit,&cfg_reg)){ 
     		return 1; 	
 	}
@@ -1470,7 +1471,7 @@ int a108m_write_cpld(sdla_t *card, unsigned short off,u_int16_t data)
 void a104_fifo_adjust(sdla_t *card, u32 level)
 {
 	u32 fifo_size,reg;
-	card->hw_iface.bus_read_4(card->hw, AFT_FIFO_MARK_REG, &fifo_size);
+	card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card, AFT_FIFO_MARK_REG), &fifo_size);
 
 	aft_fifo_mark_gset(&reg,(u8)level);
 
@@ -1485,7 +1486,7 @@ void a104_fifo_adjust(sdla_t *card, u32 level)
 		return;
 	}
 	
-	card->hw_iface.bus_write_4(card->hw, AFT_FIFO_MARK_REG, reg);		
+	card->hw_iface.bus_write_4(card->hw, AFT_PORT_REG(card, AFT_FIFO_MARK_REG), reg);		
 	DEBUG_EVENT("%s:    Fifo Level Map:0x%08X\n",card->devname,reg);
 }
 

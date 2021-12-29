@@ -2195,7 +2195,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=3.3.14
+		ROUTER_VERSION=3.3.15
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"
@@ -3013,6 +3013,12 @@ case "$1" in
 		elif [ "$2" = "legacy" ]; then
 			if [ $OSYSTEM = "Linux" ]; then
 				cat /proc/net/wanrouter/hwprobe_legacy
+			else
+				wanconfig hwprobe legacy
+			fi
+		elif [ "$2" = "dump" ]; then
+			if [ $OSYSTEM = "Linux" ]; then
+				cat /proc/net/wanrouter/hwprobe_dump
 			else
 				wanconfig hwprobe legacy
 			fi

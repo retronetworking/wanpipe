@@ -6,6 +6,7 @@
 # include <sdla_te1.h>
 # include <sdla_te3.h>
 # include <sdla_remora.h>
+# include <sdla_a600_remora.h>
 # include <sdla_bri.h>
 # include <sdla_serial.h>
 # include <sdla_front_end.h>
@@ -21,6 +22,7 @@
 # include <linux/sdla_te1.h>
 # include <linux/sdla_te3.h>
 # include <linux/sdla_remora.h>
+# include <linux/sdla_a600_remora.h>
 # include <linux/sdla_bri.h>
 # include <linux/sdla_serial.h>
 # include <linux/sdla_front_end.h>
@@ -37,6 +39,7 @@
 # include <sdla_te3.h>
 # include <sdla_bri.h>
 # include <sdla_remora.h>
+# include <sdla_a600_remora.h>
 # include <sdla_bri.h>
 # include <sdla_serial.h>
 # include <sdla_front_end.h>
@@ -81,6 +84,8 @@ For example: a number of DLCIs. */
 #define CONFIG_PRODUCT_WANPIPE_AFT_BRI
 /* compile AFT Serial code */
 #define CONFIG_PRODUCT_WANPIPE_AFT_SERIAL
+/* compile A600 code */
+#define CONFIG_PRODUCT_WANPIPE_AFT_A600
 /********** end of compilation flags ************/
 
 /* Frame Relay definitions for sprotocol.dll 
@@ -202,7 +207,7 @@ enum {
 		 card_type == WANOPT_AFT104 ||			\
 		 card_type == WANOPT_AFT108) ?     "A101/1D/A102/2D/4/4D/8" :	\
 		(card_type == WANOPT_AFT300) ?     "A300"  :	\
-		(card_type == WANOPT_AFT_ANALOG) ? "A200/400"  :	\
+		(card_type == WANOPT_AFT_ANALOG) ? "A200/400/600"  :	\
 		(card_type == WANOPT_AFT_ISDN) ?   "A500"  :	\
 		(card_type == WANOPT_AFT_56K) ?    "A056"  :	\
 		(card_type == WANOPT_AFT_SERIAL) ? "A14x"  :	\
@@ -227,7 +232,7 @@ enum {
 #define INT_DECODE(interface)					\
 		(interface == WANOPT_RS232) ? "RS232" :	\
 		(interface == WANOPT_V35)	? "V35" :	\
-		"Invalid"
+		(interface == WANOPT_X21)	? "X21" :	"Invalid"
 
 #define SIGNALLING_DECODE(sig)					\
 		(sig == WANOPT_FR_ANSI) ? "ANSI" :	\
@@ -690,10 +695,10 @@ typedef struct wandev_conf
 	unsigned int comm_port;	/* Communication Port (PRI=0, SEC=1) */ 
 	unsigned int bps;	/* data transfer rate */
 	unsigned int mtu;	/* maximum transmit unit size */
-        unsigned udp_port;      /* UDP port for management */
+	unsigned udp_port;      /* UDP port for management */
 	unsigned char ttl;	/* Time To Live for UDP security */
 	unsigned char ft1;	/* FT1 Configurator Option */
-        char electrical_interface;		/* RS-232/V.35, etc. */
+	char electrical_interface;		/* RS-232/V.35, etc. */
 	char clocking;		/* external/internal */
 	char line_coding;	/* NRZ/NRZI/FM0/FM1, etc. */
 	char connection;	/* permanent/switched/on-demand */

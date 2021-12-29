@@ -10,11 +10,8 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-SYSINC=$(shell if [ -f ../../.sysinclude ]; then cat ../../.sysinclude;  else echo ""; fi)
-ifeq "$(SYSINC)" "" 
-SYSINC=/lib/modules/$(shell uname -r)/build/include
-endif
 WAN_VIRTUAL=
+SYSINC=../../patches/kdrivers/include
 
 # Tools options.
 CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -D_DEBUG_=$(DEBUG) -DCONFIG_PRODUCT_WANPIPE_AFT_BRI

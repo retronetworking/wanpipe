@@ -946,7 +946,7 @@ static void hw_set_lb_modes(unsigned char type, unsigned char mode)
 	return;
 }
 
-void get_lb_modes()
+void get_lb_modes(void)
 {
 
 	if ((femedia.media != WAN_MEDIA_T1) && (femedia.media != WAN_MEDIA_E1) &&
@@ -1435,8 +1435,9 @@ void set_fe_tx_mode(unsigned char mode)
 	wan_udp.wan_udphdr_command	= WAN_FE_TX_MODE;
 	wan_udp.wan_udphdr_data_len	= 1;
 	wan_udp.wan_udphdr_return_code	= 0xaa;
-
-	set_wan_udphdr_data_byte(0,mode);
+	
+	set_wan_udphdr_data_byte(0,WAN_FE_TX_MODE);	//not used
+	set_wan_udphdr_data_byte(1,mode);
 
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code != 0){

@@ -1367,6 +1367,7 @@ look_up_t	sym_table[] =
 	/*----- Interface type ----------------*/
 	{ WANOPT_RS232,		"RS232"		},
 	{ WANOPT_V35,		"V35"		},
+	{ WANOPT_X21,		"X21"		},
 	/*----- Data encoding -----------------*/
 	{ WANOPT_NRZ,		"NRZ"		}, 
 	{ WANOPT_NRZI,		"NRZI"		}, 
@@ -1477,6 +1478,8 @@ look_up_t	sym_table[] =
         { WAN_MASTER_CLK,   	"MASTER"        },
         { WAN_NORMAL_CLK,	"LINE"          },
 	{ WAN_MASTER_CLK, 	"OSC"     	},
+	{ WAN_CLK_OUT_OSC,	"OUT_OSC"	},
+	{ WAN_CLK_OUT_LINE,	"OUT_LINE"	},
 	{ WANOPT_NETWORK_SYNC_IN,   "IN" },
 	{ WANOPT_NETWORK_SYNC_OUT,  "OUT" },
         { WAN_TE1_SIG_CAS,	"CAS"           },

@@ -1805,6 +1805,8 @@ try_trace_again:
 		case WANCONFIG_AFT:
 		case WANCONFIG_AFT_TE1:
 		case WANCONFIG_AFT_TE3:
+		case WANCONFIG_AFT_56K:
+		case WANCONFIG_AFT_SERIAL:
 			if (trace_iface->data[0] == 0x8F || trace_iface->data[0] == 0x0F){
 				trace_iface->link_type=WANCONFIG_CHDLC;
 				goto try_trace_again;

@@ -904,13 +904,10 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		WRITE_REG(REG_TMMR, 0x00);
 		/* Enable Rx Framer */
 		WRITE_REG(REG_RMMR, BIT_RMMR_FRM_EN);
-		if (IS_FE_TXTRISTATE(fe)){
-			DEBUG_EVENT("%s:    Disable TX (tri-state mode)\n",
-						fe->name);
-		}else{
-			/* Enable Tx Framer */
-			WRITE_REG(REG_TMMR, BIT_TMMR_FRM_EN);
-		}
+
+		/* Enable Tx Framer */
+		WRITE_REG(REG_TMMR, BIT_TMMR_FRM_EN);
+
 	}else{
 		/* Clear Rx Framer soft reset */
 		WRITE_REG(REG_RMMR, BIT_RMMR_T1E1);
@@ -918,13 +915,9 @@ static int sdla_ds_te1_chip_config(void* pfe)
 		WRITE_REG(REG_TMMR, BIT_TMMR_T1E1);
 		/* Enable Rx Framer */
 		WRITE_REG(REG_RMMR, (BIT_RMMR_FRM_EN | BIT_RMMR_T1E1));
-		if (IS_FE_TXTRISTATE(fe)){
-			DEBUG_EVENT("%s:    Disable TX (tri-state mode)\n",
-						fe->name);
-		}else{
-			/* Enable Tx Framer */
-			WRITE_REG(REG_TMMR, (BIT_TMMR_FRM_EN | BIT_TMMR_T1E1));
-		}
+
+		/* Enable Tx Framer */
+		WRITE_REG(REG_TMMR, (BIT_TMMR_FRM_EN | BIT_TMMR_T1E1));
 	}
 
 	if (IS_T1_FEMEDIA(fe)){
@@ -1260,7 +1253,25 @@ static int sdla_ds_te1_chip_config(void* pfe)
 #endif
 
 	/* Turn on LIU output */
-	WRITE_REG(REG_LMCR, BIT_LMCR_TE);
+	if (IS_FE_TXTRISTATE(fe)){
+		DEBUG_EVENT("%s:    TriState Tx Mode Enabled\n",
+						fe->name);
+	}else{
+		WRITE_REG(REG_LMCR, BIT_LMCR_TE);
+	}
+
+	/* Initialize RBS bits to 1 */
+	if (IS_E1_FEMEDIA(fe)) {
+		int i;
+		for (i=1; i < 16; i++) {
+			WRITE_REG(REG_TS1 + i, 0xFF);
+		}
+	} else {
+		int i;
+		for (i=0; i < 12; i++) {
+			WRITE_REG(REG_TS1 + i, 0xFF);
+		}
+	}
 
 	return 0;
 }
@@ -1539,6 +1550,12 @@ static int sdla_ds_te1_unconfig(void* pfe)
 		return -EINVAL;
 	}
 	
+	if (!wan_test_bit(TE_CONFIGURED,(void*)&fe->te_param.critical)){
+		DEBUG_EVENT("%s: Skipping Front End unconfig\n", fe->name);
+		return 0;
+	}
+
+
 	DEBUG_EVENT("%s: %s Front End unconfigation!\n",
 				fe->name, FE_MEDIA_DECODE(fe));	
 
@@ -1549,7 +1566,7 @@ static int sdla_ds_te1_unconfig(void* pfe)
 	/* Set Rx Framer soft reset */
 	WRITE_REG(REG_RMMR, BIT_RMMR_SFTRST);
 	/* Set Tx Framer soft reset */
-	WRITE_REG(REG_TMMR, BIT_RMMR_SFTRST);
+	WRITE_REG(REG_TMMR, BIT_TMMR_SFTRST);
 	
 	/* Clear configuration flag */
 	wan_clear_bit(TE_CONFIGURED,(void*)&fe->te_param.critical);
@@ -1698,7 +1715,7 @@ static void sdla_ds_te1_set_status(sdla_fe_t* fe, u_int32_t alarms)
 				sdla_ds_te1_set_alarms(fe, WAN_TE_BIT_YEL_ALARM);
 			}
 			fe->fe_status = FE_DISCONNECTED;
-		}else if (fe->te_param.tx_yel_alarm && valid_rx_alarms & WAN_TE_BIT_RAI_ALARM){
+		}else if (fe->te_param.tx_yel_alarm && valid_rx_alarms == WAN_TE_BIT_RAI_ALARM){
 			/* Special case for loopback */
 			sdla_ds_te1_clear_alarms(fe, WAN_TE_BIT_YEL_ALARM);
 		} 
@@ -2027,8 +2044,7 @@ static int sdla_ds_te1_set_alarms(sdla_fe_t* fe, u_int32_t alarms)
 {
 	u8	value;
 	
-	if (alarms & WAN_TE_BIT_YEL_ALARM &&
-	    fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+	if (alarms & WAN_TE_BIT_YEL_ALARM) {
 		if (IS_T1_FEMEDIA(fe)){
 			value = READ_REG(REG_TCR1);
 			if (!(value & BIT_TCR1_T1_TRAI)){
@@ -2061,8 +2077,7 @@ static int sdla_ds_te1_clear_alarms(sdla_fe_t* fe, u_int32_t alarms)
 {
 	u8	value;
 	
-	if (alarms & WAN_TE_BIT_YEL_ALARM &&
-	    fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+	if (alarms & WAN_TE_BIT_YEL_ALARM) {
 		if (IS_T1_FEMEDIA(fe)){
 			value = READ_REG(REG_TCR1);
 			if (value & BIT_TCR1_T1_TRAI){
@@ -4160,14 +4175,16 @@ static int sdla_ds_te1_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 		fe_debug = (sdla_fe_debug_t*)&data[0];
 		switch(fe_debug->mode){
 		case WAN_FE_TXMODE_ENABLE:
-			DEBUG_TEST("%s: Enable Transmitter!\n",
+			DEBUG_EVENT("%s: FE Transmitter Enabled! (tx tri-state mode OFF)\n",
 					fe->name);
-			udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
+			WRITE_REG(REG_LMCR, (READ_REG(REG_LMCR) | BIT_LMCR_TE));
+			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			break;
 		case WAN_FE_TXMODE_DISABLE:
-			DEBUG_TEST("%s: Disable Transmitter (tx tri-state mode)!\n",
+			DEBUG_EVENT("%s: FE Transmitter Disabled! (tx tri-state mode ON)!\n",
 					fe->name);
-			udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;
+			WRITE_REG(REG_LMCR, (READ_REG(REG_LMCR) & ~BIT_LMCR_TE));
+			udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
 			break;
 		default:
 			udp_cmd->wan_cmd_return_code = WAN_UDP_INVALID_CMD;

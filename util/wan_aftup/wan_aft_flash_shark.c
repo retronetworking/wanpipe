@@ -109,23 +109,24 @@ extern int exec_read_cmd(void*,unsigned int, unsigned int, unsigned int*);
 extern int exec_write_cmd(void*,unsigned int, unsigned int, unsigned int);
 extern void hit_any_key(void);
 
-static int aft_shark_reset_flash(wan_aft_cpld_t *cpld);
-static int aft_shark_is_protected(wan_aft_cpld_t *cpld, int stype);
-static int aft_shark_flash_id(wan_aft_cpld_t *cpld, int mtype, int stype, int *flash_id);
-static int aft_shark_reload_flash(wan_aft_cpld_t *cpld, int sector_type);
-static int aft_shark_prg_flash_byte(wan_aft_cpld_t*,int,unsigned long,unsigned char);
-static unsigned char aft_shark_read_flash_byte(wan_aft_cpld_t*,int,int,unsigned long);
-static int aft_shark_erase_flash(wan_aft_cpld_t*,int,int);
+static int aft_reset_flash_shark(wan_aft_cpld_t *cpld);
+static int aft_is_protected_shark(wan_aft_cpld_t *cpld, int stype);
+static int aft_flash_id_shark(wan_aft_cpld_t *cpld, int mtype, int stype, int *flash_id);
+static int aft_reload_flash_shark(wan_aft_cpld_t *cpld, int sector_type);
+static int aft_write_flash_shark(wan_aft_cpld_t*,int, unsigned long,unsigned char*);
+static int aft_read_flash_shark(wan_aft_cpld_t*,int,int,unsigned long, unsigned char**);
+static unsigned char aft_read_flash_byte_shark(wan_aft_cpld_t*,int,int,unsigned long);
+static int aft_erase_flash_shark(wan_aft_cpld_t*,int,int);
 
 aftup_flash_iface_t aftup_shark_flash_iface = 
 {
-	aft_shark_reset_flash,
-	aft_shark_is_protected,
-	aft_shark_flash_id,
-	aft_shark_reload_flash,
-	aft_shark_prg_flash_byte,
-	aft_shark_read_flash_byte,
-	aft_shark_erase_flash
+	aft_reset_flash_shark,
+	aft_is_protected_shark,
+	aft_flash_id_shark,
+	aft_reload_flash_shark,
+	aft_write_flash_shark,
+	aft_read_flash_shark,
+	aft_erase_flash_shark
 };
 
 /******************************************************************************
@@ -174,7 +175,7 @@ read_cpld(wan_aft_cpld_t *cpld, unsigned short cpld_off)
 }
 
 static unsigned int
-__aft_shark_write_flash_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off,unsigned char data)
+__aft_write_flash_shark_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off,unsigned char data)
 {
 	unsigned char	offset;
 
@@ -206,18 +207,18 @@ __aft_shark_write_flash_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigne
 }
 
 static unsigned int
-aft_shark_write_flash_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off,unsigned char data)
+aft_write_flash_shark_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off,unsigned char data)
 {
 	unsigned long	sec_off = 0x00;
 
 	if (stype == USER_SECTOR_FLASH){
 		sec_off = AFT_SHARK_USER_SECTOR_START_ADDR;
 	}
-	return __aft_shark_write_flash_byte(cpld, stype, mtype, sec_off + off, data);
+	return __aft_write_flash_shark_byte(cpld, stype, mtype, sec_off + off, data);
 }
 
 static unsigned char
-__aft_shark_read_flash_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off)
+__aft_read_flash_byte_shark(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off)
 {
 	unsigned char offset;
         unsigned char data;
@@ -252,17 +253,17 @@ __aft_shark_read_flash_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned
 }
 
 static unsigned char
-aft_shark_read_flash_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off)
+aft_read_flash_byte_shark(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off)
 {
 	unsigned long	sec_off = 0x00;
 	if (stype == USER_SECTOR_FLASH){
 		sec_off = AFT_SHARK_USER_SECTOR_START_ADDR;
 	}
-	return __aft_shark_read_flash_byte(cpld, stype, mtype, sec_off + off);
+	return __aft_read_flash_byte_shark(cpld, stype, mtype, sec_off + off);
 }
 
 static int
-aft_shark_erase_flash(wan_aft_cpld_t *cpld, int stype, int verify)
+aft_erase_flash_shark(wan_aft_cpld_t *cpld, int stype, int verify)
 {
 	unsigned long offset = 0x00;
 	unsigned char data = 0x00;
@@ -273,24 +274,24 @@ aft_shark_erase_flash(wan_aft_cpld_t *cpld, int stype, int verify)
 			continue;
 		}
 		offset = aft_shark_flash_spec[cpld->flash_index][sector_no].start_off;
-		__aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0xAA);
-		__aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, 0x555, 0x55);
-		__aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0x80);
-		__aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0xAA);
-		__aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, 0x555, 0x55);
-		aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, offset, 0x30);
+		__aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0xAA);
+		__aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, 0x555, 0x55);
+		__aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0x80);
+		__aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0xAA);
+		__aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, 0x555, 0x55);
+		aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, offset, 0x30);
 
 		do{
 //MF			for(i=0;i<100000;i++);
 			usleep(1);
-			data = aft_shark_read_flash_byte(
+			data = aft_read_flash_byte_shark(
 					cpld, stype,
 					MEMORY_TYPE_FLASH,
 					offset);
 			if (data & 0x80){
 				break;
 			}else if (data & 0x20){
-				data = aft_shark_read_flash_byte(
+				data = aft_read_flash_byte_shark(
 						cpld, stype, 
 						MEMORY_TYPE_FLASH, 
 						offset);
@@ -316,7 +317,7 @@ aft_shark_erase_flash(wan_aft_cpld_t *cpld, int stype, int verify)
 	// Verify that flash is 0xFF
 	for(offset = 0; offset < 0x80000; offset++){
 //MF		for(i=0;i<10000;i++);
-		data = aft_shark_read_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, offset);	
+		data = aft_read_flash_byte_shark(cpld, stype, MEMORY_TYPE_FLASH, offset);	
 		if (data != 0xFF){
 			printf(" Failed to compare! %05lx -> %02x \n",
 						offset,data);
@@ -332,22 +333,26 @@ aft_shark_erase_flash(wan_aft_cpld_t *cpld, int stype, int verify)
 }
 
 static int
-aft_shark_prg_flash_byte(wan_aft_cpld_t *cpld, int stype, unsigned long off32, unsigned char data)
+aft_write_flash_shark(wan_aft_cpld_t *cpld, int stype, unsigned long off32, unsigned char* pdata)
 {
+	unsigned char data;
 	unsigned char data1 = 0x00;
-
-	__aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0xAA);
-	__aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, 0x555, 0x55);
-	__aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0xA0);
-	aft_shark_write_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, off32, data);
+	int num_bytes = 1;
+	
+	data = *pdata;
+	
+	__aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0xAA);
+	__aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, 0x555, 0x55);
+	__aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, 0xAAA, 0xA0);
+	aft_write_flash_shark_byte(cpld, stype, MEMORY_TYPE_FLASH, off32, data);
 
 	do{
 //MF		for(i=0;i<1000;i++);
-		data1 = aft_shark_read_flash_byte(cpld, stype, MEMORY_TYPE_FLASH, off32);
+		data1 = aft_read_flash_byte_shark(cpld, stype, MEMORY_TYPE_FLASH, off32);
 		if ((data1 & 0x80) == (data & 0x80)){
 			break;
 		}else if (data1 & 0x20){
-			data1 = aft_shark_read_flash_byte(
+			data1 = aft_read_flash_byte_shark(
 					cpld, stype, 
 					MEMORY_TYPE_FLASH, 
 					off32);
@@ -360,30 +365,57 @@ aft_shark_prg_flash_byte(wan_aft_cpld_t *cpld, int stype, unsigned long off32, u
 			}
 		}
 	} while(1);
-	return 0;
+	return num_bytes;
 }
 
-static int aft_shark_reset_flash(wan_aft_cpld_t *cpld)
+
+static int
+aft_read_flash_shark(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off, unsigned char** ppdata)
 {
-	__aft_shark_write_flash_byte(cpld, DEF_SECTOR_FLASH, MEMORY_TYPE_FLASH, 0x00, 0xF0);
+	int num_bytes = 1;
+	unsigned char* pdata = NULL;
+	unsigned long	sec_off = 0x00;
+	
+	pdata = malloc(num_bytes);
+	if (pdata == NULL) {
+		printf("Failed to allocate memory (%s:%d)\n", 
+				__FUNCTION__,__LINE__);
+		return -ENOMEM;
+	}
+	memset(pdata, 0, num_bytes);
+	
+	if (stype == USER_SECTOR_FLASH){
+		sec_off = AFT_SHARK_USER_SECTOR_START_ADDR;
+	}	
+
+	*pdata =  __aft_read_flash_byte_shark(cpld, stype, mtype, sec_off + off);
+	*ppdata = pdata;
+	return num_bytes;
+
+}
+
+
+static int aft_reset_flash_shark(wan_aft_cpld_t *cpld)
+{
+	__aft_write_flash_shark_byte(cpld, DEF_SECTOR_FLASH, MEMORY_TYPE_FLASH, 0x00, 0xF0);
 	return 0;
 }
 
-static int aft_shark_is_protected(wan_aft_cpld_t *cpld, int stype)
+static int aft_is_protected_shark(wan_aft_cpld_t *cpld, int stype)
 {
 	return 0;
 }
 
-static int aft_shark_flash_id(wan_aft_cpld_t *cpld, int mtype, int stype, int *flash_id)
+static int aft_flash_id_shark(wan_aft_cpld_t *cpld, int mtype, int stype, int *flash_id)
 {
 	unsigned char	man_code, device_code;
 
-	aft_shark_reset_flash(cpld);
-	__aft_shark_write_flash_byte(cpld, stype, mtype, 0xAAA, 0xAA);
-	__aft_shark_write_flash_byte(cpld, stype, mtype, 0x555, 0x55);
-	__aft_shark_write_flash_byte(cpld, stype, mtype, 0xAAA, 0x90);
+	aft_reset_flash_shark(cpld);
+	__aft_write_flash_shark_byte(cpld, stype, mtype, 0xAAA, 0xAA);
+	__aft_write_flash_shark_byte(cpld, stype, mtype, 0x555, 0x55);
+	__aft_write_flash_shark_byte(cpld, stype, mtype, 0xAAA, 0x90);
 
-	man_code = aft_shark_read_flash_byte(cpld, stype, mtype, 0x00);
+	man_code = aft_read_flash_byte_shark(cpld, stype, mtype, 0x00);
 	if (man_code != MCODE_ST){
 		printf("The current flash is not supported (man id %02X)!\n",
 				man_code);
@@ -391,7 +423,7 @@ static int aft_shark_flash_id(wan_aft_cpld_t *cpld, int mtype, int stype, int *f
 	}
 	*flash_id = man_code << 8;
 
-	device_code = aft_shark_read_flash_byte(cpld, stype, mtype, 0x02);
+	device_code = aft_read_flash_byte_shark(cpld, stype, mtype, 0x02);
 	switch(device_code){
 	case DCODE_M29W800DT:
 		cpld->flash_index = M29W800DT_FID;
@@ -406,11 +438,11 @@ static int aft_shark_flash_id(wan_aft_cpld_t *cpld, int mtype, int stype, int *f
 		break;
 	}
 	*flash_id |= device_code;
-	aft_shark_reset_flash(cpld);
+	aft_reset_flash_shark(cpld);
 	return 0;
 }
 
-static int aft_shark_reload_flash(wan_aft_cpld_t *cpld, int sector_type)
+static int aft_reload_flash_shark(wan_aft_cpld_t *cpld, int sector_type)
 {
 	if (sector_type == USER_SECTOR_FLASH){
 		/* Reload new code in to Xilinx from

@@ -92,9 +92,15 @@ STATIC void adsl_wan_flush_buffer(ttystruct_t *tp)
          (defined LINUX_2_1 && LINUX_VERSION_CODE >= KERNEL_VERSION(2,2,15))
 	wake_up_interruptible(&tp->poll_wait);
 #endif
-	if ((tp->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
-	    tp->ldisc.write_wakeup)
-		(tp->ldisc.write_wakeup)(tp);
+	if (tp->flags & (1 << TTY_DO_WRITE_WAKEUP)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+		const struct tty_ldisc_ops *ops = tp->ldisc.ops;
+#else
+		const struct tty_ldisc *ops = &tp->ldisc;
+#endif
+		if (ops->write_wakeup)
+			ops->write_wakeup(tp);
+	}
 	return;
 }
 
@@ -170,6 +176,11 @@ adsl_wan_open_exit:
 static void adsl_wan_close(ttystruct_t  *tp, struct file *pFile)
 {
 	int line;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+	const struct tty_ldisc_ops *ops = tp->ldisc.ops;
+#else
+	const struct tty_ldisc *ops = &tp->ldisc;
+#endif
 	DEBUG_CFG("wanpipe: GpWanClose\n");
 
 	line = MINOR(tp->device) - tp->driver.minor_start;
@@ -189,9 +200,8 @@ static void adsl_wan_close(ttystruct_t  *tp, struct file *pFile)
 	 	tp->driver.flush_buffer(tp);
 	}
 	    
-	if (tp->ldisc.flush_buffer){
-	 	tp->ldisc.flush_buffer(tp);
-	}
+	if (ops->flush_buffer)
+		ops->flush_buffer(tp);
 }
 
 /*+F*************************************************************************
@@ -387,9 +397,14 @@ void adsl_wan_soft_intr(void *tty_ptr, unsigned int bit, unsigned long *event)
 	ttystruct_t  *tp = (ttystruct_t  *)tty_ptr;
 	DEBUG_TX("In adsl_wan_soft_intr\n");
 	if (test_and_clear_bit(bit, event)){
-        	if ((tp->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
-                    (tp->ldisc.write_wakeup != NULL)){
-			(tp->ldisc.write_wakeup)(tp);
+        	if (tp->flags & (1 << TTY_DO_WRITE_WAKEUP)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+			const struct tty_ldisc_ops *ops = tp->ldisc.ops;
+#else
+			const struct tty_ldisc *ops = &tp->ldisc;
+#endif
+			if (ops->write_wakeup)
+				ops->write_wakeup(tp);
 		}
 		wake_up_interruptible(&(tp->write_wait));
 # if defined(SERIAL_HAVE_POLL_WAIT) || \
@@ -405,8 +420,13 @@ void adsl_tty_receive(void *tty_ptr, unsigned char *pData,
 {	
 #if defined(__LINUX__)
 	ttystruct_t  *tp = (ttystruct_t  *)tty_ptr;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+	const struct tty_ldisc_ops *ops = tp->ldisc.ops;
+#else
+	const struct tty_ldisc *ops = &tp->ldisc;
+#endif
 	WAN_ASSERT1((tp==NULL));
-	tp->ldisc.receive_buf(tp, pData, pFlags, dataLen);
+	ops->receive_buf(tp, pData, NULL, dataLen);
 #endif	
 }
 

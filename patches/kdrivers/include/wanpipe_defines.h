@@ -26,6 +26,7 @@
 #endif
 
 #if defined(__LINUX__)
+# include <linux/wanpipe_includes.h>
 # include <linux/wanpipe_version.h>
 # include <linux/wanpipe_kernel.h>
 # include <linux/wanpipe_abstr_types.h>

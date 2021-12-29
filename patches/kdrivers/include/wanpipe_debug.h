@@ -32,6 +32,7 @@
 #undef WAN_DEBUG_UDP
 #undef WAN_DEBUG_TE1
 #undef WAN_DEBUG_56K
+#undef WAN_DEBUG_A600
 #undef WAN_DEBUG_PROCFS
 #undef WAN_DEBUG_TDM_VOICE
 #undef WAN_DEBUG_TEST
@@ -82,6 +83,7 @@ void OutputLogString(PUCHAR pvFormat, ...);
 # define DEBUG_TE1	DEBUG_NONE
 # define DEBUG_TE3	DEBUG_NONE
 # define DEBUG_56K	DEBUG_NONE
+# define DEBUG_A600	DEBUG_NONE
 # define DEBUG_BRI	DEBUG_NONE
 # define DEBUG_PROCFS	DEBUG_NONE
 # define DEBUG_TDMV	DEBUG_NONE
@@ -173,7 +175,11 @@ void OutputLogString(PUCHAR pvFormat, ...);
 # ifdef WAN_DEBUG_56K
 #  undef  DEBUG_56K
 #  define DEBUG_56K	DEBUG_PRINT
-# endif 
+# endif
+# ifdef WAN_DEBUG_A600
+#  undef  DEBUG_A600
+#  define DEBUG_A600	DEBUG_PRINT
+# endif  
 # ifdef WAN_DEBUG_BRI
 #  undef  DEBUG_BRI
 #  define DEBUG_BRI	DEBUG_PRINT
@@ -352,6 +358,7 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 # define DEBUG_BRI(format,msg...)
 # define DEBUG_PROCFS(format,msg...)
 # define DEBUG_TDMV(format,msg...)
+# define DEBUG_A600(format,msg...)
 # define DEBUG_TEST(format,msg...)
 # define DEBUG_DBG(format,msg...)
 # define DEBUG_DMA(format,msg...)
@@ -462,7 +469,11 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 # ifdef WAN_DEBUG_BRI
 #  undef  DEBUG_BRI
 #  define DEBUG_BRI(format,msg...)		DEBUG_PRINT(format,##msg)
-# endif 
+# endif
+# ifdef WAN_DEBUG_A600
+#  undef  DEBUG_A600
+#  define DEBUG_A600(format,msg...)		DEBUG_PRINT(format,##msg)
+# endif  
 # ifdef WAN_DEBUG_PROCFS
 #  undef  DEBUG_PROCFS
 #  define DEBUG_PROCFS(format,msg...)		DEBUG_PRINT(format,##msg)

@@ -1152,6 +1152,21 @@ static __inline unsigned short xilinx_dma_buf_bits(unsigned short dma_bufs)
 	}	
 }
 
+static __inline int
+aft_get_num_of_slots(u32 total_slots, u32 chan_slots)
+{	
+	int num_of_slots=0;
+	u32 i;
+	for (i=0;i<total_slots;i++){
+		if (wan_test_bit(i,&chan_slots)){
+			num_of_slots++;
+		}
+	}
+
+	return num_of_slots;
+}
+
+
 #define AFT_TX_TIMEOUT 25
 #define AFT_RX_TIMEOUT 10
 #define AFT_MAX_WTD_TIMEOUT 250

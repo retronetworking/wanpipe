@@ -4563,17 +4563,26 @@ static void tty_poll_task (struct work_struct *work)
 	sdla_t *card = (sdla_t *)data;
 #endif  
 	struct tty_struct *tty;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+	const struct tty_ldisc_ops *ops;
+#else
+	const struct tty_ldisc *ops;
+#endif
 	struct sk_buff *skb;
-	char fp=0;
 
 	clear_bit(TASK_POLL,(void*)&card->wandev.critical);
 	
 	if ((tty=card->tty)==NULL)
 		return;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+	ops = tty->ldisc.ops;
+#else
+	ops = &tty->ldisc;
+#endif
 
 	while ((skb=skb_dequeue(&card->tty_rx_full)) != NULL){
-		if (tty->ldisc.receive_buf){
-			tty->ldisc.receive_buf(tty,skb->data,&fp,skb->len);
+		if (ops->receive_buf){
+			ops->receive_buf(tty,skb->data,NULL,skb->len);
 		}
 		skb_trim(skb,0);
 		skb_queue_tail(&card->tty_rx_empty,skb);
@@ -4582,8 +4591,8 @@ static void tty_poll_task (struct work_struct *work)
 	if (test_and_clear_bit(TX_INTR,(void*)&card->wandev.critical)){
 	
 		if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
-		    tty->ldisc.write_wakeup){
-			(tty->ldisc.write_wakeup)(tty);
+		    ops->write_wakeup){
+			ops->write_wakeup(tty);
 		}
 		wake_up_interruptible(&tty->write_wait);
 #if defined(SERIAL_HAVE_POLL_WAIT) || \
@@ -5372,9 +5381,15 @@ static void wanpipe_tty_flush_buffer(struct tty_struct *tty)
          (defined LINUX_2_1 && LINUX_VERSION_CODE >= KERNEL_VERSION(2,2,15))
 	wake_up_interruptible(&tty->poll_wait);
 #endif
-	if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
-	    tty->ldisc.write_wakeup)
-		(tty->ldisc.write_wakeup)(tty);
+	if (tty->flags & (1 << TTY_DO_WRITE_WAKEUP)){
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
+#else
+		const struct tty_ldisc *ops = &tty->ldisc;
+#endif
+		if (ops->write_wakeup)
+			ops->write_wakeup(tty);
+	}
 
 	return;
 }

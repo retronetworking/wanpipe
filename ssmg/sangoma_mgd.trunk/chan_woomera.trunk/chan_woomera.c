@@ -14,6 +14,18 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.38 David Yat Sin <dyatsin@sangoma.com>
+ * Dec 05 2008
+ *	Support for fax_detect using Asterisk software DSP
+ *
+ * v1.37 Nenad Corbic <ncorbic@sangoma.com>
+ * Nov 26 2008
+ *	Bug Fix: tech_read try again now checks for hangup
+ *
+ * v1.36 David Yat Sin <dyatsin@sangoma.com>
+ * Oct 14 2008
+ *  Bug Fix: Call hangup on call park
+ *
  * v1.35 Nenad Corbic <ncorbic@sangoma.com>
  * Jul 23 2008
  *	Bug Fix: Check for cid_name.
@@ -202,7 +214,7 @@
 #include "asterisk/dsp.h"
 #include "asterisk/musiconhold.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.35 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.38 $")
 
 #else
 
@@ -252,7 +264,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.35 $")
 #define CALLWEAVER_19 1
 #endif
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.35 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.38 $")
 
 /* CALLWEAVER v1.9 and later */
 #if defined (CALLWEAVER_19) 
@@ -508,7 +520,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.35 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.35"
+#define WOOMERA_VERSION "v1.38"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -1630,6 +1642,10 @@ static int tech_init(private_object *tech_pvt, woomera_profile *profile, int fla
 	ast_clear_flag(tech_pvt, TFLAG_CONFIRM_ANSWER_ENABLED);
 	ast_clear_flag(tech_pvt, TFLAG_ANSWER_RECEIVED);
 
+	if (profile && profile->faxdetect) {
+		tech_pvt->faxdetect=1;
+	}
+	
 	if (profile->dtmf_enable) {
 			
 		tech_pvt->dsp_features=0;
@@ -1648,11 +1664,12 @@ static int tech_init(private_object *tech_pvt, woomera_profile *profile, int fla
 			tech_pvt->dsp_features |= DSP_FEATURE_DTMF_DETECT;
 			//tech_pvt->dsp_features |= DSP_FEATURE_BUSY_DETECT;
 			//tech_pvt->dsp_features |= DSP_FEATURE_CALL_PROGRESS;
-			//tech_pvt->dsp_features |= DSP_FEATURE_FAX_DETECT;
+			if (tech_pvt->faxdetect) {
+				tech_pvt->dsp_features |= DSP_FEATURE_FAX_DETECT;
+			} 
 			ast_dsp_set_features(tech_pvt->dsp, tech_pvt->dsp_features);
 			ast_dsp_digitmode(tech_pvt->dsp, DSP_DIGITMODE_DTMF | DSP_DIGITMODE_RELAXDTMF);
 			tech_pvt->ast_dsp=1;
-				
 #if 0
 			if (!ast_strlen_zero(progzone))
 				ast_dsp_set_call_progress_zone(tech_pvt->dsp, progzone);
@@ -1663,11 +1680,6 @@ static int tech_init(private_object *tech_pvt, woomera_profile *profile, int fla
 #endif
 		}
 	}
-
-	if (profile && profile->faxdetect) {
-		tech_pvt->faxdetect=1;
-	}
-
 
 	if (profile->jb_enable) {
 #ifdef AST_JB
@@ -2929,6 +2941,10 @@ static int config_woomera(void)
 						strncpy(profile->language, v->value, sizeof(profile->language) - 1);
 					} else if (!strcmp(v->name, "dtmf_enable")) {
 						profile->dtmf_enable = atoi(v->value);
+					} else if (!strcmp(v->name, "fax_detect")) {
+						profile->faxdetect = atoi(v->value);
+						ast_log(LOG_NOTICE, "Profile {%s} Fax Detect %s %p \n",
+							entry, profile->faxdetect?"Enabled":"Disabled", profile);
 
 					} else if (!strcmp(v->name, "jb_enable")) {
 						profile->jb_enable = atoi(v->value);
@@ -2941,7 +2957,7 @@ static int config_woomera(void)
 							 entry,profile->jb_enable?"Enabled":"Disabled",profile);
 
 					} else if (!strcmp(v->name, "progress_enable")) {
-                                                profile->progress_enable = atoi(v->value);
+                         profile->progress_enable = atoi(v->value);
 						
 					} else if (!strcmp(v->name, "coding")) {
 						if (strcmp(v->value, "alaw") == 0) {
@@ -3757,11 +3773,11 @@ static struct ast_frame  *tech_read(struct ast_channel *self)
 	int res = 0;
 	struct ast_frame *f;
 
+tech_read_again:
+
 	if (!tech_pvt || globals.panic || ast_test_flag(tech_pvt, TFLAG_ABORT)) {
 		return NULL;
 	}
-	
-tech_read_again:
 
 	res = waitfor_socket(tech_pvt->udp_socket, 1000);
 
@@ -3844,8 +3860,9 @@ tech_read_again:
 
 	if (tech_pvt->owner && (tech_pvt->faxdetect || tech_pvt->ast_dsp)) {
 		f = ast_dsp_process(tech_pvt->owner, tech_pvt->dsp, &tech_pvt->frame);
-                if (f && f->frametype == AST_FRAME_DTMF){
+		if (f && f->frametype == AST_FRAME_DTMF){
 			int answer = 0;
+
 			if(ast_test_flag(tech_pvt, TFLAG_CONFIRM_ANSWER_ENABLED)){
 				ast_mutex_lock(&tech_pvt->iolock);
 				if(ast_test_flag(tech_pvt, TFLAG_CONFIRM_ANSWER)){	
@@ -3876,14 +3893,37 @@ tech_read_again:
 					}
 				}
 			}
+			if (f->subclass == 'f' && tech_pvt->faxdetect) {
+				struct ast_channel *owner = tech_get_owner(tech_pvt);
+				
+				if (owner) {
+					if (!tech_pvt->faxhandled) {
+						tech_pvt->faxhandled++;
+						if (strcmp(owner->exten, "fax")) {
+							const char *target_context = S_OR(owner->macrocontext, owner->context);
+				
+							if (ast_exists_extension(owner, target_context, "fax", 1, owner->cid.cid_num)) {
+								if (option_verbose > 2) {
+									ast_verbose(VERBOSE_PREFIX_3 "Redirecting %s to fax extension\n", owner->name);	
+								}
+			
+								pbx_builtin_setvar_helper(owner, "FAXEXTEN", owner->exten);
+								if (ast_async_goto(owner, target_context, "fax", 1))
+									ast_log(LOG_WARNING, "Failed to async goto '%s' into fax of '%s'\n", owner->name, target_context);
+							} else {
+								ast_log(LOG_NOTICE, "Fax detected, but no fax extension\n");
+							}
+						}
+					}
+				}								
+				
+			} 
 			if (answer == 0 && globals.debug > 2) {
 				ast_log(LOG_NOTICE, "%s: Detected inband DTMF digit: %c\n",
 						self->name,
 						f->subclass);
 			}
-                }
-		
-
+		}
 		//woomera_tx2ast_frm(tech_pvt, tech_pvt->frame.data, tech_pvt->frame.datalen);
 	}
 	
@@ -4004,7 +4044,6 @@ static int tech_write_video(struct ast_channel *self, struct ast_frame *frame)
 static struct ast_frame *tech_exception(struct ast_channel *self)
 {
 	private_object *tech_pvt;
-	struct ast_frame *new_frame = NULL;
 
 	tech_pvt = self->tech_pvt;	
 	if (globals.debug > 1 && option_verbose > 1) {
@@ -4012,7 +4051,7 @@ static struct ast_frame *tech_exception(struct ast_channel *self)
 			ast_verbose(WOOMERA_DEBUG_PREFIX "+++EXCEPT %s\n",self->name);
 		}
 	}
-	return new_frame;
+	return &ast_null_frame;
 }
 
 /*--- tech_indicate: Indicaate a condition to my channel ---*/

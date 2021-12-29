@@ -62,7 +62,8 @@ static int aft_reset_flash(wan_aft_cpld_t *cpld);
 static int aft_is_protected(wan_aft_cpld_t *cpld, int stype);
 static int aft_flash_id(wan_aft_cpld_t *cpld, int mtype, int stype, int *flash_id);
 static int aft_reload_flash(wan_aft_cpld_t *cpld, int sector_type);
-static int aft_prg_flash_byte(wan_aft_cpld_t*,int,unsigned long,unsigned char);
+static int aft_write_flash(wan_aft_cpld_t*,int,unsigned long,unsigned char*);
+static int aft_read_flash(wan_aft_cpld_t*,int,int,unsigned long, unsigned char**);
 static unsigned char aft_read_flash_byte(wan_aft_cpld_t*,int,int,unsigned long);
 static int aft_erase_flash_sector(wan_aft_cpld_t*,int,int);
 
@@ -72,8 +73,8 @@ aftup_flash_iface_t aftup_flash_iface =
 	aft_is_protected,
 	aft_flash_id,
 	aft_reload_flash,
-	aft_prg_flash_byte,
-	aft_read_flash_byte,
+	aft_write_flash,
+	aft_read_flash,
 	aft_erase_flash_sector
 };
 
@@ -236,6 +237,30 @@ aft_read_flash_byte(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long of
 }
 
 static int
+aft_read_flash(wan_aft_cpld_t *cpld, int stype, int mtype, unsigned long off, unsigned char** ppdata)
+{
+	int num_bytes = 1;
+	unsigned char* pdata = NULL;
+	unsigned long	sec_off = 0x00;
+	
+	pdata = malloc(num_bytes);
+	if (pdata == NULL) {
+		printf("Failed to allocate memory (%s:%d)\n", 
+				__FUNCTION__,__LINE__);
+		return -ENOMEM;
+	}
+	memset(pdata, 0, num_bytes);
+	
+	if (stype == USER_SECTOR_FLASH){
+		sec_off = USER_SECTOR_START_ADDR;
+       	}
+	*pdata =  __aft_read_flash_byte(cpld, stype, mtype, sec_off + off);
+	*ppdata = pdata;
+	return num_bytes;
+
+}
+
+static int
 aft_erase_flash_sector(wan_aft_cpld_t *cpld, int stype, int verify)
 {
 	unsigned long offset = 0x00;
@@ -248,7 +273,8 @@ aft_erase_flash_sector(wan_aft_cpld_t *cpld, int stype, int verify)
 		printf("%s: Default sector protected (%s:%d)!\n",
 				__FUNCTION__,__FILE__,__LINE__);
 		return -EINVAL;
-	}    
+	}
+
 	for(sector_no = 0; sector_no < 8; sector_no++){
 		if (aft_flash_spec[sector_no].sector_type != stype){
 			continue;
@@ -311,12 +337,16 @@ aft_erase_flash_sector(wan_aft_cpld_t *cpld, int stype, int verify)
 }
 
 static int
-aft_prg_flash_byte(	wan_aft_cpld_t	*cpld,
+aft_write_flash(	wan_aft_cpld_t	*cpld,
 			int		stype,
 			unsigned long	off32,
-			unsigned char	data)
+			unsigned char*	pdata)
 {
+	unsigned char	data;
 	unsigned char	data1 = 0x00;
+	int num_bytes = 1;
+
+	data = *pdata;
 
 	// Checking write enable to the Default Boot Flash Sector 
 	if (aft_is_protected(cpld, stype)){
@@ -348,7 +378,7 @@ aft_prg_flash_byte(	wan_aft_cpld_t	*cpld,
 			}
 		}
 	} while(1);
-	return 0;
+	return num_bytes;
 }
 
 static int aft_reset_flash(wan_aft_cpld_t *cpld)

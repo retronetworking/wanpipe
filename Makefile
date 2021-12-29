@@ -73,7 +73,7 @@ ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
 	EXTRA_CFLGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
 	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
 	ZAP_PROT=TDM
-	PROTS=DEF
+	PROTS=DEF-TDM
 else
 	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
 		ZAPDIR=/usr/src/zaptel/kernel

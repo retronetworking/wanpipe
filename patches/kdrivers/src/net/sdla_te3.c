@@ -217,39 +217,67 @@ static int sdla_te3_set_status(sdla_fe_t *fe)
 		}
 	}else if (IS_E3(&fe->fe_cfg)){
 		if (IS_E3_ALARM(fe->fe_alarm)){
+
 			if (fe->fe_status != FE_DISCONNECTED){
 				fe->fe_param.te3.e3_connect_delay=0;
 
 				if (fe->fe_param.te3.e3_lb_ctrl == 1) {
-					fe->fe_param.te3.e3_lb_ctrl = 2;
-				} else {
-					sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_ENABLE);
-					fe->fe_param.te3.e3_lb_ctrl=0;
+					fe->fe_param.te3.e3_lb_ctrl=2;
+				} else if (fe->fe_param.te3.e3_lb_ctrl == 3) {
+					fe->fe_param.te3.e3_lb_ctrl=4;
 				}
-				//sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
 
 				DEBUG_EVENT("%s: E3 disconnected! State=%i\n",
 						fe->name,fe->fe_param.te3.e3_lb_ctrl);
 				fe->fe_status = FE_DISCONNECTED;
+			} else {
+
+				if (fe->fe_param.te3.e3_lb_ctrl==2) {
+					fe->fe_param.te3.e3_connect_delay++;
+					DEBUG_EVENT("%s: Waiting for link up %i/8...!\n", 
+								fe->name,fe->fe_param.te3.e3_connect_delay);
+					if (fe->fe_param.te3.e3_connect_delay >= 8) {
+						DEBUG_EVENT("%s: Link Up Timeout - Link in loopback!\n", fe->name);
+						sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
+						fe->fe_param.te3.e3_lb_ctrl=4;
+						fe->fe_param.te3.e3_connect_delay=0;
+					}
+				}
 			}
+
 		}else{
 
 			if (fe->fe_status != FE_CONNECTED){
-
 				fe->fe_param.te3.e3_connect_delay++;
-				if (fe->fe_param.te3.e3_connect_delay >= 5) {
+			  	if (fe->fe_param.te3.e3_connect_delay >= 5) {
 					fe->fe_param.te3.e3_connect_delay=0;
 
 					if (fe->fe_param.te3.e3_lb_ctrl == 0) {
 						fe->fe_param.te3.e3_lb_ctrl=1;
+						sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_ENABLE);
+					} else if (fe->fe_param.te3.e3_lb_ctrl == 2) {
+						fe->fe_param.te3.e3_lb_ctrl = 3;
 						sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
+					} else {
+						fe->fe_param.te3.e3_lb_ctrl = 0;
 					}
 
 					DEBUG_EVENT("%s: E3 connected! State=%i\n",
 							fe->name,fe->fe_param.te3.e3_lb_ctrl);
 					fe->fe_status = FE_CONNECTED;
+			   	} 
+			} else { 
+				if (fe->fe_param.te3.e3_lb_ctrl==1) {
+					fe->fe_param.te3.e3_connect_delay++;
+					DEBUG_EVENT("%s: Waiting for link down %i/10...!\n", 
+						fe->name,fe->fe_param.te3.e3_connect_delay);
+					if (fe->fe_param.te3.e3_connect_delay > 10) {
+						sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_DISABLE);
+						fe->fe_param.te3.e3_lb_ctrl = 3;
+						fe->fe_param.te3.e3_connect_delay=0;
+					}
 				}
-			}
+		  	}
 			
 		}
 	}else{
@@ -1292,10 +1320,6 @@ static int sdla_te3_config(void *p_fe)
 	data |= BIT_IO_CONTROL_DISABLE_RXLOC;
 	data |= BIT_IO_CONTROL_RxLINECLK;
 	WRITE_REG(REG_IO_CONTROL, data);
-
-	if (IS_E3(&fe->fe_cfg)){
-		sdla_te3_set_lb_modes_all(fe,WAN_TE3_LIU_LB_REMOTE,WAN_TE3_LB_ENABLE);
-	}
 
 	fe->fe_param.te3.e3_lb_ctrl=0;
 	fe->fe_param.te3.e3_connect_delay=10;

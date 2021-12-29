@@ -474,6 +474,8 @@ typedef struct {
 	int		(*read_fe_cpld)(void*, unsigned short, unsigned char);
 	int 		(*write_framer)(void*,unsigned short,unsigned short);
 	unsigned int 	(*read_framer)(void*,unsigned short);
+	void		(*reset_fe)(void*);
+
 	WRITE_FRONT_END_REG_T	*write_fe_reg;
 	READ_FRONT_END_REG_T	*read_fe_reg;
 	READ_FRONT_END_REG_T	*__read_fe_reg;

@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.3.14
+%define version           3.3.15
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -327,10 +327,77 @@ enable_smg_log;
 
 
 %changelog
+* Tue Dec 08 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.15
+=====================================================================
+
+- Added support for new B600 Analog Card
+
+- Added task stop function on shutdown.
+  This feature prevents an unlikey event that task gets
+  scheduled after card has shutdown.
+
+- Fixed tty driver for new Linux Kernel 2.6.26 and greater
+
+- Fixed tristate mode using wanpipemon
+  Used to enable/disable T1/E1 transmitter.
+  wanpipemon -p aft for help.
+
+- Fixed yellow alarm handler on T1/E1
+
+- Added an option to run Zaptel & TDM API on same span.
+
+- Fixed E3 Support for A301 cards.
+  A301 cards need new Firmware v11 and CPLD v0.
+  wanrouter hwprobe verbose shows current firmware and cpld version.
+  
+- Fixed Serial AFT card events
+  Added X21 Support
+
+- Added XMTP2 API for old PMC T1/E1 cards.
+
+- Fixed Channel Bank ring problem on AFT T1/E1 cards.
+  Some channel banks would ring all phones on card stop.
+  This is now fixed.
+
+- Updated AFT Core to fix XMTP2 startup with 16E1 links.
+
+- Updated API for A14X Serial Cards
+  Ability to recevie Modem Events.
+
+- Updated for Serial A14X API
+  API for setting and receiving line events
+  Sample code wanpipe-<version>/api/aft/aft_api_serial.c
+
+- Updated Serial A14X for NRZI
+  New firware update v05
+
+- Added wanrouter hwprobe dump
+  Should be used for programs to parse hwprobe easilty
+
+
 * Tue Oct 8 2008 Nenad Corbic <ncorbic@sangoma.com> - Beta - 3.3.14
 =====================================================================
 
-- Enabled Zaptel/DAHDI libss7 MTP2 option
+- Updated TDM API 
+  This update helps FreeSwitch analog support.
+
+- Analog TDM API TAPPING Feature
+  Sangoma Analog cards and TDM API used in TAPPING mode can be used to build
+  custom call recording applications
+
+- Enabled Zaptel/DAHDI operation mode 
+  This driver supports DAHDI/Asterisk
+  Dahdi is supported on Asterisk 1.6 and 1.4
+  Added dahdi to installation modes.
+	-> ./Setup install 	#General installation
+	-> ./Setup zaptel	#Zaptel based installation
+	-> ./Setup dahdi	#Dahdi based installation
+	-> ./Setup bri		#SMG BRI installation
+
+- LibSS7 MTP2 Option
+  The MTP2 option improves the performance of LibSS7
+  eg: instead of using: dchan=24 use mtp2=24
+  Please consult libss7 documentation.
 
 - Updated TDM API for A200
   Fixes FreeSwitch OpenZAP with TDM API for Analog
@@ -339,7 +406,7 @@ enable_smg_log;
   The fifo error could cause xmtp2 buffering to fail
 
 - wanpipemon utility
-  Updated T1/E1 Loopback comands
+  Updated T1/E1 Loopback commands
   Bug fix on 2.6.25 kernels
 
 - Driver compile update for Latest
@@ -356,7 +423,7 @@ enable_smg_log;
 
 - AFT Core Update
   Disabled fifo overrun handling in transparent mode.
-  It does not provide any improvemnt.
+  It does not provide any improvement.
   XMTP2 API mode could run out of buffers due to overrun errors.
   This has now been fixed.
 

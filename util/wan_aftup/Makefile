@@ -21,21 +21,29 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
+PROD=wan_aftup
 
 WAN_VIRTUAL=
 
 
 # Tools options.
-CFLAGS  = -Wall -O2 -D$(OS_TYPE) -I/usr/include/wanpipe -D_DEBUG_=$(DEBUG)
+SRCS	= wan_aftup.c wan_aft_prg.c wan_aft_flash.c wan_aft_flash_shark.c wan_aft_flash_shark_ds.c wan_aft_flash_a600.c
+SRCS	+= wan_pcie_ctrl.c wan_pcie_ctrl_tundra.c wan_pcie_ctrl_plx.c
+CFLAGS  = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -lstdc++
+CFLAGS += $(EXTRA_FLAGS) -I../../patches/kdrivers/include -I/usr/include/wanpipe
 
 
 ####### RULES ################################################################
 
-all:	wan_aftup 
+all:	$(PROD) 
 	@echo "Ok."
 
-wan_aftup:	wan_aftup.c wan_aft_prg.c wan_aft_flash.c wan_aft_flash_shark.c wan_aft_flash_shark_ds.c wan_plxctrl.c
+wan_aftup:	$(SRCS)
 	$(CC) $(CFLAGS) -o $@ $^
 
+install:
+	@echo "Installing Wanpipe Firmware update utility in $(WAN_VIRTUAL)/usr/sbin"
+	install -D $(PROD)	  $(WAN_VIRTUAL)/usr/sbin/$(PROD)
+
 clean:
-	rm -f wan_aftup
+	rm -f $(PROD)

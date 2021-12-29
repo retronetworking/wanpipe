@@ -50,7 +50,22 @@
 #define AFT_PORT6_OFFSET		0x18000
 #define AFT_PORT7_OFFSET		0x1C000
 
-#define AFT_PORT_REG(card,reg)		(reg+(0x4000*card->wandev.comm_port))
+static __inline u32 AFT_PORT_REG(sdla_t *card, u32 reg)
+{
+	if (card->adptr_type == AFT_ADPTR_A600) {
+		if (reg < 0x100) {
+			return (reg+0x1000);
+		} else {
+			return (reg+0x2000);
+		}
+	} else {
+		if (reg < 0x100) {
+			return reg;	
+		}
+		return 	(reg+(0x4000*card->wandev.comm_port));
+	}
+}
+
 
 /*======================================================
  * GLOBAL  (All Ports)
@@ -98,6 +113,9 @@
 
 # define AFT_CHIPCFG_A200_EC_SEC_KEY_MASK	0x3
 # define AFT_CHIPCFG_A200_EC_SEC_KEY_SHIFT  	16 
+
+# define AFT_CHIPCFG_A600_EC_SEC_KEY_MASK	0x3
+# define AFT_CHIPCFG_A600_EC_SEC_KEY_SHIFT  	4
 
 # define AFT_CHIPCFG_SPI_SLOW_BIT	5	/* Slow down SPI */
 #if 0
@@ -186,7 +204,16 @@
 #  define AFT_CHIPCFG_WDT_TX_INTR_STAT  1
 #  define AFT_CHIPCFG_WDT_RX_INTR_STAT	2
 
-
+# define AFT_CLKCFG_A600_CLK_OUTPUT_BIT         0
+# define AFT_CLKCFG_A600_CLK_EXT_CLK_SRC_BIT    4
+# define AFT_CLKCFG_A600_CLK_SRC_BIT_MASK       0x6
+# define AFT_CLKCFG_A600_CLK_SRC_BIT_SHIFT      1
+# define AFT_CLKCFG_A600_CLK_OUT_BIT_MASK       0x7
+# define AFT_CLKCFG_A600_CLK_OUT_BIT_SHIFT      5
+# define AFT_CLKCFG_A600_CLK_SRC_OSC            0x00
+# define AFT_CLKCFG_A600_CLK_SRC_EXT_NO_PLL     0x01
+# define AFT_CLKCFG_A600_CLK_SRC_EXT_PLL        0x02
+# define AFT_CLKCFG_A600_CLK_OUT_BOARD          0x04
 
 /* A104 & A104D Interrupt Status Funcitons */
 
@@ -310,16 +337,11 @@ aft_chipcfg_a108_get_tdmv_intr_stats(u32 reg)
 /* Serial specific functions */
 
 static __inline u32
-aft_chipcfg_serial_get_status_intr_stats(u32 reg, int port)
+aft_chipcfg_serial_get_status_intr_stats(u32 reg)
 {
 	reg=reg>>AFT_CHIPCFG_SERIAL_STATUS_INTR_SHIFT;
 	reg&=AFT_CHIPCFG_SERIAL_STATUS_INTR_MASK;
 	
-	if (port) {
-		port--;
-	}
-	reg=(reg>>(3*port))&0x07;
-
 	return reg;
 }
 
@@ -404,7 +426,22 @@ aft_chipcfg_get_a200_ec_channels(u32 reg)
 	}
 	
 	return 0;
-}        
+}
+
+static __inline u32
+aft_chipcfg_get_a600_ec_channels(u32 reg)
+{
+	switch ((reg>>AFT_CHIPCFG_A600_EC_SEC_KEY_SHIFT)&AFT_CHIPCFG_A600_EC_SEC_KEY_MASK){
+		case 0x00:
+			return 0;
+		case 0x01:
+			return 5;
+		default:
+			return 0;
+	}
+	
+	return 0;
+}
 
 # define AFT_WDTCTRL_MASK		0xFF
 # define AFT_WDTCTRL_TIMEOUT 		75	/* ms */
@@ -817,8 +854,13 @@ aft_dmachain_enable_tdmv_and_mtu_size(u32 *reg, int size)
 #define AFT_SERIAL_LCFG_DTR_BIT  	1
 #define AFT_SERIAL_LCFG_CTS_BIT  	2
 #define AFT_SERIAL_LCFG_DCD_BIT  	3
+
+#define AFT_SERIAL_LCFG_CTRL_BIT_MASK 0x0F
+
 #define AFT_SERIAL_LCFG_POLARITY_BIT 	4
 #define AFT_SERIAL_LCFG_SWMODE_BIT	5
+
+#define AFT_SERIAL_LCFG_X21_MODE_BIT	6
 
 #define AFT_SERIAL_LCFG_BAUD_SHIFT	8
 #define AFT_SERIAL_LCFG_BAUD_MASK	0xFFFF
@@ -1286,6 +1328,10 @@ enum {
 	
 #define UDPMGMT_SIGNATURE		"AFTPIPEA"
 
+#define AFT_SERIAL_MODEM_RTS  	1
+#define AFT_SERIAL_MODEM_DTR  	2
+#define AFT_SERIAL_MODEM_CTS  	4
+#define AFT_SERIAL_MODEM_DCD  	8
 
 /* the line trace status element presented by the frame relay code */
 typedef struct {
@@ -1397,6 +1443,10 @@ typedef struct {
 
 } aft_comm_err_stats_t;
 
+typedef struct {
+	unsigned int status;
+} api_serial_hdr_t;
+
 enum wanpipe_aft_api_events {
 	WP_API_EVENT_NONE,
 	WP_API_EVENT_DTMF,
@@ -1413,6 +1463,7 @@ enum wanpipe_aft_api_events {
 	WP_API_EVENT_SETPOLARITY,
 	WP_API_EVENT_BRI_CHAN_LOOPBACK,
 	WP_API_EVENT_RING_TRIP_DETECT,
+	WP_API_EVENT_MODEM_STATUS,
 	
 };
 
@@ -1422,6 +1473,9 @@ enum wanpipe_aft_api_events {
 		((mode) == WP_API_EVENT_ENABLE) ? "Enable" :		\
 		((mode) == WP_API_EVENT_DISABLE) ? "Disable" :		\
 						"(Unknown mode)"
+
+#define WP_API_EVENT_SET		0x01
+#define WP_API_EVENT_GET		0x02
 
 #define WP_API_EVENT_RXHOOK_OFF		0x01
 #define WP_API_EVENT_RXHOOK_ON		0x02
@@ -1459,8 +1513,12 @@ typedef struct {
 				} dtmf;
 			} u_event;
 		} wp_api_event;
+		api_serial_hdr_t serial;
 		unsigned char	reserved[12];
 	}hdr_u;
+#define wp_api_rx_hdr_error_flag			error_flag
+#define wp_api_rx_hdr_time_stamp			time_stamp
+#define wp_api_rx_hdr_event_type			event_type
 #define wp_api_rx_hdr_event_channel 		hdr_u.wp_api_event.channel
 #define wp_api_rx_hdr_event_rxhook_state 	hdr_u.wp_api_event.u_event.rxhook.state
 #define wp_api_rx_hdr_event_ring_state 		hdr_u.wp_api_event.u_event.ring.state
@@ -1468,6 +1526,7 @@ typedef struct {
 #define wp_api_rx_hdr_event_dtmf_type 		hdr_u.wp_api_event.u_event.dtmf.type
 #define wp_api_rx_hdr_event_dtmf_port 		hdr_u.wp_api_event.u_event.dtmf.port
 #define wp_api_rx_hdr_event_ringdetect_state 	hdr_u.wp_api_event.u_event.ring.state
+#define wp_api_rx_hdr_event_serial_status	hdr_u.serial.status
 } api_rx_hdr_t;
 
 typedef struct {
@@ -1487,14 +1546,15 @@ typedef struct {
 	unsigned char	data[8];
 } api_tx_hdlc_rpt_hdr_t;
 
+
+
 typedef struct {
 	u_int8_t	type;
-	u_int8_t	mode; 
+	u_int8_t	mode;
 	u_int8_t	tone;
 	u_int16_t	channel;
 	u_int16_t	polarity;
 	u_int16_t	ohttimer;
-	
 } api_tdm_event_hdr_t;
 
 typedef struct {
@@ -1513,6 +1573,7 @@ typedef struct {
 
 #define wp_api_tx_hdr_hdlc_rpt_len	hdr_u.hdlc_rpt.len
 #define wp_api_tx_hdr_hdlc_rpt_data	hdr_u.hdlc_rpt.data
+#define wp_api_tx_hdr_event_serial_status	hdr_u.event.tone
 
 } api_tx_hdr_t;
 
@@ -1555,6 +1616,7 @@ enum {
 #define AFT_SERIAL_MIN_FRMW_VER	0x04
 
 #define AFT_MIN_ANALOG_FRMW_VER 0x05
+#define AFT_MIN_A600_FRMW_VER 	0x01
 
 #define A500_MAX_EC_CHANS 64
 

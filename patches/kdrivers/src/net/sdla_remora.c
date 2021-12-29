@@ -503,21 +503,51 @@ static void wp_remora_reset_spi(sdla_fe_t *fe)
 static int
 wp_proslic_setreg_indirect(sdla_fe_t *fe, int mod_no, unsigned char address, unsigned short data)
 {
+	int i;
 	DEBUG_REG("%s: Indirect Register %d = %X\n",
 				fe->name, address, data);
 	WRITE_RM_REG(mod_no, IDA_LO,(unsigned char)(data & 0xFF));
 	WRITE_RM_REG(mod_no, IDA_HI,(unsigned char)((data & 0xFF00)>>8));
 	WRITE_RM_REG(mod_no, IAA,address);
+
+	/* ProSLIC indirect access updates at 16Khz */
+	for (i = 0; i < 100; i++) {
+		WP_DELAY(10);
+		if (!(READ_RM_REG(mod_no, 31) & 0x1)) {
+			break;
+		}
+	}
+
+	if (READ_RM_REG(mod_no, 31) & 0x1) {
+		DEBUG_EVENT("%s: Critical error:ProSLIC indirect write failed (mod:0x%X add:0x%X)\n",
+				fe->name, mod_no, address);
+		return -EINVAL;
+	}	
 	return 0;
 }
 
 static int
 wp_proslic_getreg_indirect(sdla_fe_t *fe, int mod_no, unsigned char address)
 { 
+	int i;
 	int res = -1;
 	unsigned char data1, data2;
 
 	WRITE_RM_REG(mod_no, IAA, address);
+
+	for (i = 0; i < 100; i++) {
+		WP_DELAY(10);
+		if (!(READ_RM_REG(mod_no, 31) & 0x1)) {
+			break;	
+		}
+	}
+
+	if (READ_RM_REG(mod_no, 31) & 0x1) {
+		DEBUG_EVENT("%s: Critical error:ProSLIC indirect read failed (mod:%X)\n",
+				fe->name, mod_no);
+		return -EINVAL;
+	}		
+	
 	data1 = READ_RM_REG(mod_no, IDA_LO);
 	data2 = READ_RM_REG(mod_no, IDA_HI);
 	res = data1 | (data2 << 8);
@@ -590,7 +620,17 @@ static int wp_remora_chain_enable(sdla_fe_t *fe)
 	int		mod_no;
 	unsigned char	byte;
 
-	for(mod_no = 0;mod_no < MAX_REMORA_MODULES; mod_no ++){
+	WAN_ASSERT_RC(fe->reset_fe == NULL,0);
+	
+	if (IS_A600(fe)) {
+		for(mod_no = 0; mod_no < NUM_A600_ANALOG_FXO_PORTS; mod_no++) {
+			fe->rm_param.mod[mod_no].type = MOD_TYPE_FXO;
+		}
+		fe->rm_param.mod[4].type = MOD_TYPE_FXS;
+		return 0;
+	}
+	
+	for(mod_no = 0;mod_no < fe->rm_param.max_fe_channels; mod_no ++){
 		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_NONE){
 			byte = READ_RM_FXS_REG(mod_no, 0, 0);
 			byte &= 0x0F;
@@ -608,8 +648,9 @@ static int wp_remora_chain_enable(sdla_fe_t *fe)
 		}
 	}
 	/* Reset SPI interface */
-	wp_remora_reset_spi(fe);
-	for(mod_no = 0;mod_no < MAX_REMORA_MODULES; mod_no ++){
+	fe->reset_fe(fe);
+
+	for(mod_no = 0;mod_no < fe->rm_param.max_fe_channels; mod_no ++){	
 		if (fe->rm_param.mod[mod_no].type == MOD_TYPE_NONE){
 			byte = READ_RM_FXO_REG(mod_no,1,2);
 			if (byte == 0x03){
@@ -622,7 +663,7 @@ static int wp_remora_chain_enable(sdla_fe_t *fe)
 	}
 
 	/* Reset SPI interface */
-	wp_remora_reset_spi(fe);
+	fe->reset_fe(fe);
 
 	/* Now enable chain mode for only FXS modules (FXO by default chain) */
 	for(mod_no = 0;mod_no < MAX_REMORA_MODULES; mod_no ++){
@@ -1552,9 +1593,17 @@ static int wp_remora_config(void *pfe)
 	int		err=0, mod_no, mod_cnt = 0, err_cnt = 0, retry;
 	int		sane=0;
 
+	WAN_ASSERT_RC(fe->reset_fe == NULL,0);
+
 	DEBUG_EVENT("%s: Configuring FXS/FXO Front End ...\n",
         		     	fe->name);
-	fe->rm_param.max_fe_channels 	= MAX_REMORA_MODULES;
+	
+	if (IS_A600(fe)) {
+		fe->rm_param.max_fe_channels 	= NUM_A600_ANALOG_PORTS;
+	} else {
+		fe->rm_param.max_fe_channels 	= MAX_REMORA_MODULES;
+	}
+
 	fe->rm_param.module_map 	= 0;
 	fe->rm_param.intcount		= 0;
 	fe->rm_param.last_watchdog 	= SYSTEM_TICKS;
@@ -1565,7 +1614,7 @@ static int wp_remora_config(void *pfe)
 
 	wait_just_a_bit(HZ, 0);
 	/* Reset SPI interface */
-	wp_remora_reset_spi(fe);
+	fe->reset_fe(fe);
 
 	/* Search for installed modules and enable chain for all modules */
 	if (wp_remora_chain_enable(fe)){
@@ -1575,7 +1624,7 @@ static int wp_remora_config(void *pfe)
 	}
 
 	/* Auto detect FXS and FXO modules */
-	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
+	for(mod_no = 0; mod_no < fe->rm_param.max_fe_channels; mod_no++){
 		sane = 0; err = 0; retry = 0;
 retry_cfg:
 		switch(fe->rm_param.mod[mod_no].type){
@@ -1706,7 +1755,7 @@ static int wp_remora_unconfig(void *pfe)
 	/* Clear and Kill TE timer poll command */
 	wan_clear_bit(WP_RM_CONFIGURED,(void*)&fe->rm_param.critical);
 	
-	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
+	for(mod_no = 0; mod_no < fe->rm_param.max_fe_channels; mod_no++){
 		if (wan_test_bit(mod_no, &fe->rm_param.module_map)) {
 			wan_clear_bit(mod_no, &fe->rm_param.module_map);
 		}
@@ -1788,7 +1837,7 @@ static int wp_remora_if_config(void *pfe, u32 mod_map, u8 usedby)
 	if (usedby == TDM_VOICE_API){
 #if defined(AFT_RM_INTR_SUPPORT)
 		/* Enable remora interrupts (only for TDM_API) */
-		for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
+		for(mod_no = 0; mod_no < fe->rm_param.max_fe_channels; mod_no++){
 			if (!wan_test_bit(mod_no, &fe->rm_param.module_map) ||
 			    !wan_test_bit(mod_no, &mod_map)){
 				continue;
@@ -1822,7 +1871,7 @@ static int wp_remora_if_unconfig(void *pfe, u32 mod_map, u8 usedby)
 
 	if (usedby == TDM_VOICE_API){
 #if defined(AFT_RM_INTR_SUPPORT)
-		for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
+		for(mod_no = 0; mod_no < fe->rm_param.max_fe_channels; mod_no++){
 			if (!wan_test_bit(mod_no, &fe->rm_param.module_map) ||
 			!wan_test_bit(mod_no, &mod_map)){
 			continue;
@@ -1852,7 +1901,7 @@ static int wp_remora_disable_irq(void *pfe)
 		return -EINVAL;
 	}
 
-	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
+	for(mod_no = 0; mod_no < fe->rm_param.max_fe_channels; mod_no++){
 		if (wan_test_bit(mod_no, &fe->rm_param.module_map)) {
 			wp_remora_intr_ctrl(	fe, 
 						mod_no, 
@@ -1893,7 +1942,7 @@ static unsigned char wp_remora_fe_media(sdla_fe_t *fe)
 static int wp_remora_set_dtmf(sdla_fe_t *fe, int mod_no, unsigned char val)
 {
 
-	if (mod_no > MAX_REMORA_MODULES){
+	if (mod_no > fe->rm_param.max_fe_channels){
 		DEBUG_EVENT("%s: Module %d: Module number out of range!\n",
 					fe->name, mod_no+1);
 		return -EINVAL;
@@ -2381,7 +2430,7 @@ wp_remora_add_event(sdla_fe_t *fe, sdla_fe_timer_event_t *fe_event)
 *				wp_remora_event_verification()	
 *
 * Description: 
-* Arguments: mod_no -  Module number (1,2,3,... MAX_REMORA_MODULES)
+* Arguments: mod_no -  Module number (1,2,3,... fe->rm_param.max_fe_channels)
 * Returns:
 ******************************************************************************/
 static int
@@ -2440,7 +2489,7 @@ wp_remora_event_verification(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 *				wp_remora_event_ctrl()	
 *
 * Description: Enable/Disable event types
-* Arguments: mod_no -  Module number (1,2,3,... MAX_REMORA_MODULES)
+* Arguments: mod_no -  Module number (1,2,3,... fe->rm_param.max_fe_channels)
 * Returns:
 ******************************************************************************/
 static int
@@ -2451,7 +2500,7 @@ wp_remora_event_ctrl(sdla_fe_t *fe, wan_event_ctrl_t *ectrl)
 
 	WAN_ASSERT(ectrl == NULL);
 	
-	if (mod_no+1 > MAX_REMORA_MODULES){
+	if (mod_no+1 > fe->rm_param.max_fe_channels){
 		DEBUG_EVENT("%s: Module %d: Module number is out of range!\n",
 					fe->name, mod_no+1);
 		return -EINVAL;
@@ -2701,12 +2750,23 @@ static int wp_remora_stats(sdla_fe_t* fe, unsigned char *data)
 static int wp_remora_udp(sdla_fe_t *fe, void* p_udp_cmd, unsigned char* data)
 {
 	wan_cmd_t		*udp_cmd = (wan_cmd_t*)p_udp_cmd;
+	wan_femedia_t		*fe_media;
 	sdla_fe_debug_t		*fe_debug;	
 	sdla_fe_timer_event_t	event;
 	int			err = -EINVAL;
 
 	memset(&event, 0, sizeof(sdla_fe_timer_event_t));
 	switch(udp_cmd->wan_cmd_command){
+	case WAN_GET_MEDIA_TYPE:
+		fe_media = (wan_femedia_t*)data;
+		memset(fe_media, 0, sizeof(wan_femedia_t));
+		fe_media->media		= fe->fe_cfg.media;
+		fe_media->sub_media	= fe->fe_cfg.sub_media;
+		fe_media->chip_id	= 0x00;
+		fe_media->max_ports	= 1;
+		udp_cmd->wan_cmd_return_code = WAN_CMD_OK;
+		udp_cmd->wan_cmd_data_len = sizeof(wan_femedia_t); 
+		break;
 	case WAN_FE_TONES:
 		event.type	= WP_RM_POLL_TONE;
 		event.rm_event.mod_no	= data[0];
@@ -3406,7 +3466,7 @@ static void wp_remora_proslic_check_hook(sdla_fe_t *fe, int mod_no)
 *			wp_remora_watchdog()	
 *
 * Description:
-* Arguments: mod_no -  Module number (1,2,3,... MAX_REMORA_MODULES)
+* Arguments: mod_no -  Module number (1,2,3,... fe->rm_param.max_fe_channels)
 * Returns:
 ******************************************************************************/
 static int wp_remora_watchdog(sdla_fe_t *fe)
@@ -3524,7 +3584,7 @@ wp_remora_intr_ctrl(sdla_fe_t *fe, int mod_no, u_int8_t type, u_int8_t mode, uns
 {
 	int		err = 0;
 
-	if (mod_no >= MAX_REMORA_MODULES){
+	if (mod_no >= fe->rm_param.max_fe_channels){
 		DEBUG_EVENT(
 		"%s: Module %d: Module number is out of range!\n",
 					fe->name, mod_no+1);
@@ -3625,7 +3685,7 @@ static int wp_remora_check_intr(sdla_fe_t *fe)
 	int	mod_no = 0, pending = 0;
 
 	fe->rm_param.intcount++;
-	for(mod_no = 0; mod_no < MAX_REMORA_MODULES; mod_no++){
+	for(mod_no = 0; mod_no < fe->rm_param.max_fe_channels; mod_no++){
 		if (wan_test_bit(mod_no, &fe->rm_param.module_map)) {
 			if (fe->rm_param.mod[mod_no].type == MOD_TYPE_FXS){
 				pending = wp_remora_check_intr_fxs(fe, mod_no);
@@ -3881,7 +3941,7 @@ static int wp_remora_intr(sdla_fe_t *fe)
 	int	mod_no = 0;
 	
 	/* calling per module per interupt  */
-	mod_no = fe->rm_param.access_counter  % MAX_REMORA_MODULES;
+	mod_no = fe->rm_param.access_counter  % fe->rm_param.max_fe_channels;
 	
   	if ( mod_no < fe->rm_param.max_fe_channels ) { /*sanity check for mod_no */
 		if (wan_test_bit(mod_no, &fe->rm_param.module_map)) { 

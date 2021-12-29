@@ -101,6 +101,7 @@ enum {
 #define WANOPT_AFT_56K		12
 #define WANOPT_AFT101		13
 #define WANOPT_AFT_SERIAL	14
+#define WANOPT_AFT600		15
 
 /*
  * Configuration options defines.
@@ -115,7 +116,8 @@ enum {
 
 /* intercace options */
 #define	WANOPT_RS232	0
-#define	WANOPT_V35	1
+#define	WANOPT_V35		1
+#define WANOPT_X21		2
 
 /* data encoding options */
 #define	WANOPT_NRZ	0
@@ -215,6 +217,7 @@ enum {
 #define WANOPT_NETWORK_SYNC_OUT	0x00
 #define WANOPT_NETWORK_SYNC_IN	0x01
 
-
+#define WAN_CLK_OUT_OSC         0x03
+#define WAN_CLK_OUT_LINE        0x04
 
 #endif /* __WANPIPE_CFG_DEF_H__ */

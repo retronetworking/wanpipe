@@ -58,6 +58,8 @@
 #if defined(CONFIG_WANPIPE_HWEC)
 static int aft_analog_hwec_reset(void *pcard, int reset);
 static int aft_analog_hwec_enable(void *pcard, int enable, int fe_chan);
+
+static int aft_a600_hwec_reset(void *pcard, int reset);
 #endif
 
 static int aft_map_fifo_baddr_and_size(sdla_t *card, unsigned char fifo_size, unsigned char *addr);
@@ -322,28 +324,100 @@ int aft_analog_led_ctrl(sdla_t *card, int color, int led_pos, int on)
 }
 
 
+int aft_a600_clock_config(sdla_t *card)
+{
+	u32 reg_1090;
+
+	reg_1090 = 0x00;
+	card->hw_iface.bus_read_4(card->hw, 0x1090, &reg_1090);	
+
+	switch (WAN_FE_NETWORK_SYNC(&card->fe)) {
+		default:
+			DEBUG_EVENT("%s: Warning:Invalid FE_NETWORK_SYNC value\n",
+					card->devname);
+		case WANOPT_NO:
+			DEBUG_EVENT("%s: Configuring for internal oscillator\n",
+						card->devname);
+		
+			reg_1090 &= ~AFT_CLKCFG_A600_CLK_SRC_BIT_MASK;
+			break;
+		case WANOPT_YES:
+			reg_1090 = 0x00;
+			DEBUG_EVENT("%s: Analog Clock set to Network Sync!\n",
+					card->devname);
+		
+			/* Set the board clock source to external clocking */
+			reg_1090 |= (AFT_CLKCFG_A600_CLK_SRC_EXT_NO_PLL << 1);
+
+			/* Set external clock source to 8.192 Mhz */
+			wan_clear_bit(AFT_CLKCFG_A600_CLK_EXT_CLK_SRC_BIT, &reg_1090);
+			break;
+		case WAN_CLK_OUT_OSC:
+			DEBUG_EVENT("%s: Configuring for clock output oscillator\n",
+					card->devname);
+
+			reg_1090 = 0x00;
+			/* Enable clock output on jumper */
+			wan_set_bit(AFT_CLKCFG_A600_CLK_OUTPUT_BIT, &reg_1090);
+			reg_1090 &= ~AFT_CLKCFG_A600_CLK_SRC_BIT_MASK;
+			break;
+		case WAN_CLK_OUT_LINE:
+/* daughter card is required for line clock output - not supported yet*/
+#if 1
+			/* Configure for oscillator output for now */
+			DEBUG_EVENT("%s: Warning: Clock output line not supported on A600\n",
+					card->devname);
+			DEBUG_EVENT("%s: Configuring for oscillator output\n",
+					card->devname);
+		
+			reg_1090 = 0x00;
+			/* Enable clock output on jumper */
+			wan_set_bit(AFT_CLKCFG_A600_CLK_OUTPUT_BIT, &reg_1090);
+			reg_1090 &= ~AFT_CLKCFG_A600_CLK_SRC_BIT_MASK;	
+			break;
+#else
+/* Use this section of code once daughter card is implemented */
+			DEBUG_EVENT("%s: Configuring for clock output line\n",
+					card->devname);
+
+			/* Configure board to use clock from daughter card */
+			reg_1090 |= (AFT_CLKCFG_A600_CLK_SRC_EXT_PLL << 1);
+			break;
+#endif
+	}
+	/* Set the external clock output mux to use board clock */
+	reg_1090 |= (AFT_CLKCFG_A600_CLK_OUT_BOARD << 5);
+
+	card->hw_iface.bus_write_4(card->hw, 0x1090, reg_1090);	
+
+	return 0;
+}
+
+
 int aft_analog_global_chip_config(sdla_t *card)
 {
 	u32	reg;
 	int	err;
 
 	/*============ GLOBAL CHIP CONFIGURATION ===============*/
-	card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &reg);
+	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &reg);
 
 	/* Enable the chip/hdlc reset condition */
 	reg=0;
 	wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
 	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
 
-	if (WAN_FE_NETWORK_SYNC(&card->fe)){	/*card->fe.fe_cfg.cfg.remora.network_sync*/
-		DEBUG_EVENT("%s: Analog Clock set to Network Sync!\n",
-				card->devname);
-		wan_set_bit(AFT_CHIPCFG_ANALOG_CLOCK_SELECT_BIT,&reg);	
+	if (!IS_A600_CARD(card)) {
+		if (WAN_FE_NETWORK_SYNC(&card->fe)){	/*card->fe.fe_cfg.cfg.remora.network_sync*/
+			DEBUG_EVENT("%s: Analog Clock set to Network Sync!\n",
+					card->devname);
+			wan_set_bit(AFT_CHIPCFG_ANALOG_CLOCK_SELECT_BIT,&reg);	
+		}
 	}
-
+	
 	DEBUG_CFG("--- AFT Chip Reset. -- \n");
 
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 
 
 	WP_DELAY(10);
@@ -361,10 +435,38 @@ int aft_analog_global_chip_config(sdla_t *card)
 #endif
 	DEBUG_CFG("--- Chip enable/config. -- \n");
 
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
+	
+	if (IS_A600_CARD(card)) {
+		u32 reg_1090 = 0x00;
+		card->hw_iface.bus_read_4(card->hw, 0x1090, &reg_1090);	
 
-	/* Set Octasic reset */
-	aft_analog_write_cpld(card, 0x00, 0x00);
+		DEBUG_A600("%s: Configuring HWEC CLK SRC to internal oscillator\n",
+			    card->devname);
+		
+		reg_1090 &= ~0x6;
+
+		card->hw_iface.bus_write_4(card->hw, 0x1090, reg_1090);	
+	
+		reg_1090 = 0x00;	
+		card->hw_iface.bus_read_4(card->hw, 0x1090, &reg_1090);	
+	}
+
+	if (IS_A600_CARD(card)) {
+		err = aft_a600_clock_config(card);
+		if (err) {
+			DEBUG_EVENT("%s: Failed to configure clock source\n",
+							card->devname);
+			return -EINVAL;
+		}
+	}
+
+	if (!IS_A600_CARD(card)) {
+		/* Set Octasic reset */
+		aft_analog_write_cpld(card, 0x00, 0x00);
+	}	
+	
+
 
 	DEBUG_EVENT("%s: Global Front End Configuraton!\n",card->devname);
 	err = -EINVAL;
@@ -402,7 +504,7 @@ int aft_analog_global_chip_unconfig(sdla_t *card)
 	wan_set_bit(AFT_CHIPCFG_SFR_EX_BIT,&reg);
 	wan_set_bit(AFT_CHIPCFG_SFR_IN_BIT,&reg);
 
-	card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 
 	return 0;
 }
@@ -449,14 +551,22 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 	/* Enable Octasic Chip */
 	if (card->adptr_subtype == AFT_SUBTYPE_SHARK){
 		u16	max_ec_chans, max_ports_no;
+		u16	max_chip_cfg_ec_chans;
 		u32 	cfg_reg, fe_port_map;
 
 		card->hw_iface.getcfg(card->hw, SDLA_HWEC_NO, &max_ec_chans);
 		card->hw_iface.getcfg(card->hw, SDLA_PORTS_NO, &max_ports_no);
 		card->hw_iface.getcfg(card->hw, SDLA_PORT_MAP, &fe_port_map);
 
-        	card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg); 
-		if (max_ec_chans > aft_chipcfg_get_a200_ec_channels(cfg_reg)){
+        	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG), &cfg_reg);
+		
+		if (IS_A600_CARD(card)) {
+			max_chip_cfg_ec_chans = aft_chipcfg_get_a600_ec_channels(cfg_reg);	
+		} else {
+			max_chip_cfg_ec_chans = aft_chipcfg_get_a200_ec_channels(cfg_reg);	
+		}
+		
+		if (max_ec_chans > max_chip_cfg_ec_chans){	
 	        	DEBUG_EVENT(
 			"%s: Critical Error: Exceeded Maximum Available Echo Channels!\n",
 					card->devname);
@@ -477,7 +587,13 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 							max_ports_no,
 							max_ec_chans,
 							(void*)&conf->oct_conf);
-			card->wandev.hwec_reset = aft_analog_hwec_reset;
+			
+			if (IS_A600_CARD(card)) {
+				card->wandev.hwec_reset = aft_a600_hwec_reset;
+			} else {
+				card->wandev.hwec_reset = aft_analog_hwec_reset;
+			}
+
 			card->wandev.hwec_enable = aft_analog_hwec_enable;
 #else
 			DEBUG_EVENT("%s: Wanpipe HW Echo Canceller modele is not compiled!\n",
@@ -520,7 +636,7 @@ int aft_analog_chip_config(sdla_t *card, wandev_conf_t *conf)
 	/*============ ENABLE MUX ==================*/
 
 	reg=0;	/* 0xFFFFFFFF; */
-	card->hw_iface.bus_write_4(card->hw,AFT_ANALOG_DATA_MUX_CTRL_REG,reg);
+	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_ANALOG_DATA_MUX_CTRL_REG),reg);
 
 
 	aft_wdt_reset(card);
@@ -670,7 +786,7 @@ int a200_check_ec_security(sdla_t *card)
 {  
 	u32 cfg_reg;	
 	
-    card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &cfg_reg);
+    	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &cfg_reg);
 	if (wan_test_bit(AFT_CHIPCFG_A200_EC_SECURITY_BIT,&cfg_reg)){ 
     	return 1; 	
 	}
@@ -756,6 +872,48 @@ void aft_analog_fifo_adjust(sdla_t *card,u32 level)
 }
 
 #if defined(CONFIG_WANPIPE_HWEC)
+static int aft_a600_hwec_reset(void *pcard, int reset)
+{
+	sdla_t		*card = (sdla_t*)pcard;
+	wan_smp_flag_t	smp_flags,flags;
+	int		err = -EINVAL;
+	u32		reg;
+
+	card->hw_iface.hw_lock(card->hw,&smp_flags);
+	wan_spin_lock_irq(&card->wandev.lock,&flags);
+	card->hw_iface.bus_read_4(card->hw, 
+				  AFT_PORT_REG(card,AFT_CHIP_CFG_REG),
+					       &reg);
+	if (!reset){
+		DEBUG_EVENT("%s: A600 Clear Echo Canceller chip reset.\n",
+			    card->devname);
+
+		reg &= ~0x1000000;
+		card->hw_iface.bus_write_4(card->hw,
+						AFT_PORT_REG(card,AFT_CHIP_CFG_REG),
+						reg);
+						
+		WP_DELAY(1000);
+		err = 0;
+	}else{
+		DEBUG_EVENT("%s: A600 Set Echo Canceller chip reset.\n",
+			    card->devname);
+		
+		
+		reg |= 0x1000000;
+		card->hw_iface.bus_write_4(card->hw, 
+					   AFT_PORT_REG(card,AFT_CHIP_CFG_REG),
+							   reg);
+		
+		err = 0;
+	}
+	
+	wan_spin_unlock_irq(&card->wandev.lock,&flags);
+	card->hw_iface.hw_unlock(card->hw,&smp_flags);
+
+	return err;
+}
+
 static int aft_analog_hwec_reset(void *pcard, int reset)
 {
 	sdla_t		*card = (sdla_t*)pcard;
@@ -804,7 +962,7 @@ static int aft_analog_hwec_enable(void *pcard, int enable, int fe_chan)
 
 	card->hw_iface.bus_read_4(
 			card->hw,
-			AFT_REMORA_MUX_TS_EC_ENABLE,
+			AFT_PORT_REG(card, AFT_REMORA_MUX_TS_EC_ENABLE),
 			&value);
 	if (enable){
 		value |= (1 << hw_chan);
@@ -817,7 +975,7 @@ static int aft_analog_hwec_enable(void *pcard, int enable, int fe_chan)
 			fe_chan, value);
 	card->hw_iface.bus_write_4(
 			card->hw,
-			AFT_REMORA_MUX_TS_EC_ENABLE,
+			AFT_PORT_REG(card, AFT_REMORA_MUX_TS_EC_ENABLE),
 			value);
 	return 0;
 }

@@ -72,6 +72,9 @@
 # warning "WAN_DEBUG_REG - Debugging Enabled"
 #endif
 
+#define AFT_A600_BASE_REG_OFF	0x1000
+#define A600_REG_OFF(reg) reg+AFT_A600_BASE_REG_OFF
+
 /***************************************************************************
 ****                     M A C R O S / D E F I N E S                    ****
 ***************************************************************************/
@@ -99,6 +102,7 @@ static int	__sdla_shark_rm_write_fe (void* phw, ...);
 int		sdla_shark_rm_write_fe (void* phw, ...);
 u_int8_t	__sdla_shark_rm_read_fe (void* phw, ...);
 u_int8_t	sdla_shark_rm_read_fe (void* phw, ...);
+void 		sdla_a200_reset_fe (void* fe);
 
 static int	__sdla_shark_56k_write_fe(void *phw, ...);
 int		sdla_shark_56k_write_fe(void *phw, ...);
@@ -117,6 +121,12 @@ u_int32_t	sdla_shark_serial_read_fe (void *phw, ...);
 
 int		sdla_te3_write_fe(void *phw, ...);
 u_int8_t	sdla_te3_read_fe(void *phw, ...);
+
+static int	__sdla_a600_write_fe(void *phw, ...);
+int		sdla_a600_write_fe(void *phw, ...);
+u_int8_t	__sdla_a600_read_fe (void *phw, ...);
+u_int8_t	sdla_a600_read_fe (void *phw, ...);
+void		sdla_a600_reset_fe (void *fe);
 
 extern int sdla_bus_write_1(void* phw, unsigned int offset, u8 value);
 extern int sdla_bus_read_1(void* phw, unsigned int offset, u8* value);
@@ -624,11 +634,267 @@ u_int8_t sdla_shark_56k_read_fe (void *phw, ...)
 
 
 /***************************************************************************
-	Front End FXS/FXO interface for Shark subtype cards
+	Front End FXS/FXO interface for Shark subtype cards - A600
 ***************************************************************************/
-/*============================================================================
- * Read TE1/56K Front end registers
- */
+
+static int __sdla_a600_write_fe(void *phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain;
+	int		reg, value;
+	u32		data = 0;
+	//unsigned char	cs = 0x00, ctrl_byte = 0x00;
+	int		i;
+
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	value	= va_arg(args, int);
+	va_end(args);
+	
+	if (chain) DEBUG_EVENT ("%s :%d Error: chain mode not supported on A600 (%s:%d)\n",
+					hw->devname, mod_no, __FUNCTION__,__LINE__);
+				
+		    
+	if (type == MOD_TYPE_FXO){
+		data |= (mod_no & 0x3) << 24;
+		data &= 0xFF000000;
+			
+		/* Clear data bits */
+		data |= (value & 0xFF);
+	
+		reg = reg & 0x7F;
+		data |= (reg & 0xFF) << 8;
+			
+	}else if (type == MOD_TYPE_FXS){
+		wan_set_bit(A600_SPI_REG_CHAN_TYPE_FXS_BIT, &data); /* 1 << 28 */
+		
+		/* Clear data bits */
+		data |= (value & 0xFF);
+		
+		reg = reg & 0x7F;
+		data |= (reg & 0xFF) << 8;
+		
+	}else{
+		DEBUG_EVENT("%s: Module %d: Unsupported module type %d!\n",
+					hw->devname, mod_no, type);
+					return -EINVAL;
+	}
+	
+	sdla_bus_write_4(hw, A600_REG_OFF(SPI_INTERFACE_REG), data);	
+		
+	WP_DELAY(10);
+		
+	wan_set_bit(A600_SPI_REG_START_BIT, &data);
+	sdla_bus_write_4(hw, A600_REG_OFF(SPI_INTERFACE_REG), data);
+	
+	for (i=0;i<10;i++) {	
+		WP_DELAY(10);
+		sdla_bus_read_4(hw, A600_REG_OFF(SPI_INTERFACE_REG),&data);
+		if (!(wan_test_bit(A600_SPI_REG_SPI_BUSY_BIT, &data))) {
+			goto spi_write_done;
+		}
+	}
+			
+	if (wan_test_bit(A600_SPI_REG_SPI_BUSY_BIT, &data)) {
+		DEBUG_EVENT("%s: ERROR:SPI Iface not ready\n", hw->devname);
+		return -EINVAL;
+	}
+		
+spi_write_done:
+	return 0;
+}
+
+int sdla_a600_write_fe(void *phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain, reg, value;
+#if defined(WAN_DEBUG_FE)
+	char		*fname;	
+	int		fline;
+#endif
+
+	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	value	= va_arg(args, int);
+	va_end(args);
+
+	if (sdla_hw_fe_test_and_set_bit(hw,0)){
+		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+			    hw->devname, __FUNCTION__,__LINE__);
+		return -EINVAL;
+	}
+	
+	__sdla_a600_write_fe(hw, mod_no, type, chain, reg, value);
+	sdla_hw_fe_clear_bit(hw,0);
+	return 0;
+}
+
+u_int8_t __sdla_a600_read_fe (void *phw, ...)
+{
+
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain, reg;
+	u32		data = 0;
+	int		i;
+
+	WAN_ASSERT(hw == NULL);
+	WAN_ASSERT(hw->hwcpu == NULL);
+	WAN_ASSERT(hw->hwcpu->hwcard == NULL);
+
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	va_end(args);
+
+	if (chain) DEBUG_EVENT ("%s :%d Error: chain mode not supported on A600 (%s:%d)\n",
+	    		hw->devname, mod_no, __FUNCTION__,__LINE__);
+	
+
+	wan_set_bit(A600_SPI_REG_READ_ENABLE_BIT, &data);
+	
+	if (type == MOD_TYPE_FXO){
+		data |= (mod_no & 0x3) << 24;
+		data &= 0xFF000000;
+	
+		reg = reg & 0xFF;
+		data |= (reg & 0xFF) << 8;
+		data &= 0xFFFFFF00;
+   
+	}else if (type == MOD_TYPE_FXS){
+		wan_set_bit(A600_SPI_REG_CHAN_TYPE_FXS_BIT, &data);
+		
+		reg = reg & 0x7F;
+		data |= (reg & 0xFF) << 8;
+		data &= 0xFFFFFF00;
+   
+	} else {
+		DEBUG_EVENT("%s: Module %d: Unsupported module type %d!\n",
+					hw->devname, mod_no, type);
+		return 0xFF;
+	}
+	
+	sdla_bus_write_4(hw, A600_REG_OFF(SPI_INTERFACE_REG), data);
+	WP_DELAY(10);
+
+	wan_set_bit(A600_SPI_REG_START_BIT, &data);
+	sdla_bus_write_4(hw, A600_REG_OFF(SPI_INTERFACE_REG), data);
+	
+		
+	for (i=0;i<10;i++) {
+		WP_DELAY(10);
+		sdla_bus_read_4(hw, A600_REG_OFF(SPI_INTERFACE_REG),&data);
+			
+		if (!(wan_test_bit(A600_SPI_REG_SPI_BUSY_BIT, &data))) {
+			goto spi_read_done;
+		}
+	}
+		
+spi_read_done:
+	if (wan_test_bit(A600_SPI_REG_SPI_BUSY_BIT, &data)) {
+		DEBUG_EVENT("%s: ERROR:SPI Iface not ready\n", hw->devname);
+		data = 0xFF;
+	}
+	
+	return (u8) data;
+}
+
+u_int8_t sdla_a600_read_fe (void *phw, ...)
+{
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	va_list		args;
+	int		mod_no, type, chain, reg;
+	unsigned char	data = 0;
+
+	WAN_ASSERT(hw->magic != SDLADRV_MAGIC);
+	va_start(args, phw);
+	mod_no	= va_arg(args, int);
+	type	= va_arg(args, int);
+	chain	= va_arg(args, int);
+	reg	= va_arg(args, int);
+	va_end(args);
+
+	if (sdla_hw_fe_test_and_set_bit(hw,0)){
+		DEBUG_EVENT("%s: %s:%d: Critical Error: Re-entry in FE!\n",
+			    hw->devname, __FUNCTION__,__LINE__);
+		return 0x00;
+	}
+	
+	data = __sdla_a600_read_fe (hw, mod_no, type, chain, reg);
+
+	sdla_hw_fe_clear_bit(hw,0);
+	return data;
+}
+
+void sdla_a600_reset_fe (void *fe)  
+{
+	u32 reg;
+	sdla_t *card;
+	
+	WAN_ASSERT1(fe == NULL);
+
+	card = (sdla_t*)((sdla_fe_t*)fe)->card;
+
+	WAN_ASSERT1(card == NULL);
+	
+	DEBUG_RM("%s: Resetting SPI\n", fe->name);
+	
+	/* Reset FXO */
+	reg = 0x00;
+	
+	/* set reset */
+	wan_set_bit(A600_SPI_REG_FX0_RESET_BIT, &reg);
+	card->hw_iface.bus_write_4(card->hw,
+				   A600_REG_OFF(SPI_INTERFACE_REG),
+						   reg);
+	
+	WP_DELAY(1000);
+	
+	/* clear reset */
+	wan_clear_bit(A600_SPI_REG_FX0_RESET_BIT, &reg);
+	card->hw_iface.bus_write_4(card->hw,
+				   A600_REG_OFF(SPI_INTERFACE_REG),
+					   reg);
+	
+	WP_DELAY(1000);
+	
+	/* Reset FXS */
+	reg = 0x00;
+	wan_set_bit(A600_SPI_REG_FXS_RESET_BIT, &reg);
+	card->hw_iface.bus_write_4(card->hw,
+				   A600_REG_OFF(SPI_INTERFACE_REG),
+						   reg);
+	
+	WP_DELAY(1000);
+	
+	/* clear reset */
+	wan_clear_bit(A600_SPI_REG_FXS_RESET_BIT, &reg);
+	card->hw_iface.bus_write_4(card->hw,
+				   A600_REG_OFF(SPI_INTERFACE_REG),
+						   reg);
+	
+	WP_DELAY(1000);
+}
+
+/***************************************************************************
+	Front End FXS/FXO interface for Shark subtype cards - A200/A400
+***************************************************************************/
+
 static int __sdla_shark_rm_write_fe (void* phw, ...)
 {
 	sdlahw_t	*hw = (sdlahw_t*)phw;
@@ -1009,6 +1275,25 @@ u_int8_t sdla_shark_rm_read_fe (void* phw, ...)
 	return data;
 }
 
+void sdla_a200_reset_fe (void *fe)
+{
+	sdla_t *card;
+
+	WAN_ASSERT1(fe == NULL);
+	card = (sdla_t*)((sdla_fe_t*)fe)->card;
+
+	WAN_ASSERT1(card == NULL);
+	
+	card->hw_iface.bus_write_4(card->hw,
+					SPI_INTERFACE_REG,
+     					MOD_SPI_RESET);
+	
+	WP_DELAY(1000);
+	card->hw_iface.bus_write_4(card->hw,
+					SPI_INTERFACE_REG,
+     					0x00000000);
+	WP_DELAY(1000);
+}
 
 /***************************************************************************
 	ISDN BRI Front End interface

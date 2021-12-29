@@ -289,6 +289,8 @@
 # include <linux/vmalloc.h>     /* vmalloc, vfree */
 # include <asm/uaccess.h>        /* copy_to/from_user */
 # include <linux/init.h>         /* __initfunc et al. */
+# include <linux/time.h>
+
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #  include <linux/seq_file.h>
 # endif

@@ -1,5 +1,18 @@
 chan_woomera.c
 ======================================
+
+ Dec 05 2008
+ * v1.38 David Yat Sin <dyatsin@sangoma.com>
+ *      Support for fax detect using Asterisk software DSP
+
+ Nov 26 2008
+ * v1.37 Nenad Corbic <ncorbic@sangoma.com>
+ *      tech_read try again now checks for hangup
+
+ Oct 14 2008
+ * v1.36 David Yat Sin <davidy@sangoma.com>
+ *      Fix for call hangup on call park
+
  Jun 3 2008
  * v1.32 David Yat Sin <davidy@sangoma.com>
  *      Updated for callweaver v1.2.0

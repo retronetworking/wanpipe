@@ -1,6 +1,8 @@
 #ifndef __WAN_AFT_PRG_H
 # define __WAN_AFT_PRG_H
 
+#define u32 unsigned int
+#define u8 unsigned char
 
 #define MEMORY_TYPE_SRAM	0x00
 #define MEMORY_TYPE_FLASH	0x01
@@ -34,8 +36,11 @@
 #define AFT_CORE_SIZE		234456
 #define AFT4_CORE_SIZE		212392
 #define AFT_CORE_X200_SIZE	130952
+#define AFT_CORE_X250_SIZE	169216
 #define AFT_CORE_X400_SIZE	212392
 #define AFT_CORE_X1000_SIZE	402936
+
+#define A600_EEPROM_PAGE_SIZE	0x04
 
 
 struct wan_aft_cpld_;
@@ -44,10 +49,11 @@ typedef struct {
 	int	(*is_protected)(struct wan_aft_cpld_*,int stype);
 	int	(*flash_id)(struct wan_aft_cpld_*, int mtype, int stype, int*);
 	int 	(*reload)(struct wan_aft_cpld_*, int stype);
-	int	(*prg_byte)(struct wan_aft_cpld_*, int, unsigned long, unsigned char);
-	unsigned char	(*read_byte)(struct wan_aft_cpld_*, int, int, unsigned long);
+	int	(*prg)(struct wan_aft_cpld_*, int, unsigned long, u8*);
+	int     (*read)(struct wan_aft_cpld_*, int, int, unsigned long, u8**);
 	int	(*erase)(struct wan_aft_cpld_*, int stype, int verify);
 } aftup_flash_iface_t;
+
 
 typedef struct {
 	int	id;

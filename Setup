@@ -478,7 +478,7 @@ and configuration/debug utilities have been compiled and installed.
 		TDM API        : /usr/sbin/wancfg_tdmapi
 		SMG SS7/BRI    : /usr/sbin/wancfg_smg
 		WAN Routing/API: /usr/sbin/wancfg
-	2) Use the /usr/sbin/wanrouter startup scrip to start and stop
+	2) Use the /usr/sbin/wanrouter startup script to start and stop
 	   the router. (eg: wanrouter start)
 	3) To uninstall WANPIPE package run ./Setup remove
 		
@@ -2429,7 +2429,7 @@ function build_kernel_module()
 	bin_link=$4
 	ofiles=
 
-	extra_flags=$extra_flags" -I/$WANPIPE_INCLUDE_DIR -I$WANPIPE_INCLUDE_DIR/oct6100_api -I$WANPIPE_INCLUDE_DIR/oct6100_api/oct6100api "
+	extra_flags=$extra_flags" -I/$WANPIPE_INCLUDE_DIR -I$WANPIPE_INCLUDE_DIR/oct6100_api -I$WANPIPE_INCLUDE_DIR/oct6100_api/include -I$WANPIPE_INCLUDE_DIR/oct6100_api/include/oct6100api "
 
 	if [ $KBUILD_DISABLE -ne 1 ] && [ $KERN_VER -eq 26 ]; then
 
@@ -6535,7 +6535,7 @@ ENDOFTEXT
 	if [ $? -eq 0 ]; then
 		if [ $AFT_TE1_PROT != YES ]; then
 			echo "Enabling the AFT TE1 Support"
-			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_56K -DCONFIG_PRODUCT_WANPIPE_AFT_RM -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW  -DCONFIG_PRODUCT_WANPIPE_AFT_BRI  -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL "
+			PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_AFT -DCONFIG_PRODUCT_WANPIPE_AFT_CORE -DCONFIG_PRODUCT_WANPIPE_AFT_TE1 -DCONFIG_PRODUCT_WANPIPE_AFT_56K -DCONFIG_PRODUCT_WANPIPE_AFT_RM -DCONFIG_PRODUCT_WANPIPE_CODEC_SLINEAR_LAW  -DCONFIG_PRODUCT_WANPIPE_AFT_BRI  -DCONFIG_PRODUCT_WANPIPE_AFT_SERIAL -DCONFIG_PRODUCT_WANPIPE_AFT_A600"
 
 			#PROTOCOL_DEFINES="$PROTOCOL_DEFINES -DCONFIG_PRODUCT_WANPIPE_USB "
 		fi
@@ -7133,7 +7133,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.3.14
+PROD_VER=3.3.15
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

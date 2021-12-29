@@ -68,9 +68,12 @@
 **			I N C L U D E S				**	
 ******************************************************************
 */
+
+
 #if defined(__LINUX__)
 # include <linux/version.h>
 # include <linux/wanpipe_kernel.h>
+# include <linux/sdlasfm.h>
 #elif defined(__FreeBSD__)
 # if defined(__SDLADRV__)
 #  if defined(SDLA_AUTO_PROBE)
@@ -310,14 +313,16 @@ typedef struct sdla_hw_probe
 	int 				used;
 	unsigned char			hw_info[100];
 	unsigned char			hw_info_verbose[500];
+	unsigned char			hw_info_dump[1000];
 	WAN_LIST_ENTRY(sdla_hw_probe)	next;
 } sdla_hw_probe_t;
+
 
 /*
  * This structure keeps common parameters per physical card.
  */
 typedef struct sdlahw_card {
-	int 			internal_used;
+	int 				internal_used;
 	unsigned int		hw_type;	/* ISA/PCI */
 	unsigned int		type;		/* S50x/S514/ADSL/SDLA_AFT */
 	unsigned char		cfg_type;	/* Config card type WANOPT_XXX */
@@ -516,6 +521,7 @@ typedef struct sdlahw_iface
 	void		(*busdma_sync)(void *phw, wan_dma_descr_t*, int ndescr, int single, int dir);
 	char*		(*hwec_name)(void *phw);
 	int		(*get_hwec_index)(void *phw);
+	void		(*reset_fe)(void*);
 #if defined(__WINDOWS__)
 	sdlahw_t *hw;
 #endif
@@ -534,7 +540,7 @@ typedef struct sdla_hw_type_cnt
 	unsigned char aft_isdn_adapters;
 	unsigned char aft_56k_adapters;
 	unsigned char aft_serial_adapters;
-	
+	unsigned char aft_a600_adapters;	
 	unsigned char aft_x_adapters;
 }sdla_hw_type_cnt_t;
 
@@ -875,6 +881,7 @@ static __inline int __sdla_bus_read_4(void* phw, unsigned int offset, u32* value
 	*value = 0;
 # warning "__sdla_bus_read_4: Not supported yet!"
 #endif
+
 		if (offset == 0x40 && *value == (u32)-1) {
 			if (WAN_NET_RATELIMIT()){
 			DEBUG_EVENT("%s:%d: wanpipe PCI Error: Illegal Register read: 0x%04X = 0x%08X\n",
@@ -901,6 +908,7 @@ static __inline int __sdla_bus_write_4(void* phw, unsigned int offset, u32 value
 	WAN_ASSERT(hwcpu->hwcard == NULL);	
 	SDLA_MAGIC(hwcpu);
 	if (!(hwcpu->status & SDLA_MEM_MAPPED)) return 0;
+
 #if defined(__FreeBSD__)
 	writel(((u8*)hwcpu->dpmbase + offset), value);
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
@@ -913,6 +921,24 @@ static __inline int __sdla_bus_write_4(void* phw, unsigned int offset, u32 value
 # warning "__sdla_bus_write_4: Not supported yet!"
 #endif
 	return 0;
+}
+
+
+static __inline u32 SDLA_REG_OFF(sdlahw_card_t	*hwcard, u32 reg)
+{
+	if (hwcard == NULL) {
+		DEBUG_EVENT("sdladrv: Critical error: hw or hw->cpu is NULL\n");
+		return reg;
+	}
+	
+	if (hwcard->adptr_type == AFT_ADPTR_A600) {
+		if (reg < 0x100) {
+			return (reg+0x1000);
+		} else {
+			return (reg+0x2000);
+		}
+	}
+	return reg;
 }
 
 static __inline int __sdla_is_same_hwcard(void* phw1, void *phw2)

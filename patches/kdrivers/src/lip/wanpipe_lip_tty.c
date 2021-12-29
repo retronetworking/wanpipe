@@ -64,7 +64,6 @@ static void tty_poll_task (struct work_struct *work)
 #endif      
 	struct tty_struct *tty;
 	netskb_t *skb;
-	char fp=0;
 	int err=0;
 	unsigned long smp_flags;
 
@@ -75,9 +74,15 @@ static void tty_poll_task (struct work_struct *work)
 		return;
 
 	while ((skb=wan_skb_dequeue(&lip_link->tty_rx)) != NULL){
-		if (tty->ldisc.receive_buf){
-			tty->ldisc.receive_buf(tty,wan_skb_data(skb),&fp,wan_skb_len(skb));
-		}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
+#else
+		const struct tty_ldisc *ops = &tty->ldisc;
+#endif
+
+		if (ops->receive_buf)
+			ops->receive_buf(tty,wan_skb_data(skb),NULL,wan_skb_len(skb));
+
 		wan_skb_free(skb);
 	}
 
@@ -88,13 +93,17 @@ static void tty_poll_task (struct work_struct *work)
 	wan_spin_unlock_irq(&lip_link->bh_lock,&smp_flags);
 	
 	if (err){
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
+#else
+		const struct tty_ldisc *ops = &tty->ldisc;
+#endif
 
 		DEBUG_TEST("%s: Got TTY Wakeup!\n",lip_link->name);
 	
 		if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
-		    tty->ldisc.write_wakeup){
-			(tty->ldisc.write_wakeup)(tty);
-		}
+		    ops->write_wakeup)
+			ops->write_wakeup(tty);
 
 		wake_up_interruptible(&tty->write_wait);
 #if defined(SERIAL_HAVE_POLL_WAIT) || \
@@ -425,9 +434,16 @@ static void wanpipe_tty_flush_buffer(struct tty_struct *tty)
          (defined LINUX_2_1 && LINUX_VERSION_CODE >= KERNEL_VERSION(2,2,15))
 	wake_up_interruptible(&tty->poll_wait);
 #endif
-	if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
-	    tty->ldisc.write_wakeup)
-		(tty->ldisc.write_wakeup)(tty);
+	if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP))) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))
+		const struct tty_ldisc_ops *ops = tty->ldisc.ops;
+#else
+		const struct tty_ldisc *ops = &tty->ldisc;
+#endif
+
+		if (ops->write_wakeup)
+			ops->write_wakeup(tty);
+	}
 
 	return;
 }

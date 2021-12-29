@@ -24,39 +24,42 @@
 * Jan 30, 1997	Alan Cox	Hacked around for 2.1
 * Dec 13, 1996	Gene Kozin	Initial version (based on Sangoma's WANPIPE)
 *****************************************************************************/
+
+
+
+#include "wanpipe_includes.h"
+#include "wanpipe_version.h"
+#include "wanpipe_defines.h"
+#include "wanpipe_debug.h"
+#include "wanpipe_common.h"
+#include "wanpipe.h"
+#include "sdladrv.h"
+#include "wanproc.h"
+#include "if_wanpipe_common.h"
+
+#if !defined(__WINDOWS__)
+
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <wanpipe_includes.h>
-# include <wanpipe_version.h>
-# include <wanpipe_defines.h>
-# include <wanpipe_debug.h>
-# include <wanpipe_common.h>
-# include <wanpipe.h>	/* WAN router API definitions */
-# include <sdladrv.h>
-# include <wanproc.h>
-# include <if_wanpipe_common.h>
 # define STATIC	
 # define CONFIG_PROC_FS
 #else
-# include <linux/wanpipe_includes.h>
-# include <linux/wanpipe_defines.h>
-# include <linux/wanpipe_debug.h>
-# include <linux/wanpipe.h>	/* WAN router API definitions */
-# include <linux/sdladrv.h>
-# include <linux/wanproc.h>
-# include <linux/if_wanpipe_common.h>
 # define STATIC	static
 #endif
- 
-#if defined(LINUX_2_1) || defined(LINUX_2_4)
-# ifndef proc_mkdir
-#  define proc_mkdir(buf, usbdir) create_proc_entry(buf, S_IFDIR, usbdir)
-# endif
-#endif
 
-#if defined(LINUX_2_6)
-# define M_STOP_CNT(m) NULL
-#else
-# define M_STOP_CNT(m) &m->stop_cnt
+#if defined(__LINUX__)
+
+# if defined(LINUX_2_1) || defined(LINUX_2_4)
+#  ifndef proc_mkdir
+#   define proc_mkdir(buf, usbdir) create_proc_entry(buf, S_IFDIR, usbdir)
+#  endif
+# endif
+
+# if defined(LINUX_2_6)
+#  define M_STOP_CNT(m) NULL
+# else
+#  define M_STOP_CNT(m) &m->stop_cnt
+# endif
+
 #endif
 
 #define PROC_STATS_1_FORMAT "%25s: %10lu\n"
@@ -185,6 +188,7 @@ static int status_get_info(struct seq_file *m, void *v);
 static int probe_get_info(struct seq_file *m, void *v);
 static int probe_get_info_legacy(struct seq_file *m, void *v);
 static int probe_get_info_verbose(struct seq_file *m, void *v);
+static int probe_get_info_dump(struct seq_file *m, void *v);
 static int wandev_get_info(struct seq_file *m, void *v);
 
 static int map_get_info(struct seq_file *m, void *v);
@@ -201,6 +205,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len);
 static int probe_get_info(char* buf, char** start, off_t offs, int len);
 static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len);
 static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len);
+static int probe_get_info_dump(char* buf, char** start, off_t offs, int len);
 static int wandev_get_info(char* buf, char** start, off_t offs, int len);
 
 static int map_get_info(char* buf, char** start, off_t offs, int len);
@@ -217,6 +222,7 @@ static int status_get_info(char* buf, char** start, off_t offs, int len, int dum
 static int probe_get_info(char* buf, char** start, off_t offs, int len, int dummy);
 static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len, int dummy);
 static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, int dummy);
+static int probe_get_info_dump(char* buf, char** start, off_t offs, int len, int dummy);
 static int wandev_get_info(char* buf, char** start, off_t offs, int len, int dummy);
 
 static int map_get_info(char* buf, char** start, off_t offs, int len, int dummy);
@@ -320,9 +326,24 @@ static int wp_hwprobe_verbose_open(struct inode *inode, struct file *file)
  	return single_open(file, probe_get_info_verbose, WP_PDE(inode)->data);
 }
 
+
+
 static struct file_operations wp_hwprobe_verbose_fops = {
 	.owner	 = THIS_MODULE,
 	.open	 = wp_hwprobe_verbose_open,
+	.read	 = seq_read,
+	.llseek	 = seq_lseek,
+	.release = single_release,
+};
+
+static int wp_hwprobe_dump_open(struct inode *inode, struct file *file)
+{
+ 	return single_open(file, probe_get_info_dump, WP_PDE(inode)->data);
+}
+
+static struct file_operations wp_hwprobe_dump_fops = {
+	.owner	 = THIS_MODULE,
+	.open	 = wp_hwprobe_dump_open,
 	.read	 = seq_read,
 	.llseek	 = seq_lseek,
 	.release = single_release,
@@ -815,6 +836,9 @@ static int probe_get_info(char* buf, char** start, off_t offs, int len, int dumm
 	if (hw_cnt->aft300_adapters){
 		PROC_ADD_LINE(m, "A300=%d ", hw_cnt->aft300_adapters);
 	}
+	if (hw_cnt->aft_a600_adapters){
+		PROC_ADD_LINE(m, "A600=%d ", hw_cnt->aft_a600_adapters);
+	}
 	PROC_ADD_LINE(m, "\n");
 
 	PROC_ADD_RET(m);
@@ -856,7 +880,7 @@ static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len, i
 	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
 	
 	PROC_ADD_LINE(m,
-		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d\n",
+		"\nCard Cnt: S508=%d S514X=%d S518=%d A101-2=%d A104=%d A300=%d A200=%d A108=%d A056=%d\n          A500=%d A14x=%d A600=%d\n",
 		hw_cnt->s508_adapters,
 		hw_cnt->s514x_adapters,
 		hw_cnt->s518_adapters,
@@ -867,7 +891,8 @@ static int probe_get_info_legacy(char* buf, char** start, off_t offs, int len, i
 		hw_cnt->aft108_adapters,
 		hw_cnt->aft_56k_adapters,
 		hw_cnt->aft_isdn_adapters,
-		hw_cnt->aft_serial_adapters
+		hw_cnt->aft_serial_adapters,
+		hw_cnt->aft_a600_adapters
 		);
 
 	PROC_ADD_RET(m);
@@ -944,10 +969,65 @@ static int probe_get_info_verbose(char* buf, char** start, off_t offs, int len, 
 	if (hw_cnt->aft300_adapters){
 		PROC_ADD_LINE(m, "A300=%d ", hw_cnt->aft300_adapters);
 	}
+	if (hw_cnt->aft_a600_adapters){
+		PROC_ADD_LINE(m, "A600=%d ", hw_cnt->aft_a600_adapters);
+	}
 	PROC_ADD_LINE(m, "\n");
 
 	PROC_ADD_RET(m);
 }
+
+
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(LINUX_2_4)
+STATIC int probe_get_info_dump(char* buf, char** start, off_t offs, int len)
+#else
+# if defined(LINUX_2_6)
+static int probe_get_info_dump(struct seq_file *m, void *v)
+# elif defined(LINUX_2_4)
+static int probe_get_info_dump(char* buf, char** start, off_t offs, int len)
+# else
+static int probe_get_info_dump(char* buf, char** start, off_t offs, int len, int dummy)
+# endif
+#endif
+{
+	int i=0;
+	sdla_hw_probe_t* hw_probe;
+	sdla_hw_type_cnt_t *hw_cnt;
+	PROC_ADD_DECL(m);
+	PROC_ADD_INIT(m, buf, offs, len);
+
+	hw_probe = (sdla_hw_probe_t *)sdla_get_hw_probe();	
+	
+	for (;
+	     hw_probe;
+	     hw_probe = WAN_LIST_NEXT(hw_probe, next)) {
+
+		i++;
+		PROC_ADD_LINE(m, 
+		       "|%d%s\n", i, hw_probe->hw_info_dump);
+	}
+
+	hw_cnt=(sdla_hw_type_cnt_t*)sdla_get_hw_adptr_cnt();	
+	
+
+	PROC_ADD_LINE(m,
+		"|Card Cnt|S508=%d|S514X=%d|S518=%d|A101-2=%d|A104=%d|A300=%d|A200=%d|A108=%d|A056=%d|A500=%d|A14x=%d\n",
+		hw_cnt->s508_adapters,
+		hw_cnt->s514x_adapters,
+		hw_cnt->s518_adapters,
+		hw_cnt->aft101_adapters,
+		hw_cnt->aft104_adapters,
+		hw_cnt->aft300_adapters,
+		hw_cnt->aft200_adapters,
+		hw_cnt->aft108_adapters,
+		hw_cnt->aft_56k_adapters,
+		hw_cnt->aft_isdn_adapters,
+		hw_cnt->aft_serial_adapters
+		);
+
+	PROC_ADD_RET(m);
+}
+
 
 	
 /*
@@ -1159,6 +1239,22 @@ int wanrouter_proc_init (void)
 	p->get_info = probe_get_info_verbose;
 #endif
 
+	p = create_proc_entry("hwprobe_dump",0,proc_router);
+	if (!p)
+		goto fail_probe_dump;
+
+#if defined(LINUX_2_6)
+	p->proc_fops = &wp_hwprobe_dump_fops;
+#elif defined(LINUX_2_4)
+	p->proc_fops = &router_fops;
+	p->proc_iops = &router_inode;
+	p->get_info = probe_get_info_dump;
+#else
+	p->ops = &router_inode;
+	p->nlink = 1;
+	p->get_info = probe_get_info_dump;
+#endif
+
 	p = create_proc_entry("map",0,proc_router);
 	if (!p)
 		goto fail_map;
@@ -1210,7 +1306,9 @@ fail_dev_map:
 	remove_proc_entry("interfaces", proc_router);	
 fail_interfaces:	
 	remove_proc_entry("map", proc_router);
-fail_map:	
+fail_map:
+	remove_proc_entry("hwprobe_dump", proc_router);
+fail_probe_dump:
 	remove_proc_entry("hwprobe_verbose", proc_router);
 fail_probe_verbose:	
 	remove_proc_entry("hwprobe_legacy", proc_router);
@@ -1244,6 +1342,7 @@ void wanrouter_proc_cleanup (void)
 	remove_proc_entry("hwprobe", proc_router);
 	remove_proc_entry("hwprobe_legacy", proc_router);
 	remove_proc_entry("hwprobe_verbose", proc_router);
+	remove_proc_entry("hwprobe_dump", proc_router);
 	remove_proc_entry("map", proc_router);
 	remove_proc_entry("interfaces", proc_router);
 	remove_proc_entry("dev_map",proc_router);
@@ -2035,6 +2134,9 @@ int proc_add_line(struct seq_file* m, char* frm, ...)
 #endif
 }
 #endif   
+
+#endif /* !__WINDOWS__ */
+
 /*
  *	End
  */

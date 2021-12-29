@@ -110,6 +110,18 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 	schedule_work(tq);
  }
 
+ static inline int wan_task_dequeue(struct tq_struct *tq)
+ {
+#if  LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
+	return cancel_work_sync (tq);
+#else
+	int err;
+	err=cancel_delayed_work(tq);
+	flush_scheduled_work();
+	return err;
+#endif
+ }
+
 
 #define ADMIN_CHECK()  {if (!capable(CAP_SYS_ADMIN)) {\
                              if (WAN_NET_RATELIMIT()) { \
@@ -209,6 +221,10 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
  static inline void wan_schedule_task(struct tq_struct *tq)
  {
 	schedule_task(tq);
+ }
+ static inline int wan_task_dequeue(struct tq_struct *tq)
+ {
+	return 0;
  }
 
  #ifndef INIT_WORK
@@ -378,6 +394,11 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
  static inline void wan_schedule_task(struct tq_struct *tq)
  {
 	queue_task(tq, &tq_scheduler);
+ }
+
+ static inline int wan_task_dequeue(struct tq_struct *tq)
+ {
+	return 0;
  }
 
  /* Setup Dma Memory size copied directly from 3c505.c */
@@ -576,10 +597,14 @@ static inline int open_dev_check(netdevice_t *dev)
 #  define WAN_TASKQ_INIT(task, priority, func, arg)	\
 		INIT_WORK((task),func)	
 # endif
+
 # define WAN_IS_TASKQ_SCHEDULE
+
 # define WAN_TASKQ_SCHEDULE(task)			\
 	wan_schedule_task(task)
-			
+
+# define WAN_TASKQ_STOP(task) \
+	wan_task_dequeue(task)
 
 
 #else /* __KERNEL__ */

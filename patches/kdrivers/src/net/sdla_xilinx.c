@@ -93,6 +93,15 @@ enum {
 
 static int aft_rx_copyback=1000;
 
+
+#if defined(AFT_XMTP2_API_SUPPORT) 
+extern void xmtp2km_bs_handler (int fi, int len, unsigned char * p_rxbs, unsigned char * p_txbs);
+extern int xmtp2km_register    (void *, char *, int (*callback)(void*, unsigned char*, int));
+extern int xmtp2km_unregister  (int);
+extern int xmtp2km_facility_state_change (int fi, int state);
+#endif
+
+
 /******Data Structures*****************************************************/
 
 /* This structure is placed in the private data area of the device structure.
@@ -205,6 +214,8 @@ typedef struct private_area
 	unsigned int 		tdmv_zaptel_cfg;
 	unsigned int		tdmapi_timeslots;
 	unsigned int		max_tx_bufs;
+
+	int xmtp2_api_index;
 
 	struct private_area	*next;
 }private_area_t;
@@ -400,6 +411,8 @@ static int aft_tdm_api_free_channelized(sdla_t *card, private_area_t *chan);
 #endif
 
 static void wanpipe_wake_stack(private_area_t* chan);
+static int aft_ss7_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf);
+static int aft_ss7_if_unreg(sdla_t *card, private_area_t *chan);
 
 static void xilinx_delay(int sec)
 {
@@ -979,6 +992,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	sdla_t* card = wandev->priv;
 	private_area_t* chan;
 	int err = 0;
+	int dma_per_ch = card->u.aft.cfg.dma_per_ch;
 
 	DEBUG_EVENT( "%s: Configuring Interface: %s\n",
 			card->devname, wan_netif_name(dev));
@@ -1235,7 +1249,14 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 			chan->mtu+=32;
 			chan->mru+=32;
 		}  
-		
+
+#if defined(AFT_XMTP2_API_SUPPORT)
+	} else if (strcmp(conf->usedby, "XMTP2_API") == 0) {
+		chan->common.usedby = XMTP2_API;
+		conf->hdlc_streaming=0;
+		conf->mtu=80;
+#endif
+
 	}else{
 		DEBUG_EVENT( "%s:%s: Error: Invalid operation mode [%s]\n",
 				card->devname,chan->if_name, conf->usedby);
@@ -1245,13 +1266,20 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 
 	
 	chan->time_slot_map=conf->active_ch;
-	
+	chan->num_of_time_slots=aft_get_num_of_slots(card->u.aft.num_of_time_slots,
+			             					chan->time_slot_map);
+
 	err=aft_tdmv_if_init(card,chan,conf);
 	if (err){
 		err=-EINVAL;
 		goto new_if_error;
 	}
 
+	err=aft_ss7_if_init(card,chan,conf);	
+	if (err){
+		err=-EINVAL;
+		goto new_if_error;
+	}
 
 	DEBUG_EVENT("%s:    MRU           :%d\n",
 			card->devname,
@@ -1288,6 +1316,10 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 			DEBUG_EVENT("%s: Disabling Time Slot Sync for ATM.\n", chan->if_name);
 			card->u.aft.tdmv_sync = 0;
 			chan->tdmv_sync = 0;
+		}
+
+		if (chan->common.usedby == XMTP2_API) {
+			dma_per_ch += 1024 * chan->num_of_time_slots;
 		}
 
 		if (chan->mtu&0x03){
@@ -1403,11 +1435,11 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 
 	DEBUG_EVENT("%s:    RX DMA Per Ch :%d\n",
 			card->devname,
-			card->u.aft.cfg.dma_per_ch);
+			dma_per_ch);
 
 	
 
-	err=aft_alloc_rx_dma_buff(card, chan, card->u.aft.cfg.dma_per_ch,0);
+	err=aft_alloc_rx_dma_buff(card, chan, dma_per_ch,0);
 	if (err){
 		goto new_if_error;
 	}
@@ -1676,7 +1708,9 @@ static int del_if_private (wan_device_t* wandev, netdevice_t* dev)
 #endif
 
 	aft_tdmv_if_free(card,chan);
-	
+
+	aft_ss7_if_unreg(card,chan);
+
 	protocol_shutdown(card,dev);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
@@ -1742,6 +1776,8 @@ static int del_if_private (wan_device_t* wandev, netdevice_t* dev)
 	chan->logic_ch_num=-1;
 
 	wan_spin_unlock_irq(&card->wandev.lock,&flags);
+
+	
 
 	/* Delete interface name from proc fs. */
 #if 0
@@ -2926,6 +2962,7 @@ static int xilinx_dev_configure(sdla_t *card, private_area_t *chan)
 	 * to check for all timeslots before we start binding
 	 * the channels in.  This way, we don't have to go back
 	 * and clean the time_slot_map */
+	chan->num_of_time_slots=0;
 	for (i=0;i<card->u.aft.num_of_time_slots;i++){
 		if (wan_test_bit(i,&chan->time_slot_map)){
 
@@ -3761,7 +3798,7 @@ static void xilinx_dma_tx_complete (sdla_t *card, private_area_t *chan)
 		chan->errstats.Tx_dma_len_nonzero++;	
 	}
 
-    	if (!chan->tx_dma_skb){
+    if (!chan->tx_dma_skb){
 
 		if (chan->hdlc_eng){
 			DEBUG_EVENT("%s: Critical Error: Tx DMA intr: no tx skb !\n",
@@ -3776,7 +3813,7 @@ static void xilinx_dma_tx_complete (sdla_t *card, private_area_t *chan)
                          * tx frames available, send an idle
                          * frame as soon as possible. 
 			 */
-        		wan_set_bit(0,&chan->idle_start);
+        	wan_set_bit(0,&chan->idle_start);
 
 			wan_clear_bit(TX_BUSY,&chan->dma_status);
 			xilinx_dma_tx(card,chan);
@@ -3836,7 +3873,7 @@ static void xilinx_dma_tx_complete (sdla_t *card, private_area_t *chan)
 			wan_clear_bit(TX_BUSY,&chan->dma_status);
 			xilinx_tx_post_complete (card,chan,skb);
 
-			if (chan->common.usedby == TDM_VOICE || chan->common.usedby == TDM_VOICE_API){
+			if (chan->common.usedby == TDM_VOICE || chan->common.usedby == TDM_VOICE_API ||   chan->common.usedby == XMTP2_API){
 				/* Voice code uses the rx buffer to
 				 * transmit! So put the rx buffer back
 				 * into the rx queue */
@@ -4659,6 +4696,43 @@ static void wp_bh(void *data, int pending)
 				wan_skb_free(new_skb);
 				continue;
 			}
+
+#if defined(AFT_XMTP2_API_SUPPORT)
+	}else if (chan->common.usedby == XMTP2_API){
+		netskb_t *tskb;
+
+		wan_skb_set_csum(new_skb,0);
+
+		if (chan->xmtp2_api_index < 0) {
+			if (WAN_NET_RATELIMIT()) {
+				DEBUG_EVENT("%s: Error: MTP2 Link not configured!\n",
+						chan->if_name);
+			}
+			WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common); /* ++chan->if_stats.rx_dropped; */
+			wan_skb_free(new_skb);
+			return;
+		}
+
+		tskb=wan_skb_dequeue(&chan->wp_rx_free_list);
+		if (!tskb) {
+			WAN_NETIF_STATS_INC_RX_ERRORS(&chan->common);
+			//WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common); /* ++chan->if_stats.rx_dropped; */
+			wan_skb_free(new_skb);
+			return;
+		}
+		
+		wan_skb_put(tskb,wan_skb_len(new_skb));
+
+		xmtp2km_bs_handler (chan->xmtp2_api_index, 
+                            		wan_skb_len(new_skb), wan_skb_data(new_skb), wan_skb_data(tskb));
+
+		wan_skb_free(new_skb);
+
+		wan_skb_queue_tail(&chan->wp_tx_pending_list,tskb);
+
+		xilinx_dma_tx(card,chan);
+		
+#endif
 
 		}else{
 			protocol_recv(chan->common.card,chan,new_skb);
@@ -6110,6 +6184,10 @@ static void xilinx_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 {
 	DEBUG_TEST("%s:%s: Tx Fifo Recovery \n",card->devname,chan->if_name);
 
+	if (!chan->hdlc_eng) {
+		return;
+	}
+
 	if (chan->common.usedby == TDM_VOICE || chan->common.usedby == TDM_VOICE_API){
 		return;
 	}
@@ -6136,14 +6214,14 @@ static void xilinx_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 	if (chan->tx_dma_skb){
 		wan_skb_queue_head(&chan->wp_tx_pending_list, chan->tx_dma_skb);		
 		chan->tx_dma_skb=NULL;
-                if (chan->lip_atm) {
+		if (chan->lip_atm) {
 			netskb_t *tmpskb = chan->tx_dma_skb;
 			chan->tx_dma_skb=NULL;
 			wan_skb_free(tmpskb);
-                } else {
+		} else {
 			wan_skb_queue_head(&chan->wp_tx_pending_list, chan->tx_dma_skb);
 			chan->tx_dma_skb=NULL;
-                }
+		}
 	}	
 
 	/* Wake up the stack, because tx dma interrupt failed */
@@ -6260,6 +6338,18 @@ static int set_chan_state(sdla_t* card, netdevice_t* dev, int state)
 		}
 	}
 #endif
+
+
+#if defined(AFT_XMTP2_API_SUPPORT)
+	if (chan->common.usedby == XMTP2_API) {
+		if (state == WAN_CONNECTED){
+			xmtp2km_facility_state_change(chan->xmtp2_api_index, 1);
+		} else {
+			xmtp2km_facility_state_change(chan->xmtp2_api_index, 0);
+		}
+	}
+#endif
+
 	return 0;
 }
 
@@ -7523,6 +7613,66 @@ static void aft_critical_shutdown (sdla_t *card)
 }
 
 
+#if defined(AFT_XMTP2_API_SUPPORT)
+/* This call back is not used by xmtp2. It is here for complete sake
+ * It might be used in the future */
+static int wp_xmtp2_callback (void *prot_ptr, unsigned char *data, int len)
+{
+	private_area_t *chan = (private_area_t*)prot_ptr;
+#if 0
+	void * tx_skb;
+	unsigned char *buff;
+	int err;
+#endif
+
+	if (!chan || !data || len <= 0){
+		if (WAN_NET_RATELIMIT()) {
+		DEBUG_EVENT("%s:%d: Assert prot=%p  data=%p len=%d\n",
+					__FUNCTION__,__LINE__,chan,data,len);
+		}
+		return -1;
+	}
+
+	DEBUG_EVENT("%s:%d: TX CALL BACK CALLED prot=%p  data=%p len=%d\n",
+					__FUNCTION__,__LINE__,chan,data,len);
+	
+	return -1;
+}
+#endif
+
+
+static int aft_ss7_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
+{
+	chan->xmtp2_api_index = -1;
+
+	chan->cfg.ss7_enable = 0;
+
+#if defined(AFT_XMTP2_API_SUPPORT)
+	if (chan->common.usedby == XMTP2_API) {
+		chan->xmtp2_api_index = xmtp2km_register(chan, chan->if_name, wp_xmtp2_callback);
+		if (chan->xmtp2_api_index < 0) {
+			chan->xmtp2_api_index = -1;
+			return -EINVAL;
+		}
+	}
+#endif
+
+	return 0;
+}
+
+
+static int aft_ss7_if_unreg(sdla_t *card, private_area_t *chan)
+{
+
+#if defined(AFT_XMTP2_API_SUPPORT)
+		if (chan->common.usedby == XMTP2_API && chan->xmtp2_api_index >= 0 ) {
+			xmtp2km_unregister(chan->xmtp2_api_index);
+			chan->xmtp2_api_index = -1;
+		}
+#endif
+
+	return 0;
+}
 
 
 /****** End ****************************************************************/

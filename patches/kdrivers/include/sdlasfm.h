@@ -166,6 +166,10 @@ typedef struct sfm			/* SDLA firmware file structire */
 #define AFT_ADPTR_2SERIAL_RS232		0x4003	/* AFT-A142 2 Port RS232 board */
 #define AFT_ADPTR_4SERIAL_RS232		0x4004	/* AFT-A144 4 Port RS232 board */
 
+/* Adapter types cannot be more than 2 bytes */
+#define AFT_ADPTR_A600_MASK             0x8100  /* AFT A600 board mask */
+#define AFT_ADPTR_A600                  0x8101  /* AFT A600 board */
+
 #define OPERATE_T1E1_AS_SERIAL		0x8000  /* For bitstreaming only 
 						 * Allow the applicatoin to 
 						 * E1 front end */
@@ -219,6 +223,12 @@ typedef struct sfm			/* SDLA firmware file structire */
 #define AFT_SECURITY_CPLD_REG		0x09
 #define AFT_SECURITY_CPLD_SHIFT		0x02
 #define AFT_SECURITY_CPLD_MASK		0x03
+
+#define AFT_A300_VER_CUSTOMER_ID	0x0A
+#define AFT_A300_VER_SHIFT		6
+#define AFT_A300_VER_MASK		0x03
+#define AFT_A300_CUSTOMER_ID_SHIFT	0
+#define AFT_A300_CUSTOMER_ID_MASK	0x3F
 
 /* AFT SHARK CPLD */
 #define AFT_SH_CPLD_BOARD_CTRL_REG	0x00
@@ -275,6 +285,9 @@ typedef struct sfm			/* SDLA firmware file structire */
 	((val) == AFT_RM_SECURITY_16_ECCHAN) ? 16 :	\
 	((val) == AFT_RM_SECURITY_32_ECCHAN) ? 32 : 0
 
+#define AFT_600_SECURITY_05_ECCHAN	0x01
+#define A600_ECCHAN(val) \
+  	((val) == AFT_600_SECURITY_05_ECCHAN) ? 05 : 0
 
 #define SDLA_ADPTR_NAME(adapter_type)			\
 		(adapter_type == S5141_ADPTR_1_CPU_SERIAL) ? "S514-1-PCI" : \
@@ -297,6 +310,7 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(adapter_type == AFT_ADPTR_4SERIAL_V35X21) ? "AFT-A144" : \
 		(adapter_type == AFT_ADPTR_2SERIAL_RS232)  ? "AFT-A142" : \
 		(adapter_type == AFT_ADPTR_4SERIAL_RS232)  ? "AFT-A144" : \
+		(adapter_type == AFT_ADPTR_A600)           ? "AFT-B600" : \
 							     "UNKNOWN"
 			
 #define AFT_GET_SECURITY(security)					\
@@ -319,7 +333,7 @@ typedef struct sfm			/* SDLA firmware file structire */
 		(adptr_subtype == AFT_SUBTYPE_SHARK)	? "SHARK" : ""
 
 #define AFT_PCITYPE_DECODE(hwcard)				\
-		((hwcard)->pci_bridge_dev) ? " PCIe" : " PCI"
+		((hwcard)->pci_bridge_dev) ? "PCIe" : "PCI"
 
 #if defined(__WINDOWS__)
 #define DECODE_CARD_SUBTYPE(card_sub_type)						\

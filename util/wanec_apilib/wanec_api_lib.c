@@ -160,6 +160,7 @@ typedef struct {
 
 wanec_image_list_t	wanec_image_list[] = 
 	{
+		{ 5,   2, { &wanec_image_64, &wanec_image_32 } },
 		{ 16,  2, { &wanec_image_64, &wanec_image_32 } },
 		{ 32,  2, { &wanec_image_64, &wanec_image_32 } },
 		{ 64,  1, { &wanec_image_64  } },

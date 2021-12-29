@@ -4907,7 +4907,7 @@ static void sdla_te_set_status(sdla_fe_t* fe, u_int32_t alarms)
 				sdla_te_set_alarms(fe, WAN_TE_BIT_YEL_ALARM);
 			}
 			fe->fe_status = FE_DISCONNECTED;
-		}else if (fe->te_param.tx_yel_alarm && valid_rx_alarms & WAN_TE_BIT_RAI_ALARM){
+		}else if (fe->te_param.tx_yel_alarm && valid_rx_alarms == WAN_TE_BIT_RAI_ALARM){
 			/* Special case for loopback */
 			sdla_te_clear_alarms(fe, WAN_TE_BIT_YEL_ALARM);
 		} 
@@ -5226,8 +5226,7 @@ static int sdla_te_set_alarms(sdla_fe_t* fe, u_int32_t alarms)
 	unsigned char	value = 0x00;
 	
 	if (alarms & WAN_TE_BIT_YEL_ALARM){
-		if (IS_T1_FEMEDIA(fe) && 
-		    fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+		if (IS_T1_FEMEDIA(fe)) {
 			value = READ_REG(REG_T1_XBAS_ALARM_TX);
 			if (!(value & BIT_T1_XBAS_ALARM_TX_XYEL)){
 				DEBUG_EVENT("%s: Set YELLOW alarm!\n",
@@ -5253,8 +5252,7 @@ static int sdla_te_clear_alarms(sdla_fe_t* fe, u_int32_t alarms)
 	unsigned char	value = 0x00;
 
 	if (alarms & WAN_TE_BIT_YEL_ALARM){
-		if (IS_T1_FEMEDIA(fe) && 
-		    fe->fe_cfg.cfg.te_cfg.ignore_yel_alarm == WANOPT_NO){
+		if (IS_T1_FEMEDIA(fe)) {
 			value = READ_REG(REG_T1_XBAS_ALARM_TX);
 			if (value & BIT_T1_XBAS_ALARM_TX_XYEL){
 				DEBUG_EVENT("%s: Clear YELLOW alarm!\n",

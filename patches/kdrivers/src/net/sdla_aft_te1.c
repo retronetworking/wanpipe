@@ -171,6 +171,21 @@
 # undef AFT_RTP_SUPPORT
 #endif
 
+
+#define WP_ZAPTEL_ENABLED	     0
+#define WP_ZAPTEL_DCHAN_OPTIMIZATION 1
+
+#define WP_CARD_MASTER_IF_UP 	31
+#define WP_CARD_MASTER_IF_MASK 	0xFF
+
+#define WP_CARD_MASTER_IF_TEST_UP_STATUS(card) wan_test_bit(WP_CARD_MASTER_IF_UP,&card->u.aft.tdmv_master_if_up)
+#define WP_CARD_MASTER_IF_SET_UP_STATUS(card)  wan_set_bit(WP_CARD_MASTER_IF_UP,&card->u.aft.tdmv_master_if_up)
+#define WP_CARD_MASTER_IF_CLEAR_UP_STATUS(card) wan_clear_bit(WP_CARD_MASTER_IF_UP,&card->u.aft.tdmv_master_if_up)
+
+#define WP_CARD_MASTER_IF_SET(card,if_num) card->u.aft.tdmv_master_if_up&=~(WP_CARD_MASTER_IF_MASK);card->u.aft.tdmv_master_if_up |= if_num
+#define WP_CARD_MASTER_IF_GET(card) 	   (card->u.aft.tdmv_master_if_up&WP_CARD_MASTER_IF_MASK)
+#define WP_CARD_MASTER_IF_RESET(card) 	   card->u.aft.tdmv_master_if_up&=~(WP_CARD_MASTER_IF_MASK)
+
 #if defined(AFT_XMTP2_API_SUPPORT) 
 extern void xmtp2km_bs_handler (int fi, int len, unsigned char * p_rxbs, unsigned char * p_txbs);
 extern int xmtp2km_register    (void *, char *, int (*callback)(void*, unsigned char*, int));
@@ -249,7 +264,8 @@ enum {
 	AFT_FE_LED,
 	AFT_FE_EC_POLL,
 	AFT_FE_RESTART,
-	AFT_RTP_TAP_Q
+	AFT_RTP_TAP_Q,
+	AFT_SERIAL_STATUS,
 };
 
 #define MAX_IP_ERRORS	10
@@ -548,6 +564,7 @@ static unsigned char aft_read_ec (void*, unsigned short);
 static int aft_hwec_config(sdla_t *card, private_area_t *chan, wanif_conf_t *conf, int ctrl);
 static int aft_find_master_if_and_dchan(sdla_t *card, int *master_if,u32 active_ch);
 static void aft_tx_dma_skb_init(private_area_t *chan, netskb_t *skb);
+static void aft_free_tx_lists(private_area_t *chan);
 
 #if defined(NETGRAPH)
 extern void wan_ng_link_state(wanpipe_common_t *common, int state);
@@ -727,13 +744,14 @@ int wp_aft_analog_init (sdla_t *card, wandev_conf_t* conf)
 
 	card->hw_iface.getcfg(card->hw, SDLA_COREREV, &card->u.aft.firm_ver);
 	card->hw_iface.getcfg(card->hw, SDLA_COREID, &card->u.aft.firm_id);
+	
 	if (card->u.aft.firm_ver < AFT_MIN_ANALOG_FRMW_VER){
 		DEBUG_EVENT( "%s: Invalid/Obselete AFT ANALOG firmware version %X (not >= %X)!\n",
-				  card->devname, card->u.aft.firm_ver,AFT_MIN_ANALOG_FRMW_VER);
+				card->devname, card->u.aft.firm_ver,AFT_MIN_ANALOG_FRMW_VER);
 		DEBUG_EVENT( "%s  Refer to /usr/share/doc/wanpipe/README.aft_firm_update\n",
-				  card->devname);
+				card->devname);
 		DEBUG_EVENT( "%s: Please contact Sangoma Technologies for more info.\n",
-				  card->devname);
+				card->devname);
 		return -EINVAL;
 	}
 
@@ -752,7 +770,8 @@ int wp_aft_analog_init (sdla_t *card, wandev_conf_t* conf)
 	card->fe.write_fe_reg	= card->hw_iface.fe_write;	/* aft_analog_write_fe;  */
 	card->fe.read_fe_reg	= card->hw_iface.fe_read;	/* aft_analog_read_fe;   */
 	card->fe.__read_fe_reg	= card->hw_iface.__fe_read;	/* __aft_analog_read_fe; */
-
+	card->fe.reset_fe	= card->hw_iface.reset_fe;
+ 
 	card->wandev.fe_enable_timer = enable_timer;
 	card->wandev.ec_enable_timer = enable_ec_timer;
 	card->wandev.te_link_state = callback_front_end_state;
@@ -775,6 +794,73 @@ int wp_aft_analog_init (sdla_t *card, wandev_conf_t* conf)
 
 }
 #endif
+
+
+#if defined(CONFIG_PRODUCT_WANPIPE_AFT_A600)
+int wp_aft_a600_init (sdla_t* card, wandev_conf_t* conf)
+{
+	AFT_FUNC_DEBUG();
+	
+	/* Verify configuration ID */	
+	if (card->wandev.config_id != WANCONFIG_AFT_ANALOG) {
+		DEBUG_EVENT( "%s: invalid configuration ID %u!\n",
+			     card->devname, card->wandev.config_id);
+		return -EINVAL;
+	}
+
+	ASSERT_AFT_HWDEV(card->wandev.card_type);
+
+	card->hw_iface.getcfg(card->hw, SDLA_COREREV, &card->u.aft.firm_ver);
+	card->hw_iface.getcfg(card->hw, SDLA_COREID, &card->u.aft.firm_id);
+
+	if (card->u.aft.firm_ver < AFT_MIN_A600_FRMW_VER){
+		DEBUG_EVENT( "%s: Invalid/Obselete A600 firmware version %X (not >= %X)!\n",
+			     card->devname, card->u.aft.firm_ver,AFT_MIN_A600_FRMW_VER);
+		DEBUG_EVENT( "%s  Refer to /usr/share/doc/wanpipe/README.aft_firm_update\n",
+		     card->devname);
+		DEBUG_EVENT( "%s: Please contact Sangoma Technologies for more info.\n",
+			     card->devname);
+		return -EINVAL;
+	}
+
+	if (conf == NULL){
+		DEBUG_EVENT("%s: Bad configuration structre!\n",
+			    card->devname);
+		return -EINVAL;
+	}
+
+	/* Make special hardware initialization for A600 board */
+	memset(&card->fe, 0, sizeof(sdla_fe_t));
+	memcpy(&card->fe.fe_cfg, &conf->fe_cfg, sizeof(sdla_fe_cfg_t));
+	
+	wp_remora_iface_init(&card->fe, &card->wandev.fe_iface);
+	
+	card->fe.name		= card->devname;
+	card->fe.card		= card;
+	card->fe.write_fe_reg	= card->hw_iface.fe_write;	/* aft_a600_write_fe;  */
+	card->fe.read_fe_reg	= card->hw_iface.fe_read;	/* aft_a600_read_fe;   */
+	card->fe.__read_fe_reg	= card->hw_iface.__fe_read;	/* __aft_a600_read_fe; */
+	card->fe.reset_fe	= card->hw_iface.reset_fe;
+
+	card->wandev.fe_enable_timer = enable_timer;
+	card->wandev.ec_enable_timer = enable_ec_timer;
+	card->wandev.te_link_state = callback_front_end_state;
+
+	card->wandev.comm_port=card->fe.fe_cfg.line_no;
+	if (card->wandev.comm_port == 0){
+		DEBUG_A600("Configuring A600 analog ports\n");
+		card->u.aft.num_of_time_slots = NUM_A600_ANALOG_PORTS;
+	} else if (card->wandev.comm_port == 1){
+		DEBUG_A600("Configuring A600 daughter card - Not implemented yet\n");
+	} else {
+		DEBUG_A600("%s: Error: Invalid port selected %d\n",
+			    card->devname,card->wandev.comm_port);	
+	}
+
+	return 	wan_aft_init(card,conf);
+}
+#endif
+
 
 #if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
 int wp_aft_bri_init (sdla_t *card, wandev_conf_t* conf)
@@ -1080,12 +1166,14 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	int used_cnt;
 
 	/* Obtain hardware configuration parameters */
-	card->wandev.clocking 			= conf->clocking;
+	card->wandev.clocking 					= conf->clocking;
 	card->wandev.ignore_front_end_status 	= conf->ignore_front_end_status;
-	card->wandev.ttl 			= conf->ttl;
-	card->wandev.electrical_interface 	= conf->electrical_interface;
-	card->wandev.udp_port   		= conf->udp_port;
-	card->wandev.new_if_cnt 		= 0;
+	card->wandev.line_coding				= conf->line_coding;
+	card->wandev.ttl 						= conf->ttl;
+	card->wandev.electrical_interface 		= conf->electrical_interface;
+	card->wandev.udp_port   				= conf->udp_port;
+	card->wandev.new_if_cnt 				= 0;
+
 	wan_atomic_set(&card->wandev.if_cnt,0);
 	card->u.aft.chip_security_cnt=0;
 
@@ -1250,12 +1338,14 @@ static int wan_aft_init (sdla_t *card, wandev_conf_t* conf)
 	wan_set_bit(AFT_CHIP_CONFIGURED,&card->u.aft.chip_cfg_status);
 
 	if (wan_test_bit(AFT_FRONT_END_UP,&card->u.aft.chip_cfg_status)){
-		wan_smp_flag_t smp_flags;
+		wan_smp_flag_t smp_flags,hw_flags;
 		DEBUG_TEST("%s: Front end up, retrying enable front end!\n",
 				card->devname);
+		card->hw_iface.hw_lock(card->hw,&hw_flags);
 		wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
 		handle_front_end_state(card);
 		wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
+		card->hw_iface.hw_unlock(card->hw,&hw_flags);
 
 		wan_clear_bit(AFT_FRONT_END_UP,&card->u.aft.chip_cfg_status);
 	}
@@ -1677,13 +1767,13 @@ static int aft_ss7_if_init(sdla_t *card, private_area_t *chan, wanif_conf_t *con
 					chan->cfg.ss7_lssu_size);
 
 		wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
-		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG),&lcfg_reg);
+		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_LINE_CFG_REG),&lcfg_reg);
 		if (chan->cfg.ss7_mode){
 			aft_lcfg_ss7_mode4096_cfg(&lcfg_reg,chan->cfg.ss7_lssu_size);
 		}else{
 			aft_lcfg_ss7_mode128_cfg(&lcfg_reg,chan->cfg.ss7_lssu_size);
 		}
-		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), 
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_LINE_CFG_REG), 
 					   lcfg_reg);
 		card->u.aft.lcfg_reg=lcfg_reg;
 		wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
@@ -1967,7 +2057,16 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	 *    TMD_API           = Raw Socket -> Transp Channelized API
 	 *    XMTP2_API		= MTP2 API
 	 *===================================================*/
-	
+
+	/* If we are running zaptel with another mode, we must
+  	 * disable zaptel dchan optimization */	
+	if (strcmp(conf->usedby, "TDM_VOICE") != 0) {
+		if (card->u.aft.tdmv_zaptel_cfg) {
+			DEBUG_TEST("%s: Disabling ZAPTEL DCHAN OPTIMIZATION !\n",chan->if_name);
+			wan_clear_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg);
+		}
+	}
+
 	if(strcmp(conf->usedby, "WANPIPE") == 0) {
 
 		DEBUG_EVENT( "%s: Running in WANPIPE mode\n",
@@ -2041,11 +2140,14 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 		chan->common.usedby = TDM_VOICE;
 
 		chan->tdmv_zaptel_cfg=1;
-		card->u.aft.tdmv_zaptel_cfg=1;
 		conf->hdlc_streaming=0;
 		chan->single_dma_chain=1;
 		chan->max_tx_bufs=MAX_AFT_DMA_CHAINS;
-		
+
+		/* Eanble Zaptel Optimization */
+		wan_set_bit(WP_ZAPTEL_ENABLED,&card->u.aft.tdmv_zaptel_cfg);		
+		wan_set_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg);
+
 		if (dchan >= 0){
 # ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN
 		       	chan->common.usedby = TDM_VOICE_DCHAN;
@@ -2563,8 +2665,9 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 {
 	int err=-EINVAL;
 	sdla_t *card=wandev->priv;
+	wan_smp_flag_t flags;
 
-        wan_netif_set_priv(dev, NULL); 
+	wan_netif_set_priv(dev, NULL);
 
 
 	if (IS_E1_CARD(card) && !(WAN_FE_FRAME(&card->fe) == WAN_FR_UNFRAMED)) {
@@ -2638,10 +2741,10 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
 			active_ch=conf->active_ch;
 		}
 
-	       	err=aft_find_master_if_and_dchan(card,&master_if,active_ch);
-	       	if (err < 0) {
-                       	return err;
-	       	}
+		err=aft_find_master_if_and_dchan(card,&master_if,active_ch);
+		if (err < 0) {
+					return err;
+		}
 
 		DEBUG_TEST("%s: TDM VOICE: DCHAN CHAN in 0x%08X Timeslots=%i CFG DCHAN=0x%08X MasterIF=%i\n",
 				card->devname, active_ch, card->u.aft.num_of_time_slots,
@@ -2658,7 +2761,10 @@ static int new_if (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t* conf)
                                     	dchan=i;    
 				}
 				if (i==master_if){
-					conf->u.aft.tdmv_master_if=1;
+					conf->u.aft.tdmv_master_if=master_if+1;
+					wan_spin_lock_irq(&card->wandev.lock,&flags);
+					WP_CARD_MASTER_IF_SET(card,	conf->u.aft.tdmv_master_if);
+					wan_spin_unlock_irq(&card->wandev.lock,&flags);
 				}
 
 				err=new_if_private(wandev,dev,conf,1,dchan,if_cnt);
@@ -2730,12 +2836,22 @@ new_if_cfg_skip:
 
 		if (card->wandev.config_id == WANCONFIG_AFT_ANALOG ||
 		    card->wandev.config_id == WANCONFIG_AFT_SERIAL) {
+			wan_smp_flag_t hw_flags;
 
+			card->hw_iface.hw_lock(card->hw,&hw_flags);
 			wan_spin_lock_irq(&card->wandev.lock,&flags);
 			card->fe.fe_status = FE_CONNECTED;
 			handle_front_end_state(card);
 			set_chan_state(card, dev, WAN_CONNECTED);
+
+			if (card->wandev.config_id == WANCONFIG_AFT_SERIAL) {
+				u32 reg=0;
+				__sdla_bus_read_4(card->hw, AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG), &reg);
+				card->u.aft.serial_status=reg&AFT_SERIAL_LCFG_CTRL_BIT_MASK;
+			}
+
 			wan_spin_unlock_irq(&card->wandev.lock,&flags);
+			card->hw_iface.hw_unlock(card->hw,&hw_flags);
 		
 		} else if (card->wandev.config_id == WANCONFIG_AFT_ISDN_BRI) {
 
@@ -2954,7 +3070,7 @@ static int del_if_private (wan_device_t* wandev, netdevice_t* dev)
 static int del_if (wan_device_t* wandev, netdevice_t* dev)
 {
 	private_area_t*	chan=wan_netif_priv(dev);
-	wan_smp_flag_t flags;
+	wan_smp_flag_t flags, smp_flags, smp_flags1;
 	sdla_t *card;	
 	int card_use_cnt=0;
 	int err=0;
@@ -2982,6 +3098,22 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 
 		sdla_t *card=chan->card;
 
+		if (IS_TE1_CARD(card)) {
+			/* Unconfiguring, only on shutdown */
+			if (card->wandev.fe_iface.pre_release){
+				card->wandev.fe_iface.pre_release(&card->fe);
+			}
+	
+			card->hw_iface.hw_lock(card->hw,&smp_flags1);
+			wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
+			if (card->wandev.fe_iface.unconfig){
+					card->wandev.fe_iface.unconfig(&card->fe);
+			}
+			wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
+			card->hw_iface.hw_unlock(card->hw,&smp_flags1);
+		}
+
+
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 		if (chan->tdmv_zaptel_cfg) {
 			sdla_t *card=chan->card;
@@ -2992,7 +3124,7 @@ static int del_if (wan_device_t* wandev, netdevice_t* dev)
 			}
 		}
 #endif
-
+		
 		/* Disable the TDMV Interrupt first, before
 		 * shutting down all TDMV channels */
 	        wan_spin_lock_irq(&card->wandev.lock,&flags);
@@ -3251,8 +3383,10 @@ static int if_open (netdevice_t* dev)
 	wanpipe_open(card);
 
 	if (card->wandev.config_id == WANCONFIG_AFT_56K) {
-		wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
-		WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));		
+		if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+			wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
+			WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+		}	
 	}
 
 	/* Wait for the front end interrupt 
@@ -3333,16 +3467,18 @@ static void disable_comm (sdla_t *card)
 	wan_smp_flag_t smp_flags,smp_flags1;
 	int used_cnt;
 	int port_task_timeout=0;
+	int err=0;
 
 	AFT_FUNC_DEBUG();
 #if INIT_FE_ONLY
 	aft_chip_unconfigure(card);
 #else
 
-	
+	__aft_fe_intr_ctrl(card, 0);
+
 	/* Make sure that Task is disabled for this card */
 	wan_set_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical);
-	
+
 	while (wan_test_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical)) {
 		disable_comm_delay();	/* 100 ms */
 		port_task_timeout++;
@@ -3351,8 +3487,12 @@ static void disable_comm (sdla_t *card)
 			break;
 		}
 	}
-	
-	__aft_fe_intr_ctrl(card, 0);
+
+#if defined(WAN_TASKQ_STOP)
+	err=WAN_TASKQ_STOP((&card->u.aft.port_task));
+	DEBUG_EVENT("%s: %s\n",card->devname, err?"TASKQ Successfully Stopped":"TASKQ Not Running");
+#endif
+
 	
    	/* Unconfiging, only on shutdown */
 	if (card->wandev.fe_iface.pre_release){
@@ -3821,6 +3961,7 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 	if (card) {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
       		if (card->wan_tdmv.sc &&
+			wan_test_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg) &&
 		    card->wandev.state == WAN_CONNECTED && 
 		    card->wandev.config_id != WANCONFIG_AFT_ANALOG && 
 		    chan->common.usedby == TDM_VOICE) {
@@ -4348,7 +4489,10 @@ static void aft_dev_open(sdla_t *card, private_area_t *gchan)
 			aft_dev_open_private(card,chan);
 
 			wan_set_bit(0,&chan->up);
-               	
+
+			if (chan->cfg.tdmv_master_if){
+				WP_CARD_MASTER_IF_SET_UP_STATUS(card);
+			}
 		}
 
 		if (gchan->common.usedby == TDM_VOICE_API){
@@ -4357,13 +4501,11 @@ static void aft_dev_open(sdla_t *card, private_area_t *gchan)
 			wan_netif_set_mtu(
 				gchan->common.dev,
 				card->u.aft.tdmv_mtu+sizeof(api_tx_hdr_t));
-					  
+		  
 		}
-	
-		wan_set_bit(0,&card->u.aft.tdmv_master_if_up);
 
 		if (card->wandev.state == WAN_CONNECTED &&
-    		    !wan_test_bit(0,&card->u.aft.comm_enabled)){ 
+    		!wan_test_bit(0,&card->u.aft.comm_enabled)){
 			DEBUG_EVENT("%s: Master IF Starting %s Communications\n",
 				gchan->if_name,card->devname);
 			enable_data_error_intr(card);
@@ -4443,13 +4585,15 @@ static void aft_dev_close(sdla_t *card, private_area_t *gchan)
 
 			wan_clear_bit(0,&chan->up);
 			wan_set_bit(0,&chan->interface_down);
-			if (chan->cfg.tdmv_master_if){
-				wan_clear_bit(0,&card->u.aft.tdmv_master_if_up);
+			if (chan->cfg.tdmv_master_if  &&
+			    chan->cfg.tdmv_master_if == WP_CARD_MASTER_IF_GET(card)){
+				WP_CARD_MASTER_IF_CLEAR_UP_STATUS(card);
+				WP_CARD_MASTER_IF_RESET(card);
 			}
 
 			DEBUG_TEST("%s: Closing Ch=%ld MasterUP=%i\n",
 					chan->if_name,chan->logic_ch_num,
-					wan_test_bit(0,&card->u.aft.tdmv_master_if_up));
+					WP_CARD_MASTER_IF_TEST_UP_STATUS(card));
 		}
 	}else{
 		wan_set_bit(0,&chan->interface_down);
@@ -4912,11 +5056,9 @@ aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, int irq)
 			/* On 64bit Systems greater than 4GB we must
 			 * allocated our DMA buffers using GFP_DMA 
 			 * flag */
-			if (irq) {
-      				skb=__dev_alloc_skb(chan->dma_mru,GFP_DMA|GFP_ATOMIC);  	
-			} else {
-                         	skb=__dev_alloc_skb(chan->dma_mru,GFP_DMA|GFP_KERNEL);
-			}
+
+			/* DMA memory can only be allocated with ATOMIC flag */
+      			skb=__dev_alloc_skb(chan->dma_mru,GFP_DMA|GFP_ATOMIC);  	
 #else
 			if (irq) {
 				skb=wan_skb_alloc(chan->dma_mru);
@@ -4966,8 +5108,10 @@ static void enable_timer (void* card_id)
 			card->wandev.fe_iface.polling);
 	
 #if defined(WAN_IS_TASKQ_SCHEDULE)
-	wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
-	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+	if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+		wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
+		WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+	}
 #else
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);
 	wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
@@ -5003,8 +5147,10 @@ static void enable_ec_timer (void* card_id)
 			card->devname);
 	
 # if defined(WAN_IS_TASKQ_SCHEDULE)
-	wan_set_bit(AFT_FE_EC_POLL,&card->u.aft.port_task_cmd);
-	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+	if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+		wan_set_bit(AFT_FE_EC_POLL,&card->u.aft.port_task_cmd);
+		WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+	}
 # else
 # error "TASK Q Not defined"
 	card->hw_iface.hw_lock(card->hw,&smp_flags1);
@@ -5073,8 +5219,10 @@ static void wp_tdm_bh (void *data, int pending)
 	if (card->wan_tdmv.sc){
 		WAN_TDMV_CALL(is_rbsbits, (&card->wan_tdmv), err);
 		if (err == 1){
-			wan_set_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
-			WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+				wan_set_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+			}
 		}
 	}
 
@@ -5244,6 +5392,7 @@ static void wp_bh_rx(private_area_t* chan, netskb_t *new_skb, u8 pkt_error, int 
 #if defined(AFT_XMTP2_API_SUPPORT)
 	}else if (chan->common.usedby == XMTP2_API){
 		netskb_t *tskb;
+		wan_smp_flag_t smp_flags;
 
 		wan_skb_set_csum(new_skb,0);
 
@@ -5274,8 +5423,9 @@ static void wp_bh_rx(private_area_t* chan, netskb_t *new_skb, u8 pkt_error, int 
 
 		wan_skb_queue_tail(&chan->wp_tx_pending_list,tskb);
 
+		wan_spin_lock_irq(&card->wandev.lock, &smp_flags);
 		aft_dma_tx(card,chan);
-		
+		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
 #endif
 
 	}else if (chan->common.usedby == ANNEXG){
@@ -5755,7 +5905,7 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 	*  -- "Transmit/Receive DMA Engine"  interrupt disable
 	*  -- "FiFo/Line Abort Error"		 interrupt disable
 	* --------------------------------------------------*/
-	__sdla_bus_read_4(card->hw,AFT_CHIP_CFG_REG, &reg);
+	__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &reg);
 	reg_sec=reg;
 
 	DEBUG_ISR("%s:ISR = 0x%X\n",card->devname,reg);
@@ -5779,9 +5929,11 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 			fe_intr=1;
 
 #if defined (__LINUX__) || defined(__FreeBSD__)
-			wan_set_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
-			WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
-			__aft_fe_intr_ctrl(card,0);
+			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+				wan_set_bit(AFT_FE_INTR,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+				__aft_fe_intr_ctrl(card,0);
+			}
 #else
 			if (card->wandev.fe_iface.check_isr &&
 				card->wandev.fe_iface.check_isr(&card->fe)){
@@ -5797,17 +5949,19 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 /* New Octasic implementarion May 16 2006 */
 #if defined(CONFIG_WANPIPE_HWEC)
 	if (card->wandev.ec_dev && wanpipe_ec_isr(card->wandev.ec_dev)){
-		if (!wan_test_bit(AFT_FE_EC_POLL,&card->u.aft.port_task_cmd)){
-			/* All work is done from ec_poll routine!!! */
-			wan_set_bit(AFT_FE_EC_POLL,&card->u.aft.port_task_cmd);
-			WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+		if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+			if (!wan_test_bit(AFT_FE_EC_POLL,&card->u.aft.port_task_cmd)){
+				/* All work is done from ec_poll routine!!! */
+				wan_set_bit(AFT_FE_EC_POLL,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+			}
 		}
 	}
 #endif
 	
-	if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID || IS_BRI_CARD(card)) {
+	if (card->u.aft.firm_id == AFT_DS_FE_CORE_ID || IS_BRI_CARD(card) || IS_A600_CARD(card)) {
 		
-		__sdla_bus_read_4(card->hw,AFT_CHIP_STAT_REG, &a108_reg);
+		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_STAT_REG), &a108_reg);
 
 		fifo_port_intr	= aft_chipcfg_a108_get_fifo_intr_stats(a108_reg);
 		dma_port_intr	= aft_chipcfg_a108_get_dma_intr_stats(a108_reg);
@@ -5815,7 +5969,7 @@ static WAN_IRQ_RETVAL wp_aft_global_isr (sdla_t* card)
 		tdmv_port_intr	= aft_chipcfg_a108_get_tdmv_intr_stats(a108_reg);	
 
 	} else if (IS_SERIAL_CARD(card)) {
-		__sdla_bus_read_4(card->hw,AFT_CHIP_STAT_REG, &serial_reg);
+		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_STAT_REG), &serial_reg);
 
 #ifdef AFT_SERIAL_DEBUG
 if (serial_reg) {
@@ -5827,10 +5981,10 @@ if (serial_reg) {
 		fifo_port_intr	= aft_chipcfg_a108_get_fifo_intr_stats(serial_reg);
 		dma_port_intr	= aft_chipcfg_a108_get_dma_intr_stats(serial_reg);
 		wdt_port_intr	= aft_chipcfg_serial_get_wdt_intr_stats(serial_reg);
-		status_port_intr = aft_chipcfg_serial_get_status_intr_stats(serial_reg, card->wandev.comm_port);
+		status_port_intr = aft_chipcfg_serial_get_status_intr_stats(serial_reg);
 
 	} else if(IS_56K_CARD(card)) {
-       		__sdla_bus_read_4(card->hw,AFT_CHIP_STAT_REG, &a56k_reg);
+       		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_STAT_REG), &a56k_reg);
 		fifo_port_intr	= wan_test_bit(AFT_CHIPCFG_A56K_FIFO_INTR_BIT,&a56k_reg);
 		dma_port_intr	= wan_test_bit(AFT_CHIPCFG_A56K_DMA_INTR_BIT,&a56k_reg);
 		wdt_port_intr	= wan_test_bit(AFT_CHIPCFG_A56K_WDT_INTR_BIT,&a56k_reg);
@@ -5869,7 +6023,8 @@ if (serial_reg) {
 #endif
 		
 		wp_aft_fifo_per_port_isr(card);
-		
+		wan_set_bit(card->wandev.comm_port,&dma_port_intr);
+
 		WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 	}
 
@@ -5926,12 +6081,12 @@ if (serial_reg) {
 		if (ring_buf_enabled) {
 			if (card->adptr_type == A104_ADPTR_4TE1 &&
 				card->u.aft.firm_id == AFT_PMC_FE_CORE_ID) {
-					wan_set_bit(AFT_CHIPCFG_A104_TDM_ACK_BIT,&reg);  
+				wan_set_bit(AFT_CHIPCFG_A104_TDM_ACK_BIT,&reg);
 			} else {
 				wan_set_bit(AFT_CHIPCFG_A108_TDM_GLOBAL_RX_INTR_ACK,&reg);
-					wan_set_bit(AFT_CHIPCFG_A108_TDM_GLOBAL_TX_INTR_ACK,&reg);
+				wan_set_bit(AFT_CHIPCFG_A108_TDM_GLOBAL_TX_INTR_ACK,&reg);
 			}
-				__sdla_bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);	  
+			__sdla_bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 		
 			if (card->hw_iface.fe_test_bit(card->hw,1)) {
 					DEBUG_EVENT("%s: Global TDM Ring Resync\n",card->devname);
@@ -5968,7 +6123,8 @@ if (serial_reg) {
 				}
 				
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-				if (tmp_card->wan_tdmv.sc) {
+				if (tmp_card->wan_tdmv.sc &&
+					wan_test_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg)) {
 
 					aft_voice_span_rx_tx(tmp_card,
 						 	     ring_buf_enabled);
@@ -5988,7 +6144,7 @@ if (serial_reg) {
 				wan_set_bit(AFT_CHIPCFG_A108_TDM_GLOBAL_RX_INTR_ACK,&reg);
 				wan_set_bit(AFT_CHIPCFG_A108_TDM_GLOBAL_TX_INTR_ACK,&reg);
 			}
-			__sdla_bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+			__sdla_bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 		}
 
 		}
@@ -6003,11 +6159,13 @@ if (serial_reg) {
 #ifdef AFT_IRQ_STAT_DEBUG
 			card->wandev.stats.rx_crc_errors++;
 #endif
-#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 			if (card->wan_tdmv.sc &&
+				wan_test_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg) &&
 			    !card->wandev.rtp_len && 
 			    card->wandev.config_id != WANCONFIG_AFT_ANALOG) {
+
 				u32 dmareg;
 				aft_voice_span_rx_tx(card, 0);
 				card->hw_iface.bus_read_4(card->hw,
@@ -6016,6 +6174,7 @@ if (serial_reg) {
 				wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&dmareg);
 				card->hw_iface.bus_write_4(card->hw,
 						AFT_PORT_REG(card,AFT_DMA_CTRL_REG),dmareg);
+
 			} else
 #endif
 			{
@@ -6086,24 +6245,23 @@ if (serial_reg) {
 		u32 lcfg_reg;
 
 		card->u.aft.sec_chk_cnt=SYSTEM_TICKS;
-		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &lcfg_reg);
+		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card, AFT_LINE_CFG_REG), &lcfg_reg);
 		card->u.aft.lcfg_reg=lcfg_reg;
 		if (wan_test_bit(AFT_LCFG_TX_FE_SYNC_STAT_BIT,&lcfg_reg) ||
 			wan_test_bit(AFT_LCFG_RX_FE_SYNC_STAT_BIT,&lcfg_reg)){	
 			if (++card->u.aft.chip_security_cnt > AFT_MAX_CHIP_SECURITY_CNT){
 				DEBUG_EVENT("%s: Critical: A108 Lost Sync with Front End: Disabling Driver (0x%08X : A108S=0x%08X)!\n",
-				card->devname,
-				lcfg_reg,a108_reg);
-			DEBUG_EVENT("%s: Please call Sangoma Tech Support (www.sangoma.com)!\n",
-				card->devname);
+							card->devname,lcfg_reg,a108_reg);
+				DEBUG_EVENT("%s: Please call Sangoma Tech Support (www.sangoma.com)!\n",
+							card->devname);
 			
-			aft_critical_shutdown(card);
+				aft_critical_shutdown(card);
 			}
 		} else {
 			card->u.aft.chip_security_cnt=0;
 		}
 	} else {
-			card->u.aft.chip_security_cnt=0; 
+		card->u.aft.chip_security_cnt=0;
 	}		
 #endif
 	
@@ -6116,44 +6274,106 @@ aft_global_isr_exit:
 }
 
 
-static void wp_aft_serial_status_isr(sdla_t *card, u32 serial_intr_status)
+static int send_serial_oob_msg (sdla_t *card)
 {
- 	u32 reg;
+#if defined(__LINUX__)
+	api_rx_hdr_t *api_rx_el;
+	int err=0, len=5;
+	netskb_t *skb;
+	private_area_t *chan;
 
-	__sdla_bus_read_4(card->hw, AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG), &reg);
-
-	if (card->u.aft.serial_status == reg) {
-		/* No change in status */
-		return;
-	} 
-
-	card->u.aft.serial_status=reg;
-
-	if (card->wandev.ignore_front_end_status == WANOPT_YES) {
-		return;
+	chan=(private_area_t*)card->u.aft.dev_to_ch_map[0];
+	if (!chan) {
+		return -ENODEV;
 	}
 
-	if (wan_test_bit(AFT_CHIPCFG_SERIAL_CTS_STATUS_INTR_BIT,&serial_intr_status)) {
-		if (WAN_NET_RATELIMIT()){
-		DEBUG_EVENT("%s: CTS ISR Status 0x%02X\n", 
-				card->devname,
-				wan_test_bit(AFT_SERIAL_LCFG_CTS_BIT,&reg));		
-		}
-	} 
+	if (chan->common.usedby != API){
+		return -ENODEV;
+	}
+		
+	if (!chan->common.sk){
+		return -ENODEV;
+	}
 
-	if (wan_test_bit(AFT_CHIPCFG_SERIAL_DCD_STATUS_INTR_BIT,&serial_intr_status)) {
-		if (WAN_NET_RATELIMIT()){
-		DEBUG_EVENT("%s: DCS ISR Status 0x%02X\n", 
-				card->devname,
-				wan_test_bit(AFT_SERIAL_LCFG_DCD_BIT,&reg));	
-		}
-	} 
+	skb=wan_skb_alloc(sizeof(api_rx_hdr_t)+len);
+	if (!skb){
+		return -ENOMEM;
+	}
 
-	if (wan_test_bit(AFT_CHIPCFG_SERIAL_RTS_STATUS_INTR_BIT,&serial_intr_status)) {
-		if (WAN_NET_RATELIMIT()){
-		DEBUG_EVENT("%s: RTS ISR Status 0x%02X\n", 
-				card->devname,
-				wan_test_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg));
+	api_rx_el=(api_rx_hdr_t *)wan_skb_put(skb,sizeof(api_rx_hdr_t));
+	memset(api_rx_el,0,sizeof(api_rx_hdr_t));
+
+	api_rx_el->wp_api_rx_hdr_event_type = WP_API_EVENT_MODEM_STATUS;
+	api_rx_el->wp_api_rx_hdr_event_serial_status = card->u.aft.serial_status&AFT_SERIAL_LCFG_CTRL_BIT_MASK;
+
+	skb->pkt_type = WAN_PACKET_ERR;
+	skb->protocol=htons(PVC_PROT);
+	skb->dev=chan->common.dev;
+	
+	DEBUG_TEST("%s: Sending OOB message len=%i\n",
+			chan->if_name, wan_skb_len(skb));
+
+	if (wan_api_rx(chan,skb)!=0){
+		err=-ENODEV;
+		wan_skb_free(skb);
+	}
+	return err;
+
+#else
+	DEBUG_EVENT("%s: OOB messages not supported!\n",
+			chan->if_name);
+	return -EINVAL;
+#endif
+}
+
+
+
+static void wp_aft_serial_status_isr(sdla_t *top_card, u32 serial_intr_status)
+{
+ 	u32 reg;
+	u32 irq_stat;
+	void **card_list=__sdla_get_ptr_isr_array(top_card->hw);
+	sdla_t *card;
+	int i;
+
+	for (i=0;i<MAX_BRI_LINES;i++) {
+		card=(sdla_t*)card_list[i];
+		if (card &&
+		    !wan_test_bit(CARD_DOWN,&card->wandev.critical)) {
+
+			irq_stat = (serial_intr_status >> (3*card->wandev.comm_port))&0x7;
+			__sdla_bus_read_4(card->hw, AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG), &reg);
+
+			reg=reg&AFT_SERIAL_LCFG_CTRL_BIT_MASK;
+
+			DEBUG_TEST("%s: wp_aft_serial_status_isr IRQ_REG 0x%08X STAT=0x%08X  ADD=0x%08X REG=0x%08X CARD=0x%08X COM=%i\n",
+					card->devname, serial_intr_status, irq_stat, 
+					AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG), 
+					reg, card->u.aft.serial_status,card->wandev.comm_port);
+
+			if (card->u.aft.serial_status == reg) {
+				/* No change in status */
+				continue;
+			} 
+	
+			card->u.aft.serial_status=reg;
+	
+			if (card->wandev.ignore_front_end_status == WANOPT_YES) {
+				continue;
+			}
+	
+			if (WAN_NET_RATELIMIT()){
+				DEBUG_EVENT("%s: Serial Status: CTS=%s DCD=%s RTS=%s\n",
+						card->devname,
+						wan_test_bit(AFT_SERIAL_LCFG_CTS_BIT,&reg) ? "Up":"Down",
+						wan_test_bit(AFT_SERIAL_LCFG_DCD_BIT,&reg)? "Up":"Down",
+						wan_test_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg)? "Up":"Down");
+			}
+
+			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+				wan_set_bit(AFT_SERIAL_STATUS,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+			}
 		}
 	}
 }
@@ -6165,13 +6385,13 @@ static void __wp_aft_per_per_port_isr(sdla_t *card, u32 dma_rx_reg, u32 dma_tx_r
 	u32 dma_tx_voice=0;
 	int i;
 	
-	dma_rx_reg&=card->u.aft.active_ch_map;
+	dma_rx_reg &= card->u.aft.active_ch_map;
+	dma_rx_reg &= card->u.aft.logic_ch_map;
+	dma_rx_reg &= ~(card->u.aft.tdm_logic_ch_map);
+
 	if (!dma_rx_reg) {
 		goto isr_skb_rx;	
 	}
-
-	dma_rx_reg &= card->u.aft.logic_ch_map;
-	dma_rx_reg &= ~(card->u.aft.tdm_logic_ch_map);
 
 	for (i=0; i<card->u.aft.num_of_time_slots;i++){
 
@@ -6226,13 +6446,12 @@ isr_skb_rx:
 
 	dma_tx_reg&=card->u.aft.active_ch_map;
 	dma_tx_reg&=~dma_tx_voice;
+	dma_tx_reg &= card->u.aft.logic_ch_map;
+	dma_tx_reg &= ~(card->u.aft.tdm_logic_ch_map);
 
 	if (dma_tx_reg == 0){
 		goto isr_skb_tx;
 	}
-	
-	dma_tx_reg &= card->u.aft.logic_ch_map;
-	dma_tx_reg &= ~(card->u.aft.tdm_logic_ch_map);
 
 
 	for (i=0; i<card->u.aft.num_of_time_slots ;i++){
@@ -6284,14 +6503,15 @@ static void wp_aft_dma_per_port_isr(sdla_t *card)
 	   channels, when we know that only a single DCHAN
 	   will use this code */
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-        if (card->wan_tdmv.sc) {
-		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_RX_DMA_INTR_PENDING_REG),&dma_rx_reg);  
-	        __sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_TX_DMA_INTR_PENDING_REG),&dma_tx_reg);	
-	       	if (card->u.aft.tdmv_dchan) {
+	if (card->wan_tdmv.sc &&
+		wan_test_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg)) {
+		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_RX_DMA_INTR_PENDING_REG),&dma_rx_reg);
+		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_TX_DMA_INTR_PENDING_REG),&dma_tx_reg);
+		if (card->u.aft.tdmv_dchan) {
 			chan=(private_area_t*)card->u.aft.dev_to_ch_map[card->u.aft.tdmv_dchan-1];
-	    		if (chan && wan_test_bit(0,&chan->up)) {
-                		aft_dma_rx_complete(card,chan,0);
-				aft_dma_tx_complete(card,chan,0,0);   
+			if (chan && wan_test_bit(0,&chan->up)) {
+					aft_dma_rx_complete(card,chan,0);
+					aft_dma_tx_complete(card,chan,0,0);
 			}
 		}
 		return;
@@ -6328,10 +6548,9 @@ static void wp_aft_tdmv_per_port_isr(sdla_t *card)
 	int i;
 	private_area_t *chan;
 
-#if 0
-	DEBUG_EVENT("%s: TDMV Interrupt LogicCh=%i\n",
+	DEBUG_TEST("%s: TDMV Interrupt LogicCh=%i\n",
 			card->devname,card->u.aft.num_of_time_slots);
-#endif
+
        /* -----------------2/6/2003 9:37AM------------------
       	* Checking for Interrupt source:
       	* 1. Receive DMA Engine
@@ -6384,18 +6603,20 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
 	/* If TDM interrupt does not start in time
          * we have to re-start it */
 	if (card->rsync_timeout){
-        	if (!IS_BRI_CARD(card)) {
-			if (SYSTEM_TICKS - card->rsync_timeout > 2*HZ) {
+        if (!IS_BRI_CARD(card)) {
+			if (SYSTEM_TICKS - card->rsync_timeout > 5*HZ) {
 				card->rsync_timeout=0;
 				if (card->fe.fe_status == FE_CONNECTED) {
 					DEBUG_EVENT("%s: TDM IRQ Timeout \n",
 						card->devname);
-					wan_set_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
-					WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+					if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+						wan_set_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+						WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+					}
 				}
 			}
 		} else {
-			if (SYSTEM_TICKS - card->rsync_timeout > 1*HZ) {
+			if (SYSTEM_TICKS - card->rsync_timeout > 5*HZ) {
 				int x;
 				void **card_list=__sdla_get_ptr_isr_array(card->hw);
 				sdla_t *first_card=NULL;
@@ -6413,8 +6634,10 @@ static void __wp_aft_wdt_per_port_isr (sdla_t *card, int wdt_intr, int *wdt_disa
 					DEBUG_EVENT("%s: BRI TDM IRQ Timeout \n",
 						first_card->devname);
 					if (!wan_test_bit(AFT_FE_RESTART,&first_card->u.aft.port_task_cmd)) {
-						wan_set_bit(AFT_FE_RESTART,&first_card->u.aft.port_task_cmd);
-						WAN_TASKQ_SCHEDULE((&first_card->u.aft.port_task));
+						if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+							wan_set_bit(AFT_FE_RESTART,&first_card->u.aft.port_task_cmd);
+							WAN_TASKQ_SCHEDULE((&first_card->u.aft.port_task));
+						}
 					}
 				} 
 			}
@@ -6590,7 +6813,6 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 
 	trace_info=&chan->trace_info;
 	wan_udp_pkt = (wan_udp_pkt_t *)chan->udp_pkt_data;
-
    	{
 
 		netskb_t *skb;
@@ -6905,16 +7127,22 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			    ((wan_udp_pkt->wan_udp_command & 0xF0) == WAN_FE_UDP_CMD_START)){
 				/* FE udp calls */
 				wan_smp_flag_t smp_flags,smp_flags1;
-				
+				smp_flags1=0;
 				card->hw_iface.hw_lock(card->hw,&smp_flags);
-				wan_spin_lock_irq(&card->wandev.lock,&smp_flags1);
+
+				/* FIXME: This check should be in process_udp function */
+				if (card->wandev.config_id == WANCONFIG_AFT_ANALOG) {				
+					wan_spin_lock_irq(&card->wandev.lock,&smp_flags1);
+				}
 				card->wandev.fe_iface.process_udp(
 						&card->fe, 
 						&wan_udp_pkt->wan_udp_cmd,
 						&wan_udp_pkt->wan_udp_data[0]);
-				wan_spin_unlock_irq(&card->wandev.lock,&smp_flags1);
+
+				if (card->wandev.config_id == WANCONFIG_AFT_ANALOG) {		
+					wan_spin_unlock_irq(&card->wandev.lock,&smp_flags1);
+				}
 				card->hw_iface.hw_unlock(card->hw,&smp_flags);
-				
 				break;
 			}
 			wan_udp_pkt->wan_udp_data_len = 0;
@@ -7006,6 +7234,10 @@ static void callback_front_end_state(void *card_id)
 		return;
 	}
 
+	if (wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)){
+		return;
+	}
+
 	/* Call the poll task to update the state */
 	wan_set_bit(AFT_FE_POLL,&card->u.aft.port_task_cmd);
 	WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
@@ -7056,7 +7288,7 @@ static void handle_front_end_state(void *card_id)
 		wan_set_bit(AFT_FRONT_END_UP,&card->u.aft.chip_cfg_status);
 		return;
 	}
-        
+
 	if (card->fe.fe_status == FE_CONNECTED || card->wandev.ignore_front_end_status == WANOPT_YES){
 		if (card->wandev.state != WAN_CONNECTED){
 
@@ -7066,10 +7298,9 @@ static void handle_front_end_state(void *card_id)
 					WAN_TDMV_CALL(state, (card, WAN_CONNECTED), err);
 				}
 #endif
-				/* WAN_TASKQ_SCHEDULE((&card->u.aft.port_task)); */
-
+			
 				if (card->tdmv_conf.span_no &&
-				    !wan_test_bit(0,&card->u.aft.tdmv_master_if_up)){
+					!WP_CARD_MASTER_IF_TEST_UP_STATUS(card)) {
 					DEBUG_EVENT("%s: Skipping AFT Communication wait for MasterIF\n",
 							card->devname);
 					return;
@@ -7079,13 +7310,18 @@ static void handle_front_end_state(void *card_id)
 					enable_data_error_intr(card);
 				}
 				port_set_state(card,WAN_CONNECTED);
-				wan_set_bit(AFT_FE_LED,&card->u.aft.port_task_cmd);
 
+				if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+					wan_set_bit(AFT_FE_LED,&card->u.aft.port_task_cmd);
+					WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+				}
+			
 				aft_handle_clock_master(card);
 				
 		}
 	}else{
 		if (card->wandev.state == WAN_CONNECTED){
+
 			port_set_state(card,WAN_DISCONNECTED);
 
 			if (!IS_BRI_CARD(card)) {
@@ -7094,11 +7330,10 @@ static void handle_front_end_state(void *card_id)
 				disable_data_error_intr(card,LINK_DOWN);
 			}
 
-			wan_set_bit(AFT_FE_LED,&card->u.aft.port_task_cmd);
-			/* We are already in the poll task here so 
-			 * no need to schedule. because next check in the
-			 * poll routine would be the AFT_FE_LED */
-			/* WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	*/
+			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+				wan_set_bit(AFT_FE_LED,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+			}
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 			if (card->wan_tdmv.sc){
@@ -7426,7 +7661,7 @@ static void enable_data_error_intr(sdla_t *card)
 			card->devname,__FUNCTION__,card->wandev.comm_port,card_use_cnt);
 
 
-	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_LINE_CFG_REG), &reg);
 	if (wan_test_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg)){
 		DEBUG_EVENT("%s: Warning: Skipping data enable wait for cfg!\n",
 				card->devname);
@@ -7438,7 +7673,7 @@ static void enable_data_error_intr(sdla_t *card)
 #endif
 
 	if (card->tdmv_conf.span_no &&
-	    !wan_test_bit(0,&card->u.aft.tdmv_master_if_up)){
+		!WP_CARD_MASTER_IF_TEST_UP_STATUS(card)) {
 		DEBUG_EVENT("%s: Critical error: Enable Card while Master If Not up!\n",
 				card->devname);
 	}
@@ -7462,7 +7697,7 @@ static void enable_data_error_intr(sdla_t *card)
 
 	err=aft_hwdev[card->wandev.card_type].aft_test_sync(card,0);
 	if (err){
-		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+		card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card, AFT_LINE_CFG_REG), &reg);
 		DEBUG_EVENT("%s: Error: Front End Interface out of sync! (0x%X)\n",
 				card->devname,reg);
 
@@ -7474,7 +7709,7 @@ static void enable_data_error_intr(sdla_t *card)
 			AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
 	      	wan_set_bit(AFT_LCFG_TDMV_INTR_BIT,&reg);
 		card->hw_iface.bus_write_4(card->hw,
-				AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
+				AFT_PORT_REG(card, AFT_LINE_CFG_REG), reg);
 		
 	}
 	
@@ -7667,7 +7902,7 @@ static void enable_data_error_intr(sdla_t *card)
 
 	/* Enable Global DMA and Error Interrupts */
 	card->hw_iface.bus_read_4(card->hw,
-				AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+				AFT_PORT_REG(card, AFT_LINE_CFG_REG), &reg);
 	
 	wan_set_bit(AFT_LCFG_DMA_INTR_BIT,&reg);
 
@@ -7677,12 +7912,13 @@ static void enable_data_error_intr(sdla_t *card)
 	}
 
 	card->hw_iface.bus_write_4(card->hw,
-				AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
+				AFT_PORT_REG(card, AFT_LINE_CFG_REG), reg);
 
 	card->u.aft.lcfg_reg=reg;
 
 	
 	wan_set_bit(0,&card->u.aft.comm_enabled);
+
 	DEBUG_EVENT("%s: AFT communications enabled!\n",
 			card->devname);
 
@@ -7700,11 +7936,11 @@ static void enable_data_error_intr(sdla_t *card)
 		
        	 	if (wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
 
-			card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG,&reg);
+			card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),&reg);
 
 			/* Reset Global Fifo for the whole card */
 			wan_set_bit(AFT_CHIPCFG_A108_A104_TDM_FIFO_SYNC_BIT,&reg);
-			card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+			card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 			WP_DELAY(1000);
 
 			/* Clear Global Card Fifo reset */
@@ -7729,7 +7965,7 @@ static void enable_data_error_intr(sdla_t *card)
 			}
 
 #endif
-	       		card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+	       		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 
 			card->rsync_timeout=SYSTEM_TICKS;
 
@@ -7785,7 +8021,7 @@ static void disable_data_error_intr(sdla_t *card, unsigned char event)
 
 	aft_wdt_reset(card);
 
-	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+	card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card, AFT_LINE_CFG_REG), &reg);
 
 	wan_clear_bit(AFT_LCFG_DMA_INTR_BIT,&reg);
 	wan_clear_bit(AFT_LCFG_FIFO_INTR_BIT,&reg);
@@ -7805,7 +8041,7 @@ static void disable_data_error_intr(sdla_t *card, unsigned char event)
 			wan_set_bit(AFT_LCFG_FE_IFACE_RESET_BIT,&reg);
 		}
 	}
-	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
+	card->hw_iface.bus_write_4(card->hw, AFT_PORT_REG(card, AFT_LINE_CFG_REG), reg);
 	card->u.aft.lcfg_reg=reg;
 
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);
@@ -7871,6 +8107,8 @@ static int update_comms_stats(sdla_t* card)
 	return 0;
 }
 
+
+
 static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 {
 
@@ -7878,10 +8116,11 @@ static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
   	   that we can do to make it better.  The check below
            will be covered by this statement, leaving it for
 	   information sake */
-	if (!chan->hdlc_eng){
+	if (chan->channelized_cfg && !chan->hdlc_eng){
 		return;
 	}
 
+#if 0
 	if (card->tdmv_conf.span_no && !chan->hdlc_eng){
 		/* NC: There is a race condition between single ss7 interface 
 		       running transparent mode and other interface on same card 
@@ -7892,7 +8131,7 @@ static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 		       a card can be left disabled with rx fifo timeout errors */ 
 		return;
 	}
-	
+#endif	
 	
 #if 0
 	if (WAN_NET_RATELIMIT()){
@@ -7901,26 +8140,32 @@ static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 	}
 #endif
 
-	aft_channel_rxdma_ctrl(card, chan, 0);
-
-	aft_tslot_sync_ctrl(card,chan,0);
+	if (chan->hdlc_eng) {
+		aft_channel_rxdma_ctrl(card, chan, 0);
+		aft_tslot_sync_ctrl(card,chan,0);
+	}
 
 	aft_free_rx_complete_list(chan);
 	aft_free_rx_descriptors(chan);
 
-	aft_init_rx_dev_fifo(card, chan, WP_NO_WAIT);
+	if (chan->hdlc_eng) {
+		aft_init_rx_dev_fifo(card, chan, WP_NO_WAIT);
 
-	aft_channel_rxdma_ctrl(card, chan, 1);
+		aft_channel_rxdma_ctrl(card, chan, 1);
 
-        aft_init_rx_dev_fifo(card, chan, WP_WAIT);
+		aft_init_rx_dev_fifo(card, chan, WP_WAIT);
+	
+		chan->dma_index=0;
+		memset(chan->dma_history,0,sizeof(chan->dma_history));
 
-	chan->dma_index=0;
-	memset(chan->dma_history,0,sizeof(chan->dma_history));
+		aft_reset_rx_chain_cnt(chan);
+	}
 
-	aft_reset_rx_chain_cnt(chan);
 	aft_dma_rx(card,chan);
 
-	aft_tslot_sync_ctrl(card,chan,1);
+	if (chan->hdlc_eng) {
+		aft_tslot_sync_ctrl(card,chan,1);
+	}
 
 	wanpipe_wake_stack(chan);
 }
@@ -7928,10 +8173,10 @@ static void aft_rx_fifo_over_recover(sdla_t *card, private_area_t *chan)
 static void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 {  
 	/* Igore fifo errors in transpared mode. There is nothing
-           that we can do to make it better. */ 
-        if (!chan->hdlc_eng){
-                return;
-        }
+		that we can do to make it better. */
+	if (chan->channelized_cfg && !chan->hdlc_eng){
+			return;
+	}
 
 #if 0
 	if (WAN_NET_RATELIMIT()){
@@ -7942,7 +8187,9 @@ static void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 	/* Enable DMA controler, in order to start the
          * fifo cleaning */
 
-	aft_channel_txdma_ctrl(card, chan, 0);
+	if (chan->hdlc_eng) {
+		aft_channel_txdma_ctrl(card, chan, 0);
+	}
 
 #if 0
 	aft_list_tx_descriptors(chan);
@@ -7950,18 +8197,23 @@ static void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 	aft_dma_tx_complete(card,chan,0, 1);
 
 	aft_free_tx_descriptors(chan);
-	aft_init_tx_dev_fifo(card,chan,WP_NO_WAIT);
 
-	aft_channel_txdma_ctrl(card, chan, 1);
+	if (chan->hdlc_eng) {
+		aft_init_tx_dev_fifo(card,chan,WP_NO_WAIT);
+		aft_channel_txdma_ctrl(card, chan, 1);
+		aft_init_tx_dev_fifo(card,chan,WP_WAIT);
+		aft_reset_tx_chain_cnt(chan);
+	}
 
-	aft_init_tx_dev_fifo(card,chan,WP_WAIT);
 	wan_clear_bit(0,&chan->idle_start);
 
-	aft_reset_tx_chain_cnt(chan);
 	aft_dma_tx(card,chan);
 
 	wanpipe_wake_stack(chan);
 }
+
+
+
 
 static int set_chan_state(sdla_t* card, netdevice_t* dev, int state)
 {
@@ -8250,7 +8502,7 @@ static int aft_chip_unconfigure(sdla_t *card)
 
 	aft_hwdev[card->wandev.card_type].aft_chip_unconfig(card);
 
-	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG),&card->u.aft.lcfg_reg);
+	card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card, AFT_LINE_CFG_REG),&card->u.aft.lcfg_reg);
 	card->u.aft.lcfg_reg=reg;
 	return 0;
 }
@@ -9256,13 +9508,19 @@ static int aft_dma_rx(sdla_t *card, private_area_t *chan)
 			 * reason, thus start using the completed buffers, thus 
 			 * overflow the data */
 			if (WAN_NET_RATELIMIT()){
-				DEBUG_EVENT("%s: Rx driver buffering overrun rxf=%i rxc=%i !\n",
+				DEBUG_EVENT("%s: Rx driver buffering overrun rxf=%i rxc=%i txp=%i txc=%i !\n",
 					chan->if_name,
 					wan_skb_queue_len(&chan->wp_rx_free_list),
-					wan_skb_queue_len(&chan->wp_rx_complete_list));
+					wan_skb_queue_len(&chan->wp_rx_complete_list),
+					wan_skb_queue_len(&chan->wp_tx_pending_list),
+					wan_skb_queue_len(&chan->wp_tx_complete_list));
 			}
 
 			aft_free_rx_complete_list(chan);
+			aft_dma_tx_complete(card,chan,0, 1);
+			aft_free_tx_descriptors(chan);
+			aft_free_tx_lists(chan);
+			aft_dma_tx(card,chan);
 
 			dma_chain->skb=wan_skb_dequeue(&chan->wp_rx_free_list);
 			if (!dma_chain->skb) {
@@ -9619,6 +9877,27 @@ static void aft_free_rx_complete_list(private_area_t *chan)
 		WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common);	//chan->if_stats.rx_dropped++;
 		aft_init_requeue_free_skb(chan, skb);
 	}
+}
+
+
+static void aft_free_tx_lists(private_area_t *chan)
+{
+	void *skb;
+
+	while((skb=wan_skb_dequeue(&chan->wp_tx_complete_list)) != NULL){
+		DEBUG_TEST("%s: aft_free_rx_complete_list dropped\n",
+								chan->if_name);
+		WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common);  //chan->if_stats.rx_dropped++;
+		aft_tx_dma_skb_init(chan,skb);
+	}
+	
+	while((skb=wan_skb_dequeue(&chan->wp_tx_pending_list)) != NULL){
+		DEBUG_TEST("%s: aft_free_rx_complete_list dropped\n",
+					chan->if_name);
+		WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common);  //chan->if_stats.rx_dropped++;
+		aft_tx_dma_skb_init(chan,skb);
+	}
+
 }
 
 static void aft_rx_cur_go_test(private_area_t *chan)
@@ -10063,7 +10342,7 @@ static int aft_front_end_mismatch_check(sdla_t * card)
 	u32 reg;
 	
         if (card->u.aft.firm_id == AFT_PMC_FE_CORE_ID) {
-		card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG, &reg);
+		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG), &reg);
 	
 		if (IS_T1_CARD(card)){
 			if (wan_test_bit(AFT_CHIPCFG_TE1_CFG_BIT,&reg)){
@@ -10156,9 +10435,9 @@ void aft_wdt_reset(sdla_t *card)
 		wdt_ctrl_reg=AFT_WDT_4TO8_CTRL_REG+(card->wandev.comm_port%4);	
 	}
 	
-	card->hw_iface.bus_read_1(card->hw, wdt_ctrl_reg, &reg);		
+	card->hw_iface.bus_read_1(card->hw, AFT_PORT_REG(card, wdt_ctrl_reg), &reg);		
 	aft_wdt_ctrl_reset(&reg);
-	card->hw_iface.bus_write_1(card->hw, wdt_ctrl_reg, reg);
+	card->hw_iface.bus_write_1(card->hw, AFT_PORT_REG(card, wdt_ctrl_reg), reg);
 }
 
 #if defined(__LINUX__)
@@ -10284,36 +10563,47 @@ static void aft_port_task (void * card_ptr, int arg)
 #endif
 
 	if (wan_test_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd)){
-        	wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+		wan_smp_flag_t smp_flags1;
+		wan_clear_bit(AFT_FE_RESTART,&card->u.aft.port_task_cmd);
+		
+		
 
 		if (IS_BRI_CARD(card)) {
 
 			DEBUG_EVENT("%s: BRI IRQ Restart\n",
                                        card->devname);
 
-			wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
+			card->hw_iface.hw_lock(card->hw,&smp_flags);
+
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags1);
 			wan_clear_bit(0,&card->u.aft.comm_enabled);
 			enable_data_error_intr(card);
-			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags1);
+
+			card->hw_iface.hw_unlock(card->hw,&smp_flags);
 
 		} else if (card->fe.fe_status == FE_CONNECTED) {
 
-                       	DEBUG_EVENT("%s: TDM IRQ Restart\n",
-                                       card->devname);
+			DEBUG_EVENT("%s: TDM IRQ Restart\n",
+							card->devname);
 
-                       	wan_spin_lock_irq(&card->wandev.lock,&smp_flags);
-                       	card->fe.fe_status = FE_DISCONNECTED;
-                       	handle_front_end_state(card);
-	
+			card->hw_iface.hw_lock(card->hw,&smp_flags);
+
+			wan_spin_lock_irq(&card->wandev.lock,&smp_flags1);
+			card->fe.fe_status = FE_DISCONNECTED;
+			handle_front_end_state(card);
+
 			/* BRI has special behaviour, we need to make sure
-                         * that restart will trigger interrupts */
+		  	 * that restart will trigger interrupts */
 			wan_clear_bit(0,&card->u.aft.comm_enabled);
 
-                       	card->fe.fe_status = FE_CONNECTED;
-                       	handle_front_end_state(card);
-                       	wan_spin_unlock_irq(&card->wandev.lock,&smp_flags);
-               	}
-       	}
+			card->fe.fe_status = FE_CONNECTED;
+			handle_front_end_state(card);
+			wan_spin_unlock_irq(&card->wandev.lock,&smp_flags1);
+
+			card->hw_iface.hw_unlock(card->hw,&smp_flags);
+		}
+	}
 
 
 #if defined(AFT_RTP_SUPPORT)
@@ -10325,6 +10615,11 @@ static void aft_port_task (void * card_ptr, int arg)
 		}
 	}
 #endif
+
+	if (wan_test_bit(AFT_SERIAL_STATUS,&card->u.aft.port_task_cmd)){
+		wan_clear_bit(AFT_SERIAL_STATUS,&card->u.aft.port_task_cmd);
+		send_serial_oob_msg(card);
+	}
 
 	wan_clear_bit(CARD_PORT_TASK_RUNNING,&card->wandev.critical);
 
@@ -10338,13 +10633,13 @@ void __aft_fe_intr_ctrl(sdla_t *card, int status)
 	/* if fe_no_intr is set then only allow disabling of fe interrupt */
 
 	if (!card->fe_no_intr || !status){
-		card->hw_iface.bus_read_4(card->hw,AFT_CHIP_CFG_REG,&reg);
+		card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),&reg);
 		if (status){
 			wan_set_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 		}else{
 			wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 		}
-		card->hw_iface.bus_write_4(card->hw,AFT_CHIP_CFG_REG,reg);
+		card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_CHIP_CFG_REG),reg);
 	}
 }
 
@@ -10364,7 +10659,7 @@ static void aft_data_mux_cfg(sdla_t *card)
 		card->u.aft.cfg.data_mux_map=AFT_DEFAULT_DATA_MUX_MAP;
 	}
 	
-	card->hw_iface.bus_write_4(card->hw, AFT_DATA_MUX_REG, 
+	card->hw_iface.bus_write_4(card->hw, AFT_PORT_REG(card, AFT_DATA_MUX_REG), 
 				   card->u.aft.cfg.data_mux_map);		
 
 	DEBUG_EVENT("%s: AFT Data Mux Bit Map: 0x%08X\n",
@@ -10373,7 +10668,7 @@ static void aft_data_mux_cfg(sdla_t *card)
 
 static void aft_data_mux_get_cfg(sdla_t *card)
 {
-	card->hw_iface.bus_read_4(card->hw, AFT_DATA_MUX_REG, 
+	card->hw_iface.bus_read_4(card->hw, AFT_PORT_REG(card, AFT_DATA_MUX_REG), 
 				   &card->u.aft.cfg.data_mux_map);		
 
 }
@@ -10623,7 +10918,11 @@ static int aft_tdmv_init(sdla_t *card, wandev_conf_t *conf)
 
 	if (card->tdmv_conf.span_no) {
 		if (card->wandev.config_id == WANCONFIG_AFT_ANALOG) {
-			valid_firmware_ver=AFT_MIN_ANALOG_FRMW_VER;
+			if (IS_A600_CARD(card)) {
+				valid_firmware_ver=AFT_MIN_A600_FRMW_VER;
+			} else {
+				valid_firmware_ver=AFT_MIN_ANALOG_FRMW_VER;
+			}
 		}
 	
 		if (card->u.aft.firm_ver < valid_firmware_ver){
@@ -10874,8 +11173,10 @@ static int aft_voice_span_rx_tx(sdla_t *card, int rotate)
 		
 		WAN_TDMV_CALL(is_rbsbits, (&card->wan_tdmv), err);
 		if (err == 1){
-			wan_set_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
-			WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+				wan_set_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+			}
 		}
 	
 #if !defined(AFT_IRQ_DEBUG)
@@ -10923,10 +11224,10 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 	rxbuf = (unsigned char*)rx_dma_chain->dma_virt+rx_offset;
 	txbuf =	(unsigned char*)tx_dma_chain->dma_virt+tx_offset;
 
-       	if (wan_test_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status)) {
+	if (wan_test_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status)) {
 
-	       	rx_offset= AFT_TDMV_CIRC_BUF * card->u.aft.tdm_rx_dma_toggle;
-	       	tx_offset= AFT_TDMV_CIRC_BUF * card->u.aft.tdm_tx_dma_toggle;
+		rx_offset= AFT_TDMV_CIRC_BUF * card->u.aft.tdm_rx_dma_toggle;
+		tx_offset= AFT_TDMV_CIRC_BUF * card->u.aft.tdm_tx_dma_toggle;
 
 		rxbuf = (unsigned char*)rx_dma_chain->dma_virt+rx_offset;
 		txbuf =	(unsigned char*)tx_dma_chain->dma_virt+tx_offset;
@@ -10951,11 +11252,11 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 	err=0;
 
 
-#if 0
+#if 0 
 	/*Measure the round trip delay*/
 	if (!chan->tdmv_rx_delay_cfg){
 		int i;
-		unsigned char *buf=rx_dma_chain->dma_virt+offset;
+		unsigned char *buf=rxbuf;
 		for (i=0;i<8;i++){
 			if (buf[i]==0x55){
 				chan->tdmv_rx_delay_cfg=1;
@@ -10974,60 +11275,18 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
 		if (card->wan_tdmv.sc){
 
-#if 0 
-defined(AFT_TDMV_BH_ENABLE) 
-			wan_dma_descr_t *tx_bh_dma_chain = &chan->tx_dma_chain_table[1];
-			wan_dma_descr_t *rx_bh_dma_chain = &chan->rx_dma_chain_table[1];
-
-			if (!rx_bh_dma_chain->skb){
-				rx_bh_dma_chain->skb=wan_skb_dequeue(&chan->wp_rx_free_list);
-				if (!rx_bh_dma_chain->skb){
-					if (WAN_NET_RATELIMIT()){
-						DEBUG_EVENT("%s: Critical TDM BH no free skb\n",
-							chan->if_name);
-						goto aft_tdm_bh_skip;
-					}
-				}
-				wan_skb_init(rx_bh_dma_chain->skb,16);
-				wan_skb_trim(rx_bh_dma_chain->skb,0);
-			}
-
-			if (!tx_bh_dma_chain->skb){
-				tx_bh_dma_chain->skb=wan_skb_dequeue(&chan->wp_rx_free_list);
-				if (!tx_bh_dma_chain->skb){
-					if (WAN_NET_RATELIMIT()){
-						DEBUG_EVENT("%s: Critical TDM BH no free skb\n",
-							chan->if_name);
-						goto aft_tdm_bh_skip;
-					}
-				}
-				wan_skb_init(tx_bh_dma_chain->skb,16);
-				wan_skb_trim(tx_bh_dma_chain->skb,0);
-			}
-
-			memcpy(wan_skb_data(rx_bh_dma_chain->skb),
-			       wan_skb_data(rx_dma_chain->skb),8);
-		
-			memcpy(wan_skb_data(tx_dma_chain->skb),
-		       		wan_skb_data(tx_bh_dma_chain->skb),8);
-
-			rx_dma_chain=rx_bh_dma_chain;
-			tx_dma_chain=tx_bh_dma_chain;
-aft_tdm_bh_skip:
-#endif	
-
 			DEBUG_TEST ("%s: Calling Rx Chan=%i TdmvChan=%i\n",
 					card->devname,chan->logic_ch_num,
 					chan->tdmv_chan);
 
 			if (card->wandev.rtp_len && card->wandev.rtp_tap) {
-                                card->wandev.rtp_tap(card,
-						     IS_T1_CARD(card) ? chan->first_time_slot : 
-						     			chan->first_time_slot-1,			
-						     rxbuf,
-						     txbuf,	
-                                                     chan->mtu);
-                        }
+					card->wandev.rtp_tap(card,
+								IS_T1_CARD(card) ? chan->first_time_slot :
+								chan->first_time_slot-1,
+								rxbuf,
+								txbuf,
+								chan->mtu);
+			}
 
 #if 1
 			WAN_TDMV_CALL(rx_chan,
@@ -11040,7 +11299,7 @@ aft_tdm_bh_skip:
 #endif
 			
 #if 0
-			if (((u8*)(rx_dma_chain->dma_virt+offset))[0] != 0xFF && 
+			if (((u8*)(rx_dma_chain->dma_virt+offset))[0] != 0xFF &&
                             ((u8*)(rx_dma_chain->dma_virt+offset))[0] != 0x7F &&
                              tx_debug_cnt < 100){
 			DEBUG_EVENT("%s: %02X %02X %02X %02X %02X %02X %02X %02X\n",
@@ -11077,35 +11336,18 @@ aft_tdm_bh_skip:
 		err=0;
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
 		if (chan->tdmv_zaptel_cfg){
-			DEBUG_TEST ("%s: Calling Master Rx Tx Chan=%i\n",
-					card->devname,chan->logic_ch_num);
-#if 0 
-defined(AFT_TDMV_BH_ENABLE) 
-#warning "AFT A104: TDM Driver compiled in BH mode!"			
-		
-			if (WAN_TASKLET_RUNNING((&chan->common.bh_task))){
-				if (WAN_NET_RATELIMIT()){
-					DEBUG_EVENT("%s: Critical Error: TDMV BH Overrun!\n",
-						card->devname);
-				}
-			}
-			
-			WAN_WP_TASKLET_SCHEDULE_PER_CPU((&chan->common.bh_task),
-							card->tdmv_conf.span_no);	
 
-			card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);
-			wan_set_bit(AFT_DMACTRL_TDMV_RX_TOGGLE,&reg);
-			wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&reg);
-			card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
-	
-#else
+			DEBUG_TEST ("%s:%s Calling Zaptel Master Rx Tx Chan=%i Master=%i\n",
+					card->devname,chan->if_name,chan->first_time_slot,WP_CARD_MASTER_IF_GET(card)-1);
 
-			if (wan_test_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status)) {
-				if (!wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
-					card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);
-					wan_set_bit(AFT_DMACTRL_TDMV_RX_TOGGLE,&reg);
-					wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&reg);
-					card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
+			if (chan->cfg.tdmv_master_if ==  WP_CARD_MASTER_IF_GET(card)) {
+				if (wan_test_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status)) {
+					if (!wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
+						card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);
+						wan_set_bit(AFT_DMACTRL_TDMV_RX_TOGGLE,&reg);
+						wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&reg);
+						card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
+					}
 				}
 			}
 
@@ -11136,40 +11378,49 @@ defined(AFT_TDMV_BH_ENABLE)
 #warning "NCDEBUG: rx_tx_span disabled irq"
 #endif   
 
-			if (!wan_test_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status) &&
-         		    !wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
-				card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);
-				wan_set_bit(AFT_DMACTRL_TDMV_RX_TOGGLE,&reg);
-				wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&reg);
-				card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
+			if (chan->cfg.tdmv_master_if ==  WP_CARD_MASTER_IF_GET(card)) {
+				if (!wan_test_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status) &&
+						!wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
+					card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);
+					wan_set_bit(AFT_DMACTRL_TDMV_RX_TOGGLE,&reg);
+					wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&reg);
+					card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
+				}
 			}
 			
 			if (card->wan_tdmv.sc){
 				WAN_TDMV_CALL(is_rbsbits, (&card->wan_tdmv), err);
 				if (err == 1){
-					wan_set_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
-					WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+					if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+						wan_set_bit(AFT_FE_TDM_RBS,&card->u.aft.port_task_cmd);
+						WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+					}
 				}
 			}
-#endif
+
 		}else{
 #else
 		if (!chan->tdmv_zaptel_cfg){
 
 #endif
-			
+
+
+			DEBUG_TEST ("%s:%s Calling TDM APIO Master Rx Tx Chan=%i Master=%i\n",
+					card->devname,chan->if_name,chan->first_time_slot,WP_CARD_MASTER_IF_GET(card)-1);
+
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
-                        if (card->sdla_tdmv_dummy) {
-                           	err = sdla_tdmv_dummy_tick(card->sdla_tdmv_dummy);
-                        }
+			if (card->sdla_tdmv_dummy) {
+				err = sdla_tdmv_dummy_tick(card->sdla_tdmv_dummy);
+			}
 #endif
 
-
-         		if (!wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
-				card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);
-				wan_set_bit(AFT_DMACTRL_TDMV_RX_TOGGLE,&reg);
-				wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&reg);
-				card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
+			if (chan->cfg.tdmv_master_if ==  WP_CARD_MASTER_IF_GET(card)) {
+				if (!wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
+					card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);
+					wan_set_bit(AFT_DMACTRL_TDMV_RX_TOGGLE,&reg);
+					wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&reg);
+					card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
+				}
 			}
 			
 			if (card->wandev.fe_iface.watchdog) {
@@ -11207,7 +11458,7 @@ static int aft_fifo_intr_ctrl(sdla_t *card, int ctrl)
 	      &reg);
 
 	card->hw_iface.bus_read_4(card->hw,
-			AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+			AFT_PORT_REG(card, AFT_LINE_CFG_REG), &reg);
 
 	if (ctrl){
 		wan_set_bit(AFT_LCFG_FIFO_INTR_BIT,&reg);
@@ -11216,7 +11467,7 @@ static int aft_fifo_intr_ctrl(sdla_t *card, int ctrl)
 	}
 
 	card->hw_iface.bus_write_4(card->hw,
-			AFT_PORT_REG(card,AFT_LINE_CFG_REG), reg);
+			AFT_PORT_REG(card, AFT_LINE_CFG_REG), reg);
 
 	card->u.aft.lcfg_reg=reg;
 
@@ -11238,7 +11489,7 @@ static int aft_tdm_intr_ctrl(sdla_t *card, int ctrl)
 {
 	u32 reg;
 	card->hw_iface.bus_read_4(card->hw,
-			AFT_PORT_REG(card,AFT_LINE_CFG_REG), &reg);
+			AFT_PORT_REG(card, AFT_LINE_CFG_REG), &reg);
 
 	if (ctrl){
                 wan_set_bit(AFT_LCFG_TDMV_INTR_BIT,&reg);
@@ -11429,6 +11680,37 @@ static int wan_aft_api_ioctl(sdla_t *card, private_area_t *chan, char *user_data
 		err = aft_event_ctrl(chan, &event_ctrl);
 		break;
 
+	case WP_API_EVENT_MODEM_STATUS:
+
+		if (!IS_SERIAL_CARD(card)) {
+			err=-EINVAL;
+			break;
+		}
+
+		if (tx_hdr.wp_api_tx_hdr_event_mode == WP_API_EVENT_SET){
+			u32 reg;
+			card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),&reg);
+
+			DEBUG_TEST("%s: Set Serial Status 0x%X\n",
+				card->devname,tx_hdr.wp_api_tx_hdr_event_serial_status);
+
+			reg&=~(0x03);
+			reg|=tx_hdr.wp_api_tx_hdr_event_serial_status&0x03;
+			
+			card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),reg);
+
+		} else {
+			u32 reg;
+			card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),&reg);
+			tx_hdr.wp_api_tx_hdr_event_serial_status =0;
+			tx_hdr.wp_api_tx_hdr_event_serial_status = reg&AFT_SERIAL_LCFG_CTRL_BIT_MASK;
+
+			DEBUG_TEST("%s: Get Serial Status Status=0x%X\n",
+						card->devname,tx_hdr.wp_api_tx_hdr_event_serial_status);
+		}
+		err=0;
+		break;
+
 	default:
 		DEBUG_EVENT("%s: Unknown event type %02X!\n",
 				card->devname,
@@ -11436,6 +11718,14 @@ static int wan_aft_api_ioctl(sdla_t *card, private_area_t *chan, char *user_data
 		err = -EINVAL;
 		break;
 	}
+
+
+	if (WAN_COPY_TO_USER(user_data,&tx_hdr, sizeof(api_tx_hdr_t))){
+		DEBUG_EVENT("%s: Failed to copy data from user space!\n",
+					card->devname);
+		return -EFAULT;
+	}
+
 	return err;
 }
 #endif
@@ -12409,15 +12699,18 @@ static __inline void aft_rtp_tap_chan(sdla_t *card, u8 *data, u32 len,
 
 		nskb=wan_skb_clone(skb);
 		if (nskb) {
-                	nskb->next = nskb->prev = NULL;
+			nskb->next = nskb->prev = NULL;
 			nskb->dev = card->wandev.rtp_dev;
 			nskb->protocol = htons(ETH_P_802_2);
 			wan_skb_reset_mac_header(nskb);
 			wan_skb_reset_network_header(nskb);
 
 			wan_skb_queue_tail(&card->u.aft.rtp_tap_list,nskb);
-			wan_set_bit(AFT_RTP_TAP_Q,&card->u.aft.port_task_cmd);
-			WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));	
+	
+			if (!wan_test_bit(CARD_PORT_TASK_DOWN,&card->wandev.critical)) {
+				wan_set_bit(AFT_RTP_TAP_Q,&card->u.aft.port_task_cmd);
+				WAN_TASKQ_SCHEDULE((&card->u.aft.port_task));
+			}
 
 			DEBUG_TEST("%s: RTP(%d) SKB Tx on dev %s \n",
 				card->devname,chan,nskb->dev->name);
@@ -12506,7 +12799,7 @@ static int aft_find_master_if_and_dchan(sdla_t *card, int *master_if, u32 active
      	int dchan_found=0;
 	int i;
 	
-        if (card->tdmv_conf.dchan) {
+	if (card->tdmv_conf.dchan) {
 		if (IS_E1_CARD(card) && !(WAN_FE_FRAME(&card->fe) == WAN_FR_UNFRAMED)) {
 			card->tdmv_conf.dchan = card->tdmv_conf.dchan << 1;
 			wan_clear_bit(0,&card->tdmv_conf.dchan);
@@ -12518,13 +12811,13 @@ static int aft_find_master_if_and_dchan(sdla_t *card, int *master_if, u32 active
 
 			if (wan_test_bit(i,&card->tdmv_conf.dchan)){
 			       	dchan_found=1;
-				card->u.aft.tdmv_dchan=i;
+					card->u.aft.tdmv_dchan=i;
 			       	continue;
 			}
 		
-			/* Find the TOP timeslot.  This timeslot will be
-                         * considered MASTER since it is the last timeslot
-                         * to rx data from the T1 line */	
+		 	/* Find the TOP timeslot.  This timeslot will be
+			 * considered MASTER since it is the last timeslot
+			 * to rx data from the T1 line */
 			if (*master_if < 0){	
 				*master_if=i;
 			}
@@ -12532,10 +12825,11 @@ static int aft_find_master_if_and_dchan(sdla_t *card, int *master_if, u32 active
 	}
 
 	if (card->tdmv_conf.dchan && !dchan_found){
-		/* We configured for dchan however, this interface
-                 * was not configued with the DCHAN timeslot.
-                 * It IS now possible that another interface has
-                 * this time slot */
+			/* We configured for dchan however, this interface
+			 * was not configued with the DCHAN timeslot.
+			 * It IS now possible that another interface has
+			 * this time slot */
+
 	       	for (i=card->u.aft.num_of_time_slots-1;i>=0;i--){
                        	if (wan_test_bit(i,&card->tdmv_conf.dchan)){
 	       		       	dchan_found=1;
@@ -12673,7 +12967,7 @@ static int32_t aft_bri_clock_control(sdla_t *card, u8 line_state)
 
 	/* Due to a hardware bug, only first 0x100 register 
          * controls the clock routing */
-	card->hw_iface.bus_read_4(card->hw,AFT_LINE_CFG_REG,&reg);
+	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card, AFT_LINE_CFG_REG),&reg);
 	
 	if (line_state == 1){
 		/* The 'Reference' line is connected, enable sync from line interface */
@@ -12696,7 +12990,7 @@ static int32_t aft_bri_clock_control(sdla_t *card, u8 line_state)
 		wan_clear_bit(A500_LINE_SYNC_MASTER_BIT, &reg);
 	}
 
-	card->hw_iface.bus_write_4(card->hw,AFT_LINE_CFG_REG,reg);
+	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card, AFT_LINE_CFG_REG),reg);
 
 	return 0;
 }

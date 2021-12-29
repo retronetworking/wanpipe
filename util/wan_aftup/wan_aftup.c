@@ -1,10 +1,9 @@
-/*
+/******************************************************************************
 **	History
 **-----------------------------------------------------------------
 **	  Date		Name		Description
 **-----------------------------------------------------------------
-**
-**
+**	
 **	24 Dec 2004	Alex Feldman	Initial version for Linux OS.
 **					(version 1.2)
 **	14 Jan 2005	Alex Feldman	Support OpenBSD OS.
@@ -22,9 +21,15 @@
 **					* PLX update 
 **					(version 1.6)
 **	22 Jan 2007	Alex Feldman	* Add new option to command line
-**					* Force Flash update with specific filename
-**					(version 1.7)
-**/
+**					* Force Flash update with specific 
+**					  filename (version 1.7)
+**	08 Aug 2008	Alex Feldman	* Add USB-FXO firmware update
+**					  (version 1.8)
+**	16 Oct 2008	David Yat Sin	* Added A600 firmware update
+					* Added Tundra and PLX update from *.dat
+					  format files
+					  (version 1.9)
+*******************************************************************************/
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -61,18 +66,22 @@
 
 #include "wan_aft_prg.h"
 #include "wan_aftup.h"
+#include "wan_pcie_ctrl.h"
 
 /***********************************************************************
 **			D E F I N E S / M A C R O S
 ***********************************************************************/
-#define WAN_AFTUP_VERSION	"1.7"
+#define WAN_AFTUP_VERSION	"1.9"
 
-#define WAN_AFTUP_NONE		0x00
-#define WAN_AFTUP_AUTO		0x01
-#define WAN_AFTUP_FORCE_FIRM	0x02
-#define WAN_AFTUP_PCIEXPRESS	0x04
+#define WAN_AFTUP_NONE			0x00
+#define WAN_AFTUP_AUTO			0x01
+#define WAN_AFTUP_FORCE_FIRM		0x02
+#define WAN_AFTUP_PCIEXPRESS		0x04
+#define WAN_AFTUP_USBFXO		0x08
+#define WAN_AFTUP_PCIEXPRESS_TUNDRA 	0x10
 
-#define DYDBG printf("DYDBG:(%s,%d)\n",__FUNCTION__,__LINE__);
+
+#define WAN_IFNAME_SZ IFNAMSIZ
 
 /***********************************************************************
 **			G L O B A L  V A R I A B L E S
@@ -86,13 +95,17 @@ static char		aft_firmware_force[MAXPATHLEN];
 
 extern aftup_flash_iface_t aftup_flash_iface;
 extern aftup_flash_iface_t aftup_shark_flash_iface;
+extern aftup_flash_iface_t aftup_a600_flash_iface;
 
 extern aftup_flash_t	aft_flash;
 extern aftup_flash_t	aft4_flash;
 extern aftup_flash_t	aft_shark_flash;
 extern aftup_flash_t	aft_shark_flash_ds;
+extern aftup_flash_t	aft_a600_flash;
 
-	
+extern pcie_bridge_iface_t aft_pci_bridge_iface_tundra;
+extern pcie_bridge_iface_t aft_pci_bridge_iface_plx;
+
 WAN_LIST_HEAD(wan_aftup_head_t, wan_aftup_) wan_aftup_head = 
 			WAN_LIST_HEAD_INITIALIZER(wan_aftup_head);
 
@@ -137,13 +150,17 @@ aft_core_info_t aft_core_table[] = {
 	  "A056_0040_V", "A056_0040_V*.BIN", AFT_CORE_X400_SIZE },
 	{ AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR, AFT_CHIP_X400, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
 	  "A500_0040_V", "A500_0040_V*.BIN", AFT_CORE_X400_SIZE },
-#if 1
+        { AFT_2SERIAL_V35X21_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,
+         "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
+        { AFT_4SERIAL_V35X21_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,
+          "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
 	{ AFT_2SERIAL_RS232_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
 	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
-
 	{ AFT_4SERIAL_RS232_SUBSYS_VENDOR, AFT_CHIP_X1000, AFT_HDLC_CORE_ID, 0x01, 0x4F,	
 	  "A140_0100_V", "A140_0100_V*.BIN", AFT_CORE_X1000_SIZE },
-#endif
+	{ AFT_A600_SUBSYS_VENDOR, AFT_CHIP_X250, AFT_ANALOG_FE_CORE_ID, 0x20, 0x5B,	
+	  "A600_0025_V", "A600_0025_V*.BIN", AFT_CORE_X250_SIZE },
+
 #if 0
 	{ AFT_TE1_ATM_CORE_ID,	
 	  NULL, NULL, 0x00,
@@ -155,55 +172,6 @@ aft_core_info_t aft_core_table[] = {
 	{ 0x00, 0x00, 0x00, 0x00, 0x00, NULL, NULL, 0x00 }
 };
 
-struct wan_aftup_plxctrl_data_ {
-	unsigned char	off;
-	unsigned char	value;
-} plxctrl_data [] =
-	{
-		{ 0x00, 0x5A },
-		{ 0x01, 0x01 },
-		{ 0x02, 0x24 },
-		{ 0x03, 0x00 },
-		{ 0x04, 0x48 },
-		{ 0x05, 0x00 },
-		{ 0x06, 0x11 },
-		{ 0x07, 0x2C },
-		{ 0x08, 0x0E },
-		{ 0x09, 0x00 },
-		{ 0x0A, 0x0C },
-		{ 0x0B, 0x10 },
-		{ 0x0C, 0x10 },		{ 0x0D, 0x80 },
-		{ 0x0E, 0xFE },
-		{ 0x0F, 0x0B },
-		{ 0x10, 0x10 },
-		{ 0x11, 0x00 },
-		{ 0x12, 0x08 },
-		{ 0x13, 0x00 },
-		{ 0x14, 0x00 },
-		{ 0x15, 0x00 },
-		{ 0x16, 0x0C },
-		{ 0x17, 0x00 },
-		{ 0x18, 0x00 },
-		{ 0x19, 0xFE },
-		{ 0x1A, 0x01 },
-		{ 0x1B, 0x00 },
-		{ 0x1C, 0x48 },
-		{ 0x1D, 0x10 },
-		{ 0x1E, 0x20 },
-		{ 0x1F, 0x00 },
-		{ 0x20, 0x05 },
-		{ 0x21, 0x00 },
-		{ 0x22, 0x0C },
-		{ 0x23, 0x00 },
-		{ 0x24, 0x00 },
-		{ 0x25, 0xFE },
-		{ 0x26, 0x01 },
-		{ 0x27, 0x00 },
-		{ 0xFC, 0x19 },	/* Sangoma vendor ID		*/
-		{ 0xFD, 0x23 },	/* Sangoma vendor ID		*/
-		{ 0xFE, 0x00 },	/* Sangoma PLX config verion	*/
-		{ 0xFF, 0x02 }	/* Sangoma PLX config verion	*/
-	};
 
 /******************************************************************************
 			  FUNCTION PROTOTYPES
@@ -231,6 +199,7 @@ extern int board_reset(wan_aft_cpld_t *, int clear);
 extern unsigned char wan_plxctrl_read_ebyte(void*, unsigned char,int);
 extern void wan_plxctrl_write_ebyte(void*, unsigned char, unsigned char);
 
+	
 /******************************************************************************
 *			  FUNCTION DEFINITION	
 ******************************************************************************/
@@ -255,7 +224,8 @@ int progress_bar(char *msg, int ci, int mi)
 	fflush(stdout);
 	return 0;
 }
-static int MakeConnection(char *ifname) 
+
+int MakeConnection(char *ifname) 
 {
 #if defined(__LINUX__)
 	char			error_msg[100];
@@ -301,7 +271,7 @@ static int MakeConnection(char *ifname)
 
 }
 
-static int CloseConnection(char *ifname)
+int CloseConnection(char *ifname)
 {
 	close(sock);
 	return 0;
@@ -361,7 +331,7 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 	}else if (strncmp(type,"AFT-A500",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
-		aft->cpld.adptr_type = AFT_ADPTR_ISDN;
+		aft->cpld.adptr_type  = AFT_ADPTR_ISDN;
 		aft->cpld.iface	= &aftup_shark_flash_iface;
 	}else if (strncmp(type,"AFT-A142",8) == 0){
 		//strcpy(aft->prefix_fw, "AFT_RM");
@@ -371,7 +341,11 @@ static int wan_aftup_gettype(wan_aftup_t *aft, char *type)
 		//strcpy(aft->prefix_fw, "AFT_RM");
 		aft->cpld.adptr_type = AFT_ADPTR_4SERIAL_RS232;
 		aft->cpld.iface	= &aftup_shark_flash_iface;
+	}else if (strncmp(type,"AFT-A600",8) == 0){
+		aft->cpld.adptr_type = AFT_ADPTR_A600;
+		aft->cpld.iface	= &aftup_a600_flash_iface;
 	}else{
+		printf("ERROR: Unknown Sangoma Card type %s!\n", type);
 		return -EINVAL;
 	}
 	return 0;
@@ -551,7 +525,11 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 		aft->cpld.iface->reload(&aft->cpld, USER_SECTOR_FLASH);
 	}
 
-	usleep(1000000);
+	if (aft->board_id == AFT_A600_SUBSYS_VENDOR) {
+		usleep(3000000);
+	} else {
+		usleep(1000000);
+	}
 
 	/* Read flash revision */
 	if (wan_aftup_ioctl(&api_cmd, SIOC_WAN_SET_PCI_BIOS, aft->if_name)){
@@ -608,6 +586,53 @@ static int wan_aftup_program_card(wan_aftup_t *aft)
 	return 0;	
 }
 
+static int aft_a200_a400_warning(wan_aftup_t *aft)
+{
+	char   	sel[20];
+        int	warning=0;
+	
+        if (aft->board_id == A200_REMORA_SHARK_SUBSYS_VENDOR &&
+	    (aft->flash_rev == 7 || 
+	     aft->flash_rev == 8)) {
+       		warning=1; 	
+       	}      
+
+	if (!warning) {
+		return 0;
+	}
+
+	
+        printf ("\n");
+        printf ("WARNING: User Confirmation Required!\n");
+        printf ("------------------------------------\n");
+	printf ("Please confirm your hardware type, an\n");
+	printf ("incorrect choice will corrupt the firmware.\n");
+	printf ("If firmware gets corrupted, a firmware recovery procedure\n");
+	printf ("using a jumper will have to be invoked to recover the card. \n");
+	printf ("For recovery procedures refer to: wiki.sangoma.com \n");
+        printf ("------------------------------------\n\n");
+        printf ("Please confirm hardware type:\n");
+	printf (" 1. A200 (front end connector RJ45)\n");
+	printf (" 2. A400 (front end connector DB25)\n");
+	printf (" Select: [1|2|q]:");
+
+	if (scanf("%s", sel)){
+	       	if (strcmp(sel, "q") == 0){
+	       		return -EINVAL;
+		} else if (strcmp(sel, "1") == 0) {
+			return 0;
+		} else if (strcmp(sel, "2") == 0) {
+			aft->board_id=A400_REMORA_SHARK_SUBSYS_VENDOR;
+			return 0;
+		} else {
+                 	return aft_a200_a400_warning(aft);
+		}
+	}
+
+	printf ("\nError: Invalid Selection %s\n",sel);
+	return -EINVAL;	
+}
+
 static int wan_aftup_program(struct wan_aftup_head_t *head)
 {
 	wan_aftup_t	*aft = NULL;
@@ -615,6 +640,7 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 	int		err, i;
 
 	WAN_LIST_FOREACH(aft, head, next){
+
 		if (MakeConnection(aft->if_name)){
 			printf("%s: Failed to create socket to the driver!\n",
 						 aft->if_name);
@@ -737,9 +763,15 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 		case AFT_ISDN_BRI_SHARK_SUBSYS_VENDOR:
 			aft->cpld.iface	= &aftup_shark_flash_iface;
 			break;
+
+		case AFT_2SERIAL_V35X21_SUBSYS_VENDOR:
+	   	case AFT_4SERIAL_V35X21_SUBSYS_VENDOR:
 		case AFT_2SERIAL_RS232_SUBSYS_VENDOR:
 		case AFT_4SERIAL_RS232_SUBSYS_VENDOR:
 			aft->cpld.iface	= &aftup_shark_flash_iface;
+			break;
+		case AFT_A600_SUBSYS_VENDOR:
+			aft->cpld.iface	= &aftup_a600_flash_iface;
 			break;
 		default:
 			printf("\n%s: These board are not supported (subvendor_id=%04X)!\n",
@@ -784,6 +816,10 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 			aft->cpld.chip_id = AFT_CHIP_X1000;
 			aft->cpld.flash	= &aft_shark_flash;
 			break;
+		case AFT_A600_SUBSYS_VENDOR:
+			aft->cpld.chip_id = AFT_CHIP_X250;
+			aft->cpld.flash = &aft_a600_flash;
+			break;
 		case AFT_1TE1_SHARK_SUBSYS_VENDOR:
 		case AFT_2TE1_SHARK_SUBSYS_VENDOR:
 		case AFT_8TE1_SHARK_SUBSYS_VENDOR:
@@ -795,8 +831,8 @@ static int wan_aftup_program(struct wan_aftup_head_t *head)
 			goto program_done;
 			break;
 		}
+		
 #endif
-
 		if (wan_aftup_program_card(aft)){
 			printf("\n%s: Failed to re-program flash!\n",
 						aft->if_name);
@@ -811,13 +847,27 @@ program_done:
 	return 0;
 }
 
-static int wan_aftup_verify_pciexpress(struct wan_aftup_head_t *head)
+static int wan_pcie_ctrl(struct wan_aftup_head_t *head)
 {
+	char conf_file [50];
 	wan_aftup_t	*aft = NULL;
-	unsigned char	tmp = 0x00;
-	int		i,regs_no = 0, update = 0;
+	pcie_eeprom_info_t eeprom_info;
+	pcie_bridge_iface_t pcie_iface;
+	int i;
+	int err = 0;
+	u8 byte;
 
-	regs_no = sizeof(plxctrl_data)/sizeof(struct wan_aftup_plxctrl_data_);
+	memset(&pcie_iface, 0, sizeof(pcie_bridge_iface_t));
+
+	memset(&conf_file, 0, sizeof(conf_file));
+	if (options & WAN_AFTUP_PCIEXPRESS_TUNDRA) {
+		pcie_iface = aft_pci_bridge_iface_tundra;
+		sprintf(&conf_file[0], "pcie_bridge_tundra.dat");
+	} else {
+		pcie_iface = aft_pci_bridge_iface_plx;
+		sprintf(&conf_file[0], "pcie_bridge_plx.dat");
+	}
+	
 	WAN_LIST_FOREACH(aft, head, next){
 		switch(aft->board_id){
 		case AFT_1TE1_SHARK_SUBSYS_VENDOR:
@@ -827,6 +877,7 @@ static int wan_aftup_verify_pciexpress(struct wan_aftup_head_t *head)
 			break;
 		case A200_REMORA_SHARK_SUBSYS_VENDOR:
 		case A400_REMORA_SHARK_SUBSYS_VENDOR:
+		case AFT_A600_SUBSYS_VENDOR:
 			break;
 		case A300_UTE3_SHARK_SUBSYS_VENDOR:
 			break;
@@ -840,46 +891,73 @@ static int wan_aftup_verify_pciexpress(struct wan_aftup_head_t *head)
 		default:
 			continue;
 		}
+		
 		if (MakeConnection(aft->if_name)){
 			printf(
 			"%s: Failed to create socket to the driver!\n",
 						 aft->if_name);
 			continue;
 		}
-
-		tmp = wan_plxctrl_read_ebyte(aft, (unsigned char)0x00,1);
-		if (tmp != 0x5A){
-			continue;
+		
+		memset(&eeprom_info, 0, sizeof(pcie_eeprom_info_t));
+		if (parse_pcie_reg_dat(&eeprom_info, &conf_file[0])) {
+			printf("\nFailed to parse %s \n", conf_file);
+			err = 1;
+			goto wan_pcie_ctrl_done;
 		}
-		for(i = 0; i < regs_no; i++){		
-			tmp = wan_plxctrl_read_ebyte(
-						aft,
-						plxctrl_data[i].off, 0);
-			if (tmp == plxctrl_data[i].value){
-				continue;		
+
+		if(pcie_iface.gen_eeprom_image(&eeprom_info)) {
+			printf("Failed to generate PCIe bridge image %s\n", 
+						conf_file);
+			err = 1;
+			goto wan_pcie_ctrl_done;
+		} 
+		
+		/* Program EEPROM */
+		printf("Updating PCI Express Bridge settings\n");
+		for(i = 0; i < eeprom_info.num_eeprom_bytes; i++) {
+			err = pcie_iface.write_byte(aft,
+					eeprom_info.image_vals[i].off,
+					eeprom_info.image_vals[i].value);
+					
+			if (err) {
+				printf("Failed to write to PCI-e bridge eeprom\n");
+				err = 1;
+				goto wan_pcie_ctrl_done;
 			}
-			if (!update){
-				printf(
-       				"Updating PCI Express Bridge settings");
+		}
+		
+		/* Verify EEPROM */
+		printf("Verifying PCI Express Bridge settings\n");
+		for(i = 0; i < eeprom_info.num_eeprom_bytes; i++) {
+			byte = 0x00;
+			err = pcie_iface.read_byte(aft,
+					eeprom_info.image_vals[i].off,
+					&byte);
+					
+			if (err) {
+				printf("Failed to read from PCI-e bridge eeprom\n");
+				err = 1;
+				goto wan_pcie_ctrl_done;
 			}
-			wan_plxctrl_write_ebyte(aft, 
-						plxctrl_data[i].off, 
-						plxctrl_data[i].value);
-			tmp = wan_plxctrl_read_ebyte(
-						aft,
-						plxctrl_data[i].off,0);
-			printf(".");
-			if (tmp != plxctrl_data[i].value){
-				printf("\tFailed (verification:%X:%X:%X)!\n\n",
-						plxctrl_data[i].off,tmp,plxctrl_data[i].value);
+			
+			if (byte != eeprom_info.image_vals[i].value) {
+				printf("Failed verification (%X, %X %X)\n",
+					i, 
+					byte, eeprom_info.image_vals[i].value);
+
 				printf("\tPlease call Sangoma Technical Support at 905.474.1990!\n\n");
-				return -EINVAL;
+				err = 1;
+				goto wan_pcie_ctrl_done;
 			}
-			update = 1;
-		}			
+		}
+		printf("PCI Express Bridge settings updated to version:%d\n", eeprom_info.version);
+		err = pcie_iface.reload(aft);
 		CloseConnection(aft->if_name);
 	}
-	return update;
+
+wan_pcie_ctrl_done:
+	return err;
 }
 
 static int wan_aftup_parse_hwprobe(wan_cmd_api_t *api_cmd)
@@ -1035,8 +1113,11 @@ static int wan_aftup_start(void)
 	}
 
 	/* Extra code here */
-	if (options & WAN_AFTUP_PCIEXPRESS){
-		err = wan_aftup_verify_pciexpress(&wan_aftup_head);
+	if (options & WAN_AFTUP_PCIEXPRESS || 
+	    options & WAN_AFTUP_PCIEXPRESS_TUNDRA){
+	
+		err = wan_pcie_ctrl(&wan_aftup_head);
+		//err = wan_aftup_verify_pciexpress(&wan_aftup_head);
 		if (err < 0){
 			goto main_done;
 		}
@@ -1124,6 +1205,8 @@ int main(int argc, char* argv[])
 			i++;
 		}else if (!strcmp(argv[i],"-pcie")){
 			options |= WAN_AFTUP_PCIEXPRESS;
+		}else if (!strcmp(argv[i],"-pcieT")){
+			options |= WAN_AFTUP_PCIEXPRESS_TUNDRA;
 		}else if (!strcmp(argv[i],"-auto")){
 			options |= WAN_AFTUP_AUTO;
 #if 0
@@ -1147,7 +1230,7 @@ int exec_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned int *d
 	char		msg[100];
 
 	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
-	memset(ifr.ifr_name, 0, IFNAMSIZ);
+	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
 	ifr.ifr_data = (char*)&api_cmd;
 
@@ -1183,7 +1266,7 @@ int exec_write_cmd(void *arg, unsigned int off, unsigned int len, unsigned int d
 	char		msg[100];
 
 	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
-	memset(ifr.ifr_name, 0, IFNAMSIZ);
+	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
 	ifr.ifr_data = (char*)&api_cmd;
 
@@ -1218,7 +1301,7 @@ int exec_bridge_read_cmd(void *arg, unsigned int off, unsigned int len, unsigned
 	char		msg[100];
 
 	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
-	memset(ifr.ifr_name, 0, IFNAMSIZ);
+	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
 	ifr.ifr_data = (char*)&api_cmd;
 
@@ -1254,7 +1337,7 @@ int exec_bridge_write_cmd(void *arg, unsigned int off, unsigned int len, unsigne
 	char		msg[100];
 
 	memset(api_cmd.data, 0, WAN_MAX_DATA_SIZE);
-	memset(ifr.ifr_name, 0, IFNAMSIZ);
+	memset(ifr.ifr_name, 0, WAN_IFNAME_SZ);
 	strncpy(ifr.ifr_name, aft->if_name, strlen(aft->if_name));
 	ifr.ifr_data = (char*)&api_cmd;
 
@@ -1279,52 +1362,5 @@ int exec_bridge_write_cmd(void *arg, unsigned int off, unsigned int len, unsigne
 	}
 
 	return err;
-}
-
-static int aft_a200_a400_warning(wan_aftup_t *aft)
-{
-	char   	sel[20];
-        int	warning=0;
-	
-        if (aft->board_id == A200_REMORA_SHARK_SUBSYS_VENDOR &&
-	    (aft->flash_rev == 7 || 
-	     aft->flash_rev == 8)) {
-       		warning=1; 	
-       	}      
-
-	if (!warning) {
-		return 0;
-	}
-
-	
-        printf ("\n");
-        printf ("WARNING: User Confirmation Required!\n");
-        printf ("------------------------------------\n");
-	printf ("Please confirm your hardware type, an\n");
-	printf ("incorrect choice will corrupt the firmware.\n");
-	printf ("If firmware gets corrupted, a firmware recovery procedure\n");
-	printf ("using a jumper will have to be invoked to recover the card. \n");
-	printf ("For recovery procedures refer to: wiki.sangoma.com \n");
-        printf ("------------------------------------\n\n");
-        printf ("Please confirm hardware type:\n");
-	printf (" 1. A200 (front end connector RJ45)\n");
-	printf (" 2. A400 (front end connector DB25)\n");
-	printf (" Select: [1|2|q]:");
-
-	if (scanf("%s", sel)){
-	       	if (strcmp(sel, "q") == 0){
-	       		return -EINVAL;
-		} else if (strcmp(sel, "1") == 0) {
-			return 0;
-		} else if (strcmp(sel, "2") == 0) {
-			aft->board_id=A400_REMORA_SHARK_SUBSYS_VENDOR;
-			return 0;
-		} else {
-                 	return aft_a200_a400_warning(aft);
-		}
-	}
-
-	printf ("\nError: Invalid Selection %s\n",sel);
-	return -EINVAL;	
 }
 

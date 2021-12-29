@@ -331,6 +331,7 @@ static u32 convert_addr(u32 addr)
 	case 0x000A:
 		return 0x74;
 	}
+	
 	return 0x00;
 }
 
@@ -353,6 +354,10 @@ int wan_ec_read_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 *data)
 				__FUNCTION__,__LINE__,
 				addr1);
 		return -EINVAL;
+	}
+
+	if (IS_A600_CARD(card)) {
+		addr+=0x1000;
 	}
 
 	err = card->hw_iface.bus_read_4(card->hw, addr, data);
@@ -383,6 +388,9 @@ int wan_ec_write_internal_dword(wan_ec_dev_t *ec_dev, u32 addr1, u32 data)
 		return -EINVAL;
 	}
 
+	if (IS_A600_CARD(card)) {
+		addr+=0x1000;
+	}
 
 	err = card->hw_iface.bus_write_4(card->hw, addr, data);	
 
@@ -1856,7 +1864,13 @@ wanec_register(void *pcard, u_int32_t fe_port_mask, int max_line_no, int max_cha
 	ec_dev_new->fe_media		= WAN_FE_MEDIA(&card->fe);
 	ec_dev_new->fe_lineno		= WAN_FE_LINENO(&card->fe);
 	ec_dev_new->fe_start_chan	= WAN_FE_START_CHANNEL(&card->fe);	
-	ec_dev_new->fe_max_chans	= WAN_FE_MAX_CHANNELS(&card->fe);	//max_line_no;	//
+	
+	if (IS_A600_CARD(card)) {
+		ec_dev_new->fe_max_chans	= 5;	//max_line_no;	//
+	} else {
+		ec_dev_new->fe_max_chans	= WAN_FE_MAX_CHANNELS(&card->fe);	//max_line_no;	//
+	}
+
 	ec_dev_new->fe_stop_chan	= ec_dev_new->fe_start_chan + ec_dev_new->fe_max_chans - 1;
 	/* Feb 14, 2008
 	** Ignore fe_port_mask for BRI cards. fe_port_mask is for full card, 

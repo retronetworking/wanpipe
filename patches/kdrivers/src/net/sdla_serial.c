@@ -372,18 +372,18 @@ static int32_t wp_serial_config(void *pfe)
 
 	SERIAL_FUNC();
 
-	DEBUG_EVENT("%s: %s: Line %d Front End configuration\n", 
+	DEBUG_EVENT("%s: %s: Line %d Front End configuration\n",
 			fe->name, FE_MEDIA_DECODE(fe), WAN_FE_LINENO(fe) + 1);
 
 	if(validate_fe_line_no(fe, __FUNCTION__)){
 		return 1;
 	}
 
-	
-	switch (card->wandev.line_coding){ 
+
+	switch (card->wandev.line_coding){
 	case WANOPT_NRZ:
 	case WANOPT_NRZI:
-		break;		
+		break;
 	default:
 		DEBUG_EVENT("%s: A140: Error: Unsupported line coding mode 0x%X\n",
 			card->devname,
@@ -391,81 +391,104 @@ static int32_t wp_serial_config(void *pfe)
 		return -1;
 	}
 
+	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),&reg);
+
 	switch (card->adptr_type) {
 
 	case AFT_ADPTR_2SERIAL_V35X21:
-        case AFT_ADPTR_4SERIAL_V35X21:
-                DEBUG_EVENT("%s: A140: Configuring for V35\n",
-                        card->devname);
+	case AFT_ADPTR_4SERIAL_V35X21:
+		DEBUG_EVENT("%s: A140: Configuring for %s\n",
+				card->devname,card->wandev.electrical_interface==WANOPT_X21?"X21":"V35");
 
-                switch(WAN_FE_LINENO(fe)) {
+		switch(WAN_FE_LINENO(fe)) {
 
-                case 0:
-                case 2:
-                        cpld_reg=0x08;
-                        break;
-                case 1:
-                case 3:
-                        cpld_reg=0x09;
-                        break;
-                default:
-                        DEBUG_EVENT("%s: Error: Invalid Serial Port Number! (%i) \n",
-                                card->devname,WAN_FE_LINENO(fe));
-                        return -EINVAL;
-                };
+		case 0:
+		case 2:
+				cpld_reg=0x08;
+				break;
+		case 1:
+		case 3:
+				cpld_reg=0x09;
+				break;
+		default:
+				DEBUG_EVENT("%s: Error: Invalid Serial Port Number! (%i) \n",
+						card->devname,WAN_FE_LINENO(fe));
+				return -EINVAL;
+		};
 
-                cpld_reg_val=aft_serial_read_cpld(card,cpld_reg);
+		cpld_reg_val=aft_serial_read_cpld(card,cpld_reg);
 
-                if(card->wandev.clocking) {
+		if (card->wandev.electrical_interface == WANOPT_X21) {
+			wan_set_bit(AFT_SERIAL_LCFG_X21_MODE_BIT, &reg);
+		} else {
+			if (wan_test_bit(2,&cpld_reg)) {
+				/* In this case port is trying to configure for V35
+				 * where previous port already configured for X21 */
+				DEBUG_EVENT("%s: Error: Invalid V35 Configuration, Previous Port configured for X21\n",
+						card->devname);
+				return -EINVAL;
+			}
+			wan_clear_bit(AFT_SERIAL_LCFG_X21_MODE_BIT, &reg);
+		}	
 
-/*FIXME: Must check for case where first port started in external mode
-         At this time, if port 1 start in normal & prot 3 in master, the
-         port 1 will silently be reconfigured to Master after port 3 starts */
+		if (card->wandev.clocking) {
 
-                        aft_serial_write_cpld(card,cpld_reg,0x05);
-                } else {
-   			if (wan_test_bit(2,&cpld_reg_val)) {
-                                DEBUG_EVENT("%s: Error: Clocking configuration mismatch!\n",
-                                                card->devname);
-                                DEBUG_EVENT("%s:        Ports 1&3 and 2&4 must use same clock source!\n",
-                                                card->devname);
-                                return -EINVAL;
-                        }
-
-                        aft_serial_write_cpld(card,cpld_reg,0x01);
-                }
-                break;
-
-        case AFT_ADPTR_2SERIAL_RS232:
-        case AFT_ADPTR_4SERIAL_RS232:
-
-                DEBUG_EVENT("%s: A140: Configuring for RS232\n",
-                        card->devname);
-
-                if (WAN_FE_LINENO(fe) < 2) {
-                        cpld_reg=0x08;
-                } else {
-                        cpld_reg=0x09;
-                }
-
-                cpld_reg_val=aft_serial_read_cpld(card,cpld_reg);
-                if(card->wandev.clocking) {
-                        wan_set_bit((WAN_FE_LINENO(fe)%2), &cpld_reg_val);
-                } else {
-                        wan_clear_bit((WAN_FE_LINENO(fe)%2), &cpld_reg_val);
-                }
-                aft_serial_write_cpld(card,cpld_reg,cpld_reg_val);
-
-                break;
-
-        default:
-                DEBUG_EVENT("%s: Error: Invalid Serial Card Type 0x%X\n",
-                        card->devname,card->adptr_type);
-                return -1;
-        }
-
-        card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),&reg);
+					/*FIXME: Must check for case where first port started in external mode
+					At this time, if port 1 start in normal & prot 3 in master, the
+					port 1 will silently be reconfigured to Master after port 3 starts */
 	
+					if (card->wandev.electrical_interface == WANOPT_X21) {
+						aft_serial_write_cpld(card,cpld_reg,0x07);
+					}else{
+						aft_serial_write_cpld(card,cpld_reg,0x05);
+					}
+		} else {
+			if (wan_test_bit(2,&cpld_reg_val)) {
+					DEBUG_EVENT("%s: Error: Clocking configuration mismatch!\n",
+									card->devname);
+					DEBUG_EVENT("%s:        Ports 1&3 and 2&4 must use same clock source!\n",
+									card->devname);
+					return -EINVAL;
+			}
+
+			if (card->wandev.electrical_interface == WANOPT_X21) {
+				aft_serial_write_cpld(card,cpld_reg,0x03);
+			} else {
+				aft_serial_write_cpld(card,cpld_reg,0x01);
+			}
+		}
+		break;
+
+	case AFT_ADPTR_2SERIAL_RS232:
+	case AFT_ADPTR_4SERIAL_RS232:
+
+			DEBUG_EVENT("%s: A140: Configuring for RS232\n",
+					card->devname);
+
+			if (WAN_FE_LINENO(fe) < 2) {
+					cpld_reg=0x08;
+			} else {
+					cpld_reg=0x09;
+			}
+
+			cpld_reg_val=aft_serial_read_cpld(card,cpld_reg);
+			if(card->wandev.clocking) {
+					wan_set_bit((WAN_FE_LINENO(fe)%2), &cpld_reg_val);
+			} else {
+					wan_clear_bit((WAN_FE_LINENO(fe)%2), &cpld_reg_val);
+			}
+			aft_serial_write_cpld(card,cpld_reg,cpld_reg_val);
+
+			break;
+
+	default:
+			DEBUG_EVENT("%s: Error: Invalid Serial Card Type 0x%X\n",
+					card->devname,card->adptr_type);
+			return -1;
+	}
+
+	
+
 	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X\n",
 			card->devname,
 			reg);
@@ -484,7 +507,7 @@ static int32_t wp_serial_config(void *pfe)
 		wan_clear_bit(AFT_SERIAL_LCFG_CLK_SRC_BIT, &reg);
 	}
 
-	switch (card->wandev.line_coding){ 
+	switch (card->wandev.line_coding){
 	case WANOPT_NRZ:
 		DEBUG_EVENT("%s: A140: Configuring for NRZ\n",
 			card->devname);
@@ -494,7 +517,7 @@ static int32_t wp_serial_config(void *pfe)
 		DEBUG_EVENT("%s: A140: Configuring for NRZI\n",
 			card->devname);
 		aft_serial_set_lcoding(&reg,WANOPT_NRZI);
-		break;		
+		break;
 	default:
 		/* Should never happen because we check above */
 		DEBUG_EVENT("%s: A140: Error: Unsupported line coding mode 0x%X\n",
@@ -511,6 +534,7 @@ static int32_t wp_serial_config(void *pfe)
 		wan_clear_bit(AFT_SERIAL_LCFG_SWMODE_BIT, &reg);
 		wan_clear_bit(AFT_SERIAL_LCFG_IDLE_DET_BIT,&reg);
 	}
+
 
 
 	/* Hardcode to sync device type */
@@ -532,14 +556,14 @@ static int32_t wp_serial_config(void *pfe)
 			card->devname,
 			reg,card->wandev.ignore_front_end_status == WANOPT_YES?"Off":"On");
 
-	/* Raise RTS and DTR */	
+	/* Raise RTS and DTR */
 	wan_set_bit(AFT_SERIAL_LCFG_RTS_BIT,&reg);
 	wan_set_bit(AFT_SERIAL_LCFG_DTR_BIT,&reg);
-	
+
 	card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),reg);
 
 	card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_SERIAL_LINE_CFG_REG),&reg);
-	
+
 	DEBUG_EVENT("%s: A140: Configurfed for 0x%08X\n",
 			card->devname,
 			reg);

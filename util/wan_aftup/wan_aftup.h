@@ -4,6 +4,14 @@
 #define MAX_IFNAME_LEN	20
 #define MAX_HWINFO_LEN	100
 
+#include "wan_aft_prg.h"
+
+#define u32 	unsigned int
+#define u8 	unsigned char
+#define u16	unsigned short
+#define s16	signed short
+
+
 typedef struct wan_aftup_ {
 
 	char		if_name[MAX_IFNAME_LEN];

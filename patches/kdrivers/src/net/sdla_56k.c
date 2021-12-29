@@ -201,8 +201,7 @@ u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 
 		/* if Insertion Loss is less than 44.4 dB, then we are connected */
 		if ((fe->fe_param.k56_param.RRA_reg_56k & 0x0F) > BIT_DEV_STAT_IL_44_dB) {
-			if((fe->fe_status == FE_DISCONNECTED) ||
-			 (fe->fe_status == FE_UNITIALIZED)) {
+			if (fe->fe_status != FE_CONNECTED) {
 				
 				fe->fe_status = FE_CONNECTED;
 				/* reset the Rx code condition changes */
@@ -221,8 +220,7 @@ u_int32_t sdla_56k_alarm(sdla_fe_t *fe, int manual_read)
 				}	
 			}
 		}else{
-			if((fe->fe_status == FE_CONNECTED) || 
-			 (fe->fe_status == FE_UNITIALIZED)) {
+			if (fe->fe_status != FE_DISCONNECTED) {
 				
 				fe->fe_status = FE_DISCONNECTED;
 				/* reset the Rx code condition changes */
@@ -401,7 +399,6 @@ static int sdla_56k_config(void* pfe)
 		return 1; 
 	}
 
-	fe->fe_status = FE_CONNECTED;
 	return 0;
 }
 
@@ -413,6 +410,10 @@ static int sdla_56k_unconfig(void* pfe)
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
 	WAN_ASSERT(fe->read_fe_reg == NULL);
+	
+	WRITE_REG(REG_INT_EN_STAT, 0);
+	WRITE_REG(REG_EIA_CTRL, 0);
+
 	fe->fe_status = FE_UNITIALIZED;
 	return 0;
 }

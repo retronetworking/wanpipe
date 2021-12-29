@@ -1005,6 +1005,7 @@ int wp_atm_init(sdla_t* card, wandev_conf_t* conf);	/* ATM Driver */
 int wp_pos_init(sdla_t* card, wandev_conf_t* conf);	/* POS Driver */	
 int wp_xilinx_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_aft_te1_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
+int wp_aft_a600_init(sdla_t* card, wandev_conf_t* conf);	/* A600 Hardware Support */
 int wp_aft_56k_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_aft_analog_init(sdla_t* card, wandev_conf_t* conf);	/* Xilinx Hardware Support */
 int wp_aft_bri_init(sdla_t* card, wandev_conf_t* conf);	/* BRI Hardware Support */
