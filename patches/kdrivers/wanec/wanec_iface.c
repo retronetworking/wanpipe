@@ -1975,11 +1975,11 @@ static int wanec_event_ctrl(void *arg, void *pcard, wan_event_ctrl_t *event_ctrl
 	case WAN_EVENT_EC_DTMF:
 		{
 			wanec_tone_config_t	tone;
-			tone.id		= (u8)event_ctrl->type;
-			tone.port_map	= WAN_EC_CHANNEL_PORT_SOUT|WAN_EC_CHANNEL_PORT_ROUT;
+			tone.id		= WP_API_EVENT_TONE_DTMF;
+			tone.port_map	= WAN_EC_CHANNEL_PORT_SOUT;
 			tone.type	= WAN_EC_TONE_PRESENT;
 			enable = (event_ctrl->mode == WAN_EVENT_ENABLE) ? WAN_TRUE : WAN_FALSE;
-			wanec_channel_tone(ec_dev, event_ctrl->channel, enable, &tone, wanec_verbose);
+			err=wanec_channel_tone(ec_dev, event_ctrl->channel, enable, &tone, wanec_verbose);
 		}
 		break;
 	case WAN_EVENT_EC_H100_REPORT:

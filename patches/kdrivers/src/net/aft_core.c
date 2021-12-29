@@ -2464,29 +2464,17 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	}
 
 	/*Set the actual logic ch number of this chan
-     	 *as the dchan. Due to HDLC security issue, the
+     *as the dchan. Due to HDLC security issue, the
 	 *HDLC channels are mapped on first TWO logic channels */
 	if (chan->common.usedby == TDM_VOICE_DCHAN){
      		card->u.aft.tdmv_dchan=chan->logic_ch_num+1;
 	}
 
-	if (wan_test_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg)) {
-		int ch=chan->logic_ch_num;
-		if (IS_E1_CARD(card)) {
-			ch++;
-		}
-		if (!wan_test_bit(ch,&chan->time_slot_map)) {
-            DEBUG_EVENT("%s: Error: Logic channel %i does not map to timeslot map 0x%08X\n",
-				   card->devname,chan->logic_ch_num,chan->time_slot_map); 	
-			goto new_if_error;
-		}	
-	}
-
 	/* Configure the DCHAN on LAST Master interface.
-         * We will use the master interface information, until
-         * the next interface with the current DCHAN info is
-         * configured.  This must be done in order to register
-         * the DCHAN in zaptel.  */
+     * We will use the master interface information, until
+     * the next interface with the current DCHAN info is
+     * configured.  This must be done in order to register
+     * the DCHAN in zaptel.  */
 	if (card->u.aft.tdmv_dchan_cfg_on_master &&
             card->u.aft.tdmv_dchan){
 		int dchan=card->u.aft.tdmv_dchan;
@@ -10481,17 +10469,16 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 
 	if (wan_test_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status)) {
 
-		rx_offset= AFT_TDMV_CIRC_BUF * card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num];
-		tx_offset= AFT_TDMV_CIRC_BUF * card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num];
+		rx_offset= AFT_TDMV_CIRC_BUF * card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot];
+		tx_offset= AFT_TDMV_CIRC_BUF * card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot];
 
-
-		card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]++;
-		if (card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num] >= AFT_TDMV_CIRC_BUF_LEN) {
-			card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]=0;
+		card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot]++;
+		if (card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot] >= AFT_TDMV_CIRC_BUF_LEN) {
+			card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot]=0;
 		}
-		card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]++;
-		if (card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num] >= AFT_TDMV_CIRC_BUF_LEN) {
-			card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]=0;
+		card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot]++;
+		if (card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot] >= AFT_TDMV_CIRC_BUF_LEN) {
+			card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot]=0;
 		}
 
 		rxbuf = (unsigned char*)rx_dma_chain->dma_virt+rx_offset;

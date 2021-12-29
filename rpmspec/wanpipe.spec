@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.5.3
+%define version           3.5.4
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -254,6 +254,19 @@ install_init;
 
 
 %changelog
+
+* Tue Jun 29 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.4
+===================================================================
+
+- E1 Voice Bug fix introduced in 3.5.3 
+
+- Removed NOISE REDUCTION enabled by default.
+  The noise reduction is disabled by default and should be
+  enabled using HWEC_NOISE_REDUCTION = YES 
+ 
+- Fixed libsangoma enable dtmf events functionality
+
+
 
 * Tue Jun 25 2009 Nenad Corbic <ncorbic@sangoma.com> -  3.5.3
 ===================================================================

@@ -312,13 +312,17 @@ static int aft_request_logical_channel_num (sdla_t *card, private_area_t *chan, 
 	}
 
 	if (force_lch) {
-		if (!wan_test_and_set_bit(chan->first_time_slot,&card->u.aft.logic_ch_map)){
-		   	logic_ch=(char)chan->first_time_slot;
-		} else {
+
+		/* NOTE This section is not used and should be take out after B601 code is done */
+		DEBUG_EVENT("%s: Error, request logical channel - internal error - unsupported mode!\n",card->devname);
+		return -1;
+
+	    logic_ch=(char)chan->first_time_slot;
+		if (wan_test_and_set_bit(logic_ch,&card->u.aft.logic_ch_map)){
             DEBUG_EVENT("%s: Error, request logical ch=%d map busy (map 0x%08lX)\n",
 				card->devname,chan->first_time_slot,card->u.aft.logic_ch_map);
-	  	    return -1;       
-	    }   
+	  	    return -1;
+	    }
 	} else {
 
 		for (i=0;i<card->u.aft.num_of_time_slots;i++){
@@ -1127,15 +1131,20 @@ int a104_chan_dev_config(sdla_t *card, void *chan_ptr)
 
 #else
 
+#if 0
+#warning "FORCE_LCH Should not be used and should be removed after B601 code"
 	if (card->u.aft.global_tdm_irq) {
-		force_lch=1;
+		force_lch=0;
 	}
+#endif
 
 	chan_num=aft_request_logical_channel_num(card, chan, force_lch);
 	if (chan_num < 0){
 		return -EBUSY;
 	}
 	chan->logic_ch_num = chan_num;
+
+	DEBUG_TEST("%s: LOGIC CH NUM %i\n", card->devname, chan_num);
 
 	dma_ram_reg=AFT_PORT_REG(card,AFT_DMA_CHAIN_RAM_BASE_REG);
 	dma_ram_reg+=(chan->logic_ch_num*4);

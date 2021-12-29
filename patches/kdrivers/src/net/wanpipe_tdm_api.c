@@ -141,7 +141,6 @@ static void wp_tdmapi_init_buffs(wanpipe_tdm_api_dev_t *tdm_api, int option)
 	wan_smp_flag_t flags;
 	int lock=1;
 
-/* FIXME: Cause random crashes */
 	return;
 
 	card = (sdla_t*)tdm_api->card;
@@ -2201,7 +2200,7 @@ wanpipe_tdm_api_event_ioctl(wanpipe_tdm_api_dev_t *tdm_api, wanpipe_api_cmd_t *t
 
 	case WP_API_EVENT_DTMF:
 
-        	event_ctrl.type         = WAN_EVENT_EC_DTMF;
+        	event_ctrl.type = WAN_EVENT_EC_DTMF;
 
     		if (!card->wandev.ec_enable || card->wandev.ec_enable_map == 0){
               	if (card->wandev.config_id == WANCONFIG_AFT_ANALOG) {
@@ -2214,7 +2213,7 @@ wanpipe_tdm_api_event_ioctl(wanpipe_tdm_api_dev_t *tdm_api, wanpipe_api_cmd_t *t
         		}
     		} else {
 
-                DEBUG_EVENT("%s: %s HW EC DTMF event %X %p !\n",
+                DEBUG_TEST("%s: %s HW EC DTMF event %X %p !\n",
                           tdm_api->name,
                           WP_API_EVENT_MODE_DECODE(tdm_event->wp_api_event_mode),
                            tdm_api->active_ch,card->wandev.ec_enable);
@@ -2227,12 +2226,16 @@ wanpipe_tdm_api_event_ioctl(wanpipe_tdm_api_dev_t *tdm_api, wanpipe_api_cmd_t *t
 			}else{
 					event_ctrl.mode = WAN_EVENT_DISABLE;
 			}
-			if(tdm_event->channel < 1 || tdm_event->channel > NUM_OF_E1_CHANNELS - 1/* 31 */){
-					DEBUG_TDMAPI("%s(): %s: Warning: DTMF control requested on invalid channel %u!\n",
-							__FUNCTION__, tdm_api->name, tdm_event->channel);
-					tdm_event->channel = 1;/* */
+
+			event_ctrl.mode = WAN_EC_CHANNEL_PORT_SOUT;
+#if 0
+			if(tdm_event->channel < 1 || tdm_event->channel > NUM_OF_E1_CHANNELS - 1){
+					DEBUG_EVENT("%s: Error: DTMF control requested on invalid channel %u!\n",
+							tdm_api->name, tdm_event->channel);
+					return -EINVAL;
 			}
-			event_ctrl.channel      = tdm_event->channel;
+#endif
+			event_ctrl.channel      = tdm_api->tdm_chan;
 			break;
 
 
