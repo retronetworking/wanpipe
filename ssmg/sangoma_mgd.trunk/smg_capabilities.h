@@ -101,7 +101,7 @@ static inline void bearer_cap_setup(void)
 	}
 #if 0
 	for (i=0; i< 255;i++) {
-		log_printf(0,server.log,"CAUSE=%i, SCAUSE=%s\n",
+		log_printf(SMG_LOG_ALL,server.log,"CAUSE=%i, SCAUSE=%s\n",
 			i, bearer_cap_to_str_array[i].sbearer_cap);
 	}
 #endif
@@ -114,7 +114,7 @@ static inline char *bearer_cap_to_str(int bearer_cap)
 	}
 
 #if 0
-	log_printf(0,server.log, "%s:%d: CAUSE = %i SCAUSE=%s\n",
+	log_printf(SMG_LOG_ALL,server.log, "%s:%d: CAUSE = %i SCAUSE=%s\n",
 			__FUNCTION__,__LINE__,cause,q931_cause_to_str_array[cause].scause);
 #endif
 	return bearer_cap_to_str_array[bearer_cap].sbearer_cap;
@@ -153,11 +153,27 @@ static inline void uil1p_to_str_setup(void)
 	}
 #if 0
 	for (i=0; i< 255;i++) {
-		log_printf(0,server.log,"CAUSE=%i, SCAUSE=%s\n",
+		log_printf(SMG_LOG_ALL,server.log,"CAUSE=%i, SCAUSE=%s\n",
 			i, uil1p_to_str_array[i].suil1p);
 	}
 #endif
 }
+
+static inline int bearer_cap_is_audio(int cap)
+{
+        switch (cap) {
+        case BC_IE_CAP_SPEECH:
+        case BC_IE_CAP_3_1KHZ_AUDIO:
+        case BC_IE_CAP_ALT_SPEECH:
+                return 1;
+
+        default:
+                return 0;
+        }
+
+        return 0;
+}
+
 
 static inline char *uil1p_to_str(int uil1p)
 {
@@ -166,7 +182,7 @@ static inline char *uil1p_to_str(int uil1p)
 	}
 
 #if 0
-	log_printf(0,server.log, "%s:%d: CAUSE = %i SCAUSE=%s\n",
+	log_printf(SMG_LOG_ALL,server.log, "%s:%d: CAUSE = %i SCAUSE=%s\n",
 			__FUNCTION__,__LINE__,cause,q931_cause_to_str_array[cause].scause);
 #endif
 	return uil1p_to_str_array[uil1p].suil1p;

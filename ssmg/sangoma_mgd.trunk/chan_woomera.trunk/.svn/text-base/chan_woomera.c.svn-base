@@ -14,6 +14,11 @@
  * This program is free software, distributed under the terms of
  * the GNU General Public License
  * =============================================
+ * v1.53 Nenad Corbic <ncorbic@sangoma.com>
+ * Jul 16 2009
+ *	Updated for Asterisk load balancing and well
+ *  as one to many call calling based on valid extension.
+ *
  * v1.52 Konrad Hammel <konrad@sangoma.com>
  * Jun 25 2009
  * 	Bug fix for tg_context in multiple profiles
@@ -287,7 +292,7 @@
 #include "asterisk/musiconhold.h"
 #include "asterisk/transcap.h"
 
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.52 $")
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.53 $")
 
 #else
 
@@ -338,7 +343,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1.52 $")
 #define CALLWEAVER_19 1
 #endif
 
-CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.52 $")
+CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.53 $")
 
 #if defined(DSP_FEATURE_FAX_CNG_DETECT)
 #undef		DSP_FEATURE_FAX_DETECT
@@ -645,7 +650,7 @@ CALLWEAVER_FILE_VERSION(__FILE__, "$Revision: 1.52 $")
 
 extern int option_verbose;
 
-#define WOOMERA_VERSION "v1.52"
+#define WOOMERA_VERSION "v1.53"
 #ifndef WOOMERA_CHAN_NAME
 #define WOOMERA_CHAN_NAME "SS7"
 #endif
@@ -673,6 +678,10 @@ static char smgversion[100] = "N/A";
 
 static char mohinterpret[MAX_MUSICCLASS] = "default";
 static char mohsuggest[MAX_MUSICCLASS] = "";
+
+
+/* Used to debug a specific channel */
+static void *debug_tech_pvt=NULL;
 
 
 #if !defined (AST14) && !defined (AST16)
@@ -1936,6 +1945,12 @@ retry_activate_again:
 				tech_pvt->callid,tech_pvt);
 		}
 		
+
+#if 0
+		/* NC: Took this out becuase its not needed any more.
+		       It was a kluge to get load balancing to work
+			   but now it works properly so it should be removed.
+			   I am keeping it here as depricated */
 		err=woomera_printf(tech_pvt->profile,
 				 tech_pvt->command_channel, 
 				 "PROCEED %s%s"
@@ -1961,7 +1976,8 @@ retry_activate_again:
 			/* Do not hangup on main because
 			 * socket connection has been
 			 * established */
-		 }
+	     }
+#endif
 	}
 	
 
@@ -2229,6 +2245,10 @@ static void tech_destroy(private_object *tech_pvt, struct ast_channel *owner)
 		tech_pvt->cid_rdnis=NULL;
 	}
 
+	if (debug_tech_pvt == tech_pvt) {
+     	debug_tech_pvt=NULL;
+	}
+
 	ast_free(tech_pvt);	
 	ast_mutex_lock(&usecnt_lock);
 	usecnt--;
@@ -2458,7 +2478,7 @@ static void *tech_monitor_thread(void *obj)
 					ast_hangup=1;
 
 				} else {
-					if (1) { //globals.debug > 2) {
+					if (globals.debug > 2) {
 						ast_log(LOG_NOTICE,"Tech Thread - Hanging up channel - owner=%p pbx=%i \n",
 							owner,ast_test_flag(tech_pvt, TFLAG_PBX));
 					}
@@ -2584,7 +2604,7 @@ static void *tech_monitor_thread(void *obj)
 				goto tech_thread_continue;
 		
 			} else {
-
+			
 				err=woomera_printf(tech_pvt->profile, tech_pvt->command_channel, 
 							"%s %s%s"
 							"Raw-Audio: %s:%d%s"
@@ -2618,6 +2638,7 @@ static void *tech_monitor_thread(void *obj)
 				ast_set_flag(tech_pvt, TFLAG_ABORT);
 				goto tech_thread_continue;
 			}
+			
 
 			/* It is possible for ACCEPT to have media info
 			 * This is how Early Media is started */
@@ -2651,16 +2672,15 @@ static void *tech_monitor_thread(void *obj)
 
 			if(err < 0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
 					ast_set_flag(tech_pvt, TFLAG_ABORT);
-					ast_log(LOG_NOTICE, "ACCEPT ABORT Ch=%d\n",
-									tech_pvt->command_channel);
-					ast_copy_string(tech_pvt->ds, "PROTOCOL_ERROR", sizeof(tech_pvt->ds));
-					tech_pvt->pri_cause=111;
+					if (globals.debug > 2) {
+						ast_log(LOG_NOTICE, "ACCEPT ABORT Ch=%d\n",
+										tech_pvt->command_channel);
+					}
 					goto tech_thread_continue;
 					continue;
 			}
 
 		}
-
 
 		if (ast_test_flag(tech_pvt, TFLAG_ANSWER)) {
 			int err;
@@ -2686,10 +2706,10 @@ static void *tech_monitor_thread(void *obj)
 				
 				if(err<0 || woomera_message_parse_wait(tech_pvt,&wmsg) < 0) {
 					ast_set_flag(tech_pvt, TFLAG_ABORT);
-					ast_log(LOG_NOTICE, "ANSWER ABORT Ch=%d\n",
+					if (globals.debug > 2) {
+						ast_log(LOG_NOTICE, "ANSWER ABORT Ch=%d\n",
 							tech_pvt->command_channel);
-					ast_copy_string(tech_pvt->ds, "PROTOCOL_ERROR", sizeof(tech_pvt->ds));
-                			tech_pvt->pri_cause=111;
+					}
 					goto tech_thread_continue;
 					continue;
 				}
@@ -2871,7 +2891,7 @@ static int woomera_locate_socket(woomera_profile *profile, int *woomera_socket)
 				ast_log(LOG_NOTICE, "Woomera Master Socket \n");
 				}
 
-				err=woomera_printf(profile, *woomera_socket, "LISTEN MASTER%s", WOOMERA_RECORD_SEPARATOR);
+				err=woomera_printf(profile, *woomera_socket, "LISTEN %s", WOOMERA_RECORD_SEPARATOR);
 				if (err<0) {
 					if (*woomera_socket > -1) {
 						woomera_close_socket(woomera_socket);
@@ -5228,17 +5248,20 @@ static int woomera_event_incoming (private_object *tech_pvt)
 			if(group >= 0 && 
 			   group <= WOOMERA_MAX_TRUNKGROUPS && 
 			   tech_pvt->profile->tg_context[group] != NULL){
-
+					if (option_verbose > 2) {
                                ast_log(LOG_ERROR, "Error: Invalid exten %s@%s called %s!\n",
                                        exten,
                                        owner->context,
                                        tech_pvt->callid);
+					}
 			}else{
+					if (option_verbose > 2) {
                                ast_log(LOG_ERROR, "Error: Invalid exten %s@%s%s called %s!\n",
                                        exten,
                                        tech_pvt->profile->context,
                                        tg_string,
                                        tech_pvt->callid);
+					}
 			}
 		}
 		return -1;	
@@ -5274,9 +5297,9 @@ static void woomera_check_event (private_object *tech_pvt, int res, woomera_mess
 		char *q931cause;
 		struct ast_channel *owner;
 			
-
+            
 		if (option_verbose > 2) {
-			ast_verbose(WOOMERA_DEBUG_PREFIX "Hangup [%s]\n", tech_pvt->callid);
+			ast_verbose(WOOMERA_DEBUG_PREFIX "Hangup [%s] \n", tech_pvt->callid);
 		}
 		cause = woomera_message_header(wmsg, "Cause");
 		q931cause = woomera_message_header(wmsg, "Q931-Cause-Code");

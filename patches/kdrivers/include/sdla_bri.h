@@ -18,6 +18,9 @@
  *				v1.1 Imrovements in SU State transition code.
  *				Implemented T3 and T4 timers.
  *
+ * July		21  2009	David Rokhvarg	
+ *				v1.4 Implemented T1 timer for NT.
+ *
  ******************************************************************************
  */
 
@@ -120,7 +123,6 @@
 #define NT_TIMER		0x8000
 
 /* NT / TE defines */
-#define NT_T1_COUNT	25	/* number of 4ms interrupts for G2 timeout */
 #define CLK_DLY_TE	0x0e	/* CLKDEL in TE mode */
 #define CLK_DLY_NT	0x6c	/* CLKDEL in NT mode */
 #define STA_ACTIVATE	0x60	/* start activation   in A_SU_WR_STA */
@@ -130,10 +132,12 @@
 #define XHFC_TIMER_T3   8000    /* 8s activation timer T3 */
 #define XHFC_TIMER_T4   500     /* 500ms deactivation timer T4 */
 
+#define XHFC_TIMER_T1   10000	/* 10s de-activation timer T1 */
+
 /* xhfc Layer1 physical commands */
-#define HFC_L1_ACTIVATE_TE		0x01
+#define HFC_L1_ACTIVATE_TE			0x01
 #define HFC_L1_FORCE_DEACTIVATE_TE	0x02
-#define HFC_L1_ACTIVATE_NT		0x03
+#define HFC_L1_ACTIVATE_NT			0x03
 #define HFC_L1_DEACTIVATE_NT		0x04
 #define HFC_L1_ENABLE_LOOP_B1		0x05
 #define HFC_L1_ENABLE_LOOP_B2		0x06
@@ -143,12 +147,16 @@
 /* xhfc Layer1 Flags (stored in bri_xhfc_port_t->l1_flags) */
 #define HFC_L1_ACTIVATING	1
 #define HFC_L1_ACTIVATED	2
-#define HFC_L1_DEACTTIMER       4
-#define HFC_L1_ACTTIMER         8
+#define HFC_L1_DEACTTIMER	4
+#define HFC_L1_ACTTIMER		8
 
 /* Layer1 timer Flags (stored in bri_xhfc_port_t->timer_flags) */
+/* TE timer flags. bits 1-8	*/
 #define T3_TIMER_ACTIVE		1
-#define T4_TIMER_ACTIVE         2
+#define T4_TIMER_ACTIVE     2
+/* NT timer flags. bits 9-16 */
+#define T1_TIMER_ACTIVE		9
+#define T1_TIMER_EXPIRED	10
 
 #define FIFO_MASK_TX	0x55555555
 #define FIFO_MASK_RX	0xAAAAAAAA
@@ -191,7 +199,11 @@ typedef struct sdla_bri_cfg_ {
 
 #else
 
-#warning "WAN_DEBUG_FE - Debugging Defined"
+#if defined(__WINDOWS__)
+# pragma message("WAN_DEBUG_FE - Debugging Defined")
+#else
+# warning "WAN_DEBUG_FE - Debugging Defined"
+#endif
 
 /* NT/TE */
 # define WRITE_BRI_REG(mod_no,reg,val)					\
@@ -231,9 +243,12 @@ typedef struct {
 	u_int8_t drxbuf[MAX_DFRAME_LEN_L1];
 	u_int8_t dtxbuf[MAX_DFRAME_LEN_L1];	
 
-	/* layer1 ISDN timer */
+	/* layer1 ISDN timers */
+	/* TE timers */
 	wan_timer_t	t3_timer;
 	wan_timer_t	t4_timer;
+	/* NT timers */
+	wan_timer_t	t1_timer;
 
 	/* chip registers */
 	reg_a_su_rd_sta	su_state;

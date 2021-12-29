@@ -2689,14 +2689,14 @@ static int sdla_pcibridge_detect(sdlahw_card_t *hwcard)
 		hwcard->u_pci.pci_bridge_bus = hwcard->u_pci.bus_no; 
 		hwcard->u_pci.pci_bridge_slot = hwcard->u_pci.slot_no;
 		DEBUG_TEST("%s: PCI-Express card (PLX PCI Bridge, bus:%d, slot:%d)\n",
-			wan_drvname, hwcard->bus_no, hwcard->slot_no);
+			wan_drvname, hwcard->u_pci.bus_no, hwcard->u_pci.slot_no);
 	}else if (pcibridge_dev->vendor == TUNDRA_VENDOR_ID && 
 	          pcibridge_dev->device == TUNDRA_DEVICE_ID){
 		hwcard->u_pci.pci_bridge_dev = pcibridge_dev;
 		hwcard->u_pci.pci_bridge_bus = hwcard->u_pci.bus_no; 
 		hwcard->u_pci.pci_bridge_slot = hwcard->u_pci.slot_no;
 		DEBUG_TEST("%s: PCI-Express card (TUNDRA PCI Bridge, bus:%d, slot:%d)\n",
-			wan_drvname, hwcard->bus_no, hwcard->slot_no);
+			wan_drvname, hwcard->u_pci.bus_no, hwcard->u_pci.slot_no);
 	}
 #endif
 	return 0;
@@ -3672,7 +3672,9 @@ static void print_sdlahw_port(sdlahw_port_t *sdlahw_port_ptr)
 
 static void print_sdlahw_head_list(const char *caller_name)
 {
-	sdlahw_t*	tmp_hw;
+	sdlahw_t		*tmp_hw;
+	sdlahw_cpu_t	*tmp_hwcpu;
+	sdlahw_card_t	*tmp_hwcard;
 	int hwcounter = 0, port_index;
 		
 	DBG_SDLADRV_HW_IFACE("%s(caller: %s): - START ================\n", __FUNCTION__, caller_name);
@@ -3683,11 +3685,25 @@ static void print_sdlahw_head_list(const char *caller_name)
 		DBG_SDLADRV_HW_IFACE("%s(): tmp_hw: 0x%p, used: %d, devname: %s\n", __FUNCTION__, tmp_hw,
 			tmp_hw->used, (tmp_hw->devname?tmp_hw->devname:"devname not initialized"));
 
-		DBG_SDLADRV_HW_IFACE("adptr_type: %d (0x%X), cfg_type: %d (0x%X)\n", 
-			tmp_hw->adptr_type, tmp_hw->adptr_type, tmp_hw->cfg_type, tmp_hw->cfg_type);
+		DBG_SDLADRV_HW_IFACE("adptr_type: %d / 0x%X / %s, cfg_type: %d / 0x%X / %s\n", 
+			tmp_hw->adptr_type, tmp_hw->adptr_type, SDLA_ADPTR_NAME(tmp_hw->adptr_type),
+			tmp_hw->cfg_type, tmp_hw->cfg_type, CARD_WANOPT_DECODE(tmp_hw->cfg_type));
 
 		DBG_SDLADRV_HW_IFACE("line_no: %d, max_chans_num: %d, chans_map: 0x%X, max_port_no: %d, hwcpu: 0x%p\n",
 			tmp_hw->line_no, tmp_hw->max_chans_num, tmp_hw->chans_map, tmp_hw->max_port_no, tmp_hw->hwcpu);
+
+		tmp_hwcpu = tmp_hw->hwcpu;
+		DBG_SDLADRV_HW_IFACE("hwcpu: 0x%p\n", tmp_hwcpu);
+
+		tmp_hwcard = tmp_hwcpu->hwcard;
+		DBG_SDLADRV_HW_IFACE("hwcard: 0x%p\n", tmp_hwcard);
+
+		DBG_SDLADRV_HW_IFACE("hwcard: hw_type: %d, type: %d, cfg_type: %d / %s, adptr_type: %d / %s, adptr_subtype: %d\n",
+			tmp_hwcard->hw_type,	/* ISA/PCI */
+			tmp_hwcard->type,		/* S50x/S514/ADSL/SDLA_AFT */
+			tmp_hwcard->cfg_type, CARD_WANOPT_DECODE(tmp_hwcard->cfg_type),	/* Config card type WANOPT_XXX */
+			tmp_hwcard->adptr_type, SDLA_ADPTR_NAME(tmp_hwcard->adptr_type),
+			tmp_hwcard->adptr_subtype);
 
 		for(port_index = 0; port_index < tmp_hw->max_port_no; port_index++){
 
@@ -7763,14 +7779,9 @@ static int sdla_detect_aft(sdlahw_t* hw)
 	DEBUG_EVENT( "%s: IRQ %d allocated to the AFT PCI card\n",
 				hw->devname, hwcpu->irq);
 
-#if defined(__WINDOWS__)
 	/* Latency important only for PCI. PCI Express ignores it. */
-	/* Set PCI Latency of 128 (0x80) */
-	sdla_pci_write_config_word(hw, XILINX_PCI_LATENCY_REG + 1/* 0xC + 1 */, 128);
-#else
-	/* Set PCI Latency of 0xFF*/
-	sdla_pci_write_config_word(hw, XILINX_PCI_LATENCY_REG, XILINX_PCI_LATENCY);
-#endif
+	/* Set PCI Latency of 0xFF */
+	sdla_pci_write_config_word(hw, XILINX_PCI_LATENCY_REG/* 0xD */, 0xFF);
 	return 0;
 }
 
@@ -10677,9 +10688,9 @@ int sdla_usb_create(struct usb_interface *intf, int adptr_type)
 
 	WAN_ASSERT(udev == NULL);
 	DEBUG_EVENT("sdlausb: Attaching sdlausb on %d (BusId %s)\n",
-				 udev->devnum, udev->dev.bus_id);
+				 udev->devnum, WAN_DEV_NAME(udev));
 
-	hwcard = sdla_card_register(SDLA_USB_CARD, udev->devnum, 0, 0, udev->dev.bus_id); 
+	hwcard = sdla_card_register(SDLA_USB_CARD, udev->devnum, 0, 0, WAN_DEV_NAME(udev)); 
 	if (hwcard == NULL){
 		return 0;
 	}
@@ -10704,13 +10715,13 @@ int sdla_usb_remove(struct usb_interface *intf, int force)
 	WAN_ASSERT(udev == NULL);
 
 	DEBUG_EVENT("sdlausb: Detaching device from %d (BusId %s)\n",
-					udev->devnum, udev->dev.bus_id);
-	hwcard = sdla_card_search(SDLA_USB_CARD, udev->devnum, 0, 0, udev->dev.bus_id);
+					udev->devnum, WAN_DEV_NAME(udev));
+	hwcard = sdla_card_search(SDLA_USB_CARD, udev->devnum, 0, 0, WAN_DEV_NAME(udev));
 	if (hwcard == NULL){
 		DEBUG_EVENT("sdlausb: Failed to find HW USB module!\n");
 		return -EINVAL;
 	}
-	hwcpu = sdla_hwcpu_search(SDLA_USB_CARD, udev->devnum, 0, 0, 0, udev->dev.bus_id);
+	hwcpu = sdla_hwcpu_search(SDLA_USB_CARD, udev->devnum, 0, 0, 0, WAN_DEV_NAME(udev));
 	if (hwcpu == NULL){
 		DEBUG_EVENT("sdlausb: Failed to find HW USB module!\n");
 		return -EINVAL;
@@ -10744,7 +10755,7 @@ int sdla_usb_remove(struct usb_interface *intf, int force)
 	}
 	sdla_adapter_cnt.usb_adapters--;
 	DEBUG_EVENT("sdlausb: USB-FXO module on %d detached (BusId %s)\n", 
-					udev->devnum, udev->dev.bus_id);
+					udev->devnum, WAN_DEV_NAME(udev));
 	return 0;
 }
 #endif

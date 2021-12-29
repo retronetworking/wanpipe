@@ -63,6 +63,19 @@
 #define ZT_CONFIG_D4 DAHDI_CONFIG_D4
 #define ZT_CONFIG_ESF DAHDI_CONFIG_ESF
 
+#define ZT_PARAMS struct dahdi_params
+#define ZT_BUFFERINFO struct dahdi_bufferinfo
+
+#define ZT_SPECIFY DAHDI_SPECIFY
+#define ZT_SIG_HARDHDLC DAHDI_SIG_HARDHDLC
+#define ZT_SET_BLOCKSIZE DAHDI_SET_BLOCKSIZE 
+#define ZT_GET_PARAMS DAHDI_GET_PARAMS
+#define ZT_POLICY_IMMEDIATE DAHDI_POLICY_IMMEDIATE
+#define ZT_SET_BUFINFO DAHDI_SET_BUFINFO
+#define ZT_GETEVENT DAHDI_GETEVENT
+#define ZT_FLUSH_ALL DAHDI_FLUSH_ALL
+#define ZT_FLUSH DAHDI_FLUSH
+
 // data types
 #define zt_lineconfig dahdi_lineconfig
 #define zt_dynamic_span dahdi_dynamic_span

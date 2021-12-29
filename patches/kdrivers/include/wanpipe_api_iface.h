@@ -201,6 +201,7 @@ enum wanpipe_api_cmds
 	WP_API_CMD_NOTSUPP,				/*!<  */
 	WP_API_CMD_SET_RM_RXFLASHTIME,	/*!< Set rxflashtime for FXS */
 	WP_API_CMD_SET_IDLE_FLAG,		/*!< Set Idle Flag (char) for a BitStream (Voice) channel */
+	WP_API_CMD_GET_HW_EC,			/*!< Check to see if hwec is available */
 
 	/* Add only debugging commands here */
     WP_API_CMD_GEN_FIFO_ERR=500,
@@ -217,7 +218,8 @@ enum wanpipe_cdev_ctrl_cmds
 	WP_CDEV_CMD_SET_DPC_TIMEDIFF_MONITORING_OPTION=1,		/* DPC() monitoring */
 	WP_CDEV_CMD_SET_TX_INTERRUPT_TIMEDIFF_MONITORING_OPTION,/* TX ISR() monitoring */
 	WP_CDEV_CMD_SET_RX_INTERRUPT_TIMEDIFF_MONITORING_OPTION,/* RX ISR() monitoring */
-	WP_CDEV_CMD_PRINT_INTERRUPT_TIMEDIFF_MONITORING_INFO	/* print ISR() monitoring info to Wanpipelog */
+	WP_CDEV_CMD_PRINT_INTERRUPT_TIMEDIFF_MONITORING_INFO,	/* print ISR() monitoring info to Wanpipelog */
+	WP_CDEV_CMD_GET_INTERFACE_NAME							/* Retrun Interface Name to user-mode application */
 };
 
 /*!
@@ -257,21 +259,29 @@ enum wanpipe_api_events
 };
 
 
-
 /*!
-  \def  WP_API_EVENT_ENABLE
-  \brief Option to enable event
-  \def  WP_API_EVENT_DISABLE
-  \brief Option to disable event
-  \def  WP_API_EVENT_MODE_DECODE
-  \brief Option to print decode event mode (enable/disable)
- */
+  \def WP_API_EVENT_SET
+  \brief Option to write a particular command
+  \def WP_API_EVENT_GET
+  \brief Option to read a particular command
+  \def WP_API_EVENT_ENABLE
+  \brief Option to enable command
+  \def WP_API_EVENT_DISABLE
+  \brief Option to disable command
+  \def WP_API_EVENT_MODE_DECODE
+  \brief Decode disable/enable command
+
+*/
+#define WP_API_EVENT_SET		0x01
+#define WP_API_EVENT_GET		0x02
 #define WP_API_EVENT_ENABLE		0x01
-#define WP_API_EVENT_DISABLE		0x02
-#define WP_API_EVENT_MODE_DECODE(mode)				\
-		((mode) == WP_API_EVENT_ENABLE) ? "Enable" :	\
-		((mode) == WP_API_EVENT_DISABLE) ? "Disable" :	\
+#define WP_API_EVENT_DISABLE	0x02
+
+#define WP_API_EVENT_MODE_DECODE(mode)					\
+		((mode) == WP_API_EVENT_ENABLE) ? "Enable" :		\
+		((mode) == WP_API_EVENT_DISABLE) ? "Disable" :		\
 						"(Unknown mode)"
+
 
 /*!
   \def  WPTDM_A_BIT
@@ -356,16 +366,17 @@ enum wanpipe_api_events
 /*!
   \def WP_API_EVENT_POL_REV_POS_TO_NEG
   \brief Polarity Reversal Postive to Negative
-  \def WP_API_EVENT__POL_REV_NEG_TO_POS
+  \def WP_API_EVENT_POL_REV_NEG_TO_POS
   \brief Polarity Reversal Negative to Positive
   \def WP_API_EVENT_POLARITY_REVERSE_DECODE
   \brief Print out the Polarity state
 */
 #define WP_API_EVENT_POL_REV_POS_TO_NEG		0x01
-#define WP_API_EVENT__POL_REV_NEG_TO_POS	0x02
+#define WP_API_EVENT_POL_REV_NEG_TO_POS		0x02
+#define WP_API_EVENT__POL_REV_NEG_TO_POS	WP_API_EVENT_POL_REV_NEG_TO_POS
 #define WP_API_EVENT_POLARITY_REVERSE_DECODE(polarity_reverse)					\
 		((polarity_reverse) == WP_API_EVENT_POL_REV_POS_TO_NEG) ? "+ve to -ve" :		\
-		((polarity_reverse) == WP_API_EVENT__POL_REV_NEG_TO_POS)  ? "-ve to +ve" :		\
+		((polarity_reverse) == WP_API_EVENT_POL_REV_NEG_TO_POS)  ? "-ve to +ve" :		\
 							"Unknown"
 /*!
   \def WP_API_EVENT_TONE_DIAL
@@ -376,6 +387,12 @@ enum wanpipe_api_events
   \brief Ring tone value
   \def WP_API_EVENT_TONE_CONGESTION
   \brief Contestion tone value
+  \def WP_API_EVENT_TONE_DTMF
+  \brief Define tone indicates TONE type DTMF
+  \def WP_API_EVENT_TONE_FAXCALLING
+  \brief Define tone indicates TONE type FAXCALLING 
+  \def WP_API_EVENT_TONE_FAXCALLED
+  \brief Define tone indicates TONE type FAXCALLED 
 */
 #define	WP_API_EVENT_TONE_DIAL		0x01
 #define	WP_API_EVENT_TONE_BUSY		0x02
@@ -480,9 +497,13 @@ typedef struct _DRIVER_VERSION {
 }wan_driver_version_t, DRIVER_VERSION, *PDRIVER_VERSION;
 
 #define WANPIPE_API_CMD_SZ 512
-#define WANPIPE_API_CMD_RESERVED_SZ 128
+
 /* The the union size is max-cmd-result-span-chan-data_len */
 #define WANPIPE_API_CMD_SZ_UNION  WANPIPE_API_CMD_SZ - (sizeof(unsigned int)*3) - (sizeof(unsigned char)*2)
+
+
+#define WANPIPE_API_CMD_RESERVED_SZ 128 - sizeof(int)*1 - sizeof(char)*1
+#define WANPIPE_API_DEV_CFG_SZ sizeof(int)*20 + sizeof(char)*2 + WANPIPE_API_CMD_RESERVED_SZ + sizeof(wanpipe_chan_stats_t)
 
 
 /*!
@@ -517,6 +538,8 @@ typedef struct wanpipe_api_dev_cfg
 		unsigned int rx_queue_sz;
 		unsigned int tx_queue_sz;
 		/* Any new paramets should decrement the reserved size */
+		unsigned int rxflashtime;	/* Set Rxflash time for Wink-Flash */
+		unsigned char hw_ec;
 
 		unsigned char reserved[WANPIPE_API_CMD_RESERVED_SZ];
 		/* Duplicate the structure below */
@@ -562,10 +585,12 @@ typedef struct wanpipe_api_cmd
 			unsigned char fe_status;	/*!< FE status - Connected or Disconnected */
   			unsigned int  hw_dtmf;		/*!< HW DTMF enabled */
 			unsigned int open_cnt;		/*!< Open cnt */
-			unsigned int rx_queue_sz;
-			unsigned int tx_queue_sz;
-			unsigned int rxflashtime;	/*!< Set Rxflash time for Wink-Flash */
+			unsigned int rx_queue_sz;	/*!< Rx queue size */
+			unsigned int tx_queue_sz;	/*!< Tx queue size */
 			/* Any new paramets should decrement the reserved size */
+			unsigned int rxflashtime;	/*!< Set Rxflash time for Wink-Flash */
+			unsigned char hw_ec;
+
 			unsigned char reserved[WANPIPE_API_CMD_RESERVED_SZ];
 			wanpipe_chan_stats_t stats;	/*!< Wanpipe API Statistics */
 		};

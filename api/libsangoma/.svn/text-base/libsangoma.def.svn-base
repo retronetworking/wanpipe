@@ -79,6 +79,5 @@ EXPORTS
 	sangoma_wait_obj_get_fd
 	sangoma_wait_obj_set_context
 	sangoma_wait_obj_get_context
-
-
-	
+	sangoma_cdev_ctrl_cmd
+	sangoma_write_port_config_on_persistent_storage

@@ -18,6 +18,10 @@ PhoneToneDecoder::PhoneToneDecoder(void)
 	bufSize = 256;
 	printf("Init FSK demodulator rate:%d buffer:%d\n", rate, bufSize);
 
+	fskInit = fskEnable = dtmfInit = dtmfEnable = false;
+
+	memset(&sink_callback_functions, 0x00, sizeof(sink_callback_functions));
+
 	fskData = (fsk_data_state_t*) stel_malloc(sizeof(fsk_data_state_t));
 	if (fskData == NULL) {
 		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);
@@ -122,7 +126,7 @@ int PhoneToneDecoder::WaveStreamInputExFSK(int16_t* slinData, int dataLength, in
 		if (sink_callback_functions.OnCallerID) {
 			sink_callback_functions.OnCallerID(this->callback_obj, CallerName, CallerNumber, "Private", DateTime);	
 		} else {
-			STEL_ERR("No FSK callback function\n");
+			STEL_ERR("hello: No FSK callback function\n");
 		}
 	}
 	return 0;
@@ -266,15 +270,15 @@ void PhoneToneDecoder::put_WaveFormatID(variant_t _var)
 	memcpy(&variant, &_var, sizeof(variant_t));
 	return;
 }
-void PhoneToneDecoder::put_MonitorDTMF(int val)
+void PhoneToneDecoder::put_MonitorDTMF(bool val)
 {
-	DBG_DTMF("DTMF enabled\n");
-	dtmfEnable = true;
+	DBG_DTMF("DTMF Decoding: %s\n", (val==true ? "enabled" : "disabled"));
+	dtmfEnable = val;
 	return;
 }	
-void PhoneToneDecoder::put_MonitorCallerID(int val)
+void PhoneToneDecoder::put_MonitorCallerID(bool val)
 {	
-	DBG_FSK("FSK enabled\n");
-	fskEnable = true;
+	DBG_FSK("FSK Decoding: %s\n", (val==true? "enabled" : "disabled"));
+	fskEnable = val;
 	return;
 }

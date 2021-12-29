@@ -3354,10 +3354,10 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 			break;
 	
 		case WAN_GET_PROTOCOL:
-		   	wan_udp_pkt->wan_udp_aft_num_frames = card->wandev.config_id;
-		    	wan_udp_pkt->wan_udp_return_code = CMD_OK;
-		    	wan_udp_pkt->wan_udp_data_len = 1;
-		    	break;
+		   	wan_udp_pkt->wan_udp_data[0] = card->wandev.config_id;
+			wan_udp_pkt->wan_udp_return_code = CMD_OK;
+			wan_udp_pkt->wan_udp_data_len = 1;
+			break;
 
 		case WAN_GET_PLATFORM:
 		    	wan_udp_pkt->wan_udp_data[0] = WAN_PLATFORM_ID;
@@ -5263,9 +5263,13 @@ static int aft_dma_chain_rx(aft_dma_chain_t *dma_chain, private_area_t *chan, in
 		wan_clear_bit(DMA_HI_TE3_INTR_DISABLE_BIT,&reg);
 	}else{
 
+#ifdef AFT_TE3_IFT_FEATURE_DISABLE
+#warning "AFT_TE3_IFT_FEATURE_DISABLE is defined!"
+#else
 		if (card->u.aft.firm_ver >= AFT_IFT_FIMR_VER) {
 			wan_set_bit(DMA_HI_TE3_IFT_INTR_ENB_BIT,&reg);
 		}
+#endif
 		wan_set_bit(DMA_HI_TE3_NOT_LAST_FRAME_BIT,&reg);
 
 		if (intr){

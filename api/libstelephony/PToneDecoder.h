@@ -45,8 +45,8 @@ public:
 	void WaveStreamStart(void);
 	void WaveStreamEnd(void);
 	void put_WaveFormatID(variant_t var);
-	void put_MonitorDTMF(int val);
-	void put_MonitorCallerID(int val);
+	void put_MonitorDTMF(bool val);
+	void put_MonitorCallerID(bool val);
 };
 
 #endif/* __FSK_TONE_DECODER_H__*/

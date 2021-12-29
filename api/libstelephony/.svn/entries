@@ -1,15 +1,15 @@
 8
 
 dir
-49
+52
 http://www.sangomapbx.com/svn/stelephony/trunk
 http://www.sangomapbx.com/svn/stelephony
 
 
 
-2009-06-26T21:24:50.372719Z
-49
-ncorbic
+2009-07-23T18:22:49.763903Z
+52
+davidr
 
 
 svn:special svn:externals svn:needs-lock
@@ -57,10 +57,10 @@ file
 
 
 
-2009-06-26T20:54:03.000000Z
-69dfa5bff63a3ab461c7983115ea2c36
-2009-06-09T20:43:33.158857Z
-43
+2009-08-17T21:22:12.000000Z
+8055d82583c843a5c55b29f81572c1f9
+2009-07-23T18:22:49.763903Z
+52
 davidr
 
 AUTHORS
@@ -146,24 +146,11 @@ file
 
 
 
-2009-06-26T20:54:03.000000Z
-0e131be4d4752d092a679c98ceb5cf7c
-2009-06-09T20:43:33.158857Z
-43
+2009-08-17T21:22:12.000000Z
+e74dea0051a3c32ef50f190a7a83ec4a
+2009-07-23T18:22:49.763903Z
+52
 davidr
-
-stelephony.suo
-file
-
-
-
-
-2009-06-26T20:54:03.000000Z
-c446e0eb58d38771a5d9993abbd0145a
-2009-06-09T20:43:33.158857Z
-43
-davidr
-has-props
 
 cleanup.sh
 file
@@ -184,10 +171,22 @@ file
 
 
 
-2009-06-26T20:54:03.000000Z
-65265922a5451179baa037dee9b1c840
-2009-06-09T20:43:33.158857Z
-43
+2009-07-21T20:55:25.000000Z
+d76fa5941bf65fc8d3064f8dacc548a6
+2009-07-16T21:36:49.003747Z
+51
+davidr
+
+PToneEncoder.cpp
+file
+
+
+
+
+2009-07-21T20:55:25.000000Z
+227bc7712316fa82a36095dadd610058
+2009-07-16T21:36:49.003747Z
+51
 davidr
 
 INSTALL
@@ -202,18 +201,6 @@ b69fee4c91f0a6895b7649a39d37f947
 13
 ncorbic
 
-PToneEncoder.cpp
-file
-
-
-
-
-2009-06-26T20:54:03.000000Z
-5b3b6e22752aacab4947f7d7cf0ec388
-2009-06-16T15:33:38.286037Z
-44
-davidy
-
 libstelephony.h
 file
 
@@ -225,18 +212,6 @@ file
 2009-06-09T20:43:33.158857Z
 43
 davidr
-
-COPYING
-file
-
-
-
-
-2009-06-26T20:54:03.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2009-02-27T21:14:16.818013Z
-13
-ncorbic
 
 build.sh
 file
@@ -250,6 +225,18 @@ db35df946eb4c300bbc065dbf844c6aa
 28
 ncorbic
 has-props
+
+COPYING
+file
+
+
+
+
+2009-06-26T20:54:03.000000Z
+d41d8cd98f00b204e9800998ecf8427e
+2009-02-27T21:14:16.818013Z
+13
+ncorbic
 
 StelephonyApi.h
 file
@@ -269,23 +256,11 @@ file
 
 
 
-2009-06-26T20:54:03.000000Z
-2fd30950ec22d303736ba4709efc2563
-2009-06-09T20:43:33.158857Z
-43
+2009-07-21T20:55:25.000000Z
+2407e5f74fcd8442360c77413f9c4969
+2009-07-16T21:36:49.003747Z
+51
 davidr
-
-NEWS
-file
-
-
-
-
-2009-06-26T20:54:03.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2009-02-27T21:14:16.818013Z
-13
-ncorbic
 
 stelephony.aps
 file
@@ -300,6 +275,18 @@ b08bdecd7dd0fc40b801c042ce2470a8
 davidr
 has-props
 
+NEWS
+file
+
+
+
+
+2009-06-26T20:54:03.000000Z
+d41d8cd98f00b204e9800998ecf8427e
+2009-02-27T21:14:16.818013Z
+13
+ncorbic
+
 resource.h
 file
 
@@ -308,6 +295,18 @@ file
 
 2009-06-26T20:54:03.000000Z
 ca1cc8cc040b1c8d1f14b5fef8aef16c
+2009-02-12T18:45:27.267919Z
+1
+root
+
+stelephony.sln
+file
+
+
+
+
+2009-06-26T20:54:03.000000Z
+eb00665e7cd041b1c20722382a5c95de
 2009-02-12T18:45:27.267919Z
 1
 root
@@ -324,18 +323,6 @@ dc404f5aa6012bc608dd48d9f6c43a77
 13
 ncorbic
 
-stelephony.sln
-file
-
-
-
-
-2009-06-26T20:54:03.000000Z
-eb00665e7cd041b1c20722382a5c95de
-2009-02-12T18:45:27.267919Z
-1
-root
-
 configure.in
 file
 
@@ -346,6 +333,18 @@ file
 6d6db0cbe09b769e68cb0cd59de53992
 2009-06-26T21:24:21.524186Z
 48
+ncorbic
+
+ChangeLog
+file
+
+
+
+
+2009-06-26T20:54:03.000000Z
+d41d8cd98f00b204e9800998ecf8427e
+2009-02-27T21:14:16.818013Z
+13
 ncorbic
 
 stelephony.def
@@ -359,18 +358,6 @@ file
 2009-06-09T20:43:33.158857Z
 43
 davidr
-
-ChangeLog
-file
-
-
-
-
-2009-06-26T20:54:03.000000Z
-d41d8cd98f00b204e9800998ecf8427e
-2009-02-27T21:14:16.818013Z
-13
-ncorbic
 
 libstelephony_linux_compat.h
 file
@@ -390,10 +377,10 @@ file
 
 
 
-2009-06-26T20:54:03.000000Z
-ad88b9a36b51c1b52858e99ae605f646
-2009-06-09T20:43:33.158857Z
-43
+2009-07-21T20:55:25.000000Z
+3b55910e113ddcc12d6aa00f9884d4a5
+2009-07-16T21:36:49.003747Z
+51
 davidr
 
 stelephony.vcproj

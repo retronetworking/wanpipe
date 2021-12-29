@@ -6,6 +6,13 @@
 
 #include <linux/version.h>
 
+#if 0
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wextra"
+#pragma GCC diagnostic warning "-Wcast-qual"
+#pragma GCC diagnostic warning "-Wcast-align"
+#endif
+
 # if defined (__BIG_ENDIAN_BITFIELD) 
 # define WAN_BIG_ENDIAN 1
 # undef  WAN_LITTLE_ENDIAN
@@ -52,6 +59,12 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)
 #define cancel_work_sync(work) ({ cancel_work_sync(work); 0; })
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
+# define WAN_DEV_NAME(device) dev_name(&(device->dev))
+#else
+#define WAN_DEV_NAME(device) device->dev.bus_id
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24) || defined(LINUX_FEAT_2624)
@@ -119,8 +132,14 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 
  static inline int wan_task_cancel(struct tq_struct *tq)
  {
-#if  LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
+#if  LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)
 	return cancel_work_sync (tq);
+
+#elif defined(work_clear_pending)
+	return cancel_work_sync (tq);
+
+#elif defined(WORK_STRUCT_NOAUTOREL)
+	return 0;
 #else
 	int err;
 	err=cancel_delayed_work(tq);
@@ -129,6 +148,13 @@ typedef int (wan_get_info_t)(char *, char **, off_t, int);
 #endif
  }
 
+#if 1
+#define MOD_INC_USE_COUNT try_module_get(THIS_MODULE)
+#define MOD_DEC_USE_COUNT module_put(THIS_MODULE)
+#else
+#define MOD_INC_USE_COUNT 
+#define MOD_DEC_USE_COUNT
+#endif
 
 #define ADMIN_CHECK()  {if (!capable(CAP_SYS_ADMIN)) {\
                              if (WAN_NET_RATELIMIT()) { \
@@ -634,19 +660,40 @@ static inline int open_dev_check(netdevice_t *dev)
 #endif
 
 
+/* For All operating Systems */
+
+#pragma pack(1)         
+
+typedef struct wan_iovec
+{
+	uint32_t iov_len; /* Must be size_t (1003.1g) */
+	void *iov_base;	/* BSD uses caddr_t (1003.1g requires void *) */
+#ifndef __x86_64__
+    uint32_t reserved;
+#endif
+}wan_iovec_t;
+
+typedef struct wan_msghdr {
+	uint32_t	msg_iovlen;	/* Number of blocks		*/
+	wan_iovec_t *	msg_iov;	/* Data blocks			*/
+#ifndef __x86_64__
+    uint32_t reserved;
+#endif
+}wan_msghdr_t;          
+
+#pragma pack()
+
 #if defined(__KERNEL__)
 
-static __inline int wan_verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode)
+static __inline int wan_verify_iovec(wan_msghdr_t *m, wan_iovec_t *iov, char *address, int mode)
 {
 	int size, err, ct;
 	
-	m->msg_name = NULL;
-
 	if (m->msg_iovlen == 0) {
 		return -EMSGSIZE;
 	}
 	
-	size = m->msg_iovlen * sizeof(struct iovec);
+	size = m->msg_iovlen * sizeof(wan_iovec_t);
 
 	
 	if (copy_from_user(iov, m->msg_iov, size))
@@ -675,7 +722,7 @@ static __inline int wan_verify_iovec(struct msghdr *m, struct iovec *iov, char *
  *	Note: this modifies the original iovec.
  */
  
-static __inline int wan_memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len)
+static __inline int wan_memcpy_fromiovec(unsigned char *kdata, wan_iovec_t *iov, int len)
 {
 	while (len > 0) {
 		if (iov->iov_len) {
@@ -699,7 +746,7 @@ static __inline int wan_memcpy_fromiovec(unsigned char *kdata, struct iovec *iov
  *	Note: this modifies the original iovec.
  */
  
-static __inline int wan_memcpy_toiovec(struct iovec *iov, unsigned char *kdata, int len)
+static __inline int wan_memcpy_toiovec(wan_iovec_t *iov, unsigned char *kdata, int len)
 {
 	while (len > 0) {
 		if (iov->iov_len) {

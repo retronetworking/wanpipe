@@ -300,14 +300,13 @@ void aft_rtp_tap(void *card_ptr, u8 chan, u8* rx, u8* tx, u32 len)
 					card->devname,chan);
 		}
 	} else {
-               	if (!wan_test_bit(chan,&card->wandev.rtp_tap_call_status)) {
+		if (!wan_test_bit(chan,&card->wandev.rtp_tap_call_status)) {
 			/* Call not up */
-        	     	return;
+			return;
 		}
-               	wan_clear_bit(chan,&card->wandev.rtp_tap_call_status);
+		wan_clear_bit(chan,&card->wandev.rtp_tap_call_status);
 		call_status=WAN_TDM_RTP_CALL_STOP;
-	       	DEBUG_TEST("%s: CALL Stop on ch %d\n",
-	       		card->devname,chan);
+		DEBUG_TEST("%s: CALL Stop on ch %d\n",card->devname,chan);
 	}
 
 
@@ -573,6 +572,8 @@ int get_map(wan_device_t *wandev, netdevice_t *dev, struct seq_file* m, int* sto
 int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 {
 	int err=0;
+	int chan_no=0;
+	wanpipe_tdm_api_span_t *span;
 
 	if (chan->common.usedby != TDM_VOICE_API	&&
 	    chan->common.usedby != TDM_VOICE_DCHAN	&&
@@ -584,127 +585,166 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		return 0;
 	}
 
-	
+	if (!card->tdm_api_span) {
+		card->tdm_api_span=wan_malloc(sizeof(wanpipe_tdm_api_span_t));
+		if (!card->tdm_api_span) {
+			return -ENOMEM;
+		}
+		memset(card->tdm_api_span,0,sizeof(wanpipe_tdm_api_span_t));
+	}
 
-	/* Initilaize TDM API Parameters */
-	chan->wp_tdm_api_dev.chan = chan;
-	chan->wp_tdm_api_dev.card = card;
+	span = (wanpipe_tdm_api_span_t*)card->tdm_api_span;
 	
-	strncpy(chan->wp_tdm_api_dev.name,chan->if_name,WAN_IFNAME_SZ);
+	if (IS_TE1_CARD(card)) {
+		if (IS_T1_CARD(card)){
+			chan_no=(u8)chan->first_time_slot+1;
+		} else {
+			chan_no=(u8)chan->first_time_slot;
+		}
+	} else if (IS_BRI_CARD(card)) {
+
+		if (chan->dchan_time_slot >= 0) {
+			chan_no = 3;
+		} else {
+			chan_no = (u8)(chan->first_time_slot % 2)+1;
+		}
+	} else {
+		chan_no=(u8)chan->first_time_slot+1;
+	}
+
 
 	if (conf->hdlc_streaming) {
-		chan->wp_tdm_api_dev.hdlc_framing=1;
+		wan_clear_bit(chan_no, &span->timeslot_map);
+	} else {
+		wan_set_bit(chan_no, &span->timeslot_map);
+	}
+
+	DEBUG_TEST("%s: Setting Timeslot Map chan =%i  map=0x%X\n",chan->if_name,chan_no,span->timeslot_map);
+
+	chan->wp_tdm_api_dev = &span->chans[chan_no];
+
+	/* Initilaize TDM API Parameters */
+	chan->wp_tdm_api_dev->chan = chan;
+	chan->wp_tdm_api_dev->card = card;
+	
+	strncpy(chan->wp_tdm_api_dev->name,chan->if_name,WAN_IFNAME_SZ);
+
+	if (conf->hdlc_streaming) {
+		chan->wp_tdm_api_dev->hdlc_framing=1;
 	}
 
 	aft_core_tdmapi_event_init(chan);
 
-	chan->wp_tdm_api_dev.cfg.rx_disable = 0;
-	chan->wp_tdm_api_dev.cfg.tx_disable = 0;
-	chan->wp_tdm_api_dev.cfg.tx_queue_sz = MAX_AFT_DMA_CHAINS;
+	chan->wp_tdm_api_dev->cfg.rx_disable = 0;
+	chan->wp_tdm_api_dev->cfg.tx_disable = 0;
+	chan->wp_tdm_api_dev->cfg.tx_queue_sz = MAX_AFT_DMA_CHAINS;
+
+
+	chan->wp_tdm_api_dev->tdm_chan = chan_no;
 
 	if (IS_TE1_CARD(card)) {
 		if (IS_T1_CARD(card)){
-			chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_MULAW;
-			chan->wp_tdm_api_dev.tdm_chan = (u8)chan->first_time_slot+1;
+			chan->wp_tdm_api_dev->cfg.hw_tdm_coding=WP_MULAW;
 		}else{
-			chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_ALAW;
-			chan->wp_tdm_api_dev.tdm_chan = (u8)chan->first_time_slot;
+			chan->wp_tdm_api_dev->cfg.hw_tdm_coding=WP_ALAW;
 		}
 
 		if (IS_E1_CARD(card)){
-			chan->wp_tdm_api_dev.active_ch = conf->active_ch;
+			chan->wp_tdm_api_dev->active_ch = conf->active_ch;
 		}else{
-			chan->wp_tdm_api_dev.active_ch = conf->active_ch << 1;
+			chan->wp_tdm_api_dev->active_ch = conf->active_ch << 1;
 		}
 
 	} else if (IS_BRI_CARD(card)) {
 
 		if (chan->dchan_time_slot >= 0) {
-			chan->wp_tdm_api_dev.tdm_chan = 3;
-			wan_set_bit(chan->wp_tdm_api_dev.tdm_chan,&chan->wp_tdm_api_dev.active_ch);
+			wan_set_bit(chan->wp_tdm_api_dev->tdm_chan,&chan->wp_tdm_api_dev->active_ch);
 		} else {
-			chan->wp_tdm_api_dev.tdm_chan = (u8)(chan->first_time_slot % 2)+1;
-			wan_set_bit(chan->wp_tdm_api_dev.tdm_chan,&chan->wp_tdm_api_dev.active_ch);
+			wan_set_bit(chan->wp_tdm_api_dev->tdm_chan,&chan->wp_tdm_api_dev->active_ch);
 			if (chan->num_of_time_slots == 2) {
-				wan_set_bit(chan->wp_tdm_api_dev.tdm_chan+1,&chan->wp_tdm_api_dev.active_ch);
+				wan_set_bit(chan->wp_tdm_api_dev->tdm_chan+1,&chan->wp_tdm_api_dev->active_ch);
 			}
 		}
 
 		if (card->fe.fe_cfg.tdmv_law == WAN_TDMV_MULAW){
-		       	chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_MULAW;
+		       	chan->wp_tdm_api_dev->cfg.hw_tdm_coding=WP_MULAW;
 		} else {
-                chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_ALAW;
+                chan->wp_tdm_api_dev->cfg.hw_tdm_coding=WP_ALAW;
 		}
 
 	} else {
 		if (card->fe.fe_cfg.tdmv_law == WAN_TDMV_MULAW){
-		    	chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_MULAW;
-			chan->wp_tdm_api_dev.tdm_chan = (u8)(chan->first_time_slot+1);
+		    	chan->wp_tdm_api_dev->cfg.hw_tdm_coding=WP_MULAW;
 		} else {
-            		chan->wp_tdm_api_dev.cfg.hw_tdm_coding=WP_ALAW;
-			chan->wp_tdm_api_dev.tdm_chan = (u8)(chan->first_time_slot+1);
+            		chan->wp_tdm_api_dev->cfg.hw_tdm_coding=WP_ALAW;
 		}
-		chan->wp_tdm_api_dev.active_ch = conf->active_ch << 1;
+		chan->wp_tdm_api_dev->active_ch = conf->active_ch << 1;
 	}
 
 	DEBUG_TDMAPI("%s: TDM API ACTIVE CH 0x%08X  CHAN=%d\n",
-		chan->if_name, chan->wp_tdm_api_dev.active_ch,chan->wp_tdm_api_dev.tdm_chan);
+		chan->if_name, chan->wp_tdm_api_dev->active_ch,chan->wp_tdm_api_dev->tdm_chan);
 
 
-	chan->wp_tdm_api_dev.cfg.idle_flag = conf->u.aft.idle_flag;
-	chan->wp_tdm_api_dev.cfg.rbs_tx_bits = conf->u.aft.rbs_cas_idle;
+	chan->wp_tdm_api_dev->cfg.idle_flag = conf->u.aft.idle_flag;
+	chan->wp_tdm_api_dev->cfg.rbs_tx_bits = conf->u.aft.rbs_cas_idle;
 
-	chan->wp_tdm_api_dev.tdm_span = card->tdmv_conf.span_no;
+	chan->wp_tdm_api_dev->tdm_span = card->tdmv_conf.span_no;
 
 	DEBUG_TDMAPI("%s: TDM API ACTIVE CH 0x%08X SPAN=%d CHAN=%d\n",
-		chan->if_name, chan->wp_tdm_api_dev.active_ch,
-		chan->wp_tdm_api_dev.tdm_span,chan->wp_tdm_api_dev.tdm_chan);
+		chan->if_name, chan->wp_tdm_api_dev->active_ch,
+		chan->wp_tdm_api_dev->tdm_span,chan->wp_tdm_api_dev->tdm_chan);
 
-	chan->wp_tdm_api_dev.dtmfsupport = card->u.aft.tdmv_hw_tone;
+	chan->wp_tdm_api_dev->dtmfsupport = card->u.aft.tdmv_hw_tone;
 	
 	DEBUG_TDMAPI("%s: SPAN=%d, CHAN=%d Chunk=%d Period=%d Mtu=%d\n", chan->if_name,
-		chan->wp_tdm_api_dev.tdm_span, chan->wp_tdm_api_dev.tdm_chan,  chan->tdm_api_chunk, chan->tdm_api_period, chan->mtu);
+		chan->wp_tdm_api_dev->tdm_span, chan->wp_tdm_api_dev->tdm_chan,  chan->tdm_api_chunk, chan->tdm_api_period, chan->mtu);
 
 	DEBUG_TDMAPI("%s: conf->mtu=%d\n", chan->if_name, conf->mtu);
 
 	DEBUG_TDMAPI("%s: tdm_api_chunk=%d, tdm_api_period=%d\n", chan->if_name,
 		chan->tdm_api_chunk, chan->tdm_api_period);
 
-	chan->wp_tdm_api_dev.operation_mode=chan->wp_api_op_mode;
+	chan->wp_tdm_api_dev->operation_mode=chan->wp_api_op_mode;
 
 	if (chan->wp_api_op_mode == WP_TDM_OPMODE_CHAN) {
-		chan->wp_tdm_api_dev.operation_mode	= WP_TDM_OPMODE_CHAN;
-		chan->wp_tdm_api_dev.cfg.hw_mtu_mru = 8;
-		chan->wp_tdm_api_dev.cfg.usr_period = chan->tdm_api_period;
-		chan->wp_tdm_api_dev.cfg.usr_mtu_mru = chan->tdm_api_chunk;
-		if (chan->wp_tdm_api_dev.cfg.usr_mtu_mru < 160) {
-         	chan->wp_tdm_api_dev.cfg.usr_mtu_mru=160;
+		chan->wp_tdm_api_dev->operation_mode	= WP_TDM_OPMODE_CHAN;
+		chan->wp_tdm_api_dev->cfg.hw_mtu_mru = 8;
+		chan->wp_tdm_api_dev->cfg.usr_period = chan->tdm_api_period;
+		chan->wp_tdm_api_dev->cfg.usr_mtu_mru = chan->tdm_api_chunk;
+		if (chan->wp_tdm_api_dev->cfg.usr_mtu_mru < 160) {
+         	chan->wp_tdm_api_dev->cfg.usr_mtu_mru=160;
 		}
 	} else {
-		chan->wp_tdm_api_dev.operation_mode	= WP_TDM_OPMODE_SPAN;
-		chan->wp_tdm_api_dev.cfg.hw_mtu_mru = chan->tdm_api_chunk;
-		chan->wp_tdm_api_dev.cfg.usr_period = chan->tdm_api_period;
-		chan->wp_tdm_api_dev.cfg.usr_mtu_mru = chan->mtu;
+		chan->wp_tdm_api_dev->operation_mode	= WP_TDM_OPMODE_SPAN;
+		chan->wp_tdm_api_dev->cfg.hw_mtu_mru = chan->tdm_api_chunk;
+		chan->wp_tdm_api_dev->cfg.usr_period = chan->tdm_api_period;
+		chan->wp_tdm_api_dev->cfg.usr_mtu_mru = chan->mtu;
 
 		/* Overwite the chan number based on group number */	
-		chan->wp_tdm_api_dev.tdm_chan = (u8)chan->if_cnt;
+		chan->wp_tdm_api_dev->tdm_chan = (u8)chan->if_cnt;
 	}
 
 	/* Set the API interface mode.  Used on windows to
 	 * indicate legacy API interface */
-	chan->wp_tdm_api_dev.api_mode = chan->wp_api_iface_mode;
+	chan->wp_tdm_api_dev->api_mode = chan->wp_api_iface_mode;
 
 	if (chan->if_cnt == 1) {
-	DEBUG_EVENT("%s:    Memory: TDM API %d\n",
+		DEBUG_EVENT("%s:    Memory: TDM API %d\n",
 				card->devname, sizeof(wanpipe_tdm_api_dev_t));
 	}
 
-	err=wanpipe_tdm_api_reg(&chan->wp_tdm_api_dev);
+	err=wanpipe_tdm_api_reg(chan->wp_tdm_api_dev);
 	if (err){
+		if (span->usage == 0) {
+			wan_free(span);
+			card->tdm_api_span=NULL;
+		}
+
 		return err;
 	}
 
-	wan_set_bit(0,&chan->wp_tdm_api_dev.init);
+	span->usage++;
+	wan_set_bit(0,&chan->wp_tdm_api_dev->init);
 	return err;
 }
 #endif
@@ -713,13 +753,36 @@ int aft_tdm_api_free(sdla_t *card, private_area_t *chan)
 {
 #ifdef AFT_TDM_API_SUPPORT
 	int err=0;
-	if (wan_test_bit(0,&chan->wp_tdm_api_dev.init)){
-		wan_clear_bit(0,&chan->wp_tdm_api_dev.init);
-		err=wanpipe_tdm_api_unreg(&chan->wp_tdm_api_dev);
+	wanpipe_tdm_api_span_t *span;
+
+	span = (wanpipe_tdm_api_span_t*)card->tdm_api_span;
+
+
+	if (!span) {
+		return 0;
+	}
+
+	if (chan->wp_tdm_api_dev && wan_test_bit(0,&chan->wp_tdm_api_dev->init)){
+		wan_clear_bit(0,&chan->wp_tdm_api_dev->init);
+		wan_clear_bit(chan->wp_tdm_api_dev->tdm_chan, &span->timeslot_map);
+
+		err=wanpipe_tdm_api_unreg(chan->wp_tdm_api_dev);
 		if (err){
-			wan_set_bit(0,&chan->wp_tdm_api_dev.init);
+			wan_set_bit(0,&chan->wp_tdm_api_dev->init);
 			return err;
 		}
+		chan->wp_tdm_api_dev=NULL;
+
+		span->usage--;
+		if (span->usage < 0) {
+			span->usage = 0;
+		}
+
+		if (span->usage == 0) {
+			wan_free(span);
+			card->tdm_api_span=NULL;
+		}
+
 	}
 #endif
 	return 0;

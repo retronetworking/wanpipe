@@ -78,6 +78,67 @@ typedef struct wanpipe_cdev
 } wanpipe_cdev_t;
 
 
+
+#if defined (__LINUX__) && defined(__KERNEL__)
+
+typedef struct wanpipe_cdev_priv
+{
+	int dev_minor;
+	spinlock_t lock;
+	wait_queue_head_t poll_wait;
+
+}wanpipe_cdev_priv_t;
+
+# define CPRIV(dev)  ((wanpipe_cdev_priv_t*)(dev->priv))
+
+static __inline int  wanpipe_cdev_rx_wake(wanpipe_cdev_t *cdev)
+{
+	if (!cdev || !CPRIV(cdev)) {
+		DEBUG_EVENT("%s(): Error cdev->dev_ptr not initialized!\n",__FUNCTION__);
+		return -1;
+	}
+
+	if (waitqueue_active(&CPRIV(cdev)->poll_wait)){
+		wake_up_interruptible(&CPRIV(cdev)->poll_wait);
+	}
+
+	return 0;
+}
+
+
+static __inline int wanpipe_cdev_tx_wake(wanpipe_cdev_t *cdev)
+{
+	if (!cdev || !CPRIV(cdev)) {
+		DEBUG_EVENT("%s(): Error cdev->dev_ptr not initialized!\n",__FUNCTION__);
+		return -1;
+	}
+
+	if (waitqueue_active(&CPRIV(cdev)->poll_wait)){
+		wake_up_interruptible(&CPRIV(cdev)->poll_wait);
+	}
+
+	return 0;
+}
+
+static __inline int  wanpipe_cdev_event_wake(wanpipe_cdev_t *cdev)
+{
+	if (!cdev || !CPRIV(cdev)) {
+		DEBUG_EVENT("%s(): Error cdev->dev_ptr not initialized!\n",__FUNCTION__);
+		return -1;
+	}
+
+	if (waitqueue_active(&CPRIV(cdev)->poll_wait)){
+		wake_up_interruptible(&CPRIV(cdev)->poll_wait);
+	}
+
+	return 0;
+}
+#else
+int wanpipe_cdev_tx_wake(wanpipe_cdev_t *cdev);
+int wanpipe_cdev_rx_wake(wanpipe_cdev_t *cdev);
+int wanpipe_cdev_event_wake(wanpipe_cdev_t *cdev);
+#endif
+
 /*=================================================
  * Public Interface Functions
  *================================================*/
@@ -87,9 +148,7 @@ int wanpipe_global_cdev_free(void);
 int wanpipe_cdev_tdm_create(wanpipe_cdev_t *cdev);
 int wanpipe_cdev_free(wanpipe_cdev_t *cdev);
 
-int wanpipe_cdev_tx_wake(wanpipe_cdev_t *cdev);
-int wanpipe_cdev_rx_wake(wanpipe_cdev_t *cdev);
-int wanpipe_cdev_event_wake(wanpipe_cdev_t *cdev);
+
 
 int wanpipe_cdev_tdm_create(wanpipe_cdev_t *cdev);
 int wanpipe_cdev_tdm_ctrl_create(wanpipe_cdev_t *cdev);

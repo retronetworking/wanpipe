@@ -26,6 +26,7 @@ typedef struct{
 	char		szTxFileName[SAMPLE_CPP_MAX_PATH];
 	unsigned int	txcount;
 	unsigned char   driver_config;
+	unsigned char	use_ctrl_dev;
 }wp_program_settings_t;
 
 #define DEV_NAME_LEN			100
@@ -75,6 +76,8 @@ static void DecodeLastError(LPSTR lpszFunction)
 #endif
 } 
 
+/* This flag controls debugging of time difference between 
+ * data receive indications. Disabled by default. */
 #define DBG_TIMING 0
 
 #if DBG_TIMING
@@ -209,7 +212,7 @@ debug_update_timediff(
 				}
 			}//if(timediff_between_function_calls > 0)
 
-			if(!(wan_debug_ptr->timediff_deviation_counter % 1000)){
+			if(!(wan_debug_ptr->timediff_deviation_counter % 10)){
 				debug_print_dbg_struct(wan_debug_ptr, caller_name);
 			}
 	}//if(	timediff_between_function_calls ...)

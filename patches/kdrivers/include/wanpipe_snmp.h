@@ -219,8 +219,8 @@ typedef struct wanpipe_snmp
 	int		snmp_cmd;
 	int		snmp_magic;
 	union {
-		long	val;
-		char	data[1024];
+		int		val;
+		char	data[800];
 	} value;
 } wanpipe_snmp_t;
 

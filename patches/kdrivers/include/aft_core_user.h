@@ -472,35 +472,6 @@ typedef struct _REGISTER_EVENT
  #define PRINT_BITMAP	printf
 #endif
 
-static __inline void print_poll_event_bitmap(u_int32_t bitmap)
-{
-	char known_event = 0;
-
-	if(bitmap & POLLIN){
-		known_event = 1;
-		PRINT_BITMAP("POLLIN\n");
-	}
-	if(bitmap & POLLOUT){
-		known_event = 1;
-		PRINT_BITMAP("POLLOUT\n");
-	}
-	if(bitmap & POLLPRI){
-		known_event = 1;
-		PRINT_BITMAP("POLLPRI\n");
-	}
-	if(known_event == 0){
-		PRINT_BITMAP("Unknown event!\n");
-	}
-}
-
-
-
-#if defined(__KERNEL__)
- #define PRINT_BITMAP	DEBUG_TDMAPI
-#else
- #define PRINT_BITMAP	printf
-#endif
-
 static void print_poll_event_bitmap(u_int32_t bitmap)
 {
 	char known_event = 0;

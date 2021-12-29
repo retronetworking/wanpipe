@@ -248,7 +248,7 @@ void OutputLogString(PUCHAR pvFormat, ...);
 //uncomment -DSANG_DBG in C_DEFINES in Sources to get debug output
 #if defined(SANG_DBG)
  //print driver name and a line
- #define DbgOut(_f_, _x_) if(_f_) { DbgPrint("%s: ", DRIVER_NAME); DbgPrint _x_;}
+ #define DbgOut(_f_, _x_) if(_f_) { DbgPrint("%s: ", Globals.DriverName); DbgPrint _x_;}
  //print a line. used when driver name is not needed
  #define DbgOutL(_f_, _x_) if(_f_) { DbgPrint _x_;}
  #define BUS_DEFAULT_DEBUG_OUTPUT_LEVEL 0x000FFFFF
@@ -358,9 +358,9 @@ static void my_func_dbg(char *drv_name, char *func, char *file, int line)
 #define DBG_ACUAPI_FUNC()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
 #define FUNC_DEBUG()		if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
 #define TDM_FUNC_DBG()		if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-#define SKB_FUNC()		if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define SKB_FUNC()			if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
 #define PROT_FUNC_DEBUG()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
-#define TDMAPI_FUNC_DEBUG()	if()my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
+#define TDMAPI_FUNC_DEBUG()	if(0)my_func_dbg(DRIVER_NAME, __FUNCTION__, __FILE__, __LINE__)
 
 #else	/* !__WINDOWS__*/
 

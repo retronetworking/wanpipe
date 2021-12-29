@@ -38,6 +38,8 @@
 
 #if defined(__LINUX__)
 #include "sample_linux_compat.h"
+#else
+#include <conio.h>
 #endif
 
 #ifndef MAX_PATH
@@ -115,7 +117,11 @@ sangoma_interface* init(int wanpipe_number, int interface_number)
 {
 	sangoma_interface	*sang_if = NULL;
 	DBG_MAIN("init()\n");
-	sang_if = new sangoma_interface(wanpipe_number, interface_number);
+	if(program_settings.use_ctrl_dev == 1){
+		sang_if = new sangoma_api_ctrl_dev();
+	}else{
+		sang_if = new sangoma_interface(wanpipe_number, interface_number);
+	}
 	if(sang_if->init(&callback_functions)){
 		delete sang_if;
 		return NULL;
@@ -313,8 +319,8 @@ void *TdmApiEventThreadFunc(void *lpdwParam)
 	wp_tdm_api_event = &param->event;
 	sang_if = (sangoma_interface*)param->sang_if_ptr;
 
-	DBG_MAIN( "TdmApiEventThreadFunc():ifname: %s: Channel: %d\n",
-		sang_if->device_name, wp_tdm_api_event->channel);
+	DBG_MAIN("%s(): ifname: %s: Span: %d, Channel: %d\n", __FUNCTION__,	sang_if->device_name,
+		wp_tdm_api_event->wp_api_event_span, wp_tdm_api_event->wp_api_event_channel);
 
 	switch(wp_tdm_api_event->wp_api_event_type)
 	{
@@ -361,6 +367,16 @@ void *TdmApiEventThreadFunc(void *lpdwParam)
 
 	case WP_API_EVENT_ALARM:
 		DBG_MAIN("New Alarm State: 0x%X\n", wp_tdm_api_event->wp_api_event_alarm);
+		break;
+
+	case WP_API_EVENT_POLARITY_REVERSE:
+		/* This event may have different meaning on different Telco lines.
+		 * For example, it indicates "Network Initiated Clearing", 
+		 * on a British Telecom line. But on some lines it means
+		 * "Start of Caller ID transmission". Please consult with your Telco
+		 * for exact meaning of event. */
+		DBG_MAIN("Polarity Reversal Event: %s\n",
+			WP_API_EVENT_POLARITY_REVERSE_DECODE(wp_tdm_api_event->wp_api_event_polarity_reverse));
 		break;
 
 	default:
@@ -502,6 +518,9 @@ static int parse_command_line_args(int argc, char* argv[])
 "\t-decode_q931		Enable Sangoma Q931 decoder. For HDLC (Dchannel) data only.\n"
 "\t-alaw\t\t	Use Alaw codec instead of default MuLaw codec for Voice data.\n"
 #endif
+#if 0
+"\t-use_ctrl_dev	Use the global 'wptdm_ctrl' device to Get events and to Control device.\n"
+#endif
 "\n"
 "Example: sample -c 1 -i 1\n";
 
@@ -596,6 +615,9 @@ static int parse_command_line_args(int argc, char* argv[])
 			strcpy(program_settings.szTxFileName, argv[i+1]);
 			i++;
 			INFO_MAIN("Setting szTxFileName to '%s'.\n", program_settings.szTxFileName);
+		}else if(_stricmp(argv[i], "-use_ctrl_dev") == 0){
+			INFO_MAIN("Using ctrl_dev...\n");
+			program_settings.use_ctrl_dev = 1;
 		}else{
 			INFO_MAIN("Error: Invalid Argument %s\n",argv[i]);
 			return 1;
@@ -1170,6 +1192,7 @@ static int set_port_configuration()
 
 	sng_port_cfg_obj = new sangoma_port_configurator();
 	if(sng_port_cfg_obj == NULL || sng_port_cfg_obj->init((unsigned short)program_settings.wanpipe_number)){
+		ERR_MAIN("Failed to initialize 'sangoma_port_configurator'\n");
 		return 2;
 	}
 
@@ -1186,6 +1209,7 @@ static int set_port_configuration()
 		INFO_MAIN("port_number\t\t: %d\n", hardware_info.port_number);
 
 	}else{
+		ERR_MAIN("Failed to get hardware information\n");
 		delete sng_port_cfg_obj;
 		return 3;
 	}
@@ -1223,12 +1247,11 @@ try_again:
 		switch(user_selection)
 		{
 		case 't'://T1
-
-			rc=sng_port_cfg_obj->set_t1_tdm_span_voice_api_configration(&port_cfg,&hardware_info,program_settings.wanpipe_number);
+			rc=sng_port_cfg_obj->initialize_t1_tdm_span_voice_api_configration_structure(&port_cfg,&hardware_info,program_settings.wanpipe_number);
 			break;
-		case 'e'://E1
 
-			rc=sng_port_cfg_obj->set_e1_tdm_span_voice_api_configration(&port_cfg,&hardware_info,program_settings.wanpipe_number);
+		case 'e'://E1
+			rc=sng_port_cfg_obj->initialize_e1_tdm_span_voice_api_configration_structure(&port_cfg,&hardware_info,program_settings.wanpipe_number);
 			break;
 
 		default:
@@ -1238,47 +1261,62 @@ try_again:
 		}//switch(user_selection)
 
 	} else { //if(is_te1_card)
-		INFO_MAIN("Unsupported Card %i\n",hardware_info.card_model);
-
-		rc=1;
 #if 0
-		//print the current configuration:
-		sng_port_cfg_obj->print_port_cfg_structure(&port_cfg);
-
-		//as an EXAMPLE, set the same configration as the current one:
-		rc = sng_port_cfg_obj->set_default_configuration(&port_cfg);
+		//read current configuration:
+		if(sng_port_cfg_obj->get_configration(&port_cfg)){
+			rc = 1;
+		}else{
+			//print the current configuration:
+			sng_port_cfg_obj->print_port_cfg_structure(&port_cfg);
+			//as an EXAMPLE, set the same configration as the current one:
+			//rc = sng_port_cfg_obj->set_default_configuration(&port_cfg);
+		}
+#else
+		INFO_MAIN("Unsupported Card %i\n",hardware_info.card_model);
+		rc = 1;
 #endif
-
 	}
 
-	if (rc==0) {
-		INFO_MAIN("Stopping PORT!\n");
-		rc=sng_port_cfg_obj->stop_port();
-		if (rc == 0) {
-			INFO_MAIN("Configuring PORT!\n");
-			rc=sng_port_cfg_obj->set_volatile_configration(&port_cfg);
-			if (rc == 0) {
-				INFO_MAIN("Starting PORT!\n");
-				rc=sng_port_cfg_obj->start_port();
-				if (rc) {
-					INFO_MAIN("Error: Failed to Start Port!\n");
-				}
-			} else {
-				INFO_MAIN("Error: Failed to Configure Port!\n");
-			}
-		} else {
-			INFO_MAIN("Error: Failed to Stop Port!\n");
+	do{
+		if (rc) {
+			ERR_MAIN("Failed to Initialize Port Configuratoin structure!\n");
+			break;
 		}
 
-	} else {
-		INFO_MAIN("Error: Failed to Set Configuratoin Port!\n");
-	}
+#if 1
+		INFO_MAIN("Stopping PORT for re-configuration!\n");
+		if ((rc = sng_port_cfg_obj->stop_port())) {
+			ERR_MAIN("Failed to Stop Port! rc: %d\n", rc);
+			break;
+		}
+
+		INFO_MAIN("Configuring PORT!\n");
+		if ((rc = sng_port_cfg_obj->set_volatile_configration(&port_cfg))) {
+			ERR_MAIN("Failed to Configure Port! rc: %d\n", rc);
+			break;
+		}
+
+		INFO_MAIN("Starting PORT!\n");
+		if ((rc = sng_port_cfg_obj->start_port())) {
+			ERR_MAIN("Failed to Start Port! rc: %d\n", rc);
+			break;
+		}
+#endif
+#if 0
+		//Optional step: the volatile configuration can be stored on the hard drive.
+		if (rc = sng_port_cfg_obj->write_configration_on_persistent_storage(
+			&port_cfg, &hardware_info, program_settings.wanpipe_number)) {
+			ERR_MAIN("Failed to write configuration on persistant storage! rc: %d\n", rc);
+			break;
+		}
+#endif
+	}while(0);
 
 	if(sng_port_cfg_obj != NULL){
 		delete sng_port_cfg_obj;
 	}
 
-	sangoma_msleep(2000);
+	sangoma_msleep(2000);//wait a little (2 seconds) for initialization to complete
 
 	return rc;
 }

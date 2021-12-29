@@ -6,7 +6,7 @@
  *              Nenad Corbic   <ncorbic@sangoma.com>
  *              David Rokvargh <davidr@sangoma.com>
  *
- * Copyright:	(c) 1995-2005 Sangoma Technologies Inc.
+ * Copyright:	(c) 1995-2009 Sangoma Technologies Inc.
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -87,6 +87,12 @@
 # endif
 #endif
 
+#define wp_fax_tone_timeout_set(wr,chan) do { DEBUG_TEST("%s:%d: s%dc%d fax timeout set\n", \
+											__FUNCTION__,__LINE__, \
+											wp->spanno+1,chan+1); \
+											wp->ec_fax_detect_timeout[chan]=SYSTEM_TICKS; } while(0);
+
+
 #if defined(__FreeBSD__)
 extern short *__zt_mulaw;
 #endif
@@ -159,7 +165,11 @@ typedef struct wp_tdmv_pvt_area
 	/* T1 signalling */
 	struct zt_span	span;					/* Span */
 #ifdef DAHDI_ISSUES
+#ifdef DAHDI_22
+	struct dahdi_echocan_state ec[31];		/* echocan state for each channel */
+#endif
 	struct zt_chan	*chans_ptrs[31];			/* Channel ptrs */
+	
 #endif
 	struct zt_chan	chans[31];				/* Channels */
 	unsigned char	ec_chunk1[31][ZT_CHUNKSIZE];
@@ -195,6 +205,8 @@ typedef struct wp_tdmv_pvt_area
 	unsigned int	toneactive;
 	unsigned int	tonemask;
 	unsigned int	tonemutemask;
+	
+	unsigned long	ec_fax_detect_timeout[31+1];
 	
 } wp_tdmv_softc_t;
 
@@ -235,7 +247,18 @@ static int wp_tdmv_ioctl(struct zt_chan*, unsigned int, caddr_t);
 static int wp_tdmv_ioctl(struct zt_chan*, unsigned int, unsigned long);
 #endif
 
+#ifdef DAHDI_22
+static int wp_tdmv_hwec_create(struct dahdi_chan *chan, 
+							   struct dahdi_echocanparams *ecp,
+							   struct dahdi_echocanparam *p, 
+							   struct dahdi_echocan_state **ec);
+static void wp_tdmv_hwec_free(struct dahdi_chan *chan, 
+							   struct dahdi_echocan_state *ec);
+#else
 static int wp_tdmv_hwec(struct zt_chan *chan, int enable);
+#endif
+
+
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
 static void wp_tdmv_tx_hdlc_hard(struct zt_chan *chan);
 #endif
@@ -275,6 +298,25 @@ static inline void stop_alarm(wp_tdmv_softc_t* wp);
 static int wp_tdmv_init(void* pcard, wanif_conf_t *conf);
 
 static void wp_tdmv_callback_tone (void*, wan_event_t*);
+
+
+#ifdef DAHDI_22
+/*
+*******************************************************************************
+**			   DAHDI HWEC STRUCTURES
+*******************************************************************************
+*/
+static const struct dahdi_echocan_features wp_tdmv_ec_features = {
+	.NLP_automatic = 1,
+	.CED_tx_detect = 1,
+	.CED_rx_detect = 1,
+};
+
+static const struct dahdi_echocan_ops wp_tdmv_ec_ops = {
+	.name = "WANPIPE_HWEC",
+	.echocan_free = wp_tdmv_hwec_free,
+};
+#endif
 
 /******************************************************************************
 ** wp_tdmv_te1_init() - 
@@ -551,8 +593,8 @@ static int wp_tdmv_running(void* pcard)
 
 	wp = wan_tdmv->sc;
 	if (wp && wp->usecount){
-		DEBUG_EVENT("%s: WARNING: Wanpipe is still used by Asterisk!\n",
-				card->devname);
+		DEBUG_EVENT("%s: WARNING: Wanpipe is still used by Asterisk (cnt=%i)!\n",
+				card->devname,wp->usecount);
 		return -EINVAL;
 	}
 	return 0;
@@ -583,8 +625,8 @@ static int wp_tdmv_remove(void* pcard)
 		return -EINVAL;
 	}
 	if (wp && wp->usecount){
-		DEBUG_EVENT("%s: ERROR: Wanpipe is still used by Asterisk!\n",
-				card->devname);
+		DEBUG_EVENT("%s: ERROR: Wanpipe is still used by Asterisk (cnt=%i)!\n",
+				card->devname,wp->usecount);
 		return -EINVAL;
 	}
 
@@ -829,15 +871,15 @@ static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 	 */
 
 	if (wp->ise1) {
-		if (te_alarm & WAN_TE_BIT_RED_ALARM) 
+		if (te_alarm & WAN_TE_BIT_ALARM_RED) 
 			alarms |= ZT_ALARM_RED;
-		if (te_alarm & WAN_TE_BIT_OOF_ALARM) 
+		if (te_alarm & WAN_TE_BIT_ALARM_LOF) 
 			alarms |= ZT_ALARM_RED;
 	} else {
 		/* Check actual alarm status */
-		if (te_alarm & WAN_TE_BIT_RED_ALARM) 
+		if (te_alarm & WAN_TE_BIT_ALARM_RED) 
 			alarms |= ZT_ALARM_RED;
-		if (te_alarm & WAN_TE_BIT_OOF_ALARM) 
+		if (te_alarm & WAN_TE_BIT_ALARM_LOF) 
 			alarms |= ZT_ALARM_RED;
 	}
 	/* Keep track of recovering */
@@ -850,7 +892,7 @@ static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 		DEBUG_TDMV("%s: Going into yellow alarm\n",
 				wp->devname);
 		if (card->wandev.fe_iface.set_fe_alarm){
-			card->wandev.fe_iface.set_fe_alarm(&card->fe, WAN_TE_BIT_YEL_ALARM);
+			card->wandev.fe_iface.set_fe_alarm(&card->fe, WAN_TE_BIT_ALARM_YEL);
 		}
 	}
 #endif
@@ -863,7 +905,7 @@ static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 	/*
 	** if (wp->alarmtimer)
 	** alarms |= ZT_ALARM_RECOVER; */
-	if (te_alarm & WAN_TE_BIT_YEL_ALARM)
+	if (te_alarm & WAN_TE_BIT_ALARM_YEL)
 		alarms |= ZT_ALARM_YELLOW;
 
 	wp->span.alarms = alarms;
@@ -1094,7 +1136,11 @@ static int wp_tdmv_software_init(wan_tdmv_t *wan_tdmv)
 	/* Set this pointer only if card has hw echo canceller module */
 	if (wp->hwec == WANOPT_YES && card->wandev.ec_dev){
 		/* Initialize it only if HWEC option is enabled */
+#ifdef DAHDI_22
+		wp->span.echocan_create = wp_tdmv_hwec_create;
+#else
 		wp->span.echocan = wp_tdmv_hwec;
+#endif
 	}
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN) && defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL)
 	if (wp->dchan_map){
@@ -1445,6 +1491,7 @@ static int wp_tdmv_chanconfig(struct zt_chan *chan, int sigtype)
 {
 	sdla_t		*card;
 	wp_tdmv_softc_t	*wp = NULL;
+	int hdlcsig = sigtype & ~(ZT_SIG_CLEAR);
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
@@ -1466,6 +1513,15 @@ static int wp_tdmv_chanconfig(struct zt_chan *chan, int sigtype)
 			wan_set_bit(chan->chanpos-1, &wp->rbs_rx_pending);
 		}
 		wp_tdmv_sigctrl(card, wp, chan->chanpos, WP_TDMV_ENABLE);
+	}
+
+	/* Disable hwec on signalling channel */
+	if (wp->hwec == WANOPT_YES && card->wandev.ec_dev && card->wandev.ec_enable) {
+		if (IS_CHAN_HARDHDLC(chan) || hdlcsig & ZT_SIG_HDLCRAW || hdlcsig & ZT_SIG_HDLCFCS) {
+			DEBUG_TEST("%s: Disabling EC Chan=%i, sigtype 0x%03X, HDLCRAW=0x%X  FCS=0x%X\n",
+					card->devname, chan->chanpos, sigtype, ZT_SIG_HDLCRAW, ZT_SIG_HDLCFCS);
+			card->wandev.ec_enable(card, 0, chan->chanpos);
+		}
 	}
 	return 0;
 }
@@ -1959,6 +2015,100 @@ wp_tdmv_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 	return err;
 }
 
+
+#ifdef DAHDI_22
+/******************************************************************************
+** wp_tdmv_hwec_create() - 
+**
+**	OK
+*/
+static int wp_tdmv_hwec_create(struct dahdi_chan *chan, 
+							   struct dahdi_echocanparams *ecp,
+							   struct dahdi_echocanparam *p, 
+							   struct dahdi_echocan_state **ec)
+{
+	wp_tdmv_softc_t	*wp = NULL;
+	sdla_t *card = NULL;
+	int	err = -EINVAL;
+	
+	if (ecp->param_count > 0) {
+		DEBUG_TDMV("[TDMV] Wanpipe echo canceller does not support parameters; failing request\n");
+		return -EINVAL;
+	}
+	
+	WAN_ASSERT2(chan == NULL, -ENODEV);
+	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
+	wp = chan->pvt;
+	WAN_ASSERT2(wp->card == NULL, -ENODEV);
+	card = wp->card;
+
+	*ec = &wp->ec[chan->chanpos - 1];
+	(*ec)->ops = &wp_tdmv_ec_ops;
+	(*ec)->features = wp_tdmv_ec_features;
+	
+	wan_set_bit((chan->chanpos - 1), &card->wandev.rtp_tap_call_map);
+	wp_fax_tone_timeout_set(wp, chan->chanpos-1);
+	
+	if (card->wandev.ec_enable){
+		DEBUG_TDMV("[TDMV] %s: %s HW echo canceller on channel %d\n",
+				   wp->devname,
+				   "Enable",
+				   chan->chanpos);
+		
+
+		/* The ec persist flag enables and disables
+		* persistent echo control.  In persist mode
+		* echo cancellation is enabled regardless of
+		* asterisk.  In persist mode off asterisk 
+		* controls hardware echo cancellation */
+		if (card->hwec_conf.persist_disable || IS_CHAN_HARDHDLC(chan)) {
+			err = card->wandev.ec_enable(card, 1, chan->chanpos);
+		} else {
+			err = 0;			
+		}
+	}
+
+	return err;
+}
+
+/*  wp_tdmv_hwec_free() - 
+**
+**	OK
+*/
+static void wp_tdmv_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_state *ec)
+{
+	wp_tdmv_softc_t	*wp = NULL;
+	sdla_t *card = NULL;
+
+	memset(ec, 0, sizeof(*ec));
+
+	if(chan == NULL) return;
+	if(chan->pvt == NULL) return;
+	wp = chan->pvt;
+	if(wp->card == NULL) return;
+	card = wp->card;
+
+	wan_clear_bit(chan->chanpos-1, &card->wandev.rtp_tap_call_map);
+
+	if (card->wandev.ec_enable) {
+		DEBUG_TDMV("[TDMV] %s: Disable HW echo canceller on channel %d\n",
+				wp->devname, chan->chanpos);
+
+		/* The ec persist flag enables and disables
+	         * persistent echo control.  In persist mode
+                 * echo cancellation is enabled regardless of
+                 * asterisk.  In persist mode off asterisk 
+                 * controls hardware echo cancellation */
+		if (card->hwec_conf.persist_disable || IS_CHAN_HARDHDLC(chan)) {
+			card->wandev.ec_enable(card, 0, chan->chanpos);
+		}
+	}
+	
+	return;
+}
+
+
+#else
 /******************************************************************************
 ** wp_tdmv_hwec() - 
 **
@@ -1968,7 +2118,6 @@ static int wp_tdmv_hwec(struct zt_chan *chan, int enable)
 {
 	wp_tdmv_softc_t	*wp = NULL;
 	sdla_t		*card = NULL;
-	int		channel = chan->chanpos;
 	int		err = -EINVAL;
 	
 	WAN_ASSERT2(chan == NULL, -ENODEV);
@@ -1977,21 +2126,18 @@ static int wp_tdmv_hwec(struct zt_chan *chan, int enable)
 	WAN_ASSERT2(wp->card == NULL, -ENODEV);
 	card = wp->card;
 
-	if (!wp->ise1){
-		channel--;
-	}
-	
 	if (enable) {
-		wan_set_bit(channel,&card->wandev.rtp_tap_call_map);
+		wan_set_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
+		wp_fax_tone_timeout_set(wp, chan->chanpos-1);
 	} else {
-		wan_clear_bit(channel,&card->wandev.rtp_tap_call_map);
+		wan_clear_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
 	}
-	
+
 	if (card->wandev.ec_enable){
 		DEBUG_TDMV("[TDMV] %s: %s HW echo canceller on channel %d\n",
 				wp->devname,
 				(enable) ? "Enable" : "Disable",
-				channel);
+				chan->chanpos);
 		
 
 		/* The ec persist flag enables and disables
@@ -2008,6 +2154,8 @@ static int wp_tdmv_hwec(struct zt_chan *chan, int enable)
 
 	return err;
 }
+#endif
+
 
 /******************************************************************************
 ** wp_tdmv_open() - 
@@ -2018,13 +2166,17 @@ static int wp_tdmv_open(struct zt_chan *chan)
 {
 	wp_tdmv_softc_t	*wp = NULL;
 	sdla_t		*card = NULL;
-	
+	wan_smp_flag_t flags;
+
 	WAN_ASSERT2(chan == NULL, -ENODEV);
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wp = chan->pvt;
 	WAN_ASSERT2(wp->card == NULL, -ENODEV);
 	card = wp->card;
+	wan_spin_lock_irq(&wp->lockirq, &flags);
 	wp->usecount++;
+	wan_spin_unlock_irq(&wp->lockirq, &flags);
+	wanpipe_open(card);
 	DEBUG_TDMV("%s: Open (usecount=%d, channo=%d, chanpos=%d)...\n", 
 				wp->devname,
 				wp->usecount,
@@ -2042,11 +2194,18 @@ static int wp_tdmv_open(struct zt_chan *chan)
 static int wp_tdmv_close(struct zt_chan *chan)
 {
 	wp_tdmv_softc_t*	wp = NULL;
-	
+	sdla_t		*card = NULL;
+	wan_smp_flag_t flags;
+
 	WAN_ASSERT2(chan == NULL, -ENODEV);
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wp = chan->pvt;
+	WAN_ASSERT2(wp->card == NULL, -ENODEV);
+	card = wp->card;
+	wan_spin_lock_irq(&wp->lockirq, &flags);
 	wp->usecount--;
+	wan_spin_unlock_irq(&wp->lockirq, &flags);
+	wanpipe_close(card);
 	DEBUG_TDMV("%s: Close (usecount=%d, channo=%d, chanpos=%d)...\n", 
 				wp->devname,
 				wp->usecount,
@@ -2399,25 +2558,31 @@ static int wp_tdmv_rx_chan(wan_tdmv_t *wan_tdmv, int channo,
 	return 0;
 }
 
-
+#undef AFT_TDM_ROTATE_DEBUG
+#ifdef AFT_TDM_ROTATE_DEBUG
+static int rotate_debug[32];
+#warning "AFT_TDM_ROTATE_DEBUG Enabled"
+#include "aft_core.h"
+#endif
 static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask, int circ_buf_len)
 {
 	sdla_t		*card = (sdla_t*)pcard;
 	wan_tdmv_t	*wan_tdmv = &card->wan_tdmv;
 	wp_tdmv_softc_t	*wp = NULL;
 	int x;
+	int tidx;
 	unsigned int rx_offset, tx_offset;
 	void *ptr;
 	wan_smp_flag_t flag;
-	
+
 	WAN_ASSERT(wan_tdmv->sc == NULL);
 	wp = wan_tdmv->sc; 
 
-
+#ifdef AFT_TDM_ROTATE_DEBUG
+	rotate_debug[card->tdmv_conf.span_no]++;
+#endif
 
 	for (x = 0; x < 32; x ++) {
-
-
 
 		if (wan_test_bit(x,&wp->timeslot_map)) {
 
@@ -2426,30 +2591,66 @@ static int wp_tdmv_span_buf_rotate(void *pcard, u32 buf_sz, unsigned long mask, 
 				continue;
 			}
 
-			rx_offset = buf_sz * card->u.aft.tdm_rx_dma_toggle[x];
-			tx_offset = buf_sz * card->u.aft.tdm_tx_dma_toggle[x];	
-
-			card->u.aft.tdm_rx_dma_toggle[x]++;
-			if (card->u.aft.tdm_rx_dma_toggle[x] >= circ_buf_len) {
-				card->u.aft.tdm_rx_dma_toggle[x]=0;
+			if (wp->ise1) {
+				tidx=x+1;
+			} else {
+				tidx=x;
 			}
-			card->u.aft.tdm_tx_dma_toggle[x]++;
-			if (card->u.aft.tdm_tx_dma_toggle[x] >= circ_buf_len) {
-				card->u.aft.tdm_tx_dma_toggle[x]=0;
+
+#ifdef AFT_TDM_ROTATE_DEBUG
+			if (1) {
+				u32 dma_descr, lo_reg, lo_reg_tx, lch;
+				lch=x;
+
+				dma_descr=(lch<<4) +
+							AFT_PORT_REG(card,AFT_RX_DMA_LO_DESCR_BASE_REG);
+				card->hw_iface.bus_read_4(card->hw,dma_descr,&lo_reg);
+			
+				dma_descr=(lch<<4) +
+							AFT_PORT_REG(card,AFT_TX_DMA_LO_DESCR_BASE_REG);
+				card->hw_iface.bus_read_4(card->hw,dma_descr,&lo_reg_tx);
+			
+				lo_reg=(lo_reg&AFT_TDMV_BUF_MASK)/AFT_TDMV_CIRC_BUF;
+				lo_reg_tx=(lo_reg_tx&AFT_TDMV_BUF_MASK)/AFT_TDMV_CIRC_BUF;
+
+#if 0
+				if (rotate_debug[card->tdmv_conf.span_no] < 5) {
+#else
+				if (rotate_debug[card->tdmv_conf.span_no] < 5 ||
+					abs(card->u.aft.tdm_rx_dma_toggle[tidx] - lo_reg) != 2 ||
+					abs(card->u.aft.tdm_tx_dma_toggle[tidx] - lo_reg_tx) != 2) {
+#endif
+					DEBUG_EVENT("%s: Rotating buffer lch=%i tidx=%i  rxdma=%i (hw=%i), txdma=%i (hw=%i)\n",
+						card->devname, lch, tidx, card->u.aft.tdm_rx_dma_toggle[tidx], lo_reg,card->u.aft.tdm_tx_dma_toggle[tidx],lo_reg_tx);
+				}
+			}
+#endif
+
+			rx_offset = buf_sz * card->u.aft.tdm_rx_dma_toggle[tidx];
+			tx_offset = buf_sz * card->u.aft.tdm_tx_dma_toggle[tidx];	
+
+			card->u.aft.tdm_rx_dma_toggle[tidx]++;
+			if (card->u.aft.tdm_rx_dma_toggle[tidx] >= circ_buf_len) {
+				card->u.aft.tdm_rx_dma_toggle[tidx]=0;
+			}
+			card->u.aft.tdm_tx_dma_toggle[tidx]++;
+			if (card->u.aft.tdm_tx_dma_toggle[tidx] >= circ_buf_len) {
+				card->u.aft.tdm_tx_dma_toggle[tidx]=0;
 			}
 
 			wan_spin_lock(&wp->chans[x].lock,&flag);
-				
-                        ptr=(void*)((((unsigned long)wp->chans[x].readchunk) & ~(mask)) + rx_offset);
+
+			ptr=(void*)((((unsigned long)wp->chans[x].readchunk) & ~(mask)) + rx_offset);
 			wp->chans[x].readchunk = ptr;
-                        ptr=(void*)((((unsigned long)wp->chans[x].writechunk) & ~(mask)) + tx_offset);
+
+			ptr=(void*)((((unsigned long)wp->chans[x].writechunk) & ~(mask)) + tx_offset);
 			wp->chans[x].writechunk = ptr;
 			
 			wan_spin_unlock(&wp->chans[x].lock,&flag);
 
 #if defined(__LINUX__)
-      			prefetch(wp->chans[x].readchunk);
-      			prefetch(wp->chans[x].writechunk);
+			prefetch(wp->chans[x].readchunk);
+			prefetch(wp->chans[x].writechunk);
 #endif
 
 			if (card->wandev.rtp_len && card->wandev.rtp_tap) {
@@ -2535,11 +2736,21 @@ static int wp_tdmv_init(void* pcard, wanif_conf_t *conf)
 static void wp_tdmv_callback_tone (void* card_id, wan_event_t *event)
 {
 	sdla_t		*card = (sdla_t*)card_id;
-        wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
-        wp_tdmv_softc_t	*wp = NULL;
+	wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
+	wp_tdmv_softc_t	*wp = NULL;
+	int fechan = 	event->channel;
+	
+	WAN_ASSERT1(wan_tdmv->sc == NULL);
+	wp = wan_tdmv->sc;
 
-        WAN_ASSERT1(wan_tdmv->sc == NULL);
-        wp = wan_tdmv->sc;
+	if (event->channel <= 0) {
+     	DEBUG_EVENT("%s: Error: wp_tdmv_callback_tone() Invalid Event Channel = %i\n",
+				card->devname, event->channel);
+		return;
+	}
+
+	/* fechan check is a sanity check */
+    fechan=event->channel-1;
 	
 	if (event->type != WAN_EVENT_EC_DTMF){
 		DEBUG_EVENT("ERROR: %s: Invalid event type %X!\n",
@@ -2562,8 +2773,45 @@ static void wp_tdmv_callback_tone (void* card_id, wan_event_t *event)
 		return;
 	}
 
+	if (event->digit == 'f' && fechan >= 0) {
+
+		if (!card->tdmv_conf.hw_fax_detect) {
+			DEBUG_TDMV("%s: Received Fax Detect event while hw fax disabled !\n",card->devname);
+			return;
+		}
+
+		if (card->tdmv_conf.hw_fax_detect == WANOPT_YES) {
+         	card->tdmv_conf.hw_fax_detect=8;
+		}
+
+		if (wp->ec_fax_detect_timeout[fechan] == 0) {
+			DEBUG_TDMV("%s: FAX DETECT TIMEOUT --- Not initialized!\n",card->devname);
+			return;
+
+		} else 	if (card->tdmv_conf.hw_fax_detect &&
+	    		   (SYSTEM_TICKS - wp->ec_fax_detect_timeout[fechan]) >= card->tdmv_conf.hw_fax_detect*HZ) {
+#ifdef WAN_DEBUG_TDMAPI
+			if (WAN_NET_RATELIMIT()) {
+				DEBUG_EVENT("%s: Warning: Ignoring Fax detect during call (s%dc%d) - Call Time: %ld  Max: %d!\n",
+					card->devname,
+					wp->spanno+1,
+					event->channel,
+					(SYSTEM_TICKS - wp->ec_fax_detect_timeout[fechan])/HZ,
+					card->tdmv_conf.hw_fax_detect);
+			}
+#endif
+			return;
+		} else {
+
+			DEBUG_TDMV("%s: FAX DETECT OK --- Ticks=%lu Timeout=%lu Diff=%lu! s%dc%d\n",
+				card->devname,SYSTEM_TICKS,wp->ec_fax_detect_timeout[fechan],
+				(SYSTEM_TICKS - wp->ec_fax_detect_timeout[fechan])/HZ,
+				card->wan_tdmv.spanno,fechan);
+		}
+	}
+
 	if (event->tone_type == WAN_EC_TONE_PRESENT){
-		wp->toneactive |= (1 << event->channel);
+		wp->toneactive |= (1 << (event->channel-1));
 #ifdef DAHDI_ISSUES
 		zt_qevent_lock(
 				wp->span.chans[event->channel-1],
@@ -2574,7 +2822,7 @@ static void wp_tdmv_callback_tone (void* card_id, wan_event_t *event)
 				(ZT_EVENT_DTMFDOWN | event->digit));
 #endif
 	}else{
-		wp->toneactive &= ~(1 << event->channel);
+		wp->toneactive &= ~(1 << (event->channel-1));
 #ifdef DAHDI_ISSUES
 		zt_qevent_lock(
 				wp->span.chans[event->channel-1],

@@ -40,39 +40,6 @@
 #include "wanpipe_api_hdr.h"
 #include "wanpipe_api_iface.h"
 
-/*!
-  \def WP_API_EVENT_SET
-  \brief Option to write a particular command
-  \def WP_API_EVENT_GET
-  \brief Option to read a particular command
-  \def WP_API_EVENT_ENABLE
-  \brief Option to enable command
-  \def WP_API_EVENT_DISABLE
-  \brief Option to disable command
-  \def WP_API_EVENT_MODE_DECODE
-  \brief Decode disable/enable command
-*/
-#define WP_API_EVENT_SET		0x01
-#define WP_API_EVENT_GET		0x02
-#define WP_API_EVENT_ENABLE		0x01
-#define WP_API_EVENT_DISABLE	0x02
-
-#define WP_API_EVENT_MODE_DECODE(mode)					\
-		((mode) == WP_API_EVENT_ENABLE) ? "Enable" :		\
-		((mode) == WP_API_EVENT_DISABLE) ? "Disable" :		\
-						"(Unknown mode)"
-
-#define WP_API_EVENT_RXHOOK_OFF		0x01
-#define WP_API_EVENT_RXHOOK_ON		0x02
-
-#define WP_API_EVENT_RING_PRESENT	0x01
-#define WP_API_EVENT_RING_STOP		0x02
-
-/* tone type */
-#define	WP_API_EVENT_TONE_DIAL		0x01
-#define	WP_API_EVENT_TONE_BUSY		0x02
-#define	WP_API_EVENT_TONE_RING		0x03
-#define	WP_API_EVENT_TONE_CONGESTION	0x04
 
 /***************************************************************//**
  * WANPIPE API HEADER & EVENT STRUCTURE

@@ -69,7 +69,9 @@ sangoma_interface::sangoma_interface(int wanpipe_number, int interface_number)
 	generate_bit_rev_table();
 #if DBG_TIMING
 	memset(&wan_debug_rx_timing, 0x00, sizeof(wan_debug_t));
-	debug_set_timing_info(&wan_debug_rx_timing, 20, 0);
+	debug_set_timing_info(	&wan_debug_rx_timing,
+							20	/* expected timediff in milliseconds */,
+							2	/* allowed deviation from expected timediff */);
 #endif
 }
 
@@ -127,7 +129,11 @@ int sangoma_interface::init(callback_functions_t *callback_functions_ptr)
 	//2. Software DTMF detection.
 	//3. Q931 decoding
 	//4. FSK Caller ID Generation.
+	
+	//initialize Stelephony callback struct!
+	memset(&scf, 0x00, sizeof(scf));
 
+	//copy callback pointers from global to stelephony
 	scf.FSKCallerIDEvent	= callback_functions.FSKCallerIDEvent;
 	scf.DTMFEvent			= callback_functions.DTMFEvent;
 	scf.Q931Event			= callback_functions.Q931Event;
@@ -339,54 +345,73 @@ void sangoma_interface::get_te1_56k_stat(void)
 	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
 		INFO_IFACE("***** %s: %s Alarms (Framer) *****\n\n",
 			device_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
-		INFO_IFACE("ALOS:\t%s\t| LOS:\t%s\n",
-				WAN_TE_ALOS_ALARM(fe_stats->alarms),
-				WAN_TE_LOS_ALARM(fe_stats->alarms));
-		INFO_IFACE("RED:\t%s\t| AIS:\t%s\n",
-				WAN_TE_RED_ALARM(fe_stats->alarms),
-				WAN_TE_AIS_ALARM(fe_stats->alarms));
-		if (adapter_type == WAN_MEDIA_T1){
-			INFO_IFACE("RAI:\t%s\t| OOF:\t%s\n",
-					WAN_TE_RAI_ALARM(fe_stats->alarms),
-					WAN_TE_OOF_ALARM(fe_stats->alarms));
-		}else{
-			INFO_IFACE("OOF:\t%s\t| RAI:\t%s\n",
-					WAN_TE_OOF_ALARM(fe_stats->alarms),
-					WAN_TE_RAI_ALARM(fe_stats->alarms));
-		}
+		INFO_IFACE("ALOS:\t%s\t| LOS:\t%s\n", 
+				WAN_TE_PRN_ALARM_ALOS(fe_stats->alarms), 
+				WAN_TE_PRN_ALARM_LOS(fe_stats->alarms));
+		INFO_IFACE("RED:\t%s\t| AIS:\t%s\n", 
+				WAN_TE_PRN_ALARM_RED(fe_stats->alarms), 
+				WAN_TE_PRN_ALARM_AIS(fe_stats->alarms));
+		INFO_IFACE("LOF:\t%s\t| RAI:\t%s\n", 
+				WAN_TE_PRN_ALARM_LOF(fe_stats->alarms),
+				WAN_TE_PRN_ALARM_RAI(fe_stats->alarms));
 
-		if (fe_stats->alarms & WAN_TE_BIT_LIU_ALARM){
+		if (fe_stats->alarms & WAN_TE_ALARM_LIU){
 			INFO_IFACE("\n***** %s: %s Alarms (LIU) *****\n\n",
 				device_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
-			INFO_IFACE("Short Circuit:\t%s\n",
-					WAN_TE_LIU_ALARM_SC(fe_stats->alarms));
-			INFO_IFACE("Open Circuit:\t%s\n",
-					WAN_TE_LIU_ALARM_OC(fe_stats->alarms));
-			INFO_IFACE("Loss of Signal:\t%s\n",
-					WAN_TE_LIU_ALARM_LOS(fe_stats->alarms));
+			INFO_IFACE("Short Circuit:\t%s\n", 
+					WAN_TE_PRN_ALARM_LIU_SC(fe_stats->alarms));
+			INFO_IFACE("Open Circuit:\t%s\n", 
+					WAN_TE_PRN_ALARM_LIU_OC(fe_stats->alarms));
+			INFO_IFACE("Loss of Signal:\t%s\n", 
+					WAN_TE_PRN_ALARM_LIU_LOS(fe_stats->alarms));
 		}
 
+	}else if  (adapter_type == WAN_MEDIA_DS3 || adapter_type == WAN_MEDIA_E3){
+		INFO_IFACE("***** %s: %s Alarms *****\n\n",
+			device_name, (adapter_type == WAN_MEDIA_DS3) ? "DS3" : "E3");
+
+		if (adapter_type == WAN_MEDIA_DS3){
+			INFO_IFACE("AIS:\t%s\t| LOS:\t%s\n",
+					WAN_TE3_AIS_ALARM(fe_stats->alarms),
+					WAN_TE3_LOS_ALARM(fe_stats->alarms));
+
+			INFO_IFACE("OOF:\t%s\t| YEL:\t%s\n",
+					WAN_TE3_OOF_ALARM(fe_stats->alarms),
+					WAN_TE3_YEL_ALARM(fe_stats->alarms));
+		}else{
+			INFO_IFACE("AIS:\t%s\t| LOS:\t%s\n",
+					WAN_TE3_AIS_ALARM(fe_stats->alarms),
+					WAN_TE3_LOS_ALARM(fe_stats->alarms));
+
+			INFO_IFACE("OOF:\t%s\t| YEL:\t%s\n",
+					WAN_TE3_OOF_ALARM(fe_stats->alarms),
+					WAN_TE3_YEL_ALARM(fe_stats->alarms));
+			
+			INFO_IFACE("LOF:\t%s\t\n",
+					WAN_TE3_LOF_ALARM(fe_stats->alarms));
+		}
+		
 	}else if (adapter_type == WAN_MEDIA_56K){
 		INFO_IFACE("***** %s: 56K CSU/DSU Alarms *****\n\n\n", device_name);
 	 	INFO_IFACE("In Service:\t\t%s\tData mode idle:\t\t%s\n",
-			 	INS_ALARM_56K(fe_stats->alarms),
+			 	INS_ALARM_56K(fe_stats->alarms), 
 			 	DMI_ALARM_56K(fe_stats->alarms));
-
+	
 	 	INFO_IFACE("Zero supp. code:\t%s\tCtrl mode idle:\t\t%s\n",
-			 	ZCS_ALARM_56K(fe_stats->alarms),
+			 	ZCS_ALARM_56K(fe_stats->alarms), 
 			 	CMI_ALARM_56K(fe_stats->alarms));
 
 	 	INFO_IFACE("Out of service code:\t%s\tOut of frame code:\t%s\n",
-			 	OOS_ALARM_56K(fe_stats->alarms),
+			 	OOS_ALARM_56K(fe_stats->alarms), 
 			 	OOF_ALARM_56K(fe_stats->alarms));
-
+		
 	 	INFO_IFACE("Valid DSU NL loopback:\t%s\tUnsigned mux code:\t%s\n",
-			 	DLP_ALARM_56K(fe_stats->alarms),
+			 	DLP_ALARM_56K(fe_stats->alarms), 
 			 	UMC_ALARM_56K(fe_stats->alarms));
 
 	 	INFO_IFACE("Rx loss of signal:\t%s\t\n",
-			 	RLOS_ALARM_56K(fe_stats->alarms));
-
+			 	RLOS_ALARM_56K(fe_stats->alarms)); 
+		
 	}else{
 		INFO_IFACE("***** %s: Unknown Front End 0x%X *****\n\n",
 			device_name, adapter_type);
@@ -427,10 +452,33 @@ void sangoma_interface::get_te1_56k_stat(void)
 		}
 	}
 
+	if (adapter_type == WAN_MEDIA_DS3 || adapter_type == WAN_MEDIA_E3){
+		sdla_te3_pmon_t*	pmon = &fe_stats->u.te3_pmon;
+
+		INFO_IFACE("\n\n***** %s: %s Performance Monitoring Counters *****\n\n",
+				device_name, (adapter_type == WAN_MEDIA_DS3) ? "DS3" : "E3");
+
+		INFO_IFACE("Framing Bit Error:\t%d\tLine Code Violation:\t%d\n", 
+				pmon->pmon_framing,
+				pmon->pmon_lcv);
+
+		if (adapter_type == WAN_MEDIA_DS3){
+			INFO_IFACE("Parity Error:\t\t%d\n",
+					pmon->pmon_parity);
+			INFO_IFACE("CP-Bit Error Event:\t%d\tFEBE Event:\t\t%d\n", 
+					pmon->pmon_cpbit,
+					pmon->pmon_febe);
+		}else{
+			INFO_IFACE("Parity Error:\t%d\tFEBE Event:\t\t%d\n",
+					pmon->pmon_parity,
+					pmon->pmon_febe);
+		}
+	}
+	
 	if (adapter_type == WAN_MEDIA_T1 || adapter_type == WAN_MEDIA_E1){
 		if (strlen(fe_stats->u.te1_stats.rxlevel)){
 			INFO_IFACE("\n\nRx Level\t: %s\n",
-					fe_stats->u.te1_stats.rxlevel);
+					fe_stats->u.te1_stats.rxlevel);		
 		}
 	}
 
@@ -1066,7 +1114,7 @@ int sangoma_interface::stop()
 
 int sangoma_interface::run()
 {
-	DBG_IFACE("sangoma_interface::run()\n");
+	DBG_IFACE("%s()\n", __FUNCTION__);
 
 	switch(wanif_conf_struct.media)
 	{
@@ -1074,8 +1122,7 @@ int sangoma_interface::run()
 		switch(wanif_conf_struct.sub_media)
 		{
 		case MOD_TYPE_FXS:
-			tdm_enable_rm_dtmf_events();
-			tdm_control_flash_events(1250); /* enable flash on fxs */
+			//tdm_control_flash_events(1250); /* enable flash on fxs (optional) */
 			break;
 		case MOD_TYPE_FXO:
 			// Do nothing Special
@@ -1264,14 +1311,12 @@ void sangoma_interface::RxThreadFunc()
 #endif
 
 	while(terminate_tx_rx_threads == 0){
-
 		iResult = sangoma_waitfor_many(&sng_wait_obj,
 					       input_flags,
 					       output_flags,
 				           NUMBER_OF_WAIT_OBJECTS,
-						   2000 /* wait timeout, in milliseconds */
+						   5000 /* Wait timeout, in milliseconds. Or SANGOMA_INFINITE_API_POLL_WAIT. */
 						   );
-
 		if(terminate_tx_rx_threads){
 			break;
 		}
@@ -1280,7 +1325,7 @@ void sangoma_interface::RxThreadFunc()
 		{
 		case SANG_STATUS_APIPOLL_TIMEOUT:
 			//timeout. try again.
-			DBG_IFACE("Timeout\n");
+			DBG_IFACE("%s(): Timeout\n", __FUNCTION__);
 			continue;
 
 		case SANG_STATUS_SUCCESS:
@@ -1645,3 +1690,42 @@ repeat_read_reg:
 	return;
 }
 
+
+
+
+sangoma_api_ctrl_dev::sangoma_api_ctrl_dev():sangoma_interface(0, 0)
+{
+	IFACE_FUNC();
+
+	//Initialize Device Name (for debugging only).
+	_snprintf(device_name, DEV_NAME_LEN, WP_CTRL_DEV_NAME);
+
+	INFO_IFACE("Using Device Name: %s\n", device_name);
+}
+
+sangoma_api_ctrl_dev::~sangoma_api_ctrl_dev()
+{
+	IFACE_FUNC();
+}
+
+int sangoma_api_ctrl_dev::init(callback_functions_t *callback_functions_ptr)
+{
+	IFACE_FUNC();
+
+	memcpy(&callback_functions, callback_functions_ptr, sizeof(callback_functions_t));
+
+	////////////////////////////////////////////////////////////////////////////
+	//open handle for reading and writing data, for events reception and other commands
+	sangoma_dev = sangoma_open_api_ctrl();
+    if (sangoma_dev == INVALID_HANDLE_VALUE){
+		ERR_IFACE("Unable to open Ctrl Dev!\n");
+		return 1;
+	}
+
+	if(SANG_ERROR(sangoma_wait_obj_create(&sng_wait_obj, sangoma_dev, SANGOMA_DEVICE_WAIT_OBJ_SIG))){
+		ERR_IFACE("Failed to create 'sangoma_wait_object' for %s\n", device_name);
+		return 1;
+	}
+
+	return 0;
+}

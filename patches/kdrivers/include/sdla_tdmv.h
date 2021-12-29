@@ -63,6 +63,7 @@ typedef struct wan_tdmv_
 	int	brt_enable;
 	int	sig_intr_enable;
 	int	spanno;
+
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE_ECHOMASTER)
 	wan_tdmv_rxtx_pwr_t chan_pwr[31];	
 #endif

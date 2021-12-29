@@ -305,9 +305,7 @@ int wp_adsl_init (sdla_t* card, wandev_conf_t* conf)
 			adsl_disable_comm(card->u.adsl.adapter);
 			return err;
 		}
-#if !defined(LINUX_2_6)
 		MOD_INC_USE_COUNT;
-#endif
 	}
 #endif
 
@@ -442,7 +440,7 @@ static int new_if (wan_device_t* wandev, netdevice_t* ifp, wanif_conf_t* conf)
 	WAN_TASKQ_INIT((&adsl->adsl_if_send_task), 0, adsl_if_send_task_func, ifp);
 #endif
 
-	ifp->priv	= adsl;
+	wan_netif_set_priv(ifp,adsl);
 	ifp->irq        = card->wandev.irq;
 	card->hw_iface.getcfg(card->hw, SDLA_MEMBASE, &ifp->mem_start);
 	card->hw_iface.getcfg(card->hw, SDLA_MEMEND, &ifp->mem_end);
@@ -743,9 +741,7 @@ static void disable_comm(sdla_t* card)
 
 	if (wan){
 #if !defined(__WINDOWS__)
-#if !defined(LINUX_2_6)
 		MOD_DEC_USE_COUNT;
-#endif
 #endif
 	}
 }
@@ -818,9 +814,7 @@ static int adsl_open(netdevice_t* ifp)
 		wanpipe_lip_connect(adsl,0);
 	}
 
-#if !defined(LINUX_2_6)	
 	MOD_INC_USE_COUNT;
-#endif
 	return status;
 }
 
@@ -850,9 +844,7 @@ int adsl_close(netdevice_t* ifp)
 	/* Stop Tx queuing */
 	WAN_NETIF_STOP_QUEUE(ifp);
 	WAN_NETDEVICE_STOP(ifp);
-#if !defined(LINUX_2_6)
 	MOD_DEC_USE_COUNT;
-#endif
 	return status;
 }
 #elif defined(__WINDOWS__)
@@ -2427,7 +2419,7 @@ static int process_udp_cmd(netdevice_t* ifp, wan_udp_hdr_t* udp_hdr)
 #if defined (__LINUX__)
 static int wanpipe_attach_sppp(sdla_t *card, netdevice_t *dev, wanif_conf_t *conf)
 {
-	adsl_private_area_t *adsl=dev->priv;
+	adsl_private_area_t *adsl=wan_netif_priv(dev);
 	struct ppp_device *pppdev=NULL;
 	struct sppp *sp=NULL;
 

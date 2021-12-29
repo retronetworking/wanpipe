@@ -682,7 +682,9 @@ enum {
 	AFT_TDM_GLOBAL_ISR,
 	AFT_TDM_RING_BUF,
 	AFT_TDM_FAST_ISR,
-	AFT_TDM_SW_RING_BUF
+	AFT_TDM_SW_RING_BUF,
+	AFT_TDM_RING_SYNC_RESET,
+	AFT_TDM_FREE_RUN_ISR
 };
 
 typedef struct 
@@ -833,8 +835,9 @@ typedef struct sdla
 	wan_tdmv_conf_t		tdmv_conf;
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 	wan_tdmv_iface_t	tdmv_iface;
-	wan_tdmv_t		wan_tdmv;
+	wan_tdmv_t			wan_tdmv;
 #endif
+
 
 	wan_hwec_conf_t		hwec_conf;
 	wan_rtp_conf_t		rtp_conf;
@@ -909,8 +912,15 @@ typedef struct sdla
 #endif
 
 	void *tdm_api_dev;
+	void *tdm_api_span;
 	unsigned char wp_debug_gen_fifo_err;
 	unsigned char wp_debug_chan_seq;
+ 
+#if defined(WANPIPE_PERFORMANCE_DEBUG)
+ 	wan_ticks_t				debug_timeout;
+	struct timeval			timing_tv;
+#endif
+
 } sdla_t;
 
 /****** Public Functions ****************************************************/
@@ -991,6 +1001,7 @@ extern struct wanpipe_lapb_register_struct lapb_protocol;
 int wan_snmp_data(sdla_t* card, netdevice_t* dev, int cmd, struct ifreq* ifr);
 
 int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, char direction);
+int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char *data, int len, char direction);
 int wan_capture_trace_packet_offset(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, int off,char direction);
 void debug_print_udp_pkt(unsigned char *data,int len,char trc_enabled, char direction);
 

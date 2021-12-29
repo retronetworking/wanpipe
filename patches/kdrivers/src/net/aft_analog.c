@@ -404,6 +404,8 @@ int aft_analog_global_chip_config(sdla_t *card)
 	}
 	
 	card->hw_iface.getcfg(card->hw, SDLA_HWCPU_USEDCNT, &used_cnt);
+			
+	card->fe_no_intr=1;	
 	
 	/*============ GLOBAL CHIP CONFIGURATION ===============*/
 	if (used_cnt == 1) {
@@ -425,7 +427,6 @@ int aft_analog_global_chip_config(sdla_t *card)
 		
 		/* Do not allow front end interrupt to start */
 		if (!IS_A700_CARD(card)) {
-			card->fe_no_intr=1;	
 			DEBUG_CFG("--- Chip enable/config. -- \n");
 			wan_clear_bit(AFT_CHIPCFG_FE_INTR_CFG_BIT,&reg);
 		}

@@ -1882,7 +1882,7 @@ static int get_dev_config_info(char* buf, char** start, off_t offs, int len,int 
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
 			}
-			m->count = wandev->get_config_info(dev->priv, 
+			m->count = wandev->get_config_info(wan_netif_priv(dev),
 							   m, 
 							   M_STOP_CNT(m)); 
 		}
@@ -1936,7 +1936,7 @@ static int get_dev_status_info(char* buf, char** start, off_t offs, int len, int
 			if (!dev || !(dev->flags&IFF_UP) || !wan_netif_priv(dev)){ 
 				continue;
 			}
-			m->count = wandev->get_status_info(dev->priv, m, M_STOP_CNT(m)); 
+			m->count = wandev->get_status_info(wan_netif_priv(dev), m, M_STOP_CNT(m));
 		}
 	       	wan_spin_unlock(&wandev->dev_head_lock,&flags);
 	}

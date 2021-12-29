@@ -368,9 +368,7 @@ int register_wan_device(wan_device_t *wandev)
 
 	++devcnt;
 
-#if !defined(LINUX_2_6)
-        MOD_INC_USE_COUNT;	/* prevent module from unloading */
-#endif
+    MOD_INC_USE_COUNT;	/* prevent module from unloading */
 	return 0;
 }
 
@@ -427,9 +425,7 @@ int unregister_wan_device(char *name)
 
 	--devcnt;
 	wanrouter_proc_delete(wandev);
-#if !defined(LINUX_2_6)
-        MOD_DEC_USE_COUNT;
-#endif
+    MOD_DEC_USE_COUNT;
 	return 0;
 }
 
@@ -961,7 +957,7 @@ int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf, int user)
 			DEBUG_EVENT("%s: Error: device name %s alrady exists!\n",__FUNCTION__,dev->name);
 			dev_put(tmp_dev);
 			err = -EEXIST;	/* name already exists */
-		}else if (dev->priv){
+		}else if (wan_netif_priv(dev)){
 			err = register_netdev(dev);
 			if (!err) {
 				devle->dev = dev;
@@ -984,9 +980,9 @@ int wan_device_new_if (wan_device_t *wandev, wanif_conf_t *u_conf, int user)
 	}
 
 	/* This code has moved from del_if() function */
-	if (dev->priv){
-		wan_free(dev->priv);
-		dev->priv=NULL;
+	if (wan_netif_priv(dev)){
+		wan_free(wan_netif_priv(dev));
+		wan_netif_set_priv(dev,NULL);
 	}
 
 wan_device_new_if_exit:
@@ -1188,11 +1184,11 @@ static int delete_interface (wan_device_t *wandev, netdevice_t *dev, int force)
 	printk(KERN_INFO "%s: unregistering '%s'\n", wandev->name, dev->name); 
 
 	
-	/* Due to new interface linking method using dev->priv,
+	/* Due to new interface linking method using wan_netif_priv(dev),
 	 * this code has moved from del_if() function.*/
-	if (dev->priv){
-		wan_free(dev->priv);
-		dev->priv=NULL;
+	if (wan_netif_priv(dev)){
+		wan_free(wan_netif_priv(dev));
+		wan_netif_set_priv(dev,NULL);
 	}
 
 	unregister_netdev(dev);
@@ -1509,9 +1505,7 @@ int register_wanpipe_api_socket (struct wanpipe_api_register_struct *wan_api_reg
 	memcpy(&api_socket, wan_api_reg, sizeof(struct wanpipe_api_register_struct)); 
 	REG_PROTOCOL_FUNC(api_socket);
 	++devcnt;
-#if !defined(LINUX_2_6)
-        MOD_INC_USE_COUNT;
-#endif
+    MOD_INC_USE_COUNT;
 	return 0;
 }
 
@@ -1520,9 +1514,7 @@ void unregister_wanpipe_api_socket (void)
 
 	UNREG_PROTOCOL_FUNC(api_socket);
 	--devcnt;
-#if !defined(LINUX_2_6)
 	MOD_DEC_USE_COUNT;
-#endif
 }
 
 

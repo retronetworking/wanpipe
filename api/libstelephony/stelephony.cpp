@@ -297,10 +297,12 @@ stelephony_status_t CStelephony::ToneDecoderEventControl(stelephony_event_t Even
 				STEL_ERR("Q931 event not handled\n");
 				break;
 			case STEL_EVENT_FSK_CALLER_ID:
-				scf.OnCallerID = OnCallerID;				
+				scf.OnCallerID = OnCallerID;
+				ToneDecoderObj.put_MonitorCallerID(TRUE);
 				break;
 			case STEL_EVENT_DTMF:
 				scf.OnDTMF = OnDTMF;
+				ToneDecoderObj.put_MonitorDTMF(TRUE);
 				break;
 			default:
 				return STEL_STATUS_INVALID_EVENT_ERROR;
@@ -317,9 +319,6 @@ stelephony_status_t CStelephony::ToneDecoderEventControl(stelephony_event_t Even
 				var.intVal=WFI_CCITT_uLaw_8kHzMono;
 			}
 			ToneDecoderObj.put_WaveFormatID(var);
-				
-			ToneDecoderObj.put_MonitorDTMF(TRUE);
-			ToneDecoderObj.put_MonitorCallerID(TRUE);
 			ToneDecoderObj.WaveStreamStart();
 			break;
 
@@ -331,9 +330,11 @@ stelephony_status_t CStelephony::ToneDecoderEventControl(stelephony_event_t Even
 				break;
 			case STEL_EVENT_FSK_CALLER_ID:
 				scf.OnCallerID = NULL;
+				ToneDecoderObj.put_MonitorCallerID(FALSE);
 				break;
 			case STEL_EVENT_DTMF:
 				scf.OnDTMF = NULL;
+				ToneDecoderObj.put_MonitorDTMF(FALSE);
 				break;
 			default:
 				return STEL_STATUS_INVALID_EVENT_ERROR;

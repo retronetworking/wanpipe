@@ -54,6 +54,12 @@ typedef struct wanpipe_hdlc_stats
 
 }wanpipe_hdlc_stats_t;
 
+#define MAX_HDLC_RING_SIZE 5 
+typedef struct wanpipe_hdlc_ring
+{
+	unsigned char data[MAX_SOCK_HDLC_BUF];
+	unsigned int  len;
+}wanpipe_hdlc_ring_buf_t;
 
 typedef	struct wanpipe_hdlc_decoder{
 	unsigned char 	rx_decode_buf[MAX_SOCK_HDLC_BUF];
@@ -65,6 +71,9 @@ typedef	struct wanpipe_hdlc_decoder{
 	unsigned short 	rx_orig_crc;
 	unsigned short 	rx_crc[MAX_SOCK_CRC_QUEUE];
 	unsigned short 	crc_fin;
+
+	wanpipe_hdlc_ring_buf_t rx_decode_ring[MAX_HDLC_RING_SIZE];
+	unsigned int 	rx_ring_idx;
 
 	unsigned short 	rx_crc_tmp;
 	int 		crc_cur;
@@ -178,4 +187,4 @@ extern int wanpipe_get_rx_hdlc_errors (wanpipe_hdlc_engine_t *hdlc_eng);
 extern int wanpipe_get_tx_hdlc_errors (wanpipe_hdlc_engine_t *hdlc_eng);
 extern int wanpipe_get_rx_hdlc_packets (wanpipe_hdlc_engine_t *hdlc_eng);
 extern int wanpipe_get_tx_hdlc_packets (wanpipe_hdlc_engine_t *hdlc_eng);
-
+extern int wanpipe_hdlc_dump_ring(wanpipe_hdlc_engine_t *hdlc_eng);

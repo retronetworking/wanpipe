@@ -7,7 +7,7 @@ do
 	shift
 done
 
-__smg_ctrl_common $cmd ss7boost $args
+__smg_ctrl_common $cmd sangoma_isupd $args
 ret=$?
 
 exit $ret

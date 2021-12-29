@@ -75,6 +75,10 @@
 
 #define AFT_WDT_4TO8_CTRL_REG		0x5C
 
+#define AFT_FREE_RUN_TIMER_CTRL_REG		0x98
+
+#define AFT_FREE_RUN_TIMER_PENDING_REG	0x9C
+
 
 /*================================================= 
   A104 CHIP CFG REGISTERS  
@@ -161,6 +165,8 @@
 # define AFT_CHIPCFG_P2_WDT_INTR_BIT	19
 # define AFT_CHIPCFG_P3_WDT_INTR_BIT	20
 # define AFT_CHIPCFG_P4_WDT_INTR_BIT	21
+
+# define AFT_CHIPCFG_FREE_RUN_INTR_BIT	20		/* AFT FREE Run timer bit */
 
 # define AFT_CHIPCFG_A108_EC_INTER_STAT_BIT	21	/* A108 */
 
@@ -967,6 +973,27 @@ aft_serial_set_lcoding(u32 *reg, u32 coding)
 	*reg&=~(AFT_SERIAL_LCFG_LCODING_MASK<<AFT_SERIAL_LCFG_LCODING_SHIFT);
 	*reg|= (coding&AFT_SERIAL_LCFG_LCODING_MASK)<<AFT_SERIAL_LCFG_LCODING_SHIFT;
 }
+
+
+
+/*======================================================
+ * FREE RUNNING TIMER
+ * 
+ * AFT_FREE_RUN_TIMER_CTRL_REG
+ *=====================================================*/
+
+#define AFT_FREE_RUN_TIMER_DIVIDER_SHIFT		0
+#define AFT_FREE_RUN_TIMER_DIVIDER_MASK			0x3F
+
+#define AFT_FREE_RUN_TIMER_INTER_ENABLE_BIT		7
+
+static __inline void
+aft_free_running_timer_ctrl_set(u32 *reg, u32 divider)
+{
+	*reg&=~(AFT_FREE_RUN_TIMER_DIVIDER_MASK<<AFT_FREE_RUN_TIMER_DIVIDER_SHIFT);
+	*reg|=(divider&AFT_FREE_RUN_TIMER_DIVIDER_MASK)<<AFT_FREE_RUN_TIMER_DIVIDER_SHIFT;
+}
+
 
 
 /*======================================================

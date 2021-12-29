@@ -1139,30 +1139,24 @@ void read_te1_56k_stat(unsigned char force)
 		printf("***** %s: %s Alarms (Framer) *****\n\n",
 			if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 		printf("ALOS:\t%s\t| LOS:\t%s\n", 
-				WAN_TE_ALOS_ALARM(fe_stats->alarms), 
-				WAN_TE_LOS_ALARM(fe_stats->alarms));
+				WAN_TE_PRN_ALARM_ALOS(fe_stats->alarms), 
+				WAN_TE_PRN_ALARM_LOS(fe_stats->alarms));
 		printf("RED:\t%s\t| AIS:\t%s\n", 
-				WAN_TE_RED_ALARM(fe_stats->alarms), 
-				WAN_TE_AIS_ALARM(fe_stats->alarms));
-		if (femedia.media == WAN_MEDIA_T1){ 
-			printf("RAI:\t%s\t| OOF:\t%s\n", 
-					WAN_TE_RAI_ALARM(fe_stats->alarms), 
-					WAN_TE_OOF_ALARM(fe_stats->alarms));
-		}else{
-			printf("OOF:\t%s\t| RAI:\t%s\n", 
-					WAN_TE_OOF_ALARM(fe_stats->alarms),
-					WAN_TE_RAI_ALARM(fe_stats->alarms));
-		}
+				WAN_TE_PRN_ALARM_RED(fe_stats->alarms), 
+				WAN_TE_PRN_ALARM_AIS(fe_stats->alarms));
+		printf("LOF:\t%s\t| RAI:\t%s\n", 
+				WAN_TE_PRN_ALARM_LOF(fe_stats->alarms),
+				WAN_TE_PRN_ALARM_RAI(fe_stats->alarms));
 
 		if (fe_stats->alarms & WAN_TE_ALARM_LIU){
 			printf("\n***** %s: %s Alarms (LIU) *****\n\n",
 				if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 			printf("Short Circuit:\t%s\n", 
-					WAN_TE_LIU_ALARM_SC(fe_stats->alarms));
+					WAN_TE_PRN_ALARM_LIU_SC(fe_stats->alarms));
 			printf("Open Circuit:\t%s\n", 
-					WAN_TE_LIU_ALARM_OC(fe_stats->alarms));
+					WAN_TE_PRN_ALARM_LIU_OC(fe_stats->alarms));
 			printf("Loss of Signal:\t%s\n", 
-					WAN_TE_LIU_ALARM_LOS(fe_stats->alarms));
+					WAN_TE_PRN_ALARM_LIU_LOS(fe_stats->alarms));
 		}
 
 	}else if  (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){

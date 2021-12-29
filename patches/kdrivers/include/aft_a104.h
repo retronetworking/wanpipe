@@ -19,23 +19,6 @@
 
 #ifdef WAN_KERNEL
 
-#if 0
-#define A104_SECURITY_32_ECCHAN		0x00
-#define A104_SECURITY_64_ECCHAN		0x01
-#define A104_SECURITY_96_ECCHAN		0x02
-#define A104_SECURITY_128_ECCHAN	0x03
-#define A104_SECURITY_256_ECCHAN	0x04
-#define A104_SECURITY_PROTO_128_ECCHAN	0x05
-#define A104_SECURITY_0_ECCHAN		0x07
-
-#define A104_ECCHAN(val)				\
-	((val) == A104_SECURITY_32_ECCHAN)  	? 32 :	\
-	((val) == A104_SECURITY_64_ECCHAN)  	? 64 :	\
-	((val) == A104_SECURITY_96_ECCHAN)  	? 96 :	\
-	((val) == A104_SECURITY_128_ECCHAN)	? 128 :	\
-	((val) == A104_SECURITY_PROTO_128_ECCHAN) ? 128 :	\
-	((val) == A104_SECURITY_256_ECCHAN)	? 256 : 0
-#endif
 
 int a104_global_chip_config(sdla_t *card);
 int a104_global_chip_unconfig(sdla_t *card);

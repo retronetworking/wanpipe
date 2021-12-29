@@ -2,11 +2,13 @@
 
 cmd=$1
 
+cli=/usr/local/ss7box/sangoma_isup_cli
+
 if [ "$cmd" = "inuse" ]; then
-	/usr/local/ss7box/ss7boost_cli --ckt-report --span all --chan all | grep -c "Y   Y"
+	$cli --ckt-report --span all --chan all | grep -c "Y   Y"
 elif [ "$cmd" = "free" ]; then
-	/usr/local/ss7box/ss7boost_cli --ckt-report --span all --chan all | grep -c "Y   n"
+	$cli --ckt-report --span all --chan all | grep -c "Y   n"
 else
-	/usr/local/ss7box/ss7boost_cli --ckt-report --span all --chan all
+	$cli --ckt-report --span all --chan all
 fi
 

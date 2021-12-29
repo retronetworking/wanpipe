@@ -33,6 +33,9 @@ typedef struct wp_tdmv_remora_ {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 	struct zt_span	span;
 #ifdef DAHDI_ISSUES
+#ifdef DAHDI_22
+	struct dahdi_echocan_state ec[MAX_REMORA_MODULES];		/* echocan state for each channel */
+#endif
 	struct zt_chan	*chans_ptrs[MAX_REMORA_MODULES];
 #endif
 	struct zt_chan	chans[MAX_REMORA_MODULES];
@@ -67,4 +70,6 @@ typedef struct wp_tdmv_remora_ {
 	unsigned int	tonemask;
 	unsigned int	tonemutemask;
 
+	unsigned long	ec_fax_detect_timeout[MAX_REMORA_MODULES+1];
+	
 } wp_tdmv_remora_t;

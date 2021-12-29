@@ -98,6 +98,15 @@ static struct woomera_interface woomera_dead_dev;
 
 struct woomera_server server; 
 
+#if defined(BRI_PROT)
+int max_spans=WOOMERA_BRI_MAX_SPAN;
+int max_chans=WOOMERA_BRI_MAX_CHAN;
+#else
+int max_spans=WOOMERA_MAX_SPAN;
+int max_chans=WOOMERA_MAX_CHAN;
+#endif
+
+
 #define SMG_VERSION	"v1.20"
 
 /* enable early media */
@@ -1167,8 +1176,8 @@ int initiate_call_unit_start (int span, int chan)
 
 #if 0
 	if (strlen(rdnis)) {
-		strncpy((char*)event.redirection_string,rdnis,
-				sizeof(event.redirection_string)-1);
+		strncpy((char*)event.isup_in_rdnis,rdnis,
+				sizeof(event.isup_in_rdnis)-1);
 		log_printf(0,server.log,"RDNIS %s\n", rdnis);
 	}
 #endif
@@ -1218,8 +1227,8 @@ int initiate_loop_unit_start (int span, int chan)
 	event.event_id = SIGBOOST_EVENT_INSERT_CHECK_LOOP;
 
 	if (strlen(rdnis)) {
-		strncpy((char*)event.redirection_string,rdnis,
-				sizeof(event.redirection_string)-1);
+		strncpy((char*)event.isup_in_rdnis,rdnis,
+				sizeof(event.isup_in_rdnis)-1);
 		log_printf(0,server.log,"RDNIS %s\n", rdnis);
 	}
 
@@ -1748,7 +1757,7 @@ static int woomera_startup(int argc, char **argv)
 		}
     }
 
-    if (1){
+    if (0){
 	int spn; 
     	for (spn=1;spn<=WOOMERA_MAX_SPAN;spn++) {
     		if (sangoma_tdm_init(spn) == 0) {

@@ -122,7 +122,7 @@ typedef struct{
 #define WAN_MAX_POS_DATA_SIZE	1030
 #define WAN_MAX_MBOX_DATA_SIZE	2032
 
-#define WAN_MAX_CMD_DATA_SIZE	1024
+#define WAN_MAX_CMD_DATA_SIZE	1000
 
 /*!
   \struct wan_cmd_api_

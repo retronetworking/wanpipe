@@ -1,0 +1,1 @@
+cmd_/root/3.5/wanpipe/patches/kdrivers/wanec/wanec.ko := ld -r -m elf_i386   -o /root/3.5/wanpipe/patches/kdrivers/wanec/wanec.ko /root/3.5/wanpipe/patches/kdrivers/wanec/wanec.o /root/3.5/wanpipe/patches/kdrivers/wanec/wanec.mod.o

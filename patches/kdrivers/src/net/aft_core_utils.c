@@ -150,6 +150,76 @@ int aft_realign_skb_pkt(private_area_t *chan, netskb_t *skb)
 
 	return 0;	
 }
+ 
+int aft_free_running_timer_set_enable(sdla_t *card, u32 ms)
+{
+#ifndef WAN_NO_INTR
+	u32 reg;
+	u32 ftimer_ctrl_reg=AFT_FREE_RUN_TIMER_CTRL_REG;
+	u32 msec=0;
+
+	if (!wan_test_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status)) {
+		return -EINVAL;
+	}
+
+	if (ms != 0) {
+		/* Convert ms to hardware divider discret */
+		msec=ms*2;
+		msec=msec-1;
+
+		DEBUG_TEST("%s: Free Run Timeout pre - mask  Reg=0x%X  ms=%i  ms=0x%X \n",
+						card->devname,ftimer_ctrl_reg,msec,msec);
+
+		msec=(msec&AFT_FREE_RUN_TIMER_DIVIDER_MASK)<<AFT_FREE_RUN_TIMER_DIVIDER_SHIFT;
+
+		if (msec==0) {
+			DEBUG_EVENT("%s: Error: Free Run Timeout config overrun 0x%X  Max=0x%X\n",
+						card->devname,msec,AFT_FREE_RUN_TIMER_DIVIDER_MASK);
+			return -EINVAL;
+		}
+		
+	} else {
+		DEBUG_EVENT("%s: Error: Free Run Timeout config ms=0\n",
+						card->devname);
+		return -EINVAL;
+	}
+
+	DEBUG_EVENT("%s: TDM Free Run Timing Enabled %i ms\n",
+						card->devname,ms);
+
+	card->hw_iface.bus_read_4(card->hw,ftimer_ctrl_reg, &reg);
+	wan_set_bit(AFT_FREE_RUN_TIMER_INTER_ENABLE_BIT,&reg);
+	aft_free_running_timer_ctrl_set(&reg,msec);
+	card->hw_iface.bus_write_4(card->hw,ftimer_ctrl_reg, reg);
+
+	card->hw_iface.bus_read_4(card->hw,ftimer_ctrl_reg, &reg);
+
+	DEBUG_TEST("%s: Error: Free Run Timeout config ms=%i  Reg=0x%X Reg=0x%08X\n",
+						card->devname,ms,ftimer_ctrl_reg,reg);
+
+
+	return 0;
+#endif
+}
+
+int aft_free_running_timer_disable(sdla_t *card)
+{
+	u32 reg;
+	u32 ftimer_ctrl_reg=AFT_FREE_RUN_TIMER_CTRL_REG;
+
+	if (!wan_test_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status)) {
+		return -EINVAL;
+	}
+
+	DEBUG_TEST("%s: TDM Free Run Timing Disabled\n",
+						card->devname);
+
+	card->hw_iface.bus_read_4(card->hw,ftimer_ctrl_reg, &reg);
+	wan_clear_bit(AFT_FREE_RUN_TIMER_INTER_ENABLE_BIT,&reg);
+	card->hw_iface.bus_write_4(card->hw,ftimer_ctrl_reg, reg);
+
+	return 0;
+}
 
 void aft_wdt_set(sdla_t *card, unsigned char val)
 {
@@ -323,7 +393,7 @@ int aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, int irq)
 		}
 #else
 		if (chan->channelized_cfg && !chan->hdlc_eng){
-#if defined(WANPIPE_64BIT_4G_DMA)
+#if defined(WANPIPE_64BIT_4G_DMA) || defined(CONFIG_X86_64)
 			/* On 64bit Systems greater than 4GB we must
 			 * allocated our DMA buffers using GFP_DMA 
 			 * flag */
@@ -841,6 +911,37 @@ static int digital_loop_test(sdla_t* card,wan_udp_pkt_t* wan_udp_pkt)
 
 
 
+
+#if defined(AFT_XMTP2_TAP)
+static int xmtp2km_tap_func(void *prot_ptr, int slot, int dir, unsigned char *data, int len)
+{
+	private_area_t *chan = (private_area_t*)prot_ptr;
+	int err;
+
+	if (!chan) {
+		return -1;
+	}
+
+	if (dir) {
+		err=wan_capture_trace_packet_buffer(chan->card, &chan->trace_info, data, len ,TRC_INCOMING_FRM);
+	} else {
+		err=wan_capture_trace_packet_buffer(chan->card, &chan->trace_info, data, len ,TRC_OUTGOING_FRM);
+	}
+
+	if (err == -EINVAL) {
+		xmtp2km_tap_disable(chan->xmtp2_api_index);
+	}
+
+	if (err) {
+		WAN_NETIF_STATS_INC_RX_DROPPED(&chan->common);
+	}
+
+	return 0;
+}
+#endif
+
+
+
 /*=============================================================================
  * process_udp_mgmt_pkt
  *
@@ -1028,14 +1129,18 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 		case WANPIPEMON_FLUSH_OPERATIONAL_STATS:
 			memset(&chan->chan_stats,0,sizeof(wp_tdm_chan_stats_t));
 			memset(&chan->common.if_stats,0,sizeof(chan->common.if_stats));
+			
 			wan_udp_pkt->wan_udp_data_len=0;
 			wan_udp_pkt->wan_udp_return_code = WAN_CMD_OK;
+
+			memset(&card->wandev.stats,0,sizeof(card->wandev.stats));
 			break;
 
 		case WANPIPEMON_READ_COMMS_ERROR_STATS:
 			wan_udp_pkt->wan_udp_return_code = 0;
 			memcpy(wan_udp_pkt->wan_udp_data,&chan->errstats,sizeof(aft_comm_err_stats_t));
 			wan_udp_pkt->wan_udp_data_len=sizeof(aft_comm_err_stats_t);
+			memset(&card->wandev.stats,0,sizeof(card->wandev.stats));
 			break;
 	
 		case WANPIPEMON_FLUSH_COMMS_ERROR_STATS:
@@ -1043,6 +1148,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			memset(&chan->common.if_stats,0,sizeof(chan->common.if_stats));
 			memset(&chan->errstats,0,sizeof(aft_comm_err_stats_t));
 			wan_udp_pkt->wan_udp_data_len=0;
+			memset(&card->wandev.stats,0,sizeof(card->wandev.stats));
 			break;
 
 		case WANPIPEMON_CHAN_SEQ_DEBUGGING:
@@ -1066,23 +1172,34 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 					
 				if (wan_udp_pkt->wan_udp_data[0] == 0){
 					wan_clear_bit(1,&trace_info->tracing_enabled);
-					DEBUG_UDP("%s: ADSL L3 trace enabled!\n",
+					DEBUG_UDP("%s: AFT L3 trace enabled!\n",
 						card->devname);
+
 				}else if (wan_udp_pkt->wan_udp_data[0] == 1){
 					wan_clear_bit(2,&trace_info->tracing_enabled);
 					wan_set_bit(1,&trace_info->tracing_enabled);
-					DEBUG_UDP("%s: ADSL L2 trace enabled!\n",
+					DEBUG_UDP("%s: AFT L2 trace enabled!\n",
 							card->devname);
+
+#if defined(AFT_XMTP2_TAP)
+					if (chan->common.usedby == XMTP2_API &&
+						chan->xmtp2_api_index >= 0) {
+						int err=0;
+						wan_set_bit(8,&trace_info->tracing_enabled);
+						err=xmtp2km_tap_enable(chan->xmtp2_api_index, chan, xmtp2km_tap_func);
+						DEBUG_EVENT("%s XMTP2 Trace Tap Enabled (err=%i)!\n",chan->if_name,err);
+					}
+#endif
 				}else{
 					wan_clear_bit(1,&trace_info->tracing_enabled);
 					wan_set_bit(2,&trace_info->tracing_enabled);
-					DEBUG_UDP("%s: ADSL L1 trace enabled!\n",
+					DEBUG_UDP("%s: AFT L1 trace enabled!\n",
 							card->devname);
 				}
 				wan_set_bit (0,&trace_info->tracing_enabled);
 
 			}else{
-				DEBUG_EVENT("%s: Error: ATM trace running!\n",
+				DEBUG_EVENT("%s: Error: AFT trace running!\n",
 						card->devname);
 				wan_udp_pkt->wan_udp_return_code = 2;
 			}
@@ -1098,6 +1215,15 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 				wan_clear_bit(1,&trace_info->tracing_enabled);
 				wan_clear_bit(2,&trace_info->tracing_enabled);
 				
+#if defined(AFT_XMTP2_TAP)
+				if (chan->common.usedby == XMTP2_API &&
+					chan->xmtp2_api_index >= 0) {
+					xmtp2km_tap_disable(chan->xmtp2_api_index);
+					wan_clear_bit(8,&trace_info->tracing_enabled);
+					DEBUG_EVENT("%s XMTP2 Trace Tap Disabled!\n",chan->if_name);
+				}
+#endif
+
 				wan_trace_purge(trace_info);
 				
 				DEBUG_UDP("%s: Disabling AFT trace\n",
@@ -1115,7 +1241,7 @@ int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev, private_area_t* chan, i
 			if(wan_test_bit(0,&trace_info->tracing_enabled)){
 				trace_info->trace_timeout = SYSTEM_TICKS;
 			}else{
-				DEBUG_EVENT("%s: Error ATM trace not enabled\n",
+				DEBUG_EVENT("%s: Error AFT trace not enabled\n",
 						card->devname);
 				/* set return code */
 				wan_udp_pkt->wan_udp_return_code = 1;
@@ -1725,24 +1851,21 @@ static int32_t aft_bri_clock_control(sdla_t *card, u8 line_state)
 
 int aft_handle_clock_master (sdla_t *card_ptr)
 {
-
-#if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
-
 	void **card_list;
 	u32 max_number_of_ports, i;
 	sdla_t	*card;
 	int master_clock_src_found=0;
+	int free_run_enable=1;
+	int free_run_detect=0;
+	int legacy_tdm_timer_detect=0;
+	int legacy_tdm_timer_enable=1;
+	wan_smp_flag_t flags;
+	int ms=1;
 
-
-	/* This feature only works for BRI cards for now */
-	if (!IS_BRI_CARD(card_ptr)) {
-		return 0;	
-	}
-
-	if (card_ptr->wandev.fe_iface.clock_ctrl == NULL){
+	if (IS_BRI_CARD(card_ptr) && card_ptr->wandev.fe_iface.clock_ctrl == NULL){
 		return 0;
 	}
-
+ 
 	max_number_of_ports = MAX_BRI_LINES; /* 24 */
 	
 	DEBUG_TEST("%s:aft_handle_clock_master !\n",
@@ -1756,12 +1879,13 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 			continue;
 		}
 		
-#if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
 		DEBUG_TEST("%s: Device Type TE=%i NT=%i!\n",card->devname,
 				aft_is_bri_te_card(card),aft_is_bri_nt_card(card));
 
-
 		if (IS_BRI_CARD(card)) {
+
+			wan_spin_lock_irq(&card->wandev.lock,&flags);
+
 			if (aft_is_bri_te_card(card) && wan_test_bit(CARD_MASTER_CLOCK,&card->wandev.critical)) {		
 				if (card->wandev.state != WAN_CONNECTED) {
 					if (card->wandev.fe_iface.clock_ctrl){
@@ -1785,11 +1909,59 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 					master_clock_src_found=1;
 				}
 			}
+
+			wan_spin_unlock_irq(&card->wandev.lock,&flags);
+			
+		} 
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
+		else if (wan_test_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status) &&
+				   card->wan_tdmv.sc &&
+				   card->u.aft.global_tdm_irq) {
+
+				free_run_detect=1;
+				ms=card->u.aft.tdmv_mtu/8;
+				if (ms < 1) {
+					ms=1;
+				}
+				if (card->wandev.state == WAN_CONNECTED) {
+					free_run_enable=0;
+				}
+
+		} else if (IS_TE1_CARD(card) &&
+				   !wan_test_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status) &&
+				   card->wan_tdmv.sc &&
+				   card->u.aft.global_tdm_irq) {
+
+				legacy_tdm_timer_detect=1;
+
+				if (card->wandev.state == WAN_CONNECTED) {
+					DEBUG_TEST("%s: Resetting Legacy Master Clock (%i)!\n",
+							card->devname,AFT_WDTCTRL_TIMEOUT);
+					wan_clear_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
+					aft_wdt_set(card,AFT_WDTCTRL_TIMEOUT);
+					legacy_tdm_timer_enable=0;
+				}
 		}
 #endif
+
 	}
 
-	if (master_clock_src_found) {
+
+	if (free_run_detect) {
+		if (free_run_enable) {
+			aft_free_running_timer_set_enable(card_ptr,ms);
+		} else {
+			aft_free_running_timer_disable(card_ptr);
+		}
+	} else if (legacy_tdm_timer_detect) {
+		if (legacy_tdm_timer_enable == 0) {
+			DEBUG_TEST("wanpipe: TDM Timing Disabled\n");
+		}
+	} else {
+		legacy_tdm_timer_enable = 0;
+	}
+
+	if (master_clock_src_found || legacy_tdm_timer_enable == 0) {
 		return 0;
 	}
 
@@ -1801,7 +1973,6 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 			continue;
 		}
 
-#if defined(CONFIG_PRODUCT_WANPIPE_AFT_BRI)
 		if (IS_BRI_CARD(card)) {
 
 			/* Check if this module is forced configured in oscillator mode */
@@ -1814,6 +1985,8 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 				continue;	
 			}
 
+			wan_spin_lock_irq(&card->wandev.lock,&flags);
+
 			if (aft_is_bri_te_card(card) && !wan_test_bit(CARD_MASTER_CLOCK,&card->wandev.critical)) {	
 				if (card->wandev.state == WAN_CONNECTED) {
 					if (card->wandev.fe_iface.clock_ctrl){
@@ -1825,13 +1998,38 @@ int aft_handle_clock_master (sdla_t *card_ptr)
 						wan_set_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
 						master_clock_src_found=1;
 					}
-					break;
 				} 
 			}
+
+			wan_spin_unlock_irq(&card->wandev.lock,&flags);
+
+			if (master_clock_src_found == 1) {
+				break;
+			}
+			
+		}
+#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
+ 		else if (IS_TE1_CARD(card) &&
+				   !wan_test_bit(AFT_TDM_FREE_RUN_ISR,&card->u.aft.chip_cfg_status) &&
+				   card->wan_tdmv.sc &&
+				   card->u.aft.global_tdm_irq) {
+
+				if (card->wandev.state != WAN_CONNECTED) {
+					if (!wan_test_bit(CARD_MASTER_CLOCK,&card->wandev.critical)) {	
+						ms=card->u.aft.tdmv_mtu/8;
+						if (ms < 1) {
+							ms=1;
+						}
+						wan_set_bit(CARD_MASTER_CLOCK,&card->wandev.critical);
+						DEBUG_EVENT("%s: TDM Timing Enabled %i ms\n",
+							card->devname,ms);
+						aft_wdt_set(card,1);
+					}
+					break;
+				}
 		}
 #endif
 	}
-#endif
 
 	return 0;
 }
@@ -1844,11 +2042,10 @@ void wanpipe_wake_stack(private_area_t* chan)
 	wan_chan_dev_start(chan);
 
 	if (chan->common.usedby == API){
-
 		if (chan->wp_api_op_mode){
 #ifdef AFT_TDM_API_SUPPORT
-			if (is_tdm_api(chan,&chan->wp_tdm_api_dev)){
-				wanpipe_tdm_api_kick(&chan->wp_tdm_api_dev);
+			if (is_tdm_api(chan,chan->wp_tdm_api_dev)){
+				wanpipe_tdm_api_kick(chan->wp_tdm_api_dev);
 			}
 #endif
 		} else {
@@ -1863,8 +2060,8 @@ void wanpipe_wake_stack(private_area_t* chan)
 #endif
 	} else if (chan->wp_api_op_mode || chan->common.usedby == TDM_VOICE_DCHAN){
 #ifdef AFT_TDM_API_SUPPORT
-		if (is_tdm_api(chan,&chan->wp_tdm_api_dev)){
-			wanpipe_tdm_api_kick(&chan->wp_tdm_api_dev);
+		if (is_tdm_api(chan,chan->wp_tdm_api_dev)){
+			wanpipe_tdm_api_kick(chan->wp_tdm_api_dev);
 		}
 #endif
 	} else if (chan->common.usedby == ANNEXG) {
@@ -1875,7 +2072,7 @@ void wanpipe_wake_stack(private_area_t* chan)
 			}
 		}
 #endif
-	}
+	} 
 
 }
 
@@ -2000,7 +2197,7 @@ int aft_tdm_intr_ctrl(sdla_t *card, int ctrl)
 
 
 
-int aft_tdm_chan_ring_rsyinc(sdla_t * card, private_area_t *chan)
+int aft_tdm_chan_ring_rsyinc(sdla_t * card, private_area_t *chan, int log)
 {
 	u32 lo_reg,lo_reg_tx;
 	u32 dma_descr;
@@ -2016,47 +2213,53 @@ int aft_tdm_chan_ring_rsyinc(sdla_t * card, private_area_t *chan)
 	lo_reg=(lo_reg&AFT_TDMV_BUF_MASK)/AFT_TDMV_CIRC_BUF;
 	lo_reg_tx=(lo_reg_tx&AFT_TDMV_BUF_MASK)/AFT_TDMV_CIRC_BUF;
 
-	DEBUG_TEST("%s: Chan[%i] TDM Rsync RxHw=%i TxHw=%i Rx=%i Tx=%i\n",
-					   card->devname,chan->logic_ch_num,
+	if (log > 1) {
+	DEBUG_EVENT("%s: Chan[%i] TS[%i] TDM Rsync RxHw=%i TxHw=%i Rx=%i Tx=%i\n",
+					   card->devname,chan->logic_ch_num,chan->first_time_slot,
 					   lo_reg,lo_reg_tx,
-					   card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num],
-					   card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]);
+					   card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot],
+					   card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot]);
+	}
 
 	switch (lo_reg) {
 	case 0:
-		card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]=2;
+		card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot]=2;
 		break;
 	case 1:
-		card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]=3;
+		card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot]=3;
 		break;
 	case 2:
-		card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]=0;
+		card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot]=0;
 		break;
 	case 3:
-		card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]=1;
+		card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot]=1;
 		break;
 	}
 
 	switch (lo_reg_tx) {
 	case 0:
-		card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]=2;
+		card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot]=2;
 		break;
 	case 1:
-		card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]=3;
+		card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot]=3;
 		break;
 	case 2:
-		card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]=0;
+		card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot]=0;
 		break;
 	case 3:
-		card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]=1;
+		card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot]=1;
 		break;
 	}
 
-	DEBUG_TEST("%s: Card TDM Rsync RxHw=%i TxHw=%i Rx=%i Tx=%i\n",
+
+	if (chan->channelized_cfg && !chan->hdlc_eng && chan->cfg.tdmv_master_if && log > 1){
+		DEBUG_EVENT("%s: Card TDM Rsync RxHw=%i TxHw=%i Rx=%i Tx=%i master=%i\n",
 					   card->devname,
 					   lo_reg,lo_reg_tx,
-					   card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num],
-					   card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]);
+					   card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot],
+					   card->u.aft.tdm_tx_dma_toggle[chan->first_time_slot],
+					   chan->cfg.tdmv_master_if);
+	}
 
 	return 0;
 }
@@ -2065,8 +2268,6 @@ int aft_tdm_ring_rsync(sdla_t *card)
 {
 	int i; 
 	private_area_t *chan;
-	u32 lo_reg,lo_reg_tx,prx=0,ptx=0;
- 	u32 dma_descr;
 
 	for (i=0; i<card->u.aft.num_of_time_slots;i++){
 
@@ -2081,110 +2282,15 @@ int aft_tdm_ring_rsync(sdla_t *card)
 			continue;
 		}
 
-		dma_descr=(chan->logic_ch_num<<4) +
-					AFT_PORT_REG(card,AFT_RX_DMA_LO_DESCR_BASE_REG);
-		card->hw_iface.bus_read_4(card->hw,dma_descr,&lo_reg);
+		if (chan->channelized_cfg && !chan->hdlc_eng) {
+			aft_tdm_chan_ring_rsyinc(card,chan, 1);
+		
 
-		dma_descr=(chan->logic_ch_num<<4) +
-					AFT_PORT_REG(card,AFT_TX_DMA_LO_DESCR_BASE_REG);
-		card->hw_iface.bus_read_4(card->hw,dma_descr,&lo_reg_tx);
-
-		lo_reg=(lo_reg&AFT_TDMV_BUF_MASK)/AFT_TDMV_CIRC_BUF;
-		lo_reg_tx=(lo_reg_tx&AFT_TDMV_BUF_MASK)/AFT_TDMV_CIRC_BUF;
-
-		if (i==0) {
-			prx=lo_reg;
-			ptx=lo_reg_tx;
-		} else {
-#if 0
-			if (lo_reg != prx) {
-				DEBUG_EVENT("%s: %s: channel=%i rx mismatch cur=%i prev=%i\n",
-							card->devname,chan->if_name, chan->logic_ch_num, lo_reg, prx);
+			if (chan->channelized_cfg && !chan->hdlc_eng && chan->cfg.tdmv_master_if){
+				card->rsync_timeout=0;
 			}
-			if (lo_reg_tx != ptx) {
-				DEBUG_EVENT("%s: %s: channel=%i rx mismatch cur=%i prev=%i\n",
-							card->devname,chan->if_name, chan->logic_ch_num,lo_reg_tx, ptx);
-			}
-#endif
-			prx=lo_reg;
-			ptx=lo_reg_tx;
 		}
 
-		switch (lo_reg) {
-		case 0:
-			card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]=2;
-			break;
-		case 1:
-			card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]=3;
-			break;
-		case 2:
-			card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]=0;
-			break;
-		case 3:
-			card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num]=1;
-			break;
-		}
-
-		switch (lo_reg_tx) {
-		case 0:
-			card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]=2;
-			break;
-		case 1:
-			card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]=3;
-			break;
-		case 2:
-			card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]=0;
-			break;
-		case 3:
-			card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]=1;
-			break;
-		}
-
-		if (chan->channelized_cfg && !chan->hdlc_eng && chan->cfg.tdmv_master_if){
-
-#if 0
-			/* NC Bug fix: This code caused random data corruption */
-			if (card->wandev.ec_enable){
-
-				/* HW EC standard */
-				if (lo_reg > 0) {
-					card->u.aft.tdm_rx_dma_toggle = lo_reg-1;
-				} else {
-					card->u.aft.tdm_rx_dma_toggle = 3;
-				}	
-			} else
-#endif
-
-#if 0
-			{
-				/* Software ec moves spike to 8bytes */ 
-				card->u.aft.tdm_rx_dma_toggle=lo_reg+1;
-				if (card->u.aft.tdm_rx_dma_toggle > 3) {
-					card->u.aft.tdm_rx_dma_toggle=0;
-				}
-				card->u.aft.tdm_rx_dma_toggle=lo_reg+1;
-				if (card->u.aft.tdm_rx_dma_toggle > 3) {
-					card->u.aft.tdm_rx_dma_toggle=0;
-				}
-			}
-#endif
-
-
-	
-#if 0
-			if (lo_reg_tx < 3) {
-				card->u.aft.tdm_tx_dma_toggle = lo_reg_tx+1;
-			} else {
-				card->u.aft.tdm_tx_dma_toggle = 0;
-			}
-#endif
-			card->rsync_timeout=0;
-			DEBUG_EVENT("%s: Card TDM Rsync RxHw=%i TxHw=%i Rx=%i Tx=%i\n",
-					   card->devname,
-					   lo_reg,lo_reg_tx,
-					   card->u.aft.tdm_rx_dma_toggle[chan->logic_ch_num],
-					   card->u.aft.tdm_tx_dma_toggle[chan->logic_ch_num]);
-		}
 	}                   
 
 	return 0;
@@ -2788,4 +2894,8 @@ int aft_register_dump(sdla_t *card)
 
 	return 0;
 }
+
+
+
+
 

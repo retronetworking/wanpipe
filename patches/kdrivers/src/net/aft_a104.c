@@ -633,6 +633,10 @@ int a104_global_chip_config(sdla_t *card)
 			card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_CHIP_CFG_REG),reg); 
 		}
 	}
+
+	/* Always disable in the beginning to set timer in correct state */
+	aft_free_running_timer_disable(card);
+
 #endif/*INIT_FE_ONLY*/
 	return 0;
 }

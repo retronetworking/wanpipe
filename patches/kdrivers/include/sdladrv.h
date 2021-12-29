@@ -407,7 +407,8 @@ struct wan_urb {
 #define MAX_WRITE_BUF_LEN	(MAX_USB_TX_LEN*100)
 #define MAX_USB_CTRL_CMD_LEN	(WP_USB_TIMESCALE*8)	//16			/* bytes */
 
-#define WP_USB_BUSID(hwcard)	((hwcard)->u_usb.usb_dev) ? (hwcard)->u_usb.usb_dev->dev.bus_id : "Unknown"
+#define WP_USB_BUSID(hwcard)   ((hwcard)->u_usb.usb_dev) ? WAN_DEV_NAME((hwcard)->u_usb.usb_dev) : "Unknown"
+
 typedef struct {
 
 	int		core_notready_cnt;

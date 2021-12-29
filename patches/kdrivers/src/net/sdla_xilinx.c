@@ -5348,16 +5348,16 @@ static int process_udp_mgmt_pkt(sdla_t* card, netdevice_t* dev,
 
 
 		case WAN_GET_PROTOCOL:
-		   	wan_udp_pkt->wan_udp_aft_num_frames = card->wandev.config_id;
-		    	wan_udp_pkt->wan_udp_return_code = CMD_OK;
-		    	wan_udp_pkt->wan_udp_data_len = 1;
-		    	break;
+			wan_udp_pkt->wan_udp_data[0] = card->wandev.config_id;
+			wan_udp_pkt->wan_udp_return_code = CMD_OK;
+			wan_udp_pkt->wan_udp_data_len = 1;
+			break;
 
 		case WAN_GET_PLATFORM:
-		    	wan_udp_pkt->wan_udp_data[0] = WAN_PLATFORM_ID;
-		    	wan_udp_pkt->wan_udp_return_code = CMD_OK;
-		    	wan_udp_pkt->wan_udp_data_len = 1;
-		    	break;
+			wan_udp_pkt->wan_udp_data[0] = WAN_PLATFORM_ID;
+			wan_udp_pkt->wan_udp_return_code = CMD_OK;
+			wan_udp_pkt->wan_udp_data_len = 1;
+			break;
 
 		case WAN_GET_MASTER_DEV_NAME:
 			wan_udp_pkt->wan_udp_data_len = 0;

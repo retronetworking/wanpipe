@@ -1006,8 +1006,11 @@ unload_module()
 			return 0
 		fi   
 	fi
-		
-	check_and_print_still_running && cleanup 1
+
+	if [ -z $FLAG_UNLOAD_NO_CHECK ]
+	then
+		check_and_print_still_running && cleanup 1
+	fi
 
 	if [ $OSYSTEM = "Linux" ]; then
 		wansock_config UNLOAD
@@ -2205,7 +2208,7 @@ init_global_params()
 {
 
 	if [ $OSYSTEM = "Linux" ]; then
-		ROUTER_VERSION=3.5.4
+		ROUTER_VERSION=3.5.5
 		IFCONFIG_LIST=ifconfig
 		MODULE_STAT=lsmod
 		WAN_DRIVERS="wanpipe"
@@ -2714,7 +2717,37 @@ case "$1" in
 			dev=$2
 
 			if [ "$dev" = "all" ]; then
-                                stop_running_wanpipes
+                stop_running_wanpipes
+				cleanup 0
+			fi
+
+			if [ "$dev" = "force" ]; then
+				check_module
+				if [ $? -ne 0 ]; then
+					unload_module
+					echo -e "Router is already stopped !\n";
+					cleanup 1;
+				fi
+				wanif_list_shutdown=`grep w $ROUTER_PROC/interfaces | cut -d' ' -f1 | sort -r`
+				if [ ! -z "$wanif_list_shutdown" ]
+				then
+					echo -e "Interfaces to shutdown: \n$wanif_list_shutdown\n"
+					for ifshutdown in $wanif_list_shutdown
+					do
+						ifconfig $ifshutdown down
+						if [ $? -ne 0 ]
+						then
+							echo -ne "failed to shutdown iface $ifshutdown, trying to continue ..."
+						fi
+					done
+				fi
+				wancard_list_shutdown=`cat $ROUTER_PROC/status | cut -d' ' -f1 | grep wanpipe | sort -r`
+				for cardshutdown in $wancard_list_shutdown
+				do
+					wanconfig card $cardshutdown stop
+				done
+				FLAG_UNLOAD_NO_CHECK="YES"
+				unload_module
 				cleanup 0
 			fi
 

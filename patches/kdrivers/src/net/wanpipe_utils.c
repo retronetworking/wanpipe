@@ -970,6 +970,49 @@ int wan_tracing_enabled(wan_trace_t *trace_info)
 
 }
 
+
+int wan_capture_trace_packet_buffer(sdla_t *card, wan_trace_t* trace_info, char *data, int len, char direction)
+{
+	void* new_skb = NULL;
+	wan_trace_pkt_t trc_el;	
+	int		flag = 0;
+	int 	total_len=0;
+	char	*buf;
+
+	/* The tracing is done by wan_capture_trace_packet function */
+	if (!wan_test_bit(8,&trace_info->tracing_enabled)){
+		return -EBUSY;
+	}
+
+	if ((flag = wan_tracing_enabled(trace_info)) >= 0){
+
+		/* Allocate a header mbuf */
+		total_len = len + sizeof(wan_trace_pkt_t);
+
+		new_skb = wan_skb_alloc(total_len);
+		if (new_skb == NULL) 
+			return -1;
+
+		wan_getcurrenttime(&trc_el.sec, &trc_el.usec);
+		trc_el.status		= direction;
+		trc_el.data_avail	= 1;
+		trc_el.time_stamp	= 
+			(unsigned short)((((trc_el.sec * 1000000) + trc_el.usec) / 1000) % 0xFFFF);
+		trc_el.real_length	= len;
+
+		buf=wan_skb_put(new_skb, sizeof(wan_trace_pkt_t));
+		memcpy(buf,(caddr_t)&trc_el,sizeof(wan_trace_pkt_t));
+
+		buf=wan_skb_put(new_skb, len);
+		memcpy(buf,data,sizeof(wan_trace_pkt_t));
+		
+		wan_skb_queue_tail(&trace_info->trace_queue, new_skb);
+	}
+
+	return flag;
+}
+
+
 int wan_capture_trace_packet(sdla_t *card, wan_trace_t* trace_info, netskb_t *skb, char direction)
 {
 	int		len = 0;

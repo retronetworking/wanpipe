@@ -17,7 +17,11 @@ PhoneToneEncoder::PhoneToneEncoder(void)
 {
 	bufSize = 256;
 	rate = 8000;
-	
+
+	fskInit = fskEnable = dtmfInit = dtmfEnable = false;
+
+	memset(&sink_callback_functions, 0x00, sizeof(sink_callback_functions));
+
 	fskData = (fsk_data_state_t*) stel_malloc(sizeof(fsk_data_state_t));
 	if (fskData == NULL) {
 		STEL_ERR("Failed to allocate memory (%s:%d)\n", __FUNCTION__,__LINE__);

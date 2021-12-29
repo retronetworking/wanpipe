@@ -8,6 +8,7 @@ use_safe=0;
 args=' ';
 LOG=/var/log/sangoma_mgd.log
 SIG_LOG=$LOG
+PRI=0
 BRI=0
 SS7=0
 
@@ -33,8 +34,9 @@ function usage()
 	echo "  v-          :decrease verbosity"
 	echo " "
 	echo "sigd options:"
-	echo "  ss7boost   	:ss7 isup daemon"
+	echo "  sangoma_isupd  	:ss7 isup daemon"
 	echo "  sangoma_brid	:bri daemon"
+	echo "  sangoma_prid	:pri daemon"
 	echo
 	echo "options:"
 	echo "  nosyslog	:does not use syslog to log data"
@@ -43,7 +45,7 @@ function usage()
 	return 1
 }
 
-if [ $sigd = "ss7boost" ]; then
+if [ $sigd = "ss7boost" ] || [ $sigd = "sangoma_isupd" ]; then
 	sigd_safe_args="-i"
 	sigd_bg_args=""
 	SIG_LOG=/var/log/messages
@@ -65,6 +67,11 @@ elif [ $sigd = "sangoma_brid" ]; then
 	sigd_safe_args=""
 	sigd_bg_args="-bg"
 	BRI=1;
+elif [ $sigd = "sangoma_prid" ]; then
+	sigd_safe_args=""
+	sigd_bg_args="-bg"
+	PRI=1;
+	eval "export LD_LIBRARY_PATH=/usr/lib/sangoma_prid:${LD_LIBRARY_PATH} "
 else
 	echo
 	usage
@@ -321,6 +328,12 @@ function start_all()
 		post_args=" -bg"
 	fi
 
+
+  if [ -e /etc/wanpipe/.no_smg_load ]; then
+    echo "Skipping sangoma_mgd..."
+    return 0;
+  fi
+
 	echo -n "Starting sangoma_mgd..."
 	eval "$pre_args sangoma_mgd $post_args >/dev/null 2>/dev/null &"
 	if [ $? -eq 0 ]; then
@@ -378,7 +391,7 @@ function check_running ()
 	return 0
 }
 
-function check_pid_brid()
+function check_pid_sigd()
 {
 	if [ ! $(pidof $sigd) ]; then
 		echo "$sigd is not running"
@@ -390,7 +403,7 @@ function check_pid_brid()
 function toggle_capture()
 {
 	local rc
-	check_pid_brid
+	check_pid_sigd
 	eval "kill -SIGRTMIN+2 $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then
@@ -405,7 +418,7 @@ function toggle_capture()
 function increase_verbose()
 {
 	local rc
-	check_pid_brid
+	check_pid_sigd
 	SIG_VAL=`kill -l SIGRTMIN`
 	echo "signal: $SIG_VAL"
 	eval "kill -SIGRTMIN $(pidof $sigd)"
@@ -422,7 +435,7 @@ function increase_verbose()
 function decrease_verbose()
 {
 	local rc
-	check_pid_brid
+	check_pid_sigd
 	eval "kill -SIGRTMIN+1 $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then
@@ -437,10 +450,10 @@ function decrease_verbose()
 function show_calls()
 {
 	local rc
-	check_pid_brid
+	check_pid_sigd
 	eval "kill -SIGRTMIN+3 $(pidof $sigd) "
 	rc=$?
-	if [ $rc-eq 0 ]; then
+	if [ $rc -eq 0 ]; then
 		echo "BRI: Show calls"
 	else 
 		echo "BRI: Failed to send command"
@@ -452,7 +465,7 @@ function show_calls()
 function show_spans()
 {
 	local rc
-	check_pid_brid
+	check_pid_sigd
 	eval "kill -SIGRTMIN+4 $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then

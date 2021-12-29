@@ -67,6 +67,11 @@
 #define IS_TDMV_UP(wr)		wan_test_bit(WP_TDMV_UP, &(wr)->flags)
 #define IS_TDMV_UP_RUNNING(wr)	(IS_TDMV_UP(wr) && IS_TDMV_RUNNING(wr))
 
+#define wp_fax_tone_timeout_set(wr,chan) do { DEBUG_TEST("%s:%d: s%dc%d fax timeout set\n", \
+											__FUNCTION__,__LINE__, \
+											wr->spanno+1,chan+1); \
+											wr->ec_fax_detect_timeout[chan]=SYSTEM_TICKS; } while(0);
+											
 /*******************************************************************************
 **			   GLOBAL VARIABLES
 *******************************************************************************/
@@ -91,6 +96,14 @@ static int wp_tdmv_remora_rx_chan(wan_tdmv_t*, int,unsigned char*,unsigned char*
 static int wp_tdmv_remora_ec_span(void *pcard);
 
 static void wp_tdmv_remora_tone (void* card_id, wan_event_t *event);
+#ifdef DAHDI_22
+static int wp_tdmv_remora_hwec_create(struct dahdi_chan *chan, 
+									  struct dahdi_echocanparams *ecp,
+									  struct dahdi_echocanparam *p, 
+									  struct dahdi_echocan_state **ec);
+static void wp_tdmv_remora_hwec_free(struct dahdi_chan *chan, 
+									 struct dahdi_echocan_state *ec);
+#endif
 
 #if 0
 #define WAN_SYNC_RX_TX_TEST 1
@@ -101,6 +114,27 @@ static int wp_tdmv_remora_rx_chan_sync_test(sdla_t *card, wp_tdmv_remora_t *wr, 
 #else
 #undef WAN_SYNC_RX_TX_TEST
 #endif
+
+
+#ifdef DAHDI_22
+/*
+*******************************************************************************
+**			   DAHDI HWEC STRUCTURES
+*******************************************************************************
+*/
+static const struct dahdi_echocan_features wp_tdmv_remora_ec_features = {
+	.NLP_automatic = 1,
+	.CED_tx_detect = 1,
+	.CED_rx_detect = 1,
+};
+
+static const struct dahdi_echocan_ops wp_tdmv_remora_ec_ops = {
+	.name = "WANPIPE_HWEC",
+	.echocan_free = wp_tdmv_remora_hwec_free,
+};
+
+#endif
+
 /*******************************************************************************
 **			  FUNCTION DEFINITIONS
 *******************************************************************************/
@@ -279,8 +313,11 @@ static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig)
 	if (fe->rm_param.mod[chan->chanpos - 1].type == MOD_TYPE_FXO) {
 		/* XXX Enable hooksig for FXO XXX */
 		switch(txsig) {
-		case ZT_TXSIG_START:
 		case ZT_TXSIG_OFFHOOK:
+				wp_fax_tone_timeout_set(wr,(chan->chanpos-1));
+				/* Drop down */
+				
+		case ZT_TXSIG_START:
 			DEBUG_TDMV("%s: Module %d: goes off-hook (txsig %d)\n", 
 					wr->devname, chan->chanpos, txsig);
 			wr->mod[chan->chanpos - 1].fxo.offhook = 1;
@@ -324,6 +361,7 @@ static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig)
 			}
 			break;
 		case ZT_TXSIG_OFFHOOK:
+			wp_fax_tone_timeout_set(wr,(chan->chanpos-1));
 			DEBUG_TDMV("%s: Module %d: goes off-hook (txsig %d).\n",
 					wr->devname, chan->chanpos, txsig);
 			switch(chan->sig) {
@@ -363,12 +401,16 @@ static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig)
 static int wp_remora_zap_open(struct zt_chan *chan)
 {
 	wp_tdmv_remora_t	*wr = NULL;
+	sdla_t		*card = NULL; 
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
 	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
 	wr = chan->pvt;
+	WAN_ASSERT2(wr->card == NULL, -ENODEV);
+    card = wr->card; 
 	wr->usecount++;
 	wan_set_bit(WP_TDMV_RUNNING, &wr->flags);
+	wanpipe_open(card);
 	DEBUG_EVENT("%s: Open (usecount=%d, channo=%d, chanpos=%d)...\n", 
 				wr->devname,
 				wr->usecount,
@@ -389,6 +431,7 @@ static int wp_remora_zap_close(struct zt_chan *chan)
 	card	= wr->card;
 	fe	= &card->fe;
 	wr->usecount--;
+	wanpipe_close(card);   
 	wan_clear_bit(WP_TDMV_RUNNING, &wr->flags);
 
 #if 1
@@ -411,6 +454,104 @@ static int wp_remora_zap_watchdog(struct zt_span *span, int event)
 	return 0;
 }
 
+
+
+#ifdef DAHDI_22
+
+/******************************************************************************
+** wp_remora_zap_hwec() - 
+**
+**	OK
+*/
+static int wp_tdmv_remora_hwec_create(struct dahdi_chan *chan, 
+									  struct dahdi_echocanparams *ecp,
+									  struct dahdi_echocanparam *p, 
+									  struct dahdi_echocan_state **ec)
+{
+	wp_tdmv_remora_t *wr = NULL;
+	sdla_t *card = NULL;
+	int err = -ENODEV;
+	
+	WAN_ASSERT2(chan == NULL, -ENODEV);
+	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
+	wr = chan->pvt;
+	WAN_ASSERT2(wr->card == NULL, -ENODEV);
+	card = wr->card;
+
+	
+	if (ecp->param_count > 0) {
+		DEBUG_TDMV("[TDMV] Wanpipe echo canceller does not support parameters; failing request\n");
+		return -EINVAL;
+	}
+
+	*ec = &wr->ec[chan->chanpos - 1];
+	(*ec)->ops = &wp_tdmv_remora_ec_ops;
+	(*ec)->features = wp_tdmv_remora_ec_features;
+	
+	wan_set_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
+	wp_fax_tone_timeout_set(wr,(chan->chanpos-1));
+	
+	if (card->wandev.ec_enable){
+		/* The ec persist flag enables and disables
+		* persistent echo control.  In persist mode
+		* echo cancellation is enabled regardless of
+		* asterisk.  In persist mode off asterisk 
+		* controls hardware echo cancellation */		 
+		if (card->hwec_conf.persist_disable) {
+			/* ec enable expects values starting from 1, zero is not
+               allowed, therefore we must use chan->chanpos because it
+ 			   starts from 1 */
+			err = card->wandev.ec_enable(card, 1, chan->chanpos);
+		} else {
+			err = 0;			
+		}           
+		DEBUG_TDMV("[TDMV_RM]: %s: %s HW echo canceller on channel %d\n",        
+				   wr->devname,
+				   (enable) ? "Enable" : "Disable",
+				   chan->chanpos);
+	}
+	return err;
+}
+
+
+/******************************************************************************
+** wp_tdmv_remora_hwec_free() - 
+**
+**	OK
+*/
+static void wp_tdmv_remora_hwec_free(struct dahdi_chan *chan, struct dahdi_echocan_state *ec)
+{
+	wp_tdmv_remora_t *wr = NULL;
+	sdla_t *card = NULL;
+
+	memset(ec, 0, sizeof(*ec));
+
+	if(chan == NULL) return;
+	if(chan->pvt == NULL) return;
+	wr = chan->pvt;
+	if(wr->card == NULL) return;
+	card = wr->card;
+
+	wan_clear_bit(chan->chanpos-1, &card->wandev.rtp_tap_call_map);
+
+	if (card->wandev.ec_enable) {
+		/* The ec persist flag enables and disables
+	         * persistent echo control.  In persist mode
+                 * echo cancellation is enabled regardless of
+                 * asterisk.  In persist mode off asterisk 
+                 * controls hardware echo cancellation */
+		if (card->hwec_conf.persist_disable) {
+			/* ec enable expects values starting from 1, zero is not
+               allowed, therefore we must use chan->chanpos because it
+ 			   starts from 1 */
+			card->wandev.ec_enable(card, 0, chan->chanpos);
+		}
+		DEBUG_TDMV("[TDMV] %s: Disable HW echo canceller on channel %d\n",
+				wr->devname, chan->chanpos);
+	}
+}
+
+#else
 /******************************************************************************
 ** wp_remora_zap_hwec() - 
 **
@@ -420,7 +561,6 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 {
 	wp_tdmv_remora_t	*wr = NULL;
 	sdla_t			*card = NULL;
-	int			fe_chan = chan->chanpos;
 	int			err = -ENODEV;
 	
 	WAN_ASSERT2(chan == NULL, -ENODEV);
@@ -428,13 +568,13 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 	wr = chan->pvt;
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card = wr->card;
-	
-	fe_chan--;
+
 
 	if (enable) {
-		wan_set_bit(fe_chan,&card->wandev.rtp_tap_call_map);
+		wan_set_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
+		wp_fax_tone_timeout_set(wr,(chan->chanpos-1));
 	} else {
-		wan_clear_bit(fe_chan,&card->wandev.rtp_tap_call_map);
+		wan_clear_bit(chan->chanpos-1,&card->wandev.rtp_tap_call_map);
 	}
 
 	if (card->wandev.ec_enable){
@@ -444,17 +584,21 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
                  * asterisk.  In persist mode off asterisk 
                  * controls hardware echo cancellation */		 
 		if (card->hwec_conf.persist_disable) {
-			err = card->wandev.ec_enable(card, enable, fe_chan);
+			/* ec enable expects values starting from 1, zero is not
+               allowed, therefore we must use chan->chanpos because it
+ 			   starts from 1 */
+			err = card->wandev.ec_enable(card, enable, chan->chanpos);
 		} else {
 			err = 0;			
 		}           
-		DEBUG_TDMV("[TDMV_RM]: %s: %s HW echo canceller on channel %d\n",        
+		DEBUG_TDMV("[TDMV_RM]: %s: %s HW echo canceller on channel %d\n",
 				wr->devname,
 				(enable) ? "Enable" : "Disable",
-				fe_chan);
+				chan->chanpos);
 	}
 	return err;
 }
+#endif
 
 
 
@@ -616,7 +760,11 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 
 	/* Set this pointer only if card has hw echo canceller module */
 	if (wr->hwec == WANOPT_YES && card->wandev.ec_dev){
+#ifdef DAHDI_22
+		wr->span.echocan_create = wp_tdmv_remora_hwec_create;
+#else
 		wr->span.echocan = wp_remora_zap_hwec;
+#endif
 	}
 
 #if defined(__LINUX__)
@@ -1181,11 +1329,20 @@ static int wp_tdmv_remora_ec_span(void *pcard)
 static void wp_tdmv_remora_tone (void* card_id, wan_event_t *event)
 {
 	sdla_t	*card = (sdla_t*)card_id;
-        wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
-        wp_tdmv_remora_t	*wr = NULL;
+	wan_tdmv_t      *wan_tdmv = &card->wan_tdmv;
+	wp_tdmv_remora_t	*wr = NULL;
+	int fechan;
 
-        WAN_ASSERT1(wan_tdmv->sc == NULL);
-        wr = wan_tdmv->sc;
+	WAN_ASSERT1(wan_tdmv->sc == NULL);
+	wr = wan_tdmv->sc;
+
+	if (event->channel <= 0) {
+     	DEBUG_EVENT("%s: Error: wp_tdmv_remora_tone() Invalid Event Channel = %i\n",
+				card->devname, event->channel);
+		return;
+	}
+
+	fechan = event->channel-1;
 	
 	if (event->type == WAN_EVENT_EC_DTMF){
 		DEBUG_TDMV(
@@ -1210,9 +1367,45 @@ static void wp_tdmv_remora_tone (void* card_id, wan_event_t *event)
 					event->channel);
 		return;
 	}
+	
+	if (event->digit == 'f' && fechan >= 0) {
+
+		if (!card->tdmv_conf.hw_fax_detect) {
+			DEBUG_TDMV("%s: Received Fax Detect event while hw fax disabled !\n",card->devname);
+			return;
+		}
+
+		if (card->tdmv_conf.hw_fax_detect == WANOPT_YES) {
+         	card->tdmv_conf.hw_fax_detect=8;
+		}    
+
+		if (wr->ec_fax_detect_timeout[fechan] == 0) {
+			DEBUG_TDMV("%s: FAX DETECT TIMEOUT --- Not initialized!\n",card->devname);
+			return;
+
+		} else 	if (card->tdmv_conf.hw_fax_detect &&
+	    		   (SYSTEM_TICKS - wr->ec_fax_detect_timeout[fechan]) >= card->tdmv_conf.hw_fax_detect*HZ) {
+#ifdef WAN_DEBUG_TDMAPI 
+			if (WAN_NET_RATELIMIT()) {
+				DEBUG_EVENT("%s: Warning: Ignoring Fax detect during call (s%dc%d) - Call Time: %ld  Max: %d!\n",
+					card->devname,
+					wr->spanno+1,
+					event->channel,
+					(SYSTEM_TICKS - wr->ec_fax_detect_timeout[fechan])/HZ,
+					card->tdmv_conf.hw_fax_detect);
+			}
+#endif
+			return;
+		} else {
+			DEBUG_TDMV("%s: FAX DETECT OK --- Ticks=%lu Timeout=%lu Diff=%lu! s%dc%d\n",
+				card->devname,SYSTEM_TICKS,wr->ec_fax_detect_timeout[fechan],
+				(SYSTEM_TICKS - wr->ec_fax_detect_timeout[fechan])/HZ,
+				card->wan_tdmv.spanno,fechan);
+		}
+	}
 
 	if (event->tone_type == WAN_EC_TONE_PRESENT){
-		wr->toneactive |= (1 << event->channel);
+		wr->toneactive |= (1 << (event->channel-1));
 #ifdef DAHDI_ISSUES
 		zt_qevent_lock(
 				wr->span.chans[event->channel-1],
@@ -1223,7 +1416,7 @@ static void wp_tdmv_remora_tone (void* card_id, wan_event_t *event)
 				(ZT_EVENT_DTMFDOWN | event->digit));
 #endif
 	}else{
-		wr->toneactive &= ~(1 << event->channel);
+		wr->toneactive &= ~(1 << (event->channel-1));
 #ifdef DAHDI_ISSUES
 		zt_qevent_lock(
 				wr->span.chans[event->channel-1],

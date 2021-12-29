@@ -1866,9 +1866,7 @@ STATIC WAN_IRQ_RETVAL sdla_isr (int irq, void* dev_id)
 void wanpipe_open (sdla_t* card)
 {
 	++card->open_cnt;
-#if !defined(LINUX_2_6)
 	MOD_INC_USE_COUNT;
-#endif	
 }
 
 /*============================================================================
@@ -1880,9 +1878,7 @@ void wanpipe_open (sdla_t* card)
 void wanpipe_close (sdla_t* card)
 {
 	--card->open_cnt;
-#if !defined(LINUX_2_6)
 	MOD_DEC_USE_COUNT;
-#endif
 }
 
 sdla_t * wanpipe_find_card_num (int num)

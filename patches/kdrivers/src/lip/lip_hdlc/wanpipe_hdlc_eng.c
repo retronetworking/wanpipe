@@ -71,66 +71,25 @@ int wanpipe_hdlc_decode (wanpipe_hdlc_engine_t *hdlc_eng,
 			 unsigned char *buf, int len)
 {
 	int i;
-	int word_len;
-	int found=0;
 	int gotdata=0;
-	unsigned int idledata=0;
 
-	for (i=0;i<8;i++) {		
-		if (buf[0] == FLAG[i]) {
-			idledata = (buf[0] << 24 | buf[0] << 16 | buf[0] << 8 | buf[0]);
-			break;	
-		}
-	}
-
-	if (idledata) {
-
-		/* Flags found check that reset of the frame is not just flags */
-
-		word_len=len-(len%4);
-		/* Before decoding the packet, make sure that the current
-		* bit stream contains data. Decoding is very expensive,
-		* thus perform word (32bit) comparision test */
-		
-		for (i=0;i<word_len;i+=4){
-			if ((*(unsigned int*)&buf[i]) != idledata){
-				found=1;
-				break;
-			}
-		}
-		
-		if ((len%4) && !found){
-			for (i=word_len;i<len;i++){
-				if (buf[i]!=buf[0]){
-					found=1;
-					break;
-				}
-			}
-		}
-	} else {
-
-		found=1;
-
-	}
 
 
 	/* Data found proceed to decode
 	 * the bitstream and pull out data packets */
-	if (found){
-		wanpipe_hdlc_decoder_t *hdlc_decoder = &hdlc_eng->decoder;
+	wanpipe_hdlc_decoder_t *hdlc_decoder = &hdlc_eng->decoder;
 
-		for (i=0; i<len; i++){
-			if (decode_byte(hdlc_eng,hdlc_decoder,&buf[i])){
-				gotdata=1;
-			}
+	for (i=0; i<len; i++){
+		if (decode_byte(hdlc_eng,hdlc_decoder,&buf[i])){
+			gotdata=1;
 		}
+	}
 
-		if (hdlc_decoder->rx_decode_len >= (HDLC_ENG_BUF_LEN-1)){
- 			//printf("ERROR Rx decode len > max\n");	
-			hdlc_decoder->stats.errors++;
-			hdlc_decoder->stats.frame_overflow++;	
-			init_hdlc_decoder(hdlc_decoder);
-		}
+	if (hdlc_decoder->rx_decode_len >= (HDLC_ENG_BUF_LEN-1)){
+		//printf("ERROR Rx decode len > max\n");	
+		hdlc_decoder->stats.errors++;
+		hdlc_decoder->stats.frame_overflow++;	
+		init_hdlc_decoder(hdlc_decoder);
 	}
 	
 	return gotdata;

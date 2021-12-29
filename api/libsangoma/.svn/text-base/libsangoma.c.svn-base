@@ -34,6 +34,18 @@
 
 #include "libsangoma-pvt.h"
 
+#if defined(__WINDOWS__)
+# include <setupapi.h>	/* SetupDiXXX() functions */
+# include <initguid.h>	/* GUID instantination */
+# include <devguid.h>	/* DEFINE_GUID() */
+# include "public.h"	/* GUID_DEVCLASS_SANGOMA_ADAPTER */
+
+# define MAX_COMP_INSTID	2096
+# define MAX_COMP_DESC		2096
+# define MAX_FRIENDLY		2096	
+# define TMP_BUFFER_LEN		256
+#endif
+
 static void libsng_dbg(const char * fmt, ...)
 {
 	va_list args;
@@ -58,6 +70,7 @@ static void libsng_dbg(const char * fmt, ...)
 #define	DBG_INIT	if(0)libsng_dbg
 
 #if defined(__WINDOWS__)
+#define	DBG_REGISTRY	if(0)libsng_dbg
 
 /*
   \fn static void DecodeLastError(LPSTR lpszFunction)
@@ -76,14 +89,14 @@ static void DecodeLastError(LPSTR lpszFunction)
 		FORMAT_MESSAGE_IGNORE_INSERTS,
 		NULL,
 		dwLastErr,
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), /* Default language */
 		(LPTSTR) &lpMsgBuf,
 		0,
 		NULL 
 	);
-	// Display the string.
+	/* Display the string. */
 	DBG_POLL("Last Error in %s(): %s (%d)\n", lpszFunction, lpMsgBuf, dwLastErr);
-	// Free the buffer.
+	/* Free the buffer. */
 	LocalFree( lpMsgBuf );
 } 
 
@@ -97,7 +110,7 @@ static void DecodeLastError(LPSTR lpszFunction)
 static u16 handle_device_ioctl_result(int bResult, char *caller_name)
 {
 	if(bResult == 0){
-		//error
+		/*error*/
 		DecodeLastError(caller_name);
 		return 1;
 
@@ -107,14 +120,14 @@ static u16 handle_device_ioctl_result(int bResult, char *caller_name)
 }
 
 /*
-  \fn static int DoManagementCommand(HANDLE fd, wan_udp_hdr_t* wan_udp)
+  \fn static int UdpManagementCommand(sng_fd_t fd, wan_udp_hdr_t* wan_udp)
   \brief Executes Driver Management Command
   \param fd device file descriptor
   \param wan_udp managemet cmd structure
 
   Private Windows Function
  */
-static int DoManagementCommand(HANDLE fd, wan_udp_hdr_t* wan_udp)
+static int UdpManagementCommand(sng_fd_t fd, wan_udp_hdr_t* wan_udp)
 {
 	DWORD ln, bIoResult;
 	unsigned char id = 0;
@@ -138,14 +151,14 @@ static int DoManagementCommand(HANDLE fd, wan_udp_hdr_t* wan_udp)
 }
 
 /*
-  \fn static int DoTdmvApiCommand(HANDLE fd, wanpipe_tdm_api_cmd_t *api_cmd)
+  \fn static int TdmvApiCommand(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
   \brief Executes Driver TDM API Command
   \param fd device file descriptor
   \param api_cmd tdm_api managemet cmd structure
 
   Private Windows Function
  */
-static int DoTdmvApiCommand(HANDLE fd, wanpipe_tdm_api_cmd_t *api_cmd)
+static int TdmvApiCommand(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
 {
 	DWORD ln, bIoResult;
 
@@ -164,16 +177,16 @@ static int DoTdmvApiCommand(HANDLE fd, wanpipe_tdm_api_cmd_t *api_cmd)
 }
 
 /*
-  \fn static int tdmv_api_ioctl(HANDLE fd, wanpipe_tdm_api_cmd_t *api_cmd)
+  \fn static int tdmv_api_ioctl(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
   \brief Executes Driver TDM API Command Wrapper Function
   \param fd device file descriptor
   \param api_cmd tdm_api managemet cmd structure
 
   Private Windows Function
  */
-static int tdmv_api_ioctl(HANDLE fd, wanpipe_tdm_api_cmd_t *api_cmd)
+static int tdmv_api_ioctl(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
 {
-	if(DoTdmvApiCommand(fd, api_cmd)){
+	if(TdmvApiCommand(fd, api_cmd)){
 		return SANG_STATUS_GENERAL_ERROR;
 	}
 
@@ -181,7 +194,7 @@ static int tdmv_api_ioctl(HANDLE fd, wanpipe_tdm_api_cmd_t *api_cmd)
 }
 
 /*
-  \fn static USHORT DoReadCommand(HANDLE drv, RX_DATA_STRUCT * pRx)
+  \fn static USHORT DoReadCommand(sng_fd_t fd, RX_DATA_STRUCT * pRx)
   \brief  API READ Function
   \param drv device file descriptor
   \param pRx receive data structure
@@ -189,14 +202,14 @@ static int tdmv_api_ioctl(HANDLE fd, wanpipe_tdm_api_cmd_t *api_cmd)
   Private Windows Function
   This function will NOT block because using IoctlReadCommandNonBlocking.
  */
-static USHORT DoReadCommand(HANDLE drv, RX_DATA_STRUCT * pRx)
+static USHORT DoReadCommand(sng_fd_t fd, RX_DATA_STRUCT * pRx)
 {
 	DWORD ln, bIoResult;
 
 	bIoResult = DeviceIoControl(
-			drv,
+			fd,
 			IoctlReadCommandNonBlocking,
-			(LPVOID)NULL,//NO input buffer!
+			(LPVOID)NULL,/*NO input buffer!*/
 			0,
 			(LPVOID)pRx,
 			sizeof(RX_DATA_STRUCT),
@@ -207,7 +220,7 @@ static USHORT DoReadCommand(HANDLE drv, RX_DATA_STRUCT * pRx)
 }
 
 /*
-  \fn static UCHAR DoWriteCommand(HANDLE drv, TX_DATA_STRUCT * pTx)
+  \fn static UCHAR DoWriteCommand(sng_fd_t fd, TX_DATA_STRUCT * pTx)
   \brief API Write Function
   \param drv device file descriptor
   \param pRx receive data structure
@@ -216,7 +229,7 @@ static USHORT DoReadCommand(HANDLE drv, RX_DATA_STRUCT * pRx)
   In Legacy API mode this fuction will Block if data is busy.
   In API mode no function is allowed to Block
  */
-static UCHAR DoWriteCommand(HANDLE drv,
+static UCHAR DoWriteCommand(sng_fd_t fd,
 							void *input_data_buffer, u32 size_of_input_data_buffer,
 							void *output_data_buffer, u32 size_of_output_data_buffer
 							)
@@ -224,7 +237,7 @@ static UCHAR DoWriteCommand(HANDLE drv,
 	DWORD BytesReturned, bIoResult;
 
 	bIoResult = DeviceIoControl(
-			drv,
+			fd,
 			IoctlWriteCommand,
 			(LPVOID)input_data_buffer,
 			size_of_input_data_buffer,
@@ -237,7 +250,7 @@ static UCHAR DoWriteCommand(HANDLE drv,
 }
 
 /*
-  \fn static USHORT sangoma_poll_fd(HANDLE drv, API_POLL_STRUCT *api_poll_ptr)
+  \fn static USHORT sangoma_poll_fd(sng_fd_t fd, API_POLL_STRUCT *api_poll_ptr)
   \brief Non Blocking API Poll function used to find out if Rx Data, Events or
 			Free Tx buffer available
   \param drv device file descriptor
@@ -263,37 +276,67 @@ static USHORT sangoma_poll_fd(sng_fd_t fd, API_POLL_STRUCT *api_poll_ptr)
 	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
 }
 
-static USHORT DoSetSharedEventCommand(HANDLE drv, PREGISTER_EVENT event)
+static int CdevCtrlCommand(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
 {
 	DWORD ln, bIoResult;
 
 	bIoResult = DeviceIoControl(
-			drv,
-			IoctlSetSharedEvent,
-			(LPVOID)event,
-			sizeof(REGISTER_EVENT),
-			(LPVOID)event,
-			sizeof(REGISTER_EVENT),
+			fd,
+			IoctlCdevControlCommand,
+			(LPVOID)api_cmd,
+			sizeof(wanpipe_tdm_api_cmd_t),
+			(LPVOID)api_cmd,
+			sizeof(wanpipe_tdm_api_cmd_t),
 			(LPDWORD)(&ln),
-			(LPOVERLAPPED)NULL);
+			(LPOVERLAPPED)NULL
+			);
 
 	return handle_device_ioctl_result(bIoResult, __FUNCTION__);
 }
 
-static int init_sangoma_event_object(sangoma_wait_obj_t *sng_wait_obj, int flags_in)
+/* This function is exported only for debugging purposes and NOT a part of API. */
+sangoma_status_t _SAPI_CALL sangoma_cdev_ctrl_cmd(sng_fd_t fd, wanpipe_tdm_api_cmd_t *api_cmd)
+{
+	if(CdevCtrlCommand(fd, api_cmd)){
+		return SANG_STATUS_GENERAL_ERROR;
+	}
+	return api_cmd->result;
+}
+
+static sangoma_status_t init_sangoma_event_object(sangoma_wait_obj_t *sng_wait_obj, int flags_in, sng_fd_t fd)
 {
 	int event_index = -1;
-	
+	wanpipe_tdm_api_cmd_t tdm_api_cmd;
+	sangoma_status_t sng_status;
+   	char event_name[200], tmp_event_name[200];
+
+	memset(&tdm_api_cmd, 0x00, sizeof(tdm_api_cmd));
+
+	tdm_api_cmd.cmd = WP_CDEV_CMD_GET_INTERFACE_NAME;
+	sng_status = sangoma_cdev_ctrl_cmd(fd, &tdm_api_cmd);
+	if(SANG_ERROR(sng_status)){
+		DBG_ERR("sangoma_cdev_ctrl_cmd() failed!\n");
+		return sng_status;
+	}
+
+	DBG_EVNT("%s(): interface name: %s\n", __FUNCTION__, tdm_api_cmd.data);
+
 	if(flags_in & POLLIN){
 		event_index = LIBSNG_EVENT_INDEX_POLLIN;
+		/* Form the Event Name from Interface Name and Event Type (i.e. wanpipe1_if1_pollin). */
+		_snprintf(tmp_event_name, sizeof(tmp_event_name), "%s_pollin", tdm_api_cmd.data);
 	}
 
 	if(flags_in & POLLOUT){
 		event_index = LIBSNG_EVENT_INDEX_POLLOUT;
+		/* Form the Event Name from Interface Name and Event Type (i.e. wanpipe1_if1_pollout). */
+		_snprintf(tmp_event_name, sizeof(tmp_event_name), "%s_pollout", tdm_api_cmd.data);
 	}
 
 	if(flags_in & POLLPRI){
 		event_index = LIBSNG_EVENT_INDEX_POLLPRI;
+		/* Form the Event Name from Interface Name and Event Type (i.e. wanpipe1_if1_pollpri). */
+		_snprintf(tmp_event_name, sizeof(tmp_event_name), "%s_pollpri", tdm_api_cmd.data);
 	}
 
 	if(event_index == -1){
@@ -301,40 +344,23 @@ static int init_sangoma_event_object(sangoma_wait_obj_t *sng_wait_obj, int flags
 		return SANG_STATUS_GENERAL_ERROR;
 	}
 
-	sng_wait_obj->sng_event_objects[event_index].hEvent = CreateEvent( NULL, FALSE, FALSE, NULL);
-	if(!sng_wait_obj->sng_event_objects[event_index].hEvent){
-		//error
+	/* 1. The Sangoma Device Driver creates Notification Events in "\\BaseNamedObjects\\Global\\" 
+	 * when first CreateFile() was called by a process. That means the Events will inherit
+	 * the security attributes of the calling process, so the calling process will have
+	 * the permissions to open the Events by calling OpenEvent(). Since Events are created
+	 * "Global" subdirectory, the calling process does NOT need Administrator priveleges.
+	 * 2. The Events are deleted when the last HANDLE for a device is closed by CloseHandle()
+	 * or automatically by the system when calling process exits. */
+	_snprintf(event_name, sizeof(event_name), "Global\\%s", tmp_event_name);
+
+	sng_wait_obj->sng_event_objects[event_index] = OpenEvent(EVENT_ALL_ACCESS, TRUE, event_name);
+	if(NULL == sng_wait_obj->sng_event_objects[event_index]){
+		/* error */
+		DecodeLastError(__FUNCTION__);
 		return SANG_STATUS_GENERAL_ERROR;
 	}
 
-	sng_wait_obj->sng_event_objects[event_index].user_flags_bitmap = flags_in;
-	if(DoSetSharedEventCommand(sng_wait_obj->fd, &sng_wait_obj->sng_event_objects[event_index])){
-		//error
-		return SANG_STATUS_GENERAL_ERROR;
-	}
-
-	return sng_wait_obj->sng_event_objects[event_index].operation_status;
-}
-
-static void sangoma_reset_wait_obj(sangoma_wait_obj_t *sng_wait_obj, int flags_in)
-{
-	if(flags_in & POLLIN){
-		if(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLIN].hEvent){
-			ResetEvent(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLIN].hEvent);
-		}
-	}
-
-	if(flags_in & POLLOUT){
-		if(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLOUT].hEvent){
-			ResetEvent(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLOUT].hEvent);
-		}
-	}
-
-	if(flags_in & POLLPRI){
-		if(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLPRI].hEvent){
-			ResetEvent(sng_wait_obj->sng_event_objects[LIBSNG_EVENT_INDEX_POLLPRI].hEvent);
-		}
-	}
+	return SANG_STATUS_SUCCESS;
 }
 
 static sangoma_status_t _SAPI_CALL sangoma_wait_obj_poll(sangoma_wait_obj_t *sangoma_wait_object, int flags_in, int *flags_out)
@@ -382,7 +408,6 @@ static int check_number_of_wait_objects(uint32_t number_of_objects, const char *
 static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
 									  IN uint32_t in_flags[], OUT uint32_t out_flags[],
 									  IN uint32_t number_of_sangoma_wait_objects,
-									  IN BOOL	reset_events_if_out_flags_set,
 									  OUT BOOL	*at_least_one_poll_set_flags_out)
 {
 	uint32_t i, j;
@@ -400,7 +425,7 @@ static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
 
 		for(j = 0; j < LIBSNG_NUMBER_OF_EVENT_OBJECTS; j++){
 
-			if(!sangoma_wait_object->sng_event_objects[j].hEvent) {
+			if(!sangoma_wait_object->sng_event_objects[j]) {
 				continue;
 			}
 
@@ -409,9 +434,6 @@ static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
 			}
 
 			if(	out_flags[i] & in_flags[i] ){
-				if(TRUE == reset_events_if_out_flags_set){
-					sangoma_reset_wait_obj(sangoma_wait_object, out_flags[i]);/* since we are NOT going to wait on this event, reset it 'manually' */
-				}
 				if(at_least_one_poll_set_flags_out){
 					*at_least_one_poll_set_flags_out = TRUE;
 				}
@@ -421,6 +443,281 @@ static sangoma_status_t get_out_flags(IN sangoma_wait_obj_t *sng_wait_objects[],
 
 	return SANG_STATUS_SUCCESS;
 }
+
+/*!
+  \brief Brief description
+ */
+static void registry_get_string_value(HKEY hkey, LPTSTR szKeyname, OUT LPSTR szValue, OUT DWORD *pdwSize)
+{
+	/* reading twice to set pdwSize to needed value */
+	RegQueryValueEx(hkey, szKeyname, NULL, NULL, (unsigned char *)szValue, pdwSize);
+	RegQueryValueEx(hkey, szKeyname, NULL, NULL, (unsigned char *)szValue, pdwSize);
+	DBG_REGISTRY("%s(): %s: %s\n", __FUNCTION__, szKeyname, szValue);
+}
+
+/*!
+  \brief Brief description
+ */
+static void registry_set_string_value(HKEY hkey, LPTSTR szKeyname, IN LPSTR szValue)
+{
+	DWORD	dwSize;
+
+	dwSize = strlen(szValue) + 1;
+    RegSetValueEx(hkey, szKeyname, 0, REG_SZ, (unsigned char *)szValue, dwSize);
+	DBG_REGISTRY("%s(): %s: %s\n", __FUNCTION__, szKeyname, szValue);
+}
+
+/*!
+  \brief Convert an integer (iValue) to string and write it to registry
+ */
+static void registry_set_integer_value(HKEY hkey, LPTSTR szKeyname, IN int iValue)
+{
+	DWORD	dwSize;
+	char	szTemp[TMP_BUFFER_LEN];
+
+	sprintf(szTemp, "%u", iValue);
+
+	dwSize = strlen(szTemp) + 1;
+    RegSetValueEx(hkey, szKeyname, 0, REG_SZ, (unsigned char *)szTemp, dwSize);
+	DBG_REGISTRY("%s(): %s: %d\n", __FUNCTION__, szKeyname, iValue);
+}
+
+/*!
+ * \brief Go through the list of ALL "Sangoma Hardware Abstraction Driver" ports installed on the system.
+ * Read Bus/Slot/Port information for a port and copare with what is searched for.
+ */
+static HKEY registry_open_port_key(hardware_info_t *hardware_info)
+{
+	int				i;
+	SP_DEVINFO_DATA deid={sizeof(SP_DEVINFO_DATA)};
+	HDEVINFO		hdi = SetupDiGetClassDevs((struct _GUID *)&GUID_DEVCLASS_SANGOMA_ADAPTER, NULL,NULL, DIGCF_PRESENT);
+	char			DeviceName[TMP_BUFFER_LEN], PCI_Bus[TMP_BUFFER_LEN], PCI_Slot[TMP_BUFFER_LEN], Port_Number[TMP_BUFFER_LEN];
+	DWORD			dwTemp;
+	HKEY			hKeyTmp = (struct HKEY__ *)INVALID_HANDLE_VALUE;
+	HKEY			hPortRegistryKey = (struct HKEY__ *)INVALID_HANDLE_VALUE;
+
+	TCHAR	name[MAX_FRIENDLY];
+	char    szCompInstanceId[MAX_COMP_INSTID];
+	TCHAR   szCompDescription[MAX_COMP_DESC];
+	DWORD   dwRegType;
+
+	/* Possible Port Names (refer to sdladrv.inf):
+	Sangoma Hardware Abstraction Driver (Port 1)
+	Sangoma Hardware Abstraction Driver (Port 2)
+	Sangoma Hardware Abstraction Driver (Port 3)
+	Sangoma Hardware Abstraction Driver (Port 4)
+	Sangoma Hardware Abstraction Driver (Port 5)
+	Sangoma Hardware Abstraction Driver (Port 6)
+	Sangoma Hardware Abstraction Driver (Port 7)
+	Sangoma Hardware Abstraction Driver (Port 8)
+	Sangoma Hardware Abstraction Driver (Analog)
+	Sangoma Hardware Abstraction Driver (ISDN BRI)	*/
+
+	/* search for all (AFT) ports: */
+	sprintf(name,"  Sangoma Hardware Abstraction Driver");
+
+	for (i = 0; SetupDiEnumDeviceInfo(hdi, i, &deid); i++){
+
+		BOOL fSuccess = SetupDiGetDeviceInstanceId(hdi, &deid, (PSTR)szCompInstanceId,MAX_COMP_INSTID, NULL);
+		if (!fSuccess){
+			continue;
+		}
+
+		fSuccess = SetupDiGetDeviceRegistryProperty(hdi, &deid,SPDRP_DEVICEDESC,&dwRegType, (BYTE*)szCompDescription, MAX_COMP_DESC, NULL);
+		if (!fSuccess){
+			continue;
+		}
+
+		if (strncmp(szCompDescription, name, strlen(name)) != 0) {	/* Windows can add #2 etc - do NOT consider */
+			/* This is a "Sangoma Card" device, we are interested only in "Sangoma Port" devices. */
+			continue;
+		}
+
+		DBG_REGISTRY("* %s\n", szCompDescription);
+
+		hKeyTmp = SetupDiOpenDevRegKey(hdi, &deid, DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_READ | KEY_SET_VALUE );
+		if(hKeyTmp == INVALID_HANDLE_VALUE){
+			DBG_REGISTRY("Error: Failed to open Registry key!!\n");
+			continue;
+		}
+
+		PCI_Bus[0] = '\0';
+		registry_get_string_value(hKeyTmp, "PCI_Bus", PCI_Bus, &dwTemp);
+
+		PCI_Slot[0] = '\0';
+		registry_get_string_value(hKeyTmp, "PCI_Slot", PCI_Slot, &dwTemp);
+
+		Port_Number[0] = '\0';
+		registry_get_string_value(hKeyTmp, "Port_Number", Port_Number, &dwTemp);
+
+		if(	atoi(PCI_Bus)		== hardware_info->pci_bus_number	&&
+			atoi(PCI_Slot)		== hardware_info->pci_slot_number	&&
+			atoi(Port_Number)	== hardware_info->port_number		){
+
+			hPortRegistryKey = hKeyTmp;
+
+			DeviceName[0] = '\0';
+			registry_get_string_value(hPortRegistryKey, "DeviceName", DeviceName, &dwTemp);
+
+			DBG_REGISTRY("Found Port's Registry key: DeviceName: %s, PCI_Bus: %s, PCI_Slot: %s, Port_Number: %s\n",
+				DeviceName, PCI_Bus, PCI_Slot, Port_Number);
+			break;
+		}/* if() */
+	}/* for() */
+
+	SetupDiDestroyDeviceInfoList(hdi);
+
+	DBG_REGISTRY("hPortRegistryKey: 0x%X\n", hPortRegistryKey);
+
+	return hPortRegistryKey;
+}
+
+static int registry_write_front_end_cfg(HKEY hPortRegistryKey, port_cfg_t *port_cfg)
+{
+	wandev_conf_t	*wandev_conf	= &port_cfg->wandev_conf;
+	sdla_fe_cfg_t	*sdla_fe_cfg	= &wandev_conf->fe_cfg;
+	sdla_te_cfg_t	*te_cfg			= &sdla_fe_cfg->cfg.te_cfg;
+	sdla_remora_cfg_t *analog_cfg	= &sdla_fe_cfg->cfg.remora;
+	sdla_bri_cfg_t	*bri_cfg		= &sdla_fe_cfg->cfg.bri;
+
+	/* set Media specific values. */
+	switch(sdla_fe_cfg->media)
+	{
+	case WAN_MEDIA_T1:
+	case WAN_MEDIA_J1: /* the same as T1 */
+	case WAN_MEDIA_E1:
+		/* only T1/E1 Port can change the Media, all other ports ignore this parameter. */
+		registry_set_integer_value(hPortRegistryKey, "Media",		sdla_fe_cfg->media	/*WAN_MEDIA_T1*/);
+		registry_set_integer_value(hPortRegistryKey, "LDecoding",	sdla_fe_cfg->lcode	/*WAN_LCODE_B8ZS*/);
+		registry_set_integer_value(hPortRegistryKey, "Framing",		sdla_fe_cfg->frame	/*WAN_FR_ESF*/);
+
+		registry_set_integer_value(hPortRegistryKey, "ClkRefPort",		te_cfg->te_ref_clock);
+		registry_set_integer_value(hPortRegistryKey, "TE_IGNORE_YEL",	te_cfg->ignore_yel_alarm);
+		registry_set_integer_value(hPortRegistryKey, "ACTIVE_CH",		ENABLE_ALL_CHANNELS	/*must be hardcoded*/);
+		registry_set_integer_value(hPortRegistryKey, "TE_RBS_CH",		te_cfg->te_rbs_ch);	/*not used by DS chip code, only by PMC */
+
+		registry_set_integer_value(hPortRegistryKey, "LBO",				te_cfg->lbo			/*WAN_T1_LBO_0_DB*/);
+		registry_set_integer_value(hPortRegistryKey, "ClkMode",			te_cfg->te_clock	/*WAN_NORMAL_CLK*/);
+		registry_set_integer_value(hPortRegistryKey, "HighImpedanceMode",te_cfg->high_impedance_mode /*WANOPT_NO*/);
+		registry_set_integer_value(hPortRegistryKey, "TE_RX_SLEVEL",	te_cfg->rx_slevel	/*WAN_TE1_RX_SLEVEL_12_DB*/);
+		/* write E1 signalling for both T1 and E1 */
+		registry_set_integer_value(hPortRegistryKey, "E1Signalling",	te_cfg->sig_mode	/*WAN_TE1_SIG_CCS*/);
+		break;
+	case WAN_MEDIA_56K:
+		/* do nothing */
+		break;
+	case WAN_MEDIA_FXOFXS:
+		/* Analog global (per-card) settings */
+		registry_set_string_value(hPortRegistryKey, "remora_fxo_operation_mode_name",	analog_cfg->opermode_name);
+		registry_set_integer_value(hPortRegistryKey, "RM_BATTTHRESH",					analog_cfg->battthresh);
+		registry_set_integer_value(hPortRegistryKey, "RM_BATTDEBOUNCE",					analog_cfg->battdebounce);
+		registry_set_integer_value(hPortRegistryKey, "RM_FXO_TAPPING",					analog_cfg->rm_mode);
+		registry_set_integer_value(hPortRegistryKey, "RM_FXO_TAPPING_OFF_HOOK_THRESHOLD",analog_cfg->ohthresh);
+		break;
+	case WAN_MEDIA_BRI:
+		registry_set_integer_value(hPortRegistryKey, "aft_bri_clock_mode", bri_cfg->clock_mode);
+		break;
+	case WAN_MEDIA_SERIAL:
+		registry_set_integer_value(hPortRegistryKey, "clock_source",			wandev_conf->clocking);
+		registry_set_integer_value(hPortRegistryKey, "BaudRate",				wandev_conf->bps);
+		registry_set_integer_value(hPortRegistryKey, "serial_connection_type",	wandev_conf->connection);
+		registry_set_integer_value(hPortRegistryKey, "serial_line_coding",		wandev_conf->line_coding);
+		registry_set_integer_value(hPortRegistryKey, "serial_line_idle",		wandev_conf->line_idle);
+		break;
+	default:
+		DBG_ERR("Invalid Media Type %d!\n", sdla_fe_cfg->media);
+		return 1;
+	}
+
+	return 0;
+}
+
+static char* timeslot_bitmap_to_string(int bitmap)
+{
+	int i = 0, range_counter = 0;
+	int start_channel = -1, stop_channel = -1;
+	static char tmp_string[256];
+
+	tmp_string[0] = '\0';
+
+	/* all ranges between two zeros is what we will look for */
+	for(i = 0; i < sizeof(bitmap) * 8; i++){
+
+		if(start_channel < 0){
+			/* found a starting one of a range */
+			if(bitmap & (1 << i)){
+				start_channel = i;
+			}
+		}
+
+		if(start_channel >= 0){
+			if((bitmap & (1 << i)) == 0){
+				
+				/* we hit a zero, that means the previous channel is one */
+				stop_channel = i - 1;
+
+			}else if(i == (sizeof(bitmap) * 8 - 1)){
+				/* The most significant bit is set - there will be no delimiting zero.
+				* It will also take care of "all channels" which is a special
+				* case - there is a start but no stop channel because all bits
+				* are set. result will be 0-31 */
+				stop_channel = (sizeof(bitmap) * 8 - 1);
+			}
+		}
+
+		if(start_channel >= 0 && stop_channel >= 0){
+
+			if(range_counter){
+				/* put '.' separator from the previous range */
+				_snprintf(&tmp_string[strlen(tmp_string)], sizeof(tmp_string) - strlen(tmp_string), ".");
+			}
+							
+			if(start_channel == stop_channel){
+				/* the range contains a SINGLE channel */
+				_snprintf(&tmp_string[strlen(tmp_string)], sizeof(tmp_string) - strlen(tmp_string),
+					"%d", start_channel);
+			}else{
+				/* the range contains MULTIPLE channels */
+				_snprintf(&tmp_string[strlen(tmp_string)], sizeof(tmp_string) - strlen(tmp_string),
+					"%d-%d", start_channel, stop_channel);
+			}
+
+			start_channel = stop_channel = -1;
+			range_counter++;
+		}
+	}/* for() */
+
+	return tmp_string;
+}
+
+static int registry_write_channel_group_cfg(HKEY hPortRegistryKey, port_cfg_t *port_cfg, int interface_index, wanif_conf_t wanif_conf)
+{
+	char	szTemp[TMP_BUFFER_LEN];
+
+	// Line mode
+	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_line_mode", interface_index);
+	registry_set_string_value(hPortRegistryKey, szTemp, 
+		(wanif_conf.hdlc_streaming == WANOPT_YES ? MODE_OPTION_HDLC : MODE_OPTION_BITSTRM));
+
+	// MTU
+	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_mtu", interface_index);
+	registry_set_integer_value(hPortRegistryKey, szTemp, wanif_conf.mtu);
+
+	// Operational mode
+	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_operational_mode", interface_index);
+	registry_set_string_value(hPortRegistryKey, szTemp, wanif_conf.usedby);
+
+	// Active Timeslots for the Group
+	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_active_ch", interface_index);
+	registry_set_string_value(hPortRegistryKey, szTemp, timeslot_bitmap_to_string(wanif_conf.active_ch));
+
+	// Idle char.
+	_snprintf(szTemp, TMP_BUFFER_LEN, "aft_logic_channel_%d_idle_char", interface_index);
+	registry_set_integer_value(hPortRegistryKey, szTemp, wanif_conf.u.aft.idle_flag);
+
+	return 0;
+}
+
 #endif	/* __WINDOWS__ */
 
 
@@ -470,8 +767,8 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma
 	DBG_INIT("%s(): sizeof(**sangoma_wait_object): %d\n", __FUNCTION__, sizeof(**sangoma_wait_object));
 
 	if (SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
-		sng_wait_obj->generic_event_object.hEvent = CreateEvent( NULL, FALSE, FALSE, NULL);
-		if(!sng_wait_obj->generic_event_object.hEvent){
+		sng_wait_obj->generic_event_object = CreateEvent( NULL, FALSE, FALSE, NULL);
+		if(!sng_wait_obj->generic_event_object){
 			return SANG_STATUS_GENERAL_ERROR;
 		}
 	}
@@ -482,17 +779,17 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma
 		return SANG_STATUS_SUCCESS;
 	}
 
-	err = init_sangoma_event_object(sng_wait_obj, POLLIN /* must be a SINGLE bit because there is a signaling object for each bit */);
+	err = init_sangoma_event_object(sng_wait_obj, POLLIN, fd);
 	if(SANG_STATUS_SUCCESS != err){
 		return err;
 	}
 
-	err = init_sangoma_event_object(sng_wait_obj, POLLOUT /* must be a SINGLE bit because there is a signaling object for each bit */);
+	err = init_sangoma_event_object(sng_wait_obj, POLLOUT, fd);
 	if(SANG_STATUS_SUCCESS != err){
 		return err;
 	}
 
-	err = init_sangoma_event_object(sng_wait_obj, POLLPRI /* must be a SINGLE bit because there is a signaling object for each bit */);
+	err = init_sangoma_event_object(sng_wait_obj, POLLPRI, fd);
 	if(SANG_STATUS_SUCCESS != err) {
 		return err;
 	}
@@ -535,11 +832,11 @@ sangoma_status_t _SAPI_CALL sangoma_wait_obj_delete(sangoma_wait_obj_t **sangoma
 
 #if defined(__WINDOWS__)
 	if (SANGOMA_OBJ_IS_SIGNALABLE(sng_wait_obj)) {
-		sangoma_close(&sng_wait_obj->generic_event_object.hEvent);
+		sangoma_close(&sng_wait_obj->generic_event_object);
 	}
 	if (SANGOMA_OBJ_HAS_DEVICE(sng_wait_obj)) {
 		for(index = 0; index < LIBSNG_NUMBER_OF_EVENT_OBJECTS; index++){
-			sangoma_close(&sng_wait_obj->sng_event_objects[index].hEvent);
+			sangoma_close(&sng_wait_obj->sng_event_objects[index]);
 		}
 	}
 #else
@@ -570,8 +867,8 @@ int _SAPI_CALL sangoma_wait_obj_signal(sangoma_wait_obj_t *sng_wait_obj)
 		return SANG_STATUS_INVALID_DEVICE;
 	}
 #if defined(__WINDOWS__)
-	if(sng_wait_obj->generic_event_object.hEvent){
-		if (!SetEvent(sng_wait_obj->generic_event_object.hEvent)) {
+	if(sng_wait_obj->generic_event_object){
+		if (!SetEvent(sng_wait_obj->generic_event_object)) {
 			return SANG_STATUS_GENERAL_ERROR;
 		}
 	}
@@ -647,16 +944,16 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 		sangoma_wait_obj_t *sangoma_wait_object = sng_wait_objects[i];
 
 		/* if SANGOMA_OBJ_IS_SIGNALABLE add the generic_event_object.hEvent to the hEvents */
-		if(sangoma_wait_object->generic_event_object.hEvent){
+		if(sangoma_wait_object->generic_event_object){
 			if(check_number_of_wait_objects(number_of_internal_signaling_objects, __FUNCTION__, __LINE__)){
 				return SANG_STATUS_NO_FREE_BUFFERS;
 			}
-			hEvents[number_of_internal_signaling_objects] = sangoma_wait_object->generic_event_object.hEvent;
+			hEvents[number_of_internal_signaling_objects] = sangoma_wait_object->generic_event_object;
 			number_of_internal_signaling_objects++;
 		}
 
 		for(j = 0; j < LIBSNG_NUMBER_OF_EVENT_OBJECTS; j++){
-			if(sangoma_wait_object->sng_event_objects[j].hEvent){
+			if(sangoma_wait_object->sng_event_objects[j]){
 				if(	((j == LIBSNG_EVENT_INDEX_POLLIN)	&& (in_flags[i] & POLLIN))	||
 					((j == LIBSNG_EVENT_INDEX_POLLOUT)	&& (in_flags[i] & POLLOUT))	||
 					((j == LIBSNG_EVENT_INDEX_POLLPRI)	&& (in_flags[i] & POLLPRI))	){
@@ -664,7 +961,7 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 					if(check_number_of_wait_objects(number_of_internal_signaling_objects, __FUNCTION__, __LINE__)){
 						return SANG_STATUS_NO_FREE_BUFFERS;
 					}
-					hEvents[number_of_internal_signaling_objects] = sangoma_wait_object->sng_event_objects[j].hEvent;
+					hEvents[number_of_internal_signaling_objects] = sangoma_wait_object->sng_event_objects[j];
 					number_of_internal_signaling_objects++;
 				}
 			}/* if () */
@@ -682,7 +979,7 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 
 	/* It is important to get 'out flags' BEFORE the WaitForMultipleObjects()
 	 * because it allows to keep API driver's transmit queue full. */
-	err = get_out_flags(sng_wait_objects, in_flags, out_flags, number_of_sangoma_wait_objects, TRUE, &at_least_one_poll_set_flags_out);
+	err = get_out_flags(sng_wait_objects, in_flags, out_flags, number_of_sangoma_wait_objects, &at_least_one_poll_set_flags_out);
 	if(SANG_ERROR(err)){
 		return err;
 	}
@@ -697,7 +994,7 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sng_wait_ob
 	}
 
 	/* WaitForMultipleObjects() was waken by a Sangoma or by a non-Sangoma wait object. */
-	err = get_out_flags(sng_wait_objects, in_flags, out_flags, number_of_sangoma_wait_objects, TRUE, NULL);
+	err = get_out_flags(sng_wait_objects, in_flags, out_flags, number_of_sangoma_wait_objects, NULL);
 	if(SANG_ERROR(err)){
 		return err;
 	}
@@ -1006,11 +1303,11 @@ sng_fd_t _SAPI_CALL sangoma_open_api_span(int span)
 		if (fd >= 0) {
 #endif
 
-			//found free chan
+			/* found free chan */
 			break;
 		}
 
-	}//for()
+	}/*for()*/
 
     return fd;  
 }
@@ -1052,13 +1349,13 @@ int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *data
 	wp_api_element_t wp_api_element;
 
 	if(hdrlen != sizeof(wp_api_hdr_t)){
-		//error
+		/*error*/
 		DBG_ERR("hdrlen (%i) != sizeof(wp_api_hdr_t) (%i)\n", hdrlen, sizeof(wp_api_hdr_t));
 		return -1;
 	}
 
 	if(DoReadCommand(fd, &wp_api_element)){
-		//error
+		/*error*/
 		DBG_ERR("DoReadCommand() failed! Check messages log.\n");
 		return -4;
 	}
@@ -1084,10 +1381,11 @@ int _SAPI_CALL sangoma_readmsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *data
 
 	rx_len = rx_hdr->data_length;
 #else
-	struct msghdr msg;
-	struct iovec iov[2];
+	wan_msghdr_t msg;
+	wan_iovec_t iov[2];
 
-	memset(&msg,0,sizeof(struct msghdr));
+	memset(&msg,0,sizeof(msg));
+	memset(&iov[0],0,sizeof(iov[0])*2);
 
 	iov[0].iov_len=hdrlen;
 	iov[0].iov_base=hdrbuf;
@@ -1121,15 +1419,18 @@ int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *dat
 	}
 
 #if defined(__WINDOWS__)
-	//queue data for transmission
+
+	wp_api_hdr->data_length = datalen;
+
+	/*queue data for transmission*/
 	if(DoWriteCommand(fd, databuf, datalen, hdrbuf, hdrlen)){
-		//error
+		/*error*/
 		DBG_ERR("DoWriteCommand() failed!! Check messages log.\n");
 		return -1;
 	}
 
 	bsent=0;
-	//check that frame was transmitted
+	/*check that frame was transmitted*/
 	switch(wp_api_hdr->operation_status)
 	{
 	case SANG_STATUS_SUCCESS:
@@ -1139,12 +1440,13 @@ int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *dat
 		DBG_ERR("Operation Status: %s(%d)\n",
 			SDLA_DECODE_SANG_STATUS(wp_api_hdr->operation_status), wp_api_hdr->operation_status);
 		break;
-	}//switch()
+	}/*switch()*/
 #else
-	struct msghdr msg;
-	struct iovec iov[2];
-
-	memset(&msg,0,sizeof(struct msghdr));
+	wan_msghdr_t msg;
+	wan_iovec_t iov[2];
+	
+	memset(&msg,0,sizeof(msg));
+	memset(&iov[0],0,sizeof(iov[0])*2);
 
 	iov[0].iov_len=hdrlen;
 	iov[0].iov_base=hdrbuf;
@@ -1155,7 +1457,7 @@ int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *dat
 	msg.msg_iovlen=2;
 	msg.msg_iov=iov;
 
-	bsent = write(fd,&msg,datalen+hdrlen);
+	bsent = write(fd,&msg,sizeof(msg));
 
 	if (bsent == (datalen+hdrlen)){
 		wp_api_hdr->wp_api_hdr_operation_status=SANG_STATUS_SUCCESS;
@@ -1166,10 +1468,6 @@ int _SAPI_CALL sangoma_writemsg(sng_fd_t fd, void *hdrbuf, int hdrlen, void *dat
 		wp_api_hdr->wp_api_hdr_operation_status=SANG_STATUS_IO_ERROR;
 	}
 	wp_api_hdr->wp_api_hdr_data_length=bsent;
-
-	//FIXME - THIS SHOULD BE DONE IN KERNEL
-        wp_api_hdr->wp_api_tx_hdr_max_queue_length=16;
-        wp_api_hdr->wp_api_tx_hdr_number_of_frames_in_queue=0;
 
 #endif
 	return bsent;
@@ -1376,6 +1674,23 @@ int _SAPI_CALL sangoma_tdm_get_hw_dtmf(sng_fd_t fd, wanpipe_api_t *tdm_api)
 		return err;
 	}
 	return tdm_api->wp_cmd.hw_dtmf;
+}
+
+/*========================================================
+ * GET Current User Hardware EC Enabled/Disabled
+ *
+ * Will return true if HW EC is enabled 
+ */
+
+int _SAPI_CALL sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api)
+{
+	int err;
+	tdm_api->wp_cmd.cmd = WP_API_CMD_GET_HW_EC;
+	err=sangoma_cmd_exec(fd,tdm_api);
+	if (err){
+		return err;
+	}
+	return tdm_api->wp_cmd.hw_ec;
 }
 #endif
 
@@ -1649,6 +1964,7 @@ int _SAPI_CALL sangoma_tdm_disable_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_a
 
 	return 0;
 }
+
 
 int _SAPI_CALL sangoma_tdm_enable_rm_dtmf_events(sng_fd_t fd, wanpipe_api_t *tdm_api)
 {
@@ -2158,7 +2474,7 @@ int _SAPI_CALL sangoma_set_rm_rxflashtime(sng_fd_t fd, wanpipe_api_t *tdm_api, i
 
 static int sangoma_port_mgmnt_ioctl(sng_fd_t fd, port_management_struct_t *port_management)
 {
-
+	int err = 0;
 #if defined(__WINDOWS__)
 	DWORD ln;
 	if(DeviceIoControl(
@@ -2171,26 +2487,26 @@ static int sangoma_port_mgmnt_ioctl(sng_fd_t fd, port_management_struct_t *port_
 			(LPDWORD)(&ln),
 			(LPOVERLAPPED)NULL
 						) == FALSE){
-		//check messages log
-		printf("%s():Error: IoctlPortManagementCommand failed!!\n", __FUNCTION__);
-		return -1;
-	}else {
-		return 0;
+		/* Call Call OS specific code to find cause of the error and check messages log. */
+		DBG_ERR("%s():Error: IoctlPortManagementCommand failed!!\n", __FUNCTION__);
+		err = -1;
 	}
 #else
-	int err;
 	err=ioctl(fd,WANPIPE_IOCTL_PORT_MGMT,port_management);
 	if (err) {
-		return -1;
-	} else {
-		return 0;
+		err = -1;
 	}
 #endif
+	if(err){
+		port_management->operation_status = SANG_STATUS_INVALID_DEVICE;
+	}
+
+	return err;
 }
 
 static int sangoma_port_cfg_ioctl(sng_fd_t fd, port_cfg_t *port_cfg)
 {
-
+	int err = 0;
 #if defined(__WINDOWS__)
 	DWORD ln;
 	if(DeviceIoControl(
@@ -2203,21 +2519,21 @@ static int sangoma_port_cfg_ioctl(sng_fd_t fd, port_cfg_t *port_cfg)
 			(LPDWORD)(&ln),
 			(LPOVERLAPPED)NULL
 						) == FALSE){
-		//check messages log
-		printf("%s():Error: IoctlSetDriverConfiguration failed!!\n", __FUNCTION__);
-		return 1;
-	}else{
-		return 0;
+		/* Call Call OS specific code to find cause of the error and check messages log. */
+		DBG_ERR("%s():Error: IoctlPortConfigurationCommand failed!!\n", __FUNCTION__);
+		err = -1;
 	}
 #else
-	int err;
 	err=ioctl(fd,WANPIPE_IOCTL_PORT_CONFIG,port_cfg);
 	if (err) {
-		return -1;
-	} else {
-		return 0;
+		err = -1;
 	}
 #endif
+	if(err){
+		port_cfg->operation_status = SANG_STATUS_INVALID_DEVICE;
+	}
+
+	return err;
 }
 
 /* open wanpipe configuration device */
@@ -2252,7 +2568,7 @@ sng_fd_t _SAPI_CALL sangoma_open_driver_ctrl(int port_no)
 int _SAPI_CALL sangoma_mgmt_cmd(sng_fd_t fd, wan_udp_hdr_t* wan_udp)
 {
 #if defined(__WINDOWS__)
-	if(DoManagementCommand(fd, wan_udp)){
+	if(UdpManagementCommand(fd, wan_udp)){
 		return 1;
 	}
 #else
@@ -2282,14 +2598,11 @@ int _SAPI_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *
 
 	err = sangoma_port_mgmnt_ioctl(fd, port_mgmnt);
 	if (err) {
+		/* ioctl failed */
 		return err;
 	}
 
-	if (port_mgmnt->operation_status != SANG_STATUS_SUCCESS ) {
-		err=port_mgmnt->operation_status;
-	}
-
-	return err;
+	return port_mgmnt->operation_status;
 }
 
 int _SAPI_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
@@ -2300,16 +2613,21 @@ int _SAPI_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *p
 
 	err = sangoma_port_mgmnt_ioctl(fd, port_mgmnt);
 	if (err) {
+		/* ioctl failed */
 		return err;
 	}
 
-	if (port_mgmnt->operation_status != SANG_STATUS_SUCCESS){
-
-		if(port_mgmnt->operation_status == SANG_STATUS_CAN_NOT_STOP_DEVICE_WHEN_ALREADY_STOPPED) {
-			err = 0;
-		}else{
-			err = port_mgmnt->operation_status;
-		}
+	switch(port_mgmnt->operation_status)
+	{
+	case SANG_STATUS_CAN_NOT_STOP_DEVICE_WHEN_ALREADY_STOPPED:
+		/* This is not an error, rather a state indication.
+		 * Return SANG_STATUS_SUCCESS, but real return code will be available
+		 * for the caller at port_mgmnt->operation_status. */
+		err = SANG_STATUS_SUCCESS;
+		break;
+	default:
+		err = port_mgmnt->operation_status;
+		break;
 	}
 
 	return err;
@@ -2317,21 +2635,16 @@ int _SAPI_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *p
 
 int _SAPI_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
 {
-        int err;
-        port_mgmnt->command_code = GET_HARDWARE_INFO;
-        port_mgmnt->port_no     = port_no;
+	int err;
+	port_mgmnt->command_code = GET_HARDWARE_INFO;
+	port_mgmnt->port_no     = port_no;
 
-        err = sangoma_port_mgmnt_ioctl(fd, port_mgmnt);
-        if (err) {
-				port_mgmnt->operation_status = SANG_STATUS_INVALID_DEVICE;
-                return err;
-        }
+	err = sangoma_port_mgmnt_ioctl(fd, port_mgmnt);
+	if (err) {
+		return err;
+	}
 
-        if (port_mgmnt->operation_status != SANG_STATUS_SUCCESS ) {
-                err=port_mgmnt->operation_status;
-        }
-
-        return err;
+	return port_mgmnt->operation_status;
 }
 
 int _SAPI_CALL sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no)
@@ -2351,7 +2664,39 @@ int _SAPI_CALL sangoma_driver_port_get_config(sng_fd_t fd, port_cfg_t *port_cfg,
 	return sangoma_port_cfg_ioctl(fd, port_cfg);
 }
 
-#endif
+int _SAPI_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t *hardware_info, port_cfg_t *port_cfg, unsigned short port_no)
+{
+	int err = 0;
+#if defined(__WINDOWS__)
+	HKEY		hPortRegistryKey	= registry_open_port_key(hardware_info);
+	wandev_conf_t	*wandev_conf	= &port_cfg->wandev_conf;
+	sdla_fe_cfg_t	*sdla_fe_cfg	= &wandev_conf->fe_cfg;
+	unsigned int	ind;
 
+	if(hPortRegistryKey == INVALID_HANDLE_VALUE){
+		return 1;
+	}
+
+	/* write T1/E1/BRI/Analog configuration */
+	if(registry_write_front_end_cfg(hPortRegistryKey, port_cfg)){
+		return 2;
+	}
+
+	/* write number of groups */
+	registry_set_integer_value(hPortRegistryKey, "aft_number_of_logic_channels", port_cfg->num_of_ifs);
+
+	/* write configuration of each group */
+	for(ind = 0; ind < port_cfg->num_of_ifs; ind++){
+		registry_write_channel_group_cfg(hPortRegistryKey, port_cfg, ind, port_cfg->if_cfg[ind]);
+	}
+
+#else
+	printf("%s(): Warning: function not implemented\n", __FUNCTION__);
+	err = 1;
+#endif
+	return err;
+}
+
+#endif /* #ifndef LIBSANGOMA_LIGHT */
 
 #endif /* WANPIPE_TDM_API */

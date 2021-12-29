@@ -50,7 +50,11 @@ extern "C" {	/* for C++ users */
 #endif
 
 #ifndef WP_API_FEATURE_DTMF_EVENTS
-#warning "Warning: SANGOMA API DTMF not supported by driver"
+#ifdef __WINDOWS__
+# pragma message("Warning: SANGOMA API DTMF not supported by driver")
+#else
+# warning "Warning: SANGOMA API DTMF not supported by driver"
+#endif
 #endif
 
 #ifndef WP_API_FEATURE_EVENTS
@@ -79,10 +83,6 @@ enum {
 };
 
 #define LIBSNG_MAGIC_NO	0x90547419
-
-#if defined(__WINDOWS__)
- typedef REGISTER_EVENT libsng_event_t;
-#endif
 
 /* libsangoma.h defines sangoma_wait_obj_t for the sake of clean prototype definitions, time to undefine it since from now on 
  * the real typedef will be used */
@@ -116,9 +116,8 @@ typedef struct sangoma_wait_obj
 #if defined(__WINDOWS__)
 	/*! WINDOWS: api structure used by windows IoctlSetSharedEvent call */
 	/*! to wait on events or data from the Sangoma device driver. */
-	libsng_event_t sng_event_objects[LIBSNG_NUMBER_OF_EVENT_OBJECTS];
-
-	libsng_event_t generic_event_object;
+	HANDLE sng_event_objects[LIBSNG_NUMBER_OF_EVENT_OBJECTS];
+	HANDLE generic_event_object;
 #else
 	/*! LINUX: To be used by a pipe to asynchronously break a poll() */
 	sng_fd_t signal_write_fd;

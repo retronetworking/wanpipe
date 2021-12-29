@@ -73,11 +73,59 @@ int 	aft_core_send_serial_oob_msg (sdla_t *card);
 int 	wan_user_process_udp_mgmt_pkt(void* card_ptr, void* chan_ptr, void *udata);
 
 
-
-
 /*=================================================================
  * Used for debugging only
  *================================================================*/
+
+#if defined WANPIPE_PERFORMANCE_DEBUG
+#warning "WANPIPE_PERFORMANCE_DEBUG Enabled"
+static __inline int aft_calc_elapsed(struct timeval *started, struct timeval *ended)
+{
+#if 0
+	return (((ended->tv_sec * 1000) + ended->tv_usec / 1000) -
+		((started->tv_sec * 1000) + started->tv_usec / 1000));
+#else
+	return ended->tv_usec -  started->tv_usec;
+#endif
+
+} 
+
+static int __inline aft_timing_start(sdla_t * card)
+{
+#if 1
+#if defined(__LINUX__)
+	do_gettimeofday(&card->timing_tv);
+#endif
+#endif
+	return 0;
+}
+
+static int __inline aft_timing_stop_calculate_elapsed(sdla_t * card)
+{
+#if 1
+#if defined(__LINUX__)
+	int elapsed=0;
+	struct timeval current_tv;
+	do_gettimeofday(&current_tv);
+	elapsed=aft_calc_elapsed(&card->timing_tv,&current_tv);
+	if (elapsed > card->wandev.stats.rx_errors) {
+		card->wandev.stats.rx_errors=elapsed;
+	}
+	if (elapsed > 1000) {
+		DEBUG_EVENT("%s: Error: Timeout is huge %i\n",card->devname, elapsed);
+	}
+	if (card->wandev.stats.rx_errors > 2500) {
+		card->wandev.stats.rx_errors=0;
+	}
+
+	card->wandev.stats.tx_errors=elapsed;
+#endif
+#endif
+	return 0;
+}
+#endif
+
+
 
 
 #if 0

@@ -24,7 +24,8 @@ C_DEFINES=$(C_DEFINES) /DSTELEPHONY_EXPORTS
 
 INCLUDES=$(SDK_INC_PATH);\
 $(MFC_INC_PATH);\
-$(SANG_WP_DEVEL)\stelephony\stel_tone
+$(SANG_WP_DEVEL)\stelephony\stel_tone;\
+$(SANG_WP_DEVEL)\wanpipe_common\include
 
 TARGETLIBS=$(SDK_LIB_PATH)\kernel32.lib \
 $(SANG_WP_DEVEL)\stelephony\stel_tone\$(OBJ_DIR)\stel_tone.lib

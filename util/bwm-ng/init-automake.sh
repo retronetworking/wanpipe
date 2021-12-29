@@ -1,15 +1,24 @@
 #!/bin/sh
 
 PWD=$(pwd)
-eval "cd . && /bin/sh $PWD/missing --run aclocal"
+
+eval "autoheader"
 if [ $? -ne 0 ]; then
 	exit $?
 fi
-eval "cd . && /bin/sh $PWD/missing --run automake --gnu"
+eval "libtoolize --force"
 if [ $? -ne 0 ]; then
 	exit $?
 fi
-eval "cd . && /bin/sh $PWD/missing --run autoconf"
+eval "aclocal"
+if [ $? -ne 0 ]; then
+	exit $?
+fi
+eval "automake -a"
+if [ $? -ne 0 ]; then
+	exit $?
+fi
+eval "autoconf"
 if [ $? -ne 0 ]; then
 	exit $?
 fi

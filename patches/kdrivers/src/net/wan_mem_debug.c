@@ -138,7 +138,7 @@ int sdla_memdbg_pull(void *mem, const char *func_name, const int line)
 	}
 
 	if (err) {
-		DEBUG_EVENT("%s:%d: Critical Error: Unknows Memeory %p\n",
+		DEBUG_EVENT("%s:%d: Critical Error: Unknown Memory 0x%p\n",
 			__FUNCTION__,__LINE__,mem);
 	}
 

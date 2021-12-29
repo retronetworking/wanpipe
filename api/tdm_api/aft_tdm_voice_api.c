@@ -337,6 +337,7 @@ bitstrm_skip_read:
 		   	}
 		
 		   	if (FD_ISSET(dev_fd,&write)){
+				wp_api_hdr_t *hdr=&Tx_data[0];
 
 				err = sangoma_writemsg_tdm(dev_fd,
 						       Tx_data,sizeof(wp_api_hdr_t), 
@@ -358,8 +359,8 @@ bitstrm_skip_read:
 					++Tx_count;
 					
 					if (verbose){
-						printf("Packet sent: Sent %i : %i\n",
-							err,Tx_count);
+						printf("Packet sent: Sent %i : %i  txq=%i txq_len=%i\n",
+							err,Tx_count,hdr->wp_api_tx_hdr_max_queue_length, hdr->wp_api_tx_hdr_number_of_frames_in_queue);
 					}else{
 						//putchar('T');
 					}

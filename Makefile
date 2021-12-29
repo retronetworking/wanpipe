@@ -50,11 +50,19 @@ ifndef ARCH
 	ARCH=$(shell uname -m)
 endif
 ifndef ASTDIR
-    	ASTDIR=/usr/src/asterisk
+	ASTDIR=/usr/src/asterisk
+endif
+
+ifdef DESTDIR
+	INSTALLPREFIX=$(DESTDIR)
 endif
 
 ifndef INSTALLPREFIX
 	INSTALLPREFIX=
+endif
+
+ifndef LIBPREFIX
+	LIBPREFIX=/usr
 endif
 
 ifndef 64BIT_4G
@@ -149,7 +157,7 @@ dahdi: all_src
 zaptel: all_src
 
 openzap: all_src all_lib
-	@touch .all_lib
+	@touch .all_lib .openzap
 
 tdmapi: all_src all_lib
 	@touch .all_lib
@@ -175,8 +183,12 @@ all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 #Clean utilites and kernel modules
 clean: cleanup_local  clean_util _cleanoldwanpipe
 	$(MAKE) -C $(KDIR) SUBDIRS=$(WAN_DIR) clean
+	$(MAKE) -C api SUBDIRS=$(WAN_DIR) clean
 	@find patches/kdrivers -name '.*.cmd' | xargs rm -f
 	@find . -name 'Module.symver*' | xargs rm -f
+	@if [ -e .openzap ]; then
+		rm -f .openzap
+	fi
 
                                     
 #Clean old wanpipe headers from linux include
@@ -217,14 +229,12 @@ _checkzap:
 	@echo 
 	@if [ ! -e $(ZAPDIR)/zaptel.h ] && [ ! -e $(ZAPDIR)/kernel/zaptel.h ] && [ ! -e $(ZAPDIR)/include/dahdi/kernel.h ] ; then \
 		echo " ZAPTEL/DAHDI Support: Disabled"; \
-		echo " 64BIT_4G            : $(64BIT_4G)"; \
 		ZAPDIR_PRIV=; \
 		ENABLE_WANPIPEMON_ZAP=NO; \
 	else \
 		if [ -e $(ZAPDIR)/include/dahdi/kernel.h ]; then \
 		    echo " ZAPTEL/DAHDI Support: DAHDI Enabled"; \
 			echo " DAHDI Dir           : $(ZAPDIR)"; \
-		    echo " 64BIT_4G            : $(64BIT_4G)"; \
 			echo; \
 			ZAPDIR_PRIV=$(ZAPDIR); \
 			ENABLE_WANPIPEMON_ZAP=YES; \
@@ -239,7 +249,6 @@ _checkzap:
 		else \
 		    echo " ZAPTEL/DAHDI Support: ZAPTEL Enabled"; \
 			echo " ZAPTEL Dir          : $(ZAPDIR)"; \
-		    echo " 64BIT_4G            : $(64BIT_4G)"; \
 			echo; \
 			eval "$(PWD)/patches/sangoma-zaptel-patch.sh $(ZAPDIR)"; \
 			ZAPDIR_PRIV=$(ZAPDIR); \
@@ -297,16 +306,16 @@ all_util:  install_inc
 	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(ARCH)
 
 all_lib:
-		$(shell cd api/libsangoma; ./init-automake.sh > /dev/null;  ./configure --prefix=$(INSTALLPREFIX)/usr > /dev/null;)
+		$(shell cd api/libsangoma; ./init-automake.sh >> $(PWD)/.cfg_log;  ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;)
 		$(MAKE) -C api/libsangoma clean
 		$(MAKE) -C api/libsangoma all
-		$(shell cd api/libstelephony; ./init-automake.sh > /dev/null;  ./configure --prefix=$(INSTALLPREFIX)/usr > /dev/null;)
+		$(shell cd api/libstelephony; ./init-automake.sh >> $(PWD)/.cfg_log; ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;)
 		$(MAKE) -C api/libstelephony clean
 		$(MAKE) -C api/libstelephony all
 
 install_lib:
-		$(MAKE) -C api/libsangoma install
-		$(MAKE) -C api/libstelephony install
+		$(MAKE) -C api/libsangoma install DESTDIR=$(INSTALLPREFIX)
+		$(MAKE) -C api/libstelephony install DESTDIR=$(INSTALLPREFIX)
 
 #Clean utilities only
 clean_util:	
@@ -323,6 +332,12 @@ install_smgbri:
 	$(MAKE) -C ssmg/libsangoma.trunk/ install DESTDIR=$(INSTALLPREFIX)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone install DESTDIR=$(INSTALLPREFIX)
 
+install_pri:
+	@if [  ! -e .openzap ]; then \
+		@echo "Installing Sangoma MGD"; \
+		$(MAKE) -C ssmg/sangoma_mgd.trunk/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PRI=YES DESTDIR=$(INSTALLPREFIX) ; \
+	fi
+	$(MAKE) -C ssmg/sangoma_pri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
 
 #Install etc files
 install_etc:
@@ -361,9 +376,9 @@ install_inc:
 	@\cp -rf $(PWD)/patches/kdrivers/wanec/*.h $(INSTALLPREFIX)/usr/include/wanpipe/
 
 smgbri: 
-	@cd ssmg/libsangoma.trunk; ./configure --prefix=/usr ; cd ../..;
+	@cd ssmg/libsangoma.trunk; ./configure --prefix=$(LIBPREFIX) ; cd ../..;
 	$(MAKE) -C ssmg/libsangoma.trunk/ CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
-	@cd ssmg/sangoma_mgd.trunk/lib/libteletone; ./configure --prefix=/usr ; cd ../../..;
+	@cd ssmg/sangoma_mgd.trunk/lib/libteletone; ./configure --prefix=$(LIBPREFIX) ; cd ../../..;
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/lib/libteletone CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR)
 	$(MAKE) -C ssmg/sangoma_mgd.trunk/ CC=$(CC) PREFIX=$(INSTALLPREFIX) KDIR=$(KDIR) ASTDIR=$(ASTDIR)
 

@@ -121,7 +121,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories=".;include\api;include\debug;include\octasic;include\pnp;..\libpri"
-				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;__WINDOWS__;WANPIPE_TDM_API;_CRT_SECURE_NO_DEPRECATE"
+				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;__WINDOWS__;WANPIPE_TDM_API;_CRT_SECURE_NO_DEPRECATE;WP_API_FEATURE_DTMF_EVENTS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"

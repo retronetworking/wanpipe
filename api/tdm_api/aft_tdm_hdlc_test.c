@@ -50,7 +50,7 @@
 /* Enable/Disable tx of random frames */
 #define RAND_FRAME 0
 
-#define MAX_NUM_OF_TIMESLOTS  31*16
+#define MAX_NUM_OF_TIMESLOTS  32*32
 
 #define LGTH_CRC_BYTES	2
 #define MAX_TX_DATA     15000 //MAX_NUM_OF_TIMESLOTS*10	/* Size of tx data */
@@ -310,7 +310,7 @@ void process_con_rx(void)
 					error_abort+=slot->hdlc_eng->decoder.stats.abort;
 					error_frm+=slot->hdlc_eng->decoder.stats.frame_overflow;
 				
-#if 0	
+#if 1	
 					if (wanpipe_get_rx_hdlc_errors(slot->hdlc_eng) != slot->last_error){
 						slot->last_error = wanpipe_get_rx_hdlc_errors(slot->hdlc_eng);
 						if (slot->last_error > 1){
@@ -352,7 +352,7 @@ void process_con_rx(void)
 			 
 		    } /* for all slots */
 		
-		    if (1){ //frame%500==0){	 
+		    if (frame%500==0){	 
 		    putchar('\r');
 		    printf("Slots=%04i frame=%04i packets=%04i errors=%04i (crc=%04i abort=%04i frm=%04i)",
 		    	slots,
@@ -431,7 +431,7 @@ void process_con_tx(timeslot_t *slot)
 	 */
 
 	memset(&Tx_data[0],0,MAX_TX_DATA + sizeof(wp_api_hdr_t));
-	slot->data=0;
+	slot->data=1;
 	for (i=0;i<Tx_hdlc_len;i++){
 		if (slot->data){
 			Tx_data[i+sizeof(wp_api_hdr_t)] = slot->data;

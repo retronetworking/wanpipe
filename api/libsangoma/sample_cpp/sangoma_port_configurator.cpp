@@ -6,13 +6,6 @@
 
 #include "sangoma_port_configurator.h"
 
-#if defined(__WINDOWS__)
- #include <setupapi.h>	//for SetupDiXXX() functions
- #include <initguid.h>	//for GUID instantination
- #include <devguid.h>	//for DEFINE_GUID() 
- #include "public.h"	//for GUID_DEVCLASS_SANGOMA_ADAPTER
-#endif
-
 #define DBG_CFG		if(1)printf("PORTCFG:");if(1)printf
 #define _DBG_CFG	if(1)printf
 
@@ -363,19 +356,34 @@ int sangoma_port_configurator::set_volatile_configration(port_cfg_t *port_cfg)
  *
  */
 
-int sangoma_port_configurator::set_t1_tdm_span_voice_api_configration(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
+int sangoma_port_configurator::initialize_t1_tdm_span_voice_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
 {
-    wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
-    sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
-    wan_tdmv_conf_t  *tdmv_cfg = &wandev_conf->tdmv_conf;
-    wanif_conf_t     *wanif_cfg = &port_cfg->if_cfg[0];
+    wandev_conf_t	*wandev_conf = &port_cfg->wandev_conf;
+    sdla_fe_cfg_t	*sdla_fe_cfg = &wandev_conf->fe_cfg;
+	sdla_te_cfg_t	*te_cfg = &sdla_fe_cfg->cfg.te_cfg;
+    wan_tdmv_conf_t *tdmv_cfg = &wandev_conf->tdmv_conf;
+    wanif_conf_t	*wanif_cfg = &port_cfg->if_cfg[0];
 
-    // Load media parameters in the registry
+    // T1 parameters
     FE_MEDIA(sdla_fe_cfg) = WAN_MEDIA_T1;
     FE_LCODE(sdla_fe_cfg) = WAN_LCODE_B8ZS;
     FE_FRAME(sdla_fe_cfg) = WAN_FR_ESF;
 	FE_LINENO(sdla_fe_cfg) =  hardware_info->port_number;
-    sdla_fe_cfg->cfg.te_cfg.lbo = WAN_T1_0_110;
+	FE_TDMV_LAW(sdla_fe_cfg) = WAN_TDMV_MULAW;
+	FE_NETWORK_SYNC(sdla_fe_cfg) = 0;
+
+	FE_LBO(sdla_fe_cfg) = WAN_T1_0_110;
+	FE_REFCLK(sdla_fe_cfg) = 0;
+	FE_HIMPEDANCE_MODE(sdla_fe_cfg) = 0;
+	FE_SIG_MODE(sdla_fe_cfg) = WAN_TE1_SIG_CCS;
+	FE_RX_SLEVEL(sdla_fe_cfg) = WAN_TE1_RX_SLEVEL_12_DB;
+
+#if 1
+ 	FE_CLK(sdla_fe_cfg) = WAN_NORMAL_CLK;
+#else
+	/* Use Master clock with a loopback cable or as Telco simulator. */
+	FE_CLK(sdla_fe_cfg) = WAN_MASTER_CLK;
+#endif
 
     port_cfg->num_of_ifs = 1;
 
@@ -388,7 +396,7 @@ int sangoma_port_configurator::set_t1_tdm_span_voice_api_configration(port_cfg_t
     wandev_conf->card_type = WANOPT_AFT; //m_DeviceInfoData.card_model;
 
 	wanif_cfg->magic = ROUTER_MAGIC;
-    wanif_cfg->active_ch = 0xFFFFFFFF;
+    wanif_cfg->active_ch = 0x01FFFFFE;// channels 1-24
     sprintf(wanif_cfg->usedby,"TDM_SPAN_VOICE_API");
     wanif_cfg->u.aft.idle_flag=0xFF;
     wanif_cfg->mtu = 160;
@@ -398,7 +406,7 @@ int sangoma_port_configurator::set_t1_tdm_span_voice_api_configration(port_cfg_t
 
     if (hardware_info->max_hw_ec_chans) {
 		/* wan_hwec_conf_t - HWEC configuration for Port */
-		wandev_conf->tdmv_conf.hw_dtmf = 1;
+		/*wandev_conf->hwec_conf.dtmf = 1;*/
 		/* wan_hwec_if_conf_t - HWEC configuration for Interface */
 		wanif_cfg->hwec.enable = 1;
 	}
@@ -416,20 +424,13 @@ int sangoma_port_configurator::set_t1_tdm_span_voice_api_configration(port_cfg_t
 		return 1;
     }
 
-	printf("T1: tdmv_cfg->dchan: 0x%X\n", tdmv_cfg->dchan);
-
-	/* Use Master clock in loopback mode or as telco simulator */
-#if 0
- 	sdla_fe_cfg->cfg.te_cfg.te_clock = WAN_NORMAL_CLK;
-#else
-	sdla_fe_cfg->cfg.te_cfg.te_clock = WAN_MASTER_CLK;
-#endif
+	printf("T1: tdmv_cfg->dchan bitmap: 0x%X\n", tdmv_cfg->dchan);
 
 	return 0;
 }
 
 
-int sangoma_port_configurator::set_e1_tdm_span_voice_api_configration(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
+int sangoma_port_configurator::initialize_e1_tdm_span_voice_api_configration_structure(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
 {
     wandev_conf_t    *wandev_conf = &port_cfg->wandev_conf;
     sdla_fe_cfg_t    *sdla_fe_cfg = &wandev_conf->fe_cfg;
@@ -441,7 +442,21 @@ int sangoma_port_configurator::set_e1_tdm_span_voice_api_configration(port_cfg_t
     FE_LCODE(sdla_fe_cfg) = WAN_LCODE_HDB3;
     FE_FRAME(sdla_fe_cfg) = WAN_FR_CRC4;
 	FE_LINENO(sdla_fe_cfg) = hardware_info->port_number;
-    sdla_fe_cfg->cfg.te_cfg.lbo = WAN_E1_120;
+	FE_TDMV_LAW(sdla_fe_cfg) = WAN_TDMV_MULAW;
+	FE_NETWORK_SYNC(sdla_fe_cfg) = 0;
+
+	FE_LBO(sdla_fe_cfg) = WAN_E1_120;
+	FE_REFCLK(sdla_fe_cfg) = 0;
+	FE_HIMPEDANCE_MODE(sdla_fe_cfg) = 0;
+	FE_SIG_MODE(sdla_fe_cfg) = WAN_TE1_SIG_CCS;
+	FE_RX_SLEVEL(sdla_fe_cfg) = WAN_TE1_RX_SLEVEL_12_DB;
+
+#if 1
+ 	FE_CLK(sdla_fe_cfg) = WAN_NORMAL_CLK;
+#else
+	/* Use Master clock with a loopback cable or as Telco simulator. */
+	FE_CLK(sdla_fe_cfg) = WAN_MASTER_CLK;
+#endif
 
     port_cfg->num_of_ifs = 1;
 
@@ -454,7 +469,7 @@ int sangoma_port_configurator::set_e1_tdm_span_voice_api_configration(port_cfg_t
     wandev_conf->card_type = WANOPT_AFT; //m_DeviceInfoData.card_model;
 
 	wanif_cfg->magic = ROUTER_MAGIC;
-    wanif_cfg->active_ch = 0xFFFFFFFF;
+    wanif_cfg->active_ch = 0xFFFFFFFE;// channels 1-31
     sprintf(wanif_cfg->usedby,"TDM_SPAN_VOICE_API");
     wanif_cfg->u.aft.idle_flag=0xFF;
     wanif_cfg->mtu = 160;
@@ -464,7 +479,7 @@ int sangoma_port_configurator::set_e1_tdm_span_voice_api_configration(port_cfg_t
 
     if (hardware_info->max_hw_ec_chans) {
 		/* wan_hwec_conf_t - HWEC configuration for Port */
-		wandev_conf->tdmv_conf.hw_dtmf = 1;
+		/*wandev_conf->hwec_conf.dtmf = 1;*/
 		/* wan_hwec_if_conf_t - HWEC configuration for Interface */
 		wanif_cfg->hwec.enable = 1;
 	}
@@ -482,218 +497,13 @@ int sangoma_port_configurator::set_e1_tdm_span_voice_api_configration(port_cfg_t
 		return 1;
     }
 	
-	printf("E1: tdmv_cfg->dchan: 0x%X\n", tdmv_cfg->dchan);
-
-    sdla_fe_cfg->cfg.te_cfg.te_clock = WAN_NORMAL_CLK;
-
+	printf("E1: tdmv_cfg->dchan bitmap: 0x%X\n", tdmv_cfg->dchan);
 	return 0;
 }
 
-//////////////////////////////////////////////////////////////////////
-#if defined(__WINDOWS__)
-
-/*!
-  \brief Brief description
- *
- */
-void GetRegistryStringValue(HKEY hkey, LPTSTR szKeyname, OUT LPSTR szValue, OUT DWORD *pdwSize)
+int sangoma_port_configurator::write_configration_on_persistent_storage(port_cfg_t *port_cfg, hardware_info_t *hardware_info, int span)
 {
-	//reading twice to set dwTemp to needed value
-	RegQueryValueEx(hkey, szKeyname, NULL, NULL, (unsigned char *)szValue, pdwSize);
-	RegQueryValueEx(hkey, szKeyname, NULL, NULL, (unsigned char *)szValue, pdwSize);
-	DBG_CFG("GetRegistryStringValue(): %s: %s\n", szKeyname, szValue);
+	//all the work is done by libsangoma
+	return sangoma_write_port_config_on_persistent_storage(hardware_info, port_cfg, (unsigned short)span);
 }
 
-/*!
-  \brief Brief description
- *
- */
-void SetRegistryStringValue(HKEY hkey, LPTSTR szKeyname, IN LPSTR szValue)
-{
-	DWORD	dwSize;
-
-	dwSize = strlen(szValue) + 1;
-    RegSetValueEx(hkey, szKeyname, 0, REG_SZ, (unsigned char *)szValue, dwSize);
-	DBG_CFG("SetRegistryStringValue(): %s: %s\n", szKeyname, szValue);
-}
-
-/*!
-  \brief Convert an integer (iValue) to string and write it to registry
- *
- */
-void SetRegistryStringValue(HKEY hkey, LPTSTR szKeyname, IN int iValue)
-{
-	DWORD	dwSize;
-	char	szTemp[TMP_BUFFER_LEN];
-
-	sprintf(szTemp, "%u", iValue);
-
-	dwSize = strlen(szTemp) + 1;
-    RegSetValueEx(hkey, szKeyname, 0, REG_SZ, (unsigned char *)szTemp, dwSize);
-	DBG_CFG("SetRegistryStringValue(): %s: %s\n", szKeyname, szTemp);
-}
-
-
-/*!
-  \brief Go through the list of ALL "Sangoma Hardware Abstraction Driver" ports installed on the system.
- *
- * Read Bus/Slot/Port information for a port and copare with what is searched for.
- */
-int sangoma_port_configurator::open_port_registry_key(hardware_info_t *hardware_info)
-{
-	int				i;
-	SP_DEVINFO_DATA deid={sizeof(SP_DEVINFO_DATA)};
-	HDEVINFO		hdi = SetupDiGetClassDevs((struct _GUID *)&GUID_DEVCLASS_SANGOMA_ADAPTER, NULL,NULL, DIGCF_PRESENT);
-	char			DeviceName[TMP_BUFFER_LEN], PCI_Bus[TMP_BUFFER_LEN], PCI_Slot[TMP_BUFFER_LEN], Port_Number[TMP_BUFFER_LEN];
-	DWORD			dwTemp;
-	HKEY			hKeyTmp = (struct HKEY__ *)INVALID_HANDLE_VALUE;
-
-	hPortRegistryKey = (struct HKEY__ *)INVALID_HANDLE_VALUE;
-
-	//Possible Port Names:
-	//Sangoma Hardware Abstraction Driver (Port 1)
-	//Sangoma Hardware Abstraction Driver (Port 2)
-	//Sangoma Hardware Abstraction Driver (Port 3)
-	//Sangoma Hardware Abstraction Driver (Port 4)
-	//Sangoma Hardware Abstraction Driver (Port 5)
-	//Sangoma Hardware Abstraction Driver (Port 6)
-	//Sangoma Hardware Abstraction Driver (Port 7)
-	//Sangoma Hardware Abstraction Driver (Port 8)
-
-	//this version will search for all ports:
-	sprintf(name,"  Sangoma Hardware Abstraction Driver");
-
-	for (i = 0; SetupDiEnumDeviceInfo(hdi, i, &deid); i++)
-	{
-		BOOL fSuccess = SetupDiGetDeviceInstanceId(hdi, &deid, (PSTR)szCompInstanceId,MAX_COMP_INSTID, NULL);
-		if (!fSuccess){
-			continue;
-		}
-
-		fSuccess = SetupDiGetDeviceRegistryProperty(hdi, &deid,SPDRP_DEVICEDESC,&dwRegType, (BYTE*)szCompDescription, MAX_COMP_DESC, NULL);
-		if (!fSuccess){
-			continue;
-		}
-
-		if (strncmp(szCompDescription, name, strlen(name)) != 0) {	// Windows can add #2 etc - do NOT consider
-			//not a Sangoma device
-			continue;
-		}
-
-		printf("* %s\n", szCompDescription);
-
-		hKeyTmp = SetupDiOpenDevRegKey(hdi, &deid, DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_READ | KEY_SET_VALUE );
-		if(hKeyTmp == INVALID_HANDLE_VALUE){
-			printf("Error: Failed to open Registry key!!\n");
-			continue;
-		}
-
-		PCI_Bus[0] = '\0';
-		GetRegistryStringValue(hKeyTmp, "PCI_Bus", PCI_Bus, &dwTemp);
-
-		PCI_Slot[0] = '\0';
-		GetRegistryStringValue(hKeyTmp, "PCI_Slot", PCI_Slot, &dwTemp);
-
-		Port_Number[0] = '\0';
-		GetRegistryStringValue(hKeyTmp, "Port_Number", Port_Number, &dwTemp);
-
-		if(	atoi(PCI_Bus)		== hardware_info->pci_bus_number	&&
-			atoi(PCI_Slot)		== hardware_info->pci_slot_number	&&
-			atoi(Port_Number)	== hardware_info->port_number		){
-
-			hPortRegistryKey = hKeyTmp;
-
-			DeviceName[0] = '\0';
-			GetRegistryStringValue(hPortRegistryKey, "DeviceName", DeviceName, &dwTemp);
-
-			printf("Found Port's Registry key: DeviceName: %s, PCI_Bus: %s, PCI_Slot: %s, Port_Number: %s\n",
-				DeviceName, PCI_Bus, PCI_Slot, Port_Number);
-			break;
-		}//if()
-	}//for()
-
-	SetupDiDestroyDeviceInfoList(hdi);
-
-	if(hPortRegistryKey == (struct HKEY__ *)INVALID_HANDLE_VALUE){
-		return SANG_STATUS_REGISTRY_ERROR;
-	}else{
-		return SANG_STATUS_SUCCESS;
-	}
-}
-
-
-/*!
-  \brief Brief description
- *
- */
-int sangoma_port_configurator::set_registry_configration(port_cfg_t *port_cfg)
-{
-	wandev_conf_t		*wandev_conf = &port_cfg->wandev_conf;
-	sdla_fe_cfg_t		*sdla_fe_cfg = &wandev_conf->fe_cfg;
-	int rc;
-
-	DBG_CFG("%s()\n", __FUNCTION__);
-
-	if(hPortRegistryKey == (struct HKEY__ *)INVALID_HANDLE_VALUE){
-		ERR_CFG("Error: registry key is CLOSED for port!\n");
-		return 1;
-	}
-
-	if((rc = stop_port())){
-		//failed to stop port for re-configuration
-		INFO_CFG("%s(): return code: %s (%d)\n", __FUNCTION__, SDLA_DECODE_SANG_STATUS(rc), rc);
-		return 2;
-	}
-
-
-	// set common default values: set 1 group, HDLC, MTU 2048, API.
-	// One group
-	SetRegistryStringValue(hPortRegistryKey, "aft_number_of_logic_channels", 1);
-	// Line mode is HDLC
-	SetRegistryStringValue(hPortRegistryKey, "aft_logic_channel_0_line_mode", MODE_OPTION_HDLC);
-	// MTU
-	SetRegistryStringValue(hPortRegistryKey, "aft_logic_channel_0_mtu", 2048);
-	// Operational mode
-	SetRegistryStringValue(hPortRegistryKey, "aft_logic_channel_0_operational_mode", SDLA_DECODE_USEDBY_FIELD(API));
-
-	// set Media specific default values.
-	if(sdla_fe_cfg->media == WAN_MEDIA_T1){
-
-		SetRegistryStringValue(hPortRegistryKey, "Media", WAN_MEDIA_T1);
-		SetRegistryStringValue(hPortRegistryKey, "LDecoding", WAN_LCODE_B8ZS);
-		SetRegistryStringValue(hPortRegistryKey, "Framing", WAN_FR_ESF);
-		SetRegistryStringValue(hPortRegistryKey, "LBO", WAN_T1_LBO_0_DB);
-		SetRegistryStringValue(hPortRegistryKey, "aft_logic_channel_0_active_ch", "1-24");
-		SetRegistryStringValue(hPortRegistryKey, "ClkMode", WAN_NORMAL_CLK);
-		SetRegistryStringValue(hPortRegistryKey, "HighImpedanceMode", WANOPT_NO);
-		SetRegistryStringValue(hPortRegistryKey, "TE_RX_SLEVEL", WAN_TE1_RX_SLEVEL_12_DB);
-
-	}else if(sdla_fe_cfg->media == WAN_MEDIA_E1){
-
-		SetRegistryStringValue(hPortRegistryKey, "Media", WAN_MEDIA_E1);
-		SetRegistryStringValue(hPortRegistryKey, "LDecoding", WAN_LCODE_HDB3);
-		SetRegistryStringValue(hPortRegistryKey, "Framing", WAN_FR_NCRC4);
-		SetRegistryStringValue(hPortRegistryKey, "LBO", WAN_E1_120);
-		SetRegistryStringValue(hPortRegistryKey, "E1Signalling", WAN_TE1_SIG_CCS);
-		SetRegistryStringValue(hPortRegistryKey, "aft_logic_channel_0_active_ch", "1-31");
-		SetRegistryStringValue(hPortRegistryKey, "ClkMode", WAN_NORMAL_CLK);
-		SetRegistryStringValue(hPortRegistryKey, "HighImpedanceMode", WANOPT_NO);
-		SetRegistryStringValue(hPortRegistryKey, "TE_RX_SLEVEL", WAN_TE1_RX_SLEVEL_12_DB);
-
-	}else{
-		//example shows only how to change between T1 and E1
-		ERR_CFG("%s(): Error: invalid Media Type %d!\n", __FUNCTION__, sdla_fe_cfg->media);
-		return 3;
-	}
-
-	//After all configuration was written to the registry, start the driver:
-	if((rc = start_port())){
-		//failed to start port after re-configuration
-		INFO_CFG("%s(): return code: %s (%d)\n", __FUNCTION__, SDLA_DECODE_SANG_STATUS(rc), rc);
-		return 1;
-	}
-
-	INFO_CFG("%s(): return code: %s (%d)\n", __FUNCTION__, SDLA_DECODE_SANG_STATUS(rc), rc);
-	return 0;
-}
-#endif//__WINDOWS__

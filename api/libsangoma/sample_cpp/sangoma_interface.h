@@ -96,6 +96,7 @@
 */
 class sangoma_interface : public sangoma_cthread
 {
+protected:
 	/*! Sangoma IO device descriptor */
 	sng_fd_t	sangoma_dev;
 
@@ -213,9 +214,6 @@ class sangoma_interface : public sangoma_cthread
 	/*! Data buffer to copy tx data into */
 	unsigned char		tx_data[MAX_NO_DATA_BYTES_IN_FRAME];
 
-	/*! Callback functions used to call the application on IO events */
-	callback_functions_t	callback_functions;
-
 	/*! Wanpipe Interface configuration structure to be populated on read configuration */
 	if_cfg_t				wanif_conf_struct;
 
@@ -229,7 +227,9 @@ class sangoma_interface : public sangoma_cthread
 	wan_debug_t		wan_debug_rx_timing;
 #endif
 
-protected:
+	/*! Callback functions used to call the application on IO events */
+	callback_functions_t	callback_functions;
+
 	virtual unsigned long threadFunction(struct ThreadParam& thParam);
 
 public:
@@ -242,7 +242,7 @@ public:
 
 	int DoManagementCommand(sng_fd_t drv, wan_udp_hdr_t* packet);
 
-	int init(callback_functions_t *callback_functions_ptr);
+	virtual int init(callback_functions_t *callback_functions_ptr);
 	int run();
 	int stop();
 
@@ -362,9 +362,16 @@ public:
 
 };
 
+class sangoma_api_ctrl_dev : public sangoma_interface
+{
+public:
+	sangoma_api_ctrl_dev(void);
+	~sangoma_api_ctrl_dev(void);
+	virtual int init(callback_functions_t *callback_functions_ptr);
+};
+
 
 #if defined(__WINDOWS__)
-
 #define HANDLE_DEVICE_IOCTL_RESULT(bResult)\
 { \
 	if(bResult == 0){ \
@@ -374,7 +381,6 @@ public:
 		return 1; \
 	} \
 }
-
 #endif /*__WINDOWS__*/
 
 #endif//SANGOMA_INTERFACE_H

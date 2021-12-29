@@ -23,15 +23,10 @@
 # include "wanpipe_lapb_kernel.h"
 #endif
 
-
 #if defined(AFT_XMTP2_API_SUPPORT)
-extern void xmtp2km_bs_handler (int fi, int len, unsigned char * p_rxbs, unsigned char * p_txbs);
-extern int xmtp2km_register    (void *, char *, int (*callback)(void*, unsigned char*, int));
-extern int xmtp2km_unregister  (int);
-extern int xmtp2km_facility_state_change (int fi, int state);
+#include "xmtp2km_kiface.h"
 int wp_xmtp2_callback (void *prot_ptr, unsigned char *data, int len);
 #endif
-
 
 int 	protocol_init (sdla_t*card,netdevice_t *dev,
 		               private_area_t *chan, wanif_conf_t* conf);

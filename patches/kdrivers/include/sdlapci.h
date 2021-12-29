@@ -129,7 +129,7 @@
 #define AFT8_PCI_MEM_SIZE	0x1FFFF
 
 #define XILINX_PCI_CMD_REG	0x04
-#define XILINX_PCI_LATENCY_REG  0x0C
+#define XILINX_PCI_LATENCY_REG  0x0D
 
 /* Local PCI register offsets */ 
 #define PCI_VENDOR_ID_WORD	0x00		/* vendor ID */

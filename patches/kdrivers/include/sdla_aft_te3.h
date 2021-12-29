@@ -1191,9 +1191,15 @@ static __inline void aft_enable_rx_watchdog(sdla_t *card, unsigned char timeout)
 	aft_reset_rx_watchdog(card);
 
 	/* Rx Watchdog is not used if firmware supports IFT interrupt */
+#ifdef AFT_TE3_IFT_FEATURE_DISABLE 
+#warning "AFT_TE3_IFT_FEATURE_DISABLE is defined!"   
+    card->hw_iface.bus_write_1(card->hw,AFT_TE3_RX_WDT_CTRL_REG,timeout);
+#else
 	if (card->u.aft.firm_ver < AFT_IFT_FIMR_VER) {
 		card->hw_iface.bus_write_1(card->hw,AFT_TE3_RX_WDT_CTRL_REG,timeout);
 	}
+#endif
+
 }
 
 static __inline void aft_reset_tx_watchdog(sdla_t *card)

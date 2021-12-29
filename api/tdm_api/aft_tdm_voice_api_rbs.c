@@ -283,7 +283,12 @@ void handle_span_chan(int dev_fd, int span, int chan)
 
 				if (Rx_count == 100){
 					printf("WRITTING 0\n");
+#ifdef LIBSANGOMA_VERSION
                  			err=sangoma_tdm_write_rbs(dev_fd, &tdm_api, chan, 0x00);
+#else
+                 			err=sangoma_tdm_write_rbs(dev_fd, &tdm_api, 0x00);
+#endif
+
 					if (err){
 						perror("RBS WRITE");
 					}
@@ -292,21 +297,35 @@ void handle_span_chan(int dev_fd, int span, int chan)
 				
 				if (Rx_count == 105){
 					printf("WRITTING A\n");
+#ifdef LIBSANGOMA_VERSION
                  			err=sangoma_tdm_write_rbs(dev_fd, &tdm_api, chan, WPTDM_A_BIT);
+#else
+                 			err=sangoma_tdm_write_rbs(dev_fd, &tdm_api,  WPTDM_A_BIT);
+#endif
 					if (err){
 						perror("RBS WRITE");
 					}	 
 				}
 #if 1
 				if (Rx_count == 110){
+#ifdef LIBSANGOMA_VERSION
                  			err=sangoma_tdm_write_rbs(dev_fd, &tdm_api, chan, (WPTDM_A_BIT|WPTDM_B_BIT));
+#else
+                 			err=sangoma_tdm_write_rbs(dev_fd, &tdm_api, (WPTDM_A_BIT|WPTDM_B_BIT));
+
+#endif
 					if (err){
 						perror("RBS WRITE");
 					}	 
 				}
 				
 				if (Rx_count == 120){
+#ifdef LIBSANGOMA_VERSION
                  			err=sangoma_tdm_write_rbs(dev_fd, &tdm_api, chan, 0);
+#else
+                 			err=sangoma_tdm_write_rbs(dev_fd, &tdm_api,  0);
+
+#endif
 					if (err){
 						perror("RBS WRITE");
 					}	 

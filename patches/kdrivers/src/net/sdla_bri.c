@@ -29,6 +29,8 @@
  *				indicate 'disconnect' right away, do it when 
  *				T4 expires.
  *
+ * July		21  2009	David Rokhvarg	
+ *				v1.4 Implemented T1 timer for NT.
  *
  ******************************************************************************
  */
@@ -62,12 +64,12 @@
 #define DEBUG_HFC_TX		if(0)DEBUG_EVENT
 #define DEBUG_TX_DATA		if(0)DEBUG_EVENT
 #define TX_EXTRA_DBG		if(0)DEBUG_EVENT
-#define TX_FAST_DBG		if(0)DEBUG_EVENT
+#define TX_FAST_DBG			if(0)DEBUG_EVENT
 
 #define DEBUG_HFC_RX		if(0)DEBUG_EVENT
 #define RX_EXTRA_DBG		if(0)DEBUG_EVENT
-#define DEBUG_RX1		if(0)DEBUG_EVENT
-#define DBG_RX_DATA		if(0)DEBUG_EVENT
+#define DEBUG_RX1			if(0)DEBUG_EVENT
+#define DBG_RX_DATA			if(0)DEBUG_EVENT
 
 #define DEBUG_HFC_CLOCK		if(0)DEBUG_EVENT
 #define DBG_MODULE_TESTER	if(0)DEBUG_EVENT
@@ -75,15 +77,23 @@
 #define NT_STATE_FUNC()		if(0)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
 #define CLOCK_FUNC()		if(0)DEBUG_EVENT("%s(): line: %d\n", __FUNCTION__, __LINE__)
 
-#define DBG_SPI			if(0)DEBUG_EVENT
+#define DBG_SPI				if(0)DEBUG_EVENT
 
 #define DEBUG_FE_STATUS		if(0)DEBUG_EVENT
 
-#define DEBUG_LOOPB		if(0)DEBUG_EVENT
+#define DEBUG_LOOPB			if(0)DEBUG_EVENT
 
+#define COLOGNE_TECH_SUPPORT_LOGIC_NT 1
 
 #define FIFO_THRESHOLD_INDEX	1
 
+typedef enum _nt_states{
+	NT_STATE_RESET_G0 = 0,
+	NT_STATE_DEACTIVATED_G1,
+	NT_STATE_PENDING_ACTIVATION_G2,
+	NT_STATE_ACTIVE_G3,
+	NT_STATE_PENDING_DEACTIVATION_G4
+}nt_states_t;
 
 #define CHECK_DATA 0
 #if CHECK_DATA
@@ -213,6 +223,7 @@ static int	wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char status);
 static int	wp_bri_control(sdla_fe_t *fe, u32 command);
 
 /*******************************************************************************/
+/* TE timer routines */
 #if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 static void l1_timer_expire_t3(void* pfe);
 static void l1_timer_expire_t4(void* pfe);
@@ -230,6 +241,20 @@ static void l1_timer_start_t4(void *pport);
 static void l1_timer_stop_t4(void *pport);
 
 static void __l1_timer_expire_t3(sdla_fe_t *fe);
+
+/* NT timer routines */
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+static void l1_timer_expire_t1(void* pfe);
+#elif defined(__WINDOWS__)
+static void l1_timer_expire_t1(IN PKDPC Dpc, void* pfe, void* arg2, void* arg3);
+#else
+static void l1_timer_expire_t1(unsigned long pfe);
+#endif
+
+static void l1_timer_start_t1(void *pport);
+static void l1_timer_stop_t1(void *pport);
+static void __l1_timer_expire_t1(sdla_fe_t *fe);
+
 /*******************************************************************************/
 
 static int32_t	wp_bri_spi_bus_reset(sdla_fe_t	*fe);
@@ -300,7 +325,7 @@ static void xhfc_waitbusy(sdla_fe_t *fe, u32 mod_no)
 
 static inline void xhfc_resetfifo(sdla_fe_t *fe, u32 mod_no)
 {
-        WRITE_REG(A_INC_RES_FIFO, M_RES_FIFO | M_RES_FIFO_ERR);
+	WRITE_REG(A_INC_RES_FIFO, M_RES_FIFO | M_RES_FIFO_ERR);
 	xhfc_waitbusy(fe, mod_no);
 }
 
@@ -366,9 +391,9 @@ static int32_t reset_chip(sdla_fe_t *fe, u32 mod_no)
 {
 	sdla_bri_param_t	*bri = &fe->bri_param;
 	wp_bri_module_t		*bri_module;
-	int32_t			err = 0;
+	int32_t				err = 0, maximum_reset_wait_counter;
+	reg_r_fifo_thres	r_fifo_thres;
 
-	
 	DEBUG_HFC_INIT("%s(): mod_no: %d\n", __FUNCTION__, mod_no);
 
 	WAN_ASSERT(fe->write_fe_reg == NULL);
@@ -385,10 +410,12 @@ static int32_t reset_chip(sdla_fe_t *fe, u32 mod_no)
 	switch (fe->fe_chip_id)
 	{
 	case CHIP_ID_2SU:
+		DEBUG_EVENT("%s: Detected XHFC-2SU chip.\n", fe->name);
 		bri_module->num_ports = 2;
 		bri_module->max_fifo = 8;
 		bri_module->max_z = 0x7F;
-		/* set fifo mode 8 tx and 8 rx fifos */
+		DBG_MODULE_TESTER("configure FIFOs\n");
+		/* 01 = 8 FIFOs with 128 bytes for TX and RX each. page 125 */
 		WRITE_REG( R_FIFO_MD, M1_FIFO_MD * 1);
 		break;
 	default:
@@ -400,12 +427,33 @@ static int32_t reset_chip(sdla_fe_t *fe, u32 mod_no)
 
 	/* general soft chip reset */
 	WRITE_REG(R_CIRM, M_SRES);
-	WP_DELAY(5);
+	WP_DELAY(50);
 	WRITE_REG(R_CIRM, 0);
-	/* wait for XHFC init seqeuence to be finished */
-	WP_DELAY(500);	
+	WP_DELAY(2000);
 
+	/* wait for XHFC init seqeuence to be finished. should take ~40 microseconds (p.285). */
+	maximum_reset_wait_counter = 1000;
+	while ((READ_REG(R_STATUS) & (M_BUSY | M_PCM_INIT)) && (maximum_reset_wait_counter)){
+		WP_DELAY(10);/* 10 microsecond delay */
+		maximum_reset_wait_counter--;
+	}
 
+	if (!(maximum_reset_wait_counter)) {
+		DEBUG_EVENT("%s: %s(): Error: chip initialization sequence timeout!\n",
+			       fe->name, __FUNCTION__);
+		return 1;
+	}
+
+	/* amplitude */
+	WRITE_REG(R_PWM_MD, 0x80);
+	WRITE_REG(R_PWM1, 0x18);
+
+	/* Set FIFO threshold. page 124.*/
+	r_fifo_thres.reg = 0;
+	r_fifo_thres.bit.v_thres_tx = r_fifo_thres.bit.v_thres_rx = FIFO_THRESHOLD_INDEX;
+	WRITE_REG(R_FIFO_THRES, r_fifo_thres.reg);
+
+	WP_DELAY(2000);
 	return 0;
 }
 
@@ -577,9 +625,7 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 
 	u8			port_no, bchan;
 	reg_a_su_ctrl0		a_su_ctrl0;
-	reg_a_su_ctrl1		a_su_ctrl1;
 	reg_a_su_rd_sta		a_su_rd_sta;
-	reg_r_fifo_thres	r_fifo_thres;
 		
 	DEBUG_HFC_INIT("%s(): mod_no: %d\n", __FUNCTION__, mod_no);
 
@@ -594,62 +640,12 @@ static int32_t init_xfhc(sdla_fe_t *fe, u32 mod_no)
 
 	DBG_MODULE_TESTER("read ChipID from Read Only register R_CHIP_ID: must be 0x61\n");
 
-	/* read ChipID from Read Only register R_CHIP_ID */
-	fe->fe_chip_id = READ_REG(R_CHIP_ID);
-	switch (fe->fe_chip_id)
-	{
-	case CHIP_ID_2SU:
-		DEBUG_EVENT("%s: Detected XHFC-2SU chip.\n", fe->name);
-		bri_module->num_ports = 2;
-		bri_module->max_fifo = 8;
-		bri_module->max_z = 0x7F;
-		DBG_MODULE_TESTER("configure FIFOs\n");
-		/* 01 = 8 FIFOs with 128 bytes for TX and RX each. page 125 */
-		WRITE_REG( R_FIFO_MD, M1_FIFO_MD * 1);
-		break;
-	default:
-		err = 1;
-		DEBUG_EVENT("%s: %s(): unknown Chip ID 0x%x!\n",
-		       fe->name, __FUNCTION__, fe->fe_chip_id);
+	if((err = reset_chip(fe, mod_no))){
 		return err;
 	}
 
 	a_su_ctrl0.reg = 0;
-	a_su_ctrl1.reg = 0;
 	a_su_rd_sta.reg = 0;
-
-	DBG_MODULE_TESTER("general soft chip reset\n");
-	/* general soft chip reset */
-	WRITE_REG(R_CIRM, M_SRES);
-	WP_DELAY(5);
-	WRITE_REG(R_CIRM, 0);
-
-	/* amplitude */
-	WRITE_REG(R_PWM_MD, 0x80);
-	WRITE_REG(R_PWM1, 0x18);
-
-	/* Set FIFO threshold. page 124.*/
-	r_fifo_thres.reg = 0;
-	r_fifo_thres.bit.v_thres_tx = r_fifo_thres.bit.v_thres_rx = FIFO_THRESHOLD_INDEX;
-	WRITE_REG(R_FIFO_THRES, r_fifo_thres.reg);
-
-	DBG_MODULE_TESTER("wait 1 second for XHFC init seqeuence to be finished\n");
-	/* wait for XHFC init seqeuence to be finished */
-	WP_DELAY(500);	
-
-	DBG_MODULE_TESTER("read chip 'busy' bit\n");
-	while ((READ_REG(R_STATUS) & (M_BUSY | M_PCM_INIT)) && (timeout)){
-		CLOCK_FUNC();
-		WP_DELAY(10);
-		timeout--;
-	}
-
-	if (!(timeout)) {
-		DEBUG_EVENT("%s: %s(): Error: chip initialization sequence timeout!\n",
-			       fe->name, __FUNCTION__);
-		return 1;
-	}
-
 
 	/* PCM: 1. Slave mode 2. PCM64 (4MBit/s data rate). */
 	/* slow PCM adjust speed */
@@ -1144,8 +1140,10 @@ static int32_t wp_bri_dchan_tx(sdla_fe_t *fe, void *src_data_buffer, u32 buffer_
 		
 	rc = xhfc_write_fifo_dchan(fe, mod_no, bri_module, port_ptr, &free_space);
 
-	/* The frame was accepted for transmission. Return ZERO even if the frame
-	   will be actually transmitted in parts!!! */
+	/* The frame was accepted for transmission.
+	 * Return 0 - Successful tx but now queue is full.
+	 * Note that the frame maybe actually transmitted in parts, depending on the length. 
+	 */
 	return 0;
 }
 
@@ -1470,11 +1468,11 @@ static int32_t wp_bri_spi_bus_reset(sdla_fe_t	*fe)
 	card->hw_iface.bus_write_4(	card->hw,
 					SPI_INTERFACE_REG,
 					MOD_SPI_RESET);
-	WP_DELAY(500);
+	WP_DELAY(1000);
 	card->hw_iface.bus_write_4(	card->hw,
 					SPI_INTERFACE_REG,
 					0x00000000);
-	WP_DELAY(500);
+	WP_DELAY(1000);
 	return 0;
 }
 
@@ -1714,6 +1712,7 @@ static int wp_bri_pre_release(void* pfe)
 	
 		wan_del_timer(&port_ptr->t3_timer);
 		wan_del_timer(&port_ptr->t4_timer);
+		wan_del_timer(&port_ptr->t1_timer);		
 
 	}/* for (port_no = 0; port_no < bri_module->num_ports; port_no++) */
 
@@ -1802,10 +1801,6 @@ static int32_t wp_bri_config(void *pfe)
 	case MOD_TYPE_TE:
 	case MOD_TYPE_NT:
 		if(physical_module_config_counter == 1){
-
-			if((err = reset_chip(fe, mod_no))){
-				return err;
-			}
 
 			if((err = init_xfhc(fe, mod_no))){
 				return err;
@@ -2044,6 +2039,7 @@ static int32_t wp_bri_post_init(void *pfe)
 
 		wan_init_timer(&port_ptr->t3_timer, l1_timer_expire_t3, (wan_timer_arg_t)port_ptr);
 		wan_init_timer(&port_ptr->t4_timer, l1_timer_expire_t4, (wan_timer_arg_t)port_ptr);
+		wan_init_timer(&port_ptr->t1_timer, l1_timer_expire_t1, (wan_timer_arg_t)port_ptr);
 	}/* for (port_no = 0; port_no < bri_module->num_ports; port_no++) */
 
 #if 1
@@ -2091,9 +2087,7 @@ static void l1_timer_start_t3(void *pport)
 	}
 
 	if(!wan_test_and_set_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags)){
-
 		DEBUG_HFC_S0_STATES("Starting T3 timer...\n");
-
 		wan_add_timer(&port_ptr->t3_timer, (XHFC_TIMER_T3 * HZ) / 1000);
 	}
 }
@@ -2109,11 +2103,12 @@ static void l1_timer_stop_t3(void *pport)
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
-	wan_clear_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags);
-        wan_clear_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags);
-        wan_del_timer(&port_ptr->t3_timer);
+	if(wan_test_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags)){	
+		wan_clear_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags);
+		wan_clear_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags);
+		wan_del_timer(&port_ptr->t3_timer);
+	}
 }
-
 
 /*
  ******************************************************************************
@@ -2163,7 +2158,6 @@ static void __l1_timer_expire_t3(sdla_fe_t *fe)
 
 	wan_clear_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags);
 	wan_clear_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags);
-
 	xhfc_ph_command(fe, port_ptr, HFC_L1_FORCE_DEACTIVATE_TE);
 }
 
@@ -2196,11 +2190,8 @@ static void l1_timer_start_t4(void *pport)
 	}
 
 	if(!wan_test_and_set_bit(T4_TIMER_ACTIVE, &port_ptr->timer_flags)){
-
 		DEBUG_HFC_S0_STATES("Starting T4 timer...\n");
-
 		wan_set_bit(HFC_L1_DEACTTIMER, &port_ptr->l1_flags);
-
 		wan_add_timer(&port_ptr->t4_timer, (XHFC_TIMER_T4 * HZ) / 1000);
 	}
 }
@@ -2217,9 +2208,11 @@ static void l1_timer_stop_t4(void *pport)
 
 	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
 
-	wan_clear_bit(T4_TIMER_ACTIVE, &port_ptr->timer_flags);
-	wan_clear_bit(HFC_L1_DEACTTIMER, &port_ptr->l1_flags);
-        wan_del_timer(&port_ptr->t4_timer);
+	if(wan_test_bit(T4_TIMER_ACTIVE, &port_ptr->timer_flags)){	
+		wan_clear_bit(T4_TIMER_ACTIVE, &port_ptr->timer_flags);
+		wan_clear_bit(HFC_L1_DEACTTIMER, &port_ptr->l1_flags);
+		wan_del_timer(&port_ptr->t4_timer);
+	}
 }
 
 
@@ -2254,8 +2247,124 @@ static void l1_timer_expire_t4(unsigned long pport)
 
 	wan_clear_bit(T4_TIMER_ACTIVE, &port_ptr->timer_flags);
 	wan_clear_bit(HFC_L1_DEACTTIMER, &port_ptr->l1_flags);
-
 	sdla_bri_set_status(fe, mod_no, port_no, FE_DISCONNECTED);
+}
+
+
+/*
+ ******************************************************************************
+ *				l1_timer_expire_t1()	
+ *
+ * Description: called when timer t1 expires.
+ *				Activation failed, force clean L1 deactivation.
+ * Arguments:
+ * Returns:
+ ******************************************************************************
+ */
+#if defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+static void l1_timer_expire_t1(void* pport)
+#elif defined(__WINDOWS__)
+static void l1_timer_expire_t1(IN PKDPC Dpc, void* pport, void* arg2, void* arg3)
+#else
+static void l1_timer_expire_t1(unsigned long pport)
+#endif
+{
+	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
+	wp_bri_module_t	*bri_module = port_ptr->hw;
+	sdla_fe_t	*fe = (sdla_fe_t*)bri_module->fe;
+	sdla_t 		*card = (sdla_t*)fe->card;
+	wan_device_t	*wandev = &card->wandev;
+
+	DEBUG_HFC_S0_STATES("%s()\n", __FUNCTION__);
+
+	if (wandev->fe_enable_timer){
+
+		wan_set_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags);
+
+		wandev->fe_enable_timer(fe->card);
+	}
+}
+
+static void __l1_timer_expire_t1(sdla_fe_t *fe)
+{
+	sdla_bri_param_t *bri = &fe->bri_param;
+	wp_bri_module_t	*bri_module;
+	bri_xhfc_port_t	*port_ptr;
+	u8		mod_no, port_no;
+
+	mod_no = fe_line_no_to_physical_mod_no(fe);	
+	port_no = fe_line_no_to_port_no(fe);
+
+	bri_module = &bri->mod[mod_no];
+	port_ptr   = &bri_module->port[port_no];
+
+	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
+	
+	if(!wan_test_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags)) {
+
+		DEBUG_HFC_S0_STATES("%s(): De-Activating NT...\n", __FUNCTION__);
+
+		xhfc_ph_command(fe, port_ptr, HFC_L1_DEACTIVATE_NT);
+	}else{
+		/* T1 expired AFTER line become active. */
+		DEBUG_HFC_S0_STATES("%s(): NT in Activated state. Doing nothing.\n", __FUNCTION__);
+	}
+}
+
+/**
+ * l1_timer_start_t1
+ */
+static void l1_timer_start_t1(void *pport)
+{
+	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
+	wp_bri_module_t	*bri_module;
+	sdla_fe_t	*fe;
+	u8		mod_no;
+
+	WAN_ASSERT_VOID(port_ptr == NULL);
+
+	WAN_ASSERT_VOID(port_ptr->hw == NULL);
+	bri_module = port_ptr->hw;
+
+	WAN_ASSERT_VOID(bri_module->fe == NULL);
+	fe = (sdla_fe_t*)bri_module->fe;
+
+	mod_no = (u8)bri_module->mod_no;
+
+	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
+
+	if(fe->fe_status == FE_UNITIALIZED){
+		/* may get here during unload!! */
+		return;
+	}
+
+	if(!wan_test_and_set_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags)){
+		DEBUG_HFC_S0_STATES("%s(): Starting T1 timer...\n", __FUNCTION__);
+
+		wan_clear_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags);
+
+		wan_add_timer(&port_ptr->t1_timer, (XHFC_TIMER_T1 * HZ) / 1000);
+
+	}else{
+		DEBUG_HFC_S0_STATES("%s(): the T1_TIMER_ACTIVE bit already set\n", __FUNCTION__);
+	}
+}
+
+/**
+* l1_timer_stop_t1
+*/
+static void l1_timer_stop_t1(void *pport)
+{
+	bri_xhfc_port_t	*port_ptr = (bri_xhfc_port_t*)pport;
+	wp_bri_module_t	*bri_module = port_ptr->hw;
+	u8		mod_no = (u8)bri_module->mod_no;
+	
+	DEBUG_HFC_S0_STATES("%s(): mod_no: %i, port number: %i\n", __FUNCTION__, mod_no, port_ptr->idx);
+	
+	if(wan_test_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags)){	
+		wan_clear_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags);
+		wan_del_timer(&port_ptr->t1_timer);
+	}
 }
 
 /******************************************************************************
@@ -2526,8 +2635,34 @@ static int32_t wp_bri_polling(sdla_fe_t* fe)
 
 	DEBUG_HFC_S0_STATES("%s()\n", __FUNCTION__);
 
-	if(wan_test_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags)){
-		__l1_timer_expire_t3(fe);
+	if (port_ptr->mode & PORT_MODE_TE) {
+		/*************/
+		/* TE timers */
+		if(wan_test_bit(T3_TIMER_ACTIVE, &port_ptr->timer_flags)){
+			__l1_timer_expire_t3(fe);
+		}
+	}else{
+		/*************/
+		/* NT timers */
+		/* Note that aft_core.c calls card->wandev.fe_iface.polling() UNCONDITIONALLY, on
+		 * each Front End interrupt. It is a problem for BRI timers because we need an additional flag,
+		 * which will indicate that "T1 timer really expired". Only if the flag is set, we act as
+		 * we should on timer expiration. */
+		
+		if(wan_test_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags)){
+			
+			wan_clear_bit(T1_TIMER_EXPIRED, &port_ptr->timer_flags);
+			
+			if(wan_test_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags)){
+				
+				wan_clear_bit(T1_TIMER_ACTIVE, &port_ptr->timer_flags);
+				
+				__l1_timer_expire_t1(fe);
+			}
+			
+		}else{
+			DEBUG_HFC_S0_STATES("%s(): T1 did NOT expire yet. Doing nothing.\n", __FUNCTION__);
+		}
 	}
 	return 0;
 }
@@ -2746,28 +2881,39 @@ static int wp_bri_set_fe_status(sdla_fe_t *fe, unsigned char new_status)
 	switch(new_status)
 	{
 	case WAN_FE_CONNECTED:
-		DEBUG_HFC_S0_STATES("l2->l1 -- ACTIVATE REQUEST\n");
-
+		DEBUG_HFC_S0_STATES("L2->L1 -- ACTIVATE REQUEST\n");
 		if (port_ptr->mode & PORT_MODE_TE) {
 			if (wan_test_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags)) {
-				/* The line is already in active. Confirm to L2 that line is connected. */
-				DEBUG_HFC_S0_STATES("l1->l2 -- ACTIVATE CONFIRM\n");
+				/* The line is already in active state. Confirm to L2 that line is connected. */
+				DEBUG_HFC_S0_STATES("TE: L1->L2 -- ACTIVATE CONFIRM\n");
 				sdla_bri_set_status(fe, mod_no, port_no, FE_CONNECTED);	
 			} else {
-
 				wan_test_and_set_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags);
-
 				xhfc_ph_command(fe, port_ptr, HFC_L1_ACTIVATE_TE);
-                                l1_timer_start_t3(port_ptr);
+				l1_timer_start_t3(port_ptr);
 			}
 		} else {
-			xhfc_ph_command(fe, port_ptr, HFC_L1_ACTIVATE_NT);
-                }
+			if(wan_test_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags)) {
+				/* The line is already in active state. Confirm to L2 that line is connected. */
+				DEBUG_HFC_S0_STATES("NT: L1->L2 -- ACTIVATE CONFIRM\n");
+				sdla_bri_set_status(fe, mod_no, port_no, FE_CONNECTED);	
+			} else {
+				xhfc_ph_command(fe, port_ptr, HFC_L1_ACTIVATE_NT);
+#if COLOGNE_TECH_SUPPORT_LOGIC_NT
+				/* After activation, state will automatically change to G2, where
+				 * T1 will be started. Don't start T1 here as recommended by Table 5.4. */
+#else
+				/* Start T1 deactivation timer - if line is not synchronized before T1 expires,
+				 * the timer will de-activate the line. If line already Active, no change of state will
+				 * occur. */
+				l1_timer_start_t1(port_ptr);
+#endif
+			}
+        }
 		break;
 
 	case WAN_FE_DISCONNECTED:
-		DEBUG_HFC_S0_STATES("l2->l1 -- DEACTIVATE REQUEST\n");
-
+		DEBUG_HFC_S0_STATES("L2->L1 -- DEACTIVATE REQUEST\n");
 		if (port_ptr->mode & PORT_MODE_TE) {
 			/* no deact request in TE mode ! */
 			DEBUG_EVENT("%s(): %s: Error: 'deactivate' request is invalid for TE!\n",
@@ -2867,7 +3013,7 @@ static void xhfc_ph_command(sdla_fe_t *fe, bri_xhfc_port_t *port, u_char command
 	wp_bri_module_t	*bri_module = port->hw;
 	u8		mod_no = (u8)bri_module->mod_no;
 
-	DEBUG_HFC_S0_STATES("%s()\n", __FUNCTION__);
+	DEBUG_HFC_S0_STATES("%s(): command: 0x%X\n", __FUNCTION__, command);
 
 	switch (command) 
 	{
@@ -3028,26 +3174,26 @@ static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 
 		switch (port_ptr->l1_state) 
 		{
-	        case (3):
+		case (3):
 			if (wan_test_and_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags)){
-				/* Do NOT indicate 'disconnect' right away, do it when 
-				   T4 expires. */
+			/* Do NOT indicate 'disconnect' right away, do it when 
+				T4 expires. */
 				if (fe->fe_status == FE_CONNECTED){
 					connected = 1; /* keep the old state */
 				}
 				l1_timer_start_t4(port_ptr);
 			}
 			return connected;
-
+			
 		case (7):
 			l1_timer_stop_t4(port_ptr);
 			connected = 1;
-
+			
 			if (wan_test_and_clear_bit(HFC_L1_ACTIVATING, &port_ptr->l1_flags)) {
 				DEBUG_HFC_S0_STATES("l1->l2 -- ACTIVATE CONFIRM\n");
-
+				
 				wan_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
-
+				
 			} else {
 				if (!(wan_test_and_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags))) {
 					DEBUG_HFC_S0_STATES("l1->l2 -- ACTIVATE INDICATION\n");
@@ -3057,16 +3203,16 @@ static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 				}
 			}
 			break;
-
+			
 		case (8):/* framing is lost but not a disconnect yet */
 			l1_timer_stop_t4(port_ptr);
 			connected = 1;
 			return connected;
-
+			
 		case (6):/* synchronized */
 			connected = 1;
 			return connected;
-
+			
 		default:
 			return connected;
 		}
@@ -3074,41 +3220,139 @@ static u8 __su_new_state(sdla_fe_t *fe, u8 mod_no, u8 port_no)
 	} else if (port_ptr->mode & PORT_MODE_NT) {
 
 		DEBUG_HFC_S0_STATES("NT G%d\n", port_ptr->l1_state);
+#if COLOGNE_TECH_SUPPORT_LOGIC_NT
+		/*	S/T state transition based Cologne recomendations:
+		 *	T1 is a counter that can be reset. An other stop function is not needed.
+		 *	There are only 3 states of T1:
+		 *	1. Reset permanent (Stop)
+		 *	2. Running
+		 *	3. Expire
+		 *
+		 *	The easiest way to implement T1 is:
+		 *	state		action for T1
+		 *	0,1         T1 Reset
+		 *	2			T1 Running
+		 *	3,4			T1 Reset
+		 */
 
+		if(port_ptr->l1_state != NT_STATE_PENDING_ACTIVATION_G2){
+			l1_timer_stop_t1(port_ptr);
+		}
+
+		/* S/T state transitions based on Table 5.4 */
 		switch (port_ptr->l1_state) 
 		{
-		case (1):
-			port_ptr->nt_timer = 0;
-			port_ptr->mode &= ~NT_TIMER;
-
-			DEBUG_HFC_S0_STATES("l1->l2 (PH_DEACTIVATE | INDICATION)\n");
+		case NT_STATE_RESET_G0:
+		case NT_STATE_DEACTIVATED_G1:
+		case NT_STATE_PENDING_DEACTIVATION_G4:
+			wan_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
+			connected = 0;
 			break;
-		case (2):
-			if (port_ptr->nt_timer < 0) {
-				port_ptr->nt_timer = 0;
-				port_ptr->mode &= ~NT_TIMER;
-				xhfc_ph_command(fe, port_ptr, HFC_L1_DEACTIVATE_NT);
-			} else {
-				port_ptr->nt_timer = NT_T1_COUNT;
-				port_ptr->mode |= NT_TIMER;
 
-				WRITE_REG(R_SU_SEL, port_ptr->idx);
-				WRITE_REG(A_SU_WR_STA, M_SU_SET_G2_G3);
+		case NT_STATE_PENDING_ACTIVATION_G2:
+			/* Start 10 seconds software timer T1. If already started, function has no effect. */
+			l1_timer_start_t1(port_ptr);
+
+			if(!port_ptr->su_state.bit.v_su_info0){
+				/* We are NOT receiving INFO0 and very likely we are receiving INFO3.
+				 * That means link is on the way UP. Next state should be G3.
+				 *
+				 * Automatic G2->G3 transition is allowed by init_xfhc() -
+				 * V_G2_G3_EN was set in the register A_SU_CTRL1.*/
+			}else{
+				/* Link on the way DOWN, but no automatic state change. 
+				 * The state change will be triggered by T1 expiration,
+				 * where the line is deactivated. */
+				wan_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
 			}
-			return connected;
-		case (3):
-			port_ptr->nt_timer = 0;
-			port_ptr->mode &= ~NT_TIMER;
-
-			DEBUG_HFC_S0_STATES("l1->l2 -- ACTIVATE INDICATION\n");
-			connected = 1;
+			/* In any case the line is in 'disconnected' state. */
+			connected = 0;
 			break;
-		case (4):
-			port_ptr->nt_timer = 0;
-			port_ptr->mode &= ~NT_TIMER;
-			return connected;
+
+		case NT_STATE_ACTIVE_G3:
+			if(	(port_ptr->su_state.bit.v_su_info0)	||
+				(!port_ptr->su_state.bit.v_su_fr_sync)){
+				/* If receiving INFO0 or Lost Framing, chip will automatically go into G2. */
+				/* Wait for G2 to go into disconnected state, so here stay 'connected'. */
+				wan_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
+				connected = 1;
+			}else if(port_ptr->su_state.bit.v_su_fr_sync){
+				/* Got synchronized. No automatic state change expected. */
+				wan_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
+				connected = 1;
+			}
+			break;
+
+		default:
+			DEBUG_EVENT("%s: Error: invalid NT State: %d.\n", fe->name, port_ptr->l1_state);
+			break;
+		}
+
+#else
+		if(!port_ptr->su_state.bit.v_su_info0){
+			/* If INFO0 is not received, stop T1 timer */
+			l1_timer_stop_t1(port_ptr);
+		}
+
+		/* S/T state transitions based on Table 5.4 */
+		switch (port_ptr->l1_state) 
+		{
+		case (1):/* Deactivated */
+			if(!port_ptr->su_state.bit.v_su_info0){
+				/* We are NOT receiving INFO0 that means we ARE receiving INFO1.
+				 * Start T1.
+				 * Automatic transition to G2 is expected. */
+				l1_timer_start_t1(port_ptr);
+			}
+			wan_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
+			connected = 0;
+			break;
+
+		case (2):/* Pending Activation */
+			if(!port_ptr->su_state.bit.v_su_info0){
+				/* We are NOT receiving INFO0 and very likely we are receiving INFO3.
+				 * That means link is on the way UP. Next state should be G3.
+				 *
+				 * Automatic G2->G3 transition is allowed by init_xfhc() -
+				 * V_G2_G3_EN was set in the register A_SU_CTRL1.*/
+			}else{
+				/* Link on the way DOWN, but no automatic state change. 
+				 * The state change will be triggered by T1 expiration,
+				 * where the line is deactivated. */
+				wan_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
+			}
+			/* In any case the line is in 'disconnected' state. */
+			connected = 0;
+			break;
+
+		case (3):/* Active */
+			if(	(port_ptr->su_state.bit.v_su_info0)	||
+				(!port_ptr->su_state.bit.v_su_fr_sync)){
+				/* If receiving INFO0 or Lost Framing, chip will automatically go into G2. */
+				/* Wait for G2 to go into disconnected state, so here stay 'connected'. */
+				wan_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
+				connected = 1;
+			}else if(port_ptr->su_state.bit.v_su_fr_sync){
+				/* Got synchronized. No automatic state change expected. */
+				wan_set_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
+				connected = 1;
+			}
+			break;
+
+		case (4):/* Pending Deactivation */
+			/* No action required. */
+			wan_clear_bit(HFC_L1_ACTIVATED, &port_ptr->l1_flags);
+			connected = 0;
+			break;
+
 		default:
 			break;
+		}
+#endif
+		if(connected == 1){
+			DEBUG_HFC_S0_STATES("NT: l1->l2 -- ACTIVATE INDICATION\n");
+		}else{
+			DEBUG_HFC_S0_STATES("NT: l1->l2 (PH_DEACTIVATE | INDICATION)\n");
 		}
 	}
 
@@ -3249,23 +3493,26 @@ static int32_t xhfc_interrupt(sdla_fe_t *fe, u8 mod_no)
 		WRITE_REG(R_SU_SEL, port_no);
 		new_su_state.reg = READ_REG(A_SU_RD_STA);
 
-		/*DEBUG_HFC_SU_IRQ("%s(): SU State: sta:%X, v_su_fr_sync: %i, v_su_info0: %i, v_g2_g3: %i\n", __FUNCTION__,
-				new_su_state.bit.v_su_sta,	new_su_state.bit.v_su_fr_sync,
-				new_su_state.bit.v_su_info0,	new_su_state.bit.v_g2_g3);*/
+		DEBUG_HFC_SU_IRQ("%s(): SU State: sta:%d, v_su_fr_sync: %d, v_su_t2_exp: %d, v_su_info0: %d, v_g2_g3: %d\n",
+			__FUNCTION__,
+			new_su_state.bit.v_su_sta, new_su_state.bit.v_su_fr_sync, new_su_state.bit.v_su_t2_exp,
+			new_su_state.bit.v_su_info0,	new_su_state.bit.v_g2_g3);
 
 		if((r_su_irq.reg & (1 << port_no)) || (r_misc_irq.reg & M_TI_IRQ)){
 			sdla_bri_param_t 	*su_bri = &fe->bri_param;
 			wp_bri_module_t		*su_bri_module = &su_bri->mod[mod_no];
 			bri_xhfc_port_t		*port_ptr = &su_bri_module->port[port_no];
 
-			DEBUG_HFC_S0_STATES("%s():SU IRQ:%lu: %s: SU State: 0x%X, v_su_fr_sync: %d, v_su_info0: %d, v_g2_g3: %d\n",
-				__FUNCTION__, jiffies,
-				(port_ptr->mode & PORT_MODE_NT) ? "NT: G" : "TE: F",
-				new_su_state.bit.v_su_sta, new_su_state.bit.v_su_fr_sync,
-				new_su_state.bit.v_su_info0, new_su_state.bit.v_g2_g3);
-
 			if (new_su_state.bit.v_su_sta != port_ptr->l1_state) {
+
+				DEBUG_HFC_S0_STATES("%s():SU IRQ:%lu: %s: SU State: 0x%X, v_su_fr_sync: %d, v_su_info0: %d, v_g2_g3: %d\n",
+					__FUNCTION__, jiffies,
+					(port_ptr->mode & PORT_MODE_NT) ? "NT: G" : "TE: F",
+					new_su_state.bit.v_su_sta, new_su_state.bit.v_su_fr_sync,
+					new_su_state.bit.v_su_info0, new_su_state.bit.v_g2_g3);
+
  				port_ptr->l1_state = new_su_state.bit.v_su_sta;
+				port_ptr->su_state = new_su_state;
 				/* Handle S/U state change. */
 				su_new_state(fe, mod_no, port_no);
 			}

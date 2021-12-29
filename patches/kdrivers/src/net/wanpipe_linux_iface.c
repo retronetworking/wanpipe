@@ -200,9 +200,7 @@ static void wan_iface_detach (netdevice_t* dev, int is_netdev)
 	DEBUG_EVENT("%s: Unregister interface!\n", 
 				wan_netif_name(dev));
 	if (is_netdev){
-		if (dev->priv){
-			dev->priv=NULL;
-		}
+		wan_netif_set_priv(dev, NULL);
 		unregister_netdev(dev);
 
 	}else{
@@ -253,7 +251,7 @@ static int wan_iface_init(netdevice_t* dev)
 	DEBUG_TEST("%s: %s:%d %p\n",
 			dev->name,
 			__FUNCTION__,__LINE__,
-			dev->priv);
+			wan_netif_priv(dev));
 
 	return 0;
 }
@@ -299,7 +297,7 @@ static int wan_iface_eth_init(netdevice_t* dev)
 	DEBUG_TEST("%s: %s:%d %p\n",
 			dev->name,
 			__FUNCTION__,__LINE__,
-			dev->priv);
+			wan_netif_priv(dev));
 
 	return 0;
 }
@@ -376,8 +374,11 @@ static int wan_iface_ioctl(netdevice_t* dev, struct ifreq* ifr, int cmd)
 
 	WAN_ASSERT(wan_netif_priv(dev) == NULL);
 
+#if 0
+	DEBUG_EVENT("%s: %s:%d\n",dev->name,__FUNCTION__,__LINE__);
+	return err;
+#endif	
 	common = wan_netif_priv(dev);
-	
 	switch(cmd){
 
 	default:
@@ -515,11 +516,11 @@ static int wan_iface_set_proto(netdevice_t* dev, struct ifreq* ifr)
 								WANCONFIG_FR;	
 		if (common->protocol == WANCONFIG_PPP){
 			hdlc_device* hdlc = dev_to_hdlc(dev);
-			((wanpipe_common_t*)dev->priv)->prot_ptr = 
-					(netdevice_t*)&hdlc->state.ppp.pppdev;
+			wanpipe_common_t* common = wan_netif_priv(dev);
+			common->prot_ptr = &hdlc->state.ppp.pppdev;
 #if defined(LINUX2_6)
 			hdlc->state.ppp.syncppp_ptr = (struct ppp_device*)
-					((wanpipe_common_t*)dev->priv)->prot_ptr;
+				common->prot_ptr;
 #endif
 		}
 

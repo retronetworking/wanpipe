@@ -49,6 +49,8 @@ For example: a number of DLCIs. */
 #define HIGHEST_VALID_DLCI	MAX_NUMBER_OF_PROTOCOL_INTERFACES
 #define LOWEST_VALID_DLCI	16
 /********** end of sprotocol.dll definitions ************/
+
+#pragma warning( disable : 4200 )	/* zero-sized array in struct */
 #endif
 
 #define USED_BY_FIELD	128	/* max length of the used by field */
@@ -1107,5 +1109,9 @@ user should select a protocol.*/
 /* special id - for AFT firmware update */
 /*#define WANCONFIG_AFT_FIRMWARE_UPDATE	11*/
 
+#if defined(__WINDOWS__)
+/* restore warning behavior to its default value*/
+# pragma warning( default : 4200 )	/* zero-sized array in struct */
+#endif
 
 #endif

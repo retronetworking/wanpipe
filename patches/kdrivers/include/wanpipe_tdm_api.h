@@ -124,13 +124,18 @@ typedef struct wanpipe_tdm_api_dev {
 	void 	*card;/* pointer to sdla_t */
 	char 	name[WAN_IFNAME_SZ];
 	wan_spinlock_t lock;
-	
+
 	u32	used, open_cnt;
 	u8	tdm_span;
 	u8	tdm_chan;
 	u8	state;
 	u8	hdlc_framing;
 	u32	active_ch;		/* ALEX */
+
+	u8 *rx_buf;
+	int rx_buf_len;
+	u8 *tx_buf;
+	int tx_buf_len;
 	
 	wanpipe_api_dev_cfg_t cfg;
 
@@ -144,7 +149,9 @@ typedef struct wanpipe_tdm_api_dev {
 	u8					tx_channelized;
 
 	wan_skb_queue_t 	wp_event_list;
+	wan_skb_queue_t 	wp_event_bh_list;
 	wan_skb_queue_t 	wp_event_free_list;
+	wan_taskq_t 		wp_api_task;
 
 	wan_skb_queue_t 	wp_dealloc_list;
 
@@ -187,8 +194,15 @@ typedef struct wanpipe_tdm_api_dev {
 	void 			*cdev;
 	uint8_t			operation_mode;/* WP_TDM_OPMODE */
 	uint8_t			api_mode;
+	int				mtu_mru;
 }wanpipe_tdm_api_dev_t;
 
+
+typedef struct wanpipe_tdm_api_span {
+	unsigned int timeslot_map;
+	wanpipe_tdm_api_dev_t chans[NUM_OF_E1_CHANNELS+1];
+	int usage;
+}wanpipe_tdm_api_span_t;
  
 static __inline int __wp_tdm_get_open_cnt( wanpipe_tdm_api_dev_t *tdm_api)
 {
@@ -230,6 +244,10 @@ static __inline int wp_tdm_dec_open_cnt( wanpipe_tdm_api_dev_t *tdm_api)
 
 static __inline int is_tdm_api(void *chan, wanpipe_tdm_api_dev_t *tdm_api)
 {
+	if (!tdm_api) {
+		return 0;
+	}
+
 	if (wan_test_bit(0,&tdm_api->init)) {
 		return 1;
 	}
@@ -243,6 +261,7 @@ static __inline int is_tdm_api(void *chan, wanpipe_tdm_api_dev_t *tdm_api)
 
 static __inline int is_tdm_api_stopped(wanpipe_tdm_api_dev_t *tdm_api)
 {
+
 	return wan_test_bit(0,&tdm_api->busy);
 }
 
@@ -253,6 +272,7 @@ static __inline void wp_tdm_api_stop(wanpipe_tdm_api_dev_t *tdm_api)
 
 static __inline void wp_tdm_api_start(wanpipe_tdm_api_dev_t *tdm_api)
 {
+
 	wan_clear_bit(0,&tdm_api->busy);
 }
 
@@ -327,7 +347,7 @@ extern int wanpipe_tdm_api_kick(wanpipe_tdm_api_dev_t *tdm_api);
 extern int wanpipe_tdm_api_span_rx(wanpipe_tdm_api_dev_t *tdm_api, netskb_t *skb);
 extern int wanpipe_tdm_api_is_rbsbits(sdla_t *card);
 extern int wanpipe_tdm_api_rbsbits_poll(sdla_t * card);
-
+extern int wanpipe_tdm_api_span_rx_tx(sdla_t *card, wanpipe_tdm_api_span_t *tdm_span, u32 buf_sz, unsigned long mask, int circ_buf_len);
 /* FIXME: Create proper TDM API Interface */
 #if 0
 #define WAN_TDMAPI_CALL(func, args, err)					\

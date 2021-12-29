@@ -847,18 +847,18 @@ void read_te1_56k_stat(void)
 		printf("***** %s: %s Alarms *****\n\n",
 			if_name, (adapter_type == WAN_MEDIA_T1) ? "T1" : "E1");
 		printf("ALOS:\t%s\t| LOS:\t%s\n", 
-				WAN_TE_ALOS_ALARM(alarms), 
-				WAN_TE_LOS_ALARM(alarms));
+				WAN_TE_PRN_ALARM_ALOS(alarms), 
+				WAN_TE_PRN_ALARM_LOS(alarms));
 		printf("RED:\t%s\t| AIS:\t%s\n", 
-				WAN_TE_RED_ALARM(alarms), 
-				WAN_TE_AIS_ALARM(alarms));
+				WAN_TE_PRN_ALARM_RED(alarms), 
+				WAN_TE_PRN_ALARM_AIS(alarms));
 		if (adapter_type == WAN_MEDIA_T1){ 
-			printf("YEL:\t%s\t| OOF:\t%s\n", 
-					WAN_TE_YEL_ALARM(alarms), 
-					WAN_TE_OOF_ALARM(alarms));
+			printf("YEL:\t%s\t| LOF:\t%s\n", 
+					WAN_TE_PRN_ALARM_YEL(alarms), 
+					WAN_TE_PRN_ALARM_LOF(alarms));
 		}else{
-			printf("OOF:\t%s\n", 
-					WAN_TE_OOF_ALARM(alarms));
+			printf("LOF:\t%s\n", 
+					WAN_TE_PRN_ALARM_LOF(alarms));
 		}
 
 	}else if  (adapter_type == WAN_MEDIA_DS3 || adapter_type == WAN_MEDIA_E3){

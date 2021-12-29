@@ -445,7 +445,7 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 #else
 	if (card->u.aft.tdmv_dchan){
 		top_chan=wan_netif_priv(chan->common.dev);
-	}else{
+	} else {
 		top_chan=chan;
 	}
 #endif
@@ -467,16 +467,29 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 						wan_skb_data(skb),
 						wan_skb_len(skb));
 		card->hw_iface.hw_unlock(card->hw,&smp_flags);
+		
+		hdr->tx_h.max_tx_queue_length = 1;
+		hdr->tx_h.current_number_of_frames_in_tx_queue = 1;
 
+		/* BRI D-channel will return 0 after accepting a frame for transmission or -EBUSY. 
+		 * That means 0 is a success return code - successful tx but now queue is full. */
 		if (err == 0) {
+
+			chan->opstats.Data_frames_Tx_count++;
+			chan->opstats.Data_bytes_Tx_count+=wan_skb_len(skb);
+			chan->chan_stats.tx_packets++;
+			chan->chan_stats.tx_bytes+=wan_skb_len(skb);
+			WAN_NETIF_STATS_INC_TX_PACKETS(&chan->common);	//chan->if_stats.tx_packets++;
+			WAN_NETIF_STATS_INC_TX_BYTES(&chan->common,wan_skb_len(skb));	//chan->if_stats.tx_bytes+=wan_skb_len(dma_chain->skb);
+
 			wan_capture_trace_packet(chan->card, &top_chan->trace_info,
 				     skb,TRC_OUTGOING_FRM);
 
 			wan_skb_free(skb);
-			err = 0;
-		} else {
-			err = -EBUSY;
+			err = 1;/* Successful tx but now queue is full - as expected by wanpipe_tdm_api.c  */		
 		}
+
+
 		return err;
 	}
 #endif
@@ -485,6 +498,8 @@ static int aft_write_hdlc_frame(void *chan_ptr, netskb_t *skb,  wp_api_hdr_t *hd
 
 	if (wan_skb_queue_len(&chan->wp_tx_pending_list) >= chan->max_tx_bufs){
 		WAN_NETIF_STOP_QUEUE(chan->common.dev);
+		hdr->tx_h.max_tx_queue_length = (u8)chan->max_tx_bufs;
+		hdr->tx_h.current_number_of_frames_in_tx_queue = (u8)wan_skb_queue_len(&chan->wp_tx_pending_list);
 		wan_chan_dev_stop(chan);
 		aft_dma_tx(card,chan);
 		wan_spin_unlock_irq(&card->wandev.lock, &smp_flags);
@@ -961,12 +976,12 @@ int aft_core_tdmapi_event_init(private_area_t *chan)
 {
 
 #if defined(AFT_TDM_API_SUPPORT)
-	chan->wp_tdm_api_dev.event_ctrl		= aft_event_ctrl;
-	chan->wp_tdm_api_dev.read_rbs_bits	= aft_read_rbs_bits;
-	chan->wp_tdm_api_dev.write_rbs_bits	= aft_write_rbs_bits;
-	chan->wp_tdm_api_dev.write_hdlc_frame	= aft_write_hdlc_frame;
-	chan->wp_tdm_api_dev.pipemon		= wan_user_process_udp_mgmt_pkt;
-	chan->wp_tdm_api_dev.driver_ctrl 	= aft_driver_ctrl;
+	chan->wp_tdm_api_dev->event_ctrl		= aft_event_ctrl;
+	chan->wp_tdm_api_dev->read_rbs_bits	= aft_read_rbs_bits;
+	chan->wp_tdm_api_dev->write_rbs_bits	= aft_write_rbs_bits;
+	chan->wp_tdm_api_dev->write_hdlc_frame	= aft_write_hdlc_frame;
+	chan->wp_tdm_api_dev->pipemon		= wan_user_process_udp_mgmt_pkt;
+	chan->wp_tdm_api_dev->driver_ctrl 	= aft_driver_ctrl;
 #endif
 
 	return 0;

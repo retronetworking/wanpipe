@@ -41,6 +41,7 @@ home=`pwd`;
 
 force="false"
 noss7="invalid"
+pri="false"
 rootdir=""
 pbxdir=/usr/src/asterisk
 pbxd="asterisk"
@@ -61,6 +62,9 @@ do
 		noss7="flase"
 	elif [ $1 = '-bri' ]; then
 		noss7="true"
+	elif [ $1 = '-pri' ]; then
+		noss7="true"
+		pri="true"
 	elif [ $1 = '-pbxdir' ]; then
 		shift
                 pbxdir=$1
@@ -86,7 +90,8 @@ do
 	else
 		echo "Invalid option: $1";
 		echo
-		echo "Usage: ./install <optinal args>"
+		echo "Usage: ./install [-bri|-ss7]"
+		echo "Please specify if smg is being installed for BRI or SS7"
 		echo
 		exit 1
 	fi
@@ -103,10 +108,10 @@ else
 	cfgdir="/etc/asterisk"
 fi
 
-if [ $noss7 == 'invalid' ]; then
+if [ $noss7 == 'invalid' ] && [ $pri == 'false' ]; then
 	echo
-	echo "Usage Error: ./install [-bri|-ss7]"
-	echo "Please specify if smg is being installed for BRI or SS7"
+	echo "Usage Error: ./install [-bri|-pri|-ss7]"
+	echo "Please specify if smg is being installed for BRI or SS7 or PRI"
 	echo
 	exit 1
 fi
@@ -282,21 +287,29 @@ echo "Compiling Sangoma MGD ..."
 echo
 sleep 1
 eval "make clean 2> /dev/null > /dev/null"
+if [ $pri = "true" ]; then
+        eval "make PRI=YES" 
+else
 if [ $noss7 = "true" ]; then
         eval "make NO_SS7=YES" 
 else
         eval "make" 
+fi
 fi
 
 if [ $? -ne 0 ]; then
 	exit 1;
 fi
 
+if [ $pri = "true" ]; then
+	eval "make INSTALLPREFIX=$rootdir PRI=YES install"
+else
 if [ $noss7 = "true" ]; then
 	#This case is currently used for bri
 	eval "make INSTALLPREFIX=$rootdir NO_SS7=YES install"
 else
 	eval "make INSTALLPREFIX=$rootdir install"
+fi
 fi
 
 if [ $? -ne 0 ]; then

@@ -9,6 +9,7 @@
 #               as published by the Free Software Foundation; either version
 #               2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Jul 06   2009  2.35	Jignesh Patel 	Update enable/disable chan_woomera.so loading in Asterisk
 # May 26   2009	 2.34	Jignesh Patel 	Added support for USB FXO HW EC/DTMF/ Dahdi
 # May 5	   2009	 2.33	Jignesh Patel	Update start script for smgbri and wancfg_fs update
 # Apr 28   2009  2.32					smg_ctrl boot script update
@@ -58,7 +59,7 @@ system('clear');
 print "\n########################################################################";
 print "\n#    		           Sangoma Wanpipe                             #";
 print "\n#        Dahdi/Zaptel/SMG/TDMAPI/BOOT Configuration Script             #";
-print "\n#                             v2.34                                    #";
+print "\n#                             v2.35                                  #";
 print "\n#                     Sangoma Technologies Inc.                        #";
 print "\n#                        Copyright(c) 2009.                            #";
 print "\n########################################################################\n\n";
@@ -369,6 +370,7 @@ if($usb_device_support == $TRUE && $os_type_list =~ m/Linux/) {
 	config_usbfxo();
 }
 config_tdmv_dummy();
+update_module_load();
 summary();
 apply_changes();
 
@@ -1145,6 +1147,13 @@ sub prepare_files{
 		$zapata_conf_template="$current_dir/templates/zapata-auto.conf";
 		$zapata_conf_file="$current_dir/$cfg_dir/zapata-auto.conf";
 		$zapata_conf_file_t="$asterisk_conf_dir/zapata-auto.conf";
+		
+		if($dahdi_installed == $TRUE) {
+			$zapata_conf_template="$current_dir/templates/dahdi-channels.conf";
+			$zapata_conf_file="$current_dir/$cfg_dir/dahdi-channels.conf";
+			$zapata_conf_file_t="$asterisk_conf_dir/dahdi-channels.conf";
+		}
+
 	}
 
 	if ($silent==$FALSE){
@@ -1264,7 +1273,7 @@ sub write_zaptel_conf{
 	open(FH, "$zaptel_conf_template") or die "cannot open $zaptel_conf_template";
 	while (<FH>) {
 		$zp_file .= $_;
-}
+	}
 	close (FH);
 	$zp_file=$zp_file.$zaptel_conf;	
 	open(FH, ">$zaptel_conf_file") or die "cannot open $zaptel_conf_file";
@@ -3039,9 +3048,9 @@ sub config_analog{
 					if ($silent==$FALSE){
 						if ($card->hwec_mode eq "YES"){
 							$card->hw_dtmf(&prompt_hw_dtmf());
-                                                        if ($card->hw_dtmf eq "YES"){
-								$card->hw_fax(&prompt_hw_fax());
-                                                        }
+                                if ($card->hw_dtmf eq "YES"){
+									$card->hw_fax(&prompt_hw_fax());
+                               }
 						} else {
 							$card->hw_dtmf("NO");
 							$card->hw_fax("NO");
@@ -3208,7 +3217,8 @@ sub config_usbfxo{
 		$zapata_conf.="\n";
 	}
 	foreach my $dev (@hwprobe) {
-			if ( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d).*HWEC=(\w+).*/){		
+			if (( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d).*HWEC=(\w+).*/)||
+				( $dev =~ m/ *.(\D\d+).*BUSID=(\d-\d).*/)){		
 				$skip_card=$FALSE;
 				my $card = eval {new Card(); } or die ($@);
 				$card->current_dir($current_dir);
@@ -3496,3 +3506,42 @@ sub config_smg_ctrl_boot {
 	}
 	
 }
+sub update_module_load {
+	if ($os_type_list =~ m/FreeBSD/){
+		return;	
+	}
+
+	my @mod_file;
+	my $mod_file='';
+	if(-e "$asterisk_conf_dir/modules.conf") {
+
+		if(!(-e "$asterisk_conf_dir/modules.conf.bak")){
+				exec_command("cp -f $asterisk_conf_dir/modules.conf $asterisk_conf_dir/modules.conf.bak");	
+			}
+	
+		open(FH, "$asterisk_conf_dir/modules.conf") or die "cannot open $asterisk_conf_dir/modules.conf";
+		@mod_file=<FH>;
+		close (FH);
+		foreach my $line (@mod_file){
+			if(!($line =~ m/woomera/)){
+				$mod_file .= $line;
+				if($line =~ m/\[modules]/) {
+					if($num_bri_devices !=0){
+						if(-e "/usr/lib/asterisk/modules/chan_woomera.so") {
+							$mod_file .= "load=>chan_woomera.so\n";
+						}
+					}else{
+						$mod_file .= "noload=>chan_woomera.so\n";
+						
+					}
+				}
+			}
+			open (FH,">$asterisk_conf_dir/modules.conf") or die "cannot open $asterisk_conf_dir/modules.conf";;
+			print FH $mod_file;
+			close (FH);
+
+		}
+	}
+	return;
+}
+

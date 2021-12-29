@@ -65,13 +65,13 @@ extern "C" {	/* for C++ users */
   \def LIBSANGOMA_VERSION_CODE
   \brief LibSangoma Current Version Number to be checked against the LIBSANGOMA_VERSION Macro 
 */
-#define LIBSANGOMA_VERSION_CODE LIBSANGOMA_VERSION(3,0,0)
+#define LIBSANGOMA_VERSION_CODE LIBSANGOMA_VERSION(3,2,0)
 
 /*!
   \def LIBSANGOMA_VERSION_STR
   \brief LibSangoma Version in string format
 */
-#define LIBSANGOMA_VERSION_STR "3.0.0"
+#define LIBSANGOMA_VERSION_STR "3.2.0"
 
 #ifdef __COMPILING_LIBSANGOMA__
  struct sangoma_wait_obj;
@@ -250,6 +250,10 @@ typedef char * LPCTSTR;
 #include "wanpipe_api_deprecated.h"
 #else
 #include "wanpipe_api.h"
+#endif
+
+#ifdef __LINUX__
+#include "wanpipe_kernel.h"
 #endif
 
 /*!
@@ -475,11 +479,6 @@ sangoma_status_t _SAPI_CALL sangoma_waitfor_many(sangoma_wait_obj_t *sangoma_wai
 		uint32_t number_of_sangoma_wait_objects, int32_t system_wait_timeout);
 
 /*!
-  Users should be careful when using this function. You should just call this function once per sangoma device. If you attempt to use this function
-  twice on the same device (even if different sng_fd_t are used) you will end up with a waitable object that no longer gets notified about events
-  This is a fair limitation though, since there is no point on creating more than one waitable object per sangoma device. Even if you have one thread
-  for signaling, one for reading and one for writing, the 3 threads can use the same sangoma waitable object. However you can delete the waitable
-  object and create a new one if you need it.
   \fn sangoma_status_t sangoma_wait_obj_create(sangoma_wait_obj_t **sangoma_wait_object, sng_fd_t fd, sangoma_wait_obj_type_t object_type)
   \brief Create a wait object that will be used with sangoma_waitfor_many() API
   \param sangoma_wait_object pointer a single device object 
@@ -1023,6 +1022,17 @@ int _SAPI_CALL sangoma_get_hw_coding(sng_fd_t fd, wanpipe_api_t *tdm_api);
 int _SAPI_CALL sangoma_tdm_get_hw_dtmf(sng_fd_t fd, wanpipe_api_t *tdm_api);
 
 /*!
+  \fn int sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api)
+  \brief Check if hw echo cancelation support is available
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: ok
+
+  This function will check if hw supports HW EC.
+*/
+int _SAPI_CALL sangoma_tdm_get_hw_ec(sng_fd_t fd, wanpipe_api_t *tdm_api);
+
+/*!
   \fn int sangoma_span_chan_toif(int span, int chan, char *interface_name)
   \brief Convert Span & Chan to interface name
   \param span span number starting from 1 to 255
@@ -1141,11 +1151,107 @@ int _SAPI_CALL sangoma_read_event(sng_fd_t fd, wanpipe_api_t *tdm_api);
  * Device PORT Control Functions
  ***************************************************************/ 
 
+/*!
+  \fn int sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
+  \brief Start a Port, create Sangoma Communication interfaces.
+  \param[in] fd				Port Device file descriptor
+  \param[out] port_mgmnt	pointer to a port_management_struct_t structure.
+							On return, sangoma_driver_port_start() updates operation_status field
+							of this structure.
+  \param[in] port_no		1-based Port Number. Port numbers correspond to Port Names.
+							For example, a 2-Port card will have ports named WANPIPE1 and WANPIPE2.
+  \return	non-zero:		system error. Call OS specific code to find cause of the error.
+							Linux example: strerror(errno)
+							Windows example: combination of GetLastError()/FormatMessage()
+				zero:		no system error. Check port_mgmt->operation_status.
+*/
 int _SAPI_CALL sangoma_driver_port_start(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
+
+
+/*!
+  \fn int sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
+  \brief Start a Port, create Sangoma Communication interfaces.
+  \param[in] fd				Port Device file descriptor
+  \param[out] port_mgmnt	pointer to a port_management_struct_t structure.
+							On return, sangoma_driver_port_stop() updates operation_status field
+							of this structure.
+  \param[in] port_no		1-based Port Number. Port numbers correspond to Port Names.
+							For example, a 2-Port card will have ports named WANPIPE1 and WANPIPE2.
+  \return	non-zero:		system error. Call OS specific code to find cause of the error.
+							Linux example: strerror(errno)
+							Windows example: combination of GetLastError()/FormatMessage()
+				zero:		no system error. Check port_mgmt->operation_status.
+*/
 int _SAPI_CALL sangoma_driver_port_stop(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
+
+
+/*!
+  \fn int sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no)
+  \brief Set Port's "Volatile" configuration. The configuration will not persist between system restarts.
+			Before calling this function please stop the port by calling sangoma_driver_port_stop().
+			After calling this function please start the port by calling sangoma_driver_port_start().
+  \param[in] fd				Port Device file descriptor
+  \param[in, out] port_cfg	pointer to port_cfg_t structure that specifies complete Port configuration.
+							On return, sangoma_driver_port_set_config() updates operation_status field
+							of this structure.
+  \param[in] port_no		1-based Port Number. Port numbers correspond to Port Names.
+							For example, a 2-Port card will have ports named WANPIPE1 and WANPIPE2.
+  \return	non-zero:		system error. Call OS specific code to find cause of the error.
+							Linux example: strerror(errno)
+							Windows example: combination of GetLastError()/FormatMessage()
+				zero:		no system error. Check port_cfg->operation_status.
+*/
 int _SAPI_CALL sangoma_driver_port_set_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no);
+
+
+/*!
+  \fn int sangoma_driver_port_get_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no)
+  \brief Retrieve Port's "Volatile" configuration.
+  \param[in] fd				Port Device file descriptor
+  \param[out]	port_cfg	pointer to port_cfg_t structure. 
+							On return, sangoma_driver_port_get_config() will copy current Port configuration
+							into this structure.
+  \param[in]	port_no		please see comment of sangoma_driver_port_set_config()
+  \return	non-zero:		system error. Call OS specific code to find cause of the error.
+							Linux example: strerror(errno)
+							Windows example: combination of GetLastError()/FormatMessage()
+				zero:		no system error. Check port_cfg->operation_status.
+*/
 int _SAPI_CALL sangoma_driver_port_get_config(sng_fd_t fd, port_cfg_t *port_cfg, unsigned short port_no);
+
+
+/*!
+  \fn int sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no)
+  \brief Retrieve information about a single instance of Sangoma hardware.
+  \param[in] fd				Port Device file descriptor
+  \param[out]	port_mgmnt	pointer to port_management_struct_t structure which will contain hardware_info_t at
+							it's "data" field, when this function returns.
+  \param[in]	port_no		please see comment of sangoma_driver_port_set_config()
+  \return	non-zero:		system error. Call OS specific code to find cause of the error.
+							Linux example: strerror(errno)
+							Windows example: combination of GetLastError()/FormatMessage()
+				zero:		no system error. Check port_mgmt->operation_status.
+*/
 int _SAPI_CALL sangoma_driver_get_hw_info(sng_fd_t fd, port_management_struct_t *port_mgmnt, unsigned short port_no);
+
+
+/*!
+  \fn int sangoma_write_port_config_on_persistent_storage(hardware_info_t *hardware_info, port_cfg_t *port_cfg)
+  \brief Write Port's configuration on the hard disk. 
+		Linux Specific: the "Persistent" configuration of a Port N (e.g. WANPIPE1) is stored in
+						/etc/wanpipe/wanpipeN.conf (e.g. wanpipe1.conf).
+						Configuration can be manualy viewed/changed by editing the ".conf" file.
+						Currently this functionality is not implemented.
+		Windows Specific: the "Persistent" configuration of a Port (e.g. WANPIPE1) is stored in
+						Windows Registry.
+						Configuration can be manualy viewed/changed in the Device Manager.
+  \param[in] hardware_info	pointer to hardware_info_t structure containing information about a
+							single instance of Sangoma hardware.
+  \param[in] port_cfg		pointer to structure containing complete Port configuration.
+  \param[in] port_no	please see comment of sangoma_driver_port_set_config()
+  \return non-zero: error, 0: ok
+*/
+int _SAPI_CALL sangoma_write_port_config_on_persistent_storage(hardware_info_t *hardware_info, port_cfg_t *port_cfg, unsigned short port_no);
 
 
 /************************************************************//**

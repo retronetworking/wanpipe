@@ -77,37 +77,39 @@
 /* Framer Alarm bit mask */
 #define WAN_TE_ALARM_LIU		0x80000000
 
-#define WAN_TE_ALARM_MASK_FRAMER    	0x0000FFFF
-#define WAN_TE_ALARM_MASK_LIU	    	0x00F00000
-#define WAN_TE_BIT_ALOS_ALARM		 0x00000001
-#define WAN_TE_BIT_LOS_ALARM		 0x00000002
-#define WAN_TE_BIT_ALTLOS_ALARM		 0x00000004
-#define WAN_TE_BIT_OOF_ALARM		 0x00000008
-#define WAN_TE_BIT_RED_ALARM		 0x00000010
-#define WAN_TE_BIT_AIS_ALARM		 0x00000020
-#define WAN_TE_BIT_OOSMF_ALARM		 0x00000040
-#define WAN_TE_BIT_OOCMF_ALARM		 0x00000080
-#define WAN_TE_BIT_OOOF_ALARM		 0x00000100
-#define WAN_TE_BIT_RAI_ALARM		 0x00000200
-#define WAN_TE_BIT_YEL_ALARM		 0x00000400
+#define WAN_TE_ALARM_FRAMER_MASK    	0x0000FFFF
+#define WAN_TE_ALARM_LIU_MASK	    	0x00F00000
+#define WAN_TE_BIT_ALARM_ALOS		 0x00000001
+#define WAN_TE_BIT_ALARM_LOS		 0x00000002
+#define WAN_TE_BIT_ALARM_ALTLOS		 0x00000004
+#define WAN_TE_BIT_ALARM_OOF		 0x00000008
+#define WAN_TE_BIT_ALARM_RED		 0x00000010
+#define WAN_TE_BIT_ALARM_AIS		 0x00000020
+#define WAN_TE_BIT_ALARM_OOSMF		 0x00000040
+#define WAN_TE_BIT_ALARM_OOCMF		 0x00000080
+#define WAN_TE_BIT_ALARM_OOOF		 0x00000100
+#define WAN_TE_BIT_ALARM_RAI		 0x00000200
+#define WAN_TE_BIT_ALARM_YEL		 0x00000400
+#define WAN_TE_BIT_ALARM_LOF		 0x00000800
 #define WAN_TE_BIT_LOOPUP_CODE		 0x00002000	
 #define WAN_TE_BIT_LOOPDOWN_CODE	 0x00004000	
-#define WAN_TE_BIT_LIU_ALARM		 0x00100000
-#define WAN_TE_BIT_LIU_ALARM_SC		 0x00100000
-#define WAN_TE_BIT_LIU_ALARM_OC		 0x00200000
-#define WAN_TE_BIT_LIU_ALARM_LOS	 0x00400000
+#define WAN_TE_BIT_ALARM_LIU		 0x00100000
+#define WAN_TE_BIT_ALARM_LIU_SC		 0x00100000
+#define WAN_TE_BIT_ALARM_LIU_OC		 0x00200000
+#define WAN_TE_BIT_ALARM_LIU_LOS	 0x00400000
 
 #define IS_TE_ALARM(alarm, mask)	(alarm & mask)
-#define IS_TE_ALOS_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALOS_ALARM)
-#define IS_TE_LOS_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_LOS_ALARM)
-#define IS_TE_OOF_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_OOF_ALARM)
-#define IS_TE_RED_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_RED_ALARM)
-#define IS_TE_AIS_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_AIS_ALARM)
-#define IS_TE_OOSMF_ALARM(alarm)	IS_TE_ALARM(alarm, WAN_TE_BIT_OOSMF_ALARM)
-#define IS_TE_OOCMF_ALARM(alarm)	IS_TE_ALARM(alarm, WAN_TE_BIT_OOCMF_ALARM)
-#define IS_TE_OOOF_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_OOOF_ALARM)
-#define IS_TE_RAI_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_RAI_ALARM)
-#define IS_TE_YEL_ALARM(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_YEL_ALARM)
+#define IS_TE_ALARM_ALOS(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_ALOS)
+#define IS_TE_ALARM_LOS(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_LOS)
+#define IS_TE_ALARM_OOF(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_OOF)
+#define IS_TE_ALARM_LOF(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_LOF)
+#define IS_TE_ALARM_RED(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_RED)
+#define IS_TE_ALARM_AIS(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_AIS)
+#define IS_TE_ALARM_OOSMF(alarm)	IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_OOSMF)
+#define IS_TE_ALARM_OOCMF(alarm)	IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_OOCMF)
+#define IS_TE_ALARM_OOOF(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_OOOF)
+#define IS_TE_ALARM_RAI(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_RAI)
+#define IS_TE_ALARM_YEL(alarm)		IS_TE_ALARM(alarm, WAN_TE_BIT_ALARM_YEL)
 
 /* Performance monitor counters bit mask */
 #define WAN_TE_BIT_PMON_LCV		0x01	/* line code violation counter */
@@ -227,16 +229,62 @@
 							"Unsupported BOC"
  
 /* Interrupt polling delay */
-#define POLLING_TE1_TIMER	1000	/* 1 sec */
+#define POLLING_TE1_TIMER		1	/* 1 sec */
+#define WAN_T1_ALARM_THRESHOLD_LOF_ON	(3)	/* 2-3 sec */
+#define WAN_T1_ALARM_THRESHOLD_LOF_OFF	(10)	/* 10 sec */
+#define WAN_T1_ALARM_THRESHOLD_AIS_ON	(2.5)   // must be 2.5s
+#define WAN_T1_ALARM_THRESHOLD_AIS_OFF	(10)	// must be 10s
+#define WAN_T1_ALARM_THRESHOLD_LOS_ON	(2.5)   // must be 2.5s
+#define WAN_T1_ALARM_THRESHOLD_LOS_OFF	(10)    // must be 10s
 
 /* TE1 critical flag */
-#define TE_TIMER_RUNNING 	0x01
-#define TE_TIMER_KILL 		0x02
-#define LINELB_WAITING		0x03
-#define LINELB_CODE_BIT		0x04
-#define LINELB_CHANNEL_BIT	0x05
-#define TE_CONFIGURED		0x06
-#define TE_TIMER_EVENT_PENDING 	0x07
+#define TE_TIMER_RUNNING 		0x01
+#define TE_TIMER_KILL 			0x02
+#define LINELB_WAITING			0x03
+#define LINELB_CODE_BIT			0x04
+#define LINELB_CHANNEL_BIT		0x05
+#define TE_CONFIGURED			0x06
+#define TE_TIMER_EVENT_PENDING 		0x07
+#define TE_TIMER_EVENT_INPROGRESS	0x08
+
+/* TE1 sw irq types */
+enum {
+	WAN_TE1_SWIRQ_TYPE_NONE 	= 0,
+
+	WAN_TE1_SWIRQ_TYPE_LINK,
+	WAN_TE1_SWIRQ_TYPE_ALARM_AIS,
+	WAN_TE1_SWIRQ_TYPE_ALARM_LOS,
+	WAN_TE1_SWIRQ_TYPE_ALARM_LOF,
+
+	WAN_TE1_SWIRQ_MAX
+};
+#define WAN_TE1_SWIRQ_TYPE_DECODE(type)						\
+		((type) == WAN_TE1_SWIRQ_TYPE_LINK) 	 ? "T1/E1 Link" :	\
+		((type) == WAN_TE1_SWIRQ_TYPE_ALARM_AIS) ? "T1/E1 Alarm (AIS)" :\
+		((type) == WAN_TE1_SWIRQ_TYPE_ALARM_LOS) ? "T1/E1 Alarm (LOS)" :\
+		((type) == WAN_TE1_SWIRQ_TYPE_ALARM_LOF) ? "T1/E1 Alarm (LOF)" :\
+								"Unknown"
+
+enum {
+	WAN_TE1_SWIRQ_SUBTYPE_NONE	= 0,
+
+	WAN_TE1_SWIRQ_SUBTYPE_LINKDOWN,
+	WAN_TE1_SWIRQ_SUBTYPE_LINKREADY,
+	WAN_TE1_SWIRQ_SUBTYPE_LINKCRIT,
+	WAN_TE1_SWIRQ_SUBTYPE_LINKUP,
+
+	WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON,
+	WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF
+};
+#define WAN_TE1_SWIRQ_SUBTYPE_DECODE(subtype)						\
+		((subtype) == WAN_TE1_SWIRQ_SUBTYPE_LINKDOWN) 	 ? "Down" :		\
+		((subtype) == WAN_TE1_SWIRQ_SUBTYPE_LINKREADY) 	 ? "Ready" :		\
+		((subtype) == WAN_TE1_SWIRQ_SUBTYPE_LINKCRIT) 	 ? "Crit" :		\
+		((subtype) == WAN_TE1_SWIRQ_SUBTYPE_LINKUP) 	 ? "UP" :		\
+		((subtype) == WAN_TE1_SWIRQ_SUBTYPE_ALARM_ON) 	 ? "activating" :	\
+		((subtype) == WAN_TE1_SWIRQ_SUBTYPE_ALARM_OFF) 	 ? "deactivating" :	\
+								"Unknown"
+
 
 /* TE1 timer flags (polling) */
 #define TE_LINELB_TIMER		0x01
@@ -256,6 +304,7 @@
 #define TE_LINKCRIT_TIMER	0x0F
 #define WAN_TE_POLL_LINKREADY	0x10
 #define WAN_TE_POLL_BERT	0x11
+#define WAN_TE_POLL_ALARM_PENDING	0x12
 
 /* TE1 T1/E1 interrupt setting delay */
 #define INTR_TE1_TIMER		150	/* 50 ms */
@@ -287,22 +336,23 @@
 	 IS_E1_FEMEDIA(fe) ? NUM_OF_E1_CHANNELS :0)
 			
 
-#define WAN_TE_ALARM(alarm, bit)	((alarm) & (bit)) ? "ON" : "OFF"
+#define WAN_TE_PRN_ALARM(alarm, bit)	((alarm) & (bit)) ? "ON" : "OFF"
 
-#define WAN_TE_ALOS_ALARM(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_ALOS_ALARM)
-#define WAN_TE_LOS_ALARM(alarm)		WAN_TE_ALARM(alarm, WAN_TE_BIT_LOS_ALARM)
-#define WAN_TE_OOF_ALARM(alarm)		WAN_TE_ALARM(alarm, WAN_TE_BIT_OOF_ALARM)
-#define WAN_TE_RED_ALARM(alarm)		WAN_TE_ALARM(alarm, WAN_TE_BIT_RED_ALARM)
-#define WAN_TE_AIS_ALARM(alarm)		WAN_TE_ALARM(alarm, WAN_TE_BIT_AIS_ALARM)
-#define WAN_TE_OOSMF_ALARM(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_OOSMF_ALARM)
-#define WAN_TE_OOCMF_ALARM(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_OOCMF_ALARM)
-#define WAN_TE_OOOF_ALARM(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_OOOF_ALARM)
-#define WAN_TE_RAI_ALARM(alarm)		WAN_TE_ALARM(alarm, WAN_TE_BIT_RAI_ALARM)
-#define WAN_TE_YEL_ALARM(alarm)		WAN_TE_ALARM(alarm, WAN_TE_BIT_YEL_ALARM)
+#define WAN_TE_PRN_ALARM_ALOS(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_ALOS)
+#define WAN_TE_PRN_ALARM_LOS(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_LOS)
+#define WAN_TE_PRN_ALARM_OOF(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_OOF)
+#define WAN_TE_PRN_ALARM_LOF(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_LOF)
+#define WAN_TE_PRN_ALARM_RED(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_RED)
+#define WAN_TE_PRN_ALARM_AIS(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_AIS)
+#define WAN_TE_PRN_ALARM_OOSMF(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_OOSMF)
+#define WAN_TE_PRN_ALARM_OOCMF(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_OOCMF)
+#define WAN_TE_PRN_ALARM_OOOF(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_OOOF)
+#define WAN_TE_PRN_ALARM_RAI(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_RAI)
+#define WAN_TE_PRN_ALARM_YEL(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_YEL)
 
-#define WAN_TE_LIU_ALARM_SC(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_LIU_ALARM_SC)
-#define WAN_TE_LIU_ALARM_OC(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_LIU_ALARM_OC)
-#define WAN_TE_LIU_ALARM_LOS(alarm)	WAN_TE_ALARM(alarm, WAN_TE_BIT_LIU_ALARM_LOS)
+#define WAN_TE_PRN_ALARM_LIU_SC(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_LIU_SC)
+#define WAN_TE_PRN_ALARM_LIU_OC(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_LIU_OC)
+#define WAN_TE_PRN_ALARM_LIU_LOS(alarm)	WAN_TE_PRN_ALARM(alarm, WAN_TE_BIT_ALARM_LIU_LOS)
 
 #define TECLK_DECODE(fe_cfg)			\
 	(FE_CLK(fe_cfg) == WAN_NORMAL_CLK) ? "Normal" :	\
@@ -541,7 +591,9 @@ typedef struct
 #ifdef WAN_KERNEL
 
 /* Connection status threshold */
-#define WAN_TE1_STATUS_THRESHOLD	5
+/* Original 5 
+** Note (May 7 2009: We are waiting at least 10 sec anyway for other alarms */
+#define WAN_TE1_STATUS_THRESHOLD	1
 
 #define WAN_TE1_LBO(fe)		FE_LBO(&((fe)->fe_cfg))
 #define WAN_TE1_CLK(fe)		FE_CLK(&((fe)->fe_cfg))

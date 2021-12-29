@@ -266,9 +266,18 @@ typedef struct {
 #define WAN_FE_LBMODE_CMD_SET		0x01
 #define WAN_FE_LBMODE_CMD_GET		0x02
 
-#define WAN_FE_LBMODE_RC_SUCCESS	0x00
-#define WAN_FE_LBMODE_RC_PENDING	0x01
-#define WAN_FE_LBMODE_RC_FAILED		0x02
+#define WAN_FE_LBMODE_RC_SUCCESS        0x00
+#define WAN_FE_LBMODE_RC_PENDING        0x01
+#define WAN_FE_LBMODE_RC_FAILED         0x02
+#define WAN_FE_LBMODE_RC_LINKDOWN       0x03
+#define WAN_FE_LBMODE_RC_TXBUSY         0x04
+#define WAN_FE_LBMODE_RC_DECODE(rc)                                     \
+		((rc) == WAN_FE_LBMODE_RC_SUCCESS)  ? "Done" :          \
+		((rc) == WAN_FE_LBMODE_RC_PENDING)  ? "In progress" :   \
+		((rc) == WAN_FE_LBMODE_RC_FAILED)   ? "Failed" :        \
+		((rc) == WAN_FE_LBMODE_RC_LINKDOWN) ? "Failed (Link Down)" :    \
+		((rc) == WAN_FE_LBMODE_RC_TXBUSY)   ? "Failed (Busy)" : "Internal Error"
+
 typedef struct 
 {
 	u_int8_t 	cmd;
@@ -446,10 +455,18 @@ enum {
    AFT_LED_TOGGLE
 };
 
+typedef struct sdla_fe_swirq_ {
+	unsigned int	pending;
+	unsigned char	subtype;
+	int		delay;
+	wan_ticks_t	start;
+} sdla_fe_swirq_t;
+
 typedef struct sdla_fe_timer_event_ {
 	unsigned char	type;
 	u_int8_t	mode;
 	int		delay;
+	wan_ticks_t	start;
 	union{
 #define te_event	u_fe.te
 #define rm_event	u_fe.rm
@@ -493,6 +510,9 @@ typedef struct {
 	WAN_LIST_HEAD(, sdla_fe_timer_event_)	event;
 #endif
 	unsigned int	event_map;
+	
+	sdla_fe_swirq_t	*swirq;
+	unsigned int	swirq_map;
 
 	int		(*write_cpld)(void*, unsigned short, unsigned char);
 	int		(*read_cpld)(void*, unsigned short, unsigned char);

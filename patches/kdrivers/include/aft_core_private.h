@@ -252,6 +252,10 @@ typedef struct private_area
      ****************************************/
 	aft_dma_swring_t 	swring;
 
+#if defined(__LINUX__) || defined(__WINDOWS__)
+	wanpipe_tdm_api_dev_t	*wp_tdm_api_dev;
+#endif
+
 	u32					dma_status;
 	unsigned char		hdlc_eng;
 	unsigned char		tx_chain_indx,tx_pending_chain_indx;
@@ -362,9 +366,7 @@ typedef struct private_area
 	
 	unsigned char		lip_atm;
 
-#if defined(__LINUX__) || defined(__WINDOWS__)
-	wanpipe_tdm_api_dev_t	wp_tdm_api_dev;
-#endif
+
 
 	int					dchan_time_slot;
 	int 				xmtp2_api_index;
@@ -409,7 +411,12 @@ typedef struct private_area
 	unsigned char			usedby_cfg;
 	unsigned int			cfg_active_ch;
 
+	unsigned char			rx_seq_char;
+	unsigned char			tx_seq_char;
+	
+
 #if defined(__LINUX__)
+	struct timeval			timing_tv;
 	/* Entry in proc fs per each interface */
 	struct proc_dir_entry	*dent;
 #endif	
@@ -446,13 +453,15 @@ void 	__aft_fe_intr_ctrl(sdla_t *card, int status);
 
 void 	aft_wdt_set(sdla_t *card, unsigned char val);
 void 	aft_wdt_reset(sdla_t *card);
+int	 	aft_free_running_timer_set_enable(sdla_t *card, u32 ms);
+int 	aft_free_running_timer_disable(sdla_t *card);
 void 	wanpipe_wake_stack(private_area_t* chan);
 int 	aft_core_api_event_init(sdla_t *card);
 int 	aft_event_ctrl(void *chan_ptr, wan_event_ctrl_t *p_event);
 int 	aft_core_tdmapi_event_init(private_area_t *chan);
 int 	wan_aft_api_ioctl(sdla_t *card, private_area_t *chan, char *user_data);
 int 	aft_dma_tx (sdla_t *card,private_area_t *chan);
-int 	aft_tdm_chan_ring_rsyinc(sdla_t * card, private_area_t *chan );
+int 	aft_tdm_chan_ring_rsyinc(sdla_t * card, private_area_t *chan, int log );
 
 
 static __inline void wan_aft_skb_defered_dealloc(private_area_t *chan, netskb_t *skb)

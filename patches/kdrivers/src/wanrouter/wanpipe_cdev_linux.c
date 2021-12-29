@@ -77,7 +77,7 @@ static struct class_simple *wp_cdev_class = NULL;
 # define WP_CDEV_SET_OFFSET_MINOR(offset)  ((offset) << (WP_CDEV_SPAN_SHIFT))
 
 # define WP_TIMER_DEV(minor) (minor >= WP_CDEV_TIMER_DEV_MOFFSET && minor <= (WP_CDEV_TIMER_DEV_MOFFSET+WP_MAX_TIMER_DEV_CNT))
-# define CPRIV(dev)  ((wanpipe_cdev_priv_t*)(dev->priv))
+
 
 # define DEBUG_CDEV DEBUG_TEST
 
@@ -88,6 +88,7 @@ static int wp_cdev_release(struct inode *inode, struct file *file);
 static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_t *ppos);
 static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count, loff_t *ppos);
 static int wp_cdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long data);
+static long wp_cdev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long data);
 static unsigned int wp_cdev_poll(struct file *file, struct poll_table_struct *wait_table);
 
 /*=========================================================
@@ -104,13 +105,7 @@ typedef struct wanpipe_cdev_device
 
 }wanpipe_cdev_device_t;
 
-typedef struct wanpipe_cdev_priv
-{
-	int dev_minor;
-	spinlock_t lock;
-	wait_queue_head_t poll_wait;
-
-}wanpipe_cdev_priv_t;
+;
 
 /*=========================================================
  * Static Defines
@@ -125,6 +120,7 @@ static struct file_operations wp_cdev_fops = {
 	read: wp_cdev_read,
 	write: wp_cdev_write,
 	poll: wp_cdev_poll,
+	compat_ioctl: wp_cdev_compat_ioctl,
 	mmap: NULL,
 	flush: NULL,
 	fsync: NULL,
@@ -229,48 +225,6 @@ int wanpipe_global_cdev_free(void)
  * wanpipe_cdev_wake
  *========================================================*/
 
-int wanpipe_cdev_rx_wake(wanpipe_cdev_t *cdev)
-{
-	if (!cdev || !CPRIV(cdev)) {
-		DEBUG_EVENT("%s(): Error cdev->dev_ptr not initialized!\n",__FUNCTION__);
-		return -1;
-	}
-
-	if (waitqueue_active(&CPRIV(cdev)->poll_wait)){
-		wake_up_interruptible(&CPRIV(cdev)->poll_wait);
-	}
-
-	return 0;
-}
-
-
-int wanpipe_cdev_tx_wake(wanpipe_cdev_t *cdev)
-{
-	if (!cdev || !CPRIV(cdev)) {
-		DEBUG_EVENT("%s(): Error cdev->dev_ptr not initialized!\n",__FUNCTION__);
-		return -1;
-	}
-
-	if (waitqueue_active(&CPRIV(cdev)->poll_wait)){
-		wake_up_interruptible(&CPRIV(cdev)->poll_wait);
-	}
-
-	return 0;
-}
-
-int wanpipe_cdev_event_wake(wanpipe_cdev_t *cdev)
-{
-	if (!cdev || !CPRIV(cdev)) {
-		DEBUG_EVENT("%s(): Error cdev->dev_ptr not initialized!\n",__FUNCTION__);
-		return -1;
-	}
-
-	if (waitqueue_active(&CPRIV(cdev)->poll_wait)){
-		wake_up_interruptible(&CPRIV(cdev)->poll_wait);
-	}
-
-	return 0;
-}
 
 
 /*=========================================================
@@ -646,10 +600,10 @@ static int wp_cdev_release(struct inode *inode, struct file *file)
 static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_t *ppos)
 {
 	wanpipe_cdev_t *cdev;
-	struct iovec iovstack[WP_UIO_MAX_SZ];
-	struct iovec *iov=iovstack;
-	struct msghdr msg_sys;
-	struct msghdr *msg = (struct msghdr*)usrbuf;
+	wan_iovec_t iovstack[WP_UIO_MAX_SZ];
+	wan_iovec_t *iov=iovstack;
+	wan_msghdr_t msg_sys;
+	wan_msghdr_t *msg = (wan_msghdr_t*)usrbuf;
 	netskb_t *skb=NULL;
 	int err=-EINVAL;
 	wp_api_hdr_t hdr;
@@ -664,20 +618,18 @@ static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_
 		return -ENODEV;
 	}
 
-	if (count < sizeof(struct msghdr)) {
+	if (count < sizeof(wan_msghdr_t)) {
 		DEBUG_EVENT("%s:%d Error: Invalid read buffer size %i\n",__FUNCTION__,__LINE__,count);
 		return -EINVAL;
 	}
 
-	if (copy_from_user(&msg_sys,msg,sizeof(struct msghdr)))
+	if (copy_from_user(&msg_sys,msg,sizeof(wan_msghdr_t)))
 		return -EFAULT;
 
 	if (msg_sys.msg_iovlen == 0 || msg_sys.msg_iovlen > WP_UIO_MAX_SZ) {
 		DEBUG_EVENT("%s:%d Error: Invalid read buffer msg_iovlen %i\n",__FUNCTION__,__LINE__,msg_sys.msg_iovlen);
 		return -EFAULT;
 	}
-
-	msg_sys.msg_namelen=0;
 
 	err=wan_verify_iovec(&msg_sys, iov, NULL, 0);
 	if (err < 0) {
@@ -720,10 +672,10 @@ static ssize_t wp_cdev_read(struct file *file, char *usrbuf, size_t count, loff_
 static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count, loff_t *ppos)
 {
 	wanpipe_cdev_t *cdev;
-	struct iovec iovstack[WP_UIO_MAX_SZ];
-	struct iovec *iov=iovstack;
-	struct msghdr msg_sys;
-	struct msghdr *msg = (struct msghdr*)usrbuf;
+	wan_iovec_t iovstack[WP_UIO_MAX_SZ];
+	wan_iovec_t *iov=iovstack;
+	wan_msghdr_t msg_sys;
+	wan_msghdr_t *msg = (wan_msghdr_t*)usrbuf;
 	netskb_t *skb=NULL;
 	unsigned char* buf;
 	int err=-EINVAL;
@@ -740,18 +692,20 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 		return -ENODEV;
 	}
 
-	if (copy_from_user(&msg_sys,msg,sizeof(struct msghdr)))
+	if (copy_from_user(&msg_sys,msg,sizeof(wan_msghdr_t)))
 		return -EFAULT;
 
 	if (msg_sys.msg_iovlen > WP_UIO_MAX_SZ)
 		return -EFAULT;
 
-	msg_sys.msg_namelen=0;
 
 	err=wan_verify_iovec(&msg_sys, iov, NULL, 0);
 	if (err < 0) {
 		return err;
 	}
+	
+	/* Update the count with length obtained from verify */
+	count = err;
 
 	skb=wan_skb_alloc(count+128);
 	if (!skb) {
@@ -782,11 +736,9 @@ static ssize_t wp_cdev_write(struct file *file, const char *usrbuf, size_t count
 			err=count;
 		}
 
-#if 0
-		err=wan_memcpy_toiovec(msg->msg_iov,
-				 			(void*)&hdr,
-				 			sizeof(hdr));
-#endif
+		/* Copy the header back to the user */
+		wan_memcpy_toiovec(msg_sys.msg_iov, (void*)&hdr, sizeof(hdr));
+
 		DEBUG_TEST("CDEV WRITE TXDATA=%i  STATUS=%i Size=%i IOVEC ERR=%i\n",
 				hdr.wp_api_hdr_data_length,hdr.wp_api_hdr_operation_status,sizeof(hdr),err);
 
@@ -814,6 +766,13 @@ static int wp_cdev_ioctl(struct inode *inode, struct file *file, unsigned int cm
 
 	return err;
 }
+
+static long wp_cdev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long data)
+{
+    long err = (long) wp_cdev_ioctl(NULL, file, cmd, data);
+	return err;
+}
+
 
 static unsigned int wp_cdev_poll(struct file *file, struct poll_table_struct *wait_table)
 {

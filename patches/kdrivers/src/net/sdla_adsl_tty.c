@@ -230,16 +230,12 @@ unsigned int adsl_get_tty_minor_start(void *tty_ptr)
 
 void adsl_mod_inc_use_count (void)
 {
-#if !defined(LINUX_2_6)
 	MOD_INC_USE_COUNT;
-#endif
 }
 
 void adsl_mod_dec_use_count (void)
 {
-#if !defined(LINUX_2_6)
 	MOD_DEC_USE_COUNT;
-#endif
 }
 
 void adsl_set_tty_driver_data(void *tty_ptr, void *ptr)

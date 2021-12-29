@@ -46,13 +46,19 @@ allocate_dma_buffer(
 # endif/* WAN_KERNEL */
 # include <sang_status_defines.h>
 
+# if defined(WAN_KERNEL) && defined(NTSTRSAFE_USE_SECURE_CRT)
+#  define wan_snwprintf	RtlStringCbPrintfW
+#  define wan_strcpy	RtlStringCchCopy
+# else
+#  define wan_snwprintf	_snwprintf
+# endif
+
 # define strlcpy		strncpy
 # define strncasecmp	_strnicmp
 # define strcasecmp		_stricmp
 # define snprintf		_snprintf
 # define vsnprintf		_vsnprintf
 # define unlink			_unlink
-
 #endif/* __WINDOWS__ */
 
 /****************************************************************************
@@ -617,11 +623,7 @@ static __inline void* wan_malloc(int size)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	ptr = malloc(size, M_DEVBUF, M_NOWAIT); 
 #elif defined(__WINDOWS__)
-# ifdef WAN_DEBUG_MEM
-	ptr = kmalloc(size, '1lmk'/* memory pool tag */, func_name, const int line);
-# else
 	ptr = kmalloc(size, '1lmk'/* memory pool tag */);
-# endif
 #else
 # error "wan_malloc() function is not supported yet!"
 #endif
@@ -649,11 +651,7 @@ static __inline void* wan_kmalloc(int size)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	ptr = malloc(size, M_DEVBUF, M_NOWAIT); 
 #elif defined(__WINDOWS__)
-# ifdef WAN_DEBUG_MEM
-	ptr = kmalloc(size, '2lmk'/* memory pool tag */, func_name, const int line);
-# else
 	ptr = kmalloc(size, '2lmk'/* memory pool tag */);
-# endif
 #else
 # error "wan_malloc() function is not supported yet!"
 #endif
@@ -731,11 +729,7 @@ static __inline void* wan_vmalloc(int size)
 #elif defined(__SOLARIS__)
 	ptr = kmalloc(size);
 #elif defined(__WINDOWS__)
-# ifdef WAN_DEBUG_MEM
-	ptr = kmalloc(size, '3lmk'/* memory pool tag */, func_name, const int line);
-# else
 	ptr = kmalloc(size, '3lmk'/* memory pool tag */);
-# endif
 #else
 # error "wan_vmalloc() function is not supported yet!"
 #endif
@@ -1432,7 +1426,7 @@ static __inline void wan_skb_set_protocol(void* pskb, unsigned int protocol)
 #if defined(__LINUX__)
 	struct sk_buff *skb = (struct sk_buff*)pskb;
 	if (skb){
-		skb->protocol = htons(protocol);
+		skb->protocol = htons((u16)protocol);
 	}
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct mbuf	*mbuf = (struct mbuf*)pskb;
@@ -2525,7 +2519,11 @@ static __inline void* wan_netif_priv(netdevice_t* dev)
 {
 	WAN_ASSERT2(dev == NULL, NULL);
 #if defined(__LINUX__)
+#  if  (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
 	return dev->priv;
+#  else
+	return dev->ml_priv;
+#  endif
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	return dev->if_softc;
 #elif defined(__WINDOWS__)
@@ -2533,6 +2531,26 @@ static __inline void* wan_netif_priv(netdevice_t* dev)
 #else
 # error "wan_netif_priv() function is not supported yet!"
 #endif
+}
+
+
+static __inline void wan_netif_set_priv(netdevice_t* dev, void* priv)
+{
+	WAN_ASSERT1(dev == NULL);
+#if defined(__LINUX__)
+#  if  (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
+	dev->priv = priv;
+#  else
+	dev->ml_priv = priv;
+#  endif
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+	dev->if_softc = priv;
+#elif defined(__WINDOWS__)
+	dev->priv = priv;
+#else
+# error "wan_netif_priv() function is not supported yet!"
+#endif
+	return;
 }
 
 static __inline int wan_netif_up(netdevice_t* dev)
@@ -2550,22 +2568,7 @@ static __inline int wan_netif_up(netdevice_t* dev)
 }
 
 
-static __inline void wan_netif_set_priv(netdevice_t* dev, void* priv)
-{
-	WAN_ASSERT1(dev == NULL);
-#if defined(__LINUX__)
-	dev->priv = priv;
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-	dev->if_softc = priv;
-#elif defined(__WINDOWS__)
-	dev->priv = priv;
-#else
-# error "wan_netif_priv() function is not supported yet!"
-#endif
-	return;
-}
-
-static __inline short wan_netif_flags(netdevice_t* dev)
+static __inline unsigned int wan_netif_flags(netdevice_t* dev)
 {
 	WAN_ASSERT(dev == NULL);
 #if defined(__LINUX__)
@@ -2898,33 +2901,6 @@ static __inline void wan_write_bus_4(void *phw, void *virt, int offset, unsigned
 #endif
 
 #if defined(__WINDOWS__)
-
-#define WAN_SPIN_LOCK_INIT(pSpinLock)		\
-{											\
-	int rc=1;								\
-	VERIFY_PASSIVE_IRQL(rc);				\
-	if(rc == 0){							\
-		KeInitializeSpinLock(pSpinLock);	\
-	}										\
-}
-
-#define WAN_SPIN_LOCK(pSpinLock)				\
-{												\
-	int rc=IRQL_CHECK_SILENT;					\
-	VERIFY_DISPATCH_IRQL(rc);					\
-	if(rc == 0){								\
-		KeAcquireSpinLock(pSpinLock, &old_IRQL);\
-	}											\
-}
-
-#define WAN_SPIN_UNLOCK(pSpinLock)				\
-{												\
-	int rc=IRQL_CHECK_SILENT;					\
-	VERIFY_DISPATCH_IRQL(rc);					\
-	if(rc == 0){								\
-		KeReleaseSpinLock(pSpinLock, old_IRQL);	\
-	}											\
-}
 
 #define WAN_IFQ_INIT(ifq, max_pkt)			wan_skb_queue_init((ifq))
 #define WAN_IFQ_DESTROY(ifq)
