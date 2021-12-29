@@ -1,13 +1,13 @@
 K 25
 svn:wc:ra_dav:version-url
 V 35
-/svn/sangoma_mgd/!svn/ver/204/trunk
+/svn/sangoma_mgd/!svn/ver/232/trunk
 END
 sigboost.h
 K 25
 svn:wc:ra_dav:version-url
 V 46
-/svn/sangoma_mgd/!svn/ver/204/trunk/sigboost.h
+/svn/sangoma_mgd/!svn/ver/230/trunk/sigboost.h
 END
 switch_buffer.h
 K 25
@@ -19,7 +19,7 @@ sangoma_mgd.conf.sample
 K 25
 svn:wc:ra_dav:version-url
 V 59
-/svn/sangoma_mgd/!svn/ver/157/trunk/sangoma_mgd.conf.sample
+/svn/sangoma_mgd/!svn/ver/221/trunk/sangoma_mgd.conf.sample
 END
 sound.raw
 K 25
@@ -31,7 +31,7 @@ safe_sangoma
 K 25
 svn:wc:ra_dav:version-url
 V 48
-/svn/sangoma_mgd/!svn/ver/174/trunk/safe_sangoma
+/svn/sangoma_mgd/!svn/ver/232/trunk/safe_sangoma
 END
 callgettest.sh
 K 25
@@ -55,7 +55,7 @@ call_signal.c
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/202/trunk/call_signal.c
+/svn/sangoma_mgd/!svn/ver/222/trunk/call_signal.c
 END
 re-sync.sh
 K 25
@@ -73,7 +73,7 @@ sangoma_mgd.c
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/204/trunk/sangoma_mgd.c
+/svn/sangoma_mgd/!svn/ver/222/trunk/sangoma_mgd.c
 END
 woomera.conf
 K 25
@@ -93,6 +93,12 @@ svn:wc:ra_dav:version-url
 V 42
 /svn/sangoma_mgd/!svn/ver/133/trunk/list.h
 END
+sangoma_mgd_ip_bridge.c
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/sangoma_mgd/!svn/ver/228/trunk/sangoma_mgd_ip_bridge.c
+END
 Changelog.sangoma_mgd
 K 25
 svn:wc:ra_dav:version-url
@@ -103,7 +109,7 @@ sangoma_mgd.h
 K 25
 svn:wc:ra_dav:version-url
 V 49
-/svn/sangoma_mgd/!svn/ver/204/trunk/sangoma_mgd.h
+/svn/sangoma_mgd/!svn/ver/222/trunk/sangoma_mgd.h
 END
 q931_cause.h
 K 25
@@ -121,7 +127,7 @@ install
 K 25
 svn:wc:ra_dav:version-url
 V 43
-/svn/sangoma_mgd/!svn/ver/186/trunk/install
+/svn/sangoma_mgd/!svn/ver/222/trunk/install
 END
 sangoma_mgd_memdbg.c
 K 25
@@ -139,7 +145,7 @@ smg_ctrl
 K 25
 svn:wc:ra_dav:version-url
 V 44
-/svn/sangoma_mgd/!svn/ver/198/trunk/smg_ctrl
+/svn/sangoma_mgd/!svn/ver/232/trunk/smg_ctrl
 END
 switch_buffer.c
 K 25
@@ -151,7 +157,7 @@ Makefile
 K 25
 svn:wc:ra_dav:version-url
 V 44
-/svn/sangoma_mgd/!svn/ver/203/trunk/Makefile
+/svn/sangoma_mgd/!svn/ver/232/trunk/Makefile
 END
 sangoma_mgd_memdbg.h
 K 25

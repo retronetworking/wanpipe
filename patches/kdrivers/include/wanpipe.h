@@ -354,6 +354,7 @@ typedef struct {
 	 	  ((ch)>=(unsigned)'a'&&(ch)<=(unsigned)'f')||\
 	 	  ((ch)>=(unsigned)'A'&&(ch)<=(unsigned)'F'))?1:0)
 
+#define AFT_A600_CARD(card)	((card)->adptr_type == AFT_ADPTR_A600)
 
 /****** Data Structures *****************************************************/
 
@@ -985,6 +986,7 @@ typedef struct sdla
 #endif
 
 	unsigned char wp_debug_chan_seq;
+	unsigned int wp_gen_fifo_err;
 
 #if defined(WANPIPE_PERFORMANCE_DEBUG)
  	wan_ticks_t				debug_timeout;

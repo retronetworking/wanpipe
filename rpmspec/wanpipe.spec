@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe
 %define name              %{WANPIPE_VER}
-%define version           3.4.6
+%define version           3.4.7
 %define release           0
 %define	serial	 	  1
 %define UTILS_DIR 	  /usr/sbin
@@ -255,15 +255,37 @@ install_init;
 
 %changelog
 
-* Tue Sep 18 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.6
-=====================================================================
+* Wed Nov 05 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.7
+================================================================================
+
+- New A200 Firmware V12
+  Fixes the fifo reporting in firmware.
+
+- Updated driver fifo handling so that if customer is running
+  older version of A200 firmware (less than V12) the fifo interrupt handling
+  would still work correctly.
+
+- Dahdi 2.2 broke Sangoma RBS support 
+- Fixed the free run interrupt supported on V38 firmware
+- Fixed chan_woomera inbound calls on second profile
+- Fixed sangoma_mgd for multiple profiles
+- Updated smg
+- Fixed wanpipemon LIU alarm statistics
+- Updates SMG for 32T1/E1 Support
+- Backporte front end OOF alarm update.
+  A OOF alarm counter was added so that link does not
+  drop on a single OOF alarm as per T1/E1 spec.
+
+
+* Tue Sep 18 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.6
+===============================================================================
 
 - Fund a bug in Sangoma_mgd causing channel 31 in each span to
   fail. This bug was introduced in 3.4.5 release.
 
 
-* Tue Sep 16 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.5
-=====================================================================
+* Tue Sep 16 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.5
+===============================================================================
 
 - New firmawre feature for A101/2/5/8: Free Run Timer Interrupt 
   The AFT T1/E1 cards will now provide perfect timing to zatpel/dahdi
@@ -282,14 +304,14 @@ install_init;
 - Updated for 2.6.30 kernel
 
 
-* Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.4
+* Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.4
 =====================================================================
 
 - Latest smg update in 3.4.3 broke BRI support
 - This is now fixed.
 
 
-* Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.3
+* Fri Jun 17 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.3
 =====================================================================
 
 - New firmware 
@@ -355,7 +377,7 @@ install_init;
   Added Asterisk Load balancing using extension information.
 
 
-* Fri Apr 30 2009 Nenad Corbic <ncorbic@sangoma.com> - Stable - 3.4.1
+* Fri Apr 30 2009 Nenad Corbic <ncorbic@sangoma.com> - Feature Frozen - 3.4.1
 =======================================================================  
 
 - Updated wancfg_zaptel configuration utility

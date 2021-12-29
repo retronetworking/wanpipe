@@ -1,14 +1,14 @@
 8
 
 dir
-204
+232
 https://www.sangomapbx.com/svn/sangoma_mgd/trunk/rc
 https://www.sangomapbx.com/svn/sangoma_mgd
 
 
 
-2009-09-17T21:48:55.845572Z
-203
+2009-11-13T19:11:52.785901Z
+224
 ncorbic
 
 
@@ -74,6 +74,18 @@ file
 200
 ncorbic
 
+safe_sangoma.rc
+file
+
+
+
+
+2009-11-13T17:07:38.000000Z
+645af0279043395cde238ac1a2246b52
+2009-11-13T19:11:52.785901Z
+224
+ncorbic
+
 smg.rc.ss7boost
 file
 
@@ -92,9 +104,21 @@ file
 
 
 
-2009-09-17T21:01:04.000000Z
-ac506d788aafcc64a63c12018d89ba0f
-2009-09-17T21:48:55.845572Z
-203
+2009-11-13T16:41:23.000000Z
+4df11cf9c5f0ff1e62b0b480ea8f0d6c
+2009-11-13T19:11:52.785901Z
+224
+ncorbic
+
+smg.rc.isupd_only
+file
+
+
+
+
+2009-09-23T18:59:44.000000Z
+c903841431ea2f2b592986f41485f7f0
+2009-09-23T20:02:33.658517Z
+208
 ncorbic
 

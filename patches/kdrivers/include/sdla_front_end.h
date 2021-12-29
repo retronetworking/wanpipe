@@ -9,6 +9,13 @@
 #define _SDLA_FRONT_END_H_
 
 
+# include "sdla_56k.h"
+# include "sdla_te1.h"
+# include "sdla_te3.h"
+# include "sdla_remora.h"
+# include "sdla_bri.h"
+# include "sdla_serial.h"
+
 /*
 *************************************************************************
 *			  DEFINES AND MACROS				*	
@@ -259,9 +266,18 @@ typedef struct {
 #define WAN_FE_LBMODE_CMD_SET		0x01
 #define WAN_FE_LBMODE_CMD_GET		0x02
 
-#define WAN_FE_LBMODE_RC_SUCCESS	0x00
-#define WAN_FE_LBMODE_RC_PENDING	0x01
-#define WAN_FE_LBMODE_RC_FAILED		0x02
+#define WAN_FE_LBMODE_RC_SUCCESS        0x00
+#define WAN_FE_LBMODE_RC_PENDING        0x01
+#define WAN_FE_LBMODE_RC_FAILED         0x02
+#define WAN_FE_LBMODE_RC_LINKDOWN       0x03
+#define WAN_FE_LBMODE_RC_TXBUSY         0x04
+#define WAN_FE_LBMODE_RC_DECODE(rc)                                     \
+		((rc) == WAN_FE_LBMODE_RC_SUCCESS)  ? "Done" :          \
+		((rc) == WAN_FE_LBMODE_RC_PENDING)  ? "In progress" :   \
+		((rc) == WAN_FE_LBMODE_RC_FAILED)   ? "Failed" :        \
+		((rc) == WAN_FE_LBMODE_RC_LINKDOWN) ? "Failed (Link Down)" :    \
+		((rc) == WAN_FE_LBMODE_RC_TXBUSY)   ? "Failed (Busy)" : "Internal Error"
+
 typedef struct 
 {
 	u_int8_t 	cmd;
@@ -273,11 +289,11 @@ typedef struct
 
 } sdla_fe_lbmode_t;
 
-
 /* Front-End status */
-#define FE_STATUS_DECODE(fe_status)					\
-		(fe_status == FE_DISCONNECTED)  ? "disconnected" :\
-		(fe_status == FE_CONNECTED)     ? "connected" :	\
+#define FE_STATUS_DECODE(fe_status)							\
+		(fe_status == FE_UNITIALIZED)	? "unitialized"	:	\
+		(fe_status == FE_DISCONNECTED)  ? "disconnected":	\
+		(fe_status == FE_CONNECTED)     ? "connected"	:	\
 						      "unknown"
 
 #define WAN_FE_STATUS_DECODE(fe)	FE_STATUS_DECODE((fe)->fe_status)
@@ -308,7 +324,8 @@ typedef struct
 #define WAN_FE_LINENO(fe)	FE_LINENO(&((fe)->fe_cfg))
 #define WAN_FE_TXTRISTATE(fe)	FE_TXTRISTATE(&((fe)->fe_cfg))
 #define WAN_FE_TDMV_LAW(fe)	FE_TDMV_LAW(&((fe)->fe_cfg))
-#define WAN_FE_NETWORK_SYNC(fe)	FE_NETWORK_SYNC(&((fe)->fe_cfg))
+
+#define WAN_FE_NETWORK_SYNC(fe)		FE_NETWORK_SYNC(&((fe)->fe_cfg))
 
 #define FE_MEDIA_DECODE(fe)	MEDIA_DECODE(&((fe)->fe_cfg))
 #define FE_LCODE_DECODE(fe)	LCODE_DECODE(&((fe)->fe_cfg))
@@ -438,10 +455,18 @@ enum {
    AFT_LED_TOGGLE
 };
 
+typedef struct sdla_fe_swirq_ {
+	unsigned int	pending;
+	unsigned char	subtype;
+	int		delay;
+	wan_ticks_t	start;
+} sdla_fe_swirq_t;
+
 typedef struct sdla_fe_timer_event_ {
 	unsigned char	type;
 	u_int8_t	mode;
 	int		delay;
+	wan_ticks_t	start;
 	union{
 #define te_event	u_fe.te
 #define rm_event	u_fe.rm
@@ -485,6 +510,9 @@ typedef struct {
 	WAN_LIST_HEAD(, sdla_fe_timer_event_)	event;
 #endif
 	unsigned int	event_map;
+	
+	sdla_fe_swirq_t	*swirq;
+	unsigned int	swirq_map;
 
 	int		(*write_cpld)(void*, unsigned short, unsigned char);
 	int		(*read_cpld)(void*, unsigned short, unsigned char);
@@ -493,13 +521,9 @@ typedef struct {
 	int 		(*write_framer)(void*,unsigned short,unsigned short);
 	unsigned int 	(*read_framer)(void*,unsigned short);
 	void		(*reset_fe)(void*);
-
 	WRITE_FRONT_END_REG_T	*write_fe_reg;
 	READ_FRONT_END_REG_T	*read_fe_reg;
 	READ_FRONT_END_REG_T	*__read_fe_reg;
-#if defined(__WINDOWS__)
-	int remora_modules_counter;/* set in wp_remora_config() */
-#endif
 } sdla_fe_t;
 
 /*
@@ -520,11 +544,7 @@ typedef struct {
 } sdla_fe_iface_t;
 #endif
 
-#if defined(__LINUX__)
-# include <linux/wanpipe_events.h>
-#elif defined(__WINDOWS__)
-# include <wanpipe_events.h> /* for wan_event_ctrl_t */
-#endif
+#include "wanpipe_events.h"
 
 /* 
 ** Sangoma Front-End interface structure (new version)
@@ -568,7 +588,7 @@ typedef struct {
 	/* Get front end media type string */
 	char*		(*get_fe_media_string)(void);
 	/* Set Line-loopback modes */
-	int		(*set_fe_lbmode)(sdla_fe_t*, unsigned char, unsigned char);
+	int		(*set_fe_lbmode)(sdla_fe_t*, u_int8_t, u_int8_t, u_int32_t);
 	/* Update Alarm Status for proc file system */
 	int		(*update_alarm_info)(sdla_fe_t*, struct seq_file*, int*);
 	/* Update PMON Status for proc file system */
@@ -599,7 +619,7 @@ typedef struct {
 	/* Event Control */
 	int		(*event_ctrl)(sdla_fe_t*, wan_event_ctrl_t*);
 	/* Front-End watchdog */
-	int		(*watchdog)(sdla_fe_t*);
+	int		(*watchdog)(sdla_fe_t *fe);
 	/* Transmit ISDN BRI D-chan data */
 	int		(*isdn_bri_dchan_tx)(sdla_fe_t*, void*, unsigned int);
 	/* Receive ISDN BRI D-chan data */

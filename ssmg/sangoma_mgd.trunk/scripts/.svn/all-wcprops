@@ -1,7 +1,7 @@
 K 25
 svn:wc:ra_dav:version-url
 V 43
-/svn/sangoma_mgd/!svn/ver/185/trunk/scripts
+/svn/sangoma_mgd/!svn/ver/231/trunk/scripts
 END
 astxs
 K 25
@@ -9,11 +9,23 @@ svn:wc:ra_dav:version-url
 V 47
 /svn/sangoma_mgd/!svn/ver/1/trunk/scripts/astxs
 END
+stats.sh
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/sangoma_mgd/!svn/ver/229/trunk/scripts/stats.sh
+END
 set_debug.sh
 K 25
 svn:wc:ra_dav:version-url
 V 54
 /svn/sangoma_mgd/!svn/ver/1/trunk/scripts/set_debug.sh
+END
+sig_state.sh
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/sangoma_mgd/!svn/ver/231/trunk/scripts/sig_state.sh
 END
 clog.sh
 K 25

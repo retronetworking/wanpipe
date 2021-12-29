@@ -62,13 +62,13 @@
 #define PIDFILE "/var/run/sangoma_mgd.pid"
 #define PIDFILE_UNIT "/var/run/sangoma_mgd_unit.pid"
 
-#define WOOMERA_MAX_MEDIA_PORTS 899
+#define WOOMERA_MAX_MEDIA_PORTS 5000
 
 #define CORE_EVENT_LEN 512
 #define WOOMERA_STRLEN 256
 #define WOOMERA_ARRAY_LEN 50
 #define WOOMERA_BODYLEN 2048
-#define WOOMERA_MIN_MEDIA_PORT 9000
+#define WOOMERA_MIN_MEDIA_PORT 10000
 #define WOOMERA_MAX_MEDIA_PORT (WOOMERA_MIN_MEDIA_PORT + WOOMERA_MAX_MEDIA_PORTS)
 #define WOOMERA_HARD_TIMEOUT 0
 #define WOOMERA_LINE_SEPERATOR "\r\n"
@@ -297,6 +297,26 @@ struct  woomera_session {
 	pthread_mutex_t media_lock;
 };
 
+struct smg_tdm_ip_bridge {
+	int init;
+	int end;
+	int span;
+	int chan;
+#if 0
+	int port;
+	char local_ip[25];
+	char remote_ip[25];
+#endif
+	int period;
+	int tdm_fd;
+	call_signal_connection_t mcon;
+	pthread_t thread;
+};
+
+extern struct smg_tdm_ip_bridge g_smg_ip_bridge_idx[];
+extern pthread_mutex_t g_smg_ip_bridge_lock;
+
+#define MAX_SMG_BRIDGE 32
 #define CORE_TANK_LEN CORE_MAX_CHAN_PER_SPAN*CORE_MAX_SPANS
 
 struct woomera_server {
@@ -342,11 +362,12 @@ struct woomera_server {
 	struct timeval all_ckt_busy_time;
 	struct timeval restart_timeout;
 	int dtmf_on; 
-    	int dtmf_off;
-    	int dtmf_intr_ch;
-    	int dtmf_size;
+	int dtmf_off;
+	int dtmf_intr_ch;
+	int dtmf_size;
 	int strip_cid_non_digits;
 	int call_timeout;
+	struct smg_tdm_ip_bridge ip_bridge_idx[MAX_SMG_BRIDGE];
 };
 
 extern struct woomera_server server;
@@ -359,6 +380,28 @@ struct woomera_config {
     int lineno;
 };
 
+static inline int smg_get_ip_bridge_session(struct smg_tdm_ip_bridge **ip_bridge)
+{
+	int i;
+	for (i=0;i<MAX_SMG_BRIDGE;i++) {
+		if (g_smg_ip_bridge_idx[i].init) {
+			continue;
+		}
+		g_smg_ip_bridge_idx[i].init=1;
+		*ip_bridge=&g_smg_ip_bridge_idx[i];
+		return 0;
+	}
+
+	*ip_bridge=NULL;	
+	return -1;
+
+}
+
+static inline int smg_free_ip_bridge_session(struct smg_tdm_ip_bridge *ip_bridge)
+{
+	memset(ip_bridge,0,sizeof(struct smg_tdm_ip_bridge));
+	return 0;
+}
 
 static inline void smg_get_current_priority(int *policy, int *priority)
 {
@@ -706,7 +749,7 @@ static inline int open_span_chan (unsigned char span, unsigned char chan)
 		pthread_mutex_lock(&server.process_table[span][chan].media_lock);
 		if(server.process_table[span][chan].media_used > 0) {
 			log_printf(SMG_LOG_ALL, server.log, 
-				"Critical Error: channel already opened [w%ig%i]\n", span, chan);
+				"Critical Error: channel already opened [s%ic%i]\n", span, chan);
 		} else {
 			server.process_table[span][chan].media_used++;
 	
@@ -736,5 +779,8 @@ static inline void close_span_chan (int *socket, unsigned char span, unsigned ch
 
 extern int smg_log_init(void);
 extern void smg_log_cleanup(void);
+extern int smg_ip_bridge_start(void);
+extern int smg_ip_bridge_stop(void);
+extern int waitfor_2sockets(int fda, int fdb, char *a, char *b, int timeout);
 #endif
 

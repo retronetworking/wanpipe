@@ -155,11 +155,16 @@ all: cleanup_local _checkzap _checksrc all_bin_kmod all_util
 
 all_src: cleanup_local  _checkzap _checksrc all_kmod all_util
 
+all_src_ss7: cleanup_local _checkzap _checksrc all_kmod_ss7 all_util
+
 dahdi: all_src
 
 zaptel: all_src
 
 openzap: all_src all_lib
+	@touch .all_lib
+
+openzap_ss7: all_src_ss7 all_lib
 	@touch .all_lib
 
 tdmapi: all_src all_lib
@@ -173,6 +178,14 @@ cleanup_local:
 #Build only kernel modules
 all_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) ZAPHDLC=$(ZAPHDLC_PRIV) HOMEDIR=$(PWD) modules  
+
+all_kmod_ss7: _checkzap _checksrc _cleanoldwanpipe _check_kver
+	@if [ -e  $(PWD)/ss7_build_dir ]; then \
+		rm -rf $(PWD)/ss7_build_dir; \
+	fi
+	@mkdir -p $(PWD)/ss7_build_dir
+	./Setup drivers --builddir=$(PWD)/ss7_build_dir --with-linux=$(KDIR) $(ZAP_OPTS) --usr-cc=$(CC) --protocol=AFT_TE1-XMTP2 --no-zaptel-compile --noautostart --arch=$(ARCH) --silent
+	@eval "./patches/copy_modules.sh $(PWD)/ss7_build_dir $(WAN_DIR)"
 
 all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 	@if [ -e  $(PWD)/ast_build_dir ]; then \
@@ -293,6 +306,11 @@ install_kmod:
 		echo "install -m 644 -D $(WAN_DIR)/wanpipe_lip.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}"; \
 		install -m 644 -D $(WAN_DIR)/wanpipe_lip.${MODTYPE} $(INSTALLPREFIX)/$(KINSTDIR)/net/wanrouter/wanpipe_lip.${MODTYPE}; \
 	fi
+	@rm -f $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/xmtp2km.${MODTYPE}
+	@if [ -f $(WAN_DIR)/xmtp2km.${MODTYPE} ]; then \
+                echo "install -D -m 644 $(WAN_DIR)/xmtp2km.${MODTYPE}   $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/xmtp2km.${MODTYPE}"; \
+                install -D -m 644 $(WAN_DIR)/xmtp2km.${MODTYPE}         $(INSTALLPREFIX)/$(KINSTDIR)/drivers/net/wan/xmtp2km.${MODTYPE};\
+        fi
 	@eval "./patches/rundepmod.sh"	
 	
 endif

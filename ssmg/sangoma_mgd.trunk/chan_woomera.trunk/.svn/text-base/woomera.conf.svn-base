@@ -47,8 +47,8 @@ audio_ip=127.0.0.1
 ;Only change if you have a port conflict with 
 ;another application.
 ;------------------------------
-base_media_port     = 10000
-max_media_ports     = 1000
+base_media_port     = 20000
+max_media_ports     = 5000
 
 
 ;Incoming Context for Woomera Channels

@@ -120,23 +120,24 @@ static int smg_event_dbg=SMG_LOG_BOOST;
 static void clog_print_event_call(call_signal_connection_t *mcon,call_signal_event_t *event, int priority, int dir)
 {
 	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?SMG_LOG_DEBUG_CALL:smg_event_dbg, mcon->log,
-                           "%s EVENT (%s): %s:(%X) [w%dg%d] CSid=%i Seq=%i Cn=[%s] Cd=[%s] Ci=[%s]\n",
+                           "%s EVENT (%s): %s:(%X) [s%dc%d] Tg=%i CSid=%i Seq=%i Cn=[%s] Cd=[%s] Ci=[%s]\n",
 			   dir ? "TX":"RX",
 			   priority ? "P":"N",	
                            call_signal_event_id_name(event->event_id),
                            event->event_id,
                            event->span+1,
                            event->chan+1,
+						   event->trunk_group,
                            event->call_setup_id,
                            event->fseqno,
-			   strlen(event->calling_name)?event->calling_name:"N/A",
+			   			   strlen(event->calling_name)?event->calling_name:"N/A",
                            (event->called_number_digits_count ? (char *) event->called_number_digits : "N/A"),
                            (event->calling_number_digits_count ? (char *) event->calling_number_digits : "N/A"));
 }
 static void clog_print_event_short(call_signal_connection_t *mcon,short_signal_event_t *event, int priority, int dir)
 {
 	clog_printf((event->event_id==SIGBOOST_EVENT_HEARTBEAT)?SMG_LOG_DEBUG_CALL:smg_event_dbg, mcon->log,
-                           "%s EVENT (%s): %s:(%X) [w%dg%d] Rc=%i CSid=%i Seq=%i \n",
+                           "%s EVENT (%s): %s:(%X) [s%dc%d] Rc=%i CSid=%i Seq=%i \n",
 			   dir ? "TX":"RX",
 			   priority ? "P":"N",	
                            call_signal_event_id_name(event->event_id),

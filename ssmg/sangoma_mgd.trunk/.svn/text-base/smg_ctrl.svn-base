@@ -12,6 +12,7 @@ SIG_LOG=$LOG
 PRI=0
 BRI=0
 SS7=0
+PROD="smg_ctrl"
 
 ulimit -n 65000
 
@@ -46,12 +47,19 @@ function usage()
 	return 1
 }
 
+logit()
+{
+ 	local data="$1"
+
+	echo "$PROD: $data"
+	logger "$PROD: $data"
+}   
 
 function stop_all()
 {
 
 	echo " "
-	echo "Stopping running processes..."
+	logit "Stopping running processes..."
 	
 	stop_safe_sangoma
 	stop_sigdaemon
@@ -61,6 +69,8 @@ function stop_all()
 	fi
 	
 	remove_pid_files
+
+	stop_scripts
 }
 
 function stop_sigdaemon()
@@ -74,6 +84,7 @@ function stop_sigdaemon()
 			echo "OK"
 		else
 			echo "FAILED"
+		    logit "Failed to TERM $sigd"      
 			break;
 		fi
 	fi
@@ -81,10 +92,10 @@ function stop_sigdaemon()
 	do
 		eval "pidof $sigd >/dev/null 2>/dev/null"
 		if [ $? -ne 0 ]; then
-			echo "$sigd is stopped"
+			logit "$sigd is stopped"
 			return;
 		else
-			echo "waiting for $sigd to finish($i/$max_retry)...."
+			logit "waiting for $sigd to finish($i/$max_retry)...."
 			sleep 1
 		fi
 	done
@@ -96,6 +107,7 @@ function stop_sigdaemon()
 			echo "OK"
 		else	
 			echo "FAILED"
+		    logit "Failed to KILL $sigd"      
 			break;
 		fi
 	fi
@@ -103,10 +115,10 @@ function stop_sigdaemon()
 	do
 		eval "pidof $sigd >/dev/null 2>/dev/null"
 		if [ $? -ne 0 ]; then
-			echo "$sigd is stopped"
+			logit "$sigd is stopped"
 			break;
 		else
-			echo "waiting for $sigd to finish($i/$max_retry)...."
+			logit "waiting for $sigd to finish($i/$max_retry)...."
 			sleep 1
 		fi
 	done
@@ -127,7 +139,7 @@ function stop_sangoma_mgd()
 			return 0;
 		fi
 	else 
-		echo "sangoma_mgd not running..."
+		logit "sangoma_mgd not running..."
 		return;
 	fi
 
@@ -135,10 +147,10 @@ function stop_sangoma_mgd()
 	do
 		eval "pidof sangoma_mgd >/dev/null 2>/dev/null"
 		if [ $? -ne 0 ]; then
-			echo "sangoma_mgd is stopped"
+			logit "sangoma_mgd is stopped"
 			return 0
 		else
-			echo "waiting for sangoma_mgd to finish($i/$max_retry)...."
+			logit "waiting for sangoma_mgd to finish($i/$max_retry)...."
 			sleep 1
 		fi
 	done
@@ -167,7 +179,7 @@ function stop_safe_sangoma()
 	if [ $? -eq 0 ]; then
 		echo -n "Sending TERM signal to safe_sangoma..."
 	else 
-		echo "safe_sangoma not running..."
+		logit "safe_sangoma not running..."
 		return;
 	fi
 	sleep 1
@@ -181,7 +193,7 @@ function stop_safe_sangoma()
 			echo "OK"
 		else 
 			echo "FAILED"
-			echo "Failed to stop safe_sangoma"
+			logit "Failed to stop safe_sangoma"
 			return 1
 		fi
 	else
@@ -196,14 +208,14 @@ function remove_pid_files()
 		eval "rm -f /var/run/$sigd.pid > /dev/null"
 		if [ $? -ne 0 ]; then
 			echo " " 
-			echo "Failed to remove /var/run/$sigd.pid, try to remove it manually"
+			logit "Failed to remove /var/run/$sigd.pid, try to remove it manually"
 		fi
 	fi
 	if [ -e /var/run/sangoma_mgd.pid ]; then
 		eval "rm -f /var/run/sangoma_mgd.pid > /dev/null"
 		if [ $? -ne 0 ]; then
 			echo " " 
-			echo "Failed to remove /var/run/sangoma_mgd.pid, try to remove it manually"
+			logit "Failed to remove /var/run/sangoma_mgd.pid, try to remove it manually"
 		fi
 	fi
 	echo "done"
@@ -212,7 +224,7 @@ function remove_pid_files()
 function start_test()
 {
 	echo " "
-	echo "Testing configuration files..."
+	logit "Testing configuration files..."
 	if [ $use_syslog -eq 1 ]; then
 		eval "$sigd -t"
 	else 
@@ -220,12 +232,36 @@ function start_test()
 	fi
 
 	if [ $? -eq 0 ]; then
-		echo "OK"
+		logit "OK"
 	else 
-		echo "Failed"
+		logit "Failed"
 	fi
 	
 }
+
+function start_scripts()
+{
+	if [ -d /etc/wanpipe/smg_ctrl.d ]; then
+		for script in /etc/wanpipe/smg_ctrl.d/*.start; do
+			if [ -x $script ]; then
+				logit "Executing startup script: $script"
+				source $script
+			fi
+		done
+	fi
+}
+
+function stop_scripts()
+{
+	if [ -d /etc/wanpipe/smg_ctrl.d ]; then
+		for script in /etc/wanpipe/smg_ctrl.d/*.stop; do
+			if [ -x $script ]; then
+				logit "Executing stop script: $script"
+				source $script
+			fi
+		done
+	fi
+}  
 
 function start_all()
 {
@@ -241,6 +277,9 @@ function start_all()
 			ret=$?
 		fi
 	fi	
+
+    start_scripts
+
 	return $ret
 }
 
@@ -250,14 +289,17 @@ function start_sigd()
 	pre_args="";
 	post_args="";
 	echo " " 
-	echo "Starting processes..."
+	if [ $use_safe -eq 1 ]; then
+		logit "Starting smg_ctrl in safe mode ..."
+	fi
+	logit "Starting processes..."
 	echo -n "Loading SCTP..."
 	eval "modprobe sctp  >>$LOG 2>>$LOG"
 	if [ $?	-eq 0 ]; then
 		echo "OK"
 	else 
-		echo "Failed"
-		echo "Failed to load SCTP module, check $LOG"
+		logit "Failed"
+		logit "Failed to load SCTP module, check $LOG"
 		return 1;
 	fi
 	sleep 1
@@ -266,8 +308,8 @@ function start_sigd()
 	if [ $? -ne 0 ]; then
 		eval "ls /dev/wanpipe* >/dev/null 2>/dev/null"
 		if [ $? -ne 0 ]; then
-			echo "No Sangoma TDM API interfaces running"
-			echo "Did you start wanrouter? "
+			logit "No Sangoma TDM API interfaces running"
+			logit "Did you start wanrouter? "
 			return 1;
 		fi
 	fi
@@ -288,24 +330,24 @@ function start_sigd()
 	if [ $?	-eq 0 ]; then
 		echo "OK"
 	else 
-		echo "Failed"
-		echo "Failed to start $sigd, check $SIG_LOG for errors"
+		logit "Failed"
+		logit "Failed to start $sigd, check $SIG_LOG for errors"
 		return 1;
 	fi
 	sleep 2 
 	if [ ! $(pidof $sigd) ]; then
-		echo "$sigd failed to start"
-		echo "check $SIG_LOG for errors"
+		logit "$sigd failed to start"
+		logit "check $SIG_LOG for errors"
 		return 1;
 	fi
 	sleep 3	
 	if [ "$xtraargs" = "sigdonly" ]; then
 		
-			echo "Sangoma $sigd running.."
+			logit "Sangoma $sigd running.."
 			if [ $use_syslog -eq 1 ]; then
-				echo "log file: $LOG and /var/log/messages"
+				logit "log file: $LOG and /var/log/messages"
 			else
-				echo "log file: $LOG and /var/log/messages"
+				logit "log file: $LOG and /var/log/messages"
 			fi
 	echo " "
 	fi
@@ -314,7 +356,6 @@ function start_sigd()
 }
 function start_smg()
 {
-	#check_sigd_running
 	check_smg_running
 	pre_args="";
 	post_args="";
@@ -327,7 +368,7 @@ function start_smg()
 	fi
 
   if [ -e /etc/wanpipe/.no_smg_load ]; then
-    echo "Skipping sangoma_mgd..."
+    logit "Skipping sangoma_mgd..."
     return 0;
   fi
 
@@ -336,23 +377,23 @@ function start_smg()
 	if [ $? -eq 0 ]; then
 		echo "OK"
 	else 
-		echo "Failed"
-		echo "Failed to start sangoma_mgd, check $LOG for errors"
+		logit "Failed"
+		logit "Failed to start sangoma_mgd, check $LOG for errors"
 		return 1;
 	fi
 
 	sleep 2	
 	if [ ! $(pidof sangoma_mgd) ]; then
-		echo "sangoma_mgd failed to start"
-		echo "check $LOG for errors"
+		logit "sangoma_mgd failed to start"
+		logit "check $LOG for errors"
 		return 1;
 	fi
 
 	echo "Sangoma SMG running.."
 	if [ $use_syslog -eq 1 ]; then
-		echo "log file: $LOG and /var/log/messages"
+		logit "log file: $LOG and /var/log/messages"
 	else
-		echo "log file: $LOG and /var/log/messages"
+		logit "log file: $LOG and /var/log/messages"
 	fi
 	echo " "
 
@@ -367,9 +408,12 @@ function check_sigd_running()
 	eval "pidof $sigd 2> /dev/null > /dev/null"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		echo "$sigd is currently running"
-		echo "exiting..."
+		logit "$sigd is currently running"
+		logit "exiting..."
 		exit 0
+	fi
+	if [ -e /var/run/$sigd.pid ];then
+		eval "rm -f /var/run/$sigd.pid >/dev/null 2>/dev/null";
 	fi
 	return 0
 
@@ -381,12 +425,9 @@ function check_smg_running()
 	eval "pidof sangoma_mgd 2> /dev/null > /dev/null"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		echo "sangoma_mgd is currently running"
-		echo "exiting..."
+		logit "sangoma_mgd is currently running"
+		logit "exiting..."
 		exit 0
-	fi
-	if [ -e /var/run/$sigd.pid ];then
-		eval "rm -f /var/run/$sigd.pid >/dev/null 2>/dev/null";
 	fi
 	if [ -e /var/run/sangoma_mgd.pid ];then
 		eval "rm -f /var/run/sangoma_mgd.pid >/dev/null 2>/dev/null";
@@ -397,7 +438,7 @@ function check_smg_running()
 function check_pid_sigd()
 {
 	if [ ! $(pidof $sigd) ]; then
-		echo "$sigd is not running"
+		logit "$sigd is not running"
 		exit 1
 	fi
 	return 0
@@ -410,9 +451,9 @@ function toggle_capture()
 	eval "kill -SIGRTMIN+2 $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		echo "BRI: Protocol capture toggled"
+		logit "BRI: Protocol capture toggled"
 	else 
-		echo "BRI: Failed to send command"
+		logit "BRI: Failed to send command"
 	fi
 
 	return $rc
@@ -423,13 +464,13 @@ function increase_verbose()
 	local rc
 	check_pid_sigd
 	SIG_VAL=`kill -l SIGRTMIN`
-	echo "signal: $SIG_VAL"
+	logit "signal: $SIG_VAL"
 	eval "kill -SIGRTMIN $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		echo "BRI: Verbosity increased"
+		logit "BRI: Verbosity increased"
 	else 
-		echo "BRI: Failed to send command"
+		logit "BRI: Failed to send command"
 	fi
 
 	return $rc
@@ -442,9 +483,9 @@ function decrease_verbose()
 	eval "kill -SIGRTMIN+1 $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		echo "BRI: Verbosity decreased"
+		logit "BRI: Verbosity decreased"
 	else 
-		echo "BRI: Failed to send command"
+		logit "BRI: Failed to send command"
 	fi
 
 	return $rc
@@ -457,9 +498,9 @@ function show_calls()
 	eval "kill -SIGRTMIN+3 $(pidof $sigd) "
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		echo "BRI: Show calls"
+		logit "BRI: Show calls"
 	else 
-		echo "BRI: Failed to send command"
+		logit "BRI: Failed to send command"
 	fi
 
 	return $rc
@@ -472,9 +513,9 @@ function show_spans()
 	eval "kill -SIGRTMIN+4 $(pidof $sigd)"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		echo "BRI: Show spans"
+		logit "BRI: Show spans"
 	else 
-		echo "BRI: Failed to send command"
+		logit "BRI: Failed to send command"
 	fi
 
 	return $rc
@@ -507,7 +548,7 @@ read_smg_conf ()
 	if [ -f $META_SMG_CONF ] 
 	then . $META_SMG_CONF
 	else
-		echo	" $META_SMG_CONF not found !!!!"
+		logit	" $META_SMG_CONF not found !!!!"
 		return 1 
 	fi
 	return 0
@@ -520,6 +561,8 @@ SANGOMA_PRID=
 SANGOMA_BRID=
 SANGOMA_SS7ISUP=
 SANGOMA_MEDIA_GATEWAY=
+SANGOMA_SS7BOOST=
+SANGOMA_SAFE_MODE=
 }
 ######################
 #main start here
@@ -529,20 +572,19 @@ parse_args
 init_smg_conf
 read_smg_conf
 #Set sigd
-if [ $SANGOMA_PRID = "YES" ]; then
+if [ "$SANGOMA_PRID" = "YES" ]; then
 	sigd="sangoma_prid"
-elif [ $SANGOMA_BRID = "YES" ]; then
+elif [ "$SANGOMA_BRID" = "YES" ]; then
 	sigd="sangoma_brid"
-elif [ $SANGOMA_PRID = "YES" ]; then
-	sigd="sangoma_prid"
-elif [ $SANGOMA_SS7ISUP = "YES" ]; then
+elif [ "$SANGOMA_SS7ISUP" = "YES" ]; then
 	sigd="sangoma_isupd"
-elif [ $SANGOMA_SS7BOOST = "YES" ]; then
+elif [ "$SANGOMA_SS7BOOST" = "YES" ]; then
 	sigd="ss7boost"
 else 
-	echo "Failed to specify sigd!!! check $META_SMG_CONF "
+	logit "Failed to specify sigd!!! check $META_SMG_CONF "
 	exit 1
 fi
+
 
 
 if [ $SANGOMA_MEDIA_GATEWAY = "NO" ]; then
@@ -560,7 +602,7 @@ if [ $sigd = "ss7boost" ] || [ $sigd = "sangoma_isupd" ]; then
 	eval "type $sigd 2> /dev/null > /dev/null"
 	if [ $? -ne 0 ]; then
 		echo
-		echo "Error $sigd is not found"
+		logit "Error $sigd is not found"
 		echo
 		exit 1
 	fi
@@ -587,6 +629,10 @@ done
 
 ret=0
 
+if [ "$cmd" = "start" ] && [ "$SANGOMA_SAFE_MODE" = "YES" ]; then
+  	cmd="safe_start"
+fi
+
 if [ "$cmd" = "start" ]; then
 		start_all
 		ret=$?
@@ -606,14 +652,17 @@ elif [ "$cmd" = "stop" ]; then
 	ret=$?
 elif [ "$cmd" = "restart" ]; then
 	stop_all
+	if [ "$SANGOMA_SAFE_MODE" = "YES" ]; then
+		use_safe=1
+	fi
 	start_all
+	ret=$?
 	if [ $ret -ne 0 ]; then
 		stop_all
 	fi
-	ret=$?
 else 
 	if [ $SS7 -eq 1 ]; then
-		echo "Error: Unsupported command $cmd for SS7"
+		logit "Error: Unsupported command $cmd for SS7"
 		echo	
 		usage
 		exit 1

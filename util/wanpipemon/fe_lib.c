@@ -1,8 +1,9 @@
 /*****************************************************************************
 * fe_lib.c	Front End Library 
 *
-* Author:       Nenad Corbic <ncorbic@sangoma.com>	
-*		Alex Feldman <al.feldman@sangoma.com>
+* Authors:	Nenad Corbic <ncorbic@sangoma.com>	
+*			Alex Feldman <al.feldman@sangoma.com>
+*			David Rokhvarg <davidr@sangoma.com>
 *
 * Copyright:	(c) 1995-2000 Sangoma Technologies Inc.
 *
@@ -11,6 +12,8 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ----------------------------------------------------------------------------
+* Feb 06, 2009  David Rokhvarg  Ported to MS Windows and added Makefile.Windows
+* 				to compile into SangomaFeLib.lib
 * Jan 11, 2005  David Rokhvarg  Added code to run above AFT card with protocol
 * 				in the LIP layer. Fixed many not working options.
 * May 24, 2000  Gideon Hack     Modifications for FT1 adapters
@@ -21,6 +24,7 @@
 /******************************************************************************
  * 			INCLUDE FILES					      *
  *****************************************************************************/
+
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
@@ -89,22 +93,24 @@ char *csudsu_menu[]={
 "","-- TE3/TE1/56K (S514-4-5-7-8/AFT) Stats --",
 ""," ",
 "Ta","Read TE3/TE1/56K alarms",
-"Tallb","E Line/Remote Loopback T1/E1/DS3/E3",
-"Tdllb","D Line/Remote Loopback T1/E1/DS3/E3",
-"Taplb","E Payload Loopback T1/E1/DS3/E3",
-"Tdplb","D Payload Loopback T1/E1/DS3/E3",
-"Tadlb","E Diag Digital Loopback T1/E1/DS3/E3",
-"Tddlb","D Diag Digital Loopback T1/E1/DS3/E3",
-"Talalb","E LIU Analog Loopback T1/E1-DM",
-"Tdlalb","D LIU Analog Loopback T1/E1-DM",
-"Talllb","E LIU Local Loopback T1/E1-DM",
-"Tdlllb","D LIU Local Loopback T1/E1-DM",
-"Talrlb","E LIU Remote Loopback T1/E1-DM",
-"Tdlrlb","D LIU Remote Loopback T1/E1-DM",
-"Taldlb","E LIU Dual Loopback T1/E1-DM",
-"Tdldlb","D LIU Dual Loopback T1/E1-DM",
+"Tallb","Activate Line/Remote Loopback T1/E1/DS3/E3",
+"Tdllb","Deactivate Line/Remote Loopback T1/E1/DS3/E3",
+"Taplb","Activate Payload Loopback T1/E1/DS3/E3",
+"Tdplb","Deactivate Payload Loopback T1/E1/DS3/E3",
+"Tadlb","Activate Diag Digital Loopback T1/E1/DS3/E3",
+"Tddlb","Deactivate Diag Digital Loopback T1/E1/DS3/E3",
+"Talalb","Activate LIU Analog Loopback T1/E1-DM",
+"Tdlalb","Deactivate LIU Analog Loopback T1/E1-DM",
+"Talllb","Activate LIU Local Loopback T1/E1-DM",
+"Tdlllb","Deactivate LIU Local Loopback T1/E1-DM",
+"Talrlb","Activate LIU Remote Loopback T1/E1-DM",
+"Tdlrlb","Deactivate LIU Remote Loopback T1/E1-DM",
+"Taldlb","Activate LIU Dual Loopback T1/E1-DM",
+"Tdldlb","Deactivate LIU Dual Loopback T1/E1-DM",
 "Tsalb","Send Loopback Activate Code",  
 "Tsdlb","Send Loopback Deactive Code",  
+"Tsaplb","Send Payload Loopback Activate Code",  
+"Tsdplb","Send Payload Loopback Deactive Code",  
 "Tread","Read CSU/DSU cfg",
 ""," ",
 "","--- FT1 (S508/S5143) Stats  ----",
@@ -123,12 +129,12 @@ char *csudsu_menu_te3[]={
 "","-- DS3/E3 (AFT) Stats --",
 ""," ",
 "Ta","Read DS3/E3 alarms",
-"Tallb3","E Analog Local Loopback DS3/E3",
-"Tdllb3","D Analog Local Loopback DS3/E3",
-"Tarlb3","E Remote Loopback DS3/E3",
-"Tdrlb3","D Remote Loopback DS3/E3",
-"Tadlb3","E Digital Loopback DS3/E3",
-"Tddlb3","D Digital Loopback DS3/E3",
+"Tallb3","Activate Analog Local Loopback DS3/E3",
+"Tdllb3","Deactivate Analog Local Loopback DS3/E3",
+"Tarlb3","Activate Remote Loopback DS3/E3",
+"Tdrlb3","Deactivate Remote Loopback DS3/E3",
+"Tadlb3","Activate Digital Loopback DS3/E3",
+"Tddlb3","Deactivate Digital Loopback DS3/E3",
 "."
 };
 
@@ -136,14 +142,16 @@ char *csudsu_menu_te1_pmc[]={
 "","-- T1/E1 (S514-4-5-7-8/AFT) Stats --",
 ""," ",
 "Ta","Read T1/E1 alarms",
-"Tallb","E Line/Remote Loopback T1/E1",
-"Tdllb","D Line/Remote Loopback T1/E1",
-"Taplb","E Payload Loopback T1/E1",
-"Tdplb","D Payload Loopback T1/E1",
-"Tadlb","E Diag Digital Loopback T1/E1",
-"Tddlb","D Diag Digital Loopback T1/E1",
+"Tallb","Activate Line Loopback T1/E1",
+"Tdllb","Deactivate Line Loopback T1/E1",
+"Taplb","Activate Payload Loopback T1/E1",
+"Tdplb","Deactivate Payload Loopback T1/E1",
+"Tadlb","Activate Diag Digital Loopback T1/E1",
+"Tddlb","Deactivate Diag Digital Loopback T1/E1",
 "Tsalb","Send Loopback Activate Code",  
-"Tsdlb","Send Loopback Deactive Code",  
+"Tsdlb","Send Loopback Deactivate Code",  
+"Tsaplb","Send Payload Loopback Activate Code",  
+"Tsdplb","Send Payload Loopback Deactive Code",  
 "Tread","Read CSU/DSU cfg",
 ""," ",
 "","--- FT1 (S508/S5143) Stats  ----",
@@ -162,20 +170,26 @@ char *csudsu_menu_te1_dm[]={
 "","-- T1/E1 (AFT T1/E1-DM) Stats --",
 ""," ",
 "Ta","Read T1/E1 alarms",
-"Tallb","E Line/Remote Loopback T1/E1",
-"Tdllb","D Line/Remote Loopback T1/E1",
-"Taplb","E Payload Loopback T1/E1",
-"Tdplb","D Payload Loopback T1/E1",
-"Tadlb","E Diag Digital Loopback T1/E1",
-"Tddlb","D Diag Digital Loopback T1/E1",
-"Talalb","E LIU Analog Loopback T1/E1",
-"Tdlalb","D LIU Analog Loopback T1/E1",
-"Talllb","E LIU Local Loopback T1/E1",
-"Tdlllb","D LIU Local Loopback T1/E1",
-"Taldlb","E LIU Dual Loopback T1/E1",
-"Tdldlb","D LIU Dual Loopback T1/E1",
+"Tallb","Activate Line/Remote Loopback T1/E1",
+"Tdllb","Deactivate Line/Remote Loopback T1/E1",
+"Taplb","Activate Payload Loopback T1/E1",
+"Tdplb","Deactivate Payload Loopback T1/E1",
+"Tadlb","Activate Diag Digital Loopback T1/E1",
+"Tddlb","Deactivate Diag Digital Loopback T1/E1",
+"Talalb","Activate LIU Analog Loopback T1/E1",
+"Tdlalb","Deactivate LIU Analog Loopback T1/E1",
+"Talllb","Activate LIU Local Loopback T1/E1",
+"Tdlllb","Deactivate LIU Local Loopback T1/E1",
+"Talrlb","Activate LIU Remote Loopback T1/E1",
+"Tdlrlb","Deactivate LIU Remote Loopback T1/E1",
+"Taldlb","Activate LIU Dual Loopback T1/E1",
+"Tdldlb","Deactivate LIU Dual Loopback T1/E1",
 "Tsalb","Send Line Loopback Activate Code",  
-"Tsdlb","Send Line Loopback Deactive Code",  
+"Tsdlb","Send Line Loopback Deactivate Code",  
+"Tsaplb","Send Payload Loopback Activate Code",  
+"Tsdplb","Send Payload Loopback Deactive Code",  
+"Tapclb","Activate Per-channel Loopback T1/E1",  
+"Tdpclb","Deactivate Per-channel Loopback T1/E1",  
 "."
 };
 
@@ -910,6 +924,15 @@ int set_lb_modes(unsigned char type, unsigned char mode)
 	return err;
 }
 
+int set_lb_modes_per_chan(unsigned char type, unsigned char mode, u_int32_t chan_map)
+{
+	int 	err = 0;
+
+	err = loopback_command(type, mode, chan_map);
+	set_lb_modes_status(type, mode, chan_map, err);
+	return err;
+}
+
 static int set_lb_modes_status(unsigned char type, unsigned char mode, u_int32_t chan_map, int err)
 {
 
@@ -989,31 +1012,43 @@ loopback_command_exit:
 	return err;
 }
 
-void get_lb_modes(void)
+u_int32_t get_lb_modes(int silent)
 {
+	sdla_fe_lbmode_t	*lb;
 
 	if ((femedia.media != WAN_MEDIA_T1) && (femedia.media != WAN_MEDIA_E1) &&
 	    (femedia.media != WAN_MEDIA_DS3) && (femedia.media != WAN_MEDIA_E3)){
 		printf("Error: Unsupported feature for current media type %02X!\n",
 						femedia.media);
-		return;
+		return 0;
 	}
 	if(make_hardware_level_connection()){
-		return;
+		return 0;
 	}
 
+	lb = (sdla_fe_lbmode_t*)get_wan_udphdr_data_ptr(0);
+	memset(lb, 0, sizeof(sdla_fe_lbmode_t));
+	lb->cmd	= WAN_FE_LBMODE_CMD_GET;
+	lb->rc	= WAN_FE_LBMODE_RC_FAILED;
+
 	wan_udp.wan_udphdr_command	= WAN_FE_LB_MODE;
-	wan_udp.wan_udphdr_data_len	= sizeof(unsigned int);
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_lbmode_t);
 	wan_udp.wan_udphdr_return_code	= 0xaa;
-	set_wan_udphdr_data_byte(0,WAN_TE1_LB_NONE);
 
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code != 0){
 		printf("Failed to get loopback mode!\n");
 	}else{
-		unsigned int	mode = *(unsigned int*)get_wan_udphdr_data_ptr(0);
 
-		if (!mode){
+		if (lb->rc != WAN_FE_LBMODE_RC_SUCCESS){
+			if (!silent){
+				printf("ERROR: Failed to get Loopback mode!\n");
+			}
+			return 0;
+		}
+
+		if (silent) return lb->type_map;
+		if (!lb->type_map){
 			printf("All loopback mode are disabled!");
 		}else{
 			printf("***** %s: %s Loopback status *****\n\n",
@@ -1024,33 +1059,33 @@ void get_lb_modes(void)
 					(femedia.media == WAN_MEDIA_E3)  ? "E3" : "Unknown");
 			if ((femedia.media == WAN_MEDIA_T1) || (femedia.media == WAN_MEDIA_E1)){
 			
-				if (mode & (1<<WAN_TE1_LIU_ALB_MODE)){
+				if (lb->type_map & (1<<WAN_TE1_LIU_ALB_MODE)){
 					printf("\tLIU Analog Loopback:\tON\n");
 				}
-				if (mode & (1<<WAN_TE1_LIU_LLB_MODE)){
+				if (lb->type_map & (1<<WAN_TE1_LIU_LLB_MODE)){
 					printf("\tLIU Local Loopback:\tON\n");
 				}
-				if (mode & (1<<WAN_TE1_LIU_RLB_MODE)){
+				if (lb->type_map & (1<<WAN_TE1_LIU_RLB_MODE)){
 					printf("\tLIU Remote Loopback:\tON\n");
 				}
-				if (mode & (1<<WAN_TE1_LINELB_MODE)){
+				if (lb->type_map & (1<<WAN_TE1_LINELB_MODE)){
 					printf("\tLine/Remote Loopback:\t\tON\n");
 				}
-				if (mode & (1<<WAN_TE1_PAYLB_MODE)){
+				if (lb->type_map & (1<<WAN_TE1_PAYLB_MODE)){
 					printf("\tPayload Loopback:\tON\n");
 				}
-				if (mode & (1<<WAN_TE1_DDLB_MODE)){
+				if (lb->type_map & (1<<WAN_TE1_DDLB_MODE)){
 					printf("\tDiagnostic Digital Loopback:\tON\n");
 				}
 			}else{
 
-				if (mode & (1<<WAN_TE3_LIU_LB_DIGITAL)){
+				if (lb->type_map & (1<<WAN_TE3_LIU_LB_DIGITAL)){
 					printf("\tDigital Loopback:\tON\n");
 				} 
-				if (mode & (1<<WAN_TE3_LIU_LB_REMOTE)){
+				if (lb->type_map & (1<<WAN_TE3_LIU_LB_REMOTE)){
 					printf("\tRemote Loopback:\tON\n");
 				}
-				if (mode & (1<<WAN_TE3_LIU_LB_ANALOG)){
+				if (lb->type_map & (1<<WAN_TE3_LIU_LB_ANALOG)){
 					printf("\tAnalog Loopback:\tON\n");
 				}
 			}
@@ -1058,10 +1093,10 @@ void get_lb_modes(void)
 	}
 	cleanup_hardware_level_connection();
 
-	return;
+	return 0;
 }
 
-void read_te1_56k_stat(int force)
+void read_te1_56k_stat(unsigned char force)
 {
 	sdla_fe_stats_t	*fe_stats;
 	//unsigned char* data = NULL;
@@ -1094,30 +1129,24 @@ void read_te1_56k_stat(int force)
 		printf("***** %s: %s Alarms (Framer) *****\n\n",
 			if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 		printf("ALOS:\t%s\t| LOS:\t%s\n", 
-				WAN_TE_ALOS_ALARM(fe_stats->alarms), 
-				WAN_TE_LOS_ALARM(fe_stats->alarms));
+				WAN_TE_PRN_ALARM_ALOS(fe_stats->alarms), 
+				WAN_TE_PRN_ALARM_LOS(fe_stats->alarms));
 		printf("RED:\t%s\t| AIS:\t%s\n", 
-				WAN_TE_RED_ALARM(fe_stats->alarms), 
-				WAN_TE_AIS_ALARM(fe_stats->alarms));
-		if (femedia.media == WAN_MEDIA_T1){ 
-			printf("RAI:\t%s\t| OOF:\t%s\n", 
-					WAN_TE_RAI_ALARM(fe_stats->alarms), 
-					WAN_TE_OOF_ALARM(fe_stats->alarms));
-		}else{
-			printf("OOF:\t%s\t| RAI:\t%s\n", 
-					WAN_TE_OOF_ALARM(fe_stats->alarms),
-					WAN_TE_RAI_ALARM(fe_stats->alarms));
-		}
+				WAN_TE_PRN_ALARM_RED(fe_stats->alarms), 
+				WAN_TE_PRN_ALARM_AIS(fe_stats->alarms));
+		printf("LOF:\t%s\t| RAI:\t%s\n", 
+				WAN_TE_PRN_ALARM_LOF(fe_stats->alarms),
+				WAN_TE_PRN_ALARM_RAI(fe_stats->alarms));
 
-		if (fe_stats->alarms & WAN_TE_BIT_LIU_ALARM){
+		if (fe_stats->alarms & WAN_TE_ALARM_LIU){
 			printf("\n***** %s: %s Alarms (LIU) *****\n\n",
 				if_name, (femedia.media == WAN_MEDIA_T1) ? "T1" : "E1");
 			printf("Short Circuit:\t%s\n", 
-					WAN_TE_LIU_ALARM_SC(fe_stats->alarms));
+					WAN_TE_PRN_ALARM_LIU_SC(fe_stats->alarms));
 			printf("Open Circuit:\t%s\n", 
-					WAN_TE_LIU_ALARM_OC(fe_stats->alarms));
+					WAN_TE_PRN_ALARM_LIU_OC(fe_stats->alarms));
 			printf("Loss of Signal:\t%s\n", 
-					WAN_TE_LIU_ALARM_LOS(fe_stats->alarms));
+					WAN_TE_PRN_ALARM_LIU_LOS(fe_stats->alarms));
 		}
 
 	}else if  (femedia.media == WAN_MEDIA_DS3 || femedia.media == WAN_MEDIA_E3){
@@ -1471,16 +1500,21 @@ repeat_read_reg:
 
 void set_fe_tx_mode(unsigned char mode)
 {
+	sdla_fe_debug_t	fe_debug;
+	unsigned char	*data = NULL;
+
 	if(make_hardware_level_connection()){
 		return;
 	}
 
 	wan_udp.wan_udphdr_command	= WAN_FE_TX_MODE;
-	wan_udp.wan_udphdr_data_len	= 1;
+	wan_udp.wan_udphdr_data_len	= sizeof(sdla_fe_debug_t);
 	wan_udp.wan_udphdr_return_code	= 0xaa;
 	
-	set_wan_udphdr_data_byte(0,WAN_FE_TX_MODE);	//not used
-	set_wan_udphdr_data_byte(1,mode);
+	fe_debug.type = WAN_FE_TX_MODE;
+	fe_debug.mode = mode;
+	data = get_wan_udphdr_data_ptr(0);
+	memcpy(data, (unsigned char*)&fe_debug, sizeof(sdla_fe_debug_t));
 
 	DO_COMMAND(wan_udp);
 	if (wan_udp.wan_udphdr_return_code != 0){
@@ -1559,7 +1593,7 @@ repeat_read_reg:
 * repetitive word: wanpipemon -i <ifname> -c Tbert <pattern_type> <pattern> <count> <eib> <chan_map>
 
 ******************************************************************************/
-static int set_fe_bert_help()
+static int set_fe_bert_help(void)
 {
 	printf("\n");
 	printf("\tSangoma T1 Bit-Error-Test\n\n");
@@ -1718,7 +1752,7 @@ int parse_bert_args(int argc, char *argv[], sdla_te_bert_t *bert, int *silent)
 				printf("ERROR: BERT pattern len is missing!\n");
 				return -EINVAL;
 			}
-			bert->un.cfg.pattern_len = atoi(argv[argi+1]);
+			bert->un.cfg.pattern_len = (unsigned short)atoi(argv[argi+1]);
 	
 		}else if (strcmp(parg, "--wcount") == 0){
 

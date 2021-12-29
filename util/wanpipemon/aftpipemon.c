@@ -1376,7 +1376,7 @@ int AFTMain(char *command,int argc, char* argv[])
 			}else if (!strcmp(opt,"lt")){
  				aft_digital_loop_test();
 			}else if (!strcmp(opt,"lb")){
-				get_lb_modes();
+				get_lb_modes(0);
 			}else if (!strcmp(opt,"allb")){
 				set_lb_modes(WAN_TE1_LINELB_MODE, WAN_TE1_LB_ENABLE);
 			}else if (!strcmp(opt,"dllb")){

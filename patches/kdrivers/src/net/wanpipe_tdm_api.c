@@ -1491,7 +1491,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 
 
 	case SIOC_WP_TDM_ENABLE_HWEC:
-		if (card && card->wandev.ec_enable) {
+		if (card && card->wandev.ec_enable && card->wandev.ec_dev) {
 			wan_smp_flag_t smp_flags1;
 			card->hw_iface.hw_lock(card->hw,&smp_flags1);   
                 	card->wandev.ec_enable(card, 1, tdm_api->tdm_chan);
@@ -1500,7 +1500,7 @@ int wanpipe_tdm_api_ioctl(wanpipe_tdm_api_dev_t *tdm_api, struct ifreq *ifr)
 		break;
 
 	case SIOC_WP_TDM_DISABLE_HWEC:
-		if (card && card->wandev.ec_enable) {
+		if (card && card->wandev.ec_enable && card->wandev.ec_dev) {
 			wan_smp_flag_t smp_flags1;
 			card->hw_iface.hw_lock(card->hw,&smp_flags1);   
                 	card->wandev.ec_enable(card, 0, tdm_api->tdm_chan);

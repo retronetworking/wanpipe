@@ -657,12 +657,17 @@ static int wp_tdmv_state(void* pcard, int state)
 	
 	switch(state){
 	case WAN_CONNECTED:
+		wp->rbs_rx_pending = wp->sig_timeslot_map;
+		wp->rbs_tx_status = 0;
+		wp->rbs_tx1_status = 0;
 		wan_set_bit(WP_TDMV_UP, &wp->flags);
 		break;
 
 	case WAN_DISCONNECTED:
 		wan_clear_bit(WP_TDMV_UP, &wp->flags);
 		wp->rbs_rx_pending = wp->sig_timeslot_map;
+		wp->rbs_tx_status = 0;
+		wp->rbs_tx1_status = 0;
 		break;
 	}
 	return 0;
@@ -817,11 +822,11 @@ static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 				card->wandev.fe_iface.set_fe_lbmode(
 						&wp->card->fe,
 					       	WAN_TE1_DDLB_MODE,
-					       	WAN_TE1_LB_DISABLE);
+					       	WAN_TE1_LB_DISABLE,ENABLE_ALL_CHANNELS);
 				card->wandev.fe_iface.set_fe_lbmode(
 						&wp->card->fe,
 						WAN_TE1_LINELB_MODE,
-					       	WAN_TE1_LB_ENABLE);
+					       	WAN_TE1_LB_ENABLE,ENABLE_ALL_CHANNELS);
 				wp->span.maintstat = ZT_MAINT_REMOTELOOP;
 			}
 		}else{
@@ -834,11 +839,11 @@ static void wp_tdmv_report_alarms(void* pcard, unsigned long te_alarm)
 				card->wandev.fe_iface.set_fe_lbmode(
 						&wp->card->fe,
 						WAN_TE1_DDLB_MODE,
-					       	WAN_TE1_LB_DISABLE);
+					       	WAN_TE1_LB_DISABLE,ENABLE_ALL_CHANNELS);
 				card->wandev.fe_iface.set_fe_lbmode(
 						&wp->card->fe,
 						WAN_TE1_LINELB_MODE,
-					       	WAN_TE1_LB_DISABLE);
+					       	WAN_TE1_LB_DISABLE,ENABLE_ALL_CHANNELS);
 				wp->span.maintstat = ZT_MAINT_NONE;
 			}
 		}else{
@@ -1357,11 +1362,11 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_DDLB_MODE,
-				       	WAN_TE1_LB_DISABLE);
+				       	WAN_TE1_LB_DISABLE,ENABLE_ALL_CHANNELS);
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_LB_DISABLE);
+				       	WAN_TE1_LB_DISABLE,ENABLE_ALL_CHANNELS);
 			break;
 	    	case ZT_MAINT_LOCALLOOP:
 			DEBUG_EVENT("%s: T1: Set to local loopback mode (local/no remote loop)\n",
@@ -1369,11 +1374,11 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_LB_DISABLE);
+				       	WAN_TE1_LB_DISABLE, ENABLE_ALL_CHANNELS);
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_DDLB_MODE,
-				       	WAN_TE1_LB_ENABLE);
+				       	WAN_TE1_LB_ENABLE, ENABLE_ALL_CHANNELS);
 			break;
 	    	case ZT_MAINT_REMOTELOOP:
 			DEBUG_EVENT("%s: T1: Set to remote loopback mode (no local/remote loop)\n",
@@ -1381,11 +1386,11 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_LB_ENABLE);
+				       	WAN_TE1_LB_ENABLE, ENABLE_ALL_CHANNELS);
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_LINELB_MODE,
-				       	WAN_TE1_LB_DISABLE);
+				       	WAN_TE1_LB_DISABLE, ENABLE_ALL_CHANNELS);
 			break;
 	    	case ZT_MAINT_LOOPUP:
 			DEBUG_EVENT("%s: T1: Send loopup code\n",
@@ -1393,7 +1398,7 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_TX_LINELB_MODE,
-				       	WAN_TE1_LB_ENABLE);
+				       	WAN_TE1_LB_ENABLE, ENABLE_ALL_CHANNELS);
 			break;
 	    	case ZT_MAINT_LOOPDOWN:
 			DEBUG_EVENT("%s: T1: Send loopdown code\n",
@@ -1401,7 +1406,7 @@ static int wp_tdmv_maint(struct zt_span *span, int cmd)
 			card->wandev.fe_iface.set_fe_lbmode(
 					&wp->card->fe,
 					WAN_TE1_TX_LINELB_MODE,
-				       	WAN_TE1_LB_DISABLE);
+				       	WAN_TE1_LB_DISABLE, ENABLE_ALL_CHANNELS);
 			break;
 	    	case ZT_MAINT_LOOPSTOP:
 			DEBUG_EVENT("%s: T1: Stop sending loop code\n",
@@ -1631,22 +1636,18 @@ static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits)
 	wp_tdmv_softc_t	*wp = NULL;
 	sdla_t		*card = NULL;
 	unsigned char	ABCD_bits = 0x00;
-	wan_smp_flag_t smp_flags;
 	
 	/* Byte offset */
 	WAN_ASSERT2(chan == NULL, 0);
 	if ((wp = chan->pvt) == NULL) return 0;
 	WAN_ASSERT2(wp->card == NULL, 0);
 	card = (sdla_t*)wp->card;
-
 	if (!wan_test_bit(chan->chanpos-1, &wp->timeslot_map)){
 		return 0;	
 	}
-   	
-	if (!wan_test_bit(WP_TDMV_SIG_ENABLE, &wp->flags)){
+   	if (!wan_test_bit(WP_TDMV_SIG_ENABLE, &wp->flags)){
                 return 0;
-    }
-
+        }
 	if (bits & ZT_ABIT) ABCD_bits |= WAN_RBS_SIG_A;
 	if (bits & ZT_BBIT) ABCD_bits |= WAN_RBS_SIG_B;
 	if (bits & ZT_CBIT) ABCD_bits |= WAN_RBS_SIG_C;
@@ -1665,19 +1666,43 @@ static int wp_tdmv_rbsbits(struct zt_chan *chan, int bits)
 			(ABCD_bits & WAN_RBS_SIG_C) ? 1 : 0,
 			(ABCD_bits & WAN_RBS_SIG_D) ? 1 : 0);
 
-
-	 card->hw_iface.hw_lock(card->hw,&smp_flags);
-	 if (card->wandev.fe_iface.set_rbsbits) {
-     	card->wandev.fe_iface.set_rbsbits(
-					&wp->card->fe, 
-					chan->chanpos, 
-					ABCD_bits);  
-	 }
-	 card->hw_iface.hw_unlock(card->hw,&smp_flags);
-
+	if (wan_test_and_set_bit(chan->chanpos-1, &wp->rbs_tx_status)){
+		if (ABCD_bits == wp->rbs_tx[chan->chanpos-1]){
+			return 0;
+		}
+		if (wan_test_and_set_bit(chan->chanpos-1, &wp->rbs_tx1_status)){
+			if (ABCD_bits == wp->rbs_tx1[chan->chanpos-1]){
+				return 0;
+			}
+			DEBUG_EVENT("%s: Critical Error: TX RBS overrun for channel %d\n",
+						wp->devname,
+						chan->chanpos);
+		}
+		wp->rbs_tx1[chan->chanpos-1] = ABCD_bits;
+	}else{
+		wp->rbs_tx[chan->chanpos-1] = ABCD_bits;
+	}
+#if 0
+	wan_set_bit(7, &ABCD_bits);
+	if (wan_test_and_set_bit(7, &wp->rbs_tx[chan->chanpos-1])){
+		if (ABCD_bits == wp->rbs_tx[chan->chanpos-1]){
+			return 0;
+		}
+		if (wan_test_and_set_bit(7, &wp->rbs_tx1[chan->chanpos-1])){
+			if (ABCD_bits == wp->rbs_tx1[chan->chanpos-1]){
+				return 0;
+			}
+			DEBUG_EVENT("%s: Critical Error: TX RBS for channel %d\n",
+						wp->devname,
+						chan->chanpos);
+		}
+		wp->rbs_tx1[chan->chanpos-1] = ABCD_bits;
+	}else{
+		wp->rbs_tx[chan->chanpos-1] = ABCD_bits;
+	}
+#endif
 	return 0;
 }
-
 
 /******************************************************************************
 ** wp_tdmv_is_rbsbits() -

@@ -1941,7 +1941,7 @@ typedef struct private_area
 	aft_dma_chain_t rx_dma_chain_table;
 	unsigned char	tx_chain_indx,tx_pending_chain_indx;
 #else
-	unsigned char	tx_chain_indx,tx_pending_chain_indx;
+	unsigned char	tx_chain_indx,tx_pending_chain_indx,tx_chain_data_sz,tx_chain_sz;
 	wan_dma_descr_t/*aft_dma_chain_t*/ tx_dma_chain_table[MAX_AFT_DMA_CHAINS];
 
 	unsigned char	rx_chain_indx,rx_pending_chain_indx;
@@ -2007,26 +2007,6 @@ typedef struct private_area
     unsigned char rx_seq_char;
 
 }private_area_t;
-
-
-static __inline int 
-aft_tx_dma_chain_chain_len(private_area_t *chan) 
-{
-	int pending_indx=chan->tx_pending_chain_indx;
-	int chain_diff=0;
-
-	if (chan->tx_chain_indx == pending_indx){
-        return chain_diff;
-	}            
-
-	if (chan->tx_chain_indx > pending_indx){
-		chain_diff = chan->tx_chain_indx - pending_indx;
-	}else{
-		chain_diff = MAX_AFT_DMA_CHAINS-(pending_indx - chan->tx_chain_indx);
-	}
-		
-	return chain_diff;
-}
 
 
 #if defined WANPIPE_PERFORMANCE_DEBUG

@@ -5019,7 +5019,7 @@ function install_smg_samples_ss7()
 	if [ -f $ROOT/etc/asterisk/extensions.conf ]; then
         	eval "grep -i outb-ss7 $ROOT/etc/asterisk/extensions.conf 2> /dev/null > /dev/null"
 		if [ $? -ne 0 ]; then
-          		cat $ROOT/etc/asterisk/extensions.conf ./conf_ss7/woomera_ext.conf > conf.$$
+          		cat $ROOT/etc/asterisk/extensions.conf ./conf/woomera_ext.conf > conf.$$
 	       	 	mv conf.$$ $ROOT/etc/asterisk/extensions.conf
 			echo "Asterisk extensions.conf file updated with woomera config"
 		else
@@ -5031,7 +5031,7 @@ function install_smg_samples_ss7()
 	if [ -f $ROOT/etc/asterisk/iax.conf ]; then 
         	eval "grep -i outb-ss7 $ROOT/etc/asterisk/iax.conf 2> /dev/null > /dev/null"
 		if [ $? -ne 0 ]; then
-                	cat $ROOT/etc/asterisk/iax.conf ./conf_ss7/woomera_iax.conf > conf.$$
+                	cat $ROOT/etc/asterisk/iax.conf ./conf/woomera_iax.conf > conf.$$
 			mv conf.$$ $ROOT/etc/asterisk/iax.conf 
 			echo "Asterisk iax.conf file updated with ss7 guest config"
 		else
@@ -7327,7 +7327,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.4.6
+PROD_VER=3.4.7
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces

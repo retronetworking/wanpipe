@@ -1,14 +1,14 @@
 8
 
 dir
-204
+232
 https://www.sangomapbx.com/svn/sangoma_mgd/trunk/scripts
 https://www.sangomapbx.com/svn/sangoma_mgd
 
 
 
-2009-07-15T16:39:13.271272Z
-185
+2009-11-20T23:39:34.767214Z
+231
 ncorbic
 
 
@@ -44,6 +44,19 @@ dir
 init.d
 dir
 
+stats.sh
+file
+
+
+
+
+2009-11-20T06:03:29.000000Z
+145db0085aa2270552002e4a92fd2112
+2009-11-20T08:09:27.705239Z
+229
+ncorbic
+has-props
+
 set_debug.sh
 file
 
@@ -55,6 +68,19 @@ fb580ba2a5e39574a4980ca545e01d27
 2007-09-21T20:53:51.260136Z
 1
 root
+has-props
+
+sig_state.sh
+file
+
+
+
+
+2009-11-24T17:29:10.000000Z
+d10d944bb164db02c3317dfa0d5e82da
+2009-11-20T23:39:34.767214Z
+231
+ncorbic
 has-props
 
 ss7

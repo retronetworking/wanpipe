@@ -67,7 +67,7 @@ extern void display_FT1_LEDs( void );
 
 extern int get_fe_type(unsigned char*);
 extern int set_lb_modes(unsigned char type, unsigned char mode);
-extern void read_te1_56k_stat(int);
+extern void read_te1_56k_stat(unsigned char);
 extern void read_te1_56k_config (void);
 
 extern void set_debug_mode(unsigned char type, unsigned char mode);

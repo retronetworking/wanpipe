@@ -102,6 +102,13 @@
 #define BIT_T1RCR2_RAIIE	0x02
 #define BIT_T1RCR2_RD4RM	0x01
 
+#define REG_E1RSAIMR		0x14
+#define BIT_E1RSAIMR_Rsa4IM	0x10
+#define BIT_E1RSAIMR_Rsa5IM	0x08
+#define BIT_E1RSAIMR_Rsa6IM	0x04
+#define BIT_E1RSAIMR_Rsa7IM	0x02
+#define BIT_E1RSAIMR_Rsa8IM	0x01
+
 #define REG_T1RBOCC		0x15
 #define BIT_T1RBOCC_RBR		0x80
 #define BIT_T1RBOCC_RBD1	0x02
@@ -146,6 +153,15 @@
 
 #define REG_E1RNAF		0x65
 #define BIT_E1RNAF_A		0x20
+
+#define REG_SaBITS		0x6E
+#define BIT_SaBITS_Sa4		0x10
+#define BIT_SaBITS_Sa5		0x08
+#define BIT_SaBITS_Sa6		0x04
+#define BIT_SaBITS_Sa7		0x02
+#define BIT_SaBITS_Sa8		0x01
+
+#define REG_Sa6CODE		0x6F
 
 #define REG_RMMR		0x80
 #define BIT_RMMR_FRM_EN		0x80
@@ -275,12 +291,14 @@
 #define REG_RLS6		0x95
 
 #define REG_RLS7		0x96
-#define BIT_RLS7_RRAI_CI	0x20
-#define BIT_RLS7_RAIS_CI	0x10
-#define BIT_RLS7_RSLC96		0x08
-#define BIT_RLS7_RFDLF		0x04
-#define BIT_RLS7_BC		0x02
-#define BIT_RLS7_BD		0x01
+#define BIT_RLS7_T1_RRAI_CI	0x20
+#define BIT_RLS7_T1_RAIS_CI	0x10
+#define BIT_RLS7_T1_RSLC96	0x08
+#define BIT_RLS7_T1_RFDLF	0x04
+#define BIT_RLS7_T1_BC		0x02
+#define BIT_RLS7_T1_BD		0x01
+#define BIT_RLS7_E1_Sa6CD	0x02
+#define BIT_RLS7_E1_SaXCD	0x01
 
 #define REG_RSS1		0x98
 #define BIT_RSS1_CH1		0x80
@@ -321,6 +339,9 @@
 #define BIT_RSS4_CH30		0x04
 #define BIT_RSS4_CH31		0x02
 #define BIT_RSS4_CH32		0x01
+
+#define REG_T1RSCD1		0x9C
+#define REG_T1RSCD2		0x9D
 
 #define REG_RIIR		0x9F
 #define BIT_RIIR_RLS7		0x40
@@ -381,8 +402,8 @@
 #define BIT_RIM5_RNES		0x01
 
 #define REG_RIM7		0xA6
-#define BIT_RIM7_RSLC96		0x08
-#define BIT_RIM7_RFDLF		0x04
+#define BIT_RIM7_T1_RSLC96	0x08
+#define BIT_RIM7_T1_RFDLF	0x04
 #define BIT_RIM7_T1_BC		0x02
 #define BIT_RIM7_T1_BD		0x01
 
@@ -636,6 +657,9 @@
 		((len)==7) 		? BIT_TCR4_TC1 :	\
 		((len)==5)		? 0x00 : (BIT_TCR4_TC1|BIT_TCR4_TC0)
 		
+	
+
+
 #define REG_TXPC		0x18A
 #define BIT_TXPC_TBPDIR		0x04
 #define BIT_TXPC_TBPFUS		0x02
