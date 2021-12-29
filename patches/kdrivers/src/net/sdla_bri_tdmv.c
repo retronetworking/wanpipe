@@ -187,6 +187,32 @@ static int wp_tdmv_bri_hwec_create(struct dahdi_chan *chan,
 static void wp_tdmv_bri_hwec_free(struct dahdi_chan *chan, 
 								   struct dahdi_echocan_state *ec);
 								   
+static int wp_bri_zap_open(struct zt_chan *chan);
+static int wp_bri_zap_close(struct zt_chan *chan);								   
+static int wp_bri_zap_watchdog(struct zt_span *span, int event);	
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+static int	wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, caddr_t data);
+#else
+static int	wp_bri_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data);
+#endif
+
+
+#ifdef DAHDI_24
+
+static const struct dahdi_span_ops wp_tdm_span_ops = {
+	.owner = THIS_MODULE,
+	.open = wp_bri_zap_open,
+	.close  = wp_bri_zap_close,
+	.ioctl = wp_bri_zap_ioctl,
+	.watchdog	= wp_bri_zap_watchdog,
+#if 0
+	/* FIXME: Add native bridging */
+	.dacs = ,
+#endif
+	.echocan_create = wp_tdmv_bri_hwec_create,
+};
+ 
+#endif
 								   
 
 /*
@@ -581,22 +607,19 @@ wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
 		//wr->rxsig_state[x] = ZT_RXSIG_INITIAL;
 	}/* for() */
 
-	wr->span.pvt		= wr;
-#ifdef DAHDI_ISSUES
-	wr->span.chans		= wr->chans_ptrs;
+#ifdef DAHDI_24
+	wr->span.ops = &wp_tdm_span_ops;
 #else
-	wr->span.chans		= wr->chans;
-#endif
-	wr->span.channels	= MAX_BRI_TIMESLOTS;/* this is the number of b-chans (2) and the d-chan on one BRI line. */;
-	wr->span.linecompat	= ZT_CONFIG_AMI | ZT_CONFIG_CCS; /* <--- this is really BS */
-
+	wr->span.pvt		= wr;
 	wr->span.open		= wp_bri_zap_open;
 	wr->span.close		= wp_bri_zap_close;
-
-	//wr->span.flags	= ZT_FLAG_RBS;
-
 	wr->span.ioctl		= wp_bri_zap_ioctl;
 	wr->span.watchdog	= wp_bri_zap_watchdog;
+
+#if defined(DAHDI_23)
+    wr->span.owner = THIS_MODULE;
+#endif
+	
 	/* Set this pointer only if card has hw echo canceller module */
 	if (card->wandev.ec_dev){
 #ifdef DAHDI_22
@@ -605,6 +628,21 @@ wr->span.deflaw = ZT_LAW_ALAW;//FIXME: hardcoded
 		wr->span.echocan = wp_bri_zap_hwec;
 #endif
 	}
+	
+#endif
+
+#ifdef DAHDI_ISSUES
+	wr->span.chans		= wr->chans_ptrs;
+#else
+	wr->span.chans		= wr->chans;
+#endif
+	wr->span.channels	= MAX_BRI_TIMESLOTS;/* this is the number of b-chans (2) and the d-chan on one BRI line. */;
+	
+	//wr->span.linecompat	= ZT_CONFIG_AMI | ZT_CONFIG_CCS; /* <--- this is really BS */
+	//wr->span.flags	= ZT_FLAG_RBS;
+
+
+
 #if defined(__LINUX__)
 	init_waitqueue_head(&wr->span.maintq);
 #endif

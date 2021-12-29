@@ -9,11 +9,15 @@ DEBUG=2
 #***************************************************************************
 # don't change anything below 
 
+ifndef SYSINC
+	SYSINC=/usr/include/wanpipe
+endif
+
 .OBJDIR 	= /usr/obj${.CURDIR}
 BINDIR  	= /usr/local/sbin
 PROG    	= wancfg_bsd
 LDADD		= -ll -ly -lm -lstdc++
-CFLAGS		+= -Wall -O2 -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -I/usr/include/wanpipe
+CFLAGS		+= -Wall -O2 -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -I$(SYSINC)
 SRCS		= cpp_string.cpp\
 conf_file_reader.cpp\
 text_box_yes_no.cpp\

@@ -14,11 +14,14 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 ifneq (,$(wildcard /wanpipe/code/Makefile.in))
-include /wanpipe/code/Makefile.in
-EXTRA_FLAGS+=$(GLOBAL_CFLAGS)
+	include /wanpipe/code/Makefile.in
+	EXTRA_FLAGS+=$(GLOBAL_CFLAGS)
 endif
 
-SYSINC=/usr/include/wanpipe
+ifndef SYSINC
+	SYSINC=/usr/include/wanpipe
+endif
+
 WAN_VIRTUAL=
 
 PRODS=wan_plxup

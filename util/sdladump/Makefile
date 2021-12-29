@@ -10,7 +10,9 @@
 DEBUG	= 2
 
 # Project file paths.
-SYSINC=/usr/include/wanpipe
+ifndef SYSINC
+	SYSINC=/usr/include/wanpipe
+endif
 
 # Tools options.
 CFLAGS  = -D__LINUX__ -I$(SYSINC) -Wall -O2  -D_DEBUG_=$(DEBUG) $(EXTRA_FLAGS) 

@@ -1,6 +1,6 @@
  
 WLINC=../../patches/kdrivers/include
-WINC=/usr/include/wanpipe
+WINC=$(DESTDIR)/usr/include/wanpipe
 
 AM_CFLAGS		= -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g -I$(WLINC) -I$(WINC)  -I. \
 	-D__LINUX__ -D_REENTRANT -D_GNU_SOURCE -O2 -D_DEBUG_=2 -D_GNUC_ -I../lib -Istel_tone 

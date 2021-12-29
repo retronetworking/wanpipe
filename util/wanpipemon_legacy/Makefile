@@ -12,13 +12,17 @@ DEBUG	= 2
 
 
 ifneq (,$(wildcard /wanpipe/code/Makefile.in))
-include /wanpipe/code/Makefile.in
-EXTRA_FLAGS+=$(GLOBAL_CFLAGS)
+	include /wanpipe/code/Makefile.in
+	EXTRA_FLAGS+=$(GLOBAL_CFLAGS)
 endif
 
 PROD=wanpipemon_legacy
+
 # Project file paths.
-SYSINC=/usr/include/wanpipe
+ifndef SYSINC
+	SYSINC=/usr/include/wanpipe
+endif
+
 WAN_VIRTUAL=
 LXDIR=../lxdialog
 ENABLE_GUI=YES

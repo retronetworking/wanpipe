@@ -87,9 +87,12 @@ void* sdla_tdmv_dummy_register(void)
 #endif
    wpd->span.channels = 0;	/* no channels */
    wpd->span.deflaw = ZT_LAW_MULAW;
+
+#ifndef DAHDI_24
    wpd->span.pvt = wpd;
    wpd->chan.pvt = wpd;
-   
+#endif
+
    if (zt_register(&wpd->span, 0)) {
       DEBUG_EVENT( "Failed to register Zaptel span (%s)!\n",__FUNCTION__);
       wan_free(wpd);

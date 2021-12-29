@@ -30,17 +30,23 @@
 #endif
 
 
-#ifdef DAHDI_ECHOCANCEL_FAX_MODE 
+#undef DAHDI_24
+#undef DAHDI_22
+#undef DAHDI_23
+
+#if defined(DAHDI_MAINT_ALARM_SIM)
+#define DAHDI_24
+#define DAHDI_23
+#define DAHDI_22
+#elif defined(DAHDI_AUDIO_NOTIFY)
+#define DAHDI_23
+#define DAHDI_22
+#elif defined(DAHDI_ECHOCANCEL_FAX_MODE)
 #define DAHDI_22
 #else
-#undef DAHDI_22
+/* Configuring for old 20 dahdi */
 #endif
 
-#ifdef DAHDI_AUDIO_NOTIFY
-#define DAHDI_23
-#else
-#undef DAHDI_23
-#endif
 
 // defines 
 #define ZT_CODE DAHDI_CODE
@@ -155,6 +161,17 @@
 #define zt_ec_span dahdi_ec_span
 #define zt_qevent_lock dahdi_qevent_lock
 
+#ifdef DAHDI_24
+#define DAHDI_SPAN_OPS(span, func_name) span.ops->func_name
+#define WP_PRIV_FROM_SPAN(span_dev, str_type)			container_of(span_dev,str_type,span)
+#define WP_PRIV_FROM_CHAN(chan_dev, str_type)			WP_PRIV_FROM_SPAN(chan_dev->span,str_type)
+#else
+#define DAHDI_SPAN_OPS(span, func_name) span.func_name
+#define WP_PRIV_FROM_SPAN(span_dev, str_type)			span_dev->pvt
+#define WP_PRIV_FROM_CHAN(chan_dev, str_type)			chan_dev->pvt
+#endif
+
+
 
 # define WP_ZT_QEVENT_LOCK(chan, event)	dahdi_qevent_lock((chan),(event))
 
@@ -169,6 +186,9 @@
 		ZT_EVENT_NOALARM : ZT_EVENT_ALARM)
 #endif
 
+#define DAHDI_SPAN_OPS(span, func_name) span.func_name
+#define WP_PRIV_FROM_SPAN(span_dev, str_type)	span_dev->pvt
+#define WP_PRIV_FROM_CHAN(chan_dev, str_type)	chan_dev->pvt
 
 # define WP_ZT_QEVENT_LOCK(chan, event)	zt_qevent_lock(&(chan),(event))
 #endif

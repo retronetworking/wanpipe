@@ -10,9 +10,13 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
+# Wanpipe Include Directory ( can be changed using --builddir= on ./Setup or make WANINCDIR= )
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
+endif
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I$(APIINC)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I$(WANINCDIR)
 
 ####### RULES ################################################################
 

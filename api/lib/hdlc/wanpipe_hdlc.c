@@ -4,6 +4,8 @@
  */
 
 #include <wanpipe_hdlc.h> 
+#include <string.h>
+
  
 /*===================================================================
    PROTOTYPES

@@ -1016,7 +1016,7 @@ int wplip_change_mtu(netdevice_t *dev, int new_mtu)
 				__FUNCTION__,lip_link->name);	
 		return -ENODEV;
 	}
-	
+	 
 	if (lip_dev_list_el->magic != WPLIP_MAGIC_DEV_EL){
 		DEBUG_EVENT("%s: %s: Error: Invalid dev magic number!\n",
 				__FUNCTION__,lip_link->name);
@@ -1035,7 +1035,7 @@ int wplip_change_mtu(netdevice_t *dev, int new_mtu)
 	}	
 
 	if (err == 0) {
-		WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,new_mtu);
+		WAN_NETDEV_CHANGE_MTU(dev,new_mtu);
 	}
 
 	return err;

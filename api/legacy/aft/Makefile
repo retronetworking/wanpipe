@@ -10,13 +10,18 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
+# Wanpipe Include Directory ( can be changed using --builddir= on ./Setup or make WANINCDIR= )
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
+endif
+
 DIR_EC_APILIB=/common/wantools/wanec_apilib
 SRC_EC_APILIB=$(DIR_EC_APILIB)/wanec_api.c $(DIR_EC_APILIB)/wanec_api_lib.c 
-INC_EC_APILIB=-I/usr/include/wanpipe/oct6100_api -I$(DIR_EC_APILIB)
+INC_EC_APILIB=-I$(WANINCDIR)/wanpipe/oct6100_api -I$(DIR_EC_APILIB)
 
 # Tools options.
 CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -DCONFIG_PRODUCT_WANPIPE_TDMV_EC -D_GNUC_ -I../lib 
-CFLAGS += -I/usr/include/wanpipe
+CFLAGS += -I$(WANINCDIR)
 
 TARGETS=aft_api
 #TARGETS+= aft_api_events

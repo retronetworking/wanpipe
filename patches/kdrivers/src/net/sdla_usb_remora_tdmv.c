@@ -201,6 +201,15 @@ static void wp_usb_tdmv_remora_tone (void* card_id, wan_event_t *event);
 extern int wp_init_proslic(sdla_fe_t *fe, int mod_no, int fast, int sane);
 extern int wp_init_voicedaa(sdla_fe_t *fe, int mod_no, int fast, int sane);
 
+static int wp_remora_zap_open(struct zt_chan *chan);
+static int wp_remora_zap_close(struct zt_chan *chan);
+static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig);
+static int wp_remora_zap_watchdog(struct zt_span *span, int event);
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+static int wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, caddr_t data);
+#else
+static int wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data);
+#endif
 
 #ifdef DAHDI_22
 static int wp_usb_tdmv_remora_hwec_create(struct dahdi_chan *chan, 
@@ -209,7 +218,27 @@ static int wp_usb_tdmv_remora_hwec_create(struct dahdi_chan *chan,
 									  struct dahdi_echocan_state **ec);
 static void wp_usb_tdmv_remora_hwec_free(struct dahdi_chan *chan, 
 									 struct dahdi_echocan_state *ec);
-#endif					 
+#endif
+
+
+#ifdef DAHDI_24
+
+static const struct dahdi_span_ops wp_tdm_span_ops = {
+	.owner = THIS_MODULE,
+	.open = wp_remora_zap_open,
+	.close  = wp_remora_zap_close,
+	.ioctl = wp_remora_zap_ioctl,
+	.hooksig	= wp_remora_zap_hooksig,
+	.watchdog	= wp_remora_zap_watchdog,
+#if 0
+	/* FIXME: Add native bridging */
+	.dacs = ,
+#endif
+	.echocan_create = wp_usb_tdmv_remora_hwec_create,
+};
+ 
+#endif
+
 									 
 #ifdef DAHDI_22
 /*
@@ -1233,19 +1262,23 @@ static int wp_usb_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 			num++;
 		}
 	}
-	wr->span.pvt = wr;
-#ifdef DAHDI_ISSUES
-	wr->span.chans		= wr->chans_ptrs;
+
+#ifdef DAHDI_24
+	wr->span.ops = &wp_tdm_span_ops;
 #else
-	wr->span.chans		= wr->chans;
+
+	wr->span.pvt = wr;
+
+#if defined(DAHDI_23)
+	wr->span.owner          = THIS_MODULE;
 #endif
-	wr->span.channels	= num/*wr->max_timeslots*/;
+
 	wr->span.hooksig	= wp_remora_zap_hooksig;
 	wr->span.open		= wp_remora_zap_open;
 	wr->span.close		= wp_remora_zap_close;
-	wr->span.flags		= ZT_FLAG_RBS;
 	wr->span.ioctl		= wp_remora_zap_ioctl;
 	wr->span.watchdog	= wp_remora_zap_watchdog;
+	
 	/* Set this pointer only if card has hw echo canceller module */
 	if (wr->hwec == WANOPT_YES && card->wandev.ec_dev){
 #ifdef DAHDI_22
@@ -1254,6 +1287,20 @@ static int wp_usb_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 		wr->span.echocan = wp_remora_zap_hwec;
 #endif
 	}
+
+#endif
+
+
+#ifdef DAHDI_ISSUES
+	wr->span.chans		= wr->chans_ptrs;
+#else
+	wr->span.chans		= wr->chans;
+#endif
+
+	wr->span.flags		= ZT_FLAG_RBS;
+	wr->span.channels	= num/*wr->max_timeslots*/;
+
+
 #if defined(__LINUX__)
 	init_waitqueue_head(&wr->span.maintq);
 #endif

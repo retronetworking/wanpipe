@@ -94,6 +94,17 @@ static int wp_tdmv_remora_is_rbsbits(wan_tdmv_t *wan_tdmv);
 static int wp_tdmv_remora_rx_tx_span(void *pcard);
 static int wp_tdmv_remora_rx_chan(wan_tdmv_t*, int,unsigned char*,unsigned char*); 
 static int wp_tdmv_remora_ec_span(void *pcard);
+static int wp_remora_chanconfig(struct zt_chan *chan, int sigtype);
+static int wp_remora_zap_open(struct zt_chan *chan);
+static int wp_remora_zap_close(struct zt_chan *chan);
+static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig);
+static int wp_remora_zap_watchdog(struct zt_span *span, int event);
+		
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+static int wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, caddr_t data);
+#else
+static int wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data);
+#endif
 
 static void wp_tdmv_remora_tone (void* card_id, wan_event_t *event);
 #ifdef DAHDI_22
@@ -113,6 +124,26 @@ static int wp_tdmv_remora_rx_chan_sync_test(sdla_t *card, wp_tdmv_remora_t *wr, 
 					    unsigned char *txbuf);
 #else
 #undef WAN_SYNC_RX_TX_TEST
+#endif
+
+	
+#ifdef DAHDI_24
+
+static const struct dahdi_span_ops wp_tdm_span_ops = {
+	.owner = THIS_MODULE,
+	.chanconfig = wp_remora_chanconfig,
+	.open = wp_remora_zap_open,
+	.close  = wp_remora_zap_close,
+	.ioctl = wp_remora_zap_ioctl,
+	.hooksig	= wp_remora_zap_hooksig,
+	.watchdog	= wp_remora_zap_watchdog,
+#if 0
+	/* FIXME: Add native bridging */
+	.dacs = ,
+#endif
+	.echocan_create = wp_tdmv_remora_hwec_create,
+};
+ 
 #endif
 
 
@@ -139,19 +170,22 @@ static const struct dahdi_echocan_ops wp_tdmv_remora_ec_ops = {
 **			  FUNCTION DEFINITIONS
 *******************************************************************************/
 
-static int
+
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
-wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, caddr_t data)
+static int wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, caddr_t data)
 #else
-wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
+static int wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 #endif
 {
-	wp_tdmv_remora_t	*wr = chan->pvt;
+	wp_tdmv_remora_t	*wr;
 	sdla_t			*card = NULL;
 	sdla_fe_t		*fe = NULL;
 	wan_event_ctrl_t	*event_ctrl = NULL;
 	int			x, err;
 
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_remora_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
+	
 	WAN_ASSERT(wr->card == NULL);
 	card	= wr->card;
 	fe	= &card->fe;
@@ -302,10 +336,12 @@ wp_remora_zap_ioctl(struct zt_chan *chan, unsigned int cmd, unsigned long data)
 
 static int wp_remora_zap_hooksig(struct zt_chan *chan, zt_txsig_t txsig)
 {
-	wp_tdmv_remora_t	*wr = chan->pvt;
+	wp_tdmv_remora_t	*wr;
 	sdla_t			*card = NULL;
 	sdla_fe_t		*fe = NULL;
 
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_remora_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	WAN_ASSERT(wr->card == NULL);
 	card	= wr->card;
 	fe	= &card->fe;
@@ -404,8 +440,8 @@ static int wp_remora_zap_open(struct zt_chan *chan)
 	sdla_t		*card = NULL; 
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wr = chan->pvt;
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_remora_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
     card = wr->card; 
 	wr->usecount++;
@@ -426,8 +462,8 @@ static int wp_remora_zap_close(struct zt_chan *chan)
 	sdla_fe_t	*fe = NULL;
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wr	= chan->pvt;
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_remora_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	card	= wr->card;
 	fe	= &card->fe;
 	wr->usecount--;
@@ -473,8 +509,8 @@ static int wp_tdmv_remora_hwec_create(struct dahdi_chan *chan,
 	int err = -ENODEV;
 	
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wr = chan->pvt;
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_remora_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card = wr->card;
 
@@ -527,8 +563,10 @@ static void wp_tdmv_remora_hwec_free(struct dahdi_chan *chan, struct dahdi_echoc
 	memset(ec, 0, sizeof(*ec));
 
 	if(chan == NULL) return;
-	if(chan->pvt == NULL) return;
-	wr = chan->pvt;
+	
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_remora_t);
+	WAN_ASSERT_VOID(wr == NULL);
+	
 	if(wr->card == NULL) return;
 	card = wr->card;
 
@@ -564,8 +602,8 @@ static int wp_remora_zap_hwec(struct zt_chan *chan, int enable)
 	int			err = -ENODEV;
 	
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wr = chan->pvt;
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_remora_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	WAN_ASSERT2(wr->card == NULL, -ENODEV);
 	card = wr->card;
 
@@ -654,8 +692,8 @@ static int wp_remora_chanconfig(struct zt_chan *chan, int sigtype)
 	sdla_t			*card = NULL;
 
 	WAN_ASSERT2(chan == NULL, -ENODEV);
-	WAN_ASSERT2(chan->pvt == NULL, -ENODEV);
-	wr = chan->pvt;
+	wr = WP_PRIV_FROM_CHAN(chan,wp_tdmv_remora_t);
+	WAN_ASSERT2(wr == NULL, -ENODEV);
 	card = wr->card;
 
 	DEBUG_TDMV("%s: Configuring chan %d SigType %i..\n", wr->devname, chan->chanpos, sigtype);
@@ -742,23 +780,22 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 			num++;
 		}
 	}
-	wr->span.pvt = wr;
-#ifdef DAHDI_ISSUES
-#ifdef DAHDI_23
-        wr->span.owner          = THIS_MODULE;
-#endif
-	wr->span.chans		= wr->chans_ptrs;
+
+#ifdef DAHDI_24
+	wr->span.ops = &wp_tdm_span_ops;
 #else
-	wr->span.chans		= wr->chans;
+
+	wr->span.pvt = wr;
+	
+#if defined(DAHDI_23)
+	wr->span.owner          = THIS_MODULE;
 #endif
-	wr->span.channels	= num/*wr->max_timeslots*/;
+
 	wr->span.hooksig	= wp_remora_zap_hooksig;
 	wr->span.open		= wp_remora_zap_open;
 	wr->span.close		= wp_remora_zap_close;
-	wr->span.flags		= ZT_FLAG_RBS;
 	wr->span.ioctl		= wp_remora_zap_ioctl;
 	wr->span.watchdog	= wp_remora_zap_watchdog;
-
 	wr->span.chanconfig 	= wp_remora_chanconfig;
 
 	/* Set this pointer only if card has hw echo canceller module */
@@ -769,6 +806,17 @@ static int wp_tdmv_remora_software_init(wan_tdmv_t *wan_tdmv)
 		wr->span.echocan = wp_remora_zap_hwec;
 #endif
 	}
+	
+#endif
+
+#ifdef DAHDI_ISSUES
+	wr->span.chans		= wr->chans_ptrs;
+#else
+	wr->span.chans		= wr->chans;
+#endif
+
+	wr->span.flags		= ZT_FLAG_RBS;
+	wr->span.channels	= num/*wr->max_timeslots*/;
 
 #if defined(__LINUX__)
 	init_waitqueue_head(&wr->span.maintq);

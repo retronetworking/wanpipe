@@ -13,8 +13,11 @@ DEBUG	= 2
 # Project file paths.
 SYSINC=../../patches/kdrivers/include
 
-WANINCDIR=/usr/include/wanpipe
-#/lib/modules/$(shell uname -r)/build/include
+# Wanpipe Include Directory ( can be changed using --builddir= on ./Setup or make WANINCDIR= )
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
+	#/lib/modules/$(shell uname -r)/build/include
+endif
 
 EXTRA_FLAGS=
 

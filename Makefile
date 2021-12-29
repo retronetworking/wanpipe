@@ -47,8 +47,8 @@ ifndef KINSTDIR
 	KINSTDIR=$(KMOD)/kernel
 endif
 
-ifndef ARCH
-	ARCH=$(shell uname -m)
+ifndef WARCH
+	WARCH=$(shell uname -m)
 endif
 ifndef ASTDIR
 	ASTDIR=/usr/src/asterisk
@@ -109,13 +109,14 @@ PRODUCT_DEFINES+= -DCONFIG_PRODUCT_WANPIPE_AFT_B601 -DCONFIG_PRODUCT_WANPIPE_AFT
 
 EXTRA_CFLAGS += $(EXTRA_FLAGS) $(PRODUCT_DEFINES)
 EXTRA_UTIL_FLAGS +=  $(PRODUCT_DEFINES)  
+DAHDI_CFLAGS=
 
 
 #Check if zaptel exists
 ifneq (,$(wildcard $(ZAPDIR)/zaptel.h))
 	ZAPDIR_PRIV=$(ZAPDIR) 
 	ENABLE_WANPIPEMON_ZAP=YES
-	EXTRA_CFLAGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
+	DAHDI_CFLAGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE
 	ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
 	ZAP_PROT=TDM
 	PROTS=DEF-TDM
@@ -123,7 +124,7 @@ else
 	ifneq (,$(wildcard $(ZAPDIR)/kernel/zaptel.h))
 		ZAPDIR_PRIV=$(ZAPDIR) 
 		ENABLE_WANPIPEMON_ZAP=YES
-		EXTRA_CFLAGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE -I$(ZAPDIR)/kernel
+		DHADI_CFLAGS+= -DSTANDALONE_ZAPATA -DBUILDING_TONEZONE -I$(ZAPDIR)/kernel
 		ZAP_OPTS= --zaptel-path=$(ZAPDIR) 
 		ZAP_PROT=TDM
 		PROTS=DEF-TDM
@@ -131,7 +132,7 @@ else
 		ifneq (,$(wildcard $(ZAPDIR)/include/dahdi/kernel.h))
 			ZAPDIR_PRIV=$(ZAPDIR) 
 			ENABLE_WANPIPEMON_ZAP=YES
-			EXTRA_CFLAGS+= -DSTANDALONE_ZAPATA -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL -DDAHDI_ISSUES -DBUILDING_TONEZONE -I$(ZAPDIR)/include -I$(ZAPDIR)/include/dahdi -I$(ZAPDIR)/drivers/dahdi
+			DAHDI_CFLAGS+= -DSTANDALONE_ZAPATA -DCONFIG_PRODUCT_WANPIPE_TDM_VOICE_DCHAN_ZAPTEL -DDAHDI_ISSUES -DBUILDING_TONEZONE -I$(ZAPDIR)/include -I$(ZAPDIR)/include/dahdi -I$(ZAPDIR)/drivers/dahdi
 			ifneq (,$(wildcard $(ZAPDIR)/drivers/dahdi/Makefile))
 				ZAP_OPTS= --zaptel-path=$(ZAPDIR)/drivers/dahdi/
 			endif
@@ -165,25 +166,25 @@ else
 #within local directory structure
 all: cleanup_local _checkzap _checksrc all_bin_kmod all_util 	
 
-all_src: cleanup_local  _checkzap _checksrc all_kmod all_util
+all_src_dahdi: cleanup_local  _checkzap _checksrc all_kmod_dahdi all_util
+
+all_src: cleanup_local  _checksrc all_kmod all_util
 
 all_src_ss7: cleanup_local _checkzap _checksrc all_kmod_ss7 all_util
 
-dahdi: all_src
+dahdi: all_src_dahdi
 
-zaptel: all_src
-
-openzap: all_src all_lib
-	@touch .all_lib .openzap
+zaptel: dahdi
 
 freetdm: all_src all_lib
-	@touch .all_lib .openzap
+	@touch .all_lib .freetdm
 
-fs: all_src all_lib
-	@touch .all_lib .openzap
+openzap:freetdm
+smg:	freetdm
+fs:		freetdm
 
 g3ti: all_src all_lib
-	@touch .all_lib .openzap
+	@touch .all_lib .freetdm
 
 openzap_ss7: all_src_ss7 all_lib
 	@touch .all_lib
@@ -193,19 +194,23 @@ tdmapi: all_src all_lib
 
 cleanup_local:
 	@rm -f .all* 2> /dev/null;
+	@rm -f .freetdm 2> /dev/null;
 
 
 
 #Build only kernel modules
-all_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
-	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) ZAPHDLC=$(ZAPHDLC_PRIV) HOMEDIR=$(PWD) modules  
+all_kmod_dahdi:  _checkzap _checksrc _cleanoldwanpipe _check_kver
+	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(DAHDI_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR=$(ZAPDIR_PRIV) ZAPHDLC=$(ZAPHDLC_PRIV) HOMEDIR=$(PWD) modules  
+
+all_kmod:  _checksrc _cleanoldwanpipe _check_kver
+	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KDIR) SUBDIRS=$(WAN_DIR) EXTRA_FLAGS="$(EXTRA_CFLAGS) $(shell cat ./patches/kfeatures)" ZAPDIR= ZAPHDLC= HOMEDIR=$(PWD) modules  
 
 all_kmod_ss7: _checkzap _checksrc _cleanoldwanpipe _check_kver
 	@if [ -e  $(PWD)/ss7_build_dir ]; then \
 		rm -rf $(PWD)/ss7_build_dir; \
 	fi
 	@mkdir -p $(PWD)/ss7_build_dir
-	./Setup drivers --builddir=$(PWD)/ss7_build_dir --with-linux=$(KDIR) $(ZAP_OPTS) --usr-cc=$(CC) --protocol=AFT_TE1-XMTP2 --no-zaptel-compile --noautostart --arch=$(ARCH) --silent
+	./Setup drivers --builddir=$(PWD)/ss7_build_dir --with-linux=$(KDIR) $(ZAP_OPTS) --usr-cc=$(CC) --protocol=AFT_TE1-XMTP2 --no-zaptel-compile --noautostart --arch=$(WARCH) --silent
 	@eval "./patches/copy_modules.sh $(PWD)/ss7_build_dir $(WAN_DIR)"  
 
 all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
@@ -213,7 +218,7 @@ all_bin_kmod:  _checkzap _checksrc _cleanoldwanpipe _check_kver
 		rm -rf $(PWD)/ast_build_dir; \
 	fi
 	@mkdir -p $(PWD)/ast_build_dir
-	./Setup drivers --builddir=$(PWD)/ast_build_dir --with-linux=$(KDIR) $(ZAP_OPTS) --usr-cc=$(CC) --protocol=$(PROTS) --no-zaptel-compile --noautostart --arch=$(ARCH) --silent
+	./Setup drivers --builddir=$(PWD)/ast_build_dir --with-linux=$(KDIR) $(ZAP_OPTS) --usr-cc=$(CC) --protocol=$(PROTS) --no-zaptel-compile --noautostart --arch=$(WARCH) --silent
 	@eval "./patches/copy_modules.sh $(PWD)/ast_build_dir $(WAN_DIR)"
 
 
@@ -223,8 +228,8 @@ clean: cleanup_local  clean_util _cleanoldwanpipe
 	$(MAKE) -C api SUBDIRS=$(WAN_DIR) clean
 	@find patches/kdrivers -name '.*.cmd' | xargs rm -f
 	@find . -name 'Module.symver*' | xargs rm -f
-	@if [ -e .openzap ]; then \
-		rm -f .openzap; \
+	@if [ -e .freetdm ]; then \
+		rm -f .freetdm; \
 	fi
 
                                     
@@ -345,9 +350,9 @@ endif
 #Compile utilities only
 all_util:  install_inc
 	$(MAKE) -C util all EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I $(PWD)/api/libsangoma/include" CC=$(CC) \
-	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(ARCH) 
+	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(WARCH) 
 	$(MAKE) -C util all_wancfg EXTRA_FLAGS="$(EXTRA_UTIL_FLAGS)" SYSINC="$(PWD)/$(WINCLUDE) -I$(PWD)/api/libsangoma/include" CC=$(CC) \
-	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(ARCH)
+	PREFIX=$(INSTALLPREFIX) HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" HOSTCFLAGS="$(EXTRA_UTIL_FLAGS)" ARCH=$(WARCH)
 
 all_lib:
 		$(shell cd api/libsangoma; ./init-automake.sh >> $(PWD)/.cfg_log;  ./configure --prefix=$(LIBPREFIX) >> $(PWD)/.cfg_log;)
@@ -379,7 +384,7 @@ install_bri:
 
 install_smgpri:
 	$(MAKE) -C ssmg/sangoma_pri/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) DESTDIR=$(INSTALLPREFIX)
-	@if [  ! -e .openzap ]; then \
+	@if [  ! -e .freetdm ]; then \
 		@echo "Installing Sangoma MGD"; \
 		$(MAKE) -C ssmg/sangoma_mgd.trunk/ install SYSINC=$(PWD)/$(WINCLUDE) CC=$(CC) PRI=YES DESTDIR=$(INSTALLPREFIX) ; \
 	fi

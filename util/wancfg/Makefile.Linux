@@ -20,11 +20,15 @@ WAN_VIRTUAL=
 ENABLE_ZAPTEL_PARSER=
 ZAPINC=/usr/src/zaptel
 
+ifndef SYSINC
+	SYSINC=/usr/include/wanpipe
+endif
+
 # Tools options.
 #CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. \
          -D__LINUX__ -DSTATIC_LIBS=$(GD_STATIC) $(OGR_STATIC) $(PROTOCOL_DEFINES)
 
-CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__  -I/usr/include/wanpipe $(PROTOCOL_DEFINES)
+CFLAGS = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I. -D__LINUX__  -I$(SYSINC) $(PROTOCOL_DEFINES)
 
 #uncomment this to compile from CVS, also may change to your zaptel installation directory
 #CFLAGS += -I/usr/src/zaptel

@@ -10,18 +10,22 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-APIINC  = /usr/include/wanpipe
+# Wanpipe Include Directory ( can be changed using --builddir= on ./Setup or make WANINCDIR= )
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
+endif
+
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(APIINC)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I$(WANINCDIR)
 
 ####### RULES ################################################################
 
 all:	server_v1 \
-	server_v2 \
-	svc_client \
-	pvc_client \
-	hdlc_client  
+		server_v2 \
+		svc_client \
+		pvc_client \
+		hdlc_client  
 	@echo "Ok."
 
 server_v1:	server_v1.c

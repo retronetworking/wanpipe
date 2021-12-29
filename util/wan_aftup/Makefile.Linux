@@ -24,8 +24,14 @@ DEBUG	= 2
 PROD=wan_aftup
 
 WAN_VIRTUAL=
-SYSINC=/usr/include/wanpipe
+ifndef SYSINC
+	SYSINC=/usr/include/wanpipe
+endif
 
+# Wanpipe Include Directory ( can be changed using --builddir= on ./Setup or make WANINCDIR= )
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
+endif
 
 # Tools options.
 SRCS	= wan_aftup.c wan_aft_prg.c wan_aft_flash.c wan_aft_flash_shark.c wan_aft_flash_shark_ds.c 
@@ -33,7 +39,7 @@ SRCS	+= wan_pcie_ctrl.c wan_pcie_ctrl_plx.c wan_pcie_ctrl_tundra.c wan_aft_flash
 SRCS	+= wan_usb_fwupdate.cpp mem.cpp
 CFLAGS  = -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -lstdc++
 CFLAGS += $(EXTRA_FLAGS)
-CFLAGS += -I/usr/include -I/usr/include/wanpipe -I$(SYSINC)
+CFLAGS += -I/usr/include -I$(WANINCDIR) -I$(SYSINC)
 
 
 ####### RULES ################################################################

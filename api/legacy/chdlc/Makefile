@@ -11,18 +11,21 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 # Project file paths.
-APIINC  = /usr/include/wanpipe
+# Wanpipe Include Directory ( can be changed using --builddir= on ./Setup or make WANINCDIR= )
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
+endif
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I$(APIINC)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib -I$(WANINCDIR)
 
 ####### RULES ################################################################
 
 all:	chdlc_api \
-	chdlc_rts_cts \
-	chdlc_integrity \
-	chdlc_modem_cmd \
-	chdlc_echo
+		chdlc_rts_cts \
+		chdlc_integrity \
+		chdlc_modem_cmd \
+		chdlc_echo
 	@echo "Ok."
 
 chdlc_api:	chdlc_api.c ../lib/lib_api.c

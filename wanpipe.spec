@@ -1,57 +1,263 @@
-%define WANPIPE_VER	  wanpipe-modules
-%define name              %{WANPIPE_VER}
-%define version           3.5.15
-%define release           0
-%define	serial	 	  1
-%define MODULES_DIR	  /lib/modules
-%define USR_INCLUDE_DIR   /usr/include
-
-%define KVERSION          %{?kern_ver}
- 
-
-Summary: 	Sangoma WANPIPE package for Linux. It contains the WANPIPE kernel drivers.  Please install wanpipe-util package for wanpipe utilties and configuration files.
-Name: 		%{name}-%{?kern_ver}
-Version: 	%{version}
-Release: 	%{release}
-License: 	GPL
-Group: 		Applications/Communications
-Vendor:		Sangoma Technologies Inc.
-Url:		www.sangoma.com
-Group:		Networking/WAN
- 
-
-%description 
-Linux Drivers for Sangoma AFT Series of cards and S Series of Cards. Wanpipe supports the following protocols, TDM Voice, Frame Relay, X25(API), PPP,Multi-link PPP, CHDLC and custom API development for WAN and Voice.
-
-Install Wanpipe-util package for wanpipe utilities and configuration files.
+################################################################################
+# wanpipe-ftdm RPM Spec file
+#
+# Maintained by: Konrad Hammel (konrad@sangoma.com)
+#
+#	2010-07-20	-	Initial version
+#	2010-07-21	-	Added supported for BRID
+#					Added check for existing wanrouter.rc
+#	2010-07-21	-	Updated so that libSangoma is added to rpm
+#	2010-08-26	-	Added support for syslog configuration
+#
+################################################################################
 
 
+# OPTIONS
+#
+# Default: TDMAPI, FreeTDM  
+#   rpmbuild -tb [wanpipe.x.tgz]  --define 'kernel $(uname -r)' --defeine 'ksrc /lib/modules/$(uname r)/build' --define 'karch $(uname -m)' 
+#
+# With DAHDI Support
+#   rpmbuild -tb [wanpipe.x.tar.gz] --define 'with_dahdi 1' --define 'dahdi_dir /usr/src/dahdi' --define 'dahdi_ver 2.3.1'
+#
+# With ZAPTEL Support
+#   rpmbuild -tb [wanpipe.x.tar.gz] --define 'with_zaptel 1' --define 'zaptel_dir /usr/src/zaptel' --define 'zaptel_ver 1.4.12'
+#
+
+%define NAME			wanpipe
+%define VERSION           3.5.16
+%define RELEASE			0
+%define KVERSION		%{?kernel}
+%define KSRC			%{?ksrc}
+%define KARCH			%{?karch}
+%define LIBPREFIX		%{?libprefix}
+%define MODULES_DIR		/lib/modules
+%define META_CONF		/etc/wanpipe/wanrouter.rc
+
+%define DAHDI_DIR		/usr/src/dahdi
+%define DAHDI_VER 0
+%define ZAPTEL_DIR		/usr/src/zaptel
+%define ZAPTEL_VER 0
+%define debug_package %{nil}
+
+
+%{!?kernel: %{expand: %%define KVERSION %(uname -r)}}
+%{!?ksrc: %{expand: %%define KSRC /lib/modules/%(uname -r)/build}}
+%{!?karch: %{expand: %%define KARCH %(uname -m)}}
+%{!?libprefix:%define LIBPREFIX /usr }
+
+%define KVER_REL %(echo %{KVERSION} | sed -e s/-/./g)
+
+%define RELEASE kernel.%{KVER_REL}
+
+
+%{?dahdi_dir: %define DAHDI_DIR %{?dahdi_dir} }
+%{?with_dahdi: %{expand: %%define DAHDI_VER %(cat %{DAHDI_DIR}/include/dahdi/version.h | grep VER | cut -d'"' -f2) }}
+%{?with_dahdi: %define RELEASE kernel.%{KVER_REL}.dahdi.%{DAHDI_VER}}
+
+%{?zapel_dir: %define ZAPTEL_DIR %{?zapel_dir} }
+%{?with_zaptel: %{expand: %%define ZAPTEL_VER %(cat %{ZAPTEL_DIR}/version.h | grep VER | cut -d'"' -f2) }}
+%{?with_zaptel: %define RELEASE kernel.%{KVER_REL}.zaptel.%{ZAPTEL_VER}}
+
+
+
+Summary:        Sangoma WANPIPE package for Linux. It contains the WANPIPE kernel drivers and configuration/startup/debugging utilities for Linux.
+Name:           %{NAME}
+Version:        %{VERSION}
+Release:        %{RELEASE}
+License:        GPL
+Group:          Applications/Communications
+Vendor:         Sangoma Technologies Inc.
+Url:            www.sangoma.com
+Source0:		ftp://ftp.sangoma.com/%{name}-%{version}.tgz
+Group:          Networking/WAN
+
+BuildRoot: %{_tmppath}/%{name}-%(id -un) 
+
+AutoReq: 		1		
+
+Requires: kernel-%{KARCH} = %{KVERSION}
+
+
+%define build_for_dahdi 0
+%{?with_dahdi:%define build_for_dahdi 1} 	
+%define build_for_zaptel 0
+%{?with_zaptel:%define build_for_zaptel 1} 	
+
+%{?with_dahdi:Requires  dahdi = %{DAHDI_VER}} 
+%{?with_zaptel:Requires  zaptel = %{ZAPTEL_VER}} 
+
+################################################################################
+%description
+################################################################################
+Linux Drivers for Sangoma AFT Series of cards and S Series of Cards.
+
+################################################################################
 %prep
+################################################################################
+%setup
 
+
+################################################################################
 %build
+################################################################################
 
+
+%if %{build_for_dahdi}
+make KDIR=%{KSRC} KVER=%{KVERSION} WARCH=%{KARCH} INSTALLPREFIX=%{buildroot} LIBPREFIX=%{LIBPREFIX} dahdi DAHDI_DIR=%{DAHDI_DIR}
+%else
+%if %{build_for_zaptel}
+make KDIR=%{KSRC} KVER=%{KVERSION} WARCH=%{KARCH} INSTALLPREFIX=%{buildroot} LIBPREFIX=%{LIBPREFIX} zaptel ZAPDIR=%{ZAPTEL_DIR}
+%else
+make KDIR=%{KSRC} KVER=%{KVERSION} WARCH=%{KARCH} INSTALLPREFIX=%{buildroot} LIBPREFIX=%{LIBPREFIX} freetdm 
+%endif
+%endif
+
+
+################################################################################
 %install
+################################################################################
+mkdir -p %{buildroot}/usr
+mkdir -p %{buildroot}/etc
 
+make INSTALLPREFIX=%{buildroot} LIBPREFIX=%{LIBPREFIX} KVER=%{KVERSION} install
+#make INSTALLPREFIX=%{buildroot} LIBPREFIX=%{LIBPREFIX} KVER=%{KVERSION} install_pri
+#make INSTALLPREFIX=%{buildroot} LIBPREFIX=%{LIBPREFIX} KVER=%{KVERSION} install_bri
+
+# remove the self-referencing symbolic link
+rm -rf %{buildroot}/usr/include/wanpipe/linux
+rm -rf %{buildroot}/var/tmp
+
+# remove /etc/wanpipe/wanrouter.rc...we need to build this on the install so
+# that it doesn't overwrite the existing one
+rm -rf %{buildroot}/etc/wanpipe/wanrouter.rc
+
+
+################################################################################
+%check
+################################################################################
+#nothing to do
+
+################################################################################
 %clean
+################################################################################
+[ %{buildroot} != "/" ] && rm -rf %{buildroot}
 
-%postun
+################################################################################
+%pre
+################################################################################
+#nothing to do
 
-echo "Uninstalling WANPIPE..."
-
+################################################################################
 %post
+################################################################################
+# re-create the self referencing symbolic link in the include dir
+ln -s /usr/include/wanpipe/ /usr/include/wanpipe/linux
 
-#check dependancies for the new modules
+#update ldconfig
+ldconfig
+
+# check dependancies for the new modules
 depmod -ae -F /boot/System.map-%{KVERSION} %{KVERSION}
-echo "Wanpipe Modules located in %{MODULES_DIR}/%{KVERSION}"   
 
+# check if the /etc/wanpipe/wanrouter.rc exists, if not create it
+if [ -e %{META_CONF} ]; then
+	echo "Found existing Wanpipe configuration..."
+else
+	echo "No existing Wanpipe configuration found..."
+	cp /etc/wanpipe/samples/wanrouter.rc %{META_CONF}
+fi
+
+#update syslog
+if [ -e  /etc/syslog.conf ]; then
+	mysyslog='syslog'
+elif [ -e /etc/rsyslog.conf ] ; then
+	mysyslog='rsyslog'
+else
+	mysyslog=" "
+fi
+if [  $mysyslog != " " ]; then
+	eval "grep "local2.*sangoma_mgd" /etc/$mysyslog.conf" > /dev/null 2> /dev/null
+	if [ $? -ne 0 ]; then
+		eval "grep "local2" /etc/$mysyslog.conf " > /dev/null 2> /dev/null
+		echo -e "\n# Sangoma Media Gateway log" > tmp.$$
+		echo -e "local2.*                /var/log/sangoma_mgd.log\n" >> tmp.$$
+		eval "cat /etc/$mysyslog.conf tmp.$$ > tmp1.$$"
+		cp -f tmp1.$$ /etc/$mysyslog.conf
+		eval "/etc/init.d/$mysyslog restart"
+	fi
+	eval "grep "local3.*sangoma_bri" /etc/$mysyslog.conf" > /dev/null 2> /dev/null
+	if [ $? -ne 0 ]; then
+		eval "grep "local3" /etc/$mysyslog.conf " > /dev/null 2> /dev/null
+		echo -e "\n# Sangoma BRI Daemon (smg_bri)  log" > tmp.$$
+		echo -e "local3.*                /var/log/sangoma_bri.log\n" >> tmp.$$
+		eval "cat /etc/$mysyslog.conf tmp.$$ > tmp1.$$"
+		cp -f tmp1.$$ /etc/$mysyslog.conf
+		eval "/etc/init.d/$mysyslog restart"
+	fi
+fi
+if [ -f tmp1.$$ ]; then
+	rm -f  tmp1.$$
+fi
+if [ -f tmp.$$ ]; then
+	rm -f  tmp.$$
+fi
+
+# install start scripts
+rm -f /etc/init.d/wanrouter
+ln -s /usr/sbin/wanrouter /etc/init.d/wanrouter
+chkconfig --add wanrouter
+
+# we're done...print a happy message
+cat <<EOM
+*** Sangoma Wanpipe was successfully installed.
+    Hardware Probe: /usr/sbin/wanrouter hwprobe
+    Wanpipe Config: /usr/sbin/wancfg_fs
+    Wanpipe Start : /usr/sbin/wanrouter start
+
+EOM
+
+################################################################################
+%preun
+################################################################################
+echo "Uninstalling WANPIPE..."
+# Remove initialization scripts.
+chkconfig --del wanrouter
+rm /etc/init.d/wanrouter
+
+################################################################################
+%postun
+################################################################################
+echo "Done"
+
+################################################################################
 %files
-%{MODULES_DIR}
-%{USR_INCLUDE_DIR}
+################################################################################
+/*
 
+################################################################################
 
 %changelog
 
-* Fri Aug 27 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.14
+* Fri Sep 27 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.16
+===================================================================
+
+- Dahdi 2.4 Support
+- Fixed BRI B500/B700 hwec enable on call start caused in 3.5.12 release.
+- Bug fix in voice+data mixed mode where dchan could get stuck due to
+  dma overruns.
+- Bug fix in tdmapi where excessive memory was allocated on pre-allocation buffers.
+- Bug fix tdmapi defaults to 20ms chunk size instead of 10ms
+- Bug fix broken support for A101/2 legacy EOL cards. 
+- New XEN Support 
+  TDM Voice will now work properly on xen virtualized machines
+- Fix for 64bit 8gig issues
+- New rpmbuld spec files.
+  rpmbuild -tb wanpipe-3.5.16.tgz
+  rpmbuild -tb wanpipe-3.5.16.tgz --define 'with_dahdi 1' --define 'dahdi_dir /usr/src/dahdi'
+
+
+* Fri Aug 27 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.15
 ===================================================================
 
 - Fixed B600 and B601 warning messages introduced in 3.5.14

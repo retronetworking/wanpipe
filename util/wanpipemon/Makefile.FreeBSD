@@ -8,6 +8,10 @@ LXDIALOG_DIR=	${.CURDIR}/../lxdialog
 
 top_srcdir	= ../..
 
+ifndef SYSINC
+	SYSINC=/usr/include/wanpipe
+endif
+
 # Uncomment this to output debug messages
 
 #***************************************************************************
@@ -19,7 +23,7 @@ SRCS		= wanpipemon.c cpipemon.c fpipemon.c ppipemon.c dslpipemon.c atmpipemon.c 
 BINDIR  	= /usr/local/sbin
 CFLAGS		+= -DCONFIG_PRODUCT_WANPIPE_ADSL -DWANPIPEMON_GUI -DLOCALE -DCURSES_LOC="<ncurses.h>"
 LDFLAGS         += -s -L. -lncurses
-COPTS  		+= -Wall -Wmissing-prototypes -I/usr/include/wanpipe -I${FT1_DIR} -I${LXDIALOG_DIR} 
+COPTS  		+= -Wall -Wmissing-prototypes -I$(SYSINC) -I${FT1_DIR} -I${LXDIALOG_DIR} 
 .OBJDIR 	= /usr/obj${.CURDIR}
 NOMAN   	=
 

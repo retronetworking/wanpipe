@@ -200,6 +200,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\libsangoma_config.c"
+				>
+			</File>
+			<File
 				RelativePath=".\libsangoma_hwec.c"
 				>
 			</File>

@@ -5,14 +5,25 @@
     <!--<param name="enable-analog-option" value="call-swap"/>-->
     <!--<param name="enable-analog-option" value="3-way"/>-->
   </settings>
-  <boost_spans>
-	<!--BOOSTPRI-->
-	<!--BOOSTBRI-->
-  </boost_spans>
-  
-  <analog_spans>
-	  <!--SANGOMA_FXO-->
-	  <!--SANGOMA_FXS-->
-  </analog_spans>
+
+	<!--CONFIG_PROFILE_HEADER-->
+		<!--CONFIG_PRI_PROFILE-->
+		<!--CONFIG_BRI_PROFILE-->
+	<!--CONFIG_PROFILE_FOOT-->
+	
+	<!--BOOST_HEADER-->	
+	<!--PRI_HEADER-->
+		<!--BOOSTPRI-->
+	<!--PRI_FOOT-->
+
+	<!--BRI_HEADER-->
+		<!--BOOSTBRI-->
+	<!--BRI_FOOT-->
+	<!--BOOST_FOOT-->
+
+	<analog_spans>
+	  	<!--SANGOMA_FXO-->
+		<!--SANGOMA_FXS-->
+	</analog_spans>
   
 </configuration>

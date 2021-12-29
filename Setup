@@ -9,12 +9,13 @@
 #		as published by the Free Software Foundation; either version
 #		2 of the License, or (at your option) any later version.
 # ----------------------------------------------------------------------------
+# Sep 04, 2010  Evandro Arruda  Rewrite --builddir support on Makefile's
 # May 10, 2010  Yannick Lam     Added support for OSLEC for DAHDI only (--with-oslec)
 # Apr 22, 2010  Yannick Lam     Added support for dahdi-2.3 for various chunksize
 # Oct 29, 2009	Yannick Lam		Added --no_woomera option (will not install woomera)
 # Jul 29, 2009  Konrad Hammel   Added --with-asterisk option
 # Jul 27, 2009  Konrad Hammel   Update to not compile unneeded utilities in 
-#				TDM_VOICE mode.
+#				                TDM_VOICE mode.
 # Jul 24, 2008  Konrad Hammel 	Removed the addition of UDEV rules for Dahdi
 #                             	installs, only needed for Zaptel
 # Jul 30, 2008  Jignesh Patel 	Added check for sctp utlity
@@ -25,15 +26,15 @@
 # Nov 27, 2005  David Rokhvarg 	Added Echo Debugging option
 # Mar 18, 2002  Nenad Corbic	Added BSCSTRM protocol
 # Mar 01, 2002  Nenad Corbic	Added option to split rpm build into
-#				two packages: util and mod.
+#				                two packages: util and mod.
 # Jan 05, 2002  Nenad Corbic	Updated for 2.2.4 Release
 # Mar 02, 2001  Nenad Corbic	Added 2.4.2 kernel support
-#				Added a check for MODVERSIONS
+#				                Added a check for MODVERSIONS
 # Feb 21, 2001  Nenad Corbic	Fixed the kernel gcc compile bug.
 # Feb 20, 2001  Nenad Corbic	Fixed the kernel upgrade bug.
 # Jan 31, 2001  Nenad Corbic	Updated all help messages
-#				Added kernel upgrade feature
-#				Added WANPIPE driver compile feature
+#				                Added kernel upgrade feature
+#				                Added WANPIPE driver compile feature
 # Dec 25, 2000  Nenad Corbic	Updated for v2.2.0
 # Feb 29, 2000  Nenad Corbic    Removed print statements in file verification
 #                               procedure.
@@ -49,8 +50,8 @@
 # Aug 26, 1997  Farhan Thawar   Added patches.txt info 
 # Jul 28, 1997	Jaspreet Singh	Updated for v1.0.5
 # Jul 10, 1997  Jaspreet Singh	Updated for v1.0.4
-# Jan 15, 1997	Gene Kozin	Added patch selection and upgrade features
-# Dec 16, 1996	Gene Kozin	Initial version based on Sangoma's WANPIPE(tm)
+# Jan 15, 1997	Gene Kozin	    Added patch selection and upgrade features
+# Dec 16, 1996	Gene Kozin	    Initial version based on Sangoma's WANPIPE(tm)
 # ============================================================================
 
 ####### FUNCTION DEFINITIONS #################################################
@@ -80,20 +81,20 @@ check_bash ()
 
 check_gcc ()
 {
-	if [ "$USR_CC" != "" ]; then
-           eval "$USR_CC --version 2> /dev/null > /dev/null"
-		   if [ $? -ne 0 ]; then 
-             	echo "Error: Failed to find version of $USR_CC"
-				return 1;
-		   fi
-           eval "$USR_CC --version | grep \"^2\" > /dev/null"
-		   if [ $? -eq 0 ]; then
-			   GCC_VER=2;
-	       else
-			   GCC_VER=3;
-	       fi    
-		   return 0;                       
-	fi
+    if [ "$USR_CC" != "" ]; then
+        eval "$USR_CC --version 2> /dev/null > /dev/null"
+        if [ $? -ne 0 ]; then 
+         	echo "Error: Failed to find version of $USR_CC"
+        	return 1;
+        fi
+        eval "$USR_CC --version | grep \"^2\" > /dev/null"
+        if [ $? -eq 0 ]; then
+           GCC_VER=2;
+        else
+           GCC_VER=3;
+        fi    
+        return 0;                       
+    fi
 
 	GCC_VER=3
 
@@ -101,7 +102,6 @@ check_gcc ()
 	if [ $? -eq 0 ]; then
 		CC=gcc
 
-		
 		cd $DRIVER_UPDATE_DIR/src/net
 		eval "gcc --version | grep \"^2\" > /dev/null"
 		if [ $? -eq 0 ]; then
@@ -201,12 +201,12 @@ getyn()
 
 	while prompt "$* (y/n) "
 	do	case $CMD in
-			[yY])	return 0
-				;;
-			[nN])	return 1
-				;;
-			*)	echo -e "\nPlease answer y or n" >&2
-				;;
+		[yY])	return 0
+			;;
+		[nN])	return 1
+			;;
+		*)	echo -e "\nPlease answer y or n" >&2
+			;;
 		esac
 	done
 }
@@ -284,15 +284,17 @@ parse_version()
 banner()
 {
 	if test -z $NONINTERACTIVE; then
-	clearscr
+	    clearscr
 	else
-	echo
+	    echo
 	fi
+
 	echo -e "\t----------------------------------------------------------"
 	echo -e "\t          WANPIPE v$PROD_VER Installation Script"
 	echo -e "\t    Copyright (c) 1995-2010, Sangoma Technologies Inc."
 	echo -e "\t----------------------------------------------------------"
 	echo ""
+
 	return 0
 }
 
@@ -334,7 +336,6 @@ ENDOFTEXT
 	return
 }
 
-
 welcome_dahdi()
 {
 
@@ -367,10 +368,6 @@ ENDOFTEXT
  
 	return
 }
-
-
-
-
 
 welcome_default()
 {
@@ -419,11 +416,8 @@ welcome()
 	banner
 
 	if [ "$bri_auto_install" = "YES" ] || [ "$pri_auto_install" = "YES" ]; then
-		
 		welcome_default
-
 	elif [ $zaptel_auto_install = "YES" ]; then
-
 		if [ $dahdi_auto_install = "YES" ]; then	
 			welcome_dahdi
 		else
@@ -551,225 +545,228 @@ ENDOFTEXT
 # ----------------------------------------------------------------------------
 prepare()
 {
-        banner
-        # Verify filelist.
-        [ -f "$FILELIST" ] || {
-			error "File list ($FILELIST) not found"
+    banner
+    # Verify filelist.
+    [ -f "$FILELIST" ] || {
+		error "File list ($FILELIST) not found"
+		return 1
+    }
+
+    # Verify files and fix permissions.
+	if [ $superuser = "YES" ]; then
+		echo "Fixing file permissions..."
+		fix_perms || {
+			error "Product is not completely installed. Please re-install"
 			return 1
-        }
-
-        # Verify files and fix permissions.
-		if [ $superuser = "YES" ]; then
-			echo "Fixing file permissions..."
-			fix_perms || {
-				error "Product is not completely installed. Please re-install"
-				return 1
-			}
-		fi
-        #Check if wanpipe modules are currently loaded
-        eval "lsmod | grep sdladrv > /dev/null"
-        if [ $? -eq 0 ]; then
-			echo
-			echo "Warning: Wanpipe Modules are currently running!"
-			echo "Its recommended to unload Wanpipe Modules before proceeding"
-			echo "with installation."
-			echo
-			getyn "\nWould you like to proceed?" || return 1
-        fi
-        missing_packages=" "
-        echo -n "Checking for C developement tools ..."
-
-        check_gcc
-        if [ $? -eq 0 ]; then
-			echo "($CC) OK"
-        else
-			echo -e "\n\tWarning: Wanpipe package requires C development tools to complete
-									the installation.  Please install development package
-									before proceeding. GCC/KGCC/CC compiler not found"
-			return 1
-        fi
-
-        if [ "$PKG_NAME" = "wanpipe-lite" ]; then
-			pause
-			return 0
-        fi
-
-        echo -n "Checking for C++ developement tools ..."
- 		eval "g++ --version > /dev/null 2> /dev/null"
-        if [ $? -eq 0 ]; then
-			echo "OK"
-        else
-			echo "Failed!"
-			missing_packages=$missing_packages"g++ "
-        fi
-        echo -n "Checking for Make utility ..."
-		eval "make --version > /dev/null 2> /dev/null"
-		if [ $? -eq 0 ]; then
-			echo "OK"
-        else
-			echo "Failed!"
-			missing_packages=$missing_packages"make "
-        fi
-
-        echo -n "Checking for ncurses library ... "
-        if [ ! -f "/usr/include/ncurses.h" ] && [ ! -f "/usr/include/ncurses/ncurses.h" ]; then
-			echo "Failed!"
-			missing_packages=$missing_packages"ncurses "
-        else
-			echo "OK"
-        fi
-
-        echo -n "Checking for Perl developement tools ..."
-        eval "perl --version 2>/dev/null > /dev/null"
-        if [ $? -eq 0 ]; then
-			echo "OK"
-        else
-			echo "Failed!"
-			missing_packages=$missing_packages"perl "
-        fi
-
-        echo -n "Checking for AWK ..."
-        eval "type awk 2> /dev/null > /dev/null"
-        if [ $? -eq 0 ]; then
-			echo "OK"
-        else
-			echo "Failed!"
-			missing_packages=$missing_packages"awk "
-        fi
-
-        echo -n "Checking for FLEX ..."
-        eval "type flex 2> /dev/null > /dev/null"
-        if [ $? -eq 0 ]; then
-			echo "OK"
-        else
-			echo "Failed!"
-			missing_packages=$missing_packages"flex "
-        fi
-
-        echo -n "Checking for Patch ..."
-        eval "patch --version 2> /dev/null > /dev/null"
-        if [ $? -eq 0 ]; then
-			echo "OK"
-        else
-			echo "Failed!"
-			missing_packages=$missing_packages"patch "
-        fi
-
-        echo -n "Checking for libtermcap-devel..."
-        if [ -f "/usr/include/termcap.h" ]; then
-			echo "OK"
-        else
-			"Failed!"
-			missing_packages=$missing_packages"libtermcap-devel "
-        fi
-
-		echo -n "Checking for bison..."
-		eval "type bison 2> /dev/null > /dev/null"
-		if [  $? -eq 0 ]; then
-			echo "OK"
-		else
-			echo "Failed!"
-			missing_packages=$missing_packages"bison "
-		fi
-
-		echo -n "Checking for libtool..."
-		eval "which libtool 2> /dev/null > /dev/null"
-		if [  $? -eq 0 ]; then
-			echo "OK"
-		else
-			echo "Failed!"
-			missing_packages=$missing_packages"libtool "
-		fi
-		
-		echo
-		if [ ! "$missing_packages" =  " " ]; then
-				echo "WARNING: You are missing some prerequisites"
-				echo "Missing Packages $missing_packages" >> $CMP_LOG
-				for package in $missing_packages
-				do
-					case $package in
-							g++)
-									echo -e "\n C++ Compiler (g++)."
-									echo -e "    Required for Wanpipe Utilities."
-									echo -e "    Install gcc-c++ package (e.g yum install gcc-c++)."
-							;;
-							make)
-									echo -e "\n make utility."
-									echo -e "    Required for compiling packages."
-									echo -e "    Install make package (e.g yum install make)."
-							;;
-			
-							bash)
-									echo -e "\n Bash v2 or greater."
-									echo -e "    Required for wancfg and cfgft1 configuration utilities."
-							;;
-							ncurses)
-									echo -e "\n ncurses library."
-									echo -e "    Required for wancfg and cfgft1 configuration utilities."
-									echo -e "    Install ncurses development package (e.g yum install ncurses-devel)."
-							;;
-							perl)
-								echo -e "\n Perl development tools."
-								echo -e "    Required for Wanpipe package."
-								echo -e "    Install ncurses Perl package (e.g yum install perl)."
-							;;
-							awk)
-								echo -e "\n AWK."
-								echo -e "    Required for wanrouter startup script."
-								echo -e "    Install AWK package (e.g yum install gawk)."
-							;;
-							patch)
-								echo -e "\n Patch ."
-								echo -e "    Required for Wanpipe Setup installation script."
-								echo -e "    Install Patch package (e.g yum install patch)."
-							;;
-							libtermcap-devel)
-								echo -e "\n Libtermcap development tools ."
-								echo -e "    Required for Wanpipe Utilities."
-								echo -e "    Install libtermcap-devel package (e.g yum install libtermcap-devel)."
-							;;
-							flex)
-								echo -e "\n Flex package ."
-								echo -e "    Required for Wancfg configuration utility."
-								echo -e "    Install flex package (e.g yum install flex)."
-							;;
-							bison)
-								echo -e "\n Bison."
-								echo -e "    Required for Wanpipe Utilities."
-								echo -e "    Install bison package (e.g yum install bison)."
-							;;
-							libtool)
-								echo -e "\n Libtool."
-								echo -e "    Required for libsangoma."
-								echo -e "    Install libtool package (e.g yum install libtool)."
-							;;
-							bison)
-								echo -e "\n Bison."
-								echo -e "    Required for Wanpipe Utilities."
-								echo -e "    Install bison package (e.g yum install bison)."
-							;;
-					esac
-				done
-				echo
-				getyn "Press Y to continue, N to abort installation"
-				if [ $? -eq 0 ]; then
-						return 0
-				else
-						echo
-						echo "Stopping install per users request"
-						echo
-						return 1
-				fi
-        fi
-
-	if [ "$SSMG_BRI" = "YES" ] || [ "$SSMG_PRI" = "YES" ]; then
-		check_sctp_utility
-		find_ast_dirs
+		}
 	fi
+
+    #Check if wanpipe modules are currently loaded
+    eval "lsmod | grep sdladrv > /dev/null"
+    if [ $? -eq 0 ]; then
+		echo
+		echo "Warning: Wanpipe Modules are currently running!"
+		echo "Its recommended to unload Wanpipe Modules before proceeding"
+		echo "with installation."
+		echo
+		getyn "\nWould you like to proceed?" || return 1
+    fi
+    missing_packages=" "
+    echo -n "Checking for C developement tools ..."
+
+    check_gcc
+    if [ $? -eq 0 ]; then
+		echo "($CC) OK"
+    else
+		echo -e "\n\tWarning: Wanpipe package requires C development tools to complete
+								the installation.  Please install development package
+								before proceeding. GCC/KGCC/CC compiler not found"
+		return 1
+    fi
+
+    if [ "$PKG_NAME" = "wanpipe-lite" ]; then
+		pause
+		return 0
+    fi
+
+    echo -n "Checking for C++ developement tools ..."
+		eval "g++ --version > /dev/null 2> /dev/null"
+    if [ $? -eq 0 ]; then
+		echo "OK"
+    else
+		echo "Failed!"
+		missing_packages=$missing_packages"g++ "
+    fi
+
+    echo -n "Checking for Make utility ..."
+	eval "make --version > /dev/null 2> /dev/null"
+	if [ $? -eq 0 ]; then
+		echo "OK"
+    else
+		echo "Failed!"
+		missing_packages=$missing_packages"make "
+    fi
+
+    echo -n "Checking for ncurses library ... "
+    if [ ! -f "/usr/include/ncurses.h" ] && [ ! -f "/usr/include/ncurses/ncurses.h" ]; then
+		echo "Failed!"
+		missing_packages=$missing_packages"ncurses "
+    else
+		echo "OK"
+    fi
+
+    echo -n "Checking for Perl developement tools ..."
+    eval "perl --version 2>/dev/null > /dev/null"
+    if [ $? -eq 0 ]; then
+		echo "OK"
+    else
+		echo "Failed!"
+		missing_packages=$missing_packages"perl "
+    fi
+
+    echo -n "Checking for AWK ..."
+    eval "type awk 2> /dev/null > /dev/null"
+    if [ $? -eq 0 ]; then
+		echo "OK"
+    else
+		echo "Failed!"
+		missing_packages=$missing_packages"awk "
+    fi
+
+    echo -n "Checking for FLEX ..."
+    eval "type flex 2> /dev/null > /dev/null"
+    if [ $? -eq 0 ]; then
+		echo "OK"
+    else
+		echo "Failed!"
+		missing_packages=$missing_packages"flex "
+    fi
+
+    echo -n "Checking for Patch ..."
+    eval "patch --version 2> /dev/null > /dev/null"
+    if [ $? -eq 0 ]; then
+		echo "OK"
+    else
+		echo "Failed!"
+		missing_packages=$missing_packages"patch "
+    fi
+
+    echo -n "Checking for libtermcap-devel..."
+    if [ -f "/usr/include/termcap.h" ]; then
+		echo "OK"
+    else
+		"Failed!"
+		missing_packages=$missing_packages"libtermcap-devel "
+    fi
+
+	echo -n "Checking for bison..."
+	eval "type bison 2> /dev/null > /dev/null"
+	if [  $? -eq 0 ]; then
+		echo "OK"
+	else
+		echo "Failed!"
+		missing_packages=$missing_packages"bison "
+	fi
+
+	echo -n "Checking for libtool..."
+	eval "which libtool 2> /dev/null > /dev/null"
+	if [  $? -eq 0 ]; then
+		echo "OK"
+	else
+		echo "Failed!"
+		missing_packages=$missing_packages"libtool "
+	fi
+	
+	echo
+	if [ ! "$missing_packages" =  " " ]; then
+        echo "WARNING: You are missing some prerequisites"
+		echo "Missing Packages $missing_packages" >> $CMP_LOG
+		for package in $missing_packages
+		do
+			case $package in
+				g++)
+					echo -e "\n C++ Compiler (g++)."
+					echo -e "    Required for Wanpipe Utilities."
+					echo -e "    Install gcc-c++ package (e.g yum install gcc-c++)."
+				;;
+				make)
+					echo -e "\n make utility."
+					echo -e "    Required for compiling packages."
+					echo -e "    Install make package (e.g yum install make)."
+				;;
+
+				bash)
+					echo -e "\n Bash v2 or greater."
+					echo -e "    Required for wancfg and cfgft1 configuration utilities."
+				;;
+				ncurses)
+					echo -e "\n ncurses library."
+					echo -e "    Required for wancfg and cfgft1 configuration utilities."
+					echo -e "    Install ncurses development package (e.g yum install ncurses-devel)."
+				;;
+				perl)
+					echo -e "\n Perl development tools."
+					echo -e "    Required for Wanpipe package."
+					echo -e "    Install ncurses Perl package (e.g yum install perl)."
+				;;
+				awk)
+					echo -e "\n AWK."
+					echo -e "    Required for wanrouter startup script."
+					echo -e "    Install AWK package (e.g yum install gawk)."
+				;;
+				patch)
+					echo -e "\n Patch ."
+					echo -e "    Required for Wanpipe Setup installation script."
+					echo -e "    Install Patch package (e.g yum install patch)."
+				;;
+				libtermcap-devel)
+					echo -e "\n Libtermcap development tools ."
+					echo -e "    Required for Wanpipe Utilities."
+					echo -e "    Install libtermcap-devel package (e.g yum install libtermcap-devel)."
+				;;
+				flex)
+					echo -e "\n Flex package ."
+					echo -e "    Required for Wancfg configuration utility."
+					echo -e "    Install flex package (e.g yum install flex)."
+				;;
+				bison)
+					echo -e "\n Bison."
+					echo -e "    Required for Wanpipe Utilities."
+					echo -e "    Install bison package (e.g yum install bison)."
+				;;
+				libtool)
+					echo -e "\n Libtool."
+					echo -e "    Required for libsangoma."
+					echo -e "    Install libtool package (e.g yum install libtool)."
+				;;
+				bison)
+					echo -e "\n Bison."
+					echo -e "    Required for Wanpipe Utilities."
+					echo -e "    Install bison package (e.g yum install bison)."
+				;;
+			esac
+		done
+
+		echo
+		getyn "Press Y to continue, N to abort installation"
+		if [ $? -eq 0 ]; then
+			return 0
+		else
+			echo
+			echo "Stopping install per users request"
+			echo
+			return 1
+		fi
+    fi
+
+    if [ "$SSMG_BRI" = "YES" ] || [ "$SSMG_PRI" = "YES" ]; then
+    	check_sctp_utility
+    	find_ast_dirs
+    fi
 
 	pause
 
-        return 0
+    return 0
 }
 
 
@@ -813,6 +810,7 @@ fix_perms()
 		chgrp $GROUP $TARGET
 		#echo "Ok."
 	done < $FILELIST
+
 	echo "Done";
 	return 0
 }
@@ -1967,14 +1965,14 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 	echo
 	echo -n "Compiling ${DISTR_NAME} WanCfg Utility ..."
 
-    	WANCFG_DEFS=
-    	if [ "$TDM_PROT" = "YES" ]; then
- 		WANCFG_DEFS=$WANCFG_DEFS" ENABLE_ZAPTEL_PARSER=YES ZAPINC=$ZAPTEL_SOURCE_DIR"
-		if [ -d $ZAPTEL_SOURCE_DIR/dahdi ]; then
-			WANCFG_DEFS=$WANCFG_DEFS" DAHDI_ISSUES=YES"
-		fi
-    	fi
-    	eval "make -C wancfg all CC=$CC SYSINC=$WANPIPE_INCLUDE_DIR $WANCFG_DEFS >> $CMP_LOG 2>> $CMP_LOG"
+	WANCFG_DEFS=
+	if [ "$TDM_PROT" = "YES" ]; then
+		    WANCFG_DEFS=$WANCFG_DEFS" ENABLE_ZAPTEL_PARSER=YES ZAPINC=$ZAPTEL_SOURCE_DIR"
+	    if [ -d $ZAPTEL_SOURCE_DIR/dahdi ]; then
+		    WANCFG_DEFS=$WANCFG_DEFS" DAHDI_ISSUES=YES"
+	    fi
+	fi
+	eval "make -C wancfg all CC=$CC WANINCDIR=$WANPIPE_INCLUDE_DIR $WANCFG_DEFS >> $CMP_LOG 2>> $CMP_LOG"
 
 	if [ $? -eq 0 ]
 	then
@@ -1996,11 +1994,12 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 		return 0
 	fi
 
-	cd $PROD_HOME/util/misc
+	#Disable buld of misc utilities
+	#cd $PROD_HOME/util/misc
 
-	echo -n "Compiling WANPIPE Misc Utilities ..."
-	eval "make CC=$CC SYSINC=$WANPIPE_INCLUDE_DIR > /dev/null"
-	echo -e "Done.\n\n"
+	#echo -n "Compiling WANPIPE Misc Utilities ..."
+	#eval "make CC=$CC WANINCDIR=$WANPIPE_INCLUDE_DIR > /dev/null"
+	#echo -e "Done.\n\n"
 
 	if [ $TDM_VOICE_ONLY = 'YES' ]; then
 		echo -e "Compiling WANPIPE LibSangoma API Library ... skipped, not required.\n\n"
@@ -2026,7 +2025,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 		eval "./init-automake.sh  >> $CMP_LOG 2>> $CMP_LOG"
 		eval "./configure --prefix=/usr >> $CMP_LOG 2>> $CMP_LOG" 
 		eval "make clean >> $CMP_LOG 2>> $CMP_LOG" 
-		eval "make CC=$CC SYSINC=$WANPIPE_INCLUDE_DIR >> $CMP_LOG 2>> $CMP_LOG" 
+		eval "make CC=$CC DESTDIR=$ROOT >> $CMP_LOG 2>> $CMP_LOG" 
 		if [ $? -eq 0 ]; then
 			echo -e "Done.\n\n"
 		else
@@ -2046,7 +2045,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 			eval "./init-automake.sh  >> $CMP_LOG 2>> $CMP_LOG"
 			eval "./configure --prefix=/usr >> $CMP_LOG 2>> $CMP_LOG" 
 			eval "make clean >> $CMP_LOG 2>> $CMP_LOG" 
-			eval "make CC=$CC SYSINC=$WANPIPE_INCLUDE_DIR >> $CMP_LOG 2>> $CMP_LOG" 
+			eval "make CC=$CC DESTDIR=$ROOT >> $CMP_LOG 2>> $CMP_LOG" 
 			if [ $? -eq 0 ]; then
 				echo -e "Done.\n\n"
 			else
@@ -2071,7 +2070,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 		cd $PROD_HOME/api
 	
 		if [ -f Makefile ]; then
-			eval "make CC=$CC SYSINC=$WANPIPE_INCLUDE_DIR >> $CMP_LOG 2>> $CMP_LOG"
+			eval "make CC=$CC WANINCDIR=$WANPIPE_INCLUDE_DIR >> $CMP_LOG 2>> $CMP_LOG"
 			if [ $? -eq 0 ]; then
 				echo -e "Done.\n"
 			else
@@ -2090,7 +2089,7 @@ WARNING: The Linux source in $SOURCEDIR has not been configured.
 	if [ -d $PROD_HOME/util/wanec_client ] && [ -d $DRIVER_UPDATE_DIR/wanec ] ; then
 		echo -n "Compiling WANPIPE HWEC Utilities ..."
 		cd  $PROD_HOME/util/wanec_client
-		eval "make CC=$CC SYSINC=$WANPIPE_INCLUDE_DIR WANEC_DIR=$DRIVER_UPDATE_DIR/wanec >> $CMP_LOG 2>> $CMP_LOG "
+		eval "make CC=$CC WANINCDIR=$WANPIPE_INCLUDE_DIR WANEC_DIR=$DRIVER_UPDATE_DIR/wanec >> $CMP_LOG 2>> $CMP_LOG "
 		if [ $? -eq 0 ]; then
                     echo -e "Done.\n\n"
             	else
@@ -7153,72 +7152,72 @@ or
 
 	--silent    	: Non interactive. Run all above commands
 	            	  without user interaction.  Thus default
-		    	  environment values are assumed such
-		    	  as:
+	            	  environment values are assumed such
+	            	  as:
 		      
-		    	  	Linux source dir:  $SOURCEDIR
-				Architecture    :  uname -m
-				Kernel Image    :  uname -r
+	            	        Linux source dir:  $SOURCEDIR
+	            	        Architecture    :  uname -m
+	            	        Kernel Image    :  uname -r
 		      
 	--builddir  	: Install WANPIPE package into a virtual
 	            	  directory. The path must be
-		    	  absolute and must exist.  Default is set
-		    	  to system root( / ).
-		    	  eg: --builddir=/root/wanpipe_build
+	            	  absolute and must exist.  Default is set
+	            	  to system root( / ).
+	            	  eg: --builddir=/root/wanpipe_build
 		      
 	--with-linux	: Build modules using a custom linux
 	            	  source directory.  Default value is
-		    	  set to $SOURCEDIR
-		    	  eg: --with-linux=/usr/src/linux-2.4.4
+	            	  set to $SOURCEDIR
+	            	  eg: --with-linux=/usr/src/linux-2.4.4
 
-        --with-zaptel   : Build modules using a certain verion of
-                          zaptel or dahdi
-                          eg: --with-zaptel=/usr/src/zaptel-1.4.12
-                              --with-zaptel=/usr/src/dahdi-linux-2.2.0.2
+	--with-zaptel   : Build modules using a certain verion of
+	            	  zaptel or dahdi
+	            	  eg: --with-zaptel=/usr/src/zaptel-1.4.12
+	            	      --with-zaptel=/usr/src/dahdi-linux-2.2.0.2
  
-        --with-asterisk : Build modules using a certain verions of
-                          Asterisk
-                          eg: --with-asterisk=/usr/src/asterisk-1.6.0.9
+	--with-asterisk : Build modules using a certain verions of
+	            	  Asterisk
+	            	  eg: --with-asterisk=/usr/src/asterisk-1.6.0.9
 
 	--arch	    	: Build modules using a custom defined 
 	            	  architecture. (i686 or i586)
-		    	  By default: (uname -m) 
-		    	  eg: --arch=i686
+	            	  By default: (uname -m) 
+	            	  eg: --arch=i686
 
 	--split_rpms	: Option to split the rpm build into
 	            	  util and modules package.  Thus, 
-		    	  splitting user space utilities and
-		    	  kernel modules into two packages.
-		    	  Default: one rpm package containing
-		    	           both utilites and modules.
-		    	  eg: ./Setup buildrpm --split_rpms
+	            	  splitting user space utilities and
+	            	  kernel modules into two packages.
+	            	  Default: one rpm package containing
+		    	               both utilites and modules.
+	            	  eg: ./Setup buildrpm --split_rpms
 
 	--linux-vanilla	: Compile wanpipe drivers as if the
-                       	  current linux source is a vanilla source.
-                       	  Used to remove the default assumption that
-                       	  stock distribution  kernels pull changes 
-                       	  from higher linux kernel versions. 			 
+	            	  current linux source is a vanilla source.
+	            	  Used to remove the default assumption that
+	            	  stock distribution  kernels pull changes 
+	            	  from higher linux kernel versions. 			 
 
   	--no-gcc-debug	: Remove -g option out of gcc compile argumetns.
 
-        --noautostart   : Do not install start scripts, used to overwrite
-                          the install of these scripts when using --silent
+	--noautostart   : Do not install start scripts, used to overwrite
+	            	  the install of these scripts when using --silent
  
-        --64bit_4GB     : Use this option when installing on systems using
-                          a 64bit kernel and 4GB of RAM or more.  Wanpipe
-                          needs to be aware that 64bit memory mapping is
-                          used.
+	--64bit_4GB     : Use this option when installing on systems using
+	            	  a 64bit kernel and 4GB of RAM or more.  Wanpipe
+	            	  needs to be aware that 64bit memory mapping is
+	            	  used.
 
-        --dahdi-chunk   : Use to increase the chunk size of Dahdi.
-                          Drastically improves performance in TDM Voice
-                          See the wiki for more information
+	--dahdi-chunk   : Use to increase the chunk size of Dahdi.
+	            	  Drastically improves performance in TDM Voice
+	            	  See the wiki for more information
 
 	--no_woomera	: Option to compile the driver without installing 
-			  chan_woomera.
+	            	  chan_woomera.
 
-	--protocol	: Option to compile in extra protocols
-	             	  that are not installed by default.
-		    	  eg: ./Setup install --protocol=<PROT>
+	--protocol		: Option to compile in extra protocols
+	            	  that are not installed by default.
+	            	  eg: ./Setup install --protocol=<PROT>
 		      
 		      Extra Protocols Supported:
 		     
@@ -7279,7 +7278,7 @@ KERNEL_UNAME=`uname -r`
 PKG_NAME=wanpipe
 DISTR_NAME="WANPIPE"
 PROD=wanrouter
-PROD_VER=3.5.15
+PROD_VER=3.5.16
 PROD_HOME=`pwd`
 META_CONF=$PROD_HOME/$PROD.rc
 WAN_INTR_DIR=$PROD_HOME/interfaces
@@ -7739,17 +7738,17 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 		--with-asterisk*)
 				AST_DFLT_INSTALL_DIR=`echo $arg | cut -d'=' -f2`;
 				if [ "$AST_DFLT_INSTALL_DIR" = "" ]; then
-						echo "Error invalid --with-asterisk option";
-						exit 1;
+					echo "Error invalid --with-asterisk option";
+					exit 1;
 				fi
 				if [ ! -d "$AST_DFLT_INSTALL_DIR" ]; then
-						echo "Error: Asterisk source directory not found: $AST_DFLT_INSTALL_DIR";
-						exit 1;
+					echo "Error: Asterisk source directory not found: $AST_DFLT_INSTALL_DIR";
+					exit 1;
 				fi
 				if [ $AST_DFLT_INSTALL_DIR != "$AST_DFLT_INCLUDE_DIR" ]; then
 					if [ ! -f "$AST_DFLT_INSTALL_DIR/Makefile" ]; then
-							echo "Error: Invalid Asterisk source found in $AST_DFLT_INSTALL_DIR";
-							exit 1;
+						echo "Error: Invalid Asterisk source found in $AST_DFLT_INSTALL_DIR";
+						exit 1;
 					fi
 				fi
 				AST_PATH_OP="YES";
@@ -7845,34 +7844,34 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 			;;
  			
 		--zap-chunk* | --dahdi-chunk*)
-                        ZAP_CHUNK=`echo $arg | cut -d'=' -f2`;
+            ZAP_CHUNK=`echo $arg | cut -d'=' -f2`;
 
-                         if [ $ZAP_CHUNK != "8" ] && [ $ZAP_CHUNK != "16" ] && [ $ZAP_CHUNK != "40" ] && [ $ZAP_CHUNK != "80" ];  then
-                                echo "Error: Invalid Dahdi/Zaptel Chunk size"
-                                exit 1;
-                        else
-                                echo "WARNING:"
-                                echo "The wct4xxp module will be removed from your system"
-                                getyn "Do you want to use custom Dahdi/Zaptel chunk size of $ZAP_CHUNK"
-                                if [ $? -eq 0 ]; then
-                                        ZAP_CHUNK_OP="YES"
-                                else
-                                        ZAP_CHUNK_OP="NO"
-                                fi
-                        fi
-                        ;;
+             if [ $ZAP_CHUNK != "8" ] && [ $ZAP_CHUNK != "16" ] && [ $ZAP_CHUNK != "40" ] && [ $ZAP_CHUNK != "80" ];  then
+                echo "Error: Invalid Dahdi/Zaptel Chunk size"
+                exit 1;
+            else
+                echo "WARNING:"
+                echo "The wct4xxp module will be removed from your system"
+                getyn "Do you want to use custom Dahdi/Zaptel chunk size of $ZAP_CHUNK"
+                if [ $? -eq 0 ]; then
+                    ZAP_CHUNK_OP="YES"
+                else
+                    ZAP_CHUNK_OP="NO"
+                fi
+            fi
+            ;;
 
         --with-oslec)
-						echo "WARNING:"
-						echo "You are going to use OSLEC as software echo canceler"
-						echo "Note: If you want to use OSLEC, do not forget to turn off the hardware echo canceler in wanpipe configuration"
-						getyn "Do you want to use OSLEC for Dahdi/Zaptel"
-						if [ $? -eq 0 ]; then
-							OSLEC="YES"
-						else
-							OSLEC="NO"
-						fi
-						;;
+			echo "WARNING:"
+			echo "You are going to use OSLEC as software echo canceler"
+			echo "Note: If you want to use OSLEC, do not forget to turn off the hardware echo canceler in wanpipe configuration"
+			getyn "Do you want to use OSLEC for Dahdi/Zaptel"
+			if [ $? -eq 0 ]; then
+				OSLEC="YES"
+			else
+				OSLEC="NO"
+			fi
+			;;
 		*)
 			echo "Invalid option $arg"
 			exit 1;
@@ -7882,50 +7881,50 @@ if [ "$PKG_NAME" != "wanpipe-lite" ]; then
 
 	if [ "$PROTS" != "" ]; then
 		echo "$PROTS" | grep "DEF" > /dev/null
-       		if [ $? -eq 0 ]; then
-               		enable_protocols $DEFAULT_PROTOCOLS "YES"
-       		fi
+   		if [ $? -eq 0 ]; then
+           	enable_protocols $DEFAULT_PROTOCOLS "YES"
+   		fi
 
-       		echo "$PROTS" | grep "^API" > /dev/null
-       		if [ $? -eq 0 ]; then
-               		enable_protocols $API_PROTOCOLS "YES"
-       		fi
+   		echo "$PROTS" | grep "^API" > /dev/null
+   		if [ $? -eq 0 ]; then
+           	enable_protocols $API_PROTOCOLS "YES"
+   		fi
 
-       		echo "$PROTS" | grep "ALL" > /dev/null
-       		if [ $? -eq 0 ]; then
-               		enable_protocols $DEFAULT_PROTOCOLS "YES"
-       	 		enable_protocols $API_PROTOCOLS "YES"
-       		fi
+   		echo "$PROTS" | grep "ALL" > /dev/null
+   		if [ $? -eq 0 ]; then
+           	enable_protocols $DEFAULT_PROTOCOLS "YES"
+   	 		enable_protocols $API_PROTOCOLS "YES"
+   		fi
 
 		echo "$PROTS" | grep "TDM" > /dev/null
-       		if [ $? -eq 0 ]; then
-               		enable_protocols AFT_TE1 "YES"
-       		fi
+   		if [ $? -eq 0 ]; then
+           	enable_protocols AFT_TE1 "YES"
+   		fi
 
 		echo "$PROTS" | grep "BRI" > /dev/null
-       		if [ $? -eq 0 ]; then
-               		enable_protocols AFT_TE1 "YES"
-               		enable_protocols BRI "YES"
-       		fi
+   		if [ $? -eq 0 ]; then
+           	enable_protocols AFT_TE1 "YES"
+           	enable_protocols BRI "YES"
+   		fi
 
 		echo "$PROTS" | grep "PRI" > /dev/null
-       		if [ $? -eq 0 ]; then
-               		enable_protocols AFT_TE1 "YES"
-               		enable_protocols PRI "YES"
-       		fi
+   		if [ $? -eq 0 ]; then
+           	enable_protocols AFT_TE1 "YES"
+           	enable_protocols PRI "YES"
+   		fi
+
 		echo "$PROTS" | grep "SS7" > /dev/null
-       		if [ $? -eq 0 ]; then
-               		enable_protocols AFT_TE1 "YES"
-					enable_protocols "XMTP2" "YES"
-               		enable_protocols SS7 "YES"
-       		fi
+   		if [ $? -eq 0 ]; then
+           	enable_protocols AFT_TE1 "YES"
+			enable_protocols "XMTP2" "YES"
+           	enable_protocols SS7 "YES"
+   		fi
 
 		enable_protocols "$PROTS" "YES"
 		if [ $? -ne 0 ]; then
 			exit 1
 		fi
 	fi
-
 
 	if [ "$setup_cmd" = "drivers" ]; then
 		apply_patches || exit 1
@@ -8022,14 +8021,15 @@ following Environment variables.
 	6. Build Directory   : $PROD_HOME/$build_dir 
 "
 
-	if [ $TDM_PROT = "YES"  ]; then
-echo "	7. Zaptel Build Dir  : $ZAPTEL_INSTALL_DIR "
-	fi
-	echo
-	echo
-		if [ $KERNEL_UNAME != $KERNEL_VERSION ]; then
+    	if [ $TDM_PROT = "YES"  ]; then
+            echo "	7. Zaptel Build Dir  : $ZAPTEL_INSTALL_DIR "
+    	fi
 
-			echo "
+    	echo
+    	echo
+
+    	if [ $KERNEL_UNAME != $KERNEL_VERSION ]; then
+    		echo "
 WARNING:
 
 The items 2 and 3 should usually be identical! 
@@ -8039,19 +8039,18 @@ a different kernel image name, Setup is assuming
 you know what you are doing :)
 
 "
-		fi
+    	fi
 
-		getyn "Would you like to build WANPIPE $package_name ?"
-		if [ $? -ne 0 ]; then
-			exit 1
-		fi
-
+    	getyn "Would you like to build WANPIPE $package_name ?"
+    	if [ $? -ne 0 ]; then
+    		exit 1
+    	fi
 		
 		echo "$PROTS" | grep "TDM" > /dev/null
 		if [ $? -eq 0 ]; then
-		$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile --zaptel-path=$ZAPTEL_INSTALL_DIR 
+		    $PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile --zaptel-path=$ZAPTEL_INSTALL_DIR 
 		else
-		$PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile 
+		    $PROD_HOME/Setup install --silent --builddir=$PROD_HOME/$build_dir --with-linux=$SOURCEDIR --arch=$ARCH --protocol=$PROTS --ss7_user_id=$SS7_USER_ID --noautostart --no-zaptel-compile 
 		fi
 
 		if [ $? -ne 0 ]; then
@@ -8059,18 +8058,17 @@ you know what you are doing :)
 			exit 1;
 		fi
 
-
 		if [ "$setup_cmd" = "buildrpm" ]; then
-                        compile_aft_firmware_util
+            compile_aft_firmware_util
 			detect_rpm_build_utility
 
- 
 			if [ "$SPLIT_RPMS" = "YES" ]; then
-				eval "$RPM -bb --define '_unpackaged_files_terminate_build 0' $RPMOPT $PROD_HOME/rpmbuild $PROD_HOME/rpmspec/wanpipe-util.spec --target=$ARCH"
-				eval "$RPM -bb --define '_unpackaged_files_terminate_build 0' --define 'kern_ver $KERNEL_VERSION' $RPMOPT $PROD_HOME/rpmbuild $PROD_HOME/rpmspec/wanpipe-mod.spec --target=$ARCH"
+				eval "$RPM -bb --define '_unpackaged_files_terminate_build 0' $RPMOPT $PROD_HOME/rpmbuild $PROD_HOME/rpmspec/wanpipe-util.rpmspec --target=$ARCH"
+				eval "$RPM -bb --define '_unpackaged_files_terminate_build 0' --define 'kern_ver $KERNEL_VERSION' $RPMOPT $PROD_HOME/rpmbuild $PROD_HOME/rpmspec/wanpipe-mod.rpmspec --target=$ARCH"
 			else
-		       	 	eval "$RPM -bb --define 'kern_ver $KERNEL_VERSION' $RPMOPT $PROD_HOME/rpmbuild $PROD_HOME/rpmspec/wanpipe.spec --target=$ARCH"
+                eval "$RPM -bb --define 'kern_ver $KERNEL_VERSION' $RPMOPT $PROD_HOME/rpmbuild $PROD_HOME/rpmspec/wanpipe.rpmspec --target=$ARCH"
 			fi
+
 			if [ $? -eq 0 ]; then
 				cat <<ENDOFTEXT
 
@@ -8159,7 +8157,6 @@ ENDOFTEXT
 		fi
 		exit 0;
 
-
 	fi
 
 	if [ "$1" = "helprpm" ]; then
@@ -8215,7 +8212,7 @@ RPM the user can manully create one.
    directory:
 
    $RPM -bb $RPMOPT $PROD_HOME/rpmbuild \\ 
-                                     $PROD_HOME/rpmspec/wanpipe.spec
+                                     $PROD_HOME/rpmspec/wanpipe.rpmspec
 
 ENDOFTEXT
 		exit 0;
@@ -8261,95 +8258,95 @@ fi
 #NONINTERACTIVE=
 
 if [ -z $NONINTERACTIVE ]; then
-
-if [ "$WANCFG_ZAPTEL_CFG" = "YES" ] && [ -e $WANCFG_ZAPTEL ]; then
-	echo 
-	if [ $SSMG_BRI == "YES" ]; then
-	echo "Wanpipe / Zaptel/Dahdi & SMG BRI Configuration"
-	echo "========================================"
-	else
-		if [ $DAHDI_SUPPORT = "YES" ]; then
-			echo "Wanpipe / Zaptel Configuration"
-		else
-			echo "Wanpipe / Dahdi Configuration"
-		fi
-	echo "=============================="
-	fi
-	echo
-	if  [ $SSMG_BRI == "YES" ]; then
-	echo "wancfg_smg configurator can create all wanpipe config files"
-	echo "for ZAPTEL as well as for SMG BRI."
-	else
-		if [ $DAHDI_SUPPORT = "YES" ]; then
-			echo "wancfg_zaptel configurator can create all wanpipe config files"
-        		echo "for ZAPTEL including /etc/zaptel.conf file."
-			echo "Optionally: the configurator can also create Asterisk zapata.conf"
-		else
-			echo "wancfg_dahdi configurator can create all wanpipe config files"
-        		echo "for DAHDI including /etc/dahdi/dahdi.conf file."
-			echo "Optionally: the configurator can also create Asterisk dahdi.conf"
-		fi
-	fi
-	echo "-----------------------------------------------------"
-	if [ $SSMG_BRI == "YES" ]; then
-       	getyn "Would you like to configure wanpipe devices for ZAPTEL/DAHDI & BRI?"
-	else
-		if [ $DAHDI_SUPPORT = "YES" ]; then
-       			getyn "Would you like to configure wanpipe devices for DAHDI?"
-		else
-       			getyn "Would you like to configure wanpipe devices for ZAPTEL?"
-		fi
-	fi
+    if [ "$WANCFG_ZAPTEL_CFG" = "YES" ] && [ -e $WANCFG_ZAPTEL ]; then
+    	echo 
+    	if [ $SSMG_BRI == "YES" ]; then
+    	echo "Wanpipe / Zaptel/Dahdi & SMG BRI Configuration"
+    	echo "========================================"
+    	else
+    		if [ $DAHDI_SUPPORT = "YES" ]; then
+    			echo "Wanpipe / Zaptel Configuration"
+    		else
+    			echo "Wanpipe / Dahdi Configuration"
+    		fi
+    	echo "=============================="
+    	fi
+    	echo
+    	if  [ $SSMG_BRI == "YES" ]; then
+    	echo "wancfg_smg configurator can create all wanpipe config files"
+    	echo "for ZAPTEL as well as for SMG BRI."
+    	else
+    		if [ $DAHDI_SUPPORT = "YES" ]; then
+    			echo "wancfg_zaptel configurator can create all wanpipe config files"
+            		echo "for ZAPTEL including /etc/zaptel.conf file."
+    			echo "Optionally: the configurator can also create Asterisk zapata.conf"
+    		else
+    			echo "wancfg_dahdi configurator can create all wanpipe config files"
+            		echo "for DAHDI including /etc/dahdi/dahdi.conf file."
+    			echo "Optionally: the configurator can also create Asterisk dahdi.conf"
+    		fi
+    	fi
+    	echo "-----------------------------------------------------"
+    	if [ $SSMG_BRI == "YES" ]; then
+           	getyn "Would you like to configure wanpipe devices for ZAPTEL/DAHDI & BRI?"
+    	else
+    		if [ $DAHDI_SUPPORT = "YES" ]; then
+           			getyn "Would you like to configure wanpipe devices for DAHDI?"
+    		else
+           			getyn "Would you like to configure wanpipe devices for ZAPTEL?"
+    		fi
+    	fi
 
        	if [ $? -eq 0 ]; then
-		if [ $SSMG_BRI == "YES" ]; then
-	        	eval "$WANCFG_SMG"
-		else
-			if [ $DAHDI_SUPPORT = "YES" ]; then
-	        		eval "$WANCFG_DAHDI"
-			else 
-	        		eval "$WANCFG_ZAPTEL"
-			fi
-		fi
-	else
-		echo "Wanpipe Installation Complete"
-		echo "-----------------------------" 
-		if [ $SSMG_BRI == "YES" ]; then
-			echo "Please proceed to configure wanpipe user /usr/sbin/wancfg_smg"
-		else
-			if [ $DAHDI_SUPPORT = "YES" ]; then
-				echo "Please proceed to configure wanpipe user /usr/sbin/wancfg_dahdi"
-			else
-				echo "Please proceed to configure wanpipe user /usr/sbin/wancfg_zaptel"
-			fi
-		fi
-		echo
-	fi
-elif [ "$SSMG_BRI" = "YES" ]; then
-	echo 
-	echo "Wanpipe / SMG BRI Configuration"
-	echo "==============================="
-	echo
-	echo "wancfg_smg configurator can create all wanpipe devices"
-        echo "for BRI as well as BRI config file and Asterisk config files."
-	echo "-----------------------------------------------------"
-       	getyn "Would you like to configure wanpipe devices for SMG BRI/Asterisk/CallWeaver?"
+    	    if [ $SSMG_BRI == "YES" ]; then
+                eval "$WANCFG_SMG"
+    	    else
+    		    if [ $DAHDI_SUPPORT = "YES" ]; then
+            	    eval "$WANCFG_DAHDI"
+    		    else 
+            	    eval "$WANCFG_ZAPTEL"
+    		    fi
+    	    fi
+    	else
+    		echo "Wanpipe Installation Complete"
+    		echo "-----------------------------" 
+    		if [ $SSMG_BRI == "YES" ]; then
+    			echo "Please proceed to configure wanpipe user /usr/sbin/wancfg_smg"
+    		else
+    			if [ $DAHDI_SUPPORT = "YES" ]; then
+    				echo "Please proceed to configure wanpipe user /usr/sbin/wancfg_dahdi"
+    			else
+    				echo "Please proceed to configure wanpipe user /usr/sbin/wancfg_zaptel"
+    			fi
+    		fi
+    		echo
+    	fi
+    elif [ "$SSMG_BRI" = "YES" ]; then
+    	echo 
+    	echo "Wanpipe / SMG BRI Configuration"
+    	echo "==============================="
+    	echo
+    	echo "wancfg_smg configurator can create all wanpipe devices"
+            echo "for BRI as well as BRI config file and Asterisk config files."
+    	echo "-----------------------------------------------------"
+        getyn "Would you like to configure wanpipe devices for SMG BRI/Asterisk/CallWeaver?"
+
        	if [ $? -eq 0 ]; then
-		if [ $SSMG_BRI == "YES" ]; then
-	        	eval "$WANCFG_SMG"
-		else
-			if [ $DAHDI_SUPPORT = "YES" ]; then
-	        		eval "$WANCFG_DAHDI"
-			else 
-	        		eval "$WANCFG_ZAPTEL"
-			fi
-		fi
-	else
-		echo "Wanpipe Installation Complete"
-		echo "-----------------------------" 
-		echo "Please proceed to configure wanpipe user /usr/sbin/wancfg"
-		echo
-	fi
-fi
+    		if [ $SSMG_BRI == "YES" ]; then
+    	        	eval "$WANCFG_SMG"
+    		else
+    			if [ $DAHDI_SUPPORT = "YES" ]; then
+    	        		eval "$WANCFG_DAHDI"
+    			else 
+    	        		eval "$WANCFG_ZAPTEL"
+    			fi
+    		fi
+    	else
+    		echo "Wanpipe Installation Complete"
+    		echo "-----------------------------" 
+    		echo "Please proceed to configure wanpipe user /usr/sbin/wancfg"
+    		echo
+    	fi
+    fi
 fi
 

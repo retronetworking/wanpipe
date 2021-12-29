@@ -3,6 +3,7 @@
  * \brief LibSangoma private definitios, this file should not be used by applications nor installed -
  *
  * Author(s):	Moises Silva <moy@sangoma.com>
+ *				David Rokhvarg <davidr@sangoma.com>
  *
  * Copyright:	(c) 2009 Sangoma Technologies
  *
@@ -123,6 +124,39 @@ typedef struct sangoma_wait_obj
  */
 #define DEV_NAME_LEN	100
 
+/**** debugging definitions ****/
+static void libsng_dbg(const char * fmt, ...)
+{
+	va_list args;
+	char buf[1024];
+	va_start(args, fmt);
+	_vsnprintf(buf, sizeof(buf), fmt, args);
+#if defined(__WINDOWS__)
+	OutputDebugString(buf);
+#else
+	printf(buf);
+#endif
+	va_end(args);
+}
 
-#endif	/* _LIBSNAGOMA_H */
+extern int libsng_dbg_level;
+
+#define	DBG_POLL	if(libsng_dbg_level)libsng_dbg
+#define	DBG_EVNT	if(libsng_dbg_level)libsng_dbg
+#define	DBG_ERR		if(libsng_dbg_level)libsng_dbg("Error: %s() line: %d : ", __FUNCTION__, __LINE__);if(libsng_dbg_level)libsng_dbg
+#define	DBG_INIT	if(libsng_dbg_level)libsng_dbg
+
+/**** Prototypes of Function used internally by libsangoma ****/
+sng_fd_t sangoma_open_dev_by_name(const char *dev_name);
+#if defined(__WINDOWS__)
+int UdpManagementCommand(sng_fd_t fd, wan_udp_hdr_t* wan_udp);
+LONG registry_set_integer_value(HKEY hkey, LPTSTR szKeyname, IN int iValue);
+LONG registry_set_string_value(HKEY hkey, LPTSTR szKeyname, IN LPSTR szValue);
+HKEY registry_open_port_key(hardware_info_t *hardware_info);
+int registry_write_front_end_cfg(HKEY hPortRegistryKey, port_cfg_t *port_cfg);
+int registry_write_wan_tdmv_conf(HKEY hPortRegistryKey, port_cfg_t *port_cfg);
+int registry_write_channel_group_cfg(HKEY hPortRegistryKey, port_cfg_t *port_cfg, int interface_index, wanif_conf_t wanif_conf);
+#endif
+
+#endif	/* _LIBSNAGOMA_PVT_H */
 

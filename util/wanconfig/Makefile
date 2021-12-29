@@ -11,13 +11,16 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 DIR_EC_APILIB	= ../wanec_apilib
-WANECDIR=../../patches/kdrivers/wanec
 
+WANECDIR=../../patches/kdrivers/wanec
 ifeq (,$(wildcard $(WANECDIR)))
-WANECDIR=/common/wanec
+	WANECDIR=/common/wanec
 endif
 
-SYSINC=/usr/include/wanpipe
+ifndef SYSINC
+	SYSINC=/usr/include/wanpipe
+endif
+
 WAN_VIRTUAL=
 
 # Tools options.

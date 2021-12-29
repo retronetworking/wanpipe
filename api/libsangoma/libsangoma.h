@@ -1215,6 +1215,20 @@ int _LIBSNG_CALL sangoma_tdm_get_hwec_chan_status(sng_fd_t fd, wanpipe_api_t *td
 
 #endif
 
+#ifdef WP_API_FEATURE_HWEC_PERSIST    
+/*!
+  \fn int sangoma_tdm_get_hwec_persist_status(sng_fd_t fd, wanpipe_api_t *tdm_api) 
+  \brief Check if hwec persis mode is on: On persist mode hwec is always enabled.
+  \param fd device file descriptor
+  \param tdm_api tdm api command structure
+  \return non-zero: error, 0: disabled, >0: enabled
+
+  This function will check if hw persist mode is enabled.
+*/
+
+int _LIBSNG_CALL sangoma_tdm_get_hwec_persist_status(sng_fd_t fd, wanpipe_api_t *tdm_api);   
+#endif
+
 /*!
   \fn int sangoma_span_chan_toif(int span, int chan, char *interface_name)
   \brief Convert Span & Chan to interface name

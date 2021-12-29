@@ -73,7 +73,7 @@ int 	aft_tdm_ring_rsync(sdla_t *card);
 
 int 	aft_core_send_serial_oob_msg (sdla_t *card);
 int 	wan_user_process_udp_mgmt_pkt(void* card_ptr, void* chan_ptr, void *udata);
-
+int     aft_check_and_disable_dchan_optimization(sdla_t *card, private_area_t *chan, char *usedby);
 
 /*=================================================================
  * Used for debugging only

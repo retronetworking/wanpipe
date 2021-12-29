@@ -11,23 +11,26 @@ OS_TYPE	= __LINUX__
 DEBUG	= 2
 
 # Project file paths.
-APIINC = /usr/include/wanpipe
+# Wanpipe Include Directory ( can be changed using --builddir= on ./Setup or make WANINCDIR= )
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
+endif
 
 ifneq (,$(wildcard /wanpipe/code/Makefile.in))
-include /wanpipe/code/Makefile.in
-EXTRA_FLAGS+=$(GLOBAL_CFLAGS)
+	include /wanpipe/code/Makefile.in
+	EXTRA_FLAGS+=$(GLOBAL_CFLAGS)
 endif
 
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../ -I../../lib  -I$(APIINC) $(EXTRA_FLAGS)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../ -I../../lib  -I$(WANINCDIR) $(EXTRA_FLAGS)
 
 ####### RULES ################################################################
 
 all:	server_v1 \
         server_v2 \
-	svc_client \
-	pvc_client
+		svc_client \
+		pvc_client
 	@echo "Ok."
 
 

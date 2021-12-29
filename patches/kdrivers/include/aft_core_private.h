@@ -36,6 +36,12 @@
 
 #define A500_MAX_EC_CHANS 64
 
+#define WP_ZAPTEL_ENABLED	     0
+#define WP_ZAPTEL_DCHAN_OPTIMIZATION 1
+
+#define WP_TDM_CHAN_API_ENABLED		  0
+#define WP_TDM_SPAN_API_ENABLED		  1
+#define WP_TDM_API_DCHAN_OPTIMIZATION 2
 
 
 /* Trigger on Number of transactions 

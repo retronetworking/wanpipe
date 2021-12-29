@@ -1,7 +1,7 @@
 %define KERNEL_VERSION    %{?kern_ver}
 %define WANPIPE_VER	  wanpipe-util
 %define name              %{WANPIPE_VER}
-%define version           3.5.15
+%define version           3.5.16
 %define release           0
 %define	serial	 	  1
 %define ETC_DIR 	  /etc
@@ -328,7 +328,25 @@ enable_smg_log;
 
 %changelog
 
-* Fri Aug 27 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.14
+* Fri Sep 27 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.16
+===================================================================
+
+- Dahdi 2.4 Support
+- Fixed BRI B500/B700 hwec enable on call start caused in 3.5.12 release.
+- Bug fix in voice+data mixed mode where dchan could get stuck due to
+  dma overruns.
+- Bug fix in tdmapi where excessive memory was allocated on pre-allocation buffers.
+- Bug fix tdmapi defaults to 20ms chunk size instead of 10ms
+- Bug fix broken support for A101/2 legacy EOL cards. 
+- New XEN Support 
+  TDM Voice will now work properly on xen virtualized machines
+- Fix for 64bit 8gig issues
+- New rpmbuld spec files.
+  rpmbuild -tb wanpipe-3.5.16.tgz
+  rpmbuild -tb wanpipe-3.5.16.tgz --define 'with_dahdi 1' --define 'dahdi_dir /usr/src/dahdi'
+
+
+* Fri Aug 27 2010 Nenad Corbic <ncorbic@sangoma.com> -  3.5.15
 ===================================================================
 
 - Fixed B600 and B601 warning messages introduced in 3.5.14

@@ -80,6 +80,10 @@
 #       define WAN_SK_SLEEP(sk) sk->sk_sleep
 #endif
 
+#ifndef DMA_BIT_MASK
+#define DMA_BIT_MASK(a)  DMA_32BIT_MASK
+#endif
+
 ////////////////////////////////////////////////
 
 

@@ -10,12 +10,13 @@
 OS_TYPE	= __LINUX__
 DEBUG	= 2
 
-SYSINC=/usr/include/wanpipe
-VPATH	= $(SYSINC)
+# Wanpipe Include Directory ( can be changed using --builddir= on ./Setup or make WANINCDIR= )
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
+endif
 
 # Tools options.
-CFLAGS	= -Wall -O2 -D$(OS_TYPE) -I$(SYSINC) -DWANPIPE_TDM_API -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib/hdlc -I../lib 
-#CFLAGS	= -I$(SYSINC)
+CFLAGS	= -Wall -O2 -D$(OS_TYPE) -I$(WANINCDIR) -DWANPIPE_TDM_API -D_DEBUG_=$(DEBUG) -D_GNUC_ -I../lib/hdlc -I../lib 
 
 TARGETS = aft_tdm_voice_api
 TARGETS += aft_tdm_voice_api_switch

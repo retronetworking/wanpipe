@@ -7959,7 +7959,7 @@ static int sdla_memory_map(sdlahw_t* hw)
 	}
 
 #if defined(__LINUX__) && defined(DMA_32BIT_MASK)
-	if((err = pci_set_dma_mask(hwcard->u_pci.pci_dev, DMA_32BIT_MASK))) {
+	if((err = pci_set_dma_mask(hwcard->u_pci.pci_dev, DMA_BIT_MASK(32)))) {
 		DEBUG_ERROR("%s: Error: No usable DMA configuration, aborting.\n",
 				hw->devname);
 		err = -EINVAL;
@@ -10407,18 +10407,29 @@ sdla_busdma_map(void *phw, wan_dma_descr_t *dma_descr, void *buf, int buflen, in
 	}
 #elif defined(__LINUX__)
 	dma_descr->dma_offset	= 0;
-	dma_descr->dma_addr = 
-		cpu_to_le32(pci_map_single(hwcard->u_pci.pci_dev,buf,map_len,dir));
-	if (dma_descr->dma_addr & (dma_descr->alignment-1)){
+	
+	dma_descr->dma_virt	= buf;
+
+	/* NC: We must align the virtual address first before we 
+	   map it to physical. */
+	if (dma_descr->alignment &&
+		(unsigned long)dma_descr->dma_virt & (dma_descr->alignment-1)){
 		dma_descr->dma_offset = 
-			dma_descr->alignment - 
-			(dma_descr->dma_addr & (dma_descr->alignment-1));
-		dma_descr->dma_virt = buf + dma_descr->dma_offset;
-		dma_descr->dma_addr += dma_descr->dma_offset;
-	}else{
-		dma_descr->dma_virt	= buf;
-		dma_descr->dma_offset	= 0;
+				dma_descr->alignment - 
+				((unsigned long)dma_descr->dma_virt & (dma_descr->alignment-1));
+		dma_descr->dma_virt = (u8*)dma_descr->dma_virt + dma_descr->dma_offset;
+		map_len-=dma_descr->dma_offset;
 	}
+	
+	dma_descr->dma_addr = 
+			cpu_to_le32(pci_map_single(hwcard->u_pci.pci_dev,dma_descr->dma_virt,map_len,dir));
+	
+	
+	if (dma_descr->dma_addr & (dma_descr->alignment-1)){
+		DEBUG_ERROR("Critical Error: DMA ADDR is not in alignment even though virtual is! v=%p p=%08X\n",
+					dma_descr->dma_virt,dma_descr->dma_addr);
+	}
+
 #elif defined(__OpenBSD__)
 	dma_descr->dma_addr = virt_to_phys(buf);
 	if (dma_descr->dma_addr & (dma_descr->alignment-1)){
@@ -10490,7 +10501,6 @@ static void sdla_busdma_unmap(void *phw, wan_dma_descr_t *dma_descr, int dir)
 	}
 #elif defined(__LINUX__)
 	if (dma_descr->dma_addr){
-		dma_descr->dma_addr -= dma_descr->dma_offset;
 		pci_unmap_single(	hwcard->u_pci.pci_dev, 
 					dma_descr->dma_addr, 
 					dma_descr->dma_map_len, 
@@ -10516,13 +10526,21 @@ static void sdla_busdma_unmap(void *phw, wan_dma_descr_t *dma_descr, int dir)
 static void 
 sdla_busdma_sync(void *phw, wan_dma_descr_t *dma_descr, int ndescr, int single, int dir)
 {
-	sdlahw_t	*hw = (sdlahw_t*)phw;
 #if defined(__FreeBSD__)
 	int		cnt = 0;
 #endif
 
+	sdlahw_t	*hw = (sdlahw_t*)phw;
+	sdlahw_card_t	*hwcard;
+	sdlahw_cpu_t	*hwcpu;
+
 	WAN_ASSERT_VOID(hw == NULL);
 	SDLA_MAGIC_VOID(hw);
+	WAN_ASSERT_VOID(hw->hwcpu == NULL);
+	hwcpu = hw->hwcpu;
+	WAN_ASSERT_VOID(hwcpu->hwcard == NULL);
+	hwcard = hwcpu->hwcard;
+
 	if (!wan_test_bit(SDLA_DMA_FLAG_READY, &dma_descr->flag)){
 		DEBUG_DMA("%s: Internal Error: %s:%d: DMA is not ready!\n",
 					hw->devname, __FUNCTION__,__LINE__);
@@ -10534,7 +10552,15 @@ sdla_busdma_sync(void *phw, wan_dma_descr_t *dma_descr, int ndescr, int single, 
 		if (single) break;
 		dma_descr++;
 	}
+
 #elif defined(__LINUX__)
+	if (dir == PCI_DMA_TODEVICE) {
+    	pci_dma_sync_single_for_device(hwcard->u_pci.pci_dev, dma_descr->dma_addr,
+	 			    dma_descr->dma_map_len, dir); 
+	} else {
+		pci_dma_sync_single_for_cpu(hwcard->u_pci.pci_dev, dma_descr->dma_addr,
+								   dma_descr->dma_map_len, dir);   
+	}
 #elif defined(__OpenBSD__)
 #elif defined(__WINDOWS__)
 #else

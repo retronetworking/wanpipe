@@ -568,7 +568,6 @@ int get_map(wan_device_t *wandev, netdevice_t *dev, struct seq_file* m, int* sto
 
 
 #ifdef AFT_TDM_API_SUPPORT
-
 int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 {
 	int err=0;
@@ -712,6 +711,9 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 		chan->wp_tdm_api_dev->cfg.usr_period = chan->tdm_api_period;
 		chan->wp_tdm_api_dev->cfg.usr_mtu_mru = chan->tdm_api_chunk;
 		if (chan->wp_tdm_api_dev->cfg.usr_mtu_mru < 160) {
+			chan->tdm_api_period=20;
+			chan->wp_tdm_api_dev->cfg.usr_period=20;
+			chan->tdm_api_chunk=160;
          	chan->wp_tdm_api_dev->cfg.usr_mtu_mru=160;
 		}
 	} else {
@@ -733,10 +735,13 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 	chan->wp_tdm_api_dev->api_mode = chan->wp_api_iface_mode;
 
 	if (chan->if_cnt == 1) {
-		DEBUG_EVENT("%s:    Memory: TDM API %d\n",
+		DEBUG_EVENT("%s:    Memory: TDM API %d \n",
 				card->devname, sizeof(wanpipe_tdm_api_dev_t));
 	}
-	
+
+	DEBUG_TDMAPI("%s: Chunk=%i, Period=%i, MTU=%i\n",
+				 card->devname,chan->tdm_api_chunk,
+				 chan->tdm_api_period,chan->wp_tdm_api_dev->cfg.usr_mtu_mru);
 
 	err=wanpipe_tdm_api_reg(chan->wp_tdm_api_dev);
 	if (err){
@@ -752,6 +757,7 @@ int aft_tdm_api_init(sdla_t *card, private_area_t *chan, wanif_conf_t *conf)
 	wan_set_bit(0,&chan->wp_tdm_api_dev->init);
 	return err;
 }
+
 #endif
 
 int aft_tdm_api_free(sdla_t *card, private_area_t *chan)

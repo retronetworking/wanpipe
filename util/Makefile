@@ -1,25 +1,30 @@
 PWD=$(shell pwd)
-ifneq (,$(wildcard $(PWD)/../patches/kdrivers/include))
-SYSINC=$(PWD)/../patches/kdrivers/include
-else
-SYSINC=/usr/include/wanpipe
+
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
 endif
+
+ifneq (,$(wildcard $(PWD)/../patches/kdrivers/include))
+	SYSINC=$(PWD)/../patches/kdrivers/include
+else
+	SYSINC=$(WANINCDIR)
+endif
+
 WAN_VIRTUAL=$(PREFIX)
-WANINCDIR=/usr/include/wanpipe
 ARCH=$(shell uname -m)
 
 all:
 	make -C ft1 all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 	make -C lxdialog all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
-	make -C sdladump all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
-	make -C wanconfig all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
-	make -C wanec_client all CC=$(CC)  SYSINC=$(SYSINC) WANINCDIR=$(WANINCDIR) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
-	make -C wan_plxctrl all CC=$(CC)  SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
-	make -C wanpipemon all  CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" ENABLE_WANPIPEMON_ZAP=$(ENABLE_WANPIPEMON_ZAP) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)  
-	make -C wanpipemon_legacy all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)  
-	make -C bwm all SYSINC=$(SYSINC) CC=$(CC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
-	make -C wancfg all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
-	make -C wan_aftup all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 
+	make -C sdladump all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C wanconfig all CC=$(CC) SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C wanec_client all CC=$(CC)  SYSINC=$(SYSINC) WANINCDIR=$(WANINCDIR) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C wan_plxctrl all CC=$(CC)  SYSINC=$(SYSINC) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C wanpipemon all  CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" ENABLE_WANPIPEMON_ZAP=$(ENABLE_WANPIPEMON_ZAP) EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C wanpipemon_legacy all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C bwm all SYSINC=$(SYSINC) CC=$(CC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C wancfg all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
+	make -C wan_aftup all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH)
 
 all_wancfg:
 	make -C wancfg all CC=$(CC) SYSINC=$(SYSINC) PROTOCOL_DEFS="$(PROTOCOL_DEFS)" EXTRA_FLAGS="$(EXTRA_FLAGS)" ARCH=$(ARCH) 

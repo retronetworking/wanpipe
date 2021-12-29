@@ -1,6 +1,7 @@
 #!/bin/sh
-
 set -e
+
+# prerm for Wanpipe
 
 echo "Uninstalling WANPIPE..."
 
@@ -9,35 +10,39 @@ echo "Uninstalling WANPIPE..."
 # ----------------------------------------------------------------------------
 remove_init()
 {
-        # Examine system bootstrap files.
-        if [ -d /etc/rc0.d ]
-        then RC_DIR=/etc
-        elif [ -d /etc/rc.d/rc0.d ]
-        then RC_DIR=/etc/rc.d
-        else return 0
-        fi
+    # Examine system bootstrap files.
+    if [ -d /etc/rc0.d ]; then
+        RC_DIR=/etc
+    elif [ -d /etc/rc.d/rc0.d ]; then
+        RC_DIR=/etc/rc.d
+    else
+        return 0
+    fi
 
 	PROD=wanrouter
-	START_SCRIPT=S20wanrouter
-	STOP_SCRIPT=K10wanrouter
-	PROD_INIT=/usr/sbin/wanrouter
+	PROD_INIT=$RC_DIR/init.d/$PROD
 
 	echo "Removing WANPIPE start-up scripts: $RC_DIR"
-        rm -f $RC_DIR/rc2.d/$START_SCRIPT
-	rm -f $RC_DIR/rc3.d/$START_SCRIPT
-        rm -f $RC_DIR/rc4.d/$START_SCRIPT
-        rm -f $RC_DIR/rc5.d/$START_SCRIPT
+	update-rc.d -f wanrouter remove
+	rm -f $PROD_INIT
 
-        rm -f $RC_DIR/rc0.d/$STOP_SCRIPT
-        rm -f $RC_DIR/rc1.d/$STOP_SCRIPT
-        rm -f $RC_DIR/rc6.d/$STOP_SCRIPT
-
-        rm -f $RC_DIR/init.d/$PROD
-        return 0
+    return 0
 }
 
-#remove start-on-boot scripts
-remove_init;
-
+case "$1" in
+    remove|deconfigure)
+        # remove start-on-boot scripts
+        remove_init;
+        ;;
+    upgrade)
+        echo "Nothing to Remove, wanpipe install script understand this"
+        ;;
+    failed-upgrade)
+        ;;
+    *)
+        echo "prerm called with unknown argument \`$1'" >&2
+        exit 0
+        ;;
+esac
 
 exit 0

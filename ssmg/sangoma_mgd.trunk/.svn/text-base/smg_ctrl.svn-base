@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash -p 
 cmd=$1;
 sigd=$2;
 xtraargs='';
@@ -581,6 +581,13 @@ read_smg_conf
 #Set sigd
 if [ "$SANGOMA_PRID" = "YES" ]; then
 	sigd="sangoma_prid"
+	eval "echo $LD_LIBRARY_PATH | grep sangoma_prid > /dev/null 2>/dev/null"
+	if [ $? -ne 0 ];then
+		echo "Adding /usr/lib/sangoma_prid to library paths"
+		export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/lib/sangoma_prid"
+	else
+		echo "sangoma_prid libraries already in library paths" 
+	fi
 elif [ "$SANGOMA_BRID" = "YES" ]; then
 	sigd="sangoma_brid"
 elif [ "$SANGOMA_SS7ISUP" = "YES" ]; then

@@ -12,7 +12,9 @@ DEBUG	= 2
 
 PROD=wanpipemon
 
-SYSINC=/usr/include/wanpipe
+ifndef SYSINC
+	SYSINC=/usr/include/wanpipe
+endif
 
 WAN_VIRTUAL=
 LXDIR=../lxdialog

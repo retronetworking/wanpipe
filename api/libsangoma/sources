@@ -28,5 +28,5 @@ $(SDK_LIB_PATH)\SetupApi.lib \
 $(SDK_LIB_PATH)\Advapi32.lib \
 $(SANG_WP_DEVEL)\wanpipe_common\wantools\wanec_apilib\$(O)\waneclib.lib
 
-SOURCES=libsangoma.c libsangoma.rc libsangoma_hwec.c libsangoma_utils.c
+SOURCES=libsangoma.c libsangoma.rc libsangoma_hwec.c libsangoma_utils.c libsangoma_config.c
 

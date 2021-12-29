@@ -2,6 +2,7 @@
 home=`pwd`
 cd $home
 
+
 read_meta_conf ()
 {
 
@@ -31,36 +32,52 @@ read_meta_conf ()
 	return 0
 }
 
-choose_openzap_freetdm()
+check_libsng_isdn ()
 {
-	if [ -f "/usr/local/freeswitch/mod/mod_openzap.so" ];then 
-		openzap_recommended="openzap (currently installed in your system)";
-		freetdm_recommended="freetdm";
-	elif [ -f "/usr/local/freeswitch/mod/mod_freetdm.so" ];then
-		openzap_recommended="openzap";
-		freetdm_recommended="freetdm (currently installed in your system)";
-        elif [ -f "/usr/local/freeswitch/mod/mod_freetdm.so" ] && [ -f "/usr/local/freeswitch/mod/mod_openzap.so"  ] ;then
-                openzap_recommended="openzap (currently installed in your system)";
-                freetdm_recommended="freetdm (currently installed in your system)";
-	elif [ ! -f "/usr/local/freeswitch/mod/mod_freetdm.so" ] && [ ! -f "/usr/local/freeswitch/mod/mod_openzap.so"  ] ;then
-		openzap_recommended="openzap";
-		freetdm_recommended="freetdm";
+	check_32=0; #0 not found; 1 found`
+	check_64=0;	
+	if [ ! -f "/usr/lib/libsng_isdn.so" ];then
+		check_32=1; 
 	fi
 
-	echo "Please choose one of the following"
-	echo "----------------------------------"
-	echo "1) $openzap_recommended"
-	echo "2) $freetdm_recommended"
-	echo ""
-	echo "Enter your option : "
-	read choice
+	if [ -d "/usr/lib64/" ];then
+		if [ ! -f "/usr/lib64/libsng_isdn.so" ];then
+			check_64=1;
+			#check_32=0;
+		else check_32=0;
+		fi
+	fi
+
+
+	if [ "$check_64" -eq 1 ];then
+		echo "LIBSNG_ISDN is not installed in your system !!!";
+		echo "----------------------------------------------";
+		echo "";
+		echo "Do you want to continue? (y/n)"
+		read choice
+		
+		case $choice in
+			y) ./wancfg_zaptel.pl --trillium --conf_dir=$WAN_BASE $ARGS;;
+			n) exit;
+		esac
 	
-	case $choice in
-	1)	./wancfg_zaptel.pl --conf_fs --conf_dir=$WAN_BASE $ARGS;;
-			
-	2)	./wancfg_zaptel.pl --ftdm_api --conf_dir=$WAN_BASE $ARGS;;
-	esac	
+	elif [ "$check_32" -eq 1 ];then
+		echo "LIBSNG_ISDN is not installed in your system!!!";
+		echo "----------------------------------------------";
+		echo "";
+		echo "Do you want to continue? (y/n)"
+		read choice
+
+		case $choice in
+			y) ./wancfg_zaptel.pl --trillium --conf_dir=$WAN_BASE $ARGS;;
+			n) exit;;
+		esac
+	
+	else
+		./wancfg_zaptel.pl --trillium --conf_dir=$WAN_BASE $ARGS;		
+	fi
 }
+
 
 ostype=`sysctl -a |grep ostype`
 ostype=`echo $ostype | sed 's/.* //'`
@@ -79,6 +96,7 @@ if [ $? -ne 0 ]; then
 fi
 
 cd ${WAN_HOME}/wancfg_zaptel
-clear
-choose_openzap_freetdm
+#clear
+#check_libsng_isdn;
+./wancfg_zaptel.pl --trillium --conf_dir=$WAN_BASE $ARGS;		
 cd $home

@@ -78,12 +78,13 @@ libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libsangoma_la_LIBADD =
 am__libsangoma_la_SOURCES_DIST = libsangoma.c libsangoma_utils.c \
-	libsangoma_hwec.c libsangoma.h libhpsangoma.c libhpsangoma.h \
-	libhpsangoma_priv.c libhpsangoma_priv.h sangoma_pri.c \
-	sangoma_pri.h
+	libsangoma_config.c libsangoma_hwec.c libsangoma.h \
+	libhpsangoma.c libhpsangoma.h libhpsangoma_priv.c \
+	libhpsangoma_priv.h sangoma_pri.c sangoma_pri.h
 @LIBPRI_TRUE@am__objects_1 = libsangoma_la-sangoma_pri.lo
 am__objects_2 = libsangoma_la-libsangoma.lo \
 	libsangoma_la-libsangoma_utils.lo \
+	libsangoma_la-libsangoma_config.lo \
 	libsangoma_la-libsangoma_hwec.lo libsangoma_la-libhpsangoma.lo \
 	libsangoma_la-libhpsangoma_priv.lo $(am__objects_1)
 am_libsangoma_la_OBJECTS = $(am__objects_2)
@@ -235,9 +236,9 @@ AM_CFLAGS = -fPIC -Wall -Wstrict-prototypes -Wmissing-prototypes -g \
 	$(am__append_3)
 
 #ACLOCAL_AMFLAGS = -I m4 
-LIB_SOURCES = libsangoma.c libsangoma_utils.c libsangoma_hwec.c \
-	libsangoma.h libhpsangoma.c libhpsangoma.h libhpsangoma_priv.c \
-	libhpsangoma_priv.h $(am__append_1)
+LIB_SOURCES = libsangoma.c libsangoma_utils.c libsangoma_config.c \
+	libsangoma_hwec.c libsangoma.h libhpsangoma.c libhpsangoma.h \
+	libhpsangoma_priv.c libhpsangoma_priv.h $(am__append_1)
 library_includedir = $(includedir)
 library_include_HEADERS = libsangoma.h libhpsangoma.h $(am__append_2)
 lib_LTLIBRARIES = libsangoma.la
@@ -376,6 +377,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-libhpsangoma.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-libhpsangoma_priv.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-libsangoma.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-libsangoma_config.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-libsangoma_hwec.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-libsangoma_utils.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libsangoma_la-sangoma_pri.Plo@am__quote@
@@ -414,6 +416,13 @@ libsangoma_la-libsangoma_utils.lo: libsangoma_utils.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='libsangoma_utils.c' object='libsangoma_la-libsangoma_utils.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -c -o libsangoma_la-libsangoma_utils.lo `test -f 'libsangoma_utils.c' || echo '$(srcdir)/'`libsangoma_utils.c
+
+libsangoma_la-libsangoma_config.lo: libsangoma_config.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -MT libsangoma_la-libsangoma_config.lo -MD -MP -MF "$(DEPDIR)/libsangoma_la-libsangoma_config.Tpo" -c -o libsangoma_la-libsangoma_config.lo `test -f 'libsangoma_config.c' || echo '$(srcdir)/'`libsangoma_config.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libsangoma_la-libsangoma_config.Tpo" "$(DEPDIR)/libsangoma_la-libsangoma_config.Plo"; else rm -f "$(DEPDIR)/libsangoma_la-libsangoma_config.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='libsangoma_config.c' object='libsangoma_la-libsangoma_config.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -c -o libsangoma_la-libsangoma_config.lo `test -f 'libsangoma_config.c' || echo '$(srcdir)/'`libsangoma_config.c
 
 libsangoma_la-libsangoma_hwec.lo: libsangoma_hwec.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libsangoma_la_CFLAGS) $(CFLAGS) -MT libsangoma_la-libsangoma_hwec.lo -MD -MP -MF "$(DEPDIR)/libsangoma_la-libsangoma_hwec.Tpo" -c -o libsangoma_la-libsangoma_hwec.lo `test -f 'libsangoma_hwec.c' || echo '$(srcdir)/'`libsangoma_hwec.c; \
@@ -547,7 +556,7 @@ distdir: $(DISTFILES)
 	    || exit 1; \
 	  fi; \
 	done
-	-find $(distdir) -type d ! -perm -777 -exec chmod a+rwx {} \; -o \
+	-find $(distdir) -type d ! -perm -755 -exec chmod a+rwx,go+rx {} \; -o \
 	  ! -type d ! -perm -444 -links 1 -exec chmod a+r {} \; -o \
 	  ! -type d ! -perm -400 -exec chmod a+r {} \; -o \
 	  ! -type d ! -perm -444 -exec $(SHELL) $(install_sh) -c -m a+r {} {} \; \

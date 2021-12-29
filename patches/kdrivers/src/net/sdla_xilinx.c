@@ -2434,6 +2434,12 @@ static void disable_comm (sdla_t *card)
 
 	wan_spin_unlock_irq(&card->wandev.lock,&flags);
 
+
+	/* Release front end resources only after all interrupts and tasks have been shut down */
+	if (card->wandev.fe_iface.post_unconfig) {
+		card->wandev.fe_iface.post_unconfig(&card->fe);
+	}     
+
 	WP_DELAY(10);
 
 	xilinx_chip_unconfigure(card);

@@ -60,7 +60,14 @@
 #define WP_TDM_MAX_RX_Q_LEN 10
 #define WP_TDM_MAX_TX_Q_LEN 5
 #define WP_TDM_MAX_HDLC_TX_Q_LEN 17
+
+#if defined(__WINDOWS__)
+//davidr: v6.0.31.1
+#define WP_TDM_MAX_EVENT_Q_LEN 50
+#else
 #define WP_TDM_MAX_EVENT_Q_LEN 200
+#endif
+
 #define WP_TDM_MAX_CTRL_EVENT_Q_LEN 2000 /* 500 channels * 40 events (At same time) */
 #define WP_TDM_MAX_RX_FREE_Q_LEN 10
 
@@ -680,11 +687,7 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 		}
 
 		if (WPTDM_CHAN_OP_MODE(tdm_api)) {
-#if 0
-			tdm_api->cfg.hw_mtu_mru		= 8;
-			tdm_api->cfg.usr_period		= 10;
-			tdm_api->cfg.usr_mtu_mru 	= tdm_api->cfg.usr_period*tdm_api->cfg.hw_mtu_mru;
-#endif
+			
 			tdm_api->cfg.rx_queue_sz 	= WP_TDM_MAX_RX_Q_LEN;
 			tdm_api->cfg.tx_queue_sz	= WP_TDM_MAX_TX_Q_LEN;
 			tdm_api->tx_channelized		=1;
@@ -724,8 +727,8 @@ int wanpipe_tdm_api_reg(wanpipe_tdm_api_dev_t *tdm_api)
 	
 	sprintf(tmp_name,"wanpipe%d_if%d",tdm_api->tdm_span,tdm_api->tdm_chan);
 
-	DEBUG_TDMAPI("%s: Configuring TDM API NAME=%s Qlen=%i TS=%i\n",
-			card->devname,tmp_name, tdm_api->cfg.tx_queue_sz, tdm_api->timeslots);
+	DEBUG_TDMAPI("%s: Configuring TDM API NAME=%s Qlen=%i TS=%i MTU=%i\n",
+				 card->devname,tmp_name, tdm_api->cfg.tx_queue_sz, tdm_api->timeslots,tdm_api->mtu_mru);
 
 	/* Initialize Event Callback functions */
 	card->wandev.event_callback.rbsbits		= NULL; /*wp_tdmapi_rbsbits;*/
@@ -870,6 +873,7 @@ tdm_api_reg_error_exit:
 
 	return err;
 }
+
 
 int wanpipe_tdm_api_unreg(wanpipe_tdm_api_dev_t *tdm_api)
 {
@@ -1280,7 +1284,7 @@ static int wp_tdmapi_read_msg(void *obj , netskb_t **skb_ptr, wp_api_hdr_t *hdr,
 	if (count < (int)(wan_skb_len(skb)) ||
 		wan_skb_len(skb) < sizeof(wp_api_hdr_t)){
 
-		DEBUG_ERROR("%s:%d User API Error: User Rx Len=%i < Driver Rx Len=%i (hdr=%i). User API must increase expected rx lenght!\n",
+		DEBUG_ERROR("%s:%d User API Error: User Rx Len=%i < Driver Rx Len=%i (hdr=%i). User API must increase expected rx length!\n",
 			__FUNCTION__,__LINE__,count,wan_skb_len(skb),sizeof(wp_api_hdr_t));
 		wan_skb_free(skb);
 		hdr->wp_api_hdr_operation_status = SANG_STATUS_BUFFER_TOO_SMALL;
@@ -2165,6 +2169,14 @@ static int wanpipe_tdm_api_ioctl_handle_tdm_api_cmd(wanpipe_tdm_api_dev_t *tdm_a
 		}
 		break;
 
+	case WP_API_CMD_GET_HW_EC_PERSIST:
+		if (card->hwec_conf.persist_disable) {
+			usr_tdm_api.hw_ec = WANOPT_NO;
+		} else {
+			usr_tdm_api.hw_ec = WANOPT_YES;
+		}
+		break;
+		
 	case WP_API_CMD_GET_HW_EC_CHAN:
 		if (wan_test_bit(channel, &card->wandev.fe_ec_map)) {
 			usr_tdm_api.hw_ec = WANOPT_YES;
@@ -3258,11 +3270,10 @@ static int rotate_debug[32];
 #endif
 int wanpipe_tdm_api_span_rx_tx(sdla_t *card, wanpipe_tdm_api_span_t *tdm_span, u32 buf_sz, unsigned long mask, int circ_buf_len)
 {
-	int i,tidx;
+	int i,l_ch,tidx;
 	wanpipe_tdm_api_dev_t *tdm_api;
 	unsigned int rx_offset, tx_offset;
 	void *ptr;
-	
 
 	if (!tdm_span || !card) {
 		return -ENODEV;
@@ -3281,6 +3292,8 @@ int wanpipe_tdm_api_span_rx_tx(sdla_t *card, wanpipe_tdm_api_span_t *tdm_span, u
 			} else {
 				tidx=i-1;
 			}
+			
+			l_ch=i-1;
 
 #ifdef AFT_TDM_ROTATE_DEBUG
 			if (1) { 
@@ -3330,11 +3343,7 @@ int wanpipe_tdm_api_span_rx_tx(sdla_t *card, wanpipe_tdm_api_span_t *tdm_span, u
 				continue;
 			}
 
-			if (!wan_test_bit(0,&tdm_api->used)) {
-				/* Always use 'cfg.idle_flag' because it may be it was set by WP_API_CMD_SET_IDLE_FLAG */
-				memset(tdm_api->tx_buf,tdm_api->cfg.idle_flag,tdm_api->tx_buf_len);
-				continue;
-			}
+
 #if 0
 			if (tdm_api->tdm_span == 5 && tdm_api->tdm_chan == 15) {
 				static unsigned char sync=0;
@@ -3352,9 +3361,26 @@ int wanpipe_tdm_api_span_rx_tx(sdla_t *card, wanpipe_tdm_api_span_t *tdm_span, u
 #endif
 
 #if defined(__LINUX__)
+
+			if (card->u.aft.tdm_rx_dma[l_ch]) {			
+				wan_dma_descr_t *dma_descr = card->u.aft.tdm_rx_dma[l_ch]; 
+				card->hw_iface.busdma_sync(card->hw, dma_descr, 1, 1, PCI_DMA_FROMDEVICE);
+			}
+
+			if (card->u.aft.tdm_tx_dma[l_ch]) {
+				wan_dma_descr_t *dma_descr = card->u.aft.tdm_tx_dma[l_ch]; 
+				card->hw_iface.busdma_sync(card->hw, dma_descr, 1, 1, PCI_DMA_TODEVICE);
+			}
+ 
 			prefetch(tdm_api->rx_buf);
 			prefetch(tdm_api->tx_buf);
 #endif
+  
+			if (!wan_test_bit(0,&tdm_api->used)) {
+				/* Always use 'cfg.idle_flag' because it may be it was set by WP_API_CMD_SET_IDLE_FLAG */
+				memset(tdm_api->tx_buf,tdm_api->cfg.idle_flag,tdm_api->tx_buf_len);
+				continue;
+			}
 
 #if 0
 			/* NC: Enable rtp tap for api */
@@ -3390,7 +3416,7 @@ int wanpipe_tdm_api_span_rx_tx(sdla_t *card, wanpipe_tdm_api_span_t *tdm_span, u
 #endif
 		}
 	}
-
+	
 	return 0;
 }
 

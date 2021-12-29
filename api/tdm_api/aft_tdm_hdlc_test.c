@@ -274,7 +274,7 @@ void process_con_rx(void)
 							 &Rx_data[sizeof(wp_tdm_api_rx_hdr_t)],
 							 sizeof(Rx_data), 0);
 
-			//printf("RX DATA HDLC: Len=%i\n",err-sizeof(wp_api_hdr_t));
+		   // printf("RX DATA HDLC: Len=%i err=%i\n",err-sizeof(wp_api_hdr_t),err);
         		//print_packet(&Rx_data[sizeof(wp_api_hdr_t)],err-sizeof(wp_api_hdr_t));
 				/* err indicates bytes received */
 				if(err > 0) {

@@ -91,6 +91,7 @@ typedef int sng_fd_t;
 #endif
 #define WP_API_FEATURE_DRIVER_GAIN  1
 #define WP_API_FEATURE_FE_RW        1
+#define WP_API_FEATURE_HWEC_PERSIST 1
 
 /*!
   \enum WANPIPE_IOCTL_CODE
@@ -274,6 +275,7 @@ enum wanpipe_api_cmds
 	WP_API_CMD_DISABLE_LOOP,		/*!< Disable remote loop */
 	WP_API_CMD_BUFFER_MULTIPLIER,	/*!< Set Buffer Multiplier - for SPAN voice mode only */
 	WP_API_CMD_GET_HW_EC_CHAN,		/*!< Get status of hwec for the current timeslot */
+	WP_API_CMD_GET_HW_EC_PERSIST,	/*!< Check if hwec persist mode is on or off */
 
 	/* Add only debugging commands here */
     WP_API_CMD_GEN_FIFO_ERR_TX=500,

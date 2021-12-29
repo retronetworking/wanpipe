@@ -415,7 +415,10 @@ int aft_alloc_rx_dma_buff(sdla_t *card, private_area_t *chan, int num, int irq)
 		}
 #else
 		if (chan->channelized_cfg && !chan->hdlc_eng){
-#if (!defined(WANPIPE_64BIT_2G_DMA) && (defined(WANPIPE_64BIT_4G_DMA) || defined(CONFIG_X86_64)))
+#if 0
+/* NC: This is not used any more since we fixed the dma syncing 
+   related to 64bit machines. This code to be taken out. */
+//(!defined(WANPIPE_64BIT_2G_DMA) && (defined(WANPIPE_64BIT_4G_DMA) || defined(CONFIG_X86_64)))
 			/* On 64bit Systems greater than 4GB we must
 			 * allocated our DMA buffers using GFP_DMA 
 			 * flag */
@@ -698,9 +701,13 @@ int aft_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 
 	memset(api_cmd, 0, sizeof(wan_cmd_api_t));	
 
+#if defined (__WINDOWS__)
+	memcpy(api_cmd, ifr_data_ptr, sizeof(wan_cmd_api_t));
+#else
 	if(WAN_COPY_FROM_USER(api_cmd, ifr_data_ptr, sizeof(wan_cmd_api_t))){
 		return -EFAULT;
 	}
+#endif
 
 	switch(api_cmd->cmd){
 	case SIOC_WAN_READ_REG:
@@ -771,9 +778,14 @@ int aft_devel_ioctl(sdla_t *card, struct ifreq *ifr)
 
 	api_cmd->ret = err;
 
+#if defined (__WINDOWS__)
+	memcpy(ifr_data_ptr, api_cmd, sizeof(wan_cmd_api_t));
+#else
 	if (WAN_COPY_TO_USER(ifr_data_ptr, api_cmd, sizeof(wan_cmd_api_t))){
 		return -EFAULT;
 	}
+#endif
+
 	return err;
 }
 
@@ -3440,6 +3452,42 @@ int aft_hdlc_repeat_mangle(sdla_t *card,private_area_t *chan, netskb_t *skb, wp_
 
 	buf=wan_skb_put(*rskb,tx_hdr->wp_api_tx_hdr_hdlc_rpt_len);
 	memcpy(buf,tx_hdr->wp_api_tx_hdr_hdlc_rpt_data,tx_hdr->wp_api_tx_hdr_hdlc_rpt_len);
+
+	return 0;
+}
+
+int aft_check_and_disable_dchan_optimization(sdla_t *card, private_area_t *chan, char *usedby)
+{
+	if (strcmp(usedby, "TDM_VOICE") != 0) {
+		if (card->u.aft.tdmv_zaptel_cfg) {
+			goto disable_optimization;
+		}
+	}
+
+#if defined (__LINUX__)
+	/* On windows TDM_VOICE_API is the old legacy API.  On Linux TDM_VOICE_API is equivalent
+	   to TDM_CHAN_VOICE_API */
+	if (strcmp(usedby, "TDM_VOICE_API") != 0 && strcmp(usedby, "TDM_CHAN_VOICE_API") != 0) {
+		if (card->u.aft.tdm_api_cfg) {
+			goto disable_optimization;
+		}
+	}
+#else
+	if (strcmp(usedby, "TDM_CHAN_VOICE_API") != 0) {
+		if (card->u.aft.tdm_api_cfg) {
+			goto disable_optimization;
+		}
+	}
+#endif
+
+	return 0;
+	
+disable_optimization:
+		
+
+	DEBUG_EVENT("%s: Disabling DCHAN OPTIMIZATION !\n",chan->if_name);
+	wan_clear_bit(WP_TDM_API_DCHAN_OPTIMIZATION,&card->u.aft.tdm_api_cfg);
+	wan_clear_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg);
 
 	return 0;
 }

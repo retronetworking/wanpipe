@@ -218,8 +218,8 @@
 #undef SPAN_TIMING_DEBUGGING
 #endif
 
-#define WP_ZAPTEL_ENABLED	     0
-#define WP_ZAPTEL_DCHAN_OPTIMIZATION 1
+
+
 #define WP_RX_TX_FIFO_SANITY 100
 
 
@@ -804,6 +804,9 @@ int wp_aft_bri_init (sdla_t *card, wandev_conf_t* conf)
 #else
 	card->wandev.comm_port=card->fe.fe_cfg.line_no;
 #endif
+
+	/* BRI cards never start with hwec enabled. */
+	card->hwec_conf.persist_disable=1;
 
 	DEBUG_EVENT("%s: BRI CARD Line=%d  Port=%d\n",
 			card->devname, card->wandev.comm_port, card->fe.fe_cfg.line_no);
@@ -1500,6 +1503,18 @@ static int update (wan_device_t* wandev)
 	#warning "COMM STATS DISABLED"
 #endif
 
+#if 0
+	/* Debugginc code used to generate SYNC error */
+	#warning "NENAD DEBUG"
+	{
+		u32 lcfg_reg;
+		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), &lcfg_reg);
+		aft_lcfg_set_fe_sync_cnt(&lcfg_reg,1);
+		__sdla_bus_write_4(card->hw,AFT_PORT_REG(card,AFT_LINE_CFG_REG), lcfg_reg);
+		
+	}
+#endif
+
 	return 0;
 }
 
@@ -2009,15 +2024,11 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 	 *    XMTP2_API		= MTP2 API
 	 *===================================================*/
 
-	/* If we are running zaptel with another mode, we must
-  	 * disable zaptel dchan optimization */	
-	if (strcmp(conf->usedby, "TDM_VOICE") != 0) {
-		if (card->u.aft.tdmv_zaptel_cfg) {
-			DEBUG_EVENT("%s: Disabling ZAPTEL DCHAN OPTIMIZATION !\n",chan->if_name);
-			wan_clear_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg);
-		}
-	}
+	/* If we are running zaptel or tdm chan api with another mode, we must
+  	 * disable dchan optimization */
+	aft_check_and_disable_dchan_optimization(card,chan,conf->usedby);
 
+	
 	if(strcmp(conf->usedby, "WANPIPE") == 0) {
 
 		DEBUG_EVENT( "%s: Running in WANPIPE mode\n",
@@ -2195,7 +2206,7 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 		chan->dma_chain_opmode = WAN_AFT_DMA_CHAIN_SINGLE;
 		chan->max_tx_bufs=MAX_AFT_DMA_CHAINS;
 
-		/* Eanble Zaptel Optimization */
+		/* Enable Zaptel Optimization */
 		wan_set_bit(WP_ZAPTEL_ENABLED,&card->u.aft.tdmv_zaptel_cfg);		
 		wan_set_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg);
 
@@ -2290,14 +2301,26 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 		}
 #endif
 
+		if (chan->wp_api_iface_mode != WP_TDM_API_MODE_LEGACY_WIN_API) {
+			wan_set_bit(WP_TDM_CHAN_API_ENABLED,&card->u.aft.tdm_api_cfg);
+			wan_set_bit(WP_TDM_API_DCHAN_OPTIMIZATION,&card->u.aft.tdm_api_cfg);
+		}
+
 		chan->wp_api_op_mode=WP_TDM_OPMODE_CHAN;
 
-		if (dchan >= 0){
+		if (dchan >= 0) {
 		       	chan->common.usedby = TDM_VOICE_DCHAN;
 				chan->usedby_cfg = chan->common.usedby;
 		        chan->cfg.data_mux=0;
 		       	chan->dma_chain_opmode = WAN_AFT_DMA_CHAIN;
 		       	conf->hdlc_streaming=1;
+				card->u.aft.tdm_api_dchan_cfg++;
+
+				if (card->u.aft.tdm_api_dchan_cfg > 1) {
+					DEBUG_EVENT("%s: TDM API DCHAN Optimization disabled - multiple dchans!\n",
+								card->devname);
+					wan_clear_bit(WP_TDM_API_DCHAN_OPTIMIZATION,&card->u.aft.tdm_api_cfg);
+				}
 		}
 
 		if (!silent) {
@@ -2539,11 +2562,6 @@ static int new_if_private (wan_device_t* wandev, netdevice_t* dev, wanif_conf_t*
 		chan->cfg.hdlc_repeat=0;
 
 	}else{
-
-		/* In case hdlc repeat is on, make sure we disable dma chain */
-		if (chan->cfg.hdlc_repeat) {
-			chan->dma_chain_opmode = WAN_AFT_DMA_CHAIN_SINGLE;
-		}
 
 		/* If hardware HDLC engine is enabled:
 		 *  1. Force Disable DATA MUX option
@@ -3711,30 +3729,27 @@ static int if_init (netdevice_t* dev)
 	WAN_NETDEV_OPS_XMIT(dev,wan_netdev_ops,&if_send);
 #endif
 	WAN_NETDEV_OPS_STATS(dev,wan_netdev_ops,&if_stats);
-#if 0
-	dev->tx_timeout		= &if_tx_timeout;
-	dev->watchdog_timeo	= 2*HZ;
-#else
+	
 	if (chan->common.usedby == TDM_VOICE ||
 	    chan->common.usedby == TDM_VOICE_API){
-	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,NULL);
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,NULL);
+		dev->watchdog_timeo	= 2*HZ;
 	}else{
-	WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
-	}
+		WAN_NETDEV_OPS_TIMEOUT(dev,wan_netdev_ops,&if_tx_timeout);
 
-	dev->watchdog_timeo	= 2*HZ;
-	{
-		u32 secs = ((chan->max_tx_bufs/2)*chan->dma_mru*8) / (64000 * chan->num_of_time_slots);
-		secs+=2;
-		if (secs < 2) {
-			secs=2;
+		dev->watchdog_timeo	= 2*HZ;
+		{
+			u32 secs = ((chan->max_tx_bufs/2)*chan->dma_mru*8) / (64000 * chan->num_of_time_slots);
+			secs+=2;
+			if (secs < 2) {
+				secs=2;
+			}
+			dev->watchdog_timeo	= secs*HZ;
+
+			DEBUG_EVENT("%s: Dev watch dog = %i mtu=%i\n", card->devname, secs,chan->dma_mru);
 		}
-		dev->watchdog_timeo	= secs*HZ;
-
-		DEBUG_TEST("%s: Dev watch dog = %i mtu=%i\n", card->devname, secs,chan->dma_mru);
 	}
 
-#endif
 	WAN_NETDEV_OPS_IOCTL(dev,wan_netdev_ops,&if_do_ioctl);
 	WAN_NETDEV_OPS_MTU(dev,wan_netdev_ops,if_change_mtu);
 
@@ -4362,12 +4377,16 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 	if (card) {
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
       		if (card->wan_tdmv.sc &&
-			wan_test_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg) &&
-		    card->wandev.state == WAN_CONNECTED &&
-		    card->wandev.config_id != WANCONFIG_AFT_ANALOG &&
-		    chan->common.usedby == TDM_VOICE) {
+				card->u.aft.global_tdm_irq &&
+		    	card->wandev.state == WAN_CONNECTED &&
+		    	card->wandev.config_id != WANCONFIG_AFT_ANALOG &&
+		    	chan->common.usedby == TDM_VOICE) {
+
 				chan->common.if_stats.rx_packets = card->wandev.stats.rx_packets;
 				chan->common.if_stats.tx_packets = card->wandev.stats.tx_packets;
+				//chan->common.if_stats.rx_bytes	 = card->wandev.stats.rx_bytes;
+				//chan->common.if_stats.tx_bytes	 = card->wandev.stats.tx_bytes;
+
 			} else 
 #endif
 			if (card->tdm_api_span &&
@@ -4375,6 +4394,8 @@ static struct net_device_stats* if_stats (netdevice_t* dev)
 				!IS_B601_TE1_CARD(card)) {
 				chan->common.if_stats.rx_packets = card->wandev.stats.rx_packets;
 				chan->common.if_stats.tx_packets = card->wandev.stats.tx_packets;
+				//chan->common.if_stats.rx_bytes	 = card->wandev.stats.rx_bytes;
+				//chan->common.if_stats.tx_bytes	 = card->wandev.stats.tx_bytes;
 			}
 	}
 #endif
@@ -4975,11 +4996,15 @@ static void aft_dma_tx_complete (sdla_t *card, private_area_t *chan, int wdt, in
 		   what to do */
 
 
-		DEBUG_TEST("%s: STACK STOPPED Pending=%d Max=%d Max/2=%d\n",
+		DEBUG_TEST("%s: STACK STOPPED Pending=%d Max=%d Max/2=%d wdt=%i\n",
+				chan->if_name,wan_skb_queue_len(&chan->wp_tx_pending_list),
+				chan->max_tx_bufs,chan->max_tx_bufs/2,wdt);
+/* should we check chan->max_tx_bufs/2 only for hdlc??	and always wake for voice? */
+		if (wan_skb_queue_len(&chan->wp_tx_pending_list) <= (chan->max_tx_bufs/2)) {
+			DEBUG_TEST("%s: STACK Waking Pending=%d Max=%d Max/2=%d\n",
 				chan->if_name,wan_skb_queue_len(&chan->wp_tx_pending_list),
 				chan->max_tx_bufs,chan->max_tx_bufs/2);
-		
-		if (wan_skb_queue_len(&chan->wp_tx_pending_list) <= (chan->max_tx_bufs/2)) {
+
 			wanpipe_wake_stack(chan);
 		}
 	}
@@ -6835,7 +6860,7 @@ if (1){
 			void **card_list;
 			wan_smp_flag_t flags=0;
 			u32 i;
-
+			
 			WAN_IRQ_RETVAL_SET(irq_ret, WAN_IRQ_HANDLED);
 
 #if 0
@@ -6918,9 +6943,14 @@ if (1){
 
 					if (ring_rsync) {
 						aft_tdm_ring_rsync(tmp_card);
+						/* Restart all hdlc devices after resync because tx buffers might have
+						   been corrupted */
+						__wp_aft_fifo_per_port_isr(tmp_card,0xFFFFFFFF,0xFFFFFFFF);
 					}
-
+					
 				}
+
+
 
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 				if ((tmp_card->wan_tdmv.sc || tmp_card->tdm_api_span) &&
@@ -6935,11 +6965,12 @@ if (1){
 				if (tmp_card->tdm_api_span &&
 					!tmp_card->wandev.rtp_len &&
 					tmp_card->wandev.config_id != WANCONFIG_AFT_ANALOG) {
-	
+					
 					aft_voice_span_rx_tx(tmp_card,
 									ring_buf_enabled);
 
 				} else {
+					
 					wp_aft_tdmv_per_port_isr(tmp_card);
 				}
 
@@ -7005,6 +7036,8 @@ if (1){
 
 	} else {
 
+		
+		
 		if (wan_test_bit(AFT_LCFG_TDMV_INTR_BIT,&card->u.aft.lcfg_reg) &&
 			wan_test_bit(card->wandev.comm_port,&tdmv_port_intr)){
 
@@ -7389,8 +7422,11 @@ static void wp_aft_dma_per_port_isr(sdla_t *card, int tdm)
 {
 	int i;
 	u32 dma_tx_reg=0,dma_rx_reg=0;
+
+#if 0
 #if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
 	private_area_t *chan;
+#endif
 #endif
 
 
@@ -7417,14 +7453,15 @@ static void wp_aft_dma_per_port_isr(sdla_t *card, int tdm)
       	* 3. Error conditions.
       	* --------------------------------------------------*/
 
-        /* Zaptel optimization. Dont waist time looking at
+        /* DCHAN optimization. Dont waist time looking at
 	   channels, when we know that only a single DCHAN
 	   will use this code */
-#if defined(CONFIG_PRODUCT_WANPIPE_TDM_VOICE)
-	if (card->wan_tdmv.sc &&
+
+#if 0
+	if (wan_test_bit(WP_TDM_API_DCHAN_OPTIMIZATION,&card->u.aft.tdm_api_cfg) ||
 		wan_test_bit(WP_ZAPTEL_DCHAN_OPTIMIZATION,&card->u.aft.tdmv_zaptel_cfg)) {
 		__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_RX_DMA_INTR_PENDING_REG),&dma_rx_reg);
-	    	__sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_TX_DMA_INTR_PENDING_REG),&dma_tx_reg);
+	    __sdla_bus_read_4(card->hw,AFT_PORT_REG(card,AFT_TX_DMA_INTR_PENDING_REG),&dma_tx_reg);
 	   	if (card->u.aft.tdmv_dchan) {
 			chan=(private_area_t*)card->u.aft.dev_to_ch_map[card->u.aft.tdmv_dchan-1];
 	   		if (chan && wan_test_bit(WP_DEV_CONFIG,&chan->up)) {
@@ -8548,6 +8585,7 @@ void aft_tx_fifo_under_recover (sdla_t *card, private_area_t *chan)
 
 	/* If running in mixed mode DATA + Voice do not disable DMA */
 	if (chan->hdlc_eng && card->u.aft.global_tdm_irq) {
+   		aft_init_tx_dev_fifo(card,chan,WP_WAIT);
 		aft_dma_tx_complete(card,chan,0, 1);
 		aft_free_tx_descriptors(chan);
 		aft_dma_tx(card,chan);
@@ -9232,9 +9270,16 @@ static int aft_dma_voice_tx(sdla_t *card, private_area_t *chan)
 
 	dma_chain = &chan->tx_dma_chain_table[0];
 
+	/* Save the DMA descriptor into cards structure
+	   so it can be used in the optimized dahid/tdmapi rx
+	   routine.  Used to sync up the dma before being used.
+	   We can do this blidnly because this function only
+	   runs once on dma start. */
+	card->u.aft.tdm_tx_dma[chan->logic_ch_num]=dma_chain;
+
 	DEBUG_DMA("%s: %s:%s:: Chain %d  Used %ld\n",
 			__FUNCTION__,card->devname,chan->if_name,
-			dma_chain->index,dma_chain->init);
+			dma_chain->index,dma_chain->init,chan->logic_ch_num);
 
 	/* If the current DMA chain is in use,then
 	 * all chains are busy */
@@ -9706,6 +9751,13 @@ static int aft_dma_voice_rx(sdla_t *card, private_area_t *chan)
 	}
 
 	dma_chain = &chan->rx_dma_chain_table[0];
+
+	/* Save the DMA descriptor into cards structure
+	   so it can be used in the optimized dahid/tdmapi rx
+	   routine.  Used to sync up the dma before being used.
+	   We can do this blidnly because this function only
+	   runs once on dma start. */
+	card->u.aft.tdm_rx_dma[chan->logic_ch_num]=dma_chain;
 
 	DEBUG_DMA("%s: %s:%s: Chain %d  Used %ld\n",
 			__FUNCTION__,card->devname,chan->if_name,
@@ -11285,7 +11337,7 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 
 	rxbuf = (unsigned char*)rx_dma_chain->dma_virt+rx_offset;
 	txbuf =	(unsigned char*)tx_dma_chain->dma_virt+tx_offset;
-
+	
 	if (wan_test_bit(AFT_TDM_RING_BUF,&card->u.aft.chip_cfg_status)) {
 
 		rx_offset= AFT_TDMV_CIRC_BUF * card->u.aft.tdm_rx_dma_toggle[chan->first_time_slot];
@@ -11319,6 +11371,19 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 
 	}
 
+	card->hw_iface.busdma_sync(
+			card->hw,
+			&chan->tx_dma_chain_table[0],
+			MAX_AFT_DMA_CHAINS,
+			(chan->dma_chain_opmode == WAN_AFT_DMA_CHAIN_SINGLE),
+			SDLA_DMA_PREWRITE);
+	
+	card->hw_iface.busdma_sync(
+			card->hw,
+			&chan->rx_dma_chain_table[0],
+			MAX_AFT_DMA_CHAINS,
+			(chan->dma_chain_opmode == WAN_AFT_DMA_CHAIN_SINGLE),
+			SDLA_DMA_PREREAD);
 
 	err=0;
 
@@ -11345,48 +11410,6 @@ static int aft_dma_rx_tdmv(sdla_t *card, private_area_t *chan)
 	if (chan->tdmv_zaptel_cfg){
 #ifdef CONFIG_PRODUCT_WANPIPE_TDM_VOICE
 		if (card->wan_tdmv.sc){
-
-#if 0
-defined(AFT_TDMV_BH_ENABLE)
-			wan_dma_descr_t *tx_bh_dma_chain = &chan->tx_dma_chain_table[1];
-			wan_dma_descr_t *rx_bh_dma_chain = &chan->rx_dma_chain_table[1];
-
-			if (!rx_bh_dma_chain->skb){
-				rx_bh_dma_chain->skb=wan_skb_dequeue(&chan->wp_rx_free_list);
-				if (!rx_bh_dma_chain->skb){
-					if (WAN_NET_RATELIMIT()){
-						DEBUG_ERROR("%s: Critical TDM BH no free skb\n",
-							chan->if_name);
-						goto aft_tdm_bh_skip;
-					}
-				}
-				wan_skb_init(rx_bh_dma_chain->skb,sizeof(wp_api_hdr_t));
-				wan_skb_trim(rx_bh_dma_chain->skb,0);
-			}
-
-			if (!tx_bh_dma_chain->skb){
-				tx_bh_dma_chain->skb=wan_skb_dequeue(&chan->wp_rx_free_list);
-				if (!tx_bh_dma_chain->skb){
-					if (WAN_NET_RATELIMIT()){
-						DEBUG_ERROR("%s: Critical TDM BH no free skb\n",
-							chan->if_name);
-						goto aft_tdm_bh_skip;
-					}
-				}
-				wan_skb_init(tx_bh_dma_chain->skb,sizeof(wp_api_hdr_t));
-				wan_skb_trim(tx_bh_dma_chain->skb,0);
-			}
-
-			memcpy(wan_skb_data(rx_bh_dma_chain->skb),
-			       wan_skb_data(rx_dma_chain->skb),8);
-
-			memcpy(wan_skb_data(tx_dma_chain->skb),
-		       		wan_skb_data(tx_bh_dma_chain->skb),8);
-
-			rx_dma_chain=rx_bh_dma_chain;
-			tx_dma_chain=tx_bh_dma_chain;
-aft_tdm_bh_skip:
-#endif
 
 			DEBUG_TEST ("%s: Calling Rx Chan=%d TdmvChan=%d\n",
 					card->devname,chan->logic_ch_num,
@@ -11458,8 +11481,6 @@ aft_tdm_bh_skip:
 #endif
 		}
 
-
-
 		wanpipe_tdm_api_rx_tx(chan->wp_tdm_api_dev,
 			    rxbuf,
 			    txbuf,
@@ -11489,26 +11510,7 @@ aft_tdm_bh_skip:
 		if (chan->tdmv_zaptel_cfg){
 			DEBUG_TEST ("%s: Calling Master Rx Tx Chan=%d\n",
 					card->devname,chan->logic_ch_num);
-#if 0
-defined(AFT_TDMV_BH_ENABLE)
-#warning "AFT A104: TDM Driver compiled in BH mode!"
 
-			if (WAN_TASKLET_RUNNING((&chan->common.bh_task))){
-				if (WAN_NET_RATELIMIT()){
-					DEBUG_ERROR("%s: Critical Error: TDMV BH Overrun!\n",
-						card->devname);
-				}
-			}
-
-			WAN_WP_TASKLET_SCHEDULE_PER_CPU((&chan->common.bh_task),
-							card->tdmv_conf.span_no);
-
-			card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);
-			wan_set_bit(AFT_DMACTRL_TDMV_RX_TOGGLE,&reg);
-			wan_set_bit(AFT_DMACTRL_TDMV_TX_TOGGLE,&reg);
-			card->hw_iface.bus_write_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),reg);
-
-#else
 
 			if (wan_test_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status)) {
 				if (!wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
@@ -11519,7 +11521,7 @@ defined(AFT_TDMV_BH_ENABLE)
 				}
 			}
 
-#if 1
+
 			card->hw_iface.busdma_sync(
 						card->hw,
 						&chan->tx_dma_chain_table[0],
@@ -11527,7 +11529,9 @@ defined(AFT_TDMV_BH_ENABLE)
 						(chan->dma_chain_opmode == WAN_AFT_DMA_CHAIN_SINGLE),
 						SDLA_DMA_POSTREAD);
 
+
 			WAN_TDMV_CALL(rx_tx_span, (card), err);
+	
 
 			card->hw_iface.busdma_sync(
 						card->hw,
@@ -11542,9 +11546,6 @@ defined(AFT_TDMV_BH_ENABLE)
 						(chan->dma_chain_opmode == WAN_AFT_DMA_CHAIN_SINGLE),
 						SDLA_DMA_PREREAD);
 
-#else
-#warning "NCDEBUG: rx_tx_span disabled irq"
-#endif
 
 			if (!wan_test_bit(AFT_TDM_SW_RING_BUF,&card->u.aft.chip_cfg_status) &&
          		    !wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
@@ -11563,7 +11564,7 @@ defined(AFT_TDMV_BH_ENABLE)
 					}
 				}
 			}
-#endif
+
 		}else{
 #else
 		if (!chan->tdmv_zaptel_cfg){
@@ -11575,7 +11576,6 @@ defined(AFT_TDMV_BH_ENABLE)
 				err = sdla_tdmv_dummy_tick(card->sdla_tdmv_dummy);
 			}
 #endif
-
 
 			if (!wan_test_bit(AFT_TDM_GLOBAL_ISR,&card->u.aft.chip_cfg_status)) {
 				card->hw_iface.bus_read_4(card->hw,AFT_PORT_REG(card,AFT_DMA_CTRL_REG),&reg);

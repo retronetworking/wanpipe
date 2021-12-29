@@ -36,7 +36,7 @@
 #ifdef WAN_KERNEL
 
 #define WP_TDM_API_MAX_LEN 	4096+sizeof(wp_api_hdr_t)
-#define WP_TDM_API_EVENT_MAX_LEN sizeof(wanpipe_tdm_api_dev_t)+sizeof(wp_api_hdr_t)
+#define WP_TDM_API_EVENT_MAX_LEN sizeof(wp_api_event_t)+sizeof(wp_api_hdr_t)
 
 #define WP_TDM_API_CHUNK_SZ 	8
 #define WP_RM_RXFLASHTIME		0 /* Default disable flash */

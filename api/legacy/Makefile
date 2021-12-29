@@ -4,17 +4,21 @@
 # Copyright (c) 1995-2000 Sangoma Technologies Inc.  All Rights Reserved.
 # ============================================================================
 
-APIINC=/usr/include/wanpipe
+# Wanpipe Include Directory ( can be changed using --builddir= on ./Setup or make WANINCDIR= )
+ifndef WANINCDIR
+	WANINCDIR=/usr/include/wanpipe
+endif
+
 
 ####### RULES ################################################################
 
 all:	
-	make -C x25 all  APIINC=$(APIINC)
-	make -C chdlc all  APIINC=$(APIINC)
-	make -C fr all  APIINC=$(APIINC)
-	make -C bitstrm all APIINC=$(APIINC)
-	make -C bisync all APIINC=$(APIINC)
-	make -C aft all APIINC=$(APIINC)
+	make -C x25 all  WANINCDIR=$(WANINCDIR)
+	make -C chdlc all  WANINCDIR=$(WANINCDIR)
+	make -C fr all  WANINCDIR=$(WANINCDIR)
+	make -C bitstrm all WANINCDIR=$(WANINCDIR)
+	make -C bisync all WANINCDIR=$(WANINCDIR)
+	make -C aft all WANINCDIR=$(WANINCDIR)
 
 clean:
 	make -C x25 clean 

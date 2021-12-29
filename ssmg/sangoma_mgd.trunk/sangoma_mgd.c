@@ -9,6 +9,12 @@
  * 
  * =============================================
  *
+ * v1.72 Nenad Corbic <ncorbic@sangoma.com>
+ * Sep 22 2010
+ * Bug fix from 1.71, for BRI mode we must use the ec chip
+ * check not ec channel check since BRI mode starts in non persist
+ * state.
+ *
  * v1.71 Nenad Corbic <ncorbic@sangoma.com>
  * Jun 21 2010
  * Added a hwec_chan_status check instead of hwec check.
@@ -384,7 +390,7 @@ pthread_mutex_t g_smg_ip_bridge_lock;
 #endif
 
 
-#define SMG_VERSION	"v1.71"
+#define SMG_VERSION	"v1.72"
 
 /* enable early media */
 #if 1
@@ -436,7 +442,7 @@ static int drop_seq=0;
 
 const char WELCOME_TEXT[] =
 "================================================================================\n"
-"Sangoma Media Gateway Daemon v1.71 \n"
+"Sangoma Media Gateway Daemon v1.72 \n"
 "\n"
 "TDM Signal Media Gateway for Sangoma/Wanpipe Cards\n"
 "Copyright 2005, 2006, 2007 \n"
@@ -1475,6 +1481,8 @@ retry_loop:
 
 #ifdef LIBSANGOMA_VERSION
 #ifdef WP_API_FEATURE_EC_CHAN_STAT  
+		/* Since we are in loop mode we want to make sure that hwec is disabled
+		   before we start doing the loop test. */
 		ms->has_hwec = sangoma_tdm_get_hwec_chan_status(ms->sangoma_sock, &tdm_api);
 #else		
 		ms->has_hwec = sangoma_tdm_get_hw_ec(ms->sangoma_sock, &tdm_api);
@@ -1729,8 +1737,17 @@ media_retry:
 
 #ifdef LIBSANGOMA_VERSION
 #ifdef WP_API_FEATURE_EC_CHAN_STAT  
-			ms->has_hwec = sangoma_tdm_get_hwec_chan_status(ms->sangoma_sock, &tdm_api);
-#else		
+			/* check if hwec is available */
+			if (tdmv_hwec_persist) {
+				/* For T1/E1 we run with ec on. If ec is off then it was meant to be off
+				   thus use this as indication of whether hwec is on or off */
+				ms->has_hwec = sangoma_tdm_get_hwec_chan_status(ms->sangoma_sock, &tdm_api);
+			} else {
+				/* On BRI we run with ec off by default. Therefore we must check
+				   for ec chip being enabled not the channel */
+				ms->has_hwec = sangoma_tdm_get_hw_ec(ms->sangoma_sock, &tdm_api);
+			}
+#else
 			ms->has_hwec = sangoma_tdm_get_hw_ec(ms->sangoma_sock, &tdm_api);
 #endif
 			if (ms->has_hwec < 0) {

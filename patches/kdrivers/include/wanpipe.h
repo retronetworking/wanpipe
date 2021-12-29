@@ -656,12 +656,16 @@ typedef struct
 	sdla_mem_handle_t	bar_virt;
 	unsigned char	tdm_rx_dma_toggle[32];
 	unsigned char	tdm_tx_dma_toggle[32];
+	wan_dma_descr_t	*tdm_tx_dma[32];
+	wan_dma_descr_t	*tdm_rx_dma[32];
 	unsigned int	tdm_logic_ch_map;
 
 	wan_ticks_t	sec_chk_cnt;
 	wan_skb_queue_t	rtp_tap_list;
 	unsigned int	serial_status;
 	unsigned char	global_tdm_irq;
+	unsigned int	tdm_api_cfg;
+	unsigned int	tdm_api_dchan_cfg;
 
 } sdla_xilinx_t;
 

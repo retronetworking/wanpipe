@@ -13,7 +13,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <linux/wanrouter.h>	
+#include <linux/wanpipe_wanrouter.h>	
 
 
 #define WANCONFIG_SOCKET "/etc/wanpipe/wanconfig_socket"
