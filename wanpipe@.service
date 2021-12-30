@@ -1,0 +1,10 @@
+[Unit]
+Description=Sangoma Wanpipe Span %i
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/wanconfig -f /etc/wanpipe/wanpipe%i.conf
+
+[Install]
+WantedBy=multi-user.target
