@@ -1,0 +1,25 @@
+# Makefile for building a "lean" version of the sangoma wanpipe drivers for use with DAHDI
+# on a Debian GNU/Linux 11 (bullseye) system
+#
+# Author: Harald Welte <laforge@osmocom.org>
+
+# Path to your (already built) DAHDI installation
+DAHDI_DIR:=$(HOME)/dahdi-linux
+
+
+KBUILD_EXTRA_SYMBOLS:=$(DAHDI_DIR)/drivers/dahdi/Module.symvers
+KVER:=$(shell uname -r)
+KMOD:=/lib/modules/$(KVER)
+NPROC:=$(shell nproc)
+
+all: build
+
+build:
+	$(MAKE) -j $(NPROC) -C util/libsangoma
+	$(MAKE) -j $(NPROC) -C util/wanconfig
+	$(MAKE) -j $(NPROC) -f Makefile all_kmod_dahdi DAHDI_DIR=$(DAHDI_DIR) KBUILD_EXTRA_SYMBOLS=$(KBUILD_EXTRA_SYMBOLS)
+
+install:
+	$(MAKE) -C util/libsangoma install
+	$(MAKE) -C util/wanconfig install
+	$(MAKE) -f Makefile install_kmod KINSTDIR=$(KMOD)/wanpipe
